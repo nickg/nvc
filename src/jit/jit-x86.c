@@ -179,6 +179,8 @@ typedef enum {
 #define CWD() __(0x66, 0x99)
 #define CWDE() __(0x98)
 #define CDQE() __(0x48, 0x98)
+#define STD() __(0xfd)
+#define CLD() __(0xfc)
 #define PUSH(src) asm_push(blob, (src))
 #define POP(dst) asm_pop(blob, (dst))
 #define ADD(dst, src, size) asm_add(blob, (dst), (src), (size))
@@ -236,21 +238,76 @@ typedef enum {
 #define CVTSD2SI(dst, src, size) asm_cvtsd2si(blob, (dst), (src), (size))
 #define CVTSI2SD(dst, src, size) asm_cvtsi2sd(blob, (dst), (src), (size))
 #define ROUNDSD(dst, src, mode) asm_roundsd(blob, (dst), (src), (mode))
-
-#define __MODRM(m, r, rm) (((m & 3) << 6) | (((r) & 7) << 3) | (rm & 7))
-#define __REX(size, xr, xsib, xrm) \
-   __(0x40 | ((size) << 3) | ((xr) << 2) | ((xsib) << 1) | (xrm))
-#define __SIB(s, i, b) ((((s) & 3) << 6) | (((i) & 7) << 3) | ((b) & 7))
-
-#define __IMM64(x) __IMM32(x), __IMM32((x) >> 32)
-#define __IMM32(x) __IMM16(x), __IMM16((x) >> 16)
-#define __IMM16(x) (x) & 0xff, ((x) >> 8) & 0xff
+#define REPSTOS(size) asm_repstos(blob, (size))
+#define REPMOVS(size) asm_repmovs(blob, (size))
 
 #define is_imm8(x) ((x) >= INT8_MIN && (x) <= INT8_MAX)
 #define is_imm16(x) ((x) >= INT16_MIN && (x) <= INT16_MAX)
 #define is_imm32(x) ((x) >= INT32_MIN && (x) <= INT32_MAX)
 
-static void asm_rex(code_blob_t *blob, x86_size_t size, x86_reg_t modrm_reg,
+typedef struct {
+   uint8_t len;
+   uint8_t bytes[15];
+} x86_insn_t;
+
+__attribute__((always_inline))
+static inline void x86_prefix(x86_insn_t *insn, uint8_t b0)
+{
+   insn->bytes[insn->len++] = b0;
+}
+
+__attribute__((always_inline))
+static inline void x86_opcode(x86_insn_t *insn, uint8_t b0)
+{
+   insn->bytes[insn->len++] = b0;
+}
+
+__attribute__((always_inline))
+static inline void x86_opcode_2(x86_insn_t *insn, uint8_t b0, uint8_t b1)
+{
+   insn->bytes[insn->len++] = b0;
+   insn->bytes[insn->len++] = b1;
+}
+
+__attribute__((always_inline))
+static inline void x86_opcode_3(x86_insn_t *insn, uint8_t b0, uint8_t b1,
+                                uint8_t b2)
+{
+   insn->bytes[insn->len++] = b0;
+   insn->bytes[insn->len++] = b1;
+   insn->bytes[insn->len++] = b2;
+}
+
+__attribute__((always_inline))
+static inline void x86_imm32(x86_insn_t *insn, int64_t imm)
+{
+   assert(is_imm32(imm));
+   insn->bytes[insn->len++] = imm & 0xff;
+   insn->bytes[insn->len++] = (imm >> 8) & 0xff;
+   insn->bytes[insn->len++] = (imm >> 16) & 0xff;
+   insn->bytes[insn->len++] = (imm >> 24) & 0xff;
+}
+
+static inline void x86_imm64(x86_insn_t *insn, int64_t imm)
+{
+   insn->bytes[insn->len++] = imm & 0xff;
+   insn->bytes[insn->len++] = (imm >> 8) & 0xff;
+   insn->bytes[insn->len++] = (imm >> 16) & 0xff;
+   insn->bytes[insn->len++] = (imm >> 24) & 0xff;
+   insn->bytes[insn->len++] = (imm >> 32) & 0xff;
+   insn->bytes[insn->len++] = (imm >> 40) & 0xff;
+   insn->bytes[insn->len++] = (imm >> 48) & 0xff;
+   insn->bytes[insn->len++] = (imm >> 56) & 0xff;
+}
+
+__attribute__((always_inline))
+static inline void x86_imm8(x86_insn_t *insn, int64_t imm)
+{
+   assert(is_imm8(imm));
+   insn->bytes[insn->len++] = imm & 0xff;
+}
+
+static void x86_rex(x86_insn_t *insn, x86_size_t size, x86_reg_t modrm_reg,
                     x86_reg_t modrm_rm, x86_reg_t modrm_sib)
 {
    const bool want_prefix =
@@ -261,46 +318,92 @@ static void asm_rex(code_blob_t *blob, x86_size_t size, x86_reg_t modrm_reg,
       // Byte operation on SPL, BPL, SIL, DIL
       (size == __BYTE && ((modrm_rm & 7) >= 4 || ((modrm_reg & 7) >= 4)));
 
-   if (want_prefix)
-      __REX(size > __DWORD, !!(modrm_reg & 0x10), !!(modrm_sib & 0x10),
-            !!(modrm_rm & 0x10));
+   if (want_prefix) {
+      const int xsz = size > __DWORD;
+      const int xr = !!(modrm_reg & 0x10);
+      const int xsib = !!(modrm_sib & 0x10);
+      const int xrm = !!(modrm_rm & 0x10);
+      x86_prefix(insn, 0x40 | (xsz << 3) | (xr << 2) | (xsib << 1) | xrm);
+   }
+}
+
+static inline void x86_modrm(x86_insn_t *insn, int m, int r, int rm)
+{
+   insn->bytes[insn->len++] = ((m & 3) << 6) | ((r & 7) << 3) | (rm & 7);
+}
+
+static inline void x86_sib(x86_insn_t *insn, int s, int i, int b)
+{
+   insn->bytes[insn->len++] = ((s & 3) << 6) | ((i & 7) << 3) | (b & 7);
+}
+
+static inline void x86_override(x86_insn_t *insn, bool cond)
+{
+   if (cond)
+      x86_prefix(insn, 0x66);
+}
+
+static inline void x86_emit(code_blob_t *blob, const x86_insn_t *insn)
+{
+   assert(insn->len <= sizeof(insn->bytes));
+   code_blob_emit(blob, insn->bytes, insn->len);
 }
 
 static void asm_xor(code_blob_t *blob, x86_operand_t dst, x86_operand_t src,
                     x86_size_t size)
 {
+   x86_insn_t insn = {};
+
    assert(COMBINE(dst, src) == REG_REG);
-   asm_rex(blob, size, dst.reg, src.reg, 0);
-   __(0x33, __MODRM(3, dst.reg, src.reg));
+   x86_rex(&insn, size, dst.reg, src.reg, 0);
+   x86_opcode(&insn, 0x33);
+   x86_modrm(&insn, 3, dst.reg, src.reg);
+
+   x86_emit(blob, &insn);
 }
 
 static void asm_neg(code_blob_t *blob, x86_operand_t dst, x86_size_t size)
 {
+   x86_insn_t insn = {};
+
    assert(dst.kind == X86_REG);
-   asm_rex(blob, size, 0, dst.reg, 0);
-   __(0xf7, __MODRM(3, 3, dst.reg));
+   x86_rex(&insn, size, 0, dst.reg, 0);
+   x86_opcode(&insn, 0xf7);
+   x86_modrm(&insn, 3, 3, dst.reg);
+
+   x86_emit(blob, &insn);
 }
 
 static void asm_lea(code_blob_t *blob, x86_operand_t dst, x86_operand_t src)
 {
+   x86_insn_t insn = {};
+
    switch (COMBINE(dst, src)) {
    case REG_MEM:
-      asm_rex(blob, __QWORD, dst.reg, src.addr.reg, 0);
-      if (is_imm8(src.addr.off))
-         __(0x8d, __MODRM(1, dst.reg, src.addr.reg), src.addr.off);
-      else
-         __(0x8d, __MODRM(2, dst.reg, src.addr.reg), __IMM32(src.addr.off));
+      x86_rex(&insn, __QWORD, dst.reg, src.addr.reg, 0);
+      x86_opcode(&insn, 0x8d);
+      if (is_imm8(src.addr.off)) {
+         x86_modrm(&insn, 1, dst.reg, src.addr.reg);
+         x86_imm8(&insn, src.addr.off);
+      }
+      else {
+         x86_modrm(&insn, 2, dst.reg, src.addr.reg);
+         x86_imm32(&insn, src.addr.off);
+      }
       break;
 
    case REG_MEM2:
-      asm_rex(blob, __QWORD, dst.reg, src.addr2.reg1, src.addr2.reg2);
-      if (src.addr2.off == 0)
-         __(0x8d, __MODRM(0, dst.reg, 4),
-            __SIB(0, src.addr2.reg2, src.addr2.reg1));
-      else if (is_imm8(src.addr2.off))
-         __(0x8d, __MODRM(1, dst.reg, 4),
-            __SIB(0, src.addr2.reg2, src.addr2.reg1),
-            src.addr2.off);
+      x86_rex(&insn, __QWORD, dst.reg, src.addr2.reg1, src.addr2.reg2);
+      x86_opcode(&insn, 0x8d);
+      if (src.addr2.off == 0) {
+         x86_modrm(&insn, 0, dst.reg, 4);
+         x86_sib(&insn, 0, src.addr2.reg2, src.addr2.reg1);
+      }
+      else if (is_imm8(src.addr2.off)) {
+         x86_modrm(&insn, 1, dst.reg, 4);
+         x86_sib(&insn, 0, src.addr2.reg2, src.addr2.reg1);
+         x86_imm8(&insn, src.addr2.off);
+      }
       else
          fatal_trace("immediate too big for LEA instruction");
       break;
@@ -308,81 +411,96 @@ static void asm_lea(code_blob_t *blob, x86_operand_t dst, x86_operand_t src)
    default:
       fatal_trace("unhandled operand combination in asm_lea");
    }
+
+   x86_emit(blob, &insn);
 }
 
 static void asm_mov(code_blob_t *blob, x86_operand_t dst, x86_operand_t src,
                     x86_size_t size)
 {
+   x86_insn_t insn = {};
+
    switch (COMBINE(dst, src)) {
    case REG_REG:
       if (dst.reg != src.reg) {
-         asm_rex(blob, size, dst.reg, src.reg, 0);
-         __(0x8b, __MODRM(3, dst.reg, src.reg));
+         x86_rex(&insn, size, dst.reg, src.reg, 0);
+         x86_opcode(&insn, 0x8b);
+         x86_modrm(&insn, 3, dst.reg, src.reg);
       }
       break;
 
    case MEM_REG:
-      asm_rex(blob, size, src.reg, dst.addr.reg, 0);
-      switch (size) {
-      case __QWORD:
-      case __DWORD: __(0x89); break;
-      case __WORD: __(0x66, 0x89); break;
-      case __BYTE: __(0x88); break;
+      x86_rex(&insn, size, src.reg, dst.addr.reg, 0);
+      x86_override(&insn, size == __WORD);
+      x86_opcode(&insn, size == __BYTE ? 0x88 : 0x89);
+      if (is_imm8(dst.addr.off)) {
+         x86_modrm(&insn, 1, src.reg, dst.addr.reg);
+         x86_imm8(&insn, dst.addr.off);
       }
-      if (is_imm8(dst.addr.off))
-         __(__MODRM(1, src.reg, dst.addr.reg), dst.addr.off);
-      else
-         __(__MODRM(2, src.reg, dst.addr.reg), __IMM32(dst.addr.off));
+      else {
+         x86_modrm(&insn, 2, src.reg, dst.addr.reg);
+         x86_imm32(&insn, dst.addr.off);
+      }
       break;
 
    case REG_MEM:
-      asm_rex(blob, size, dst.reg, src.addr.reg, 0);
-      switch (size) {
-      case __QWORD:
-      case __DWORD: __(0x8b); break;
-      case __WORD: __(0x66, 0x8b); break;
-      case __BYTE: __(0x8a); break;
+      x86_rex(&insn, size, dst.reg, src.addr.reg, 0);
+      x86_override(&insn, size == __WORD);
+      x86_opcode(&insn, size == __BYTE ? 0x8a : 0x8b);
+      if (is_imm8(src.addr.off)) {
+         x86_modrm(&insn, 1, dst.reg, src.addr.reg);
+         x86_imm8(&insn, src.addr.off);
       }
-      if (is_imm8(src.addr.off))
-         __(__MODRM(1, dst.reg, src.addr.reg), src.addr.off);
-      else
-         __(__MODRM(2, dst.reg, src.addr.reg), __IMM32(src.addr.off));
+      else {
+         x86_modrm(&insn, 2, dst.reg, src.addr.reg);
+         x86_imm32(&insn, src.addr.off);
+      }
       break;
 
    case XMM_MEM:
       assert(size == __QWORD);
-      __(0x66);
-      asm_rex(blob, size, dst.reg, src.addr.reg, 0);
-      __(0x0f, 0x6e);
-      if (is_imm8(src.addr.off))
-         __(__MODRM(1, dst.reg, src.addr.reg), src.addr.off);
-      else
-         __(__MODRM(2, dst.reg, src.addr.reg), __IMM32(src.addr.off));
+      x86_override(&insn, true);
+      x86_rex(&insn, size, dst.reg, src.addr.reg, 0);
+      x86_opcode_2(&insn, 0x0f, 0x6e);
+      if (is_imm8(src.addr.off)) {
+         x86_modrm(&insn, 1, dst.reg, src.addr.reg);
+         x86_imm8(&insn, src.addr.off);
+      }
+      else {
+         x86_modrm(&insn, 2, dst.reg, src.addr.reg);
+         x86_imm32(&insn, src.addr.off);
+      }
       break;
 
    case MEM_XMM:
       assert(size == __QWORD);
-      __(0x66);
-      asm_rex(blob, size, src.addr.reg, dst.reg, 0);
-      __(0x0f, 0x7e);
-      if (is_imm8(dst.addr.off))
-         __(__MODRM(1, src.reg, dst.addr.reg), dst.addr.off);
-      else
-         __(__MODRM(2, src.reg, dst.addr.reg), __IMM32(dst.addr.off));
+      x86_override(&insn, true);
+      x86_rex(&insn, size, src.addr.reg, dst.reg, 0);
+      x86_opcode_2(&insn, 0x0f, 0x7e);
+      if (is_imm8(dst.addr.off)) {
+         x86_modrm(&insn, 1, src.reg, dst.addr.reg);
+         x86_imm8(&insn, dst.addr.off);
+      }
+      else {
+         x86_modrm(&insn, 2, src.reg, dst.addr.reg);
+         x86_imm32(&insn, dst.addr.off);
+      }
       break;
 
    case XMM_REG:
       assert(size == __QWORD);
-      __(0x66);
-      asm_rex(blob, size, dst.reg, src.reg, 0);
-      __(0x0f, 0x6e, __MODRM(3, dst.reg, src.reg));
+      x86_override(&insn, true);
+      x86_rex(&insn, size, dst.reg, src.reg, 0);
+      x86_opcode_2(&insn, 0x0f, 0x6e);
+      x86_modrm(&insn, 3, dst.reg, src.reg);
       break;
 
    case REG_XMM:
       assert(size == __QWORD);
-      __(0x66);
-      asm_rex(blob, size, src.reg, dst.reg, 0);
-      __(0x0f, 0x7e, __MODRM(3, src.reg, dst.reg));
+      x86_override(&insn, true);
+      x86_rex(&insn, size, src.reg, dst.reg, 0);
+      x86_opcode_2(&insn, 0x0f, 0x7e);
+      x86_modrm(&insn, 3, src.reg, dst.reg);
       break;
 
    case REG_IMM:
@@ -393,23 +511,26 @@ static void asm_mov(code_blob_t *blob, x86_operand_t dst, x86_operand_t src,
          case __QWORD:
             if (is_imm32(src.imm)) {
                if (src.imm > 0) {
-                  asm_rex(blob, __DWORD, 0, dst.reg, 0);
-                  __(0xb8 + (dst.reg & 7), __IMM32(src.imm));
+                  x86_rex(&insn, __DWORD, 0, dst.reg, 0);
+                  x86_opcode(&insn, 0xb8 + (dst.reg & 7));
                }
                else {
-                  asm_rex(blob, __QWORD, 0, dst.reg, 0);
-                  __(0xc7, __MODRM(3, 0, dst.reg), __IMM32(src.imm));
+                  x86_rex(&insn, __QWORD, 0, dst.reg, 0);
+                  x86_opcode(&insn, 0xc7);
+                  x86_modrm(&insn, 3, 0, dst.reg);
                }
+               x86_imm32(&insn, src.imm);
             }
             else {
-               asm_rex(blob, __QWORD, 0, dst.reg, 0);
-               __(0xb8 + (dst.reg & 7), __IMM64(src.imm));
+               x86_rex(&insn, __QWORD, 0, dst.reg, 0);
+               x86_opcode(&insn, 0xb8 + (dst.reg & 7));
+               x86_imm64(&insn, src.imm);
             }
             break;
          case __DWORD:
-            assert(is_imm32(src.imm));
-            asm_rex(blob, __DWORD, 0, dst.reg, 0);
-            __(0xb8 + (dst.reg & 7), __IMM32(src.imm));
+            x86_rex(&insn, __DWORD, 0, dst.reg, 0);
+            x86_opcode(&insn, 0xb8 + (dst.reg & 7));
+            x86_imm32(&insn, src.imm);
             break;
          default:
             fatal_trace("unhandled immediate size %d in asm_mov", size);
@@ -421,12 +542,17 @@ static void asm_mov(code_blob_t *blob, x86_operand_t dst, x86_operand_t src,
       switch (size) {
       case __QWORD:
          assert(is_imm32(src.imm));
-         asm_rex(blob, size, 0, dst.addr.reg, 0);
-         if (is_imm8(dst.addr.off))
-            __(0xc7, __MODRM(1, 0, dst.addr.reg), dst.addr.off);
-         else
-            __(0xc7, __MODRM(2, 0, dst.addr.reg), __IMM32(dst.addr.off));
-         __(__IMM32(src.imm));
+         x86_rex(&insn, size, 0, dst.addr.reg, 0);
+         x86_opcode(&insn, 0xc7);
+         if (is_imm8(dst.addr.off)) {
+            x86_modrm(&insn, 1, 0, dst.addr.reg);
+            x86_imm8(&insn, dst.addr.off);
+         }
+         else {
+            x86_modrm(&insn, 2, 0, dst.addr.reg);
+            x86_imm32(&insn, dst.addr.off);
+         }
+         x86_imm32(&insn, src.imm);
          break;
       default:
          fatal_trace("unhandled immediate size %d in asm_mov", size);
@@ -436,185 +562,260 @@ static void asm_mov(code_blob_t *blob, x86_operand_t dst, x86_operand_t src,
    default:
       fatal_trace("unhandled operand combination in asm_mov");
    }
+
+   x86_emit(blob, &insn);
 }
 
 static void asm_movsx(code_blob_t *blob, x86_operand_t dst, x86_operand_t src,
                       x86_size_t dsize, x86_size_t ssize)
 {
+   x86_insn_t insn = {};
+
    switch (COMBINE(dst, src)) {
    case REG_REG:
-      asm_rex(blob, dsize, src.reg, dst.reg, 0);
+      x86_rex(&insn, dsize, src.reg, dst.reg, 0);
       switch (ssize) {
-      case __BYTE: __(0x0f, 0xbe, __MODRM(3, src.reg, dst.reg)); break;
+      case __BYTE:
+         x86_opcode_2(&insn, 0x0f, 0xbe);
+         x86_modrm(&insn, 3, src.reg, dst.reg);
+         break;
       default:
          fatal_trace("unhandled source size %d in asm_movsx", ssize);
       }
       break;
 
    case REG_MEM:
-      asm_rex(blob, dsize, src.reg, dst.reg, 0);
+      x86_rex(&insn, dsize, src.addr.reg, dst.reg, 0);
       switch (ssize) {
-      case __QWORD: __(0x8b); break;
-      case __DWORD: __(0x63); break;
-      case __BYTE: __(0x0f, 0xbe); break;
+      case __QWORD: x86_opcode(&insn, 0x8b); break;
+      case __DWORD: x86_opcode(&insn, 0x63); break;
+      case __BYTE: x86_opcode_2(&insn, 0x0f, 0xbe); break;
       default:
          fatal_trace("unhandled source size %d in asm_movsx", ssize);
       }
-      if (is_imm8(src.addr.off))
-         __(__MODRM(1, dst.reg, src.addr.reg), src.addr.off);
-      else
-         __(__MODRM(2, dst.reg, src.addr.reg), __IMM32(src.addr.off));
+      if (is_imm8(src.addr.off)) {
+         x86_modrm(&insn, 1, dst.reg, src.addr.reg);
+         x86_imm8(&insn, src.addr.off);
+      }
+      else {
+         x86_modrm(&insn, 2, dst.reg, src.addr.reg);
+         x86_imm32(&insn, src.addr.off);
+      }
       break;
 
    default:
       fatal_trace("unhandled operand combination in asm_mov");
    }
+
+   x86_emit(blob, &insn);
 }
 
 static void asm_movzx(code_blob_t *blob, x86_operand_t dst, x86_operand_t src,
                       x86_size_t dsize, x86_size_t ssize)
 {
+   x86_insn_t insn = {};
+
    assert(COMBINE(dst, src) == REG_MEM);
-   asm_rex(blob, ssize, dst.reg, src.addr.reg, 0);
+   x86_rex(&insn, ssize, dst.reg, src.addr.reg, 0);
    switch (ssize) {
    case __QWORD:
-   case __DWORD: __(0x8b); break;
-   case __WORD: __(0x0f, 0xb7); break;
-   case __BYTE: __(0x0f, 0xb6); break;
+   case __DWORD: x86_opcode(&insn, 0x8b); break;
+   case __WORD: x86_opcode_2(&insn, 0x0f, 0xb7); break;
+   case __BYTE: x86_opcode_2(&insn, 0x0f, 0xb6); break;
    }
-   if (is_imm8(src.addr.off))
-      __(__MODRM(1, dst.reg, src.addr.reg), src.addr.off);
-   else
-      __(__MODRM(2, dst.reg, src.addr.reg), __IMM32(src.addr.off));
+   if (is_imm8(src.addr.off)) {
+      x86_modrm(&insn, 1, dst.reg, src.addr.reg);
+      x86_imm8(&insn, src.addr.off);
+   }
+   else {
+      x86_modrm(&insn, 2, dst.reg, src.addr.reg);
+      x86_imm32(&insn, src.addr.off);
+   }
+
+   x86_emit(blob, &insn);
 }
 
 static void asm_cmovcc(code_blob_t *blob, x86_operand_t dst, x86_operand_t src,
                        x86_size_t size, x86_cmp_t cmp)
 {
+   x86_insn_t insn = {};
+
    assert(COMBINE(dst, src) == REG_REG);
-   asm_rex(blob, size, dst.reg, src.reg, 0);
+   x86_rex(&insn, size, dst.reg, src.reg, 0);
    switch (size) {
    case __DWORD:
    case __QWORD:
-      __(0x0f, 0x40 + cmp, __MODRM(3, dst.reg, src.reg));
+      x86_opcode_2(&insn, 0x0f, 0x40 + cmp);
+      x86_modrm(&insn, 3, dst.reg, src.reg);
       break;
    default:
       fatal_trace("unhandled size %d in asm_cmovcc", size);
    }
+
+   x86_emit(blob, &insn);
 }
 
 static void asm_push(code_blob_t *blob, x86_operand_t src)
 {
-   asm_rex(blob, __DWORD, 0, src.reg, 0);   // Actually pushes QWORD
-   __(0x50 + (src.reg & 7));
+   x86_insn_t insn = {};
+
+   x86_rex(&insn, __DWORD, 0, src.reg, 0);   // Actually pushes QWORD
+   x86_opcode(&insn, 0x50 + (src.reg & 7));
+
+   x86_emit(blob, &insn);
 }
 
 static void asm_pop(code_blob_t *blob, x86_operand_t dst)
 {
-   asm_rex(blob, __DWORD, 0, dst.reg, 0);   // Actually pops QWORD
-   __(0x58 + (dst.reg & 7));
+   x86_insn_t insn = {};
+
+   x86_rex(&insn, __DWORD, 0, dst.reg, 0);   // Actually pops QWORD
+   x86_opcode(&insn, 0x58 + (dst.reg & 7));
+
+   x86_emit(blob, &insn);
 }
 
 static void asm_add(code_blob_t *blob, x86_operand_t dst, x86_operand_t src,
                     x86_size_t size)
 {
+   x86_insn_t insn = {};
+
+   x86_override(&insn, size == __WORD);
+
    switch (COMBINE(dst, src)) {
    case REG_REG:
-      if (size == __WORD) __(0x66);
-      asm_rex(blob, size, src.reg, dst.reg, 0);
-      if (size == __BYTE)
-         __(0x00, __MODRM(3, src.reg, dst.reg));
-      else
-         __(0x01, __MODRM(3, src.reg, dst.reg));
+      x86_rex(&insn, size, src.reg, dst.reg, 0);
+      x86_opcode(&insn, size == __BYTE ? 0x00 : 0x01);
+      x86_modrm(&insn, 3, src.reg, dst.reg);
       break;
 
    case REG_IMM:
-      if (size == __WORD) __(0x66);
-      asm_rex(blob, size, 0, dst.reg, 0);
+      x86_rex(&insn, size, 0, dst.reg, 0);
       if (size == __BYTE) {
-         assert(is_imm8(src.imm));
-         __(0x80, __MODRM(3, 0, dst.reg), src.imm);
+         x86_opcode(&insn, 0x80);
+         x86_modrm(&insn, 3, 0, dst.reg);
+         x86_imm8(&insn, src.imm);
       }
-      else if (is_imm8(src.imm))
-         __(0x83, __MODRM(3, 0, dst.reg), src.imm);
-      else
-         __(0x81, __MODRM(3, 0, dst.reg), __IMM32(src.imm));
+      else if (is_imm8(src.imm)) {
+         x86_opcode(&insn, 0x83);
+         x86_modrm(&insn, 3, 0, dst.reg);
+         x86_imm8(&insn, src.imm);
+      }
+      else {
+         x86_opcode(&insn, 0x81);
+         x86_modrm(&insn, 3, 0, dst.reg);
+         x86_imm32(&insn, src.imm);
+      }
       break;
 
    default:
       fatal_trace("unhandled operand combination in asm_sub");
    }
+
+   x86_emit(blob, &insn);
 }
 
 static void asm_sub(code_blob_t *blob, x86_operand_t dst, x86_operand_t src,
                     x86_size_t size)
 {
+   x86_insn_t insn = {};
+
+   x86_override(&insn, size == __WORD);
+
    switch (COMBINE(dst, src)) {
    case REG_REG:
-      if (size == __WORD) __(0x66);
-      asm_rex(blob, size, src.reg, dst.reg, 0);
-      if (size == __BYTE)
-         __(0x28, __MODRM(3, src.reg, dst.reg));
-      else
-         __(0x29, __MODRM(3, src.reg, dst.reg));
+      x86_rex(&insn, size, src.reg, dst.reg, 0);
+      x86_opcode(&insn, size == __BYTE ? 0x28 : 0x29);
+      x86_modrm(&insn, 3, src.reg, dst.reg);
       break;
 
    case REG_IMM:
-      if (size == __WORD) __(0x66);
-      asm_rex(blob, size, 0, dst.reg, 0);
+      x86_rex(&insn, size, 0, dst.reg, 0);
       if (size == __BYTE) {
-         assert(is_imm8(src.imm));
-         __(0x80, __MODRM(3, 5, dst.reg), src.imm);
+         x86_opcode(&insn, 0x80);
+         x86_modrm(&insn, 3, 5, dst.reg);
+         x86_imm8(&insn, src.imm);
       }
-      else if (is_imm8(src.imm))
-         __(0x83, __MODRM(3, 5, dst.reg), src.imm);
-      else
-         __(0x81, __MODRM(3, 5, dst.reg), __IMM32(src.imm));
+      else if (is_imm8(src.imm)) {
+         x86_opcode(&insn, 0x83);
+         x86_modrm(&insn, 3, 5, dst.reg);
+         x86_imm8(&insn, src.imm);
+      }
+      else {
+         x86_opcode(&insn, 0x81);
+         x86_modrm(&insn, 3, 5, dst.reg);
+         x86_imm32(&insn, src.imm);
+      }
       break;
 
    default:
       fatal_trace("unhandled operand combination in asm_sub");
    }
+
+   x86_emit(blob, &insn);
 }
 
 static void asm_mul(code_blob_t *blob, x86_operand_t src, x86_size_t size)
 {
+   x86_insn_t insn = {};
+
    assert(src.kind == X86_REG);   // No immediate encoding
-   if (size == __WORD || size == __BYTE) __(0x66);
-   asm_rex(blob, size, 0, src.reg, 0);
-   __(0xf7, __MODRM(3, 4, src.reg));
+   x86_override(&insn, size == __WORD || size == __BYTE);
+   x86_rex(&insn, size, 0, src.reg, 0);
+   x86_opcode(&insn, 0xf7);
+   x86_modrm(&insn, 3, 4, src.reg);
+
+   x86_emit(blob, &insn);
 }
 
 static void asm_imul(code_blob_t *blob, x86_operand_t dst, x86_operand_t src,
                      x86_size_t size)
 {
+   x86_insn_t insn = {};
+
    assert(COMBINE(dst, src) == REG_REG);
-   if (size == __WORD || size == __BYTE) __(0x66);
-   asm_rex(blob, size, dst.reg, src.reg, 0);
-   __(0x0f, 0xaf, __MODRM(3, dst.reg, src.reg));
+   x86_override(&insn, size == __WORD || size == __BYTE);
+   x86_rex(&insn, size, dst.reg, src.reg, 0);
+   x86_opcode_2(&insn, 0x0f, 0xaf);
+   x86_modrm(&insn, 3, dst.reg, src.reg);
+
+   x86_emit(blob, &insn);
 }
 
 static void asm_idiv(code_blob_t *blob, x86_operand_t src, x86_size_t size)
 {
+   x86_insn_t insn = {};
+
    assert(src.kind == X86_REG);
-   if (size == __WORD || size == __BYTE) __(0x66);
-   asm_rex(blob, size, 0, src.reg, 0);
-   __(0xf7, __MODRM(3, 7, src.reg));
+   x86_override(&insn, size == __WORD || size == __BYTE);
+   x86_rex(&insn, size, 0, src.reg, 0);
+   x86_opcode(&insn, 0xf7);
+   x86_modrm(&insn, 3, 7, src.reg);
+
+   x86_emit(blob, &insn);
 }
 
 static void asm_and(code_blob_t *blob, x86_operand_t dst, x86_operand_t src,
                     x86_size_t size)
 {
+   x86_insn_t insn = {};
+
    switch (COMBINE(dst, src)) {
    case REG_IMM:
-      asm_rex(blob, size, src.reg, dst.reg, 0);
+      x86_rex(&insn, size, 0, dst.reg, 0);
       switch (size) {
       case __QWORD:
       case __DWORD:
-         if (is_imm8(src.imm))
-            __(0x83, __MODRM(3, 4, dst.reg), src.imm);
-         else
-            __(0x81, __MODRM(3, 4, dst.reg), __IMM32(src.imm));
+         if (is_imm8(src.imm)) {
+            x86_opcode(&insn, 0x83);
+            x86_modrm(&insn, 3, 4, dst.reg);
+            x86_imm8(&insn, src.imm);
+         }
+         else {
+            x86_opcode(&insn, 0x81);
+            x86_modrm(&insn, 3, 4, dst.reg);
+            x86_imm32(&insn, src.imm);
+         }
          break;
       default:
          fatal_trace("unhandled size %d in asm_and", size);
@@ -622,245 +823,371 @@ static void asm_and(code_blob_t *blob, x86_operand_t dst, x86_operand_t src,
       break;
 
    case REG_REG:
-      asm_rex(blob, size, src.reg, dst.reg, 0);
-      switch (size) {
-      case __QWORD:
-      case __DWORD:
-         __(0x21, __MODRM(3, src.reg, dst.reg));
-         break;
-      case __BYTE:
-         __(0x20, __MODRM(3, src.reg, dst.reg));
-         break;
-      default:
-         fatal_trace("unhandled size %d in asm_and", size);
-      }
+      x86_rex(&insn, size, src.reg, dst.reg, 0);
+      x86_opcode(&insn, size == __BYTE ? 0x20 : 0x21);
+      x86_modrm(&insn, 3, src.reg, dst.reg);
       break;
 
    default:
       fatal_trace("unhandled operand combination in asm_and");
    }
+
+   x86_emit(blob, &insn);
 }
 
 static void asm_or(code_blob_t *blob, x86_operand_t dst, x86_operand_t src,
                    x86_size_t size)
 {
+   x86_insn_t insn = {};
+
    assert(COMBINE(dst, src) == REG_REG);
-   asm_rex(blob, size, src.reg, dst.reg, 0);
-   switch (size) {
-   case __QWORD:
-   case __DWORD:
-      __(0x09, __MODRM(3, src.reg, dst.reg));
-      break;
-   case __BYTE:
-      __(0x08, __MODRM(3, src.reg, dst.reg));
-      break;
-   default:
-      fatal_trace("unhandled size %d in asm_or", size);
-   }
+   x86_rex(&insn, size, src.reg, dst.reg, 0);
+   x86_opcode(&insn, size == __BYTE ? 0x08 : 0x09);
+   x86_modrm(&insn, 3, src.reg, dst.reg);
+
+   x86_emit(blob, &insn);
 }
 
 static void asm_shl(code_blob_t *blob, x86_operand_t src, x86_size_t size)
 {
+   x86_insn_t insn = {};
+
    assert(src.kind == X86_REG);
-   asm_rex(blob, size, src.reg, 0, 0);
-   __(0xd3, __MODRM(3, 4, src.reg));
+   x86_rex(&insn, size, src.reg, 0, 0);
+   x86_opcode(&insn, 0xd3);
+   x86_modrm(&insn, 3, 4, src.reg);
+
+   x86_emit(blob, &insn);
 }
 
 static void asm_sar(code_blob_t *blob, x86_operand_t src, x86_operand_t count,
                     x86_size_t size)
 {
+   x86_insn_t insn = {};
+
    switch (COMBINE(src, count)) {
    case REG_REG:
       assert(count.reg == __ECX.reg);
-      asm_rex(blob, size, src.reg, 0, 0);
-      __(0xd3, __MODRM(3, 7, src.reg));
+      x86_rex(&insn,size, src.reg, 0, 0);
+      x86_opcode(&insn, 0xd3);
+      x86_modrm(&insn, 3, 7, src.reg);
       break;
 
    case REG_IMM:
-      asm_rex(blob, size, src.reg, 0, 0);
-      if (count.imm == 1)
-         __(0xd1, __MODRM(3, 7, src.reg));
-      else
-         __(0xc1, __MODRM(3, 7, src.reg), count.imm);
+      x86_rex(&insn, size, src.reg, 0, 0);
+      if (count.imm == 1) {
+         x86_opcode(&insn, 0xd1);
+         x86_modrm(&insn, 3, 7, src.reg);
+      }
+      else {
+         x86_opcode(&insn, 0xc1);
+         x86_modrm(&insn, 3, 7, src.reg);
+         x86_imm8(&insn, count.imm);
+      }
       break;
 
    default:
       fatal_trace("unhandled operand combination in asm_sar");
    }
+
+   x86_emit(blob, &insn);
 }
 
 static void asm_test(code_blob_t *blob, x86_operand_t src1,
                      x86_operand_t src2, x86_size_t size)
 {
+   x86_insn_t insn = {};
+
    switch (COMBINE(src1, src2)) {
    case REG_IMM:
-      asm_rex(blob, size, 0, src1.reg, 0);
-      switch (size) {
-      case __BYTE: __(0xf6, __MODRM(3, 0, src1.reg), src2.imm); break;
-      default: __(0xf7, __MODRM(3, 0, src1.reg), __IMM32(src2.imm)); break;
+      x86_rex(&insn, size, 0, src1.reg, 0);
+      if (size == __BYTE) {
+         x86_opcode(&insn, 0xf6);
+         x86_modrm(&insn, 3, 0, src1.reg);
+         x86_imm8(&insn, src2.imm);
+      }
+      else {
+         x86_opcode(&insn, 0xf7);
+         x86_modrm(&insn, 3, 0, src1.reg);
+         x86_imm32(&insn, src2.imm);
       }
       break;
 
    case REG_REG:
-      asm_rex(blob, size, src2.reg, src1.reg, 0);
-      switch (size) {
-      case __BYTE: __(0x84, __MODRM(3, src2.reg, src1.reg)); break;
-      default: __(0x85, __MODRM(3, src2.reg, src1.reg)); break;
-      }
+      x86_rex(&insn, size, src2.reg, src1.reg, 0);
+      x86_opcode(&insn, size == __BYTE ? 0x84 : 0x85);
+      x86_modrm(&insn, 3, src2.reg, src1.reg);
       break;
 
    default:
       fatal_trace("unhandled operand combination in asm_test");
    }
+
+   x86_emit(blob, &insn);
 }
 
 static void asm_cmp(code_blob_t *blob, x86_operand_t src1,
                     x86_operand_t src2, x86_size_t size)
 {
+   x86_insn_t insn = {};
+
    switch (COMBINE(src1, src2)) {
    case REG_REG:
-      asm_rex(blob, size, src2.reg, src1.reg, 0);
-      __(0x39, __MODRM(3, src2.reg, src1.reg));
+      x86_rex(&insn, size, src2.reg, src1.reg, 0);
+      x86_opcode(&insn, 0x39);
+      x86_modrm(&insn, 3, src2.reg, src1.reg);
       break;
 
    case MEM_REG:
-      asm_rex(blob, size, src2.reg, src1.addr.reg, 0);
-      if (is_imm8(src1.addr.off))
-         __(0x39, __MODRM(1, src2.reg, src1.reg), src1.addr.off);
-      else
-         __(0x39, __MODRM(2, src2.reg, src1.reg), __IMM32(src1.addr.off));
+      x86_rex(&insn, size, src2.reg, src1.addr.reg, 0);
+      x86_opcode(&insn, 0x39);
+      if (is_imm8(src1.addr.off)) {
+         x86_modrm(&insn, 1, src2.reg, src1.reg);
+         x86_imm8(&insn, src1.addr.off);
+      }
+      else {
+         x86_modrm(&insn, 2, src2.reg, src1.reg);
+         x86_imm32(&insn, src1.addr.off);
+      }
       break;
 
    default:
       fatal_trace("unhandled operand combination in asm_test");
    }
+
+   x86_emit(blob, &insn);
 }
 
 static void asm_setcc(code_blob_t *blob, x86_operand_t dst, x86_cmp_t cmp)
 {
+   x86_insn_t insn = {};
+
    assert(dst.kind == X86_REG);
-   asm_rex(blob, 1, 0, dst.reg, 0);
-   __(0x0f, 0x90 + cmp, __MODRM(3, 0, dst.reg));
+   x86_rex(&insn, 1, 0, dst.reg, 0);
+   x86_opcode_2(&insn, 0x0f, 0x90 + cmp);
+   x86_modrm(&insn, 3, 0, dst.reg);
+
+   x86_emit(blob, &insn);
 }
 
 static void asm_call(code_blob_t *blob, x86_operand_t addr)
 {
+   x86_insn_t insn = {};
+
    switch (addr.kind) {
    case X86_IMM:
       {
          const ptrdiff_t rel = (uint8_t *)addr.imm - blob->wptr - 5;
-         assert(is_imm32(rel));
-         __(0xe8, __IMM32(rel));
+         x86_opcode(&insn, 0xe8);
+         x86_imm32(&insn, rel);
       }
       break;
    case X86_REG:
-      __(0xff, __MODRM(3, 2, addr.reg));
+      x86_opcode(&insn, 0xff);
+      x86_modrm(&insn, 3, 2, addr.reg);
       break;
    default:
       fatal_trace("unhandled operand kind in asm_call");
    }
+
+   x86_emit(blob, &insn);
 }
 
 static void asm_jmp(code_blob_t *blob, x86_operand_t addr)
 {
+   x86_insn_t insn = {};
+
    switch (addr.kind) {
    case X86_PATCH:
-      if (is_imm8(addr.imm))
-         __(0xeb, 8);
-      else
-         __(0xe9, 0, 0, 0, 32);
+      if (is_imm8(addr.imm)) {
+         x86_opcode(&insn, 0xeb);
+         x86_imm8(&insn, 8);
+      }
+      else {
+         x86_opcode(&insn, 0xe9);
+         x86_imm32(&insn, __builtin_bswap32(32));
+      }
       break;
    case X86_IMM:
-      if (is_imm8(addr.imm))
-         __(0xeb, addr.imm);
-      else
-         __(0xe9, __IMM32(addr.imm));
+      if (is_imm8(addr.imm)) {
+         x86_opcode(&insn, 0xeb);
+         x86_imm8(&insn, addr.imm);
+      }
+      else {
+         x86_opcode(&insn, 0xe9);
+         x86_imm32(&insn, addr.imm);
+      }
       break;
    default:
       fatal_trace("unhandled operand kind in asm_jmp");
    }
+
+   x86_emit(blob, &insn);
 }
 
 static void asm_jcc(code_blob_t *blob, x86_operand_t addr, x86_cmp_t cmp)
 {
+   x86_insn_t insn = {};
+
    switch (addr.kind) {
    case X86_PATCH:
-      if (is_imm8(addr.imm))
-         __(0x70 + cmp, 8);
-      else
-         __(0x0f, 0x80 + cmp, 0, 0, 0, 32);
+      if (is_imm8(addr.imm)) {
+         x86_opcode(&insn, 0x70 + cmp);
+         x86_imm8(&insn, 8);
+      }
+      else {
+         x86_opcode_2(&insn, 0x0f, 0x80 + cmp);
+         x86_imm32(&insn, __builtin_bswap32(32));
+      }
       break;
    case X86_IMM:
-      if (is_imm8(addr.imm))
-         __(0x70 + cmp, addr.imm);
-      else
-         __(0x0f, 0x80 + cmp, __IMM32(addr.imm));
+      if (is_imm8(addr.imm)) {
+         x86_opcode(&insn, 0x70 + cmp);
+         x86_imm8(&insn, addr.imm);
+      }
+      else {
+         x86_opcode_2(&insn, 0x0f, 0x80 + cmp);
+         x86_imm32(&insn, addr.imm);
+      }
       break;
    default:
       fatal_trace("unhandled operand kind in asm_jcc");
    }
+
+   x86_emit(blob, &insn);
 }
 
 static void asm_mulsd(code_blob_t *blob, x86_operand_t dst, x86_operand_t src)
 {
+   x86_insn_t insn = {};
+
    assert(COMBINE(dst, src) == XMM_XMM);
-   __(0xf2, 0x0f, 0x59, __MODRM(3, dst.reg, src.reg));
+   x86_opcode_3(&insn, 0xf2, 0x0f, 0x59);
+   x86_modrm(&insn, 3, dst.reg, src.reg);
+
+   x86_emit(blob, &insn);
 }
 
 static void asm_divsd(code_blob_t *blob, x86_operand_t dst, x86_operand_t src)
 {
+   x86_insn_t insn = {};
+
    assert(COMBINE(dst, src) == XMM_XMM);
-   __(0xf2, 0x0f, 0x5e, __MODRM(3, dst.reg, src.reg));
+   x86_opcode_3(&insn, 0xf2, 0x0f, 0x5e);
+   x86_modrm(&insn, 3, dst.reg, src.reg);
+
+   x86_emit(blob, &insn);
 }
 
 static void asm_addsd(code_blob_t *blob, x86_operand_t dst, x86_operand_t src)
 {
+   x86_insn_t insn = {};
+
    assert(COMBINE(dst, src) == XMM_XMM);
-   __(0xf2, 0x0f, 0x58, __MODRM(3, dst.reg, src.reg));
+   x86_opcode_3(&insn, 0xf2, 0x0f, 0x58);
+   x86_modrm(&insn, 3, dst.reg, src.reg);
+
+   x86_emit(blob, &insn);
 }
 
 static void asm_subsd(code_blob_t *blob, x86_operand_t dst, x86_operand_t src)
 {
+   x86_insn_t insn = {};
+
    assert(COMBINE(dst, src) == XMM_XMM);
-   __(0xf2, 0x0f, 0x5c, __MODRM(3, dst.reg, src.reg));
+   x86_opcode_3(&insn, 0xf2, 0x0f, 0x5c);
+   x86_modrm(&insn, 3, dst.reg, src.reg);
+
+   x86_emit(blob, &insn);
 }
 
 static void asm_pxor(code_blob_t *blob, x86_operand_t dst, x86_operand_t src)
 {
+   x86_insn_t insn = {};
+
    assert(COMBINE(dst, src) == XMM_XMM);
-   __(0x66, 0x0f, 0xef, __MODRM(3, dst.reg, src.reg));
+   x86_opcode_3(&insn, 0x66, 0x0f, 0xef);
+   x86_modrm(&insn, 3, dst.reg, src.reg);
+
+   x86_emit(blob, &insn);
 }
 
 static void asm_ucomisd(code_blob_t *blob, x86_operand_t src1,
                         x86_operand_t src2)
 {
+   x86_insn_t insn = {};
+
    assert(COMBINE(src1, src2) == XMM_XMM);
-   __(0x66, 0x0f, 0x2e, __MODRM(3, src1.reg, src2.reg));
+   x86_opcode_3(&insn, 0x66, 0x0f, 0x2e);
+   x86_modrm(&insn, 3, src1.reg, src2.reg);
+
+   x86_emit(blob, &insn);
 }
 
 static void asm_cvtsd2si(code_blob_t *blob, x86_operand_t dst,
                          x86_operand_t src, x86_size_t size)
 {
+   x86_insn_t insn = {};
+
    assert(COMBINE(dst, src) == REG_XMM);
-   __(0xF2);
-   asm_rex(blob, size, dst.reg, src.reg, 0);
-   __(0x0F, 0x2D, __MODRM(3, dst.reg, src.reg));
+   x86_prefix(&insn, 0xf2);
+   x86_rex(&insn, size, dst.reg, src.reg, 0);
+   x86_opcode_2(&insn, 0x0f, 0x2d);
+   x86_modrm(&insn, 3, dst.reg, src.reg);
+
+   x86_emit(blob, &insn);
 }
 
 static void asm_cvtsi2sd(code_blob_t *blob, x86_operand_t dst,
                          x86_operand_t src, x86_size_t size)
 {
+   x86_insn_t insn = {};
+
    assert(COMBINE(dst, src) == XMM_REG);
-   __(0xF2);
-   asm_rex(blob, size, dst.reg, src.reg, 0);
-   __(0x0F, 0x2A, __MODRM(3, dst.reg, src.reg));
+   x86_prefix(&insn, 0xf2);
+   x86_rex(&insn, size, dst.reg, src.reg, 0);
+   x86_opcode_2(&insn, 0x0f, 0x2a);
+   x86_modrm(&insn, 3, dst.reg, src.reg);
+
+   x86_emit(blob, &insn);
 }
 
 static void asm_roundsd(code_blob_t *blob, x86_operand_t dst,
                         x86_operand_t src, uint8_t mode)
 {
+   x86_insn_t insn = {};
+
    assert(COMBINE(dst, src) == XMM_XMM);
-   __(0x66, 0x0F, 0x3A, 0x0B, __MODRM(3, dst.reg, src.reg), mode);
+   x86_override(&insn, true);
+   x86_opcode_3(&insn, 0x0F, 0x3A, 0x0B);
+   x86_modrm(&insn, 3, dst.reg, src.reg);
+   x86_imm8(&insn, mode);
+
+   x86_emit(blob, &insn);
+}
+
+static void asm_repstos(code_blob_t *blob, x86_size_t size)
+{
+   x86_insn_t insn = {};
+
+   x86_prefix(&insn, 0xf3);
+   x86_rex(&insn, size, 0, 0, 0);
+   x86_override(&insn, size == __WORD);
+   x86_opcode(&insn, size == __BYTE ? 0xaa : 0xab);
+
+   x86_emit(blob, &insn);
+}
+
+static void asm_repmovs(code_blob_t *blob, x86_size_t size)
+{
+   x86_insn_t insn = {};
+
+   x86_prefix(&insn, 0xf3);
+   x86_rex(&insn, size, 0, 0, 0);
+   x86_override(&insn, size == __WORD);
+   x86_opcode(&insn, size == __BYTE ? 0xa4 : 0xa5);
+
+   x86_emit(blob, &insn);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1580,7 +1907,7 @@ static void jit_x86_macro_bzero(code_blob_t *blob, jit_ir_t *ir,
    jit_x86_get_reg(blob, __ECX, ir->result, slots);
 
    XOR(__EAX, __EAX, __DWORD);
-   __(0xf3, 0x48, 0xaa);   // REP STOS
+   REPSTOS(__BYTE);
 }
 
 static void jit_x86_macro_copy(code_blob_t *blob, jit_ir_t *ir,
@@ -1592,7 +1919,7 @@ static void jit_x86_macro_copy(code_blob_t *blob, jit_ir_t *ir,
    jit_x86_get_copy(blob, __ESI, ir->arg2, slots);
    jit_x86_get_reg(blob, __ECX, ir->result, slots);
 
-   __(0xf3, 0x48, 0xa4);   // REP MOVS
+   REPMOVS(__BYTE);
 
    POP(__ESI);
 }
@@ -1615,10 +1942,10 @@ static void jit_x86_macro_move(code_blob_t *blob, jit_ir_t *ir,
    // Overlap
    MOV(__EDI, __EAX, __QWORD);
    LEA(__ESI, ADDR2(__ESI, __ECX, -1));
-   __(0xfd);   // STD
+   STD();
 
-   __(0xf3, 0x48, 0xa4);   // REP MOVS
-   __(0xfc);   // CLD
+   REPMOVS(__BYTE);
+   CLD();
 
    POP(__ESI);
 }
@@ -1633,18 +1960,18 @@ static void jit_x86_macro_memset(code_blob_t *blob, jit_ir_t *ir,
    switch (ir->size) {
    case JIT_SZ_64:
       SAR(__ECX, IMM(3), __DWORD);
-      __(0xf3, 0x48, 0xab);   // REP STOSQ
+      REPSTOS(__QWORD);
       break;
    case JIT_SZ_32:
       SAR(__ECX, IMM(2), __DWORD);
-      __(0xf3, 0xab);   // REP STOSD
+      REPSTOS(__DWORD);
       break;
    case JIT_SZ_16:
       SAR(__ECX, IMM(1), __DWORD);
-      __(0xf3, 0x66, 0xab);   // REP STOSW
+      REPSTOS(__WORD);
       break;
    default:
-      __(0xf3, 0xaa);   // REP STOSB
+      REPSTOS(__BYTE);
       break;
    }
 }

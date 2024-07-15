@@ -550,14 +550,8 @@ void code_blob_emit(code_blob_t *blob, const uint8_t *bytes, size_t len)
       return;
    }
 
-   if (len < 8) {
-      for (size_t i = 0; i < len; i++)
-         *(blob->wptr++) = bytes[i];
-   }
-   else {
-      memcpy(blob->wptr, bytes, len);
-      blob->wptr += len;
-   }
+   memcpy(blob->wptr, bytes, len);
+   blob->wptr += len;
 }
 
 void code_blob_align(code_blob_t *blob, unsigned align)

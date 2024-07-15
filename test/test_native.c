@@ -802,6 +802,17 @@ START_TEST(test_logical)
    ck_assert_int_eq(jit_call(j, h4, 0xbeef, 0xbeef).integer, 0);
    ck_assert_int_eq(jit_call(j, h4, INT64_C(-1), 0).integer, -1);
 
+   const char *text5 =
+      "    RECV     R0, #0          \n"
+      "    AND.16   R1, R0, #0xf0f0 \n"
+      "    SEND     #0, R1          \n"
+      "    RET                      \n";
+
+   jit_handle_t h5 = assemble(j, text5, "logical5", "i");
+   ck_assert_int_eq(jit_call(j, h5, 0xff).integer, 0xf0);
+   ck_assert_int_eq(jit_call(j, h5, 0xf0f).integer, 0);
+   ck_assert_int_eq(jit_call(j, h5, 0x3333).integer, 0x3030);
+
    jit_free(j);
 }
 END_TEST
