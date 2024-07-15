@@ -3,7 +3,7 @@
    |
  1 | exclude WORK.COVER18.CURR_STATE.STATE.ST_ONE
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-** Warning: FSM state: 'WORK.COVER18.CURR_STATE.STATE.ST_WAITING' already covered!
+** Warning: FSM state: 'WORK.COVER18.CURR_STATE.STATE.ST_WAITING' is already covered, it will be reported as covered.
    > data/cover18_ef.txt:2
    |
  2 | exclude WORK.COVER18.CURR_STATE.STATE.ST_WAITING

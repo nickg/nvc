@@ -3,7 +3,7 @@
    |
  5 | exclude WORK.COVER9.SUB_BLOCK_INST.*
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-** Warning: toggle: 'WORK.COVER9.SUB_BLOCK_INST.A.BIN_1_TO_0' already covered!
+** Warning: toggle: 'WORK.COVER9.SUB_BLOCK_INST.A.BIN_1_TO_0' is already covered, it will be reported as covered.
    > data/cover9_ef1.txt:5
    |
  5 | exclude WORK.COVER9.SUB_BLOCK_INST.*
@@ -48,7 +48,7 @@
    |
  5 | exclude WORK.COVER9.SUB_BLOCK_INST.*
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-** Warning: statement: 'WORK.COVER9.SUB_BLOCK_INST.XOR_GATE._S0' already covered!
+** Warning: statement: 'WORK.COVER9.SUB_BLOCK_INST.XOR_GATE._S0' is already covered, it will be reported as covered.
    > data/cover9_ef1.txt:5
    |
  5 | exclude WORK.COVER9.SUB_BLOCK_INST.*
@@ -58,7 +58,7 @@
    |
  5 | exclude WORK.COVER9.SUB_BLOCK_INST.*
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-** Warning: expression: 'WORK.COVER9.SUB_BLOCK_INST.XOR_GATE._S0._E1.BIN_0_1' already covered!
+** Warning: expression: 'WORK.COVER9.SUB_BLOCK_INST.XOR_GATE._S0._E1.BIN_0_1' is already covered, it will be reported as covered.
    > data/cover9_ef1.txt:5
    |
  5 | exclude WORK.COVER9.SUB_BLOCK_INST.*
@@ -73,37 +73,37 @@
    |
  5 | exclude WORK.COVER9.SUB_BLOCK_INST.*
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-** Warning: statement: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0' already covered!
+** Warning: statement: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0' is already covered, it will be reported as covered.
    > data/cover9_ef1.txt:5
    |
  5 | exclude WORK.COVER9.SUB_BLOCK_INST.*
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-** Warning: expression: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0._B0._E0.BIN_FALSE' already covered!
+** Warning: expression: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0._B0._E0.BIN_FALSE' is already covered, it will be reported as covered.
    > data/cover9_ef1.txt:5
    |
  5 | exclude WORK.COVER9.SUB_BLOCK_INST.*
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-** Warning: expression: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0._B0._E1.BIN_TRUE' already covered!
+** Warning: expression: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0._B0._E1.BIN_TRUE' is already covered, it will be reported as covered.
    > data/cover9_ef1.txt:5
    |
  5 | exclude WORK.COVER9.SUB_BLOCK_INST.*
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-** Warning: expression: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0._B0._E2.BIN_FALSE' already covered!
+** Warning: expression: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0._B0._E2.BIN_FALSE' is already covered, it will be reported as covered.
    > data/cover9_ef1.txt:5
    |
  5 | exclude WORK.COVER9.SUB_BLOCK_INST.*
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-** Warning: expression: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0._B0._E3.BIN_TRUE' already covered!
+** Warning: expression: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0._B0._E3.BIN_TRUE' is already covered, it will be reported as covered.
    > data/cover9_ef1.txt:5
    |
  5 | exclude WORK.COVER9.SUB_BLOCK_INST.*
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-** Warning: expression: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0._B0._E4.BIN_0_1' already covered!
+** Warning: expression: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0._B0._E4.BIN_0_1' is already covered, it will be reported as covered.
    > data/cover9_ef1.txt:5
    |
  5 | exclude WORK.COVER9.SUB_BLOCK_INST.*
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-** Warning: expression: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0._B0._E5.BIN_1_0' already covered!
+** Warning: expression: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0._B0._E5.BIN_1_0' is already covered, it will be reported as covered.
    > data/cover9_ef1.txt:5
    |
  5 | exclude WORK.COVER9.SUB_BLOCK_INST.*
@@ -118,7 +118,7 @@
    |
  5 | exclude WORK.COVER9.SUB_BLOCK_INST.*
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-** Warning: branch: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0._B0.BIN_FALSE' already covered!
+** Warning: branch: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0._B0.BIN_FALSE' is already covered, it will be reported as covered.
    > data/cover9_ef1.txt:5
    |
  5 | exclude WORK.COVER9.SUB_BLOCK_INST.*
@@ -128,12 +128,12 @@
    |
  5 | exclude WORK.COVER9.SUB_BLOCK_INST.*
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-** Warning: statement: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0._B1._S0' already covered!
+** Warning: statement: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0._B1._S0' is already covered, it will be reported as covered.
    > data/cover9_ef1.txt:5
    |
  5 | exclude WORK.COVER9.SUB_BLOCK_INST.*
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-** Warning: statement: 'WORK.COVER9.SUB_BLOCK_INST._P0._S0' already covered!
+** Warning: statement: 'WORK.COVER9.SUB_BLOCK_INST._P0._S0' is already covered, it will be reported as covered.
    > data/cover9_ef1.txt:5
    |
  5 | exclude WORK.COVER9.SUB_BLOCK_INST.*

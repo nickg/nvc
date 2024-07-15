@@ -58,7 +58,9 @@ static bool cover_exclude_hier(cover_scope_t *s, cover_exclude_ctx_t *ctx,
          const char *kind_str = cover_item_kind_str(item->kind);
 
          if (item->data > 0) {
-            warn_at(&ctx->loc, "%s: '%s' already covered!", kind_str, istr(hier));
+            warn_at(&ctx->loc, "%s: '%s' is already covered, "
+                               "it will be reported as covered.",
+                               kind_str, istr(hier));
          }
          else {
             note_at(&ctx->loc, "excluding %s: '%s'", kind_str, istr(hier));
