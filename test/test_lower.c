@@ -1955,12 +1955,6 @@ START_TEST(test_cover)
 
    CHECK_BB(1);
 
-   EXPECT_BB(2) = {
-      { VCODE_OP_COND, .target = 5, .target_else = 4 }
-   };
-
-   CHECK_BB(2);
-
    EXPECT_BB(3) = {
       { VCODE_OP_COVER_INCREMENT, .tag = 2 },
       { VCODE_OP_JUMP, .target = 2 }

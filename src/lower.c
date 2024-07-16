@@ -1768,7 +1768,7 @@ static vcode_reg_t lower_logical(lower_unit_t *lu, tree_t fcall,
          current->flags |= COV_FLAG_UNREACHABLE;
 
       // Unary expressions
-      if (current->flags & COV_FLAG_TRUE || current->flags & COV_FLAG_FALSE) {
+      if ((current->flags & COV_FLAG_TRUE) || (current->flags & COV_FLAG_FALSE)) {
          vcode_reg_t test = (current->flags & COV_FLAG_TRUE) ? result : emit_not(result);
          emit_cond(test, match_bb, next_bb);
 

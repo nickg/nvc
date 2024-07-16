@@ -683,7 +683,7 @@ static void cover_merge_one_item(cover_item_t *item, int32_t data)
    // the other was driven. So, If the unreachability is detected, enforce
    // its propagation further to the merged database
    case COV_ITEM_TOGGLE:
-      if (item->data & COV_FLAG_UNREACHABLE || item->data & COV_FLAG_UNREACHABLE)
+      if (item->data & COV_FLAG_UNREACHABLE)
          item->data = COV_FLAG_UNREACHABLE;
       else
          item->data += data;

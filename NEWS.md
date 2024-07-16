@@ -1,4 +1,8 @@
 ## Unreleased changes
+- Coverage bins in coverage exclude file are now part of the exclude
+  command hierarchy.
+- FSM state coverage bin name renamed from STATE to BIN_STATE.
+- All coverage bins are now counters saturating at 2147483647.
 
 ## Version 1.13.0 - 2024-07-13
 - Type and package generics now work correctly with components and
@@ -30,10 +34,6 @@
   target of a signal assignment statement (#908).
 - Signals in packages are now dumped to the FST file (#901).
 - Function interface declarations can now be `pure` or `impure` (#917).
-- Coverage bins in coverage exclude file are now part of the exclude
-  command hierarchy.
-- FSM state coverage bin name renamed from STATE to BIN_STATE.
-- All coverage bins are now counters saturating at 2147483647.
 
 ## Version 1.12.2 - 2024-05-15
 - Fixed a crash when `'transaction` is used with a record type.
