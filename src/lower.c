@@ -1623,7 +1623,7 @@ static void lower_branch_coverage(lower_unit_t *lu, tree_t b,
       assert(blocks[i] != VCODE_INVALID_BLOCK);
 
       vcode_select_block(blocks[i]);
-      emit_cover_increment(item->tag);
+      emit_cover_branch(item->tag);
 
       item++;
    }
@@ -1637,7 +1637,7 @@ static void lower_stmt_coverage(lower_unit_t *lu, tree_t stmt)
    cover_item_t *item = cover_add_items_for(lu->cover, tree_to_object(stmt),
                                             COV_ITEM_STMT);
    if (item != NULL)
-      emit_cover_increment(item->tag);
+      emit_cover_stmt(item->tag);
 }
 
 static void lower_toggle_coverage_cb(lower_unit_t *lu, tree_t field,
@@ -1773,7 +1773,7 @@ static vcode_reg_t lower_logical(lower_unit_t *lu, tree_t fcall,
          emit_cond(test, match_bb, next_bb);
 
          vcode_select_block(match_bb);
-         emit_cover_increment(current->tag);
+         emit_cover_expr(current->tag);
          emit_jump(next_bb);
 
          vcode_select_block(next_bb);
@@ -1787,7 +1787,7 @@ static vcode_reg_t lower_logical(lower_unit_t *lu, tree_t fcall,
                emit_cond(test, match_bb, next_bb);
 
                vcode_select_block(match_bb);
-               emit_cover_increment(current->tag);
+               emit_cover_expr(current->tag);
                emit_jump(next_bb);
 
                vcode_select_block(next_bb);
@@ -1845,7 +1845,7 @@ static void lower_logic_expr_coverage(lower_unit_t *lu, tree_t fcall,
             emit_cond(test, match_bb, next_bb);
 
             vcode_select_block(match_bb);
-            emit_cover_increment(current->tag);
+            emit_cover_expr(current->tag);
             emit_jump(next_bb);
 
             vcode_select_block(next_bb);

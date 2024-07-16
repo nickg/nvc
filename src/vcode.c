@@ -67,7 +67,8 @@ DECLARE_AND_DEFINE_ARRAY(vcode_type);
 #define OP_HAS_CMP(x)                                                   \
    (x == VCODE_OP_CMP)
 #define OP_HAS_TAG(x)                                                   \
-   (x == VCODE_OP_COVER_INCREMENT || x == VCODE_OP_COVER_TOGGLE         \
+   (x == VCODE_OP_COVER_STMT || x == VCODE_OP_COVER_BRANCH              \
+    || x == VCODE_OP_COVER_TOGGLE || x == VCODE_OP_COVER_EXPR           \
     || x == VCODE_OP_COVER_STATE)
 #define OP_HAS_COMMENT(x)                                               \
    (x == VCODE_OP_COMMENT)
@@ -2113,7 +2114,9 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
             }
             break;
 
-         case VCODE_OP_COVER_INCREMENT:
+         case VCODE_OP_COVER_STMT:
+         case VCODE_OP_COVER_BRANCH:
+         case VCODE_OP_COVER_EXPR:
             {
                printf("%s %u ", vcode_op_string(op->kind), op->tag);
             }
@@ -5743,9 +5746,15 @@ void emit_debug_out(vcode_reg_t reg)
    vcode_add_arg(op, reg);
 }
 
-void emit_cover_increment(uint32_t tag)
+void emit_cover_stmt(uint32_t tag)
 {
-   op_t *op = vcode_add_op(VCODE_OP_COVER_INCREMENT);
+   op_t *op = vcode_add_op(VCODE_OP_COVER_STMT);
+   op->tag = tag;
+}
+
+void emit_cover_branch(uint32_t tag)
+{
+   op_t *op = vcode_add_op(VCODE_OP_COVER_BRANCH);
    op->tag = tag;
 }
 
@@ -5761,6 +5770,12 @@ void emit_cover_state(vcode_reg_t signal, vcode_reg_t low, uint32_t tag)
    op_t *op = vcode_add_op(VCODE_OP_COVER_STATE);
    vcode_add_arg(op, signal);
    vcode_add_arg(op, low);
+   op->tag = tag;
+}
+
+void emit_cover_expr(uint32_t tag)
+{
+   op_t *op = vcode_add_op(VCODE_OP_COVER_EXPR);
    op->tag = tag;
 }
 

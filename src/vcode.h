@@ -100,8 +100,10 @@ typedef enum {
    VCODE_OP_CONST_REAL,
    VCODE_OP_LAST_EVENT,
    VCODE_OP_DEBUG_OUT,
-   VCODE_OP_COVER_INCREMENT,
+   VCODE_OP_COVER_STMT,
+   VCODE_OP_COVER_BRANCH,
    VCODE_OP_COVER_TOGGLE,
+   VCODE_OP_COVER_EXPR,
    VCODE_OP_COVER_STATE,
    VCODE_OP_UARRAY_LEN,
    VCODE_OP_UNDEFINED,
@@ -474,9 +476,11 @@ void emit_length_check(vcode_reg_t llen, vcode_reg_t rlen, vcode_reg_t locus,
 void emit_exponent_check(vcode_reg_t exp, vcode_reg_t locus);
 void emit_zero_check(vcode_reg_t denom, vcode_reg_t locus);
 void emit_debug_out(vcode_reg_t reg);
-void emit_cover_increment(uint32_t tag);
+void emit_cover_stmt(uint32_t tag);
+void emit_cover_branch(uint32_t tag);
 void emit_cover_toggle(vcode_reg_t signal, uint32_t tag);
 void emit_cover_state(vcode_reg_t signal, vcode_reg_t low, uint32_t tag);
+void emit_cover_expr(uint32_t tag);
 vcode_reg_t emit_undefined(vcode_type_t type, vcode_type_t bounds);
 void emit_debug_info(const loc_t *loc);
 vcode_reg_t emit_range_null(vcode_reg_t left, vcode_reg_t right,
