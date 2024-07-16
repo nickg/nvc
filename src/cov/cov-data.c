@@ -444,7 +444,7 @@ static int32_t cover_add_state_items_for(cover_data_t *data, object_t *obj)
 
    for (int64_t i = low; i <= high; i++) {
       tree_t literal = type_enum_literal(base, i);
-      ident_t suffix = ident_prefix(ident_new(".STATE."), tree_ident(literal), '\0');
+      ident_t suffix = ident_prefix(ident_new(".BIN_STATE."), tree_ident(literal), '\0');
       int32_t curr_item_index = cover_add_item(data,  obj, suffix, COV_ITEM_STATE,
                                                COV_FLAG_STATE, ((int)(high - i)) + 1);
 
