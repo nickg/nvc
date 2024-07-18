@@ -1,3 +1,0 @@
-
-# Bin name placed for statements - Should not be there
-exclude WORK.COVER9.P1.CASE_STMT.RPT6 ADDED_BIN_WHERE_IT_SHOULD_NOT_BE

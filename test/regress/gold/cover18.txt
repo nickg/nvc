@@ -1,7 +1,32 @@
-** Warning: FSM state: 'ST_WAITING' of 'WORK.COVER18.CURR_STATE_FSM' already covered!
+** Note: excluding FSM state: 'WORK.COVER18.CURR_STATE.BIN_STATE.ST_ONE'
+   > data/cover18_ef.txt:1
+   |
+ 1 | exclude WORK.COVER18.CURR_STATE.BIN_STATE.ST_ONE
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Warning: FSM state: 'WORK.COVER18.CURR_STATE.BIN_STATE.ST_WAITING' is already covered, it will be reported as covered.
    > data/cover18_ef.txt:2
    |
- 2 | exclude WORK.COVER18.CURR_STATE_FSM ST_WAITING
+ 2 | exclude WORK.COVER18.CURR_STATE.BIN_STATE.ST_WAITING
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding FSM state: 'WORK.COVER18.STATE_REG.BIN_STATE.S_10'
+   > data/cover18_ef.txt:4
+   |
+ 4 | exclude WORK.COVER18.STATE_REG.BIN_STATE.S_10
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding FSM state: 'WORK.COVER18.STATE_REG.BIN_STATE.S_100'
+   > data/cover18_ef.txt:5
+   |
+ 5 | exclude WORK.COVER18.STATE_REG.BIN_STATE.S_100
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding FSM state: 'WORK.COVER18.STATE_REG.BIN_STATE.S_200'
+   > data/cover18_ef.txt:6
+   |
+ 6 | exclude WORK.COVER18.STATE_REG.BIN_STATE.S_200
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding FSM state: 'WORK.COVER18.STATE_REG.BIN_STATE.S_270'
+   > data/cover18_ef.txt:7
+   |
+ 7 | exclude WORK.COVER18.STATE_REG.BIN_STATE.S_270
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 ** Note: Code coverage report folder: html.
 ** Note: Code coverage report contains: covered, uncovered, excluded coverage details.

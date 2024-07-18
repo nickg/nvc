@@ -17,38 +17,41 @@ exclude WORK.COVER9.P1.CASE_STMT.RPT6
 ###############################################################################
 
 # Bin evaluated to true
-exclude WORK.COVER9.AND_GATE._S0._B0 BIN_TRUE
+exclude WORK.COVER9.AND_GATE._S0._B0.BIN_TRUE
 
 # Choice excluded with exact bin name
-exclude WORK.COVER9.P1.CASE_STMT._B3._B0 BIN_CHOICE
+exclude WORK.COVER9.P1.CASE_STMT._B3._B0.BIN_CHOICE
 
-# Choices excluded without bin name
-exclude WORK.COVER9.P1.case_stmt._B4._B0
-exclude WORK.COVER9.P1.CASE_STMT._B_OTHERS
+# All choices excluded
+exclude WORK.COVER9.P1.case_stmt._B4._B0.*
+exclude WORK.COVER9.P1.CASE_STMT._B_OTHERS.*
 
 ###############################################################################
 # Test expression excluding
 ###############################################################################
-exclude WORK.COVER9.P0._S0._E0 BIN_0_0
-exclude WORK.cover9.P0._S0._E0 BIN_0_1
-exclude WORK.COVER9.P0._S0._E0 BIN_1_0
-exclude WORK.COVER9.P0._S0._E0 BIN_1_1
+exclude WORK.COVER9.P0._S0._E0.BIN_0_0
+exclude WORK.cover9.P0._S0._E1.BIN_0_1
+exclude WORK.COVER9.P0._S0._E2.BIN_1_0
+exclude WORK.COVER9.P0._S0._E3.BIN_1_1
 
-exclude WORK.COVER9.AND_GATE._S0._B0._E0
-exclude WORK.COVER9.AND_GATE._S0._B0._E1
-exclude WORK.COVER9.AND_GATE._S0._B0._E2
+exclude WORK.COVER9.AND_GATE._S0._B0._E4.*
+exclude WORK.COVER9.AND_GATE._S0._B0._E5.*
+exclude WORK.COVER9.AND_GATE._S0._B0._E6.*
+
+exclude WORK.COVER9.AND_GATE._S0._B0._E1.BIN_TRUE
+exclude WORK.COVER9.AND_GATE._S0._B0._E3.BIN_TRUE
 
 ###############################################################################
 # Test Toggle excluding
 ###############################################################################
 
-exclude WORK.COVER9.S_A BIN_0_TO_1
-exclude WORK.COVER9.S_B
-exclude WORK.COVER9.S_Y(2) BIN_0_TO_1
-exclude WORK.COVER9.S_Y(2) BIN_1_TO_0
-exclude WORK.COVER9.S_Y(1)
-exclude WORK.COVER9.S_Y(0)
-exclude WORK.COVER9.A
-exclude WORK.COVER9.B
-exclude WORK.COVER9.Y
+exclude WORK.COVER9.S_A.BIN_0_TO_1
+exclude WORK.COVER9.S_B.*
+exclude WORK.COVER9.S_Y(2).BIN_0_TO_1
+exclude WORK.COVER9.S_Y(2).BIN_1_TO_0
+exclude WORK.COVER9.S_Y(1).*
+exclude WORK.COVER9.S_Y(0).*
+exclude WORK.COVER9.A.*
+exclude WORK.COVER9.B.*
+exclude WORK.COVER9.Y.*
 

@@ -618,8 +618,7 @@ static void cover_print_item_title(FILE *f, cover_pair_t *pair)
       fprintf(f, "%s expression", istr(pair->item->func_name));
       break;
    case COV_ITEM_STATE:
-      fprintf(f, "\"%s\" FSM with total %d states", istr(pair->item->func_name),
-              pair->item->num);
+      fprintf(f, "\"%s\" FSM", istr(pair->item->func_name));
       break;
    default:
       break;
@@ -681,20 +680,10 @@ static void cover_print_get_exclude_button(FILE *f, cover_item_t *item,
    if (add_td)
       fprintf(f, "<td>");
 
-   ident_t hier = item->hier;
-   LOCAL_TEXT_BUF tb = tb_new();
-
    // State coverage contains bin name (state name) appended to hierarchical path
-   if (item->kind == COV_ITEM_STATE) {
-      tb_istr(tb, ident_rfrom(hier, '.'));
-      hier = ident_runtil(hier, '.');
-   }
-   else if (flag)
-      cover_bmask_to_bin_list(flag, tb);
-
    bool out_of_table = (item->kind == COV_ITEM_STMT) || (item->kind == COV_ITEM_FUNCTIONAL);
-   fprintf(f, "<button onclick=\"GetExclude('exclude %s %s')\" %s>"
-           "Copy %sto Clipoard</button>", istr(hier), tb_get(tb),
+   fprintf(f, "<button onclick=\"GetExclude('exclude %s')\" %s>"
+           "Copy %sto Clipboard</button>", istr(item->hier),
            out_of_table ? "style=\"float: right;\"" : "",
            out_of_table ? "Exclude Command " : "");
 
@@ -708,7 +697,7 @@ static void cover_print_bin(FILE *f, cover_pair_t *pair, uint32_t flag,
    va_list argp;
    va_start(argp, cols);
 
-   if (pair->flags & flag) {
+   if (pair->item->flags & flag) {
       fprintf(f, "<tr><td><b>Bin</b></td>");
 
       for (int i = 0; i < cols; i++) {
@@ -720,7 +709,7 @@ static void cover_print_bin(FILE *f, cover_pair_t *pair, uint32_t flag,
          cover_print_get_exclude_button(f, pair->item, flag, true);
 
       if (pkind == PAIR_EXCLUDED) {
-         const char *er = (flag & pair->item->unrc_msk) ?
+         const char *er = (pair->item->flags & COV_FLAG_UNREACHABLE) ?
             "Unreachable" : "Exclude file";
          fprintf(f, "<td>%s</td>", er);
       }
@@ -734,6 +723,7 @@ static void cover_print_bin_header(FILE *f, cov_pair_kind_t pkind, int cols, ...
    va_list argp;
    va_start(argp, cols);
 
+   fprintf(f, "<br><table class=\"cbt\">");
    fprintf(f, "<tr><th></th>");
 
    for (int i = 0; i < cols; i++) {
@@ -750,103 +740,72 @@ static void cover_print_bin_header(FILE *f, cov_pair_kind_t pkind, int cols, ...
    fprintf(f, "</tr>");
 }
 
-static void cover_print_bins(FILE *f, cover_pair_t *pair, cov_pair_kind_t pkind)
+static void cover_print_bins(FILE *f, cover_pair_t *first_pair, cov_pair_kind_t pkind)
 {
-   loc_t loc = pair->item->loc;
+   cover_pair_t *last_pair = first_pair + first_pair->item->consecutive - 1;
+   for (cover_pair_t *pair = first_pair; pair <= last_pair; pair++)
+   {
+      loc_t loc = pair->item->loc;
 
-   fprintf(f, "<br><table class=\"cbt\">");
+      switch (pair->item->kind) {
+      case COV_ITEM_BRANCH:
+         cover_print_bin(f, pair, COV_FLAG_TRUE, pkind, 1, "True");
+         cover_print_bin(f, pair, COV_FLAG_FALSE, pkind, 1, "False");
 
-   switch (pair->item->kind) {
-   case COV_ITEM_BRANCH:
-      cover_print_bin_header(f, pkind, 1, (pair->flags & COV_FLAG_CHOICE) ?
-                              "Choice of" : "Evaluated to");
-      cover_print_bin(f, pair, COV_FLAG_TRUE, pkind, 1, "True");
-      cover_print_bin(f, pair, COV_FLAG_FALSE, pkind, 1, "False");
+         if (pair->flags & COV_FLAG_CHOICE) {
+            int curr = loc.first_column;
+            int last = (loc.line_delta) ? strlen(pair->line->text) :
+                                          loc.column_delta + curr;
 
-      if (pair->flags & COV_FLAG_CHOICE) {
-         int curr = loc.first_column;
-         int last = (loc.line_delta) ? strlen(pair->line->text) :
-                                       loc.column_delta + curr;
+            LOCAL_TEXT_BUF tb = tb_new();
+            tb_printf(tb, "<code>");
+            while (curr <= last) {
+               tb_printf(tb, "%c", pair->line->text[curr]);
+               curr++;
+            }
+            tb_printf(tb, "</code>");
 
-         LOCAL_TEXT_BUF tb = tb_new();
-         tb_printf(tb, "<code>");
-         while (curr <= last) {
-            tb_printf(tb, "%c", pair->line->text[curr]);
-            curr++;
+            cover_print_bin(f, pair, COV_FLAG_CHOICE, pkind, 1, tb_get(tb));
          }
-         tb_printf(tb, "</code>");
+         break;
 
-         cover_print_bin(f, pair, COV_FLAG_CHOICE, pkind, 1, tb_get(tb));
-      }
-      break;
+      case COV_ITEM_TOGGLE:
+         cover_print_bin(f, pair, COV_FLAG_TOGGLE_TO_1, pkind, 2, "0", "1");
+         cover_print_bin(f, pair, COV_FLAG_TOGGLE_TO_0, pkind, 2, "1", "0");
+         break;
 
-   case COV_ITEM_TOGGLE:
-      cover_print_bin_header(f, pkind, 2, "From", "To");
-      cover_print_bin(f, pair, COV_FLAG_TOGGLE_TO_1, pkind, 2, "0", "1");
-      cover_print_bin(f, pair, COV_FLAG_TOGGLE_TO_0, pkind, 2, "1", "0");
-      break;
-
-   case COV_ITEM_EXPRESSION:
+      case COV_ITEM_STATE:
       {
-      char *t_str = (pair->item->flags & COV_FLAG_EXPR_STD_LOGIC) ? "'1'" : "True";
-      char *f_str = (pair->item->flags & COV_FLAG_EXPR_STD_LOGIC) ? "'0'" : "False";
-
-      if ((pair->flags & COV_FLAG_TRUE) || (pair->flags & COV_FLAG_FALSE)) {
-         cover_print_bin_header(f, pkind, 1, "Evaluated to");
-         cover_print_bin(f, pair, COV_FLAG_TRUE, pkind, 1, t_str);
-         cover_print_bin(f, pair, COV_FLAG_FALSE, pkind, 1, f_str);
+         ident_t state_name = ident_rfrom(pair->item->hier, '.');
+         cover_print_bin(f, pair, COV_FLAG_STATE, pkind, 1, istr(state_name));
+         break;
       }
 
-      if (pair->flags & COV_FLAG_00 || pair->flags & COV_FLAG_01 ||
-          pair->flags & COV_FLAG_10 || pair->flags & COV_FLAG_11) {
-         cover_print_bin_header(f, pkind, 2, "LHS", "RHS");
+      case COV_ITEM_EXPRESSION:
+      {
+         char *t_str = (pair->item->flags & COV_FLAG_EXPR_STD_LOGIC) ? "'1'" : "True";
+         char *f_str = (pair->item->flags & COV_FLAG_EXPR_STD_LOGIC) ? "'0'" : "False";
 
-         cover_print_bin(f, pair, COV_FLAG_00, pkind, 2, f_str, f_str);
-         cover_print_bin(f, pair, COV_FLAG_01, pkind, 2, f_str, t_str);
-         cover_print_bin(f, pair, COV_FLAG_10, pkind, 2, t_str, f_str);
-         cover_print_bin(f, pair, COV_FLAG_11, pkind, 2, t_str, t_str);
+         if ((pair->item->flags & COV_FLAG_TRUE) || (pair->item->flags & COV_FLAG_FALSE)) {
+            cover_print_bin(f, pair, COV_FLAG_TRUE, pkind, 1, t_str);
+            cover_print_bin(f, pair, COV_FLAG_FALSE, pkind, 1, f_str);
+         }
+         else if (pair->item->flags & COV_FLAG_00 || pair->item->flags & COV_FLAG_01 ||
+                  pair->item->flags & COV_FLAG_10 || pair->item->flags & COV_FLAG_11) {
+            cover_print_bin(f, pair, COV_FLAG_00, pkind, 2, f_str, f_str);
+            cover_print_bin(f, pair, COV_FLAG_01, pkind, 2, f_str, t_str);
+            cover_print_bin(f, pair, COV_FLAG_10, pkind, 2, t_str, f_str);
+            cover_print_bin(f, pair, COV_FLAG_11, pkind, 2, t_str, t_str);
+         }
+         break;
       }
+
+      default:
+         fatal("unsupported type of code coverage: %d at 'cover_print_bins' !", pair->item->kind);
       }
-      break;
-   default:
-      fatal("unsupported type of code coverage: %d !", pair->item->kind);
    }
-   fprintf(f, "</table>");
-}
-
-
-static int cover_print_fsm_table(FILE *f, cover_pair_t *pair, cov_pair_kind_t pkind,
-                                 cover_pair_t *last)
-{
-   // All pairs of a single FSM are consequent. Group them together and print them
-   // in a single table.
-   ident_t first_prefix = ident_runtil(pair->item->hier, '.');
-
-   fprintf(f, "<br><table class=\"cbt\">");
-
-   cover_print_bin_header(f, pkind, 1, "State");
-
-   int n_pairs = 0;
-   do {
-      ident_t state_name = ident_rfrom(pair->item->hier, '.');
-      cover_print_bin(f, pair, COV_FLAG_STATE, pkind, 1, istr(state_name));
-      n_pairs++;
-
-      // End of the chain was hit
-      if (pair == last)
-         break;
-      pair++;
-
-      // A item with different prefix -> Not the same FSM.
-      ident_t curr_prefix = ident_runtil(pair->item->hier, '.');
-      if (!ident_starts_with(curr_prefix, first_prefix))
-         break;
-
-   } while (1);
 
    fprintf(f, "</table>");
-
-   return n_pairs;
 }
 
 
@@ -868,17 +827,16 @@ static void cover_print_pairs(FILE *f, cover_pair_t *first, cov_pair_kind_t pkin
       case COV_ITEM_STMT:
          if (pkind == PAIR_UNCOVERED)
             cover_print_get_exclude_button(f, curr->item, 0, false);
-         if (pkind == PAIR_EXCLUDED) {
-            // No un-reachability on statements so far
-            assert(curr->item->unrc_msk == 0);
+         if (pkind == PAIR_EXCLUDED)
             fprintf(f, "<div style=\"float: right\"><b>Excluded due to:</b> Exclude file</div>");
-         }
 
          cover_print_code_loc(f, curr);
          break;
 
       case COV_ITEM_BRANCH:
          cover_print_code_loc(f, curr);
+         cover_print_bin_header(f, pkind, 1, (curr->item->flags & COV_FLAG_CHOICE) ?
+                                "Choice of" : "Evaluated to");
          cover_print_bins(f, curr, pkind);
          break;
 
@@ -888,21 +846,32 @@ static void cover_print_pairs(FILE *f, cover_pair_t *first, cov_pair_kind_t pkin
          else if (curr->item->flags & COV_FLAG_TOGGLE_PORT)
             fprintf(f, "<h3>Port:</h3>");
 
-         const char *sig_name = istr(curr->item->hier);
-         sig_name += curr->item->num;
+         const char *sig_name = istr(ident_runtil(curr->item->hier, '.'));
+         sig_name += curr->item->metadata;
          fprintf(f, "&nbsp;<code>%s</code>", sig_name);
 
+         cover_print_bin_header(f, pkind, 2, "From", "To");
          cover_print_bins(f, curr, pkind);
+         step = curr->item->consecutive;
          break;
 
       case COV_ITEM_EXPRESSION:
          cover_print_code_loc(f, curr);
+         if ((curr->item->flags & COV_FLAG_TRUE) || (curr->item->flags & COV_FLAG_FALSE))
+            cover_print_bin_header(f, pkind, 1, "Evaluated to");
+         else
+            cover_print_bin_header(f, pkind, 2, "LHS", "RHS");
+
          cover_print_bins(f, curr, pkind);
+         step = curr->item->consecutive;
          break;
 
       case COV_ITEM_STATE:
          cover_print_code_loc(f, curr);
-         step = cover_print_fsm_table(f, curr, pkind, last);
+         cover_print_bin_header(f, pkind, 1, "State");
+         cover_print_bins(f, curr, pkind);
+
+         step = curr->item->consecutive;
          break;
 
       case COV_ITEM_FUNCTIONAL:
@@ -912,7 +881,8 @@ static void cover_print_pairs(FILE *f, cover_pair_t *first, cov_pair_kind_t pkin
          break;
 
       default:
-         fatal("unsupported type of code coverage: %d !", curr->item->kind);
+         fatal("unsupported type of code coverage: %d at 'cover_print_pairs' !",
+               curr->item->kind);
       }
 
       fprintf(f, "<hr>");
@@ -1044,65 +1014,7 @@ static void cover_print_hierarchy_guts(FILE *f, cover_report_ctx_t *ctx)
               "</script>\n");
 }
 
-static int cover_append_to_chain(cover_chain_t *chain, cover_item_t *item,
-                                 cover_line_t *line, unsigned hits,
-                                 unsigned misses, unsigned excludes,
-                                 int limit)
-{
-   int rv = 0;
-   if (hits) {
-      if (chain->n_hits <= limit) {
-         if (chain->n_hits == chain->alloc_hits) {
-            chain->alloc_hits *= 2;
-            chain->hits = xrealloc_array(chain->hits, chain->alloc_hits,
-                                       sizeof(cover_pair_t));
-         }
-         chain->hits[chain->n_hits].item = item;
-         chain->hits[chain->n_hits].line = line;
-         chain->hits[chain->n_hits].flags = hits;
-         chain->n_hits++;
-      }
-      else
-         rv++;
-   }
-
-   if (misses) {
-      if (chain->n_miss <= limit) {
-         if (chain->n_miss == chain->alloc_miss) {
-            chain->alloc_miss *= 2;
-            chain->miss = xrealloc_array(chain->miss, chain->alloc_miss,
-                                       sizeof(cover_pair_t));
-         }
-         chain->miss[chain->n_miss].item = item;
-         chain->miss[chain->n_miss].line = line;
-         chain->miss[chain->n_miss].flags = misses;
-         chain->n_miss++;
-      }
-      else
-         rv++;
-   }
-
-   if (excludes) {
-      if (chain->n_excl <= limit) {
-         if (chain->n_excl == chain->alloc_excl) {
-            chain->alloc_excl *= 2;
-            chain->excl = xrealloc_array(chain->excl, chain->alloc_excl,
-                                       sizeof(cover_pair_t));
-         }
-         chain->excl[chain->n_excl].item = item;
-         chain->excl[chain->n_excl].line = line;
-         chain->excl[chain->n_excl].flags = excludes;
-         chain->n_excl++;
-      }
-      else
-         rv++;
-   }
-
-   return rv;
-}
-
-static bool cover_bin_unreachable(cover_report_ctx_t *ctx, cover_item_t *item,
-                                  unsigned flag)
+static bool cover_bin_unreachable(cover_report_ctx_t *ctx, cover_item_t *item)
 {
    if ((ctx->data->mask & COVER_MASK_EXCLUDE_UNREACHABLE) == 0)
       return false;
@@ -1110,211 +1022,188 @@ static bool cover_bin_unreachable(cover_report_ctx_t *ctx, cover_item_t *item,
    // Toggle items remember unreachability in run-time data. Must check item kind
    // not to get false unreachability on statement items. Excludes both bins
    // automatically!
-   if (item->kind == COV_ITEM_TOGGLE && ((item->data & COV_FLAG_CONST_DRIVEN) != 0))
+   if (item->kind == COV_ITEM_TOGGLE && ((item->data & COV_FLAG_UNREACHABLE) != 0)) {
+      item->flags |= COV_FLAG_UNREACHABLE;
       return true;
+   }
 
-   // Expression items remembed unreachability via dedicated mask
-   if (item->kind == COV_ITEM_EXPRESSION && ((flag & item->unrc_msk) != 0))
+   // Expression items remember unreachability as unreachable mask
+   if (item->kind == COV_ITEM_EXPRESSION && ((item->flags & COV_FLAG_UNREACHABLE) != 0))
       return true;
 
    return false;
 }
 
-static void cover_item_to_chain(cover_report_ctx_t *ctx, cover_item_t *item,
-                                cover_flags_t flag, unsigned *hits,
-                                unsigned *misses, unsigned *excludes)
+// TODO: Remove "flag" from "cover_pair_t" once all cover item kinds are reworked
+//       to contain only single bin. It will not be needed then!
+#define CHAIN_APPEND(chn, type, first_chn_item, curr_item, curr_line)            \
+      do {                                                                       \
+         if (chn->n_##type == chn->alloc_##type) {                               \
+            chn->alloc_##type *= 2;                                              \
+            chn->type = xrealloc_array(chn->type , chn->alloc_##type ,           \
+                                       sizeof(cover_pair_t));                    \
+         }                                                                       \
+         chn->type[chn->n_##type].item = curr_item;                              \
+         chn->type[chn->n_##type].line = curr_line;                              \
+         chn->n_##type++;                                                        \
+         /* Count consecutive items appended to the one single chain type */     \
+         if (first_chn_item == NULL) {                                           \
+            first_chn_item = curr_item;                                          \
+            first_chn_item->consecutive = 1;                                     \
+         }                                                                       \
+         else                                                                    \
+            first_chn_item->consecutive++;                                       \
+      } while (0);
+
+
+static int cover_append_item_to_chain(cover_report_ctx_t *ctx, cover_item_t *first_item,
+                                      cover_line_t *line, int limit, int *skipped)
 {
    unsigned *flat_total;
    unsigned *nested_total;
    unsigned *flat_hits;
    unsigned *nested_hits;
+   cover_chain_t *chn;
 
-   switch (item->kind) {
+   switch (first_item->kind) {
+   case COV_ITEM_STMT:
+      flat_total = &(ctx->flat_stats.total_stmts);
+      nested_total = &(ctx->nested_stats.total_stmts);
+      flat_hits = &(ctx->flat_stats.hit_stmts);
+      nested_hits = &(ctx->nested_stats.hit_stmts);
+      chn = &(ctx->ch_stmt);
+      break;
    case COV_ITEM_BRANCH:
       flat_total = &(ctx->flat_stats.total_branches);
       nested_total = &(ctx->nested_stats.total_branches);
       flat_hits = &(ctx->flat_stats.hit_branches);
       nested_hits = &(ctx->nested_stats.hit_branches);
+      chn = &(ctx->ch_branch);
       break;
    case COV_ITEM_TOGGLE:
       flat_total = &(ctx->flat_stats.total_toggles);
       nested_total = &(ctx->nested_stats.total_toggles);
       flat_hits = &(ctx->flat_stats.hit_toggles);
       nested_hits = &(ctx->nested_stats.hit_toggles);
-      break;
-   case COV_ITEM_EXPRESSION:
-      flat_total = &(ctx->flat_stats.total_expressions);
-      nested_total = &(ctx->nested_stats.total_expressions);
-      flat_hits = &(ctx->flat_stats.hit_expressions);
-      nested_hits = &(ctx->nested_stats.hit_expressions);
+      chn = &(ctx->ch_toggle);
       break;
    case COV_ITEM_STATE:
       flat_total = &(ctx->flat_stats.total_states);
       nested_total = &(ctx->nested_stats.total_states);
       flat_hits = &(ctx->flat_stats.hit_states);
       nested_hits = &(ctx->nested_stats.hit_states);
+      chn = &(ctx->ch_state);
+      break;
+   case COV_ITEM_EXPRESSION:
+      flat_total = &(ctx->flat_stats.total_expressions);
+      nested_total = &(ctx->nested_stats.total_expressions);
+      flat_hits = &(ctx->flat_stats.hit_expressions);
+      nested_hits = &(ctx->nested_stats.hit_expressions);
+      chn = &(ctx->ch_expression);
+      break;
+   case COV_ITEM_FUNCTIONAL:
+      flat_total = &(ctx->flat_stats.total_functional);
+      nested_total = &(ctx->nested_stats.total_functional);
+      flat_hits = &(ctx->flat_stats.hit_functional);
+      nested_hits = &(ctx->nested_stats.hit_functional);
+      chn = &(ctx->ch_expression);
       break;
    default:
-      fatal("unsupported type of code coverage: %d !", item->kind);
+      fatal("unsupported type of code coverage: %d at 'cover_append_item_to_chain'!",
+             first_item->kind);
    }
 
-   (*flat_total)++;
-   (*nested_total)++;
+   // Process all consecutive cover_items in belonging to the same RTL construct
+   // "first_item->consecutive" gives the number of items to process since cover item emit.
+   // Re-distribute so that this number is valid even if the items are sorted into
+   // "hit", "miss" and "exclude" pair lists. The "consecutive" in the original cover_item
+   // will get corrupted, but "consecutive" for each first item in each of the pair lists will
+   // correspond to how many items within that given pair list correspond to the
+   // same RTL construct. This re-sorting then simplifies coverage reporting.
+   cover_item_t *first_hits_item = NULL;
+   cover_item_t *first_miss_item = NULL;
+   cover_item_t *first_excl_item = NULL;
 
-   if (item->data & flag) {
-      (*flat_hits)++;
-      (*nested_hits)++;
-      (*hits) |= flag;
-   }
-   else if ((item->excl_msk & flag) || cover_bin_unreachable(ctx, item, flag)) {
-      (*flat_hits)++;
-      (*nested_hits)++;
-      (*excludes) |= flag;
-   }
-   else
-      (*misses) |= flag;
+   int n_steps = first_item->consecutive;
+   cover_item_t *last_item = first_item + n_steps - 1;
 
+   for (cover_item_t *curr_item = first_item; curr_item <= last_item; curr_item++) {
+      (*flat_total)++;
+      (*nested_total)++;
+
+      if (curr_item->data > 0) {
+         (*flat_hits)++;
+         (*nested_hits)++;
+
+         if (chn->n_hits > limit) {
+            (*skipped)++;
+            curr_item++;
+            continue;
+         }
+
+         CHAIN_APPEND(chn, hits, first_hits_item, curr_item, line)
+      }
+      else if ((curr_item->flags & COV_FLAG_EXCLUDED) ||
+                cover_bin_unreachable(ctx, curr_item)) {
+         (*flat_hits)++;
+         (*nested_hits)++;
+
+         if (chn->n_excl > limit) {
+            (*skipped)++;
+            curr_item++;
+            continue;
+         }
+
+         CHAIN_APPEND(chn, excl, first_excl_item, curr_item, line)
+      }
+      else {
+         if (chn->n_miss > limit) {
+            (*skipped)++;
+            curr_item++;
+            continue;
+         }
+
+         CHAIN_APPEND(chn, miss, first_miss_item, curr_item, line)
+      }
+   };
+
+   return n_steps;
 }
-
 
 static void cover_report_scope(cover_report_ctx_t *ctx,
                                cover_scope_t *s, const char *dir,
                                FILE *summf, int *skipped)
 {
-   for (int i = 0; i < s->items.count; i++) {
+   for (int i = 0; i < s->items.count;) {
+      int step = 1;
       cover_item_t *item = &(s->items.items[i]);
       assert(item->loc.file_ref == s->loc.file_ref);
 
       cover_file_t *f_src = cover_file_for_scope(s);
       if (f_src == NULL) {
+         i += 1;
          continue;
       }
 
       cover_line_t *line = &(f_src->lines[item->loc.first_line-1]);
-
-      unsigned hits = 0;
-      unsigned misses = 0;
-      unsigned excludes = 0;
       int limit = ctx->data->report_item_limit;
 
       switch (item->kind) {
       case COV_ITEM_STMT:
-         (ctx->flat_stats.total_stmts)++;
-         (ctx->nested_stats.total_stmts)++;
-
-         hits = (item->data != 0);
-         misses = (item->data == 0) && (item->excl_msk == 0);
-         excludes = (item->data == 0) && (item->excl_msk != 0);
-
-         if (hits | excludes) {
-            (ctx->flat_stats.hit_stmts)++;
-            (ctx->nested_stats.hit_stmts)++;
-         }
-         *skipped += cover_append_to_chain(&(ctx->ch_stmt), item, line,
-                                           hits, misses, excludes, limit);
-         break;
-
       case COV_ITEM_BRANCH:
-         if (item->flags & COV_FLAG_CHOICE) {    // Case, with select
-            ctx->flat_stats.total_branches++;
-            ctx->nested_stats.total_branches++;
-
-            if (item->data > 0) {
-               ctx->flat_stats.hit_branches++;
-               ctx->nested_stats.hit_branches++;
-               hits |= COV_FLAG_CHOICE;
-            }
-            else if (item->excl_msk & COV_FLAG_TRUE) {
-               ctx->flat_stats.hit_branches++;
-               ctx->nested_stats.hit_branches++;
-               hits |= COV_FLAG_CHOICE;
-            }
-            else
-               misses |= COV_FLAG_CHOICE;
-         }
-         else if (item->num == 2) {  // If/else, when else
-            ctx->flat_stats.total_branches += 2;
-            ctx->nested_stats.total_branches += 2;
-
-            if (item[0].data > 0 || (item[0].excl_msk & COV_FLAG_TRUE)) {
-               ctx->flat_stats.hit_branches++;
-               ctx->nested_stats.hit_branches++;
-               hits |= COV_FLAG_TRUE;
-            }
-            else
-               misses |= COV_FLAG_TRUE;
-
-            if (item[1].data > 0 || (item[1].excl_msk & COV_FLAG_FALSE)) {
-               ctx->flat_stats.hit_branches++;
-               ctx->nested_stats.hit_branches++;
-               hits |= COV_FLAG_FALSE;
-            }
-            else
-               misses |= COV_FLAG_FALSE;
-         }
-
-         *skipped += cover_append_to_chain(&(ctx->ch_branch), item, line,
-                                           hits, misses, excludes, limit);
-         break;
-
       case COV_ITEM_TOGGLE:
-         cover_item_to_chain(ctx, item, COV_FLAG_TOGGLE_TO_1,
-                             &hits, &misses, &excludes);
-         cover_item_to_chain(ctx, item, COV_FLAG_TOGGLE_TO_0,
-                             &hits, &misses, &excludes);
-         *skipped += cover_append_to_chain(&(ctx->ch_toggle), item, line,
-                                           hits, misses, excludes, limit);
-         break;
-
-      case COV_ITEM_EXPRESSION:
-         if (item->flags & COV_FLAG_00)
-            cover_item_to_chain(ctx, item, COV_FLAG_00,
-                                &hits, &misses, &excludes);
-         if (item->flags & COV_FLAG_01)
-            cover_item_to_chain(ctx, item, COV_FLAG_01,
-                                &hits, &misses, &excludes);
-         if (item->flags & COV_FLAG_10)
-            cover_item_to_chain(ctx, item, COV_FLAG_10,
-                                &hits, &misses, &excludes);
-         if (item->flags & COV_FLAG_11)
-            cover_item_to_chain(ctx, item, COV_FLAG_11,
-                                &hits, &misses, &excludes);
-         if (item->flags & COV_FLAG_TRUE)
-            cover_item_to_chain(ctx, item, COV_FLAG_TRUE,
-                                &hits, &misses, &excludes);
-         if (item->flags & COV_FLAG_FALSE)
-            cover_item_to_chain(ctx, item, COV_FLAG_FALSE,
-                                &hits, &misses, &excludes);
-
-         *skipped += cover_append_to_chain(&(ctx->ch_expression), item, line,
-                                           hits, misses, excludes, limit);
-         break;
-
       case COV_ITEM_STATE:
-         cover_item_to_chain(ctx, item, COV_FLAG_STATE, &hits, &misses, &excludes);
-         *skipped += cover_append_to_chain(&(ctx->ch_state), item, line,
-                                           hits, misses, excludes, limit);
-         break;
-
+      case COV_ITEM_EXPRESSION:
       case COV_ITEM_FUNCTIONAL:
-         (ctx->flat_stats.total_functional)++;
-         (ctx->nested_stats.total_functional)++;
-
-         hits = (item->data != 0);
-         misses = (item->data == 0) && (item->excl_msk == 0);
-         excludes = (item->data == 0) && (item->excl_msk != 0);
-
-         if (hits | excludes) {
-            (ctx->flat_stats.hit_functional)++;
-            (ctx->nested_stats.hit_functional)++;
-         }
-         *skipped += cover_append_to_chain(&(ctx->ch_functional), item, line,
-                                           hits, misses, excludes, limit);
+         step = cover_append_item_to_chain(ctx, item, line, limit, skipped);
          break;
 
       default:
-         fatal("unsupported type of code coverage: %d !", item->kind);
+         fatal("unsupported type of code coverage: %d at 'cover_report_scope'!",
+               item->kind);
       }
+
+      i += step;
    }
 
    cover_report_children(ctx, s, dir, summf, skipped);

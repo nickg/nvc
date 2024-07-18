@@ -97,31 +97,11 @@ typedef struct _cover_item {
    int32_t           tag;
 
    // Coverage data:
-   //    COV_ITEM_STMT        - Number of times statement was executed
-   //    COV_ITEM_BRANCH      - Bit COV_FLAG_TRUE:        Branch evaluated to True
-   //                           Bit COV_FLAG_FALSE:       Branch evaluated to False
-   //                           Bit COV_FLAG_CHOICE:      Case/Select choice was selected
-   //    COV_ITEM_TOOGLE      - Bit COV_FLAG_TOGGLE_TO_1: 0 -> 1 transition
-   //                           Bit COV_FLAG_TOGGLE_TO_0: 1 -> 0 transition
-   //    COV_ITEM_EXPRESSION  - Bit COV_FLAG_TRUE:        Expression evaluated to True
-   //                           Bit COV_FLAG_FALSE:       Expression evaluated to False
-   //                           Bit COV_FLAG_00:          LHS = 0/False and RHS = 0/False
-   //                           Bit COV_FLAG_01:          LHS = 0/False and RHS = 1/True
-   //                           Bit COV_FLAG_10:          LHS = 1/True  and RHS = 0/False
-   //                           Bit COV_FLAG_11:          LHS = 1/True  and RHS = 1/True
-   //    COV_ITEM_STATE       - Each bit corresponds to FSM state reached value.
-   //                              N = (N_LITERALS-1) / 32 + 1
-   //    COV_ITEM_FUNCTIONAL  - Count of passes
+   //    Number of times covrage item was executed / passed.
    int32_t           data;
 
    // Flags for coverage item
    int32_t           flags;
-
-   // Exclude mask - Bit corresponding to a bin excludes it
-   int32_t           excl_msk;
-
-   // Unreachable mask - Bit corresponding to a bin indicates bin is un-reachable
-   int32_t           unrc_msk;
 
    // Location of the item in the source file
    loc_t             loc;
@@ -139,10 +119,22 @@ typedef struct _cover_item {
    // Type of source statement or expression
    cover_src_t       source;
 
-   // Numeric data related to the cover item:
-   //    COV_ITEM_STATE  - Number of literals/states (N_LITERALS) in the enum/FSM.
-   //    COV_ITEM_TOGGLE - Start position for signal name
-   int               num;
+   // Number of consecutive cover items that belong to the same RTL "object"
+   //    COV_ITEM_STMT           Always 1
+   //    COV_ITEM_TOGGLE         All items belonging to the same signal / port
+   //    COV_ITEM_STATE          Number of FSM states (single item = single state)
+   //    COV_ITEM_BRANCH         T_IF - 2 for if tag, 1 for else tag, T_CASE - 1
+   //    COV_ITEM_EXPRESSION     Number of Bins for single expression:
+   //                               2 - For unary expression evaluated to True / False
+   //                               3 - For binary expresssions AND,NAND,OR,NOR
+   //                               4 - For binary expressions XOR, XNOR
+   //    COV_ITEM_FUNCTIONAL     Always 1
+   int               consecutive;
+
+   // Secondary numeric data:
+   //    COV_ITEM_TOGGLE - Start position of signal name
+   //    COV_ITEM_STATE  - Value of low-index of enum sub-type
+   int64_t           metadata;
 } cover_item_t;
 
 typedef enum {
@@ -158,8 +150,12 @@ typedef enum {
    COV_FLAG_TOGGLE_TO_1    = (1 << 16),
    COV_FLAG_TOGGLE_SIGNAL  = (1 << 17),
    COV_FLAG_TOGGLE_PORT    = (1 << 18),
-   COV_FLAG_CONST_DRIVEN   = (1 << 19),
-   COV_FLAG_EXPR_STD_LOGIC = (1 << 24)
+   COV_FLAG_EXPR_STD_LOGIC = (1 << 24),
+   COV_FLAG_EXCLUDED       = (1 << 25),
+
+   // This needs to stay at highest bit of int32_t.
+   // Used in run-time data of COV_ITEM_TOGGLE to mark unreachability.
+   COV_FLAG_UNREACHABLE    = (1 << 31),
 } cover_flags_t;
 
 #define COVER_FLAGS_AND_EXPR (COV_FLAG_11 | COV_FLAG_10 | COV_FLAG_01)
@@ -235,15 +231,7 @@ void cover_export_cobertura(cover_data_t *data, FILE *f,
 void cover_push_scope(cover_data_t *data, tree_t t);
 void cover_pop_scope(cover_data_t *data);
 
-void cover_inc_array_depth(cover_data_t *data);
-void cover_dec_array_depth(cover_data_t *data);
-
-bool cover_skip_array_toggle(cover_data_t *data, int a_size);
-bool cover_skip_type_state(cover_data_t *data, type_t type);
-
-unsigned cover_get_std_log_expr_flags(tree_t decl);
-
-cover_item_t *cover_add_item(cover_data_t *data, object_t *obj, ident_t suffix,
-                             cover_item_kind_t kind, uint32_t flags);
+cover_item_t *cover_add_items_for(cover_data_t *data, object_t *obj,
+                                  cover_item_kind_t kind);
 
 #endif   // _COV_API_H

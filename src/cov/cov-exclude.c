@@ -36,156 +36,15 @@ struct _cover_exclude_ctx {
 // Exclude file
 ///////////////////////////////////////////////////////////////////////////////
 
-static int cover_exclude_item(cover_exclude_ctx_t *ctx, cover_item_t *item,
-                              const char *bin, ident_t hier)
-{
-   int kind = item->kind;
-   const char *kind_str = cover_item_kind_str(kind);
-
-   switch (kind) {
-   case COV_ITEM_STMT:
-   case COV_ITEM_FUNCTIONAL:
-      if (bin)
-         fatal_at(&ctx->loc, "%ss do not contain bins, but bin '%s' "
-                             "was given for %s: '%s'",
-                             kind_str, bin, kind_str, istr(hier));
-
-      note_at(&ctx->loc, "excluding %s: '%s'", kind_str, istr(hier));
-      if (item->data)
-         warn_at(&ctx->loc, "%s: '%s' already covered!", kind_str, istr(hier));
-
-      item->excl_msk |= 0xFFFFFFFF;
-      return 1;
-
-   case COV_ITEM_BRANCH:
-      {
-         uint32_t allowed = 0;
-         for (int i = 0; i < item->num; i++)
-            allowed |= item[i].flags;
-         allowed &= COVER_FLAGS_ALL_BINS;
-
-         // If bin is not given, exclude all bins of a item
-         uint32_t bmask = allowed;
-         if (bin != NULL)
-            bmask = cover_bin_str_to_bmask(bin);
-
-         if (!(bmask & allowed)) {
-            LOCAL_TEXT_BUF tb = tb_new();
-            cover_bmask_to_bin_list(allowed, tb);
-
-            diag_t *d = diag_new(DIAG_FATAL, &ctx->loc);
-            diag_printf(d, "invalid bin: $bold$'%s'$$ for %s: '%s'", bin,
-                           kind_str, istr(item->hier));
-            diag_hint(d, NULL, "valid bins are: %s", tb_get(tb));
-            diag_emit(d);
-
-            fatal_exit(1);
-         }
-
-         LOCAL_TEXT_BUF tb = tb_new();
-         cover_bmask_to_bin_list(bmask, tb);
-         note_at(&ctx->loc, "excluding %s: '%s' bins: %s", kind_str,
-                 istr(hier), tb_get(tb));
-
-         uint32_t excl_cov = 0;
-         for (int i = 0; i < item->num; i++) {
-            if ((item->flags & bmask) && item[i].data > 0)
-               excl_cov |= (item->flags & bmask);
-         }
-
-         if (excl_cov) {
-            tb_rewind(tb);
-            cover_bmask_to_bin_list(excl_cov, tb);
-            warn_at(&ctx->loc, "%s: '%s' bins: %s already covered!",
-                    kind_str, istr(hier), tb_get(tb));
-         }
-
-         for (int i = 0; i < item->num; i++) {
-            if (item->flags & bmask)
-               item[i].excl_msk |= 0xFFFFFFFF;
-         }
-
-         return item->num;
-      }
-
-   case COV_ITEM_EXPRESSION:
-   case COV_ITEM_TOGGLE:
-      {
-         uint32_t allowed = item->flags & COVER_FLAGS_ALL_BINS, bmask = allowed;
-
-         // If bin is not given, exclude all bins of a item
-         if (bin != NULL)
-            bmask = cover_bin_str_to_bmask(bin);
-
-         if (!(bmask & allowed)) {
-            LOCAL_TEXT_BUF tb = tb_new();
-            cover_bmask_to_bin_list(allowed, tb);
-
-            diag_t *d = diag_new(DIAG_FATAL, &ctx->loc);
-            diag_printf(d, "invalid bin: $bold$'%s'$$ for %s: '%s'", bin,
-                           kind_str, istr(item->hier));
-            diag_hint(d, NULL, "valid bins are: %s", tb_get(tb));
-            diag_emit(d);
-
-            fatal_exit(1);
-         }
-
-         LOCAL_TEXT_BUF tb = tb_new();
-         cover_bmask_to_bin_list(bmask, tb);
-         note_at(&ctx->loc, "excluding %s: '%s' bins: %s", kind_str,
-                 istr(hier), tb_get(tb));
-
-         uint32_t excl_cov = bmask & item->data;
-         if (excl_cov) {
-            tb_rewind(tb);
-            cover_bmask_to_bin_list(excl_cov, tb);
-            warn_at(&ctx->loc, "%s: '%s' bins: %s already covered!",
-                    kind_str, istr(hier), tb_get(tb));
-         }
-
-         item->excl_msk |= bmask;
-         return 1;
-      }
-
-   case COV_ITEM_STATE:
-      {
-         int n_states = item->num;
-         cover_item_t* curr_item = item;
-         for (int i = 0; i < n_states; i++) {
-            ident_t state_name = ident_rfrom(curr_item->hier, '.');
-            if (!bin || !strcmp(istr(state_name), bin)) {
-               if (curr_item->data & COV_FLAG_STATE)
-                  warn_at(&ctx->loc, "%s: '%s' of '%s' already covered!",
-                          kind_str, istr(state_name), istr(hier));
-               curr_item->excl_msk |= COV_FLAG_STATE;
-            }
-            curr_item++;
-         }
-
-         return n_states;
-      }
-
-   default:
-      fatal("Unsupported cover item kind: %d", kind);
-   }
-
-   return 1;
-}
-
 static bool cover_exclude_hier(cover_scope_t *s, cover_exclude_ctx_t *ctx,
-                               const char *excl_hier, const char *bin)
+                               const char *excl_hier)
 {
    bool match = false;
    int len = strlen(excl_hier);
-   int step;
 
-   for (int i = 0; i < s->items.count; i += step) {
+   for (int i = 0; i < s->items.count; i += 1) {
       cover_item_t *item = AREF(s->items, i);
       ident_t hier = item->hier;
-
-      // FSM state items contain bin name as part of hierarchy -> Strip it
-      if (item->kind == COV_ITEM_STATE)
-         hier = ident_runtil(hier, '.');
 
       if (ident_glob(hier, excl_hier, len)) {
 #ifdef COVER_DEBUG_EXCLUDE
@@ -195,14 +54,23 @@ static bool cover_exclude_hier(cover_scope_t *s, cover_exclude_ctx_t *ctx,
          printf("    Item data:   %x\n", item->data);
 #endif
          match = true;
-         step = cover_exclude_item(ctx, item, bin, hier);
+
+         const char *kind_str = cover_item_kind_str(item->kind);
+
+         if (item->data > 0) {
+            warn_at(&ctx->loc, "%s: '%s' is already covered, "
+                               "it will be reported as covered.",
+                               kind_str, istr(hier));
+         }
+         else {
+            note_at(&ctx->loc, "excluding %s: '%s'", kind_str, istr(hier));
+            item->flags |= COV_FLAG_EXCLUDED;
+         }
       }
-      else
-         step = 1;
    }
 
    for (int i = 0; i < s->children.count; i++)
-      match |= cover_exclude_hier(s->children.items[i], ctx, excl_hier, bin);
+      match |= cover_exclude_hier(s->children.items[i], ctx, excl_hier);
 
    return match;
 }
@@ -234,7 +102,6 @@ void cover_load_exclude_file(const char *path, cover_data_t *data)
       for (char *tok = strtok(ctx.line, delim); tok; tok = strtok(NULL, delim)) {
          if (!strcmp(tok, "exclude")) {
             char *excl_hier = strtok(NULL, delim);
-            char *bin = strtok(NULL, delim);
 
             if (!excl_hier)
                fatal_at(&ctx.loc, "exclude hierarchy missing!");
@@ -245,7 +112,7 @@ void cover_load_exclude_file(const char *path, cover_data_t *data)
                i++;
             }
 
-            if (!cover_exclude_hier(data->root_scope, &ctx, excl_hier, bin))
+            if (!cover_exclude_hier(data->root_scope, &ctx, excl_hier))
                warn_at(&ctx.loc, "exluded hierarchy does not match any "
                        "coverage item: '%s'", excl_hier);
          }

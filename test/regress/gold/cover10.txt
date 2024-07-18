@@ -1,8 +1,13 @@
-** Note: excluding toggle: 'WORK.COVER10.SIGNAL_WHICH_IS_EXCLUDED' bins: BIN_0_TO_1, BIN_1_TO_0
+** Note: excluding toggle: 'WORK.COVER10.SIGNAL_WHICH_IS_EXCLUDED.BIN_0_TO_1'
    > data/cover10_ef1.txt:2
    |
- 2 | exclude WORK.COVER10.SIGNAL_WHICH_IS_EXCLUDED
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 2 | exclude WORK.COVER10.SIGNAL_WHICH_IS_EXCLUDED.*
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding toggle: 'WORK.COVER10.SIGNAL_WHICH_IS_EXCLUDED.BIN_1_TO_0'
+   > data/cover10_ef1.txt:2
+   |
+ 2 | exclude WORK.COVER10.SIGNAL_WHICH_IS_EXCLUDED.*
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 ** Note: Code coverage report folder: html.
 ** Note: Code coverage report contains: covered coverage details.
 ** Note: code coverage results for: WORK.COVER10
@@ -12,11 +17,16 @@
 ** Note:      expression:    N.A.
 ** Note:      FSM state:     N.A.
 ** Note:      functional:    N.A.
-** Note: excluding toggle: 'WORK.COVER10.SIGNAL_WHICH_IS_EXCLUDED' bins: BIN_0_TO_1, BIN_1_TO_0
+** Note: excluding toggle: 'WORK.COVER10.SIGNAL_WHICH_IS_EXCLUDED.BIN_0_TO_1'
    > data/cover10_ef1.txt:2
    |
- 2 | exclude WORK.COVER10.SIGNAL_WHICH_IS_EXCLUDED
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 2 | exclude WORK.COVER10.SIGNAL_WHICH_IS_EXCLUDED.*
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding toggle: 'WORK.COVER10.SIGNAL_WHICH_IS_EXCLUDED.BIN_1_TO_0'
+   > data/cover10_ef1.txt:2
+   |
+ 2 | exclude WORK.COVER10.SIGNAL_WHICH_IS_EXCLUDED.*
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 ** Note: Code coverage report folder: html.
 ** Note: Code coverage report contains: uncovered coverage details.
 ** Note: code coverage results for: WORK.COVER10
@@ -26,11 +36,16 @@
 ** Note:      expression:    N.A.
 ** Note:      FSM state:     N.A.
 ** Note:      functional:    N.A.
-** Note: excluding toggle: 'WORK.COVER10.SIGNAL_WHICH_IS_EXCLUDED' bins: BIN_0_TO_1, BIN_1_TO_0
+** Note: excluding toggle: 'WORK.COVER10.SIGNAL_WHICH_IS_EXCLUDED.BIN_0_TO_1'
    > data/cover10_ef1.txt:2
    |
- 2 | exclude WORK.COVER10.SIGNAL_WHICH_IS_EXCLUDED
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 2 | exclude WORK.COVER10.SIGNAL_WHICH_IS_EXCLUDED.*
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding toggle: 'WORK.COVER10.SIGNAL_WHICH_IS_EXCLUDED.BIN_1_TO_0'
+   > data/cover10_ef1.txt:2
+   |
+ 2 | exclude WORK.COVER10.SIGNAL_WHICH_IS_EXCLUDED.*
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 ** Note: Code coverage report folder: html.
 ** Note: Code coverage report contains: excluded coverage details.
 ** Note: code coverage results for: WORK.COVER10
