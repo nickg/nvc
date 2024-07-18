@@ -251,24 +251,23 @@ psl_fsm_t *psl_fsm_new(psl_node_t p)
    case P_NEVER:
       fsm->kind = FSM_NEVER;
       final = build_node(fsm, initial, psl_value(top));
-      final->accept = true;
       break;
 
    case P_ALWAYS:
       fsm->kind = FSM_ALWAYS;
       final = build_node(fsm, initial, psl_value(top));
-      final->accept = true;
       break;
 
    case P_HDL_EXPR:
    case P_SERE:
       final = build_node(fsm, initial, top);
-      final->accept = true;
       break;
 
    default:
       CANNOT_HANDLE(top);
    }
+
+   final->accept = true;
 
    DEBUG_ONLY(psl_detect_loops(fsm));
    return fsm;

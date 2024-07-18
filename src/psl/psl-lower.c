@@ -102,7 +102,7 @@ static void psl_lower_state(lower_unit_t *lu, psl_fsm_t *fsm,
 
    vcode_type_t vint32 = vtype_int(INT32_MIN, INT32_MAX);
 
-   if (psl_fsm_repeating(fsm))
+   if (state->initial && psl_fsm_repeating(fsm))
       emit_enter_state(emit_const(vint32, state->id));
 
    if (state->accept && fsm->kind == FSM_COVER)
