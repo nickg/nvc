@@ -45,6 +45,13 @@ enum std_ulogic {
    _DC = 0x8
 };
 
+#define INCS_I32(i32_ptr)                          \
+      do {                                         \
+         int32_t inc = *i32_ptr + 1;               \
+         if (likely(inc > *i32_ptr))               \
+            *i32_ptr = inc;                        \
+      } while (0)
+
 //#define COVER_DEBUG_CALLBACK
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -55,54 +62,65 @@ static inline void cover_toggle_check_0_1(uint8_t old, uint8_t new,
                                           int32_t *toggle_01, int32_t *toggle_10)
 {
    if (old == _0 && new == _1)
-      (*toggle_01)++;
-   if (old == _1 && new == _0)
-      (*toggle_10)++;
-}
-
-static inline void cover_toggle_check_u(uint8_t old, uint8_t new,
-                                        int32_t *toggle_01, int32_t *toggle_10)
-{
-   if (old == _U && new == _1)
-      (*toggle_01)++;
-   if (old == _U && new == _0)
-      (*toggle_10)++;
-}
-
-static inline void cover_toggle_check_z(uint8_t old, uint8_t new,
-                                        int32_t *toggle_01, int32_t *toggle_10)
-{
-   if (old == _0 && new == _Z)
-      (*toggle_01)++;
-   if (old == _Z && new == _1)
-      (*toggle_01)++;
-
-   if (old == _1 && new == _Z)
-      (*toggle_10)++;
-   if (old == _Z && new == _0)
-      (*toggle_10)++;
+      INCS_I32(toggle_01);
+   else if (old == _1 && new == _0)
+      INCS_I32(toggle_10);
 }
 
 static inline void cover_toggle_check_0_1_u(uint8_t old, uint8_t new,
                                             int32_t *toggle_01, int32_t *toggle_10)
 {
-   cover_toggle_check_0_1(old, new, toggle_01, toggle_10);
-   cover_toggle_check_u(old, new, toggle_01, toggle_10);
+   if (old == _0 && new == _1)
+      INCS_I32(toggle_01);
+   else if (old == _1 && new == _0)
+      INCS_I32(toggle_10);
+
+   else if (old == _U && new == _1)
+      INCS_I32(toggle_01);
+   else if (old == _U && new == _0)
+      INCS_I32(toggle_10);
 }
 
 static inline void cover_toggle_check_0_1_z(uint8_t old, uint8_t new,
                                             int32_t *toggle_01, int32_t *toggle_10)
 {
-   cover_toggle_check_0_1(old, new, toggle_01, toggle_10);
-   cover_toggle_check_z(old, new, toggle_01, toggle_10);
+   if (old == _0 && new == _1)
+      INCS_I32(toggle_01);
+   else if (old == _1 && new == _0)
+      INCS_I32(toggle_10);
+
+   else if (old == _0 && new == _Z)
+      INCS_I32(toggle_01);
+   else if (old == _Z && new == _1)
+      INCS_I32(toggle_01);
+   else if (old == _1 && new == _Z)
+      INCS_I32(toggle_10);
+   else if (old == _Z && new == _0)
+      INCS_I32(toggle_10);
 }
 
 static inline void cover_toggle_check_0_1_u_z(uint8_t old, uint8_t new,
                                               int32_t *toggle_01, int32_t *toggle_10)
 {
-   cover_toggle_check_0_1(old, new, toggle_01, toggle_10);
-   cover_toggle_check_u(old, new, toggle_01, toggle_10);
-   cover_toggle_check_z(old, new, toggle_01, toggle_10);
+
+   if (old == _0 && new == _1)
+      INCS_I32(toggle_01);
+   else if (old == _1 && new == _0)
+      INCS_I32(toggle_10);
+
+   else if (old == _U && new == _1)
+      INCS_I32(toggle_01);
+   else if (old == _U && new == _0)
+      INCS_I32(toggle_10);
+
+   else if (old == _0 && new == _Z)
+      INCS_I32(toggle_01);
+   else if (old == _Z && new == _1)
+      INCS_I32(toggle_01);
+   else if (old == _1 && new == _Z)
+      INCS_I32(toggle_10);
+   else if (old == _Z && new == _0)
+      INCS_I32(toggle_10);
 }
 
 #ifdef COVER_DEBUG_CALLBACK
@@ -129,6 +147,7 @@ static inline void cover_toggle_check_0_1_u_z(uint8_t old, uint8_t new,
 #define COVER_TGL_SIGNAL_DETAILS(signal, size)
 #endif
 
+// TODO: Could multi-bit signals be optimized with vector instructions ?
 #define DEFINE_COVER_TOGGLE_CB(name, check_fnc)                               \
    static void name(uint64_t now, rt_signal_t *s, rt_watch_t *w, void *user)  \
    {                                                                          \
@@ -231,9 +250,7 @@ static void cover_state_cb(uint64_t now, rt_signal_t *s, rt_watch_t *w, void *us
    rt_model_t *m = get_model();
    int32_t *mask = get_cover_counter(m, ((uintptr_t)user) + offset);
 
-   int32_t mask_inc = *mask + 1;
-   if (mask_inc > *mask)
-      *mask = mask_inc;
+   INCS_I32(mask);
 }
 
 void x_cover_setup_state_cb(sig_shared_t *ss, int64_t low, int32_t tag)
