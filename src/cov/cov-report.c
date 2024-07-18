@@ -680,8 +680,6 @@ static void cover_print_get_exclude_button(FILE *f, cover_item_t *item,
    if (add_td)
       fprintf(f, "<td>");
 
-   LOCAL_TEXT_BUF tb = tb_new();
-
    // State coverage contains bin name (state name) appended to hierarchical path
    bool out_of_table = (item->kind == COV_ITEM_STMT) || (item->kind == COV_ITEM_FUNCTIONAL);
    fprintf(f, "<button onclick=\"GetExclude('exclude %s')\" %s>"
