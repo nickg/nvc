@@ -120,7 +120,6 @@ static cover_src_t get_cover_source(cover_item_kind_t kind, object_t *obj)
 
    psl_node_t p = psl_from_object(obj);
    if (p != NULL) {
-      printf("PSL NOT NULL!!!\n");
       switch (kind) {
       case COV_ITEM_FUNCTIONAL:
          return COV_SRC_PSL_COVER;
