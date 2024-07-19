@@ -9,48 +9,63 @@ jobs:
   test-osvvm:
     name: Test OSVVM
     runs-on: windows-2022
-    defaults:
-      run:
-        shell: msys2 {0}
     steps:
-      - uses: actions/checkout@v3
+      - uses: nickg/setup-nvc-ci@v1
         with:
+          version: latest
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: actions/checkout@v4
+        with:
+          repository: OSVVM/OsvvmLibraries
+          path: OsvvmLibraries
+          ref: dev
+          submodules: recursive
           fetch-depth: 1
       - uses: msys2/setup-msys2@v2
         with:
           msystem: mingw64
           update: true
           install: >-
-            base-devel
-            git
-            unzip
             mingw-w64-x86_64-tcllib
-      - name: Download MSYS2 mingw64 package
-        id: download-artifact
-        uses: dawidd6/action-download-artifact@v3
-        with:
-          workflow: build-test.yml
-          workflow_conclusion: success
-          branch: master
-          name: MSYS2 mingw64 package
-          skip_unpack: false
-          if_no_artifact_found: fail
-      - name: Install NVC
-        run: |
-          pacman -U --noconfirm *.zst
+      # - name: Test OSVVM
+      #   shell: powershell
+      #   run: |
+      #     $Env:OSVVM_DIR = $(Resolve-Path -Path OsvvmLibraries)
+      #     echo $Env:OSVVM_DIR
+      #     $Env:OSVVM_MUST_BUILD = 1
+      #     nvc.exe --do .\test\test-osvvm.tcl
       - name: Test OSVVM
+        shell: msys2 {0}
         run: |
-          : # remove VHDL lib source from NVC repo (issue #557}
-          rm -rf lib/*
-          : # install OSVVM, run test, diff results with verified results
-          mkdir tmp && cd tmp
-          git clone --branch dev --recurse-submodules --depth=1 -j8 https://github.com/OSVVM/OsvvmLibraries.git
+          export PATH=/c/Program\ Files/NVC/bin:$PATH
           export OSVVM_DIR=$(realpath OsvvmLibraries)
           export OSVVM_MUST_BUILD=1
-          tclsh ../test/test-osvvm.tcl
-          failures=$(xmllint --xpath 'string(/testsuites/@failures)' OsvvmLibraries_RunAllTests.xml)
-          failuresVti=$(xmllint --xpath 'string(/testsuites/@failures)' OsvvmLibraries_RunAllTestsVti.xml)
-          if [ "$failures" != "0" ] || [ "$failuresVti" != "0" ]; then
-              echo "*** one or more tests failed ***"
-              exit 1
-          fi
+          tclsh ./test/test-osvvm.tcl
+      - name: Publish results
+        uses: dorny/test-reporter@v1
+        with:
+          name: OSVVM Regression Results
+          path: ./*.xml
+          reporter: java-junit
+          list-suites: all
+          list-tests: failed
+          fail-on-error: true
+          fail-on-empty: true
+      - name: Upload logs
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: osvvm-logs
+          path: |
+            *.log
+            *.yml
+            *.html
+            *.xml
+            reports/*.html
+            reports/**/*.html
+            logs/**/*.*
+            reports/*.css
+            reports/osvvm.png
+          if-no-files-found: error
