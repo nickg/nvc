@@ -24,6 +24,7 @@
 #include "object.h"
 #include "option.h"
 #include "tree.h"
+#include "psl/psl-node.h"
 #include "type.h"
 
 #include <assert.h>
@@ -112,6 +113,17 @@ static cover_src_t get_cover_source(cover_item_kind_t kind, object_t *obj)
          default:
             return COV_SRC_CONDITION;
          }
+      default:
+         return COV_SRC_UNKNOWN;
+      }
+   }
+
+   psl_node_t p = psl_from_object(obj);
+   if (p != NULL) {
+      printf("PSL NOT NULL!!!\n");
+      switch (kind) {
+      case COV_ITEM_FUNCTIONAL:
+         return COV_SRC_PSL_COVER;
       default:
          return COV_SRC_UNKNOWN;
       }

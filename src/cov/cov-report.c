@@ -603,6 +603,7 @@ static void cover_print_item_title(FILE *f, cover_pair_t *pair)
       [COV_SRC_LOOP_STMT] = "Loop statement",
       [COV_SRC_STATEMENT] = "Sequential statement",
       [COV_SRC_CONDITION] = "Condition",
+      [COV_SRC_PSL_COVER] = "PSL cover point",
       [COV_SRC_UNKNOWN] = "",
    };
 
@@ -611,6 +612,7 @@ static void cover_print_item_title(FILE *f, cover_pair_t *pair)
    switch (pair->item->kind) {
    case COV_ITEM_STMT:
    case COV_ITEM_BRANCH:
+   case COV_ITEM_FUNCTIONAL:
       fprintf(f, "%s:", text[pair->item->source]);
       break;
    case COV_ITEM_EXPRESSION:
@@ -971,7 +973,7 @@ static void cover_print_chain(FILE *f, cover_data_t *data, cover_chain_t *chn,
       else if (kind == COV_ITEM_STATE)
          fprintf(f, "FSM states:");
       else if (kind == COV_ITEM_FUNCTIONAL)
-         fprintf(f, "sequences:");
+         fprintf(f, "functional coverage:");
       fprintf(f, "</h2>\n");
 
       fprintf(f, "  <section style=\"padding:0px 10px;\">\n");
