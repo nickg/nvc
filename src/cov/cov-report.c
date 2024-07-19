@@ -819,8 +819,9 @@ static void cover_print_pairs(FILE *f, cover_pair_t *first, cov_pair_kind_t pkin
    int step;
 
    do {
-      step = 1;
       fprintf(f, "    <p>");
+
+      step = curr->item->consecutive;
 
       switch (curr->item->kind) {
       case COV_ITEM_STMT:
@@ -851,7 +852,6 @@ static void cover_print_pairs(FILE *f, cover_pair_t *first, cov_pair_kind_t pkin
 
          cover_print_bin_header(f, pkind, 2, "From", "To");
          cover_print_bins(f, curr, pkind);
-         step = curr->item->consecutive;
          break;
 
       case COV_ITEM_EXPRESSION:
@@ -862,15 +862,12 @@ static void cover_print_pairs(FILE *f, cover_pair_t *first, cov_pair_kind_t pkin
             cover_print_bin_header(f, pkind, 2, "LHS", "RHS");
 
          cover_print_bins(f, curr, pkind);
-         step = curr->item->consecutive;
          break;
 
       case COV_ITEM_STATE:
          cover_print_code_loc(f, curr);
          cover_print_bin_header(f, pkind, 1, "State");
          cover_print_bins(f, curr, pkind);
-
-         step = curr->item->consecutive;
          break;
 
       case COV_ITEM_FUNCTIONAL:
