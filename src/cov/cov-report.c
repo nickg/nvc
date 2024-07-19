@@ -631,8 +631,6 @@ static void cover_print_code_loc(FILE *f, cover_pair_t *pair)
    cover_line_t *curr_line = pair->line;
    cover_line_t *last_line = pair->line + loc.line_delta;
 
-   cover_print_item_title(f, pair);
-
    if (loc.line_delta == 0) {
       fprintf(f, "<code>");
       fprintf(f, "%d:", loc.first_line);
@@ -664,7 +662,8 @@ static void cover_print_code_loc(FILE *f, cover_pair_t *pair)
             curr_char++;
          }
 
-         fprintf(f, "<br>");
+         if (curr_line < last_line)
+            fprintf(f, "<br>");
          curr_line++;
 
       } while (curr_line <= last_line);
@@ -704,6 +703,8 @@ static void cover_print_bin(FILE *f, cover_pair_t *pair, uint32_t flag,
          fprintf(f, "<td>%s</td>", val);
       }
 
+      fprintf(f, "<td>%d</td>", pair->item->data);
+
       if (pkind == PAIR_UNCOVERED)
          cover_print_get_exclude_button(f, pair->item, flag, true);
 
@@ -729,6 +730,8 @@ static void cover_print_bin_header(FILE *f, cov_pair_kind_t pkind, int cols, ...
       const char *val = va_arg(argp, const char *);
       fprintf(f, "<th>%s</th>", val);
    }
+
+   fprintf(f, "<th>Count</th>");
 
    if (pkind == PAIR_UNCOVERED)
       fprintf(f, "<th>Exclude Command</th>");
@@ -830,10 +833,13 @@ static void cover_print_pairs(FILE *f, cover_pair_t *first, cov_pair_kind_t pkin
          if (pkind == PAIR_EXCLUDED)
             fprintf(f, "<div style=\"float: right\"><b>Excluded due to:</b> Exclude file</div>");
 
+         cover_print_item_title(f, curr);
          cover_print_code_loc(f, curr);
+         fprintf(f, "<br><b>Count:</b> %d", curr->item->data);
          break;
 
       case COV_ITEM_BRANCH:
+         cover_print_item_title(f, curr);
          cover_print_code_loc(f, curr);
          cover_print_bin_header(f, pkind, 1, (curr->item->flags & COV_FLAG_CHOICE) ?
                                 "Choice of" : "Evaluated to");
@@ -855,7 +861,9 @@ static void cover_print_pairs(FILE *f, cover_pair_t *first, cov_pair_kind_t pkin
          break;
 
       case COV_ITEM_EXPRESSION:
+         cover_print_item_title(f, curr);
          cover_print_code_loc(f, curr);
+
          if ((curr->item->flags & COV_FLAG_TRUE) || (curr->item->flags & COV_FLAG_FALSE))
             cover_print_bin_header(f, pkind, 1, "Evaluated to");
          else
@@ -865,6 +873,7 @@ static void cover_print_pairs(FILE *f, cover_pair_t *first, cov_pair_kind_t pkin
          break;
 
       case COV_ITEM_STATE:
+         cover_print_item_title(f, curr);
          cover_print_code_loc(f, curr);
          cover_print_bin_header(f, pkind, 1, "State");
          cover_print_bins(f, curr, pkind);
@@ -873,7 +882,9 @@ static void cover_print_pairs(FILE *f, cover_pair_t *first, cov_pair_kind_t pkin
       case COV_ITEM_FUNCTIONAL:
          if (pkind == PAIR_UNCOVERED)
             cover_print_get_exclude_button(f, curr->item, 0, false);
+         cover_print_item_title(f, curr);
          cover_print_code_loc(f, curr);
+         fprintf(f, "<br><b>Count:</b> %d", curr->item->data);
          break;
 
       default:
