@@ -687,8 +687,10 @@ static void cover_merge_one_item(cover_item_t *item, int32_t data)
    case COV_ITEM_STATE:
    case COV_ITEM_EXPRESSION:
       inc = item->data + data;
-      if (likely(inc > item->data))
+      if (likely(inc >= item->data))
          item->data = inc;
+      else
+         item->data = INT32_MAX;
       break;
 
    // Highest bit of run-time data for COV_ITEM_TOGGLE is used to track
@@ -705,8 +707,10 @@ static void cover_merge_one_item(cover_item_t *item, int32_t data)
       else
       {
          inc = item->data + data;
-         if (likely(inc > item->data))
+         if (likely(inc >= item->data))
             item->data = inc;
+         else
+            item->data = INT32_MAX;
       }
       break;
 
