@@ -59,7 +59,6 @@ typedef struct {
 typedef struct {
    cover_line_t *line;
    cover_item_t *item;
-   int flags;
 } cover_pair_t;
 
 typedef struct {
@@ -752,7 +751,7 @@ static void cover_print_bins(FILE *f, cover_pair_t *first_pair, cov_pair_kind_t 
          cover_print_bin(f, pair, COV_FLAG_TRUE, pkind, 1, "True");
          cover_print_bin(f, pair, COV_FLAG_FALSE, pkind, 1, "False");
 
-         if (pair->flags & COV_FLAG_CHOICE) {
+         if (pair->item->flags & COV_FLAG_CHOICE) {
             int curr = loc.first_column;
             int last = (loc.line_delta) ? strlen(pair->line->text) :
                                           loc.column_delta + curr;
@@ -1034,8 +1033,6 @@ static bool cover_bin_unreachable(cover_report_ctx_t *ctx, cover_item_t *item)
    return false;
 }
 
-// TODO: Remove "flag" from "cover_pair_t" once all cover item kinds are reworked
-//       to contain only single bin. It will not be needed then!
 #define CHAIN_APPEND(chn, type, first_chn_item, curr_item, curr_line)            \
       do {                                                                       \
          if (chn->n_##type == chn->alloc_##type) {                               \
