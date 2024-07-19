@@ -19,6 +19,10 @@ runs:
           git
           autoconf
           automake-wrapper
+    - name: Fix missing tags
+      shell: msys2 {0}
+      run: |
+        git fetch --tags --force
     - name: Generate configure script
       shell: msys2 {0}
       run: bash autogen.sh
