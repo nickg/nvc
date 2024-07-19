@@ -1111,7 +1111,7 @@ static int cover_append_item_to_chain(cover_report_ctx_t *ctx, cover_item_t *fir
       nested_total = &(ctx->nested_stats.total_functional);
       flat_hits = &(ctx->flat_stats.hit_functional);
       nested_hits = &(ctx->nested_stats.hit_functional);
-      chn = &(ctx->ch_expression);
+      chn = &(ctx->ch_functional);
       break;
    default:
       fatal("unsupported type of code coverage: %d at 'cover_append_item_to_chain'!",
