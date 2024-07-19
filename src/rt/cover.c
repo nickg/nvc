@@ -47,7 +47,6 @@ enum std_ulogic {
 
 #define INCS_I32(i32_ptr)                                               \
       do {                                                              \
-         int32_t inc = *i32_ptr + 1;                                    \
          if (unlikely(__builtin_add_overflow(*i32_ptr, 1, i32_ptr)))    \
             *i32_ptr = INT32_MAX;                                       \
       } while (0)
