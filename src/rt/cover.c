@@ -214,8 +214,8 @@ void x_cover_setup_toggle_cb(sig_shared_t *ss, int32_t tag)
       for (int i = 0; i < s->shared.size; i++) {
          // Remember constant driver in run-time data.
          // Unreachable mask not available at run-time.
-         *toggle_01 |= COV_FLAG_UNREACHABLE;
-         *toggle_10 |= COV_FLAG_UNREACHABLE;
+         *toggle_01 = COV_FLAG_UNREACHABLE;
+         *toggle_10 = COV_FLAG_UNREACHABLE;
          toggle_01 += 2;
          toggle_10 += 2;
       }

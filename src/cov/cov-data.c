@@ -666,13 +666,17 @@ cover_item_t *cover_add_items_for(cover_data_t *data, object_t *obj,
 
 static void cover_merge_one_item(cover_item_t *item, int32_t data)
 {
+   int32_t inc;
+
    switch (item->kind) {
    case COV_ITEM_STMT:
    case COV_ITEM_FUNCTIONAL:
    case COV_ITEM_BRANCH:
    case COV_ITEM_STATE:
    case COV_ITEM_EXPRESSION:
-      item->data += data;
+      inc = item->data + data;
+      if (likely(inc > item->data))
+         item->data = inc;
       break;
 
    // Highest bit of run-time data for COV_ITEM_TOGGLE is used to track
@@ -683,10 +687,15 @@ static void cover_merge_one_item(cover_item_t *item, int32_t data)
    // the other was driven. So, If the unreachability is detected, enforce
    // its propagation further to the merged database
    case COV_ITEM_TOGGLE:
-      if (item->data & COV_FLAG_UNREACHABLE)
+
+      if ((item->data & COV_FLAG_UNREACHABLE) || (data & COV_FLAG_UNREACHABLE))
          item->data = COV_FLAG_UNREACHABLE;
       else
-         item->data += data;
+      {
+         inc = item->data + data;
+         if (likely(inc > item->data))
+            item->data = inc;
+      }
       break;
 
    default:
