@@ -1328,10 +1328,28 @@ static void elab_instance_fixup(tree_t arch, const elab_ctx_t *ctx)
             for (int i = 0; i < ngenerics; i++) {
                tree_t fg = tree_generic(formal, i);
                tree_t ag = tree_generic(actual, i);
-               hash_put(map, fg, ag);
 
-               if (tree_class(fg) == C_TYPE)
+               switch (tree_class(fg)) {
+               case C_FUNCTION:
+               case C_PROCEDURE:
+                  {
+                     // Get the actual subprogram from the generic map
+                     assert(ngenerics == tree_genmaps(actual));
+                     tree_t ref = tree_value(tree_genmap(actual, i));
+                     assert(tree_kind(ref) == T_REF);
+
+                     hash_put(map, fg, tree_ref(ref));
+                  }
+                  break;
+               case C_TYPE:
                   hash_put(map, tree_type(fg), tree_type(ag));
+                  break;
+               case C_PACKAGE:
+                  // TODO: this should be processed recursively
+               default:
+                  hash_put(map, fg, ag);
+                  break;
+               }
             }
 
             hash_put(map, g, actual);

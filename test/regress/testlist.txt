@@ -1005,3 +1005,4 @@ issue921        normal,2008
 open2           normal
 implicit8       normal
 issue924        normal,2019
+issue925        normal,2008
