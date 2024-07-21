@@ -2837,23 +2837,29 @@ static tree_t finish_overload_resolution(overload_t *o)
                      : "call to procedure"),
                   istr(o->name));
 
+      int explicit = 0;
       for (unsigned i = 0; i < o->candidates.count; i++) {
-         if (o->candidates.items[i]) {
-            const loc_t *cloc = tree_loc(o->candidates.items[i]);
-            if (cloc->file_ref == loc->file_ref)
-               diag_hint(d, cloc, "candidate %s",
-                         type_pp(tree_type(o->candidates.items[i])));
-            else {
-               tree_t container = tree_container(o->candidates.items[i]);
-               diag_hint(d, NULL, "candidate %s from %s",
-                         type_pp(tree_type(o->candidates.items[i])),
-                         istr(tree_ident(container)));
-            }
+         const loc_t *cloc = tree_loc(o->candidates.items[i]);
+         if (cloc->file_ref == loc->file_ref)
+            diag_hint(d, cloc, "candidate %s",
+                      type_pp(tree_type(o->candidates.items[i])));
+         else {
+            tree_t container = tree_container(o->candidates.items[i]);
+            diag_hint(d, NULL, "candidate %s from %s",
+                      type_pp(tree_type(o->candidates.items[i])),
+                      istr(tree_ident(container)));
          }
+
+         if (!(tree_flags(o->candidates.items[i]) & TREE_F_PREDEFINED))
+            explicit++;
       }
 
       if (diag_hints(d) > 0)
          diag_hint(d, tree_loc(o->tree), "use of name %s here", istr(o->name));
+
+      if (explicit == 1 && !prefer_explicit)
+         diag_hint(d, NULL, "this would be resolved in favour of the "
+                   "explicitly defined operator with $bold$--relaxed$$");
 
       diag_emit(d);
    }

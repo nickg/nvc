@@ -216,6 +216,11 @@ START_TEST(test_ambiguous)
       {   0, "visible declaration of FALSE as BOOLEAN from STD.STANDARD" },
       {   0, "visible declaration of FALSE as FALSE [return INTEGER]" },
       { 141, "ambiguous use of operator \"<\"" },
+      {   0, "use of name \"<\" here" },
+      {   0, "candidate \"<\" [MY_INT, MY_INT return BOOLEAN]" },
+      {   0, "candidate \"<\" [MY_INT, MY_INT return BOOLEAN]" },
+      {   0, "this would be resolved in favour of the explicitly defined "
+          "operator with --relaxed" },
       { 222, "type of aggregate cannot be determined" },
       { -1, NULL }
    };
