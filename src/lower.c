@@ -8207,8 +8207,15 @@ static void lower_implicit_decl(lower_unit_t *parent, tree_t decl)
          vcode_block_t main_bb = emit_block();
          vcode_select_block(main_bb);
 
-         vcode_reg_t delay_reg = lower_rvalue(lu, tree_delay(wave));
-         vcode_reg_t reject_reg = emit_const(vtype_time(), 0);
+         vcode_type_t vtime = vtype_time();
+
+         vcode_reg_t delay_reg;
+         if (tree_has_delay(wave))
+            delay_reg = lower_rvalue(lu, tree_delay(wave));
+         else
+            delay_reg = emit_const(vtime, 0);
+
+         vcode_reg_t reject_reg = emit_const(vtime, 0);
          vcode_reg_t value_reg = lower_rvalue(lu, expr);
 
          target_part_t parts[] = {

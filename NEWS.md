@@ -4,6 +4,8 @@
   names (#921).
 - Fixed a crash when an unconstrained port with a default value is
   associated with `open`.
+- Fixed a duplicate symbol linker error with some uses of the `'delayed`
+  attribute.
 
 ## Version 1.13.0 - 2024-07-13
 - Type and package generics now work correctly with components and
