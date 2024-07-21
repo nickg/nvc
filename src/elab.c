@@ -2360,6 +2360,8 @@ tree_t elab_external_name(tree_t name, tree_t root, ident_t *path)
          return NULL;
       }
 
+      assert(tree_kind(where) == T_BLOCK);
+
       tree_t hier = tree_decl(where, 0);
       assert(tree_kind(hier) == T_HIER);
 
@@ -2386,6 +2388,17 @@ tree_t elab_external_name(tree_t name, tree_t root, ident_t *path)
             tree_t d = tree_decl(where, i);
             if (tree_ident(d) == id) {
                next = d;
+               break;
+            }
+         }
+      }
+
+      if (next == NULL) {
+         const int ngenerics = tree_generics(where);
+         for (int i = 0; i < ngenerics; i++) {
+            tree_t g = tree_generic(where, i);
+            if (tree_ident(g) == id) {
+               next = g;
                break;
             }
          }
