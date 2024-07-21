@@ -12020,9 +12020,7 @@ static void lower_port_map(lower_unit_t *lu, tree_t block, tree_t map,
 
    assert(tree_kind(port) == T_PORT_DECL);
 
-   if (value_kind == T_OPEN && tree_has_value(port))
-      value = tree_value(port);
-   else if (value_conv != NULL) {
+   if (value_conv != NULL) {
       // Value has conversion function
       type_t atype = tree_type(value_conv);
       type_t rtype = tree_type(value);
@@ -12412,6 +12410,40 @@ static vcode_reg_t lower_constrain_port(lower_unit_t *lu, tree_t port, int pos,
    }
 }
 
+static vcode_reg_t lower_open_port_map(lower_unit_t *lu, tree_t block, tree_t p)
+{
+   tree_t port;
+   if (tree_subkind(p) == P_NAMED) {
+      tree_t name = tree_name(p);
+      if (tree_kind(name) == T_REF)
+         port = tree_ref(name);
+      else {
+         // VHDL-2019 partially connected vectors in port map
+         assert(standard() >= STD_19);
+
+         if (tree_has_value(tree_ref(name_to_ref(name))))
+            return lower_rvalue(lu, name);
+         else
+            return VCODE_INVALID_REG;
+      }
+   }
+   else
+      port = tree_port(block, tree_pos(p));
+
+   if (tree_has_value(port)) {
+      tree_t def = tree_value(port);
+      vcode_reg_t def_reg = lower_rvalue(lu, def);
+
+      type_t port_type = tree_type(port);
+      if (type_is_array(port_type))
+         return lower_coerce_arrays(lu, tree_type(def), port_type, def_reg);
+
+      return def_reg;
+   }
+   else
+      return VCODE_INVALID_REG;
+}
+
 static void lower_ports(lower_unit_t *lu, driver_set_t *ds, tree_t block)
 {
    const int nports = tree_ports(block);
@@ -12429,6 +12461,8 @@ static void lower_ports(lower_unit_t *lu, driver_set_t *ds, tree_t block)
          map_regs[i] = VCODE_INVALID_REG;
       else if (lower_is_signal_ref(value))
          map_regs[i] = lower_lvalue(lu, value);
+      else if (tree_kind(value) == T_OPEN)
+         map_regs[i] = lower_open_port_map(lu, block, p);
       else
          map_regs[i] = lower_rvalue(lu, value);
    }

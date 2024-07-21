@@ -1001,3 +1001,4 @@ issue908        normal,2008
 issue909        shell,gold
 issue901        wave
 issue921        normal,2008
+open2           normal
