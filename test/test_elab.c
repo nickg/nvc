@@ -1951,6 +1951,33 @@ START_TEST(test_issue907)
 }
 END_TEST
 
+START_TEST(test_generic3)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/elab/generic3.vhd");
+
+   const error_t expect[] = {
+      { 10, "value length 5 does not match signal X length 2" },
+      {  0, "while elaborating instance U" },
+      {  0, "generic I => 42" },
+      {  0, "generic S => \"hello\"" },
+      {  0, "generic T => 5000000 FS" },
+      {  0, "generic B => ('0', '1', '0')" },
+      {  0, "generic TY => INTEGER" },
+      {  0, "generic \"=\" => \"=\" [INTEGER, INTEGER return BOOLEAN]" },
+      {  0, "generic \"/=\" => \"/=\" [INTEGER, INTEGER return BOOLEAN]" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t e = run_elab();
+   fail_unless(e == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_elab_tests(void)
 {
    Suite *s = suite_create("elab");
@@ -2055,6 +2082,7 @@ Suite *get_elab_tests(void)
    tcase_add_test(tc, test_genpack5);
    tcase_add_test(tc, test_null1);
    tcase_add_test(tc, test_issue907);
+   tcase_add_test(tc, test_generic3);
    suite_add_tcase(s, tc);
 
    return s;
