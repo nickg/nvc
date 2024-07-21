@@ -60,11 +60,11 @@ runs:
       run: |
         Start-Process msiexec.exe -ArgumentList "/i ${{ env.MSI }} /qn /l* .\msilog.log" -Wait
         type .\msilog.log
+        echo "C:\Program Files\NVC\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
     - name: Sanity test
       working-directory: ./build
       shell: powershell
       run: |
-        $env:PATH += ";C:\Program Files\NVC\bin\"
         nvc.exe --version
     - name: Upload artifact
       uses: actions/upload-artifact@v4

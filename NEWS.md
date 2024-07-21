@@ -1,4 +1,5 @@
 ## Unreleased changes
+- Windows installer was missing some standard library files.
 
 ## Version 1.13.0 - 2024-07-13
 - Type and package generics now work correctly with components and
