@@ -2411,16 +2411,14 @@ tree_t elab_external_name(tree_t name, tree_t root, ident_t *path)
          diag_hint(d, tree_loc(pe), "name %s not found inside %s", istr(id),
                    istr(tree_ident(where)));
 
-         if (tree_kind(where) == T_BLOCK) {
-            tree_t unit = tree_ref(hier);
-            const int nstmts = tree_stmts(unit);
-            for (int i = 0; i < nstmts; i++) {
-               tree_t s = tree_stmt(unit, i);
-               if (tree_ident(s) == id) {
-                  diag_hint(d, NULL, "an object cannot be referenced by an "
-                            "external name until it has been elaborated");
-                  break;
-               }
+         tree_t unit = tree_ref(hier);
+         const int nstmts = tree_stmts(unit);
+         for (int i = 0; i < nstmts; i++) {
+            tree_t s = tree_stmt(unit, i);
+            if (tree_ident(s) == id) {
+               diag_hint(d, NULL, "an object cannot be referenced by an "
+                         "external name until it has been elaborated");
+               break;
             }
          }
 
