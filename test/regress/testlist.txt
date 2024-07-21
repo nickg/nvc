@@ -1003,3 +1003,4 @@ issue901        wave
 psl8            fail,gold,psl
 issue921        normal,2008
 open2           normal
+implicit8       normal

@@ -2135,35 +2135,52 @@ static void implicit_signal_attribute(tree_t aref)
    const attr_kind_t attr = tree_subkind(aref);
 
    tree_t delay = NULL;
-   bool const_delay = false;
-   if (attr == ATTR_DELAYED && tree_params(aref) > 0) {
+   if (attr == ATTR_DELAYED && tree_params(aref) > 0)
       delay = tree_value(tree_param(aref, 0));
-      const_delay = (tree_kind(delay) == T_LITERAL);
-   }
 
    LOCAL_TEXT_BUF tb = tb_new();
    tree_t ref = name_to_ref(prefix);
    if (ref != NULL)
       tb_istr(tb, tree_ident(ref));
    tb_printf(tb, "$%s", attr == ATTR_DELAYED ? "delayed" : "transaction");
-   if (const_delay) {
+   if (delay != NULL && tree_kind(delay) == T_LITERAL) {
       tb_printf(tb, "_%"PRIi64, tree_ival(delay));
       if (tree_has_ident(delay))
          tb_printf(tb, "_%s", istr(tree_ident(delay)));
    }
+   else if (delay != NULL && tree_kind(delay) == T_REF)
+      tb_printf(tb, "_%s", istr(tree_ident(delay)));
 
-   ident_t id;
-   if (ref == prefix && (delay == NULL || const_delay)) {
-      id = ident_new(tb_get(tb));
+   ident_t id = ident_new(tb_get(tb));
 
-      tree_t exist = get_local_decl(nametab, NULL, id, 0);
-      if (exist != NULL) {
-         tree_set_value(aref, make_ref(exist));
+   const int ndecls = tree_decls(b);
+   for (int i = 0; i < ndecls; i++) {
+      tree_t d = tree_decl(b, i);
+      if (tree_kind(d) != T_IMPLICIT_SIGNAL || tree_ident(d) != id)
+         continue;
+
+      bool match = false;
+      tree_t value = tree_value(d);
+      if (attr == ATTR_DELAYED) {
+         assert(tree_kind(value) == T_WAVEFORM);
+
+         match = same_tree(tree_value(value), prefix)
+            && ((delay == NULL && !tree_has_delay(value))
+                || (delay != NULL && tree_has_delay(value)
+                    && same_tree(tree_delay(value), delay)));
+      }
+      else if (attr == ATTR_TRANSACTION)
+         match = same_tree(value, prefix);
+
+      if (match) {
+         tree_set_value(aref, make_ref(d));
          return;
       }
+      else {
+         tb_append(tb, '_');
+         id = ident_new(tb_get(tb));
+      }
    }
-   else
-      id = ident_uniq(tb_get(tb));
 
    tree_t imp = tree_new(T_IMPLICIT_SIGNAL);
    tree_set_ident(imp, id);
@@ -2175,7 +2192,8 @@ static void implicit_signal_attribute(tree_t aref)
          tree_t w = tree_new(T_WAVEFORM);
          tree_set_loc(w, CURRENT_LOC);
          tree_set_value(w, prefix);
-         tree_set_delay(w, delay ?: get_time(0, CURRENT_LOC));
+         if (delay != NULL)
+            tree_set_delay(w, delay);
 
          tree_set_subkind(imp, IMPLICIT_DELAYED);
          tree_set_type(imp, solve_types(nametab, aref, NULL));
@@ -2194,8 +2212,6 @@ static void implicit_signal_attribute(tree_t aref)
    }
 
    tree_add_decl(b, imp);
-   insert_name(nametab, imp, NULL);
-
    tree_set_value(aref, make_ref(imp));
 }
 
