@@ -1321,6 +1321,7 @@ static tree_t simp_literal(tree_t t)
       if (tree_has_ref(t)) {
          tree_t decl = tree_ref(t);
          int64_t base = assume_int(tree_value(decl));
+         type_t type = tree_type(t);
 
          const double dval = tree_dval(t);
          if (dval != 0) {
@@ -1328,7 +1329,7 @@ static tree_t simp_literal(tree_t t)
             if (result < (double)INT64_MIN || result > (double)INT64_MAX)
                error_at(tree_loc(t), "physical literal %g %s exceeds "
                         "range of type %s", dval, istr(tree_ident(decl)),
-                        type_pp(tree_type(t)));
+                        type_pp(type));
             else
                tree_set_ival(t, (int64_t)result);
          }
@@ -1337,13 +1338,13 @@ static tree_t simp_literal(tree_t t)
             if (__builtin_mul_overflow(ival, base, &result))
                error_at(tree_loc(t), "physical literal %"PRIi64" %s exceeds "
                         "range of type %s", ival, istr(tree_ident(decl)),
-                        type_pp(tree_type(t)));
+                        type_pp(type));
             else
                tree_set_ival(t, result);
          }
 
          tree_set_ref(t, NULL);
-         tree_set_ident(t, tree_ident(decl));
+         tree_set_ident(t, tree_ident(type_unit(type, 0)));
       }
       return t;
 

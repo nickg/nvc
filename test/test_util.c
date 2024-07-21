@@ -66,10 +66,11 @@ static void test_error_fn(diag_t *d, void *context)
       else {
          ck_assert_int_lt(hint, diag_hints(d));
 
-         if (strstr(diag_get_hint(d, hint), error_lines->snippet) == NULL) {
+         char *copy LOCAL = xstrdup(diag_get_hint(d, hint));
+         if (strstr(copy, error_lines->snippet) == NULL) {
             diag_set_consumer(NULL, NULL);
             diag_emit(d);
-            printf("expected hint '%s'\n", error_lines->snippet);
+            printf("expected hint '%s' got '%s'\n", error_lines->snippet, copy);
             ck_abort_msg("expected hint '%s'", error_lines->snippet);
          }
       }

@@ -932,6 +932,10 @@ static void elab_write_generic(text_buf_t *tb, tree_t value)
       switch (tree_subkind(value)) {
       case L_INT:  tb_printf(tb, "%"PRIi64, tree_ival(value)); break;
       case L_REAL: tb_printf(tb, "%lf", tree_dval(value)); break;
+      case L_PHYSICAL:
+         tb_printf(tb, "%"PRIi64" %s", tree_ival(value),
+                   istr(tree_ident(value)));
+         break;
       }
       break;
    case T_STRING:
@@ -955,7 +959,10 @@ static void elab_write_generic(text_buf_t *tb, tree_t value)
       }
       break;
    case T_REF:
-      tb_printf(tb, "%s", istr(tree_ident(value)));
+      if (is_subprogram(tree_ref(value)))
+         tb_printf(tb, "%s", type_pp(tree_type(value)));
+      else
+         tb_printf(tb, "%s", istr(tree_ident(value)));
       break;
    case T_TYPE_CONV:
    case T_QUALIFIED:
