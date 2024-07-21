@@ -2408,6 +2408,17 @@ tree_t elab_external_name(tree_t name, tree_t root, ident_t *path)
       }
 
       if (next == NULL) {
+         const int nports = tree_ports(where);
+         for (int i = 0; i < nports; i++) {
+            tree_t p = tree_port(where, i);
+            if (tree_ident(p) == id) {
+               next = p;
+               break;
+            }
+         }
+      }
+
+      if (next == NULL) {
          diag_t *d = diag_new(DIAG_ERROR, tree_loc(pe));
          diag_printf(d, "external name %s not found",
                      istr(tree_ident(tree_part(name, nparts - 1))));
