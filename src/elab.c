@@ -1080,15 +1080,11 @@ static void elab_ports(tree_t entity, tree_t bind, const elab_ctx_t *ctx)
             tree_set_pos(map, i);
          }
 
-         if (tree_has_value(p))
-            tree_set_value(map, tree_value(p));
-         else {
-            tree_t open = tree_new(T_OPEN);
-            tree_set_type(open, tree_type(p));
-            tree_set_loc(open, tree_loc(p));
+         tree_t open = tree_new(T_OPEN);
+         tree_set_type(open, tree_type(p));
+         tree_set_loc(open, tree_loc(p));
 
-            tree_set_value(map, open);
-         }
+         tree_set_value(map, open);
 
          tree_add_param(ctx->out, map);
       }
