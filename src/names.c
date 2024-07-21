@@ -3269,7 +3269,7 @@ static tree_t resolve_predef(nametab_t *tab, type_t type, ident_t op)
          continue;
 
       tree_t sub = dd->tree;
-      if (dd->kind == T_ALIAS && !(sub = get_aliased_subprogram(sub)) )
+      if (dd->kind == T_ALIAS && !(sub = get_aliased_subprogram(sub)))
          continue;
 
       if (!is_predef_for_type(sub, type))
@@ -3355,11 +3355,15 @@ void map_generic_box(nametab_t *tab, tree_t inst, tree_t g, unsigned pos)
          else if (dd->tree == g)
             continue;
 
-         type_t signature = tree_type(dd->tree);
+         tree_t sub = dd->tree;
+         if (dd->kind == T_ALIAS && !(sub = get_aliased_subprogram(sub)))
+            continue;
+
+         type_t signature = tree_type(sub);
          if (!type_eq_map(type, signature, tab->top_scope->gmap))
             continue;
 
-         decl = dd->tree;
+         decl = sub;
          break;
       }
    }
