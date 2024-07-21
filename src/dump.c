@@ -142,7 +142,8 @@ static void dump_address(tree_t t)
 
    const int color = 16 + 36*r + 6*g + b;
 
-   char *LOCAL fmt = xasprintf("$!#%d${%%p}$$", color);
+   char *LOCAL fmt = xasprintf("$!#%d${%%p:%s}$$", color,
+                               tree_kind_str(tree_kind(t)));
    color_printf(fmt, t);
 #endif
 }

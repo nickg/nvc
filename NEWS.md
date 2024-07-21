@@ -8,6 +8,8 @@
   attribute.
 - Fixed a crash when an aliased subprogram is matched by a generic
   subprogram `<>` (#924)
+- Fixed a crash when a generic package containing a subprogram is passed
+  to an entity package generic (#925).
 
 ## Version 1.13.0 - 2024-07-13
 - Type and package generics now work correctly with components and
