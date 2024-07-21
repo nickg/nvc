@@ -83,6 +83,7 @@ typedef enum {
    COV_SRC_LOOP_STMT,
    COV_SRC_CONDITION,
    COV_SRC_STATEMENT,
+   COV_SRC_PSL_COVER,
    COV_SRC_UNKNOWN,
 } cover_src_t;
 

@@ -24,6 +24,7 @@
 #include "object.h"
 #include "option.h"
 #include "tree.h"
+#include "psl/psl-node.h"
 #include "type.h"
 
 #include <assert.h>
@@ -112,6 +113,16 @@ static cover_src_t get_cover_source(cover_item_kind_t kind, object_t *obj)
          default:
             return COV_SRC_CONDITION;
          }
+      default:
+         return COV_SRC_UNKNOWN;
+      }
+   }
+
+   psl_node_t p = psl_from_object(obj);
+   if (p != NULL) {
+      switch (kind) {
+      case COV_ITEM_FUNCTIONAL:
+         return COV_SRC_PSL_COVER;
       default:
          return COV_SRC_UNKNOWN;
       }
@@ -666,13 +677,19 @@ cover_item_t *cover_add_items_for(cover_data_t *data, object_t *obj,
 
 static void cover_merge_one_item(cover_item_t *item, int32_t data)
 {
+   int32_t inc;
+
    switch (item->kind) {
    case COV_ITEM_STMT:
    case COV_ITEM_FUNCTIONAL:
    case COV_ITEM_BRANCH:
    case COV_ITEM_STATE:
    case COV_ITEM_EXPRESSION:
-      item->data += data;
+      inc = item->data + data;
+      if (likely(inc >= item->data))
+         item->data = inc;
+      else
+         item->data = INT32_MAX;
       break;
 
    // Highest bit of run-time data for COV_ITEM_TOGGLE is used to track
@@ -683,10 +700,17 @@ static void cover_merge_one_item(cover_item_t *item, int32_t data)
    // the other was driven. So, If the unreachability is detected, enforce
    // its propagation further to the merged database
    case COV_ITEM_TOGGLE:
-      if (item->data & COV_FLAG_UNREACHABLE)
+
+      if ((item->data & COV_FLAG_UNREACHABLE) || (data & COV_FLAG_UNREACHABLE))
          item->data = COV_FLAG_UNREACHABLE;
       else
-         item->data += data;
+      {
+         inc = item->data + data;
+         if (likely(inc >= item->data))
+            item->data = inc;
+         else
+            item->data = INT32_MAX;
+      }
       break;
 
    default:

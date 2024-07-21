@@ -59,7 +59,6 @@ typedef struct {
 typedef struct {
    cover_line_t *line;
    cover_item_t *item;
-   int flags;
 } cover_pair_t;
 
 typedef struct {
@@ -604,6 +603,7 @@ static void cover_print_item_title(FILE *f, cover_pair_t *pair)
       [COV_SRC_LOOP_STMT] = "Loop statement",
       [COV_SRC_STATEMENT] = "Sequential statement",
       [COV_SRC_CONDITION] = "Condition",
+      [COV_SRC_PSL_COVER] = "PSL cover point",
       [COV_SRC_UNKNOWN] = "",
    };
 
@@ -612,6 +612,7 @@ static void cover_print_item_title(FILE *f, cover_pair_t *pair)
    switch (pair->item->kind) {
    case COV_ITEM_STMT:
    case COV_ITEM_BRANCH:
+   case COV_ITEM_FUNCTIONAL:
       fprintf(f, "%s:", text[pair->item->source]);
       break;
    case COV_ITEM_EXPRESSION:
@@ -631,8 +632,6 @@ static void cover_print_code_loc(FILE *f, cover_pair_t *pair)
    loc_t loc = pair->item->loc;
    cover_line_t *curr_line = pair->line;
    cover_line_t *last_line = pair->line + loc.line_delta;
-
-   cover_print_item_title(f, pair);
 
    if (loc.line_delta == 0) {
       fprintf(f, "<code>");
@@ -665,7 +664,8 @@ static void cover_print_code_loc(FILE *f, cover_pair_t *pair)
             curr_char++;
          }
 
-         fprintf(f, "<br>");
+         if (curr_line < last_line)
+            fprintf(f, "<br>");
          curr_line++;
 
       } while (curr_line <= last_line);
@@ -705,6 +705,8 @@ static void cover_print_bin(FILE *f, cover_pair_t *pair, uint32_t flag,
          fprintf(f, "<td>%s</td>", val);
       }
 
+      fprintf(f, "<td>%d</td>", pair->item->data);
+
       if (pkind == PAIR_UNCOVERED)
          cover_print_get_exclude_button(f, pair->item, flag, true);
 
@@ -731,6 +733,8 @@ static void cover_print_bin_header(FILE *f, cov_pair_kind_t pkind, int cols, ...
       fprintf(f, "<th>%s</th>", val);
    }
 
+   fprintf(f, "<th>Count</th>");
+
    if (pkind == PAIR_UNCOVERED)
       fprintf(f, "<th>Exclude Command</th>");
 
@@ -752,7 +756,7 @@ static void cover_print_bins(FILE *f, cover_pair_t *first_pair, cov_pair_kind_t 
          cover_print_bin(f, pair, COV_FLAG_TRUE, pkind, 1, "True");
          cover_print_bin(f, pair, COV_FLAG_FALSE, pkind, 1, "False");
 
-         if (pair->flags & COV_FLAG_CHOICE) {
+         if (pair->item->flags & COV_FLAG_CHOICE) {
             int curr = loc.first_column;
             int last = (loc.line_delta) ? strlen(pair->line->text) :
                                           loc.column_delta + curr;
@@ -820,8 +824,9 @@ static void cover_print_pairs(FILE *f, cover_pair_t *first, cov_pair_kind_t pkin
    int step;
 
    do {
-      step = 1;
       fprintf(f, "    <p>");
+
+      step = curr->item->consecutive;
 
       switch (curr->item->kind) {
       case COV_ITEM_STMT:
@@ -830,10 +835,13 @@ static void cover_print_pairs(FILE *f, cover_pair_t *first, cov_pair_kind_t pkin
          if (pkind == PAIR_EXCLUDED)
             fprintf(f, "<div style=\"float: right\"><b>Excluded due to:</b> Exclude file</div>");
 
+         cover_print_item_title(f, curr);
          cover_print_code_loc(f, curr);
+         fprintf(f, "<br><b>Count:</b> %d", curr->item->data);
          break;
 
       case COV_ITEM_BRANCH:
+         cover_print_item_title(f, curr);
          cover_print_code_loc(f, curr);
          cover_print_bin_header(f, pkind, 1, (curr->item->flags & COV_FLAG_CHOICE) ?
                                 "Choice of" : "Evaluated to");
@@ -852,32 +860,33 @@ static void cover_print_pairs(FILE *f, cover_pair_t *first, cov_pair_kind_t pkin
 
          cover_print_bin_header(f, pkind, 2, "From", "To");
          cover_print_bins(f, curr, pkind);
-         step = curr->item->consecutive;
          break;
 
       case COV_ITEM_EXPRESSION:
+         cover_print_item_title(f, curr);
          cover_print_code_loc(f, curr);
+
          if ((curr->item->flags & COV_FLAG_TRUE) || (curr->item->flags & COV_FLAG_FALSE))
             cover_print_bin_header(f, pkind, 1, "Evaluated to");
          else
             cover_print_bin_header(f, pkind, 2, "LHS", "RHS");
 
          cover_print_bins(f, curr, pkind);
-         step = curr->item->consecutive;
          break;
 
       case COV_ITEM_STATE:
+         cover_print_item_title(f, curr);
          cover_print_code_loc(f, curr);
          cover_print_bin_header(f, pkind, 1, "State");
          cover_print_bins(f, curr, pkind);
-
-         step = curr->item->consecutive;
          break;
 
       case COV_ITEM_FUNCTIONAL:
          if (pkind == PAIR_UNCOVERED)
             cover_print_get_exclude_button(f, curr->item, 0, false);
+         cover_print_item_title(f, curr);
          cover_print_code_loc(f, curr);
+         fprintf(f, "<br><b>Count:</b> %d", curr->item->data);
          break;
 
       default:
@@ -964,7 +973,7 @@ static void cover_print_chain(FILE *f, cover_data_t *data, cover_chain_t *chn,
       else if (kind == COV_ITEM_STATE)
          fprintf(f, "FSM states:");
       else if (kind == COV_ITEM_FUNCTIONAL)
-         fprintf(f, "sequences:");
+         fprintf(f, "functional coverage:");
       fprintf(f, "</h2>\n");
 
       fprintf(f, "  <section style=\"padding:0px 10px;\">\n");
@@ -1034,8 +1043,6 @@ static bool cover_bin_unreachable(cover_report_ctx_t *ctx, cover_item_t *item)
    return false;
 }
 
-// TODO: Remove "flag" from "cover_pair_t" once all cover item kinds are reworked
-//       to contain only single bin. It will not be needed then!
 #define CHAIN_APPEND(chn, type, first_chn_item, curr_item, curr_line)            \
       do {                                                                       \
          if (chn->n_##type == chn->alloc_##type) {                               \
@@ -1106,7 +1113,7 @@ static int cover_append_item_to_chain(cover_report_ctx_t *ctx, cover_item_t *fir
       nested_total = &(ctx->nested_stats.total_functional);
       flat_hits = &(ctx->flat_stats.hit_functional);
       nested_hits = &(ctx->nested_stats.hit_functional);
-      chn = &(ctx->ch_expression);
+      chn = &(ctx->ch_functional);
       break;
    default:
       fatal("unsupported type of code coverage: %d at 'cover_append_item_to_chain'!",
