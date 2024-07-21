@@ -452,12 +452,15 @@ jobs:
   msi-installer:
     name: Windows installer
     runs-on: windows-2022
-    defaults:
-      run:
-        shell: msys2 {0}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - name: Build MSI installer
         uses: ./.github/actions/windows-installer
+      - name: Run ieee1 regression test
+        shell: powershell
+        run: |
+          nvc.exe -a test\regress\ieee1.vhd
+          nvc.exe -e ieee1
+          nvc.exe -r ieee1

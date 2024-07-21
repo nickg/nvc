@@ -15,7 +15,7 @@ installer.wxs: $(srcdir)/contrib/msi/installer.wxs.in
 	    -e 's|$$PREFIX|$(PREFIX)|' $< > $@
 
 libs.wxs: $(srcdir)/contrib/msi/genlibs.py bin/nvc$(EXEEXT)
-	python3 $< bin/nvc$(EXEEXT) > $@
+	python3 $< bin/nvc$(EXEEXT) $(PREFIX) > $@
 
 %.wixobj: %.wxs
 	candle $<
