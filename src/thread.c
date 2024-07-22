@@ -589,17 +589,9 @@ static DWORD win32_thread_wrapper(LPVOID param)
 }
 #endif
 
-nvc_thread_t *thread_create(thread_fn_t fn, void *arg, const char *fmt, ...)
+static void thread_start(nvc_thread_t *thread)
 {
-   va_list ap;
-   va_start(ap, fmt);
-   char *name = xvasprintf(fmt, ap);
-   va_end(ap);
-
-   // Avoid races with stop_world
-   SCOPED_LOCK(stop_lock);
-
-   nvc_thread_t *thread = thread_new(fn, arg, USER_THREAD, name);
+   assert_lock_held(&stop_lock);
 
 #ifdef __MINGW32__
    if ((thread->handle = CreateThread(NULL, 0, win32_thread_wrapper,
@@ -613,6 +605,20 @@ nvc_thread_t *thread_create(thread_fn_t fn, void *arg, const char *fmt, ...)
 #ifdef __APPLE__
    thread->port = pthread_mach_thread_np(thread->handle);
 #endif
+}
+
+nvc_thread_t *thread_create(thread_fn_t fn, void *arg, const char *fmt, ...)
+{
+   va_list ap;
+   va_start(ap, fmt);
+   char *name = xvasprintf(fmt, ap);
+   va_end(ap);
+
+   // Avoid races with stop_world
+   SCOPED_LOCK(stop_lock);
+
+   nvc_thread_t *thread = thread_new(fn, arg, USER_THREAD, name);
+   thread_start(thread);
 
    return thread;
 }
@@ -1113,17 +1119,10 @@ static void create_workers(int needed)
    while (relaxed_load(&running_threads) < MIN(max_workers, needed)) {
       static int counter = 0;
       char *name = xasprintf("worker thread %d", atomic_add(&counter, 1));
+      SCOPED_LOCK(stop_lock);   // Avoid races with stop_world
       nvc_thread_t *thread =
          thread_new(worker_thread, NULL, WORKER_THREAD, name);
-
-#ifdef __MINGW32__
-      if ((thread->handle = CreateThread(NULL, 0, win32_thread_wrapper,
-                                         thread, 0, NULL)) == NULL)
-         fatal_errno("CreateThread");
-#else
-      PTHREAD_CHECK(pthread_create, &(thread->handle), NULL,
-                    thread_wrapper, thread);
-#endif
+      thread_start(thread);
    }
 
    platform_cond_broadcast(&wake_workers);
