@@ -17,6 +17,8 @@
   generic package in 2019 mode (#923).
 - Fixed a crash when a port with unconstrained array-of-record type is
   associated with a signal that has a static subtype.
+- Fixed incorrect longest static prefix calculation for array slices
+  containing `'length`, `'left`, `'right` and similar attributes (#930).
 
 ## Version 1.13.0 - 2024-07-13
 - Type and package generics now work correctly with components and

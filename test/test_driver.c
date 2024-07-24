@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2023  Nick Gasson
+//  Copyright (C) 2023-2024  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -207,6 +207,42 @@ START_TEST(test_unique3)
 }
 END_TEST
 
+START_TEST(test_issue930)
+{
+   input_from_file(TESTDIR "/driver/issue930.vhd");
+
+   tree_t a = parse_check_and_simplify(T_ENTITY, T_ARCH);
+
+   driver_set_t *di = find_drivers(a);
+
+   tree_t signals[] = {
+      get_decl(a, "NAME"),
+      get_decl(a, "S1"),
+      get_decl(a, "S2"),
+      get_decl(a, "S3"),
+      get_decl(a, "S4")
+   };
+
+   tree_t p0 = tree_stmt(a, 0);
+
+   driver_info_t *p0di = get_drivers(di, p0);
+   for (int i = 0; i < ARRAY_LEN(signals); i++, p0di = p0di->chain_proc) {
+      ck_assert_ptr_nonnull(p0di);
+
+      ck_assert_ptr_null(p0di->chain_decl);
+      ck_assert_ptr_eq(p0di->where, p0);
+      ck_assert(tree_kind(p0di->prefix) == T_REF);
+      ck_assert_ptr_eq(p0di->decl, signals[i]);
+      ck_assert(!p0di->tentative);
+   }
+   ck_assert_ptr_null(p0di);
+
+   free_drivers(di);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_driver_tests(void)
 {
    Suite *s = suite_create("driver");
@@ -217,6 +253,7 @@ Suite *get_driver_tests(void)
    tcase_add_test(tc, test_unique1);
    tcase_add_test(tc, test_unique2);
    tcase_add_test(tc, test_unique3);
+   tcase_add_test(tc, test_issue930);
    suite_add_tcase(s, tc);
 
    return s;
