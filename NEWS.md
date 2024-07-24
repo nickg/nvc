@@ -13,6 +13,8 @@
   to an entity package generic (#925).
 - Fixed an intermittent "failed to suspend thread" fatal error on macOS
   (#922).
+- Fixed a crash when a shared variable is declared inside a instantiated
+  generic package in 2019 mode (#923).
 
 ## Version 1.13.0 - 2024-07-13
 - Type and package generics now work correctly with components and
