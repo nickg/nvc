@@ -1782,6 +1782,7 @@ static void instantiate_subprogram(tree_t new, tree_t decl, tree_t body)
 
    tree_set_type(new, tree_type(src));
    tree_set_flag(new, tree_flags(decl));
+   tree_set_global_flags(new, tree_global_flags(decl));
 
    const int ngenerics = tree_generics(src);
    for (int i = 0; i < ngenerics; i++)
@@ -1801,6 +1802,7 @@ static void instantiate_subprogram(tree_t new, tree_t decl, tree_t body)
          tree_add_stmt(new, tree_stmt(body_copy, i));
 
       tree_set_flag(new, tree_flags(body));
+      tree_set_global_flags(new, tree_global_flags(body));
    }
 
    // Allow recursive calls to the uninstantiated subprogram
@@ -1832,6 +1834,8 @@ static void instantiate_package(tree_t new, tree_t pack, tree_t body)
    for (int i = 0; i < ndecls; i++)
       tree_add_decl(new, tree_decl(pack_copy, i));
 
+   tree_set_global_flags(new, tree_global_flags(pack));
+
    if (body != NULL) {
       // Copy all the declarations from the body into the package to
       // save keeping track of two separate units. The LRM says the
@@ -1841,6 +1845,8 @@ static void instantiate_package(tree_t new, tree_t pack, tree_t body)
       const int ndecls = tree_decls(body_copy);
       for (int i = 0; i < ndecls; i++)
          tree_add_decl(new, tree_decl(body_copy, i));
+
+      tree_set_global_flags(new, tree_global_flags(body));
    }
 }
 

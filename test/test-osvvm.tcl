@@ -13,6 +13,8 @@ if {[info exists env(OSVVM_DIR)]} {
 
 source $OsvvmDir/Scripts/StartNVC.tcl
 
+#SetVHDLVersion 2019
+
 set ::osvvm::AnalyzeErrorStopCount 1
 set ::osvvm::SimulateErrorStopCount 1
 

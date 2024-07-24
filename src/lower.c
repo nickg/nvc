@@ -12861,6 +12861,14 @@ static void lower_package(lower_unit_t *lu, object_t *obj)
    tree_t pack = tree_from_object(obj);
    assert(!is_uninstantiated_package(pack));
 
+   const tree_global_flags_t gflags = tree_global_flags(pack);
+
+   if (gflags & TREE_GF_INSTANCE_NAME)
+      lower_cache_instance_name(lu, ATTR_INSTANCE_NAME);
+
+   if (gflags & TREE_GF_PATH_NAME)
+      lower_cache_instance_name(lu, ATTR_PATH_NAME);
+
    lower_dependencies(lu, pack);
 
    const bool has_scope = lower_push_package_scope(pack);
