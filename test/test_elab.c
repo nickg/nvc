@@ -1978,6 +1978,26 @@ START_TEST(test_generic3)
 }
 END_TEST
 
+START_TEST(test_toplevel5)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/elab/toplevel5.vhd");
+
+   const error_t expect[] = {
+      {  2, "generic G of top-level entity must have default value" },
+      {  3, "only constant top-level generics are supported" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t e = run_elab();
+   fail_unless(e == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_elab_tests(void)
 {
    Suite *s = suite_create("elab");
@@ -2083,6 +2103,7 @@ Suite *get_elab_tests(void)
    tcase_add_test(tc, test_null1);
    tcase_add_test(tc, test_issue907);
    tcase_add_test(tc, test_generic3);
+   tcase_add_test(tc, test_toplevel5);
    suite_add_tcase(s, tc);
 
    return s;
