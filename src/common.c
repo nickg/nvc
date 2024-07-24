@@ -1771,6 +1771,26 @@ static bool is_static(tree_t expr)
          case ATTR_IMAGE:
             assert(tree_params(expr) == 1);
             return is_static(tree_value(tree_param(expr, 0)));
+         case ATTR_LENGTH:
+         case ATTR_LEFT:
+         case ATTR_RIGHT:
+         case ATTR_LOW:
+         case ATTR_HIGH:
+            {
+               type_t type = tree_type(tree_name(expr));
+               if (type_is_unconstrained(type))
+                  return false;
+
+               int64_t dim = 1;
+               if (tree_params(expr) == 1)
+                  dim = assume_int(tree_value(tree_param(expr, 0)));
+
+               tree_t r = range_of(type, dim - 1);
+               if (tree_subkind(r) == RANGE_EXPR)
+                  return false;
+
+               return is_static(tree_left(r)) && is_static(tree_right(r));
+            }
          default:
             return true;
          }
