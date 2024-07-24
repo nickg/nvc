@@ -2170,6 +2170,14 @@ static tree_t elab_top_level_binding(tree_t arch, const elab_ctx_t *ctx)
       tree_t g = tree_generic(entity, i);
       ident_t name = tree_ident(g);
 
+      if (tree_flags(g) & TREE_F_PREDEFINED)
+         continue;    // Predefined generic subprograms
+      else if (tree_class(g) != C_CONSTANT) {
+         error_at(tree_loc(g), "only constant top-level generics are "
+                  "supported");
+         continue;
+      }
+
       tree_t value = elab_find_generic_override(g, ctx);
       if (value == NULL && tree_has_value(g))
          value = tree_value(g);
@@ -2293,7 +2301,9 @@ tree_t elab(object_t *top, jit_t *jit, unit_registry_t *ur, cover_data_t *cover)
                              simple_name(istr(tree_ident(arch))));
 
       tree_t bind = elab_top_level_binding(arch, &ctx);
-      elab_architecture(bind, arch, config, &ctx);
+
+      if (error_count() == 0)
+         elab_architecture(bind, arch, config, &ctx);
    }
    else {
       mod_cache_t *mc = elab_cached_module(vlog, &ctx);
