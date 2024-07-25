@@ -39,6 +39,7 @@ EXTRA_DIST += \
 	test/charset/strings.vhd \
 	test/charset/utf8.vhd \
 	test/diag/diag1.vhd \
+	test/driver/issue930.vhd \
 	test/driver/sanity1.vhd \
 	test/driver/sanity2.vhd \
 	test/driver/unique1.vhd \
@@ -85,6 +86,7 @@ EXTRA_DIST += \
 	test/elab/generate1.vhd \
 	test/elab/generic1.vhd \
 	test/elab/generic2.vhd \
+	test/elab/generic3.vhd \
 	test/elab/genpack1.vhd \
 	test/elab/genpack2.vhd \
 	test/elab/genpack3.vhd \
@@ -149,6 +151,7 @@ EXTRA_DIST += \
 	test/elab/toplevel2.vhd \
 	test/elab/toplevel3.vhd \
 	test/elab/toplevel4.vhd \
+	test/elab/toplevel5.vhd \
 	test/elab/view1.vhd \
 	test/elab/vlog1.v \
 	test/eopt/alias1.vhd \
@@ -899,6 +902,7 @@ EXTRA_DIST += \
 	test/regress/for4.vhd \
 	test/regress/force1.vhd \
 	test/regress/force2.vhd \
+	test/regress/force3.vhd \
 	test/regress/func10.vhd \
 	test/regress/func11.vhd \
 	test/regress/func12.vhd \
@@ -1079,6 +1083,7 @@ EXTRA_DIST += \
 	test/regress/gold/for1.txt \
 	test/regress/gold/for2.txt \
 	test/regress/gold/for3.txt \
+	test/regress/gold/force3.txt \
 	test/regress/gold/func19.txt \
 	test/regress/gold/ieee11.txt \
 	test/regress/gold/ieee12.txt \
@@ -1224,6 +1229,7 @@ EXTRA_DIST += \
 	test/regress/implicit5.vhd \
 	test/regress/implicit6.vhd \
 	test/regress/implicit7.vhd \
+	test/regress/implicit8.vhd \
 	test/regress/integer1.vhd \
 	test/regress/integer2.vhd \
 	test/regress/integer3.vhd \
@@ -1471,6 +1477,11 @@ EXTRA_DIST += \
 	test/regress/issue909.sh \
 	test/regress/issue90.vhd \
 	test/regress/issue91.vhd \
+	test/regress/issue921.vhd \
+	test/regress/issue923.vhd \
+	test/regress/issue924.vhd \
+	test/regress/issue925.vhd \
+	test/regress/issue931.vhd \
 	test/regress/issue94.vhd \
 	test/regress/issue95.vhd \
 	test/regress/issue96.vhd \
@@ -1505,6 +1516,7 @@ EXTRA_DIST += \
 	test/regress/null2.vhd \
 	test/regress/null3.vhd \
 	test/regress/open1.vhd \
+	test/regress/open2.vhd \
 	test/regress/operator1.vhd \
 	test/regress/operator2.vhd \
 	test/regress/operator3.vhd \
@@ -1592,6 +1604,7 @@ EXTRA_DIST += \
 	test/regress/record36.vhd \
 	test/regress/record37.vhd \
 	test/regress/record38.vhd \
+	test/regress/record39.vhd \
 	test/regress/record3.vhd \
 	test/regress/record4.vhd \
 	test/regress/record5.vhd \

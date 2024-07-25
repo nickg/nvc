@@ -1,4 +1,6 @@
 ## Unreleased changes
+
+## Version 1.13.1 - 2024-07-25
 - Windows installer was missing some standard library files.
 - Fixed a regression where generics could not be referenced in external
   names (#921).
