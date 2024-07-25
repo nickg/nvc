@@ -3,12 +3,17 @@
   command hierarchy.
 - FSM state coverage bin name renamed from STATE to BIN_STATE.
 - All coverage bins are now counters saturating at 2147483647.
+
+## Version 1.13.1 - 2024-07-25
+- Windows installer was missing some standard library files.
+- Fixed a regression where generics and ports could not be referenced in
+  external names (#921).
 - Fixed a crash when an unconstrained port with a default value is
   associated with `open`.
 - Fixed a duplicate symbol linker error with some uses of the `'delayed`
   attribute.
-- Fixed a crash when an aliased generic subprogram is matched by a
-  generic `<>` (#924)
+- Fixed a crash when an aliased subprogram is matched by a generic
+  subprogram `<>` (#924)
 - Fixed a crash when a generic package containing a subprogram is passed
   to an entity package generic (#925).
 - Fixed an intermittent "failed to suspend thread" fatal error on macOS
