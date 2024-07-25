@@ -4052,18 +4052,6 @@ static bool sem_check_array_slice(tree_t t, nametab_t *tab)
    return true;
 }
 
-static bool sem_check_valid_implicit_signal(tree_t t, nametab_t *tab)
-{
-   // Certain attributes are illegal inside a subprogram according to LRM
-   // 93 section 2.1.1.2
-
-   if (find_enclosing(tab, S_SUBPROGRAM) != NULL)
-      sem_error(t, "implicit signal %s cannot be used in a "
-                "subprogram body", istr(tree_ident(t)));
-
-   return true;
-}
-
 static bool sem_check_signal_attr(tree_t t)
 {
    tree_t name = tree_name(t);
@@ -4359,11 +4347,8 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range, nametab_t *tab)
       tree_set_flag(name, TREE_F_ATTR_PREFIX);
       return true;
 
-   case ATTR_STABLE:
    case ATTR_QUIET:
-      if (!sem_check_valid_implicit_signal(t, tab))
-         return false;
-      // Fall-through
+   case ATTR_STABLE:
    case ATTR_DELAYED:
       {
          if (!sem_check_readable(name))

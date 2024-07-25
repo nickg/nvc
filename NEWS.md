@@ -3,6 +3,8 @@
   command hierarchy.
 - FSM state coverage bin name renamed from STATE to BIN_STATE.
 - All coverage bins are now counters saturating at 2147483647.
+- Waiting on implicit `'stable` and `'quiet` signals now works
+  correctly.
 
 ## Version 1.13.1 - 2024-07-25
 - Windows installer was missing some standard library files.

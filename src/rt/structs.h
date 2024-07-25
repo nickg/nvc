@@ -109,7 +109,7 @@ typedef enum {
    SOURCE_PORT,
    SOURCE_FORCING,
    SOURCE_DEPOSIT,
-   SOURCE_TRANSACTION,
+   SOURCE_IMPLICIT,
 } source_kind_t;
 
 typedef struct {
@@ -226,6 +226,7 @@ typedef enum {
 typedef struct _rt_implicit {
    rt_wakeable_t wakeable;
    ffi_closure_t closure;
+   uint64_t      delay;
    rt_signal_t   signal;   // Has a flexible member
 } rt_implicit_t;
 

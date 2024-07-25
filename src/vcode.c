@@ -960,8 +960,8 @@ const char *vcode_op_string(vcode_op_t op)
       "resolve signal", "push scope", "pop scope", "alias signal", "trap add",
       "trap sub", "trap mul", "force", "release", "link instance",
       "unreachable", "package init", "trap neg", "process init", "clear event",
-      "trap exp", "implicit event", "enter state", "reflect value",
-      "reflect subtype", "function trigger", "add trigger", "transfer signal",
+      "trap exp", "enter state", "reflect value", "reflect subtype",
+      "function trigger", "add trigger", "transfer signal",
       "port conversion", "convert in", "convert out", "bind foreign",
       "or trigger", "cmp trigger", "instance name", "deposit signal",
       "map transaction",
@@ -1327,7 +1327,7 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
 
          case VCODE_OP_MAP_CONST:
          case VCODE_OP_MAP_SIGNAL:
-         case VCODE_OP_MAP_TRANSACTION:
+         case VCODE_OP_MAP_IMPLICIT:
             {
                printf("%s ", vcode_op_string(op->kind));
                vcode_dump_reg(op->args.items[0]);
@@ -1896,17 +1896,6 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
                vcode_dump_reg(op->args.items[0]);
                printf(" count ");
                vcode_dump_reg(op->args.items[1]);
-            }
-            break;
-
-         case VCODE_OP_IMPLICIT_EVENT:
-            {
-               printf("%s on ", vcode_op_string(op->kind));
-               vcode_dump_reg(op->args.items[0]);
-               printf(" count ");
-               vcode_dump_reg(op->args.items[1]);
-               printf(" wake ");
-               vcode_dump_reg(op->args.items[2]);
             }
             break;
 
@@ -4813,7 +4802,8 @@ void emit_resolve_signal(vcode_reg_t signal, vcode_reg_t resolution)
 
 vcode_reg_t emit_implicit_signal(vcode_type_t type, vcode_reg_t count,
                                  vcode_reg_t size, vcode_reg_t locus,
-                                 vcode_reg_t kind, vcode_reg_t closure)
+                                 vcode_reg_t kind, vcode_reg_t closure,
+                                 vcode_reg_t delay)
 {
    op_t *op = vcode_add_op(VCODE_OP_IMPLICIT_SIGNAL);
    vcode_add_arg(op, count);
@@ -4821,6 +4811,7 @@ vcode_reg_t emit_implicit_signal(vcode_type_t type, vcode_reg_t count,
    vcode_add_arg(op, locus);
    vcode_add_arg(op, kind);
    vcode_add_arg(op, closure);
+   vcode_add_arg(op, delay);
 
    VCODE_ASSERT(vcode_reg_kind(count) == VCODE_TYPE_OFFSET,
                 "count argument to implicit signal is not offset");
@@ -4830,6 +4821,8 @@ vcode_reg_t emit_implicit_signal(vcode_type_t type, vcode_reg_t count,
                 "closure argument to implicit signal is not a closure");
    VCODE_ASSERT(vcode_reg_kind(locus) == VCODE_TYPE_DEBUG_LOCUS,
                 "locus argument to implicit signal must be a debug locus");
+   VCODE_ASSERT(vcode_reg_kind(delay) == VCODE_TYPE_INT,
+                "delay argument to implicit signal must be time");
 
    return (op->result = vcode_add_reg(vtype_signal(type)));
 }
@@ -4862,19 +4855,19 @@ void emit_map_const(vcode_reg_t src, vcode_reg_t dst, vcode_reg_t count)
                 "count argument type to map const is not offset");
 }
 
-void emit_map_transaction(vcode_reg_t src, vcode_reg_t dst, vcode_reg_t count)
+void emit_map_implicit(vcode_reg_t src, vcode_reg_t dst, vcode_reg_t count)
 {
-   op_t *op = vcode_add_op(VCODE_OP_MAP_TRANSACTION);
+   op_t *op = vcode_add_op(VCODE_OP_MAP_IMPLICIT);
    vcode_add_arg(op, src);
    vcode_add_arg(op, dst);
    vcode_add_arg(op, count);
 
    VCODE_ASSERT(vcode_reg_kind(src) == VCODE_TYPE_SIGNAL,
-                "src argument to map transaction is not a signal");
+                "src argument to map implicit is not a signal");
    VCODE_ASSERT(vcode_reg_kind(dst) == VCODE_TYPE_SIGNAL,
-                "dst argument to map transaction is not a signal");
+                "dst argument to map implicit is not a signal");
    VCODE_ASSERT(vcode_reg_kind(count) == VCODE_TYPE_OFFSET,
-                "count argument type to transaction is not offset");
+                "count argument type to map implicit is not offset");
 }
 
 void emit_drive_signal(vcode_reg_t target, vcode_reg_t count)
@@ -5186,25 +5179,6 @@ void emit_sched_event(vcode_reg_t nets, vcode_reg_t n_elems)
 
    VCODE_ASSERT(vcode_reg_kind(nets) == VCODE_TYPE_SIGNAL,
                 "nets argument to sched event must be signal");
-}
-
-void emit_implicit_event(vcode_reg_t nets, vcode_reg_t count, vcode_reg_t wake)
-{
-   VCODE_FOR_EACH_MATCHING_OP(other, VCODE_OP_IMPLICIT_EVENT) {
-      if (other->args.items[0] == nets && other->args.items[1] == count
-          && other->args.items[1] == wake)
-         return;
-   }
-
-   op_t *op = vcode_add_op(VCODE_OP_IMPLICIT_EVENT);
-   vcode_add_arg(op, nets);
-   vcode_add_arg(op, count);
-   vcode_add_arg(op, wake);
-
-   VCODE_ASSERT(vcode_reg_kind(nets) == VCODE_TYPE_SIGNAL,
-                "nets argument to implicit event must be signal");
-   VCODE_ASSERT(vcode_reg_kind(wake) == VCODE_TYPE_SIGNAL,
-                "wake argument to implicit event must be signal");
 }
 
 void emit_clear_event(vcode_reg_t nets, vcode_reg_t n_elems)

@@ -159,6 +159,7 @@ static void async_fast_driver(rt_model_t *m, void *arg);
 static void async_fast_all_drivers(rt_model_t *m, void *arg);
 static void async_pseudo_source(rt_model_t *m, void *arg);
 static void async_transfer_signal(rt_model_t *m, void *arg);
+static void async_update_implicit_signal(rt_model_t *m, void *arg);
 
 static int fmt_time_r(char *buf, size_t len, int64_t t, const char *sep)
 {
@@ -640,7 +641,7 @@ static void cleanup_nexus(rt_model_t *m, rt_nexus_t *n)
 
       case SOURCE_FORCING:
       case SOURCE_DEPOSIT:
-      case SOURCE_TRANSACTION:
+      case SOURCE_IMPLICIT:
          break;
       }
    }
@@ -1239,7 +1240,7 @@ static inline bool cmp_values(rt_nexus_t *n, rt_value_t a, rt_value_t b)
 static inline bool is_pseudo_source(source_kind_t kind)
 {
    return kind == SOURCE_FORCING || kind == SOURCE_DEPOSIT
-      || kind == SOURCE_TRANSACTION;
+      || kind == SOURCE_IMPLICIT;
 }
 
 static void check_multiple_sources(rt_nexus_t *n, source_kind_t kind)
@@ -1350,7 +1351,7 @@ static rt_source_t *add_source(rt_model_t *m, rt_nexus_t *n, source_kind_t kind)
 
    case SOURCE_DEPOSIT:
    case SOURCE_FORCING:
-   case SOURCE_TRANSACTION:
+   case SOURCE_IMPLICIT:
       src->u.pseudo.nexus = n;
       src->u.pseudo.value = alloc_value(m, n);
       break;
@@ -1600,7 +1601,7 @@ static void clone_source(rt_model_t *m, rt_nexus_t *nexus,
       assert(!old->pseudoqueued);   // TODO
       break;
 
-   case SOURCE_TRANSACTION:
+   case SOURCE_IMPLICIT:
       break;
    }
 }
@@ -1868,7 +1869,7 @@ static void *source_value(rt_nexus_t *nexus, rt_source_t *src)
       assert(src->disconnected);
       return NULL;
 
-   case SOURCE_TRANSACTION:
+   case SOURCE_IMPLICIT:
       return NULL;
    }
 
@@ -1983,6 +1984,22 @@ static rt_source_t *get_pseudo_source(rt_model_t *m, rt_nexus_t *n,
    return add_source(m, n, kind);
 }
 
+__attribute__((cold, noinline))
+static void *schedule_implicit_update(rt_model_t *m, rt_nexus_t *n)
+{
+   rt_implicit_t *imp = container_of(n->signal, rt_implicit_t, signal);
+
+   if (!imp->wakeable.pending) {
+      deferq_do(&m->implicitq, async_update_implicit_signal, imp);
+      set_pending(&imp->wakeable);
+   }
+
+   // This is called during the driving value update phase so return the
+   // current effective value to prevent any event being propagated
+   // until the implicit signal update phase
+   return nexus_effective(n);
+}
+
 static void *calculate_driving_value(rt_model_t *m, rt_nexus_t *n)
 {
    // Algorithm for driving values is in LRM 08 section 14.7.3.2
@@ -2014,11 +2031,10 @@ static void *calculate_driving_value(rt_model_t *m, rt_nexus_t *n)
          s->disconnected = 1;
          return value_ptr(n, &(s->u.pseudo.value));
       }
-      else if (unlikely(s->tag == SOURCE_TRANSACTION)) {
-         // At least one of the inputs is active so toggle the value of
-         // the implicit 'TRANSACTION signal
-         s->u.pseudo.value.bytes[0] = *(uint8_t *)nexus_effective(n) ^ 1;
-         return s->u.pseudo.value.bytes;
+      else if (unlikely(s->tag == SOURCE_IMPLICIT)) {
+         // At least one of the inputs is active so schedule an update
+         // to the value of an implicit 'TRANSACTION or 'QUIET signal
+         return schedule_implicit_update(m, n);
       }
       else if (s0 == NULL)
          s0 = s;
@@ -2457,11 +2473,15 @@ static void sched_event(rt_model_t *m, rt_nexus_t *n, rt_wakeable_t *obj)
    if (n->pending == NULL)
       n->pending = tag_pointer(obj, 1);
    else if (pointer_tag(n->pending) == 1) {
+      rt_wakeable_t *cur = untag_pointer(n->pending, rt_wakeable_t);
+      if (cur == obj)
+         return;
+
       rt_pending_t *p = xmalloc_flex(sizeof(rt_pending_t), PENDING_MIN,
                                      sizeof(rt_wakeable_t *));
       p->max = PENDING_MIN;
       p->count = 2;
-      p->wake[0] = untag_pointer(n->pending, rt_wakeable_t);
+      p->wake[0] = cur;
       p->wake[1] = obj;
 
       n->pending = tag_pointer(p, 0);
@@ -2925,7 +2945,7 @@ static void update_driving(rt_model_t *m, rt_nexus_t *n, bool safe)
 
       if (update_outputs) {
          for (rt_source_t *o = n->outputs; o; o = o->chain_output) {
-            assert(o->tag == SOURCE_PORT || o->tag == SOURCE_TRANSACTION);
+            assert(o->tag == SOURCE_PORT || o->tag == SOURCE_IMPLICIT);
             update_driving(m, o->u.port.output, false);
          }
       }
@@ -3058,12 +3078,18 @@ static void async_transfer_signal(rt_model_t *m, void *arg)
 
 static void update_implicit_signal(rt_model_t *m, rt_implicit_t *imp)
 {
+   model_thread_t *thread = model_thread(m);
+   assert(thread->active_obj == NULL);
+   thread->active_obj = &(imp->wakeable);
+
    jit_scalar_t result;
    if (!jit_try_call(m->jit, imp->closure.handle, &result,
-                     imp->closure.context))
+                     imp->closure.context, imp->signal.shared.data[0]))
       m->force_stop = true;
 
-   TRACE("implicit signal %s guard expression %"PRIi64,
+   thread->active_obj = NULL;
+
+   TRACE("implicit signal %s new value %"PRIi64,
          istr(tree_ident(imp->signal.where)), result.integer);
 
    assert(imp->signal.n_nexus == 1);
@@ -3074,6 +3100,21 @@ static void update_implicit_signal(rt_model_t *m, rt_implicit_t *imp)
    if (*(int8_t *)nexus_effective(n0) != result.integer) {
       propagate_nexus(m, n0, &result.integer);
       notify_event(m, n0);
+   }
+
+   if (n0->n_sources > 0 && n0->sources.tag == SOURCE_DRIVER
+       && !result.integer) {
+      // Update driver for 'STABLE and 'QUIET
+      // TODO: this should happen inside the callback
+      waveform_t *w = alloc_waveform(m);
+      w->when  = m->now + imp->delay;
+      w->next  = NULL;
+      w->value = alloc_value(m, n0);
+
+      w->value.bytes[0] = 1;   // Boolean TRUE
+
+      if (!insert_transaction(m, n0, &(n0->sources), w, w->when, imp->delay))
+         deltaq_insert_driver(m, imp->delay, &(n0->sources));
    }
 }
 
@@ -3233,10 +3274,10 @@ static void model_cycle(rt_model_t *m)
       update_effective(m, n);
    }
 
+   sync_event_cache(m);
+
    // Update implicit signals
    deferq_run(m, &m->implicitq);
-
-   sync_event_cache(m);
 
 #if TRACE_SIGNALS > 0
    if (__trace_on)
@@ -3905,29 +3946,6 @@ void x_sched_event(sig_shared_t *ss, uint32_t offset, int32_t count)
    }
 }
 
-void x_implicit_event(sig_shared_t *ss, uint32_t offset, int32_t count,
-                      sig_shared_t *wake_ss)
-{
-   rt_signal_t *s = container_of(ss, rt_signal_t, shared);
-   RT_LOCK(s->lock);
-
-   rt_implicit_t *wake_s = container_of(wake_ss, rt_implicit_t, signal.shared);
-   RT_LOCK(wake_s->signal.lock);
-
-   TRACE("implicit event %s+%d count=%d wake %s",
-         istr(tree_ident(s->where)), offset, count,
-         istr(tree_ident(wake_s->signal.where)));
-
-   rt_model_t *m = get_model();
-   rt_nexus_t *n = split_nexus(m, s, offset, count);
-   for (; count > 0; n = n->chain) {
-      sched_event(m, n, &(wake_s->wakeable));
-
-      count -= n->width;
-      assert(count >= 0);
-   }
-}
-
 void x_clear_event(sig_shared_t *ss, uint32_t offset, int32_t count)
 {
    rt_signal_t *s = container_of(ss, rt_signal_t, shared);
@@ -4085,9 +4103,9 @@ void x_map_const(sig_shared_t *ss, uint32_t offset,
    }
 }
 
-void x_map_transaction(sig_shared_t *src_ss, uint32_t src_offset,
-                       sig_shared_t *dst_ss, uint32_t dst_offset,
-                       uint32_t count)
+void x_map_implicit(sig_shared_t *src_ss, uint32_t src_offset,
+                    sig_shared_t *dst_ss, uint32_t dst_offset,
+                    uint32_t count)
 {
    rt_signal_t *src_s = container_of(src_ss, rt_signal_t, shared);
    RT_LOCK(src_s->lock);
@@ -4095,7 +4113,7 @@ void x_map_transaction(sig_shared_t *src_ss, uint32_t src_offset,
    rt_signal_t *dst_s = container_of(dst_ss, rt_signal_t, shared);
    RT_LOCK(dst_s->lock);
 
-   TRACE("map transaction %s+%d to %s+%d count %d",
+   TRACE("map implicit signal %s+%d to %s+%d count %d",
          istr(tree_ident(src_s->where)), src_offset,
          istr(tree_ident(dst_s->where)), dst_offset, count);
 
@@ -4108,7 +4126,7 @@ void x_map_transaction(sig_shared_t *src_ss, uint32_t src_offset,
       count -= n->width;
       assert(count >= 0);
 
-      rt_source_t *src = add_source(m, &(dst_s->nexus), SOURCE_TRANSACTION);
+      rt_source_t *src = add_source(m, &(dst_s->nexus), SOURCE_IMPLICIT);
       src->u.port.input = n;
 
       src->chain_output = n->outputs;
@@ -4241,9 +4259,10 @@ void *x_driving_value(sig_shared_t *ss, uint32_t offset, int32_t count)
 }
 
 sig_shared_t *x_implicit_signal(uint32_t count, uint32_t size, tree_t where,
-                                implicit_kind_t kind, ffi_closure_t *closure)
+                                implicit_kind_t kind, ffi_closure_t *closure,
+                                int64_t delay)
 {
-   TRACE("_implicit_signal %s count=%d size=%d kind=%d",
+   TRACE("implicit signal %s count=%d size=%d kind=%d",
          istr(tree_ident(where)), count, size, kind);
 
    rt_model_t *m = get_model();
@@ -4253,30 +4272,14 @@ sig_shared_t *x_implicit_signal(uint32_t count, uint32_t size, tree_t where,
    setup_signal(m, &(imp->signal), where, count, size, SIG_F_IMPLICIT, 0);
 
    imp->closure = *closure;
+   imp->delay = delay;
    imp->wakeable.kind = W_IMPLICIT;
 
-   switch (kind) {
-   case IMPLICIT_GUARD:
-      {
-         jit_scalar_t result;
-         if (!jit_try_call(m->jit, imp->closure.handle, &result,
-                           imp->closure.context))
-            m->force_stop = true;
+   deferq_do(&m->implicitq, async_update_implicit_signal, imp);
+   set_pending(&(imp->wakeable));
 
-         assert(size * count == 1);
-         memcpy(imp->signal.shared.data, &result.integer,
-                imp->signal.shared.size);
-      }
-      break;
-
-   case IMPLICIT_TRANSACTION:
-      assert(size * count == 1);
-      imp->signal.shared.data[0] = 0;
-      break;
-
-   default:
-      fatal_trace("invalid implicit signal kind %d", kind);
-   }
+   if (kind == IMPLICIT_STABLE || kind == IMPLICIT_QUIET)
+      add_source(m, &(imp->signal.nexus), SOURCE_DRIVER);
 
    return &(imp->signal.shared);
 }

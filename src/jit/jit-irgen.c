@@ -2721,6 +2721,7 @@ static void irgen_op_implicit_signal(jit_irgen_t *g, int op)
    jit_value_t kind    = irgen_get_arg(g, op, 3);
    jit_value_t closure = irgen_get_arg(g, op, 4);
    jit_value_t context = jit_value_from_reg(jit_value_as_reg(closure) + 1);
+   jit_value_t delay   = irgen_get_arg(g, op, 5);
 
    j_send(g, 0, count);
    j_send(g, 1, size);
@@ -2728,6 +2729,7 @@ static void irgen_op_implicit_signal(jit_irgen_t *g, int op)
    j_send(g, 3, kind);
    j_send(g, 4, closure);
    j_send(g, 5, context);
+   j_send(g, 6, delay);
 
    macro_exit(g, JIT_EXIT_IMPLICIT_SIGNAL);
 
@@ -2784,7 +2786,7 @@ static void irgen_op_map_const(jit_irgen_t *g, int op)
    macro_exit(g, JIT_EXIT_MAP_CONST);
 }
 
-static void irgen_op_map_transaction(jit_irgen_t *g, int op)
+static void irgen_op_map_implicit(jit_irgen_t *g, int op)
 {
    jit_value_t src_ss  = irgen_get_arg(g, op, 0);
    jit_value_t src_off = jit_value_from_reg(jit_value_as_reg(src_ss) + 1);
@@ -2798,7 +2800,7 @@ static void irgen_op_map_transaction(jit_irgen_t *g, int op)
    j_send(g, 3, dst_off);
    j_send(g, 4, count);
 
-   macro_exit(g, JIT_EXIT_MAP_TRANSACTION);
+   macro_exit(g, JIT_EXIT_MAP_IMPLICIT);
 }
 
 static void irgen_op_resolve_signal(jit_irgen_t *g, int op)
@@ -3170,20 +3172,6 @@ static void irgen_op_sched_event(jit_irgen_t *g, int op)
    j_send(g, 1, offset);
    j_send(g, 2, count);
    macro_exit(g, JIT_EXIT_SCHED_EVENT);
-}
-
-static void irgen_op_implicit_event(jit_irgen_t *g, int op)
-{
-   jit_value_t shared = irgen_get_arg(g, op, 0);
-   jit_value_t offset = jit_value_from_reg(jit_value_as_reg(shared) + 1);
-   jit_value_t count  = irgen_get_arg(g, op, 1);
-   jit_value_t wake   = irgen_get_arg(g, op, 2);
-
-   j_send(g, 0, shared);
-   j_send(g, 1, offset);
-   j_send(g, 2, count);
-   j_send(g, 3, wake);
-   macro_exit(g, JIT_EXIT_IMPLICIT_EVENT);
 }
 
 static void irgen_op_clear_event(jit_irgen_t *g, int op)
@@ -3776,8 +3764,8 @@ static void irgen_block(jit_irgen_t *g, vcode_block_t block)
       case VCODE_OP_MAP_CONST:
          irgen_op_map_const(g, i);
          break;
-      case VCODE_OP_MAP_TRANSACTION:
-         irgen_op_map_transaction(g, i);
+      case VCODE_OP_MAP_IMPLICIT:
+         irgen_op_map_implicit(g, i);
          break;
       case VCODE_OP_RESOLVE_SIGNAL:
          irgen_op_resolve_signal(g, i);
@@ -3862,9 +3850,6 @@ static void irgen_block(jit_irgen_t *g, vcode_block_t block)
          break;
       case VCODE_OP_SCHED_EVENT:
          irgen_op_sched_event(g, i);
-         break;
-      case VCODE_OP_IMPLICIT_EVENT:
-         irgen_op_implicit_event(g, i);
          break;
       case VCODE_OP_CLEAR_EVENT:
          irgen_op_clear_event(g, i);

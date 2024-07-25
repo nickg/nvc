@@ -2141,14 +2141,21 @@ static void implicit_signal_attribute(tree_t aref)
    const attr_kind_t attr = tree_subkind(aref);
 
    tree_t delay = NULL;
-   if (attr == ATTR_DELAYED && tree_params(aref) > 0)
+   if (attr != ATTR_TRANSACTION && tree_params(aref) > 0)
       delay = tree_value(tree_param(aref, 0));
 
    LOCAL_TEXT_BUF tb = tb_new();
    tree_t ref = name_to_ref(prefix);
    if (ref != NULL)
       tb_istr(tb, tree_ident(ref));
-   tb_printf(tb, "$%s", attr == ATTR_DELAYED ? "delayed" : "transaction");
+   tb_append(tb, '$');
+   switch (attr) {
+   case ATTR_DELAYED: tb_cat(tb, "delayed"); break;
+   case ATTR_TRANSACTION: tb_cat(tb, "transaction"); break;
+   case ATTR_STABLE: tb_cat(tb, "stable"); break;
+   case ATTR_QUIET: tb_cat(tb, "quiet"); break;
+   default: break;
+   }
    if (delay != NULL && tree_kind(delay) == T_LITERAL) {
       tb_printf(tb, "_%"PRIi64, tree_ival(delay));
       if (tree_has_ident(delay))
@@ -2159,15 +2166,27 @@ static void implicit_signal_attribute(tree_t aref)
 
    ident_t id = ident_new(tb_get(tb));
 
+   implicit_kind_t kind;
+   switch (attr) {
+   case ATTR_DELAYED: kind = IMPLICIT_DELAYED; break;
+   case ATTR_STABLE: kind = IMPLICIT_STABLE; break;
+   case ATTR_QUIET: kind = IMPLICIT_QUIET; break;
+   case ATTR_TRANSACTION: kind = IMPLICIT_TRANSACTION; break;
+   default:
+      fatal_trace("invalid implicit signal attribute");
+   }
+
    const int ndecls = tree_decls(b);
    for (int i = 0; i < ndecls; i++) {
       tree_t d = tree_decl(b, i);
-      if (tree_kind(d) != T_IMPLICIT_SIGNAL || tree_ident(d) != id)
+      if (tree_kind(d) != T_IMPLICIT_SIGNAL)
+         continue;
+      else if (tree_ident(d) != id || tree_subkind(d) != kind)
          continue;
 
       bool match = false;
       tree_t value = tree_value(d);
-      if (attr == ATTR_DELAYED) {
+      if (attr == ATTR_DELAYED || attr == ATTR_STABLE || attr == ATTR_QUIET) {
          assert(tree_kind(value) == T_WAVEFORM);
 
          match = same_tree(tree_value(value), prefix)
@@ -2191,30 +2210,21 @@ static void implicit_signal_attribute(tree_t aref)
    tree_t imp = tree_new(T_IMPLICIT_SIGNAL);
    tree_set_ident(imp, id);
    tree_set_loc(imp, tree_loc(aref));
+   tree_set_subkind(imp, kind);
 
-   switch (attr) {
-   case ATTR_DELAYED:
-      {
-         tree_t w = tree_new(T_WAVEFORM);
-         tree_set_loc(w, CURRENT_LOC);
-         tree_set_value(w, prefix);
-         if (delay != NULL)
-            tree_set_delay(w, delay);
-
-         tree_set_subkind(imp, IMPLICIT_DELAYED);
-         tree_set_type(imp, solve_types(nametab, aref, NULL));
-         tree_set_value(imp, w);
-      }
-      break;
-
-   case ATTR_TRANSACTION:
+   if (attr == ATTR_TRANSACTION) {
       tree_set_type(imp, std_type(NULL, STD_BIT));
-      tree_set_subkind(imp, IMPLICIT_TRANSACTION);
       tree_set_value(imp, prefix);
-      break;
+   }
+   else {
+      tree_t w = tree_new(T_WAVEFORM);
+      tree_set_loc(w, CURRENT_LOC);
+      tree_set_value(w, prefix);
+      if (delay != NULL)
+         tree_set_delay(w, delay);
 
-   default:
-      fatal_trace("invalid implicit signal attribute");
+      tree_set_type(imp, solve_types(nametab, aref, NULL));
+      tree_set_value(imp, w);
    }
 
    tree_add_decl(b, imp);
@@ -3299,7 +3309,8 @@ static tree_t p_attribute_name(tree_t prefix)
 
    if (is_type_attribute(kind))
       tree_set_type(t, apply_type_attribute(t));
-   else if (kind == ATTR_DELAYED || kind == ATTR_TRANSACTION)
+   else if (kind == ATTR_DELAYED || kind == ATTR_TRANSACTION
+            || kind == ATTR_STABLE || kind == ATTR_QUIET)
       implicit_signal_attribute(t);
 
    return t;

@@ -437,13 +437,14 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
          int32_t       kind    = args[3].integer;
          jit_handle_t  handle  = args[4].integer;
          void         *context = args[5].pointer;
+         int64_t       delay   = args[6].integer;
 
          sig_shared_t *ss;
          if (!jit_has_runtime(thread->jit))
             ss = NULL;   // Called during constant folding
          else {
             ffi_closure_t closure = { handle, context };
-            ss = x_implicit_signal(count, size, where, kind, &closure);
+            ss = x_implicit_signal(count, size, where, kind, &closure, delay);
          }
 
          args[0].pointer = ss;
@@ -529,7 +530,7 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
       }
       break;
 
-   case JIT_EXIT_MAP_TRANSACTION:
+   case JIT_EXIT_MAP_IMPLICIT:
       {
          if (!jit_has_runtime(thread->jit))
             return;   // Called during constant folding
@@ -540,7 +541,7 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
          uint32_t       dst_offset = args[3].integer;
          uint32_t       count      = args[4].integer;
 
-         x_map_transaction(src_ss, src_offset, dst_ss, dst_offset, count);
+         x_map_implicit(src_ss, src_offset, dst_ss, dst_offset, count);
       }
       break;
 
@@ -564,20 +565,6 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
          int32_t       count   = args[2].integer;
 
          x_sched_event(shared, offset, count);
-      }
-      break;
-
-   case JIT_EXIT_IMPLICIT_EVENT:
-      {
-         if (!jit_has_runtime(thread->jit))
-            return;   // Called during constant folding
-
-         sig_shared_t *shared  = args[0].pointer;
-         int32_t       offset  = args[1].integer;
-         int32_t       count   = args[2].integer;
-         sig_shared_t *wake    = args[3].pointer;
-
-         x_implicit_event(shared, offset, count, wake);
       }
       break;
 

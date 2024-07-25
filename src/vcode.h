@@ -153,7 +153,6 @@ typedef enum {
    VCODE_OP_PROCESS_INIT,
    VCODE_OP_CLEAR_EVENT,
    VCODE_OP_TRAP_EXP,
-   VCODE_OP_IMPLICIT_EVENT,
    VCODE_OP_ENTER_STATE,
    VCODE_OP_REFLECT_VALUE,
    VCODE_OP_REFLECT_SUBTYPE,
@@ -168,7 +167,7 @@ typedef enum {
    VCODE_OP_CMP_TRIGGER,
    VCODE_OP_INSTANCE_NAME,
    VCODE_OP_DEPOSIT_SIGNAL,
-   VCODE_OP_MAP_TRANSACTION,
+   VCODE_OP_MAP_IMPLICIT,
 } vcode_op_t;
 
 typedef enum {
@@ -442,7 +441,8 @@ vcode_reg_t emit_init_signal(vcode_type_t type, vcode_reg_t count,
 void emit_resolve_signal(vcode_reg_t signal, vcode_reg_t resolution);
 vcode_reg_t emit_implicit_signal(vcode_type_t type, vcode_reg_t count,
                                  vcode_reg_t size, vcode_reg_t locus,
-                                 vcode_reg_t kind, vcode_reg_t closure);
+                                 vcode_reg_t kind, vcode_reg_t closure,
+                                 vcode_reg_t delay);
 vcode_reg_t emit_resolved(vcode_reg_t sig);
 vcode_reg_t emit_last_value(vcode_reg_t sig);
 vcode_reg_t emit_event_flag(vcode_reg_t nets, vcode_reg_t len);
@@ -452,7 +452,6 @@ vcode_reg_t emit_array_ref(vcode_reg_t array, vcode_reg_t offset);
 void emit_copy(vcode_reg_t dest, vcode_reg_t src, vcode_reg_t count);
 void emit_sched_event(vcode_reg_t nets, vcode_reg_t n_elems);
 void emit_clear_event(vcode_reg_t nets, vcode_reg_t count);
-void emit_implicit_event(vcode_reg_t nets, vcode_reg_t count, vcode_reg_t wake);
 void emit_resume(ident_t func);
 void emit_memset(vcode_reg_t ptr, vcode_reg_t value, vcode_reg_t len);
 void emit_case(vcode_reg_t value, vcode_block_t def, const vcode_reg_t *cases,
@@ -492,7 +491,7 @@ vcode_reg_t emit_link_package(ident_t name);
 vcode_reg_t emit_link_instance(ident_t name, vcode_reg_t locus);
 void emit_map_signal(vcode_reg_t src, vcode_reg_t dst, vcode_reg_t count);
 void emit_map_const(vcode_reg_t src, vcode_reg_t dst, vcode_reg_t count);
-void emit_map_transaction(vcode_reg_t src, vcode_reg_t dst, vcode_reg_t count);
+void emit_map_implicit(vcode_reg_t src, vcode_reg_t dst, vcode_reg_t count);
 void emit_drive_signal(vcode_reg_t target, vcode_reg_t count);
 void emit_transfer_signal(vcode_reg_t target, vcode_reg_t source,
                           vcode_reg_t count, vcode_reg_t reject,
