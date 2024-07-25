@@ -744,8 +744,8 @@ bool is_literal(tree_t t)
    case T_REF:
       return tree_has_ref(t) && tree_kind(tree_ref(t)) == T_ENUM_LIT;
    case T_LITERAL:
-   case T_STRING:
       return true;
+   case T_STRING:
    default:
       return false;
    }

@@ -412,10 +412,7 @@ static tree_t simp_ref(tree_t t, simp_ctx_t *ctx)
          return t;
       else if (tree_has_value(decl)) {
          tree_t value = tree_value(decl);
-         if (is_literal(value) && tree_kind(value) != T_STRING)
-            return value;
-         else
-            return t;
+         return is_literal(value) ? value : t;
       }
       else
          return t;
@@ -429,9 +426,6 @@ static tree_t simp_ref(tree_t t, simp_ctx_t *ctx)
          if (map != NULL) {
             switch (tree_kind(map)) {
             case T_LITERAL:
-            case T_AGGREGATE:
-            case T_STRING:
-            case T_OPEN:
             case T_REF:
                // Do not rewrite references to non-references if they appear
                // as formal names or as prefixes of attribute names

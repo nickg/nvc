@@ -12391,9 +12391,12 @@ static void lower_check_generic_constraint(lower_unit_t *lu, tree_t expect,
                                            tree_t generic, vcode_reg_t locus)
 {
    vcode_reg_t expect_reg = lower_rvalue(lu, expect);
+   if (expect_reg == VCODE_INVALID_REG)
+      return;   // Was OPEN
 
    int hops;
    vcode_var_t actual_var = lower_get_var(lu, generic, &hops);
+   assert(actual_var != VCODE_INVALID_VAR);
    assert(hops == 0);
 
    type_t type = tree_type(expect);

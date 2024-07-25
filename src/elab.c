@@ -826,7 +826,7 @@ static tree_t elab_default_binding(tree_t inst, const elab_ctx_t *ctx)
       }
       else if (tree_has_value(eg)) {
          tree_t def = tree_value(eg);
-         if (is_literal(def) && tree_kind(def) != T_STRING)
+         if (is_literal(def))
             value = def;
          else {
             tree_t open = tree_new(T_OPEN);
