@@ -1200,7 +1200,7 @@ START_TEST(test_toplevel4)
 
    tree_t b0 = tree_stmt(e, 0);
    fail_unless(tree_ident(b0) == ident_new("TOPLEVEL4"));
-   fail_unless(tree_stmts(b0) == 0);
+   fail_unless(tree_stmts(b0) == 1);   // String assert does not fold
 
    tree_t m0 = tree_value(tree_genmap(b0, 0));
    fail_unless(tree_kind(m0) == T_STRING);

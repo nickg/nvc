@@ -18,6 +18,8 @@
   associated with a signal that has a static subtype.
 - Fixed incorrect longest static prefix calculation for array slices
   containing `'length`, `'left`, `'right` and similar attributes (#930).
+- Fixed wrong result when slicing a generic that has an unconstrained
+  array type (#931).
 
 ## Version 1.13.0 - 2024-07-13
 - Type and package generics now work correctly with components and
