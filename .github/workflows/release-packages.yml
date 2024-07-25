@@ -23,9 +23,6 @@ jobs:
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
-      - name: Fix missing tags
-        run: |
-          git fetch --tags --force
       - uses: msys2/setup-msys2@v2
         with:
           msystem: ${{matrix.sys}}
@@ -34,6 +31,9 @@ jobs:
             base-devel
             git
             mingw-w64-${{matrix.env}}-tcl
+      - name: Fix missing tags
+        run: |
+          git fetch --tags --force
       - name: Debugging for tags
         run: |
           git tag
