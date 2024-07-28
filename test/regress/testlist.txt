@@ -1011,3 +1011,5 @@ record39        normal,2008
 force3          fail,gold,2008
 issue931        normal,2008
 implicit9       normal
+issue932        normal,2019
+bounds45        fail,gold,2008

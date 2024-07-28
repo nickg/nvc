@@ -914,6 +914,28 @@ static void sem_unconstrained_decl_hint(diag_t *d, type_t type)
    }
 }
 
+static void sem_propagate_constraints(tree_t decl, tree_t value)
+{
+   // Propagate the constraints from an initial value to an object
+   // declaration with unconstrained type but only if the object subtype
+   // has no constraints of its own
+
+   if (standard() < STD_19 && tree_kind(decl) != T_CONST_DECL)
+      return;
+
+   type_t type = tree_type(decl);
+   if (!type_is_unconstrained(type))
+      return;
+
+   for (type_t iter = type; type_kind(iter) == T_SUBTYPE;
+        iter = type_base(iter)) {
+      if (type_constraints(iter) > 0)
+         return;
+   }
+
+   tree_set_type(decl, tree_type(value));
+}
+
 static bool sem_check_const_decl(tree_t t, nametab_t *tab)
 {
    type_t type = tree_type(t);
@@ -940,8 +962,8 @@ static bool sem_check_const_decl(tree_t t, nametab_t *tab)
                    "of declaration %s", type_pp2(tree_type(value), type),
                    type_pp2(type, tree_type(value)));
 
-      if (fwd == NULL && type_is_unconstrained(type))
-         tree_set_type(t, tree_type(value));
+      if (fwd == NULL)
+         sem_propagate_constraints(t, value);
    }
    else if (tree_kind(find_enclosing(tab, S_DESIGN_UNIT)) != T_PACKAGE)
       sem_error(t, "deferred constant declarations are only permitted "
@@ -1062,8 +1084,7 @@ static bool sem_check_var_decl(tree_t t, nametab_t *tab)
                    "of declaration %s", type_pp2(tree_type(value), type),
                    type_pp2(type, tree_type(value)));
 
-      if (standard() >= STD_08 && type_is_unconstrained(type))
-         tree_set_type(t, tree_type(value));
+      sem_propagate_constraints(t, value);
    }
 
    // From VHDL-2000 onwards shared variables must be protected types
