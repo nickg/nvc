@@ -4701,12 +4701,35 @@ vcode_reg_t emit_range_null(vcode_reg_t left, vcode_reg_t right,
 vcode_reg_t emit_range_length(vcode_reg_t left, vcode_reg_t right,
                               vcode_reg_t dir)
 {
-   VCODE_FOR_EACH_MATCHING_OP(other, VCODE_OP_RANGE_LENGTH) {
-      if (other->args.items[0] == left
+   vcode_reg_t left_array = VCODE_INVALID_REG,
+      right_array = VCODE_INVALID_REG,
+      dir_array = VCODE_INVALID_REG;
+   int left_dim = -1, right_dim = -1, dir_dim = -1;
+
+   VCODE_FOR_EACH_OP(other) {
+      if (other->kind == VCODE_OP_RANGE_LENGTH
+          && other->args.items[0] == left
           && other->args.items[1] == right
           && other->args.items[2] == dir)
          return other->result;
+      else if (other->kind == VCODE_OP_UARRAY_LEFT && other->result == left) {
+         left_array = other->args.items[0];
+         left_dim = other->dim;
+      }
+      else if (other->kind == VCODE_OP_UARRAY_RIGHT && other->result == right) {
+         right_array = other->args.items[0];
+         right_dim = other->dim;
+      }
+      else if (other->kind == VCODE_OP_UARRAY_DIR && other->result == dir) {
+         dir_array = other->args.items[0];
+         dir_dim = other->dim;
+      }
    }
+
+   if (left_array != VCODE_INVALID_REG && left_array == right_array
+       && right_array == dir_array && left_dim == right_dim
+       && right_dim == dir_dim)
+      return emit_uarray_len(left_array, left_dim);
 
    int64_t lconst, rconst, dconst;
    if (vcode_reg_const(dir, &dconst) && vcode_reg_const(left, &lconst)
