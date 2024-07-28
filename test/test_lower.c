@@ -4329,23 +4329,26 @@ START_TEST(test_nullarray)
    vcode_unit_t vu = find_unit("WORK.NULLARRAY");
    vcode_select_unit(vu);
 
-     EXPECT_BB(0) = {
-        { VCODE_OP_PACKAGE_INIT, .name = "STD.STANDARD" },
-        { VCODE_OP_CONTEXT_UPREF, .hops = 0 },
-        { VCODE_OP_FCALL, .func = "WORK.NULLARRAY.GET_BITS()Q" },
-        { VCODE_OP_UNWRAP },
-        { VCODE_OP_UARRAY_LEN },
-        { VCODE_OP_ALLOC },
-        { VCODE_OP_COPY },
-        { VCODE_OP_UARRAY_LEFT },
-        { VCODE_OP_UARRAY_RIGHT },
-        { VCODE_OP_UARRAY_DIR },
-        { VCODE_OP_WRAP },
-        { VCODE_OP_STORE, .name = "A" },
-        { VCODE_OP_RETURN },
-     };
+   EXPECT_BB(0) = {
+      { VCODE_OP_PACKAGE_INIT, .name = "STD.STANDARD" },
+      { VCODE_OP_CONTEXT_UPREF, .hops = 0 },
+      { VCODE_OP_FCALL, .func = "WORK.NULLARRAY.GET_BITS()Q" },
+      { VCODE_OP_UNWRAP },
+      { VCODE_OP_UARRAY_LEN },
+      { VCODE_OP_ALLOC },
+      { VCODE_OP_COPY },
+      { VCODE_OP_UARRAY_LEFT },
+      { VCODE_OP_UARRAY_RIGHT },
+      { VCODE_OP_UARRAY_DIR },
+      { VCODE_OP_WRAP },
+      { VCODE_OP_DEBUG_LOCUS },
+      { VCODE_OP_RANGE_LENGTH },
+      { VCODE_OP_LENGTH_CHECK },   // XXX: redundant
+      { VCODE_OP_STORE, .name = "A" },
+      { VCODE_OP_RETURN },
+   };
 
-     CHECK_BB(0);
+   CHECK_BB(0);
 }
 END_TEST
 
@@ -5447,9 +5450,11 @@ START_TEST(test_const3)
       { VCODE_OP_UARRAY_RIGHT },
       { VCODE_OP_UARRAY_DIR },
       { VCODE_OP_WRAP },
+      { VCODE_OP_DEBUG_LOCUS },
+      { VCODE_OP_RANGE_LENGTH },
+      { VCODE_OP_LENGTH_CHECK },   // XXX: redundant
       { VCODE_OP_STORE, .name = "C1" },
       { VCODE_OP_CONST, .value = 1 },
-      { VCODE_OP_RANGE_LENGTH },
       { VCODE_OP_CAST },
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_RANGE_LENGTH },

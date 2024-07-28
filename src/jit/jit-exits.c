@@ -106,6 +106,9 @@ void x_length_fail(int64_t left, int64_t right, int32_t dim, tree_t where)
    case T_VAR_DECL:
       tb_printf(tb, "variable %s", istr(tree_ident(where)));
       break;
+   case T_CONST_DECL:
+      tb_printf(tb, "constant %s", istr(tree_ident(where)));
+      break;
    case T_SIGNAL_DECL:
       tb_printf(tb, "signal %s", istr(tree_ident(where)));
       break;
