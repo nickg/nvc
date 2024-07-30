@@ -12,7 +12,7 @@ architecture test of debug1 is
     signal round :  std_logic;
 begin
 
-    warn: fRn2 <= fR(23 downto 1) + ((22 downto 1 => '0') & round); -- rounding sqrt never changes exponents
+    warn: fRn2 <= shl(fR(23 downto 1), ((22 downto 1 => '0') & round)); -- rounding sqrt never changes exponents
 
     control: process is
     begin

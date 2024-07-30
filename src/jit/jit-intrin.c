@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2023  Nick Gasson
+//  Copyright (C) 2023-2024  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -150,7 +150,7 @@ static void print_bits(const char *tag, const uint8_t *bits, size_t size)
 }
 #endif
 
-__attribute__((cold))
+__attribute__((cold, noinline))
 static void __ieee_warn(jit_func_t *func, jit_anchor_t *caller, const char *msg)
 {
    if (!opt_get_int(OPT_IEEE_WARNINGS))
@@ -200,41 +200,6 @@ static inline void __invert_bits(const uint8_t *input, int size,
       assert(input[i] == _0 || input[i] == _1);
       result[i] = input[i] ^ 1;
    }
-}
-
-__attribute__((always_inline))
-static inline void __add_unsigned(const uint8_t *left, const uint8_t *right,
-                                  uint8_t cbit, int size, uint8_t *result)
-{
-   for (int i = size - 1; i >= 0; i--) {
-      // RESULT(I) := CBIT xor XL(I) xor XR(I);
-      result[i] = xor_table[xor_table[cbit][left[i]]][right[i]];
-
-      // CBIT := (CBIT and XL(I)) or (CBIT and XR(I)) or (XL(I) and XR(I));
-      const uint8_t tmp1 = and_table[cbit][left[i]];
-      const uint8_t tmp2 = and_table[cbit][right[i]];
-      const uint8_t tmp3 = and_table[left[i]][right[i]];
-      cbit = or_table[or_table[tmp1][tmp2]][tmp3];
-   }
-}
-
-static void ieee_add_unsigned(jit_func_t *func, jit_anchor_t *anchor,
-                              jit_scalar_t *args, tlab_t *tlab)
-{
-   const int size = args[3].integer ^ (args[3].integer >> 63);
-   assert(size == (args[6].integer ^ (args[6].integer >> 63)));
-
-   const uint8_t *left = args[1].pointer;
-   const uint8_t *right = args[4].pointer;
-   uint8_t cbit = args[7].integer;
-
-   uint8_t *result = __tlab_alloc(tlab, size);
-
-   __add_unsigned(left, right, cbit, size, result);
-
-   args[0].pointer = result;
-   args[1].integer = size - 1;
-   args[2].integer = ~size;
 }
 
 #ifdef HAVE_SSE41
@@ -444,8 +409,8 @@ static inline void __spread_bits(void* vec, uint8_t packed)
 }
 
 __attribute__((always_inline))
-static inline void __ieee_packed_add(uint8_t *left, uint8_t *right, int size,
-                                     int carry, uint8_t *result)
+static inline void __ieee_packed_add(const uint8_t *left, const uint8_t *right,
+                                     int size, int carry, uint8_t *result)
 {
    int pos = size - 8;
    for (; pos > 0; pos -= 8) {
@@ -962,6 +927,343 @@ static void ieee_to_signed(jit_func_t *func, jit_anchor_t *anchor,
    }
 }
 
+__attribute__((always_inline))
+static inline bool __is_x(uint8_t arg)
+{
+   return arg == _U || arg == _X || arg == _Z || arg == _W || arg == _DC;
+}
+
+__attribute__((always_inline))
+static inline void __make_binary(jit_func_t *func, jit_anchor_t *anchor,
+                                 tlab_t *tlab, const uint8_t *input,
+                                 uint8_t *result, int size)
+{
+   static const uint8_t tbl_BINARY[] = { _X, _X, _0, _1, _X, _X, _0, _1, _X };
+
+   for (int i = 0; i < size; i++) {
+      if (unlikely(__is_x(input[i]))) {
+         __ieee_warn(func, anchor, "There is an 'U'|'X'|'W'|'Z'|'-' in an "
+                     "arithmetic operand, the result will be 'X'(es).");
+         memset(result, _X, size);
+         break;
+      }
+
+      result[i] = tbl_BINARY[input[i]];
+   }
+}
+
+__attribute__((cold, noreturn, noinline))
+static void __synopsys_failure(jit_func_t *func, jit_anchor_t *caller,
+                               jit_scalar_t *args, tlab_t *tlab)
+{
+   // Synopsys subprograms handle edge cases poorly: punt to the
+   // interpreter to generate the error message
+   func->entry = jit_interp;
+   jit_interp(func, caller, args, tlab);
+   fatal_trace("should not return here");
+}
+
+__attribute__((always_inline))
+static inline const uint8_t *__conv_unsigned(jit_func_t *func,
+                                             jit_anchor_t *anchor,
+                                             tlab_t *tlab,
+                                             const void *input,
+                                             int oldsize, int size)
+{
+   assert(size > 0);
+
+   if (oldsize == size && __all_01(input, oldsize))
+      return input;
+
+   const int maxsize = MAX(oldsize, size);
+   const int pad = size - oldsize;
+   uint8_t *result = __tlab_alloc(tlab, maxsize);
+
+   __make_binary(func, anchor, tlab, input, result + pad, oldsize);
+
+   if (unlikely(result[pad] == _X))
+      memset(result, _X, size);
+   else
+      memset(result, _0, pad);
+
+   return result;
+}
+
+__attribute__((always_inline))
+static inline const uint8_t *__conv_signed(jit_func_t *func,
+                                           jit_anchor_t *anchor,
+                                           tlab_t *tlab,
+                                           const void *input,
+                                           int oldsize, int size)
+{
+   assert(size > 0);
+
+   if (oldsize == size && __all_01(input, oldsize))
+      return input;
+
+   const int maxsize = MAX(oldsize, size);
+   const int pad = size - oldsize;
+   uint8_t *result = __tlab_alloc(tlab, maxsize);
+
+   __make_binary(func, anchor, tlab, input, result + pad, oldsize);
+
+   if (unlikely(result[pad] == _X))
+      memset(result, _X, size);
+   else
+      memset(result, *(uint8_t *)input, pad);
+
+   return result;
+}
+
+static void synopsys_plus_unsigned(jit_func_t *func, jit_anchor_t *anchor,
+                                   jit_scalar_t *args, tlab_t *tlab)
+{
+   const int lsize = ffi_array_length(args[3].integer);
+   const int rsize = ffi_array_length(args[6].integer);
+   const uint8_t *left = args[1].pointer;
+   const uint8_t *right = args[4].pointer;
+
+   const int length = MAX(lsize, rsize);
+   uint8_t *result = __tlab_alloc(tlab, length);
+
+   if (unlikely(length == 0))
+      __synopsys_failure(func, anchor, args, tlab);
+
+   left = __conv_unsigned(func, anchor, tlab, left, lsize, length);
+   right = __conv_unsigned(func, anchor, tlab, right, rsize, length);
+
+   if (unlikely(left[0] == _X || right[0] == _X))
+      memset(result, _X, length);
+   else
+      __ieee_packed_add(left, right, length, 0, result);
+
+   args[0].pointer = result;
+   args[1].integer = length - 1;
+   args[2].integer = ~length;
+}
+
+static void synopsys_plus_signed(jit_func_t *func, jit_anchor_t *anchor,
+                                 jit_scalar_t *args, tlab_t *tlab)
+{
+   const int lsize = ffi_array_length(args[3].integer);
+   const int rsize = ffi_array_length(args[6].integer);
+   const uint8_t *left = args[1].pointer;
+   const uint8_t *right = args[4].pointer;
+
+   const int length = MAX(lsize, rsize);
+   uint8_t *result = __tlab_alloc(tlab, length);
+
+   if (unlikely(length == 0))
+      __synopsys_failure(func, anchor, args, tlab);
+
+   left = __conv_signed(func, anchor, tlab, left, lsize, length);
+   right = __conv_signed(func, anchor, tlab, right, rsize, length);
+
+   if (unlikely(left[0] == _X || right[0] == _X))
+      memset(result, _X, length);
+   else
+      __ieee_packed_add(left, right, length, 0, result);
+
+   args[0].pointer = result;
+   args[1].integer = length - 1;
+   args[2].integer = ~length;
+}
+
+static void synopsys_plus_unsigned_logic(jit_func_t *func, jit_anchor_t *anchor,
+                                         jit_scalar_t *args, tlab_t *tlab)
+{
+   uint8_t right[] = { args[4].integer };
+   args[4].pointer = right;
+   args[5].integer = 0;
+   args[6].integer = 1;
+
+   synopsys_plus_unsigned(func, anchor, args, tlab);
+}
+
+static void synopsys_plus_logic_unsigned(jit_func_t *func, jit_anchor_t *anchor,
+                                         jit_scalar_t *args, tlab_t *tlab)
+{
+   uint8_t left[] = { args[1].integer };
+   args[6].integer = args[4].integer;
+   args[5].integer = args[3].integer;
+   args[4].pointer = args[2].pointer;
+   args[1].pointer = left;
+   args[2].integer = 0;
+   args[3].integer = 1;
+
+   synopsys_plus_unsigned(func, anchor, args, tlab);
+}
+
+static void synopsys_minus_unsigned(jit_func_t *func, jit_anchor_t *anchor,
+                                    jit_scalar_t *args, tlab_t *tlab)
+{
+   const int lsize = ffi_array_length(args[3].integer);
+   const int rsize = ffi_array_length(args[6].integer);
+   const uint8_t *left = args[1].pointer;
+   const uint8_t *right = args[4].pointer;
+
+   const int length = MAX(lsize, rsize);
+   uint8_t *result = __tlab_alloc(tlab, length);
+
+   if (unlikely(length == 0))
+      __synopsys_failure(func, anchor, args, tlab);
+
+   left = __conv_unsigned(func, anchor, tlab, left, lsize, length);
+   right = __conv_unsigned(func, anchor, tlab, right, rsize, length);
+
+   if (unlikely(left[0] == _X || right[0] == _X))
+      memset(result, _X, length);
+   else {
+      __invert_bits(right, length, result);
+      __ieee_packed_add(left, result, length, 1, result);
+   }
+
+   args[0].pointer = result;
+   args[1].integer = length - 1;
+   args[2].integer = ~length;
+}
+
+static void synopsys_mul_unsigned(jit_func_t *func, jit_anchor_t *anchor,
+                                  jit_scalar_t *args, tlab_t *tlab)
+{
+   const int lsize = ffi_array_length(args[3].integer);
+   const int rsize = ffi_array_length(args[6].integer);
+   const uint8_t *left = args[1].pointer;
+   const uint8_t *right = args[4].pointer;
+
+   if (unlikely(lsize == 0 || rsize == 0))
+      __synopsys_failure(func, anchor, args, tlab);
+
+   left = __conv_unsigned(func, anchor, tlab, left, lsize, lsize);
+   right = __conv_unsigned(func, anchor, tlab, right, rsize, rsize);
+
+   const int length = lsize + rsize;
+   uint8_t *pa = __tlab_alloc(tlab, length);
+
+   if (unlikely(left[0] == _X || right[0] == _X))
+      memset(pa, _X, length);
+   else {
+      const uint32_t mark = __tlab_mark(tlab);
+      uint8_t *ba = __tlab_alloc(tlab, length);
+
+      memset(pa, _0, length);
+      memset(ba, _0, length - rsize);
+      memcpy(ba + length - rsize, right, rsize);
+
+      for (int i = lsize - 1, shift = 0; i >= 0; i--, shift++) {
+         if (left[i] == _1) {
+            // Delay left-shift until value needed
+            memmove(ba, ba + shift, length - shift);
+            memset(ba + length - shift, _0, shift);
+            shift = 0;
+
+            __ieee_packed_add(pa, ba, length, 0, pa);
+         }
+      }
+
+      __tlab_restore(tlab, mark);
+   }
+
+   args[0].pointer = pa;
+   args[1].integer = length - 1;
+   args[2].integer = ~length;
+}
+
+static void synopsys_mul_signed(jit_func_t *func, jit_anchor_t *anchor,
+                                jit_scalar_t *args, tlab_t *tlab)
+{
+   const int lsize = ffi_array_length(args[3].integer);
+   const int rsize = ffi_array_length(args[6].integer);
+   const uint8_t *left = args[1].pointer;
+   const uint8_t *right = args[4].pointer;
+
+   if (unlikely(lsize == 0 || rsize == 0))
+      __synopsys_failure(func, anchor, args, tlab);
+
+   left = __conv_signed(func, anchor, tlab, left, lsize, lsize);
+   right = __conv_signed(func, anchor, tlab, right, rsize, rsize);
+
+   const int length = lsize + rsize;
+   uint8_t *pa = __tlab_alloc(tlab, length);
+
+   if (unlikely(left[0] == _X || right[0] == _X))
+      memset(pa, _X, length);
+   else {
+      const uint32_t mark = __tlab_mark(tlab);
+      uint8_t *ba = __tlab_alloc(tlab, length);
+
+      memset(pa, _0, length);
+      memset(ba, right[0], length - rsize);
+      memcpy(ba + length - rsize, right, rsize);
+
+      for (int i = lsize - 1, shift = 0; i >= 0; i--, shift++) {
+         if (left[i] == _1) {
+            // Delay left-shift until value needed
+            memmove(ba, ba + shift, length - shift);
+            memset(ba + length - shift, _0, shift);
+            shift = 0;
+
+            if (i == 0)
+               __invert_bits(ba, length, ba);
+
+            __ieee_packed_add(pa, ba, length, i == 0, pa);
+         }
+      }
+
+      __tlab_restore(tlab, mark);
+   }
+
+   args[0].pointer = pa;
+   args[1].integer = length - 1;
+   args[2].integer = ~length;
+}
+
+static void synopsys_eql_unsigned(jit_func_t *func, jit_anchor_t *anchor,
+                                  jit_scalar_t *args, tlab_t *tlab)
+{
+   const int lsize = ffi_array_length(args[3].integer);
+   const int rsize = ffi_array_length(args[6].integer);
+   const uint8_t *left = args[1].pointer;
+   const uint8_t *right = args[4].pointer;
+
+   const int length = MAX(lsize, rsize);
+
+   if (unlikely(length == 0))
+      __synopsys_failure(func, anchor, args, tlab);
+
+   const uint32_t mark = __tlab_mark(tlab);
+
+   left = __conv_unsigned(func, anchor, tlab, left, lsize, length);
+   right = __conv_unsigned(func, anchor, tlab, right, rsize, length);
+
+   args[0].integer = (memcmp(left, right, length) == 0);
+
+   __tlab_restore(tlab, mark);
+}
+
+static void synopsys_eql_signed(jit_func_t *func, jit_anchor_t *anchor,
+                                jit_scalar_t *args, tlab_t *tlab)
+{
+   const int lsize = ffi_array_length(args[3].integer);
+   const int rsize = ffi_array_length(args[6].integer);
+   const uint8_t *left = args[1].pointer;
+   const uint8_t *right = args[4].pointer;
+
+   const int length = MAX(lsize, rsize);
+
+   if (unlikely(length == 0))
+      __synopsys_failure(func, anchor, args, tlab);
+
+   const uint32_t mark = __tlab_mark(tlab);
+
+   left = __conv_signed(func, anchor, tlab, left, lsize, length);
+   right = __conv_signed(func, anchor, tlab, right, rsize, length);
+
+   args[0].integer = (memcmp(left, right, length) == 0);
+
+   __tlab_restore(tlab, mark);
+}
+
 static void byte_vector_equal(jit_func_t *func, jit_anchor_t *anchor,
                               jit_scalar_t *args, tlab_t *tlab)
 {
@@ -1111,10 +1413,13 @@ static void std_textio_shrink(jit_func_t *func, jit_anchor_t *anchor,
 #define ST "STD.STANDARD."
 #define TI "STD.TEXTIO."
 #define LN "15STD.TEXTIO.LINE"
+#define SA "IEEE.STD_LOGIC_ARITH."
+#define SU "IEEE.STD_LOGIC_UNSIGNED."
+#define SS "IEEE.STD_LOGIC_SIGNED."
+#define AU "29IEEE.STD_LOGIC_ARITH.UNSIGNED"
+#define AS "27IEEE.STD_LOGIC_ARITH.SIGNED"
 
 static jit_intrinsic_t intrinsic_list[] = {
-   { NS "ADD_UNSIGNED(" U U "L)" U, ieee_add_unsigned },
-   { NS "ADD_UNSIGNED(" UU UU "L)" UU, ieee_add_unsigned },
    { NS "\"+\"(" U U ")" U, ieee_plus_unsigned },
    { NS "\"+\"(" UU UU ")" UU, ieee_plus_unsigned },
    { NS "\"+\"(" U "N)" U, ieee_plus_unsigned_natural },
@@ -1172,6 +1477,42 @@ static jit_intrinsic_t intrinsic_list[] = {
    { MR "EXP(R)R", ieee_math_exp },
    { TI "CONSUME(" LN "N)", std_textio_consume },
    { TI "SHRINK(" LN "N)", std_textio_shrink },
+   { SA "\"+\"(" AU AU ")" AU, synopsys_plus_unsigned },
+   { SA "\"+\"(" AU AU ")V", synopsys_plus_unsigned },
+   { SU "\"+\"(VV)V", synopsys_plus_unsigned },
+   { SU "\"+\"(YY)Y", synopsys_plus_unsigned },
+   { SA "\"+\"(" AS AS ")" AS, synopsys_plus_signed },
+   { SA "\"+\"(" AS AS ")V", synopsys_plus_signed },
+   { SS "\"+\"(VV)V", synopsys_plus_signed },
+   { SS "\"+\"(YY)Y", synopsys_plus_signed },
+   { SA "\"+\"(" AU "U)" AU, synopsys_plus_unsigned_logic },
+   { SA "\"+\"(" AU "U)V", synopsys_plus_unsigned_logic },
+   { SU "\"+\"(VL)V", synopsys_plus_unsigned_logic },
+   { SU "\"+\"(YL)Y", synopsys_plus_unsigned_logic },
+   { SA "\"+\"(U" AU ")" AU, synopsys_plus_logic_unsigned },
+   { SA "\"+\"(U" AU ")V", synopsys_plus_logic_unsigned },
+   { SU "\"+\"(LV)V", synopsys_plus_logic_unsigned },
+   { SU "\"+\"(LY)Y", synopsys_plus_logic_unsigned },
+   { SA "\"-\"(" AU AU ")" AU, synopsys_minus_unsigned },
+   { SA "\"-\"(" AU AU ")V", synopsys_minus_unsigned },
+   { SU "\"-\"(VV)V", synopsys_minus_unsigned },
+   { SU "\"-\"(YY)Y", synopsys_minus_unsigned },
+   { SA "\"*\"(" AU AU ")" AU, synopsys_mul_unsigned },
+   { SA "\"*\"(" AU AU ")V", synopsys_mul_unsigned },
+   { SU "\"*\"(VV)V", synopsys_mul_unsigned },
+   { SU "\"*\"(YY)Y", synopsys_mul_unsigned },
+   { SA "\"*\"(" AS AS ")" AS, synopsys_mul_signed },
+   { SA "\"*\"(" AS AS ")V", synopsys_mul_signed },
+   { SS "\"*\"(VV)V", synopsys_mul_signed },
+   { SS "\"*\"(YY)Y", synopsys_mul_signed },
+   { SA "\"=\"(" AU AU ")B", synopsys_eql_unsigned },
+   { SA "\"=\"(" AU AU ")B", synopsys_eql_unsigned },
+   { SU "\"=\"(VV)B", synopsys_eql_unsigned },
+   { SU "\"=\"(YY)B", synopsys_eql_unsigned },
+   { SA "\"=\"(" AS AS ")B", synopsys_eql_signed },
+   { SA "\"=\"(" AS AS ")B", synopsys_eql_signed },
+   { SS "\"=\"(VV)B", synopsys_eql_signed },
+   { SS "\"=\"(YY)B", synopsys_eql_signed },
    { NULL, NULL }
 };
 

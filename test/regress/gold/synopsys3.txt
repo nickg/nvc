@@ -1,0 +1,4 @@
+0ms+0: index 0 outside of NATURAL range -1 downto 0
+Function CONV_UNSIGNED [UNSIGNED, INTEGER return UNSIGNED] at
+Function "+" [UNSIGNED, UNSIGNED return UNSIGNED] at
+Process :synopsys3:test_unsigned_plus at

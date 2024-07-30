@@ -1,0 +1,6 @@
+0ms+0: There is an 'U'|'X'|'W'|'Z'|'-' in an arithmetic operand, the result will be 'X'(es)
+Function "+" [UNSIGNED, UNSIGNED return STD_LOGIC_VECTOR]
+Process :synopsys2:test_unsigned_plus
+There is an 'U'|'X'|'W'|'Z'|'-' in an arithmetic operand, the result will be 'X'(es).
+Function "-" [UNSIGNED, UNSIGNED return STD_LOGIC_VECTOR]
+Process :synopsys2:test_unsigned_minus

@@ -1013,3 +1013,5 @@ issue931        normal,2008
 implicit9       normal
 issue932        normal,2019
 bounds45        fail,gold,2008
+synopsys2       normal,2008,gold
+synopsys3       fail,gold
