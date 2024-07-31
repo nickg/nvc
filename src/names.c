@@ -782,6 +782,42 @@ static void add_type_literals(scope_t *s, type_t type, make_visible_t fn)
    }
 }
 
+static void warn_hidden_decl(scope_t *s, decl_t *outer, tree_t inner)
+{
+   // Warn when an inner declaration hides an outer declaration but try
+   // to avoid false-positives and cases that may be intentional
+
+   for (scope_t *it = s; it && it != outer->origin; it = it->parent) {
+      if (s->container == NULL)
+         return;   // Ignore ports in component, etc.
+      else if (is_subprogram(it->container))
+         return;   // Do not warn when subprogram parameters hide ports
+      else if (tree_kind(it->container) == T_BLOCK)
+         return;   // Block ports hiding entity ports seem common and benign
+   }
+
+   type_t outer_type = get_type_or_null(outer->tree);
+   if (outer_type == NULL)
+      return;
+
+   type_t inner_type = get_type_or_null(inner);
+   if (inner_type == NULL)
+      return;
+
+   // If the types are different then any misuse is likely to generate a
+   // type error instead
+   if (!type_eq(inner_type, outer_type))
+      return;
+
+   diag_t *d = diag_new(DIAG_WARN, tree_loc(inner));
+   diag_printf(d, "declaration of %s hides an earlier declaration with the "
+               "same type", istr(tree_ident(inner)));
+   diag_hint(d, tree_loc(inner), "by the %s declaration here",
+             class_str(class_of(inner)));
+   diag_hint(d, tree_loc(outer->tree), "this declaration is hidden");
+   diag_emit(d);
+}
+
 static symbol_t *make_visible(scope_t *s, ident_t name, tree_t decl,
                               visibility_t kind, scope_t *origin)
 {
@@ -835,8 +871,9 @@ static symbol_t *make_visible(scope_t *s, ident_t name, tree_t decl,
             diag_emit(d);
             return sym;
          }
-         else if (is_design_unit(decl))
-            ;   // Design unit is top level so cannot hide anything
+         else if (dd->visibility == DIRECT && (dd->mask & mask & N_OBJECT))
+            warn_hidden_decl(s, dd, decl);
+
          dd->visibility = HIDDEN;
       }
       else if (!overload && kind == POTENTIAL && dd->visibility == DIRECT)

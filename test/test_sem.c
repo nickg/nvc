@@ -179,6 +179,7 @@ START_TEST(test_scope)
       { 167, "name NOT_HERE not found in design unit WORK.PACK5" },
       { 189, "no visible declaration for MY_INT1" },
       { 236, "no visible declaration for FOO" },
+      { 302, "declaration of I hides an earlier declaration with the same " },
       { 306, "name X not found in L1" },
       { -1, NULL }
    };
@@ -785,6 +786,8 @@ START_TEST(test_generate)
    const error_t expect[] = {
       { 15, "type of condition must be BOOLEAN but have INTEGER" },
       { 26, "no visible declaration for Y" },
+      { 33, "declaration of X hides an earlier declaration " },
+      { 39, "declaration of X hides an earlier declaration " },
       { 45, "condition of generate statement must be static" },
       { 48, "range of generate statement must be static" },
       { -1, NULL }

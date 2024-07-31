@@ -9956,6 +9956,7 @@ static void p_parameter_specification(tree_t loop, tree_kind_t pkind)
    BEGIN("paremeter specification");
 
    ident_t id = p_identifier();
+   const loc_t id_loc = last_loc;
 
    consume(tIN);
 
@@ -9979,7 +9980,7 @@ static void p_parameter_specification(tree_t loop, tree_kind_t pkind)
    tree_t param = tree_new(pkind);
    tree_set_ident(param, id);
    tree_set_type(param, sub);
-   tree_set_loc(param, CURRENT_LOC);
+   tree_set_loc(param, &id_loc);
    tree_set_class(param, C_CONSTANT);
    tree_set_subkind(param, PORT_IN);
 
@@ -10001,6 +10002,7 @@ static tree_t p_iteration_scheme(void)
    }
    else if (optional(tFOR)) {
       tree_t t = tree_new(T_FOR);
+      scope_set_container(nametab, t);
       p_parameter_specification(t, T_PARAM_DECL);
       return t;
    }

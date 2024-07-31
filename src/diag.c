@@ -871,7 +871,8 @@ static void diag_emit_hints(diag_t *d, FILE *f)
          while (ncarets--) fputc('^', f);
 
          const char *text = hint->text;
-         if (text == NULL && same_file > 1 && hint->priority == 0)
+         if (text == NULL && same_file > 1 && hint->priority == 0
+             && d->level >= DIAG_ERROR)
             text = "error occurred here";
 
          if (text != NULL) {

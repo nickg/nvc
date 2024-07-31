@@ -8,6 +8,8 @@
 - Fixed an incorrect bounds check error when a constant declaration has
   a partially constrained type (#932).
 - Updated to OSVVM 2024.07 for `nvc --install`.
+- Added a warning when an inner declaration hides an outer declaration
+  in a way that is likely to be unintentional (#905).
 
 ## Version 1.13.1 - 2024-07-25
 - Windows installer was missing some standard library files.
