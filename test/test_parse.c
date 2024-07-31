@@ -1954,8 +1954,8 @@ START_TEST(test_procedure)
 
    const error_t expect[] = {
       { 34, "unexpected procedure while parsing subprogram specification" },
-      { 41, "`\?\?' is a reserved word in VHDL-2008" },
-      { 41, "unexpected error while parsing primary" },
+      { 41, "condition conversion is not supported in VHDL-1993" },
+      { 44, "unexpected end while parsing subprogram declarative item" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -3954,7 +3954,7 @@ START_TEST(test_error3)
    input_from_file(TESTDIR "/parse/error3.vhd");
 
    const error_t expect[] = {
-      { 15, "`protected' is a reserved word in VHDL-2000" },
+      { 15, "PROTECTED is a reserved word in VHDL-2000" },
       { 15, "unexpected identifier while parsing type definition" },
       { 26, "unexpected ; while parsing library unit, expecting one" },
       { 28, "unexpected end while parsing library unit, expecting" },

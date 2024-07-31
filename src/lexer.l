@@ -46,14 +46,15 @@
 #define TOKEN(t) return (last_token = (t))
 
 #define TOKEN_LRM(t, lrm) do {                                          \
-      if (standard() < lrm) {                                           \
+      if (standard() < lrm && isalnum_iso88591(yytext[0])) {            \
          static bool warned = false;                                    \
-         if (!warned) {                                                 \
-            warn_lrm(lrm, "`%s' is a reserved word in VHDL-%s",         \
-                     yytext, standard_text(lrm));                       \
+         const token_t token = parse_id(yytext);                        \
+         if (token == tID && !warned) {                                 \
+            warn_lrm(lrm, "%s is a reserved word in VHDL-%s",           \
+                     istr(yylval.ident), standard_text(lrm));           \
             warned = true;                                              \
          }                                                              \
-         return isalnum(yytext[0]) ? parse_id(yytext) : tERROR;         \
+         return token;                                                  \
       }                                                                 \
       else                                                              \
          return (last_token = (t));                                     \

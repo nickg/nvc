@@ -4699,7 +4699,7 @@ static tree_t p_relation(tree_t head)
    tree_t rel = p_shift_expression(head);
 
    while (scan(tEQ, tNEQ, tLT, tLE, tGT, tGE,
-               tMEQ, tMNEQ, tMLT, tMLE, tMGT, tMGE)) {
+               tMEQ, tMNEQ, STD(08, tMLT), tMLE, tMGT, tMGE)) {
       ident_t op  = p_relational_operator();
       tree_t left = rel;
 
@@ -4751,7 +4751,8 @@ static inline tree_t p_expression(void)
    // expression | 2008: condition_operator primary
 
    if (optional(tCCONV)) {
-      // VHDL-2008 condition conversion
+      require_std(STD_08, "condition conversion");
+
       tree_t expr = tree_new(T_FCALL);
       tree_set_ident(expr, ident_new("\"??\""));
       unary_op(expr, p_primary);
