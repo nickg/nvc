@@ -6,6 +6,7 @@ end package;
 package body pack1 is
     function "=" (l, r : t) return boolean is
     begin
+        -- Should be called in both 2008 and 2019
         report "user-defined = called";
         return false;
     end function;
@@ -38,7 +39,7 @@ begin
 
     check: process is
     begin
-        assert pack3.equal(a, a);
+        assert not pack3.equal(a, a);
         wait;
     end process;
 

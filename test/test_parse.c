@@ -5471,6 +5471,15 @@ START_TEST(test_issue686)
 
    input_from_file(TESTDIR "/parse/issue686.vhd");
 
+   const error_t expect[] = {
+      { 15, "no visible subprogram \"=\" matches signature [G, G return BOO" },
+      {  0, "while resolving interface subprogram default for \"=\"" },
+      {  0, "add a use clause that makes the operators for WORK.PACK1.T" },
+      {  0, "the 2008 LRM is unclear" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
    tree_t p1 = parse();
    fail_if(p1 == NULL);
    fail_unless(tree_kind(p1) == T_PACKAGE);
@@ -5487,7 +5496,7 @@ START_TEST(test_issue686)
 
    fail_unless(parse() == NULL);
 
-   fail_if_errors();
+   check_expected_errors();
 }
 END_TEST
 

@@ -4968,6 +4968,8 @@ static bool sem_check_generic_actual(formal_map_t *formals, int nformals,
       type_t map = tree_type(value);
       if (type_is_none(map))
          return false;
+      else if (!sem_check_incomplete(param, map))
+         return false;
 
       static const char *class_strings[] = {
          [GTYPE_SCALAR] = "a scalar",
@@ -5159,9 +5161,16 @@ static bool sem_check_generic_map(tree_t t, tree_t unit, nametab_t *tab)
    for (int i = 0; i < nformals; i++) {
       if (formals[i].have)
          continue;
-      else if (tree_class(formals[i].decl) == C_PACKAGE)
+
+      const class_t class = tree_class(formals[i].decl);
+      if (class == C_PACKAGE)
          error_at(tree_loc(t), "missing actual for generic package %s",
                   istr(tree_ident(formals[i].decl)));
+      else if (class == C_TYPE) {
+         error_at(tree_loc(t), "missing actual for generic type %s",
+                  istr(tree_ident(formals[i].decl)));
+         map_generic_type(tab, tree_type(formals[i].decl), type_new(T_NONE));
+      }
       else if (tree_has_value(formals[i].decl)) {
          tree_t value = tree_value(formals[i].decl);
          if (tree_kind(value) == T_BOX) {
@@ -5170,8 +5179,6 @@ static bool sem_check_generic_map(tree_t t, tree_t unit, nametab_t *tab)
             map_generic_box(tab, t, formals[i].decl, i);
          }
       }
-      else if (tree_flags(formals[i].decl) & TREE_F_PREDEFINED)
-         map_generic_predef(tab, t, formals[i].decl, i);
       else
          error_at(tree_loc(t), "missing actual for generic %s without a "
                   "default expression", istr(tree_ident(formals[i].decl)));

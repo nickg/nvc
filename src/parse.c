@@ -2311,19 +2311,21 @@ static void add_generic_type_op(tree_t parent, int nargs, type_t type,
    tree_set_loc(p, CURRENT_LOC);
    tree_set_flag(p, TREE_F_PREDEFINED);
 
-   if (standard() >= STD_19) {
-      // LRM 08 section 6.5.3.1: the *predefined* [..] operators,
-      // implicitly declared as formal generic subprograms
-      //
-      // LCS2016-59 changed the wording here: additional operators are
-      // implicitly declared as formal generic subprograms with an
-      // interface subprogram default in form of a box (<>)
+   // LRM 08 section 6.5.3.1: the *predefined* [..] operators,
+   // implicitly declared as formal generic subprograms
+   //
+   // LCS2016-59 changed the wording here: additional operators are
+   // implicitly declared as formal generic subprograms with an
+   // interface subprogram default in form of a box (<>)
+   //
+   // The 2008 LRM seems to be ambiguous as to whether we should map the
+   // predefined operator or do a lookup for a matching visible
+   // operator.  We always follow the 2019 behaviour here.
 
-      tree_t box = tree_new(T_BOX);
-      tree_set_loc(box, CURRENT_LOC);
+   tree_t box = tree_new(T_BOX);
+   tree_set_loc(box, CURRENT_LOC);
 
-      tree_set_value(p, box);
-   }
+   tree_set_value(p, box);
 
    for (int j = 0; j < nargs; j++) {
       tree_t arg = tree_new(T_PARAM_DECL);

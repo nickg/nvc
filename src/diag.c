@@ -463,6 +463,8 @@ static const struct {
    { "Elaboration of a declaration", { [STD_08] = "14.4.2",
         [STD_93] = "12.3.1" } },
    { "Package bodies", { [STD_08] = "4.8", [STD_93] = "2.6" } },
+   { "Interface type declarations", { [STD_08] = "6.5.3",
+        [STD_19] = "6.5.3" } },
 };
 
 diag_t *diag_new(diag_level_t level, const loc_t *loc)

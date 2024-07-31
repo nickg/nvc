@@ -74,7 +74,6 @@ void defer_check(nametab_t *tab, defer_check_fn_t fn, tree_t t);
 void map_generic_type(nametab_t *tab, type_t generic, type_t actual);
 void map_generic_package(nametab_t *tab, tree_t generic, tree_t actual);
 void map_generic_box(nametab_t *tab, tree_t inst, tree_t g, unsigned pos);
-void map_generic_predef(nametab_t *tab, tree_t inst, tree_t g, unsigned pos);
 void map_generic_subprogram(nametab_t *tab, tree_t generic, tree_t actual);
 hash_t *get_generic_map(nametab_t *tab);
 

@@ -3249,86 +3249,6 @@ static void overload_cancel_argument(overload_t *o, tree_t p)
    o->state = O_IDLE;
 }
 
-static tree_t resolve_predef(nametab_t *tab, type_t type, ident_t op)
-{
-   ident_t type_id = type_ident(type);
-   if (ident_starts_with(type_id, tab->top_scope->prefix))
-      type_id = ident_rfrom(type_id, '.');
-
-   const symbol_t *type_sym = iterate_symbol_for(tab, type_id);
-   if (type_sym == NULL)
-      return NULL;
-
-   const symbol_t *op_sym = symbol_for(type_sym->owner, op);
-   if (op_sym == NULL)
-      return NULL;
-
-   for (int i = 0; i < op_sym->ndecls; i++) {
-      const decl_t *dd = get_decl(op_sym, i);
-      if (!(dd->mask & N_SUBPROGRAM))
-         continue;
-
-      tree_t sub = dd->tree;
-      if (dd->kind == T_ALIAS && !(sub = get_aliased_subprogram(sub)))
-         continue;
-
-      if (!is_predef_for_type(sub, type))
-         continue;
-      else if (!(tree_flags(sub) & TREE_F_PREDEFINED))
-         continue;    // Ignore user-defined operators
-
-      return dd->tree;
-   }
-
-   return NULL;
-}
-
-void map_generic_predef(nametab_t *tab, tree_t inst, tree_t g, unsigned pos)
-{
-   assert(tree_kind(g) == T_GENERIC_DECL);
-   assert(tree_flags(g) & TREE_F_PREDEFINED);
-
-   if (tab->top_scope->gmap == NULL) {
-      // Suppress further errors about missing predefined operators
-      assert(error_count() > 0);
-      return;
-   }
-
-   type_t type = tree_type(g);
-
-   tree_t ref = tree_new(T_REF);
-   tree_set_loc(ref, tree_loc(inst));
-   tree_set_ident(ref, type_ident(type));
-
-   type_t p0type = type_param(type, 0);
-   type_t mapped = hash_get(tab->top_scope->gmap, p0type) ?: p0type;
-
-   type_t base = type_base_recur(mapped);
-
-   if (type_is_none(base))
-      return;    // Was earlier error
-
-   tree_t d = resolve_predef(tab, base, type_ident(type));
-   if (d == NULL) {
-      error_at(tree_loc(inst), "cannot find predefined %s operator for type %s",
-               istr(tree_ident(g)), type_pp(mapped));
-      return;
-   }
-
-   tree_set_ref(ref, d);
-   tree_set_type(ref, tree_type(d));
-
-   tree_t map = tree_new(T_PARAM);
-   tree_set_loc(ref, tree_loc(inst));
-   tree_set_subkind(map, P_POS);
-   tree_set_pos(map, pos);
-   tree_set_value(map, ref);
-
-   tree_add_genmap(inst, map);
-
-   map_generic_subprogram(tab, g, d);
-}
-
 void map_generic_box(nametab_t *tab, tree_t inst, tree_t g, unsigned pos)
 {
    // Find the actual for the <> "box" default generic subprogram
@@ -3381,6 +3301,29 @@ void map_generic_box(nametab_t *tab, tree_t inst, tree_t g, unsigned pos)
                   istr(func), signature);
       diag_hint(d, tree_loc(box), "while resolving interface subprogram "
                 "default for %s", istr(type_ident(type)));
+
+      if (tree_flags(g) & TREE_F_PREDEFINED) {
+         type_t actual = NULL;
+         if (tab->top_scope->gmap != NULL)
+            actual = hash_get(tab->top_scope->gmap, type_param(type, 0));
+
+         if (actual != NULL && !type_is_none(actual)) {
+            diag_hint(d, NULL, "add a use clause that makes the operators for "
+                      "%s visible", istr(type_ident(actual)));
+
+            if (standard() == STD_08)
+               diag_hint(d, NULL, "the 2008 LRM is unclear on the visibility "
+                         "requirements for the implicit operators associated "
+                         "with a generic type, and behaviour varies between "
+                         "implementations; the interpretation here is "
+                         "consistent with the 2019 LRM");
+
+            diag_lrm(d, STD_08, "6.5.3");
+         }
+
+         suppress_errors(tab);   // Avoid error for both "=" and "/="
+      }
+
       diag_emit(d);
    }
 

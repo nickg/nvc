@@ -2650,17 +2650,16 @@ START_TEST(test_gentype)
       { 72, "unexpected integer while parsing name" },
       { 72, "type of actual universal_integer does not match type T of " },
       { 81, "no visible subprogram MY_FUNC matches signature [T return T]" },
-      { 80, "missing actual for generic T without a default expression" },
-      { 80, "no visible subprogram PROC1 matches signature [T]" },
+      { 80, "missing actual for generic type T" },
       { 84, "no visible subprogram MY_FUNC matches signature [T return T]" },
       { 83, "no visible subprogram PROC1 matches signature [T]" },
       { 90, "ambiguous use of name MY_FUNC" },
       { 90, "universal_integer does not match type T of formal generic INIT" },
       { 93, "invalid use of label U12" },
       { 93, "universal_integer does not match type T of formal generic INIT" },
+      { 96, "invalid use of incomplete type INCOMPLETE" },
       { 96, "universal_integer does not match type T of formal generic INIT" },
-      { 95, "cannot find predefined \"=\" operator for type INCOMPLETE" },
-      { 95, "cannot find predefined \"/=\" operator for type INCOMPLETE" },
+      { 95, "no visible subprogram \"=\" matches signature [T, T return BOO" },
       { -1, NULL }
    };
    expect_errors(expect);
