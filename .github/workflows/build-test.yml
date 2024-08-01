@@ -143,6 +143,7 @@ jobs:
             mingw-w64-x86_64-pkgconf
             mingw-w64-x86_64-gcc
             mingw-w64-x86_64-tcl
+            mingw-w64-x86_64-tcllib
             mingw-w64-x86_64-zstd
             unzip
             git
@@ -263,7 +264,7 @@ jobs:
           name: 'Ubuntu package'
       - name: Install pre-built package
         run: >-
-          sudo apt-get install ./nvc_*.deb
+          sudo apt-get install ./nvc_*.deb tcllib
       - name: Add to PATH
         run: >-
           echo /opt/nvc-*/bin >> $GITHUB_PATH

@@ -7,6 +7,7 @@
   correctly.
 - Fixed an incorrect bounds check error when a constant declaration has
   a partially constrained type (#932).
+- Updated to OSVVM 2024.07 for `nvc --install`.
 
 ## Version 1.13.1 - 2024-07-25
 - Windows installer was missing some standard library files.
