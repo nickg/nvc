@@ -42,6 +42,8 @@ jobs:
           export PATH=/c/Program\ Files/NVC/bin:$PATH
           export OSVVM_DIR=$(realpath OsvvmLibraries)
           export OSVVM_MUST_BUILD=1
+          find $OSVVM_DIR -name VendorScripts_NVC.tcl -exec \
+            sed -i '/puts $SimulateMessage/d' \{} \;
           tclsh ./test/test-osvvm.tcl
       - name: Publish results
         uses: dorny/test-reporter@v1
