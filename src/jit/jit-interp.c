@@ -875,10 +875,8 @@ static void interp_sadd(jit_interp_t *state, jit_ir_t *ir)
    const int64_t addend = interp_get_int(state, ir->arg2);
 
 #define SADD(type) do {                                         \
-      u##type cur = *(u##type *)ptr, next = cur + addend;       \
-      if (next < cur)                                           \
-         next = (u##type)INT64_C(-1);                           \
-      *(u##type *)ptr = next;                                   \
+      u##type cur = *(u##type *)ptr;                            \
+      *(u##type *)ptr = saturate_add(cur, addend);              \
    } while (0)
 
    FOR_EACH_SIZE(ir->size, SADD);

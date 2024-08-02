@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2023  Nick Gasson
+//  Copyright (C) 2011-2024  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -465,6 +465,24 @@ void list_clear(ptr_list_t *l);
          const struct { type value; }                                   \
             __attribute__((packed)) *__s = __ptr;                       \
          __s->value;                                                    \
+      })
+
+#define TYPE_MAX(x)                             \
+   _Generic((x),                                \
+            uint64_t: UINT64_MAX,               \
+            int64_t: INT64_MAX,                 \
+            uint32_t: UINT32_MAX,               \
+            int32_t: INT32_MAX,                 \
+            uint16_t: UINT16_MAX,               \
+            int16_t: INT16_MAX,                 \
+            uint8_t: UINT8_MAX,                 \
+            int8_t: INT8_MAX)
+
+#define saturate_add(a, b) ({                           \
+         typeof((a)) __tmp;                             \
+         if (__builtin_add_overflow((a), (b), &__tmp))  \
+            __tmp = TYPE_MAX(__tmp);                    \
+         __tmp;                                         \
       })
 
 #endif // _UTIL_H

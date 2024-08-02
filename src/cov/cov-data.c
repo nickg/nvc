@@ -704,13 +704,7 @@ static void cover_merge_one_item(cover_item_t *item, int32_t data)
       if ((item->data & COV_FLAG_UNREACHABLE) || (data & COV_FLAG_UNREACHABLE))
          item->data = COV_FLAG_UNREACHABLE;
       else
-      {
-         inc = item->data + data;
-         if (likely(inc >= item->data))
-            item->data = inc;
-         else
-            item->data = INT32_MAX;
-      }
+         item->data = saturate_add(item->data, data);
       break;
 
    default:
