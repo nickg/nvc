@@ -35,7 +35,7 @@ jobs:
                --with-llvm=/usr/bin/llvm-config --enable-debug \
                --enable-tcl --enable-gui
       - name: Build
-        run: make -C build -j $(nproc)
+        run: ASAN_OPTIONS=detect_leaks=0 make -C build -j $(nproc)
       - name: Test
         run: ASAN_OPTIONS=detect_leaks=0 make -C build check
       - name: Test in JIT mode

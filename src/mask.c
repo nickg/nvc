@@ -279,6 +279,18 @@ void mask_union(bit_mask_t *m, const bit_mask_t *m2)
       m->bits |= m2->bits;
 }
 
+void mask_intersect(bit_mask_t *m, const bit_mask_t *m2)
+{
+   assert(m->size == m2->size);
+
+   if (m->size > 64) {
+      for (ssize_t i = 0; i < (m->size + 63) / 64; i++)
+         m->ptr[i] &= m2->ptr[i];
+   }
+   else
+      m->bits &= m2->bits;
+}
+
 void mask_copy(bit_mask_t *m, const bit_mask_t *m2)
 {
    assert(m->size == m2->size);
@@ -307,7 +319,7 @@ bool mask_eq(const bit_mask_t *m1, const bit_mask_t *m2)
       return m1->bits == m2->bits;
 }
 
-bool mask_iter(bit_mask_t *m, size_t *bit)
+bool mask_iter(const bit_mask_t *m, size_t *bit)
 {
    if (*bit + 1 < 0 || *bit + 1 >= m->size)
       return false;

@@ -1,0 +1,9 @@
+lib_libnvc_a_SOURCES += \
+	src/mir/mir-unit.h \
+	src/mir/mir-unit.c \
+	src/mir/mir-node.h \
+	src/mir/mir-node.c \
+	src/mir/mir-type.c \
+	src/mir/mir-dump.c \
+	src/mir/mir-optim.c \
+	src/mir/mir-vcode.c

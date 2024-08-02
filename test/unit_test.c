@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2018-2023  Nick Gasson
+//  Copyright (C) 2018-2024  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -121,6 +121,7 @@ int main(int argc, char **argv)
    nfail += RUN_TESTS(server);
 #endif
    nfail += RUN_TESTS(driver);
+   nfail += RUN_TESTS(mir);
 
    return nfail == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 }

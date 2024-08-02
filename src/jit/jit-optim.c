@@ -289,7 +289,10 @@ typedef unsigned valnum_t;
 #define LVN_REG(r) ((jit_value_t){ .kind = JIT_VALUE_REG, .reg = (r) })
 #define LVN_CONST(i) ((jit_value_t){ .kind = JIT_VALUE_INT64, .int64 = (i) })
 
-typedef struct _lvn_tab lvn_tab_t;
+typedef struct {
+   jit_ir_t *ir;
+   valnum_t  vn;
+} lvn_tab_t;
 
 typedef struct {
    jit_func_t *func;
@@ -300,11 +303,6 @@ typedef struct {
    int64_t     consttab[MAX_CONSTS];
    unsigned    nconsts;
 } lvn_state_t;
-
-typedef struct _lvn_tab {
-   jit_ir_t  *ir;
-   valnum_t   vn;
-} lvn_tab_t;
 
 static void jit_lvn_mov(jit_ir_t *ir, lvn_state_t *state);
 

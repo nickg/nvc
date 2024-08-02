@@ -19,9 +19,10 @@
 #include "hash.h"
 #include "ident.h"
 #include "jit/jit-priv.h"
+#include "mir/mir-node.h"
+#include "mir/mir-unit.h"
 #include "object.h"
 #include "psl/psl-node.h"
-#include "vcode.h"
 #include "vlog/vlog-node.h"
 
 #include <assert.h>
@@ -302,18 +303,19 @@ void jit_dump(jit_func_t *f)
    jit_dump_with_mark(f, JIT_LABEL_INVALID, true);
 }
 
-static int jit_interleaved_cb(int op, void *ctx)
+static void jit_interleaved_cb(mir_unit_t *mu, mir_block_t b, mir_value_t n,
+                               void *ctx)
 {
    jit_dump_t *d = ctx;
-
-   const vcode_block_t block = vcode_active_block();
 
    for (; d->next_ir < d->func->nirs; d->next_ir++) {
       jit_ir_t *ir = &(d->func->irbuf[d->next_ir]);
       if (ir->op == J_DEBUG) {
          if (ir->target)
             d->lpend = d->next_ir;
-         if (ir->arg2.vpos.block != block || ir->arg2.vpos.op != op)
+         if (mir_is_null(b) || mir_is_null(n))
+            continue;   // Flush
+         else if (ir->arg2.vpos.block != b.id || ir->arg2.vpos.op != n.id)
             break;
       }
       else {
@@ -327,11 +329,13 @@ static int jit_interleaved_cb(int op, void *ctx)
          color_printf("$$");
       }
    }
-
-   return 0;
 }
 
-void jit_dump_interleaved(jit_func_t *f)
+static const mir_annotate_t jit_annot = {
+   .end_node = jit_interleaved_cb,
+};
+
+void jit_dump_interleaved(jit_func_t *f, mir_unit_t *mu)
 {
    jit_dump_t d = {
       .labels = ihash_new(128),
@@ -340,11 +344,10 @@ void jit_dump_interleaved(jit_func_t *f)
       .lpend  = -1,
    };
 
-   vcode_select_unit(f->unit);
-   vcode_dump_with_mark(-1, jit_interleaved_cb, &d);
+   mir_set_cursor(mu, MIR_NULL_BLOCK, 0);
+   mir_annotate(mu, &jit_annot, &d);
 
-   vcode_select_block(0);
-   jit_interleaved_cb(-1, &d);
+   jit_interleaved_cb(mu, MIR_NULL_BLOCK, MIR_NULL_VALUE, &d);
 
    ihash_free(d.labels);
 

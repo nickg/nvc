@@ -41,7 +41,7 @@ DECLARE_AND_DEFINE_ARRAY(vcode_type);
     || x == VCODE_OP_CONST || x == VCODE_OP_CAST                        \
     || x == VCODE_OP_CONST_RECORD || x == VCODE_OP_CLOSURE              \
     || x == VCODE_OP_BIND_EXTERNAL || x == VCODE_OP_ARRAY_SCOPE         \
-    || x == VCODE_OP_RECORD_SCOPE)
+    || x == VCODE_OP_RECORD_SCOPE || x == VCODE_OP_SYSCALL)
 #define OP_HAS_ADDRESS(x)                                               \
    (x == VCODE_OP_LOAD || x == VCODE_OP_STORE || x == VCODE_OP_INDEX    \
     || x == VCODE_OP_VAR_UPREF)
@@ -49,7 +49,7 @@ DECLARE_AND_DEFINE_ARRAY(vcode_type);
    (x == VCODE_OP_FCALL || x == VCODE_OP_PCALL || x == VCODE_OP_RESUME  \
     || x == VCODE_OP_CLOSURE || x == VCODE_OP_PROTECTED_INIT            \
     || x == VCODE_OP_PACKAGE_INIT || x == VCODE_OP_PROCESS_INIT \
-    || x == VCODE_OP_FUNCTION_TRIGGER)
+    || x == VCODE_OP_FUNCTION_TRIGGER || x == VCODE_OP_SYSCALL)
 #define OP_HAS_IDENT(x)                                                 \
    (x == VCODE_OP_LINK_VAR || x == VCODE_OP_LINK_PACKAGE                \
     || x == VCODE_OP_DEBUG_LOCUS || x == VCODE_OP_BIND_EXTERNAL)
@@ -2949,6 +2949,18 @@ vcode_type_t vcode_param_type(int param)
    assert(param < active_unit->params.count);
 
    return active_unit->params.items[param].type;
+}
+
+ident_t vcode_param_name(int param)
+{
+   assert(active_unit != NULL);
+   assert(active_unit->kind == VCODE_UNIT_FUNCTION
+          || active_unit->kind == VCODE_UNIT_PROCEDURE
+          || active_unit->kind == VCODE_UNIT_PROPERTY
+          || active_unit->kind == VCODE_UNIT_PROTECTED);
+   assert(param < active_unit->params.count);
+
+   return active_unit->params.items[param].name;
 }
 
 vcode_reg_t vcode_param_reg(int param)

@@ -192,6 +192,9 @@ char *strndup(char const *s, size_t n);
          __n ^= (__n >> 33);                    \
       })
 
+// Knuth's multiplicative hash
+#define knuth_hash(n) ((uint32_t)(n)) * UINT32_C(2654435761)
+
 void *xmalloc(size_t size) RETURNS_NONNULL;
 void *xmalloc_array(size_t nelems, size_t size) RETURNS_NONNULL;
 void *xmalloc_flex(size_t fixed, size_t nelems, size_t size) RETURNS_NONNULL;
@@ -418,6 +421,8 @@ void pool_free(mem_pool_t *mp);
 void *pool_malloc(mem_pool_t *mp, size_t size);
 void *pool_calloc(mem_pool_t *mp, size_t size);
 void *pool_malloc_array(mem_pool_t *mp, size_t nelems, size_t size);
+void *pool_malloc_flex(mem_pool_t *mp, size_t fixed, size_t nelems,
+                       size_t size);
 void pool_stats(mem_pool_t *mp, size_t *alloc, size_t *npages);
 
 #define INIT_ONCE(body) do {                    \
@@ -475,7 +480,7 @@ void pool_stats(mem_pool_t *mp, size_t *alloc, size_t *npages);
             int8_t: INT8_MAX)
 
 #define saturate_add(a, b) ({                           \
-         typeof((a)) __tmp;                             \
+         typeof((typeof(a))(a)) __tmp;                  \
          if (__builtin_add_overflow((a), (b), &__tmp))  \
             __tmp = TYPE_MAX(__tmp);                    \
          __tmp;                                         \
