@@ -1084,7 +1084,13 @@ and
 of the foreign function.
 For example:
 .Bd -literal -offset indent
-function my_func (x : integer; y : bit_vector; z : std_logic) return integer;
+function my_func (x : integer;
+                  y : bit_vector;
+                  z : std_logic) return integer is
+begin
+    report "should not reach here" severity failure;
+end function;
+
 attribute foreign of my_func : function is "VHPI my_lib my_func";
 .Ed
 .Pp
@@ -1110,7 +1116,6 @@ attribute should be specified with the keyword
 and name of the function symbol exported from the plugin.
 For example:
 .Bd -literal -offset indent
-function my_func (x : integer; y : bit_vector; z : std_logic) return integer;
 attribute foreign of my_func : function is "VHPIDIRECT my_func";
 .Ed
 .Pp
