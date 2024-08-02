@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2022-2023  Nick Gasson
+//  Copyright (C) 2022-2024  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -18,10 +18,13 @@
 #include "util.h"
 #include "hash.h"
 #include "ident.h"
+#include "mir/mir-node.h"
+#include "mir/mir-unit.h"
 #include "option.h"
 #include "rt/mspace.h"
 #include "thread.h"
 
+#include <assert.h>
 #include <check.h>
 #include <ctype.h>
 #include <stdlib.h>
@@ -46,6 +49,15 @@ static void run_test(thread_fn_t fn, void *arg)
       thread_join(handles[i]);
 
    store_release(&start, 0);
+}
+
+static uint32_t fast_rand(uint32_t *state)
+{
+   uint32_t tmp = *state;
+   tmp ^= (tmp << 13);
+   tmp ^= (tmp >> 17);
+   tmp ^= (tmp << 5);
+   return (*state = tmp);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -228,6 +240,60 @@ START_TEST(test_gc)
 END_TEST
 
 ////////////////////////////////////////////////////////////////////////////////
+// MIR concurrent access
+
+static void *test_mir_types_thread(void *arg)
+{
+   mir_context_t *mc = arg;
+   const uint32_t rng_init = knuth_hash(thread_id());
+
+   while (load_acquire(&start) == 0)
+      spin_wait();
+
+   ident_t name = ident_sprintf("func%d", thread_id());
+   mir_unit_t *mu = mir_unit_new(mc, name, MIR_UNIT_FUNCTION, NULL);
+
+   uint32_t rng = rng_init;
+
+   mir_type_t types[4000];
+
+   for (int i = 0; i < ARRAY_LEN(types); i++) {
+      types[i] = mir_int_type(mu, 0, fast_rand(&rng) % (i + 1));
+      assert(!mir_is_null(types[i]));
+   }
+
+   rng = rng_init;
+
+   for (int i = 0; i < ARRAY_LEN(types); i++) {
+      const uint32_t max = fast_rand(&rng) % (i + 1);
+      const mir_repr_t repr = mir_get_repr(mu, types[i]);
+
+      assert(mir_get_class(mu, types[i]) == MIR_TYPE_INT);
+
+      if (max <= 1)
+         assert(repr == MIR_REPR_U1);
+      else if (max <= UINT8_MAX)
+         assert(repr == MIR_REPR_U8);
+      else if (max <= UINT16_MAX)
+         assert(repr == MIR_REPR_U16);
+   }
+
+   mir_unit_free(mu);
+
+   return NULL;
+}
+
+START_TEST(test_mir_types)
+{
+   mir_context_t *mc = mir_context_new();
+
+   run_test(test_mir_types_thread, mc);
+
+   mir_context_free(mc);
+}
+END_TEST
+
+////////////////////////////////////////////////////////////////////////////////
 
 int main(int argc, char **argv)
 {
@@ -263,6 +329,11 @@ int main(int argc, char **argv)
    tcase_set_timeout(tc_stop_world, 20.0);
    suite_add_tcase(s, tc_stop_world);
 #endif
+
+   TCase *tc_mir = tcase_create("mir");
+   tcase_add_test(tc_mir, test_mir_types);
+   tcase_set_timeout(tc_mir, 20.0);
+   suite_add_tcase(s, tc_mir);
 
    SRunner *sr = srunner_create(s);
    srunner_run_all(sr, CK_NORMAL);

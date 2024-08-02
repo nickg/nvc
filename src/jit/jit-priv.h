@@ -362,10 +362,10 @@ typedef struct _pack_writer pack_writer_t;
 
 typedef struct _jit_interp jit_interp_t;
 
-void jit_irgen(jit_func_t *f);
+void jit_irgen(jit_func_t *f, mir_unit_t *mu);
 void jit_dump(jit_func_t *f);
 void jit_dump_with_mark(jit_func_t *f, jit_label_t label, bool cpool);
-void jit_dump_interleaved(jit_func_t *f);
+void jit_dump_interleaved(jit_func_t *f, mir_unit_t *mu);
 const char *jit_op_name(jit_op_t op);
 const char *jit_cc_name(jit_cc_t cc);
 const char *jit_exit_name(jit_exit_t exit);

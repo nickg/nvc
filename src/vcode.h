@@ -321,6 +321,7 @@ void vcode_state_restore(const vcode_state_t *state);
 
 int vcode_count_params(void);
 vcode_type_t vcode_param_type(int param);
+ident_t vcode_param_name(int param);
 vcode_reg_t vcode_param_reg(int param);
 
 int vcode_count_regs(void);

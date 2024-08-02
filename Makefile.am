@@ -47,6 +47,7 @@ include thirdparty/Makemodule.am
 include src/Makemodule.am
 include src/cov/Makemodule.am
 include src/jit/Makemodule.am
+include src/mir/Makemodule.am
 include src/psl/Makemodule.am
 include src/rt/Makemodule.am
 include src/sdf/Makemodule.am
@@ -79,7 +80,7 @@ if MAINTAINER_MODE
 
 compile-commands:
 	$(MAKE) -C $(top_builddir) clean
-	bear -- $(MAKE) -j$$(nproc) -C $(top_builddir) $(bin_PROGRAMS) \
+	bear -- $(MAKE) -k -j$$(nproc) -C $(top_builddir) $(bin_PROGRAMS) \
 	  $(check_PROGRAMS) $(EXTRA_PROGRAMS) $(pkglibexec_PROGRAMS)
 
 release: update-test-dist

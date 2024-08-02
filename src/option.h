@@ -73,6 +73,8 @@ typedef enum {
    OPT_LAYOUT_VERBOSE,
    OPT_SINGLE_UNIT,
    OPT_PRESERVE_CASE,
+   OPT_GVN_VERBOSE,
+   OPT_DCE_VERBOSE,
 
    OPT_LAST_NAME
 } opt_name_t;

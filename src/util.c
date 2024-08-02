@@ -598,9 +598,6 @@ void fatal(const char *fmt, ...)
 
 void fatal_trace(const char *fmt, ...)
 {
-   struct cpu_state cpu;
-   capture_registers(&cpu);
-
    diag_t *d = diag_new(DIAG_FATAL, NULL);
    diag_suppress(d, false);
 
@@ -613,6 +610,7 @@ void fatal_trace(const char *fmt, ...)
    diag_emit(d);
 
    show_stacktrace();
+
    show_bug_report();
 
    fatal_exit(EXIT_FAILURE);
@@ -2446,14 +2444,20 @@ void *pool_malloc(mem_pool_t *mp, size_t size)
    return pool_aligned_malloc(mp, size, POOL_MIN_ALIGN);
 }
 
-void *pool_malloc_array(mem_pool_t *mp, size_t nelems, size_t size)
+void *pool_malloc_flex(mem_pool_t *mp, size_t fixed, size_t nelems,
+                       size_t size)
 {
    size_t bytes;
    if (__builtin_mul_overflow(nelems, size, &bytes))
       fatal_trace("array size overflow: requested %zd * %zd bytes",
                   nelems, size);
 
-   return pool_aligned_malloc(mp, bytes, POOL_MIN_ALIGN);
+   return pool_malloc(mp, fixed + bytes);
+}
+
+void *pool_malloc_array(mem_pool_t *mp, size_t nelems, size_t size)
+{
+   return pool_malloc_flex(mp, 0, nelems, size);
 }
 
 void *pool_calloc(mem_pool_t *mp, size_t size)

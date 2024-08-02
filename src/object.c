@@ -346,11 +346,8 @@ static void object_init(object_class_t *class)
       class->object_size[i] = sizeof(object_t) + (nitems * sizeof(item_t));
       DEBUG_ONLY(all_items |= class->has_map[i]);
 
-      // Knuth's multiplicative hash
-      format_digest +=
-         (uint32_t)(class->has_map[i] >> 32) * UINT32_C(2654435761);
-      format_digest +=
-         (uint32_t)(class->has_map[i]) * UINT32_C(2654435761);
+      format_digest += knuth_hash(class->has_map[i] >> 32);
+      format_digest += knuth_hash(class->has_map[i]);
    }
 
    bool changed = false;

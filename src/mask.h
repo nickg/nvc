@@ -73,8 +73,9 @@ ssize_t mask_scan_backwards(bit_mask_t *m, size_t bit);
 size_t mask_count_clear(bit_mask_t *m, size_t bit);
 void mask_subtract(bit_mask_t *m, const bit_mask_t *m2);
 void mask_union(bit_mask_t *m, const bit_mask_t *m2);
+void mask_intersect(bit_mask_t *m, const bit_mask_t *m2);
 void mask_copy(bit_mask_t *m, const bit_mask_t *m2);
 bool mask_eq(const bit_mask_t *m1, const bit_mask_t *m2);
-bool mask_iter(bit_mask_t *m, size_t *bit);
+bool mask_iter(const bit_mask_t *m, size_t *bit);
 
 #endif  // _MASK_H

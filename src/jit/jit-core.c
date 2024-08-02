@@ -25,6 +25,7 @@
 #include "jit/jit.h"
 #include "lib.h"
 #include "lower.h"
+#include "mir/mir-unit.h"
 #include "object.h"
 #include "option.h"
 #include "rt/model.h"
@@ -52,7 +53,7 @@
 
 #define FUNC_HASH_SZ    1024
 #define FUNC_LIST_SZ    512
-#define COMPILE_TIMEOUT 100000
+#define COMPILE_TIMEOUT 10000
 
 typedef struct _jit_tier {
    jit_tier_t    *next;
@@ -107,6 +108,7 @@ typedef struct _jit {
    jit_irq_fn_t     interrupt;
    void            *interrupt_ctx;
    unit_registry_t *registry;
+   mir_context_t   *mir;
 } jit_t;
 
 static void jit_transition(jit_t *j, jit_state_t from, jit_state_t to);
@@ -156,6 +158,7 @@ jit_t *jit_new(unit_registry_t *ur)
    j->index       = chash_new(FUNC_HASH_SZ);
    j->mspace      = mspace_new(opt_get_size(OPT_HEAP_SIZE));
    j->exit_status = INT_MIN;
+   j->mir         = mir_context_new();
 
    j->funcs = xcalloc_flex(sizeof(func_array_t),
                            FUNC_LIST_SZ, sizeof(jit_func_t *));
@@ -208,6 +211,7 @@ void jit_free(jit_t *j)
       free(it);
    }
 
+   mir_context_free(j->mir);
    mspace_destroy(j->mspace);
    chash_free(j->index);
    free(j);
@@ -438,7 +442,24 @@ void jit_fill_irbuf(jit_func_t *f)
       jit_missing_unit(f);
    }
 
-   jit_irgen(f);
+   mir_unit_t *mu;
+   {
+      // MIR import is not thread-safe
+      SCOPED_LOCK(f->jit->lock);
+
+      mu = mir_get_unit(f->jit->mir, f->name);
+      if (mu == NULL) {
+         mu = mir_import(f->jit->mir, f->unit);
+         mir_put_unit(f->jit->mir, mu);
+      }
+   }
+
+   jit_irgen(f, mu);
+
+   {
+      SCOPED_LOCK(f->jit->lock);
+      mir_unit_free(mu);
+   }
 
  done:
 #ifndef USE_EMUTLS
@@ -824,7 +845,11 @@ void *jit_call_thunk(jit_t *j, vcode_unit_t unit, void *context,
    f->entry  = jit_interp;
    f->object = vcode_unit_object(unit);
 
-   jit_irgen(f);
+   mir_unit_t *mu = mir_import(f->jit->mir, f->unit);
+
+   jit_irgen(f, mu);
+
+   mir_unit_free(mu);
 
    jit_scalar_t args[JIT_MAX_ARGS];
    args[0].pointer = context;
