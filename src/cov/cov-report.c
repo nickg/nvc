@@ -190,7 +190,7 @@ static cover_file_t *cover_file_for_scope(cover_scope_t *s)
 static void cover_print_html_header(FILE *f)
 {
    fprintf(f, "<!DOCTYPE html>\n"
-              "<html>\n"
+              "<html lang=\"en\">\n"
               "  <head>\n"
               "  <title>");
 
@@ -243,7 +243,6 @@ static void cover_print_html_header(FILE *f)
               "   .tab {\n"
               "     overflow: hidden;\n"
               "     border: none;\n"
-              "     background-color: none;\n"
               "     margin-left: " MARGIN_LEFT ";\n"
               "     margin-top: 10px;\n"
               "   }\n"
@@ -256,7 +255,7 @@ static void cover_print_html_header(FILE *f)
               "   .tab button {\n"
               "     background-color: inherit;\n"
               "     float: left;\n"
-              "     margin-left: 20px\n"
+              "     margin-left: 20px;\n"
               "     border: 2px solid black;\n"
               "     cursor: pointer;\n"
               "     padding: 14px 16px;\n"
@@ -279,9 +278,14 @@ static void cover_print_html_header(FILE *f)
               "   .cbt td + td, .cbt th + th { width:150px; }\n"
               "   .cbt td + td + td, .cbt th + th + th { width:150px; }\n"
               "   .cbt td + td + td + td, .cbt th + th + th + th { width:150px; }\n"
+              "   .percent100 { background-color: #00cc00; }\n"
+              "   .percent90 { background-color: #e6e600; }\n"
+              "   .percent80 { background-color: #ff9900; }\n"
+              "   .percent0 { background-color: #ff0000; }\n"
+              "   .percentna { background-color: #aaaaaa; }\n"
               "  </style>\n"
-              "  </head>\n"
-              "  <section>\n\n");
+              "</head>\n"
+              "<body>\n\n");
 
    fprintf(f, "<header>");
    fprintf(f, COV_RPT_TITLE "\n");
@@ -335,22 +339,21 @@ static void cover_print_percents_cell(FILE *f, unsigned hit, unsigned total)
 {
    if (total > 0) {
       float perc = ((float) hit / (float) total) * 100;
-      char color[8];
+      const char *class = "percent0";
       if (hit == total)
-         checked_sprintf(color, sizeof(color), "#00cc00");
+         class = "percent100";
       else if (perc > 90)
-         checked_sprintf(color, sizeof(color), "#e6e600");
+         class = "percent90";
       else if (perc > 80)
-         checked_sprintf(color, sizeof(color), "#ff9900");
+         class = "percent80";
       else
-         checked_sprintf(color, sizeof(color), "#ff0000");
+         class = "percent0";
 
-      fprintf(f, "    <td bgcolor=%s>%.1f %% (%d/%d)</td>\n",
-              color, perc, hit, total);
-      return;
+      fprintf(f, "    <td class=\"%s\">%.1f %% (%d/%d)</td>\n",
+              class, perc, hit, total);
    }
-
-   fprintf(f, "    <td bgcolor=#aaaaaa>N.A.</td>\n");
+   else
+      fprintf(f, "    <td class=\"percentna\">N.A.</td>\n");
 }
 
 static void cover_print_hierarchy_header(FILE *f)
@@ -378,12 +381,13 @@ static void cover_print_timestamp(FILE *f)
    time_t t;
    time(&t);
 
-   fprintf(f, "  </section>\n");
-
    fprintf(f, "<footer>");
    fprintf(f, "   <p> NVC version: %s </p>\n", PACKAGE_VERSION);
    fprintf(f, "   <p> Generated on: %s </p>\n", ctime(&t));
-   fprintf(f,  "</footer>");
+   fprintf(f, "</footer>\n");
+
+   fprintf(f, "</body>\n");
+   fprintf(f, "</html>\n");
 }
 
 static void cover_print_hierarchy_summary(FILE *f, cover_report_ctx_t *ctx, ident_t hier,
@@ -499,10 +503,15 @@ static void cover_print_hierarchy_summary(FILE *f, cover_report_ctx_t *ctx, iden
 
 static inline void cover_print_char(FILE *f, char c)
 {
-   if (c == '\n' || c == ' ')
-      fprintf(f, "&nbsp");
-   else
-      fprintf(f, "%c", c);
+   switch (c) {
+   case '\n':
+   case ' ': fputs("&nbsp;", f); break;
+   case '<': fputs("&lt;", f); break;
+   case '>': fputs("&gt;", f); break;
+   case '&': fputs("&amp;", f); break;
+   case '\t':   // TODO: handle tabs better
+   default: fputc(c, f); break;
+   }
 }
 
 static void cover_print_single_code_line(FILE *f, loc_t loc, cover_line_t *line)
@@ -824,7 +833,7 @@ static void cover_print_pairs(FILE *f, cover_pair_t *first, cov_pair_kind_t pkin
    int step;
 
    do {
-      fprintf(f, "    <p>");
+      if (curr > first) fprintf(f, "<hr>");
 
       step = curr->item->consecutive;
 
@@ -894,12 +903,11 @@ static void cover_print_pairs(FILE *f, cover_pair_t *first, cov_pair_kind_t pkin
                curr->item->kind);
       }
 
-      fprintf(f, "<hr>");
-      fprintf(f, "</p>\n");
-
       curr += step;
 
    } while (curr <= last);
+
+   fprintf(f, "<div style=\"height:10px\"></div>\n");
 }
 
 static void cover_print_chain(FILE *f, cover_data_t *data, cover_chain_t *chn,
@@ -916,7 +924,7 @@ static void cover_print_chain(FILE *f, cover_data_t *data, cover_chain_t *chn,
    else if (kind == COV_ITEM_EXPRESSION)
       fprintf(f, "Expression");
    else if (kind == COV_ITEM_STATE)
-      fprintf(f, "FSM state");
+      fprintf(f, "FSM_state");
    else if (kind == COV_ITEM_FUNCTIONAL)
       fprintf(f, "Functional");
 
@@ -976,8 +984,10 @@ static void cover_print_chain(FILE *f, cover_data_t *data, cover_chain_t *chn,
          fprintf(f, "functional coverage:");
       fprintf(f, "</h2>\n");
 
-      fprintf(f, "  <section style=\"padding:0px 10px;\">\n");
+      fprintf(f, "  <div style=\"padding:0px 10px;\">\n");
       cover_print_pairs(f, first_pair, pkind, n);
+      fprintf(f, "  </div>\n");
+
       fprintf(f, "  </section>\n\n");
    }
 
@@ -991,7 +1001,7 @@ static void cover_print_hierarchy_guts(FILE *f, cover_report_ctx_t *ctx)
               "   <button class=\"tablinks\" style=\"margin-left:10px;\" onclick=\"selectCoverage(event, 'Branch')\">Branch</button>\n"
               "   <button class=\"tablinks\" style=\"margin-left:10px;\" onclick=\"selectCoverage(event, 'Toggle')\">Toggle</button>\n"
               "   <button class=\"tablinks\" style=\"margin-left:10px;\" onclick=\"selectCoverage(event, 'Expression')\">Expression</button>\n"
-              "   <button class=\"tablinks\" style=\"margin-left:10px;\" onclick=\"selectCoverage(event, 'FSM state')\">FSM state</button>\n"
+              "   <button class=\"tablinks\" style=\"margin-left:10px;\" onclick=\"selectCoverage(event, 'FSM_state')\">FSM state</button>\n"
               "   <button class=\"tablinks\" style=\"margin-left:10px;\" onclick=\"selectCoverage(event, 'Functional')\">Functional</button>\n"
               "</div>\n\n");
 
@@ -1003,7 +1013,6 @@ static void cover_print_hierarchy_guts(FILE *f, cover_report_ctx_t *ctx)
    cover_print_chain(f, ctx->data, &(ctx->ch_functional), COV_ITEM_FUNCTIONAL);
 
    fprintf(f, "<script>\n"
-              "   document.getElementById(\"defaultOpen\").click();"
               "   function selectCoverage(evt, coverageType) {\n"
               "      var i, tabcontent, tablinks;\n"
               "      tabcontent = document.getElementsByClassName(\"tabcontent\");\n"
@@ -1020,6 +1029,7 @@ static void cover_print_hierarchy_guts(FILE *f, cover_report_ctx_t *ctx)
               "   function GetExclude(excludeCmd) {\n"
               "      navigator.clipboard.writeText(excludeCmd);\n"
               "   }\n"
+              "   document.getElementById(\"defaultOpen\").click();\n"
               "</script>\n");
 }
 
