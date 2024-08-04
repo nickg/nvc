@@ -6,6 +6,7 @@ which nvc
 nvc -a --psl $TESTDIR/regress/cover22.vhd -e --cover=statement cover22_a -r
 nvc --work=SECOND_LIB:work -a --psl $TESTDIR/regress/cover22.vhd -e --cover=statement cover22_b -r
 
+# Using -c to check deprecated command still works
 nvc -c --report html work/_WORK.COVER22_A.elab.covdb work/_SECOND_LIB.COVER22_B.elab.covdb 2>&1 | tee out.txt
 
 # Adjust output to be work directory relative

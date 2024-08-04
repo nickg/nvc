@@ -48,15 +48,16 @@ Elaborate a previously analysed top level design unit.
 .\" -r
 .It Fl r Ar unit
 Execute a previously elaborated top level design unit.
-.\" -c
-.It Fl c Ar
-Process code coverage data from
-.Ar file
-and generate coverage report.
 .\" --cover-export
-.It Fl \-cover-export Ar unit
-Export collected coverage information for a previously executed top
-level design unit to an external format such as Cobertura XML.
+.It Fl \-cover-export Ar
+Export collected coverage information from the internal database format
+to an external format such as Cobertura XML.
+.\" --cover-merge
+.It Fl \-cover-merge Ar
+Merge multiple coverage databases into a single database.
+.\" --cover-report
+.It Fl \-cover-report Ar
+Generate an HTML report from a coverage database.
 .\" --dump
 .It Fl \-dump Ar unit
 Print out a pseudo-VHDL representation of an analysed unit.  This is
@@ -83,6 +84,7 @@ Check input files for syntax errors only.
 .El
 .\"
 .Pp
+.\" TODO: move this to the EXAMPLES section
 Commands can be chained together arbitrarily and the top-level unit
 name need only be specified once.  For example to analyse a file
 .Ql source.vhd
@@ -92,19 +94,11 @@ and then elaborate and run a top-level entity
 $ nvc -a source.vhd -e tb -r
 .Ed
 .Pp
-Or to elaborate again with coverage collection enabled, run the
-simulation, and export the data to the Cobertura format:
-.Bd -literal -offset indent
-$ nvc -e --cover tb -r --cover-export --format=cobertura -o out.xml
-.Ed
-.Pp
 Note how the
 .Ar unit
 argument for the
 .Fl r
-and
-.Fl \-cover-export
-commands is taken from the earlier
+command is taken from the earlier
 .Fl e
 command.
 .\" ------------------------------------------------------------
@@ -443,49 +437,6 @@ option.  By default all signals in the design will be dumped: see the
 section below for how to control this.
 .El
 .\" ------------------------------------------------------------
-.\" Coverage processing options
-.\" ------------------------------------------------------------
-.Ss Coverage processing options
-.Bl -tag -width Ds
-.It Fl \-merge= Ns Ar output
-Merge multiple
-.Ar file
-code coverage databases into
-.Ar output
-code coverage database.
-.It Fl \-report= Ns Ar dir
-Generate HTML code coverage report to
-.Ar dir
-directory.
-.It Fl \-exclude-file= Ns Ar efile
-Apply commands in
-.Ar efile
-exclude file when generating code coverage report.
-.It Fl \-dont-print= Ns Ar options
-When set, NVC does not place code coverage details specified by <options> to
-code coverage report.
-.Ar options
-is comma separated list of the following values:
-.Bl -tag -width "uncovered"
-.It Cm covered
-Does not include covered items.
-.It Cm uncovered
-Does not include uncovered items.
-.It Cm excluded
-Does not include excluded items.
-.El
-.It Fl \-item-limit= Ns Ar limit
-NVC displays maximum
-.Ar limit
-items of single type (covered, uncovered, excluded) in
-a single hierarchy in the code coverage report. Each Bin
-is counted as one item. Default value of
-.Ar limit
-is 5000.
-.It Fl V , Fl \-verbose
-Prints detailed hierarchy coverage when generating code coverage report.
-.El
-.\" ------------------------------------------------------------
 .\" Coverage export options
 .\" ------------------------------------------------------------
 .Ss Coverage export options
@@ -506,6 +457,50 @@ Strip
 .Ar path
 or the current working directory from the front of any absolute path
 names in the output.
+.El
+.\" ------------------------------------------------------------
+.\" Coverage merge options
+.\" ------------------------------------------------------------
+.Ss Coverage export options
+.Bl -tag -width Ds
+.\" --output
+.It Fl o , Fl \-output= Ns Ar file
+File name of output coverage database.
+.El
+.\" ------------------------------------------------------------
+.\" Coverage report options
+.\" ------------------------------------------------------------
+.Ss Coverage report options
+.Bl -tag -width Ds
+.\" --output
+.It Fl o , Fl \-output= Ns Ar dir
+Name of output directory where HTML files will be generated.
+.It Fl \-exclude-file= Ns Ar efile
+Apply commands in
+.Ar efile
+exclude file when generating code coverage report.
+.It Fl \-dont-print= Ns Ar options
+When set, NVC does not include code coverage details specified by
+.Ar options
+in the code coverage report.
+.Ar options
+is comma separated list of the following values:
+.Bl -tag -width "uncovered"
+.It Cm covered
+Does not include covered items.
+.It Cm uncovered
+Does not include uncovered items.
+.It Cm excluded
+Does not include excluded items.
+.El
+.It Fl \-item-limit= Ns Ar limit
+NVC displays maximum
+.Ar limit
+items of single type (covered, uncovered, excluded) in a single
+hierarchy in the code coverage report.  Each Bin is counted as one item.
+The default value of
+.Ar limit
+is 5000.
 .El
 .\" ------------------------------------------------------------
 .\" Make options
@@ -690,9 +685,18 @@ simulation is executed, NVC dumps coverage data into coverage database file
 (*.covdb). To merge coverage databases from multiple simulations, and generate
 hierarchy coverage report in HTML format, run:
 .Bd -literal -offset indent
-$ nvc -c --merge=merged.covdb --report=<path_to_folder_for_html_report> \\
-      first.covdb second.covdb third.covdb ...
+$ nvc --cover-merge -o merged.covdb first.covdb second.covdb third.covdb ...
+$ nvc --cover-report -o html merged.covdb
 .Ed
+.Pp
+This will generate a report in the
+.Pa html
+directory which can be viewed in a web browser.  If you do not wish to
+save the merged database this can also be performed in a single command:
+.Bd -literal -offset indent
+$ nvc --cover-report -o html first.covdb second.covdb third.covdb ...
+.Ed
+.Pp
 When NVC merges multiple coverage databse files, coverage bins with equal
 hierarchical paths in the elaborated design are summed together.
 When a coverage bin is non-zero, it is shown as covered in the coverage report.

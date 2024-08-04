@@ -7,7 +7,7 @@ _nvc () {
   local have_cmd
   for i in "${COMP_WORDS[@]}"; do
     case "$i" in
-      -a|-e|-r|--do)
+      -a|-e|-r|--do|--cover-export|--cover-report|--cover-merge)
         have_cmd=$i
         ;;
     esac
@@ -38,13 +38,16 @@ _nvc () {
 
   local global_opts='-L -h --help --messages= --std= -v --version --init --list
                      --install --work= -a -e -r -i --dump --print-deps
-                     --syntax --map= --do'
+                     --syntax --map= --do --cover-report --cover-export --cover-merge'
   local analyse_opts='-D --define= --error-limit= --relaxed --psl --error-limit=
                       -f --files'
   local elab_opts='--cover --disable-opt --dump-llvm --dump-vcode --jit --no-save
                    --native -V --verbose'
   local run_opts='--trace --stop-time= --ieee-warnings= --stats= --stop-delta=
                   -w --wave --format='
+  local export_opts='--format= -o --output='
+  local merge_opts='-o --output='
+  local report_opts='-o --output= --exclude-file= --dont-print= --item-limit='
 
   case "$have_cmd" in
     -a)
@@ -69,6 +72,18 @@ _nvc () {
       ;;
     --do)
       _filedir '@(pro|do|tcl)'
+      ;;
+    --cover-export)
+      _filedir '@(covdb|ncdb)'
+      COMPREPLY+=( $( compgen -W "$export_opts" -- $cur ) )
+      ;;
+    --cover-report)
+      _filedir '@(covdb|ncdb)'
+      COMPREPLY+=( $( compgen -W "$report_opts" -- $cur ) )
+      ;;
+    --cover-merge)
+      _filedir '@(covdb|ncdb)'
+      COMPREPLY+=( $( compgen -W "$merge_opts" -- $cur ) )
       ;;
     *)
       COMPREPLY+=( $( compgen -W "$global_opts" -- $cur ) )

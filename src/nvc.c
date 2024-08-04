@@ -101,7 +101,8 @@ static int scan_cmd(int start, int argc, char **argv)
    const char *commands[] = {
       "-a", "-e", "-r", "-c", "--dump", "--make", "--syntax", "--list",
       "--init", "--install", "--print-deps", "--aotgen", "--do", "-i",
-      "--cover-export", "--preprocess", "--gui"
+      "--cover-export", "--preprocess", "--gui", "--cover-merge",
+      "--cover-report",
    };
 
    for (int i = start; i < argc; i++) {
@@ -1410,6 +1411,9 @@ static uint32_t parse_cover_print_spec(char *str)
 
 static int coverage_cmd(int argc, char **argv, cmd_state_t *state)
 {
+   warnf("the $bold$-c$$ sub-command is deprecated, use $bold$--cover-report$$ "
+         "or $bold$--cover-merge$$ instead");
+
    static struct option long_options[] = {
       { "report",       required_argument, 0, 'r' },
       { "exclude-file", required_argument, 0, 'e' },
@@ -1566,6 +1570,34 @@ static int gui_cmd(int argc, char **argv, cmd_state_t *state)
 }
 #endif
 
+static cover_data_t *merge_coverage_files(int argc, int next_cmd, char **argv,
+                                          cover_mask_t rpt_mask)
+{
+   // Merge all input coverage databases given on command line
+
+   if (optind == next_cmd)
+      fatal("no input coverage database specified");
+
+   cover_data_t *cover = NULL;
+
+   for (int i = optind; i < next_cmd; i++) {
+      fbuf_t *f = fbuf_open(argv[i], FBUF_IN, FBUF_CS_NONE);
+      if (f == NULL)
+         fatal_errno("could not open %s", argv[i]);
+
+      progress("loading input coverage database %s", argv[i]);
+
+      if (i == optind)
+         cover = cover_read_items(f, rpt_mask);
+      else
+         cover_merge_items(f, cover);
+
+      fbuf_close(f, NULL);
+   }
+
+   return cover;
+}
+
 static int cover_export_cmd(int argc, char **argv, cmd_state_t *state)
 {
    static struct option long_options[] = {
@@ -1580,8 +1612,8 @@ static int cover_export_cmd(int argc, char **argv, cmd_state_t *state)
    enum { UNSET, COBERTURA } format = UNSET;
    const char *output = NULL, *relative = NULL;
    int c, index;
-   const char *spec = ":o";
-   while ((c = getopt_long(argc, argv, spec, long_options, &index)) != -1) {
+   const char *spec = ":o:";
+   while ((c = getopt_long(next_cmd, argv, spec, long_options, &index)) != -1) {
       switch (c) {
       case 'f':
          if (strcasecmp(optarg, "cobertura") == 0)
@@ -1596,15 +1628,13 @@ static int cover_export_cmd(int argc, char **argv, cmd_state_t *state)
          relative = optarg ?: ".";
          break;
       case '?':
-         bad_option("coverage", argv);
+         bad_option("coverage export", argv);
       case ':':
-         missing_argument("coverage", argv);
+         missing_argument("coverage export", argv);
       default:
          abort();
       }
    }
-
-   set_top_level(argv, next_cmd);
 
    if (format == UNSET) {
       diag_t *d = diag_new(DIAG_FATAL, NULL);
@@ -1614,15 +1644,35 @@ static int cover_export_cmd(int argc, char **argv, cmd_state_t *state)
       return EXIT_FAILURE;
    }
 
-   char *fname LOCAL = xasprintf("_%s.elab.covdb", istr(top_level));
-   fbuf_t *f = lib_fbuf_open(lib_work(), fname, FBUF_IN, FBUF_CS_NONE);
+   // DEPRECATED 1.14
+   // Handle the old-style --cover-export which accepted a top-level unit name
+   bool looks_like_file = false;
+   if (argc != optind) {
+      file_info_t info;
+      if (get_file_info(argv[optind], &info))
+         looks_like_file = true;
+      else if (strstr(argv[optind], "/"))
+         looks_like_file = true;
+   }
 
-   if (f == NULL)
-      fatal("no coverage database for %s", istr(top_level));
+   cover_data_t *cover;
+   if (looks_like_file)
+      cover = merge_coverage_files(argc, next_cmd, argv, 0);
+   else {
+      set_top_level(argv, next_cmd);
 
-   int rpt_mask = 0;
-   cover_data_t *cover = cover_read_items(f, rpt_mask);
-   fbuf_close(f, NULL);
+      char *fname LOCAL = xasprintf("_%s.elab.covdb", istr(top_level));
+      fbuf_t *f = lib_fbuf_open(lib_work(), fname, FBUF_IN, FBUF_CS_NONE);
+
+      if (f == NULL)
+         fatal("no coverage database for %s", istr(top_level));
+
+      cover = cover_read_items(f, 0);
+      fbuf_close(f, NULL);
+
+      warnf("exporting the coverage database using the top-level unit name "
+            "is deprecated, pass the path to the coverage database instead");
+   }
 
    FILE *file = stdout;
    if (output != NULL && (file = fopen(output, "w")) == NULL)
@@ -1632,6 +1682,128 @@ static int cover_export_cmd(int argc, char **argv, cmd_state_t *state)
 
    if (file != stdout)
       fclose(file);
+
+   argc -= next_cmd - 1;
+   argv += next_cmd - 1;
+
+   return argc > 1 ? process_command(argc, argv, state) : 0;
+}
+
+static int cover_report_cmd(int argc, char **argv, cmd_state_t *state)
+{
+   static struct option long_options[] = {
+      { "report",       required_argument, 0, 'r' },   // DEPRECATED 1.14
+      { "output",       required_argument, 0, 'o' },
+      { "exclude-file", required_argument, 0, 'e' },
+      { "dont-print",   required_argument, 0, 'd' },
+      { "item-limit",   required_argument, 0, 'l' },
+      { "verbose",      no_argument,       0, 'V' },
+      { 0, 0, 0, 0 }
+   };
+
+   const int next_cmd = scan_cmd(2, argc, argv);
+
+   const char *outdir = NULL, *exclude_file = NULL;
+   int c, index;
+   const char *spec = ":Vo:";
+   cover_mask_t rpt_mask = 0;
+   int item_limit = 5000;
+
+   while ((c = getopt_long(next_cmd, argv, spec, long_options, &index)) != -1) {
+      switch (c) {
+      case 'r':
+         warnf("the $bold$--report$$ option is deprecated, use "
+               "$bold$--output$$ instead");
+         // Fall-through
+      case 'o':
+         outdir = optarg;
+         break;
+      case 'e':
+         exclude_file = optarg;
+         break;
+      case 'd':
+         rpt_mask = parse_cover_print_spec(optarg);
+         break;
+      case 'l':
+         item_limit = parse_int(optarg);
+         break;
+      case 'V':
+         opt_set_int(OPT_VERBOSE, 1);
+         break;
+      case '?':
+         bad_option("coverage report", argv);
+      case ':':
+         missing_argument("coverage report", argv);
+      default:
+         abort();
+      }
+   }
+
+   if (outdir == NULL)
+      fatal("the output directory must be specified with $bold$--output$$");
+
+   progress("initialising");
+
+   cover_data_t *cover = merge_coverage_files(argc, next_cmd, argv, rpt_mask);
+
+   if (exclude_file && cover) {
+      progress("loading exclude file %s", exclude_file);
+      cover_load_exclude_file(exclude_file, cover);
+   }
+
+   progress("generating code coverage report");
+   cover_report(outdir, cover, item_limit);
+
+   argc -= next_cmd - 1;
+   argv += next_cmd - 1;
+
+   return argc > 1 ? process_command(argc, argv, state) : 0;
+}
+
+static int cover_merge_cmd(int argc, char **argv, cmd_state_t *state)
+{
+   static struct option long_options[] = {
+      { "output",       required_argument, 0, 'o' },
+      { "item-limit",   required_argument, 0, 'l' },
+      { "verbose",      no_argument,       0, 'V' },
+      { 0, 0, 0, 0 }
+   };
+
+   const int next_cmd = scan_cmd(2, argc, argv);
+
+   const char *out_db = NULL;
+   int c, index;
+   const char *spec = ":Vo:";
+
+   while ((c = getopt_long(next_cmd, argv, spec, long_options, &index)) != -1) {
+      switch (c) {
+      case 'o':
+         out_db = optarg;
+         break;
+      case 'V':
+         opt_set_int(OPT_VERBOSE, 1);
+         break;
+      case '?':
+         bad_option("coverage merge", argv);
+      case ':':
+         missing_argument("coverage merge", argv);
+      default:
+         abort();
+      }
+   }
+
+   if (out_db == NULL)
+      fatal("the output database must be specified with $bold$--output$$");
+
+   progress("initialising");
+
+   cover_data_t *cover = merge_coverage_files(argc, next_cmd, argv, 0);
+
+   progress("saving merged coverage database to %s", out_db);
+
+   fbuf_t *f = fbuf_open(out_db, FBUF_OUT, FBUF_CS_NONE);
+   cover_dump_items(cover, f, COV_DUMP_PROCESSING, NULL);
+   fbuf_close(f, NULL);
 
    argc -= next_cmd - 1;
    argv += next_cmd - 1;
@@ -1690,9 +1862,12 @@ static void usage(void)
           " -a [OPTION]... FILE...\t\tAnalyse FILEs into work library\n"
           " -e [OPTION]... TOP\t\tElaborate design unit TOP\n"
           " -r [OPTION]... TOP\t\tExecute previously elaborated TOP\n"
-          " -c [OPTION]... FILE...\t\tProcess code coverage from FILEs\n"
           " -i\t\t\t\tLaunch interactive TCL shell\n"
-          " --cover-export TOP\t\tExport code coverage statistics for TOP\n"
+          " --cover-export FILE...\t\t"
+          "Export coverage database to external format\n"
+          " --cover-report FILE...\t\t"
+          "Generate HTML report from coverage database\n"
+          " --cover-merge FILE...\t\tMerge multiple coverage databases\n"
           " --do SCRIPT\t\t\tEvaluate TCL script\n"
           " --dump [OPTION]... UNIT\tPrint out previously analysed UNIT\n"
 #ifdef ENABLE_GUI
@@ -1773,6 +1948,13 @@ static void usage(void)
           "     --port=PORT\tSpecify port for HTTP server\n"
           "\n"
 #endif
+          "Coverage report options:\n"
+          "     --exclude-file=\tApply exclude file when generating report\n"
+          "     --dont-print=\tExcluded specified items from coverage report\n"
+          "                  \t"
+          "Argument is a list of: covered, uncovered, excluded\n"
+          " -o, --output=DIR\tPlace generated HTML files in DIR\n"
+          "\n"
           "Coverage processing options:\n"
           "     --merge=OUTPUT\tMerge all input coverage databases from FILEs\n"
           "                   \tto OUTPUT coverage database\n"
@@ -1786,6 +1968,9 @@ static void usage(void)
           "                  \t  excluded\n"
           "     --report=DIR\tGenerate HTML report with code coverage results\n"
           "                    \tto DIR folder.\n"
+          "\n"
+          "Coverage merge options:\n"
+          " -o, --output=FILE\tOutput database file name\n"
           "\n"
           "Coverage export options:\n"
           "     --format=FMT\tFile format (must be 'cobertura')\n"
@@ -1903,6 +2088,8 @@ static int process_command(int argc, char **argv, cmd_state_t *state)
       { "aotgen",       no_argument, 0, 'A' },
       { "do",           no_argument, 0, 'D' },
       { "cover-export", no_argument, 0, 'E' },
+      { "cover-merge",  no_argument, 0, 'M' },
+      { "cover-report", no_argument, 0, 'p' },
       { "preprocess",   no_argument, 0, 'R' },
 #ifdef ENABLE_GUI
       { "gui",          no_argument, 0, 'g' },
@@ -1922,7 +2109,7 @@ static int process_command(int argc, char **argv, cmd_state_t *state)
       return elaborate(argc, argv, state);
    case 'r':
       return run_cmd(argc, argv, state);
-   case 'c':
+   case 'c':    // DEPRECATED 1.14
       return coverage_cmd(argc, argv, state);
    case 'd':
       return dump_cmd(argc, argv, state);
@@ -1946,6 +2133,10 @@ static int process_command(int argc, char **argv, cmd_state_t *state)
       return interact_cmd(argc, argv, state);
    case 'E':
       return cover_export_cmd(argc, argv, state);
+   case 'M':
+      return cover_merge_cmd(argc, argv, state);
+   case 'p':
+      return cover_report_cmd(argc, argv, state);
    case 'R':
       return preprocess_cmd(argc, argv, state);
 #ifdef ENABLE_GUI

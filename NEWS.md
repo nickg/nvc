@@ -10,6 +10,11 @@
 - Updated to OSVVM 2024.07 for `nvc --install`.
 - Added a warning when an inner declaration hides an outer declaration
   in a way that is likely to be unintentional (#905).
+- The `-c` sub-command for coverage is deprecated and replaced with
+  separate `--cover-report` and `--cover-merge` commands.  See the
+  manual for details.
+- The argument to the `--cover-export` command is now the path to a
+  coverage database file instead of a top-level unit name.
 
 ## Version 1.13.1 - 2024-07-25
 - Windows installer was missing some standard library files.

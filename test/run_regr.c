@@ -964,7 +964,12 @@ static bool run_test(test_t *test)
       push_arg(&args, "--relative=%s", test_dir);
       push_arg(&args, "--out=export.xml");
       push_arg(&args, "--format=%s", test->export);
-      push_arg(&args, "%s", test->name);
+
+      char *unit = strdup(test->name);
+      for (char *p = unit; *p; p++)
+         *p = toupper((int)*p);
+
+      push_arg(&args, "work/_WORK.%s.elab.covdb", unit);
 
       if (run_cmd(outf, &args) != RUN_OK) {
          failed("coverage report");
@@ -1011,9 +1016,8 @@ static bool run_test(test_t *test)
    else if ((test->flags & F_COVER) && !(test->flags & F_SHELL)) {
       // Generate coverage report
       push_arg(&args, "%s/nvc%s", bin_dir, EXEEXT);
-      push_arg(&args, "-c");
-      push_arg(&args, "--report");
-      push_arg(&args, "html");
+      push_arg(&args, "--cover-report");
+      push_arg(&args, "--output=./html");
 
       char *unit = strdup(test->name);
       for (char *p = unit; *p; p++)

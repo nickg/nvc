@@ -5,7 +5,7 @@ which nvc
 
 nvc -a --psl $TESTDIR/regress/cover21.vhd -e --cover cover21 -r
 
-nvc -c --report html work/_WORK.COVER21.elab.covdb 2>&1 | tee out.txt
+nvc --cover-report -o html work/_WORK.COVER21.elab.covdb 2>&1 | tee out.txt
 
 # Adjust output to be work directory relative
 sed -i -e "s/[^ ]*regress\/data\//data\//g" out.txt
