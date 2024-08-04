@@ -355,6 +355,14 @@ static void fbuf_decompress_zstd(fbuf_t *f, uint8_t *rmap, size_t bufsz)
 static void fbuf_decompress(fbuf_t *f)
 {
    uint8_t header[16];
+
+   file_info_t info;
+   if (!get_handle_info(fileno(f->file), &info))
+      fatal_errno("%s: cannot get file info", f->fname);
+
+   if (info.size < sizeof(header))
+      fatal("%s is not a valid compressed data file", f->fname);
+
    fbuf_read_raw(f, header, sizeof(header));
 
    if (memcmp(header, "FBUF", 4))
@@ -363,10 +371,6 @@ static void fbuf_decompress(fbuf_t *f)
    if (header[5] != f->checksum.algo)
       fatal("%s has was created with unexpected checksum algorithm %c",
             f->fname, header[5]);
-
-   file_info_t info;
-   if (!get_handle_info(fileno(f->file), &info))
-      fatal_errno("%s: cannot get file info", f->fname);
 
    const uint32_t len = UNPACK_BE32(header + 8);
    const uint32_t checksum = UNPACK_BE32(header + 12);

@@ -60,6 +60,9 @@ static const struct {
    { "BIN_1_TO_0",     COV_FLAG_TOGGLE_TO_0},
 };
 
+#define COVER_FILE_MAGIC   0x6e636462   // ASCII "ncdb"
+#define COVER_FILE_VERSION 1
+
 static bool cover_is_branch(tree_t branch)
 {
    return tree_kind(branch) == T_ASSOC || tree_kind(branch) == T_COND_STMT;
@@ -677,19 +680,13 @@ cover_item_t *cover_add_items_for(cover_data_t *data, object_t *obj,
 
 static void cover_merge_one_item(cover_item_t *item, int32_t data)
 {
-   int32_t inc;
-
    switch (item->kind) {
    case COV_ITEM_STMT:
    case COV_ITEM_FUNCTIONAL:
    case COV_ITEM_BRANCH:
    case COV_ITEM_STATE:
    case COV_ITEM_EXPRESSION:
-      inc = item->data + data;
-      if (likely(inc >= item->data))
-         item->data = inc;
-      else
-         item->data = INT32_MAX;
+      item->data = saturate_add(item->data, data);
       break;
 
    // Highest bit of run-time data for COV_ITEM_TOGGLE is used to track
@@ -742,11 +739,13 @@ static void cover_write_scope(cover_scope_t *s, fbuf_t *f,
    for (int i = 0; i < s->items.count; i++) {
       cover_item_t *item = &(s->items.items[i]);
 
-      write_u8(item->kind, f);
-      write_u32(item->tag, f);
-      write_u32(item->data, f);
-      write_u32(item->flags, f);
+      fbuf_put_uint(f, item->kind);
+      fbuf_put_uint(f, item->tag);
+      fbuf_put_uint(f, item->data);
+      fbuf_put_uint(f, item->flags);
       fbuf_put_uint(f, item->source);
+      fbuf_put_uint(f, item->consecutive);
+      fbuf_put_uint(f, item->metadata);
 
       loc_write(&(item->loc), loc_ctx);
       if (item->flags & COVER_FLAGS_LHS_RHS_BINS) {
@@ -757,9 +756,6 @@ static void cover_write_scope(cover_scope_t *s, fbuf_t *f,
       ident_write(item->hier, ident_ctx);
       if (item->kind == COV_ITEM_EXPRESSION || item->kind == COV_ITEM_STATE)
          ident_write(item->func_name, ident_ctx);
-
-      write_u32(item->consecutive, f);
-      write_u64(item->metadata, f);
    }
 
    for (int i = 0; i < s->children.count; i++)
@@ -801,9 +797,12 @@ void cover_dump_items(cover_data_t *data, fbuf_t *f, cover_dump_t dt,
    if (opt_get_int(OPT_COVER_VERBOSE))
       cover_debug_dump(data->root_scope, 0);
 
-   write_u32(data->mask, f);
-   write_u32(data->array_limit, f);
-   write_u32(data->next_tag, f);
+   write_u32(COVER_FILE_MAGIC, f);
+   fbuf_put_uint(f, COVER_FILE_VERSION);
+
+   fbuf_put_uint(f, data->mask);
+   fbuf_put_uint(f, data->array_limit);
+   fbuf_put_uint(f, data->next_tag);
 
    loc_wr_ctx_t *loc_wr = loc_write_begin(f);
    ident_wr_ctx_t ident_ctx = ident_write_begin(f);
@@ -986,20 +985,29 @@ static void cover_read_header(fbuf_t *f, cover_data_t *data)
 {
    assert(data != NULL);
 
-   data->mask = read_u32(f);
-   data->array_limit = read_u32(f);
-   data->next_tag = read_u32(f);
+   if (read_u32(f) != COVER_FILE_MAGIC)
+      fatal("%s is not a valid coverage database", fbuf_file_name(f));
+
+   const unsigned version = fbuf_get_uint(f);
+   if (version != COVER_FILE_VERSION)
+      fatal("coverage database %s format version %d is not the expected %d",
+            fbuf_file_name(f), version, COVER_FILE_VERSION);
+
+   data->mask        = fbuf_get_uint(f);
+   data->array_limit = fbuf_get_uint(f);
+   data->next_tag    = fbuf_get_uint(f);
 }
 
 static void cover_read_one_item(fbuf_t *f, loc_rd_ctx_t *loc_rd,
                                 ident_rd_ctx_t ident_ctx, cover_item_t *item)
 {
-   item->kind = read_u8(f);
-
-   item->tag = read_u32(f);
-   item->data = read_u32(f);
-   item->flags = read_u32(f);
+   item->kind   = fbuf_get_uint(f);
+   item->tag    = fbuf_get_uint(f);
+   item->data   = fbuf_get_uint(f);
+   item->flags  = fbuf_get_uint(f);
    item->source = fbuf_get_uint(f);
+   item->consecutive = fbuf_get_uint(f);
+   item->metadata    = fbuf_get_uint(f);
 
    loc_read(&(item->loc), loc_rd);
    if (item->flags & COVER_FLAGS_LHS_RHS_BINS) {
@@ -1010,9 +1018,6 @@ static void cover_read_one_item(fbuf_t *f, loc_rd_ctx_t *loc_rd,
    item->hier = ident_read(ident_ctx);
    if (item->kind == COV_ITEM_EXPRESSION || item->kind == COV_ITEM_STATE)
       item->func_name = ident_read(ident_ctx);
-
-   item->consecutive = read_u32(f);
-   item->metadata = read_u64(f);
 }
 
 static cover_scope_t *cover_read_scope(fbuf_t *f, ident_rd_ctx_t ident_ctx,
