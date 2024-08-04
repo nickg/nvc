@@ -15,6 +15,8 @@
   manual for details.
 - The argument to the `--cover-export` command is now the path to a
   coverage database file instead of a top-level unit name.
+- The `--force-init` command which was deprecated in the 1.7 release has
+  been removed.
 
 ## Version 1.13.1 - 2024-07-25
 - Windows installer was missing some standard library files.

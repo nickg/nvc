@@ -645,7 +645,7 @@ static int run_cmd(int argc, char **argv, cmd_state_t *state)
 {
    static struct option long_options[] = {
       { "trace",         no_argument,       0, 't' },
-      { "profile",       no_argument,       0, 'p' },
+      { "profile",       no_argument,       0, 'p' },   // DEPRECATED 1.14
       { "stop-time",     required_argument, 0, 's' },
       { "stats",         no_argument,       0, 'S' },
       { "wave",          optional_argument, 0, 'w' },
@@ -693,7 +693,7 @@ static int run_cmd(int argc, char **argv, cmd_state_t *state)
          opt_set_int(OPT_RT_TRACE, 1);
          break;
       case 'p':
-         opt_set_int(OPT_RT_PROFILE, 1);
+         warnf("the $bold$--profile$$ option is deprecated and has no effect");
          break;
       case 'T':
          opt_set_str(OPT_VHPI_TRACE, "1");
@@ -1869,7 +1869,6 @@ static void usage(void)
           "Generate HTML report from coverage database\n"
           " --cover-merge FILE...\t\tMerge multiple coverage databases\n"
           " --do SCRIPT\t\t\tEvaluate TCL script\n"
-          " --dump [OPTION]... UNIT\tPrint out previously analysed UNIT\n"
 #ifdef ENABLE_GUI
           " --gui\t\t\t\tLaunch browser-based GUI\n"
 #endif
@@ -1890,7 +1889,6 @@ static void usage(void)
           " -M SIZE\t\tLimit design unit heap space to SIZE bytes\n"
           "     --map=LIB:PATH\tMap library LIB to PATH\n"
           "     --messages=STYLE\tSelect full or compact message format\n"
-          "     --native\t\tGenerate native code shared library\n"
           "     --std=REV\t\tVHDL standard revision to use\n"
           "     --stderr=SEV\tPrint messages higher than SEV to stderr\n"
           " -v, --version\t\tDisplay version and copyright information\n"
@@ -1905,16 +1903,9 @@ static void usage(void)
           "     --relaxed\t\tDisable certain pedantic rule checks\n"
           "\n"
           "Elaboration options:\n"
-          "     --cover[=TYPES]\tEnable code coverage collection. TYPES is a\n"
-          "                    \tcomma separated list of coverage types to "
-          "collect:\n"
-          "                    \t  statement\n"
-          "                    \t  toggle\n"
-          "                    \t  branch\n"
-          "                    \t  expression\n"
-          "                    \tOmitting TYPES collects all coverage types.\n"
-          "     --dump-llvm\tDump generated LLVM IR\n"
-          "     --dump-vcode\tPrint generated intermediate code\n"
+          "     --cover[=TYPES]\tEnable code coverage collection\n"
+          "                    \t"
+          "Valid TYPES include statement, branch, and toggle\n"
           " -g NAME=VALUE\t\tSet top level generic NAME to VALUE\n"
           " -j, --jit\t\tEnable just-in-time compilation during simulation\n"
           "     --no-collapse\tDo not collapse multiple signals into one\n"
@@ -1929,10 +1920,9 @@ static void usage(void)
           "this severity\n"
           "     --format=FMT\tWaveform format is either fst or vcd\n"
           "     --ieee-warnings=\tEnable ('on') or disable ('off') warnings\n"
-          "     \t\t\tfrom IEEE packages\n"
+          "                     \tfrom IEEE packages\n"
           "     --include=GLOB\tInclude signals matching GLOB in wave dump\n"
           "     --load=PLUGIN\tLoad VHPI plugin at startup\n"
-          "     --profile\t\tDisplay detailed statistics at end of run\n"
           "     --shuffle\t\tRun processes in random order\n"
           "     --stats\t\tPrint time and memory usage at end of run\n"
           "     --stop-delta=N\tStop after N delta cycles (default %d)\n"
@@ -1955,20 +1945,6 @@ static void usage(void)
           "Argument is a list of: covered, uncovered, excluded\n"
           " -o, --output=DIR\tPlace generated HTML files in DIR\n"
           "\n"
-          "Coverage processing options:\n"
-          "     --merge=OUTPUT\tMerge all input coverage databases from FILEs\n"
-          "                   \tto OUTPUT coverage database\n"
-          "     --exclude-file=\tApply exclude file when generating report\n"
-          "     --export=FILE\tEquivalent to `--cover-export -o FILE'\n"
-          "     --dont-print=\tDo not include specified items in generated "
-          "code\n"
-          "                  \tcoverage report. Argument is a list of:\n"
-          "                  \t  covered\n"
-          "                  \t  uncovered\n"
-          "                  \t  excluded\n"
-          "     --report=DIR\tGenerate HTML report with code coverage results\n"
-          "                    \tto DIR folder.\n"
-          "\n"
           "Coverage merge options:\n"
           " -o, --output=FILE\tOutput database file name\n"
           "\n"
@@ -1976,10 +1952,6 @@ static void usage(void)
           "     --format=FMT\tFile format (must be 'cobertura')\n"
           " -o, --output=FILE\tOutput file name\n"
           "     --relative=PATH\tStrip PATH from prefix of absolute paths\n"
-          "\n"
-          "Dump options:\n"
-          " -e, --elab\t\tDump an elaborated unit\n"
-          " -b, --body\t\tDump package body\n"
           "\n"
           "Install options:\n"
           "     --dest=DIR\t\tCompile libraries into directory DEST\n"
@@ -1991,7 +1963,9 @@ static void usage(void)
    lib_print_search_paths(tb);
    printf("Library search paths:%s\n", tb_get(tb));
 
-   printf("\nThe full manual can be read with `man 1 %s'\n", PACKAGE_NAME);
+   printf("\nThe full manual can be read with `man 1 %s' and contains "
+          "detailed\nexplanations of the commands and options above as "
+          "well as examples.\n", PACKAGE_NAME);
    printf("\nReport bugs at <%s>\n", PACKAGE_BUGREPORT);
 }
 

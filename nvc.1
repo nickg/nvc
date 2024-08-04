@@ -58,10 +58,6 @@ Merge multiple coverage databases into a single database.
 .\" --cover-report
 .It Fl \-cover-report Ar
 Generate an HTML report from a coverage database.
-.\" --dump
-.It Fl \-dump Ar unit
-Print out a pseudo-VHDL representation of an analysed unit.  This is
-usually only useful for debugging the compiler.
 .\" --init
 .It Fl \-init
 Initialise the working library directory.  This is not normally
@@ -247,14 +243,6 @@ coverage specification file
 (see the
 .Sx CODE COVERAGE
 section below).
-.\"
-.It Fl \-dump-llvm
-Write generated LLVM IR to the work library directory before and after
-optimisation.
-.\"
-.It Fl \-dump-vcode
-Print generated intermediate code.  This is only useful for debugging
-the compiler.
 .\"
 .It Fl g Ar name Ns = Ns Ar value
 Override generic
