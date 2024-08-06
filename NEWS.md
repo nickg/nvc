@@ -1,6 +1,8 @@
 ## Unreleased changes
 - Fixed an incorrect bounds check error when a constant declaration has
   a partially constrained type (#932).
+- Elaboration of large designs on Windows no longer fail with linker
+  errors due to excessive command line length.
 
 ## Version 1.13.1 - 2024-07-25
 - Windows installer was missing some standard library files.
