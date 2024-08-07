@@ -4638,6 +4638,10 @@ if(sectype == FST_BL_ZWRAPPER)
 #endif
 
         zfd = dup(fileno(xc->f));
+#ifdef __MINGW32__
+	// For some reason UCRT increments the file position by 1 (see #637)
+	_lseek(zfd, 1+8+8, SEEK_SET);
+#endif
         zhandle = gzdopen(zfd, "rb");
         if(zhandle)
                 {

@@ -19,6 +19,8 @@
   been removed.
 - Elaboration of large designs on Windows no longer fail with linker
   errors due to excessive command line length.
+- Fixed a bug which prevented VCD files from being generated on Windows
+  systems using the UCRT runtime library (#637).
 
 ## Version 1.13.1 - 2024-07-25
 - Windows installer was missing some standard library files.
