@@ -6206,6 +6206,35 @@ START_TEST(test_issue859)
 }
 END_TEST
 
+START_TEST(test_issue934)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/lower/issue934.vhd");
+
+   run_elab();
+
+   vcode_unit_t vu = find_unit("WORK.ISSUE934.CHECK");
+   vcode_select_unit(vu);
+
+   EXPECT_BB(1) = {
+      { VCODE_OP_CONTEXT_UPREF, .hops = 1 },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_CONST_ARRAY, .length = 16 },
+      { VCODE_OP_ADDRESS_OF },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_CONST, .value = 7 },
+      { VCODE_OP_WRAP },
+      { VCODE_OP_FCALL, .func = "*PROC" },
+      { VCODE_OP_WAIT, .target = 2 },
+   };
+
+   CHECK_BB(1);
+}
+END_TEST
+
 Suite *get_lower_tests(void)
 {
    Suite *s = suite_create("lower");
@@ -6351,6 +6380,7 @@ Suite *get_lower_tests(void)
    tcase_add_test(tc, test_issue844);
    tcase_add_test(tc, test_trigger1);
    tcase_add_test(tc, test_issue859);
+   tcase_add_test(tc, test_issue934);
    suite_add_tcase(s, tc);
 
    return s;

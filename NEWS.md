@@ -5,6 +5,8 @@
   errors due to excessive command line length.
 - Fixed a bug which prevented VCD files from being generated on Windows
   systems using the UCRT runtime library (#637).
+- Fixed a crash when the type of a qualified expression is an
+  unconstrained array-of-array (#934).
 
 ## Version 1.13.1 - 2024-07-25
 - Windows installer was missing some standard library files.
