@@ -7,7 +7,7 @@
   correctly.
 - Fixed an incorrect bounds check error when a constant declaration has
   a partially constrained type (#932).
-- Updated to OSVVM 2024.07 for `nvc --install`.
+- Updated to OSVVM 2024.07 and UVVM 2024.07.03b for `nvc --install`.
 - Added a warning when an inner declaration hides an outer declaration
   in a way that is likely to be unintentional (#905).
 - The `-c` sub-command for coverage is deprecated and replaced with
