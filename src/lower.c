@@ -5007,17 +5007,10 @@ static vcode_reg_t lower_qualified(lower_unit_t *lu, tree_t expr)
 
    vcode_reg_t value_reg = lower_rvalue(lu, value);
 
-   if (type_is_array(to_type)) {
-      const bool from_const = type_const_bounds(from_type);
-      const bool to_const = type_const_bounds(to_type);
-
-      if (to_const && !from_const)
-         return lower_array_data(value_reg);
-      else if (!to_const && from_const)
-         return lower_wrap(lu, from_type, value_reg);
-   }
-
-   return value_reg;
+   if (type_is_array(to_type))
+      return lower_coerce_arrays(lu, from_type, to_type, value_reg);
+   else
+      return value_reg;
 }
 
 static vcode_reg_t lower_cond_value(lower_unit_t *lu, tree_t expr)
