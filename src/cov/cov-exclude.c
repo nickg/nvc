@@ -95,7 +95,7 @@ void cover_parse_exclude_file(const char *path, cover_data_t *data)
    ssize_t read;
    file_ref_t file_ref = loc_file_ref(path, NULL);
    int line_num = 1;
-   char *line;
+   char *line = NULL;
    size_t line_len;
 
    if (data->ef == NULL) {
@@ -176,10 +176,8 @@ void cover_parse_exclude_file(const char *path, cover_data_t *data)
 
 void cover_apply_exclude_cmds(cover_data_t *data)
 {
-   for (int i = 0; i < data->ef->n_excl_cmds; i++) {
+   for (int i = 0; i < data->ef->n_excl_cmds; i++)
       data->ef->excl[i].found = false;
-      //printf("Exclude hierarchy: %s\n", istr(data->ef->excl[i].hier));
-   }
 
    cover_exclude_scope(data, data->root_scope);
 

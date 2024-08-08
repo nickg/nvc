@@ -317,6 +317,15 @@
    |
  2 | exclude THIS_HIERARCHY_IS_FOR_SURE_INVALID_SHOULD_THROW_WARNING
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: Code coverage report folder: html1.
+** Note: Code coverage report contains: covered, uncovered, excluded coverage details.
+** Note: code coverage results for: WORK.COVER9
+** Note:      statement:     82.8 % (24/29)
+** Note:      branch:        50.0 % (5/10)
+** Note:      toggle:        8.8 % (3/34)
+** Note:      expression:    40.9 % (9/22)
+** Note:      FSM state:     N.A.
+** Note:      functional:    N.A.
 ** Warning: exluded hierarchy does not match any coverage item: 'WORK.COVER9.P0._S0._E0.WTF_BIN'
    > data/cover9_ef3.txt:3
    |
@@ -331,11 +340,17 @@
 ** Note:      expression:    40.9 % (9/22)
 ** Note:      FSM state:     N.A.
 ** Note:      functional:    N.A.
-** Fatal: failed to open exclude file: data/cover9_ef4.txt
-: No such file or directory
-** Fatal: exclude hierarchy missing!
 ** Error: exclude hierarchy missing!
    > data/cover9_ef5.txt:3
    |
  3 | exclude
    | ^^^^^^^
+** Note: Code coverage report folder: html4.
+** Note: Code coverage report contains: covered, uncovered, excluded coverage details.
+** Note: code coverage results for: WORK.COVER9
+** Note:      statement:     82.8 % (24/29)
+** Note:      branch:        50.0 % (5/10)
+** Note:      toggle:        8.8 % (3/34)
+** Note:      expression:    40.9 % (9/22)
+** Note:      FSM state:     N.A.
+** Note:      functional:    N.A.

@@ -28,4 +28,4 @@ if [ ! -f html/index.html ]; then
   exit 1
 fi
 
-diff --color -u $TESTDIR/regress/gold/cover9.txt out.txt
+diff -u $TESTDIR/regress/gold/cover9.txt out.txt
