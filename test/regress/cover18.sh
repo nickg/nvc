@@ -9,4 +9,4 @@ nvc --cover-report -o html work/_WORK.COVER18.elab.covdb --exclude=$TESTDIR/regr
 # Adjust output to be work directory relative
 sed -i -e "s/[^ ]*regress\/data\//data\//g" out.txt
 
-diff -u $TESTDIR/regress/gold/cover18.txt out.txt
+diff --color -u $TESTDIR/regress/gold/cover18.txt out.txt

@@ -32,100 +32,163 @@ struct _cover_exclude_ctx {
 
 //#define COVER_DEBUG_EXCLUDE
 
+static void to_upper_str(char *str) {
+   int i = 0;
+   while (str[i]) {
+      str[i] = toupper_iso88591(str[i]);
+      i++;
+   }
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // Exclude file
 ///////////////////////////////////////////////////////////////////////////////
 
-static bool cover_exclude_hier(cover_scope_t *s, cover_exclude_ctx_t *ctx,
-                               const char *excl_hier)
+static void cover_exclude_scope(cover_data_t *data, cover_scope_t *s)
 {
-   bool match = false;
-   int len = strlen(excl_hier);
-
-   for (int i = 0; i < s->items.count; i += 1) {
+   for (int i = 0; i < s->items.count; i++) {
       cover_item_t *item = AREF(s->items, i);
       ident_t hier = item->hier;
+      const char *kind_str = cover_item_kind_str(item->kind);
 
-      if (ident_glob(hier, excl_hier, len)) {
-#ifdef COVER_DEBUG_EXCLUDE
-         printf("Applying matching exclude:\n");
-         printf("    Item:        %s\n", istr(hier));
-         printf("    Item flags:  %x\n", item->flags);
-         printf("    Item data:   %x\n", item->data);
-#endif
-         match = true;
+      for (int j = 0; j < data->ef->n_excl_cmds; j++) {
+         cover_excl_cmd_t *excl = &(data->ef->excl[j]);
+         const char *excl_hier = istr(excl->hier);
 
-         const char *kind_str = cover_item_kind_str(item->kind);
+         if (ident_glob(hier, excl_hier, strlen(excl_hier))) {
+   #ifdef COVER_DEBUG_EXCLUDE
+            printf("Applying matching exclude:\n");
+            printf("    Exclude hierarchy:   %s\n", istr(excl_hier));
+            printf("    Item:                %s\n", istr(hier));
+            printf("    Item flags:          %x\n", item->flags);
+            printf("    Item data:           %x\n", item->data);
+            printf("    Item kind:           %s\n", kind_str);
+   #endif
 
-         if (item->data > 0) {
-            warn_at(&ctx->loc, "%s: '%s' is already covered, "
-                               "it will be reported as covered.",
-                               kind_str, istr(hier));
+            excl->found = true;
+
+            if (item->data > 0) {
+               warn_at(&excl->loc, "%s: '%s' is already covered, "
+                                   "it will be reported as covered.",
+                                   kind_str, istr(hier));
+            }
+            else {
+               note_at(&excl->loc, "excluding %s: '%s'", kind_str, istr(hier));
+               item->flags |= COV_FLAG_EXCLUDED;
+            }
          }
-         else {
-            note_at(&ctx->loc, "excluding %s: '%s'", kind_str, istr(hier));
-            item->flags |= COV_FLAG_EXCLUDED;
-         }
+
       }
    }
 
    for (int i = 0; i < s->children.count; i++)
-      match |= cover_exclude_hier(s->children.items[i], ctx, excl_hier);
-
-   return match;
+      cover_exclude_scope(data, s->children.items[i]);
 }
 
-void cover_load_exclude_file(const char *path, cover_data_t *data)
+void cover_parse_exclude_file(const char *path, cover_data_t *data)
 {
-   cover_exclude_ctx_t ctx = {};
-
-   ctx.ef = fopen(path, "r");
-   if (ctx.ef == NULL)
+   FILE *ef = fopen(path, "r");
+   if (ef == NULL)
       fatal_errno("failed to open exclude file: %s\n", path);
 
    char *delim = " ";
    ssize_t read;
    file_ref_t file_ref = loc_file_ref(path, NULL);
    int line_num = 1;
+   char *line;
    size_t line_len;
 
-   while ((read = getline(&(ctx.line), &line_len, ctx.ef)) != -1) {
+   if (data->ef == NULL) {
+      data->ef = xmalloc(sizeof(cover_ef_t));
+      data->ef->alloc_excl_cmds = 16;
+      data->ef->n_excl_cmds = 0;
+      data->ef->excl = xmalloc_array(data->ef->alloc_excl_cmds,
+                                     sizeof(cover_excl_cmd_t));
+   }
+
+   while ((read = getline(&line, &line_len, ef)) != -1) {
 
       // Strip comments and newline
-      char *p = ctx.line;
+      char *p = line;
       for (; *p != '\0' && *p != '#' && *p != '\n'; p++);
       *p = '\0';
 
-      ctx.loc = get_loc(line_num, 0, line_num, p - ctx.line - 1, file_ref);
+      loc_t loc = get_loc(line_num, 0, line_num, p - line - 1, file_ref);
 
       // Parse line as space separated tokens
-      for (char *tok = strtok(ctx.line, delim); tok; tok = strtok(NULL, delim)) {
+      for (char *tok = strtok(line, delim); tok; tok = strtok(NULL, delim)) {
          if (!strcmp(tok, "exclude")) {
-            char *excl_hier = strtok(NULL, delim);
+            char *hier = strtok(NULL, delim);
 
-            if (!excl_hier)
-               fatal_at(&ctx.loc, "exclude hierarchy missing!");
-
-            int i = 0;
-            while (excl_hier[i]) {
-               excl_hier[i] = toupper_iso88591(excl_hier[i]);
-               i++;
+            if (!hier) {
+               error_at(&loc, "exclude hierarchy missing!");
+               continue;
             }
 
-            if (!cover_exclude_hier(data->root_scope, &ctx, excl_hier))
-               warn_at(&ctx.loc, "exluded hierarchy does not match any "
-                       "coverage item: '%s'", excl_hier);
+            to_upper_str(hier);
+
+            int n = data->ef->n_excl_cmds;
+            if (n == data->ef->alloc_excl_cmds) {
+               data->ef->alloc_excl_cmds *= 2;
+               data->ef->excl = xrealloc_array(data->ef->excl,
+                                               data->ef->alloc_excl_cmds,
+                                               sizeof(cover_excl_cmd_t));
+            }
+            data->ef->excl[n].found = false;
+            data->ef->excl[n].loc = loc;
+            data->ef->excl[n].hier = ident_new(hier);
+            data->ef->n_excl_cmds += 1;
+         }
+         else if (!strcmp(tok, "collapse")) {
+            char *hier = strtok(NULL, delim);
+            char *hier2 = strtok(NULL, delim);
+
+            if (!hier) {
+               error_at(&loc, "collapse target hierarchy missing!");
+               continue;
+            }
+
+            if (!hier2) {
+               error_at(&loc, "collapse source hierarchy missing!");
+               continue;
+            }
+
+            to_upper_str(hier);
+            to_upper_str(hier2);
+
+            int n = data->ef->n_coll_cmds++;
+            data->ef->coll = xrealloc_array(data->ef->coll, n,
+                                             sizeof(cover_coll_cmd_t));
+            data->ef->coll[n].found = false;
+            data->ef->coll[n].hier = ident_new(hier);
+            data->ef->coll[n].hier2 = ident_new(hier2);
          }
          else
-            fatal_at(&ctx.loc, "invalid command: $bold$%s$$", tok);
+            error_at(&loc, "invalid command: $bold$%s$$", tok);
 
          tok = strtok(NULL, delim);
       }
       line_num++;
    }
 
-   fclose(ctx.ef);
+   fclose(ef);
 }
+
+void cover_apply_exclude_cmds(cover_data_t *data)
+{
+   for (int i = 0; i < data->ef->n_excl_cmds; i++) {
+      data->ef->excl[i].found = false;
+      //printf("Exclude hierarchy: %s\n", istr(data->ef->excl[i].hier));
+   }
+
+   cover_exclude_scope(data, data->root_scope);
+
+   for (int i = 0; i < data->ef->n_excl_cmds; i++)
+      if (!data->ef->excl[i].found)
+         warn_at(&data->ef->excl[i].loc, "exluded hierarchy does not match any "
+                 "coverage item: '%s'", istr(data->ef->excl[i].hier));
+}
+
 
 ///////////////////////////////////////////////////////////////////////////////
 // Spec file

@@ -40,6 +40,27 @@ struct _cover_spec {
    char_array_t fsm_type_exclude;
 };
 
+typedef struct _cover_excl_cmd {
+   ident_t              hier;
+   loc_t                loc;
+   bool                 found;
+} cover_excl_cmd_t;
+
+typedef struct _cover_coll_cmd {
+   ident_t              hier;
+   ident_t              hier2;
+   loc_t                loc;
+   bool                 found;
+} cover_coll_cmd_t;
+
+typedef struct _cover_ef {
+   cover_excl_cmd_t     *excl;
+   cover_coll_cmd_t     *coll;
+   int                   n_excl_cmds;
+   int                   alloc_excl_cmds;
+   int                   n_coll_cmds;
+} cover_ef_t;
+
 struct _cover_data {
    int               next_tag;
    cover_mask_t      mask;
@@ -48,6 +69,7 @@ struct _cover_data {
    int               report_item_limit;
    cover_rpt_buf_t  *rpt_buf;
    cover_spec_t     *spec;
+   cover_ef_t       *ef;
    cover_scope_t    *top_scope;
    cover_scope_t    *root_scope;
 };
