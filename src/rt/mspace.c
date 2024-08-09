@@ -28,6 +28,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <inttypes.h>
 
 #if __SANITIZE_ADDRESS__
 #include <sanitizer/asan_interface.h>
@@ -41,6 +42,7 @@
 
 #define LINE_SIZE  32
 #define LINE_WORDS (LINE_SIZE / sizeof(intptr_t))
+#define MAX_HEAP   (UINT64_C(0x100000000) * LINE_SIZE)
 
 typedef A(uint64_t) work_list_t;
 typedef struct _linked_tlab linked_tlab_t;
@@ -107,6 +109,10 @@ mspace_t *mspace_new(size_t size)
    mspace_t *m = xcalloc(sizeof(mspace_t));
    m->maxsize  = ALIGN_UP(size, LINE_SIZE);
    m->maxlines = m->maxsize / LINE_SIZE;
+
+   if (m->maxsize > MAX_HEAP)
+      fatal("the maximum supported heap size is %"PRIu64"g",
+            MAX_HEAP / 1024 / 1024 / 1024);
 
    DEBUG_ONLY(m->stress = opt_get_int(OPT_GC_STRESS));
 
@@ -416,7 +422,8 @@ static bool is_mspace_ptr(mspace_t *m, char *p)
 static void mspace_mark_root(mspace_t *m, intptr_t p, gc_state_t *state)
 {
    if (is_mspace_ptr(m, (char *)p)) {
-      int line = ((char *)p - m->space) / LINE_SIZE;
+      ptrdiff_t line = ((char *)p - m->space) / LINE_SIZE;
+      assert(line < UINT32_MAX);   // Enforced by MAX_HEAP
 
       // Scan backwards to the start of the object
       line = mask_scan_backwards(&(m->headmask), line);
@@ -510,11 +517,12 @@ static void mspace_gc(mspace_t *m)
 
    while (state.worklist.count > 0) {
       const uint64_t enc = APOP(state.worklist);
-      const int line = enc >> 32;
-      const int objlen = enc & 0xffffffff;
+      const uint32_t line = enc >> 32;
+      const uint32_t objlen = enc & 0xffffffff;
 
       for (int i = 0; i < objlen; i++) {
-         intptr_t *words = (intptr_t *)(m->space + (line + i) * LINE_SIZE);
+         const ptrdiff_t off = (uintptr_t)(line + i) * LINE_SIZE;
+         intptr_t *words = (intptr_t *)(m->space + off);
          for (int j = 0; j < LINE_WORDS; j++)
             mspace_mark_root(m, words[j], &state);
       }
