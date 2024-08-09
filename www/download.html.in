@@ -31,10 +31,6 @@ gpg --verify `nvc-'__version`.tar.gz'
   The latest source code can be fetched using Git:
 </p>
 <pre>git clone https://github.com/nickg/nvc.git</pre>
-<p>
-  Alternatively the code is also available here:
-</p>
-<pre>git clone https://git.nickg.me.uk/nvc.git</pre>
 
 <h1>Packages</h1>
 <p>

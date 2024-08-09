@@ -31,3 +31,5 @@ include(`header.html.in')dnl
   to <a href="mailto:nick@nickg.me.uk">nick@nickg.me.uk</a> or
   the <a href="__github_url/discussions">discussion forum</a> on GitHub.
 </p>
+
+include(`footer.html.in')dnl

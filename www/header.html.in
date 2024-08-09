@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
   <head>
     <title>
       ifelse(__title, `', `', __title` - ')dnl

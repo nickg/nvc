@@ -16,7 +16,7 @@ nvc.1.html: ../nvc.1
 	mandoc -T html -O fragment $< > $@
 
 %.html: ../%.md
-	pandoc -t html -o $@ $<
+	cmark -t html $< > $@
 
 %.html: %.html.in $(TEMPLATES)
 	m4 $< > $@

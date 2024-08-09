@@ -113,7 +113,7 @@ Finally build and install using the standard autotools steps:
 
 To use a specific version of LLVM add `--with-llvm=/path/to/llvm-config`
 to the configure command.  The minimum supported LLVM version is 8.0.
-Versions between 8 and 16 have all been tested.
+Versions between 8 and 18 have all been tested.
 
 NVC also depends on Flex to generate the lexical analyser.
 
