@@ -102,8 +102,11 @@ void cover_parse_exclude_file(const char *path, cover_data_t *data)
    if (data->ef == NULL) {
       data->ef = xcalloc(sizeof(cover_ef_t));
       data->ef->alloc_excl_cmds = 16;
+      data->ef->alloc_fold_cmds = 16;
       data->ef->excl = xcalloc_array(data->ef->alloc_excl_cmds,
                                      sizeof(cover_excl_cmd_t));
+      data->ef->fold = xcalloc_array(data->ef->alloc_fold_cmds,
+                                     sizeof(cover_fold_cmd_t));
    }
 
    while ((read = getline(&line, &line_len, ef)) != -1) {
@@ -137,7 +140,7 @@ void cover_parse_exclude_file(const char *path, cover_data_t *data)
             data->ef->excl[n].found = false;
             data->ef->excl[n].loc = loc;
             data->ef->excl[n].hier = ident_new(hier);
-            data->ef->n_excl_cmds += 1;
+            data->ef->n_excl_cmds++;
          }
          else if (!strcmp(tok, "fold")) {
             char *target = strtok(NULL, delim);
@@ -156,14 +159,19 @@ void cover_parse_exclude_file(const char *path, cover_data_t *data)
             to_upper_str(target);
             to_upper_str(source);
 
-            int n = data->ef->n_fold_cmds++;
-            data->ef->fold = xrealloc_array(data->ef->fold, n,
-                                             sizeof(cover_fold_cmd_t));
+            int n = data->ef->n_fold_cmds;
+            if (n == data->ef->alloc_fold_cmds) {
+               data->ef->alloc_fold_cmds *= 2;
+               data->ef->fold = xrealloc_array(data->ef->fold,
+                                               data->ef->alloc_fold_cmds,
+                                               sizeof(cover_fold_cmd_t));
+            }
             data->ef->fold[n].loc = loc;
             data->ef->fold[n].found_target = false;
             data->ef->fold[n].found_source = false;
             data->ef->fold[n].target = ident_new(target);
             data->ef->fold[n].source = ident_new(source);
+            data->ef->n_fold_cmds++;
          }
          else
             error_at(&loc, "invalid command: $bold$%s$$", tok);
@@ -202,11 +210,15 @@ static void cover_fold_scopes(cover_scope_t *tgt_scope, cover_scope_t *src_scope
 
       for (int j = 0; j < tgt_scope->items.count; j++) {
          cover_item_t *tgt = AREF(tgt_scope->items, j);
+         ident_t tgt_suffix_hier = NULL;
+         ident_t src_suffix_hier = NULL;
 
          // Compare hierarchical paths, but strip "tgt_scope" prefix from "tgt",
-         // and "src_scope" from "src". Only suffix of hierarchy needs to be the same!
-         ident_t tgt_suffix_hier = ident_new(istr(tgt->hier) + tgt_prefix_len);
-         ident_t src_suffix_hier = ident_new(istr(src->hier) + src_prefix_len);
+         // and "src_scope" from "src". Only hierarchy suffix needs to be the same.
+         if (ident_len(tgt->hier) > tgt_prefix_len)
+            tgt_suffix_hier = ident_new(istr(tgt->hier) + tgt_prefix_len);
+         if (ident_len(src->hier) > src_prefix_len)
+            src_suffix_hier = ident_new(istr(src->hier) + src_prefix_len);
 
          if ((tgt_suffix_hier == src_suffix_hier) && (tgt->flags == src->flags)) {
 
@@ -250,8 +262,13 @@ static void cover_fold_scopes(cover_scope_t *tgt_scope, cover_scope_t *src_scope
 
          // Compare hierarchical paths, but strip "tgt_scope" prefix from "tgt",
          // and "src_scope" from "src". Only suffix of hierarchy needs to be the same!
-         ident_t tgt_suffix_hier = ident_new(istr(tgt->hier) + tgt_prefix_len);
-         ident_t src_suffix_hier = ident_new(istr(src->hier) + src_prefix_len);
+         ident_t tgt_suffix_hier = NULL;
+         ident_t src_suffix_hier = NULL;
+
+         if (ident_len(tgt->hier) > tgt_prefix_len)
+            tgt_suffix_hier = ident_new(istr(tgt->hier) + tgt_prefix_len);
+         if (ident_len(src->hier) > src_prefix_len)
+            src_suffix_hier = ident_new(istr(src->hier) + src_prefix_len);
 
          if (tgt_suffix_hier == src_suffix_hier) {
 
