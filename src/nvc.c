@@ -1768,7 +1768,6 @@ static int cover_merge_cmd(int argc, char **argv, cmd_state_t *state)
 {
    static struct option long_options[] = {
       { "output",       required_argument, 0, 'o' },
-      { "item-limit",   required_argument, 0, 'l' },
       { "verbose",      no_argument,       0, 'V' },
       { 0, 0, 0, 0 }
    };
