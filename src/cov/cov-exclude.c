@@ -199,7 +199,6 @@ static void cover_fold_scopes(cover_scope_t *tgt_scope, cover_scope_t *src_scope
    // Process items
    for (int i = 0; i < src_scope->items.count; i++) {
       cover_item_t *src = AREF(src_scope->items, i);
-      bool found = false;
 
       for (int j = 0; j < tgt_scope->items.count; j++) {
          cover_item_t *tgt = AREF(tgt_scope->items, j);
@@ -237,35 +236,14 @@ static void cover_fold_scopes(cover_scope_t *tgt_scope, cover_scope_t *src_scope
 #ifdef COVER_DEBUG_FOLD
             printf("    tgt->data(after):    %d\n\n", tgt->data);
 #endif
-            found = true;
             break;
          }
       }
-
-      // Append the new item to the common scope
-      // TODO: This is the case if the source hierarchy is not found in the target scope.
-      //       E.g. part of the hierarchy in "source" is formed by generic that is set
-      //       differently than in the "target".
-      //       Should it be the same as during merging (union of all items is created) ?
-      //       I don't know since this may fold-in cover items into "target" that are
-      //       not there originally.
-      //
-      //       E.g. If sub-block has memory whose size is generic. In DUT, the sub-block
-      //       is instantiated with e.g. size of 32. In a unit test for the sub-block,
-      //       the sub-block is instantiated with size 64. Then. toggles for 33-64
-      //       would be folded into the "target" despite the memory in the "target"
-      //       hierarchy is only 32 words deep.
-      //
-      //       It might make sense to make this configurable somehow or not ?
-      //
-      //if (!found)
-      //   APUSH(tgt_scope->items, *new);
    }
 
    // Process sub-scopes
    for (int i = 0; i < src_scope->children.count; i++) {
       cover_scope_t *src = src_scope->children.items[i];
-      bool found = false;
 
       for (int j = 0; j < tgt_scope->children.count; j++) {
          cover_scope_t *tgt = tgt_scope->children.items[j];
@@ -294,15 +272,9 @@ static void cover_fold_scopes(cover_scope_t *tgt_scope, cover_scope_t *src_scope
 #endif
 
             cover_fold_scopes(tgt, src);
-            found = true;
             break;
          }
       }
-
-      // Append the new item to the common scope
-      // TODO: The same as above...
-      // if (!found)
-      //    APUSH(old_s->children, new_c);
    }
 }
 
