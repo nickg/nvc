@@ -30,6 +30,7 @@
 - Fixed an incorrect ambiguous subprogram error when using the 1993
   standard and calling a subprogram via a selected name such as
   `ieee.numeric_std."="`.
+- Coverage exclude files now support `fold` command.
 
 ## Version 1.13.1 - 2024-07-25
 - Windows installer was missing some standard library files.
