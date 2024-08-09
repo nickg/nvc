@@ -46,19 +46,21 @@ typedef struct _cover_excl_cmd {
    bool                 found;
 } cover_excl_cmd_t;
 
-typedef struct _cover_coll_cmd {
-   ident_t              hier;
-   ident_t              hier2;
+typedef struct _cover_fold_cmd {
+   ident_t              target;
+   ident_t              source;
    loc_t                loc;
-   bool                 found;
-} cover_coll_cmd_t;
+   bool                 found_target;
+   bool                 found_source;
+} cover_fold_cmd_t;
 
 typedef struct _cover_ef {
    cover_excl_cmd_t     *excl;
-   cover_coll_cmd_t     *coll;
+   cover_fold_cmd_t     *fold;
    int                   n_excl_cmds;
+   int                   n_fold_cmds;
    int                   alloc_excl_cmds;
-   int                   n_coll_cmds;
+   int                   alloc_fold_cmds;
 } cover_ef_t;
 
 struct _cover_data {
@@ -113,5 +115,6 @@ void cover_bmask_to_bin_list(uint32_t bmask, text_buf_t *tb);
 uint32_t cover_bin_str_to_bmask(const char *bin);
 const char *cover_item_kind_str(cover_item_kind_t kind);
 const char *cover_bmask_to_bin_str(uint32_t bmask);
+void cover_merge_one_item(cover_item_t *item, int32_t data);
 
 #endif   // _COV_DATA_H

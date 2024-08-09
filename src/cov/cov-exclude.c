@@ -31,6 +31,7 @@ struct _cover_exclude_ctx {
 };
 
 //#define COVER_DEBUG_EXCLUDE
+//#define COVER_DEBUG_FOLD
 
 static void to_upper_str(char *str) {
    int i = 0;
@@ -99,10 +100,9 @@ void cover_parse_exclude_file(const char *path, cover_data_t *data)
    size_t line_len;
 
    if (data->ef == NULL) {
-      data->ef = xmalloc(sizeof(cover_ef_t));
+      data->ef = xcalloc(sizeof(cover_ef_t));
       data->ef->alloc_excl_cmds = 16;
-      data->ef->n_excl_cmds = 0;
-      data->ef->excl = xmalloc_array(data->ef->alloc_excl_cmds,
+      data->ef->excl = xcalloc_array(data->ef->alloc_excl_cmds,
                                      sizeof(cover_excl_cmd_t));
    }
 
@@ -139,29 +139,31 @@ void cover_parse_exclude_file(const char *path, cover_data_t *data)
             data->ef->excl[n].hier = ident_new(hier);
             data->ef->n_excl_cmds += 1;
          }
-         else if (!strcmp(tok, "collapse")) {
-            char *hier = strtok(NULL, delim);
-            char *hier2 = strtok(NULL, delim);
+         else if (!strcmp(tok, "fold")) {
+            char *target = strtok(NULL, delim);
+            char *source = strtok(NULL, delim);
 
-            if (!hier) {
-               error_at(&loc, "collapse target hierarchy missing!");
+            if (!target) {
+               error_at(&loc, "fold target hierarchy missing!");
                continue;
             }
 
-            if (!hier2) {
-               error_at(&loc, "collapse source hierarchy missing!");
+            if (!source) {
+               error_at(&loc, "fold source hierarchy missing!");
                continue;
             }
 
-            to_upper_str(hier);
-            to_upper_str(hier2);
+            to_upper_str(target);
+            to_upper_str(source);
 
-            int n = data->ef->n_coll_cmds++;
-            data->ef->coll = xrealloc_array(data->ef->coll, n,
-                                             sizeof(cover_coll_cmd_t));
-            data->ef->coll[n].found = false;
-            data->ef->coll[n].hier = ident_new(hier);
-            data->ef->coll[n].hier2 = ident_new(hier2);
+            int n = data->ef->n_fold_cmds++;
+            data->ef->fold = xrealloc_array(data->ef->fold, n,
+                                             sizeof(cover_fold_cmd_t));
+            data->ef->fold[n].loc = loc;
+            data->ef->fold[n].found_target = false;
+            data->ef->fold[n].found_source = false;
+            data->ef->fold[n].target = ident_new(target);
+            data->ef->fold[n].source = ident_new(source);
          }
          else
             error_at(&loc, "invalid command: $bold$%s$$", tok);
@@ -176,6 +178,8 @@ void cover_parse_exclude_file(const char *path, cover_data_t *data)
 
 void cover_apply_exclude_cmds(cover_data_t *data)
 {
+   assert (data->ef != NULL);
+
    for (int i = 0; i < data->ef->n_excl_cmds; i++)
       data->ef->excl[i].found = false;
 
@@ -185,6 +189,194 @@ void cover_apply_exclude_cmds(cover_data_t *data)
       if (!data->ef->excl[i].found)
          warn_at(&data->ef->excl[i].loc, "exluded hierarchy does not match any "
                  "coverage item: '%s'", istr(data->ef->excl[i].hier));
+}
+
+static void cover_fold_scopes(cover_scope_t *tgt_scope, cover_scope_t *src_scope)
+{
+   int tgt_prefix_len = ident_len(tgt_scope->hier);
+   int src_prefix_len = ident_len(src_scope->hier);
+
+   // Process items
+   for (int i = 0; i < src_scope->items.count; i++) {
+      cover_item_t *src = AREF(src_scope->items, i);
+      bool found = false;
+
+      for (int j = 0; j < tgt_scope->items.count; j++) {
+         cover_item_t *tgt = AREF(tgt_scope->items, j);
+
+         // Compare hierarchical paths, but strip "tgt_scope" prefix from "tgt",
+         // and "src_scope" from "src". Only suffix of hierarchy needs to be the same!
+         ident_t tgt_suffix_hier = ident_new(istr(tgt->hier) + tgt_prefix_len);
+         ident_t src_suffix_hier = ident_new(istr(src->hier) + src_prefix_len);
+
+         if ((tgt_suffix_hier == src_suffix_hier) && (tgt->flags == src->flags)) {
+
+#ifdef COVER_DEBUG_FOLD
+            printf("Folding coverage item:\n"
+                   "    tgt_prefix_len:      %d\n"
+                   "    src_prefix_len:      %d\n"
+                   "    tgt->hier:           %s\n"
+                   "    src->hier:           %s\n"
+                   "    tgt_suffix_hier:     %s\n"
+                   "    src_suffix_hier:     %s\n"
+                   "    src->data:           %d\n"
+                   "    tgt->data:           %d\n",
+                   tgt_prefix_len,
+                   src_prefix_len,
+                   istr(tgt->hier),
+                   istr(src->hier),
+                   istr(tgt_suffix_hier),
+                   istr(src_suffix_hier),
+                   src->data,
+                   tgt->data);
+#endif
+
+            assert(tgt->kind == src->kind);
+            cover_merge_one_item(tgt, src->data);
+
+#ifdef COVER_DEBUG_FOLD
+            printf("    tgt->data(after):    %d\n\n", tgt->data);
+#endif
+            found = true;
+            break;
+         }
+      }
+
+      // Append the new item to the common scope
+      // TODO: This is the case if the source hierarchy is not found in the target scope.
+      //       E.g. part of the hierarchy in "source" is formed by generic that is set
+      //       differently than in the "target".
+      //       Should it be the same as during merging (union of all items is created) ?
+      //       I don't know since this may fold-in cover items into "target" that are
+      //       not there originally.
+      //
+      //       E.g. If sub-block has memory whose size is generic. In DUT, the sub-block
+      //       is instantiated with e.g. size of 32. In a unit test for the sub-block,
+      //       the sub-block is instantiated with size 64. Then. toggles for 33-64
+      //       would be folded into the "target" despite the memory in the "target"
+      //       hierarchy is only 32 words deep.
+      //
+      //       It might make sense to make this configurable somehow or not ?
+      //
+      //if (!found)
+      //   APUSH(tgt_scope->items, *new);
+   }
+
+   // Process sub-scopes
+   for (int i = 0; i < src_scope->children.count; i++) {
+      cover_scope_t *src = src_scope->children.items[i];
+      bool found = false;
+
+      for (int j = 0; j < tgt_scope->children.count; j++) {
+         cover_scope_t *tgt = tgt_scope->children.items[j];
+
+         // Compare hierarchical paths, but strip "tgt_scope" prefix from "tgt",
+         // and "src_scope" from "src". Only suffix of hierarchy needs to be the same!
+         ident_t tgt_suffix_hier = ident_new(istr(tgt->hier) + tgt_prefix_len);
+         ident_t src_suffix_hier = ident_new(istr(src->hier) + src_prefix_len);
+
+         if (tgt_suffix_hier == src_suffix_hier) {
+
+#ifdef COVER_DEBUG_FOLD
+            printf("Folding coverage scope:\n"
+                   "    tgt_prefix_len:      %d\n"
+                   "    src_prefix_len:      %d\n"
+                   "    tgt->hier:           %s\n"
+                   "    src->hier:           %s\n"
+                   "    tgt_suffix_hier:     %s\n"
+                   "    src_suffix_hier:     %s\n\n",
+                   tgt_prefix_len,
+                   src_prefix_len,
+                   istr(tgt->hier),
+                   istr(src->hier),
+                   istr(tgt_suffix_hier),
+                   istr(src_suffix_hier));
+#endif
+
+            cover_fold_scopes(tgt, src);
+            found = true;
+            break;
+         }
+      }
+
+      // Append the new item to the common scope
+      // TODO: The same as above...
+      // if (!found)
+      //    APUSH(old_s->children, new_c);
+   }
+}
+
+static void cover_iterate_fold_source(cover_data_t *data, cover_scope_t *tgt_scope,
+                                      cover_scope_t *src_scope, cover_fold_cmd_t *cmd)
+{
+   for (int i = 0; i < src_scope->children.count; i++) {
+      cover_scope_t *curr_scp = src_scope->children.items[i];
+
+#ifdef COVER_DEBUG_FOLD
+      printf("Browsing fold source scope: \n"
+             "    Current:  %s\n"
+             "    Expected: %s\n\n",
+             istr(curr_scp->hier), istr(cmd->source));
+#endif
+
+      if (curr_scp->hier == cmd->source) {
+         cmd->found_source = true;
+         notef("Folding coverage scopes:");
+         notef("        Target - %s", istr(tgt_scope->hier));
+         notef("        Source - %s", istr(curr_scp->hier));
+         cover_fold_scopes(tgt_scope, curr_scp);
+      }
+
+      cover_iterate_fold_source(data, tgt_scope, curr_scp, cmd);
+   }
+}
+
+static void cover_iterate_fold_target(cover_data_t *data, cover_scope_t *tgt_scope,
+                                      cover_fold_cmd_t *cmd)
+{
+   for (int i = 0; i < tgt_scope->children.count; i++) {
+      cover_scope_t *curr_scp = tgt_scope->children.items[i];
+#ifdef COVER_DEBUG_FOLD
+      printf("Browsing fold target scope: \n"
+             "    Current:  %s\n"
+             "    Expected: %s\n\n",
+             istr(curr_scp->hier), istr(cmd->target));
+#endif
+      // On target scope name match, go and search for all source scopes and collapse them
+      // into the target scope!
+      if (curr_scp->hier == cmd->target) {
+         cmd->found_target = true;
+#ifdef COVER_DEBUG_FOLD
+         printf("Found target scope: %s\n\n", istr(cmd->target));
+#endif
+         cover_iterate_fold_source(data, curr_scp, data->root_scope, cmd);
+      }
+
+      cover_iterate_fold_target(data, curr_scp, cmd);
+   }
+}
+
+void cover_apply_fold_cmds(cover_data_t *data)
+{
+   assert (data->ef != NULL);
+
+   if (data->ef->n_fold_cmds == 0)
+      return;
+
+   for (int i = 0; i < data->ef->n_fold_cmds; i++) {
+      cover_fold_cmd_t *cmd = &(data->ef->fold[i]);
+      cmd->found_source = false;
+      cmd->found_target = false;
+
+      cover_iterate_fold_target(data, data->root_scope, cmd);
+
+      if (cmd->found_target == false)
+         warn_at(&(cmd->loc), "fold target does not match any "
+                 "coverage scope hierarchy: '%s'", istr(cmd->target));
+      if (cmd->found_source == false)
+         warn_at(&(cmd->loc), "fold source does not match any "
+                 "coverage scope hierarchy: '%s'", istr(cmd->source));
+   }
 }
 
 
