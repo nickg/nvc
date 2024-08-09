@@ -1,0 +1,35 @@
+** Note: Code coverage report folder: html.
+** Note: Code coverage report contains: covered, uncovered, excluded coverage details.
+** Note: code coverage results for: WORK_A.COVER23_TOP_TB
+** Note:      statement:     91.7 % (33/36)
+** Note:      branch:        N.A.
+** Note:      toggle:        N.A.
+** Note:      expression:    N.A.
+** Note:      FSM state:     N.A.
+** Note:      functional:    N.A.
+** Note: code coverage results for: WORK_B.COVER23_UNIT_TB
+** Note:      statement:     71.4 % (10/14)
+** Note:      branch:        N.A.
+** Note:      toggle:        N.A.
+** Note:      expression:    N.A.
+** Note:      FSM state:     N.A.
+** Note:      functional:    N.A.
+** Note: Folding coverage scopes:
+** Note:         Target - WORK_A.COVER23_TOP_TB.DUT_TOP_INST.SUB_BLOCK_INST
+** Note:         Source - WORK_B.COVER23_UNIT_TB.SUB_BLOCK_INST
+** Note: Code coverage report folder: html.
+** Note: Code coverage report contains: covered, uncovered, excluded coverage details.
+** Note: code coverage results for: WORK_A.COVER23_TOP_TB
+** Note:      statement:     97.2 % (35/36)
+** Note:      branch:        N.A.
+** Note:      toggle:        N.A.
+** Note:      expression:    N.A.
+** Note:      FSM state:     N.A.
+** Note:      functional:    N.A.
+** Note: code coverage results for: WORK_B.COVER23_UNIT_TB
+** Note:      statement:     71.4 % (10/14)
+** Note:      branch:        N.A.
+** Note:      toggle:        N.A.
+** Note:      expression:    N.A.
+** Note:      FSM state:     N.A.
+** Note:      functional:    N.A.
