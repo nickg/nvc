@@ -15,6 +15,7 @@
   coverage database file instead of a top-level unit name.
 - The `--force-init` command which was deprecated in the 1.7 release has
   been removed.
+- Coverage exclude files now support `fold` command.
 
 ## Version 1.13.2 - 2024-08-11
 - Fixed an incorrect bounds check error when a constant declaration has
@@ -30,7 +31,6 @@
 - Fixed an incorrect ambiguous subprogram error when using the 1993
   standard and calling a subprogram via a selected name such as
   `ieee.numeric_std."="`.
-- Coverage exclude files now support `fold` command.
 
 ## Version 1.13.1 - 2024-07-25
 - Windows installer was missing some standard library files.
