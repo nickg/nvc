@@ -122,7 +122,7 @@ void cover_parse_exclude_file(const char *path, cover_data_t *data)
             char *hier = strtok(NULL, delim);
 
             if (!hier) {
-               error_at(&loc, "exclude hierarchy missing!");
+               error_at(&loc, "exclude hierarchy missing");
                continue;
             }
 
@@ -145,12 +145,12 @@ void cover_parse_exclude_file(const char *path, cover_data_t *data)
             char *source = strtok(NULL, delim);
 
             if (!target) {
-               error_at(&loc, "fold target hierarchy missing!");
+               error_at(&loc, "fold target hierarchy missing");
                continue;
             }
 
             if (!source) {
-               error_at(&loc, "fold source hierarchy missing!");
+               error_at(&loc, "fold source hierarchy missing");
                continue;
             }
 
