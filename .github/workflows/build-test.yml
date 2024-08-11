@@ -341,40 +341,30 @@ jobs:
           sudo apt-get install ./nvc_*.deb
       - name: Check --version output
         run: nvc --version
+      - name: Set environment variables
+        run: |
+          echo "VUNIT_SIMULATOR=nvc" >> $GITHUB_ENV
+          echo "PYTHONPATH=$(pwd)/vunit" >> $GITHUB_ENV
       - name: Run uart example
         run: |
-          export VUNIT_SIMULATOR=nvc
-          export PYTHONPATH=$(pwd)/vunit
-          cd vunit/examples/vhdl/uart
-          python3 run.py
+          python3 vunit/examples/vhdl/uart/run.py
       - name: Run axi_dma example
         run: |
-          export VUNIT_SIMULATOR=nvc
-          export PYTHONPATH=$(pwd)/vunit
-          cd vunit/examples/vhdl/axi_dma
-          python3 run.py
+          python3 vunit/examples/vhdl/axi_dma/run.py
       - name: Run com example
         run: |
-          export VUNIT_SIMULATOR=nvc
-          export PYTHONPATH=$(pwd)/vunit
-          cd vunit/examples/vhdl/com
-          python3 run.py
+          python3 vunit/examples/vhdl/com/run.py
       - name: Run com tests
         run: |
-          export VUNIT_SIMULATOR=nvc
-          export PYTHONPATH=$(pwd)/vunit
-          cd vunit/vunit/vhdl/com
-          python3 run.py
+          python3 vunit/vunit/vhdl/com/run.py
+      - name: Run data_types tests
+        run: |
+          python3 vunit/vunit/vhdl/data_types/run.py
       - name: Run verification_components tests
         run: |
-          export VUNIT_SIMULATOR=nvc
-          export PYTHONPATH=$(pwd)/vunit
-          cd vunit/vunit/vhdl/verification_components
-          python3 run.py
+          python3 vunit/vunit/vhdl/verification_components/run.py
       - name: Run Microwatt tests
         run: |
-          export VUNIT_SIMULATOR=nvc
-          export PYTHONPATH=$(pwd)/vunit
           cd microwatt
           make git.vhdl
           python3 run.py
