@@ -453,7 +453,6 @@ START_TEST(test_psl1)
 }
 END_TEST
 
-#ifdef ENABLE_VERILOG
 START_TEST(test_vlog1)
 {
    input_from_file(TESTDIR "/dump/vlog1.v");
@@ -506,7 +505,6 @@ START_TEST(test_vlog1)
    fail_if_errors();
 }
 END_TEST
-#endif
 
 Suite *get_dump_tests(void)
 {
@@ -519,9 +517,7 @@ Suite *get_dump_tests(void)
    tcase_add_test(tc_core, test_vhdl4);
    tcase_add_test(tc_core, test_vhdl5);
    tcase_add_test(tc_core, test_psl1);
-#ifdef ENABLE_VERILOG
    tcase_add_test(tc_core, test_vlog1);
-#endif
    suite_add_tcase(s, tc_core);
 
    return s;

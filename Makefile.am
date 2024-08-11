@@ -68,7 +68,9 @@ include contrib/Makemodule.am
 include contrib/gui/Makemodule.am
 include contrib/msi/Makemodule.am
 
-clean-local: clean-test clean-libs
+clean-local: clean-libs
+	rm -f src/vlog/vlog-parse.c
+	-test ! -d logs || rm -r logs
 
 if MAINTAINER_MODE
 
@@ -130,5 +132,5 @@ upload-artifacts:
 
 endif  # MAINTAINER_MODE
 
-.PHONY: cov-reset cov-report clean-test compile-commands
+.PHONY: cov-reset cov-report compile-commands
 .PHONY: release sync-branch upload-artifacts

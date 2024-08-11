@@ -29,11 +29,8 @@ bin_unit_test_SOURCES = \
 	test/test_psl.c \
 	test/test_charset.c \
 	test/test_dump.c \
-	test/test_driver.c
-
-if ENABLE_VERILOG
-bin_unit_test_SOURCES += test/test_vlog.c
-endif
+	test/test_driver.c \
+	test/test_vlog.c
 
 if ARCH_X86_64
 bin_unit_test_SOURCES += test/test_native.c
@@ -137,9 +134,6 @@ src = $(top_srcdir)/src
 build = $(top_builddir)/src
 shared = $(src)/util.c
 covdir = $(top_builddir)/coverage
-
-clean-test:
-	-test ! -d logs || rm -r logs
 
 if ENABLE_GCOV
 

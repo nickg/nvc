@@ -12,7 +12,6 @@ packages:
   - libdw-dev
   - libzstd-dev
   - tcl-dev
-  - bison
   - libreadline-dev
 sources:
   - https://git.sr.ht/~nickg/nvc

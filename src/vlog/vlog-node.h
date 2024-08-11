@@ -78,6 +78,7 @@ typedef enum {
    V_SYSFUNC,
    V_FOREVER,
    V_SPECIFY,
+   V_PRIMITIVE,
 
    V_LAST_NODE_KIND
 } vlog_kind_t;
@@ -108,6 +109,7 @@ typedef enum {
    V_UNARY_BITNEG,
    V_UNARY_NOT,
    V_UNARY_NEG,
+   V_UNARY_IDENTITY,
 } vlog_unary_t;
 
 typedef enum {

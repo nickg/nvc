@@ -30,7 +30,6 @@ AC_PROG_CXX
 AC_PROG_INSTALL
 AC_PROG_MKDIR_P
 AC_PROG_LEX([noyywrap])
-AC_PROG_YACC
 AC_EXEEXT
 
 AC_C_INLINE
@@ -136,24 +135,6 @@ esac
 
 AX_GCC_FUNC_ATTRIBUTE([returns_nonnull])
 AX_GCC_BUILTIN([__builtin_setjmp])
-
-AC_ARG_ENABLE([verilog],
-  [AS_HELP_STRING([--enable-verilog], [Experimental Verilog support])],
-  [enable_verilog=$enableval],
-  [enable_verilog=no])
-
-AM_CONDITIONAL([ENABLE_VERILOG], [test x$enable_verilog = xyes])
-
-AS_IF([test x$enable_verilog = xyes],
-      [AX_PROG_BISON([], [AC_MSG_ERROR(GNU Bison not found)])
-       AC_DEFINE_UNQUOTED([ENABLE_VERILOG], [1], [Verilog support enabled])])
-
-AS_IF([test "$ax_cv_prog_bison" = "yes"],
-      [AC_MSG_CHECKING([if ${YACC%% *} supports -Wcounterexamples])
-       AS_IF([$YACC -Wcounterexamples --version 2>/dev/null >/dev/null],
-             [AC_MSG_RESULT([yes])
-              AX_APPEND_FLAG([-Wcounterexamples], [EXTRA_YFLAGS])],
-             [AC_MSG_RESULT([no])])])
 
 AX_PROG_FLEX([], [AC_MSG_ERROR([Flex not found])])
 

@@ -35,13 +35,13 @@ runs:
         mkdir build
         cd build
         bash ../configure --enable-static-llvm --enable-tcl \
-          --enable-verilog --enable-gui CFLAGS="-O2" \
-          --prefix=`pwd`/installdir --without-system-cc
+          --enable-gui CFLAGS="-O2" --prefix=`pwd`/installdir \
+          --without-system-cc
     - name: Build
       shell: msys2 {0}
       working-directory: ./build
       run: |
-        make
+        make -j $(nproc)
     - name: Install
       shell: msys2 {0}
       working-directory: ./build

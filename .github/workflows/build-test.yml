@@ -20,7 +20,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install automake flex llvm-dev check lcov \
-             libdw-dev libffi-dev bison libreadline-dev tcl8.6-dev \
+             libdw-dev libffi-dev libreadline-dev tcl8.6-dev \
              libzstd-dev libxml2-utils
       - name: Generate configure script
         run: ./autogen.sh
@@ -29,7 +29,7 @@ jobs:
           mkdir build && cd build
           ../configure --enable-gcov --enable-asan \
                --with-llvm=/usr/bin/llvm-config --enable-debug \
-               --enable-verilog --enable-tcl --enable-gui
+               --enable-tcl --enable-gui
       - name: Build
         run: make -C build -j $(nproc)
       - name: Test

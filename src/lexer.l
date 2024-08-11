@@ -458,7 +458,7 @@ UNION         ?i:union
 <VLOG>"!"                { TOKEN(tBANG); }
 
 <INITIAL,PSL>"**"        { TOKEN(tPOWER); }
-<INITIAL,PSL>":="        { TOKEN(tASSIGN); }
+<INITIAL,PSL>":="        { TOKEN(tWALRUS); }
 <INITIAL,PSL>"<>"        { TOKEN(tBOX); }
 <INITIAL,PSL>"?<"        { TOKEN_08(tMLT); }
 <INITIAL,PSL>"?<="       { TOKEN_08(tMLE); }
@@ -560,6 +560,10 @@ UNION         ?i:union
 <VLOG>"*)"               { return tATTREND; }
 <VLOG>"specify"          { return tSPECIFY; }
 <VLOG>"endspecify"       { return tENDSPECIFY; }
+<VLOG>"primitive"        { return tPRIMITIVE; }
+<VLOG>"endprimitive"     { return tENDPRIMITIVE; }
+<VLOG>"table"            { return tTABLE; }
+<VLOG>"endtable"         { return tENDTABLE; }
 
 <VLOG>{SYSTASK}          { yylval.str = xstrdup(yytext); return tSYSTASK; }
 <VLOG>{VLOG_ID}          { yylval.str = xstrdup(yytext); return tID; }

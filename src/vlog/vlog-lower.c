@@ -312,6 +312,8 @@ static vcode_reg_t vlog_lower_unary(lower_unit_t *lu, vlog_unary_t op,
    case V_UNARY_NEG:
       tb_cat(tb, "\"-\"(");
       break;
+   case V_UNARY_IDENTITY:
+      return reg;
    }
 
    vcode_type_t vlogic = vlog_logic_type();

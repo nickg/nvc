@@ -1483,7 +1483,6 @@ END_TEST
 
 START_TEST(test_mixed1)
 {
-#ifdef ENABLE_VERILOG
    analyse_file(TESTDIR "/elab/mixed1.v", NULL, NULL);
 
    input_from_file(TESTDIR "/elab/mixed1.vhd");
@@ -1502,7 +1501,6 @@ START_TEST(test_mixed1)
    fail_unless(e == NULL);
 
    check_expected_errors();
-#endif
 }
 END_TEST
 
@@ -1791,7 +1789,6 @@ END_TEST
 
 START_TEST(test_vlog1)
 {
-#ifdef ENABLE_VERILOG
    const error_t expect[] = {
       { 10, "name of Verilog module sub1 in library unit WORK.SUB1 does "
         "not match name SUB1 in module instance u2" },
@@ -1815,7 +1812,6 @@ START_TEST(test_vlog1)
    jit_free(j);
 
    check_expected_errors();
-#endif
 }
 END_TEST
 

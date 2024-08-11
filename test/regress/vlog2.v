@@ -1,3 +1,4 @@
+// This file has DOS line endings
 module vlog2;
 
   `define MSG "hello, world!"

@@ -10,11 +10,7 @@ lib_libnvc_a_SOURCES += \
 	src/vlog/vlog-simp.c \
 	src/vlog/vlog-util.c \
 	src/vlog/vlog-defs.h \
-	src/vlog/vlog-util.h
-
-if ENABLE_VERILOG
-lib_libnvc_a_SOURCES += \
-	src/vlog/vlog-parse.y \
+	src/vlog/vlog-util.h \
 	src/vlog/vlog-sem.c \
-	src/vlog/vlog-pp.l
-endif
+	src/vlog/vlog-pp.l \
+	src/vlog/vlog-parse.c

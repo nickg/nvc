@@ -2465,7 +2465,6 @@ void analyse_file(const char *file, jit_t *jit, unit_registry_t *ur)
       break;
 
    case SOURCE_VERILOG:
-#ifdef ENABLE_VERILOG
       {
          LOCAL_TEXT_BUF tb = tb_new();
          vlog_preprocess(tb);
@@ -2485,9 +2484,6 @@ void analyse_file(const char *file, jit_t *jit, unit_registry_t *ur)
             }
          }
       }
-#else
-      fatal("Verilog is not currently supported");
-#endif
       break;
    }
 }

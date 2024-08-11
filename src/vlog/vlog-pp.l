@@ -37,7 +37,7 @@
          result = YY_NULL;                   \
    }
 
-#define YY_USER_ACTION begin_token(vlogpp_text, vlogpp_leng);
+#define YY_USER_ACTION convert_line_ending();
 
 typedef struct _ifdef_stack ifdef_stack_t;
 
@@ -56,6 +56,7 @@ static ifdef_stack_t *ifdefs = NULL;
 static void define_macro(void);
 static void push_ifdef(void);
 static void pop_ifdef(void);
+static void convert_line_ending(void);
 
 extern loc_t yylloc;
 %}
@@ -174,6 +175,26 @@ static void strip_whitespace(char *s)
    char *p = s + strlen(s);
    while (p > s && isspace_iso88591(p[-1]))
       *(--p) = '\0';
+}
+
+static void convert_line_ending(void)
+{
+   if (vlogpp_leng >= 2) {
+      char *c1 = vlogpp_text + vlogpp_leng - 1;
+      char *c2 = vlogpp_text + vlogpp_leng - 2;
+
+      if (*c1 == '\n' && *c2 == '\r') {
+         *c1 = '\0';
+         *c2 = '\n';
+         vlogpp_leng--;
+      }
+      else if (*c1 == '\r' && *c2 == '\n') {
+         *c1 = '\0';
+         vlogpp_leng--;
+      }
+   }
+
+   begin_token(vlogpp_text, vlogpp_leng);
 }
 
 static void define_macro(void)

@@ -51,18 +51,14 @@ static cond_stack_t  cond_stack;
 static shash_t      *pp_defines;
 
 extern int yylex(void);
-extern yylval_t yylval;
-extern loc_t yylloc;
 
 extern void reset_scanner(void);
 
 static bool pp_cond_analysis_expr(void);
 static void pp_defines_init();
 
-#ifndef ENABLE_VERILOG
 yylval_t yylval;
 loc_t yylloc;
-#endif
 
 void input_from_buffer(const char *buf, size_t len, hdl_kind_t kind)
 {
@@ -83,9 +79,7 @@ void input_from_buffer(const char *buf, size_t len, hdl_kind_t kind)
 
    switch (kind) {
    case SOURCE_VERILOG:
-#ifdef ENABLE_VERILOG
       reset_verilog_parser();
-#endif
       break;
    case SOURCE_VHDL:
       reset_vhdl_parser();
@@ -230,6 +224,7 @@ const char *token_str(token_t tok)
          "translate off", "until!", "until_", "until_!", "`timescale",
          "supply0", "supply1", "pulldown", "pullup", "===", "!==", "==", "!=",
          "(*", "*)", "number", "forever", "[[", "]]", "specify", "endspecify",
+         "primitive", "endprimitive", "table", "endtable", "assign"
       };
 
       if (tok >= 200 && tok - 200 < ARRAY_LEN(token_strs))

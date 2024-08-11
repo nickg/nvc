@@ -4818,7 +4818,7 @@ static void p_interface_constant_declaration(tree_t parent, tree_kind_t kind,
    type_t type = p_interface_type_indication(parent);
 
    tree_t init = NULL;
-   if (optional(tASSIGN)) {
+   if (optional(tWALRUS)) {
       init = p_expression();
       solve_types(nametab, init, type);
    }
@@ -4932,7 +4932,7 @@ static void p_interface_signal_declaration(tree_t parent, tree_kind_t kind,
       if (optional(tBUS))
          flags |= TREE_F_BUS;
 
-      if (optional(tASSIGN)) {
+      if (optional(tWALRUS)) {
          init = p_expression();
          solve_types(nametab, init, type);
       }
@@ -4978,7 +4978,7 @@ static void p_interface_variable_declaration(tree_t parent, tree_kind_t kind)
    type_t type = p_interface_type_indication(parent);
 
    tree_t init = NULL;
-   if (optional(tASSIGN)) {
+   if (optional(tWALRUS)) {
       init = p_expression();
       solve_types(nametab, init, type);
    }
@@ -6785,7 +6785,7 @@ static void p_constant_declaration(tree_t parent)
    type_t type = p_subtype_indication();
 
    tree_t init = NULL;
-   if (optional(tASSIGN)) {
+   if (optional(tWALRUS)) {
       init = p_conditional_expression();
 
       if (standard() < STD_19 || type_is_unconstrained(type))
@@ -7135,7 +7135,7 @@ static void p_variable_declaration(tree_t parent)
    type_t type = p_subtype_indication();
 
    tree_t init = NULL;
-   if (optional(tASSIGN)) {
+   if (optional(tWALRUS)) {
       init = p_conditional_expression();
       solve_types(nametab, init, type);
    }
@@ -7196,7 +7196,7 @@ static void p_signal_declaration(tree_t parent)
    tree_flags_t flags = p_signal_kind();
 
    tree_t init = NULL;
-   if (optional(tASSIGN)) {
+   if (optional(tWALRUS)) {
       init = p_conditional_expression();
       solve_known_subtype(nametab, init, type);
    }
@@ -9451,7 +9451,7 @@ static tree_t p_simple_variable_assignment(ident_t label, tree_t name)
 
    tree_t target = p_target(name);
 
-   consume(tASSIGN);
+   consume(tWALRUS);
 
    tree_t value = p_conditional_or_unaffected_expression(STD_08);
 
@@ -9534,12 +9534,12 @@ static tree_t p_selected_variable_assignment(ident_t label)
 
    // This is the easiest place to disambiguate variable and signal
    // assignment without a deep lookahead
-   switch (one_of(tASSIGN, tLE)) {
+   switch (one_of(tWALRUS, tLE)) {
    case tLE:
       p_selected_waveforms(t, target, NULL);
       break;
 
-   case tASSIGN:
+   case tWALRUS:
    default:
       p_selected_expressions(t, target);
       break;
@@ -10382,14 +10382,14 @@ static tree_t p_sequential_statement(void)
          tree_t agg = p_aggregate();
 
          switch (peek()) {
-         case tASSIGN:
+         case tWALRUS:
             return p_variable_assignment_statement(label, agg);
 
          case tLE:
             return p_signal_assignment_statement(label, agg);
 
          default:
-            expect(tASSIGN, tLE);
+            expect(tWALRUS, tLE);
             return tree_new(T_NULL);
          }
       }
@@ -10407,7 +10407,7 @@ static tree_t p_sequential_statement(void)
    tree_t name = p_name(N_SUBPROGRAM);
 
    switch (peek()) {
-   case tASSIGN:
+   case tWALRUS:
       return p_variable_assignment_statement(label, name);
 
    case tLE:
@@ -10418,7 +10418,7 @@ static tree_t p_sequential_statement(void)
       return p_procedure_call_statement(label, name);
 
    default:
-      expect(tASSIGN, tLE, tSEMI);
+      expect(tWALRUS, tLE, tSEMI);
       drop_tokens_until(tSEMI);
       return tree_new(T_NULL);
    }
@@ -13034,6 +13034,8 @@ static void flush_pragmas(tree_t unit)
 tree_t parse(void)
 {
    n_correct = RECOVER_THRESH;
+
+   scan_as_vhdl();
 
    if (peek() == tEOF)
       return NULL;

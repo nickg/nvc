@@ -1833,7 +1833,6 @@ static int preprocess_cmd(int argc, char **argv, cmd_state_t *state)
    if (optind == next_cmd)
       fatal("no input files");
 
-#ifdef ENABLE_VERILOG
    LOCAL_TEXT_BUF tb = tb_new();
    for (int i = optind; i < next_cmd; i++) {
       input_from_file(argv[i]);
@@ -1843,9 +1842,6 @@ static int preprocess_cmd(int argc, char **argv, cmd_state_t *state)
 
       fputs(tb_get(tb), stdout);
    }
-#else
-   fatal("Verilog support not enabled");
-#endif
 
    argc -= next_cmd - 1;
    argv += next_cmd - 1;
@@ -1874,9 +1870,7 @@ static void usage(void)
           " --init\t\t\t\tInitialise work library directory\n"
           " --install PKG\t\t\tInstall third-party packages\n"
           " --list\t\t\t\tPrint all units in the library\n"
-#ifdef ENABLE_VERILOG
           " --preprocess FILE...\t\tExpand FILEs with Verilog preprocessor\n"
-#endif
           " --print-deps [UNIT]...\t\tPrint dependencies in Makefile format\n"
           " --syntax FILE...\t\tCheck FILEs for syntax errors only\n"
           "\n"

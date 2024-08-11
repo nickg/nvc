@@ -120,7 +120,7 @@ bool is_scanned_as_psl(void);
 #define tPOSTPONED     224
 #define tWAIT          225
 #define tREPORT        226
-#define tASSIGN        227
+#define tWALRUS        227
 #define tINT           228
 #define tSTRING        229
 #define tERROR         230
@@ -309,5 +309,10 @@ bool is_scanned_as_psl(void);
 #define t2RSQUARE      413
 #define tSPECIFY       414
 #define tENDSPECIFY    415
+#define tPRIMITIVE     416
+#define tENDPRIMITIVE  417
+#define tTABLE         418
+#define tENDTABLE      419
+#define tASSIGN        420
 
 #endif  // _SCAN_H

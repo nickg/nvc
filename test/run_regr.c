@@ -775,9 +775,6 @@ static bool run_test(test_t *test)
 #else
    if (force_jit) skip |= (test->flags & F_SLOW);
 #endif
-#ifndef ENABLE_VERILOG
-   skip |= (test->flags & F_VERILOG) | (test->flags & F_MIXED);
-#endif
 #ifndef ENABLE_TCL
    skip |= (test->flags & F_TCL);
 #endif
@@ -785,8 +782,6 @@ static bool run_test(test_t *test)
    if (skip) {
       if (skip & F_SLOW)
          skipped("slow with interpreter");
-      else if (skip & (F_VERILOG | F_MIXED))
-         skipped("verilog not enabled");
       else if (skip & F_TCL)
          skipped("tcl not enabled");
       else if (skip & (F_NOTWIN | F_WAVE))

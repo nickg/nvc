@@ -1,1 +1,2 @@
 PKGBUILD text eol=lf
+test/regress/vlog2.v text eol=lf

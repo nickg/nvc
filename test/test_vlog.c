@@ -209,7 +209,7 @@ START_TEST(test_parse1)
 
    vlog_node_t s1s0s4 = vlog_stmt(s1s0, 4);
    fail_unless(vlog_kind(s1s0s4) == V_IF);
-   fail_unless(vlog_conds(s1s0s4) == 2);
+   fail_unless(vlog_conds(s1s0s4) == 3);
 
    vlog_node_t s2 = vlog_stmt(m, 2);
    fail_unless(vlog_kind(s2) == V_ASSIGN);
@@ -363,7 +363,7 @@ START_TEST(test_timescale1)
 
    const error_t expect[] = {
       {  2, "invalid time unit name 'hello'" },
-      {  3, "invalid order of magniture in `timescale directive" },
+      {  3, "invalid order of magnitude in `timescale directive" },
       { -1, NULL }
    };
    expect_errors(expect);
