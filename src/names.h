@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2020-2023  Nick Gasson
+//  Copyright (C) 2020-2024  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -45,7 +45,8 @@ typedef enum {
    N_FUNC   = (1 << 3),
    N_PROC   = (1 << 4),
    N_LABEL  = (1 << 5),
-   N_PSL    = (1 << 6)
+   N_PSL    = (1 << 6),
+   N_PREDEF = (1 << 7),
 } name_mask_t;
 
 #define N_OVERLOADS(mask) (((mask) >> 16) & 0xffff)

@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2020-2023  Nick Gasson
+//  Copyright (C) 2020-2024  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -695,6 +695,14 @@ static symbol_t *local_symbol_for(scope_t *s, ident_t name)
    return sym;
 }
 
+static inline name_mask_t subprogram_name_mask(tree_t sub, name_mask_t mask)
+{
+   if (tree_flags(sub) & TREE_F_PREDEFINED)
+      mask |= N_PREDEF;
+
+   return mask;
+}
+
 static name_mask_t name_mask_for(tree_t t)
 {
    switch (tree_kind(t)) {
@@ -710,11 +718,11 @@ static name_mask_t name_mask_for(tree_t t)
    case T_FUNC_BODY:
    case T_FUNC_DECL:
    case T_FUNC_INST:
-      return N_FUNC;
+      return subprogram_name_mask(t, N_FUNC);
    case T_PROC_BODY:
    case T_PROC_DECL:
    case T_PROC_INST:
-      return N_PROC;
+      return subprogram_name_mask(t, N_PROC);
    case T_TYPE_DECL:
    case T_SUBTYPE_DECL:
    case T_PROT_DECL:
@@ -724,23 +732,23 @@ static name_mask_t name_mask_for(tree_t t)
       {
          switch (class_of(t)) {
          case C_TYPE: return N_TYPE;
-         case C_FUNCTION: return N_FUNC;
-         case C_PROCEDURE: return N_PROC;
+         case C_FUNCTION: return subprogram_name_mask(t, N_FUNC);
+         case C_PROCEDURE: return subprogram_name_mask(t, N_PROC);
          default: return N_OBJECT;
          }
       }
    case T_ALIAS:
       {
-         switch (class_of(tree_value(t))) {
-         case C_TYPE:
-         case C_SUBTYPE: return N_TYPE;
-         case C_FUNCTION: return N_FUNC;
-         case C_PROCEDURE: return N_PROC;
-         case C_LABEL: return N_LABEL;
-         case C_SIGNAL:
-         case C_CONSTANT:
-         case C_VARIABLE: return N_OBJECT;
-         default: return 0;
+         tree_t value = tree_value(t);
+         switch (tree_kind(value)) {
+         case T_REF:
+         case T_PROT_REF:
+            if (tree_has_ref(value))
+               return name_mask_for(tree_ref(value));
+            else
+               return 0;
+         default:
+            return N_OBJECT;
          }
       }
    case T_PSL:
@@ -842,8 +850,7 @@ static symbol_t *make_visible(scope_t *s, ident_t name, tree_t decl,
       else if (!overload && kind == POTENTIAL && dd->visibility == DIRECT)
          kind = HIDDEN;
       else if (dd->origin == origin && (dd->mask & mask & N_SUBPROGRAM)
-               && type_eq(tree_type(dd->tree), type)
-               && (tree_flags(dd->tree) & TREE_F_PREDEFINED)) {
+               && (dd->mask & N_PREDEF) && type_eq(tree_type(dd->tree), type)) {
          // Allow pre-defined operators be to hidden by user-defined
          // subprograms in the same region
          dd->visibility = HIDDEN;
@@ -914,7 +921,7 @@ static symbol_t *make_visible(scope_t *s, ident_t name, tree_t decl,
 
    sym->mask |= mask;
 
-   if (kind == DIRECT && is_type_decl(decl))
+   if (kind == DIRECT && (mask & N_TYPE) && is_type_decl(decl))
       add_type_literals(s, tree_type(decl), make_visible_slow);
 
    return sym;
@@ -1013,9 +1020,21 @@ static void make_visible_fast(scope_t *s, ident_t id, tree_t d)
       .kind       = kind,
    };
 
+   if ((sym->mask & N_PREDEF) && (mask & N_SUBPROGRAM) && !(mask & N_PREDEF)) {
+      // User defined subprograms hide predefined in the same region
+      type_t type = tree_type(d);
+      for (int i = 0; i < sym->ndecls; i++) {
+         decl_t *dd = get_decl_mutable(sym, i);
+         assert(dd->origin == s);
+         if ((dd->mask & mask & N_SUBPROGRAM) && (dd->mask & N_PREDEF)
+             && type_eq(tree_type(dd->tree), type))
+            dd->visibility = HIDDEN;
+      }
+   }
+
    sym->mask |= mask;
 
-   if (is_type_decl(d))
+   if ((mask & N_TYPE) && is_type_decl(d))
       add_type_literals(s, tree_type(d), make_visible_fast);
 }
 
@@ -1268,7 +1287,7 @@ void walk_predefs(nametab_t *tab, ident_t name, predef_cb_t fn, void *context)
 
    for (int i = 0; i < sym->ndecls; i++) {
       const decl_t *dd = get_decl(sym, i);
-      if (!is_type_decl(dd->tree))
+      if (!(dd->mask & N_TYPE) || !is_type_decl(dd->tree))
          continue;
 
       tree_t region = NULL;
@@ -1436,7 +1455,7 @@ name_mask_t query_name(nametab_t *tab, ident_t name, tree_t *p_decl)
       if (dd->visibility != HIDDEN && dd->visibility != ATTRIBUTE) {
          count++;
          uniq = dd->tree;
-         mask |= name_mask_for(dd->tree);
+         mask |= dd->mask;
       }
    }
 
@@ -2149,7 +2168,7 @@ void insert_names_from_use(nametab_t *tab, tree_t use)
          // the literals and operators visible
          for (int i = 0; i < sym->ndecls; i++) {
             const decl_t *dd = get_decl(sym, i);
-            if (!is_type_decl(dd->tree))
+            if (!(dd->mask & N_TYPE) || !is_type_decl(dd->tree))
                continue;
 
             type_t type = type_base_recur(tree_type(dd->tree));

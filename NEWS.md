@@ -9,6 +9,9 @@
   unconstrained array-of-array (#934).
 - Fixed random segmentation fault when the simulation heap size is
   larger than four gigabytes (#935).
+- Fixed an incorrect ambiguous subprogram error when using the 1993
+  standard and calling a subprogram via a selected name such as
+  `ieee.numeric_std."="`.
 
 ## Version 1.13.1 - 2024-07-25
 - Windows installer was missing some standard library files.
