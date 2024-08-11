@@ -30,10 +30,9 @@ struct _cover_exclude_ctx {
    loc_t    loc;
 };
 
-//#define COVER_DEBUG_EXCLUDE
 //#define COVER_DEBUG_FOLD
 
-static void to_upper_str(char *str) 
+static void to_upper_str(char *str)
 {
    while (*str)
       *str++ = toupper_iso88591(*str);
@@ -55,15 +54,6 @@ static void cover_exclude_scope(cover_data_t *data, cover_scope_t *s)
          const char *excl_hier = istr(excl->hier);
 
          if (ident_glob(hier, excl_hier, strlen(excl_hier))) {
-   #ifdef COVER_DEBUG_EXCLUDE
-            printf("Applying matching exclude:\n");
-            printf("    Exclude hierarchy:   %s\n", istr(excl_hier));
-            printf("    Item:                %s\n", istr(hier));
-            printf("    Item flags:          %x\n", item->flags);
-            printf("    Item data:           %x\n", item->data);
-            printf("    Item kind:           %s\n", kind_str);
-   #endif
-
             excl->found = true;
 
             if (item->data > 0) {
@@ -242,10 +232,6 @@ static void cover_fold_scopes(cover_scope_t *tgt_scope, cover_scope_t *src_scope
 
             assert(tgt->kind == src->kind);
             cover_merge_one_item(tgt, src->data);
-
-#ifdef COVER_DEBUG_FOLD
-            printf("    tgt->data(after):    %d\n\n", tgt->data);
-#endif
             break;
          }
       }
@@ -299,13 +285,6 @@ static void cover_iterate_fold_source(cover_data_t *data, cover_scope_t *tgt_sco
    for (int i = 0; i < src_scope->children.count; i++) {
       cover_scope_t *curr_scp = src_scope->children.items[i];
 
-#ifdef COVER_DEBUG_FOLD
-      printf("Browsing fold source scope: \n"
-             "    Current:  %s\n"
-             "    Expected: %s\n\n",
-             istr(curr_scp->hier), istr(cmd->source));
-#endif
-
       if (curr_scp->hier == cmd->source) {
          cmd->found_source = true;
          notef("Folding coverage scopes:");
@@ -323,19 +302,11 @@ static void cover_iterate_fold_target(cover_data_t *data, cover_scope_t *tgt_sco
 {
    for (int i = 0; i < tgt_scope->children.count; i++) {
       cover_scope_t *curr_scp = tgt_scope->children.items[i];
-#ifdef COVER_DEBUG_FOLD
-      printf("Browsing fold target scope: \n"
-             "    Current:  %s\n"
-             "    Expected: %s\n\n",
-             istr(curr_scp->hier), istr(cmd->target));
-#endif
+
       // On target scope name match, go and search for all source scopes and collapse them
       // into the target scope!
       if (curr_scp->hier == cmd->target) {
          cmd->found_target = true;
-#ifdef COVER_DEBUG_FOLD
-         printf("Found target scope: %s\n\n", istr(cmd->target));
-#endif
          cover_iterate_fold_source(data, curr_scp, data->root_scope, cmd);
       }
 
@@ -360,6 +331,7 @@ void cover_apply_fold_cmds(cover_data_t *data)
       if (cmd->found_target == false)
          warn_at(&(cmd->loc), "fold target does not match any "
                  "coverage scope hierarchy: '%s'", istr(cmd->target));
+
       if (cmd->found_source == false)
          warn_at(&(cmd->loc), "fold source does not match any "
                  "coverage scope hierarchy: '%s'", istr(cmd->source));
