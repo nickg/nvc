@@ -1016,3 +1016,4 @@ bounds45        fail,gold,2008
 synopsys2       normal,2008,gold
 synopsys3       fail,gold
 cmdline10       shell
+cover23         shell

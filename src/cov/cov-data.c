@@ -678,7 +678,7 @@ cover_item_t *cover_add_items_for(cover_data_t *data, object_t *obj,
 // Coverage data write/read to covdb, covdb merging and coverage scope handling
 ///////////////////////////////////////////////////////////////////////////////
 
-static void cover_merge_one_item(cover_item_t *item, int32_t data)
+void cover_merge_one_item(cover_item_t *item, int32_t data)
 {
    switch (item->kind) {
    case COV_ITEM_STMT:

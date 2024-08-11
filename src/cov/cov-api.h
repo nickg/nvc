@@ -214,7 +214,9 @@ void cover_merge_items(fbuf_t *f, cover_data_t *data);
 //
 
 void cover_ignore_from_pragmas(cover_data_t *data, tree_t unit);
+
 void cover_load_spec_file(cover_data_t *data, const char *path);
+
 void cover_load_exclude_file(const char *path, cover_data_t *data);
 
 //

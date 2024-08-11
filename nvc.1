@@ -449,7 +449,7 @@ names in the output.
 .\" ------------------------------------------------------------
 .\" Coverage merge options
 .\" ------------------------------------------------------------
-.Ss Coverage export options
+.Ss Coverage merge options
 .Bl -tag -width Ds
 .\" --output
 .It Fl o , Fl \-output= Ns Ar file
@@ -924,6 +924,75 @@ exclude WORK.TOP.SUB_BLOCK_INST.PORT_NAME.*
 # Example how to exclude FSM state "ST_ERROR" where "ST_ERROR"
 # is one of the enum values used to code the FSM.
 exclude WORK.TOP.CONTROLLER.CURR_STATE.BIN_STATE.ST_ERROR
+.Ed
+.Ss Coverage folding
+NVC supports merging code coverage of single entity / module
+instantiated on multiple places in hierarchy. Such type of
+coverage merging is called coverage folding. Coverage folding
+is useful when simulating a complex DUT. If a sub-block of a
+DUT has a logic that is hard to cover in DUT top level test-bench,
+then creating a unit test for such sub-block is easy way to
+achieve full sub-block coverage. The sub-block has different
+hierarchy when simulated in DUT top level test-bench and in the
+unit test. In DUT top level test-bench, the sub-block is
+instantiated under the DUT. In the unit-test, sub-block is instantiated
+directly. To merge coverage data from two such instantiations,
+you can utilize coverage folding.
+.Pp
+Coverage folding is specified by
+.Ql fold
+command placed in Exclude file. The syntax of
+.Ql fold
+command is following:
+.Bd -literal -offset indent
+fold <DESTINATION_INSTANCE_HIERARCHY> <SOURCE_INSTANCE_HIERARCHY>
+.Ed
+where
+.Ql <DESTINATION_INSTANCE_HIERARCHY>
+is the destination hierarchy where the coverage data will be
+merged and
+.Ql <SOURCE_INSTANCE_HIERARCHY>
+is the source hierarchy from which the coverage data will be
+merged.
+.Pp
+When folding coverage, NVC merges coverage items similarly
+as during regular merging (based on hierarchical path).
+However, in case of folding, NVC strips
+.Ql <DESTINATION_INSTANCE_HIERARCHY>
+from the path of the destination coverage item, and strips
+.Ql <SOURCE_INSTANCE_HIERARCHY>
+from the source item. Thus NVC folds coverage items based on
+matching suffix of their hierarchical path.
+.Pp
+An example of how folding can be specified is following.
+Assume there is an entity
+.Ql INSTR_CACHE
+instantiated as:
+.Bl -bullet
+.It
+.Ql I_INSTR_CACHE
+instance in a testbench
+.Ql TB_TOP
+.It
+.Ql DUT
+instance in a unit test
+.Ql CACHE_UNIT_TEST
+.El
+.Pp
+.Ql TB_TOP
+testbench is compiled into
+.Ql TB_TOP_LIB
+library. Unit test is compiled into
+.Ql UNIT_TEST_LIB
+library. The following command folds coverage items of
+.Ql INSTR_CACHE
+from
+.Ql CACHE_UNIT_TEST
+to
+.Ql TB_TOP
+:
+.Bd -literal -offset indent
+fold TB_TOP_LIB.TB_TOP.DUT.I_CPU_DATAPATH.I_INSTR_CACHE UNIT_TEST_LIB.CACHE_UNIT_TEST.DUT
 .Ed
 .Ss Additional Information
 In coverage specification file and Exclude file

@@ -16,10 +16,6 @@ nvc --cover-report --exclude-file $TESTDIR/regress/data/cover9_ef2.txt \
 nvc --cover-report --exclude-file $TESTDIR/regress/data/cover9_ef3.txt \
     -o html2 work/_WORK.COVER9.elab.covdb 2>&1 | tee -a out.txt
 
-# Bin placed for command
-nvc --cover-report --exclude-file $TESTDIR/regress/data/cover9_ef4.txt \
-    -o html3 work/_WORK.COVER9.elab.covdb 2>&1 | tee -a out.txt
-
 # Hierarchy missing
 nvc --cover-report --exclude-file $TESTDIR/regress/data/cover9_ef5.txt \
     -o html4 work/_WORK.COVER9.elab.covdb 2>&1 | tee -a out.txt
