@@ -5,8 +5,6 @@
 - All coverage bins are now counters saturating at 2147483647.
 - Waiting on implicit `'stable` and `'quiet` signals now works
   correctly.
-- Fixed an incorrect bounds check error when a constant declaration has
-  a partially constrained type (#932).
 - Updated to OSVVM 2024.07 and UVVM 2024.07.03b for `nvc --install`.
 - Added a warning when an inner declaration hides an outer declaration
   in a way that is likely to be unintentional (#905).
@@ -17,6 +15,10 @@
   coverage database file instead of a top-level unit name.
 - The `--force-init` command which was deprecated in the 1.7 release has
   been removed.
+
+## Version 1.13.2 - 2024-08-11
+- Fixed an incorrect bounds check error when a constant declaration has
+  a partially constrained type (#932).
 - Elaboration of large designs on Windows no longer fail with linker
   errors due to excessive command line length.
 - Fixed a bug which prevented VCD files from being generated on Windows
@@ -26,7 +28,7 @@
 - Fixed random segmentation fault when the simulation heap size is
   larger than four gigabytes (#935).
 - Fixed an incorrect ambiguous subprogram error when using the 1993
-  standard and a calling the subprogram via a selected name such as
+  standard and calling a subprogram via a selected name such as
   `ieee.numeric_std."="`.
 
 ## Version 1.13.1 - 2024-07-25
@@ -43,8 +45,8 @@
   to an entity package generic (#925).
 - Fixed an intermittent "failed to suspend thread" fatal error on macOS
   (#922).
-- Fixed a crash when a shared variable is declared inside a instantiated
-  generic package in 2019 mode (#923).
+- Fixed a crash when a shared variable is declared inside an
+  instantiated generic package in 2019 mode (#923).
 - Fixed a crash when a port with unconstrained array-of-record type is
   associated with a signal that has a static subtype.
 - Fixed incorrect longest static prefix calculation for array slices
