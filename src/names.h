@@ -39,14 +39,15 @@ typedef enum {
 } scope_kind_t;
 
 typedef enum {
-   N_OBJECT = (1 << 0),
-   N_TYPE   = (1 << 1),
-   N_ERROR  = (1 << 2),
-   N_FUNC   = (1 << 3),
-   N_PROC   = (1 << 4),
-   N_LABEL  = (1 << 5),
-   N_PSL    = (1 << 6),
-   N_PREDEF = (1 << 7),
+   N_OBJECT   = (1 << 0),
+   N_TYPE     = (1 << 1),
+   N_ERROR    = (1 << 2),
+   N_FUNC     = (1 << 3),
+   N_PROC     = (1 << 4),
+   N_LABEL    = (1 << 5),
+   N_PSL      = (1 << 6),
+   N_PREDEF   = (1 << 7),
+   N_OVERLOAD = (1 << 8),
 } name_mask_t;
 
 #define N_OVERLOADS(mask) (((mask) >> 16) & 0xffff)

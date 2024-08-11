@@ -335,38 +335,6 @@ static bool type_set_any(nametab_t *tab, type_pred_t pred)
 ////////////////////////////////////////////////////////////////////////////////
 // Scopes
 
-static bool can_overload(tree_t t)
-{
-   switch (tree_kind(t)) {
-   case T_ALIAS:
-      {
-         tree_t alias = tree_value(t);
-         if (tree_kind(alias) != T_REF)
-            return false;
-         else if (!tree_has_ref(alias))
-            return true;   // Suppress cascading errors
-         else
-            return can_overload(tree_ref(alias));
-      }
-   case T_GENERIC_DECL:
-      {
-         const class_t class = tree_class(t);
-         return class == C_FUNCTION || class == C_PROCEDURE;
-      }
-   case T_ENUM_LIT:
-   case T_UNIT_DECL:
-   case T_FUNC_DECL:
-   case T_FUNC_BODY:
-   case T_PROC_DECL:
-   case T_PROC_BODY:
-   case T_PROC_INST:
-   case T_FUNC_INST:
-      return true;
-   default:
-      return false;
-   }
-}
-
 nametab_t *nametab_new(void)
 {
    nametab_t *tab = xcalloc(sizeof(nametab_t));
@@ -700,7 +668,7 @@ static inline name_mask_t subprogram_name_mask(tree_t sub, name_mask_t mask)
    if (tree_flags(sub) & TREE_F_PREDEFINED)
       mask |= N_PREDEF;
 
-   return mask;
+   return mask | N_OVERLOAD;
 }
 
 static name_mask_t name_mask_for(tree_t t)
@@ -742,17 +710,21 @@ static name_mask_t name_mask_for(tree_t t)
          tree_t value = tree_value(t);
          switch (tree_kind(value)) {
          case T_REF:
-         case T_PROT_REF:
             if (tree_has_ref(value))
                return name_mask_for(tree_ref(value));
             else
-               return 0;
+               return N_OVERLOAD;   // Suppress cascading errors
+         case T_PROT_REF:
+            return N_SUBPROGRAM | N_OVERLOAD;
          default:
             return N_OBJECT;
          }
       }
    case T_PSL:
       return N_PSL;
+   case T_ENUM_LIT:
+   case T_UNIT_DECL:
+      return N_OVERLOAD;
    default:
       return 0;
    }
@@ -830,9 +802,9 @@ static symbol_t *make_visible(scope_t *s, ident_t name, tree_t decl,
                               visibility_t kind, scope_t *origin)
 {
    symbol_t *sym = local_symbol_for(s, name);
-   const bool overload = can_overload(decl);
    const tree_kind_t tkind = tree_kind(decl);
    const name_mask_t mask = name_mask_for(decl);
+   const bool overload = !!(mask & N_OVERLOAD);
    type_t type = get_type_or_null(decl);
 
    assert(origin == s || kind != DIRECT);
@@ -1043,7 +1015,7 @@ static void make_visible_fast(scope_t *s, ident_t id, tree_t d)
    const name_mask_t mask = name_mask_for(d);
 
    visibility_t visibility = DIRECT;
-   if (can_overload(d))
+   if (mask & N_OVERLOAD)
       visibility = OVERLOAD;
    else if (kind == T_ATTR_SPEC)
       visibility = ATTRIBUTE;
