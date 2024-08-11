@@ -245,7 +245,7 @@ static void dump_expr(tree_t t)
          print_syntax("#null");
          break;
       default:
-         assert(false);
+         should_not_reach_here();
       }
       break;
 
@@ -310,7 +310,7 @@ static void dump_expr(tree_t t)
             dump_expr(value);
             break;
          default:
-            assert(false);
+            should_not_reach_here();
          }
       }
       print_syntax(")");

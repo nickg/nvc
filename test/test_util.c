@@ -226,6 +226,7 @@ tree_t get_nth_decl(tree_t container, const char *name, int nth)
 
    dump(container);
    ck_abort_msg("object %s not found in %s", name, istr(tree_ident(container)));
+   should_not_reach_here();
 }
 
 tree_t get_decl(tree_t container, const char *name)

@@ -3519,7 +3519,7 @@ static vcode_reg_t *lower_const_array_aggregate(lower_unit_t *lu, tree_t t,
                                           lower_is_const(value),
                                           VCODE_INVALID_REG);
          else
-            assert(false);
+            should_not_reach_here();
       }
       else if (value_kind == T_STRING)
          sub = lower_string_literal_chars(value, &nsub);
@@ -6434,7 +6434,7 @@ static void lower_release(lower_unit_t *lu, tree_t stmt)
       emit_release(lower_array_data(nets), count_reg);
    }
    else if (type_is_record(type)) {
-      assert(false);
+      should_not_reach_here();
    }
    else
       emit_release(nets, emit_const(vtype_offset(), 1));
@@ -12104,7 +12104,7 @@ static void lower_port_map(lower_unit_t *lu, tree_t block, tree_t map,
                                 &vatype, &vrtype);
          break;
       default:
-         assert(false);
+         should_not_reach_here();
       }
 
       if (func != NULL) {
