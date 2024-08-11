@@ -289,13 +289,11 @@ static void cover_iterate_fold_source(cover_data_t *data, cover_scope_t *tgt_sco
 
       if (curr_scp->hier == cmd->source) {
          cmd->found_source = true;
-#ifdef DEBUG
-         diag_t *d = diag_new(NULL, DIAG_DEBUG);
+         diag_t *d = diag_new(DIAG_DEBUG, NULL);
          diag_printf(d, "folding coverage scopes:");
          diag_hint(d, NULL, "        Target - %s", istr(tgt_scope->hier));
          diag_hint(d, NULL, "        Source - %s", istr(curr_scp->hier));
          diag_emit(d);
-#endif
          cover_fold_scopes(tgt_scope, curr_scp);
       }
 
