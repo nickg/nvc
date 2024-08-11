@@ -30,8 +30,6 @@ struct _cover_exclude_ctx {
    loc_t    loc;
 };
 
-//#define COVER_DEBUG_FOLD
-
 static void to_upper_str(char *str)
 {
    while (*str) {
@@ -211,27 +209,6 @@ static void cover_fold_scopes(cover_scope_t *tgt_scope, cover_scope_t *src_scope
             src_suffix_hier = ident_new(istr(src->hier) + src_prefix_len);
 
          if ((tgt_suffix_hier == src_suffix_hier) && (tgt->flags == src->flags)) {
-
-#ifdef COVER_DEBUG_FOLD
-            printf("Folding coverage item:\n"
-                   "    tgt_prefix_len:      %d\n"
-                   "    src_prefix_len:      %d\n"
-                   "    tgt->hier:           %s\n"
-                   "    src->hier:           %s\n"
-                   "    tgt_suffix_hier:     %s\n"
-                   "    src_suffix_hier:     %s\n"
-                   "    src->data:           %d\n"
-                   "    tgt->data:           %d\n",
-                   tgt_prefix_len,
-                   src_prefix_len,
-                   istr(tgt->hier),
-                   istr(src->hier),
-                   istr(tgt_suffix_hier),
-                   istr(src_suffix_hier),
-                   src->data,
-                   tgt->data);
-#endif
-
             assert(tgt->kind == src->kind);
             cover_merge_one_item(tgt, src->data);
             break;
@@ -257,23 +234,6 @@ static void cover_fold_scopes(cover_scope_t *tgt_scope, cover_scope_t *src_scope
             src_suffix_hier = ident_new(istr(src->hier) + src_prefix_len);
 
          if (tgt_suffix_hier == src_suffix_hier) {
-
-#ifdef COVER_DEBUG_FOLD
-            printf("Folding coverage scope:\n"
-                   "    tgt_prefix_len:      %d\n"
-                   "    src_prefix_len:      %d\n"
-                   "    tgt->hier:           %s\n"
-                   "    src->hier:           %s\n"
-                   "    tgt_suffix_hier:     %s\n"
-                   "    src_suffix_hier:     %s\n\n",
-                   tgt_prefix_len,
-                   src_prefix_len,
-                   istr(tgt->hier),
-                   istr(src->hier),
-                   istr(tgt_suffix_hier),
-                   istr(src_suffix_hier));
-#endif
-
             cover_fold_scopes(tgt, src);
             break;
          }
