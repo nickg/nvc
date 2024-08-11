@@ -2405,3 +2405,10 @@ void list_clear(ptr_list_t *l)
    if (*l != NULL)
       (*l)->count = 0;
 }
+
+#ifdef DEBUG
+void should_not_reach_here(void)
+{
+   fatal_trace("should not reach here");
+}
+#endif

@@ -1204,8 +1204,7 @@ const char *cover_bmask_to_bin_str(uint32_t bmask)
       if (bmask & bin_map[i].flag)
          return bin_map[i].name;
 
-   assert(false);
-   return NULL;
+   should_not_reach_here();
 }
 
 const char *cover_item_kind_str(cover_item_kind_t kind)

@@ -221,6 +221,12 @@ const char *last_os_error(void);
 #define likely(x) __builtin_expect(x, 1)
 #define unlikely(x) __builtin_expect(x, 0)
 
+#ifdef DEBUG
+void should_not_reach_here(void) __attribute__((noreturn, cold));
+#else
+#define should_not_reach_here() __builtin_unreachable()
+#endif
+
 void error_at(const loc_t *loc, const char *fmt, ...)
    __attribute__((format(printf, 2, 3)));
 void warn_at(const loc_t *loc, const char *fmt, ...)
