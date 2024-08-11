@@ -1,4 +1,6 @@
 ## Unreleased changes
+
+## Version 1.13.2 - 2024-08-11
 - Fixed an incorrect bounds check error when a constant declaration has
   a partially constrained type (#932).
 - Elaboration of large designs on Windows no longer fail with linker

@@ -300,6 +300,7 @@ EXTRA_DIST += \
 	test/lower/issue837.vhd \
 	test/lower/issue844.vhd \
 	test/lower/issue859.vhd \
+	test/lower/issue934.vhd \
 	test/lower/issue94.vhd \
 	test/lower/link1.vhd \
 	test/lower/loop1.vhd \
@@ -508,6 +509,7 @@ EXTRA_DIST += \
 	test/parse/visibility7.vhd \
 	test/parse/visibility8.vhd \
 	test/parse/visibility9.vhd \
+	test/parse/vunit10.vhd \
 	test/parse/vunit5.vhd \
 	test/parse/vunit6.vhd \
 	test/parse/vunit7.vhd \
@@ -678,6 +680,7 @@ EXTRA_DIST += \
 	test/regress/bounds42.vhd \
 	test/regress/bounds43.vhd \
 	test/regress/bounds44.vhd \
+	test/regress/bounds45.vhd \
 	test/regress/bounds4.vhd \
 	test/regress/bounds5.vhd \
 	test/regress/bounds6.vhd \
@@ -1025,6 +1028,7 @@ EXTRA_DIST += \
 	test/regress/gold/bounds42.txt \
 	test/regress/gold/bounds43.txt \
 	test/regress/gold/bounds44.txt \
+	test/regress/gold/bounds45.txt \
 	test/regress/gold/bounds4.txt \
 	test/regress/gold/bounds5.txt \
 	test/regress/gold/bounds6.txt \
@@ -1482,6 +1486,7 @@ EXTRA_DIST += \
 	test/regress/issue924.vhd \
 	test/regress/issue925.vhd \
 	test/regress/issue931.vhd \
+	test/regress/issue932.vhd \
 	test/regress/issue94.vhd \
 	test/regress/issue95.vhd \
 	test/regress/issue96.vhd \
