@@ -217,10 +217,7 @@ void cover_ignore_from_pragmas(cover_data_t *data, tree_t unit);
 
 void cover_load_spec_file(cover_data_t *data, const char *path);
 
-void cover_parse_exclude_file(const char *path, cover_data_t *data);
-void cover_apply_exclude_cmds(cover_data_t *data);
-void cover_apply_fold_cmds(cover_data_t *data);
-
+void cover_load_exclude_file(const char *path, cover_data_t *data);
 
 //
 // Report generation and export

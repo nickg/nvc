@@ -34,8 +34,10 @@ struct _cover_exclude_ctx {
 
 static void to_upper_str(char *str)
 {
-   while (*str)
-      *str++ = toupper_iso88591(*str);
+   while (*str) {
+      *str = toupper_iso88591(*str);
+      str++;
+   }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -74,7 +76,7 @@ static void cover_exclude_scope(cover_data_t *data, cover_scope_t *s)
       cover_exclude_scope(data, s->children.items[i]);
 }
 
-void cover_parse_exclude_file(const char *path, cover_data_t *data)
+static void cover_parse_exclude_file(const char *path, cover_data_t *data)
 {
    FILE *ef = fopen(path, "r");
    if (ef == NULL)
@@ -172,7 +174,7 @@ void cover_parse_exclude_file(const char *path, cover_data_t *data)
    fclose(ef);
 }
 
-void cover_apply_exclude_cmds(cover_data_t *data)
+static void cover_apply_exclude_cmds(cover_data_t *data)
 {
    assert (data->ef != NULL);
 
@@ -294,6 +296,7 @@ static void cover_iterate_fold_source(cover_data_t *data, cover_scope_t *tgt_sco
          diag_hint(d, NULL, "        Source - %s", istr(curr_scp->hier));
          diag_emit(d);
 #endif
+         cover_fold_scopes(tgt_scope, curr_scp);
       }
 
       cover_iterate_fold_source(data, tgt_scope, curr_scp, cmd);
@@ -317,7 +320,7 @@ static void cover_iterate_fold_target(cover_data_t *data, cover_scope_t *tgt_sco
    }
 }
 
-void cover_apply_fold_cmds(cover_data_t *data)
+static void cover_apply_fold_cmds(cover_data_t *data)
 {
    assert (data->ef != NULL);
 
@@ -341,6 +344,12 @@ void cover_apply_fold_cmds(cover_data_t *data)
    }
 }
 
+void cover_load_exclude_file(const char *path, cover_data_t *data)
+{
+   cover_parse_exclude_file(path, data);
+   cover_apply_exclude_cmds(data);
+   cover_apply_fold_cmds(data);
+}
 
 ///////////////////////////////////////////////////////////////////////////////
 // Spec file

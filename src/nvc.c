@@ -1497,9 +1497,7 @@ static int coverage_cmd(int argc, char **argv, cmd_state_t *state)
 
    if (exclude_file && cover) {
       progress("Loading exclude file: %s", exclude_file);
-      cover_parse_exclude_file(exclude_file, cover);
-      cover_apply_exclude_cmds(cover);
-      cover_apply_fold_cmds(cover);
+      cover_load_exclude_file(exclude_file, cover);
    }
 
    if (rpt_file && cover) {
@@ -1750,9 +1748,7 @@ static int cover_report_cmd(int argc, char **argv, cmd_state_t *state)
 
    if (exclude_file && cover) {
       progress("loading exclude file %s", exclude_file);
-      cover_parse_exclude_file(exclude_file, cover);
-      cover_apply_exclude_cmds(cover);
-      cover_apply_fold_cmds(cover);
+      cover_load_exclude_file(exclude_file, cover);
    }
 
    progress("generating code coverage report");
