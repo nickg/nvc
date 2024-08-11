@@ -33,12 +33,10 @@ struct _cover_exclude_ctx {
 //#define COVER_DEBUG_EXCLUDE
 //#define COVER_DEBUG_FOLD
 
-static void to_upper_str(char *str) {
-   int i = 0;
-   while (str[i]) {
-      str[i] = toupper_iso88591(str[i]);
-      i++;
-   }
+static void to_upper_str(char *str) 
+{
+   while (*str)
+      *str++ = toupper_iso88591(*str);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
