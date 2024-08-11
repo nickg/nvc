@@ -195,7 +195,7 @@ void cover_apply_exclude_cmds(cover_data_t *data)
 
    for (int i = 0; i < data->ef->n_excl_cmds; i++)
       if (!data->ef->excl[i].found)
-         warn_at(&data->ef->excl[i].loc, "exluded hierarchy does not match any "
+         warn_at(&data->ef->excl[i].loc, "excluded hierarchy does not match any "
                  "coverage item: '%s'", istr(data->ef->excl[i].hier));
 }
 
