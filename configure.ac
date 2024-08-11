@@ -155,7 +155,7 @@ AS_IF([test "$ax_cv_prog_bison" = "yes"],
               AX_APPEND_FLAG([-Wcounterexamples], [EXTRA_YFLAGS])],
              [AC_MSG_RESULT([no])])])
 
-AX_PROG_FLEX([], [AC_MSG_ERROR(Flex not found)])
+AX_PROG_FLEX([], [AC_MSG_ERROR([Flex not found])])
 
 case $host_os in
   *cygwin*|msys*|mingw32*)
@@ -163,6 +163,7 @@ case $host_os in
     DIR_SEP=\\\\
     pathprog="cygpath -m"
     AC_CHECK_PROG([CANDLE], [candle], [yes])   # For WiX installer
+    NVC_CHECK_MSYS
     ;;
   *)
     AC_SEARCH_LIBS([dlopen], [dl dld], [], [
