@@ -5383,14 +5383,16 @@ static void p_formal_parameter_list(tree_t decl, type_t type)
 
    p_interface_list(decl, T_PARAM_DECL, standard() >= STD_19);
 
+   const int nports = tree_ports(decl);
+   if (nports == 0)
+      return;   // Was parse error
+
    tree_t p0 = tree_port(decl, 0);
    type_add_param(type, tree_type(p0));
 
    if (tree_has_value(p0))
       tree_set_flag(decl, TREE_F_CALL_NO_ARGS);
 
-   const int nports = tree_ports(decl);
-   assert(nports >= 1);
    for (int i = 1; i < nports; i++)
       type_add_param(type, tree_type(tree_port(decl, i)));
 }
@@ -5702,6 +5704,11 @@ static void p_interface_list(tree_t parent, tree_kind_t kind, bool ordered)
    // interface_element { ; interface_element }
 
    BEGIN("interface list");
+
+   if (peek() == tRPAREN) {
+      parse_error(&last_loc, "interface list cannot be empty");
+      return;
+   }
 
    if (ordered)
       push_scope(nametab);
