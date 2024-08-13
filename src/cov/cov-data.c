@@ -969,16 +969,23 @@ void cover_pop_scope(cover_data_t *data)
    if (data == NULL)
       return;
 
-   assert(data->top_scope != NULL);
+   cover_scope_t *s = data->top_scope;
+   assert(s != NULL);
 
-   ACLEAR(data->top_scope->ignore_lines);
+   data->top_scope = s->parent;
 
-#ifdef COVER_DEBUG_SCOPE
-   printf("Popping cover scope: %s\n", istr(data->top_scope->hier));
-#endif
+   ACLEAR(s->ignore_lines);
 
-   data->top_scope = data->top_scope->parent;
+   const bool prune_empty =
+      s->items.count == 0
+      && s->children.count == 0
+      && s->type != CSCOPE_INSTANCE
+      && s == s->parent->children.items[s->parent->children.count - 1];
 
+   if (prune_empty) {
+      APOP(s->parent->children);
+      free(s);
+   }
 }
 
 static void cover_read_header(fbuf_t *f, cover_data_t *data)
