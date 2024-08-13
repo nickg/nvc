@@ -26,6 +26,20 @@
 #include <string.h>
 #include <time.h>
 
+static const char *get_relative_path(const char *path, const char *relative)
+{
+   if (relative != NULL && is_absolute_path(path)) {
+      const size_t rlen = strlen(relative);
+      if (strncmp(relative, path, rlen) == 0) {
+         path += rlen;
+         while (path[0] == DIR_SEP[0] || path[0] == '/')
+            path++;
+      }
+   }
+
+   return path;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Cobertura XML export
 
@@ -60,17 +74,8 @@ static cobertura_class_t *cobertura_get_class(cobertura_report_t *report,
    if (c == NULL) {
       c = xcalloc(sizeof(cobertura_class_t));
       c->name = name;
-      c->file = loc_file_str(loc);
+      c->file = get_relative_path(loc_file_str(loc), report->relative);
       c->next = report->classes;
-
-      if (is_absolute_path(c->file) && report->relative != NULL) {
-         const size_t rlen = strlen(report->relative);
-         if (strncmp(report->relative, c->file, rlen) == 0) {
-            c->file += rlen;
-            while (c->file[0] == DIR_SEP[0] || c->file[0] == '/')
-               c->file++;
-         }
-      }
 
       report->classes = c;
       hash_put(report->class_map, name, c);
@@ -259,4 +264,68 @@ void cover_export_cobertura(cover_data_t *data, FILE *f, const char *relative)
 
    free(report.relative);
    hash_free(report.class_map);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// XML dump format for debugging and testing
+
+static void dump_scope_xml(cover_scope_t *s, int indent, const loc_t *loc,
+                           const char *relative, FILE *f)
+{
+   fprintf(f, "%*s<scope name=\"%s\"", indent, "", istr(s->name));
+
+   if (s->block_name != NULL)
+      fprintf(f, " block_name=\"%s\"", istr(s->block_name));
+
+   if (s->loc.file_ref != FILE_INVALID && s->loc.file_ref != loc->file_ref) {
+      const char *path = get_relative_path(loc_file_str(&s->loc), relative);
+      fprintf(f, " file=\"%s\"", path);
+   }
+
+   if (s->loc.first_line != LINE_INVALID && s->loc.first_line > 0
+       && s->loc.first_line != loc->first_line)
+      fprintf(f, " line=\"%d\"", s->loc.first_line);
+
+   fprintf(f, ">\n");
+
+   for (int i = 0; i < s->items.count; i++) {
+      cover_item_t *item = &(s->items.items[i]);
+      switch (item->kind) {
+      case COV_ITEM_STMT:
+         fprintf(f, "%*s<statement hier=\"%s\" data=\"%d\"/>\n", indent + 2, "",
+                 istr(item->hier), item->data);
+         break;
+      case COV_ITEM_BRANCH:
+         fprintf(f, "%*s<branch hier=\"%s\" data=\"%d\"/>\n", indent + 2, "",
+                 istr(item->hier), item->data);
+         break;
+      case COV_ITEM_EXPRESSION:
+         fprintf(f, "%*s<expression hier=\"%s\" data=\"%d\"/>\n", indent + 2,
+                 "", istr(item->hier), item->data);
+         break;
+      case COV_ITEM_TOGGLE:
+         fprintf(f, "%*s<toggle hier=\"%s\" data=\"%d\"/>\n", indent + 2, "",
+                 istr(item->hier), item->data);
+         break;
+      case COV_ITEM_FUNCTIONAL:
+         fprintf(f, "%*s<functional hier=\"%s\" data=\"%d\"/>\n", indent + 2,
+                 "", istr(item->hier), item->data);
+         break;
+      case COV_ITEM_STATE:
+         fprintf(f, "%*s<state hier=\"%s\" data=\"%d\"/>\n", indent + 2,
+                 "", istr(item->hier), item->data);
+         break;
+      }
+   }
+
+   for (int i = 0; i < s->children.count; i++)
+      dump_scope_xml(s->children.items[i], indent + 2, &s->loc, relative, f);
+
+   fprintf(f, "%*s</scope>\n", indent, "");
+}
+
+void cover_export_xml(cover_data_t *data, FILE *f, const char *relative)
+{
+   fprintf(f, "<?xml version=\"1.0\"?>\n");
+   dump_scope_xml(data->root_scope, 0, &LOC_INVALID, relative, f);
 }

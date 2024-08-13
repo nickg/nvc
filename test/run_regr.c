@@ -956,7 +956,7 @@ static bool run_test(test_t *test)
       // Generate and check XML report
       push_arg(&args, "%s/nvc%s", bin_dir, EXEEXT);
       push_arg(&args, "--cover-export");
-      push_arg(&args, "--relative=%s", test_dir);
+      push_arg(&args, "--relative=%s" DIR_SEP "regress", test_dir);
       push_arg(&args, "--out=export.xml");
       push_arg(&args, "--format=%s", test->export);
 
@@ -995,8 +995,10 @@ static bool run_test(test_t *test)
       goto out_close;
 #endif
 
-#ifndef __MINGW32__  // Directory separator different on Windows
       push_arg(&args, "%s", DIFF_PATH);
+#if defined __MINGW32__ || defined __CYGWIN__
+      push_arg(&args, "--strip-trailing-cr");
+#endif
       push_arg(&args, "-u");
       push_arg(&args, "%s/regress/gold/%s.xml", test_dir, test->name);
       push_arg(&args, "export.xml");
@@ -1006,19 +1008,25 @@ static bool run_test(test_t *test)
          result = false;
          goto out_print;
       }
-#endif
    }
    else if ((test->flags & F_COVER) && !(test->flags & F_SHELL)) {
       // Generate coverage report
-      push_arg(&args, "%s/nvc%s", bin_dir, EXEEXT);
-      push_arg(&args, "--cover-report");
-      push_arg(&args, "--output=./html");
 
       char *unit = strdup(test->name);
       for (char *p = unit; *p; p++)
          *p = toupper((int)*p);
 
+      push_arg(&args, "%s/nvc%s", bin_dir, EXEEXT);
+      push_arg(&args, "--cover-report");
+      push_arg(&args, "--output=./html");
       push_arg(&args, "work/_WORK.%s.elab.covdb", unit);
+      push_arg(&args, "--cover-export");
+      push_arg(&args, "--relative=%s" DIR_SEP "regress", test_dir);
+      push_arg(&args, "--output=export.xml");
+      //push_arg(&args, "--out=%s/regress/gold/%s.xml", test_dir, test->name);
+      push_arg(&args, "--format=xml");
+      push_arg(&args, "work/_WORK.%s.elab.covdb", unit);
+
       free(unit);
 
       if (run_cmd(outf, &args) != RUN_OK) {
@@ -1028,6 +1036,20 @@ static bool run_test(test_t *test)
       }
       else if (!file_exists("html/index.html")) {
          failed("missing coverage report index.html");
+         result = false;
+         goto out_print;
+      }
+
+      push_arg(&args, "%s", DIFF_PATH);
+#if defined __MINGW32__ || defined __CYGWIN__
+      push_arg(&args, "--strip-trailing-cr");
+#endif
+      push_arg(&args, "-u");
+      push_arg(&args, "%s/regress/gold/%s.xml", test_dir, test->name);
+      push_arg(&args, "export.xml");
+
+      if (run_cmd(outf, &args) != RUN_OK) {
+         failed("XML mismatch");
          result = false;
          goto out_print;
       }

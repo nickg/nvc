@@ -1,0 +1,78 @@
+<?xml version="1.0"?>
+<scope name="WORK" file="cover4.vhd">
+  <scope name="COVER4" block_name="COVER4-TEST" line="9">
+    <scope name="_P0" line="18">
+      <scope name="_S1" line="21">
+        <scope name="_B0">
+          <branch hier="WORK.COVER4._P0._S1._B0.BIN_TRUE" data="20"/>
+          <branch hier="WORK.COVER4._P0._S1._B0.BIN_FALSE" data="1"/>
+        </scope>
+      </scope>
+    </scope>
+    <scope name="_P1" line="30">
+      <scope name="_S0">
+        <scope name="_B0" line="31">
+          <branch hier="WORK.COVER4._P1._S0._B0.BIN_TRUE" data="1"/>
+          <branch hier="WORK.COVER4._P1._S0._B0.BIN_FALSE" data="20"/>
+        </scope>
+        <scope name="_B1" line="32">
+          <branch hier="WORK.COVER4._P1._S0._B1.BIN_TRUE" data="1"/>
+          <branch hier="WORK.COVER4._P1._S0._B1.BIN_FALSE" data="19"/>
+        </scope>
+        <scope name="_B3" line="36">
+          <branch hier="WORK.COVER4._P1._S0._B3.BIN_TRUE" data="1"/>
+          <branch hier="WORK.COVER4._P1._S0._B3.BIN_FALSE" data="17"/>
+        </scope>
+        <scope name="_B4" line="37">
+          <branch hier="WORK.COVER4._P1._S0._B4.BIN_TRUE" data="1"/>
+          <branch hier="WORK.COVER4._P1._S0._B4.BIN_FALSE" data="16"/>
+        </scope>
+        <scope name="_B5" line="38">
+          <branch hier="WORK.COVER4._P1._S0._B5.BIN_TRUE" data="1"/>
+          <branch hier="WORK.COVER4._P1._S0._B5.BIN_FALSE" data="15"/>
+        </scope>
+        <scope name="_B6" line="39">
+          <branch hier="WORK.COVER4._P1._S0._B6.BIN_TRUE" data="1"/>
+          <branch hier="WORK.COVER4._P1._S0._B6.BIN_FALSE" data="14"/>
+        </scope>
+      </scope>
+    </scope>
+    <scope name="_P2" line="43">
+      <scope name="_S0">
+        <scope name="_B0" line="44">
+          <scope name="_B0">
+            <branch hier="WORK.COVER4._P2._S0._B0._B0.BIN_CHOICE" data="1"/>
+          </scope>
+        </scope>
+        <scope name="_B1" line="45">
+          <scope name="_B0">
+            <branch hier="WORK.COVER4._P2._S0._B1._B0.BIN_CHOICE" data="1"/>
+          </scope>
+        </scope>
+        <scope name="_B2" line="46">
+          <scope name="_B0">
+            <branch hier="WORK.COVER4._P2._S0._B2._B0.BIN_CHOICE" data="1"/>
+          </scope>
+        </scope>
+        <scope name="_B3" line="47">
+          <scope name="_B0">
+            <branch hier="WORK.COVER4._P2._S0._B3._B0.BIN_CHOICE" data="1"/>
+          </scope>
+        </scope>
+        <scope name="_B5" line="51">
+          <scope name="_B0">
+            <branch hier="WORK.COVER4._P2._S0._B5._B0.BIN_CHOICE" data="1"/>
+          </scope>
+        </scope>
+        <scope name="_B6" line="52">
+          <scope name="_B0">
+            <branch hier="WORK.COVER4._P2._S0._B6._B0.BIN_CHOICE" data="1"/>
+          </scope>
+        </scope>
+        <scope name="_B_OTHERS" line="53">
+          <branch hier="WORK.COVER4._P2._S0._B_OTHERS.BIN_CHOICE" data="14"/>
+        </scope>
+      </scope>
+    </scope>
+  </scope>
+</scope>

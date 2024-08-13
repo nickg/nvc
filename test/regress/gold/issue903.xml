@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<scope name="WORK" file="issue903.vhd">
+  <scope name="ISSUE903" block_name="ISSUE903-TEST" line="4">
+    <scope name="COMPARE" line="5">
+      <scope name="_S0" line="7">
+        <scope name="_B0">
+          <branch hier="WORK.ISSUE903.COMPARE._S0._B0.BIN_TRUE" data="0"/>
+          <branch hier="WORK.ISSUE903.COMPARE._S0._B0.BIN_FALSE" data="1"/>
+        </scope>
+      </scope>
+    </scope>
+  </scope>
+</scope>

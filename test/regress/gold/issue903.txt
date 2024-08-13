@@ -1,6 +1,0 @@
-    statement:     N.A.
-    branch:        50.0 % (1/2)
-    toggle:        N.A.
-    expression:    N.A.
-    FSM state:     N.A.
-    functional:    N.A.

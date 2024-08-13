@@ -431,9 +431,14 @@ section below for how to control this.
 .Bl -tag -width Ds
 .\" --format
 .It Fl \-format= Ns Ar format
-Output file format.  Currently the only valid value is
-.Ql cobertura
-which is the Cobertura XML format widely supported by CI systems.
+Selects one of the following output file formats:
+.Bl -tag -width "cobertura"
+.It Cm cobertura
+Cobertura XML format widely supported by CI systems.
+.It Cm xml
+Simple XML dump of the coverage database contents.  The schema is liable
+to change between releases.
+.El
 .\" --output
 .It Fl o , Fl \-output= Ns Ar file
 Write output to

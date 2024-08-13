@@ -1609,7 +1609,7 @@ static int cover_export_cmd(int argc, char **argv, cmd_state_t *state)
 
    const int next_cmd = scan_cmd(2, argc, argv);
 
-   enum { UNSET, COBERTURA } format = UNSET;
+   enum { UNSET, COBERTURA, XML } format = UNSET;
    const char *output = NULL, *relative = NULL;
    int c, index;
    const char *spec = ":o:";
@@ -1618,8 +1618,11 @@ static int cover_export_cmd(int argc, char **argv, cmd_state_t *state)
       case 'f':
          if (strcasecmp(optarg, "cobertura") == 0)
             format = COBERTURA;
+         else if (strcasecmp(optarg, "xml") == 0)
+            format = XML;
          else
-            fatal("unknown format '%s', valid formats are: cobertura", optarg);
+            fatal("unknown format '%s', valid formats are: cobertura, xml",
+                  optarg);
          break;
       case 'o':
          output = optarg;
@@ -1678,7 +1681,16 @@ static int cover_export_cmd(int argc, char **argv, cmd_state_t *state)
    if (output != NULL && (file = fopen(output, "w")) == NULL)
       fatal_errno("cannot create %s", output);
 
-   cover_export_cobertura(cover, file, relative);
+   switch (format) {
+   case COBERTURA:
+      cover_export_cobertura(cover, file, relative);
+      break;
+   case XML:
+      cover_export_xml(cover, file, relative);
+      break;
+   case UNSET:
+      should_not_reach_here();
+   }
 
    if (file != stdout)
       fclose(file);
