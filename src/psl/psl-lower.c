@@ -68,7 +68,8 @@ static vcode_reg_t psl_assert_severity(void)
    return emit_const(vtype_int(0, 3), 2);
 }
 
-static void psl_lower_cover(lower_unit_t *lu, psl_node_t p, cover_data_t *cover)
+static void psl_lower_cover(lower_unit_t *lu, psl_node_t p, cover_data_t *cover,
+                            cover_scope_t *cscope)
 {
    if (psl_has_message(p)) {
       tree_t m = psl_message(p);
@@ -86,7 +87,7 @@ static void psl_lower_cover(lower_unit_t *lu, psl_node_t p, cover_data_t *cover)
    if (!cover_enabled(cover, COVER_MASK_FUNCTIONAL))
       return;
 
-   cover_item_t *item = cover_add_items_for(cover, psl_to_object(p),
+   cover_item_t *item = cover_add_items_for(cover, cscope, psl_to_object(p),
                                             COV_ITEM_FUNCTIONAL);
    if (item == NULL)
       return;
@@ -96,7 +97,7 @@ static void psl_lower_cover(lower_unit_t *lu, psl_node_t p, cover_data_t *cover)
 
 static void psl_lower_state(lower_unit_t *lu, psl_fsm_t *fsm,
                             fsm_state_t *state, vcode_block_t *state_bb,
-                            cover_data_t *cover)
+                            cover_data_t *cover, cover_scope_t *cscope)
 {
    emit_comment("Property state %d", state->id);
 
@@ -106,7 +107,7 @@ static void psl_lower_state(lower_unit_t *lu, psl_fsm_t *fsm,
       emit_enter_state(emit_const(vint32, state->id));
 
    if (state->accept && fsm->kind == FSM_COVER)
-      psl_lower_cover(lu, fsm->src, cover);
+      psl_lower_cover(lu, fsm->src, cover, cscope);
    else if (state->accept && fsm->kind == FSM_NEVER) {
       vcode_reg_t severity_reg = psl_assert_severity();
       vcode_reg_t false_reg = emit_const(vtype_bool(), 0);
@@ -174,7 +175,8 @@ void psl_lower_directive(unit_registry_t *ur, lower_unit_t *parent,
    psl_node_t p = tree_psl(wrapper);
    ident_t label = tree_ident(wrapper);
 
-   cover_push_scope(cover, wrapper);
+   cover_scope_t *parent_cscope = lower_get_cover_scope(parent);
+   cover_scope_t *cscope = cover_push_scope(cover, parent_cscope, wrapper);
 
    psl_fsm_t *fsm = psl_fsm_new(p);
 
@@ -247,13 +249,13 @@ void psl_lower_directive(unit_registry_t *ur, lower_unit_t *parent,
    int pos = 0;
    for (fsm_state_t *s = fsm->states; s; s = s->next) {
       vcode_select_block(state_bb[pos++]);
-      psl_lower_state(lu, fsm, s, state_bb, cover);
+      psl_lower_state(lu, fsm, s, state_bb, cover, cscope);
    }
    assert(pos == fsm->next_id);
 
    unit_registry_finalise(ur, lu);
 
-   cover_pop_scope(cover);
+   cover_pop_scope(cover, cscope);
 
    psl_fsm_free(fsm);
 }

@@ -232,10 +232,11 @@ void cover_export_xml(cover_data_t *data, FILE *f, const char *relative);
 // Interface to code generator
 //
 
-void cover_push_scope(cover_data_t *data, tree_t t);
-void cover_pop_scope(cover_data_t *data);
+cover_scope_t *cover_push_scope(cover_data_t *data, cover_scope_t *parent,
+                                tree_t t);
+void cover_pop_scope(cover_data_t *data, cover_scope_t *cscope);
 
-cover_item_t *cover_add_items_for(cover_data_t *data, object_t *obj,
-                                  cover_item_kind_t kind);
+cover_item_t *cover_add_items_for(cover_data_t *data, cover_scope_t *cscope,
+                                  object_t *obj, cover_item_kind_t kind);
 
 #endif   // _COV_API_H

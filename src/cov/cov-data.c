@@ -599,10 +599,11 @@ static int32_t cover_add_logic_expression_items(cover_data_t *data, object_t *ob
 // Lower EMIT API
 ///////////////////////////////////////////////////////////////////////////////
 
-cover_item_t *cover_add_items_for(cover_data_t *data, object_t *obj,
-                                  cover_item_kind_t kind)
+cover_item_t *cover_add_items_for(cover_data_t *data, cover_scope_t *cscope,
+                                  object_t *obj, cover_item_kind_t kind)
 {
    assert(data != NULL);
+   assert(cscope == data->top_scope);
 
    if (!data->top_scope->emit)
       return NULL;
@@ -880,11 +881,15 @@ static bool cover_should_emit_scope(cover_data_t *data, tree_t t)
    return false;
 }
 
-void cover_push_scope(cover_data_t *data, tree_t t)
+cover_scope_t *cover_push_scope(cover_data_t *data, cover_scope_t *parent,
+                                tree_t t)
 {
    if (data == NULL)
-      return;
-   else if (data->root_scope == NULL) {
+      return NULL;
+
+   assert(parent == data->top_scope);
+
+   if (data->root_scope == NULL) {
       cover_scope_t *s = xcalloc(sizeof(cover_scope_t));
       s->name = s->hier = lib_name(lib_work());
 
@@ -957,20 +962,17 @@ void cover_push_scope(cover_data_t *data, tree_t t)
 
    s->emit = (data->spec == NULL) ? true : cover_should_emit_scope(data, t);
 
-#ifdef COVER_DEBUG_SCOPE
-   printf("Pushing cover scope: %s\n", istr(s->hier));
-   printf("Tree_kind: %s\n\n", tree_kind_str(tree_kind(t)));
-   printf("Coverage emit: %d\n\n", s->emit);
-#endif
+   return s;
 }
 
-void cover_pop_scope(cover_data_t *data)
+void cover_pop_scope(cover_data_t *data, cover_scope_t *cscope)
 {
    if (data == NULL)
       return;
 
    cover_scope_t *s = data->top_scope;
    assert(s != NULL);
+   assert(cscope == NULL || s == cscope);
 
    data->top_scope = s->parent;
 

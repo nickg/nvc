@@ -46,6 +46,7 @@ void lower_unit_free(lower_unit_t *lu);
 void lower_finished(lower_unit_t *lu, vcode_unit_t shape);
 
 vcode_unit_t get_vcode(lower_unit_t *lu);
+cover_scope_t *lower_get_cover_scope(lower_unit_t *lu);
 
 vcode_reg_t lower_lvalue(lower_unit_t *lu, tree_t expr);
 vcode_reg_t lower_rvalue(lower_unit_t *lu, tree_t expr);
