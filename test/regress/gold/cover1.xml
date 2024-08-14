@@ -82,6 +82,10 @@
               <statement hier="WORK.COVER1.TEST_PROC.LOOP1.IF_COND_1._B5._S0" data="0"/>
             </scope>
           </scope>
+          <scope name="_B6">
+            <scope name="ASSERT_FALSE_OFF" line="65">
+            </scope>
+          </scope>
         </scope>
         <scope name="CASE_COND_1" line="69">
           <statement hier="WORK.COVER1.TEST_PROC.LOOP1.CASE_COND_1" data="5"/>

@@ -2,12 +2,14 @@
 <scope name="WORK" file="cover3.vhd">
   <scope name="COVER3" block_name="COVER3-TEST" line="9">
     <scope name="_P0" line="17">
-      <scope name="_S1" line="20">
+      <scope name="_S0" line="20">
         <scope name="_B0">
-          <branch hier="WORK.COVER3._P0._S1._B0.BIN_TRUE" data="20"/>
-          <branch hier="WORK.COVER3._P0._S1._B0.BIN_FALSE" data="1"/>
+          <branch hier="WORK.COVER3._P0._S0._B0.BIN_TRUE" data="20"/>
+          <branch hier="WORK.COVER3._P0._S0._B0.BIN_FALSE" data="1"/>
         </scope>
       </scope>
+    </scope>
+    <scope name="_P1" line="28">
     </scope>
     <scope name="_P2" line="40">
       <scope name="L_IF_1" line="42">
@@ -18,6 +20,8 @@
         <scope name="_B1">
           <branch hier="WORK.COVER3._P2.L_IF_1._B1.BIN_TRUE" data="1"/>
           <branch hier="WORK.COVER3._P2.L_IF_1._B1.BIN_FALSE" data="19"/>
+        </scope>
+        <scope name="_B2">
         </scope>
       </scope>
       <scope name="L_IF_2" line="51">
@@ -49,6 +53,8 @@
       <scope name="L_CASE_1" line="67">
         <scope name="_B0" line="68">
           <branch hier="WORK.COVER3._P3.L_CASE_1._B0.BIN_CHOICE" data="1"/>
+        </scope>
+        <scope name="_B1" line="70">
         </scope>
         <scope name="_B2" line="72">
           <branch hier="WORK.COVER3._P3.L_CASE_1._B2.BIN_CHOICE" data="1"/>
@@ -98,10 +104,10 @@
       </scope>
     </scope>
     <scope name="_P5" line="102">
-      <scope name="_S1" line="105">
+      <scope name="_S0" line="105">
         <scope name="_B0">
-          <branch hier="WORK.COVER3._P5._S1._B0.BIN_TRUE" data="7"/>
-          <branch hier="WORK.COVER3._P5._S1._B0.BIN_FALSE" data="1"/>
+          <branch hier="WORK.COVER3._P5._S0._B0.BIN_TRUE" data="7"/>
+          <branch hier="WORK.COVER3._P5._S0._B0.BIN_FALSE" data="1"/>
         </scope>
       </scope>
     </scope>
@@ -169,6 +175,8 @@
           <branch hier="WORK.COVER3._P7.L_CASE_4._B_OTHERS.BIN_CHOICE" data="0"/>
         </scope>
       </scope>
+    </scope>
+    <scope name="_P8" line="136">
     </scope>
   </scope>
 </scope>

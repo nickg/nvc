@@ -209,6 +209,8 @@
         <toggle hier="WORK.COVER2.MY_REC.Y(0).BIN_1_TO_0" data="0"/>
       </scope>
       <scope name="Z" line="73">
+        <scope name="A" line="65">
+        </scope>
         <scope name="B" line="66">
           <toggle hier="WORK.COVER2.MY_REC.Z.B.BIN_0_TO_1" data="1"/>
           <toggle hier="WORK.COVER2.MY_REC.Z.B.BIN_1_TO_0" data="0"/>
@@ -222,6 +224,8 @@
           <toggle hier="WORK.COVER2.MY_REC.Z.C(0).BIN_1_TO_0" data="0"/>
         </scope>
       </scope>
+    </scope>
+    <scope name="MY_IGNORED_SIGNAL" line="79">
     </scope>
     <scope name="SUB_MODULE_INST" block_name="SUB_MODULE-TEST" line="85">
       <scope name="A" line="6">
@@ -241,6 +245,8 @@
           <toggle hier="WORK.COVER2.SUB_MODULE_INST.RECORD_IN_SUBMODULE.ELEM.BIN_0_TO_1" data="0"/>
           <toggle hier="WORK.COVER2.SUB_MODULE_INST.RECORD_IN_SUBMODULE.ELEM.BIN_1_TO_0" data="0"/>
         </scope>
+      </scope>
+      <scope name="TGL_PROC" line="22">
       </scope>
     </scope>
     <scope name="SUB_MODULE_INST_2" block_name="SUB_MODULE-TEST" line="93">
@@ -262,6 +268,8 @@
           <toggle hier="WORK.COVER2.SUB_MODULE_INST_2.RECORD_IN_SUBMODULE.ELEM.BIN_1_TO_0" data="0"/>
         </scope>
       </scope>
+      <scope name="TGL_PROC" line="22">
+      </scope>
     </scope>
     <scope name="SUB_MODULE_INST_3" block_name="SUB_MODULE-TEST" line="101">
       <scope name="A" line="6">
@@ -282,6 +290,12 @@
           <toggle hier="WORK.COVER2.SUB_MODULE_INST_3.RECORD_IN_SUBMODULE.ELEM.BIN_1_TO_0" data="0"/>
         </scope>
       </scope>
+      <scope name="TGL_PROC" line="22">
+      </scope>
+    </scope>
+    <scope name="TEST_PROC" line="109">
+    </scope>
+    <scope name="_P0" line="176">
     </scope>
   </scope>
 </scope>

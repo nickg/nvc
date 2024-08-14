@@ -62,7 +62,7 @@ begin
 
             else
                 -- coverage off
-                assert (False) report "PRAGMA COVER OFF statement";
+                assert_false_off: assert (False) report "PRAGMA COVER OFF statement";
                 -- coverage on
             end if;
 

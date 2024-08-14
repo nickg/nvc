@@ -2,10 +2,10 @@
 <scope name="WORK" file="cover4.vhd">
   <scope name="COVER4" block_name="COVER4-TEST" line="9">
     <scope name="_P0" line="18">
-      <scope name="_S1" line="21">
+      <scope name="_S0" line="21">
         <scope name="_B0">
-          <branch hier="WORK.COVER4._P0._S1._B0.BIN_TRUE" data="20"/>
-          <branch hier="WORK.COVER4._P0._S1._B0.BIN_FALSE" data="1"/>
+          <branch hier="WORK.COVER4._P0._S0._B0.BIN_TRUE" data="20"/>
+          <branch hier="WORK.COVER4._P0._S0._B0.BIN_FALSE" data="1"/>
         </scope>
       </scope>
     </scope>
@@ -18,6 +18,8 @@
         <scope name="_B1" line="32">
           <branch hier="WORK.COVER4._P1._S0._B1.BIN_TRUE" data="1"/>
           <branch hier="WORK.COVER4._P1._S0._B1.BIN_FALSE" data="19"/>
+        </scope>
+        <scope name="_B2" line="34">
         </scope>
         <scope name="_B3" line="36">
           <branch hier="WORK.COVER4._P1._S0._B3.BIN_TRUE" data="1"/>
@@ -50,6 +52,8 @@
         </scope>
         <scope name="_B3" line="47">
           <branch hier="WORK.COVER4._P2._S0._B3.BIN_CHOICE" data="1"/>
+        </scope>
+        <scope name="_B4" line="49">
         </scope>
         <scope name="_B5" line="51">
           <branch hier="WORK.COVER4._P2._S0._B5.BIN_CHOICE" data="1"/>

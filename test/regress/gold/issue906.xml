@@ -17,5 +17,15 @@
       <toggle hier="WORK.ISSUE906.Y(3).BIN_0_TO_1" data="1"/>
       <toggle hier="WORK.ISSUE906.Y(3).BIN_1_TO_0" data="0"/>
     </scope>
+    <scope name="B" line="11">
+      <scope name="P" line="12">
+      </scope>
+      <scope name="Q" line="13">
+      </scope>
+      <scope name="_P0" line="16">
+      </scope>
+    </scope>
+    <scope name="_P0" line="19">
+    </scope>
   </scope>
 </scope>

@@ -176,7 +176,7 @@ void psl_lower_directive(unit_registry_t *ur, lower_unit_t *parent,
    ident_t label = tree_ident(wrapper);
 
    cover_scope_t *parent_cscope = lower_get_cover_scope(parent);
-   cover_scope_t *cscope = cover_push_scope(cover, parent_cscope, wrapper);
+   cover_scope_t *cscope = cover_create_scope(cover, parent_cscope, wrapper);
 
    psl_fsm_t *fsm = psl_fsm_new(p);
 
@@ -254,8 +254,6 @@ void psl_lower_directive(unit_registry_t *ur, lower_unit_t *parent,
    assert(pos == fsm->next_id);
 
    unit_registry_finalise(ur, lu);
-
-   cover_pop_scope(cover, cscope);
 
    psl_fsm_free(fsm);
 }

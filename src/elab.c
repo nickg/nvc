@@ -18,7 +18,6 @@
 #include "util.h"
 #include "array.h"
 #include "common.h"
-#include "cov/cov-api.h"
 #include "diag.h"
 #include "driver.h"
 #include "eval.h"
@@ -1788,8 +1787,6 @@ static void elab_pop_scope(elab_ctx_t *ctx)
 
    if (ctx->drivers != NULL)
       free_drivers(ctx->drivers);
-
-   cover_pop_scope(ctx->cover, lower_get_cover_scope(ctx->lowered));
 
    if (ctx->lowered != NULL)
       unit_registry_finalise(ctx->registry, ctx->lowered);

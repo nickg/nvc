@@ -918,8 +918,8 @@ static bool cover_should_emit_scope(cover_data_t *data, cover_scope_t *cs,
    return false;
 }
 
-cover_scope_t *cover_push_scope(cover_data_t *data, cover_scope_t *parent,
-                                tree_t t)
+cover_scope_t *cover_create_scope(cover_data_t *data, cover_scope_t *parent,
+                                  tree_t t)
 {
    if (data == NULL)
       return NULL;
@@ -993,25 +993,6 @@ cover_scope_t *cover_push_scope(cover_data_t *data, cover_scope_t *parent,
    s->emit = (data->spec == NULL) ? true : cover_should_emit_scope(data, s, t);
 
    return s;
-}
-
-void cover_pop_scope(cover_data_t *data, cover_scope_t *cs)
-{
-   if (data == NULL)
-      return;
-
-   ACLEAR(cs->ignore_lines);
-
-   const bool prune_empty =
-      cs->items.count == 0
-      && cs->children.count == 0
-      && cs->type != CSCOPE_INSTANCE
-      && cs == cs->parent->children.items[cs->parent->children.count - 1];
-
-   if (prune_empty) {
-      APOP(cs->parent->children);
-      free(cs);
-   }
 }
 
 static void cover_read_header(fbuf_t *f, cover_data_t *data)
