@@ -6823,9 +6823,7 @@ static void lower_case_scalar(lower_unit_t *lu, tree_t stmt,
 
             if (want_coverage) {
                blocks[cptr] = cover_bb;
-               cover_push_scope(lu->cover, a);
                lower_branch_coverage(lu, a, cover_bb, VCODE_INVALID_BLOCK);
-               cover_pop_scope(lu->cover);
             }
             else
                blocks[cptr] = hit_bb;

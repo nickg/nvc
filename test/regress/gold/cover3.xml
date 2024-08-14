@@ -48,19 +48,13 @@
     <scope name="_P3" line="63">
       <scope name="L_CASE_1" line="67">
         <scope name="_B0" line="68">
-          <scope name="_B0">
-            <branch hier="WORK.COVER3._P3.L_CASE_1._B0._B0.BIN_CHOICE" data="1"/>
-          </scope>
+          <branch hier="WORK.COVER3._P3.L_CASE_1._B0.BIN_CHOICE" data="1"/>
         </scope>
         <scope name="_B2" line="72">
-          <scope name="_B0">
-            <branch hier="WORK.COVER3._P3.L_CASE_1._B2._B0.BIN_CHOICE" data="1"/>
-          </scope>
+          <branch hier="WORK.COVER3._P3.L_CASE_1._B2.BIN_CHOICE" data="1"/>
         </scope>
         <scope name="_B3" line="73">
-          <scope name="_B0">
-            <branch hier="WORK.COVER3._P3.L_CASE_1._B3._B0.BIN_CHOICE" data="1"/>
-          </scope>
+          <branch hier="WORK.COVER3._P3.L_CASE_1._B3.BIN_CHOICE" data="1"/>
         </scope>
         <scope name="_B_OTHERS" line="74">
           <branch hier="WORK.COVER3._P3.L_CASE_1._B_OTHERS.BIN_CHOICE" data="17"/>
@@ -68,24 +62,16 @@
       </scope>
       <scope name="L_CASE_1" line="78">
         <scope name="_B0" line="79">
-          <scope name="_B0">
-            <branch hier="WORK.COVER3._P3.L_CASE_1._B0._B0.BIN_CHOICE" data="0"/>
-          </scope>
+          <branch hier="WORK.COVER3._P3.L_CASE_1._B0.BIN_CHOICE" data="0"/>
         </scope>
         <scope name="_B1" line="80">
-          <scope name="_B0">
-            <branch hier="WORK.COVER3._P3.L_CASE_1._B1._B0.BIN_CHOICE" data="0"/>
-          </scope>
+          <branch hier="WORK.COVER3._P3.L_CASE_1._B1.BIN_CHOICE" data="0"/>
         </scope>
         <scope name="_B2" line="81">
-          <scope name="_B0">
-            <branch hier="WORK.COVER3._P3.L_CASE_1._B2._B0.BIN_CHOICE" data="1"/>
-          </scope>
+          <branch hier="WORK.COVER3._P3.L_CASE_1._B2.BIN_CHOICE" data="1"/>
         </scope>
         <scope name="_B3" line="82">
-          <scope name="_B0">
-            <branch hier="WORK.COVER3._P3.L_CASE_1._B3._B0.BIN_CHOICE" data="1"/>
-          </scope>
+          <branch hier="WORK.COVER3._P3.L_CASE_1._B3.BIN_CHOICE" data="1"/>
         </scope>
         <scope name="_B_OTHERS" line="83">
           <branch hier="WORK.COVER3._P3.L_CASE_1._B_OTHERS.BIN_CHOICE" data="19"/>
@@ -95,24 +81,16 @@
     <scope name="_P4" line="89">
       <scope name="L_CASE_3" line="92">
         <scope name="_B0" line="93">
-          <scope name="_B0">
-            <branch hier="WORK.COVER3._P4.L_CASE_3._B0._B0.BIN_CHOICE" data="1"/>
-          </scope>
+          <branch hier="WORK.COVER3._P4.L_CASE_3._B0.BIN_CHOICE" data="1"/>
         </scope>
         <scope name="_B1" line="94">
-          <scope name="_B0">
-            <branch hier="WORK.COVER3._P4.L_CASE_3._B1._B0.BIN_CHOICE" data="1"/>
-          </scope>
+          <branch hier="WORK.COVER3._P4.L_CASE_3._B1.BIN_CHOICE" data="1"/>
         </scope>
         <scope name="_B2" line="95">
-          <scope name="_B0">
-            <branch hier="WORK.COVER3._P4.L_CASE_3._B2._B0.BIN_CHOICE" data="1"/>
-          </scope>
+          <branch hier="WORK.COVER3._P4.L_CASE_3._B2.BIN_CHOICE" data="1"/>
         </scope>
         <scope name="_B3" line="96">
-          <scope name="_B0">
-            <branch hier="WORK.COVER3._P4.L_CASE_3._B3._B0.BIN_CHOICE" data="1"/>
-          </scope>
+          <branch hier="WORK.COVER3._P4.L_CASE_3._B3.BIN_CHOICE" data="1"/>
         </scope>
         <scope name="_B_OTHERS" line="97">
           <branch hier="WORK.COVER3._P4.L_CASE_3._B_OTHERS.BIN_CHOICE" data="0"/>
