@@ -9902,15 +9902,10 @@ static void lower_decls(lower_unit_t *lu, tree_t scope)
       case T_FUNC_BODY:
          {
             ident_t mangled = tree_ident2(d);
-            if (!unit_registry_query(lu->registry, mangled)) {
+            if (!unit_registry_query(lu->registry, mangled))
                unit_registry_defer(lu->registry, mangled, lu,
                                    emit_function, lower_func_body,
                                    lu->cover, tree_to_object(d));
-
-               // XXX: force eager generation for coverage scopes
-               if (lu->cover != NULL)
-                  (void)unit_registry_get(lu->registry, tree_ident2(d));
-            }
          }
          break;
       case T_PROC_INST:
@@ -9924,15 +9919,10 @@ static void lower_decls(lower_unit_t *lu, tree_t scope)
             emit_fn_t emitfn = never_waits ? emit_function : emit_procedure;
             ident_t mangled = tree_ident2(d);
 
-            if (!unit_registry_query(lu->registry, mangled)) {
+            if (!unit_registry_query(lu->registry, mangled))
                unit_registry_defer(lu->registry, tree_ident2(d),
                                    lu, emitfn, lower_proc_body, lu->cover,
                                    tree_to_object(d));
-
-               // XXX: force eager generation for coverage scopes
-               if (lu->cover != NULL)
-                  (void)unit_registry_get(lu->registry, tree_ident2(d));
-            }
          }
          break;
       case T_PROT_BODY:
