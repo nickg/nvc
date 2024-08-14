@@ -13054,7 +13054,7 @@ lower_unit_t *lower_instance(unit_registry_t *ur, lower_unit_t *parent,
       primary = primary_unit_of(unit);
 
    if (lu->cover != NULL)
-      cover_ignore_from_pragmas(lu->cover, unit);
+      cover_ignore_from_pragmas(lu->cover, lu->cscope, unit);
 
    tree_global_flags_t gflags = tree_global_flags(unit);
    if (primary != NULL)

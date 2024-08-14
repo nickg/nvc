@@ -71,7 +71,6 @@ struct _cover_data {
    cover_rpt_buf_t  *rpt_buf;
    cover_spec_t     *spec;
    cover_ef_t       *ef;
-   cover_scope_t    *top_scope;
    cover_scope_t    *root_scope;
 };
 

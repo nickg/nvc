@@ -397,14 +397,13 @@ void cover_load_spec_file(cover_data_t *data, const char *path)
 // Pragma handling
 ///////////////////////////////////////////////////////////////////////////////
 
-void cover_ignore_from_pragmas(cover_data_t *data, tree_t unit)
+void cover_ignore_from_pragmas(cover_data_t *data, cover_scope_t *cs,
+                               tree_t unit)
 {
-   assert(data->top_scope != NULL);
-
    if (!is_design_unit(unit))
       return;   // Generate block, etc.
 
-   range_array_t *excl = &(data->top_scope->ignore_lines);
+   range_array_t *excl = &(cs->ignore_lines);
    bool state = true;
    const int npragmas = tree_pragmas(unit);
    for (int i = 0; i < npragmas; i++) {
