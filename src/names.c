@@ -1575,7 +1575,7 @@ static void hint_for_typo(scope_t *top_scope, diag_t *d, ident_t name,
 static type_t get_result_type(nametab_t *tab, tree_t decl)
 {
    type_t type = tree_type(decl);
-   if (type_kind(type) != T_FUNC)
+   if (type_kind(type) != T_SIGNATURE || !type_has_result(type))
       return type;
 
    type_t rtype = type_result(type);
@@ -2003,7 +2003,9 @@ tree_t resolve_subprogram_name(nametab_t *tab, const loc_t *loc, ident_t name,
                                type_t constraint)
 {
    const bool allow_enum =
-      type_kind(constraint) == T_FUNC && type_params(constraint) == 0;
+      type_kind(constraint) == T_SIGNATURE
+      && type_params(constraint) == 0
+      && type_has_result(constraint);
 
    const symbol_t *sym = iterate_symbol_for(tab, name);
 
@@ -2608,7 +2610,7 @@ static void begin_overload_resolution(overload_t *o)
       unsigned wptr = 0;
       for (unsigned i = 0; i < o->candidates.count; i++) {
          type_t type = tree_type(o->candidates.items[i]);
-         if (type_kind(type) == T_FUNC) {
+         if (type_has_result(type)) {
             type_t result = type_result(type);
             if (type_set_contains(o->nametab, result))
                o->candidates.items[wptr++] = o->candidates.items[i];
@@ -2640,8 +2642,8 @@ static void begin_overload_resolution(overload_t *o)
    if (o->candidates.count > 1) {
       unsigned wptr = 0;
       for (unsigned i = 0; i < o->candidates.count; i++) {
-         type_kind_t typek = type_kind(tree_type(o->candidates.items[i]));
-         if ((is_fcall && typek != T_FUNC) || (!is_fcall && typek != T_PROC))
+         type_t type = tree_type(o->candidates.items[i]);
+         if (is_fcall ^ type_has_result(type))
             overload_prune_candidate(o, i);
          else
             o->candidates.items[wptr++] = o->candidates.items[i];
@@ -3572,14 +3574,11 @@ static type_t resolve_fcall(nametab_t *tab, tree_t fcall, tree_t decl,
                             bool could_be_index)
 {
    type_t ftype = tree_type(decl);
-   const type_kind_t typek = type_kind(ftype);
-   if (typek == T_PROC) {
+   if (!type_has_result(ftype)) {
       error_at(tree_loc(fcall), "procedure %s not allowed in an expression",
                istr(tree_ident(fcall)));
       return type_new(T_NONE);
    }
-
-   assert(typek == T_FUNC);
 
    if (tree_kind(decl) == T_PROT_REF) {
       // Calling an alias of a protected type method

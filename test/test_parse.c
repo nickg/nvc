@@ -1386,7 +1386,8 @@ START_TEST(test_func)
    fail_unless(tree_ident(a) == ident_new("X"));
    fail_unless(tree_subkind(a) == PORT_IN);
    t = tree_type(f);
-   fail_unless(type_kind(t) == T_FUNC);
+   fail_unless(type_kind(t) == T_SIGNATURE);
+   fail_unless(type_has_result(t));
 
    f = tree_decl(p, 1);
    fail_unless(tree_kind(f) == T_FUNC_DECL);
@@ -1829,6 +1830,7 @@ END_TEST
 START_TEST(test_alias)
 {
    tree_t e, a, d;
+   type_t t;
 
    opt_set_int(OPT_MISSING_BODY, 0);
    input_from_file(TESTDIR "/parse/alias.vhd");
@@ -1861,14 +1863,18 @@ START_TEST(test_alias)
    fail_unless(tree_ident(d) == ident_new("FUNCI"));
    fail_unless(tree_kind(tree_value(d)) == T_REF);
    fail_unless(tree_has_type(d));
-   fail_unless(type_kind(tree_type(d)) == T_FUNC);
+   t = tree_type(d);
+   fail_unless(type_kind(t) == T_SIGNATURE);
+   fail_unless(type_has_result(t));
 
    d = tree_decl(a, 9);
    fail_unless(tree_kind(d) == T_ALIAS);
    fail_unless(tree_ident(d) == ident_new("PROCI"));
    fail_unless(tree_kind(tree_value(d)) == T_REF);
    fail_unless(tree_has_type(d));
-   fail_unless(type_kind(tree_type(d)) == T_PROC);
+   t = tree_type(d);
+   fail_unless(type_kind(t) == T_SIGNATURE);
+   fail_if(type_has_result(t));
 
    a = parse();
    fail_unless(a == NULL);

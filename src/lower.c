@@ -9703,7 +9703,7 @@ static void lower_foreign_stub(lower_unit_t *lu, object_t *obj)
    assert(is_subprogram(sub));
 
    type_t type = tree_type(sub);
-   if (type_kind(type) == T_FUNC)
+   if (type_has_result(type))
       vcode_set_result(lower_func_result_type(type_result(type)));
 
    vcode_type_t vcontext = vtype_context(lu->parent->name);
@@ -10980,7 +10980,7 @@ static void lower_predef(lower_unit_t *lu, object_t *obj)
    assert(!is_open_coded_builtin(kind));
 
    type_t type = tree_type(decl);
-   if (type_kind(type) == T_FUNC)
+   if (type_has_result(type))
       vcode_set_result(lower_func_result_type(type_result(type)));
 
    vcode_type_t vcontext = vtype_context(lu->parent->name);

@@ -89,7 +89,7 @@ static bool sem_check_resolution(type_t type, tree_t res)
 
    type_t ftype = tree_type(fdecl);
 
-   if (type_kind(ftype) != T_FUNC)
+   if (type_kind(ftype) != T_SIGNATURE || !type_has_result(ftype))
       sem_error(res, "resolution function name %s is not a function",
                 istr(tree_ident(res)));
 

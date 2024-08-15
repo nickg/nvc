@@ -33,13 +33,12 @@ typedef enum {
    T_RECORD,
    T_FILE,
    T_ACCESS,
-   T_FUNC,
    T_INCOMPLETE,
-   T_PROC,
    T_NONE,
    T_PROTECTED,
    T_GENERIC,
    T_VIEW,
+   T_SIGNATURE,
 
    T_LAST_TYPE_KIND
 } type_kind_t;
@@ -99,6 +98,7 @@ type_t type_param(type_t t, unsigned n);
 void type_add_param(type_t t, type_t p);
 
 type_t type_result(type_t t);
+bool type_has_result(type_t t);
 void type_set_result(type_t t, type_t r);
 
 type_t type_designated(type_t t);

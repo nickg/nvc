@@ -804,7 +804,7 @@ static tree_t add_port(tree_t d, const char *name, type_t type,
 
 static tree_t builtin_proc(ident_t name, subprogram_kind_t kind, ...)
 {
-   type_t f = type_new(T_PROC);
+   type_t f = type_new(T_SIGNATURE);
    type_set_ident(f, name);
 
    tree_t d = tree_new(T_PROC_DECL);
@@ -821,7 +821,7 @@ static tree_t builtin_proc(ident_t name, subprogram_kind_t kind, ...)
 static tree_t builtin_fn(ident_t name, type_t result,
                          subprogram_kind_t kind, ...)
 {
-   type_t f = type_new(T_FUNC);
+   type_t f = type_new(T_SIGNATURE);
    type_set_ident(f, name);
    type_set_result(f, result);
 
@@ -2296,7 +2296,7 @@ static void add_generic_type_op(tree_t parent, int nargs, type_t type,
 {
    ident_t id = ident_new(name);
 
-   type_t ftype = type_new(T_FUNC);
+   type_t ftype = type_new(T_SIGNATURE);
    type_set_ident(ftype, id);
    type_set_result(ftype, result);
 
@@ -5339,7 +5339,7 @@ static void p_interface_type_declaration(tree_t parent, tree_kind_t kind)
       {
          ident_t id = ident_new("DEALLOCATE");
 
-         type_t ftype = type_new(T_PROC);
+         type_t ftype = type_new(T_SIGNATURE);
          type_set_ident(ftype, id);
          type_add_param(ftype, type);
 
@@ -5420,7 +5420,7 @@ static tree_t p_interface_function_specification(void)
 
    ident_t id = p_designator();
 
-   type_t type = type_new(T_FUNC);
+   type_t type = type_new(T_SIGNATURE);
    type_set_ident(type, id);
 
    tree_t d = tree_new(T_GENERIC_DECL);
@@ -5472,7 +5472,7 @@ static tree_t p_interface_procedure_specification(void)
 
    ident_t id = p_designator();
 
-   type_t type = type_new(T_PROC);
+   type_t type = type_new(T_SIGNATURE);
    type_set_ident(type, id);
 
    tree_t d = tree_new(T_GENERIC_DECL);
@@ -6954,18 +6954,17 @@ static tree_t p_subprogram_specification(void)
       // Fall-through
    case tFUNCTION:
       t = tree_new(T_FUNC_DECL);
-      type = type_new(T_FUNC);
       break;
 
    case tPROCEDURE:
       t = tree_new(T_PROC_DECL);
-      type = type_new(T_PROC);
       break;
 
    default:
       return tree_new(T_FUNC_DECL);
    }
 
+   type = type_new(T_SIGNATURE);
    tree_set_type(t, type);
    tree_set_ident(t, p_designator());
    tree_set_subkind(t, S_USER);
@@ -7096,7 +7095,7 @@ static tree_t p_subprogram_instantiation_declaration(void)
       instantiate_subprogram(inst, decl, body);
    else {
       // Create a dummy subprogram type to avoid later errors
-      type_t type = type_new(kind == T_FUNC_INST ? T_FUNC : T_PROC);
+      type_t type = type_new(T_SIGNATURE);
       type_set_ident(type, tree_ident(name));
       if (kind == T_FUNC_INST)
          type_set_result(type, type_new(T_NONE));
@@ -7231,13 +7230,7 @@ static type_t p_signature(void)
 
    BEGIN("signature");
 
-   const look_params_t lookp = {
-      .look   = { tRETURN },
-      .stop   = { tRSQUARE },
-      .abort  = tSEMI
-   };
-
-   type_t type = type_new(look_for(&lookp) ? T_FUNC : T_PROC);
+   type_t type = type_new(T_SIGNATURE);
 
    consume(tLSQUARE);
 

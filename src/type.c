@@ -57,14 +57,8 @@ static const imask_t has_map[T_LAST_TYPE_KIND] = {
    // T_ACCESS
    (I_IDENT | I_DESIGNATED),
 
-   // T_FUNC
-   (I_IDENT | I_PARAMS | I_RESULT),
-
    // T_INCOMPLETE
    (I_IDENT),
-
-   // T_PROC
-   (I_IDENT | I_PARAMS),
 
    // T_NONE
    (I_IDENT),
@@ -77,13 +71,16 @@ static const imask_t has_map[T_LAST_TYPE_KIND] = {
 
    // T_VIEW
    (I_IDENT | I_DESIGNATED | I_FIELDS),
+
+   // T_SIGNATURE
+   (I_IDENT | I_PARAMS | I_RESULT),
 };
 
 static const char *kind_text_map[T_LAST_TYPE_KIND] = {
-   "T_SUBTYPE",    "T_INTEGER",   "T_REAL",       "T_ENUM",
-   "T_PHYSICAL",   "T_ARRAY",     "T_RECORD",     "T_FILE",
-   "T_ACCESS",     "T_FUNC",      "T_INCOMPLETE", "T_PROC",
-   "T_NONE",       "T_PROTECTED", "T_GENERIC",    "T_VIEW",
+   "T_SUBTYPE",   "T_INTEGER",    "T_REAL",      "T_ENUM",
+   "T_PHYSICAL",  "T_ARRAY",      "T_RECORD",    "T_FILE",
+   "T_ACCESS",    "T_INCOMPLETE", "T_NONE",      "T_PROTECTED",
+   "T_GENERIC",   "T_VIEW",       "T_SIGNATURE",
 };
 
 static const change_allowed_t change_allowed[] = {
@@ -153,6 +150,15 @@ static inline type_t type_base_map(type_t t, hash_t *map)
       return base;
 }
 
+static inline type_t type_result_or_null(type_t t)
+{
+   item_t *item = lookup_item(&type_object, t, I_RESULT);
+   if (item->object == NULL)
+      return NULL;
+   else
+      return container_of(item->object, struct _type, object);
+}
+
 static bool _type_eq(type_t a, type_t b, bool strict, hash_t *map)
 {
    assert(a != NULL);
@@ -213,8 +219,15 @@ static bool _type_eq(type_t a, type_t b, bool strict, hash_t *map)
    if ((has & I_DIMS) && (type_dims(a) != type_dims(b)))
       return false;
 
-   if (kind_a == T_FUNC) {
-      if (!_type_eq(type_result(a), type_result(b), strict, map))
+   if (kind_a == T_SIGNATURE) {
+      type_t ra = type_result_or_null(a);
+      type_t rb = type_result_or_null(b);
+
+      if (ra != NULL && rb != NULL) {
+         if (!_type_eq(ra, rb, strict, map))
+            return false;
+      }
+      else if (ra != NULL || rb != NULL)
          return false;
    }
 
@@ -460,6 +473,11 @@ type_t type_result(type_t t)
    return container_of(item->object, struct _type, object);
 }
 
+bool type_has_result(type_t t)
+{
+   return lookup_item(&type_object, t, I_RESULT)->object != NULL;
+}
+
 void type_set_result(type_t t, type_t r)
 {
    lookup_item(&type_object, t, I_RESULT)->object = &(r->object);
@@ -541,16 +559,16 @@ void type_set_designated(type_t t, type_t d)
 
 void type_signature(type_t t, text_buf_t *tb)
 {
-   assert(t->object.kind == T_FUNC || t->object.kind == T_PROC);
+   assert(t->object.kind == T_SIGNATURE);
 
    tb_printf(tb, "[");
    const int nparams = type_params(t);
    for (int i = 0; i < nparams; i++)
       tb_printf(tb, "%s%s", (i == 0 ? "" : ", "),
                 type_pp(type_param(t, i)));
-   if (t->object.kind == T_FUNC)
-      tb_printf(tb, "%sreturn %s", nparams > 0 ? " " : "",
-                type_pp(type_result(t)));
+   type_t r = type_result_or_null(t);
+   if (r != NULL)
+      tb_printf(tb, "%sreturn %s", nparams > 0 ? " " : "", type_pp(r));
    tb_printf(tb, "]");
 }
 
@@ -559,8 +577,7 @@ const char *type_pp2(type_t t, type_t other)
    assert(t != NULL);
 
    switch (type_kind(t)) {
-   case T_FUNC:
-   case T_PROC:
+   case T_SIGNATURE:
       {
          static hash_t *cache = NULL;
          if (cache == NULL)
@@ -676,12 +693,12 @@ bool type_has_error(type_t t)
    switch (t->object.kind) {
    case T_NONE:
       return true;
-   case T_FUNC:
-      if (type_is_none(type_result(t)))
-         return true;
-      // Fall-through
-   case T_PROC:
+   case T_SIGNATURE:
       {
+         type_t r = type_result_or_null(t);
+         if (r != NULL && type_is_none(r))
+            return true;
+
          const int nparams = type_params(t);
          for (int i = 0; i < nparams; i++) {
             if (type_is_none(type_param(t, i)))
@@ -809,7 +826,7 @@ bool type_is_numeric(type_t t)
 
 bool type_is_subprogram(type_t t)
 {
-   return t->object.kind == T_FUNC || t->object.kind == T_PROC;
+   return t->object.kind == T_SIGNATURE;
 }
 
 bool type_is_physical(type_t t)

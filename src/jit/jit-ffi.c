@@ -430,7 +430,7 @@ static void *ffi_prepare_ghdl(tree_t decl, const char *symbol)
 
    ffi_type *ret;
    type_t type = tree_type(sub);
-   if (type_kind(type) == T_FUNC)
+   if (type_has_result(type))
       ret = ghdl_ffi_result_type(type_result(type));
    else
       ret = &ffi_type_void;
@@ -442,7 +442,7 @@ static void *ffi_prepare_ghdl(tree_t decl, const char *symbol)
 
    gffi->args[gffi->nvhdl++] = GHDL_ARG_DROP;   // Drop context argument
 
-   if (type_kind(type) == T_PROC)
+   if (!type_has_result(type))
       gffi->args[gffi->nvhdl++] = GHDL_ARG_DROP;   // Drop state argument
 
    for (int i = 0; i < nports; i++) {
