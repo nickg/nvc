@@ -111,10 +111,6 @@ extern loc_t yylloc;
 
 #define STD(x, y) (standard() >= (STD_##x) ? y : -1)
 
-#if TRACE_PARSE
-static int depth = 0;
-#endif
-
 typedef void (*add_func_t)(tree_t, tree_t);
 
 typedef struct {
@@ -122,9 +118,16 @@ typedef struct {
    loc_t       old_start_loc;
 } state_t;
 
+#if TRACE_PARSE
+static int depth = 0;
+static void _push_state(const state_t *s);
+#else
+#define _push_state(s)
+#endif
+
 #define EXTEND(s)                                                      \
-   __attribute__((cleanup(_pop_state))) const state_t _state =         \
-      { hint_str, start_loc };                                         \
+   __attribute__((cleanup(_pop_state), unused))                        \
+   const state_t _state = { hint_str, start_loc };                     \
    hint_str = s;                                                       \
    _push_state(&_state);
 
@@ -181,25 +184,19 @@ static bool optional(token_t tok);
 static void _pop_state(const state_t *s)
 {
 #if TRACE_PARSE
-   depth--;
-   for (int i = 0; i < depth; i++)
-      printf(" ");
-   printf("<-- %s\n", hint_str);
+   printf("%*s<-- %s\n", depth--, "", hint_str);
 #endif
-   hint_str  = s->old_hint;
+   hint_str = s->old_hint;
    if (s->old_start_loc.first_line != LINE_INVALID)
       start_loc = s->old_start_loc;
 }
 
+#if TRACE_PARSE
 static void _push_state(const state_t *s)
 {
-#if TRACE_PARSE
-   for (int i = 0; i < depth; i++)
-      printf(" ");
-   printf("--> %s\n", hint_str);
-   depth++;
-#endif
+   printf("%*s--> %s\n", depth++, "", hint_str);
 }
+#endif
 
 static void skip_pragma(pragma_kind_t kind)
 {

@@ -76,9 +76,15 @@ extern loc_t yylloc;
          error_at((loc), __VA_ARGS__);          \
    } while (0)
 
+#if TRACE_PARSE
+static void _push_state(const state_t *s);
+#else
+#define _push_state(s)
+#endif
+
 #define EXTEND(s)                                                      \
-   __attribute__((cleanup(_pop_state))) const rule_state_t _state =    \
-      { state.hint_str, state.start_loc };                             \
+   __attribute__((cleanup(_pop_state), unused))                        \
+   const rule_state_t _state = { state.hint_str, state.start_loc };    \
    state.hint_str = s;                                                 \
    _push_state(&_state);
 
@@ -94,13 +100,10 @@ static vlog_node_t p_statement_or_null(void);
 static vlog_node_t p_expression(void);
 static vlog_node_t p_constant_expression(void);
 
-static void _pop_state(const rule_state_t *r)
+static inline void _pop_state(const rule_state_t *r)
 {
 #if TRACE_PARSE
-   state.depth--;
-   for (int i = 0; i < state.depth; i++)
-      printf(" ");
-   printf("<-- %s\n", state.hint_str);
+   printf("%*s<-- %s\n", state.depth--, "", state.hint_str);
 #endif
 
    state.hint_str = r->old_hint;
@@ -109,15 +112,12 @@ static void _pop_state(const rule_state_t *r)
       state.start_loc = r->old_start_loc;
 }
 
-static void _push_state(const rule_state_t *r)
-{
 #if TRACE_PARSE
-   for (int i = 0; i < state.depth; i++)
-      printf(" ");
-   printf("--> %s\n", state.hint_str);
-   state.depth++;
-#endif
+static inline void _push_state(const rule_state_t *r)
+{
+   printf("%*s--> %s\n", state.depth++, "", state.hint_str);
 }
+#endif
 
 static token_t peek_nth(int n)
 {
