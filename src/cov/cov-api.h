@@ -233,6 +233,8 @@ void cover_export_xml(cover_data_t *data, FILE *f, const char *relative);
 
 cover_scope_t *cover_create_scope(cover_data_t *data, cover_scope_t *parent,
                                   tree_t t);
+cover_scope_t *cover_create_instance(cover_data_t *data, cover_scope_t *parent,
+                                     tree_t block, tree_t unit);
 cover_item_t *cover_add_items_for(cover_data_t *data, cover_scope_t *cscope,
                                   object_t *obj, cover_item_kind_t kind);
 

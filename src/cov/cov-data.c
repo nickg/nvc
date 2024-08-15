@@ -871,6 +871,8 @@ static bool cover_should_emit_scope(cover_data_t *data, cover_scope_t *cs,
                                     tree_t t)
 {
    cover_spec_t *spc = data->spec;
+   if (spc == NULL)
+      return true;
 
    // Block (entity, package instance or block) name
    if (cs->block_name) {
@@ -923,12 +925,9 @@ cover_scope_t *cover_create_scope(cover_data_t *data, cover_scope_t *parent,
 {
    if (data == NULL)
       return NULL;
-   else if (parent == NULL) {
-      assert(data->root_scope == NULL);
 
-      parent = data->root_scope = xcalloc(sizeof(cover_scope_t));
-      parent->name = parent->hier = lib_name(lib_work());
-   }
+   assert(parent != NULL);
+   assert(data->root_scope != NULL);
 
    cover_scope_t *s = xcalloc(sizeof(cover_scope_t));
    ident_t name = NULL;
@@ -973,25 +972,45 @@ cover_scope_t *cover_create_scope(cover_data_t *data, cover_scope_t *parent,
    s->block_name = s->parent->block_name;
    s->loc        = *tree_loc(t);
    s->hier       = ident_prefix(s->parent->hier, name, '.');
+   s->emit       = cover_should_emit_scope(data, s, t);
 
    if (s->sig_pos == 0)
       s->sig_pos = parent->sig_pos;
 
    APUSH(parent->children, s);
+   return s;
+}
 
-   if (tree_kind(t) == T_BLOCK) {
-      tree_t hier = tree_decl(t, 0);
-      assert(tree_kind(hier) == T_HIER);
+cover_scope_t *cover_create_instance(cover_data_t *data, cover_scope_t *parent,
+                                     tree_t block, tree_t unit)
+{
 
-      tree_t unit = tree_ref(hier);
-      if (tree_kind(unit) == T_ARCH) {
-         s->block_name = ident_rfrom(tree_ident(unit), '.');
-         s->type = CSCOPE_INSTANCE;
-      }
+   if (data == NULL)
+      return NULL;
+   else if (parent == NULL) {
+      assert(data->root_scope == NULL);
+
+      parent = data->root_scope = xcalloc(sizeof(cover_scope_t));
+      parent->name = parent->hier = lib_name(lib_work());
    }
 
-   s->emit = (data->spec == NULL) ? true : cover_should_emit_scope(data, s, t);
+   // TODO: do not emit scopes for components
+   // assert(is_design_unit(unit));
+   assert(tree_kind(block) == T_BLOCK);
 
+   cover_scope_t *s = xcalloc(sizeof(cover_scope_t));
+   s->name       = tree_ident(block);
+   s->parent     = parent;
+   s->loc        = *tree_loc(block);
+   s->hier       = ident_prefix(s->parent->hier, s->name, '.');
+   s->emit       = cover_should_emit_scope(data, s, block);
+   s->block_name = ident_rfrom(tree_ident(unit), '.');
+   s->type       = CSCOPE_INSTANCE;
+
+   if (s->sig_pos == 0)
+      s->sig_pos = parent->sig_pos;
+
+   APUSH(parent->children, s);
    return s;
 }
 

@@ -13027,14 +13027,18 @@ lower_unit_t *lower_instance(unit_registry_t *ur, lower_unit_t *parent,
    lower_unit_t *lu = lower_unit_new(ur, parent, vu, cover, block);
    unit_registry_put(ur, lu);
 
-   lu->cscope = cover_create_scope(cover, parent ? parent->cscope : NULL, block);
-
    tree_t hier = tree_decl(block, 0);
    assert(tree_kind(hier) == T_HIER);
 
    tree_t unit = tree_ref(hier), primary = NULL;
    if (is_design_unit(unit))
       primary = primary_unit_of(unit);
+
+   cover_scope_t *parent_cscope = parent ? parent->cscope : NULL;
+   if (tree_kind(unit) == T_ARCH)
+      lu->cscope = cover_create_instance(cover, parent_cscope, block, unit);
+   else
+      lu->cscope = cover_create_scope(cover, parent_cscope, block);
 
    if (lu->cover != NULL)
       cover_ignore_from_pragmas(lu->cover, lu->cscope, unit);
