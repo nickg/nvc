@@ -1017,3 +1017,4 @@ synopsys2       normal,2008,gold
 synopsys3       fail,gold
 cmdline10       shell
 cover23         shell
+issue941        cover

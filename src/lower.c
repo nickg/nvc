@@ -13024,9 +13024,6 @@ lower_unit_t *lower_instance(unit_registry_t *ur, lower_unit_t *parent,
    vcode_unit_t vu = emit_instance(name, tree_to_object(block),
                                    parent ? parent->vunit : NULL);
 
-   lower_unit_t *lu = lower_unit_new(ur, parent, vu, cover, block);
-   unit_registry_put(ur, lu);
-
    tree_t hier = tree_decl(block, 0);
    assert(tree_kind(hier) == T_HIER);
 
@@ -13034,14 +13031,31 @@ lower_unit_t *lower_instance(unit_registry_t *ur, lower_unit_t *parent,
    if (is_design_unit(unit))
       primary = primary_unit_of(unit);
 
-   cover_scope_t *parent_cscope = parent ? parent->cscope : NULL;
-   if (tree_kind(unit) == T_ARCH)
-      lu->cscope = cover_create_instance(cover, parent_cscope, block, unit);
-   else
-      lu->cscope = cover_create_scope(cover, parent_cscope, block);
+   // Do not create coverage scopes for the implicit block from a
+   // component instantiation
+   if (cover != NULL && tree_kind(unit) == T_COMPONENT)
+      cover = NULL;
 
-   if (lu->cover != NULL)
-      cover_ignore_from_pragmas(lu->cover, lu->cscope, unit);
+   lower_unit_t *lu = lower_unit_new(ur, parent, vu, cover, block);
+   unit_registry_put(ur, lu);
+
+   if (cover != NULL) {
+      if (parent == NULL)
+         lu->cscope = cover_create_instance(cover, NULL, block, unit);
+      else if (parent != NULL && parent->cover == NULL) {
+         // Collapse this coverage scope with the block for the
+         // component above
+         assert(tree_subkind(tree_decl(parent->container, 0)) == T_COMPONENT);
+         lu->cscope = cover_create_instance(cover, parent->parent->cscope,
+                                            parent->container, unit);
+      }
+      else if (tree_kind(unit) == T_ARCH)
+         lu->cscope = cover_create_instance(cover, parent->cscope, block, unit);
+      else
+         lu->cscope = cover_create_scope(cover, parent->cscope, block);
+
+      cover_ignore_from_pragmas(cover, lu->cscope, unit);
+   }
 
    tree_global_flags_t gflags = tree_global_flags(unit);
    if (primary != NULL)

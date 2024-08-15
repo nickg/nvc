@@ -995,7 +995,7 @@ cover_scope_t *cover_create_instance(cover_data_t *data, cover_scope_t *parent,
    }
 
    // TODO: do not emit scopes for components
-   // assert(is_design_unit(unit));
+   assert(tree_kind(unit) == T_ARCH);
    assert(tree_kind(block) == T_BLOCK);
 
    cover_scope_t *s = xcalloc(sizeof(cover_scope_t));
