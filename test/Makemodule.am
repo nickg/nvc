@@ -130,9 +130,6 @@ TESTS_ENVIRONMENT = \
 
 test/run_regr: $(VHPI_PLUGINS)
 
-src = $(top_srcdir)/src
-build = $(top_builddir)/src
-shared = $(src)/util.c
 covdir = $(top_builddir)/coverage
 
 if ENABLE_GCOV
@@ -140,13 +137,16 @@ if ENABLE_GCOV
 cov-reset:
 	rm -rf $(covdir)
 	find $(top_builddir) -name '*.gcda' -exec rm {} \;
-	lcov --directory $(build) --zerocounters
+	lcov --directory $(top_builddir)/src --zerocounters
 
 cov-generate:
 	mkdir -p $(covdir)
-	lcov --directory $(build) --capture --output-file $(covdir)/nvc.raw.info
-	lcov --output-file $(covdir)/nvc.info --remove $(covdir)/nvc.raw.info \
-	  '/usr/*' '*/lexer.c' '*/vlog-parse.c' '*/vlog-pp.c'
+	lcov --directory $(top_builddir)/src --capture \
+	  --output-file $(covdir)/nvc.raw.info \
+	  --rc 'lcov_excl_line=LCOV_EXCL_LINE|fatal_trace|should_not_reach_here'
+	lcov --output-file $(covdir)/nvc.info \
+	  --remove $(covdir)/nvc.raw.info \
+	  '/usr/*' '*/lexer.c' '*/vlog-pp.c'
 
 cov-report: cov-generate
 	genhtml -o $(covdir) $(covdir)/nvc.info
