@@ -36,6 +36,7 @@
 #include "vlog/vlog-defs.h"
 #include "vlog/vlog-node.h"
 #include "vlog/vlog-phase.h"
+#include "vlog/vlog-util.h"
 
 #include <ctype.h>
 #include <assert.h>
@@ -360,7 +361,7 @@ static void elab_subprogram_prefix(tree_t arch, elab_ctx_t *ctx)
 
 static mod_cache_t *elab_cached_module(vlog_node_t mod, const elab_ctx_t *ctx)
 {
-   assert(vlog_kind(mod) == V_MODULE);
+   assert(is_top_level(mod));
 
    mod_cache_t *mc = hash_get(ctx->modcache, mod);
    if (mc == NULL) {

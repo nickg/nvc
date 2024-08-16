@@ -159,6 +159,8 @@ static void trans_net_decl(vlog_node_t decl, tree_t out)
 
 void vlog_trans(vlog_node_t mod, tree_t out)
 {
+   assert(is_top_level(mod));
+
    hset_t *ports = hset_new(16);
    const int nports = vlog_ports(mod);
    for (int i = 0; i < nports; i++) {

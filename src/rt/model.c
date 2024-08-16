@@ -35,6 +35,7 @@
 #include "tree.h"
 #include "type.h"
 #include "vlog/vlog-node.h"
+#include "vlog/vlog-util.h"
 
 #include <assert.h>
 #include <inttypes.h>
@@ -470,7 +471,7 @@ static void scope_for_block(rt_model_t *m, tree_t block, rt_scope_t *parent)
       case T_VERILOG:
          {
             vlog_node_t mod = tree_vlog(tree_ref(hier));
-            assert(vlog_kind(mod) == V_MODULE);
+            assert(is_top_level(mod));
 
             ident_t name = tree_ident(t);
             ident_t suffix = well_known(W_SHAPE);
