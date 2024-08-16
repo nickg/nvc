@@ -20,18 +20,13 @@
 
 #include "prim.h"
 
-typedef struct _node_list node_list_t;
 typedef struct { ident_t left, right; } ident_pair_t;
 
 typedef union {
-   double        real;
-   char         *str;
-   int64_t       i64;
-   unsigned      kind;
-   ident_pair_t  pair;
-   ident_t       ident;
-   node_list_t  *list;
-   vlog_node_t   vlog;
+   double   real;
+   char    *str;
+   int64_t  i64;
+   ident_t  ident;
 } yylval_t;
 
 // Functions shared between VHDL and Verilog scanners
@@ -53,6 +48,7 @@ const char *pp_defines_get(const char *name);
 void scan_as_psl(void);
 void scan_as_vhdl(void);
 void scan_as_verilog(void);
+void scan_as_udp(void);
 
 // Private interface to Flex scanners
 
@@ -314,5 +310,6 @@ bool is_scanned_as_psl(void);
 #define tTABLE         418
 #define tENDTABLE      419
 #define tASSIGN        420
+#define tUDPSYM        421
 
 #endif  // _SCAN_H

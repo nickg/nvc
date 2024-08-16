@@ -86,7 +86,7 @@ typedef struct _object_arena {
 static const char *item_text_map[] = {
    "I_IDENT",    "I_VALUE",      "I_PRIMARY",  "I_GENERICS",   "I_PORTS",
    "I_DECLS",    "I_STMTS",      "I_TARGET",   "I_IVAL",       "I_IDENT2",
-   "I_SEVERITY", "I_PARAMS",     "I_GENMAPS",  "I_WAVES",      "I_CONDS",
+   "I_SEVERITY", "I_GENMAPS",    "I_PARAMS",   "I_WAVES",      "I_CONDS",
    "I_TYPE",     "I_SUBKIND",    "I_DELAY",    "I_REJECT",     "I_POS",
    "I_REF",      "I_FILE_MODE",  "I_ASSOCS",   "I_CONTEXT",    "I_TRIGGERS",
    "I_PARTS"  ,  "I_CLASS",      "I_RANGES",   "I_NAME",       "I_PRAGMAS",

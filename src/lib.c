@@ -26,6 +26,7 @@
 #include "option.h"
 #include "tree.h"
 #include "vlog/vlog-node.h"
+#include "vlog/vlog-util.h"
 
 #include <assert.h>
 #include <limits.h>
@@ -722,7 +723,7 @@ void lib_put(lib_t lib, tree_t unit)
 
 void lib_put_vlog(lib_t lib, vlog_node_t module)
 {
-   assert(vlog_kind(module) == V_MODULE);
+   assert(is_top_level(module));
    object_t *obj = vlog_to_object(module);
    lib_put_aux(lib, obj, true, false, get_real_time(), NULL);
 }

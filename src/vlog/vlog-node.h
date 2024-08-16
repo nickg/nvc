@@ -79,6 +79,8 @@ typedef enum {
    V_FOREVER,
    V_SPECIFY,
    V_PRIMITIVE,
+   V_UDP_TABLE,
+   V_UDP_ENTRY,
 
    V_LAST_NODE_KIND
 } vlog_kind_t;

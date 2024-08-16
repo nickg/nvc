@@ -114,7 +114,13 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
    (0),
 
    // V_PRIMITIVE
-   (0),
+   (I_IDENT | I_IDENT2 | I_PORTS | I_DECLS | I_STMTS),
+
+   // V_UDP_TABLE
+   (I_IDENT | I_PARAMS),
+
+   // V_UDP_ENTRY
+   (I_TEXT),
 };
 
 static const char *kind_text_map[V_LAST_NODE_KIND] = {
@@ -125,7 +131,7 @@ static const char *kind_text_map[V_LAST_NODE_KIND] = {
    "V_COND",      "V_VAR_DECL",   "V_DELAY_CONTROL", "V_BINARY",
    "V_BASSIGN",   "V_UNARY",      "V_GATE_INST",     "V_STRENGTH",
    "V_MOD_INST",  "V_BIT_SELECT", "V_SYSFUNC",       "V_FOREVER",
-   "V_SPECIFY",   "V_PRIMITIVE",
+   "V_SPECIFY",   "V_PRIMITIVE",  "V_UDP_TABLE",     "V_UDP_ENTRY",
 };
 
 static const change_allowed_t change_allowed[] = {

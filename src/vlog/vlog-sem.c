@@ -409,6 +409,22 @@ static void vlog_check_module(vlog_node_t module)
    pop_scope();
 }
 
+static void vlog_check_primitive(vlog_node_t udp)
+{
+   assert(top_scope == NULL);
+   push_scope();
+
+   const int ndecls = vlog_decls(udp);
+   for (int i = 0; i < ndecls; i++)
+      vlog_check(vlog_decl(udp, i));
+
+   const int nports = vlog_ports(udp);
+   for (int i = 0; i < nports; i++)
+      vlog_check(vlog_port(udp, i));
+
+   pop_scope();
+}
+
 static void vlog_check_gate_inst(vlog_node_t g)
 {
    vlog_node_t target = vlog_target(g);
@@ -461,6 +477,9 @@ void vlog_check(vlog_node_t v)
    switch (vlog_kind(v)) {
    case V_MODULE:
       vlog_check_module(v);
+      break;
+   case V_PRIMITIVE:
+      vlog_check_primitive(v);
       break;
    case V_ALWAYS:
       vlog_check_always(v);

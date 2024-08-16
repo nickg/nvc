@@ -56,6 +56,52 @@ static void vlog_dump_module(vlog_node_t v, int indent)
    print_syntax("#endmodule // %s\n\n", istr(vlog_ident2(v)));
 }
 
+static void vlog_dump_primitive(vlog_node_t v, int indent)
+{
+   print_syntax("#primitive %s", istr(vlog_ident2(v)));
+
+   const int nports = vlog_ports(v);
+   if (nports > 0) {
+      print_syntax(" (");
+      for (int i = 0; i < nports; i++) {
+         if (i > 0) print_syntax(", ");
+         vlog_dump(vlog_port(v, i), 0);
+      }
+      print_syntax(")");
+   }
+
+   print_syntax(";\n");
+
+   const int ndecls = vlog_decls(v);
+   for (int i = 0; i < ndecls; i++)
+      vlog_dump(vlog_decl(v, i), indent + 2);
+
+   const int nstmts = vlog_stmts(v);
+   for (int i = 0; i < nstmts; i++)
+      vlog_dump(vlog_stmt(v, i), indent + 2);
+
+   print_syntax("#endprimitive // %s\n\n", istr(vlog_ident2(v)));
+}
+
+static void vlog_dump_udp_entry(vlog_node_t v, int indent)
+{
+   tab(indent);
+   print_syntax("%s;\n", vlog_text(v));
+}
+
+static void vlog_dump_udp_table(vlog_node_t v, int indent)
+{
+   tab(indent);
+   print_syntax("#table\n");
+
+   const int nparams = vlog_params(v);
+   for (int i = 0; i < nparams; i++)
+      vlog_dump(vlog_param(v, i), indent + 2);
+
+   tab(indent);
+   print_syntax("#endtable\n");
+}
+
 static void vlog_dump_port_decl(vlog_node_t v, int indent)
 {
    tab(indent);
@@ -391,6 +437,9 @@ void vlog_dump(vlog_node_t v, int indent)
    case V_MODULE:
       vlog_dump_module(v, indent);
       break;
+   case V_PRIMITIVE:
+      vlog_dump_primitive(v, indent);
+      break;
    case V_REF:
       print_syntax("%s", istr(vlog_ident(v)));
       break;
@@ -462,6 +511,12 @@ void vlog_dump(vlog_node_t v, int indent)
       break;
    case V_BIT_SELECT:
       vlog_dump_bit_select(v, indent);
+      break;
+   case V_UDP_ENTRY:
+      vlog_dump_udp_entry(v, indent);
+      break;
+   case V_UDP_TABLE:
+      vlog_dump_udp_table(v, indent);
       break;
    default:
       print_syntax("\n");

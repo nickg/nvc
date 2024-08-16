@@ -21,6 +21,7 @@
 #include "vlog/vlog-node.h"
 #include "vlog/vlog-number.h"
 #include "vlog/vlog-phase.h"
+#include "vlog/vlog-util.h"
 
 #include <assert.h>
 #include <string.h>
@@ -92,7 +93,6 @@ static vlog_node_t vlog_simp_cb(vlog_node_t v, void *context)
 
 void vlog_simp(vlog_node_t mod)
 {
-   assert(vlog_kind(mod) == V_MODULE);
-
+   assert(is_top_level(mod));
    vlog_rewrite(mod, vlog_simp_cb, mod);
 }

@@ -126,8 +126,9 @@ PSL_COMMENT     {PRAGMA}(?i:psl)[ \t]+
 PSL_CONT        ^{SPACE}*({PSL_COMMENT}|"--")
 UTF8_MB         [\x80-\xff][\x80-\xbf]{1,3}
 VLOG_NUMBER     {INTEGER}?\'[bhd]{HEX}
+UDP_SYMBOL      [01xX?bB]
 
-%x COMMENT C_COMMENT PSL VLOG
+%x COMMENT C_COMMENT PSL VLOG UDP
 
 ENTITY        ?i:entity
 IS            ?i:is
@@ -281,7 +282,7 @@ UNION         ?i:union
 {TRANSLATE_ON}           { TOKEN(tTRANSLATEON); }
 
 <PSL,INITIAL>"--"        { comment_caller = YY_START; BEGIN(COMMENT); }
-<VLOG>"//"               { comment_caller = YY_START; BEGIN(COMMENT); }
+<VLOG,UDP>"//"           { comment_caller = YY_START; BEGIN(COMMENT); }
 {PSL_COMMENT}            { if (begin_psl_comment()) {
                               BEGIN(PSL);
                               TOKEN(tSTARTPSL);
@@ -299,7 +300,7 @@ UNION         ?i:union
                            comment_caller = YY_START;
                            BEGIN(C_COMMENT);
                          }
-<VLOG>"/*"               { comment_caller = YY_START; BEGIN(C_COMMENT); }
+<VLOG,UDP>"/*"           { comment_caller = YY_START; BEGIN(C_COMMENT); }
 <C_COMMENT>"*/"          { BEGIN(comment_caller); }
 <C_COMMENT>\n            { /* Must match a single character */ }
 <C_COMMENT>.             { }
@@ -423,6 +424,8 @@ UNION         ?i:union
 <INITIAL,PSL>{TO}        { TOKEN(tTO); }
 <INITIAL,PSL>{DOWNTO}    { TOKEN(tDOWNTO); }
 <INITIAL,PSL>{UNTIL}     { TOKEN(tUNTIL); }
+
+<UDP>{UDP_SYMBOL}        { yylval.i64 = yytext[0]; return tUDPSYM; }
 
 <*>"("                   { TOKEN(tLPAREN); }
 <*>")"                   { TOKEN(tRPAREN); }
@@ -563,7 +566,7 @@ UNION         ?i:union
 <VLOG>"primitive"        { return tPRIMITIVE; }
 <VLOG>"endprimitive"     { return tENDPRIMITIVE; }
 <VLOG>"table"            { return tTABLE; }
-<VLOG>"endtable"         { return tENDTABLE; }
+<VLOG,UDP>"endtable"     { return tENDTABLE; }
 
 <VLOG>{SYSTASK}          { yylval.str = xstrdup(yytext); return tSYSTASK; }
 <VLOG>{VLOG_ID}          { yylval.str = xstrdup(yytext); return tID; }
@@ -928,6 +931,11 @@ void scan_as_vhdl(void)
 void scan_as_verilog(void)
 {
    BEGIN(VLOG);
+}
+
+void scan_as_udp(void)
+{
+   BEGIN(UDP);
 }
 
 bool is_scanned_as_psl(void)

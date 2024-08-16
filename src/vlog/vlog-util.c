@@ -32,3 +32,14 @@ bool vlog_is_net(vlog_node_t v)
       return false;
    }
 }
+
+bool is_top_level(vlog_node_t v)
+{
+   switch (vlog_kind(v)) {
+   case V_MODULE:
+   case V_PRIMITIVE:
+      return true;
+   default:
+      return false;
+   }
+}

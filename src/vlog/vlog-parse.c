@@ -32,7 +32,7 @@
 #define RECOVER_THRESH 5
 #define TRACE_PARSE    0
 #define TRACE_RECOVERY 0
-#define TOKENQ_SIZE    4
+#define TOKENQ_SIZE    8
 
 typedef struct {
    token_t  token;
@@ -2315,14 +2315,27 @@ static void p_udp_port_list(vlog_node_t udp)
 
    BEGIN("UDP port list");
 
-   (void)p_identifier();
+   vlog_node_t oref = vlog_new(V_REF);
+   vlog_set_ident(oref, p_identifier());
+   vlog_set_loc(oref, &state.last_loc);
+
+   vlog_add_port(udp, oref);
 
    consume(tCOMMA);
 
-   (void)p_identifier();
+   vlog_node_t iref = vlog_new(V_REF);
+   vlog_set_ident(iref, p_identifier());
+   vlog_set_loc(iref, &state.last_loc);
 
-   while (optional(tCOMMA))
-      (void)p_identifier();
+   vlog_add_port(udp, iref);
+
+   while (optional(tCOMMA)) {
+      vlog_node_t iref = vlog_new(V_REF);
+      vlog_set_ident(iref, p_identifier());
+      vlog_set_loc(iref, &state.last_loc);
+
+      vlog_add_port(udp, iref);
+   }
 }
 
 static vlog_node_t p_udp_nonansi_declaration(void)
@@ -2335,7 +2348,12 @@ static vlog_node_t p_udp_nonansi_declaration(void)
 
    consume(tPRIMITIVE);
 
-   (void)p_identifier();
+   ident_t id, ext;
+   p_external_identifier(&id, &ext);
+   vlog_set_ident2(udp, id);
+
+   ident_t qual = ident_prefix(lib_name(lib_work()), ext, '.');
+   vlog_set_ident(udp, qual);
 
    consume(tLPAREN);
 
@@ -2346,6 +2364,197 @@ static vlog_node_t p_udp_nonansi_declaration(void)
 
    vlog_set_loc(udp, CURRENT_LOC);
    return udp;
+}
+
+static void p_list_of_udp_port_identifiers(vlog_node_t udp, v_port_kind_t kind)
+{
+   // port_identifier { , port_identifier }
+
+   BEGIN("list of UDP port identifiers");
+
+   do {
+      ident_t id, ext;
+      p_external_identifier(&id, &ext);
+
+      vlog_node_t p = vlog_new(V_PORT_DECL);
+      vlog_set_subkind(p, kind);
+      vlog_set_ident(p, id);
+      vlog_set_ident2(p, ext);
+      vlog_set_loc(p, &state.last_loc);
+
+      vlog_add_decl(udp, p);
+   } while (optional(tCOMMA));
+}
+
+static vlog_node_t p_udp_output_declaration(void)
+{
+   // { attribute_instance } output port_identifier
+   //    | { attribute_instance } output reg port_identifier
+   //         [ = constant_expression ]
+
+   BEGIN("UDP output declaration");
+
+   consume(tOUTPUT);
+
+   ident_t id, ext;
+   p_external_identifier(&id, &ext);
+
+   vlog_node_t v = vlog_new(V_PORT_DECL);
+   vlog_set_subkind(v, V_PORT_OUTPUT);
+   vlog_set_ident(v, id);
+   vlog_set_ident2(v, ext);
+   vlog_set_loc(v, &state.last_loc);
+
+   return v;
+}
+
+static void p_udp_input_declaration(vlog_node_t udp)
+{
+   // { attribute_instance } input list_of_udp_port_identifiers
+
+   BEGIN("UDP input declaration");
+
+   consume(tINPUT);
+
+   p_list_of_udp_port_identifiers(udp, V_PORT_INPUT);
+}
+
+static void p_udp_port_declaration(vlog_node_t udp)
+{
+   // udp_output_declaration ; | udp_input_declaration ; | udp_reg_declaration ;
+
+   BEGIN("UDP port declaration");
+
+   switch (peek()) {
+   case tOUTPUT:
+      vlog_add_decl(udp, p_udp_output_declaration());
+      break;
+   case tINPUT:
+      p_udp_input_declaration(udp);
+      break;
+   default:
+      one_of(tOUTPUT, tINPUT);
+      break;
+   }
+
+   consume(tSEMI);
+}
+
+static char p_output_symbol(void)
+{
+   // 0 | 1 | x | X
+
+   BEGIN("output symbol");
+
+   if (consume(tUDPSYM)) {
+      switch (state.last_lval.i64) {
+      case '0':
+      case '1':
+      case 'x':
+      case 'X':
+         return (char)state.last_lval.i64;
+      default:
+         parse_error(&state.last_loc, "'%c' is not a valid output symbol",
+                  (char)state.last_lval.i64);
+         break;
+      }
+   }
+
+   return 'x';
+}
+
+static char p_level_symbol(void)
+{
+   // 0 | 1 | x | X | ? | b | B
+
+   BEGIN("level symbol");
+
+   if (consume(tUDPSYM)) {
+      switch (state.last_lval.i64) {
+      case '0':
+      case '1':
+      case 'x':
+      case 'X':
+      case '?':
+      case 'b':
+      case 'B':
+         return (char)state.last_lval.i64;
+      default:
+         parse_error(&state.last_loc, "'%c' is not a valid output symbol",
+                  (char)state.last_lval.i64);
+         break;
+      }
+   }
+
+   return 'x';
+}
+
+static void p_level_input_list(text_buf_t *tb)
+{
+   // level_symbol { level_symbol }
+
+   BEGIN("level input list");
+
+   do {
+      tb_append(tb, p_level_symbol());
+   } while (not_at_token(tCOLON));
+}
+
+static vlog_node_t p_combinational_entry(void)
+{
+   // level_input_list : output_symbol ;
+
+   BEGIN("combinational entry");
+
+   LOCAL_TEXT_BUF tb = tb_new();
+   p_level_input_list(tb);
+
+   consume(tCOLON);
+   tb_append(tb, ':');
+
+   tb_append(tb, p_output_symbol());
+
+   vlog_node_t v = vlog_new(V_UDP_ENTRY);
+   vlog_set_text(v, tb_get(tb));
+
+   consume(tSEMI);
+
+   vlog_set_loc(v, CURRENT_LOC);
+   return v;
+}
+
+static vlog_node_t p_combinational_body(void)
+{
+   // table combinational_entry { combinational_entry } endtable
+
+   BEGIN("combinational UDP body");
+
+   consume(tTABLE);
+
+   scan_as_udp();
+
+   vlog_node_t v = vlog_new(V_UDP_TABLE);
+   vlog_set_ident(v, ident_new("combinational"));
+
+   do {
+      vlog_add_param(v, p_combinational_entry());
+   } while (not_at_token(tENDTABLE));
+
+   scan_as_verilog();
+
+   consume(tENDTABLE);
+
+   vlog_set_loc(v, CURRENT_LOC);
+   return v;
+}
+
+static void p_udp_body(vlog_node_t udp)
+{
+   // combinational_body | sequential_body
+
+   BEGIN("UDP body");
+
+   vlog_add_stmt(udp, p_combinational_body());
 }
 
 static vlog_node_t p_udp_declaration(void)
@@ -2361,10 +2570,19 @@ static vlog_node_t p_udp_declaration(void)
    BEGIN("UDP declaration");
 
    vlog_node_t udp;
-   if (peek_nth(4) == tID)
+   if (peek_nth(4) == tID) {
       udp = p_udp_nonansi_declaration();
+
+      do {
+         p_udp_port_declaration(udp);
+      } while (not_at_token(tTABLE));
+   }
    else
       abort();  // TODO
+
+   p_udp_body(udp);
+
+   consume(tENDPRIMITIVE);
 
    return udp;
 }

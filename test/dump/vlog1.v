@@ -24,3 +24,15 @@ module mod2;
   mod u1 (w);
   assign bus[2] = 4'b1;
 endmodule // mod2
+
+primitive multiplexer (mux, control, dataA, dataB);
+  output mux;
+  input  control, dataA, dataB;
+  table
+// control dataA dataB   mux
+    0        1     ?   :  1 ;   // ? = 0 1 x
+    0        0     ?   :  0 ;
+    1        ?     1   :  1 ;
+    1        ?     0   :  0 ;
+  endtable
+endprimitive

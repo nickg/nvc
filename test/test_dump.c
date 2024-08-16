@@ -502,6 +502,25 @@ START_TEST(test_vlog1)
              "endmodule // mod2\n\n");
    tb_rewind(tb);
 
+   vlog_node_t m3 = vlog_parse();
+   fail_if(m3 == NULL);
+
+   vlog_dump(m3, 0);
+   diff_dump(tb_get(tb),
+             "primitive multiplexer (mux, control, dataA, dataB);\n"
+             "  output mux;\n"
+             "  input control;\n"
+             "  input dataA;\n"
+             "  input dataB;\n"
+             "  table\n"
+             "    01?:1;\n"
+             "    00?:0;\n"
+             "    1?1:1;\n"
+             "    1?0:0;\n"
+             "  endtable\n"
+             "endprimitive // multiplexer\n\n");
+   tb_rewind(tb);
+
    fail_if_errors();
 }
 END_TEST
