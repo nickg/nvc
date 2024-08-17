@@ -1021,3 +1021,5 @@ issue941        cover
 mixed2          mixed
 issue943        normal,2008
 mixed3          mixed
+vlog10          verilog
+vlog11          verilog

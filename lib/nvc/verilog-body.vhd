@@ -263,6 +263,11 @@ package body verilog is
         end if;
     end function;
 
+    function "nand" (l, r : t_logic) return t_logic is
+    begin
+        return not (l and r);
+    end function;
+
     function "or" (l, r : t_logic) return t_logic is
     begin
         if l = '0' and r = '0' then
@@ -272,6 +277,11 @@ package body verilog is
         else
             return '1';
         end if;
+    end function;
+
+    function "nor" (l, r : t_logic) return t_logic is
+    begin
+        return not (l or r);
     end function;
 
     function "xor" (l, r : t_logic) return t_logic is
@@ -334,6 +344,52 @@ package body verilog is
             end case;
         end loop;
         return result;
+    end function;
+
+    function and_reduce (arg : t_packed_logic) return t_logic is
+        variable result : t_logic := '1';
+    begin
+        for i in arg'range loop
+            result := result and arg(i);
+        end loop;
+        return result;
+    end function;
+
+    function nand_reduce (arg : t_packed_logic) return t_logic is
+    begin
+        return not and_reduce(arg);
+    end function;
+
+    function or_reduce (arg : t_packed_logic) return t_logic is
+        variable result : t_logic := '0';
+    begin
+        for i in arg'range loop
+            result := result or arg(i);
+        end loop;
+        return result;
+    end function;
+
+    function nor_reduce (arg : t_packed_logic) return t_logic is
+    begin
+        return not or_reduce(arg);
+    end function;
+
+    function xor_reduce (arg : t_packed_logic) return t_logic is
+        alias norm : t_packed_logic(1 to arg'length) is arg;
+        variable result : t_logic := '0';
+    begin
+        if arg'length > 0 then
+            result := norm(1);
+            for i in 2 to arg'length loop
+                result := result xor norm(i);
+            end loop;
+        end if;
+        return result;
+    end function;
+
+    function xnor_reduce (arg : t_packed_logic) return t_logic is
+    begin
+        return not xor_reduce(arg);
     end function;
 
     function add_unsigned (l, r : t_packed_logic; c : t_logic) return t_packed_logic is

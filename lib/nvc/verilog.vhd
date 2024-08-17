@@ -68,6 +68,8 @@ package verilog is
     function "and" (l, r : t_logic) return t_logic;
     function "and" (l, r : t_packed_logic) return t_packed_logic;
 
+    function "nand" (l, r : t_logic) return t_logic;
+
     function "xor" (l, r : t_logic) return t_logic;
 
     function "or" (l, r : t_logic) return t_logic;
@@ -83,6 +85,13 @@ package verilog is
     function "=" (l, r : t_packed_logic) return boolean;
 
     function "/=" (l, r : t_packed_logic) return boolean;
+
+    function and_reduce (arg : t_packed_logic) return t_logic;
+    function nand_reduce (arg : t_packed_logic) return t_logic;
+    function or_reduce (arg : t_packed_logic) return t_logic;
+    function nor_reduce (arg : t_packed_logic) return t_logic;
+    function xor_reduce (arg : t_packed_logic) return t_logic;
+    function xnor_reduce (arg : t_packed_logic) return t_logic;
 
     procedure sys_finish;
     impure function sys_time return t_packed_logic;

@@ -1021,18 +1021,105 @@ static void vlog_lower_gate_inst(unit_registry_t *ur, lower_unit_t *parent,
 
    vlog_lower_driver(lu, vlog_target(stmt));
 
+   const int nparams = vlog_params(stmt);
+   int first_term = 0;
+   for (int i = 0; i < nparams; i++) {
+      vlog_node_t p = vlog_param(stmt, i);
+      if (vlog_kind(p) == V_STRENGTH)
+         first_term = i + 1;
+      else {
+         vcode_reg_t nets_reg = vlog_lower_lvalue(lu, p);
+         vcode_reg_t count_reg = emit_const(vtype_offset(), 1);
+         emit_sched_event(nets_reg, count_reg);
+      }
+   }
+
    emit_return(VCODE_INVALID_REG);
 
    vcode_select_block(start_bb);
 
-   vcode_reg_t value_reg = 0;
-   if (vlog_params(stmt) == 0) {
-      const vlog_gate_kind_t kind = vlog_subkind(stmt);
-      vcode_type_t vnet = vlog_net_value_type();
-      value_reg = emit_const(vnet, kind == V_GATE_PULLUP ? _PULL1 : _PULL0);
+   const vlog_gate_kind_t kind = vlog_subkind(stmt);
+   vcode_reg_t value_reg;
+   switch (kind) {
+   case V_GATE_PULLUP:
+   case V_GATE_PULLDOWN:
+      if (first_term == 0) {
+         vcode_type_t vnet = vlog_net_value_type();
+         value_reg = emit_const(vnet, kind == V_GATE_PULLUP ? _PULL1 : _PULL0);
+      }
+      else
+         value_reg = vlog_lower_rvalue(lu, vlog_param(stmt, 0));
+      break;
+   case V_GATE_AND:
+   case V_GATE_NAND:
+   case V_GATE_OR:
+   case V_GATE_NOR:
+   case V_GATE_XOR:
+   case V_GATE_XNOR:
+      {
+         static const char *func_map[] = {
+            [V_GATE_AND] = "NVC.VERILOG.AND_REDUCE(" T_PACKED_LOGIC ")" T_LOGIC,
+            [V_GATE_NAND] =
+               "NVC.VERILOG.NAND_REDUCE(" T_PACKED_LOGIC ")" T_LOGIC,
+            [V_GATE_OR] = "NVC.VERILOG.OR_REDUCE(" T_PACKED_LOGIC ")" T_LOGIC,
+            [V_GATE_NOR] = "NVC.VERILOG.NOR_REDUCE(" T_PACKED_LOGIC ")" T_LOGIC,
+            [V_GATE_XOR] = "NVC.VERILOG.XOR_REDUCE(" T_PACKED_LOGIC ")" T_LOGIC,
+            [V_GATE_XNOR] =
+               "NVC.VERILOG.XNOR_REDUCE(" T_PACKED_LOGIC ")" T_LOGIC,
+         };
+
+         const int nelems = nparams - first_term;
+         vcode_type_t vlogic = vlog_logic_type();
+         vcode_type_t varray = vtype_carray(nelems, vlogic, vlogic);
+         vcode_var_t temp_var =
+            emit_var(varray, vlogic, ident_new("temp"), VAR_TEMP);
+
+         vcode_reg_t ptr_reg = emit_index(temp_var, VCODE_INVALID_REG);
+         vcode_type_t voffset = vtype_offset();
+
+         for (int i = 0; i < nelems; i++) {
+            vlog_node_t p = vlog_param(stmt, first_term + i);
+            vcode_reg_t arg_reg = vlog_lower_rvalue(lu, p);
+            vcode_reg_t index_reg = emit_const(voffset, i);
+            vcode_reg_t dest_reg = emit_array_ref(ptr_reg, index_reg);
+            emit_store_indirect(arg_reg, dest_reg);
+         }
+
+         vcode_reg_t dir_reg = emit_const(vtype_bool(), RANGE_TO);
+         vcode_reg_t left_reg = emit_const(voffset, 1);
+         vcode_reg_t right_reg = emit_const(voffset, nelems);
+
+         vcode_dim_t dims[1] = {
+            { left_reg, right_reg, dir_reg }
+         };
+         vcode_reg_t wrap_reg = emit_wrap(ptr_reg, dims, 1);;
+
+         vcode_reg_t context_reg = vlog_helper_package();
+         vcode_reg_t args[] = { context_reg, wrap_reg };
+
+         ident_t func = ident_new(func_map[kind]);
+         vcode_reg_t logic_reg =
+            emit_fcall(func, vlogic, vlogic, args, ARRAY_LEN(args));
+         value_reg = vlog_lower_to_net_value(lu, logic_reg);
+      }
+      break;
+   case V_GATE_NOT:
+      {
+         const int nparams = vlog_params(stmt);
+         vcode_reg_t input_reg =
+            vlog_lower_rvalue(lu, vlog_param(stmt, nparams - 1));
+         vcode_reg_t args[] = { vlog_helper_package(), input_reg };
+
+         vcode_type_t vlogic = vlog_logic_type();
+         ident_t func = ident_new("NVC.VERILOG.\"not\"(" T_LOGIC ")" T_LOGIC);
+         vcode_reg_t logic_reg =  emit_fcall(func, vlogic, vlogic,
+                                             args, ARRAY_LEN(args));
+         value_reg = vlog_lower_to_net_value(lu, logic_reg);
+      }
+      break;
+   default:
+      CANNOT_HANDLE(stmt);
    }
-   else
-      value_reg = vlog_lower_rvalue(lu, vlog_param(stmt, 0));
 
    vcode_type_t vtime = vtype_time();
    vcode_reg_t reject_reg = emit_const(vtime, 0);
