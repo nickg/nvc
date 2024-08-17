@@ -218,6 +218,36 @@ static vcode_reg_t vlog_lower_to_logic(lower_unit_t *lu, vcode_reg_t reg)
    }
 }
 
+static vcode_reg_t vlog_lower_to_net_value(lower_unit_t *lu, vcode_reg_t reg)
+{
+   vcode_type_t vnet = vlog_net_value_type();
+
+   switch (vcode_reg_kind(reg)) {
+   case VCODE_TYPE_INT:
+      if (vtype_eq(vcode_reg_type(reg), vnet))
+         return reg;
+      else {
+         vcode_reg_t context_reg = vlog_helper_package();
+         vcode_reg_t args[] = { context_reg, reg };
+         ident_t func = ident_new("NVC.VERILOG.TO_NET_VALUE("
+                                  T_LOGIC ")" T_NET_VALUE);
+         return emit_fcall(func, vnet, vnet, args, ARRAY_LEN(args));
+      }
+   case VCODE_TYPE_UARRAY:
+      {
+         vcode_type_t varray = vtype_uarray(1, vnet, vnet);
+         vcode_reg_t context_reg = vlog_helper_package();
+         vcode_reg_t args[] = { context_reg, reg };
+         ident_t func = ident_new("NVC.VERILOG.TO_NET_VALUE("
+                                  T_PACKED_LOGIC ")" T_NET_ARRAY);
+         return emit_fcall(func, varray, vnet, args, ARRAY_LEN(args));
+      }
+   default:
+      vcode_dump();
+      fatal_trace("cannot convert r%d to net value", reg);
+   }
+}
+
 static vcode_reg_t vlog_lower_integer(lower_unit_t *lu, vlog_node_t expr)
 {
    if (vlog_kind(expr) == V_NUMBER) {
@@ -1053,6 +1083,8 @@ static void vlog_lower_udp(unit_registry_t *ur, lower_unit_t *parent,
    vlog_node_t table = vlog_stmt(udp, 0);
    assert(vlog_kind(table) == V_UDP_TABLE);
 
+   const vlog_udp_kind_t kind = vlog_subkind(table);
+
    ident_t name = ident_prefix(vcode_unit_name(context),
                                vlog_ident(table), '.');
    vcode_unit_t vu = emit_process(name, vlog_to_object(udp), context);
@@ -1102,6 +1134,12 @@ static void vlog_lower_udp(unit_registry_t *ur, lower_unit_t *parent,
          emit_sched_event(nets_reg, one_reg);
       }
 
+      if (vlog_stmts(table) > 0) {
+         vlog_node_t init = vlog_value(vlog_stmt(table, 0));
+         vcode_reg_t init_reg = vlog_lower_rvalue(lu, init);
+         emit_map_const(init_reg, out_reg, one_reg);
+      }
+
       emit_return(VCODE_INVALID_REG);
    }
 
@@ -1116,13 +1154,22 @@ static void vlog_lower_udp(unit_registry_t *ur, lower_unit_t *parent,
       vcode_reg_t logic1_reg = emit_const(vlogic, LOGIC_1);
       vcode_reg_t logicX_reg = emit_const(vlogic, LOGIC_X);
 
+      vcode_reg_t level_map[127];
+      level_map['0'] = logic0_reg;
+      level_map['1'] = logic1_reg;
+      level_map['x'] = level_map['X'] = logicX_reg;
+
       vcode_reg_t *in_regs LOCAL =
          xmalloc_array(nports - 1, sizeof(vcode_reg_t));
+      vcode_reg_t *in_nets LOCAL =
+         xmalloc_array(nports - 1, sizeof(vcode_reg_t));
+
       for (int i = 1; i < nports; i++) {
          vcode_var_t var = in_vars[i - 1];
          vcode_reg_t nets_reg = emit_load_indirect(emit_var_upref(hops, var));
          vcode_reg_t value_reg = emit_load_indirect(emit_resolved(nets_reg));
          in_regs[i - 1] = vlog_lower_to_logic(lu, value_reg);
+         in_nets[i - 1] = nets_reg;
       }
 
       vcode_block_t test_bb = start_bb;
@@ -1134,23 +1181,75 @@ static void vlog_lower_udp(unit_registry_t *ur, lower_unit_t *parent,
 
          vcode_block_t hit_bb = emit_block();
 
-         const char *spec = vlog_text(entry);
+         const char *spec = vlog_text(entry), *sp = spec;
          emit_comment("%s", spec);
 
          vcode_reg_t and_reg = VCODE_INVALID_REG;
 
-         for (int j = 0; j < nports - 1; j++) {
+         for (int j = 0; j < nports - 1; j++, sp++) {
             vcode_reg_t cmp_reg = VCODE_INVALID_REG;
-            switch (spec[j]) {
+            switch (*sp) {
             case '0':
-               cmp_reg = emit_cmp(VCODE_CMP_EQ, in_regs[j], logic0_reg);
-               break;
             case '1':
-               cmp_reg = emit_cmp(VCODE_CMP_EQ, in_regs[j], logic1_reg);
-               break;
             case 'x':
             case 'X':
-               cmp_reg = emit_cmp(VCODE_CMP_EQ, in_regs[j], logicX_reg);
+               cmp_reg = emit_cmp(VCODE_CMP_EQ, in_regs[j],
+                                  level_map[(unsigned)*sp]);
+               break;
+            case '*':
+               cmp_reg = emit_event_flag(in_nets[j], one_reg);
+               break;
+            case '?':
+               break;
+            case '(':
+               {
+                  cmp_reg = emit_event_flag(in_nets[j], one_reg);
+
+                  if (sp[1] != '?') {
+                     vcode_reg_t last_reg =
+                        emit_load_indirect(emit_last_value(in_nets[j]));
+                     vcode_reg_t logic_reg = vlog_lower_to_logic(lu, last_reg);
+                     vcode_reg_t eq_reg = emit_cmp(VCODE_CMP_EQ, logic_reg,
+                                                   level_map[(unsigned)sp[1]]);
+                     cmp_reg = emit_and(cmp_reg, eq_reg);
+                  }
+
+                  if (sp[2] != '?') {
+                     vcode_reg_t eq_reg = emit_cmp(VCODE_CMP_EQ, in_regs[j],
+                                                   level_map[(unsigned)sp[2]]);
+                     cmp_reg = emit_and(cmp_reg, eq_reg);
+                  }
+
+                  sp += 3;
+               }
+               break;
+
+            default:
+               CANNOT_HANDLE(entry);
+            }
+
+            if (and_reg == VCODE_INVALID_REG)
+               and_reg = cmp_reg;
+            else if (cmp_reg != VCODE_INVALID_REG)
+               and_reg = emit_and(and_reg, cmp_reg);
+         }
+
+         assert(sp[0] == ':');
+         sp++;
+
+         if (kind == V_UDP_SEQ) {
+            vcode_reg_t out_reg =
+               emit_load_indirect(emit_var_upref(hops, out_var));
+            vcode_reg_t cur_reg = emit_load_indirect(emit_resolved(out_reg));
+
+            vcode_reg_t cmp_reg = VCODE_INVALID_REG;
+            switch (*sp) {
+            case '0':
+            case '1':
+            case 'x':
+            case 'X':
+               cmp_reg = emit_cmp(VCODE_CMP_EQ, cur_reg,
+                                  level_map[(unsigned)*sp]);
                break;
             case '?':
                break;
@@ -1162,6 +1261,9 @@ static void vlog_lower_udp(unit_registry_t *ur, lower_unit_t *parent,
                and_reg = cmp_reg;
             else if (cmp_reg != VCODE_INVALID_REG)
                and_reg = emit_and(and_reg, cmp_reg);
+
+            assert(sp[1] == ':');
+            sp += 2;
          }
 
          if (and_reg == VCODE_INVALID_REG) {
@@ -1176,9 +1278,15 @@ static void vlog_lower_udp(unit_registry_t *ur, lower_unit_t *parent,
          vcode_select_block(hit_bb);
 
          vcode_reg_t drive_reg;
-         switch (spec[nports]) {
+         switch (*sp) {
          case '0': drive_reg = logic0_reg; break;
          case '1': drive_reg = logic1_reg; break;
+         case '-':
+            // No change, skip assignment to output
+            drive_reg = VCODE_INVALID_REG;
+            emit_wait(start_bb, VCODE_INVALID_REG);
+            vcode_select_block(test_bb);
+            continue;
          default: CANNOT_HANDLE(entry);
          }
 
@@ -1191,20 +1299,18 @@ static void vlog_lower_udp(unit_registry_t *ur, lower_unit_t *parent,
       vcode_select_block(test_bb);
 
       if (!vcode_block_finished()) {
-         emit_store(logicX_reg, result_var);
-         emit_jump(wait_bb);
+         if (kind == V_UDP_SEQ)
+            emit_wait(start_bb, VCODE_INVALID_REG);   // Skip assignment
+         else {
+            emit_store(logicX_reg, result_var);
+            emit_jump(wait_bb);
+         }
       }
 
       vcode_select_block(wait_bb);
 
-      vcode_reg_t context_reg = vlog_helper_package();
       vcode_reg_t result_reg = emit_load(result_var);
-      vcode_reg_t args[] = { context_reg, result_reg };
-      vcode_type_t vnet = vlog_net_value_type();
-      ident_t func = ident_new("NVC.VERILOG.TO_NET_VALUE("
-                               T_LOGIC ")" T_NET_VALUE);
-      vcode_reg_t drive_reg = emit_fcall(func, vnet, vnet,
-                                         args, ARRAY_LEN(args));
+      vcode_reg_t drive_reg = vlog_lower_to_net_value(lu, result_reg);
       vcode_reg_t out_reg = emit_load_indirect(emit_var_upref(hops, out_var));
       emit_sched_waveform(out_reg, one_reg, drive_reg, zero_reg, zero_reg);
 

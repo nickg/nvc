@@ -2675,6 +2675,30 @@ static vlog_node_t p_sequential_entry(void)
    return v;
 }
 
+static vlog_node_t p_udp_initial_statement(void)
+{
+   // initial output_port_identifier = init_val ;
+
+   BEGIN("UDP initial statement");
+
+   consume(tINITIAL);
+
+   vlog_node_t ref = vlog_new(V_REF);
+   vlog_set_ident(ref, p_identifier());
+   vlog_set_loc(ref, &state.last_loc);
+
+   consume(tEQ);
+
+   vlog_node_t v = vlog_new(V_BASSIGN);
+   vlog_set_target(v, ref);
+   vlog_set_value(v, p_integral_number());
+
+   consume(tSEMI);
+
+   vlog_set_loc(v, CURRENT_LOC);
+   return v;
+}
+
 static vlog_node_t p_sequential_body(void)
 {
    // [ udp_initial_statement ] table sequential_entry
@@ -2682,13 +2706,16 @@ static vlog_node_t p_sequential_body(void)
 
    BEGIN("sequential UDP body");
 
-   consume(tTABLE);
-
-   scan_as_udp();
-
    vlog_node_t v = vlog_new(V_UDP_TABLE);
    vlog_set_subkind(v, V_UDP_SEQ);
    vlog_set_ident(v, ident_new("sequential"));
+
+   if (peek() == tINITIAL)
+      vlog_add_stmt(v, p_udp_initial_statement());
+
+   consume(tTABLE);
+
+   scan_as_udp();
 
    do {
       vlog_add_param(v, p_sequential_entry());
@@ -2733,7 +2760,7 @@ static vlog_node_t p_udp_declaration(void)
 
       do {
          p_udp_port_declaration(udp, &has_reg);
-      } while (not_at_token(tTABLE));
+      } while (not_at_token(tTABLE, tINITIAL));
    }
    else
       abort();  // TODO

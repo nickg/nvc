@@ -450,7 +450,7 @@ START_TEST(test_udp1)
       { 13, "no visible declaration for z" },
       { 25, "missing symbol for input y" },
       { 26, "too many symbols in UDP table entry" },
-      { 56, "a sequential input list may have at most one edge indicator" },
+      { 58, "a sequential input list may have at most one edge indicator" },
       { -1, NULL }
    };
    expect_errors(expect);

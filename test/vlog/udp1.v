@@ -50,6 +50,8 @@ endprimitive
 primitive test3 (x, y, z);
   output reg x;
   input      y, z;
+  initial
+    x = 1'b1;
   table
     r ? : 0 : 1 ;
     r ? : 1 : 0 ;

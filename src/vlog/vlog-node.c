@@ -117,7 +117,7 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
    (I_IDENT | I_IDENT2 | I_PORTS | I_DECLS | I_STMTS),
 
    // V_UDP_TABLE
-   (I_IDENT | I_PARAMS | I_SUBKIND),
+   (I_IDENT | I_PARAMS | I_SUBKIND | I_STMTS),
 
    // V_UDP_ENTRY
    (I_TEXT),

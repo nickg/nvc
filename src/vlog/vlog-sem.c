@@ -448,6 +448,10 @@ static void vlog_check_primitive(vlog_node_t udp)
    vlog_node_t table = vlog_stmt(udp, 0);
    assert(vlog_kind(table) == V_UDP_TABLE);
 
+   const int nstmts = vlog_stmts(table);
+   for (int i = 0; i < nstmts; i++)
+      vlog_check(vlog_stmt(table, i));
+
    const int nparams = vlog_params(table);
    for (int i = 0; i < nparams; i++) {
       vlog_node_t row = vlog_param(table, i);
