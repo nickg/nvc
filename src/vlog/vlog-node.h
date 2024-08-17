@@ -49,6 +49,11 @@ typedef enum {
 } vlog_net_kind_t;
 
 typedef enum {
+   V_UDP_COMB,
+   V_UDP_SEQ,
+} vlog_udp_kind_t;
+
+typedef enum {
    V_MODULE,
    V_PORT_DECL,
    V_REF,

@@ -77,7 +77,7 @@ extern loc_t yylloc;
    } while (0)
 
 #if TRACE_PARSE
-static void _push_state(const state_t *s);
+static void _push_state(const rule_state_t *s);
 #else
 #define _push_state(s)
 #endif
@@ -2386,7 +2386,7 @@ static void p_list_of_udp_port_identifiers(vlog_node_t udp, v_port_kind_t kind)
    } while (optional(tCOMMA));
 }
 
-static vlog_node_t p_udp_output_declaration(void)
+static void p_udp_output_declaration(vlog_node_t udp, bool *has_reg)
 {
    // { attribute_instance } output port_identifier
    //    | { attribute_instance } output reg port_identifier
@@ -2395,6 +2395,8 @@ static vlog_node_t p_udp_output_declaration(void)
    BEGIN("UDP output declaration");
 
    consume(tOUTPUT);
+
+   const bool isreg = optional(tREG);
 
    ident_t id, ext;
    p_external_identifier(&id, &ext);
@@ -2405,7 +2407,17 @@ static vlog_node_t p_udp_output_declaration(void)
    vlog_set_ident2(v, ext);
    vlog_set_loc(v, &state.last_loc);
 
-   return v;
+   vlog_add_decl(udp, v);
+
+   if (isreg) {
+      vlog_node_t reg = vlog_new(V_VAR_DECL);
+      vlog_set_loc(reg, &state.last_loc);
+      vlog_set_ident(reg, id);
+
+      vlog_add_decl(udp, reg);
+
+      *has_reg = true;
+   }
 }
 
 static void p_udp_input_declaration(vlog_node_t udp)
@@ -2419,7 +2431,24 @@ static void p_udp_input_declaration(vlog_node_t udp)
    p_list_of_udp_port_identifiers(udp, V_PORT_INPUT);
 }
 
-static void p_udp_port_declaration(vlog_node_t udp)
+static vlog_node_t p_udp_reg_declaration(void)
+{
+   // { attribute_instance } reg variable_identifier
+
+   BEGIN("UDP reg declaration");
+
+   consume(tREG);
+
+   ident_t id = p_identifier();
+
+   vlog_node_t reg = vlog_new(V_VAR_DECL);
+   vlog_set_loc(reg, &state.last_loc);
+   vlog_set_ident(reg, id);
+
+   return reg;
+}
+
+static void p_udp_port_declaration(vlog_node_t udp, bool *has_reg)
 {
    // udp_output_declaration ; | udp_input_declaration ; | udp_reg_declaration ;
 
@@ -2427,13 +2456,17 @@ static void p_udp_port_declaration(vlog_node_t udp)
 
    switch (peek()) {
    case tOUTPUT:
-      vlog_add_decl(udp, p_udp_output_declaration());
+      p_udp_output_declaration(udp, has_reg);
       break;
    case tINPUT:
       p_udp_input_declaration(udp);
       break;
+   case tREG:
+      vlog_add_decl(udp, p_udp_reg_declaration());
+      *has_reg = true;
+      break;
    default:
-      one_of(tOUTPUT, tINPUT);
+      one_of(tOUTPUT, tINPUT, tREG);
       break;
    }
 
@@ -2446,7 +2479,7 @@ static char p_output_symbol(void)
 
    BEGIN("output symbol");
 
-   if (consume(tUDPSYM)) {
+   if (consume(tUDPLEVEL)) {
       switch (state.last_lval.i64) {
       case '0':
       case '1':
@@ -2469,24 +2502,40 @@ static char p_level_symbol(void)
 
    BEGIN("level symbol");
 
-   if (consume(tUDPSYM)) {
-      switch (state.last_lval.i64) {
-      case '0':
-      case '1':
-      case 'x':
-      case 'X':
-      case '?':
-      case 'b':
-      case 'B':
-         return (char)state.last_lval.i64;
-      default:
-         parse_error(&state.last_loc, "'%c' is not a valid output symbol",
-                  (char)state.last_lval.i64);
-         break;
-      }
-   }
+   if (consume(tUDPLEVEL))
+      return (char)state.last_lval.i64;
+   else
+      return 'x';
+}
 
-   return 'x';
+static char p_next_state(void)
+{
+   // output_symbol | -
+
+   BEGIN("next state");
+
+   switch (peek()) {
+   case tMINUS:
+      consume(tMINUS);
+      return '-';
+   case tUDPLEVEL:
+      return p_output_symbol();
+   default:
+      one_of(tUDPLEVEL, tMINUS);
+      return '-';
+   }
+}
+
+static char p_edge_symbol(void)
+{
+   // r | R | f | F | p | P | n | N | *
+
+   BEGIN("edge symbol");
+
+   if (consume(tUDPEDGE))
+      return (char)state.last_lval.i64;
+   else
+      return '*';
 }
 
 static void p_level_input_list(text_buf_t *tb)
@@ -2497,6 +2546,55 @@ static void p_level_input_list(text_buf_t *tb)
 
    do {
       tb_append(tb, p_level_symbol());
+   } while (not_at_token(tCOLON));
+}
+
+static void p_edge_indicator(text_buf_t *tb)
+{
+   // ( level_symbol level_symbol ) | edge_symbol
+
+   BEGIN("edge indicator");
+
+   switch (peek()) {
+   case tUDPEDGE:
+      tb_append(tb, p_edge_symbol());
+      break;
+   case tUDPIND:
+      consume(tUDPIND);
+      tb_cat(tb, state.last_lval.str);
+      free(state.last_lval.str);
+      break;
+   default:
+      should_not_reach_here();
+   }
+}
+
+static void p_seq_input_list(text_buf_t *tb)
+{
+   // level_input_list | edge_input_list
+
+   BEGIN("sequential input list");
+
+   bool have_edge = false;
+   do {
+      switch (peek()) {
+      case tUDPEDGE:
+      case tUDPIND:
+         p_edge_indicator(tb);
+         if (have_edge)
+            parse_error(&state.last_loc, "a sequential input list may have at "
+                        "most one edge indicator");
+         have_edge = true;
+         break;
+
+      case tUDPLEVEL:
+         tb_append(tb, p_level_symbol());
+         break;
+
+      default:
+         one_of(tUDPEDGE, tUDPIND, tUDPLEVEL);
+         break;
+      }
    } while (not_at_token(tCOLON));
 }
 
@@ -2534,6 +2632,7 @@ static vlog_node_t p_combinational_body(void)
    scan_as_udp();
 
    vlog_node_t v = vlog_new(V_UDP_TABLE);
+   vlog_set_subkind(v, V_UDP_COMB);
    vlog_set_ident(v, ident_new("combinational"));
 
    do {
@@ -2548,13 +2647,71 @@ static vlog_node_t p_combinational_body(void)
    return v;
 }
 
-static void p_udp_body(vlog_node_t udp)
+static vlog_node_t p_sequential_entry(void)
+{
+   // seq_input_list : current_state : next_state ;
+
+   BEGIN("sequential entry");
+
+   LOCAL_TEXT_BUF tb = tb_new();
+   p_seq_input_list(tb);
+
+   consume(tCOLON);
+   tb_append(tb, ':');
+
+   tb_append(tb, p_level_symbol());
+
+   consume(tCOLON);
+   tb_append(tb, ':');
+
+   tb_append(tb, p_next_state());
+
+   vlog_node_t v = vlog_new(V_UDP_ENTRY);
+   vlog_set_text(v, tb_get(tb));
+
+   consume(tSEMI);
+
+   vlog_set_loc(v, CURRENT_LOC);
+   return v;
+}
+
+static vlog_node_t p_sequential_body(void)
+{
+   // [ udp_initial_statement ] table sequential_entry
+   //     { sequential_entry } endtable
+
+   BEGIN("sequential UDP body");
+
+   consume(tTABLE);
+
+   scan_as_udp();
+
+   vlog_node_t v = vlog_new(V_UDP_TABLE);
+   vlog_set_subkind(v, V_UDP_SEQ);
+   vlog_set_ident(v, ident_new("sequential"));
+
+   do {
+      vlog_add_param(v, p_sequential_entry());
+   } while (not_at_token(tENDTABLE));
+
+   scan_as_verilog();
+
+   consume(tENDTABLE);
+
+   vlog_set_loc(v, CURRENT_LOC);
+   return v;
+}
+
+static vlog_node_t p_udp_body(bool has_reg)
 {
    // combinational_body | sequential_body
 
    BEGIN("UDP body");
 
-   vlog_add_stmt(udp, p_combinational_body());
+   if (has_reg)
+      return p_sequential_body();
+   else
+      return p_combinational_body();
 }
 
 static vlog_node_t p_udp_declaration(void)
@@ -2569,18 +2726,19 @@ static vlog_node_t p_udp_declaration(void)
 
    BEGIN("UDP declaration");
 
+   bool has_reg = false;
    vlog_node_t udp;
    if (peek_nth(4) == tID) {
       udp = p_udp_nonansi_declaration();
 
       do {
-         p_udp_port_declaration(udp);
+         p_udp_port_declaration(udp, &has_reg);
       } while (not_at_token(tTABLE));
    }
    else
       abort();  // TODO
 
-   p_udp_body(udp);
+   vlog_add_stmt(udp, p_udp_body(has_reg));
 
    consume(tENDPRIMITIVE);
 

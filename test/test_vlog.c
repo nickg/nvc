@@ -450,11 +450,12 @@ START_TEST(test_udp1)
       { 13, "no visible declaration for z" },
       { 25, "missing symbol for input y" },
       { 26, "too many symbols in UDP table entry" },
+      { 56, "a sequential input list may have at most one edge indicator" },
       { -1, NULL }
    };
    expect_errors(expect);
 
-   for (int i = 0; i < 3; i++) {
+   for (int i = 0; i < 5; i++) {
       vlog_node_t udp = vlog_parse();
       fail_if(udp == NULL);
       fail_unless(vlog_kind(udp) == V_PRIMITIVE);

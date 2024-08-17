@@ -126,7 +126,9 @@ PSL_COMMENT     {PRAGMA}(?i:psl)[ \t]+
 PSL_CONT        ^{SPACE}*({PSL_COMMENT}|"--")
 UTF8_MB         [\x80-\xff][\x80-\xbf]{1,3}
 VLOG_NUMBER     {INTEGER}?\'[bhd]{HEX}
-UDP_SYMBOL      [01xX?bB]
+UDP_LEVEL       [01xX?bB]
+UDP_EDGE        [rRfFpPnN*]
+UDP_INDICATOR   "("{UDP_LEVEL}{UDP_LEVEL}")"
 
 %x COMMENT C_COMMENT PSL VLOG UDP
 
@@ -425,7 +427,9 @@ UNION         ?i:union
 <INITIAL,PSL>{DOWNTO}    { TOKEN(tDOWNTO); }
 <INITIAL,PSL>{UNTIL}     { TOKEN(tUNTIL); }
 
-<UDP>{UDP_SYMBOL}        { yylval.i64 = yytext[0]; return tUDPSYM; }
+<UDP>{UDP_LEVEL}         { yylval.i64 = yytext[0]; return tUDPLEVEL; }
+<UDP>{UDP_EDGE}          { yylval.i64 = yytext[0]; return tUDPEDGE; }
+<UDP>{UDP_INDICATOR}     { yylval.str = xstrdup(yytext); return tUDPIND; }
 
 <*>"("                   { TOKEN(tLPAREN); }
 <*>")"                   { TOKEN(tRPAREN); }

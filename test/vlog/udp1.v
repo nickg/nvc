@@ -26,3 +26,33 @@ primitive test2 (x, y, z);
     0 0 0 : 0;  // Error
   endtable
 endprimitive
+
+primitive dff(q, cp, d);
+   output q;
+   input  cp, d;
+   reg	  q;
+
+   table
+   // (cp)  d  :  q  :  q  ;
+        ?   *  :  ?  :  -  ;
+      (?0)  ?  :  ?  :  -  ;
+      (1x)  ?  :  ?  :  -  ;
+      (x1)  0  :  0  :  0  ;
+      (x1)  1  :  1  :  1  ;
+      (0x)  0  :  0  :  0  ;
+      (0x)  1  :  1  :  1  ;
+      (01)  0  :  ?  :  0  ;
+      (01)  1  :  ?  :  1  ;
+   endtable
+
+endprimitive
+
+primitive test3 (x, y, z);
+  output reg x;
+  input      y, z;
+  table
+    r ? : 0 : 1 ;
+    r ? : 1 : 0 ;
+    r (01) : 1 : 0 ; // Error
+  endtable
+endprimitive

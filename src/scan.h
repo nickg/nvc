@@ -310,6 +310,8 @@ bool is_scanned_as_psl(void);
 #define tTABLE         418
 #define tENDTABLE      419
 #define tASSIGN        420
-#define tUDPSYM        421
+#define tUDPLEVEL      421
+#define tUDPEDGE       422
+#define tUDPIND        423
 
 #endif  // _SCAN_H
