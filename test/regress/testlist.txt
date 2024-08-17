@@ -1019,3 +1019,4 @@ cmdline10       shell
 cover23         shell
 issue941        cover
 mixed2          mixed
+issue943        normal,2008

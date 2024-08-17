@@ -5179,9 +5179,14 @@ static bool sem_check_generic_map(tree_t t, tree_t unit, nametab_t *tab)
             map_generic_box(tab, t, formals[i].decl, i);
          }
       }
-      else
-         error_at(tree_loc(t), "missing actual for generic %s without a "
-                  "default expression", istr(tree_ident(formals[i].decl)));
+      else {
+         diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
+         diag_printf(d, "missing actual for generic %s without a "
+                     "default expression", istr(tree_ident(formals[i].decl)));
+         diag_hint(d, tree_loc(formals[i].decl), "generic %s declared here",
+                   istr(tree_ident(formals[i].decl)));
+         diag_emit(d);
+      }
    }
 
    return ok;

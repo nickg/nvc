@@ -473,6 +473,18 @@ char ident_char(ident_t i, unsigned n)
    }
 }
 
+int ident_pos(ident_t i, char ch)
+{
+   assert(i != NULL);
+
+   for (int pos = 0; pos < i->length; pos++) {
+      if (i->bytes[pos] == ch)
+         return pos;
+   }
+
+   return -1;
+}
+
 size_t ident_len(ident_t i)
 {
    return i == NULL ? 0 : i->length;
