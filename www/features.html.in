@@ -402,6 +402,12 @@ table below.
     <td>Signatures required in association lists</td>
     <td class="feature-done">master</td>
   </tr>
+  <tr>
+    <td><a href="https://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_I13">
+        LCS2016_I13</a></td>
+    <td>Precedence of unary operators</td>
+    <td class="feature-done">master</td>
+  </tr>
 </table>
 
 include(`footer.html.in')dnl

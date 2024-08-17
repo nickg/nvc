@@ -4481,12 +4481,11 @@ static ident_t p_logical_operator(void)
    }
 }
 
-static tree_t p_factor(tree_t head)
+static tree_t p_unary_expression(tree_t head)
 {
-   // primary [ ** primary ] | abs primary | not primary
-   //   2008: logical_operator primary
+   // primary | abs primary | not primary | unary_logical_operator primary
 
-   BEGIN("factor");
+   BEGIN("unary expression");
 
    if (head != NULL)
       return head;    // Injected from mis-parsed PSL property
@@ -4509,25 +4508,33 @@ static tree_t p_factor(tree_t head)
    case tNOR:
    case tXOR:
    case tXNOR:
-      if (standard() >= STD_08)
-         op = p_logical_operator();
+      require_std(STD_08, "unary logical operators");
+      op = p_logical_operator();
       break;
 
    default:
       break;
    }
 
-   tree_t operand;
    if (op != NULL) {
       tree_t t = tree_new(T_FCALL);
       tree_set_ident(t, op);
       unary_op(t, p_primary);
       tree_set_loc(t, CURRENT_LOC);
 
-      operand = t;
+      return t;
    }
    else
-      operand = p_primary(NULL);
+      return p_primary(NULL);
+}
+
+static tree_t p_factor(tree_t head)
+{
+   // unary_expression [ ** unary_expression ]
+
+   BEGIN("factor");
+
+   tree_t operand = p_unary_expression(head);
 
    if (optional(tPOWER)) {
       tree_t second = p_primary(NULL);
