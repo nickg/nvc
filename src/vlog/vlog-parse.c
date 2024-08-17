@@ -1811,6 +1811,35 @@ static vlog_node_t p_pull_gate_instance(vlog_gate_kind_t kind, vlog_node_t p0,
    return v;
 }
 
+static vlog_node_t p_n_terminal_gate_instance(vlog_gate_kind_t kind)
+{
+   // [ name_of_instance ] ( output_terminal , input_terminal
+   //     { , input_terminal } )
+
+   BEGIN("N-terminal gate instance");
+
+   vlog_node_t v = vlog_new(V_GATE_INST);
+   vlog_set_subkind(v, kind);
+
+   if (peek() == tID)
+      vlog_set_ident(v, p_identifier());
+
+   consume(tLPAREN);
+
+   vlog_set_target(v, p_net_lvalue());
+
+   consume(tCOMMA);
+
+   do {
+      vlog_add_param(v, p_net_lvalue());
+   } while (optional(tCOMMA));
+
+   consume(tRPAREN);
+
+   vlog_set_loc(v, CURRENT_LOC);
+   return v;
+}
+
 static void p_gate_instantiation(vlog_node_t mod)
 {
    // cmos_switchtype [ delay3 ] cmos_switch_instance
@@ -1833,7 +1862,8 @@ static void p_gate_instantiation(vlog_node_t mod)
 
    BEGIN("gate instantiation");
 
-   switch (one_of(tPULLDOWN, tPULLUP)) {
+   switch (one_of(tPULLDOWN, tPULLUP, tAND, tNAND, tOR, tNOR, tXOR, tXNOR,
+                  tNOT, tBUF)) {
    case tPULLDOWN:
       {
          vlog_node_t p0 = NULL, p1 = NULL;
@@ -1844,8 +1874,6 @@ static void p_gate_instantiation(vlog_node_t mod)
             vlog_node_t g = p_pull_gate_instance(V_GATE_PULLDOWN, p0, p1);
             vlog_add_stmt(mod, g);
          } while (optional(tCOMMA));
-
-         consume(tSEMI);
       }
       break;
 
@@ -1859,14 +1887,62 @@ static void p_gate_instantiation(vlog_node_t mod)
             vlog_node_t g = p_pull_gate_instance(V_GATE_PULLUP, p0, p1);
             vlog_add_stmt(mod, g);
          } while (optional(tCOMMA));
-
-         consume(tSEMI);
       }
+      break;
+
+   case tAND:
+      do {
+         vlog_add_stmt(mod, p_n_terminal_gate_instance(V_GATE_AND));
+      } while (optional(tCOMMA));
+      break;
+
+   case tNAND:
+      do {
+         vlog_add_stmt(mod, p_n_terminal_gate_instance(V_GATE_NAND));
+      } while (optional(tCOMMA));
+      break;
+
+   case tOR:
+      do {
+         vlog_add_stmt(mod, p_n_terminal_gate_instance(V_GATE_OR));
+      } while (optional(tCOMMA));
+      break;
+
+   case tNOR:
+      do {
+         vlog_add_stmt(mod, p_n_terminal_gate_instance(V_GATE_NOR));
+      } while (optional(tCOMMA));
+      break;
+
+   case tXOR:
+      do {
+         vlog_add_stmt(mod, p_n_terminal_gate_instance(V_GATE_XOR));
+      } while (optional(tCOMMA));
+      break;
+
+   case tXNOR:
+      do {
+         vlog_add_stmt(mod, p_n_terminal_gate_instance(V_GATE_XNOR));
+      } while (optional(tCOMMA));
+      break;
+
+   case tNOT:
+      do {
+         vlog_add_stmt(mod, p_n_terminal_gate_instance(V_GATE_NOT));
+      } while (optional(tCOMMA));
+      break;
+
+   case tBUF:
+      do {
+         vlog_add_stmt(mod, p_n_terminal_gate_instance(V_GATE_BUF));
+      } while (optional(tCOMMA));
       break;
 
    default:
       break;
    }
+
+   consume(tSEMI);
 }
 
 static void p_path_delay_expression(void)
@@ -2075,6 +2151,14 @@ static void p_module_or_generate_item(vlog_node_t mod)
       break;
    case tPULLDOWN:
    case tPULLUP:
+   case tAND:
+   case tNAND:
+   case tOR:
+   case tNOR:
+   case tXOR:
+   case tXNOR:
+   case tNOT:
+   case tBUF:
       p_gate_instantiation(mod);
       break;
    case tID:
@@ -2082,7 +2166,7 @@ static void p_module_or_generate_item(vlog_node_t mod)
       break;
    default:
       one_of(tALWAYS, tWIRE, tSUPPLY0, tSUPPLY1, tREG, tASSIGN, tPULLDOWN,
-             tPULLUP, tID);
+             tPULLUP, tID, tAND, tNAND, tOR, tNOR, tXOR, tXNOR, tNOT, tBUF);
    }
 }
 
@@ -2106,6 +2190,14 @@ static void p_non_port_module_item(vlog_node_t mod)
    case tPULLUP:
    case tID:
    case tATTRBEGIN:
+   case tAND:
+   case tNAND:
+   case tOR:
+   case tNOR:
+   case tXOR:
+   case tXNOR:
+   case tNOT:
+   case tBUF:
       p_module_or_generate_item(mod);
       break;
    case tSPECIFY:
@@ -2113,7 +2205,8 @@ static void p_non_port_module_item(vlog_node_t mod)
       break;
    default:
       one_of(tALWAYS, tWIRE, tSUPPLY0, tSUPPLY1, tREG, tASSIGN, tPULLDOWN,
-             tPULLUP, tSPECIFY, tID, tATTRBEGIN);
+             tPULLUP, tSPECIFY, tID, tATTRBEGIN, tAND, tNAND, tOR, tNOR,
+             tXOR, tXNOR, tNOT, tBUF);
    }
 }
 

@@ -571,6 +571,14 @@ UNION         ?i:union
 <VLOG>"endprimitive"     { return tENDPRIMITIVE; }
 <VLOG>"table"            { return tTABLE; }
 <VLOG,UDP>"endtable"     { return tENDTABLE; }
+<VLOG>"and"              { return tAND; }
+<VLOG>"nand"             { return tNAND; }
+<VLOG>"or"               { return tOR; }
+<VLOG>"nor"              { return tNOR; }
+<VLOG>"xor"              { return tXOR; }
+<VLOG>"xnor"             { return tXNOR; }
+<VLOG>"not"              { return tNOT; }
+<VLOG>"buf"              { return tBUF; }
 
 <VLOG>{SYSTASK}          { yylval.str = xstrdup(yytext); return tSYSTASK; }
 <VLOG>{VLOG_ID}          { yylval.str = xstrdup(yytext); return tID; }

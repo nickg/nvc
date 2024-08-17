@@ -529,6 +529,10 @@ static void vlog_check_gate_inst(vlog_node_t g)
    vlog_node_t target = vlog_target(g);
    vlog_check_implicit_net(target);
 
+   const int nparams = vlog_params(g);
+   for (int i = 0; i < nparams; i++)
+      vlog_check_implicit_net(vlog_param(g, i));
+
    if (vlog_has_ident(g))
       vlog_insert_decl(g);
    else
@@ -657,6 +661,8 @@ void vlog_check(vlog_node_t v)
       break;
    case V_SPECIFY:
       vlog_check_specify(v);
+      break;
+   case V_STRENGTH:
       break;
    default:
       fatal_at(vlog_loc(v), "cannot check verilog node %s",

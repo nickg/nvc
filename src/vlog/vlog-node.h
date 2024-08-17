@@ -126,6 +126,14 @@ typedef enum {
 typedef enum {
    V_GATE_PULLDOWN,
    V_GATE_PULLUP,
+   V_GATE_AND,
+   V_GATE_NAND,
+   V_GATE_OR,
+   V_GATE_NOR,
+   V_GATE_XOR,
+   V_GATE_XNOR,
+   V_GATE_NOT,
+   V_GATE_BUF,
 } vlog_gate_kind_t;
 
 typedef enum {

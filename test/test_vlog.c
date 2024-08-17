@@ -479,7 +479,7 @@ START_TEST(test_implicit1)
 
    vlog_check(m);
 
-   ck_assert_int_eq(vlog_decls(m), 5);
+   ck_assert_int_eq(vlog_decls(m), 6);
 
    fail_unless(vlog_parse() == NULL);
 
