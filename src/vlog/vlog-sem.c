@@ -419,8 +419,54 @@ static void vlog_check_primitive(vlog_node_t udp)
       vlog_check(vlog_decl(udp, i));
 
    const int nports = vlog_ports(udp);
-   for (int i = 0; i < nports; i++)
-      vlog_check(vlog_port(udp, i));
+   for (int i = 0; i < nports; i++) {
+      vlog_node_t p = vlog_port(udp, i);
+      vlog_check(p);
+
+      if (vlog_has_ref(p)) {
+         vlog_node_t decl = vlog_ref(p);
+         assert(vlog_kind(decl) == V_PORT_DECL);
+
+         if (i == 0 && vlog_subkind(decl) != V_PORT_OUTPUT) {
+            diag_t *d = diag_new(DIAG_ERROR, vlog_loc(p));
+            diag_printf(d, "the first port of a primitive must be an output");
+            diag_hint(d, vlog_loc(decl), "port declaration here");
+            diag_emit(d);
+         }
+         else if (i > 0 && vlog_subkind(decl) != V_PORT_INPUT) {
+            diag_t *d = diag_new(DIAG_ERROR, vlog_loc(p));
+            diag_printf(d, "all ports of a primitive except the first must "
+                        "be inputs");
+            diag_hint(d, vlog_loc(decl), "port declaration here");
+            diag_emit(d);
+         }
+      }
+   }
+
+   assert(vlog_stmts(udp) == 1);
+
+   vlog_node_t table = vlog_stmt(udp, 0);
+   assert(vlog_kind(table) == V_UDP_TABLE);
+
+   const int nparams = vlog_params(table);
+   for (int i = 0; i < nparams; i++) {
+      vlog_node_t row = vlog_param(table, i);
+      assert(vlog_kind(row) == V_UDP_ENTRY);
+
+      const char *spec = vlog_text(row);
+
+      int pos = 0;
+      for (; pos < nports - 1; pos++) {
+         if (spec[pos] == ':') {
+            error_at(vlog_loc(row), "missing symbol for input %s",
+                     istr(vlog_ident(vlog_port(udp, pos))));
+            break;
+         }
+      }
+
+      if (spec[pos] != ':')
+         error_at(vlog_loc(row), "too many symbols in UDP table entry");
+   }
 
    pop_scope();
 }

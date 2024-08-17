@@ -444,15 +444,27 @@ START_TEST(test_udp1)
 {
    input_from_file(TESTDIR "/vlog/udp1.v");
 
-   vlog_node_t udp = vlog_parse();
-   fail_if(udp == NULL);
-   fail_unless(vlog_kind(udp) == V_PRIMITIVE);
+   const error_t expect[] = {
+      { 13, "the first port of a primitive must be an output" },
+      { 13, "all ports of a primitive except the first must be inputs" },
+      { 13, "no visible declaration for z" },
+      { 25, "missing symbol for input y" },
+      { 26, "too many symbols in UDP table entry" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
 
-   vlog_check(udp);
+   for (int i = 0; i < 3; i++) {
+      vlog_node_t udp = vlog_parse();
+      fail_if(udp == NULL);
+      fail_unless(vlog_kind(udp) == V_PRIMITIVE);
+
+      vlog_check(udp);
+   }
 
    fail_unless(vlog_parse() == NULL);
 
-   fail_if_errors();
+   check_expected_errors();
 }
 END_TEST
 
