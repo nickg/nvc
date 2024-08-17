@@ -1471,7 +1471,6 @@ static void simp_generic_map(tree_t t, tree_t unit)
 
    for (int i = last_pos; i < ngenerics; i++) {
       tree_t g = tree_generic(unit, i), value = NULL;
-      ident_t ident = tree_ident(g);
 
       for (int j = last_pos; j < ngenmaps; j++) {
          tree_t mj = tree_genmap(t, j);
@@ -1485,7 +1484,7 @@ static void simp_generic_map(tree_t t, tree_t unit)
 
          tree_t name = tree_name(mj);
          tree_t ref = name_to_ref(name);
-         if (ref == NULL || tree_ident(ref) != ident)
+         if (ref == NULL || tree_ref(ref) != g)
             continue;
 
          switch (tree_kind(name)) {

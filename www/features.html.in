@@ -396,6 +396,12 @@ table below.
     <td>Extended ranges</td>
     <td class="feature-missing"></td>
   </tr>
+  <tr>
+    <td><a href="https://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_I03">
+        LCS2016_I03</a></td>
+    <td>Signatures required in association lists</td>
+    <td class="feature-done">master</td>
+  </tr>
 </table>
 
 include(`footer.html.in')dnl

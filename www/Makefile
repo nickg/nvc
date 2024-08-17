@@ -27,5 +27,7 @@ clean:
 install: all
 	cp -a $(PAGES) style.css /sites/nick/nvc/
 
+validate: all
+	vnu $(PAGES)
 
-.PHONY: clean install
+.PHONY: clean install validate

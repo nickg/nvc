@@ -3934,7 +3934,8 @@ static type_t solve_ref(nametab_t *tab, tree_t ref)
    if (type_is_subprogram(type)) {
       type_t constraint;
       const bool want_ref =
-         type_set_uniq(tab, &constraint) && type_is_subprogram(constraint);
+         (type_set_uniq(tab, &constraint) && type_is_subprogram(constraint))
+         || tab->top_scope->formal_kind != F_NONE;
 
       if (can_call_no_args(decl) && !want_ref) {
          tree_change_kind(ref, T_FCALL);

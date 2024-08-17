@@ -2988,7 +2988,7 @@ static tree_t p_slice_name(tree_t prefix, tree_t head)
    return t;
 }
 
-static tree_t p_formal_part(void)
+static tree_t p_formal_part(type_t *signature)
 {
    // formal_designator
    //   | name ( formal_designator )
@@ -2998,8 +2998,24 @@ static tree_t p_formal_part(void)
 
    tree_t name = p_name(0);
 
-   if (tree_kind(name) == T_FCALL && tree_params(name) == 1)
-      tree_set_flag(name, TREE_F_CONVERSION);
+   switch (tree_kind(name)) {
+   case T_FCALL:
+      if (tree_params(name) == 1)
+         tree_set_flag(name, TREE_F_CONVERSION);
+      break;
+
+   case T_REF:
+      // 2019 allows signature for generic formal designator
+      if (peek() == tLSQUARE) {
+         require_std(STD_19, "signature in generic formal designator");
+         *signature = p_signature();
+         tree_set_loc(name, CURRENT_LOC);
+      }
+      break;
+
+   default:
+      break;
+   }
 
    return name;
 }
@@ -3094,7 +3110,8 @@ static void p_association_element(tree_t map, int pos, tree_t unit,
 
       push_scope_for_formals(nametab, kind, unit);
 
-      tree_t name = p_formal_part();
+      type_t signature = NULL;
+      tree_t name = p_formal_part(&signature);
 
       tree_t ref = name_to_ref(name);
       if (ref != NULL && tree_has_ref(ref)) {
@@ -3105,8 +3122,14 @@ static void p_association_element(tree_t map, int pos, tree_t unit,
             class = tree_class(decl);
       }
 
+      if (signature != NULL && kind != F_GENERIC_MAP) {
+         parse_error(tree_loc(name), "a signature is only allowed in a "
+                     "generic formal designator");
+         signature = NULL;
+      }
+
       if (class != C_PACKAGE && (kind == F_GENERIC_MAP || kind == F_PORT_MAP))
-         type = solve_types(nametab, name, NULL);
+         type = solve_types(nametab, name, signature);
 
       if (kind == F_PORT_MAP && tree_kind(name) == T_FCALL)
          name = fcall_to_conv_func(name);
