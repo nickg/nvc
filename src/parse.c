@@ -888,16 +888,16 @@ static void declare_predefined_ops(tree_t container, type_t t)
 {
    // Prefined operators are defined in LRM 93 section 7.2
 
-   ident_t mult   = ident_new("\"*\"");
-   ident_t div    = ident_new("\"/\"");
-   ident_t plus   = ident_new("\"+\"");
-   ident_t minus  = ident_new("\"-\"");
-   ident_t cmp_lt = ident_new("\"<\"");
-   ident_t cmp_le = ident_new("\"<=\"");
-   ident_t cmp_gt = ident_new("\">\"");
-   ident_t cmp_ge = ident_new("\">=\"");
-   ident_t eq     = ident_new("\"=\"");
-   ident_t neq    = ident_new("\"/=\"");
+   ident_t mult   = well_known(W_OP_TIMES);
+   ident_t div    = well_known(W_OP_DIVIDE);
+   ident_t plus   = well_known(W_OP_ADD);
+   ident_t minus  = well_known(W_OP_MINUS);
+   ident_t cmp_lt = well_known(W_OP_LESS_THAN);
+   ident_t cmp_le = well_known(W_OP_LESS_EQUAL);
+   ident_t cmp_gt = well_known(W_OP_GREATER_THAN);
+   ident_t cmp_ge = well_known(W_OP_GREATER_EQUAL);
+   ident_t eq     = well_known(W_OP_EQUAL);
+   ident_t neq    = well_known(W_OP_NOT_EQUAL);
 
    ident_t min_i = NULL, max_i = NULL;
    if (standard() >= STD_08) {
@@ -1006,25 +1006,25 @@ static void declare_predefined_ops(tree_t container, type_t t)
       declare_binary(container, neq, t, t, std_bool, S_SCALAR_NEQ);
 
       // Absolute value
-      declare_unary(container, ident_new("\"abs\""), t, t, S_ABS);
+      declare_unary(container, well_known(W_OP_ABS), t, t, S_ABS);
 
       if (standard() >= STD_08) {
          declare_binary(container, min_i, t, t, t, S_MINIMUM);
          declare_binary(container, max_i, t, t, t, S_MAXIMUM);
 
          // Modulus and remainder in 2008 only
-         declare_binary(container, ident_new("\"mod\""), t, t, t, S_MOD);
-         declare_binary(container, ident_new("\"rem\""), t, t, t, S_REM);
+         declare_binary(container, well_known(W_OP_MOD), t, t, t, S_MOD);
+         declare_binary(container, well_known(W_OP_REM), t, t, t, S_REM);
       }
 
       break;
 
    case T_INTEGER:
       // Modulus
-      declare_binary(container, ident_new("\"mod\""), t, t, t, S_MOD);
+      declare_binary(container, well_known(W_OP_MOD), t, t, t, S_MOD);
 
       // Remainder
-      declare_binary(container, ident_new("\"rem\""), t, t, t, S_REM);
+      declare_binary(container, well_known(W_OP_REM), t, t, t, S_REM);
 
       // Fall-through
    case T_REAL:
@@ -1047,11 +1047,12 @@ static void declare_predefined_ops(tree_t container, type_t t)
       // Exponentiation
       if (!bootstrapping) {
          std_int = std_type(std, STD_INTEGER);
-         declare_binary(container, ident_new("\"**\""), t, std_int, t, S_EXP);
+         declare_binary(container, well_known(W_OP_EXPONENT),
+                        t, std_int, t, S_EXP);
       }
 
       // Absolute value
-      declare_unary(container, ident_new("\"abs\""), t, t, S_ABS);
+      declare_unary(container, well_known(W_OP_ABS), t, t, S_ABS);
 
       // Fall-through
    case T_ENUM:
@@ -1086,9 +1087,6 @@ static void declare_predefined_ops(tree_t container, type_t t)
    if (bootstrapping && kind == T_REAL
        && t == std_type(std, STD_UNIVERSAL_REAL)) {
       type_t uint = std_type(std, STD_UNIVERSAL_INTEGER);
-
-      ident_t mult = ident_new("\"*\"");
-      ident_t div  = ident_new("\"/\"");
 
       declare_binary(container, mult, t, uint, t, S_MUL_RI);
       declare_binary(container, mult, uint, t, t, S_MUL_IR);
@@ -1138,12 +1136,12 @@ static void declare_predefined_ops(tree_t container, type_t t)
    if (vec_logical) {
       std_int = std_type(NULL, STD_INTEGER);
 
-      ident_t and  = ident_new("\"and\"");
-      ident_t or   = ident_new("\"or\"");
-      ident_t xor  = ident_new("\"xor\"");
-      ident_t nand = ident_new("\"nand\"");
-      ident_t nor  = ident_new("\"nor\"");
-      ident_t xnor = ident_new("\"xnor\"");
+      ident_t and  = well_known(W_OP_AND);
+      ident_t or   = well_known(W_OP_OR);
+      ident_t xor  = well_known(W_OP_XOR);
+      ident_t nand = well_known(W_OP_NAND);
+      ident_t nor  = well_known(W_OP_NOR);
+      ident_t xnor = well_known(W_OP_XNOR);
 
       declare_binary(container, and, t, t, t, S_ARRAY_AND);
       declare_binary(container, or, t, t, t, S_ARRAY_OR);
@@ -1152,7 +1150,7 @@ static void declare_predefined_ops(tree_t container, type_t t)
       declare_binary(container, nor, t, t, t, S_ARRAY_NOR);
       declare_binary(container, xnor, t, t, t, S_ARRAY_XNOR);
 
-      declare_unary(container, ident_new("\"not\""), t, t, S_ARRAY_NOT);
+      declare_unary(container, well_known(W_OP_NOT), t, t, S_ARRAY_NOT);
 
       declare_binary(container, ident_new("\"sll\""), t, std_int, t, S_SLL);
       declare_binary(container, ident_new("\"srl\""), t, std_int, t, S_SRL);
@@ -1388,7 +1386,7 @@ static void declare_predefined_ops(tree_t container, type_t t)
          tree_add_decl(container, d2);
 
          if (t == std_bit)
-            declare_unary(container, ident_new("\"??\""), t,
+            declare_unary(container, well_known(W_OP_CCONV), t,
                           std_bool, S_IDENTITY);
       }
    }
@@ -1417,7 +1415,7 @@ static void declare_additional_standard_operators(tree_t unit)
    type_t std_int   = std_type(unit, STD_INTEGER);
    type_t std_real  = std_type(unit, STD_REAL);
 
-   ident_t exp_i = ident_new("\"**\"");
+   ident_t exp_i = well_known(W_OP_EXPONENT);
 
    declare_binary(unit, exp_i, std_uint, std_int, std_uint, S_EXP);
    declare_binary(unit, exp_i, std_ureal, std_int, std_ureal, S_EXP);
@@ -4465,17 +4463,17 @@ static ident_t p_logical_operator(void)
 {
    switch (one_of(tAND, tOR, tNAND, tNOR, tXOR, tXNOR)) {
    case tAND:
-      return ident_new("\"and\"");
+      return well_known(W_OP_AND);
    case tOR:
-      return ident_new("\"or\"");
+      return well_known(W_OP_OR);
    case tNAND:
-      return ident_new("\"nand\"");
+      return well_known(W_OP_NAND);
    case tNOR:
-      return ident_new("\"nor\"");
+      return well_known(W_OP_NOR);
    case tXOR:
-      return ident_new("\"xor\"");
+      return well_known(W_OP_XOR);
    case tXNOR:
-      return ident_new("\"xnor\"");
+      return well_known(W_OP_XNOR);
    default:
       return error_marker();
    }
@@ -4494,12 +4492,12 @@ static tree_t p_unary_expression(tree_t head)
    switch (peek()) {
    case tNOT:
       consume(tNOT);
-      op = ident_new("\"not\"");
+      op = well_known(W_OP_NOT);
       break;
 
    case tABS:
       consume(tABS);
-      op = ident_new("\"abs\"");
+      op = well_known(W_OP_ABS);
       break;
 
    case tAND:
@@ -4541,7 +4539,7 @@ static tree_t p_factor(tree_t head)
 
       tree_t t = tree_new(T_FCALL);
       tree_set_loc(t, CURRENT_LOC);
-      tree_set_ident(t, ident_new("\"**\""));
+      tree_set_ident(t, well_known(W_OP_EXPONENT));
       add_param(t, operand, P_POS, NULL);
       add_param(t, second, P_POS, NULL);
 
@@ -4555,13 +4553,13 @@ static ident_t p_multiplying_operator(void)
 {
    switch (one_of(tTIMES, tOVER, tMOD, tREM)) {
    case tTIMES:
-      return ident_new("\"*\"");
+      return well_known(W_OP_TIMES);
    case tOVER:
-      return ident_new("\"/\"");
+      return well_known(W_OP_DIVIDE);
    case tMOD:
-      return ident_new("\"mod\"");
+      return well_known(W_OP_MOD);
    case tREM:
-      return ident_new("\"rem\"");
+      return well_known(W_OP_REM);
    default:
       return error_marker();
    }
@@ -4591,11 +4589,11 @@ static ident_t p_adding_operator(void)
 {
    switch (one_of(tPLUS, tMINUS, tAMP)) {
    case tPLUS:
-      return ident_new("\"+\"");
+      return well_known(W_OP_ADD);
    case tMINUS:
-      return ident_new("\"-\"");
+      return well_known(W_OP_MINUS);
    case tAMP:
-      return ident_new("\"&\"");
+      return well_known(W_OP_CONCAT);
    default:
       return error_marker();
    }
@@ -4605,9 +4603,9 @@ static ident_t p_sign(void)
 {
    switch (one_of(tPLUS, tMINUS)) {
    case tPLUS:
-      return ident_new("\"+\"");
+      return well_known(W_OP_ADD);
    case tMINUS:
-      return ident_new("\"-\"");
+      return well_known(W_OP_MINUS);
    default:
       return error_marker();
    }
@@ -4644,17 +4642,17 @@ static ident_t p_shift_operator(void)
 {
    switch (one_of(tSLL, tSRL, tSLA, tSRA, tROL, tROR)) {
    case tSLL:
-      return ident_new("\"sll\"");
+      return well_known(W_OP_SLL);
    case tSRL:
-      return ident_new("\"srl\"");
+      return well_known(W_OP_SRL);
    case tSLA:
-      return ident_new("\"sla\"");
+      return well_known(W_OP_SLA);
    case tSRA:
-      return ident_new("\"sra\"");
+      return well_known(W_OP_SRA);
    case tROL:
-      return ident_new("\"rol\"");
+      return well_known(W_OP_ROL);
    case tROR:
-      return ident_new("\"ror\"");
+      return well_known(W_OP_ROR);
    default:
       return error_marker();
    }
@@ -4689,29 +4687,29 @@ static ident_t p_relational_operator(void)
    switch (one_of(tEQ, tNEQ, tLT, tLE, tGT, tGE,
                   tMEQ, tMNEQ, tMLT, tMLE, tMGT, tMGE)) {
    case tEQ:
-      return ident_new("\"=\"");
+      return well_known(W_OP_EQUAL);
    case tNEQ:
-      return ident_new("\"/=\"");
+      return well_known(W_OP_NOT_EQUAL);
    case tLT:
-      return ident_new("\"<\"");
+      return well_known(W_OP_LESS_THAN);
    case tLE:
-      return ident_new("\"<=\"");
+      return well_known(W_OP_LESS_EQUAL);
    case tGT:
-      return ident_new("\">\"");
+      return well_known(W_OP_GREATER_THAN);
    case tGE:
-      return ident_new("\">=\"");
+      return well_known(W_OP_GREATER_EQUAL);
    case tMEQ:
-      return ident_new("\"?=\"");
+      return well_known(W_OP_MATCH_EQUAL);
    case tMNEQ:
-      return ident_new("\"?/=\"");
+      return well_known(W_OP_MATCH_NOT_EQUAL);
    case tMLT:
-      return ident_new("\"?<\"");
+      return well_known(W_OP_MATCH_LESS_THAN);
    case tMLE:
-      return ident_new("\"?<=\"");
+      return well_known(W_OP_MATCH_LESS_EQUAL);
    case tMGT:
-      return ident_new("\"?>\"");
+      return well_known(W_OP_MATCH_GREATER_THAN);
    case tMGE:
-      return ident_new("\"?>=\"");
+      return well_known(W_OP_MATCH_GREATER_EQUAL);
    default:
       return error_marker();
    }
@@ -4754,12 +4752,12 @@ static tree_t p_expression_with_head(tree_t head)
    while (loop_limit-- && scan(tAND, tOR, tXOR, tNAND, tNOR, tXNOR)) {
       ident_t op;
       switch (one_of(tAND, tOR, tXOR, tNAND, tNOR, tXNOR)) {
-      case tAND:  op = ident_new("\"and\""); break;
-      case tOR:   op = ident_new("\"or\""); break;
-      case tXOR:  op = ident_new("\"xor\""); break;
-      case tNAND: op = ident_new("\"nand\""); break;
-      case tNOR:  op = ident_new("\"nor\""); break;
-      case tXNOR: op = ident_new("\"xnor\""); break;
+      case tAND:  op = well_known(W_OP_AND); break;
+      case tOR:   op = well_known(W_OP_OR); break;
+      case tXOR:  op = well_known(W_OP_XOR); break;
+      case tNAND: op = well_known(W_OP_NAND); break;
+      case tNOR:  op = well_known(W_OP_NOR); break;
+      case tXNOR: op = well_known(W_OP_XNOR); break;
       default:    op = error_marker();
       }
 
@@ -4781,7 +4779,7 @@ static inline tree_t p_expression(void)
       require_std(STD_08, "condition conversion");
 
       tree_t expr = tree_new(T_FCALL);
-      tree_set_ident(expr, ident_new("\"??\""));
+      tree_set_ident(expr, well_known(W_OP_CCONV));
       unary_op(expr, p_primary);
       return expr;
    }
