@@ -2600,17 +2600,43 @@ static vcode_reg_t lower_context_for_call(lower_unit_t *lu, ident_t unit_name)
       it = context;
    }
 
-   ident_t scope_name = ident_runtil(ident_until(unit_name, '('), '.');
-   tree_t pack = lib_get_qualified(scope_name);
-   if (pack != NULL && is_package(pack)) {
-      assert(!is_uninstantiated_package(pack));
-      if (vcode_unit_kind(lu->vunit) == VCODE_UNIT_THUNK)
-         return emit_package_init(scope_name, VCODE_INVALID_REG);
-      else
-         return emit_link_package(scope_name);
+   ident_t it = unit_name;
+   ident_t lname = ident_walk_selected(&it);
+   ident_t uname = ident_walk_selected(&it);
+
+   lib_t lib = lib_require(lname);
+
+   ident_t base_name = ident_prefix(lname, uname, '.');
+   tree_t unit = lib_get(lib, base_name);
+   if (unit == NULL)
+      fatal_trace("cannot find unit for %s", istr(unit_name));
+
+   const tree_kind_t kind = tree_kind(unit);
+   if (kind == T_ENTITY || kind == T_ARCH) {
+      // Call to function defined in architecture
+      return emit_null(vtype_context(unit_name));
    }
-   else  // Call to function defined in architecture
-      return emit_null(vtype_context(scope_name));
+
+   assert(is_package(unit));
+   assert(!is_uninstantiated_package(unit));
+
+   vcode_reg_t pack_reg;
+   if (vcode_unit_kind(lu->vunit) == VCODE_UNIT_THUNK)
+      pack_reg = emit_package_init(base_name, VCODE_INVALID_REG);
+   else
+      pack_reg = emit_link_package(base_name);
+
+   for (;;) {
+      // Context package may be nested inside another package
+      ident_t var_name = ident_walk_selected(&it);
+      if (it == NULL || ident_pos(var_name, '(') != -1)
+         return pack_reg;
+
+      ident_t qual = ident_prefix(base_name, var_name, '.');
+      vcode_reg_t var_reg = emit_link_var(pack_reg, qual, vtype_context(qual));
+      pack_reg = emit_load_indirect(var_reg);
+      base_name = qual;
+   }
 }
 
 static vcode_reg_t lower_fcall(lower_unit_t *lu, tree_t fcall,

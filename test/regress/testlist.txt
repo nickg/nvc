@@ -1011,3 +1011,4 @@ force3          fail,gold,2008
 issue931        normal,2008
 issue932        normal,2019
 bounds45        fail,gold,2008
+issue943        normal,2008

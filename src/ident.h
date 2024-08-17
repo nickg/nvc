@@ -36,6 +36,9 @@ bool ident_starts_with(ident_t a, ident_t b);
 // Return the Nth character of an identifier
 char ident_char(ident_t i, unsigned n);
 
+// Return the first position of character ch or -1
+int ident_pos(ident_t i, char ch);
+
 // Number of characters in the identifier
 size_t ident_len(ident_t i);
 

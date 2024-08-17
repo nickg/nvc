@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2022  Nick Gasson
+//  Copyright (C) 2011-2024  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -362,6 +362,16 @@ START_TEST(test_uniq)
 }
 END_TEST
 
+START_TEST(test_pos)
+{
+   ident_t i1 = ident_new("hello");
+   ck_assert_int_eq(ident_pos(i1, 'h'), 0);
+   ck_assert_int_eq(ident_pos(i1, 'l'), 2);
+   ck_assert_int_eq(ident_pos(i1, 'o'), 4);
+   ck_assert_int_eq(ident_pos(i1, 'x'), -1);
+}
+END_TEST
+
 Suite *get_ident_tests(void)
 {
    Suite *s = suite_create("ident");
@@ -387,6 +397,7 @@ Suite *get_ident_tests(void)
    tcase_add_test(tc_core, test_starts_with);
    tcase_add_test(tc_core, test_distance);
    tcase_add_test(tc_core, test_uniq);
+   tcase_add_test(tc_core, test_pos);
    suite_add_tcase(s, tc_core);
 
    return s;
