@@ -314,5 +314,6 @@ bool is_scanned_as_psl(void);
 #define tUDPEDGE       422
 #define tUDPIND        423
 #define tBUF           424
+#define tLOGOR         425
 
 #endif  // _SCAN_H

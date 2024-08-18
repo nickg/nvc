@@ -110,6 +110,7 @@ typedef enum {
    V_BINARY_LOG_NEQ,
    V_BINARY_CASE_EQ,
    V_BINARY_CASE_NEQ,
+   V_BINARY_LOG_OR,
 } vlog_binary_t;
 
 typedef enum {

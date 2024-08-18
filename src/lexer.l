@@ -563,6 +563,7 @@ UNION         ?i:union
 <VLOG>"!="               { return tLOGNEQ; }
 <VLOG>"==="              { return tCASEEQ; }
 <VLOG>"!=="              { return tCASENEQ; }
+<VLOG>"||"               { return tLOGOR; }
 <VLOG>"(*"               { return tATTRBEGIN; }
 <VLOG>"*)"               { return tATTREND; }
 <VLOG>"specify"          { return tSPECIFY; }

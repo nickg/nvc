@@ -36,3 +36,14 @@ primitive multiplexer (mux, control, dataA, dataB);
     1        ?     0   :  0 ;
   endtable
 endprimitive
+
+module mod3;   // Check operator precedence
+  wire x, y, z;
+  initial begin
+    if (x || y === z);
+    if (x & y | y & z === x + z);
+    if (x == y || y == z);
+    if ((x & y) == z);
+  end
+endmodule // mod3
+

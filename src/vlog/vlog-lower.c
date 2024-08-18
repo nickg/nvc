@@ -388,6 +388,7 @@ static vcode_reg_t vlog_lower_binary(lower_unit_t *lu, vlog_binary_t op,
       tb_cat(tb, "\"and\"(");
       break;
    case V_BINARY_OR:
+   case V_BINARY_LOG_OR:
       tb_cat(tb, "\"or\"(");
       break;
    case V_BINARY_CASE_EQ:
@@ -417,6 +418,7 @@ static vcode_reg_t vlog_lower_binary(lower_unit_t *lu, vlog_binary_t op,
       break;
    case V_BINARY_LOG_EQ:
    case V_BINARY_LOG_NEQ:
+   case V_BINARY_LOG_OR:
       rtype = vlog_logic_type();
       tb_cat(tb, T_LOGIC);
       break;

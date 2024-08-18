@@ -73,6 +73,7 @@ package verilog is
     function "xor" (l, r : t_logic) return t_logic;
 
     function "or" (l, r : t_logic) return t_logic;
+    function "or" (l, r : t_packed_logic) return t_logic;
 
     function "not" (x : t_logic) return t_logic;
     function "not" (x : t_packed_logic) return t_packed_logic;

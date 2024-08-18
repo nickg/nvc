@@ -521,6 +521,24 @@ START_TEST(test_vlog1)
              "endprimitive // multiplexer\n\n");
    tb_rewind(tb);
 
+   vlog_node_t m4 = vlog_parse();
+   fail_if(m4 == NULL);
+
+   vlog_dump(m4, 0);
+   diff_dump(tb_get(tb),
+             "module mod3;\n"
+             "  wire x;\n"
+             "  wire y;\n"
+             "  wire z;\n"
+             "  initial begin\n"
+             "    if (x || (y === z));\n"
+             "    if ((x & y) | (y & (z === (x + z))));\n"
+             "    if ((x == y) || (y == z));\n"
+             "    if ((x & y) == z);\n"
+             "  end\n"
+             "endmodule // mod3\n\n");
+   tb_rewind(tb);
+
    fail_if_errors();
 }
 END_TEST

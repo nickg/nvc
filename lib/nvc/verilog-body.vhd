@@ -279,6 +279,18 @@ package body verilog is
         end if;
     end function;
 
+    function "or" (l, r : t_packed_logic) return t_logic is
+        variable result : t_logic := '0';
+    begin
+        for i in l'range loop
+            result := result or l(i);
+        end loop;
+        for i in r'range loop
+            result := result or r(i);
+        end loop;
+        return result;
+    end function;
+
     function "nor" (l, r : t_logic) return t_logic is
     begin
         return not (l or r);

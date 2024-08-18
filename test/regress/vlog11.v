@@ -8,26 +8,22 @@ module vlog11;
     i1 = 1;
     i2 = 0;
     #1 $display("%d %d", o1, o2);
-    if (o1 !== 1) $display("FAILED");
-    if (o2 !== 1) $display("FAILED");
+    if (o1 !== 1 || o2 !== 1) $display("FAILED");
 
     i1 = 0;
     i2 = 1;
     #1 $display("%d %d", o1, o2);
-    if (o1 !== 1) $display("FAILED");
-    if (o2 !== 1) $display("FAILED");
+    if (o1 !== 1 || o2 !== 1) $display("FAILED");
 
     i1 = 1;
     i2 = 1;
     #1 $display("%d %d", o1, o2);
-    if (o1 !== 0) $display("FAILED");
-    if (o2 !== 0) $display("FAILED");
+    if (o1 !== 0 || o2 !== 0) $display("FAILED");
 
     i1 = 0;
     i2 = 0;
     #1 $display("%d %d", o1, o2);
-    if (o1 !== 1) $display("FAILED");
-    if (o2 !== 0) $display("FAILED");
+    if (o1 !== 1 || o2 !== 0) $display("FAILED");
 
     //i1 = 1;
     //i2 = 1'bx;

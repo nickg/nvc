@@ -913,6 +913,21 @@ static vlog_node_t p_subroutine_call(vlog_kind_t kind)
    return p_system_tf_call(kind);
 }
 
+static vlog_node_t p_mintypmax_expression(void)
+{
+   // expression | expression : expression : expression
+
+   BEGIN("mintypmax expression");
+
+   consume(tLPAREN);
+
+   vlog_node_t inner = p_expression();
+
+   consume(tRPAREN);
+
+   return inner;
+}
+
 static vlog_node_t p_primary(void)
 {
    // primary_literal | empty_queue
@@ -935,8 +950,10 @@ static vlog_node_t p_primary(void)
       return p_primary_literal();
    case tSYSTASK:
       return p_subroutine_call(V_SYSFUNC);
+   case tLPAREN:
+      return p_mintypmax_expression();
    default:
-      one_of(tID, tSTRING, tNUMBER, tUNSIGNED, tSYSTASK);
+      one_of(tID, tSTRING, tNUMBER, tUNSIGNED, tSYSTASK, tLPAREN);
       return p_select(error_marker());
    }
 }
@@ -949,13 +966,17 @@ static vlog_binary_t p_binary_operator(void)
 
    BEGIN("binary operator");
 
-   switch (one_of(tBAR, tPLUS, tAMP, tCASEEQ, tCASENEQ)) {
-   case tBAR: return V_BINARY_OR;
-   case tAMP: return V_BINARY_AND;
-   case tCASEEQ: return V_BINARY_CASE_EQ;
+   switch (one_of(tBAR, tPLUS, tAMP, tCASEEQ, tCASENEQ, tLOGOR,
+                  tLOGEQ, tLOGNEQ)) {
+   case tBAR:     return V_BINARY_OR;
+   case tAMP:     return V_BINARY_AND;
+   case tCASEEQ:  return V_BINARY_CASE_EQ;
    case tCASENEQ: return V_BINARY_CASE_NEQ;
+   case tLOGEQ:   return V_BINARY_LOG_EQ;
+   case tLOGNEQ:  return V_BINARY_LOG_NEQ;
+   case tLOGOR:   return V_BINARY_LOG_OR;
    case tPLUS:
-   default: return V_BINARY_PLUS;
+   default:       return V_BINARY_PLUS;
    }
 }
 static vlog_unary_t p_unary_operator(void)
@@ -973,6 +994,79 @@ static vlog_unary_t p_unary_operator(void)
    }
 }
 
+static vlog_node_t p_nonbinary_expression(void)
+{
+   // primary | unary_operator { attribute_instance } primary
+   //   | inc_or_dec_expression | ( operator_assignment )
+   //   | conditional_expression | inside_expression | tagged_union_expression
+
+   switch (peek()) {
+   case tID:
+   case tSTRING:
+   case tNUMBER:
+   case tUNSIGNED:
+   case tSYSTASK:
+   case tLPAREN:
+      return p_primary();
+   case tMINUS:
+   case tTILDE:
+   case tBANG:
+      {
+         vlog_node_t v = vlog_new(V_UNARY);
+         vlog_set_subkind(v, p_unary_operator());
+         vlog_set_value(v, p_primary());
+         vlog_set_loc(v, CURRENT_LOC);
+         return v;
+      }
+   default:
+      one_of(tID, tSTRING, tNUMBER, tUNSIGNED, tMINUS, tTILDE, tBANG, tSYSTASK);
+      return p_select(error_marker());
+   }
+}
+
+static bool peek_binary_operator(int *prec)
+{
+   // See LRM 1800-2017 section 11.3.2 for operator precedence table
+
+   switch (peek()) {
+   case tPLUS:    *prec = 10; return true;
+   case tCASEEQ:
+   case tCASENEQ:
+   case tLOGEQ:
+   case tLOGNEQ:  *prec = 7;  return true;
+   case tAMP:     *prec = 6;  return true;
+   case tBAR:     *prec = 4;  return true;
+   case tLOGOR:   *prec = 2;  return true;
+   default:
+      return false;
+   }
+}
+
+static vlog_node_t p_binary_expression(vlog_node_t lhs, int min_prec)
+{
+   // Precedence climbing method, see
+   //    https://en.wikipedia.org/wiki/Operator-precedence_parser
+
+   int prec1;
+   while (peek_binary_operator(&prec1) && prec1 >= min_prec) {
+      vlog_node_t v = vlog_new(V_BINARY);
+      vlog_set_subkind(v, p_binary_operator());
+      vlog_set_left(v, lhs);
+
+      vlog_node_t rhs = p_nonbinary_expression();
+
+      int prec2;
+      while (peek_binary_operator(&prec2) && prec2 > prec1)
+         rhs = p_binary_expression(rhs, prec1 + (prec2 > prec1));
+
+      vlog_set_right(v, rhs);
+      vlog_set_loc(v, CURRENT_LOC);
+      lhs = v;
+   }
+
+   return lhs;
+}
+
 static vlog_node_t p_expression(void)
 {
    // primary | unary_operator { attribute_instance } primary
@@ -982,39 +1076,8 @@ static vlog_node_t p_expression(void)
 
    BEGIN("expression");
 
-   vlog_node_t head;
-   switch (peek()) {
-   case tID:
-   case tSTRING:
-   case tNUMBER:
-   case tUNSIGNED:
-   case tSYSTASK:
-      head = p_primary();
-      break;
-   case tMINUS:
-   case tTILDE:
-   case tBANG:
-      head = vlog_new(V_UNARY);
-      vlog_set_subkind(head, p_unary_operator());
-      vlog_set_value(head, p_primary());
-      vlog_set_loc(head, CURRENT_LOC);
-      break;
-   default:
-      one_of(tID, tSTRING, tNUMBER, tUNSIGNED, tMINUS, tTILDE, tBANG, tSYSTASK);
-      return p_select(error_marker());
-   }
-
-   if (scan(tBAR, tPLUS, tAMP, tCASEEQ, tCASENEQ)) {
-      vlog_node_t v = vlog_new(V_BINARY);
-      vlog_set_subkind(v, p_binary_operator());
-      vlog_set_left(v, head);
-      vlog_set_right(v, p_expression());
-
-      vlog_set_loc(v, CURRENT_LOC);
-      return v;
-   }
-   else
-      return head;
+   vlog_node_t head = p_nonbinary_expression();
+   return p_binary_expression(head, 0);
 }
 
 static vlog_node_t p_event_expression(void)

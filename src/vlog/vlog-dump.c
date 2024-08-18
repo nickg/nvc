@@ -29,6 +29,21 @@ static inline void tab(int indent)
    print_syntax("%*s", indent, "");
 }
 
+static void vlog_dump_paren(vlog_node_t v, int indent)
+{
+   switch (vlog_kind(v)) {
+   case V_REF:
+   case V_BIT_SELECT:
+   case V_NUMBER:
+      vlog_dump(v, indent);
+      break;
+   default:
+      print_syntax("(");
+      vlog_dump(v, indent);
+      print_syntax(")");
+   }
+}
+
 static void vlog_dump_module(vlog_node_t v, int indent)
 {
    print_syntax("#module %s", istr(vlog_ident2(v)));
@@ -329,14 +344,20 @@ static void vlog_dump_number(vlog_node_t v)
 
 static void vlog_dump_binary(vlog_node_t v)
 {
-   vlog_dump(vlog_left(v), 0);
+   vlog_dump_paren(vlog_left(v), 0);
 
    switch (vlog_subkind(v)) {
    case V_BINARY_OR: print_syntax(" | "); break;
    case V_BINARY_AND: print_syntax(" & "); break;
+   case V_BINARY_CASE_EQ: print_syntax(" === "); break;
+   case V_BINARY_CASE_NEQ: print_syntax(" !== "); break;
+   case V_BINARY_LOG_EQ: print_syntax(" == "); break;
+   case V_BINARY_LOG_NEQ: print_syntax(" != "); break;
+   case V_BINARY_LOG_OR: print_syntax(" || "); break;
+   case V_BINARY_PLUS: print_syntax(" + "); break;
    }
 
-   vlog_dump(vlog_right(v), 0);
+   vlog_dump_paren(vlog_right(v), 0);
 }
 
 static void vlog_dump_unary(vlog_node_t v)
