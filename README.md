@@ -124,6 +124,12 @@ required dependencies:
       flex check llvm-dev pkg-config zlib1g-dev libdw-dev \
       libffi-dev libzstd-dev
 
+On `rpm` based distributions, the following can be installed to fulfill
+required dependencies:
+
+    sudo dnf install autoconf automake flex check llvm-devel libffi-devel \
+      zlib-ng-compat-devel libzstd-devel elfutils-devel 
+
 Only the MSYS2 environment on Windows is supported.  The required
 dependencies can be installed with:
 
