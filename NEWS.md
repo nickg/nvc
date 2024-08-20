@@ -18,6 +18,8 @@
 - Coverage exclude files now support `fold` command.
 - A signature is now allowed in the formal part of generic map
   associations in VHDL-2019 mode.
+- Type checking was not performed correctly for conversion function
+  actuals in port maps (#945).
 
 ## Version 1.13.2 - 2024-08-11
 - Fixed an incorrect bounds check error when a constant declaration has
