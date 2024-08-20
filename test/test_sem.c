@@ -3657,6 +3657,25 @@ START_TEST(test_genpack5)
 }
 END_TEST
 
+START_TEST(test_issue945)
+{
+   input_from_file(TESTDIR "/sem/issue945.vhd");
+
+   const error_t expect[] = {
+      { 51, "type of conversion function actual LARGER_RECORD does not match "
+        "formal R type TEST_RECORD" },
+      { 58, "type of conversion function actual BIT does not match formal R "
+        "type TEST_RECORD" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_ENTITY, T_ARCH, T_ENTITY, T_ARCH);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_sem_tests(void)
 {
    Suite *s = suite_create("sem");
@@ -3825,6 +3844,7 @@ Suite *get_sem_tests(void)
    tcase_add_test(tc_core, test_incomplete);
    tcase_add_test(tc_core, test_issue884);
    tcase_add_test(tc_core, test_genpack5);
+   tcase_add_test(tc_core, test_issue945);
    suite_add_tcase(s, tc_core);
 
    return s;

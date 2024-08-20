@@ -6646,8 +6646,19 @@ static bool sem_check_conv_func(tree_t t, nametab_t *tab)
    else if (!tree_has_ref(t))
       return false;
 
-   if (!sem_check(tree_value(t), tab))
+   tree_t value = tree_value(t);
+   if (!sem_check(value, tab))
       return false;
+
+   tree_t decl = tree_ref(t);
+   assert(tree_ports(decl) == 1);
+
+   tree_t formal = tree_port(decl, 0);
+   type_t ftype = tree_type(formal);
+   if (!sem_check_type(value, ftype, tab))
+      sem_error(value, "type of conversion function actual %s does not match "
+                "formal %s type %s", type_pp2(tree_type(value), ftype),
+                istr(tree_ident(formal)), type_pp2(ftype, tree_type(value)));
 
    return true;
 }
