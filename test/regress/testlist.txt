@@ -1023,3 +1023,4 @@ issue943        normal,2008
 mixed3          mixed
 vlog10          verilog
 vlog11          verilog
+issue946        normal,2008
