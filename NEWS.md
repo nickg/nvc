@@ -2,6 +2,8 @@
 - Several other minor bugs were resolved (#942, #943).
 - Type checking was not performed correctly for conversion function
   actuals in port maps (#945).
+- Fixed a crash with signal aliases inside an instantiated generic
+  package (#946).
 
 ## Version 1.13.2 - 2024-08-11
 - Fixed an incorrect bounds check error when a constant declaration has

@@ -3123,6 +3123,18 @@ static vcode_reg_t lower_alias_ref(lower_unit_t *lu, tree_t alias,
          return lower_link_var(lu, alias);
       }
    }
+   else if (var & INSTANCE_BIT) {
+      // This alias is declared in an instantiated package
+      vcode_var_t pkg_var = var & ~INSTANCE_BIT;
+      vcode_reg_t pkg_reg;
+      if (hops == 0)
+         pkg_reg = emit_load(pkg_var);
+      else
+         pkg_reg = emit_load_indirect(emit_var_upref(hops, pkg_var));
+
+      vcode_type_t vtype = lower_alias_type(alias);
+      return emit_link_var(pkg_reg, tree_ident(alias), vtype);
+   }
 
    if (hops == 0)
       return emit_load(var);
