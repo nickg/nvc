@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2022-2023  Nick Gasson
+//  Copyright (C) 2022-2024  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -82,7 +82,7 @@ struct _free_list {
 struct _mspace {
    nvc_lock_t       lock;
    size_t           maxsize;
-   unsigned         maxlines;
+   size_t           maxlines;
    char            *space;
    bit_mask_t       headmask;
    mptr_t           roots;
@@ -184,7 +184,7 @@ static void *mspace_try_alloc(mspace_t *m, size_t size)
 {
    // Add one to size before rounding up to LINE_SIZE to allow a valid
    // pointer to point at one element past the end of an array
-   const int nlines = (size + LINE_SIZE) / LINE_SIZE;
+   const size_t nlines = (size + LINE_SIZE) / LINE_SIZE;
    const size_t asize = nlines * LINE_SIZE;
 
    SCOPED_LOCK(m->lock);
@@ -194,10 +194,12 @@ static void *mspace_try_alloc(mspace_t *m, size_t size)
       if ((*it)->size >= asize) {
          char *base = (*it)->ptr;
          assert((uintptr_t)base % LINE_SIZE == 0);
+         assert(base >= m->space);
+         assert(base < m->space + m->maxsize);
 
          MSPACE_UNPOISON(base, size);
 
-         const int line = (base - m->space) / LINE_SIZE;
+         const ptrdiff_t line = (base - m->space) / LINE_SIZE;
          mask_set(&(m->headmask), line);
          if (nlines > 1)
             mask_clear_range(&(m->headmask), line + 1, nlines - 1);
@@ -429,9 +431,10 @@ static void mspace_mark_root(mspace_t *m, intptr_t p, gc_state_t *state)
       line = mask_scan_backwards(&(m->headmask), line);
       assert(line != -1);
 
-      int objlen = 1;
+      size_t objlen = 1;
       if (line + 1 < m->maxlines)
          objlen += mask_count_clear(&(m->headmask), line + 1);
+      assert(objlen < UINT32_MAX);
 
       if (!mask_test(&(state->markmask), line)) {
          mask_set_range(&(state->markmask), line, objlen);
@@ -520,7 +523,7 @@ static void mspace_gc(mspace_t *m)
       const uint32_t line = enc >> 32;
       const uint32_t objlen = enc & 0xffffffff;
 
-      for (int i = 0; i < objlen; i++) {
+      for (size_t i = 0; i < objlen; i++) {
          const ptrdiff_t off = (uintptr_t)(line + i) * LINE_SIZE;
          intptr_t *words = (intptr_t *)(m->space + off);
          for (int j = 0; j < LINE_WORDS; j++)
@@ -543,8 +546,8 @@ static void mspace_gc(mspace_t *m)
 
    int freefrags = 0, freelines = 0;
    free_list_t **tail = &(m->free_list);
-   for (int line = 0; line < m->maxlines;) {
-      const int clear = mask_count_clear(&(state.markmask), line);
+   for (size_t line = 0; line < m->maxlines;) {
+      const size_t clear = mask_count_clear(&(state.markmask), line);
       if (clear == 0)
          line++;
       else {
@@ -569,7 +572,7 @@ static void mspace_gc(mspace_t *m)
 
    if (opt_get_verbose(OPT_GC_VERBOSE, NULL)) {
       const int ticks = get_timestamp_us() - start_ticks;
-      debugf("GC: allocated %d/%zu; fragmentation %.2g%% [%d us]",
+      debugf("GC: allocated %zd/%zu; fragmentation %.2g%% [%d us]",
              mask_popcount(&(state.markmask)) * LINE_SIZE, m->maxsize,
              ((double)(freefrags - 1) / (double)freelines) * 100.0, ticks);
 
@@ -590,13 +593,13 @@ void *mspace_find(mspace_t *m, void *ptr, size_t *size)
       return NULL;
    }
 
-   int line = ((char *)ptr - m->space) / LINE_SIZE;
+   ptrdiff_t line = ((char *)ptr - m->space) / LINE_SIZE;
 
    // Scan backwards to the start of the object
    line = mask_scan_backwards(&(m->headmask), line);
    assert(line != -1);
 
-   int objlen = 1;
+   size_t objlen = 1;
    if (line + 1 < m->maxlines)
       objlen += mask_count_clear(&(m->headmask), line + 1);
 

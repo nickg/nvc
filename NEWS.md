@@ -4,6 +4,8 @@
   actuals in port maps (#945).
 - Fixed a crash with signal aliases inside an instantiated generic
   package (#946).
+- Fixed random crashes when the simulation heap size is eight gigabytes
+  or larger (#949).
 
 ## Version 1.13.2 - 2024-08-11
 - Fixed an incorrect bounds check error when a constant declaration has

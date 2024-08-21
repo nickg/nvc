@@ -59,7 +59,7 @@ static inline uint64_t mask_for_range(int low, int high)
    return mask;
 }
 
-void mask_clear_range(bit_mask_t *m, int start, int count)
+void mask_clear_range(bit_mask_t *m, size_t start, size_t count)
 {
    if (m->size <= 64) {
       m->bits &= ~mask_for_range(start, start + count - 1);
@@ -68,9 +68,9 @@ void mask_clear_range(bit_mask_t *m, int start, int count)
 
    if (count > 0 && start % 64 != 0) {
       // Pre-loop: clear range of bits in first 64-bit word
-      const int low = start % 64;
-      const int high = MIN(low + count - 1, 63);
-      const int nbits = high - low + 1;
+      const size_t low = start % 64;
+      const size_t high = MIN(low + count - 1, 63);
+      const size_t nbits = high - low + 1;
       m->ptr[start / 64] &= ~mask_for_range(low, high);
       start += nbits;
       count -= nbits;
@@ -91,7 +91,7 @@ void mask_clear_range(bit_mask_t *m, int start, int count)
    }
 }
 
-void mask_set_range(bit_mask_t *m, int start, int count)
+void mask_set_range(bit_mask_t *m, size_t start, size_t count)
 {
    if (m->size <= 64) {
       m->bits |= mask_for_range(start, start + count - 1);
@@ -100,9 +100,9 @@ void mask_set_range(bit_mask_t *m, int start, int count)
 
    if (count > 0 && start % 64 != 0) {
       // Pre-loop: set range of bits in first 64-bit word
-      const int low = start % 64;
-      const int high = MIN(low + count - 1, 63);
-      const int nbits = high - low + 1;
+      const size_t low = start % 64;
+      const size_t high = MIN(low + count - 1, 63);
+      const size_t nbits = high - low + 1;
       m->ptr[start / 64] |= mask_for_range(low, high);
       start += nbits;
       count -= nbits;
@@ -123,16 +123,16 @@ void mask_set_range(bit_mask_t *m, int start, int count)
    }
 }
 
-bool mask_test_range(bit_mask_t *m, int start, int count)
+bool mask_test_range(bit_mask_t *m, size_t start, size_t count)
 {
    if (m->size <= 64)
       return !!(m->bits & mask_for_range(start, start + count - 1));
 
    if (count > 0 && start % 64 != 0) {
       // Pre-loop: test range of bits in first 64-bit word
-      const int low = start % 64;
-      const int high = MIN(low + count - 1, 63);
-      const int nbits = high - low + 1;
+      const size_t low = start % 64;
+      const size_t high = MIN(low + count - 1, 63);
+      const size_t nbits = high - low + 1;
 
       if (m->ptr[start / 64] & mask_for_range(low, high))
          return true;
@@ -163,11 +163,11 @@ bool mask_test_range(bit_mask_t *m, int start, int count)
    return false;
 }
 
-int mask_popcount(bit_mask_t *m)
+size_t mask_popcount(bit_mask_t *m)
 {
    if (m->size > 64) {
-      int sum = 0;
-      for (int i = 0; i < (m->size + 63) / 64; i++)
+      size_t sum = 0;
+      for (ssize_t i = 0; i < (m->size + 63) / 64; i++)
          sum += __builtin_popcountll(m->ptr[i]);
       return sum;
    }
@@ -185,7 +185,7 @@ void mask_clearall(bit_mask_t *m)
    mask_clear_range(m, 0, m->size);
 }
 
-int mask_scan_backwards(bit_mask_t *m, int bit)
+ssize_t mask_scan_backwards(bit_mask_t *m, size_t bit)
 {
    if (m->size <= 64) {
       uint64_t word0 = m->bits & mask_for_range(0, bit);
@@ -198,17 +198,17 @@ int mask_scan_backwards(bit_mask_t *m, int bit)
    if (word0 != 0)
       return (bit | 63) - __builtin_clzll(word0);
 
-   bit -= bit % 64 + 1;
+   ssize_t i = bit - (bit % 64 + 1);
 
-   for (; bit > 0 && m->ptr[bit / 64] == 0; bit -= 64);
+   for (; i > 0 && m->ptr[i / 64] == 0; i -= 64);
 
-   if (bit > 0)
-      return (bit | 63) - __builtin_clzll(m->ptr[bit / 64]);
+   if (i > 0)
+      return (i | 63) - __builtin_clzll(m->ptr[i / 64]);
 
    return -1;
 }
 
-int mask_count_clear(bit_mask_t *m, int bit)
+size_t mask_count_clear(bit_mask_t *m, size_t bit)
 {
    assert(bit < m->size);
 
@@ -217,7 +217,7 @@ int mask_count_clear(bit_mask_t *m, int bit)
       return fs > 0 ? fs - 1 - bit : m->size - bit;
    }
 
-   int count = 0;
+   size_t count = 0;
 
    const int modbits = bit % 64, maxbits = MIN(64, m->size - (bit & ~63));
    if (modbits > 0) {
@@ -251,7 +251,7 @@ void mask_subtract(bit_mask_t *m, const bit_mask_t *m2)
    assert(m->size == m2->size);
 
    if (m->size > 64) {
-      for (int i = 0; i < (m->size + 63) / 64; i++)
+      for (ssize_t i = 0; i < (m->size + 63) / 64; i++)
          m->ptr[i] &= ~m2->ptr[i];
    }
    else
@@ -263,7 +263,7 @@ void mask_union(bit_mask_t *m, const bit_mask_t *m2)
    assert(m->size == m2->size);
 
    if (m->size > 64) {
-      for (int i = 0; i < (m->size + 63) / 64; i++)
+      for (ssize_t i = 0; i < (m->size + 63) / 64; i++)
          m->ptr[i] |= m2->ptr[i];
    }
    else
@@ -275,7 +275,7 @@ void mask_copy(bit_mask_t *m, const bit_mask_t *m2)
    assert(m->size == m2->size);
 
    if (m->size > 64) {
-      for (int i = 0; i < (m->size + 63) / 64; i++)
+      for (ssize_t i = 0; i < (m->size + 63) / 64; i++)
          m->ptr[i] = m2->ptr[i];
    }
    else
@@ -287,7 +287,7 @@ bool mask_eq(const bit_mask_t *m1, const bit_mask_t *m2)
    assert(m1->size == m2->size);
 
    if (m1->size > 64) {
-      for (int i = 0; i < (m1->size + 63) / 64; i++) {
+      for (ssize_t i = 0; i < (m1->size + 63) / 64; i++) {
          if (m1->ptr[i] != m2->ptr[i])
             return false;
       }
@@ -298,12 +298,12 @@ bool mask_eq(const bit_mask_t *m1, const bit_mask_t *m2)
       return m1->bits == m2->bits;
 }
 
-bool mask_iter(bit_mask_t *m, int *bit)
+bool mask_iter(bit_mask_t *m, size_t *bit)
 {
    if (*bit + 1 < 0 || *bit + 1 >= m->size)
       return false;
    else if (m->size > 64) {
-      int word = (*bit + 1) / 64;
+      size_t word = (*bit + 1) / 64;
 
       if ((*bit + 1) % 64 > 0) {
          const uint64_t remain = m->ptr[word] & ~mask_for_range(0, *bit % 64);

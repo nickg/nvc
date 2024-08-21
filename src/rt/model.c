@@ -227,9 +227,9 @@ static const char *trace_states(bit_mask_t *mask)
    tb_rewind(tb);
    tb_append(tb, '{');
 
-   int bit = -1;
+   size_t bit = -1;
    while (mask_iter(mask, &bit))
-      tb_printf(tb, "%s%d", tb_len(tb) > 1 ? "," : "", bit);
+      tb_printf(tb, "%s%zd", tb_len(tb) > 1 ? "," : "", bit);
 
    tb_append(tb, '}');
 
@@ -2436,7 +2436,7 @@ static void update_property(rt_model_t *m, rt_prop_t *prop)
 
    mask_clearall(&prop->newstate);
 
-   int bit = -1;
+   size_t bit = -1;
    while (mask_iter(&prop->state, &bit)) {
       jit_scalar_t state = { .integer = bit }, result;
       if (!jit_fastcall(m->jit, prop->handle, &result, context,
