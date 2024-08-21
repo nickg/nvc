@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2022-2023  Nick Gasson
+//  Copyright (C) 2022-2024  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -21,6 +21,8 @@
 #include "prim.h"
 
 #include <stdbool.h>
+#include <stddef.h>
+#include <sys/types.h>
 
 typedef struct _bit_mask {
    size_t size;
@@ -31,7 +33,7 @@ typedef struct _bit_mask {
 } bit_mask_t;
 
 #define mask_test(m, bit) ({                                            \
-         const int _bit = (bit);                                        \
+         const size_t _bit = (bit);                                     \
          assert(_bit < (m)->size);                                      \
          (m)->size > 64                                                 \
             ? !!((m)->ptr[_bit / 64] & (UINT64_C(1) << (_bit % 64)))    \
@@ -39,7 +41,7 @@ typedef struct _bit_mask {
       })
 
 #define mask_set(m, bit) do {                                   \
-      const int _bit = (bit);                                   \
+      const size_t _bit = (bit);                                \
       assert(_bit < (m)->size);                                 \
       if ((m)->size > 64)                                       \
          (m)->ptr[_bit / 64] |= (UINT64_C(1) << (_bit % 64));   \
@@ -48,7 +50,7 @@ typedef struct _bit_mask {
    } while (0)
 
 #define mask_clear(m, bit) do {                                 \
-      const int _bit = (bit);                                   \
+      const size_t _bit = (bit);                                \
       assert(_bit < (m)->size);                                 \
       if ((m)->size > 64)                                       \
          (m)->ptr[_bit / 64] &= ~(UINT64_C(1) << (_bit % 64));  \
@@ -60,18 +62,18 @@ typedef struct _bit_mask {
 
 void mask_init(bit_mask_t *m, size_t size);
 void mask_free(bit_mask_t *m);
-void mask_clear_range(bit_mask_t *m, int start, int count);
-void mask_set_range(bit_mask_t *m, int start, int count);
-bool mask_test_range(bit_mask_t *m, int start, int count);
-int mask_popcount(bit_mask_t *m);
+void mask_clear_range(bit_mask_t *m, size_t start, size_t count);
+void mask_set_range(bit_mask_t *m, size_t start, size_t count);
+bool mask_test_range(bit_mask_t *m, size_t start, size_t count);
+size_t mask_popcount(bit_mask_t *m);
 void mask_setall(bit_mask_t *m);
 void mask_clearall(bit_mask_t *m);
-int mask_scan_backwards(bit_mask_t *m, int bit);
-int mask_count_clear(bit_mask_t *m, int bit);
+ssize_t mask_scan_backwards(bit_mask_t *m, size_t bit);
+size_t mask_count_clear(bit_mask_t *m, size_t bit);
 void mask_subtract(bit_mask_t *m, const bit_mask_t *m2);
 void mask_union(bit_mask_t *m, const bit_mask_t *m2);
 void mask_copy(bit_mask_t *m, const bit_mask_t *m2);
 bool mask_eq(const bit_mask_t *m1, const bit_mask_t *m2);
-bool mask_iter(bit_mask_t *m, int *bit);
+bool mask_iter(bit_mask_t *m, size_t *bit);
 
 #endif  // _MASK_H

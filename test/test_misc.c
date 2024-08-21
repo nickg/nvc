@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2021-2023  Nick Gasson
+//  Copyright (C) 2021-2024  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -545,7 +545,7 @@ START_TEST(test_mask_iter)
    mask_set(&m, 6);
    mask_set(&m, 17);
 
-   int bit = -1;
+   size_t bit = -1;
    fail_unless(mask_iter(&m, &bit));
    fail_unless(bit == 1);
    fail_unless(mask_iter(&m, &bit));

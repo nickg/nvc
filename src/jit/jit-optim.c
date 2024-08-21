@@ -1299,7 +1299,7 @@ static void lscan_walk_cfg(jit_func_t *f, jit_cfg_t *cfg, int bi,
 
    jit_block_t *b = &(cfg->blocks[bi]);
 
-   for (int bit = -1; mask_iter(&b->livein, &bit);)
+   for (size_t bit = -1; mask_iter(&b->livein, &bit);)
       lscan_grow_range(bit, li, b->first);
 
    for (int i = b->first; i <= b->last; i++) {
@@ -1315,7 +1315,7 @@ static void lscan_walk_cfg(jit_func_t *f, jit_cfg_t *cfg, int bi,
          lscan_grow_range(ir->arg2.reg, li, i);
    }
 
-   for (int bit = -1; mask_iter(&b->liveout, &bit); )
+   for (size_t bit = -1; mask_iter(&b->liveout, &bit); )
       lscan_grow_range(bit, li, b->last);
 
    for (int i = 0; i < b->out.count; i++) {
