@@ -1485,18 +1485,6 @@ char *tb_claim(text_buf_t *tb)
    return buf;
 }
 
-void tb_move(text_buf_t *to, text_buf_t *from)
-{
-   free(to->buf);
-
-   to->buf = from->buf;
-   to->len = from->len;
-   to->alloc = from->alloc;
-
-   from->alloc = from->len = 0;
-   from->buf = NULL;
-}
-
 const char *tb_get(text_buf_t *tb)
 {
    return tb->buf;

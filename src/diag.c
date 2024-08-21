@@ -534,9 +534,9 @@ void diag_write(diag_t *d, const char *str, size_t len)
    tb_catn(d->msg, str, len);
 }
 
-void diag_message(diag_t *d, text_buf_t *tb)
+text_buf_t *diag_text_buf(diag_t *d)
 {
-   tb_move(d->msg, tb);
+   return d->msg;
 }
 
 void diag_vhint(diag_t *d, const loc_t *loc, const char *fmt, va_list ap)

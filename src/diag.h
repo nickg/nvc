@@ -93,7 +93,7 @@ void diag_printf(diag_t *d, const char *fmt, ...)
    __attribute__((format(printf, 2, 3)));
 void diag_vprintf(diag_t *d, const char *fmt, va_list ap);
 void diag_write(diag_t *d, const char *str, size_t len);
-void diag_message(diag_t *d, text_buf_t *tb);
+text_buf_t *diag_text_buf(diag_t *d);
 void diag_hint(diag_t *d, const loc_t *loc, const char *fmt, ...)
    __attribute__((format(printf, 3, 4)));
 void diag_vhint(diag_t *d, const loc_t *loc, const char *fmt, va_list ap);

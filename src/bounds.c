@@ -51,9 +51,11 @@ static void bounds_check_string_literal(tree_t t)
                    "have %d", expect, tree_chars(t));
 }
 
-static void bounds_fmt_type_range(text_buf_t *tb, type_t type, range_kind_t dir,
-                                  int64_t low, int64_t high)
+static void format_type_range(diag_t *d, type_t type, range_kind_t dir,
+                              int64_t low, int64_t high)
 {
+   text_buf_t *tb = diag_text_buf(d);
+
    if (dir == RANGE_DOWNTO) {
       to_string(tb, type, high);
       tb_cat(tb, " downto ");
@@ -66,7 +68,7 @@ static void bounds_fmt_type_range(text_buf_t *tb, type_t type, range_kind_t dir,
    }
 }
 
-static void bounds_fmt_hint_string(text_buf_t *tb, tree_t where)
+static void add_hint_string(diag_t *d, tree_t where)
 {
    const char *what = "";
    switch (tree_kind(where)) {
@@ -81,7 +83,7 @@ static void bounds_fmt_hint_string(text_buf_t *tb, tree_t where)
    default: break;
    }
 
-   tb_printf(tb, " for %s %s", what, istr(tree_ident(where)));
+   diag_printf(d, " for %s %s", what, istr(tree_ident(where)));
 }
 
 static void bounds_check_scalar(tree_t value, type_t type, tree_t hint)
@@ -106,16 +108,16 @@ static void bounds_check_scalar(tree_t value, type_t type, tree_t hint)
    }
 
    if (error) {
-      LOCAL_TEXT_BUF tb = tb_new();
-      tb_cat(tb, "value ");
-      to_string(tb, type, folded);
-      tb_printf(tb, " outside of %s range ", type_pp(type));
-      bounds_fmt_type_range(tb, type, tree_subkind(r), low, high);
+      diag_t *d = diag_new(DIAG_ERROR, tree_loc(value));
+      diag_printf(d, "value ");
+      to_string(diag_text_buf(d), type, folded);
+      diag_printf(d, " outside of %s range ", type_pp(type));
+      format_type_range(d, type, tree_subkind(r), low, high);
 
       if (hint != NULL)
-         bounds_fmt_hint_string(tb, hint);
+         add_hint_string(d, hint);
 
-      bounds_error(value, "%s", tb_get(tb));
+      diag_emit(d);
    }
 }
 
@@ -136,28 +138,18 @@ static void bounds_check_array(tree_t value, type_t type, tree_t hint)
       else if (!folded_length(range_of(value_type, i), &value_w))
          continue;
       else if (target_w != value_w) {
-         LOCAL_TEXT_BUF tb = tb_new();
-         tb_printf(tb, "length of ");
+         diag_t *d = diag_new(DIAG_ERROR, tree_loc(value));
+         diag_printf(d, "length of ");
          if (i > 0)
-            tb_printf(tb, "dimension %d of ", i + 1);
-         tb_printf(tb, "value %"PRIi64" does not match length of target %"
-                   PRIi64, value_w, target_w);
+            diag_printf(d, "dimension %d of ", i + 1);
+         diag_printf(d, "value %"PRIi64" does not match length of target %"
+                     PRIi64, value_w, target_w);
          if (hint != NULL)
-            bounds_fmt_hint_string(tb, hint);
+            add_hint_string(d, hint);
 
-         bounds_error(value, "%s", tb_get(tb));
+         diag_emit(d);
       }
    }
-}
-
-static const char *bounds_dimension_str(int ndims, int dim)
-{
-   static char dimstr[32];
-   if (ndims > 1)
-      checked_sprintf(dimstr, sizeof(dimstr), " for dimension %d", dim + 1);
-   else
-      dimstr[0] = '\0';
-   return dimstr;
 }
 
 static tree_t bounds_check_call_args(tree_t t)
@@ -203,11 +195,15 @@ static tree_t bounds_check_call_args(tree_t t)
                continue;
             }
 
-            if (f_len != a_len)
-               bounds_error(param, "actual length %"PRIi64"%s does not match "
-                            "formal length %"PRIi64" for parameter %s",
-                            a_len, bounds_dimension_str(ndims, j),
-                            f_len, istr(tree_ident(port)));
+            if (f_len != a_len) {
+               diag_t *d = diag_new(DIAG_ERROR, tree_loc(param));
+               diag_printf(d, "actual length %"PRIi64, a_len);
+               if (ndims > 1)
+                  diag_printf(d, " for dimension %d", j + 1);
+               diag_printf(d, " does not match formal length %"PRIi64
+                           " for parameter %s", f_len, istr(tree_ident(port)));
+               diag_emit(d);
+            }
          }
       }
       else if (type_is_scalar(ftype))
@@ -271,15 +267,11 @@ static bool bounds_check_index(tree_t index, type_t type, range_kind_t kind,
 {
    int64_t folded;
    if (!index_in_range(index, low, high, &folded) && low <= high) {
-      LOCAL_TEXT_BUF tb = tb_new();
-      tb_cat(tb, what);
-      tb_printf(tb, " index ");
-      to_string(tb, type, folded);
-      tb_printf(tb, " outside of %s range ", type_pp(type));
-      bounds_fmt_type_range(tb, type, kind, low, high);
-
       diag_t *d = diag_new(DIAG_ERROR, tree_loc(index));
-      diag_message(d, tb);
+      diag_printf(d, "%s index ", what);
+      to_string(diag_text_buf(d), type, folded);
+      diag_printf(d, " outside of %s range ", type_pp(type));
+      format_type_range(d, type, kind, low, high);
       diag_emit(d);
 
       return false;
@@ -319,17 +311,15 @@ static void bounds_check_array_ref(tree_t t)
             checked = true;
 
             if (ivalue < low || ivalue > high) {
-               LOCAL_TEXT_BUF tb = tb_new();
-               tb_cat(tb, "array");
-               if (tree_kind(value) == T_REF)
-                  tb_printf(tb, " %s", istr(tree_ident(value)));
-               tb_cat(tb, " index ");
-               to_string(tb, index_type, ivalue);
-               tb_printf(tb, " outside of %s range ", type_pp(index_type));
-               bounds_fmt_type_range(tb, index_type, dir, low, high);
-
                diag_t *d = diag_new(DIAG_ERROR, tree_loc(pvalue));
-               diag_message(d, tb);
+               diag_printf(d, "array");
+               if (tree_kind(value) == T_REF)
+                  diag_printf(d, " %s", istr(tree_ident(value)));
+               diag_printf(d, " index ");
+               to_string(diag_text_buf(d), index_type, ivalue);
+               diag_printf(d, " outside of %s range ", type_pp(index_type));
+               format_type_range(d, index_type, dir, low, high);
+
                diag_emit(d);
             }
          }
@@ -404,17 +394,15 @@ static void bounds_check_array_slice(tree_t t)
       error = "right";
 
    if (error) {
-      LOCAL_TEXT_BUF tb = tb_new();
-      tb_cat(tb, "array");
-      if (tree_kind(value) == T_REF)
-         tb_printf(tb, " %s", istr(tree_ident(value)));
-      tb_printf(tb, " slice %s index ", error);
-      to_string(tb, index_type, folded);
-      tb_printf(tb, " outside of %s range ", type_pp(index_type));
-      bounds_fmt_type_range(tb, index_type, dir, blow, bhigh);
-
       diag_t *d = diag_new(DIAG_ERROR, tree_loc(r));
-      diag_message(d, tb);
+      diag_printf(d, "array");
+      if (tree_kind(value) == T_REF)
+         diag_printf(d, " %s", istr(tree_ident(value)));
+      diag_printf(d, " slice %s index ", error);
+      to_string(diag_text_buf(d), index_type, folded);
+      diag_printf(d, " outside of %s range ", type_pp(index_type));
+      format_type_range(d, index_type, dir, blow, bhigh);
+
       diag_emit(d);
    }
 }
@@ -475,19 +463,19 @@ static void bounds_cover_choice(interval_t **isp, tree_t t, type_t type,
    }
 }
 
-static void bounds_fmt_interval(text_buf_t *tb, type_t type, range_kind_t dir,
-                                int64_t low, int64_t high)
+static void report_interval(diag_t *d, type_t type, range_kind_t dir,
+                            int64_t low, int64_t high)
 {
    if (low == high) {
       if (type_is_integer(type))
-         tb_printf(tb, "%"PRIi64, low);
+         diag_printf(d, "%"PRIi64, low);
       else if (type_is_enum(type)) {
          type_t base = type_base_recur(type);
-         tb_cat(tb, istr(tree_ident(type_enum_literal(base, low))));
+         diag_printf(d, "%s", istr(tree_ident(type_enum_literal(base, low))));
       }
    }
    else
-      bounds_fmt_type_range(tb, type, dir, low, high);
+      format_type_range(d, type, dir, low, high);
 }
 
 static void bounds_check_missing_choices(tree_t t, type_t type,
@@ -511,30 +499,38 @@ static void bounds_check_missing_choices(tree_t t, type_t type,
    if (missing == 0)
       return;
 
-   LOCAL_TEXT_BUF tb = tb_new();
-   tb_printf(tb, "missing choice%s for element%s ",
-             missing > 1 ? "s" : "", missing > 1 ? "s" : "");
+   // Allow downgrade to warning for case statement but not aggregates
+   diag_t *d;
+   if (index_type == NULL) {
+      if ((d = pedantic_diag(tree_loc(t))) == NULL)
+         return;
+   }
+   else
+      d = diag_new(DIAG_ERROR, tree_loc(t));
+
+   diag_printf(d, "missing choice%s for element%s ",
+               missing > 1 ? "s" : "", missing > 1 ? "s" : "");
 
    int printed = 0;
    for (it = covered, walk = tlow; it != NULL; it = it->next) {
       if (it->low != walk) {
-         if (printed++) tb_cat(tb, ", ");
-         bounds_fmt_interval(tb, index_type ?: type, dir, walk, it->low - 1);
+         if (printed++) diag_printf(d, ", ");
+         report_interval(d, index_type ?: type, dir, walk, it->low - 1);
       }
 
       walk = it->high + 1;
    }
 
    if (walk != thigh + 1) {
-      if (printed++) tb_cat(tb, ", ");
-      bounds_fmt_interval(tb, index_type ?: type, dir, walk, thigh);
+      if (printed++) diag_printf(d, ", ");
+      report_interval(d, index_type ?: type, dir, walk, thigh);
    }
 
    if (index_type == NULL)
-      tb_printf(tb, " of type %s", type_pp(type));
+      diag_printf(d, " of type %s", type_pp(type));
    else
-      tb_printf(tb, " of %s with index type %s", type_pp(type),
-                type_pp(index_type));
+      diag_printf(d, " of %s with index type %s", type_pp(type),
+                  type_pp(index_type));
 
    type_t base = index_type ?: type;
    while (is_anonymous_subtype(base))
@@ -545,15 +541,11 @@ static void bounds_check_missing_choices(tree_t t, type_t type,
       return;
 
    if (rlow != tlow || rhigh != thigh || !type_has_ident(index_type ?: type)) {
-      tb_cat(tb, " range ");
-      bounds_fmt_interval(tb, index_type ?: type, dir, tlow, thigh);
+      diag_printf(d, " range ");
+      report_interval(d, index_type ?: type, dir, tlow, thigh);
    }
 
-   diag_t *d = pedantic_diag(tree_loc(t));
-   if (d != NULL) {
-      diag_message(d, tb);
-      diag_emit(d);
-   }
+   diag_emit(d);
 }
 
 static void bounds_free_intervals(interval_t **list)
@@ -694,14 +686,14 @@ static void bounds_check_aggregate(tree_t t)
          next_pos += count;
 
          if ((ilow < low || ihigh > high) && known_elem_count) {
-            LOCAL_TEXT_BUF tb = tb_new();
-            tb_printf(tb, "expected at most %"PRIi64" positional "
-                      "associations in %s aggregate with index type %s "
-                      "range ", MAX(0, high - low + 1), type_pp(type),
-                      type_pp(index_type));
-            bounds_fmt_type_range(tb, index_type, dir, low, high);
+            diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
+            diag_printf(d, "expected at most %"PRIi64" positional "
+                        "associations in %s aggregate with index type %s "
+                        "range ", MAX(0, high - low + 1), type_pp(type),
+                        type_pp(index_type));
+            format_type_range(d, index_type, dir, low, high);
+            diag_emit(d);
 
-            bounds_error(t, "%s", tb_get(tb));
             known_elem_count = false;
          }
          break;
@@ -1291,18 +1283,14 @@ static void bounds_check_conv_array(tree_t value, type_t from, type_t to)
             error = "right";
 
          if (error) {
-            LOCAL_TEXT_BUF tb = tb_new();
-            tb_cat(tb, "array ");
-            if (tree_kind(value) == T_REF)
-               tb_printf(tb, "%s ", istr(tree_ident(value)));
-            tb_printf(tb, "%s bound ", error);
-            to_string(tb, index_type, folded);
-            tb_printf(tb, " violates %s index constraint ", type_pp(to));
-            bounds_fmt_type_range(tb, index_type, tree_subkind(r_to),
-                                  low, high);
-
             diag_t *d = diag_new(DIAG_ERROR, tree_loc(value));
-            diag_message(d, tb);
+            diag_printf(d, "array ");
+            if (tree_kind(value) == T_REF)
+               diag_printf(d, "%s ", istr(tree_ident(value)));
+            diag_printf(d, "%s bound ", error);
+            to_string(diag_text_buf(d), index_type, folded);
+            diag_printf(d, " violates %s index constraint ", type_pp(to));
+            format_type_range(d, index_type, tree_subkind(r_to), low, high);
             diag_emit(d);
          }
       }
@@ -1360,66 +1348,6 @@ static void bounds_check_wait(tree_t t)
       bounds_error(tree_delay(t), "wait timeout may not be negative");
 }
 
-static void bounds_check_block(tree_t t)
-{
-   const int nparams = tree_params(t);
-   for (int i = 0; i < nparams; i++) {
-      tree_t m = tree_param(t, i);
-
-      bool is_subelement = false;
-      type_t ftype = NULL;
-      tree_t port = NULL;
-      if (tree_subkind(m) == P_POS) {
-         port  = tree_port(t, tree_pos(m));
-         ftype = tree_type(port);
-      }
-      else {
-         tree_t name = tree_name(m);
-
-         // Skip output conversions
-         const tree_kind_t kind = tree_kind(name);
-         if (kind == T_TYPE_CONV || kind == T_CONV_FUNC) return;
-
-         port = tree_ref(name_to_ref(name));
-         ftype = tree_type(name);
-         is_subelement = tree_kind(name) != T_REF;
-      }
-
-      if (!type_is_array(ftype) || type_is_unconstrained(ftype))
-         continue;
-
-      tree_t value = tree_value(m);
-      for (tree_kind_t kind = tree_kind(value);
-           kind == T_TYPE_CONV || kind == T_QUALIFIED || kind == T_WAVEFORM;
-           value = tree_value(value), kind = tree_kind(value))
-         ;
-
-      type_t atype = tree_type(value);
-
-      if (type_is_unconstrained(atype))
-         continue;
-
-      const int ndims = dimension_of(ftype);
-      for (int j = 0; j < ndims; j++) {
-         tree_t formal_r = range_of(ftype, j);
-         tree_t actual_r = range_of(atype, j);
-
-         int64_t f_len, a_len;
-         const bool folded =
-            folded_length(formal_r, &f_len) && folded_length(actual_r, &a_len);
-
-         if (!folded) continue;
-
-         if (f_len != a_len)
-            bounds_error(value, "actual length %"PRIi64"%s does not match "
-                         "formal length %"PRIi64" for%s port %s",
-                         a_len, bounds_dimension_str(ndims, j), f_len,
-                         is_subelement ? " subelement of" : "",
-                         istr(tree_ident(port)));
-      }
-   }
-}
-
 static tree_t bounds_visit_fn(tree_t t, void *context)
 {
    switch (tree_kind(t)) {
@@ -1469,9 +1397,6 @@ static tree_t bounds_visit_fn(tree_t t, void *context)
       break;
    case T_WAIT:
       bounds_check_wait(t);
-      break;
-   case T_BLOCK:
-      bounds_check_block(t);
       break;
    case T_ELEM_CONSTRAINT:
       bounds_check_elem_constraint(t);
