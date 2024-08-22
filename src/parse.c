@@ -6809,7 +6809,7 @@ static tree_t p_psl_condition(void)
    BEGIN("condition");
 
    tree_t value = p_expression();
-   solve_psl_condition(nametab, value);
+   solve_psl_condition(nametab, &value);
 
    return value;
 }
@@ -6818,10 +6818,8 @@ static tree_t p_condition(void)
 {
    BEGIN("condition");
 
-   type_t boolean = std_type(NULL, STD_BOOLEAN);
-
    tree_t value = p_expression();
-   solve_condition(nametab, &value, boolean);
+   solve_condition(nametab, &value);
 
    return value;
 }
@@ -6866,7 +6864,6 @@ static tree_t p_concurrent_assertion_statement(ident_t label)
       tree_set_flag(conc, TREE_F_POSTPONED);
 
    tree_t s = p_assertion();
-   tree_set_ident(s, get_implicit_label(s, nametab));
    tree_add_stmt(conc, s);
 
    consume(tSEMI);
@@ -10861,7 +10858,7 @@ static tree_t p_block_statement(ident_t label)
       consume(tLPAREN);
 
       tree_t expr = p_expression();
-      solve_condition(nametab, &expr, std_type(NULL, STD_BOOLEAN));
+      solve_condition(nametab, &expr);
 
       make_implicit_guard_signal(b, expr);
 
@@ -12060,6 +12057,7 @@ static psl_node_t p_psl_fl_property(void)
             // where we cannot determine ahead-of-time whether (x or y)
             // is a VHDL expression or PSL property
             tree_t expr = p_expression_with_head(psl_tree(p));
+            solve_psl_condition(nametab, &expr);
             psl_set_tree(p, expr);
          }
       }
@@ -12233,7 +12231,7 @@ static psl_node_t p_psl_fairness(void)
    psl_set_flag(a, flags);
 
    tree_t e1 = p_expression();
-   solve_psl_condition(nametab, e1);
+   solve_psl_condition(nametab, &e1);
 
    psl_node_t p1 = psl_new(P_HDL_EXPR);
    psl_set_tree(p1, e1);
@@ -12244,7 +12242,7 @@ static psl_node_t p_psl_fairness(void)
       consume(tCOMMA);
 
       tree_t e2 = p_expression();
-      solve_psl_condition(nametab, e2);
+      solve_psl_condition(nametab, &e2);
 
       psl_node_t p2 = psl_new(P_HDL_EXPR);
       psl_set_tree(p2, e2);
@@ -12472,36 +12470,67 @@ static tree_t p_psl_or_concurrent_assert(ident_t label)
    //  assert condition [ report expression ] [ severity expression ] ;
    //   | assert Property [ report String ] ;
 
+   BEGIN("PSL or concurrent assertion statement");
+
+   if (peek() == tPOSTPONED)
+      return p_concurrent_assertion_statement(label);   // Cannot be PSL
+
+   consume(tASSERT);
+
    scan_as_psl();
 
-   const look_params_t lookp = {
-      .look     = { tIFIMPL, tALWAYS, tNEVER },
-      .stop     = { tREPORT, tSEVERITY },
-      .abort    = tSEMI,
-      .nest_in  = tLPAREN,
-      .nest_out = tRPAREN,
-   };
+   psl_node_t p = p_psl_property();
 
-   if (look_for(&lookp)) {
-      psl_node_t a = p_psl_assert_directive();
+   scan_as_vhdl();
 
-      tree_t s = tree_new(T_PSL);
-      tree_set_psl(s, a);
-      tree_set_ident(s, label);
+   tree_t conc;
+   if (psl_kind(p) == P_HDL_EXPR) {
+      tree_t s = tree_new(T_ASSERT);
+      tree_set_value(s, psl_tree(p));
 
-      scan_as_vhdl();
+      if (optional(tREPORT)) {
+         tree_t message = p_expression();
+         solve_types(nametab, message, std_type(NULL, STD_STRING));
+         tree_set_message(s, message);
+      }
+
+      if (optional(tSEVERITY)) {
+         tree_t severity = p_expression();
+         solve_types(nametab, severity, std_type(NULL, STD_SEVERITY_LEVEL));
+         tree_set_severity(s, severity);
+      }
+
+      consume(tSEMI);
 
       tree_set_loc(s, CURRENT_LOC);
-      ensure_labelled(s, label);
 
-      insert_name(nametab, s, NULL);
-      sem_check(s, nametab);
-      return s;
+      conc = tree_new(T_CONCURRENT);
+      tree_add_stmt(conc, s);
    }
    else {
-      scan_as_vhdl();
-      return p_concurrent_assertion_statement(label);
+      if (!psl_has_clock(p))
+         psl_set_clock(p, find_default_clock(nametab));
+
+      psl_node_t a = psl_new(P_ASSERT);
+      psl_set_value(a, p);
+
+      if (peek() == tREPORT)
+         p_psl_report(a);
+
+      consume(tSEMI);
+
+      psl_set_loc(a, CURRENT_LOC);
+
+      conc = tree_new(T_PSL);
+      tree_set_psl(conc, a);
    }
+
+   tree_set_loc(conc, CURRENT_LOC);
+   ensure_labelled(conc, label);
+
+   if (label) insert_name(nametab, conc, NULL);
+   sem_check(conc, nametab);
+   return conc;
 }
 
 static tree_t p_concurrent_statement(void)

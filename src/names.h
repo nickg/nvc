@@ -119,7 +119,7 @@ void walk_predefs(nametab_t *tab, ident_t name, predef_cb_t fn, void *context);
 type_t solve_types(nametab_t *tab, tree_t expr, type_t constraint);
 type_t solve_known_subtype(nametab_t *tab, tree_t expr, type_t constraint);
 type_t solve_target(nametab_t *tab, tree_t target, tree_t value);
-type_t solve_condition(nametab_t *tab, tree_t *expr, type_t constraint);
-type_t solve_psl_condition(nametab_t *tab, tree_t expr);
+type_t solve_condition(nametab_t *tab, tree_t *expr);
+type_t solve_psl_condition(nametab_t *tab, tree_t *expr);
 
 #endif // _NAMES_H

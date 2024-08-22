@@ -1110,15 +1110,10 @@ static void dump_instance(tree_t t, int indent)
 
 static void dump_stmt(tree_t t, int indent)
 {
-   switch (tree_kind(t)) {
-   case T_PSL:
-      dump_psl(t, indent);
-      return;
-   case T_VERILOG:
+   const tree_kind_t kind = tree_kind(t);
+   if (kind == T_VERILOG) {
       vlog_dump(tree_vlog(t), indent);
       return;
-   default:
-      break;
    }
 
    tab(indent);
@@ -1436,6 +1431,10 @@ static void dump_stmt(tree_t t, int indent)
       dump_expr(tree_target(t));
       print_syntax("\n");
       return;
+
+   case T_PSL:
+      dump_psl(t, indent);
+      break;
 
    default:
       cannot_dump(t, "stmt");

@@ -508,6 +508,32 @@ START_TEST(test_vlog1)
 END_TEST
 #endif
 
+START_TEST(test_vhdl6)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/dump/vhdl6.vhd");
+
+   tree_t a = parse_and_check(T_ENTITY, T_ARCH, -1);
+
+   LOCAL_TEXT_BUF tb = tb_new();
+   capture_syntax(tb);
+
+   dump(a);
+   diff_dump(tb_get(tb),
+             "use STD.STANDARD.all;\n"
+             "\n"
+             "architecture WORK.VHDL6-TEST of VHDL6 is\n"
+             "  signal X : INTEGER;\n"
+             "begin\n"
+             "  assert \"=\"(<< constant ^.FOO : INTEGER >>, 2);\n"
+             "  assert \"=\"(X, 1) -> (\"=\"(X, 2));\n"
+             "end architecture;\n\n");
+   tb_rewind(tb);
+
+   fail_if_errors();
+}
+
 Suite *get_dump_tests(void)
 {
    Suite *s = suite_create("dump");
@@ -522,6 +548,7 @@ Suite *get_dump_tests(void)
 #ifdef ENABLE_VERILOG
    tcase_add_test(tc_core, test_vlog1);
 #endif
+   tcase_add_test(tc_core, test_vhdl6);
    suite_add_tcase(s, tc_core);
 
    return s;
