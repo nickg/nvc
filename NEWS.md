@@ -6,6 +6,8 @@
   package (#946).
 - Fixed random crashes when the simulation heap size is eight gigabytes
   or larger (#949).
+- Fixed a crash when a constant array with unconstrained element type is
+  initialised with an aggregate (#954).
 
 ## Version 1.13.2 - 2024-08-11
 - Fixed an incorrect bounds check error when a constant declaration has
