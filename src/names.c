@@ -4916,73 +4916,80 @@ type_t solve_target(nametab_t *tab, tree_t target, tree_t value)
    return solve_types(tab, target, value_type);
 }
 
-type_t solve_condition(nametab_t *tab, tree_t *expr, type_t constraint)
+type_t solve_condition(nametab_t *tab, tree_t *expr)
 {
+   type_t boolean = std_type(NULL, STD_BOOLEAN);
+
+   if (standard() < STD_08)
+      return solve_types(tab, *expr, boolean);
+
+   // Apply the rules for condition conversion from LRM 08 section 9.2.9
+
    type_set_push(tab);
-   type_set_add(tab, constraint, NULL);
+   type_set_add(tab, boolean, NULL);
 
    type_t type;
-   if (standard() >= STD_08) {
-      if (is_unambiguous(*expr))
-         type = _solve_types(tab, *expr);
-      else
-         type = try_solve_type(tab, *expr);
+   if (is_unambiguous(*expr))
+      type = _solve_types(tab, *expr);
+   else
+      type = try_solve_type(tab, *expr);
 
-      type_t boolean = std_type(NULL, STD_BOOLEAN);
-      if (type == NULL || !type_eq(type, boolean)) {
-         ident_t cconv = well_known(W_OP_CCONV);
-         const symbol_t *sym = symbol_for(tab->top_scope, cconv);
-         if (sym != NULL) {
-            for (int i = 0; i < sym->ndecls; i++) {
-               const decl_t *dd = get_decl(sym, i);
+   if (type == NULL || !type_eq(type, boolean)) {
+      ident_t cconv = well_known(W_OP_CCONV);
+      const symbol_t *sym = symbol_for(tab->top_scope, cconv);
+      if (sym != NULL) {
+         for (int i = 0; i < sym->ndecls; i++) {
+            const decl_t *dd = get_decl(sym, i);
 
-               tree_t sub = dd->tree;
-               if (dd->kind == T_ALIAS && !(sub = get_aliased_subprogram(sub)))
-                  continue;
+            tree_t sub = dd->tree;
+            if (dd->kind == T_ALIAS && !(sub = get_aliased_subprogram(sub)))
+               continue;
 
-               if ((dd->mask & N_FUNC) && tree_ports(sub) == 1) {
-                  type_t p0_type = tree_type(tree_port(sub, 0));
-                  type_set_add(tab, p0_type, dd->tree);
-               }
+            if ((dd->mask & N_FUNC) && tree_ports(sub) == 1) {
+               type_t p0_type = tree_type(tree_port(sub, 0));
+               type_set_add(tab, p0_type, dd->tree);
             }
          }
+      }
 
-         if (type == NULL)
-            type = _solve_types(tab, *expr);
+      if (type == NULL)
+         type = _solve_types(tab, *expr);
 
-         const bool do_conversion =
-            !type_eq(type, boolean) &&
-            tab->top_type_set->members.count > 0
-            && type_set_contains(tab, type);
+      const bool do_conversion =
+         !type_eq(type, boolean) &&
+         tab->top_type_set->members.count > 0
+         && type_set_contains(tab, type);
 
-         if (do_conversion) {
-            tree_t fcall = tree_new(T_FCALL);
-            tree_set_loc(fcall, tree_loc(*expr));
-            tree_set_ident(fcall, cconv);
-            add_param(fcall, *expr, P_POS, NULL);
+      if (do_conversion) {
+         tree_t fcall = tree_new(T_FCALL);
+         tree_set_loc(fcall, tree_loc(*expr));
+         tree_set_ident(fcall, cconv);
+         add_param(fcall, *expr, P_POS, NULL);
 
-            type = solve_fcall(tab, fcall);
-            *expr = fcall;
-         }
+         type = solve_fcall(tab, fcall);
+         *expr = fcall;
       }
    }
-   else
-      type = _solve_types(tab, *expr);
 
    type_set_pop(tab);
    return type;
 }
 
-type_t solve_psl_condition(nametab_t *tab, tree_t expr)
+type_t solve_psl_condition(nametab_t *tab, tree_t *expr)
 {
-   type_set_push(tab);
+   if (standard() >= STD_08)
+      return solve_condition(tab, expr);
+   else {
+      // Allow BIT and STD_LOGIC in PSL conditions for VHDL-93
+      type_set_push(tab);
 
-   type_set_add(tab, std_type(NULL, STD_BOOLEAN), NULL);
-   type_set_add(tab, std_type(NULL, STD_BIT), NULL);
-   type_set_add(tab, ieee_type(IEEE_STD_ULOGIC), NULL);
+      type_set_add(tab, std_type(NULL, STD_BOOLEAN), NULL);
+      type_set_add(tab, std_type(NULL, STD_BIT), NULL);
+      type_set_add(tab, ieee_type(IEEE_STD_ULOGIC), NULL);
 
-   type_t type = _solve_types(tab, expr);
+      type_t type = _solve_types(tab, *expr);
 
-   type_set_pop(tab);
-   return type;
+      type_set_pop(tab);
+      return type;
+   }
 }

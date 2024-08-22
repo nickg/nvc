@@ -316,7 +316,6 @@ UNION         ?i:union
 {END}                    { TOKEN(tEND); }
 {GENERIC}                { TOKEN(tGENERIC); }
 {PORT}                   { TOKEN(tPORT); }
-{CONSTANT}               { TOKEN(tCONSTANT); }
 {COMPONENT}              { TOKEN(tCOMPONENT); }
 {CONFIGURATION}          { TOKEN(tCONFIGURATION); }
 {ARCHITECTURE}           { TOKEN(tARCHITECTURE); }
@@ -328,13 +327,11 @@ UNION         ?i:union
 {BUS}                    { TOKEN(tBUS); }
 {REGISTER}               { TOKEN(tREGISTER); }
 {UNAFFECTED}             { TOKEN(tUNAFFECTED); }
-{SIGNAL}                 { TOKEN(tSIGNAL); }
 {PROCESS}                { TOKEN(tPROCESS); }
 {WAIT}                   { TOKEN(tWAIT); }
 {REPORT}                 { TOKEN(tREPORT); }
 {INOUT}                  { TOKEN(tINOUT); }
 {LINKAGE}                { TOKEN(tLINKAGE); }
-{VARIABLE}               { TOKEN(tVARIABLE); }
 {FOR}                    { TOKEN(tFOR); }
 {TYPE}                   { TOKEN(tTYPE); }
 {SUBTYPE}                { TOKEN(tSUBTYPE); }
@@ -426,6 +423,9 @@ UNION         ?i:union
 <INITIAL,PSL>{TO}        { TOKEN(tTO); }
 <INITIAL,PSL>{DOWNTO}    { TOKEN(tDOWNTO); }
 <INITIAL,PSL>{UNTIL}     { TOKEN(tUNTIL); }
+<INITIAL,PSL>{CONSTANT}  { TOKEN(tCONSTANT); }
+<INITIAL,PSL>{SIGNAL}    { TOKEN(tSIGNAL); }
+<INITIAL,PSL>{VARIABLE}  { TOKEN(tVARIABLE); }
 
 <UDP>{UDP_LEVEL}         { yylval.i64 = yytext[0]; return tUDPLEVEL; }
 <UDP>{UDP_EDGE}          { yylval.i64 = yytext[0]; return tUDPEDGE; }
