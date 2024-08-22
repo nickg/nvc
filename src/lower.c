@@ -7568,12 +7568,9 @@ static void lower_var_decl(lower_unit_t *lu, tree_t decl)
       vcode_reg_t data_reg = lower_array_data(value_reg);
 
       if (is_const && skip_copy) {
-         if (vcode_reg_kind(value_reg) == VCODE_TYPE_UARRAY)
-            emit_store(value_reg, var);
-         else {
-            vcode_reg_t wrapped_reg = lower_wrap(lu, value_type, data_reg);
-            emit_store(wrapped_reg, var);
-         }
+         vcode_reg_t wrap_reg =
+            lower_coerce_arrays(lu, value_type, type, value_reg);
+         emit_store(wrap_reg, var);
       }
       else if (type_is_unconstrained(type)) {
          count_reg = lower_array_total_len(lu, value_type, value_reg);
