@@ -6816,6 +6816,28 @@ START_TEST(test_issue952)
 }
 END_TEST
 
+START_TEST(test_visibility12)
+{
+   input_from_file(TESTDIR "/parse/visibility12.vhd");
+
+   const error_t expect[] = {
+      { 29, "name CNTR not found in package MYLIB" },
+      {  0, "library MYLIB is hidden" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   lib_t mylib = lib_tmp("mylib");
+   lib_set_work(mylib);
+
+   parse_and_check(T_PACKAGE, T_ENTITY, T_ENTITY, T_ARCH, T_ENTITY, T_ARCH);
+
+   fail_unless(parse() == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_parse_tests(void)
 {
    Suite *s = suite_create("parse");
@@ -6975,6 +6997,7 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_issue942);
    tcase_add_test(tc_core, test_lcs2016_i03);
    tcase_add_test(tc_core, test_issue952);
+   tcase_add_test(tc_core, test_visibility12);
    suite_add_tcase(s, tc_core);
 
    return s;

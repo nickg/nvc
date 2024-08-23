@@ -1052,12 +1052,6 @@ static void make_potentially_visible(scope_t *s, ident_t id, tree_t d)
    make_visible(s, id, d, POTENTIAL, s);
 }
 
-static ident_t unit_bare_name(tree_t unit)
-{
-   ident_t unit_name = tree_ident(unit);
-   return ident_rfrom(unit_name, '.') ?: unit_name;
-}
-
 static scope_t *scope_for_type(nametab_t *tab, type_t type)
 {
    assert(type_is_protected(type));
@@ -1176,10 +1170,6 @@ static scope_t *private_scope_for(nametab_t *tab, tree_t unit)
       default:
          break;
       }
-
-      ident_t bare_name = unit_bare_name(unit);
-      if (symbol_for(s, bare_name) == NULL)
-         make_visible_fast(s, bare_name, unit);
    }
 
    hash_put(cache, key, s);
@@ -1787,24 +1777,32 @@ tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
 
          ident_t prefix = ident_runtil(name, '.');
          const symbol_t *psym = prefix ? iterate_symbol_for(tab, prefix) : NULL;
-         if (psym != NULL && psym->ndecls == 1) {
-            if (psym->decls[0].kind == T_LIBRARY) {
-               lib_t lib = lib_require(psym->name);
-               if (lib_had_errors(lib, name)) {
-                  diag_printf(d, "design unit depends on %s which was analysed"
-                              " with errors", istr(name));
-                  tab->top_scope->suppress = true;
+         if (psym != NULL) {
+            for (int i = 0; i < psym->ndecls; i++) {
+               const decl_t *dd = get_decl(psym, i);
+               if (dd->visibility == HIDDEN)
+                  diag_hint(d, tree_loc(dd->tree), "%s %s is hidden",
+                            class_str(class_of(dd->tree)), istr(psym->name));
+               else if (dd->kind == T_LIBRARY) {
+                  lib_t lib = lib_require(psym->name);
+                  if (lib_had_errors(lib, name)) {
+                     diag_printf(d, "design unit depends on %s which was "
+                                 "analysed with errors", istr(name));
+                     tab->top_scope->suppress = true;
+                  }
+                  else
+                     diag_printf(d, "design unit %s not found in library %s",
+                                 istr(ident_rfrom(name, '.')),
+                                 istr(psym->name));
+                  break;
                }
-               else
-                  diag_printf(d, "design unit %s not found in library %s",
-                              istr(ident_rfrom(name, '.')), istr(psym->name));
+               else {
+                  diag_printf(d, "name %s not found in %s %s",
+                              istr(ident_rfrom(name, '.')),
+                              class_str(class_of(dd->tree)), istr(psym->name));
+                  break;
+               }
             }
-            else
-               diag_printf(d, "name %s not found in %s %s",
-                           istr(ident_rfrom(name, '.')),
-                           (is_design_unit(psym->decls[0].tree)
-                            ? "design unit" : "object"),
-                           istr(psym->name));
          }
          else
             diag_printf(d, "no visible declaration for %s", istr(name));
@@ -2096,13 +2094,17 @@ void resolve_resolution(nametab_t *tab, tree_t rname, type_t type)
 
 tree_t find_std(nametab_t *tab)
 {
-   if (tab->std == NULL) {
-      tab->std = resolve_name(tab, NULL, ident_new("STANDARD"));
+   if (tab->std != NULL)
+      return tab->std;
+   else if (opt_get_int(OPT_BOOTSTRAP))
+      return (tab->std = tab->top_scope->container);
+   else {
+      tab->std = resolve_name(tab, NULL, ident_new("STD.STANDARD"));
       if (tab->std == NULL)
          fatal_trace("cannot continue without STD.STANDARD");
-   }
 
-   return tab->std;
+      return tab->std;
+   }
 }
 
 void insert_names_from_use(nametab_t *tab, tree_t use)
@@ -2167,7 +2169,7 @@ void insert_names_from_use(nametab_t *tab, tree_t use)
       const symbol_t *sym = symbol_for(s, what);
       if (sym == NULL) {
          error_at(tree_loc(use), "name %s not found in %s %s",
-                  istr(what), is_design_unit(unit) ? "design unit" : "object",
+                  istr(what), class_str(class_of(unit)),
                   istr(tree_ident(unit)));
          return;
       }
@@ -2194,8 +2196,6 @@ void insert_names_from_use(nametab_t *tab, tree_t use)
             }
          }
       }
-
-      merge_symbol(tab->top_scope, symbol_for(s, unit_bare_name(unit)));
    }
 }
 

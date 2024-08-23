@@ -176,8 +176,9 @@ START_TEST(test_scope)
       { 114, "no visible declaration for MY_INT1" },
       { 137, "no visible declaration for E1" },
       { 160, "no visible subprogram declaration for FUNC2" },
-      { 167, "name NOT_HERE not found in design unit WORK.PACK5" },
+      { 167, "name NOT_HERE not found in package WORK.PACK5" },
       { 189, "no visible declaration for MY_INT1" },
+      { 211, "no visible declaration for PACK5" },
       { 236, "no visible declaration for FOO" },
       { 302, "declaration of I hides an earlier declaration with the same " },
       { 306, "name X not found in L1" },
@@ -1990,8 +1991,7 @@ START_TEST(test_issue311)
    input_from_file(TESTDIR "/sem/issue311.vhd");
 
    const error_t expect[] = {
-      { 32, "multiple conflicting visible declarations of EVENT_TYPE" },
-      { 33, "type of initial value WORK.P2.EVENT_TYPE does not match" },
+      { 32, "type of initial value WORK.P2.EVENT_TYPE does not match" },
       { -1, NULL }
    };
    expect_errors(expect);

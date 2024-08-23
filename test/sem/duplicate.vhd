@@ -24,9 +24,9 @@ begin
     process is
     begin
         assert func(2) = 3;             -- OK
-        assert pack.func(2) = 3;        -- OK
+        assert work.pack.func(2) = 3;   -- OK
         proc(2);                        -- OK
-        pack.proc(2);                   -- OK
+        work.pack.proc(2);              -- OK
         wait;
     end process;
 

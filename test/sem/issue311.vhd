@@ -20,8 +20,8 @@ package p2 is
     type  EVENT_TYPE is (EVENT_1, EVENT_2);
 end package;
 
-use work.p1.all;
-use work.p2.all;
+use work.p1;
+use work.p2;
 
 entity e is
 end entity;
@@ -29,7 +29,6 @@ end entity;
 architecture a of e is
     constant event1 : P1.EVENT_TYPE := P1.EVENT_1;  -- OK
     constant event2 : P2.EVENT_TYPE := P2.EVENT_1;  -- OK
-    constant event3 : EVENT_TYPE := EVENT_1;        -- Error
     constant event4 : P1.EVENT_TYPE := P2.EVENT_1;  -- Error
 begin
 

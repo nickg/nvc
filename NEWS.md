@@ -28,6 +28,8 @@
   initialised with an aggregate (#954).
 - External names in concurrent assertion statements and PSL assertions
   are now parsed correctly (#952).
+- `use lib.pack.all` no longer makes the bare package name `pack`
+  potentially visible.
 
 ## Version 1.13.2 - 2024-08-11
 - Fixed an incorrect bounds check error when a constant declaration has

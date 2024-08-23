@@ -208,7 +208,7 @@ begin
     begin
         assert 1 and 2;                 -- OK
         assert work.pack5."and"(1, 2);  -- OK
-        assert pack5."and"(1, 2);       -- OK
+        assert pack5."and"(1, 2);       -- Error
     end process;
 end architecture;
 
