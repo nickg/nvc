@@ -763,8 +763,7 @@ static void platform_fill_frame(uintptr_t ip, debug_frame_t *frame)
 
    DWORD64 disp;
    if (SymFromAddr(hProcess, ip, &disp, psym)) {
-      text_buf_t *tb = unsafe_symbol(psym->Name);
-      frame->symbol = tb_claim(tb);
+      frame->symbol = xstrdup(psym->Name);
       frame->disp   = disp;
    }
 

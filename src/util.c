@@ -2077,38 +2077,6 @@ text_buf_t *safe_symbol(ident_t id)
 #endif
 }
 
-text_buf_t *unsafe_symbol(const char *text)
-{
-   // Restore original symbol from safe_symbol
-
-   text_buf_t *tb = tb_new();
-
-#if defined _WIN32 || defined __CYGWIN__
-   const char *p = text;
-   while (*p) {
-      bool replaced = false;
-      for (size_t j = 0; j < ARRAY_LEN(symbol_replacements); j++) {
-         size_t len = strlen(symbol_replacements[j].rep);
-         if (strncmp(p, symbol_replacements[j].rep, len) == 0) {
-            tb_append(tb, symbol_replacements[j].illegal);
-            p += len;
-            replaced = true;
-            break;
-         }
-      }
-
-      if (!replaced)
-         tb_append(tb, *p++);
-   }
-
-   return tb;
-#else
-   tb_cat(tb, text);
-#endif
-
-   return tb;
-}
-
 void __cleanup_array(void *ptr)
 {
    A(void *) *a = ptr;

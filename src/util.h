@@ -280,7 +280,6 @@ void run_program(const char *const *args);
 char *nvc_temp_file(void);
 
 text_buf_t *safe_symbol(ident_t id);
-text_buf_t *unsafe_symbol(const char *text);
 
 #define LOCAL_TEXT_BUF __attribute__((cleanup(_tb_cleanup))) text_buf_t *
 

@@ -210,16 +210,6 @@ START_TEST(test_chash_rand)
 }
 END_TEST;
 
-START_TEST(test_safe_symbol)
-{
-  const char *orig = "foo[]()+*\"=bar";
-  LOCAL_TEXT_BUF enc = safe_symbol(ident_new(orig));
-  LOCAL_TEXT_BUF dec = unsafe_symbol(tb_get(enc));
-
-  ck_assert_str_eq(orig, tb_get(dec));
-}
-END_TEST
-
 static int magnitude_compar(const void *a, const void *b)
 {
    return *(const uintptr_t*)a - *(const uintptr_t*)b;
@@ -743,10 +733,6 @@ Suite *get_misc_tests(void)
    tcase_add_test(tc_hash, test_hset_rand);
    tcase_add_test(tc_hash, test_chash_rand);
    suite_add_tcase(s, tc_hash);
-
-   TCase *tc_sym = tcase_create("safe_symbol");
-   tcase_add_test(tc_sym, test_safe_symbol);
-   suite_add_tcase(s, tc_sym);
 
    TCase *tc_heap = tcase_create("heap");
    tcase_add_test(tc_heap, test_heap_basic);
