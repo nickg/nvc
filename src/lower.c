@@ -12164,14 +12164,9 @@ static void lower_direct_mapped_port(lower_unit_t *lu, driver_set_t *ds,
    }
 
    int hops = 0;
-   vcode_var_t var = VCODE_INVALID_VAR;
-   if (field != -1) var = lower_search_vcode_obj(port, lu, &hops);
-
-   if (var == VCODE_INVALID_VAR || hops > 0) {
-      vcode_type_t vtype = lower_signal_type(port_type);
-      var = emit_var(vtype, vtype, tree_ident(port), VAR_SIGNAL);
-      lower_put_vcode_obj(port, var, lu);
-   }
+   vcode_var_t var = lower_search_vcode_obj(port, lu, &hops);
+   assert(var != VCODE_INVALID_VAR);
+   assert(hops == 0);
 
    type_t field_type = port_type;
    if (field != -1) {
@@ -12242,17 +12237,12 @@ static void lower_direct_mapped_port(lower_unit_t *lu, driver_set_t *ds,
 }
 
 static void lower_port_signal(lower_unit_t *lu, tree_t port,
-                              vcode_reg_t bounds_reg)
+                              vcode_var_t var, vcode_reg_t bounds_reg)
 {
    type_t type = tree_type(port);
    type_t value_type = type;
 
    const port_mode_t mode = tree_subkind(port);
-
-   vcode_type_t vtype = lower_signal_type(type);
-   vcode_var_t var = emit_var(vtype, vtype, tree_ident(port), VAR_SIGNAL);
-   lower_put_vcode_obj(port, var, lu);
-
    tree_t view = NULL;
    vcode_reg_t init_reg = VCODE_INVALID_REG;
    if (mode == PORT_RECORD_VIEW || mode == PORT_ARRAY_VIEW) {
@@ -12432,6 +12422,7 @@ static void lower_ports(lower_unit_t *lu, driver_set_t *ds, tree_t block)
 
    hset_t *direct = hset_new(nports * 2), *poison = NULL;
    vcode_reg_t *map_regs LOCAL = xmalloc_array(nparams, sizeof(vcode_reg_t));
+   vcode_var_t *port_vars LOCAL = xmalloc_array(nports, sizeof(vcode_var_t));
 
    for (int i = 0; i < nparams; i++) {
       tree_t p = tree_param(block, i);
@@ -12446,6 +12437,15 @@ static void lower_ports(lower_unit_t *lu, driver_set_t *ds, tree_t block)
          map_regs[i] = lower_open_port_map(lu, block, p);
       else
          map_regs[i] = lower_rvalue(lu, value);
+   }
+
+   for (int i = 0; i < nports; i++) {
+      tree_t port = tree_port(block, i);
+      type_t type = tree_type(port);
+
+      vcode_type_t vtype = lower_signal_type(type);
+      port_vars[i] = emit_var(vtype, vtype, tree_ident(port), VAR_SIGNAL);
+      lower_put_vcode_obj(port, port_vars[i], lu);
    }
 
    if (!opt_get_int(OPT_NO_COLLAPSE)) {
@@ -12467,9 +12467,9 @@ static void lower_ports(lower_unit_t *lu, driver_set_t *ds, tree_t block)
          bounds_reg = lower_get_type_bounds(lu, type);
 
       if (!hset_contains(direct, port))
-         lower_port_signal(lu, port, bounds_reg);
+         lower_port_signal(lu, port, port_vars[i], bounds_reg);
       else if (poison != NULL && hset_contains(poison, port))
-         lower_port_signal(lu, port, bounds_reg);
+         lower_port_signal(lu, port, port_vars[i], bounds_reg);
       else if (tree_class(port) == C_SIGNAL && tree_subkind(port) != PORT_IN) {
          // Any drivers for collapsed output ports must take their
          // initial value from the port declaration

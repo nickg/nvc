@@ -667,7 +667,7 @@ static tree_t elab_verilog_binding(vlog_node_t inst, mod_cache_t *mc,
 
       if (type_eq(dtype, ptype)) {
          if (have_named)
-            abort();
+            add_param(bind, make_ref(decl), P_NAMED, make_ref(port));
          else
             add_param(bind, make_ref(decl), P_POS, NULL);
       }
@@ -1427,13 +1427,9 @@ static void elab_lower(tree_t b, vcode_unit_t shape, elab_ctx_t *ctx)
       diag_remove_hint_fn(elab_hint_fn);
 }
 
-static void elab_verilog_module(tree_t bind, tree_t wrap, const elab_ctx_t *ctx)
+static void elab_verilog_module(tree_t bind, ident_t label, mod_cache_t *mc,
+                                const elab_ctx_t *ctx)
 {
-   vlog_node_t mod = tree_vlog(wrap);
-   mod_cache_t *mc = elab_cached_module(mod, ctx);
-
-   ident_t label = ident_rfrom(vlog_ident(mod), '.');
-
    const char *label_str = istr(label);
    ident_t ninst = hpathf(ctx->inst_name, ':', "%s", label_str);
    ident_t ndotted = ident_prefix(ctx->dotted, label, '.');
@@ -1451,7 +1447,7 @@ static void elab_verilog_module(tree_t bind, tree_t wrap, const elab_ctx_t *ctx)
    tree_add_stmt(ctx->out, b);
    new_ctx.out = b;
 
-   elab_push_scope(wrap, &new_ctx);
+   elab_push_scope(mc->wrap, &new_ctx);
 
    if (bind != NULL)
       elab_ports(mc->block, bind, &new_ctx);
@@ -1667,8 +1663,10 @@ static void elab_component(tree_t inst, tree_t comp, const elab_ctx_t *ctx)
 
    if (arch == NULL)
       ;   // Unbound architecture
-   else if (tree_kind(arch) == T_VERILOG)
-      elab_verilog_module(bind, arch, &new_ctx);
+   else if (tree_kind(arch) == T_VERILOG) {
+      mod_cache_t *mc = elab_cached_module(tree_vlog(arch), ctx);
+      elab_verilog_module(bind, vlog_ident2(mc->module), mc, &new_ctx);
+   }
    else if (error_count() == 0)
       elab_architecture(bind, arch, config, &new_ctx);
 
@@ -2071,7 +2069,7 @@ static void elab_verilog_stmt(tree_t wrap, const elab_ctx_t *ctx)
 
          tree_t bind = elab_verilog_binding(v, mc, ctx);
          if (bind != NULL)
-            elab_verilog_module(bind, mc->wrap, ctx);
+            elab_verilog_module(bind, vlog_ident(v), mc, ctx);
       }
       break;
    default:
@@ -2305,7 +2303,7 @@ tree_t elab(object_t *top, jit_t *jit, unit_registry_t *ur, cover_data_t *cover)
    }
    else {
       mod_cache_t *mc = elab_cached_module(vlog, &ctx);
-      elab_verilog_module(NULL, mc->wrap, &ctx);
+      elab_verilog_module(NULL, vlog_ident2(mc->module), mc, &ctx);
    }
 
    const void *key;

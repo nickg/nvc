@@ -20,6 +20,8 @@
   associations in VHDL-2019 mode.
 - `use lib.pack.all` no longer makes the bare package name `pack`
   potentially visible.
+- Very limited initial Verilog support has been added, including the
+  ability to instantiate vendor-supplied UDPs from VHDL.
 
 ## Version 1.13.3 - 2024-08-24
 - Type checking was not performed correctly for conversion function

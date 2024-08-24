@@ -821,6 +821,7 @@ static void fst_enter_scope(wave_dumper_t *wd, tree_t unit, rt_scope_t *scope,
    case T_IF_GENERATE: st = FST_ST_VHDL_IF_GENERATE; break;
    case T_PACKAGE: st = FST_ST_VHDL_PACKAGE; break;
    case T_COMPONENT: st = FST_ST_VHDL_ARCHITECTURE; break;
+   case T_VERILOG: st = FST_ST_VCD_MODULE; break;
    default:
       st = FST_ST_VHDL_ARCHITECTURE;
       warn_at(tree_loc(unit), "no FST scope type for %s",
@@ -915,6 +916,7 @@ static void fst_walk_design(wave_dumper_t *wd, tree_t block)
          fst_walk_design(wd, s);
          break;
       case T_PROCESS:
+      case T_VERILOG:
          break;
       case T_PSL:
          break;   // TODO: consider emitting to FST

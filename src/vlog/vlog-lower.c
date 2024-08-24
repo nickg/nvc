@@ -1288,6 +1288,15 @@ static void vlog_lower_udp(unit_registry_t *ur, lower_unit_t *parent,
             case '*':
                cmp_reg = emit_event_flag(in_nets[j], one_reg);
                break;
+            case 'b':
+               {
+                  vcode_reg_t is0_reg =
+                     emit_cmp(VCODE_CMP_EQ, in_regs[j], logic0_reg);
+                  vcode_reg_t is1_reg =
+                     emit_cmp(VCODE_CMP_EQ, in_regs[j], logic1_reg);
+                  cmp_reg = emit_and(is0_reg, is1_reg);
+               }
+               break;
             case '?':
                break;
             case '(':
@@ -1368,8 +1377,12 @@ static void vlog_lower_udp(unit_registry_t *ur, lower_unit_t *parent,
 
          vcode_reg_t drive_reg;
          switch (*sp) {
-         case '0': drive_reg = logic0_reg; break;
-         case '1': drive_reg = logic1_reg; break;
+         case '0':
+         case '1':
+         case 'x':
+         case 'X':
+            drive_reg = level_map[(int)*sp];
+            break;
          case '-':
             // No change, skip assignment to output
             drive_reg = VCODE_INVALID_REG;
@@ -1398,8 +1411,10 @@ static void vlog_lower_udp(unit_registry_t *ur, lower_unit_t *parent,
 
       vcode_select_block(wait_bb);
 
-      vcode_reg_t result_reg = emit_load(result_var);
-      vcode_reg_t drive_reg = vlog_lower_to_net_value(lu, result_reg);
+      vcode_reg_t result_reg = emit_load(result_var), drive_reg = result_reg;
+      if (kind == V_UDP_COMB)
+         drive_reg = vlog_lower_to_net_value(lu, result_reg);
+
       vcode_reg_t out_reg = emit_load_indirect(emit_var_upref(hops, out_var));
       emit_sched_waveform(out_reg, one_reg, drive_reg, zero_reg, zero_reg);
 
