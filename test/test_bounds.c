@@ -771,6 +771,16 @@ START_TEST(test_subtype)
 }
 END_TEST
 
+START_TEST(test_issue951)
+{
+   input_from_file(TESTDIR "/bounds/issue951.vhd");
+
+   parse_check_and_simplify(T_ENTITY, T_ARCH);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_bounds_tests(void)
 {
    Suite *s = suite_create("bounds");
@@ -811,6 +821,7 @@ Suite *get_bounds_tests(void)
    tcase_add_test(tc_core, test_cons1);
    tcase_add_test(tc_core, test_issue863);
    tcase_add_test(tc_core, test_subtype);
+   tcase_add_test(tc_core, test_issue951);
    suite_add_tcase(s, tc_core);
 
    return s;
