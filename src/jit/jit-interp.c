@@ -776,7 +776,6 @@ static void interp_memset(jit_interp_t *state, jit_ir_t *ir)
    const uint64_t value = interp_get_int(state, ir->arg2);
 
 #define MEMSET_LOOP(type) do {                      \
-      JIT_ASSERT((type)value == value);             \
       JIT_ASSERT(bytes % sizeof(type) == 0);        \
       type *eptr = dest + bytes;                    \
       for (type *p = dest; p < eptr; p++)           \
