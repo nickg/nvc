@@ -8052,8 +8052,8 @@ static void lower_sub_signals(lower_unit_t *lu, type_t type, type_t var_type,
          type_t ft = tree_type(f), et = ft;
          if (base != type && type_is_unconstrained(ft)) {
             tree_t ec = type_constraint_for_field(type, f);
-            assert(ec != NULL);
-            et = tree_type(ec);
+            if (ec != NULL)
+               et = tree_type(ec);
          }
 
          sig_flags_t newflags = flags;
