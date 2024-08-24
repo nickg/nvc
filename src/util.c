@@ -696,8 +696,10 @@ void show_stacktrace(void)
 #endif
 
 #ifndef DEBUG
-   color_fprintf(stderr, "\n$!red$Please report this bug at "
-                 PACKAGE_BUGREPORT "$$\n");
+   extern const char version_string[];
+   color_fprintf(stderr, "\n$!red$%s ["TARGET_SYSTEM"]\n\n"
+                 "Please report this bug at "PACKAGE_BUGREPORT"$$\n\n",
+                 version_string);
 #endif
 
    fflush(stderr);

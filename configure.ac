@@ -548,6 +548,9 @@ if test x$enable_gcov = xyes ; then
 fi
 AM_CONDITIONAL([ENABLE_GCOV], [test x$enable_gcov = xyes])
 
+AC_DEFINE_UNQUOTED([TARGET_SYSTEM], ["$target"],
+                   [Target system description for crash reports])
+
 AC_SUBST(EXTRA_CFLAGS)
 AC_SUBST(EXTRA_LDFLAGS)
 AC_SUBST(EXTRA_YFLAGS)
