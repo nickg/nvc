@@ -243,6 +243,26 @@ START_TEST(test_issue930)
 }
 END_TEST
 
+START_TEST(test_issue953)
+{
+   input_from_file(TESTDIR "/driver/issue953.vhd");
+
+   tree_t a = parse_check_and_simplify(T_ENTITY, T_ARCH);
+
+   tree_t b = tree_stmt(a, 0);
+   fail_unless(tree_kind(b) == T_BLOCK);
+
+   driver_set_t *ds = find_drivers(b);
+
+   tree_t p = tree_port(b, 0);
+   ck_assert(!has_unique_driver(ds, p));
+
+   free_drivers(ds);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_driver_tests(void)
 {
    Suite *s = suite_create("driver");
@@ -254,6 +274,7 @@ Suite *get_driver_tests(void)
    tcase_add_test(tc, test_unique2);
    tcase_add_test(tc, test_unique3);
    tcase_add_test(tc, test_issue930);
+   tcase_add_test(tc, test_issue953);
    suite_add_tcase(s, tc);
 
    return s;

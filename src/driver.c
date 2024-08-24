@@ -333,6 +333,9 @@ bool has_unique_driver(driver_set_t *ds, tree_t what)
       return true;
 
    type_t type = tree_type(what);
+   if (type_is_unconstrained(type))
+      return false;
+
    int64_t length = 0, left = 0, right = 0;
    range_kind_t rkind = RANGE_ERROR;
    if (type_is_array(type) && dimension_of(type) == 1) {
