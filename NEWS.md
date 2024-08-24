@@ -1,5 +1,6 @@
 ## Unreleased changes
-- Several other minor bugs were resolved (#942, #943).
+
+## Version 1.13.3 - 2024-08-24
 - Type checking was not performed correctly for conversion function
   actuals in port maps (#945).
 - Fixed a crash with signal aliases inside an instantiated generic
@@ -10,6 +11,7 @@
   initialised with an aggregate (#954).
 - External names in concurrent assertion statements and PSL assertions
   are now parsed correctly (#952).
+- Several other minor bugs were resolved (#942, #943, #950, #951, #953).
 
 ## Version 1.13.2 - 2024-08-11
 - Fixed an incorrect bounds check error when a constant declaration has

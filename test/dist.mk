@@ -28,6 +28,7 @@ EXTRA_DIST += \
 	test/bounds/issue806.vhd \
 	test/bounds/issue819.vhd \
 	test/bounds/issue863.vhd \
+	test/bounds/issue951.vhd \
 	test/bounds/issue98.vhd \
 	test/bounds/issue99.vhd \
 	test/bounds/nullrange.vhd \
@@ -40,6 +41,7 @@ EXTRA_DIST += \
 	test/charset/utf8.vhd \
 	test/diag/diag1.vhd \
 	test/driver/issue930.vhd \
+	test/driver/issue953.vhd \
 	test/driver/sanity1.vhd \
 	test/driver/sanity2.vhd \
 	test/driver/unique1.vhd \
@@ -51,6 +53,7 @@ EXTRA_DIST += \
 	test/dump/vhdl3.vhd \
 	test/dump/vhdl4.vhd \
 	test/dump/vhdl5.vhd \
+	test/dump/vhdl6.vhd \
 	test/dump/vlog1.v \
 	test/elab/assert7.vhd \
 	test/elab/block1.vhd \
@@ -467,6 +470,8 @@ EXTRA_DIST += \
 	test/parse/issue892.vhd \
 	test/parse/issue893.vhd \
 	test/parse/issue917.vhd \
+	test/parse/issue942.vhd \
+	test/parse/issue952.vhd \
 	test/parse/literal.vhd \
 	test/parse/loc.vhd \
 	test/parse/names2.vhd \
@@ -1487,7 +1492,11 @@ EXTRA_DIST += \
 	test/regress/issue925.vhd \
 	test/regress/issue931.vhd \
 	test/regress/issue932.vhd \
+	test/regress/issue943.vhd \
+	test/regress/issue946.vhd \
 	test/regress/issue94.vhd \
+	test/regress/issue950.vhd \
+	test/regress/issue954.vhd \
 	test/regress/issue95.vhd \
 	test/regress/issue96.vhd \
 	test/regress/issue98.vhd \
@@ -1934,6 +1943,7 @@ EXTRA_DIST += \
 	test/sem/issue884.vhd \
 	test/sem/issue88.vhd \
 	test/sem/issue89.vhd \
+	test/sem/issue945.vhd \
 	test/sem/jcore1.vhd \
 	test/sem/lcs2016_02.vhd \
 	test/sem/lcs2016_04.vhd \
