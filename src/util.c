@@ -2324,8 +2324,7 @@ void check_cpu_features(void)
 {
 #ifdef HAVE_POPCNT
    if (!__builtin_cpu_supports("popcnt"))
-      fatal("CPU is missing support for POPCNT instruction, reconfigure "
-            "with $bold$--disable-popcnt$$");
+      fatal("CPU is missing support for POPCNT instruction");
 #endif
 }
 
