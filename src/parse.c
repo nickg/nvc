@@ -2341,7 +2341,10 @@ static bool is_vhdl_infix_op(token_t tok)
 {
    return tok == tEQ || tok == tNEQ || tok == tLT || tok == tGT
       || tok == tLE || tok == tGE || tok == tAND || tok == tOR || tok == tNAND
-      || tok == tNOR || tok == tXOR;
+      || tok == tNOR || tok == tXOR || tok == tXNOR || tok == tMOD
+      || tok == tREM || tok == tPLUS || tok == tMINUS || tok == tTIMES
+      || tok == tOVER || tok == tPOWER || tok == tMEQ || tok == tMNEQ
+      || tok == tMLT || tok == tMLE || tok == tMGT || tok == tMGE;
 }
 
 static void add_predef_alias(tree_t t, void *context)
@@ -6843,16 +6846,6 @@ static void p_constant_declaration(tree_t parent)
    }
 }
 
-static tree_t p_psl_condition(void)
-{
-   BEGIN("condition");
-
-   tree_t value = p_expression();
-   solve_psl_condition(nametab, &value);
-
-   return value;
-}
-
 static tree_t p_condition(void)
 {
    BEGIN("condition");
@@ -11236,7 +11229,7 @@ static psl_node_t p_psl_or_hdl_expression(void)
 
    BEGIN("PSL or HDL expression");
 
-   tree_t expr = p_psl_condition();
+   tree_t expr = p_expression();
 
    psl_node_t p = psl_new(P_HDL_EXPR);
    psl_set_tree(p, expr);
@@ -11287,7 +11280,7 @@ static psl_node_t p_psl_clock_declaration(tree_t parent)
    consume(tSEMI);
 
    psl_set_loc(p, CURRENT_LOC);
-   psl_check(p);
+   psl_check(p, nametab);
 
    return p;
 }
@@ -11891,7 +11884,7 @@ static psl_node_t p_psl_sequence(void)
             consume(tRPAREN);
          }
 
-         psl_check(p);
+         psl_check(p, nametab);
          break;
       }
 
@@ -12091,7 +12084,6 @@ static psl_node_t p_psl_fl_property(void)
             // where we cannot determine ahead-of-time whether (x or y)
             // is a VHDL expression or PSL property
             tree_t expr = p_expression_with_head(psl_tree(p));
-            solve_psl_condition(nametab, &expr);
             psl_set_tree(p, expr);
          }
       }
@@ -12374,7 +12366,7 @@ static tree_t p_psl_directive(void)
    if (label)
      insert_name(nametab, t, NULL);
 
-   psl_check(p);
+   psl_check(p, nametab);
    return t;
 }
 
@@ -12410,7 +12402,7 @@ static psl_node_t p_psl_property_declaration(tree_t t)
    consume(tSEMI);
 
    psl_set_loc(decl, CURRENT_LOC);
-   psl_check(decl);
+   psl_check(decl, nametab);
 
    pop_scope(nametab);
 
@@ -12451,7 +12443,7 @@ static psl_node_t p_psl_sequence_declaration(tree_t t)
    consume(tSEMI);
 
    psl_set_loc(decl, CURRENT_LOC);
-   psl_check(decl);
+   psl_check(decl, nametab);
 
    pop_scope(nametab);
 
@@ -12519,8 +12511,11 @@ static tree_t p_psl_or_concurrent_assert(ident_t label)
 
    tree_t conc;
    if (psl_kind(p) == P_HDL_EXPR) {
+      tree_t value = psl_tree(p);
+      solve_condition(nametab, &value);
+
       tree_t s = tree_new(T_ASSERT);
-      tree_set_value(s, psl_tree(p));
+      tree_set_value(s, value);
 
       if (optional(tREPORT)) {
          tree_t message = p_expression();
@@ -12554,6 +12549,7 @@ static tree_t p_psl_or_concurrent_assert(ident_t label)
       consume(tSEMI);
 
       psl_set_loc(a, CURRENT_LOC);
+      psl_check(a, nametab);
 
       conc = tree_new(T_PSL);
       tree_set_psl(conc, a);

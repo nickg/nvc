@@ -22,6 +22,8 @@
   potentially visible.
 - Very limited initial Verilog support has been added, including the
   ability to instantiate vendor-supplied UDPs from VHDL.
+- Fixed a regression which caused parse errors for some concurrent
+  assertion statements (#956).
 
 ## Version 1.13.3 - 2024-08-24
 - Type checking was not performed correctly for conversion function

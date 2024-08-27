@@ -21,7 +21,7 @@
 #include "prim.h"
 
 // Check PSL statements for errors.
-void psl_check(psl_node_t p);
+void psl_check(psl_node_t p, nametab_t *tab);
 
 // Print PSL expression for debugging.
 void psl_dump(psl_node_t p);

@@ -6838,6 +6838,29 @@ START_TEST(test_visibility12)
 }
 END_TEST
 
+START_TEST(test_issue956)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/parse/issue956.vhd");
+
+   tree_t a = parse_and_check(T_ENTITY, T_ARCH);
+
+   const int nstmts = tree_stmts(a);
+   for (int i = 0; i < nstmts; i++) {
+      tree_t c = tree_stmt(a, i);
+      fail_unless(tree_kind(c) == T_CONCURRENT);
+
+      tree_t s = tree_stmt(c, 0);
+      fail_unless(tree_kind(tree_value(s)) == T_FCALL);
+   }
+
+   fail_unless(parse() == NULL);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_parse_tests(void)
 {
    Suite *s = suite_create("parse");
@@ -6998,6 +7021,7 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_lcs2016_i03);
    tcase_add_test(tc_core, test_issue952);
    tcase_add_test(tc_core, test_visibility12);
+   tcase_add_test(tc_core, test_issue956);
    suite_add_tcase(s, tc_core);
 
    return s;
