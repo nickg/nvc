@@ -17,5 +17,9 @@ begin
     -- psl assert x -> next[i] (y);           -- Error
     -- psl assert x -> next[c] (y);           -- OK
     -- psl assert x -> next i;                -- Error
+    -- psl assert (next x) -> not x;          -- Error
+    -- psl assert x until_ (next x);          -- Error
+    -- psl assert (next x) until y;           -- Error
+    -- psl assert always next_e [1 to 3] (y -> next x);   -- Error
 
 end architecture;

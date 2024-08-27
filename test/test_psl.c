@@ -105,6 +105,14 @@ START_TEST(test_sem1)
       { 16, "expression must be a PSL Number but have type BIT" },
       { 17, "expression must be static" },
       { 19, "expression must be a PSL Boolean but have type INTEGER" },
+      { 20, "property is not in the simple subset as the left hand side of "
+        "this implication is non-Boolean" },
+      { 21, "property is not in the simple subset as the right hand side of "
+        "this overlapping until operator is non-Boolean" },
+      { 22, "property is not in the simple subset as the left hand side of "
+        "this until operator is non-Boolean" },
+      { 23, "property is not in the simple subset as the operand of this "
+        "next_e operator is non-Boolean" },
       { -1, NULL }
    };
    expect_errors(expect);

@@ -181,6 +181,10 @@ static void psl_check_implication(psl_node_t p, nametab_t *tab)
 
    psl_node_t right = psl_operand(p, 1);
    psl_check(right, tab);
+
+   if (psl_kind(left) != P_HDL_EXPR || psl_type(left) != PSL_TYPE_BOOLEAN)
+      error_at(psl_loc(p), "property is not in the simple subset as the left "
+               "hand side of this implication is non-Boolean");
 }
 
 static void psl_check_next(psl_node_t p, nametab_t *tab)
@@ -189,6 +193,19 @@ static void psl_check_next(psl_node_t p, nametab_t *tab)
       psl_check_number(psl_delay(p), tab);
 
    psl_check(psl_value(p), tab);
+}
+
+static void psl_check_next_e(psl_node_t p, nametab_t *tab)
+{
+   if (psl_has_delay(p))
+      psl_check_number(psl_delay(p), tab);
+
+   psl_node_t value = psl_value(p);
+   psl_check(value, tab);
+
+   if (psl_kind(value) != P_HDL_EXPR)
+      error_at(psl_loc(p), "property is not in the simple subset as the "
+               "operand of this next_e operator is non-Boolean");
 }
 
 static void psl_check_until(psl_node_t p, nametab_t *tab)
@@ -200,6 +217,14 @@ static void psl_check_until(psl_node_t p, nametab_t *tab)
 
    psl_node_t right = psl_operand(p, 1);
    psl_check(right, tab);
+
+   const psl_flags_t flags = psl_flags(p);
+   if ((flags & PSL_F_INCLUSIVE) && psl_kind(right) != P_HDL_EXPR)
+      error_at(psl_loc(p), "property is not in the simple subset as the right "
+               "hand side of this overlapping until operator is non-Boolean");
+   else if (psl_kind(left) != P_HDL_EXPR)
+      error_at(psl_loc(p), "property is not in the simple subset as the left "
+               "hand side of this until operator is non-Boolean");
 }
 
 void psl_check(psl_node_t p, nametab_t *tab)
@@ -255,9 +280,11 @@ void psl_check(psl_node_t p, nametab_t *tab)
       break;
    case P_NEXT:
    case P_NEXT_A:
-   case P_NEXT_E:
    case P_NEXT_EVENT:
       psl_check_next(p, tab);
+      break;
+   case P_NEXT_E:
+      psl_check_next_e(p, tab);
       break;
    case P_UNTIL:
       psl_check_until(p, tab);

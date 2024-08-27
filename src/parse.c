@@ -12037,7 +12037,7 @@ static psl_node_t p_psl_fl_property(void)
 
          consume(tRSQUARE);
 
-         (void)p_psl_fl_property();
+         psl_set_value(p, p_psl_fl_property());
       }
       break;
 
