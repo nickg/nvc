@@ -101,8 +101,10 @@ START_TEST(test_sem1)
    input_from_file(TESTDIR "/psl/sem1.vhd");
 
    const error_t expect[] = {
+      { 12, "expression must be a PSL Boolean but have type INTEGER" },
       { 16, "expression must be a PSL Number but have type BIT" },
       { 17, "expression must be static" },
+      { 19, "expression must be a PSL Boolean but have type INTEGER" },
       { -1, NULL }
    };
    expect_errors(expect);

@@ -137,7 +137,22 @@ static void psl_check_hdl_expr(psl_node_t p, nametab_t *tab)
 
    psl_set_tree(p, value);   // May be replaced with condition conversion
 
-   // TODO: type check
+   assert(psl_type(p) == PSL_TYPE_BOOLEAN);
+
+   type_t std_bool = std_type(NULL, STD_BOOLEAN);
+   bool ok = type_eq(type, std_bool);
+
+   if (!ok && standard() < STD_08) {
+      // Later standards use condition conversion operator
+      type_t std_bit = std_type(NULL, STD_BIT);
+      type_t ulogic = ieee_type(IEEE_STD_ULOGIC);
+
+      ok = type_eq(type, std_bit) || type_eq(type, ulogic);
+   }
+
+   if (!ok)
+      error_at(tree_loc(value), "expression must be a PSL Boolean but "
+               "have type %s", type_pp(type));
 }
 
 static void psl_check_property_inst(psl_node_t p)

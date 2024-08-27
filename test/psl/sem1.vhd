@@ -16,5 +16,6 @@ begin
     -- psl assert x -> next[x] (y);           -- Error
     -- psl assert x -> next[i] (y);           -- Error
     -- psl assert x -> next[c] (y);           -- OK
+    -- psl assert x -> next i;                -- Error
 
 end architecture;
