@@ -483,21 +483,24 @@ static void *fst_get_ptr(wave_dumper_t *wd, rt_scope_t *scope, tree_t where)
 
 static void fst_get_array_range(wave_dumper_t *wd, type_t type,
                                 rt_scope_t *scope, tree_t where, int dim,
-                                int64_t *msb, int64_t *lsb, int64_t *length)
+                                int64_t *left, int64_t *right,
+                                range_kind_t *dir, int64_t *length)
 {
    if (!type_is_unconstrained(type)) {
       tree_t r = range_of(type, 0);
       if (folded_length(r, length)) {
-         *msb = assume_int(tree_left(r));
-         *lsb = assume_int(tree_right(r));
+         *dir = tree_subkind(r);
+         *left = assume_int(tree_left(r));
+         *right = assume_int(tree_right(r));
          return;
       }
    }
 
    ffi_dim_t *dims = fst_get_ptr(wd, scope, where) + 2*sizeof(int64_t);
 
-   *lsb    = ffi_array_right(dims[dim].left, dims[dim].length);
-   *msb    = dims[dim].left;
+   *left   = dims[dim].left;
+   *right  = ffi_array_right(dims[dim].left, dims[dim].length);
+   *dir    = ffi_array_dir(dims[dim].length);
    *length = ffi_array_length(dims[dim].length);
 }
 
@@ -523,22 +526,24 @@ static fstHandle fst_create_handle(wave_dumper_t *wd, fst_data_t *data,
 static void fst_create_array_var(wave_dumper_t *wd, tree_t d, rt_signal_t *s,
                                  type_t type, text_buf_t *tb)
 {
-   enum fstVarDir dir = FST_VD_IMPLICIT;
+   enum fstVarDir vd = FST_VD_IMPLICIT;
    if (tree_kind(d) == T_PORT_DECL) {
       switch (tree_subkind(d)) {
-      case PORT_IN:     dir = FST_VD_INPUT; break;
-      case PORT_OUT:    dir = FST_VD_OUTPUT; break;
-      case PORT_INOUT:  dir = FST_VD_INOUT; break;
-      case PORT_BUFFER: dir = FST_VD_BUFFER; break;
+      case PORT_IN:     vd = FST_VD_INPUT; break;
+      case PORT_OUT:    vd = FST_VD_OUTPUT; break;
+      case PORT_INOUT:  vd = FST_VD_INOUT; break;
+      case PORT_BUFFER: vd = FST_VD_BUFFER; break;
       }
    }
 
-   int64_t lsb, msb, length;
-   fst_get_array_range(wd, type, s->parent, s->where, 0, &msb, &lsb, &length);
+   int64_t left, right, length;
+   range_kind_t dir;
+   fst_get_array_range(wd, type, s->parent, s->where, 0, &left, &right,
+                       &dir, &length);
 
    tb_rewind(tb);
    tb_istr(tb, tree_ident(d));
-   tb_printf(tb, "[%"PRIi64":%"PRIi64"]", msb, lsb);
+   tb_printf(tb, "[%"PRIi64":%"PRIi64"]", left, right);
    tb_downcase(tb);
 
    fst_data_t *data;
@@ -554,7 +559,7 @@ static void fst_create_array_var(wave_dumper_t *wd, tree_t d, rt_signal_t *s,
       data->size  = length * ft->size;
       data->count = 1;
 
-      data->handle[0] = fst_create_handle(wd, data, tb_get(tb), dir, type, 0);
+      data->handle[0] = fst_create_handle(wd, data, tb_get(tb), vd, type, 0);
 
       if (wd->gtkw != NULL)
          fprintf(wd->gtkw->file, "%s.%s\n", tb_get(wd->gtkw->hier), tb_get(tb));
@@ -588,13 +593,13 @@ static void fst_create_array_var(wave_dumper_t *wd, tree_t d, rt_signal_t *s,
       for (int i = 0; i < length; i++) {
          tb_rewind(tb);
          tb_istr(tb, tree_ident(d));
-         tb_printf(tb, "[%"PRIi64"]", MIN(msb, lsb) + i);
+         tb_printf(tb, "[%"PRIi64"]", dir == RANGE_TO ? left + i : left - i);
          if (is_memory)
             tb_printf(tb, "[%d:%d]", e_msb, e_lsb);
          tb_downcase(tb);
 
          data->handle[i] =
-            fst_create_handle(wd, data, tb_get(tb), dir, elem, 0);
+            fst_create_handle(wd, data, tb_get(tb), vd, elem, 0);
       }
 
       fstWriterSetAttrEnd(wd->fst_ctx);
@@ -722,8 +727,10 @@ static void fst_create_record_array_var(wave_dumper_t *wd, tree_t d,
    if (dimension_of(type) > 1)
       return;   // Not supported
 
-   int64_t lsb, msb, length;
-   fst_get_array_range(wd, type, scope->parent, d, dim, &msb, &lsb, &length);
+   int64_t left, right, length;
+   range_kind_t dir;
+   fst_get_array_range(wd, type, scope->parent, d, dim, &left, &right,
+                       &dir, &length);
 
    type_t elem = type_elem(type);
    const bool nested = type_is_array(elem);
@@ -731,11 +738,12 @@ static void fst_create_record_array_var(wave_dumper_t *wd, tree_t d,
    assert(count % length == 0);
    const int stride = count / length;
 
-   for (int i = start, index = MIN(msb, lsb); i < start + count; i += stride) {
+   for (int i = start, index = 0; i < start + count; i += stride, index++) {
       rt_scope_t *sub = AGET(scope->children, i);
 
       char suffix[64];
-      checked_sprintf(suffix, sizeof(suffix), "%s[%d]", prefix, index++);
+      checked_sprintf(suffix, sizeof(suffix), "%s[%"PRIi64"]", prefix,
+                      dir == RANGE_TO ? left + index : left - index);
 
       if (nested)
          fst_create_record_array_var(wd, d, scope, elem, dim + 1, i,
@@ -761,11 +769,12 @@ static void fst_alias_var(wave_dumper_t *wd, tree_t d, rt_signal_t *s,
    tb_rewind(tb);
    tb_istr(tb, tree_ident(d));
    if (type_is_array(type)) {
-      int64_t lsb, msb, length;
+      int64_t left, right, length;
+      range_kind_t dir;
       fst_get_array_range(wd, type, s->parent, s->where, 0,
-                          &msb, &lsb, &length);
+                          &left, &right, &dir, &length);
 
-      tb_printf(tb, "[%"PRIi64":%"PRIi64"]", msb, lsb);
+      tb_printf(tb, "[%"PRIi64":%"PRIi64"]", left, right);
    }
    tb_downcase(tb);
 

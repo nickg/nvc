@@ -1026,3 +1026,4 @@ vlog11          verilog
 issue946        normal,2008
 issue954        normal,2008
 issue950        normal,2008
+issue957        wave,2008,dump-arrays

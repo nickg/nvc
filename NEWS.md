@@ -24,6 +24,8 @@
   ability to instantiate vendor-supplied UDPs from VHDL.
 - Fixed a regression which caused parse errors for some concurrent
   assertion statements (#956).
+- Arrays-of-arrays with `downto` direction are now dumped in the correct
+  order (#957).
 
 ## Version 1.13.3 - 2024-08-24
 - Type checking was not performed correctly for conversion function
