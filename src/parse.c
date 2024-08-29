@@ -4868,6 +4868,8 @@ static void p_interface_constant_declaration(tree_t parent, tree_kind_t kind,
 
       if (ordered)
          insert_name(nametab, d, NULL);
+
+      flags |= TREE_F_CONTINUATION;
    }
 }
 
@@ -4983,6 +4985,8 @@ static void p_interface_signal_declaration(tree_t parent, tree_kind_t kind,
 
       if (ordered)
          insert_name(nametab, d, NULL);
+
+      flags |= TREE_F_CONTINUATION;
    }
 }
 
@@ -5028,6 +5032,8 @@ static void p_interface_variable_declaration(tree_t parent, tree_kind_t kind)
 
       if (standard() >= STD_19)
          insert_name(nametab, d, NULL);
+
+      flags |= TREE_F_CONTINUATION;
    }
 }
 
@@ -5045,11 +5051,13 @@ static void p_interface_file_declaration(tree_t parent, tree_kind_t kind)
 
    type_t type = p_subtype_indication();
 
+   tree_flags_t flags = 0;
    for (ident_list_t *it = ids; it != NULL; it = it->next) {
       tree_t d = tree_new(kind);
       tree_set_ident(d, it->ident);
       tree_set_loc(d, &(it->loc));
       tree_set_subkind(d, PORT_IN);
+      tree_set_flag(d, flags);
       tree_set_type(d, type);
       tree_set_class(d, C_FILE);
 
@@ -5058,6 +5066,8 @@ static void p_interface_file_declaration(tree_t parent, tree_kind_t kind)
 
       if (standard() >= STD_19)
          insert_name(nametab, d, NULL);
+
+      flags |= TREE_F_CONTINUATION;
    }
 }
 

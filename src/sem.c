@@ -1724,9 +1724,13 @@ static bool sem_check_func_decl(tree_t t, nametab_t *tab)
    return true;
 }
 
-static bool sem_compare_interfaces(tree_t dport, tree_t bport,
-                                   int nth, tree_t body, const char *what)
+static bool sem_compare_interfaces(tree_t decl, tree_t body, int nth,
+                                   tree_t (*getfn)(tree_t, unsigned),
+                                   const char *what)
 {
+   tree_t dport = (*getfn)(decl, nth);
+   tree_t bport = (*getfn)(body, nth);
+
    tree_flags_t dflags = tree_flags(dport);
    tree_flags_t bflags = tree_flags(bport);
 
@@ -1745,6 +1749,37 @@ static bool sem_compare_interfaces(tree_t dport, tree_t bport,
       diag_emit(d);
       return false;
    }
+
+   const bool dcont = !!(tree_flags(dport) & TREE_F_CONTINUATION);
+   const bool bcont = !!(tree_flags(bport) & TREE_F_CONTINUATION);
+
+   if (dcont != bcont) {
+      diag_t *d = pedantic_diag(tree_loc(bport));
+      if (d != NULL) {
+         diag_printf(d, "declaration of %s %s in subprogram body does not "
+                     "match specification", what, istr(bname));
+
+         int bseq = 1;
+         for (tree_t it = bport; tree_flags(it) & TREE_F_CONTINUATION;
+              it = (*getfn)(body, nth - bseq++));
+
+         diag_hint(d, tree_loc(bport), "%s appears %s in identifier list",
+                   istr(bname), ordinal_str(bseq));
+
+         int dseq = 1;
+         for (tree_t it = dport; tree_flags(it) & TREE_F_CONTINUATION;
+              it = (*getfn)(decl, nth - dseq++));
+
+         diag_hint(d, tree_loc(dport), "%s appears %s in identifier list",
+                   istr(dname), ordinal_str(dseq));
+
+         diag_lrm(d, STD_08, "4.10");
+         diag_emit(d);
+         return false;
+      }
+   }
+   else if (dcont && bcont)
+      return true;   // Already checked first declaration in list
 
    type_t dtype = tree_type(dport);
    type_t btype = tree_type(bport);
@@ -1785,18 +1820,22 @@ static bool sem_compare_interfaces(tree_t dport, tree_t bport,
    if (bmode_explicit != dmode_explicit) {
       diag_t *d = pedantic_diag(tree_loc(bport));
       if (d != NULL) {
-         diag_printf(d, "mode (%s) of %s %s of subprogram %s not defined "
-                     "equally in subprogram specification and "
-                     "subprogram body", port_mode_str(dmode), what,
-                     istr(dname), istr(tree_ident(body)));
+         const char *dmode_str =
+            dmode_explicit ? port_mode_str(dmode) : "default";
+         const char *bmode_str =
+            bmode_explicit ? port_mode_str(bmode) : "default";
 
-         diag_hint(d, tree_loc(dport), "%s mode %sdeclared explicitly",
-                   what, dmode_explicit ? "" : "not ");
-         diag_hint(d, tree_loc(bport), "%s mode %sdeclared explicitly",
-                   what, bmode_explicit ? "" : "not ");
+         diag_printf(d, "mode indication of subprogram %s %s %s was %s in "
+                     "specification but %s in body", istr(tree_ident(body)),
+                     what, istr(dname), dmode_str, bmode_str);
+         diag_hint(d, tree_loc(dport), "%s %s declared with %s mode in "
+                   "specification", what, istr(dname), dmode_str);
+         diag_hint(d, tree_loc(bport), "%s %s declared with %s mode in body",
+                   what, istr(bname), bmode_str);
+         diag_lrm(d, STD_08, "4.10");
          diag_emit(d);
+         return false;
       }
-      return false;
    }
 
    const class_t dclass = tree_class(dport);
@@ -1822,19 +1861,22 @@ static bool sem_compare_interfaces(tree_t dport, tree_t bport,
    if (bclass_explicit != dclass_explicit) {
       diag_t *d = pedantic_diag(tree_loc(bport));
       if (d != NULL) {
-         diag_printf(d, "class (%s) of %s %s of subprogram %s not defined "
-                     "equally in subprogram specification and "
-                     "subprogram body", class_str(dclass), what,
-                     istr(dname), istr(tree_ident(body)));
+         const char *dclass_str =
+            dclass_explicit ? class_str(dclass) : "default";
+         const char *bclass_str =
+            bclass_explicit ? class_str(bclass) : "default";
 
-         diag_hint(d, tree_loc(dport), "%s class %sdeclared explicitly in "
-                   "subprogram specification", what,
-                   dclass_explicit ? "" : "not ");
-         diag_hint(d, tree_loc(bport), "%s class %sdeclared explicitly in "
-                   "subprogram body", what, bclass_explicit ? "" : "not ");
+         diag_printf(d, "class of subprogram %s %s %s was %s in specification "
+                     "but %s in body", istr(tree_ident(body)),
+                     what, istr(dname), dclass_str, bclass_str);
+         diag_hint(d, tree_loc(dport), "%s %s declared with %s class in "
+                   "specification", what, istr(dname), dclass_str);
+         diag_hint(d, tree_loc(bport), "%s %s declared with %s class in body",
+                   what, istr(bname), bclass_str);
+         diag_lrm(d, STD_08, "4.10");
          diag_emit(d);
+         return false;
       }
-      return false;
    }
 
    tree_t bdef = tree_has_value(bport) ? tree_value(bport) : NULL;
@@ -1932,11 +1974,8 @@ static bool sem_check_conforming(tree_t decl, tree_t body)
    assert(tree_ports(decl) == tree_ports(body));
 
    const int nports = tree_ports(decl);
-   for (int i = 0; i < nports; i++) {
-      tree_t dport = tree_port(decl, i);
-      tree_t bport = tree_port(body, i);
-      ok &= sem_compare_interfaces(dport, bport, i, body, "parameter");
-   }
+   for (int i = 0; i < nports; i++)
+      ok &= sem_compare_interfaces(decl, body, i, tree_port, "parameter");
 
    const int ngenerics = tree_generics(decl);
    if (ngenerics != tree_generics(body)) {
@@ -1950,11 +1989,8 @@ static bool sem_check_conforming(tree_t decl, tree_t body)
       ok = false;
    }
    else {
-      for (int i = 0; i < ngenerics; i++) {
-         tree_t dgen = tree_generic(decl, i);
-         tree_t bgen = tree_generic(body, i);
-         ok &= sem_compare_interfaces(dgen, bgen, i, body, "generic");
-      }
+      for (int i = 0; i < ngenerics; i++)
+         ok &= sem_compare_interfaces(decl, body, i, tree_generic, "generic");
    }
 
    return ok;

@@ -2998,8 +2998,10 @@ START_TEST(test_issue660)
    input_from_file(TESTDIR "/sem/issue660.vhd");
 
    const error_t expect[] = {
-      {  11, "class (constant) of parameter X of subprogram BLAH not defined equally in subprogram specification and subprogram body" },
-      {  16, "mode (IN) of parameter X of subprogram DOSOMETHING not defined equally in subprogram specification and subprogram body" },
+      {  11, "class of subprogram BLAH parameter X was constant in "
+         "specification but default in body" },
+      {  16, "mode indication of subprogram DOSOMETHING parameter X was "
+         "default in specification but IN in body" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -3524,8 +3526,10 @@ START_TEST(test_issue770)
    input_from_file(TESTDIR "/sem/issue770.vhd");
 
    const error_t expect[] = {
-      {  7, "class (constant) of parameter A of subprogram IDENTITY_A not "
-         "defined equally in subprogram specification and subprogram body" },
+      {  7, "class of subprogram IDENTITY_A parameter A was default in "
+         "specification but constant in body" },
+      {  0, "parameter A declared with constant class in body" },
+      {  0, "parameter A declared with default class in specification" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -3671,6 +3675,30 @@ START_TEST(test_issue945)
    expect_errors(expect);
 
    parse_and_check(T_ENTITY, T_ARCH, T_ENTITY, T_ARCH);
+
+   check_expected_errors();
+}
+END_TEST
+
+START_TEST(test_issue958)
+{
+   input_from_file(TESTDIR "/sem/issue958.vhd");
+
+   const error_t expect[] = {
+      { 10, "mode indication of subprogram \"-\" parameter ARG was IN "
+        "in specification but default in body" },
+      { 14, "mode indication of subprogram \"+\" parameter LHS was IN "
+        "in specification but default in body" },
+      { 18, "declaration of parameter RHS in subprogram body does not "
+        "match specification" },
+      {  0, "RHS appears first in identifier list" },
+      {  0, "the --relaxed option downgrades this to a warning" },
+      {  0, "RHS appears second in identifier list" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_PACKAGE, T_PACK_BODY);
 
    check_expected_errors();
 }
@@ -3845,6 +3873,7 @@ Suite *get_sem_tests(void)
    tcase_add_test(tc_core, test_issue884);
    tcase_add_test(tc_core, test_genpack5);
    tcase_add_test(tc_core, test_issue945);
+   tcase_add_test(tc_core, test_issue958);
    suite_add_tcase(s, tc_core);
 
    return s;
