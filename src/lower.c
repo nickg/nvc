@@ -1300,8 +1300,8 @@ static void lower_signal_flag_field_cb(lower_unit_t *lu, tree_t field,
                              locus, lower_signal_flag_field_cb, __ctx);
    else {
       struct {
-         lower_signal_flag_fn_t  fn;
-         vcode_reg_t            *result;
+         lower_signal_flag_fn_t fn;
+         vcode_var_t            result;
       } *args = __ctx;
 
       vcode_reg_t flag;
@@ -1315,7 +1315,9 @@ static void lower_signal_flag_field_cb(lower_unit_t *lu, tree_t field,
          flag = (*args->fn)(nets_reg, emit_const(vtype_offset(), 1));
       }
 
-      *(args->result) = emit_or(*(args->result), flag);
+      vcode_reg_t cur_reg = emit_load(args->result);
+      vcode_reg_t new_reg = emit_or(cur_reg, flag);
+      emit_store(new_reg, args->result);
    }
 }
 
@@ -1328,14 +1330,20 @@ static vcode_reg_t lower_signal_flag(lower_unit_t *lu, tree_t ref,
 
    type_t type = tree_type(ref);
    if (!type_is_homogeneous(type)) {
-      vcode_reg_t result = emit_const(vtype_bool(), 0);
+      vcode_type_t vbool = vtype_bool();
+      vcode_var_t tmp_var = lower_temp_var(lu, "flag", vbool, vbool);
+      emit_store(emit_const(vbool, 0), tmp_var);
+
       struct {
-         lower_signal_flag_fn_t  fn;
-         vcode_reg_t            *result;
-      } args = { fn, &result };
+         lower_signal_flag_fn_t fn;
+         vcode_var_t            result;
+      } args = { fn, tmp_var };
       lower_for_each_field(lu, type, nets, VCODE_INVALID_REG,
                            lower_signal_flag_field_cb, &args);
-      return result;
+
+      vcode_reg_t result_reg = emit_load(tmp_var);
+      lower_release_temp(lu, tmp_var);
+      return result_reg;
    }
    else if (type_is_array(type)) {
       vcode_reg_t data_reg = lower_array_data(nets);

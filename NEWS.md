@@ -26,6 +26,8 @@
   assertion statements (#956).
 - Arrays-of-arrays with `downto` direction are now dumped in the correct
   order (#957).
+- Fixed incorrect result of `'event` and `'active` where the prefix is
+  an array of records.
 
 ## Version 1.13.3 - 2024-08-24
 - Type checking was not performed correctly for conversion function
