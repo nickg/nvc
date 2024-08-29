@@ -8232,20 +8232,9 @@ static void lower_implicit_decl(lower_unit_t *parent, tree_t decl)
                                            vu, NULL, NULL);
             unit_registry_put(parent->registry, lu);
 
-            type_t prefix_type = tree_type(prefix);
-            vcode_reg_t prefix_reg = lower_lvalue(lu, prefix), len_reg;
-            if (type_is_array(prefix_type)) {
-               len_reg = lower_array_total_len(lu, prefix_type, prefix_reg);
-               prefix_reg = lower_array_data(prefix_reg);
-            }
-            else
-               len_reg = emit_const(vtype_offset(), 1);
-
-            vcode_reg_t flag_reg;
-            if (kind == IMPLICIT_STABLE)
-               flag_reg = emit_event_flag(prefix_reg, len_reg);
-            else
-               flag_reg = emit_active_flag(prefix_reg, len_reg);
+            lower_signal_flag_fn_t fn =
+               kind == IMPLICIT_STABLE ? emit_event_flag : emit_active_flag;
+            vcode_reg_t flag_reg = lower_signal_flag(lu, prefix, fn);
 
             emit_return(emit_not(flag_reg));
 
@@ -8271,14 +8260,16 @@ static void lower_implicit_decl(lower_unit_t *parent, tree_t decl)
 
          vcode_reg_t prefix_reg = lower_attr_prefix(parent, prefix);
 
-         if (type_is_homogeneous(type)) {
-            vcode_reg_t count_reg = lower_type_width(parent, type, prefix_reg);
+         type_t prefix_type = tree_type(prefix);
+         if (type_is_homogeneous(prefix_type)) {
+            vcode_reg_t count_reg =
+               lower_type_width(parent, prefix_type, prefix_reg);
             vcode_reg_t nets_reg = lower_array_data(prefix_reg);
 
             emit_map_implicit(nets_reg, sig, count_reg);
          }
          else
-            lower_for_each_field(parent, type, prefix_reg,
+            lower_for_each_field(parent, prefix_type, prefix_reg,
                                  locus, lower_implicit_field_cb,
                                  (void *)(intptr_t)sig);
       }

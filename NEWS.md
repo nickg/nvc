@@ -28,6 +28,8 @@
   order (#957).
 - Fixed incorrect result of `'event` and `'active` where the prefix is
   an array of records.
+- Fixed a crash when the `'stable` attribute is used with a record type
+  (#960).
 
 ## Version 1.13.3 - 2024-08-24
 - Type checking was not performed correctly for conversion function

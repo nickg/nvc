@@ -964,7 +964,7 @@ const char *vcode_op_string(vcode_op_t op)
       "function trigger", "add trigger", "transfer signal",
       "port conversion", "convert in", "convert out", "bind foreign",
       "or trigger", "cmp trigger", "instance name", "deposit signal",
-      "map transaction",
+      "map implicit",
    };
    if ((unsigned)op >= ARRAY_LEN(strs))
       return "???";
