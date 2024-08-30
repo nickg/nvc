@@ -973,6 +973,19 @@ START_TEST(test_layout)
    ck_assert_int_eq(l->parts[0].align, 1);
    ck_assert_int_eq(l->parts[0].repeat, 3 * 8);
 
+   type_t t_array = tree_type(get_decl(p, "T_ARRAY"));
+
+   l = signal_layout_of(t_array);
+   ck_assert_int_eq(l->nparts, 2);
+   ck_assert_int_eq(l->parts[0].offset, 0);
+   ck_assert_int_eq(l->parts[0].size, 8);
+   ck_assert_int_eq(l->parts[0].align, sizeof(void *));
+   ck_assert_int_eq(l->parts[0].repeat, 1);
+   ck_assert_int_eq(l->parts[1].offset, 8);
+   ck_assert_int_eq(l->parts[1].size, 8);
+   ck_assert_int_eq(l->parts[1].align, 8);
+   ck_assert_int_eq(l->parts[1].repeat, 2);
+
    jit_free(j);
 }
 END_TEST

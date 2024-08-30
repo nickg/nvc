@@ -1,0 +1,4 @@
+#0 issue962.i_channel_states[1].descriptor[4:0] 00000
+#0 issue962.i_channel_states[0].descriptor[4:0] 00000
+#1000000 issue962.i_channel_states[1].descriptor[4:0] 10110
+#2000000 issue962.i_channel_states[0].descriptor[4:0] 00001

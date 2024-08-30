@@ -185,28 +185,48 @@ const jit_layout_t *signal_layout_of(type_t type)
    else if (type_is_array(type)) {
       const int ndims = dimension_of(type);
 
-      l = xcalloc_flex(sizeof(jit_layout_t), 3, sizeof(layout_part_t));
-      l->nparts = 3;
-      l->size   = 16 + ndims * 2 * sizeof(int64_t);
-      l->align  = 8;
+      if (type_is_record(type_elem_recur(type))) {
+         l = xcalloc_flex(sizeof(jit_layout_t), 2, sizeof(layout_part_t));
+         l->nparts = 2;
+         l->size   = 8 + ndims * 2 * sizeof(int64_t);
+         l->align  = sizeof(void *);
 
-      // Shared signal data pointer
-      l->parts[0].offset = 0;
-      l->parts[0].size   = sizeof(void *);
-      l->parts[0].repeat = 1;
-      l->parts[0].align  = sizeof(void *);
+         // Pointer to signal record array
+         l->parts[0].offset = 0;
+         l->parts[0].size   = sizeof(void *);
+         l->parts[0].repeat = 1;
+         l->parts[0].align  = sizeof(void *);
 
-      // Offset
-      l->parts[1].offset = 8;
-      l->parts[1].size   = 8;
-      l->parts[1].repeat = 1;
-      l->parts[1].align  = 8;
+         // Array bounds
+         l->parts[1].offset = 8;
+         l->parts[1].size   = sizeof(int64_t);
+         l->parts[1].repeat = ndims * 2;
+         l->parts[1].align  = l->parts[1].size;
+      }
+      else {
+         l = xcalloc_flex(sizeof(jit_layout_t), 3, sizeof(layout_part_t));
+         l->nparts = 3;
+         l->size   = 16 + ndims * 2 * sizeof(int64_t);
+         l->align  = sizeof(void *);
 
-      // Array bounds
-      l->parts[2].offset = 16;
-      l->parts[2].size   = 8;
-      l->parts[2].repeat = ndims * 2;
-      l->parts[2].align  = 8;
+         // Shared signal data pointer
+         l->parts[0].offset = 0;
+         l->parts[0].size   = sizeof(void *);
+         l->parts[0].repeat = 1;
+         l->parts[0].align  = sizeof(void *);
+
+         // Offset
+         l->parts[1].offset = 8;
+         l->parts[1].size   = 8;
+         l->parts[1].repeat = 1;
+         l->parts[1].align  = 8;
+
+         // Array bounds
+         l->parts[2].offset = 16;
+         l->parts[2].size   = 8;
+         l->parts[2].repeat = ndims * 2;
+         l->parts[2].align  = 8;
+      }
    }
    else if (type_is_record(type)) {
       const int nfields = type_fields(type);

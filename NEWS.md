@@ -30,7 +30,7 @@
   an array of records.
 - Fixed a crash when the `'stable` attribute is used with a record type
   (#960).
-- Several other minor bugs were resolved (#961).
+- Several other minor bugs were resolved (#961, #962).
 
 ## Version 1.13.3 - 2024-08-24
 - Type checking was not performed correctly for conversion function

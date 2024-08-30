@@ -461,18 +461,25 @@ static void *fst_get_ptr(wave_dumper_t *wd, rt_scope_t *scope, tree_t where)
       assert(scope->kind == SCOPE_SIGNAL);
 
       type_t rtype = tree_type(scope->where);
-      const jit_layout_t *l = signal_layout_of(rtype);
 
       if (type_is_array(rtype))
          return fst_get_ptr(wd, scope->parent, scope->where);
       else {
          assert(type_is_record(rtype));
          assert(type_field(rtype, tree_pos(where)) == where);
+
+         const jit_layout_t *l = signal_layout_of(rtype);
          assert(l->nparts == type_fields(rtype));
 
          const ptrdiff_t offset = l->parts[tree_pos(where)].offset;
          return fst_get_ptr(wd, scope->parent, scope->where) + offset;
       }
+   }
+   else if (scope->kind == SCOPE_SIGNAL) {
+      // Record nested inside array
+      assert(type_is_array(tree_type(scope->where)));
+      ffi_uarray_t *u = fst_get_ptr(wd, scope->parent, scope->where);
+      return u->ptr;
    }
    else {
       assert(scope->kind == SCOPE_INSTANCE);

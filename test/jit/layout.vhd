@@ -18,4 +18,6 @@ package layout is
 
     constant c1 : t_byte_vector(1 to 3) := (others => X"00");
 
+    type t_array is array (natural range <>) of r2;
+
 end package;

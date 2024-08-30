@@ -1373,8 +1373,9 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
 
          case VCODE_OP_PUSH_SCOPE:
             {
-               printf("%s locus ", vcode_op_string(op->kind));
-               vcode_dump_reg(op->args.items[0]);
+               col += printf("%s locus ", vcode_op_string(op->kind));
+               col += vcode_dump_reg(op->args.items[0]);
+               vcode_dump_type(col, op->type, op->type);
             }
             break;
 
