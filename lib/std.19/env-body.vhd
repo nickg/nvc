@@ -26,7 +26,7 @@ package body env is
     begin
     end procedure;
 
-    attribute foreign of stop_impl : procedure is "GHDL _std_env_stop";
+    attribute foreign of stop_impl : procedure is "INTERNAL _std_env_stop";
 
     procedure stop(status : integer) is
     begin

@@ -204,8 +204,12 @@ static time_t to_time_t(const time_record_t *tr)
 }
 
 DLLEXPORT
-void _std_env_stop(int32_t finish, int32_t have_status, int32_t status)
+void _std_env_stop(jit_scalar_t *args)
 {
+   const int32_t finish      = args[2].integer;
+   const int32_t have_status = args[3].integer;
+   const int32_t status      = args[4].integer;
+
    if (have_status) {
       notef("%s called with status %d", finish ? "FINISH" : "STOP", status);
       jit_abort_with_status(status);
