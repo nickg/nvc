@@ -3275,6 +3275,8 @@ static void overload_cancel_argument(overload_t *o, tree_t p)
       ATRIM(o->candidates, wptr);
    }
 
+   APUSH(o->params, p);
+
    type_set_pop(o->nametab);
    o->state = O_IDLE;
 }
@@ -3872,8 +3874,12 @@ static type_t try_solve_ref(nametab_t *tab, tree_t ref)
       return NULL;
 
    type_t type = get_type_or_null(decl);
-   if (type == NULL || type_is_subprogram(type))
+   if (type == NULL)
       return NULL;
+   else if (type_is_subprogram(type)) {
+      tree_change_kind(ref, T_FCALL);
+      type = get_result_type(tab, decl);
+   }
 
    tree_set_ref(ref, decl);
    tree_set_type(ref, type);
