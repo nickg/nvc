@@ -125,8 +125,10 @@ typedef struct {
    unsigned      maxinputs;
    rt_nexus_t  **inputs;
    rt_source_t  *outputs;
-   size_t        insz;
-   size_t        outsz;
+   unsigned      insz;
+   unsigned      outsz;
+   unsigned      inoff;
+   unsigned      outoff;
    void         *outbuf;
    void         *inbuf;
 } rt_conv_func_t;

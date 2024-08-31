@@ -30,6 +30,8 @@
   an array of records.
 - Fixed a crash when the `'stable` attribute is used with a record type
   (#960).
+- Conversion functions applied to individual record elements in a port
+  map now work correctly (#963).
 - Several other minor bugs were resolved (#961, #962).
 
 ## Version 1.13.3 - 2024-08-24

@@ -1805,12 +1805,14 @@ static void *convert_driving(rt_conv_func_t *cf)
              nexus_driving(n), n->size * n->width);
    }
 
-   TRACE("call conversion function %s insz=%zu outsz=%zu",
-         istr(jit_get_name(m->jit, cf->driving.handle)), cf->insz, cf->outsz);
+   TRACE("call conversion function %s insz=%u outsz=%u inoff=%u outoff=%u",
+         istr(jit_get_name(m->jit, cf->driving.handle)),
+         cf->insz, cf->outsz, cf->inoff, cf->outoff);
 
    jit_scalar_t context = { .pointer = cf->driving.context };
    if (!jit_try_call_packed(m->jit, cf->driving.handle, context,
-                            cf->inbuf, cf->insz, cf->outbuf, cf->outsz))
+                            cf->inbuf + cf->inoff, cf->insz,
+                            cf->outbuf + cf->outoff, cf->outsz - cf->outoff))
       m->force_stop = true;
 
    return cf->outbuf;
@@ -1830,16 +1832,18 @@ static void *convert_effective(rt_conv_func_t *cf)
         o != NULL && o->u.port.conv_func == cf;
         o = o->chain_output) {
       rt_nexus_t *n = o->u.port.output;
-      memcpy(cf->inbuf + n->signal->offset + n->offset,
+      memcpy(cf->outbuf + n->signal->offset + n->offset,
              nexus_effective(n), n->size * n->width);
    }
 
-   TRACE("call conversion function %s insz=%zu outsz=%zu",
-         istr(jit_get_name(m->jit, cf->effective.handle)), cf->insz, cf->outsz);
+   TRACE("call conversion function %s insz=%u outsz=%u inoff=%u outoff=%u",
+         istr(jit_get_name(m->jit, cf->effective.handle)),
+         cf->insz, cf->outsz, cf->inoff, cf->outoff);
 
    jit_scalar_t context = { .pointer = cf->effective.context };
    if (!jit_try_call_packed(m->jit, cf->effective.handle, context,
-                            cf->outbuf, cf->outsz, cf->inbuf, cf->insz))
+                            cf->outbuf + cf->outoff, cf->outsz - cf->outoff,
+                            cf->inbuf + cf->inoff, cf->insz - cf->inoff))
       m->force_stop = true;
 
    return cf->inbuf;
@@ -4483,6 +4487,8 @@ void *x_port_conversion(const ffi_closure_t *driving,
    cf->inputs    = NULL;
    cf->outsz     = 0;
    cf->insz      = 0;
+   cf->inoff     = UINT_MAX;
+   cf->outoff    = UINT_MAX;
 
    return cf;
 }
@@ -4508,6 +4514,7 @@ void x_convert_in(void *ptr, sig_shared_t *ss, uint32_t offset, int32_t count)
 
       const size_t reqd = n->signal->offset + n->offset + n->size * n->width;
       cf->insz = MAX(cf->insz, reqd);
+      cf->inoff = MIN(cf->inoff, n->signal->offset + n->offset);
 
       rt_source_t **p = &(n->outputs);
       for (; *p != NULL && *p != cf->outputs; p = &((*p)->chain_output));
@@ -4539,6 +4546,7 @@ void x_convert_out(void *ptr, sig_shared_t *ss, uint32_t offset, int32_t count)
 
       const size_t reqd = n->signal->offset + n->offset + n->size * n->width;
       cf->outsz = MAX(cf->outsz, reqd);
+      cf->outoff = MIN(cf->outoff, n->signal->offset + n->offset);
 
       src->chain_output = cf->outputs;
       cf->outputs = src;

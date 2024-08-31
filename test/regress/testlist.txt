@@ -1030,3 +1030,4 @@ issue957        wave,2008,dump-arrays
 signal37        normal
 issue960        normal
 issue962        wave,dump-arrays
+issue963        normal
