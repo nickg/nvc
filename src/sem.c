@@ -4588,7 +4588,7 @@ static bool sem_static_signal_name(tree_t t)
 static bool sem_check_port_actual(formal_map_t *formals, int nformals,
                                   tree_t param, tree_t unit, nametab_t *tab)
 {
-   tree_t value = tree_value(param), name = NULL;
+   tree_t value = tree_value(param), name = NULL, out_conv = NULL;
    tree_t decl = NULL;
    type_t type = NULL;
 
@@ -4612,7 +4612,6 @@ static bool sem_check_port_actual(formal_map_t *formals, int nformals,
    case P_NAMED:
       {
          tree_t ref = (name = tree_name(param));
-         tree_t conv = NULL;
 
          switch (tree_kind(name)) {
          case T_FCALL:
@@ -4628,7 +4627,7 @@ static bool sem_check_port_actual(formal_map_t *formals, int nformals,
 
          case T_CONV_FUNC:
          case T_TYPE_CONV:
-            conv = name;
+            out_conv = name;
             name = ref = tree_value(name);
             break;
 
@@ -4659,10 +4658,10 @@ static bool sem_check_port_actual(formal_map_t *formals, int nformals,
          if (!sem_static_name(name, sem_locally_static))
             sem_error(name, "formal name must be locally static");
 
-         if (conv != NULL) {
+         if (out_conv != NULL) {
             port_mode_t mode = tree_subkind(decl);
 
-            type = tree_type((mode == PORT_INOUT) ? name : conv);
+            type = tree_type((mode == PORT_INOUT) ? name : out_conv);
 
             if (mode == PORT_IN)
                sem_error(name, "output conversion not allowed for formal "
@@ -4737,6 +4736,9 @@ static bool sem_check_port_actual(formal_map_t *formals, int nformals,
       if (mode == PORT_OUT)
          sem_error(value, "conversion not allowed for formal %s with "
                    "mode OUT", istr(tree_ident(decl)));
+      else if (mode == PORT_INOUT && out_conv == NULL)
+         sem_error(value, "INOUT port %s has output conversion but no "
+                   "corresponding input conversion", istr(tree_ident(decl)));
    }
    else
       actual = value;    // No conversion

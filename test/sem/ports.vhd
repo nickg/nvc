@@ -423,3 +423,19 @@ begin
     end block;
 
 end architecture;
+
+-------------------------------------------------------------------------------
+
+architecture conv of top is
+    signal s : real;
+begin
+
+    b1: block is
+        port ( io1, io2 : inout integer );
+        port map (
+            io1 => integer(s),          -- Error
+            integer(io2) => s );        -- Error
+    begin
+    end block;
+
+end architecture;
