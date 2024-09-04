@@ -28,6 +28,7 @@
 #include "thread.h"
 #include "type.h"
 #include "vlog/vlog-phase.h"
+#include "sdf/sdf-phase.h"
 
 #include <assert.h>
 #include <ctype.h>
@@ -2485,7 +2486,38 @@ void analyse_file(const char *file, jit_t *jit, unit_registry_t *ur)
          }
       }
       break;
+
+   case SOURCE_SDF:
+      {
+#ifdef ENABLE_SDF
+         // TODO: Pass min-max spec
+         sdf_file_t *sdf_file = sdf_parse(0);
+         sdf_dump(sdf_file, 2);
+#else
+         fatal("SDF not supported!");
+#endif
+      }
+
+      break;
    }
+}
+
+sdf_file_t* analyse_sdf_file(const char *file)
+{
+   // TODO: Add support for compressed SDFs
+
+   input_from_file(file);
+
+#ifdef ENABLE_SDF
+   reset_sdf_parser();
+
+   // TODO: Pass min max spec!
+   return sdf_parse(0);
+#else
+   fatal("SDF not supported!");
+   return NULL;
+#endif
+
 }
 
 bool all_character_literals(type_t type)

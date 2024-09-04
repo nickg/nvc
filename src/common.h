@@ -94,6 +94,7 @@ bool calculate_aggregate_bounds(tree_t expr, range_kind_t *kind,
 type_t calculate_aggregate_subtype(tree_t expr);
 
 void analyse_file(const char *file, jit_t *jit, unit_registry_t *ur);
+sdf_file_t* analyse_sdf_file(const char *file);
 
 void print_syntax(const char *fmt, ...)
    __attribute__((format(printf, 1, 2)));
@@ -293,5 +294,16 @@ typedef enum {
 ident_t well_known(well_known_t id);
 well_known_t is_well_known(ident_t ident);
 void intern_strings(void);
+
+//
+// SDF standard revisions
+//
+typedef enum {
+   SDF_STD_1_0,
+   SDF_STD_2_0,
+   SDF_STD_2_1,
+   SDF_STD_3_0,
+   SDF_STD_4_0
+} sdf_std_t;
 
 #endif  // _COMMON_H

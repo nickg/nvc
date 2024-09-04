@@ -1,0 +1,11 @@
+lib_libnvc_a_SOURCES += \
+	src/sdf/sdf-node.h \
+	src/sdf/sdf-node.c
+
+if ENABLE_SDF
+lib_libnvc_a_SOURCES += \
+	src/sdf/sdf-dump.c \
+	src/sdf/sdf-parse.c
+endif
+
+# AM_LFLAGS = -d

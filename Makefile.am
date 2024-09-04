@@ -46,6 +46,7 @@ include thirdparty/Makemodule.am
 include src/Makemodule.am
 include src/cov/Makemodule.am
 include src/psl/Makemodule.am
+include src/sdf/Makemodule.am
 include src/rt/Makemodule.am
 include src/jit/Makemodule.am
 include src/vhpi/Makemodule.am

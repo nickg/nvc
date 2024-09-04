@@ -31,7 +31,11 @@ typedef union {
 
 // Functions shared between VHDL and Verilog scanners
 
-typedef enum { SOURCE_VHDL, SOURCE_VERILOG } hdl_kind_t;
+typedef enum {
+   SOURCE_VHDL,
+   SOURCE_VERILOG,
+   SOURCE_SDF
+} hdl_kind_t;
 
 typedef int token_t;
 
@@ -39,6 +43,7 @@ void input_from_file(const char *file);
 void input_from_buffer(const char *buf, size_t len, hdl_kind_t hdl);
 hdl_kind_t source_kind(void);
 token_t processed_yylex(void);
+int pp_yylex(void);
 const char *token_str(token_t tok);
 void free_token(token_t tok, yylval_t *lval);
 
@@ -49,6 +54,8 @@ void scan_as_psl(void);
 void scan_as_vhdl(void);
 void scan_as_verilog(void);
 void scan_as_udp(void);
+void scan_as_sdf(void);
+void scan_as_sdf_expr(void);
 
 // Private interface to Flex scanners
 
@@ -57,6 +64,7 @@ int get_next_char(char *b, int max_buffer);
 
 void reset_vhdl_parser(void);
 void reset_verilog_parser(void);
+void reset_sdf_parser(void);
 
 bool is_scanned_as_psl(void);
 
@@ -88,6 +96,7 @@ bool is_scanned_as_psl(void);
 #define tHASH          '#'
 #define tTILDE         '~'
 #define tBANG          '!'
+#define tPERCENT       '%'
 
 #define tID            200
 #define tENTITY        201
@@ -315,5 +324,68 @@ bool is_scanned_as_psl(void);
 #define tUDPIND        423
 #define tBUF           424
 #define tLOGOR         425
+
+// SDF only keywords - separated for better maintainability
+// during implementation of SDF annotation.
+// TODO: Once finally merged, this can be appended to the last
+//       defined token!
+#define tDELAYFILE     500
+#define tSDFVERSION    501
+#define tDESIGN        502
+#define tDATE          503
+#define tVENDOR        504
+#define tPROGRAM       505
+#define tVERSION       506
+#define tDIVIDER       507
+#define tVOLTAGE       508
+#define tTEMPERATURE   509
+#define tCELL          510
+#define tCELLTYPE      511
+#define tINSTANCE      512
+#define tDELAY         513
+#define tTIMINGCHECK   514
+#define tTIMINGENV     515
+#define tPATHPULSE     516
+#define tPATHPULSEP    517
+#define tIOPATH        518
+#define tRETAIN        519
+#define tSDFCOND       520
+#define tSDFCONDELSE   521
+#define tINTERCONNECT  522
+#define tNETDELAY      523
+#define tDEVICE        524
+#define tSETUP         525
+#define tHOLD          526
+#define tSETUPHOLD     527
+#define tRECOVERY      528
+#define tREMOVAL       529
+#define tRECREM        530
+#define tSKEW          531
+#define tBIDIRSKEW     532
+#define tWIDTH         533
+#define tPERIOD        534
+#define tNOCHANGE      535
+#define tCOND          536
+#define tSCOND         537
+#define tCCOND         538
+#define tPATHCONSTR    539
+#define tPERIODCONSTR  540
+#define tSUM           541
+#define tDIFF          542
+#define tSKEWCONSTR    543
+#define tEXCEPTION     544
+#define tNAME          545
+#define tARRIVAL       546
+#define tDEPARTURE     547
+#define tSLACK         548
+#define tWAVEFORM      549
+#define tINCREMENT     550
+#define tABSOLUTE      551
+
+// SDF operator symbols
+#define tTILDEAMP      552
+#define tTILDEBAR      553
+#define tTILDECARET    554
+
 
 #endif  // _SCAN_H

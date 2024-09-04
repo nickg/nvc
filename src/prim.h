@@ -33,6 +33,8 @@ typedef struct _ident *ident_t;
 typedef struct _tree *tree_t;
 typedef struct _type *type_t;
 typedef struct _vlog_node *vlog_node_t;
+typedef struct _sdf_node *sdf_node_t;
+typedef struct _sdf_file sdf_file_t;
 typedef struct loc loc_t;
 typedef struct _fbuf fbuf_t;
 typedef struct _hash hash_t;

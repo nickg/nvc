@@ -136,7 +136,17 @@ esac
 AX_GCC_FUNC_ATTRIBUTE([returns_nonnull])
 AX_GCC_BUILTIN([__builtin_setjmp])
 
-AX_PROG_FLEX([], [AC_MSG_ERROR([Flex not found])])
+AC_ARG_ENABLE([sdf],
+  [AS_HELP_STRING([--enable-sdf], [SDF annotation support])],
+  [enable_sdf=$enableval],
+  [enable_sdf=no])
+
+AS_IF([test x$enable_sdf = xyes],
+      [AC_DEFINE_UNQUOTED([ENABLE_SDF], [1], [SDF annotation enabled])])
+
+AM_CONDITIONAL([ENABLE_SDF], [test x$enable_sdf = xyes])
+
+AX_PROG_FLEX([], [AC_MSG_ERROR(Flex not found)])
 
 case $host_os in
   *cygwin*|msys*|mingw32*)
