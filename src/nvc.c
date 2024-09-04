@@ -481,7 +481,7 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
 
    jit_enable_runtime(state->jit, false);
 
-   tree_t top = elab(obj, state->jit, state->registry, cover);
+   tree_t top = elab(obj, state->jit, state->registry, cover, NULL);
    if (top == NULL)
       return EXIT_FAILURE;
 
