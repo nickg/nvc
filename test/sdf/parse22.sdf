@@ -1,0 +1,15 @@
+(DELAYFILE
+    (SDFVERSION "4.0")
+    (CELL
+        (CELLTYPE "AND2")
+        (INSTANCE i_and)
+        (TIMINGCHECK
+            (RECREM         (COND "COMMENT" xy == 1 my_inst.port) y (1::2) (-7::+8))
+            (SKEW           y z (3::4))
+            (BIDIRECTSKEW   z x (5) (6))
+            (WIDTH          (COND "WTF" !w port_in) (8))
+            (PERIOD         (COND "DEADBEEF" ~x port_out) (10.2))
+            (NOCHANGE       p_one p_two (-10) (-15))
+        )
+    )
+)

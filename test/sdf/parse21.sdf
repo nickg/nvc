@@ -1,0 +1,19 @@
+(DELAYFILE
+    (SDFVERSION "4.0")
+    (CELL
+        (CELLTYPE "AND2")
+        (INSTANCE i_and)
+        (TIMINGCHECK
+            (SETUP          my_inst.x my_inst.y (0:0:0))
+            (HOLD           my_inst.a my_inst.b (0:0:0))
+            (SETUPHOLD      a b (-5) (+10))
+            (SETUPHOLD      c d () () (SCOND single_bit == 1'b0))
+            (SETUPHOLD      e f () () (SCOND "AAA" next_bit != 0) (CCOND m.n === 1'b1) )
+            (SETUPHOLD      g h () () (CCOND "BBB" m.n !== 1) )
+            (SETUPHOLD      i j () () (SCOND !port) (CCOND ~port))
+            (RECOVERY       k l ())
+            (REMOVAL        m n ())
+            (RECREM         x y (1::2) (-5::-6))
+        )
+    )
+)

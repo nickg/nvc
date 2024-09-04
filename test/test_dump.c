@@ -568,6 +568,7 @@ START_TEST(test_vhdl6)
 
    fail_if_errors();
 }
+END_TEST
 
 Suite *get_dump_tests(void)
 {

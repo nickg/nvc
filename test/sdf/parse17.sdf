@@ -1,0 +1,26 @@
+(DELAYFILE
+    (SDFVERSION "4.0")
+    (DIVIDER / )
+    (CELL
+        (CELLTYPE "AND2")
+        (INSTANCE i_and)
+        (DELAY
+            (ABSOLUTE
+                (COND a (IOPATH x y ()))
+                (COND a/b/c/d (IOPATH x y ()))
+                (COND (((((e/f/g/h))))) (IOPATH x y ()))
+                (COND +(x/y/z) (IOPATH x y ()))
+                (COND -(x/y/z) (IOPATH x y ()))
+                (COND !(x/y/z) (IOPATH x y ()))
+                (COND ~(x/y/z) (IOPATH x y ()))
+                (COND &(x/y/z) (IOPATH x y ()))
+                (COND ~&(x/y/z) (IOPATH x y ()))
+                (COND |(x/y/z) (IOPATH x y ()))
+                (COND ~|(x/y/z) (IOPATH x y ()))
+                (COND ^(x/y/z) (IOPATH x y ()))
+                (COND ^~(x/y/z) (IOPATH x y ()))
+                (COND ~^(x/y/z) (IOPATH x y ()))
+            )
+        )
+    )
+)
