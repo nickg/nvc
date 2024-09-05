@@ -1,0 +1,3 @@
+(init): type of signal X is not BIT
+^ declaration of X with type NATURAL
+external name with type BIT

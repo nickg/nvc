@@ -40,7 +40,7 @@ DECLARE_AND_DEFINE_ARRAY(vcode_type);
    (x == VCODE_OP_ALLOC || x == VCODE_OP_COPY                           \
     || x == VCODE_OP_CONST || x == VCODE_OP_CAST                        \
     || x == VCODE_OP_CONST_RECORD || x == VCODE_OP_CLOSURE              \
-    || x == VCODE_OP_PUSH_SCOPE)
+    || x == VCODE_OP_PUSH_SCOPE || x == VCODE_OP_BIND_EXTERNAL)
 #define OP_HAS_ADDRESS(x)                                               \
    (x == VCODE_OP_LOAD || x == VCODE_OP_STORE || x == VCODE_OP_INDEX    \
     || x == VCODE_OP_VAR_UPREF)
@@ -51,7 +51,7 @@ DECLARE_AND_DEFINE_ARRAY(vcode_type);
     || x == VCODE_OP_FUNCTION_TRIGGER)
 #define OP_HAS_IDENT(x)                                                 \
    (x == VCODE_OP_LINK_VAR || x == VCODE_OP_LINK_PACKAGE                \
-    || x == VCODE_OP_DEBUG_LOCUS || x == VCODE_OP_LINK_INSTANCE)
+    || x == VCODE_OP_DEBUG_LOCUS)
 #define OP_HAS_REAL(x)                                                  \
    (x == VCODE_OP_CONST_REAL)
 #define OP_HAS_VALUE(x)                                                 \
@@ -958,13 +958,13 @@ const char *vcode_op_string(vcode_op_t op)
       "index check", "debug locus", "length check", "range check", "array ref",
       "range length", "exponent check", "zero check", "map const",
       "resolve signal", "push scope", "pop scope", "alias signal", "trap add",
-      "trap sub", "trap mul", "force", "release", "link instance",
+      "trap sub", "trap mul", "force", "release",
       "unreachable", "package init", "trap neg", "process init", "clear event",
       "trap exp", "enter state", "reflect value", "reflect subtype",
       "function trigger", "add trigger", "transfer signal",
       "port conversion", "convert in", "convert out", "bind foreign",
       "or trigger", "cmp trigger", "instance name", "deposit signal",
-      "map implicit",
+      "map implicit", "bind external",
    };
    if ((unsigned)op >= ARRAY_LEN(strs))
       return "???";
@@ -2143,7 +2143,6 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
             break;
 
          case VCODE_OP_LINK_PACKAGE:
-         case VCODE_OP_LINK_INSTANCE:
             {
                col += vcode_dump_reg(op->result);
                col += color_printf(" := %s $magenta$%s$$",
@@ -2299,6 +2298,7 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
             break;
 
          case VCODE_OP_INSTANCE_NAME:
+         case VCODE_OP_BIND_EXTERNAL:
             {
                col += vcode_dump_reg(op->result);
                col += color_printf(" := %s ", vcode_op_string(op->kind));
@@ -5844,24 +5844,6 @@ vcode_reg_t emit_link_package(ident_t name)
    return (op->result = vcode_add_reg(vtype_context(name)));
 }
 
-vcode_reg_t emit_link_instance(ident_t name, vcode_reg_t locus)
-{
-   VCODE_FOR_EACH_MATCHING_OP(other, VCODE_OP_LINK_INSTANCE) {
-      if (other->ident == name)
-         return other->result;
-   }
-
-   op_t *op = vcode_add_op(VCODE_OP_LINK_INSTANCE);
-   vcode_add_arg(op, locus);
-   op->ident = name;
-
-   VCODE_ASSERT(name != active_unit->name, "cannot link the current unit");
-   VCODE_ASSERT(vcode_reg_kind(locus) == VCODE_TYPE_DEBUG_LOCUS,
-                "locus argument to link instance must be a debug locus");
-
-   return (op->result = vcode_add_reg(vtype_context(name)));
-}
-
 void emit_enter_state(vcode_reg_t state)
 {
    VCODE_FOR_EACH_MATCHING_OP(other, VCODE_OP_ENTER_STATE) {
@@ -5974,6 +5956,30 @@ vcode_reg_t emit_port_conversion(vcode_reg_t driving, vcode_reg_t effective)
                 "port conversion argument must be a closure");
 
    return (op->result = vcode_add_reg(vtype_conversion()));
+}
+
+vcode_reg_t emit_bind_external(vcode_reg_t locus, vcode_type_t type,
+                               vcode_type_t bounds)
+{
+   op_t *op = vcode_add_op(VCODE_OP_BIND_EXTERNAL);
+   vcode_add_arg(op, locus);
+   op->type = type;
+
+   VCODE_ASSERT(vcode_reg_kind(locus) == VCODE_TYPE_DEBUG_LOCUS,
+                "bind external argument must be locus");
+
+   switch (vtype_kind(type)) {
+   case VCODE_TYPE_UARRAY:
+   case VCODE_TYPE_SIGNAL:
+      op->result = vcode_add_reg(type);
+      break;
+   default:
+      op->result = vcode_add_reg(vtype_pointer(type));
+      break;
+   }
+
+   vcode_reg_data(op->result)->bounds = bounds;
+   return op->result;
 }
 
 void emit_convert_in(vcode_reg_t conv, vcode_reg_t nets, vcode_reg_t count)

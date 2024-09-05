@@ -3579,11 +3579,12 @@ static void p_partial_pathname(tree_t name)
          tree_set_subkind(pe, PE_GENERATE);
          tree_set_value(pe, expr);
          consume(tRPAREN);
+         tree_set_loc(pe, CURRENT_LOC);
       }
-      else
+      else {
          tree_set_subkind(pe, PE_SIMPLE);
-
-      tree_set_loc(pe, CURRENT_LOC);
+         tree_set_loc(pe, &last_loc);
+      }
 
       tree_add_part(name, pe);
    } while (optional(tDOT));

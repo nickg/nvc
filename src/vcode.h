@@ -146,7 +146,6 @@ typedef enum {
    VCODE_OP_TRAP_MUL,
    VCODE_OP_FORCE,
    VCODE_OP_RELEASE,
-   VCODE_OP_LINK_INSTANCE,
    VCODE_OP_UNREACHABLE,
    VCODE_OP_PACKAGE_INIT,
    VCODE_OP_TRAP_NEG,
@@ -168,6 +167,7 @@ typedef enum {
    VCODE_OP_INSTANCE_NAME,
    VCODE_OP_DEPOSIT_SIGNAL,
    VCODE_OP_MAP_IMPLICIT,
+   VCODE_OP_BIND_EXTERNAL,
 } vcode_op_t;
 
 typedef enum {
@@ -488,7 +488,6 @@ vcode_reg_t emit_range_length(vcode_reg_t left, vcode_reg_t right,
                               vcode_reg_t dir);
 vcode_reg_t emit_link_var(vcode_reg_t context, ident_t name, vcode_type_t type);
 vcode_reg_t emit_link_package(ident_t name);
-vcode_reg_t emit_link_instance(ident_t name, vcode_reg_t locus);
 void emit_map_signal(vcode_reg_t src, vcode_reg_t dst, vcode_reg_t count);
 void emit_map_const(vcode_reg_t src, vcode_reg_t dst, vcode_reg_t count);
 void emit_map_implicit(vcode_reg_t src, vcode_reg_t dst, vcode_reg_t count);
@@ -528,5 +527,7 @@ void emit_bind_foreign(vcode_reg_t spec, vcode_reg_t length, vcode_reg_t locus);
 vcode_reg_t emit_instance_name(vcode_reg_t kind);
 void emit_deposit_signal(vcode_reg_t signal, vcode_reg_t count,
                          vcode_reg_t values);
+vcode_reg_t emit_bind_external(vcode_reg_t locus, vcode_type_t type,
+                               vcode_type_t bounds);
 
 #endif  // _VCODE_H

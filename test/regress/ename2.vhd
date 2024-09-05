@@ -16,13 +16,20 @@ end architecture;
 
 -------------------------------------------------------------------------------
 
-entity ename1 is
+entity ename2 is
 end entity;
 
-architecture test of ename1 is
-    alias a is <<signal uut.x : natural>>;  -- Error
+architecture test of ename2 is
 begin
 
     uut: entity work.bot;
+
+    p2: process is
+        alias a1 is <<signal uut.z : integer>>;  -- Error (once)
+        alias a2 is <<signal uut.x : bit>>;  -- Error
+    begin
+        assert a1 = 1;
+        wait;
+    end process;
 
 end architecture;

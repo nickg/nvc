@@ -1,0 +1,3 @@
+(init): type of signal E is not WORK.B-SIM.F
+declaration of E with type WORK.A-RTL.F
+external name with type WORK.B-SIM.F

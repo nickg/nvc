@@ -23,7 +23,7 @@
 
 #include <stdint.h>
 
-#define RT_ABI_VERSION   27
+#define RT_ABI_VERSION   28
 #define RT_ALIGN_MASK    0x7
 #define RT_MULTITHREADED 0
 

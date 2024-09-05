@@ -1,0 +1,3 @@
+0ms+0: class of object UUT is not signal
+declaration of UUT as label
+external name with class signal

@@ -1076,15 +1076,10 @@ START_TEST(test_ename1)
    input_from_file(TESTDIR "/elab/ename1.vhd");
 
    const error_t expect[] = {
-      { 28, "external name Z not found" },
-      { 29, "type of signal X is not BIT" },
-      { 32, "class of object X is not variable" },
-      { 33, "external name X not found" },
-      { 35, "type of signal X is not BIT" },
-      { 36, "external name X not found" },
-      { 37, "FOO is not the name of the root of the design hierarchy" },
-      { 38, "class of object UUT is not signal" },
-      { 39, "X is not a concurrent region" },
+      { 23, "external name X not found" },
+      {  0, "name UUT not found inside ENAME1" },
+      {  0, "an object cannot be referenced by an external name until "
+         "it has been elaborated" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -1875,7 +1870,6 @@ START_TEST(test_issue860)
 
    const error_t expect[] = {
       { 34, "external name CLK not found" },
-      { 35, "external name I1_SBI_IF not found" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -1915,27 +1909,6 @@ START_TEST(test_null1)
 
    const error_t expect[] = {
       {  7, "value 0 outside of T_NULL_INT range 0 to -1 for signal X" },
-      { -1, NULL }
-   };
-   expect_errors(expect);
-
-   tree_t e = run_elab();
-   fail_unless(e == NULL);
-
-   check_expected_errors();
-}
-END_TEST
-
-START_TEST(test_issue907)
-{
-   set_standard(STD_08);
-
-   input_from_file(TESTDIR "/elab/issue907.vhd");
-
-   const error_t expect[] = {
-      { 20, "type of signal E is not WORK.B-SIM.F" },
-      {  0, "external name with type WORK.B-SIM.F" },
-      {  0, "declaration of E with type WORK.A-RTL.F" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -2097,7 +2070,6 @@ Suite *get_elab_tests(void)
    tcase_add_test(tc, test_issue860);
    tcase_add_test(tc, test_genpack5);
    tcase_add_test(tc, test_null1);
-   tcase_add_test(tc, test_issue907);
    tcase_add_test(tc, test_generic3);
    tcase_add_test(tc, test_toplevel5);
    suite_add_tcase(s, tc);

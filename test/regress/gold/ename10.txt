@@ -1,0 +1,3 @@
+0ms+0: class of object X is not variable
+^ declaration of X as signal
+external name with class variable

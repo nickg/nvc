@@ -1388,8 +1388,7 @@ bool jit_will_abort(jit_ir_t *ir)
          || ir->arg1.exit == JIT_EXIT_LENGTH_FAIL
          || ir->arg1.exit == JIT_EXIT_DIV_ZERO
          || ir->arg1.exit == JIT_EXIT_EXPONENT_FAIL
-         || ir->arg1.exit == JIT_EXIT_RANGE_FAIL
-         || ir->arg1.exit == JIT_EXIT_ELAB_ORDER_FAIL;
+         || ir->arg1.exit == JIT_EXIT_RANGE_FAIL;
    }
    else
       return ir->op == J_TRAP;

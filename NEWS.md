@@ -32,6 +32,7 @@
   (#960).
 - Conversion functions applied to individual record elements in a port
   map now work correctly (#963).
+- External name elaboration order checks were overly strict (#964).
 - Several other minor bugs were resolved (#961, #962).
 
 ## Version 1.13.3 - 2024-08-24

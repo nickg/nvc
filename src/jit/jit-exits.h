@@ -83,7 +83,6 @@ void x_deposit_signal(sig_shared_t *ss, uint32_t offset, int32_t count,
                       void *values);
 void x_resolve_signal(sig_shared_t *ss, jit_handle_t handle, void *context,
                       int64_t ileft, int32_t nlits, int32_t flags);
-void x_elab_order_fail(tree_t where);
 void x_unreachable(tree_t where);
 void x_cover_setup_toggle_cb(sig_shared_t *ss, int32_t tag);
 void x_cover_setup_state_cb(sig_shared_t *ss, int64_t low, int32_t tag);
@@ -103,5 +102,6 @@ void *x_port_conversion(const ffi_closure_t *driving,
                         const ffi_closure_t *effective);
 void x_convert_in(void *ptr, sig_shared_t *ss, uint32_t offset, int32_t count);
 void x_convert_out(void *ptr, sig_shared_t *ss, uint32_t offset, int32_t count);
+void x_bind_external(tree_t where, jit_scalar_t *result);
 
 #endif  // _JIT_EXITS_H

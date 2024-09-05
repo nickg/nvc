@@ -3097,64 +3097,28 @@ static vcode_reg_t lower_ref(lower_unit_t *lu, tree_t ref, expr_ctx_t ctx)
 
 static vcode_reg_t lower_external_name(lower_unit_t *lu, tree_t ref)
 {
-   assert(tree_subkind(tree_part(ref, 0)) == PE_ABSOLUTE);
+   type_t type = tree_type(ref), base = type_base_recur(type);
 
-   tree_t p1 = tree_part(ref, 1), root = NULL;
-   ident_t path = ident_prefix(lib_name(lib_work()), tree_ident(p1), '.');
-
-   vcode_unit_t vu = unit_registry_get(lu->registry, path);
-   if (vu != NULL && vcode_unit_kind(vu) == VCODE_UNIT_INSTANCE) {
-      ident_t module;
-      ptrdiff_t offset;
-      vcode_unit_object(vu, &module, &offset);
-
-      root = tree_from_locus(module, offset, NULL);
-   }
-
-   tree_t decl = elab_external_name(ref, root, &path);
-
-   if (decl == NULL) {
-      type_t type = tree_type(ref);
-      vcode_type_t vbounds = lower_bounds(type);
-      if (tree_class(ref) == C_SIGNAL) {
-         vcode_type_t vstype = lower_signal_type(type);
-         if (type_is_homogeneous(type))
-            return emit_undefined(vstype, vbounds);
-         else
-            return emit_undefined(vtype_pointer(vstype), vbounds);
-      }
-      else
-         return emit_undefined(vtype_pointer(lower_type(type)), vbounds);
-   }
+   vcode_type_t vtype, vbounds = lower_bounds(type);
+   if (tree_class(ref) == C_SIGNAL)
+      vtype = lower_signal_type(base);
+   else
+      vtype = lower_type(base);
 
    vcode_reg_t locus = lower_debug_locus(ref);
-   vcode_reg_t context = emit_link_instance(path, locus);
+   vcode_reg_t ext_reg = emit_bind_external(locus, vtype, vbounds);
 
-   type_t decl_type = tree_type(decl);
-   vcode_type_t vtype = lower_var_type(decl);
-
-   vcode_reg_t ptr_reg = emit_link_var(context, tree_ident(decl), vtype);
-
-   vcode_reg_t result_reg;
-   if (have_uarray_ptr(ptr_reg))
-      result_reg = emit_load_indirect(ptr_reg);
-   else if (tree_class(ref) == C_SIGNAL && type_is_homogeneous(decl_type))
-      result_reg = emit_load_indirect(ptr_reg);
-   else
-      result_reg = ptr_reg;
-
-   if (type_is_array(decl_type)) {
+   if (type_is_array(type)) {
       // The external name subtype indication does not have to exactly
       // match the subtype of the referenced object
-      type_t name_type = tree_type(ref);
-      if (!type_is_unconstrained(name_type))
-         lower_check_array_sizes(lu, name_type, decl_type, VCODE_INVALID_REG,
-                                 result_reg, locus);
+      if (!type_is_unconstrained(type))
+         lower_check_array_sizes(lu, type, base, VCODE_INVALID_REG,
+                                 ext_reg, locus);
 
-      return lower_coerce_arrays(lu, decl_type, name_type, result_reg);
+      return lower_coerce_arrays(lu, base, type, ext_reg);
    }
    else
-      return result_reg;
+      return ext_reg;
 }
 
 static vcode_reg_t lower_resolved(lower_unit_t *lu, type_t type,

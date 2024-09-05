@@ -2540,26 +2540,6 @@ static void irgen_op_link_package(jit_irgen_t *g, int op)
    g->map[vcode_get_result(op)] = macro_getpriv(g, handle);
 }
 
-static void irgen_op_link_instance(jit_irgen_t *g, int op)
-{
-   ident_t unit_name = vcode_get_ident(op);
-   jit_handle_t handle = jit_lazy_compile(g->func->jit, unit_name);
-
-   jit_value_t context = macro_getpriv(g, handle);
-
-   irgen_label_t *cont = irgen_alloc_label(g);
-   j_cmp(g, JIT_CC_NE, context, jit_null_ptr());
-   j_jump(g, JIT_CC_T, cont);
-
-   jit_value_t locus = irgen_get_arg(g, op, 0);
-   j_send(g, 0, locus);
-   macro_exit(g, JIT_EXIT_ELAB_ORDER_FAIL);
-
-   irgen_bind_label(g, cont);
-
-   g->map[vcode_get_result(op)] = context;
-}
-
 static void irgen_op_link_var(jit_irgen_t *g, int op)
 {
    ident_t var_name = vcode_get_ident(op);
@@ -3513,6 +3493,19 @@ static void irgen_op_instance_name(jit_irgen_t *g, int op)
       j_recv(g, i);
 }
 
+static void irgen_op_bind_external(jit_irgen_t *g, int op)
+{
+   jit_value_t locus = irgen_get_arg(g, op, 0);
+
+   j_send(g, 0, locus);
+   macro_exit(g, JIT_EXIT_BIND_EXTERNAL);
+
+   const int slots = irgen_slots_for_type(vcode_get_type(op));
+   g->map[vcode_get_result(op)] = j_recv(g, 0);
+   for (int i = 1; i < slots; i++)
+      j_recv(g, i);
+}
+
 static void irgen_block(jit_irgen_t *g, vcode_block_t block)
 {
    vcode_select_block(block);
@@ -3710,9 +3703,6 @@ static void irgen_block(jit_irgen_t *g, vcode_block_t block)
       case VCODE_OP_LINK_PACKAGE:
          irgen_op_link_package(g, i);
          break;
-      case VCODE_OP_LINK_INSTANCE:
-         irgen_op_link_instance(g, i);
-         break;
       case VCODE_OP_LINK_VAR:
          irgen_op_link_var(g, i);
          break;
@@ -3909,6 +3899,9 @@ static void irgen_block(jit_irgen_t *g, vcode_block_t block)
          break;
       case VCODE_OP_INSTANCE_NAME:
          irgen_op_instance_name(g, i);
+         break;
+      case VCODE_OP_BIND_EXTERNAL:
+         irgen_op_bind_external(g, i);
          break;
       default:
          fatal_trace("cannot generate JIT IR for vcode op %s",

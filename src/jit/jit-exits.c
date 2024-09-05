@@ -235,14 +235,6 @@ void x_div_zero(tree_t where)
    jit_msg(tree_loc(where), DIAG_FATAL, "division by zero");
 }
 
-void x_elab_order_fail(tree_t where)
-{
-   assert(tree_kind(where) == T_EXTERNAL_NAME);
-
-   jit_msg(tree_loc(where), DIAG_FATAL, "%s %s has not yet been elaborated",
-           class_str(tree_class(where)), istr(tree_ident(tree_ref(where))));
-}
-
 void x_unreachable(tree_t where)
 {
    if (where != NULL && tree_kind(where) == T_FUNC_BODY)
@@ -592,13 +584,6 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
          int64_t       after  = args[4].integer;
 
          x_disconnect(shared, offset, count, after, reject);
-      }
-      break;
-
-   case JIT_EXIT_ELAB_ORDER_FAIL:
-      {
-         tree_t where = args[0].pointer;
-         x_elab_order_fail(where);
       }
       break;
 
@@ -1017,6 +1002,13 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
          LOCAL_TEXT_BUF tb = tb_new();
          x_instance_name(kind, tb);
          ffi_return_string(tb_get(tb), args, tlab);
+      }
+      break;
+
+   case JIT_EXIT_BIND_EXTERNAL:
+      {
+         tree_t where = args[0].pointer;
+         x_bind_external(where, args);
       }
       break;
 

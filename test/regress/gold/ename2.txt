@@ -1,0 +1,2 @@
+(init): external name Z not found
+^ name Z not found inside UUT
