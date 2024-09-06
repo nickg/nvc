@@ -23,7 +23,7 @@
 
 static const imask_t has_map[S_LAST_NODE_KIND] = {
    // S_DELAY_FILE
-   (I_SUBKIND | I_DECLS | I_STMTS),
+   (I_IDENT | I_SUBKIND | I_DECLS | I_STMTS),
 
    // S_HEADER_ITEM
    (I_SUBKIND | I_NUMBER | I_IDENT),
@@ -106,7 +106,7 @@ object_class_t sdf_object = {
    .kind_text_map  = kind_text_map,
    .tag            = OBJECT_TAG_SDF,
    .last_kind      = S_LAST_NODE_KIND,
-   .has_loc        = true,
+   .has_loc        = false,
    .gc_roots       = { S_DELAY_FILE },
    .gc_num_roots   = 1
 };
@@ -573,4 +573,17 @@ unsigned sdf_exceptions(sdf_node_t s)
 {
    item_t *item = lookup_item(&sdf_object, s, I_CONTEXT);
    return obj_array_count(item->obj_array);
+}
+
+object_t *sdf_to_object(sdf_node_t s)
+{
+   return &(s->object);
+}
+
+sdf_node_t sdf_from_object(object_t *obj)
+{
+   if (obj != NULL && obj->tag == OBJECT_TAG_SDF)
+      return container_of(obj, struct _sdf_node, object);
+   else
+      return NULL;
 }

@@ -190,11 +190,23 @@ struct _sdf_file {
    char        hchar;
    char        hchar_other;
 
-   // Hierarchy -> Node list map
-   shash_t    *hier_map;
-
-   // Cell name -> Node list map (for wildcards)
-   shash_t    *name_map;
+   // hier_map: Hierarchy -> Cell map
+   // name_map: Cell name -> Cell map (for wildcards)
+   // Each cell is placed in only one of these two hash tables.
+   // Duplicities are prevented by looking up cells in the hash tables before
+   // adding the cell. Thus cells with equal:
+   //    - hierarchy (INSTANCE [hierarchy])
+   //    - cell name and wildcard (CELLNAME, INSTANCE *)
+   // are merged into single S_CELL object.
+   // TODO: Resolve location tracking. SDF standard says that information from
+   //       SDF file should be annotated in order it is present in the SDF file.
+   //       If there is a cell annotated due to cell_name and instance wildcard,
+   //       and also annotated by cell with hierarchy entry, then it is currently
+   //       not possible to figure out which one to apply earlier. This is because
+   //       loc_t is invalid since it counts only until 1M lines! Maybe somehow
+   //       tracking only line number ?
+   hash_t     *hier_map;
+   hash_t     *name_map;
 
    // Mask of delays that are parsed:
    //    S_F_MIN_DELAYS, S_F_TYP_DELAYS, S_F_MAX_DELAYS
@@ -294,5 +306,8 @@ sdf_node_t sdf_tenv(sdf_node_t s, unsigned int n);
 void sdf_add_exception(sdf_node_t s, sdf_node_t e);
 unsigned sdf_exceptions(sdf_node_t s);
 sdf_node_t sdf_exception(sdf_node_t s, unsigned int n);
+
+object_t *sdf_to_object(sdf_node_t s);
+sdf_node_t sdf_from_object(object_t *obj);
 
 #endif  // _SDF_NODE_H

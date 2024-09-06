@@ -33,7 +33,7 @@ START_TEST(test_parse1)
 {
    input_from_file(TESTDIR "/sdf/parse1.sdf");
 
-   sdf_file_t *file = sdf_parse(S_F_MIN_MAX_SPEC_ALL);
+   sdf_file_t *file = sdf_parse("dummy.sdf", S_F_MIN_MAX_SPEC_ALL);
    sdf_node_t s = file->root;
 
    fail_if(s == NULL);
@@ -58,7 +58,7 @@ START_TEST(test_parse2)
    };
    expect_errors(expect);
 
-   sdf_parse(S_F_MIN_MAX_SPEC_ALL);
+   sdf_parse("dummy.sdf", S_F_MIN_MAX_SPEC_ALL);
 }
 END_TEST
 
@@ -66,7 +66,7 @@ START_TEST(test_parse3)
 {
    input_from_file(TESTDIR "/sdf/parse3.sdf");
 
-   sdf_file_t *file = sdf_parse(S_F_MIN_MAX_SPEC_ALL);
+   sdf_file_t *file = sdf_parse("dummy.sdf", S_F_MIN_MAX_SPEC_ALL);
    sdf_node_t s = file->root;
 
    fail_if(s == NULL);
@@ -118,7 +118,7 @@ START_TEST(test_parse4)
    };
    expect_errors(expect);
 
-   sdf_file_t *file = sdf_parse(S_F_MIN_MAX_SPEC_ALL);
+   sdf_file_t *file = sdf_parse("dummy.sdf", S_F_MIN_MAX_SPEC_ALL);
    sdf_node_t s = file->root;
 
    fail_if(s == NULL);
@@ -143,7 +143,7 @@ START_TEST(test_parse5)
 {
    input_from_file(TESTDIR "/sdf/parse5.sdf");
 
-   sdf_file_t *file = sdf_parse(S_F_MIN_MAX_SPEC_ALL);
+   sdf_file_t *file = sdf_parse("dummy.sdf", S_F_MIN_MAX_SPEC_ALL);
    sdf_node_t s = file->root;
 
    fail_if(s == NULL);
@@ -189,7 +189,7 @@ START_TEST(test_parse6)
 {
    input_from_file(TESTDIR "/sdf/parse6.sdf");
 
-   sdf_file_t *file = sdf_parse(S_F_MIN_MAX_SPEC_ALL);
+   sdf_file_t *file = sdf_parse("dummy.sdf", S_F_MIN_MAX_SPEC_ALL);
    sdf_node_t s = file->root;
 
    fail_if(s == NULL);
@@ -212,7 +212,7 @@ START_TEST(test_parse7)
 {
    input_from_file(TESTDIR "/sdf/parse7.sdf");
 
-   sdf_file_t *file = sdf_parse(S_F_MIN_MAX_SPEC_ALL);
+   sdf_file_t *file = sdf_parse("dummy.sdf", S_F_MIN_MAX_SPEC_ALL);
    sdf_node_t s = file->root;
 
    fail_if(s == NULL);
@@ -230,7 +230,7 @@ START_TEST(test_parse8)
 {
    input_from_file(TESTDIR "/sdf/parse8.sdf");
 
-   sdf_file_t *file = sdf_parse(S_F_MIN_MAX_SPEC_ALL);
+   sdf_file_t *file = sdf_parse("dummy.sdf", S_F_MIN_MAX_SPEC_ALL);
    sdf_node_t s = file->root;
 
    fail_if(s == NULL);
@@ -313,7 +313,7 @@ START_TEST(test_parse9)
 {
    input_from_file(TESTDIR "/sdf/parse9.sdf");
 
-   sdf_file_t *file = sdf_parse(S_F_MIN_MAX_SPEC_ALL);
+   sdf_file_t *file = sdf_parse("dummy.sdf", S_F_MIN_MAX_SPEC_ALL);
    sdf_node_t s = file->root;
 
    fail_if(s == NULL);
@@ -378,7 +378,7 @@ START_TEST(test_parse10)
 {
    input_from_file(TESTDIR "/sdf/parse10.sdf");
 
-   sdf_file_t *file = sdf_parse(S_F_MIN_MAX_SPEC_ALL);
+   sdf_file_t *file = sdf_parse("dummy.sdf", S_F_MIN_MAX_SPEC_ALL);
    sdf_node_t s = file->root;
 
    fail_if(s == NULL);
@@ -441,7 +441,7 @@ START_TEST(test_parse11)
 {
    input_from_file(TESTDIR "/sdf/parse11.sdf");
 
-   sdf_file_t *file = sdf_parse(S_F_MIN_MAX_SPEC_ALL);
+   sdf_file_t *file = sdf_parse("dummy.sdf", S_F_MIN_MAX_SPEC_ALL);
    sdf_node_t s = file->root;
 
    fail_if(s == NULL);
@@ -493,7 +493,7 @@ START_TEST(test_parse12)
    };
    expect_errors(expect);
 
-   sdf_file_t *file = sdf_parse(S_F_MIN_MAX_SPEC_ALL);
+   sdf_file_t *file = sdf_parse("dummy.sdf", S_F_MIN_MAX_SPEC_ALL);
    sdf_node_t s = file->root;
 
    fail_if(s == NULL);
@@ -571,7 +571,7 @@ START_TEST(test_parse13)
 
    expect_errors(expect);
 
-   sdf_file_t *file = sdf_parse(S_F_MIN_MAX_SPEC_ALL);
+   sdf_file_t *file = sdf_parse("dummy.sdf", S_F_MIN_MAX_SPEC_ALL);
    sdf_node_t s = file->root;
 
    fail_if(s == NULL);
@@ -582,7 +582,7 @@ START_TEST(test_parse14)
 {
    input_from_file(TESTDIR "/sdf/parse14.sdf");
 
-   sdf_file_t *file = sdf_parse(S_F_MIN_MAX_SPEC_ALL);
+   sdf_file_t *file = sdf_parse("dummy.sdf", S_F_MIN_MAX_SPEC_ALL);
    sdf_node_t s = file->root;
 
    fail_if(s == NULL);
@@ -616,7 +616,7 @@ START_TEST(test_parse15)
 {
    input_from_file(TESTDIR "/sdf/parse15.sdf");
 
-   sdf_file_t *file = sdf_parse(S_F_MIN_MAX_SPEC_ALL);
+   sdf_file_t *file = sdf_parse("dummy.sdf", S_F_MIN_MAX_SPEC_ALL);
    sdf_node_t s = file->root;
 
    fail_if(s == NULL);
@@ -682,7 +682,7 @@ START_TEST(test_parse16)
 {
    input_from_file(TESTDIR "/sdf/parse16.sdf");
 
-   sdf_file_t *file = sdf_parse(S_F_MIN_MAX_SPEC_ALL);
+   sdf_file_t *file = sdf_parse("dummy.sdf", S_F_MIN_MAX_SPEC_ALL);
    sdf_node_t s = file->root;
 
    fail_if(s == NULL);
@@ -735,7 +735,7 @@ START_TEST(test_parse17)
 {
    input_from_file(TESTDIR "/sdf/parse17.sdf");
 
-   sdf_file_t *file = sdf_parse(S_F_MIN_MAX_SPEC_ALL);
+   sdf_file_t *file = sdf_parse("dummy.sdf", S_F_MIN_MAX_SPEC_ALL);
    sdf_node_t s = file->root;
 
    fail_if(s == NULL);
@@ -790,7 +790,7 @@ START_TEST(test_parse18)
 {
    input_from_file(TESTDIR "/sdf/parse18.sdf");
 
-   sdf_file_t *file = sdf_parse(S_F_MIN_MAX_SPEC_ALL);
+   sdf_file_t *file = sdf_parse("dummy.sdf", S_F_MIN_MAX_SPEC_ALL);
    sdf_node_t s = file->root;
 
    fail_if(s == NULL);
@@ -842,7 +842,7 @@ START_TEST(test_parse19)
 {
    input_from_file(TESTDIR "/sdf/parse19.sdf");
 
-   sdf_file_t *file = sdf_parse(S_F_MIN_MAX_SPEC_ALL);
+   sdf_file_t *file = sdf_parse("dummy.sdf", S_F_MIN_MAX_SPEC_ALL);
    sdf_node_t s = file->root;
 
    fail_if(s == NULL);
@@ -883,7 +883,7 @@ START_TEST(test_parse20)
 {
    input_from_file(TESTDIR "/sdf/parse20.sdf");
 
-   sdf_file_t *file = sdf_parse(S_F_MIN_MAX_SPEC_ALL);
+   sdf_file_t *file = sdf_parse("dummy.sdf", S_F_MIN_MAX_SPEC_ALL);
    sdf_node_t s = file->root;
 
    fail_if(s == NULL);
@@ -925,7 +925,7 @@ START_TEST(test_parse21)
 {
    input_from_file(TESTDIR "/sdf/parse21.sdf");
 
-   sdf_file_t *file = sdf_parse(S_F_MIN_MAX_SPEC_ALL);
+   sdf_file_t *file = sdf_parse("dummy.sdf", S_F_MIN_MAX_SPEC_ALL);
    sdf_node_t s = file->root;
 
    fail_if(s == NULL);
@@ -1033,7 +1033,7 @@ START_TEST(test_parse22)
 {
    input_from_file(TESTDIR "/sdf/parse22.sdf");
 
-   sdf_file_t *file = sdf_parse(S_F_MIN_MAX_SPEC_ALL);
+   sdf_file_t *file = sdf_parse("dummy.sdf", S_F_MIN_MAX_SPEC_ALL);
    sdf_node_t s = file->root;
 
    fail_if(s == NULL);
@@ -1114,7 +1114,7 @@ START_TEST(test_parse23)
 {
    input_from_file(TESTDIR "/sdf/parse23.sdf");
 
-   sdf_file_t *file = sdf_parse(S_F_MIN_MAX_SPEC_ALL);
+   sdf_file_t *file = sdf_parse("dummy.sdf", S_F_MIN_MAX_SPEC_ALL);
    sdf_node_t s = file->root;
 
    fail_if(s == NULL);
@@ -1230,7 +1230,7 @@ START_TEST(test_parse24)
    };
    expect_errors(expect);
 
-   sdf_parse(S_F_MIN_MAX_SPEC_ALL);
+   sdf_parse("dummy.sdf", S_F_MIN_MAX_SPEC_ALL);
 
 }
 END_TEST

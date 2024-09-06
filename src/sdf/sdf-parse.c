@@ -24,6 +24,7 @@
 #include "hash.h"
 #include "sdf/sdf-node.h"
 #include "sdf/sdf-phase.h"
+#include "sdf/sdf-util.h"
 
 #include <ctype.h>
 #include <string.h>
@@ -107,8 +108,6 @@ static void _push_state(const rule_state_t *s);
    state.start_loc = (t) ? *sdf_loc(t) : LOC_INVALID;    \
 
 #define BEGIN(s)  BEGIN_WITH_HEAD(s, NULL)
-
-#define CURRENT_LOC _diff_loc(&state.start_loc, &state.last_loc)
 
 static inline void _pop_state(const rule_state_t *r)
 {
@@ -305,18 +304,6 @@ static int _one_of(int dummy, ...)
    }
 }
 
-static const loc_t *_diff_loc(const loc_t *start, const loc_t *end)
-{
-   static loc_t result;
-
-   result = get_loc(start->first_line,
-                    start->first_column,
-                    end->first_line + end->line_delta,
-                    end->first_column + end->column_delta,
-                    start->file_ref);
-   return &result;
-}
-
 static ident_t error_marker(void)
 {
    return well_known(W_ERROR);
@@ -333,46 +320,6 @@ static ident_t error_marker(void)
 static inline bool is_next_tok_signed_number(void)
 {
    return scan(tINT, tREAL, tPLUS, tMINUS);
-}
-
-static void insert_sdf_cell(sdf_node_t cell)
-{
-   assert(sdf_kind(cell) == S_CELL);
-   assert(sdf_has_ident(cell));
-
-   sdf_add_cell(sdf_file->root, cell);
-
-   const char *cell_instance = (sdf_has_ident2(cell)) ? istr(sdf_ident2(cell)) : NULL;
-   const char *cell_type = istr(sdf_ident(cell));
-
-   shash_t *hash;
-   const char *key;
-
-   // Hierarchy defined and not a wild-card -> Hash by hierarchy
-   if (cell_instance && strcmp(cell_instance, "*")) {
-      hash = sdf_file->hier_map;
-      key = cell_instance;
-   }
-
-   // Hierarchy not defined or a wild-card -> Has by cell type
-   else {
-      hash = sdf_file->name_map;
-      key = cell_type;
-   }
-
-   ptr_list_t *l = (ptr_list_t*)(shash_get(hash, key));
-
-   if (l == NULL)
-      l = (ptr_list_t*) xcalloc(sizeof(ptr_list_t));
-
-   shash_put(hash, key, l);
-
-   // TODO: Here it might be better to store only index of the cell in
-   //       sdf_cells(ctx->root). At the time of adding the cell, the
-   //       index is known. Then, if the root sdf_node is serialized together
-   //       with the hash table, we are able to deserialize back the hash
-   //       table with valid data pointing into the list of cells!
-   list_add(l, cell);
 }
 
 #define EPSILON 0.0000000000001
@@ -2410,7 +2357,7 @@ static void p_del_spec(sdf_node_t cell)
    consume(tRPAREN);
 }
 
-static sdf_node_t p_cell(void)
+static void p_cell(void)
 {
    // cell ::=
    //       ( CELL celltype cell_instance { timing_spec } )
@@ -2425,20 +2372,39 @@ static sdf_node_t p_cell(void)
    consume(tLPAREN);
    consume(tCELL);
 
-   sdf_node_t cell = sdf_new(S_CELL);
-
    // celltype
    consume(tLPAREN);
    consume(tCELLTYPE);
 
    ident_t cell_type = p_qstring();
-   sdf_set_ident(cell, cell_type);
 
    consume(tRPAREN);
 
    // cell_instance
    ident_t hier = p_cell_instance();
-   sdf_set_ident2(cell, hier);
+
+   sdf_node_t cell = sdf_get_cell_from_hash(sdf_file, hier, cell_type);
+   if (cell == NULL) {
+      cell = sdf_new(S_CELL);
+      sdf_set_ident(cell, cell_type);
+      sdf_set_ident2(cell, hier);
+      sdf_add_cell(sdf_file->root, cell);
+      sdf_put_cell_to_hash(sdf_file, cell, sdf_cells(sdf_file->root));
+   }
+   else if (!icmp(hier, "*")) {
+      // If a cell with equal hierarchy exists, it should be the
+      // same celltype, otherwise the written SDF file does not
+      // really describe consistent design...
+      ident_t id = sdf_ident(cell);
+      if (ident_compare(id, cell_type)) {
+         const char *orig_hier = (sdf_has_ident2(cell)) ?
+                                    istr(sdf_ident2(cell)) : "";
+
+         warn_at(&state.last_loc, "SDF cell with INSTANCE: %s was already"
+                  "defined in the SDF file with CELLTYPE: %s",
+                  istr(id), orig_hier);
+      }
+   }
 
    // { timing_spec }
    int tok = peek_nth(2);
@@ -2463,8 +2429,6 @@ static sdf_node_t p_cell(void)
    }
 
    consume(tRPAREN);
-
-   return cell;
 }
 
 static void p_timescale(void)
@@ -2723,7 +2687,7 @@ static void p_sdf_header(void)
       p_timescale();
 }
 
-static sdf_file_t* p_delay_file(sdf_flags_t min_max_spec)
+static sdf_file_t* p_delay_file(const char *file, sdf_flags_t min_max_spec)
 {
    // delay_file ::=
    //       ( DELAYFILE sdf_header cell { cell } )
@@ -2733,18 +2697,18 @@ static sdf_file_t* p_delay_file(sdf_flags_t min_max_spec)
    consume(tLPAREN);
    consume(tDELAYFILE);
 
-   sdf_file = xcalloc(sizeof(struct _sdf_file));
-   sdf_file->hier_map = shash_new(4096);
-   sdf_file->name_map = shash_new(1024);
+   sdf_file = sdf_file_new(16384, 256);
 
-   sdf_file->root = sdf_new(S_DELAY_FILE);
    sdf_file->hchar = '.';
    sdf_file->min_max_spec = min_max_spec;
+   sdf_file->root = sdf_new(S_DELAY_FILE);
+
+   sdf_set_ident(sdf_file->root, ident_new(basename(file)));
 
    p_sdf_header();
 
    while (peek_nth(2) == tCELL)
-      insert_sdf_cell(p_cell());
+      p_cell();
 
    consume(tRPAREN);
 
@@ -2755,23 +2719,21 @@ static sdf_file_t* p_delay_file(sdf_flags_t min_max_spec)
 // Public API
 ///////////////////////////////////////////////////////////////////////////////
 
-sdf_file_t* sdf_parse(sdf_flags_t min_max_spec)
+sdf_file_t* sdf_parse(const char *file, sdf_flags_t min_max_spec)
 {
-   make_new_arena();
-
    scan_as_sdf();
+
+   reset_sdf_parser();
 
    if (peek() == tEOF)
       return NULL;
 
-   return p_delay_file(min_max_spec);
-}
+   make_new_arena();
 
-void sdf_free(sdf_file_t *sdf_file)
-{
-   // TODO: Walk the hash maps and free both hmap and cmap!
+   return p_delay_file(file, min_max_spec);
 }
 
 void reset_sdf_parser(void)
 {
+   state.tokenq_head = state.tokenq_tail = 0;
 }

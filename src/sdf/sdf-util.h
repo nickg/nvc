@@ -15,15 +15,22 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-#ifndef _SDF_PHASE_H
-#define _SDF_PHASE_H
+#ifndef _SDF_UTIL_H
+#define _SDF_UTIL_H
 
 #include "prim.h"
+#include "object.h"
 #include "sdf-node.h"
 #include "common.h"
 #include "hash.h"
 
-sdf_file_t* sdf_parse(const char *file, sdf_flags_t min_max_spec);
-void sdf_dump(sdf_file_t *sdf, int indent);
+sdf_node_t sdf_get_cell_from_hash(sdf_file_t *sdf_file, ident_t hier, ident_t cell_type);
+void sdf_put_cell_to_hash(sdf_file_t *sdf_file, sdf_node_t cell, int unsigned index);
 
-#endif  // _SDF_PHASE_H
+void sdf_save_file(sdf_file_t *sdf_file, const char *file);
+sdf_file_t* sdf_load_file(const char *file);
+
+sdf_file_t *sdf_file_new(int exp_hier_cells, int exp_wild_cells);
+void sdf_file_free(sdf_file_t *sdf);
+
+#endif  // _SDF_UTIL_H

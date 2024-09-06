@@ -38,6 +38,7 @@
 #include "vhpi/vhpi-util.h"
 #include "vlog/vlog-node.h"
 #include "vlog/vlog-phase.h"
+#include "sdf/sdf-node.h"
 
 #include <getopt.h>
 #include <stdlib.h>
@@ -461,8 +462,8 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
 
 #ifdef ENABLE_SDF
    if (sdf_args != NULL) {
-      analyse_sdf_file(sdf_args);
-      progress("analysed SDF file: %s", sdf_args);
+      // TODO: Pass min-max spec to underlying sdf_parse somehow
+      analyse_file(sdf_args, NULL, NULL);
    }
 #endif
 

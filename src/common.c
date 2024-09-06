@@ -29,6 +29,7 @@
 #include "type.h"
 #include "vlog/vlog-phase.h"
 #include "sdf/sdf-phase.h"
+#include "sdf/sdf-util.h"
 
 #include <assert.h>
 #include <ctype.h>
@@ -2488,36 +2489,26 @@ void analyse_file(const char *file, jit_t *jit, unit_registry_t *ur)
       break;
 
    case SOURCE_SDF:
-      {
 #ifdef ENABLE_SDF
-         // TODO: Pass min-max spec
-         sdf_file_t *sdf_file = sdf_parse(0);
-         sdf_dump(sdf_file, 2);
+   {
+      sdf_file_t* sdf_file = sdf_parse(file, 0);
+      progress("analysed SDF file: %s", file);
+
+      const char LOCAL *compiled_file = xasprintf("%s.compiled", file);
+      sdf_save_file(sdf_file, compiled_file);
+      sdf_file_free(sdf_file);
+      progress("wrote compiled SDF file to: %s", compiled_file);
+
+      sdf_file = sdf_load_file(compiled_file);
+      progress("read compiled SDF file from: %s", compiled_file);
+   }
 #else
-         fatal("SDF not supported!");
+      fatal("SDF not supported!");
+      return NULL;
 #endif
-      }
 
       break;
    }
-}
-
-sdf_file_t* analyse_sdf_file(const char *file)
-{
-   // TODO: Add support for compressed SDFs
-
-   input_from_file(file);
-
-#ifdef ENABLE_SDF
-   reset_sdf_parser();
-
-   // TODO: Pass min max spec!
-   return sdf_parse(0);
-#else
-   fatal("SDF not supported!");
-   return NULL;
-#endif
-
 }
 
 bool all_character_literals(type_t type)

@@ -5,7 +5,8 @@ lib_libnvc_a_SOURCES += \
 if ENABLE_SDF
 lib_libnvc_a_SOURCES += \
 	src/sdf/sdf-dump.c \
-	src/sdf/sdf-parse.c
+	src/sdf/sdf-parse.c \
+	src/sdf/sdf-util.c
 endif
 
 # AM_LFLAGS = -d
