@@ -34,6 +34,9 @@
   map now work correctly (#963).
 - External name elaboration order checks were overly strict (#964).
 - Several other minor bugs were resolved (#961, #962).
+- Associating a signal with an `out` or `inout` parameter in a procedure
+  that is not within a process now produces an analysis error rather
+  than crashing at runtime (#965).
 
 ## Version 1.13.3 - 2024-08-24
 - Type checking was not performed correctly for conversion function

@@ -2687,10 +2687,14 @@ static bool sem_check_signal_target(tree_t target, nametab_t *tab, bool guarded)
                // LRM 08 section 10.5.2.2: if a signal assignment appears
                // in a procedure not contained within a process then the
                // target must be a formal parameter
-               sem_error(target, "signal %s is not a formal parameter and "
-                         "subprogram %s is not contained within a process "
-                         "statement", istr(tree_ident(decl)),
-                         type_pp(tree_type(sub)));
+               diag_t *d = diag_new(DIAG_ERROR, tree_loc(target));
+               diag_printf(d, "signal %s is not a formal parameter and "
+                           "subprogram %s is not contained within a process "
+                           "statement", istr(tree_ident(decl)),
+                           type_pp(tree_type(sub)));
+               diag_lrm(d, STD_08, "10.5.2.2");
+               diag_emit(d);
+               return false;
             }
          }
          break;
@@ -3253,6 +3257,23 @@ static bool sem_check_call_args(tree_t t, tree_t decl, nametab_t *tab)
                          port_mode_str(mode), what, istr(tree_ident(port)));
                diag_emit(d);
                return false;
+            }
+            else if (decl_kind == T_SIGNAL_DECL && class == C_SIGNAL) {
+               tree_t sub = find_enclosing(tab, S_SUBPROGRAM);
+               if (sub != NULL && find_enclosing(tab, S_PROCESS) == NULL) {
+                  // LRM 08 section 10.5.2.2: if a signal is associated
+                  // with an inout or out signal parameter in a subprogram
+                  // call within a procedure not contained within a process
+                  // then the target must be a formal parameter
+                  diag_t *d = diag_new(DIAG_ERROR, tree_loc(value));
+                  diag_printf(d, "signal %s is not a formal parameter and "
+                              "subprogram %s is not contained within a process "
+                              "statement", istr(tree_ident(decl)),
+                              type_pp(tree_type(sub)));
+                  diag_lrm(d, STD_08, "10.5.2.2");
+                  diag_emit(d);
+                  return false;
+               }
             }
          }
          else if ((mode == PORT_ARRAY_VIEW || mode == PORT_RECORD_VIEW)

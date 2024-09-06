@@ -466,6 +466,8 @@ static const struct {
    { "Interface type declarations", { [STD_08] = "6.5.3",
         [STD_19] = "6.5.3" } },
    { "Conformance rules", { [STD_08] = "4.10", [STD_93] = "2.7" } },
+   { "Executing a simple assignment statement", { [STD_08] = "10.5.2.2",
+        [STD_93] = "8.4.1" } },
 };
 
 diag_t *diag_new(diag_level_t level, const loc_t *loc)

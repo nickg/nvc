@@ -3708,6 +3708,27 @@ START_TEST(test_issue958)
 }
 END_TEST
 
+START_TEST(test_issue965)
+{
+   input_from_file(TESTDIR "/sem/issue965.vhd");
+
+   const error_t expect[] = {
+      { 19, "signal S is not a formal parameter and subprogram "
+        "DO_SOMETHING [] is not contained within a process statement" },
+      { 20, "signal S is not a formal parameter and subprogram "
+        "DO_SOMETHING [] is not contained within a process statement" },
+      { 21, "signal S is not a formal parameter and subprogram "
+        "DO_SOMETHING [] is not contained within a process statement" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_PACKAGE, T_PACK_BODY);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_sem_tests(void)
 {
    Suite *s = suite_create("sem");
@@ -3878,6 +3899,7 @@ Suite *get_sem_tests(void)
    tcase_add_test(tc_core, test_genpack5);
    tcase_add_test(tc_core, test_issue945);
    tcase_add_test(tc_core, test_issue958);
+   tcase_add_test(tc_core, test_issue965);
    suite_add_tcase(s, tc_core);
 
    return s;
