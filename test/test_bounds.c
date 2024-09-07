@@ -781,6 +781,29 @@ START_TEST(test_issue951)
 }
 END_TEST
 
+START_TEST(test_issue966)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/bounds/issue966.vhd");
+
+   const error_t expect[] = {
+      { 27, "duplicate choice in case statement" },
+      {  0, "repeated here" },
+      {  0, "previous choice for this value" },
+      { 32, "choices cover only 13122 of 9 ** 10 possible values" },
+      {  0, "expression has 10 elements of type STD_ULOGIC, each of "
+         "which has 9 possible values" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_bounds_tests(void)
 {
    Suite *s = suite_create("bounds");
@@ -822,6 +845,7 @@ Suite *get_bounds_tests(void)
    tcase_add_test(tc_core, test_issue863);
    tcase_add_test(tc_core, test_subtype);
    tcase_add_test(tc_core, test_issue951);
+   tcase_add_test(tc_core, test_issue966);
    suite_add_tcase(s, tc_core);
 
    return s;

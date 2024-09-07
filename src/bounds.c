@@ -985,7 +985,7 @@ static void bounds_check_var_assign(tree_t t)
    bounds_check_assignment(tree_target(t), tree_value(t));
 }
 
-static void bounds_check_scalar_case(tree_t t, type_t type)
+static void bounds_check_scalar_case(tree_t t, type_t type, bool matching)
 {
    // Check that the full range of the type is covered
 
@@ -1022,10 +1022,13 @@ static void bounds_check_scalar_case(tree_t t, type_t type)
 
          case A_NAMED:
             {
+               int64_t pos;
                tree_t name = tree_name(a);
                if (!bounds_check_index(name, type, tdir, "case choice",
                                        tlow, thigh))
                   have_others = true;
+               else if (matching && folded_int(name, &pos) && pos == 8)
+                  have_others = true;    // Has a '-' choice
                else
                   low = high = assume_int(tree_name(a));
             }
@@ -1084,7 +1087,7 @@ static void bounds_check_duplicate_choice(tree_t old, tree_t new, int length)
    diag_emit(d);
 }
 
-static void bounds_check_array_case(tree_t t, type_t type)
+static void bounds_check_array_case(tree_t t, type_t type, bool matching)
 {
    type_t elem = type_elem(type);
    assert(type_is_enum(elem));
@@ -1128,9 +1131,18 @@ static void bounds_check_array_case(tree_t t, type_t type)
          }
 
          assert(tree_subkind(a) == A_NAMED);
-         have++;
-
          tree_t name = choices[hptr] = tree_name(a);
+
+         int64_t covered = 1, pos;
+         if (matching && tree_kind(name) == T_STRING) {
+            const int nchars = tree_chars(name);
+            for (int i = 0; i < nchars; i++) {
+               if (folded_int(tree_char(name, i), &pos) && pos == 8)
+                  covered *= 9;    // Has a '-' choice
+            }
+         }
+         have += covered;
+
          type_t choice_type = tree_type(name);
          if (type_is_unconstrained(choice_type))
             continue;
@@ -1168,7 +1180,7 @@ static void bounds_check_array_case(tree_t t, type_t type)
       }
    }
 
-   if (have != expect && expect != -1) {
+   if (have < expect && expect != -1) {
       const loc_t *loc = tree_loc(tree_value(t));
       diag_t *d = pedantic_diag(loc);
       if (d != NULL) {
@@ -1197,9 +1209,21 @@ static void bounds_check_case(tree_t t)
    type_t type = tree_type(tree_value(t));
 
    if (type_is_scalar(type))
-      bounds_check_scalar_case(t, type);
+      bounds_check_scalar_case(t, type, false);
    else if (type_is_array(type))
-      bounds_check_array_case(t, type);
+      bounds_check_array_case(t, type, false);
+}
+
+static void bounds_check_match_case(tree_t t)
+{
+   type_t type = tree_type(tree_value(t)), elem = type_elem_recur(type);
+
+   const bool matching = type_eq(elem, ieee_type(IEEE_STD_ULOGIC));
+
+   if (type_is_scalar(type))
+      bounds_check_scalar_case(t, type, matching);
+   else if (type_is_array(type))
+      bounds_check_array_case(t, type, matching);
 }
 
 static void bounds_check_conv_integer(tree_t value, type_t from, type_t to)
@@ -1383,6 +1407,9 @@ static tree_t bounds_visit_fn(tree_t t, void *context)
       break;
    case T_CASE:
       bounds_check_case(t);
+      break;
+   case T_MATCH_CASE:
+      bounds_check_match_case(t);
       break;
    case T_STRING:
       bounds_check_string_literal(t);

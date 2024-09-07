@@ -39,6 +39,8 @@
   than crashing at runtime (#965).
 - The `--dump-arrays` option now takes an optional argument to specify
   an upper limit on the length of nested arrays to dump (#959).
+- Matching `case?` statements are now checked for duplicate and missing
+  choices at analysis time (#966).
 
 ## Version 1.13.3 - 2024-08-24
 - Type checking was not performed correctly for conversion function
