@@ -276,8 +276,6 @@ ENDED         ?i:ended
 NONDET        ?i:nondet
 NONDET_V      ?i:nondet_vector
 UNION         ?i:union
-POSEDGE       ?i:posedge
-NEGEDGE       ?i:negedge
 
 INTERCONNECT  ?i:interconnect
 DELAYFILE      ?i:delayfile
@@ -600,8 +598,8 @@ CCOND          ?i:CCOND
 <VLOG>"inout"            { return tINOUT; }
 <VLOG>"reg"              { return tREG; }
 <VLOG>"always"           { return tALWAYS; }
-<VLOG>{POSEDGE}          { return tPOSEDGE; }
-<VLOG>{NEGEDGE}          { return tNEGEDGE; }
+<VLOG>"posedge"          { return tPOSEDGE; }
+<VLOG>"negedge"          { return tNEGEDGE; }
 <VLOG>"initial"          { return tINITIAL; }
 <VLOG>"begin"            { return tBEGIN; }
 <VLOG>"end"              { return tEND; }
@@ -702,9 +700,11 @@ CCOND          ?i:CCOND
                           BEGIN(C_COMMENT);
                         }
 
-% /* TODO: Crosscheck SDF definition of string and decimal */
+% /* TODO: Crosscheck SDF definition of decimal */
 <SDF,SDF_EXPR>{DECIMAL} { return parse_decimal_literal(yytext); }
-<SDF>{STRING}           { return parse_string(yytext); }
+
+% /* VLOG_STRING is defined almost equally as SDF qstring */
+<SDF>{VLOG_STRING}     { return parse_string(yytext); }
 
 <SDF>{DELAYFILE}        { TOKEN(tDELAYFILE); }
 <SDF>{SDFVERSION}       { TOKEN(tSDFVERSION); }
@@ -727,8 +727,8 @@ CCOND          ?i:CCOND
 <SDF>{PATHPULSEP}       { TOKEN(tPATHPULSEP); }
 <SDF>{INCREMENT}        { TOKEN(tINCREMENT); }
 <SDF>{IOPATH}           { TOKEN(tIOPATH); }
-<SDF>{POSEDGE}          { TOKEN(tPOSEDGE); }
-<SDF>{NEGEDGE}          { TOKEN(tNEGEDGE); }
+<SDF>"posedge"          { TOKEN(tPOSEDGE); }
+<SDF>"negedge"          { TOKEN(tNEGEDGE); }
 <SDF>{SETUP}            { TOKEN(tSETUP); }
 <SDF>{HOLD}             { TOKEN(tHOLD); }
 <SDF>{SETUPHOLD}        { TOKEN(tSETUPHOLD); }

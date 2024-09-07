@@ -358,9 +358,6 @@ static ident_t p_qstring(void)
 
    // qstring identifier is stored including the surrounding
    // apostrophes.
-
-   // TODO: Check how is tSTRING handled in lexer. Right now it re-uses VHDL string.
-   //       I am not sure if it is defined equally!
    consume(tSTRING);
    ident_t str = ident_new(state.last_lval.str);
    free(state.last_lval.str);
