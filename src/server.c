@@ -73,6 +73,8 @@
 #define closesocket close
 #endif
 
+typedef struct _debug_server debug_server_t;
+
 typedef struct _web_socket {
    int           sock;
    bool          mask;
@@ -96,15 +98,29 @@ typedef struct _packet_buf {
 } packet_buf_t;
 
 typedef struct {
-   tcl_shell_t  *shell;
-   bool          shutdown;
-   bool          banner;
-   web_socket_t *websocket;
-   int           sock;
-   tree_t        top;
-   packet_buf_t *packetbuf;
-   const char   *init_cmd;
-} web_server_t;
+   debug_server_t *(*new_server)(void);
+   void (*free_server)(debug_server_t *);
+   void (*new_connection)(debug_server_t *, int);
+   int (*fill_fd_set)(debug_server_t *, fd_set *, fd_set *);
+   void (*poll_sockets)(debug_server_t *, fd_set *, fd_set *);
+   void (*shutdown)(debug_server_t *);
+} server_proto_t;
+
+typedef struct _debug_server {
+   const server_proto_t *proto;
+   tcl_shell_t          *shell;
+   bool                  shutdown;
+   bool                  banner;
+   int                   sock;
+   tree_t                top;
+   packet_buf_t         *packetbuf;
+   const char           *init_cmd;
+} debug_server_t;
+
+typedef struct {
+   debug_server_t  server;
+   web_socket_t   *websocket;
+} http_server_t;
 
 ////////////////////////////////////////////////////////////////////////////////
 // WebSocket wrapper
@@ -423,7 +439,7 @@ static void pb_pack_ident(packet_buf_t *pb, ident_t ident)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// Web server
+// Generic networking utilities
 
 typedef enum {
    LOG_DEBUG,
@@ -470,6 +486,50 @@ static void send_fully(int fd, const void *data, size_t len)
       len -= nbytes;
    }
 }
+
+static void base64_encode(const void *in, size_t len, text_buf_t *tb)
+{
+   static const char map[] =
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+   const unsigned char *data = in;
+
+   for (size_t i = 0; i < len; i++) {
+      int c0 = (data[i] >> 2) & 0x3F;
+      tb_append(tb, map[c0]);
+      c0 = (data[i] << 4) & 0x3F;
+      if (++i < len)
+         c0 |= (data[i] >> 4) & 0x0F;
+      tb_append(tb, map[c0]);
+
+      if (i < len) {
+         int c1 = (data[i] << 2) & 0x3F;
+         if (++i < len)
+            c1 |= (data[i] >> 6) & 0x03;
+         tb_append(tb, map[c1]);
+      }
+      else {
+         ++i;
+         tb_append(tb, '=');
+      }
+
+      if (i < len) {
+         int c2 = data[i] & 0x3F;
+         tb_append(tb, map[c2]);
+      }
+      else
+         tb_append(tb, '=');
+   }
+}
+
+static packet_buf_t *fresh_packet_buffer(debug_server_t *server)
+{
+   server->packetbuf->wptr = 0;
+   return server->packetbuf;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// HTTP and WebSocket server
 
 static void send_http_headers(int fd, int status, const char *type, size_t len,
                               const char *headers)
@@ -532,7 +592,7 @@ static void send_file(int fd, const char *file, const char *mime)
 
 static void handle_text_frame(web_socket_t *ws, const char *text, void *context)
 {
-   web_server_t *server = context;
+   debug_server_t *server = context;
 
    const char *result = NULL;
    if (shell_eval(server->shell, text, &result) && *result != '\0')
@@ -542,7 +602,7 @@ static void handle_text_frame(web_socket_t *ws, const char *text, void *context)
 static void handle_binary_frame(web_socket_t *ws, const void *data,
                                 size_t length, void *context)
 {
-   web_server_t *server = context;
+   debug_server_t *server = context;
 
    if (length == 0) {
       server_log(LOG_WARN, "ignoring zero-length binary frame");
@@ -560,158 +620,134 @@ static void handle_binary_frame(web_socket_t *ws, const void *data,
    }
 }
 
-static void kill_connection(web_server_t *server)
+static void kill_http_connection(http_server_t *http)
 {
    diag_set_consumer(NULL, NULL);
 
-   closesocket(server->websocket->sock);
+   closesocket(http->websocket->sock);
 
-   ws_free(server->websocket);
-   server->websocket = NULL;
+   ws_free(http->websocket);
+   http->websocket = NULL;
 }
 
 static void tunnel_diag(diag_t *d, void *context)
 {
-   web_server_t *server = context;
+   http_server_t *http = container_of(context, http_server_t, server);
 
-   if (server->websocket != NULL) {
-      ws_send_text(server->websocket, diag_get_text(d));
+   if (http->websocket != NULL) {
+      ws_send_text(http->websocket, diag_get_text(d));
    }
    else
       server_log(LOG_INFO, "%s", diag_get_text(d));
 }
 
-static packet_buf_t *fresh_packet_buffer(web_server_t *server)
+static void tunnel_output(const char *buf, size_t nchars, void *user)
 {
-   server->packetbuf->wptr = 0;
-   return server->packetbuf;
+   http_server_t *http = container_of(user, http_server_t, server);
+   ws_send(http->websocket, WS_OPCODE_TEXT_FRAME, buf, nchars);
+}
+
+static void tunnel_backchannel(const char *buf, size_t nchars, void *user)
+{
+   http_server_t *http = container_of(user, http_server_t, server);
+
+   packet_buf_t *pb = fresh_packet_buffer(&(http->server));
+   pb_pack_u8(pb, S2C_BACKCHANNEL);
+   pb_pack_u32(pb, nchars);
+   pb_pack_bytes(pb, buf, nchars);
+   ws_send_packet(http->websocket, pb);
 }
 
 static void add_wave_handler(ident_t path, const char *enc, void *user)
 {
-   web_server_t *server = user;
+   http_server_t *http = container_of(user, http_server_t, server);
 
-   packet_buf_t *pb = fresh_packet_buffer(server);
+   packet_buf_t *pb = fresh_packet_buffer(&(http->server));
    pb_pack_u8(pb, S2C_ADD_WAVE);
    pb_pack_ident(pb, path);
    pb_pack_str(pb, enc);
-   ws_send_packet(server->websocket, pb);
+   ws_send_packet(http->websocket, pb);
 }
 
 static void signal_update_handler(ident_t path, uint64_t now, rt_signal_t *s,
                                   const char *enc, void *user)
 {
-   web_server_t *server = user;
+   http_server_t *http = container_of(user, http_server_t, server);
 
-   packet_buf_t *pb = fresh_packet_buffer(server);
+   packet_buf_t *pb = fresh_packet_buffer(&(http->server));
    pb_pack_u8(pb, S2C_SIGNAL_UPDATE);
    pb_pack_ident(pb, path);
    pb_pack_str(pb, enc);
-   ws_send_packet(server->websocket, pb);
+   ws_send_packet(http->websocket, pb);
 }
 
 static void start_sim_handler(ident_t top, void *user)
 {
-   web_server_t *server = user;
+   http_server_t *http = container_of(user, http_server_t, server);
 
-   packet_buf_t *pb = fresh_packet_buffer(server);
+   packet_buf_t *pb = fresh_packet_buffer(&(http->server));
    pb_pack_u8(pb, S2C_START_SIM);
    pb_pack_ident(pb, top);
-   ws_send_packet(server->websocket, pb);
+   ws_send_packet(http->websocket, pb);
 }
 
 static void restart_sim_handler(void *user)
 {
-   web_server_t *server = user;
+   http_server_t *http = container_of(user, http_server_t, server);
 
-   packet_buf_t *pb = fresh_packet_buffer(server);
+   packet_buf_t *pb = fresh_packet_buffer(&(http->server));
    pb_pack_u8(pb, S2C_RESTART_SIM);
-   ws_send_packet(server->websocket, pb);
+   ws_send_packet(http->websocket, pb);
 }
 
 static void quit_sim_handler(void *user)
 {
-   web_server_t *server = user;
+   http_server_t *http = container_of(user, http_server_t, server);
 
-   packet_buf_t *pb = fresh_packet_buffer(server);
+   packet_buf_t *pb = fresh_packet_buffer(&(http->server));
    pb_pack_u8(pb, S2C_QUIT_SIM);
-   ws_send_packet(server->websocket, pb);
+   ws_send_packet(http->websocket, pb);
 }
 
 static void next_time_step_handler(uint64_t now, void *user)
 {
-   web_server_t *server = user;
+   http_server_t *http = container_of(user, http_server_t, server);
 
-   packet_buf_t *pb = fresh_packet_buffer(server);
+   packet_buf_t *pb = fresh_packet_buffer(&(http->server));
    pb_pack_u8(pb, S2C_NEXT_TIME_STEP);
    pb_pack_u64(pb, now);
-   ws_send_packet(server->websocket, pb);
+   ws_send_packet(http->websocket, pb);
 }
 
-static void open_websocket(web_server_t *server, int fd)
+static void open_websocket(http_server_t *http, int fd)
 {
-   if (server->websocket != NULL) {
-      ws_send_close(server->websocket);
-      ws_flush(server->websocket);
-      kill_connection(server);
+   if (http->websocket != NULL) {
+      ws_send_close(http->websocket);
+      ws_flush(http->websocket);
+      kill_http_connection(http);
    }
 
    const ws_handler_t handler = {
       .text_frame   = handle_text_frame,
       .binary_frame = handle_binary_frame,
-      .context      = server
+      .context      = &(http->server)
    };
 
-   server->websocket = ws_new(fd, &handler, false);
+   http->websocket = ws_new(fd, &handler, false);
 
-   diag_set_consumer(tunnel_diag, server);
+   diag_set_consumer(tunnel_diag, &(http->server));
 
-   if (server->banner)
-      shell_print_banner(server->shell);
+   if (http->server.banner)
+      shell_print_banner(http->server.shell);
 
-   if (server->top != NULL)
-      shell_reset(server->shell, server->top);
+   if (http->server.top != NULL)
+      shell_reset(http->server.shell, http->server.top);
 
-   if (server->init_cmd != NULL) {
-      packet_buf_t *pb = fresh_packet_buffer(server);
+   if (http->server.init_cmd != NULL) {
+      packet_buf_t *pb = fresh_packet_buffer(&(http->server));
       pb_pack_u8(pb, S2C_INIT_CMD);
-      pb_pack_str(pb, server->init_cmd);
-      ws_send_packet(server->websocket, pb);
-   }
-}
-
-static void base64_encode(const void *in, size_t len, text_buf_t *tb)
-{
-   static const char map[] =
-      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-
-   const unsigned char *data = in;
-
-   for (size_t i = 0; i < len; i++) {
-      int c0 = (data[i] >> 2) & 0x3F;
-      tb_append(tb, map[c0]);
-      c0 = (data[i] << 4) & 0x3F;
-      if (++i < len)
-         c0 |= (data[i] >> 4) & 0x0F;
-      tb_append(tb, map[c0]);
-
-      if (i < len) {
-         int c1 = (data[i] << 2) & 0x3F;
-         if (++i < len)
-            c1 |= (data[i] >> 6) & 0x03;
-         tb_append(tb, map[c1]);
-      }
-      else {
-         ++i;
-         tb_append(tb, '=');
-      }
-
-      if (i < len) {
-         int c2 = data[i] & 0x3F;
-         tb_append(tb, map[c2]);
-      }
-      else
-         tb_append(tb, '=');
+      pb_pack_str(pb, http->server.init_cmd);
+      ws_send_packet(http->websocket, pb);
    }
 }
 
@@ -735,7 +771,7 @@ static bool get_websocket_accept_value(const char *key, text_buf_t *tb)
    return true;
 }
 
-static void websocket_upgrade(web_server_t *server, int fd, const char *method,
+static void websocket_upgrade(http_server_t *http, int fd, const char *method,
                               const char *version, shash_t *headers)
 {
    LOCAL_TEXT_BUF tb = tb_new();
@@ -779,7 +815,7 @@ static void websocket_upgrade(web_server_t *server, int fd, const char *method,
 
    send_http_headers(fd, HTTP_SWITCHING_PROTOCOLS, "text/html", 0, tb_get(tb));
 
-   open_websocket(server, fd);
+   open_websocket(http, fd);
 
    return;   // Socket left open
 
@@ -832,14 +868,14 @@ static void serve_gui_static_files(int fd, const char *url)
 }
 #endif
 
-static void handle_http_request(web_server_t *server, int fd,
+static void handle_http_request(http_server_t *http, int fd,
                                 const char *method, const char *url,
                                 const char *version, shash_t *headers)
 {
    server_log(LOG_DEBUG, "%s %s", method, url);
 
    if (is_websocket_request(headers)) {
-      websocket_upgrade(server, fd, method, version, headers);
+      websocket_upgrade(http, fd, method, version, headers);
       return;    // Socket left open
    }
    else if (strcmp(method, "GET") != 0) {
@@ -857,27 +893,8 @@ static void handle_http_request(web_server_t *server, int fd,
    closesocket(fd);
 }
 
-static void handle_new_connection(web_server_t *server)
+static void http_new_connection(debug_server_t *server, int fd)
 {
-   int fd = accept(server->sock, NULL, NULL);
-   if (fd < 0) {
-      server_log(LOG_ERROR, "accept: %s", last_os_error());
-      return;
-   }
-
-#ifdef __MINGW32__
-   if (ioctlsocket(fd, FIONBIO, &(unsigned long){1})) {
-      server_log(LOG_ERROR, "ioctlsocket: %s", last_os_error());
-      goto out_close;
-   }
-#else
-   const int flags = fcntl(fd, F_GETFL, 0);
-   if (fcntl(fd, F_SETFL, flags | O_NONBLOCK) < 0) {
-      server_log(LOG_ERROR, "fcntl: %s", last_os_error());
-      goto out_close;
-   }
-#endif
-
    char buf[MAX_HTTP_REQUEST + 1];
    size_t reqlen = 0;
    do {
@@ -968,7 +985,8 @@ static void handle_new_connection(web_server_t *server)
       }
    }
 
-   handle_http_request(server, fd, method, url, version, headers);
+   http_server_t *http = container_of(server, http_server_t, server);
+   handle_http_request(http, fd, method, url, version, headers);
    shash_free(headers);
    return;
 
@@ -979,21 +997,96 @@ static void handle_new_connection(web_server_t *server)
    closesocket(fd);
 }
 
-static void tunnel_output(const char *buf, size_t nchars, void *user)
+static int http_fill_fd_set(debug_server_t *server, fd_set *rfd, fd_set *wfd)
 {
-   web_server_t *server = user;
-   ws_send(server->websocket, WS_OPCODE_TEXT_FRAME, buf, nchars);
+   http_server_t *http = container_of(server, http_server_t, server);
+
+   if (http->websocket == NULL)
+      return -1;
+
+   FD_SET(http->websocket->sock, rfd);
+
+   if (http->websocket->tx_wptr != http->websocket->tx_rptr)
+      FD_SET(http->websocket->sock, wfd);
+
+   return http->websocket->sock;
 }
 
-static void tunnel_backchannel(const char *buf, size_t nchars, void *user)
+static void http_poll_sockets(debug_server_t *server, fd_set *rfd, fd_set *wfd)
 {
-   web_server_t *server = user;
+   http_server_t *http = container_of(server, http_server_t, server);
 
-   packet_buf_t *pb = fresh_packet_buffer(server);
-   pb_pack_u8(pb, S2C_BACKCHANNEL);
-   pb_pack_u32(pb, nchars);
-   pb_pack_bytes(pb, buf, nchars);
-   ws_send_packet(server->websocket, pb);
+   if (http->websocket == NULL)
+      return;
+
+   if (FD_ISSET(http->websocket->sock, rfd))
+      ws_poll(http->websocket);
+
+   if (FD_ISSET(http->websocket->sock, wfd))
+      ws_flush(http->websocket);
+
+   if (http->websocket->closing)
+      kill_http_connection(http);
+}
+
+static void http_shutdown(debug_server_t *server)
+{
+   http_server_t *http = container_of(server, http_server_t, server);
+
+   if (http->websocket != NULL)
+      ws_send_close(http->websocket);
+}
+
+static debug_server_t *http_server_new(void)
+{
+   http_server_t *http = xcalloc(sizeof(http_server_t));
+   return &(http->server);
+}
+
+static void http_server_free(debug_server_t *server)
+{
+   http_server_t *http = container_of(server, http_server_t, server);
+   assert(http->websocket == NULL);
+   free(http);
+}
+
+static const server_proto_t http_protocol = {
+   .new_server = http_server_new,
+   .free_server = http_server_free,
+   .new_connection = http_new_connection,
+   .fill_fd_set = http_fill_fd_set,
+   .poll_sockets = http_poll_sockets,
+   .shutdown = http_shutdown,
+};
+
+////////////////////////////////////////////////////////////////////////////////
+// Server event loop
+
+static void handle_new_connection(debug_server_t *server)
+{
+   int fd = accept(server->sock, NULL, NULL);
+   if (fd < 0) {
+      server_log(LOG_ERROR, "accept: %s", last_os_error());
+      return;
+   }
+
+#ifdef __MINGW32__
+   if (ioctlsocket(fd, FIONBIO, &(unsigned long){1})) {
+      server_log(LOG_ERROR, "ioctlsocket: %s", last_os_error());
+      closesocket(fd);
+      return;
+   }
+#else
+   const int flags = fcntl(fd, F_GETFL, 0);
+   if (fcntl(fd, F_SETFL, flags | O_NONBLOCK) < 0) {
+      server_log(LOG_ERROR, "fcntl: %s", last_os_error());
+      close(fd);
+      return;
+   }
+#endif
+
+   if (server->proto->new_connection != NULL)
+      (*server->proto->new_connection)(server, fd);
 }
 
 static int open_server_socket(void)
@@ -1033,12 +1126,15 @@ static int open_server_socket(void)
 void start_server(jit_factory_t make_jit, unit_registry_t *registry, tree_t top,
                   server_ready_fn_t cb, void *arg, const char *init_cmd)
 {
-   web_server_t *server = xcalloc(sizeof(web_server_t));
+   const server_proto_t *proto = &http_protocol;
+
+   debug_server_t *server = (*proto->new_server)();
    server->shell     = shell_new(make_jit, registry);
    server->top       = top;
    server->packetbuf = pb_new();
    server->init_cmd  = init_cmd;
    server->banner    = !opt_get_int(OPT_UNIT_TEST);
+   server->proto     = &http_protocol;
 
    shell_handler_t handler = {
       .add_wave = add_wave_handler,
@@ -1072,14 +1168,8 @@ void start_server(jit_factory_t make_jit, unit_registry_t *registry, tree_t top,
          max_fd = MAX(max_fd, server->sock);
       }
 
-      if (server->websocket != NULL) {
-         FD_SET(server->websocket->sock, &rfd);
-
-         if (server->websocket->tx_wptr != server->websocket->tx_rptr)
-            FD_SET(server->websocket->sock, &wfd);
-
-         max_fd = MAX(max_fd, server->websocket->sock);
-      }
+      const int proto_max = (*server->proto->fill_fd_set)(server, &rfd, &wfd);
+      max_fd = MAX(max_fd, proto_max);
 
       if (max_fd == -1)
          break;
@@ -1095,16 +1185,7 @@ void start_server(jit_factory_t make_jit, unit_registry_t *registry, tree_t top,
       if (server->sock != -1 && FD_ISSET(server->sock, &rfd))
          handle_new_connection(server);
 
-      if (server->websocket != NULL) {
-         if (FD_ISSET(server->websocket->sock, &rfd))
-            ws_poll(server->websocket);
-
-         if (FD_ISSET(server->websocket->sock, &wfd))
-            ws_flush(server->websocket);
-
-         if (server->websocket->closing)
-            kill_connection(server);
-      }
+      (*server->proto->poll_sockets)(server, &rfd, &wfd);
 
       if (server->shutdown && server->sock != -1) {
          server_log(LOG_INFO, "stopping server");
@@ -1112,13 +1193,12 @@ void start_server(jit_factory_t make_jit, unit_registry_t *registry, tree_t top,
          closesocket(server->sock);
          server->sock = -1;
 
-         if (server->websocket != NULL)
-            ws_send_close(server->websocket);
+         (*server->proto->shutdown)(server);
       }
    }
 
    assert(server->sock == -1);
 
    pb_free(server->packetbuf);
-   free(server);
+   (*server->proto->free_server)(server);
 }
