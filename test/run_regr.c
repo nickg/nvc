@@ -128,6 +128,7 @@ struct test {
    char      *define;
    char      *export;
    char      *plusarg;
+   unsigned   arrays;
 };
 
 struct arglist {
@@ -414,6 +415,14 @@ static bool parse_test_list(int argc, char **argv)
             test->flags |= F_NOCOLL;
          else if (strcmp(opt, "dump-arrays") == 0)
             test->flags |= F_ARRAYS;
+         else if (strncmp(opt, "dump-arrays=", 12) == 0) {
+            test->flags |= F_ARRAYS;
+            if (sscanf(opt + 12, "%u", &(test->arrays)) != 1) {
+               fprintf(stderr, "Error on testlist line %d: invalid "
+                       "dump-arrays argument %s\n", lineno, opt);
+               goto out_close;
+            }
+         }
          else if (strncmp(opt, "O", 1) == 0) {
             if (sscanf(opt + 1, "%u", &(test->olevel)) != 1) {
                fprintf(stderr, "Error on testlist line %d: invalid "
@@ -924,7 +933,9 @@ static bool run_test(test_t *test)
       if (test->flags & F_WAVE)
          push_arg(&args, "-w");
 
-      if (test->flags & F_ARRAYS)
+      if (test->arrays > 0)
+         push_arg(&args, "--dump-arrays=%u", test->arrays);
+      else if (test->flags & F_ARRAYS)
          push_arg(&args, "--dump-arrays");
 
       if (test->flags & F_GTKW)

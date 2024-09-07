@@ -37,6 +37,8 @@
 - Associating a signal with an `out` or `inout` parameter in a procedure
   that is not within a process now produces an analysis error rather
   than crashing at runtime (#965).
+- The `--dump-arrays` option now takes an optional argument to specify
+  an upper limit on the length of nested arrays to dump (#959).
 
 ## Version 1.13.3 - 2024-08-24
 - Type checking was not performed correctly for conversion function

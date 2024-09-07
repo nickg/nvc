@@ -113,6 +113,24 @@ static void fst_process_signal(wave_dumper_t *wd, rt_scope_t *scope, tree_t d,
                                type_t type, text_buf_t *tb);
 static bool wave_should_dump(ident_t name);
 
+static bool should_dump_array(tree_t where, unsigned length)
+{
+   const unsigned limit = opt_get_int(OPT_DUMP_ARRAYS);
+   if (limit > 0 && length <= limit)
+      return true;
+
+   static bool warned = false;
+   if (warned || limit > 0)
+      return false;
+
+   notef("arrays of composite types such as %s are not not dumped by default, "
+         "pass $bold$--dump-arrays$$ to include these in the waveform dump",
+         type_pp(tree_type(where)));
+
+   warned = true;
+   return false;
+}
+
 static void fst_close(rt_model_t *m, void *arg)
 {
    wave_dumper_t *wd = arg;
@@ -571,7 +589,7 @@ static void fst_create_array_var(wave_dumper_t *wd, tree_t d, rt_signal_t *s,
       if (wd->gtkw != NULL)
          fprintf(wd->gtkw->file, "%s.%s\n", tb_get(wd->gtkw->hier), tb_get(tb));
    }
-   else if (!opt_get_int(OPT_DUMP_ARRAYS))
+   else if (!should_dump_array(d, length))
       return;   // Dumping memories and nested arrays can be slow
    else if (type_is_record(elem))
       return;   // Not yet supported
@@ -818,9 +836,9 @@ static void fst_process_signal(wave_dumper_t *wd, rt_scope_t *scope, tree_t d,
       if (sub != NULL)   // NULL means signal was optimised out
          fst_create_record_var(wd, d, sub, type, "", tb);
    }
-   else if (opt_get_int(OPT_DUMP_ARRAYS)) {
+   else {
       rt_scope_t *sub = child_scope(scope, d);
-      if (sub != NULL)   // NULL means signal was optimised out
+      if (sub != NULL && should_dump_array(d, sub->children.count))
          fst_create_record_array_var(wd, d, sub, type, 0, 0,
                                      sub->children.count, "", tb);
    }

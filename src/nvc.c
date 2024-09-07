@@ -45,6 +45,7 @@
 #include <ctype.h>
 #include <assert.h>
 #include <sys/types.h>
+#include <limits.h>
 #include <unistd.h>
 #include <dirent.h>
 #include <time.h>
@@ -655,7 +656,7 @@ static int run_cmd(int argc, char **argv, cmd_state_t *state)
       { "ieee-warnings", required_argument, 0, 'I' },
       { "exclude",       required_argument, 0, 'e' },
       { "exit-severity", required_argument, 0, 'x' },
-      { "dump-arrays",   no_argument,       0, 'a' },
+      { "dump-arrays",   optional_argument, 0, 'a' },
       { "load",          required_argument, 0, 'l' },
       { "vhpi-debug",    no_argument,       0, 'D' },
       { "vhpi-trace",    no_argument,       0, 'T' },
@@ -747,7 +748,10 @@ static int run_cmd(int argc, char **argv, cmd_state_t *state)
          opt_set_int(OPT_IEEE_WARNINGS, parse_on_off(optarg));
          break;
       case 'a':
-         opt_set_int(OPT_DUMP_ARRAYS, 1);
+         if (optarg == NULL)
+            opt_set_int(OPT_DUMP_ARRAYS, INT_MAX);
+         else
+            opt_set_int(OPT_DUMP_ARRAYS, parse_int(optarg));
          break;
       case 'H':
          warnf("the $bold$--shuffle$$ option is intended for debug use only "
@@ -1919,7 +1923,7 @@ static void usage(void)
           " -V, --verbose\t\tPrint resource usage at each step\n"
           "\n"
           "Run options:\n"
-          "     --dump-arrays\tInclude nested arrays in waveform dump\n"
+          "     --dump-arrays[=N]\tInclude nested arrays in waveform dump\n"
           "     --exclude=GLOB\tExclude signals matching GLOB from wave dump\n"
           "     --exit-severity=\tExit after assertion failure of "
           "this severity\n"
