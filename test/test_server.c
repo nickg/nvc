@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2023  Nick Gasson
+//  Copyright (C) 2023-2024  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -29,6 +29,7 @@
 #include <assert.h>
 #include <unistd.h>
 #include <stdlib.h>
+#include <jansson.h>
 
 #ifdef __MINGW32__
 #define WIN32_LEAN_AND_MEAN
@@ -49,7 +50,7 @@ static void server_ready_cb(void *arg)
    close(wfd);
 }
 
-static pid_t fork_server(tree_t top, const char *init_cmd)
+static pid_t fork_server(server_kind_t kind, tree_t top, const char *init_cmd)
 {
 #ifdef __MINGW32__
    ck_abort_msg("not supported on Windows");
@@ -60,7 +61,7 @@ static pid_t fork_server(tree_t top, const char *init_cmd)
    pid_t pid = fork();
    if (pid == 0) {
       close(rfd);
-      start_server(jit_new, get_registry(), top, server_ready_cb,
+      start_server(kind, jit_new, get_registry(), top, server_ready_cb,
                    (void *)(intptr_t)wfd, init_cmd);
       exit(0);
    }
@@ -124,6 +125,11 @@ static int open_connection(void)
    if (connect(sock, &addr, sizeof(addr)) == -1)
       fatal_errno("connect");
 
+   return sock;
+}
+
+static void websocket_upgrade(int sock)
+{
    static const char req[] =
       "GET / HTTP/1.1\r\n"
       "Host: example.com:80\r\n"
@@ -159,8 +165,6 @@ static int open_connection(void)
 
    fail_unless(strstr(resp, "HTTP/1.1 101\r\n"));
    fail_unless(strstr(resp, "Connection: upgrade\r\n"));
-
-   return sock;
 }
 
 static void shutdown_server(web_socket_t *ws)
@@ -181,8 +185,9 @@ static void sanity_text_frame(web_socket_t *ws, const char *text, void *context)
 
 START_TEST(test_sanity)
 {
-   pid_t pid = fork_server(NULL, NULL);
+   pid_t pid = fork_server(SERVER_HTTP, NULL, NULL);
    int sock = open_connection();
+   websocket_upgrade(sock);
 
    ws_handler_t handler = {
       .text_frame = sanity_text_frame
@@ -210,8 +215,9 @@ END_TEST
 
 START_TEST(test_second_connection)
 {
-   pid_t pid = fork_server(NULL, NULL);
+   pid_t pid = fork_server(SERVER_HTTP, NULL, NULL);
    int sock1 = open_connection();
+   websocket_upgrade(sock1);
 
    ws_handler_t handler = {
       .text_frame = sanity_text_frame
@@ -224,6 +230,7 @@ START_TEST(test_second_connection)
    ws_poll(ws1);
 
    int sock2 = open_connection();
+   websocket_upgrade(sock2);
    web_socket_t *ws2 = ws_new(sock2, &handler, true);
 
    ws_send_text(ws2, "expr 1 + 2");
@@ -246,8 +253,9 @@ END_TEST
 
 START_TEST(test_dirty_close)
 {
-   pid_t pid = fork_server(NULL, NULL);
+   pid_t pid = fork_server(SERVER_HTTP, NULL, NULL);
    int sock = open_connection();
+   websocket_upgrade(sock);
 
    ws_handler_t handler = {
       .text_frame = sanity_text_frame
@@ -263,6 +271,7 @@ START_TEST(test_dirty_close)
    close(sock);
 
    sock = open_connection();
+   websocket_upgrade(sock);
    ws = ws_new(sock, &handler, true);
 
    ws_send_text(ws, "expr 1 + 2");
@@ -353,8 +362,9 @@ START_TEST(test_wave)
 
    tree_t top = run_elab();
 
-   pid_t pid = fork_server(top, "hello");
+   pid_t pid = fork_server(SERVER_HTTP, top, "hello");
    int sock = open_connection();
+   websocket_upgrade(sock);
 
    int state = 0;
    ws_handler_t handler = {
@@ -416,8 +426,9 @@ static void pong_handler(web_socket_t *ws, const void *data, size_t len,
 
 START_TEST(test_ping)
 {
-   pid_t pid = fork_server(NULL, NULL);
+   pid_t pid = fork_server(SERVER_HTTP, NULL, NULL);
    int sock = open_connection();
+   websocket_upgrade(sock);
 
    int state = 0;
    ws_handler_t handler = {
@@ -460,6 +471,129 @@ START_TEST(test_ping)
 }
 END_TEST
 
+static json_t *read_json(int sock)
+{
+   size_t bufsz = 0, wptr = 0;
+   char *buf LOCAL = NULL;
+
+   do {
+      if (wptr == bufsz)
+         buf = xrealloc(buf, (bufsz = MAX(bufsz * 2, 1)));
+
+      const ssize_t nbytes = recv(sock, buf + wptr, 1, 0);
+      if (nbytes < 0)
+         fatal_errno("recv");
+
+      ck_assert_int_eq(nbytes, 1);
+   } while (buf[wptr++] != '\0');
+
+   json_error_t error;
+   json_t *json = json_loads(buf, 0, &error);
+   ck_assert_msg(json != NULL, "failed to parse '%s'", buf);
+
+   return json;
+}
+
+static void cxxrtl_greeting(int sock)
+{
+   {
+      json_t *json = json_object();
+      json_object_set_new(json, "type", json_string("greeting"));
+      json_object_set_new(json, "version", json_integer(0));
+
+      char *str LOCAL = json_dumps(json, JSON_COMPACT);
+      write_fully(sock, str, strlen(str) + 1);
+
+      json_decref(json);
+   }
+
+   {
+      json_t *json = read_json(sock);
+
+      json_t *commands = json_object_get(json, "commands");
+      ck_assert_ptr_nonnull(commands);
+      ck_assert(json_is_array(commands));
+      ck_assert_int_gt(json_array_size(commands), 0);
+
+      json_t *features = json_object_get(json, "features");
+      ck_assert_ptr_nonnull(features);
+      ck_assert(json_is_object(features));
+
+      json_decref(json);
+   }
+}
+
+static json_t *cxxrtl_command(int sock, const char *cmd, json_t *req)
+{
+   json_object_set_new(req, "type", json_string("command"));
+   json_object_set_new(req, "command", json_string(cmd));
+
+   char *str LOCAL = json_dumps(req, JSON_COMPACT);
+   write_fully(sock, str, strlen(str) + 1);
+
+   json_decref(req);
+
+   json_t *resp = read_json(sock);
+
+   json_t *type = json_object_get(resp, "type");
+   ck_assert(json_is_string(type));
+   ck_assert_str_eq(json_string_value(type), "response");
+
+   json_t *cmdobj = json_object_get(resp, "command");
+   ck_assert(json_is_string(cmdobj));
+   ck_assert_str_eq(json_string_value(cmdobj), cmd);
+
+   return resp;
+}
+
+static void cxxrtl_quit_simulation(int sock)
+{
+   json_t *resp = cxxrtl_command(sock, "nvc.quit_simulation", json_object());
+   json_decref(resp);
+}
+
+START_TEST(test_greeting)
+{
+   pid_t pid = fork_server(SERVER_CXXRTL, NULL, NULL);
+   int sock = open_connection();
+
+   cxxrtl_greeting(sock);
+
+   cxxrtl_quit_simulation(sock);
+
+   close(sock);
+   join_server(pid);
+}
+END_TEST
+
+START_TEST(test_bad_command)
+{
+   pid_t pid = fork_server(SERVER_CXXRTL, NULL, NULL);
+   int sock = open_connection();
+
+   cxxrtl_greeting(sock);
+
+   json_t *req = json_object();
+   json_object_set_new(req, "type", json_string("command"));
+   json_object_set_new(req, "command", json_string("BAD COMMAND"));
+
+   char *str LOCAL = json_dumps(req, JSON_COMPACT);
+   write_fully(sock, str, strlen(str) + 1);
+
+   json_decref(req);
+
+   json_t *resp = read_json(sock);
+
+   json_t *type = json_object_get(resp, "type");
+   ck_assert(json_is_string(type));
+
+   cxxrtl_quit_simulation(sock);
+
+   close(sock);
+   join_server(pid);
+}
+END_TEST
+
 Suite *get_server_tests(void)
 {
    Suite *s = suite_create("server");
@@ -470,6 +604,8 @@ Suite *get_server_tests(void)
    tcase_add_test(tc, test_second_connection);
    tcase_add_test(tc, test_wave);
    tcase_add_test(tc, test_ping);
+   tcase_add_test(tc, test_greeting);
+   tcase_add_test(tc, test_bad_command);
    suite_add_tcase(s, tc);
 
    return s;

@@ -1527,12 +1527,14 @@ static int coverage_cmd(int argc, char **argv, cmd_state_t *state)
 static int gui_cmd(int argc, char **argv, cmd_state_t *state)
 {
    static struct option long_options[] = {
-      { "init", required_argument, 0, 'i' },
-      { "port", required_argument, 0, 'p' },
+      { "init",     required_argument, 0, 'i' },
+      { "port",     required_argument, 0, 'p' },
+      { "protocol", required_argument, 0, 'o' },
       { 0, 0, 0, 0 }
    };
 
    const int next_cmd = scan_cmd(2, argc, argv);
+   server_kind_t kind = SERVER_HTTP;
    int c, index = 0;
    const char *spec = ":", *init_cmd = NULL;
    while ((c = getopt_long(next_cmd, argv, spec, long_options, &index)) != -1) {
@@ -1546,6 +1548,17 @@ static int gui_cmd(int argc, char **argv, cmd_state_t *state)
                fatal("invalid port number %d", port);
 
             opt_set_int(OPT_SERVER_PORT, port);
+         }
+         break;
+      case 'o':
+         {
+            if (strcmp(optarg, "http") == 0)
+               kind = SERVER_HTTP;
+            else if (strcmp(optarg, "cxxrtl") == 0)
+               kind = SERVER_CXXRTL;
+            else
+               fatal("invalid protocol '%s', valid choices are "
+                     "'http' and 'cxxrtl'", optarg);
          }
          break;
       case '?': bad_option("gui", argv);
@@ -1564,7 +1577,7 @@ static int gui_cmd(int argc, char **argv, cmd_state_t *state)
          fatal("%s not elaborated", istr(top_level));
    }
 
-   start_server(get_jit, state->registry, top, NULL, NULL, init_cmd);
+   start_server(kind, get_jit, state->registry, top, NULL, NULL, init_cmd);
    state->registry = NULL;   // Shell takes ownership
 
    argc -= next_cmd - 1;

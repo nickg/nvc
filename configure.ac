@@ -226,7 +226,8 @@ AC_ARG_ENABLE([server],
   [enable_server=$enable_gui])
 
 AS_IF([test x$enable_server = xyes],
-      [AC_DEFINE_UNQUOTED([ENABLE_SERVER], [1], [WebSocket server enabled])])
+      [AC_DEFINE_UNQUOTED([ENABLE_SERVER], [1], [WebSocket server enabled])
+       PKG_CHECK_MODULES([jansson], [jansson >= 2.0])])
 
 AM_CONDITIONAL([ENABLE_SERVER], [test x$enable_server = xyes])
 

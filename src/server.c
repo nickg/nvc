@@ -36,6 +36,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <time.h>
+#include <jansson.h>
 
 #ifdef __MINGW32__
 #define WIN32_LEAN_AND_MEAN
@@ -121,6 +122,19 @@ typedef struct {
    debug_server_t  server;
    web_socket_t   *websocket;
 } http_server_t;
+
+typedef struct {
+   debug_server_t server;
+   int            sock;
+   size_t         rx_size;
+   size_t         rx_wptr;
+   size_t         rx_rptr;
+   char          *rx_buf;
+   size_t         tx_size;
+   size_t         tx_wptr;
+   size_t         tx_rptr;
+   uint8_t       *tx_buf;
+} cxxrtl_server_t;
 
 ////////////////////////////////////////////////////////////////////////////////
 // WebSocket wrapper
@@ -1060,6 +1074,289 @@ static const server_proto_t http_protocol = {
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+// CXXRTL debug protocol over TCP
+//
+// https://gist.github.com/whitequark/59520e2de0947da8747061bc2ea91639
+
+static void kill_cxxrtl_connection(cxxrtl_server_t *cxxrtl)
+{
+   diag_set_consumer(NULL, NULL);
+
+   closesocket(cxxrtl->sock);
+   cxxrtl->sock = -1;
+
+   cxxrtl->rx_rptr = cxxrtl->rx_wptr = 0;
+}
+
+static void cxxrtl_send(cxxrtl_server_t *cxxrtl, json_t *json)
+{
+   // TODO: use json_dumpb or json_dump_callback
+   char *str LOCAL = json_dumps(json, JSON_COMPACT);
+   server_log(LOG_DEBUG, "S->C: %s", str);
+
+   const size_t size = strlen(str) + 1;
+
+   if (cxxrtl->tx_wptr + size > cxxrtl->tx_size) {
+      cxxrtl->tx_size = MAX(cxxrtl->tx_size + size, 1024);
+      cxxrtl->tx_buf = xrealloc(cxxrtl->tx_buf, cxxrtl->tx_size);
+   }
+
+   memcpy(cxxrtl->tx_buf + cxxrtl->tx_wptr, str, size);
+   cxxrtl->tx_wptr += size;
+}
+
+static void cxxrtl_error(cxxrtl_server_t *cxxrtl, json_t *json,
+                         const char *error, const char *message)
+{
+   json_object_set_new(json, "type", json_string("error"));
+   json_object_set_new(json, "error", json_string(error));
+   json_object_set_new(json, "message", json_string(message));
+
+   cxxrtl_send(cxxrtl, json);
+}
+
+static void handle_greeting(cxxrtl_server_t *cxxrtl, json_t *json)
+{
+   json_t *version = json_object_get(json, "version");
+   if (version == NULL)
+      return cxxrtl_error(cxxrtl, json, "parse_error", "Missing version");
+   else if (json_integer_value(version) != 0)
+      return cxxrtl_error(cxxrtl, json, "version_error", "Epected version 0");
+
+   json_t *commands = json_array();
+   json_object_set_new(json, "commands", commands);
+
+   static const char *supported_commands[] = {
+      "list_scopes",
+      "list_items",
+      "reference_items",
+      "query_interval",
+      "get_simulation_status",
+      "run_simulation",
+      "pause_simulation",
+      "nvc.quit_simulation",
+   };
+
+   for (size_t i = 0; i < ARRAY_LEN(supported_commands); i++)
+      json_array_append_new(commands, json_string(supported_commands[i]));
+
+   json_t *events = json_array();
+   json_object_set_new(json, "events", events);
+
+   static const char *supported_events[] = {
+      "simulation_paused",
+      "simulation_finished"
+   };
+
+   for (size_t i = 0; i < ARRAY_LEN(supported_events); i++)
+      json_array_append_new(events, json_string(supported_events[i]));
+
+   json_t *features = json_object();
+   json_object_set_new(json, "features", features);
+
+   json_t *encoding = json_array();
+   json_object_set_new(json, "item_values_encoding", encoding);
+
+   json_array_append_new(encoding, json_string("base64(u32)"));
+
+   json_object_set_new(features, "encoding", encoding);
+
+   cxxrtl_send(cxxrtl, json);
+}
+
+static void handle_get_simulation_status(cxxrtl_server_t *cxxrtl, json_t *json)
+{
+   json_object_set_new(json, "type", json_string("response"));
+   json_object_set_new(json, "status", json_string("paused"));
+   json_object_set_new(json, "latest_time", json_string("0.0"));
+   json_object_set_new(json, "next_sample_time", json_string("0.0"));
+
+   cxxrtl_send(cxxrtl, json);
+}
+
+static void handle_quit_simulation(cxxrtl_server_t *cxxrtl, json_t *json)
+{
+   cxxrtl->server.shutdown = true;
+
+   json_object_set_new(json, "type", json_string("response"));
+   cxxrtl_send(cxxrtl, json);
+}
+
+static void handle_command(cxxrtl_server_t *cxxrtl, json_t *json)
+{
+   json_t *command = json_object_get(json, "command");
+   if (command == NULL)
+      return cxxrtl_error(cxxrtl, json, "parse_error", "Missing command");
+
+   const char *str = json_string_value(command);
+   if (strcmp(str, "get_simulation_status") == 0)
+      handle_get_simulation_status(cxxrtl, json);
+   else if (strcmp(str, "nvc.quit_simulation") == 0)
+      handle_quit_simulation(cxxrtl, json);
+   else
+      cxxrtl_error(cxxrtl, json, "bad_command", "Invalid command");
+}
+
+static void cxxrtl_new_connection(debug_server_t *server, int fd)
+{
+   cxxrtl_server_t *cxxrtl = container_of(server, cxxrtl_server_t, server);
+
+   if (cxxrtl->sock != -1) {
+      server_log(LOG_INFO, "closing old connection");
+      closesocket(cxxrtl->sock);
+   }
+
+   cxxrtl->sock = fd;
+}
+
+static int cxxrtl_fill_fd_set(debug_server_t *server, fd_set *rfd, fd_set *wfd)
+{
+   cxxrtl_server_t *cxxrtl = container_of(server, cxxrtl_server_t, server);
+
+   if (cxxrtl->sock != -1)
+      FD_SET(cxxrtl->sock, rfd);
+
+   if (cxxrtl->tx_wptr != cxxrtl->tx_rptr)
+      FD_SET(cxxrtl->sock, wfd);
+
+   return cxxrtl->sock;
+}
+
+static void cxxrtl_read_message(cxxrtl_server_t *cxxrtl)
+{
+   if (cxxrtl->rx_size - cxxrtl->rx_wptr < 1024)
+      cxxrtl->rx_buf = xrealloc(cxxrtl->rx_buf, (cxxrtl->rx_size += 1024));
+
+   const ssize_t nbytes = recv(cxxrtl->sock, cxxrtl->rx_buf + cxxrtl->rx_wptr,
+                               cxxrtl->rx_size - cxxrtl->rx_wptr, 0);
+   if (nbytes == -1 && errno == EAGAIN)
+      return;
+   else if (nbytes == 0) {
+      kill_cxxrtl_connection(cxxrtl);
+      return;
+   }
+   else if (nbytes < 0) {
+      server_log(LOG_ERROR, "connection closed: %s", last_os_error());
+      kill_cxxrtl_connection(cxxrtl);
+      return;
+   }
+
+   cxxrtl->rx_wptr += nbytes;
+   assert(cxxrtl->rx_wptr <= cxxrtl->rx_size);
+   assert(cxxrtl->rx_rptr < cxxrtl->rx_wptr);
+
+   do {
+      char *endp = memchr(cxxrtl->rx_buf + cxxrtl->rx_rptr, '\0',
+                          cxxrtl->rx_wptr - cxxrtl->rx_rptr);
+      if (endp == NULL)
+         return;
+
+      server_log(LOG_DEBUG, "C->S: %s", cxxrtl->rx_buf + cxxrtl->rx_rptr);
+
+      json_error_t error;
+      json_t *root = json_loads(cxxrtl->rx_buf + cxxrtl->rx_rptr, 0, &error);
+
+      if (endp == cxxrtl->rx_buf + cxxrtl->rx_wptr - 1)
+         cxxrtl->rx_wptr = cxxrtl->rx_rptr = 0;
+      else
+         cxxrtl->rx_rptr = endp - cxxrtl->rx_buf + 1;
+
+      if (!json_is_object(root)) {
+         cxxrtl_error(cxxrtl, root, "bad_json", "Nnot a JSON object");
+         json_decref(root);
+         continue;
+      }
+
+      json_t *type = json_object_get(root, "type");
+      if (!json_is_string(type)) {
+         cxxrtl_error(cxxrtl, root, "parse_error", "Missing type field");
+         json_decref(root);
+         continue;
+      }
+
+      const char *typestr = json_string_value(type);
+      if (strcmp(typestr, "greeting") == 0)
+         handle_greeting(cxxrtl, root);
+      else if (strcmp(typestr, "command") == 0)
+         handle_command(cxxrtl, root);
+      else
+         server_log(LOG_ERROR, "unhandled message type '%s'", typestr);
+   } while (cxxrtl->rx_rptr != cxxrtl->rx_wptr);
+}
+
+static void cxxrtl_flush(cxxrtl_server_t *cxxrtl)
+{
+   while (cxxrtl->tx_wptr != cxxrtl->tx_rptr) {
+      const size_t chunksz = cxxrtl->tx_wptr - cxxrtl->tx_rptr;
+      const ssize_t nbytes =
+         send(cxxrtl->sock, cxxrtl->tx_buf + cxxrtl->tx_rptr, chunksz, 0);
+
+      if (nbytes == 0)
+         break;
+      else if (nbytes < 0) {
+         kill_cxxrtl_connection(cxxrtl);
+         break;
+      }
+
+      cxxrtl->tx_rptr += nbytes;
+   }
+
+   if (cxxrtl->tx_wptr == cxxrtl->tx_rptr)
+      cxxrtl->tx_rptr = cxxrtl->tx_wptr = 0;
+}
+
+static void cxxrtl_poll_sockets(debug_server_t *server, fd_set *rfd,
+                                fd_set *wfd)
+{
+   cxxrtl_server_t *cxxrtl = container_of(server, cxxrtl_server_t, server);
+
+   if (cxxrtl->sock == -1)
+      return;
+
+   if (FD_ISSET(cxxrtl->sock, rfd))
+      cxxrtl_read_message(cxxrtl);
+
+   if (FD_ISSET(cxxrtl->sock, wfd))
+      cxxrtl_flush(cxxrtl);
+
+   if (server->shutdown && cxxrtl->tx_wptr == cxxrtl->tx_rptr) {
+      closesocket(cxxrtl->sock);
+      cxxrtl->sock = -1;
+   }
+}
+
+static void cxxrtl_shutdown(debug_server_t *server)
+{
+   // TODO: send an event to the client?
+}
+
+static debug_server_t *cxxrtl_server_new(void)
+{
+   cxxrtl_server_t *cxxrtl = xcalloc(sizeof(cxxrtl_server_t));
+   cxxrtl->sock = -1;
+
+   return &(cxxrtl->server);
+}
+
+static void cxxrtl_server_free(debug_server_t *server)
+{
+   cxxrtl_server_t *cxxrtl = container_of(server, cxxrtl_server_t, server);
+   assert(cxxrtl->sock == -1);
+   free(cxxrtl->rx_buf);
+   free(cxxrtl->tx_buf);
+   free(cxxrtl);
+}
+
+static const server_proto_t cxxrtl_protocol = {
+   .new_server = cxxrtl_server_new,
+   .free_server = cxxrtl_server_free,
+   .new_connection = cxxrtl_new_connection,
+   .fill_fd_set = cxxrtl_fill_fd_set,
+   .poll_sockets = cxxrtl_poll_sockets,
+   .shutdown = cxxrtl_shutdown,
+};
+
+////////////////////////////////////////////////////////////////////////////////
 // Server event loop
 
 static void handle_new_connection(debug_server_t *server)
@@ -1123,18 +1420,22 @@ static int open_server_socket(void)
    return sock;
 }
 
-void start_server(jit_factory_t make_jit, unit_registry_t *registry, tree_t top,
+void start_server(server_kind_t kind, jit_factory_t make_jit,
+                  unit_registry_t *registry, tree_t top,
                   server_ready_fn_t cb, void *arg, const char *init_cmd)
 {
-   const server_proto_t *proto = &http_protocol;
+   static const server_proto_t *map[] = {
+      [SERVER_HTTP] = &http_protocol,
+      [SERVER_CXXRTL] = &cxxrtl_protocol
+   };
 
-   debug_server_t *server = (*proto->new_server)();
+   debug_server_t *server = (*map[kind]->new_server)();
    server->shell     = shell_new(make_jit, registry);
    server->top       = top;
    server->packetbuf = pb_new();
    server->init_cmd  = init_cmd;
    server->banner    = !opt_get_int(OPT_UNIT_TEST);
-   server->proto     = &http_protocol;
+   server->proto     = map[kind];
 
    shell_handler_t handler = {
       .add_wave = add_wave_handler,

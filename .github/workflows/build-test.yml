@@ -21,7 +21,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install automake flex llvm-dev check lcov \
              libdw-dev libffi-dev libreadline-dev tcl8.6-dev \
-             libzstd-dev libxml2-utils
+             libzstd-dev libxml2-utils libjansson-dev
       - name: Generate configure script
         run: ./autogen.sh
       - name: Configure
