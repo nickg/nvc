@@ -1588,8 +1588,7 @@ static void p_te_spec(sdf_node_t cell)
    consume(tLPAREN);
    consume(tTIMINGENV);
 
-   // TODO: te_def should be obligatory at least once
-   while (scan(tLPAREN)) {
+   do {
       sdf_node_t constr_or_tenv = NULL;
 
       switch (peek_nth(2)) {
@@ -1621,13 +1620,14 @@ static void p_te_spec(sdf_node_t cell)
          constr_or_tenv = p_waveform_env();
          break;
       default:
+         consume(tLPAREN);
          one_of(tPATHCONSTR, tPERIODCONSTR, tSUM, tDIFF, tSKEWCONSTR,
                 tARRIVAL, tDEPARTURE, tSLACK, tWAVEFORM);
       }
 
       if (constr_or_tenv)
          sdf_add_tenv(cell, constr_or_tenv);
-   }
+   } while (scan(tLPAREN));
 
    consume(tRPAREN);
 }
@@ -1738,9 +1738,9 @@ static void p_lbl_spec(sdf_node_t cell)
    consume(tLPAREN);
    consume(tLABEL);
 
-   // TODO: lbl_type should be obligatory at least once!
-   while (scan(tLPAREN))
+   do
       p_lbl_type(cell);
+   while (scan(tLPAREN));
 
    consume(tRPAREN);
 }
@@ -1979,8 +1979,7 @@ static void p_tc_spec(sdf_node_t cell)
    consume(tLPAREN);
    consume(tTIMINGCHECK);
 
-   // TODO: tchk_def should be obligatory once!
-   while (scan(tLPAREN)) {
+   do {
       sdf_node_t tcheck;
 
       switch (peek_nth(2)) {
@@ -2014,13 +2013,17 @@ static void p_tc_spec(sdf_node_t cell)
       case tBIDIRSKEW:
          tcheck = p_bidirectskew_timing_check();
          break;
-      default: // tNOCHANGE
+      case tNOCHANGE:
          tcheck = p_nochange_timing_check();
          break;
+      default:
+         consume(tLPAREN);
+         one_of(tSETUP, tHOLD, tSETUPHOLD, tRECREM, tWIDTH,
+                tPERIOD, tSKEW, tBIDIRSKEW, tNOCHANGE);
       };
 
       sdf_add_tcheck(cell, tcheck);
-   }
+   } while (scan(tLPAREN));
 
    consume(tRPAREN);
 }
@@ -2332,12 +2335,8 @@ static void p_del_spec(sdf_node_t cell)
    consume(tLPAREN);
    consume(tDELAY);
 
-   // TODO: deltype should be obligatory at least once!
-   int tok = peek_nth(2);
-   while (tok == tABSOLUTE  || tok == tINCREMENT ||
-          tok == tPATHPULSE || tok == tPATHPULSEP ) {
-
-      switch (tok) {
+   do {
+      switch (peek_nth(2)) {
       case tABSOLUTE:
          p_absolute_deltype(cell);
          break;
@@ -2347,12 +2346,14 @@ static void p_del_spec(sdf_node_t cell)
       case tPATHPULSE:
          p_pathpulse_deltype(cell);
          break;
-      default:
+      case tPATHPULSEP:
          p_pathpulsepercent_deltype(cell);
+         break;
+      default:
+         consume(tLPAREN);
+         one_of(tABSOLUTE, tINCREMENT, tPATHPULSE, tPATHPULSEP);
       }
-
-      tok = peek_nth(2);
-   }
+   } while (scan(tLPAREN));
 
    consume(tRPAREN);
 }
