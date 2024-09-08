@@ -75,6 +75,7 @@ bin_nvc_LDADD = \
 	lib/libcpustate.a \
 	lib/libgnulib.a \
 	lib/libsha1.a \
+	$(zlib_LIBS) \
 	$(libdw_LIBS) \
 	$(libffi_LIBS) \
 	$(capstone_LIBS) \
