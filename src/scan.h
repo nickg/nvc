@@ -324,6 +324,8 @@ bool is_scanned_as_psl(void);
 #define tUDPIND        423
 #define tBUF           424
 #define tLOGOR         425
+#define tSCALARZERO    426
+#define tSCALARONE     427
 
 // SDF only keywords - separated for better maintainability
 // during implementation of SDF annotation.

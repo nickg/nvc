@@ -252,6 +252,7 @@ const char *token_str(token_t tok)
          "(*", "*)", "number", "forever", "[[", "]]", "specify", "endspecify",
          "primitive", "endprimitive", "table", "endtable", "assign",
          "level symbol", "edge symbol", "edge indicator", "buf", "||",
+         "scalar constant (0)", "scalar constant (1)"
       };
 
       if (tok >= 200 && tok - 200 < ARRAY_LEN(token_strs))

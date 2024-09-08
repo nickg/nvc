@@ -132,6 +132,8 @@ VLOG_NUMBER     {INTEGER}?\'[bhd]{HEX}
 UDP_LEVEL       [01xX?bB]
 UDP_EDGE        [rRfFpPnN*]
 UDP_INDICATOR   "("{UDP_LEVEL}{UDP_LEVEL}")"
+SCALAR_ZERO     ('b0|'B0|1'b0|1'B0)
+SCALAR_ONE      ('b1|'B1|1'b1|1'B1)
 
 %x COMMENT C_COMMENT PSL VLOG UDP SDF SDF_EXPR
 
@@ -699,6 +701,9 @@ CCOND          ?i:CCOND
 <SDF,SDF_EXPR>"/*"      { comment_caller = YY_START;
                           BEGIN(C_COMMENT);
                         }
+
+<SDF,SDF_EXPR>{SCALAR_ZERO}   { TOKEN(tSCALARZERO); }
+<SDF,SDF_EXPR>{SCALAR_ONE}    { TOKEN(tSCALARONE); }
 
 % /* TODO: Crosscheck SDF definition of decimal */
 <SDF,SDF_EXPR>{DECIMAL} { return parse_decimal_literal(yytext); }

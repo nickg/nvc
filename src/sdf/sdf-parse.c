@@ -472,23 +472,6 @@ static sdf_node_t p_signed_real_number(bool create_node)
    return n;
 }
 
-static int64_t p_scalar_const_id(void)
-{
-   ident_t id = p_identifier();
-
-   // TODO: Make this well known ?
-   if (icmp(id, "B0") || icmp(id, "b0"))
-      return 0;
-
-   if (icmp(id, "B1") || icmp(id, "b1"))
-      return 1;
-
-   parse_error(&state.last_loc, "scalar_value shall be one of: "
-                                "1'b0, 1'b1, 1'B0, 1'B1, 'b0, 'b1, 'B0, 'B1, 0, 1");
-
-   return -1;
-}
-
 static sdf_node_t p_scalar_constant(void)
 {
    // scalar_constant ::=
@@ -505,29 +488,26 @@ static sdf_node_t p_scalar_constant(void)
 
    BEGIN("scalar constant");
 
-   int tok = peek();
-   assert (tok == tINT || tok == tTICK);
-   consume(tok);
+   int64_t val = 0;
 
-   sdf_node_t c = sdf_new(S_NUMBER);
-   sdf_set_subkind(c, S_NUMBER_INTEGER);
-
-   // TODO: Rework to parse all allowed constants as tokens from lexer!
-   //       Thisway e.g. '  b    0 will not be accepted!
-   int64_t val = -1;
-   switch (tok) {
+   switch (one_of(tINT, tSCALARZERO, tSCALARONE)) {
    case tINT:
-      if (optional(tTICK))
-         val = p_scalar_const_id();
-      else
-         val = yylval.i64;
+      val = yylval.i64;
+      if (val != 1 && val != 0)
+         parse_error(&state.last_loc, "scalar_constant shall be one of: "
+                                       "1'b0, 1'B0, 'b0, 'B0, 0, "
+                                       "1'b1, 1'B1, 'b1, 'B1, 1");
       break;
-
-   case tTICK:
-      val = p_scalar_const_id();
+   case tSCALARONE:
+      val = 1;
+      break;
+   case tSCALARZERO:
+      val = 0;
       break;
    }
 
+   sdf_node_t c = sdf_new(S_NUMBER);
+   sdf_set_subkind(c, S_NUMBER_INTEGER);
    sdf_set_ival(c, val);
 
    return c;
@@ -615,7 +595,7 @@ static sdf_node_t p_port_instance(void)
 
 static sdf_node_t p_port_or_scalar_constant(void)
 {
-   if (scan(tINT, tTICK))
+   if (scan(tINT, tSCALARONE, tSCALARZERO))
       return p_scalar_constant();
 
    return p_port_instance();
