@@ -178,7 +178,7 @@ AC_SEARCH_LIBS([pow], [m], [], [
   AC_MSG_ERROR([unable to find the pow() function])
 ])
 
-AC_CHECK_LIB([z], [deflate], [], [AC_MSG_ERROR(zlib not found)])
+PKG_CHECK_MODULES([zlib], [zlib >= 1.0.0])
 
 AC_DEFINE_UNQUOTED([FST_REMOVE_DUPLICATE_VC], [1], [Enable FST glitch removal])
 

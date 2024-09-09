@@ -19,6 +19,7 @@ AM_CFLAGS += \
 	$(check_CFLAGS) \
 	$(libdw_CFLAGS) \
 	$(libffi_CFLAGS) \
+	$(zlib_CFLAGS) \
 	$(capstone_CFLAGS) \
 	$(LLVM_CFLAGS) \
 	$(libzstd_CFLAGS) \
