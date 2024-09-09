@@ -1041,3 +1041,4 @@ ename14         fail,gold,2008
 issue907        fail,gold,2008
 ename15         normal,2008
 wave12          wave,dump-arrays=3
+issue968        normal

@@ -1658,19 +1658,18 @@ static rt_nexus_t *clone_nexus(rt_model_t *m, rt_nexus_t *old, int offset)
          clone_source(m, new, it, offset);
    }
 
-   int nth = 0;
-   for (rt_source_t *old_o = old->outputs; old_o;
-        old_o = old_o->chain_output, nth++) {
+   for (rt_source_t *old_o = old->outputs; old_o; old_o = old_o->chain_output) {
+      assert(old_o->tag == SOURCE_PORT || old_o->tag == SOURCE_IMPLICIT);
 
-      assert(old_o->tag != SOURCE_DRIVER);
-
-      if (old_o->u.port.conv_func != NULL) {
+      if (old_o->tag == SOURCE_PORT && old_o->u.port.conv_func != NULL) {
          new->outputs = old_o;
          add_conversion_input(old_o->u.port.conv_func, new);
       }
       else {
          rt_nexus_t *out_n;
-         if (old_o->u.port.output->width == offset)
+         if (old_o->tag == SOURCE_IMPLICIT)
+            out_n = old_o->u.port.output;
+         else if (old_o->u.port.output->width == offset)
             out_n = old_o->u.port.output->chain;   // Cycle breaking
          else {
             RT_LOCK(old_o->u.port.output->signal->lock);
@@ -1678,7 +1677,7 @@ static rt_nexus_t *clone_nexus(rt_model_t *m, rt_nexus_t *old, int offset)
          }
 
          for (rt_source_t *s = &(out_n->sources); s; s = s->chain_input) {
-            if (s->tag == SOURCE_DRIVER)
+            if (s->tag != old_o->tag)
                continue;
             else if (s->u.port.input == new || s->u.port.input == old) {
                s->u.port.input = new;
@@ -4283,8 +4282,10 @@ sig_shared_t *x_implicit_signal(uint32_t count, uint32_t size, tree_t where,
    deferq_do(&m->implicitq, async_update_implicit_signal, imp);
    set_pending(&(imp->wakeable));
 
-   if (kind == IMPLICIT_STABLE || kind == IMPLICIT_QUIET)
+   if (kind == IMPLICIT_STABLE || kind == IMPLICIT_QUIET) {
       add_source(m, &(imp->signal.nexus), SOURCE_DRIVER);
+      imp->signal.shared.data[0] = 1;    // X'STABLE initally true
+   }
 
    return &(imp->signal.shared);
 }
