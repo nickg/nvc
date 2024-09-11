@@ -11832,6 +11832,10 @@ static void lower_inertial_actual(lower_unit_t *parent, tree_t port,
    lower_unit_t *lu = lower_unit_new(parent->registry, parent, vu, NULL, NULL);
    unit_registry_put(parent->registry, lu);
 
+   // Block number one must be the non-reset entry point
+   vcode_block_t main_bb = emit_block();
+   assert(main_bb == 1);
+
    if (type_is_homogeneous(type)) {
       vcode_reg_t nets_reg = emit_load_indirect(emit_var_upref(1, var));
       vcode_reg_t count_reg = lower_type_width(lu, type, nets_reg);
@@ -11849,7 +11853,6 @@ static void lower_inertial_actual(lower_unit_t *parent, tree_t port,
 
    emit_return(VCODE_INVALID_REG);
 
-   vcode_block_t main_bb = emit_block();
    vcode_select_block(main_bb);
 
    vcode_reg_t zero_time_reg = emit_const(vtype_time(), 0);
