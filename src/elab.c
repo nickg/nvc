@@ -23,7 +23,6 @@
 #include "eval.h"
 #include "hash.h"
 #include "inst.h"
-#include "jit/jit.h"
 #include "lib.h"
 #include "lower.h"
 #include "mask.h"
@@ -38,11 +37,12 @@
 #include "vlog/vlog-phase.h"
 #include "vlog/vlog-util.h"
 
-#include <ctype.h>
 #include <assert.h>
 #include <stdarg.h>
 #include <stdlib.h>
 #include <inttypes.h>
+
+#define MAX_DEPTH 127    // Limited by vcode type indexes
 
 typedef A(tree_t) tree_list_t;
 
@@ -67,6 +67,7 @@ typedef struct _elab_ctx {
    void             *context;
    driver_set_t     *drivers;
    hash_t           *modcache;
+   unsigned          depth;
 } elab_ctx_t;
 
 typedef struct {
@@ -1398,6 +1399,7 @@ static void elab_inherit_context(elab_ctx_t *ctx, const elab_ctx_t *parent)
    ctx->cover     = parent->cover;
    ctx->inst      = ctx->inst ?: parent->inst;
    ctx->modcache  = parent->modcache;
+   ctx->depth     = parent->depth + 1;
 }
 
 static driver_set_t *elab_driver_set(const elab_ctx_t *ctx)
@@ -1691,6 +1693,14 @@ static tree_t elab_block_config(tree_t block, const elab_ctx_t *ctx)
 
 static void elab_instance(tree_t t, const elab_ctx_t *ctx)
 {
+   if (ctx->depth == MAX_DEPTH) {
+      diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
+      diag_printf(d, "maximum instantiation depth of %d reached", MAX_DEPTH);
+      diag_hint(d, NULL, "this is likely caused by unbounded recursion");
+      diag_emit(d);
+      return;
+   }
+
    tree_t ref = tree_ref(t);
    switch (tree_kind(ref)) {
    case T_ENTITY:

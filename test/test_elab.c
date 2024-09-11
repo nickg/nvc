@@ -1967,6 +1967,24 @@ START_TEST(test_toplevel5)
 }
 END_TEST
 
+START_TEST(test_issue969)
+{
+   input_from_file(TESTDIR "/elab/issue969.vhd");
+
+   const error_t expect[] = {
+      {  7, "maximum instantiation depth of 127 reached" },
+      {  0, "this is likely caused by unbounded recursion" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t e = run_elab();
+   fail_unless(e == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_elab_tests(void)
 {
    Suite *s = suite_create("elab");
@@ -2072,6 +2090,7 @@ Suite *get_elab_tests(void)
    tcase_add_test(tc, test_null1);
    tcase_add_test(tc, test_generic3);
    tcase_add_test(tc, test_toplevel5);
+   tcase_add_test(tc, test_issue969);
    suite_add_tcase(s, tc);
 
    return s;

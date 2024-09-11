@@ -41,6 +41,9 @@
   an upper limit on the length of nested arrays to dump (#959).
 - Matching `case?` statements are now checked for duplicate and missing
   choices at analysis time (#966).
+- Limited maximum instantiation depth to prevent crashes due to stack
+  overflow when elaborating a design that has unbounded recursive entity
+  instantiation (#969).
 
 ## Version 1.13.3 - 2024-08-24
 - Type checking was not performed correctly for conversion function
