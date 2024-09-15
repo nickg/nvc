@@ -1043,3 +1043,4 @@ ename15         normal,2008
 wave12          wave,dump-arrays=3
 issue968        normal
 issue971        normal,2008
+ieee17          normal

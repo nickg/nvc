@@ -124,6 +124,8 @@ static const uint8_t or_table[16][16] = {
    {    _U, _X, _X, _1, _X, _X, _X, _1, _X   },  // | - |
 };
 
+#if defined HAVE_SSE41 || defined HAVE_NEON
+
 // Compressed lookup tables for vectorised intrinsics.  Note the
 // vectorised intrinsics all rely on being able to read up to
 // OVERRUN_MARGIN (defined in src/rt/mspace.c) bytes beyond the end of
@@ -178,6 +180,15 @@ static const uint8_t small_xor_table[4][4] = {
    {    _U, _X, _1, _0 },  // | 1 |
 };
 
+#endif
+
+#if defined HAVE_SSE41
+__attribute__((aligned(16)))
+static const uint8_t lane_iota[16] = {
+   0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15
+};
+#endif
+
 __attribute__((always_inline))
 static inline void *__tlab_alloc(tlab_t *t, size_t size, size_t align)
 {
@@ -216,6 +227,20 @@ static void print_bits(const char *tag, const uint8_t *bits, size_t size)
    printf("%s: ", tag);
    for (int i = 0; i < size; i++)
       printf("%c", map[bits[i]]);
+   printf("\n");
+}
+#endif
+
+#if 0
+__attribute__((target("sse4.1")))
+static void print_m128i(const char *tag, __m128i vec)
+{
+   uint8_t bytes[16];
+   memcpy(bytes, &vec, sizeof(vec));
+
+   printf("%s:", tag);
+   for (int i = 0; i < 16; i++)
+      printf(" %02x", bytes[i]);
    printf("\n");
 }
 #endif
@@ -1486,8 +1511,10 @@ static void synopsys_eql_signed(jit_func_t *func, jit_anchor_t *anchor,
    __tlab_restore(tlab, mark);
 }
 
-static void byte_vector_equal(jit_func_t *func, jit_anchor_t *anchor,
-                              jit_scalar_t *args, tlab_t *tlab)
+#ifdef HAVE_SSE41
+__attribute__((target("sse4.1")))
+static void byte_vector_equal_sse41(jit_func_t *func, jit_anchor_t *anchor,
+                                    jit_scalar_t *args, tlab_t *tlab)
 {
    const int lsize = ffi_array_length(args[3].integer);
    const int rsize = ffi_array_length(args[6].integer);
@@ -1499,32 +1526,40 @@ static void byte_vector_equal(jit_func_t *func, jit_anchor_t *anchor,
    if (lsize != rsize)
       return;
 
-   int size = lsize;
-   if (likely(size <= 128)) {
-      for (; size > 7; size -= 8, left += 8, right += 8) {
-         const uint64_t l64 = unaligned_load(left, uint64_t);
-         const uint64_t r64 = unaligned_load(right, uint64_t);
-         if (l64 != r64)
-            return;
-      }
+   __m128i allmask = _mm_set1_epi8(0xff);
 
-      for (; size > 3; size -= 4, left += 4, right += 4) {
-         const uint32_t l32 = unaligned_load(left, uint32_t);
-         const uint32_t r32 = unaligned_load(right, uint32_t);
-         if (l32 != r32)
-            return;
-      }
-
-      switch (size) {
-      case 3: if (*left++ != *right++) return;
-      case 2: if (*left++ != *right++) return;
-      case 1: if (*left++ != *right++) return;
-      }
-
-      args[0].integer = 1;
+   int pos = 0;
+   for (; pos + 15 < lsize; pos += 16) {
+      __m128i left1  = _mm_loadu_si128((const __m128i *)(left + pos));
+      __m128i right1 = _mm_loadu_si128((const __m128i *)(right + pos));
+      __m128i xor    = _mm_xor_si128(left1, right1);
+      if (!_mm_test_all_zeros(xor, allmask))
+         return;
    }
-   else
-      args[0].integer = (memcmp(left, right, size) == 0);
+
+   if (pos < lsize) {
+      __m128i iota   = _mm_load_si128((const __m128i *)lane_iota);
+      __m128i mask   = _mm_cmplt_epi8(iota, _mm_set1_epi8(lsize - pos));
+      __m128i left1  = _mm_loadu_si128((const __m128i *)(left + pos));
+      __m128i right1 = _mm_loadu_si128((const __m128i *)(right + pos));
+      __m128i xor    = _mm_xor_si128(left1, right1);
+      if (!_mm_test_all_zeros(xor, mask))
+         return;
+   }
+
+   args[0].integer = 1;
+}
+#endif
+
+static void byte_vector_equal(jit_func_t *func, jit_anchor_t *anchor,
+                              jit_scalar_t *args, tlab_t *tlab)
+{
+   const int lsize = ffi_array_length(args[3].integer);
+   const int rsize = ffi_array_length(args[6].integer);
+   uint8_t *left = args[1].pointer;
+   uint8_t *right = args[4].pointer;
+
+   args[0].integer = (lsize == rsize) && (memcmp(left, right, lsize) == 0);
 }
 
 static void ieee_math_sin(jit_func_t *func, jit_anchor_t *anchor,
@@ -1706,6 +1741,12 @@ static jit_intrinsic_t intrinsic_list[] = {
    { NS "TO_UNSIGNED(NN)" UU, ieee_to_unsigned },
    { NS "TO_SIGNED(IN)" S, ieee_to_signed },
    { NS "TO_SIGNED(IN)" US, ieee_to_signed },
+#ifdef HAVE_SSE41
+   { SL "\"=\"(VV)B$predef", byte_vector_equal_sse41, CPU_SSE41 },
+   { SL "\"=\"(YY)B$predef", byte_vector_equal_sse41, CPU_SSE41 },
+   { ST "\"=\"(QQ)B$predef", byte_vector_equal_sse41, CPU_SSE41 },
+   { ST "\"=\"(SS)B$predef", byte_vector_equal_sse41, CPU_SSE41 },
+#endif
    { SL "\"=\"(VV)B$predef", byte_vector_equal },
    { SL "\"=\"(YY)B$predef", byte_vector_equal },
    { ST "\"=\"(QQ)B$predef", byte_vector_equal },
