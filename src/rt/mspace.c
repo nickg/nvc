@@ -44,6 +44,12 @@
 #define LINE_WORDS (LINE_SIZE / sizeof(intptr_t))
 #define MAX_HEAP   (UINT64_C(0x100000000) * LINE_SIZE)
 
+// Extra padding at the end of heap regions to allow vectorised
+// intrinsics to read past the end of an array
+#define OVERRUN_MARGIN 32    // AVX2 has 32-byte vectors
+
+STATIC_ASSERT(OVERRUN_MARGIN % LINE_SIZE == 0);
+
 typedef A(uint64_t) work_list_t;
 typedef struct _linked_tlab linked_tlab_t;
 
@@ -108,7 +114,7 @@ mspace_t *mspace_new(size_t size)
 {
    mspace_t *m = xcalloc(sizeof(mspace_t));
    m->maxsize  = ALIGN_UP(size, LINE_SIZE);
-   m->maxlines = m->maxsize / LINE_SIZE;
+   m->maxlines = (m->maxsize - OVERRUN_MARGIN) / LINE_SIZE;
 
    if (m->maxsize > MAX_HEAP)
       fatal("the maximum supported heap size is %"PRIu64"g",
@@ -126,7 +132,7 @@ mspace_t *mspace_new(size_t size)
    free_list_t *f = xmalloc(sizeof(free_list_t));
    f->next = NULL;
    f->ptr  = m->space;
-   f->size = m->maxsize;
+   f->size = m->maxsize - OVERRUN_MARGIN;
 
    m->free_list = f;
 
@@ -367,7 +373,7 @@ tlab_t *tlab_acquire(mspace_t *m)
    // Ensure proper starting alignment on 32-bit systems
    const size_t data_off = offsetof(tlab_t, data);
    lt->tlab.alloc = ALIGN_UP(data_off, sizeof(double)) - data_off;
-   lt->tlab.limit = TLAB_SIZE;
+   lt->tlab.limit = TLAB_SIZE - OVERRUN_MARGIN;
 
    return &(lt->tlab);
 }

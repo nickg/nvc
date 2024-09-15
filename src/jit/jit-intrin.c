@@ -27,13 +27,26 @@
 #include <string.h>
 #include <math.h>
 
+#ifdef __aarch64__
+#define HAVE_NEON
+#endif
+
 #ifdef HAVE_AVX2
 #include <x86intrin.h>
 #endif
 
+#ifdef HAVE_NEON
+#include <arm_neon.h>
+#endif
+
+#if defined __GNUC__ && !defined __clang__
+#pragma GCC optimize ("O2")
+#endif
+
 typedef enum {
-   CPU_AVX2 = 0x1,
+   CPU_AVX2  = 0x1,
    CPU_SSE41 = 0x2,
+   CPU_NEON  = 0x04,
 } cpu_feature_t;
 
 typedef struct {
@@ -61,6 +74,7 @@ typedef enum {
                        == UINT64_C(0x0202020202020202)),                \
             uint8_t: ((x) & 0xe) == 0x02)
 
+__attribute__((aligned(16)))
 static const uint8_t cvt_to_x01[16] = {
    _X, _X, _0, _1, _X, _X, _0, _1, _X, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff
 };
@@ -110,16 +124,72 @@ static const uint8_t or_table[16][16] = {
    {    _U, _X, _X, _1, _X, _X, _X, _1, _X   },  // | - |
 };
 
+// Compressed lookup tables for vectorised intrinsics.  Note the
+// vectorised intrinsics all rely on being able to read up to
+// OVERRUN_MARGIN (defined in src/rt/mspace.c) bytes beyond the end of
+// the input arrays.
+
+__attribute__((aligned(16)))
+static const uint8_t compress_left[16] = {
+   _U,   _X,   _0,   _1,
+   _X,   _X,   _0,   _1,
+   _X,   0xff, 0xff, 0xff,
+   0xff, 0xff, 0xff, 0xff,
+};
+
+__attribute__((aligned(16)))
+static const uint8_t compress_right[16] = {
+   _U << 2, _X << 2, _0 << 2, _1 << 2,
+   _X << 2, _X << 2, _0 << 2, _1 << 2,
+   _X << 2, 0xff,    0xff,    0xff,
+   0xff,    0xff,    0xff,    0xff,
+};
+
+__attribute__((aligned(16)))
+static const uint8_t small_or_table[4][4] = {
+   // -----------------------------
+   // |  U   X   0   1        |   |
+   // -----------------------------
+   {    _U, _U, _U, _1 },  // | U |
+   {    _U, _X, _X, _1 },  // | X |
+   {    _U, _X, _0, _1 },  // | 0 |
+   {    _1, _1, _1, _1 },  // | 1 |
+};
+
+__attribute__((aligned(16)))
+static const uint8_t small_and_table[4][4] = {
+   // -----------------------------
+   // |  U   X   0   1        |   |
+   // -----------------------------
+   {    _U, _U, _0, _U },  // | U |
+   {    _U, _X, _0, _X },  // | X |
+   {    _0, _0, _0, _0 },  // | 0 |
+   {    _U, _X, _0, _1 },  // | 1 |
+};
+
+__attribute__((aligned(16)))
+static const uint8_t small_xor_table[4][4] = {
+   // -----------------------------
+   // |  U   X   0   1        |   |
+   // -----------------------------
+   {    _U, _U, _U, _U },  // | U |
+   {    _U, _X, _X, _X },  // | X |
+   {    _U, _X, _0, _1 },  // | 0 |
+   {    _U, _X, _1, _0 },  // | 1 |
+};
+
 __attribute__((always_inline))
-static inline void *__tlab_alloc(tlab_t *t, size_t size)
+static inline void *__tlab_alloc(tlab_t *t, size_t size, size_t align)
 {
    assert(t->alloc <= t->limit);
    assert((t->alloc & (sizeof(double) - 1)) == 0);
+   assert(align % sizeof(double) == 0);
 
-   if (likely(t->alloc + size <= t->limit)) {
-      void *p = t->data + t->alloc;
-      t->alloc += ALIGN_UP(size, sizeof(double));
-      return p;
+   const size_t alignup = ALIGN_UP(size, sizeof(double));
+   const size_t base = ALIGN_UP(t->alloc, align);
+   if (likely(base + alignup <= t->limit)) {
+      t->alloc = base + alignup;
+      return t->data + base;
    }
    else
       return mspace_alloc(t->mspace, size);
@@ -210,19 +280,15 @@ static void std_to_x01_sse41(jit_func_t *func, jit_anchor_t *anchor,
    const int size = args[3].integer ^ (args[3].integer >> 63);
    const uint8_t *input = args[1].pointer;
 
-   uint8_t *result = __tlab_alloc(tlab, size);
+   uint8_t *result = __tlab_alloc(tlab, ALIGN_UP(size, 16), 16);
 
-   __m128i lookup = _mm_loadu_si128((const __m128i *)cvt_to_x01);
+   __m128i lookup = _mm_load_si128((const __m128i *)cvt_to_x01);
 
-   int pos = 0;
-   for (; pos + 15 < size; pos += 16) {
+   for (int pos = 0; pos < size; pos += 16) {
       __m128i in = _mm_loadu_si128((const __m128i *)(input + pos));
       __m128i out = _mm_shuffle_epi8(lookup, in);
-      _mm_storeu_si128((__m128i *)(result + pos), out);
+      _mm_store_si128((__m128i *)(result + pos), out);
    }
-
-   for (; pos < size; pos++)
-      result[pos] = cvt_to_x01[input[pos]];
 
    args[0].pointer = result;
    args[1].integer = size - 1;
@@ -236,7 +302,7 @@ static void std_to_x01(jit_func_t *func, jit_anchor_t *anchor,
    const int size = args[3].integer ^ (args[3].integer >> 63);
    const uint8_t *input = args[1].pointer;
 
-   uint8_t *result = __tlab_alloc(tlab, size);
+   uint8_t *result = __tlab_alloc(tlab, size, 8);
 
    for (int i = 0; i < size; i++)
       result[i] = cvt_to_x01[input[i]];
@@ -274,7 +340,7 @@ static inline uint8_t *__to_01(tlab_t *tlab, const uint8_t *input,
    if (__all_01(input, size))
       return (uint8_t *)input;
    else {
-      uint8_t *result = __tlab_alloc(tlab, size);
+      uint8_t *result = __tlab_alloc(tlab, size, 8);
 
       bool bad = false;
       for (int i = 0; i < size; i++) {
@@ -325,7 +391,7 @@ static inline uint8_t *__resize_unsigned(tlab_t *tlab, const void *input,
    else if (size >= newsize)
       return (uint8_t *)input + size - newsize;
    else {
-      uint8_t *result = __tlab_alloc(tlab, newsize);
+      uint8_t *result = __tlab_alloc(tlab, newsize, 8);
 
       const int pad = newsize - size;
       memset(result, _0, pad);
@@ -344,7 +410,7 @@ static inline uint8_t *__resize_signed(tlab_t *tlab, const void *input,
    else if (size == newsize)
       return (uint8_t *)input;
    else if (size == 0) {
-      uint8_t *result = __tlab_alloc(tlab, newsize);
+      uint8_t *result = __tlab_alloc(tlab, newsize, 8);
       memset(result, _0, newsize);
       return result;
    }
@@ -352,7 +418,7 @@ static inline uint8_t *__resize_signed(tlab_t *tlab, const void *input,
       const int bound = MIN(size, newsize) - 1;
       assert(bound >= 0);
 
-      uint8_t *result = __tlab_alloc(tlab, newsize);
+      uint8_t *result = __tlab_alloc(tlab, newsize, 8);
       memset(result, *(uint8_t *)input, newsize - bound);
       memcpy(result + newsize - bound, input + size - bound, bound);
 
@@ -436,7 +502,7 @@ static inline uint8_t *__to_unsigned(jit_func_t *func, jit_anchor_t *anchor,
                                      tlab_t *tlab, int64_t arg, int size)
 {
    const int roundup = (size + 7) & ~7;
-   uint8_t *result = __tlab_alloc(tlab, roundup);
+   uint8_t *result = __tlab_alloc(tlab, roundup, 8);
 
    int last = 0;
    for (int pos = roundup - 8; pos >= 0; pos -= 8, arg >>= 8)
@@ -476,7 +542,7 @@ static void ieee_plus_unsigned(jit_func_t *func, jit_anchor_t *anchor,
       else if (right[0] == _X)
          args[0].pointer = right;
       else {
-         uint8_t *result = __tlab_alloc(tlab, size);
+         uint8_t *result = __tlab_alloc(tlab, size, 8);
          __ieee_packed_add(left, right, size, 0, result);
          args[0].pointer = result;
       }
@@ -561,7 +627,7 @@ static void ieee_plus_signed(jit_func_t *func, jit_anchor_t *anchor,
       else if (right[0] == _X)
          args[0].pointer = right;
       else {
-         uint8_t *result = __tlab_alloc(tlab, size);
+         uint8_t *result = __tlab_alloc(tlab, size, 8);
          __ieee_packed_add(left, right, size, 0, result);
          args[0].pointer = result;
       }
@@ -598,7 +664,7 @@ static void ieee_minus_unsigned(jit_func_t *func, jit_anchor_t *anchor,
       else if (right[0] == _X)
          args[0].pointer = right;
       else {
-         uint8_t *result = __tlab_alloc(tlab, size);
+         uint8_t *result = __tlab_alloc(tlab, size, 8);
          __invert_bits(right, size, result);
          __ieee_packed_add(left, result, size, 1, result);
          args[0].pointer = result;
@@ -636,7 +702,7 @@ static void ieee_minus_signed(jit_func_t *func, jit_anchor_t *anchor,
       else if (right[0] == _X)
          args[0].pointer = right;
       else {
-         uint8_t *result = __tlab_alloc(tlab, size);
+         uint8_t *result = __tlab_alloc(tlab, size, 8);
          __invert_bits(right, size, result);
          __ieee_packed_add(left, result, size, 1, result);
          args[0].pointer = result;
@@ -663,7 +729,7 @@ static void ieee_mul_unsigned(jit_func_t *func, jit_anchor_t *anchor,
       args[2].integer = -1;
    }
    else {
-      uint8_t *result = __tlab_alloc(tlab, size);
+      uint8_t *result = __tlab_alloc(tlab, size, 8);
       const uint32_t mark = __tlab_mark(tlab);
 
       left = __to_01(tlab, left, lsize, _X);
@@ -711,7 +777,7 @@ static void ieee_mul_signed(jit_func_t *func, jit_anchor_t *anchor,
       args[2].integer = -1;
    }
    else {
-      uint8_t *result = __tlab_alloc(tlab, size);
+      uint8_t *result = __tlab_alloc(tlab, size, 8);
       const uint32_t mark = __tlab_mark(tlab);
 
       left = __to_01(tlab, left, lsize, _X);
@@ -746,11 +812,13 @@ static void ieee_mul_signed(jit_func_t *func, jit_anchor_t *anchor,
    }
 }
 
-static void ieee_and_vector(jit_func_t *func, jit_anchor_t *anchor,
-                            jit_scalar_t *args, tlab_t *tlab)
+#ifdef HAVE_SSE41
+__attribute__((target("sse4.1")))
+static void ieee_and_vector_sse41(jit_func_t *func, jit_anchor_t *anchor,
+                                  jit_scalar_t *args, tlab_t *tlab)
 {
-   const int lsize = args[3].integer ^ (args[3].integer >> 63);
-   const int rsize = args[6].integer ^ (args[6].integer >> 63);
+   const int lsize = ffi_array_length(args[3].integer);
+   const int rsize = ffi_array_length(args[6].integer);
    uint8_t *left = args[1].pointer;
    uint8_t *right = args[4].pointer;
 
@@ -758,30 +826,80 @@ static void ieee_and_vector(jit_func_t *func, jit_anchor_t *anchor,
       __ieee_failure(func, anchor, "STD_LOGIC_1164.\"and\": arguments of "
                      "overloaded 'and' operator are not of the same length");
    else {
-      uint8_t *result = __tlab_alloc(tlab, lsize);
+      uint8_t *result = __tlab_alloc(tlab, ALIGN_UP(lsize, 16), 16);
 
-      int pos = 0;
-      for (; pos + 7 < lsize; pos += 8) {
-         const uint64_t l64 = unaligned_load(left + pos, uint64_t);
-         const uint64_t r64 = unaligned_load(right + pos, uint64_t);
-         if (!IS_01(l64) || !IS_01(r64))
-            goto slow_path;
+      __m128i left_tbl  = _mm_load_si128((const __m128i *)compress_left);
+      __m128i right_tbl = _mm_load_si128((const __m128i *)compress_right);
+      __m128i and_tbl   = _mm_load_si128((const __m128i *)small_and_table);
 
-         const uint64_t or = (l64 & r64) | UINT64_C(0x0202020202020202);
-         memcpy(result + pos, &or, sizeof(or));
+      for (int pos = 0; pos < lsize; pos += 16) {
+         __m128i left1  = _mm_loadu_si128((const __m128i *)(left + pos));
+         __m128i right1 = _mm_loadu_si128((const __m128i *)(right + pos));
+         __m128i left2  = _mm_shuffle_epi8(left_tbl, left1);
+         __m128i right2 = _mm_shuffle_epi8(right_tbl, right1);
+         __m128i comb   = _mm_or_si128(left2, right2);
+         __m128i and    = _mm_shuffle_epi8(and_tbl, comb);
+         _mm_store_si128((__m128i *)(result + pos), and);
       }
 
-      for (; pos < lsize; pos++) {
-         const uint8_t l8 = left[pos];
-         const uint8_t r8 = right[pos];
-         if (!IS_01(l8) || !IS_01(r8))
-            goto slow_path;
+      args[0].pointer = result;
+      args[1].integer = 1;
+      args[2].integer = lsize;
+   }
+}
+#endif
 
-         result[pos] = (l8 & r8) | 0x02;
+#ifdef HAVE_NEON
+static void ieee_and_vector_neon(jit_func_t *func, jit_anchor_t *anchor,
+                                 jit_scalar_t *args, tlab_t *tlab)
+{
+   const int lsize = ffi_array_length(args[3].integer);
+   const int rsize = ffi_array_length(args[6].integer);
+   uint8_t *left = args[1].pointer;
+   uint8_t *right = args[4].pointer;
+
+   if (unlikely(lsize != rsize))
+      __ieee_failure(func, anchor, "STD_LOGIC_1164.\"and\": arguments of "
+                     "overloaded 'and' operator are not of the same length");
+   else {
+      uint8_t *result = __tlab_alloc(tlab, ALIGN_UP(lsize, 16), 16);
+
+      uint8x16_t left_tbl = vld1q_u8(compress_left);
+      uint8x16_t right_tbl = vld1q_u8(compress_right);
+      uint8x16_t and_tbl = vld1q_u8((const uint8_t *)small_and_table);
+
+      for (int pos = 0; pos < lsize; pos += 16) {
+         uint8x16_t left1  = vld1q_u8(left + pos);
+         uint8x16_t right1 = vld1q_u8(right + pos);
+         uint8x16_t left2  = vqtbl1q_u8(left_tbl, left1);
+         uint8x16_t right2 = vqtbl1q_u8(right_tbl, right1);
+         uint8x16_t comb   = vorrq_u8(left2, right2);
+         uint8x16_t and    = vqtbl1q_u8(and_tbl, comb);
+         vst1q_u8(result + pos, and);
       }
 
-   slow_path:
-      for (; pos < lsize; pos++)
+      args[0].pointer = result;
+      args[1].integer = 1;
+      args[2].integer = lsize;
+   }
+}
+#endif
+
+static void ieee_and_vector(jit_func_t *func, jit_anchor_t *anchor,
+                            jit_scalar_t *args, tlab_t *tlab)
+{
+   const int lsize = ffi_array_length(args[3].integer);
+   const int rsize = ffi_array_length(args[6].integer);
+   uint8_t *left = args[1].pointer;
+   uint8_t *right = args[4].pointer;
+
+   if (unlikely(lsize != rsize))
+      __ieee_failure(func, anchor, "STD_LOGIC_1164.\"and\": arguments of "
+                     "overloaded 'and' operator are not of the same length");
+   else {
+      uint8_t *result = __tlab_alloc(tlab, lsize, 8);
+
+      for (int pos = 0; pos < lsize; pos++)
          result[pos] = and_table[left[pos]][right[pos]];
 
       args[0].pointer = result;
@@ -790,11 +908,13 @@ static void ieee_and_vector(jit_func_t *func, jit_anchor_t *anchor,
    }
 }
 
-static void ieee_or_vector(jit_func_t *func, jit_anchor_t *anchor,
-                           jit_scalar_t *args, tlab_t *tlab)
+#ifdef HAVE_SSE41
+__attribute__((target("sse4.1")))
+static void ieee_or_vector_sse41(jit_func_t *func, jit_anchor_t *anchor,
+                                 jit_scalar_t *args, tlab_t *tlab)
 {
-   const int lsize = args[3].integer ^ (args[3].integer >> 63);
-   const int rsize = args[6].integer ^ (args[6].integer >> 63);
+   const int lsize = ffi_array_length(args[3].integer);
+   const int rsize = ffi_array_length(args[6].integer);
    uint8_t *left = args[1].pointer;
    uint8_t *right = args[4].pointer;
 
@@ -802,30 +922,80 @@ static void ieee_or_vector(jit_func_t *func, jit_anchor_t *anchor,
       __ieee_failure(func, anchor, "STD_LOGIC_1164.\"or\": arguments of "
                      "overloaded 'or' operator are not of the same length");
    else {
-      uint8_t *result = __tlab_alloc(tlab, lsize);
+      uint8_t *result = __tlab_alloc(tlab, ALIGN_UP(lsize, 16), 16);
 
-      int pos = 0;
-      for (; pos + 7 < lsize; pos += 8) {
-         const uint64_t l64 = unaligned_load(left + pos, uint64_t);
-         const uint64_t r64 = unaligned_load(right + pos, uint64_t);
-         if (!IS_01(l64) || !IS_01(r64))
-            goto slow_path;
+      __m128i left_tbl  = _mm_load_si128((const __m128i *)compress_left);
+      __m128i right_tbl = _mm_load_si128((const __m128i *)compress_right);
+      __m128i or_tbl    = _mm_load_si128((const __m128i *)small_or_table);
 
-         const uint64_t or = (l64 | r64) | UINT64_C(0x0202020202020202);
-         memcpy(result + pos, &or, sizeof(or));
+      for (int pos = 0; pos < lsize; pos += 16) {
+         __m128i left1  = _mm_loadu_si128((const __m128i *)(left + pos));
+         __m128i right1 = _mm_loadu_si128((const __m128i *)(right + pos));
+         __m128i left2  = _mm_shuffle_epi8(left_tbl, left1);
+         __m128i right2 = _mm_shuffle_epi8(right_tbl, right1);
+         __m128i comb   = _mm_or_si128(left2, right2);
+         __m128i orr    = _mm_shuffle_epi8(or_tbl, comb);
+         _mm_store_si128((__m128i *)(result + pos), orr);
       }
 
-      for (; pos < lsize; pos++) {
-         const uint8_t l8 = left[pos];
-         const uint8_t r8 = right[pos];
-         if (!IS_01(l8) || !IS_01(r8))
-            goto slow_path;
+      args[0].pointer = result;
+      args[1].integer = 1;
+      args[2].integer = lsize;
+   }
+}
+#endif
 
-         result[pos] = (l8 | r8) | 0x02;
+#ifdef HAVE_NEON
+static void ieee_or_vector_neon(jit_func_t *func, jit_anchor_t *anchor,
+                                jit_scalar_t *args, tlab_t *tlab)
+{
+   const int lsize = ffi_array_length(args[3].integer);
+   const int rsize = ffi_array_length(args[6].integer);
+   uint8_t *left = args[1].pointer;
+   uint8_t *right = args[4].pointer;
+
+   if (unlikely(lsize != rsize))
+      __ieee_failure(func, anchor, "STD_LOGIC_1164.\"or\": arguments of "
+                     "overloaded 'or' operator are not of the same length");
+   else {
+      uint8_t *result = __tlab_alloc(tlab, ALIGN_UP(lsize, 16), 16);
+
+      uint8x16_t left_tbl = vld1q_u8(compress_left);
+      uint8x16_t right_tbl = vld1q_u8(compress_right);
+      uint8x16_t or_tbl = vld1q_u8((const uint8_t *)small_or_table);
+
+      for (int pos = 0; pos < lsize; pos += 16) {
+         uint8x16_t left1  = vld1q_u8(left + pos);
+         uint8x16_t right1 = vld1q_u8(right + pos);
+         uint8x16_t left2  = vqtbl1q_u8(left_tbl, left1);
+         uint8x16_t right2 = vqtbl1q_u8(right_tbl, right1);
+         uint8x16_t comb   = vorrq_u8(left2, right2);
+         uint8x16_t orr    = vqtbl1q_u8(or_tbl, comb);
+         vst1q_u8(result + pos, orr);
       }
 
-   slow_path:
-      for (; pos < lsize; pos++)
+      args[0].pointer = result;
+      args[1].integer = 1;
+      args[2].integer = lsize;
+   }
+}
+#endif
+
+static void ieee_or_vector(jit_func_t *func, jit_anchor_t *anchor,
+                                jit_scalar_t *args, tlab_t *tlab)
+{
+   const int lsize = ffi_array_length(args[3].integer);
+   const int rsize = ffi_array_length(args[6].integer);
+   uint8_t *left = args[1].pointer;
+   uint8_t *right = args[4].pointer;
+
+   if (unlikely(lsize != rsize))
+      __ieee_failure(func, anchor, "STD_LOGIC_1164.\"or\": arguments of "
+                     "overloaded 'or' operator are not of the same length");
+   else {
+      uint8_t *result = __tlab_alloc(tlab, ALIGN_UP(lsize, 16), 16);
+
+      for (int pos = 0; pos < lsize; pos++)
          result[pos] = or_table[left[pos]][right[pos]];
 
       args[0].pointer = result;
@@ -834,11 +1004,13 @@ static void ieee_or_vector(jit_func_t *func, jit_anchor_t *anchor,
    }
 }
 
-static void std_xor_vector(jit_func_t *func, jit_anchor_t *anchor,
-                           jit_scalar_t *args, tlab_t *tlab)
+#ifdef HAVE_SSE41
+__attribute__((target("sse4.1")))
+static void ieee_xor_vector_sse41(jit_func_t *func, jit_anchor_t *anchor,
+                                  jit_scalar_t *args, tlab_t *tlab)
 {
-   const int lsize = args[3].integer ^ (args[3].integer >> 63);
-   const int rsize = args[6].integer ^ (args[6].integer >> 63);
+   const int lsize = ffi_array_length(args[3].integer);
+   const int rsize = ffi_array_length(args[6].integer);
    uint8_t *left = args[1].pointer;
    uint8_t *right = args[4].pointer;
 
@@ -846,30 +1018,80 @@ static void std_xor_vector(jit_func_t *func, jit_anchor_t *anchor,
       __ieee_failure(func, anchor, "STD_LOGIC_1164.\"xor\": arguments of "
                      "overloaded 'xor' operator are not of the same length");
    else {
-      uint8_t *result = __tlab_alloc(tlab, lsize);
+      uint8_t *result = __tlab_alloc(tlab, ALIGN_UP(lsize, 16), 16);
 
-      int pos = 0;
-      for (; pos + 7 < lsize; pos += 8) {
-         const uint64_t l64 = unaligned_load(left + pos, uint64_t);
-         const uint64_t r64 = unaligned_load(right + pos, uint64_t);
-         if (!IS_01(l64) || !IS_01(r64))
-            goto slow_path;
+      __m128i left_tbl  = _mm_load_si128((const __m128i *)compress_left);
+      __m128i right_tbl = _mm_load_si128((const __m128i *)compress_right);
+      __m128i xor_tbl   = _mm_load_si128((const __m128i *)small_xor_table);
 
-         const uint64_t xor = (l64 ^ r64) | UINT64_C(0x0202020202020202);
-         memcpy(result + pos, &xor, sizeof(xor));
+      for (int pos = 0; pos < lsize; pos += 16) {
+         __m128i left1  = _mm_loadu_si128((const __m128i *)(left + pos));
+         __m128i right1 = _mm_loadu_si128((const __m128i *)(right + pos));
+         __m128i left2  = _mm_shuffle_epi8(left_tbl, left1);
+         __m128i right2 = _mm_shuffle_epi8(right_tbl, right1);
+         __m128i comb   = _mm_or_si128(left2, right2);
+         __m128i xor    = _mm_shuffle_epi8(xor_tbl, comb);
+         _mm_store_si128((__m128i *)(result + pos), xor);
       }
 
-      for (; pos < lsize; pos++) {
-         const uint8_t l8 = left[pos];
-         const uint8_t r8 = right[pos];
-         if (!IS_01(l8) || !IS_01(r8))
-            goto slow_path;
+      args[0].pointer = result;
+      args[1].integer = 1;
+      args[2].integer = lsize;
+   }
+}
+#endif
 
-         result[pos] = (l8 ^ r8) | 0x02;
+#ifdef HAVE_NEON
+static void ieee_xor_vector_neon(jit_func_t *func, jit_anchor_t *anchor,
+                                 jit_scalar_t *args, tlab_t *tlab)
+{
+   const int lsize = ffi_array_length(args[3].integer);
+   const int rsize = ffi_array_length(args[6].integer);
+   uint8_t *left = args[1].pointer;
+   uint8_t *right = args[4].pointer;
+
+   if (unlikely(lsize != rsize))
+      __ieee_failure(func, anchor, "STD_LOGIC_1164.\"xor\": arguments of "
+                     "overloaded 'xor' operator are not of the same length");
+   else {
+      uint8_t *result = __tlab_alloc(tlab, ALIGN_UP(lsize, 16), 16);
+
+      uint8x16_t left_tbl = vld1q_u8(compress_left);
+      uint8x16_t right_tbl = vld1q_u8(compress_right);
+      uint8x16_t xor_tbl = vld1q_u8((const uint8_t *)small_xor_table);
+
+      for (int pos = 0; pos < lsize; pos += 16) {
+         uint8x16_t left1  = vld1q_u8(left + pos);
+         uint8x16_t right1 = vld1q_u8(right + pos);
+         uint8x16_t left2  = vqtbl1q_u8(left_tbl, left1);
+         uint8x16_t right2 = vqtbl1q_u8(right_tbl, right1);
+         uint8x16_t comb   = vorrq_u8(left2, right2);
+         uint8x16_t xor    = vqtbl1q_u8(xor_tbl, comb);
+         vst1q_u8(result + pos, xor);
       }
 
-   slow_path:
-      for (; pos < lsize; pos++)
+      args[0].pointer = result;
+      args[1].integer = 1;
+      args[2].integer = lsize;
+   }
+}
+#endif
+
+static void std_xor_vector(jit_func_t *func, jit_anchor_t *anchor,
+                           jit_scalar_t *args, tlab_t *tlab)
+{
+   const int lsize = ffi_array_length(args[3].integer);
+   const int rsize = ffi_array_length(args[6].integer);
+   uint8_t *left = args[1].pointer;
+   uint8_t *right = args[4].pointer;
+
+   if (unlikely(lsize != rsize))
+      __ieee_failure(func, anchor, "STD_LOGIC_1164.\"xor\": arguments of "
+                     "overloaded 'xor' operator are not of the same length");
+   else {
+      uint8_t *result = __tlab_alloc(tlab, lsize, 8);
+
+      for (int pos = 0; pos < lsize; pos++)
          result[pos] = xor_table[left[pos]][right[pos]];
 
       args[0].pointer = result;
@@ -909,7 +1131,7 @@ static void ieee_to_signed(jit_func_t *func, jit_anchor_t *anchor,
    }
    else {
       const int roundup = (size + 7) & ~7;
-      uint8_t *result = __tlab_alloc(tlab, roundup), last = 0;
+      uint8_t *result = __tlab_alloc(tlab, roundup, 8), last = 0;
       for (int pos = roundup - 8; pos >= 0; pos -= 8, arg >>= 8)
          __spread_bits(result + pos, (last = (arg & 0xff)));
 
@@ -977,7 +1199,7 @@ static inline const uint8_t *__conv_unsigned(jit_func_t *func,
 
    const int maxsize = MAX(oldsize, size);
    const int pad = size - oldsize;
-   uint8_t *result = __tlab_alloc(tlab, maxsize);
+   uint8_t *result = __tlab_alloc(tlab, maxsize, 8);
 
    __make_binary(func, anchor, tlab, input, result + pad, oldsize);
 
@@ -1003,7 +1225,7 @@ static inline const uint8_t *__conv_signed(jit_func_t *func,
 
    const int maxsize = MAX(oldsize, size);
    const int pad = size - oldsize;
-   uint8_t *result = __tlab_alloc(tlab, maxsize);
+   uint8_t *result = __tlab_alloc(tlab, maxsize, 8);
 
    __make_binary(func, anchor, tlab, input, result + pad, oldsize);
 
@@ -1024,7 +1246,7 @@ static void synopsys_plus_unsigned(jit_func_t *func, jit_anchor_t *anchor,
    const uint8_t *right = args[4].pointer;
 
    const int length = MAX(lsize, rsize);
-   uint8_t *result = __tlab_alloc(tlab, length);
+   uint8_t *result = __tlab_alloc(tlab, length, 8);
 
    if (unlikely(length == 0))
       __synopsys_failure(func, anchor, args, tlab);
@@ -1051,7 +1273,7 @@ static void synopsys_plus_signed(jit_func_t *func, jit_anchor_t *anchor,
    const uint8_t *right = args[4].pointer;
 
    const int length = MAX(lsize, rsize);
-   uint8_t *result = __tlab_alloc(tlab, length);
+   uint8_t *result = __tlab_alloc(tlab, length, 8);
 
    if (unlikely(length == 0))
       __synopsys_failure(func, anchor, args, tlab);
@@ -1103,7 +1325,7 @@ static void synopsys_minus_unsigned(jit_func_t *func, jit_anchor_t *anchor,
    const uint8_t *right = args[4].pointer;
 
    const int length = MAX(lsize, rsize);
-   uint8_t *result = __tlab_alloc(tlab, length);
+   uint8_t *result = __tlab_alloc(tlab, length, 8);
 
    if (unlikely(length == 0))
       __synopsys_failure(func, anchor, args, tlab);
@@ -1138,13 +1360,13 @@ static void synopsys_mul_unsigned(jit_func_t *func, jit_anchor_t *anchor,
    right = __conv_unsigned(func, anchor, tlab, right, rsize, rsize);
 
    const int length = lsize + rsize;
-   uint8_t *pa = __tlab_alloc(tlab, length);
+   uint8_t *pa = __tlab_alloc(tlab, length, 8);
 
    if (unlikely(left[0] == _X || right[0] == _X))
       memset(pa, _X, length);
    else {
       const uint32_t mark = __tlab_mark(tlab);
-      uint8_t *ba = __tlab_alloc(tlab, length);
+      uint8_t *ba = __tlab_alloc(tlab, length, 8);
 
       memset(pa, _0, length);
       memset(ba, _0, length - rsize);
@@ -1184,13 +1406,13 @@ static void synopsys_mul_signed(jit_func_t *func, jit_anchor_t *anchor,
    right = __conv_signed(func, anchor, tlab, right, rsize, rsize);
 
    const int length = lsize + rsize;
-   uint8_t *pa = __tlab_alloc(tlab, length);
+   uint8_t *pa = __tlab_alloc(tlab, length, 8);
 
    if (unlikely(left[0] == _X || right[0] == _X))
       memset(pa, _X, length);
    else {
       const uint32_t mark = __tlab_mark(tlab);
-      uint8_t *ba = __tlab_alloc(tlab, length);
+      uint8_t *ba = __tlab_alloc(tlab, length, 8);
 
       memset(pa, _0, length);
       memset(ba, right[0], length - rsize);
@@ -1450,10 +1672,34 @@ static jit_intrinsic_t intrinsic_list[] = {
    { NS "RESIZE(" UU "N)" UU, ieee_resize_unsigned },
    { NS "RESIZE(" S "N)" S, ieee_resize_signed },
    { NS "RESIZE(" US "N)" US, ieee_resize_signed },
+#ifdef HAVE_SSE41
+   { SL "\"and\"(VV)V", ieee_and_vector_sse41, CPU_SSE41 },
+   { SL "\"and\"(YY)Y", ieee_and_vector_sse41, CPU_SSE41 },
+#endif
+#ifdef HAVE_NEON
+   { SL "\"and\"(VV)V", ieee_and_vector_neon, CPU_NEON },
+   { SL "\"and\"(YY)Y", ieee_and_vector_neon, CPU_NEON },
+#endif
    { SL "\"and\"(VV)V", ieee_and_vector },
    { SL "\"and\"(YY)Y", ieee_and_vector },
+#ifdef HAVE_SSE41
+   { SL "\"or\"(VV)V", ieee_or_vector_sse41, CPU_SSE41 },
+   { SL "\"or\"(YY)Y", ieee_or_vector_sse41, CPU_SSE41 },
+#endif
+#ifdef HAVE_NEON
+   { SL "\"or\"(VV)V", ieee_or_vector_neon, CPU_NEON },
+   { SL "\"or\"(YY)Y", ieee_or_vector_neon, CPU_NEON },
+#endif
    { SL "\"or\"(VV)V", ieee_or_vector },
    { SL "\"or\"(YY)Y", ieee_or_vector },
+#ifdef HAVE_SSE41
+   { SL "\"xor\"(VV)V", ieee_xor_vector_sse41, CPU_SSE41 },
+   { SL "\"xor\"(YY)Y", ieee_xor_vector_sse41, CPU_SSE41 },
+#endif
+#ifdef HAVE_NEON
+   { SL "\"neon\"(VV)V", ieee_xor_vector_neon, CPU_NEON },
+   { SL "\"neon\"(YY)Y", ieee_xor_vector_neon, CPU_NEON },
+#endif
    { SL "\"xor\"(VV)V", std_xor_vector },
    { SL "\"xor\"(YY)Y", std_xor_vector },
    { NS "TO_UNSIGNED(NN)" U, ieee_to_unsigned },
@@ -1520,7 +1766,12 @@ jit_entry_fn_t jit_bind_intrinsic(ident_t name)
 {
    INIT_ONCE({
          const bool want_intrinsics = !!opt_get_int(OPT_JIT_INTRINSICS);
+
+#if __SANITIZE_ADDRESS__
+         const bool want_vector = false;   // Reads past end of input (benign)
+#else
          const bool want_vector = !!opt_get_int(OPT_VECTOR_INTRINSICS);
+#endif
 
          cpu_feature_t mask = 0;
 #if HAVE_AVX2
@@ -1530,6 +1781,10 @@ jit_entry_fn_t jit_bind_intrinsic(ident_t name)
 #ifdef HAVE_SSE41
          if (want_vector && __builtin_cpu_supports("sse4.1"))
             mask |= CPU_SSE41;
+#endif
+#ifdef HAVE_NEON
+         if (want_vector)
+            mask |= CPU_NEON;
 #endif
 
          for (jit_intrinsic_t *it = intrinsic_list; it->name; it++) {
