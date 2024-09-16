@@ -804,6 +804,25 @@ START_TEST(test_issue966)
 }
 END_TEST
 
+START_TEST(test_issue975)
+{
+   input_from_file(TESTDIR "/bounds/issue975.vhd");
+
+   const error_t expect[] = {
+      {  8, "left index 0 violates constraint POSITIVE" },
+      {  9, "right index 0 violates constraint POSITIVE" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_check_and_simplify(T_ENTITY, T_ARCH);
+
+   fail_unless(parse() == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_bounds_tests(void)
 {
    Suite *s = suite_create("bounds");
@@ -846,6 +865,7 @@ Suite *get_bounds_tests(void)
    tcase_add_test(tc_core, test_subtype);
    tcase_add_test(tc_core, test_issue951);
    tcase_add_test(tc_core, test_issue966);
+   tcase_add_test(tc_core, test_issue975);
    suite_add_tcase(s, tc_core);
 
    return s;

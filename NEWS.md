@@ -43,7 +43,7 @@
 - Limited maximum instantiation depth to prevent crashes due to stack
   overflow when elaborating a design that has unbounded recursive entity
   instantiation (#969).
-- Several other minor bugs were resolved (#961, #962, #971).
+- Several other minor bugs were resolved (#961, #962, #971, #975).
 
 ## Version 1.13.3 - 2024-08-24
 - Type checking was not performed correctly for conversion function

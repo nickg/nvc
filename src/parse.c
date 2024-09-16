@@ -6374,12 +6374,14 @@ static type_t p_constrained_array_definition(type_t base, tree_t head)
 
    mangle_type(nametab, sub);
 
-   type_t index_type = std_type(NULL, STD_INTEGER);
    do {
       tree_t r = p_discrete_range(head);
-      solve_types(nametab, r, index_type);
+      solve_types(nametab, r, NULL);
+      convert_universal_bounds(r);
+
       tree_add_range(constraint, r);
       type_add_index(base, tree_type(r));
+
       head = NULL;
    } while (optional(tCOMMA));
 

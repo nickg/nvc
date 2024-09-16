@@ -1416,7 +1416,7 @@ START_TEST(test_array)
 {
    tree_t p, d, a, g, s, e, r;
    type_t t, i, b;
-   tree_t x;
+   tree_t x, left, right;
 
    input_from_file(TESTDIR "/parse/array.vhd");
 
@@ -1478,11 +1478,19 @@ START_TEST(test_array)
    fail_unless(tree_ranges(type_constraint(t, 0)) == 2);
    fail_unless(type_indexes(type_base(t)) == 2);
    r = tree_range(type_constraint(t, 0), 0);
-   fail_unless(tree_ival(tree_left(r)) == 1);
-   fail_unless(tree_ival(tree_right(r)) == 3);
+   left = tree_left(r);
+   fail_unless(tree_kind(left) == T_TYPE_CONV);
+   fail_unless(tree_ival(tree_value(left)) == 1);
+   right = tree_right(r);
+   fail_unless(tree_kind(right) == T_TYPE_CONV);
+   fail_unless(tree_ival(tree_value(right)) == 3);
    r = tree_range(type_constraint(t, 0), 1);
-   fail_unless(tree_ival(tree_left(r)) == 4);
-   fail_unless(tree_ival(tree_right(r)) == 6);
+   left = tree_left(r);
+   fail_unless(tree_kind(left) == T_TYPE_CONV);
+   fail_unless(tree_ival(tree_value(left)) == 4);
+   right = tree_right(r);
+   fail_unless(tree_kind(right) == T_TYPE_CONV);
+   fail_unless(tree_ival(tree_value(right)) == 6);
 
    e = parse();
    fail_if(e == NULL);

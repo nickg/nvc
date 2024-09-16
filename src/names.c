@@ -4769,6 +4769,8 @@ static type_t solve_range(nametab_t *tab, tree_t r)
          tree_t left = tree_left(r);
          tree_t right = tree_right(r);
 
+         const bool has_context = tab->top_type_set->members.count > 0;
+
          type_t ltype;
          if (is_unambiguous(left))
             ltype = _solve_types(tab, left);
@@ -4792,8 +4794,9 @@ static type_t solve_range(nametab_t *tab, tree_t r)
             rtype = _solve_types(tab, right);
          }
 
-         tree_set_type(r, ltype);
-         return ltype;
+         type_t result = has_context ? ltype : type_base_recur(ltype);
+         tree_set_type(r, result);
+         return result;
       }
    default:
       fatal_trace("invalid range subkind");

@@ -910,9 +910,7 @@ START_TEST(test_layout)
 
    input_from_file(TESTDIR "/jit/layout.vhd");
 
-   tree_t p = parse();
-   fail_if(p == NULL);
-   fail_unless(tree_kind(p) == T_PACKAGE);
+   tree_t p = parse_check_and_simplify(T_PACKAGE);
 
    freeze_global_arena();
    fail_unless(parse() == NULL);
