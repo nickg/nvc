@@ -2559,6 +2559,28 @@ static void package_body_deferred_instantiation(tree_t pack, tree_t container)
    }
 }
 
+static tree_t find_generic_subprogram_body(tree_t inst, tree_t decl)
+{
+   tree_t body = find_subprogram_body(decl);
+
+   if (body == NULL) {
+      tree_t du = find_enclosing(nametab, S_DESIGN_UNIT);
+      if (tree_kind(du) != T_PACKAGE)
+         parse_error(CURRENT_LOC, "subprogram %s cannot be instantiated "
+                     "until its body has been analysed",
+                     istr(tree_ident(decl)));
+      else {
+         // Will be instantiated at end of package body
+         tree_set_ref(inst, decl);
+         tree_set_global_flags(inst, TREE_GF_DEFERRED_INST);
+      }
+   }
+   else
+      tree_set_ref(inst, body);
+
+   return body;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Parser rules
 
@@ -3216,9 +3238,28 @@ static void p_actual_parameter_part(tree_t call)
    p_association_list(call, call, F_SUBPROGRAM);
 }
 
+static void p_parameter_map_aspect(tree_t call)
+{
+   // [ parameter map ] ( parameter_association_list )
+
+   BEGIN("actual parameter part");
+
+   consume(tPARAMETER);
+   consume(tMAP);
+
+   require_std(STD_19, "parameter map aspect");
+
+   consume(tLPAREN);
+
+   p_association_list(call, call, F_SUBPROGRAM);
+
+   consume(tRPAREN);
+}
+
 static tree_t p_function_call(ident_t id, tree_t prefix)
 {
    // name [ ( actual_parameter_part ) ]
+   // 2019: name [ generic_map_aspect] [ parameter_map_aspect ]
 
    EXTEND("function call");
 
@@ -3233,7 +3274,47 @@ static tree_t p_function_call(ident_t id, tree_t prefix)
       tree_set_ident(call, id);
    }
 
-   if (optional(tLPAREN)) {
+   if (peek() == tGENERIC) {
+      tree_t inst = tree_new(T_FUNC_INST);
+      tree_set_ident(inst, ident_prefix(id, ident_uniq("inst"), '$'));
+
+      tree_t decl = resolve_uninstantiated_subprogram(nametab, CURRENT_LOC,
+                                                      id, NULL);
+      if (decl != NULL) {
+         tree_t body = find_generic_subprogram_body(inst, decl);
+         instantiate_subprogram(inst, decl, body);
+      }
+      else {
+         // Create a dummy subprogram type to avoid later errors
+         type_t type = type_new(T_SIGNATURE);
+         type_set_ident(type, id);
+         type_set_result(type, type_new(T_NONE));
+
+         tree_set_type(inst, type);
+      }
+
+      p_generic_map_aspect(inst, inst);
+
+      require_std(STD_19, "generic map on function call");
+
+      tree_set_loc(inst, CURRENT_LOC);
+      sem_check(inst, nametab);
+
+      hash_t *map = get_generic_map(nametab);
+      if (map != NULL)
+         instance_fixup(inst, map);
+
+      tree_set_ref(call, inst);
+
+      mangle_func(nametab, inst);
+
+      tree_t container = find_enclosing(nametab, S_DECLARATIVE_REGION);
+      tree_add_decl(container, inst);
+   }
+
+   if (peek() == tPARAMETER)
+      p_parameter_map_aspect(call);
+   else if (optional(tLPAREN)) {
       p_actual_parameter_part(call);
       consume(tRPAREN);
    }
@@ -3772,6 +3853,16 @@ static tree_t p_name(name_mask_t stop_mask)
             mask = is_type_attribute(tree_subkind(prefix)) ? N_TYPE : N_OBJECT;
          }
          continue;
+
+      case tPARAMETER:
+      case tGENERIC:
+         if ((mask & stop_mask) || !(mask & N_SUBPROGRAM))
+            return prefix;
+         else {
+            prefix = p_function_call(tree_ident(prefix), NULL);
+            mask = N_OBJECT;
+            continue;
+         }
 
       default:
          return prefix;
@@ -5241,8 +5332,6 @@ static void p_incomplete_type_definition(type_t type)
 
    BEGIN("incomplete type definition");
 
-   require_std(STD_19, "incomplete type definition");
-
    switch (peek()) {
    case tPRIVATE:
       p_private_incomplete_type_definition(type);
@@ -5274,6 +5363,8 @@ static void p_incomplete_type_definition(type_t type)
    default:
       one_of(tPRIVATE, tBOX, tLPAREN, tRANGE, tUNITS, tARRAY, tACCESS, tFILE);
    }
+
+   require_std(STD_19, "incomplete type definition");
 }
 
 static type_t p_anonymous_type_indication(void)
@@ -7101,26 +7192,10 @@ static tree_t p_subprogram_instantiation_declaration(void)
                                                tree_ident(name), constraint);
    }
 
-   tree_t body = NULL;
    if (decl != NULL) {
-      if ((body = find_subprogram_body(decl)) == NULL) {
-         tree_t du = find_enclosing(nametab, S_DESIGN_UNIT);
-         if (tree_kind(du) != T_PACKAGE)
-            parse_error(CURRENT_LOC, "subprogram %s cannot be instantiated "
-                        "until its body has been analysed",
-                        istr(tree_ident(decl)));
-         else {
-            // Will be instantiated at end of package body
-            tree_set_ref(inst, decl);
-            tree_set_global_flags(inst, TREE_GF_DEFERRED_INST);
-         }
-      }
-      else
-         tree_set_ref(inst, body);
-   }
-
-   if (decl != NULL)
+      tree_t body = find_generic_subprogram_body(inst, decl);
       instantiate_subprogram(inst, decl, body);
+   }
    else {
       // Create a dummy subprogram type to avoid later errors
       type_t type = type_new(T_SIGNATURE);
@@ -10187,6 +10262,9 @@ static tree_t p_next_statement(ident_t label)
 static tree_t p_procedure_call_statement(ident_t label, tree_t name)
 {
    // [ label : ] procedure_call ;
+   //
+   // name [ ( actual_parameter_part ) ]
+   // 2019: name [ generic_map_aspect ] [ parameter_map_aspect ]
 
    EXTEND("procedure call statement");
 
@@ -10216,7 +10294,47 @@ static tree_t p_procedure_call_statement(ident_t label, tree_t name)
       return call;
    }
 
-   if (optional(tLPAREN)) {
+   if (peek() == tGENERIC) {
+      ident_t id = tree_ident(name);
+      tree_t inst = tree_new(T_PROC_INST);
+      tree_set_ident(inst, ident_prefix(id, ident_uniq("inst"), '$'));
+
+      tree_t decl = resolve_uninstantiated_subprogram(nametab, CURRENT_LOC,
+                                                      id, NULL);
+      if (decl != NULL) {
+         tree_t body = find_generic_subprogram_body(inst, decl);
+         instantiate_subprogram(inst, decl, body);
+      }
+      else {
+         // Create a dummy subprogram type to avoid later errors
+         type_t type = type_new(T_SIGNATURE);
+         type_set_ident(type, id);
+
+         tree_set_type(inst, type);
+      }
+
+      p_generic_map_aspect(inst, inst);
+
+      require_std(STD_19, "generic map on procedure call");
+
+      tree_set_loc(inst, CURRENT_LOC);
+      sem_check(inst, nametab);
+
+      hash_t *map = get_generic_map(nametab);
+      if (map != NULL)
+         instance_fixup(inst, map);
+
+      tree_set_ref(call, inst);
+
+      mangle_func(nametab, inst);
+
+      tree_t container = find_enclosing(nametab, S_DECLARATIVE_REGION);
+      tree_add_decl(container, inst);
+   }
+
+   if (peek() == tPARAMETER)
+      p_parameter_map_aspect(call);
+   else if (optional(tLPAREN)) {
       p_actual_parameter_part(call);
       consume(tRPAREN);
    }
@@ -10443,6 +10561,8 @@ static tree_t p_sequential_statement(void)
 
    case tSEMI:
    case tLPAREN:
+   case tGENERIC:
+   case tPARAMETER:
       return p_procedure_call_statement(label, name);
 
    default:

@@ -3729,6 +3729,27 @@ START_TEST(test_issue965)
 }
 END_TEST
 
+START_TEST(test_lcs2016_49)
+{
+   set_standard(STD_19);
+
+   input_from_file(TESTDIR "/sem/lcs2016_49.vhd");
+
+   const error_t expect[] = {
+      { 20, "procedure PROC1 not allowed in an expression" },
+      { 21, "type of actual universal_integer does not match formal X "
+        "type BIT" },
+      { 22, "type mark FUNC1 does not denote a type or a subtype" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_ENTITY, T_ARCH);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_sem_tests(void)
 {
    Suite *s = suite_create("sem");
@@ -3900,6 +3921,7 @@ Suite *get_sem_tests(void)
    tcase_add_test(tc_core, test_issue945);
    tcase_add_test(tc_core, test_issue958);
    tcase_add_test(tc_core, test_issue965);
+   tcase_add_test(tc_core, test_lcs2016_49);
    suite_add_tcase(s, tc_core);
 
    return s;

@@ -926,8 +926,17 @@ unsigned dimension_of(type_t type)
    case T_SUBTYPE:
       return dimension_of(type_base(type));
    case T_GENERIC:
-      assert(type_subkind(type) == GTYPE_ARRAY);
-      // Fall-through
+      switch (type_subkind(type)) {
+      case GTYPE_ARRAY:
+         return type_indexes(type);
+      case GTYPE_ACCESS:
+         return dimension_of(type_designated(type));
+      case GTYPE_FILE:
+      case GTYPE_PRIVATE:
+         return 0;
+      default:
+         return 1;
+      }
    case T_ARRAY:
       return type_indexes(type);
    case T_NONE:

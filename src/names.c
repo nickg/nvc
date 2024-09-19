@@ -526,6 +526,8 @@ static tree_t scope_find_enclosing(scope_t *s, scope_kind_t what)
          return s->container;
       else if (what == S_CONCURRENT_BLOCK && is_concurrent_block(s->container))
          return s->container;
+      else if (what == S_DECLARATIVE_REGION)
+         return s->container;
    }
 
    return NULL;
@@ -2074,6 +2076,7 @@ void resolve_resolution(nametab_t *tab, tree_t rname, type_t type)
    }
    else {
       assert(tree_kind(rname) == T_REF);
+      tree_set_ref(rname, NULL);
 
       type_set_push(tab);
       type_set_add(tab, type, NULL);
@@ -2396,9 +2399,8 @@ void mangle_func(nametab_t *tab, tree_t decl)
    tb_append(buf, '.');
    tb_istr(buf, tree_ident(decl));
 
-   const tree_kind_t kind = tree_kind(decl);
-   const bool is_func = kind == T_FUNC_BODY || kind == T_FUNC_DECL
-      || kind == T_FUNC_INST;
+   type_t type = tree_type(decl);
+   const bool is_func = type_has_result(type);
    const int nports = tree_ports(decl);
    if (nports > 0 || is_func)
       tb_append(buf, '(');
@@ -2414,7 +2416,7 @@ void mangle_func(nametab_t *tab, tree_t decl)
       tb_append(buf, ')');
 
    if (is_func)
-      mangle_one_type(buf, type_result(tree_type(decl)));
+      mangle_one_type(buf, type_result(type));
 
    if (tree_flags(decl) & TREE_F_PREDEFINED)
       tb_cat(buf, "$predef");
@@ -2537,6 +2539,14 @@ static void begin_overload_resolution(overload_t *o)
          scope_t *scope = scope_for_type(o->nametab, type);
          o->symbol = symbol_for(scope, o->name);
       }
+   }
+   else if (tree_has_ref(o->tree)) {
+      // Already bound to a particular subprogram
+      tree_t decl = tree_ref(o->tree);
+      if (tree_kind(decl) == T_ALIAS)
+         decl = get_aliased_subprogram(decl);
+
+      overload_add_candidate(o, decl);
    }
    else
       o->symbol = iterate_symbol_for(o->nametab, o->name);

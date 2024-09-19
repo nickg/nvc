@@ -36,6 +36,7 @@ typedef enum {
    S_PROCESS,
    S_PROTECTED,
    S_CONCURRENT_BLOCK,
+   S_DECLARATIVE_REGION,
 } scope_kind_t;
 
 typedef enum {
