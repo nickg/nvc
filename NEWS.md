@@ -45,7 +45,7 @@
   instantiation (#969).
 - Physical subtype ranges and 64-bit integer types are now handled
   correctly by VHPI (#978).
-- Several other minor bugs were resolved (#961, #962, #971, #975).
+- Several other minor bugs were resolved (#961, #962, #971, #975, #979).
 
 ## Version 1.13.3 - 2024-08-24
 - Type checking was not performed correctly for conversion function

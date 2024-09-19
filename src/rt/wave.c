@@ -600,19 +600,17 @@ static void fst_create_array_var(wave_dumper_t *wd, tree_t d, rt_signal_t *s,
 
       const bool is_memory = type_is_array(elem);
 
-      int64_t e_low = 1, e_high = 1;
-      int e_msb = 0, e_lsb = 0;
+      int64_t e_length = 1, e_msb = 0, e_lsb = 0;
       if (is_memory) {
-         tree_t elem_r = range_of(elem, 0);
-         range_bounds(elem_r, &e_low, &e_high);
-
-         e_msb = assume_int(tree_left(elem_r));
-         e_lsb = assume_int(tree_right(elem_r));
+         range_kind_t dir;
+         assert(dimension_of(type) == 1);
+         fst_get_array_range(wd, elem, s->parent, s->where, 1, &e_msb, &e_lsb,
+                             &dir, &e_length);
       }
 
       data = xcalloc_flex(sizeof(fst_data_t), length, sizeof(fstHandle));
       data->count = length;
-      data->size  = (e_high - e_low + 1) * ft->size;
+      data->size  = e_length * ft->size;
       data->type  = ft;
 
       for (int i = 0; i < length; i++) {
@@ -620,7 +618,7 @@ static void fst_create_array_var(wave_dumper_t *wd, tree_t d, rt_signal_t *s,
          tb_istr(tb, tree_ident(d));
          tb_printf(tb, "[%"PRIi64"]", dir == RANGE_TO ? left + i : left - i);
          if (is_memory)
-            tb_printf(tb, "[%d:%d]", e_msb, e_lsb);
+            tb_printf(tb, "[%"PRIi64":%"PRIi64"]", e_msb, e_lsb);
          tb_downcase(tb);
 
          data->handle[i] =
