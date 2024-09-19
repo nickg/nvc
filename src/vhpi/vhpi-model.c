@@ -124,9 +124,9 @@ typedef struct {
 DEF_CLASS(physRange, vhpiPhysRangeK, range.object);
 
 typedef struct {
-   c_range  range;
-   vhpiIntT LeftBound;
-   vhpiIntT RightBound;
+   c_range      range;
+   vhpiLongIntT LeftBound;
+   vhpiLongIntT RightBound;
 } c_intRange;
 
 DEF_CLASS(intRange, vhpiIntRangeK, range.object);
@@ -175,7 +175,10 @@ typedef struct {
 
 typedef struct {
    c_scalarTypeDecl scalar;
+   c_range         *constraint;
 } c_intTypeDecl;
+
+DEF_CLASS(intTypeDecl, vhpiIntTypeDeclK, scalar.typeDecl.decl.object);
 
 typedef struct {
    c_scalarTypeDecl scalar;
@@ -1442,6 +1445,15 @@ static bool init_iterator(c_iterator *it, vhpiOneToManyT type, c_vhpiObject *obj
       return false;
    }
 
+   c_intTypeDecl *itd = is_intTypeDecl(obj);
+   if (itd != NULL) {
+      if (type == vhpiConstraints) {
+         it->single = &(itd->constraint->object);
+         return true;
+      }
+      return false;
+   }
+
    c_objDecl *od = is_objDecl(obj);
    if (od != NULL) {
       switch(type) {
@@ -2431,7 +2443,6 @@ vhpiIntT vhpi_get(vhpiIntPropertyT property, vhpiHandleT handle)
          if (ir == NULL)
             goto missing_property;
 
-         VHPI_TRACE("left=%d right=%d", ir->LeftBound, ir->RightBound);
          if (property == vhpiLeftBoundP)
             return ir->LeftBound;
          else
@@ -3600,8 +3611,8 @@ static c_intRange *build_int_range(tree_t r, type_t parent, int dim,
    c_intRange *ir = new_object(sizeof(c_intRange), vhpiIntRangeK);
    init_range(&(ir->range), dir == RANGE_TO, null, true);
 
-   ir->LeftBound  = vhpi_int_from_native(left);
-   ir->RightBound = vhpi_int_from_native(right);
+   ir->LeftBound  = left;
+   ir->RightBound = right;
 
    return ir;
 }
@@ -3691,8 +3702,8 @@ static c_typeDecl *build_dynamicSubtype(c_typeDecl *base, void *ptr,
          c_intRange *ir = new_object(sizeof(c_intRange), vhpiIntRangeK);
          init_range(&(ir->range), dir == RANGE_TO, null, true);
 
-         ir->LeftBound  = vhpi_int_from_native(left);
-         ir->RightBound = vhpi_int_from_native(right);
+         ir->LeftBound  = left;
+         ir->RightBound = right;
 
          td->typeDecl.numElems *= range_len(ir);
          APUSH(td->Constraints, &(ir->range.object));
@@ -3804,6 +3815,10 @@ static c_typeDecl *build_typeDecl(type_t type, c_vhpiObject *obj)
          c_intTypeDecl *td =
             new_object(sizeof(c_intTypeDecl), vhpiIntTypeDeclK);
          init_scalarTypeDecl(&(td->scalar), decl, type);
+
+         c_intRange *ir = build_int_range(range_of(type, 0), NULL, 0, NULL);
+         td->constraint = &(ir->range);
+
          return &(td->scalar.typeDecl);
       }
 

@@ -50,7 +50,6 @@ vhpiFormatT vhpi_format_for_type(type_t type, const char **map_str);
 uint64_t vhpi_time_to_native(const vhpiTimeT *time);
 bool vhpi_is_repetitive(vhpiEnumT reason);
 vhpiPhysT vhpi_phys_from_native(int64_t value);
-vhpiIntT vhpi_int_from_native(int64_t value);
 
 vhpiHandleT vhpi_bind_foreign(const char *obj_lib, const char *model,
                               tree_t where);

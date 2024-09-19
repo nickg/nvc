@@ -358,14 +358,6 @@ vhpiPhysT vhpi_phys_from_native(int64_t value)
    return result;
 }
 
-vhpiIntT vhpi_int_from_native(int64_t value)
-{
-   if (value > INT32_MAX || value < INT32_MIN)
-      fatal_trace("value %" PRId64 "is too large for vhpiIntT", value);
-
-   return value;
-}
-
 uint64_t vhpi_time_to_native(const vhpiTimeT *time)
 {
    return ((uint64_t)time->high << 32) | (uint64_t)time->low;
