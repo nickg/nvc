@@ -1044,3 +1044,4 @@ wave12          wave,dump-arrays=3
 issue968        normal
 issue971        normal,2008
 ieee17          normal
+issue978        normal,vhpi

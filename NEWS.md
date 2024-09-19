@@ -43,6 +43,7 @@
 - Limited maximum instantiation depth to prevent crashes due to stack
   overflow when elaborating a design that has unbounded recursive entity
   instantiation (#969).
+- Physical subtype ranges are now handled correctly by VHPI (#978).
 - Several other minor bugs were resolved (#961, #962, #971, #975).
 
 ## Version 1.13.3 - 2024-08-24

@@ -3904,9 +3904,14 @@ static c_typeDecl *build_typeDecl(type_t type, c_vhpiObject *obj)
             case C_RANGE:
                {
                   tree_t r = tree_range(c, 0);
-                  if (type_is_real(tree_type(r))) {
+                  type_t rtype = tree_type(r);
+                  if (type_is_real(rtype)) {
                      c_floatRange *fr = build_float_range(r);
                      APUSH(td->Constraints, &(fr->range.object));
+                  }
+                  else if (type_is_physical(rtype)) {
+                     c_physRange *pr = build_phys_range(r);
+                     APUSH(td->Constraints, &(pr->range.object));
                   }
                   else {
                      c_intRange *ir = build_int_range(r, NULL, 0, NULL);
