@@ -1993,6 +1993,27 @@ static bool sem_check_conforming(tree_t decl, tree_t body)
          ok &= sem_compare_interfaces(decl, body, i, tree_generic, "generic");
    }
 
+   type_t dtype = tree_type(decl);
+   type_t btype = tree_type(body);
+
+   if (type_has_result(dtype) && type_has_result(btype)) {
+      type_t dresult = type_result(dtype);
+      type_t bresult = type_result(btype);
+
+      if (!type_strict_eq(dresult, bresult)) {
+         diag_t *d = diag_new(DIAG_ERROR, tree_loc(body));
+         diag_printf(d, "return type of function body %s does not match type "
+                     "%s in specification", istr(tree_ident(body)),
+                     type_pp(dresult));
+         diag_hint(d, tree_loc(decl), "specification has return type %s",
+                   type_pp(dresult));
+         diag_hint(d, tree_loc(body), "body has return type %s ",
+                   type_pp(bresult));
+         diag_emit(d);
+         ok = false;
+      }
+   }
+
    return ok;
 }
 

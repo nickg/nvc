@@ -3750,6 +3750,26 @@ START_TEST(test_lcs2016_49)
 }
 END_TEST
 
+START_TEST(test_issue980)
+{
+   input_from_file(TESTDIR "/sem/issue980.vhd");
+
+   const error_t expect[] = {
+      { 10, "return type of function body FOO does not match type T_SUB in "
+        "specification" },
+      {  0, "body has return type T_ENUM" },
+      {  0, "specification has return type T_SUB" },
+      { 14, "subtype of parameter X does not match type T_SUB" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_PACKAGE, T_PACK_BODY);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_sem_tests(void)
 {
    Suite *s = suite_create("sem");
@@ -3922,6 +3942,7 @@ Suite *get_sem_tests(void)
    tcase_add_test(tc_core, test_issue958);
    tcase_add_test(tc_core, test_issue965);
    tcase_add_test(tc_core, test_lcs2016_49);
+   tcase_add_test(tc_core, test_issue980);
    suite_add_tcase(s, tc_core);
 
    return s;
