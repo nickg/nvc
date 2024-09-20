@@ -178,6 +178,32 @@ static bool instantiate_should_copy_tree(tree_t t, void *__ctx)
    }
 }
 
+static void collect_generic_types(hset_t **decls, type_t type)
+{
+   hset_insert(*decls, type);
+
+   // Also collect any anonymous generic types
+   switch (type_subkind(type)) {
+   case GTYPE_ARRAY:
+      {
+         type_t elem = type_elem(type);
+         if (type_kind(elem) == T_GENERIC && !type_has_ident(elem))
+            collect_generic_types(decls, elem);
+
+         const int nindex = type_indexes(type);
+         for (int i = 0; i < nindex; i++) {
+            type_t index = type_index(type, i);
+            if (type_kind(index) == T_GENERIC && !type_has_ident(index))
+               collect_generic_types(decls, index);
+         }
+      }
+      break;
+
+   default:
+      break;
+   }
+}
+
 static void collect_generics(tree_t t, hset_t **decls, tree_list_t *roots)
 {
    const int ngenerics = tree_generics(t);
@@ -206,7 +232,7 @@ static void collect_generics(tree_t t, hset_t **decls, tree_list_t *roots)
          }
          break;
       case C_TYPE:
-         hset_insert(*decls, tree_type(g));
+         collect_generic_types(decls, tree_type(g));
          break;
       default:
          break;

@@ -282,8 +282,8 @@ begin
             generic map ( array_type => bit_vector );
 
         signal x : p.array_type(1 to 3);  -- OK
-        signal y : p.index_type := 5;  -- OK (TODO)
-        signal z : p.element_type := '1';  -- OK (TODO)
+        signal y : p.index_type := 5;  -- OK
+        signal z : p.element_type := '1';  -- OK
     begin
 
     end block;

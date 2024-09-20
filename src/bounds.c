@@ -88,6 +88,9 @@ static void add_hint_string(diag_t *d, tree_t where)
 
 static void bounds_check_scalar(tree_t value, type_t type, tree_t hint)
 {
+   if (type_is_generic(type))
+      return;   // Cannot check yet
+
    tree_t r = range_of(type, 0);
 
    bool error = false;

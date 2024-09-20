@@ -459,6 +459,18 @@ void map_generic_type(nametab_t *tab, type_t generic, type_t actual)
    const gtype_class_t class = type_subkind(generic);
    if (pred[class] != NULL && !(*pred[class])(actual))
       suppress_errors(tab);
+   else if (class == GTYPE_ARRAY) {
+      type_t gelem = type_elem(generic);
+      if (type_kind(gelem) == T_GENERIC && !type_has_ident(gelem))
+         map_generic_type(tab, gelem, type_elem(actual));
+
+      const int ndims = type_indexes(generic);
+      for (int i = 0; i < ndims; i++) {
+         type_t index = type_index(generic, i);
+         if (type_kind(index) == T_GENERIC && !type_has_ident(index))
+            map_generic_type(tab, index, index_type_of(actual, i));
+      }
+   }
 
    hash_put(tab->top_scope->gmap, generic, actual);
 }

@@ -45,6 +45,8 @@
   instantiation (#969).
 - Physical subtype ranges and 64-bit integer types are now handled
   correctly by VHPI (#978).
+- Added support for generic map on subprogram call in VHDL-2019 and
+  improved support for array type generics.
 - Several other minor bugs were resolved (#961, #962, #971, #975, #985).
 
 ## Version 1.13.3 - 2024-08-24

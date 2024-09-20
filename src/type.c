@@ -202,6 +202,8 @@ static bool _type_eq(type_t a, type_t b, bool strict, hash_t *map)
 
       if (ai != bi)
          return false;
+      else if (ai == NULL && kind_a == T_GENERIC)
+         return false;   // Anonymous generic types are distinct
    }
 
    if (kind_a == T_INCOMPLETE || kind_b == T_INCOMPLETE)

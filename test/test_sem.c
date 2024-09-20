@@ -3510,9 +3510,6 @@ START_TEST(test_lcs2016_59)
         "2 dimensions but the incomplete type definition has 1" },
       { 247, "declaration of variable V2 without an initial value cannot have "
         "unconstrained type T6" },
-      { 285, "type of initial value universal_integer does not match type of "
-        "declaration (an anonymous type)" },  // TODO: wrong
-      { 286, "ambiguous use of enumeration literal '1'" },   // TODO: wrong
       { -1, NULL }
    };
    expect_errors(expect);
