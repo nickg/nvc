@@ -13100,7 +13100,7 @@ lower_unit_t *lower_unit_new(unit_registry_t *ur, lower_unit_t *parent,
    new->mode = (kind == VCODE_UNIT_THUNK) ? LOWER_THUNK : LOWER_NORMAL;
 
    // Prevent access to resolved signals during static elaboration
-   new->elaborating = kind == VCODE_UNIT_INSTANCE
+   new->elaborating = kind == VCODE_UNIT_INSTANCE || kind == VCODE_UNIT_THUNK
       || kind == VCODE_UNIT_PROTECTED || kind == VCODE_UNIT_PACKAGE;
 
    return new;
