@@ -7673,7 +7673,6 @@ static void lower_sub_signals(lower_unit_t *lu, type_t type, type_t var_type,
       lower_check_scalar_bounds(lu, init_reg, type, where, where);
 
       assert(!has_scope);
-      assert(bounds_reg == VCODE_INVALID_REG);
 
       well_known_t wk = is_well_known(type_ident(type_base_recur(type)));
       if (wk == W_IEEE_ULOGIC || wk == W_IEEE_LOGIC)

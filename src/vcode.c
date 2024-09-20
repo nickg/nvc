@@ -5727,7 +5727,7 @@ void emit_pop_scope(void)
 vcode_reg_t emit_debug_locus(ident_t unit, ptrdiff_t offset)
 {
    VCODE_FOR_EACH_MATCHING_OP(other, VCODE_OP_DEBUG_LOCUS) {
-      if (other->ident == unit && other->tag == offset)
+      if (other->ident == unit && other->value == offset)
          return other->result;
    }
 
