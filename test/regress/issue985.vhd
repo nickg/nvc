@@ -1,11 +1,11 @@
-entity issue979 is
+entity issue985 is
   generic (
     DATA_WIDTH: integer := 4;
     FIFO_SIZE: integer := 36
   );
 end entity;
 
-architecture sim of issue979 is
+architecture sim of issue985 is
   function GetWidth (
     rdwr_width : in integer
     ) return integer is

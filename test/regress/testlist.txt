@@ -1045,4 +1045,4 @@ issue968        normal
 issue971        normal,2008
 ieee17          normal
 issue978        normal,vhpi
-issue979        wave,2008,dump-arrays
+issue985        wave,2008,dump-arrays
