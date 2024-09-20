@@ -33,6 +33,12 @@ architecture test of vhpi14 is
     end function;
 
     attribute foreign of iota : function is "VHPI lib iota";
+
+    procedure no_args is                -- Issue #984
+    begin
+    end procedure;
+
+    attribute foreign of no_args : procedure is "VHPI lib no_args";
 begin
 
     p: process is
@@ -56,6 +62,8 @@ begin
 
         assert iota(2) = (0, 1);
         assert iota(4) = (0, 1, 2, 3);
+
+        no_args;
 
         wait;
     end process;

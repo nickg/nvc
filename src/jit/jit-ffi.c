@@ -423,7 +423,7 @@ static void *ffi_prepare_ghdl(tree_t decl, const char *symbol)
    const int nports = tree_ports(sub);
 
    const size_t ghdl_ffi_sz =
-      sizeof(ghdl_ffi_t) + (1 + nports*3) * sizeof(ghdl_arg_t);
+      sizeof(ghdl_ffi_t) + (2 + nports*3) * sizeof(ghdl_arg_t);
    ghdl_ffi_t *gffi =
       jit_mspace_alloc(ghdl_ffi_sz + nports * 2 * sizeof(ffi_type *));
    ffi_type **types = (void *)gffi + ghdl_ffi_sz;
@@ -459,7 +459,7 @@ static void *ffi_prepare_ghdl(tree_t decl, const char *symbol)
          ghdl_ffi_add_arg(gffi, types, tree_type(p));
    }
 
-   assert(gffi->nvhdl <= 1 + nports * 3);
+   assert(gffi->nvhdl <= 2 + nports * 3);
    assert(gffi->nforeign <= nports * 2);
 
    if (ffi_prep_cif(&(gffi->cif), FFI_DEFAULT_ABI, gffi->nforeign,

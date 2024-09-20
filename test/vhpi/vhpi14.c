@@ -171,6 +171,18 @@ static void iota(const vhpiCbDataT *cb_data_p)
    vhpi_release_handle(p0);
 }
 
+static void no_args(const vhpiCbDataT *cb_data_p)
+{
+   vhpi_printf("no_args called\n");
+
+   vhpiHandleT it = vhpi_iterator(vhpiParamDecls, cb_data_p->obj);
+   check_error();
+   fail_if(it == NULL);
+   fail_unless(vhpi_scan(it) == NULL);
+
+   vhpi_release_handle(it);
+}
+
 void vhpi14_startup(void)
 {
    vhpiForeignDataT add2_data = {
@@ -216,6 +228,15 @@ void vhpi14_startup(void)
       .execf = iota,
    };
    vhpi_register_foreignf(&iota_data);
+   check_error();
+
+   vhpiForeignDataT no_args_data = {
+      .kind = vhpiProcF,
+      .libraryName = "lib",
+      .modelName = "no_args",
+      .execf = no_args,
+   };
+   vhpi_register_foreignf(&no_args_data);
    check_error();
 
    vhpiForeignDataT check;

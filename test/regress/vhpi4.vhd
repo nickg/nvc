@@ -36,6 +36,11 @@ architecture test of vhpi4 is
         report "do not call this" severity failure;
     end procedure;
 
+    procedure no_args is                -- Issue #984
+    begin
+    end procedure;
+
+    attribute foreign of no_args : procedure is "VHPIDIRECT __vhpi_no_args";
 begin
 
     main: process is
@@ -51,6 +56,8 @@ begin
         test_proc(i, v);
         assert i = 42;
         assert v = (integer'left, 5, integer'left);
+
+        no_args;
 
         wait;
     end process;

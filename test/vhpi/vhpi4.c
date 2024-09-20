@@ -32,3 +32,8 @@ int __vhpi_test_proc(int32_t *x, int32_t *arr)
    arr[1] = 5;
    return 66;   // Should be ignored
 }
+
+void __vhpi_no_args(void)
+{
+   printf("no_args called!\n");
+}
