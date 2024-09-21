@@ -6048,10 +6048,6 @@ static void lower_signal_assign_target(lower_unit_t *lu, target_part_t **ptr,
          lower_check_scalar_bounds(lu, src_reg, type, where, p->target);
 
       if (!type_is_homogeneous(type)) {
-         // XXX: debug for issue #972
-         if (type_is_generic(type))
-            fatal_at(tree_loc(where), "generic type was not rewritten");
-
          vcode_reg_t args[2] = { reject, after };
          vcode_reg_t locus = lower_debug_locus(where);
          lower_for_each_field_2(lu, type, src_type, p->reg, src_reg, locus,
