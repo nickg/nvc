@@ -758,6 +758,11 @@ static void fst_create_record_array_var(wave_dumper_t *wd, tree_t d,
    type_t elem = type_elem(type);
    const bool nested = type_is_array(elem);
 
+   // XXX: debug for #972
+   if (count % length != 0)
+      warn_at(tree_loc(d), "record array has unexpected count=%d "
+              "length=%"PRIi64, count, length);
+
    assert(count % length == 0);
    const int stride = count / length;
 
