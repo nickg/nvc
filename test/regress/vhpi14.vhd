@@ -1,6 +1,9 @@
 entity vhpi14 is
 end entity;
 
+library ieee;
+use ieee.std_logic_1164.all;
+
 architecture test of vhpi14 is
     function add2 (x : integer) return integer is
     begin
@@ -39,10 +42,17 @@ architecture test of vhpi14 is
     end procedure;
 
     attribute foreign of no_args : procedure is "VHPI lib no_args";
+
+    procedure set_logic (x : out std_ulogic; dummy : in std_logic) is
+    begin
+    end procedure;
+
+    attribute foreign of set_logic : procedure is "VHPI lib set_logic";
 begin
 
     p: process is
         variable v1 : t_int_vec(1 to 4) := (1, 2, 3, 4);
+        variable v2 : std_ulogic;
     begin
         assert add2(1) = 3;
         assert add2(-1) = 1;
@@ -64,6 +74,9 @@ begin
         assert iota(4) = (0, 1, 2, 3);
 
         no_args;
+
+        set_logic(v2, 'X');
+        assert v2 = '1';
 
         wait;
     end process;

@@ -3158,28 +3158,27 @@ int vhpi_put_value(vhpiHandleT handle,
    }
 
    void *ext LOCAL = NULL, *ptr = NULL;
-   uint8_t byte;
    union {
       uint8_t  uint8_t_val;
       uint16_t uint16_t_val;
       uint32_t uint32_t_val;
       uint64_t uint64_t_val;
-      int64_t  signed_int;
+      int64_t  int64_t_val;
+      double   double_val;
    } scalar = { .uint64_t_val = 0 };
-   double real;
    int num_elems = 0;
 
    switch (value_p->format) {
    case vhpiLogicVal:
       num_elems = 1;
-      byte = value_p->value.enumv;
-      ptr = &byte;
+      scalar.uint8_t_val = value_p->value.enumv;
+      ptr = &scalar;
       break;
 
    case vhpiSmallEnumVal:
       num_elems = 1;
-      byte = value_p->value.smallenumv;
-      ptr = &byte;
+      scalar.uint8_t_val = value_p->value.smallenumv;
+      ptr = &scalar;
       break;
 
    case vhpiEnumVal:
@@ -3195,20 +3194,20 @@ int vhpi_put_value(vhpiHandleT handle,
 
    case vhpiCharVal:
       num_elems = 1;
-      byte = value_p->value.ch;
-      ptr = &byte;
+      scalar.uint8_t_val = value_p->value.ch;
+      ptr = &scalar;
       break;
 
    case vhpiIntVal:
       num_elems = 1;
-      scalar.signed_int = value_p->value.intg;
+      scalar.int64_t_val = value_p->value.intg;
       ptr = &scalar;   // Assume little endian
       break;
 
    case vhpiRealVal:
       num_elems = 1;
-      real = value_p->value.real;
-      ptr = &real;
+      scalar.double_val = value_p->value.real;
+      ptr = &scalar;
       break;
 
    case vhpiLogicVecVal:
@@ -3314,8 +3313,13 @@ int vhpi_put_value(vhpiHandleT handle,
       case vhpiForcePropagate:
       case vhpiDeposit:
       case vhpiDepositPropagate:
-         if (td->IsScalar) {
-            c->args[slot].integer = scalar.uint64_t_val;
+         if (td->IsScalar && vpd == NULL) {
+            c->args[slot].integer = scalar.uint64_t_val;   // Function result
+            return 0;
+         }
+         else if (td->IsScalar) {
+#define PUT_SCALAR(type) *(type *)c->args[slot].pointer = scalar.type##_val;
+            FOR_ALL_SIZES(td->size, PUT_SCALAR);
             return 0;
          }
          else {

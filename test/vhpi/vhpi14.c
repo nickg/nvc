@@ -183,6 +183,28 @@ static void no_args(const vhpiCbDataT *cb_data_p)
    vhpi_release_handle(it);
 }
 
+static void set_logic(const vhpiCbDataT *cb_data_p)
+{
+   vhpiHandleT iter, var_param, dummy_param;
+   iter = vhpi_iterator(vhpiParamDecls, cb_data_p->obj);
+   var_param = vhpi_scan(iter); // -> first out argument "var"
+   dummy_param = vhpi_scan(iter);
+   vhpi_release_handle(iter);
+
+   vhpiValueT value;
+   value.format = vhpiLogicVal;
+   value.value.enumv = vhpi1;
+   vhpi_put_value(var_param, &value, vhpiDepositPropagate);
+   check_error();
+
+   vhpiErrorInfoT info;
+   vhpi_put_value(dummy_param, &value, vhpiDepositPropagate);
+   fail_unless(vhpi_check_error(&info));
+
+   vhpi_release_handle(var_param);
+   vhpi_release_handle(dummy_param);
+}
+
 void vhpi14_startup(void)
 {
    vhpiForeignDataT add2_data = {
@@ -237,6 +259,15 @@ void vhpi14_startup(void)
       .execf = no_args,
    };
    vhpi_register_foreignf(&no_args_data);
+   check_error();
+
+   vhpiForeignDataT set_logic_data = {
+      .kind = vhpiProcF,
+      .libraryName = "lib",
+      .modelName = "set_logic",
+      .execf = set_logic,
+   };
+   vhpi_register_foreignf(&set_logic_data);
    check_error();
 
    vhpiForeignDataT check;
