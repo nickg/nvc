@@ -180,13 +180,11 @@ static const uint8_t small_xor_table[4][4] = {
    {    _U, _X, _1, _0 },  // | 1 |
 };
 
-#endif
-
-#if defined HAVE_SSE41
 __attribute__((aligned(16)))
 static const uint8_t lane_iota[16] = {
    0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15
 };
+
 #endif
 
 __attribute__((always_inline))
@@ -889,9 +887,9 @@ static void ieee_and_vector_neon(jit_func_t *func, jit_anchor_t *anchor,
    else {
       uint8_t *result = __tlab_alloc(tlab, ALIGN_UP(lsize, 16), 16);
 
-      uint8x16_t left_tbl = vld1q_u8(compress_left);
+      uint8x16_t left_tbl  = vld1q_u8(compress_left);
       uint8x16_t right_tbl = vld1q_u8(compress_right);
-      uint8x16_t and_tbl = vld1q_u8((const uint8_t *)small_and_table);
+      uint8x16_t and_tbl   = vld1q_u8((const uint8_t *)small_and_table);
 
       for (int pos = 0; pos < lsize; pos += 16) {
          uint8x16_t left1  = vld1q_u8(left + pos);
@@ -985,9 +983,9 @@ static void ieee_or_vector_neon(jit_func_t *func, jit_anchor_t *anchor,
    else {
       uint8_t *result = __tlab_alloc(tlab, ALIGN_UP(lsize, 16), 16);
 
-      uint8x16_t left_tbl = vld1q_u8(compress_left);
+      uint8x16_t left_tbl  = vld1q_u8(compress_left);
       uint8x16_t right_tbl = vld1q_u8(compress_right);
-      uint8x16_t or_tbl = vld1q_u8((const uint8_t *)small_or_table);
+      uint8x16_t or_tbl    = vld1q_u8((const uint8_t *)small_or_table);
 
       for (int pos = 0; pos < lsize; pos += 16) {
          uint8x16_t left1  = vld1q_u8(left + pos);
@@ -1081,9 +1079,9 @@ static void ieee_xor_vector_neon(jit_func_t *func, jit_anchor_t *anchor,
    else {
       uint8_t *result = __tlab_alloc(tlab, ALIGN_UP(lsize, 16), 16);
 
-      uint8x16_t left_tbl = vld1q_u8(compress_left);
+      uint8x16_t left_tbl  = vld1q_u8(compress_left);
       uint8x16_t right_tbl = vld1q_u8(compress_right);
-      uint8x16_t xor_tbl = vld1q_u8((const uint8_t *)small_xor_table);
+      uint8x16_t xor_tbl   = vld1q_u8((const uint8_t *)small_xor_table);
 
       for (int pos = 0; pos < lsize; pos += 16) {
          uint8x16_t left1  = vld1q_u8(left + pos);
@@ -1551,6 +1549,46 @@ static void byte_vector_equal_sse41(jit_func_t *func, jit_anchor_t *anchor,
 }
 #endif
 
+#ifdef HAVE_NEON
+static void byte_vector_equal_neon(jit_func_t *func, jit_anchor_t *anchor,
+                                   jit_scalar_t *args, tlab_t *tlab)
+{
+   const int lsize = ffi_array_length(args[3].integer);
+   const int rsize = ffi_array_length(args[6].integer);
+   uint8_t *left = args[1].pointer;
+   uint8_t *right = args[4].pointer;
+
+   args[0].integer = 0;
+
+   if (lsize != rsize)
+      return;
+
+   int pos = 0;
+   for (; pos + 15 < lsize; pos += 16) {
+      uint8x16_t left1  = vld1q_u8(left + pos);
+      uint8x16_t right1 = vld1q_u8(right + pos);
+      uint8x16_t xor    = veorq_u8(left1, right1);
+      uint64x2_t cast   = vreinterpretq_u64_u8(xor);
+      if (vgetq_lane_u64(cast, 0) || vgetq_lane_u64(cast, 1))
+         return;
+   }
+
+   if (pos < lsize) {
+      uint8x16_t iota   = vld1q_u8(lane_iota);
+      uint8x16_t mask   = vcltq_u8(iota, vdupq_n_u8(lsize - pos));
+      uint8x16_t left1  = vld1q_u8(left + pos);
+      uint8x16_t right1 = vld1q_u8(right + pos);
+      uint8x16_t xor    = veorq_u8(left1, right1);
+      uint8x16_t and    = vandq_u8(xor, mask);
+      uint64x2_t cast   = vreinterpretq_u64_u8(and);
+      if (vgetq_lane_u64(cast, 0) || vgetq_lane_u64(cast, 1))
+         return;
+   }
+
+   args[0].integer = 1;
+}
+#endif
+
 static void byte_vector_equal(jit_func_t *func, jit_anchor_t *anchor,
                               jit_scalar_t *args, tlab_t *tlab)
 {
@@ -1746,6 +1784,12 @@ static jit_intrinsic_t intrinsic_list[] = {
    { SL "\"=\"(YY)B$predef", byte_vector_equal_sse41, CPU_SSE41 },
    { ST "\"=\"(QQ)B$predef", byte_vector_equal_sse41, CPU_SSE41 },
    { ST "\"=\"(SS)B$predef", byte_vector_equal_sse41, CPU_SSE41 },
+#endif
+#ifdef HAVE_NEON
+   { SL "\"=\"(VV)B$predef", byte_vector_equal_neon, CPU_NEON },
+   { SL "\"=\"(YY)B$predef", byte_vector_equal_neon, CPU_NEON },
+   { ST "\"=\"(QQ)B$predef", byte_vector_equal_neon, CPU_NEON },
+   { ST "\"=\"(SS)B$predef", byte_vector_equal_neon, CPU_NEON },
 #endif
    { SL "\"=\"(VV)B$predef", byte_vector_equal },
    { SL "\"=\"(YY)B$predef", byte_vector_equal },
