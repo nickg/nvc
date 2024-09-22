@@ -1050,3 +1050,4 @@ issue970        normal,gold,2019
 issue983        normal,relaxed
 issue972        wave,2008,dump-arrays
 issue979        wave,2008
+cmdline11       shell

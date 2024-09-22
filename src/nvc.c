@@ -86,14 +86,16 @@ static jit_t *get_jit(unit_registry_t *ur);
 
 static ident_t to_unit_name(const char *str)
 {
-   char *name = xstrdup(str);
-   for (char *p = name; *p; p++)
-      *p = toupper((int)*p);
+   char *name LOCAL = xstrdup(str);
+   for (char *p = name; *p; p++) {
+      if (!isalnum_iso88591(*p) && (p == name || (*p != '_' && *p != '-')))
+         fatal("'%s' is not a valid design unit name", str);
 
-   ident_t i = ident_prefix(lib_name(lib_work()),
-                            ident_new(name), '.');
-   free(name);
-   return i;
+      *p = toupper_iso88591(*p);
+
+   }
+
+   return ident_prefix(lib_name(lib_work()), ident_new(name), '.');
 }
 
 static int scan_cmd(int start, int argc, char **argv)
