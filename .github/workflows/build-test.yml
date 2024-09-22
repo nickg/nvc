@@ -210,6 +210,7 @@ jobs:
           sed -i 's/nvc (.*)/nvc (${{ env.VERSION }}-1)/' debian/changelog
           sudo apt-get update
           sudo apt-get build-dep .
+          export DEB_BUILD_OPTIONS=nocheck
           dpkg-buildpackage -uc -us -b
           mv ../*.deb .
       - name: 'Upload artifact'
