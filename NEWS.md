@@ -47,6 +47,8 @@
   correctly by VHPI (#978).
 - Added support for generic map on subprogram call in VHDL-2019 and
   improved support for array type generics.
+- Optimised emission of FST initial signal values which also fixes a
+  potential crash (#979).
 - Several other minor bugs were resolved (#961, #962, #971, #975, #985).
 
 ## Version 1.13.3 - 2024-08-24

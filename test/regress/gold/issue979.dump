@@ -1,0 +1,2 @@
+$comment issue979.foo_inst.rd_data is aliased to wrb_data $end
+#0 issue979.wrb_data 0

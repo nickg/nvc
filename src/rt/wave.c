@@ -87,6 +87,8 @@ typedef struct _fst_data {
    fstHandle      handle[];
 } fst_data_t;
 
+typedef A(fst_data_t *) data_array_t;
+
 typedef struct {
    FILE       *file;
    int         colour;
@@ -104,6 +106,7 @@ typedef struct _wave_dumper {
    uint64_t       last_time;
    jit_t         *jit;
    hash_t        *typecache;
+   data_array_t   dumped;
 } wave_dumper_t;
 
 static glob_array_t incl;
@@ -637,7 +640,7 @@ static void fst_create_array_var(wave_dumper_t *wd, tree_t d, rt_signal_t *s,
    data->watch  = model_set_event_cb(wd->model, data->signal,
                                      fst_event_cb, data, true);
 
-   fst_event_cb(0, data->signal, data->watch, data);
+   APUSH(wd->dumped, data);
 }
 
 static void fst_create_scalar_var(wave_dumper_t *wd, tree_t d, rt_signal_t *s,
@@ -677,7 +680,7 @@ static void fst_create_scalar_var(wave_dumper_t *wd, tree_t d, rt_signal_t *s,
    data->watch  = model_set_event_cb(wd->model, data->signal, fst_event_cb,
                                      data, true);
 
-   fst_event_cb(0, data->signal, data->watch, data);
+   APUSH(wd->dumped, data);
 
    if (wd->gtkw != NULL)
       fprintf(wd->gtkw->file, "%s.%s\n", tb_get(wd->gtkw->hier), tb_get(tb));
@@ -1007,6 +1010,13 @@ void wave_dumper_restart(wave_dumper_t *wd, rt_model_t *m, jit_t *jit)
       wd->gtkw = NULL;
    }
 
+   // Emitting the initial values must happen after all FST variables
+   // are created to avoid expensive mmap/munmap calls
+   for (int i = 0; i < wd->dumped.count; i++) {
+      fst_data_t *data = wd->dumped.items[i];
+      fst_event_cb(0, data->signal, data->watch, data);
+   }
+
    model_set_global_cb(m, RT_END_OF_SIMULATION, fst_close, wd);
 }
 
@@ -1066,6 +1076,10 @@ wave_dumper_t *wave_dumper_new(const char *file, const char *gtkw_file,
 
 void wave_dumper_free(wave_dumper_t *wd)
 {
+   for (int i = 0; i < wd->dumped.count; i++)
+      free(wd->dumped.items[i]);
+   ACLEAR(wd->dumped);
+
    hash_free(wd->typecache);
    free(wd);
 }
