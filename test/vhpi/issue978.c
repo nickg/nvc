@@ -1,6 +1,7 @@
 #include "vhpi_test.h"
 
 #include <string.h>
+#include <stdint.h>
 
 static void test_period(void)
 {
