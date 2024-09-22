@@ -297,18 +297,18 @@ begin
 END c07s04b01x00p08n01i02565arch;
 
 architecture builtins of e is
-    procedure p;
+    procedure p; procedure p2; procedure p3;
     attribute never_waits : boolean;
     attribute never_waits of p : procedure is true;  -- OK
-    attribute never_waits of p : procedure is false;  -- OK
-    attribute never_waits of p : procedure is 1 = 1;  -- Error
-    function f return integer;
+    attribute never_waits of p2 : procedure is false;  -- OK
+    attribute never_waits of p3 : procedure is 1 = 1;  -- Error
+    function f return integer; function f2 return integer;
     attribute never_waits of f : function is true;   -- Error
     procedure q (x : integer);
     procedure q (x : boolean);
     attribute never_waits of q [integer] : procedure is true;  -- OK
     attribute foreign of f [return integer] : function is "bad string";  -- OK
-    attribute foreign of f [return integer] : function is e'path_name;  -- OK
+    attribute foreign of f2 [return integer] : function is e'path_name;  -- OK
 begin
 
     b: block is

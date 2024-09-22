@@ -6879,6 +6879,24 @@ START_TEST(test_issue961)
 }
 END_TEST
 
+START_TEST(test_issue977)
+{
+   input_from_file(TESTDIR "/parse/issue977.vhd");
+
+   const error_t expect[] = {
+      { 10, "duplicate specification for attribute FOREIGN of procedure FOO" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_ENTITY, T_ARCH);
+
+   fail_unless(parse() == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_parse_tests(void)
 {
    Suite *s = suite_create("parse");
@@ -7041,6 +7059,7 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_visibility12);
    tcase_add_test(tc_core, test_issue956);
    tcase_add_test(tc_core, test_issue961);
+   tcase_add_test(tc_core, test_issue977);
    suite_add_tcase(s, tc_core);
 
    return s;

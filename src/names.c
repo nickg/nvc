@@ -836,7 +836,7 @@ static symbol_t *make_visible(scope_t *s, ident_t name, tree_t decl,
 
       if (dd->tree == decl)
          return sym;
-      else if (dd->visibility == HIDDEN || dd->visibility == ATTRIBUTE)
+      else if (dd->visibility == HIDDEN)
          continue;
       else if (dd->kind == T_LIBRARY) {
          if (tkind == T_LIBRARY && tree_ident(decl) == name)
@@ -930,6 +930,20 @@ static symbol_t *make_visible(scope_t *s, ident_t name, tree_t decl,
             diag_suppress(d, s->suppress || type_has_error(type));
             diag_emit(d);
             return sym;
+         }
+      }
+      else if (kind == ATTRIBUTE && dd->visibility == ATTRIBUTE
+               && tree_has_ref(dd->tree) && tree_has_ref(decl)) {
+         tree_t of = tree_ref(decl);
+         if (of == tree_ref(dd->tree)) {
+            diag_t *d = diag_new(DIAG_ERROR, tree_loc(decl));
+            diag_printf(d, "duplicate specification for attribute %s of %s %s",
+                        istr(tree_ident(decl)), class_str(tree_class(decl)),
+                        istr(tree_ident(of)));
+            diag_hint(d, tree_loc(dd->tree), "previous specification was here");
+            diag_hint(d, tree_loc(decl), "duplicate specification");
+            diag_suppress(d, s->suppress);
+            diag_emit(d);
          }
       }
    }

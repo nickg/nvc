@@ -49,6 +49,7 @@
   improved support for array type generics.
 - Optimised emission of FST initial signal values which also fixes a
   potential crash (#979).
+- Added checks for duplicate attribute specification (#977).
 - Several other minor bugs were resolved (#961, #962, #971, #975, #985).
 
 ## Version 1.13.3 - 2024-08-24
