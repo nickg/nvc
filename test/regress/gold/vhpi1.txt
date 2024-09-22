@@ -1,73 +1,73 @@
 loading VHPI plugin
-VHPI printf hello, world!
-VHPI printf tool is nvc
-VHPI printf tool version is
-VHPI printf arg is +foo=bar
-VHPI printf root handle
-VHPI printf root name is VHPI1
-VHPI printf root full name is :VHPI1
-VHPI printf root port is X
-VHPI printf root port is Y
-VHPI printf root signal is V
-VHPI printf root signal is B
-VHPI printf root signal is R
-VHPI printf root decl is V
-VHPI printf root decl is B
-VHPI printf root decl is R
-VHPI printf arch handle
-VHPI printf arch name is VHPI1-TEST
-VHPI printf arch unit name is WORK.VHPI1-TEST
-VHPI printf entity handle
-VHPI printf entity name is VHPI1
-VHPI printf entity unit name is WORK.VHPI1
-VHPI printf x handle
-VHPI printf x name X
-VHPI printf x full name is :VHPI1:X
-VHPI printf y handle
-VHPI printf y name Y
-VHPI printf y full name is :VHPI1:Y
-VHPI printf r handle
-VHPI printf r type handle
-VHPI printf r type name is ZERO_TO_ONE
-VHPI printf r type full name is @WORK:VHPI1-TEST:ZERO_TO_ONE
-VHPI printf v handle
-VHPI printf v name is V
-VHPI printf v full name is :VHPI1:V
-VHPI printf v type handle
-VHPI printf v type name is BIT_VECTOR
-VHPI printf v type full name is @STD:STANDARD:BIT_VECTOR
-VHPI printf v dimensions 1
-VHPI printf v type range handle
-VHPI printf v left bound 3
-VHPI printf v right bound 0
-VHPI printf v elem type handle
-VHPI printf v elem type name is BIT
-VHPI printf v elem type full name is @STD:STANDARD:BIT
-VHPI printf v elem literal 0 is '0'
-VHPI printf v elem literal 1 is '1'
-VHPI printf v indexed name is V(3)
-VHPI printf v indexed name is V(2)
-VHPI printf v indexed name is V(1)
-VHPI printf v indexed name is V(0)
-VHPI printf name is A_NAME_WITH_MIXED_CASE
-VHPI printf case name is A_NAME_WITH_MIXED_CASE
-VHPI printf full case name is :VHPI1:A_NAME_WITH_MIXED_CASE
-VHPI printf start of sim callback! user data is 'some user data'
+hello, world!
+tool is nvc
+tool version is
+arg is +foo=bar
+root handle
+root name is VHPI1
+root full name is :VHPI1
+root port is X
+root port is Y
+root signal is V
+root signal is B
+root signal is R
+root decl is V
+root decl is B
+root decl is R
+arch handle
+arch name is VHPI1-TEST
+arch unit name is WORK.VHPI1-TEST
+entity handle
+entity name is VHPI1
+entity unit name is WORK.VHPI1
+x handle
+x name X
+x full name is :VHPI1:X
+y handle
+y name Y
+y full name is :VHPI1:Y
+r handle
+r type handle
+r type name is ZERO_TO_ONE
+r type full name is @WORK:VHPI1-TEST:ZERO_TO_ONE
+v handle
+v name is V
+v full name is :VHPI1:V
+v type handle
+v type name is BIT_VECTOR
+v type full name is @STD:STANDARD:BIT_VECTOR
+v dimensions 1
+v type range handle
+v left bound 3
+v right bound 0
+v elem type handle
+v elem type name is BIT
+v elem type full name is @STD:STANDARD:BIT
+v elem literal 0 is '0'
+v elem literal 1 is '1'
+v indexed name is V(3)
+v indexed name is V(2)
+v indexed name is V(1)
+v indexed name is V(0)
+name is A_NAME_WITH_MIXED_CASE
+case name is A_NAME_WITH_MIXED_CASE
+full case name is :VHPI1:A_NAME_WITH_MIXED_CASE
+start of sim callback! user data is 'some user data'
 0ms+0: x=5
-VHPI printf after_5ns callback!
+after_5ns callback!
 5ns+1: x=70
-5000001fs+0: VHPI printf mutual callback!
-5000001fs+0: VHPI printf mutual callback!
-5000001fs+0: VHPI printf deferred work callback!
-5000002fs+0: VHPI printf enabled callback!
-VHPI printf y value changed to 71
-6ns+0: VHPI printf mutual callback!
+5000001fs+0: mutual callback!
+5000001fs+0: mutual callback!
+5000001fs+0: deferred work callback!
+5000002fs+0: enabled callback!
+y value changed to 71
+6ns+0: mutual callback!
 6ns+1: x=72
-VHPI printf y value changed to 73
+y value changed to 73
 7ns+1: x=74
-VHPI printf y value changed to 75
-VHPI printf b bit string '0'
-VHPI printf need 5 bytes for v string
-VHPI printf v bit string '0011'
+y value changed to 75
+b bit string '0'
+need 5 bytes for v string
+v bit string '0011'
 VHPI plugin requested end of simulation
-VHPI printf end of sim callback
+end of sim callback

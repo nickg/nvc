@@ -64,12 +64,15 @@ int vhpi_vprintf(const char *format, va_list args)
    vhpi_clear_error();
 
    char *buf LOCAL = xvasprintf(format, args);
-   const size_t len = strlen(buf);
+   size_t len = strlen(buf);
 
    for (char *eptr = buf + len - 1; eptr >= buf && *eptr == '\n'; eptr--)
       *eptr = '\0';
 
-   notef("VHPI printf $green$%s$$", buf);
+   diag_t *d = diag_new(DIAG_NOTE, NULL);
+   diag_write(d, buf, len);
+   diag_emit(d);
+
    return len;
 }
 
