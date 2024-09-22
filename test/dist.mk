@@ -28,6 +28,9 @@ EXTRA_DIST += \
 	test/bounds/issue806.vhd \
 	test/bounds/issue819.vhd \
 	test/bounds/issue863.vhd \
+	test/bounds/issue951.vhd \
+	test/bounds/issue966.vhd \
+	test/bounds/issue975.vhd \
 	test/bounds/issue98.vhd \
 	test/bounds/issue99.vhd \
 	test/bounds/nullrange.vhd \
@@ -39,6 +42,8 @@ EXTRA_DIST += \
 	test/charset/strings.vhd \
 	test/charset/utf8.vhd \
 	test/diag/diag1.vhd \
+	test/driver/issue930.vhd \
+	test/driver/issue953.vhd \
 	test/driver/sanity1.vhd \
 	test/driver/sanity2.vhd \
 	test/driver/unique1.vhd \
@@ -50,6 +55,7 @@ EXTRA_DIST += \
 	test/dump/vhdl3.vhd \
 	test/dump/vhdl4.vhd \
 	test/dump/vhdl5.vhd \
+	test/dump/vhdl6.vhd \
 	test/dump/vlog1.v \
 	test/elab/assert7.vhd \
 	test/elab/block1.vhd \
@@ -85,6 +91,7 @@ EXTRA_DIST += \
 	test/elab/generate1.vhd \
 	test/elab/generic1.vhd \
 	test/elab/generic2.vhd \
+	test/elab/generic3.vhd \
 	test/elab/genpack1.vhd \
 	test/elab/genpack2.vhd \
 	test/elab/genpack3.vhd \
@@ -125,8 +132,8 @@ EXTRA_DIST += \
 	test/elab/issue855.vhd \
 	test/elab/issue860.vhd \
 	test/elab/issue864.vhd \
-	test/elab/issue907.vhd \
 	test/elab/issue93.vhd \
+	test/elab/issue969.vhd \
 	test/elab/jcore1.vhd \
 	test/elab/jcore2.vhd \
 	test/elab/libbind2.vhd \
@@ -149,6 +156,7 @@ EXTRA_DIST += \
 	test/elab/toplevel2.vhd \
 	test/elab/toplevel3.vhd \
 	test/elab/toplevel4.vhd \
+	test/elab/toplevel5.vhd \
 	test/elab/view1.vhd \
 	test/elab/vlog1.v \
 	test/eopt/alias1.vhd \
@@ -297,11 +305,15 @@ EXTRA_DIST += \
 	test/lower/issue837.vhd \
 	test/lower/issue844.vhd \
 	test/lower/issue859.vhd \
+	test/lower/issue934.vhd \
 	test/lower/issue94.vhd \
+	test/lower/issue972.vhd \
 	test/lower/link1.vhd \
 	test/lower/loop1.vhd \
 	test/lower/loop2.vhd \
 	test/lower/memset.vhd \
+	test/lower/mixed2.v \
+	test/lower/mixed2.vhd \
 	test/lower/mulphys.vhd \
 	test/lower/nest1.vhd \
 	test/lower/nullarray.vhd \
@@ -462,7 +474,14 @@ EXTRA_DIST += \
 	test/parse/issue889.vhd \
 	test/parse/issue892.vhd \
 	test/parse/issue893.vhd \
+	test/parse/issue905.vhd \
 	test/parse/issue917.vhd \
+	test/parse/issue942.vhd \
+	test/parse/issue952.vhd \
+	test/parse/issue956.vhd \
+	test/parse/issue961.vhd \
+	test/parse/issue977.vhd \
+	test/parse/lcs2016_i03.vhd \
 	test/parse/literal.vhd \
 	test/parse/loc.vhd \
 	test/parse/names2.vhd \
@@ -496,6 +515,7 @@ EXTRA_DIST += \
 	test/parse/vhdl2019.vhd \
 	test/parse/visibility10.vhd \
 	test/parse/visibility11.vhd \
+	test/parse/visibility12.vhd \
 	test/parse/visibility1.vhd \
 	test/parse/visibility2.vhd \
 	test/parse/visibility3.vhd \
@@ -505,6 +525,7 @@ EXTRA_DIST += \
 	test/parse/visibility7.vhd \
 	test/parse/visibility8.vhd \
 	test/parse/visibility9.vhd \
+	test/parse/vunit10.vhd \
 	test/parse/vunit5.vhd \
 	test/parse/vunit6.vhd \
 	test/parse/vunit7.vhd \
@@ -523,6 +544,7 @@ EXTRA_DIST += \
 	test/perf/std_logic.vhd \
 	test/perf/synopsys.vhd \
 	test/perf/textio.vhd \
+	test/perf/toggle_cov.vhd \
 	test/perf/value.vhd \
 	test/perf/vital.vhd \
 	test/psl/issue910.vhd \
@@ -675,6 +697,7 @@ EXTRA_DIST += \
 	test/regress/bounds42.vhd \
 	test/regress/bounds43.vhd \
 	test/regress/bounds44.vhd \
+	test/regress/bounds45.vhd \
 	test/regress/bounds4.vhd \
 	test/regress/bounds5.vhd \
 	test/regress/bounds6.vhd \
@@ -697,6 +720,8 @@ EXTRA_DIST += \
 	test/regress/case7.vhd \
 	test/regress/case8.vhd \
 	test/regress/case9.vhd \
+	test/regress/cmdline10.sh \
+	test/regress/cmdline11.sh \
 	test/regress/cmdline1.sh \
 	test/regress/cmdline2.sh \
 	test/regress/cmdline3.sh \
@@ -778,6 +803,8 @@ EXTRA_DIST += \
 	test/regress/cover21.vhd \
 	test/regress/cover22.sh \
 	test/regress/cover22.vhd \
+	test/regress/cover23.sh \
+	test/regress/cover23.vhd \
 	test/regress/cover2.vhd \
 	test/regress/cover3.vhd \
 	test/regress/cover4.vhd \
@@ -795,10 +822,10 @@ EXTRA_DIST += \
 	test/regress/data/cover14_ef1.txt \
 	test/regress/data/cover18_ef.txt \
 	test/regress/data/cover19_spec.txt \
+	test/regress/data/cover23_ef.txt \
 	test/regress/data/cover9_ef1.txt \
 	test/regress/data/cover9_ef2.txt \
 	test/regress/data/cover9_ef3.txt \
-	test/regress/data/cover9_ef4.txt \
 	test/regress/data/cover9_ef5.txt \
 	test/regress/debug1.vhd \
 	test/regress/debug2.vhd \
@@ -870,13 +897,21 @@ EXTRA_DIST += \
 	test/regress/elab7.vhd \
 	test/regress/elab8.vhd \
 	test/regress/elab9.vhd \
+	test/regress/ename10.vhd \
+	test/regress/ename11.vhd \
+	test/regress/ename12.vhd \
+	test/regress/ename13.vhd \
+	test/regress/ename14.vhd \
+	test/regress/ename15.vhd \
 	test/regress/ename1.vhd \
+	test/regress/ename2.vhd \
 	test/regress/ename3.vhd \
 	test/regress/ename4.vhd \
 	test/regress/ename5.vhd \
 	test/regress/ename6.vhd \
 	test/regress/ename7.vhd \
 	test/regress/ename8.vhd \
+	test/regress/ename9.vhd \
 	test/regress/fact.vhd \
 	test/regress/file10.vhd \
 	test/regress/file11.vhd \
@@ -899,6 +934,7 @@ EXTRA_DIST += \
 	test/regress/for4.vhd \
 	test/regress/force1.vhd \
 	test/regress/force2.vhd \
+	test/regress/force3.vhd \
 	test/regress/func10.vhd \
 	test/regress/func11.vhd \
 	test/regress/func12.vhd \
@@ -1021,6 +1057,7 @@ EXTRA_DIST += \
 	test/regress/gold/bounds42.txt \
 	test/regress/gold/bounds43.txt \
 	test/regress/gold/bounds44.txt \
+	test/regress/gold/bounds45.txt \
 	test/regress/gold/bounds4.txt \
 	test/regress/gold/bounds5.txt \
 	test/regress/gold/bounds6.txt \
@@ -1047,16 +1084,18 @@ EXTRA_DIST += \
 	test/regress/gold/cover18.txt \
 	test/regress/gold/cover19.txt \
 	test/regress/gold/cover1.txt \
+	test/regress/gold/cover1.xml \
 	test/regress/gold/cover20.txt \
 	test/regress/gold/cover21.txt \
 	test/regress/gold/cover22.txt \
-	test/regress/gold/cover2.txt \
-	test/regress/gold/cover3.txt \
-	test/regress/gold/cover4.txt \
+	test/regress/gold/cover23.txt \
+	test/regress/gold/cover2.xml \
+	test/regress/gold/cover3.xml \
+	test/regress/gold/cover4.xml \
 	test/regress/gold/cover5.txt \
 	test/regress/gold/cover6.txt \
-	test/regress/gold/cover7.txt \
-	test/regress/gold/cover8.txt \
+	test/regress/gold/cover7.xml \
+	test/regress/gold/cover8.xml \
 	test/regress/gold/cover9.txt \
 	test/regress/gold/debug1.txt \
 	test/regress/gold/debug2.txt \
@@ -1071,7 +1110,14 @@ EXTRA_DIST += \
 	test/regress/gold/elab13.txt \
 	test/regress/gold/elab3.txt \
 	test/regress/gold/elab9.txt \
+	test/regress/gold/ename10.txt \
+	test/regress/gold/ename11.txt \
+	test/regress/gold/ename12.txt \
+	test/regress/gold/ename13.txt \
+	test/regress/gold/ename14.txt \
+	test/regress/gold/ename2.txt \
 	test/regress/gold/ename5.txt \
+	test/regress/gold/ename9.txt \
 	test/regress/gold/fact.txt \
 	test/regress/gold/file13.txt \
 	test/regress/gold/file14.txt \
@@ -1079,6 +1125,7 @@ EXTRA_DIST += \
 	test/regress/gold/for1.txt \
 	test/regress/gold/for2.txt \
 	test/regress/gold/for3.txt \
+	test/regress/gold/force3.txt \
 	test/regress/gold/func19.txt \
 	test/regress/gold/ieee11.txt \
 	test/regress/gold/ieee12.txt \
@@ -1135,11 +1182,19 @@ EXTRA_DIST += \
 	test/regress/gold/issue878.dump \
 	test/regress/gold/issue885.txt \
 	test/regress/gold/issue901.dump \
-	test/regress/gold/issue903.txt \
+	test/regress/gold/issue903.xml \
 	test/regress/gold/issue904.dump \
-	test/regress/gold/issue906.txt \
+	test/regress/gold/issue906.xml \
+	test/regress/gold/issue907.txt \
 	test/regress/gold/issue909.txt \
+	test/regress/gold/issue941.xml \
+	test/regress/gold/issue957.dump \
+	test/regress/gold/issue962.dump \
 	test/regress/gold/issue96.txt \
+	test/regress/gold/issue970.txt \
+	test/regress/gold/issue972.dump \
+	test/regress/gold/issue979.dump \
+	test/regress/gold/issue985.dump \
 	test/regress/gold/ivtest2.txt \
 	test/regress/gold/proc7.txt \
 	test/regress/gold/proc8.txt \
@@ -1151,6 +1206,7 @@ EXTRA_DIST += \
 	test/regress/gold/psl5.txt \
 	test/regress/gold/psl6.txt \
 	test/regress/gold/psl7.txt \
+	test/regress/gold/psl8.txt \
 	test/regress/gold/range1.txt \
 	test/regress/gold/real1.txt \
 	test/regress/gold/real3.txt \
@@ -1163,6 +1219,8 @@ EXTRA_DIST += \
 	test/regress/gold/signal6.txt \
 	test/regress/gold/stop1.txt \
 	test/regress/gold/stop2.txt \
+	test/regress/gold/synopsys2.txt \
+	test/regress/gold/synopsys3.txt \
 	test/regress/gold/textio1.txt \
 	test/regress/gold/textio5.txt \
 	test/regress/gold/value3.txt \
@@ -1182,6 +1240,7 @@ EXTRA_DIST += \
 	test/regress/gold/wait6.txt \
 	test/regress/gold/wave10.dump \
 	test/regress/gold/wave11.dump \
+	test/regress/gold/wave12.dump \
 	test/regress/gold/wave1.dump \
 	test/regress/gold/wave2.dump \
 	test/regress/gold/wave3.dump \
@@ -1206,6 +1265,7 @@ EXTRA_DIST += \
 	test/regress/ieee14.vhd \
 	test/regress/ieee15.vhd \
 	test/regress/ieee16.vhd \
+	test/regress/ieee17.vhd \
 	test/regress/ieee1.vhd \
 	test/regress/ieee2.vhd \
 	test/regress/ieee3.vhd \
@@ -1224,6 +1284,8 @@ EXTRA_DIST += \
 	test/regress/implicit5.vhd \
 	test/regress/implicit6.vhd \
 	test/regress/implicit7.vhd \
+	test/regress/implicit8.vhd \
+	test/regress/implicit9.vhd \
 	test/regress/integer1.vhd \
 	test/regress/integer2.vhd \
 	test/regress/integer3.vhd \
@@ -1467,13 +1529,37 @@ EXTRA_DIST += \
 	test/regress/issue903.vhd \
 	test/regress/issue904.vhd \
 	test/regress/issue906.vhd \
+	test/regress/issue907.vhd \
 	test/regress/issue908.vhd \
 	test/regress/issue909.sh \
 	test/regress/issue90.vhd \
 	test/regress/issue91.vhd \
+	test/regress/issue921.vhd \
+	test/regress/issue923.vhd \
+	test/regress/issue924.vhd \
+	test/regress/issue925.vhd \
+	test/regress/issue931.vhd \
+	test/regress/issue932.vhd \
+	test/regress/issue941.vhd \
+	test/regress/issue943.vhd \
+	test/regress/issue946.vhd \
 	test/regress/issue94.vhd \
+	test/regress/issue950.vhd \
+	test/regress/issue954.vhd \
+	test/regress/issue957.vhd \
 	test/regress/issue95.vhd \
+	test/regress/issue960.vhd \
+	test/regress/issue962.vhd \
+	test/regress/issue963.vhd \
+	test/regress/issue968.vhd \
 	test/regress/issue96.vhd \
+	test/regress/issue970.vhd \
+	test/regress/issue971.vhd \
+	test/regress/issue972.vhd \
+	test/regress/issue978.vhd \
+	test/regress/issue979.vhd \
+	test/regress/issue983.vhd \
+	test/regress/issue985.vhd \
 	test/regress/issue98.vhd \
 	test/regress/issue9.vhd \
 	test/regress/ivtest1.v \
@@ -1501,10 +1587,15 @@ EXTRA_DIST += \
 	test/regress/loop1.vhd \
 	test/regress/mixed1.v \
 	test/regress/mixed1.vhd \
+	test/regress/mixed2.v \
+	test/regress/mixed2.vhd \
+	test/regress/mixed3.v \
+	test/regress/mixed3.vhd \
 	test/regress/null1.vhd \
 	test/regress/null2.vhd \
 	test/regress/null3.vhd \
 	test/regress/open1.vhd \
+	test/regress/open2.vhd \
 	test/regress/operator1.vhd \
 	test/regress/operator2.vhd \
 	test/regress/operator3.vhd \
@@ -1551,6 +1642,7 @@ EXTRA_DIST += \
 	test/regress/psl5.vhd \
 	test/regress/psl6.vhd \
 	test/regress/psl7.vhd \
+	test/regress/psl8.vhd \
 	test/regress/ram1.vhd \
 	test/regress/range1.vhd \
 	test/regress/range2.vhd \
@@ -1592,6 +1684,7 @@ EXTRA_DIST += \
 	test/regress/record36.vhd \
 	test/regress/record37.vhd \
 	test/regress/record38.vhd \
+	test/regress/record39.vhd \
 	test/regress/record3.vhd \
 	test/regress/record4.vhd \
 	test/regress/record5.vhd \
@@ -1642,6 +1735,7 @@ EXTRA_DIST += \
 	test/regress/signal34.vhd \
 	test/regress/signal35.vhd \
 	test/regress/signal36.vhd \
+	test/regress/signal37.vhd \
 	test/regress/signal3.vhd \
 	test/regress/signal4.vhd \
 	test/regress/signal5.vhd \
@@ -1663,6 +1757,8 @@ EXTRA_DIST += \
 	test/regress/stdenv6.vhd \
 	test/regress/stop1.vhd \
 	test/regress/synopsys1.vhd \
+	test/regress/synopsys2.vhd \
+	test/regress/synopsys3.vhd \
 	test/regress/tcl1.tcl \
 	test/regress/tcl2.tcl \
 	test/regress/testlist.txt \
@@ -1754,6 +1850,8 @@ EXTRA_DIST += \
 	test/regress/view5.vhd \
 	test/regress/view6.vhd \
 	test/regress/vital1.vhd \
+	test/regress/vlog10.v \
+	test/regress/vlog11.v \
 	test/regress/vlog1.v \
 	test/regress/vlog1.vhd \
 	test/regress/vlog2.v \
@@ -1794,6 +1892,7 @@ EXTRA_DIST += \
 	test/regress/wait9.vhd \
 	test/regress/wave10.vhd \
 	test/regress/wave11.vhd \
+	test/regress/wave12.vhd \
 	test/regress/wave1.vhd \
 	test/regress/wave2.sh \
 	test/regress/wave2.vhd \
@@ -1806,6 +1905,30 @@ EXTRA_DIST += \
 	test/regress/wave8.vhd \
 	test/regress/wave9.vhd \
 	test/regress/while1.vhd \
+	test/sdf/parse10.sdf \
+	test/sdf/parse11.sdf \
+	test/sdf/parse12.sdf \
+	test/sdf/parse13.sdf \
+	test/sdf/parse14.sdf \
+	test/sdf/parse15.sdf \
+	test/sdf/parse16.sdf \
+	test/sdf/parse17.sdf \
+	test/sdf/parse18.sdf \
+	test/sdf/parse19.sdf \
+	test/sdf/parse1.sdf \
+	test/sdf/parse20.sdf \
+	test/sdf/parse21.sdf \
+	test/sdf/parse22.sdf \
+	test/sdf/parse23.sdf \
+	test/sdf/parse24.sdf \
+	test/sdf/parse2.sdf \
+	test/sdf/parse3.sdf \
+	test/sdf/parse4.sdf \
+	test/sdf/parse5.sdf \
+	test/sdf/parse6.sdf \
+	test/sdf/parse7.sdf \
+	test/sdf/parse8.sdf \
+	test/sdf/parse9.sdf \
 	test/sem/access.vhd \
 	test/sem/afunc.vhd \
 	test/sem/agg2008.vhd \
@@ -1916,6 +2039,10 @@ EXTRA_DIST += \
 	test/sem/issue884.vhd \
 	test/sem/issue88.vhd \
 	test/sem/issue89.vhd \
+	test/sem/issue945.vhd \
+	test/sem/issue958.vhd \
+	test/sem/issue965.vhd \
+	test/sem/issue980.vhd \
 	test/sem/jcore1.vhd \
 	test/sem/lcs2016_02.vhd \
 	test/sem/lcs2016_04.vhd \
@@ -1929,6 +2056,7 @@ EXTRA_DIST += \
 	test/sem/lcs2016_41.vhd \
 	test/sem/lcs2016_45a.vhd \
 	test/sem/lcs2016_47.vhd \
+	test/sem/lcs2016_49.vhd \
 	test/sem/lcs2016_59.vhd \
 	test/sem/lcs2016_72b.vhd \
 	test/sem/lcs2016_75.vhd \
@@ -2041,10 +2169,12 @@ EXTRA_DIST += \
 	test/tsan-suppress.txt \
 	test/vlog/dff.v \
 	test/vlog/gate1.v \
+	test/vlog/implicit1.v \
 	test/vlog/parse1.v \
 	test/vlog/ports.v \
 	test/vlog/pp1.v \
 	test/vlog/pp2.v \
 	test/vlog/simple_sem.v \
 	test/vlog/specify1.v \
-	test/vlog/timescale1.v
+	test/vlog/timescale1.v \
+	test/vlog/udp1.v

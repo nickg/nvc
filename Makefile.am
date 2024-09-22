@@ -101,7 +101,7 @@ release: update-test-dist
 	    -e "/define(__release_date,/cdefine(__release_date, \`$$n $$l')dnl" \
 	    -e "/define(__release_date_short,/cdefine(__release_date_short, \`$$d')dnl" \
 	    $(top_srcdir)/www/defs.m4; \
-	  sed -i 's/'$$last'/'$$v'/g' $(top_srcdir)/README.md \
+	  sed -i 's/'$$last'/'$$v'/g' $(top_srcdir)/README.md; \
 	  $(MAKE) -C $(top_builddir) distcheck; \
 	  gpg -b $(top_builddir)/$(PACKAGE)-$(VERSION).tar.gz \
 	)

@@ -1,8 +1,6 @@
 ## Unreleased changes
-- Coverage bins in coverage exclude file are now part of the exclude
-  command hierarchy.
-- FSM state coverage bin name renamed from STATE to BIN_STATE.
-- All coverage bins are now counters saturating at 2147483647.
+
+## Version 1.14.0 - 2024-09-22
 - Waiting on implicit `'stable` and `'quiet` signals now works
   correctly.
 - Updated to OSVVM 2024.07 and UVVM 2024.07.03b for `nvc --install`.
@@ -15,7 +13,9 @@
   coverage database file instead of a top-level unit name.
 - The `--force-init` command which was deprecated in the 1.7 release has
   been removed.
-- Coverage exclude files now support `fold` command.
+- Coverage exclude files now support `fold` command to merge coverage
+  data from independent sub-hierarchies (from @Blebowski).
+- FSM state coverage bin renamed from STATE to BIN_STATE.
 - A signature is now allowed in the formal part of generic map
   associations in VHDL-2019 mode.
 - `use lib.pack.all` no longer makes the bare package name `pack`
