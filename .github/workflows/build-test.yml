@@ -80,8 +80,13 @@ jobs:
           path-to-lcov: ./build/coverage/nvc.info
 
   build-mac:
-    name: Mac OS
-    runs-on: macos-12
+    strategy:
+      matrix:
+        include:
+          - { os: macos-12, arch: x86_64 }
+          - { os: macos-14, arch: arm64 }
+    name: Mac OS (${{ matrix.arch }})
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
         with:
