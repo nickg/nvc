@@ -62,7 +62,7 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
    (I_NUMBER),
 
    // V_NET_DECL
-   (I_IDENT | I_SUBKIND | I_RANGES | I_DATATYPE),
+   (I_IDENT | I_SUBKIND | I_TYPE | I_RANGES),
 
    // V_ASSIGN
    (I_TARGET | I_VALUE | I_IDENT | I_DELAY),
@@ -77,7 +77,7 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
    (I_VALUE | I_STMTS),
 
    // V_VAR_DECL
-   (I_IDENT | I_RANGES),
+   (I_IDENT | I_TYPE | I_RANGES),
 
    // V_DELAY_CONTROL
    (I_VALUE),
@@ -122,10 +122,10 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
    (I_TEXT),
 
    // V_DATA_TYPE
-   (I_SUBKIND | I_DECLS),
+   (I_SUBKIND | I_DECLS | I_RANGES),
 
    // V_TYPE_DECL
-   (I_IDENT),
+   (I_IDENT | I_TYPE),
 };
 
 static const char *kind_text_map[V_LAST_NODE_KIND] = {
@@ -422,6 +422,25 @@ void vlog_set_delay(vlog_node_t v, vlog_node_t d)
    object_write_barrier(&(v->object), &(d->object));
 }
 
+vlog_node_t vlog_type(vlog_node_t v)
+{
+   item_t *item = lookup_item(&vlog_object, v, I_TYPE);
+   assert(item->object != NULL);
+   return container_of(item->object, struct _vlog_node, object);
+}
+
+bool vlog_has_type(vlog_node_t v)
+{
+   return lookup_item(&vlog_object, v, I_TYPE)->object != NULL;
+}
+
+void vlog_set_type(vlog_node_t v, vlog_node_t t)
+{
+   assert(t->object.kind == V_DATA_TYPE);
+   lookup_item(&vlog_object, v, I_TYPE)->object = &(t->object);
+   object_write_barrier(&(v->object), &(t->object));
+}
+
 const char *vlog_text(vlog_node_t v)
 {
    item_t *item = lookup_item(&vlog_object, v, I_TEXT);
@@ -442,16 +461,6 @@ number_t vlog_number(vlog_node_t v)
 void vlog_set_number(vlog_node_t v, number_t n)
 {
    lookup_item(&vlog_object, v, I_NUMBER)->number = n;
-}
-
-data_type_t vlog_datatype(vlog_node_t v)
-{
-   return lookup_item(&vlog_object, v, I_DATATYPE)->ival;
-}
-
-void vlog_set_datatype(vlog_node_t v, data_type_t dt)
-{
-   lookup_item(&vlog_object, v, I_DATATYPE)->ival = dt;
 }
 
 vlog_node_t vlog_left(vlog_node_t v)

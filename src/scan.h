@@ -390,5 +390,6 @@ bool is_scanned_as_psl(void);
 #define tINTEGER       490
 #define tTIME          491
 #define tTYPEDEF       492
+#define tLOGIC         493
 
 #endif  // _SCAN_H

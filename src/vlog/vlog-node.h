@@ -97,6 +97,12 @@ typedef enum {
    DT_INTEGER,
    DT_REAL,
    DT_STRUCT,
+   DT_BYTE,
+   DT_SHORTINT,
+   DT_INT,
+   DT_LONGINT,
+   DT_TIME,
+   DT_BIT,
 } data_type_t;
 
 typedef enum {
@@ -208,6 +214,10 @@ void vlog_set_target(vlog_node_t v, vlog_node_t e);
 vlog_node_t vlog_delay(vlog_node_t v);
 bool vlog_has_delay(vlog_node_t v);
 void vlog_set_delay(vlog_node_t v, vlog_node_t d);
+
+vlog_node_t vlog_type(vlog_node_t v);
+bool vlog_has_type(vlog_node_t v);
+void vlog_set_type(vlog_node_t v, vlog_node_t t);
 
 vlog_node_t vlog_left(vlog_node_t v);
 void vlog_set_left(vlog_node_t v, vlog_node_t e);

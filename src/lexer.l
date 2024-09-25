@@ -648,6 +648,8 @@ CCOND             ?i:CCOND
 <VLOG>"integer"          { return tINTEGER; }
 <VLOG>"time"             { return tTIME; }
 <VLOG>"typedef"          { return tTYPEDEF; }
+<VLOG>"bit"              { return tBIT; }
+<VLOG>"logic"            { return tLOGIC; }
 
 <VLOG>{SYSTASK}          { yylval.str = xstrdup(yytext); return tSYSTASK; }
 <VLOG>{VLOG_ID}          { yylval.str = xstrdup(yytext); return tID; }
