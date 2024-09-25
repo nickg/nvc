@@ -242,7 +242,8 @@ const char *token_str(token_t tok)
          "period", "nochange", "cond", "scond", "ccond", "path constraint",
          "period constraint", "sum", "diff", "skew constraint", "exception",
          "name", "arrival", "departure", "slack", "waveform", "increment",
-         "absolute", "~&", "~|", "~^"
+         "absolute", "~&", "~|", "~^", "struct", "packed", "void", "byte",
+         "shortint", "longint", "int", "integer", "time", "typedef",
       };
 
       if (tok >= 200 && tok - 200 < ARRAY_LEN(token_strs))

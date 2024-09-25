@@ -18,7 +18,6 @@
 #include "util.h"
 #include "vlog/vlog-node.h"
 #include "vlog/vlog-number.h"
-#include "common.h"
 #include "object.h"
 
 #include <string.h>
@@ -121,6 +120,12 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
 
    // V_UDP_ENTRY
    (I_TEXT),
+
+   // V_DATA_TYPE
+   (I_SUBKIND | I_DECLS),
+
+   // V_TYPE_DECL
+   (I_IDENT),
 };
 
 static const char *kind_text_map[V_LAST_NODE_KIND] = {
@@ -132,6 +137,7 @@ static const char *kind_text_map[V_LAST_NODE_KIND] = {
    "V_BASSIGN",   "V_UNARY",      "V_GATE_INST",     "V_STRENGTH",
    "V_MOD_INST",  "V_BIT_SELECT", "V_SYSFUNC",       "V_FOREVER",
    "V_SPECIFY",   "V_PRIMITIVE",  "V_UDP_TABLE",     "V_UDP_ENTRY",
+   "V_DATA_TYPE", "V_TYPE_DECL",
 };
 
 static const change_allowed_t change_allowed[] = {

@@ -575,6 +575,11 @@ static void vlog_check_specify(vlog_node_t spec)
 
 }
 
+static void vlog_check_type_decl(vlog_node_t spec)
+{
+
+}
+
 void vlog_check(vlog_node_t v)
 {
    switch (vlog_kind(v)) {
@@ -663,6 +668,9 @@ void vlog_check(vlog_node_t v)
       vlog_check_specify(v);
       break;
    case V_STRENGTH:
+      break;
+   case V_TYPE_DECL:
+      vlog_check_type_decl(v);
       break;
    default:
       fatal_at(vlog_loc(v), "cannot check verilog node %s",

@@ -99,6 +99,9 @@ static void _push_state(const rule_state_t *s);
 static vlog_node_t p_statement_or_null(void);
 static vlog_node_t p_expression(void);
 static vlog_node_t p_constant_expression(void);
+static void p_data_type(vlog_node_t *packed);
+static void p_list_of_variable_decl_assignments(vlog_node_t mod,
+                                                vlog_node_t packed);
 
 static inline void _pop_state(const rule_state_t *r)
 {
@@ -649,6 +652,46 @@ static vlog_node_t p_packed_dimension(void)
    return v;
 }
 
+static void p_data_type_or_void(void)
+{
+   // data_type | void
+
+   BEGIN("data type or void");
+
+   if (optional(tVOID))
+      ;
+   else {
+      vlog_node_t packed = NULL;
+      p_data_type(&packed);
+   }
+}
+
+static void p_struct_union_member(vlog_node_t v)
+{
+   // { attribute_instance } [ random_qualifier ] data_type_or_void
+   //    list_of_variable_decl_assignments ;
+
+   BEGIN("struct or union member");
+
+   while (peek() == tATTRBEGIN)
+      p_attribute_instance();
+
+   p_data_type_or_void();
+
+   p_list_of_variable_decl_assignments(v, NULL);
+
+   consume(tSEMI);
+}
+
+static void p_integer_atom_type(void)
+{
+   // byte | shortint | int | longint | integer | time
+
+   BEGIN("integer atom type");
+
+   one_of(tBYTE, tSHORTINT, tSVINT, tLONGINT, tINTEGER, tTIME);
+}
+
 static void p_data_type(vlog_node_t *packed)
 {
    // integer_vector_type [ signing ] { packed_dimension }
@@ -665,10 +708,49 @@ static void p_data_type(vlog_node_t *packed)
 
    BEGIN("data type");
 
-   consume(tREG);    // TODO
+   switch (peek()) {
+   case tREG:
+      // XXX: refactor
+      consume(tREG);
+      if (peek() == tLSQUARE)
+         *packed = p_packed_dimension();
+      break;
 
-   if (peek() == tLSQUARE)
-      *packed = p_packed_dimension();
+   case tBYTE:
+   case tSHORTINT:
+   case tSVINT:
+   case tLONGINT:
+   case tINTEGER:
+   case tTIME:
+      p_integer_atom_type();
+      break;
+
+   case tSTRUCT:
+      {
+         consume(tSTRUCT);
+         (void)optional(tPACKED);
+         consume(tLBRACE);
+
+         vlog_node_t v = vlog_new(V_DATA_TYPE);
+         vlog_set_subkind(v, DT_STRUCT);
+
+         do {
+            p_struct_union_member(v);
+         } while (not_at_token(tRBRACE));
+
+         consume(tRBRACE);
+
+         if (peek() == tLSQUARE)
+            *packed = p_packed_dimension();
+
+         vlog_set_loc(v, CURRENT_LOC);
+      }
+      break;
+
+   default:
+      one_of(tREG, tBYTE, tSHORTINT, tSVINT, tLONGINT, tINTEGER, tTIME,
+             tSTRUCT);
+   }
 }
 
 static void p_implicit_data_type(vlog_node_t *packed)
@@ -687,7 +769,7 @@ static void p_data_type_or_implicit(bool *isreg, vlog_node_t *packed)
 
    BEGIN("data type or implicit");
 
-   if (scan(tREG)) {
+   if (scan(tREG, tSTRUCT)) {
       p_data_type(packed);
       *isreg = true;
    }
@@ -1670,6 +1752,31 @@ static void p_list_of_variable_decl_assignments(vlog_node_t mod,
    } while (optional(tCOMMA));
 }
 
+static vlog_node_t p_type_declaration(void)
+{
+   // typedef data_type type_identifier { variable_dimension } ;
+   //   | typedef interface_instance_identifier constant_bit_select .
+   //       type_identifier type_identifier ;
+   //   | typedef [ enum | struct | union | class | interface class ]
+   //       type_identifier ;
+
+   BEGIN("type declaration");
+
+   consume(tTYPEDEF);
+
+   vlog_node_t v = vlog_new(V_TYPE_DECL);
+
+   vlog_node_t packed = NULL;
+   p_data_type(&packed);
+
+   vlog_set_ident(v, p_identifier());
+
+   consume(tSEMI);
+
+   vlog_set_loc(v, CURRENT_LOC);
+   return v;
+}
+
 static void p_data_declaration(vlog_node_t mod)
 {
    // [ const ] [ var ] [ lifetime ] data_type_or_implicit
@@ -1678,14 +1785,23 @@ static void p_data_declaration(vlog_node_t mod)
 
    BEGIN("data declaration");
 
-   bool isreg = false;
-   vlog_node_t packed = NULL;
-   p_data_type_or_implicit(&isreg, &packed);
-   assert(isreg);
+   switch (peek()) {
+   case tTYPEDEF:
+      vlog_add_decl(mod, p_type_declaration());
+      break;
 
-   p_list_of_variable_decl_assignments(mod, packed);
+   default:
+      {
+         bool isreg = false;
+         vlog_node_t packed = NULL;
+         p_data_type_or_implicit(&isreg, &packed);
+         assert(isreg);
 
-   consume(tSEMI);
+         p_list_of_variable_decl_assignments(mod, packed);
+
+         consume(tSEMI);
+      }
+   }
 }
 
 static void p_package_or_generate_item_declaration(vlog_node_t mod)
@@ -1706,10 +1822,12 @@ static void p_package_or_generate_item_declaration(vlog_node_t mod)
       p_net_declaration(mod);
       break;
    case tREG:
+   case tSTRUCT:
+   case tTYPEDEF:
       p_data_declaration(mod);
       break;
    default:
-      one_of(tWIRE, tREG, tSUPPLY0, tSUPPLY1);
+      one_of(tWIRE, tSUPPLY0, tSUPPLY1, tREG, tSTRUCT, tTYPEDEF);
       break;
    }
 }
@@ -1747,13 +1865,16 @@ static void p_module_common_item(vlog_node_t mod)
    case tSUPPLY0:
    case tSUPPLY1:
    case tREG:
+   case tSTRUCT:
+   case tTYPEDEF:
       p_module_or_generate_item_declaration(mod);
       break;
    case tASSIGN:
       p_continuous_assign(mod);
       break;
    default:
-      one_of(tALWAYS, tINITIAL, tWIRE, tSUPPLY0, tSUPPLY1, tREG, tASSIGN);
+      one_of(tALWAYS, tINITIAL, tWIRE, tSUPPLY0, tSUPPLY1, tREG, tSTRUCT,
+             tTYPEDEF, tASSIGN);
    }
 }
 
@@ -2208,8 +2329,10 @@ static void p_module_or_generate_item(vlog_node_t mod)
    case tSUPPLY0:
    case tSUPPLY1:
    case tREG:
+   case tSTRUCT:
    case tASSIGN:
    case tINITIAL:
+   case tTYPEDEF:
       p_module_common_item(mod);
       break;
    case tPULLDOWN:
@@ -2228,8 +2351,9 @@ static void p_module_or_generate_item(vlog_node_t mod)
       p_module_instantiation(mod);
       break;
    default:
-      one_of(tALWAYS, tWIRE, tSUPPLY0, tSUPPLY1, tREG, tASSIGN, tPULLDOWN,
-             tPULLUP, tID, tAND, tNAND, tOR, tNOR, tXOR, tXNOR, tNOT, tBUF);
+      one_of(tALWAYS, tWIRE, tSUPPLY0, tSUPPLY1, tREG, tSTRUCT, tASSIGN,
+             tINITIAL, tTYPEDEF, tPULLDOWN, tPULLUP, tID, tAND, tNAND, tOR,
+             tNOR, tXOR, tXNOR, tNOT, tBUF);
    }
 }
 
@@ -2247,6 +2371,7 @@ static void p_non_port_module_item(vlog_node_t mod)
    case tSUPPLY0:
    case tSUPPLY1:
    case tREG:
+   case tSTRUCT:
    case tASSIGN:
    case tINITIAL:
    case tPULLDOWN:
@@ -2261,15 +2386,16 @@ static void p_non_port_module_item(vlog_node_t mod)
    case tXNOR:
    case tNOT:
    case tBUF:
+   case tTYPEDEF:
       p_module_or_generate_item(mod);
       break;
    case tSPECIFY:
       vlog_add_stmt(mod, p_specify_block());
       break;
    default:
-      one_of(tALWAYS, tWIRE, tSUPPLY0, tSUPPLY1, tREG, tASSIGN, tPULLDOWN,
-             tPULLUP, tSPECIFY, tID, tATTRBEGIN, tAND, tNAND, tOR, tNOR,
-             tXOR, tXNOR, tNOT, tBUF);
+      one_of(tALWAYS, tWIRE, tSUPPLY0, tSUPPLY1, tREG, tSTRUCT, tASSIGN,
+             tPULLDOWN, tPULLUP, tID, tATTRBEGIN, tAND, tNAND, tOR, tNOR,
+             tXOR, tXNOR, tNOT, tBUF, tTYPEDEF, tSPECIFY);
    }
 }
 
@@ -2452,7 +2578,7 @@ static vlog_node_t p_module_declaration(void)
    ident_t qual = ident_prefix(lib_name(lib_work()), ext, '.');
    vlog_set_ident(mod, qual);
 
-   if (peek_nth(2) == tID)
+   if (peek() == tLPAREN && peek_nth(2) == tID)
       p_module_nonansi_header(mod);
    else
       p_module_ansi_header(mod);

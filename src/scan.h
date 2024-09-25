@@ -380,5 +380,15 @@ bool is_scanned_as_psl(void);
 #define tTILDEAMP      480
 #define tTILDEBAR      481
 #define tTILDECARET    482
+#define tSTRUCT        483
+#define tPACKED        484
+#define tVOID          485
+#define tBYTE          486
+#define tSHORTINT      487
+#define tLONGINT       488
+#define tSVINT         489
+#define tINTEGER       490
+#define tTIME          491
+#define tTYPEDEF       492
 
 #endif  // _SCAN_H

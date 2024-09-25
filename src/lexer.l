@@ -638,6 +638,16 @@ CCOND             ?i:CCOND
 <VLOG>"xnor"             { return tXNOR; }
 <VLOG>"not"              { return tNOT; }
 <VLOG>"buf"              { return tBUF; }
+<VLOG>"struct"           { return tSTRUCT; }
+<VLOG>"packed"           { return tPACKED; }
+<VLOG>"void"             { return tVOID; }
+<VLOG>"byte"             { return tBYTE; }
+<VLOG>"shortint"         { return tSHORTINT; }
+<VLOG>"longint"          { return tLONGINT; }
+<VLOG>"int"              { return tSVINT; }
+<VLOG>"integer"          { return tINTEGER; }
+<VLOG>"time"             { return tTIME; }
+<VLOG>"typedef"          { return tTYPEDEF; }
 
 <VLOG>{SYSTASK}          { yylval.str = xstrdup(yytext); return tSYSTASK; }
 <VLOG>{VLOG_ID}          { yylval.str = xstrdup(yytext); return tID; }

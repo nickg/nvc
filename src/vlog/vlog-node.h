@@ -86,6 +86,8 @@ typedef enum {
    V_PRIMITIVE,
    V_UDP_TABLE,
    V_UDP_ENTRY,
+   V_DATA_TYPE,
+   V_TYPE_DECL,
 
    V_LAST_NODE_KIND
 } vlog_kind_t;
@@ -94,6 +96,7 @@ typedef enum {
    DT_LOGIC,
    DT_INTEGER,
    DT_REAL,
+   DT_STRUCT,
 } data_type_t;
 
 typedef enum {
