@@ -1,4 +1,5 @@
 ## Unreleased changes
+- Tightened restrictions on where PSL declarations may appear (#993).
 
 ## Version 1.14.0 - 2024-09-22
 - Waiting on implicit `'stable` and `'quiet` signals now works

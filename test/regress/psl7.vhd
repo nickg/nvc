@@ -7,9 +7,10 @@ use ieee.std_logic_1164.all;
 architecture test of psl7 is
     signal clk : std_logic := '0';
     signal x, y : std_logic;
-begin
 
     -- psl default clock is rising_edge(clk);
+begin
+
     -- psl one: cover {x and y} report "one";
     -- psl two: cover {[*]; x and y} report "two";
     -- psl three: cover {x; not x and not y; y} report "three";

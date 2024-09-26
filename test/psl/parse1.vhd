@@ -32,4 +32,6 @@ begin
     -- psl assert x -> (x until! y);               -- OK
     -- psl assert x -> (x until_! y);              -- OK
     -- psl assert ((x = '1') and (xxxx = '1'));    -- Error (issue #911)
+
+    -- psl default clock is clk'event and clk = '1';   -- Error (issue #993)
 end architecture;

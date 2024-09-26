@@ -9,9 +9,8 @@ architecture test of parse5 is
 
     signal a, b, c, d, e, f, clk : bit;
 
-begin
-
     -- psl default clock is rising_edge(clk);
+begin
 
     -- psl cover {a:b:c:d};
 
