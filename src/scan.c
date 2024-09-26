@@ -197,24 +197,6 @@ const char *token_str(token_t tok)
       buf[0] = tok;
       return buf;
    }
-   // TODO: When SDF tokens are appended behind rest of tokens, this special case
-   //       shall be removed!
-   else if (tok > 499) {
-      static const char *sdf_token_strs[] = {
-         "delay file", "sdf version", "design", "date", "vendor", "program",
-         "version", "divider", "voltage", "temperature", "cell", "celltype",
-         "instance", "delay", "timing check", "timing env", "path pulse",
-         "path pulse percent", "IO path", "retain", "cond", "condelse",
-         "interconnect", "net delay", "device", "setup", "hold", "setuphold",
-         "recovery", "removal", "recrem", "skew", "bidirectional skew", "width",
-         "period", "nochange", "cond", "scond", "ccond", "path constraint",
-         "period constraint", "sum", "diff", "skew constraint", "exception",
-         "name", "arrival", "departure", "slack", "waveform", "increment",
-         "absolute", "~&", "~|", "~^",
-      };
-      if (tok >= 500 && tok - 500 < ARRAY_LEN(sdf_token_strs))
-         return sdf_token_strs[tok - 500];
-   }
    else {
       static const char *token_strs[] = {
          "identifier", "entity", "is", "end", "generic", "port", "constant",
@@ -250,7 +232,17 @@ const char *token_str(token_t tok)
          "(*", "*)", "number", "forever", "[[", "]]", "specify", "endspecify",
          "primitive", "endprimitive", "table", "endtable", "assign",
          "level symbol", "edge symbol", "edge indicator", "buf", "||",
-         "scalar constant (0)", "scalar constant (1)"
+         "scalar constant (0)", "scalar constant (1)", "delay file",
+         "sdf version", "design", "date", "vendor", "program", "version",
+         "divider", "voltage", "temperature", "cell", "celltype", "instance",
+         "delay", "timing check", "timing env", "path pulse",
+         "path pulse percent", "IO path", "retain", "cond", "condelse",
+         "interconnect", "net delay", "device", "setup", "hold", "setuphold",
+         "recovery", "removal", "recrem", "skew", "bidirectional skew", "width",
+         "period", "nochange", "cond", "scond", "ccond", "path constraint",
+         "period constraint", "sum", "diff", "skew constraint", "exception",
+         "name", "arrival", "departure", "slack", "waveform", "increment",
+         "absolute", "~&", "~|", "~^"
       };
 
       if (tok >= 200 && tok - 200 < ARRAY_LEN(token_strs))
