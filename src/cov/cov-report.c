@@ -1033,7 +1033,7 @@ static void cover_print_hierarchy_guts(FILE *f, cover_report_ctx_t *ctx)
               "      navigator.clipboard.writeText(excludeCmd);\n"
               "   }\n"
               "   function getCellValue (tr, n) {\n"
-              "      v = tr.getElementsByTagName(\"TD\")[n];\n"
+              "      let v = tr.getElementsByTagName(\"TD\")[n];\n"
               "      v = parseInt(v.innerHTML.split(\"%%\")[0]);\n"
               "      if (isNaN(v)) {\n"
               "         v = tr.getElementsByTagName(\"TD\")[n].innerHTML.toLowerCase();\n"
