@@ -448,6 +448,7 @@ CCOND             ?i:CCOND
 {RELEASE}                { TOKEN_08(tRELEASE); }
 {PARAMETER}              { TOKEN_08(tPARAMETER); }
 {DEFAULT}                { TOKEN_08(tDEFAULT); }
+{COVER}                  { TOKEN_08(tCOVER); }
 {VIEW}                   { TOKEN_19(tVIEW); }
 {PRIVATE}                { TOKEN_19(tPRIVATE); }
 

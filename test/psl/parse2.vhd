@@ -12,4 +12,7 @@ begin
     assert always e or y -> x;          -- Error
     assert x = '1' report "ok" severity note;  -- OK (VHDL)
 
+    cov_0: cover {x};                   -- OK
+    cover {y; x};                       -- OK
+
 end architecture;

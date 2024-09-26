@@ -176,7 +176,7 @@ static psl_node_t p_psl_sequence(void);
 static psl_node_t p_psl_property(void);
 static tree_t p_psl_builtin_function_call(void);
 static psl_node_t p_psl_sere(void);
-static tree_t p_psl_directive(void);
+static tree_t p_psl_directive(ident_t label);
 
 static bool consume(token_t tok);
 static bool optional(token_t tok);
@@ -10941,7 +10941,14 @@ static void p_concurrent_statement_or_psl(tree_t parent)
 {
    if (peek() == tSTARTPSL) {
       consume(tSTARTPSL);
-      tree_add_stmt(parent, p_psl_directive());
+
+      ident_t label = NULL;
+      if (peek() == tID) {
+         label = p_identifier();
+         consume(tCOLON);
+      }
+
+      tree_add_stmt(parent, p_psl_directive(label));
    }
    else
       tree_add_stmt(parent, p_concurrent_statement());
@@ -12470,7 +12477,7 @@ static psl_node_t p_psl_verification_directive(void)
    }
 }
 
-static tree_t p_psl_directive(void)
+static tree_t p_psl_directive(ident_t label)
 {
    // [ Label : ] Verification_Directive
 
@@ -12479,12 +12486,6 @@ static tree_t p_psl_directive(void)
    tree_t t = tree_new(T_PSL);
 
    scan_as_psl();
-
-   ident_t label = NULL;
-   if (peek() == tID) {
-      label = p_identifier();
-      consume(tCOLON);
-   }
 
    // Verification directive can contain Proc_Block with
    // local declarations -> Push scope
@@ -12736,6 +12737,9 @@ static tree_t p_concurrent_statement(void)
          return p_psl_or_concurrent_assert(label);
       else
          return p_concurrent_assertion_statement(label);
+
+   case tCOVER:
+      return p_psl_directive(label);
 
    case tBLOCK:
       return p_block_statement(label);

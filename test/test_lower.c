@@ -1938,7 +1938,7 @@ START_TEST(test_cover)
    cover_data_t *data = cover_data_init(COVER_MASK_STMT | COVER_MASK_EXPRESSION | COVER_MASK_BRANCH, 0);
    elab(tree_to_object(a), jit, ur, data, NULL);
 
-   vcode_unit_t v0 = find_unit("WORK.COVER.P1");
+   vcode_unit_t v0 = find_unit("WORK.COVER_ENT.P1");
    vcode_select_unit(v0);
 
    EXPECT_BB(1) = {

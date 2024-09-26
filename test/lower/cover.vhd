@@ -1,10 +1,10 @@
 Library ieee;
 use ieee.std_logic_1164.all;
 
-entity cover is
+entity cover_ent is
 end entity;
 
-architecture test of cover is
+architecture test of cover_ent is
     signal s : integer;
     signal l : std_logic;
     signal l_vect : std_logic_vector(7 downto 0);
