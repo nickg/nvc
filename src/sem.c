@@ -5184,10 +5184,15 @@ static bool sem_check_generic_actual(formal_map_t *formals, int nformals,
       const bool pure_formal = !(tree_flags(decl) & TREE_F_IMPURE);
       const bool pure_actual = !(tree_flags(sub) & TREE_F_IMPURE);
 
-      if (pure_formal && !pure_actual)
-         sem_error(value, "cannot associate impure function %s with pure "
-                   "generic subprogram %s", type_pp(tree_type(value)),
-                   istr(tree_ident(decl)));
+      if (pure_formal && !pure_actual) {
+         diag_t *d = pedantic_diag(tree_loc(value));
+         if (d != NULL) {
+            diag_printf(d, "cannot associate impure function %s with pure "
+                        "generic subprogram %s", type_pp(tree_type(value)),
+                        istr(tree_ident(decl)));
+            diag_emit(d);
+         }
+      }
 
       map_generic_subprogram(tab, decl, sub);
       break;
