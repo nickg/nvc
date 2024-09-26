@@ -261,6 +261,9 @@ static void cover_print_html_header(FILE *f)
               "     padding: 14px 16px;\n"
               "     font-size: 17px;\n"
               "   }\n"
+              "   .cbg:hover {\n"
+              "     background-color: #dddddd;\n"
+              "   }\n"
               "   .cbg {\n"
               "     background-color: #bbbbbb;\n"
               "   }\n"
@@ -356,19 +359,19 @@ static void cover_print_percents_cell(FILE *f, unsigned hit, unsigned total)
       fprintf(f, "    <td class=\"percentna\">N.A.</td>\n");
 }
 
-static void cover_print_hierarchy_header(FILE *f)
+static void cover_print_hierarchy_header(FILE *f, const char *table_id)
 {
-   fprintf(f, "<table style=\"width:75%%;margin-left:" MARGIN_LEFT ";margin-right:auto;\"> \n"
-              "  <tr>\n"
-              "    <th class=\"cbg\" style=\"width:30%%\">Instance</th>\n"
-              "    <th class=\"cbg\" style=\"width:8%%\">Statement</th>\n"
-              "    <th class=\"cbg\" style=\"width:8%%\">Branch</th>\n"
-              "    <th class=\"cbg\" style=\"width:8%%\">Toggle</th>\n"
-              "    <th class=\"cbg\" style=\"width:8%%\">Expression</th>\n"
-              "    <th class=\"cbg\" style=\"width:8%%\">FSM state</th>\n"
-              "    <th class=\"cbg\" style=\"width:8%%\">Functional</th>\n"
-              "    <th class=\"cbg\" style=\"width:8%%\">Average</th>\n"
-              "  </tr>\n");
+   fprintf(f, "<table id=\"%s\" style=\"width:75%%;margin-left:" MARGIN_LEFT ";margin-right:auto;\"> \n"
+              "  <tr style=\"height:40px\">\n"
+              "    <th class=\"cbg\" onclick=\"sortTable(0, &quot;%s&quot;)\" style=\"width:30%%\">Instance</th>\n"
+              "    <th class=\"cbg\" onclick=\"sortTable(1, &quot;%s&quot;)\"  style=\"width:8%%\">Statement</th>\n"
+              "    <th class=\"cbg\" onclick=\"sortTable(2, &quot;%s&quot;)\"  style=\"width:8%%\">Branch</th>\n"
+              "    <th class=\"cbg\" onclick=\"sortTable(3, &quot;%s&quot;)\"  style=\"width:8%%\">Toggle</th>\n"
+              "    <th class=\"cbg\" onclick=\"sortTable(4, &quot;%s&quot;)\"  style=\"width:8%%\">Expression</th>\n"
+              "    <th class=\"cbg\" onclick=\"sortTable(5, &quot;%s&quot;)\"  style=\"width:8%%\">FSM state</th>\n"
+              "    <th class=\"cbg\" onclick=\"sortTable(6, &quot;%s&quot;)\"  style=\"width:8%%\">Functional</th>\n"
+              "    <th class=\"cbg\" onclick=\"sortTable(7, &quot;%s&quot;)\"  style=\"width:8%%\">Average</th>\n"
+              "  </tr>\n", table_id, table_id, table_id, table_id, table_id, table_id, table_id, table_id, table_id);
 }
 
 static void cover_print_hierarchy_footer(FILE *f)
@@ -1029,6 +1032,29 @@ static void cover_print_hierarchy_guts(FILE *f, cover_report_ctx_t *ctx)
               "   function GetExclude(excludeCmd) {\n"
               "      navigator.clipboard.writeText(excludeCmd);\n"
               "   }\n"
+              "   function getCellValue (tr, n) {\n"
+              "      let v = tr.getElementsByTagName(\"TD\")[n];\n"
+              "      v = parseInt(v.innerHTML.split(\"%%\")[0]);\n"
+              "      if (isNaN(v)) {\n"
+              "         v = tr.getElementsByTagName(\"TD\")[n].innerHTML.toLowerCase();\n"
+              "      }\n"
+              "      return v;\n"
+              "   }\n"
+              "   function sortTable(n, tableId) {\n"
+              "     const table = document.getElementById(tableId);\n"
+              "     const rows = Array.from(table.querySelectorAll('tr:nth-child(n+2)'));\n"
+              "     rows.sort((a, b) => {\n"
+              "       const left = getCellValue(this.ascending ? a : b, n);\n"
+              "       const right = getCellValue(this.ascending ? b : a, n);\n"
+              "       if (!isNaN(left) && !isNaN(right)) {\n"
+              "         return left - right;\n"
+              "       } else {\n"
+              "         return left.localeCompare(right);\n"
+              "       }\n"
+              "     });\n"
+              "     rows.forEach(tr => table.appendChild(tr));\n"
+              "     this.ascending = !this.ascending;\n"
+              "   }\n"
               "   document.getElementById(\"defaultOpen\").click();\n"
               "</script>\n");
 }
@@ -1248,7 +1274,7 @@ static void cover_report_hierarchy(cover_report_ctx_t *ctx,
    cover_print_file_and_inst(f, ctx, s);
 
    fprintf(f, "<h2 style=\"margin-left: " MARGIN_LEFT ";\">\n  Sub-instances:\n</h2>\n\n");
-   cover_print_hierarchy_header(f);
+   cover_print_hierarchy_header(f, "sub_inst_table");
 
    int skipped = 0;
    cover_report_children(ctx, s, dir, f, &skipped);
@@ -1256,7 +1282,7 @@ static void cover_report_hierarchy(cover_report_ctx_t *ctx,
    cover_print_hierarchy_footer(f);
 
    fprintf(f, "<h2 style=\"margin-left: " MARGIN_LEFT ";\">\n  Current Instance:\n</h2>\n\n");
-   cover_print_hierarchy_header(f);
+   cover_print_hierarchy_header(f, "cur_inst_table");
    cover_print_hierarchy_summary(f, ctx, s->hier, false, true, true);
    cover_print_hierarchy_footer(f);
 
@@ -1342,7 +1368,7 @@ void cover_report(const char *path, cover_data_t *data, int item_limit)
    FILE *f = fopen(top, "w");
 
    cover_print_html_header(f);
-   cover_print_hierarchy_header(f);
+   cover_print_hierarchy_header(f, "inst_table");
 
    for (int i = 0; i < data->root_scope->children.count; i++) {
       cover_scope_t *child = AGET(data->root_scope->children, i);
