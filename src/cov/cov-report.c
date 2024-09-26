@@ -261,6 +261,9 @@ static void cover_print_html_header(FILE *f)
               "     padding: 14px 16px;\n"
               "     font-size: 17px;\n"
               "   }\n"
+              "   .cbg:hover {\n"
+              "     background-color: #dddddd;\n"
+              "   }\n"
               "   .cbg {\n"
               "     background-color: #bbbbbb;\n"
               "   }\n"
@@ -356,19 +359,19 @@ static void cover_print_percents_cell(FILE *f, unsigned hit, unsigned total)
       fprintf(f, "    <td class=\"percentna\">N.A.</td>\n");
 }
 
-static void cover_print_hierarchy_header(FILE *f)
+static void cover_print_hierarchy_header(FILE *f, const char *table_id)
 {
-   fprintf(f, "<table style=\"width:75%%;margin-left:" MARGIN_LEFT ";margin-right:auto;\"> \n"
-              "  <tr>\n"
-              "    <th class=\"cbg\" style=\"width:30%%\">Instance</th>\n"
-              "    <th class=\"cbg\" style=\"width:8%%\">Statement</th>\n"
-              "    <th class=\"cbg\" style=\"width:8%%\">Branch</th>\n"
-              "    <th class=\"cbg\" style=\"width:8%%\">Toggle</th>\n"
-              "    <th class=\"cbg\" style=\"width:8%%\">Expression</th>\n"
-              "    <th class=\"cbg\" style=\"width:8%%\">FSM state</th>\n"
-              "    <th class=\"cbg\" style=\"width:8%%\">Functional</th>\n"
-              "    <th class=\"cbg\" style=\"width:8%%\">Average</th>\n"
-              "  </tr>\n");
+   fprintf(f, "<table id=\"%s\" style=\"width:75%%;margin-left:" MARGIN_LEFT ";margin-right:auto;\"> \n"
+              "  <tr style=\"height:40px\">\n"
+              "    <th class=\"cbg\" onclick=\"sortTable(0, &quot;%s&quot;, false)\" style=\"width:30%%\">Instance</th>\n"
+              "    <th class=\"cbg\" onclick=\"sortTable(1, &quot;%s&quot;, true)\"  style=\"width:8%%\">Statement</th>\n"
+              "    <th class=\"cbg\" onclick=\"sortTable(2, &quot;%s&quot;, true)\"  style=\"width:8%%\">Branch</th>\n"
+              "    <th class=\"cbg\" onclick=\"sortTable(3, &quot;%s&quot;, true)\"  style=\"width:8%%\">Toggle</th>\n"
+              "    <th class=\"cbg\" onclick=\"sortTable(4, &quot;%s&quot;, true)\"  style=\"width:8%%\">Expression</th>\n"
+              "    <th class=\"cbg\" onclick=\"sortTable(5, &quot;%s&quot;, true)\"  style=\"width:8%%\">FSM state</th>\n"
+              "    <th class=\"cbg\" onclick=\"sortTable(6, &quot;%s&quot;, true)\"  style=\"width:8%%\">Functional</th>\n"
+              "    <th class=\"cbg\" onclick=\"sortTable(7, &quot;%s&quot;, true)\"  style=\"width:8%%\">Average</th>\n"
+              "  </tr>\n", table_id, table_id, table_id, table_id, table_id, table_id, table_id, table_id, table_id);
 }
 
 static void cover_print_hierarchy_footer(FILE *f)
@@ -1029,6 +1032,73 @@ static void cover_print_hierarchy_guts(FILE *f, cover_report_ctx_t *ctx)
               "   function GetExclude(excludeCmd) {\n"
               "      navigator.clipboard.writeText(excludeCmd);\n"
               "   }\n"
+              "   function sortTable(n, tableId, is_number) {\n"
+              "      var table, rows, switching, i, x, y, shouldSwitch, dir, switchcount = 0;\n"
+              "      table = document.getElementById(tableId);\n"
+              "      switching = true;\n"
+              "      // Set the sorting direction to ascending:\n"
+              "      dir = \"asc\";\n"
+              "      /* Make a loop that will continue until\n"
+              "      no switching has been done: */\n"
+              "      while (switching) {\n"
+              "        // Start by saying: no switching is done:\n"
+              "        switching = false;\n"
+              "        rows = table.rows;\n"
+              "        /* Loop through all table rows (except the\n"
+              "        first, which contains table headers): */\n"
+              "        for (i = 1; i < (rows.length - 1); i++) {\n"
+              "          // Start by saying there should be no switching:\n"
+              "          shouldSwitch = false;\n"
+              "          /* Get the two elements you want to compare,\n"
+              "          one from current row and one from the next: */\n"
+              "          if (is_number === true) {"
+              "            x = rows[i].getElementsByTagName(\"TD\")[n];\n"
+              "            y = rows[i + 1].getElementsByTagName(\"TD\")[n];\n"
+              "            x = parseInt(x.innerHTML.split(\"%%\")[0]);\n"
+              "            y = parseInt(y.innerHTML.split(\"%%\")[0]);\n"
+              "            if (isNaN(x)) {\n"
+              "               x = 0;\n"
+              "            }\n"
+              "            if (isNaN(y)) {\n"
+              "               y = 0;\n"
+              "            }\n"
+              "          } else {\n"
+              "            x = rows[i].getElementsByTagName(\"TD\")[n].innerHTML.toLowerCase();\n"
+              "            y = rows[i + 1].getElementsByTagName(\"TD\")[n].innerHTML.toLowerCase();\n"
+              "          }\n"
+              "          /* Check if the two rows should switch place,\n"
+              "          based on the direction, asc or desc: */\n"
+              "          if (dir == \"asc\") {\n"
+              "            if (x > y) {\n"
+              "              // If so, mark as a switch and break the loop:\n"
+              "              shouldSwitch = true;\n"
+              "              break;\n"
+              "            }\n"
+              "          } else if (dir == \"desc\") {\n"
+              "            if (x < y) {\n"
+              "              // If so, mark as a switch and break the loop:\n"
+              "              shouldSwitch = true;\n"
+              "              break;\n"
+              "            }\n"
+              "          }\n"
+              "        }\n"
+              "        if (shouldSwitch) {\n"
+              "          /* If a switch has been marked, make the switch\n"
+              "          and mark that a switch has been done: */\n"
+              "          rows[i].parentNode.insertBefore(rows[i + 1], rows[i]);\n"
+              "          switching = true;\n"
+              "          // Each time a switch is done, increase this count by 1:\n"
+              "          switchcount ++;\n"
+              "        } else {\n"
+              "          /* If no switching has been done AND the direction is \"asc\",\n"
+              "          set the direction to \"desc\" and run the while loop again. */\n"
+              "          if (switchcount == 0 && dir == \"asc\") {\n"
+              "            dir = \"desc\";\n"
+              "            switching = true;\n"
+              "          }\n"
+              "        }\n"
+              "      }\n"
+              "   }\n"
               "   document.getElementById(\"defaultOpen\").click();\n"
               "</script>\n");
 }
@@ -1248,7 +1318,7 @@ static void cover_report_hierarchy(cover_report_ctx_t *ctx,
    cover_print_file_and_inst(f, ctx, s);
 
    fprintf(f, "<h2 style=\"margin-left: " MARGIN_LEFT ";\">\n  Sub-instances:\n</h2>\n\n");
-   cover_print_hierarchy_header(f);
+   cover_print_hierarchy_header(f, "sub_inst_table");
 
    int skipped = 0;
    cover_report_children(ctx, s, dir, f, &skipped);
@@ -1256,7 +1326,7 @@ static void cover_report_hierarchy(cover_report_ctx_t *ctx,
    cover_print_hierarchy_footer(f);
 
    fprintf(f, "<h2 style=\"margin-left: " MARGIN_LEFT ";\">\n  Current Instance:\n</h2>\n\n");
-   cover_print_hierarchy_header(f);
+   cover_print_hierarchy_header(f, "cur_inst_table");
    cover_print_hierarchy_summary(f, ctx, s->hier, false, true, true);
    cover_print_hierarchy_footer(f);
 
@@ -1342,7 +1412,7 @@ void cover_report(const char *path, cover_data_t *data, int item_limit)
    FILE *f = fopen(top, "w");
 
    cover_print_html_header(f);
-   cover_print_hierarchy_header(f);
+   cover_print_hierarchy_header(f, "inst_table");
 
    for (int i = 0; i < data->root_scope->children.count; i++) {
       cover_scope_t *child = AGET(data->root_scope->children, i);
