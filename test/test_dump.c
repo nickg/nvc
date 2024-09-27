@@ -470,7 +470,7 @@ START_TEST(test_vlog1)
              "  input clk;\n"
              "  input rstb;\n"
              "  output q;\n"
-             "  reg q;\n"
+             "  logic q;\n"
              "  always @(posedge clk) q <= d;\n"
              "endmodule // dff\n\n");
    tb_rewind(tb);
@@ -481,9 +481,9 @@ START_TEST(test_vlog1)
    vlog_dump(m2, 0);
    diff_dump(tb_get(tb),
              "module mod2;\n"
-             "  wire [7:0] bus;\n"
-             "  wire w;\n"
-             "  reg r;\n"
+             "  wire logic [7:0] bus;\n"
+             "  wire logic w;\n"
+             "  logic r;\n"
              "  initial begin\n"
              "    $display(\"hello\", $time);\n"
              "    if (bus)\n"
@@ -527,9 +527,9 @@ START_TEST(test_vlog1)
    vlog_dump(m4, 0);
    diff_dump(tb_get(tb),
              "module mod3;\n"
-             "  wire x;\n"
-             "  wire y;\n"
-             "  wire z;\n"
+             "  wire logic x;\n"
+             "  wire logic y;\n"
+             "  wire logic z;\n"
              "  initial begin\n"
              "    if (x || (y === z));\n"
              "    if ((x & y) | (y & (z === (x + z))));\n"

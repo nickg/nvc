@@ -264,11 +264,13 @@ static vcode_reg_t vlog_lower_integer(lower_unit_t *lu, vlog_node_t expr)
 static vcode_reg_t vlog_lower_decl_bounds(lower_unit_t *lu, vlog_node_t decl,
                                           vcode_reg_t data)
 {
-   const int nranges = vlog_ranges(decl);
+   vlog_node_t type = vlog_type(decl);
+
+   const int nranges = vlog_ranges(type);
    vcode_dim_t *dims LOCAL = xmalloc_array(nranges, sizeof(vcode_dim_t));
 
    for (int i = 0; i < nranges; i++) {
-      vlog_node_t r = vlog_range(decl, i);
+      vlog_node_t r = vlog_range(type, i);
 
       vcode_reg_t left_reg = vlog_lower_integer(lu, vlog_left(r));
       vcode_reg_t right_reg = vlog_lower_integer(lu, vlog_right(r));
@@ -299,7 +301,8 @@ static vcode_reg_t vlog_lower_lvalue_ref(lower_unit_t *lu, vlog_node_t ref)
    else
       nets_reg = emit_load_indirect(emit_var_upref(hops, var));
 
-   if (vcode_reg_kind(nets_reg) != VCODE_TYPE_UARRAY && vlog_ranges(decl) > 0)
+   if (vcode_reg_kind(nets_reg) != VCODE_TYPE_UARRAY
+       && vlog_dimensions(decl) > 0)
       return vlog_lower_decl_bounds(lu, decl, nets_reg);
    else
       return nets_reg;
@@ -501,7 +504,7 @@ static vcode_reg_t vlog_lower_rvalue(lower_unit_t *lu, vlog_node_t v)
          }
          else {
             vcode_reg_t data_reg = emit_resolved(nets_reg);
-            if (vlog_ranges(decl) > 0)
+            if (vlog_dimensions(decl) > 0)
                resolved_reg = vlog_lower_decl_bounds(lu, decl, data_reg);
             else
                resolved_reg = emit_load_indirect(data_reg);

@@ -72,6 +72,7 @@ static vlog_node_t simp_port_decl(vlog_node_t decl, vlog_node_t mod)
    vlog_set_subkind(wire, V_NET_WIRE);
    vlog_set_loc(wire, vlog_loc(decl));
    vlog_set_ident(wire, vlog_ident(decl));
+   vlog_set_type(wire, vlog_type(decl));
 
    vlog_set_ref(decl, wire);
    vlog_add_decl(mod, wire);

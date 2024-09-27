@@ -130,51 +130,42 @@ static void vlog_dump_port_decl(vlog_node_t v, int indent)
    print_syntax(" %s;\n", istr(vlog_ident(v)));
 }
 
+static void vlog_dump_dimensions(vlog_node_t v, int indent)
+{
+   const int ndims = vlog_ranges(v);
+   int dim = 0;
+   for (; dim < ndims; dim++) {
+      vlog_node_t d = vlog_range(v, dim);
+      print_syntax(" [");
+      vlog_dump(vlog_left(d), indent);
+      print_syntax(":");
+      vlog_dump(vlog_right(d), indent);
+      print_syntax("]");
+   }
+}
+
 static void vlog_dump_net_decl(vlog_node_t v, int indent)
 {
    tab(indent);
 
    switch (vlog_subkind(v)) {
-   case V_NET_WIRE: print_syntax("#wire"); break;
+   case V_NET_WIRE: print_syntax("#wire "); break;
    }
 
-   const int ndims = vlog_ranges(v);
-   int dim = 0;
-   for (; dim < ndims; dim++) {
-      vlog_node_t d = vlog_range(v, dim);
-      if (vlog_subkind(d) != V_DIM_PACKED)
-         break;
-
-      print_syntax(" [");
-      vlog_dump(vlog_left(d), indent);
-      print_syntax(":");
-      vlog_dump(vlog_right(d), indent);
-      print_syntax("]");
-   }
-
-   print_syntax(" %s;\n", istr(vlog_ident(v)));
+   vlog_dump(vlog_type(v), indent);
+   print_syntax(" %s", istr(vlog_ident(v)));
+   vlog_dump_dimensions(v, indent);
+   print_syntax(";\n");
 }
 
 static void vlog_dump_var_decl(vlog_node_t v, int indent)
 {
    tab(indent);
-   print_syntax("#reg");
 
-   const int ndims = vlog_ranges(v);
-   int dim = 0;
-   for (; dim < ndims; dim++) {
-      vlog_node_t d = vlog_range(v, dim);
-      if (vlog_subkind(d) != V_DIM_PACKED)
-         break;
-
-      print_syntax(" [");
-      vlog_dump(vlog_left(d), indent);
-      print_syntax(":");
-      vlog_dump(vlog_right(d), indent);
-      print_syntax("]");
-   }
-
-   print_syntax(" %s;\n", istr(vlog_ident(v)));
+   vlog_dump(vlog_type(v), indent);
+   print_syntax(" %s", istr(vlog_ident(v)));
+   vlog_dump_dimensions(v, indent);
+   print_syntax(";\n");
 }
 
 static void vlog_dump_always(vlog_node_t v, int indent)
@@ -452,6 +443,15 @@ static void vlog_dump_bit_select(vlog_node_t v, int indent)
    }
 }
 
+static void vlog_dump_data_type(vlog_node_t v, int indent)
+{
+   switch (vlog_subkind(v)) {
+   case DT_LOGIC: print_syntax("#logic"); break;
+   }
+
+   vlog_dump_dimensions(v, indent);
+}
+
 void vlog_dump(vlog_node_t v, int indent)
 {
    switch (vlog_kind(v)) {
@@ -538,6 +538,9 @@ void vlog_dump(vlog_node_t v, int indent)
       break;
    case V_UDP_TABLE:
       vlog_dump_udp_table(v, indent);
+      break;
+   case V_DATA_TYPE:
+      vlog_dump_data_type(v, indent);
       break;
    default:
       print_syntax("\n");

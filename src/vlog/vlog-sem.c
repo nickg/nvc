@@ -164,6 +164,11 @@ static void vlog_check_implicit_net(vlog_node_t v)
             vlog_set_loc(decl, vlog_loc(v));
             vlog_set_subkind(decl, V_NET_WIRE);
 
+            vlog_node_t dt = vlog_new(V_DATA_TYPE);
+            vlog_set_subkind(dt, DT_LOGIC);
+
+            vlog_set_type(decl, dt);
+
             assert(vlog_kind(top_scope->container) == V_MODULE);
             vlog_add_decl(top_scope->container, decl);
 
@@ -357,12 +362,18 @@ static void vlog_check_if(vlog_node_t stmt)
 
 static void vlog_check_consistent(vlog_node_t a, vlog_node_t b)
 {
-   const int aranges = vlog_ranges(a);
-   assert(aranges == vlog_ranges(b));
+   vlog_node_t at = vlog_type(a);
+   vlog_node_t bt = vlog_type(b);
+
+   if (at == bt)
+      return;
+
+   const int aranges = vlog_ranges(at);
+   assert(aranges == vlog_ranges(bt));
 
    for (int i = 0; i < aranges; i++) {
-      vlog_node_t ar = vlog_range(a, i);
-      vlog_node_t br = vlog_range(b, i);
+      vlog_node_t ar = vlog_range(at, i);
+      vlog_node_t br = vlog_range(bt, i);
 
       vlog_node_t aleft = vlog_left(ar);
       vlog_node_t bleft = vlog_left(br);
@@ -380,11 +391,16 @@ static void vlog_check_consistent(vlog_node_t a, vlog_node_t b)
    }
 }
 
+static void vlog_check_data_type(vlog_node_t dt)
+{
+   const int nranges = vlog_ranges(dt);
+   for (int i = 0; i < nranges; i++)
+      vlog_check(vlog_range(dt, i));
+}
+
 static void vlog_check_port_decl(vlog_node_t port)
 {
-   const int nranges = vlog_ranges(port);
-   for (int i = 0; i < nranges; i++)
-      vlog_check(vlog_range(port, i));
+   vlog_check(vlog_type(port));
 
    ident_t id = vlog_ident(port);
    vlog_node_t exist = hash_get(top_scope->symbols, id);
@@ -403,9 +419,7 @@ static void vlog_check_port_decl(vlog_node_t port)
 
 static void vlog_check_net_decl(vlog_node_t net)
 {
-   const int nranges = vlog_ranges(net);
-   for (int i = 0; i < nranges; i++)
-      vlog_check(vlog_range(net, i));
+   vlog_check(vlog_type(net));
 
    vlog_node_t exist = hash_get(top_scope->symbols, vlog_ident(net));
    if (exist != NULL && vlog_kind(exist) == V_PORT_DECL
@@ -419,9 +433,7 @@ static void vlog_check_net_decl(vlog_node_t net)
 
 static void vlog_check_var_decl(vlog_node_t var)
 {
-   const int nranges = vlog_ranges(var);
-   for (int i = 0; i < nranges; i++)
-      vlog_check(vlog_range(var, i));
+   vlog_check(vlog_type(var));
 
    vlog_node_t exist = hash_get(top_scope->symbols, vlog_ident(var));
    if (exist != NULL && vlog_kind(exist) == V_PORT_DECL
@@ -671,6 +683,9 @@ void vlog_check(vlog_node_t v)
       break;
    case V_TYPE_DECL:
       vlog_check_type_decl(v);
+      break;
+   case V_DATA_TYPE:
+      vlog_check_data_type(v);
       break;
    default:
       fatal_at(vlog_loc(v), "cannot check verilog node %s",

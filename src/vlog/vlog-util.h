@@ -21,6 +21,7 @@
 #include "prim.h"
 
 bool vlog_is_net(vlog_node_t v);
+unsigned vlog_dimensions(vlog_node_t v);
 bool is_top_level(vlog_node_t v);
 
 #endif  // _VLOG_UTIL_H

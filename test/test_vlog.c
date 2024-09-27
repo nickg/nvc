@@ -171,10 +171,15 @@ START_TEST(test_parse1)
 
    vlog_node_t x = vlog_decl(m, 0);
    fail_unless(vlog_kind(x) == V_NET_DECL);
-   fail_unless(vlog_ranges(x) == 1);
+   fail_unless(vlog_ranges(x) == 0);
    fail_unless(vlog_subkind(x) == V_NET_WIRE);
 
-   vlog_node_t xd0 = vlog_range(x, 0);
+   vlog_node_t xdt = vlog_type(x);
+   fail_unless(vlog_kind(xdt) == V_DATA_TYPE);
+   fail_unless(vlog_subkind(xdt) == DT_LOGIC);
+   fail_unless(vlog_ranges(xdt) == 1);
+
+   vlog_node_t xd0 = vlog_range(xdt, 0);
    fail_unless(vlog_kind(xd0) == V_DIMENSION);
    fail_unless(vlog_subkind(xd0) == V_DIM_PACKED);
 

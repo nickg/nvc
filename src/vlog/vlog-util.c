@@ -33,6 +33,11 @@ bool vlog_is_net(vlog_node_t v)
    }
 }
 
+unsigned vlog_dimensions(vlog_node_t v)
+{
+   return vlog_ranges(vlog_type(v)) + vlog_ranges(v);
+}
+
 bool is_top_level(vlog_node_t v)
 {
    switch (vlog_kind(v)) {

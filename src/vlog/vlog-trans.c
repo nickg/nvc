@@ -96,12 +96,14 @@ static type_t trans_type(vlog_node_t decl, verilog_type_t scalar_type,
 
 static type_t trans_var_type(vlog_node_t decl)
 {
-   return trans_type(decl, VERILOG_LOGIC, VERILOG_PACKED_LOGIC);
+   vlog_node_t type = vlog_type(decl);
+   return trans_type(type, VERILOG_LOGIC, VERILOG_PACKED_LOGIC);
 }
 
 static type_t trans_net_type(vlog_node_t decl)
 {
-   return trans_type(decl, VERILOG_RESOLVED_NET, VERILOG_RESOLVED_NET_ARRAY);
+   vlog_node_t type = vlog_type(decl);
+   return trans_type(type, VERILOG_RESOLVED_NET, VERILOG_RESOLVED_NET_ARRAY);
 }
 
 static void trans_port_decl(vlog_node_t decl, tree_t out)
