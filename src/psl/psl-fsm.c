@@ -116,6 +116,16 @@ static fsm_state_t *build_implication(psl_fsm_t *fsm, fsm_state_t *state,
             return state;
       }
 
+   case P_HDL_EXPR:
+      {
+         fsm_state_t *left = add_state(fsm);
+         fsm_state_t *right = add_state(fsm);
+         add_edge(state, left, EDGE_EPSILON, lhs);
+         add_edge(left, right, EDGE_EPSILON, rhs);
+         add_edge(state, right, EDGE_EPSILON, NULL);
+         return right;
+      }
+
    default:
       CANNOT_HANDLE(rhs);
    }
