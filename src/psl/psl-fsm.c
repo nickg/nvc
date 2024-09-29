@@ -205,33 +205,40 @@ static fsm_state_t *build_node(psl_fsm_t *fsm, fsm_state_t *state, psl_node_t p)
 }
 
 #ifdef DEBUG
+static void psl_loops_dfs(psl_fsm_t *fsm, fsm_state_t *state,
+                          bit_mask_t *discovered, bit_mask_t *finished)
+{
+   mask_set(discovered, state->id);
+
+   for (fsm_edge_t *e = state->edges; e; e = e->next) {
+      if (e->kind != EDGE_EPSILON || mask_test(finished, e->dest->id))
+         continue;
+      else if (mask_test(discovered, e->dest->id)) {
+         psl_fsm_dump(fsm, "loop.dot");
+         fatal_trace("detected loop in PSL state machine %d -> %d",
+                     state->id, e->dest->id);
+      }
+      else
+         psl_loops_dfs(fsm, e->dest, discovered, finished);
+   }
+
+   mask_clear(discovered, state->id);
+   mask_set(finished, state->id);
+}
+
 static void psl_detect_loops(psl_fsm_t *fsm)
 {
-   LOCAL_BIT_MASK mask;
-   mask_init(&mask, fsm->next_id);
+   LOCAL_BIT_MASK discovered, finished;
+   mask_init(&discovered, fsm->next_id);
+   mask_init(&finished, fsm->next_id);
 
    for (fsm_state_t *it = fsm->states; it; it = it->next) {
-      mask_clearall(&mask);
-
-      SCOPED_A(fsm_state_t *) worklist = AINIT;
-      APUSH(worklist, it);
-
-      while (worklist.count > 0) {
-         fsm_state_t *s = APOP(worklist);
-
-         if (mask_test(&mask, s->id)) {
-            psl_fsm_dump(fsm, "loop.dot");
-            fatal_trace("detected loop in PSL state machine ");
-         }
-
-         mask_set(&mask, s->id);
-
-         for (fsm_edge_t *e = s->edges; e; e = e->next) {
-            if (e->kind == EDGE_EPSILON)
-               APUSH(worklist, e->dest);
-         }
-      }
+      if (!mask_test(&finished, it->id))
+         psl_loops_dfs(fsm, it, &discovered, &finished);
    }
+
+   assert(mask_popcount(&discovered) == 0);
+   assert(mask_popcount(&finished) == fsm->next_id);
 }
 #endif
 
