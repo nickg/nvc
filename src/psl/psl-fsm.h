@@ -40,6 +40,7 @@ typedef struct _fsm_state {
    fsm_edge_t  *edges;
    bool         initial;
    bool         accept;
+   bool         strong;
 } fsm_state_t;
 
 typedef enum {

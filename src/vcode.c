@@ -2189,6 +2189,10 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
             {
                printf("%s ", vcode_op_string(op->kind));
                vcode_dump_reg(op->args.items[0]);
+               if (op->args.count > 1) {
+                  printf(" strong ");
+                  vcode_dump_reg(op->args.items[1]);
+               }
             }
             break;
 
@@ -5844,7 +5848,7 @@ vcode_reg_t emit_link_package(ident_t name)
    return (op->result = vcode_add_reg(vtype_context(name)));
 }
 
-void emit_enter_state(vcode_reg_t state)
+void emit_enter_state(vcode_reg_t state, vcode_reg_t strong)
 {
    VCODE_FOR_EACH_MATCHING_OP(other, VCODE_OP_ENTER_STATE) {
       if (other->args.items[0] == state)
@@ -5853,9 +5857,14 @@ void emit_enter_state(vcode_reg_t state)
 
    op_t *op = vcode_add_op(VCODE_OP_ENTER_STATE);
    vcode_add_arg(op, state);
+   if (strong != VCODE_INVALID_REG)
+      vcode_add_arg(op, strong);
 
    VCODE_ASSERT(vcode_reg_kind(state) == VCODE_TYPE_INT,
                 "state must have integer type");
+   VCODE_ASSERT(strong == VCODE_INVALID_REG
+                || vtype_eq(vcode_reg_type(strong), vtype_bool()),
+                "strong argument not is not boolean");
 }
 
 vcode_reg_t emit_reflect_value(vcode_reg_t value, vcode_reg_t context,

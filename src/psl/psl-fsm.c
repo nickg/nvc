@@ -75,6 +75,21 @@ static int64_t get_number(tree_t t)
    return result;
 }
 
+static void build_restart(psl_fsm_t *fsm, fsm_state_t *from, fsm_state_t *to)
+{
+   if (from->edges == NULL)
+      return;   // Final state
+
+   bool have_def = false;
+   for (fsm_edge_t *e = from->edges; e; e = e->next) {
+      build_restart(fsm, e->dest, to);
+      have_def |= e->guard == NULL;
+   }
+
+   if (!have_def)
+      add_edge(from, to, EDGE_NEXT, NULL);
+}
+
 static fsm_state_t *build_implication(psl_fsm_t *fsm, fsm_state_t *state,
                                       psl_node_t p)
 {
@@ -136,6 +151,18 @@ static fsm_state_t *build_implication(psl_fsm_t *fsm, fsm_state_t *state,
          add_edge(left, right, EDGE_EPSILON, rhs);
          add_edge(state, right, EDGE_EPSILON, NULL);
          return right;
+      }
+
+   case P_EVENTUALLY:
+      {
+         fsm_state_t *wait = add_state(fsm);
+         fsm_state_t *accept = build_node(fsm, wait, psl_value(rhs));
+         build_restart(fsm, wait, wait);
+         add_edge(state, wait, EDGE_NEXT, lhs);
+         add_edge(state, accept, EDGE_EPSILON, NULL);
+         wait->strong = true;
+
+         return accept;
       }
 
    default:

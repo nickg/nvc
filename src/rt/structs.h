@@ -80,6 +80,7 @@ typedef struct {
    rt_scope_t    *scope;
    bit_mask_t     state;
    bit_mask_t     newstate;
+   bool           strong;
 } rt_prop_t;
 
 typedef union {

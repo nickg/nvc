@@ -122,6 +122,7 @@ typedef struct _rt_model {
    model_thread_t    *threads[MAX_THREADS];
    ptr_list_t         eventsigs;
    bool               shuffle;
+   bool               liveness;
    rt_trigger_t      *triggertab[TRIGGER_TAB_SIZE];
 } rt_model_t;
 
@@ -2455,6 +2456,7 @@ static void update_property(rt_model_t *m, rt_prop_t *prop)
    };
 
    mask_clearall(&prop->newstate);
+   prop->strong = false;
 
    size_t bit = -1;
    while (mask_iter(&prop->state, &bit)) {
@@ -2467,9 +2469,12 @@ static void update_property(rt_model_t *m, rt_prop_t *prop)
    thread->active_obj = NULL;
    thread->active_scope = NULL;
 
-   TRACE("new state %s", trace_states(&prop->newstate));
+   TRACE("new state %s%s", trace_states(&prop->newstate),
+         prop->strong ? " strong" : "");
 
    mask_copy(&prop->state, &prop->newstate);
+
+   m->liveness |= prop->strong;
 }
 
 static void sched_event(rt_model_t *m, rt_nexus_t *n, rt_wakeable_t *obj)
@@ -3329,6 +3334,26 @@ static bool should_stop_now(rt_model_t *m, uint64_t stop_time)
       return heap_min_key(m->eventq_heap) > stop_time;
 }
 
+static void check_liveness_properties(rt_model_t *m, rt_scope_t *s)
+{
+   list_foreach(rt_prop_t *, it, s->properties) {
+      if (it->strong) {
+         TRACE("property %s in strong state", istr(it->name));
+
+         // Passing an invalid state triggers the assertion failure
+         jit_scalar_t context = {
+            .pointer = *mptr_get(it->scope->privdata)
+         };
+         jit_scalar_t state = { .integer = INT_MAX }, result;
+         jit_fastcall(m->jit, it->handle, &result, context, state,
+                      model_thread(m)->tlab);
+      }
+   }
+
+   for (int i = 0; i < s->children.count; i++)
+      check_liveness_properties(m, s->children.items[i]);
+}
+
 void model_run(rt_model_t *m, uint64_t stop_time)
 {
    MODEL_ENTRY(m);
@@ -3342,6 +3367,9 @@ void model_run(rt_model_t *m, uint64_t stop_time)
       model_cycle(m);
 
    global_event(m, RT_END_OF_SIMULATION);
+
+   if (m->liveness)
+      check_liveness_properties(m, m->root);
 
    emit_coverage(m);
 }
@@ -3969,13 +3997,14 @@ void x_clear_event(sig_shared_t *ss, uint32_t offset, int32_t count)
    }
 }
 
-void x_enter_state(int32_t state)
+void x_enter_state(int32_t state, bool strong)
 {
    rt_wakeable_t *obj = get_active_wakeable();
    assert(obj->kind == W_PROPERTY);
 
    rt_prop_t *prop = container_of(obj, rt_prop_t, wakeable);
    mask_set(&prop->newstate, state);
+   prop->strong |= strong;
 }
 
 void x_alias_signal(sig_shared_t *ss, tree_t where)

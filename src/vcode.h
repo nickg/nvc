@@ -510,7 +510,7 @@ void emit_push_scope(vcode_reg_t locus, vcode_type_t type);
 void emit_pop_scope(void);
 void emit_alias_signal(vcode_reg_t signal, vcode_reg_t locus);
 void emit_unreachable(vcode_reg_t locus);
-void emit_enter_state(vcode_reg_t state);
+void emit_enter_state(vcode_reg_t state, vcode_reg_t strong);
 vcode_reg_t emit_reflect_value(vcode_reg_t value, vcode_reg_t context,
                                vcode_reg_t locus, vcode_reg_t bounds);
 vcode_reg_t emit_reflect_subtype(vcode_reg_t context, vcode_reg_t locus,

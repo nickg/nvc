@@ -873,9 +873,10 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
 
    case JIT_EXIT_ENTER_STATE:
       {
-         int32_t state = args[0].integer;
+         int32_t state  = args[0].integer;
+         bool    strong = !!args[1].integer;
 
-         x_enter_state(state);
+         x_enter_state(state, strong);
       }
       break;
 

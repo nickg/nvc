@@ -3336,7 +3336,14 @@ static void irgen_op_enter_state(jit_irgen_t *g, int op)
 {
    jit_value_t state = irgen_get_arg(g, op, 0);
 
+   jit_value_t strong;
+   if (vcode_count_args(op) > 1)
+      strong = irgen_get_arg(g, op, 1);
+   else
+      strong = jit_value_from_int64(0);
+
    j_send(g, 0, state);
+   j_send(g, 1, strong);
    macro_exit(g, JIT_EXIT_ENTER_STATE);
 }
 

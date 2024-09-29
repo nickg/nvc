@@ -95,16 +95,24 @@ static void psl_lower_cover(lower_unit_t *lu, psl_node_t p, cover_data_t *cover,
    emit_cover_stmt(item->tag);
 }
 
+static void psl_enter_state(fsm_state_t *state)
+{
+   vcode_reg_t strong_reg = VCODE_INVALID_REG;
+   if (state->strong)
+      strong_reg = emit_const(vtype_bool(), 1);
+
+   vcode_type_t vint32 = vtype_int(INT32_MIN, INT32_MAX);
+   emit_enter_state(emit_const(vint32, state->id), strong_reg);
+}
+
 static void psl_lower_state(lower_unit_t *lu, psl_fsm_t *fsm,
                             fsm_state_t *state, vcode_block_t *state_bb,
                             cover_data_t *cover, cover_scope_t *cscope)
 {
    emit_comment("Property state %d", state->id);
 
-   vcode_type_t vint32 = vtype_int(INT32_MIN, INT32_MAX);
-
    if (state->initial && psl_fsm_repeating(fsm))
-      emit_enter_state(emit_const(vint32, state->id));
+      psl_enter_state(state);
 
    if (state->accept && fsm->kind == FSM_COVER)
       psl_lower_cover(lu, fsm->src, cover, cscope);
@@ -132,7 +140,7 @@ static void psl_lower_state(lower_unit_t *lu, psl_fsm_t *fsm,
          if (e->kind == EDGE_EPSILON)
             emit_jump(state_bb[e->dest->id]);
          else {
-            emit_enter_state(emit_const(vint32, e->dest->id));
+            psl_enter_state(e->dest);
             emit_jump(pass_bb);
          }
 
@@ -156,7 +164,7 @@ static void psl_lower_state(lower_unit_t *lu, psl_fsm_t *fsm,
       }
       else {
          assert(e->next == NULL);
-         emit_enter_state(emit_const(vint32, e->dest->id));
+         psl_enter_state(e->dest);
          emit_jump(pass_bb);
       }
    }
@@ -242,16 +250,28 @@ void psl_lower_directive(unit_registry_t *ur, lower_unit_t *parent,
 
    emit_case(state_reg, abort_bb, state_ids, state_bb, fsm->next_id);
 
-   vcode_select_block(abort_bb);
-
-   emit_unreachable(VCODE_INVALID_REG);
-
+   bool strong = false;
    int pos = 0;
    for (fsm_state_t *s = fsm->states; s; s = s->next) {
       vcode_select_block(state_bb[pos++]);
       psl_lower_state(lu, fsm, s, state_bb, cover, cscope);
+      strong |= s->strong;
    }
    assert(pos == fsm->next_id);
+
+   vcode_select_block(abort_bb);
+
+   if (strong) {
+      vcode_reg_t severity_reg = psl_assert_severity();
+      vcode_reg_t false_reg = emit_const(vtype_bool(), 0);
+      vcode_reg_t locus = psl_debug_locus(fsm->src);
+      emit_assert(false_reg, VCODE_INVALID_REG, VCODE_INVALID_REG,
+                  severity_reg, locus, VCODE_INVALID_REG,
+                  VCODE_INVALID_REG);
+      emit_return(VCODE_INVALID_REG);
+   }
+   else
+      emit_unreachable(VCODE_INVALID_REG);
 
    unit_registry_finalise(ur, lu);
 
