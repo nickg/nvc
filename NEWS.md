@@ -1,4 +1,6 @@
 ## Unreleased changes
+- Fixed an error when using the `work` library alias and the working
+  library has the same name as design unit being analysed (#991).
 
 ## Version 1.14.0 - 2024-09-22
 - Waiting on implicit `'stable` and `'quiet` signals now works
