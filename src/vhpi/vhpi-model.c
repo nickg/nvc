@@ -49,6 +49,7 @@ typedef struct {
 } c_vhpiObject;
 
 typedef A(c_vhpiObject *) vhpiObjectListT;
+typedef A(vhpiHandleT) vhpiHandleListT;
 
 typedef struct {
    c_vhpiObject object;
@@ -249,6 +250,8 @@ DEF_CLASS(sigDecl, vhpiSigDeclK, objDecl.decl.object);
 typedef struct {
    c_vhpiObject    object;
    tree_t          tree;
+   ident_t         module;
+   ptrdiff_t       offset;
    vhpiObjectListT Params;
 } c_subpDecl;
 
@@ -505,6 +508,7 @@ typedef struct _vhpi_context {
    vhpiObjectListT  foreignfs;
    jit_scalar_t    *args;
    tlab_t          *tlab;
+   vhpiHandleListT  callbacks;
 } vhpi_context_t;
 
 static c_typeDecl *cached_typeDecl(type_t type, c_vhpiObject *obj);
@@ -636,7 +640,7 @@ static void drop_handle(vhpi_context_t *c, vhpiHandleT handle)
 static inline c_vhpiObject *from_handle(vhpiHandleT handle)
 {
    handle_slot_t *slot = decode_handle(vhpi_context(), handle);
-   if (slot != NULL)
+   if (likely(slot != NULL))
       return slot->obj;
 
    vhpi_error(vhpiError, NULL, "invalid handle %p", handle);
@@ -931,24 +935,15 @@ static void *new_object(size_t size, vhpiClassKindT class)
 
 static vhpiCharT *new_string(const char *s)
 {
-   shash_t *strtab = vhpi_context()->strtab;
-   vhpiCharT *p = shash_get(strtab, s);
+   vhpi_context_t *c = vhpi_context();
+   if (c->strtab == NULL)
+      c->strtab = shash_new(1024);
+
+   vhpiCharT *p = shash_get(c->strtab, s);
    if (p == NULL)
-      shash_put(strtab, s, (p = (vhpiCharT *)xstrdup(s)));
+      shash_put(c->strtab, s, (p = (vhpiCharT *)xstrdup(s)));
+
    return p;
-}
-
-static c_tool *build_tool(int argc, char **argv)
-{
-   c_tool *t = new_object(sizeof(c_tool), vhpiToolK);
-
-   for (int i = 0; i < argc; i++) {
-      c_argv *arg = new_object(sizeof(c_argv), vhpiArgvK);
-      arg->StrVal = new_string(argv[i]);
-      APUSH(t->argv, &(arg->object));
-   }
-
-   return t;
 }
 
 static void init_abstractRegion(c_abstractRegion *r, tree_t t)
@@ -1040,7 +1035,9 @@ static void init_interfaceDecl(c_interfaceDecl *d, tree_t t,
 static void init_subpDecl(c_subpDecl *d, tree_t t)
 {
    d->object.loc = *tree_loc(t);
-   d->tree = t ;
+   d->tree = t;
+
+   tree_locus(t, &d->module, &d->offset);
 }
 
 static void init_elemDecl(c_elemDecl *ed, tree_t t, c_typeDecl *Type,
@@ -1569,12 +1566,8 @@ static void vhpi_global_cb(rt_model_t *m, void *user)
       case vhpiCbRepNextTimeStep:
       case vhpiCbRepEndOfTimeStep:
       case vhpiCbRepStartOfNextCycle:
-         model_set_global_cb(c->model, vhpi_get_rt_event(cb->Reason),
-                             vhpi_global_cb, handle);
-         break;
-
       case vhpiCbValueChange:
-         break;
+         break;    // Repetitive
 
       default:
          cb->State = vhpiMature;
@@ -1866,28 +1859,27 @@ vhpiHandleT vhpi_register_cb(vhpiCbDataT *cb_data_p, int32_t flags)
    rt_model_t *m = vhpi_context()->model;
 
    switch (cb_data_p->reason) {
-   case vhpiCbRepEndOfProcesses:
-   case vhpiCbRepLastKnownDeltaCycle:
-   case vhpiCbRepNextTimeStep:
-   case vhpiCbEndOfProcesses:
    case vhpiCbStartOfSimulation:
    case vhpiCbEndOfSimulation:
-   case vhpiCbLastKnownDeltaCycle:
-   case vhpiCbNextTimeStep:
-   case vhpiCbEndOfTimeStep:
-   case vhpiCbRepEndOfTimeStep:
+   case vhpiCbStartOfInitialization:
    case vhpiCbEndOfInitialization:
+   case vhpiCbNextTimeStep:
+   case vhpiCbRepNextTimeStep:
    case vhpiCbStartOfNextCycle:
    case vhpiCbRepStartOfNextCycle:
+   case vhpiCbEndOfTimeStep:
+   case vhpiCbRepEndOfTimeStep:
+   case vhpiCbEndOfProcesses:
+   case vhpiCbRepEndOfProcesses:
+   case vhpiCbLastKnownDeltaCycle:
+   case vhpiCbRepLastKnownDeltaCycle:
       {
          c_callback *cb = new_object(sizeof(c_callback), vhpiCallbackK);
          cb->Reason  = cb_data_p->reason;
          cb->State   = (flags & vhpiDisableCb) ? vhpiDisable : vhpiEnable;
          cb->data    = *cb_data_p;
 
-         vhpiHandleT handle = handle_for(&(cb->object));
-         model_set_global_cb(m, vhpi_get_rt_event(cb->Reason),
-                             vhpi_global_cb, handle);
+         APUSH(vhpi_context()->callbacks, handle_for(&(cb->object)));
 
          return (flags & vhpiReturnCb) ? handle_for(&(cb->object)) : NULL;
       }
@@ -4393,28 +4385,117 @@ static void vhpi_build_design_model(vhpi_context_t *c)
               (get_timestamp_us() - start_us) / 1000);
 }
 
+static void vhpi_run_callbacks(int32_t reason, int32_t rep)
+{
+   vhpi_context_t *c = vhpi_context();
+
+   const int orig_count = c->callbacks.count;
+   int wptr = 0;
+   for (int i = 0; i < orig_count; i++) {
+      vhpiHandleT handle = c->callbacks.items[i];
+
+      handle_slot_t *slot = decode_handle(c, handle);
+      if (slot == NULL)
+         continue;
+
+      c_callback *cb = is_callback(slot->obj);
+      assert(cb != NULL);
+
+      if (cb->Reason == reason)
+         vhpi_global_cb(c->model, handle);
+      else if (cb->Reason == rep) {
+         vhpi_global_cb(c->model, handle);
+         c->callbacks.items[wptr++] = handle;
+      }
+      else
+         c->callbacks.items[wptr++] = handle;
+   }
+
+   // Callbacks may register additional callbacks
+   for (int i = orig_count; i < c->callbacks.count; i++)
+      c->callbacks.items[wptr++] = c->callbacks.items[i];
+
+   ATRIM(c->callbacks, wptr);
+}
+
 static void vhpi_initialise_cb(rt_model_t *m, void *arg)
 {
    vhpi_context_t *c = arg;
    vhpi_build_design_model(c);
+
+   vhpi_run_callbacks(vhpiCbEndOfInitialization, 0);
 }
 
-vhpi_context_t *vhpi_context_new(tree_t top, rt_model_t *model, jit_t *jit,
-                                 int argc, char **argv)
+static void vhpi_phase_cb(rt_model_t *m, void *arg)
+{
+   const int32_t reason = (intptr_t)arg;
+
+   int32_t rep = 0;
+   switch (reason) {
+   case vhpiCbEndOfProcesses:      rep = vhpiCbRepEndOfProcesses; break;
+   case vhpiCbLastKnownDeltaCycle: rep = vhpiCbRepLastKnownDeltaCycle; break;
+   case vhpiCbNextTimeStep:        rep = vhpiCbRepNextTimeStep; break;
+   case vhpiCbEndOfTimeStep:       rep = vhpiCbRepEndOfTimeStep; break;
+   case vhpiCbStartOfNextCycle:    rep = vhpiCbRepStartOfNextCycle; break;
+   }
+
+   vhpi_run_callbacks(reason, rep);
+
+   switch (reason) {
+   case vhpiCbEndOfProcesses:
+   case vhpiCbLastKnownDeltaCycle:
+   case vhpiCbNextTimeStep:
+   case vhpiCbEndOfTimeStep:
+   case vhpiCbStartOfNextCycle:
+      model_set_global_cb(m, vhpi_get_rt_event(reason), vhpi_phase_cb,
+                          (void *)(intptr_t)reason);
+      break;
+   }
+}
+
+vhpi_context_t *vhpi_context_new(void)
 {
    assert(global_context == NULL);
 
    vhpi_context_t *c = global_context = xcalloc(sizeof(vhpi_context_t));
-   c->strtab    = shash_new(1024);
-   c->model     = model;
-   c->tool      = build_tool(argc, argv);
-   c->objcache  = hash_new(128);
-   c->top       = top;
-   c->jit       = jit;
+   c->objcache = hash_new(128);
+   c->tool     = new_object(sizeof(c_tool), vhpiToolK);
+
+   return c;
+}
+
+void vhpi_context_initialise(vhpi_context_t *c, tree_t top, rt_model_t *model,
+                             jit_t *jit, int argc, char **argv)
+{
+   assert(c->model == NULL);
+   assert(c->top == NULL);
+   assert(c->jit == NULL);
+
+   c->model = model;
+   c->top   = top;
+   c->jit   = jit;
+
+   for (int i = 0; i < argc; i++) {
+      c_argv *arg = new_object(sizeof(c_argv), vhpiArgvK);
+      arg->StrVal = new_string(argv[i]);
+      APUSH(c->tool->argv, &(arg->object));
+   }
 
    model_set_global_cb(model, RT_END_OF_INITIALISATION, vhpi_initialise_cb, c);
 
-   return c;
+   static const int32_t reasons[] = {
+      vhpiCbStartOfSimulation,
+      vhpiCbEndOfSimulation,
+      vhpiCbNextTimeStep,
+      vhpiCbEndOfTimeStep,
+      vhpiCbStartOfNextCycle,
+      vhpiCbLastKnownDeltaCycle,
+      vhpiCbEndOfProcesses
+   };
+
+   for (size_t i = 0; i < ARRAY_LEN(reasons); i++)
+      model_set_global_cb(model, vhpi_get_rt_event(reasons[i]),
+                          vhpi_phase_cb, (void *)(uintptr_t)reasons[i]);
 }
 
 static void vhpi_check_leaks(vhpi_context_t *c)
@@ -4450,13 +4531,19 @@ void vhpi_context_free(vhpi_context_t *c)
    }
    ACLEAR(c->foreignfs);
 
+   for (int i = 0; i < c->callbacks.count; i++)
+      drop_handle(c, c->callbacks.items[i]);
+   ACLEAR(c->callbacks);
+
    if (opt_get_int(OPT_VHPI_DEBUG))
       vhpi_check_leaks(c);
 
    assert(c == global_context);
    global_context = NULL;
 
-   shash_free(c->strtab);
+   if (c->strtab != NULL)
+      shash_free(c->strtab);
+
    hash_free(c->objcache);
    free(c->handles);
    free(c);
@@ -4481,9 +4568,19 @@ vhpiHandleT vhpi_bind_foreign(const char *obj_lib, const char *model,
 
       if (f->decl != NULL && f->decl->tree == sub)
          return f->handle;
-      else if (f->decl != NULL)
-         jit_msg(NULL, DIAG_FATAL, "foreign subprogram %s/%s already bound "
-                 "to %s", obj_lib, model, type_pp(tree_type(f->decl->tree)));
+      else if (f->decl != NULL) {
+         // Foreign functions may be registered during elaboration after
+         // which the object may be moved
+         tree_t reloc = tree_from_locus(f->decl->module, f->decl->offset, NULL);
+         if (reloc == sub) {
+            tree_locus(sub, &f->decl->module, &f->decl->offset);
+            f->decl->tree = sub;
+            return f->handle;
+         }
+         else
+            jit_msg(NULL, DIAG_FATAL, "foreign subprogram %s/%s already bound "
+                    "to %s", obj_lib, model, type_pp(tree_type(f->decl->tree)));
+      }
 
       switch (tree_kind(sub)) {
       case T_FUNC_DECL:

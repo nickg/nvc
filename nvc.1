@@ -120,6 +120,13 @@ megabytes.
 .It Fl \-ignore-time
 Do not check the timestamps of source files when the corresponding
 design unit is loaded from a library.
+.\" --load
+.It Fl \-load= Ns Ar plugin
+Loads a VHPI plugin from the shared library
+.Ar plugin .
+See section
+.Sx VHPI
+for details on the VHPI implementation.
 .\" -L
 .It Fl L Ar path
 Add
@@ -173,7 +180,17 @@ and
 .\" --version
 .It Fl v , -version
 Display version and copyright information.
-.\"
+.\" --vhpi-debug
+.It Fl \-vhpi-debug
+Report any VHPI errors as diagnostic messages on the console.  Normally
+these are only returned through the
+.Fn vhpi_check_error
+function.
+.\" --vhpi-trace
+.It Fl \-vhpi-trace
+Trace VHPI calls and events.  This can be useful for debugging VHPI
+plugins.
+.\" --work
 .It Fl \-work Ns = Ns Ar name , Fl \-work Ns = Ns Ar name Ns : Ns Ar path
 Use
 .Ar name
@@ -365,13 +382,6 @@ are included in or excluded from the waveform dump.  See section
 .Sx SELECTING SIGNALS
 for details on how to select particular signals.  These options can be
 given multiple times.
-.\" --load
-.It Fl \-load= Ns Ar plugin
-Loads a VHPI plugin from the shared library
-.Ar plugin .
-See section
-.Sx VHPI
-for details on the VHPI implementation.
 .\" --shuffle
 .It Fl \-shuffle
 Run processes in random order.  The VHDL standard does not specify the
@@ -404,16 +414,6 @@ or
 .It Fl \-trace
 Trace simulation events.  This is usually only useful for debugging the
 simulator.
-.\" --vhpi-debug
-.It Fl \-vhpi-debug
-Report any VHPI errors as diagnostic messages on the console.  Normally
-these are only returned through the
-.Fn vhpi_check_error
-function.
-.\" --vhpi-trace
-.It Fl \-vhpi-trace
-Trace VHPI calls and events.  This can be useful for debugging VHPI
-plugins.
 .\" --wave
 .It Fl w , Fl \-wave Ns Op = Ns Ar file
 Write waveform data to

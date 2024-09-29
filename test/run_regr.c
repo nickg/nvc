@@ -856,6 +856,9 @@ static bool run_test(test_t *test)
       if (test->heapsz != NULL)
          push_arg(&args, "-H%s", test->heapsz);
 
+      if (test->flags & F_VHPI)
+         push_arg(&args, "--load=%s/../lib/vhpi_test.so%s", bin_dir, EXEEXT);
+
       push_arg(&args, "-a");
 
       if (!(test->flags & F_VERILOG))
@@ -926,9 +929,6 @@ static bool run_test(test_t *test)
 
       if (test->flags & F_STOP)
          push_arg(&args, "--stop-time=%s", test->stop);
-
-      if (test->flags & F_VHPI)
-         push_arg(&args, "--load=%s/../lib/vhpi_test.so%s", bin_dir, EXEEXT);
 
       if (test->flags & F_WAVE)
          push_arg(&args, "-w");

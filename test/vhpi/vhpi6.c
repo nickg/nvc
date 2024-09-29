@@ -88,6 +88,7 @@ static void after_5ns(const vhpiCbDataT *cb_data)
    vhpiHandleT cb3 = vhpi_register_cb(&cb_data3, vhpiReturnCb);
    check_error();
    fail_if(vhpi_disable_cb(cb3));
+   vhpi_release_handle(cb3);
 
    vhpiHandleT cb4 = vhpi_register_cb(&cb_data3, vhpiReturnCb);
    check_error();

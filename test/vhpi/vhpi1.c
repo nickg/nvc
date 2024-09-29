@@ -373,6 +373,21 @@ static void end_of_init(const vhpiCbDataT *cb_data)
 {
    vhpi_printf("end of init callback");
 
+   vhpiHandleT tool = vhpi_handle(vhpiTool, NULL);
+   check_error();
+   fail_if(tool == NULL);
+   vhpi_printf("tool is %s", vhpi_get_str(vhpiNameP, tool));
+   vhpi_printf("tool version is %s", vhpi_get_str(vhpiToolVersionP, tool));
+
+   vhpiHandleT args = vhpi_iterator(vhpiArgvs, tool);
+   fail_if(args == NULL);
+   int i = 0;
+   for (vhpiHandleT arg = vhpi_scan(args); arg != NULL; arg = vhpi_scan(args), i++)
+      vhpi_printf("arg is %s", vhpi_get_str(vhpiStrValP, arg));
+   fail_unless(vhpi_get(vhpiArgcP, tool) == i);
+
+   vhpi_release_handle(tool);
+
    vhpiHandleT root = vhpi_handle(vhpiRootInst, NULL);
    check_error();
    fail_if(root == NULL);
@@ -386,7 +401,7 @@ static void end_of_init(const vhpiCbDataT *cb_data)
 
    vhpiHandleT root_ports = vhpi_iterator(vhpiPortDecls, root);
    fail_if(root_ports == NULL);
-   int i = 0;
+   i = 0;
    for (vhpiHandleT port = vhpi_scan(root_ports); port != NULL; port = vhpi_scan(root_ports), i++) {
       vhpi_printf("root port is %s", vhpi_get_str(vhpiNameP, port));
       fail_unless(vhpi_handle_by_index(vhpiPortDecls, root, i) == port);
@@ -589,19 +604,4 @@ void vhpi1_startup(void)
    };
    vhpi_register_cb(&cb_data3, 0);
    check_error();
-
-   vhpiHandleT tool = vhpi_handle(vhpiTool, NULL);
-   check_error();
-   fail_if(tool == NULL);
-   vhpi_printf("tool is %s", vhpi_get_str(vhpiNameP, tool));
-   vhpi_printf("tool version is %s", vhpi_get_str(vhpiToolVersionP, tool));
-
-   vhpiHandleT args = vhpi_iterator(vhpiArgvs, tool);
-   fail_if(args == NULL);
-   int i = 0;
-   for (vhpiHandleT arg = vhpi_scan(args); arg != NULL; arg = vhpi_scan(args), i++)
-      vhpi_printf("arg is %s", vhpi_get_str(vhpiStrValP, arg));
-   fail_unless(vhpi_get(vhpiArgcP, tool) == i);
-
-   vhpi_release_handle(tool);
 }

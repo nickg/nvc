@@ -1053,3 +1053,4 @@ issue979        wave,2008
 cmdline11       shell
 psl9            fail,gold,2008
 psl10           fail,gold,2008
+issue988        normal,vhpi

@@ -66,6 +66,8 @@ typedef struct {
    jit_t           *jit;
    unit_registry_t *registry;
    bool             user_set_std;
+   vhpi_context_t  *vhpi;
+   const char      *plugins;
 } cmd_state_t;
 
 const char copy_string[] =
@@ -471,6 +473,9 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
    state->registry = unit_registry_new();
    state->jit = get_jit(state->registry);
 
+   if (state->vhpi == NULL)
+      state->vhpi = vhpi_context_new();
+
    jit_enable_runtime(state->jit, false);
 
    tree_t top = elab(obj, state->jit, state->registry, cover, NULL);
@@ -839,13 +844,17 @@ static int run_cmd(int argc, char **argv, cmd_state_t *state)
 
    rt_model_t *model = model_new(top, state->jit);
 
-   vhpi_context_t *vhpi = NULL;
-   if (vhpi_plugins != NULL) {
-      vhpi = vhpi_context_new(top, model, state->jit, nplusargs, plusargs);
-      vhpi_load_plugins(vhpi_plugins);
-   }
+   if (state->vhpi == NULL)
+      state->vhpi = vhpi_context_new();
+
+   if (vhpi_plugins != NULL || state->plugins != NULL)
+      vhpi_context_initialise(state->vhpi, top, model, state->jit,
+                              nplusargs, plusargs);
    else if (nplusargs > 0)
       warnf("found plusargs on command line but no VHPI plugin was loaded");
+
+   if (vhpi_plugins != NULL)
+      vhpi_load_plugins(vhpi_plugins);
 
    set_ctrl_c_handler(ctrl_c_handler, model);
 
@@ -863,8 +872,8 @@ static int run_cmd(int argc, char **argv, cmd_state_t *state)
    if (dumper != NULL)
       wave_dumper_free(dumper);
 
-   if (vhpi != NULL)
-      vhpi_context_free(vhpi);
+   vhpi_context_free(state->vhpi);
+   state->vhpi = NULL;
 
    model_free(model);
 
@@ -1917,6 +1926,7 @@ static void usage(void)
           " -h, --help\t\tDisplay this message and exit\n"
           " -H SIZE\t\tSet the maximum heap size to SIZE bytes\n"
           "     --ignore-time\tSkip source file timestamp check\n"
+          "     --load=PLUGIN\tLoad VHPI plugin at startup\n"
           " -L PATH\t\tAdd PATH to library search paths\n"
           " -M SIZE\t\tLimit design unit heap space to SIZE bytes\n"
           "     --map=LIB:PATH\tMap library LIB to PATH\n"
@@ -1924,6 +1934,8 @@ static void usage(void)
           "     --std=REV\t\tVHDL standard revision to use\n"
           "     --stderr=SEV\tPrint messages higher than SEV to stderr\n"
           " -v, --version\t\tDisplay version and copyright information\n"
+          "     --vhpi-debug\tReport VHPI errors as diagnostic messages\n"
+          "     --vhpi-trace\tTrace VHPI calls and events\n"
           "     --work=NAME\tUse NAME as the work library\n"
           "\n"
           "Analysis options:\n"
@@ -1954,14 +1966,11 @@ static void usage(void)
           "     --ieee-warnings=\tEnable ('on') or disable ('off') warnings\n"
           "                     \tfrom IEEE packages\n"
           "     --include=GLOB\tInclude signals matching GLOB in wave dump\n"
-          "     --load=PLUGIN\tLoad VHPI plugin at startup\n"
           "     --shuffle\t\tRun processes in random order\n"
           "     --stats\t\tPrint time and memory usage at end of run\n"
           "     --stop-delta=N\tStop after N delta cycles (default %d)\n"
           "     --stop-time=T\tStop after simulation time T (e.g. 5ns)\n"
           "     --trace\t\tTrace simulation events\n"
-          "     --vhpi-debug\tReport VHPI errors as diagnostic messages\n"
-          "     --vhpi-trace\tTrace VHPI calls and events\n"
           " -w, --wave=FILE\tWrite waveform data; file name is optional\n"
           "\n"
 #ifdef ENABLE_GUI
@@ -2179,6 +2188,9 @@ int main(int argc, char **argv)
       { "ignore-time", no_argument,       0, 'i' },
       { "force-init",  no_argument,       0, 'f' },   // DEPRECATED 1.7
       { "stderr",      required_argument, 0, 'E' },
+      { "load",        required_argument, 0, 'l' },
+      { "vhpi-debug",  no_argument,       0, 'D' },
+      { "vhpi-trace",  no_argument,       0, 'T' },
       { 0, 0, 0, 0 }
    };
 
@@ -2240,6 +2252,16 @@ int main(int argc, char **argv)
       case 'E':
          set_stderr_severity(parse_severity(optarg));
          break;
+      case 'l':
+         state.plugins = optarg;
+         break;
+      case 'T':
+         opt_set_str(OPT_VHPI_TRACE, "1");
+         opt_set_int(OPT_VHPI_DEBUG, 1);
+         break;
+      case 'D':
+         opt_set_int(OPT_VHPI_DEBUG, 1);
+         break;
       case '?':
          bad_option("global", argv);
       case ':':
@@ -2253,6 +2275,11 @@ int main(int argc, char **argv)
 
    argc -= next_cmd - 1;
    argv += next_cmd - 1;
+
+   if (state.plugins != NULL) {
+      state.vhpi = vhpi_context_new();
+      vhpi_load_plugins(state.plugins);
+   }
 
    const int ret = process_command(argc, argv, &state);
 

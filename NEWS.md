@@ -1,6 +1,9 @@
 ## Unreleased changes
 - Fixed an error when using the `work` library alias and the working
   library has the same name as design unit being analysed (#991).
+- `--load` is now a global option and should be placed before the `-r`
+  command.  This allows VHPI foreign subprograms to be called during
+  elaboration (#988).
 
 ## Version 1.14.0 - 2024-09-22
 - Waiting on implicit `'stable` and `'quiet` signals now works

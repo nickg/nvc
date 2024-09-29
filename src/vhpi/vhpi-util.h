@@ -38,8 +38,9 @@ void vhpi_trace(const char *func, const char *fmt, ...);
 __attribute__((format(printf, 3, 4)))
 void vhpi_error(vhpiSeverityT sev, const loc_t *loc, const char *fmt, ...);
 
-vhpi_context_t *vhpi_context_new(tree_t top, rt_model_t *model, jit_t *jit,
-                                 int argc, char **argv);
+vhpi_context_t *vhpi_context_new(void);
+void vhpi_context_initialise(vhpi_context_t *c, tree_t top, rt_model_t *model,
+                             jit_t *jit, int argc, char **argv);
 void vhpi_context_free(vhpi_context_t *c);
 
 void vhpi_load_plugins(const char *plugins);
