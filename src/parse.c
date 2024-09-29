@@ -1567,27 +1567,6 @@ static tree_t ensure_labelled(tree_t t, ident_t label)
    return t;
 }
 
-static tree_t external_reference(tree_t t)
-{
-   switch (tree_kind(t)) {
-   case T_ENTITY:
-   case T_LIBRARY:
-   case T_ARCH:
-   case T_PACKAGE:
-   case T_PACK_INST:
-   case T_CONFIGURATION:
-      {
-         tree_t ref = tree_new(T_REF);
-         tree_set_loc(ref, CURRENT_LOC);
-         tree_set_ident(ref, tree_ident(t));
-         tree_set_ref(ref, t);
-         return ref;
-      }
-   default:
-      return t;
-   }
-}
-
 static tree_t select_decl(tree_t prefix, ident_t suffix, name_mask_t *mask)
 {
    ident_t qual = ident_prefix(tree_ident(prefix), suffix, '.');
@@ -3488,8 +3467,6 @@ static tree_t p_attribute_name(tree_t prefix)
       type   = tree_type(prefix);
    }
 
-   prefix = external_reference(prefix);
-
    tree_t t = tree_new(T_ATTR_REF);
    tree_set_name(t, prefix);
 
@@ -3570,7 +3547,7 @@ static tree_t p_selected_name(tree_t prefix, name_mask_t *mask)
       tree_t decl = tree_ref(prefix);
       const tree_kind_t kind = tree_kind(decl);
       if (kind == T_LIBRARY) {
-         ident_t unit_name = ident_prefix(tree_ident(decl), suffix, '.');
+         ident_t unit_name = ident_prefix(tree_ident(prefix), suffix, '.');
          tree_t unit = resolve_name(nametab, CURRENT_LOC, unit_name);
          if (unit == NULL) {
             tree_t dummy = tree_new(T_REF);
@@ -3579,8 +3556,15 @@ static tree_t p_selected_name(tree_t prefix, name_mask_t *mask)
             *mask |= N_ERROR;
             return dummy;
          }
-         else
-            return external_reference(unit);
+         else {
+            assert(is_design_unit(unit));
+
+            tree_t ref = tree_new(T_REF);
+            tree_set_loc(ref, CURRENT_LOC);
+            tree_set_ident(ref, unit_name);
+            tree_set_ref(ref, unit);
+            return ref;
+         }
       }
       else if (kind == T_GENERIC_DECL && tree_class(decl) == C_PACKAGE)
          return select_decl(tree_value(decl), suffix, mask);
