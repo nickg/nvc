@@ -597,6 +597,16 @@ static void vlog_check_enum_decl(vlog_node_t spec)
 
 }
 
+static void vlog_check_struct_decl(vlog_node_t decl)
+{
+
+}
+
+static void vlog_check_union_decl(vlog_node_t decl)
+{
+
+}
+
 void vlog_check(vlog_node_t v)
 {
    switch (vlog_kind(v)) {
@@ -694,6 +704,12 @@ void vlog_check(vlog_node_t v)
       break;
    case V_ENUM_DECL:
       vlog_check_enum_decl(v);
+      break;
+   case V_STRUCT_DECL:
+      vlog_check_struct_decl(v);
+      break;
+   case V_UNION_DECL:
+      vlog_check_union_decl(v);
       break;
    default:
       fatal_at(vlog_loc(v), "cannot check verilog node %s",

@@ -652,6 +652,8 @@ CCOND             ?i:CCOND
 <VLOG>"bit"              { return tBIT; }
 <VLOG>"logic"            { return tLOGIC; }
 <VLOG>"enum"             { return tENUM; }
+<VLOG>"union"            { return tUNION; }
+<VLOG>"tagged"           { return tTAGGED; }
 
 <VLOG>{SYSTASK}          { yylval.str = xstrdup(yytext); return tSYSTASK; }
 <VLOG>{VLOG_ID}          { yylval.str = xstrdup(yytext); return tID; }

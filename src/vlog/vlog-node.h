@@ -90,6 +90,8 @@ typedef enum {
    V_TYPE_DECL,
    V_ENUM_DECL,
    V_ENUM_NAME,
+   V_UNION_DECL,
+   V_STRUCT_DECL,
 
    V_LAST_NODE_KIND
 } vlog_kind_t;

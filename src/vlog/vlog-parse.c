@@ -742,6 +742,25 @@ static vlog_node_t p_integer_vector_type(void)
    return v;
 }
 
+static vlog_node_t p_struct_union(void)
+{
+   // struct | union [ tagged ]
+
+   BEGIN("struct or union");
+
+   switch (one_of(tSTRUCT, tUNION)) {
+   case tUNION:
+      {
+         vlog_node_t v = vlog_new(V_UNION_DECL);
+         optional(tTAGGED);
+         return v;
+      }
+   case tSTRUCT:
+   default:
+      return vlog_new(V_STRUCT_DECL);
+   }
+}
+
 static vlog_node_t p_data_type(void)
 {
    // integer_vector_type [ signing ] { packed_dimension }
@@ -780,12 +799,11 @@ static vlog_node_t p_data_type(void)
       return p_integer_atom_type();
 
    case tSTRUCT:
+   case tUNION:
       {
-         consume(tSTRUCT);
-         (void)optional(tPACKED);
+         vlog_node_t v = p_struct_union();
 
-         vlog_node_t v = vlog_new(V_DATA_TYPE);
-         vlog_set_subkind(v, DT_STRUCT);
+         (void)optional(tPACKED);
 
          consume(tLBRACE);
 
@@ -825,7 +843,7 @@ static vlog_node_t p_data_type(void)
 
    default:
       one_of(tBIT, tLOGIC, tREG, tBYTE, tSHORTINT, tSVINT, tLONGINT, tINTEGER,
-             tTIME, tSTRUCT, tENUM);
+             tTIME, tSTRUCT, tUNION, tENUM);
       return logic_type();
    }
 }
@@ -852,7 +870,7 @@ static vlog_node_t p_data_type_or_implicit(void)
 
    BEGIN("data type or implicit");
 
-   if (scan(tREG, tSTRUCT, tENUM))
+   if (scan(tREG, tSTRUCT, tUNION, tENUM))
       return p_data_type();
    else
       return p_implicit_data_type();
@@ -1914,12 +1932,13 @@ static void p_package_or_generate_item_declaration(vlog_node_t mod)
       break;
    case tREG:
    case tSTRUCT:
+   case tUNION:
    case tTYPEDEF:
    case tENUM:
       p_data_declaration(mod);
       break;
    default:
-      one_of(tWIRE, tSUPPLY0, tSUPPLY1, tREG, tSTRUCT, tTYPEDEF);
+      one_of(tWIRE, tSUPPLY0, tSUPPLY1, tREG, tSTRUCT, tUNION, tTYPEDEF);
       break;
    }
 }
@@ -1958,6 +1977,7 @@ static void p_module_common_item(vlog_node_t mod)
    case tSUPPLY1:
    case tREG:
    case tSTRUCT:
+   case tUNION:
    case tTYPEDEF:
    case tENUM:
       p_module_or_generate_item_declaration(mod);
@@ -1967,7 +1987,7 @@ static void p_module_common_item(vlog_node_t mod)
       break;
    default:
       one_of(tALWAYS, tINITIAL, tWIRE, tSUPPLY0, tSUPPLY1, tREG, tSTRUCT,
-             tTYPEDEF, tENUM, tASSIGN);
+             tUNION, tTYPEDEF, tENUM, tASSIGN);
    }
 }
 
@@ -2423,6 +2443,7 @@ static void p_module_or_generate_item(vlog_node_t mod)
    case tSUPPLY1:
    case tREG:
    case tSTRUCT:
+   case tUNION:
    case tASSIGN:
    case tINITIAL:
    case tTYPEDEF:
@@ -2445,7 +2466,7 @@ static void p_module_or_generate_item(vlog_node_t mod)
       p_module_instantiation(mod);
       break;
    default:
-      one_of(tALWAYS, tWIRE, tSUPPLY0, tSUPPLY1, tREG, tSTRUCT, tASSIGN,
+      one_of(tALWAYS, tWIRE, tSUPPLY0, tSUPPLY1, tREG, tSTRUCT, tUNION, tASSIGN,
              tINITIAL, tTYPEDEF, tENUM, tPULLDOWN, tPULLUP, tID, tAND, tNAND,
              tOR, tNOR, tXOR, tXNOR, tNOT, tBUF);
    }
@@ -2466,6 +2487,7 @@ static void p_non_port_module_item(vlog_node_t mod)
    case tSUPPLY1:
    case tREG:
    case tSTRUCT:
+   case tUNION:
    case tASSIGN:
    case tINITIAL:
    case tPULLDOWN:
@@ -2488,9 +2510,9 @@ static void p_non_port_module_item(vlog_node_t mod)
       vlog_add_stmt(mod, p_specify_block());
       break;
    default:
-      one_of(tALWAYS, tWIRE, tSUPPLY0, tSUPPLY1, tREG, tSTRUCT, tASSIGN,
-             tPULLDOWN, tPULLUP, tID, tATTRBEGIN, tAND, tNAND, tOR, tNOR,
-             tXOR, tXNOR, tNOT, tBUF, tTYPEDEF, tENUM, tSPECIFY);
+      one_of(tALWAYS, tWIRE, tSUPPLY0, tSUPPLY1, tREG, tSTRUCT, tUNION,
+             tASSIGN, tPULLDOWN, tPULLUP, tID, tATTRBEGIN, tAND, tNAND,
+             tOR, tNOR, tXOR, tXNOR, tNOT, tBUF, tTYPEDEF, tENUM, tSPECIFY);
    }
 }
 

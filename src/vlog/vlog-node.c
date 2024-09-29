@@ -122,7 +122,7 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
    (I_TEXT),
 
    // V_DATA_TYPE
-   (I_SUBKIND | I_DECLS | I_RANGES),
+   (I_SUBKIND | I_RANGES),
 
    // V_TYPE_DECL
    (I_IDENT | I_TYPE),
@@ -132,18 +132,25 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
 
    // V_ENUM_NAME
    (I_IDENT | I_TYPE),
+
+   // V_UNION_DECL
+   (I_IDENT | I_DECLS),
+
+   // V_STRUCT_DECL
+   (I_IDENT | I_DECLS),
 };
 
 static const char *kind_text_map[V_LAST_NODE_KIND] = {
-   "V_MODULE",    "V_PORT_DECL",  "V_REF",           "V_ALWAYS",
-   "V_TIMING",    "V_NBASSIGN",   "V_EVENT",         "V_INITIAL",
-   "V_SEQ_BLOCK", "V_SYSTASK",    "V_STRING",        "V_NUMBER",
-   "V_NET_DECL",  "V_ASSIGN",     "V_DIMENSION",     "V_IF",
-   "V_COND",      "V_VAR_DECL",   "V_DELAY_CONTROL", "V_BINARY",
-   "V_BASSIGN",   "V_UNARY",      "V_GATE_INST",     "V_STRENGTH",
-   "V_MOD_INST",  "V_BIT_SELECT", "V_SYSFUNC",       "V_FOREVER",
-   "V_SPECIFY",   "V_PRIMITIVE",  "V_UDP_TABLE",     "V_UDP_ENTRY",
-   "V_DATA_TYPE", "V_TYPE_DECL",  "V_ENUM_DECL",
+   "V_MODULE",     "V_PORT_DECL",   "V_REF",           "V_ALWAYS",
+   "V_TIMING",     "V_NBASSIGN",    "V_EVENT",         "V_INITIAL",
+   "V_SEQ_BLOCK",  "V_SYSTASK",     "V_STRING",        "V_NUMBER",
+   "V_NET_DECL",   "V_ASSIGN",      "V_DIMENSION",     "V_IF",
+   "V_COND",       "V_VAR_DECL",    "V_DELAY_CONTROL", "V_BINARY",
+   "V_BASSIGN",    "V_UNARY",       "V_GATE_INST",     "V_STRENGTH",
+   "V_MOD_INST",   "V_BIT_SELECT",  "V_SYSFUNC",       "V_FOREVER",
+   "V_SPECIFY",    "V_PRIMITIVE",   "V_UDP_TABLE",     "V_UDP_ENTRY",
+   "V_DATA_TYPE",  "V_TYPE_DECL",   "V_ENUM_DECL",     "V_ENUM_NAME",
+   "V_UNION_DECL", "V_STRUCT_DECL",
 };
 
 static const change_allowed_t change_allowed[] = {
