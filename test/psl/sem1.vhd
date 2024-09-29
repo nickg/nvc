@@ -21,5 +21,8 @@ begin
     -- psl assert x until_ (next x);          -- Error
     -- psl assert (next x) until y;           -- Error
     -- psl assert always next_e [1 to 3] (y -> next x);   -- Error
+    -- psl assert always x <-> y;             -- OK
+    -- psl assert always (next x) <-> y;      -- Error
+    -- psl assert always x <-> (next y);      -- Error
 
 end architecture;

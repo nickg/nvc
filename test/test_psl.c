@@ -113,6 +113,10 @@ START_TEST(test_sem1)
         "this until operator is non-Boolean" },
       { 23, "property is not in the simple subset as the operand of this "
         "next_e operator is non-Boolean" },
+      { 25, "property is not in the simple subset as the left hand side of "
+        "this implication is non-Boolean" },
+      { 26, "property is not in the simple subset as the right hand side of "
+        "this implication is non-Boolean" },
       { -1, NULL }
    };
    expect_errors(expect);

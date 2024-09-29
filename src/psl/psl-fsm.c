@@ -117,7 +117,19 @@ static fsm_state_t *build_implication(psl_fsm_t *fsm, fsm_state_t *state,
       }
 
    case P_HDL_EXPR:
-      {
+      if (psl_subkind(p) == PSL_IMPL_IFF) {
+         // Only legal with Boolean HDL expression
+         fsm_state_t *left = add_state(fsm);
+         fsm_state_t *right = add_state(fsm);
+         fsm_state_t *accept = add_state(fsm);
+         add_edge(state, left, EDGE_EPSILON, lhs);
+         add_edge(state, right, EDGE_EPSILON, rhs);
+         add_edge(left, accept, EDGE_EPSILON, rhs);
+         add_edge(right, accept, EDGE_EPSILON, lhs);
+         add_edge(state, accept, EDGE_EPSILON, NULL);
+         return accept;
+      }
+      else {
          fsm_state_t *left = add_state(fsm);
          fsm_state_t *right = add_state(fsm);
          add_edge(state, left, EDGE_EPSILON, lhs);

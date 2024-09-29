@@ -12232,11 +12232,12 @@ static psl_node_t p_psl_fl_property(void)
    const token_t infix = peek();
    switch (infix) {
    case tIFIMPL:
+   case tIFFIMPL:
       {
-         consume(tIFIMPL);
+         consume(infix);
 
          psl_node_t impl = psl_new(P_IMPLICATION);
-         psl_set_subkind(impl, PSL_IMPL_IF);
+         psl_set_subkind(impl, infix == tIFIMPL ? PSL_IMPL_IF : PSL_IMPL_IFF);
          psl_add_operand(impl, p);
          psl_add_operand(impl, p_psl_fl_property());
          psl_set_loc(impl, CURRENT_LOC);

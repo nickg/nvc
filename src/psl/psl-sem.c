@@ -185,6 +185,9 @@ static void psl_check_implication(psl_node_t p, nametab_t *tab)
    if (psl_kind(left) != P_HDL_EXPR || psl_type(left) != PSL_TYPE_BOOLEAN)
       error_at(psl_loc(p), "property is not in the simple subset as the left "
                "hand side of this implication is non-Boolean");
+   else if (psl_subkind(p) == PSL_IMPL_IFF && psl_kind(right) != P_HDL_EXPR)
+      error_at(psl_loc(p), "property is not in the simple subset as the right "
+               "hand side of this implication is non-Boolean");
 }
 
 static void psl_check_next(psl_node_t p, nametab_t *tab)
