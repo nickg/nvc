@@ -35,7 +35,6 @@ START_TEST(test_parse1)
       { 19, "no visible declaration for FFF" },
       { 28, "FOO already declared in this region" },
       { 34, "no visible declaration for XXXX" },
-      { 36, "unexpected default while parsing verification directive" },
       { -1, NULL }
    };
    expect_errors(expect);

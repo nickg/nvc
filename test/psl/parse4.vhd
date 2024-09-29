@@ -9,12 +9,12 @@ architecture test of parse4 is
 
     signal a, b, c, clk : bit;
 
+begin
+
     -- psl default clock is rising_edge(clk);
 
     -- psl sequence seq_a is {a;b;c};
     -- psl sequence seq_b(const rpt) is a[*rpt];
-
-begin
 
     -- Sequence_Instance
     -- psl cover seq_a;

@@ -10939,16 +10939,21 @@ static tree_t p_concurrent_procedure_call_statement(ident_t label, tree_t name)
 
 static void p_concurrent_statement_or_psl(tree_t parent)
 {
+   // Allow PSL declarations in concurrent statement part when using
+   // "--psl" comments
+
    if (peek() == tSTARTPSL) {
       consume(tSTARTPSL);
 
-      ident_t label = NULL;
       if (peek() == tID) {
-         label = p_identifier();
+         ident_t label = p_identifier();
          consume(tCOLON);
+         tree_add_stmt(parent, p_psl_directive(label));
       }
-
-      tree_add_stmt(parent, p_psl_directive(label));
+      else if (scan(tDEFAULT, tSEQUENCE, tPROPERTY))
+         tree_add_decl(parent, p_psl_declaration());
+      else
+         tree_add_stmt(parent, p_psl_directive(NULL));
    }
    else
       tree_add_stmt(parent, p_concurrent_statement());
@@ -12492,6 +12497,7 @@ static tree_t p_psl_directive(ident_t label)
    push_scope(nametab);
 
    psl_node_t p = p_psl_verification_directive();
+   tree_set_psl(t, p);
 
    pop_scope(nametab);
 
@@ -12500,14 +12506,10 @@ static tree_t p_psl_directive(ident_t label)
    tree_set_loc(t, CURRENT_LOC);
    ensure_labelled(t, label);
 
-   if (p != NULL) {
-      tree_set_psl(t, p);
+   if (label)
+     insert_name(nametab, t, NULL);
 
-      if (label) insert_name(nametab, t, NULL);
-
-      psl_check(p, nametab);
-   }
-
+   psl_check(p, nametab);
    return t;
 }
 

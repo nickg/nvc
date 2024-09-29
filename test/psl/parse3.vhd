@@ -10,8 +10,31 @@ architecture test of parse3 is
     signal global_vect : bit_vector(3 downto 0);
     signal global_string : string(1 to 10);
     signal global_bool : boolean;
+begin
 
     -- psl default clock is clk'event and clk = '1';
+
+    -- psl assert never b;
+    -- psl assert always (a -> next_a[3 to 5] (b));
+    -- psl assert always (a -> next[3] (b));
+    -- psl assert always (a -> next_event(b)[4](c));
+    -- psl assert {a};
+    -- psl assert {a;b and c};
+
+    -- psl cover {a ;  b;c   };
+    -- psl named_cover   : cover {c} report "'c' is covered";
+
+    -- psl assume b;
+    -- psl named_assume     : assume (a    -> b);
+    -- psl assume_guarantee ( b ->    c) report "assume_guarantee met";
+
+    -- psl restrict {c ;b ;   c;   b};
+    -- psl named_restrict : restrict {c};
+    -- psl restrict_guarantee   {b; b} report "restrict_guarantee met";
+
+    -- psl fairness (b = '1');
+    -- psl named_fairness : fairness (a = '1');
+    -- psl strong fairness (a = '1'), (b = '1');
 
     -- psl property my_prop_1 is (a='1');
     -- psl sequence my_seq_1 is {b};
@@ -40,28 +63,5 @@ architecture test of parse3 is
 
     -- psl property p_property_1(property x) is {a};
     -- psl property p_sequence_1(sequence x) is {a};
-begin
-
-    -- psl assert never b;
-    -- psl assert always (a -> next_a[3 to 5] (b));
-    -- psl assert always (a -> next[3] (b));
-    -- psl assert always (a -> next_event(b)[4](c));
-    -- psl assert {a};
-    -- psl assert {a;b and c};
-
-    -- psl cover {a ;  b;c   };
-    -- psl named_cover   : cover {c} report "'c' is covered";
-
-    -- psl assume b;
-    -- psl named_assume     : assume (a    -> b);
-    -- psl assume_guarantee ( b ->    c) report "assume_guarantee met";
-
-    -- psl restrict {c ;b ;   c;   b};
-    -- psl named_restrict : restrict {c};
-    -- psl restrict_guarantee   {b; b} report "restrict_guarantee met";
-
-    -- psl fairness (b = '1');
-    -- psl named_fairness : fairness (a = '1');
-    -- psl strong fairness (a = '1'), (b = '1');
 
 end architecture;
