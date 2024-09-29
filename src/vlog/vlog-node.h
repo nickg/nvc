@@ -88,6 +88,8 @@ typedef enum {
    V_UDP_ENTRY,
    V_DATA_TYPE,
    V_TYPE_DECL,
+   V_ENUM_DECL,
+   V_ENUM_NAME,
 
    V_LAST_NODE_KIND
 } vlog_kind_t;

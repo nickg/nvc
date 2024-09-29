@@ -592,6 +592,11 @@ static void vlog_check_type_decl(vlog_node_t spec)
 
 }
 
+static void vlog_check_enum_decl(vlog_node_t spec)
+{
+
+}
+
 void vlog_check(vlog_node_t v)
 {
    switch (vlog_kind(v)) {
@@ -686,6 +691,9 @@ void vlog_check(vlog_node_t v)
       break;
    case V_DATA_TYPE:
       vlog_check_data_type(v);
+      break;
+   case V_ENUM_DECL:
+      vlog_check_enum_decl(v);
       break;
    default:
       fatal_at(vlog_loc(v), "cannot check verilog node %s",

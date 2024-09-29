@@ -126,6 +126,12 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
 
    // V_TYPE_DECL
    (I_IDENT | I_TYPE),
+
+   // V_ENUM_DECL
+   (I_IDENT | I_TYPE | I_RANGES | I_DECLS),
+
+   // V_ENUM_NAME
+   (I_IDENT | I_TYPE),
 };
 
 static const char *kind_text_map[V_LAST_NODE_KIND] = {
@@ -137,7 +143,7 @@ static const char *kind_text_map[V_LAST_NODE_KIND] = {
    "V_BASSIGN",   "V_UNARY",      "V_GATE_INST",     "V_STRENGTH",
    "V_MOD_INST",  "V_BIT_SELECT", "V_SYSFUNC",       "V_FOREVER",
    "V_SPECIFY",   "V_PRIMITIVE",  "V_UDP_TABLE",     "V_UDP_ENTRY",
-   "V_DATA_TYPE", "V_TYPE_DECL",
+   "V_DATA_TYPE", "V_TYPE_DECL",  "V_ENUM_DECL",
 };
 
 static const change_allowed_t change_allowed[] = {
@@ -436,7 +442,6 @@ bool vlog_has_type(vlog_node_t v)
 
 void vlog_set_type(vlog_node_t v, vlog_node_t t)
 {
-   assert(t->object.kind == V_DATA_TYPE);
    lookup_item(&vlog_object, v, I_TYPE)->object = &(t->object);
    object_write_barrier(&(v->object), &(t->object));
 }

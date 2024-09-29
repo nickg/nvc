@@ -651,6 +651,7 @@ CCOND             ?i:CCOND
 <VLOG>"typedef"          { return tTYPEDEF; }
 <VLOG>"bit"              { return tBIT; }
 <VLOG>"logic"            { return tLOGIC; }
+<VLOG>"enum"             { return tENUM; }
 
 <VLOG>{SYSTASK}          { yylval.str = xstrdup(yytext); return tSYSTASK; }
 <VLOG>{VLOG_ID}          { yylval.str = xstrdup(yytext); return tID; }

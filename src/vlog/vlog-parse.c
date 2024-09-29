@@ -687,6 +687,20 @@ static void p_struct_union_member(vlog_node_t v)
    consume(tSEMI);
 }
 
+static void p_enum_name_declaration(vlog_node_t parent)
+{
+   // enum_identifier [ [ integral_number [ : integral_number ] ] ]
+   //   [ = constant_expression ]
+
+   BEGIN("enum name declaration");
+
+   vlog_node_t v = vlog_new(V_ENUM_NAME);
+   vlog_set_ident(v, p_identifier());
+   vlog_set_type(v, parent);
+
+   vlog_add_decl(parent, v);
+}
+
 static vlog_node_t p_integer_atom_type(void)
 {
    // byte | shortint | int | longint | integer | time
@@ -769,10 +783,11 @@ static vlog_node_t p_data_type(void)
       {
          consume(tSTRUCT);
          (void)optional(tPACKED);
-         consume(tLBRACE);
 
          vlog_node_t v = vlog_new(V_DATA_TYPE);
          vlog_set_subkind(v, DT_STRUCT);
+
+         consume(tLBRACE);
 
          do {
             p_struct_union_member(v);
@@ -787,9 +802,30 @@ static vlog_node_t p_data_type(void)
          return v;
       }
 
+   case tENUM:
+      {
+         consume(tENUM);
+
+         vlog_node_t v = vlog_new(V_ENUM_DECL);
+
+         consume(tLBRACE);
+
+         do {
+            p_enum_name_declaration(v);
+         } while (optional(tCOMMA));
+
+         consume(tRBRACE);
+
+         while (peek() == tLSQUARE)
+            vlog_add_range(v, p_packed_dimension());
+
+         vlog_set_loc(v, CURRENT_LOC);
+         return v;
+      }
+
    default:
       one_of(tBIT, tLOGIC, tREG, tBYTE, tSHORTINT, tSVINT, tLONGINT, tINTEGER,
-             tTIME, tSTRUCT);
+             tTIME, tSTRUCT, tENUM);
       return logic_type();
    }
 }
@@ -816,7 +852,7 @@ static vlog_node_t p_data_type_or_implicit(void)
 
    BEGIN("data type or implicit");
 
-   if (scan(tREG, tSTRUCT))
+   if (scan(tREG, tSTRUCT, tENUM))
       return p_data_type();
    else
       return p_implicit_data_type();
@@ -1879,6 +1915,7 @@ static void p_package_or_generate_item_declaration(vlog_node_t mod)
    case tREG:
    case tSTRUCT:
    case tTYPEDEF:
+   case tENUM:
       p_data_declaration(mod);
       break;
    default:
@@ -1922,6 +1959,7 @@ static void p_module_common_item(vlog_node_t mod)
    case tREG:
    case tSTRUCT:
    case tTYPEDEF:
+   case tENUM:
       p_module_or_generate_item_declaration(mod);
       break;
    case tASSIGN:
@@ -1929,7 +1967,7 @@ static void p_module_common_item(vlog_node_t mod)
       break;
    default:
       one_of(tALWAYS, tINITIAL, tWIRE, tSUPPLY0, tSUPPLY1, tREG, tSTRUCT,
-             tTYPEDEF, tASSIGN);
+             tTYPEDEF, tENUM, tASSIGN);
    }
 }
 
@@ -2388,6 +2426,7 @@ static void p_module_or_generate_item(vlog_node_t mod)
    case tASSIGN:
    case tINITIAL:
    case tTYPEDEF:
+   case tENUM:
       p_module_common_item(mod);
       break;
    case tPULLDOWN:
@@ -2407,8 +2446,8 @@ static void p_module_or_generate_item(vlog_node_t mod)
       break;
    default:
       one_of(tALWAYS, tWIRE, tSUPPLY0, tSUPPLY1, tREG, tSTRUCT, tASSIGN,
-             tINITIAL, tTYPEDEF, tPULLDOWN, tPULLUP, tID, tAND, tNAND, tOR,
-             tNOR, tXOR, tXNOR, tNOT, tBUF);
+             tINITIAL, tTYPEDEF, tENUM, tPULLDOWN, tPULLUP, tID, tAND, tNAND,
+             tOR, tNOR, tXOR, tXNOR, tNOT, tBUF);
    }
 }
 
@@ -2442,6 +2481,7 @@ static void p_non_port_module_item(vlog_node_t mod)
    case tNOT:
    case tBUF:
    case tTYPEDEF:
+   case tENUM:
       p_module_or_generate_item(mod);
       break;
    case tSPECIFY:
@@ -2450,7 +2490,7 @@ static void p_non_port_module_item(vlog_node_t mod)
    default:
       one_of(tALWAYS, tWIRE, tSUPPLY0, tSUPPLY1, tREG, tSTRUCT, tASSIGN,
              tPULLDOWN, tPULLUP, tID, tATTRBEGIN, tAND, tNAND, tOR, tNOR,
-             tXOR, tXNOR, tNOT, tBUF, tTYPEDEF, tSPECIFY);
+             tXOR, tXNOR, tNOT, tBUF, tTYPEDEF, tENUM, tSPECIFY);
    }
 }
 
