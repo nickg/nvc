@@ -54,6 +54,8 @@ package body psl_support is
         return false;
     end;
 
+    -- Keep this dummy implementation so that overload resolution is invoked
+    -- in VHDL 2008 mode
     function isunknown(
         val : in bit_vector
     ) return boolean is

@@ -1,0 +1,5 @@
+** Error: no matching subprogram ISUNKNOWN [STD_LOGIC return BOOLEAN | BIT | STD_ULOGIC]
+psl11.vhd:15
+    |
+ 15 |     -- psl assert never (isunknown(a));
+    |                          ^^^^^^^^^^^^
