@@ -12480,21 +12480,21 @@ static tree_t p_psl_directive(void)
    // Verification directive can contain Proc_Block with
    // local declarations -> Push scope
    push_scope(nametab);
+   insert_names_for_psl(nametab);
 
    psl_node_t p = p_psl_verification_directive();
    tree_set_psl(t, p);
 
-   pop_scope(nametab);
-
    scan_as_vhdl();
+
+   psl_check(p, nametab);
+   pop_scope(nametab);
 
    tree_set_loc(t, CURRENT_LOC);
    ensure_labelled(t, label);
 
-   if (label)
-     insert_name(nametab, t, NULL);
+   if (label) insert_name(nametab, t, NULL);
 
-   psl_check(p, nametab);
    return t;
 }
 
@@ -12516,6 +12516,7 @@ static psl_node_t p_psl_property_declaration(tree_t t)
 
    push_scope(nametab);
    scope_set_container(nametab, t);
+   insert_names_for_psl(nametab);
 
    if (optional(tLPAREN)) {
       p_psl_formal_parameter_list(decl);
@@ -12557,6 +12558,7 @@ static psl_node_t p_psl_sequence_declaration(tree_t t)
 
    push_scope(nametab);
    scope_set_container(nametab, t);
+   insert_names_for_psl(nametab);
 
    if (optional(tLPAREN)) {
       p_psl_formal_parameter_list(decl);
@@ -12591,8 +12593,6 @@ static tree_t p_psl_declaration(void)
    token_t tok = peek();
    tree_t t = tree_new(T_PSL);
    psl_node_t p;
-
-   insert_names_for_psl(nametab);
 
    switch (tok) {
    case tPROPERTY:
@@ -12630,6 +12630,9 @@ static tree_t p_psl_or_concurrent_assert(ident_t label)
       return p_concurrent_assertion_statement(label);   // Cannot be PSL
 
    consume(tASSERT);
+
+   push_scope(nametab);
+   insert_names_for_psl(nametab);
 
    scan_as_psl();
 
@@ -12682,6 +12685,8 @@ static tree_t p_psl_or_concurrent_assert(ident_t label)
       conc = tree_new(T_PSL);
       tree_set_psl(conc, a);
    }
+
+   pop_scope(nametab);
 
    tree_set_loc(conc, CURRENT_LOC);
    ensure_labelled(conc, label);
