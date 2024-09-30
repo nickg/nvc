@@ -18,6 +18,7 @@
 #include "util.h"
 #include "diag.h"
 #include "names.h"
+#include "phase.h"
 #include "psl/psl-node.h"
 #include "psl/psl-phase.h"
 #include "type.h"
@@ -138,6 +139,9 @@ static void psl_check_hdl_expr(psl_node_t p, nametab_t *tab)
    psl_set_tree(p, value);   // May be replaced with condition conversion
 
    assert(psl_type(p) == PSL_TYPE_BOOLEAN);
+
+   if (!sem_check(value, tab))
+      return;
 
    type_t std_bool = std_type(NULL, STD_BOOLEAN);
    bool ok = type_eq(type, std_bool);

@@ -312,6 +312,25 @@ START_TEST(test_issue910)
 }
 END_TEST
 
+START_TEST(test_issue1001)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/psl/issue1001.vhd");
+
+   const error_t expect[] = {
+      { 13, "no matching subprogram ONEHOT [BIT return BOOLEAN | BIT]" },
+      { 14, "type of actual BIT does not match formal V type BIT_VECTOR" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_ENTITY, T_ARCH);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_psl_tests(void)
 {
    Suite *s = suite_create("psl");
@@ -324,6 +343,7 @@ Suite *get_psl_tests(void)
    tcase_add_test(tc_core, test_parse4);
    tcase_add_test(tc_core, test_parse5);
    tcase_add_test(tc_core, test_issue910);
+   tcase_add_test(tc_core, test_issue1001);
    suite_add_tcase(s, tc_core);
 
    return s;
