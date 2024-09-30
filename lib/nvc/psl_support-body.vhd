@@ -54,6 +54,13 @@ package body psl_support is
         return false;
     end;
 
+    function isunknown(
+        val : in bit_vector
+    ) return boolean is
+    begin
+        return false;
+    end;
+
 `if VHDL_VERSION < "2008" then
 
     function countones(

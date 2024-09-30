@@ -42,6 +42,10 @@ package psl_support is
         val : in std_ulogic_vector
     ) return boolean;
 
+    function isunknown(
+        val : in bit_vector
+    ) return boolean;
+
     ---------------------------------------------------------------------------
     --  Returns number of '1' or 'H' in the input vector.
     ---------------------------------------------------------------------------
