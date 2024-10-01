@@ -1123,7 +1123,7 @@ cover_data_t *cover_read_items(fbuf_t *f, uint32_t pre_mask)
 
 static void cover_merge_scope(cover_scope_t *old_s, cover_scope_t *new_s)
 {
-
+   // TODO: This has O(n^2). Could be issue for large designs.
    for (int i = 0; i < new_s->items.count; i++) {
       cover_item_t *new = AREF(new_s->items, i);
 

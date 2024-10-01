@@ -23,7 +23,8 @@
 #include "cov/cov-api.h"
 #include "diag.h"
 
-typedef struct _cover_report_ctx    cover_report_ctx_t;
+typedef struct _cover_rpt_hier_ctx  cover_rpt_hier_ctx_t;
+typedef struct _cover_rpt_file_ctx  cover_rpt_file_ctx_t;
 typedef struct _cover_exclude_ctx   cover_exclude_ctx_t;
 typedef struct _cover_rpt_buf       cover_rpt_buf_t;
 typedef struct _cover_spec          cover_spec_t;

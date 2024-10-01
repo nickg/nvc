@@ -1740,12 +1740,13 @@ static int cover_export_cmd(int argc, char **argv, cmd_state_t *state)
 static int cover_report_cmd(int argc, char **argv, cmd_state_t *state)
 {
    static struct option long_options[] = {
-      { "report",       required_argument, 0, 'r' },   // DEPRECATED 1.14
-      { "output",       required_argument, 0, 'o' },
-      { "exclude-file", required_argument, 0, 'e' },
-      { "dont-print",   required_argument, 0, 'd' },
-      { "item-limit",   required_argument, 0, 'l' },
-      { "verbose",      no_argument,       0, 'V' },
+      { "report",          required_argument, 0, 'r' },   // DEPRECATED 1.14
+      { "output",          required_argument, 0, 'o' },
+      { "exclude-file",    required_argument, 0, 'e' },
+      { "dont-print",      required_argument, 0, 'd' },
+      { "item-limit",      required_argument, 0, 'l' },
+      { "per-source-file", no_argument,       0, 'f' },
+      { "verbose",         no_argument,       0, 'V' },
       { 0, 0, 0, 0 }
    };
 
@@ -1770,10 +1771,13 @@ static int cover_report_cmd(int argc, char **argv, cmd_state_t *state)
          exclude_file = optarg;
          break;
       case 'd':
-         rpt_mask = parse_cover_print_spec(optarg);
+         rpt_mask |= parse_cover_print_spec(optarg);
          break;
       case 'l':
          item_limit = parse_int(optarg);
+         break;
+      case 'f':
+         rpt_mask |= COVER_MASK_PER_SOURCE_FILE_REPORT;
          break;
       case 'V':
          opt_set_int(OPT_VERBOSE, 1);

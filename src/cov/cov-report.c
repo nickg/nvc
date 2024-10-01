@@ -65,12 +65,12 @@ typedef struct {
    cover_pair_t *hits;
    cover_pair_t *miss;
    cover_pair_t *excl;
-   int          n_hits;
-   int          n_miss;
-   int          n_excl;
-   int          alloc_hits;
-   int          alloc_miss;
-   int          alloc_excl;
+   int           n_hits;
+   int           n_miss;
+   int           n_excl;
+   int           alloc_hits;
+   int           alloc_miss;
+   int           alloc_excl;
 } cover_chain_t;
 
 typedef struct {
@@ -81,18 +81,29 @@ typedef struct {
    bool          valid;
 } cover_file_t;
 
-struct _cover_report_ctx {
-   cover_data_t         *data;
-   cover_stats_t        flat_stats;
-   cover_stats_t        nested_stats;
-   cover_report_ctx_t   *parent;
-   cover_chain_t        ch_stmt;
-   cover_chain_t        ch_branch;
-   cover_chain_t        ch_toggle;
-   cover_chain_t        ch_expression;
-   cover_chain_t        ch_state;
-   cover_chain_t        ch_functional;
-   int                  lvl;
+typedef struct {
+   cover_chain_t   stmt;
+   cover_chain_t   branch;
+   cover_chain_t   toggle;
+   cover_chain_t   expression;
+   cover_chain_t   state;
+   cover_chain_t   functional;
+} cover_chain_group_t;
+
+struct _cover_rpt_file_ctx {
+   cover_file_t         *file;
+   ptr_list_t            items;
+   cover_stats_t         stats;
+   cover_chain_group_t   chns;
+} ;
+
+struct _cover_rpt_hier_ctx {
+   cover_data_t           *data;
+   cover_stats_t           flat_stats;
+   cover_stats_t           nested_stats;
+   cover_rpt_hier_ctx_t   *parent;
+   cover_chain_group_t     chns;
+   int                     lvl;
 };
 
 typedef enum {
@@ -103,21 +114,24 @@ typedef enum {
 } cov_pair_kind_t;
 
 #define INIT_CHAIN(ctx, name)                                           \
-   ctx->name.hits = xcalloc_array(1024, sizeof(cover_pair_t));          \
-   ctx->name.miss = xcalloc_array(1024, sizeof(cover_pair_t));          \
-   ctx->name.excl = xcalloc_array(1024, sizeof(cover_pair_t));          \
-   ctx->name.alloc_hits = 1024;                                         \
-   ctx->name.alloc_miss = 1024;                                         \
-   ctx->name.alloc_excl = 1024;                                         \
+   ctx->chns.name.hits = xcalloc_array(1024, sizeof(cover_pair_t));          \
+   ctx->chns.name.miss = xcalloc_array(1024, sizeof(cover_pair_t));          \
+   ctx->chns.name.excl = xcalloc_array(1024, sizeof(cover_pair_t));          \
+   ctx->chns.name.alloc_hits = 1024;                                         \
+   ctx->chns.name.alloc_miss = 1024;                                         \
+   ctx->chns.name.alloc_excl = 1024;                                         \
 
 #define COV_RPT_TITLE "NVC code coverage report"
 
-static void cover_report_children(cover_report_ctx_t *ctx,
+static void cover_report_hier_children(cover_rpt_hier_ctx_t *ctx,
                                   cover_scope_t *s, const char *dir,
                                   FILE *summf, int *skipped);
 
+static shash_t *cover_files = NULL;
+
+
 ///////////////////////////////////////////////////////////////////////////////
-// Report generation
+// Common reporting functions
 ///////////////////////////////////////////////////////////////////////////////
 
 static void cover_append_line(cover_file_t *f, const char *buf)
@@ -137,13 +151,11 @@ static cover_file_t *cover_file_for_scope(cover_scope_t *s)
    if (loc_invalid_p(&(s->loc)))
       return NULL;
 
-   static shash_t *files = NULL;
-
-   if (files == NULL)
-      files = shash_new(64);
+   if (cover_files == NULL)
+      cover_files = shash_new(64);
 
    const char *name = loc_file_str(&(s->loc));
-   cover_file_t *f = shash_get(files, name);
+   cover_file_t *f = shash_get(cover_files, name);
 
    if (f != NULL)
       return f->valid ? f : NULL;
@@ -155,7 +167,7 @@ static cover_file_t *cover_file_for_scope(cover_scope_t *s)
    f->lines       = xmalloc_array(f->alloc_lines, sizeof(cover_line_t));
    f->valid       = false;
 
-   shash_put(files, name, f);
+   shash_put(cover_files, name, f);
 
    FILE *fp = fopen(name, "r");
 
@@ -295,48 +307,20 @@ static void cover_print_html_header(FILE *f)
    fprintf(f, "</header>\n\n");
 }
 
-static void cover_print_navigation_tree(FILE *f, cover_report_ctx_t *ctx,
-                                        cover_scope_t *s)
+static void cover_print_file_name(FILE *f, const char *name)
 {
-   fprintf(f, "<nav>\n"
-               "<b>Hierarchy:</b><br>\n");
-   int offset = 0;
-
-   ident_t full_hier = s->hier;
-   ident_t curr_id;
-   ident_t curr_hier = NULL;
-   const char *link = "../index";
-
-   do {
-      curr_id = ident_walk_selected(&full_hier);
-      curr_hier = ident_prefix(curr_hier, curr_id, '.');
-      if (offset > 0)
-         link = istr(curr_hier);
-      if (curr_id)
-         fprintf(f, "<p style=\"margin-left: %dpx\"><a href=%s.html>%s</a></p>\n",
-                     offset * 10, link, istr(curr_id));
-      offset++;
-   } while (curr_id != NULL);
-
-   fprintf(f, "</nav>\n\n");
-
+   fprintf(f, "<h2 style=\"margin-left: " MARGIN_LEFT ";\">\n");
+   fprintf(f, "   File:&nbsp; <a href=\"../../%s\">../../%s</a>\n",
+            name, name);
+   fprintf(f, "</h2>\n\n");
 }
 
-static void cover_print_file_and_inst(FILE *f, cover_report_ctx_t *ctx,
-                                      cover_scope_t *s)
+static void cover_print_inst_name(FILE *f, cover_scope_t *s)
 {
    fprintf(f, "<h2 style=\"margin-left: " MARGIN_LEFT ";\">\n");
    fprintf(f, "   Instance:&nbsp;%s\n", istr(s->hier));
    fprintf(f, "</h2>\n\n");
-
-   cover_file_t *src = cover_file_for_scope(s);
-   fprintf(f, "<h2 style=\"margin-left: " MARGIN_LEFT ";\">\n");
-   if (src != NULL)
-      fprintf(f, "   File:&nbsp; <a href=\"../../%s\">../../%s</a>\n",
-                  src->name, src->name);
-   fprintf(f, "</h2>\n\n");
 }
-
 
 static void cover_print_percents_cell(FILE *f, unsigned hit, unsigned total)
 {
@@ -359,11 +343,14 @@ static void cover_print_percents_cell(FILE *f, unsigned hit, unsigned total)
       fprintf(f, "    <td class=\"percentna\">N.A.</td>\n");
 }
 
-static void cover_print_hierarchy_header(FILE *f, const char *table_id)
+static void cover_print_summary_table_header(FILE *f, const char *table_id,
+                                             bool is_instance)
 {
+   const char *first_col_str = (is_instance) ? "Instance" : "File";
+
    fprintf(f, "<table id=\"%s\" style=\"width:75%%;margin-left:" MARGIN_LEFT ";margin-right:auto;\"> \n"
               "  <tr style=\"height:40px\">\n"
-              "    <th class=\"cbg\" onclick=\"sortTable(0, &quot;%s&quot;)\" style=\"width:30%%\">Instance</th>\n"
+              "    <th class=\"cbg\" onclick=\"sortTable(0, &quot;%s&quot;)\" style=\"width:30%%\">%s</th>\n"
               "    <th class=\"cbg\" onclick=\"sortTable(1, &quot;%s&quot;)\"  style=\"width:8%%\">Statement</th>\n"
               "    <th class=\"cbg\" onclick=\"sortTable(2, &quot;%s&quot;)\"  style=\"width:8%%\">Branch</th>\n"
               "    <th class=\"cbg\" onclick=\"sortTable(3, &quot;%s&quot;)\"  style=\"width:8%%\">Toggle</th>\n"
@@ -371,10 +358,11 @@ static void cover_print_hierarchy_header(FILE *f, const char *table_id)
               "    <th class=\"cbg\" onclick=\"sortTable(5, &quot;%s&quot;)\"  style=\"width:8%%\">FSM state</th>\n"
               "    <th class=\"cbg\" onclick=\"sortTable(6, &quot;%s&quot;)\"  style=\"width:8%%\">Functional</th>\n"
               "    <th class=\"cbg\" onclick=\"sortTable(7, &quot;%s&quot;)\"  style=\"width:8%%\">Average</th>\n"
-              "  </tr>\n", table_id, table_id, table_id, table_id, table_id, table_id, table_id, table_id, table_id);
+              "  </tr>\n", table_id, table_id, first_col_str, table_id, table_id, table_id, table_id,
+                           table_id, table_id, table_id);
 }
 
-static void cover_print_hierarchy_footer(FILE *f)
+static void cover_print_table_footer(FILE *f)
 {
    fprintf(f, "</table>\n\n");
 }
@@ -391,117 +379,6 @@ static void cover_print_timestamp(FILE *f)
 
    fprintf(f, "</body>\n");
    fprintf(f, "</html>\n");
-}
-
-static void cover_print_hierarchy_summary(FILE *f, cover_report_ctx_t *ctx, ident_t hier,
-                                          bool top, bool full_hier, bool flat)
-{
-   ident_t print_hier = (full_hier) ? hier : ident_rfrom(hier, '.');
-   cover_stats_t *stats;
-
-   if (flat)
-      stats = &(ctx->flat_stats);
-   else
-      stats = &(ctx->nested_stats);
-
-   fprintf(f, "  <tr>\n"
-              "    <td><a href=\"%s%s.html\">%s</a></td>\n",
-              top ? "hier/" : "", istr(hier), istr(print_hier));
-
-   cover_print_percents_cell(f, stats->hit_stmts, stats->total_stmts);
-   cover_print_percents_cell(f, stats->hit_branches, stats->total_branches);
-   cover_print_percents_cell(f, stats->hit_toggles, stats->total_toggles);
-   cover_print_percents_cell(f, stats->hit_expressions, stats->total_expressions);
-   cover_print_percents_cell(f, stats->hit_states, stats->total_states);
-   cover_print_percents_cell(f, stats->hit_functional, stats->total_functional);
-
-   int avg_total = stats->total_stmts + stats->total_branches +
-                   stats->total_toggles + stats->total_expressions +
-                   stats->total_states + stats->total_functional;
-   int avg_hit = stats->hit_stmts + stats->hit_branches +
-                 stats->hit_toggles + stats->hit_expressions +
-                 stats->hit_states + stats->total_functional;
-
-   cover_print_percents_cell(f, avg_hit, avg_total);
-
-   fprintf(f, "  </tr>\n");
-
-   float perc_stmt = 0.0f;
-   float perc_branch = 0.0f;
-   float perc_toggle = 0.0f;
-   float perc_expr = 0.0f;
-   float perc_state = 0.0f;
-   float perc_functional = 0.0f;
-
-   if (stats->total_stmts > 0)
-      perc_stmt = 100.0 * ((float)stats->hit_stmts) / stats->total_stmts;
-   if (stats->total_branches > 0)
-      perc_branch = 100.0 * ((float)stats->hit_branches) / stats->total_branches;
-   if (stats->total_toggles > 0)
-      perc_toggle = 100.0 * ((float)stats->hit_toggles) / stats->total_toggles;
-   if (stats->total_expressions > 0)
-      perc_expr = 100.0 * ((float)stats->hit_expressions) / stats->total_expressions;
-   if (stats->total_states > 0)
-      perc_state = 100.0 * ((float)stats->hit_states) / stats->total_states;
-   if (stats->total_functional > 0)
-      perc_functional = 100.0 * ((float)stats->hit_functional) / stats->total_functional;
-
-   if (top) {
-      notef("code coverage results for: %s", istr(hier));
-
-      if (perc_stmt > 0)
-         notef("     statement:     %.1f %% (%d/%d)", perc_stmt,
-               stats->hit_stmts, stats->total_stmts);
-      else
-         notef("     statement:     N.A.");
-
-      if (perc_branch > 0)
-         notef("     branch:        %.1f %% (%d/%d)", perc_branch,
-               stats->hit_branches, stats->total_branches);
-      else
-         notef("     branch:        N.A.");
-
-      if (perc_toggle > 0)
-         notef("     toggle:        %.1f %% (%d/%d)", perc_toggle,
-               stats->hit_toggles, stats->total_toggles);
-      else
-         notef("     toggle:        N.A.");
-
-      if (perc_expr > 0)
-         notef("     expression:    %.1f %% (%d/%d)", perc_expr,
-               stats->hit_expressions, stats->total_expressions);
-      else
-         notef("     expression:    N.A.");
-
-      if (perc_state > 0)
-         notef("     FSM state:     %.1f %% (%d/%d)", perc_state,
-               stats->hit_states, stats->total_states);
-      else
-         notef("     FSM state:     N.A.");
-
-      if (perc_functional > 0)
-         notef("     functional:    %.1f %% (%d/%d)", perc_functional,
-               stats->hit_functional, stats->total_functional);
-      else
-         notef("     functional:    N.A.");
-   }
-   else if (opt_get_int(OPT_VERBOSE) && !flat) {
-
-      cover_rpt_buf_t *new = xcalloc(sizeof(cover_rpt_buf_t));
-      new->tb = tb_new();
-      new->prev = ctx->data->rpt_buf;
-      ctx->data->rpt_buf = new;
-
-      tb_printf(new->tb,
-         "%*s %-*s %10.1f %% (%d/%d)  %10.1f %% (%d/%d) %10.1f %% (%d/%d) "
-         "%10.1f %% (%d/%d) %10.1f %% (%d/%d)",
-         ctx->lvl, "", 50-ctx->lvl, istr(ident_rfrom(hier, '.')),
-         perc_stmt, stats->hit_stmts, stats->total_stmts,
-         perc_branch, stats->hit_branches, stats->total_branches,
-         perc_toggle, stats->hit_toggles, stats->total_toggles,
-         perc_expr, stats->hit_expressions, stats->total_expressions,
-         perc_state, stats->hit_states, stats->total_states);
-   }
 }
 
 static inline void cover_print_char(FILE *f, char c)
@@ -997,7 +874,7 @@ static void cover_print_chain(FILE *f, cover_data_t *data, cover_chain_t *chn,
    fprintf(f, "</div>\n");
 }
 
-static void cover_print_hierarchy_guts(FILE *f, cover_report_ctx_t *ctx)
+static void cover_print_chns(FILE *f, cover_data_t *data, cover_chain_group_t *chns)
 {
    fprintf(f, "<div class=\"tab\">"
               "   <button class=\"tablinks\" onclick=\"selectCoverage(event, 'Statement')\" id=\"defaultOpen\">Statement</button>\n"
@@ -1008,60 +885,63 @@ static void cover_print_hierarchy_guts(FILE *f, cover_report_ctx_t *ctx)
               "   <button class=\"tablinks\" style=\"margin-left:10px;\" onclick=\"selectCoverage(event, 'Functional')\">Functional</button>\n"
               "</div>\n\n");
 
-   cover_print_chain(f, ctx->data, &(ctx->ch_stmt), COV_ITEM_STMT);
-   cover_print_chain(f, ctx->data, &(ctx->ch_branch), COV_ITEM_BRANCH);
-   cover_print_chain(f, ctx->data, &(ctx->ch_toggle), COV_ITEM_TOGGLE);
-   cover_print_chain(f, ctx->data, &(ctx->ch_expression), COV_ITEM_EXPRESSION);
-   cover_print_chain(f, ctx->data, &(ctx->ch_state), COV_ITEM_STATE);
-   cover_print_chain(f, ctx->data, &(ctx->ch_functional), COV_ITEM_FUNCTIONAL);
-
-   fprintf(f, "<script>\n"
-              "   function selectCoverage(evt, coverageType) {\n"
-              "      var i, tabcontent, tablinks;\n"
-              "      tabcontent = document.getElementsByClassName(\"tabcontent\");\n"
-              "      for (i = 0; i < tabcontent.length; i++) {\n"
-              "         tabcontent[i].style.display = \"none\";\n"
-              "      }\n"
-              "      tablinks = document.getElementsByClassName(\"tablinks\");\n"
-              "      for (i = 0; i < tablinks.length; i++) {\n"
-              "         tablinks[i].className = tablinks[i].className.replace(\" active\", \"\");\n"
-              "      }\n"
-              "      document.getElementById(coverageType).style.display = \"block\";\n"
-              "      evt.currentTarget.className += \" active\";\n"
-              "   }\n"
-              "   function GetExclude(excludeCmd) {\n"
-              "      navigator.clipboard.writeText(excludeCmd);\n"
-              "   }\n"
-              "   function getCellValue (tr, n) {\n"
-              "      let v = tr.getElementsByTagName(\"TD\")[n];\n"
-              "      v = parseInt(v.innerHTML.split(\"%%\")[0]);\n"
-              "      if (isNaN(v)) {\n"
-              "         v = tr.getElementsByTagName(\"TD\")[n].innerHTML.toLowerCase();\n"
-              "      }\n"
-              "      return v;\n"
-              "   }\n"
-              "   function sortTable(n, tableId) {\n"
-              "     const table = document.getElementById(tableId);\n"
-              "     const rows = Array.from(table.querySelectorAll('tr:nth-child(n+2)'));\n"
-              "     rows.sort((a, b) => {\n"
-              "       const left = getCellValue(this.ascending ? a : b, n);\n"
-              "       const right = getCellValue(this.ascending ? b : a, n);\n"
-              "       if (!isNaN(left) && !isNaN(right)) {\n"
-              "         return left - right;\n"
-              "       } else {\n"
-              "         return left.localeCompare(right);\n"
-              "       }\n"
-              "     });\n"
-              "     rows.forEach(tr => table.appendChild(tr));\n"
-              "     this.ascending = !this.ascending;\n"
-              "   }\n"
-              "   document.getElementById(\"defaultOpen\").click();\n"
-              "</script>\n");
+   cover_print_chain(f, data, &(chns->stmt), COV_ITEM_STMT);
+   cover_print_chain(f, data, &(chns->branch), COV_ITEM_BRANCH);
+   cover_print_chain(f, data, &(chns->toggle), COV_ITEM_TOGGLE);
+   cover_print_chain(f, data, &(chns->expression), COV_ITEM_EXPRESSION);
+   cover_print_chain(f, data, &(chns->state), COV_ITEM_STATE);
+   cover_print_chain(f, data, &(chns->functional), COV_ITEM_FUNCTIONAL);
 }
 
-static bool cover_bin_unreachable(cover_report_ctx_t *ctx, cover_item_t *item)
+static void cover_print_jscript_funcs(FILE *f)
 {
-   if ((ctx->data->mask & COVER_MASK_EXCLUDE_UNREACHABLE) == 0)
+   fprintf(f, "<script>\n"
+            "   function selectCoverage(evt, coverageType) {\n"
+            "      var i, tabcontent, tablinks;\n"
+            "      tabcontent = document.getElementsByClassName(\"tabcontent\");\n"
+            "      for (i = 0; i < tabcontent.length; i++) {\n"
+            "         tabcontent[i].style.display = \"none\";\n"
+            "      }\n"
+            "      tablinks = document.getElementsByClassName(\"tablinks\");\n"
+            "      for (i = 0; i < tablinks.length; i++) {\n"
+            "         tablinks[i].className = tablinks[i].className.replace(\" active\", \"\");\n"
+            "      }\n"
+            "      document.getElementById(coverageType).style.display = \"block\";\n"
+            "      evt.currentTarget.className += \" active\";\n"
+            "   }\n"
+            "   function GetExclude(excludeCmd) {\n"
+            "      navigator.clipboard.writeText(excludeCmd);\n"
+            "   }\n"
+            "   function getCellValue (tr, n) {\n"
+            "      let v = tr.getElementsByTagName(\"TD\")[n];\n"
+            "      v = parseInt(v.innerHTML.split(\"%%\")[0]);\n"
+            "      if (isNaN(v)) {\n"
+            "         v = tr.getElementsByTagName(\"TD\")[n].innerHTML.toLowerCase();\n"
+            "      }\n"
+            "      return v;\n"
+            "   }\n"
+            "   function sortTable(n, tableId) {\n"
+            "     const table = document.getElementById(tableId);\n"
+            "     const rows = Array.from(table.querySelectorAll('tr:nth-child(n+2)'));\n"
+            "     rows.sort((a, b) => {\n"
+            "       const left = getCellValue(this.ascending ? a : b, n);\n"
+            "       const right = getCellValue(this.ascending ? b : a, n);\n"
+            "       if (!isNaN(left) && !isNaN(right)) {\n"
+            "         return left - right;\n"
+            "       } else {\n"
+            "         return left.localeCompare(right);\n"
+            "       }\n"
+            "     });\n"
+            "     rows.forEach(tr => table.appendChild(tr));\n"
+            "     this.ascending = !this.ascending;\n"
+            "   }\n"
+            "   document.getElementById(\"defaultOpen\").click();\n"
+            "</script>\n");
+}
+
+static bool cover_bin_unreachable(cover_data_t *data, cover_item_t *item)
+{
+   if ((data->mask & COVER_MASK_EXCLUDE_UNREACHABLE) == 0)
       return false;
 
    // Toggle items remember unreachability in run-time data. Must check item kind
@@ -1099,57 +979,59 @@ static bool cover_bin_unreachable(cover_report_ctx_t *ctx, cover_item_t *item)
       } while (0);
 
 
-static int cover_append_item_to_chain(cover_report_ctx_t *ctx, cover_item_t *first_item,
-                                      cover_line_t *line, int limit, int *skipped)
+static int cover_append_item_to_chain(cover_data_t *data, cover_chain_group_t *chns,
+                                      cover_stats_t *flat, cover_stats_t *nested,
+                                      cover_item_t *first_item, cover_line_t *line,
+                                      int *skipped)
 {
-   unsigned *flat_total;
-   unsigned *nested_total;
-   unsigned *flat_hits;
-   unsigned *nested_hits;
+   unsigned *flat_total   = NULL;
+   unsigned *nested_total = NULL;
+   unsigned *flat_hits    = NULL;
+   unsigned *nested_hits  = NULL;
    cover_chain_t *chn;
 
    switch (first_item->kind) {
    case COV_ITEM_STMT:
-      flat_total = &(ctx->flat_stats.total_stmts);
-      nested_total = &(ctx->nested_stats.total_stmts);
-      flat_hits = &(ctx->flat_stats.hit_stmts);
-      nested_hits = &(ctx->nested_stats.hit_stmts);
-      chn = &(ctx->ch_stmt);
+      flat_total   = &(flat->total_stmts);
+      flat_hits    = &(flat->hit_stmts);
+      nested_total = &(nested->total_stmts);
+      nested_hits  = &(nested->hit_stmts);
+      chn = &(chns->stmt);
       break;
    case COV_ITEM_BRANCH:
-      flat_total = &(ctx->flat_stats.total_branches);
-      nested_total = &(ctx->nested_stats.total_branches);
-      flat_hits = &(ctx->flat_stats.hit_branches);
-      nested_hits = &(ctx->nested_stats.hit_branches);
-      chn = &(ctx->ch_branch);
+      flat_total   = &(flat->total_branches);
+      flat_hits    = &(flat->hit_branches);
+      nested_total = &(nested->total_branches);
+      nested_hits  = &(nested->hit_branches);
+      chn = &(chns->branch);
       break;
    case COV_ITEM_TOGGLE:
-      flat_total = &(ctx->flat_stats.total_toggles);
-      nested_total = &(ctx->nested_stats.total_toggles);
-      flat_hits = &(ctx->flat_stats.hit_toggles);
-      nested_hits = &(ctx->nested_stats.hit_toggles);
-      chn = &(ctx->ch_toggle);
+      flat_total   = &(flat->total_toggles);
+      flat_hits    = &(flat->hit_toggles);
+      nested_total = &(nested->total_toggles);
+      nested_hits  = &(nested->hit_toggles);
+      chn = &(chns->toggle);
       break;
    case COV_ITEM_STATE:
-      flat_total = &(ctx->flat_stats.total_states);
-      nested_total = &(ctx->nested_stats.total_states);
-      flat_hits = &(ctx->flat_stats.hit_states);
-      nested_hits = &(ctx->nested_stats.hit_states);
-      chn = &(ctx->ch_state);
+      flat_total   = &(flat->total_states);
+      flat_hits    = &(flat->hit_states);
+      nested_total = &(nested->total_states);
+      nested_hits  = &(nested->hit_states);
+      chn = &(chns->state);
       break;
    case COV_ITEM_EXPRESSION:
-      flat_total = &(ctx->flat_stats.total_expressions);
-      nested_total = &(ctx->nested_stats.total_expressions);
-      flat_hits = &(ctx->flat_stats.hit_expressions);
-      nested_hits = &(ctx->nested_stats.hit_expressions);
-      chn = &(ctx->ch_expression);
+      flat_total   = &(flat->total_expressions);
+      flat_hits    = &(flat->hit_expressions);
+      nested_total = &(nested->total_expressions);
+      nested_hits  = &(nested->hit_expressions);
+      chn = &(chns->expression);
       break;
    case COV_ITEM_FUNCTIONAL:
-      flat_total = &(ctx->flat_stats.total_functional);
-      nested_total = &(ctx->nested_stats.total_functional);
-      flat_hits = &(ctx->flat_stats.hit_functional);
-      nested_hits = &(ctx->nested_stats.hit_functional);
-      chn = &(ctx->ch_functional);
+      flat_total = &(flat->total_functional);
+      flat_hits = &(flat->hit_functional);
+      nested_total = &(nested->total_functional);
+      nested_hits = &(nested->hit_functional);
+      chn = &(chns->functional);
       break;
    default:
       fatal("unsupported type of code coverage: %d at 'cover_append_item_to_chain'!",
@@ -1178,7 +1060,7 @@ static int cover_append_item_to_chain(cover_report_ctx_t *ctx, cover_item_t *fir
          (*flat_hits)++;
          (*nested_hits)++;
 
-         if (chn->n_hits > limit) {
+         if (chn->n_hits > data->report_item_limit) {
             (*skipped)++;
             curr_item++;
             continue;
@@ -1187,11 +1069,11 @@ static int cover_append_item_to_chain(cover_report_ctx_t *ctx, cover_item_t *fir
          CHAIN_APPEND(chn, hits, first_hits_item, curr_item, line)
       }
       else if ((curr_item->flags & COV_FLAG_EXCLUDED) ||
-                cover_bin_unreachable(ctx, curr_item)) {
+                cover_bin_unreachable(data, curr_item)) {
          (*flat_hits)++;
          (*nested_hits)++;
 
-         if (chn->n_excl > limit) {
+         if (chn->n_excl > data->report_item_limit) {
             (*skipped)++;
             curr_item++;
             continue;
@@ -1200,7 +1082,7 @@ static int cover_append_item_to_chain(cover_report_ctx_t *ctx, cover_item_t *fir
          CHAIN_APPEND(chn, excl, first_excl_item, curr_item, line)
       }
       else {
-         if (chn->n_miss > limit) {
+         if (chn->n_miss > data->report_item_limit) {
             (*skipped)++;
             curr_item++;
             continue;
@@ -1213,9 +1095,14 @@ static int cover_append_item_to_chain(cover_report_ctx_t *ctx, cover_item_t *fir
    return n_steps;
 }
 
-static void cover_report_scope(cover_report_ctx_t *ctx,
-                               cover_scope_t *s, const char *dir,
-                               FILE *summf, int *skipped)
+
+///////////////////////////////////////////////////////////////////////////////
+// Per hierarchy reporting functions
+///////////////////////////////////////////////////////////////////////////////
+
+static void cover_report_hier_scope(cover_rpt_hier_ctx_t *ctx,
+                                    cover_scope_t *s, const char *dir,
+                                    FILE *summf, int *skipped)
 {
    for (int i = 0; i < s->items.count;) {
       int step = 1;
@@ -1229,7 +1116,6 @@ static void cover_report_scope(cover_report_ctx_t *ctx,
       }
 
       cover_line_t *line = &(f_src->lines[item->loc.first_line-1]);
-      int limit = ctx->data->report_item_limit;
 
       switch (item->kind) {
       case COV_ITEM_STMT:
@@ -1238,22 +1124,155 @@ static void cover_report_scope(cover_report_ctx_t *ctx,
       case COV_ITEM_STATE:
       case COV_ITEM_EXPRESSION:
       case COV_ITEM_FUNCTIONAL:
-         step = cover_append_item_to_chain(ctx, item, line, limit, skipped);
+         step = cover_append_item_to_chain(ctx->data, &(ctx->chns),
+                                           &(ctx->flat_stats), &(ctx->nested_stats),
+                                           item, line, skipped);
          break;
 
       default:
-         fatal("unsupported type of code coverage: %d at 'cover_report_scope'!",
+         fatal("unsupported type of code coverage: %d at 'cover_report_hier_scope'!",
                item->kind);
       }
 
       i += step;
    }
 
-   cover_report_children(ctx, s, dir, summf, skipped);
+   cover_report_hier_children(ctx, s, dir, summf, skipped);
 }
 
-static void cover_report_hierarchy(cover_report_ctx_t *ctx,
-                                   cover_scope_t *s, const char *dir)
+static void cover_print_summary_table_row(FILE *f, cover_data_t *data, cover_stats_t *stats,
+                                          ident_t entry, int lvl, bool top, bool full_entry,
+                                          bool print_out)
+{
+   ident_t print_entry = (full_entry) ? entry : ident_rfrom(entry, '.');
+
+   fprintf(f, "  <tr>\n"
+              "    <td><a href=\"%s%s.html\">%s</a></td>\n",
+              top ? "hier/" : "", istr(entry), istr(print_entry));
+
+   cover_print_percents_cell(f, stats->hit_stmts, stats->total_stmts);
+   cover_print_percents_cell(f, stats->hit_branches, stats->total_branches);
+   cover_print_percents_cell(f, stats->hit_toggles, stats->total_toggles);
+   cover_print_percents_cell(f, stats->hit_expressions, stats->total_expressions);
+   cover_print_percents_cell(f, stats->hit_states, stats->total_states);
+   cover_print_percents_cell(f, stats->hit_functional, stats->total_functional);
+
+   int avg_total = stats->total_stmts + stats->total_branches +
+                   stats->total_toggles + stats->total_expressions +
+                   stats->total_states + stats->total_functional;
+   int avg_hit = stats->hit_stmts + stats->hit_branches +
+                 stats->hit_toggles + stats->hit_expressions +
+                 stats->hit_states + stats->total_functional;
+
+   cover_print_percents_cell(f, avg_hit, avg_total);
+
+   fprintf(f, "  </tr>\n");
+
+   float perc_stmt = 0.0f;
+   float perc_branch = 0.0f;
+   float perc_toggle = 0.0f;
+   float perc_expr = 0.0f;
+   float perc_state = 0.0f;
+   float perc_functional = 0.0f;
+
+   if (stats->total_stmts > 0)
+      perc_stmt = 100.0 * ((float)stats->hit_stmts) / stats->total_stmts;
+   if (stats->total_branches > 0)
+      perc_branch = 100.0 * ((float)stats->hit_branches) / stats->total_branches;
+   if (stats->total_toggles > 0)
+      perc_toggle = 100.0 * ((float)stats->hit_toggles) / stats->total_toggles;
+   if (stats->total_expressions > 0)
+      perc_expr = 100.0 * ((float)stats->hit_expressions) / stats->total_expressions;
+   if (stats->total_states > 0)
+      perc_state = 100.0 * ((float)stats->hit_states) / stats->total_states;
+   if (stats->total_functional > 0)
+      perc_functional = 100.0 * ((float)stats->hit_functional) / stats->total_functional;
+
+   if (top) {
+      notef("code coverage results for: %s", istr(entry));
+
+      if (perc_stmt > 0)
+         notef("     statement:     %.1f %% (%d/%d)", perc_stmt,
+               stats->hit_stmts, stats->total_stmts);
+      else
+         notef("     statement:     N.A.");
+
+      if (perc_branch > 0)
+         notef("     branch:        %.1f %% (%d/%d)", perc_branch,
+               stats->hit_branches, stats->total_branches);
+      else
+         notef("     branch:        N.A.");
+
+      if (perc_toggle > 0)
+         notef("     toggle:        %.1f %% (%d/%d)", perc_toggle,
+               stats->hit_toggles, stats->total_toggles);
+      else
+         notef("     toggle:        N.A.");
+
+      if (perc_expr > 0)
+         notef("     expression:    %.1f %% (%d/%d)", perc_expr,
+               stats->hit_expressions, stats->total_expressions);
+      else
+         notef("     expression:    N.A.");
+
+      if (perc_state > 0)
+         notef("     FSM state:     %.1f %% (%d/%d)", perc_state,
+               stats->hit_states, stats->total_states);
+      else
+         notef("     FSM state:     N.A.");
+
+      if (perc_functional > 0)
+         notef("     functional:    %.1f %% (%d/%d)", perc_functional,
+               stats->hit_functional, stats->total_functional);
+      else
+         notef("     functional:    N.A.");
+   }
+   else if (opt_get_int(OPT_VERBOSE) && print_out) {
+
+      cover_rpt_buf_t *new = xcalloc(sizeof(cover_rpt_buf_t));
+      new->tb = tb_new();
+      new->prev = data->rpt_buf;
+      data->rpt_buf = new;
+
+      tb_printf(new->tb,
+         "%*s %-*s %10.1f %% (%d/%d)  %10.1f %% (%d/%d) %10.1f %% (%d/%d) "
+         "%10.1f %% (%d/%d) %10.1f %% (%d/%d)",
+         lvl, "", 50-lvl, istr(ident_rfrom(entry, '.')),
+         perc_stmt, stats->hit_stmts, stats->total_stmts,
+         perc_branch, stats->hit_branches, stats->total_branches,
+         perc_toggle, stats->hit_toggles, stats->total_toggles,
+         perc_expr, stats->hit_expressions, stats->total_expressions,
+         perc_state, stats->hit_states, stats->total_states);
+   }
+}
+
+static void cover_print_hier_nav_tree(FILE *f, cover_scope_t *s)
+{
+   fprintf(f, "<nav>\n"
+               "<b>Hierarchy:</b><br>\n");
+   int offset = 0;
+
+   ident_t full_hier = s->hier;
+   ident_t curr_id;
+   ident_t curr_hier = NULL;
+   const char *link = "../index";
+
+   do {
+      curr_id = ident_walk_selected(&full_hier);
+      curr_hier = ident_prefix(curr_hier, curr_id, '.');
+      if (offset > 0)
+         link = istr(curr_hier);
+      if (curr_id)
+         fprintf(f, "<p style=\"margin-left: %dpx\"><a href=%s.html>%s</a></p>\n",
+                     offset * 10, link, istr(curr_id));
+      offset++;
+   } while (curr_id != NULL);
+
+   fprintf(f, "</nav>\n\n");
+}
+
+static void cover_report_hier(cover_rpt_hier_ctx_t *ctx,
+                              cover_scope_t *s, const char *dir)
 {
    char *hier LOCAL = xasprintf("%s/%s.html", dir, istr(s->hier));
 
@@ -1262,58 +1281,65 @@ static void cover_report_hierarchy(cover_report_ctx_t *ctx,
    if (f == NULL)
       fatal("failed to open report file: %s\n", hier);
 
-   INIT_CHAIN(ctx, ch_stmt);
-   INIT_CHAIN(ctx, ch_branch);
-   INIT_CHAIN(ctx, ch_toggle);
-   INIT_CHAIN(ctx, ch_expression);
-   INIT_CHAIN(ctx, ch_state);
-   INIT_CHAIN(ctx, ch_functional);
+   INIT_CHAIN(ctx, stmt);
+   INIT_CHAIN(ctx, branch);
+   INIT_CHAIN(ctx, toggle);
+   INIT_CHAIN(ctx, expression);
+   INIT_CHAIN(ctx, state);
+   INIT_CHAIN(ctx, functional);
 
    cover_print_html_header(f);
-   cover_print_navigation_tree(f, ctx, s);
-   cover_print_file_and_inst(f, ctx, s);
+   cover_print_hier_nav_tree(f, s);
+   cover_print_inst_name(f, s);
+
+   cover_file_t *src = cover_file_for_scope(s);
+   const char *filename = (src) ? src->name : "";
+   cover_print_file_name(f, filename);
 
    fprintf(f, "<h2 style=\"margin-left: " MARGIN_LEFT ";\">\n  Sub-instances:\n</h2>\n\n");
-   cover_print_hierarchy_header(f, "sub_inst_table");
+   cover_print_summary_table_header(f, "sub_inst_table", true);
 
    int skipped = 0;
-   cover_report_children(ctx, s, dir, f, &skipped);
+   cover_report_hier_children(ctx, s, dir, f, &skipped);
 
-   cover_print_hierarchy_footer(f);
+   cover_print_table_footer(f);
 
    fprintf(f, "<h2 style=\"margin-left: " MARGIN_LEFT ";\">\n  Current Instance:\n</h2>\n\n");
-   cover_print_hierarchy_header(f, "cur_inst_table");
-   cover_print_hierarchy_summary(f, ctx, s->hier, false, true, true);
-   cover_print_hierarchy_footer(f);
+   cover_print_summary_table_header(f, "cur_inst_table", true);
+   cover_print_summary_table_row(f, ctx->data, &(ctx->flat_stats), s->hier,
+                                 ctx->lvl, false, true, false);
+   cover_print_table_footer(f);
 
    fprintf(f, "<h2 style=\"margin-left: " MARGIN_LEFT ";\">\n  Details:\n</h2>\n\n");
    if (skipped)
       fprintf(f, "<h3 style=\"margin-left: " MARGIN_LEFT ";\">The limit of "
                  "printed items was reached (%d). Total %d items are not "
                  "displayed.</h3>\n\n", ctx->data->report_item_limit, skipped);
-   cover_print_hierarchy_guts(f, ctx);
+   cover_print_chns(f, ctx->data, &(ctx->chns));
+   cover_print_jscript_funcs(f);
+
    cover_print_timestamp(f);
 
    fclose(f);
 }
 
-static void cover_report_children(cover_report_ctx_t *ctx,
-                                  cover_scope_t *s, const char *dir,
-                                  FILE *summf, int *skipped)
+static void cover_report_hier_children(cover_rpt_hier_ctx_t *ctx,
+                                       cover_scope_t *s, const char *dir,
+                                       FILE *summf, int *skipped)
 {
    for (int i = 0; i < s->children.count; i++) {
       cover_scope_t *it = s->children.items[i];
       if (it->type == CSCOPE_INSTANCE) {
          // Collect coverage of sub-block
-         cover_report_ctx_t sub_ctx = {};
+         cover_rpt_hier_ctx_t sub_ctx = {};
          sub_ctx.parent = ctx;
          sub_ctx.data = ctx->data;
          sub_ctx.lvl = ctx->lvl + 2;
 
-         cover_report_hierarchy(&sub_ctx, it, dir);
+         cover_report_hier(&sub_ctx, it, dir);
 
-         cover_print_hierarchy_summary(summf, &sub_ctx,
-                                       it->hier, false, false, false);
+         cover_print_summary_table_row(summf, ctx->data, &(sub_ctx.nested_stats),
+                                       it->hier, sub_ctx.lvl, false, false, true);
 
          // Add coverage from sub-hierarchies
          ctx->nested_stats.hit_stmts += sub_ctx.nested_stats.hit_stmts;
@@ -1328,9 +1354,243 @@ static void cover_report_children(cover_report_ctx_t *ctx,
          ctx->nested_stats.total_states += sub_ctx.nested_stats.total_states;
       }
       else
-         cover_report_scope(ctx, it, dir, summf, skipped);
+         cover_report_hier_scope(ctx, it, dir, summf, skipped);
    }
 }
+
+static void cover_report_per_hier(FILE *f, cover_data_t *data, char *subdir)
+{
+   for (int i = 0; i < data->root_scope->children.count; i++) {
+      cover_scope_t *child = AGET(data->root_scope->children, i);
+      cover_rpt_hier_ctx_t top_ctx = {};
+
+      top_ctx.data = data;
+
+      cover_report_hier(&top_ctx, child, subdir);
+      cover_print_summary_table_row(f, data, &(top_ctx.nested_stats), child->hier,
+                                    top_ctx.lvl, true, true, true);
+   }
+
+   if (opt_get_int(OPT_VERBOSE)) {
+      notef("Coverage for sub-hierarchies:");
+      printf("%-55s %-20s %-20s %-20s %-20s %-20s\n",
+             "Hierarchy", "Statement", "Branch", "Toggle", "Expression", "FSM state");
+      cover_rpt_buf_t *buf = data->rpt_buf;
+      while (buf) {
+         printf("%s\n", tb_get(buf->tb));
+         tb_free(buf->tb);
+         data->rpt_buf = buf->prev;
+         free(buf);
+         buf = data->rpt_buf;
+      };
+   }
+
+   cover_print_table_footer(f);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// Per source file reporting functions
+///////////////////////////////////////////////////////////////////////////////
+
+static void cover_print_file_nav_tree(FILE *f, cover_rpt_file_ctx_t *ctx_list,
+                                      int n_ctxs)
+{
+   fprintf(f, "<nav>\n");
+   fprintf(f, "<b><a href=../index.html>Back to summary</a></p></b>\n");
+   fprintf(f, "<b>Files:</b><br>\n");
+
+   for (int i = 0; i < n_ctxs; i++) {
+      cover_rpt_file_ctx_t *ctx = ctx_list + i;
+      // TODO: Handle paths hierarchically instead of strip!
+      const char *file_name = basename(ctx->file->name);
+      fprintf(f, "<p style=\"margin-left: %dpx\"><a href=%s.html>%s</a></p>\n",
+                  10, file_name, file_name);
+   }
+
+   fprintf(f, "</nav>\n\n");
+}
+
+static cover_rpt_file_ctx_t *cover_rpt_file_collect_scope(
+                                 cover_data_t *data,
+                                 cover_rpt_file_ctx_t *ctx_list,
+                                 cover_scope_t *s,
+                                 int *n_ctxs,
+                                 int *alloc_ctxs)
+{
+   cover_file_t *scope_f = cover_file_for_scope(s);
+
+   if (scope_f) {
+      // Look if data exist for this source file
+      cover_rpt_file_ctx_t *curr_ctx = NULL;
+      for (cover_rpt_file_ctx_t *it = ctx_list; it < ctx_list + (*n_ctxs); it++)
+         if (it->file == scope_f) {
+            curr_ctx = it;
+            break;
+         }
+
+      // Create new per-file context if not
+      if (curr_ctx == NULL) {
+         if (*n_ctxs == *alloc_ctxs) {
+            *alloc_ctxs *= 2;
+            ctx_list = xrealloc_array(ctx_list, *alloc_ctxs,
+                                    sizeof(cover_rpt_file_ctx_t));
+         }
+
+         curr_ctx = ctx_list + *n_ctxs;
+         curr_ctx->file = scope_f;
+         (*n_ctxs)++;
+      }
+
+      int l_size = list_size(curr_ctx->items);
+
+      // Upon first scope being placed into the file, copy directly.
+      // This optimizes for use-case where there is single scope with many
+      // toggle coverage items (e.g. include-mems), no need to iterate!
+      // If multiple instantiations of instance with such toggle items is done,
+      // then this will not help.
+      if (l_size == 0) {
+         for (int i = 0; i < s->items.count; i++)
+            list_add(&(curr_ctx->items), AREF(s->items, i));
+      }
+      else {
+         // Walk scope items and check if they exist in file items.
+         // Merge if yes, append if no.
+         // TODO: This has O(n^2). May be issue for large designs ?
+         for (int i = 0; i < s->items.count; i++) {
+            cover_item_t *scope_item = AREF(s->items, i);
+
+            bool found = false;
+
+            list_foreach(cover_item_t *, file_item, curr_ctx->items) {
+               // We must take into account:
+               //    - kind   - different kind items can be at the same loc
+               //    - loc    - to get aggregated per-file data
+               //    - flags  - to not merge different bins
+               if ((file_item->kind == scope_item->kind) &&
+                  locs_equal(&(file_item->loc), &(scope_item->loc)) &&
+                  (file_item->flags == scope_item->flags)) {
+                  cover_merge_one_item(file_item, scope_item->data);
+                  found = true;
+                  break;
+               }
+            }
+
+            if (!found)
+               list_add(&(curr_ctx->items), scope_item);
+         }
+      }
+   }
+
+   // Process nested scopes
+   for (int i = 0; i < s->children.count; i++) {
+      cover_scope_t *child = AGET(s->children, i);
+      ctx_list = cover_rpt_file_collect_scope(data, ctx_list, child, n_ctxs,
+                                              alloc_ctxs);
+   }
+
+   return ctx_list;
+}
+
+static void cover_report_per_file(FILE *top_f, cover_data_t *data, char *subdir)
+{
+   int alloc_ctxs = 32;
+   int n_ctxs = 0;
+   cover_rpt_file_ctx_t *ctx_list = xcalloc_array(alloc_ctxs,
+                                                  sizeof(cover_rpt_file_ctx_t));
+
+   // Traverse hierarchy and merge all items into "per-file" lists
+   for (int i = 0; i < data->root_scope->children.count; i++) {
+      cover_scope_t *child = AGET(data->root_scope->children, i);
+      ctx_list = cover_rpt_file_collect_scope(data, ctx_list, child,
+                                              &n_ctxs, &alloc_ctxs);
+   }
+
+   // Convert to chains and print
+   for (int i = 0; i < n_ctxs; i++) {
+      cover_rpt_file_ctx_t *ctx = ctx_list + i;
+
+      if (ctx->file == NULL) {
+         i += 1;
+         continue;
+      }
+
+      INIT_CHAIN(ctx, stmt);
+      INIT_CHAIN(ctx, branch);
+      INIT_CHAIN(ctx, toggle);
+      INIT_CHAIN(ctx, expression);
+      INIT_CHAIN(ctx, state);
+      INIT_CHAIN(ctx, functional);
+
+      int skipped = 0;
+
+      for (int j = 0; j < list_size(ctx->items);) {
+         int step = 1;
+         cover_item_t *item = list_get(ctx->items, j);
+         cover_line_t *line = &(ctx->file->lines[item->loc.first_line-1]);
+         cover_stats_t nested;
+
+         switch (item->kind) {
+         case COV_ITEM_STMT:
+         case COV_ITEM_BRANCH:
+         case COV_ITEM_TOGGLE:
+         case COV_ITEM_STATE:
+         case COV_ITEM_EXPRESSION:
+         case COV_ITEM_FUNCTIONAL:
+            step = cover_append_item_to_chain(data, &(ctx->chns), &(ctx->stats), &nested,
+                                              item, line, &skipped);
+            break;
+
+         default:
+            fatal("unsupported type of code coverage: %d at 'cover_report_per_file'!",
+                   item->kind);
+         }
+
+         j += step;
+      }
+
+      // Print per-file report
+
+      // TODO: Handle escaped identifiers in hierarchy path!
+      // TODO: Handle paths hierarchically instead of strip!
+      char *file_name LOCAL = xasprintf("%s/%s.html", subdir, basename(ctx->file->name));
+      FILE *f = fopen(file_name, "w");
+      if (f == NULL)
+         fatal("failed to open report file: %s\n", file_name);
+
+      ident_t file_name_id = ident_new(basename(ctx->file->name));
+
+      cover_print_html_header(f);
+      cover_print_file_nav_tree(f, ctx_list, n_ctxs);
+      cover_print_file_name(f, ctx->file->name);
+
+      fprintf(f, "<h2 style=\"margin-left: " MARGIN_LEFT ";\">\n  Current File:\n</h2>\n\n");
+      cover_print_summary_table_header(f, "cur_file_table", true);
+      cover_print_summary_table_row(f, data, &(ctx->stats), file_name_id,
+                                    0, false, true, false);
+      cover_print_table_footer(f);
+
+      fprintf(f, "<h2 style=\"margin-left: " MARGIN_LEFT ";\">\n  Details:\n</h2>\n\n");
+      if (skipped)
+         fprintf(f, "<h3 style=\"margin-left: " MARGIN_LEFT ";\">The limit of "
+                    "printed items was reached (%d). Total %d items are not "
+                    "displayed.</h3>\n\n", data->report_item_limit, skipped);
+      cover_print_chns(f, data, &(ctx->chns));
+      cover_print_jscript_funcs(f);
+
+      cover_print_timestamp(f);
+
+      // Print top table summary
+      cover_print_summary_table_row(top_f, data, &(ctx->stats), file_name_id,
+                                    0, true, true, false);
+   }
+
+   cover_print_table_footer(top_f);
+   cover_print_jscript_funcs(top_f);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// Global API
+///////////////////////////////////////////////////////////////////////////////
 
 void cover_report(const char *path, cover_data_t *data, int item_limit)
 {
@@ -1368,35 +1628,19 @@ void cover_report(const char *path, cover_data_t *data, int item_limit)
    FILE *f = fopen(top, "w");
 
    cover_print_html_header(f);
-   cover_print_hierarchy_header(f, "inst_table");
 
-   for (int i = 0; i < data->root_scope->children.count; i++) {
-      cover_scope_t *child = AGET(data->root_scope->children, i);
-      cover_report_ctx_t top_ctx = {};
+   data->report_item_limit = item_limit;
 
-      top_ctx.data = data;
-      data->report_item_limit = item_limit;
-
-      cover_report_hierarchy(&top_ctx, child, subdir);
-      cover_print_hierarchy_summary(f, &top_ctx, child->hier, true, true, false);
+   if (data->mask & COVER_MASK_PER_SOURCE_FILE_REPORT) {
+      cover_print_summary_table_header(f, "file_table", false);
+      cover_report_per_file(f, data, subdir);
+   }
+   else {
+      cover_print_summary_table_header(f, "inst_table", true);
+      cover_report_per_hier(f, data, subdir);
    }
 
-   cover_print_hierarchy_footer(f);
    cover_print_timestamp(f);
-
-   if (opt_get_int(OPT_VERBOSE)) {
-      notef("Coverage for sub-hierarchies:");
-      printf("%-55s %-20s %-20s %-20s %-20s %-20s\n",
-             "Hierarchy", "Statement", "Branch", "Toggle", "Expression", "FSM state");
-      cover_rpt_buf_t *buf = data->rpt_buf;
-      while (buf) {
-         printf("%s\n", tb_get(buf->tb));
-         tb_free(buf->tb);
-         data->rpt_buf = buf->prev;
-         free(buf);
-         buf = data->rpt_buf;
-      };
-   }
 
    fclose(f);
 }
