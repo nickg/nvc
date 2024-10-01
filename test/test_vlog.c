@@ -496,17 +496,23 @@ START_TEST(test_struct1)
 {
    input_from_file(TESTDIR "/vlog/struct1.v");
 
+   const error_t expect[] = {
+      { 13, "duplicate declaration of a" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
    vlog_node_t m = vlog_parse();
    fail_if(m == NULL);
    fail_unless(vlog_kind(m) == V_MODULE);
 
    vlog_check(m);
 
-   ck_assert_int_eq(vlog_decls(m), 2);
+   ck_assert_int_eq(vlog_decls(m), 3);
 
    fail_unless(vlog_parse() == NULL);
 
-   fail_if_errors();
+   check_expected_errors();
 }
 END_TEST
 

@@ -597,14 +597,17 @@ static void vlog_check_enum_decl(vlog_node_t spec)
 
 }
 
-static void vlog_check_struct_decl(vlog_node_t decl)
+static void vlog_check_struct_union_decl(vlog_node_t decl)
 {
+   push_scope(decl);
 
-}
+   const int ndecls = vlog_decls(decl);
+   for (int i = 0; i < ndecls; i++) {
+      vlog_node_t d = vlog_decl(decl, i);
+      vlog_check(d);
+   }
 
-static void vlog_check_union_decl(vlog_node_t decl)
-{
-
+   pop_scope();
 }
 
 void vlog_check(vlog_node_t v)
@@ -706,10 +709,8 @@ void vlog_check(vlog_node_t v)
       vlog_check_enum_decl(v);
       break;
    case V_STRUCT_DECL:
-      vlog_check_struct_decl(v);
-      break;
    case V_UNION_DECL:
-      vlog_check_union_decl(v);
+      vlog_check_struct_union_decl(v);
       break;
    default:
       fatal_at(vlog_loc(v), "cannot check verilog node %s",
