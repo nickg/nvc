@@ -6899,6 +6899,9 @@ END_TEST
 
 START_TEST(test_issue991)
 {
+   lib_t lib = lib_tmp("issue991");
+   lib_set_work(lib);
+
    input_from_file(TESTDIR "/parse/issue991.vhd");
 
    parse_and_check(T_PACKAGE, T_ENTITY, T_ARCH);
