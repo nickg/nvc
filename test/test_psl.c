@@ -117,6 +117,8 @@ START_TEST(test_sem1)
         "this implication is non-Boolean" },
       { 26, "property is not in the simple subset as the right hand side of "
         "this implication is non-Boolean" },
+      { 27, "property is not in the simple subset as the operand of "
+        "eventually! is not a Boolean or Sequence" },
       { -1, NULL }
    };
    expect_errors(expect);

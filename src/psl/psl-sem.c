@@ -125,7 +125,14 @@ static void psl_check_never(psl_node_t p, nametab_t *tab)
 
 static void psl_check_eventually(psl_node_t p, nametab_t *tab)
 {
-   psl_check(psl_value(p), tab);
+   psl_node_t value = psl_value(p);
+   psl_check(value, tab);
+
+   const psl_kind_t kind = psl_kind(value);
+   if (kind != P_HDL_EXPR && kind != P_SERE)
+      error_at(psl_loc(p), "property is not in the simple subset as the "
+               "operand of eventually! is not a Boolean or Sequence");
+
 }
 
 static void psl_check_hdl_expr(psl_node_t p, nametab_t *tab)
