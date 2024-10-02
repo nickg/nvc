@@ -27,6 +27,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <time.h>
+#include <libgen.h>
 
 #define MARGIN_LEFT "20%%"
 #define SIDEBAR_WIDTH "15%%"
