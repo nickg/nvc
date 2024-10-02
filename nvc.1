@@ -677,28 +677,60 @@ If no coverage type is specified as an argument of
 .Fl \-cover ,
 all coverage types are collected. After
 simulation is executed, NVC dumps coverage data into coverage database file
-(*.covdb). To merge coverage databases from multiple simulations, and generate
-hierarchy coverage report in HTML format, run:
+(*.covdb). NVC places coverage database files into its work library folder.
+.Ss Code coverage merging
+To merge code coverage data from multiple simulations run:
 .Bd -literal -offset indent
 $ nvc --cover-merge -o merged.covdb first.covdb second.covdb third.covdb ...
-$ nvc --cover-report -o html merged.covdb
 .Ed
 .Pp
-This will generate a report in the
-.Pa html
-directory which can be viewed in a web browser.  If you do not wish to
-save the merged database this can also be performed in a single command:
+During code coverage merging, NVC sums together coverage bins with equal
+hierarchical paths in the elaborated design.
+When a coverage bin is non-zero, NVC displays such bin as covered in the
+code coverage report.
+.Pp
+NVC creates union of all coverage bins from all input coverage databases
+in the merged code coverage database. This allows merging code coverage from
+different designs (e.g. where part of the hierarchy is formed by
+"if-generate" statement).
+.Ss Generating code coverage report
+To generate code coverage report in HTML format, run:
+.Bd -literal -offset indent
+$ nvc --cover-report -o report_dir merged.covdb
+.Ed
+.Pp
+The command above will generate a code coverage report in the
+.Pa report_dir
+directory.
+NVC supports two different kinds of code coverage reports:
+.Bl -bullet
+.It
+.Cm hierarchy report -
+Code coverage report contains code coverage summary for each design
+hierarchy in simulated design. Code coverage data of a nested hierarchy
+are added to data of hierarchy that instantiate the nested hierarchy.
+.It
+.Cm source file report -
+Code coverage report contains code coverage summary for each source
+file used in simulated design. If a single entity or module was instantiated
+multiple times, code coverage data from all such instantiations are merged
+and reported under one source file. If a source file was compiled, but
+none of its entities, modules or packages were used in the simulated design,
+such file is not shown in code coverage report.
+.El
+.Pp
+By default NVC generates hierarchy code coverage report.
+To generate source file code coverage report, add
+.Cm --per-source-file
+switch to
+.Cm --cover-report
+command.
+.Pp
+Code coverage merging and generating code coverage report can also be done
+in a single command:
 .Bd -literal -offset indent
 $ nvc --cover-report -o html first.covdb second.covdb third.covdb ...
 .Ed
-.Pp
-When NVC merges multiple coverage databse files, coverage bins with equal
-hierarchical paths in the elaborated design are summed together.
-When a coverage bin is non-zero, it is shown as covered in the coverage report.
-NVC creates union of all coverage bins from all input coverage databases
-in the merged coverage database. This allows merging together coverage from
-different designs (e.g. where part of the hierarchy is formed by
-"if-generate" statement).
 .Ss Additional code coverage options
 NVC supports the following additional options to control coverage collection:
 .Bl -bullet
