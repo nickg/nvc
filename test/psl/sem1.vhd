@@ -25,5 +25,6 @@ begin
     -- psl assert always (next x) <-> y;      -- Error
     -- psl assert always x <-> (next y);      -- Error
     -- psl assert eventually! (x -> next y);  -- Error
+    -- psl assert never (x -> next y);        -- Error
 
 end architecture;
