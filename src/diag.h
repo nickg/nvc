@@ -59,7 +59,6 @@ loc_t get_loc(unsigned first_line, unsigned first_column,
               unsigned last_line, unsigned last_column,
               file_ref_t file_ref);
 bool loc_invalid_p(const loc_t *loc);
-bool locs_equal(const loc_t *lhs, const loc_t *rhs);
 file_ref_t loc_file_ref(const char *name, const char *linebuf);
 bool loc_eq(const loc_t *a, const loc_t *b);
 const char *loc_get_source(const loc_t *loc);

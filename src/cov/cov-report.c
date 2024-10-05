@@ -1468,7 +1468,7 @@ static cover_rpt_file_ctx_t *cover_rpt_file_collect_scope(
                //    - loc    - to get aggregated per-file data
                //    - flags  - to not merge different bins
                if ((file_item->kind == scope_item->kind) &&
-                  locs_equal(&(file_item->loc), &(scope_item->loc)) &&
+                  loc_eq(&(file_item->loc), &(scope_item->loc)) &&
                   (file_item->flags == scope_item->flags)) {
                   cover_merge_one_item(file_item, scope_item->data);
                   found = true;
@@ -1556,7 +1556,7 @@ static void cover_report_per_file(FILE *top_f, cover_data_t *data, char *subdir)
       char *file_name LOCAL = xasprintf("%s/%s.html", subdir, basename(ctx->file->name));
       FILE *f = fopen(file_name, "w");
       if (f == NULL)
-         fatal("failed to open report file: %s\n", file_name);
+         fatal_error("failed to open report file: %s\n", file_name);
 
       ident_t file_name_id = ident_new(basename(ctx->file->name));
 
@@ -1632,7 +1632,7 @@ void cover_report(const char *path, cover_data_t *data, int item_limit)
 
    data->report_item_limit = item_limit;
 
-   if (data->mask & COVER_MASK_PER_SOURCE_FILE_REPORT) {
+   if (data->mask & COVER_MASK_PER_FILE_REPORT) {
       cover_print_summary_table_header(f, "file_table", false);
       cover_report_per_file(f, data, subdir);
    }

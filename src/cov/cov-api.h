@@ -190,7 +190,7 @@ typedef enum {
    COVER_MASK_DONT_PRINT_COVERED          = (1 << 16),
    COVER_MASK_DONT_PRINT_UNCOVERED        = (1 << 17),
    COVER_MASK_DONT_PRINT_EXCLUDED         = (1 << 18),
-   COVER_MASK_PER_SOURCE_FILE_REPORT      = (1 << 19)
+   COVER_MASK_PER_FILE_REPORT             = (1 << 19)
 } cover_mask_t;
 
 #define COVER_MASK_ALL (COVER_MASK_STMT | COVER_MASK_BRANCH             \
