@@ -4,7 +4,7 @@
 - `--load` is now a global option and should be placed before the `-r`
   command.  This allows VHPI foreign subprograms to be called during
   elaboration (#988).
-- `--per-source-file` switch generates code coverage report with
+- `--per-file` switch generates code coverage report with
   code coverage shown for source files instead of hierarchies (#823).
 
 ## Version 1.14.0 - 2024-09-22

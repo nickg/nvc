@@ -1403,7 +1403,7 @@ static void cover_print_file_nav_tree(FILE *f, cover_rpt_file_ctx_t *ctx_list,
    for (int i = 0; i < n_ctxs; i++) {
       cover_rpt_file_ctx_t *ctx = ctx_list + i;
       // TODO: Handle paths hierarchically instead of strip!
-      const char *file_name = basename(ctx->file->name);
+      const char *file_name = basename((char *)ctx->file->name);
       fprintf(f, "<p style=\"margin-left: %dpx\"><a href=%s.html>%s</a></p>\n",
                   10, file_name, file_name);
    }
@@ -1553,12 +1553,13 @@ static void cover_report_per_file(FILE *top_f, cover_data_t *data, char *subdir)
 
       // TODO: Handle escaped identifiers in hierarchy path!
       // TODO: Handle paths hierarchically instead of strip!
-      char *file_name LOCAL = xasprintf("%s/%s.html", subdir, basename(ctx->file->name));
+      char *file_name LOCAL = xasprintf("%s/%s.html", subdir,
+                                        basename((char*)ctx->file->name));
       FILE *f = fopen(file_name, "w");
       if (f == NULL)
-         fatal_error("failed to open report file: %s\n", file_name);
+         fatal_errno("failed to open report file: %s\n", file_name);
 
-      ident_t file_name_id = ident_new(basename(ctx->file->name));
+      ident_t file_name_id = ident_new(basename((char*)ctx->file->name));
 
       cover_print_html_header(f);
       cover_print_file_nav_tree(f, ctx_list, n_ctxs);
