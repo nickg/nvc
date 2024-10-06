@@ -182,11 +182,11 @@ jit_dll_t *ffi_load_dll(const char *path)
       debugf("loading shared library %s", path);
 
 #ifdef __MINGW32__
-   HMODULE handle = LoadLibrary(path);
+   HMODULE handle = LoadLibrary(abs);
    if (handle == NULL)
-      fatal("failed to load %s", path);
+      fatal_errno("failed to load %s", abs);
 #else
-   void *handle = dlopen(path, RTLD_LAZY | RTLD_GLOBAL /* XXXX */);
+   void *handle = dlopen(abs, RTLD_LAZY);
    if (handle == NULL)
       fatal("%s", dlerror());
 #endif
