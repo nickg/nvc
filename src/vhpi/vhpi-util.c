@@ -66,7 +66,7 @@ int vhpi_vprintf(const char *format, va_list args)
    char *buf LOCAL = xvasprintf(format, args);
    size_t len = strlen(buf);
 
-   for (char *eptr = buf + len - 1; eptr >= buf && *eptr == '\n'; eptr--)
+   for (char *eptr = buf + len - 1; eptr >= buf && *eptr == '\n'; eptr--, len--)
       *eptr = '\0';
 
    diag_t *d = diag_new(DIAG_NOTE, NULL);
