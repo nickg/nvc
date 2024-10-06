@@ -538,7 +538,7 @@ static void scope_for_block(rt_model_t *m, tree_t block, rt_scope_t *parent)
             p->wakeable.postponed = true;
             p->wakeable.delayed   = false;
 
-            list_add(&s->properties, p);
+            APUSH(s->properties, p);
          }
          break;
 
@@ -683,12 +683,13 @@ static void cleanup_scope(rt_model_t *m, rt_scope_t *scope)
    }
    list_free(&scope->aliases);
 
-   list_foreach(rt_prop_t *, it, scope->properties) {
-      mask_free(&it->state);
-      mask_free(&it->newstate);
-      free(it);
+   for (int i = 0; i < scope->properties.count; i++) {
+      rt_prop_t *p = scope->properties.items[i];
+      mask_free(&p->state);
+      mask_free(&p->newstate);
+      free(p);
    }
-   list_free(&scope->properties);
+   ACLEAR(scope->properties);
 
    for (int i = 0; i < scope->children.count; i++)
       cleanup_scope(m, scope->children.items[i]);
@@ -1064,8 +1065,8 @@ static void reset_scope(rt_model_t *m, rt_scope_t *s)
    list_foreach(rt_proc_t *, p, s->procs)
       reset_process(m, p);
 
-   list_foreach(rt_prop_t *, p, s->properties)
-      reset_property(m, p);
+   for (int i = 0; i < s->properties.count; i++)
+      reset_property(m, s->properties.items[i]);
 }
 
 static res_memo_t *memo_resolution_fn(rt_model_t *m, rt_signal_t *signal,
@@ -3336,16 +3337,17 @@ static bool should_stop_now(rt_model_t *m, uint64_t stop_time)
 
 static void check_liveness_properties(rt_model_t *m, rt_scope_t *s)
 {
-   list_foreach(rt_prop_t *, it, s->properties) {
-      if (it->strong) {
-         TRACE("property %s in strong state", istr(it->name));
+   for (int i = 0; i < s->properties.count; i++) {
+      rt_prop_t *p = s->properties.items[i];
+      if (p->strong) {
+         TRACE("property %s in strong state", istr(p->name));
 
          // Passing an invalid state triggers the assertion failure
          jit_scalar_t context = {
-            .pointer = *mptr_get(it->scope->privdata)
+            .pointer = *mptr_get(p->scope->privdata)
          };
          jit_scalar_t state = { .integer = INT_MAX }, result;
-         jit_fastcall(m->jit, it->handle, &result, context, state,
+         jit_fastcall(m->jit, p->handle, &result, context, state,
                       model_thread(m)->tlab);
       }
    }
