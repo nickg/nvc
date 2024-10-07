@@ -1123,31 +1123,45 @@ cover_data_t *cover_read_items(fbuf_t *f, uint32_t pre_mask)
 
 static void cover_merge_scope(cover_scope_t *old_s, cover_scope_t *new_s)
 {
-
+   // Most merged cover scopes have equal items.
+   // Start from equal item index in old and new scope instead of iterating
+   // for each items.
+   // If new scope has extra item in the middle (e.g. due to generic sized array)
+   // account for offset. Then there is no reiteration upon added items.
+   int n_added = 0;
    for (int i = 0; i < new_s->items.count; i++) {
       cover_item_t *new = AREF(new_s->items, i);
+      cover_item_t *old = AREF(old_s->items, i - n_added);
 
       bool found = false;
-      for (int j = 0; j < old_s->items.count; j++) {
-         cover_item_t *old = AREF(old_s->items, j);
+      int n_old_visits = 0;
 
-         // Compare based on hierarchical path, each
-         // coverage item has unique hierarchical name
-         if (new->hier == old->hier && (new->flags == old->flags)) {
+      do {
+         if (n_old_visits == old_s->items.count)
+            break;
+
+         if ((new->hier == old->hier) && (new->flags == old->flags)) {
             assert(new->kind == old->kind);
 #ifdef COVER_DEBUG_MERGE
             printf("Merging coverage item: %s\n", istr(old->hier));
 #endif
             cover_merge_one_item(old, new->data);
-
             found = true;
             break;
          }
-      }
 
-      // Append the new item to the common scope
-      if (!found)
+         if (old == AREF(old_s->items, old_s->items.count - 1))
+            old = AREF(old_s->items, 0);
+         else
+            old++;
+
+         n_old_visits++;
+      } while (true);
+
+      if (!found) {
          APUSH(old_s->items, *new);
+         n_added++;
+      }
    }
 
    for (int i = 0; i < new_s->children.count; i++) {
