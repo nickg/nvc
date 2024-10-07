@@ -468,6 +468,7 @@ static const struct {
    { "Conformance rules", { [STD_08] = "4.10", [STD_93] = "2.7" } },
    { "Executing a simple assignment statement", { [STD_08] = "10.5.2.2",
         [STD_93] = "8.4.1" } },
+   { "Subprogram bodies", { [STD_08] = "4.3", [STD_93] = "2.2" } },
 };
 
 diag_t *diag_new(diag_level_t level, const loc_t *loc)

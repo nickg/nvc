@@ -69,6 +69,7 @@ void scope_set_subprogram(nametab_t *tab, tree_t subprog);
 tree_t find_enclosing(nametab_t *tab, scope_kind_t kind);
 bool is_enclosing(nametab_t *tab, tree_t container);
 bool is_same_region(nametab_t *tab, tree_t decl);
+tree_t get_container(nametab_t *tab, tree_t decl);
 void suppress_errors(nametab_t *tab);
 
 typedef void (*defer_check_fn_t)(tree_t, tree_t, nametab_t *);

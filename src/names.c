@@ -1281,6 +1281,20 @@ bool is_same_region(nametab_t *tab, tree_t decl)
    return false;
 }
 
+tree_t get_container(nametab_t *tab, tree_t decl)
+{
+   const symbol_t *sym = symbol_for(tab->top_scope, tree_ident(decl));
+   if (sym != NULL) {
+      for (int i = 0; i < sym->ndecls; i++) {
+         const decl_t *dd = get_decl(sym, i);
+         if (dd->tree == decl)
+            return dd->origin->container;
+      }
+   }
+
+   return NULL;
+}
+
 psl_node_t find_default_clock(nametab_t *tab)
 {
    ident_t id = well_known(W_DEFAULT_CLOCK);
@@ -3405,44 +3419,6 @@ void map_generic_box(nametab_t *tab, tree_t inst, tree_t g, unsigned pos)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// Scope checks
-//
-// These checks really belong in sem.c but they require information
-// about the surrounding scope which is not preserved.
-
-static void check_pure_ref(nametab_t *tab, tree_t ref, tree_t decl)
-{
-   tree_t sub = find_enclosing(tab, S_SUBPROGRAM);
-
-   const bool is_pure_func =
-      sub != NULL
-      && tree_kind(sub) == T_FUNC_BODY
-      && !(tree_flags(sub) & TREE_F_IMPURE);
-
-   class_t class = class_of(decl);
-   const bool maybe_impure =
-      class == C_VARIABLE || class == C_SIGNAL || class == C_FILE;
-
-   if (is_pure_func && maybe_impure) {
-      scope_t *owner = NULL;
-      const symbol_t *sym = symbol_for(tab->top_scope, tree_ident(decl));
-      if (sym != NULL) {
-         for (int i = 0; i < sym->ndecls; i++) {
-            const decl_t *dd = get_decl(sym, i);
-            if (dd->tree == decl) {
-               owner = dd->origin;
-               break;
-            }
-         }
-      }
-
-      if (owner != NULL && scope_find_enclosing(owner, S_SUBPROGRAM) != sub)
-         error_at(tree_loc(ref), "invalid reference to %s inside pure "
-                  "function %s", istr(tree_ident(decl)), istr(tree_ident(sub)));
-   }
-}
-
-////////////////////////////////////////////////////////////////////////////////
 // Type solver
 
 static bool is_unambiguous(tree_t t)
@@ -3984,8 +3960,6 @@ static type_t solve_ref(nametab_t *tab, tree_t ref)
          return solve_fcall(tab, ref);
       }
    }
-   else
-      check_pure_ref(tab, ref, decl);
 
    tree_set_ref(ref, decl);
    tree_set_type(ref, type);
