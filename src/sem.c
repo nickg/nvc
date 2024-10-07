@@ -4020,6 +4020,25 @@ static bool sem_check_ref(tree_t t, nametab_t *tab)
          tree_set_flag(sub, TREE_F_IMPURE_FILE);
       else if (kind == T_VAR_DECL && (tree_flags(decl) & TREE_F_SHARED))
          tree_set_flag(sub, TREE_F_IMPURE_SHARED);
+
+      const bool is_pure_func =
+         tree_kind(sub) == T_FUNC_BODY && !(tree_flags(sub) & TREE_F_IMPURE);
+
+      if (is_pure_func) {
+         const class_t class = class_of(decl);
+         if (class == C_VARIABLE || class == C_SIGNAL || class == C_FILE) {
+            tree_t container = get_container(tab, decl);
+            if (container != NULL && container != sub) {
+               diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
+               diag_printf(d, "cannot reference %s %s in pure function %s",
+                           class_str(class), istr(tree_ident(decl)),
+                           istr(tree_ident(sub)));
+               diag_lrm(d, STD_08, "4.3");
+               diag_emit(d);
+               return false;
+            }
+         }
+      }
    }
 
    return true;
@@ -6772,6 +6791,20 @@ static bool sem_check_external_name(tree_t t, nametab_t *tab)
             return false;
          }
       }
+   }
+
+   const class_t class = tree_class(t);
+   if (class != C_CONSTANT) {
+      tree_t sub = find_enclosing(tab, S_SUBPROGRAM);
+
+      const bool is_pure_func =
+         sub != NULL
+         && tree_kind(sub) == T_FUNC_BODY
+         && !(tree_flags(sub) & TREE_F_IMPURE);
+
+      if (is_pure_func)
+         sem_error(t, "cannot reference external name with class %s in pure "
+                   "function %s", class_str(class), istr(tree_ident(sub)));
    }
 
    // Cannot do any more checking until elaboration

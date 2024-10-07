@@ -425,7 +425,7 @@ START_TEST(test_func)
       { 182, "type of actual universal_integer does not match formal Y" },
       { 239, "class variable of subprogram body TEST25 parameter" },
       { 245, "class constant of subprogram body TEST26 parameter" },
-      { 271, "invalid reference to X inside pure function NESTED" },
+      { 271, "cannot reference signal X in pure function NESTED" },
       { 288, "no visible subprogram declaration for FNORK" },
       { 293, "function CONSTPURE [INTEGER return INTEGER] cannot be called " },
       { 294, "procedure NOTDEF not allowed in an expression" },
@@ -1713,7 +1713,7 @@ START_TEST(test_issue188)
 
    const error_t expect[] = {
       {  9, "cannot declare a file object in a pure function" },
-      { 29, "invalid reference to F inside pure function FILE_FUNC2" },
+      { 29, "cannot reference file F in pure function FILE_FUNC2" },
       { 46, "call procedure CALL_READ_B which references a file object" },
       { 66, "call procedure UPDATE_X which references a shared variable" },
       { -1, NULL }
@@ -3767,6 +3767,25 @@ START_TEST(test_issue980)
 }
 END_TEST
 
+START_TEST(test_issue1010)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/sem/issue1010.vhd");
+
+   const error_t expect[] = {
+      {  8, "cannot reference external name with class signal in pure "
+         "function GET_ABS_EXT" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_PACKAGE, T_PACK_BODY);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_sem_tests(void)
 {
    Suite *s = suite_create("sem");
@@ -3940,6 +3959,7 @@ Suite *get_sem_tests(void)
    tcase_add_test(tc_core, test_issue965);
    tcase_add_test(tc_core, test_lcs2016_49);
    tcase_add_test(tc_core, test_issue980);
+   tcase_add_test(tc_core, test_issue1010);
    suite_add_tcase(s, tc_core);
 
    return s;

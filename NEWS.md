@@ -6,6 +6,8 @@
   elaboration (#988).
 - `--per-file` switch generates code coverage report with
   code coverage shown for source files instead of hierarchies (#823).
+- Added a check for illegal references to signal or variable external
+  names inside pure functions (#1010).
 
 ## Version 1.14.0 - 2024-09-22
 - Waiting on implicit `'stable` and `'quiet` signals now works
