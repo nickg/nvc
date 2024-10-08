@@ -730,6 +730,16 @@ BEFORE            ?i:before
 <VLOG>"casez"            { return tCASEZ; }
 <VLOG>"endcase"          { return tENDCASE; }
 <VLOG>"default"          { return tDEFAULT; }
+<VLOG>"ifnone"           { return tIFNONE; }
+<VLOG>"edge"             { return tEDGE; }
+<VLOG>"*>"               { return tTIMESGT; }
+<VLOG>"$setup"           { return tDLRSETUP; }
+<VLOG>"$hold"            { return tDLRHOLD; }
+<VLOG>"$recovery"        { return tDLRRECOVERY; }
+<VLOG>"$removal"         { return tDLRREMOVAL; }
+<VLOG>"$setuphold"       { return tDLRSETUPHOLD; }
+<VLOG>"$recrem"          { return tDLRRECREM; }
+<VLOG>"$width"           { return tDLRWIDTH; }
 
 <VLOG>{SYSTASK}          { yylval.str = xstrdup(yytext); return tSYSTASK; }
 <VLOG>{VLOG_ID}          { yylval.str = xstrdup(yytext); return tID; }

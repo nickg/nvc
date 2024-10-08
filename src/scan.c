@@ -266,6 +266,8 @@ const char *token_str(token_t tok)
          "var", "`default_nettype", "tri", "tri0", "tri1", "wand", "triand",
          "wor", "trior", "trireg", "uwire", "none", "localparam", "always_comb",
          "always_ff", "always_latch", "(*)", "endcase", "casex", "casez",
+         "ifnone", "edge", "*>", "$setup", "$hold", "$recovery", "$removal",
+         "$setuphold", "$recrem", "$width"
       };
 
       if (tok >= 200 && tok - 200 < ARRAY_LEN(token_strs))

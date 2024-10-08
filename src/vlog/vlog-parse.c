@@ -3085,60 +3085,318 @@ static void p_path_delay_value(void)
       p_list_of_path_delay_expressions();
 }
 
-static void p_specify_terminal_descriptor(void)
+static vlog_node_t p_specify_terminal_descriptor(void)
 {
    // identifier [ [ constant_range_expression ] ]
 
    BEGIN("specify terminal descriptor");
 
-   p_identifier();
+   vlog_node_t v = vlog_new(V_REF);
+   vlog_set_ident(v, p_identifier());
+   vlog_set_loc(v, CURRENT_LOC);
+   // TODO: add support for range expression
+   return v;
 }
 
-static void p_parallel_path_description(void)
+static void p_list_of_path_inputs(vlog_node_t v)
 {
-   // ( specify_input_terminal_descriptor [ polarity_operator ] =>
-   //     specify_output_terminal_descriptor )
+   // list_of_path_inputs ::=
+   //    specify_input_terminal_descriptor { , specify_input_terminal_descriptor }
 
-   BEGIN("parallel path description");
-
-   consume(tLPAREN);
-
-   p_specify_terminal_descriptor();
-
-   consume(tASSOC);
-
-   p_specify_terminal_descriptor();
-
-   consume(tRPAREN);
+   do {
+      vlog_add_port(v, p_specify_terminal_descriptor());
+   } while (optional(tCOMMA));
 }
 
-static void p_simple_path_declaration(void)
+static void p_list_of_path_outputs(vlog_node_t v)
 {
-   // parallel_path_description = path_delay_value
-   //   | full_path_description = path_delay_value
+   // list_of_path_outputs ::=
+   //    specify_output_terminal_descriptor { , specify_output_terminal_descriptor }
 
-   BEGIN("simple path declaration");
-
-   p_parallel_path_description();
-
-   consume(tEQ);
-
-   p_path_delay_value();
+   do {
+      vlog_add_param(v, p_specify_terminal_descriptor());
+   } while (optional(tCOMMA));
 }
 
-static void p_path_declaration(void)
+static v_path_pol_kind_t p_polarity_operator(void)
 {
-   // simple_path_declaration ; | edge_sensitive_path_declaration ;
-   //   | state_dependent_path_declaration ;
+   // polarity_operator ::= + | -
+
+   int tok = peek();
+   if (tok == tPLUS || tok == tMINUS) {
+      consume(tok);
+      return (tok == tPLUS) ? V_PATH_POL_PLUS : V_PATH_POL_MINUS;
+   }
+
+   return V_PATH_POL_NONE;
+}
+
+static vlog_node_t p_path_declaration(void)
+{
+   // path_declaration ::= // from A.7.2
+   //    simple_path_declaration ;
+   //  | edge_sensitive_path_declaration ;
+   //  | state_dependent_path_declaration ;
+   //
+   // edge_sensitive_path_declaration ::= // from A.7.4
+   //     parallel_edge_sensitive_path_description = path_delay_value
+   //   | full_edge_sensitive_path_description = path_delay_value
+   //
+   // parallel_edge_sensitive_path_description ::=
+   //     ( [ edge_identifier ] specify_input_terminal_descriptor [ polarity_operator ] =>
+   //     ( specify_output_terminal_descriptor [ polarity_operator ] : data_source_expression ) )
+   //
+   // full_edge_sensitive_path_description ::=
+   //     ( [ edge_identifier ] list_of_path_inputs [ polarity_operator ] *>
+   //     ( list_of_path_outputs [ polarity_operator ] : data_source_expression ) )
+   //
+   // simple_path_declaration ::= // from A.7.2
+   //       parallel_path_description = path_delay_value
+   //     | full_path_description = path_delay_value
+   //
+   // parallel_path_description ::=
+   //     ( specify_input_terminal_descriptor [ polarity_operator ] => specify_output_terminal_descriptor )
+   //
+   // full_path_description ::=
+   //     ( list_of_path_inputs [ polarity_operator ] *> list_of_path_outputs )
+   //
+   // state_dependent_path_declaration ::=
+   //       if ( module_path_expression ) simple_path_declaration
+   //     | if ( module_path_expression ) edge_sensitive_path_declaration
+   //     | ifnone simple_path_declaration
 
    BEGIN("path declaration");
 
-   p_simple_path_declaration();
+   vlog_node_t v = vlog_new(V_PATH);
+
+   switch (peek()) {
+   case tIF:
+   {
+      consume(tIF);
+      consume(tLPAREN);
+
+      vlog_node_t cond = vlog_new(V_COND);
+      vlog_set_value(cond, p_expression());
+      vlog_add_cond(v, cond);
+
+      consume(tRPAREN);
+      break;
+   }
+
+   case tIFNONE:
+   {
+      consume(tIFNONE);
+
+      vlog_node_t cond = vlog_new(V_COND);
+      vlog_set_value(cond, vlog_new(V_EMPTY));
+      vlog_add_cond(v, cond);
+
+      break;
+   }
+   }
+
+   consume(tLPAREN);
+
+   v_path_edge_kind_t edge_kind = V_PATH_NO_EDGE;
+
+   int tok = peek();
+   switch (tok) {
+   case tPOSEDGE:
+      edge_kind = V_PATH_POSEDGE;
+      consume(tok);
+      break;
+   case tNEGEDGE:
+      edge_kind = V_PATH_NEGEDGE;
+      consume(tok);
+      break;
+   case tEDGE:
+      edge_kind = V_PATH_EDGE;
+      consume(tok);
+      break;
+   }
+
+   p_list_of_path_inputs(v);
+
+   v_path_pol_kind_t pol_in_kind = p_polarity_operator();
+   v_path_kind_t path_kind;
+
+   switch (one_of(tASSOC, tTIMESGT)) {
+   case tASSOC:
+      path_kind = V_PATH_PARALLEL;
+      break;
+   default:
+      path_kind = V_PATH_FULL;
+      break;
+   }
+
+   bool extra_paren = optional(tLPAREN);
+
+   p_list_of_path_outputs(v);
+
+   v_path_pol_kind_t pol_out_kind = p_polarity_operator();
+
+   vlog_set_subkind(v, MAKE_PATH_SUBKIND(path_kind, edge_kind, pol_in_kind,
+                                         pol_out_kind));
+
+   if (optional(tCOLON)) {
+      vlog_set_target(v, p_expression());
+   }
+
+   if (extra_paren)
+      consume(tRPAREN);
+
+   consume(tRPAREN);
+   consume(tEQ);
+
+   // TODO: store the path delay values to I_VALUE ?
+   p_path_delay_value();
 
    consume(tSEMI);
+
+   return v;
 }
 
-static void p_specify_item(void)
+static vlog_node_t p_timing_check_event()
+{
+   // timing_check_event ::=
+   //    timing_check_event_control specify_terminal_descriptor [ &&& timing_check_condition ]
+   // controlled_timing_check_event ::=
+   //    [timing_check_event_control] specify_terminal_descriptor [ &&& timing_check_condition ]
+
+   BEGIN("timing check event");
+
+   vlog_node_t tc_ev = vlog_new(V_TCHECK_EVENT);
+
+   if (scan(tPOSEDGE, tNEGEDGE)) {
+      switch (one_of(tPOSEDGE, tNEGEDGE)) {
+      case tPOSEDGE:
+         vlog_set_subkind(tc_ev, V_TCHECK_EVENT_POSEDGE);
+         break;
+      default:
+         vlog_set_subkind(tc_ev, V_TCHECK_EVENT_NEGEDGE);
+         break;
+      }
+   }
+
+   vlog_set_ident(tc_ev, p_identifier());
+
+   // TODO: Add timing check condition
+
+   return tc_ev;
+}
+
+static void p_optional_timing_check_arguments(vlog_node_t tc, int max_args)
+{
+   for (int i = 0; i < max_args; i++) {
+      bool had_comma = optional(tCOMMA);
+
+      if (scan(tRPAREN, tCOMMA)) {
+         if (had_comma) {
+            vlog_node_t v = vlog_new(V_EMPTY);
+            vlog_set_loc(v, &state.last_loc);
+            vlog_add_param(tc, v);
+         }
+
+         if (scan(tRPAREN))
+            return;
+      }
+      else
+         vlog_add_param(tc, p_expression());
+   }
+}
+
+static vlog_node_t p_system_timing_check(void)
+{
+   //   $setup_timing_check | $hold_timing_check | $setuphold_timing_check
+   // | $recovery_timing_check | $removal_timing_check | $recrem_timing_check
+   // | $skew_timing_check | $timeskew_timing_check | $fullskew_timing_check
+   // | $period_timing_check | $width_timing_check | $nochange_timing_check
+
+   BEGIN("system timing check");
+
+   v_tcheck_kind_t kind = V_TCHECK_SETUP;
+
+   switch (one_of(tDLRSETUP, tDLRHOLD, tDLRRECOVERY, tDLRREMOVAL,
+                  tDLRSETUPHOLD, tDLRRECREM, tDLRWIDTH)) {
+   case tDLRSETUP:       kind = V_TCHECK_SETUP;     break;
+   case tDLRHOLD:        kind = V_TCHECK_HOLD;      break;
+   case tDLRRECOVERY:    kind = V_TCHECK_RECOVERY;  break;
+   case tDLRREMOVAL:     kind = V_TCHECK_REMOVAL;   break;
+   case tDLRSETUPHOLD:   kind = V_TCHECK_SETUPHOLD; break;
+   case tDLRRECREM:      kind = V_TCHECK_RECREM;    break;
+   default:              kind = V_TCHECK_WIDTH;     break;
+   }
+
+   vlog_node_t v = vlog_new(V_TCHECK);
+
+   consume(tLPAREN);
+
+   switch (kind) {
+   case V_TCHECK_SETUP:
+   case V_TCHECK_HOLD:
+      vlog_add_param(v, p_timing_check_event());
+      consume(tCOMMA);
+
+      vlog_add_param(v, p_timing_check_event());
+      consume(tCOMMA);
+
+      vlog_add_param(v, p_expression());
+
+      p_optional_timing_check_arguments(v, 1);
+
+      break;
+
+   case V_TCHECK_RECOVERY:
+   case V_TCHECK_REMOVAL:
+      vlog_add_param(v, p_timing_check_event());
+      consume(tCOMMA);
+
+      vlog_add_param(v, p_timing_check_event());
+      consume(tCOMMA);
+
+      vlog_add_param(v, p_expression());
+
+      p_optional_timing_check_arguments(v, 1);
+
+      break;
+
+   case V_TCHECK_SETUPHOLD:
+   case V_TCHECK_RECREM:
+      vlog_add_param(v, p_timing_check_event());
+      consume(tCOMMA);
+
+      vlog_add_param(v, p_timing_check_event());
+      consume(tCOMMA);
+
+      vlog_add_param(v, p_expression());
+      consume(tCOMMA);
+
+      vlog_add_param(v, p_expression());
+
+      p_optional_timing_check_arguments(v, 5);
+
+      break;
+
+   default: // V_TCHECK_WIDTH
+      vlog_add_param(v, p_timing_check_event());
+      consume(tCOMMA);
+
+      vlog_add_param(v, p_expression());
+      consume(tCOMMA);
+
+      vlog_add_param(v, p_expression());
+
+      p_optional_timing_check_arguments(v, 1);
+      break;
+   }
+
+   consume(tRPAREN);
+   consume(tSEMI);
+
+   return v;
+}
+
+static vlog_node_t p_specify_item(void)
 {
    // specparam_declaration | pulsestyle_declaration | showcancelled_declaration
    //   | path_declaration | system_timing_check
@@ -3147,11 +3405,24 @@ static void p_specify_item(void)
 
    switch (peek()) {
    case tLPAREN:
-      p_path_declaration();
+   case tIF:
+   case tIFNONE:
+      return p_path_declaration();
+      break;
+   case tDLRSETUP:
+   case tDLRHOLD:
+   case tDLRRECOVERY:
+   case tDLRREMOVAL:
+   case tDLRSETUPHOLD:
+   case tDLRRECREM:
+   case tDLRWIDTH:
+      return p_system_timing_check();
       break;
    default:
       one_of(tLPAREN);
    }
+
+   return NULL;
 }
 
 static vlog_node_t p_specify_block(void)
@@ -3165,7 +3436,7 @@ static vlog_node_t p_specify_block(void)
    vlog_node_t v = vlog_new(V_SPECIFY);
 
    while (not_at_token(tENDSPECIFY))
-      p_specify_item();
+      vlog_add_stmt(v, p_specify_item());
 
    consume(tENDSPECIFY);
 
@@ -3197,11 +3468,17 @@ static void p_list_of_port_connections(vlog_node_t inst)
 static vlog_node_t p_hierarchical_instance(ident_t module_id)
 {
    // name_of_instance ( [ list_of_port_connections ] )
+   //
+   // [ name_of_instance ] ( output_terminal , input_terminal
+   // { , input_terminal } )
 
    BEGIN("hierarchical instance");
 
    vlog_node_t v = vlog_new(V_MOD_INST);
-   vlog_set_ident(v, p_identifier());
+   // TODO: Add some implicit naming to avoid name collisions when instantiating
+   // multiple un-named UDPs
+   if (peek() == tID)
+      vlog_set_ident(v, p_identifier());
    vlog_set_ident2(v, module_id);
 
    consume(tLPAREN);
@@ -3285,6 +3562,8 @@ static void p_module_instantiation(vlog_node_t mod)
 {
    // module_identifier [ parameter_value_assignment ] hierarchical_instance
    //   { , hierarchical_instance } ;
+   // udp_identifier [ drive_strength ] [ delay2 ] udp_instance
+   //   { , udp_instance } ;
 
    BEGIN("module instantiation");
 
@@ -3352,7 +3631,7 @@ static void p_module_or_generate_item(vlog_node_t mod)
       p_gate_instantiation(mod);
       break;
    case tID:
-      p_module_instantiation(mod);
+      p_module_or_udp_instantiation(mod);
       break;
    default:
       one_of(tALWAYS, tALWAYSCOMB, tALWAYSFF, tALWAYSLATCH, tWIRE, tSUPPLY0,

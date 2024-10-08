@@ -39,6 +39,42 @@ typedef enum {
 } vlog_net_kind_t;
 
 typedef enum {
+   V_TCHECK_SETUP,
+   V_TCHECK_HOLD,
+   V_TCHECK_RECOVERY,
+   V_TCHECK_REMOVAL,
+   V_TCHECK_SETUPHOLD,
+   V_TCHECK_RECREM,
+   V_TCHECK_WIDTH
+} v_tcheck_kind_t;
+
+typedef enum {
+   V_TCHECK_EVENT_POSEDGE,
+   V_TCHECK_EVENT_NEGEDGE
+} v_tcheck_event_kind_t;
+
+typedef enum {
+   V_PATH_FULL       = 0,
+   V_PATH_PARALLEL   = 1
+} v_path_kind_t;
+
+typedef enum {
+   V_PATH_NO_EDGE    = 0,
+   V_PATH_POSEDGE    = 1,
+   V_PATH_NEGEDGE    = 2,
+   V_PATH_EDGE       = 3
+} v_path_edge_kind_t;
+
+typedef enum {
+   V_PATH_POL_NONE   = 0,
+   V_PATH_POL_PLUS   = 1,
+   V_PATH_POL_MINUS  = 2
+} v_path_pol_kind_t;
+
+#define MAKE_PATH_SUBKIND(kind, edge_kind, pol_in_kind, pol_out_kind)               \
+            (kind | (edge_kind << 1) | (pol_in_kind << 3) | (pol_out_kind << 5))
+
+typedef enum {
    V_UDP_COMB,
    V_UDP_SEQ,
 } vlog_udp_kind_t;
@@ -115,6 +151,9 @@ typedef enum {
    V_LOCALPARAM,
    V_CASE,
    V_CASE_ITEM,
+   V_TCHECK,
+   V_TCHECK_EVENT,
+   V_PATH,
 
    V_LAST_NODE_KIND
 } vlog_kind_t;
