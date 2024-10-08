@@ -444,5 +444,15 @@ void reset_sdf_parser(void);
 #define tENDCASE       543
 #define tCASEX         544
 #define tCASEZ         545
+#define tIFNONE        546
+#define tEDGE          547
+#define tTIMESGT       548
+#define tDLRSETUP      549
+#define tDLRHOLD       550
+#define tDLRRECOVERY   551
+#define tDLRREMOVAL    552
+#define tDLRSETUPHOLD  553
+#define tDLRRECREM     554
+#define tDLRWIDTH      555
 
 #endif  // _SCAN_H

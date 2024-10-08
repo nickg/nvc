@@ -3051,6 +3051,20 @@ static void p_gate_instantiation(vlog_node_t mod)
    consume(tSEMI);
 }
 
+static vlog_node_t p_module_path_expression(void)
+{
+   // module_path_primary
+   //   | unary_module_path_operator { attribute_instance } module_path_primary
+   //   | module_path_expression binary_module_path_operator
+   //      { attribute_instance } module_path_expression
+   //   | module_path_conditional_expression
+
+   BEGIN("module path expression");
+
+   // TODO: sem should check valid subset
+   return p_expression();
+}
+
 static void p_path_delay_expression(void)
 {
    // constant_expression
@@ -3086,60 +3100,509 @@ static void p_path_delay_value(void)
       p_list_of_path_delay_expressions();
 }
 
-static void p_specify_terminal_descriptor(void)
+static vlog_node_t p_specify_terminal_descriptor(void)
 {
    // identifier [ [ constant_range_expression ] ]
 
    BEGIN("specify terminal descriptor");
 
-   p_identifier();
+   vlog_node_t v = vlog_new(V_REF);
+   vlog_set_ident(v, p_identifier());
+   vlog_set_loc(v, CURRENT_LOC);
+   // TODO: add support for range expression
+
+   return v;
 }
 
-static void p_parallel_path_description(void)
+static void p_list_of_path_inputs(vlog_node_t v)
 {
-   // ( specify_input_terminal_descriptor [ polarity_operator ] =>
-   //     specify_output_terminal_descriptor )
+   // specify_input_terminal_descriptor { , specify_input_terminal_descriptor }
+
+   BEGIN("list of path inputs");
+
+   do {
+      (void)p_specify_terminal_descriptor();
+   } while (optional(tCOMMA));
+}
+
+static void p_list_of_path_outputs(vlog_node_t v)
+{
+   // specify_output_terminal_descriptor
+   //     { , specify_output_terminal_descriptor }
+
+   BEGIN("list of path outputs");
+
+   do {
+      (void)p_specify_terminal_descriptor();
+   } while (optional(tCOMMA));
+}
+
+static void p_polarity_operator(void)
+{
+   // + | -
+
+   BEGIN("polarity operator");
+
+   (void)one_of(tPLUS, tMINUS);
+}
+
+static vlog_node_t p_parallel_path_description(void)
+{
+   // ( specify_input_terminal_descriptor [ polarity_operator ]
+   //     => specify_output_terminal_descriptor )
 
    BEGIN("parallel path description");
 
    consume(tLPAREN);
 
-   p_specify_terminal_descriptor();
+   (void)p_specify_terminal_descriptor();
+
+   if (scan(tPLUS, tMINUS))
+      (void)p_polarity_operator();
 
    consume(tASSOC);
 
-   p_specify_terminal_descriptor();
+   (void)p_specify_terminal_descriptor();
 
    consume(tRPAREN);
+   return NULL;
 }
 
-static void p_simple_path_declaration(void)
+static vlog_node_t p_full_path_description(void)
+{
+   // ( list_of_path_inputs [ polarity_operator ] *> list_of_path_outputs )
+
+   BEGIN("full path description");
+
+   consume(tLPAREN);
+
+   p_list_of_path_inputs(NULL);
+
+   if (scan(tPLUS, tMINUS))
+      (void)p_polarity_operator();
+
+   consume(tTIMESGT);
+
+   p_list_of_path_outputs(NULL);
+
+   consume(tRPAREN);
+   return NULL;
+}
+
+static vlog_node_t p_simple_path_declaration(void)
 {
    // parallel_path_description = path_delay_value
    //   | full_path_description = path_delay_value
 
    BEGIN("simple path declaration");
 
-   p_parallel_path_description();
+   if (peek_nth(3) == tCOMMA)
+      (void)p_full_path_description();
+   else
+      (void)p_parallel_path_description();
 
    consume(tEQ);
 
-   p_path_delay_value();
+   (void)p_path_delay_value();
+
+   return NULL;
 }
 
-static void p_path_declaration(void)
+static void p_edge_identifier(void)
 {
-   // simple_path_declaration ; | edge_sensitive_path_declaration ;
-   //   | state_dependent_path_declaration ;
+   // posedge | negedge | edge
+
+   BEGIN("edge identifier");
+
+   one_of(tPOSEDGE, tNEGEDGE, tEDGE);
+}
+
+static vlog_node_t p_parallel_edge_sensitive_path_description(void)
+{
+   // ( [ edge_identifier ] specify_input_terminal_descriptor
+   //     [ polarity_operator ] => ( specify_output_terminal_descriptor
+   //     [ polarity_operator ] : data_source_expression ) )
+
+   BEGIN("parallel edege sensitive path description");
+
+   consume(tLPAREN);
+
+   if (scan(tEDGE, tPOSEDGE, tNEGEDGE))
+      p_edge_identifier();
+
+   (void)p_specify_terminal_descriptor();
+
+   if (scan(tPLUS, tMINUS))
+      (void)p_polarity_operator();
+
+   consume(tASSOC);
+
+   consume(tLPAREN);
+
+   (void)p_specify_terminal_descriptor();
+
+   if (scan(tPLUS, tMINUS))
+      (void)p_polarity_operator();
+
+   consume(tCOLON);
+
+   (void)p_expression();
+
+   consume(tRPAREN);
+   consume(tRPAREN);
+   return NULL;
+}
+
+static vlog_node_t p_full_edge_sensitive_path_description(void)
+{
+   // ( [ edge_identifier ] list_of_path_inputs [ polarity_operator ] *>
+   //     ( list_of_path_outputs [ polarity_operator ]
+   //     : data_source_expression ) )
+
+   BEGIN("full edge sensitive path description");
+
+   consume(tLPAREN);
+
+   if (scan(tEDGE, tPOSEDGE, tNEGEDGE))
+      p_edge_identifier();
+
+   p_list_of_path_inputs(NULL);
+
+   if (scan(tPLUS, tMINUS))
+      (void)p_polarity_operator();
+
+   consume(tTIMESGT);
+
+   consume(tLPAREN);
+
+   p_list_of_path_outputs(NULL);
+
+   if (scan(tPLUS, tMINUS))
+      (void)p_polarity_operator();
+
+   consume(tCOLON);
+
+   (void)p_expression();
+
+   consume(tRPAREN);
+   consume(tRPAREN);
+   return NULL;
+}
+
+static vlog_node_t p_edge_sensitive_path_declaration(void)
+{
+   // parallel_edge_sensitive_path_description = path_delay_value
+   //   | full_edge_sensitive_path_description = path_delay_value
+
+   BEGIN("edge sensitive path declaration");
+
+   if (peek_nth(4) == tCOMMA)
+      (void)p_full_edge_sensitive_path_description();
+   else
+      (void)p_parallel_edge_sensitive_path_description();
+
+   consume(tEQ);
+
+   (void)p_path_delay_value();
+
+   return NULL;
+}
+
+static vlog_node_t p_state_dependent_path_declaration(void)
+{
+   // if ( module_path_expression ) simple_path_declaration
+   //   | if ( module_path_expression ) edge_sensitive_path_declaration
+   //   | ifnone simple_path_declaration
+
+   BEGIN("state dependent path declaration");
+
+   switch (one_of(tIF, tIFNONE)) {
+   case tIF:
+      consume(tLPAREN);
+      (void)p_module_path_expression();
+      consume(tRPAREN);
+      break;
+   case tIFNONE:
+      break;
+   }
+
+   if (peek_nth(2) == tID)
+      (void)p_simple_path_declaration();
+   else {
+      // This is invalid for ifnone according to the grammar but is
+      // accepted by some simulators and seen in the wild
+      (void)p_edge_sensitive_path_declaration();
+   }
+
+   return NULL;
+}
+
+static vlog_node_t p_path_declaration(void)
+{
+   // simple_path_declaration ;
+   //  | edge_sensitive_path_declaration ;
+   //  | state_dependent_path_declaration ;
 
    BEGIN("path declaration");
 
-   p_simple_path_declaration();
+   switch (peek()) {
+   case tIF:
+   case tIFNONE:
+      (void)p_state_dependent_path_declaration();
+      break;
+   case tLPAREN:
+      switch (peek_nth(2)) {
+      case tEDGE:
+      case tNEGEDGE:
+      case tPOSEDGE:
+         (void)p_edge_sensitive_path_declaration();
+         break;
+      default:
+         (void)p_simple_path_declaration();
+         break;
+      }
+      break;
+   default:
+      one_of(tIF, tIFNONE);
+   }
 
    consume(tSEMI);
+   return NULL;
 }
 
-static void p_specify_item(void)
+static void p_timing_check_event_control(void)
+{
+   // posedge | negedge | edge | edge_control_specifier
+
+   BEGIN("timing check event control");
+
+   one_of(tPOSEDGE, tNEGEDGE, tEDGE);
+}
+
+static vlog_node_t p_timing_check_event(void)
+{
+   // [ timing_check_event_control ] specify_terminal_descriptor
+   //    [ &&& timing_check_condition ]
+
+   BEGIN("timing check event");
+
+   if (scan(tEDGE, tPOSEDGE, tNEGEDGE))
+      p_timing_check_event_control();
+
+   (void)p_specify_terminal_descriptor();
+
+   return NULL;
+}
+
+static vlog_node_t p_controlled_timing_check_event(void)
+{
+   // timing_check_event_control specify_terminal_descriptor
+   //    [ &&& timing_check_condition ]
+
+   BEGIN("controlled timing check event");
+
+   p_timing_check_event_control();
+
+   (void)p_specify_terminal_descriptor();
+
+   return NULL;
+}
+
+static vlog_node_t p_setup_or_hold_timing_check(void)
+{
+   // $setup ( data_event , reference_event , timing_check_limit
+   //   [ , [ notifier ] ] ) ;
+   //
+   // $hold ( reference_event , data_event , timing_check_limit
+   //   [ , [ notifier ] ] ) ;
+
+   BEGIN("setup/hold timing check");
+
+   one_of(tDLRSETUP, tDLRHOLD);
+   consume(tLPAREN);
+
+   (void)p_timing_check_event();
+
+   consume(tCOMMA);
+
+   (void)p_timing_check_event();
+
+   consume(tCOMMA);
+
+   (void)p_expression();
+
+   if (optional(tCOMMA)) {
+      if (peek() == tID)
+         p_identifier();
+   }
+
+   consume(tRPAREN);
+   consume(tSEMI);
+
+   return NULL;
+}
+
+static vlog_node_t p_recovery_or_removal_timing_check(void)
+{
+   // $recovery ( reference_event , data_event , timing_check_limit
+   //   [ , [ notifier ] ] ) ;
+   //
+   // $removal ( reference_event , data_event , timing_check_limit
+   //   [ , [ notifier ] ] ) ;
+
+   BEGIN("recovery/removal timing check");
+
+   one_of(tDLRRECOVERY, tDLRREMOVAL);
+   consume(tLPAREN);
+
+   (void)p_timing_check_event();
+
+   consume(tCOMMA);
+
+   (void)p_timing_check_event();
+
+   consume(tCOMMA);
+
+   (void)p_expression();
+
+   if (optional(tCOMMA)) {
+      if (peek() == tID)
+         p_identifier();
+   }
+
+   consume(tRPAREN);
+   consume(tSEMI);
+
+   return NULL;
+}
+
+static vlog_node_t p_width_timing_check(void)
+{
+   // $width ( controlled_reference_event , timing_check_limit , threshold
+   //   [ , [ notifier ] ] ) ;
+
+   BEGIN("width timing check");
+
+   consume(tDLRWIDTH);
+   consume(tLPAREN);
+
+   (void)p_controlled_timing_check_event();
+
+   consume(tCOMMA);
+
+   (void)p_expression();
+
+   consume(tCOMMA);
+
+   (void)p_constant_expression();
+
+   if (optional(tCOMMA)) {
+      if (peek() == tID)
+         p_identifier();
+   }
+
+   consume(tRPAREN);
+   consume(tSEMI);
+
+   return NULL;
+}
+
+static vlog_node_t p_delayed_data_or_reference(void)
+{
+   // terminal_identifier
+   //   | terminal_identifier [ constant_mintypmax_expression ]
+
+   BEGIN("delayed data/reference");
+
+   p_identifier();
+
+   return NULL;
+}
+
+static vlog_node_t p_setuphold_or_recrem_timing_check(void)
+{
+   // $setuphold ( reference_event , data_event , timing_check_limit ,
+   //    timing_check_limit [ , [ notifier ] [ , [ timestamp_condition ]
+   //    [ , [ timecheck_condition ] [ , [ delayed_reference ]
+   //    [ , [ delayed_data ] ] ] ] ] ] ) ;
+
+   BEGIN("setuphold/recrem timing check");
+
+   one_of(tDLRSETUPHOLD, tDLRRECREM);
+   consume(tLPAREN);
+
+   (void)p_timing_check_event();
+
+   consume(tCOMMA);
+
+   (void)p_timing_check_event();
+
+   consume(tCOMMA);
+
+   (void)p_expression();
+
+   consume(tCOMMA);
+
+   (void)p_expression();
+
+   if (optional(tCOMMA)) {
+      if (peek() == tID)
+         p_identifier(); // notifier
+
+      if (optional(tCOMMA)) {
+         if (not_at_token(tCOMMA, tRPAREN))
+            (void)p_mintypmax_expression();  // timestamp_condition
+
+         if (optional(tCOMMA)) {
+            if (not_at_token(tCOMMA, tRPAREN))
+               (void)p_mintypmax_expression();  // timecheck_condition
+
+            if (optional(tCOMMA)) {
+               if (not_at_token(tCOMMA, tRPAREN))
+                  p_delayed_data_or_reference();  // delayed_reference
+
+               if (optional(tCOMMA)) {
+                  if (not_at_token(tCOMMA, tRPAREN))
+                     p_delayed_data_or_reference();  // delayed_data
+               }
+            }
+         }
+      }
+   }
+
+   consume(tRPAREN);
+   consume(tSEMI);
+
+   return NULL;
+}
+
+static vlog_node_t p_system_timing_check(void)
+{
+   // $setup_timing_check | $hold_timing_check | $setuphold_timing_check
+   //   | $recovery_timing_check | $removal_timing_check | $recrem_timing_check
+   //   | $skew_timing_check | $timeskew_timing_check | $fullskew_timing_check
+   //   | $period_timing_check | $width_timing_check | $nochange_timing_check
+
+   BEGIN("system timing check");
+
+   switch (peek()) {
+   case tDLRSETUP:
+   case tDLRHOLD:
+      return p_setup_or_hold_timing_check();
+   case tDLRRECOVERY:
+   case tDLRREMOVAL:
+      return p_recovery_or_removal_timing_check();
+   case tDLRWIDTH:
+      return p_width_timing_check();
+   case tDLRSETUPHOLD:
+   case tDLRRECREM:
+      return p_setuphold_or_recrem_timing_check();
+   default:
+      should_not_reach_here();
+   }
+}
+
+static vlog_node_t p_specify_item(void)
 {
    // specparam_declaration | pulsestyle_declaration | showcancelled_declaration
    //   | path_declaration | system_timing_check
@@ -3148,10 +3611,20 @@ static void p_specify_item(void)
 
    switch (peek()) {
    case tLPAREN:
-      p_path_declaration();
-      break;
+   case tIF:
+   case tIFNONE:
+      return p_path_declaration();
+   case tDLRSETUP:
+   case tDLRHOLD:
+   case tDLRRECOVERY:
+   case tDLRREMOVAL:
+   case tDLRSETUPHOLD:
+   case tDLRRECREM:
+   case tDLRWIDTH:
+      return p_system_timing_check();
    default:
       one_of(tLPAREN);
+      return NULL;
    }
 }
 
@@ -3166,7 +3639,7 @@ static vlog_node_t p_specify_block(void)
    vlog_node_t v = vlog_new(V_SPECIFY);
 
    while (not_at_token(tENDSPECIFY))
-      p_specify_item();
+      (void)p_specify_item();
 
    consume(tENDSPECIFY);
 
