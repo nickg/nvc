@@ -39,6 +39,21 @@ typedef enum {
 } vlog_net_kind_t;
 
 typedef enum {
+   V_TCHECK_SETUP,
+   V_TCHECK_HOLD,
+   V_TCHECK_RECOVERY,
+   V_TCHECK_REMOVAL,
+   V_TCHECK_SETUPHOLD,
+   V_TCHECK_RECREM,
+   V_TCHECK_WIDTH
+} v_tcheck_kind_t;
+
+typedef enum {
+   V_TCHECK_EVENT_POSEDGE,
+   V_TCHECK_EVENT_NEGEDGE
+} v_tcheck_event_kind_t;
+
+typedef enum {
    V_UDP_COMB,
    V_UDP_SEQ,
 } vlog_udp_kind_t;
@@ -107,6 +122,8 @@ typedef enum {
    V_PREFIX,
    V_POSTFIX,
    V_LOCALPARAM,
+   V_TIMING_CHECK,
+   V_TIMING_CHECK_EVENT,
 
    V_LAST_NODE_KIND
 } vlog_kind_t;

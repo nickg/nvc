@@ -110,7 +110,7 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
    (I_STMTS),
 
    // V_SPECIFY
-   (0),
+   (I_STMTS),
 
    // V_PRIMITIVE
    (I_IDENT | I_IDENT2 | I_PORTS | I_DECLS | I_STMTS),
@@ -192,6 +192,12 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
 
    // V_LOCALPARAM
    (I_IDENT | I_VALUE | I_TYPE),
+
+   // V_TIMING_CHECK
+   (I_IDENT | I_SUBKIND | I_PARAMS),
+
+   // V_TIMING_CHECK_EVENT
+   (I_SUBKIND | I_IDENT)
 };
 
 static const char *kind_text_map[V_LAST_NODE_KIND] = {

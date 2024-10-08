@@ -2985,51 +2985,269 @@ static void p_specify_terminal_descriptor(void)
    p_identifier();
 }
 
-static void p_parallel_path_description(void)
+static void p_list_of_path_inputs_outputs(void)
 {
-   // ( specify_input_terminal_descriptor [ polarity_operator ] =>
-   //     specify_output_terminal_descriptor )
+   // list_of_path_inputs ::=
+   //    specify_input_terminal_descriptor { , specify_input_terminal_descriptor }
+   // list_of_path_outputs ::=
+   //    specify_output_terminal_descriptor { , specify_output_terminal_descriptor }
 
-   BEGIN("parallel path description");
-
-   consume(tLPAREN);
-
-   p_specify_terminal_descriptor();
-
-   consume(tASSOC);
-
-   p_specify_terminal_descriptor();
-
-   consume(tRPAREN);
+   do {
+      p_specify_terminal_descriptor();
+   } while (optional(tCOMMA));
 }
 
-static void p_simple_path_declaration(void)
+static void p_polarity_operator(void)
 {
-   // parallel_path_description = path_delay_value
-   //   | full_path_description = path_delay_value
+   // polarity_operator ::= + | -
 
-   BEGIN("simple path declaration");
-
-   p_parallel_path_description();
-
-   consume(tEQ);
-
-   p_path_delay_value();
+   int tok = peek();
+   if (tok == tPLUS || tok == tMINUS) {
+      consume(tok);
+   }
 }
 
-static void p_path_declaration(void)
+static vlog_node_t p_path_declaration(void)
 {
-   // simple_path_declaration ; | edge_sensitive_path_declaration ;
-   //   | state_dependent_path_declaration ;
+   // path_declaration ::= // from A.7.2
+   //    simple_path_declaration ;
+   //  | edge_sensitive_path_declaration ;
+   //  | state_dependent_path_declaration ;
+   //
+   // edge_sensitive_path_declaration ::= // from A.7.4
+   //     parallel_edge_sensitive_path_description = path_delay_value
+   //   | full_edge_sensitive_path_description = path_delay_value
+   //
+   // parallel_edge_sensitive_path_description ::=
+   //     ( [ edge_identifier ] specify_input_terminal_descriptor [ polarity_operator ] =>
+   //     ( specify_output_terminal_descriptor [ polarity_operator ] : data_source_expression ) )
+   //
+   // full_edge_sensitive_path_description ::=
+   //     ( [ edge_identifier ] list_of_path_inputs [ polarity_operator ] *>
+   //     ( list_of_path_outputs [ polarity_operator ] : data_source_expression ) )
+   //
+   // simple_path_declaration ::= // from A.7.2
+   //       parallel_path_description = path_delay_value
+   //     | full_path_description = path_delay_value
+   //
+   // parallel_path_description ::=
+   //     ( specify_input_terminal_descriptor [ polarity_operator ] => specify_output_terminal_descriptor )
+   //
+   // full_path_description ::=
+   //     ( list_of_path_inputs [ polarity_operator ] *> list_of_path_outputs )
+   //
+   // state_dependent_path_declaration ::=
+   //       if ( module_path_expression ) simple_path_declaration
+   //     | if ( module_path_expression ) edge_sensitive_path_declaration
+   //     | ifnone simple_path_declaration
 
    BEGIN("path declaration");
 
-   p_simple_path_declaration();
+   switch (peek()) {
+   case tIF:
+      consume(tIF);
+      consume(tLPAREN);
+      p_expression();
+      consume(tRPAREN);
+      break;
+
+   case tIFNONE:
+      consume(tIFNONE);
+      break;
+   }
+
+   consume(tLPAREN);
+
+   int tok = peek();
+   switch (tok) {
+   case tPOSEDGE:
+      consume(tok);
+      break;
+   case tNEGEDGE:
+      consume(tok);
+      break;
+   case tEDGE:
+      consume(tok);
+      break;
+   }
+
+   p_list_of_path_inputs_outputs();
+   p_polarity_operator();
+
+   switch (one_of(tASSOC, tTIMESGT)) {
+   case tASSOC:
+   case tTIMESGT:
+      break;
+   }
+
+   bool extra_paren = optional(tLPAREN);
+
+   p_list_of_path_inputs_outputs();
+   p_polarity_operator();
+
+   if (optional(tCOLON)) {
+      p_expression();
+   }
+
+   if (extra_paren)
+      consume(tRPAREN);
+
+   consume(tRPAREN);
+   consume(tEQ);
+
+   p_path_delay_value();
 
    consume(tSEMI);
+
+   return NULL;
 }
 
-static void p_specify_item(void)
+static vlog_node_t p_timing_check_event()
+{
+   // timing_check_event ::=
+   //    timing_check_event_control specify_terminal_descriptor [ &&& timing_check_condition ]
+   // controlled_timing_check_event ::=
+   //    [timing_check_event_control] specify_terminal_descriptor [ &&& timing_check_condition ]
+
+   BEGIN("timing check event");
+
+   vlog_node_t tc_ev = vlog_new(V_TIMING_CHECK_EVENT);
+
+   if (scan(tPOSEDGE, tNEGEDGE)) {
+      switch (one_of(tPOSEDGE, tNEGEDGE)) {
+      case tPOSEDGE:
+         vlog_set_subkind(tc_ev, V_TCHECK_EVENT_POSEDGE);
+         break;
+      default:
+         vlog_set_subkind(tc_ev, V_TCHECK_EVENT_NEGEDGE);
+         break;
+      }
+   }
+
+   vlog_set_ident(tc_ev, p_identifier());
+
+   // TODO: Add timing check condition
+
+   return tc_ev;
+}
+
+static vlog_node_t p_system_timing_check(void)
+{
+   //   $setup_timing_check | $hold_timing_check | $setuphold_timing_check
+   // | $recovery_timing_check | $removal_timing_check | $recrem_timing_check
+   // | $skew_timing_check | $timeskew_timing_check | $fullskew_timing_check
+   // | $period_timing_check | $width_timing_check | $nochange_timing_check
+
+   BEGIN("system timing check");
+
+   ident_t id = p_system_tf_identifier();
+   v_tcheck_kind_t kind;
+
+   switch (is_well_known(id)) {
+   case W_DOLLAR_SETUP:       kind = V_TCHECK_SETUP;     break;
+   case W_DOLLAR_HOLD:        kind = V_TCHECK_HOLD;      break;
+   case W_DOLLAR_RECOVERY:    kind = V_TCHECK_RECOVERY;  break;
+   case W_DOLLAR_REMOVAL:     kind = V_TCHECK_REMOVAL;   break;
+   case W_DOLLAR_SETUPHOLD:   kind = V_TCHECK_SETUPHOLD; break;
+   case W_DOLLAR_RECREM:      kind = V_TCHECK_RECREM;    break;
+   case W_DOLLAR_WIDTH:       kind = V_TCHECK_WIDTH;     break;
+   default:
+      parse_error(&state.last_loc, "'%s' is not a valid timing check",
+                  istr(id));
+   }
+
+   vlog_node_t v = vlog_new(V_TIMING_CHECK);
+   vlog_set_ident(v, id);
+
+   consume(tLPAREN);
+
+   switch (kind) {
+   case V_TCHECK_SETUP:
+   case V_TCHECK_HOLD:
+      vlog_add_param(v, p_timing_check_event());
+      consume(tCOMMA);
+
+      vlog_add_param(v, p_timing_check_event());
+      consume(tCOMMA);
+
+      vlog_add_param(v, p_expression());
+
+      if (optional(tCOMMA))
+         if (scan(tID))
+            vlog_add_param(v, p_expression());
+
+      break;
+
+   case V_TCHECK_RECOVERY:
+   case V_TCHECK_REMOVAL:
+      vlog_add_param(v, p_timing_check_event());
+      consume(tCOMMA);
+
+      vlog_add_param(v, p_timing_check_event());
+      consume(tCOMMA);
+
+      vlog_add_param(v, p_expression());
+
+      if (optional(tCOMMA))
+         if (peek() != tRPAREN)
+            vlog_add_param(v, p_expression());
+
+      break;
+
+   case V_TCHECK_SETUPHOLD:
+   case V_TCHECK_RECREM:
+      vlog_add_param(v, p_timing_check_event());
+      consume(tCOMMA);
+
+      vlog_add_param(v, p_timing_check_event());
+      consume(tCOMMA);
+
+      vlog_add_param(v, p_expression());
+      consume(tCOMMA);
+
+      vlog_add_param(v, p_expression());
+      consume(tCOMMA);
+
+      // TODO: Introduce some flagging on the optional arguments!
+      for (int i = 0; i < 4; i++) {
+         optional(tCOMMA);
+         if (peek() != tCOMMA)
+            vlog_add_param(v, p_expression());
+      }
+
+      optional(tCOMMA);
+      if (peek() != tRPAREN)
+         vlog_add_param(v, p_expression());
+
+      break;
+
+   case V_TCHECK_WIDTH:
+      vlog_add_param(v, p_timing_check_event());
+      consume(tCOMMA);
+
+      vlog_add_param(v, p_expression());
+      consume(tCOMMA);
+
+      vlog_add_param(v, p_expression());
+
+      if (optional(tCOMMA))
+         if (peek() != tRPAREN)
+            vlog_add_param(v, p_expression());
+
+      break;
+
+   default:
+      parse_error(&state.last_loc, "'%s' is not a valid timing check",
+                  istr(id));
+   }
+
+   consume(tRPAREN);
+   consume(tSEMI);
+
+   return v;
+}
+
+static vlog_node_t p_specify_item(void)
 {
    // specparam_declaration | pulsestyle_declaration | showcancelled_declaration
    //   | path_declaration | system_timing_check
@@ -3038,11 +3256,18 @@ static void p_specify_item(void)
 
    switch (peek()) {
    case tLPAREN:
-      p_path_declaration();
+   case tIF:
+   case tIFNONE:
+      return p_path_declaration();
+      break;
+   case tSYSTASK:
+      return p_system_timing_check();
       break;
    default:
       one_of(tLPAREN);
    }
+
+   return NULL;
 }
 
 static vlog_node_t p_specify_block(void)
@@ -3056,7 +3281,7 @@ static vlog_node_t p_specify_block(void)
    vlog_node_t v = vlog_new(V_SPECIFY);
 
    while (not_at_token(tENDSPECIFY))
-      p_specify_item();
+      vlog_add_stmt(v, p_specify_item());
 
    consume(tENDSPECIFY);
 
@@ -3088,11 +3313,17 @@ static void p_list_of_port_connections(vlog_node_t inst)
 static vlog_node_t p_hierarchical_instance(ident_t module_id)
 {
    // name_of_instance ( [ list_of_port_connections ] )
+   //
+   // [ name_of_instance ] ( output_terminal , input_terminal
+   // { , input_terminal } )
 
    BEGIN("hierarchical instance");
 
    vlog_node_t v = vlog_new(V_MOD_INST);
-   vlog_set_ident(v, p_identifier());
+   // TODO: Add some implicit naming to avoid name collisions when instantiating
+   // multiple un-named UDPs
+   if (peek() == tID)
+      vlog_set_ident(v, p_identifier());
    vlog_set_ident2(v, module_id);
 
    consume(tLPAREN);
@@ -3106,14 +3337,19 @@ static vlog_node_t p_hierarchical_instance(ident_t module_id)
    return v;
 }
 
-static void p_module_instantiation(vlog_node_t mod)
+static void p_module_or_udp_instantiation(vlog_node_t mod)
 {
    // module_identifier [ parameter_value_assignment ] hierarchical_instance
    //   { , hierarchical_instance } ;
+   // udp_identifier [ drive_strength ] [ delay2 ] udp_instance
+   //   { , udp_instance } ;
 
    BEGIN("module instantiation");
 
    ident_t module_id = p_identifier();
+
+   // TODO: Add support for "parameter value assignment"
+   // TODO: Add support for "drive_strength" and "delay2"
 
    do {
       vlog_add_stmt(mod, p_hierarchical_instance(module_id));
@@ -3174,7 +3410,7 @@ static void p_module_or_generate_item(vlog_node_t mod)
       p_gate_instantiation(mod);
       break;
    case tID:
-      p_module_instantiation(mod);
+      p_module_or_udp_instantiation(mod);
       break;
    default:
       one_of(tALWAYS, tALWAYSCOMB, tALWAYSFF, tALWAYSLATCH, tWIRE, tSUPPLY0,
