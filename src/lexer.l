@@ -726,6 +726,16 @@ BEFORE            ?i:before
 <VLOG>"parameter"        { return tPARAMETER; }
 <VLOG>"for"              { return tFOR; }
 <VLOG>"localparam"       { return tLOCALPARAM; }
+<VLOG>"ifnone"           { return tIFNONE; }
+<VLOG>"edge"             { return tEDGE; }
+<VLOG>"*>"               { return tTIMESGT; }
+<VLOG>"$setup"           { return tDLRSETUP; }
+<VLOG>"$hold"            { return tDLRHOLD; }
+<VLOG>"$recovery"        { return tDLRRECOVERY; }
+<VLOG>"$removal"         { return tDLRREMOVAL; }
+<VLOG>"$setuphold"       { return tDLRSETUPHOLD; }
+<VLOG>"$recrem"          { return tDLRRECREM; }
+<VLOG>"$width"           { return tDLRWIDTH; }
 
 <VLOG>{SYSTASK}          { yylval.str = xstrdup(yytext); return tSYSTASK; }
 <VLOG>{VLOG_ID}          { yylval.str = xstrdup(yytext); return tID; }
