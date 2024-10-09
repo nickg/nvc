@@ -1,0 +1,10 @@
+** Fatal: actual length 1 does not match formal length 0
+    > /home/oille/nvc/test/regress/cover25.vhd:46
+    |
+ 41 |     i_sub_block : entity work.sub_block
+    |     ^ while elaborating instance I_SUB_BLOCK
+ ...
+ 46 |         addr  => addr
+    |         ^^^^^^^^^^^^^ error occurred here
+    |
+    = Note: generic G_NUM_ENTRIES => 1
