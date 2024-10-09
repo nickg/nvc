@@ -1056,3 +1056,4 @@ psl10           fail,gold,2008
 issue988        normal,vhpi
 psl11           fail,gold,2008
 cover24         shell
+vlog12          verilog

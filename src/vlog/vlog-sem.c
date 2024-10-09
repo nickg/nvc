@@ -275,6 +275,13 @@ static void vlog_check_event(vlog_node_t event)
    vlog_check(vlog_value(event));
 }
 
+static void vlog_check_event_control(vlog_node_t ctrl)
+{
+   const int nparams = vlog_params(ctrl);
+   for (int i = 0; i < nparams; i++)
+      vlog_check(vlog_param(ctrl, i));
+}
+
 static void vlog_check_delay_control(vlog_node_t delay)
 {
    vlog_check(vlog_value(delay));
@@ -630,6 +637,9 @@ void vlog_check(vlog_node_t v)
       break;
    case V_EVENT:
       vlog_check_event(v);
+      break;
+   case V_EVENT_CONTROL:
+      vlog_check_event_control(v);
       break;
    case V_DELAY_CONTROL:
       vlog_check_delay_control(v);

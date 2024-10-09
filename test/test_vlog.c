@@ -80,7 +80,11 @@ START_TEST(test_dff)
    fail_unless(vlog_kind(e) == V_TIMING);
    fail_unless(vlog_stmts(e) == 1);
 
-   vlog_node_t v = vlog_value(e);
+   vlog_node_t ctrl = vlog_value(e);
+   fail_unless(vlog_kind(ctrl) == V_EVENT_CONTROL);
+   fail_unless(vlog_params(ctrl) == 1);
+
+   vlog_node_t v = vlog_param(ctrl, 0);
    fail_unless(vlog_kind(v) == V_EVENT);
    fail_unless(vlog_subkind(v) == V_EVENT_POSEDGE);
 
@@ -165,7 +169,7 @@ START_TEST(test_parse1)
    vlog_node_t m = vlog_parse();
    fail_if(m == NULL);
    fail_unless(vlog_kind(m) == V_MODULE);
-   fail_unless(vlog_stmts(m) == 8);
+   fail_unless(vlog_stmts(m) == 9);
    fail_unless(vlog_ports(m) == 0);
    fail_unless(vlog_decls(m) == 4);
 
@@ -260,6 +264,13 @@ START_TEST(test_parse1)
    ck_assert_int_eq(vlog_params(s7), 0);
    fail_if(vlog_has_ident(s7));
    fail_unless(vlog_kind(vlog_target(s7)) == V_REF);
+
+   vlog_node_t s8 = vlog_stmt(m, 8);
+   fail_unless(vlog_kind(s8) == V_ALWAYS);
+
+   vlog_node_t s8ctrl = vlog_value(vlog_stmt(s8, 0));
+   fail_unless(vlog_kind(s8ctrl) == V_EVENT_CONTROL);
+   fail_unless(vlog_params(s8ctrl) == 3);
 
    fail_unless(vlog_parse() == NULL);
 
