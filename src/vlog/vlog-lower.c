@@ -645,9 +645,16 @@ static void vlog_lower_timing(lower_unit_t *lu, vlog_node_t v, bool is_static)
          vcode_select_block(true_bb);
       }
       break;
-   case V_EVENT:
+   case V_EVENT_CONTROL:
       {
-         vcode_reg_t test_reg = vlog_lower_rvalue(lu, vlog_value(v));
+         const int nparams = vlog_params(ctrl);
+         assert(nparams > 0);
+
+         vcode_reg_t test_reg = vlog_lower_rvalue(lu, vlog_param(ctrl, 0));
+         for (int i = 1; i < nparams; i++) {
+            vcode_reg_t sub_reg = vlog_lower_rvalue(lu, vlog_param(ctrl, i));
+            test_reg = emit_or(test_reg, sub_reg);
+         }
 
          false_bb = emit_block();
          emit_cond(test_reg, true_bb, false_bb);
@@ -935,7 +942,13 @@ static void vlog_lower_always(unit_registry_t *ur, lower_unit_t *parent,
    vlog_node_t timing = NULL, s0 = vlog_stmt(stmt, 0);
    if (vlog_kind(s0) == V_TIMING) {
       timing = s0;
-      vlog_lower_sensitivity(lu, vlog_value(timing));
+
+      vlog_node_t ctrl = vlog_value(timing);
+      assert(vlog_kind(ctrl) == V_EVENT_CONTROL);
+
+      const int nparams = vlog_params(ctrl);
+      for (int i = 0; i < nparams; i++)
+         vlog_lower_sensitivity(lu, vlog_param(ctrl, i));
    }
 
    emit_return(VCODE_INVALID_REG);

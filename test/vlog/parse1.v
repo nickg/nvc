@@ -20,4 +20,6 @@ module parse1;
   pullup p3 (y);
   pullup (supply0, supply1) p4 (y);
   pullup (y);
+  always @(x or y or (posedge z)) begin
+  end
 endmodule // parse1

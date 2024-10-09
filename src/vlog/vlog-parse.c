@@ -1286,7 +1286,7 @@ static vlog_node_t p_expression(void)
    return p_binary_expression(head, 0);
 }
 
-static vlog_node_t p_event_expression(void)
+static void p_event_expression(vlog_node_t ctrl)
 {
    // [ edge_identifier ] expression [ iff expression ]
    //   | sequence_instance [ iff expression ]
@@ -1296,19 +1296,27 @@ static vlog_node_t p_event_expression(void)
 
    BEGIN("event expression");
 
-   vlog_node_t v = vlog_new(V_EVENT);
+   do {
+      if (optional(tLPAREN)) {
+         p_event_expression(ctrl);
+         consume(tRPAREN);
+      }
+      else {
+         vlog_node_t v = vlog_new(V_EVENT);
 
-   if (optional(tPOSEDGE))
-      vlog_set_subkind(v, V_EVENT_POSEDGE);
-   else if (optional(tNEGEDGE))
-      vlog_set_subkind(v, V_EVENT_NEGEDGE);
-   else
-      vlog_set_subkind(v, V_EVENT_LEVEL);
+         if (optional(tPOSEDGE))
+            vlog_set_subkind(v, V_EVENT_POSEDGE);
+         else if (optional(tNEGEDGE))
+            vlog_set_subkind(v, V_EVENT_NEGEDGE);
+         else
+            vlog_set_subkind(v, V_EVENT_LEVEL);
 
-   vlog_set_value(v, p_expression());
+         vlog_set_value(v, p_expression());
+         vlog_set_loc(v, CURRENT_LOC);
 
-   vlog_set_loc(v, CURRENT_LOC);
-   return v;
+         vlog_add_param(ctrl, v);
+      }
+   } while (optional(tOR) || optional(tCOMMA));
 }
 
 static vlog_node_t p_cond_predicate(void)
@@ -1330,7 +1338,9 @@ static vlog_node_t p_event_control(void)
    consume(tAT);
    consume(tLPAREN);
 
-   vlog_node_t v = p_event_expression();
+   vlog_node_t v = vlog_new(V_EVENT_CONTROL);
+
+   p_event_expression(v);
 
    consume(tRPAREN);
 

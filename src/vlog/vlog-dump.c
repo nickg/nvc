@@ -208,13 +208,22 @@ static void vlog_dump_timing(vlog_node_t v, int indent)
 
 static void vlog_dump_event(vlog_node_t v)
 {
-   print_syntax("@(");
    switch (vlog_subkind(v)) {
    case V_EVENT_POSEDGE: print_syntax("#posedge "); break;
    case V_EVENT_NEGEDGE: print_syntax("#negedge "); break;
    }
 
    vlog_dump(vlog_value(v), 0);
+}
+
+static void vlog_dump_event_control(vlog_node_t v)
+{
+   print_syntax("@(");
+
+   const int nparams = vlog_params(v);
+   for (int i = 0; i < nparams; i++)
+      vlog_dump(vlog_param(v, i), 0);
+
    print_syntax(") ");
 }
 
@@ -484,6 +493,9 @@ void vlog_dump(vlog_node_t v, int indent)
       break;
    case V_EVENT:
       vlog_dump_event(v);
+      break;
+   case V_EVENT_CONTROL:
+      vlog_dump_event_control(v);
       break;
    case V_NBASSIGN:
       vlog_dump_nbassign(v, indent);
