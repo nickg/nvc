@@ -303,7 +303,8 @@ static int32_t cover_add_toggle_items(cover_data_t *data, cover_scope_t *cs,
    if (!folded_bounds(r, &low, &high))
       return -1;
 
-   assert(low <= high);
+   if (high < low)
+      return -1;
 
    if (cover_skip_array_toggle(data, high - low + 1))
       return -1;
