@@ -1985,6 +1985,31 @@ START_TEST(test_issue969)
 }
 END_TEST
 
+START_TEST(test_issue1012)
+{
+   input_from_file(TESTDIR "/elab/issue1012.vhd");
+
+   const error_t expect[] = {
+      { 15, "actual length 1 does not match formal length 0" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t a = parse_check_and_simplify(T_ENTITY, T_ARCH);
+
+   unit_registry_t *ur = get_registry();
+   jit_t *jit = jit_new(ur);
+   cover_data_t *cover = cover_data_init(COVER_MASK_TOGGLE, 0);
+
+   tree_t e = elab(tree_to_object(a), jit, ur, cover, NULL);
+   fail_unless(e == NULL);
+
+   jit_free(jit);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_elab_tests(void)
 {
    Suite *s = suite_create("elab");
@@ -2091,6 +2116,7 @@ Suite *get_elab_tests(void)
    tcase_add_test(tc, test_generic3);
    tcase_add_test(tc, test_toplevel5);
    tcase_add_test(tc, test_issue969);
+   tcase_add_test(tc, test_issue1012);
    suite_add_tcase(s, tc);
 
    return s;
