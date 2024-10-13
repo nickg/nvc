@@ -428,6 +428,11 @@ void suppress_errors(nametab_t *tab)
    tab->top_scope->suppress = true;
 }
 
+bool have_name_errors(nametab_t *tab)
+{
+   return tab->top_scope->suppress;
+}
+
 void defer_check(nametab_t *tab, defer_check_fn_t fn, tree_t t)
 {
    defer_check_t dc = { fn, t };

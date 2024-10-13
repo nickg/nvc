@@ -1544,6 +1544,8 @@ static void sem_missing_body_cb(tree_t t, tree_t parent, nametab_t *tab)
 {
    if (parent == NULL || !opt_get_int(OPT_MISSING_BODY))
       return;
+   else if (have_name_errors(tab))
+      return;   // May be missing due to parse errors
 
    const tree_kind_t kind = tree_kind(parent);
    if (kind == T_PACKAGE || kind == T_PROT_DECL)
