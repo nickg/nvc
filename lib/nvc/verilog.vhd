@@ -27,32 +27,38 @@ package verilog is
 
     type t_logic is ('X', 'Z', '0', '1');
 
-    type t_packed_logic is array (natural range <>) of t_logic;
+    type t_logic_array is array (natural range <>) of t_logic;
 
-    type t_net_value is ('X', supply0, strong0, pull0, large0, weak0,
-                         medium0, small0, highz0, highz1, small1, medium1,
-                         weak1, large1, pull1, strong1, supply1);
+    type t_strength is (HiZ, Sm, Me, We, La, Pu, St, Su);
+
+    -- Bit encoding
+    --   7..5 : strength1
+    --   4..2 : strength0
+    --   1..0 : logic value
+    type t_net_value is range 0 to 255;
 
     type t_net_array is array (natural range <>) of t_net_value;
 
-    function resolved (inputs : t_net_array) return t_net_value;
+    function resolve_wire (inputs : t_net_array) return t_net_value;
 
-    subtype t_resolved_net is resolved t_net_value;
+    subtype t_wire is resolve_wire t_net_value;
 
-    type t_resolved_net_array is array (natural range <>) of t_resolved_net;
+    type t_wire_array is array (natural range <>) of t_wire;
 
     function to_logic (value : t_net_value) return t_logic;
-    function to_logic (value : t_net_array) return t_packed_logic;
-    function to_logic (value : t_resolved_net_array) return t_packed_logic;
-    function to_logic (value : t_int64; width : natural) return t_packed_logic;
+    function to_logic (value : t_net_array) return t_logic_array;
+    function to_logic (value : t_wire_array) return t_logic_array;
+    function to_logic (value : t_int64; width : natural) return t_logic_array;
 
-    function to_net_value (value : t_logic) return t_net_value;
-    function to_net_value (value : t_packed_logic) return t_net_array;
-    function to_net_value (value : t_packed_logic) return t_resolved_net_array;
+    function to_net (value : t_logic; strength : t_net_value) return t_net_value;
+    function to_net (value : t_logic_array; strength : t_net_value) return t_net_array;
+    function to_net (value : t_logic) return t_net_value;
+    function to_net (value : t_logic_array) return t_net_array;
+    function to_net (value : t_logic_array) return t_wire_array;
 
-    function to_integer (value : t_packed_logic) return t_int64;
+    function to_integer (value : t_logic_array) return t_int64;
 
-    function to_time (value : t_packed_logic) return delay_length;
+    function to_time (value : t_logic_array) return delay_length;
 
     function to_vhdl (value : t_logic) return std_ulogic;
     function to_vhdl (value : t_net_value) return std_ulogic;
@@ -60,42 +66,42 @@ package verilog is
     function to_verilog (value : std_ulogic) return t_logic;
     function to_verilog (value : std_ulogic) return t_net_value;
 
-    function to_string (value : t_packed_logic) return string;
+    function to_string (value : t_logic_array) return string;
 
-    function resize (value : t_packed_logic; length : natural) return t_packed_logic;
-    function resize (value : t_logic; length : natural) return t_packed_logic;
+    function resize (value : t_logic_array; length : natural) return t_logic_array;
+    function resize (value : t_logic; length : natural) return t_logic_array;
 
     function "and" (l, r : t_logic) return t_logic;
-    function "and" (l, r : t_packed_logic) return t_packed_logic;
+    function "and" (l, r : t_logic_array) return t_logic_array;
 
     function "nand" (l, r : t_logic) return t_logic;
 
     function "xor" (l, r : t_logic) return t_logic;
 
     function "or" (l, r : t_logic) return t_logic;
-    function "or" (l, r : t_packed_logic) return t_logic;
+    function "or" (l, r : t_logic_array) return t_logic;
 
     function "not" (x : t_logic) return t_logic;
-    function "not" (x : t_packed_logic) return t_packed_logic;
-    function "not" (x : t_packed_logic) return t_logic;
+    function "not" (x : t_logic_array) return t_logic_array;
+    function "not" (x : t_logic_array) return t_logic;
 
-    function "+" (l, r : t_packed_logic) return t_packed_logic;
+    function "+" (l, r : t_logic_array) return t_logic_array;
 
-    function "-" (arg : t_packed_logic) return t_packed_logic;
+    function "-" (arg : t_logic_array) return t_logic_array;
 
-    function "=" (l, r : t_packed_logic) return boolean;
+    function "=" (l, r : t_logic_array) return boolean;
 
-    function "/=" (l, r : t_packed_logic) return boolean;
+    function "/=" (l, r : t_logic_array) return boolean;
 
-    function and_reduce (arg : t_packed_logic) return t_logic;
-    function nand_reduce (arg : t_packed_logic) return t_logic;
-    function or_reduce (arg : t_packed_logic) return t_logic;
-    function nor_reduce (arg : t_packed_logic) return t_logic;
-    function xor_reduce (arg : t_packed_logic) return t_logic;
-    function xnor_reduce (arg : t_packed_logic) return t_logic;
+    function and_reduce (arg : t_logic_array) return t_logic;
+    function nand_reduce (arg : t_logic_array) return t_logic;
+    function or_reduce (arg : t_logic_array) return t_logic;
+    function nor_reduce (arg : t_logic_array) return t_logic;
+    function xor_reduce (arg : t_logic_array) return t_logic;
+    function xnor_reduce (arg : t_logic_array) return t_logic;
 
     procedure sys_finish;
-    impure function sys_time return t_packed_logic;
+    impure function sys_time return t_logic_array;
 
     -- These procedures are called with a special variadic calling convention
     -- which cannot be represented in VHDL

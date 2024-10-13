@@ -39,16 +39,14 @@ static vlog_node_t simp_net_decl(vlog_node_t decl, vlog_node_t mod)
       vlog_set_ident(g, id);
 
       vlog_node_t s = vlog_new(V_STRENGTH);
+      vlog_set_subkind(s, ST_SUPPLY);
+
       vlog_add_param(g, s);
 
-      if (kind == V_NET_SUPPLY0) {
+      if (kind == V_NET_SUPPLY0)
          vlog_set_subkind(g, V_GATE_PULLDOWN);
-         vlog_set_subkind(s, V_STRENGTH_SUPPLY0);
-      }
-      else {
+      else
          vlog_set_subkind(g, V_GATE_PULLUP);
-         vlog_set_subkind(s, V_STRENGTH_SUPPLY1);
-      }
 
       vlog_node_t target = vlog_new(V_REF);
       vlog_set_loc(target, vlog_loc(decl));

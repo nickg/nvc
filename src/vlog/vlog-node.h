@@ -152,15 +152,24 @@ typedef enum {
 } vlog_gate_kind_t;
 
 typedef enum {
-   V_STRENGTH_SUPPLY0,
-   V_STRENGTH_STRONG0,
-   V_STRENGTH_PULL0,
-   V_STRENGTH_WEAK0,
-   V_STRENGTH_SUPPLY1,
-   V_STRENGTH_STRONG1,
-   V_STRENGTH_PULL1,
-   V_STRENGTH_WEAK1,
+   V_STRENGTH_HIGHZ,
+   V_STRENGTH_SMALL,
+   V_STRENGTH_MEDIUM,
+   V_STRENGTH_WEAK,
+   V_STRENGTH_LARGE,
+   V_STRENGTH_PULL,
+   V_STRENGTH_STRONG,
+   V_STRENGTH_SUPPLY,
 } vlog_strength_t;
+
+#define STRENGTH1(st) (((st) >> 5) & 7)
+#define STRENGTH0(st) (((st) >> 2) & 7)
+
+#define MAKE_STRENGTH(s0, s1) ((s1) << 5 | (s0) << 2)
+
+#define ST_SUPPLY MAKE_STRENGTH(V_STRENGTH_SUPPLY, V_STRENGTH_SUPPLY)
+#define ST_STRONG MAKE_STRENGTH(V_STRENGTH_STRONG, V_STRENGTH_STRONG)
+#define ST_PULLUP MAKE_STRENGTH(V_STRENGTH_PULL, V_STRENGTH_PULL)
 
 vlog_node_t vlog_new(vlog_kind_t kind);
 vlog_kind_t vlog_kind(vlog_node_t v);

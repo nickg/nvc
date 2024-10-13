@@ -1347,18 +1347,18 @@ static tree_t cached_verilog(void)
 
 type_t verilog_type(verilog_type_t which)
 {
-   static type_t cache[VERILOG_RESOLVED_NET_ARRAY + 1] = {};
+   static type_t cache[VERILOG_WIRE_ARRAY + 1] = {};
    assert(which < ARRAY_LEN(cache));
 
    if (cache[which] == NULL) {
       const char *names[] = {
-         "T_LOGIC",
-         "T_PACKED_LOGIC",
-         "T_INT64",
-         "T_NET_VALUE",
-         "T_NET_ARRAY",
-         "T_RESOLVED_NET",
-         "T_RESOLVED_NET_ARRAY",
+         [VERILOG_LOGIC] = "T_LOGIC",
+         [VERILOG_LOGIC_ARRAY] = "T_LOGIC_ARRAY",
+         [VERILOG_INT64] = "T_INT64",
+         [VERILOG_NET_VALUE] = "T_NET_VALUE",
+         [VERILOG_NET_ARRAY] = "T_NET_ARRAY",
+         [VERILOG_WIRE] = "T_WIRE",
+         [VERILOG_WIRE_ARRAY] = "T_WIRE_ARRAY",
       };
 
       tree_t d = search_type_decls(cached_verilog(), ident_new(names[which]));

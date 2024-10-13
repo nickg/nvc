@@ -496,7 +496,7 @@ START_TEST(test_vlog1)
              "    r <= #5 1;\n"
              "  end\n"
              "  assign bus = 3;\n"
-             "  pullup (supply1,supply0) p1 (w);\n"
+             "  pullup (supply0,supply1) p1 (w);\n"
              "  mod u1 (w);\n"
              "  assign bus[2] = 4'd1;\n"
              "endmodule // mod2\n\n");

@@ -428,16 +428,12 @@ static void vlog_dump_mod_inst(vlog_node_t v, int indent)
 
 static void vlog_dump_strength(vlog_node_t v, int indent)
 {
-   switch (vlog_subkind(v)) {
-   case V_STRENGTH_PULL0: print_syntax("#pull0"); break;
-   case V_STRENGTH_STRONG0: print_syntax("#strong0"); break;
-   case V_STRENGTH_WEAK0: print_syntax("#weak0"); break;
-   case V_STRENGTH_SUPPLY0: print_syntax("#supply0"); break;
-   case V_STRENGTH_PULL1: print_syntax("#pull1"); break;
-   case V_STRENGTH_STRONG1: print_syntax("#strong1"); break;
-   case V_STRENGTH_WEAK1: print_syntax("#weak1"); break;
-   case V_STRENGTH_SUPPLY1: print_syntax("#supply1"); break;
-   }
+   static const char *map[] = {
+      "highz", "small", "medium", "weak", "large", "pull", "strong", "supply"
+   };
+
+   const unsigned level = vlog_subkind(v);
+   print_syntax("%s0,%s1", map[STRENGTH0(level)], map[STRENGTH1(level)]);
 }
 
 static void vlog_dump_bit_select(vlog_node_t v, int indent)

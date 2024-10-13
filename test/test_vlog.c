@@ -240,28 +240,28 @@ START_TEST(test_parse1)
    vlog_node_t s4 = vlog_stmt(m, 4);
    fail_unless(vlog_kind(s4) == V_GATE_INST);
    ck_assert_int_eq(vlog_subkind(s4), V_GATE_PULLDOWN);
-   ck_assert_int_eq(vlog_params(s4), 0);
+   ck_assert_int_eq(vlog_params(s4), 1);
    fail_unless(vlog_ident(s4) == ident_new("p2"));
    fail_unless(vlog_kind(vlog_target(s4)) == V_REF);
 
    vlog_node_t s5 = vlog_stmt(m, 5);
    fail_unless(vlog_kind(s5) == V_GATE_INST);
    ck_assert_int_eq(vlog_subkind(s5), V_GATE_PULLUP);
-   ck_assert_int_eq(vlog_params(s5), 0);
+   ck_assert_int_eq(vlog_params(s5), 1);
    fail_unless(vlog_ident(s5) == ident_new("p3"));
    fail_unless(vlog_kind(vlog_target(s5)) == V_REF);
 
    vlog_node_t s6 = vlog_stmt(m, 6);
    fail_unless(vlog_kind(s6) == V_GATE_INST);
    ck_assert_int_eq(vlog_subkind(s6), V_GATE_PULLUP);
-   ck_assert_int_eq(vlog_params(s6), 2);
+   ck_assert_int_eq(vlog_params(s6), 1);
    fail_unless(vlog_ident(s6) == ident_new("p4"));
    fail_unless(vlog_kind(vlog_target(s6)) == V_REF);
 
    vlog_node_t s7 = vlog_stmt(m, 7);
    fail_unless(vlog_kind(s7) == V_GATE_INST);
    ck_assert_int_eq(vlog_subkind(s7), V_GATE_PULLUP);
-   ck_assert_int_eq(vlog_params(s7), 0);
+   ck_assert_int_eq(vlog_params(s7), 1);
    fail_if(vlog_has_ident(s7));
    fail_unless(vlog_kind(vlog_target(s7)) == V_REF);
 

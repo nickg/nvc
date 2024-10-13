@@ -2001,47 +2001,31 @@ static void p_module_common_item(vlog_node_t mod)
    }
 }
 
-static vlog_node_t p_strength0(void)
+static vlog_strength_t p_strength0(void)
 {
    // supply0 | strong0 | pull0 | weak0
 
    BEGIN("strength0");
 
-   vlog_strength_t kind;
    switch (one_of(tSUPPLY0)) {
-   case tSUPPLY0:
    default:
-      kind = V_STRENGTH_SUPPLY0;
-      break;
+   case tSUPPLY0: return V_STRENGTH_SUPPLY;
    }
-
-   vlog_node_t v = vlog_new(V_STRENGTH);
-   vlog_set_subkind(v, kind);
-   vlog_set_loc(v, CURRENT_LOC);
-   return v;
 }
 
-static vlog_node_t p_strength1(void)
+static vlog_strength_t p_strength1(void)
 {
    // supply1 | strong1 | pull1 | weak1
 
    BEGIN("strength1");
 
-   vlog_strength_t kind;
    switch (one_of(tSUPPLY1)) {
-   case tSUPPLY1:
    default:
-      kind = V_STRENGTH_SUPPLY1;
-      break;
+   case tSUPPLY1: return V_STRENGTH_SUPPLY;
    }
-
-   vlog_node_t v = vlog_new(V_STRENGTH);
-   vlog_set_subkind(v, kind);
-   vlog_set_loc(v, CURRENT_LOC);
-   return v;
 }
 
-static void p_pulldown_strength(vlog_node_t *p0, vlog_node_t *p1)
+static vlog_node_t p_pulldown_strength(void)
 {
    // ( strength0 , strength1 ) | ( strength1 , strength0 ) | ( strength0 )
 
@@ -2049,23 +2033,29 @@ static void p_pulldown_strength(vlog_node_t *p0, vlog_node_t *p1)
 
    consume(tLPAREN);
 
+   vlog_strength_t s0, s1;
    switch (peek()) {
    case tSUPPLY1:
-      *p0 = p_strength1();
+      s1 = p_strength1();
       consume(tCOMMA);
-      *p1 = p_strength0();
+      s0 = p_strength0();
       break;
    default:
-      *p0 = p_strength0();
+      s0 = s1 = p_strength0();
       if (optional(tCOMMA))
-         *p1 = p_strength1();
+         s1 = p_strength1();
       break;
    }
 
    consume(tRPAREN);
+
+   vlog_node_t v = vlog_new(V_STRENGTH);
+   vlog_set_subkind(v, MAKE_STRENGTH(s0, s1));
+   vlog_set_loc(v, CURRENT_LOC);
+   return v;
 }
 
-static void p_pullup_strength(vlog_node_t *p0, vlog_node_t *p1)
+static vlog_node_t p_pullup_strength(void)
 {
    // ( strength0 , strength1 ) | ( strength1 , strength0 ) | ( strength1 )
 
@@ -2073,24 +2063,29 @@ static void p_pullup_strength(vlog_node_t *p0, vlog_node_t *p1)
 
    consume(tLPAREN);
 
+   vlog_strength_t s0, s1;
    switch (peek()) {
    case tSUPPLY0:
-      *p0 = p_strength0();
+      s0 = p_strength0();
       consume(tCOMMA);
-      *p1 = p_strength1();
+      s1 = p_strength1();
       break;
    default:
-      *p0 = p_strength1();
+      s1 = s0 = p_strength1();
       if (optional(tCOMMA))
-         *p1 = p_strength0();
+         s0 = p_strength0();
       break;
    }
 
    consume(tRPAREN);
+
+   vlog_node_t v = vlog_new(V_STRENGTH);
+   vlog_set_subkind(v, MAKE_STRENGTH(s0, s1));
+   vlog_set_loc(v, CURRENT_LOC);
+   return v;
 }
 
-static vlog_node_t p_pull_gate_instance(vlog_gate_kind_t kind, vlog_node_t p0,
-                                        vlog_node_t p1)
+static vlog_node_t p_pull_gate_instance(vlog_gate_kind_t kind, vlog_node_t st)
 {
    // [ name_of_instance ] ( output_terminal )
 
@@ -2098,12 +2093,7 @@ static vlog_node_t p_pull_gate_instance(vlog_gate_kind_t kind, vlog_node_t p0,
 
    vlog_node_t v = vlog_new(V_GATE_INST);
    vlog_set_subkind(v, kind);
-
-   if (p0 != NULL)
-      vlog_add_param(v, p0);
-
-   if (p1 != NULL)
-      vlog_add_param(v, p1);
+   vlog_add_param(v, st);
 
    if (peek() == tID)
       vlog_set_ident(v, p_identifier());
@@ -2173,12 +2163,16 @@ static void p_gate_instantiation(vlog_node_t mod)
                   tNOT, tBUF)) {
    case tPULLDOWN:
       {
-         vlog_node_t p0 = NULL, p1 = NULL;
+         vlog_node_t st;
          if (peek() == tLPAREN && peek_nth(2) != tID)
-            p_pulldown_strength(&p0, &p1);
+            st = p_pulldown_strength();
+         else {
+            st = vlog_new(V_STRENGTH);
+            vlog_set_subkind(st, ST_PULLUP);
+         }
 
          do {
-            vlog_node_t g = p_pull_gate_instance(V_GATE_PULLDOWN, p0, p1);
+            vlog_node_t g = p_pull_gate_instance(V_GATE_PULLDOWN, st);
             vlog_add_stmt(mod, g);
          } while (optional(tCOMMA));
       }
@@ -2186,12 +2180,16 @@ static void p_gate_instantiation(vlog_node_t mod)
 
    case tPULLUP:
       {
-         vlog_node_t p0 = NULL, p1 = NULL;
+         vlog_node_t st;
          if (peek() == tLPAREN && peek_nth(2) != tID)
-            p_pullup_strength(&p0, &p1);
+            st = p_pullup_strength();
+         else {
+            st = vlog_new(V_STRENGTH);
+            vlog_set_subkind(st, ST_PULLUP);
+         }
 
          do {
-            vlog_node_t g = p_pull_gate_instance(V_GATE_PULLUP, p0, p1);
+            vlog_node_t g = p_pull_gate_instance(V_GATE_PULLUP, st);
             vlog_add_stmt(mod, g);
          } while (optional(tCOMMA));
       }

@@ -18,60 +18,73 @@ use work.polyfill.all;
 
 package body verilog is
 
-    subtype t_strength is natural range 0 to 7;
-
-    function strength (value : t_net_value) return t_strength is
+    procedure encode_net (result : out t_net_value;
+                          value : in t_logic;
+                          strength0, strength1 : in t_strength) is
     begin
-        case value is
-            when highz0 | highz1 => return 0;
-            when small0 | small1 => return 1;
-            when medium0 | medium1 => return 2;
-            when weak0 | weak1 => return 3;
-            when large0 | large1 => return 4;
-            when pull0 | pull1 => return 5;
-            when strong0 | strong1 => return 6;
-            when supply0 | supply1 | 'X' => return 7;
-        end case;
-    end function;
+        result := t_logic'pos(value)
+            + t_strength'pos(strength0) * 4
+            + t_strength'pos(strength1) * 32;
+    end procedure;
 
-    function resolved (inputs : t_net_array) return t_net_value is
-        variable result : t_net_value;
-        constant count  : natural := inputs'length;
-        alias a_inputs  : t_net_array(1 to count) is inputs;
+    procedure decode_net (net : in t_net_value;
+                          value : out t_logic;
+                          strength0, strength1 : out t_strength) is
     begin
-        if inputs'length = 0 then
-            return 'X';
-        else
-            result := a_inputs(1);
+        value := t_logic'val(net rem 4);
+        strength0 := t_strength'val((net / 4) rem 8);
+        strength1 := t_strength'val((net / 32) rem 8);
+    end procedure;
+
+    function resolve_wire (inputs : t_net_array) return t_net_value is
+        variable result    : t_net_value;
+        variable data      : t_logic := 'Z';
+        variable strength0 : t_strength := HiZ;
+        variable strength1 : t_strength := HiZ;
+        variable elem      : t_logic;
+        variable elem_st0  : t_strength;
+        variable elem_st1  : t_strength;
+        constant count     : natural := inputs'length;
+        alias a_inputs     : t_net_array(1 to count) is inputs;
+    begin
+        if inputs'length > 0 then
+            decode_net(a_inputs(1), data, strength0, strength1);
             for i in 2 to count loop
-                if strength(a_inputs(i)) > strength(result) then
-                    result := a_inputs(i);
+                decode_net(a_inputs(i), elem, elem_st0, elem_st1);
+                -- TODO: this is incorrect
+                if elem = '1' and elem_st1 > strength1 then
+                    data := '1';
+                    strength1 := elem_st1;
+                    strength0 := elem_st0;
+                elsif elem = '0' and elem_st0 > strength0 then
+                    data := '0';
+                    strength1 := elem_st1;
+                    strength0 := elem_st0;
+                elsif (elem = '0' and data = '1' and elem_st0 = strength1)
+                    or (elem = '1' and data = '0' and elem_st1 = strength0)
+                then
+                    data := 'X';
+                    strength1 := st;
+                    strength0 := st;
                 end if;
             end loop;
-            return result;
         end if;
+        encode_net(result, data, strength0, strength1);
+        return result;
     end function;
 
     function to_logic (value : t_net_value) return t_logic is
+        variable result : t_logic;
+        variable strength0, strength1 : t_strength;
     begin
-        case value is
-            when 'X' =>
-                return 'X';
-            when supply0 | strong0 | pull0 | large0 | weak0
-                | medium0 | small0 =>
-                return '0';
-            when small1 | medium1 | weak1 | large1 | pull1
-                | strong1 | supply1 =>
-                return '1';
-            when highz1 | highz0 =>
-                return 'Z';
-        end case;
+        decode_net(value, result, strength0, strength1);
+        return result;
     end function;
 
-    function to_logic (value : t_net_array) return t_packed_logic is
+    function to_logic (value : t_net_array) return t_logic_array is
         constant length : natural := value'length;
         alias a_value   : t_net_array(length - 1 downto 0) is value;
-        variable result : t_packed_logic(length - 1 downto 0);
+        variable result : t_logic_array(length - 1 downto 0);
     begin
         for i in result'range loop
             result(i) := to_logic(a_value(i));
@@ -79,19 +92,20 @@ package body verilog is
         return result;
     end function;
 
-    function to_logic (value : t_resolved_net_array) return t_packed_logic is
+    function to_logic (value : t_wire_array) return t_logic_array is
         constant length : natural := value'length;
-        alias a_value   : t_resolved_net_array(length - 1 downto 0) is value;
-        variable result : t_packed_logic(length - 1 downto 0);
+        alias a_value   : t_wire_array(length - 1 downto 0) is value;
+        variable result : t_logic_array(length - 1 downto 0);
+        variable strength0, strength1 : t_strength;
     begin
         for i in result'range loop
-            result(i) := to_logic(a_value(i));
+            decode_net(a_value(i), result(i), strength0, strength1);
         end loop;
         return result;
     end function;
 
-    function to_logic (value : t_int64; width : natural) return t_packed_logic is
-        variable result : t_packed_logic(width - 1 downto 0);
+    function to_logic (value : t_int64; width : natural) return t_logic_array is
+        variable result : t_logic_array(width - 1 downto 0);
         variable b_val  : t_logic := '0';
         variable i_val  : t_int64 := value;
     begin
@@ -112,41 +126,55 @@ package body verilog is
         return result;
     end function;
 
-    function to_net_value (value : t_logic) return t_net_value is
+    function to_net (value : t_logic; strength : t_net_value) return t_net_value is
     begin
-        case value is
-            when 'X' => return 'X';
-            when '0' => return strong0;
-            when '1' => return strong1;
-            when 'Z' => return highz1;
-        end case;
+        assert strength rem 4 = 0;
+        return strength + t_logic'pos(value);
     end function;
 
-    function to_net_value (value : t_packed_logic) return t_net_array is
+    function to_net (value : t_logic_array;
+                     strength : t_net_value) return t_net_array is
         constant length : natural := value'length;
-        alias a_value   : t_packed_logic(length - 1 downto 0) is value;
+        alias a_value   : t_logic_array(length - 1 downto 0) is value;
         variable result : t_net_array(length - 1 downto 0);
     begin
         for i in result'range loop
-            result(i) := to_net_value(a_value(i));
+            result(i) := strength + t_logic'pos(a_value(i));
         end loop;
         return result;
     end function;
 
-    function to_net_value (value : t_packed_logic) return t_resolved_net_array is
+    function to_net (value : t_logic) return t_net_value is
+        variable result : t_net_value;
+    begin
+        encode_net(result, value, St, St);
+        return result;
+    end function;
+
+    function to_net (value : t_logic_array) return t_net_array is
         constant length : natural := value'length;
-        alias a_value   : t_packed_logic(length - 1 downto 0) is value;
-        variable result : t_resolved_net_array(length - 1 downto 0);
+        alias a_value   : t_logic_array(length - 1 downto 0) is value;
+        variable result : t_net_array(length - 1 downto 0);
     begin
         for i in result'range loop
-            result(i) := to_net_value(a_value(i));
+            encode_net(result(i), a_value(i), St, St);
         end loop;
         return result;
     end function;
 
+    function to_net (value : t_logic_array) return t_wire_array is
+        constant length : natural := value'length;
+        alias a_value   : t_logic_array(length - 1 downto 0) is value;
+        variable result : t_wire_array(length - 1 downto 0);
+    begin
+        for i in result'range loop
+            encode_net(result(i), a_value(i), St, St);
+        end loop;
+        return result;
+    end function;
 
-    function to_integer (value : t_packed_logic) return t_int64 is
-        alias v    : t_packed_logic(value'length - 1 downto 0) is value;
+    function to_integer (value : t_logic_array) return t_int64 is
+        alias v    : t_logic_array(value'length - 1 downto 0) is value;
         variable r : t_int64 := 0;
     begin
         for i in v'range loop
@@ -158,8 +186,8 @@ package body verilog is
         return r;
     end function;
 
-    function to_time (value : t_packed_logic) return delay_length is
-        alias v    : t_packed_logic(value'length - 1 downto 0) is value;
+    function to_time (value : t_logic_array) return delay_length is
+        alias v    : t_logic_array(value'length - 1 downto 0) is value;
         variable r : delay_length := 0 fs;
     begin
         for i in v'range loop
@@ -182,20 +210,27 @@ package body verilog is
     end function;
 
     function to_vhdl (value : t_net_value) return std_ulogic is
+        variable data : t_logic;
+        variable strength0, strength1 : t_strength;
     begin
-        case value is
+        decode_net(value, data, strength0, strength1);
+        case data is
             when 'X' =>
                 return 'U';
-            when supply0 | strong0 | pull0 | large0 =>
-                return '0';
-            when weak0 | medium0 | small0 =>
-                return 'L';
-            when highz0 | highz1 =>
+            when '0' =>
+                if strength0 = We or strength0 = Me or strength0 = Sm then
+                    return 'L';
+                else
+                    return '0';
+                end if;
+            when '1' =>
+                if strength1 = We or strength1 = Me or strength1 = Sm then
+                    return 'H';
+                else
+                    return '1';
+                end if;
+            when 'Z' =>
                 return 'Z';
-            when small1 | medium1 | weak1 =>
-                return 'H';
-            when large1 | pull1 | strong1 | supply1 =>
-                return '1';
         end case;
     end function;
 
@@ -210,22 +245,39 @@ package body verilog is
     end function;
 
     function to_verilog (value : std_ulogic) return t_net_value is
+        variable result : t_net_value;
+        variable data : t_logic;
+        variable strength0, strength1 : t_strength := St;
     begin
         case value is
-            when '1' => return strong1;
-            when 'H' => return weak1;
-            when '0' => return strong0;
-            when 'L' => return weak0;
-            when 'Z' => return highz1;
-            when others => return 'X';
+            when '1' =>
+                data := '1';
+            when 'H' =>
+                data := '1';
+                strength0 := We;
+                strength1 := We;
+            when '0' =>
+                data := '0';
+            when 'L' =>
+                data := '0';
+                strength0 := We;
+                strength1 := We;
+            when 'Z' =>
+                data := 'Z';
+                strength0 := HiZ;
+                strength1 := HiZ;
+            when others =>
+                data := 'X';
         end case;
+        encode_net(result, data, strength0, strength1);
+        return result;
     end function;
 
-    function to_string (value : t_packed_logic) return string is
+    function to_string (value : t_logic_array) return string is
         constant length  : natural := value'length;
         constant lookup  : string(1 to 4) := "XZ01";
         variable result  : string(1 to length);
-        alias a_value : t_packed_logic(length downto 1) is value;
+        alias a_value : t_logic_array(length downto 1) is value;
     begin
         for i in 1 to length loop
             result(i) := lookup(t_logic'pos(a_value(i)) + 1);
@@ -233,9 +285,9 @@ package body verilog is
         return result;
     end function;
 
-    function resize (value : t_packed_logic; length : natural) return t_packed_logic is
+    function resize (value : t_logic_array; length : natural) return t_logic_array is
         constant orig : natural := value'length;
-        alias a_value : t_packed_logic(orig - 1 downto 0) is value;
+        alias a_value : t_logic_array(orig - 1 downto 0) is value;
     begin
         if length = orig then
             return value;
@@ -246,8 +298,8 @@ package body verilog is
         end if;
     end function;
 
-    function resize (value : t_logic; length : natural) return t_packed_logic is
-        subtype rtype is t_packed_logic(length - 1 downto 0);
+    function resize (value : t_logic; length : natural) return t_logic_array is
+        subtype rtype is t_logic_array(length - 1 downto 0);
     begin
         return rtype'(0 => value, others => '0');
     end function;
@@ -279,7 +331,7 @@ package body verilog is
         end if;
     end function;
 
-    function "or" (l, r : t_packed_logic) return t_logic is
+    function "or" (l, r : t_logic_array) return t_logic is
         variable result : t_logic := '0';
     begin
         for i in l'range loop
@@ -307,13 +359,13 @@ package body verilog is
         end if;
     end function;
 
-    function "and" (l, r : t_packed_logic) return t_packed_logic is
+    function "and" (l, r : t_logic_array) return t_logic_array is
         constant llen   : natural := l'length;
         constant rlen   : natural := r'length;
         constant len    : natural := maximum(llen, rlen);
-        alias la        : t_packed_logic(llen - 1 downto 0) is l;
-        alias ra        : t_packed_logic(rlen - 1 downto 0) is r;
-        variable result : t_packed_logic(len - 1 downto 0);
+        alias la        : t_logic_array(llen - 1 downto 0) is l;
+        alias ra        : t_logic_array(rlen - 1 downto 0) is r;
+        variable result : t_logic_array(len - 1 downto 0);
     begin
         for i in result'range loop
             if i < llen and i < rlen then
@@ -334,10 +386,10 @@ package body verilog is
         end case;
     end function;
 
-    function "not" (x : t_packed_logic) return t_packed_logic is
+    function "not" (x : t_logic_array) return t_logic_array is
         constant len    : natural := x'length;
-        alias xa        : t_packed_logic(len - 1 downto 0) is x;
-        variable result : t_packed_logic(len - 1 downto 0);
+        alias xa        : t_logic_array(len - 1 downto 0) is x;
+        variable result : t_logic_array(len - 1 downto 0);
     begin
         for i in result'range loop
             result(i) := not xa(i);
@@ -345,7 +397,7 @@ package body verilog is
         return result;
     end function;
 
-    function "not" (x : t_packed_logic) return t_logic is
+    function "not" (x : t_logic_array) return t_logic is
         variable result : t_logic := '1';
     begin
         for i in x'range loop
@@ -358,7 +410,7 @@ package body verilog is
         return result;
     end function;
 
-    function and_reduce (arg : t_packed_logic) return t_logic is
+    function and_reduce (arg : t_logic_array) return t_logic is
         variable result : t_logic := '1';
     begin
         for i in arg'range loop
@@ -367,12 +419,12 @@ package body verilog is
         return result;
     end function;
 
-    function nand_reduce (arg : t_packed_logic) return t_logic is
+    function nand_reduce (arg : t_logic_array) return t_logic is
     begin
         return not and_reduce(arg);
     end function;
 
-    function or_reduce (arg : t_packed_logic) return t_logic is
+    function or_reduce (arg : t_logic_array) return t_logic is
         variable result : t_logic := '0';
     begin
         for i in arg'range loop
@@ -381,13 +433,13 @@ package body verilog is
         return result;
     end function;
 
-    function nor_reduce (arg : t_packed_logic) return t_logic is
+    function nor_reduce (arg : t_logic_array) return t_logic is
     begin
         return not or_reduce(arg);
     end function;
 
-    function xor_reduce (arg : t_packed_logic) return t_logic is
-        alias norm : t_packed_logic(1 to arg'length) is arg;
+    function xor_reduce (arg : t_logic_array) return t_logic is
+        alias norm : t_logic_array(1 to arg'length) is arg;
         variable result : t_logic := '0';
     begin
         if arg'length > 0 then
@@ -399,16 +451,16 @@ package body verilog is
         return result;
     end function;
 
-    function xnor_reduce (arg : t_packed_logic) return t_logic is
+    function xnor_reduce (arg : t_logic_array) return t_logic is
     begin
         return not xor_reduce(arg);
     end function;
 
-    function add_unsigned (l, r : t_packed_logic; c : t_logic) return t_packed_logic is
+    function add_unsigned (l, r : t_logic_array; c : t_logic) return t_logic_array is
         constant l_left : integer := l'length - 1;
-        alias xl        : t_packed_logic(l_left downto 0) is l;
-        alias xr        : t_packed_logic(l_left downto 0) is r;
-        variable result : t_packed_logic(l_left downto 0);
+        alias xl        : t_logic_array(l_left downto 0) is l;
+        alias xr        : t_logic_array(l_left downto 0) is r;
+        variable result : t_logic_array(l_left downto 0);
         variable cbit   : t_logic := c;
     begin
         for i in 0 to l_left loop
@@ -418,34 +470,33 @@ package body verilog is
         return result;
     end function;
 
-    function "+" (l, r : t_packed_logic) return t_packed_logic is
+    function "+" (l, r : t_logic_array) return t_logic_array is
         constant size : natural := maximum(l'length, r'length);
-        variable lext : t_packed_logic(size - 1 downto 0) := resize(l, size);
-        variable rext : t_packed_logic(size - 1 downto 0) := resize(r, size);
+        variable lext : t_logic_array(size - 1 downto 0) := resize(l, size);
+        variable rext : t_logic_array(size - 1 downto 0) := resize(r, size);
     begin
         return add_unsigned(lext, rext, '0');
     end function;
 
-    function "-" (arg : t_packed_logic) return t_packed_logic is
+    function "-" (arg : t_logic_array) return t_logic_array is
         constant arg_left : integer := arg'length - 1;
-        alias xarg        : t_packed_logic(arg_left downto 0) is arg;
-        variable result   : t_packed_logic(arg_left downto 0);
+        alias xarg        : t_logic_array(arg_left downto 0) is arg;
+        variable result   : t_logic_array(arg_left downto 0);
         variable cbit     : t_logic := '1';
     begin
         for i in 0 to arg_left loop
-            report t_logic'image(xarg(i));
             result(i) := not xarg(i) xor cbit;
             cbit      := cbit and not xarg(i);
         end loop;
         return result;
     end function;
 
-    function "=" (l, r : t_packed_logic) return boolean is
+    function "=" (l, r : t_logic_array) return boolean is
         constant lsize   : natural := l'length;
         constant rsize   : natural := r'length;
         constant minsize : natural := minimum(lsize, rsize);
-        alias la : t_packed_logic(lsize - 1 downto 0) is l;
-        alias ra : t_packed_logic(rsize - 1 downto 0) is r;
+        alias la : t_logic_array(lsize - 1 downto 0) is l;
+        alias ra : t_logic_array(rsize - 1 downto 0) is r;
     begin
         for i in 0 to minsize - 1 loop
             if la(i) /= ra(i) then
@@ -468,12 +519,12 @@ package body verilog is
         return true;
     end function;
 
-    function "/=" (l, r : t_packed_logic) return boolean is
+    function "/=" (l, r : t_logic_array) return boolean is
     begin
         return not (l = r);
     end function;
 
-    impure function sys_time return t_packed_logic is
+    impure function sys_time return t_logic_array is
     begin
         return to_logic(time'pos(now), 64);
     end function;
