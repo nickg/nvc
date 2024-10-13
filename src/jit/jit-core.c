@@ -705,6 +705,11 @@ static void jit_unpack_args(jit_func_t *f, jit_scalar_t *args, va_list ap)
       case FFI_INT32:
          args[wptr++].integer = va_arg(ap, int32_t);
          break;
+      case FFI_UINT8:
+      case FFI_UINT16:
+      case FFI_UINT32:
+         args[wptr++].integer = va_arg(ap, uint32_t);
+         break;
       default:
          args[wptr++].integer = va_arg(ap, int64_t);
          break;
