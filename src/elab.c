@@ -1283,6 +1283,30 @@ static void elab_generics(tree_t entity, tree_t bind, elab_ctx_t *ctx)
    }
 }
 
+static void elab_map_generic_type(type_t generic, type_t actual, hash_t *map)
+{
+   assert(type_kind(generic) == T_GENERIC);
+
+   switch (type_subkind(generic)) {
+   case GTYPE_ARRAY:
+      {
+         type_t gelem = type_elem(generic);
+         if (type_kind(gelem) == T_GENERIC && !type_has_ident(gelem))
+            elab_map_generic_type(gelem, type_elem(actual), map);
+
+         const int ndims = type_indexes(generic);
+         for (int i = 0; i < ndims; i++) {
+            type_t index = type_index(generic, i);
+            if (type_kind(index) == T_GENERIC && !type_has_ident(index))
+               elab_map_generic_type(index, index_type_of(actual, i), map);
+         }
+      }
+      break;
+   }
+
+   hash_put(map, generic, actual);
+}
+
 static void elab_instance_fixup(tree_t arch, const elab_ctx_t *ctx)
 {
    if (standard() < STD_08)
@@ -1306,7 +1330,7 @@ static void elab_instance_fixup(tree_t arch, const elab_ctx_t *ctx)
 
       switch (class) {
       case C_TYPE:
-         hash_put(map, tree_type(g), tree_type(value));
+         elab_map_generic_type(tree_type(g), tree_type(value), map);
          break;
 
       case C_PACKAGE:
