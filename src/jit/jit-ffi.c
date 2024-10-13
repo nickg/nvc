@@ -92,7 +92,8 @@ void ffi_return_string(const char *str, jit_scalar_t *args, tlab_t *tlab)
 bool ffi_is_integral(ffi_type_t type)
 {
    return type == FFI_INT8 || type == FFI_INT16 || type == FFI_INT32
-      || type == FFI_INT64;
+      || type == FFI_INT64 || type == FFI_UINT8 || type == FFI_UINT16
+      || type == FFI_UINT32;
 }
 
 int64_t ffi_widen_int(ffi_type_t type, const void *input)
@@ -102,6 +103,9 @@ int64_t ffi_widen_int(ffi_type_t type, const void *input)
    case FFI_INT16: return *((int16_t *)input);
    case FFI_INT32: return *((int32_t *)input);
    case FFI_INT64: return *((int64_t *)input);
+   case FFI_UINT8: return *((uint8_t *)input);
+   case FFI_UINT16: return *((uint16_t *)input);
+   case FFI_UINT32: return *((uint32_t *)input);
    default:
       fatal_trace("invalid integer type in ffi_widen_int");
    }
@@ -110,8 +114,11 @@ int64_t ffi_widen_int(ffi_type_t type, const void *input)
 void ffi_store_int(ffi_type_t type, uint64_t value, void *output)
 {
    switch (type) {
+   case FFI_UINT8:
    case FFI_INT8: *(uint8_t *)output = (uint8_t)value; break;
+   case FFI_UINT16:
    case FFI_INT16: *(uint16_t *)output = (uint16_t)value; break;
+   case FFI_UINT32:
    case FFI_INT32: *(uint32_t *)output = (uint32_t)value; break;
    case FFI_INT64: *(uint64_t *)output = value; break;
    default:
@@ -250,7 +257,7 @@ ffi_spec_t ffi_spec_new(const ffi_type_t *types, size_t count)
 
 #ifdef DEBUG
    for (int i = 0; i < count; i++)
-      assert(islower(types[i]));
+      assert(isalpha(types[i]));
 #endif
 
    ffi_spec_t spec = {};

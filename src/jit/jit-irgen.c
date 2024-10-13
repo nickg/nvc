@@ -961,14 +961,17 @@ static ffi_type_t irgen_ffi_type(vcode_type_t type)
       switch (vtype_repr(type)) {
       case VCODE_REPR_U1:
       case VCODE_REPR_U8:
+         return FFI_UINT8;
       case VCODE_REPR_I8:
          return FFI_INT8;
       case VCODE_REPR_I16:
-      case VCODE_REPR_U16:
          return FFI_INT16;
+      case VCODE_REPR_U16:
+         return FFI_UINT16;
       case VCODE_REPR_I32:
-      case VCODE_REPR_U32:
          return FFI_INT32;
+      case VCODE_REPR_U32:
+         return FFI_UINT32;
       default:
          return FFI_INT64;
       }
