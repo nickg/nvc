@@ -3,6 +3,7 @@
   library has the same name as design unit being analysed (#991).
 - Added a check for illegal references to signal or variable external
   names inside pure functions (#1010).
+- Several other minor bugs were resolved (#1017).
 
 ## Version 1.14.0 - 2024-09-22
 - Waiting on implicit `'stable` and `'quiet` signals now works
