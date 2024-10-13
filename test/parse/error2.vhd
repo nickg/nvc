@@ -53,4 +53,9 @@ package body dunno is
         f(0) := 1;                      -- Error
     end procedure;
 
+    procedure proc5 is
+        variable v : now;               -- Error
+    begin
+    end procedure;
+
 end package body;

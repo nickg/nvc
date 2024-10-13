@@ -3580,6 +3580,7 @@ START_TEST(test_error2)
       { 42, "unexpected function while parsing subprogram body" },
       { 45, "trailing protected type declaration label to match OTHER" },
       { 47, "unexpected integer while parsing subtype declaration" },
+      { 57, "type mark does not denote a type or a subtype" },
       { -1, NULL }
    };
    expect_errors(expect);

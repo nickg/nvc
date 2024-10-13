@@ -2482,8 +2482,6 @@ static type_t name_to_type_mark(tree_t name)
       return type;
 
    const tree_kind_t namek = tree_kind(name);
-   assert(namek == T_REF || namek == T_ATTR_REF);
-
    if (namek == T_ATTR_REF)
       return type;
 
