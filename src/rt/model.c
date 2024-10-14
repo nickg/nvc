@@ -613,6 +613,11 @@ rt_proc_t *get_active_proc(void)
    return container_of(obj, rt_proc_t, wakeable);
 }
 
+rt_scope_t *get_active_scope(rt_model_t *m)
+{
+   return model_thread(m)->active_scope;
+}
+
 static void free_waveform(rt_model_t *m, waveform_t *w)
 {
    model_thread_t *thread = model_thread(m);

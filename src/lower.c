@@ -9620,7 +9620,7 @@ static void lower_instantiated_package(lower_unit_t *parent, tree_t decl)
                                      vu, parent->cover, decl);
    unit_registry_put(parent->registry, lu);
 
-   lu->cscope = cover_create_scope(lu->cover, parent->cscope, decl);
+   lu->cscope = cover_create_scope(lu->cover, parent->cscope, decl, NULL);
 
    lower_generics(lu, decl, NULL);
    lower_decls(lu, decl);
@@ -9841,7 +9841,7 @@ static void lower_protected_body(lower_unit_t *lu, object_t *obj)
    tree_t body = tree_from_object(obj);
    assert(tree_kind(body) == T_PROT_BODY);
 
-   lu->cscope = cover_create_scope(lu->cover, lu->cscope, body);
+   lu->cscope = cover_create_scope(lu->cover, lu->cscope, body, NULL);
 
    if (standard() >= STD_19) {
       // LCS-2016-032 requires dynamic 'PATH_NAME and 'INSTANCE_NAME for
@@ -11122,7 +11122,7 @@ static void lower_proc_body(lower_unit_t *lu, object_t *obj)
    tree_t body = tree_from_object(obj);
    assert(!is_uninstantiated_subprogram(body));
 
-   lu->cscope = cover_create_scope(lu->cover, lu->parent->cscope, body);
+   lu->cscope = cover_create_scope(lu->cover, lu->parent->cscope, body, NULL);
 
    vcode_type_t vcontext = vtype_context(lu->parent->name);
    emit_param(vcontext, vcontext, ident_new("context"));
@@ -11155,7 +11155,7 @@ static void lower_func_body(lower_unit_t *lu, object_t *obj)
    vcode_type_t vcontext = vtype_context(lu->parent->name);
    emit_param(vcontext, vcontext, ident_new("context"));
 
-   lu->cscope = cover_create_scope(lu->cover, lu->parent->cscope, body);
+   lu->cscope = cover_create_scope(lu->cover, lu->parent->cscope, body, NULL);
 
    if (tree_kind(body) == T_FUNC_INST)
       lower_generics(lu, body, NULL);
@@ -11414,7 +11414,7 @@ void lower_process(lower_unit_t *parent, tree_t proc, driver_set_t *ds)
                                      parent->cover, proc);
    unit_registry_put(parent->registry, lu);
 
-   lu->cscope = cover_create_scope(lu->cover, parent->cscope, proc);
+   lu->cscope = cover_create_scope(lu->cover, parent->cscope, proc, NULL);
 
    lower_decls(lu, proc);
 
@@ -13052,7 +13052,7 @@ lower_unit_t *lower_instance(unit_registry_t *ur, lower_unit_t *parent,
       else if (tree_kind(unit) == T_ARCH)
          lu->cscope = cover_create_instance(cover, parent->cscope, block, unit);
       else
-         lu->cscope = cover_create_scope(cover, parent->cscope, block);
+         lu->cscope = cover_create_scope(cover, parent->cscope, block, NULL);
 
       cover_ignore_from_pragmas(cover, lu->cscope, unit);
    }
@@ -13125,7 +13125,8 @@ static cover_scope_t *lower_emit_cover_scopes(lower_unit_t *lu,
       return lcs->cscope;
    else {
       cover_scope_t *parent = lower_emit_cover_scopes(lu, lcs->parent);
-      return (lcs->cscope = cover_create_scope(lu->cover, parent, lcs->tree));
+      return (lcs->cscope = cover_create_scope(lu->cover, parent,
+                                               lcs->tree, NULL));
    }
 }
 

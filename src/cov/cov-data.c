@@ -81,6 +81,9 @@ fbuf_t *cover_open_lib_file(tree_t top, fbuf_mode_t mode, bool check_null)
 
 static cover_src_t get_cover_source(cover_item_kind_t kind, object_t *obj)
 {
+   if (obj == NULL)
+      return COV_SRC_UNKNOWN;
+
    tree_t t = tree_from_object(obj);
    if (t != NULL) {
       switch (kind) {
@@ -134,17 +137,20 @@ static cover_src_t get_cover_source(cover_item_kind_t kind, object_t *obj)
    return COV_SRC_UNKNOWN;
 }
 
-const loc_t *get_cover_loc(cover_item_kind_t kind, object_t *obj)
+const loc_t get_cover_loc(cover_item_kind_t kind, object_t *obj)
 {
+   if (obj == NULL)
+      return LOC_INVALID;
+
    tree_t t = tree_from_object(obj);
    if (t != NULL) {
       // Refer location of test condition instead of branch statement to
       // get accurate test condition location in the coverage report
       if (kind == COV_ITEM_BRANCH && tree_kind(t) != T_ASSOC)
-         return tree_loc(tree_value(t));
+         return *tree_loc(tree_value(t));
    }
 
-   return &(obj->loc);
+   return obj->loc;
 }
 
 static int32_t cover_add_item(cover_data_t *data, cover_scope_t *cs,
@@ -189,14 +195,12 @@ static int32_t cover_add_item(cover_data_t *data, cover_scope_t *cs,
    if (kind == COV_ITEM_TOGGLE)
       metadata = cs->sig_pos;
 
-   const loc_t *loc = get_cover_loc(kind, obj);
-
    cover_item_t new = {
       .kind          = kind,
       .tag           = data->next_tag++,
       .data          = 0,
       .flags         = flags,
-      .loc           = *loc,
+      .loc           = get_cover_loc(kind, obj),
       .loc_lhs       = loc_lhs,
       .loc_rhs       = loc_rhs,
       .hier          = hier,
@@ -649,17 +653,15 @@ cover_item_t *cover_add_items_for(cover_data_t *data, cover_scope_t *cs,
         ignore_scope = ignore_scope->parent)
       ;
 
-   const loc_t *loc = get_cover_loc(kind, obj);
+   const loc_t loc = get_cover_loc(kind, obj);
 
    for (int i = 0; i < ignore_scope->ignore_lines.count; i++) {
       line_range_t *lr = &(ignore_scope->ignore_lines.items[i]);
-      if (loc->first_line > lr->start && loc->first_line <= lr->end)
+      if (loc.first_line > lr->start && loc.first_line <= lr->end)
          return NULL;
    }
 
    // Emit items based on item kind
-   assert(obj != NULL);
-   tree_t tree = tree_from_object(obj);
    int32_t first_item_index = -1;
 
    switch (kind) {
@@ -683,6 +685,7 @@ cover_item_t *cover_add_items_for(cover_data_t *data, cover_scope_t *cs,
 
    case COV_ITEM_TOGGLE:
       {
+         tree_t tree = tree_from_object(obj);
          type_t type = tree_type(tree);
          const int ndims = dimension_of(type);
          first_item_index =
@@ -691,6 +694,7 @@ cover_item_t *cover_add_items_for(cover_data_t *data, cover_scope_t *cs,
       break;
    case COV_ITEM_EXPRESSION:
    {
+      tree_t tree = tree_from_object(obj);
       assert(tree_kind(tree) == T_FCALL);
 
       // Choose if to emit for built-in or "std_logic"
@@ -922,7 +926,7 @@ static bool cover_should_emit_scope(cover_data_t *data, cover_scope_t *cs,
 }
 
 cover_scope_t *cover_create_scope(cover_data_t *data, cover_scope_t *parent,
-                                  tree_t t)
+                                  tree_t t, ident_t name)
 {
    if (data == NULL)
       return NULL;
@@ -931,7 +935,6 @@ cover_scope_t *cover_create_scope(cover_data_t *data, cover_scope_t *parent,
    assert(data->root_scope != NULL);
 
    cover_scope_t *s = xcalloc(sizeof(cover_scope_t));
-   ident_t name = NULL;
    char prefix[16] = {0};
    int *cnt;
    char c = 0;
@@ -951,8 +954,10 @@ cover_scope_t *cover_create_scope(cover_data_t *data, cover_scope_t *parent,
       name = tree_ident(t);
       s->sig_pos = ident_len(parent->hier) + 1;
    }
-   else if (tree_has_ident(t))
-      name = tree_ident(t);
+   else if (tree_has_ident(t)) {
+      if (name == NULL)
+         name = tree_ident(t);
+   }
    // Consider everything else as statement
    // Expressions do not get scope pushed, so if scope for e.g.
    // T_FCALL is pushed it will be concurent function call -> Label as statement

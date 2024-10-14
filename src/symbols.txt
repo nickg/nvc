@@ -48,6 +48,11 @@
   _std_env_set_assert_format;
   _std_env_set_assert_format_valid;
 
+  # Exported from src/rt/cover.c
+  _nvc_create_cover_scope;
+  _nvc_add_cover_item;
+  _nvc_increment_cover_item;
+
   # Exported from src/rt/simpkg.c
   _nvc_current_delta;
   _nvc_ieee_warnings;

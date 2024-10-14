@@ -264,3 +264,113 @@ void x_cover_setup_state_cb(sig_shared_t *ss, int64_t low, int32_t tag)
 
    model_set_event_cb(m, s, cover_state_cb, (void *)(uintptr_t)(tag - low), false);
 }
+
+static cover_scope_t *find_cover_scope(cover_data_t *data, rt_model_t *m,
+                                       rt_scope_t *inst)
+{
+   if (inst->parent == NULL)
+      return data->root_scope;
+
+   cover_scope_t *parent = find_cover_scope(data, m, inst->parent);
+   if (parent == NULL)
+      return NULL;
+
+   ident_t suffix = ident_rfrom(inst->name, '.');
+
+   for (int i = 0; i < parent->children.count; i++) {
+      if (parent->children.items[i]->name == suffix)
+         return parent->children.items[i];
+   }
+
+   tree_t hier = tree_decl(inst->parent->where, 0);
+   assert(tree_kind(hier) == T_HIER);
+
+   if (tree_kind(tree_ref(hier)) == T_COMPONENT)
+      return parent;   // Skip over implicit block for components
+
+   return NULL;
+}
+
+DLLEXPORT
+void _nvc_create_cover_scope(jit_scalar_t *args)
+{
+   cover_scope_t **ptr = args[2].pointer;
+   const char *name_bytes = args[3].pointer;
+   size_t name_len = ffi_array_length(args[5].integer);
+
+   *ptr = NULL;
+
+   rt_model_t *m = get_model_or_null();
+   if (m == NULL)
+      return;
+
+   cover_data_t *data = get_coverage(m);
+   if (data == NULL || !cover_enabled(data, COVER_MASK_FUNCTIONAL))
+      return;
+
+   rt_scope_t *inst = get_active_scope(m);
+   assert(inst->kind == SCOPE_INSTANCE);
+
+   cover_scope_t *parent = find_cover_scope(data, m, inst);
+   if (parent == NULL)
+      return;
+
+   ident_t name = ident_new_n(name_bytes, name_len);
+   *ptr = cover_create_scope(data, parent, inst->where, name);
+}
+
+DLLEXPORT
+void _nvc_add_cover_item(jit_scalar_t *args)
+{
+   cover_scope_t *s = *(cover_scope_t **)args[2].pointer;
+   int32_t *index_ptr = args[3].pointer;
+   const char *name_bytes = args[4].pointer;
+   size_t name_len = ffi_array_length(args[6].integer);
+
+   *index_ptr = -1;
+
+   if (s == NULL || !s->emit)
+      return;
+
+   rt_model_t *m = get_model_or_null();
+   if (m == NULL)
+      return;
+
+   cover_data_t *data = get_coverage(m);
+   if (data == NULL || !cover_enabled(data, COVER_MASK_FUNCTIONAL))
+      return;
+
+   cover_item_t *item = cover_add_items_for(data, s, NULL, COV_ITEM_FUNCTIONAL);
+   assert(item != NULL);   // Preconditions checked above
+
+   ident_t name = ident_new_n(name_bytes, name_len);
+   item->hier = ident_prefix(item->hier, name, '.');
+   item->loc = s->loc;   // XXX: keeps report from crashing but location
+                         //      does not make sense here
+
+   *index_ptr = item - s->items.items;
+}
+
+DLLEXPORT
+void _nvc_increment_cover_item(jit_scalar_t *args)
+{
+   cover_scope_t *s = *(cover_scope_t **)args[2].pointer;
+   int32_t index = args[3].integer;
+
+   if (s == NULL || !s->emit)
+      return;
+
+   rt_model_t *m = get_model_or_null();
+   if (m == NULL)
+      return;
+
+   cover_data_t *data = get_coverage(m);
+   if (data == NULL || !cover_enabled(data, COVER_MASK_FUNCTIONAL))
+      return;
+
+   if (index < 0 || index >= s->items.count)
+      jit_msg(NULL, DIAG_FATAL, "cover item index %d out of range", index);
+
+   int32_t *counter = get_cover_counter(m, s->items.items[index].tag);
+   increment_counter(counter);
+}

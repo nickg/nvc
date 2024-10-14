@@ -1058,3 +1058,4 @@ psl11           fail,gold,2008
 cover24         shell
 vlog12          verilog
 conv15          normal
+cover25         cover=functional

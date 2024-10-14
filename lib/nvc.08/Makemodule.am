@@ -12,7 +12,9 @@ nvc_08_DATA = \
 	lib/nvc.08/NVC.PSL_SUPPORT \
 	lib/nvc.08/NVC.PSL_SUPPORT-body \
 	lib/nvc.08/NVC.VERILOG \
-	lib/nvc.08/NVC.VERILOG-body
+	lib/nvc.08/NVC.VERILOG-body \
+	lib/nvc.08/NVC.COVER_PKG \
+	lib/nvc.08/NVC.COVER_PKG-body
 
 EXTRA_DIST += \
 	lib/nvc.08/polyfill.vhd \
@@ -57,6 +59,12 @@ lib/nvc.08/NVC.VERILOG: $(srcdir)/lib/nvc/verilog.vhd @ifGNUmake@ | $(DRIVER)
 
 lib/nvc.08/NVC.VERILOG-body: $(srcdir)/lib/nvc/verilog-body.vhd @ifGNUmake@ | $(DRIVER)
 	$(nvc) --std=2008 -L lib/ --work=lib/nvc.08 -a $(srcdir)/lib/nvc/verilog-body.vhd
+
+lib/nvc.08/NVC.COVER_PKG: $(srcdir)/lib/nvc/cover_pkg.vhd @ifGNUmake@ | $(DRIVER)
+	$(nvc) --std=2008 -L lib/ --work=lib/nvc.08 -a $(srcdir)/lib/nvc/cover_pkg.vhd
+
+lib/nvc.08/NVC.COVER_PKG-body: $(srcdir)/lib/nvc/cover_pkg-body.vhd @ifGNUmake@ | $(DRIVER)
+	$(nvc) --std=2008 -L lib/ --work=lib/nvc.08 -a $(srcdir)/lib/nvc/cover_pkg-body.vhd
 
 gen-deps-nvc-08:
 	$(nvc) --std=2008 -L lib/ --work=lib/nvc.08 --print-deps | \
