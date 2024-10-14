@@ -1129,6 +1129,10 @@ void intern_strings(void)
       ident_new("IEEE.STD_LOGIC_1164.STD_LOGIC_VECTOR");
    id_cache[W_IEEE_ULOGIC_VECTOR] =
       ident_new("IEEE.STD_LOGIC_1164.STD_ULOGIC_VECTOR");
+   id_cache[W_IEEE_1164_RISING_EDGE] =
+      ident_new("IEEE.STD_LOGIC_1164.RISING_EDGE(sU)B");
+   id_cache[W_IEEE_1164_FALLING_EDGE] =
+      ident_new("IEEE.STD_LOGIC_1164.FALLING_EDGE(sU)B");
 
    id_cache[W_NUMERIC_STD_UNSIGNED] = ident_new("IEEE.NUMERIC_STD_UNSIGNED");
    id_cache[W_NUMERIC_BIT_UNSIGNED] = ident_new("IEEE.NUMERIC_BIT_UNSIGNED");

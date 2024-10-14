@@ -17,9 +17,9 @@
 
 #include "test_util.h"
 #include "common.h"
-#include "hash.h"
 #include "jit/jit.h"
 #include "lib.h"
+#include "option.h"
 #include "phase.h"
 #include "scan.h"
 #include "type.h"
@@ -1761,6 +1761,35 @@ START_TEST(test_physical)
 }
 END_TEST
 
+START_TEST(test_synth1)
+{
+   opt_set_int(OPT_CHECK_SYNTHESIS, 1);
+
+   input_from_file(TESTDIR "/simp/synth1.vhd");
+
+   const error_t expect[] = {
+      { 22, "signal Z is read in process P1 but is not in the sensitivity" },
+      { 22, "signal Y is read in process P1 but is not in the sensitivity" },
+      { 39, "signal CLK is read in process P4 but is not in the" },
+      { 55, "signal RESET is read in process P6 but is not in the" },
+      { 80, "signal R is read in the process but is not in the sensitivity" },
+      { -1, NULL },
+   };
+   expect_errors(expect);
+
+   tree_t a = parse_check_and_simplify(T_ENTITY, T_ARCH);
+
+   tree_t p1 = tree_stmt(a, 0);
+   fail_unless(tree_kind(p1) == T_PROCESS);
+
+   tree_t w = tree_stmt(p1, 1);
+   fail_unless(tree_kind(w) == T_WAIT);
+   fail_unless(tree_triggers(w) == 1);   // Should not be modified
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_simp_tests(void)
 {
    Suite *s = suite_create("simplify");
@@ -1831,6 +1860,7 @@ Suite *get_simp_tests(void)
    tcase_add_test(tc_core, test_issue882);
    tcase_add_test(tc_core, test_packinst1);
    tcase_add_test(tc_core, test_physical);
+   tcase_add_test(tc_core, test_synth1);
    suite_add_tcase(s, tc_core);
 
    return s;

@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2022-2023  Nick Gasson
+//  Copyright (C) 2022-2024  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -173,4 +173,5 @@ void set_default_options(void)
    opt_set_int(OPT_VHPI_DEBUG, 0);
    opt_set_int(OPT_SERVER_PORT, 8888);
    opt_set_int(OPT_STDERR_LEVEL, DIAG_DEBUG);
+   opt_set_int(OPT_CHECK_SYNTHESIS, 0);
 }

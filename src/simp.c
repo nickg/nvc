@@ -21,6 +21,7 @@
 #include "diag.h"
 #include "eval.h"
 #include "hash.h"
+#include "option.h"
 #include "phase.h"
 #include "type.h"
 
@@ -619,6 +620,97 @@ static void simp_all_sensitivity_cb(tree_t expr, void *ctx)
    simp_build_wait_cb(expr, ctx);
 }
 
+static void simp_synth_check_cb(tree_t expr, void *ctx)
+{
+   tree_t prefix[8] = { expr }, proc = ctx;
+   int nprefix = 1;
+   for (tree_t ref = expr;
+        nprefix < ARRAY_LEN(prefix) && tree_kind(ref) != T_REF;
+        prefix[nprefix++] = ref = tree_value(ref));
+
+   const int ntriggers = tree_triggers(proc);
+   for (int i = 0; i < ntriggers; i++) {
+      tree_t trigger = tree_trigger(proc, i);
+      for (int j = 0; j < nprefix; j++) {
+         if (same_tree(prefix[j], trigger))
+            return;
+      }
+   }
+
+   diag_t *d = diag_new(DIAG_WARN, tree_loc(expr));
+   diag_printf(d, "signal %s is read in ",
+               istr(tree_ident(prefix[nprefix - 1])));
+   if (tree_flags(proc) & TREE_F_SYNTHETIC_NAME)
+      diag_printf(d, "the process");
+   else
+      diag_printf(d, "process %s", istr(tree_ident(proc)));
+   diag_printf(d, " but is not in the sensitivity list");
+   diag_hint(d, tree_loc(proc), "missing from sensitivity list");
+   diag_hint(d, tree_loc(expr), "read here");
+   diag_emit(d);
+
+   tree_add_trigger(proc, expr);   // Suppress further warnings
+}
+
+static void simp_clock_edge_cb(tree_t t, void *ctx)
+{
+   bool *clocked = ctx;
+
+   // Simple heuristic to detect clock expressions
+   switch (tree_kind(t)) {
+   case T_ATTR_REF:
+      if (tree_subkind(t) == ATTR_EVENT)
+         *clocked = true;
+      break;
+
+   case T_FCALL:
+      {
+         switch (is_well_known(tree_ident2(tree_ref(t)))) {
+         case W_IEEE_1164_RISING_EDGE:
+         case W_IEEE_1164_FALLING_EDGE:
+            *clocked = true;
+            break;
+         default:
+            break;
+         }
+      }
+      break;
+
+   default:
+      break;
+   }
+}
+
+static void simp_synth_sensitivity(tree_t proc)
+{
+   const int nstmts = tree_stmts(proc);
+   for (int i = 0; i < nstmts; i++) {
+      tree_t s = tree_stmt(proc, i);
+      if (tree_kind(s) == T_IF) {
+         const int nconds = tree_conds(s);
+         for (int j = 0; j < nconds; j++) {
+            tree_t c = tree_cond(s, j);
+
+            if (tree_has_value(c)) {
+               tree_t value = tree_value(c);
+
+               bool clocked = false;
+               tree_visit(value, simp_clock_edge_cb, &clocked);
+
+               if (clocked)
+                  build_wait(value, simp_synth_check_cb, proc);
+               else
+                  build_wait(c, simp_synth_check_cb, proc);
+            }
+            else
+               build_wait(c, simp_synth_check_cb, proc);
+         }
+      }
+      else
+         build_wait(s, simp_synth_check_cb, proc);
+   }
+}
+
 static tree_t simp_process(tree_t t)
 {
    // Replace sensitivity list with a "wait on" statement
@@ -647,6 +739,9 @@ static tree_t simp_process(tree_t t)
       if (ntriggers == 1 && tree_kind(tree_trigger(t, 0)) == T_ALL)
          build_wait(t, simp_all_sensitivity_cb, w);
       else {
+         if (opt_get_int(OPT_CHECK_SYNTHESIS))
+            simp_synth_sensitivity(t);   // May add to list after ntriggers
+
          for (int i = 0; i < ntriggers; i++)
             tree_add_trigger(w, tree_trigger(t, i));
       }

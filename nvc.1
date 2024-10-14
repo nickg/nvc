@@ -238,6 +238,10 @@ Disable certain pedantic LRM conformance checks or rules that were
 relaxed by later standards.  See the
 .Sx RELAXED RULES
 section below for details.
+.\" --check-synthesis
+.It Fl \-check\-synthesis
+Issue warnings for common coding mistakes that may cause problems during
+synthesis such as missing signals from process sensitivity lists.
 .\" -D, --define
 .It Fl D Ar name Ns = Ns Ar value , Fl \-define Ns = Ns Ar name Ns = Ns Ar value
 Define a conditional analysis identifier (VHDL-2019).  Option can be

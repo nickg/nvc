@@ -185,6 +185,7 @@ static int analyse(int argc, char **argv, cmd_state_t *state)
       { "relaxed",         no_argument,       0, 'R' },
       { "define",          required_argument, 0, 'D' },
       { "files",           required_argument, 0, 'f' },
+      { "check-synthesis", no_argument,       0, 's' },
       { 0, 0, 0, 0 }
    };
 
@@ -228,8 +229,11 @@ static int analyse(int argc, char **argv, cmd_state_t *state)
       case 'f':
          file_list = optarg;
          break;
+      case 's':
+         opt_set_int(OPT_CHECK_SYNTHESIS, 1);
+         break;
       default:
-         abort();
+         should_not_reach_here();
       }
    }
 
@@ -1944,6 +1948,7 @@ static void usage(void)
           "\n"
           "Analysis options:\n"
           "     --bootstrap\tAllow compilation of STANDARD package\n"
+          "     --check-synthesis\tWarn on common synthesis mistakes\n"
           " -D, --define NAME=VAL\tSet preprocessor symbol NAME to VAL\n"
           "     --error-limit=NUM\tStop after NUM errors\n"
           " -f, --files=LIST\tRead files to analyse from LIST\n"
