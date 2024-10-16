@@ -4482,8 +4482,11 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range, nametab_t *tab)
 
             type_t std_time = std_type(NULL, STD_TIME);
             if (!sem_check_type(value, std_time, tab))
-               sem_error(value, "attribute %s parameter must have type %s",
+               sem_error(value, "parameter of attribute %s must have type %s",
                          istr(attr), type_pp(std_time));
+            else if (!sem_globally_static(value))
+               sem_error(value, "parameter of attribute %s must be a static "
+                         "expression", istr(attr));
          }
 
          return true;
