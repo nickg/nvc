@@ -16,6 +16,7 @@ begin
         assert x'transaction = '1';     -- OK
         assert x'quiet;                 -- OK
         assert x'quiet(5 ns);           -- OK
+        assert x'stable(x * ns);        -- Error
     end process;
 
 end architecture;

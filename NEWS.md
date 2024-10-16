@@ -10,6 +10,8 @@
   names inside pure functions (#1010).
 - The new `--check-synthesis` analysis option warns when signals are
   missing from process sensitivity lists.
+- Added a check that the parameter of `'stable` and other implicit
+  signal attributes is a static expression (#1018).
 
 ## Version 1.14.0 - 2024-09-22
 - Waiting on implicit `'stable` and `'quiet` signals now works
