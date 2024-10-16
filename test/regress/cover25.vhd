@@ -57,4 +57,16 @@ begin
         wait;
     end process;
 
+    p3: process is
+        variable handle : t_scope_handle;
+        variable item1, item2 : t_item_handle;
+    begin
+        create_cover_scope(handle, "top_scope");
+        for i in 1 to 3 loop
+            add_cover_item(handle, item1, "dup");
+        end loop;
+        add_cover_item(handle, item2, " **.x~");
+        wait;
+    end process;
+
 end architecture;

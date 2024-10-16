@@ -291,6 +291,17 @@ static cover_scope_t *find_cover_scope(cover_data_t *data, rt_model_t *m,
    return NULL;
 }
 
+static void sanitise_name(text_buf_t *tb, const char *bytes, size_t len)
+{
+   for (size_t i = 0; i < len; i++) {
+      const char ch = bytes[i];
+      if (isalnum_iso88591(ch) || ch == '_')
+         tb_append(tb, ch);
+      else
+         tb_printf(tb, "&#%d;", ch);
+   }
+}
+
 DLLEXPORT
 void _nvc_create_cover_scope(jit_scalar_t *args)
 {
@@ -299,6 +310,9 @@ void _nvc_create_cover_scope(jit_scalar_t *args)
    size_t name_len = ffi_array_length(args[5].integer);
 
    *ptr = NULL;
+
+   if (name_len == 0)
+      jit_msg(NULL, DIAG_FATAL, "coverage scope name cannot be empty");
 
    rt_model_t *m = get_model_or_null();
    if (m == NULL)
@@ -315,7 +329,18 @@ void _nvc_create_cover_scope(jit_scalar_t *args)
    if (parent == NULL)
       return;
 
-   ident_t name = ident_new_n(name_bytes, name_len);
+   LOCAL_TEXT_BUF tb = tb_new();
+   sanitise_name(tb, name_bytes, name_len);
+
+   const size_t pfxlen = tb_len(tb);
+   for (int i = 0, dup = 0; i < parent->children.count; i++) {
+      if (icmp(parent->children.items[i]->name, tb_get(tb))) {
+         tb_trim(tb, pfxlen);
+         tb_printf(tb, "#%d", ++dup);
+      }
+   }
+
+   ident_t name = ident_new(tb_get(tb));
    *ptr = cover_create_scope(data, parent, inst->where, name);
 }
 
@@ -329,6 +354,9 @@ void _nvc_add_cover_item(jit_scalar_t *args)
 
    *index_ptr = -1;
 
+   if (name_len == 0)
+      jit_msg(NULL, DIAG_FATAL, "coverage item name cannot be empty");
+
    if (s == NULL || !s->emit)
       return;
 
@@ -340,11 +368,23 @@ void _nvc_add_cover_item(jit_scalar_t *args)
    if (data == NULL || !cover_enabled(data, COVER_MASK_FUNCTIONAL))
       return;
 
+   LOCAL_TEXT_BUF tb = tb_new();
+   tb_istr(tb, s->hier);
+   tb_append(tb, '.');
+   sanitise_name(tb, name_bytes, name_len);
+
+   const size_t pfxlen = tb_len(tb);
+   for (int i = 0, dup = 0; i < s->items.count; i++) {
+      if (icmp(s->items.items[i].hier, tb_get(tb))) {
+         tb_trim(tb, pfxlen);
+         tb_printf(tb, "#%d", ++dup);
+      }
+   }
+
    cover_item_t *item = cover_add_items_for(data, s, NULL, COV_ITEM_FUNCTIONAL);
    assert(item != NULL);   // Preconditions checked above
 
-   ident_t name = ident_new_n(name_bytes, name_len);
-   item->hier = ident_prefix(item->hier, name, '.');
+   item->hier = ident_new(tb_get(tb));
    item->loc = s->loc;   // XXX: keeps report from crashing but location
                          //      does not make sense here
 
