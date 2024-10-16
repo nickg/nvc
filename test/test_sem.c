@@ -1164,7 +1164,8 @@ START_TEST(test_implicit)
    input_from_file(TESTDIR "/sem/implicit.vhd");
 
    const error_t expect[] = {
-      { 12, "attribute DELAYED parameter must have type TIME" },
+      { 12, "parameter of attribute DELAYED must have type TIME" },
+      { 19, "parameter of attribute STABLE must be a static expression" },
       { -1, NULL }
    };
    expect_errors(expect);
