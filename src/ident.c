@@ -294,17 +294,6 @@ ident_t ident_new(const char *str)
    return ident_from_bytes(str, hash, len);
 }
 
-ident_t ident_new_n(const char *str, size_t len)
-{
-   assert(str != NULL);
-   assert(len > 0);
-
-   hash_state_t hash = HASH_INIT;
-   hash_update(&hash, str, len);
-
-   return ident_from_bytes(str, hash, len);
-}
-
 const char *istr(ident_t ident)
 {
    return ident ? ident->bytes : NULL;

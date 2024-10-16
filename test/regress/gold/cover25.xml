@@ -17,9 +17,17 @@
     </scope>
     <scope name="P2" line="45">
     </scope>
+    <scope name="P3" line="60">
+    </scope>
     <scope name="top_scope">
       <functional hier="WORK.COVER25.top_scope.item1" data="1"/>
       <functional hier="WORK.COVER25.top_scope.item2" data="2"/>
+    </scope>
+    <scope name="top_scope#1">
+      <functional hier="WORK.COVER25.top_scope#1.dup" data="0"/>
+      <functional hier="WORK.COVER25.top_scope#1.dup#1" data="0"/>
+      <functional hier="WORK.COVER25.top_scope#1.dup#2" data="0"/>
+      <functional hier="WORK.COVER25.top_scope#1.&#32;&#42;&#42;&#46;x&#126;" data="0"/>
     </scope>
   </scope>
 </scope>
