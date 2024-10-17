@@ -195,12 +195,14 @@ static int32_t cover_add_item(cover_data_t *data, cover_scope_t *cs,
    if (kind == COV_ITEM_TOGGLE)
       metadata = cs->sig_pos;
 
+   loc_t loc = get_cover_loc(kind, obj);
+
    cover_item_t new = {
       .kind          = kind,
       .tag           = data->next_tag++,
       .data          = 0,
       .flags         = flags,
-      .loc           = get_cover_loc(kind, obj),
+      .loc           = loc,
       .loc_lhs       = loc_lhs,
       .loc_rhs       = loc_rhs,
       .hier          = hier,
@@ -217,10 +219,10 @@ static int32_t cover_add_item(cover_data_t *data, cover_scope_t *cs,
    printf("    Consecutive:   %d\n", consecutive);
    printf("    Metadata:      %d\n", metadata);
    printf("    Function name: %s\n", istr(func_name));
-   printf("    First line:    %d\n", loc->first_line);
-   printf("    First column:  %d\n", loc->first_column);
-   printf("    Line delta:    %d\n", loc->line_delta);
-   printf("    Column delta:  %d\n", loc->column_delta);
+   printf("    First line:    %d\n", loc.first_line);
+   printf("    First column:  %d\n", loc.first_column);
+   printf("    Line delta:    %d\n", loc.line_delta);
+   printf("    Column delta:  %d\n", loc.column_delta);
    printf("\n\n");
 #endif
 
@@ -888,7 +890,7 @@ static bool cover_should_emit_scope(cover_data_t *data, cover_scope_t *cs,
          if (ident_glob(ename, AGET(spc->block_exclude, i), -1)) {
 #ifdef COVER_DEBUG_EMIT
             printf("Cover emit: False, block (Block: %s, Pattern: %s)\n",
-                   istr(ts->block_name), AGET(spc->block_exclude, i));
+                   istr(cs->block_name), AGET(spc->block_exclude, i));
 #endif
             return false;
          }
@@ -897,7 +899,7 @@ static bool cover_should_emit_scope(cover_data_t *data, cover_scope_t *cs,
          if (ident_glob(ename, AGET(spc->block_include, i), -1)) {
 #ifdef COVER_DEBUG_EMIT
             printf("Cover emit: True, block (Block: %s, Pattern: %s)\n",
-                   istr(ts->block_name), AGET(spc->block_include, i));
+                   istr(cs->block_name), AGET(spc->block_include, i));
 #endif
             return true;
          }
@@ -908,7 +910,7 @@ static bool cover_should_emit_scope(cover_data_t *data, cover_scope_t *cs,
       if (ident_glob(cs->hier, AGET(spc->hier_exclude, i), -1)) {
 #ifdef COVER_DEBUG_EMIT
          printf("Cover emit: False, hierarchy (Hierarchy: %s, Pattern: %s)\n",
-                istr(ts->hier), AGET(spc->hier_exclude, i));
+                istr(cs->hier), AGET(spc->hier_exclude, i));
 #endif
          return false;
       }
@@ -917,7 +919,7 @@ static bool cover_should_emit_scope(cover_data_t *data, cover_scope_t *cs,
       if (ident_glob(cs->hier, AGET(spc->hier_include, i), -1)) {
 #ifdef COVER_DEBUG_EMIT
          printf("Cover emit: True, hierarchy (Hierarchy: %s, Pattern: %s)\n",
-                istr(ts->hier), AGET(spc->hier_include, i));
+                istr(cs->hier), AGET(spc->hier_include, i));
 #endif
          return true;
       }
