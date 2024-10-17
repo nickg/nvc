@@ -48,7 +48,7 @@ enum std_ulogic {
 //#define COVER_DEBUG_CALLBACK
 
 ///////////////////////////////////////////////////////////////////////////////
-// Runtime handling
+// Toggle coverage
 ///////////////////////////////////////////////////////////////////////////////
 
 static inline void increment_counter(int32_t *ptr)
@@ -235,6 +235,10 @@ void x_cover_setup_toggle_cb(sig_shared_t *ss, int32_t tag)
    model_set_event_cb(m, s, fn, (void *)(uintptr_t)tag, false);
 }
 
+///////////////////////////////////////////////////////////////////////////////
+// FSM state coverage
+///////////////////////////////////////////////////////////////////////////////
+
 #define READ_STATE(type) offset = *((type *)signal_value(s));
 
 static void cover_state_cb(uint64_t now, rt_signal_t *s, rt_watch_t *w, void *user)
@@ -264,6 +268,10 @@ void x_cover_setup_state_cb(sig_shared_t *ss, int64_t low, int32_t tag)
 
    model_set_event_cb(m, s, cover_state_cb, (void *)(uintptr_t)(tag - low), false);
 }
+
+///////////////////////////////////////////////////////////////////////////////
+// Run-time API
+///////////////////////////////////////////////////////////////////////////////
 
 static cover_scope_t *find_cover_scope(cover_data_t *data, rt_model_t *m,
                                        rt_scope_t *inst)
@@ -311,9 +319,6 @@ void _nvc_create_cover_scope(jit_scalar_t *args)
 
    *ptr = NULL;
 
-   if (name_len == 0)
-      jit_msg(NULL, DIAG_FATAL, "coverage scope name cannot be empty");
-
    rt_model_t *m = get_model_or_null();
    if (m == NULL)
       return;
@@ -330,7 +335,10 @@ void _nvc_create_cover_scope(jit_scalar_t *args)
       return;
 
    LOCAL_TEXT_BUF tb = tb_new();
-   sanitise_name(tb, name_bytes, name_len);
+   if (name_len == 0)
+      tb_printf(tb, "__NVC_FUNC_COVER_POINT");
+   else
+      sanitise_name(tb, name_bytes, name_len);
 
    const size_t pfxlen = tb_len(tb);
    for (int i = 0, dup = 0; i < parent->children.count; i++) {
@@ -354,9 +362,6 @@ void _nvc_add_cover_item(jit_scalar_t *args)
 
    *index_ptr = -1;
 
-   if (name_len == 0)
-      jit_msg(NULL, DIAG_FATAL, "coverage item name cannot be empty");
-
    if (s == NULL || !s->emit)
       return;
 
@@ -371,7 +376,11 @@ void _nvc_add_cover_item(jit_scalar_t *args)
    LOCAL_TEXT_BUF tb = tb_new();
    tb_istr(tb, s->hier);
    tb_append(tb, '.');
-   sanitise_name(tb, name_bytes, name_len);
+
+   if (name_len == 0)
+      tb_printf(tb, "__NVC_FUNC_COVER_BIN");
+   else
+      sanitise_name(tb, name_bytes, name_len);
 
    const size_t pfxlen = tb_len(tb);
    for (int i = 0, dup = 0; i < s->items.count; i++) {
