@@ -12,6 +12,8 @@
   missing from process sensitivity lists.
 - Added a check that the parameter of `'stable` and other implicit
   signal attributes is a static expression (#1018).
+- Fixed an elaboration crash when an external name is passed to a
+  procedure (#1029).
 
 ## Version 1.14.0 - 2024-09-22
 - Waiting on implicit `'stable` and `'quiet` signals now works
