@@ -252,6 +252,7 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
       case VCODE_OP_ADD_TRIGGER:
       case VCODE_OP_OR_TRIGGER:
       case VCODE_OP_CMP_TRIGGER:
+      case VCODE_OP_BIND_EXTERNAL:
          break;
 
       case VCODE_OP_CONST_ARRAY:
@@ -6341,6 +6342,28 @@ START_TEST(test_issue972)
 }
 END_TEST
 
+START_TEST(test_issue1029)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/lower/issue1029.vhd");
+
+   run_elab();
+
+   vcode_unit_t vu = find_unit("WORK.ISSUE1029.CALL");
+   vcode_select_unit(vu);
+
+   EXPECT_BB(1) = {
+      { VCODE_OP_CONTEXT_UPREF, .hops = 1 },
+      { VCODE_OP_DEBUG_LOCUS },
+      { VCODE_OP_BIND_EXTERNAL },
+      { VCODE_OP_PCALL, .func = "WORK.ISSUE1029.P(sJ)", .target = 2 },
+   };
+
+   CHECK_BB(1);
+}
+END_TEST
+
 Suite *get_lower_tests(void)
 {
    Suite *s = suite_create("lower");
@@ -6489,6 +6512,7 @@ Suite *get_lower_tests(void)
    tcase_add_test(tc, test_issue934);
    tcase_add_test(tc, test_mixed2);
    tcase_add_test(tc, test_issue972);
+   tcase_add_test(tc, test_issue1029);
    suite_add_tcase(s, tc);
 
    return s;

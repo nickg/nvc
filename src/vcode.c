@@ -377,6 +377,7 @@ void vcode_heap_allocate(vcode_reg_t reg)
    case VCODE_OP_LINK_PACKAGE:
    case VCODE_OP_CONTEXT_UPREF:
    case VCODE_OP_PACKAGE_INIT:
+   case VCODE_OP_BIND_EXTERNAL:
       break;
 
    case VCODE_OP_ALLOC:
