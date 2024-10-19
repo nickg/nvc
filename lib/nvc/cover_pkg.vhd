@@ -39,21 +39,21 @@ package cover_pkg is
     procedure create_cover_scope (scope : out t_scope_handle;
                                   name  : in string);
 
-    procedure set_cover_scope_name(scope : inout t_scope_handle;
-                                   name  : in string);
+    procedure set_cover_scope_name(variable scope : inout t_scope_handle;
+                                            name  : in string);
 
-    procedure add_cover_item (scope     : inout t_scope_handle;
-                              item      : out t_item_handle;
-                              name      : in string;
-                              source    : in integer;
-                              atleast   : in integer;
-                              flags     : in integer;
-                              n_ranges  : in integer;
-                              ranges    : in t_item_range_array
+    procedure add_cover_item (variable scope     : inout t_scope_handle;
+                                       item      : out t_item_handle;
+                                       name      : in string;
+                                       source    : in integer;
+                                       atleast   : in integer;
+                                       flags     : in integer;
+                                       n_ranges  : in integer;
+                                       ranges    : in t_item_range_array
                               );
 
-    procedure increment_cover_item (scope : inout t_scope_handle;
-                                    item  : in t_item_handle);
+    procedure increment_cover_item (variable scope : inout t_scope_handle;
+                                             item  : in t_item_handle);
 
     attribute foreign of create_cover_scope : procedure
         is "INTERNAL _nvc_create_cover_scope";
