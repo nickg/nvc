@@ -208,7 +208,10 @@ static int32_t cover_add_item(cover_data_t *data, cover_scope_t *cs,
       .hier          = hier,
       .func_name     = func_name,
       .consecutive   = consecutive,
+      .atleast       = 1,
       .metadata      = metadata,
+      .n_ranges      = 0,
+      .ranges        = NULL,
       .source        = get_cover_source(kind, obj),
    };
 
@@ -790,7 +793,14 @@ static void cover_write_scope(cover_scope_t *s, fbuf_t *f,
       fbuf_put_uint(f, item->flags);
       fbuf_put_uint(f, item->source);
       fbuf_put_uint(f, item->consecutive);
+      fbuf_put_uint(f, item->atleast);
+      fbuf_put_uint(f, item->n_ranges);
       fbuf_put_uint(f, item->metadata);
+
+      for (int i = 0; i < item->n_ranges; i++) {
+         fbuf_put_uint(f, item->ranges[i].min);
+         fbuf_put_uint(f, item->ranges[i].max);
+      }
 
       loc_write(&(item->loc), loc_ctx);
       if (item->flags & COVER_FLAGS_LHS_RHS_BINS) {
@@ -799,7 +809,9 @@ static void cover_write_scope(cover_scope_t *s, fbuf_t *f,
       }
 
       ident_write(item->hier, ident_ctx);
-      if (item->kind == COV_ITEM_EXPRESSION || item->kind == COV_ITEM_STATE)
+      if (item->kind == COV_ITEM_EXPRESSION ||
+          item->kind == COV_ITEM_STATE ||
+          item->kind == COV_ITEM_FUNCTIONAL)
          ident_write(item->func_name, ident_ctx);
    }
 
@@ -1048,7 +1060,17 @@ static void cover_read_one_item(fbuf_t *f, loc_rd_ctx_t *loc_rd,
    item->flags       = fbuf_get_uint(f);
    item->source      = fbuf_get_uint(f);
    item->consecutive = fbuf_get_uint(f);
+   item->atleast     = fbuf_get_uint(f);
+   item->n_ranges    = fbuf_get_uint(f);
    item->metadata    = fbuf_get_uint(f);
+
+   if (item->n_ranges > 0)
+      item->ranges = xcalloc_array(item->n_ranges, sizeof(cover_range_t));
+
+   for (int i = 0; i < item->n_ranges; i++) {
+      item->ranges[i].min = fbuf_get_uint(f);
+      item->ranges[i].max = fbuf_get_uint(f);
+   }
 
    loc_read(&(item->loc), loc_rd);
    if (item->flags & COVER_FLAGS_LHS_RHS_BINS) {
@@ -1057,7 +1079,9 @@ static void cover_read_one_item(fbuf_t *f, loc_rd_ctx_t *loc_rd,
    }
 
    item->hier = ident_read(ident_ctx);
-   if (item->kind == COV_ITEM_EXPRESSION || item->kind == COV_ITEM_STATE)
+   if (item->kind == COV_ITEM_EXPRESSION ||
+       item->kind == COV_ITEM_STATE ||
+       item->kind == COV_ITEM_FUNCTIONAL)
       item->func_name = ident_read(ident_ctx);
 }
 
