@@ -22,15 +22,26 @@ package body cover_pkg is
         -- Foreign subprogram
     end procedure;
 
-    procedure add_cover_item (scope : inout t_scope_handle;
-                              item  : out t_item_handle;
-                              name  : in string) is
+    procedure add_cover_item (scope     : inout t_scope_handle;
+                              item      : out t_item_handle;
+                              name      : in string;
+                              source    : in integer;
+                              atleast   : in integer;
+                              flags     : in integer;
+                              n_ranges  : in integer;
+                              ranges    : in t_item_range_array) is
     begin
         -- Foreign subprogram
     end procedure;
 
     procedure increment_cover_item (scope : inout t_scope_handle;
                                     item  : in t_item_handle) is
+    begin
+        -- Foreign subprogram
+    end procedure;
+
+    procedure set_cover_scope_name(scope : inout t_scope_handle;
+                                   name  : in string) is
     begin
         -- Foreign subprogram
     end procedure;

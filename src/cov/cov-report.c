@@ -494,6 +494,7 @@ static void cover_print_item_title(FILE *f, cover_pair_t *pair)
       [COV_SRC_STATEMENT] = "Sequential statement",
       [COV_SRC_CONDITION] = "Condition",
       [COV_SRC_PSL_COVER] = "PSL cover point",
+      [COV_SRC_OSVVM_COVER] = "OSVVM cover point",
       [COV_SRC_UNKNOWN] = "",
    };
 
@@ -503,8 +504,10 @@ static void cover_print_item_title(FILE *f, cover_pair_t *pair)
    case COV_ITEM_STMT:
    case COV_ITEM_BRANCH:
    case COV_ITEM_FUNCTIONAL:
+   {
       fprintf(f, "%s:", text[pair->item->source]);
       break;
+   }
    case COV_ITEM_EXPRESSION:
       fprintf(f, "%s expression", istr(pair->item->func_name));
       break;
@@ -570,8 +573,13 @@ static void cover_print_get_exclude_button(FILE *f, cover_item_t *item,
    if (add_td)
       fprintf(f, "<td>");
 
-   // State coverage contains bin name (state name) appended to hierarchical path
-   bool out_of_table = (item->kind == COV_ITEM_STMT) || (item->kind == COV_ITEM_FUNCTIONAL);
+   bool out_of_table = false;
+   if (item->kind == COV_ITEM_STMT)
+      out_of_table = true;
+   else if ((item->kind == COV_ITEM_FUNCTIONAL) &&
+            ((item->flags & COV_FLAG_OSVVM) == 0))
+      out_of_table = true;
+
    fprintf(f, "<button onclick=\"GetExclude('exclude %s')\" %s>"
            "Copy %sto Clipboard</button>", istr(item->hier),
            out_of_table ? "style=\"float: right;\"" : "",
@@ -582,18 +590,13 @@ static void cover_print_get_exclude_button(FILE *f, cover_item_t *item,
 }
 
 static void cover_print_bin(FILE *f, cover_pair_t *pair, uint32_t flag,
-                            cov_pair_kind_t pkind, int cols, ...)
+                            cov_pair_kind_t pkind, int cols, const char **vals)
 {
-   va_list argp;
-   va_start(argp, cols);
-
    if (pair->item->flags & flag) {
       fprintf(f, "<tr><td><b>Bin</b></td>");
 
-      for (int i = 0; i < cols; i++) {
-         const char *val = va_arg(argp, const char *);
-         fprintf(f, "<td>%s</td>", val);
-      }
+      for (int i = 0; i < cols; i++)
+         fprintf(f, "<td>%s</td>", vals[i]);
 
       fprintf(f, "<td>%d</td>", pair->item->data);
 
@@ -610,16 +613,14 @@ static void cover_print_bin(FILE *f, cover_pair_t *pair, uint32_t flag,
    }
 }
 
-static void cover_print_bin_header(FILE *f, cov_pair_kind_t pkind, int cols, ...)
+static void cover_print_bin_header(FILE *f, cov_pair_kind_t pkind, int cols,
+                                   const char **titles)
 {
-   va_list argp;
-   va_start(argp, cols);
-
    fprintf(f, "<br><table class=\"cbt\">");
    fprintf(f, "<tr><th></th>");
 
    for (int i = 0; i < cols; i++) {
-      const char *val = va_arg(argp, const char *);
+      const char *val = titles[i];
       fprintf(f, "<th>%s</th>", val);
    }
 
@@ -643,8 +644,12 @@ static void cover_print_bins(FILE *f, cover_pair_t *first_pair, cov_pair_kind_t 
 
       switch (pair->item->kind) {
       case COV_ITEM_BRANCH:
-         cover_print_bin(f, pair, COV_FLAG_TRUE, pkind, 1, "True");
-         cover_print_bin(f, pair, COV_FLAG_FALSE, pkind, 1, "False");
+      {
+         const char *v_true = "True";
+         const char *v_false = "False";
+
+         cover_print_bin(f, pair, COV_FLAG_TRUE, pkind, 1, &v_true);
+         cover_print_bin(f, pair, COV_FLAG_FALSE, pkind, 1, &v_false);
 
          if (pair->item->flags & COV_FLAG_CHOICE) {
             int curr = loc.first_column;
@@ -659,38 +664,67 @@ static void cover_print_bins(FILE *f, cover_pair_t *first_pair, cov_pair_kind_t 
             }
             tb_printf(tb, "</code>");
 
-            cover_print_bin(f, pair, COV_FLAG_CHOICE, pkind, 1, tb_get(tb));
+            const char *v = tb_get(tb);
+            cover_print_bin(f, pair, COV_FLAG_CHOICE, pkind, 1, &v);
          }
          break;
+      }
 
       case COV_ITEM_TOGGLE:
-         cover_print_bin(f, pair, COV_FLAG_TOGGLE_TO_1, pkind, 2, "0", "1");
-         cover_print_bin(f, pair, COV_FLAG_TOGGLE_TO_0, pkind, 2, "1", "0");
+      {
+         const char *v_01[2] = {"0", "1"};
+         const char *v_10[2] = {"1", "0"};
+
+         cover_print_bin(f, pair, COV_FLAG_TOGGLE_TO_1, pkind, 2, v_01);
+         cover_print_bin(f, pair, COV_FLAG_TOGGLE_TO_0, pkind, 2, v_10);
          break;
+      }
 
       case COV_ITEM_STATE:
       {
          ident_t state_name = ident_rfrom(pair->item->hier, '.');
-         cover_print_bin(f, pair, COV_FLAG_STATE, pkind, 1, istr(state_name));
+         const char *v = istr(state_name);
+         cover_print_bin(f, pair, COV_FLAG_STATE, pkind, 1, &v);
          break;
       }
 
       case COV_ITEM_EXPRESSION:
       {
-         char *t_str = (pair->item->flags & COV_FLAG_EXPR_STD_LOGIC) ? "'1'" : "True";
-         char *f_str = (pair->item->flags & COV_FLAG_EXPR_STD_LOGIC) ? "'0'" : "False";
+         const char *t_str = (pair->item->flags & COV_FLAG_EXPR_STD_LOGIC) ? "'1'" : "True";
+         const char *f_str = (pair->item->flags & COV_FLAG_EXPR_STD_LOGIC) ? "'0'" : "False";
+
+         const char *ff[2] = {f_str, f_str};
+         const char *ft[2] = {f_str, t_str};
+         const char *tf[2] = {t_str, f_str};
+         const char *tt[2] = {t_str, t_str};
 
          if ((pair->item->flags & COV_FLAG_TRUE) || (pair->item->flags & COV_FLAG_FALSE)) {
-            cover_print_bin(f, pair, COV_FLAG_TRUE, pkind, 1, t_str);
-            cover_print_bin(f, pair, COV_FLAG_FALSE, pkind, 1, f_str);
+            cover_print_bin(f, pair, COV_FLAG_TRUE, pkind, 1, &t_str);
+            cover_print_bin(f, pair, COV_FLAG_FALSE, pkind, 1, &f_str);
          }
          else if (pair->item->flags & COV_FLAG_00 || pair->item->flags & COV_FLAG_01 ||
                   pair->item->flags & COV_FLAG_10 || pair->item->flags & COV_FLAG_11) {
-            cover_print_bin(f, pair, COV_FLAG_00, pkind, 2, f_str, f_str);
-            cover_print_bin(f, pair, COV_FLAG_01, pkind, 2, f_str, t_str);
-            cover_print_bin(f, pair, COV_FLAG_10, pkind, 2, t_str, f_str);
-            cover_print_bin(f, pair, COV_FLAG_11, pkind, 2, t_str, t_str);
+            cover_print_bin(f, pair, COV_FLAG_00, pkind, 2, ff);
+            cover_print_bin(f, pair, COV_FLAG_01, pkind, 2, ft);
+            cover_print_bin(f, pair, COV_FLAG_10, pkind, 2, tf);
+            cover_print_bin(f, pair, COV_FLAG_11, pkind, 2, tt);
          }
+         break;
+      }
+
+      case COV_ITEM_FUNCTIONAL:
+      {
+         cover_item_t *item = pair->item;
+         assert (item->source == COV_SRC_OSVVM_COVER);
+
+         const char *v[item->n_ranges] LOCAL;
+         for (int i = 0; i < item->n_ranges; i++)
+            if (item->ranges[i].min == item->ranges[i].max)
+               v[i] = xasprintf("%ld", item->ranges[i].min);
+            else
+               v[i] = xasprintf("%ld - %ld", item->ranges[i].min, item->ranges[i].max);
+
+         cover_print_bin(f, pair, COV_FLAG_OSVVM, pkind, item->n_ranges, v);
          break;
       }
 
@@ -701,7 +735,6 @@ static void cover_print_bins(FILE *f, cover_pair_t *first_pair, cov_pair_kind_t 
 
    fprintf(f, "</table>");
 }
-
 
 static void cover_print_pairs(FILE *f, cover_pair_t *first, cov_pair_kind_t pkind,
                               int pair_cnt)
@@ -731,14 +764,19 @@ static void cover_print_pairs(FILE *f, cover_pair_t *first, cov_pair_kind_t pkin
          break;
 
       case COV_ITEM_BRANCH:
+      {
          cover_print_item_title(f, curr);
          cover_print_code_loc(f, curr);
-         cover_print_bin_header(f, pkind, 1, (curr->item->flags & COV_FLAG_CHOICE) ?
-                                "Choice of" : "Evaluated to");
+
+         const char *title = (curr->item->flags & COV_FLAG_CHOICE) ? "Choice of" : "Evaluated to";
+         cover_print_bin_header(f, pkind, 1, &title);
+
          cover_print_bins(f, curr, pkind);
          break;
+      }
 
       case COV_ITEM_TOGGLE:
+      {
          if (curr->item->flags & COV_FLAG_TOGGLE_SIGNAL)
             fprintf(f, "<h3>Signal:</h3>");
          else if (curr->item->flags & COV_FLAG_TOGGLE_PORT)
@@ -748,35 +786,61 @@ static void cover_print_pairs(FILE *f, cover_pair_t *first, cov_pair_kind_t pkin
          sig_name += curr->item->metadata;
          fprintf(f, "&nbsp;<code>%s</code>", sig_name);
 
-         cover_print_bin_header(f, pkind, 2, "From", "To");
+         const char *title[2] = {"From", "To"};
+         cover_print_bin_header(f, pkind, 2, title);
+
          cover_print_bins(f, curr, pkind);
          break;
+      }
 
       case COV_ITEM_EXPRESSION:
+      {
          cover_print_item_title(f, curr);
          cover_print_code_loc(f, curr);
 
-         if ((curr->item->flags & COV_FLAG_TRUE) || (curr->item->flags & COV_FLAG_FALSE))
-            cover_print_bin_header(f, pkind, 1, "Evaluated to");
-         else
-            cover_print_bin_header(f, pkind, 2, "LHS", "RHS");
+         if ((curr->item->flags & COV_FLAG_TRUE) || (curr->item->flags & COV_FLAG_FALSE)) {
+            const char *title = "Evaluated to";
+            cover_print_bin_header(f, pkind, 1, &title);
+         }
+         else {
+            const char *title[2] = {"LHS", "RHS"};
+            cover_print_bin_header(f, pkind, 2, title);
+         }
 
          cover_print_bins(f, curr, pkind);
          break;
+      }
 
       case COV_ITEM_STATE:
          cover_print_item_title(f, curr);
          cover_print_code_loc(f, curr);
-         cover_print_bin_header(f, pkind, 1, "State");
+
+         const char *title = "State";
+         cover_print_bin_header(f, pkind, 1, &title);
+
          cover_print_bins(f, curr, pkind);
          break;
 
       case COV_ITEM_FUNCTIONAL:
-         if (pkind == PAIR_UNCOVERED)
-            cover_print_get_exclude_button(f, curr->item, 0, false);
-         cover_print_item_title(f, curr);
-         cover_print_code_loc(f, curr);
-         fprintf(f, "<br><b>Count:</b> %d", curr->item->data);
+         if (curr->item->source == COV_SRC_OSVVM_COVER) {
+            cover_print_item_title(f, curr);
+            fprintf(f, "<br>%s", istr(curr->item->func_name));
+
+            const char *title[curr->item->n_ranges] LOCAL;
+
+            for (int i = 0; i < curr->item->n_ranges; i++)
+               title[i] = xasprintf("Variable %d", i);
+
+            cover_print_bin_header(f, pkind, curr->item->n_ranges, title);
+            cover_print_bins(f, curr, pkind);
+         }
+         else {
+            if (pkind == PAIR_UNCOVERED)
+               cover_print_get_exclude_button(f, curr->item, 0, false);
+            cover_print_item_title(f, curr);
+            cover_print_code_loc(f, curr);
+            fprintf(f, "<br><b>Count:</b> %d", curr->item->data);
+         }
          break;
 
       default:
@@ -1057,7 +1121,7 @@ static int cover_append_item_to_chain(cover_data_t *data, cover_chain_group_t *c
       (*flat_total)++;
       (*nested_total)++;
 
-      if (curr_item->data > 0) {
+      if (curr_item->data >= curr_item->atleast) {
          (*flat_hits)++;
          (*nested_hits)++;
 
