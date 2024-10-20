@@ -214,7 +214,7 @@ typedef enum {
                         | COVER_MASK_TOGGLE | COVER_MASK_EXPRESSION     \
                         | COVER_MASK_STATE | COVER_MASK_FUNCTIONAL)
 
-cover_data_t *cover_data_init(cover_mask_t mask, int array_limit);
+cover_data_t *cover_data_init(cover_mask_t mask, int array_limit, int threshold);
 bool cover_enabled(cover_data_t *data, cover_mask_t mask);
 
 unsigned cover_count_items(cover_data_t *data);

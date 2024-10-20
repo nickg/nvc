@@ -208,7 +208,7 @@ static int32_t cover_add_item(cover_data_t *data, cover_scope_t *cs,
       .hier          = hier,
       .func_name     = func_name,
       .consecutive   = consecutive,
-      .atleast       = 1,
+      .atleast       = data->threshold,
       .metadata      = metadata,
       .n_ranges      = 0,
       .ranges        = NULL,
@@ -872,11 +872,12 @@ void cover_dump_items(cover_data_t *data, fbuf_t *f, cover_dump_t dt,
    ident_write_end(ident_ctx);
 }
 
-cover_data_t *cover_data_init(cover_mask_t mask, int array_limit)
+cover_data_t *cover_data_init(cover_mask_t mask, int array_limit, int threshold)
 {
    cover_data_t *data = xcalloc(sizeof(cover_data_t));
    data->mask = mask;
    data->array_limit = array_limit;
+   data->threshold = threshold;
 
    return data;
 }

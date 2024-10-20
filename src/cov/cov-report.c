@@ -599,6 +599,7 @@ static void cover_print_bin(FILE *f, cover_pair_t *pair, uint32_t flag,
          fprintf(f, "<td>%s</td>", vals[i]);
 
       fprintf(f, "<td>%d</td>", pair->item->data);
+      fprintf(f, "<td>%d</td>", pair->item->atleast);
 
       if (pkind == PAIR_UNCOVERED)
          cover_print_get_exclude_button(f, pair->item, flag, true);
@@ -625,6 +626,7 @@ static void cover_print_bin_header(FILE *f, cov_pair_kind_t pkind, int cols,
    }
 
    fprintf(f, "<th>Count</th>");
+   fprintf(f, "<th>Threshold</th>");
 
    if (pkind == PAIR_UNCOVERED)
       fprintf(f, "<th>Exclude Command</th>");
@@ -761,6 +763,7 @@ static void cover_print_pairs(FILE *f, cover_pair_t *first, cov_pair_kind_t pkin
          cover_print_item_title(f, curr);
          cover_print_code_loc(f, curr);
          fprintf(f, "<br><b>Count:</b> %d", curr->item->data);
+         fprintf(f, "<br><b>Threshold:</b> %d", curr->item->atleast);
          break;
 
       case COV_ITEM_BRANCH:
@@ -840,6 +843,7 @@ static void cover_print_pairs(FILE *f, cover_pair_t *first, cov_pair_kind_t pkin
             cover_print_item_title(f, curr);
             cover_print_code_loc(f, curr);
             fprintf(f, "<br><b>Count:</b> %d", curr->item->data);
+            fprintf(f, "<br><b>Threshold:</b> %d", curr->item->atleast);
          }
          break;
 
