@@ -6665,8 +6665,7 @@ START_TEST(test_issue917)
    const error_t expect[] = {
       { 31, "cannot associate impure function IMPURE_FUNC [INTEGER return "
         "INTEGER] with pure generic subprogram F1" },
-      { 35, "no visible subprogram ADD matches signature [INTEGER return " },
-      {  0, "while resolving interface subprogram default for F1" },
+      { 38, "no visible subprogram ADD matches signature [INTEGER return " },
       { 42, "no visible subprogram F1 matches signature [INTEGER, INTEGER "
         "return INTEGER]" },
       { -1, NULL }

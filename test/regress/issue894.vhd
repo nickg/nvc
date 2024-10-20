@@ -3,7 +3,7 @@ package QueueP is
     generic (G_QUEUE_COUNT : positive := 1;
              G_QUEUE_DEPTH : positive := 4096 / 8 + 5;
              type G_DATA_TYPE;
-             function G_TO_STRING(data : G_DATA_TYPE) return string is to_string);
+             function G_TO_STRING(data : G_DATA_TYPE) return string);
 
     subtype t_queue_count is natural range 0 to G_QUEUE_COUNT - 1;
 

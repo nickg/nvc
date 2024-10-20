@@ -3345,39 +3345,49 @@ void map_generic_box(nametab_t *tab, tree_t inst, tree_t g, unsigned pos)
    tree_t box = tree_value(g);
    assert(tree_kind(box) == T_BOX);
 
-   type_t type = tree_type(g);
-   ident_t func = tree_has_ident(box) ? tree_ident(box) : type_ident(type);
-
    tree_t ref = tree_new(T_REF);
    tree_set_loc(ref, tree_loc(inst));
-   tree_set_ident(ref, func);
+
+   type_t type = tree_type(g);
 
    tree_t decl = NULL;
-   const symbol_t *sym = iterate_symbol_for(tab, func);
-   if (sym != NULL) {
-      for (int i = 0; i < sym->ndecls; i++) {
-         const decl_t *dd = get_decl(sym, i);
-         if (dd->visibility == HIDDEN || !(dd->mask & N_SUBPROGRAM))
-            continue;
-         else if (dd->tree == g)
-            continue;
+   if (tree_has_ref(box)) {
+      tree_set_ident(ref, tree_ident(box));
+      decl = tree_ref(box);
+   }
+   else if (tree_has_ident(box)) {
+      // Lookup of default subprogram failed
+      assert(error_count() > 0);
+      suppress_errors(tab);
+   }
+   else {
+      const symbol_t *sym = iterate_symbol_for(tab, type_ident(type));
+      if (sym != NULL) {
+         for (int i = 0; i < sym->ndecls; i++) {
+            const decl_t *dd = get_decl(sym, i);
+            if (dd->visibility == HIDDEN || !(dd->mask & N_SUBPROGRAM))
+               continue;
+            else if (dd->tree == g)
+               continue;
 
-         tree_t sub = dd->tree;
-         if (dd->kind == T_ALIAS && !(sub = get_aliased_subprogram(sub)))
-            continue;
+            tree_t sub = dd->tree;
+            if (dd->kind == T_ALIAS && !(sub = get_aliased_subprogram(sub)))
+               continue;
 
-         type_t signature = tree_type(sub);
-         if (!type_eq_map(type, signature, tab->top_scope->gmap))
-            continue;
+            type_t signature = tree_type(sub);
+            if (!type_eq_map(type, signature, tab->top_scope->gmap))
+               continue;
 
-         decl = sub;
-         break;
+            decl = sub;
+            break;
+         }
       }
    }
 
    if (decl != NULL) {
       tree_set_ref(ref, decl);
       tree_set_type(ref, tree_type(decl));
+      tree_set_ident(ref, tree_ident(decl));
 
       map_generic_subprogram(tab, g, decl);
    }
@@ -3385,7 +3395,7 @@ void map_generic_box(nametab_t *tab, tree_t inst, tree_t g, unsigned pos)
       const char *signature = strchr(type_pp(type), '[');
       diag_t *d = diag_new(DIAG_ERROR, tree_loc(inst));
       diag_printf(d, "no visible subprogram %s matches signature %s",
-                  istr(func), signature);
+                  istr(type_ident(type)), signature);
       diag_hint(d, tree_loc(box), "while resolving interface subprogram "
                 "default for %s", istr(type_ident(type)));
 

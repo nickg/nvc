@@ -14,6 +14,8 @@
   signal attributes is a static expression (#1018).
 - Fixed an elaboration crash when an external name is passed to a
   procedure (#1029).
+- Fixed a crash when a generic subprogram is associated with `open`
+  (#1025).
 
 ## Version 1.14.0 - 2024-09-22
 - Waiting on implicit `'stable` and `'quiet` signals now works

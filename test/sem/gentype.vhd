@@ -36,7 +36,7 @@ architecture test of top is
     component comp4 is
         generic (
             type t;                     -- OK
-            function func1 (x : t) return t is my_func;  -- OK
+            function func1 (x : integer) return string is to_string;  -- OK
             procedure proc1 (x : t) is <> );  -- OK
     end component;
 

@@ -5648,11 +5648,16 @@ static void p_interface_subprogram_declaration(tree_t parent, tree_kind_t kind)
       case tID:
          {
             ident_t id = p_identifier();
+            type_t constraint = tree_type(d);
+
+            tree_t decl = resolve_subprogram_name(nametab, &last_loc,
+                                                  id, constraint);
 
             tree_t box = tree_new(T_BOX);
             tree_set_loc(box, &last_loc);
-            tree_set_type(box, tree_type(d));
+            tree_set_type(box, constraint);
             tree_set_ident(box, id);
+            tree_set_ref(box, decl);
 
             tree_set_value(d, box);
          }
