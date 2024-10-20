@@ -32,10 +32,16 @@
 
 typedef bool (*static_fn_t)(tree_t t);
 
+typedef enum {
+   MAP_MISSING,
+   MAP_OPEN,
+   MAP_PARTIAL,
+   MAP_FULL
+} map_state_t;
+
 typedef struct {
-   tree_t decl;
-   bool   have;
-   bool   partial;
+   tree_t      decl;
+   map_state_t state;
 } formal_map_t;
 
 static bool sem_check_array_ref(tree_t t, nametab_t *tab);
@@ -4666,10 +4672,10 @@ static bool sem_check_port_actual(formal_map_t *formals, int nformals,
             sem_error(value, "found at least %d positional actuals but %s "
                       "has only %d port%s", pos + 1, istr(tree_ident(unit)),
                       nformals, nformals == 1 ? "" : "s");
-         if (formals[pos].have)
+         if (formals[pos].state >= MAP_PARTIAL)
             sem_error(value, "formal port %s already has an actual",
                       istr(tree_ident(formals[pos].decl)));
-         formals[pos].have = true;
+         formals[pos].state = MAP_FULL;
          decl = formals[pos].decl;
          type = tree_type(decl);
       }
@@ -4706,11 +4712,11 @@ static bool sem_check_port_actual(formal_map_t *formals, int nformals,
 
          for (int i = 0; i < nformals; i++) {
             if (tree_ident(formals[i].decl) == tree_ident(ref)) {
-               if (formals[i].have && !formals[i].partial)
+               if (formals[i].state == MAP_FULL)
                   sem_error(value, "formal port %s already has an actual",
                             istr(tree_ident(formals[i].decl)));
-               formals[i].have    = true;
-               formals[i].partial = (tree_kind(name) != T_REF);
+               formals[i].state = (tree_kind(name) == T_REF)
+                  ? MAP_FULL : MAP_PARTIAL;
                decl = formals[i].decl;
                tree_set_flag(ref, TREE_F_FORMAL_NAME);
                break;
@@ -4773,7 +4779,7 @@ static bool sem_check_port_actual(formal_map_t *formals, int nformals,
 
    const port_mode_t mode = tree_subkind(decl);
 
-   if (tree_kind(value) == T_OPEN) {
+   if (kind == T_OPEN) {
       if ((mode == PORT_IN) && !tree_has_value(decl))
          sem_error(value, "unconnected port %s with mode IN must have a "
                    "default value", istr(tree_ident(decl)));
@@ -4919,9 +4925,8 @@ static bool sem_check_port_map(tree_t t, tree_t unit, nametab_t *tab)
    formal_map_t *formals LOCAL = xmalloc_array(nformals, sizeof(formal_map_t));
 
    for (int i = 0; i < nformals; i++) {
-      formals[i].decl    = tree_port(unit, i);
-      formals[i].have    = false;
-      formals[i].partial = false;
+      formals[i].decl  = tree_port(unit, i);
+      formals[i].state = MAP_MISSING;
    }
 
    for (int i = 0; i < nactuals; i++) {
@@ -4960,7 +4965,7 @@ static bool sem_check_port_map(tree_t t, tree_t unit, nametab_t *tab)
       return ok;
 
    for (int i = 0; i < nformals; i++) {
-      if (!formals[i].have) {
+      if (formals[i].state == MAP_MISSING) {
          port_mode_t mode = tree_subkind(formals[i].decl);
 
          if (mode == PORT_IN && !tree_has_value(formals[i].decl)) {
@@ -4989,20 +4994,16 @@ static bool sem_check_port_map(tree_t t, tree_t unit, nametab_t *tab)
 static bool sem_check_generic_actual(formal_map_t *formals, int nformals,
                                      tree_t param, tree_t unit, nametab_t *tab)
 {
-   tree_t value = tree_value(param), decl = NULL;
-   type_t type = NULL;
-
+   tree_t name = NULL;
+   int pos = -1;
    switch (tree_subkind(param)) {
    case P_POS:
       {
-         const int pos = tree_pos(param);
+         pos = tree_pos(param);
          if (pos >= nformals)
-            sem_error(value, "found at least %d positional actuals but %s "
+            sem_error(param, "found at least %d positional actuals but %s "
                       "has only %d generic%s", pos + 1, istr(tree_ident(unit)),
                       nformals, nformals == 1 ? "" : "s");
-         else if (formals[pos].have)
-            sem_error(value, "formal generic %s already has an actual",
-                      istr(tree_ident(formals[pos].decl)));
          else if (tree_flags(formals[pos].decl) & TREE_F_PREDEFINED) {
             diag_t *d = diag_new(DIAG_WARN, tree_loc(param));
             diag_printf(d, "positional generic actual is associated with "
@@ -5012,56 +5013,63 @@ static bool sem_check_generic_actual(formal_map_t *formals, int nformals,
             diag_hint(d, NULL, "use a named association if this was intended");
             diag_emit(d);
          }
-
-         formals[pos].have = true;
-         decl = formals[pos].decl;
-         type = get_type_or_null(decl);
       }
       break;
 
    case P_NAMED:
       {
-         tree_t name = tree_name(param);
-         tree_t ref = name_to_ref(name);
+         name = tree_name(param);
 
+         tree_t ref = name_to_ref(name);
          if (ref == NULL)
             sem_error(name, "invalid name in generic map");
          else if (!tree_has_ref(ref))
             return false;
 
          tree_t d = tree_ref(ref);
-         for (int i = 0; i < nformals; i++) {
-            if (formals[i].decl == d) {
-               if (formals[i].have && !formals[i].partial)
-                  sem_error(value, "generic %s already has an actual",
-                            istr(tree_ident(formals[i].decl)));
-               formals[i].have    = true;
-               formals[i].partial = (tree_kind(name) != T_REF);
-               decl = d;
+         for (pos = 0; pos < nformals; pos++) {
+            if (formals[pos].decl == d) {
                tree_set_flag(ref, TREE_F_FORMAL_NAME);
                break;
             }
          }
 
-         if (decl == NULL)
+         if (pos == nformals)
             sem_error(name, "%s is not a formal generic of %s",
                       istr(tree_ident(ref)), istr(tree_ident(unit)));
-
-         if (tree_class(decl) == C_CONSTANT || tree_kind(name) != T_REF) {
-            // Do not check package or type for names here as that will
-            // throw an error
-            if (!sem_check(name, tab))
-               return false;
-
-            if (!sem_static_name(name, sem_locally_static))
-               sem_error(name, "formal generic name must be a locally "
-                         "static name");
-         }
-
-         type = get_type_or_null(name);
          break;
       }
    }
+
+   assert(pos >= 0 && pos < nformals);
+
+   tree_t decl = formals[pos].decl, value = tree_value(param);
+   type_t type = get_type_or_null(name ?: decl);
+
+   const bool is_full = name == NULL || tree_kind(name) == T_REF;
+   const bool is_open = tree_kind(value) == T_OPEN;
+
+   if ((is_open && formals[pos].state == MAP_PARTIAL)
+       || (!is_open && formals[pos].state == MAP_OPEN))
+      sem_error(param, "formal generic %s associated with OPEN cannot be "
+                "individually associated", istr(tree_ident(formals[pos].decl)));
+
+   if (formals[pos].state >= (is_full ? MAP_PARTIAL : MAP_FULL))
+      sem_error(param, "formal generic %s already has an actual",
+                istr(tree_ident(formals[pos].decl)));
+
+   if (is_open)
+      formals[pos].state = MAP_OPEN;
+   else if (is_full)
+      formals[pos].state = MAP_FULL;
+   else
+      formals[pos].state = MAP_PARTIAL;
+
+   if (is_open && !tree_has_value(decl))
+      sem_error(param, "generic %s without a default expression cannot "
+                "be associated with OPEN", istr(tree_ident(decl)));
+   else if (is_open)
+      return true;   // No further checking
 
    switch (tree_class(decl)) {
    case C_TYPE:
@@ -5222,6 +5230,15 @@ static bool sem_check_generic_actual(formal_map_t *formals, int nformals,
       break;
 
    case C_CONSTANT:
+      if (name != NULL) {
+         if (!sem_check(name, tab))
+            return false;
+
+         if (!sem_static_name(name, sem_locally_static))
+            sem_error(name, "formal generic name must be a locally "
+                      "static name");
+      }
+
       if (!sem_check(value, tab))
          return false;
 
@@ -5252,9 +5269,8 @@ static bool sem_check_generic_map(tree_t t, tree_t unit, nametab_t *tab)
    formal_map_t *formals LOCAL = xmalloc_array(nformals, sizeof(formal_map_t));
 
    for (int i = 0; i < nformals; i++) {
-      formals[i].decl    = tree_generic(unit, i);
-      formals[i].have    = false;
-      formals[i].partial = false;
+      formals[i].decl  = tree_generic(unit, i);
+      formals[i].state = MAP_MISSING;
    }
 
    bool ok = true;
@@ -5268,7 +5284,7 @@ static bool sem_check_generic_map(tree_t t, tree_t unit, nametab_t *tab)
    }
 
    for (int i = 0; i < nformals; i++) {
-      if (formals[i].have)
+      if (formals[i].state >= MAP_PARTIAL)
          continue;
 
       const class_t class = tree_class(formals[i].decl);
@@ -5288,7 +5304,7 @@ static bool sem_check_generic_map(tree_t t, tree_t unit, nametab_t *tab)
             map_generic_box(tab, t, formals[i].decl, i);
          }
       }
-      else {
+      else if (formals[i].state == MAP_MISSING) {
          diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
          diag_printf(d, "missing actual for generic %s without a "
                      "default expression", istr(tree_ident(formals[i].decl)));

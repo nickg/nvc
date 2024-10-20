@@ -561,6 +561,12 @@ START_TEST(test_generics)
       { 128, "invalid use of package STD.STANDARD" },
       { 131, "formal generic name must be a locally static name" },
       { 134, "generic B with class CONSTANT must have mode IN" },
+      { 141, "generic G without a default expression cannot be associated "
+        "with OPEN" },
+      { 147, "formal generic G associated with OPEN cannot be individually "
+        "associated" },
+      { 153, "formal generic G associated with OPEN cannot be individually "
+        "associated" },
       {  87, "missing body for function F [BIT_VECTOR return INTEGER]" },
       { -1, NULL }
    };

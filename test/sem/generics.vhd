@@ -136,4 +136,22 @@ begin
     begin
     end block;
 
+    b2: block is
+        generic ( g : integer );
+        generic map ( open );           -- Error
+    begin
+    end block;
+
+    b3: block is
+        generic ( g : bit_vector(1 to 2) := "00" );
+        generic map ( g(1) => open, g(2) => '1' );  -- Error
+    begin
+    end block;
+
+    b4: block is
+        generic ( g : bit_vector(1 to 2) := "00" );
+        generic map ( g(1) => '1', g(2) => open );  -- Error
+    begin
+    end block;
+
 end architecture;
