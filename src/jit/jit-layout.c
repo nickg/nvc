@@ -164,7 +164,7 @@ const jit_layout_t *signal_layout_of(type_t type)
    if (l != NULL)
       return l;
 
-   if (type_is_scalar(type) || type_const_bounds(type)) {
+   if (type_is_scalar(type)) {
       l = xcalloc_flex(sizeof(jit_layout_t), 2, sizeof(layout_part_t));
       l->nparts = 2;
       l->size   = 16;
@@ -183,49 +183,44 @@ const jit_layout_t *signal_layout_of(type_t type)
       l->parts[1].align  = 8;
    }
    else if (type_is_array(type)) {
+      const bool has_offset = type_is_homogeneous(type);
+      const bool has_bounds = !type_const_bounds(type);
       const int ndims = dimension_of(type);
+      const int nparts = 1 + has_offset + has_bounds;
 
-      if (type_is_record(type_elem_recur(type))) {
-         l = xcalloc_flex(sizeof(jit_layout_t), 2, sizeof(layout_part_t));
-         l->nparts = 2;
-         l->size   = 8 + ndims * 2 * sizeof(int64_t);
-         l->align  = sizeof(void *);
+      l = xcalloc_flex(sizeof(jit_layout_t), nparts, sizeof(layout_part_t));
+      l->nparts = nparts;
+      l->align  = sizeof(void *);
 
-         // Pointer to signal record array
-         l->parts[0].offset = 0;
-         l->parts[0].size   = sizeof(void *);
-         l->parts[0].repeat = 1;
-         l->parts[0].align  = sizeof(void *);
+      layout_part_t *p = l->parts;
 
-         // Array bounds
-         l->parts[1].offset = 8;
-         l->parts[1].size   = sizeof(int64_t);
-         l->parts[1].repeat = ndims * 2;
-         l->parts[1].align  = l->parts[1].size;
+      // Pointer to signal or record data
+      p->offset = 0;
+      p->size   = sizeof(void *);
+      p->repeat = 1;
+      p->align  = sizeof(void *);
+
+      l->size += p->size * p->repeat;
+      p++;
+
+      if (has_offset) {
+         p->offset = ALIGN_UP(l->size, 8);
+         p->size   = 8;
+         p->repeat = 1;
+         p->align  = 8;
+
+         l->size += p->size * p->repeat;
+         p++;
       }
-      else {
-         l = xcalloc_flex(sizeof(jit_layout_t), 3, sizeof(layout_part_t));
-         l->nparts = 3;
-         l->size   = 16 + ndims * 2 * sizeof(int64_t);
-         l->align  = sizeof(void *);
 
-         // Shared signal data pointer
-         l->parts[0].offset = 0;
-         l->parts[0].size   = sizeof(void *);
-         l->parts[0].repeat = 1;
-         l->parts[0].align  = sizeof(void *);
+      if (has_bounds) {
+         p->offset = ALIGN_UP(l->size, 8);
+         p->size   = 8;
+         p->repeat = ndims * 2;
+         p->align  = 8;
 
-         // Offset
-         l->parts[1].offset = 8;
-         l->parts[1].size   = 8;
-         l->parts[1].repeat = 1;
-         l->parts[1].align  = 8;
-
-         // Array bounds
-         l->parts[2].offset = 16;
-         l->parts[2].size   = 8;
-         l->parts[2].repeat = ndims * 2;
-         l->parts[2].align  = 8;
+         l->size += p->size * p->repeat;
+         p++;
       }
    }
    else if (type_is_record(type)) {
