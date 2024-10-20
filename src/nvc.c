@@ -302,7 +302,7 @@ static void set_top_level(char **argv, int next_cmd)
 }
 
 static void parse_cover_options(const char *str, cover_mask_t *mask,
-                                int *array_limit)
+                                int *array_limit, int *threshold)
 {
    static const struct {
       const char *name;
@@ -326,6 +326,8 @@ static void parse_cover_options(const char *str, cover_mask_t *mask,
       if (*str == ',' || *str == '\0') {
          if (strncmp(start, "ignore-arrays-from-", 19) == 0)
             *array_limit = parse_int(start + 19);
+         else if (strncmp(start, "threshold-", 10) == 0)
+            *threshold = parse_int(start + 10);
          else {
             int pos = 0;
             for (; pos < ARRAY_LEN(options); pos++) {
@@ -384,6 +386,7 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
    cover_mask_t cover_mask = 0;
    char *cover_spec_file = NULL, *sdf_args = NULL;
    int cover_array_limit = 0;
+   int threshold = 1;
    const int next_cmd = scan_cmd(2, argc, argv);
    int c, index = 0;
    const char *spec = ":Vg:O:j";
@@ -400,7 +403,8 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
          break;
       case 'c':
          if (optarg)
-            parse_cover_options(optarg, &(cover_mask), &(cover_array_limit));
+            parse_cover_options(optarg, &(cover_mask), &(cover_array_limit),
+                                &(threshold));
          else
             cover_mask = COVER_MASK_ALL;
          break;
@@ -453,7 +457,7 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
 
    cover_data_t *cover = NULL;
    if (cover_mask != 0) {
-      cover = cover_data_init(cover_mask, cover_array_limit);
+      cover = cover_data_init(cover_mask, cover_array_limit, threshold);
 
       if (cover_spec_file)
          cover_load_spec_file(cover, cover_spec_file);
