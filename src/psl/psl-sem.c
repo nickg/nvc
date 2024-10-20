@@ -93,14 +93,14 @@ static void psl_check_assert(psl_node_t p, nametab_t *tab)
    psl_check(psl_value(p), tab);
 }
 
-static void psl_check_assume(psl_node_t p)
+static void psl_check_assume(psl_node_t p, nametab_t *tab)
 {
-
+   psl_check(psl_value(p), tab);
 }
 
-static void psl_check_restrict(psl_node_t p)
+static void psl_check_restrict(psl_node_t p, nametab_t *tab)
 {
-
+   psl_check(psl_value(p), tab);
 }
 
 static void psl_check_fairness(psl_node_t p)
@@ -256,10 +256,10 @@ void psl_check(psl_node_t p, nametab_t *tab)
       psl_check_assert(p, tab);
       break;
    case P_ASSUME:
-      psl_check_assume(p);
+      psl_check_assume(p, tab);
       break;
    case P_RESTRICT:
-      psl_check_restrict(p);
+      psl_check_restrict(p, tab);
       break;
    case P_FAIRNESS:
       psl_check_fairness(p);
