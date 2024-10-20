@@ -1673,7 +1673,7 @@ START_TEST(test_issue759)
 
    unit_registry_t *ur = get_registry();
    jit_t *jit = jit_new(ur);
-   cover_data_t *cover = cover_data_init(COVER_MASK_ALL, 0);
+   cover_data_t *cover = cover_data_init(COVER_MASK_ALL, 0, 0);
 
    tree_t e = elab(tree_to_object(a), jit, ur, cover, NULL);
    fail_if(e == NULL);
@@ -1999,7 +1999,7 @@ START_TEST(test_issue1012)
 
    unit_registry_t *ur = get_registry();
    jit_t *jit = jit_new(ur);
-   cover_data_t *cover = cover_data_init(COVER_MASK_TOGGLE, 0);
+   cover_data_t *cover = cover_data_init(COVER_MASK_TOGGLE, 0, 0);
 
    tree_t e = elab(tree_to_object(a), jit, ur, cover, NULL);
    fail_unless(e == NULL);
