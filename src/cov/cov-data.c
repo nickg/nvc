@@ -61,7 +61,7 @@ static const struct {
 };
 
 #define COVER_FILE_MAGIC   0x6e636462   // ASCII "ncdb"
-#define COVER_FILE_VERSION 1
+#define COVER_FILE_VERSION 2
 
 static bool cover_is_branch(tree_t branch)
 {
