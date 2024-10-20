@@ -17,6 +17,9 @@
 - Fixed a crash when a generic subprogram is associated with `open`
   (#1025).
 - Record subtype constraints can now be accessed over VHPI (#1035).
+- OSVVM functional coverage is reported as part of functional coverage
+- Add `threshold-<value>` option for coverage to set minimal coun a
+  coverage bin must reach to be reported as covered
 
 ## Version 1.14.0 - 2024-09-22
 - Waiting on implicit `'stable` and `'quiet` signals now works

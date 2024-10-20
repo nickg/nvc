@@ -667,14 +667,30 @@ a coverage bin for each state of an FSM. NVC considers internal signals of
 all user-defined enum types as FSMs. NVC does not consider port signals or
 variables as an FSM. When a signal recognized as FSM changes its value,
 coverage bin for new state value is incremented.
+
 .It
 .Cm functional
-- NVC creates a coverage bin for each PSL
+- NVC creates a coverage bin for each:
+.Bl -bullet
+.It
+PSL
 .Ql cover
-directive. When a cover sequence completes, coverage bin is incremented.
+directive. When a PSL sequence in the cover directive completes, coverage bin is incremented.
+.It
+OSVVM functional coverage bin. A call to
+.Ql AddBins
+or
+.Ql AddCross
+OSVVM functions creates such NVC functional coverage bins.
+A threshold for OSVVM coverage bin to be reported as covered is given by
+.Ql AtLeast
+argument of
+.Ql AddBins
+OSVVM call.
+.El
 .El
 .Pp
-Collection for each coverage type can be enabled separately at elaboration time:
+Collection of each coverage kind can be enabled separately at elaboration time:
 .Bd -literal -offset indent
 $ nvc -e --cover=statement,branch,toggle,expression <top>
 .Ed
@@ -692,8 +708,6 @@ $ nvc --cover-merge -o merged.covdb first.covdb second.covdb third.covdb ...
 .Pp
 During code coverage merging, NVC sums together coverage bins with equal
 hierarchical paths in the elaborated design.
-When a coverage bin is non-zero, NVC displays such bin as covered in the
-code coverage report.
 .Pp
 NVC creates union of all coverage bins from all input coverage databases
 in the merged code coverage database. This allows merging code coverage from
@@ -708,7 +722,14 @@ $ nvc --cover-report -o report_dir merged.covdb
 The command above will generate a code coverage report in the
 .Pa report_dir
 directory.
-NVC supports two different kinds of code coverage reports:
+Code coverage report shows whether a coverage bin is covered or uncovered.
+A bin is covered when its counter is equal to, or higher than threshold
+given by
+.Cm --threshold-<value>
+option of
+.Cm --cover
+elabortion switch.
+NVC supports two kinds of code coverage reports:
 .Bl -bullet
 .It
 .Cm hierarchy report -
@@ -798,6 +819,12 @@ Toggle coverage on instance ports driven by constant value.
 as FSMs. With this option, NVC can be forced to recognize FSMs only via
 .Ql fsm-type
 directive in coverage specification file.
+.El
+.Bl -bullet
+.It
+.Cm threshold-<value>
+- A minimal value of coverage bin counter for coverage bin to be reported as
+  covered. Default is 1.
 .El
 .Pp
 All additional coverage options are passed comma separated to
