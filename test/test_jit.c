@@ -984,6 +984,15 @@ START_TEST(test_layout)
    ck_assert_int_eq(l->parts[1].align, 8);
    ck_assert_int_eq(l->parts[1].repeat, 2);
 
+   l = signal_layout_of(r1);
+   ck_assert_int_eq(l->nparts, 3);
+   for (int i = 0; i < 3; i++) {
+      ck_assert_int_eq(l->parts[i].offset, 16 * i);
+      ck_assert_int_eq(l->parts[i].size, 16);
+      ck_assert_int_eq(l->parts[i].align, sizeof(void *));
+      ck_assert_int_eq(l->parts[i].repeat, 1);
+   }
+
    jit_free(j);
 }
 END_TEST
