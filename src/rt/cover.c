@@ -319,6 +319,9 @@ void _nvc_create_cover_scope(jit_scalar_t *args)
 
    *ptr = NULL;
 
+   if (name_len == 0)
+      jit_msg(NULL, DIAG_FATAL, "coverage scope name cannot be empty");
+
    rt_model_t *m = get_model_or_null();
    if (m == NULL)
       return;
@@ -335,10 +338,7 @@ void _nvc_create_cover_scope(jit_scalar_t *args)
       return;
 
    LOCAL_TEXT_BUF tb = tb_new();
-   if (name_len == 0)
-      tb_printf(tb, "__NVC_COVER_SCOPE");
-   else
-      sanitise_name(tb, name_bytes, name_len);
+   sanitise_name(tb, name_bytes, name_len);
 
    const size_t pfxlen = tb_len(tb);
    for (int i = 0, dup = 0; i < parent->children.count; i++) {
@@ -350,13 +350,7 @@ void _nvc_create_cover_scope(jit_scalar_t *args)
 
    ident_t name = ident_new(tb_get(tb));
    *ptr = cover_create_scope(data, parent, inst->where, name);
-
-   // Remember raw name for reporting
-   LOCAL_TEXT_BUF tb_raw = tb_new();
-   for (int i = 0; i < name_len; i++)
-      tb_append(tb_raw, name_bytes[i]);
-   if (name_len > 0)
-      (*ptr)->block_name = ident_new(tb_get(tb_raw));
+   (*ptr)->block_name = name;
 }
 
 DLLEXPORT
@@ -366,29 +360,25 @@ void _nvc_set_cover_scope_name(jit_scalar_t *args)
    const char *name_bytes = args[3].pointer;
    size_t name_len = ffi_array_length(args[5].integer);
 
-   LOCAL_TEXT_BUF tb_raw = tb_new();
-   for (int i = 0; i < name_len; i++)
-      tb_append(tb_raw, name_bytes[i]);
+   if (name_len == 0)
+      jit_msg(NULL, DIAG_FATAL, "coverage scope name cannot be empty");
 
    // Rename the scope
    LOCAL_TEXT_BUF tb = tb_new();
    sanitise_name(tb, name_bytes, name_len);
    ident_t name_id = ident_new(tb_get(tb));
-   ident_t raw_name_id = ident_new(tb_get(tb_raw));
+
+   if (s->items.count > 0)
+      jit_msg(NULL, DIAG_FATAL, "cover point name can't be set to '%s' "
+                                "since the cover point already contains bins. "
+                                "Set the name before adding any bins",
+                                istr(name_id));
+
    s->name = name_id;
-   s->block_name = raw_name_id;
+   s->block_name = name_id;
 
    ident_t prefix = ident_runtil(s->hier,'.');
    s->hier = ident_prefix(prefix, name_id, '.');
-
-   // Rename items in the scope
-   for (int i = 0; i < s->items.count; i++) {
-      cover_item_t *item = AREF(s->items, i);
-      ident_t postfix = ident_rfrom(item->hier, '.');
-      ident_t prefix = ident_runtil(ident_runtil(item->hier, '.'), '.');
-      item->hier = ident_prefix(ident_prefix(prefix, name_id, '.'), postfix, ',');
-      item->func_name = raw_name_id;
-   }
 }
 
 DLLEXPORT
@@ -400,6 +390,9 @@ void _nvc_add_cover_item(jit_scalar_t *args)
    size_t name_len = ffi_array_length(args[6].integer);
 
    *index_ptr = -1;
+
+   if (name_len == 0)
+      jit_msg(NULL, DIAG_FATAL, "coverage item name cannot be empty");
 
    if (s == NULL || !s->emit)
       return;
@@ -415,11 +408,7 @@ void _nvc_add_cover_item(jit_scalar_t *args)
    LOCAL_TEXT_BUF tb = tb_new();
    tb_istr(tb, s->hier);
    tb_append(tb, '.');
-
-   if (name_len == 0)
-      tb_printf(tb, "__NVC_COVER_BIN");
-   else
-      sanitise_name(tb, name_bytes, name_len);
+   sanitise_name(tb, name_bytes, name_len);
 
    const size_t pfxlen = tb_len(tb);
    for (int i = 0, dup = 0; i < s->items.count; i++) {
@@ -439,22 +428,17 @@ void _nvc_add_cover_item(jit_scalar_t *args)
    // Name remembered at the time of cover point creation in its scope
    item->func_name = s->block_name;
 
-   item->source = args[7].integer;
-   item->atleast = args[8].integer;
-   item->flags = args[9].integer;
-   item->n_ranges = args[10].integer;
+   item->source = COV_SRC_USER_COVER;
+   item->atleast = args[7].integer;
+   item->flags = COV_FLAG_USER_DEFINED;
+   item->n_ranges = ffi_array_length(args[8].integer);
    item->ranges = xcalloc_array(item->n_ranges, sizeof(cover_range_t));
 
-   void *ptr = args[11].pointer;
-   // In VHDL 2019, integer is 64 bit
-   int inc = (standard() == STD_19) ? 8 : 4;
+   int32_t *ptr = (int32_t *)args[9].pointer;
 
-   // TODO: Does it make sense to do FFI wrapping function for integer access ?
    for (int i = 0; i < item->n_ranges; i++) {
-      item->ranges[i].min = *((int32_t *)ptr);
-      ptr += inc;
-      item->ranges[i].max = *((int32_t *)ptr);
-      ptr += inc;
+      item->ranges[i].min = *ptr++;
+      item->ranges[i].max = *ptr++;
    }
 
    *index_ptr = item - s->items.items;
