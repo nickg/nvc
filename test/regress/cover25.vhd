@@ -13,7 +13,7 @@ begin
         variable item : t_item_handle;
     begin
         create_cover_scope(handle, "sub_scope");
-        add_cover_item(handle, item, "item", 0, (0 => (min => 0, max => 0)));
+        add_cover_item(handle, item, "item", 1, (0 => (min => 0, max => 0)));
         wait for 5 ns;
         for i in 1 to count loop
             increment_cover_item(handle, item);
@@ -47,8 +47,8 @@ begin
         variable item1, item2 : t_item_handle;
     begin
         create_cover_scope(handle, "top_scope");
-        add_cover_item(handle, item1, "item1", 0, (0 => (min => 0, max => 0)));
-        add_cover_item(handle, item2, "item2", 0, (0 => (min => 0, max => 0)));
+        add_cover_item(handle, item1, "item1", 1, (0 => (min => 0, max => 0)));
+        add_cover_item(handle, item2, "item2", 1, (0 => (min => 0, max => 0)));
         wait for 1 ns;
         increment_cover_item(handle, item1);
         increment_cover_item(handle, item2);
@@ -63,9 +63,9 @@ begin
     begin
         create_cover_scope(handle, "top_scope");
         for i in 1 to 3 loop
-            add_cover_item(handle, item1, "dup", 0, (0 => (min => 0, max => 0)));
+            add_cover_item(handle, item1, "dup", 1, (0 => (min => 0, max => 0)));
         end loop;
-        add_cover_item(handle, item2, " **.x~", 0, (0 => (min => 0, max => 0)));
+        add_cover_item(handle, item2, " **.x~", 1, (0 => (min => 0, max => 0)));
         wait;
     end process;
 
