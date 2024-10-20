@@ -677,17 +677,7 @@ PSL
 .Ql cover
 directive. When a PSL sequence in the cover directive completes, coverage bin is incremented.
 .It
-OSVVM functional coverage bin. A call to
-.Ql AddBins
-or
-.Ql AddCross
-OSVVM functions creates such NVC functional coverage bins.
-A threshold for OSVVM coverage bin to be reported as covered is given by
-.Ql AtLeast
-argument of
-.Ql AddBins
-OSVVM call.
-.El
+Functional coverage bin from third party libraries (e.g. OSVVM)
 .El
 .Pp
 Collection of each coverage kind can be enabled separately at elaboration time:

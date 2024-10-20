@@ -494,7 +494,7 @@ static void cover_print_item_title(FILE *f, cover_pair_t *pair)
       [COV_SRC_STATEMENT] = "Sequential statement",
       [COV_SRC_CONDITION] = "Condition",
       [COV_SRC_PSL_COVER] = "PSL cover point",
-      [COV_SRC_OSVVM_COVER] = "OSVVM cover point",
+      [COV_SRC_USER_COVER] = "User cover point",
       [COV_SRC_UNKNOWN] = "",
    };
 
@@ -577,7 +577,7 @@ static void cover_print_get_exclude_button(FILE *f, cover_item_t *item,
    if (item->kind == COV_ITEM_STMT)
       out_of_table = true;
    else if ((item->kind == COV_ITEM_FUNCTIONAL) &&
-            ((item->flags & COV_FLAG_OSVVM) == 0))
+            ((item->flags & COV_FLAG_USER_DEFINED) == 0))
       out_of_table = true;
 
    fprintf(f, "<button onclick=\"GetExclude('exclude %s')\" %s>"
@@ -717,7 +717,7 @@ static void cover_print_bins(FILE *f, cover_pair_t *first_pair, cov_pair_kind_t 
       case COV_ITEM_FUNCTIONAL:
       {
          cover_item_t *item = pair->item;
-         assert (item->source == COV_SRC_OSVVM_COVER);
+         assert (item->source == COV_SRC_USER_COVER);
 
          const char *v[item->n_ranges] LOCAL;
          for (int i = 0; i < item->n_ranges; i++)
@@ -726,7 +726,7 @@ static void cover_print_bins(FILE *f, cover_pair_t *first_pair, cov_pair_kind_t 
             else
                v[i] = xasprintf("%ld - %ld", item->ranges[i].min, item->ranges[i].max);
 
-         cover_print_bin(f, pair, COV_FLAG_OSVVM, pkind, item->n_ranges, v);
+         cover_print_bin(f, pair, COV_FLAG_USER_DEFINED, pkind, item->n_ranges, v);
          break;
       }
 
@@ -825,7 +825,7 @@ static void cover_print_pairs(FILE *f, cover_pair_t *first, cov_pair_kind_t pkin
          break;
 
       case COV_ITEM_FUNCTIONAL:
-         if (curr->item->source == COV_SRC_OSVVM_COVER) {
+         if (curr->item->source == COV_SRC_USER_COVER) {
             cover_print_item_title(f, curr);
             fprintf(f, "<br>%s", istr(curr->item->func_name));
 

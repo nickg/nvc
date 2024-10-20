@@ -84,7 +84,7 @@ typedef enum {
    COV_SRC_CONDITION,
    COV_SRC_STATEMENT,
    COV_SRC_PSL_COVER,
-   COV_SRC_OSVVM_COVER,
+   COV_SRC_USER_COVER,
    COV_SRC_UNKNOWN,
 } cover_src_t;
 
@@ -163,7 +163,7 @@ typedef enum {
    COV_FLAG_10             = (1 << 5),
    COV_FLAG_11             = (1 << 6),
    COV_FLAG_STATE          = (1 << 7),
-   COV_FLAG_OSVVM          = (1 << 8),
+   COV_FLAG_USER_DEFINED   = (1 << 8),
    COV_FLAG_TOGGLE_TO_0    = (1 << 15),
    COV_FLAG_TOGGLE_TO_1    = (1 << 16),
    COV_FLAG_TOGGLE_SIGNAL  = (1 << 17),
