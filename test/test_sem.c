@@ -682,7 +682,7 @@ START_TEST(test_procedure)
       {   0, "subprogram TEST17_A [INTEGER, INTEGER] has arguments X, Y" },
       { 207, "cannot assign to input parameter X" },
       { 224, "no possible overload of P1 has formal B" },
-      { 224, "sorry, conversion functions are not yet supported here" },
+      { 224, "sorry, conversions are not yet supported here" },
       { 227, "procedure name must be an identifier" },
       { -1, NULL }
    };
@@ -3787,6 +3787,22 @@ START_TEST(test_issue1010)
 }
 END_TEST
 
+START_TEST(test_issue1020)
+{
+   input_from_file(TESTDIR "/sem/issue1020.vhd");
+
+   const error_t expect[] = {
+      { 13, "sorry, conversions are not yet supported here" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_ENTITY, T_ARCH);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_sem_tests(void)
 {
    Suite *s = suite_create("sem");
@@ -3961,6 +3977,7 @@ Suite *get_sem_tests(void)
    tcase_add_test(tc_core, test_lcs2016_49);
    tcase_add_test(tc_core, test_issue980);
    tcase_add_test(tc_core, test_issue1010);
+   tcase_add_test(tc_core, test_issue1020);
    suite_add_tcase(s, tc_core);
 
    return s;

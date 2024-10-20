@@ -3178,9 +3178,30 @@ static bool sem_check_call_args(tree_t t, tree_t decl, nametab_t *tab)
             have_named = true;
 
             tree_t name = tree_name(param);
-            if (tree_kind(name) == T_FCALL)
-               sem_error(name, "sorry, conversion functions are not yet "
-                         "supported here");
+            const tree_kind_t name_kind = tree_kind(name);
+            if (name_kind == T_TYPE_CONV || name_kind == T_FCALL)
+               sem_error(name, "sorry, conversions are not yet supported here");
+            else if (!sem_check(name, tab))
+               return false;
+
+            if (tree_kind(name) == T_TYPE_CONV) {
+               type_t to_type = tree_type(name);
+               type_t from_type = tree_type(tree_value(name));
+
+               const bool missing_constraints =
+                  type_is_unconstrained(from_type)
+                  && type_is_unconstrained(to_type);
+
+               if (missing_constraints) {
+                  diag_t *d = diag_new(DIAG_ERROR, tree_loc(name));
+                  diag_printf(d, "result of conversion for unconstrained "
+                              "formal %s must be a constrained array type",
+                              istr(tree_ident(decl)));
+                  diag_lrm(d, STD_93, "3.2.1.1");
+                  diag_emit(d);
+                  return false;
+               }
+            }
 
             tree_t ref = name_to_ref(name);
             assert(ref != NULL);
@@ -4082,15 +4103,6 @@ static bool sem_check_record_ref(tree_t t, nametab_t *tab)
    if (!sem_check_name_prefix(t, tab, "a selected name"))
       return false;
 
-   tree_t value = tree_value(t);
-   type_t value_type = tree_type(value);
-
-   if (type_is_none(value_type))
-      return false;
-   else if (!type_is_record(value_type))
-      sem_error(value, "expected record type but found %s",
-                type_pp(value_type));
-
    return true;
 }
 
@@ -4791,11 +4803,15 @@ static bool sem_check_port_actual(formal_map_t *formals, int nformals,
 
       // LRM 93 section 3.2.1.1 result of a type conversion in an
       // association list cannot be an unconstrained array type
-      if (type_is_unconstrained(value_type)
-          && type_is_unconstrained(type))
-         sem_error(value, "result of conversion for unconstrained formal "
-                   "%s must be a constrained array type",
-                   istr(tree_ident(decl)));
+      if (type_is_unconstrained(value_type) && type_is_unconstrained(type)) {
+         diag_t *d = diag_new(DIAG_ERROR, tree_loc(value));
+         diag_printf(d, "result of conversion for unconstrained formal "
+                     "%s must be a constrained array type",
+                     istr(tree_ident(decl)));
+         diag_lrm(d, STD_93, "3.2.1.1");
+         diag_emit(d);
+         return false;
+      }
 
       if (mode == PORT_OUT)
          sem_error(value, "conversion not allowed for formal %s with "
