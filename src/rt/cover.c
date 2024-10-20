@@ -369,10 +369,8 @@ void _nvc_set_cover_scope_name(jit_scalar_t *args)
    ident_t name_id = ident_new(tb_get(tb));
 
    if (s->items.count > 0)
-      jit_msg(NULL, DIAG_FATAL, "cover point name can't be set to '%s' "
-                                "since the cover point already contains bins. "
-                                "Set the name before adding any bins",
-                                istr(name_id));
+      jit_msg(NULL, DIAG_FATAL, "cannot change name of cover scope after "
+              "items are created");
 
    s->name = name_id;
    s->block_name = name_id;
