@@ -47,7 +47,7 @@ package cover_pkg is
     procedure add_cover_item (scope     : inout t_scope_handle;
                               item      : out t_item_handle;
                               name      : in string;
-                              atleast   : in integer;
+                              atleast   : in positive;
                               ranges    : in t_item_range_array
                               );
 
