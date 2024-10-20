@@ -429,10 +429,10 @@ void _nvc_add_cover_item(jit_scalar_t *args)
    item->source = COV_SRC_USER_COVER;
    item->atleast = args[7].integer;
    item->flags = COV_FLAG_USER_DEFINED;
-   item->n_ranges = ffi_array_length(args[8].integer);
+   item->n_ranges = ffi_array_length(args[10].integer);
    item->ranges = xcalloc_array(item->n_ranges, sizeof(cover_range_t));
 
-   int32_t *ptr = (int32_t *)args[9].pointer;
+   int32_t *ptr = (int32_t *)args[8].pointer;
 
    for (int i = 0; i < item->n_ranges; i++) {
       item->ranges[i].min = *ptr++;
