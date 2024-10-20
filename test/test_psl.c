@@ -121,6 +121,8 @@ START_TEST(test_sem1)
         "eventually! is not a Boolean or Sequence" },
       { 28, "property is not in the simple subset as the operand of never "
         "is not a Boolean or Sequence" },
+      { 29, "no visible declaration for BAD" },
+      { 30, "no visible declaration for BAD" },
       { -1, NULL }
    };
    expect_errors(expect);
