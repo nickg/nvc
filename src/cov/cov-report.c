@@ -1192,37 +1192,37 @@ static void cover_print_summary_table_row(FILE *f, cover_data_t *data, cover_sta
    if (top) {
       notef("code coverage results for: %s", istr(entry));
 
-      if (perc_stmt > 0)
+      if (stats->total_stmts > 0)
          notef("     statement:     %.1f %% (%d/%d)", perc_stmt,
                stats->hit_stmts, stats->total_stmts);
       else
          notef("     statement:     N.A.");
 
-      if (perc_branch > 0)
+      if (stats->total_branches > 0)
          notef("     branch:        %.1f %% (%d/%d)", perc_branch,
                stats->hit_branches, stats->total_branches);
       else
          notef("     branch:        N.A.");
 
-      if (perc_toggle > 0)
+      if (stats->total_toggles > 0)
          notef("     toggle:        %.1f %% (%d/%d)", perc_toggle,
                stats->hit_toggles, stats->total_toggles);
       else
          notef("     toggle:        N.A.");
 
-      if (perc_expr > 0)
+      if (stats->total_expressions > 0)
          notef("     expression:    %.1f %% (%d/%d)", perc_expr,
                stats->hit_expressions, stats->total_expressions);
       else
          notef("     expression:    N.A.");
 
-      if (perc_state > 0)
+      if (stats->total_states > 0)
          notef("     FSM state:     %.1f %% (%d/%d)", perc_state,
                stats->hit_states, stats->total_states);
       else
          notef("     FSM state:     N.A.");
 
-      if (perc_functional > 0)
+      if (stats->total_functional > 0)
          notef("     functional:    %.1f %% (%d/%d)", perc_functional,
                stats->hit_functional, stats->total_functional);
       else
