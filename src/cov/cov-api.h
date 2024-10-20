@@ -89,8 +89,8 @@ typedef enum {
 } cover_src_t;
 
 typedef struct {
-   int64_t  min;
-   int64_t  max;
+   uint32_t  min;
+   uint32_t  max;
 } cover_range_t;
 
 typedef struct _cover_item {
