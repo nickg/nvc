@@ -360,16 +360,28 @@ void psl_fsm_dump(psl_fsm_t *fsm, const char *fname)
    fprintf(f, "digraph psl {\n");
 
    for (fsm_state_t *s = fsm->states; s; s = s->next) {
+      fprintf(f, "%d", s->id);
+      fprintf(f, "[label=\"%d", s->id);
+      if (s->accept || s->strong || s->initial)
+         fprintf(f, "\n");
       if (s->accept)
-         fprintf(f, "%d [peripheries=2];\n", s->id);
+         fprintf(f, " A");
+      if (s->initial)
+         fprintf(f, " I");
+      if (s->strong)
+         fprintf(f, " S");
+      fprintf(f, "\"];\n");
 
-      for (fsm_edge_t *e = s->edges; e; e = e->next) {
+      int n = 0;
+      for (fsm_edge_t *e = s->edges; e; e = e->next, n++) {
          fprintf(f, "%d -> %d [", s->id, e->dest->id);
+         fprintf(f, "label=\"");
+         fprintf(f, "  %d", n);
          if (e->guard != NULL) {
-            fprintf(f, "label=\"");
+            fprintf(f, "\n");
             psl_dump_label(f, e->guard);
-            fputs("\",", f);
          }
+         fputs("\",", f);
          if (e->kind == EDGE_EPSILON)
             fputs("style=dashed,", f);
          fprintf(f, "];\n");
