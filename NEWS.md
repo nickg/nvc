@@ -7,6 +7,7 @@
   signal attributes is a static expression (#1018).
 - Fixed an elaboration crash when an external name is passed to a
   procedure (#1029).
+- Record subtype constraints can now be accessed over VHPI (#1035).
 - Several other minor bugs were resolved (#1017, #1020, #1030).
 
 ## Version 1.14.0 - 2024-09-22

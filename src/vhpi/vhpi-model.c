@@ -2398,6 +2398,7 @@ vhpiIntT vhpi_get(vhpiIntPropertyT property, vhpiHandleT handle)
          if (td == NULL)
             goto missing_property;
 
+         assert(td->numElems >= 0);
          return td->numElems;
       }
 
@@ -3902,7 +3903,7 @@ static c_typeDecl *build_typeDecl(type_t type, c_vhpiObject *obj)
       }
 
    case T_SUBTYPE:
-      if (type_is_array(type))
+      if (type_is_array(type))   // TODO: should this return c_subTypeDecl?
          return build_arrayTypeDecl(type, decl, base, obj, 0);
       else {
          c_subTypeDecl *td =
@@ -3914,35 +3915,47 @@ static c_typeDecl *build_typeDecl(type_t type, c_vhpiObject *obj)
          td->typeDecl.IsScalar = td->typeDecl.BaseType->IsScalar;
          td->typeDecl.IsComposite = td->typeDecl.BaseType->IsComposite;
 
-         unsigned nconstrs = type_constraints(type);
-         if (nconstrs != 0) {
-            assert(nconstrs == 1);
+         c_recordTypeDecl *rtd =
+            is_recordTypeDecl(&(td->typeDecl.BaseType->decl.object));
+         if (rtd != NULL) {
+            for (int i = 0; i < rtd->RecordElems.count; i++) {
+               c_elemDecl *ed = is_elemDecl(rtd->RecordElems.items[i]);
+               assert(ed != NULL);
 
-            tree_t c = type_constraint(type, 0);
-            switch (tree_subkind(c)) {
-            case C_RANGE:
-               {
-                  tree_t r = tree_range(c, 0);
-                  type_t rtype = tree_type(r);
-                  if (type_is_real(rtype)) {
-                     c_floatRange *fr = build_float_range(r);
-                     APUSH(td->Constraints, &(fr->range.object));
-                  }
-                  else if (type_is_physical(rtype)) {
-                     c_physRange *pr = build_phys_range(r);
-                     APUSH(td->Constraints, &(pr->range.object));
-                  }
-                  else {
-                     c_intRange *ir = build_int_range(r, NULL, 0, NULL);
-                     APUSH(td->Constraints, &(ir->range.object));
+               if (ed->Type->IsUnconstrained) {
+                  tree_t cons = type_constraint_for_field(type, ed->decl.tree);
+                  if (cons != NULL) {
+                     c_typeDecl *et = cached_typeDecl(tree_type(cons), NULL);
+                     c_elemDecl *new =
+                        new_object(sizeof(c_elemDecl), vhpiElemDeclK);
+                     init_elemDecl(new, ed->decl.tree, et, ed->decl.ImmRegion);
+
+                     APUSH(td->Constraints, &(new->decl.object));
+                     continue;
                   }
                }
-               break;
-            case C_RECORD:
-               // TODO: how to represent this in VHPI?
-               break;
-            default:
-               fatal_at(tree_loc(c), "unsupported constraint subkind");
+
+               APUSH(td->Constraints, &(ed->decl.object));
+            }
+         }
+
+         if (td->typeDecl.IsScalar && type_constraints(type) > 0) {
+            tree_t c = type_constraint(type, 0);
+            assert(tree_subkind(c) == C_RANGE);
+
+            tree_t r = tree_range(c, 0);
+            type_t rtype = tree_type(r);
+            if (type_is_real(rtype)) {
+               c_floatRange *fr = build_float_range(r);
+               APUSH(td->Constraints, &(fr->range.object));
+            }
+            else if (type_is_physical(rtype)) {
+               c_physRange *pr = build_phys_range(r);
+               APUSH(td->Constraints, &(pr->range.object));
+            }
+            else {
+               c_intRange *ir = build_int_range(r, NULL, 0, NULL);
+               APUSH(td->Constraints, &(ir->range.object));
             }
          }
 
