@@ -28,4 +28,7 @@ begin
     -- psl assert never (x -> next y);        -- Error
     -- psl assume bad;                        -- Error
     -- psl restrict {x; bad};                 -- Error
+    -- psl sequence seq1 is {not(x); x};      -- OK
+    -- psl sequence seq2 is {not(f); x};      -- Error
+
 end architecture;

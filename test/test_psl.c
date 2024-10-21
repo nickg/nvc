@@ -123,6 +123,7 @@ START_TEST(test_sem1)
         "is not a Boolean or Sequence" },
       { 29, "no visible declaration for BAD" },
       { 30, "no visible declaration for BAD" },
+      { 32, "no visible declaration for F" },
       { -1, NULL }
    };
    expect_errors(expect);
