@@ -2245,10 +2245,33 @@ static void sem_check_static_elab(tree_t t)
    }
 }
 
+static void sem_check_missing_wait(tree_t t, nametab_t *tab)
+{
+   if (!opt_get_int(OPT_MISSING_WAIT))
+      return;
+
+   const int ntriggers = tree_triggers(t);
+   if (ntriggers > 0)
+      return;
+
+   const tree_flags_t flags = tree_flags(t);
+   if (flags & TREE_F_HAS_WAIT)
+      return;
+
+   diag_t *d = diag_new(DIAG_WARN, tree_loc(t));
+   diag_printf(d, "potential infinite loop in process");
+   if (!(flags & TREE_F_SYNTHETIC_NAME))
+      diag_printf(d, " %s", istr(tree_ident(t)));
+   diag_printf(d, " with no sensitivity list and no wait statements.");
+   diag_emit(d);
+}
+
 static bool sem_check_process(tree_t t, nametab_t *tab)
 {
    if (!sem_check_sensitivity(t, tab))
       return false;
+
+   sem_check_missing_wait(t, tab);
 
    return true;
 }
@@ -3500,6 +3523,13 @@ static bool sem_check_pcall(tree_t t, nametab_t *tab)
       }
    }
 
+   if (!never_waits) {
+      // Procedure may wait, suppress infinite loop warning
+      tree_t proc = find_enclosing(tab, S_PROCESS);
+      if (proc != NULL)
+         tree_set_flag(proc, TREE_F_HAS_WAIT);
+   }
+
    return true;
 }
 
@@ -3542,10 +3572,13 @@ static bool sem_check_wait(tree_t t, nametab_t *tab)
    }
 
    tree_t proc = find_enclosing(tab, S_PROCESS);
-   if (proc != NULL && tree_triggers(proc) > 0) {
+   if (proc != NULL) {
       // No wait statements allowed in process with sensitivity list
-      sem_error(t, "wait statement not allowed in process with "
-                "sensitvity list");
+      if (tree_triggers(proc) > 0)
+         sem_error(t, "wait statement not allowed in process with "
+                  "sensitvity list");
+
+      tree_set_flag(proc, TREE_F_HAS_WAIT);
    }
 
    return sem_check_sensitivity(t, tab);
