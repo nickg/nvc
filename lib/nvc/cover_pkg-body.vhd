@@ -26,7 +26,6 @@ package body cover_pkg is
                               item      : out t_item_handle;
                               name      : in string;
                               atleast   : in natural;
-                              exclude   : in boolean;
                               ranges    : in t_item_range_array) is
     begin
         -- Foreign subprogram
