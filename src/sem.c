@@ -2245,9 +2245,46 @@ static void sem_check_static_elab(tree_t t)
    }
 }
 
+static bool sem_check_missing_wait(tree_t t, nametab_t *tab) {
+   const int ntriggers = tree_triggers(t);
+   if (ntriggers > 0)
+      return true;
+
+   const int nstmts = tree_stmts(t);
+   for (int i = 0; i < nstmts; i++) {
+      tree_t s = tree_stmt(t, i);
+      switch (tree_kind(s)) {
+      case T_WAIT:
+         return true;
+      case T_PCALL: {
+         tree_t decl = tree_ref(s);
+         const tree_flags_t flags = tree_flags(decl);
+         if (flags & TREE_F_HAS_WAIT)
+            return true;
+         break;
+      }
+      default:
+         break;
+      }
+   }
+   
+   diag_t *d = diag_new(DIAG_WARN, tree_loc(t));
+   diag_printf(d, "potential infinite loop in process");
+   const tree_flags_t flags = tree_flags(t);
+   if (!(flags & TREE_F_SYNTHETIC_NAME))
+      diag_printf(d, " %s", istr(tree_ident(t)));
+   diag_printf(d, " with no sensitivity list and no wait statements.");
+   diag_emit(d);
+
+   return true;
+}
+
 static bool sem_check_process(tree_t t, nametab_t *tab)
 {
    if (!sem_check_sensitivity(t, tab))
+      return false;
+
+   if (!sem_check_missing_wait(t, tab))
       return false;
 
    return true;
