@@ -16,6 +16,7 @@
   procedure (#1029).
 - Fixed a crash when a generic subprogram is associated with `open`
   (#1025).
+- Record subtype constraints can now be accessed over VHPI (#1035).
 
 ## Version 1.14.0 - 2024-09-22
 - Waiting on implicit `'stable` and `'quiet` signals now works

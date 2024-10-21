@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2023  Nick Gasson
+//  Copyright (C) 2023-2024  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -26,27 +26,28 @@ typedef struct {
 } vhpi_test_t;
 
 static const vhpi_test_t tests[] = {
-   { "vhpi1",    vhpi1_startup },
-   { "vhpi2",    vhpi2_startup },
-   { "vhpi3",    vhpi3_startup },
-   { "vhpi4",    NULL },
-   { "vhpi5",    vhpi5_startup },
-   { "issue612", NULL },
-   { "vhpi6",    vhpi6_startup },
-   { "vhpi7",    vhpi7_startup },
-   { "vhpi8",    vhpi8_startup },
-   { "vhpi9",    vhpi9_startup },
-   { "issue744", issue744_startup },
-   { "vhpi10",   vhpi10_startup },
-   { "vhpi11",   vhpi11_startup },
-   { "issue762", issue762_startup },
-   { "vhpi12",   vhpi12_startup },
-   { "vhpi13",   vhpi13_startup },
-   { "vhpi14",   vhpi14_startup },
-   { "vhpi15",   vhpi15_startup },
-   { "issue978", issue978_startup },
-   { "issue988", issue988_startup },
-   { NULL,       NULL },
+   { "vhpi1",     vhpi1_startup },
+   { "vhpi2",     vhpi2_startup },
+   { "vhpi3",     vhpi3_startup },
+   { "vhpi4",     NULL },
+   { "vhpi5",     vhpi5_startup },
+   { "issue612",  NULL },
+   { "vhpi6",     vhpi6_startup },
+   { "vhpi7",     vhpi7_startup },
+   { "vhpi8",     vhpi8_startup },
+   { "vhpi9",     vhpi9_startup },
+   { "issue744",  issue744_startup },
+   { "vhpi10",    vhpi10_startup },
+   { "vhpi11",    vhpi11_startup },
+   { "issue762",  issue762_startup },
+   { "vhpi12",    vhpi12_startup },
+   { "vhpi13",    vhpi13_startup },
+   { "vhpi14",    vhpi14_startup },
+   { "vhpi15",    vhpi15_startup },
+   { "issue978",  issue978_startup },
+   { "issue988",  issue988_startup },
+   { "issue1035", issue1035_startup },
+   { NULL,        NULL },
 };
 
 void __check_error(const char *file, int lineno)

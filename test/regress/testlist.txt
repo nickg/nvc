@@ -1059,3 +1059,4 @@ cover24         shell
 vlog12          verilog
 conv15          normal
 cover25         cover=functional
+issue1035       normal,vhpi,2008
