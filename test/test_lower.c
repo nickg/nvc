@@ -1936,7 +1936,7 @@ START_TEST(test_cover)
 
    unit_registry_t *ur = get_registry();
    jit_t *jit = jit_new(ur);
-   cover_data_t *data = cover_data_init(COVER_MASK_STMT | COVER_MASK_EXPRESSION | COVER_MASK_BRANCH, 0);
+   cover_data_t *data = cover_data_init(COVER_MASK_STMT | COVER_MASK_EXPRESSION | COVER_MASK_BRANCH, 0, 0);
    elab(tree_to_object(a), jit, ur, data, NULL);
 
    vcode_unit_t v0 = find_unit("WORK.COVER_ENT.P1");
@@ -2496,7 +2496,7 @@ START_TEST(test_choice1)
 
    unit_registry_t *ur = get_registry();
    jit_t *jit = jit_new(ur);
-   cover_data_t *data = cover_data_init(COVER_MASK_BRANCH, 0);
+   cover_data_t *data = cover_data_init(COVER_MASK_BRANCH, 0, 0);
    elab(tree_to_object(a), jit, ur, data, NULL);
 
    vcode_unit_t v0 = find_unit("WORK.CHOICE1.P1");
@@ -5027,7 +5027,7 @@ START_TEST(test_issue582)
 
    unit_registry_t *ur = unit_registry_new();
    jit_t *jit = jit_new(ur);
-   cover_data_t *data = cover_data_init(COVER_MASK_ALL, 0);
+   cover_data_t *data = cover_data_init(COVER_MASK_ALL, 0, 0);
    elab(tree_to_object(a), jit, ur, data, NULL);
 
    jit_free(jit);

@@ -84,8 +84,14 @@ typedef enum {
    COV_SRC_CONDITION,
    COV_SRC_STATEMENT,
    COV_SRC_PSL_COVER,
+   COV_SRC_USER_COVER,
    COV_SRC_UNKNOWN,
 } cover_src_t;
+
+typedef struct {
+   uint32_t  min;
+   uint32_t  max;
+} cover_range_t;
 
 typedef struct _cover_item {
    // Type of coverage
@@ -114,7 +120,10 @@ typedef struct _cover_item {
    // Hierarchy path of the covered object
    ident_t           hier;
 
-   // Name of the function for expression coverage
+   // Additional name for cover item:
+   //    COV_ITEM_EXPRESSION     Name of expression (e.g. OR, AND, XOR)
+   //    COV_ITEM_STATE          Name of FSM state
+   //    COV_ITEM_FUNCTIONAL     Name of user-defined functional over point
    ident_t           func_name;
 
    // Type of source statement or expression
@@ -132,10 +141,17 @@ typedef struct _cover_item {
    //    COV_ITEM_FUNCTIONAL     Always 1
    int               consecutive;
 
+   // Threshold for being covered
+   int               atleast;
+
    // Secondary numeric data:
    //    COV_ITEM_TOGGLE - Start position of signal name
    //    COV_ITEM_STATE  - Value of low-index of enum sub-type
    int64_t           metadata;
+
+   // Ranges for functional coverage bins
+   int               n_ranges;
+   cover_range_t    *ranges;
 } cover_item_t;
 
 typedef enum {
@@ -147,12 +163,14 @@ typedef enum {
    COV_FLAG_10             = (1 << 5),
    COV_FLAG_11             = (1 << 6),
    COV_FLAG_STATE          = (1 << 7),
+   COV_FLAG_USER_DEFINED   = (1 << 8),
    COV_FLAG_TOGGLE_TO_0    = (1 << 15),
    COV_FLAG_TOGGLE_TO_1    = (1 << 16),
    COV_FLAG_TOGGLE_SIGNAL  = (1 << 17),
    COV_FLAG_TOGGLE_PORT    = (1 << 18),
    COV_FLAG_EXPR_STD_LOGIC = (1 << 24),
    COV_FLAG_EXCLUDED       = (1 << 25),
+   COV_FLAG_EXCLUDED_USER  = (1 << 26),
 
    // This needs to stay at highest bit of int32_t.
    // Used in run-time data of COV_ITEM_TOGGLE to mark unreachability.
@@ -197,7 +215,7 @@ typedef enum {
                         | COVER_MASK_TOGGLE | COVER_MASK_EXPRESSION     \
                         | COVER_MASK_STATE | COVER_MASK_FUNCTIONAL)
 
-cover_data_t *cover_data_init(cover_mask_t mask, int array_limit);
+cover_data_t *cover_data_init(cover_mask_t mask, int array_limit, int threshold);
 bool cover_enabled(cover_data_t *data, cover_mask_t mask);
 
 unsigned cover_count_items(cover_data_t *data);
