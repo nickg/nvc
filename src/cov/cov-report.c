@@ -605,8 +605,10 @@ static void cover_print_bin(FILE *f, cover_pair_t *pair, uint32_t flag,
          cover_print_get_exclude_button(f, pair->item, flag, true);
 
       if (pkind == PAIR_EXCLUDED) {
-         const char *er = (pair->item->flags & COV_FLAG_UNREACHABLE) ?
-            "Unreachable" : "Exclude file";
+         cover_flags_t flags = pair->item->flags;
+         const char *er = (flags & COV_FLAG_UNREACHABLE)   ? "Unreachable" :
+                          (flags & COV_FLAG_EXCLUDED_USER) ? "User exclude" :
+                                                             "Exclude file";
          fprintf(f, "<td>%s</td>", er);
       }
 
@@ -1125,7 +1127,7 @@ static int cover_append_item_to_chain(cover_data_t *data, cover_chain_group_t *c
       (*flat_total)++;
       (*nested_total)++;
 
-      if (curr_item->data >= curr_item->atleast) {
+      if (curr_item->data >= curr_item->atleast && curr_item->atleast > 0) {
          (*flat_hits)++;
          (*nested_hits)++;
 
