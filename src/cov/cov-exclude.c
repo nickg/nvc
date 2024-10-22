@@ -56,7 +56,7 @@ static void cover_exclude_scope(cover_data_t *data, cover_scope_t *s)
          if (ident_glob(hier, excl_hier, strlen(excl_hier))) {
             excl->found = true;
 
-            if (item->data > 0) {
+            if (item->data >= item->atleast) {
                warn_at(&excl->loc, "%s: '%s' is already covered, "
                                    "it will be reported as covered.",
                                    kind_str, istr(hier));

@@ -61,7 +61,7 @@ static const struct {
 };
 
 #define COVER_FILE_MAGIC   0x6e636462   // ASCII "ncdb"
-#define COVER_FILE_VERSION 1
+#define COVER_FILE_VERSION 2
 
 static bool cover_is_branch(tree_t branch)
 {
@@ -195,18 +195,23 @@ static int32_t cover_add_item(cover_data_t *data, cover_scope_t *cs,
    if (kind == COV_ITEM_TOGGLE)
       metadata = cs->sig_pos;
 
+   loc_t loc = get_cover_loc(kind, obj);
+
    cover_item_t new = {
       .kind          = kind,
       .tag           = data->next_tag++,
       .data          = 0,
       .flags         = flags,
-      .loc           = get_cover_loc(kind, obj),
+      .loc           = loc,
       .loc_lhs       = loc_lhs,
       .loc_rhs       = loc_rhs,
       .hier          = hier,
       .func_name     = func_name,
       .consecutive   = consecutive,
+      .atleast       = data->threshold,
       .metadata      = metadata,
+      .n_ranges      = 0,
+      .ranges        = NULL,
       .source        = get_cover_source(kind, obj),
    };
 
@@ -217,10 +222,10 @@ static int32_t cover_add_item(cover_data_t *data, cover_scope_t *cs,
    printf("    Consecutive:   %d\n", consecutive);
    printf("    Metadata:      %d\n", metadata);
    printf("    Function name: %s\n", istr(func_name));
-   printf("    First line:    %d\n", loc->first_line);
-   printf("    First column:  %d\n", loc->first_column);
-   printf("    Line delta:    %d\n", loc->line_delta);
-   printf("    Column delta:  %d\n", loc->column_delta);
+   printf("    First line:    %d\n", loc.first_line);
+   printf("    First column:  %d\n", loc.first_column);
+   printf("    Line delta:    %d\n", loc.line_delta);
+   printf("    Column delta:  %d\n", loc.column_delta);
    printf("\n\n");
 #endif
 
@@ -788,7 +793,14 @@ static void cover_write_scope(cover_scope_t *s, fbuf_t *f,
       fbuf_put_uint(f, item->flags);
       fbuf_put_uint(f, item->source);
       fbuf_put_uint(f, item->consecutive);
+      fbuf_put_uint(f, item->atleast);
+      fbuf_put_uint(f, item->n_ranges);
       fbuf_put_uint(f, item->metadata);
+
+      for (int i = 0; i < item->n_ranges; i++) {
+         fbuf_put_uint(f, item->ranges[i].min);
+         fbuf_put_uint(f, item->ranges[i].max);
+      }
 
       loc_write(&(item->loc), loc_ctx);
       if (item->flags & COVER_FLAGS_LHS_RHS_BINS) {
@@ -797,7 +809,9 @@ static void cover_write_scope(cover_scope_t *s, fbuf_t *f,
       }
 
       ident_write(item->hier, ident_ctx);
-      if (item->kind == COV_ITEM_EXPRESSION || item->kind == COV_ITEM_STATE)
+      if (item->kind == COV_ITEM_EXPRESSION ||
+          item->kind == COV_ITEM_STATE ||
+          item->kind == COV_ITEM_FUNCTIONAL)
          ident_write(item->func_name, ident_ctx);
    }
 
@@ -858,11 +872,12 @@ void cover_dump_items(cover_data_t *data, fbuf_t *f, cover_dump_t dt,
    ident_write_end(ident_ctx);
 }
 
-cover_data_t *cover_data_init(cover_mask_t mask, int array_limit)
+cover_data_t *cover_data_init(cover_mask_t mask, int array_limit, int threshold)
 {
    cover_data_t *data = xcalloc(sizeof(cover_data_t));
    data->mask = mask;
    data->array_limit = array_limit;
+   data->threshold = threshold;
 
    return data;
 }
@@ -888,7 +903,7 @@ static bool cover_should_emit_scope(cover_data_t *data, cover_scope_t *cs,
          if (ident_glob(ename, AGET(spc->block_exclude, i), -1)) {
 #ifdef COVER_DEBUG_EMIT
             printf("Cover emit: False, block (Block: %s, Pattern: %s)\n",
-                   istr(ts->block_name), AGET(spc->block_exclude, i));
+                   istr(cs->block_name), AGET(spc->block_exclude, i));
 #endif
             return false;
          }
@@ -897,7 +912,7 @@ static bool cover_should_emit_scope(cover_data_t *data, cover_scope_t *cs,
          if (ident_glob(ename, AGET(spc->block_include, i), -1)) {
 #ifdef COVER_DEBUG_EMIT
             printf("Cover emit: True, block (Block: %s, Pattern: %s)\n",
-                   istr(ts->block_name), AGET(spc->block_include, i));
+                   istr(cs->block_name), AGET(spc->block_include, i));
 #endif
             return true;
          }
@@ -908,7 +923,7 @@ static bool cover_should_emit_scope(cover_data_t *data, cover_scope_t *cs,
       if (ident_glob(cs->hier, AGET(spc->hier_exclude, i), -1)) {
 #ifdef COVER_DEBUG_EMIT
          printf("Cover emit: False, hierarchy (Hierarchy: %s, Pattern: %s)\n",
-                istr(ts->hier), AGET(spc->hier_exclude, i));
+                istr(cs->hier), AGET(spc->hier_exclude, i));
 #endif
          return false;
       }
@@ -917,7 +932,7 @@ static bool cover_should_emit_scope(cover_data_t *data, cover_scope_t *cs,
       if (ident_glob(cs->hier, AGET(spc->hier_include, i), -1)) {
 #ifdef COVER_DEBUG_EMIT
          printf("Cover emit: True, hierarchy (Hierarchy: %s, Pattern: %s)\n",
-                istr(ts->hier), AGET(spc->hier_include, i));
+                istr(cs->hier), AGET(spc->hier_include, i));
 #endif
          return true;
       }
@@ -1046,7 +1061,17 @@ static void cover_read_one_item(fbuf_t *f, loc_rd_ctx_t *loc_rd,
    item->flags       = fbuf_get_uint(f);
    item->source      = fbuf_get_uint(f);
    item->consecutive = fbuf_get_uint(f);
+   item->atleast     = fbuf_get_uint(f);
+   item->n_ranges    = fbuf_get_uint(f);
    item->metadata    = fbuf_get_uint(f);
+
+   if (item->n_ranges > 0)
+      item->ranges = xcalloc_array(item->n_ranges, sizeof(cover_range_t));
+
+   for (int i = 0; i < item->n_ranges; i++) {
+      item->ranges[i].min = fbuf_get_uint(f);
+      item->ranges[i].max = fbuf_get_uint(f);
+   }
 
    loc_read(&(item->loc), loc_rd);
    if (item->flags & COVER_FLAGS_LHS_RHS_BINS) {
@@ -1055,7 +1080,9 @@ static void cover_read_one_item(fbuf_t *f, loc_rd_ctx_t *loc_rd,
    }
 
    item->hier = ident_read(ident_ctx);
-   if (item->kind == COV_ITEM_EXPRESSION || item->kind == COV_ITEM_STATE)
+   if (item->kind == COV_ITEM_EXPRESSION ||
+       item->kind == COV_ITEM_STATE ||
+       item->kind == COV_ITEM_FUNCTIONAL)
       item->func_name = ident_read(ident_ctx);
 }
 

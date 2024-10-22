@@ -52,6 +52,7 @@
   _nvc_create_cover_scope;
   _nvc_add_cover_item;
   _nvc_increment_cover_item;
+  _nvc_set_cover_scope_name;
 
   # Exported from src/rt/simpkg.c
   _nvc_current_delta;
