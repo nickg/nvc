@@ -50,7 +50,12 @@ EOF
   while IFS= read -r line; do
     analyse $src/unisims/primitive/$line
   done < $src/unisims/primitive/vhdl_analyze_order
-  
+
+  WORK=unisim$(std_suffix $STD)
+  while IFS= read -r line; do
+    analyse $src/unisims/retarget/$line
+  done < $src/unisims/retarget/vhdl_analyze_order
+
   WORK=unifast$(std_suffix $STD)
   while IFS= read -r line; do
     analyse $src/unifast/primitive/$line
