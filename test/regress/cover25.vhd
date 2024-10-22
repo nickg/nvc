@@ -12,7 +12,8 @@ begin
         variable handle : t_scope_handle;
         variable item : t_item_handle;
     begin
-        create_cover_scope(handle, "sub_scope");
+        create_cover_scope(handle, "dummy_name");
+        set_cover_scope_name(handle, "sub_scope");
         add_cover_item(handle, item, "item", 1, (0 => (min => 0, max => 0)));
         wait for 5 ns;
         for i in 1 to count loop
