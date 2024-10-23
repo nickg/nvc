@@ -25,6 +25,8 @@
 #include "thread.h"
 #include "type.h"
 #include "vhpi/vhpi-util.h"
+#include "vpi/vpi-model.h"
+#include "vlog/vlog-node.h"
 
 #include <assert.h>
 #include <ctype.h>
@@ -534,4 +536,15 @@ void jit_bind_foreign(jit_func_t *f, const uint8_t *spec, size_t length,
 
       jit_abort_with_status(1);
    }
+}
+
+void jit_do_syscall(vlog_node_t where, jit_anchor_t *caller, jit_scalar_t *args,
+                    tlab_t *tlab)
+{
+   ident_t name = vlog_ident(where);
+   vpiHandle handle = vpi_bind_foreign(name, where);
+   if (handle == NULL)
+      jit_msg(NULL, DIAG_FATAL, "system task %s not registered", istr(name));
+
+   vpi_call_foreign(handle, args, tlab);
 }

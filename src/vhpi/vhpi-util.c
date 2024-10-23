@@ -146,7 +146,7 @@ int _vhpi_trace_on(void)
    static int trace_on = -1;
 
    if (trace_on == -1)
-      trace_on = opt_get_verbose(OPT_VHPI_TRACE, NULL);
+      trace_on = opt_get_verbose(OPT_PLI_TRACE, NULL);
 
    return trace_on;
 }
@@ -196,7 +196,7 @@ void vhpi_error(vhpiSeverityT sev, const loc_t *loc, const char *fmt, ...)
       [vhpiInternal] = DIAG_FATAL,
    };
 
-   if (!opt_get_int(OPT_VHPI_DEBUG))
+   if (!opt_get_int(OPT_PLI_DEBUG))
       return;
 
    // Also report the error as a diagnostic for debugging

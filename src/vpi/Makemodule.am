@@ -1,0 +1,8 @@
+lib_libnvc_a_SOURCES += \
+	src/vpi/vpi_user.h \
+	src/vpi/vpi-model.h \
+	src/vpi/vpi-model.c \
+	src/vpi/vpi-priv.h \
+	src/vpi/vpi-str.c \
+	src/vpi/vpi-util.c \
+	src/vpi/vpi-systf.c

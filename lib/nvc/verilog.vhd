@@ -102,16 +102,4 @@ package verilog is
     function xor_reduce (arg : t_logic_array) return t_logic;
     function xnor_reduce (arg : t_logic_array) return t_logic;
 
-    procedure sys_finish;
-    impure function sys_time return t_logic_array;
-
-    -- These procedures are called with a special variadic calling convention
-    -- which cannot be represented in VHDL
-    procedure sys_display (format : string);
-    procedure sys_write (format : string);
-
-    attribute foreign of sys_finish : procedure is "INTERNAL __nvc_sys_finish";
-    attribute foreign of sys_write : procedure is "INTERNAL __nvc_sys_write";
-    attribute foreign of sys_display : procedure is "INTERNAL __nvc_sys_display";
-
 end package;

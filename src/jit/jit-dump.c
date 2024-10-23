@@ -28,7 +28,7 @@
 #include <ctype.h>
 #include <inttypes.h>
 
-LCOV_EXCL_START
+// LCOV_EXCL_START /////////////////////////////////////////////////////////////
 
 typedef struct {
    ihash_t    *labels;
@@ -89,7 +89,7 @@ const char *jit_exit_name(jit_exit_t exit)
       "FUNCTION_TRIGGER", "ADD_TRIGGER", "TRANSFER_SIGNAL",
       "PORT_CONVERSION", "CONVERT_IN", "CONVERT_OUT", "BIND_FOREIGN",
       "OR_TRIGGER", "CMP_TRIGGER", "INSTANCE_NAME", "DEPOSIT_SIGNAL",
-      "MAP_IMPLICIT", "BIND_EXTERNAL",
+      "MAP_IMPLICIT", "BIND_EXTERNAL", "SYSCALL",
    };
    assert(exit < ARRAY_LEN(names));
    return names[exit];
@@ -408,4 +408,4 @@ void jit_hexdump(const unsigned char *data, size_t sz, int blocksz,
    }
 }
 
-LCOV_EXCL_STOP
+// LCOV_EXCL_STOP //////////////////////////////////////////////////////////////

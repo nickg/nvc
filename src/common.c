@@ -1112,9 +1112,6 @@ void intern_strings(void)
    id_cache[W_NUMERIC_BIT]     = ident_new("IEEE.NUMERIC_BIT");
    id_cache[W_NVC]             = ident_new("NVC");
    id_cache[W_DEFAULT_CLOCK]   = ident_new("default clock");
-   id_cache[W_DOLLAR_DISPLAY]  = ident_new("$display");
-   id_cache[W_DOLLAR_FINISH]   = ident_new("$finish");
-   id_cache[W_DOLLAR_WRITE]    = ident_new("$write");
    id_cache[W_STD_REFLECTION]  = ident_new("STD.REFLECTION");
    id_cache[W_NEVER_WAITS]     = ident_new("NEVER_WAITS");
    id_cache[W_NVC_VERILOG]     = ident_new("NVC.VERILOG");
@@ -1122,7 +1119,6 @@ void intern_strings(void)
    id_cache[W_SHAPE]           = ident_new("shape");
    id_cache[W_INSTANCE_NAME]   = ident_new("instance_name");
    id_cache[W_PATH_NAME]       = ident_new("path_name");
-   id_cache[W_DOLLAR_TIME]     = ident_new("$time");
    id_cache[W_VITAL]           = ident_new("VITAL");
 
    id_cache[W_IEEE_LOGIC_VECTOR] =

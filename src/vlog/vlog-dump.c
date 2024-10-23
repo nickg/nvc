@@ -296,7 +296,7 @@ static void vlog_dump_if(vlog_node_t v, int indent)
    }
 }
 
-static void vlog_dump_systask(vlog_node_t v, int indent)
+static void vlog_dump_sys_tcall(vlog_node_t v, int indent)
 {
    tab(indent);
    print_syntax("%s", istr(vlog_ident(v)));
@@ -314,7 +314,7 @@ static void vlog_dump_systask(vlog_node_t v, int indent)
    print_syntax(";\n");
 }
 
-static void vlog_dump_sysfunc(vlog_node_t v)
+static void vlog_dump_sys_fcall(vlog_node_t v)
 {
    print_syntax("%s", istr(vlog_ident(v)));
 
@@ -505,11 +505,11 @@ void vlog_dump(vlog_node_t v, int indent)
    case V_SEQ_BLOCK:
       vlog_dump_seq_block(v, indent);
       break;
-   case V_SYSTASK:
-      vlog_dump_systask(v, indent);
+   case V_SYS_TCALL:
+      vlog_dump_sys_tcall(v, indent);
       break;
-   case V_SYSFUNC:
-      vlog_dump_sysfunc(v);
+   case V_SYS_FCALL:
+      vlog_dump_sys_fcall(v);
       break;
    case V_STRING:
       vlog_dump_string(v);

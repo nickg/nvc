@@ -196,7 +196,7 @@ START_TEST(test_parse1)
    fail_unless(vlog_ident(s1s0) == ident_new("foo"));
 
    vlog_node_t s1s0s0 = vlog_stmt(s1s0, 0);
-   fail_unless(vlog_kind(s1s0s0) == V_SYSTASK);
+   fail_unless(vlog_kind(s1s0s0) == V_SYS_TCALL);
    fail_unless(vlog_ident(s1s0s0) == ident_new("$display"));
    fail_unless(vlog_params(s1s0s0) == 1);
 
@@ -205,7 +205,7 @@ START_TEST(test_parse1)
    ck_assert_str_eq(vlog_text(hello), "hello");
 
    vlog_node_t s1s0s1 = vlog_stmt(s1s0, 1);
-   fail_unless(vlog_kind(s1s0s1) == V_SYSTASK);
+   fail_unless(vlog_kind(s1s0s1) == V_SYS_TCALL);
    fail_unless(vlog_ident(s1s0s1) == ident_new("$finish"));
 
    vlog_node_t s1s0s2 = vlog_stmt(s1s0, 2);

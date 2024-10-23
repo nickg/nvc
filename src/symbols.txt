@@ -71,11 +71,6 @@
   __nvc_seek;
   __nvc_truncate;
 
-  # Exported from src/rt/verilog.c
-  __nvc_sys_display;
-  __nvc_sys_finish;
-  __nvc_sys_write;
-
   # Exported from src/jit/jit-exits.c
   __nvc_do_exit;
   __nvc_get_object;

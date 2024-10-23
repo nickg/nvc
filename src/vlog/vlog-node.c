@@ -52,8 +52,8 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
    // V_SEQ_BLOCK
    (I_IDENT | I_STMTS),
 
-   // V_SYSTASK
-   (I_IDENT | I_SUBKIND | I_PARAMS),
+   // V_SYS_TCALL
+   (I_IDENT | I_PARAMS),
 
    // V_STRING
    (I_TEXT),
@@ -103,8 +103,8 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
    // V_BIT_SELECT
    (I_IDENT | I_REF | I_PARAMS),
 
-   // V_SYSFUNC
-   (I_IDENT | I_SUBKIND | I_PARAMS),
+   // V_SYS_FCALL
+   (I_IDENT | I_PARAMS),
 
    // V_FOREVER
    (I_STMTS),
@@ -146,11 +146,11 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
 static const char *kind_text_map[V_LAST_NODE_KIND] = {
    "V_MODULE",     "V_PORT_DECL",   "V_REF",           "V_ALWAYS",
    "V_TIMING",     "V_NBASSIGN",    "V_EVENT",         "V_INITIAL",
-   "V_SEQ_BLOCK",  "V_SYSTASK",     "V_STRING",        "V_NUMBER",
+   "V_SEQ_BLOCK",  "V_SYS_TCALL",   "V_STRING",        "V_NUMBER",
    "V_NET_DECL",   "V_ASSIGN",      "V_DIMENSION",     "V_IF",
    "V_COND",       "V_VAR_DECL",    "V_DELAY_CONTROL", "V_BINARY",
    "V_BASSIGN",    "V_UNARY",       "V_GATE_INST",     "V_STRENGTH",
-   "V_MOD_INST",   "V_BIT_SELECT",  "V_SYSFUNC",       "V_FOREVER",
+   "V_MOD_INST",   "V_BIT_SELECT",  "V_SYS_FCALL",     "V_FOREVER",
    "V_SPECIFY",    "V_PRIMITIVE",   "V_UDP_TABLE",     "V_UDP_ENTRY",
    "V_DATA_TYPE",  "V_TYPE_DECL",   "V_ENUM_DECL",     "V_ENUM_NAME",
    "V_UNION_DECL", "V_STRUCT_DECL", "V_EVENT_CONTROL",

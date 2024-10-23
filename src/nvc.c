@@ -37,6 +37,7 @@
 #include "vhpi/vhpi-util.h"
 #include "vlog/vlog-node.h"
 #include "vlog/vlog-phase.h"
+#include "vpi/vpi-model.h"
 
 #include <getopt.h>
 #include <stdlib.h>
@@ -67,6 +68,7 @@ typedef struct {
    unit_registry_t *registry;
    bool             user_set_std;
    vhpi_context_t  *vhpi;
+   vpi_context_t   *vpi;
    const char      *plugins;
 } cmd_state_t;
 
@@ -665,7 +667,6 @@ static jit_t *get_jit(unit_registry_t *ur)
    _std_reflection_init();
    _file_io_init();
    _nvc_sim_pkg_init();
-   _verilog_init();
 
    return jit;
 }
@@ -710,7 +711,7 @@ static int run_cmd(int argc, char **argv, cmd_state_t *state)
    uint64_t      stop_time = TIME_HIGH;
    const char   *wave_fname = NULL;
    const char   *gtkw_fname = NULL;
-   const char   *vhpi_plugins = NULL;
+   const char   *pli_plugins = NULL;
 
    static bool have_run = false;
    if (have_run)
@@ -738,11 +739,11 @@ static int run_cmd(int argc, char **argv, cmd_state_t *state)
          warnf("the $bold$--profile$$ option is deprecated and has no effect");
          break;
       case 'T':
-         opt_set_str(OPT_VHPI_TRACE, "1");
-         opt_set_int(OPT_VHPI_DEBUG, 1);
+         opt_set_str(OPT_PLI_TRACE, "1");
+         opt_set_int(OPT_PLI_DEBUG, 1);
          break;
       case 'D':
-         opt_set_int(OPT_VHPI_DEBUG, 1);
+         opt_set_int(OPT_PLI_DEBUG, 1);
          break;
       case 's':
          stop_time = parse_time(optarg);
@@ -780,7 +781,7 @@ static int run_cmd(int argc, char **argv, cmd_state_t *state)
          wave_exclude_glob(optarg);
          break;
       case 'l':
-         vhpi_plugins = optarg;
+         pli_plugins = optarg;
          break;
       case 'x':
          parse_exit_severity(optarg);
@@ -873,14 +874,20 @@ static int run_cmd(int argc, char **argv, cmd_state_t *state)
    if (state->vhpi == NULL)
       state->vhpi = vhpi_context_new();
 
-   if (vhpi_plugins != NULL || state->plugins != NULL)
+   if (state->vpi == NULL)
+      state->vpi = vpi_context_new();
+
+   if (pli_plugins != NULL || state->plugins != NULL) {
       vhpi_context_initialise(state->vhpi, top, model, state->jit,
                               nplusargs, plusargs);
+      vpi_context_initialise(state->vpi, top, model, state->jit,
+                             nplusargs, plusargs);
+   }
    else if (nplusargs > 0)
       warnf("found plusargs on command line but no VHPI plugin was loaded");
 
-   if (vhpi_plugins != NULL)
-      vhpi_load_plugins(vhpi_plugins);
+   if (pli_plugins != NULL)
+      vhpi_load_plugins(pli_plugins);
 
    set_ctrl_c_handler(ctrl_c_handler, model);
 
@@ -900,6 +907,9 @@ static int run_cmd(int argc, char **argv, cmd_state_t *state)
 
    vhpi_context_free(state->vhpi);
    state->vhpi = NULL;
+
+   vpi_context_free(state->vpi);
+   state->vpi = NULL;
 
    model_free(model);
 
@@ -2317,11 +2327,11 @@ int main(int argc, char **argv)
          state.plugins = optarg;
          break;
       case 'T':
-         opt_set_str(OPT_VHPI_TRACE, "1");
-         opt_set_int(OPT_VHPI_DEBUG, 1);
+         opt_set_str(OPT_PLI_TRACE, "1");
+         opt_set_int(OPT_PLI_DEBUG, 1);
          break;
       case 'D':
-         opt_set_int(OPT_VHPI_DEBUG, 1);
+         opt_set_int(OPT_PLI_DEBUG, 1);
          break;
       case '?':
          bad_option("global", argv);

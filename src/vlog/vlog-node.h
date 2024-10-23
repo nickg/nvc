@@ -33,16 +33,6 @@ typedef enum {
 } v_port_kind_t;
 
 typedef enum {
-   V_SYS_DISPLAY,
-   V_SYS_WRITE,
-   V_SYS_FINISH,
-} v_systask_kind_t;
-
-typedef enum {
-   V_SYS_TIME,
-} v_sysfunc_kind_t;
-
-typedef enum {
    V_NET_WIRE,
    V_NET_SUPPLY0,
    V_NET_SUPPLY1,
@@ -63,7 +53,7 @@ typedef enum {
    V_EVENT,
    V_INITIAL,
    V_SEQ_BLOCK,
-   V_SYSTASK,
+   V_SYS_TCALL,
    V_STRING,
    V_NUMBER,
    V_NET_DECL,
@@ -80,7 +70,7 @@ typedef enum {
    V_STRENGTH,
    V_MOD_INST,
    V_BIT_SELECT,
-   V_SYSFUNC,
+   V_SYS_FCALL,
    V_FOREVER,
    V_SPECIFY,
    V_PRIMITIVE,

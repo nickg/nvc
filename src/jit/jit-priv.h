@@ -170,6 +170,7 @@ typedef enum {
    JIT_EXIT_DEPOSIT_SIGNAL,
    JIT_EXIT_MAP_IMPLICIT,
    JIT_EXIT_BIND_EXTERNAL,
+   JIT_EXIT_SYSCALL,
 } jit_exit_t;
 
 typedef uint16_t jit_reg_t;
@@ -443,6 +444,8 @@ void pack_writer_free(pack_writer_t *pw);
 
 void jit_bind_foreign(jit_func_t *f, const uint8_t *spec, size_t length,
                       tree_t where);
+void jit_do_syscall(vlog_node_t where, jit_anchor_t *caller, jit_scalar_t *args,
+                    tlab_t *tlab);
 
 DLLEXPORT void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor,
                              jit_scalar_t *args, tlab_t *tlab);

@@ -130,7 +130,7 @@ void set_default_options(void)
 {
    opt_set_int(OPT_RT_STATS, 0);
    opt_set_int(OPT_RT_TRACE, 0);
-   opt_set_str(OPT_VHPI_TRACE, getenv("NVC_VHPI_VERBOSE"));
+   opt_set_str(OPT_PLI_TRACE, getenv("NVC_VHPI_VERBOSE"));
    opt_set_int(OPT_DUMP_LLVM, 0);
    opt_set_int(OPT_OPTIMISE, 2);
    opt_set_int(OPT_BOOTSTRAP, 0);
@@ -170,7 +170,7 @@ void set_default_options(void)
    opt_set_int(OPT_JIT_INTRINSICS, get_int_env("NVC_JIT_INTRINSICS", 1));
    opt_set_int(OPT_VECTOR_INTRINSICS, get_int_env("NVC_VECTOR_INTRINSICS", 1));
    opt_set_int(OPT_SHUFFLE_PROCS, 0);
-   opt_set_int(OPT_VHPI_DEBUG, 0);
+   opt_set_int(OPT_PLI_DEBUG, opt_get_str(OPT_PLI_TRACE) != NULL);
    opt_set_int(OPT_SERVER_PORT, 8888);
    opt_set_int(OPT_STDERR_LEVEL, DIAG_DEBUG);
    opt_set_int(OPT_CHECK_SYNTHESIS, 0);

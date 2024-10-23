@@ -1294,6 +1294,8 @@ int main(int argc, char **argv)
          mask |= F_PSL;
       else if (strcmp(argv[i], "cover") == 0)
          mask |= F_COVER;
+      else if (strcmp(argv[i], "vlog") == 0)
+         mask |= F_VERILOG | F_MIXED;
    }
 
    int fails = 0;

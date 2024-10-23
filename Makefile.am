@@ -46,12 +46,13 @@ pkglib_LIBRARIES =
 include thirdparty/Makemodule.am
 include src/Makemodule.am
 include src/cov/Makemodule.am
-include src/psl/Makemodule.am
-include src/sdf/Makemodule.am
-include src/rt/Makemodule.am
 include src/jit/Makemodule.am
+include src/psl/Makemodule.am
+include src/rt/Makemodule.am
+include src/sdf/Makemodule.am
 include src/vhpi/Makemodule.am
 include src/vlog/Makemodule.am
+include src/vpi/Makemodule.am
 include test/Makemodule.am
 include test/vhpi/Makemodule.am
 include lib/Makemodule.am

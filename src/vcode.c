@@ -967,7 +967,7 @@ const char *vcode_op_string(vcode_op_t op)
       "function trigger", "add trigger", "transfer signal",
       "port conversion", "convert in", "convert out", "bind foreign",
       "or trigger", "cmp trigger", "instance name", "deposit signal",
-      "map implicit", "bind external", "array scope", "record scope",
+      "map implicit", "bind external", "array scope", "record scope", "syscall",
    };
    if ((unsigned)op >= ARRAY_LEN(strs))
       return "???";
@@ -1324,6 +1324,26 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
                      col += printf(", ");
                   col += vcode_dump_reg(op->args.items[i]);
                }
+               vcode_dump_result_type(col, op);
+            }
+            break;
+
+         case VCODE_OP_SYSCALL:
+            {
+               if (op->result != VCODE_INVALID_REG) {
+                  col += vcode_dump_reg(op->result);
+                  col += printf(" := ");
+               }
+               col += color_printf("%s $magenta$%s$$ ",
+                                   vcode_op_string(op->kind),
+                                   istr(op->func));
+               for (int i = 1; i < op->args.count; i++) {
+                  if (i > 1) col += printf(", ");
+                  col += vcode_dump_reg(op->args.items[i]);
+               }
+               if (op->args.count > 1) col += printf(" ");
+               col += color_printf("locus ");
+               col += vcode_dump_reg(op->args.items[0]);
                vcode_dump_result_type(col, op);
             }
             break;
@@ -3387,6 +3407,34 @@ void emit_pcall(ident_t func, const vcode_reg_t *args, int nargs,
 
    VCODE_ASSERT(nargs > 0 && vcode_reg_kind(args[0]) == VCODE_TYPE_CONTEXT,
                 "first argument to VHDL procedure must be context pointer");
+}
+
+vcode_reg_t emit_syscall(ident_t func, vcode_type_t type, vcode_type_t bounds,
+                         vcode_reg_t locus, const vcode_reg_t *args, int nargs)
+{
+   op_t *o = vcode_add_op(VCODE_OP_SYSCALL);
+   o->func = func;
+   o->type = type;
+   vcode_add_arg(o, locus);
+   for (int i = 0; i < nargs; i++)
+      vcode_add_arg(o, args[i]);
+
+   VCODE_ASSERT(vcode_reg_kind(locus) == VCODE_TYPE_DEBUG_LOCUS,
+                "locus argument to syscall must be a debug locus");
+
+   for (int i = 0; i < nargs; i++)
+      VCODE_ASSERT(args[i] != VCODE_INVALID_REG, "invalid argument to syscall");
+
+   if (type == VCODE_INVALID_TYPE)
+      return (o->result = VCODE_INVALID_REG);
+   else {
+      o->result = vcode_add_reg(type);
+
+      reg_t *rr = vcode_reg_data(o->result);
+      rr->bounds = bounds;
+
+      return o->result;
+   }
 }
 
 vcode_reg_t emit_alloc(vcode_type_t type, vcode_type_t bounds,

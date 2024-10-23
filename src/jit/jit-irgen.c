@@ -2249,6 +2249,23 @@ static void irgen_op_fcall(jit_irgen_t *g, int op)
    }
 }
 
+static void irgen_op_syscall(jit_irgen_t *g, int op)
+{
+   irgen_emit_debuginfo(g, op);   // For stack traces
+
+   irgen_send_args(g, op, 0);
+   macro_exit(g, JIT_EXIT_SYSCALL);
+
+   vcode_reg_t result = vcode_get_result(op);
+   if (result != VCODE_INVALID_REG) {
+      vcode_type_t vtype = vcode_reg_type(result);
+      const int slots = irgen_slots_for_type(vtype);
+      g->map[result] = j_recv(g, 0);
+      for (int i = 1; i < slots; i++)
+         j_recv(g, i);   // Must be contiguous registers
+   }
+}
+
 static void irgen_pcall_suspend(jit_irgen_t *g, jit_value_t state,
                                 irgen_label_t *cont)
 {
@@ -3745,6 +3762,9 @@ static void irgen_block(jit_irgen_t *g, vcode_block_t block)
          break;
       case VCODE_OP_RESUME:
          irgen_op_resume(g, i);
+         break;
+      case VCODE_OP_SYSCALL:
+         irgen_op_syscall(g, i);
          break;
       case VCODE_OP_WAIT:
          irgen_op_wait(g, i);

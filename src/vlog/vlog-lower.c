@@ -61,7 +61,6 @@ static inline vcode_type_t vlog_logic_array_type(void)
    return vtype_uarray(1, vlogic, vlogic);
 }
 
-#if 0
 static vcode_reg_t vlog_debug_locus(vlog_node_t v)
 {
    ident_t unit;
@@ -70,7 +69,6 @@ static vcode_reg_t vlog_debug_locus(vlog_node_t v)
 
    return emit_debug_locus(unit, offset);
 }
-#endif
 
 static vcode_reg_t vlog_helper_package(void)
 {
@@ -445,29 +443,41 @@ static vcode_reg_t vlog_lower_binary(lower_unit_t *lu, vlog_binary_t op,
    return emit_fcall(func, rtype, rtype, args, ARRAY_LEN(args));
 }
 
-static vcode_reg_t vlog_lower_sysfunc(lower_unit_t *lu, vlog_node_t v)
+static vcode_reg_t vlog_lower_systf_param(lower_unit_t *lu, vlog_node_t v)
 {
-   const v_sysfunc_kind_t kind = vlog_subkind(v);
-   static const char *fns[] = {
-      "NVC.VERILOG.SYS_TIME()" T_LOGIC_ARRAY
-   };
-   assert(kind < ARRAY_LEN(fns));
-
-   vcode_reg_t context_reg = vlog_helper_package();
-
-   switch (kind) {
-   case V_SYS_TIME:
-      {
-         vcode_type_t vlogic = vlog_logic_type();
-         vcode_type_t vpacked = vlog_logic_array_type();
-         vcode_reg_t args[] = { context_reg };
-         return emit_fcall(ident_new(fns[kind]), vpacked, vlogic,
-                           args, ARRAY_LEN(args));
-      }
-
+   switch (vlog_kind(v)) {
+   case V_REF:
+      return vlog_lower_rvalue(lu, v);
+   case V_STRING:
+   case V_NUMBER:
+      return VCODE_INVALID_REG;
+   case V_UNARY:
+   case V_BINARY:
+   case V_SYS_FCALL:
+      // TODO: these should not be evaluated until vpi_get_value is called
+      return vlog_lower_rvalue(lu, v);
    default:
       CANNOT_HANDLE(v);
    }
+}
+
+static vcode_reg_t vlog_lower_sys_fcall(lower_unit_t *lu, vlog_node_t v)
+{
+   const int nparams = vlog_params(v);
+   vcode_reg_t *args LOCAL = xmalloc_array(nparams, sizeof(vcode_reg_t));
+   int actual = 0;
+   for (int i = 0; i < nparams; i++) {
+      vcode_reg_t p_reg = vlog_lower_systf_param(lu, vlog_param(v, i));
+      if (p_reg != VCODE_INVALID_REG)
+         args[actual++] = vlog_lower_wrap(lu, p_reg);
+   }
+
+   vcode_reg_t locus = vlog_debug_locus(v);
+
+   vcode_type_t vlogic = vlog_logic_type();
+   vcode_type_t vpacked = vlog_logic_array_type();
+
+   return emit_syscall(vlog_ident(v), vpacked, vlogic, locus, args, actual);
 }
 
 static vcode_reg_t vlog_lower_rvalue(lower_unit_t *lu, vlog_node_t v)
@@ -586,8 +596,8 @@ static vcode_reg_t vlog_lower_rvalue(lower_unit_t *lu, vlog_node_t v)
          vcode_type_t vnet = vlog_net_value_type();
          return emit_const(vnet, vlog_subkind(v));
       }
-   case V_SYSFUNC:
-      return vlog_lower_sysfunc(lu, v);
+   case V_SYS_FCALL:
+      return vlog_lower_sys_fcall(lu, v);
    default:
       CANNOT_HANDLE(v);
    }
@@ -757,47 +767,21 @@ static void vlog_lower_procedural_assign(lower_unit_t *lu, vlog_node_t v)
    }
 }
 
-static void vlog_lower_systask(lower_unit_t *lu, vlog_node_t v)
+static void vlog_lower_sys_tcall(lower_unit_t *lu, vlog_node_t v)
 {
-   const v_systask_kind_t kind = vlog_subkind(v);
-   static const char *fns[] = {
-      "NVC.VERILOG.SYS_DISPLAY(S)",
-      "NVC.VERILOG.SYS_WRITE(S)",
-      "NVC.VERILOG.SYS_FINISH"
-   };
-   assert(kind < ARRAY_LEN(fns));
-
-   vcode_reg_t context_reg = vlog_helper_package();
-
-   switch (kind) {
-   case V_SYS_DISPLAY:
-   case V_SYS_WRITE:
-      {
-         const int nparams = vlog_params(v);
-         vcode_reg_t *args LOCAL =
-            xmalloc_array(nparams + 1, sizeof(vcode_reg_t));
-         args[0] = context_reg;
-         for (int i = 0; i < nparams; i++) {
-            vcode_reg_t p_reg = vlog_lower_rvalue(lu, vlog_param(v, i));
-            args[i + 1] = vlog_lower_wrap(lu, p_reg);
-         }
-
-         emit_fcall(ident_new(fns[kind]), VCODE_INVALID_TYPE,
-                    VCODE_INVALID_TYPE, args, nparams + 1);
-      }
-      break;
-
-   case V_SYS_FINISH:
-      {
-         vcode_reg_t args[] = { context_reg };
-         emit_fcall(ident_new(fns[kind]), VCODE_INVALID_TYPE,
-                    VCODE_INVALID_TYPE, args, ARRAY_LEN(args));
-      }
-      break;
-
-   default:
-      CANNOT_HANDLE(v);
+   const int nparams = vlog_params(v);
+   vcode_reg_t *args LOCAL = xmalloc_array(nparams, sizeof(vcode_reg_t));
+   int actual = 0;
+   for (int i = 0; i < nparams; i++) {
+      vcode_reg_t p_reg = vlog_lower_systf_param(lu, vlog_param(v, i));
+      if (p_reg != VCODE_INVALID_REG)
+         args[actual++] = vlog_lower_wrap(lu, p_reg);
    }
+
+   vcode_reg_t locus = vlog_debug_locus(v);
+
+   emit_syscall(vlog_ident(v), VCODE_INVALID_TYPE, VCODE_INVALID_TYPE,
+                locus, args, actual);
 }
 
 static void vlog_lower_if(lower_unit_t *lu, vlog_node_t v)
@@ -869,8 +853,8 @@ static void vlog_lower_stmts(lower_unit_t *lu, vlog_node_t v)
       case V_SEQ_BLOCK:
          vlog_lower_stmts(lu, s);
          break;
-      case V_SYSTASK:
-         vlog_lower_systask(lu, s);
+      case V_SYS_TCALL:
+         vlog_lower_sys_tcall(lu, s);
          break;
       case V_IF:
          vlog_lower_if(lu, s);

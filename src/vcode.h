@@ -170,6 +170,7 @@ typedef enum {
    VCODE_OP_BIND_EXTERNAL,
    VCODE_OP_ARRAY_SCOPE,
    VCODE_OP_RECORD_SCOPE,
+   VCODE_OP_SYSCALL,
 } vcode_op_t;
 
 typedef enum {
@@ -395,6 +396,8 @@ vcode_reg_t emit_fcall(ident_t func, vcode_type_t type, vcode_type_t bounds,
                        const vcode_reg_t *args, int nargs);
 void emit_pcall(ident_t func, const vcode_reg_t *args, int nargs,
                 vcode_block_t resume_bb);
+vcode_reg_t emit_syscall(ident_t func, vcode_type_t type, vcode_type_t bounds,
+                         vcode_reg_t locus, const vcode_reg_t *args, int nargs);
 void emit_wait(vcode_block_t target, vcode_reg_t time);
 void emit_jump(vcode_block_t target);
 vcode_reg_t emit_load(vcode_var_t var);

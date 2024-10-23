@@ -1011,7 +1011,7 @@ static void vhpi_list_reserve(vhpiObjectListT *list, unsigned num)
    mem_pool_t *mp = vhpi_context()->pool;
 
    list->limit = num;
-   list->items = pool_malloc_array(mp, num, sizeof(c_vhpiObject));
+   list->items = pool_malloc_array(mp, num, sizeof(c_vhpiObject *));
 }
 
 static inline void vhpi_list_add(vhpiObjectListT *list, c_vhpiObject *obj)
@@ -4799,7 +4799,7 @@ void vhpi_context_free(vhpi_context_t *c)
    ACLEAR(c->packages);
    ACLEAR(c->recycle);
 
-   if (opt_get_int(OPT_VHPI_DEBUG))
+   if (opt_get_int(OPT_PLI_DEBUG))
       vhpi_check_leaks(c);
 
    assert(c == global_context);

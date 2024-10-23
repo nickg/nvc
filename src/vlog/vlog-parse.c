@@ -1155,7 +1155,7 @@ static vlog_node_t p_primary(void)
    case tUNSIGNED:
       return p_primary_literal();
    case tSYSTASK:
-      return p_subroutine_call(V_SYSFUNC);
+      return p_subroutine_call(V_SYS_FCALL);
    case tLPAREN:
       return p_mintypmax_expression();
    default:
@@ -1544,7 +1544,7 @@ static vlog_node_t p_subroutine_call_statement(void)
 
    BEGIN("subroutine call statement");
 
-   vlog_node_t v = p_subroutine_call(V_SYSTASK);
+   vlog_node_t v = p_subroutine_call(V_SYS_TCALL);
 
    consume(tSEMI);
 

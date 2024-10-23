@@ -581,23 +581,4 @@ package body verilog is
         return not (l = r);
     end function;
 
-    impure function sys_time return t_logic_array is
-    begin
-        return to_logic(time'pos(now), 64);
-    end function;
-
-    procedure sys_finish is
-    begin
-        -- Has native implementation
-    end procedure;
-
-    procedure sys_display (format : string) is
-    begin
-        -- Has native implementation
-    end procedure;
-
-    procedure sys_write (format : string) is
-    begin
-        -- Has native implementation
-    end procedure;
 end package body;
