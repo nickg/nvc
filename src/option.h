@@ -69,6 +69,7 @@ typedef enum {
    OPT_SERVER_PORT,
    OPT_STDERR_LEVEL,
    OPT_CHECK_SYNTHESIS,
+   OPT_MISSING_WAIT,
 
    OPT_LAST_NAME
 } opt_name_t;

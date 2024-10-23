@@ -3821,6 +3821,27 @@ START_TEST(test_issue1020)
 }
 END_TEST
 
+START_TEST(test_missingwait)
+{
+   opt_set_int(OPT_MISSING_WAIT, 1);
+   set_standard(STD_08);
+   input_from_file(TESTDIR "/sem/missingwait.vhd");
+
+   const error_t expect[] = {
+      { 23, "potential infinite loop in process with no sensitivity list and"
+        " no wait statements" },
+      { 53, "potential infinite loop in process with no sensitivity list and"
+        " no wait statements" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_ENTITY, T_ARCH);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_sem_tests(void)
 {
    Suite *s = suite_create("sem");
@@ -3997,6 +4018,7 @@ Suite *get_sem_tests(void)
    tcase_add_test(tc_core, test_issue1010);
    tcase_add_test(tc_core, test_issue1025);
    tcase_add_test(tc_core, test_issue1020);
+   tcase_add_test(tc_core, test_missingwait);
    suite_add_tcase(s, tc_core);
 
    return s;
