@@ -80,7 +80,7 @@ static void add_hint_string(diag_t *d, tree_t where)
    case T_PORT_DECL:    what = "port"; break;
    case T_GENERIC_DECL: what = "generic"; break;
    case T_ALIAS:        what = "alias"; break;
-   default: break;
+   default: return;
    }
 
    diag_printf(d, " for %s %s", what, istr(tree_ident(where)));
