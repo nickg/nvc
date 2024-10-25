@@ -12252,6 +12252,20 @@ static psl_node_t p_psl_fl_property(void)
          return impl;
       }
 
+   case tSEQIMPLOVR:
+   case tSEQIMPLNOVR:
+      {
+         consume(infix);
+
+         psl_node_t impl = psl_new(P_SEQ_IMPLICATION);
+         psl_set_subkind(impl, infix == tSEQIMPLOVR ? PSL_SEQ_IMPL_OVER : PSL_SEQ_IMPL_NOVER);
+         psl_add_operand(impl, p);
+         psl_add_operand(impl, p_psl_fl_property());
+         psl_set_loc(impl, CURRENT_LOC);
+
+         return impl;
+      }
+
    case tUNTIL:
    case tUNTIL_:
    case tUNTIL1:

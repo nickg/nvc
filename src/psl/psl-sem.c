@@ -180,13 +180,22 @@ static void psl_check_sequence_inst(psl_node_t p)
 {
 
 }
-
 static void psl_check_sere(psl_node_t p, nametab_t *tab)
 {
    const int nops = psl_operands(p);
    for (int i = 0; i < nops; i++)
       psl_check(psl_operand(p, i), tab);
 }
+
+static void psl_check_seq_implication(psl_node_t p, nametab_t *tab)
+{
+   psl_node_t lhs = psl_operand(p, 0);
+   psl_node_t rhs = psl_operand(p, 1);
+
+   psl_check(lhs, tab);
+   psl_check(rhs, tab);
+}
+
 
 static void psl_check_implication(psl_node_t p, nametab_t *tab)
 {
@@ -307,6 +316,9 @@ void psl_check(psl_node_t p, nametab_t *tab)
       break;
    case P_UNTIL:
       psl_check_until(p, tab);
+      break;
+   case P_SEQ_IMPLICATION:
+      psl_check_seq_implication(p, tab);
       break;
    default:
       fatal_trace("cannot check PSL kind %s", psl_kind_str(psl_kind(p)));

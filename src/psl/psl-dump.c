@@ -162,6 +162,16 @@ static void psl_dump_sere(psl_node_t p)
    }
 }
 
+static void psl_dump_seq_implication(psl_node_t p)
+{
+   psl_dump(psl_operand(p, 0));
+   if (psl_subkind(p) == PSL_SEQ_IMPL_NOVER)
+      print_syntax(" |-> ");
+   else
+      print_syntax(" |=> ");
+   psl_dump(psl_operand(p, 1));
+}
+
 static void psl_dump_clock_decl(psl_node_t p)
 {
    print_syntax("#default #clock #is ");
@@ -215,6 +225,9 @@ void psl_dump(psl_node_t p)
       break;
    case P_SERE:
       psl_dump_sere(p);
+      break;
+   case P_SEQ_IMPLICATION:
+      psl_dump_seq_implication(p);
       break;
    default:
       print_syntax("\n");

@@ -97,6 +97,9 @@ static const imask_t has_map[P_LAST_PSL_KIND] = {
 
    // P_UNTIL
    (I_PARAMS | I_CLOCK | I_FLAGS),
+
+   // P_SEQ_IMPLICATION
+   (I_SUBKIND | I_PARAMS | I_CLOCK)
 };
 
 static const char *kind_text_map[P_LAST_PSL_KIND] = {
@@ -105,6 +108,7 @@ static const char *kind_text_map[P_LAST_PSL_KIND] = {
    "P_NEVER", "P_EVENTUALLY", "P_NEXT_A", "P_NEXT_E", "P_NEXT_EVENT",
    "P_SERE", "P_IMPLICATION", "P_REPEAT", "P_PROPERTY_INST", "P_SEQUENCE_INST",
    "P_UNION", "P_BUILTIN_FUNC", "P_VALUE_SET", "P_PARAM", "P_UNTIL",
+   "P_SEQ_IMPLICATION"
 };
 
 static const change_allowed_t change_allowed[] = {

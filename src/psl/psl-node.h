@@ -47,14 +47,20 @@ typedef enum {
    P_VALUE_SET,
    P_PARAM,
    P_UNTIL,
+   P_SEQ_IMPLICATION,
 
    P_LAST_PSL_KIND
 } psl_kind_t;
 
 typedef enum {
    PSL_IMPL_IF,
-   PSL_IMPL_IFF,
+   PSL_IMPL_IFF
 } psl_impl_kind_t;
+
+typedef enum {
+   PSL_SEQ_IMPL_OVER,
+   PSL_SEQ_IMPL_NOVER
+} psl_seq_impl_kind_t;
 
 typedef enum {
    PSL_TYPE_HDLTYPE,

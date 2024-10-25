@@ -393,5 +393,7 @@ bool is_scanned_as_psl(void);
 #define tLOGIC         493
 #define tENUM          494
 #define tTAGGED        495
+#define tSEQIMPLOVR    496
+#define tSEQIMPLNOVR   497
 
 #endif  // _SCAN_H

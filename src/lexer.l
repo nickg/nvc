@@ -593,6 +593,8 @@ CCOND             ?i:CCOND
 <PSL>{UNTIL}!            { TOKEN(tUNTIL1); }
 <PSL>{UNTIL}_            { TOKEN(tUNTIL_); }
 <PSL>{UNTIL}_!           { TOKEN(tUNTIL_1); }
+<PSL>"|->"               { TOKEN(tSEQIMPLOVR); }
+<PSL>"|=>"               { TOKEN(tSEQIMPLNOVR); }
 
 <VLOG>"module"           { return tMODULE; }
 <VLOG>"endmodule"        { return tENDMODULE; }

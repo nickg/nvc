@@ -6,4 +6,6 @@ lib_libnvc_a_SOURCES += \
 	src/psl/psl-lower.c \
 	src/psl/psl-dump.c \
 	src/psl/psl-fsm.h \
-	src/psl/psl-fsm.c
+	src/psl/psl-fsm.c \
+	src/psl/psl-util.h \
+	src/psl/psl-util.c

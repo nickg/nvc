@@ -24,6 +24,7 @@
 #include "psl/psl-fsm.h"
 #include "psl/psl-node.h"
 #include "psl/psl-phase.h"
+#include "psl/psl-util.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -170,6 +171,55 @@ static fsm_state_t *build_implication(psl_fsm_t *fsm, fsm_state_t *state,
    }
 }
 
+static fsm_state_t *build_seq_implication(psl_fsm_t *fsm, fsm_state_t *state,
+                                          psl_node_t p)
+{
+   psl_node_t lhs = psl_operand(p, 0);
+   psl_node_t rhs = psl_operand(p, 1);
+
+   psl_fsm_t *fsm_lhs = psl_fsm_new(lhs);
+   psl_fsm_t *fsm_rhs = psl_fsm_new(rhs);
+
+   fsm_state_t *final_rhs = psl_fsm_get_accept(fsm_rhs);
+
+   // Create or redirect default edges to RHS final since sequence implication
+   // holds when LHS does not hold at a cycle
+   for (fsm_state_t *s = fsm_lhs->states; s->next; s = s->next) {
+
+      fsm_edge_t *def = NULL;
+      bool add_def = true;
+      for (fsm_edge_t *e = s->edges; e; e = e->next) {
+         if (e->guard == NULL) {
+            add_def = false;
+            if (e->kind == EDGE_EPSILON)
+               def = e;
+         }
+      }
+
+      if (def) {
+         def->dest = final_rhs;
+         continue;
+      }
+      if (add_def)
+         add_edge(s, final_rhs, EDGE_EPSILON, NULL);
+   }
+
+   // Connect LHS and RHS
+   edge_kind_t ekind = (psl_subkind(p) == PSL_SEQ_IMPL_OVER) ?
+                              EDGE_EPSILON : EDGE_NEXT;
+   fsm_state_t *final_lhs = psl_fsm_get_accept(fsm_lhs);
+   add_edge(final_lhs, fsm_rhs->states, ekind, NULL);
+   add_edge(state, fsm_lhs->states, EDGE_EPSILON, NULL);
+
+   psl_fsm_append(fsm, fsm_lhs);
+   psl_fsm_append(fsm, fsm_rhs);
+
+   psl_fsm_free(fsm_lhs);
+   psl_fsm_free(fsm_rhs);
+
+   return final_rhs;
+}
+
 static fsm_state_t *build_until(psl_fsm_t *fsm, fsm_state_t *state,
                                 psl_node_t p)
 {
@@ -246,6 +296,8 @@ static fsm_state_t *build_node(psl_fsm_t *fsm, fsm_state_t *state, psl_node_t p)
       return build_sere(fsm, state, p);
    case P_IMPLICATION:
       return build_implication(fsm, state, p);
+   case P_SEQ_IMPLICATION:
+      return build_seq_implication(fsm, state, p);
    case P_UNTIL:
       return build_until(fsm, state, p);
    default:
@@ -301,7 +353,9 @@ psl_fsm_t *psl_fsm_new(psl_node_t p)
    fsm_state_t *initial = add_state(fsm), *final = initial;
    initial->initial = true;
 
-   psl_node_t top = psl_value(p);
+   psl_node_t top = p;
+   if (psl_is_directive(p))
+      top = psl_value(p);
 
    switch (psl_kind(top)) {
    case P_NEVER:
@@ -407,4 +461,33 @@ bool psl_fsm_repeating(psl_fsm_t *fsm)
 {
    return fsm->kind == FSM_COVER || fsm->kind == FSM_ALWAYS
       || fsm->kind == FSM_NEVER;
+}
+
+fsm_state_t *psl_fsm_get_accept(psl_fsm_t *fsm)
+{
+   // TODO: Could it occur that there will be two states with accept ?
+   //       Or could it occur that accept will not be last ? If not,
+   //       then just "final" can be returned
+   for (fsm_state_t *s = fsm->states; s; s = s->next)
+      if (s->accept)
+         return s;
+
+   return NULL;
+}
+
+void psl_fsm_append(psl_fsm_t *to, psl_fsm_t *from)
+{
+   fsm_state_t *last = NULL;
+
+   for (fsm_state_t *s = to->states; s; s = s->next)
+      last = s;
+
+   int offset = to->next_id;
+   for (fsm_state_t *s = from->states; s; s = s->next) {
+      s->id += offset;
+      to->next_id++;
+   }
+   from->states->initial = false;
+   last->accept = false;
+   last->next = from->states;
 }
