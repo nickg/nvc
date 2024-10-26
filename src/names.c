@@ -4458,16 +4458,19 @@ static type_t solve_array_aggregate(nametab_t *tab, tree_t agg, type_t type)
    type_set_push(tab);
 
    type_t t0, t1 = NULL;
+   bool composite_elem = false;
    const int ndims = dimension_of(type);
    if (ndims == 1) {
       type_t elem = type_elem(type);
       type_set_add(tab, (t0 = elem), NULL);
 
-      if (standard() >= STD_08 && !type_is_composite(elem))
-         type_set_add(tab, (t1 = type_base_recur(type)), NULL);
+      if (standard() >= STD_08) {
+         t1 = type_base_recur(type);
+         composite_elem = type_is_composite(elem);
+      }
    }
    else
-      type_set_add(tab, (t0 = array_aggregate_type(type, 1)), NULL);
+      t0 = array_aggregate_type(type, 1);
 
    type_t index_type = index_type_of(type, 0);
 
@@ -4475,12 +4478,24 @@ static type_t solve_array_aggregate(nametab_t *tab, tree_t agg, type_t type)
    const int nassocs = tree_assocs(agg);
    for (int i = 0; i < nassocs; i++) {
       tree_t a = tree_assoc(agg, i);
-
       const assoc_kind_t kind = tree_subkind(a);
+
+      bool allow_slice = t1 != NULL && (kind == A_POS || kind == A_RANGE);
+
+      // This seems incorrect according to the 2008 LRM but without it
+      // many previously legal nested aggregates are ambiguous
+      tree_t value = tree_value(a);
+      if (composite_elem && tree_kind(value) == T_AGGREGATE)
+         allow_slice = false;
+
+      // Hack to avoid pushing/popping type set on each iteration
+      ATRIM(tab->top_type_set->members, 0);
+      type_set_add(tab, t0, NULL);
+      if (allow_slice)
+         type_set_add(tab, t1, NULL);
+
       switch (kind) {
       case A_POS:
-      case A_CONCAT:
-      case A_SLICE:
          break;
       case A_OTHERS:
          have_others = true;
@@ -4519,16 +4534,15 @@ static type_t solve_array_aggregate(nametab_t *tab, tree_t agg, type_t type)
          solve_types(tab, tree_range(a, 0), index_type);
          have_named = true;
          break;
+      case A_CONCAT:
+      case A_SLICE:
+         should_not_reach_here();
+         break;
       }
 
-      type_t etype = _solve_types(tab, tree_value(a));
+      type_t etype = _solve_types(tab, value);
 
-      // Hack to avoid pushing/popping type set on each iteration
-      ATRIM(tab->top_type_set->members, 0);
-      type_set_add(tab, t0, NULL);
-      type_set_add(tab, t1, NULL);
-
-      if (t1 != NULL && type_eq(etype, t1)) {
+      if (allow_slice && type_eq(etype, t1)) {
          // VHDL-2008 slice in aggregate
          switch (kind) {
          case A_RANGE: tree_set_subkind(a, A_SLICE); break;
