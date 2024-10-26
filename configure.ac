@@ -115,12 +115,16 @@ case $target_cpu in
                           [Target supports SHA instructions])],
       [], [-Werror])
 
-    AX_CHECK_COMPILE_FLAG(
-      [-mpopcnt],
-      [AX_APPEND_FLAG([-mpopcnt], [EXTRA_CFLAGS])
-       AC_DEFINE_UNQUOTED([HAVE_POPCNT], [1],
-                          [Target supports POPCNT instructions])],
-      [], [-Werror])
+    case "$CFLAGS" in
+      *mno-popcnt*) ;;   # Disabled by user
+      *) AX_CHECK_COMPILE_FLAG(
+           [-mpopcnt],
+           [AX_APPEND_FLAG([-mpopcnt], [EXTRA_CFLAGS])
+            AC_DEFINE_UNQUOTED([HAVE_POPCNT], [1],
+                               [Target supports POPCNT instructions])],
+           [], [-Werror])
+         ;;
+    esac
     ;;
 
   aarch64)
