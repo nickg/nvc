@@ -1,27 +1,31 @@
 ## Unreleased changes
-- Fixed an error when using the `work` library alias and the working
-  library has the same name as design unit being analysed (#991).
 - `--load` is now a global option and should be placed before the `-r`
   command.  This allows VHPI foreign subprograms to be called during
   elaboration (#988).
-- `--per-file` switch generates code coverage report with
-  code coverage shown for source files instead of hierarchies (#823).
-- Added a check for illegal references to signal or variable external
-  names inside pure functions (#1010).
+- The `--per-file` coverage report option outputs code coverage reports
+  for each source file instead of each instance (#823).
 - The new `--check-synthesis` analysis option warns when signals are
   missing from process sensitivity lists.
+- Fixed a crash when a generic subprogram is associated with `open`
+  (#1025).
+- Added a functional coverage API in `nvc.cover_pkg` that can be used by
+  external frameworks such as OSVVM to define cover points.
+- Added `threshold-<value>` option for coverage to set minimal count a
+  coverage bin must reach to be reported as covered.
+- Added a warning for potential infinite loops in processes without
+  sensitivity and lacking any wait statements (from @NikLeberg).
+
+## Version 1.14.1 - 2024-10-26
+- Fixed an error when using the `work` library alias and the working
+  library has the same name as design unit being analysed (#991).
+- Added a check for illegal references to signal or variable external
+  names inside pure functions (#1010).
 - Added a check that the parameter of `'stable` and other implicit
   signal attributes is a static expression (#1018).
 - Fixed an elaboration crash when an external name is passed to a
   procedure (#1029).
-- Fixed a crash when a generic subprogram is associated with `open`
-  (#1025).
 - Record subtype constraints can now be accessed over VHPI (#1035).
-- OSVVM functional coverage is reported as part of functional coverage
-- Add `threshold-<value>` option for coverage to set minimal coun a
-  coverage bin must reach to be reported as covered
-- Added a warning for potential infinite loops in processes without
-  sensitivity and lacking any wait statements (from @NikLeberg).
+- Several other minor bugs were resolved (#1017, #1020, #1030, #1040).
 
 ## Version 1.14.0 - 2024-09-22
 - Waiting on implicit `'stable` and `'quiet` signals now works
