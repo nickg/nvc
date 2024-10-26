@@ -37,6 +37,7 @@ typedef enum {
    DEBUG_STUB,
    TLAB_STUB,
    FEXP_STUB,
+   ROUND_STUB,
 
    NUM_STUBS
 } jit_x86_stub_t;
@@ -1836,12 +1837,16 @@ static void jit_x86_fcmp(code_blob_t *blob, jit_ir_t *ir,
    }
 }
 
-static void jit_x86_fcvtns(code_blob_t *blob, jit_ir_t *ir,
-                          const phys_slot_t *slots)
+static void jit_x86_fcvtns(code_blob_t *blob, jit_x86_state_t *state,
+                           jit_ir_t *ir, const phys_slot_t *slots)
 {
    jit_x86_get_copy(blob, __XMM0, ir->arg1, slots);
 
-   ROUNDSD(__XMM0, __XMM0, _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC);
+   if (__builtin_cpu_supports("sse4.1"))
+      ROUNDSD(__XMM0, __XMM0, _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC);
+   else
+      CALL(PTR(state->stubs[ROUND_STUB]));
+
    CVTSD2SI(__EAX, __XMM0, __QWORD);
 
    jit_x86_put(blob, ir->result, __EAX, slots);
@@ -2167,7 +2172,7 @@ static void jit_x86_op(code_blob_t *blob, jit_x86_state_t *state, jit_ir_t *ir,
       jit_x86_fcmp(blob, ir, slots);
       break;
    case J_FCVTNS:
-      jit_x86_fcvtns(blob, ir, slots);
+      jit_x86_fcvtns(blob, state, ir, slots);
       break;
    case J_SCVTF:
       jit_x86_scvtf(blob, ir, slots);
@@ -2495,6 +2500,26 @@ static void jit_x86_gen_fexp_stub(jit_x86_state_t *state)
    code_blob_finalise(blob, &(state->stubs[FEXP_STUB]));
 }
 
+static void jit_x86_gen_round_stub(jit_x86_state_t *state)
+{
+   ident_t name = ident_new("round stub");
+   code_blob_t *blob = code_blob_new(state->code, name, 0);
+
+   SUB(__ESP, IMM(8), __QWORD);   // Ensure stack aligned
+
+   jit_x86_push_call_clobbered(blob);
+
+   MOV(__EAX, PTR(round), __QWORD);
+   CALL(__EAX);
+
+   jit_x86_pop_call_clobbered(blob);
+
+   ADD(__ESP, IMM(8), __QWORD);
+   RET();
+
+   code_blob_finalise(blob, &(state->stubs[ROUND_STUB]));
+}
+
 static void *jit_x86_init(jit_t *jit)
 {
    jit_x86_state_t *state = xcalloc(sizeof(jit_x86_state_t));
@@ -2507,6 +2532,9 @@ static void *jit_x86_init(jit_t *jit)
    jit_x86_gen_tlab_stub(state);
    jit_x86_gen_fexp_stub(state);
    DEBUG_ONLY(jit_x86_gen_debug_stub(state));
+
+   if (!__builtin_cpu_supports("sse4.1"))
+      jit_x86_gen_round_stub(state);
 
    return state;
 }
