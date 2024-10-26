@@ -1,4 +1,6 @@
 ## Unreleased changes
+
+## Version 1.14.1 - 2024-10-26
 - Fixed an error when using the `work` library alias and the working
   library has the same name as design unit being analysed (#991).
 - Added a check for illegal references to signal or variable external
