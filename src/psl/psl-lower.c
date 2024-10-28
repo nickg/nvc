@@ -125,26 +125,28 @@ static void psl_lower_state(lower_unit_t *lu, psl_fsm_t *fsm,
                   VCODE_INVALID_REG);
    }
 
-   vcode_block_t pass_bb = emit_block();
-
    for (fsm_edge_t *e = state->edges; e; e = e->next) {
       if (e->guard != NULL) {
-         vcode_block_t enter_bb = emit_block();
-         vcode_block_t skip_bb = emit_block();
-
          vcode_reg_t guard_reg = psl_lower_boolean(lu, e->guard);
-         emit_cond(guard_reg, enter_bb, skip_bb);
 
-         vcode_select_block(enter_bb);
-
-         if (e->kind == EDGE_EPSILON)
-            emit_jump(state_bb[e->dest->id]);
-         else {
-            psl_enter_state(e->dest);
-            emit_jump(pass_bb);
+         if (e->kind == EDGE_EPSILON) {
+            vcode_block_t skip_bb = emit_block();
+            emit_cond(guard_reg, state_bb[e->dest->id], skip_bb);
+            vcode_select_block(skip_bb);
          }
+         else {
+            vcode_block_t enter_bb = emit_block();
+            vcode_block_t skip_bb = emit_block();
 
-         vcode_select_block(skip_bb);
+            emit_cond(guard_reg, enter_bb, skip_bb);
+
+            vcode_select_block(enter_bb);
+
+            psl_enter_state(e->dest);
+            emit_return(VCODE_INVALID_REG);
+
+            vcode_select_block(skip_bb);
+         }
 
          const bool exhaustive =
             fsm->kind == FSM_BARE || fsm->kind == FSM_ALWAYS;
@@ -165,16 +167,12 @@ static void psl_lower_state(lower_unit_t *lu, psl_fsm_t *fsm,
       else {
          assert(e->next == NULL);
          psl_enter_state(e->dest);
-         emit_jump(pass_bb);
+         emit_return(VCODE_INVALID_REG);
       }
    }
 
    if (!vcode_block_finished())
-      emit_jump(pass_bb);
-
-   vcode_select_block(pass_bb);
-
-   emit_return(VCODE_INVALID_REG);
+      emit_return(VCODE_INVALID_REG);
 }
 
 void psl_lower_directive(unit_registry_t *ur, lower_unit_t *parent,
