@@ -295,7 +295,7 @@ bool is_scanned_as_psl(void);
 #define tTRANSLATEOFF  395
 #define tUNTIL1        396
 #define tUNTIL_        397
-#define tUNTIL_1       398
+#define tUNTIL1_       398
 #define tTIMESCALE     399
 #define tSUPPLY0       400
 #define tSUPPLY1       401
@@ -396,5 +396,9 @@ bool is_scanned_as_psl(void);
 #define tABORT         496
 #define tSYNC_ABORT    497
 #define tASYNC_ABORT   498
+#define tBEFORE        499
+#define tBEFORE1       500
+#define tBEFORE_       501
+#define tBEFORE1_      502
 
 #endif  // _SCAN_H

@@ -30,5 +30,7 @@ begin
     -- psl restrict {x; bad};                 -- Error
     -- psl sequence seq1 is {not(x); x};      -- OK
     -- psl sequence seq2 is {not(f); x};      -- Error
+    -- psl assert (x -> next y) before x;     -- Error
+    -- psl assert x before (x -> next y);     -- Error
 
 end architecture;

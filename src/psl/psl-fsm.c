@@ -247,6 +247,27 @@ static fsm_state_t *build_eventually(psl_fsm_t *fsm, fsm_state_t *state,
    return accept;
 }
 
+static fsm_state_t *build_before(psl_fsm_t *fsm, fsm_state_t *state,
+                                 psl_node_t p)
+{
+   fsm_state_t *wait = add_state(fsm);
+   fsm_state_t *accept = add_state(fsm);
+   fsm_state_t *fail = add_state(fsm);
+
+   wait->strong = !!(psl_flags(p) & PSL_F_STRONG);
+
+   if (psl_flags(p) & PSL_F_INCLUSIVE)
+      add_edge(state, wait, EDGE_EPSILON, NULL);
+   else
+      add_edge(state, wait, EDGE_NEXT, NULL);
+
+   add_edge(wait, fail, EDGE_EPSILON, psl_operand(p, 1));
+   add_edge(wait, accept, EDGE_EPSILON, psl_operand(p, 0));
+   add_edge(wait, wait, EDGE_NEXT, NULL);
+
+   return accept;
+}
+
 static fsm_state_t *build_node(psl_fsm_t *fsm, fsm_state_t *state, psl_node_t p)
 {
    switch (psl_kind(p)) {
@@ -268,6 +289,8 @@ static fsm_state_t *build_node(psl_fsm_t *fsm, fsm_state_t *state, psl_node_t p)
       return build_eventually(fsm, state, p);
    case P_ABORT:
       return build_abort(fsm, state, p);
+   case P_BEFORE:
+      return build_before(fsm, state, p);
    default:
       CANNOT_HANDLE(p);
    }

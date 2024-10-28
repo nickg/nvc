@@ -128,10 +128,24 @@ static void psl_dump_until(psl_node_t p)
    print_syntax("(");
    psl_dump(psl_operand(p, 0));
    print_syntax(" #until");
-   if (psl_flags(p) & PSL_F_INCLUSIVE)
-      print_syntax("_");
    if (psl_flags(p) & PSL_F_STRONG)
       print_syntax("!");
+   if (psl_flags(p) & PSL_F_INCLUSIVE)
+      print_syntax("_");
+   print_syntax(" ");
+   psl_dump(psl_operand(p, 1));
+   print_syntax(")");
+}
+
+static void psl_dump_before(psl_node_t p)
+{
+   print_syntax("(");
+   psl_dump(psl_operand(p, 0));
+   print_syntax(" #before");
+   if (psl_flags(p) & PSL_F_STRONG)
+      print_syntax("!");
+   if (psl_flags(p) & PSL_F_INCLUSIVE)
+      print_syntax("_");
    print_syntax(" ");
    psl_dump(psl_operand(p, 1));
    print_syntax(")");
@@ -222,6 +236,9 @@ void psl_dump(psl_node_t p)
       break;
    case P_UNTIL:
       psl_dump_until(p);
+      break;
+   case P_BEFORE:
+      psl_dump_before(p);
       break;
    case P_ABORT:
       psl_dump_abort(p);

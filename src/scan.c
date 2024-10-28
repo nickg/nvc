@@ -227,7 +227,7 @@ const char *token_str(token_t tok)
          "bit", "bitvector", "numeric", "string", "[*", "[+]", "[=", "[->",
          "&&", "within", "system task", "view", "private", "prev", "stable",
          "rose", "fell", "ended", "nondet", "nondetv", "union", "translate on",
-         "translate off", "until!", "until_", "until_!", "`timescale",
+         "translate off", "until!", "until_", "until!_", "`timescale",
          "supply0", "supply1", "pulldown", "pullup", "===", "!==", "==", "!=",
          "(*", "*)", "number", "forever", "[[", "]]", "specify", "endspecify",
          "primitive", "endprimitive", "table", "endtable", "assign",
@@ -244,7 +244,8 @@ const char *token_str(token_t tok)
          "name", "arrival", "departure", "slack", "waveform", "increment",
          "absolute", "~&", "~|", "~^", "struct", "packed", "void", "byte",
          "shortint", "longint", "int", "integer", "time", "typedef", "logic",
-         "enum", "tagged", "abort", "sync_abort", "async_abort",
+         "enum", "tagged", "abort", "sync_abort", "async_abort", "before",
+         "before!", "before_", "before!_",
       };
 
       if (tok >= 200 && tok - 200 < ARRAY_LEN(token_strs))

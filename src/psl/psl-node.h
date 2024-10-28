@@ -48,6 +48,7 @@ typedef enum {
    P_PARAM,
    P_UNTIL,
    P_ABORT,
+   P_BEFORE,
 
    P_LAST_PSL_KIND
 } psl_kind_t;

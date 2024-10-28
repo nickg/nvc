@@ -450,7 +450,11 @@ START_TEST(test_psl1)
    tb_rewind(tb);
 
    psl_dump(tree_psl(tree_stmt(a, 5)));
-   diff_dump(tb_get(tb), "assert always ((A until B) async_abort C)");
+   diff_dump(tb_get(tb), "assert always ((A until_ B) async_abort C)");
+   tb_rewind(tb);
+
+   psl_dump(tree_psl(tree_stmt(a, 6)));
+   diff_dump(tb_get(tb), "assert (A before! B)");
    tb_rewind(tb);
 
    fail_if_errors();

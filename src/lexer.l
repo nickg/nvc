@@ -334,6 +334,7 @@ CCOND             ?i:CCOND
 ABORT             ?i:abort
 ASYNC_ABORT       ?i:async_abort
 SYNC_ABORT        ?i:sync_abort
+BEFORE            ?i:before
 
 %%
 
@@ -595,10 +596,14 @@ SYNC_ABORT        ?i:sync_abort
 <PSL>{UNION}             { TOKEN(tUNION); }
 <PSL>{UNTIL}!            { TOKEN(tUNTIL1); }
 <PSL>{UNTIL}_            { TOKEN(tUNTIL_); }
-<PSL>{UNTIL}_!           { TOKEN(tUNTIL_1); }
+<PSL>{UNTIL}_!           { TOKEN(tUNTIL1_); }
 <PSL>{ABORT}             { TOKEN(tABORT); }
 <PSL>{ASYNC_ABORT}       { TOKEN(tASYNC_ABORT); }
 <PSL>{SYNC_ABORT}        { TOKEN(tSYNC_ABORT); }
+<PSL>{BEFORE}            { TOKEN(tBEFORE); }
+<PSL>{BEFORE}!           { TOKEN(tBEFORE1); }
+<PSL>{BEFORE}_           { TOKEN(tBEFORE_); }
+<PSL>{BEFORE}!_          { TOKEN(tBEFORE1_); }
 
 <VLOG>"module"           { return tMODULE; }
 <VLOG>"endmodule"        { return tENDMODULE; }
@@ -688,7 +693,7 @@ SYNC_ABORT        ?i:sync_abort
 "[->"                    { TOKEN(tARROWRPT); }
 {UNTIL}!                 { TOKEN(tUNTIL1); }
 {UNTIL}_                 { TOKEN(tUNTIL_); }
-{UNTIL}_!                { TOKEN(tUNTIL_1); }
+{UNTIL}!_                { TOKEN(tUNTIL1_); }
 
 % /* These VHDL tokens must be scanned in PSL mode for look-ahead */
 <PSL>{SEVERITY}          { TOKEN(tSEVERITY); }

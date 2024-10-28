@@ -12258,17 +12258,39 @@ static psl_node_t p_psl_fl_property(void)
    case tUNTIL:
    case tUNTIL_:
    case tUNTIL1:
-   case tUNTIL_1:
+   case tUNTIL1_:
       {
          consume(infix);
 
          psl_flags_t flags = 0;
-         if (infix == tUNTIL1 || infix == tUNTIL_1)
+         if (infix == tUNTIL1 || infix == tUNTIL1_)
             flags |= PSL_F_STRONG;
-         if (infix == tUNTIL_ || infix == tUNTIL_1)
+         if (infix == tUNTIL_ || infix == tUNTIL1_)
             flags |= PSL_F_INCLUSIVE;
 
          psl_node_t until = psl_new(P_UNTIL);
+         psl_set_flag(until, flags);
+         psl_add_operand(until, p);
+         psl_add_operand(until, p_psl_fl_property());
+         psl_set_loc(until, CURRENT_LOC);
+
+         return until;
+      }
+
+   case tBEFORE:
+   case tBEFORE_:
+   case tBEFORE1:
+   case tBEFORE1_:
+      {
+         consume(infix);
+
+         psl_flags_t flags = 0;
+         if (infix == tBEFORE1 || infix == tBEFORE1_)
+            flags |= PSL_F_STRONG;
+         if (infix == tBEFORE_ || infix == tBEFORE1_)
+            flags |= PSL_F_INCLUSIVE;
+
+         psl_node_t until = psl_new(P_BEFORE);
          psl_set_flag(until, flags);
          psl_add_operand(until, p);
          psl_add_operand(until, p_psl_fl_property());

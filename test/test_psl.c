@@ -124,6 +124,10 @@ START_TEST(test_sem1)
       { 29, "no visible declaration for BAD" },
       { 30, "no visible declaration for BAD" },
       { 32, "no visible declaration for F" },
+      { 33, "property is not in the simple subset as the left hand side of "
+        "this before operator is non-Boolean" },
+      { 34, "property is not in the simple subset as the right hand side of "
+        "this before operator is non-Boolean" },
       { -1, NULL }
    };
    expect_errors(expect);
