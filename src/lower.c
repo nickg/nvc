@@ -116,6 +116,7 @@ typedef struct {
 typedef void (*lower_field_fn_t)(lower_unit_t *, tree_t, vcode_reg_t,
                                  vcode_reg_t, vcode_reg_t, void *);
 typedef void (*convert_emit_fn)(vcode_reg_t, vcode_reg_t, vcode_reg_t);
+typedef vcode_reg_t (*resolved_fn_t)(vcode_reg_t);
 
 typedef A(concat_param_t) concat_list_t;
 
@@ -163,6 +164,8 @@ static vcode_reg_t lower_get_type_bounds(lower_unit_t *lu, type_t type);
 static vcode_reg_t lower_attr_prefix(lower_unit_t *lu, tree_t prefix);
 static void lower_subprogram_ports(lower_unit_t *lu, tree_t body,
                                    bool params_as_vars);
+static vcode_type_t lower_func_result_type(type_t result);
+static vcode_reg_t lower_context_for_call(lower_unit_t *lu, ident_t unit_name);
 
 typedef vcode_reg_t (*lower_signal_flag_fn_t)(vcode_reg_t, vcode_reg_t);
 typedef vcode_reg_t (*arith_fn_t)(vcode_reg_t, vcode_reg_t);
@@ -1091,7 +1094,7 @@ static vcode_reg_t lower_coerce_arrays(lower_unit_t *lu, type_t from, type_t to,
 
 static void lower_resolved_field_cb(lower_unit_t *lu, tree_t field,
                                     vcode_reg_t field_ptr, vcode_reg_t dst_ptr,
-                                    vcode_reg_t locus, void *__ctx)
+                                    vcode_reg_t locus, void *ctx)
 {
    type_t ftype = tree_type(field);
    if (!type_is_homogeneous(ftype)) {
@@ -1114,13 +1117,14 @@ static void lower_resolved_field_cb(lower_unit_t *lu, tree_t field,
       }
 
       lower_for_each_field_2(lu, ftype, ftype, field_ptr, dst_ptr, locus,
-                             lower_resolved_field_cb, NULL);
+                             lower_resolved_field_cb, ctx);
    }
    else {
+      resolved_fn_t fn = ctx;
       vcode_reg_t sig_reg = emit_load_indirect(field_ptr);
 
       if (type_is_array(ftype)) {
-         vcode_reg_t r_reg = emit_resolved(lower_array_data(sig_reg));
+         vcode_reg_t r_reg = (*fn)(lower_array_data(sig_reg));
 
          if (type_const_bounds(ftype)) {
             vcode_reg_t count_reg =
@@ -1133,7 +1137,7 @@ static void lower_resolved_field_cb(lower_unit_t *lu, tree_t field,
          }
       }
       else {
-         vcode_reg_t r_reg = emit_resolved(sig_reg);
+         vcode_reg_t r_reg = (*fn)(sig_reg);
          emit_store_indirect(emit_load_indirect(r_reg), dst_ptr);
       }
    }
@@ -1359,13 +1363,30 @@ static vcode_reg_t lower_last_value(lower_unit_t *lu, tree_t ref)
    vcode_reg_t nets = lower_lvalue(lu, ref);
 
    type_t type = tree_type(ref);
-   if (type_is_array(type) && !type_const_bounds(type)) {
-      assert(vcode_reg_kind(nets) == VCODE_TYPE_UARRAY);
-      vcode_reg_t last_reg = emit_last_value(emit_unwrap(nets));
-      return lower_wrap_with_new_bounds(lu, type, type, nets, last_reg);
+   if (type_is_homogeneous(type)) {
+      vcode_reg_t data_reg = emit_last_value(lower_array_data(nets));
+      if (vcode_reg_kind(nets) == VCODE_TYPE_UARRAY)
+         return lower_rewrap(data_reg, nets);
+      else
+         return data_reg;
    }
-   else
-      return emit_last_value(nets);
+   else {
+      // Use a helper function to convert a record signal into a record
+      // containing the resolved values
+
+      ident_t base_id = type_ident(type_base_recur(type));
+      ident_t helper_func = ident_prefix(base_id, ident_new("last_value"), '$');
+
+      vcode_reg_t arg_reg = nets;
+      if (type_is_array(type) && vcode_reg_kind(arg_reg) != VCODE_TYPE_UARRAY)
+         arg_reg = lower_wrap(lu, type, nets);
+
+      vcode_type_t vrtype = lower_func_result_type(type);
+
+      vcode_reg_t context_reg = lower_context_for_call(lu, helper_func);
+      vcode_reg_t args[] = { context_reg, arg_reg };
+      return emit_fcall(helper_func, vrtype, vrtype, args, 2);
+   }
 }
 
 static type_t lower_arg_type(tree_t fcall, int nth)
@@ -9412,7 +9433,8 @@ static void lower_value_helper(lower_unit_t *lu, object_t *obj)
    }
 }
 
-static void lower_resolved_helper(lower_unit_t *lu, object_t *obj)
+static void lower_resolved_record_fn(lower_unit_t *lu, object_t *obj,
+                                     resolved_fn_t fn)
 {
    tree_t decl = tree_from_object(obj);
 
@@ -9446,8 +9468,18 @@ static void lower_resolved_helper(lower_unit_t *lu, object_t *obj)
       data_reg = result_reg = emit_index(var, VCODE_INVALID_VAR);
 
    lower_for_each_field_2(lu, type, type, p_reg, data_reg, VCODE_INVALID_REG,
-                          lower_resolved_field_cb, NULL);
+                          lower_resolved_field_cb, fn);
    emit_return(result_reg);
+}
+
+static void lower_resolved_helper(lower_unit_t *lu, object_t *obj)
+{
+   lower_resolved_record_fn(lu, obj, emit_resolved);
+}
+
+static void lower_last_value_helper(lower_unit_t *lu, object_t *obj)
+{
+   lower_resolved_record_fn(lu, obj, emit_last_value);
 }
 
 static void lower_copy_helper(lower_unit_t *lu, object_t *obj)
@@ -9766,6 +9798,10 @@ static void lower_decl(lower_unit_t *lu, tree_t decl)
             ident_t resolved = ident_prefix(id, ident_new("resolved"), '$');
             unit_registry_defer(lu->registry, resolved, lu, emit_function,
                                 lower_resolved_helper, NULL, obj);
+
+            ident_t last_value = ident_prefix(id, ident_new("last_value"), '$');
+            unit_registry_defer(lu->registry, last_value, lu, emit_function,
+                                lower_last_value_helper, NULL, obj);
          }
 
          if (!lower_trivially_copyable(type)) {
