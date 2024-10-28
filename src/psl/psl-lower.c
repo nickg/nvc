@@ -175,6 +175,61 @@ static void psl_lower_state(lower_unit_t *lu, psl_fsm_t *fsm,
       emit_return(VCODE_INVALID_REG);
 }
 
+static psl_node_t psl_outer_async_abort(psl_node_t p)
+{
+   switch (psl_kind(p)) {
+   case P_ABORT:
+      if (psl_subkind(p) == PSL_ABORT_ASYNC)
+         return psl_operand(p, 1);
+      else
+         return NULL;
+
+   case P_ALWAYS:
+   case P_NEVER:
+   case P_ASSUME:
+   case P_COVER:
+      return psl_outer_async_abort(psl_value(p));
+
+   default:
+      return NULL;
+   }
+}
+
+static vcode_reg_t psl_lower_async_abort(unit_registry_t *ur,
+                                         lower_unit_t *parent,
+                                         psl_node_t hdl_expr,
+                                         ident_t name_prefix)
+{
+   vcode_state_t state;
+   vcode_state_save(&state);
+
+   vcode_unit_t context = get_vcode(parent);
+   vcode_select_unit(context);
+
+   ident_t prefix = vcode_unit_name(context);
+   ident_t name = ident_prefix(name_prefix, ident_new("async_abort"), '$');
+
+   vcode_unit_t vu = emit_function(name, psl_to_object(hdl_expr), context);
+   vcode_set_result(vtype_bool());
+
+   vcode_type_t vcontext = vtype_context(prefix);
+   emit_param(vcontext, vcontext, ident_new("context"));
+
+   lower_unit_t *lu = lower_unit_new(ur, parent, vu, NULL, NULL);
+   unit_registry_put(ur, lu);
+
+   vcode_reg_t result_reg = psl_lower_boolean(lu, hdl_expr);
+   emit_return(result_reg);
+
+   unit_registry_finalise(ur, lu);
+
+   vcode_state_restore(&state);
+
+   vcode_reg_t context_reg = emit_context_upref(1);
+   vcode_reg_t args[] = { context_reg };
+   return emit_function_trigger(name, args, ARRAY_LEN(args));
+}
+
 void psl_lower_directive(unit_registry_t *ur, lower_unit_t *parent,
                          cover_data_t *cover, tree_t wrapper)
 {
@@ -215,8 +270,10 @@ void psl_lower_directive(unit_registry_t *ur, lower_unit_t *parent,
    vcode_reg_t cmp_reg = emit_cmp(VCODE_CMP_LT, state_reg, zero_reg);
    emit_cond(cmp_reg, reset_bb, case_bb);
 
+   psl_node_t top = psl_value(p);
+
    // Only handle a single clock for the whole property
-   psl_node_t clk = psl_clock(psl_value(p));
+   psl_node_t clk = psl_clock(top);
    tree_t clk_expr = psl_tree(clk);
 
    int hops;
@@ -231,6 +288,17 @@ void psl_lower_directive(unit_registry_t *ur, lower_unit_t *parent,
 
    vcode_reg_t trigger_ptr = emit_var_upref(hops, trigger_var);
    vcode_reg_t trigger_reg = emit_load_indirect(trigger_ptr);
+
+   // Only handle async_abort at the top level
+   psl_node_t async_abort = psl_outer_async_abort(top);
+   if (async_abort != NULL) {
+      build_wait(psl_tree(async_abort), psl_wait_cb, lu);
+
+      vcode_reg_t abort_reg =
+         psl_lower_async_abort(ur, parent, async_abort, name);
+      trigger_reg = emit_or_trigger(trigger_reg, abort_reg);
+   }
+
    emit_add_trigger(trigger_reg);
 
    emit_return(emit_const(vint32, fsm->next_id));

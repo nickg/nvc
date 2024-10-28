@@ -246,6 +246,17 @@ static void psl_check_until(psl_node_t p, nametab_t *tab)
                "hand side of this until operator is non-Boolean");
 }
 
+static void psl_check_abort(psl_node_t p, nametab_t *tab)
+{
+   assert(psl_operands(p) == 2);
+
+   psl_node_t left = psl_operand(p, 0);
+   psl_check(left, tab);
+
+   psl_node_t right = psl_operand(p, 1);
+   psl_check(right, tab);
+}
+
 void psl_check(psl_node_t p, nametab_t *tab)
 {
    switch (psl_kind(p)) {
@@ -307,6 +318,9 @@ void psl_check(psl_node_t p, nametab_t *tab)
       break;
    case P_UNTIL:
       psl_check_until(p, tab);
+      break;
+   case P_ABORT:
+      psl_check_abort(p, tab);
       break;
    default:
       fatal_trace("cannot check PSL kind %s", psl_kind_str(psl_kind(p)));

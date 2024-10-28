@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2023 Nick Gasson
+//  Copyright (C) 2023-2024 Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -137,6 +137,19 @@ static void psl_dump_until(psl_node_t p)
    print_syntax(")");
 }
 
+static void psl_dump_abort(psl_node_t p)
+{
+   print_syntax("(");
+   psl_dump(psl_operand(p, 0));
+   if (psl_subkind(p) == PSL_ABORT_SYNC)
+      print_syntax(" #sync_abort");
+   else
+      print_syntax(" #async_abort");
+   print_syntax(" ");
+   psl_dump(psl_operand(p, 1));
+   print_syntax(")");
+}
+
 static void psl_dump_sere(psl_node_t p)
 {
    print_syntax("{");
@@ -209,6 +222,9 @@ void psl_dump(psl_node_t p)
       break;
    case P_UNTIL:
       psl_dump_until(p);
+      break;
+   case P_ABORT:
+      psl_dump_abort(p);
       break;
    case P_CLOCK_DECL:
       psl_dump_clock_decl(p);

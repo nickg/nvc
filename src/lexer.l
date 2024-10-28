@@ -331,6 +331,9 @@ TIMINGENV         ?i:TIMINGENV
 RETAIN            ?i:RETAIN
 SCOND             ?i:SCOND
 CCOND             ?i:CCOND
+ABORT             ?i:abort
+ASYNC_ABORT       ?i:async_abort
+SYNC_ABORT        ?i:sync_abort
 
 %%
 
@@ -593,6 +596,9 @@ CCOND             ?i:CCOND
 <PSL>{UNTIL}!            { TOKEN(tUNTIL1); }
 <PSL>{UNTIL}_            { TOKEN(tUNTIL_); }
 <PSL>{UNTIL}_!           { TOKEN(tUNTIL_1); }
+<PSL>{ABORT}             { TOKEN(tABORT); }
+<PSL>{ASYNC_ABORT}       { TOKEN(tASYNC_ABORT); }
+<PSL>{SYNC_ABORT}        { TOKEN(tSYNC_ABORT); }
 
 <VLOG>"module"           { return tMODULE; }
 <VLOG>"endmodule"        { return tENDMODULE; }

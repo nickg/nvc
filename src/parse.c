@@ -12082,6 +12082,9 @@ static psl_node_t p_psl_fl_property(void)
    //   | FL_Property until!_ FL_Property
    //   | FL_Property until FL_Property
    //   | FL_Property until_ FL_Property
+   //   | FL_Property sync_abort Boolean
+   //   | FL_Property async_abort Boolean
+   //   | FL_Property abort Boolean
 
    BEGIN("FL property");
 
@@ -12272,6 +12275,24 @@ static psl_node_t p_psl_fl_property(void)
          psl_set_loc(until, CURRENT_LOC);
 
          return until;
+      }
+
+   case tABORT:
+   case tASYNC_ABORT:
+   case tSYNC_ABORT:
+      {
+         consume(infix);
+
+         const psl_abort_t kind =
+            infix == tSYNC_ABORT ? PSL_ABORT_SYNC : PSL_ABORT_ASYNC;
+
+         psl_node_t abort = psl_new(P_ABORT);
+         psl_set_subkind(abort, kind);
+         psl_add_operand(abort, p);
+         psl_add_operand(abort, p_psl_or_hdl_expression());
+         psl_set_loc(abort, CURRENT_LOC);
+
+         return abort;
       }
 
    default:

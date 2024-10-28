@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2022-2023  Nick Gasson
+//  Copyright (C) 2022-2024  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -47,6 +47,7 @@ typedef enum {
    P_VALUE_SET,
    P_PARAM,
    P_UNTIL,
+   P_ABORT,
 
    P_LAST_PSL_KIND
 } psl_kind_t;
@@ -106,6 +107,11 @@ typedef enum {
    PSL_VALUE_SET_BOOLEAN,
    PSL_VALUE_SET_EXPLICIT
 } psl_value_set_kind_t;
+
+typedef enum {
+   PSL_ABORT_ASYNC,
+   PSL_ABORT_SYNC,
+} psl_abort_t;
 
 typedef enum {
    PSL_F_STRONG    = (1 << 0),

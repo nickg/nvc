@@ -49,19 +49,25 @@ static fsm_state_t *add_state(psl_fsm_t *fsm)
    return s;
 }
 
+static void insert_edge(fsm_state_t *from, fsm_state_t *to, edge_kind_t kind,
+                        psl_node_t guard, fsm_edge_t **where)
+{
+   fsm_edge_t *e = xcalloc(sizeof(fsm_edge_t));
+   e->next  = *where;
+   e->kind  = kind;
+   e->dest  = to;
+   e->guard = guard;
+
+   *where = e;
+}
+
 static void add_edge(fsm_state_t *from, fsm_state_t *to, edge_kind_t kind,
                      psl_node_t guard)
 {
    fsm_edge_t **p = &(from->edges);
    for (; *p && (guard == NULL || (*p)->guard != NULL); p = &((*p)->next));
 
-   fsm_edge_t *e = xcalloc(sizeof(fsm_edge_t));
-   e->next  = *p;
-   e->kind  = kind;
-   e->dest  = to;
-   e->guard = guard;
-
-   *p = e;
+   insert_edge(from, to, kind, guard, p);
 }
 
 static int64_t get_number(tree_t t)
@@ -75,14 +81,27 @@ static int64_t get_number(tree_t t)
    return result;
 }
 
-static void build_restart(psl_fsm_t *fsm, fsm_state_t *from, fsm_state_t *to)
+static void connect_abort(fsm_state_t *from, fsm_state_t *to, psl_node_t guard)
+{
+   if (from->edges == NULL)
+      return;   // Final state
+   else if (from == to)
+      return;   // Cycle
+
+   insert_edge(from, to, EDGE_EPSILON, guard, &(from->edges));
+
+   for (fsm_edge_t *e = from->edges; e; e = e->next)
+      connect_abort(e->dest, to, guard);
+}
+
+static void connect_default(fsm_state_t *from, fsm_state_t *to)
 {
    if (from->edges == NULL)
       return;   // Final state
 
    bool have_def = false;
    for (fsm_edge_t *e = from->edges; e; e = e->next) {
-      build_restart(fsm, e->dest, to);
+      connect_default(e->dest, to);
       have_def |= e->guard == NULL;
    }
 
@@ -140,6 +159,21 @@ static fsm_state_t *build_until(psl_fsm_t *fsm, fsm_state_t *state,
 
       return new;
    }
+}
+
+static fsm_state_t *build_abort(psl_fsm_t *fsm, fsm_state_t *state,
+                                psl_node_t p)
+{
+   psl_node_t lhs = psl_operand(p, 0);
+   psl_node_t rhs = psl_operand(p, 1);
+
+   fsm_state_t *final = build_node(fsm, state, lhs);
+
+   fsm_state_t *sink = add_state(fsm);
+   sink->accept = true;
+   connect_abort(state, sink, rhs);
+
+   return final;
 }
 
 static fsm_state_t *build_sere(psl_fsm_t *fsm, fsm_state_t *state, psl_node_t p)
@@ -206,7 +240,7 @@ static fsm_state_t *build_eventually(psl_fsm_t *fsm, fsm_state_t *state,
 {
    fsm_state_t *wait = add_state(fsm);
    fsm_state_t *accept = build_node(fsm, wait, psl_value(p));
-   build_restart(fsm, wait, wait);
+   connect_default(wait, wait);
    add_edge(state, wait, EDGE_NEXT, NULL);
    wait->strong = true;
 
@@ -232,6 +266,8 @@ static fsm_state_t *build_node(psl_fsm_t *fsm, fsm_state_t *state, psl_node_t p)
       return build_until(fsm, state, p);
    case P_EVENTUALLY:
       return build_eventually(fsm, state, p);
+   case P_ABORT:
+      return build_abort(fsm, state, p);
    default:
       CANNOT_HANDLE(p);
    }

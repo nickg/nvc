@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2022-2023  Nick Gasson
+//  Copyright (C) 2022-2024  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -97,6 +97,9 @@ static const imask_t has_map[P_LAST_PSL_KIND] = {
 
    // P_UNTIL
    (I_PARAMS | I_CLOCK | I_FLAGS),
+
+   // P_ABORT
+   (I_PARAMS | I_CLOCK | I_SUBKIND),
 };
 
 static const char *kind_text_map[P_LAST_PSL_KIND] = {
@@ -105,6 +108,7 @@ static const char *kind_text_map[P_LAST_PSL_KIND] = {
    "P_NEVER", "P_EVENTUALLY", "P_NEXT_A", "P_NEXT_E", "P_NEXT_EVENT",
    "P_SERE", "P_IMPLICATION", "P_REPEAT", "P_PROPERTY_INST", "P_SEQUENCE_INST",
    "P_UNION", "P_BUILTIN_FUNC", "P_VALUE_SET", "P_PARAM", "P_UNTIL",
+   "P_ABORT",
 };
 
 static const change_allowed_t change_allowed[] = {
