@@ -154,8 +154,10 @@ static fsm_state_t *build_sere(psl_fsm_t *fsm, fsm_state_t *state, psl_node_t p)
       case PSL_SERE_CONCAT:
          if (i + 1 < nops) {
             fsm_state_t *lhs = build_node(fsm, state, rhs);
-            state = add_state(fsm);
-            add_edge(lhs, state, EDGE_NEXT, NULL);
+            if (lhs != state) {
+               state = add_state(fsm);
+               add_edge(lhs, state, EDGE_NEXT, NULL);
+            }
          }
          else
             state = build_node(fsm, state, rhs);

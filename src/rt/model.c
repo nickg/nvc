@@ -985,10 +985,6 @@ static void reset_property(rt_model_t *m, rt_prop_t *prop)
 
    thread->active_obj = NULL;
    thread->active_scope = NULL;
-
-   // Run the property in the first time step
-   prop->wakeable.pending = true;
-   deferq_do(&m->postponedq, async_update_property, prop);
 }
 
 static void run_process(rt_model_t *m, rt_proc_t *proc)
