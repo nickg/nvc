@@ -1,4 +1,5 @@
 ## Unreleased changes
+- Fixed a crash when `'last_value` is used with record types (#1043).
 
 ## Version 1.14.1 - 2024-10-26
 - Fixed an error when using the `work` library alias and the working
