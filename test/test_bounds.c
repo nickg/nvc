@@ -841,6 +841,25 @@ START_TEST(test_issue1040)
 }
 END_TEST
 
+START_TEST(test_issue1021)
+{
+   input_from_file(TESTDIR "/bounds/issue1021.vhd");
+
+   const error_t expect[] = {
+      {  6, "length of value 0 does not match length of target 2 for "
+         "constant SMAP" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_check_and_simplify(T_ENTITY, T_ARCH);
+
+   fail_unless(parse() == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_bounds_tests(void)
 {
    Suite *s = suite_create("bounds");
@@ -885,6 +904,7 @@ Suite *get_bounds_tests(void)
    tcase_add_test(tc_core, test_issue966);
    tcase_add_test(tc_core, test_issue975);
    tcase_add_test(tc_core, test_issue1040);
+   tcase_add_test(tc_core, test_issue1021);
    suite_add_tcase(s, tc_core);
 
    return s;
