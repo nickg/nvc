@@ -118,6 +118,15 @@ AC_DEFUN([AX_LLVM_C], [
                          [LLVM uwtable attribute takes an argument])
     fi
 
+    if test "$llvm_ver_num" -ge "160"; then
+      case $host_os in
+      darwin*)
+        # Add LDFLAGS for libzstd in a non-default location for issue #1046
+        ZSTD_LDFLAGS=`pkg-config --libs-only-L libzstd`
+        LLVM_LDFLAGS="$LLVM_LDFLAGS $ZSTD_LDFLAGS"
+      esac
+    fi
+
     LLVM_OBJ_EXT="o"
     case $host_os in
       *cygwin*|msys*|mingw32*)
