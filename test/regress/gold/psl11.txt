@@ -1,2 +1,3 @@
+8ns+0: FINISH called
 8ns+0: PSL assertion failed
 8ns+0: PSL assertion failed

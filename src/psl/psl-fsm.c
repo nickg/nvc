@@ -96,77 +96,24 @@ static fsm_state_t *build_implication(psl_fsm_t *fsm, fsm_state_t *state,
    psl_node_t lhs = psl_operand(p, 0);
    psl_node_t rhs = psl_operand(p, 1);
 
-   switch (psl_kind(rhs)) {
-   case P_NEXT:
-      {
-         fsm_state_t *initial = state;
-
-         if (psl_has_delay(rhs)) {
-            const int cycles = get_number(psl_delay(rhs));
-
-            if (cycles > 0) {
-               fsm_state_t *new = add_state(fsm);
-               add_edge(state, new, EDGE_EPSILON, lhs);
-               state = new;
-            }
-
-            for (int i = 0; i < cycles; i++) {
-               fsm_state_t *new = add_state(fsm);
-               add_edge(state, new, EDGE_NEXT, NULL);
-               state = new;
-            }
-         }
-         else {
-            fsm_state_t *new = add_state(fsm);
-            add_edge(state, new, EDGE_NEXT, lhs);
-            state = new;
-         }
-
-         if (state != initial) {
-            fsm_state_t *final = build_node(fsm, state, psl_value(rhs));
-            add_edge(initial, final, EDGE_EPSILON, NULL);
-            return final;
-         }
-         else
-            return state;
-      }
-
-   case P_HDL_EXPR:
-      if (psl_subkind(p) == PSL_IMPL_IFF) {
-         // Only legal with Boolean HDL expression
-         fsm_state_t *left = add_state(fsm);
-         fsm_state_t *right = add_state(fsm);
-         fsm_state_t *accept = add_state(fsm);
-         add_edge(state, left, EDGE_EPSILON, lhs);
-         add_edge(state, right, EDGE_EPSILON, rhs);
-         add_edge(left, accept, EDGE_EPSILON, rhs);
-         add_edge(right, accept, EDGE_EPSILON, lhs);
-         add_edge(state, accept, EDGE_EPSILON, NULL);
-         return accept;
-      }
-      else {
-         fsm_state_t *left = add_state(fsm);
-         fsm_state_t *right = add_state(fsm);
-         add_edge(state, left, EDGE_EPSILON, lhs);
-         add_edge(left, right, EDGE_EPSILON, rhs);
-         add_edge(state, right, EDGE_EPSILON, NULL);
-         return right;
-      }
-
-   case P_EVENTUALLY:
-      {
-         fsm_state_t *wait = add_state(fsm);
-         fsm_state_t *accept = build_node(fsm, wait, psl_value(rhs));
-         build_restart(fsm, wait, wait);
-         add_edge(state, wait, EDGE_NEXT, lhs);
-         add_edge(state, accept, EDGE_EPSILON, NULL);
-         wait->strong = true;
-
-         return accept;
-      }
-
-   default:
-      CANNOT_HANDLE(rhs);
+   if (psl_subkind(p) == PSL_IMPL_IFF) {
+      // Only legal with Boolean HDL expression
+      fsm_state_t *left = add_state(fsm);
+      fsm_state_t *right = add_state(fsm);
+      fsm_state_t *accept = add_state(fsm);
+      add_edge(state, left, EDGE_EPSILON, lhs);
+      add_edge(state, right, EDGE_EPSILON, rhs);
+      add_edge(left, accept, EDGE_EPSILON, rhs);
+      add_edge(right, accept, EDGE_EPSILON, lhs);
+      add_edge(state, accept, EDGE_EPSILON, NULL);
+      return accept;
+   }
+   else {
+      fsm_state_t *left = add_state(fsm);
+      fsm_state_t *right = build_node(fsm, left, rhs);
+      add_edge(state, left, EDGE_EPSILON, lhs);
+      add_edge(state, right, EDGE_EPSILON, NULL);
+      return right;
    }
 }
 
@@ -233,6 +180,37 @@ static fsm_state_t *build_sere(psl_fsm_t *fsm, fsm_state_t *state, psl_node_t p)
    return state;
 }
 
+static fsm_state_t *build_next(psl_fsm_t *fsm, fsm_state_t *state, psl_node_t p)
+{
+   if (psl_has_delay(p)) {
+      const int cycles = get_number(psl_delay(p));
+      for (int i = 0; i < cycles; i++) {
+         fsm_state_t *new = add_state(fsm);
+         add_edge(state, new, EDGE_NEXT, NULL);
+         state = new;
+      }
+   }
+   else {
+      fsm_state_t *new = add_state(fsm);
+      add_edge(state, new, EDGE_NEXT, NULL);
+      state = new;
+   }
+
+   return build_node(fsm, state, psl_value(p));
+}
+
+static fsm_state_t *build_eventually(psl_fsm_t *fsm, fsm_state_t *state,
+                                     psl_node_t p)
+{
+   fsm_state_t *wait = add_state(fsm);
+   fsm_state_t *accept = build_node(fsm, wait, psl_value(p));
+   build_restart(fsm, wait, wait);
+   add_edge(state, wait, EDGE_NEXT, NULL);
+   wait->strong = true;
+
+   return accept;
+}
+
 static fsm_state_t *build_node(psl_fsm_t *fsm, fsm_state_t *state, psl_node_t p)
 {
    switch (psl_kind(p)) {
@@ -242,12 +220,16 @@ static fsm_state_t *build_node(psl_fsm_t *fsm, fsm_state_t *state, psl_node_t p)
          add_edge(state, new, EDGE_EPSILON, p);
          return new;
       }
+   case P_NEXT:
+      return build_next(fsm, state, p);
    case P_SERE:
       return build_sere(fsm, state, p);
    case P_IMPLICATION:
       return build_implication(fsm, state, p);
    case P_UNTIL:
       return build_until(fsm, state, p);
+   case P_EVENTUALLY:
+      return build_eventually(fsm, state, p);
    default:
       CANNOT_HANDLE(p);
    }
