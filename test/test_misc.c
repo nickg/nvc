@@ -391,6 +391,9 @@ START_TEST(test_mask)
    mask_clearall(&m);
    ck_assert_int_eq(mask_popcount(&m), 0);
 
+   ck_assert(!mask_test_and_set(&m, 5));
+   ck_assert(mask_test_and_set(&m, 5));
+
    mask_free(&m);
 }
 END_TEST

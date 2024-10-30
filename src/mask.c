@@ -185,6 +185,15 @@ void mask_clearall(bit_mask_t *m)
    mask_clear_range(m, 0, m->size);
 }
 
+bool mask_test_and_set(bit_mask_t *m, size_t bit)
+{
+   if (mask_test(m, bit))
+      return true;
+
+   mask_set(m, bit);
+   return false;
+}
+
 ssize_t mask_scan_backwards(bit_mask_t *m, size_t bit)
 {
    if (m->size <= 64) {

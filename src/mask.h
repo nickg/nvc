@@ -68,6 +68,7 @@ bool mask_test_range(bit_mask_t *m, size_t start, size_t count);
 size_t mask_popcount(bit_mask_t *m);
 void mask_setall(bit_mask_t *m);
 void mask_clearall(bit_mask_t *m);
+bool mask_test_and_set(bit_mask_t *m, size_t bit);
 ssize_t mask_scan_backwards(bit_mask_t *m, size_t bit);
 size_t mask_count_clear(bit_mask_t *m, size_t bit);
 void mask_subtract(bit_mask_t *m, const bit_mask_t *m2);

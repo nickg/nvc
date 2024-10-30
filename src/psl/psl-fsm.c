@@ -87,10 +87,8 @@ static void connect_abort(fsm_state_t *from, fsm_state_t *to, psl_node_t guard,
 {
    if (from->edges == NULL)
       return;   // Final state
-   else if (mask_test(visited, from->id))
+   else if (mask_test_and_set(visited, from->id))
       return;   // Cycle
-
-   mask_set(visited, from->id);
 
    for (fsm_edge_t *e = from->edges; e; e = e->next)
       connect_abort(e->dest, to, guard, visited);
@@ -103,10 +101,8 @@ static void connect_default(fsm_state_t *from, fsm_state_t *to,
 {
    if (from->edges == NULL)
       return;   // Final state
-   else if (mask_test(visited, from->id))
+   else if (mask_test_and_set(visited, from->id))
       return;   // Cycle
-
-   mask_set(visited, from->id);
 
    bool have_def = false;
    for (fsm_edge_t *e = from->edges; e; e = e->next) {
