@@ -1,6 +1,3 @@
-Library ieee;
-use ieee.std_logic_1164.all;
-
 entity parse3 is
 end entity;
 
@@ -56,8 +53,8 @@ begin
     -- psl property p_mutable_boolean(mutable boolean i) is {global_bool=i};
 
     -- psl property p_hdltype_1(hdltype integer i) is {a};
-    -- psl property p_hdltype_2(hdltype std_logic_vector i) is {a};
-    -- psl property p_hdltype_3(hdltype std_logic_vector(5 downto 0) i) is {a};
+    -- psl property p_hdltype_2(hdltype bit_vector i) is {a};
+    -- psl property p_hdltype_3(hdltype bit_vector(5 downto 0) i) is {a};
     -- psl property p_hdltype_4(const hdltype integer i; hdltype integer j) is {global_int=(i+j)};
     -- psl property p_hdltype_5(const hdltype integer i; mutable hdltype integer j) is {global_int=(i+j)};
 

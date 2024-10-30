@@ -1,7 +1,3 @@
-Library ieee;
-use ieee.std_logic_1164.all;
-use ieee.numeric_std.all;
-
 entity parse4 is
 end entity;
 
@@ -11,7 +7,7 @@ architecture test of parse4 is
 
 begin
 
-    -- psl default clock is rising_edge(clk);
+    -- psl default clock is clk'event and clk = '1';
 
     -- psl sequence seq_a is {a;b;c};
     -- psl sequence seq_b(const rpt) is a[*rpt];
@@ -47,11 +43,11 @@ begin
     -- psl cover b[->4];
 
     -- Boolean Proc_Block
-    -- psl cover a[[signal sig : std_logic; sig <= '1';]];
+    -- psl cover a[[signal sig : bit; sig <= '1';]];
 
     -- Sequence Proc_Block
-    -- psl cover {a;b} [[signal sig : unsigned(3 downto 0); sig <= "0000";]];
+    -- psl cover {a;b} [[signal sig : bit_vector(3 downto 0); sig <= "0000";]];
 
-    -- psl cover {a;b;c} @ rising_edge(clk);
+    -- psl cover {a;b;c} @ (clk'event and clk = '1');
 
 end architecture;

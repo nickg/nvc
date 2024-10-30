@@ -1,7 +1,3 @@
-Library ieee;
-use ieee.std_logic_1164.all;
-use ieee.numeric_std.all;
-
 entity parse5 is
 end entity;
 
@@ -9,7 +5,7 @@ architecture test of parse5 is
 
     signal a, b, c, d, e, f, clk : bit;
 
-    -- psl default clock is rising_edge(clk);
+    -- psl default clock is clk'event and clk = '1';
 begin
 
     -- psl cover {a:b:c:d};
