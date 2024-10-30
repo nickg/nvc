@@ -61,4 +61,7 @@ begin
     -- psl property p_property_1(property x) is {a};
     -- psl property p_sequence_1(sequence x) is {a};
 
+    -- psl assert {a} |=> {b;c};
+    -- psl assert {a} |-> {b};
+
 end architecture;

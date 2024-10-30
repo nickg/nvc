@@ -275,6 +275,22 @@ static void psl_check_abort(psl_node_t p, nametab_t *tab)
    psl_check(right, tab);
 }
 
+static void psl_check_suffix_impl(psl_node_t p, nametab_t *tab)
+{
+   assert(psl_operands(p) == 2);
+
+   psl_node_t left = psl_operand(p, 0);
+   psl_check(left, tab);
+
+   const psl_kind_t lkind = psl_kind(left);
+   if (lkind != P_HDL_EXPR && lkind != P_SERE)
+      error_at(psl_loc(left), "left hand side of suffix implication operator "
+               "must be a Sequence");
+
+   psl_node_t right = psl_operand(p, 1);
+   psl_check(right, tab);
+}
+
 void psl_check(psl_node_t p, nametab_t *tab)
 {
    switch (psl_kind(p)) {
@@ -342,6 +358,9 @@ void psl_check(psl_node_t p, nametab_t *tab)
       break;
    case P_ABORT:
       psl_check_abort(p, tab);
+      break;
+   case P_SUFFIX_IMPL:
+      psl_check_suffix_impl(p, tab);
       break;
    default:
       fatal_trace("cannot check PSL kind %s", psl_kind_str(psl_kind(p)));

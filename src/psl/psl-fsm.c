@@ -276,6 +276,29 @@ static fsm_state_t *build_before(psl_fsm_t *fsm, fsm_state_t *state,
    return accept;
 }
 
+static fsm_state_t *build_suffix_impl(psl_fsm_t *fsm, fsm_state_t *state,
+                                      psl_node_t p)
+{
+   fsm_state_t *left = build_node(fsm, state, psl_operand(p, 0));
+   fsm_state_t *right = add_state(fsm, p);
+   fsm_state_t *vacuous = add_state(fsm, p);
+
+   if (psl_subkind(p) == PSL_SUFFIX_OVERLAP)
+      add_edge(left, right, EDGE_EPSILON, NULL);
+   else
+      add_edge(left, right, EDGE_NEXT, NULL);
+
+   LOCAL_BIT_MASK visited;
+   mask_init(&visited, fsm->next_id);
+
+   connect_default(state, vacuous, &visited);
+
+   fsm_state_t *final = build_node(fsm, right, psl_operand(p, 1));
+   add_edge(vacuous, final, EDGE_EPSILON, NULL);
+
+   return final;
+}
+
 static fsm_state_t *build_node(psl_fsm_t *fsm, fsm_state_t *state, psl_node_t p)
 {
    switch (psl_kind(p)) {
@@ -305,6 +328,8 @@ static fsm_state_t *build_node(psl_fsm_t *fsm, fsm_state_t *state, psl_node_t p)
       return build_abort(fsm, state, p);
    case P_BEFORE:
       return build_before(fsm, state, p);
+   case P_SUFFIX_IMPL:
+      return build_suffix_impl(fsm, state, p);
    default:
       CANNOT_HANDLE(p);
    }

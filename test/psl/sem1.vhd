@@ -32,5 +32,6 @@ begin
     -- psl sequence seq2 is {not(f); x};      -- Error
     -- psl assert (x -> next y) before x;     -- Error
     -- psl assert x before (x -> next y);     -- Error
+    -- psl assert (x -> next y) |=> {y};      -- Error
 
 end architecture;

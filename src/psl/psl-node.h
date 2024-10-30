@@ -49,6 +49,7 @@ typedef enum {
    P_UNTIL,
    P_ABORT,
    P_BEFORE,
+   P_SUFFIX_IMPL,
 
    P_LAST_PSL_KIND
 } psl_kind_t;
@@ -113,6 +114,11 @@ typedef enum {
    PSL_ABORT_ASYNC,
    PSL_ABORT_SYNC,
 } psl_abort_t;
+
+typedef enum {
+   PSL_SUFFIX_OVERLAP,
+   PSL_SUFFIX_NON,
+} psl_suffix_impl_t;
 
 typedef enum {
    PSL_F_STRONG    = (1 << 0),

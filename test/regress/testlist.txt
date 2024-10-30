@@ -1062,3 +1062,4 @@ cover25         cover=functional
 issue1035       normal,vhpi,2008
 issue1043       normal
 psl12           normal,2008
+psl13           fail,gold,psl

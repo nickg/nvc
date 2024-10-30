@@ -12077,7 +12077,6 @@ static psl_node_t p_psl_fl_property(void)
    //   | next_event! ( Boolean ) [ Number ] ( FL_Property )
    //   | FL_Property -> FL_Property
    //   | FL_Property <-> FL_Property
-   //   | Sequence [ ! ]
    //   | FL_Property until! FL_Property
    //   | FL_Property until!_ FL_Property
    //   | FL_Property until FL_Property
@@ -12085,6 +12084,9 @@ static psl_node_t p_psl_fl_property(void)
    //   | FL_Property sync_abort Boolean
    //   | FL_Property async_abort Boolean
    //   | FL_Property abort Boolean
+   //   | Sequence [ ! ]
+   //   | Sequence |-> FL_Property
+   //   | Sequence |=> FL_Property
 
    BEGIN("FL property");
 
@@ -12253,6 +12255,23 @@ static psl_node_t p_psl_fl_property(void)
          psl_set_loc(impl, CURRENT_LOC);
 
          return impl;
+      }
+
+   case tSUFFIXOVR:
+   case tSUFFIXNON:
+      {
+         consume(infix);
+
+         const psl_suffix_impl_t kind =
+            infix == tSUFFIXOVR ? PSL_SUFFIX_OVERLAP : PSL_SUFFIX_NON;
+
+         psl_node_t suff = psl_new(P_SUFFIX_IMPL);
+         psl_set_subkind(suff, kind);
+         psl_add_operand(suff, p);
+         psl_add_operand(suff, p_psl_fl_property());
+         psl_set_loc(suff, CURRENT_LOC);
+
+         return suff;
       }
 
    case tUNTIL:

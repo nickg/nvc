@@ -604,6 +604,8 @@ BEFORE            ?i:before
 <PSL>{BEFORE}!           { TOKEN(tBEFORE1); }
 <PSL>{BEFORE}_           { TOKEN(tBEFORE_); }
 <PSL>{BEFORE}!_          { TOKEN(tBEFORE1_); }
+<PSL>"|->"               { TOKEN(tSUFFIXOVR); }
+<PSL>"|=>"               { TOKEN(tSUFFIXNON); }
 
 <VLOG>"module"           { return tMODULE; }
 <VLOG>"endmodule"        { return tENDMODULE; }
