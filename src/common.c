@@ -2017,28 +2017,46 @@ type_t subtype_for_string(tree_t str, type_t base)
 
    // The direction is determined by the index type
    range_kind_t dir = direction_of(index_type, 0);
+   tree_t index_r = range_of(index_type, 0);
 
    // The left bound is the left of the index type and the right bound
    // is determined by the number of elements
 
    tree_t left = NULL, right = NULL;
-
-   if (is_enum)
-      left = make_ref(type_enum_literal(type_base_recur(index_type), 0));
-   else
-      left = tree_left(range_of(index_type, 0));
-
    const int nchars = tree_chars(str);
-   int64_t iright;
-   if (dir == RANGE_DOWNTO)
-      iright = assume_int(left) - nchars + 1;
-   else
-      iright = assume_int(left) + nchars - 1;
 
-   if (is_enum)
+   if (is_enum) {
+      const int nlits = type_enum_literals(type_base_recur(index_type));
+      int64_t index_left = assume_int(tree_left(index_r));
+
+      int64_t iright, ileft;
+      if (nchars == 0) {
+         iright = index_left;
+         ileft = assume_int(tree_right(index_r));
+      }
+      else if (dir == RANGE_DOWNTO) {
+         ileft = index_left;
+         iright = MIN(nlits - 1, MAX(0, index_left - nchars + 1));
+      }
+      else {
+         ileft = index_left;
+         iright = MIN(nlits - 1, MAX(0, index_left + nchars - 1));
+      }
+
+      left = get_enum_lit(str, index_type, ileft);
       right = get_enum_lit(str, index_type, iright);
-   else
+   }
+   else {
+      left = tree_left(index_r);
+
+      int64_t iright;
+      if (dir == RANGE_DOWNTO)
+         iright = assume_int(left) - nchars + 1;
+      else
+         iright = assume_int(left) + nchars - 1;
+
       right = get_int_lit(str, index_type, iright);
+   }
 
    tree_t r = tree_new(T_RANGE);
    tree_set_subkind(r, dir);
