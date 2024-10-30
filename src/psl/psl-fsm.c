@@ -38,10 +38,11 @@
 static fsm_state_t *build_node(psl_fsm_t *fsm, fsm_state_t *state,
                                psl_node_t p);
 
-static fsm_state_t *add_state(psl_fsm_t *fsm)
+static fsm_state_t *add_state(psl_fsm_t *fsm, psl_node_t where)
 {
    fsm_state_t *s = xcalloc(sizeof(fsm_state_t));
-   s->id = fsm->next_id++;
+   s->id    = fsm->next_id++;
+   s->where = where;
 
    *(fsm->tail) = s;
    fsm->tail = &(s->next);
@@ -81,27 +82,35 @@ static int64_t get_number(tree_t t)
    return result;
 }
 
-static void connect_abort(fsm_state_t *from, fsm_state_t *to, psl_node_t guard)
+static void connect_abort(fsm_state_t *from, fsm_state_t *to, psl_node_t guard,
+                          bit_mask_t *visited)
 {
    if (from->edges == NULL)
       return;   // Final state
-   else if (from == to)
+   else if (mask_test(visited, from->id))
       return;   // Cycle
 
-   insert_edge(from, to, EDGE_EPSILON, guard, &(from->edges));
+   mask_set(visited, from->id);
 
    for (fsm_edge_t *e = from->edges; e; e = e->next)
-      connect_abort(e->dest, to, guard);
+      connect_abort(e->dest, to, guard, visited);
+
+   insert_edge(from, to, EDGE_EPSILON, guard, &(from->edges));
 }
 
-static void connect_default(fsm_state_t *from, fsm_state_t *to)
+static void connect_default(fsm_state_t *from, fsm_state_t *to,
+                            bit_mask_t *visited)
 {
    if (from->edges == NULL)
       return;   // Final state
+   else if (mask_test(visited, from->id))
+      return;   // Cycle
+
+   mask_set(visited, from->id);
 
    bool have_def = false;
    for (fsm_edge_t *e = from->edges; e; e = e->next) {
-      connect_default(e->dest, to);
+      connect_default(e->dest, to, visited);
       have_def |= e->guard == NULL;
    }
 
@@ -117,9 +126,9 @@ static fsm_state_t *build_implication(psl_fsm_t *fsm, fsm_state_t *state,
 
    if (psl_subkind(p) == PSL_IMPL_IFF) {
       // Only legal with Boolean HDL expression
-      fsm_state_t *left = add_state(fsm);
-      fsm_state_t *right = add_state(fsm);
-      fsm_state_t *accept = add_state(fsm);
+      fsm_state_t *left = add_state(fsm, p);
+      fsm_state_t *right = add_state(fsm, p);
+      fsm_state_t *accept = add_state(fsm, p);
       add_edge(state, left, EDGE_EPSILON, lhs);
       add_edge(state, right, EDGE_EPSILON, rhs);
       add_edge(left, accept, EDGE_EPSILON, rhs);
@@ -128,7 +137,7 @@ static fsm_state_t *build_implication(psl_fsm_t *fsm, fsm_state_t *state,
       return accept;
    }
    else {
-      fsm_state_t *left = add_state(fsm);
+      fsm_state_t *left = add_state(fsm, p);
       fsm_state_t *right = build_node(fsm, left, rhs);
       add_edge(state, left, EDGE_EPSILON, lhs);
       add_edge(state, right, EDGE_EPSILON, NULL);
@@ -143,17 +152,17 @@ static fsm_state_t *build_until(psl_fsm_t *fsm, fsm_state_t *state,
    psl_node_t rhs = psl_operand(p, 1);
 
    if (psl_flags(p) & PSL_F_INCLUSIVE) {
-      fsm_state_t *test = add_state(fsm);
+      fsm_state_t *test = add_state(fsm, p);
       add_edge(state, test, EDGE_EPSILON, lhs);
 
-      fsm_state_t *new = add_state(fsm);
+      fsm_state_t *new = add_state(fsm, p);
       add_edge(test, new, EDGE_NEXT, rhs);
       add_edge(test, state, EDGE_NEXT, NULL);
 
       return new;
    }
    else {
-      fsm_state_t *new = add_state(fsm);
+      fsm_state_t *new = add_state(fsm, p);
       add_edge(state, new, EDGE_NEXT, rhs);
       add_edge(state, state, EDGE_NEXT, lhs);
 
@@ -169,9 +178,13 @@ static fsm_state_t *build_abort(psl_fsm_t *fsm, fsm_state_t *state,
 
    fsm_state_t *final = build_node(fsm, state, lhs);
 
-   fsm_state_t *sink = add_state(fsm);
+   fsm_state_t *sink = add_state(fsm, p);
    sink->accept = true;
-   connect_abort(state, sink, rhs);
+
+   LOCAL_BIT_MASK visited;
+   mask_init(&visited, fsm->next_id);
+
+   connect_abort(state, sink, rhs, &visited);
 
    return final;
 }
@@ -189,7 +202,7 @@ static fsm_state_t *build_sere(psl_fsm_t *fsm, fsm_state_t *state, psl_node_t p)
          if (i + 1 < nops) {
             fsm_state_t *lhs = build_node(fsm, state, rhs);
             if (lhs != state) {
-               state = add_state(fsm);
+               state = add_state(fsm, p);
                add_edge(lhs, state, EDGE_NEXT, NULL);
             }
          }
@@ -221,13 +234,13 @@ static fsm_state_t *build_next(psl_fsm_t *fsm, fsm_state_t *state, psl_node_t p)
    if (psl_has_delay(p)) {
       const int cycles = get_number(psl_delay(p));
       for (int i = 0; i < cycles; i++) {
-         fsm_state_t *new = add_state(fsm);
+         fsm_state_t *new = add_state(fsm, p);
          add_edge(state, new, EDGE_NEXT, NULL);
          state = new;
       }
    }
    else {
-      fsm_state_t *new = add_state(fsm);
+      fsm_state_t *new = add_state(fsm, p);
       add_edge(state, new, EDGE_NEXT, NULL);
       state = new;
    }
@@ -238,9 +251,14 @@ static fsm_state_t *build_next(psl_fsm_t *fsm, fsm_state_t *state, psl_node_t p)
 static fsm_state_t *build_eventually(psl_fsm_t *fsm, fsm_state_t *state,
                                      psl_node_t p)
 {
-   fsm_state_t *wait = add_state(fsm);
+   fsm_state_t *wait = add_state(fsm, p);
    fsm_state_t *accept = build_node(fsm, wait, psl_value(p));
-   connect_default(wait, wait);
+
+   LOCAL_BIT_MASK visited;
+   mask_init(&visited, fsm->next_id);
+
+   connect_default(wait, wait, &visited);
+
    add_edge(state, wait, EDGE_NEXT, NULL);
    wait->strong = true;
 
@@ -250,20 +268,14 @@ static fsm_state_t *build_eventually(psl_fsm_t *fsm, fsm_state_t *state,
 static fsm_state_t *build_before(psl_fsm_t *fsm, fsm_state_t *state,
                                  psl_node_t p)
 {
-   fsm_state_t *wait = add_state(fsm);
-   fsm_state_t *accept = add_state(fsm);
-   fsm_state_t *fail = add_state(fsm);
+   fsm_state_t *accept = add_state(fsm, p);
+   fsm_state_t *fail = add_state(fsm, p);
 
-   wait->strong = !!(psl_flags(p) & PSL_F_STRONG);
+   state->strong = !!(psl_flags(p) & PSL_F_STRONG);
 
-   if (psl_flags(p) & PSL_F_INCLUSIVE)
-      add_edge(state, wait, EDGE_EPSILON, NULL);
-   else
-      add_edge(state, wait, EDGE_NEXT, NULL);
-
-   add_edge(wait, fail, EDGE_EPSILON, psl_operand(p, 1));
-   add_edge(wait, accept, EDGE_EPSILON, psl_operand(p, 0));
-   add_edge(wait, wait, EDGE_NEXT, NULL);
+   add_edge(state, accept, EDGE_EPSILON, psl_operand(p, 0));
+   add_edge(state, fail, EDGE_EPSILON, psl_operand(p, 1));
+   add_edge(state, state, EDGE_NEXT, NULL);
 
    return accept;
 }
@@ -271,9 +283,15 @@ static fsm_state_t *build_before(psl_fsm_t *fsm, fsm_state_t *state,
 static fsm_state_t *build_node(psl_fsm_t *fsm, fsm_state_t *state, psl_node_t p)
 {
    switch (psl_kind(p)) {
+   case P_NEVER:
+      fsm->kind = FSM_NEVER;
+      return build_node(fsm, state, psl_value(p));
+   case P_ALWAYS:
+      fsm->kind = FSM_ALWAYS;
+      return build_node(fsm, state, psl_value(p));
    case P_HDL_EXPR:
       {
-         fsm_state_t *new = add_state(fsm);
+         fsm_state_t *new = add_state(fsm, p);
          add_edge(state, new, EDGE_EPSILON, p);
          return new;
       }
@@ -341,31 +359,10 @@ psl_fsm_t *psl_fsm_new(psl_node_t p)
    fsm->src  = p;
    fsm->kind = psl_kind(p) == P_COVER ? FSM_COVER : FSM_BARE;
 
-   fsm_state_t *initial = add_state(fsm), *final = initial;
+   fsm_state_t *initial = add_state(fsm, p), *final = initial;
    initial->initial = true;
 
-   psl_node_t top = psl_value(p);
-
-   switch (psl_kind(top)) {
-   case P_NEVER:
-      fsm->kind = FSM_NEVER;
-      final = build_node(fsm, initial, psl_value(top));
-      break;
-
-   case P_ALWAYS:
-      fsm->kind = FSM_ALWAYS;
-      final = build_node(fsm, initial, psl_value(top));
-      break;
-
-   case P_HDL_EXPR:
-   case P_SERE:
-      final = build_node(fsm, initial, top);
-      break;
-
-   default:
-      CANNOT_HANDLE(top);
-   }
-
+   final = build_node(fsm, initial, psl_value(p));
    final->accept = true;
 
    DEBUG_ONLY(psl_detect_loops(fsm));

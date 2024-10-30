@@ -20,8 +20,8 @@ architecture test of psl12 is
 begin
 
     one: assert always (a -> next [2] (b)) sync_abort reset;
-    two: assert always (a -> next [2] (b)) async_abort areset;
-    three: assert always (a -> b before a);
+    two: assert (always (a -> next [2] (b))) async_abort areset;
+    three: assert always (a -> next (b before a));
 
     stim: process is
     begin

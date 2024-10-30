@@ -114,17 +114,6 @@ static void psl_lower_state(lower_unit_t *lu, psl_fsm_t *fsm,
    if (state->initial && psl_fsm_repeating(fsm))
       psl_enter_state(state);
 
-   if (state->accept && fsm->kind == FSM_COVER)
-      psl_lower_cover(lu, fsm->src, cover, cscope);
-   else if (state->accept && fsm->kind == FSM_NEVER) {
-      vcode_reg_t severity_reg = psl_assert_severity();
-      vcode_reg_t false_reg = emit_const(vtype_bool(), 0);
-      vcode_reg_t locus = psl_debug_locus(fsm->src);
-      emit_assert(false_reg, VCODE_INVALID_REG, VCODE_INVALID_REG,
-                  severity_reg, locus, VCODE_INVALID_REG,
-                  VCODE_INVALID_REG);
-   }
-
    for (fsm_edge_t *e = state->edges; e; e = e->next) {
       if (e->guard != NULL) {
          vcode_reg_t guard_reg = psl_lower_boolean(lu, e->guard);
@@ -147,18 +136,6 @@ static void psl_lower_state(lower_unit_t *lu, psl_fsm_t *fsm,
 
             vcode_select_block(skip_bb);
          }
-
-         const bool exhaustive =
-            fsm->kind == FSM_BARE || fsm->kind == FSM_ALWAYS;
-
-         if (e->next == NULL && exhaustive) {
-            vcode_reg_t severity_reg = psl_assert_severity();
-            vcode_reg_t false_reg = emit_const(vtype_bool(), 0);
-            vcode_reg_t locus = psl_debug_locus(e->guard);
-            emit_assert(false_reg, VCODE_INVALID_REG, VCODE_INVALID_REG,
-                        severity_reg, locus, VCODE_INVALID_REG,
-                        VCODE_INVALID_REG);
-         }
       }
       else if (e->kind == EDGE_EPSILON) {
          assert(e->next == NULL);
@@ -171,8 +148,29 @@ static void psl_lower_state(lower_unit_t *lu, psl_fsm_t *fsm,
       }
    }
 
-   if (!vcode_block_finished())
-      emit_return(VCODE_INVALID_REG);
+   if (vcode_block_finished())
+      return;
+
+   if (state->accept && fsm->kind == FSM_COVER)
+      psl_lower_cover(lu, fsm->src, cover, cscope);
+   else if (state->accept && fsm->kind == FSM_NEVER) {
+      vcode_reg_t severity_reg = psl_assert_severity();
+      vcode_reg_t false_reg = emit_const(vtype_bool(), 0);
+      vcode_reg_t locus = psl_debug_locus(fsm->src);
+      emit_assert(false_reg, VCODE_INVALID_REG, VCODE_INVALID_REG,
+                  severity_reg, locus, VCODE_INVALID_REG,
+                  VCODE_INVALID_REG);
+   }
+   else if (!state->accept && fsm->kind != FSM_COVER) {
+      vcode_reg_t severity_reg = psl_assert_severity();
+      vcode_reg_t false_reg = emit_const(vtype_bool(), 0);
+      vcode_reg_t locus = psl_debug_locus(state->where);
+      emit_assert(false_reg, VCODE_INVALID_REG, VCODE_INVALID_REG,
+                  severity_reg, locus, VCODE_INVALID_REG,
+                  VCODE_INVALID_REG);
+   }
+
+   emit_return(VCODE_INVALID_REG);
 }
 
 static psl_node_t psl_outer_async_abort(psl_node_t p)

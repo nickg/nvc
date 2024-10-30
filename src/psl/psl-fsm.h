@@ -38,6 +38,7 @@ typedef struct _fsm_state {
    unsigned     id;
    fsm_state_t *next;
    fsm_edge_t  *edges;
+   psl_node_t   where;
    bool         initial;
    bool         accept;
    bool         strong;
