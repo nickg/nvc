@@ -122,8 +122,8 @@ AC_DEFUN([AX_LLVM_C], [
       case $host_os in
       darwin*)
         # Add LDFLAGS for libzstd in a non-default location for issue #1046
-        ZSTD_LDFLAGS=`pkg-config --libs-only-L libzstd`
-        LLVM_LDFLAGS="$LLVM_LDFLAGS $ZSTD_LDFLAGS"
+        PKG_CHECK_MODULES([libzstd], [libzstd >= 1.4])
+        LLVM_LIBS="$LLVM_LIBS $libzstd_LIBS"
       esac
     fi
 
