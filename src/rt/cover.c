@@ -145,9 +145,6 @@ static inline void cover_toggle_check_0_1_u_z(uint8_t old, uint8_t new,
 #define COVER_TGL_SIGNAL_DETAILS(signal, size)
 #endif
 
-// Set to match word size of common PC and optimize for int64_t comparison
-#define TOGGLE_BATCH_SIZE 8
-
 // Signal size threshold to enable optimization.
 // Signals larger than this size are considered to be less likely to have
 // many change at one callback
@@ -176,22 +173,23 @@ static inline void cover_toggle_check_0_1_u_z(uint8_t old, uint8_t new,
          return;                                                                    \
       }                                                                             \
       /* Optimize for assumption that most bits don't change in large signals */    \
-      uint32_t batches = ((s_size - 1) / TOGGLE_BATCH_SIZE) + 1;                    \
+      uint32_t batches = ((s_size - 1) / sizeof(uint64_t)) + 1;                     \
       for (int i = 0; i < batches; i++) {                                           \
          bool walk = false;                                                         \
-         int batch_size = TOGGLE_BATCH_SIZE;                                        \
+         int batch_size = sizeof(uint64_t);                                         \
          if (i < batches - 1) {                                                     \
-            const void *batch_new = signal_value(s) + i * TOGGLE_BATCH_SIZE;        \
-            const void *batch_old = signal_last_value(s) + i * TOGGLE_BATCH_SIZE;   \
-            if (*((int64_t*)batch_new) != *((int64_t*)batch_old))                   \
+            const void *batch_new = signal_value(s) + i * sizeof(uint64_t);         \
+            const void *batch_old = signal_last_value(s) + i * sizeof(uint64_t);    \
+            if (unaligned_load(batch_new, uint64_t) !=                              \
+                unaligned_load(batch_old, uint64_t))                                \
                walk = true;                                                         \
          }                                                                          \
          else {                                                                     \
-            batch_size = ((s_size - 1) % TOGGLE_BATCH_SIZE) + 1;                    \
+            batch_size = ((s_size - 1) % sizeof(uint64_t)) + 1;                     \
             walk = true;                                                            \
          }                                                                          \
          if (walk) {                                                                \
-            int32_t low = i * TOGGLE_BATCH_SIZE;                                    \
+            int32_t low = i * sizeof(uint64_t);                                     \
             int32_t high = low + batch_size;                                        \
             int32_t *toggle_01 = get_cover_counter(m, tag) + low * 2;               \
             int32_t *toggle_10 = toggle_01 + 1;                                     \
