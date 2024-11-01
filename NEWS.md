@@ -15,6 +15,7 @@
 - Added a warning for potential infinite loops in processes without
   sensitivity and lacking any wait statements (from @NikLeberg).
 - Fixed a crash when `'last_value` is used with record types (#1043).
+- Several other minor bugs were resolved (#1038).
 
 ## Version 1.14.1 - 2024-10-26
 - Fixed an error when using the `work` library alias and the working
