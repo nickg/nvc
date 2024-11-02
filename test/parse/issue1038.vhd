@@ -9,3 +9,7 @@ package body foo_pkg is
   package body bar_pkg is
   end package body bar_pkg;
 end package body foo_pkg;
+
+package foo is
+  alias TO_OCTAL_STRING is ns;
+end package foo;

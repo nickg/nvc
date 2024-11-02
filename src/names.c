@@ -885,7 +885,7 @@ static symbol_t *make_visible(scope_t *s, ident_t name, tree_t decl,
          // homographs if they denote different named entities
          return sym;
       }
-      else if (overload && kind == DIRECT
+      else if (overload && kind == DIRECT && type != NULL
                && type_eq(type, tree_type(dd->tree))) {
          if (dd->origin != s) {
             // LRM 93 section 10.3 on visibility specifies that if two
