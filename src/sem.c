@@ -5711,6 +5711,7 @@ static bool sem_static_name(tree_t t, static_fn_t check_fn)
          case T_PARAM_DECL:
          case T_CONCURRENT:
          case T_VIEW_DECL:
+         case T_UNIT_DECL:
             return true;
          case T_ALIAS:
             return sem_static_name(tree_value(decl), check_fn);
