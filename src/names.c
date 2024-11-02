@@ -782,7 +782,7 @@ static void warn_hidden_decl(scope_t *s, decl_t *outer, tree_t inner)
    // to avoid false-positives and cases that may be intentional
 
    for (scope_t *it = s; it && it != outer->origin; it = it->parent) {
-      if (s->container == NULL)
+      if (it->container == NULL)
          return;   // Ignore ports in component, etc.
       else if (is_subprogram(it->container))
          return;   // Do not warn when subprogram parameters hide ports
