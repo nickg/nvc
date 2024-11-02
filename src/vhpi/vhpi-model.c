@@ -1902,13 +1902,33 @@ vhpiHandleT vhpi_register_cb(vhpiCbDataT *cb_data_p, int32_t flags)
          if (obj == NULL)
             return NULL;
 
-         c_objDecl *decl = cast_objDecl(obj);
-         if (decl == NULL)
-            return NULL;
+         rt_signal_t *signal = NULL;
+         rt_scope_t *scope = NULL;
 
-         rt_signal_t *signal = vhpi_get_signal_objDecl(decl);
-         if (signal == NULL)
+         c_prefixedName *pn;
+         c_objDecl *decl;
+         if ((pn = is_prefixedName(obj))) {
+            if ((signal = vhpi_get_signal_prefixedName(pn)) == NULL)
+               return NULL;
+         }
+         else if ((decl = is_objDecl(obj))) {
+            if (decl->Type->homogeneous) {
+               if ((signal = vhpi_get_signal_objDecl(decl)) == NULL)
+                  return NULL;
+            }
+            else if ((scope = vhpi_get_scope_objDecl(decl)) == NULL)
+               return NULL;
+            else {
+               vhpi_error(vhpiInternal, NULL, "value change callback for "
+                          "records is not currently supported");
+               return NULL;
+            }
+         }
+         else {
+            vhpi_error(vhpiInternal, &(obj->loc), "cannot register value "
+                       "callback for kind %s", vhpi_class_str(obj->kind));
             return NULL;
+         }
 
          c_callback *cb = new_object(sizeof(c_callback), vhpiCallbackK);
          cb->Reason  = cb_data_p->reason;
@@ -1916,8 +1936,12 @@ vhpiHandleT vhpi_register_cb(vhpiCbDataT *cb_data_p, int32_t flags)
          cb->data    = *cb_data_p;
 
          vhpiHandleT handle = handle_for(&(cb->object));
-         cb->watch = model_set_event_cb(m, signal, vhpi_signal_event_cb,
-                                        handle, false);
+
+         if (signal != NULL)
+            cb->watch = model_set_event_cb(m, signal, vhpi_signal_event_cb,
+                                           handle, false);
+         else
+            should_not_reach_here();
 
          return (flags & vhpiReturnCb) ? handle_for(&(cb->object)) : NULL;
       }
