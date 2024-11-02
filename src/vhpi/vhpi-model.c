@@ -661,15 +661,6 @@ static c_abstractRegion *is_abstractRegion(c_vhpiObject *obj)
    }
 }
 
-static c_abstractRegion *cast_abstractRegion(c_vhpiObject *obj)
-{
-   c_abstractRegion *r = is_abstractRegion(obj);
-   if (r == NULL)
-      vhpi_error(vhpiError, &(obj->loc), "class kind %s is not a region",
-                 vhpi_class_str(obj->kind));
-   return r;
-}
-
 static c_abstractDecl *is_abstractDecl(c_vhpiObject *obj)
 {
    switch (obj->kind) {
@@ -2170,12 +2161,12 @@ vhpiHandleT vhpi_handle_by_name(const char *name, vhpiHandleT scope)
    char *copy LOCAL = xstrdup(name), *saveptr;
    char *elem = strtok_r(copy, ":.", &saveptr);
 
-   c_abstractRegion *region = NULL;
+   c_vhpiObject *where = NULL;
    if (scope == NULL) {
       vhpi_context_t *c = vhpi_context();
 
       if (strcasecmp(elem, (char *)c->root->designInstUnit.region.Name) == 0)
-         region = &(c->root->designInstUnit.region);
+         where = &(c->root->designInstUnit.region.object);
       else {
          vhpi_find_packages(c);
 
@@ -2184,12 +2175,12 @@ vhpiHandleT vhpi_handle_by_name(const char *name, vhpiHandleT scope)
             assert(pi != NULL);
 
             if (strcasecmp(elem, (char *)pi->designInstUnit.region.Name) == 0) {
-               region = &(pi->designInstUnit.region);
+               where = &(pi->designInstUnit.region.object);
                break;
             }
          }
 
-         if (region == NULL) {
+         if (where == NULL) {
             vhpi_error(vhpiError, NULL, "no design unit instance named %s",
                        elem);
             return NULL;
@@ -2198,65 +2189,53 @@ vhpiHandleT vhpi_handle_by_name(const char *name, vhpiHandleT scope)
 
       elem = strtok_r(NULL, ":.", &saveptr);
    }
-   else {
-      c_vhpiObject *obj = from_handle(scope);
-      if (obj == NULL)
-         return NULL;
+   else if ((where = from_handle(scope)) == NULL)
+      return NULL;
 
-      region = cast_abstractRegion(obj);
-      if (region == NULL)
-         return NULL;
-   }
+   for (; elem != NULL; elem = strtok_r(NULL, ":.", &saveptr)) {
+      bool found = false;
+      c_iterator it = {};
+      c_abstractRegion *region = is_abstractRegion(where);
+      if (region != NULL) {
+         expand_lazy_region(region);
 
-   expand_lazy_region(region);
+         for (int i = 0; !found && i < region->stmts.count; i++) {
+            c_abstractRegion *r = is_abstractRegion(region->stmts.items[i]);
+            if (r != NULL && strcasecmp((char *)r->Name, elem) == 0) {
+               expand_lazy_region(r);
+               where = &(r->object);
+               found = true;
+            }
+         }
 
-   if (elem == NULL)
-      return handle_for(&(region->object));
-
- search_region:
-   for (int i = 0; i < region->stmts.count; i++) {
-      c_abstractRegion *r = is_abstractRegion(region->stmts.items[i]);
-      if (r == NULL || strcasecmp((char *)r->Name, elem) != 0)
-         continue;
-
-      expand_lazy_region(r);
-
-      if ((elem = strtok_r(NULL, ":.", &saveptr))) {
-         region = r;
-         goto search_region;
+         for (int i = 0; !found && i < region->decls.count; i++) {
+            c_abstractDecl *d = cast_abstractDecl(region->decls.items[i]);
+            if (strcasecmp((char *)d->Name, elem) == 0) {
+               where = &(d->object);
+               found = true;
+            }
+         }
       }
-      else
-         return handle_for(&(r->object));
-   }
-
-   for (int i = 0; i < region->decls.count; i++) {
-      c_abstractDecl *d = cast_abstractDecl(region->decls.items[i]);
-      if (strcasecmp((char *)d->Name, elem) != 0)
-         continue;
-
-      char *suffix;
-      c_vhpiObject *obj = &(d->object);
-      while ((suffix = strtok_r(NULL, ".", &saveptr)) != NULL) {
-         c_iterator it = {};
-         if (!init_iterator(&it, vhpiSelectedNames, &(d->object)))
-            return NULL;
-
+      else if (init_iterator(&it, vhpiSelectedNames, where)) {
          for (int i = 0; i < it.list->count; i++) {
             c_selectedName *sn = is_selectedName(it.list->items[i]);
             assert(sn != NULL);
 
-            obj = &(sn->prefixedName.name.expr.object);
-            if (strcasecmp((char *)sn->Suffix->decl.Name, suffix) == 0)
-               return handle_for(obj);
+            if (strcasecmp((char *)sn->Suffix->decl.Name, elem) == 0) {
+               where = &(sn->prefixedName.name.expr.object);
+               found = true;
+            }
          }
-
-         return NULL;
       }
 
-      return handle_for(obj);
+      if (!found) {
+         vhpi_error(vhpiError, &(where->loc), "suffix %s not found in prefix "
+                    "of class %s", elem, vhpi_class_str(where->kind));
+         return NULL;
+      }
    }
 
-   return NULL;
+   return handle_for(where);
 }
 
 DLLEXPORT

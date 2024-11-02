@@ -31,6 +31,12 @@
 void __check_error(const char *file, int lineno);
 void __check_handle(vhpiHandleT h, const char *file, int lineno);
 
+#define VHPI_CHECK(call) ({                                             \
+   typeof((call)) _r = (call);                                          \
+   check_error();                                                       \
+   _r;                                                                  \
+})
+
 void vhpi1_startup(void);
 void vhpi2_startup(void);
 void vhpi3_startup(void);

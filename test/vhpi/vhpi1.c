@@ -373,8 +373,7 @@ static void end_of_init(const vhpiCbDataT *cb_data)
 {
    vhpi_printf("end of init callback");
 
-   vhpiHandleT tool = vhpi_handle(vhpiTool, NULL);
-   check_error();
+   vhpiHandleT tool = VHPI_CHECK(vhpi_handle(vhpiTool, NULL));
    fail_if(tool == NULL);
    vhpi_printf("tool is %s", vhpi_get_str(vhpiNameP, tool));
    vhpi_printf("tool version is %s", vhpi_get_str(vhpiToolVersionP, tool));
@@ -388,8 +387,7 @@ static void end_of_init(const vhpiCbDataT *cb_data)
 
    vhpi_release_handle(tool);
 
-   vhpiHandleT root = vhpi_handle(vhpiRootInst, NULL);
-   check_error();
+   vhpiHandleT root = VHPI_CHECK(vhpi_handle(vhpiRootInst, NULL));
    fail_if(root == NULL);
    vhpi_printf("root handle %p", root);
 
@@ -421,16 +419,14 @@ static void end_of_init(const vhpiCbDataT *cb_data)
       fail_unless(vhpi_handle_by_index(vhpiDecls, root, i) == decl);
    }
 
-   vhpiHandleT arch = vhpi_handle(vhpiDesignUnit, root);
-   check_error();
+   vhpiHandleT arch = VHPI_CHECK(vhpi_handle(vhpiDesignUnit, root));
    fail_if(arch == NULL);
    vhpi_printf("arch handle %p", arch);
 
    vhpi_printf("arch name is %s", vhpi_get_str(vhpiNameP, arch));
    vhpi_printf("arch unit name is %s", vhpi_get_str(vhpiUnitNameP, arch));
 
-   vhpiHandleT entity = vhpi_handle(vhpiPrimaryUnit, arch);
-   check_error();
+   vhpiHandleT entity = VHPI_CHECK(vhpi_handle(vhpiPrimaryUnit, arch));
    fail_if(entity == NULL);
    vhpi_printf("entity handle %p", entity);
 
@@ -439,27 +435,23 @@ static void end_of_init(const vhpiCbDataT *cb_data)
    vhpi_release_handle(entity);
    vhpi_release_handle(arch);
 
-   handle_x = vhpi_handle_by_name("x", root);
-   check_error();
+   handle_x = VHPI_CHECK(vhpi_handle_by_name("x", root));
    fail_if(handle_x == NULL);
    vhpi_printf("x handle %p", handle_x);
    vhpi_printf("x name %s", vhpi_get_str(vhpiNameP, handle_x));
    vhpi_printf("x full name is %s", vhpi_get_str(vhpiFullNameP, handle_x));
 
-   handle_y = vhpi_handle_by_name("y", root);
-   check_error();
+   handle_y = VHPI_CHECK(vhpi_handle_by_name("y", root));
    fail_if(handle_y == NULL);
    vhpi_printf("y handle %p", handle_y);
    vhpi_printf("y name %s", vhpi_get_str(vhpiNameP, handle_y));
    vhpi_printf("y full name is %s", vhpi_get_str(vhpiFullNameP, handle_y));
 
-   vhpiHandleT handle_y2 = vhpi_handle_by_name(":vhpi1.y", NULL);
-   check_error();
+   vhpiHandleT handle_y2 = VHPI_CHECK(vhpi_handle_by_name(":vhpi1.y", NULL));
    fail_unless(handle_y == handle_y2);
    vhpi_release_handle(handle_y2);
 
-   vhpiHandleT handle_y3 = vhpi_handle_by_name("vhpi1.y", NULL);
-   check_error();
+   vhpiHandleT handle_y3 = VHPI_CHECK(vhpi_handle_by_name("vhpi1.y", NULL));
    fail_unless(handle_y == handle_y3);
    vhpi_release_handle(handle_y3);
 
@@ -472,24 +464,20 @@ static void end_of_init(const vhpiCbDataT *cb_data)
    vhpiErrorInfoT info;
    fail_unless(vhpi_check_error(&info));
 
-   vhpiHandleT handle_r = vhpi_handle_by_name("r", root);
-   check_error();
+   vhpiHandleT handle_r = VHPI_CHECK(vhpi_handle_by_name("r", root));
    fail_if(handle_r == NULL);
    vhpi_printf("r handle %p", handle_r);
 
-   vhpiHandleT r_type = vhpi_handle(vhpiType, handle_r);
-   check_error();
+   vhpiHandleT r_type = VHPI_CHECK(vhpi_handle(vhpiType, handle_r));
    fail_if(r_type == NULL);
    vhpi_printf("r type handle %p", r_type);
    vhpi_printf("r type name is %s", vhpi_get_str(vhpiNameP, r_type));
    vhpi_printf("r type full name is %s", vhpi_get_str(vhpiFullNameP, r_type));
 
-   vhpiHandleT r_constrs = vhpi_iterator(vhpiConstraints, r_type);
-   check_error();
+   vhpiHandleT r_constrs = VHPI_CHECK(vhpi_iterator(vhpiConstraints, r_type));
    fail_if(r_constrs == NULL);
 
-   vhpiHandleT r_range = vhpi_scan(r_constrs);
-   check_error();
+   vhpiHandleT r_range = VHPI_CHECK(vhpi_scan(r_constrs));
    fail_if(r_range == NULL);
    fail_unless(vhpi_scan(r_constrs) == NULL);
    vhpi_printf("r type range handle %p", r_range);
@@ -503,16 +491,14 @@ static void end_of_init(const vhpiCbDataT *cb_data)
    vhpi_release_handle(r_constrs);
    vhpi_release_handle(r_type);
 
-   vhpiHandleT handle_v = vhpi_handle_by_name("v", root);
-   check_error();
+   vhpiHandleT handle_v = VHPI_CHECK(vhpi_handle_by_name("v", root));
    fail_if(handle_v == NULL);
    vhpi_printf("v handle %p", handle_v);
    vhpi_printf("v name is %s", vhpi_get_str(vhpiNameP, handle_v));
    vhpi_printf("v full name is %s", vhpi_get_str(vhpiFullNameP, handle_v));
    fail_unless(vhpi_get(vhpiStaticnessP, handle_v) == vhpiDynamic);
 
-   vhpiHandleT v_type = vhpi_handle(vhpiType, handle_v);
-   check_error();
+   vhpiHandleT v_type = VHPI_CHECK(vhpi_handle(vhpiType, handle_v));
    fail_if(v_type == NULL);
    vhpi_printf("v type handle %p", v_type);
    vhpi_printf("v type name is %s", vhpi_get_str(vhpiNameP, v_type));
@@ -520,27 +506,22 @@ static void end_of_init(const vhpiCbDataT *cb_data)
    vhpi_printf("v dimensions %d", vhpi_get(vhpiNumDimensionsP, v_type));
    fail_if(vhpi_get(vhpiIsUnconstrainedP, v_type));
 
-   vhpiHandleT v_constrs = vhpi_iterator(vhpiConstraints, v_type);
-   check_error();
+   vhpiHandleT v_constrs = VHPI_CHECK(vhpi_iterator(vhpiConstraints, v_type));
    fail_if(v_constrs == NULL);
 
-   vhpiHandleT v_range = vhpi_scan(v_constrs);
-   check_error();
+   vhpiHandleT v_range = VHPI_CHECK(vhpi_scan(v_constrs));
    fail_if(v_range == NULL);
    fail_unless(vhpi_scan(v_constrs) == NULL);
    vhpi_printf("v type range handle %p", v_range);
    vhpi_printf("v left bound %d", vhpi_get(vhpiLeftBoundP, v_range));
    vhpi_printf("v right bound %d", vhpi_get(vhpiRightBoundP, v_range));
 
-   vhpiHandleT v_elem = vhpi_handle(vhpiElemType, v_type);
-   check_error();
-   fail_if(v_elem == NULL);
+   vhpiHandleT v_elem = VHPI_CHECK(vhpi_handle(vhpiElemType, v_type));
    vhpi_printf("v elem type handle %p", v_elem);
    vhpi_printf("v elem type name is %s", vhpi_get_str(vhpiNameP, v_elem));
    vhpi_printf("v elem type full name is %s", vhpi_get_str(vhpiFullNameP, v_elem));
 
-   vhpiIntT nlits = vhpi_get(vhpiNumLiteralsP, v_elem);
-   check_error();
+   vhpiIntT nlits = VHPI_CHECK(vhpi_get(vhpiNumLiteralsP, v_elem));
    vhpiHandleT v_lits = vhpi_iterator(vhpiEnumLiterals, v_elem);
    i = 0;
    for (vhpiHandleT lit = vhpi_scan(v_lits);
@@ -556,13 +537,17 @@ static void end_of_init(const vhpiCbDataT *cb_data)
    for (vhpiHandleT name = vhpi_scan(v_names); name != NULL; name = vhpi_scan(v_names))
       vhpi_printf("v indexed name is %s", vhpi_get_str(vhpiNameP, name));
 
-   vhpiHandleT handle_case = vhpi_handle_by_name("a_name_with_mixed_case", root);
-   check_error();
+   vhpiHandleT handle_case =
+      VHPI_CHECK(vhpi_handle_by_name("a_name_with_mixed_case", root));
    fail_if(handle_case == NULL);
    vhpi_printf("handle %p", handle_case);
    vhpi_printf("name is %s", vhpi_get_str(vhpiNameP, handle_case));
    vhpi_printf("case name is %s", vhpi_get_str(vhpiCaseNameP, handle_case));
    vhpi_printf("full case name is %s", vhpi_get_str(vhpiFullCaseNameP, handle_case));
+
+   vhpiHandleT handle_error = vhpi_handle_by_name("sfdf", root);
+   fail_unless(vhpi_check_error(&info));
+   fail_unless(handle_error == NULL);
 
    vhpi_release_handle(root);
    check_error();
