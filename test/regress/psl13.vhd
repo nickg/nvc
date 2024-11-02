@@ -20,7 +20,7 @@ begin
     cgen: c <= seq_c(clk);
     dgen: d <= seq_d(clk);
 
-    -- psl default clock is clk'event;
+    -- psl default clock is clk'delayed(0 ns)'event;
 
     -- Should fail at: 3 ns and 7 ns
     -- psl asrt_1 : assert always {a;b} |=> {c;d};

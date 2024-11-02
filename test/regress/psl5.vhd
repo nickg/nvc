@@ -26,7 +26,7 @@ architecture psl of psl5 is
   signal clk : natural;
 
   -- All is sensitive to rising edge of clk
-  -- psl default clock is clk'event;
+  -- psl default clock is clk'delayed(0 ns)'event;
 
 begin
 

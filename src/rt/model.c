@@ -535,7 +535,7 @@ static void scope_for_block(rt_model_t *m, tree_t block, rt_scope_t *parent)
 
             p->wakeable.kind      = W_PROPERTY;
             p->wakeable.pending   = false;
-            p->wakeable.postponed = true;
+            p->wakeable.postponed = false;
             p->wakeable.delayed   = false;
 
             APUSH(s->properties, p);

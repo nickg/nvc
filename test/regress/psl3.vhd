@@ -22,7 +22,7 @@ architecture psl of psl3 is
   signal clk : natural;
 
   -- All is sensitive to rising edge of clk
-  default clock is clk'event;
+  default clock is clk'delayed(0 ns)'event;
 
 begin
 
