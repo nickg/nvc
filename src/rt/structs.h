@@ -28,8 +28,10 @@
 #include "thread.h"
 
 typedef void *(*value_fn_t)(rt_nexus_t *);
+
 typedef A(rt_scope_t *) scope_list_t;
 typedef A(rt_prop_t *) prop_list_t;
+typedef A(rt_signal_t *) signal_list_t;
 
 typedef enum {
    W_PROC, W_WATCH, W_IMPLICIT, W_PROPERTY, W_TRANSFER,
@@ -254,7 +256,7 @@ typedef enum {
 } rt_scope_flags_t;
 
 typedef struct _rt_scope {
-   ptr_list_t       signals;
+   signal_list_t    signals;
    ptr_list_t       procs;
    ptr_list_t       aliases;
    prop_list_t      properties;

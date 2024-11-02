@@ -269,10 +269,10 @@ static void recreate_objects(tcl_shell_t *sh, rt_scope_t *scope,
    assert(r->obj.name == ident_downcase(tree_ident(scope->where)));
    r->scope = scope;
 
-   for (list_iter(rt_signal_t *, s, scope->signals)) {
+   for (int i = 0; i < scope->signals.count; i++) {
       shell_signal_t *ss = (*sptr)++;
-      assert(ss->obj.name == ident_downcase(tree_ident(s->where)));
-      ss->signal = s;
+      ss->signal = scope->signals.items[i];
+      assert(ss->obj.name == ident_downcase(tree_ident(ss->signal->where)));
 
       if (ss->watch != NULL)
          watch_signal(ss);
@@ -1342,7 +1342,7 @@ bool shell_eval(tcl_shell_t *sh, const char *script, const char **result)
 static void count_objects(rt_scope_t *scope, unsigned *nsignals,
                           unsigned *nregions)
 {
-   *nsignals += list_size(scope->signals) + list_size(scope->aliases);
+   *nsignals += scope->signals.count + list_size(scope->aliases);
    *nregions += 1;
 
    for (int i = 0; i < scope->children.count;i ++)
@@ -1363,11 +1363,11 @@ static void recurse_objects(tcl_shell_t *sh, rt_scope_t *scope,
 
    hash_put(sh->namemap, r->obj.path, &(r->obj));
 
-   list_foreach(rt_signal_t *, s, scope->signals) {
+   for (int i = 0; i < scope->signals.count; i++) {
       shell_signal_t *ss = (*sptr)++;
-      ss->signal = s;
+      ss->signal = scope->signals.items[i];
       ss->obj.kind = SHELL_SIGNAL;
-      ss->obj.name = ident_downcase(tree_ident(s->where));
+      ss->obj.name = ident_downcase(tree_ident(ss->signal->where));
       ss->owner = sh;
 
       tb_istr(path, ss->obj.name);

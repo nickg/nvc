@@ -678,10 +678,9 @@ static void cleanup_scope(rt_model_t *m, rt_scope_t *scope)
    }
    list_free(&scope->procs);
 
-   list_foreach(rt_signal_t *, it, scope->signals) {
-      cleanup_signal(m, it);
-   }
-   list_free(&scope->signals);
+   for (int i = 0; i < scope->signals.count; i++)
+      cleanup_signal(m, scope->signals.items[i]);
+   ACLEAR(scope->signals);
 
    list_foreach(rt_alias_t *, it, scope->aliases) {
       free(it);
@@ -768,9 +767,9 @@ void model_free(rt_model_t *m)
 
 rt_signal_t *find_signal(rt_scope_t *scope, tree_t decl)
 {
-   list_foreach(rt_signal_t *, s, scope->signals) {
-      if (s->where == decl)
-         return s;
+   for (int i = 0; i < scope->signals.count; i++) {
+      if (scope->signals.items[i]->where == decl)
+         return scope->signals.items[i];
    }
 
    list_foreach(rt_alias_t *, a, scope->aliases) {
@@ -1769,7 +1768,7 @@ static void setup_signal(rt_model_t *m, rt_signal_t *s, tree_t where,
    s->shared.flags = flags;
    s->shared.size  = count * size;
 
-   list_add(&parent->signals, s);
+   APUSH(parent->signals, s);
 
    s->nexus.width        = count;
    s->nexus.size         = size;
@@ -1792,7 +1791,8 @@ static void copy_sub_signal_sources(rt_scope_t *scope, void *buf, int stride)
 {
    assert(scope->kind == SCOPE_SIGNAL);
 
-   list_foreach(rt_signal_t *, s, scope->signals) {
+   for (int i = 0; i < scope->signals.count; i++) {
+      rt_signal_t *s = scope->signals.items[i];
       rt_nexus_t *n = &(s->nexus);
       for (unsigned i = 0; i < s->n_nexus; i++) {
          unsigned o = 0;
@@ -2291,7 +2291,7 @@ static void dump_one_signal(rt_model_t *m, rt_scope_t *scope, rt_signal_t *s,
 
 static void dump_signals(rt_model_t *m, rt_scope_t *scope)
 {
-   if (scope->signals == NULL && scope->children.count == 0)
+   if (scope->signals.count == 0 && scope->children.count == 0)
       return;
 
    if (scope->kind != SCOPE_SIGNAL && scope->kind != SCOPE_ROOT) {
@@ -2305,8 +2305,8 @@ static void dump_signals(rt_model_t *m, rt_scope_t *scope)
               "Signal", "Width", "Size", "Sources", "Outputs", "Rank", "Value");
    }
 
-   for (list_iter(rt_signal_t *, s, scope->signals))
-      dump_one_signal(m, scope, s, NULL);
+   for (int i = 0; i < scope->signals.count; i++)
+      dump_one_signal(m, scope, scope->signals.items[i], NULL);
 
    for (list_iter(rt_alias_t *, a, scope->aliases))
       dump_one_signal(m, scope, a->signal, a->where);
@@ -4259,8 +4259,8 @@ void x_pop_scope(void)
    int offset = INT_MAX;
    for (int i = 0; i < pop->children.count; i++)
       offset = MIN(offset, pop->children.items[i]->offset);
-   list_foreach(rt_signal_t *, s, pop->signals)
-      offset = MIN(offset, s->offset);
+   for (int i = 0; i < pop->signals.count; i++)
+      offset = MIN(offset, pop->signals.items[i]->offset);
    pop->offset = offset;
 
    thread->active_scope = old;

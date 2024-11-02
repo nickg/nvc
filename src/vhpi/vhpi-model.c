@@ -1820,6 +1820,17 @@ static void vhpi_get_uarray(c_vhpiObject *obj, void **ptr, ffi_dim_t **dims)
    }
 }
 
+static void vhpi_watch_scope(rt_model_t *m, rt_scope_t *s, rt_watch_t *w)
+{
+   assert(s->kind == SCOPE_SIGNAL);
+
+   for (int i = 0; i < s->signals.count; i++)
+      model_set_event_cb(m, s->signals.items[i], w);
+
+   for (int i = 0; i < s->children.count; i++)
+      vhpi_watch_scope(m, s->children.items[i], w);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Public API
 
@@ -1918,11 +1929,6 @@ vhpiHandleT vhpi_register_cb(vhpiCbDataT *cb_data_p, int32_t flags)
             }
             else if ((scope = vhpi_get_scope_objDecl(decl)) == NULL)
                return NULL;
-            else {
-               vhpi_error(vhpiInternal, NULL, "value change callback for "
-                          "records is not currently supported");
-               return NULL;
-            }
          }
          else {
             vhpi_error(vhpiInternal, &(obj->loc), "cannot register value "
@@ -1941,7 +1947,7 @@ vhpiHandleT vhpi_register_cb(vhpiCbDataT *cb_data_p, int32_t flags)
          if (signal != NULL)
             cb->watch = model_set_event_cb(m, signal, cb->watch);
          else
-            should_not_reach_here();
+            vhpi_watch_scope(m, scope, cb->watch);
 
          return (flags & vhpiReturnCb) ? handle_for(&(cb->object)) : NULL;
       }
