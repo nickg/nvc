@@ -256,6 +256,12 @@ static void shell_event_cb(uint64_t now, rt_signal_t *s, rt_watch_t *w,
    }
 }
 
+static void watch_signal(shell_signal_t *ss)
+{
+   ss->watch = watch_new(ss->owner->model, shell_event_cb, ss, WATCH_POSTPONED);
+   model_set_event_cb(ss->owner->model, ss->signal, ss->watch);
+}
+
 static void recreate_objects(tcl_shell_t *sh, rt_scope_t *scope,
                              shell_signal_t **sptr, shell_region_t **rptr)
 {
@@ -269,8 +275,7 @@ static void recreate_objects(tcl_shell_t *sh, rt_scope_t *scope,
       ss->signal = s;
 
       if (ss->watch != NULL)
-         ss->watch = model_set_event_cb(ss->owner->model, ss->signal,
-                                        shell_event_cb, ss, true);
+         watch_signal(ss);
    }
 
    for (list_iter(rt_alias_t *, a, scope->aliases)) {
@@ -279,8 +284,7 @@ static void recreate_objects(tcl_shell_t *sh, rt_scope_t *scope,
       ss->signal = a->signal;
 
       if (ss->watch != NULL)
-         ss->watch = model_set_event_cb(sh->model, ss->signal,
-                                        shell_event_cb, ss, true);
+         watch_signal(ss);
    }
 
    for (int i = 0; i < scope->children.count; i++)
@@ -937,8 +941,7 @@ static int shell_cmd_add(ClientData cd, Tcl_Interp *interp,
       }
 
       if (ss->watch == NULL)
-        ss->watch = model_set_event_cb(sh->model, ss->signal,
-                                       shell_event_cb, ss, true);
+         watch_signal(ss);
    }
 
    return TCL_OK;

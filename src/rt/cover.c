@@ -232,7 +232,8 @@ void x_cover_setup_toggle_cb(sig_shared_t *ss, int32_t tag)
    else if (op_mask & COVER_MASK_TOGGLE_COUNT_FROM_TO_Z)
       fn = &cover_toggle_cb_0_1_z;
 
-   model_set_event_cb(m, s, fn, (void *)(uintptr_t)tag, false);
+   rt_watch_t *w = watch_new(m, fn, (void *)(uintptr_t)tag, WATCH_EVENT);
+   model_set_event_cb(m, s, w);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -266,7 +267,9 @@ void x_cover_setup_state_cb(sig_shared_t *ss, int64_t low, int32_t tag)
    // cause an event. First tag needs to be flagged as covered manually.
    *mask = 1;
 
-   model_set_event_cb(m, s, cover_state_cb, (void *)(uintptr_t)(tag - low), false);
+   rt_watch_t *w = watch_new(m, cover_state_cb, (void *)(uintptr_t)(tag - low),
+                             WATCH_EVENT);
+   model_set_event_cb(m, s, w);
 }
 
 ///////////////////////////////////////////////////////////////////////////////

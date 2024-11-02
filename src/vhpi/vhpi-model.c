@@ -1931,15 +1931,15 @@ vhpiHandleT vhpi_register_cb(vhpiCbDataT *cb_data_p, int32_t flags)
          }
 
          c_callback *cb = new_object(sizeof(c_callback), vhpiCallbackK);
-         cb->Reason  = cb_data_p->reason;
-         cb->State   = (flags & vhpiDisableCb) ? vhpiDisable : vhpiEnable;
-         cb->data    = *cb_data_p;
+         cb->Reason = cb_data_p->reason;
+         cb->State  = (flags & vhpiDisableCb) ? vhpiDisable : vhpiEnable;
+         cb->data   = *cb_data_p;
 
          vhpiHandleT handle = handle_for(&(cb->object));
+         cb->watch = watch_new(m, vhpi_signal_event_cb, handle, WATCH_EVENT);
 
          if (signal != NULL)
-            cb->watch = model_set_event_cb(m, signal, vhpi_signal_event_cb,
-                                           handle, false);
+            cb->watch = model_set_event_cb(m, signal, cb->watch);
          else
             should_not_reach_here();
 
@@ -1971,7 +1971,7 @@ int vhpi_remove_cb(vhpiHandleT handle)
    vhpi_context_t *c = vhpi_context();
 
    if (cb->Reason == vhpiCbValueChange)
-      model_clear_event_cb(c->model, cb->watch);
+      watch_free(c->model, cb->watch);
 
    cb->State = vhpiMature;
 

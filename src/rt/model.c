@@ -1610,6 +1610,25 @@ static void clone_source(rt_model_t *m, rt_nexus_t *nexus,
    }
 }
 
+static rt_wakeable_t *clone_wakeable(rt_wakeable_t *obj)
+{
+   if (obj == NULL)
+      return NULL;
+
+   switch (obj->kind) {
+   case W_WATCH:
+      {
+         rt_watch_t *w = container_of(obj, rt_watch_t, wakeable);
+         assert(w->refcount > 0);
+         w->refcount++;
+         return obj;
+      }
+
+   default:
+      return obj;
+   }
+}
+
 static rt_nexus_t *clone_nexus(rt_model_t *m, rt_nexus_t *old, int offset)
 {
    assert(offset < old->width);
@@ -1648,7 +1667,7 @@ static rt_nexus_t *clone_nexus(rt_model_t *m, rt_nexus_t *old, int offset)
       new_p->count = new_p->max = old_p->count;
 
       for (int i = 0; i < old_p->count; i++)
-         new_p->wake[i] = old_p->wake[i];
+         new_p->wake[i] = clone_wakeable(old_p->wake[i]);
 
       new->pending = tag_pointer(new_p, 0);
    }
@@ -2674,18 +2693,37 @@ static void sched_disconnect(rt_model_t *m, rt_nexus_t *nexus, uint64_t after,
       deltaq_insert_driver(m, after, d);
 }
 
+static void unref_watch(rt_model_t *m, rt_watch_t *w)
+{
+   assert(w->refcount > 0);
+
+   if (--(w->refcount) > 0)
+      return;
+
+   rt_watch_t **last = &m->watches;
+   for (rt_watch_t *it = *last; it;
+        last = &(it->chain_all), it = it->chain_all) {
+      if (it == w) {
+         *last = it->chain_all;
+         free(w);
+         return;
+      }
+   }
+
+   should_not_reach_here();
+}
+
 static void async_watch_callback(rt_model_t *m, void *arg)
 {
    rt_watch_t *w = arg;
 
    assert(w->wakeable.pending);
    w->wakeable.pending = false;
-   bool free_later = w->wakeable.free_later;
+
+   if (w->zombie)
+      return;
 
    (*w->fn)(m->now, w->signal, w, w->user_data);
-
-   if (free_later)
-      free(w);
 }
 
 static void async_timeout_callback(rt_model_t *m, void *arg)
@@ -2785,7 +2823,7 @@ static bool run_trigger(rt_model_t *m, rt_trigger_t *t)
    return t->result.integer != 0;
 }
 
-static void wakeup_one(rt_model_t *m, rt_wakeable_t *obj)
+static void wakeup_one(rt_model_t *m, rt_wakeable_t *obj, rt_nexus_t *n)
 {
    if (obj->pending)
       return;   // Already scheduled
@@ -2833,9 +2871,17 @@ static void wakeup_one(rt_model_t *m, rt_wakeable_t *obj)
    case W_WATCH:
       {
          rt_watch_t *w = container_of(obj, rt_watch_t, wakeable);
-         TRACE("wakeup %svalue change callback %s",
-               obj->postponed ? "postponed " : "", debug_symbol_name(w->fn));
-         deferq_do(dq, async_watch_callback, w);
+         TRACE("wakeup %svalue change callback %p %s%s",
+               obj->postponed ? "postponed " : "", w,
+               debug_symbol_name(w->fn), w->zombie ? " [zombie]" : "");
+
+         if (w->zombie) {
+            clear_event(m, n, &(w->wakeable));
+            unref_watch(m, w);
+            return;
+         }
+         else
+            deferq_do(dq, async_watch_callback, w);
       }
       break;
 
@@ -2865,13 +2911,13 @@ static void notify_event(rt_model_t *m, rt_nexus_t *n)
 
    if (pointer_tag(n->pending) == 1) {
       rt_wakeable_t *wake = untag_pointer(n->pending, rt_wakeable_t);
-      wakeup_one(m, wake);
+      wakeup_one(m, wake, n);
    }
    else if (n->pending != NULL) {
       rt_pending_t *p = untag_pointer(n->pending, rt_pending_t);
       for (int i = 0; i < p->count; i++) {
          if (p->wake[i] != NULL)
-            wakeup_one(m, p->wake[i]);
+            wakeup_one(m, p->wake[i], n);
       }
    }
 }
@@ -3554,48 +3600,49 @@ void model_set_timeout_cb(rt_model_t *m, uint64_t when, rt_event_fn_t fn,
    heap_insert(m->eventq_heap, when, e);
 }
 
-rt_watch_t *model_set_event_cb(rt_model_t *m, rt_signal_t *s, sig_event_fn_t fn,
-                               void *user, bool postponed)
+rt_watch_t *watch_new(rt_model_t *m, sig_event_fn_t fn, void *user,
+                      watch_kind_t kind)
 {
    rt_watch_t *w = xcalloc(sizeof(rt_watch_t));
-   w->signal    = s;
    w->fn        = fn;
    w->chain_all = m->watches;
    w->user_data = user;
+   w->refcount  = 1;
 
    w->wakeable.kind      = W_WATCH;
-   w->wakeable.postponed = postponed;
+   w->wakeable.postponed = (kind == WATCH_POSTPONED);
    w->wakeable.pending   = false;
    w->wakeable.delayed   = false;
 
    m->watches = w;
 
-   rt_nexus_t *n = &(w->signal->nexus);
-   for (int i = 0; i < s->n_nexus; i++, n = n->chain)
-      sched_event(m, n, &(w->wakeable));
-
    return w;
 }
 
-void model_clear_event_cb(rt_model_t *m, rt_watch_t *w)
+void watch_free(rt_model_t *m, rt_watch_t *w)
 {
-   rt_nexus_t *n = &(w->signal->nexus);
-   for (int i = 0; i < w->signal->n_nexus; i++, n = n->chain)
-      clear_event(m, n, &(w->wakeable));
+   assert(w->refcount > 0);
+   assert(!w->zombie);
 
-   rt_watch_t **last = &m->watches;
-   for (rt_watch_t *it = *last; it;
-        last = &(it->chain_all), it = it->chain_all) {
-      if (it == w) {
-         *last = it->chain_all;
-         break;
-      }
+   w->zombie = true;
+   unref_watch(m, w);
+}
+
+rt_watch_t *model_set_event_cb(rt_model_t *m, rt_signal_t *s, rt_watch_t *w)
+{
+   assert(w->refcount > 0);
+   assert(!w->zombie);
+
+   if (w->signal == NULL)
+      w->signal = s;
+
+   rt_nexus_t *n = &(s->nexus);
+   for (int i = 0; i < s->n_nexus; i++, n = n->chain, w->refcount++) {
+      w->refcount++;
+      sched_event(m, n, &(w->wakeable));
    }
 
-   if (w->wakeable.pending)
-      w->wakeable.free_later = true;
-   else
-      free(w);
+   return w;
 }
 
 static void handle_interrupt_cb(jit_t *j, void *ctx)

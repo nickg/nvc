@@ -21,6 +21,11 @@
 #include "prim.h"
 #include "rt/rt.h"
 
+typedef enum {
+   WATCH_EVENT,
+   WATCH_POSTPONED,
+} watch_kind_t;
+
 rt_model_t *model_new(tree_t top, jit_t *jit);
 void model_free(rt_model_t *m);
 void model_reset(rt_model_t *m);
@@ -33,11 +38,13 @@ void model_stop(rt_model_t *m);
 void model_interrupt(rt_model_t *m);
 int model_exit_status(rt_model_t *m);
 
+rt_watch_t *watch_new(rt_model_t *m, sig_event_fn_t fn, void *user,
+                      watch_kind_t kind);
+void watch_free(rt_model_t *m, rt_watch_t *w);
+
 void model_set_global_cb(rt_model_t *m, rt_event_t event, rt_event_fn_t fn,
                          void *user);
-rt_watch_t *model_set_event_cb(rt_model_t *m, rt_signal_t *s, sig_event_fn_t fn,
-                               void *user, bool postponed);
-void model_clear_event_cb(rt_model_t *m, rt_watch_t *w);
+rt_watch_t *model_set_event_cb(rt_model_t *m, rt_signal_t *s, rt_watch_t *w);
 void model_set_timeout_cb(rt_model_t *m, uint64_t when, rt_event_fn_t fn,
                           void *user);
 

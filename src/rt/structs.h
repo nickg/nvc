@@ -57,7 +57,6 @@ typedef struct {
    unsigned        pending : 1;
    unsigned        postponed : 1;
    unsigned        delayed : 1;
-   unsigned        free_later : 1;
    rt_trigger_t   *trigger;
 } rt_wakeable_t;
 
@@ -276,6 +275,8 @@ typedef struct _rt_watch {
    sig_event_fn_t  fn;
    rt_watch_t     *chain_all;
    void           *user_data;
+   uint32_t        refcount;
+   bool            zombie;
 } rt_watch_t;
 
 #endif  // _RT_STRUCTS_H
