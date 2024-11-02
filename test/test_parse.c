@@ -6919,11 +6919,17 @@ START_TEST(test_issue1038)
 
    input_from_file(TESTDIR "/parse/issue1038.vhd");
 
-   parse_and_check(T_PACKAGE, T_PACK_BODY, T_PACKAGE);
+   const error_t expect[] = {
+      { 22, "unexpected next while parsing primary, expecting one of ??, (, integer, real, null, identifier, string, bit string or new" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_PACKAGE, T_PACK_BODY, T_PACKAGE, T_ENTITY, T_ARCH);
 
    fail_unless(parse() == NULL);
 
-   fail_if_errors();
+   check_expected_errors();
 }
 END_TEST
 

@@ -402,5 +402,6 @@ bool is_scanned_as_psl(void);
 #define tBEFORE1_      502
 #define tSUFFIXOVR     503
 #define tSUFFIXNON     504
+#define tPSLNEXT       505
 
 #endif  // _SCAN_H
