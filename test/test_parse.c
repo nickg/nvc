@@ -6919,7 +6919,7 @@ START_TEST(test_issue1038)
 
    input_from_file(TESTDIR "/parse/issue1038.vhd");
 
-   parse_and_check(T_PACKAGE, T_PACK_BODY);
+   parse_and_check(T_PACKAGE, T_PACK_BODY, T_PACKAGE);
 
    fail_unless(parse() == NULL);
 
