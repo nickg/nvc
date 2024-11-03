@@ -306,7 +306,7 @@ static bool is_comment(const char *str)
    return str[0] == '#';
 }
 
-static bool parse_test_list(int argc, char **argv)
+static bool parse_test_list(void)
 {
    char testlist[PATH_MAX + 22];
    snprintf(testlist, sizeof(testlist), "%s/regress/testlist.txt", test_dir);
@@ -341,14 +341,6 @@ static bool parse_test_list(int argc, char **argv)
          fprintf(stderr, "Error on testlist line %d: extra tokens after "
                  "test %s options list\n", lineno, name);
          goto out_close;
-      }
-
-      if (argc > 0) {
-         bool found = false;
-         for (int i = 0; i < argc && !found; i++)
-            found = strstr(name, argv[i]) != NULL;
-         if (!found)
-            continue;
       }
 
       test_t *test = calloc(sizeof(test_t), 1);
@@ -1277,7 +1269,7 @@ int main(int argc, char **argv)
    if (getenv("QUICK"))
       return 0;
 
-   if (!parse_test_list(argc - 1, argv + 1))
+   if (!parse_test_list())
       return EXIT_FAILURE;
 
    force_jit = getenv("FORCE_JIT") != NULL;
@@ -1292,9 +1284,34 @@ int main(int argc, char **argv)
 
    free(newpath);
 
+   unsigned mask = 0;
+   for (int i = 1; i < argc; i++) {
+      if (strcmp(argv[i], "wave") == 0)
+         mask |= F_WAVE;
+      else if (strcmp(argv[i], "vhpi") == 0)
+         mask |= F_VHPI;
+      else if (strcmp(argv[i], "psl") == 0)
+         mask |= F_PSL;
+      else if (strcmp(argv[i], "cover") == 0)
+         mask |= F_COVER;
+   }
+
    int fails = 0;
    for (test_t *it = test_list; it != NULL; it = it->next) {
-      if (!run_test(it))
+      bool found;
+      if (argc > 1) {
+         found = !!(it->flags & mask);
+         for (int i = 1; i < argc && !found; i++) {
+            if (isdigit((int)argv[i][strlen(argv[i]) - 1]))
+               found = strcmp(it->name, argv[i]) == 0;
+            else
+               found = strstr(it->name, argv[i]) != NULL;
+         }
+      }
+      else
+         found = true;
+
+      if (found && !run_test(it))
          fails++;
    }
 
