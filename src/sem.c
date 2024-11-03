@@ -970,6 +970,18 @@ static bool sem_check_const_decl(tree_t t, nametab_t *tab)
 
       if (fwd == NULL)
          sem_propagate_constraints(t, value);
+
+      // A constant with a globaly static value should be treated as
+      // globally static regardless of where it is declared
+      if (sem_globally_static(value)) {
+         tree_set_flag(t, TREE_F_GLOBALLY_STATIC);
+
+         // A reference to a constant with a locally static subype and
+         // locally static value is locally static
+         if (sem_locally_static(value)
+             && sem_static_subtype(tree_type(t), sem_locally_static))
+            tree_set_flag(t, TREE_F_LOCALLY_STATIC);
+      }
    }
    else if (tree_kind(find_enclosing(tab, S_DESIGN_UNIT)) != T_PACKAGE)
       sem_error(t, "deferred constant declarations are only permitted "
@@ -1445,6 +1457,13 @@ static bool sem_check_generic_decl(tree_t t, nametab_t *tab)
          sem_error(value, "type of default value %s does not match type "
                    "of declaration %s", type_pp(tree_type(value)),
                    type_pp(type));
+   }
+
+   if (tree_flags(t) & TREE_F_LOCALLY_STATIC) {
+      // For a generic declaration in a pacakage or subprogram to be
+      // locally static it must also have a locally static subtype
+      if (!sem_static_subtype(type, sem_locally_static))
+         tree_clear_flag(t, TREE_F_LOCALLY_STATIC);
    }
 
    return true;
@@ -5530,20 +5549,17 @@ static bool sem_locally_static(tree_t t)
 
       // A constant reference (other than a deferred constant) with a
       // locally static value
-      if (dkind == T_CONST_DECL) {
-         if (tree_has_value(decl))
-            return sem_locally_static(tree_value(decl));
-         else
-            return false;
-      }
+      if (dkind == T_CONST_DECL && (tree_flags(decl) & TREE_F_LOCALLY_STATIC))
+         return true;
 
       // An alias of a locally static name
       if (dkind == T_ALIAS)
          return sem_locally_static(tree_value(decl));
 
-      // [2008] A generic reference with a locally static subtype
-      if (dkind == T_GENERIC_DECL && (standard() >= STD_08 || relaxed_rules()))
-         return sem_static_subtype(tree_type(decl), sem_locally_static);
+      // [2008] A formal generic constant of a generic-mapped subprogram
+      // or package with a locally static subtype
+      if (dkind == T_GENERIC_DECL && (tree_flags(decl) & TREE_F_LOCALLY_STATIC))
+         return true;
    }
 
    // A locally static range
@@ -5794,8 +5810,16 @@ static bool sem_globally_static(tree_t t)
 
    if (kind == T_REF) {
       tree_t decl = tree_ref(t);
-      const tree_kind_t decl_kind = tree_kind(decl);
-      return decl_kind == T_GENERIC_DECL || decl_kind == T_CONST_DECL;
+      switch (tree_kind(decl)) {
+      case T_GENERIC_DECL:
+         return true;
+      case T_CONST_DECL:
+         // Do not treat all constants as globally static, this is a
+         // defect in the LRM
+         return !!(tree_flags(decl) & TREE_F_GLOBALLY_STATIC);
+      default:
+         return false;
+      }
    }
    else if (kind == T_EXTERNAL_NAME)
       return tree_class(t) == C_CONSTANT;
@@ -7157,20 +7181,6 @@ static bool sem_check_cond_value(tree_t t, nametab_t *tab)
    return true;
 }
 
-static bool sem_check_sequence(tree_t t, nametab_t *tab)
-{
-   const int ndecls = tree_decls(t);
-   for (int i = 0; i < ndecls; i++) {
-      // Mark all constant declarations as they need to be treated
-      // specially when calculating longest static prefix
-      tree_t d = tree_decl(t, i);
-      if (tree_kind(d) == T_CONST_DECL)
-         tree_set_flag(d, TREE_F_SEQ_BLOCK);
-   }
-
-   return true;
-}
-
 static bool sem_check_prot_decl(tree_t t, nametab_t *tab)
 {
    const int ndecls = tree_decls(t);
@@ -7349,6 +7359,7 @@ bool sem_check(tree_t t, nametab_t *tab)
    case T_BOX:
    case T_PSL:
    case T_LOOP:
+   case T_SEQUENCE:
       return true;
    case T_CONV_FUNC:
       return sem_check_conv_func(t, tab);
@@ -7374,8 +7385,6 @@ bool sem_check(tree_t t, nametab_t *tab)
       return sem_check_view_decl(t, tab);
    case T_COND_VALUE:
       return sem_check_cond_value(t, tab);
-   case T_SEQUENCE:
-      return sem_check_sequence(t, tab);
    case T_PROT_DECL:
       return sem_check_prot_decl(t, tab);
    case T_INERTIAL:

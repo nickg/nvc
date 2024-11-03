@@ -1712,7 +1712,7 @@ static bool is_static(tree_t expr)
          tree_t decl = tree_ref(expr);
          switch (tree_kind(decl)) {
          case T_CONST_DECL:
-            return !(tree_flags(decl) & TREE_F_SEQ_BLOCK);
+            return !!(tree_flags(decl) & TREE_F_GLOBALLY_STATIC);
          case T_UNIT_DECL:
          case T_ENUM_LIT:
          case T_GENERIC_DECL:

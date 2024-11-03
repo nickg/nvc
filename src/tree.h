@@ -422,7 +422,6 @@ typedef enum {
    TREE_F_IMPURE_FILE     = (1 << 22),
    TREE_F_IMPURE_SHARED   = (1 << 23),
    TREE_F_CALL_NO_ARGS    = (1 << 24),
-   TREE_F_SEQ_BLOCK       = (1 << 25),
 } tree_flags_t;
 
 typedef enum {

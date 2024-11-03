@@ -4997,6 +4997,20 @@ static void p_interface_constant_declaration(tree_t parent, tree_kind_t kind,
    if ((mode == PORT_OUT || mode == PORT_INOUT) && !explicit_constant)
       class = C_VARIABLE;
 
+   if (kind == T_GENERIC_DECL) {
+      // In the 2008 standard generics in packages or subprograms are
+      // locally static if they have a locally static subtype
+      switch (tree_kind(parent)) {
+      case T_PACKAGE:
+      case T_FUNC_DECL:
+      case T_PROC_DECL:
+         flags |= TREE_F_LOCALLY_STATIC;
+         break;
+      default:
+         break;
+      }
+   }
+
    type_t type = p_interface_type_indication(parent);
 
    tree_t init = NULL;
@@ -6919,12 +6933,33 @@ static void p_constant_declaration(tree_t parent)
          solve_known_subtype(nametab, init, type);
    }
 
+   // According to the LRM all constants are globally static but that
+   // leads to a number of logical inconsistencies so we retrict to only
+   // constants in certain regions where the value can be computed
+   // during elaboration
+   tree_flags_t flags = 0;
+   switch (tree_kind(parent)) {
+   case T_ENTITY:
+   case T_ARCH:
+   case T_PACKAGE:
+   case T_PACK_BODY:
+   case T_BLOCK:
+   case T_FOR_GENERATE:
+   case T_COND_STMT:     // If-generate
+   case T_ALTERNATIVE:   // For-generate
+      flags |= TREE_F_GLOBALLY_STATIC;
+      break;
+   default:
+      break;
+   }
+
    consume(tSEMI);
 
    for (ident_list_t *it = ids; it != NULL; it = it->next) {
       tree_t t = tree_new(T_CONST_DECL);
       tree_set_ident(t, it->ident);
       tree_set_type(t, type);
+      tree_set_flag(t, flags);
       tree_set_loc(t, &(it->loc));
       if (init != NULL)
          tree_set_value(t, init);

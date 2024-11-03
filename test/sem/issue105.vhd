@@ -9,7 +9,7 @@ begin
     process (x) is
     begin
         case x is
-            when GEN =>                 -- OK in 2008
+            when GEN =>                 -- Error (used to be allowed)
                 report "x = GEN";
             when others =>
                 report "x /= GEN";

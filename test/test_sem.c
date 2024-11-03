@@ -1316,11 +1316,17 @@ START_TEST(test_issue105)
 {
    set_standard(STD_08);
 
+   const error_t expect[] = {
+      { 12, "case choice must be locally static" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
    input_from_file(TESTDIR "/sem/issue105.vhd");
 
    parse_and_check(T_ENTITY, T_ARCH, T_ENTITY, T_ARCH);
 
-   fail_if_errors();
+   check_expected_errors();
 }
 END_TEST
 

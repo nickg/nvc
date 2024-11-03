@@ -115,4 +115,11 @@ begin
         end case;
     end process;
 
+    p4: process is
+        constant N1 : integer := N + 1;
+        variable v : bit_vector(7 downto 0);
+        alias a is v(N1 downto 0);      -- OK
+    begin
+    end process;
+
 end architecture;
