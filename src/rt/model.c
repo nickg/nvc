@@ -1699,17 +1699,9 @@ static rt_nexus_t *clone_nexus(rt_model_t *m, rt_nexus_t *old, int offset)
    return new;
 }
 
-static rt_nexus_t *split_nexus(rt_model_t *m, rt_signal_t *s,
-                               int offset, int count)
+static rt_nexus_t *split_nexus_slow(rt_model_t *m, rt_signal_t *s,
+                                    int offset, int count)
 {
-   MULTITHREADED_ONLY(assert_lock_held(&s->lock));
-
-   rt_nexus_t *n0 = &(s->nexus);
-   if (likely(offset == 0 && n0->width == count))
-      return n0;
-   else if (offset == 0 && count == s->shared.size / n0->size)
-      return n0;
-
    rt_nexus_t *result = NULL;
    for (rt_nexus_t *it = lookup_index(s, &offset); count > 0; it = it->chain) {
       if (offset >= it->width) {
@@ -1733,6 +1725,20 @@ static rt_nexus_t *split_nexus(rt_model_t *m, rt_signal_t *s,
    }
 
    return result;
+}
+
+static inline rt_nexus_t *split_nexus(rt_model_t *m, rt_signal_t *s,
+                                      int offset, int count)
+{
+   MULTITHREADED_ONLY(assert_lock_held(&s->lock));
+
+   rt_nexus_t *n0 = &(s->nexus);
+   if (likely(offset == 0 && n0->width == count))
+      return n0;
+   else if (offset == 0 && count == s->shared.size / n0->size)
+      return n0;
+
+   return split_nexus_slow(m, s, offset, count);
 }
 
 static void setup_signal(rt_model_t *m, rt_signal_t *s, tree_t where,
