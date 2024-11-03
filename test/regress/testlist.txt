@@ -1065,3 +1065,4 @@ psl12           normal,2008
 psl13           fail,gold,psl
 issue1045       normal,vhpi
 issue1044       mixed
+issue1030       wave,2008,dump-arrays

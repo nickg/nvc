@@ -782,8 +782,8 @@ static void fst_create_record_array_var(wave_dumper_t *wd, tree_t d,
    }
 }
 
-static void fst_alias_var(wave_dumper_t *wd, tree_t d, rt_signal_t *s,
-                          text_buf_t *tb)
+static void fst_alias_var(wave_dumper_t *wd, tree_t d, rt_scope_t *scope,
+                          rt_signal_t *s, text_buf_t *tb)
 {
    rt_watch_t *w = find_watch(&(s->nexus), fst_event_cb);
    if (w == NULL)
@@ -800,7 +800,7 @@ static void fst_alias_var(wave_dumper_t *wd, tree_t d, rt_signal_t *s,
    if (type_is_array(type)) {
       int64_t left, right, length;
       range_kind_t dir;
-      fst_get_array_range(wd, type, s->parent, s->where, 0,
+      fst_get_array_range(wd, type, scope, d, 0,
                           &left, &right, &dir, &length);
 
       tb_printf(tb, "[%"PRIi64":%"PRIi64"]", left, right);
@@ -829,7 +829,7 @@ static void fst_process_signal(wave_dumper_t *wd, rt_scope_t *scope, tree_t d,
       if (s == NULL)
          return;
       else if (s->where != d)
-         fst_alias_var(wd, d, s, tb);  // Collapsed with another signal
+         fst_alias_var(wd, d, scope, s, tb);  // Collapsed with another signal
       else if (type_is_array(type))
          fst_create_array_var(wd, d, s, type, tb);
       else
