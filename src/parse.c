@@ -2411,11 +2411,11 @@ static void declare_generic_ops(tree_t parent, type_t type)
 static bool is_vhdl_infix_op(token_t tok)
 {
    return tok == tEQ || tok == tNEQ || tok == tLT || tok == tGT
-      || tok == tLE || tok == tGE || tok == tAND || tok == tOR || tok == tNAND
-      || tok == tNOR || tok == tXOR || tok == tXNOR || tok == tMOD
-      || tok == tREM || tok == tPLUS || tok == tMINUS || tok == tTIMES
-      || tok == tOVER || tok == tPOWER || tok == tMEQ || tok == tMNEQ
-      || tok == tMLT || tok == tMLE || tok == tMGT || tok == tMGE;
+      || tok == tLE || tok == tGE || tok == tNAND || tok == tNOR
+      || tok == tXOR || tok == tXNOR || tok == tMOD || tok == tREM
+      || tok == tPLUS || tok == tMINUS || tok == tTIMES || tok == tOVER
+      || tok == tPOWER || tok == tMEQ || tok == tMNEQ || tok == tMLT
+      || tok == tMLE || tok == tMGT || tok == tMGE;
 }
 
 static void add_predef_alias(tree_t t, void *context)
@@ -4919,22 +4919,10 @@ static tree_t p_expression_with_head(tree_t head)
    int loop_limit = (scan(tNOR, tNAND) ? 1 : INT_MAX);
 
    while (loop_limit-- && scan(tAND, tOR, tXOR, tNAND, tNOR, tXNOR)) {
-      ident_t op;
-      switch (one_of(tAND, tOR, tXOR, tNAND, tNOR, tXNOR)) {
-      case tAND:  op = well_known(W_OP_AND); break;
-      case tOR:   op = well_known(W_OP_OR); break;
-      case tXOR:  op = well_known(W_OP_XOR); break;
-      case tNAND: op = well_known(W_OP_NAND); break;
-      case tNOR:  op = well_known(W_OP_NOR); break;
-      case tXNOR: op = well_known(W_OP_XNOR); break;
-      default:    op = error_marker();
-      }
-
-      tree_t left = expr;
-
-      expr = tree_new(T_FCALL);
-      tree_set_ident(expr, op);
-      binary_op(expr, left, p_relation);
+      tree_t new = tree_new(T_FCALL);
+      tree_set_ident(new, p_logical_operator());
+      binary_op(new, expr, p_relation);
+      expr = new;
    }
 
    return expr;
@@ -11365,7 +11353,17 @@ static psl_node_t p_psl_or_hdl_expression(void)
 
    BEGIN("PSL or HDL expression");
 
-   tree_t expr = p_expression();
+   tree_t expr = p_relation(NULL);
+
+   int loop_limit = (scan(tNOR, tNAND) ? 1 : INT_MAX);
+
+   // AND and OR must be parsed as PSL operators
+   while (loop_limit-- && scan(tXOR, tNAND, tNOR, tXNOR)) {
+      tree_t new = tree_new(T_FCALL);
+      tree_set_ident(new, p_logical_operator());
+      binary_op(new, expr, p_relation);
+      expr = new;
+   }
 
    psl_node_t p = psl_new(P_HDL_EXPR);
    psl_set_tree(p, expr);
@@ -12028,7 +12026,12 @@ static psl_node_t p_psl_sequence(void)
          break;
       }
 
-      p = p_psl_or_hdl_expression();
+      tree_t expr = p_expression();
+
+      p = psl_new(P_HDL_EXPR);
+      psl_set_tree(p, expr);
+      psl_set_loc(p, tree_loc(expr));
+      psl_set_type(p, PSL_TYPE_BOOLEAN);
 
       // [= and [-> are only allowed after boolean -> no need to recurse
       // or create new SERE
@@ -12077,6 +12080,8 @@ static psl_node_t p_psl_fl_property(void)
    //   | next_event! ( Boolean ) [ Number ] ( FL_Property )
    //   | FL_Property -> FL_Property
    //   | FL_Property <-> FL_Property
+   //   | FL_Property or FL_Property
+   //   | FL_Property and FL_Property
    //   | FL_Property until! FL_Property
    //   | FL_Property until!_ FL_Property
    //   | FL_Property until FL_Property
@@ -12099,6 +12104,7 @@ static psl_node_t p_psl_fl_property(void)
 
          p = psl_new(P_ALWAYS);
          psl_set_value(p, p_psl_fl_property());
+         psl_set_loc(p, CURRENT_LOC);
       }
       break;
 
@@ -12108,6 +12114,7 @@ static psl_node_t p_psl_fl_property(void)
 
          p = psl_new(P_NEVER);
          psl_set_value(p, p_psl_fl_property());
+         psl_set_loc(p, CURRENT_LOC);
       }
       break;
 
@@ -12117,6 +12124,7 @@ static psl_node_t p_psl_fl_property(void)
 
          p = psl_new(P_EVENTUALLY);
          psl_set_value(p, p_psl_fl_property());
+         psl_set_loc(p, CURRENT_LOC);
       }
       break;
 
@@ -12143,6 +12151,7 @@ static psl_node_t p_psl_fl_property(void)
          }
 
          psl_set_value(p, p_psl_fl_property());
+         psl_set_loc(p, CURRENT_LOC);
       }
       break;
 
@@ -12163,6 +12172,7 @@ static psl_node_t p_psl_fl_property(void)
          consume(tRSQUARE);
 
          psl_set_value(p, p_psl_fl_property());
+         psl_set_loc(p, CURRENT_LOC);
       }
       break;
 
@@ -12183,6 +12193,7 @@ static psl_node_t p_psl_fl_property(void)
          consume(tRSQUARE);
 
          psl_set_value(p, p_psl_fl_property());
+         psl_set_loc(p, CURRENT_LOC);
       }
       break;
 
@@ -12215,6 +12226,8 @@ static psl_node_t p_psl_fl_property(void)
          consume(tLPAREN);
          psl_set_value(p, p_psl_fl_property());
          consume(tRPAREN);
+
+         psl_set_loc(p, CURRENT_LOC);
       }
       break;
 
@@ -12231,30 +12244,68 @@ static psl_node_t p_psl_fl_property(void)
             tree_t expr = p_expression_with_head(psl_tree(p));
             psl_set_tree(p, expr);
          }
+
+         psl_set_loc(p, CURRENT_LOC);
       }
       break;
 
-   default:
+   case tLBRACE:
       p = p_psl_sequence();
       break;
-   }
 
-   psl_set_loc(p, CURRENT_LOC);
+   default:
+      p = p_psl_or_hdl_expression();
+      break;
+   }
 
    const token_t infix = peek();
    switch (infix) {
    case tIFIMPL:
    case tIFFIMPL:
+   case tAND:
+   case tOR:
       {
          consume(infix);
 
-         psl_node_t impl = psl_new(P_IMPLICATION);
-         psl_set_subkind(impl, infix == tIFIMPL ? PSL_IMPL_IF : PSL_IMPL_IFF);
-         psl_add_operand(impl, p);
-         psl_add_operand(impl, p_psl_fl_property());
-         psl_set_loc(impl, CURRENT_LOC);
+         psl_logic_t kind;
+         switch (infix) {
+         case tAND:     kind = PSL_LOGIC_AND; break;
+         case tOR:      kind = PSL_LOGIC_OR; break;
+         case tIFIMPL:  kind = PSL_LOGIC_IF; break;
+         case tIFFIMPL: kind = PSL_LOGIC_IFF; break;
+         default: should_not_reach_here();
+         }
 
-         return impl;
+         psl_node_t right = p_psl_fl_property();
+
+         // A logical operation where the two operands are HDL
+         // expressions should be parsed as a single HDL expression
+         const bool prefer_hdl =
+            (kind == PSL_LOGIC_OR || kind == PSL_LOGIC_AND)
+            && psl_kind(p) == P_HDL_EXPR && psl_kind(right) == P_HDL_EXPR;
+
+         if (prefer_hdl) {
+            ident_t op = well_known(kind == PSL_LOGIC_OR ? W_OP_OR : W_OP_AND);
+
+            tree_t fcall = tree_new(T_FCALL);
+            tree_set_ident(fcall, op);
+            tree_set_loc(fcall, CURRENT_LOC);
+            add_param(fcall, psl_tree(p), P_POS, NULL);
+            add_param(fcall, psl_tree(right), P_POS, NULL);
+
+            psl_set_tree(p, fcall);
+            psl_set_loc(p, CURRENT_LOC);
+            return p;
+         }
+         else {
+            psl_node_t log = psl_new(P_LOGICAL);
+            psl_set_subkind(log, kind);
+            psl_add_operand(log, p);
+            psl_add_operand(log, right);
+            psl_set_loc(log, CURRENT_LOC);
+
+            return log;
+         }
       }
 
    case tSUFFIXOVR:

@@ -38,7 +38,6 @@ typedef enum {
    P_NEXT_E,
    P_NEXT_EVENT,
    P_SERE,
-   P_IMPLICATION,
    P_REPEAT,
    P_PROPERTY_INST,
    P_SEQUENCE_INST,
@@ -50,6 +49,7 @@ typedef enum {
    P_ABORT,
    P_BEFORE,
    P_SUFFIX_IMPL,
+   P_LOGICAL,
 
    P_LAST_PSL_KIND
 } psl_kind_t;
@@ -58,6 +58,13 @@ typedef enum {
    PSL_IMPL_IF,
    PSL_IMPL_IFF,
 } psl_impl_kind_t;
+
+typedef enum {
+   PSL_LOGIC_IF,
+   PSL_LOGIC_IFF,
+   PSL_LOGIC_AND,
+   PSL_LOGIC_OR,
+} psl_logic_t;
 
 typedef enum {
    PSL_TYPE_HDLTYPE,

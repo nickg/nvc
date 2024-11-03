@@ -188,7 +188,7 @@ static void psl_check_sere(psl_node_t p, nametab_t *tab)
       psl_check(psl_operand(p, i), tab);
 }
 
-static void psl_check_implication(psl_node_t p, nametab_t *tab)
+static void psl_check_logical(psl_node_t p, nametab_t *tab)
 {
    assert(psl_operands(p) == 2);
 
@@ -198,12 +198,27 @@ static void psl_check_implication(psl_node_t p, nametab_t *tab)
    psl_node_t right = psl_operand(p, 1);
    psl_check(right, tab);
 
-   if (psl_kind(left) != P_HDL_EXPR || psl_type(left) != PSL_TYPE_BOOLEAN)
-      error_at(psl_loc(p), "property is not in the simple subset as the left "
-               "hand side of this implication is non-Boolean");
-   else if (psl_subkind(p) == PSL_IMPL_IFF && psl_kind(right) != P_HDL_EXPR)
-      error_at(psl_loc(p), "property is not in the simple subset as the right "
-               "hand side of this implication is non-Boolean");
+   switch (psl_subkind(p)) {
+   case PSL_LOGIC_IFF:
+      if (psl_kind(right) != P_HDL_EXPR)
+         error_at(psl_loc(p), "property is not in the simple subset as the "
+                  "right hand side of this implication is non-Boolean");
+      // Fall-through
+   case PSL_LOGIC_IF:
+      if (psl_kind(left) != P_HDL_EXPR)
+         error_at(psl_loc(p), "property is not in the simple subset as the "
+                  "left hand side of this implication is non-Boolean");
+      break;
+
+   case PSL_LOGIC_OR:
+      if (psl_kind(left) != P_HDL_EXPR && psl_kind(right) != P_HDL_EXPR)
+         error_at(psl_loc(p), "property is not in the simple subset as both "
+                  "operands of this logical OR are non-Boolean");
+      break;
+
+   case PSL_LOGIC_AND:
+      break;
+   }
 }
 
 static void psl_check_next(psl_node_t p, nametab_t *tab)
@@ -339,8 +354,8 @@ void psl_check(psl_node_t p, nametab_t *tab)
    case P_SERE:
       psl_check_sere(p, tab);
       break;
-   case P_IMPLICATION:
-      psl_check_implication(p, tab);
+   case P_LOGICAL:
+      psl_check_logical(p, tab);
       break;
    case P_NEXT:
    case P_NEXT_A:

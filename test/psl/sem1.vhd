@@ -33,5 +33,6 @@ begin
     -- psl assert (x -> next y) before x;     -- Error
     -- psl assert x before (x -> next y);     -- Error
     -- psl assert (x -> next y) |=> {y};      -- Error
+    -- psl assert (x -> next y) or (y -> next x);   -- Error
 
 end architecture;

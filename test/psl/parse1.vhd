@@ -34,4 +34,6 @@ begin
     -- psl assert ((x = '1') and (xxxx = '1'));    -- Error (issue #911)
 
     -- psl assert always (x -> next x) abort y;    -- OK
+    -- psl assert always (x -> (y or next x));     -- OK
+    -- psl assert (x or y) or (next x);            -- OK
 end architecture;

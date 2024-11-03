@@ -22,6 +22,7 @@ begin
     one: assert always (a -> next [2] (b)) sync_abort reset;
     two: assert (always (a -> next [2] (b))) async_abort areset;
     three: assert always (a -> next (b before a));
+    four: assert always (a -> next (not a or (b before_ a)));
 
     stim: process is
     begin

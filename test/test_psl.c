@@ -130,6 +130,8 @@ START_TEST(test_sem1)
         "this before operator is non-Boolean" },
       { 35, "left hand side of suffix implication operator must be a "
         "Sequence" },
+      { 36, "property is not in the simple subset as both operands of this "
+        "logical OR are non-Boolean" },
       { -1, NULL }
    };
    expect_errors(expect);

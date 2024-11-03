@@ -82,10 +82,12 @@ static void psl_dump_never(psl_node_t p)
    psl_dump(psl_value(p));
 }
 
-static void psl_dump_implication(psl_node_t p)
+static void psl_dump_logical(psl_node_t p)
 {
+   static const char *map[] = { "->", "<->", "and", "or" };
+
    psl_dump(psl_operand(p, 0));
-   print_syntax(" -> (");
+   print_syntax(" %s (", map[psl_subkind(p)]);
    psl_dump(psl_operand(p, 1));
    print_syntax(")");
 }
@@ -222,8 +224,8 @@ void psl_dump(psl_node_t p)
    case P_HDL_EXPR:
       vhdl_dump(psl_tree(p), 0);
       break;
-   case P_IMPLICATION:
-      psl_dump_implication(p);
+   case P_LOGICAL:
+      psl_dump_logical(p);
       break;
    case P_NEXT:
       psl_dump_next(p);
