@@ -39,7 +39,7 @@ void model_interrupt(rt_model_t *m);
 int model_exit_status(rt_model_t *m);
 
 rt_watch_t *watch_new(rt_model_t *m, sig_event_fn_t fn, void *user,
-                      watch_kind_t kind);
+                      watch_kind_t kind, unsigned slots);
 void watch_free(rt_model_t *m, rt_watch_t *w);
 
 void model_set_global_cb(rt_model_t *m, rt_event_t event, rt_event_fn_t fn,

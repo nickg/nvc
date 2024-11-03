@@ -1820,6 +1820,17 @@ static void vhpi_get_uarray(c_vhpiObject *obj, void **ptr, ffi_dim_t **dims)
    }
 }
 
+static int vhpi_count_subsignals(rt_model_t *m, rt_scope_t *s)
+{
+   assert(s->kind == SCOPE_SIGNAL);
+
+   int count = s->signals.count;
+   for (int i = 0; i < s->children.count; i++)
+      count += vhpi_count_subsignals(m, s->children.items[i]);
+
+   return count;
+}
+
 static void vhpi_watch_scope(rt_model_t *m, rt_scope_t *s, rt_watch_t *w)
 {
    assert(s->kind == SCOPE_SIGNAL);
@@ -1941,8 +1952,11 @@ vhpiHandleT vhpi_register_cb(vhpiCbDataT *cb_data_p, int32_t flags)
          cb->State  = (flags & vhpiDisableCb) ? vhpiDisable : vhpiEnable;
          cb->data   = *cb_data_p;
 
+         const int slots = scope != NULL ? vhpi_count_subsignals(m, scope) : 1;
+
          vhpiHandleT handle = handle_for(&(cb->object));
-         cb->watch = watch_new(m, vhpi_signal_event_cb, handle, WATCH_EVENT);
+         cb->watch = watch_new(m, vhpi_signal_event_cb, handle,
+                               WATCH_EVENT, slots);
 
          if (signal != NULL)
             cb->watch = model_set_event_cb(m, signal, cb->watch);

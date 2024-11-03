@@ -59,6 +59,7 @@ typedef struct {
    unsigned        pending : 1;
    unsigned        postponed : 1;
    unsigned        delayed : 1;
+   unsigned        zombie : 1;
    rt_trigger_t   *trigger;
 } rt_wakeable_t;
 
@@ -273,12 +274,12 @@ typedef struct _rt_scope {
 
 typedef struct _rt_watch {
    rt_wakeable_t   wakeable;
-   rt_signal_t    *signal;
    sig_event_fn_t  fn;
    rt_watch_t     *chain_all;
    void           *user_data;
-   uint32_t        refcount;
-   bool            zombie;
+   unsigned        num_slots;
+   unsigned        next_slot;
+   rt_signal_t    *signals[];
 } rt_watch_t;
 
 #endif  // _RT_STRUCTS_H

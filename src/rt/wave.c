@@ -637,7 +637,7 @@ static void fst_create_array_var(wave_dumper_t *wd, tree_t d, rt_signal_t *s,
    data->decl   = d;
    data->signal = s;
    data->dumper = wd;
-   data->watch  = watch_new(wd->model, fst_event_cb, data, WATCH_POSTPONED);
+   data->watch  = watch_new(wd->model, fst_event_cb, data, WATCH_POSTPONED, 1);
 
    model_set_event_cb(wd->model, data->signal, data->watch);
 
@@ -678,7 +678,7 @@ static void fst_create_scalar_var(wave_dumper_t *wd, tree_t d, rt_signal_t *s,
 
    data->decl   = d;
    data->signal = s;
-   data->watch  = watch_new(wd->model, fst_event_cb, data, WATCH_POSTPONED);
+   data->watch  = watch_new(wd->model, fst_event_cb, data, WATCH_POSTPONED, 1);
 
    model_set_event_cb(wd->model, data->signal, data->watch);
 
