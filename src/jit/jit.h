@@ -31,6 +31,8 @@ typedef union {
    double   real;
 } jit_scalar_t;
 
+STATIC_ASSERT(sizeof(jit_scalar_t) == 8);
+
 typedef struct {
    void *(*init)(jit_t *);
    void (*cgen)(jit_t *, jit_handle_t, void *);

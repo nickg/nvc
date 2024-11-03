@@ -356,7 +356,7 @@ typedef struct {
 
 typedef struct _pack_writer pack_writer_t;
 
-#define JIT_MAX_ARGS 100
+#define JIT_MAX_ARGS 64
 
 typedef struct _jit_interp jit_interp_t;
 

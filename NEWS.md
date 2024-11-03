@@ -17,6 +17,8 @@
 - Fixed a crash when `'last_value` is used with record types (#1043).
 - Selected names can now be to register value change callbacks with
   `vhpi_register_cb` (#1045).
+- Removed the limit on the maximum number of parameters that can be
+  passed to a VHDL subprogram (#1036).
 - Several other minor bugs were resolved (#1038).
 
 ## Version 1.14.1 - 2024-10-26

@@ -857,17 +857,6 @@ static jit_value_t irgen_get_arg(jit_irgen_t *g, int op, int arg)
    return irgen_get_value(g, vcode_get_arg(op, arg));
 }
 
-static jit_reg_t irgen_as_reg(jit_irgen_t *g, jit_value_t value)
-{
-   if (value.kind == JIT_VALUE_REG)
-      return value.reg;
-   else {
-      jit_reg_t r = irgen_alloc_reg(g);
-      j_mov(g, r, value);
-      return r;
-   }
-}
-
 static jit_value_t irgen_lea(jit_irgen_t *g, jit_value_t addr)
 {
    switch (addr.kind) {
@@ -884,6 +873,24 @@ static jit_value_t irgen_lea(jit_irgen_t *g, jit_value_t addr)
       return addr;
    default:
       fatal_trace("cannot load address of value kind %d", addr.kind);
+   }
+}
+
+static jit_reg_t irgen_as_reg(jit_irgen_t *g, jit_value_t value)
+{
+   switch (value.kind) {
+   case JIT_VALUE_REG:
+      return value.reg;
+   case JIT_ADDR_REG:
+   case JIT_ADDR_CPOOL:
+   case JIT_ADDR_ABS:
+      return jit_value_as_reg(irgen_lea(g, value));
+   default:
+      {
+         jit_reg_t r = irgen_alloc_reg(g);
+         j_mov(g, r, value);
+         return r;
+      }
    }
 }
 
@@ -1189,12 +1196,33 @@ static void irgen_send_args(jit_irgen_t *g, int op, int first)
 {
    const int nargs = vcode_count_args(op);
 
+   jit_value_t spill = { .kind = JIT_VALUE_INVALID };
+   int32_t spilloff = 0;
+
    for (int i = 0, pslot = first; i < nargs; i++) {
       vcode_reg_t vreg = vcode_get_arg(op, i);
       int slots = irgen_slots_for_type(vcode_reg_type(vreg));
-      if (unlikely(pslot + slots >= JIT_MAX_ARGS))
-         fatal("call to %s requires more than the maximum supported "
-               "%d arguments", istr(vcode_get_func(op)), JIT_MAX_ARGS);
+
+      if (pslot + slots >= JIT_MAX_ARGS - 1) {
+         // Large number of arguments spill to the heap
+         if (spill.kind == JIT_VALUE_INVALID) {
+            size_t size = slots * sizeof(jit_scalar_t);
+            for (int j = i + 1; j < nargs; j++) {
+               vcode_type_t vtype = vcode_reg_type(vcode_get_arg(op, j));
+               size += irgen_slots_for_type(vtype) * sizeof(jit_scalar_t);
+            }
+
+            spill = macro_lalloc(g, jit_value_from_int64(size));
+            j_send(g, JIT_MAX_ARGS - 1, spill);
+            pslot = JIT_MAX_ARGS;
+         }
+
+         jit_reg_t base = irgen_as_reg(g, irgen_get_value(g, vreg));
+         for (int j = 0; j < slots; j++, spilloff += sizeof(jit_scalar_t)) {
+            jit_value_t ptr = jit_addr_from_value(spill, spilloff);
+            j_store(g, JIT_SZ_64, jit_value_from_reg(base + j), ptr);
+         }
+      }
       else if (slots > 1) {
          jit_reg_t base = jit_value_as_reg(irgen_get_value(g, vreg));
          for (int j = 0; j < slots; j++)
@@ -3480,6 +3508,11 @@ static void irgen_op_bind_foreign(jit_irgen_t *g, int op)
    const int nparams = vcode_count_params();
    for (int i = 0; i < nparams; i++) {
       const int slots = irgen_slots_for_type(vcode_param_type(i));
+      if (unlikely(pslot + slots >= JIT_MAX_ARGS))
+         fatal("foreign subprogram %s requires more than the maximum supported "
+               "%d arguments", istr(vcode_unit_name(g->func->unit)),
+               JIT_MAX_ARGS);
+
       jit_value_t p = irgen_get_value(g, vcode_param_reg(i));
       j_send(g, pslot++, p);
       for (int j = 1; j < slots; j++)
@@ -4007,19 +4040,36 @@ static void irgen_params(jit_irgen_t *g, int first)
    types[first] = FFI_POINTER;
    types[0] = FFI_VOID;
 
+   jit_value_t spill = { .kind = JIT_VALUE_INVALID };
+   int32_t spilloff = 0;
+
    const int nparams = vcode_count_params();
    for (int i = 0, pslot = first; i < nparams; i++) {
       vcode_reg_t preg = vcode_param_reg(i);
       vcode_type_t vtype = vcode_param_type(i);
       int slots = irgen_slots_for_type(vtype);
 
-      if (unlikely(pslot + slots >= JIT_MAX_ARGS))
-         fatal("%s requires more than the maximum supported %d arguments",
-               istr(g->func->name), JIT_MAX_ARGS);
+      if (pslot + slots >= JIT_MAX_ARGS - 1) {
+         // Large number of arguments spill to the heap
+         if (spill.kind == JIT_VALUE_INVALID) {
+            spill = j_recv(g, JIT_MAX_ARGS - 1);
+            pslot = JIT_MAX_ARGS;
+         }
 
-      g->map[preg] = j_recv(g, pslot++);
-      for (int i = 1; i < slots; i++)
-         j_recv(g, pslot++);   // Must be contiguous registers
+         jit_value_t ptr = jit_addr_from_value(spill, spilloff);
+         g->map[preg] = j_load(g, JIT_SZ_64, ptr);
+         spilloff += sizeof(jit_scalar_t);
+
+         for (int i = 1; i < slots; i++, spilloff += sizeof(jit_scalar_t)) {
+            jit_value_t ptr = jit_addr_from_value(spill, spilloff);
+            j_load(g, JIT_SZ_64, ptr);   // Must be contiguous registers
+         }
+      }
+      else {
+         g->map[preg] = j_recv(g, pslot++);
+         for (int i = 1; i < slots; i++)
+            j_recv(g, pslot++);   // Must be contiguous registers
+      }
 
       if (i + first + 1 < ARRAY_LEN(types))
          types[i + first + 1] = irgen_ffi_type(vtype);
@@ -4180,10 +4230,7 @@ void jit_irgen(jit_func_t *f)
       irgen_bind_label(g, cont);
    }
 
-   const int first_param = irgen_is_procedure(g) || has_jump_table ? 1 : 0;
-   if (has_params)
-      irgen_params(g, first_param);
-   else if (kind == VCODE_UNIT_PROCESS) {
+   if (kind == VCODE_UNIT_PROCESS) {
       const ffi_type_t types[] = { FFI_POINTER, FFI_POINTER, FFI_POINTER };
       g->func->spec = ffi_spec_new(types, ARRAY_LEN(types));
    }
@@ -4207,6 +4254,10 @@ void jit_irgen(jit_func_t *f)
 
    if (has_jump_table)
       irgen_jump_table(g);
+
+   const int first_param = irgen_is_procedure(g) || has_jump_table ? 1 : 0;
+   if (has_params)
+      irgen_params(g, first_param);
 
    irgen_locals(g);
 
