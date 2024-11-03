@@ -343,6 +343,24 @@ package body verilog is
         return result;
     end function;
 
+    function "or" (l, r : t_logic_array) return t_logic_array is
+        constant llen   : natural := l'length;
+        constant rlen   : natural := r'length;
+        constant len    : natural := maximum(llen, rlen);
+        alias la        : t_logic_array(llen - 1 downto 0) is l;
+        alias ra        : t_logic_array(rlen - 1 downto 0) is r;
+        variable result : t_logic_array(len - 1 downto 0);
+    begin
+        for i in result'range loop
+            if i < llen and i < rlen then
+                result(i) := la(i) or ra(i);
+            else
+                result(i) := '0';
+            end if;
+        end loop;
+        return result;
+    end function;
+
     function "nor" (l, r : t_logic) return t_logic is
     begin
         return not (l or r);
@@ -488,6 +506,45 @@ package body verilog is
             result(i) := not xarg(i) xor cbit;
             cbit      := cbit and not xarg(i);
         end loop;
+        return result;
+    end function;
+
+    function "=" (l, r : t_logic_array) return t_logic is
+        constant lsize   : natural := l'length;
+        constant rsize   : natural := r'length;
+        constant minsize : natural := minimum(lsize, rsize);
+        alias la : t_logic_array(lsize - 1 downto 0) is l;
+        alias ra : t_logic_array(rsize - 1 downto 0) is r;
+        variable result : t_logic := '1';
+    begin
+        for i in 0 to minsize - 1 loop
+            if (la(i) = '1' and ra(i) = '0')
+                or (la(i) = '0' and ra(i) = '1')
+            then
+                result := '0';
+            elsif (la(i) /= '1' and la(i) /= '0')
+                or (ra(i) /= '1' and ra(i) /= '0')
+            then
+                return 'X';
+            end if;
+        end loop;
+        if lsize > rsize then
+            for i in minsize to lsize - 1 loop
+                if la(i) = '1' then
+                    result := '0';
+                elsif la(i) /= '0' then
+                    return 'X';
+                end if;
+            end loop;
+        elsif rsize > lsize then
+            for i in minsize to rsize - 1 loop
+                if ra(i) = '1' then
+                    result := '0';
+                elsif ra(i) /= '0' then
+                    return 'X';
+                end if;
+            end loop;
+        end if;
         return result;
     end function;
 

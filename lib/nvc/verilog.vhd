@@ -80,6 +80,7 @@ package verilog is
 
     function "or" (l, r : t_logic) return t_logic;
     function "or" (l, r : t_logic_array) return t_logic;
+    function "or" (l, r : t_logic_array) return t_logic_array;
 
     function "not" (x : t_logic) return t_logic;
     function "not" (x : t_logic_array) return t_logic_array;
@@ -90,6 +91,7 @@ package verilog is
     function "-" (arg : t_logic_array) return t_logic_array;
 
     function "=" (l, r : t_logic_array) return boolean;
+    function "=" (l, r : t_logic_array) return t_logic;
 
     function "/=" (l, r : t_logic_array) return boolean;
 
