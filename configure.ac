@@ -186,9 +186,6 @@ PKG_CHECK_MODULES([zlib], [zlib >= 1.0.0])
 
 AC_DEFINE_UNQUOTED([FST_REMOVE_DUPLICATE_VC], [1], [Enable FST glitch removal])
 
-# LLVM on macOS also needs libzstd
-PKG_CHECK_MODULES([libzstd], [libzstd >= 1.4])
-
 AC_ARG_ENABLE([llvm],
   [AS_HELP_STRING([--enable-llvm], [Build LLVM code generator])],
   [enable_llvm=$enableval],
@@ -212,6 +209,8 @@ PKG_CHECK_MODULES([capstone], [capstone >= 4.0],
                   [true])
 
 PKG_CHECK_MODULES([libffi], [libffi >= 3.0])
+
+PKG_CHECK_MODULES([libzstd], [libzstd >= 1.4])
 
 AC_ARG_ENABLE([gui],
   [AS_HELP_STRING([--enable-gui], [Build browser-based GUI (WIP)])],
