@@ -4469,6 +4469,7 @@ void vhpi_context_free(vhpi_context_t *c)
    assert(c == global_context);
    global_context = NULL;
 
+   free(c->tool);
    shash_free(c->strtab);
    hash_free(c->objcache);
    free(c->handles);
