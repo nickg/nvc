@@ -4200,25 +4200,36 @@ static type_t p_subtype_indication(void)
    BEGIN("subtype indication");
 
    bool made_subtype = false;
-   type_t type = NULL, base = NULL;
-   if ((peek() == tID && peek_nth(2) == tID) || peek() == tLPAREN) {
+   type_t type = NULL;
+   tree_t rname = NULL;
+
+   if (peek() == tLPAREN)
+      rname = p_resolution_indication();
+   else {
+      tree_t name = p_name(N_TYPE);
+      if (peek() == tID)
+         rname = name;
+      else
+         type = name_to_type_mark(name);
+   }
+
+   if (rname != NULL) {
       type = type_new(T_SUBTYPE);
       made_subtype = true;
 
-      tree_t rname = p_resolution_indication();
       type_set_resolution(type, rname);
-
-      type_set_base(type, (base = p_type_mark()));
+      type_set_base(type, p_type_mark());
 
       resolve_resolution(nametab, rname, type);
    }
-   else
+
+   if (type == NULL)
       type = p_type_mark();
 
    if (scan(tRANGE, tLPAREN)) {
       if (!made_subtype) {
          type_t sub = type_new(T_SUBTYPE);
-         type_set_base(sub, (base = type));
+         type_set_base(sub, type);
 
          type = sub;
       }
