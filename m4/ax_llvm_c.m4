@@ -83,6 +83,15 @@ AC_DEFUN([AX_LLVM_C], [
     LLVM_CONFIG_BINDIR="$($ac_llvm_config $ac_llvm_config_flags --bindir | sed 's|\\|\\\\|g')"
     LLVM_LIBDIR="$($ac_llvm_config --libdir | sed 's|\\|\\\\|g')"
 
+    if test "$llvm_ver_num" -ge "160"; then
+      case $host_os in
+      darwin*)
+        # Add LDFLAGS for libzstd in a non-default location for issue #1046
+        AC_REQUIRE([PKG_PROG_PKG_CONFIG])
+        LLVM_LDFLAGS="$LLVM_LDFLAGS $($PKG_CONFIG --libs-only-L libzstd)"
+      esac
+    fi
+
     if test "$llvm_ver_num" -lt "80"; then
       AC_MSG_ERROR([LLVM version 8.0 or later required])
     fi
@@ -144,14 +153,6 @@ AC_DEFUN([AX_LLVM_C], [
     LIBS_SAVED="$LIBS"
     LIBS="$LIBS $LLVM_LIBS"
     export LIBS
-
-    if test "$llvm_ver_num" -ge "160"; then
-      case $host_os in
-      darwin*)
-        # Add LIBS for libzstd in a non-default location for issue #1046
-        LIBS="$LIBS $libzstd_LIBS"
-      esac
-    fi
 
     AC_CACHE_CHECK([for LLVM ([$1])],
                    ax_cv_llvm,
