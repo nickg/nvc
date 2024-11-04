@@ -203,9 +203,10 @@ struct _vcode_unit {
 #define VCODE_FOR_EACH_MATCHING_OP(name, k) \
    block_t *_b = vcode_block_data();                            \
    op_t *name; int _i;                                          \
-   for (_i = 0, name = &(_b->ops.items[_i]);                    \
-        _i < _b->ops.count; name = &(_b->ops.items[++_i]))      \
-      if (name->kind == (k))
+   if (_b->ops.count > 0)                                       \
+      for (_i = 0, name = &(_b->ops.items[_i]);                 \
+           _i < _b->ops.count; name = &(_b->ops.items[++_i]))   \
+         if (name->kind == (k))
 
 #define VCODE_CHECK_UNIONS 0
 

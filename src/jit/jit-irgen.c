@@ -1081,15 +1081,19 @@ static void irgen_op_const_array(jit_irgen_t *g, int op)
    const int align = irgen_align_of(velem);
    const int count = vtype_size(vtype);
 
-   const size_t offset = irgen_append_cpool(g, elemsz * count, align);
+   if (count > 0) {
+      const size_t offset = irgen_append_cpool(g, elemsz * count, align);
 
-   unsigned char *p = g->func->cpool + offset;
-   for (int i = 0; i < count; i++, p += elemsz) {
-      jit_value_t elem = irgen_get_arg(g, op, i);
-      irgen_copy_const(g, p, elem, elemsz);
+      unsigned char *p = g->func->cpool + offset;
+      for (int i = 0; i < count; i++, p += elemsz) {
+         jit_value_t elem = irgen_get_arg(g, op, i);
+         irgen_copy_const(g, p, elem, elemsz);
+      }
+
+      g->map[result] = irgen_dedup_cpool(g);
    }
-
-   g->map[result] = irgen_dedup_cpool(g);
+   else
+      g->map[result] = jit_null_ptr();
 }
 
 static void irgen_op_const_rep(jit_irgen_t *g, int op)

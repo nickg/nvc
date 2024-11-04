@@ -297,9 +297,10 @@ bool psl_has_clock(psl_node_t p)
 
 void psl_set_clock(psl_node_t p, psl_node_t clk)
 {
-   assert(clk == NULL || clk->object.kind == P_CLOCK_DECL);
-   lookup_item(&psl_object, p, I_CLOCK)->object = &(clk->object);
-   object_write_barrier(&(p->object), &(clk->object));
+   object_t *obj = clk ? &(clk->object) : NULL;
+   assert(obj == NULL || obj->kind == P_CLOCK_DECL);
+   lookup_item(&psl_object, p, I_CLOCK)->object = obj;
+   object_write_barrier(&(p->object), obj);
 }
 
 tree_t psl_message(psl_node_t p)

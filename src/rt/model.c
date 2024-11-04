@@ -1207,7 +1207,7 @@ static void copy_value_ptr(rt_nexus_t *n, rt_value_t *v, const void *p)
 #if __SANITIZE_ADDRESS__
       memcpy(v->bytes, p, valuesz);
 #else
-      v->qword = *(const uint64_t *)p;
+      v->qword = unaligned_load(p, uint64_t);
 #endif
    }
    else
@@ -1218,7 +1218,7 @@ static inline bool cmp_bytes(const void *a, const void *b, size_t size)
 {
    if (likely(size <= 128)) {
       for (; size > 7; size -= 8, a += 8, b += 8) {
-         if (*(const uint64_t *)a != *(const uint64_t *)b)
+         if (unaligned_load(a, uint64_t) != unaligned_load(b, uint64_t))
             return false;
       }
       for (; size > 0; size--, a++, b++) {

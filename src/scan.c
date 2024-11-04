@@ -155,7 +155,7 @@ hdl_kind_t source_kind(void)
 
 int get_next_char(char *b, int max_buffer)
 {
-   const ptrdiff_t navail = file_start + file_sz - read_ptr;
+   const ptrdiff_t navail = (file_start - read_ptr) + file_sz;
    assert(navail >= 0);
 
    if (navail == 0)
