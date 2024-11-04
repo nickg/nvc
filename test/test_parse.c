@@ -6928,6 +6928,18 @@ START_TEST(test_issue1038)
 }
 END_TEST
 
+START_TEST(test_issue1055)
+{
+   input_from_file(TESTDIR "/parse/issue1055.vhd");
+
+   parse_and_check(T_PACKAGE, T_PACKAGE);
+
+   fail_unless(parse() == NULL);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_parse_tests(void)
 {
    Suite *s = suite_create("parse");
@@ -7093,6 +7105,7 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_issue977);
    tcase_add_test(tc_core, test_issue991);
    tcase_add_test(tc_core, test_issue1038);
+   tcase_add_test(tc_core, test_issue1055);
    suite_add_tcase(s, tc_core);
 
    return s;
