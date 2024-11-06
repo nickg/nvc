@@ -177,17 +177,14 @@ static void start_of_sim(const vhpiCbDataT *cb_data)
 void vhpi5_startup(void)
 {
    vhpi_printf("hello, world!");
-   vhpi_printf("tool is %s", vhpi_get_str(vhpiNameP, NULL));
 
    vhpiCbDataT cb_data = {
       .reason = vhpiCbStartOfSimulation,
       .cb_rtn = start_of_sim,
    };
-   vhpi_register_cb(&cb_data, 0);
-   check_error();
+   VHPI_CHECK(vhpi_register_cb(&cb_data, 0));
 
    cb_data.reason = vhpiCbLastKnownDeltaCycle;
    cb_data.cb_rtn = last_delta;
-   vhpi_register_cb(&cb_data, 0);
-   check_error();
+   VHPI_CHECK(vhpi_register_cb(&cb_data, 0));
 }

@@ -3674,11 +3674,8 @@ static c_typeDecl *build_arrayTypeDecl(type_t type, tree_t decl,
    else {
       td->composite.typeDecl.numElems = td->ElemType->numElems;
 
-      tree_t c = type_constraint(type, 0);
-      assert(tree_subkind(c) == C_INDEX);
-
       for (int i = 0; i < td->NumDimensions; i++) {
-         tree_t r = tree_range(c, i);
+         tree_t r = range_of(type, i);
          c_intRange *ir = build_int_range(r, parent, nextdim + i, obj);
          td->composite.typeDecl.numElems *= range_len(ir);
          APUSH(td->Constraints, &(ir->range.object));

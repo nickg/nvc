@@ -1,6 +1,5 @@
 test name is vhpi5
 hello, world!
-tool is (null)
 root handle
 root name is VHPI5
 m handle
