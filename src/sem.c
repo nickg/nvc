@@ -140,6 +140,10 @@ static bool sem_check_range(tree_t r, type_t expect, nametab_t *tab)
          if (tree_kind(expr) != T_ATTR_REF)
             sem_error(expr, "invalid expression in range constraint");
 
+         const attr_kind_t kind = tree_subkind(expr);
+         if (kind != ATTR_RANGE && kind != ATTR_REVERSE_RANGE)
+            sem_error(expr, "cannot use attribute %s as range", istr(tree_ident(expr)));
+
          if (!sem_check_attr_ref(expr, true, tab))
             return false;
 

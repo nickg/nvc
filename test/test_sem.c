@@ -3860,6 +3860,25 @@ START_TEST(test_issue1024)
 }
 END_TEST
 
+START_TEST(test_issue1038)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/sem/issue1038.vhd");
+
+   const error_t expect[] = {
+      { 2, "cannot use attribute HIGH as range" },
+      { 3, "cannot use attribute LOW as range" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_PACKAGE);
+
+   check_expected_errors();
+}
+END_TEST
+
 START_TEST(test_issue1057)
 {
    set_standard(STD_08);
@@ -4056,6 +4075,7 @@ Suite *get_sem_tests(void)
    tcase_add_test(tc_core, test_issue1020);
    tcase_add_test(tc_core, test_missingwait);
    tcase_add_test(tc_core, test_issue1024);
+   tcase_add_test(tc_core, test_issue1038);
    tcase_add_test(tc_core, test_issue1057);
    suite_add_tcase(s, tc_core);
 
