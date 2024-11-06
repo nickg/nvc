@@ -2768,7 +2768,7 @@ static void cgen_pointer_mask(cgen_func_t *func)
          // Propagate pointer argument to result
          if (ir->arg1.kind == JIT_VALUE_REG
              && mask_test(&(func->ptr_mask), ir->arg1.reg))
-            mask_set(&(func->ptr_mask), ir->arg1.reg);
+            mask_set(&(func->ptr_mask), ir->result);
          break;
       case J_LEA:
       case MACRO_GETPRIV:
