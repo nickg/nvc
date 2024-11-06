@@ -6466,7 +6466,6 @@ static type_t p_constrained_array_definition(type_t base, tree_t head)
    EXTEND("constrained array definition");
 
    tree_t constraint = tree_new(T_CONSTRAINT);
-   tree_set_loc(constraint, CURRENT_LOC);
    tree_set_subkind(constraint, C_INDEX);
 
    type_t sub = type_new(T_SUBTYPE);
@@ -6488,6 +6487,9 @@ static type_t p_constrained_array_definition(type_t base, tree_t head)
    } while (optional(tCOMMA));
 
    consume(tRPAREN);
+
+   tree_set_loc(constraint, CURRENT_LOC);
+
    consume(tOF);
 
    type_set_elem(base, p_subtype_indication());

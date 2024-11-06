@@ -362,6 +362,22 @@ static bool sem_check_subtype_helper(tree_t decl, type_t type, nametab_t *tab)
          return false;
 
       const constraint_kind_t consk = tree_subkind(cons);
+      if (consk != C_OPEN) {
+         // Check the subtype does not already have an index constraint
+         // in this position
+         if (type_kind(elem) == T_SUBTYPE && type_constraints(elem) > 0) {
+            tree_t econs = type_constraint(elem, 0);
+            if (tree_subkind(econs) == C_INDEX) {
+               diag_t *d = diag_new(DIAG_ERROR, tree_loc(cons));
+               diag_printf(d, "duplicate index constraint for type %s",
+                           type_pp(elem));
+               diag_hint(d, tree_loc(econs), "already constrained here");
+               diag_emit(d);
+               return false;
+            }
+         }
+      }
+
       if (i + 1 < ncon && (consk == C_INDEX || consk == C_OPEN))
          elem = type_elem(elem);
    }
