@@ -190,12 +190,10 @@ bool loc_invalid_p(const loc_t *loc)
 loc_t get_loc(unsigned first_line, unsigned first_column, unsigned last_line,
               unsigned last_column, file_ref_t file_ref)
 {
-   if (first_line == LINE_INVALID || last_line == LINE_INVALID
-       || first_column == COLUMN_INVALID || last_column == COLUMN_INVALID)
+   if (first_line > last_line)
       return LOC_INVALID;
-
-   assert(first_line <= last_line);
-   assert(first_line != last_line || first_column <= last_column);
+   else if (first_line == last_line && first_column > last_column)
+      return LOC_INVALID;
 
    loc_t result = {
       .first_line   = MIN(first_line, LINE_INVALID),
@@ -1128,7 +1126,7 @@ const loc_t *diag_get_loc(diag_t *d)
 
 int diag_hints(diag_t *d)
 {
-   if (d->hints.items[0].text == NULL)
+   if (d->hints.items && d->hints.items[0].text == NULL)
       return d->hints.count - 1;
    else
       return d->hints.count;
