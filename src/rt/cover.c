@@ -145,13 +145,9 @@ static inline void cover_toggle_check_0_1_u_z(uint8_t old, uint8_t new,
 #define COVER_TGL_SIGNAL_DETAILS(signal, size)
 #endif
 
-// Signal size threshold to enable optimization.
-// Signals larger than this size are considered to be less likely to have
-// many change at one callback
-#define TOGGLE_OPT_TH 128
-
 // Callback is optimized for performance
 // Check only group of 8 bytes that do have change of signal value
+// Optimize for assumption that most bits don't change in large signals
 #define DEFINE_COVER_TOGGLE_CB(name, check_fnc)                                     \
    static void name(uint64_t now, rt_signal_t *s, rt_watch_t *w, void *user)        \
    {                                                                                \
@@ -159,20 +155,6 @@ static inline void cover_toggle_check_0_1_u_z(uint8_t old, uint8_t new,
       rt_model_t *m = get_model();                                                  \
       const int32_t tag = (uintptr_t)user;                                          \
       COVER_TGL_CB_MSG(s)                                                           \
-      /* For small sized signals, always iterate and assume most bits change */     \
-      if (s_size <= TOGGLE_OPT_TH) {                                                \
-         int32_t *toggle_01 = get_cover_counter(m, tag);                            \
-         int32_t *toggle_10 = toggle_01 + 1;                                        \
-         for (int i = 0; i < s_size; i++) {                                         \
-            uint8_t new = ((uint8_t*)signal_value(s))[i];                           \
-            uint8_t old = ((uint8_t*)signal_last_value(s))[i];                      \
-            check_fnc(old, new, toggle_01, toggle_10);                              \
-            toggle_01 += 2;                                                         \
-            toggle_10 += 2;                                                         \
-         }                                                                          \
-         return;                                                                    \
-      }                                                                             \
-      /* Optimize for assumption that most bits don't change in large signals */    \
       uint32_t batches = ((s_size - 1) / sizeof(uint64_t)) + 1;                     \
       for (int i = 0; i < batches; i++) {                                           \
          bool walk = false;                                                         \
