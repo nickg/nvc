@@ -124,8 +124,8 @@ static inline void cover_toggle_check_0_1_u_z(uint8_t old, uint8_t new,
 #ifdef COVER_DEBUG_CALLBACK
 #define COVER_TGL_CB_MSG(signal)                                              \
    do {                                                                       \
-      printf("Time: %lu Callback on signal: %s\n",                            \
-              now, istr(tree_ident(signal->where)));                          \
+      printf("Time: %lu Callback on signal: %s with size: %d \n",             \
+              now, istr(tree_ident(signal->where)), s->shared.size);          \
    } while (0);
 
 #define COVER_TGL_SIGNAL_DETAILS(signal, size)                                \
@@ -145,25 +145,48 @@ static inline void cover_toggle_check_0_1_u_z(uint8_t old, uint8_t new,
 #define COVER_TGL_SIGNAL_DETAILS(signal, size)
 #endif
 
-// TODO: Could multi-bit signals be optimized with vector instructions ?
-#define DEFINE_COVER_TOGGLE_CB(name, check_fnc)                               \
-   static void name(uint64_t now, rt_signal_t *s, rt_watch_t *w, void *user)  \
-   {                                                                          \
-      uint32_t s_size = s->shared.size;                                       \
-      rt_model_t *m = get_model();                                            \
-      const int32_t tag = (uintptr_t)user;                                    \
-      int32_t *toggle_01 = get_cover_counter(m, tag);                         \
-      int32_t *toggle_10 = toggle_01 + 1;                                     \
-      COVER_TGL_CB_MSG(s)                                                     \
-      for (int i = 0; i < s_size; i++) {                                      \
-         uint8_t new = ((uint8_t*)signal_value(s))[i];                        \
-         uint8_t old = ((uint8_t*)signal_last_value(s))[i];                   \
-         check_fnc(old, new, toggle_01, toggle_10);                           \
-         toggle_01 += 2;                                                      \
-         toggle_10 += 2;                                                      \
-      }                                                                       \
-      COVER_TGL_SIGNAL_DETAILS(s, s_size)                                     \
-   }                                                                          \
+// Callback is optimized for performance
+// Check only group of 8 bytes that do have change of signal value
+// Optimize for assumption that most bits don't change in large signals
+#define DEFINE_COVER_TOGGLE_CB(name, check_fnc)                                     \
+   static void name(uint64_t now, rt_signal_t *s, rt_watch_t *w, void *user)        \
+   {                                                                                \
+      uint32_t s_size = s->shared.size;                                             \
+      rt_model_t *m = get_model();                                                  \
+      const int32_t tag = (uintptr_t)user;                                          \
+      COVER_TGL_CB_MSG(s)                                                           \
+      uint32_t batches = ((s_size - 1) / sizeof(uint64_t)) + 1;                     \
+      for (int i = 0; i < batches; i++) {                                           \
+         bool walk = false;                                                         \
+         int batch_size = sizeof(uint64_t);                                         \
+         if (i < batches - 1) {                                                     \
+            const void *batch_new = signal_value(s) + i * sizeof(uint64_t);         \
+            const void *batch_old = signal_last_value(s) + i * sizeof(uint64_t);    \
+            if (unaligned_load(batch_new, uint64_t) !=                              \
+                unaligned_load(batch_old, uint64_t))                                \
+               walk = true;                                                         \
+         }                                                                          \
+         else {                                                                     \
+            batch_size = ((s_size - 1) % sizeof(uint64_t)) + 1;                     \
+            walk = true;                                                            \
+         }                                                                          \
+         if (walk) {                                                                \
+            int32_t low = i * sizeof(uint64_t);                                     \
+            int32_t high = low + batch_size;                                        \
+            int32_t *toggle_01 = get_cover_counter(m, tag) + low * 2;               \
+            int32_t *toggle_10 = toggle_01 + 1;                                     \
+            for (int j = low; j < high; j++) {                                      \
+               uint8_t new = ((uint8_t*)signal_value(s))[j];                        \
+               uint8_t old = ((uint8_t*)signal_last_value(s))[j];                   \
+               if (new != old)                                                      \
+                  check_fnc(old, new, toggle_01, toggle_10);                        \
+               toggle_01 += 2;                                                      \
+               toggle_10 += 2;                                                      \
+            }                                                                       \
+         }                                                                          \
+      }                                                                             \
+      COVER_TGL_SIGNAL_DETAILS(s, s_size)                                           \
+   }                                                                                \
 
 DEFINE_COVER_TOGGLE_CB(cover_toggle_cb_0_1,     cover_toggle_check_0_1)
 DEFINE_COVER_TOGGLE_CB(cover_toggle_cb_0_1_u,   cover_toggle_check_0_1_u)
