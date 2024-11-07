@@ -570,7 +570,7 @@ BEFORE            ?i:before
 <PSL>{IS}                { TOKEN(tIS); }
 <PSL>"->"                { TOKEN(tIFIMPL); }
 <PSL>"<->"               { TOKEN(tIFFIMPL); }
-<PSL>{NEXT}              { TOKEN(tNEXT); }
+<PSL>{NEXT}              { TOKEN(tPSLNEXT); }
 <PSL>{NEXT}!             { TOKEN(tNEXT1); }
 <PSL>{NEVER}             { TOKEN(tNEVER); }
 <PSL>{EVENTUALLY}!       { TOKEN(tEVENTUALLY); }

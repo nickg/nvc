@@ -4622,7 +4622,7 @@ static tree_t p_primary(tree_t head)
    case tNEW:
       return p_allocator();
 
-   case tNEXT:
+   case tPSLNEXT:
    case tPREV:
    case tSTABLE:
    case tROSE:
@@ -11484,7 +11484,7 @@ static tree_t p_psl_builtin_function_call(void)
 
    BEGIN("PSL Built-in Function call");
 
-   token_t tok = one_of(tNEXT, tPREV, tSTABLE, tROSE, tFELL, tENDED,
+   token_t tok = one_of(tPSLNEXT, tPREV, tSTABLE, tROSE, tFELL, tENDED,
                         tNONDET, tNONDETV);
 
    psl_node_t p = psl_new(P_BUILTIN_FUNC);
@@ -11493,7 +11493,7 @@ static tree_t p_psl_builtin_function_call(void)
    consume(tLPAREN);
 
    switch (tok) {
-   case tNEXT:
+   case tPSLNEXT:
    case tPREV:
    case tSTABLE:
    case tROSE:
@@ -11503,7 +11503,7 @@ static tree_t p_psl_builtin_function_call(void)
       // TODO: Enfore "bit" for "rose" and "fell"
       psl_add_operand(p, p1);
 
-      if (tok == tNEXT)
+      if (tok == tPSLNEXT)
          break;
 
       if (tok == tPREV && optional(tCOMMA)) {
@@ -11549,7 +11549,7 @@ static tree_t p_psl_builtin_function_call(void)
    unsigned kind = 0;
    type_t rvt = type_new(T_NONE);
    switch (tok) {
-   case tNEXT:
+   case tPSLNEXT:
       kind = PSL_BUILTIN_NEXT;
       break;
    case tPREV:
@@ -12176,7 +12176,7 @@ static psl_node_t p_psl_fl_property(void)
       }
       break;
 
-   case tNEXT:
+   case tPSLNEXT:
    case tNEXT1:
       {
          consume(tok);
