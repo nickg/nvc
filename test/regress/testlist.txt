@@ -1054,3 +1054,4 @@ cmdline11       shell
 conv15          normal
 issue1035       normal,vhpi,2008
 issue1043       normal
+issue1062       normal,2008
