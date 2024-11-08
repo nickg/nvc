@@ -116,5 +116,7 @@ uint32_t cover_bin_str_to_bmask(const char *bin);
 const char *cover_item_kind_str(cover_item_kind_t kind);
 const char *cover_bmask_to_bin_str(uint32_t bmask);
 void cover_merge_one_item(cover_item_t *item, int32_t data);
+int cover_count_scope_levels(cover_scope_t *root, cover_scope_t *s,
+                             bool inst_only);
 
 #endif   // _COV_DATA_H

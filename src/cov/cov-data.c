@@ -137,6 +137,30 @@ static cover_src_t get_cover_source(cover_item_kind_t kind, object_t *obj)
    return COV_SRC_UNKNOWN;
 }
 
+int cover_count_scope_levels(cover_scope_t *root, cover_scope_t *s,
+                             bool inst_only)
+{
+   int levels = 0;
+   cover_scope_t *curr = s;
+
+   while (curr != root) {
+      if (inst_only) {
+         if (curr && curr->type == CSCOPE_INSTANCE)
+            levels++;
+      }
+      else
+         levels++;
+
+      if (curr)
+         curr = curr->parent;
+      else
+         break;
+   }
+
+   return levels;
+}
+
+
 const loc_t get_cover_loc(cover_item_kind_t kind, object_t *obj)
 {
    if (obj == NULL)
@@ -1113,6 +1137,7 @@ static cover_scope_t *cover_read_scope(fbuf_t *f, ident_rd_ctx_t ident_ctx,
       case CTRL_PUSH_SCOPE:
          {
             cover_scope_t *child = cover_read_scope(f, ident_ctx, loc_ctx);
+            child->parent = s;
             APUSH(s->children, child);
          }
          break;

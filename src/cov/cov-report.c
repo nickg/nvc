@@ -174,7 +174,8 @@ static cover_file_t *cover_file_for_scope(cover_scope_t *s)
 
    if (fp == NULL) {
       // Guess the path is relative to the work library
-      char *path LOCAL = xasprintf("%s/../%s", lib_path(lib_work()), name);
+      char *path LOCAL = xasprintf("%s%s..%s%s", lib_path(lib_work()), DIR_SEP,
+                                   DIR_SEP, name);
       fp = fopen(path, "r");
    }
 
@@ -308,11 +309,14 @@ static void cover_print_html_header(FILE *f)
    fprintf(f, "</header>\n\n");
 }
 
-static void cover_print_file_name(FILE *f, const char *name)
+static void cover_print_file_name(FILE *f, int levels, const char *name)
 {
    fprintf(f, "<h2 style=\"margin-left: " MARGIN_LEFT ";\">\n");
-   fprintf(f, "   File:&nbsp; <a href=\"../../%s\">../../%s</a>\n",
-            name, name);
+   fprintf(f, "   File:&nbsp; <a href=\"");
+   for (int i = 0; i <= levels; i++)
+      fprintf(f, "..%s", DIR_SEP);
+
+   fprintf(f, "%s\">%s</a>\n", name, name);
    fprintf(f, "</h2>\n\n");
 }
 
@@ -1212,14 +1216,12 @@ static void cover_report_hier_scope(cover_rpt_hier_ctx_t *ctx,
 }
 
 static void cover_print_summary_table_row(FILE *f, cover_data_t *data, cover_stats_t *stats,
-                                          ident_t entry, int lvl, bool top, bool full_entry,
-                                          bool print_out)
+                                          const char *entry, const char *entry_path, int lvl,
+                                          bool top, bool print_out)
 {
-   ident_t print_entry = (full_entry) ? entry : ident_rfrom(entry, '.');
-
    fprintf(f, "  <tr>\n"
-              "    <td><a href=\"%s%s.html\">%s</a></td>\n",
-              top ? "hier/" : "", istr(entry), istr(print_entry));
+              "    <td><a href=\"%s\">%s</a></td>\n",
+               entry_path, entry);
 
    cover_print_percents_cell(f, stats->hit_stmts, stats->total_stmts);
    cover_print_percents_cell(f, stats->hit_branches, stats->total_branches);
@@ -1260,7 +1262,7 @@ static void cover_print_summary_table_row(FILE *f, cover_data_t *data, cover_sta
       perc_functional = 100.0 * ((float)stats->hit_functional) / stats->total_functional;
 
    if (top) {
-      notef("code coverage results for: %s", istr(entry));
+      notef("code coverage results for: %s", entry);
 
       if (stats->total_stmts > 0)
          notef("     statement:     %.1f %% (%d/%d)", perc_stmt,
@@ -1308,7 +1310,7 @@ static void cover_print_summary_table_row(FILE *f, cover_data_t *data, cover_sta
       tb_printf(new->tb,
          "%*s %-*s %10.1f %% (%d/%d)  %10.1f %% (%d/%d) %10.1f %% (%d/%d) "
          "%10.1f %% (%d/%d) %10.1f %% (%d/%d)",
-         lvl, "", 50-lvl, istr(ident_rfrom(entry, '.')),
+         lvl, "", 50-lvl, entry,
          perc_stmt, stats->hit_stmts, stats->total_stmts,
          perc_branch, stats->hit_branches, stats->total_branches,
          perc_toggle, stats->hit_toggles, stats->total_toggles,
@@ -1317,27 +1319,35 @@ static void cover_print_summary_table_row(FILE *f, cover_data_t *data, cover_sta
    }
 }
 
-static void cover_print_hier_nav_tree(FILE *f, cover_scope_t *s)
+static void cover_print_hier_nav_tree(FILE *f, cover_scope_t *root, cover_scope_t *s)
 {
    fprintf(f, "<nav>\n"
                "<b>Hierarchy:</b><br>\n");
-   int offset = 0;
 
-   ident_t full_hier = s->hier;
-   ident_t curr_id;
-   ident_t curr_hier = NULL;
-   const char *link = "../index";
+   int levels = cover_count_scope_levels(root, s, false);
 
-   do {
-      curr_id = ident_walk_selected(&full_hier);
-      curr_hier = ident_prefix(curr_hier, curr_id, '.');
-      if (offset > 0)
-         link = istr(curr_hier);
-      if (curr_id)
-         fprintf(f, "<p style=\"margin-left: %dpx\"><a href=%s.html>%s</a></p>\n",
-                     offset * 10, link, istr(curr_id));
-      offset++;
-   } while (curr_id != NULL);
+   cover_scope_t *curr;
+   for (int i = levels; i >= 0; i--) {
+
+      fprintf(f, "<p style=\"margin-left: %dpx\"><a href=", (levels - i) * 10);
+
+      curr = s;
+      int j = 0;
+      while (j < i) {
+         if (curr->type == CSCOPE_INSTANCE)
+            fprintf(f, "%s%s", "..", DIR_SEP);
+         j++;
+         if (curr->parent)
+            curr = curr->parent;
+      }
+
+      if (i != levels)
+         fprintf(f, "%s.html>", istr(curr->name));
+      else
+         fprintf(f, "index.html>");
+
+      fprintf(f, "%s</a></p>\n", istr(curr->name));
+   }
 
    fprintf(f, "</nav>\n\n");
 }
@@ -1345,12 +1355,17 @@ static void cover_print_hier_nav_tree(FILE *f, cover_scope_t *s)
 static void cover_report_hier(cover_rpt_hier_ctx_t *ctx,
                               cover_scope_t *s, const char *dir)
 {
-   char *hier LOCAL = xasprintf("%s/%s.html", dir, istr(s->hier));
-
    // TODO: Handle escaped identifiers in hierarchy path!
-   FILE *f = fopen(hier, "w");
+   const char *name = istr(s->name);
+   char *rpt_subdir LOCAL = xasprintf("%s%s%s", dir, DIR_SEP, name);
+   char *rpt_name LOCAL = xasprintf("%s.html", istr(s->name));
+   char *rpt_path LOCAL = xasprintf("%s%s%s", rpt_subdir, DIR_SEP, rpt_name);
+
+   make_dir(rpt_subdir);
+
+   FILE *f = fopen(rpt_path, "w");
    if (f == NULL)
-      fatal("failed to open report file: %s\n", hier);
+      fatal("failed to open report file: %s\n", rpt_path);
 
    INIT_CHAIN(ctx, stmt);
    INIT_CHAIN(ctx, branch);
@@ -1360,25 +1375,26 @@ static void cover_report_hier(cover_rpt_hier_ctx_t *ctx,
    INIT_CHAIN(ctx, functional);
 
    cover_print_html_header(f);
-   cover_print_hier_nav_tree(f, s);
+   cover_print_hier_nav_tree(f, ctx->data->root_scope, s);
    cover_print_inst_name(f, s);
 
    cover_file_t *src = cover_file_for_scope(s);
-   const char *filename = (src) ? src->name : "";
-   cover_print_file_name(f, filename);
+   cover_print_file_name(f, cover_count_scope_levels(ctx->data->root_scope, s, true),
+                         (src) ? src->name : "");
 
    fprintf(f, "<h2 style=\"margin-left: " MARGIN_LEFT ";\">\n  Sub-instances:\n</h2>\n\n");
    cover_print_summary_table_header(f, "sub_inst_table", true);
 
    int skipped = 0;
-   cover_report_hier_children(ctx, s, dir, f, &skipped);
+   cover_report_hier_children(ctx, s, rpt_subdir, f, &skipped);
 
    cover_print_table_footer(f);
 
    fprintf(f, "<h2 style=\"margin-left: " MARGIN_LEFT ";\">\n  Current Instance:\n</h2>\n\n");
    cover_print_summary_table_header(f, "cur_inst_table", true);
-   cover_print_summary_table_row(f, ctx->data, &(ctx->flat_stats), s->hier,
-                                 ctx->lvl, false, true, false);
+   cover_print_summary_table_row(f, ctx->data, &(ctx->flat_stats), istr(s->hier),
+                                 rpt_name, ctx->lvl, false, false);
+
    cover_print_table_footer(f);
 
    fprintf(f, "<h2 style=\"margin-left: " MARGIN_LEFT ";\">\n  Details:\n</h2>\n\n");
@@ -1409,8 +1425,10 @@ static void cover_report_hier_children(cover_rpt_hier_ctx_t *ctx,
 
          cover_report_hier(&sub_ctx, it, dir);
 
+         const char *name = istr(it->name);
+         char *rpt_path_rel LOCAL = xasprintf("%s%s%s.html", name, DIR_SEP, name);
          cover_print_summary_table_row(summf, ctx->data, &(sub_ctx.nested_stats),
-                                       it->hier, sub_ctx.lvl, false, false, true);
+                                       name, rpt_path_rel, sub_ctx.lvl, false, true);
 
          // Add coverage from sub-hierarchies
          ctx->nested_stats.hit_stmts += sub_ctx.nested_stats.hit_stmts;
@@ -1429,7 +1447,7 @@ static void cover_report_hier_children(cover_rpt_hier_ctx_t *ctx,
    }
 }
 
-static void cover_report_per_hier(FILE *f, cover_data_t *data, char *subdir)
+static void cover_report_per_hier(FILE *f, cover_data_t *data, const char *dir)
 {
    for (int i = 0; i < data->root_scope->children.count; i++) {
       cover_scope_t *child = AGET(data->root_scope->children, i);
@@ -1437,9 +1455,12 @@ static void cover_report_per_hier(FILE *f, cover_data_t *data, char *subdir)
 
       top_ctx.data = data;
 
-      cover_report_hier(&top_ctx, child, subdir);
-      cover_print_summary_table_row(f, data, &(top_ctx.nested_stats), child->hier,
-                                    top_ctx.lvl, true, true, true);
+      cover_report_hier(&top_ctx, child, dir);
+
+      const char *name = istr(child->name);
+      char *rpt_path_rel LOCAL = xasprintf("%s%s%s.html", name, DIR_SEP, name);
+      cover_print_summary_table_row(f, data, &(top_ctx.nested_stats), istr(child->hier),
+                                    rpt_path_rel, top_ctx.lvl, true, true);
    }
 
    if (opt_get_int(OPT_VERBOSE)) {
@@ -1472,7 +1493,6 @@ static void cover_print_file_nav_tree(FILE *f, cover_rpt_file_ctx_t *ctx_list,
 
    for (int i = 0; i < n_ctxs; i++) {
       cover_rpt_file_ctx_t *ctx = ctx_list + i;
-      // TODO: Handle paths hierarchically instead of strip!
       const char *file_name = basename((char *)ctx->file->name);
       fprintf(f, "<p style=\"margin-left: %dpx\"><a href=%s.html>%s</a></p>\n",
                   10, file_name, file_name);
@@ -1562,7 +1582,7 @@ static cover_rpt_file_ctx_t *cover_rpt_file_collect_scope(
    return ctx_list;
 }
 
-static void cover_report_per_file(FILE *top_f, cover_data_t *data, char *subdir)
+static void cover_report_per_file(FILE *top_f, cover_data_t *data, const char *subdir)
 {
    int alloc_ctxs = 32;
    int n_ctxs = 0;
@@ -1622,23 +1642,25 @@ static void cover_report_per_file(FILE *top_f, cover_data_t *data, char *subdir)
       // Print per-file report
 
       // TODO: Handle escaped identifiers in hierarchy path!
-      // TODO: Handle paths hierarchically instead of strip!
-      char *file_name LOCAL = xasprintf("%s/%s.html", subdir,
-                                        basename((char*)ctx->file->name));
-      FILE *f = fopen(file_name, "w");
-      if (f == NULL)
-         fatal_errno("failed to open report file: %s\n", file_name);
+      const char *src_file_name = basename((char*)ctx->file->name);
+      const char *file_rpt_path LOCAL = xasprintf("%s%s%s.html", subdir, DIR_SEP, src_file_name);
 
-      ident_t file_name_id = ident_new(basename((char*)ctx->file->name));
+      FILE *f = fopen(file_rpt_path, "w");
+      if (f == NULL)
+         fatal_errno("failed to open report file: %s\n", file_rpt_path);
 
       cover_print_html_header(f);
       cover_print_file_nav_tree(f, ctx_list, n_ctxs);
-      cover_print_file_name(f, ctx->file->name);
+
+      char *src_file_ref LOCAL = xasprintf("..%s%s", DIR_SEP, ctx->file->name);
+      cover_print_file_name(f, 0, src_file_ref);
 
       fprintf(f, "<h2 style=\"margin-left: " MARGIN_LEFT ";\">\n  Current File:\n</h2>\n\n");
       cover_print_summary_table_header(f, "cur_file_table", true);
-      cover_print_summary_table_row(f, data, &(ctx->stats), file_name_id,
-                                    0, false, true, false);
+
+      char *file_rpt_path_rel LOCAL = xasprintf("%s.html", src_file_name);
+      cover_print_summary_table_row(f, data, &(ctx->stats), src_file_name, file_rpt_path_rel,
+                                    0, false, false);
       cover_print_table_footer(f);
 
       fprintf(f, "<h2 style=\"margin-left: " MARGIN_LEFT ";\">\n  Details:\n</h2>\n\n");
@@ -1652,8 +1674,9 @@ static void cover_report_per_file(FILE *top_f, cover_data_t *data, char *subdir)
       cover_print_timestamp(f);
 
       // Print top table summary
-      cover_print_summary_table_row(top_f, data, &(ctx->stats), file_name_id,
-                                    0, true, true, false);
+      char *top_rpt_path LOCAL = xasprintf("per_file%s%s.html", DIR_SEP, src_file_name);
+      cover_print_summary_table_row(top_f, data, &(ctx->stats), src_file_name,
+                                    top_rpt_path, 0, true, false);
    }
 
    cover_print_table_footer(top_f);
@@ -1666,9 +1689,7 @@ static void cover_report_per_file(FILE *top_f, cover_data_t *data, char *subdir)
 
 void cover_report(const char *path, cover_data_t *data, int item_limit)
 {
-   char *subdir LOCAL = xasprintf("%s/hier", path);
    make_dir(path);
-   make_dir(subdir);
 
    static const struct {
       const char *name;
@@ -1696,7 +1717,7 @@ void cover_report(const char *path, cover_data_t *data, int item_limit)
    notef("Code coverage report folder: %s.", path);
    notef("%s", tb_get(tb));
 
-   char *top LOCAL = xasprintf("%s/index.html", path);
+   char *top LOCAL = xasprintf("%s%sindex.html", path, DIR_SEP);
    FILE *f = fopen(top, "w");
 
    cover_print_html_header(f);
@@ -1705,11 +1726,13 @@ void cover_report(const char *path, cover_data_t *data, int item_limit)
 
    if (data->mask & COVER_MASK_PER_FILE_REPORT) {
       cover_print_summary_table_header(f, "file_table", false);
+      char *subdir LOCAL = xasprintf("%s%sper_file", path, DIR_SEP);
+      make_dir(subdir);
       cover_report_per_file(f, data, subdir);
    }
    else {
       cover_print_summary_table_header(f, "inst_table", true);
-      cover_report_per_hier(f, data, subdir);
+      cover_report_per_hier(f, data, path);
    }
 
    cover_print_timestamp(f);
