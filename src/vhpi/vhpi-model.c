@@ -77,7 +77,6 @@ typedef struct tag_abstractRegion {
    lazy_region_fn_t  lazyfn;
    vhpiObjectListT   decls;
    vhpiObjectListT   stmts;
-   vhpiObjectListT   InternalRegions;
    c_abstractRegion *UpperRegion;
    vhpiIntT          LineOffset;
    vhpiIntT          LineNo;
@@ -465,12 +464,14 @@ typedef struct {
 
 DEF_CLASS(callback, vhpiCallbackK, object);
 
+typedef void *(*vhpiFilterT)(c_vhpiObject *);
+
 typedef struct {
    c_vhpiObject     object;
    vhpiObjectListT *list;
    c_vhpiObject    *single;
    uint32_t         pos;
-   vhpiClassKindT   filter;
+   vhpiFilterT      filter;
 } c_iterator;
 
 DEF_CLASS(iterator, vhpiIteratorK, object);
@@ -1312,10 +1313,9 @@ static void expand_lazy_region(c_abstractRegion *r)
    r->lazyfn = NULL;
 }
 
-static bool init_iterator(c_iterator *it, vhpiOneToManyT type, c_vhpiObject *obj)
+static bool init_iterator(c_iterator *it, vhpiOneToManyT type,
+                          c_vhpiObject *obj)
 {
-   it->filter = vhpiUndefined;
-
    if (obj == NULL) {
       switch (type) {
       case vhpiPackInsts:
@@ -1339,37 +1339,38 @@ static bool init_iterator(c_iterator *it, vhpiOneToManyT type, c_vhpiObject *obj
          it->list = &(region->decls);
          return true;
       case vhpiInternalRegions:
-         it->list = &(region->InternalRegions);
+         it->filter = (vhpiFilterT)is_abstractRegion;
+         it->list = &(region->stmts);
          return true;
       case vhpiConstDecls:
-         it->filter = vhpiConstDeclK;
+         it->filter = (vhpiFilterT)is_constDecl;
          it->list = &(region->decls);
          return true;
       case vhpiVarDecls:
-         it->filter = vhpiVarDeclK;
+         it->filter = NULL;   // XXX: missing
          it->list = &(region->decls);
          return true;
       case vhpiSigDecls:
-         it->filter = vhpiSigDeclK;
+         it->filter = (vhpiFilterT)is_sigDecl;
          it->list = &(region->decls);
          return true;
       case vhpiGenericDecls:
-         it->filter = vhpiGenericDeclK;
+         it->filter = (vhpiFilterT)is_genericDecl;
          it->list = &(region->decls);
          return true;
       case vhpiPortDecls:
-         it->filter = vhpiPortDeclK;
+         it->filter = (vhpiFilterT)is_portDecl;
          it->list = &(region->decls);
          return true;
       case vhpiStmts:
          it->list = &(region->stmts);
          return true;
       case vhpiBlockStmts:
-         it->filter = vhpiBlockStmtK;
+         it->filter = (vhpiFilterT)is_blockStmt;
          it->list = &(region->stmts);
          return true;
       case vhpiCompInstStmts:
-         it->filter = vhpiCompInstStmtK;
+         it->filter = (vhpiFilterT)is_compInstStmt;
          it->list = &(region->stmts);
          return true;
       default:
@@ -2351,10 +2352,9 @@ vhpiHandleT vhpi_scan(vhpiHandleT iterator)
       return it->pos++ ? NULL : handle_for(it->single);
 
    while (it->pos < it->list->count) {
-      vhpiHandleT handle = handle_for(it->list->items[it->pos++]);
-      if (it->filter == vhpiUndefined
-          || from_handle(handle)->kind == it->filter)
-         return handle;
+      c_vhpiObject *obj = it->list->items[it->pos++];
+      if (it->filter == NULL || (*it->filter)(obj) != NULL)
+         return handle_for(obj);
    }
 
    return NULL;
@@ -4171,7 +4171,6 @@ static c_abstractRegion *build_blockStmt(tree_t t, c_abstractRegion *region)
                        && tree_subkind(d1) == IMPLICIT_GUARD);
    }
 
-   APUSH(region->InternalRegions, &(bs->region.object));
    APUSH(region->stmts, &(bs->region.object));
 
    return &(bs->region);
@@ -4209,7 +4208,6 @@ static c_abstractRegion *build_compInstStmt(tree_t t, tree_t inst,
    init_designInstUnit(&(c->designInstUnit), t, du);
    init_stmt(&(c->stmt), t);
 
-   APUSH(region->InternalRegions, &(c->designInstUnit.region.object));
    APUSH(region->stmts, &(c->designInstUnit.region.object));
 
    return &(c->designInstUnit.region);
@@ -4230,7 +4228,6 @@ static c_abstractRegion *build_forGenerate(tree_t t, c_abstractRegion *region)
    tree_t g0 = tree_generic(t, 0);
    g->ParamDecl = build_constDecl(g0, &(g->region));
 
-   APUSH(region->InternalRegions, &(g->region.object));
    APUSH(region->stmts, &(g->region.object));
 
    return &(g->region);
