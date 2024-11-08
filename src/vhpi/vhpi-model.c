@@ -229,14 +229,12 @@ DEF_CLASS(elemDecl, vhpiElemDeclK, decl.object);
 
 typedef struct {
    c_abstractDecl   decl;
-   vhpiObjectListT  IndexedNames;
-   vhpiObjectListT  SelectedNames;
+   vhpiLazyListT    IndexedNames;
+   vhpiLazyListT    SelectedNames;
    c_typeDecl      *Type;
    vhpiIntT         Access;
    vhpiStaticnessT  Staticness;
    vhpiBooleanT     IsDynamic;
-   bool             IndexedNames_valid;
-   bool             SelectedNames_valid;
    rt_signal_t     *signal;
    rt_scope_t      *scope;
    ident_t          name;
@@ -349,17 +347,15 @@ typedef struct {
 } c_physLiteral;
 
 typedef struct {
-   c_expr          expr;
-   vhpiObjectListT IndexedNames;
-   vhpiObjectListT SelectedNames;
-   vhpiStringT     FullCaseName;
-   vhpiStringT     CaseName;
-   vhpiStringT     FullName;
-   vhpiStringT     Name;
-   vhpiStringT     DefName;
-   vhpiAccessT     Access;
-   bool            IndexedNames_valid;
-   bool            SelectedNames_valid;
+   c_expr        expr;
+   vhpiLazyListT IndexedNames;
+   vhpiLazyListT SelectedNames;
+   vhpiStringT   FullCaseName;
+   vhpiStringT   CaseName;
+   vhpiStringT   FullName;
+   vhpiStringT   Name;
+   vhpiStringT   DefName;
+   vhpiAccessT   Access;
 } c_name;
 
 typedef struct {
@@ -524,6 +520,8 @@ static void *vhpi_get_value_ptr(c_vhpiObject *obj);
 static c_typeDecl *vhpi_get_type(c_vhpiObject *obj);
 static vhpiClassKindT vhpi_get_prefix_kind(c_vhpiObject *obj);
 static void vhpi_lazy_decls(c_vhpiObject *obj);
+static void vhpi_lazy_selected_names(c_vhpiObject *obj);
+static void vhpi_lazy_indexed_names(c_vhpiObject *obj);
 static const char *handle_pp(vhpiHandleT handle);
 static void vhpi_find_packages(vhpi_context_t *c);
 
@@ -1018,6 +1016,9 @@ static void init_objDecl(c_objDecl *d, tree_t t, c_abstractRegion *ImmRegion)
       d->Staticness = vhpiGloballyStatic;
    else
       d->Staticness = vhpiDynamic;
+
+   d->SelectedNames.fn = vhpi_lazy_selected_names;
+   d->IndexedNames.fn = vhpi_lazy_indexed_names;
 }
 
 static void init_interfaceDecl(c_interfaceDecl *d, tree_t t,
@@ -1108,6 +1109,8 @@ static void init_name(c_name *n, vhpiStaticnessT Staticness, c_typeDecl *Type,
    init_expr(&(n->expr), Staticness, Type);
    n->Name = n->CaseName = Name;
    n->FullName = n->FullCaseName = FullName;
+   n->SelectedNames.fn = vhpi_lazy_selected_names;
+   n->IndexedNames.fn = vhpi_lazy_indexed_names;
 }
 
 static void init_prefixedName(c_prefixedName *pn, c_typeDecl *Type,
@@ -1185,54 +1188,6 @@ static vhpiIntT range_len(c_intRange *ir)
       return MAX(ir->LeftBound - ir->RightBound + 1, 0);
 }
 
-static void vhpi_build_indexedNames(vhpiObjectListT *IndexedNames,
-                                    c_vhpiObject *prefix, c_typeDecl *Type)
-{
-   assert(Type != NULL);
-
-   vhpiObjectListT *Constraints;
-   c_subTypeDecl *std = is_subTypeDecl(&(Type->decl.object));
-   c_arrayTypeDecl *atd = is_arrayTypeDecl(&(Type->decl.object));
-   if (std != NULL) {
-      Constraints = &(std->Constraints);
-      atd = is_arrayTypeDecl(&(Type->BaseType->decl.object));
-      if (atd == NULL)
-         return;
-   }
-   else if (atd != NULL)
-      Constraints = &(atd->Constraints);
-   else
-      return;
-
-   if (Constraints->count == 0)
-      return;
-
-   vhpiIntT *lens LOCAL = xmalloc_array(Constraints->count, sizeof(vhpiIntT));
-   for (int i = 0; i < Constraints->count; i++) {
-      c_intRange *ir = is_intRange(Constraints->items[i]);
-      assert(ir != NULL);
-
-      if ((lens[i] = range_len(ir)) == 0)
-         return;
-   }
-
-   int pos = 0;
-   vhpiIntT *indices LOCAL = xcalloc_array(Constraints->count, sizeof(vhpiIntT));
-   do {
-      c_indexedName *in = new_object(sizeof(c_indexedName), vhpiIndexedNameK);
-      init_indexedName(in, atd->ElemType, prefix, Constraints, indices);
-      APUSH(*IndexedNames, &(in->prefixedName.name.expr.object));
-
-      for (pos = Constraints->count - 1; pos >= 0; pos--) {
-         indices[pos]++;
-         if (indices[pos] >= lens[pos])
-            indices[pos] = 0;
-         else
-            break;
-      }
-   } while (pos > 0 || indices[0] != 0);
-}
-
 static void init_selectedName(c_selectedName *sn, c_vhpiObject *prefix,
                               c_elemDecl *Suffix)
 {
@@ -1244,38 +1199,6 @@ static void init_selectedName(c_selectedName *sn, c_vhpiObject *prefix,
 
    init_prefixedName(&(sn->prefixedName), Suffix->Type, prefix, tb_get(suffix));
    sn->Suffix = Suffix;
-}
-
-static void vhpi_build_selectedNames(vhpiObjectListT *SelectedNames,
-                                     c_vhpiObject *prefix, c_typeDecl *Type)
-{
-   assert(Type != NULL);
-
-   c_subTypeDecl *std = is_subTypeDecl(&(Type->decl.object));
-   if (std != NULL) {
-      for (int i = 0; i < std->Constraints.count; i++) {
-         c_elemDecl *ed = is_elemDecl(std->Constraints.items[i]);
-         assert(ed != NULL);
-
-         c_selectedName *sn =
-            new_object(sizeof(c_selectedName), vhpiSelectedNameK);
-         init_selectedName(sn, prefix, ed);
-         APUSH(*SelectedNames, &(sn->prefixedName.name.expr.object));
-      }
-   }
-
-   c_recordTypeDecl *rtd = is_recordTypeDecl(&(Type->decl.object));
-   if (rtd != NULL) {
-      for (int i = 0; i < rtd->RecordElems.count; i++) {
-         c_elemDecl *ed = is_elemDecl(rtd->RecordElems.items[i]);
-         assert(ed != NULL);
-
-         c_selectedName *sn =
-            new_object(sizeof(c_selectedName), vhpiSelectedNameK);
-         init_selectedName(sn, prefix, ed);
-         APUSH(*SelectedNames, &(sn->prefixedName.name.expr.object));
-      }
-   }
 }
 
 static void init_designUnit(c_designUnit *u, tree_t t)
@@ -1448,24 +1371,14 @@ static bool init_iterator(c_iterator *it, vhpiOneToManyT type,
    c_objDecl *od = is_objDecl(obj);
    if (od != NULL) {
       switch(type) {
-         case vhpiIndexedNames:
-            if (!od->IndexedNames_valid) {
-               c_typeDecl *td = vhpi_get_type(obj);
-               vhpi_build_indexedNames(&(od->IndexedNames), obj, td);
-               od->IndexedNames_valid = true;
-            }
-            it->list = &(od->IndexedNames);
-            return true;
-         case vhpiSelectedNames:
-            if (!od->SelectedNames_valid) {
-               c_typeDecl *td = vhpi_get_type(obj);
-               vhpi_build_selectedNames(&(od->SelectedNames), obj, td);
-               od->SelectedNames_valid = true;
-            }
-            it->list = &(od->SelectedNames);
-            return true;
-         default:
-            return false;
+      case vhpiIndexedNames:
+         it->list = expand_lazy_list(obj, &(od->IndexedNames));
+         return true;
+      case vhpiSelectedNames:
+         it->list = expand_lazy_list(obj, &(od->SelectedNames));
+         return true;
+      default:
+         return false;
       }
    }
 
@@ -1473,18 +1386,10 @@ static bool init_iterator(c_iterator *it, vhpiOneToManyT type,
    if (n != NULL) {
       switch (type) {
       case vhpiIndexedNames:
-         if (!n->IndexedNames_valid) {
-            vhpi_build_indexedNames(&(n->IndexedNames), obj, n->expr.Type);
-            n->IndexedNames_valid = true;
-         }
-         it->list = &(n->IndexedNames);
+         it->list = expand_lazy_list(obj, &(n->IndexedNames));
          return true;
       case vhpiSelectedNames:
-         if (!n->SelectedNames_valid) {
-            vhpi_build_selectedNames(&(n->SelectedNames), obj, n->expr.Type);
-            n->SelectedNames_valid = true;
-         }
-         it->list = &(n->SelectedNames);
+         it->list = expand_lazy_list(obj, &(n->SelectedNames));
          return true;
       default:
          return false;
@@ -2311,7 +2216,7 @@ vhpiHandleT vhpi_handle_by_index(vhpiOneToManyT itRel,
       return NULL;
    }
 
-   if (it.single ? index : index > it.list->count) {
+   if (it.single ? index : index >= it.list->count) {
       vhpi_error(vhpiError, obj ? &(obj->loc) : NULL, "invalid %s index %d",
                  vhpi_one_to_many_str(itRel), index);
       return NULL;
@@ -4241,6 +4146,119 @@ static c_abstractRegion *build_forGenerate(tree_t t, c_abstractRegion *region)
    APUSH(region->stmts.list, &(g->region.object));
 
    return &(g->region);
+}
+
+static void vhpi_lazy_selected_names(c_vhpiObject *obj)
+{
+   c_typeDecl *type = NULL;
+   vhpiObjectListT *list = NULL;
+
+   c_name *n = is_name(obj);
+   if (n != NULL) {
+      list = &(n->SelectedNames.list);
+      type = n->expr.Type;
+   }
+
+   c_objDecl *od = is_objDecl(obj);
+   if (od != NULL) {
+      list = &(od->SelectedNames.list);
+      type = od->Type;
+   }
+
+   assert(list != NULL && type != NULL);
+   assert(list->count == 0);
+
+   c_subTypeDecl *std = is_subTypeDecl(&(type->decl.object));
+   if (std != NULL) {
+      for (int i = 0; i < std->Constraints.count; i++) {
+         c_elemDecl *ed = is_elemDecl(std->Constraints.items[i]);
+         assert(ed != NULL);
+
+         c_selectedName *sn =
+            new_object(sizeof(c_selectedName), vhpiSelectedNameK);
+         init_selectedName(sn, obj, ed);
+
+         APUSH(*list, &(sn->prefixedName.name.expr.object));
+      }
+   }
+
+   c_recordTypeDecl *rtd = is_recordTypeDecl(&(type->decl.object));
+   if (rtd != NULL) {
+      for (int i = 0; i < rtd->RecordElems.count; i++) {
+         c_elemDecl *ed = is_elemDecl(rtd->RecordElems.items[i]);
+         assert(ed != NULL);
+
+         c_selectedName *sn =
+            new_object(sizeof(c_selectedName), vhpiSelectedNameK);
+         init_selectedName(sn, obj, ed);
+
+         APUSH(*list, &(sn->prefixedName.name.expr.object));
+      }
+   }
+}
+
+static void vhpi_lazy_indexed_names(c_vhpiObject *obj)
+{
+   c_typeDecl *type = NULL;
+   vhpiObjectListT *list = NULL;
+
+   c_name *n = is_name(obj);
+   if (n != NULL) {
+      list = &(n->IndexedNames.list);
+      type = n->expr.Type;
+   }
+
+   c_objDecl *od = is_objDecl(obj);
+   if (od != NULL) {
+      list = &(od->IndexedNames.list);
+      type = od->Type;
+   }
+
+   assert(list != NULL && type != NULL);
+   assert(list->count == 0);
+
+   vhpiObjectListT *Constraints;
+   c_subTypeDecl *std = is_subTypeDecl(&(type->decl.object));
+   c_arrayTypeDecl *atd = is_arrayTypeDecl(&(type->decl.object));
+   if (std != NULL) {
+      Constraints = &(std->Constraints);
+      atd = is_arrayTypeDecl(&(type->BaseType->decl.object));
+      if (atd == NULL)
+         return;
+   }
+   else if (atd != NULL)
+      Constraints = &(atd->Constraints);
+   else
+      return;
+
+   if (Constraints->count == 0)
+      return;
+
+   vhpiIntT *lens LOCAL = xmalloc_array(Constraints->count, sizeof(vhpiIntT));
+   for (int i = 0; i < Constraints->count; i++) {
+      c_intRange *ir = is_intRange(Constraints->items[i]);
+      assert(ir != NULL);
+
+      if ((lens[i] = range_len(ir)) == 0)
+         return;
+   }
+
+   int pos = 0;
+   vhpiIntT *indices LOCAL =
+      xcalloc_array(Constraints->count, sizeof(vhpiIntT));
+   do {
+      c_indexedName *in = new_object(sizeof(c_indexedName), vhpiIndexedNameK);
+      init_indexedName(in, atd->ElemType, obj, Constraints, indices);
+      APUSH(*list, &(in->prefixedName.name.expr.object));
+
+      for (pos = Constraints->count - 1; pos >= 0; pos--) {
+         indices[pos]++;
+         if (indices[pos] >= lens[pos])
+            indices[pos] = 0;
+         else
+            break;
+      }
+   } while (pos > 0 || indices[0] != 0);
 }
 
 static void vhpi_lazy_stmts(c_vhpiObject *obj)
