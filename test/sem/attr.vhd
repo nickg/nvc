@@ -100,7 +100,7 @@ package body pack is
         report x'simple_name;           -- OK
         report true'simple_name;        -- Error
         report pack'path_name;          -- OK
-        report integer'path_name;       -- Error
+        report integer'path_name;       -- OK (issue #1064)
         return x + 1;
     end function;
 end package body;

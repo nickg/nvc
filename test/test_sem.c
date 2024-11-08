@@ -754,7 +754,6 @@ START_TEST(test_attr)
          "static expression of type universal_integer" },
       {   0, "expression has type INTEGER" },
       { 101, "prefix of SIMPLE_NAME attribute must be a named entity" },
-      { 103, "prefix of PATH_NAME attribute must be a named entity" },
       { 133, "cannot index non-array type INTEGER" },
       { 139, "class of object I is variable not signal" },
       { 146, "prefix of attribute LAST_EVENT must denote a signal" },
