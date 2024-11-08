@@ -523,7 +523,7 @@ static c_typeDecl *build_dynamicSubtype(c_typeDecl *base, void *ptr,
 static void *vhpi_get_value_ptr(c_vhpiObject *obj);
 static c_typeDecl *vhpi_get_type(c_vhpiObject *obj);
 static vhpiClassKindT vhpi_get_prefix_kind(c_vhpiObject *obj);
-static void vhpi_build_stmts(tree_t container, c_abstractRegion *region);
+static void vhpi_lazy_decls(c_vhpiObject *obj);
 static const char *handle_pp(vhpiHandleT handle);
 static void vhpi_find_packages(vhpi_context_t *c);
 
@@ -4243,17 +4243,42 @@ static c_abstractRegion *build_forGenerate(tree_t t, c_abstractRegion *region)
    return &(g->region);
 }
 
-static void vhpi_build_decls(tree_t container, c_abstractRegion *region)
+static void vhpi_lazy_stmts(c_vhpiObject *obj)
 {
-   const int ndecls = tree_decls(container);
-   for (int i = 0; i < ndecls; i++) {
-      tree_t d = tree_decl(container, i);
-      switch (tree_kind(d)) {
-      case T_SIGNAL_DECL:
-         build_signalDecl(d, region);
-         break;
-      case T_CONST_DECL:
-         build_constDecl(d, region);
+   c_abstractRegion *r = is_abstractRegion(obj);
+   assert(r != NULL);
+
+   const int nstmts = tree_stmts(r->tree);
+   for (int i = 0; i < nstmts; i++) {
+      tree_t s = tree_stmt(r->tree, i);
+      switch (tree_kind(s)) {
+      case T_BLOCK:
+         {
+            tree_t h = tree_decl(s, 0);
+            assert(tree_kind(h) == T_HIER);
+
+            c_abstractRegion *sub = NULL;
+            switch (tree_subkind(h)) {
+            case T_BLOCK:
+               sub = build_blockStmt(s, r);
+               sub->stmts.fn = vhpi_lazy_stmts;
+               sub->decls.fn = vhpi_lazy_decls;
+               break;
+            case T_ARCH:
+            case T_COMPONENT:
+               sub = build_compInstStmt(s, tree_ref(h), r);
+               sub->stmts.fn = vhpi_lazy_stmts;
+               sub->decls.fn = vhpi_lazy_decls;
+               break;
+            case T_FOR_GENERATE:
+               sub = build_forGenerate(s, r);
+               sub->stmts.fn = vhpi_lazy_stmts;
+               sub->decls.fn = vhpi_lazy_decls;
+               break;
+            default:
+               continue;
+            }
+         }
          break;
       default:
          break;
@@ -4261,78 +4286,34 @@ static void vhpi_build_decls(tree_t container, c_abstractRegion *region)
    }
 }
 
-static void vhpi_build_ports(tree_t unit, c_abstractRegion *region)
-{
-   const int nports = tree_ports(unit);
-   for (int i = 0; i < nports; i++) {
-      tree_t p = tree_port(unit, i);
-      build_portDecl(p, i, region);
-   }
-}
-
-static void vhpi_build_generics(tree_t unit, c_abstractRegion *region)
-{
-   const int ngenerics = tree_generics(unit);
-   for (int i = 0; i < ngenerics; i++) {
-      tree_t g = tree_generic(unit, i);
-      build_genericDecl(g, i, region);
-   }
-}
-
-static void vhpi_lazy_stmts(c_vhpiObject *obj)
-{
-   c_abstractRegion *r = is_abstractRegion(obj);
-   assert(r != NULL);
-
-   vhpi_build_stmts(r->tree, r);
-}
-
 static void vhpi_lazy_decls(c_vhpiObject *obj)
 {
    c_abstractRegion *r = is_abstractRegion(obj);
    assert(r != NULL);
 
-   vhpi_build_generics(r->tree, r);
+   const int ngenerics = tree_generics(r->tree);
+   for (int i = 0; i < ngenerics; i++) {
+      tree_t g = tree_generic(r->tree, i);
+      build_genericDecl(g, i, r);
+   }
 
-   if (obj->kind != vhpiPackInstK)
-      vhpi_build_ports(r->tree, r);
+   if (obj->kind != vhpiPackInstK) {
+      const int nports = tree_ports(r->tree);
+      for (int i = 0; i < nports; i++) {
+         tree_t p = tree_port(r->tree, i);
+         build_portDecl(p, i, r);
+      }
+   }
 
-   vhpi_build_decls(r->tree, r);
-}
-
-static void vhpi_build_stmts(tree_t container, c_abstractRegion *region)
-{
-   const int nstmts = tree_stmts(container);
-   for (int i = 0; i < nstmts; i++) {
-      tree_t s = tree_stmt(container, i);
-      switch (tree_kind(s)) {
-      case T_BLOCK:
-         {
-            tree_t h = tree_decl(s, 0);
-            assert(tree_kind(h) == T_HIER);
-
-            c_abstractRegion *r = NULL;
-            switch (tree_subkind(h)) {
-            case T_BLOCK:
-               r = build_blockStmt(s, region);
-               r->stmts.fn = vhpi_lazy_stmts;
-               r->decls.fn = vhpi_lazy_decls;
-               break;
-            case T_ARCH:
-            case T_COMPONENT:
-               r = build_compInstStmt(s, tree_ref(h), region);
-               r->stmts.fn = vhpi_lazy_stmts;
-               r->decls.fn = vhpi_lazy_decls;
-               break;
-            case T_FOR_GENERATE:
-               r = build_forGenerate(s, region);
-               r->stmts.fn = vhpi_lazy_stmts;
-               r->decls.fn = vhpi_lazy_decls;
-               break;
-            default:
-               continue;
-            }
-         }
+   const int ndecls = tree_decls(r->tree);
+   for (int i = 0; i < ndecls; i++) {
+      tree_t d = tree_decl(r->tree, i);
+      switch (tree_kind(d)) {
+      case T_SIGNAL_DECL:
+         build_signalDecl(d, r);
+         break;
+      case T_CONST_DECL:
+         build_constDecl(d, r);
          break;
       default:
          break;
@@ -4375,43 +4356,6 @@ static void vhpi_find_packages(vhpi_context_t *c)
    hset_free(visited);
 }
 
-static void vhpi_build_design_model(vhpi_context_t *c)
-{
-   const uint64_t start_us = get_timestamp_us();
-
-   vhpi_clear_error();
-
-   assert(tree_kind(c->top) == T_ELAB);
-
-   tree_t b0 = tree_stmt(c->top, 0);
-   if (tree_kind(b0) == T_VERILOG)
-      fatal_at(tree_loc(b0), "Verilog top-level modules are not supported "
-               "by VHPI");
-
-   assert(tree_kind(b0) == T_BLOCK);
-
-   tree_t h = tree_decl(b0, 0);
-   assert(tree_kind(h) == T_HIER);
-
-   tree_t s = tree_ref(h);
-   assert(tree_kind(s) == T_ARCH);
-
-   c_designUnit *du = cached_designUnit(s);
-
-   c->root = new_object(sizeof(c_rootInst), vhpiRootInstK);
-   init_designInstUnit(&(c->root->designInstUnit), b0, du);
-
-   c_abstractRegion *region = &(c->root->designInstUnit.region);
-   vhpi_build_generics(b0, region);
-   vhpi_build_ports(b0, region);
-   vhpi_build_decls(b0, region);
-   vhpi_build_stmts(b0, region);
-
-   VHPI_TRACE("building model for %s took %"PRIu64" ms",
-              istr(ident_runtil(tree_ident(b0), '.')),
-              (get_timestamp_us() - start_us) / 1000);
-}
-
 static void vhpi_run_callbacks(int32_t reason, int32_t rep)
 {
    vhpi_context_t *c = vhpi_context();
@@ -4448,7 +4392,31 @@ static void vhpi_run_callbacks(int32_t reason, int32_t rep)
 static void vhpi_initialise_cb(rt_model_t *m, void *arg)
 {
    vhpi_context_t *c = arg;
-   vhpi_build_design_model(c);
+   vhpi_clear_error();
+
+   assert(tree_kind(c->top) == T_ELAB);
+
+   tree_t b0 = tree_stmt(c->top, 0);
+   if (tree_kind(b0) == T_VERILOG)
+      fatal_at(tree_loc(b0), "Verilog top-level modules are not supported "
+               "by VHPI");
+
+   assert(tree_kind(b0) == T_BLOCK);
+
+   tree_t h = tree_decl(b0, 0);
+   assert(tree_kind(h) == T_HIER);
+
+   tree_t s = tree_ref(h);
+   assert(tree_kind(s) == T_ARCH);
+
+   c_designUnit *du = cached_designUnit(s);
+
+   c->root = new_object(sizeof(c_rootInst), vhpiRootInstK);
+   init_designInstUnit(&(c->root->designInstUnit), b0, du);
+
+   c_abstractRegion *region = &(c->root->designInstUnit.region);
+   region->stmts.fn = vhpi_lazy_stmts;
+   region->decls.fn = vhpi_lazy_decls;
 
    vhpi_run_callbacks(vhpiCbEndOfInitialization, 0);
 }
