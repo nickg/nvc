@@ -51,6 +51,13 @@ typedef struct {
 typedef A(c_vhpiObject *) vhpiObjectListT;
 typedef A(vhpiHandleT) vhpiHandleListT;
 
+typedef void (*vhpiLazyFnT)(c_vhpiObject *);
+
+typedef struct {
+   vhpiLazyFnT     fn;
+   vhpiObjectListT list;
+} vhpiLazyListT;
+
 typedef struct {
    c_vhpiObject object;
    vhpiStringT  StrVal;
@@ -68,15 +75,12 @@ DEF_CLASS(tool, vhpiToolK, object);
 typedef struct tag_abstractRegion c_abstractRegion;
 typedef struct tag_expr c_expr;
 
-typedef void (*lazy_region_fn_t)(c_abstractRegion *);
-
 typedef struct tag_abstractRegion {
    c_vhpiObject      object;
    tree_t            tree;
    rt_scope_t       *scope;
-   lazy_region_fn_t  lazyfn;
-   vhpiObjectListT   decls;
-   vhpiObjectListT   stmts;
+   vhpiLazyListT     decls;
+   vhpiLazyListT     stmts;
    c_abstractRegion *UpperRegion;
    vhpiIntT          LineOffset;
    vhpiIntT          LineNo;
@@ -516,7 +520,6 @@ static c_typeDecl *cached_typeDecl(type_t type, c_vhpiObject *obj);
 static c_designUnit *cached_designUnit(tree_t t);
 static c_typeDecl *build_dynamicSubtype(c_typeDecl *base, void *ptr,
                                         vhpiClassKindT kind);
-static void vhpi_lazy_block(c_abstractRegion *r);
 static void *vhpi_get_value_ptr(c_vhpiObject *obj);
 static c_typeDecl *vhpi_get_type(c_vhpiObject *obj);
 static vhpiClassKindT vhpi_get_prefix_kind(c_vhpiObject *obj);
@@ -1304,13 +1307,14 @@ static void init_packDecl(c_packDecl *p, tree_t t)
    init_designUnit(&(p->designUnit), t);
 }
 
-static void expand_lazy_region(c_abstractRegion *r)
+static vhpiObjectListT *expand_lazy_list(c_vhpiObject *obj, vhpiLazyListT *lazy)
 {
-   if (r->lazyfn == NULL)
-      return;
+   if (lazy->fn != NULL) {
+      (*lazy->fn)(obj);
+      lazy->fn = NULL;
+   }
 
-   (*r->lazyfn)(r);
-   r->lazyfn = NULL;
+   return &(lazy->list);
 }
 
 static bool init_iterator(c_iterator *it, vhpiOneToManyT type,
@@ -1332,46 +1336,44 @@ static bool init_iterator(c_iterator *it, vhpiOneToManyT type,
 
    c_abstractRegion *region = is_abstractRegion(obj);
    if (region != NULL) {
-      expand_lazy_region(region);
-
       switch (type) {
       case vhpiDecls:
-         it->list = &(region->decls);
+         it->list = expand_lazy_list(obj, &(region->decls));
          return true;
       case vhpiInternalRegions:
          it->filter = (vhpiFilterT)is_abstractRegion;
-         it->list = &(region->stmts);
+         it->list = expand_lazy_list(obj, &(region->stmts));
          return true;
       case vhpiConstDecls:
          it->filter = (vhpiFilterT)is_constDecl;
-         it->list = &(region->decls);
+         it->list = expand_lazy_list(obj, &(region->decls));
          return true;
       case vhpiVarDecls:
          it->filter = NULL;   // XXX: missing
-         it->list = &(region->decls);
+         it->list = expand_lazy_list(obj, &(region->decls));
          return true;
       case vhpiSigDecls:
          it->filter = (vhpiFilterT)is_sigDecl;
-         it->list = &(region->decls);
+         it->list = expand_lazy_list(obj, &(region->decls));
          return true;
       case vhpiGenericDecls:
          it->filter = (vhpiFilterT)is_genericDecl;
-         it->list = &(region->decls);
+         it->list = expand_lazy_list(obj, &(region->decls));
          return true;
       case vhpiPortDecls:
          it->filter = (vhpiFilterT)is_portDecl;
-         it->list = &(region->decls);
+         it->list = expand_lazy_list(obj, &(region->decls));
          return true;
       case vhpiStmts:
-         it->list = &(region->stmts);
+         it->list = expand_lazy_list(obj, &(region->stmts));
          return true;
       case vhpiBlockStmts:
          it->filter = (vhpiFilterT)is_blockStmt;
-         it->list = &(region->stmts);
+         it->list = expand_lazy_list(obj, &(region->stmts));
          return true;
       case vhpiCompInstStmts:
          it->filter = (vhpiFilterT)is_compInstStmt;
-         it->list = &(region->stmts);
+         it->list = expand_lazy_list(obj, &(region->stmts));
          return true;
       default:
          return false;
@@ -2242,22 +2244,25 @@ vhpiHandleT vhpi_handle_by_name(const char *name, vhpiHandleT scope)
       c_iterator it = {};
       c_abstractRegion *region = is_abstractRegion(where);
       if (region != NULL) {
-         expand_lazy_region(region);
-
-         for (int i = 0; !found && i < region->stmts.count; i++) {
-            c_abstractRegion *r = is_abstractRegion(region->stmts.items[i]);
-            if (r != NULL && strcasecmp((char *)r->Name, elem) == 0) {
-               expand_lazy_region(r);
-               where = &(r->object);
-               found = true;
-            }
-         }
-
-         for (int i = 0; !found && i < region->decls.count; i++) {
-            c_abstractDecl *d = cast_abstractDecl(region->decls.items[i]);
+         vhpiObjectListT *decls = expand_lazy_list(where, &(region->decls));
+         for (int i = 0; i < decls->count; i++) {
+            c_abstractDecl *d = cast_abstractDecl(decls->items[i]);
             if (strcasecmp((char *)d->Name, elem) == 0) {
                where = &(d->object);
                found = true;
+               break;
+            }
+         }
+
+         if (!found) {
+            vhpiObjectListT *stmts = expand_lazy_list(where, &(region->stmts));
+            for (int i = 0; i < stmts->count; i++) {
+               c_abstractRegion *r = is_abstractRegion(stmts->items[i]);
+               if (r != NULL && strcasecmp((char *)r->Name, elem) == 0) {
+                  where = &(r->object);
+                  found = true;
+                  break;
+               }
             }
          }
       }
@@ -2269,6 +2274,7 @@ vhpiHandleT vhpi_handle_by_name(const char *name, vhpiHandleT scope)
             if (strcasecmp((char *)sn->Suffix->decl.Name, elem) == 0) {
                where = &(sn->prefixedName.name.expr.object);
                found = true;
+               break;
             }
          }
       }
@@ -4053,7 +4059,7 @@ static void build_genericDecl(tree_t generic, int pos,
    g->IsVital = false;
    g->Mode = mode_map[tree_subkind(generic)];
 
-   APUSH(region->decls, &(g->interface.objDecl.decl.object));
+   APUSH(region->decls.list, &(g->interface.objDecl.decl.object));
 }
 
 static c_constParamDecl *build_constParamDecl(tree_t param, int pos)
@@ -4083,7 +4089,7 @@ static void build_portDecl(tree_t port, int pos,
 
    p->Mode = mode_map[tree_subkind(port)];
 
-   APUSH(region->decls, &(p->interface.objDecl.decl.object));
+   APUSH(region->decls.list, &(p->interface.objDecl.decl.object));
 }
 
 static void build_signalDecl(tree_t decl, c_abstractRegion *region)
@@ -4091,7 +4097,7 @@ static void build_signalDecl(tree_t decl, c_abstractRegion *region)
    c_sigDecl *s = new_object(sizeof(c_sigDecl), vhpiSigDeclK);
    init_objDecl(&(s->objDecl), decl, region);
 
-   APUSH(region->decls, &(s->objDecl.decl.object));
+   APUSH(region->decls.list, &(s->objDecl.decl.object));
 }
 
 static c_constDecl *build_constDecl(tree_t decl, c_abstractRegion *region)
@@ -4101,7 +4107,7 @@ static c_constDecl *build_constDecl(tree_t decl, c_abstractRegion *region)
 
    cd->IsDeferred = !tree_has_value(decl);
 
-   APUSH(region->decls, &(cd->objDecl.decl.object));
+   APUSH(region->decls.list, &(cd->objDecl.decl.object));
    return cd;
 }
 
@@ -4171,7 +4177,7 @@ static c_abstractRegion *build_blockStmt(tree_t t, c_abstractRegion *region)
                        && tree_subkind(d1) == IMPLICIT_GUARD);
    }
 
-   APUSH(region->stmts, &(bs->region.object));
+   APUSH(region->stmts.list, &(bs->region.object));
 
    return &(bs->region);
 }
@@ -4212,7 +4218,7 @@ static c_abstractRegion *build_compInstStmt(tree_t t, tree_t inst,
    // Make sure all lookups happen in the implicit inner region
    c->designInstUnit.region.tree = inner;
 
-   APUSH(region->stmts, &(c->designInstUnit.region.object));
+   APUSH(region->stmts.list, &(c->designInstUnit.region.object));
 
    return &(c->designInstUnit.region);
 }
@@ -4232,7 +4238,7 @@ static c_abstractRegion *build_forGenerate(tree_t t, c_abstractRegion *region)
    tree_t g0 = tree_generic(t, 0);
    g->ParamDecl = build_constDecl(g0, &(g->region));
 
-   APUSH(region->stmts, &(g->region.object));
+   APUSH(region->stmts.list, &(g->region.object));
 
    return &(g->region);
 }
@@ -4273,18 +4279,25 @@ static void vhpi_build_generics(tree_t unit, c_abstractRegion *region)
    }
 }
 
-static void vhpi_lazy_component(c_abstractRegion *r)
+static void vhpi_lazy_stmts(c_vhpiObject *obj)
 {
-   vhpi_build_generics(r->tree, r);
-   vhpi_build_ports(r->tree, r);
-   vhpi_build_decls(r->tree, r);
+   c_abstractRegion *r = is_abstractRegion(obj);
+   assert(r != NULL);
+
    vhpi_build_stmts(r->tree, r);
 }
 
-static void vhpi_lazy_for_generate(c_abstractRegion *r)
+static void vhpi_lazy_decls(c_vhpiObject *obj)
 {
+   c_abstractRegion *r = is_abstractRegion(obj);
+   assert(r != NULL);
+
+   vhpi_build_generics(r->tree, r);
+
+   if (obj->kind != vhpiPackInstK)
+      vhpi_build_ports(r->tree, r);
+
    vhpi_build_decls(r->tree, r);
-   vhpi_build_stmts(r->tree, r);
 }
 
 static void vhpi_build_stmts(tree_t container, c_abstractRegion *region)
@@ -4302,19 +4315,19 @@ static void vhpi_build_stmts(tree_t container, c_abstractRegion *region)
             switch (tree_subkind(h)) {
             case T_BLOCK:
                r = build_blockStmt(s, region);
-               r->lazyfn = vhpi_lazy_block;
+               r->stmts.fn = vhpi_lazy_stmts;
+               r->decls.fn = vhpi_lazy_decls;
                break;
             case T_ARCH:
-               r = build_compInstStmt(s, tree_ref(h), region);
-               r->lazyfn = vhpi_lazy_block;
-               break;
             case T_COMPONENT:
                r = build_compInstStmt(s, tree_ref(h), region);
-               r->lazyfn = vhpi_lazy_component;
+               r->stmts.fn = vhpi_lazy_stmts;
+               r->decls.fn = vhpi_lazy_decls;
                break;
             case T_FOR_GENERATE:
                r = build_forGenerate(s, region);
-               r->lazyfn = vhpi_lazy_for_generate;
+               r->stmts.fn = vhpi_lazy_stmts;
+               r->decls.fn = vhpi_lazy_decls;
                break;
             default:
                continue;
@@ -4325,20 +4338,6 @@ static void vhpi_build_stmts(tree_t container, c_abstractRegion *region)
          break;
       }
    }
-}
-
-static void vhpi_lazy_block(c_abstractRegion *r)
-{
-   vhpi_build_generics(r->tree, r);
-   vhpi_build_ports(r->tree, r);
-   vhpi_build_decls(r->tree, r);
-   vhpi_build_stmts(r->tree, r);
-}
-
-static void vhpi_lazy_package(c_abstractRegion *r)
-{
-   vhpi_build_generics(r->tree, r);
-   vhpi_build_decls(r->tree, r);
 }
 
 static void vhpi_build_deps_cb(ident_t name, void *ctx)
@@ -4358,7 +4357,7 @@ static void vhpi_build_deps_cb(ident_t name, void *ctx)
 
       c_packInst *pi = new_object(sizeof(c_packInst), vhpiPackInstK);
       init_designInstUnit(&(pi->designInstUnit), unit, du);
-      pi->designInstUnit.region.lazyfn = vhpi_lazy_package;
+      pi->designInstUnit.region.decls.fn = vhpi_lazy_decls;
 
       APUSH(vhpi_context()->packages, &(pi->designInstUnit.region.object));
    }
