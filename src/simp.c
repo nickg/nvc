@@ -605,6 +605,11 @@ static void simp_build_wait_cb(tree_t expr, void *ctx)
          return;
    }
 
+   // Cannot use the static wait optimisation if the sensitivity list
+   // contains an external name as it may change the elaboration order
+   if (tree_kind(expr) == T_EXTERNAL_NAME)
+      tree_clear_flag(wait, TREE_F_STATIC_WAIT);
+
    tree_add_trigger(wait, expr);
 }
 

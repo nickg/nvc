@@ -1068,3 +1068,4 @@ issue1044       mixed
 issue1030       wave,2008,dump-arrays
 issue1036       normal
 issue1057       normal,vhpi,2008
+issue1062       normal,2008

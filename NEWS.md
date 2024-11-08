@@ -19,6 +19,9 @@
   `vhpi_register_cb` (#1045).
 - Removed the limit on the maximum number of parameters that can be
   passed to a VHDL subprogram (#1036).
+- Fixed a crash when a process sensitivity list contains an external
+  name and the process is elaborated before the object referenced by the
+  name (#1062).
 - Several other minor bugs were resolved (#1038, #1055, #1057).
 
 ## Version 1.14.1 - 2024-10-26
