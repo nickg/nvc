@@ -4181,6 +4181,7 @@ static c_abstractRegion *build_compInstStmt(tree_t t, tree_t inst,
 {
    assert(tree_kind(t) == T_BLOCK);
 
+   tree_t inner = t;
    c_designUnit *du;
    switch (tree_kind(inst)) {
    case T_ARCH:
@@ -4190,7 +4191,7 @@ static c_abstractRegion *build_compInstStmt(tree_t t, tree_t inst,
       {
          assert(tree_stmts(t) == 1);
 
-         tree_t inner = tree_stmt(t, 0);
+         inner = tree_stmt(t, 0);
          assert(tree_kind(inner) == T_BLOCK);
 
          tree_t h = tree_decl(inner, 0);
@@ -4207,6 +4208,9 @@ static c_abstractRegion *build_compInstStmt(tree_t t, tree_t inst,
    c_compInstStmt *c = new_object(sizeof(c_compInstStmt), vhpiCompInstStmtK);
    init_designInstUnit(&(c->designInstUnit), t, du);
    init_stmt(&(c->stmt), t);
+
+   // Make sure all lookups happen in the implicit inner region
+   c->designInstUnit.region.tree = inner;
 
    APUSH(region->stmts, &(c->designInstUnit.region.object));
 
@@ -4271,16 +4275,10 @@ static void vhpi_build_generics(tree_t unit, c_abstractRegion *region)
 
 static void vhpi_lazy_component(c_abstractRegion *r)
 {
-   tree_t inner = tree_stmt(r->tree, 0);
-   assert(tree_kind(inner) == T_BLOCK);
-
-   // Make sure all lookups happen in the implicit inner region
-   r->tree = inner;
-
-   vhpi_build_generics(inner, r);
-   vhpi_build_ports(inner, r);
-   vhpi_build_decls(inner, r);
-   vhpi_build_stmts(inner, r);
+   vhpi_build_generics(r->tree, r);
+   vhpi_build_ports(r->tree, r);
+   vhpi_build_decls(r->tree, r);
+   vhpi_build_stmts(r->tree, r);
 }
 
 static void vhpi_lazy_for_generate(c_abstractRegion *r)
