@@ -9,10 +9,10 @@ nvc -c --item-limit=2000 \
        --report html work/_WORK.COVER11.elab.covdb
 
 # Check just items until 2000 are printed
-if grep -e "EXAMPLE_ARRAY(1001)" html/hier/*; then
+if grep -e "EXAMPLE_ARRAY(1001)" html/COVER11/*; then
   exit 1
 fi
-if ! grep -e "EXAMPLE_ARRAY(1000)" html/hier/*; then
+if ! grep -e "EXAMPLE_ARRAY(1000)" html/COVER11/*; then
   exit 1
 fi
 
