@@ -3,6 +3,7 @@
 - Fixed a crash when a process sensitivity list contains an external
   name and the process is elaborated before the object referenced by the
   name (#1062).
+- Fixed parser hang for integers in scientific notation (from @NikLeberg).
 - Several other minor bugs were resolved (#1038, #1055).
 
 ## Version 1.14.1 - 2024-10-26
