@@ -910,10 +910,14 @@ static int parse_decimal_literal(const char *str)
 
       long long int e = (exp ? atoll(exp) : 0);
 
-      if (e >= 0) {  // Minus sign forbidden for an integer literal
+      if (yylval.i64 == 0)
+         tok = tINT;
+      else if (e >= 0) {  // Minus sign forbidden for an integer literal
          for (; e > 0; e--) {
-            if (__builtin_mul_overflow(yylval.i64, INT64_C(10), &yylval.i64))
+            if (__builtin_mul_overflow(yylval.i64, INT64_C(10), &yylval.i64)) {
                overflow = true;
+               break;
+            }
          }
          tok = (sign == NULL) ? tINT : tERROR;
       }
