@@ -175,4 +175,5 @@ void set_default_options(void)
    opt_set_int(OPT_STDERR_LEVEL, DIAG_DEBUG);
    opt_set_int(OPT_CHECK_SYNTHESIS, 0);
    opt_set_int(OPT_MISSING_WAIT, 1);
+   opt_set_int(OPT_LAYOUT_VERBOSE, get_int_env("NVC_LAYOUT_VERBOSE", 0));
 }

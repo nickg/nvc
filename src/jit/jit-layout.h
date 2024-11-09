@@ -19,13 +19,24 @@
 #define _JIT_LAYOUT_H
 
 #include "prim.h"
+#include "util.h"
+
+typedef enum {
+   LC_DATA,
+   LC_BOUNDS,
+   LC_OFFSET,
+   LC_EXTERNAL,
+} layout_class_t;
 
 typedef struct {
-   int offset;
-   int size;
-   int repeat;
-   int align;
+   uint32_t offset;
+   uint32_t size;
+   uint32_t repeat;
+   uint16_t align;
+   uint16_t class;
 } layout_part_t;
+
+STATIC_ASSERT(sizeof(layout_part_t) == 16);
 
 typedef struct {
    int nparts;

@@ -70,6 +70,7 @@ typedef enum {
    OPT_STDERR_LEVEL,
    OPT_CHECK_SYNTHESIS,
    OPT_MISSING_WAIT,
+   OPT_LAYOUT_VERBOSE,
 
    OPT_LAST_NAME
 } opt_name_t;
