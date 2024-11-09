@@ -148,11 +148,11 @@ typedef struct tag_typeDecl c_typeDecl;
 typedef struct tag_typeDecl {
    c_abstractDecl  decl;
    type_t          type;
-   c_typeDecl     *BaseType;
+   c_typeDecl     *BaseType;   // XXX: should belong to subtype?
    vhpiFormatT     format;
    const char     *map_str;
    vhpiIntT        numElems;
-   vhpiBooleanT    IsAnonymous;
+   vhpiBooleanT    IsAnonymous;   // XXX: should belong to subtype?
    vhpiBooleanT    IsComposite;
    vhpiBooleanT    IsScalar;
    vhpiBooleanT    IsUnconstrained;
@@ -220,9 +220,10 @@ typedef struct {
 DEF_CLASS(recordTypeDecl, vhpiRecordTypeDeclK, composite.typeDecl.decl.object);
 
 typedef struct {
-   c_abstractDecl  decl;
-   c_typeDecl     *Type;
-   vhpiIntT        Position;
+   c_abstractDecl    decl;
+   c_typeDecl       *Type;
+   c_recordTypeDecl *parent;
+   vhpiIntT          Position;
 } c_elemDecl;
 
 DEF_CLASS(elemDecl, vhpiElemDeclK, decl.object);
@@ -237,7 +238,6 @@ typedef struct {
    vhpiBooleanT     IsDynamic;
    rt_signal_t     *signal;
    rt_scope_t      *scope;
-   ident_t          name;
 } c_objDecl;
 
 typedef struct {
@@ -247,6 +247,15 @@ typedef struct {
 } c_sigDecl;
 
 DEF_CLASS(sigDecl, vhpiSigDeclK, objDecl.decl.object);
+
+typedef struct {
+   c_objDecl    objDecl;
+   vhpiSigKindT SigKind;
+   vhpiBooleanT IsProtectedType;
+   vhpiBooleanT IsShared;
+} c_varDecl;
+
+DEF_CLASS(varDecl, vhpiVarDeclK, objDecl.decl.object);
 
 typedef struct {
    c_vhpiObject    object;
@@ -381,15 +390,11 @@ typedef struct {
 DEF_CLASS(selectedName, vhpiSelectedNameK, prefixedName.name.expr.object);
 
 typedef struct {
-   c_vhpiObject    object;
-   vhpiStringT     CaseName;
-   vhpiStringT     Name;
-   vhpiStringT     UnitName;
-   vhpiStringT     FileName;
-   vhpiIntT        LineOffset;
-   vhpiIntT        LineNo;
-   vhpiObjectListT Decls;
-   vhpiObjectListT DepUnits;
+   c_abstractRegion region;
+   vhpiStringT      CaseName;
+   vhpiStringT      Name;
+   vhpiStringT      UnitName;
+   vhpiObjectListT  DepUnits;
 } c_designUnit;
 
 typedef struct {
@@ -397,7 +402,7 @@ typedef struct {
    c_designUnit   *PrimaryUnit;
 } c_secondaryUnit;
 
-DEF_CLASS(secondaryUnit, vhpiArchBodyK, designUnit.object);
+DEF_CLASS(secondaryUnit, vhpiArchBodyK, designUnit.region.object);
 
 typedef struct {
    c_designUnit    designUnit;
@@ -523,7 +528,6 @@ static void vhpi_lazy_decls(c_vhpiObject *obj);
 static void vhpi_lazy_selected_names(c_vhpiObject *obj);
 static void vhpi_lazy_indexed_names(c_vhpiObject *obj);
 static const char *handle_pp(vhpiHandleT handle);
-static void vhpi_find_packages(vhpi_context_t *c);
 
 static vhpi_context_t *global_context = NULL;   // TODO: thread local
 
@@ -657,6 +661,9 @@ static c_abstractRegion *is_abstractRegion(c_vhpiObject *obj)
    case vhpiCompInstStmtK:
    case vhpiForGenerateK:
    case vhpiPackInstK:
+   case vhpiEntityDeclK:
+   case vhpiArchBodyK:
+   case vhpiPackDeclK:
       return container_of(obj, c_abstractRegion, object);
    default:
       return NULL;
@@ -679,6 +686,9 @@ static c_abstractDecl *is_abstractDecl(c_vhpiObject *obj)
    case vhpiElemDeclK:
    case vhpiGenericDeclK:
    case vhpiConstDeclK:
+   case vhpiConstParamDeclK:
+   case vhpiSigParamDeclK:
+   case vhpiVarParamDeclK:
       return container_of(obj, c_abstractDecl, object);
    default:
       return NULL;
@@ -842,7 +852,7 @@ static c_designUnit *is_designUnit(c_vhpiObject *obj)
    case vhpiArchBodyK:
    case vhpiEntityDeclK:
    case vhpiVerilogModuleK:
-      return container_of(obj, c_designUnit, object);
+      return container_of(obj, c_designUnit, region.object);
    default:
       return NULL;
    }
@@ -899,6 +909,11 @@ static const char *handle_pp(vhpiHandleT handle)
       if (cb != NULL)
          tb_printf(tb, " Reason=%s State=%s", vhpi_cb_reason_str(cb->Reason),
                    vhpi_state_str(cb->State));
+
+      c_range *r = is_range(obj);
+      if (r != NULL)
+         tb_printf(tb, " IsNull=%d IsUp=%d IsUnconstrained=%d",
+                   r->IsNull, r->IsUp, r->IsUnconstrained);
    }
 
    tb_append(tb, '}');
@@ -939,13 +954,15 @@ static vhpiCharT *new_string(const char *s)
    return p;
 }
 
-static void init_abstractRegion(c_abstractRegion *r, tree_t t)
+static void init_abstractRegion(c_abstractRegion *r, c_abstractRegion *upper,
+                                tree_t t)
 {
    const loc_t *loc = tree_loc(t);
    r->object.loc = *loc;
 
-   r->LineNo     = loc->first_line;
-   r->LineOffset = loc->line_delta;
+   r->UpperRegion = upper;
+   r->LineNo      = loc->first_line;
+   r->LineOffset  = loc->line_delta;
 
    if (is_design_unit(t)) {
       ident_t qual = tree_ident(t);
@@ -965,9 +982,10 @@ static void init_abstractRegion(c_abstractRegion *r, tree_t t)
    r->handle = JIT_HANDLE_INVALID;
 }
 
-static void init_designInstUnit(c_designInstUnit *iu, tree_t t, c_designUnit *u)
+static void init_designInstUnit(c_designInstUnit *iu, c_abstractRegion *upper,
+                                tree_t t, c_designUnit *u)
 {
-   init_abstractRegion(&(iu->region), t);
+   init_abstractRegion(&(iu->region), upper, t);
 
    iu->DesignUnit = u;
 }
@@ -996,10 +1014,7 @@ static void init_objDecl(c_objDecl *d, tree_t t, c_abstractRegion *ImmRegion)
 {
    init_abstractDecl(&(d->decl), t, ImmRegion);
 
-   type_t type = tree_type(t);
-
-   d->name = tree_ident(t);
-   d->Type = cached_typeDecl(type, &(d->decl.object));
+   d->Type = cached_typeDecl(tree_type(t), &(d->decl.object));
 
    if (d->Type->IsUnconstrained) {
       void *ptr = vhpi_get_value_ptr(&(d->decl.object));
@@ -1037,11 +1052,12 @@ static void init_subpDecl(c_subpDecl *d, tree_t t)
 }
 
 static void init_elemDecl(c_elemDecl *ed, tree_t t, c_typeDecl *Type,
-                          c_abstractRegion *ImmRegion)
+                          c_recordTypeDecl *parent)
 {
-   init_abstractDecl(&(ed->decl), t, ImmRegion);
+   init_abstractDecl(&(ed->decl), t, parent->composite.typeDecl.decl.ImmRegion);
    ed->Type = Type;
    ed->Position = tree_pos(t);
+   ed->parent = parent;
 }
 
 static void init_typeDecl(c_typeDecl *d, tree_t t, type_t type)
@@ -1203,11 +1219,7 @@ static void init_selectedName(c_selectedName *sn, c_vhpiObject *prefix,
 
 static void init_designUnit(c_designUnit *u, tree_t t)
 {
-   const loc_t *loc = tree_loc(t);
-   u->object.loc = *loc;
-
-   u->LineNo     = loc->first_line;
-   u->LineOffset = loc->line_delta;
+   init_abstractRegion(&(u->region), NULL, t);
 
    ident_t uname = tree_ident(t);
    u->UnitName = new_string(istr(uname));
@@ -1232,9 +1244,10 @@ static void init_packDecl(c_packDecl *p, tree_t t)
 
 static vhpiObjectListT *expand_lazy_list(c_vhpiObject *obj, vhpiLazyListT *lazy)
 {
-   if (lazy->fn != NULL) {
-      (*lazy->fn)(obj);
-      lazy->fn = NULL;
+   vhpiLazyFnT fn = lazy->fn;
+   if (fn != NULL) {
+      lazy->fn = NULL;   // Avoid infinite recursion
+      (*fn)(obj);
    }
 
    return &(lazy->list);
@@ -1246,12 +1259,8 @@ static bool init_iterator(c_iterator *it, vhpiOneToManyT type,
    if (obj == NULL) {
       switch (type) {
       case vhpiPackInsts:
-         {
-            vhpi_context_t *c = vhpi_context();
-            vhpi_find_packages(c);
-            it->list = &(c->packages);
-            return true;
-         }
+         it->list = &(vhpi_context()->packages);
+         return true;
       default:
          return false;
       }
@@ -1272,7 +1281,7 @@ static bool init_iterator(c_iterator *it, vhpiOneToManyT type,
          it->list = expand_lazy_list(obj, &(region->decls));
          return true;
       case vhpiVarDecls:
-         it->filter = NULL;   // XXX: missing
+         it->filter = (vhpiFilterT)is_varDecl;
          it->list = expand_lazy_list(obj, &(region->decls));
          return true;
       case vhpiSigDecls:
@@ -1611,6 +1620,14 @@ static c_typeDecl *vhpi_get_type(c_vhpiObject *obj)
    if (expr != NULL)
       return expr->Type;
 
+   c_elemDecl *ed = is_elemDecl(obj);
+   if (ed != NULL)
+      return ed->Type;
+
+   c_typeDecl *td = is_typeDecl(obj);
+   if (td != NULL)
+      return td;
+
    return NULL;
 }
 
@@ -1623,6 +1640,31 @@ static vhpiClassKindT vhpi_get_prefix_kind(c_vhpiObject *obj)
       return obj->kind;
 }
 
+static void *vhpi_get_bounds_var(c_typeDecl *td)
+{
+   jit_t *j = vhpi_context()->jit;
+
+   ident_t id = type_ident(td->type);
+   jit_handle_t handle = jit_lazy_compile(j, ident_runtil(id, '.'));
+
+   return jit_get_frame_var(j, handle, id);
+}
+
+static const jit_layout_t *vhpi_get_layout(c_vhpiObject *obj)
+{
+   c_typeDecl *td = vhpi_get_type(obj);
+   if (td == NULL)
+      return NULL;
+
+   switch (vhpi_get_prefix_kind(obj)) {
+   case vhpiPortDeclK:
+   case vhpiSigDeclK:
+      return signal_layout_of(td->type);
+   default:
+      return layout_of(td->type);
+   }
+}
+
 static void *vhpi_get_value_ptr(c_vhpiObject *obj)
 {
    jit_t *j = vhpi_context()->jit;
@@ -1633,20 +1675,9 @@ static void *vhpi_get_value_ptr(c_vhpiObject *obj)
       if (base == NULL)
          return NULL;
 
-      c_typeDecl *td = vhpi_get_type(pn->Prefix);
-      if (td == NULL)
+      const jit_layout_t *l = vhpi_get_layout(pn->Prefix);
+      if (l == NULL)
          return NULL;
-
-      const jit_layout_t *l;
-      switch (vhpi_get_prefix_kind(obj)) {
-      case vhpiPortDeclK:
-      case vhpiSigDeclK:
-         l = signal_layout_of(td->type);
-         break;
-      default:
-         l = layout_of(td->type);
-         break;
-      }
 
       c_selectedName *sn = is_selectedName(obj);
       if (sn != NULL) {
@@ -1656,12 +1687,10 @@ static void *vhpi_get_value_ptr(c_vhpiObject *obj)
 
       c_indexedName *in = is_indexedName(obj);
       if (in != NULL) {
-         if (l->nparts == 2)
+         if (l->parts[0].class == LC_EXTERNAL)
             return ((ffi_uarray_t *)base)->ptr;   // Wrapped array
-         else {
-            assert(l->nparts == 1);
+         else
             return base;
-         }
       }
 
       vhpi_error(vhpiInternal, &(obj->loc), "unsupported prefixed name kind %s",
@@ -1669,7 +1698,32 @@ static void *vhpi_get_value_ptr(c_vhpiObject *obj)
       return NULL;
    }
 
-   c_objDecl *decl = cast_objDecl(obj);
+   c_recordTypeDecl *rtd = is_recordTypeDecl(obj);
+   if (rtd != NULL) {
+      void *base = vhpi_get_bounds_var(&(rtd->composite.typeDecl));
+      if (base != NULL)
+         return base;
+
+      vhpi_error(vhpiInternal, &(obj->loc), "missing bounds variable for %s",
+                 type_pp(rtd->composite.typeDecl.type));
+      return NULL;
+   }
+
+   c_elemDecl *ed = is_elemDecl(obj);
+   if (ed != NULL) {
+      c_vhpiObject *pobj = &(ed->parent->composite.typeDecl.decl.object);
+      void *base = vhpi_get_value_ptr(pobj);
+      if (base == NULL)
+         return NULL;
+
+      const jit_layout_t *l = vhpi_get_layout(pobj);
+      assert(l != NULL);
+      assert(ed->Position < l->nparts);
+
+      return base + l->parts[ed->Position].offset;
+   }
+
+   c_objDecl *decl = is_objDecl(obj);
    assert(decl != NULL);
 
    if (decl->decl.ImmRegion == NULL)
@@ -1677,8 +1731,16 @@ static void *vhpi_get_value_ptr(c_vhpiObject *obj)
    else if (decl->decl.ImmRegion->handle == JIT_HANDLE_INVALID) {
       c_packInst *pi = is_packInst(&(decl->decl.ImmRegion->object));
       if (pi != NULL) {
-         decl->decl.ImmRegion->handle =
-            jit_lazy_compile(j, tree_ident(decl->decl.ImmRegion->tree));
+         ident_t qual = tree_ident(decl->decl.ImmRegion->tree);
+         if (pi->designInstUnit.region.UpperRegion != NULL) {
+            for (c_abstractRegion *it = pi->designInstUnit.region.UpperRegion;
+                 it != NULL; it = it->UpperRegion)
+               qual = ident_prefix(tree_ident(it->tree), qual, '.');
+
+            qual = ident_prefix(lib_name(lib_work()), qual, '.');
+         }
+
+         decl->decl.ImmRegion->handle = jit_lazy_compile(j, qual);
 
          if (jit_link(j, decl->decl.ImmRegion->handle) == NULL) {
             vhpi_error(vhpiError, &(obj->loc), "failed to initialise package");
@@ -1699,7 +1761,8 @@ static void *vhpi_get_value_ptr(c_vhpiObject *obj)
       }
    }
 
-   return jit_get_frame_var(j, decl->decl.ImmRegion->handle, decl->name);
+   ident_t name = tree_ident(decl->decl.tree);
+   return jit_get_frame_var(j, decl->decl.ImmRegion->handle, name);
 }
 
 static void vhpi_get_uarray(c_vhpiObject *obj, void **ptr, ffi_dim_t **dims)
@@ -2053,7 +2116,7 @@ vhpiHandleT vhpi_handle(vhpiOneToOneT type, vhpiHandleT referenceHandle)
          if (iu == NULL)
             return NULL;
 
-         return handle_for(&(iu->DesignUnit->object));
+         return handle_for(&(iu->DesignUnit->region.object));
       }
 
    case vhpiPrimaryUnit:
@@ -2062,7 +2125,7 @@ vhpiHandleT vhpi_handle(vhpiOneToOneT type, vhpiHandleT referenceHandle)
          if (su == NULL)
             return NULL;
 
-         return handle_for(&(su->PrimaryUnit->object));
+         return handle_for(&(su->PrimaryUnit->region.object));
       }
 
    case vhpiPrefix:
@@ -2120,8 +2183,6 @@ vhpiHandleT vhpi_handle_by_name(const char *name, vhpiHandleT scope)
       if (strcasecmp(elem, (char *)c->root->designInstUnit.region.Name) == 0)
          where = &(c->root->designInstUnit.region.object);
       else {
-         vhpi_find_packages(c);
-
          for (int i = 0; i < c->packages.count; i++) {
             c_packInst *pi = is_packInst(c->packages.items[i]);
             assert(pi != NULL);
@@ -2238,7 +2299,7 @@ vhpiHandleT vhpi_iterator(vhpiOneToManyT type, vhpiHandleT handle)
    c_iterator *it = new_object(sizeof(c_iterator), vhpiIteratorK);
    if (!init_iterator(it, type, obj)) {
       vhpi_error(vhpiError, obj ? &(obj->loc) : NULL,
-                 "relation %s not supported for handle %p",
+                 "relation %s not supported for handle %s",
                  vhpi_one_to_many_str(type), handle_pp(handle));
       return NULL;
    }
@@ -2370,7 +2431,12 @@ vhpiIntT vhpi_get(vhpiIntPropertyT property, vhpiHandleT handle)
          if (ir == NULL)
             goto missing_property;
 
-         if (property == vhpiLeftBoundP)
+         if (ir->range.IsUnconstrained) {
+            vhpi_error(vhpiError, &(obj->loc), "cannot get bounds of "
+                       "unconstrained range");
+            return vhpiUndefined;
+         }
+         else if (property == vhpiLeftBoundP)
             return ir->LeftBound;
          else
             return ir->RightBound;
@@ -2525,6 +2591,14 @@ const vhpiCharT *vhpi_get_str(vhpiStrPropertyT property, vhpiHandleT handle)
    if (property == vhpiKindStrP)
       return (vhpiCharT *)vhpi_class_str(obj->kind);
 
+   c_designUnit *u = is_designUnit(obj);
+   if (u != NULL) {
+      switch (property) {
+      case vhpiUnitNameP: return u->UnitName;
+      default: break;   // Fallthrough to c_abstractRegion
+      }
+   }
+
    c_abstractRegion *region = is_abstractRegion(obj);
    if (region != NULL) {
       switch (property) {
@@ -2568,17 +2642,6 @@ const vhpiCharT *vhpi_get_str(vhpiStrPropertyT property, vhpiHandleT handle)
       }
    }
 
-   c_designUnit *u = is_designUnit(obj);
-   if (u != NULL) {
-      switch (property) {
-      case vhpiNameP: return u->Name;
-      case vhpiCaseNameP: return u->CaseName;
-      case vhpiFileNameP: return (vhpiCharT *)loc_file_str(&(u->object.loc));
-      case vhpiUnitNameP: return u->UnitName;
-      default: goto unsupported;
-      }
-   }
-
    c_tool *t = is_tool(obj);
    if (t != NULL) {
       switch (property) {
@@ -2602,15 +2665,6 @@ const vhpiCharT *vhpi_get_str(vhpiStrPropertyT property, vhpiHandleT handle)
    if (s != NULL) {
       switch (property) {
       case vhpiLabelNameP: return s->LabelName;
-      default: goto unsupported;
-      }
-   }
-
-   c_objDecl *od = is_objDecl(obj);
-   if (od != NULL) {
-      switch (property) {
-      case vhpiCaseNameP:
-      case vhpiNameP: return (vhpiStringT)istr(od->name);
       default: goto unsupported;
       }
    }
@@ -3573,8 +3627,10 @@ static c_typeDecl *build_arrayTypeDecl(type_t type, tree_t decl,
       td->ElemType = build_arrayTypeDecl(elem, decl, parent, obj,
                                          nextdim + td->NumDimensions);
    }
-   else
-      td->ElemType = cached_typeDecl(elem, NULL);
+   else {
+      c_vhpiObject *tobj = &(td->composite.typeDecl.decl.object);
+      td->ElemType = cached_typeDecl(elem, tobj);
+   }
 
    td->composite.typeDecl.size = td->ElemType->size;
 
@@ -3592,6 +3648,8 @@ static c_typeDecl *build_arrayTypeDecl(type_t type, tree_t decl,
          APUSH(td->Constraints, &(ir->range.object));
       }
    }
+
+   hash_put(vhpi_context()->objcache, type, td);
 
    return &(td->composite.typeDecl);
 }
@@ -3652,7 +3710,7 @@ static c_typeDecl *build_dynamicSubtype(c_typeDecl *base, void *ptr,
             c_typeDecl *sub = build_dynamicSubtype(ed->Type, fptr, kind);
 
             c_elemDecl *new = new_object(sizeof(c_elemDecl), vhpiElemDeclK);
-            init_elemDecl(new, ed->decl.tree, sub, ed->decl.ImmRegion);
+            init_elemDecl(new, ed->decl.tree, sub, rt);
 
             APUSH(td->Constraints, &(new->decl.object));
          }
@@ -3664,78 +3722,98 @@ static c_typeDecl *build_dynamicSubtype(c_typeDecl *base, void *ptr,
    return &(td->typeDecl);
 }
 
-static c_typeDecl *build_typeDecl(type_t type, c_vhpiObject *obj)
+static c_typeDecl *build_subTypeDecl(type_t type, tree_t where,
+                                     c_vhpiObject *obj)
 {
-   type_t base = type;
-   while (is_anonymous_subtype(base))
-      base = type_base(base);   // Anonymous subtypes have no declaration
+   if (type_is_array(type)) {   // TODO: should this return c_subTypeDecl?
+      type_t base = type;
+      while (is_anonymous_subtype(base))
+         base = type_base(base);   // Anonymous subtypes have no declaration
 
-   ident_t id = type_ident(base);
-   tree_t unit = type_container(base);
-   ident_t unit_name = tree_ident(unit);
+      c_typeDecl *td = build_arrayTypeDecl(type, where, base, obj, 0);
+      if (type != base)
+         td->decl.Name = td->decl.CaseName = new_string(type_pp(base));
 
-   if (tree_kind(unit) == T_ELAB) {
-      unit = tree_stmt(unit, 0);   // Get root block
-      unit_name = ident_runtil(unit_name, '.');   // Strip ".elab"
+      return td;
    }
 
-   assert(ident_starts_with(id, unit_name));
+   c_subTypeDecl *td = new_object(sizeof(c_subTypeDecl), vhpiSubtypeDeclK);
+   init_typeDecl(&(td->typeDecl), where, type);
 
-   // Skip library name
-   ident_walk_selected(&unit_name);
-   ident_walk_selected(&id);
+   hash_put(vhpi_context()->objcache, type, td);
 
-   // Skip top-level unit name
-   ident_walk_selected(&unit_name);
-   ident_walk_selected(&id);
+   td->typeDecl.BaseType = cached_typeDecl(type_base(type), NULL);
+   td->typeDecl.IsAnonymous = is_anonymous_subtype(type);
+   td->typeDecl.IsScalar = td->typeDecl.BaseType->IsScalar;
+   td->typeDecl.IsComposite = td->typeDecl.BaseType->IsComposite;
 
-   assert(ident_walk_selected(&unit_name) == NULL);
-   ident_t b = ident_walk_selected(&id);
+   td->isResolved = type_has_resolution(type);
 
-   while (id != NULL) {
-      tree_t next = NULL;
-      const int nstmts = tree_stmts(unit);
-      for (int i = 0; next == NULL && i < nstmts; i++) {
-         tree_t s = tree_stmt(unit, i);
-         if (tree_ident(s) == b)
-            next = s;
-      }
+   c_recordTypeDecl *rtd =
+      is_recordTypeDecl(&(td->typeDecl.BaseType->decl.object));
+   if (rtd != NULL) {
+      for (int i = 0; i < rtd->RecordElems.count; i++) {
+         c_elemDecl *ed = is_elemDecl(rtd->RecordElems.items[i]);
+         assert(ed != NULL);
 
-      const int ndecls = tree_decls(unit);
-      for (int i = 0; next == NULL && i < ndecls; i++) {
-         tree_t d = tree_decl(unit, i);
-         if (tree_ident(d) == b)
-            next = d;
-      }
+         if (ed->Type->IsUnconstrained) {
+            tree_t cons = type_constraint_for_field(type, ed->decl.tree);
+            if (cons != NULL) {
+               c_elemDecl *new = new_object(sizeof(c_elemDecl), vhpiElemDeclK);
+               init_elemDecl(new, ed->decl.tree, NULL, rtd);
 
-      if (next == NULL)
-         fatal_trace("cannot find %s within %s", istr(b),
-                     istr(tree_ident(unit)));
+               APUSH(td->Constraints, &(new->decl.object));
 
-      unit = next;
-      b = ident_walk_selected(&id);
-   }
+               new->Type = cached_typeDecl(tree_type(cons),
+                                           &(new->decl.object));
 
-   tree_t decl = NULL;
-   const int ndecls = tree_decls(unit);
-   for (int i = 0; i < ndecls; i++) {
-      tree_t d = tree_decl(unit, i);
-      if (is_type_decl(d) && tree_type(d) == base) {
-         decl = d;
-         break;
+               continue;
+            }
+         }
+
+         APUSH(td->Constraints, &(ed->decl.object));
       }
    }
 
-   if (decl == NULL)
-      fatal_trace("cannot find type declaration for %s", type_pp(type));
+   if (td->typeDecl.IsScalar && type_constraints(type) > 0) {
+      tree_t c = type_constraint(type, 0);
+      assert(tree_subkind(c) == C_RANGE);
 
-#ifdef DEBUG
-   const tree_kind_t dkind = tree_kind(decl);
-   if (type_kind(type) == T_SUBTYPE)
-      assert(dkind == T_SUBTYPE_DECL || dkind == T_TYPE_DECL);
-   else
-      assert(dkind == T_TYPE_DECL);
-#endif
+      tree_t r = tree_range(c, 0);
+      type_t rtype = tree_type(r);
+      if (type_is_real(rtype)) {
+         c_floatRange *fr = build_float_range(r);
+         APUSH(td->Constraints, &(fr->range.object));
+      }
+      else if (type_is_physical(rtype)) {
+         c_physRange *pr = build_phys_range(r);
+         APUSH(td->Constraints, &(pr->range.object));
+      }
+      else {
+         c_intRange *ir = build_int_range(r, NULL, 0, NULL);
+         APUSH(td->Constraints, &(ir->range.object));
+      }
+   }
+
+   return &(td->typeDecl);
+}
+
+static c_typeDecl *build_anonymousSubTypeDecl(type_t type, c_vhpiObject *obj)
+{
+   assert(is_anonymous_subtype(type));
+
+   c_abstractDecl *decl = is_abstractDecl(obj);
+   assert(decl != NULL);
+
+   c_typeDecl *td = build_subTypeDecl(type, decl->tree, obj);
+   td->IsAnonymous = true;
+
+   return td;
+}
+
+static c_typeDecl *build_typeDecl(tree_t decl, c_abstractRegion *region)
+{
+   type_t type = tree_type(decl);
 
    switch (type_kind(type)) {
    case T_INTEGER:
@@ -3743,6 +3821,9 @@ static c_typeDecl *build_typeDecl(type_t type, c_vhpiObject *obj)
          c_intTypeDecl *td =
             new_object(sizeof(c_intTypeDecl), vhpiIntTypeDeclK);
          init_scalarTypeDecl(&(td->scalar), decl, type);
+
+         APUSH(region->decls.list, &(td->scalar.typeDecl.decl.object));
+         hash_put(vhpi_context()->objcache, type, td);
 
          c_intRange *ir = build_int_range(range_of(type, 0), NULL, 0, NULL);
          td->constraint = &(ir->range);
@@ -3755,6 +3836,9 @@ static c_typeDecl *build_typeDecl(type_t type, c_vhpiObject *obj)
          c_enumTypeDecl *td =
             new_object(sizeof(c_enumTypeDecl), vhpiEnumTypeDeclK);
          init_scalarTypeDecl(&(td->scalar), decl, type);
+
+         APUSH(region->decls.list, &(td->scalar.typeDecl.decl.object));
+         hash_put(vhpi_context()->objcache, type, td);
 
          int nlits = type_enum_literals(type);
          for (int i = 0; i < nlits; i++) {
@@ -3771,6 +3855,10 @@ static c_typeDecl *build_typeDecl(type_t type, c_vhpiObject *obj)
          c_physTypeDecl *td =
             new_object(sizeof(c_physTypeDecl), vhpiPhysTypeDeclK);
          init_scalarTypeDecl(&(td->scalar), decl, type);
+
+         APUSH(region->decls.list, &(td->scalar.typeDecl.decl.object));
+         hash_put(vhpi_context()->objcache, type, td);
+
          td->constraint = &(build_phys_range(range_of(type, 0))->range);
          return &(td->scalar.typeDecl);
       }
@@ -3780,12 +3868,35 @@ static c_typeDecl *build_typeDecl(type_t type, c_vhpiObject *obj)
          c_floatTypeDecl *td =
             new_object(sizeof(c_floatTypeDecl), vhpiFloatTypeDeclK);
          init_scalarTypeDecl(&(td->scalar), decl, type);
+
+         APUSH(region->decls.list, &(td->scalar.typeDecl.decl.object));
+         hash_put(vhpi_context()->objcache, type, td);
+
          td->constraint = &(build_float_range(range_of(type, 0))->range);
          return &(td->scalar.typeDecl);
       }
 
    case T_ARRAY:
-      return build_arrayTypeDecl(type, decl, base, obj, 0);
+      {
+         c_arrayTypeDecl *td =
+            new_object(sizeof(c_arrayTypeDecl), vhpiArrayTypeDeclK);
+         init_compositeTypeDecl(&(td->composite), decl, type);
+
+         APUSH(region->decls.list, &(td->composite.typeDecl.decl.object));
+         hash_put(vhpi_context()->objcache, type, td);
+
+         td->NumDimensions = dimension_of(type);
+         td->composite.typeDecl.wrapped = true;
+
+         c_vhpiObject *tobj = &(td->composite.typeDecl.decl.object);
+         td->ElemType = cached_typeDecl(type_elem(type), tobj);
+         td->composite.typeDecl.size = td->ElemType->size;
+
+         for (int i = 0; i < td->NumDimensions; i++)
+            APUSH(td->Constraints, &(build_unconstrained()->range.object));
+
+         return &(td->composite.typeDecl);
+      }
 
    case T_RECORD:
       {
@@ -3793,96 +3904,36 @@ static c_typeDecl *build_typeDecl(type_t type, c_vhpiObject *obj)
             new_object(sizeof(c_recordTypeDecl), vhpiRecordTypeDeclK);
          init_compositeTypeDecl(&(td->composite), decl, type);
 
-         int nfields = type_fields(type);
+         APUSH(region->decls.list, &(td->composite.typeDecl.decl.object));
+         hash_put(vhpi_context()->objcache, type, td);
+
+         const int nfields = type_fields(type);
          for (int i = 0; i < nfields; i++) {
             tree_t f = type_field(type, i);
             type_t ft = tree_type(f);
 
             c_elemDecl *ed = new_object(sizeof(c_elemDecl), vhpiElemDeclK);
-            init_elemDecl(ed, f, NULL, td->composite.typeDecl.decl.ImmRegion);
+            init_elemDecl(ed, f, NULL, td);
 
-            c_vhpiObject *fobj = NULL;
-            if (!type_is_unconstrained(ft) && !type_const_bounds(ft)) {
-               // Create a temporary selected name object so we can look
-               // up the element bounds dynamically
-               c_selectedName *sn =
-                  new_object(sizeof(c_selectedName), vhpiSelectedNameK);
-               init_selectedName(sn, obj, ed);
-               fobj = &(sn->prefixedName.name.expr.object);
-
-               // Must set the object type now due to circular references
-               c_objDecl *od = cast_objDecl(obj);
-               assert(od != NULL);
-               od->Type = &(td->composite.typeDecl);
-            }
-
-            ed->Type = cached_typeDecl(ft, fobj);
-
-            td->composite.typeDecl.numElems += ed->Type->numElems;
             APUSH(td->RecordElems, &(ed->decl.object));
+
+            ed->Type = cached_typeDecl(ft, &(ed->decl.object));
+            td->composite.typeDecl.numElems += ed->Type->numElems;
          }
 
          return &(td->composite.typeDecl);
       }
 
    case T_SUBTYPE:
-      if (type_is_array(type))   // TODO: should this return c_subTypeDecl?
-         return build_arrayTypeDecl(type, decl, base, obj, 0);
-      else {
-         c_subTypeDecl *td =
-            new_object(sizeof(c_subTypeDecl), vhpiSubtypeDeclK);
-         init_typeDecl(&(td->typeDecl), decl, type);
-         td->typeDecl.BaseType = cached_typeDecl(type_base_recur(type), NULL);
-         td->isResolved = type_has_resolution(type);
+      {
+         assert(!is_anonymous_subtype(type));
 
-         td->typeDecl.IsScalar = td->typeDecl.BaseType->IsScalar;
-         td->typeDecl.IsComposite = td->typeDecl.BaseType->IsComposite;
+         c_typeDecl *td = build_subTypeDecl(type, decl, NULL);
 
-         c_recordTypeDecl *rtd =
-            is_recordTypeDecl(&(td->typeDecl.BaseType->decl.object));
-         if (rtd != NULL) {
-            for (int i = 0; i < rtd->RecordElems.count; i++) {
-               c_elemDecl *ed = is_elemDecl(rtd->RecordElems.items[i]);
-               assert(ed != NULL);
+         APUSH(region->decls.list, &(td->decl.object));
+         assert(hash_get(vhpi_context()->objcache, type) == td);
 
-               if (ed->Type->IsUnconstrained) {
-                  tree_t cons = type_constraint_for_field(type, ed->decl.tree);
-                  if (cons != NULL) {
-                     c_typeDecl *et = cached_typeDecl(tree_type(cons), NULL);
-                     c_elemDecl *new =
-                        new_object(sizeof(c_elemDecl), vhpiElemDeclK);
-                     init_elemDecl(new, ed->decl.tree, et, ed->decl.ImmRegion);
-
-                     APUSH(td->Constraints, &(new->decl.object));
-                     continue;
-                  }
-               }
-
-               APUSH(td->Constraints, &(ed->decl.object));
-            }
-         }
-
-         if (td->typeDecl.IsScalar && type_constraints(type) > 0) {
-            tree_t c = type_constraint(type, 0);
-            assert(tree_subkind(c) == C_RANGE);
-
-            tree_t r = tree_range(c, 0);
-            type_t rtype = tree_type(r);
-            if (type_is_real(rtype)) {
-               c_floatRange *fr = build_float_range(r);
-               APUSH(td->Constraints, &(fr->range.object));
-            }
-            else if (type_is_physical(rtype)) {
-               c_physRange *pr = build_phys_range(r);
-               APUSH(td->Constraints, &(pr->range.object));
-            }
-            else {
-               c_intRange *ir = build_int_range(r, NULL, 0, NULL);
-               APUSH(td->Constraints, &(ir->range.object));
-            }
-         }
-
-         return &(td->typeDecl);
+         return td;
       }
 
    default:
@@ -3895,12 +3946,22 @@ static c_typeDecl *cached_typeDecl(type_t type, c_vhpiObject *obj)
 {
    hash_t *cache = vhpi_context()->objcache;
    c_typeDecl *d = hash_get(cache, type);
-   if (d == NULL) {
-      d = build_typeDecl(type, obj);
-      hash_put(cache, type, d);
+   if (d != NULL)
+      return d;
+   else if (is_anonymous_subtype(type)) {
+      d = build_anonymousSubTypeDecl(type, obj);
+      assert(hash_get(cache, type) == d);
+      return d;
    }
+   else {
+      c_designUnit *du = cached_designUnit(type_container(type));
+      expand_lazy_list(&(du->region.object), &(du->region.decls));
 
-   return d;
+      if ((d = hash_get(cache, type)) == NULL)
+         fatal_trace("cannot find cached type for %s", type_pp(type));
+
+      return d;
+   }
 }
 
 static c_designUnit *build_designUnit(tree_t t)
@@ -3911,6 +3972,8 @@ static c_designUnit *build_designUnit(tree_t t)
          c_entityDecl *entity =
             new_object(sizeof(c_entityDecl), vhpiEntityDeclK);
          init_entityDecl(entity, t);
+
+         entity->designUnit.region.decls.fn = vhpi_lazy_decls;
 
          return &(entity->designUnit);
       }
@@ -3923,6 +3986,8 @@ static c_designUnit *build_designUnit(tree_t t)
             new_object(sizeof(c_secondaryUnit), vhpiArchBodyK);
          init_secondaryUnit(secondary, t, primary);
 
+         secondary->designUnit.region.decls.fn = vhpi_lazy_decls;
+
          return &(secondary->designUnit);
       }
 
@@ -3930,6 +3995,8 @@ static c_designUnit *build_designUnit(tree_t t)
       {
          c_packDecl *pack = new_object(sizeof(c_packDecl), vhpiPackDeclK);
          init_packDecl(pack, t);
+
+         pack->designUnit.region.decls.fn = vhpi_lazy_decls;
 
          return &(pack->designUnit);
       }
@@ -4073,7 +4140,7 @@ static c_procDecl *build_procDecl(tree_t decl)
 static c_abstractRegion *build_blockStmt(tree_t t, c_abstractRegion *region)
 {
    c_blockStmt *bs = new_object(sizeof(c_blockStmt), vhpiBlockStmtK);
-   init_abstractRegion(&(bs->region), t);
+   init_abstractRegion(&(bs->region), region, t);
    init_stmt(&(bs->stmt), t);
 
    if (tree_decls(t) > 1) {
@@ -4117,7 +4184,7 @@ static c_abstractRegion *build_compInstStmt(tree_t t, tree_t inst,
    }
 
    c_compInstStmt *c = new_object(sizeof(c_compInstStmt), vhpiCompInstStmtK);
-   init_designInstUnit(&(c->designInstUnit), t, du);
+   init_designInstUnit(&(c->designInstUnit), region, t, du);
    init_stmt(&(c->stmt), t);
 
    // Make sure all lookups happen in the implicit inner region
@@ -4131,7 +4198,7 @@ static c_abstractRegion *build_compInstStmt(tree_t t, tree_t inst,
 static c_abstractRegion *build_forGenerate(tree_t t, c_abstractRegion *region)
 {
    c_forGenerate *g = new_object(sizeof(c_forGenerate), vhpiForGenerateK);
-   init_abstractRegion(&(g->region), t);
+   init_abstractRegion(&(g->region), region, t);
    init_stmt(&(g->stmt), t);
 
    assert(tree_generics(t) == 1);
@@ -4146,6 +4213,20 @@ static c_abstractRegion *build_forGenerate(tree_t t, c_abstractRegion *region)
    APUSH(region->stmts.list, &(g->region.object));
 
    return &(g->region);
+}
+
+static void build_packInst(tree_t inst, c_abstractRegion *region)
+{
+   c_designUnit *du = cached_designUnit(tree_ref(inst));
+
+   c_packInst *pi = new_object(sizeof(c_packInst), vhpiPackInstK);
+   init_designInstUnit(&(pi->designInstUnit), region, inst, du);
+   pi->designInstUnit.region.decls.fn = vhpi_lazy_decls;
+
+   // Must expand eagerly otherwise cached_typeDecl cannot find types
+   // declared in this package
+   expand_lazy_list(&(pi->designInstUnit.region.object),
+                    &(pi->designInstUnit.region.decls));
 }
 
 static void vhpi_lazy_selected_names(c_vhpiObject *obj)
@@ -4309,18 +4390,29 @@ static void vhpi_lazy_decls(c_vhpiObject *obj)
    c_abstractRegion *r = is_abstractRegion(obj);
    assert(r != NULL);
 
-   const int ngenerics = tree_generics(r->tree);
-   for (int i = 0; i < ngenerics; i++) {
-      tree_t g = tree_generic(r->tree, i);
-      build_genericDecl(g, i, r);
-   }
-
-   if (obj->kind != vhpiPackInstK) {
-      const int nports = tree_ports(r->tree);
-      for (int i = 0; i < nports; i++) {
-         tree_t p = tree_port(r->tree, i);
-         build_portDecl(p, i, r);
+   switch (obj->kind) {
+   case vhpiRootInstK:
+   case vhpiCompInstStmtK:
+   case vhpiEntityDeclK:
+      {
+         const int nports = tree_ports(r->tree);
+         for (int i = 0; i < nports; i++) {
+            tree_t p = tree_port(r->tree, i);
+            build_portDecl(p, i, r);
+         }
       }
+      // Fall-through
+   case vhpiPackDeclK:
+      {
+         const int ngenerics = tree_generics(r->tree);
+         for (int i = 0; i < ngenerics; i++) {
+            tree_t g = tree_generic(r->tree, i);
+            build_genericDecl(g, i, r);
+         }
+      }
+      break;
+   default:
+      break;
    }
 
    const int ndecls = tree_decls(r->tree);
@@ -4332,6 +4424,13 @@ static void vhpi_lazy_decls(c_vhpiObject *obj)
          break;
       case T_CONST_DECL:
          build_constDecl(d, r);
+         break;
+      case T_TYPE_DECL:
+      case T_SUBTYPE_DECL:
+         build_typeDecl(d, r);
+         break;
+      case T_PACK_INST:
+         build_packInst(d, r);
          break;
       default:
          break;
@@ -4352,26 +4451,22 @@ static void vhpi_build_deps_cb(ident_t name, void *ctx)
    if (unit == NULL)
       return;
    else if (tree_kind(unit) == T_PACKAGE) {
-      c_designUnit *du = cached_designUnit(unit);
+      c_designUnit *pack = cached_designUnit(unit);
+      assert(pack->region.object.kind == vhpiPackDeclK);
 
       c_packInst *pi = new_object(sizeof(c_packInst), vhpiPackInstK);
-      init_designInstUnit(&(pi->designInstUnit), unit, du);
+      init_designInstUnit(&(pi->designInstUnit), NULL, unit, pack);
+
       pi->designInstUnit.region.decls.fn = vhpi_lazy_decls;
 
-      APUSH(vhpi_context()->packages, &(pi->designInstUnit.region.object));
+      vhpi_context_t *c = vhpi_context();
+      assert(hash_get(c->objcache, unit) == pack);
+      hash_put(c->objcache, unit, pi);
+
+      APUSH(c->packages, &(pi->designInstUnit.region.object));
    }
 
    tree_walk_deps(unit, vhpi_build_deps_cb, visited);
-}
-
-static void vhpi_find_packages(vhpi_context_t *c)
-{
-   if (c->packages.count > 0)
-      return;
-
-   hset_t *visited = hset_new(64);
-   tree_walk_deps(c->top, vhpi_build_deps_cb, visited);
-   hset_free(visited);
 }
 
 static void vhpi_run_callbacks(int32_t reason, int32_t rep)
@@ -4430,7 +4525,7 @@ static void vhpi_initialise_cb(rt_model_t *m, void *arg)
    c_designUnit *du = cached_designUnit(s);
 
    c->root = new_object(sizeof(c_rootInst), vhpiRootInstK);
-   init_designInstUnit(&(c->root->designInstUnit), b0, du);
+   init_designInstUnit(&(c->root->designInstUnit), NULL, b0, du);
 
    c_abstractRegion *region = &(c->root->designInstUnit.region);
    region->stmts.fn = vhpi_lazy_stmts;
@@ -4493,6 +4588,10 @@ void vhpi_context_initialise(vhpi_context_t *c, tree_t top, rt_model_t *model,
       arg->StrVal = new_string(argv[i]);
       APUSH(c->tool->argv, &(arg->object));
    }
+
+   hset_t *visited = hset_new(64);
+   tree_walk_deps(c->top, vhpi_build_deps_cb, visited);
+   hset_free(visited);
 
    model_set_global_cb(model, RT_END_OF_INITIALISATION, vhpi_initialise_cb, c);
 

@@ -79,11 +79,83 @@ static void start_of_sim(const vhpiCbDataT *cb_data)
    fail_if(g0y2 == NULL);
 
    value.format = vhpiCharVal;
-   vhpi_get_value(g0y2, &value);
-   check_error();
+   VHPI_CHECK(vhpi_get_value(g0y2, &value));
    vhpi_printf("g0.y(2) value=%c", value.value.ch);
    fail_unless(value.value.ch == 'l');
    fail_unless(value.numElems == 1);
+
+   vhpiHandleT t_sig = VHPI_CHECK(vhpi_handle_by_name("t", root));
+   vhpi_printf("t_sig handle %p", t_sig);
+
+   vhpiHandleT t_base = VHPI_CHECK(vhpi_handle(vhpiBaseType, t_sig));
+   fail_unless(vhpi_get(vhpiKindP, t_base) == vhpiArrayTypeDeclK);
+
+   {
+      vhpiHandleT it = VHPI_CHECK(vhpi_iterator(vhpiConstraints, t_base));
+
+      vhpiHandleT range = VHPI_CHECK(vhpi_scan(it));
+      vhpi_printf("t_base left bound %d", vhpi_get(vhpiLeftBoundP, range));
+      vhpi_printf("t_base right bound %d", vhpi_get(vhpiRightBoundP, range));
+      // XXX: should be undefined/unconstrained!
+      fail_unless(vhpi_get(vhpiLeftBoundP, range) == 1);
+      fail_unless(vhpi_get(vhpiRightBoundP, range) == 3);
+      fail_unless(vhpi_get(vhpiIsUpP, range));
+      vhpi_release_handle(range);
+
+      fail_unless(vhpi_scan(it) == NULL);
+      vhpi_release_handle(it);
+   }
+
+   vhpiHandleT t_elem = VHPI_CHECK(vhpi_handle(vhpiElemType, t_base));
+   // XXX: should be vhpiSubtypeDeclk
+   fail_unless(vhpi_get(vhpiKindP, t_elem) == vhpiArrayTypeDeclK);
+
+   {
+      vhpiHandleT it = VHPI_CHECK(vhpi_iterator(vhpiConstraints, t_elem));
+
+      vhpiHandleT range = VHPI_CHECK(vhpi_scan(it));
+      vhpi_printf("t_elem left bound %d", vhpi_get(vhpiLeftBoundP, range));
+      vhpi_printf("t_elem right bound %d", vhpi_get(vhpiRightBoundP, range));
+      fail_unless(vhpi_get(vhpiLeftBoundP, range) == 7);
+      fail_unless(vhpi_get(vhpiRightBoundP, range) == 0);
+      fail_if(vhpi_get(vhpiIsUpP, range));
+      vhpi_release_handle(range);
+
+      fail_unless(vhpi_scan(it) == NULL);
+      vhpi_release_handle(it);
+   }
+
+   vhpi_release_handle(t_elem);
+   vhpi_release_handle(t_base);
+   vhpi_release_handle(t_sig);
+
+   vhpiHandleT u_sig = VHPI_CHECK(vhpi_handle_by_name("u", root));
+   vhpi_printf("u_sig handle %p", u_sig);
+
+   vhpiHandleT u_base = VHPI_CHECK(vhpi_handle(vhpiBaseType, u_sig));
+   fail_unless(vhpi_get(vhpiKindP, u_base) == vhpiArrayTypeDeclK);
+
+   vhpiHandleT u_elem = VHPI_CHECK(vhpi_handle(vhpiElemType, u_base));
+   fail_unless(vhpi_get(vhpiKindP, u_elem) == vhpiSubtypeDeclK);
+
+   {
+      vhpiHandleT it = VHPI_CHECK(vhpi_iterator(vhpiConstraints, u_elem));
+
+      vhpiHandleT range = VHPI_CHECK(vhpi_scan(it));
+      vhpi_printf("u_elem left bound %d", vhpi_get(vhpiLeftBoundP, range));
+      vhpi_printf("u_elem right bound %d", vhpi_get(vhpiRightBoundP, range));
+      fail_unless(vhpi_get(vhpiLeftBoundP, range) == 3);
+      fail_unless(vhpi_get(vhpiRightBoundP, range) == 0);
+      fail_if(vhpi_get(vhpiIsUpP, range));
+      vhpi_release_handle(range);
+
+      fail_unless(vhpi_scan(it) == NULL);
+      vhpi_release_handle(it);
+   }
+
+   vhpi_release_handle(u_elem);
+   vhpi_release_handle(u_base);
+   vhpi_release_handle(u_sig);
 
    vhpi_release_handle(handle_sos);
 }
