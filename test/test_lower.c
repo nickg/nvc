@@ -5878,6 +5878,39 @@ START_TEST(test_subtype2)
    run_elab();
 
    {
+      vcode_unit_t vu = find_unit("WORK.PACK2");
+      vcode_select_unit(vu);
+
+      EXPECT_BB(0) = {
+         { VCODE_OP_PACKAGE_INIT, .name = "STD.STANDARD" },
+         { VCODE_OP_PACKAGE_INIT, .name = "WORK.PACK1" },
+         { VCODE_OP_NULL },
+         { VCODE_OP_CONST, .value = 1 },
+         { VCODE_OP_CONST, .value = 5 },
+         { VCODE_OP_FCALL, .func = "WORK.PACK1.EXPENSIVE(I)I" },
+         { VCODE_OP_CONST, .value = 0 },
+         { VCODE_OP_WRAP },
+         { VCODE_OP_STORE, .name = "WORK.PACK2.T_SUB1" },
+         { VCODE_OP_INDEX, .name = "WORK.PACK2.T_REC" },
+         { VCODE_OP_RECORD_REF, .field = 0 },
+         { VCODE_OP_RANGE_LENGTH },
+         { VCODE_OP_ALLOC },
+         { VCODE_OP_MEMSET },
+         { VCODE_OP_FCALL, .func = "WORK.PACK1.EXPENSIVE(I)I" },
+         { VCODE_OP_WRAP },
+         { VCODE_OP_STORE_INDIRECT },
+         { VCODE_OP_CONST, .value = 0 },
+         { VCODE_OP_FCALL, .func = "WORK.PACK1.EXPENSIVE(I)I" },
+         { VCODE_OP_NULL },
+         { VCODE_OP_WRAP },
+         { VCODE_OP_STORE, .name = "WORK.PACK2.T_INTEGER" },
+         { VCODE_OP_RETURN },
+      };
+
+      CHECK_BB(0);
+   }
+
+   {
       vcode_unit_t vu = find_unit("WORK.SUBTYPE2.B1");
       vcode_select_unit(vu);
 

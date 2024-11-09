@@ -258,9 +258,7 @@ static bool needs_bounds_var(type_t type)
 {
    // A constrained array subtype with non-constant bounds should have
    // its bounds evaluated once and stored in a variable
-   if (type_is_record(type))
-      return false;   // TODO
-   else if (type_is_unconstrained(type))
+   if (type_is_unconstrained(type))
       return false;
    else
       return !type_const_bounds(type);
@@ -9713,6 +9711,18 @@ static void lower_type_bounds_var(lower_unit_t *lu, type_t type)
       vcode_reg_t null_reg = emit_null(vtype_pointer(velem));
       vcode_reg_t wrap_reg = emit_wrap(null_reg, dims, 1);
       emit_store(wrap_reg, var);
+
+      lower_put_vcode_obj(type, var, lu);
+   }
+   else if (type_is_record(type)) {
+      vcode_type_t vtype = lower_type(type);
+      assert(vtype_kind(vtype) == VCODE_TYPE_RECORD);
+
+      vcode_var_t var = emit_var(vtype, vtype, type_ident(type), VAR_CONST);
+
+      vcode_reg_t ptr_reg = emit_index(var, VCODE_INVALID_REG);
+      vcode_reg_t value_reg = lower_default_value(lu, type, ptr_reg);
+      lower_copy_record(lu, type, ptr_reg, value_reg, VCODE_INVALID_REG);
 
       lower_put_vcode_obj(type, var, lu);
    }
