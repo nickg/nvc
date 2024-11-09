@@ -138,7 +138,7 @@ typedef enum {
    VCODE_OP_ZERO_CHECK,
    VCODE_OP_MAP_CONST,
    VCODE_OP_RESOLVE_SIGNAL,
-   VCODE_OP_PUSH_SCOPE,
+   VCODE_OP_PACKAGE_SCOPE,
    VCODE_OP_POP_SCOPE,
    VCODE_OP_ALIAS_SIGNAL,
    VCODE_OP_TRAP_ADD,
@@ -168,6 +168,8 @@ typedef enum {
    VCODE_OP_DEPOSIT_SIGNAL,
    VCODE_OP_MAP_IMPLICIT,
    VCODE_OP_BIND_EXTERNAL,
+   VCODE_OP_ARRAY_SCOPE,
+   VCODE_OP_RECORD_SCOPE,
 } vcode_op_t;
 
 typedef enum {
@@ -506,7 +508,9 @@ vcode_reg_t emit_package_init(ident_t name, vcode_reg_t context);
 void emit_protected_free(vcode_reg_t obj);
 vcode_reg_t emit_context_upref(int hops);
 vcode_reg_t emit_debug_locus(ident_t unit, ptrdiff_t offset);
-void emit_push_scope(vcode_reg_t locus, vcode_type_t type);
+void emit_package_scope(vcode_reg_t locus);
+void emit_array_scope(vcode_reg_t locus, vcode_type_t type);
+void emit_record_scope(vcode_reg_t locus, vcode_type_t type);
 void emit_pop_scope(void);
 void emit_alias_signal(vcode_reg_t signal, vcode_reg_t locus);
 void emit_unreachable(vcode_reg_t locus);

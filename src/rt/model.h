@@ -60,6 +60,7 @@ rt_scope_t *child_scope(rt_scope_t *scope, tree_t decl);
 rt_scope_t *child_scope_at(rt_scope_t *scope, int index);
 rt_signal_t *find_signal(rt_scope_t *scope, tree_t decl);
 rt_proc_t *find_proc(rt_scope_t *scope, tree_t proc);
+bool is_signal_scope(rt_scope_t *scope);
 
 const void *signal_value(rt_signal_t *s);
 const void *signal_last_value(rt_signal_t *s);

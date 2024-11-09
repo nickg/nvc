@@ -222,13 +222,6 @@ typedef struct _rt_signal {
 
 STATIC_ASSERT(sizeof(rt_signal_t) + 8 <= 192);
 
-typedef enum {
-   SCOPE_ROOT,
-   SCOPE_INSTANCE,
-   SCOPE_PACKAGE,
-   SCOPE_SIGNAL,
-} rt_scope_kind_t;
-
 typedef struct _rt_implicit {
    rt_wakeable_t wakeable;
    ffi_closure_t closure;

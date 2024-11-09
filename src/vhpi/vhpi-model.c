@@ -1730,7 +1730,7 @@ static void vhpi_get_uarray(c_vhpiObject *obj, void **ptr, ffi_dim_t **dims)
 
 static int vhpi_count_subsignals(rt_model_t *m, rt_scope_t *s)
 {
-   assert(s->kind == SCOPE_SIGNAL);
+   assert(is_signal_scope(s));
 
    int count = s->signals.count;
    for (int i = 0; i < s->children.count; i++)
@@ -1741,7 +1741,7 @@ static int vhpi_count_subsignals(rt_model_t *m, rt_scope_t *s)
 
 static void vhpi_watch_scope(rt_model_t *m, rt_scope_t *s, rt_watch_t *w)
 {
-   assert(s->kind == SCOPE_SIGNAL);
+   assert(is_signal_scope(s));
 
    for (int i = 0; i < s->signals.count; i++)
       model_set_event_cb(m, s->signals.items[i], w);

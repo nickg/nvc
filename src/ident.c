@@ -431,6 +431,31 @@ ident_t ident_uniq(const char *prefix)
    }
 }
 
+ident_t ident_sprintf(const char *fmt, ...)
+{
+   va_list ap, ap2;
+   va_start(ap, fmt);
+   va_copy(ap2, ap);
+
+   static char buf[64];
+   size_t req = vsnprintf(buf, sizeof(buf), fmt, ap);
+
+   ident_t result;
+   if (req + 1 > sizeof(buf)) {
+      char *buf2 = xmalloc(req + 1);
+      vsnprintf(buf2, req + 1, fmt, ap2);
+      result = ident_new(buf2);
+      free(buf2);
+   }
+   else
+      result = ident_new(buf);
+
+   va_end(ap);
+   va_end(ap2);
+
+   return result;
+}
+
 ident_t ident_prefix(ident_t a, ident_t b, char sep)
 {
    if (a == NULL)

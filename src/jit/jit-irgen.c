@@ -24,6 +24,7 @@
 #include "lib.h"
 #include "mask.h"
 #include "option.h"
+#include "rt/rt.h"
 #include "tree.h"
 #include "vcode.h"
 
@@ -3008,10 +3009,32 @@ static void irgen_op_push_scope(jit_irgen_t *g, int op)
 {
    jit_value_t locus = irgen_get_arg(g, op, 0);
    j_send(g, 0, locus);
+   j_send(g, 2, jit_value_from_int64(0));
+   j_send(g, 2, jit_value_from_int64(SCOPE_PACKAGE));
 
-   vcode_type_t type = vcode_get_type(op);
-   const int size = type == VCODE_INVALID_TYPE ? 0 : irgen_size_bytes(type);
+   macro_exit(g, JIT_EXIT_PUSH_SCOPE);
+}
+
+static void irgen_op_array_scope(jit_irgen_t *g, int op)
+{
+   jit_value_t locus = irgen_get_arg(g, op, 0);
+   j_send(g, 0, locus);
+
+   const int size = irgen_size_bytes(vcode_get_type(op));
    j_send(g, 1, jit_value_from_int64(size));
+   j_send(g, 2, jit_value_from_int64(SCOPE_ARRAY));
+
+   macro_exit(g, JIT_EXIT_PUSH_SCOPE);
+}
+
+static void irgen_op_record_scope(jit_irgen_t *g, int op)
+{
+   jit_value_t locus = irgen_get_arg(g, op, 0);
+   j_send(g, 0, locus);
+
+   const int size = irgen_size_bytes(vcode_get_type(op));
+   j_send(g, 1, jit_value_from_int64(size));
+   j_send(g, 2, jit_value_from_int64(SCOPE_RECORD));
 
    macro_exit(g, JIT_EXIT_PUSH_SCOPE);
 }
@@ -3846,8 +3869,14 @@ static void irgen_block(jit_irgen_t *g, vcode_block_t block)
       case VCODE_OP_FILE_WRITE:
          irgen_op_file_write(g, i);
          break;
-      case VCODE_OP_PUSH_SCOPE:
+      case VCODE_OP_PACKAGE_SCOPE:
          irgen_op_push_scope(g, i);
+         break;
+      case VCODE_OP_ARRAY_SCOPE:
+         irgen_op_array_scope(g, i);
+         break;
+      case VCODE_OP_RECORD_SCOPE:
+         irgen_op_record_scope(g, i);
          break;
       case VCODE_OP_POP_SCOPE:
          irgen_op_pop_scope(g, i);

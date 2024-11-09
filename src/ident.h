@@ -26,6 +26,9 @@ ident_t ident_new(const char *str);
 // Generate a unique identifier with the given prefix.
 ident_t ident_uniq(const char *prefix);
 
+ident_t ident_sprintf(const char *fmt, ...)
+   __attribute__((format(printf, 1, 2)));
+
 // Create a new identifier which is a prepended to b separated
 // by a dot.
 ident_t ident_prefix(ident_t a, ident_t b, char sep);

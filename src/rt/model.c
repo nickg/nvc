@@ -248,7 +248,7 @@ static const char *trace_nexus(rt_nexus_t *n)
 
    tb_rewind(tb);
 
-   if (n->signal->parent->kind == SCOPE_SIGNAL)
+   if (is_signal_scope(n->signal->parent))
       tb_printf(tb, "%s.", istr(n->signal->parent->name));
 
    tb_istr(tb, tree_ident(n->signal->where));
@@ -765,6 +765,11 @@ void model_free(rt_model_t *m)
    free(m);
 }
 
+bool is_signal_scope(rt_scope_t *s)
+{
+   return s->kind == SCOPE_RECORD || s->kind == SCOPE_ARRAY;
+}
+
 rt_signal_t *find_signal(rt_scope_t *scope, tree_t decl)
 {
    for (int i = 0; i < scope->signals.count; i++) {
@@ -1252,9 +1257,9 @@ static void check_multiple_sources(rt_nexus_t *n, source_kind_t kind)
       return;
 
    diag_t *d;
-   if (n->signal->parent->kind == SCOPE_SIGNAL) {
+   if (is_signal_scope(n->signal->parent)) {
       rt_scope_t *root = n->signal->parent;
-      for (; root->parent->kind == SCOPE_SIGNAL; root = root->parent);
+      for (; is_signal_scope(root->parent); root = root->parent);
 
       d = diag_new(DIAG_FATAL, tree_loc(root->where));
       diag_printf(d, "element %s of signal %s has multiple sources",
@@ -1282,9 +1287,8 @@ static void check_multiple_sources(rt_nexus_t *n, source_kind_t kind)
    else if (n->sources.tag == SOURCE_PORT) {
       const rt_signal_t *s = n->sources.u.port.input->signal;
       tree_t where = s->where;
-      if (s->parent->kind == SCOPE_SIGNAL) {
-         for (rt_scope_t *it = s->parent; it->kind == SCOPE_SIGNAL;
-              it = it->parent)
+      if (is_signal_scope(s->parent)) {
+         for (rt_scope_t *it = s->parent; is_signal_scope(it); it = it->parent)
             where = it->where;
       }
 
@@ -1776,7 +1780,7 @@ static void setup_signal(rt_model_t *m, rt_signal_t *s, tree_t where,
 
 static void copy_sub_signal_sources(rt_scope_t *scope, void *buf, int stride)
 {
-   assert(scope->kind == SCOPE_SIGNAL);
+   assert(is_signal_scope(scope));
 
    for (int i = 0; i < scope->signals.count; i++) {
       rt_signal_t *s = scope->signals.items[i];
@@ -1929,7 +1933,7 @@ static void *call_resolution(rt_nexus_t *nexus, res_memo_t *r, int nonnull,
       // Call resolution function of composite type
 
       rt_scope_t *scope = nexus->signal->parent, *rscope = scope;
-      while (scope->parent->kind == SCOPE_SIGNAL) {
+      while (is_signal_scope(scope->parent)) {
          scope = scope->parent;
          if (scope->flags & SCOPE_F_RESOLVED)
             rscope = scope;
@@ -2245,7 +2249,7 @@ static void dump_one_signal(rt_model_t *m, rt_scope_t *scope, rt_signal_t *s,
    rt_nexus_t *n = &(s->nexus);
 
    LOCAL_TEXT_BUF tb = tb_new();
-   if (scope->kind == SCOPE_SIGNAL)
+   if (is_signal_scope(scope))
       tb_printf(tb, "%s.", istr(scope->name));
    tb_cat(tb, istr(tree_ident(alias ?: s->where)));
    if (alias != NULL)
@@ -2281,7 +2285,7 @@ static void dump_signals(rt_model_t *m, rt_scope_t *scope)
    if (scope->signals.count == 0 && scope->children.count == 0)
       return;
 
-   if (scope->kind != SCOPE_SIGNAL && scope->kind != SCOPE_ROOT) {
+   if (!is_signal_scope(scope)) {
       const char *sname = istr(scope->name);
       fprintf(stderr, "== %s ", sname);
       for (int pad = 74 - strlen(sname); pad > 0; pad--)
@@ -2300,13 +2304,13 @@ static void dump_signals(rt_model_t *m, rt_scope_t *scope)
 
    for (int i = 0; i < scope->children.count; i++) {
       rt_scope_t *c = scope->children.items[i];
-      if (c->kind == SCOPE_SIGNAL)
+      if (is_signal_scope(c))
          dump_signals(m, c);
    }
 
    for (int i = 0; i < scope->children.count; i++) {
       rt_scope_t *c = scope->children.items[i];
-      if (c->kind != SCOPE_SIGNAL)
+      if (!is_signal_scope(c))
          dump_signals(m, c);
    }
 }
@@ -2315,7 +2319,7 @@ static void dump_signals(rt_model_t *m, rt_scope_t *scope)
 static text_buf_t *signal_full_name(rt_signal_t *s)
 {
    text_buf_t *tb = tb_new();
-   if (s->parent->kind == SCOPE_SIGNAL)
+   if (is_signal_scope(s->parent))
       tb_printf(tb, "%s.", istr(s->parent->name));
    tb_cat(tb, istr(tree_ident(s->where)));
    return tb;
@@ -2352,12 +2356,12 @@ static void check_undriven_std_logic(rt_nexus_t *n)
 
    const loc_t *sig_loc = tree_loc(n->signal->where);
    rt_scope_t *sig_scope = n->signal->parent;
-   for (; sig_scope->kind == SCOPE_SIGNAL; sig_scope = sig_scope->parent)
+   for (; is_signal_scope(sig_scope); sig_scope = sig_scope->parent)
       sig_loc = tree_loc(sig_scope->where);
 
    const loc_t *port_loc = tree_loc(undriven->where);
    rt_scope_t *port_scope = undriven->parent;
-   for (; port_scope->kind == SCOPE_SIGNAL; port_scope = port_scope->parent)
+   for (; is_signal_scope(port_scope); port_scope = port_scope->parent)
       port_loc = tree_loc(port_scope->where);
 
    diag_t *d = diag_new(DIAG_WARN, sig_loc);
@@ -4196,27 +4200,33 @@ void x_map_implicit(sig_shared_t *src_ss, uint32_t src_offset,
    }
 }
 
-void x_push_scope(tree_t where, int32_t size)
+void x_push_scope(tree_t where, int32_t size, rt_scope_kind_t kind)
 {
-   TRACE("push scope %s size=%d", istr(tree_ident(where)), size);
+   TRACE("push scope %s size=%d kind=%d", istr(tree_ident(where)), size, kind);
 
    rt_model_t *m = get_model();
    model_thread_t *thread = model_thread(m);
 
-   ident_t name = tree_ident(where);
-   if (thread->active_scope->kind == SCOPE_SIGNAL)
-      name = ident_prefix(thread->active_scope->name, name, '.');
+   ident_t name;
+   if (thread->active_scope->kind == SCOPE_ARRAY)
+      name = ident_sprintf("%s(%d)", istr(thread->active_scope->name),
+                           thread->active_scope->children.count);
+   else if (thread->active_scope->kind == SCOPE_RECORD)
+      name = ident_prefix(thread->active_scope->name, tree_ident(where), '.');
+   else
+      name = tree_ident(where);
 
    rt_scope_t *s = xcalloc(sizeof(rt_scope_t));
    s->where    = where;
    s->name     = name;
-   s->kind     = is_package(where) ? SCOPE_PACKAGE : SCOPE_SIGNAL;
+   s->kind     = kind;
    s->parent   = thread->active_scope;
    s->size     = size;
    s->privdata = MPTR_INVALID;
 
-   if (s->kind == SCOPE_SIGNAL) {
+   if (kind != SCOPE_PACKAGE) {
       type_t type = tree_type(where);
+      assert(type_is_composite(type));
       if (type_kind(type) == T_SUBTYPE && type_has_resolution(type))
          s->flags |= SCOPE_F_RESOLVED;
    }

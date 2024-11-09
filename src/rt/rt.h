@@ -89,6 +89,14 @@ typedef enum {
    RT_LAST_EVENT
 } rt_event_t;
 
+typedef enum {
+   SCOPE_ROOT,
+   SCOPE_INSTANCE,
+   SCOPE_PACKAGE,
+   SCOPE_ARRAY,
+   SCOPE_RECORD,
+} rt_scope_kind_t;
+
 typedef uint16_t delta_cycle_t;
 #define DELTA_CYCLE_MAX UINT16_MAX
 

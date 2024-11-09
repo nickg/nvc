@@ -675,10 +675,11 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
          if (!jit_has_runtime(thread->jit))
             return;   // Called during constant folding
 
-         tree_t  where = args[0].pointer;
-         int32_t size  = args[1].integer;
+         tree_t          where = args[0].pointer;
+         int32_t         size  = args[1].integer;
+         rt_scope_kind_t kind  = args[2].integer;
 
-         x_push_scope(where, size);
+         x_push_scope(where, size, kind);
       }
       break;
 

@@ -372,6 +372,21 @@ START_TEST(test_pos)
 }
 END_TEST
 
+START_TEST(test_sprintf)
+{
+   ident_t i1 = ident_sprintf("hello %d world", 42);
+   ck_assert_ptr_eq(i1, ident_new("hello 42 world"));
+
+   char buf[256];    // Test overflow code path
+   for (int i = 0; i < sizeof(buf) - 2; i++)
+      buf[i] = 'a' + i % 26;
+   buf[sizeof(buf) - 1] = '\0';
+
+   ident_t i2 = ident_sprintf("%s", buf);
+   ck_assert_ptr_eq(i2, ident_new(buf));
+}
+END_TEST
+
 Suite *get_ident_tests(void)
 {
    Suite *s = suite_create("ident");
@@ -398,6 +413,7 @@ Suite *get_ident_tests(void)
    tcase_add_test(tc_core, test_distance);
    tcase_add_test(tc_core, test_uniq);
    tcase_add_test(tc_core, test_pos);
+   tcase_add_test(tc_core, test_sprintf);
    suite_add_tcase(s, tc_core);
 
    return s;

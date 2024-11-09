@@ -21,6 +21,7 @@
 #include "prim.h"
 #include "jit/jit.h"
 #include "jit/jit-ffi.h"
+#include "rt/rt.h"
 
 #define WEAK __attribute__((weak))
 
@@ -68,7 +69,7 @@ void x_map_const(sig_shared_t *ss, uint32_t offset,
 void x_map_implicit(sig_shared_t *src_ss, uint32_t src_offset,
                     sig_shared_t *dst_ss, uint32_t dst_offset,
                     uint32_t count);
-void x_push_scope(tree_t where, int32_t size);
+void x_push_scope(tree_t where, int32_t size, rt_scope_kind_t kind);
 void x_pop_scope(void);
 bool x_driving(sig_shared_t *ss, uint32_t offset, int32_t count);
 void *x_driving_value(sig_shared_t *ss, uint32_t offset, int32_t count);

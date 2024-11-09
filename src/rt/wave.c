@@ -479,7 +479,7 @@ static fst_type_t *fst_type_for(wave_dumper_t *wd, type_t type,
 static void *fst_get_ptr(wave_dumper_t *wd, rt_scope_t *scope, tree_t where)
 {
    if (tree_kind(where) == T_FIELD_DECL) {
-      assert(scope->kind == SCOPE_SIGNAL);
+      assert(is_signal_scope(scope));
 
       type_t rtype = tree_type(scope->where);
 
@@ -496,7 +496,7 @@ static void *fst_get_ptr(wave_dumper_t *wd, rt_scope_t *scope, tree_t where)
          return fst_get_ptr(wd, scope->parent, scope->where) + offset;
       }
    }
-   else if (scope->kind == SCOPE_SIGNAL) {
+   else if (scope->kind == SCOPE_ARRAY) {
       // Record nested inside array
       assert(type_is_array(tree_type(scope->where)));
       ffi_uarray_t *u = fst_get_ptr(wd, scope->parent, scope->where);
@@ -710,7 +710,7 @@ static void gtkw_print_scope_comment(gtkw_writer_t *gtkw, rt_scope_t *scope,
    }
 
    if (leaf)
-      fprintf(gtkw->file, "%c\n", kind == SCOPE_SIGNAL ? ':' : '/');
+      fprintf(gtkw->file, "%c\n", is_signal_scope(scope) ? ':' : '/');
 
    gtkw->end_of_record = false;
 }
@@ -730,7 +730,7 @@ static void fst_create_record_var(wave_dumper_t *wd, tree_t d,
    if (wd->gtkw != NULL) {
       hlen = tb_len(wd->gtkw->hier);
       tb_printf(wd->gtkw->hier, ".%s", tb_get(tb));
-      gtkw_print_scope_comment(wd->gtkw, scope, SCOPE_SIGNAL, tb, true);
+      gtkw_print_scope_comment(wd->gtkw, scope, scope->kind, tb, true);
    }
 
    const int nfields = type_fields(type);

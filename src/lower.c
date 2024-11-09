@@ -7726,7 +7726,7 @@ static void lower_sub_signals(lower_unit_t *lu, type_t type, type_t var_type,
       }
 
       if (has_scope)
-         emit_push_scope(locus, lower_type(type));
+         emit_array_scope(locus, lower_type(type));
 
       well_known_t wk = is_well_known(type_ident(type_base_recur(type)));
       if (wk == W_IEEE_ULOGIC_VECTOR || wk == W_IEEE_LOGIC_VECTOR)
@@ -7793,7 +7793,7 @@ static void lower_sub_signals(lower_unit_t *lu, type_t type, type_t var_type,
       vcode_var_t i_var = lower_temp_var(lu, "i", voffset, voffset);
       emit_store(emit_const(voffset, 0), i_var);
 
-      emit_push_scope(locus, lower_type(type));
+      emit_array_scope(locus, lower_type(type));
 
       vcode_block_t cmp_bb  = emit_block();
       vcode_block_t body_bb = emit_block();
@@ -7834,7 +7834,7 @@ static void lower_sub_signals(lower_unit_t *lu, type_t type, type_t var_type,
    }
    else if (type_is_record(type)) {
       vcode_type_t vtype = lower_type(type);
-      emit_push_scope(lower_debug_locus(where), vtype);
+      emit_record_scope(lower_debug_locus(where), vtype);
 
       if (null_reg == VCODE_INVALID_REG)
          null_reg = emit_null(vtype_pointer(vtype));
@@ -12777,7 +12777,7 @@ static bool lower_push_package_scope(tree_t pack)
       tree_t d = tree_decl(pack, i);
       if (tree_kind(d) == T_SIGNAL_DECL) {
          vcode_reg_t locus = lower_debug_locus(pack);
-         emit_push_scope(locus, VCODE_INVALID_TYPE);
+         emit_package_scope(locus);
          return true;
       }
    }

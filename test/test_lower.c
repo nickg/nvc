@@ -247,7 +247,7 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
       case VCODE_OP_TRAP_MUL:
       case VCODE_OP_TRAP_NEG:
       case VCODE_OP_TRAP_EXP:
-      case VCODE_OP_PUSH_SCOPE:
+      case VCODE_OP_PACKAGE_SCOPE:
       case VCODE_OP_POP_SCOPE:
       case VCODE_OP_ADD_TRIGGER:
       case VCODE_OP_OR_TRIGGER:
@@ -2625,7 +2625,7 @@ START_TEST(test_tag)
       EXPECT_BB(0) = {
          { VCODE_OP_PACKAGE_INIT, .name = "STD.STANDARD" },
          { VCODE_OP_DEBUG_LOCUS },
-         { VCODE_OP_PUSH_SCOPE },
+         { VCODE_OP_PACKAGE_SCOPE },
          { VCODE_OP_CONST, .value = 1 },
          { VCODE_OP_DEBUG_LOCUS },
          { VCODE_OP_CONST, .value = 0 },

@@ -200,9 +200,8 @@ static bool is_constant_input(rt_signal_t *s)
 
    if (kind == T_FIELD_DECL) {
       rt_scope_t *sc = s->parent;
-      while (sc->parent->kind == SCOPE_SIGNAL) {
+      while (is_signal_scope(sc))
          sc = sc->parent;
-      }
       decl = sc->where;
    }
 
