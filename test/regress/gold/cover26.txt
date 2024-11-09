@@ -1,4 +1,4 @@
-** Note: Code coverage report folder: html.
+** Note: Code coverage report folder: ./html.
 ** Note: Code coverage report contains: covered, uncovered, excluded coverage details.
 ** Note: code coverage results for: WORK.COVER26
 ** Note:      statement:     100.0 % (4/4)
