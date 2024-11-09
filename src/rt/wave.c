@@ -478,27 +478,20 @@ static fst_type_t *fst_type_for(wave_dumper_t *wd, type_t type,
 
 static void *fst_get_ptr(wave_dumper_t *wd, rt_scope_t *scope, tree_t where)
 {
-   if (tree_kind(where) == T_FIELD_DECL) {
-      assert(is_signal_scope(scope));
+   if (scope->kind == SCOPE_RECORD) {
+      type_t rtype = type_elem_recur(tree_type(scope->where));
+      assert(type_is_record(rtype));
+      assert(type_field(rtype, tree_pos(where)) == where);
 
-      type_t rtype = tree_type(scope->where);
+      const jit_layout_t *l = signal_layout_of(rtype);
+      assert(l->nparts == type_fields(rtype));
 
-      if (type_is_array(rtype))
-         return fst_get_ptr(wd, scope->parent, scope->where);
-      else {
-         assert(type_is_record(rtype));
-         assert(type_field(rtype, tree_pos(where)) == where);
+      const ptrdiff_t offset = l->parts[tree_pos(where)].offset;
 
-         const jit_layout_t *l = signal_layout_of(rtype);
-         assert(l->nparts == type_fields(rtype));
-
-         const ptrdiff_t offset = l->parts[tree_pos(where)].offset;
-         return fst_get_ptr(wd, scope->parent, scope->where) + offset;
-      }
+      return fst_get_ptr(wd, scope->parent, scope->where) + offset;
    }
    else if (scope->kind == SCOPE_ARRAY) {
       // Record nested inside array
-      assert(type_is_array(tree_type(scope->where)));
       ffi_uarray_t *u = fst_get_ptr(wd, scope->parent, scope->where);
       return u->ptr;
    }
@@ -524,13 +517,18 @@ static void fst_get_array_range(wave_dumper_t *wd, type_t type,
       }
    }
 
-   const ptrdiff_t slots = type_is_homogeneous(type) ? 2 : 1;
-   ffi_dim_t *dims = fst_get_ptr(wd, scope, where) + slots * sizeof(int64_t);
+   const jit_layout_t *l = signal_layout_of(type);
+   assert(l->parts[l->nparts - 1].class == LC_BOUNDS);
+
+   void *base = fst_get_ptr(wd, scope, where);
+   ffi_dim_t *dims = base + l->parts[l->nparts - 1].offset;
 
    *left   = dims[dim].left;
    *right  = ffi_array_right(dims[dim].left, dims[dim].length);
    *dir    = ffi_array_dir(dims[dim].length);
    *length = ffi_array_length(dims[dim].length);
+
+   assert(*length >= 0 && *length < UINT32_MAX);
 }
 
 static fstHandle fst_create_handle(wave_dumper_t *wd, fst_data_t *data,
