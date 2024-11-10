@@ -1,6 +1,6 @@
 package pack is
     type t_rec is record
-        x : integer;
+        x : natural;
         y : string;
     end record;
 

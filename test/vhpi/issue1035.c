@@ -35,7 +35,14 @@ static void check_record(vhpiHandleT uRec, const char *prefix)
       char buf[32];
       snprintf(buf, sizeof(buf), "%s.%s", prefix, expect[i].name);
       fail_unless(strcmp((const char *)vhpi_get_str(vhpiNameP, e), buf) == 0);
-     fail_unless(vhpi_get(vhpiSizeP, e) == expect[i].size);
+      fail_unless(vhpi_get(vhpiSizeP, e) == expect[i].size);
+
+      vhpiHandleT typ = VHPI_CHECK(vhpi_handle(vhpiType, e));
+      vhpiHandleT base = VHPI_CHECK(vhpi_handle(vhpiBaseType, e));
+      fail_unless(vhpi_compare_handles(typ, base));
+
+      vhpi_release_handle(typ);
+      vhpi_release_handle(base);
 
       vhpi_release_handle(e);
    }

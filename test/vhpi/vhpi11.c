@@ -84,6 +84,50 @@ static void start_of_sim(const vhpiCbDataT *cb_data)
    fail_unless(value.value.ch == 'l');
    fail_unless(value.numElems == 1);
 
+   vhpiHandleT s_sig = VHPI_CHECK(vhpi_handle_by_name("s", root));
+   vhpi_printf("s_sig handle %p", s_sig);
+
+   vhpiHandleT s_type = VHPI_CHECK(vhpi_handle(vhpiBaseType, s_sig));
+   fail_unless(vhpi_get(vhpiKindP, s_type) == vhpiRecordTypeDeclK);
+
+   {
+      vhpiHandleT it = VHPI_CHECK(vhpi_iterator(vhpiRecordElems, s_type));
+
+      vhpiHandleT x_elem = VHPI_CHECK(vhpi_scan(it));
+      fail_if(x_elem == NULL);
+      fail_unless(vhpi_get(vhpiKindP, x_elem) == vhpiElemDeclK);
+      fail_unless(strcmp((char *)vhpi_get_str(vhpiNameP, x_elem), "X") == 0);
+      fail_unless(vhpi_get(vhpiPositionP, x_elem) == 0);
+
+      vhpiHandleT x_type = VHPI_CHECK(vhpi_handle(vhpiType, x_elem));
+      fail_unless(vhpi_get(vhpiKindP, x_type) == vhpiSubtypeDeclK);
+
+      vhpiHandleT x_base = VHPI_CHECK(vhpi_handle(vhpiBaseType, x_elem));
+      fail_unless(vhpi_get(vhpiKindP, x_base) == vhpiIntTypeDeclK);
+
+      fail_if(vhpi_compare_handles(x_type, x_base));
+
+      vhpiHandleT y_elem = VHPI_CHECK(vhpi_scan(it));
+      fail_if(y_elem == NULL);
+      fail_unless(vhpi_get(vhpiKindP, y_elem) == vhpiElemDeclK);
+      fail_unless(strcmp((char *)vhpi_get_str(vhpiNameP, y_elem), "Y") == 0);
+      fail_unless(vhpi_get(vhpiPositionP, y_elem) == 1);
+
+      vhpiHandleT y_type = VHPI_CHECK(vhpi_handle(vhpiType, y_elem));
+      fail_unless(vhpi_get(vhpiKindP, y_type) == vhpiArrayTypeDeclK);
+
+      vhpiHandleT y_base = VHPI_CHECK(vhpi_handle(vhpiBaseType, y_elem));
+      fail_unless(vhpi_get(vhpiKindP, y_base) == vhpiArrayTypeDeclK);
+
+      fail_unless(vhpi_compare_handles(y_type, y_base));
+
+      fail_unless(vhpi_scan(it) == NULL);
+      vhpi_release_handle(it);
+   }
+
+   vhpi_release_handle(s_type);
+   vhpi_release_handle(s_sig);
+
    vhpiHandleT t_sig = VHPI_CHECK(vhpi_handle_by_name("t", root));
    vhpi_printf("t_sig handle %p", t_sig);
 

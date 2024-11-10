@@ -2133,6 +2133,12 @@ vhpiHandleT vhpi_handle(vhpiOneToOneT type, vhpiHandleT referenceHandle)
             return handle_for(&(td->decl.object));
          }
 
+         c_objDecl *od = is_objDecl(obj);
+         if (od != NULL) {
+            td = od->Type->BaseType ?: od->Type;
+            return handle_for(&(td->decl.object));
+         }
+
          c_expr *e = is_expr(obj);
          if (e != NULL) {
             td = e->Type->BaseType ?: e->Type;
@@ -2145,22 +2151,31 @@ vhpiHandleT vhpi_handle(vhpiOneToOneT type, vhpiHandleT referenceHandle)
                &(el->Type->scalar.typeDecl);
             return handle_for(&(td->decl.object));
          }
+
+         c_elemDecl *ed = is_elemDecl(obj);
+         if (ed != NULL) {
+            td = ed->Type->BaseType ?: ed->Type;
+            return handle_for(&(td->decl.object));
+         }
       }
-      // Fall-through
+      break;
+
    case vhpiType:
    case DEPRECATED_vhpiSubtype:
       {
-         c_objDecl *d = cast_objDecl(obj);
-         if (d == NULL)
-            return NULL;
+         c_objDecl *od = is_objDecl(obj);
+         if (od != NULL)
+            return handle_for(&(od->Type->decl.object));
 
-         if (type == vhpiBaseType) {
-            c_typeDecl *td = d->Type->BaseType ?: d->Type;
-            return handle_for(&(td->decl.object));
-         }
-         else
-            return handle_for(&(d->Type->decl.object));
+         c_elemDecl *ed = is_elemDecl(obj);
+         if (ed != NULL)
+            return handle_for(&(ed->Type->decl.object));
+
+         c_expr *e = is_expr(obj);
+         if (e != NULL)
+            return handle_for(&(e->Type->decl.object));
       }
+      break;
 
    case vhpiElemType:
       {
@@ -2224,6 +2239,10 @@ vhpiHandleT vhpi_handle(vhpiOneToOneT type, vhpiHandleT referenceHandle)
                  "vhpi_handle", vhpi_one_to_one_str(type));
       return NULL;
    }
+
+   vhpi_error(vhpiError, &(obj->loc), "invalid relationship %s for handle %s",
+              vhpi_one_to_one_str(type), handle_pp(referenceHandle));
+   return NULL;
 }
 
 DLLEXPORT
