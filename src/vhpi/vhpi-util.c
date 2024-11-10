@@ -337,21 +337,6 @@ vhpiFormatT vhpi_format_for_type(type_t type, const char **map_str)
    return (vhpiFormatT)-1;   // Not supported
 }
 
-bool vhpi_is_repetitive(vhpiEnumT reason)
-{
-   switch (reason) {
-   case vhpiCbValueChange:
-   case vhpiCbRepEndOfProcesses:
-   case vhpiCbRepLastKnownDeltaCycle:
-   case vhpiCbRepNextTimeStep:
-   case vhpiCbRepEndOfTimeStep:
-   case vhpiCbRepAfterDelay:
-      return true;
-   default:
-      return false;
-   }
-}
-
 vhpiPhysT vhpi_phys_from_native(int64_t value)
 {
    const vhpiPhysT result = {
