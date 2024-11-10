@@ -71,12 +71,9 @@ vendor libraries.
 .\" --list
 .It Fl \-list
 Print all analysed and elaborated units in the work library.
-.\"
+.\" --make
 .It Fl \-make Ar unit ...
 Generate a makefile for already analysed units.
-.\"
-.It Fl \-syntax Ar
-Check input files for syntax errors only.
 .El
 .\"
 .Pp
@@ -229,6 +226,10 @@ Comments starting with
 are ignored.  Alternatively this argument may be passed as
 .Ar @list
 for compatibility with other tools.
+.\" --no-save
+.It Fl \-no\-save
+Do not save analysed design units to the working library.  This can be
+used to quickly check for syntax and type errors.
 .\" --psl
 .It Fl \-psl
 Enable parsing of PSL directives in comments.

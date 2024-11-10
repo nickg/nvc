@@ -186,6 +186,7 @@ static int analyse(int argc, char **argv, cmd_state_t *state)
       { "define",          required_argument, 0, 'D' },
       { "files",           required_argument, 0, 'f' },
       { "check-synthesis", no_argument,       0, 's' },
+      { "no-save",         no_argument,       0, 'N' },
       { 0, 0, 0, 0 }
    };
 
@@ -193,6 +194,7 @@ static int analyse(int argc, char **argv, cmd_state_t *state)
    int c, index = 0, error_limit = 20;
    const char *file_list = NULL;
    const char *spec = ":D:f:";
+   bool no_save = false;
 
    while ((c = getopt_long(next_cmd, argv, spec, long_options, &index)) != -1) {
       switch (c) {
@@ -232,6 +234,9 @@ static int analyse(int argc, char **argv, cmd_state_t *state)
       case 's':
          opt_set_int(OPT_CHECK_SYNTHESIS, 1);
          break;
+      case 'N':
+         no_save = true;
+         break;
       default:
          should_not_reach_here();
       }
@@ -261,7 +266,8 @@ static int analyse(int argc, char **argv, cmd_state_t *state)
    if (error_count() > 0)
       return EXIT_FAILURE;
 
-   lib_save(work);
+   if (!no_save)
+      lib_save(work);
 
    argc -= next_cmd - 1;
    argv += next_cmd - 1;
@@ -1174,6 +1180,9 @@ static int syntax_cmd(int argc, char **argv, cmd_state_t *state)
       { 0, 0, 0, 0 }
    };
 
+   warnf("the $bold$--syntax$$ command is deprecated, use "
+         "$bold$-a --no-save$$ instead");
+
    const int next_cmd = scan_cmd(2, argc, argv);
    int c, index = 0;
    const char *spec = ":";
@@ -1932,7 +1941,6 @@ static void usage(void)
           " --list\t\t\t\tPrint all units in the library\n"
           " --preprocess FILE...\t\tExpand FILEs with Verilog preprocessor\n"
           " --print-deps [UNIT]...\t\tPrint dependencies in Makefile format\n"
-          " --syntax FILE...\t\tCheck FILEs for syntax errors only\n"
           "\n"
           "Global options may be placed before COMMAND:\n"
           " -h, --help\t\tDisplay this message and exit\n"
@@ -1956,6 +1964,7 @@ static void usage(void)
           " -D, --define NAME=VAL\tSet preprocessor symbol NAME to VAL\n"
           "     --error-limit=NUM\tStop after NUM errors\n"
           " -f, --files=LIST\tRead files to analyse from LIST\n"
+          "     --no-save\t\tDo not save analysed design units\n"
           "     --psl\t\tEnable parsing of PSL directives in comments\n"
           "     --relaxed\t\tDisable certain pedantic rule checks\n"
           "\n"
@@ -2107,8 +2116,8 @@ static int process_command(int argc, char **argv, cmd_state_t *state)
 {
    static struct option long_options[] = {
       { "dump",         no_argument, 0, 'd' },
-      { "make",         no_argument, 0, 'm' },
-      { "syntax",       no_argument, 0, 's' },
+      { "make",         no_argument, 0, 'm' },   // DEPRECATED 1.8
+      { "syntax",       no_argument, 0, 's' },   // DEPRECATED 1.15
       { "list",         no_argument, 0, 'l' },
       { "init",         no_argument, 0, 'n' },
       { "install",      no_argument, 0, 'I' },
