@@ -4714,7 +4714,6 @@ vhpi_context_t *vhpi_context_new(void)
    vhpi_context_t *c = global_context = xcalloc(sizeof(vhpi_context_t));
    c->objcache = hash_new(128);
    c->pool     = pool_new();
-   c->tool     = new_object(sizeof(c_tool), vhpiToolK);
 
    return c;
 }
@@ -4729,6 +4728,7 @@ void vhpi_context_initialise(vhpi_context_t *c, tree_t top, rt_model_t *model,
    c->model = model;
    c->top   = top;
    c->jit   = jit;
+   c->tool  = new_object(sizeof(c_tool), vhpiToolK);
 
    vhpi_list_reserve(&c->tool->argv, argc);
 
@@ -4811,7 +4811,8 @@ void vhpi_context_free(vhpi_context_t *c)
 #ifdef DEBUG
    size_t alloc, npages;
    pool_stats(c->pool, &alloc, &npages);
-   debugf("VHPI allocated %zu bytes in %zu pages", alloc, npages);
+   if (npages > 0)
+      debugf("VHPI allocated %zu bytes in %zu pages", alloc, npages);
 #endif
 
    hash_free(c->objcache);
