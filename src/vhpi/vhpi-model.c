@@ -219,7 +219,7 @@ DEF_CLASS(arrayTypeDecl, vhpiArrayTypeDeclK, composite.typeDecl.decl.object);
 
 typedef struct {
    c_compositeTypeDecl composite;
-   vhpiObjectListT     RecordElems;
+   vhpiLazyListT       RecordElems;
 } c_recordTypeDecl;
 
 DEF_CLASS(recordTypeDecl, vhpiRecordTypeDeclK, composite.typeDecl.decl.object);
@@ -535,6 +535,7 @@ static void vhpi_lazy_decls(c_vhpiObject *obj);
 static void vhpi_lazy_selected_names(c_vhpiObject *obj);
 static void vhpi_lazy_indexed_names(c_vhpiObject *obj);
 static void vhpi_lazy_enum_literals(c_vhpiObject *obj);
+static void vhpi_lazy_fields(c_vhpiObject *obj);
 static const char *handle_pp(vhpiHandleT handle);
 
 static vhpi_context_t *global_context = NULL;   // TODO: thread local
@@ -1403,7 +1404,7 @@ static bool init_iterator(c_iterator *it, vhpiOneToManyT type,
    c_recordTypeDecl *record = is_recordTypeDecl(obj);
    if (record != NULL) {
       if (type == vhpiRecordElems) {
-         it->list = &(record->RecordElems);
+         it->list = expand_lazy_list(obj, &(record->RecordElems));
          return true;
       }
       return false;
@@ -2571,7 +2572,7 @@ vhpiIntT vhpi_get(vhpiIntPropertyT property, vhpiHandleT handle)
          if (rtd == NULL)
             goto missing_property;
 
-         return rtd->RecordElems.count;
+         return expand_lazy_list(obj, &rtd->RecordElems)->count;
       }
 
    case vhpiModeP:
@@ -3766,10 +3767,13 @@ static c_typeDecl *build_dynamicSubtype(c_typeDecl *base, void *ptr,
       const jit_layout_t *l =
          is_signal ? signal_layout_of(base->type) :layout_of(base->type);
 
-      vhpi_list_reserve(&td->Constraints, rt->RecordElems.count);
+      vhpiObjectListT *elems =
+         expand_lazy_list(&(base->decl.object), &rt->RecordElems);
 
-      for (int i = 0; i < rt->RecordElems.count; i++) {
-         c_elemDecl *ed = is_elemDecl(rt->RecordElems.items[i]);
+      vhpi_list_reserve(&td->Constraints, elems->count);
+
+      for (int i = 0; i < elems->count; i++) {
+         c_elemDecl *ed = is_elemDecl(elems->items[i]);
          assert(ed != NULL);
 
          if (ed->Type->IsUnconstrained) {
@@ -3819,10 +3823,14 @@ static c_typeDecl *build_subTypeDecl(type_t type, tree_t where,
    c_recordTypeDecl *rtd =
       is_recordTypeDecl(&(td->typeDecl.BaseType->decl.object));
    if (rtd != NULL) {
-      vhpi_list_reserve(&td->Constraints, rtd->RecordElems.count);
+      vhpiObjectListT *elems =
+         expand_lazy_list(&(td->typeDecl.BaseType->decl.object),
+                          &rtd->RecordElems);
 
-      for (int i = 0; i < rtd->RecordElems.count; i++) {
-         c_elemDecl *ed = is_elemDecl(rtd->RecordElems.items[i]);
+      vhpi_list_reserve(&td->Constraints, elems->count);
+
+      for (int i = 0; i < elems->count; i++) {
+         c_elemDecl *ed = is_elemDecl(elems->items[i]);
          assert(ed != NULL);
 
          if (ed->Type->IsUnconstrained) {
@@ -3981,21 +3989,7 @@ static c_typeDecl *build_typeDecl(tree_t decl, c_abstractRegion *region)
          vhpi_list_add(&region->decls.list, tobj);
          hash_put(vhpi_context()->objcache, type, td);
 
-         const int nfields = type_fields(type);
-         vhpi_list_reserve(&td->RecordElems, nfields);
-
-         for (int i = 0; i < nfields; i++) {
-            tree_t f = type_field(type, i);
-            type_t ft = tree_type(f);
-
-            c_elemDecl *ed = new_object(sizeof(c_elemDecl), vhpiElemDeclK);
-            init_elemDecl(ed, f, NULL, td);
-
-            vhpi_list_add(&td->RecordElems, &(ed->decl.object));
-
-            ed->Type = cached_typeDecl(ft, &(ed->decl.object));
-            td->composite.typeDecl.numElems += ed->Type->numElems;
-         }
+         td->RecordElems.fn = vhpi_lazy_fields;
 
          return &(td->composite.typeDecl);
       }
@@ -4347,10 +4341,13 @@ static void vhpi_lazy_selected_names(c_vhpiObject *obj)
 
    c_recordTypeDecl *rtd = is_recordTypeDecl(&(type->decl.object));
    if (rtd != NULL) {
-      vhpi_list_reserve(list, rtd->RecordElems.count);
+      vhpiObjectListT *elems =
+         expand_lazy_list(&(type->decl.object), &(rtd->RecordElems));
 
-      for (int i = 0; i < rtd->RecordElems.count; i++) {
-         c_elemDecl *ed = is_elemDecl(rtd->RecordElems.items[i]);
+      vhpi_list_reserve(list, elems->count);
+
+      for (int i = 0; i < elems->count; i++) {
+         c_elemDecl *ed = is_elemDecl(elems->items[i]);
          assert(ed != NULL);
 
          c_selectedName *sn =
@@ -4444,6 +4441,28 @@ static void vhpi_lazy_enum_literals(c_vhpiObject *obj)
       c_enumLiteral *el = new_object(sizeof(c_enumLiteral), vhpiEnumLiteralK);
       init_enumLiteral(el, lit, td);
       vhpi_list_add(&td->EnumLiterals.list, &(el->decl.object));
+   }
+}
+
+static void vhpi_lazy_fields(c_vhpiObject *obj)
+{
+   c_recordTypeDecl *td = is_recordTypeDecl(obj);
+   assert(td != NULL);
+
+   const int nfields = type_fields(td->composite.typeDecl.type);
+   vhpi_list_reserve(&td->RecordElems.list, nfields);
+
+   for (int i = 0; i < nfields; i++) {
+      tree_t f = type_field(td->composite.typeDecl.type, i);
+      type_t ft = tree_type(f);
+
+      c_elemDecl *ed = new_object(sizeof(c_elemDecl), vhpiElemDeclK);
+      init_elemDecl(ed, f, NULL, td);
+
+      vhpi_list_add(&td->RecordElems.list, &(ed->decl.object));
+
+      ed->Type = cached_typeDecl(ft, &(ed->decl.object));
+      td->composite.typeDecl.numElems += ed->Type->numElems;
    }
 }
 
