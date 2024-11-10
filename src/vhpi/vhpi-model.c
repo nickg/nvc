@@ -191,7 +191,7 @@ DEF_CLASS(intTypeDecl, vhpiIntTypeDeclK, scalar.typeDecl.decl.object);
 
 typedef struct {
    c_scalarTypeDecl scalar;
-   vhpiObjectListT  EnumLiterals;
+   vhpiLazyListT    EnumLiterals;
 } c_enumTypeDecl;
 
 DEF_CLASS(enumTypeDecl, vhpiEnumTypeDeclK, scalar.typeDecl.decl.object);
@@ -534,6 +534,7 @@ static vhpiClassKindT vhpi_get_prefix_kind(c_vhpiObject *obj);
 static void vhpi_lazy_decls(c_vhpiObject *obj);
 static void vhpi_lazy_selected_names(c_vhpiObject *obj);
 static void vhpi_lazy_indexed_names(c_vhpiObject *obj);
+static void vhpi_lazy_enum_literals(c_vhpiObject *obj);
 static const char *handle_pp(vhpiHandleT handle);
 
 static vhpi_context_t *global_context = NULL;   // TODO: thread local
@@ -1393,7 +1394,7 @@ static bool init_iterator(c_iterator *it, vhpiOneToManyT type,
    c_enumTypeDecl *etd = is_enumTypeDecl(obj);
    if (etd != NULL) {
       if (type == vhpiEnumLiterals) {
-         it->list = &(etd->EnumLiterals);
+         it->list = expand_lazy_list(obj, &(etd->EnumLiterals));
          return true;
       }
       return false;
@@ -2548,7 +2549,7 @@ vhpiIntT vhpi_get(vhpiIntPropertyT property, vhpiHandleT handle)
          if (etd == NULL)
             goto missing_property;
 
-         return etd->EnumLiterals.count;
+         return expand_lazy_list(obj, &(etd->EnumLiterals))->count;
       }
 
    case vhpiPositionP:
@@ -3912,15 +3913,8 @@ static c_typeDecl *build_typeDecl(tree_t decl, c_abstractRegion *region)
          vhpi_list_add(&region->decls.list, tobj);
          hash_put(vhpi_context()->objcache, type, td);
 
-         const int nlits = type_enum_literals(type);
-         vhpi_list_reserve(&td->EnumLiterals, nlits);
+         td->EnumLiterals.fn = vhpi_lazy_enum_literals;
 
-         for (int i = 0; i < nlits; i++) {
-            c_enumLiteral *el =
-               new_object(sizeof(c_enumLiteral), vhpiEnumLiteralK);
-            init_enumLiteral(el, type_enum_literal(type, i), td);
-            vhpi_list_add(&td->EnumLiterals, &(el->decl.object));
-         }
          return &(td->scalar.typeDecl);
       }
 
@@ -4435,6 +4429,22 @@ static void vhpi_lazy_indexed_names(c_vhpiObject *obj)
             break;
       }
    } while (pos > 0 || indices[0] != 0);
+}
+
+static void vhpi_lazy_enum_literals(c_vhpiObject *obj)
+{
+   c_enumTypeDecl *td = is_enumTypeDecl(obj);
+   assert(td != NULL);
+
+   const int nlits = type_enum_literals(td->scalar.typeDecl.type);
+   vhpi_list_reserve(&td->EnumLiterals.list, nlits);
+
+   for (int i = 0; i < nlits; i++) {
+      tree_t lit = type_enum_literal(td->scalar.typeDecl.type, i);
+      c_enumLiteral *el = new_object(sizeof(c_enumLiteral), vhpiEnumLiteralK);
+      init_enumLiteral(el, lit, td);
+      vhpi_list_add(&td->EnumLiterals.list, &(el->decl.object));
+   }
 }
 
 static void vhpi_lazy_stmts(c_vhpiObject *obj)
