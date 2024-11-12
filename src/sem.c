@@ -4446,40 +4446,29 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range, nametab_t *tab)
    case ATTR_RANGE:
    case ATTR_REVERSE_RANGE:
       {
-         if (!allow_range)
+         type_t type = tree_type(name);
+         if (type_is_none(type))
+            return false;
+         else if (!allow_range)
             sem_error(t, "range expression not allowed here");
-
-         type_t name_type = tree_has_type(name) ? tree_type(name) : NULL;
-         const bool is_type = type_decl != NULL;
-         const bool is_discrete =
-            name_type != NULL && type_is_discrete(name_type);
-         const bool invalid =
-            name_type == NULL
-            || (!(is_discrete && is_type) && !type_is_array(name_type));
-
-         if (invalid) {
-            if (name_type != NULL && type_is_none(name_type))
-               return false;
-            else if (decl != NULL && class_has_type(class_of(decl))) {
-               if (is_type)
-                  sem_error(t, "type %s does not have a range",
-                            type_pp(tree_type(decl)));
-               else
-                  sem_error(t, "object %s does not have a range",
-                            istr(tree_ident(decl)));
-            }
-            else {
-               assert(error_count() > 0);  // Checked in parser
-               return false;
-            }
-         }
-
-         if (is_type && type_is_unconstrained(name_type))
-            sem_error(t, "cannot use attribute %s with unconstrained array "
-                      "type %s", istr(attr), type_pp(name_type));
 
          if (!sem_check_dimension_attr(t, tab))
             return false;
+
+         if (named_type != NULL) {
+            // Range attribute of type
+            if (type_decl != NULL && type_is_unconstrained(type))
+               sem_error(t, "cannot use attribute %s with unconstrained array "
+                         "type %s", istr(attr), type_pp(type));
+         }
+         else if (!type_is_array(type)) {
+            diag_t *d = diag_new(DIAG_ERROR, tree_loc(name));
+            diag_printf(d, "object prefix of attribute %s must be an array",
+                        istr(attr));
+            diag_hint(d, tree_loc(name), "prefix has type %s", type_pp(type));
+            diag_emit(d);
+            return false;
+         }
 
          return true;
       }

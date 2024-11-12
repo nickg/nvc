@@ -32,7 +32,7 @@
   new `--cover-file=` elaboration option.  Attempts to access the old
   file name inside the library directory will be redirected to the new
   location, with a warning.
-- Several other minor bugs were resolved (#1038, #1055, #1057).
+- Several other minor bugs were resolved (#1038, #1055, #1057, #1067).
 
 ## Version 1.14.1 - 2024-10-26
 - Fixed an error when using the `work` library alias and the working

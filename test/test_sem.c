@@ -607,7 +607,7 @@ START_TEST(test_seq)
       { 190, "cannot use next statement outside loop" },
       { 192, "no visible declaration for FOO" },
       { 205, "DUP already declared in this region" },
-      { 214, "type REAL does not have a range" },
+      { 214, "type of range bounds REAL is not discrete" },
       { 222, "variable I is not a valid target of signal assignment" },
       { 228, "expected type mark while parsing discrete range" },
       { 230, "range bounds to be INTEGER but have universal_real" },
@@ -758,7 +758,7 @@ START_TEST(test_attr)
       { 139, "class of object I is variable not signal" },
       { 146, "prefix of attribute LAST_EVENT must denote a signal" },
       { 158, "attribute RANGE with unconstrained array type BIT_VECTOR" },
-      { 159, "object B does not have a range" },
+      { 159, "object prefix of attribute RANGE must be an array" },
       { 160, "prefix does not have a range" },
       { 204, "prefix does not have LENGTH attribute" },
       { 212, "cannot use attribute IMAGE with non-scalar type INT2_" },
@@ -3896,6 +3896,24 @@ START_TEST(test_issue1057)
 }
 END_TEST
 
+START_TEST(test_issue1067)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/sem/issue1067.vhd");
+
+   const error_t expect[] = {
+      { 10, "object prefix of attribute RANGE must be an array" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_ENTITY, T_ARCH);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_sem_tests(void)
 {
    Suite *s = suite_create("sem");
@@ -4076,6 +4094,7 @@ Suite *get_sem_tests(void)
    tcase_add_test(tc_core, test_issue1024);
    tcase_add_test(tc_core, test_issue1038);
    tcase_add_test(tc_core, test_issue1057);
+   tcase_add_test(tc_core, test_issue1067);
    suite_add_tcase(s, tc_core);
 
    return s;

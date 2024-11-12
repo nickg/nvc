@@ -4679,7 +4679,7 @@ START_TEST(test_range1)
    input_from_file(TESTDIR "/parse/range1.vhd");
 
    const error_t expect[] = {
-      { 17, "object X does not have a range" },
+      { 17, "object prefix of attribute RANGE must be an array" },
       { 19, "name X in discrete range does not refer to a type" },
       { 21, "expecting a discrete range" },
       { 25, "expected type mark while parsing discrete range" },
