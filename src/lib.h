@@ -25,6 +25,10 @@
 #include "fbuf.h"
 #include "prim.h"
 
+typedef struct {
+   char *cover_file;
+} unit_meta_t;
+
 lib_t lib_find(ident_t name);
 lib_t lib_require(ident_t name) RETURNS_NONNULL;
 lib_t lib_loaded(ident_t name);
@@ -54,11 +58,13 @@ void lib_set_work(lib_t lib);
 void lib_put(lib_t lib, tree_t unit);
 void lib_put_error(lib_t lib, tree_t unit);
 void lib_put_vlog(lib_t lib, vlog_node_t module);
+void lib_put_meta(lib_t lib, tree_t unit, const unit_meta_t *meta);
 object_t *lib_get_generic(lib_t lib, ident_t ident);
 tree_t lib_get(lib_t lib, ident_t ident);
 tree_t lib_get_allow_error(lib_t lib, ident_t ident, bool *error);
 tree_t lib_get_qualified(ident_t qual);
 timestamp_t lib_get_mtime(lib_t lib, ident_t ident);
+const unit_meta_t *lib_get_meta(lib_t lib, tree_t unit);
 object_t *lib_load_handler(ident_t qual);
 bool lib_had_errors(lib_t lib, ident_t ident);
 unsigned lib_index_size(lib_t lib);

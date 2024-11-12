@@ -2212,9 +2212,13 @@ static void reset_coverage(rt_model_t *m)
 {
    assert(m->cover == NULL);
 
-   fbuf_t *f = cover_open_lib_file(m->top, FBUF_IN, false);
-   if (f == NULL)
+   const unit_meta_t *meta = lib_get_meta(lib_work(), m->top);
+   if (meta == NULL || meta->cover_file == NULL)
       return;
+
+   fbuf_t *f = fbuf_open(meta->cover_file, FBUF_IN, FBUF_CS_NONE);
+   if (f == NULL)
+      fatal_errno("failed to open coverage database: %s", meta->cover_file);
 
    m->cover = cover_read_items(f, 0);
 
@@ -2227,14 +2231,21 @@ static void reset_coverage(rt_model_t *m)
 
 static void emit_coverage(rt_model_t *m)
 {
-   if (m->cover != NULL) {
-      const int n_tags = cover_count_items(m->cover);
+   if (m->cover == NULL)
+      return;
 
-      const int32_t *counts = jit_get_cover_mem(m->jit, n_tags);
-      fbuf_t *covdb = cover_open_lib_file(m->top, FBUF_OUT, true);
-      cover_dump_items(m->cover, covdb, COV_DUMP_RUNTIME, counts);
-      fbuf_close(covdb, NULL);
-   }
+   const unit_meta_t *meta = lib_get_meta(lib_work(), m->top);
+   assert(meta->cover_file != NULL);
+
+   fbuf_t *f = fbuf_open(meta->cover_file, FBUF_OUT, FBUF_CS_NONE);
+   if (f == NULL)
+      fatal_errno("failed to open coverage database: %s", meta->cover_file);
+
+   const int n_tags = cover_count_items(m->cover);
+   const int32_t *counts = jit_get_cover_mem(m->jit, n_tags);
+   cover_dump_items(m->cover, f, COV_DUMP_RUNTIME, counts);
+
+   fbuf_close(f, NULL);
 }
 
 cover_data_t *get_coverage(rt_model_t *m)

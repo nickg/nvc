@@ -27,6 +27,11 @@
 - The new `--no-save` analysis option parses and checks the input files
   but does not save the working library to disk.  This is a replacement
   for the `--syntax` top-level command which is now deprecated.
+- The coverage database file name has changed to `<toplevel>.ncdb` in
+  the current working directory and this can now be customised with the
+  new `--cover-file=` elaboration option.  Attempts to access the old
+  file name inside the library directory will be redirected to the new
+  location, with a warning.
 - Several other minor bugs were resolved (#1038, #1055, #1057).
 
 ## Version 1.14.1 - 2024-10-26

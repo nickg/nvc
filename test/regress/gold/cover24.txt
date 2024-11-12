@@ -1,3 +1,4 @@
+** Warning: redirecting work/_WORK.COVER24.elab.covdb to cover24.ncdb, please update your scripts
 ** Note: Code coverage report folder: html.
 ** Note: Code coverage report contains: covered, uncovered, excluded coverage details.
 ** Note: code coverage results for: cover24.vhd

@@ -34,4 +34,4 @@ rm sub.vhd
 
 ls -l work
 
-nvc -c --report html ./work/_WORK.TOP.elab.covdb
+nvc -c --report html top.ncdb

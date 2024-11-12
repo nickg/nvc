@@ -9,7 +9,7 @@ nvc -a $TESTDIR/regress/cover10.vhd -e --cover=all cover10 -r
 nvc --cover-report \
     --exclude-file $TESTDIR/regress/data/cover10_ef1.txt \
     --dont-print uncovered,excluded \
-    -o html work/_WORK.COVER10.elab.covdb 2>&1 | tee out.txt
+    -o html cover10.ncdb 2>&1 | tee out.txt
 
 # Check nothing uncovered or excluded is there
 if grep SIGNAL_WHICH_IS_UNCOVERED html/hier/*; then
@@ -23,7 +23,7 @@ fi
 nvc --cover-report \
     --exclude-file $TESTDIR/regress/data/cover10_ef1.txt \
     --dont-print covered,excluded \
-    -o html work/_WORK.COVER10.elab.covdb 2>&1 | tee -a out.txt
+    -o html cover10.ncdb 2>&1 | tee -a out.txt
 
 if grep SIGNAL_WHICH_IS_COVERED html/hier/*; then
   exit 1
@@ -36,7 +36,7 @@ fi
 nvc --cover-report \
     --exclude-file $TESTDIR/regress/data/cover10_ef1.txt \
     --dont-print covered,uncovered \
-    -o html work/_WORK.COVER10.elab.covdb 2>&1 | tee -a out.txt
+    -o html cover10.ncdb 2>&1 | tee -a out.txt
 
 if grep SIGNAL_WHICH_IS_COVERED html/hier/*; then
   exit 1

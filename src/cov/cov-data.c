@@ -68,17 +68,6 @@ static bool cover_is_branch(tree_t branch)
    return tree_kind(branch) == T_ASSOC || tree_kind(branch) == T_COND_STMT;
 }
 
-fbuf_t *cover_open_lib_file(tree_t top, fbuf_mode_t mode, bool check_null)
-{
-   char *dbname LOCAL = xasprintf("_%s.covdb", istr(tree_ident(top)));
-   fbuf_t *f = lib_fbuf_open(lib_work(), dbname, mode, FBUF_CS_NONE);
-
-   if (check_null && (f == NULL))
-      fatal_errno("failed to open coverage db file: %s", dbname);
-
-   return f;
-}
-
 static cover_src_t get_cover_source(cover_item_kind_t kind, object_t *obj)
 {
    if (obj == NULL)

@@ -2363,8 +2363,5 @@ tree_t elab(object_t *top, jit_t *jit, unit_registry_t *ur, cover_data_t *cover,
    unit_registry_flush(ur, vu_name);
 
    freeze_global_arena();
-
-   lib_put(ctx.library, e);
-
    return e;
 }

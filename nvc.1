@@ -253,11 +253,18 @@ used multiple times to define multiple identifiers.
 .\" ------------------------------------------------------------
 .Ss Elaboration options
 .Bl -tag -width Ds
+.\" --cover
 .It Fl \-cover
 Enable code coverage reporting (see the
 .Sx CODE COVERAGE
 section below).
-.\"
+.\" --cover-file
+.It Fl \-cover-file= Ns Ar file
+Specify the file name of the output coverage database.  Defaults to the
+name of the top-level unit with a
+.Ql .ncdb
+extension.
+.\" --cover-spec
 .It Fl \-cover-spec= Ns Ar sfile
 Specify design part where code coverage is collected by
 .Ar sfile
@@ -668,7 +675,6 @@ a coverage bin for each state of an FSM. NVC considers internal signals of
 all user-defined enum types as FSMs. NVC does not consider port signals or
 variables as an FSM. When a signal recognized as FSM changes its value,
 coverage bin for new state value is incremented.
-
 .It
 .Cm functional
 - NVC creates a coverage bin for each:
@@ -680,6 +686,7 @@ directive. When a PSL sequence in the cover directive completes, coverage bin is
 .It
 Functional coverage bin from third party libraries (e.g. OSVVM)
 .El
+.El
 .Pp
 Collection of each coverage kind can be enabled separately at elaboration time:
 .Bd -literal -offset indent
@@ -688,13 +695,17 @@ $ nvc -e --cover=statement,branch,toggle,expression <top>
 .Pp
 If no coverage type is specified as an argument of
 .Fl \-cover ,
-all coverage types are collected. After
-simulation is executed, NVC dumps coverage data into coverage database file
-(*.covdb). NVC places coverage database files into its work library folder.
+all coverage types are collected.  After the simulation has finished the
+coverage data is written to a coverage database file.  By default this
+is the name of the top-level unit with an
+.Ql .ncdb
+extension in the current working directory, but can be changed with the
+.Fl \-cover\-file
+elaboration option.
 .Ss Code coverage merging
 To merge code coverage data from multiple simulations run:
 .Bd -literal -offset indent
-$ nvc --cover-merge -o merged.covdb first.covdb second.covdb third.covdb ...
+$ nvc --cover-merge -o merged.ncdb first.ncdb second.ncdb third.ncdb ...
 .Ed
 .Pp
 During code coverage merging, NVC sums together coverage bins with equal
@@ -707,7 +718,7 @@ different designs (e.g. where part of the hierarchy is formed by
 .Ss Generating code coverage report
 To generate code coverage report in HTML format, run:
 .Bd -literal -offset indent
-$ nvc --cover-report -o report_dir merged.covdb
+$ nvc --cover-report -o report_dir merged.ncdb
 .Ed
 .Pp
 The command above will generate a code coverage report in the
@@ -747,7 +758,7 @@ command.
 Code coverage merging and generating code coverage report can also be done
 in a single command:
 .Bd -literal -offset indent
-$ nvc --cover-report -o html first.covdb second.covdb third.covdb ...
+$ nvc --cover-report -o html first.ncdb second.ncdb third.ncdb ...
 .Ed
 .Ss Additional code coverage options
 NVC supports the following additional options to control coverage collection:

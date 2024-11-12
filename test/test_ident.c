@@ -387,6 +387,13 @@ START_TEST(test_sprintf)
 }
 END_TEST
 
+START_TEST(test_new_n)
+{
+   ident_t i1 = ident_new_n("hello world", 5);
+   ck_assert_ptr_eq(i1, ident_new("hello"));
+}
+END_TEST
+
 Suite *get_ident_tests(void)
 {
    Suite *s = suite_create("ident");
@@ -414,6 +421,7 @@ Suite *get_ident_tests(void)
    tcase_add_test(tc_core, test_uniq);
    tcase_add_test(tc_core, test_pos);
    tcase_add_test(tc_core, test_sprintf);
+   tcase_add_test(tc_core, test_new_n);
    suite_add_tcase(s, tc_core);
 
    return s;

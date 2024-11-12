@@ -52,11 +52,12 @@ typedef struct _lib_unit    lib_unit_t;
 struct _lib_unit {
    object_t     *object;
    ident_t       name;
+   uint64_t      mtime;
+   unit_meta_t   meta;
+   lib_unit_t   *next;
    tree_kind_t   kind;
    bool          dirty;
    bool          error;
-   uint64_t      mtime;
-   lib_unit_t   *next;
 };
 
 struct _lib_index {
@@ -256,7 +257,8 @@ static lib_index_t *lib_find_in_index(lib_t lib, ident_t name)
 }
 
 static lib_unit_t *lib_put_aux(lib_t lib, object_t *object, bool dirty,
-                               bool error, timestamp_t mtime, vcode_unit_t vu)
+                               bool error, timestamp_t mtime,
+                               const unit_meta_t *meta)
 {
    assert(lib != NULL);
 
@@ -290,6 +292,9 @@ static lib_unit_t *lib_put_aux(lib_t lib, object_t *object, bool dirty,
    where->error  = error;
    where->mtime  = mtime;
    where->kind   = kind;
+
+   if (meta != NULL)
+      where->meta = *meta;
 
    if (fresh) {
       lib_unit_t **it;
@@ -728,6 +733,12 @@ void lib_put_vlog(lib_t lib, vlog_node_t module)
    lib_put_aux(lib, obj, true, false, get_real_time(), NULL);
 }
 
+void lib_put_meta(lib_t lib, tree_t unit, const unit_meta_t *meta)
+{
+   object_t *obj = tree_to_object(unit);
+   lib_put_aux(lib, obj, true, false, get_real_time(), meta);
+}
+
 void lib_put_error(lib_t lib, tree_t unit)
 {
    object_t *obj = tree_to_object(unit);
@@ -753,6 +764,13 @@ static void lib_encode_file_name(ident_t id, text_buf_t *tb)
    }
 }
 
+static void lib_read_meta(fbuf_t *f, unit_meta_t *meta)
+{
+   const size_t len = fbuf_get_uint(f);
+   meta->cover_file = xmalloc(len + 1);
+   read_raw(meta->cover_file, len + 1, f);
+}
+
 static lib_unit_t *lib_read_unit(lib_t lib, ident_t id)
 {
    LOCAL_TEXT_BUF tb = tb_new();
@@ -769,14 +787,17 @@ static lib_unit_t *lib_read_unit(lib_t lib, ident_t id)
    ident_rd_ctx_t ident_ctx = ident_read_begin(f);
    loc_rd_ctx_t *loc_ctx = loc_read_begin(f);
 
-   vcode_unit_t vu = NULL;
    object_t *obj = NULL;
+   unit_meta_t meta = {};
 
    char tag;
    while ((tag = read_u8(f))) {
       switch (tag) {
       case 'T':
          obj = object_read(f, lib_load_handler, ident_ctx, loc_ctx);
+         break;
+      case 'M':
+         lib_read_meta(f, &meta);
          break;
       case 'V':
          // Ignore it (remove after 1.12 release)
@@ -797,7 +818,7 @@ static lib_unit_t *lib_read_unit(lib_t lib, ident_t id)
 
    arena_set_checksum(object_arena(obj), checksum);
 
-   return lib_put_aux(lib, obj, false, false, info.mtime, vu);
+   return lib_put_aux(lib, obj, false, false, info.mtime, &meta);
 }
 
 static lib_unit_t *lib_get_aux(lib_t lib, ident_t ident)
@@ -943,6 +964,15 @@ timestamp_t lib_get_mtime(lib_t lib, ident_t ident)
    return 0;
 }
 
+const unit_meta_t *lib_get_meta(lib_t lib, tree_t unit)
+{
+   lib_unit_t *lu = hash_get(lib->lookup, unit);
+   if (lu == NULL)
+      return NULL;
+
+   return &(lu->meta);
+}
+
 bool lib_had_errors(lib_t lib, ident_t ident)
 {
    lib_unit_t *lu = lib_get_aux(lib, ident);
@@ -975,6 +1005,14 @@ static void lib_save_unit(lib_t lib, lib_unit_t *unit)
    object_arena_t *arena = object_arena(unit->object);
 
    object_write(unit->object, f, ident_ctx, loc_ctx);
+
+   if (unit->meta.cover_file != NULL) {
+      write_u8('M', f);
+
+      const size_t len = strlen(unit->meta.cover_file);
+      fbuf_put_uint(f, len);
+      write_raw(unit->meta.cover_file, len + 1, f);
+   }
 
    write_u8('\0', f);
 

@@ -1,0 +1,84 @@
+<?xml version="1.0"?>
+<scope name="WORK" file="cover16.vhd">
+  <scope name="COVER16" block_name="COVER16-TEST" line="7">
+    <scope name="A" line="8">
+      <toggle hier="WORK.COVER16.A.BIN_0_TO_1" data="0"/>
+      <toggle hier="WORK.COVER16.A.BIN_1_TO_0" data="0"/>
+    </scope>
+    <scope name="B" line="8">
+      <toggle hier="WORK.COVER16.B.BIN_0_TO_1" data="0"/>
+      <toggle hier="WORK.COVER16.B.BIN_1_TO_0" data="0"/>
+    </scope>
+    <scope name="C" line="9">
+      <toggle hier="WORK.COVER16.C(7).BIN_0_TO_1" data="0"/>
+      <toggle hier="WORK.COVER16.C(7).BIN_1_TO_0" data="0"/>
+      <toggle hier="WORK.COVER16.C(6).BIN_0_TO_1" data="0"/>
+      <toggle hier="WORK.COVER16.C(6).BIN_1_TO_0" data="0"/>
+      <toggle hier="WORK.COVER16.C(5).BIN_0_TO_1" data="0"/>
+      <toggle hier="WORK.COVER16.C(5).BIN_1_TO_0" data="0"/>
+      <toggle hier="WORK.COVER16.C(4).BIN_0_TO_1" data="0"/>
+      <toggle hier="WORK.COVER16.C(4).BIN_1_TO_0" data="0"/>
+      <toggle hier="WORK.COVER16.C(3).BIN_0_TO_1" data="0"/>
+      <toggle hier="WORK.COVER16.C(3).BIN_1_TO_0" data="0"/>
+      <toggle hier="WORK.COVER16.C(2).BIN_0_TO_1" data="0"/>
+      <toggle hier="WORK.COVER16.C(2).BIN_1_TO_0" data="0"/>
+      <toggle hier="WORK.COVER16.C(1).BIN_0_TO_1" data="0"/>
+      <toggle hier="WORK.COVER16.C(1).BIN_1_TO_0" data="0"/>
+      <toggle hier="WORK.COVER16.C(0).BIN_0_TO_1" data="0"/>
+      <toggle hier="WORK.COVER16.C(0).BIN_1_TO_0" data="0"/>
+    </scope>
+    <scope name="D" line="9">
+      <toggle hier="WORK.COVER16.D(7).BIN_0_TO_1" data="0"/>
+      <toggle hier="WORK.COVER16.D(7).BIN_1_TO_0" data="0"/>
+      <toggle hier="WORK.COVER16.D(6).BIN_0_TO_1" data="0"/>
+      <toggle hier="WORK.COVER16.D(6).BIN_1_TO_0" data="0"/>
+      <toggle hier="WORK.COVER16.D(5).BIN_0_TO_1" data="0"/>
+      <toggle hier="WORK.COVER16.D(5).BIN_1_TO_0" data="0"/>
+      <toggle hier="WORK.COVER16.D(4).BIN_0_TO_1" data="0"/>
+      <toggle hier="WORK.COVER16.D(4).BIN_1_TO_0" data="0"/>
+      <toggle hier="WORK.COVER16.D(3).BIN_0_TO_1" data="0"/>
+      <toggle hier="WORK.COVER16.D(3).BIN_1_TO_0" data="0"/>
+      <toggle hier="WORK.COVER16.D(2).BIN_0_TO_1" data="0"/>
+      <toggle hier="WORK.COVER16.D(2).BIN_1_TO_0" data="0"/>
+      <toggle hier="WORK.COVER16.D(1).BIN_0_TO_1" data="0"/>
+      <toggle hier="WORK.COVER16.D(1).BIN_1_TO_0" data="0"/>
+      <toggle hier="WORK.COVER16.D(0).BIN_0_TO_1" data="0"/>
+      <toggle hier="WORK.COVER16.D(0).BIN_1_TO_0" data="0"/>
+    </scope>
+    <scope name="_P0" line="12">
+      <scope name="_S0" line="13">
+        <statement hier="WORK.COVER16._P0._S0" data="1"/>
+      </scope>
+      <scope name="_S1" line="14">
+        <statement hier="WORK.COVER16._P0._S1" data="1"/>
+      </scope>
+      <scope name="_S2" line="15">
+        <statement hier="WORK.COVER16._P0._S2" data="1"/>
+      </scope>
+      <scope name="_S3" line="16">
+        <statement hier="WORK.COVER16._P0._S3" data="1"/>
+      </scope>
+      <scope name="_S4" line="17">
+        <statement hier="WORK.COVER16._P0._S4" data="1"/>
+      </scope>
+      <scope name="_S5" line="18">
+        <statement hier="WORK.COVER16._P0._S5" data="1"/>
+      </scope>
+      <scope name="_S6" line="19">
+        <statement hier="WORK.COVER16._P0._S6" data="1"/>
+      </scope>
+      <scope name="_S7" line="20">
+        <statement hier="WORK.COVER16._P0._S7" data="1"/>
+      </scope>
+      <scope name="_S8" line="22">
+        <statement hier="WORK.COVER16._P0._S8" data="1"/>
+        <expression hier="WORK.COVER16._P0._S8._E0.BIN_0_1" data="0"/>
+        <expression hier="WORK.COVER16._P0._S8._E1.BIN_1_0" data="1"/>
+        <expression hier="WORK.COVER16._P0._S8._E2.BIN_1_1" data="0"/>
+      </scope>
+      <scope name="_S9" line="23">
+        <statement hier="WORK.COVER16._P0._S9" data="1"/>
+      </scope>
+    </scope>
+  </scope>
+</scope>

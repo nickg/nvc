@@ -379,6 +379,7 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
       { "dump-llvm",       no_argument,       0, 'd' },
       { "dump-vcode",      optional_argument, 0, 'v' },
       { "cover",           optional_argument, 0, 'c' },
+      { "cover-file",      required_argument, 0, 'F' },
       { "cover-spec",      required_argument, 0, 's' },
       { "sdf",             required_argument, 0, 'f' },
       { "verbose",         no_argument,       0, 'V' },
@@ -389,8 +390,9 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
    };
 
    bool use_jit = DEFAULT_JIT, no_save = false;
+   unit_meta_t meta = {};
    cover_mask_t cover_mask = 0;
-   char *cover_spec_file = NULL, *sdf_args = NULL;
+   const char *cover_spec_file = NULL, *sdf_args = NULL;
    int cover_array_limit = 0;
    int threshold = 1;
    const int next_cmd = scan_cmd(2, argc, argv);
@@ -433,6 +435,9 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
       case 's':
          cover_spec_file = optarg;
          break;
+      case 'F':
+         meta.cover_file = optarg;
+         break;
       case 'f':
          sdf_args = optarg;
          break;
@@ -461,12 +466,16 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
 
    progress("loading top-level unit");
 
+   char *cover_default LOCAL = NULL;
    cover_data_t *cover = NULL;
    if (cover_mask != 0) {
       cover = cover_data_init(cover_mask, cover_array_limit, threshold);
 
-      if (cover_spec_file)
+      if (cover_spec_file != NULL)
          cover_load_spec_file(cover, cover_spec_file);
+
+      if (meta.cover_file == NULL)
+         meta.cover_file = cover_default = xasprintf("%s.ncdb", top_level_orig);
    }
 
    if (sdf_args != NULL) {
@@ -496,12 +505,15 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
    if (top == NULL)
       return EXIT_FAILURE;
 
+   lib_put_meta(work, top, &meta);
+
    progress("elaborating design");
 
    if (cover != NULL) {
-      fbuf_t *covdb = cover_open_lib_file(top, FBUF_OUT, true);
+      fbuf_t *covdb = fbuf_open(meta.cover_file, FBUF_OUT, FBUF_CS_NONE);
       cover_dump_items(cover, covdb, COV_DUMP_ELAB, NULL);
       fbuf_close(covdb, NULL);
+
       progress("dumping coverage data");
    }
 
@@ -1635,6 +1647,30 @@ static cover_data_t *merge_coverage_files(int argc, int next_cmd, char **argv,
 
    for (int i = optind; i < next_cmd; i++) {
       fbuf_t *f = fbuf_open(argv[i], FBUF_IN, FBUF_CS_NONE);
+      if (f == NULL) {
+         // Attempt to redirect the old file name to the new one
+         // TODO: this should be removed at some point
+         char *slash = strrchr(argv[i], *DIR_SEP) ?: strrchr(argv[i], '/');
+         if (slash != NULL && slash[1] == '_') {
+            char *tail = strstr(slash, ".covdb");
+            if (tail != NULL && tail[6] == '\0') {
+               ident_t unit_name = ident_new_n(slash + 2, tail - slash - 2);
+               lib_t lib = lib_find(ident_until(unit_name, '.'));
+               if (lib != NULL) {
+                  tree_t unit = lib_get(lib, unit_name);
+                  if (unit != NULL) {
+                     const unit_meta_t *meta = lib_get_meta(lib, unit);
+                     if (meta->cover_file != NULL) {
+                        warnf("redirecting %s to %s, please update your "
+                              "scripts", argv[i], meta->cover_file);
+                        f = fbuf_open(meta->cover_file, FBUF_IN, FBUF_CS_NONE);
+                     }
+                  }
+               }
+            }
+         }
+      }
+
       if (f == NULL)
          fatal_errno("could not open %s", argv[i]);
 
@@ -1804,7 +1840,7 @@ static int cover_report_cmd(int argc, char **argv, cmd_state_t *state)
       case ':':
          missing_argument("coverage report", argv);
       default:
-         abort();
+         should_not_reach_here();
       }
    }
 
@@ -1856,7 +1892,7 @@ static int cover_merge_cmd(int argc, char **argv, cmd_state_t *state)
       case ':':
          missing_argument("coverage merge", argv);
       default:
-         abort();
+         should_not_reach_here();
       }
    }
 
@@ -1972,6 +2008,9 @@ static void usage(void)
           "     --cover[=TYPES]\tEnable code coverage collection\n"
           "                    \t"
           "Valid TYPES include statement, branch, and toggle\n"
+          "     --cover-file=FILE\tSet the file name of the coverage database\n"
+          "     --cover-spec=FILE\t"
+          "Fine-grained coverage collection specification\n"
           " -g NAME=VALUE\t\tSet top level generic NAME to VALUE\n"
           " -j, --jit\t\tEnable just-in-time compilation during simulation\n"
           "     --no-collapse\tDo not collapse multiple signals into one\n"

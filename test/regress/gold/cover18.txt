@@ -1,3 +1,4 @@
+** Warning: redirecting work/_WORK.COVER18.elab.covdb to cover18.ncdb, please update your scripts
 ** Note: excluding FSM state: 'WORK.COVER18.CURR_STATE.BIN_STATE.ST_ONE'
    > data/cover18_ef.txt:1
    |

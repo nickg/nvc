@@ -776,13 +776,13 @@ issue690        normal
 issue644        normal,2008
 cond5           normal,2019
 cond6           normal,2019
-cover15         cover,shell
+cover15         cover,2019
 func22          normal,2019
 func23          normal,2019
 protected9      normal,2019
 func24          normal,2019
 vhpi6           normal,vhpi
-cover16         cover,shell
+cover16         cover,2019
 view1           normal,2019
 issue701        fail,gold,2008
 issue700        normal,gold
@@ -999,7 +999,7 @@ issue904        normal,psl,wave
 issue906        cover=toggle
 implicit7       normal
 issue908        normal,2008
-issue909        shell,gold
+issue909        shell,cover,gold
 issue901        wave
 psl8            fail,gold,psl
 issue921        normal,2008

@@ -223,9 +223,6 @@ unsigned cover_count_items(cover_data_t *data);
 void cover_dump_items(cover_data_t *data, fbuf_t *f, cover_dump_t dt,
                       const int32_t *counts);
 cover_data_t *cover_read_items(fbuf_t *f, uint32_t pre_mask);
-
-fbuf_t *cover_open_lib_file(tree_t top, fbuf_mode_t mode, bool check_null);
-
 void cover_merge_items(fbuf_t *f, cover_data_t *data);
 
 //

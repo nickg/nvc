@@ -967,7 +967,7 @@ static bool run_test(test_t *test)
       for (char *p = unit; *p; p++)
          *p = toupper((int)*p);
 
-      push_arg(&args, "work/_WORK.%s.elab.covdb", unit);
+      push_arg(&args, "%s.ncdb", test->name);
 
       if (run_cmd(outf, &args) != RUN_OK) {
          failed("coverage report");
@@ -1022,13 +1022,13 @@ static bool run_test(test_t *test)
       push_arg(&args, "%s/nvc%s", bin_dir, EXEEXT);
       push_arg(&args, "--cover-report");
       push_arg(&args, "--output=./html");
-      push_arg(&args, "work/_WORK.%s.elab.covdb", unit);
+      push_arg(&args, "%s.ncdb", test->name);
       push_arg(&args, "--cover-export");
       push_arg(&args, "--relative=%s" DIR_SEP "regress", test_dir);
       push_arg(&args, "--output=export.xml");
       //push_arg(&args, "--out=%s/regress/gold/%s.xml", test_dir, test->name);
       push_arg(&args, "--format=xml");
-      push_arg(&args, "work/_WORK.%s.elab.covdb", unit);
+      push_arg(&args, "%s.ncdb", test->name);
 
       free(unit);
 

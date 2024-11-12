@@ -1,9 +1,0 @@
-** Note: Code coverage report folder: html.
-** Note: Code coverage report contains: covered, uncovered, excluded coverage details.
-** Note: code coverage results for: WORK.COVER15
-** Note:      statement:     85.7 % (12/14)
-** Note:      branch:        62.5 % (5/8)
-** Note:      toggle:        N.A.
-** Note:      expression:    N.A.
-** Note:      FSM state:     N.A.
-** Note:      functional:    N.A.
