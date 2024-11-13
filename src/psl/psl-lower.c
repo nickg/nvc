@@ -114,37 +114,46 @@ static void psl_lower_state(lower_unit_t *lu, psl_fsm_t *fsm,
    if (state->initial && psl_fsm_repeating(fsm))
       psl_enter_state(state);
 
-   for (fsm_edge_t *e = state->edges; e; e = e->next) {
-      if (e->guard != NULL) {
-         vcode_reg_t guard_reg = psl_lower_boolean(lu, e->guard);
+   vcode_type_t vbool = vtype_bool();
+   vcode_reg_t vfalse = emit_const(vbool, 0);
+   vcode_reg_t vtrue = emit_const(vbool, 1);
 
-         if (e->kind == EDGE_EPSILON) {
+   vcode_reg_t taken_reg = vfalse;
+
+   for (fsm_edge_t *e = state->edges; e; e = e->next) {
+      if (e->kind == EDGE_NEXT) {
+         if (e->guard != NULL) {
+            vcode_block_t enter_bb = emit_block();
+            vcode_block_t skip_bb = emit_block();
+
+            vcode_reg_t guard_reg = psl_lower_boolean(lu, e->guard);
+            emit_cond(guard_reg, enter_bb, skip_bb);
+
+            vcode_select_block(enter_bb);
+            psl_enter_state(e->dest);
+            emit_jump(skip_bb);
+
+            vcode_select_block(skip_bb);
+
+            taken_reg = emit_or(taken_reg, guard_reg);
+         }
+         else {
+            psl_enter_state(e->dest);
+            taken_reg = vtrue;
+         }
+      }
+   }
+
+   for (fsm_edge_t *e = state->edges; e; e = e->next) {
+      if (e->kind == EDGE_EPSILON) {
+         if (e->guard != NULL) {
+            vcode_reg_t guard_reg = psl_lower_boolean(lu, e->guard);
             vcode_block_t skip_bb = emit_block();
             emit_cond(guard_reg, state_bb[e->dest->id], skip_bb);
             vcode_select_block(skip_bb);
          }
-         else {
-            vcode_block_t enter_bb = emit_block();
-            vcode_block_t skip_bb = emit_block();
-
-            emit_cond(guard_reg, enter_bb, skip_bb);
-
-            vcode_select_block(enter_bb);
-
-            psl_enter_state(e->dest);
-            emit_return(VCODE_INVALID_REG);
-
-            vcode_select_block(skip_bb);
-         }
-      }
-      else if (e->kind == EDGE_EPSILON) {
-         assert(e->next == NULL);
-         emit_jump(state_bb[e->dest->id]);
-      }
-      else {
-         assert(e->next == NULL);
-         psl_enter_state(e->dest);
-         emit_return(VCODE_INVALID_REG);
+         else
+            emit_jump(state_bb[e->dest->id]);
       }
    }
 
@@ -155,17 +164,17 @@ static void psl_lower_state(lower_unit_t *lu, psl_fsm_t *fsm,
       psl_lower_cover(lu, fsm->src, cover, cscope);
    else if (state->accept && fsm->kind == FSM_NEVER) {
       vcode_reg_t severity_reg = psl_assert_severity();
-      vcode_reg_t false_reg = emit_const(vtype_bool(), 0);
       vcode_reg_t locus = psl_debug_locus(fsm->src);
-      emit_assert(false_reg, VCODE_INVALID_REG, VCODE_INVALID_REG,
+
+      emit_assert(vfalse, VCODE_INVALID_REG, VCODE_INVALID_REG,
                   severity_reg, locus, VCODE_INVALID_REG,
                   VCODE_INVALID_REG);
    }
    else if (!state->accept && fsm->kind != FSM_COVER) {
       vcode_reg_t severity_reg = psl_assert_severity();
-      vcode_reg_t false_reg = emit_const(vtype_bool(), 0);
       vcode_reg_t locus = psl_debug_locus(state->where);
-      emit_assert(false_reg, VCODE_INVALID_REG, VCODE_INVALID_REG,
+
+      emit_assert(taken_reg, VCODE_INVALID_REG, VCODE_INVALID_REG,
                   severity_reg, locus, VCODE_INVALID_REG,
                   VCODE_INVALID_REG);
    }
