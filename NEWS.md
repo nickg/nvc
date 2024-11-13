@@ -4,6 +4,8 @@
   name and the process is elaborated before the object referenced by the
   name (#1062).
 - Fixed parser hang for integers in scientific notation (from @NikLeberg).
+- Fixed a platform detection issue that caused JIT code loading to fail
+  on Apple silicon macOS (#1069).
 - Several other minor bugs were resolved (#1038, #1055).
 
 ## Version 1.14.1 - 2024-10-26

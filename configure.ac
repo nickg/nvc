@@ -305,18 +305,6 @@ AX_DEFINE_DIR([LIBEXECDIR], [libexecdir/nvc], [Location of internal programs])
 AX_DEFINE_DIR([DATADIR], [datadir/nvc], [Location of data files])
 AX_DEFINE_DIR([TESTDIR], [srcdir/test], [Location of testcases])
 
-case $target_cpu in
-  x86_64|amd64)
-    AC_DEFINE_UNQUOTED([ARCH_X86_64], [1], [Target is x86_64])
-    ;;
-  aarch64)
-    AC_DEFINE_UNQUOTED([ARCH_ARM64], [1], [Target is arm64])
-    ;;
-  i*86)
-    AC_DEFINE_UNQUOTED([ARCH_I386], [1], [Target is i386])
-    ;;
-esac
-
 AM_CONDITIONAL([ARCH_X86_64],
                [test x$target_cpu = xx86_64 -o x$target_cpu = xamd64])
 AM_CONDITIONAL([ARCH_ARM64], [test x$target_cpu = xaarch64])
