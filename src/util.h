@@ -65,6 +65,14 @@
 #define ASAN_UNPOISON(addr, size)
 #endif
 
+#if defined __x86_64__
+#define ARCH_X86_64 1
+#elif defined __i386__
+#define ARCH_I386 1
+#elif defined __aarch64__
+#define ARCH_ARM64 1
+#endif
+
 #ifdef __MINGW32__
 #define realpath(N, R) _fullpath((R), (N), _MAX_PATH)
 #define setenv(x, y, z) _putenv_s((x), (y))

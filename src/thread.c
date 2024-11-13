@@ -690,9 +690,9 @@ static void thread_unpark(void *cookie, unpark_fn_t fn)
 
 void spin_wait(void)
 {
-#ifdef __x86_64__
+#if defined ARCH_X86_64
    __asm__ volatile ("pause");
-#elif defined __aarch64__
+#elif defined ARCH_ARM64
    // YIELD is a no-op on most AArch64 cores so also do an ISB to stall
    // the pipeline for a bit
    __asm__ volatile ("yield; isb");
@@ -1335,7 +1335,7 @@ void stop_world(stop_world_fn_t callback, void *arg)
       if (kern_result != KERN_SUCCESS)
          fatal_trace("failed to suspend thread %d (%d)", i, kern_result);
 
-#ifdef __aarch64__
+#ifdef ARCH_ARM64
       arm_thread_state64_t state;
       mach_msg_type_number_t count = ARM_THREAD_STATE64_COUNT;
       thread_state_flavor_t flavor = ARM_THREAD_STATE64;

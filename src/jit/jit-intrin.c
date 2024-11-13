@@ -27,7 +27,7 @@
 #include <string.h>
 #include <math.h>
 
-#ifdef __aarch64__
+#ifdef ARCH_ARM64
 #define HAVE_NEON
 #endif
 
