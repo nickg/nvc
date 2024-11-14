@@ -277,7 +277,7 @@ bool is_scanned_as_psl(void);
 #define tTIMESRPT      377
 #define tPLUSRPT       378
 #define tGOTORPT       379
-#define tARROWRPT      380
+#define tEQRPT         380
 #define tDBLAMP        381
 #define tWITHIN        382
 #define tSYSTASK       383
@@ -403,5 +403,6 @@ bool is_scanned_as_psl(void);
 #define tSUFFIXOVR     503
 #define tSUFFIXNON     504
 #define tPSLNEXT       505
+#define tINF           506
 
 #endif  // _SCAN_H

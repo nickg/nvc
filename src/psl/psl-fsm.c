@@ -215,8 +215,6 @@ static fsm_state_t *build_sere(psl_fsm_t *fsm, fsm_state_t *state, psl_node_t p)
 {
    const int nops = psl_operands(p);
 
-   fsm_state_t *initial = state;
-
    for (int i = 0; i < nops; i++) {
       psl_node_t rhs = psl_operand(p, i);
       switch (psl_subkind(p)) {
@@ -236,19 +234,90 @@ static fsm_state_t *build_sere(psl_fsm_t *fsm, fsm_state_t *state, psl_node_t p)
       }
    }
 
-   if (psl_has_repeat(p)) {
-      psl_node_t r = psl_repeat(p);
-      switch (psl_subkind(r)) {
-      case PSL_TIMES_REPEAT:
-         if (initial != state)
-            add_edge(initial, state, EDGE_EPSILON, NULL);
-         break;
-      default:
-         CANNOT_HANDLE(r);
+   return state;
+}
+
+static fsm_state_t *build_repeated_sere(psl_fsm_t *fsm, fsm_state_t *state,
+                                        psl_node_t p)
+{
+   assert(psl_has_repeat(p));
+
+   int low = 0, high = 0;
+
+   psl_node_t r = psl_repeat(p);
+   psl_repeat_t rpt_kind = psl_subkind(r);
+
+   switch (rpt_kind) {
+   case PSL_PLUS_REPEAT:
+      low = 1;
+      high = INT32_MAX;
+      break;
+
+   case PSL_TIMES_REPEAT:
+      if (psl_has_tree(r)) {
+         tree_t t_r = psl_tree(r);
+         if (tree_kind(t_r) == T_RANGE) {
+            low = get_number(tree_left(t_r));
+            high = get_number(tree_right(t_r));
+         }
+         else {
+            low = get_number(t_r);
+            high = low;
+         }
+      }
+      else {
+         low = 0;
+         high = INT32_MAX;
+      }
+      break;
+
+   default:
+      CANNOT_HANDLE(r);
+   }
+
+   bool infinite = false;
+   if (high == INT32_MAX) {
+      infinite = true;
+      high = low;
+   }
+
+   fsm_state_t *skip = (high > low) ? add_state(fsm, p) : NULL;
+   fsm_state_t *initial = state;
+   fsm_state_t *last_but_one = NULL;
+
+   for (int i = 0; i < high; i++) {
+      last_but_one = state;
+      state = build_sere(fsm, state, p);
+
+      if (i != high - 1) {
+         if (i >= low - 1)
+            add_edge(state, skip, EDGE_EPSILON, NULL);
+
+         fsm_state_t *curr = state;
+         state = add_state(fsm, p);
+         add_edge(curr, state, EDGE_NEXT, NULL);
       }
    }
 
+   if (skip)
+      add_edge(skip, state, EDGE_EPSILON, NULL);
+
+   if (initial != state) {
+      if (low == 0)
+         add_edge(initial, state, EDGE_EPSILON, NULL);
+      if (infinite)
+         add_edge(state, last_but_one, EDGE_NEXT, NULL);
+   }
+
    return state;
+}
+
+static fsm_state_t *build_sequence(psl_fsm_t *fsm, fsm_state_t *state, psl_node_t p)
+{
+   if (psl_has_repeat(p))
+      return build_repeated_sere(fsm, state, p);
+
+   return build_sere(fsm, state, p);
 }
 
 static fsm_state_t *build_next(psl_fsm_t *fsm, fsm_state_t *state, psl_node_t p)
@@ -350,7 +419,7 @@ static fsm_state_t *build_node(psl_fsm_t *fsm, fsm_state_t *state, psl_node_t p)
    case P_NEXT:
       return build_next(fsm, state, p);
    case P_SERE:
-      return build_sere(fsm, state, p);
+      return build_sequence(fsm, state, p);
    case P_LOGICAL:
       return build_logical(fsm, state, p);
    case P_UNTIL:

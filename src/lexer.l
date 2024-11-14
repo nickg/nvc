@@ -278,6 +278,7 @@ ENDED         ?i:ended
 NONDET        ?i:nondet
 NONDET_V      ?i:nondet_vector
 UNION         ?i:union
+INF           ?i:inf
 
 INTERCONNECT      ?i:interconnect
 DELAYFILE         ?i:delayfile
@@ -582,8 +583,8 @@ BEFORE            ?i:before
 <PSL>{NEXT_EVENT}!       { TOKEN(tNEXTEVENT1); }
 <PSL>"[*"                { TOKEN(tTIMESRPT); }
 <PSL>"[+]"               { TOKEN(tPLUSRPT); }
-<PSL>"[="                { TOKEN(tGOTORPT); }
-<PSL>"[->"               { TOKEN(tARROWRPT); }
+<PSL>"[="                { TOKEN(tEQRPT); }
+<PSL>"[->"               { TOKEN(tGOTORPT); }
 <PSL>"&&"                { TOKEN(tDBLAMP); }
 <PSL>{WITHIN}            { TOKEN(tWITHIN); }
 <PSL>{PREV}              { TOKEN(tPREV); }
@@ -606,6 +607,7 @@ BEFORE            ?i:before
 <PSL>{BEFORE}!_          { TOKEN(tBEFORE1_); }
 <PSL>"|->"               { TOKEN(tSUFFIXOVR); }
 <PSL>"|=>"               { TOKEN(tSUFFIXNON); }
+<PSL>{INF}               { TOKEN(tINF); }
 
 <VLOG>"module"           { return tMODULE; }
 <VLOG>"endmodule"        { return tENDMODULE; }
@@ -691,8 +693,8 @@ BEFORE            ?i:before
 "<->"                    { TOKEN(tIFFIMPL); }
 "[*"                     { TOKEN(tTIMESRPT); }
 "[+]"                    { TOKEN(tPLUSRPT); }
-"[="                     { TOKEN(tGOTORPT); }
-"[->"                    { TOKEN(tARROWRPT); }
+"[="                     { TOKEN(tEQRPT); }
+"[->"                    { TOKEN(tGOTORPT); }
 {UNTIL}!                 { TOKEN(tUNTIL1); }
 {UNTIL}_                 { TOKEN(tUNTIL_); }
 {UNTIL}!_                { TOKEN(tUNTIL1_); }

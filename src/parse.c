@@ -4585,7 +4585,7 @@ static tree_t p_primary(tree_t head)
 {
    // name | literal | aggregate | function_call | qualified_expression
    //   | type_conversion | allocator | ( expression ) |
-   //  PSL: Built_In_Function_Call
+   //   | PSL: Built_In_Function_Call
 
    BEGIN("primary");
 
@@ -11781,8 +11781,29 @@ static tree_t p_psl_count(void)
 
    tree_t count = p_expression();
 
-   if (peek() == tTO)
-      count = p_range(count);
+   if (peek() == tTO) {
+      if (peek_nth(2) == tINF) {
+         consume(tTO);
+
+         tree_t r = tree_new(T_RANGE);
+         tree_set_subkind(r, RANGE_TO);
+
+         tree_t inf = tree_new(T_LITERAL);
+
+         consume(tINF);
+
+         tree_set_loc(inf, CURRENT_LOC);
+         tree_set_subkind(inf, L_INT);
+         tree_set_ival(inf, INT32_MAX);
+
+         tree_set_left(r, count);
+         tree_set_right(r, inf);
+
+         count = r;
+      }
+      else
+         count = p_range(count);
+   }
 
    solve_types(nametab, count, std_type(NULL, STD_INTEGER));
 
@@ -11800,7 +11821,7 @@ static psl_node_t p_psl_repeat_scheme(void)
 
    psl_node_t rpt = psl_new(P_REPEAT);
 
-   const token_t tok = one_of(tPLUSRPT, tTIMESRPT, tGOTORPT, tARROWRPT);
+   const token_t tok = one_of(tPLUSRPT, tTIMESRPT, tGOTORPT, tEQRPT);
    switch (tok) {
    case tPLUSRPT:
       psl_set_subkind(rpt, PSL_PLUS_REPEAT);
@@ -11819,8 +11840,8 @@ static psl_node_t p_psl_repeat_scheme(void)
       consume(tRSQUARE);
       break;
 
-   case tARROWRPT:
-      psl_set_subkind(rpt, PSL_ARROW_REPEAT);
+   case tEQRPT:
+      psl_set_subkind(rpt, PSL_EQUAL_REPEAT);
       if (peek() != tRSQUARE)
          psl_set_tree(rpt, p_psl_count());
       consume(tRSQUARE);
@@ -12083,7 +12104,7 @@ static psl_node_t p_psl_sequence(void)
 
       // [= and [-> are only allowed after boolean -> no need to recurse
       // or create new SERE
-      if (scan(tGOTORPT, tARROWRPT)) {
+      if (scan(tGOTORPT, tEQRPT)) {
          psl_node_t new = psl_new(P_SERE);
          psl_add_operand(new, p);
          p = new;
