@@ -1070,3 +1070,4 @@ issue1036       normal
 issue1057       normal,vhpi,2008
 issue1062       normal,2008
 cmdline12       shell
+psl14           gold,psl

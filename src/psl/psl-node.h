@@ -86,7 +86,7 @@ typedef enum {
    PSL_PLUS_REPEAT,
    PSL_TIMES_REPEAT,
    PSL_GOTO_REPEAT,
-   PSL_ARROW_REPEAT
+   PSL_EQUAL_REPEAT
 } psl_repeat_t;
 
 typedef enum {

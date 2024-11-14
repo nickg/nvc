@@ -1,0 +1,9 @@
+6ns+0: cov_1 hit
+8ns+0: cov_1 hit
+8ns+0: cov_1 hit
+10ns+0: cov_2 hit
+11ns+0: cov_2 hit
+12ns+0: cov_3 hit
+13ns+0: cov_5 hit
+14ns+0: cov_5 hit
+15ns+0: cov_5 hit
