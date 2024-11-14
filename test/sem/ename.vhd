@@ -40,4 +40,9 @@ begin
         test2(<< constant ^.s : integer >>);  -- Error
     end process;
 
+    p3: process is
+        alias a1 : bit is <<signal .top.foo.bar : bit>>;  -- Error
+    begin
+    end process;
+
 end architecture;

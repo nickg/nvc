@@ -2798,6 +2798,7 @@ START_TEST(test_ename)
       { 26, "generate index must be a static expression" },
       { 40, "actual for formal X with class VARIABLE must be a name denoting "
         "a variable" },
+      { 44, "an alias of an external name cannot have a subtype indication" },
       { 15, "cannot reference signal BAR during static elaboration" },
       { -1, NULL }
    };

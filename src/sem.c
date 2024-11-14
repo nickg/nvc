@@ -1556,6 +1556,15 @@ static bool sem_check_alias(tree_t t, nametab_t *tab)
       if (!sem_check_subtype(t, type, tab))
          return false;
 
+      if (value_kind == T_EXTERNAL_NAME) {
+         diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
+         diag_printf(d, "an alias of an external name cannot have a "
+                     "subtype indication");
+         diag_lrm(d, STD_08, "6.6.2");
+         diag_emit(d);
+         return false;
+      }
+
       if (!sem_check_type(value, type, tab))
          sem_error(t, "type of aliased object %s does not match expected "
                    "type %s", type_pp2(tree_type(value), type),
