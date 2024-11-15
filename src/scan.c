@@ -224,7 +224,7 @@ const char *token_str(token_t tok)
          "initial", "wire", "unsigned", "assume", "assume_guarantee",
          "restrict", "restrict_guarantee", "strong", "fairness", "cover",
          "property", "sequence", "const", "mutable", "hdltype", "boolean",
-         "bit", "bitvector", "numeric", "string", "[*", "[+]", "[=", "[->",
+         "bit", "bitvector", "numeric", "string", "[*", "[+]", "[->", "[=",
          "&&", "within", "system task", "view", "private", "prev", "stable",
          "rose", "fell", "ended", "nondet", "nondetv", "union", "translate on",
          "translate off", "until!", "until_", "until!_", "`timescale",
