@@ -34,6 +34,8 @@
   location, with a warning.
 - Fixed a platform detection issue that caused JIT code loading to fail
   on Apple silicon macOS (#1069).
+- Partial association of ports with interface views now works correctly
+  (#1074).
 - Several other minor bugs were resolved (#1038, #1055, #1057, #1067).
 
 ## Version 1.14.1 - 2024-10-26

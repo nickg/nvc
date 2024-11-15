@@ -11935,11 +11935,12 @@ static void lower_port_map(lower_unit_t *lu, tree_t block, tree_t map,
                            vcode_reg_t value_reg)
 {
    vcode_reg_t port_reg = VCODE_INVALID_REG;
-   tree_t port = NULL;
+   tree_t port = NULL, view = NULL;
    type_t name_type = NULL;
    vcode_reg_t out_conv = VCODE_INVALID_REG;
    vcode_reg_t in_conv = VCODE_INVALID_REG;
    tree_t value = tree_value(map);
+   port_mode_t mode;
 
    tree_t value_conv = NULL;
    const tree_kind_t value_kind = tree_kind(value);
@@ -11959,6 +11960,10 @@ static void lower_port_map(lower_unit_t *lu, tree_t block, tree_t map,
       {
          port = tree_port(block, tree_pos(map));
          name_type = tree_type(port);
+         mode = tree_subkind(port);
+
+         if (mode == PORT_ARRAY_VIEW || mode == PORT_RECORD_VIEW)
+            view = tree_value(port);
 
          int hops;
          vcode_var_t var = lower_get_var(lu, port, &hops);
@@ -12005,7 +12010,28 @@ static void lower_port_map(lower_unit_t *lu, tree_t block, tree_t map,
 
          port_reg = lower_lvalue(lu, name);
          port = tree_ref(name_to_ref(name));
+         mode = tree_subkind(port);
          name_type = tree_type(name);
+
+         if (mode == PORT_ARRAY_VIEW || mode == PORT_RECORD_VIEW) {
+            view = tree_value(port);
+
+            // Adjust view for partial association
+            bool converse = false;
+            for (tree_t it = name; tree_kind(name) == T_RECORD_REF;
+                 it = tree_value(it)) {
+               tree_t elem = find_element_mode_indication(view, tree_ref(it),
+                                                          &converse);
+               assert(elem != NULL);
+
+               mode = converse_mode(elem, converse);
+
+               if (mode != PORT_ARRAY_VIEW && mode != PORT_RECORD_VIEW)
+                  break;
+
+               view = tree_value(view);
+            }
+         }
       }
       break;
    }
@@ -12039,8 +12065,6 @@ static void lower_port_map(lower_unit_t *lu, tree_t block, tree_t map,
       }
       value = value_conv;
    }
-
-   const port_mode_t mode = tree_subkind(port);
 
    if (mode == PORT_ARRAY_VIEW || mode == PORT_RECORD_VIEW) {
       assert(lower_is_signal_ref(value));
