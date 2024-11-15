@@ -790,6 +790,25 @@ static void dump_attr_spec(tree_t t)
    print_syntax(";\n");
 }
 
+static void dump_view_decl(tree_t t, int indent)
+{
+   type_t type = tree_type(t);
+   print_syntax("#view %s #of ", istr(tree_ident(t)));
+   dump_type(type_designated(type));
+   print_syntax(" #is\n");
+
+   const int nfields = type_fields(type);
+   for (int i = 0; i < nfields; i++) {
+      tree_t elem = type_field(type, i);
+      tab(indent + 2);
+      print_syntax("%s : #%s;\n", istr(tree_ident(elem)),
+                   port_mode_str(tree_subkind(elem)));
+   }
+
+   tab(indent);
+   print_syntax("#end #view;\n");
+}
+
 static void dump_decl(tree_t t, int indent)
 {
    tab(indent);
@@ -1010,6 +1029,10 @@ static void dump_decl(tree_t t, int indent)
    case T_PSL:
       dump_psl(t, 0);
       print_syntax(";\n");
+      return;
+
+   case T_VIEW_DECL:
+      dump_view_decl(t, 0);
       return;
 
    default:
@@ -1454,6 +1477,8 @@ static void dump_port(tree_t t, int indent)
    const class_t class = tree_class(t);
    print_syntax("#%s %s", class_str(class), istr(tree_ident(t)));
 
+   const port_mode_t mode = tree_subkind(t);
+
    type_t type = get_type_or_null(t);
    if (class == C_PACKAGE) {
       print_syntax(" #is #new ");
@@ -1502,16 +1527,15 @@ static void dump_port(tree_t t, int indent)
          break;
       }
    }
+   else if (mode == PORT_ARRAY_VIEW || mode == PORT_RECORD_VIEW) {
+      print_syntax(" : #view ");
+      dump_expr(tree_value(t));
+   }
    else {
-      const char *dir = NULL;
-      switch (tree_subkind(t)) {
-      case PORT_IN:      dir = "in";     break;
-      case PORT_OUT:     dir = "out";    break;
-      case PORT_INOUT:   dir = "inout";  break;
-      case PORT_BUFFER:  dir = "buffer"; break;
-      case PORT_INVALID: dir = "??";     break;
-      }
-      print_syntax(" : #%s ", dir);
+      static const char *map[] = {
+         "??", "in", "out", "inout", "buffer", "linkage"
+      };
+      print_syntax(" : #%s ", map[mode]);
       dump_type(type);
 
       if (tree_has_value(t)) {
@@ -1730,6 +1754,7 @@ void vhdl_dump(tree_t t, int indent)
    case T_FUNC_INST:
    case T_PROC_INST:
    case T_SUBTYPE_DECL:
+   case T_VIEW_DECL:
       dump_decl(t, indent);
       break;
    case T_PORT_DECL:

@@ -578,6 +578,44 @@ START_TEST(test_vhdl6)
 }
 END_TEST
 
+START_TEST(test_vhdl7)
+{
+   set_standard(STD_19);
+
+   input_from_file(TESTDIR "/dump/vhdl7.vhd");
+
+   tree_t a = parse_and_check(T_ENTITY, T_ARCH);
+
+   LOCAL_TEXT_BUF tb = tb_new();
+   capture_syntax(tb);
+
+   tree_t source = get_decl(a, "SOURCE");
+
+   dump(source);
+   diff_dump(tb_get(tb),
+             "view SOURCE of T_REC is\n"
+             "  X : IN;\n"
+             "  Y : OUT;\n"
+             "end view;\n");
+   tb_rewind(tb);
+
+   tree_t b = tree_stmt(a, 0);
+
+   dump(b);
+   diff_dump(tb_get(tb),
+             "B: block is\n"
+             "  port (\n"
+             "    signal P1 : view SOURCE;\n"
+             "    signal P2 : view SOURCE'CONVERSE );\n"
+             "  port map (X, Y);\n"
+             "begin\n"
+             "end block;\n");
+   tb_rewind(tb);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_dump_tests(void)
 {
    Suite *s = suite_create("dump");
@@ -591,6 +629,7 @@ Suite *get_dump_tests(void)
    tcase_add_test(tc_core, test_psl1);
    tcase_add_test(tc_core, test_vlog1);
    tcase_add_test(tc_core, test_vhdl6);
+   tcase_add_test(tc_core, test_vhdl7);
    suite_add_tcase(s, tc_core);
 
    return s;
