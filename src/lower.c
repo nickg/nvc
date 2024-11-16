@@ -11940,7 +11940,7 @@ static void lower_port_map(lower_unit_t *lu, tree_t block, tree_t map,
    vcode_reg_t out_conv = VCODE_INVALID_REG;
    vcode_reg_t in_conv = VCODE_INVALID_REG;
    tree_t value = tree_value(map);
-   port_mode_t mode;
+   port_mode_t mode = PORT_IN;
 
    tree_t value_conv = NULL;
    const tree_kind_t value_kind = tree_kind(value);
