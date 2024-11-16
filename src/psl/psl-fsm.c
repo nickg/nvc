@@ -217,13 +217,17 @@ static fsm_state_t *build_sere(psl_fsm_t *fsm, fsm_state_t *state, psl_node_t p)
 
    for (int i = 0; i < nops; i++) {
       psl_node_t rhs = psl_operand(p, i);
+      edge_kind_t ekind = EDGE_NEXT;
+
       switch (psl_subkind(p)) {
+      case PSL_SERE_FUSION:
+         ekind = EDGE_EPSILON;
       case PSL_SERE_CONCAT:
          if (i + 1 < nops) {
             fsm_state_t *lhs = build_node(fsm, state, rhs);
             if (lhs != state) {
                state = add_state(fsm, p);
-               add_edge(lhs, state, EDGE_NEXT, NULL);
+               add_edge(lhs, state, ekind, NULL);
             }
          }
          else

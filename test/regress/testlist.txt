@@ -1072,3 +1072,4 @@ issue1062       normal,2008
 cmdline12       shell
 psl14           gold,psl
 issue1074       normal,2019
+psl16           gold,psl
