@@ -36,9 +36,9 @@
   on Apple silicon macOS (#1069).
 - Partial association of ports with interface views now works correctly
   (#1074).
+- Added support for PSL suffix implication, SERE repetition, and SERE 
+  fusion.
 - Several other minor bugs were resolved (#1038, #1055, #1057, #1067).
-- Add PSL suffix implication support
-- Add PSL SERE repetition support
 
 ## Version 1.14.1 - 2024-10-26
 - Fixed an error when using the `work` library alias and the working
