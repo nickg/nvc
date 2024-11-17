@@ -90,6 +90,13 @@ typedef struct _fst_data {
 typedef A(fst_data_t *) data_array_t;
 
 typedef struct {
+   int64_t      length;
+   int64_t      msb;
+   int64_t      lsb;
+   range_kind_t dir;
+} fst_dim_t;
+
+typedef struct {
    FILE       *file;
    int         colour;
    text_buf_t *hier;
@@ -550,6 +557,31 @@ static fstHandle fst_create_handle(wave_dumper_t *wd, fst_data_t *data,
       data->type->sdt);
 }
 
+static void fst_create_memory(wave_dumper_t *wd, fst_data_t *data, int *pos,
+                              const fst_dim_t *dims, int ndims, int curdim,
+                              enum fstVarDir vd, type_t type, text_buf_t *tb)
+{
+   if (curdim == ndims - 1) {
+      tb_printf(tb, "[%"PRIi64":%"PRIi64"]",
+                dims[curdim].msb, dims[curdim].lsb);
+
+      data->handle[(*pos)++] = fst_create_handle(wd, data, tb_get(tb),
+                                                 vd, type, 0);
+   }
+   else {
+      const size_t pfxlen = tb_len(tb);
+      type_t elem = type_elem(type);
+
+      for (int i = 0; i < dims[curdim].length; i++) {
+         tb_trim(tb, pfxlen);
+         tb_printf(tb, "[%"PRIi64"]",
+                   dims[curdim].msb + (dims[curdim].dir == RANGE_TO ? i : -i));
+         fst_create_memory(wd, data, pos, dims, ndims, curdim + 1,
+                           vd, elem, tb);
+      }
+   }
+}
+
 static void fst_create_array_var(wave_dumper_t *wd, tree_t d, rt_signal_t *s,
                                  type_t type, text_buf_t *tb)
 {
@@ -595,19 +627,28 @@ static void fst_create_array_var(wave_dumper_t *wd, tree_t d, rt_signal_t *s,
       return;   // Dumping memories and nested arrays can be slow
    else if (type_is_record(elem))
       return;   // Not yet supported
-   else {
+   else if (type_is_array(elem)) {
       fst_type_t *ft = fst_type_for(wd, elem, tree_loc(d));
       if (ft == NULL)
          return;
 
-      const bool is_memory = type_is_array(elem);
+      SCOPED_A(fst_dim_t) dims = AINIT;
 
-      int64_t e_length = 1, e_msb = 0, e_lsb = 0;
-      if (is_memory) {
-         range_kind_t dir;
-         assert(dimension_of(type) == 1);
-         fst_get_array_range(wd, elem, s->parent, s->where, 1, &e_msb, &e_lsb,
-                             &dir, &e_length);
+      fst_dim_t dim0 = { length, left, right, dir };
+      APUSH(dims, dim0);
+
+      int64_t e_length = 1;
+      for (type_t e = elem; type_is_array(e); e = type_elem(e)) {
+         if (dims.count > 1)
+            length *= dims.items[dims.count - 1].length;
+
+         fst_dim_t dim;
+         assert(dimension_of(e) == 1);
+         fst_get_array_range(wd, e, s->parent, s->where, dims.count,
+                             &dim.msb, &dim.lsb, &dim.dir, &dim.length);
+
+         APUSH(dims, dim);
+         e_length = dim.length;
       }
 
       data = xcalloc_flex(sizeof(fst_data_t), length, sizeof(fstHandle));
@@ -615,13 +656,37 @@ static void fst_create_array_var(wave_dumper_t *wd, tree_t d, rt_signal_t *s,
       data->size  = e_length * ft->size;
       data->type  = ft;
 
+      tb_rewind(tb);
+      tb_istr(tb, tree_ident(d));
+      tb_downcase(tb);
+
+      int pos = 0;
+      fst_create_memory(wd, data, &pos, dims.items, dims.count, 0,
+                        vd, type, tb);
+      fflush(stdout);
+      assert(pos == length);
+
+      fstWriterSetAttrEnd(wd->fst_ctx);
+   }
+   else {
+      fst_type_t *ft = fst_type_for(wd, elem, tree_loc(d));
+      if (ft == NULL)
+         return;
+
+      data = xcalloc_flex(sizeof(fst_data_t), length, sizeof(fstHandle));
+      data->count = length;
+      data->size  = ft->size;
+      data->type  = ft;
+
+      tb_rewind(tb);
+      tb_istr(tb, tree_ident(d));
+      tb_downcase(tb);
+
+      const size_t pfxlen = tb_len(tb);
+
       for (int i = 0; i < length; i++) {
-         tb_rewind(tb);
-         tb_istr(tb, tree_ident(d));
+         tb_trim(tb, pfxlen);
          tb_printf(tb, "[%"PRIi64"]", dir == RANGE_TO ? left + i : left - i);
-         if (is_memory)
-            tb_printf(tb, "[%"PRIi64":%"PRIi64"]", e_msb, e_lsb);
-         tb_downcase(tb);
 
          data->handle[i] =
             fst_create_handle(wd, data, tb_get(tb), vd, elem, 0);

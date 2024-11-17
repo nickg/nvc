@@ -36,8 +36,10 @@
   on Apple silicon macOS (#1069).
 - Partial association of ports with interface views now works correctly
   (#1074).
-- Added support for PSL suffix implication, SERE repetition, and SERE 
+- Added support for PSL suffix implication, SERE repetition, and SERE
   fusion.
+- Nested arrays more than two levels deep can now be dumped in FST
+  format (#1071).
 - Several other minor bugs were resolved (#1038, #1055, #1057, #1067).
 
 ## Version 1.14.1 - 2024-10-26
