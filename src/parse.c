@@ -11836,7 +11836,8 @@ static psl_node_t p_psl_repeat_scheme(void)
 
    case tGOTORPT:
       psl_set_subkind(rpt, PSL_GOTO_REPEAT);
-      psl_set_tree(rpt, p_psl_count());
+      if (peek() != tRSQUARE)
+         psl_set_tree(rpt, p_psl_count());
       consume(tRSQUARE);
       break;
 
@@ -12064,6 +12065,8 @@ static psl_node_t p_psl_sequence(void)
 
    case tPLUSRPT:
    case tTIMESRPT:
+   case tGOTORPT:
+   case tEQRPT:
       p = psl_new(P_SERE);
       break;
 

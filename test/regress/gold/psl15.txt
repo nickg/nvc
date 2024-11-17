@@ -1,0 +1,14 @@
+3ns+0: cov_2 hit
+4ns+0: cov_1 hit
+4ns+0: cov_2 hit
+5ns+0: cov_4 hit
+8ns+0: cov_2 hit
+8ns+0: cov_3 hit
+8ns+0: cov_4 hit
+9ns+0: cov_1 hit
+12ns+0: cov_4 hit
+13ns+0: cov_2 hit
+15ns+0: cov_4 hit
+16ns+0: cov_1 hit
+16ns+0: cov_2 hit
+17ns+0: cov_1 hit
