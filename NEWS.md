@@ -37,6 +37,7 @@
 - Partial association of ports with interface views now works correctly
   (#1074).
 - Several other minor bugs were resolved (#1038, #1055, #1057, #1067).
+- Add PSL SERE fusion support
 
 ## Version 1.14.1 - 2024-10-26
 - Fixed an error when using the `work` library alias and the working
