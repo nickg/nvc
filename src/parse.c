@@ -11703,7 +11703,7 @@ static psl_node_t p_psl_parameter_definition(void)
    tree_set_ident(decl, p_identifier());
    insert_name(nametab, decl, NULL);
 
-   psl_node_t p = psl_new(P_PARAM);
+   psl_node_t p = psl_new(P_PARAM_DECL);
    psl_set_tree(p, decl);
 
    if (peek() == tLPAREN)
@@ -11736,26 +11736,26 @@ static psl_node_t p_psl_parametrized_sere(void)
 
    consume(tFOR);
 
-   psl_node_t p = psl_new(P_SERE);
+   psl_node_t p = psl_new(P_PARAM_SERE);
    p_psl_parameters_definition(p);
 
    consume(tCOLON);
 
    switch (one_of(tAMP, tDBLAMP, tBAR)) {
    case tAMP:
-      psl_set_subkind(p, PSL_SERE_PARAM_NEQ_AND);
+      psl_set_subkind(p, PSL_SERE_NEQ_AND);
       break;
    case tDBLAMP:
-      psl_set_subkind(p, PSL_SERE_PARAM_EQU_AND);
+      psl_set_subkind(p, PSL_SERE_EQU_AND);
       break;
    case tBAR:
-      psl_set_subkind(p, PSL_SERE_PARAM_OR);
+      psl_set_subkind(p, PSL_SERE_OR);
       break;
    }
 
    consume(tLBRACE);
 
-   psl_add_operand(p, p_psl_sere());
+   psl_set_value(p, p_psl_sere());
 
    consume(tRBRACE);
 

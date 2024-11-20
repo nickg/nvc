@@ -213,6 +213,15 @@ static void psl_check_sere(psl_node_t p, nametab_t *tab)
       psl_check(psl_operand(p, i), tab);
 }
 
+static void psl_check_param_sere(psl_node_t p, nametab_t *tab)
+{
+   const int nops = psl_operands(p);
+   for (int i = 0; i < nops; i++)
+      psl_check(psl_operand(p, i), tab);
+
+   psl_check(psl_value(p), tab);
+}
+
 static void psl_check_repeat(psl_node_t p, nametab_t *tab)
 {
    psl_node_t value = psl_value(p);
@@ -354,7 +363,7 @@ static void psl_check_suffix_impl(psl_node_t p, nametab_t *tab)
    psl_check(right, tab);
 }
 
-static void psl_check_param(psl_node_t p, nametab_t *tab)
+static void psl_check_param_decl(psl_node_t p, nametab_t *tab)
 {
    // TODO
 }
@@ -438,14 +447,17 @@ void psl_check(psl_node_t p, nametab_t *tab)
    case P_SUFFIX_IMPL:
       psl_check_suffix_impl(p, tab);
       break;
-   case P_PARAM:
-      psl_check_param(p, tab);
+   case P_PARAM_DECL:
+      psl_check_param_decl(p, tab);
       break;
    case P_RANGE:
       psl_check_range(p, tab);
       break;
    case P_PROC_BLOCK:
       psl_check_proc_block(p, tab);
+      break;
+   case P_PARAM_SERE:
+      psl_check_param_sere(p, tab);
       break;
    default:
       fatal_trace("cannot check PSL kind %s", psl_kind_str(psl_kind(p)));

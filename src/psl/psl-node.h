@@ -44,7 +44,7 @@ typedef enum {
    P_UNION,
    P_BUILTIN_FUNC,
    P_VALUE_SET,
-   P_PARAM,
+   P_PARAM_DECL,
    P_UNTIL,
    P_ABORT,
    P_BEFORE,
@@ -52,6 +52,7 @@ typedef enum {
    P_LOGICAL,
    P_RANGE,
    P_PROC_BLOCK,
+   P_PARAM_SERE,
 
    P_LAST_PSL_KIND
 } psl_kind_t;
@@ -98,9 +99,6 @@ typedef enum {
    PSL_SERE_EQU_AND,
    PSL_SERE_NEQ_AND,
    PSL_SERE_WITHIN,
-   PSL_SERE_PARAM_NEQ_AND,
-   PSL_SERE_PARAM_EQU_AND,
-   PSL_SERE_PARAM_OR
 } psl_sere_kind_t;
 
 typedef enum {
