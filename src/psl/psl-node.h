@@ -53,6 +53,7 @@ typedef enum {
    P_RANGE,
    P_PROC_BLOCK,
    P_PARAM_SERE,
+   P_CLOCKED,
 
    P_LAST_PSL_KIND
 } psl_kind_t;
@@ -160,10 +161,6 @@ unsigned psl_operands(psl_node_t p);
 psl_node_t psl_operand(psl_node_t p, unsigned n);
 void psl_add_operand(psl_node_t p, psl_node_t o);
 
-psl_node_t psl_clock(psl_node_t p);
-bool psl_has_clock(psl_node_t p);
-void psl_set_clock(psl_node_t p, psl_node_t clk);
-
 tree_t psl_message(psl_node_t p);
 bool psl_has_message(psl_node_t p);
 void psl_set_message(psl_node_t, tree_t m);
@@ -177,6 +174,7 @@ bool psl_has_ident(psl_node_t p);
 void psl_set_ident(psl_node_t p, ident_t i);
 
 void psl_set_ref(psl_node_t p, psl_node_t r);
+bool psl_has_ref(psl_node_t p);
 psl_node_t psl_ref(psl_node_t p);
 
 psl_node_t psl_left(psl_node_t p);

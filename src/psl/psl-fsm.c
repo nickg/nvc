@@ -469,6 +469,8 @@ static fsm_state_t *build_node(psl_fsm_t *fsm, fsm_state_t *state, psl_node_t p)
       return build_before(fsm, state, p);
    case P_SUFFIX_IMPL:
       return build_suffix_impl(fsm, state, p);
+   case P_CLOCKED:
+      return build_node(fsm, state, psl_value(p));
    default:
       CANNOT_HANDLE(p);
    }

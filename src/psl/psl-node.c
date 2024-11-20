@@ -36,10 +36,10 @@ static const imask_t has_map[P_LAST_PSL_KIND] = {
    (I_VALUE | I_MESSAGE),
 
    // P_ALWAYS
-   (I_VALUE | I_CLOCK),
+   (I_VALUE),
 
    // P_HDL_EXPR
-   (I_FOREIGN | I_CLASS | I_CLOCK),
+   (I_FOREIGN | I_CLASS),
 
    // P_PROPERTY_DECL
    (I_VALUE | I_IDENT | I_PORTS),
@@ -54,10 +54,10 @@ static const imask_t has_map[P_LAST_PSL_KIND] = {
    (I_VALUE | I_DELAY | I_FLAGS),
 
    // P_NEVER
-   (I_VALUE | I_CLOCK),
+   (I_VALUE),
 
    // P_EVENTUALLY
-   (I_VALUE | I_CLOCK),
+   (I_VALUE),
 
    // P_NEXT_A
    (I_VALUE | I_DELAY | I_FLAGS),
@@ -69,22 +69,22 @@ static const imask_t has_map[P_LAST_PSL_KIND] = {
    (I_VALUE | I_DELAY | I_FLAGS),
 
    // P_SERE
-   (I_SUBKIND | I_PARAMS | I_CLOCK),
+   (I_SUBKIND | I_PARAMS),
 
    // P_REPEAT
-   (I_SUBKIND | I_DELAY | I_VALUE | I_CLOCK),
+   (I_SUBKIND | I_DELAY | I_VALUE),
 
    // P_PROPERTY_INST
    (I_REF | I_PARAMS),
 
    // P_SEQUENCE_INST
-   (I_REF | I_PARAMS | I_CLOCK),
+   (I_REF | I_PARAMS),
 
    // P_UNION
    (I_PARAMS),
 
    // P_BUILTIN_FUNC
-   (I_SUBKIND | I_PARAMS | I_CLOCK),
+   (I_SUBKIND | I_PARAMS),
 
    // P_VALUE_SET
    (I_SUBKIND | I_PARAMS),
@@ -93,28 +93,31 @@ static const imask_t has_map[P_LAST_PSL_KIND] = {
    (I_FOREIGN | I_VALUE),
 
    // P_UNTIL
-   (I_PARAMS | I_CLOCK | I_FLAGS),
+   (I_PARAMS | I_FLAGS),
 
    // P_ABORT
-   (I_PARAMS | I_CLOCK | I_SUBKIND),
+   (I_PARAMS | I_SUBKIND),
 
    // P_BEFORE
-   (I_PARAMS | I_CLOCK | I_FLAGS),
+   (I_PARAMS | I_FLAGS),
 
    // P_SUFFIX_IMPL
-   (I_SUBKIND | I_PARAMS | I_CLOCK),
+   (I_SUBKIND | I_PARAMS),
 
    // P_LOGICAL
-   (I_SUBKIND | I_PARAMS | I_CLOCK),
+   (I_SUBKIND | I_PARAMS),
 
    // P_RANGE
    (I_LEFT | I_RIGHT),
 
    // P_PROC_BLOCK
-   (I_FOREIGN | I_VALUE | I_CLOCK),
+   (I_FOREIGN | I_VALUE),
 
    // P_PARAM_SERE
-   (I_SUBKIND | I_PARAMS | I_VALUE | I_CLOCK),
+   (I_SUBKIND | I_PARAMS | I_VALUE),
+
+   // P_CLOCKED
+   (I_FOREIGN | I_VALUE | I_REF),
 };
 
 static const char *kind_text_map[P_LAST_PSL_KIND] = {
@@ -124,7 +127,7 @@ static const char *kind_text_map[P_LAST_PSL_KIND] = {
    "P_SERE", "P_REPEAT", "P_PROPERTY_INST", "P_SEQUENCE_INST", "P_UNION",
    "P_BUILTIN_FUNC", "P_VALUE_SET", "P_PARAM_DECL", "P_UNTIL", "P_ABORT",
    "P_BEFORE", "P_SUFFIX_IMPL", "P_LOGICAL", "P_RANGE", "P_PROC_BLOCK",
-   "P_PARAM_SERE",
+   "P_PARAM_SERE", "P_CLOCKED",
 };
 
 static const change_allowed_t change_allowed[] = {
@@ -293,26 +296,6 @@ void psl_add_operand(psl_node_t p, psl_node_t o)
    object_write_barrier(&(p->object), &(o->object));
 }
 
-psl_node_t psl_clock(psl_node_t p)
-{
-   item_t *item = lookup_item(&psl_object, p, I_CLOCK);
-   assert(item->object != NULL);
-   return container_of(item->object, struct _psl_node, object);
-}
-
-bool psl_has_clock(psl_node_t p)
-{
-   return lookup_item(&psl_object, p, I_CLOCK)->object != NULL;
-}
-
-void psl_set_clock(psl_node_t p, psl_node_t clk)
-{
-   object_t *obj = clk ? &(clk->object) : NULL;
-   assert(obj == NULL || obj->kind == P_CLOCK_DECL);
-   lookup_item(&psl_object, p, I_CLOCK)->object = obj;
-   object_write_barrier(&(p->object), obj);
-}
-
 tree_t psl_message(psl_node_t p)
 {
    item_t *item = lookup_item(&psl_object, p, I_MESSAGE);
@@ -371,6 +354,11 @@ void psl_set_ref(psl_node_t p, psl_node_t r)
 {
    lookup_item(&psl_object, p, I_REF)->object = &(r->object);
    object_write_barrier(&(p->object), &(r->object));
+}
+
+bool psl_has_ref(psl_node_t p)
+{
+   return lookup_item(&psl_object, p, I_REF)->object != NULL;
 }
 
 psl_node_t psl_ref(psl_node_t p)

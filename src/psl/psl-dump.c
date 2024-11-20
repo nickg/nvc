@@ -231,6 +231,18 @@ static void psl_dump_proc_block(psl_node_t p)
    print_syntax("]]");
 }
 
+static void psl_dump_clocked(psl_node_t p)
+{
+   psl_dump(psl_value(p));
+
+   if (psl_has_ref(p))
+      print_syntax("/*@(default clock)*/");
+   else {
+      print_syntax("@");
+      vhdl_dump(psl_tree(p), 0);
+   }
+}
+
 void psl_dump(psl_node_t p)
 {
    switch (psl_kind(p)) {
@@ -293,6 +305,9 @@ void psl_dump(psl_node_t p)
       break;
    case P_PROC_BLOCK:
       psl_dump_proc_block(p);
+      break;
+   case P_CLOCKED:
+      psl_dump_clocked(p);
       break;
    default:
       print_syntax("\n");

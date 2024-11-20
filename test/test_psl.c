@@ -157,7 +157,8 @@ START_TEST(test_parse3)
 
    psl_node_t p0 = tree_psl(tree_stmt(a, 1));
    fail_unless(psl_kind(p0) == P_ASSERT);
-   fail_unless(psl_has_clock(psl_value(p0)));
+   psl_node_t p0_v = psl_value(p0);
+   fail_unless(psl_kind(p0_v) == P_CLOCKED);
 
    psl_node_t p1 = tree_psl(tree_stmt(a, 7));
    fail_unless(psl_kind(p1) == P_COVER);
@@ -196,17 +197,17 @@ START_TEST(test_parse4)
    fail_unless(psl_kind(p1) == P_SEQUENCE_DECL);
 
    psl_node_t p3 = tree_psl(tree_stmt(a, 0));
-   psl_node_t p3_v = psl_value(p3);
+   psl_node_t p3_v = psl_value(psl_value(p3));
    fail_unless(psl_kind(p3) == P_COVER);
    fail_unless(psl_kind(p3_v) == P_SEQUENCE_INST);
 
    psl_node_t p6 = tree_psl(tree_stmt(a, 3));
-   psl_node_t p6_v = psl_value(p6);
+   psl_node_t p6_v = psl_value(psl_value(p6));
    fail_unless(psl_kind(p6_v) == P_REPEAT);
    fail_unless(psl_subkind(p6_v) == PSL_TIMES_REPEAT);
 
    psl_node_t p7 = tree_psl(tree_stmt(a, 4));
-   psl_node_t p7_v_3 = psl_value(p7);
+   psl_node_t p7_v_3 = psl_value(psl_value(p7));
    fail_unless(psl_kind(p7_v_3) == P_REPEAT);
    fail_unless(psl_subkind(p7_v_3) == PSL_TIMES_REPEAT);
    fail_unless(tree_ival(psl_tree(psl_delay(p7_v_3))) == 3);
@@ -222,21 +223,21 @@ START_TEST(test_parse4)
    fail_unless(tree_ival(psl_tree(psl_delay(p7_v_1))) == 1);
 
    psl_node_t p11 = tree_psl(tree_stmt(a, 8));
-   psl_node_t p11_v = psl_value(p11);
+   psl_node_t p11_v = psl_value(psl_value(p11));
 
    fail_unless(psl_kind(p11_v) == P_REPEAT);
    fail_unless(tree_ival(psl_tree(psl_left(psl_delay(p11_v)))) == 5);
    fail_unless(tree_ival(psl_tree(psl_right(psl_delay(p11_v)))) == 10);
 
    psl_node_t p9 = tree_psl(tree_stmt(a, 9));
-   psl_node_t p9_v = psl_value(p9);
+   psl_node_t p9_v = psl_value(psl_value(p9));
 
    fail_unless(psl_kind(p9_v) == P_REPEAT);
    fail_unless(psl_subkind(p9_v) == PSL_PLUS_REPEAT);
 
    psl_node_t p14 = tree_psl(tree_stmt(a, 14));
    fail_unless(psl_kind(p14) == P_COVER);
-   psl_node_t p14_v = psl_value(p14);
+   psl_node_t p14_v = psl_value(psl_value(p14));
    fail_unless(psl_kind(p14_v) == P_PROC_BLOCK);
    fail_unless(tree_kind(psl_tree(p14_v)) == T_SEQUENCE);
    fail_unless(psl_kind(psl_value(p14_v)) == P_HDL_EXPR);
@@ -254,14 +255,14 @@ START_TEST(test_parse5)
    tree_t a = parse_and_check(T_ENTITY, T_ARCH);
 
    psl_node_t p0 = tree_psl(tree_stmt(a, 0));
-   psl_node_t p0_v = psl_value(p0);
+   psl_node_t p0_v = psl_value(psl_value(p0));
    fail_unless(psl_kind(p0) == P_COVER);
    fail_unless(psl_kind(p0_v) == P_SERE);
    fail_unless(psl_subkind(p0_v) == PSL_SERE_FUSION);
    fail_unless(psl_operands(p0_v) == 4);
 
    psl_node_t p1 = tree_psl(tree_stmt(a, 1));
-   psl_node_t p1_v = psl_value(p1);
+   psl_node_t p1_v = psl_value(psl_value(p1));
    psl_node_t p1_v0 = psl_operand(p1_v, 0);
    psl_node_t p1_v1 = psl_operand(p1_v, 1);
    fail_unless(psl_kind(p1_v) == P_SERE);
@@ -270,12 +271,12 @@ START_TEST(test_parse5)
    fail_unless(psl_kind(p1_v1) == P_SERE);
 
    psl_node_t p2 = tree_psl(tree_stmt(a, 2));
-   psl_node_t p2_v = psl_value(p2);
+   psl_node_t p2_v = psl_value(psl_value(p2));
    fail_unless(psl_kind(p2_v) == P_SERE);
    fail_unless(psl_subkind(p2_v) == PSL_SERE_OR);
 
    psl_node_t p3 = tree_psl(tree_stmt(a, 3));
-   psl_node_t p3_v = psl_value(p3);
+   psl_node_t p3_v = psl_value(psl_value(p3));
    psl_node_t p3_v0 = psl_operand(p3_v, 0);
    psl_node_t p3_v1 = psl_operand(p3_v, 1);
    fail_unless(psl_kind(p3_v) == P_SERE);
@@ -285,24 +286,24 @@ START_TEST(test_parse5)
    fail_unless(psl_subkind(p3_v0) == PSL_TIMES_REPEAT);
 
    psl_node_t p4 = tree_psl(tree_stmt(a, 4));
-   psl_node_t p4_v = psl_value(p4);
+   psl_node_t p4_v = psl_value(psl_value(p4));
    psl_node_t p4_v0 = psl_operand(p4_v, 0);
    fail_unless(psl_kind(p4_v) == P_SERE);
    fail_unless(psl_subkind(p4_v) == PSL_SERE_OR);
    fail_unless(psl_subkind(p4_v0) == PSL_SERE_CONCAT);
 
    psl_node_t p5 = tree_psl(tree_stmt(a, 5));
-   psl_node_t p5_v = psl_value(p5);
+   psl_node_t p5_v = psl_value(psl_value(p5));
    fail_unless(psl_kind(p5_v) == P_SERE);
    fail_unless(psl_subkind(p5_v) == PSL_SERE_WITHIN);
 
    psl_node_t p6 = tree_psl(tree_stmt(a, 6));
-   psl_node_t p6_v = psl_value(p6);
+   psl_node_t p6_v = psl_value(psl_value(p6));
    fail_unless(psl_kind(p6_v) == P_SERE);
    fail_unless(psl_subkind(p6_v) == PSL_SERE_EQU_AND);
 
    psl_node_t p7 = tree_psl(tree_stmt(a, 7));
-   psl_node_t p7_v = psl_value(p7);
+   psl_node_t p7_v = psl_value(psl_value(p7));
    fail_unless(psl_kind(p7_v) == P_SERE);
    fail_unless(psl_subkind(p7_v) == PSL_SERE_NEQ_AND);
 

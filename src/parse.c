@@ -2645,6 +2645,23 @@ static tree_t find_generic_subprogram_body(tree_t inst, tree_t decl)
    return body;
 }
 
+static psl_node_t with_default_clock(psl_node_t prop)
+{
+   if (psl_kind(prop) == P_CLOCKED)
+      return prop;
+
+   psl_node_t def = find_default_clock(nametab);
+   if (def == NULL)
+      return prop;
+
+   psl_node_t p = psl_new(P_CLOCKED);
+   psl_set_value(p, prop);
+   psl_set_ref(p, def);
+   psl_set_loc(p, psl_loc(prop));
+
+   return p;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Parser rules
 
@@ -11599,7 +11616,7 @@ static tree_t p_psl_builtin_function_call(void)
       }
 
       if (optional(tCOMMA))
-         psl_set_clock(p, p_psl_clock_expression());
+         (void)p_psl_clock_expression();
 
       break;
    }
@@ -11610,7 +11627,7 @@ static tree_t p_psl_builtin_function_call(void)
       psl_add_operand(p, p_psl_sequence());
 
       if (optional(tCOMMA))
-         psl_set_clock(p, p_psl_clock_expression());
+         (void)p_psl_clock_expression();
 
       break;
    }
@@ -11971,11 +11988,19 @@ static psl_node_t p_psl_clocked_sere(psl_node_t head)
 {
    // Braced_SERE @ Clock_Expression
 
+   BEGIN("PSL Clocked SERE");
+
    consume(tAT);
 
-   psl_set_clock(head, p_psl_clock_expression());
+   tree_t expr = p_expression();
+   solve_types(nametab, expr, std_type(NULL, STD_BOOLEAN));
 
-   return head;
+   psl_node_t p = psl_new(P_CLOCKED);
+   psl_set_value(p, head);
+   psl_set_tree(p, expr);
+
+   psl_set_loc(p, CURRENT_LOC);
+   return p;
 }
 
 static psl_node_t p_psl_compound_sere(psl_node_t head)
@@ -12642,9 +12667,7 @@ static psl_node_t p_psl_assert_directive(void)
 
    consume(tASSERT);
 
-   psl_node_t p = p_psl_property();
-   if (!psl_has_clock(p))
-      psl_set_clock(p, find_default_clock(nametab));
+   psl_node_t p = with_default_clock(p_psl_property());
 
    psl_node_t a = psl_new(P_ASSERT);
    psl_set_value(a, p);
@@ -12673,9 +12696,7 @@ static psl_node_t p_psl_assume_directive(void)
    else
       psl_set_subkind(a, PSL_GUARANTEE);
 
-   psl_node_t p = p_psl_property();
-   if (!psl_has_clock(p))
-      psl_set_clock(p, find_default_clock(nametab));
+   psl_node_t p = with_default_clock(p_psl_property());
    psl_set_value(a, p);
 
    if (peek() == tREPORT && tok == tASSUMEG)
@@ -12704,9 +12725,7 @@ static psl_node_t p_psl_restrict_directive(void)
    else
       psl_set_subkind(a, PSL_GUARANTEE);
 
-   psl_node_t p = p_psl_sequence();
-   if (!psl_has_clock(p))
-      psl_set_clock(p, find_default_clock(nametab));
+   psl_node_t p = with_default_clock(p_psl_sequence());
    psl_set_value(a, p);
 
    if (peek() == tREPORT && tok == tRESTRICTG)
@@ -12768,9 +12787,7 @@ static psl_node_t p_psl_cover_directive(void)
 
    consume(tCOVER);
 
-   psl_node_t p = p_psl_sequence();
-   if (!psl_has_clock(p))
-      psl_set_clock(p, find_default_clock(nametab));
+   psl_node_t p = with_default_clock(p_psl_sequence());
 
    psl_node_t a = psl_new(P_COVER);
    psl_set_value(a, p);
@@ -13010,11 +13027,8 @@ static tree_t p_psl_or_concurrent_assert(ident_t label)
       tree_add_stmt(conc, s);
    }
    else {
-      if (!psl_has_clock(p))
-         psl_set_clock(p, find_default_clock(nametab));
-
       psl_node_t a = psl_new(P_ASSERT);
-      psl_set_value(a, p);
+      psl_set_value(a, with_default_clock(p));
 
       if (peek() == tREPORT)
          p_psl_report(a);

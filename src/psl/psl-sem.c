@@ -373,6 +373,11 @@ static void psl_check_proc_block(psl_node_t p, nametab_t *tab)
    psl_check(psl_value(p), tab);
 }
 
+static void psl_check_clocked(psl_node_t p, nametab_t *tab)
+{
+   psl_check(psl_value(p), tab);
+}
+
 void psl_check(psl_node_t p, nametab_t *tab)
 {
    switch (psl_kind(p)) {
@@ -458,6 +463,9 @@ void psl_check(psl_node_t p, nametab_t *tab)
       break;
    case P_PARAM_SERE:
       psl_check_param_sere(p, tab);
+      break;
+   case P_CLOCKED:
+      psl_check_clocked(p, tab);
       break;
    default:
       fatal_trace("cannot check PSL kind %s", psl_kind_str(psl_kind(p)));

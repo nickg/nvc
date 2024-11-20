@@ -195,6 +195,7 @@ static psl_node_t psl_outer_async_abort(psl_node_t p)
    case P_NEVER:
    case P_ASSUME:
    case P_COVER:
+   case P_CLOCKED:
       return psl_outer_async_abort(psl_value(p));
 
    default:
@@ -277,11 +278,13 @@ void psl_lower_directive(unit_registry_t *ur, lower_unit_t *parent,
    vcode_reg_t cmp_reg = emit_cmp(VCODE_CMP_LT, state_reg, zero_reg);
    emit_cond(cmp_reg, reset_bb, case_bb);
 
-   psl_node_t top = psl_value(p);
-
    // Only handle a single clock for the whole property
-   psl_node_t clk = psl_clock(top);
-   tree_t clk_expr = psl_tree(clk);
+   psl_node_t top = psl_value(p);
+   assert(psl_kind(top) == P_CLOCKED);
+   assert(psl_has_ref(top));
+
+   psl_node_t clk = psl_ref(top);
+   tree_t clk_expr = psl_tree(psl_ref(top));
 
    int hops;
    vcode_var_t trigger_var = lower_search_vcode_obj(clk, lu, &hops);

@@ -430,38 +430,43 @@ START_TEST(test_psl1)
    tb_rewind(tb);
 
    psl_dump(tree_psl(tree_stmt(a, 0)));
-   diff_dump(tb_get(tb), "assert never B");
+   diff_dump(tb_get(tb), "assert never B/*@(default clock)*/");
    tb_rewind(tb);
 
    psl_dump(tree_psl(tree_stmt(a, 1)));
-   diff_dump(tb_get(tb), "assert always A -> (next_a [3 to 5] B)");
+   diff_dump(tb_get(tb), "assert always A -> (next_a [3 to 5] B)"
+             "/*@(default clock)*/");
    tb_rewind(tb);
 
    psl_dump(tree_psl(tree_stmt(a, 2)));
-   diff_dump(tb_get(tb), "assert {A;\"and\"(B, C)}");
+   diff_dump(tb_get(tb), "assert {A;\"and\"(B, C)}"
+             "/*@(default clock)*/");
    tb_rewind(tb);
 
    psl_dump(tree_psl(tree_stmt(a, 3)));
-   diff_dump(tb_get(tb), "assert A -> (next [2] (B until! C))");
+   diff_dump(tb_get(tb), "assert A -> (next [2] (B until! C))"
+             "/*@(default clock)*/");
    tb_rewind(tb);
 
    psl_dump(tree_psl(tree_stmt(a, 4)));
-   diff_dump(tb_get(tb), "cover {TRUE[*];A[*4]} report \"msg\"");
+   diff_dump(tb_get(tb),
+             "cover {TRUE[*];A[*4]}/*@(default clock)*/ report \"msg\"");
    tb_rewind(tb);
 
    psl_dump(tree_psl(tree_stmt(a, 5)));
-   diff_dump(tb_get(tb), "assert always ((A until_ B) async_abort C)");
+   diff_dump(tb_get(tb), "assert always ((A until_ B) async_abort C)"
+             "/*@(default clock)*/");
    tb_rewind(tb);
 
    psl_dump(tree_psl(tree_stmt(a, 6)));
-   diff_dump(tb_get(tb), "assert (A before! B)");
+   diff_dump(tb_get(tb), "assert (A before! B)/*@(default clock)*/");
    tb_rewind(tb);
 
    psl_dump(tree_psl(tree_stmt(a, 7)));
    diff_dump(tb_get(tb),
              "assert A [[signal X : BIT;\n"
              "X <= reject 0 ps inertial '1';\n"
-             "]]");
+             "]]/*@(default clock)*/");
    tb_rewind(tb);
 
    fail_if_errors();
@@ -577,7 +582,7 @@ START_TEST(test_vhdl6)
              "  signal X : INTEGER;\n"
              "begin\n"
              "  assert \"=\"(<< constant ^.FOO : INTEGER >>, 2);\n"
-             "  assert \"=\"(X, 1) -> (\"=\"(X, 2));\n"
+             "  assert \"=\"(X, 1) -> (\"=\"(X, 2))/*@(default clock)*/;\n"
              "end architecture;\n\n");
    tb_rewind(tb);
 
