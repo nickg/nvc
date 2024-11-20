@@ -132,6 +132,11 @@ START_TEST(test_sem1)
         "Sequence" },
       { 36, "property is not in the simple subset as both operands of this "
         "logical OR are non-Boolean" },
+      { 37, "operand of non-consecutive repetition operator must be Boolean" },
+      { 38, "operand of goto repetition operator must be Boolean" },
+      { 39, "expression must be a PSL Number but have type BIT" },
+      { 40, "no visible declaration for FOO" },
+      { 40, "no visible declaration for Z" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -176,6 +181,12 @@ START_TEST(test_parse4)
 
    input_from_file(TESTDIR "/psl/parse4.vhd");
 
+   const error_t expect[] = {
+      { 53, "FOO is not a PSL sequence" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
    tree_t a = parse_and_check(T_ENTITY, T_ARCH);
 
    psl_node_t p0 = tree_psl(tree_decl(a, 5));
@@ -189,53 +200,48 @@ START_TEST(test_parse4)
    fail_unless(psl_kind(p3) == P_COVER);
    fail_unless(psl_kind(p3_v) == P_SEQUENCE_INST);
 
-
    psl_node_t p6 = tree_psl(tree_stmt(a, 3));
    psl_node_t p6_v = psl_value(p6);
-   psl_node_t p6_v_r = psl_repeat(p6_v);
-   fail_unless(psl_kind(p6_v_r) == P_REPEAT);
-   fail_unless(psl_subkind(p6_v_r) == PSL_TIMES_REPEAT);
+   fail_unless(psl_kind(p6_v) == P_REPEAT);
+   fail_unless(psl_subkind(p6_v) == PSL_TIMES_REPEAT);
 
    psl_node_t p7 = tree_psl(tree_stmt(a, 4));
-   psl_node_t p7_v = psl_value(p7);
-   psl_node_t p7_v_r_1 = psl_repeat(p7_v);
+   psl_node_t p7_v_3 = psl_value(p7);
+   fail_unless(psl_kind(p7_v_3) == P_REPEAT);
+   fail_unless(psl_subkind(p7_v_3) == PSL_TIMES_REPEAT);
+   fail_unless(tree_ival(psl_tree(psl_delay(p7_v_3))) == 3);
 
-   fail_unless(psl_kind(p7_v) == P_SERE);
-   fail_unless(tree_ival(psl_tree(p7_v_r_1)) == 3);
+   psl_node_t p7_v_2 = psl_value(p7_v_3);
+   fail_unless(psl_kind(p7_v_2) == P_REPEAT);
+   fail_unless(psl_subkind(p7_v_2) == PSL_TIMES_REPEAT);
+   fail_unless(tree_ival(psl_tree(psl_delay(p7_v_2))) == 2);
 
-   psl_node_t p7_v_2 = psl_operand(p7_v, 0);
-   psl_node_t p7_v_r_2 = psl_repeat(p7_v_2);
-
-   fail_unless(psl_kind(p7_v_2) == P_SERE);
-   fail_unless(tree_ival(psl_tree(p7_v_r_2)) == 2);
-
-   psl_node_t p7_v_3 = psl_operand(p7_v_2, 0);
-   psl_node_t p7_v_r_3 = psl_repeat(p7_v_3);
-
-   fail_unless(psl_kind(p7_v_3) == P_SERE);
-   fail_unless(tree_ival(psl_tree(p7_v_r_3)) == 1);
+   psl_node_t p7_v_1 = psl_value(p7_v_2);
+   fail_unless(psl_kind(p7_v_1) == P_REPEAT);
+   fail_unless(psl_subkind(p7_v_1) == PSL_TIMES_REPEAT);
+   fail_unless(tree_ival(psl_tree(psl_delay(p7_v_1))) == 1);
 
    psl_node_t p11 = tree_psl(tree_stmt(a, 8));
    psl_node_t p11_v = psl_value(p11);
-   psl_node_t p11_v_r = psl_repeat(p11_v);
 
-   fail_unless(psl_kind(p11_v_r) == P_REPEAT);
-   fail_unless(tree_ival(tree_left(psl_tree(p11_v_r))) == 5);
-   fail_unless(tree_ival(tree_right(psl_tree(p11_v_r))) == 10);
+   fail_unless(psl_kind(p11_v) == P_REPEAT);
+   fail_unless(tree_ival(psl_tree(psl_left(psl_delay(p11_v)))) == 5);
+   fail_unless(tree_ival(psl_tree(psl_right(psl_delay(p11_v)))) == 10);
 
-   psl_node_t p12 = tree_psl(tree_stmt(a, 9));
-   psl_node_t p12_v = psl_value(p12);
-   psl_node_t p12_v_r = psl_repeat(p12_v);
+   psl_node_t p9 = tree_psl(tree_stmt(a, 9));
+   psl_node_t p9_v = psl_value(p9);
 
-   fail_unless(psl_kind(p12_v_r) == P_REPEAT);
-   fail_unless(psl_subkind(p12_v_r) == PSL_PLUS_REPEAT);
+   fail_unless(psl_kind(p9_v) == P_REPEAT);
+   fail_unless(psl_subkind(p9_v) == PSL_PLUS_REPEAT);
 
-   psl_node_t p17 = tree_psl(tree_stmt(a, 14));
-   psl_node_t p17_v = psl_value(p17);
-   fail_unless(psl_decls(p17_v) == 1);
-   fail_unless(tree_kind(psl_decl(p17_v, 0)) == T_BLOCK);
+   psl_node_t p14 = tree_psl(tree_stmt(a, 14));
+   fail_unless(psl_kind(p14) == P_COVER);
+   psl_node_t p14_v = psl_value(p14);
+   fail_unless(psl_kind(p14_v) == P_PROC_BLOCK);
+   fail_unless(tree_kind(psl_tree(p14_v)) == T_SEQUENCE);
+   fail_unless(psl_kind(psl_value(p14_v)) == P_HDL_EXPR);
 
-   fail_if_errors();
+   check_expected_errors();
 }
 END_TEST
 
@@ -259,11 +265,9 @@ START_TEST(test_parse5)
    psl_node_t p1_v0 = psl_operand(p1_v, 0);
    psl_node_t p1_v1 = psl_operand(p1_v, 1);
    fail_unless(psl_kind(p1_v) == P_SERE);
-   // Check right-most tree
-   fail_unless(psl_subkind(p0_v) == PSL_SERE_FUSION);
-   fail_unless(psl_kind(p1_v0) == P_SERE);
-   fail_unless(psl_subkind(p1_v0) == PSL_SERE_CONCAT);
-   fail_unless(psl_kind(p1_v1) == P_HDL_EXPR);
+   fail_unless(psl_subkind(p1_v) == PSL_SERE_CONCAT);
+   fail_unless(psl_kind(p1_v0) == P_HDL_EXPR);
+   fail_unless(psl_kind(p1_v1) == P_SERE);
 
    psl_node_t p2 = tree_psl(tree_stmt(a, 2));
    psl_node_t p2_v = psl_value(p2);
@@ -274,12 +278,11 @@ START_TEST(test_parse5)
    psl_node_t p3_v = psl_value(p3);
    psl_node_t p3_v0 = psl_operand(p3_v, 0);
    psl_node_t p3_v1 = psl_operand(p3_v, 1);
-   psl_node_t p3_v0_r = psl_repeat(p3_v0);
    fail_unless(psl_kind(p3_v) == P_SERE);
    fail_unless(psl_subkind(p3_v) == PSL_SERE_OR);
-   fail_unless(psl_kind(p3_v0) == P_SERE);
-   fail_unless(psl_kind(p3_v1) == P_SERE);
-   fail_unless(psl_subkind(p3_v0_r) == PSL_TIMES_REPEAT);
+   fail_unless(psl_kind(p3_v0) == P_REPEAT);
+   fail_unless(psl_kind(p3_v1) == P_REPEAT);
+   fail_unless(psl_subkind(p3_v0) == PSL_TIMES_REPEAT);
 
    psl_node_t p4 = tree_psl(tree_stmt(a, 4));
    psl_node_t p4_v = psl_value(p4);

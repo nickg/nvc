@@ -35,11 +35,8 @@ static void psl_check_static(tree_t t)
          return;
       break;
    case T_REF:
-      {
-         tree_t decl = tree_ref(t);
-         if (tree_kind(decl) == T_CONST_DECL && tree_has_value(decl))
-            return;
-      }
+      if (class_of(tree_ref(t)) == C_CONSTANT)
+         return;
       break;
    case T_RANGE:
       {
@@ -57,20 +54,6 @@ static void psl_check_static(tree_t t)
    }
 
    error_at(tree_loc(t), "expression must be static");
-}
-
-static void psl_check_number(tree_t t, nametab_t *tab)
-{
-   type_t std_int = std_type(NULL, STD_INTEGER);
-   type_t type = solve_types(tab, t, std_int);
-
-   if (!type_eq(type, std_int)) {
-      error_at(tree_loc(t), "expression must be a PSL Number but have type %s",
-               type_pp(type));
-      return;
-   }
-
-   psl_check_static(t);
 }
 
 static void psl_check_clock_decl(psl_node_t p)
@@ -140,7 +123,7 @@ static void psl_check_eventually(psl_node_t p, nametab_t *tab)
                "operand of eventually! is not a Boolean or Sequence");
 }
 
-static void psl_check_hdl_expr(psl_node_t p, nametab_t *tab)
+static void psl_check_boolean(psl_node_t p, nametab_t *tab)
 {
    tree_t value = psl_tree(p);
 
@@ -149,8 +132,6 @@ static void psl_check_hdl_expr(psl_node_t p, nametab_t *tab)
       return;
 
    psl_set_tree(p, value);   // May be replaced with condition conversion
-
-   assert(psl_type(p) == PSL_TYPE_BOOLEAN);
 
    if (!sem_check(value, tab))
       return;
@@ -171,6 +152,50 @@ static void psl_check_hdl_expr(psl_node_t p, nametab_t *tab)
                "have type %s", type_pp(type));
 }
 
+static void psl_check_number(psl_node_t p, nametab_t *tab)
+{
+   tree_t value = psl_tree(p);
+   type_t std_int = std_type(NULL, STD_INTEGER);
+
+   type_t type = solve_types(tab, value, std_int);
+   if (type_is_none(type))
+      return;   // Prevent cascading errors
+
+   if (!sem_check(value, tab))
+      return;
+
+   if (!type_eq(type, std_int)) {
+      error_at(tree_loc(value), "expression must be a PSL Number but have "
+               "type %s", type_pp(type));
+      return;
+   }
+
+   psl_check_static(value);
+}
+
+static void psl_check_hdl_expr(psl_node_t p, nametab_t *tab)
+{
+   switch (psl_type(p)) {
+   case PSL_TYPE_BOOLEAN:
+      psl_check_boolean(p, tab);
+      break;
+   case PSL_TYPE_NUMERIC:
+      psl_check_number(p, tab);
+      break;
+   default:
+      should_not_reach_here();
+   }
+}
+
+static void psl_check_range(psl_node_t p, nametab_t *tab)
+{
+   psl_node_t low = psl_left(p);
+   psl_check(low, tab);
+
+   psl_node_t high = psl_right(p);
+   psl_check(high, tab);
+}
+
 static void psl_check_property_inst(psl_node_t p)
 {
 
@@ -186,6 +211,29 @@ static void psl_check_sere(psl_node_t p, nametab_t *tab)
    const int nops = psl_operands(p);
    for (int i = 0; i < nops; i++)
       psl_check(psl_operand(p, i), tab);
+}
+
+static void psl_check_repeat(psl_node_t p, nametab_t *tab)
+{
+   psl_node_t value = psl_value(p);
+   psl_check(value, tab);
+
+   if (psl_has_delay(p))
+      psl_check(psl_delay(p), tab);
+
+   switch (psl_subkind(p)) {
+   case PSL_GOTO_REPEAT:
+      if (psl_kind(value) != P_HDL_EXPR)
+         error_at(psl_loc(p), "operand of goto repetition operator must "
+                  "be Boolean");
+      break;
+
+   case PSL_EQUAL_REPEAT:
+      if (psl_kind(value) != P_HDL_EXPR)
+         error_at(psl_loc(p), "operand of non-consecutive repetition "
+                  "operator must be Boolean");
+      break;
+   }
 }
 
 static void psl_check_logical(psl_node_t p, nametab_t *tab)
@@ -224,7 +272,7 @@ static void psl_check_logical(psl_node_t p, nametab_t *tab)
 static void psl_check_next(psl_node_t p, nametab_t *tab)
 {
    if (psl_has_delay(p))
-      psl_check_number(psl_delay(p), tab);
+      psl_check(psl_delay(p), tab);
 
    psl_check(psl_value(p), tab);
 }
@@ -232,7 +280,7 @@ static void psl_check_next(psl_node_t p, nametab_t *tab)
 static void psl_check_next_e(psl_node_t p, nametab_t *tab)
 {
    if (psl_has_delay(p))
-      psl_check_number(psl_delay(p), tab);
+      psl_check(psl_delay(p), tab);
 
    psl_node_t value = psl_value(p);
    psl_check(value, tab);
@@ -306,6 +354,16 @@ static void psl_check_suffix_impl(psl_node_t p, nametab_t *tab)
    psl_check(right, tab);
 }
 
+static void psl_check_param(psl_node_t p, nametab_t *tab)
+{
+   // TODO
+}
+
+static void psl_check_proc_block(psl_node_t p, nametab_t *tab)
+{
+   psl_check(psl_value(p), tab);
+}
+
 void psl_check(psl_node_t p, nametab_t *tab)
 {
    switch (psl_kind(p)) {
@@ -354,6 +412,9 @@ void psl_check(psl_node_t p, nametab_t *tab)
    case P_SERE:
       psl_check_sere(p, tab);
       break;
+   case P_REPEAT:
+      psl_check_repeat(p, tab);
+      break;
    case P_LOGICAL:
       psl_check_logical(p, tab);
       break;
@@ -376,6 +437,15 @@ void psl_check(psl_node_t p, nametab_t *tab)
       break;
    case P_SUFFIX_IMPL:
       psl_check_suffix_impl(p, tab);
+      break;
+   case P_PARAM:
+      psl_check_param(p, tab);
+      break;
+   case P_RANGE:
+      psl_check_range(p, tab);
+      break;
+   case P_PROC_BLOCK:
+      psl_check_proc_block(p, tab);
       break;
    default:
       fatal_trace("cannot check PSL kind %s", psl_kind_str(psl_kind(p)));

@@ -571,6 +571,7 @@ class_t class_of(tree_t t)
    case T_INSTANCE:
    case T_CONCURRENT:
    case T_ELAB:
+   case T_PSL:
       return C_LABEL;
    case T_COMPONENT:
       return C_COMPONENT;

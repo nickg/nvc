@@ -50,6 +50,8 @@ typedef enum {
    P_BEFORE,
    P_SUFFIX_IMPL,
    P_LOGICAL,
+   P_RANGE,
+   P_PROC_BLOCK,
 
    P_LAST_PSL_KIND
 } psl_kind_t;
@@ -152,8 +154,8 @@ void psl_set_tree(psl_node_t p, tree_t t);
 psl_node_t psl_value(psl_node_t p);
 void psl_set_value(psl_node_t p, psl_node_t v);
 
-tree_t psl_delay(psl_node_t p);
-void psl_set_delay(psl_node_t p, tree_t d);
+psl_node_t psl_delay(psl_node_t p);
+void psl_set_delay(psl_node_t p, psl_node_t d);
 bool psl_has_delay(psl_node_t p);
 
 unsigned psl_operands(psl_node_t p);
@@ -176,16 +178,14 @@ ident_t psl_ident(psl_node_t p);
 bool psl_has_ident(psl_node_t p);
 void psl_set_ident(psl_node_t p, ident_t i);
 
-unsigned psl_decls(psl_node_t p);
-void psl_add_decl(psl_node_t p, tree_t r);
-tree_t psl_decl(psl_node_t p, unsigned n);
-
 void psl_set_ref(psl_node_t p, psl_node_t r);
 psl_node_t psl_ref(psl_node_t p);
 
-void psl_set_repeat(psl_node_t p, psl_node_t r);
-psl_node_t psl_repeat(psl_node_t p);
-bool psl_has_repeat(psl_node_t p);
+psl_node_t psl_left(psl_node_t p);
+void psl_set_left(psl_node_t p, psl_node_t left);
+
+psl_node_t psl_right(psl_node_t p);
+void psl_set_right(psl_node_t p, psl_node_t right);
 
 psl_flags_t psl_flags(psl_node_t p);
 void psl_set_flag(psl_node_t p, psl_flags_t mask);

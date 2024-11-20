@@ -48,6 +48,11 @@ begin
     -- Sequence Proc_Block
     -- psl cover {a;b} [[signal sig : bit_vector(3 downto 0); sig <= "0000";]];
 
-    -- psl cover {a;b;c} @ (clk'event and clk = '1');
+    -- psl foo: cover {a;b;c} @ (clk'event and clk = '1');
+
+    -- psl cover foo(a);            -- Error
+
+    -- Paramterized SERE
+    -- psl cover {for i in {1 to 3}: && {seq_b(i)}};
 
 end architecture;

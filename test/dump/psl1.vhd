@@ -17,5 +17,6 @@ begin
     -- psl cover {[*]; a[*4]} report "msg";
     -- psl assert always (a until_ b) abort c;
     -- psl assert a before! b;
+    -- psl assert {a} [[signal x : bit; x <= '1';]];
 
 end architecture;

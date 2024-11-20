@@ -438,7 +438,7 @@ START_TEST(test_psl1)
    tb_rewind(tb);
 
    psl_dump(tree_psl(tree_stmt(a, 2)));
-   diff_dump(tb_get(tb), "assert {A; \"and\"(B, C)}");
+   diff_dump(tb_get(tb), "assert {A;\"and\"(B, C)}");
    tb_rewind(tb);
 
    psl_dump(tree_psl(tree_stmt(a, 3)));
@@ -446,7 +446,7 @@ START_TEST(test_psl1)
    tb_rewind(tb);
 
    psl_dump(tree_psl(tree_stmt(a, 4)));
-   diff_dump(tb_get(tb), "cover {{}[*]; {A}[*4]} report \"msg\"");
+   diff_dump(tb_get(tb), "cover {TRUE[*];A[*4]} report \"msg\"");
    tb_rewind(tb);
 
    psl_dump(tree_psl(tree_stmt(a, 5)));
@@ -455,6 +455,13 @@ START_TEST(test_psl1)
 
    psl_dump(tree_psl(tree_stmt(a, 6)));
    diff_dump(tb_get(tb), "assert (A before! B)");
+   tb_rewind(tb);
+
+   psl_dump(tree_psl(tree_stmt(a, 7)));
+   diff_dump(tb_get(tb),
+             "assert A [[signal X : BIT;\n"
+             "X <= reject 0 ps inertial '1';\n"
+             "]]");
    tb_rewind(tb);
 
    fail_if_errors();

@@ -69,16 +69,16 @@ static const imask_t has_map[P_LAST_PSL_KIND] = {
    (I_VALUE | I_DELAY | I_FLAGS),
 
    // P_SERE
-   (I_SUBKIND | I_PARAMS | I_CLOCK | I_REPEAT | I_DECLS),
+   (I_SUBKIND | I_PARAMS | I_CLOCK),
 
-   // P_REPEAT,
-   (I_SUBKIND | I_FOREIGN),
+   // P_REPEAT
+   (I_SUBKIND | I_DELAY | I_VALUE | I_CLOCK),
 
    // P_PROPERTY_INST
    (I_REF | I_PARAMS),
 
    // P_SEQUENCE_INST
-   (I_REF | I_PARAMS | I_CLOCK | I_REPEAT),
+   (I_REF | I_PARAMS | I_CLOCK),
 
    // P_UNION
    (I_PARAMS),
@@ -106,6 +106,12 @@ static const imask_t has_map[P_LAST_PSL_KIND] = {
 
    // P_LOGICAL
    (I_SUBKIND | I_PARAMS | I_CLOCK),
+
+   // P_RANGE
+   (I_LEFT | I_RIGHT),
+
+   // P_PROC_BLOCK
+   (I_FOREIGN | I_VALUE | I_CLOCK),
 };
 
 static const char *kind_text_map[P_LAST_PSL_KIND] = {
@@ -114,7 +120,7 @@ static const char *kind_text_map[P_LAST_PSL_KIND] = {
    "P_NEVER", "P_EVENTUALLY", "P_NEXT_A", "P_NEXT_E", "P_NEXT_EVENT",
    "P_SERE", "P_REPEAT", "P_PROPERTY_INST", "P_SEQUENCE_INST", "P_UNION",
    "P_BUILTIN_FUNC", "P_VALUE_SET", "P_PARAM", "P_UNTIL", "P_ABORT",
-   "P_BEFORE", "P_SUFFIX_IMPL", "P_LOGICAL",
+   "P_BEFORE", "P_SUFFIX_IMPL", "P_LOGICAL", "P_RANGE", "P_PROC_BLOCK",
 };
 
 static const change_allowed_t change_allowed[] = {
@@ -246,14 +252,14 @@ void psl_set_value(psl_node_t p, psl_node_t v)
    object_write_barrier(&(p->object), &(v->object));
 }
 
-tree_t psl_delay(psl_node_t p)
+psl_node_t psl_delay(psl_node_t p)
 {
    item_t *item = lookup_item(&psl_object, p, I_DELAY);
    assert(item->object != NULL);
-   return container_of(item->object, struct _tree, object);
+   return container_of(item->object, struct _psl_node, object);
 }
 
-void psl_set_delay(psl_node_t p, tree_t d)
+void psl_set_delay(psl_node_t p, psl_node_t d)
 {
    lookup_item(&psl_object, p, I_DELAY)->object = &(d->object);
    object_write_barrier(&(p->object), &(d->object));
@@ -357,25 +363,6 @@ void psl_set_ident(psl_node_t p, ident_t i)
    lookup_item(&psl_object, p, I_IDENT)->ident = i;
 }
 
-unsigned psl_decls(psl_node_t p)
-{
-   item_t *item = lookup_item(&psl_object, p, I_DECLS);
-   return obj_array_count(item->obj_array);
-}
-
-void psl_add_decl(psl_node_t p, tree_t r)
-{
-   assert(r != NULL);
-   tree_array_add(lookup_item(&psl_object, p, I_DECLS), r);
-   object_write_barrier(&(p->object), &(r->object));
-}
-
-tree_t psl_decl(psl_node_t p, unsigned n)
-{
-   item_t *item = lookup_item(&psl_object, p, I_DECLS);
-   return tree_array_nth(item, n);
-}
-
 void psl_set_ref(psl_node_t p, psl_node_t r)
 {
    lookup_item(&psl_object, p, I_REF)->object = &(r->object);
@@ -389,22 +376,30 @@ psl_node_t psl_ref(psl_node_t p)
    return container_of(item->object, struct _psl_node, object);
 }
 
-void psl_set_repeat(psl_node_t p, psl_node_t r)
+psl_node_t psl_left(psl_node_t p)
 {
-   lookup_item(&psl_object, p, I_REPEAT)->object = &(r->object);
-   object_write_barrier(&(p->object), &(r->object));
-}
-
-psl_node_t psl_repeat(psl_node_t p)
-{
-   item_t *item = lookup_item(&psl_object, p, I_REPEAT);
+   item_t *item = lookup_item(&psl_object, p, I_LEFT);
    assert(item->object != NULL);
    return container_of(item->object, struct _psl_node, object);
 }
 
-bool psl_has_repeat(psl_node_t p)
+void psl_set_left(psl_node_t p, psl_node_t left)
 {
-   return lookup_item(&psl_object, p, I_REPEAT)->object != NULL;
+   lookup_item(&psl_object, p, I_LEFT)->object = &(left->object);
+   object_write_barrier(&(p->object), &(left->object));
+}
+
+psl_node_t psl_right(psl_node_t p)
+{
+   item_t *item = lookup_item(&psl_object, p, I_RIGHT);
+   assert(item->object != NULL);
+   return container_of(item->object, struct _psl_node, object);
+}
+
+void psl_set_right(psl_node_t p, psl_node_t right)
+{
+   lookup_item(&psl_object, p, I_RIGHT)->object = &(right->object);
+   object_write_barrier(&(p->object), &(right->object));
 }
 
 psl_flags_t psl_flags(psl_node_t p)

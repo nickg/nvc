@@ -569,6 +569,8 @@ BEFORE            ?i:before
 <PSL>{DEFAULT}           { TOKEN(tDEFAULT); }
 <PSL>{CLOCK}             { TOKEN(tCLOCK); }
 <PSL>{IS}                { TOKEN(tIS); }
+<PSL>{IN}                { TOKEN(tIN); }
+<PSL>{FOR}               { TOKEN(tFOR); }
 <PSL>"->"                { TOKEN(tIFIMPL); }
 <PSL>"<->"               { TOKEN(tIFFIMPL); }
 <PSL>{NEXT}              { TOKEN(tPSLNEXT); }

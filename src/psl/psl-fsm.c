@@ -244,8 +244,7 @@ static fsm_state_t *build_sere(psl_fsm_t *fsm, fsm_state_t *state, psl_node_t p)
 static void get_repeat_bounds(psl_node_t p, int *low, int *high, bool *infinite,
                               bool *noncon, bool *goto_rep)
 {
-   psl_node_t r = psl_repeat(p);
-   psl_repeat_t kind = psl_subkind(r);
+   psl_repeat_t kind = psl_subkind(p);
 
    *low = 0;
    *high = 0;
@@ -261,22 +260,23 @@ static void get_repeat_bounds(psl_node_t p, int *low, int *high, bool *infinite,
 
    case PSL_GOTO_REPEAT:
       *goto_rep = true;
-      // fallthrough
-
+      // Fall-through
    case PSL_EQUAL_REPEAT:
       *noncon = true;
-      // fallthrough
-
+      // Fall-through
    case PSL_TIMES_REPEAT:
-      if (psl_has_tree(r)) {
-         tree_t t_r = psl_tree(r);
-         if (tree_kind(t_r) == T_RANGE) {
-            *low = get_number(tree_left(t_r));
-            *high = get_number(tree_right(t_r));
-         }
-         else {
-            *low = get_number(t_r);
-            *high = *low;
+      if (psl_has_delay(p)) {
+         psl_node_t count = psl_delay(p);
+         switch (psl_kind(count)) {
+         case P_RANGE:
+            *low = get_number(psl_tree(psl_left(count)));
+            *high = get_number(psl_tree(psl_right(count)));
+            break;
+         case P_HDL_EXPR:
+            *low = *high = get_number(psl_tree(count));
+            break;
+         default:
+            should_not_reach_here();
          }
       }
       else {
@@ -286,7 +286,7 @@ static void get_repeat_bounds(psl_node_t p, int *low, int *high, bool *infinite,
       break;
 
    default:
-      CANNOT_HANDLE(r);
+      CANNOT_HANDLE(p);
    }
 
    if (*high == INT32_MAX) {
@@ -295,11 +295,9 @@ static void get_repeat_bounds(psl_node_t p, int *low, int *high, bool *infinite,
    }
 }
 
-static fsm_state_t *build_repeated_sere(psl_fsm_t *fsm, fsm_state_t *state,
-                                        psl_node_t p)
+static fsm_state_t *build_repeat(psl_fsm_t *fsm, fsm_state_t *state,
+                                 psl_node_t p)
 {
-   assert(psl_has_repeat(p));
-
    int low, high;
    bool infinite, noncon, goto_rep;
 
@@ -309,11 +307,13 @@ static fsm_state_t *build_repeated_sere(psl_fsm_t *fsm, fsm_state_t *state,
    fsm_state_t *initial = state;
    fsm_state_t *last_but_one = NULL;
 
+   psl_node_t seq = psl_value(p);
+
    for (int i = 0; i < high; i++) {
       bool is_last = (i == high - 1) ? true : false;
 
       last_but_one = state;
-      state = build_sere(fsm, state, p);
+      state = build_node(fsm, state, seq);
 
       if (noncon) {
          fsm_state_t *wait = add_state(fsm, p);
@@ -330,11 +330,12 @@ static fsm_state_t *build_repeated_sere(psl_fsm_t *fsm, fsm_state_t *state,
          add_edge(curr, state, EDGE_NEXT, NULL);
       }
       else if (noncon && !goto_rep) {
+         assert(psl_kind(seq) == P_HDL_EXPR);
          fsm_state_t *aux = add_state(fsm, p);
          fsm_state_t *dead = add_state(fsm, p);
          fsm_state_t *wait = add_state(fsm, p);
          add_edge(state, aux, EDGE_NEXT, NULL);
-         add_edge(aux, dead, EDGE_EPSILON, psl_operand(p, 0));
+         add_edge(aux, dead, EDGE_EPSILON, seq);
          add_edge(aux, wait, EDGE_EPSILON, NULL);
          add_edge(wait, aux, EDGE_NEXT, NULL);
          add_edge(wait, state, EDGE_EPSILON, NULL);
@@ -354,18 +355,10 @@ static fsm_state_t *build_repeated_sere(psl_fsm_t *fsm, fsm_state_t *state,
    return state;
 }
 
-static fsm_state_t *build_sequence(psl_fsm_t *fsm, fsm_state_t *state, psl_node_t p)
-{
-   if (psl_has_repeat(p))
-      return build_repeated_sere(fsm, state, p);
-
-   return build_sere(fsm, state, p);
-}
-
 static fsm_state_t *build_next(psl_fsm_t *fsm, fsm_state_t *state, psl_node_t p)
 {
    if (psl_has_delay(p)) {
-      const int cycles = get_number(psl_delay(p));
+      const int cycles = get_number(psl_tree(psl_delay(p)));
       for (int i = 0; i < cycles; i++) {
          fsm_state_t *new = add_state(fsm, p);
          add_edge(state, new, EDGE_NEXT, NULL);
@@ -461,7 +454,9 @@ static fsm_state_t *build_node(psl_fsm_t *fsm, fsm_state_t *state, psl_node_t p)
    case P_NEXT:
       return build_next(fsm, state, p);
    case P_SERE:
-      return build_sequence(fsm, state, p);
+      return build_sere(fsm, state, p);
+   case P_REPEAT:
+      return build_repeat(fsm, state, p);
    case P_LOGICAL:
       return build_logical(fsm, state, p);
    case P_UNTIL:

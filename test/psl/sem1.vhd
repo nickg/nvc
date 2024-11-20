@@ -34,5 +34,9 @@ begin
     -- psl assert x before (x -> next y);     -- Error
     -- psl assert (x -> next y) |=> {y};      -- Error
     -- psl assert (x -> next y) or (y -> next x);   -- Error
+    -- psl assert {x[*]}[=2];                 -- Error
+    -- psl assert {x[*]}[->1];                -- Error
+    -- psl assert {x[*1 to clk]};             -- Error
+    -- psl assert {z [[foo <= 1;]]};          -- Error
 
 end architecture;

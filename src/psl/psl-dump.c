@@ -98,7 +98,7 @@ static void psl_dump_next(psl_node_t p)
 
    if (psl_has_delay(p)) {
       print_syntax("[");
-      vhdl_dump(psl_delay(p), 0);
+      psl_dump(psl_delay(p));
       print_syntax("] ");
    }
 
@@ -111,7 +111,7 @@ static void psl_dump_next_a(psl_node_t p)
 
    if (psl_has_delay(p)) {
       print_syntax("[");
-      vhdl_dump(psl_delay(p), 0);
+      psl_dump(psl_delay(p));
       print_syntax("] ");
    }
 
@@ -172,22 +172,31 @@ static void psl_dump_sere(psl_node_t p)
 
    const int n = psl_operands(p);
    for (int i = 0; i < n; i++) {
-      if (i > 0) print_syntax("; ");
+      if (i > 0) {
+         static const char *map[] = {
+            ";", ":", "|", "&&", "&", " within "
+         };
+         print_syntax("%s", map[psl_subkind(p)]);
+      }
       psl_dump(psl_operand(p, i));
    }
 
    print_syntax("}");
+}
 
-   if (psl_has_repeat(p)) {
-      psl_node_t r = psl_repeat(p);
-      switch (psl_subkind(r)) {
-      case PSL_TIMES_REPEAT:
-         print_syntax("[*");
-         if (psl_has_tree(r))
-            vhdl_dump(psl_tree(r), 0);
-         print_syntax("]");
-         break;
-      }
+static void psl_dump_repeat(psl_node_t p)
+{
+   psl_dump(psl_value(p));
+
+   switch (psl_subkind(p)) {
+   case PSL_TIMES_REPEAT:
+      print_syntax("[*");
+      if (psl_has_delay(p))
+         psl_dump(psl_delay(p));
+      print_syntax("]");
+      break;
+   default:
+      should_not_reach_here();
    }
 }
 
@@ -195,6 +204,31 @@ static void psl_dump_clock_decl(psl_node_t p)
 {
    print_syntax("#default #clock #is ");
    vhdl_dump(psl_tree(p), 0);
+}
+
+static void psl_dump_range(psl_node_t p)
+{
+   psl_dump(psl_left(p));
+   print_syntax(" to ");
+   psl_dump(psl_right(p));
+}
+
+static void psl_dump_proc_block(psl_node_t p)
+{
+   psl_dump(psl_value(p));
+   print_syntax(" [[");
+
+   tree_t b = psl_tree(p);
+
+   const int ndecls = tree_decls(b);
+   for (int i = 0; i < ndecls; i++)
+      vhdl_dump(tree_decl(b, i), 0);
+
+   const int nstmts = tree_stmts(b);
+   for (int i = 0; i < nstmts; i++)
+      vhdl_dump(tree_stmt(b, i), 0);
+
+   print_syntax("]]");
 }
 
 void psl_dump(psl_node_t p)
@@ -250,6 +284,15 @@ void psl_dump(psl_node_t p)
       break;
    case P_SERE:
       psl_dump_sere(p);
+      break;
+   case P_REPEAT:
+      psl_dump_repeat(p);
+      break;
+   case P_RANGE:
+      psl_dump_range(p);
+      break;
+   case P_PROC_BLOCK:
+      psl_dump_proc_block(p);
       break;
    default:
       print_syntax("\n");
