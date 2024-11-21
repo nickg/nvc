@@ -40,6 +40,8 @@
   fusion.
 - Nested arrays more than two levels deep can now be dumped in FST
   format (#1071).
+- The `STD_INPUT` and `STD_OUTPUT` files can now be opened and closed
+  multiple times (#1079).
 - Several other minor bugs were resolved (#1038, #1055, #1057, #1067).
 
 ## Version 1.14.1 - 2024-10-26

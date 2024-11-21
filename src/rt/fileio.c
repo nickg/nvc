@@ -62,10 +62,10 @@ void __nvc_file_close(jit_scalar_t *args)
 {
    FILE **fp = args[2].pointer;
 
-   if (*fp != NULL) {
+   if (*fp != NULL && *fp != stdin && *fp != stdout)
       fclose(*fp);
-      *fp = NULL;
-   }
+
+   *fp = NULL;
 }
 
 DLLEXPORT
