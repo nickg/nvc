@@ -25,6 +25,8 @@
 
 #include <assert.h>
 
+static void psl_check_clocked(psl_node_t p, nametab_t *tab, bool toplevel);
+
 static void psl_check_static(tree_t t)
 {
    switch (tree_kind(t)) {
@@ -71,19 +73,41 @@ static void psl_check_sequence_decl(psl_node_t p, nametab_t *tab)
    psl_check(psl_value(p), tab);
 }
 
+static void psl_check_top_level(psl_node_t p, nametab_t *tab)
+{
+   if (psl_kind(p) == P_CLOCKED)
+      psl_check_clocked(p, tab, true);
+   else {
+      psl_check(p, tab);
+
+      static bool warned = false;
+      if (!warned) {
+         diag_t *d = diag_new(DIAG_ERROR, psl_loc(p));
+         diag_printf(d, "sorry, unclocked properties are not supported");
+
+         if (!query_name(tab, well_known(W_DEFAULT_CLOCK), NULL))
+            diag_hint(d, NULL, "there is no default clock declaration in "
+                      "this design unit");
+
+         diag_emit(d);
+         warned = true;
+      }
+   }
+}
+
 static void psl_check_assert(psl_node_t p, nametab_t *tab)
 {
-   psl_check(psl_value(p), tab);
+   psl_check_top_level(psl_value(p), tab);
 }
 
 static void psl_check_assume(psl_node_t p, nametab_t *tab)
 {
-   psl_check(psl_value(p), tab);
+   psl_check_top_level(psl_value(p), tab);
 }
 
 static void psl_check_restrict(psl_node_t p, nametab_t *tab)
 {
-   psl_check(psl_value(p), tab);
+   psl_check_top_level(psl_value(p), tab);
 }
 
 static void psl_check_fairness(psl_node_t p)
@@ -93,7 +117,7 @@ static void psl_check_fairness(psl_node_t p)
 
 static void psl_check_cover(psl_node_t p, nametab_t *tab)
 {
-   psl_check(psl_value(p), tab);
+   psl_check_top_level(psl_value(p), tab);
 }
 
 static void psl_check_always(psl_node_t p, nametab_t *tab)
@@ -373,9 +397,16 @@ static void psl_check_proc_block(psl_node_t p, nametab_t *tab)
    psl_check(psl_value(p), tab);
 }
 
-static void psl_check_clocked(psl_node_t p, nametab_t *tab)
+static void psl_check_clocked(psl_node_t p, nametab_t *tab, bool toplevel)
 {
    psl_check(psl_value(p), tab);
+
+   if (psl_has_tree(p))
+      psl_check_boolean(p, tab);
+
+   if (!toplevel)
+      error_at(psl_loc(p), "sorry, clock expressions are only supported at the "
+               "outermost level of a property");
 }
 
 void psl_check(psl_node_t p, nametab_t *tab)
@@ -465,7 +496,7 @@ void psl_check(psl_node_t p, nametab_t *tab)
       psl_check_param_sere(p, tab);
       break;
    case P_CLOCKED:
-      psl_check_clocked(p, tab);
+      psl_check_clocked(p, tab, false);
       break;
    default:
       fatal_trace("cannot check PSL kind %s", psl_kind_str(psl_kind(p)));

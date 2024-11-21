@@ -580,6 +580,7 @@ START_TEST(test_vhdl6)
              "\n"
              "architecture WORK.VHDL6-TEST of VHDL6 is\n"
              "  signal X : INTEGER;\n"
+             "  default clock is TRUE;\n"
              "begin\n"
              "  assert \"=\"(<< constant ^.FOO : INTEGER >>, 2);\n"
              "  assert \"=\"(X, 1) -> (\"=\"(X, 2))/*@(default clock)*/;\n"

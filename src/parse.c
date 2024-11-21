@@ -11502,7 +11502,7 @@ static psl_node_t p_psl_boolean(tree_t head)
 {
    // HDL_or_PSL_Expression
 
-   BEGIN("PSL Boolean");
+   BEGIN_WITH_HEAD("PSL Boolean", head);
 
    psl_node_t p = p_hdl_expression(head, PSL_TYPE_BOOLEAN);
 
@@ -12182,6 +12182,7 @@ static psl_node_t p_psl_braced_sere(void)
 
    consume(tRBRACE);
 
+   psl_set_loc(sere, CURRENT_LOC);
    return sere;
 }
 
@@ -12634,6 +12635,21 @@ static psl_node_t p_psl_fl_property(void)
          psl_set_loc(abort, CURRENT_LOC);
 
          return abort;
+      }
+
+   case tAT:
+      {
+         consume(tAT);
+
+         tree_t expr = p_expression();
+         solve_types(nametab, expr, std_type(NULL, STD_BOOLEAN));
+
+         psl_node_t clk = psl_new(P_CLOCKED);
+         psl_set_value(clk, p);
+         psl_set_tree(clk, expr);
+
+         psl_set_loc(clk, CURRENT_LOC);
+         return clk;
       }
 
    default:

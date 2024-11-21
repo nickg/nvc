@@ -2,7 +2,8 @@ entity psl_multiline is
 end entity;
 
 architecture tb of psl_multiline is
-    signal a,b,c : bit;
+    signal a,b,c,clk : bit;
+    -- psl default clock is clk'event;
 begin
 
     -- psl cov_1 : cover

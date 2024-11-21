@@ -2,7 +2,9 @@ entity issue1001 is
 end entity;
 
 architecture test of issue1001 is
-    signal x, y : bit;
+    signal x, y, clk : bit;
+
+    default clock is clk'event;
 
     function f (v : bit_vector) return bit is
     begin

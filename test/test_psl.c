@@ -321,11 +321,17 @@ START_TEST(test_issue910)
 
    psl_node_t p0 = tree_psl(tree_stmt(a, 0));
    fail_unless(psl_kind(p0) == P_COVER);
-   fail_unless(psl_kind(psl_value(p0)) == P_HDL_EXPR);
+
+   psl_node_t p0_clk = psl_value(p0);
+   fail_unless(psl_kind(p0_clk) == P_CLOCKED);
+   fail_unless(psl_kind(psl_value(p0_clk)) == P_HDL_EXPR);
 
    psl_node_t p1 = tree_psl(tree_stmt(a, 0));
    fail_unless(psl_kind(p1) == P_COVER);
-   fail_unless(psl_kind(psl_value(p1)) == P_HDL_EXPR);
+
+   psl_node_t p1_clk = psl_value(p1);
+   fail_unless(psl_kind(p1_clk) == P_CLOCKED);
+   fail_unless(psl_kind(psl_value(p1_clk)) == P_HDL_EXPR);
 
    fail_if_errors();
 }
@@ -338,8 +344,29 @@ START_TEST(test_issue1001)
    input_from_file(TESTDIR "/psl/issue1001.vhd");
 
    const error_t expect[] = {
-      { 13, "no matching subprogram ONEHOT [BIT return BOOLEAN | BIT]" },
-      { 14, "type of actual BIT does not match formal V type BIT_VECTOR" },
+      { 15, "no matching subprogram ONEHOT [BIT return BOOLEAN | BIT]" },
+      { 16, "type of actual BIT does not match formal V type BIT_VECTOR" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_ENTITY, T_ARCH);
+
+   check_expected_errors();
+}
+END_TEST
+
+START_TEST(test_clock1)
+{
+   opt_set_int(OPT_PSL_COMMENTS, 1);
+
+   input_from_file(TESTDIR "/psl/clock1.vhd");
+
+   const error_t expect[] = {
+      {  9, "sorry, unclocked properties are not supported" },
+      { 11, "sorry, clock expressions are only supported at the outermost" },
+      { 12, "expression must be a PSL Boolean but have type "
+        "universal_integer" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -363,6 +390,7 @@ Suite *get_psl_tests(void)
    tcase_add_test(tc_core, test_parse5);
    tcase_add_test(tc_core, test_issue910);
    tcase_add_test(tc_core, test_issue1001);
+   tcase_add_test(tc_core, test_clock1);
    suite_add_tcase(s, tc_core);
 
    return s;
