@@ -15,7 +15,7 @@ wprefix = os.getenv("MSYSTEM_PREFIX")
 prefix = subprocess.check_output(
     ["cygpath", "-u", wprefix]).decode("utf-8").strip()
 
-dlls = []
+dlls = set()
 ldd = subprocess.Popen(["ldd", sys.argv[1]], stdout=subprocess.PIPE)
 for line in io.TextIOWrapper(ldd.stdout, encoding="utf-8"):
     parts = line.split()
@@ -23,8 +23,9 @@ for line in io.TextIOWrapper(ldd.stdout, encoding="utf-8"):
     path = parts[2]
 
     if path.startswith(prefix):
-        dlls.append(path.replace(prefix, wprefix))
+        dlls.add(path.replace(prefix, wprefix))
 
+dlls = list(dlls)
 dlls.sort()
 
 
