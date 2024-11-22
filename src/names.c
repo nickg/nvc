@@ -4460,8 +4460,8 @@ static type_t solve_array_aggregate(nametab_t *tab, tree_t agg, type_t type)
    const int nassocs = tree_assocs(agg);
    for (int i = 0; i < nassocs; i++) {
       tree_t a = tree_assoc(agg, i);
+      assoc_kind_t kind = tree_subkind(a);
 
-      const assoc_kind_t kind = tree_subkind(a);
       switch (kind) {
       case A_POS:
       case A_CONCAT:
@@ -4492,7 +4492,7 @@ static type_t solve_array_aggregate(nametab_t *tab, tree_t agg, type_t type)
                   tree_set_loc(r, tree_loc(name));
                   tree_set_type(r, ntype);
 
-                  tree_set_subkind(a, A_RANGE);
+                  tree_set_subkind(a, (kind = A_RANGE));
                   tree_add_range(a, r);
                }
             }

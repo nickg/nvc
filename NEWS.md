@@ -8,6 +8,8 @@
   on Apple silicon macOS (#1069).
 - The `STD_INPUT` and `STD_OUTPUT` files can now be opened and closed
   multiple times (#1079).
+- Fixed a crash when a subtype is used for an aggregate element
+  association range choice which associates an array slice (#1080).
 - Several other minor bugs were resolved (#1038, #1055).
 
 ## Version 1.14.1 - 2024-10-26
