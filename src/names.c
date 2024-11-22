@@ -4478,21 +4478,7 @@ static type_t solve_array_aggregate(nametab_t *tab, tree_t agg, type_t type)
    const int nassocs = tree_assocs(agg);
    for (int i = 0; i < nassocs; i++) {
       tree_t a = tree_assoc(agg, i);
-      const assoc_kind_t kind = tree_subkind(a);
-
-      bool allow_slice = t1 != NULL && (kind == A_POS || kind == A_RANGE);
-
-      // This seems incorrect according to the 2008 LRM but without it
-      // many previously legal nested aggregates are ambiguous
-      tree_t value = tree_value(a);
-      if (composite_elem && tree_kind(value) == T_AGGREGATE)
-         allow_slice = false;
-
-      // Hack to avoid pushing/popping type set on each iteration
-      ATRIM(tab->top_type_set->members, 0);
-      type_set_add(tab, t0, NULL);
-      if (allow_slice)
-         type_set_add(tab, t1, NULL);
+      assoc_kind_t kind = tree_subkind(a);
 
       switch (kind) {
       case A_POS:
@@ -4522,7 +4508,7 @@ static type_t solve_array_aggregate(nametab_t *tab, tree_t agg, type_t type)
                   tree_set_loc(r, tree_loc(name));
                   tree_set_type(r, ntype);
 
-                  tree_set_subkind(a, A_RANGE);
+                  tree_set_subkind(a, (kind = A_RANGE));
                   tree_add_range(a, r);
                }
             }
@@ -4539,6 +4525,20 @@ static type_t solve_array_aggregate(nametab_t *tab, tree_t agg, type_t type)
          should_not_reach_here();
          break;
       }
+
+      bool allow_slice = t1 != NULL && (kind == A_POS || kind == A_RANGE);
+
+      // This seems incorrect according to the 2008 LRM but without it
+      // many previously legal nested aggregates are ambiguous
+      tree_t value = tree_value(a);
+      if (composite_elem && tree_kind(value) == T_AGGREGATE)
+         allow_slice = false;
+
+      // Hack to avoid pushing/popping type set on each iteration
+      ATRIM(tab->top_type_set->members, 0);
+      type_set_add(tab, t0, NULL);
+      if (allow_slice)
+         type_set_add(tab, t1, NULL);
 
       type_t etype = _solve_types(tab, value);
 

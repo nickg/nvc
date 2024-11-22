@@ -469,6 +469,7 @@ static const struct {
    { "Subprogram bodies", { [STD_08] = "4.3", [STD_93] = "2.2" } },
    { "Index contraints and discrete ranges", { [STD_93] = "3.2.1.1",
         [STD_08] = "5.3.2.2" } },
+   { "Aggregates", { [STD_08] = "9.3.3", [STD_93] = "7.3.2" } },
 };
 
 diag_t *diag_new(diag_level_t level, const loc_t *loc)

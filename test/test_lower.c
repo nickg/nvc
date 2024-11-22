@@ -6397,6 +6397,62 @@ START_TEST(test_issue1029)
 }
 END_TEST
 
+START_TEST(test_issue1080)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/lower/issue1080.vhd");
+
+   run_elab();
+
+   vcode_unit_t vu = find_unit("WORK.ISSUE1080.U.P");
+   vcode_select_unit(vu);
+
+   EXPECT_BB(1) = {
+      { VCODE_OP_VAR_UPREF, .hops = 1, .name = "S1" },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_UARRAY_LEFT },
+      { VCODE_OP_CAST },
+      { VCODE_OP_SUB },
+      { VCODE_OP_SUB },
+      { VCODE_OP_UARRAY_DIR },
+      { VCODE_OP_SELECT },
+      { VCODE_OP_CAST },
+      { VCODE_OP_UARRAY_LEN, .dim = 1 },
+      { VCODE_OP_MUL },
+      { VCODE_OP_UNWRAP },
+      { VCODE_OP_ARRAY_REF },
+      { VCODE_OP_UARRAY_LEFT, .dim = 1 },
+      { VCODE_OP_UARRAY_RIGHT, .dim = 1 },
+      { VCODE_OP_UARRAY_DIR, .dim = 1 },
+      { VCODE_OP_WRAP },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_VAR_UPREF, .hops = 2, .name = "S2" },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_RESOLVED },
+      { VCODE_OP_CONST, .value = 3 },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_WRAP },
+      { VCODE_OP_VAR_UPREF, .hops = 1, .name = "O" },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_UARRAY_LEFT, .dim = 0 },
+      { VCODE_OP_CAST },
+      { VCODE_OP_UARRAY_RIGHT, .dim = 0 },
+      { VCODE_OP_CAST },
+      { VCODE_OP_UARRAY_DIR, .dim = 0 },
+      { VCODE_OP_RANGE_NULL },
+      { VCODE_OP_RANGE_LENGTH },
+      { VCODE_OP_ALLOC },
+      { VCODE_OP_WRAP },
+      { VCODE_OP_COND, .target = 3, .target_else = 2 },
+   };
+
+   CHECK_BB(1);
+}
+END_TEST
+
 Suite *get_lower_tests(void)
 {
    Suite *s = suite_create("lower");
@@ -6546,6 +6602,7 @@ Suite *get_lower_tests(void)
    tcase_add_test(tc, test_mixed2);
    tcase_add_test(tc, test_issue972);
    tcase_add_test(tc, test_issue1029);
+   tcase_add_test(tc, test_issue1080);
    suite_add_tcase(s, tc);
 
    return s;

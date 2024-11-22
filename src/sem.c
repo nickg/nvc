@@ -3924,11 +3924,19 @@ static bool sem_check_record_aggregate(tree_t t, nametab_t *tab)
          break;
 
       case A_RANGE:
-         sem_error(a, "range association invalid in record aggregate");
+         {
+            diag_t *d = diag_new(DIAG_ERROR, tree_loc(tree_range(a, 0)));
+            diag_printf(d, "an element association with a choice that is "
+                        "a discrete range is only allowed in an array "
+                        "aggregate");
+            diag_lrm(d, STD_08, "9.3.3");
+            diag_emit(d);
+            return false;
+         }
 
       case A_SLICE:
       case A_CONCAT:
-         fatal_trace("illegal association type in record aggregate");
+         should_not_reach_here();
       }
 
       int nmatched = 0;
