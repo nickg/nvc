@@ -14,16 +14,10 @@
   coverage bin must reach to be reported as covered.
 - Added a warning for potential infinite loops in processes without
   sensitivity and lacking any wait statements (from @NikLeberg).
-- Fixed a crash when `'last_value` is used with record types (#1043).
 - Selected names can now be to register value change callbacks with
   `vhpi_register_cb` (#1045).
 - Removed the limit on the maximum number of parameters that can be
   passed to a VHDL subprogram (#1036).
-- Fixed a crash when a process sensitivity list contains an external
-  name and the process is elaborated before the object referenced by the
-  name (#1062).
-- Fixed parser hang for integers in scientific notation (from
-  @NikLeberg).
 - The new `--no-save` analysis option parses and checks the input files
   but does not save the working library to disk.  This is a replacement
   for the `--syntax` top-level command which is now deprecated.
@@ -32,19 +26,27 @@
   new `--cover-file=` elaboration option.  Attempts to access the old
   file name inside the library directory will be redirected to the new
   location, with a warning.
-- Fixed a platform detection issue that caused JIT code loading to fail
-  on Apple silicon macOS (#1069).
 - Partial association of ports with interface views now works correctly
   (#1074).
 - Added support for PSL suffix implication, SERE repetition, and SERE
   fusion.
 - Nested arrays more than two levels deep can now be dumped in FST
   format (#1071).
+- Several other minor bugs were resolved (#1038, #1057, #1067).
+
+## Version 1.14.2 - 2024-11-23
+- Fixed a crash when `'last_value` is used with record types (#1043).
+- Fixed a crash when a process sensitivity list contains an external
+  name and the process is elaborated before the object referenced by the
+  name (#1062).
+- Fixed parser hang for integers in scientific notation (from @NikLeberg).
+- Fixed a platform detection issue that caused JIT code loading to fail
+  on Apple silicon macOS (#1069).
 - The `STD_INPUT` and `STD_OUTPUT` files can now be opened and closed
   multiple times (#1079).
 - Fixed a crash when a subtype is used for an aggregate element
   association range choice which associates an array slice (#1080).
-- Several other minor bugs were resolved (#1038, #1055, #1057, #1067).
+- Several other minor bugs were resolved (#1038, #1055).
 
 ## Version 1.14.1 - 2024-10-26
 - Fixed an error when using the `work` library alias and the working

@@ -108,6 +108,7 @@ release: update-test-dist
 	)
 
 sync-branch:
+	head -n1 $(top_srcdir)/configure.ac | grep -q \\-devel || exit 1; \
 	last=$$(awk '/## Version/ { print($$3); exit }' $(top_srcdir)/NEWS.md); \
 	branch=origin/v$$(echo $$last | sed 's/.[0-9]$$//')-branch; \
 	echo "last version was $$last, branch $$branch"; \
