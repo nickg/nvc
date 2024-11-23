@@ -126,7 +126,7 @@ jobs:
           ../configure --with-llvm=$(brew --prefix llvm)/bin/llvm-config \
                --disable-debug
       - name: Build release
-        run: make -C build -j $(nproc)
+        run: make -C build -j $(sysctl -n hw.logicalcpu)
 
   build-windows:
     name: Windows MSYS2
