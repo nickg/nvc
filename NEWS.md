@@ -1,4 +1,6 @@
 ## Unreleased changes
+
+## Version 1.14.2 - 2024-11-23
 - Fixed a crash when `'last_value` is used with record types (#1043).
 - Fixed a crash when a process sensitivity list contains an external
   name and the process is elaborated before the object referenced by the
