@@ -97,6 +97,8 @@ void input_from_file(const char *file)
    size_t len = strlen(file);
    if (len > 2 && file[len - 2] == '.' && file[len - 1] == 'v')
       kind = SOURCE_VERILOG;
+   else if (len > 3 && strcmp(file + len - 3, ".sv") == 0)
+      kind = SOURCE_VERILOG;
    else if (len > 4 && !strcmp(&(file[len - 4]), ".sdf")) {
       kind = SOURCE_SDF;
    }

@@ -2013,6 +2013,7 @@ static void p_package_or_generate_item_declaration(vlog_node_t mod)
       break;
    default:
       one_of(tWIRE, tSUPPLY0, tSUPPLY1, tREG, tSTRUCT, tUNION, tTYPEDEF);
+      drop_tokens_until(tSEMI);
       break;
    }
 }
@@ -2062,6 +2063,7 @@ static void p_module_common_item(vlog_node_t mod)
    default:
       one_of(tALWAYS, tINITIAL, tWIRE, tSUPPLY0, tSUPPLY1, tREG, tSTRUCT,
              tUNION, tTYPEDEF, tENUM, tASSIGN);
+      drop_tokens_until(tSEMI);
    }
 }
 
@@ -2541,6 +2543,7 @@ static void p_module_or_generate_item(vlog_node_t mod)
       one_of(tALWAYS, tWIRE, tSUPPLY0, tSUPPLY1, tREG, tSTRUCT, tUNION, tASSIGN,
              tINITIAL, tTYPEDEF, tENUM, tPULLDOWN, tPULLUP, tID, tAND, tNAND,
              tOR, tNOR, tXOR, tXNOR, tNOT, tBUF);
+      drop_tokens_until(tSEMI);
    }
 }
 
@@ -2585,6 +2588,7 @@ static void p_non_port_module_item(vlog_node_t mod)
       one_of(tALWAYS, tWIRE, tSUPPLY0, tSUPPLY1, tREG, tSTRUCT, tUNION,
              tASSIGN, tPULLDOWN, tPULLUP, tID, tATTRBEGIN, tAND, tNAND,
              tOR, tNOR, tXOR, tXNOR, tNOT, tBUF, tTYPEDEF, tENUM, tSPECIFY);
+      drop_tokens_until(tSEMI);
    }
 }
 
