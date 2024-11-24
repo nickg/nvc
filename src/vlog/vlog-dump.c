@@ -266,6 +266,18 @@ static void vlog_dump_assign(vlog_node_t v, int indent)
    print_syntax(";\n");
 }
 
+static void vlog_dump_stmt_or_null(vlog_node_t v, int indent)
+{
+   const int nstmts = vlog_stmts(v);
+   if (nstmts == 0)
+      print_syntax(";\n");
+   else {
+      print_syntax("\n");
+      for (int i = 0; i < nstmts; i++)
+         vlog_dump(vlog_stmt(v, i), indent + 2);
+   }
+}
+
 static void vlog_dump_if(vlog_node_t v, int indent)
 {
    tab(indent);
@@ -285,14 +297,7 @@ static void vlog_dump_if(vlog_node_t v, int indent)
          print_syntax(")");
       }
 
-      const int nstmts = vlog_stmts(c);
-      if (nstmts == 0)
-         print_syntax(";\n");
-      else {
-         print_syntax("\n");
-         for (int i = 0; i < nstmts; i++)
-            vlog_dump(vlog_stmt(c, i), indent + 2);
-      }
+      vlog_dump_stmt_or_null(c, indent);
    }
 }
 
@@ -354,6 +359,7 @@ static void vlog_dump_binary(vlog_node_t v)
    case V_BINARY_LOG_EQ: print_syntax(" == "); break;
    case V_BINARY_LOG_NEQ: print_syntax(" != "); break;
    case V_BINARY_LOG_OR: print_syntax(" || "); break;
+   case V_BINARY_LOG_AND: print_syntax(" && "); break;
    case V_BINARY_PLUS: print_syntax(" + "); break;
    }
 
@@ -457,6 +463,39 @@ static void vlog_dump_data_type(vlog_node_t v, int indent)
    vlog_dump_dimensions(v, indent);
 }
 
+static void vlog_dump_do_while(vlog_node_t v, int indent)
+{
+   tab(indent);
+   print_syntax("#do");
+
+   vlog_dump_stmt_or_null(v, indent);
+
+   tab(indent);
+   print_syntax("#while (");
+   vlog_dump(vlog_value(v), indent);
+   print_syntax(");\n");
+}
+
+static void vlog_dump_while(vlog_node_t v, int indent)
+{
+   tab(indent);
+   print_syntax("#while (");
+   vlog_dump(vlog_value(v), indent);
+   print_syntax(")");
+
+   vlog_dump_stmt_or_null(v, indent);
+}
+
+static void vlog_dump_repeat(vlog_node_t v, int indent)
+{
+   tab(indent);
+   print_syntax("#repeat (");
+   vlog_dump(vlog_value(v), indent);
+   print_syntax(")");
+
+   vlog_dump_stmt_or_null(v, indent);
+}
+
 void vlog_dump(vlog_node_t v, int indent)
 {
    switch (vlog_kind(v)) {
@@ -551,6 +590,15 @@ void vlog_dump(vlog_node_t v, int indent)
       vlog_dump_data_type(v, indent);
       break;
    case V_EMPTY:
+      break;
+   case V_DO_WHILE:
+      vlog_dump_do_while(v, indent);
+      break;
+   case V_WHILE:
+      vlog_dump_while(v, indent);
+      break;
+   case V_REPEAT:
+      vlog_dump_repeat(v, indent);
       break;
    default:
       print_syntax("\n");

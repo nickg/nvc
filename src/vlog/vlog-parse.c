@@ -1619,7 +1619,7 @@ static vlog_node_t p_loop_statement(void)
 
    BEGIN("loop statement");
 
-   switch (one_of(tFOREVER)) {
+   switch (one_of(tFOREVER, tWHILE, tREPEAT, tDO)) {
    case tFOREVER:
       {
          vlog_node_t v = vlog_new(V_FOREVER);
@@ -1627,6 +1627,57 @@ static vlog_node_t p_loop_statement(void)
          vlog_node_t s = p_statement_or_null();
          if (s != NULL)
             vlog_add_stmt(v, s);
+
+         vlog_set_loc(v, CURRENT_LOC);
+         return v;
+      }
+
+   case tWHILE:
+      {
+         vlog_node_t v = vlog_new(V_WHILE);
+
+         consume(tLPAREN);
+         vlog_set_value(v, p_expression());
+         consume(tRPAREN);
+
+         vlog_node_t s = p_statement_or_null();
+         if (s != NULL)
+            vlog_add_stmt(v, s);
+
+         vlog_set_loc(v, CURRENT_LOC);
+         return v;
+      }
+
+   case tREPEAT:
+      {
+         vlog_node_t v = vlog_new(V_REPEAT);
+
+         consume(tLPAREN);
+         vlog_set_value(v, p_expression());
+         consume(tRPAREN);
+
+         vlog_node_t s = p_statement_or_null();
+         if (s != NULL)
+            vlog_add_stmt(v, s);
+
+         vlog_set_loc(v, CURRENT_LOC);
+         return v;
+      }
+
+   case tDO:
+      {
+         vlog_node_t v = vlog_new(V_DO_WHILE);
+
+         vlog_node_t s = p_statement_or_null();
+         if (s != NULL)
+            vlog_add_stmt(v, s);
+
+         consume(tWHILE);
+
+         consume(tLPAREN);
+         vlog_set_value(v, p_expression());
+         consume(tRPAREN);
+         consume(tSEMI);
 
          vlog_set_loc(v, CURRENT_LOC);
          return v;
@@ -1674,9 +1725,13 @@ static vlog_node_t p_statement_item(void)
    case tIF:
       return p_conditional_statement();
    case tFOREVER:
+   case tWHILE:
+   case tREPEAT:
+   case tDO:
       return p_loop_statement();
    default:
-      one_of(tID, tAT, tHASH, tBEGIN, tSYSTASK, tIF, tFOREVER);
+      one_of(tID, tAT, tHASH, tBEGIN, tSYSTASK, tIF, tFOREVER, tWHILE, tREPEAT,
+             tDO);
       drop_tokens_until(tSEMI);
       return NULL;
    }

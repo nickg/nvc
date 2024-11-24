@@ -672,6 +672,9 @@ BEFORE            ?i:before
 <VLOG>"enum"             { return tENUM; }
 <VLOG>"union"            { return tUNION; }
 <VLOG>"tagged"           { return tTAGGED; }
+<VLOG>"while"            { return tWHILE; }
+<VLOG>"repeat"           { return tREPEAT; }
+<VLOG>"do"               { return tDO; }
 
 <VLOG>{SYSTASK}          { yylval.str = xstrdup(yytext); return tSYSTASK; }
 <VLOG>{VLOG_ID}          { yylval.str = xstrdup(yytext); return tID; }

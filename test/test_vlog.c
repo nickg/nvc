@@ -169,7 +169,7 @@ START_TEST(test_parse1)
    vlog_node_t m = vlog_parse();
    fail_if(m == NULL);
    fail_unless(vlog_kind(m) == V_MODULE);
-   fail_unless(vlog_stmts(m) == 9);
+   fail_unless(vlog_stmts(m) == 10);
    fail_unless(vlog_ports(m) == 0);
    fail_unless(vlog_decls(m) == 4);
 
@@ -271,6 +271,14 @@ START_TEST(test_parse1)
    vlog_node_t s8ctrl = vlog_value(vlog_stmt(s8, 0));
    fail_unless(vlog_kind(s8ctrl) == V_EVENT_CONTROL);
    fail_unless(vlog_params(s8ctrl) == 3);
+
+   vlog_node_t s9 = vlog_stmt(m, 9);
+   fail_unless(vlog_kind(s9) == V_INITIAL);
+   vlog_node_t s9b = vlog_stmt(s9, 0);
+   fail_unless(vlog_kind(s9b) == V_SEQ_BLOCK);
+   fail_unless(vlog_kind(vlog_stmt(s9b, 0)) == V_WHILE);
+   fail_unless(vlog_kind(vlog_stmt(s9b, 1)) == V_REPEAT);
+   fail_unless(vlog_kind(vlog_stmt(s9b, 2)) == V_DO_WHILE);
 
    fail_unless(vlog_parse() == NULL);
 

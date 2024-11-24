@@ -245,7 +245,8 @@ const char *token_str(token_t tok)
          "absolute", "~&", "~|", "~^", "struct", "packed", "void", "byte",
          "shortint", "longint", "int", "integer", "time", "typedef", "logic",
          "enum", "tagged", "abort", "sync_abort", "async_abort", "before",
-         "before!", "before_", "before!_", "|->", "|=>", "next", "inf"
+         "before!", "before_", "before!_", "|->", "|=>", "next", "inf",
+         "repeat", "do",
       };
 
       if (tok >= 200 && tok - 200 < ARRAY_LEN(token_strs))

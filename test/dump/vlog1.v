@@ -18,6 +18,9 @@ module mod2;
     r = ~w;
     r = #1 5;
     r <= #5 1;
+    do w = r && w; while (r);
+    while (1);
+    repeat (5) r = r + 1;
   end
   assign bus = 3;
   pullup (supply1, supply0) p1 (w);

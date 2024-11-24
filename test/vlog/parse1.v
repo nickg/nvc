@@ -22,4 +22,9 @@ module parse1;
   pullup (y);
   always @(x or y or (posedge z)) begin
   end
+  initial begin
+    while (z);
+    repeat (x) x = ~x;
+    do x = y; while (1);
+  end
 endmodule // parse1
