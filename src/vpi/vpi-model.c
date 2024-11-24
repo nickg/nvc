@@ -531,6 +531,14 @@ static c_operation *build_operation(vlog_node_t v)
    c_operation *op = new_object(sizeof(c_operation), vpiOperation);
    init_expr(&op->expr, v);
 
+   switch (vlog_kind(v)) {
+   case V_EMPTY:
+      op->subtype = vpiNullOp;
+      break;
+   default:
+      break;
+   }
+
    return op;
 }
 
@@ -559,6 +567,7 @@ static c_vpiObject *build_expr(vlog_node_t v, c_abstractScope *scope)
    case V_BINARY:
    case V_UNARY:
    case V_SYS_FCALL:
+   case V_EMPTY:
       return &(build_operation(v)->expr.object);
    default:
       fatal_trace("cannot build VPI expr for node kind %s",

@@ -112,7 +112,7 @@ CHAR            '.'
 INTEGER         [0-9][0-9_]*
 EXPONENT        [Ee][+-]?{INTEGER}
 DECIMAL         {INTEGER}(\.{INTEGER})?{EXPONENT}?
-HEX             [0-9a-fA-F][0-9a-fA-F_]*
+HEX             [0-9a-fA-FzZxX][0-9a-fA-FzZxX_]*
 BASED_HASH      {INTEGER}[#]{HEX}(\.{HEX})?[#]{EXPONENT}?
 BASED_COLON     {INTEGER}[:]{HEX}(\.{HEX})?[:]{EXPONENT}?
 BASED           {BASED_HASH}|{BASED_COLON}
@@ -640,6 +640,7 @@ BEFORE            ?i:before
 <VLOG>"==="              { return tCASEEQ; }
 <VLOG>"!=="              { return tCASENEQ; }
 <VLOG>"||"               { return tLOGOR; }
+<VLOG>"&&"               { return tDBLAMP; }
 <VLOG>"(*"               { return tATTRBEGIN; }
 <VLOG>"*)"               { return tATTREND; }
 <VLOG>"specify"          { return tSPECIFY; }

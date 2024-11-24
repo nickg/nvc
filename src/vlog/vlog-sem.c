@@ -694,6 +694,8 @@ void vlog_check(vlog_node_t v)
    case V_UNION_DECL:
       vlog_check_struct_union_decl(v);
       break;
+   case V_EMPTY:
+      break;
    default:
       fatal_at(vlog_loc(v), "cannot check verilog node %s",
                vlog_kind_str(vlog_kind(v)));

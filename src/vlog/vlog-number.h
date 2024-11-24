@@ -49,7 +49,7 @@ STATIC_ASSERT(SMALLNUM_ENCODE_MAX <= (UINT64_C(1) << SMALLNUM_WIDTH_MAX) - 1);
 
 #define INTEGER_PACKED_BITS 32
 #define INTEGER_WIDTH_BITS  6
-#define INTEGER_WIDTH_MAX  ((1 << INTEGER_WIDTH_BITS) - 1)
+#define INTEGER_WIDTH_MAX  (1 << (INTEGER_WIDTH_BITS - 1))
 #define INTEGER_ENCODE_MAX  ((UINT64_C(1) << INTEGER_PACKED_BITS) - 1)
 
 STATIC_ASSERT(INTEGER_ENCODE_MAX <= (UINT64_C(1) << INTEGER_WIDTH_MAX) - 1);
@@ -73,6 +73,11 @@ typedef union _number {
       uint64_t width : INTEGER_WIDTH_BITS;
       uint64_t packed : INTEGER_PACKED_BITS;
    } intg;
+   struct {
+      uint64_t tag : 2;
+      uint64_t bit : 2;
+      uint64_t width : 32;
+   } rep;
 } number_t;
 
 STATIC_ASSERT(sizeof(number_t) == 8);

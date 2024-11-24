@@ -141,6 +141,9 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
 
    // V_EVENT_CONTROL
    (I_PARAMS),
+
+   // V_EMPTY
+   (0),
 };
 
 static const char *kind_text_map[V_LAST_NODE_KIND] = {
@@ -153,7 +156,7 @@ static const char *kind_text_map[V_LAST_NODE_KIND] = {
    "V_MOD_INST",   "V_BIT_SELECT",  "V_SYS_FCALL",     "V_FOREVER",
    "V_SPECIFY",    "V_PRIMITIVE",   "V_UDP_TABLE",     "V_UDP_ENTRY",
    "V_DATA_TYPE",  "V_TYPE_DECL",   "V_ENUM_DECL",     "V_ENUM_NAME",
-   "V_UNION_DECL", "V_STRUCT_DECL", "V_EVENT_CONTROL",
+   "V_UNION_DECL", "V_STRUCT_DECL", "V_EVENT_CONTROL", "V_EMPTY",
 };
 
 static const change_allowed_t change_allowed[] = {

@@ -83,6 +83,7 @@ typedef enum {
    V_UNION_DECL,
    V_STRUCT_DECL,
    V_EVENT_CONTROL,
+   V_EMPTY,
 
    V_LAST_NODE_KIND
 } vlog_kind_t;
@@ -115,6 +116,7 @@ typedef enum {
    V_BINARY_CASE_EQ,
    V_BINARY_CASE_NEQ,
    V_BINARY_LOG_OR,
+   V_BINARY_LOG_AND,
 } vlog_binary_t;
 
 typedef enum {

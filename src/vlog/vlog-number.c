@@ -41,6 +41,9 @@ typedef struct _bignum {
 #define BIG_PACKED_ZERO UINT64_C(0xaaaaaaaaaaaaaaaa)
 #define BIGNUM_WORDS(w) (((w) + 31) / 32)
 
+#define MAKE_HEX(a, b, c, d) \
+   ((LOGIC_##a << 6) | (LOGIC_##b << 4) | (LOGIC_##c << 2) | LOGIC_##d)
+
 static void number_shift_left(number_t *n, unsigned count, uint64_t carry_in)
 {
    switch (n->common.tag) {
@@ -197,10 +200,37 @@ number_t number_new(const char *str)
             break;
 
          case RADIX_HEX:
-            abort();
+            {
+               uint64_t carry = 0;
+               switch (*p) {
+               case '0': carry = MAKE_HEX(0, 0, 0, 0); break;
+               case '1': carry = MAKE_HEX(0, 0, 0, 1); break;
+               case '2': carry = MAKE_HEX(0, 0, 1, 0); break;
+               case '3': carry = MAKE_HEX(0, 0, 1, 1); break;
+               case '4': carry = MAKE_HEX(0, 1, 0, 0); break;
+               case '5': carry = MAKE_HEX(0, 1, 0, 1); break;
+               case '6': carry = MAKE_HEX(0, 1, 1, 0); break;
+               case '7': carry = MAKE_HEX(0, 1, 1, 1); break;
+               case '8': carry = MAKE_HEX(1, 0, 0, 0); break;
+               case '9': carry = MAKE_HEX(1, 0, 0, 1); break;
+               case 'a': carry = MAKE_HEX(1, 0, 1, 0); break;
+               case 'b': carry = MAKE_HEX(1, 0, 1, 1); break;
+               case 'c': carry = MAKE_HEX(1, 1, 0, 0); break;
+               case 'd': carry = MAKE_HEX(1, 1, 0, 1); break;
+               case 'e': carry = MAKE_HEX(1, 1, 1, 0); break;
+               case 'f': carry = MAKE_HEX(1, 1, 1, 1); break;
+               case 'x': carry = MAKE_HEX(X, X, X, X); break;
+               case 'z': carry = MAKE_HEX(Z, Z, Z, Z); break;
+               default:
+                  errorf("invalid character '%c' in number %s", *p, str);
+               }
+
+               number_shift_left(&result, 4, carry);
+            }
+            break;
 
          case RADIX_DEC:
-            break;
+            should_not_reach_here();
          }
       }
 
@@ -414,11 +444,32 @@ bool number_equal(number_t a, number_t b)
 
 void number_write(number_t val, fbuf_t *f)
 {
-   assert(val.common.tag != TAG_BIGNUM);
-   fbuf_put_uint(f, val.bits);
+   if (val.common.tag == TAG_BIGNUM) {
+      fbuf_put_uint(f, TAG_BIGNUM);
+      fbuf_put_int(f, val.big->issigned ? -val.big->width : val.big->width);
+
+      const int nwords = BIGNUM_WORDS(val.big->width);
+      write_raw(val.big->packed, nwords * sizeof(uint64_t), f);
+   }
+   else
+      fbuf_put_uint(f, val.bits);
 }
 
 number_t number_read(fbuf_t *f)
 {
-   return (number_t){ .bits = fbuf_get_uint(f) };
+   number_t val = { .bits = fbuf_get_uint(f) };
+
+   if (val.common.tag == TAG_BIGNUM) {
+      const int64_t enc = fbuf_get_int(f);
+      const unsigned width = llabs(enc);
+      const int nwords = BIGNUM_WORDS(width);
+
+      val.big = xmalloc_flex(sizeof(bignum_t), nwords, sizeof(uint64_t));
+      val.big->width = width;
+      val.big->issigned = enc < 0;
+
+      read_raw(val.big->packed, nwords * sizeof(uint64_t), f);
+   }
+
+   return val;
 }

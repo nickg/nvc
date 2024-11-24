@@ -176,6 +176,12 @@ static PLI_INT32 finish_tf(PLI_BYTE8 *userdata)
    jit_abort();
 }
 
+static PLI_INT32 monitor_tf(PLI_BYTE8 *userdata)
+{
+   // TODO
+   return 0;
+}
+
 static PLI_INT32 time_tf(PLI_BYTE8 *userdata)
 {
    rt_model_t *m = get_model();
@@ -216,6 +222,11 @@ static s_vpi_systf_data builtins[] = {
       .type   = vpiSysTask,
       .tfname = "$finish",
       .calltf = finish_tf
+   },
+   {
+      .type   = vpiSysTask,
+      .tfname = "$monitor",
+      .calltf = monitor_tf
    },
    {
       .type        = vpiSysFunc,

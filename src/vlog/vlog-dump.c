@@ -550,6 +550,8 @@ void vlog_dump(vlog_node_t v, int indent)
    case V_DATA_TYPE:
       vlog_dump_data_type(v, indent);
       break;
+   case V_EMPTY:
+      break;
    default:
       print_syntax("\n");
       fflush(stdout);

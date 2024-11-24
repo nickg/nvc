@@ -1076,3 +1076,4 @@ psl15           gold,psl
 psl16           gold,psl
 issue1071       wave,2008,dump-arrays
 issue1079       normal,gold
+ivtest4         verilog

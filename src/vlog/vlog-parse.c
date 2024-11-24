@@ -1088,7 +1088,13 @@ static void p_list_of_arguments(vlog_node_t call)
    BEGIN("list of arguments");
 
    do {
-      vlog_add_param(call, p_expression());
+      if (peek() == tCOMMA) {
+         vlog_node_t v = vlog_new(V_EMPTY);
+         vlog_set_loc(v, &state.last_loc);
+         vlog_add_param(call, v);
+      }
+      else
+         vlog_add_param(call, p_expression());
    } while (optional(tCOMMA));
 }
 
@@ -1173,7 +1179,7 @@ static vlog_binary_t p_binary_operator(void)
    BEGIN("binary operator");
 
    switch (one_of(tBAR, tPLUS, tAMP, tCASEEQ, tCASENEQ, tLOGOR,
-                  tLOGEQ, tLOGNEQ)) {
+                  tLOGEQ, tLOGNEQ, tDBLAMP)) {
    case tBAR:     return V_BINARY_OR;
    case tAMP:     return V_BINARY_AND;
    case tCASEEQ:  return V_BINARY_CASE_EQ;
@@ -1181,10 +1187,12 @@ static vlog_binary_t p_binary_operator(void)
    case tLOGEQ:   return V_BINARY_LOG_EQ;
    case tLOGNEQ:  return V_BINARY_LOG_NEQ;
    case tLOGOR:   return V_BINARY_LOG_OR;
+   case tDBLAMP:  return V_BINARY_LOG_AND;
    case tPLUS:
    default:       return V_BINARY_PLUS;
    }
 }
+
 static vlog_unary_t p_unary_operator(void)
 {
    // + | - | ! | ~ | & | ~& | | | ~| | ^ | ~^ | ^~
@@ -1242,6 +1250,7 @@ static bool peek_binary_operator(int *prec)
    case tLOGNEQ:  *prec = 7;  return true;
    case tAMP:     *prec = 6;  return true;
    case tBAR:     *prec = 4;  return true;
+   case tDBLAMP:  *prec = 3;  return true;
    case tLOGOR:   *prec = 2;  return true;
    default:
       return false;
