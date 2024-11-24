@@ -447,7 +447,6 @@ static vcode_reg_t vlog_lower_systf_param(lower_unit_t *lu, vlog_node_t v)
 {
    switch (vlog_kind(v)) {
    case V_REF:
-      return vlog_lower_rvalue(lu, v);
    case V_STRING:
    case V_NUMBER:
       return VCODE_INVALID_REG;

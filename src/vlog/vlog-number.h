@@ -30,6 +30,8 @@ typedef enum {
    LOGIC_1 = 0b11,
 } vlog_logic_t;
 
+#define STRIP_STRENGTH(x) (x & 3)
+
 typedef struct _bignum bignum_t;
 
 typedef enum {

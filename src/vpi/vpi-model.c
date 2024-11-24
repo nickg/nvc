@@ -23,7 +23,9 @@
 #include "jit/jit-ffi.h"
 #include "jit/jit.h"
 #include "option.h"
+#include "rt/model.h"
 #include "rt/mspace.h"
+#include "rt/structs.h"
 #include "vlog/vlog-node.h"
 #include "vlog/vlog-number.h"
 #include "vpi/vpi-macros.h"
@@ -48,6 +50,13 @@ typedef struct {
 
 typedef A(vpiHandle) vpiHandleList;
 
+typedef void (*vpiLazyFn)(c_vpiObject *);
+
+typedef struct {
+   vpiLazyFn     fn;
+   vpiObjectList list;
+} vpiLazyList;
+
 typedef struct {
    c_vpiObject      object;
    ident_t          name;
@@ -57,9 +66,25 @@ typedef struct {
 DEF_CLASS(callback, vpiCallback, object);
 
 typedef struct {
-   c_vpiObject    object;
-   vpiObjectList  args;
-   vlog_node_t    where;
+   c_vpiObject  object;
+   vlog_node_t  where;
+   jit_handle_t handle;
+   vpiLazyList  decls;
+} c_abstractScope;
+
+typedef struct {
+   c_abstractScope  scope;
+   tree_t           block;
+   rt_scope_t      *rtscope;
+} c_module;
+
+DEF_CLASS(module, vpiModule, scope.object);
+
+typedef struct {
+   c_vpiObject      object;
+   vpiObjectList    args;
+   vlog_node_t      where;
+   c_abstractScope *scope;
 } c_tfCall;
 
 typedef struct {
@@ -110,6 +135,25 @@ typedef struct {
 
 DEF_CLASS(iterator, vpiIterator, object);
 
+typedef struct {
+   c_vpiObject      object;
+   vlog_node_t      where;
+   c_abstractScope *scope;
+   UNSAFE_MPTR      mptr;
+} c_abstractDecl;
+
+typedef struct {
+   c_abstractDecl decl;
+} c_net;
+
+DEF_CLASS(net, vpiNet, decl.object);
+
+typedef struct {
+   c_abstractDecl decl;
+} c_reg;
+
+DEF_CLASS(reg, vpiReg, decl.object);
+
 #define HANDLE_BITS      (sizeof(vpiHandle) * 8)
 #define HANDLE_MAX_INDEX ((UINT64_C(1) << (HANDLE_BITS / 2)) - 1)
 
@@ -138,7 +182,8 @@ typedef struct _vpi_context {
    vpiObjectList  recycle;
 } vpi_context_t;
 
-static c_expr *build_expr(vlog_node_t v);
+static c_vpiObject *build_expr(vlog_node_t v, c_abstractScope *scope);
+static void vpi_lazy_decls(c_vpiObject *obj);
 
 static vpi_context_t *global_context = NULL;   // TODO: thread local
 
@@ -259,27 +304,6 @@ static inline c_vpiObject *from_handle(vpiHandle handle)
    return NULL;
 }
 
-static c_expr *is_expr(c_vpiObject *obj)
-{
-   switch (obj->type) {
-   case vpiConstant:
-   case vpiOperation:
-      return container_of(obj, c_expr, object);
-   default:
-      return NULL;
-   }
-}
-
-static c_expr *cast_expr(c_vpiObject *obj)
-{
-   c_expr *e = is_expr(obj);
-   if (e == NULL)
-      vpi_error(vpiError, &(obj->loc), "type %s is not an expression",
-                vpi_type_str(obj->type));
-
-   return e;
-}
-
 static c_tfCall *is_tfCall(c_vpiObject *obj)
 {
    switch (obj->type) {
@@ -297,6 +321,27 @@ static c_sysTfCall *is_sysTfCall(c_vpiObject *obj)
    case vpiSysTaskCall:
    case vpiSysFuncCall:
       return container_of(obj, c_sysTfCall, tfcall.object);
+   default:
+      return NULL;
+   }
+}
+
+static c_abstractDecl *is_abstractDecl(c_vpiObject *obj)
+{
+   switch (obj->type) {
+   case vpiReg:
+   case vpiNet:
+      return container_of(obj, c_abstractDecl, object);
+   default:
+      return NULL;
+   }
+}
+
+static c_abstractScope *is_abstractScope(c_vpiObject *obj)
+{
+   switch (obj->type) {
+   case vpiModule:
+      return container_of(obj, c_abstractScope, object);
    default:
       return NULL;
    }
@@ -382,23 +427,35 @@ static inline void vpi_list_add(vpiObjectList *list, c_vpiObject *obj)
    list->items[list->count++] = obj;
 }
 
+static vpiObjectList *expand_lazy_list(c_vpiObject *obj, vpiLazyList *lazy)
+{
+   vpiLazyFn fn = lazy->fn;
+   if (fn != NULL) {
+      lazy->fn = NULL;   // Avoid infinite recursion
+      (*fn)(obj);
+   }
+
+   return &(lazy->list);
+}
+
 static void init_expr(c_expr *expr, vlog_node_t v)
 {
    expr->where = v;
 }
 
-static void init_tfCall(c_tfCall *call, vlog_node_t v)
+static void init_tfCall(c_tfCall *call, vlog_node_t v, c_abstractScope *scope)
 {
    call->where = v;
+   call->scope = scope;
 
    const int nparams = vlog_params(v);
    vpi_list_reserve(&(call->args), nparams);
 
    for (int i = 0, argslot = 1; i < nparams; i++) {
-      c_expr *obj = build_expr(vlog_param(v, i));
-      vpi_list_add(&(call->args), &(obj->object));
+      c_vpiObject *obj = build_expr(vlog_param(v, i), scope);
+      vpi_list_add(&(call->args), obj);
 
-      c_operation *op = is_operation(&(obj->object));
+      c_operation *op = is_operation(obj);
       if (op != NULL) {
          op->argslot = argslot;
          argslot += 3;
@@ -407,13 +464,45 @@ static void init_tfCall(c_tfCall *call, vlog_node_t v)
 }
 
 static void init_sysTfCall(c_sysTfCall *call, vlog_node_t v,
-                           c_callback *callback)
+                           c_callback *callback, c_abstractScope *scope)
 {
-   init_tfCall(&call->tfcall, v);
+   init_tfCall(&call->tfcall, v, scope);
    call->callback = callback;
 
    vpi_context_t *c = vpi_context();
    APUSH(c->syscalls, &(call->tfcall.object));
+}
+
+static void init_abstractDecl(c_abstractDecl *decl, vlog_node_t v,
+                              c_abstractScope *scope)
+{
+   decl->object.loc = *vlog_loc(v);
+   decl->where = v;
+   decl->scope = scope;
+}
+
+static void init_abstractScope(c_abstractScope *scope, vlog_node_t v)
+{
+   scope->object.loc = *vlog_loc(v);
+   scope->where      = v;
+   scope->handle     = JIT_HANDLE_INVALID;
+   scope->decls.fn   = vpi_lazy_decls;
+}
+
+static void build_net(vlog_node_t v, c_abstractScope *scope)
+{
+   c_net *net = new_object(sizeof(c_net), vpiNet);
+   init_abstractDecl(&(net->decl), v, scope);
+
+   vpi_list_add(&scope->decls.list, &(net->decl.object));
+}
+
+static void build_reg(vlog_node_t v, c_abstractScope *scope)
+{
+   c_reg *reg = new_object(sizeof(c_reg), vpiNet);
+   init_abstractDecl(&(reg->decl), v, scope);
+
+   vpi_list_add(&scope->decls.list, &(reg->decl.object));
 }
 
 static c_constant *build_constant(vlog_node_t v)
@@ -445,19 +534,32 @@ static c_operation *build_operation(vlog_node_t v)
    return op;
 }
 
-static c_expr *build_expr(vlog_node_t v)
+static c_vpiObject *build_expr(vlog_node_t v, c_abstractScope *scope)
 {
    switch (vlog_kind(v)) {
    case V_STRING:
    case V_NUMBER:
-      return &(build_constant(v)->expr);
+      return &(build_constant(v)->expr.object);
    case V_REF:
-      // TODO: this is wrong, should return the underlying reg/net
-      // object here
+      {
+         vlog_node_t d = vlog_ref(v);
+
+         vpiObjectList *list =
+            expand_lazy_list(&(scope->object), &(scope->decls));
+         for (int i = 0; i < list->count; i++) {
+            c_abstractDecl *decl = is_abstractDecl(list->items[i]);
+            assert(decl != NULL);
+
+            if (decl->where == d)
+               return &(decl->object);
+         }
+
+         fatal_trace("cannot find declaration for %s", istr(vlog_ident(d)));
+      }
    case V_BINARY:
    case V_UNARY:
    case V_SYS_FCALL:
-      return &(build_operation(v)->expr);
+      return &(build_operation(v)->expr.object);
    default:
       fatal_trace("cannot build VPI expr for node kind %s",
                   vlog_kind_str(vlog_kind(v)));
@@ -466,18 +568,20 @@ static c_expr *build_expr(vlog_node_t v)
    return NULL;
 }
 
-static c_sysTaskCall *build_sysTaskCall(vlog_node_t where, c_callback *callback)
+static c_sysTaskCall *build_sysTaskCall(vlog_node_t where, c_callback *callback,
+                                        c_abstractScope *scope)
 {
    c_sysTaskCall *call = new_object(sizeof(c_sysTaskCall), vpiSysTaskCall);
-   init_sysTfCall(&call->systfcall, where, callback);
+   init_sysTfCall(&call->systfcall, where, callback, scope);
 
    return call;
 }
 
-static c_sysFuncCall *build_sysFuncCall(vlog_node_t where, c_callback *callback)
+static c_sysFuncCall *build_sysFuncCall(vlog_node_t where, c_callback *callback,
+                                        c_abstractScope *scope)
 {
    c_sysFuncCall *call = new_object(sizeof(c_sysTaskCall), vpiSysFuncCall);
-   init_sysTfCall(&call->systfcall, where, callback);
+   init_sysTfCall(&call->systfcall, where, callback, scope);
 
    return call;
 }
@@ -496,6 +600,92 @@ static bool init_iterator(c_iterator *it, PLI_INT32 type, c_vpiObject *obj)
    }
 
    return false;
+}
+
+static c_module *build_module(vlog_node_t v, tree_t block, rt_scope_t *s)
+{
+   c_module *m = new_object(sizeof(c_module), vpiModule);
+   init_abstractScope(&m->scope, v);
+   m->block = block;
+   m->rtscope = s;
+
+   return m;
+}
+
+static c_module *cached_module(tree_t block, rt_scope_t *s)
+{
+   assert(tree_kind(block) == T_BLOCK);
+
+   hash_t *cache = vpi_context()->objcache;
+   c_module *m = hash_get(cache, block);
+   if (m == NULL) {
+      tree_t hier = tree_decl(block, 0);
+      assert(tree_kind(hier) == T_HIER);
+
+      tree_t wrap = tree_ref(hier);
+      assert(tree_kind(wrap) == T_VERILOG);
+
+      vlog_node_t mod = tree_vlog(wrap);
+      assert(vlog_kind(mod) == V_MODULE);
+
+      m = build_module(mod, block, s);
+      hash_put(cache, block, m);
+   }
+
+   return m;
+}
+
+static jit_t *vpi_get_jit(vpi_context_t *c)
+{
+   if (c->jit != NULL)
+      return c->jit;
+
+   return jit_for_thread();
+}
+
+static void *vpi_get_ptr(c_abstractDecl *decl)
+{
+   if (decl->mptr != NULL)
+      return decl->mptr;
+
+   jit_t *jit = vpi_get_jit(vpi_context());
+
+   if (decl->scope->handle == JIT_HANDLE_INVALID) {
+      c_module *mod = is_module(&(decl->scope->object));
+      if (mod != NULL)
+         decl->scope->handle = jit_lazy_compile(jit, mod->rtscope->name);
+   }
+
+   ident_t name = vlog_ident(decl->where);
+
+   if (decl->scope->handle == JIT_HANDLE_INVALID)
+      fatal_at(&(decl->object.loc), "cannot get pointer to %s", istr(name));
+
+   return (decl->mptr = jit_get_frame_var(jit, decl->scope->handle, name));
+}
+
+static void vpi_lazy_decls(c_vpiObject *obj)
+{
+   c_abstractScope *s = is_abstractScope(obj);
+   assert(s != NULL);
+
+   const int ndecls = vlog_decls(s->where);
+
+   vpi_list_reserve(&s->decls.list, ndecls);
+
+   for (int i = 0; i < ndecls; i++) {
+      vlog_node_t v = vlog_decl(s->where, i);
+      switch (vlog_kind(v)) {
+      case V_NET_DECL:
+         build_net(v, s);
+         break;
+      case V_VAR_DECL:
+         build_reg(v, s);
+         break;
+      default:
+         break;
+      }
+   }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -645,6 +835,18 @@ PLI_INT32 vpi_get(PLI_INT32 property, vpiHandle object)
       }
    }
 
+   c_abstractDecl *decl = is_abstractDecl(obj);
+   if (decl != NULL) {
+      switch (property) {
+      case vpiSize:
+         {
+            sig_shared_t **ss = vpi_get_ptr(decl);
+            rt_signal_t *s = container_of(*ss, rt_signal_t, shared);
+            return signal_width(s);
+         }
+      }
+   }
+
 missing_property:
    vpi_error(vpiError, &(obj->loc), "object does not have property %s",
              vpi_property_str(property));
@@ -662,10 +864,6 @@ void vpi_get_value(vpiHandle handle, p_vpi_value value_p)
    if (obj == NULL)
       return;
 
-   c_expr *expr = cast_expr(obj);
-   if (expr == NULL)
-      return;
-
    vpi_context_t *c = vpi_context();
    tb_rewind(c->valuestr);
 
@@ -673,7 +871,7 @@ void vpi_get_value(vpiHandle handle, p_vpi_value value_p)
    if (con != NULL) {
       switch (con->subtype) {
       case vpiStringConst:
-         tb_cat(c->valuestr, vlog_text(expr->where));
+         tb_cat(c->valuestr, vlog_text(con->expr.where));
 
          value_p->format = vpiStringVal;
          value_p->value.str = (PLI_BYTE8 *)tb_get(c->valuestr);
@@ -681,7 +879,7 @@ void vpi_get_value(vpiHandle handle, p_vpi_value value_p)
 
       case vpiBinaryConst:
          {
-            number_t n = vlog_number(expr->where);
+            number_t n = vlog_number(con->expr.where);
             vpi_format_number(n, value_p->format, c->valuestr);
 
             value_p->value.str = (PLI_BYTE8 *)tb_get(c->valuestr);
@@ -695,6 +893,19 @@ void vpi_get_value(vpiHandle handle, p_vpi_value value_p)
       void *ptr = c->args[op->argslot].pointer;
       const int nbits = ffi_array_length(c->args[op->argslot + 2].integer);
       number_t num = number_pack(ptr, nbits);
+
+      vpi_format_number(num, value_p->format, c->valuestr);
+      number_free(&num);
+
+      value_p->value.str = (PLI_BYTE8 *)tb_get(c->valuestr);
+      return;
+   }
+
+   c_abstractDecl *decl = is_abstractDecl(obj);
+   if (decl != NULL) {
+      sig_shared_t **ss = vpi_get_ptr(decl);
+      rt_signal_t *s = container_of(*ss, rt_signal_t, shared);
+      number_t num = number_pack(signal_value(s), signal_width(s));
 
       vpi_format_number(num, value_p->format, c->valuestr);
       number_free(&num);
@@ -849,7 +1060,11 @@ vpiHandle vpi_bind_foreign(ident_t name, vlog_node_t where)
       c_sysTfCall *call = is_sysTfCall(obj);
       assert(call != NULL);
       return call->handle;
-  }
+   }
+
+   rt_model_t *m = get_model();
+   rt_scope_t *scope = get_active_scope(m);
+   c_module *mod = cached_module(scope->where, scope);
 
    for (int i = 0; i < c->systasks.count; i++) {
       c_vpiObject *obj = from_handle(c->systasks.items[i]);
@@ -864,9 +1079,9 @@ vpiHandle vpi_bind_foreign(ident_t name, vlog_node_t where)
 
       c_sysTfCall *call;
       if (cb->systf.type == vpiSysTask)
-         call = &(build_sysTaskCall(where, cb)->systfcall);
+         call = &(build_sysTaskCall(where, cb, &(mod->scope))->systfcall);
       else
-         call = &(build_sysFuncCall(where, cb)->systfcall);
+         call = &(build_sysFuncCall(where, cb, &(mod->scope))->systfcall);
 
       return (call->handle = handle_for(&(call->tfcall.object)));
    }

@@ -341,15 +341,16 @@ vlog_logic_t number_bit(number_t val, unsigned n)
 number_t number_pack(const uint8_t *bits, unsigned width)
 {
    bool has_xz = false;
-   for (int i = 0; i < width; i++)
-      has_xz |= (bits[i] == LOGIC_X || bits[i] == LOGIC_Z);
+   for (int i = 0; i < width; i++) {
+      const vlog_logic_t log = STRIP_STRENGTH(bits[i]);
+      has_xz |= (log == LOGIC_X || log == LOGIC_Z);
+   }
 
    if (!has_xz && width <= INTEGER_WIDTH_MAX) {
       uint64_t packed = 0;
       for (int i = 0; i < width; i++) {
-         assert(bits[i] <= 0b11);
          packed <<= 1;
-         packed |= (bits[i] & 1);
+         packed |= (STRIP_STRENGTH(bits[i]) & 1);
       }
 
       return (number_t){
@@ -364,9 +365,8 @@ number_t number_pack(const uint8_t *bits, unsigned width)
    else if (width <= SMALLNUM_WIDTH_MAX) {
       uint64_t packed = SMALL_PACKED_ZERO;
       for (int i = 0; i < width; i++) {
-         assert(bits[i] <= 0b11);
          packed <<= 2;
-         packed |= bits[i];
+         packed |= STRIP_STRENGTH(bits[i]);
       }
 
       return (number_t){
@@ -388,9 +388,8 @@ number_t number_pack(const uint8_t *bits, unsigned width)
          bn->packed[i] = BIG_PACKED_ZERO;
 
          for (int j = 0; j < 32 && i*32 + j < width; j++) {
-            assert(bits[i*32 + j] <= 0b11);
             bn->packed[i] <<= 2;
-            bn->packed[i] |= bits[i*32 + j];
+            bn->packed[i] |= STRIP_STRENGTH(bits[i*32 + j]);
          }
       }
 

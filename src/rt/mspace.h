@@ -23,6 +23,8 @@
 #define MPTR_INVALID NULL
 typedef struct _mptr *mptr_t;
 
+typedef void *UNSAFE_MPTR;
+
 typedef void (*mspace_oom_fn_t)(mspace_t *, size_t);
 
 #define TLAB_SIZE (64 * 1024)
