@@ -4,7 +4,12 @@ TESTS = \
 
 check_PROGRAMS += $(TESTS) bin/fstdump
 
-EXTRA_PROGRAMS += bin/lockbench bin/jitperf bin/workqbench bin/mtstress
+EXTRA_PROGRAMS += \
+	bin/lockbench \
+	bin/jitperf \
+	bin/workqbench \
+	bin/mtstress \
+	vpi-dump.vpi
 
 EXTRA_DIST += test/cobertura.dtd
 
@@ -124,6 +129,12 @@ bin_mtstress_LDADD = \
 	$(libffi_LIBS) \
 	$(check_LIBS) \
 	$(libzstd_LIBS)
+
+vpi_dump_vpi_SOURCES = test/vpi-dump.c
+
+vpi_dump_vpi_CFLAGS = -fPIC $(AM_LDFLAGS)
+
+vpi_dump_vpi_LDFLAGS = -shared $(AM_LDFLAGS)
 
 TESTS_ENVIRONMENT = \
 	BUILD_DIR=$(top_builddir) \

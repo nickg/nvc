@@ -36,6 +36,11 @@ const char *vpi_type_str(PLI_INT32 type)
    case vpiCallback: return "vpiCallback";
    case vpiConstant: return "vpiConstant";
    case vpiOperation: return "vpiOperation";
+   case vpiModule: return "vpiModule";
+   case vpiScope: return "vpiScope";
+   case vpiPort: return "vpiPort";
+   case vpiNet: return "vpiNet";
+   case vpiReg: return "vpiReg";
    default: return vpi_fallback_str(type);
    }
 }
