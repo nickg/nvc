@@ -2104,7 +2104,8 @@ void resolve_resolution(nametab_t *tab, tree_t rname, type_t type)
 {
    // Finding the resolution function is a special case of overload resolution
 
-   if (tree_kind(rname) == T_ELEM_RESOLUTION) {
+   switch (tree_kind(rname)) {
+   case T_ELEM_RESOLUTION:
       if (type_is_record(type))
          error_at(tree_loc(rname), "sorry, record element resolution is not "
                   "supported yet");
@@ -2118,9 +2119,9 @@ void resolve_resolution(nametab_t *tab, tree_t rname, type_t type)
          tree_t a0 = tree_value(tree_assoc(rname, 0));
          resolve_resolution(tab, a0, type_elem(type));
       }
-   }
-   else {
-      assert(tree_kind(rname) == T_REF);
+      break;
+
+   case T_REF:
       tree_set_ref(rname, NULL);
 
       type_set_push(tab);
@@ -2137,6 +2138,13 @@ void resolve_resolution(nametab_t *tab, tree_t rname, type_t type)
       tree_set_ref(rname, finish_overload_resolution(&o));
 
       type_set_pop(tab);
+      break;
+
+   default:
+      error_at(tree_loc(rname), "not a valid resolution function for type %s",
+               type_pp(type));
+      tree_set_type(rname, type_new(T_NONE));
+      break;
    }
 }
 
