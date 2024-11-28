@@ -34,6 +34,7 @@
   format (#1071).
 - Added support for package external names (#1072).
 - Fixed parser hang for bit string literals (from @NikLeberg).
+- Fixed a crash on an illegal package definition inside an interface.
 - Several other minor bugs were resolved (#1038, #1057, #1067).
 
 ## Version 1.14.2 - 2024-11-23
