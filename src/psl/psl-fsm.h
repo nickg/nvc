@@ -59,6 +59,7 @@ typedef struct _fsm_state {
    fsm_state_t *next;
    fsm_edge_t  *edges;
    psl_node_t   where;
+   psl_guard_t  guard;
    bool         initial;
    bool         accept;
    bool         strong;
@@ -71,14 +72,15 @@ typedef enum {
 typedef struct {
    fsm_state_t  *states;
    fsm_state_t **tail;
+   ident_t       label;
    psl_node_t    src;
    unsigned      next_id;
    fsm_kind_t    kind;
 } psl_fsm_t;
 
-psl_fsm_t *psl_fsm_new(psl_node_t p);
+psl_fsm_t *psl_fsm_new(psl_node_t p, ident_t label);
 void psl_fsm_free(psl_fsm_t *fsm);
-void psl_fsm_dump(psl_fsm_t *fsm, const char *name);
+void psl_fsm_dump(psl_fsm_t *fsm, const char *tag);
 bool psl_fsm_repeating(psl_fsm_t *fsm);
 
 guard_kind_t psl_guard_kind(psl_guard_t g);

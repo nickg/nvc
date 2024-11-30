@@ -21,6 +21,7 @@
 #include "diag.h"
 #include "ident.h"
 #include "mask.h"
+#include "option.h"
 #include "phase.h"
 #include "psl/psl-fsm.h"
 #include "psl/psl-node.h"
@@ -77,17 +78,8 @@ static int64_t get_number(tree_t t)
    return result;
 }
 
-#if 0
-static psl_guard_t or_guard(psl_guard_t left, psl_guard_t right)
-{
-   if (left == NULL || right == NULL)
-      return NULL;
-
-   should_not_reach_here();
-}
-#endif
-
-static psl_guard_t and_guard(psl_guard_t left, psl_guard_t right)
+static psl_guard_t make_binop_guard(binop_kind_t kind, psl_guard_t left,
+                                    psl_guard_t right)
 {
    if (left == NULL)
       return right;
@@ -95,11 +87,21 @@ static psl_guard_t and_guard(psl_guard_t left, psl_guard_t right)
       return left;
 
    guard_binop_t *bop = xmalloc(sizeof(guard_binop_t));
-   bop->kind = BINOP_AND;
+   bop->kind = kind;
    bop->left = left;
    bop->right = right;
 
    return tag_pointer(bop, GUARD_BINOP);
+}
+
+static inline psl_guard_t or_guard(psl_guard_t left, psl_guard_t right)
+{
+   return make_binop_guard(BINOP_OR, left, right);
+}
+
+static inline psl_guard_t and_guard(psl_guard_t left, psl_guard_t right)
+{
+   return make_binop_guard(BINOP_AND, left, right);
 }
 
 static psl_guard_t not_guard(psl_guard_t g)
@@ -569,9 +571,53 @@ static void psl_detect_loops(psl_fsm_t *fsm)
 }
 #endif
 
-psl_fsm_t *psl_fsm_new(psl_node_t p)
+static void psl_simplify_dfs(psl_fsm_t *fsm, fsm_state_t *state,
+                             bit_mask_t *visited)
+{
+   for (fsm_edge_t **p = &(state->edges), *e = *p; e; e = *p) {
+      if (e->kind == EDGE_EPSILON) {
+         if (!mask_test(visited, e->dest->id)) {
+            psl_simplify_dfs(fsm, e->dest, visited);
+         }
+
+         if (e->dest->accept) {
+            psl_guard_t guard = and_guard(e->guard, e->dest->guard);
+            state->guard = or_guard(state->guard, guard);
+            state->accept = true;
+         }
+
+         *p = e->next;
+
+         for (fsm_edge_t *e2 = e->dest->edges; e2; e2 = e2->next) {
+            assert(e2->kind != EDGE_EPSILON);
+            psl_guard_t guard = and_guard(e->guard, e2->guard);
+            add_edge(state, e2->dest, e2->kind, guard);
+         }
+      }
+      else
+         p = &(e->next);
+   }
+
+   mask_set(visited, state->id);
+}
+
+static void psl_simplify(psl_fsm_t *fsm)
+{
+   LOCAL_BIT_MASK visited;
+   mask_init(&visited, fsm->next_id);
+
+   for (fsm_state_t *it = fsm->states; it; it = it->next) {
+      if (!mask_test(&visited, it->id))
+         psl_simplify_dfs(fsm, it, &visited);
+   }
+
+   assert(mask_popcount(&visited) == fsm->next_id);
+}
+
+psl_fsm_t *psl_fsm_new(psl_node_t p, ident_t label)
 {
    psl_fsm_t *fsm = xcalloc(sizeof(psl_fsm_t));
+   fsm->label = label;
    fsm->tail = &(fsm->states);
    fsm->src  = p;
    fsm->kind = psl_kind(p) == P_COVER ? FSM_COVER : FSM_BARE;
@@ -583,6 +629,16 @@ psl_fsm_t *psl_fsm_new(psl_node_t p)
    final->accept = true;
 
    DEBUG_ONLY(psl_detect_loops(fsm));
+
+   const bool verbose = opt_get_verbose(OPT_PSL_VERBOSE, istr(label));
+   if (verbose)
+      psl_fsm_dump(fsm, "initial");
+
+   psl_simplify(fsm);
+
+   if (verbose)
+      psl_fsm_dump(fsm, "final");
+
    return fsm;
 }
 
@@ -691,21 +747,31 @@ static void psl_dump_label(FILE *f, psl_guard_t g)
    capture_syntax(NULL);
 }
 
-void psl_fsm_dump(psl_fsm_t *fsm, const char *name)
+void psl_fsm_dump(psl_fsm_t *fsm, const char *tag)
 {
 #ifdef HAVE_POPEN
-   char *cmd LOCAL = xasprintf("dot -Tsvg -o %s.svg", name);
+   char *cmd LOCAL = xasprintf("dot -Tsvg -o %s.%s.svg", istr(fsm->label), tag);
    FILE *f = popen(cmd, "w");
    if (f == NULL)
-      fatal_errno("%s.svg", name);
+      fatal_errno("failed to start dot process");
 
    fprintf(f, "digraph psl {\n");
 
    for (fsm_state_t *s = fsm->states; s; s = s->next) {
-      if (s->accept)
-         fprintf(f, "%d [peripheries=2];\n", s->id);
-      if (s->initial)
-         fprintf(f, "%d [style=bold];\n", s->id);
+      if (s->accept || s->initial) {
+         fprintf(f, "%d [", s->id);
+
+         if (s->accept) fprintf(f, "peripheries=2,");
+         if (s->initial) fprintf(f, "style=bold,");
+
+         if (s->guard != NULL) {
+            fprintf(f, "label=\"%d: ", s->id);
+            psl_dump_label(f, s->guard);
+            fputs("\",", f);
+         }
+
+         fputs("];\n", f);
+      }
 
       for (fsm_edge_t *e = s->edges; e; e = e->next) {
          fprintf(f, "%d -> %d [", s->id, e->dest->id);
@@ -725,7 +791,7 @@ void psl_fsm_dump(psl_fsm_t *fsm, const char *name)
    if (pclose(f) != 0)
       fatal_errno("dot process failed");
 
-   debugf("wrote PSL state machine graph to %s.svg", name);
+   debugf("wrote PSL state machine graph to %s.%s.svg", istr(fsm->label), tag);
 #else
    warnf("PSL state machine graph is not supported on this platform");
 #endif

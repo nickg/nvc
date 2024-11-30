@@ -82,6 +82,8 @@ static vcode_reg_t psl_lower_guard(lower_unit_t *lu, psl_guard_t g)
          switch (bop->kind) {
          case BINOP_AND:
             return emit_and(left_reg, right_reg);
+         case BINOP_OR:
+            return emit_or(left_reg, right_reg);
          default:
             should_not_reach_here();
          }
@@ -143,59 +145,64 @@ static void psl_lower_state(lower_unit_t *lu, psl_fsm_t *fsm,
    vcode_reg_t vfalse = emit_const(vbool, 0);
    vcode_reg_t vtrue = emit_const(vbool, 1);
 
+   if (state->accept) {
+      vcode_block_t cont_bb = vcode_active_block();
+      if (state->guard != NULL) {
+         vcode_block_t accept_bb = emit_block();
+         cont_bb = emit_block();
+
+         vcode_reg_t guard_reg = psl_lower_guard(lu, state->guard);
+         emit_cond(guard_reg, accept_bb, cont_bb);
+
+         vcode_select_block(accept_bb);
+      }
+
+      if (fsm->kind == FSM_COVER)
+         psl_lower_cover(lu, fsm->src, cover, cscope);
+      else if (fsm->kind == FSM_NEVER) {
+         vcode_reg_t severity_reg = psl_assert_severity();
+         vcode_reg_t locus = psl_debug_locus(fsm->src);
+
+         emit_assert(vfalse, VCODE_INVALID_REG, VCODE_INVALID_REG,
+                     severity_reg, locus, VCODE_INVALID_REG,
+                     VCODE_INVALID_REG);
+      }
+
+      emit_return(VCODE_INVALID_REG);
+
+      if (state->guard == NULL)
+         return;
+      else
+         vcode_select_block(cont_bb);
+   }
+
    vcode_reg_t taken_reg = vfalse;
 
    for (fsm_edge_t *e = state->edges; e; e = e->next) {
-      if (e->kind == EDGE_NEXT) {
-         if (e->guard != NULL) {
-            vcode_block_t enter_bb = emit_block();
-            vcode_block_t skip_bb = emit_block();
+      assert(e->kind == EDGE_NEXT);
 
-            vcode_reg_t guard_reg = psl_lower_guard(lu, e->guard);
-            emit_cond(guard_reg, enter_bb, skip_bb);
+      if (e->guard != NULL) {
+         vcode_block_t enter_bb = emit_block();
+         vcode_block_t skip_bb = emit_block();
 
-            vcode_select_block(enter_bb);
-            psl_enter_state(e->dest);
-            emit_jump(skip_bb);
+         vcode_reg_t guard_reg = psl_lower_guard(lu, e->guard);
+         emit_cond(guard_reg, enter_bb, skip_bb);
 
-            vcode_select_block(skip_bb);
+         vcode_select_block(enter_bb);
+         psl_enter_state(e->dest);
+         emit_jump(skip_bb);
 
-            taken_reg = emit_or(taken_reg, guard_reg);
-         }
-         else {
-            psl_enter_state(e->dest);
-            taken_reg = vtrue;
-         }
+         vcode_select_block(skip_bb);
+
+         taken_reg = emit_or(taken_reg, guard_reg);
+      }
+      else {
+         psl_enter_state(e->dest);
+         taken_reg = vtrue;
       }
    }
 
-   for (fsm_edge_t *e = state->edges; e; e = e->next) {
-      if (e->kind == EDGE_EPSILON) {
-         if (e->guard != NULL) {
-            vcode_reg_t guard_reg = psl_lower_guard(lu, e->guard);
-            vcode_block_t skip_bb = emit_block();
-            emit_cond(guard_reg, state_bb[e->dest->id], skip_bb);
-            vcode_select_block(skip_bb);
-         }
-         else if (!vcode_block_finished())
-            emit_jump(state_bb[e->dest->id]);
-      }
-   }
-
-   if (vcode_block_finished())
-      return;
-
-   if (state->accept && fsm->kind == FSM_COVER)
-      psl_lower_cover(lu, fsm->src, cover, cscope);
-   else if (state->accept && fsm->kind == FSM_NEVER) {
-      vcode_reg_t severity_reg = psl_assert_severity();
-      vcode_reg_t locus = psl_debug_locus(fsm->src);
-
-      emit_assert(vfalse, VCODE_INVALID_REG, VCODE_INVALID_REG,
-                  severity_reg, locus, VCODE_INVALID_REG,
-                  VCODE_INVALID_REG);
-   }
-   else if (!state->accept && fsm->kind != FSM_COVER) {
+   if (fsm->kind != FSM_COVER) {
       vcode_reg_t severity_reg = psl_assert_severity();
       vcode_reg_t locus = psl_debug_locus(state->where);
 
@@ -273,10 +280,7 @@ void psl_lower_directive(unit_registry_t *ur, lower_unit_t *parent,
    cover_scope_t *cscope =
       cover_create_scope(cover, parent_cscope, wrapper, NULL);
 
-   psl_fsm_t *fsm = psl_fsm_new(p);
-
-   if (opt_get_verbose(OPT_PSL_VERBOSE, istr(label)))
-      psl_fsm_dump(fsm, istr(label));
+   psl_fsm_t *fsm = psl_fsm_new(p, label);
 
    vcode_unit_t context = get_vcode(parent);
 
