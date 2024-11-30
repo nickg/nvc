@@ -587,12 +587,22 @@ static void psl_simplify_dfs(psl_fsm_t *fsm, fsm_state_t *state,
             state->accept = true;
          }
 
-         *p = e->next;
+         fsm_edge_t *first = e->dest->edges;
+         if (first == NULL)
+            *p = e->next;
+         else {
+            for (fsm_edge_t *e2 = first->next; e2; e2 = e2->next) {
+               assert(e2->kind != EDGE_EPSILON);
+               psl_guard_t guard = and_guard(e->guard, e2->guard);
+               add_edge(state, e2->dest, e2->kind, guard);
+            }
 
-         for (fsm_edge_t *e2 = e->dest->edges; e2; e2 = e2->next) {
-            assert(e2->kind != EDGE_EPSILON);
-            psl_guard_t guard = and_guard(e->guard, e2->guard);
-            add_edge(state, e2->dest, e2->kind, guard);
+            assert(first->kind != EDGE_EPSILON);
+            e->kind  = first->kind;
+            e->dest  = first->dest;
+            e->guard = and_guard(e->guard, first->guard);
+
+            p = &(e->next);
          }
       }
       else
