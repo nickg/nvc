@@ -72,6 +72,7 @@ typedef enum {
 typedef struct {
    fsm_state_t  *states;
    fsm_state_t **tail;
+   mem_pool_t   *pool;
    ident_t       label;
    psl_node_t    src;
    unsigned      next_id;
