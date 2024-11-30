@@ -574,11 +574,12 @@ static void psl_detect_loops(psl_fsm_t *fsm)
 static void psl_simplify_dfs(psl_fsm_t *fsm, fsm_state_t *state,
                              bit_mask_t *visited)
 {
+   mask_set(visited, state->id);
+
    for (fsm_edge_t **p = &(state->edges), *e = *p; e; e = *p) {
       if (e->kind == EDGE_EPSILON) {
-         if (!mask_test(visited, e->dest->id)) {
+         if (!mask_test(visited, e->dest->id))
             psl_simplify_dfs(fsm, e->dest, visited);
-         }
 
          if (e->dest->accept) {
             psl_guard_t guard = and_guard(e->guard, e->dest->guard);
@@ -597,8 +598,26 @@ static void psl_simplify_dfs(psl_fsm_t *fsm, fsm_state_t *state,
       else
          p = &(e->next);
    }
+}
 
-   mask_set(visited, state->id);
+static void psl_prune_dfs(psl_fsm_t *fsm, fsm_state_t *state,
+                          bit_mask_t *visited)
+{
+   if (mask_test_and_set(visited, state->id))
+      return;
+
+   state->next = NULL;
+
+   *fsm->tail = state;
+   fsm->tail = &(state->next);
+
+   if (state->accept && state->guard == NULL)
+      state->edges = NULL;   // Unreachable
+
+   for (fsm_edge_t *e = state->edges; e; e = e->next) {
+      assert(e->kind != EDGE_EPSILON);
+      psl_prune_dfs(fsm, e->dest, visited);
+   }
 }
 
 static void psl_simplify(psl_fsm_t *fsm)
@@ -612,6 +631,19 @@ static void psl_simplify(psl_fsm_t *fsm)
    }
 
    assert(mask_popcount(&visited) == fsm->next_id);
+
+   fsm_state_t *s0 = fsm->states;
+   assert(s0->initial);
+
+   mask_clearall(&visited);
+   fsm->next_id = 0;
+   fsm->tail    = &(fsm->states);
+   fsm->states  = NULL;
+
+   psl_prune_dfs(fsm, s0, &visited);
+
+   for (fsm_state_t *it = fsm->states; it; it = it->next)
+      it->id = fsm->next_id++;
 }
 
 psl_fsm_t *psl_fsm_new(psl_node_t p, ident_t label)

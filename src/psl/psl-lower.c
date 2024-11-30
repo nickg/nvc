@@ -355,13 +355,11 @@ void psl_lower_directive(unit_registry_t *ur, lower_unit_t *parent,
    emit_case(state_reg, abort_bb, state_ids, state_bb, fsm->next_id);
 
    bool strong = false;
-   int pos = 0;
    for (fsm_state_t *s = fsm->states; s; s = s->next) {
-      vcode_select_block(state_bb[pos++]);
+      vcode_select_block(state_bb[s->id]);
       psl_lower_state(lu, fsm, s, state_bb, cover, cscope);
       strong |= s->strong;
    }
-   assert(pos == fsm->next_id);
 
    vcode_select_block(abort_bb);
 
