@@ -164,7 +164,7 @@ char *strndup(char const *s, size_t n);
 #define tag_pointer(p, tag) ({                          \
          typeof((p)) __p = (p);                         \
          assert(((uintptr_t)__p & 7) == 0);             \
-         assert((unsigned)tag < 8u);                    \
+         assert((unsigned)(tag) < 8u);                  \
          (void *)((uintptr_t)__p | (uintptr_t)(tag));   \
       })
 

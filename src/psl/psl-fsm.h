@@ -27,11 +27,31 @@ typedef enum {
    EDGE_NEXT, EDGE_EPSILON
 } edge_kind_t;
 
+typedef enum {
+   GUARD_EXPR = 0b00,
+   GUARD_BINOP = 0b01,
+   GUARD_NOT = 0b10,
+   GUARD_FALSE = 0b11,
+} guard_kind_t;
+
+typedef void *psl_guard_t;
+
+typedef enum {
+   BINOP_AND,
+   BINOP_OR,
+} binop_kind_t;
+
+typedef struct {
+   binop_kind_t kind;
+   psl_guard_t  left;
+   psl_guard_t  right;
+} guard_binop_t;
+
 typedef struct _fsm_edge {
    fsm_edge_t  *next;
    fsm_state_t *dest;
    edge_kind_t  kind;
-   psl_node_t   guard;
+   psl_guard_t  guard;
 } fsm_edge_t;
 
 typedef struct _fsm_state {
@@ -60,5 +80,9 @@ psl_fsm_t *psl_fsm_new(psl_node_t p);
 void psl_fsm_free(psl_fsm_t *fsm);
 void psl_fsm_dump(psl_fsm_t *fsm, const char *name);
 bool psl_fsm_repeating(psl_fsm_t *fsm);
+
+guard_kind_t psl_guard_kind(psl_guard_t g);
+const guard_binop_t *psl_guard_binop(psl_guard_t g);
+psl_node_t psl_guard_expr(psl_guard_t g);
 
 #endif  // _PSL_FSM_H

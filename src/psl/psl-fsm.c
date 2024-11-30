@@ -21,6 +21,7 @@
 #include "diag.h"
 #include "ident.h"
 #include "mask.h"
+#include "phase.h"
 #include "psl/psl-fsm.h"
 #include "psl/psl-node.h"
 #include "psl/psl-phase.h"
@@ -50,25 +51,19 @@ static fsm_state_t *add_state(psl_fsm_t *fsm, psl_node_t where)
    return s;
 }
 
-static void insert_edge(fsm_state_t *from, fsm_state_t *to, edge_kind_t kind,
-                        psl_node_t guard, fsm_edge_t **where)
+static void add_edge(fsm_state_t *from, fsm_state_t *to, edge_kind_t kind,
+                     psl_guard_t guard)
 {
+   fsm_edge_t **p = &(from->edges);
+   for (; *p; p = &((*p)->next));
+
    fsm_edge_t *e = xcalloc(sizeof(fsm_edge_t));
-   e->next  = *where;
+   e->next  = *p;
    e->kind  = kind;
    e->dest  = to;
    e->guard = guard;
 
-   *where = e;
-}
-
-static void add_edge(fsm_state_t *from, fsm_state_t *to, edge_kind_t kind,
-                     psl_node_t guard)
-{
-   fsm_edge_t **p = &(from->edges);
-   for (; *p && (guard == NULL || (*p)->guard != NULL); p = &((*p)->next));
-
-   insert_edge(from, to, kind, guard, p);
+   *p = e;
 }
 
 static int64_t get_number(tree_t t)
@@ -82,6 +77,49 @@ static int64_t get_number(tree_t t)
    return result;
 }
 
+#if 0
+static psl_guard_t or_guard(psl_guard_t left, psl_guard_t right)
+{
+   if (left == NULL || right == NULL)
+      return NULL;
+
+   should_not_reach_here();
+}
+#endif
+
+static psl_guard_t and_guard(psl_guard_t left, psl_guard_t right)
+{
+   if (left == NULL)
+      return right;
+   else if (right == NULL)
+      return left;
+
+   guard_binop_t *bop = xmalloc(sizeof(guard_binop_t));
+   bop->kind = BINOP_AND;
+   bop->left = left;
+   bop->right = right;
+
+   return tag_pointer(bop, GUARD_BINOP);
+}
+
+static psl_guard_t not_guard(psl_guard_t g)
+{
+   assert(psl_guard_kind(g) == GUARD_EXPR);
+
+   psl_node_t p = psl_guard_expr(g);
+   return tag_pointer(p, p == NULL ? GUARD_FALSE : GUARD_NOT);
+}
+
+static psl_guard_t build_else_guard(fsm_state_t *state)
+{
+   psl_guard_t g = NULL;
+
+   for (fsm_edge_t *e = state->edges; e; e = e->next)
+      g = and_guard(g, not_guard(e->guard));
+
+   return g;
+}
+
 static void connect_abort(fsm_state_t *from, fsm_state_t *to, psl_node_t guard,
                           bit_mask_t *visited)
 {
@@ -93,7 +131,7 @@ static void connect_abort(fsm_state_t *from, fsm_state_t *to, psl_node_t guard,
    for (fsm_edge_t *e = from->edges; e; e = e->next)
       connect_abort(e->dest, to, guard, visited);
 
-   insert_edge(from, to, EDGE_EPSILON, guard, &(from->edges));
+   add_edge(from, to, EDGE_EPSILON, guard);
 }
 
 static void connect_default(fsm_state_t *from, fsm_state_t *to,
@@ -111,7 +149,7 @@ static void connect_default(fsm_state_t *from, fsm_state_t *to,
    }
 
    if (!have_def)
-      add_edge(from, to, EDGE_NEXT, NULL);
+      add_edge(from, to, EDGE_NEXT, build_else_guard(from));
 }
 
 static fsm_state_t *build_logical(psl_fsm_t *fsm, fsm_state_t *state,
@@ -131,7 +169,10 @@ static fsm_state_t *build_logical(psl_fsm_t *fsm, fsm_state_t *state,
          add_edge(state, right, EDGE_EPSILON, rhs);
          add_edge(left, accept, EDGE_EPSILON, rhs);
          add_edge(right, accept, EDGE_EPSILON, lhs);
-         add_edge(state, accept, EDGE_EPSILON, NULL);
+
+         psl_guard_t def = build_else_guard(state);
+         add_edge(state, accept, EDGE_EPSILON, def);
+
          return accept;
       }
 
@@ -140,7 +181,10 @@ static fsm_state_t *build_logical(psl_fsm_t *fsm, fsm_state_t *state,
          fsm_state_t *left = add_state(fsm, p);
          fsm_state_t *right = build_node(fsm, left, rhs);
          add_edge(state, left, EDGE_EPSILON, lhs);
-         add_edge(state, right, EDGE_EPSILON, NULL);
+
+         psl_guard_t def = build_else_guard(state);
+         add_edge(state, right, EDGE_EPSILON, def);
+
          return right;
       }
 
@@ -317,7 +361,8 @@ static fsm_state_t *build_repeat(psl_fsm_t *fsm, fsm_state_t *state,
 
       if (noncon) {
          fsm_state_t *wait = add_state(fsm, p);
-         add_edge(last_but_one, wait, EDGE_EPSILON, NULL);
+         psl_guard_t guard = build_else_guard(last_but_one);
+         add_edge(last_but_one, wait, EDGE_EPSILON, guard);
          add_edge(wait, last_but_one, EDGE_NEXT, NULL);
       }
 
@@ -336,7 +381,7 @@ static fsm_state_t *build_repeat(psl_fsm_t *fsm, fsm_state_t *state,
          fsm_state_t *wait = add_state(fsm, p);
          add_edge(state, aux, EDGE_NEXT, NULL);
          add_edge(aux, dead, EDGE_EPSILON, seq);
-         add_edge(aux, wait, EDGE_EPSILON, NULL);
+         add_edge(aux, wait, EDGE_EPSILON, build_else_guard(aux));
          add_edge(wait, aux, EDGE_NEXT, NULL);
          add_edge(wait, state, EDGE_EPSILON, NULL);
       }
@@ -482,6 +527,7 @@ static void psl_loops_dfs(psl_fsm_t *fsm, fsm_state_t *state,
 {
    mask_set(discovered, state->id);
 
+   bool have_epsilon = false, have_unguarded = false;
    for (fsm_edge_t *e = state->edges; e; e = e->next) {
       if (e->kind != EDGE_EPSILON || mask_test(finished, e->dest->id))
          continue;
@@ -492,6 +538,15 @@ static void psl_loops_dfs(psl_fsm_t *fsm, fsm_state_t *state,
       }
       else
          psl_loops_dfs(fsm, e->dest, discovered, finished);
+
+      if (have_unguarded || (have_epsilon && e->guard == NULL)) {
+         psl_fsm_dump(fsm, "unguarded");
+         fatal_trace("unguarded epsilon edge must be only epsilon edge "
+                     "(%d -> %d)", state->id, e->dest->id);
+      }
+
+      have_epsilon = true;
+      have_unguarded |= (e->guard == NULL);
    }
 
    mask_clear(discovered, state->id);
@@ -542,14 +597,89 @@ bool psl_fsm_repeating(psl_fsm_t *fsm)
       || fsm->kind == FSM_NEVER;
 }
 
+guard_kind_t psl_guard_kind(psl_guard_t g)
+{
+   const unsigned tag = pointer_tag(g);
+   switch (tag) {
+   case GUARD_EXPR:
+   case GUARD_BINOP:
+   case GUARD_NOT:
+   case GUARD_FALSE:
+      return tag;
+   default:
+      should_not_reach_here();
+   }
+}
+
+const guard_binop_t *psl_guard_binop(psl_guard_t g)
+{
+   assert(psl_guard_kind(g) == GUARD_BINOP);
+   return untag_pointer(g, guard_binop_t);
+}
+
+psl_node_t psl_guard_expr(psl_guard_t g)
+{
+   switch (pointer_tag(g)) {
+   case GUARD_EXPR:
+   case GUARD_NOT:
+      return untag_pointer(g, struct _psl_node);
+   default:
+      should_not_reach_here();
+   }
+}
+
 // LCOV_EXCL_START /////////////////////////////////////////////////////////////
 
-static void psl_dump_label(FILE *f, psl_node_t p)
+static void psl_dump_guard(psl_guard_t g, text_buf_t *tb, bool nested)
+{
+   switch (psl_guard_kind(g)) {
+   case GUARD_NOT:
+      tb_cat(tb, "!");
+      // Fall-through
+   case GUARD_EXPR:
+      {
+         psl_node_t p = psl_guard_expr(g);
+         assert(psl_kind(p) == P_HDL_EXPR);
+
+         tree_t t = psl_tree(p);
+
+         const bool is_cconv = tree_kind(t) == T_FCALL
+            && is_well_known(tree_ident(t)) == W_OP_CCONV;
+
+         vhdl_dump(is_cconv ? tree_param(t, 0) : t, 0);
+      }
+      break;
+   case GUARD_BINOP:
+      {
+         if (nested) tb_append(tb, '(');
+
+         const guard_binop_t *bop = psl_guard_binop(g);
+         psl_dump_guard(bop->left, tb, true);
+
+         switch (bop->kind) {
+         case BINOP_AND: tb_cat(tb, " && "); break;
+         case BINOP_OR: tb_cat(tb, " || "); break;
+         default: should_not_reach_here();
+         }
+
+         psl_dump_guard(bop->right, tb, true);
+
+         if (nested) tb_append(tb, ')');
+      }
+      break;
+   case GUARD_FALSE:
+      tb_cat(tb, "false");
+      break;
+   default:
+      should_not_reach_here();
+   }
+}
+
+static void psl_dump_label(FILE *f, psl_guard_t g)
 {
    LOCAL_TEXT_BUF tb = tb_new();
    capture_syntax(tb);
-
-   psl_dump(p);
+   psl_dump_guard(g, tb, false);
 
    for (const char *p = tb_get(tb); *p; p++) {
       if (*p == '"')

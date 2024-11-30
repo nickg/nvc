@@ -68,6 +68,31 @@ static vcode_reg_t psl_assert_severity(void)
    return emit_const(vtype_int(0, 3), 2);
 }
 
+static vcode_reg_t psl_lower_guard(lower_unit_t *lu, psl_guard_t g)
+{
+   switch (psl_guard_kind(g)) {
+   case GUARD_EXPR:
+      return psl_lower_boolean(lu, psl_guard_expr(g));
+   case GUARD_BINOP:
+      {
+         const guard_binop_t *bop = psl_guard_binop(g);
+         vcode_reg_t left_reg = psl_lower_guard(lu, bop->left);
+         vcode_reg_t right_reg = psl_lower_guard(lu, bop->right);
+
+         switch (bop->kind) {
+         case BINOP_AND:
+            return emit_and(left_reg, right_reg);
+         default:
+            should_not_reach_here();
+         }
+      }
+   case GUARD_NOT:
+      return emit_not(psl_lower_boolean(lu, psl_guard_expr(g)));
+   default:
+      should_not_reach_here();
+   }
+}
+
 static void psl_lower_cover(lower_unit_t *lu, psl_node_t p, cover_data_t *cover,
                             cover_scope_t *cscope)
 {
@@ -126,7 +151,7 @@ static void psl_lower_state(lower_unit_t *lu, psl_fsm_t *fsm,
             vcode_block_t enter_bb = emit_block();
             vcode_block_t skip_bb = emit_block();
 
-            vcode_reg_t guard_reg = psl_lower_boolean(lu, e->guard);
+            vcode_reg_t guard_reg = psl_lower_guard(lu, e->guard);
             emit_cond(guard_reg, enter_bb, skip_bb);
 
             vcode_select_block(enter_bb);
@@ -147,12 +172,12 @@ static void psl_lower_state(lower_unit_t *lu, psl_fsm_t *fsm,
    for (fsm_edge_t *e = state->edges; e; e = e->next) {
       if (e->kind == EDGE_EPSILON) {
          if (e->guard != NULL) {
-            vcode_reg_t guard_reg = psl_lower_boolean(lu, e->guard);
+            vcode_reg_t guard_reg = psl_lower_guard(lu, e->guard);
             vcode_block_t skip_bb = emit_block();
             emit_cond(guard_reg, state_bb[e->dest->id], skip_bb);
             vcode_select_block(skip_bb);
          }
-         else
+         else if (!vcode_block_finished())
             emit_jump(state_bb[e->dest->id]);
       }
    }
