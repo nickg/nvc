@@ -250,10 +250,8 @@ void psl_lower_directive(unit_registry_t *ur, lower_unit_t *parent,
 
    psl_fsm_t *fsm = psl_fsm_new(p);
 
-   if (opt_get_verbose(OPT_PSL_VERBOSE, istr(label))) {
-      char *fname LOCAL = xasprintf("%s.dot", istr(label));
-      psl_fsm_dump(fsm, fname);
-   }
+   if (opt_get_verbose(OPT_PSL_VERBOSE, istr(label)))
+      psl_fsm_dump(fsm, istr(label));
 
    vcode_unit_t context = get_vcode(parent);
 

@@ -486,7 +486,7 @@ static void psl_loops_dfs(psl_fsm_t *fsm, fsm_state_t *state,
       if (e->kind != EDGE_EPSILON || mask_test(finished, e->dest->id))
          continue;
       else if (mask_test(discovered, e->dest->id)) {
-         psl_fsm_dump(fsm, "loop.dot");
+         psl_fsm_dump(fsm, "loop");
          fatal_trace("detected loop in PSL state machine %d -> %d",
                      state->id, e->dest->id);
       }
@@ -536,6 +536,14 @@ void psl_fsm_free(psl_fsm_t *fsm)
    free(fsm);
 }
 
+bool psl_fsm_repeating(psl_fsm_t *fsm)
+{
+   return fsm->kind == FSM_COVER || fsm->kind == FSM_ALWAYS
+      || fsm->kind == FSM_NEVER;
+}
+
+// LCOV_EXCL_START /////////////////////////////////////////////////////////////
+
 static void psl_dump_label(FILE *f, psl_node_t p)
 {
    LOCAL_TEXT_BUF tb = tb_new();
@@ -553,17 +561,21 @@ static void psl_dump_label(FILE *f, psl_node_t p)
    capture_syntax(NULL);
 }
 
-void psl_fsm_dump(psl_fsm_t *fsm, const char *fname)
+void psl_fsm_dump(psl_fsm_t *fsm, const char *name)
 {
-   FILE *f = fopen(fname, "w");
+#ifdef HAVE_POPEN
+   char *cmd LOCAL = xasprintf("dot -Tsvg -o %s.svg", name);
+   FILE *f = popen(cmd, "w");
    if (f == NULL)
-      fatal_errno("%s", fname);
+      fatal_errno("%s.svg", name);
 
    fprintf(f, "digraph psl {\n");
 
    for (fsm_state_t *s = fsm->states; s; s = s->next) {
       if (s->accept)
          fprintf(f, "%d [peripheries=2];\n", s->id);
+      if (s->initial)
+         fprintf(f, "%d [style=bold];\n", s->id);
 
       for (fsm_edge_t *e = s->edges; e; e = e->next) {
          fprintf(f, "%d -> %d [", s->id, e->dest->id);
@@ -579,22 +591,14 @@ void psl_fsm_dump(psl_fsm_t *fsm, const char *fname)
    }
 
    fprintf(f, "}\n");
-   fclose(f);
 
-   const char *args[] = {
-      "/usr/bin/dot",
-      "-Tsvg",
-      "-O",
-      fname,
-      NULL
-   };
-   run_program(args);
+   if (pclose(f) != 0)
+      fatal_errno("dot process failed");
 
-   debugf("wrote PSL state machine graph to %s.svg", fname);
+   debugf("wrote PSL state machine graph to %s.svg", name);
+#else
+   warnf("PSL state machine graph is not supported on this platform");
+#endif
 }
 
-bool psl_fsm_repeating(psl_fsm_t *fsm)
-{
-   return fsm->kind == FSM_COVER || fsm->kind == FSM_ALWAYS
-      || fsm->kind == FSM_NEVER;
-}
+// LCOV_EXCL_STOP //////////////////////////////////////////////////////////////

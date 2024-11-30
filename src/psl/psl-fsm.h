@@ -58,7 +58,7 @@ typedef struct {
 
 psl_fsm_t *psl_fsm_new(psl_node_t p);
 void psl_fsm_free(psl_fsm_t *fsm);
-void psl_fsm_dump(psl_fsm_t *fsm, const char *fname);
+void psl_fsm_dump(psl_fsm_t *fsm, const char *name);
 bool psl_fsm_repeating(psl_fsm_t *fsm);
 
 #endif  // _PSL_FSM_H
