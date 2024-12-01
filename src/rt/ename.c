@@ -32,13 +32,6 @@
 
 static tree_t select_name(tree_t where, ident_t id)
 {
-   const int nstmts = tree_stmts(where);
-   for (int i = 0; i < nstmts; i++) {
-      tree_t s = tree_stmt(where, i);
-      if (tree_ident(s) == id)
-         return s;
-   }
-
    const int ndecls = tree_decls(where);
    for (int i = 0; i < ndecls; i++) {
       tree_t d = tree_decl(where, i);
@@ -51,6 +44,16 @@ static tree_t select_name(tree_t where, ident_t id)
       tree_t g = tree_generic(where, i);
       if (tree_ident(g) == id)
          return g;
+   }
+
+   if (is_package(where))
+      return NULL;
+
+   const int nstmts = tree_stmts(where);
+   for (int i = 0; i < nstmts; i++) {
+      tree_t s = tree_stmt(where, i);
+      if (tree_ident(s) == id)
+         return s;
    }
 
    const int nports = tree_ports(where);
@@ -113,12 +116,40 @@ void x_bind_external(tree_t name, jit_scalar_t *result)
             id = ident_new(tb_get(tb));
          }
          break;
+      case PE_LIBRARY:
+         {
+            lib_t lib = lib_require(tree_ident(pe));
+
+            pe = tree_part(name, ++i);
+            assert(tree_subkind(pe) == PE_SIMPLE);
+
+            ident_t qual = ident_prefix(lib_name(lib), tree_ident(pe), '.');
+
+            tree_t pack = lib_get(lib, qual);
+            if (pack == NULL || !is_package(pack))
+               jit_msg(tree_loc(pe), DIAG_FATAL, "%s is not a package",
+                       istr(qual));
+
+            next = pack;
+         }
+         continue;
       default:
-         jit_msg(tree_loc(pe), DIAG_FATAL, "sorry, this form of external name "
-                 "is not yet supported");
+         should_not_reach_here();
       }
 
-      if (!is_concurrent_block(where)) {
+      if (tree_kind(where) == T_BLOCK) {
+         tree_t hier = tree_decl(where, 0);
+         assert(tree_kind(hier) == T_HIER);
+
+         if (tree_subkind(hier) == T_COMPONENT) {
+            // Skip over implicit block for component declaration
+            where = tree_stmt(where, 0);
+            assert(tree_kind(where) == T_BLOCK);
+            hier = tree_decl(where, 0);
+            path = ident_prefix(path, tree_ident(where), '.');
+         }
+      }
+      else if (!is_package(where)) {
          diag_t *d = diag_new(DIAG_ERROR, tree_loc(pe));
          diag_printf(d, "%s is not a concurrent region",
                      istr(tree_ident(where)));
@@ -126,19 +157,6 @@ void x_bind_external(tree_t name, jit_scalar_t *result)
                    istr(tree_ident(where)));
          diag_emit(d);
          jit_abort_with_status(1);
-      }
-
-      assert(tree_kind(where) == T_BLOCK);
-
-      tree_t hier = tree_decl(where, 0);
-      assert(tree_kind(hier) == T_HIER);
-
-      if (tree_subkind(hier) == T_COMPONENT) {
-         // Skip over implicit block for component declaration
-         where = tree_stmt(where, 0);
-         assert(tree_kind(where) == T_BLOCK);
-         hier = tree_decl(where, 0);
-         path = ident_prefix(path, tree_ident(where), '.');
       }
 
       if ((next = select_name(where, id)) == NULL) {
@@ -189,7 +207,10 @@ void x_bind_external(tree_t name, jit_scalar_t *result)
    }
 
    jit_t *j = jit_for_thread();
+
    jit_handle_t handle = jit_compile(j, path);
+   (void)jit_link(j, handle);   // Package may not be loaded
+
    void *ptr = jit_get_frame_var(j, handle, tree_ident(where));
 
    if (type_is_array(type)) {

@@ -32,6 +32,7 @@
   fusion.
 - Nested arrays more than two levels deep can now be dumped in FST
   format (#1071).
+- Added support for package external names (#1072).
 - Several other minor bugs were resolved (#1038, #1057, #1067).
 
 ## Version 1.14.2 - 2024-11-23

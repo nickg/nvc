@@ -1,0 +1,1 @@
+3ns+0: WORK.MY_PKGXXXX is not a package
