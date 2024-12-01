@@ -19,6 +19,7 @@
 #include "array.h"
 #include "common.h"
 #include "diag.h"
+#include "hash.h"
 #include "ident.h"
 #include "mask.h"
 #include "option.h"
@@ -39,6 +40,7 @@
 
 static fsm_state_t *build_node(psl_fsm_t *fsm, fsm_state_t *state,
                                psl_node_t p);
+static void psl_simplify(psl_fsm_t *fsm);
 
 static fsm_state_t *add_state(psl_fsm_t *fsm, psl_node_t where)
 {
@@ -52,11 +54,39 @@ static fsm_state_t *add_state(psl_fsm_t *fsm, psl_node_t where)
    return s;
 }
 
+static bool same_guard(psl_guard_t g1, psl_guard_t g2)
+{
+   if (g1 == g2)
+      return true;
+
+   const guard_kind_t g1_kind = psl_guard_kind(g1);
+   const guard_kind_t g2_kind = psl_guard_kind(g2);
+
+   if (g1_kind != g2_kind)
+      return false;
+   else if (g1_kind != GUARD_BINOP)
+      return false;
+
+   const guard_binop_t *bop1 = psl_guard_binop(g1);
+   const guard_binop_t *bop2 = psl_guard_binop(g1);
+
+   if (bop1->kind != bop2->kind)
+      return false;
+
+   return same_guard(bop1->left, bop2->left)
+      && same_guard(bop1->right, bop2->right);
+}
+
 static void add_edge(psl_fsm_t *fsm, fsm_state_t *from, fsm_state_t *to,
                      edge_kind_t kind, psl_guard_t guard)
 {
    fsm_edge_t **p = &(from->edges);
-   for (; *p; p = &((*p)->next));
+   for (; *p; p = &((*p)->next)) {
+      if ((*p)->kind != kind || (*p)->dest != to)
+         continue;
+      else if (same_guard((*p)->guard, guard))
+         return;   // Duplicate edge
+   }
 
    fsm_edge_t *e = pool_malloc(fsm->pool, sizeof(fsm_edge_t));
    e->next  = *p;
@@ -83,7 +113,7 @@ static psl_guard_t make_binop_guard(psl_fsm_t *fsm, binop_kind_t kind,
 {
    if (left == NULL)
       return right;
-   else if (right == NULL)
+   else if (right == NULL || left == right)
       return left;
 
    guard_binop_t *bop = pool_malloc(fsm->pool, sizeof(guard_binop_t));
@@ -154,6 +184,71 @@ static void connect_default(psl_fsm_t *fsm, fsm_state_t *from, fsm_state_t *to,
 
    if (!have_def)
       add_edge(fsm, from, to, EDGE_NEXT, build_else_guard(fsm, from));
+}
+
+static fsm_state_t *intersect_fsm(psl_fsm_t *fsm, fsm_state_t *initial,
+                                  fsm_state_t *l_initial, fsm_state_t *l_final,
+                                  fsm_state_t *r_initial, fsm_state_t *r_final)
+{
+   // See chapter 3.5 of "Martin, J.C. (2003) Introduction to languages
+   // and the theory of computation" for basic idea.
+
+   ihash_t *map = ihash_new((fsm->next_id - initial->id) * 2);
+
+   // Remove all epsilon transitions before continuing
+   l_final->accept = true;
+   r_final->accept = true;
+   psl_simplify(fsm);
+
+   fsm_state_t *final = add_state(fsm, l_final->where);
+
+   typedef struct {
+      fsm_state_t *left;
+      fsm_state_t *right;
+      fsm_state_t *into;
+   } work_item_t;
+
+   SCOPED_A(work_item_t) worklist = AINIT;
+
+   const work_item_t seed = { l_initial, r_initial, initial };
+   APUSH(worklist, seed);
+
+   while (worklist.count > 0) {
+      const work_item_t wi = APOP(worklist);
+
+      for (fsm_edge_t *e1 = wi.left->edges; e1; e1 = e1->next) {
+         for (fsm_edge_t *e2 = wi.right->edges; e2; e2 = e2->next) {
+            fsm_state_t *dest;
+            if (e1->dest == e2->dest)
+               dest = e1->dest;
+            else {
+               const uint64_t key = (uint64_t)e1->dest->id << 32 | e2->dest->id;
+
+               if ((dest = ihash_get(map, key)) == NULL) {
+                  dest = add_state(fsm, wi.left->where);
+                  DEBUG_ONLY(dest->mergekey = key);
+                  ihash_put(map, key, dest);
+
+                  const work_item_t new = { e1->dest, e2->dest, dest };
+                  APUSH(worklist, new);
+               }
+            }
+
+            assert(e1->kind == e2->kind);
+
+            psl_guard_t guard = and_guard(fsm, e1->guard, e2->guard);
+            add_edge(fsm, wi.into, dest, e1->kind, guard);
+         }
+      }
+
+      if (wi.left->accept && wi.right->accept) {
+         psl_guard_t guard = and_guard(fsm, wi.left->guard, wi.right->guard);
+         add_edge(fsm, wi.into, final, EDGE_EPSILON, guard);
+      }
+   }
+
+   ihash_free(map);
+   return final;
 }
 
 static fsm_state_t *build_logical(psl_fsm_t *fsm, fsm_state_t *state,
@@ -261,32 +356,45 @@ static fsm_state_t *build_abort(psl_fsm_t *fsm, fsm_state_t *state,
 
 static fsm_state_t *build_sere(psl_fsm_t *fsm, fsm_state_t *state, psl_node_t p)
 {
+   const psl_sere_kind_t kind = psl_subkind(p);
    const int nops = psl_operands(p);
 
-   for (int i = 0; i < nops; i++) {
-      psl_node_t rhs = psl_operand(p, i);
-      edge_kind_t ekind = EDGE_NEXT;
-
-      switch (psl_subkind(p)) {
-      case PSL_SERE_FUSION:
-         ekind = EDGE_EPSILON;
-      case PSL_SERE_CONCAT:
-         if (i + 1 < nops) {
-            fsm_state_t *lhs = build_node(fsm, state, rhs);
-            if (lhs != state) {
+   switch (kind) {
+   case PSL_SERE_FUSION:
+   case PSL_SERE_CONCAT:
+      {
+         for (int i = 0; i < nops; i++) {
+            fsm_state_t *new = build_node(fsm, state, psl_operand(p, i));
+            if (i + 1 < nops && new != state) {
+               const edge_kind_t ekind =
+                  kind == PSL_SERE_FUSION ? EDGE_EPSILON : EDGE_NEXT;
                state = add_state(fsm, p);
-               add_edge(fsm, lhs, state, ekind, NULL);
+               add_edge(fsm, new, state, ekind, NULL);
             }
+            else
+               state = new;
          }
-         else
-            state = build_node(fsm, state, rhs);
-         break;
-      default:
-         CANNOT_HANDLE(p);
-      }
-   }
 
-   return state;
+         return state;
+      }
+
+   case PSL_SERE_EQU_AND:
+      {
+         assert(nops == 2);
+
+         fsm_state_t *l_initial = add_state(fsm, p);
+         fsm_state_t *l_final = build_node(fsm, l_initial, psl_operand(p, 0));
+
+         fsm_state_t *r_initial = add_state(fsm, p);
+         fsm_state_t *r_final = build_node(fsm, r_initial, psl_operand(p, 1));
+
+         return intersect_fsm(fsm, state, l_initial, l_final,
+                              r_initial, r_final);
+      }
+
+   default:
+      CANNOT_HANDLE(p);
+   }
 }
 
 static void get_repeat_bounds(psl_node_t p, int *low, int *high, bool *infinite,
@@ -612,6 +720,19 @@ static void psl_simplify_dfs(psl_fsm_t *fsm, fsm_state_t *state,
    }
 }
 
+static void psl_simplify(psl_fsm_t *fsm)
+{
+   LOCAL_BIT_MASK visited;
+   mask_init(&visited, fsm->next_id);
+
+   for (fsm_state_t *it = fsm->states; it; it = it->next) {
+      if (!mask_test(&visited, it->id))
+         psl_simplify_dfs(fsm, it, &visited);
+   }
+
+   assert(mask_popcount(&visited) == fsm->next_id);
+}
+
 static void psl_prune_dfs(psl_fsm_t *fsm, fsm_state_t *state,
                           bit_mask_t *visited)
 {
@@ -632,17 +753,10 @@ static void psl_prune_dfs(psl_fsm_t *fsm, fsm_state_t *state,
    }
 }
 
-static void psl_simplify(psl_fsm_t *fsm)
+static void psl_prune(psl_fsm_t *fsm)
 {
    LOCAL_BIT_MASK visited;
    mask_init(&visited, fsm->next_id);
-
-   for (fsm_state_t *it = fsm->states; it; it = it->next) {
-      if (!mask_test(&visited, it->id))
-         psl_simplify_dfs(fsm, it, &visited);
-   }
-
-   assert(mask_popcount(&visited) == fsm->next_id);
 
    fsm_state_t *s0 = fsm->states;
    assert(s0->initial);
@@ -680,6 +794,7 @@ psl_fsm_t *psl_fsm_new(psl_node_t p, ident_t label)
       psl_fsm_dump(fsm, "initial");
 
    psl_simplify(fsm);
+   psl_prune(fsm);
 
    if (verbose)
       psl_fsm_dump(fsm, "final");
@@ -818,6 +933,11 @@ void psl_fsm_dump(psl_fsm_t *fsm, const char *tag)
 
          fputs("];\n", f);
       }
+#ifdef DEBUG
+      else if (s->mergekey != 0)
+         fprintf(f, "%d [label=\"%d (%d ∩ %d)\"]", s->id, s->id,
+                 (int)(s->mergekey >> 32), (int)s->mergekey);
+#endif
 
       for (fsm_edge_t *e = s->edges; e; e = e->next) {
          fprintf(f, "%d -> %d [", s->id, e->dest->id);

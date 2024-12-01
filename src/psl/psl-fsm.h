@@ -63,6 +63,9 @@ typedef struct _fsm_state {
    bool         initial;
    bool         accept;
    bool         strong;
+#ifdef DEBUG
+   uint64_t     mergekey;
+#endif
 } fsm_state_t;
 
 typedef enum {
