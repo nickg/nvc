@@ -6960,6 +6960,27 @@ START_TEST(test_hang)
 }
 END_TEST
 
+START_TEST(test_protected3)
+{
+   opt_set_int(OPT_RELAXED, 1);
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/parse/protected3.vhd");
+
+   const error_t expect[] = {
+      {  4, "type mark does not denote a type or a subtype" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_PACKAGE);
+
+   fail_unless(parse() == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_parse_tests(void)
 {
    Suite *s = suite_create("parse");
@@ -7127,6 +7148,7 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_issue1038);
    tcase_add_test(tc_core, test_issue1055);
    tcase_add_test(tc_core, test_hang);
+   tcase_add_test(tc_core, test_protected3);
    suite_add_tcase(s, tc_core);
 
    return s;
