@@ -12012,7 +12012,7 @@ static psl_node_t p_psl_compound_sere(psl_node_t head)
    //   | Compound_SERE within Compound_SERE
    //   | Parameterized_SERE
 
-   BEGIN("PSL Compund SERE");
+   BEGIN("PSL Compound SERE");
 
    if (head == NULL) {
       switch (peek()) {
@@ -12162,7 +12162,8 @@ static psl_node_t p_psl_sere(void)
       case tTIMESRPT:
       case tEQRPT:
       case tGOTORPT:
-         return p_psl_compound_sere(head);
+         head = p_psl_compound_sere(head);
+         continue;
       default:
          return head;
       }

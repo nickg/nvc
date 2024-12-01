@@ -64,4 +64,5 @@ begin
     -- psl assert {a} |=> {b;c};
     -- psl assert {a} |-> {b};
 
+    -- psl assert {a} |=> {{b[->3]} && {(a and not c)[+]}; not c and b};
 end architecture;
