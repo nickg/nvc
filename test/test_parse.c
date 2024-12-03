@@ -6951,13 +6951,22 @@ END_TEST
 
 START_TEST(test_hang)
 {
+   set_standard(STD_08);
+
    input_from_file(TESTDIR "/parse/hang.vhd");
 
-   parse_and_check(T_ENTITY, T_ARCH);
+   const error_t expect[] = {
+      { 17, "sorry, bit strings longer than 2147483647 elements "
+            "are not supported" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_ENTITY, T_ARCH, T_PACKAGE);
 
    fail_unless(parse() == NULL);
 
-   fail_if_errors();
+   check_expected_errors();
 }
 END_TEST
 

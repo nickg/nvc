@@ -596,7 +596,13 @@ static tree_t bit_string_to_literal(const char *str, const loc_t *loc)
 
    if (isdigit_iso88591(*p)) {
       require_std(STD_08, "bit string literals with length specifier");
-      length = strtoul(p, (char **)&p, 10);
+      unsigned long slength = strtoul(p, (char **)&p, 10);
+      if (slength > INT32_MAX) {
+         error_at(loc, "sorry, bit strings longer than %d elements are "
+                  "not supported", INT32_MAX);
+         return t;
+      }
+      length = slength;
    }
 
    enum { UNSIGNED, SIGNED } mode = UNSIGNED;
