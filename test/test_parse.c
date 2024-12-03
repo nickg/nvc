@@ -6920,15 +6920,16 @@ START_TEST(test_issue1038)
    input_from_file(TESTDIR "/parse/issue1038.vhd");
 
    const error_t expect[] = {
-      { 22, "unexpected next while parsing primary, expecting one of ??, (, "
+      { 26, "unexpected next while parsing primary, expecting one of ??, (, "
             "integer, real, null, identifier, string, bit string or new" },
-      { 35, "no visible subprogram declaration for NATURAL" },
+      { 41, "no visible subprogram declaration for NATURAL" },
+      { 49, "not a valid resolution function for type POSITIVE" },
       { -1, NULL }
    };
    expect_errors(expect);
 
    parse_and_check(T_PACKAGE, T_PACK_BODY, T_PACKAGE, T_ENTITY, T_ARCH,
-                   T_PACKAGE, T_PACK_BODY);
+                   T_PACKAGE, T_PACK_BODY, T_PACKAGE);
 
    fail_unless(parse() == NULL);
 

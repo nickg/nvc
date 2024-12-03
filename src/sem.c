@@ -85,7 +85,11 @@ static bool sem_check_resolution(type_t type, tree_t res)
       }
    }
 
-   assert(tree_kind(res) == T_REF);
+   if (tree_kind(res) != T_REF) {
+      // Should have been caught during name resolution
+      assert(error_count() > 0);
+      return false;
+   }
 
    if (!tree_has_ref(res))
       return false;
