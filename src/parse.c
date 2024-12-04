@@ -7841,6 +7841,11 @@ static tree_t p_protected_type_body(ident_t id)
    if (decl != NULL) {
       switch (tree_kind(decl)) {
       case T_PROT_BODY:   // Duplicate body will trigger an error later
+         if (!tree_has_primary(decl)) {
+            assert(error_count() > 0); // Fallout from previous error, ignore
+            decl = NULL;
+            break;
+         }
          decl = tree_primary(decl);
          // Fall-through
       case T_PROT_DECL:
