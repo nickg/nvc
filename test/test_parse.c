@@ -6979,11 +6979,14 @@ START_TEST(test_protected3)
 
    const error_t expect[] = {
       {  4, "type mark does not denote a type or a subtype" },
+      { 11, "no visible declaration for SHAREDCOUNTER" },
+      { 14, "unexpected package while parsing protected type body, "
+            "expecting protected" },
       { -1, NULL }
    };
    expect_errors(expect);
 
-   parse_and_check(T_PACKAGE);
+   parse_and_check(T_PACKAGE, T_PACKAGE);
 
    fail_unless(parse() == NULL);
 
