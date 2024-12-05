@@ -104,4 +104,12 @@ begin
         end block;
     end block;
 
+    -- Type interface declaration in parameter list
+    b3: block is
+        function test2 ( type t ) return bit is    -- Error
+        begin
+        end function;
+    begin
+    end block;
+
 end architecture;

@@ -2614,6 +2614,7 @@ START_TEST(test_vhdl2008)
       {  86, "no visible declaration for Q" },
       { 102, "expression associated with unconstrained formal port P1 "
         "must have a globally static subtype" },
+      { 109, "parameter interface list cannot contain type interface" },
       { -1, NULL }
    };
    expect_errors(expect);

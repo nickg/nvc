@@ -1215,6 +1215,10 @@ static bool sem_check_param_decl(tree_t t, nametab_t *tab)
       sem_error(t, "formal signal parameter declaration may "
                 "not include the reserved word BUS");
 
+   if (class == C_PACKAGE || class == C_TYPE)
+      sem_error(t, "parameter interface list cannot contain %s "
+                "interface declaration", class_str(class));
+
    if (mode == PORT_RECORD_VIEW || mode == PORT_ARRAY_VIEW) {
       tree_t name = tree_value(t);
       type_t view_type = tree_type(name);
