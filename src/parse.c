@@ -5541,14 +5541,15 @@ static void p_formal_parameter_list(tree_t decl, type_t type)
    if (nports == 0)
       return;   // Was parse error
 
-   tree_t p0 = tree_port(decl, 0);
-   type_add_param(type, tree_type(p0));
-
-   if (tree_has_value(p0))
-      tree_set_flag(decl, TREE_F_CALL_NO_ARGS);
-
-   for (int i = 1; i < nports; i++)
-      type_add_param(type, tree_type(tree_port(decl, i)));
+   for (int i = 0; i < nports; i++) {
+      tree_t p = tree_port(decl, i);
+      if (i == 0 && tree_has_value(p))
+         tree_set_flag(decl, TREE_F_CALL_NO_ARGS);
+      if (tree_has_type(p))
+         type_add_param(type, tree_type(p));
+      else
+         type_add_param(type, type_new(T_NONE));   // Will raise error later
+   }
 }
 
 static tree_t p_interface_function_specification(void)

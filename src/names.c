@@ -2462,7 +2462,8 @@ void mangle_func(nametab_t *tab, tree_t decl)
       tree_t p = tree_port(decl, i);
       if (tree_class(p) == C_SIGNAL)
          tb_append(buf, 's');
-      mangle_one_type(buf, tree_type(p));
+      if (tree_has_type(p))
+         mangle_one_type(buf, tree_type(p));
    }
 
    if (nports > 0 || is_func)
