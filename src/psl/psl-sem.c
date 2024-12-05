@@ -73,6 +73,14 @@ static void psl_check_sequence_decl(psl_node_t p, nametab_t *tab)
    psl_check(psl_value(p), tab);
 }
 
+static void psl_check_endpoint_decl(psl_node_t p, nametab_t *tab)
+{
+   psl_check(psl_value(p), tab);
+
+   error_at(psl_loc(p), "PSL endpoint declarations are not supported as they "
+            "were not part of IEEE Std 1850-2010 or later standards");
+}
+
 static void psl_check_top_level(psl_node_t p, nametab_t *tab)
 {
    if (psl_kind(p) == P_CLOCKED)
@@ -438,6 +446,9 @@ void psl_check(psl_node_t p, nametab_t *tab)
       break;
    case P_SEQUENCE_DECL:
       psl_check_sequence_decl(p, tab);
+      break;
+   case P_ENDPOINT_DECL:
+      psl_check_endpoint_decl(p, tab);
       break;
    case P_HDL_EXPR:
       psl_check_hdl_expr(p, tab);

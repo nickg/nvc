@@ -137,6 +137,7 @@ START_TEST(test_sem1)
       { 39, "expression must be a PSL Number but have type BIT" },
       { 40, "no visible declaration for FOO" },
       { 40, "no visible declaration for Z" },
+      { 41, "PSL endpoint declarations are not supported" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -184,6 +185,7 @@ START_TEST(test_parse4)
 
    const error_t expect[] = {
       { 53, "FOO is not a PSL sequence" },
+      { 59, "unexpected ; while parsing architecture statement part" },
       { -1, NULL }
    };
    expect_errors(expect);

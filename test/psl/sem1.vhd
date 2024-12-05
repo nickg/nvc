@@ -38,5 +38,6 @@ begin
     -- psl assert {x[*]}[->1];                -- Error
     -- psl assert {x[*1 to clk]};             -- Error
     -- psl assert {z [[foo <= 1;]]};          -- Error
+    -- psl endpoint e1 is {x; y};             -- Not supported
 
 end architecture;

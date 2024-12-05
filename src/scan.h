@@ -406,5 +406,6 @@ bool is_scanned_as_psl(void);
 #define tINF           506
 #define tREPEAT        507
 #define tDO            508
+#define tENDPOINT      509
 
 #endif  // _SCAN_H

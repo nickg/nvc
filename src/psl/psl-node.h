@@ -54,6 +54,7 @@ typedef enum {
    P_PROC_BLOCK,
    P_PARAM_SERE,
    P_CLOCKED,
+   P_ENDPOINT_DECL,
 
    P_LAST_PSL_KIND
 } psl_kind_t;

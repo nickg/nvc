@@ -118,6 +118,9 @@ static const imask_t has_map[P_LAST_PSL_KIND] = {
 
    // P_CLOCKED
    (I_FOREIGN | I_VALUE | I_REF),
+
+   // P_ENDPOINT_DECL
+   (I_IDENT | I_VALUE),
 };
 
 static const char *kind_text_map[P_LAST_PSL_KIND] = {
@@ -127,7 +130,7 @@ static const char *kind_text_map[P_LAST_PSL_KIND] = {
    "P_SERE", "P_REPEAT", "P_PROPERTY_INST", "P_SEQUENCE_INST", "P_UNION",
    "P_BUILTIN_FUNC", "P_VALUE_SET", "P_PARAM_DECL", "P_UNTIL", "P_ABORT",
    "P_BEFORE", "P_SUFFIX_IMPL", "P_LOGICAL", "P_RANGE", "P_PROC_BLOCK",
-   "P_PARAM_SERE", "P_CLOCKED",
+   "P_PARAM_SERE", "P_CLOCKED", "P_ENDPOINT_DECL",
 };
 
 static const change_allowed_t change_allowed[] = {

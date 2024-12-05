@@ -55,4 +55,7 @@ begin
     -- Paramterized SERE
     -- psl cover {for i in {1 to 3}: && {seq_b(i)}};
 
+    -- Garbage after PSL directive
+    -- psl asfasfa;
+
 end architecture;

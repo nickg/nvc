@@ -9573,6 +9573,7 @@ static void p_block_declarative_item(tree_t parent)
    case tDEFAULT:
    case tSEQUENCE:
    case tPROPERTY:
+   case tENDPOINT:
       p_psl_declaration(parent);
       break;
 
@@ -10997,7 +10998,7 @@ static void p_concurrent_statement_or_psl(tree_t parent)
          consume(tCOLON);
          tree_add_stmt(parent, p_psl_directive(label));
       }
-      else if (scan(tDEFAULT, tSEQUENCE, tPROPERTY))
+      else if (scan(tDEFAULT, tSEQUENCE, tPROPERTY, tENDPOINT))
          p_psl_declaration(parent);
       else
          tree_add_stmt(parent, p_psl_directive(NULL));
@@ -12852,7 +12853,8 @@ static psl_node_t p_psl_verification_directive(void)
    case tCOVER:
       return p_psl_cover_directive();
    default:
-      one_of(tASSERT, tASSUME, tCOVER);
+      one_of(tASSERT, tASSUME, tASSUMEG, tRESTRICT, tRESTRICTG, tFAIRNESS,
+             tSTRONG, tCOVER);
       return NULL;
    }
 }
@@ -12873,11 +12875,14 @@ static tree_t p_psl_directive(ident_t label)
    insert_names_for_psl(nametab);
 
    psl_node_t p = p_psl_verification_directive();
-   tree_set_psl(t, p);
 
    scan_as_vhdl();
 
-   psl_check(p, nametab);
+   if (p != NULL) {
+      tree_set_psl(t, p);
+      psl_check(p, nametab);
+   }
+
    pop_scope(nametab);
 
    tree_set_loc(t, CURRENT_LOC);
@@ -12982,6 +12987,47 @@ static tree_t p_psl_sequence_declaration(void)
    return t;
 }
 
+static tree_t p_psl_endpoint_declaration(void)
+{
+   // sequence PSL_Identifier is Sequence ;
+
+   BEGIN("PSL endpoint declaration");
+
+   scan_as_psl();
+
+   psl_node_t decl = psl_new(P_ENDPOINT_DECL);
+
+   consume(tENDPOINT);
+
+   ident_t ident = p_identifier();
+   psl_set_ident(decl, ident);
+
+   tree_t t = tree_new(T_PSL);
+   tree_set_psl(t, decl);
+   tree_set_ident(t, ident);
+   insert_name(nametab, t, NULL);
+
+   push_scope(nametab);
+   insert_names_for_psl(nametab);
+
+   consume(tIS);
+
+   psl_node_t prop = p_psl_sequence();
+   psl_set_value(decl, prop);
+
+   consume(tSEMI);
+
+   psl_set_loc(decl, CURRENT_LOC);
+   psl_check(decl, nametab);
+
+   pop_scope(nametab);
+
+   scan_as_vhdl();
+
+   tree_set_loc(t, CURRENT_LOC);
+   return t;
+}
+
 static void p_psl_declaration(tree_t parent)
 {
    // Property_Declaration | Sequence_Declaration | Clock_Declaration
@@ -12998,8 +13044,11 @@ static void p_psl_declaration(tree_t parent)
    case tDEFAULT:
       tree_add_decl(parent, p_psl_clock_declaration());
       break;
+   case tENDPOINT:
+      tree_add_decl(parent, p_psl_endpoint_declaration());
+      break;
    default:
-      one_of(tPROPERTY, tSEQUENCE, tDEFAULT);
+      one_of(tPROPERTY, tSEQUENCE, tDEFAULT, tENDPOINT);
       break;
    }
 }

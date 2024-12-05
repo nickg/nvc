@@ -279,6 +279,7 @@ NONDET        ?i:nondet
 NONDET_V      ?i:nondet_vector
 UNION         ?i:union
 INF           ?i:inf
+ENDPOINT      ?i:endpoint
 
 INTERCONNECT      ?i:interconnect
 DELAYFILE         ?i:delayfile
@@ -610,6 +611,7 @@ BEFORE            ?i:before
 <PSL>"|->"               { TOKEN(tSUFFIXOVR); }
 <PSL>"|=>"               { TOKEN(tSUFFIXNON); }
 <PSL>{INF}               { TOKEN(tINF); }
+<PSL>{ENDPOINT}          { TOKEN(tENDPOINT); }
 
 <VLOG>"module"           { return tMODULE; }
 <VLOG>"endmodule"        { return tENDMODULE; }
