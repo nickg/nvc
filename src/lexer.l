@@ -643,6 +643,10 @@ BEFORE            ?i:before
 <VLOG>"!=="              { return tCASENEQ; }
 <VLOG>"||"               { return tLOGOR; }
 <VLOG>"&&"               { return tDBLAMP; }
+<VLOG>"<<"               { return tSHIFTLL; }
+<VLOG>">>"               { return tSHIFTRL; }
+<VLOG>"<<<"              { return tSHIFTLA; }
+<VLOG>">>>"              { return tSHIFTRA; }
 <VLOG>"(*"               { return tATTRBEGIN; }
 <VLOG>"*)"               { return tATTREND; }
 <VLOG>"specify"          { return tSPECIFY; }

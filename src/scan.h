@@ -407,5 +407,9 @@ bool is_scanned_as_psl(void);
 #define tREPEAT        507
 #define tDO            508
 #define tENDPOINT      509
+#define tSHIFTLL       510
+#define tSHIFTRL       511
+#define tSHIFTLA       512
+#define tSHIFTRA       513
 
 #endif  // _SCAN_H

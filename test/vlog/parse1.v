@@ -27,4 +27,10 @@ module parse1;
     repeat (x) x = ~x;
     do x = y; while (1);
   end
+  initial begin
+    x = x << 1;
+    x = x >> 1;
+    x = y <<< x;
+    x = x >>> y;
+  end
 endmodule // parse1

@@ -1179,7 +1179,8 @@ static vlog_binary_t p_binary_operator(void)
    BEGIN("binary operator");
 
    switch (one_of(tBAR, tPLUS, tAMP, tCASEEQ, tCASENEQ, tLOGOR,
-                  tLOGEQ, tLOGNEQ, tDBLAMP)) {
+                  tLOGEQ, tLOGNEQ, tDBLAMP, tSHIFTLL, tSHIFTRL,
+                  tSHIFTLA, tSHIFTRA)) {
    case tBAR:     return V_BINARY_OR;
    case tAMP:     return V_BINARY_AND;
    case tCASEEQ:  return V_BINARY_CASE_EQ;
@@ -1188,6 +1189,10 @@ static vlog_binary_t p_binary_operator(void)
    case tLOGNEQ:  return V_BINARY_LOG_NEQ;
    case tLOGOR:   return V_BINARY_LOG_OR;
    case tDBLAMP:  return V_BINARY_LOG_AND;
+   case tSHIFTLL: return V_BINARY_SHIFT_LL;
+   case tSHIFTRL: return V_BINARY_SHIFT_RL;
+   case tSHIFTLA: return V_BINARY_SHIFT_LA;
+   case tSHIFTRA: return V_BINARY_SHIFT_RA;
    case tPLUS:
    default:       return V_BINARY_PLUS;
    }
@@ -1244,6 +1249,10 @@ static bool peek_binary_operator(int *prec)
 
    switch (peek()) {
    case tPLUS:    *prec = 10; return true;
+   case tSHIFTLL:
+   case tSHIFTRL:
+   case tSHIFTLA:
+   case tSHIFTRA: *prec = 9;  return true;
    case tCASEEQ:
    case tCASENEQ:
    case tLOGEQ:

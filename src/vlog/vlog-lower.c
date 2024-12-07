@@ -408,6 +408,8 @@ static vcode_reg_t vlog_lower_binary(lower_unit_t *lu, vlog_binary_t op,
    case V_BINARY_MINUS:
       tb_cat(tb, "\"-\"(");
       break;
+   default:
+      should_not_reach_here();
    }
 
    tb_cat(tb, T_LOGIC_ARRAY T_LOGIC_ARRAY ")");
