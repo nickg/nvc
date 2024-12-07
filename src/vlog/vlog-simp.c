@@ -58,6 +58,29 @@ static vlog_node_t simp_net_decl(vlog_node_t decl, vlog_node_t mod)
       vlog_add_stmt(mod, g);
    }
 
+   if (vlog_has_value(decl)) {
+      vlog_node_t value = vlog_value(decl);
+      vlog_set_value(decl, NULL);
+
+      ident_t id = vlog_ident(decl);
+      const loc_t *loc = vlog_loc(decl);
+
+      vlog_node_t ref = vlog_new(V_REF);
+      vlog_set_ref(ref, decl);
+      vlog_set_ident(ref, id);
+      vlog_set_loc(ref, loc);
+
+      vlog_node_t a = vlog_new(V_ASSIGN);
+      vlog_set_target(a, ref);
+      vlog_set_value(a, value);
+      vlog_set_loc(a, loc);
+
+      char *name LOCAL = xasprintf("__assign#%s", istr(id));
+      vlog_set_ident(a, ident_uniq(name));
+
+      vlog_add_stmt(mod, a);
+   }
+
    return decl;
 }
 

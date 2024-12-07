@@ -33,4 +33,6 @@ module parse1;
     x = y <<< x;
     x = x >>> y;
   end
+  int r1 = 5;
+  wire w1 = 0;
 endmodule // parse1

@@ -1079,3 +1079,4 @@ issue1079       normal,gold
 ivtest4         verilog
 psl17           gold,psl
 ename16         fail,gold,2008
+vlog13          verilog

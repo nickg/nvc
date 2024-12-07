@@ -790,41 +790,48 @@ static void vlog_lower_sys_tcall(lower_unit_t *lu, vlog_node_t v)
 
 static void vlog_lower_if(lower_unit_t *lu, vlog_node_t v)
 {
-   vcode_block_t true_bb = emit_block();
-   vcode_block_t false_bb = emit_block(), skip_bb = false_bb;
+   vcode_block_t exit_bb = VCODE_INVALID_BLOCK;
 
    const int nconds = vlog_conds(v);
-   assert(nconds == 1 || nconds == 2);
+   for (int i = 0; i < nconds; i++) {
+      vlog_node_t c = vlog_cond(v, i);
+      vcode_block_t next_bb = VCODE_INVALID_BLOCK;
 
-   if (nconds == 2)
-      skip_bb = emit_block();
+      if (vlog_has_value(c)) {
+         vcode_reg_t test_reg = vlog_lower_rvalue(lu, vlog_value(c));
+         vcode_reg_t bool_reg = vlog_lower_to_bool(lu, test_reg);
 
-   vlog_node_t c0 = vlog_cond(v, 0);
+         vcode_block_t btrue = emit_block();
 
-   vcode_reg_t test_reg = vlog_lower_rvalue(lu, vlog_value(c0));
-   vcode_reg_t bool_reg = vlog_lower_to_bool(lu, test_reg);
-   emit_cond(bool_reg, true_bb, false_bb);
+         if (i == nconds - 1) {
+            if (exit_bb == VCODE_INVALID_BLOCK)
+               exit_bb = emit_block();
+            next_bb = exit_bb;
+         }
+         else
+            next_bb = emit_block();
 
-   vcode_select_block(true_bb);
+         emit_cond(bool_reg, btrue, next_bb);
 
-   vlog_lower_stmts(lu, c0);
+         vcode_select_block(btrue);
+      }
 
-   if (!vcode_block_finished())
-      emit_jump(skip_bb);
+      vlog_lower_stmts(lu, c);
 
-   if (nconds == 2) {
-      vlog_node_t c1 = vlog_cond(v, 1);
-      assert(!vlog_has_value(c1));
+      if (!vcode_block_finished()) {
+         if (exit_bb == VCODE_INVALID_BLOCK)
+            exit_bb = emit_block();
+         emit_jump(exit_bb);
+      }
 
-      vcode_select_block(false_bb);
+      if (next_bb == VCODE_INVALID_BLOCK)
+         break;
 
-      vlog_lower_stmts(lu, c1);
-
-      if (!vcode_block_finished())
-         emit_jump(skip_bb);
+      vcode_select_block(next_bb);
    }
 
-   vcode_select_block(skip_bb);
+   if (exit_bb != VCODE_INVALID_BLOCK)
+      vcode_select_block(exit_bb);
 }
 
 static void vlog_lower_forever(lower_unit_t *lu, vlog_node_t v)

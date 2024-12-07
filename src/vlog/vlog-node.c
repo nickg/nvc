@@ -62,7 +62,7 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
    (I_NUMBER),
 
    // V_NET_DECL
-   (I_IDENT | I_SUBKIND | I_TYPE | I_RANGES),
+   (I_IDENT | I_SUBKIND | I_TYPE | I_RANGES | I_VALUE),
 
    // V_ASSIGN
    (I_TARGET | I_VALUE | I_IDENT | I_DELAY),
@@ -77,7 +77,7 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
    (I_VALUE | I_STMTS),
 
    // V_VAR_DECL
-   (I_IDENT | I_TYPE | I_RANGES),
+   (I_IDENT | I_TYPE | I_RANGES | I_VALUE),
 
    // V_DELAY_CONTROL
    (I_VALUE),

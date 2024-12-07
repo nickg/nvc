@@ -870,7 +870,7 @@ static vlog_node_t p_data_type_or_implicit(void)
 
    BEGIN("data type or implicit");
 
-   if (scan(tREG, tSTRUCT, tUNION, tENUM))
+   if (scan(tREG, tSTRUCT, tUNION, tENUM, tSVINT))
       return p_data_type();
    else
       return p_implicit_data_type();
@@ -1886,6 +1886,9 @@ static vlog_node_t p_net_decl_assignment(vlog_net_kind_t kind,
    vlog_set_type(v, datatype);
    vlog_set_ident(v, p_identifier());
 
+   if (optional(tEQ))
+      vlog_set_value(v, p_expression());
+
    vlog_set_loc(v, CURRENT_LOC);
    return v;
 }
@@ -1934,6 +1937,9 @@ static vlog_node_t p_variable_decl_assignment(vlog_node_t datatype)
    vlog_node_t v = vlog_new(V_VAR_DECL);
    vlog_set_ident(v, p_identifier());
    vlog_set_type(v, datatype);
+
+   if (optional(tEQ))
+      vlog_set_value(v, p_expression());
 
    vlog_set_loc(v, CURRENT_LOC);
    return v;
@@ -2018,10 +2024,12 @@ static void p_package_or_generate_item_declaration(vlog_node_t mod)
    case tUNION:
    case tTYPEDEF:
    case tENUM:
+   case tSVINT:
       p_data_declaration(mod);
       break;
    default:
-      one_of(tWIRE, tSUPPLY0, tSUPPLY1, tREG, tSTRUCT, tUNION, tTYPEDEF);
+      one_of(tWIRE, tSUPPLY0, tSUPPLY1, tREG, tSTRUCT, tUNION, tTYPEDEF,
+             tENUM, tSVINT);
       drop_tokens_until(tSEMI);
       break;
    }
@@ -2064,6 +2072,7 @@ static void p_module_common_item(vlog_node_t mod)
    case tUNION:
    case tTYPEDEF:
    case tENUM:
+   case tSVINT:
       p_module_or_generate_item_declaration(mod);
       break;
    case tASSIGN:
@@ -2071,7 +2080,7 @@ static void p_module_common_item(vlog_node_t mod)
       break;
    default:
       one_of(tALWAYS, tINITIAL, tWIRE, tSUPPLY0, tSUPPLY1, tREG, tSTRUCT,
-             tUNION, tTYPEDEF, tENUM, tASSIGN);
+             tUNION, tTYPEDEF, tENUM, tSVINT, tASSIGN);
       drop_tokens_until(tSEMI);
    }
 }
@@ -2531,6 +2540,7 @@ static void p_module_or_generate_item(vlog_node_t mod)
    case tINITIAL:
    case tTYPEDEF:
    case tENUM:
+   case tSVINT:
       p_module_common_item(mod);
       break;
    case tPULLDOWN:
@@ -2550,8 +2560,8 @@ static void p_module_or_generate_item(vlog_node_t mod)
       break;
    default:
       one_of(tALWAYS, tWIRE, tSUPPLY0, tSUPPLY1, tREG, tSTRUCT, tUNION, tASSIGN,
-             tINITIAL, tTYPEDEF, tENUM, tPULLDOWN, tPULLUP, tID, tAND, tNAND,
-             tOR, tNOR, tXOR, tXNOR, tNOT, tBUF);
+             tINITIAL, tTYPEDEF, tENUM, tSVINT, tPULLDOWN, tPULLUP, tID, tAND,
+             tNAND, tOR, tNOR, tXOR, tXNOR, tNOT, tBUF);
       drop_tokens_until(tSEMI);
    }
 }
@@ -2588,6 +2598,7 @@ static void p_non_port_module_item(vlog_node_t mod)
    case tBUF:
    case tTYPEDEF:
    case tENUM:
+   case tSVINT:
       p_module_or_generate_item(mod);
       break;
    case tSPECIFY:
@@ -2596,7 +2607,8 @@ static void p_non_port_module_item(vlog_node_t mod)
    default:
       one_of(tALWAYS, tWIRE, tSUPPLY0, tSUPPLY1, tREG, tSTRUCT, tUNION,
              tASSIGN, tPULLDOWN, tPULLUP, tID, tATTRBEGIN, tAND, tNAND,
-             tOR, tNOR, tXOR, tXNOR, tNOT, tBUF, tTYPEDEF, tENUM, tSPECIFY);
+             tOR, tNOR, tXOR, tXNOR, tNOT, tBUF, tTYPEDEF, tENUM, tSVINT,
+             tSPECIFY);
       drop_tokens_until(tSEMI);
    }
 }
