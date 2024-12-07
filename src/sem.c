@@ -2332,6 +2332,16 @@ static bool sem_check_process(tree_t t, nametab_t *tab)
    return true;
 }
 
+static void sem_circular_dep_cb(ident_t name, void *ctx)
+{
+   tree_t unit = ctx;
+
+   if (name == tree_ident(unit))
+      error_at(tree_loc(unit), "%s %s references a previously analysed design "
+               "unit with the same name which will be overwritten",
+               class_str(class_of(unit)), istr(name));
+}
+
 static bool sem_check_package(tree_t t, nametab_t *tab)
 {
    if (!sem_check_context_clause(t, tab))
@@ -2349,6 +2359,7 @@ static bool sem_check_package(tree_t t, nametab_t *tab)
        sem_error(d, "subprogram body is not allowed in package specification");
    }
 
+   tree_walk_deps(t, sem_circular_dep_cb, t);
    return true;
 }
 
@@ -2444,6 +2455,7 @@ static bool sem_check_entity(tree_t t, nametab_t *tab)
       tree_visit_only(s, sem_passive_cb, s, T_SIGNAL_ASSIGN);
    }
 
+   tree_walk_deps(t, sem_circular_dep_cb, t);
    return true;
 }
 
@@ -6815,6 +6827,7 @@ static bool sem_check_context_decl(tree_t t, nametab_t *tab)
    if (!sem_check_context_clause(t, tab))
       return false;
 
+   tree_walk_deps(t, sem_circular_dep_cb, t);
    return true;
 }
 

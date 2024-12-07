@@ -6996,19 +6996,38 @@ END_TEST
 
 START_TEST(test_pkgindecl)
 {
-   opt_set_int(OPT_RELAXED, 1);
    set_standard(STD_08);
 
    input_from_file(TESTDIR "/parse/pkgindecl.vhd");
 
    const error_t expect[] = {
       {  5, "unexpected end while parsing interface package declaration, "
-            "expecting new"},
+            "expecting new" },
       { -1, NULL }
    };
    expect_errors(expect);
 
    parse_and_check(T_ENTITY, T_ARCH);
+
+   fail_unless(parse() == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
+START_TEST(test_issue1090)
+{
+   input_from_file(TESTDIR "/parse/issue1090.vhd");
+
+   const error_t expect[] = {
+      {  6, "package WORK.P1 references a previously analysed design unit "
+         "with the same name which will be overwritten" },
+      { 12, "entity WORK.P1 references a previously analysed design unit" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_PACKAGE, T_PACKAGE, T_ENTITY);
 
    fail_unless(parse() == NULL);
 
@@ -7185,6 +7204,7 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_hang);
    tcase_add_test(tc_core, test_protected3);
    tcase_add_test(tc_core, test_pkgindecl);
+   tcase_add_test(tc_core, test_issue1090);
    suite_add_tcase(s, tc_core);
 
    return s;
