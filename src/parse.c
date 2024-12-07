@@ -8646,13 +8646,13 @@ static void p_entity_declaration(tree_t unit)
    p_trailing_label(id);
    consume(tSEMI);
 
+   tree_set_ident(unit, qual);
    tree_set_loc(unit, CURRENT_LOC);
+
    sem_check(unit, nametab);
 
    pop_scope(nametab);
    pop_scope(nametab);
-
-   tree_set_ident(unit, qual);
 }
 
 static tree_t p_component_declaration(void)
@@ -8889,10 +8889,10 @@ static tree_t p_package_declaration(tree_t unit)
    p_trailing_label(name);
    consume(tSEMI);
 
-   tree_set_loc(pack, CURRENT_LOC);
-   sem_check(pack, nametab);
-
    tree_set_ident(pack, qual);
+   tree_set_loc(pack, CURRENT_LOC);
+
+   sem_check(pack, nametab);
 
    pop_scope(nametab);
    return pack;
@@ -13321,12 +13321,10 @@ static void p_architecture_body(tree_t unit)
    p_trailing_label(arch_name);
    consume(tSEMI);
 
+   tree_set_ident(unit, qual);
    tree_set_loc(unit, CURRENT_LOC);
 
    sem_check(unit, nametab);
-
-   // Set the architecture name to the fully qualified identifier
-   tree_set_ident(unit, qual);
 
    pop_scope(nametab);
    pop_scope(nametab);
