@@ -3123,8 +3123,19 @@ static tree_t p_formal_part(type_t *signature)
       }
       break;
 
-   default:
+   case T_RECORD_REF:
+   case T_ARRAY_REF:
+   case T_ARRAY_SLICE:
+   case T_TYPE_CONV:
       break;
+
+   default:
+      parse_error(CURRENT_LOC, "illegal formal part");
+      tree_t dummy = tree_new(T_REF);
+      tree_set_loc(dummy, CURRENT_LOC);
+      tree_set_ident(dummy, error_marker());
+      tree_set_type(dummy, type_new(T_NONE));
+      return dummy;
    }
 
    return name;
