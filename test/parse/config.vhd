@@ -74,3 +74,15 @@ configuration use_pack_ent of ent is
         end for;
     end for;
 end configuration;
+
+entity b is
+end entity b;
+
+architecture rtl of b is 
+  component ent
+  end component;
+
+  for ent0 : ent; -- Error
+begin
+  ent0: ent;
+end architecture rtl;

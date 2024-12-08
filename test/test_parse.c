@@ -2900,6 +2900,7 @@ START_TEST(test_config)
       { 45, "cannot find architecture BAD of entity WORK.ENT" },
       { 52, "P is not a block that can be configured" },
       { 55, "instance P not found" },
+      { 85, "unexpected ; while parsing binding indication, expecting use" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -2978,6 +2979,16 @@ START_TEST(test_config)
    fail_if(c == NULL);
    fail_unless(tree_kind(c) == T_CONFIGURATION);
    lib_put(lib_work(), c);
+
+   e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+   lib_put(lib_work(), e);
+
+   e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ARCH);
+   lib_put(lib_work(), e);
 
    c = parse();
    fail_unless(c == NULL);
