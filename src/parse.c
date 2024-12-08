@@ -3123,8 +3123,15 @@ static tree_t p_formal_part(type_t *signature)
       }
       break;
 
-   default:
+   case T_RECORD_REF:
+   case T_ARRAY_REF:
+   case T_ARRAY_SLICE:
+   case T_TYPE_CONV:
       break;
+
+   default:
+      parse_error(CURRENT_LOC, "illegal formal designator");
+      return error_expr();
    }
 
    return name;
