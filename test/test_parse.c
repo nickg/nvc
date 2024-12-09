@@ -7041,11 +7041,12 @@ START_TEST(test_issue1091)
 
    const error_t expect[] = {
       { 10, "illegal formal designator" },
+      { 26, "illegal formal designator" },
       { -1, NULL }
    };
    expect_errors(expect);
 
-   parse_and_check(T_ENTITY, T_ARCH);
+   parse_and_check(T_ENTITY, T_ARCH, T_PACKAGE, T_PACK_BODY);
 
    fail_unless(parse() == NULL);
 
