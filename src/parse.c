@@ -3109,6 +3109,12 @@ static tree_t p_formal_part(type_t *signature)
    tree_t name = p_name(0);
 
    switch (tree_kind(name)) {
+   case T_RECORD_REF:
+   case T_ARRAY_REF:
+   case T_ARRAY_SLICE:
+   case T_TYPE_CONV:
+      break;
+
    case T_FCALL:
       if (tree_params(name) == 1)
          tree_set_flag(name, TREE_F_CONVERSION);
@@ -3121,13 +3127,9 @@ static tree_t p_formal_part(type_t *signature)
          *signature = p_signature();
          tree_set_loc(name, CURRENT_LOC);
       }
-      break;
-
-   case T_RECORD_REF:
-   case T_ARRAY_REF:
-   case T_ARRAY_SLICE:
-   case T_TYPE_CONV:
-      break;
+      if (!(tree_has_type(name) && type_is_none(tree_type(name))))
+         break;
+      // Fall-through
 
    default:
       parse_error(CURRENT_LOC, "illegal formal designator");
