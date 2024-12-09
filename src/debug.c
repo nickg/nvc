@@ -62,6 +62,7 @@
 #endif
 
 #define MAX_TRACE_DEPTH   25
+#define MAX_HASH_DEPTH    10
 
 struct debug_info {
    A(debug_frame_t*) frames;
@@ -924,6 +925,22 @@ unsigned debug_count_frames(debug_info_t *di)
 const debug_frame_t *debug_get_frame(debug_info_t *di, unsigned n)
 {
    return AGET(di->frames, n);
+}
+
+uint32_t debug_hash(debug_info_t *di)
+{
+   hash_state_t hash = HASH_INIT;
+   int hash_depth = 0;
+
+   const int nframes = debug_count_frames(di);
+   for (int n = 1; n < nframes; n++) {
+      const debug_frame_t *f = debug_get_frame(di, n);
+      if (f->kind == FRAME_PROG && f->symbol != NULL
+          && hash_depth++ < MAX_HASH_DEPTH)
+         hash_update(&hash, f->symbol, strlen(f->symbol));
+   }
+
+   return hash;
 }
 
 void debug_add_unwinder(void *start, size_t len, debug_unwind_fn_t fn,

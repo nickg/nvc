@@ -713,6 +713,10 @@ void show_stacktrace(void)
 
    }
 
+#ifdef DEBUG
+   color_fprintf(stderr, "\n$!red$Crash hash: %08x$$\n", debug_hash(di));
+#endif
+
    debug_free(di);
 
 #if defined __linux__ && !defined HAVE_LIBDW && !defined HAVE_LIBDWARF

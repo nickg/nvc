@@ -29,9 +29,6 @@
 #include <ctype.h>
 #include <limits.h>
 
-#define HASH_INIT 5381;
-typedef uint32_t hash_state_t;
-
 #define INITIAL_SIZE  1024
 #define REPROBE_LIMIT 20
 #define MOVED_TAG     1
@@ -67,20 +64,6 @@ typedef struct {
 
 static ident_tab_t *table = NULL;
 static ident_tab_t *resizing = NULL;
-
-static inline int hash_update(hash_state_t *state, const char *key, int nchars)
-{
-   // DJB2 hash function from here:
-   //   http://www.cse.yorku.ca/~oz/hash.html
-
-   hash_state_t hash = *state;
-   const char *p = key;
-   for (; p < key + nchars && *p; p++)
-      hash = ((hash << 5) + hash) + *p;
-
-   *state = hash;
-   return p - key;
-}
 
 static ident_t ident_alloc(size_t len, hash_state_t hash)
 {

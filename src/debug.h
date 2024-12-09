@@ -61,6 +61,7 @@ debug_info_t *debug_capture(void);
 void debug_free(debug_info_t *di);
 unsigned debug_count_frames(debug_info_t *di);
 const debug_frame_t *debug_get_frame(debug_info_t *di, unsigned n);
+uint32_t debug_hash(debug_info_t *di);
 
 void debug_add_unwinder(void *start, size_t len, debug_unwind_fn_t fn,
                         void *context);

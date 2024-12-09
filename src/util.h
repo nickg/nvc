@@ -514,4 +514,21 @@ void list_clear(ptr_list_t *l);
          __tmp;                                         \
       })
 
+#define HASH_INIT 5381;
+typedef uint32_t hash_state_t;
+
+static inline int hash_update(hash_state_t *state, const char *key, int nchars)
+{
+   // DJB2 hash function from here:
+   //   http://www.cse.yorku.ca/~oz/hash.html
+
+   hash_state_t hash = *state;
+   const char *p = key;
+   for (; p < key + nchars && *p; p++)
+      hash = ((hash << 5) + hash) + *p;
+
+   *state = hash;
+   return p - key;
+}
+
 #endif // _UTIL_H
