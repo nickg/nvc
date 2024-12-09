@@ -9003,14 +9003,17 @@ static tree_t p_entity_aspect(void)
    }
 }
 
-static tree_t p_binding_indication(tree_t comp)
+static tree_t p_binding_indication(tree_t comp, bool required)
 {
    // [ use entity_aspect ] [ generic_map_aspect ] [ port_map_aspect ]
+   // or with required = true
+   // use entity_aspect [ generic_map_aspect ] [ port_map_aspect ]
 
    BEGIN("binding indication");
 
    tree_t bind = NULL, unit = NULL;
-   if (optional(tUSE)) {
+   if (required || peek() == tUSE) {
+      consume(tUSE);
       if ((bind = p_entity_aspect())) {
          unit = find_binding(bind);
          tree_set_ref(bind, unit);
@@ -9061,7 +9064,7 @@ static void p_configuration_specification(tree_t parent)
 
    push_scope(nametab);
 
-   tree_t bind = p_binding_indication(comp);
+   tree_t bind = p_binding_indication(comp, true);
    consume(tSEMI);
 
    if (ids != NULL) {
@@ -9145,7 +9148,7 @@ static void p_component_configuration(tree_t unit)
    push_scope(nametab);
 
    // TODO: should be optional
-   tree_t bind = p_binding_indication(comp);
+   tree_t bind = p_binding_indication(comp, false);
    consume(tSEMI);
 
    tree_t bcfg = NULL;
