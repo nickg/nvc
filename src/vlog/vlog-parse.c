@@ -870,7 +870,7 @@ static vlog_node_t p_data_type_or_implicit(void)
 
    BEGIN("data type or implicit");
 
-   if (scan(tREG, tSTRUCT, tUNION, tENUM, tSVINT))
+   if (scan(tREG, tSTRUCT, tUNION, tENUM, tSVINT, tLOGIC))
       return p_data_type();
    else
       return p_implicit_data_type();
@@ -2002,6 +2002,171 @@ static void p_data_declaration(vlog_node_t mod)
    }
 }
 
+static v_port_kind_t p_port_direction(void)
+{
+   // input | output | inout | ref
+
+   BEGIN("port direction");
+
+   switch (one_of(tINPUT, tOUTPUT, tINOUT)) {
+   case tINPUT:  return V_PORT_INPUT;
+   case tOUTPUT: return V_PORT_OUTPUT;
+   case tINOUT:  return V_PORT_INOUT;
+   default:      return V_PORT_INPUT;
+   }
+}
+
+static v_port_kind_t p_tf_port_direction(void)
+{
+   // port_direction | const ref
+
+   BEGIN("task or function port direction");
+
+   return p_port_direction();
+}
+
+static vlog_node_t p_tf_port_item(void)
+{
+   // { attribute_instance } [ tf_port_direction ] [ var ]
+   //    data_type_or_implicit [ port_identifier { variable_dimension }
+   //    [ = expression ] ]
+
+   BEGIN("task or function port item");
+
+   vlog_node_t v = vlog_new(V_PORT_DECL);
+
+   if (scan(tINPUT, tOUTPUT))
+      vlog_set_subkind(v, p_tf_port_direction());
+   else
+      vlog_set_subkind(v, V_PORT_INPUT);
+
+   vlog_set_type(v, p_data_type_or_implicit());
+
+   if (peek() == tID) {
+      vlog_set_ident(v, p_identifier());
+
+      if (optional(tEQ))
+         vlog_set_value(v, p_expression());
+   }
+
+   vlog_set_loc(v, CURRENT_LOC);
+   return v;
+}
+
+static void p_tf_port_list(vlog_node_t tf)
+{
+   // tf_port_item { , tf_port_item }
+
+   BEGIN("task or function port list");
+
+   do {
+      p_tf_port_item();
+   } while (optional(tCOMMA));
+}
+
+static void p_task_body_declaration(vlog_node_t task)
+{
+   // [ interface_identifier . | class_scope ] task_identifier ;
+   //    { tf_item_declaration } { statement_or_null }
+   //    endtask [ : task_identifier ]
+   // | [ interface_identifier . | class_scope ] task_identifier
+   //    ( [ tf_port_list ] ) ; { block_item_declaration }
+   //    { statement_or_null } endtask [ : task_identifier ]
+
+   BEGIN("task body declaration");
+
+   ident_t id = p_identifier();
+   vlog_set_ident(task, id);
+
+   if (optional(tLPAREN)) {
+      p_tf_port_list(task);
+      consume(tRPAREN);
+   }
+
+   consume(tSEMI);
+
+   while (not_at_token(tENDTASK)) {
+      vlog_node_t s = p_statement_or_null();
+      if (s != NULL)
+         vlog_add_stmt(task, s);
+   }
+
+   consume(tENDTASK);
+}
+
+static vlog_node_t p_task_declaration(void)
+{
+   // task [ dynamic_override_specifiers ] [ lifetime ] task_body_declaration
+
+   BEGIN("task declaration");
+
+   vlog_node_t v = vlog_new(V_TASK_DECL);
+
+   consume(tTASK);
+
+   p_task_body_declaration(v);
+
+   vlog_set_loc(v, CURRENT_LOC);
+   return v;
+}
+
+static vlog_node_t p_function_data_type_or_implicit(void)
+{
+   // data_type_or_void | implicit_data_type
+
+   BEGIN("function data type or implicit");
+
+   return p_implicit_data_type();
+}
+
+static void p_function_body_declaration(vlog_node_t func)
+{
+   // function_data_type_or_implicit [ interface_identifier . | class_scope ]
+   //    function_identifier ; { tf_item_declaration }
+   //    { function_statement_or_null } endfunction [ : function_identifier ]
+   // | function_data_type_or_implicit [ interface_identifier . | class_scope ]
+   //    function_identifier ( [ tf_port_list ] ) ; { block_item_declaration }
+   //    { function_statement_or_null } endfunction [ : function_identifier ]
+
+   BEGIN("function body declaration");
+
+   vlog_set_type(func, p_function_data_type_or_implicit());
+
+   ident_t id = p_identifier();
+   vlog_set_ident(func, id);
+
+   if (optional(tLPAREN)) {
+      p_tf_port_list(func);
+      consume(tRPAREN);
+   }
+
+   consume(tSEMI);
+
+   while (not_at_token(tENDFUNCTION)) {
+      vlog_node_t s = p_statement_or_null();
+      if (s != NULL)
+         vlog_add_stmt(func, s);
+   }
+
+   consume(tENDFUNCTION);
+}
+
+static vlog_node_t p_function_declaration(void)
+{
+   // function [ lifetime ] function_body_declaration
+
+   BEGIN("function declaration");
+
+   vlog_node_t v = vlog_new(V_FUNC_DECL);
+
+   consume(tFUNCTION);
+
+   p_function_body_declaration(v);
+
+   vlog_set_loc(v, CURRENT_LOC);
+   return v;
+}
+
 static void p_package_or_generate_item_declaration(vlog_node_t mod)
 {
    // net_declaration | data_declaration | task_declaration
@@ -2027,9 +2192,15 @@ static void p_package_or_generate_item_declaration(vlog_node_t mod)
    case tSVINT:
       p_data_declaration(mod);
       break;
+   case tTASK:
+      vlog_add_decl(mod, p_task_declaration());
+      break;
+   case tFUNCTION:
+      vlog_add_decl(mod, p_function_declaration());
+      break;
    default:
       one_of(tWIRE, tSUPPLY0, tSUPPLY1, tREG, tSTRUCT, tUNION, tTYPEDEF,
-             tENUM, tSVINT);
+             tENUM, tSVINT, tTASK, tFUNCTION);
       drop_tokens_until(tSEMI);
       break;
    }
@@ -2073,6 +2244,8 @@ static void p_module_common_item(vlog_node_t mod)
    case tTYPEDEF:
    case tENUM:
    case tSVINT:
+   case tTASK:
+   case tFUNCTION:
       p_module_or_generate_item_declaration(mod);
       break;
    case tASSIGN:
@@ -2080,7 +2253,7 @@ static void p_module_common_item(vlog_node_t mod)
       break;
    default:
       one_of(tALWAYS, tINITIAL, tWIRE, tSUPPLY0, tSUPPLY1, tREG, tSTRUCT,
-             tUNION, tTYPEDEF, tENUM, tSVINT, tASSIGN);
+             tUNION, tTYPEDEF, tENUM, tSVINT, tTASK, tFUNCTION, tASSIGN);
       drop_tokens_until(tSEMI);
    }
 }
@@ -2541,6 +2714,8 @@ static void p_module_or_generate_item(vlog_node_t mod)
    case tTYPEDEF:
    case tENUM:
    case tSVINT:
+   case tTASK:
+   case tFUNCTION:
       p_module_common_item(mod);
       break;
    case tPULLDOWN:
@@ -2560,8 +2735,8 @@ static void p_module_or_generate_item(vlog_node_t mod)
       break;
    default:
       one_of(tALWAYS, tWIRE, tSUPPLY0, tSUPPLY1, tREG, tSTRUCT, tUNION, tASSIGN,
-             tINITIAL, tTYPEDEF, tENUM, tSVINT, tPULLDOWN, tPULLUP, tID, tAND,
-             tNAND, tOR, tNOR, tXOR, tXNOR, tNOT, tBUF);
+             tINITIAL, tTYPEDEF, tENUM, tSVINT, tTASK, tFUNCTION, tPULLDOWN,
+             tPULLUP, tID, tAND, tNAND, tOR, tNOR, tXOR, tXNOR, tNOT, tBUF);
       drop_tokens_until(tSEMI);
    }
 }
@@ -2599,6 +2774,8 @@ static void p_non_port_module_item(vlog_node_t mod)
    case tTYPEDEF:
    case tENUM:
    case tSVINT:
+   case tTASK:
+   case tFUNCTION:
       p_module_or_generate_item(mod);
       break;
    case tSPECIFY:
@@ -2608,7 +2785,7 @@ static void p_non_port_module_item(vlog_node_t mod)
       one_of(tALWAYS, tWIRE, tSUPPLY0, tSUPPLY1, tREG, tSTRUCT, tUNION,
              tASSIGN, tPULLDOWN, tPULLUP, tID, tATTRBEGIN, tAND, tNAND,
              tOR, tNOR, tXOR, tXNOR, tNOT, tBUF, tTYPEDEF, tENUM, tSVINT,
-             tSPECIFY);
+             tTASK, tFUNCTION, tSPECIFY);
       drop_tokens_until(tSEMI);
    }
 }

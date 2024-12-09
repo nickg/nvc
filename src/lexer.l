@@ -681,6 +681,10 @@ BEFORE            ?i:before
 <VLOG>"while"            { return tWHILE; }
 <VLOG>"repeat"           { return tREPEAT; }
 <VLOG>"do"               { return tDO; }
+<VLOG>"task"             { return tTASK; }
+<VLOG>"endtask"          { return tENDTASK; }
+<VLOG>"function"         { return tFUNCTION; }
+<VLOG>"endfunction"      { return tENDFUNCTION; }
 
 <VLOG>{SYSTASK}          { yylval.str = xstrdup(yytext); return tSYSTASK; }
 <VLOG>{VLOG_ID}          { yylval.str = xstrdup(yytext); return tID; }

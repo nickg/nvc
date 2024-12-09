@@ -171,7 +171,7 @@ START_TEST(test_parse1)
    fail_unless(vlog_kind(m) == V_MODULE);
    fail_unless(vlog_stmts(m) == 11);
    fail_unless(vlog_ports(m) == 0);
-   fail_unless(vlog_decls(m) == 6);
+   fail_unless(vlog_decls(m) == 9);
 
    vlog_node_t x = vlog_decl(m, 0);
    fail_unless(vlog_kind(x) == V_NET_DECL);

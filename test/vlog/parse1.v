@@ -35,4 +35,13 @@ module parse1;
   end
   int r1 = 5;
   wire w1 = 0;
+  task task1;
+    @(x) y = 2;
+  endtask // task1
+  task task2(input int x, output logic y);
+    y = !x;
+  endtask // task2
+  function sum(input int a, b);
+    sum = a + b;
+  endfunction // sum
 endmodule // parse1

@@ -87,6 +87,8 @@ typedef enum {
    V_REPEAT,
    V_WHILE,
    V_DO_WHILE,
+   V_TASK_DECL,
+   V_FUNC_DECL,
 
    V_LAST_NODE_KIND
 } vlog_kind_t;

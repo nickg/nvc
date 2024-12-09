@@ -411,5 +411,8 @@ bool is_scanned_as_psl(void);
 #define tSHIFTRL       511
 #define tSHIFTLA       512
 #define tSHIFTRA       513
+#define tTASK          514
+#define tENDTASK       515
+#define tENDFUNCTION   516
 
 #endif  // _SCAN_H
