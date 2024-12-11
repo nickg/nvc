@@ -9018,15 +9018,11 @@ static tree_t p_binding_indication(tree_t comp)
 
    tree_t bind = NULL, unit = NULL;
    if (optional(tUSE)) {
-      if ((bind = p_entity_aspect())) {
-         unit = find_binding(bind);
+      if ((bind = p_entity_aspect()) && (unit = find_binding(bind))) {
          tree_set_ref(bind, unit);
-
-         if (unit != NULL) unit = primary_unit_of(unit);
+         unit = primary_unit_of(unit);
       }
    }
-   else
-      bind = tree_new(T_BINDING);
 
    if (comp) {
       insert_generics(nametab, comp);
@@ -9034,13 +9030,25 @@ static tree_t p_binding_indication(tree_t comp)
    }
 
    if (peek() == tGENERIC) {
-      assert(bind != NULL);   // XXX: check for open here
-      p_generic_map_aspect(bind, unit);
+      if (bind == NULL) {
+         consume(tGENERIC);
+         parse_error(CURRENT_LOC, "sorry, binding indication with generic map "
+                     "aspect and OPEN entity aspect is not yet supported");
+         drop_tokens_until(tRPAREN);
+      }
+      else
+         p_generic_map_aspect(bind, unit);
    }
 
    if (peek() == tPORT) {
-      assert(bind != NULL);   // XXX: check for open here
-      p_port_map_aspect(bind, unit);
+      if (bind == NULL) {
+         consume(tPORT);
+         parse_error(CURRENT_LOC, "sorry, binding indication with port map "
+                     "aspect and OPEN entity aspect is not yet supported");
+         drop_tokens_until(tRPAREN);
+      }
+      else
+         p_port_map_aspect(bind, unit);
    }
 
    if (bind != NULL)
