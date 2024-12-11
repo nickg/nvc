@@ -11812,7 +11812,8 @@ static void lower_convert_signal_field_cb(lower_unit_t *lu, tree_t field,
    if (type_is_homogeneous(ftype)) {
       vcode_reg_t nets_reg = emit_load_indirect(src_ptr);
       vcode_reg_t count_reg = lower_type_width(lu, ftype, nets_reg);
-      (*emit_fn)(conv_func, nets_reg, count_reg);
+      vcode_reg_t data_reg = lower_array_data(nets_reg);
+      (*emit_fn)(conv_func, data_reg, count_reg);
    }
    else
       lower_for_each_field_2(lu, ftype, ftype, src_ptr, dst_ptr, conv_func,
@@ -11823,10 +11824,10 @@ static void lower_convert_signal(lower_unit_t *lu, vcode_reg_t src_reg,
                                  type_t type, vcode_reg_t conv_func,
                                  convert_emit_fn emit_fn)
 {
-    if (!type_is_homogeneous(type))
+   if (!type_is_homogeneous(type))
       lower_for_each_field(lu, type, src_reg, conv_func,
                            lower_convert_signal_field_cb, emit_fn);
-    else if (type_is_array(type)) {
+   else if (type_is_array(type)) {
       vcode_reg_t count_reg = lower_array_total_len(lu, type, src_reg);
       vcode_reg_t nets_reg = lower_array_data(src_reg);
       (*emit_fn)(conv_func, nets_reg, count_reg);
