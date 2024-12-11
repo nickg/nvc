@@ -1782,16 +1782,6 @@ tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
       else if (name == well_known(W_ERROR)) {
          // Was a parse error, suppress further errors
       }
-      else if (tab->top_scope->formal_kind != F_NONE
-               && tab->top_scope->formal_fn != NULL) {
-         diag_t *d = diag_new(DIAG_ERROR, loc);
-
-         if (tab->top_scope->formal_fn != NULL)
-            (*tab->top_scope->formal_fn)(d, name, tab->top_scope->formal_arg);
-
-         diag_emit(d);
-         tab->top_scope->formal_fn = NULL;  // Suppress further errors
-      }
       else if (tab->top_scope->overload && !tab->top_scope->overload->error) {
          diag_t *d = diag_new(DIAG_ERROR, loc);
          diag_printf(d, "no possible overload of %s has formal %s",
@@ -1817,8 +1807,17 @@ tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
          diag_emit(d);
          tab->top_scope->overload->error = true;
       }
-      else if (tab->top_scope->formal_kind != F_NONE)
-         ;  // Was earlier error
+      else if (tab->top_scope->formal_kind != F_NONE) {
+         diag_t *d = diag_new(DIAG_ERROR, loc);
+
+         if (tab->top_scope->formal_fn != NULL)
+            (*tab->top_scope->formal_fn)(d, name, tab->top_scope->formal_arg);
+         else
+            diag_printf(d, "invalid formal name %s", istr(name));
+
+         diag_emit(d);
+         tab->top_scope->suppress = true;  // Suppress further errors
+      }
       else if (tab->top_scope->overload == NULL) {
          diag_t *d = diag_new(DIAG_ERROR, loc);
 

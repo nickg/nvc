@@ -12,9 +12,6 @@ end;
 
 --------------------------------------------------------------------------------
 
-LIBRARY IEEE;
-USE IEEE.std_logic_1164.ALL;
-
 PACKAGE Vital_Memory IS END PACKAGE Vital_Memory;
 PACKAGE BODY Vital_Memory IS
     PROCEDURE InternalTimingCheck (CONSTANT SetupHigh : IN TIME := 0 ns) IS
@@ -23,6 +20,6 @@ PACKAGE BODY Vital_Memory IS
 
     PROCEDURE VitalMemorySetupHoldCheck (SIGNAL TestSignal : IN time) IS
     BEGIN
-        InternalTimingCheck (IEEE.SetupHigh => TestSignal);
+        InternalTimingCheck (WORK.SetupHigh => TestSignal);
     END VitalMemorySetupHoldCheck;
 END PACKAGE BODY Vital_Memory;

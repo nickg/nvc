@@ -3127,9 +3127,7 @@ static tree_t p_formal_part(type_t *signature)
          *signature = p_signature();
          tree_set_loc(name, CURRENT_LOC);
       }
-      if (!(tree_has_type(name) && type_is_none(tree_type(name))))
-         break;
-      // Fall-through
+      break;
 
    default:
       parse_error(CURRENT_LOC, "illegal formal designator");

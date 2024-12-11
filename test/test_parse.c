@@ -7041,7 +7041,7 @@ START_TEST(test_issue1091)
 
    const error_t expect[] = {
       { 10, "illegal formal designator" },
-      { 26, "illegal formal designator" },
+      { 23, "invalid formal name WORK.SETUPHIGH" },
       { -1, NULL }
    };
    expect_errors(expect);
