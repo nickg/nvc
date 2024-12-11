@@ -7035,6 +7035,25 @@ START_TEST(test_issue1090)
 }
 END_TEST
 
+START_TEST(test_issue1091)
+{
+   input_from_file(TESTDIR "/parse/issue1091.vhd");
+
+   const error_t expect[] = {
+      { 10, "illegal formal designator" },
+      { 26, "illegal formal designator" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_ENTITY, T_ARCH, T_PACKAGE, T_PACK_BODY);
+
+   fail_unless(parse() == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_parse_tests(void)
 {
    Suite *s = suite_create("parse");
@@ -7205,6 +7224,7 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_protected3);
    tcase_add_test(tc_core, test_pkgindecl);
    tcase_add_test(tc_core, test_issue1090);
+   tcase_add_test(tc_core, test_issue1091);
    suite_add_tcase(s, tc_core);
 
    return s;
