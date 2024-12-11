@@ -662,13 +662,13 @@ void object_visit(object_t *object, object_visit_ctx_t *ctx)
    if (visit && ctx->preorder != NULL)
       (*ctx->preorder)(object, ctx->context);
 
-   const imask_t deep_mask = I_TYPE | I_REF;
+   const imask_t deep_mask = ~(ctx->deep ? 0 : I_TYPE | I_REF);
 
    const imask_t has = class->has_map[object->kind];
    const int nitems = __builtin_popcountll(has);
    imask_t mask = 1;
    for (int i = 0; i < nitems; mask <<= 1) {
-      if (has & mask & ~(ctx->deep ? 0 : deep_mask)) {
+      if (has & mask & deep_mask) {
          item_t *item = &(object->items[i]);
          if (ITEM_IDENT & mask)
             ;
