@@ -21,7 +21,7 @@ _nvc () {
   local _dest=$NVC_INSTALL_DEST
   local _opts="--std=${STD:-1993} --work=$_dest/$_work -L$_dest $GLOBAL_OPTS"
   [ -d $_dest ] || _safe mkdir -p $_dest
-  _safe ${NVC:-nvc} $_opts  $*
+  _safe ${NVC:-nvc} $_opts $*
 }
 
 analyse () {
@@ -31,9 +31,14 @@ analyse () {
 
 analyse_list () {
   local _work=$1
-  while read _src; do
-    WORK=$_work analyse $_src
-  done
+  shift
+  if [ $# -gt 0 ]; then
+    WORK=$_work _nvc -a $A_OPTS -f $*
+  else
+    while read _src; do
+      WORK=$_work analyse $_src
+    done
+  fi
 }
 
 git_wrapper () {

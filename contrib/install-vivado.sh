@@ -41,23 +41,15 @@ $src/unisims/unisim_VPKG.vhd
 $src/unisims/unisim_retarget_VCOMP.vhd
 EOF
 
-  WORK=unimacro$(std_suffix $STD)
-  while IFS= read -r line; do
-    analyse $src/unimacro/$line
-  done < $src/unimacro/vhdl_analyze_order
+  cd $src/unimacro
+  analyse_list unimacro$(std_suffix $STD) vhdl_analyze_order
 
-  WORK=unisim$(std_suffix $STD)
-  while IFS= read -r line; do
-    analyse $src/unisims/primitive/$line
-  done < $src/unisims/primitive/vhdl_analyze_order
+  cd $src/unisims/primitive
+  analyse_list unisim$(std_suffix $STD) vhdl_analyze_order
 
-  WORK=unisim$(std_suffix $STD)
-  while IFS= read -r line; do
-    analyse $src/unisims/retarget/$line
-  done < $src/unisims/retarget/vhdl_analyze_order
+  cd $src/unisims/retarget
+  analyse_list unisim$(std_suffix $STD) vhdl_analyze_order
 
-  WORK=unifast$(std_suffix $STD)
-  while IFS= read -r line; do
-    analyse $src/unifast/primitive/$line
-  done < $src/unifast/primitive/vhdl_analyze_order
+  cd $src/unifast/primitive
+  analyse_list unifast$(std_suffix $STD) vhdl_analyze_order
 done
