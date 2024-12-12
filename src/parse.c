@@ -9076,7 +9076,11 @@ static void p_configuration_specification(tree_t parent)
 
    push_scope(nametab);
 
+   bool is_open = (peek() == tUSE && peek_nth(2) == tOPEN);
    tree_t bind = p_binding_indication(comp);
+   if (!is_open && bind == NULL)
+      parse_error(CURRENT_LOC, "a binding indication in an explicit "
+                  "configuration specification must contain an entity aspect");
    consume(tSEMI);
 
    if (ids != NULL) {
