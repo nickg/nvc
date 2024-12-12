@@ -150,7 +150,7 @@ table.feature-table td, th {
 }
 
 table.feature-table th {
-    background-color: #f0f0f0;
+    background-color: #e0e0e0;
 }
 
 td.feature-done {
@@ -167,3 +167,17 @@ td.feature-missing {
     text-align: center;
     background-color: #db4040;
 }
+
+td.feature-na {
+    text-align: center;
+    background-color: #c0c0c0;
+}
+
+tr.feature-group {
+    background-color: #f0f0f0;
+}
+
+tr.feature-group td:nth-child(2) {
+    text-align: center;
+}
+
