@@ -410,4 +410,557 @@ table below.
   </tr>
 </table>
 
+<h4>Property Specification Language (PSL)</h4>
+
+<p>
+NVC supports the "simple subset" of IEEE 1850-2010.  PSL directives may
+be written directly in VHDL if using VHDL-2008 or later, or embedded in
+comments. Not all features are currently supported, please consult the
+table below.
+</p>
+
+<table class="feature-table">
+  <tr><th>LRM Section</th><th>Feature</th><th>Status</th></tr>
+  <tr class="feature-group">
+    <td>5</td>
+    <td colspan="2">Boolean Layer</td>
+  </tr>
+  <tr>
+    <td>5.1</td>
+    <td>Boolean expressions</td>
+    <td class="feature-done">master</td>
+  </tr>
+  <tr>
+    <td>5.1.1</td>
+    <td>Bit expressions</td>
+    <td class="feature-done">master</td>
+  </tr>
+  <tr>
+    <td>5.1.2</td>
+    <td>Boolean expressions</td>
+    <td class="feature-done">master</td>
+  </tr>
+  <tr>
+    <td>5.1.3</td>
+    <td>Bit Vector expressions</td>
+    <td class="feature-done">master</td>
+  </tr>
+  <tr>
+    <td>5.1.4</td>
+    <td>Numeric expressions</td>
+    <td class="feature-done">master</td>
+  </tr>
+  <tr>
+    <td>5.1.5</td>
+    <td>String expressions</td>
+    <td class="feature-done">master</td>
+  </tr>
+  <tr>
+    <td>5.2</td>
+    <td>Expression forms</td>
+    <td class="feature-partial">master</td>
+  </tr>
+  <tr>
+    <td>5.2.1</td>
+    <td>HDL expressions</td>
+    <td class="feature-done">master</td>
+  </tr>
+  <tr>
+    <td>5.2.2</td>
+    <td>PSL expressions</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td>5.2.3</td>
+    <td>Built-in functions</td>
+    <td class="feature-partial">master</td>
+  </tr>
+  <tr>
+    <td>5.2.3.1</td>
+    <td>prev()</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td>5.2.3.2</td>
+    <td>next()</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td>5.2.3.3</td>
+    <td>stable()</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td>5.2.3.4</td>
+    <td>rose()</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td>5.2.3.5</td>
+    <td>fell()</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td>5.2.3.6</td>
+    <td>ended()</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td>5.2.3.7</td>
+    <td>isunknown()</td>
+    <td class="feature-done">master</td>
+  </tr>
+  <tr>
+    <td>5.2.3.8</td>
+    <td>countones()</td>
+    <td class="feature-done">master</td>
+  </tr>
+  <tr>
+    <td>5.2.3.9</td>
+    <td>nondet()</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td>5.2.3.10</td>
+    <td>nondet_vector()</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td>5.2.3.11</td>
+    <td>onehot(), onehot0()</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td>5.2.4</td>
+    <td>Union expressions</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td>5.3</td>
+    <td>Clock expressions</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td>5.4</td>
+    <td>Default clock declaration</td>
+    <td class="feature-partial">master</td>
+  </tr>
+  <tr class="feature-group">
+    <td>6</td>
+    <td colspan="2">Temporal Layer</td>
+  </tr>
+  <tr>
+    <td>6.1</td>
+    <td>Sequential Expressions</td>
+    <td class="feature-partial">master</td>
+  </tr>
+  <tr>
+    <td>6.1.1</td>
+    <td>Sequential Extended Regular Expressions (SEREs)</td>
+    <td class="feature-partial">master</td>
+  </tr>
+  <tr>
+    <td>6.1.1.1</td>
+    <td>Simple SEREs</td>
+    <td class="feature-done">master</td>
+  </tr>
+  <tr>
+    <td>6.1.1.1.1</td>
+    <td>SERE concatenation (;)</td>
+    <td class="feature-done">master</td>
+  </tr>
+  <tr>
+    <td>6.1.1.1.2</td>
+    <td>SERE fusion (:)</td>
+    <td class="feature-done">master</td>
+  </tr>
+  <tr>
+    <td>6.1.1.2</td>
+    <td>Compound SEREs</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td>6.1.1.2.1</td>
+    <td>SERE or (|)</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td>6.1.1.2.2</td>
+    <td>SERE non-length-matching and (&)</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td>6.1.1.2.3</td>
+    <td>SERE length-matching and (&&)</td>
+    <td class="feature-done">master</td>
+  </tr>
+  <tr>
+    <td>6.1.1.2.4</td>
+    <td>SERE within</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td>6.1.1.2.5</td>
+    <td>Parameterized SERE</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td>6.1.2</td>
+    <td>Sequences</td>
+    <td class="feature-partial">master</td>
+  </tr>
+  <tr>
+    <td>6.1.2.1</td>
+    <td>SERE consecutive repetition ([* ])</td>
+    <td class="feature-done">master</td>
+  </tr>
+  <tr>
+    <td>6.1.2.2</td>
+    <td>SERE non-consecutive repetition ([= ])</td>
+    <td class="feature-done">master</td>
+  </tr>
+  <tr>
+    <td>6.1.2.3</td>
+    <td>SERE goto repetition ([-> ])</td>
+    <td class="feature-done">master</td>
+  </tr>
+  <tr>
+    <td>6.1.2.4</td>
+    <td>Braced SERE</td>
+    <td class="feature-done">master</td>
+  </tr>
+  <tr>
+    <td>6.1.2.5</td>
+    <td>Clocked SERE (@)</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td>6.2</td>
+    <td>Properties</td>
+    <td class="feature-partial">master</td>
+  </tr>
+  <tr>
+    <td>6.2.1</td>
+    <td>FL Properties</td>
+    <td class="feature-partial">master</td>
+  </tr>
+  <tr>
+    <td>6.2.1.1</td>
+    <td>Sequential FL Properties</td>
+    <td class="feature-partial">master</td>
+  </tr>
+  <tr>
+    <td>6.2.1.2</td>
+    <td>Clocked FL Properties</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td>6.2.1.3</td>
+    <td>Simple FL Properties</td>
+    <td class="feature-done">master</td>
+  </tr>
+  <tr>
+    <td>6.2.1.3.1</td>
+    <td>always</td>
+    <td class="feature-done">master</td>
+  </tr>
+  <tr>
+    <td>6.2.1.3.2</td>
+    <td>never</td>
+    <td class="feature-done">master</td>
+  </tr>
+  <tr>
+    <td>6.2.1.3.3</td>
+    <td>eventually!</td>
+    <td class="feature-done">master</td>
+  </tr>
+  <tr>
+    <td>6.2.1.3.4</td>
+    <td>next</td>
+    <td class="feature-done">master</td>
+  </tr>
+  <tr>
+    <td>6.2.1.4</td>
+    <td>Extended next FL Properties</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td>6.2.1.4.1</td>
+    <td>next_a</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td>6.2.1.4.2</td>
+    <td>next_e</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td>6.2.1.4.3</td>
+    <td>next_event</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td>6.2.1.4.4</td>
+    <td>next_event_a</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td>6.2.1.4.5</td>
+    <td>next_event_e</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td>6.2.1.5</td>
+    <td>Compound FL Properties</td>
+    <td class="feature-partial">master</td>
+  </tr>
+  <tr>
+    <td>6.2.1.5.1</td>
+    <td>abort, async_abort and sync_abort</td>
+    <td class="feature-done">master</td>
+  </tr>
+  <tr>
+    <td>6.2.1.5.2</td>
+    <td>before</td>
+    <td class="feature-done">master</td>
+  </tr>
+  <tr>
+    <td>6.2.1.5.3</td>
+    <td>until</td>
+    <td class="feature-done">master</td>
+  </tr>
+  <tr>
+    <td>6.2.1.6</td>
+    <td>Sequence-based FL Properties</td>
+    <td class="feature-done">master</td>
+  </tr>
+  <tr>
+    <td>6.2.1.6.1</td>
+    <td>Suffix implication</td>
+    <td class="feature-done">master</td>
+  </tr>
+  <tr>
+    <td>6.2.1.7</td>
+    <td>Logical FL Properties</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td>6.2.1.7.1</td>
+    <td>Parametrized property</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td>6.2.1.7.2</td>
+    <td>Logical implication</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td>6.2.1.7.3</td>
+    <td>Logical iff</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td>6.2.1.7.4</td>
+    <td>Logical and</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td>6.2.1.7.5</td>
+    <td>Logical or</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td>6.2.1.7.6</td>
+    <td>Logical not</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td>6.2.1.8</td>
+    <td>LTL operators</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td>6.2.2</td>
+    <td>Optional Branching Extension (OBE) properties</td>
+    <td class="feature-na">N/A</td>
+  </tr>
+  <tr>
+    <td>6.2.3</td>
+    <td>Replicated properties</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td>6.3</td>
+    <td>Local variables</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td>6.4</td>
+    <td>Procedural blocks</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td>6.5</td>
+    <td>Property and sequence declarations</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td>6.5.1</td>
+    <td>Parameters</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td>6.5.1.1</td>
+    <td>PSL formal parameter type classes</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td>6.5.1.2</td>
+    <td>HDL formal parameter type classes</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td>6.5.2</td>
+    <td>Declarations</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td>6.5.2.1</td>
+    <td>Sequence Declarations</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td>6.5.2.2</td>
+    <td>Property Declaration</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td>6.5.3</td>
+    <td>Instantiation</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td>6.5.3.1</td>
+    <td>Sequence instantiation</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td>6.5.3.2</td>
+    <td>Property instantiation</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr class="feature-group">
+    <td>7</td>
+    <td colspan="2">Verification Layer</td>
+  </tr>
+  <tr>
+    <td>7.1</td>
+    <td>Verification directives</td>
+    <td class="feature-partial">master</td>
+  </tr>
+  <tr>
+    <td>7.1.1</td>
+    <td>assert</td>
+    <td class="feature-done">master</td>
+  </tr>
+  <tr>
+    <td>7.1.2</td>
+    <td>assume</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td>7.1.3</td>
+    <td>restrict</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td>7.1.4</td>
+    <td>restrict!</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td>7.1.5</td>
+    <td>cover</td>
+    <td class="feature-done">master</td>
+  </tr>
+  <tr>
+    <td>7.1.6</td>
+    <td>fairness and strong_fairness</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td>7.2</td>
+    <td>Verification units</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td>7.2.1</td>
+    <td>Verification unit binding</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td>7.2.2</td>
+    <td>Verification unit instantiation</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td>7.2.3</td>
+    <td>Verification unit inheritance</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td>7.2.4</td>
+    <td>Overriding assignments</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td>7.2.4.1</td>
+    <td>Simple case</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td>7.2.4.2</td>
+    <td>Multiple unrelated vunits</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td>7.2.4.3</td>
+    <td>Multiple overrides to the same signal</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr class="feature-group">
+    <td>8</td>
+    <td colspan="2">Modeling layer</td>
+  </tr>
+  <tr>
+    <td>8.1</td>
+    <td>Integer ranges</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td>8.2</td>
+    <td>Structures</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr class="feature-group">
+    <td>8</td>
+    <td colspan="2" style="">Scope and visibility rules</td>
+  </tr>
+  <tr>
+    <td>9.1</td>
+    <td>Immediate scope</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td>9.2</td>
+    <td>Extended scope</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td>9.3</td>
+    <td>Direct and indirect name references</td>
+    <td class="feature-missing"></td>
+  </tr>
+</table>
+
 include(`footer.html.in')dnl
