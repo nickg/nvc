@@ -256,16 +256,6 @@ void object_lookup_failed(object_class_t *class, object_t *object, imask_t mask)
    fatal_exit(EXIT_FAILURE);
 }
 
-void item_without_type(imask_t mask)
-{
-   int item;
-   for (item = 0; (mask & (UINT64_C(1) << item)) == 0; item++)
-      ;
-
-   assert(item < ARRAY_LEN(item_text_map));
-   fatal_trace("item %s does not have a type", item_text_map[item]);
-}
-
 void obj_array_add(obj_array_t **a, object_t *o)
 {
    if (*a == NULL) {
@@ -341,9 +331,12 @@ static void object_init(object_class_t *class)
    assert(class->tag < ARRAY_LEN(classes));
    classes[class->tag] = class;
 
+   imask_t all_items = 0;
+
    for (int i = 0; i < class->last_kind; i++) {
       const int nitems = __builtin_popcountll(class->has_map[i]);
       class->object_size[i] = sizeof(object_t) + (nitems * sizeof(item_t));
+      all_items |= class->has_map[i];
 
       // Knuth's multiplicative hash
       format_digest +=
@@ -373,11 +366,27 @@ static void object_init(object_class_t *class)
       }
    } while (changed);
 
+#ifdef DEBUG
    if (getenv("NVC_TREE_SIZES") != NULL) {
       for (int i = 0; i < class->last_kind; i++)
          printf("%-15s %d\n", class->kind_text_map[i],
                 (int)class->object_size[i]);
    }
+
+   const imask_t known_types =
+      ITEM_IDENT | ITEM_OBJECT | ITEM_OBJ_ARRAY | ITEM_INT64 | ITEM_INT32
+      | ITEM_DOUBLE | ITEM_TEXT | ITEM_NUMBER;
+
+   const imask_t missing = all_items & ~known_types;
+   if (missing != 0) {
+      int item;
+      for (item = 0; (missing & (UINT64_C(1) << item)) == 0; item++)
+         ;
+
+      assert(item < ARRAY_LEN(item_text_map));
+      fatal_trace("item %s does not have a type", item_text_map[item]);
+   }
+#endif
 }
 
 static void check_frozen_object_fault(int sig, void *addr,
@@ -670,9 +679,7 @@ void object_visit(object_t *object, object_visit_ctx_t *ctx)
    for (int i = 0; i < nitems; mask <<= 1) {
       if (has & mask & deep_mask) {
          item_t *item = &(object->items[i]);
-         if (ITEM_IDENT & mask)
-            ;
-         else if (ITEM_OBJECT & mask)
+         if (ITEM_OBJECT & mask)
             object_visit(item->object, ctx);
          else if (ITEM_OBJ_ARRAY & mask) {
             if (item->obj_array != NULL) {
@@ -680,18 +687,6 @@ void object_visit(object_t *object, object_visit_ctx_t *ctx)
                   object_visit(item->obj_array->items[j], ctx);
             }
          }
-         else if (ITEM_INT64 & mask)
-            ;
-         else if (ITEM_INT32 & mask)
-            ;
-         else if (ITEM_DOUBLE & mask)
-            ;
-         else if (ITEM_TEXT & mask)
-            ;
-         else if (ITEM_NUMBER & mask)
-            ;
-         else
-            item_without_type(mask);
       }
 
       if (has & mask)
@@ -763,7 +758,8 @@ object_t *object_rewrite(object_t *object, object_rewrite_ctx_t *ctx)
       (*ctx->pre_fn[object->tag])(object, ctx->context);
 
    const imask_t skip_mask =
-      I_REF | ITEM_INT64 | ITEM_INT32 | ITEM_DOUBLE | ITEM_NUMBER | ITEM_TEXT;
+      I_REF | ITEM_INT64 | ITEM_INT32 | ITEM_DOUBLE | ITEM_NUMBER
+      | ITEM_TEXT | ITEM_IDENT;
 
    const object_class_t *class = classes[object->tag];
 
@@ -772,9 +768,7 @@ object_t *object_rewrite(object_t *object, object_rewrite_ctx_t *ctx)
    imask_t mask = 1;
    for (int n = 0; n < nitems; mask <<= 1) {
       if (has & mask & ~skip_mask) {
-         if (ITEM_IDENT & mask)
-            ;
-         else if (ITEM_OBJECT & mask) {
+         if (ITEM_OBJECT & mask) {
             object_t *o = object->items[n].object;
             object->items[n].object = object_rewrite(o, ctx);
             object_write_barrier(object, o);
@@ -800,7 +794,7 @@ object_t *object_rewrite(object_t *object, object_rewrite_ctx_t *ctx)
             }
          }
          else
-            item_without_type(mask);
+            should_not_reach_here();
       }
 
       if (has & mask)
@@ -915,7 +909,7 @@ void object_write(object_t *root, fbuf_t *f, ident_wr_ctx_t ident_ctx,
             else if (ITEM_NUMBER & mask)
                number_write(item->number, f);
             else
-               item_without_type(mask);
+               should_not_reach_here();
             n++;
          }
       }
@@ -1087,7 +1081,7 @@ object_t *object_read(fbuf_t *f, object_load_fn_t loader_fn,
             else if (ITEM_NUMBER & mask)
                item->number = number_read(f);
             else
-               item_without_type(mask);
+               should_not_reach_here();
             n++;
          }
       }
@@ -1135,12 +1129,8 @@ static bool object_copy_mark(object_t *object, object_copy_ctx_t *ctx)
    for (int n = 0; n < nitems; mask <<= 1) {
       if (has & mask) {
          item_t *item = &(object->items[n]);
-         if (ITEM_IDENT & mask)
-            ;
-         else if (ITEM_OBJECT & mask)
+         if (ITEM_OBJECT & mask)
             marked |= object_copy_mark(item->object, ctx);
-         else if (ITEM_DOUBLE & mask)
-            ;
          else if (ITEM_OBJ_ARRAY & mask) {
             if (item->obj_array != NULL) {
                for (unsigned i = 0; i < item->obj_array->count; i++) {
@@ -1149,12 +1139,6 @@ static bool object_copy_mark(object_t *object, object_copy_ctx_t *ctx)
                }
             }
          }
-         else if (ITEM_INT64 & mask)
-            ;
-         else if (ITEM_INT32 & mask)
-            ;
-         else
-            item_without_type(mask);
          n++;
       }
    }
@@ -1253,7 +1237,7 @@ void object_copy(object_copy_ctx_t *ctx)
             else if ((ITEM_INT64 & mask) || (ITEM_INT32 & mask))
                to->ival = from->ival;
             else
-               item_without_type(mask);
+               should_not_reach_here();
             n++;
          }
       }
