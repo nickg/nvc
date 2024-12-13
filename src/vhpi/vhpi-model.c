@@ -1915,17 +1915,26 @@ vhpiHandleT vhpi_register_cb(vhpiCbDataT *cb_data_p, int32_t flags)
 
    case vhpiCbValueChange:
       {
-         c_vhpiObject *obj = from_handle(cb_data_p->obj);
-         if (obj == NULL)
-            return NULL;
-
-         c_objDecl *decl = cast_objDecl(obj);
-         if (decl == NULL)
-            return NULL;
-
-         rt_signal_t *signal = vhpi_get_signal_objDecl(decl);
-         if (signal == NULL)
-            return NULL;
+	 rt_signal_t *signal = NULL;
+	 c_prefixedName *pn = NULL;
+	 
+	 if ((pn = is_prefixedName(from_handle(cb_data_p->obj)))) {
+	   if ((signal = vhpi_get_signal_prefixedName(pn)) == NULL)
+	     return NULL;
+	 }
+	 else {
+	   c_vhpiObject *obj = from_handle(cb_data_p->obj);
+	   if (obj == NULL)
+	     return NULL;
+	 
+	   c_objDecl *decl = cast_objDecl(obj);
+	   if (decl == NULL)
+             return NULL;
+	   
+	   signal = vhpi_get_signal_objDecl(decl);
+	   if (signal == NULL)
+             return NULL;
+	 }
 
          c_callback *cb = new_object(sizeof(c_callback), vhpiCallbackK);
          cb->Reason  = cb_data_p->reason;
