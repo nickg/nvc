@@ -523,19 +523,35 @@ static void gc_forward_pointers(object_t *object, object_arena_t *arena,
    }
 }
 
-static void gc_mark_from_root(object_t *root, generation_t generation)
+static void gc_mark_from_root(object_t *object, object_arena_t *arena,
+                              generation_t generation)
 {
-   object_visit_ctx_t ctx = {
-      .count      = 0,
-      .postorder  = NULL,
-      .preorder   = NULL,
-      .context    = NULL,
-      .kind       = T_LAST_TREE_KIND,
-      .generation = generation,
-      .deep       = true
-   };
+   if (object == NULL)
+      return;
+   else if (!object_in_arena_p(arena, object))
+      return;
+   else if (object_marked_p(object, generation))
+      return;
 
-   object_visit(root, &ctx);
+   const object_class_t *class = classes[object->tag];
+
+   const imask_t has = class->has_map[object->kind];
+   const int nitems = __builtin_popcountll(has);
+   imask_t mask = 1;
+   for (int i = 0; i < nitems; mask <<= 1) {
+      if (has & mask) {
+         item_t *item = &(object->items[i++]);
+         if (ITEM_OBJECT & mask)
+            gc_mark_from_root(item->object, arena, generation);
+         else if (ITEM_OBJ_ARRAY & mask) {
+            if (item->obj_array != NULL) {
+               for (unsigned j = 0; j < item->obj_array->count; j++)
+                  gc_mark_from_root(item->obj_array->items[j], arena,
+                                    generation);
+            }
+         }
+      }
+   }
 }
 
 static void gc_free_external(object_t *object)
@@ -546,13 +562,13 @@ static void gc_free_external(object_t *object)
    imask_t mask = 1;
    for (int i = 0; i < nitems; mask <<= 1) {
       if (has & mask) {
+         item_t *item = &(object->items[i++]);
          if (ITEM_OBJ_ARRAY & mask)
-            obj_array_free(&(object->items[i].obj_array));
+            obj_array_free(&(item->obj_array));
          else if (ITEM_TEXT & mask)
-            free(&(object->items[i].text));
+            free(&(item->text));
          else if (ITEM_NUMBER & mask)
-            number_free(&(object->items[i].number));
-         i++;
+            number_free(&(item->number));
       }
    }
 }
@@ -570,7 +586,7 @@ void object_arena_gc(object_arena_t *arena)
       const object_class_t *class = classes[object->tag];
 
       if (is_gc_root(class, object->kind))
-         gc_mark_from_root(object, generation);
+         gc_mark_from_root(object, arena, generation);
 
       const size_t size =
          ALIGN_UP(class->object_size[object->kind], OBJECT_ALIGN);
