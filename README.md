@@ -92,7 +92,7 @@ NVC has both a release branch and a development master branch. The
 master branch should be stable enough for day-to-day use and has
 comprehensive regression tests, but the release branch is more suitable
 for third party packaging.  The latest released version is
-[1.13.3](https://github.com/nickg/nvc/releases/tag/r1.13.3).
+[1.14.2](https://github.com/nickg/nvc/releases/tag/r1.14.2).
 Significant changes since the last release are detailed in
 [NEWS.md](NEWS.md).
 
@@ -128,16 +128,16 @@ On `rpm` based distributions, the following can be installed to fulfill
 required dependencies:
 
     sudo dnf install autoconf automake flex check llvm-devel libffi-devel \
-      zlib-ng-compat-devel libzstd-devel elfutils-devel 
+      zlib-ng-compat-devel libzstd-devel elfutils-devel
 
 Only the MSYS2 environment on Windows is supported.  The required
 dependencies can be installed with:
 
     pacman -S base-devel mingw-w64-x86_64-{llvm,ncurses,libffi,check,pkg-config,zstd}
 
-[GtkWave](http://gtkwave.sourceforge.net/) can be used to view
-simulation waveforms.  Version 3.3.79 or later is required for the
-default FST format.
+[GTKWave](http://gtkwave.sourceforge.net/) or [Surfer](https://surfer-project.org/)
+can be used to view simulation waveforms.  For GTKWave, version 3.3.79 or later is
+required for the default FST format.
 
 #### Testing
 
