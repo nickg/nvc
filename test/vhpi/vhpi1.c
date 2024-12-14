@@ -380,6 +380,10 @@ static void end_of_init(const vhpiCbDataT *cb_data)
    vhpi_printf("tool is %s", vhpi_get_str(vhpiNameP, tool));
    vhpi_printf("tool version is %s", vhpi_get_str(vhpiToolVersionP, tool));
 
+   fail_unless(cb_data->time == NULL);
+   fail_unless(cb_data->value == NULL);
+   fail_unless(cb_data->obj == NULL);
+
    vhpiHandleT args = vhpi_iterator(vhpiArgvs, tool);
    fail_if(args == NULL);
    int i = 0;
@@ -568,8 +572,7 @@ void vhpi1_startup(void)
       .cb_rtn    = start_of_sim,
       .user_data = (char *)"some user data",
    };
-   handle_sos = vhpi_register_cb(&cb_data1, vhpiReturnCb);
-   check_error();
+   handle_sos = VHPI_CHECK(vhpi_register_cb(&cb_data1, vhpiReturnCb));
    fail_unless(vhpi_get(vhpiStateP, handle_sos) == vhpiEnable);
 
    vhpiCbDataT cb_data_rtn;
@@ -579,16 +582,21 @@ void vhpi1_startup(void)
    fail_unless(cb_data_rtn.user_data == cb_data1.user_data);
 
    vhpiCbDataT cb_data2 = {
-      .reason    = vhpiCbEndOfSimulation,
-      .cb_rtn    = end_of_sim
+      .reason = vhpiCbEndOfSimulation,
+      .cb_rtn = end_of_sim
    };
-   vhpi_register_cb(&cb_data2, 0);
-   check_error();
+   VHPI_CHECK(vhpi_register_cb(&cb_data2, 0));
 
    vhpiCbDataT cb_data3 = {
-      .reason    = vhpiCbEndOfInitialization,
-      .cb_rtn    = end_of_init
+      .reason = vhpiCbEndOfInitialization,
+      .cb_rtn = end_of_init,
+      .obj    = (vhpiHandleT)0x123456,
+      .time   = (vhpiTimeT *)0xdeadbeef,
+      .value  = (vhpiValueT *)0x5add00d,
    };
    vhpi_register_cb(&cb_data3, 0);
-   check_error();
+
+   vhpiErrorInfoT info;
+   fail_unless(vhpi_check_error(&info));
+   fail_unless(info.severity == vhpiWarning);
 }

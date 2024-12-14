@@ -1919,9 +1919,27 @@ vhpiHandleT vhpi_register_cb(vhpiCbDataT *cb_data_p, int32_t flags)
    case vhpiCbRepLastKnownDeltaCycle:
       {
          c_callback *cb = recyle_object(sizeof(c_callback), vhpiCallbackK);
-         cb->Reason  = cb_data_p->reason;
-         cb->State   = (flags & vhpiDisableCb) ? vhpiDisable : vhpiEnable;
-         cb->data    = *cb_data_p;
+         cb->Reason = cb_data_p->reason;
+         cb->State  = (flags & vhpiDisableCb) ? vhpiDisable : vhpiEnable;
+         cb->data   = *cb_data_p;
+
+         if (cb->data.obj != NULL) {
+            vhpi_error(vhpiWarning, NULL, "ignoring non-NULL obj field for %s",
+                       vhpi_cb_reason_str(cb_data_p->reason));
+            cb->data.obj = NULL;
+         }
+
+         if (cb->data.time != NULL) {
+            vhpi_error(vhpiWarning, NULL, "ignoring non-NULL time field for %s",
+                       vhpi_cb_reason_str(cb_data_p->reason));
+            cb->data.time = NULL;
+         }
+
+         if (cb->data.value != NULL) {
+            vhpi_error(vhpiWarning, NULL, "ignoring non-NULL value field for "
+                       "%s", vhpi_cb_reason_str(cb_data_p->reason));
+            cb->data.value = NULL;
+         }
 
          APUSH(vhpi_context()->callbacks, handle_for(&(cb->object)));
 
@@ -1936,9 +1954,9 @@ vhpiHandleT vhpi_register_cb(vhpiCbDataT *cb_data_p, int32_t flags)
          }
 
          c_callback *cb = recyle_object(sizeof(c_callback), vhpiCallbackK);
-         cb->Reason  = cb_data_p->reason;
-         cb->State   = (flags & vhpiDisableCb) ? vhpiDisable : vhpiEnable;
-         cb->data    = *cb_data_p;
+         cb->Reason = cb_data_p->reason;
+         cb->State  = (flags & vhpiDisableCb) ? vhpiDisable : vhpiEnable;
+         cb->data   = *cb_data_p;
 
          const uint64_t now = model_now(m, NULL);
          const uint64_t when = vhpi_time_to_native(cb_data_p->time) + now;
