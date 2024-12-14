@@ -68,6 +68,26 @@
 #define SHT_X86_64_UNWIND 0x70000001
 #endif
 
+#ifndef IMAGE_REL_ARM64_BRANCH26
+#define IMAGE_REL_ARM64_BRANCH26 0x03
+#endif
+
+#ifndef IMAGE_REL_ARM64_ADDR32NB
+#define IMAGE_REL_ARM64_ADDR32NB 0x02
+#endif
+
+#ifndef IMAGE_REL_ARM64_PAGEBASE_REL21
+#define IMAGE_REL_ARM64_PAGEBASE_REL21 0x04
+#endif
+
+#ifndef IMAGE_REL_ARM64_PAGEOFFSET_12A
+#define IMAGE_REL_ARM64_PAGEOFFSET_12A 0x06
+#endif
+
+#ifndef IMAGE_REL_ARM64_PAGEOFFSET_12L
+#define IMAGE_REL_ARM64_PAGEOFFSET_12L 0x07
+#endif
+
 #define CODE_PAGE_ALIGN   4096
 #define CODE_PAGE_SIZE    0x400000
 #define THREAD_CACHE_SIZE 0x10000
@@ -743,6 +763,35 @@ static void *arm64_emit_trampoline(code_blob_t *blob, uintptr_t dest)
       return addr;
    }
 }
+
+static void arm64_patch_page_offset21(code_blob_t *blob, uint32_t *patch,
+                                      void *ptr)
+{
+   switch ((*patch >> 23) & 0x7f) {
+   case 0b1111010:   // LDR (immediate, SIMD&FP)
+   case 0b1110010:   // LDR (immediate)
+      assert(*patch & (1 << 30));  // Quadword
+      assert(((uintptr_t)ptr & 7) == 0);
+      *patch |= (((uintptr_t)ptr & 0xfff) >> 3) << 10;
+      break;
+   case 0b0100010:   // ADD (immediate)
+      *patch |= ((uintptr_t)ptr & 0xfff) << 10;
+      break;
+   default:
+      blob->span->size = blob->wptr - blob->span->base;
+      code_disassemble(blob->span, (uintptr_t)patch, NULL);
+      fatal_trace("cannot patch instruction");
+   }
+}
+
+static void arm64_patch_page_base_rel21(uint32_t *patch, void *ptr)
+{
+   const intptr_t dst_page = (intptr_t)ptr & ~UINT64_C(0xfff);
+   const intptr_t src_page = (intptr_t)patch & ~UINT64_C(0xfff);
+   const intptr_t upper21 = (dst_page - src_page) >> 12;
+   *(uint32_t *)patch |= (upper21 & 3) << 29;
+   *(uint32_t *)patch |= ((upper21 >> 2) & 0x7ffff) << 5;
+}
 #else
 #define arm64_emit_trampoline(blob, dest) NULL
 #endif
@@ -752,8 +801,13 @@ static void code_load_pe(code_blob_t *blob, const void *data, size_t size)
 {
    const IMAGE_FILE_HEADER *imghdr = data;
 
-   if (imghdr->Machine != IMAGE_FILE_MACHINE_AMD64)
+   switch (imghdr->Machine) {
+   case IMAGE_FILE_MACHINE_AMD64:
+   case IMAGE_FILE_MACHINE_ARM64:
+      break;
+   default:
       fatal_trace("unknown target machine %x", imghdr->Machine);
+   }
 
    const IMAGE_SYMBOL *symtab = data + imghdr->PointerToSymbolTable;
    const char *strtab = data + imghdr->PointerToSymbolTable
@@ -824,12 +878,31 @@ static void code_load_pe(code_blob_t *blob, const void *data, size_t size)
          assert((uint8_t *)patch < blob->span->base + blob->span->size);
 
          switch (relocs[j].Type) {
-#ifdef ARCH_X86_64
+#if defined ARCH_X86_64
          case IMAGE_REL_AMD64_ADDR64:
             *(uint64_t *)patch += (uint64_t)ptr;
             break;
          case IMAGE_REL_AMD64_ADDR32NB:
             *(uint32_t *)patch += (uint32_t)(ptr - (void *)blob->span->base);
+            break;
+#elif defined ARCH_ARM64
+         case IMAGE_REL_ARM64_BRANCH26:
+            {
+               void *veneer = arm64_emit_trampoline(blob, (uintptr_t)ptr);
+               const ptrdiff_t pcrel = (veneer - patch) >> 2;
+               *(uint32_t *)patch &= ~0x3ffffff;
+               *(uint32_t *)patch |= pcrel & 0x3ffffff;
+            }
+            break;
+         case IMAGE_REL_ARM64_ADDR32NB:
+            *(uint32_t *)patch += (uint32_t)(ptr - (void *)blob->span->base);
+            break;
+         case IMAGE_REL_ARM64_PAGEBASE_REL21:
+            arm64_patch_page_base_rel21(patch, ptr);
+            break;
+         case IMAGE_REL_ARM64_PAGEOFFSET_12A:
+         case IMAGE_REL_ARM64_PAGEOFFSET_12L:
+            arm64_patch_page_offset21(blob, patch, ptr);
             break;
 #endif
          default:
@@ -968,31 +1041,11 @@ static void code_load_macho(code_blob_t *blob, const void *data, size_t size)
             break;   // What is this?
          case ARM64_RELOC_GOT_LOAD_PAGEOFF12:
          case ARM64_RELOC_PAGEOFF12:
-            switch ((*(uint32_t *)patch >> 23) & 0x7f) {
-            case 0b1111010:   // LDR (immediate, SIMD&FP)
-            case 0b1110010:   // LDR (immediate)
-               assert(*(uint32_t *)patch & (1 << 30));  // Quadword
-               assert(((uintptr_t)ptr & 7) == 0);
-               *(uint32_t *)patch |= (((uintptr_t)ptr & 0xfff) >> 3) << 10;
-               break;
-            case 0b0100010:   // ADD (immediate)
-               *(uint32_t *)patch |= ((uintptr_t)ptr & 0xfff) << 10;
-               break;
-            default:
-               blob->span->size = blob->wptr - blob->span->base;
-               code_disassemble(blob->span, (uintptr_t)patch, NULL);
-               fatal_trace("cannot patch instruction");
-            }
+            arm64_patch_page_offset21(blob, patch, ptr);
             break;
          case ARM64_RELOC_GOT_LOAD_PAGE21:
          case ARM64_RELOC_PAGE21:
-            {
-               const intptr_t dst_page = (intptr_t)ptr & ~UINT64_C(0xfff);
-               const intptr_t src_page = (intptr_t)patch & ~UINT64_C(0xfff);
-               const intptr_t upper21 = (dst_page - src_page) >> 12;
-               *(uint32_t *)patch |= (upper21 & 3) << 29;
-               *(uint32_t *)patch |= ((upper21 >> 2) & 0x7ffff) << 5;
-            }
+            arm64_patch_page_base_rel21(patch, ptr);
             break;
          case ARM64_RELOC_BRANCH26:
             {
