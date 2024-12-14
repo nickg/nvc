@@ -364,6 +364,65 @@ bool eval_possible(tree_t t, unit_registry_t *ur)
                return false;
          }
 
+         // Check for missing choices in constrained array aggregates
+         type_t composite_type = tree_type(t);
+         if (type_is_array(composite_type)
+             && !type_is_unconstrained(composite_type)) {
+            int64_t count = 0, elem_count = 0;
+            bool known_elem_count = false;
+            bool has_others = false;
+            bool has_range = false;
+            for (int i = 0; i < nassocs; i++) {
+               tree_t a = tree_assoc(t, i);
+               const assoc_kind_t akind = tree_subkind(a);
+
+               switch (akind) {
+
+               case A_NAMED:
+               case A_POS:
+                  known_elem_count = true;
+                  elem_count = 1;
+                  break;
+
+               case A_RANGE:
+                  known_elem_count = false;
+                  has_range = true;
+                  break;
+
+               case A_OTHERS:
+                  known_elem_count = false;
+                  has_others = true;
+                  break;
+
+               case A_SLICE:
+               case A_CONCAT:
+                  {
+                     type_t v_type = tree_type(tree_value(a));
+                     known_elem_count = true;
+                     if (type_is_unconstrained(v_type))
+                        known_elem_count = false;
+                     else if (!folded_length(range_of(v_type, 0), &elem_count))
+                        known_elem_count = false;
+                     break;
+                  }
+               }
+
+               if (known_elem_count)
+                  count += elem_count;
+            }
+
+            if (has_range)
+               // Range could overlap, defer to bounds check
+               return eval_not_possible(t, "range as choice");
+
+            if (!has_others) {
+               int64_t type_count;
+               if (folded_length(range_of(composite_type, 0), &type_count))
+                  if (count != type_count)
+                     return eval_not_possible(t, "missing choice");
+            }
+         }
+
          return true;
       }
 
