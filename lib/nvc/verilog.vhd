@@ -93,6 +93,11 @@ package verilog is
     function "=" (l, r : t_logic_array) return boolean;
     function "=" (l, r : t_logic_array) return t_logic;
 
+    function "<" (l, r : t_logic_array) return t_logic;
+    function ">" (l, r : t_logic_array) return t_logic;
+    function "<=" (l, r : t_logic_array) return t_logic;
+    function ">=" (l, r : t_logic_array) return t_logic;
+
     function "/=" (l, r : t_logic_array) return boolean;
 
     function and_reduce (arg : t_logic_array) return t_logic;

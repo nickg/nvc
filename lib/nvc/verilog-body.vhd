@@ -581,4 +581,74 @@ package body verilog is
         return not (l = r);
     end function;
 
+    function "<" (l, r : t_logic_array) return t_logic is
+        constant lsize   : natural := l'length;
+        constant rsize   : natural := r'length;
+        constant minsize : natural := minimum(lsize, rsize);
+        alias la : t_logic_array(lsize - 1 downto 0) is l;
+        alias ra : t_logic_array(rsize - 1 downto 0) is r;
+    begin
+        if lsize > rsize then
+            for i in minsize to lsize - 1 loop
+                if la(i) = '1' then
+                    return '1';
+                end if;
+            end loop;
+        elsif rsize > lsize then
+            for i in minsize to rsize - 1 loop
+                if ra(i) /= '0' then
+                    return '0';
+                end if;
+            end loop;
+        end if;
+        for i in minsize - 1 downto 0 loop
+            if la(i) = '0' and ra(i) = '1' then
+                return '1';
+            elsif la(i) /= ra(i) then
+                return '0';
+            end if;
+        end loop;
+        return '0';
+    end function;
+
+    function ">" (l, r : t_logic_array) return t_logic is
+        constant lsize   : natural := l'length;
+        constant rsize   : natural := r'length;
+        constant minsize : natural := minimum(lsize, rsize);
+        alias la : t_logic_array(lsize - 1 downto 0) is l;
+        alias ra : t_logic_array(rsize - 1 downto 0) is r;
+    begin
+        if lsize > rsize then
+            for i in minsize to lsize - 1 loop
+                if la(i) = '1' then
+                    return '0';
+                end if;
+            end loop;
+        elsif rsize > lsize then
+            for i in minsize to rsize - 1 loop
+                if ra(i) /= '0' then
+                    return '1';
+                end if;
+            end loop;
+        end if;
+        for i in minsize - 1 downto 0 loop
+            if la(i) = '1' and ra(i) = '0' then
+                return '1';
+            elsif la(i) /= ra(i) then
+                return '0';
+            end if;
+        end loop;
+        return '0';
+    end function;
+
+    function "<=" (l, r : t_logic_array) return t_logic is
+    begin
+        return not (l > r);
+    end function;
+
+    function ">=" (l, r : t_logic_array) return t_logic is
+    begin
+        return not (l < r);
+    end function;
+
 end package body;

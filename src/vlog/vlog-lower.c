@@ -408,6 +408,18 @@ static vcode_reg_t vlog_lower_binary(lower_unit_t *lu, vlog_binary_t op,
    case V_BINARY_MINUS:
       tb_cat(tb, "\"-\"(");
       break;
+   case V_BINARY_LT:
+      tb_cat(tb, "\"<\"(");
+      break;
+   case V_BINARY_GT:
+      tb_cat(tb, "\">\"(");
+      break;
+   case V_BINARY_LEQ:
+      tb_cat(tb, "\"<=\"(");
+      break;
+   case V_BINARY_GEQ:
+      tb_cat(tb, "\">=\"(");
+      break;
    default:
       should_not_reach_here();
    }
@@ -425,6 +437,10 @@ static vcode_reg_t vlog_lower_binary(lower_unit_t *lu, vlog_binary_t op,
    case V_BINARY_LOG_NEQ:
    case V_BINARY_LOG_OR:
    case V_BINARY_LOG_AND:
+   case V_BINARY_LT:
+   case V_BINARY_GT:
+   case V_BINARY_LEQ:
+   case V_BINARY_GEQ:
       rtype = vlog_logic_type();
       tb_cat(tb, T_LOGIC);
       break;

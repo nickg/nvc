@@ -126,6 +126,10 @@ typedef enum {
    V_BINARY_SHIFT_RL,
    V_BINARY_SHIFT_LA,
    V_BINARY_SHIFT_RA,
+   V_BINARY_LT,
+   V_BINARY_GT,
+   V_BINARY_LEQ,
+   V_BINARY_GEQ,
 } vlog_binary_t;
 
 typedef enum {
