@@ -912,6 +912,9 @@ static bool run_test(test_t *test)
 
          if (test->heapsz != NULL)
             push_arg(&args, "-H%s", test->heapsz);
+
+         if (test->flags & F_VHPI)
+            push_arg(&args, "--load=%s/../lib/vhpi_test.so%s", bin_dir, EXEEXT);
       }
       else
          push_arg(&args, "--no-save");

@@ -1081,3 +1081,4 @@ psl17           gold,psl
 ename16         fail,gold,2008
 vlog13          verilog
 issue1094       normal,2008
+issue1060       fail,gold,vhpi

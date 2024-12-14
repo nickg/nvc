@@ -20,6 +20,7 @@
 #include "diag.h"
 #include "jit/jit-ffi.h"
 #include "option.h"
+#include "rt/assert.h"
 #include "type.h"
 #include "vhpi/vhpi-macros.h"
 #include "vhpi/vhpi-util.h"
@@ -104,31 +105,38 @@ int vhpi_assert(vhpiSeverityT severity, char *formatmsg,  ...)
 
    VHPI_TRACE("severity=%d formatmsg=\"%s\"", severity, formatmsg);
 
-   va_list ap;
-   va_start(ap, formatmsg);
-   char *buf LOCAL = xvasprintf(formatmsg, ap);
-   va_end(ap);
-
+   diag_level_t level = DIAG_ERROR;
+   vhdl_severity_t vhdl = SEVERITY_ERROR;
    switch (severity) {
    case vhpiNote:
-      notef("%s", buf);
+      level = DIAG_NOTE;
+      vhdl = SEVERITY_NOTE;
       break;
-
    case vhpiWarning:
-      warnf("%s", buf);
+      level = DIAG_WARN;
+      vhdl = SEVERITY_WARNING;
       break;
-
    case vhpiError:
-      errorf("%s", buf);
+      level = DIAG_ERROR;
+      vhdl = SEVERITY_ERROR;
       break;
-
    case vhpiFailure:
    case vhpiSystem:
    case vhpiInternal:
-      fatal("%s", buf);
+      level = DIAG_FATAL;
+      vhdl = SEVERITY_FAILURE;
       break;
    }
 
+   va_list ap;
+   va_start(ap, formatmsg);
+
+   diag_t *d = diag_new(level, NULL);
+   diag_vprintf(d, formatmsg, ap);
+
+   va_end(ap);
+
+   emit_vhdl_diag(d, vhdl);
    return 0;
 }
 

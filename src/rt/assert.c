@@ -381,7 +381,7 @@ static diag_level_t get_diag_severity(vhdl_severity_t severity)
    return DIAG_ERROR;
 }
 
-static void emit_vhdl_diag(diag_t *d, vhdl_severity_t severity)
+void emit_vhdl_diag(diag_t *d, vhdl_severity_t severity)
 {
    if (severity >= exit_severity && severity < SEVERITY_FAILURE)
       diag_hint(d, NULL, "this will be treated as a fatal error due to "
