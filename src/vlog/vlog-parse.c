@@ -1705,6 +1705,33 @@ static vlog_node_t p_loop_statement(void)
    }
 }
 
+static vlog_node_t p_wait_statement(void)
+{
+   // wait ( expression ) statement_or_null
+   //   | wait fork ;
+   //   | wait_order ( hierarchical_identifier { , hierarchical_identifier } )
+   //       action_block
+
+   BEGIN("wait statement");
+
+   consume(tWAIT);
+
+   vlog_node_t v = vlog_new(V_WAIT);
+
+   consume(tLPAREN);
+
+   vlog_set_value(v, p_expression());
+
+   consume(tRPAREN);
+
+   vlog_node_t s = p_statement_or_null();
+   if (s != NULL)
+      vlog_add_stmt(v, s);
+
+   vlog_set_loc(v, CURRENT_LOC);
+   return v;
+}
+
 static vlog_node_t p_statement_item(void)
 {
    // blocking_assignment ; | nonblocking_assignment ;
@@ -1746,9 +1773,11 @@ static vlog_node_t p_statement_item(void)
    case tREPEAT:
    case tDO:
       return p_loop_statement();
+   case tWAIT:
+      return p_wait_statement();
    default:
       one_of(tID, tAT, tHASH, tBEGIN, tSYSTASK, tIF, tFOREVER, tWHILE, tREPEAT,
-             tDO);
+             tDO, tWAIT);
       drop_tokens_until(tSEMI);
       return NULL;
    }

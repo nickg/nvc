@@ -44,4 +44,7 @@ module parse1;
   function sum(input int a, b);
     sum = a + b;
   endfunction // sum
+  initial begin
+    wait (x) y = 1;
+  end
 endmodule // parse1

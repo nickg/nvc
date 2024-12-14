@@ -159,6 +159,9 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
 
    // V_FUNC_DECL
    (I_IDENT | I_STMTS | I_DECLS | I_TYPE),
+
+   // V_WAIT
+   (I_VALUE | I_STMTS),
 };
 
 static const char *kind_text_map[V_LAST_NODE_KIND] = {
@@ -173,7 +176,7 @@ static const char *kind_text_map[V_LAST_NODE_KIND] = {
    "V_DATA_TYPE",  "V_TYPE_DECL",   "V_ENUM_DECL",     "V_ENUM_NAME",
    "V_UNION_DECL", "V_STRUCT_DECL", "V_EVENT_CONTROL", "V_EMPTY",
    "V_REPEAT",     "V_WHILE",       "V_DO_WHILE",      "V_TASK_DECL",
-   "V_FUNC_DECL",
+   "V_FUNC_DECL",  "V_WAIT",
 };
 
 static const change_allowed_t change_allowed[] = {

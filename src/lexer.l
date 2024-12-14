@@ -685,6 +685,7 @@ BEFORE            ?i:before
 <VLOG>"endtask"          { return tENDTASK; }
 <VLOG>"function"         { return tFUNCTION; }
 <VLOG>"endfunction"      { return tENDFUNCTION; }
+<VLOG>"wait"             { return tWAIT; }
 
 <VLOG>{SYSTASK}          { yylval.str = xstrdup(yytext); return tSYSTASK; }
 <VLOG>{VLOG_ID}          { yylval.str = xstrdup(yytext); return tID; }

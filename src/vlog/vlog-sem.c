@@ -589,6 +589,15 @@ static void vlog_check_struct_union_decl(vlog_node_t decl)
    pop_scope();
 }
 
+static void vlog_check_wait(vlog_node_t stmt)
+{
+   vlog_check(vlog_value(stmt));
+
+   const int nstmts = vlog_stmts(stmt);
+   for (int i = 0; i < nstmts; i++)
+      vlog_check(vlog_stmt(stmt, i));
+}
+
 void vlog_check(vlog_node_t v)
 {
    switch (vlog_kind(v)) {
@@ -693,6 +702,9 @@ void vlog_check(vlog_node_t v)
    case V_STRUCT_DECL:
    case V_UNION_DECL:
       vlog_check_struct_union_decl(v);
+      break;
+   case V_WAIT:
+      vlog_check_wait(v);
       break;
    case V_EMPTY:
       break;

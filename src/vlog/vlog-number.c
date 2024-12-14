@@ -59,8 +59,10 @@ static void number_shift_left(number_t *n, unsigned count, uint64_t carry_in)
       }
       break;
    case TAG_SMALLNUM:
-      assert(count < n->small.width);
-      n->small.packed <<= count * 2;
+      if (count < n->small.width)
+         n->small.packed <<= count * 2;
+      else
+         n->small.packed = 0;
       break;
    default:
       DEBUG_ONLY(fatal_trace("invalid number tag %x", n->common.tag));

@@ -169,7 +169,7 @@ START_TEST(test_parse1)
    vlog_node_t m = vlog_parse();
    fail_if(m == NULL);
    fail_unless(vlog_kind(m) == V_MODULE);
-   fail_unless(vlog_stmts(m) == 11);
+   fail_unless(vlog_stmts(m) == 12);
    fail_unless(vlog_ports(m) == 0);
    fail_unless(vlog_decls(m) == 9);
 
@@ -307,6 +307,12 @@ START_TEST(test_number1)
    fail_if(number_is_defined(z));
    ck_assert_int_eq(number_width(z), 5);
    number_free(&z);
+
+   number_t n1 = number_new("1'bx");
+   ck_assert_int_eq(n1.common.tag, TAG_SMALLNUM);
+   fail_if(number_is_defined(n1));
+   ck_assert_int_eq(number_width(n1), 1);
+   number_free(&n1);
 }
 END_TEST
 
