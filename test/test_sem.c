@@ -504,7 +504,6 @@ START_TEST(test_array)
       { 403, "a choice that is not locally static is allowed" },
       { 404, "a choice that is not locally static is allowed" },
       { 424, "ambiguous call to function F" },
-      { 424, "type of string literal cannot be determined from the " },
       { 436, "type mismatch in range: left is universal_real, right is" },
       { 442, "dimension index 5 out of range for type INT_ARRAY" },
       { 446, "no visible declaration for FOO" },
@@ -688,7 +687,6 @@ START_TEST(test_procedure)
       {   0, "subprogram TEST17_A [INTEGER, INTEGER] has arguments X, Y" },
       { 207, "cannot assign to input parameter X" },
       { 224, "no possible overload of P1 has formal B" },
-      { 224, "sorry, conversions are not yet supported here" },
       { 227, "procedure name must be an identifier" },
       { -1, NULL }
    };
@@ -2907,7 +2905,9 @@ START_TEST(test_gensub)
       { 42, "no visible subprogram \"+\" matches signature [T, T return T]" },
       { 44, "cannot call uninstantiated function ADDER" },
       { 50, "cannot call uninstantiated procedure DO_STUFF" },
-      { 57, "no matching operator \"+\" [Q, T return Q]" },
+      { 57, "no applicable subprogram declaration for \"+\"" },
+      {  0, "expecting Q" },
+      {  0, "there are 10 visible overloads of \"+\"" },
       { 69, "subtype of generic X does not match type INTEGER in spec" },
       { 75, "subprogram TEST2 declaration has 1 generic but body has 2" },
       { 93, "multiple visible uninstantiated subprograms with name TEST1" },

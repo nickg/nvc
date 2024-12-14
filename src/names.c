@@ -1922,8 +1922,12 @@ tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
          && (tree_kind(dd->origin->container) != T_PROCESS
              || !(tree_flags(dd->origin->container) & TREE_F_SYNTHETIC_NAME));
 
-      if (has_named_origin)
-         tb_printf(tb, " from %s", istr(tree_ident(dd->origin->container)));
+      if (has_named_origin) {
+         tree_t primary = is_design_unit(dd->origin->container)
+            ? primary_unit_of(dd->origin->container) : dd->origin->container;
+         tb_printf(tb, " from %s%s", istr(tree_ident(primary)),
+                   primary != dd->origin->container ? " body" : "");
+      }
 
       diag_hint(d, tree_loc(dd->tree), "%s", tb_get(tb));
    }
@@ -2634,41 +2638,6 @@ static void begin_overload_resolution(overload_t *o)
    o->initial = o->candidates.count;
    o->error   = type_set_any(o->nametab, type_is_none);
 
-   if (o->initial == 0 && !o->error && !o->trial) {
-      diag_t *d = diag_new(DIAG_ERROR, tree_loc(o->tree));
-
-      if (o->symbol != NULL) {
-         const bool hinted = diag_hints(d) > 0;
-         for (int i = 0; i < o->symbol->ndecls; i++) {
-            const decl_t *dd = get_decl(o->symbol, i);
-            if ((dd->mask & N_SUBPROGRAM) && dd->visibility == HIDDEN)
-               diag_hint(d, tree_loc(dd->tree), "subprogram %s is hidden",
-                         type_pp(tree_type(dd->tree)));
-         }
-
-         if (!hinted)
-            diag_hint(d, tree_loc(o->tree), "%s called here", istr(o->name));
-      }
-
-      type_t ptype = o->prefix ? get_type_or_null(o->prefix) : NULL;
-      if (ptype != NULL && type_is_protected(ptype)) {
-         diag_printf(d, "protected type %s has no method named %s",
-                     type_pp(ptype), istr(o->name));
-
-         scope_t *s = scope_for_type(o->nametab, ptype);
-         hint_for_typo(s, d, o->name, N_SUBPROGRAM);
-      }
-      else {
-         diag_printf(d, "no visible subprogram declaration for %s",
-                     istr(o->name));
-         hint_for_typo(o->nametab->top_scope, d, o->name, N_SUBPROGRAM);
-      }
-
-      diag_suppress(d, o->nametab->top_scope->suppress);
-      diag_emit(d);
-      o->error = true;
-   }
-
    if (o->candidates.count > 1) {
       unsigned wptr = 0;
       for (unsigned i = 0; i < o->candidates.count; i++) {
@@ -2764,6 +2733,51 @@ static void begin_overload_resolution(overload_t *o)
             overload_prune_candidate(o, i);
       }
       ATRIM(o->candidates, wptr);
+   }
+
+   if (o->candidates.count == 0 && !o->error && !o->trial) {
+      diag_t *d = diag_new(DIAG_ERROR, tree_loc(o->tree));
+
+      if (o->symbol != NULL) {
+         const bool hinted = diag_hints(d) > 0;
+         for (int i = 0; i < o->symbol->ndecls; i++) {
+            const decl_t *dd = get_decl(o->symbol, i);
+            if ((dd->mask & N_SUBPROGRAM) && dd->visibility == HIDDEN)
+               diag_hint(d, tree_loc(dd->tree), "subprogram %s is hidden",
+                         type_pp(tree_type(dd->tree)));
+         }
+
+         if (!hinted)
+            diag_hint(d, tree_loc(o->tree), "%s called here", istr(o->name));
+      }
+
+      type_t ptype = o->prefix ? get_type_or_null(o->prefix) : NULL;
+      if (ptype != NULL && type_is_protected(ptype)) {
+         diag_printf(d, "protected type %s has no method named %s",
+                     type_pp(ptype), istr(o->name));
+
+         scope_t *s = scope_for_type(o->nametab, ptype);
+         hint_for_typo(s, d, o->name, N_SUBPROGRAM);
+      }
+      else if (o->initial > 0) {
+         diag_printf(d, "no applicable subprogram declaration for %s",
+                     istr(o->name));
+
+         type_set_describe(o->nametab, d, tree_loc(o->tree),
+                           o->nametab->top_type_set->pred, NULL);
+
+         diag_hint(d, NULL, "there are %d visible overloads of %s but none "
+                   "can be called in this context", o->initial, istr(o->name));
+      }
+      else {
+         diag_printf(d, "no visible subprogram declaration for %s",
+                     istr(o->name));
+         hint_for_typo(o->nametab->top_scope, d, o->name, N_SUBPROGRAM);
+      }
+
+      diag_suppress(d, o->nametab->top_scope->suppress);
+      diag_emit(d);
+      o->error = true;
    }
 
    // Determine if this expression could be interpreted as an indexed name
@@ -2938,9 +2952,12 @@ static tree_t finish_overload_resolution(overload_t *o)
                       type_pp(tree_type(o->candidates.items[i])));
          else {
             tree_t container = tree_container(o->candidates.items[i]);
-            diag_hint(d, NULL, "candidate %s from %s",
+            tree_t primary = primary_unit_of(container);
+
+            diag_hint(d, NULL, "candidate %s from %s%s",
                       type_pp(tree_type(o->candidates.items[i])),
-                      istr(tree_ident(container)));
+                      istr(tree_ident(primary)),
+                      primary != container ? " body" : "");
          }
 
          if (!(tree_flags(o->candidates.items[i]) & TREE_F_PREDEFINED))
@@ -3521,7 +3538,7 @@ static void solve_subprogram_params(nametab_t *tab, tree_t call, overload_t *o)
       const bool trial = o->trial
          || (o->candidates.count > 1 && mask_popcount(&pmask) + 1 < nparams);
 
-      if (o->error && o->initial == 0) {
+      if (o->error) {
          // Avoid cascading errors from an undefined subprogram
          tree_set_type(value, type_new(T_NONE));
          mask_set(&pmask, i);

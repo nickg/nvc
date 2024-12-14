@@ -4646,6 +4646,10 @@ START_TEST(test_names3)
 
    const error_t expect[] = {
       { 21, "no visible subprogram declaration for BAR" },
+      { 52, "no applicable subprogram declaration for \"=\"" },
+      {  0, "expecting T_LOGIC" },
+      {  0, "context contains overload \"and\" [T_LOGIC, T_LOGIC return T" },
+      {  0, "there are 15 visible overloads of \"=\" but" },
       { -1, NULL }
    };
    expect_errors(expect);

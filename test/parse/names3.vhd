@@ -41,4 +41,17 @@ begin
         end if;
     end process;
 
+    b1: block is
+        type t_logic is ('X', 'Z', '0', '1');
+        type t_logic_array is array (natural range <>) of t_logic;
+
+        function "and" (l, r : t_logic) return t_logic;
+
+        function "<" (l, r : t_logic_array) return t_logic is
+        begin
+            return l(0) = '0' and r(0) = '1';  -- Error
+        end function;
+    begin
+    end block;
+
 end architecture;
