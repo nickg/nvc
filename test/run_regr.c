@@ -766,7 +766,6 @@ static bool run_test(test_t *test)
    int skip = 0;
 #if defined __MINGW32__ || defined __CYGWIN__
    skip |= (test->flags & F_NOTWIN);
-   skip |= (test->flags & F_WAVE);   // XXX: needs debugging
 #endif
 #ifdef __FreeBSD__
    skip |= (test->flags & F_NOTBSD);
