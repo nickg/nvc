@@ -528,7 +528,7 @@ table below.
   <tr>
     <td>5.2.3.11</td>
     <td>onehot(), onehot0()</td>
-    <td class="feature-missing"></td>
+    <td class="feature-done">master</td>
   </tr>
   <tr>
     <td>5.2.4</td>
