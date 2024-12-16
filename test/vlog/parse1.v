@@ -47,4 +47,5 @@ module parse1;
   initial begin
     wait (x) y = 1;
   end
+  parameter x = 6;
 endmodule // parse1

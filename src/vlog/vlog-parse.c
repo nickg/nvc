@@ -1131,13 +1131,7 @@ static vlog_node_t p_mintypmax_expression(void)
 
    BEGIN("mintypmax expression");
 
-   consume(tLPAREN);
-
-   vlog_node_t inner = p_expression();
-
-   consume(tRPAREN);
-
-   return inner;
+   return p_expression();
 }
 
 static vlog_node_t p_primary(void)
@@ -1163,7 +1157,12 @@ static vlog_node_t p_primary(void)
    case tSYSTASK:
       return p_subroutine_call(V_SYS_FCALL);
    case tLPAREN:
-      return p_mintypmax_expression();
+      {
+         consume(tLPAREN);
+         vlog_node_t expr = p_mintypmax_expression();
+         consume(tRPAREN);
+         return expr;
+      }
    default:
       one_of(tID, tSTRING, tNUMBER, tUNSIGNED, tSYSTASK, tLPAREN);
       return p_select(error_marker());
@@ -2204,6 +2203,56 @@ static vlog_node_t p_function_declaration(void)
    return v;
 }
 
+static vlog_node_t p_constant_param_expression(void)
+{
+   // mintypmax_expression | data_type | $
+
+   BEGIN("constant parameter expression");
+
+   return p_mintypmax_expression();
+}
+
+static vlog_node_t p_param_assignment(vlog_node_t datatype)
+{
+   // parameter_identifier { unpacked_dimension }
+   //   [ = constant_param_expression ]
+
+   BEGIN("parameter assignment");
+
+   vlog_node_t v = vlog_new(V_PARAM_DECL);
+   vlog_set_ident(v, p_identifier());
+
+   if (optional(tEQ))
+      vlog_set_value(v, p_constant_param_expression());
+
+   vlog_set_loc(v, CURRENT_LOC);
+   return v;
+}
+
+static void p_list_of_param_assignments(vlog_node_t parent,
+                                        vlog_node_t datatype)
+{
+   // param_assignment { , param_assignment }
+
+   BEGIN("list of parameter assignments");
+
+   do {
+      vlog_add_decl(parent, p_param_assignment(datatype));
+   } while (optional(tCOMMA));
+}
+
+static void p_parameter_declaration(vlog_node_t mod)
+{
+   // parameter data_type_or_implicit list_of_param_assignments
+
+   BEGIN("parameter declaration");
+
+   consume(tPARAMETER);
+
+   vlog_node_t dt = p_data_type_or_implicit();
+   p_list_of_param_assignments(mod, dt);
+}
+
 static void p_package_or_generate_item_declaration(vlog_node_t mod)
 {
    // net_declaration | data_declaration | task_declaration
@@ -2235,9 +2284,13 @@ static void p_package_or_generate_item_declaration(vlog_node_t mod)
    case tFUNCTION:
       vlog_add_decl(mod, p_function_declaration());
       break;
+   case tPARAMETER:
+      p_parameter_declaration(mod);
+      consume(tSEMI);
+      break;
    default:
       one_of(tWIRE, tSUPPLY0, tSUPPLY1, tREG, tSTRUCT, tUNION, tTYPEDEF,
-             tENUM, tSVINT, tTASK, tFUNCTION);
+             tENUM, tSVINT, tTASK, tFUNCTION, tPARAMETER);
       drop_tokens_until(tSEMI);
       break;
    }
@@ -2283,6 +2336,7 @@ static void p_module_common_item(vlog_node_t mod)
    case tSVINT:
    case tTASK:
    case tFUNCTION:
+   case tPARAMETER:
       p_module_or_generate_item_declaration(mod);
       break;
    case tASSIGN:
@@ -2290,7 +2344,8 @@ static void p_module_common_item(vlog_node_t mod)
       break;
    default:
       one_of(tALWAYS, tINITIAL, tWIRE, tSUPPLY0, tSUPPLY1, tREG, tSTRUCT,
-             tUNION, tTYPEDEF, tENUM, tSVINT, tTASK, tFUNCTION, tASSIGN);
+             tUNION, tTYPEDEF, tENUM, tSVINT, tTASK, tFUNCTION, tPARAMETER,
+             tASSIGN);
       drop_tokens_until(tSEMI);
    }
 }
@@ -2753,6 +2808,7 @@ static void p_module_or_generate_item(vlog_node_t mod)
    case tSVINT:
    case tTASK:
    case tFUNCTION:
+   case tPARAMETER:
       p_module_common_item(mod);
       break;
    case tPULLDOWN:
@@ -2772,8 +2828,9 @@ static void p_module_or_generate_item(vlog_node_t mod)
       break;
    default:
       one_of(tALWAYS, tWIRE, tSUPPLY0, tSUPPLY1, tREG, tSTRUCT, tUNION, tASSIGN,
-             tINITIAL, tTYPEDEF, tENUM, tSVINT, tTASK, tFUNCTION, tPULLDOWN,
-             tPULLUP, tID, tAND, tNAND, tOR, tNOR, tXOR, tXNOR, tNOT, tBUF);
+             tINITIAL, tTYPEDEF, tENUM, tSVINT, tTASK, tFUNCTION, tPARAMETER,
+             tPULLDOWN, tPULLUP, tID, tAND, tNAND, tOR, tNOR, tXOR, tXNOR,
+             tNOT, tBUF);
       drop_tokens_until(tSEMI);
    }
 }
@@ -2813,6 +2870,7 @@ static void p_non_port_module_item(vlog_node_t mod)
    case tSVINT:
    case tTASK:
    case tFUNCTION:
+   case tPARAMETER:
       p_module_or_generate_item(mod);
       break;
    case tSPECIFY:
@@ -2822,7 +2880,7 @@ static void p_non_port_module_item(vlog_node_t mod)
       one_of(tALWAYS, tWIRE, tSUPPLY0, tSUPPLY1, tREG, tSTRUCT, tUNION,
              tASSIGN, tPULLDOWN, tPULLUP, tID, tATTRBEGIN, tAND, tNAND,
              tOR, tNOR, tXOR, tXNOR, tNOT, tBUF, tTYPEDEF, tENUM, tSVINT,
-             tTASK, tFUNCTION, tSPECIFY);
+             tTASK, tFUNCTION, tPARAMETER, tSPECIFY);
       drop_tokens_until(tSEMI);
    }
 }

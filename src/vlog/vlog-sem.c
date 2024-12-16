@@ -598,6 +598,14 @@ static void vlog_check_wait(vlog_node_t stmt)
       vlog_check(vlog_stmt(stmt, i));
 }
 
+static void vlog_check_param_decl(vlog_node_t decl)
+{
+   vlog_insert_decl(decl);
+
+   if (vlog_has_value(decl))
+      vlog_check(vlog_value(decl));
+}
+
 void vlog_check(vlog_node_t v)
 {
    switch (vlog_kind(v)) {
@@ -705,6 +713,9 @@ void vlog_check(vlog_node_t v)
       break;
    case V_WAIT:
       vlog_check_wait(v);
+      break;
+   case V_PARAM_DECL:
+      vlog_check_param_decl(v);
       break;
    case V_EMPTY:
       break;
