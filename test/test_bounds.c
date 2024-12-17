@@ -860,6 +860,27 @@ START_TEST(test_issue1021)
 }
 END_TEST
 
+START_TEST(test_issue1091)
+{
+   input_from_file(TESTDIR "/bounds/issue1091.vhd");
+
+   const error_t expect[] = {
+      {  9, "missing choices for elements 2 to 3 of VEC" },
+      {  9, "missing choices for elements 0 to 2 of VEC" },
+      { 10, "value 1 is already covered" },
+      { 10, "missing choice for element 3 of VEC" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_check_and_simplify(T_PACKAGE, T_ENTITY, T_ARCH);
+
+   fail_unless(parse() == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_bounds_tests(void)
 {
    Suite *s = suite_create("bounds");
@@ -905,6 +926,7 @@ Suite *get_bounds_tests(void)
    tcase_add_test(tc_core, test_issue975);
    tcase_add_test(tc_core, test_issue1040);
    tcase_add_test(tc_core, test_issue1021);
+   tcase_add_test(tc_core, test_issue1091);
    suite_add_tcase(s, tc_core);
 
    return s;
