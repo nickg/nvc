@@ -7089,6 +7089,24 @@ START_TEST(test_issue1096)
 }
 END_TEST
 
+START_TEST(test_alias5)
+{
+   input_from_file(TESTDIR "/parse/alias5.vhd");
+
+   const error_t expect[] = {
+      {  2, "no visible declaration for TYPE_T" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_PACKAGE);
+
+   fail_unless(parse() == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_parse_tests(void)
 {
    Suite *s = suite_create("parse");
@@ -7261,6 +7279,7 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_issue1090);
    tcase_add_test(tc_core, test_issue1091);
    tcase_add_test(tc_core, test_issue1096);
+   tcase_add_test(tc_core, test_alias5);
    suite_add_tcase(s, tc_core);
 
    return s;
