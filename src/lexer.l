@@ -649,6 +649,7 @@ BEFORE            ?i:before
 <VLOG>">>>"              { return tSHIFTRA; }
 <VLOG>"(*"               { return tATTRBEGIN; }
 <VLOG>"*)"               { return tATTREND; }
+<VLOG>"%"                { return tPERCENT; }
 <VLOG>"specify"          { return tSPECIFY; }
 <VLOG>"endspecify"       { return tENDSPECIFY; }
 <VLOG>"primitive"        { return tPRIMITIVE; }

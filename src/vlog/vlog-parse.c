@@ -1179,7 +1179,8 @@ static vlog_binary_t p_binary_operator(void)
 
    switch (one_of(tBAR, tPLUS, tAMP, tCASEEQ, tCASENEQ, tLOGOR,
                   tLOGEQ, tLOGNEQ, tDBLAMP, tSHIFTLL, tSHIFTRL,
-                  tSHIFTLA, tSHIFTRA, tLT, tGT, tLE, tGE)) {
+                  tSHIFTLA, tSHIFTRA, tLT, tGT, tLE, tGE, tMINUS,
+                  tTIMES, tOVER, tPERCENT)) {
    case tBAR:     return V_BINARY_OR;
    case tAMP:     return V_BINARY_AND;
    case tCASEEQ:  return V_BINARY_CASE_EQ;
@@ -1196,6 +1197,10 @@ static vlog_binary_t p_binary_operator(void)
    case tGT:      return V_BINARY_GT;
    case tLE:      return V_BINARY_LEQ;
    case tGE:      return V_BINARY_GEQ;
+   case tMINUS:   return V_BINARY_MINUS;
+   case tTIMES:   return V_BINARY_TIMES;
+   case tOVER:    return V_BINARY_DIVIDE;
+   case tPERCENT: return V_BINARY_MOD;
    case tPLUS:
    default:       return V_BINARY_PLUS;
    }
@@ -1246,28 +1251,57 @@ static vlog_node_t p_nonbinary_expression(void)
    }
 }
 
+static vlog_node_t p_conditional_expression(vlog_node_t head)
+{
+   // cond_predicate ? { attribute_instance } expression : expression
+
+   BEGIN("conditional expression");
+
+   vlog_node_t v = vlog_new(V_COND_EXPR);
+   vlog_set_value(v, head);
+
+   consume(tQUESTION);
+
+   while (peek() == tATTRBEGIN)
+      p_attribute_instance();
+
+   vlog_set_left(v, p_expression());
+
+   consume(tCOLON);
+
+   vlog_set_right(v, p_expression());
+
+   vlog_set_loc(v, CURRENT_LOC);
+   return v;
+}
+
 static bool peek_binary_operator(int *prec)
 {
    // See LRM 1800-2017 section 11.3.2 for operator precedence table
 
    switch (peek()) {
-   case tPLUS:    *prec = 10; return true;
+   case tTIMES:
+   case tOVER:
+   case tPERCENT:  *prec = 11; return true;
+   case tPLUS:
+   case tMINUS:    *prec = 10; return true;
    case tSHIFTLL:
    case tSHIFTRL:
    case tSHIFTLA:
-   case tSHIFTRA: *prec = 9;  return true;
+   case tSHIFTRA:  *prec = 9;  return true;
    case tLT:
    case tGT:
    case tLE:
-   case tGE:      *prec = 8;  return true;
+   case tGE:       *prec = 8;  return true;
    case tCASEEQ:
    case tCASENEQ:
    case tLOGEQ:
-   case tLOGNEQ:  *prec = 7;  return true;
-   case tAMP:     *prec = 6;  return true;
-   case tBAR:     *prec = 4;  return true;
-   case tDBLAMP:  *prec = 3;  return true;
-   case tLOGOR:   *prec = 2;  return true;
+   case tLOGNEQ:   *prec = 7;  return true;
+   case tAMP:      *prec = 6;  return true;
+   case tBAR:      *prec = 4;  return true;
+   case tDBLAMP:   *prec = 3;  return true;
+   case tLOGOR:    *prec = 2;  return true;
+   case tQUESTION: *prec = 1;  return true;
    default:
       return false;
    }
@@ -1280,19 +1314,23 @@ static vlog_node_t p_binary_expression(vlog_node_t lhs, int min_prec)
 
    int prec1;
    while (peek_binary_operator(&prec1) && prec1 >= min_prec) {
-      vlog_node_t v = vlog_new(V_BINARY);
-      vlog_set_subkind(v, p_binary_operator());
-      vlog_set_left(v, lhs);
+      if (peek() == tQUESTION)
+         lhs = p_conditional_expression(lhs);
+      else {
+         vlog_node_t v = vlog_new(V_BINARY);
+         vlog_set_subkind(v, p_binary_operator());
+         vlog_set_left(v, lhs);
 
-      vlog_node_t rhs = p_nonbinary_expression();
+         vlog_node_t rhs = p_nonbinary_expression();
 
-      int prec2;
-      while (peek_binary_operator(&prec2) && prec2 > prec1)
-         rhs = p_binary_expression(rhs, prec1 + (prec2 > prec1));
+         int prec2;
+         while (peek_binary_operator(&prec2) && prec2 > prec1)
+            rhs = p_binary_expression(rhs, prec1 + (prec2 > prec1));
 
-      vlog_set_right(v, rhs);
-      vlog_set_loc(v, CURRENT_LOC);
-      lhs = v;
+         vlog_set_right(v, rhs);
+         vlog_set_loc(v, CURRENT_LOC);
+         lhs = v;
+      }
    }
 
    return lhs;

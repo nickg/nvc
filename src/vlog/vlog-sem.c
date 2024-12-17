@@ -606,6 +606,13 @@ static void vlog_check_param_decl(vlog_node_t decl)
       vlog_check(vlog_value(decl));
 }
 
+static void vlog_check_cond_expr(vlog_node_t expr)
+{
+   vlog_check(vlog_value(expr));
+   vlog_check(vlog_left(expr));
+   vlog_check(vlog_right(expr));
+}
+
 void vlog_check(vlog_node_t v)
 {
    switch (vlog_kind(v)) {
@@ -718,6 +725,9 @@ void vlog_check(vlog_node_t v)
       vlog_check_param_decl(v);
       break;
    case V_EMPTY:
+      break;
+   case V_COND_EXPR:
+      vlog_check_cond_expr(v);
       break;
    default:
       fatal_at(vlog_loc(v), "cannot check verilog node %s",

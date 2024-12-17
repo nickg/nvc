@@ -91,6 +91,7 @@ typedef enum {
    V_FUNC_DECL,
    V_WAIT,
    V_PARAM_DECL,
+   V_COND_EXPR,
 
    V_LAST_NODE_KIND
 } vlog_kind_t;
@@ -118,6 +119,9 @@ typedef enum {
    V_BINARY_AND,
    V_BINARY_PLUS,
    V_BINARY_MINUS,
+   V_BINARY_TIMES,
+   V_BINARY_DIVIDE,
+   V_BINARY_MOD,
    V_BINARY_LOG_EQ,
    V_BINARY_LOG_NEQ,
    V_BINARY_CASE_EQ,

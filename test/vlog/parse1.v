@@ -46,6 +46,8 @@ module parse1;
   endfunction // sum
   initial begin
     wait (x) y = 1;
+    x = x ? 1 : y;
+    x = x - y * x + 1 % y / x;
   end
   parameter x = 6;
 endmodule // parse1
