@@ -40,6 +40,7 @@ shash_t *shash_new(int size);
 void shash_free(shash_t *h);
 void shash_put(shash_t *h, const char *key, void *value);
 void *shash_get(shash_t *h, const char *key);
+void shash_delete(shash_t *h, const void *key);
 
 ihash_t *ihash_new(int size);
 void ihash_free(ihash_t *h);

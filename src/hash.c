@@ -262,6 +262,20 @@ void *shash_get(shash_t *h, const char *key)
    }
 }
 
+void shash_delete(shash_t *h, const void *key)
+{
+   int slot = shash_slot(h, key);
+
+   for (; ; slot = (slot + 1) & (h->size - 1)) {
+      if (h->keys[slot] == NULL)
+         return;
+      else if (strcmp(h->keys[slot], key) == 0) {
+         h->values[slot] = NULL;
+         return;
+      }
+   }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Hash of unsigned integers to pointers
 

@@ -609,6 +609,29 @@ START_TEST(test_param1)
 }
 END_TEST
 
+START_TEST(test_pp3)
+{
+   input_from_file(TESTDIR "/vlog/pp3.v");
+
+   const error_t expect[] = {
+      {  3, "macro FOO undefined" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   LOCAL_TEXT_BUF tb = tb_new();
+   vlog_preprocess(tb);
+
+   ck_assert_str_eq(
+      tb_get(tb),
+      "\n"
+      "\n"
+      "    // Warning\n");
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_vlog_tests(void)
 {
    Suite *s = suite_create("vlog");
@@ -632,6 +655,7 @@ Suite *get_vlog_tests(void)
    tcase_add_test(tc, test_enum1);
    tcase_add_test(tc, test_union1);
    tcase_add_test(tc, test_param1);
+   tcase_add_test(tc, test_pp3);
    suite_add_tcase(s, tc);
 
    return s;

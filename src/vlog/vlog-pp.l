@@ -1,7 +1,7 @@
 /* -*- mode: c; c-basic-offset: 3 -*- */
 
 /*
- *  Copyright (C) 2023  Nick Gasson
+ *  Copyright (C) 2023-2024  Nick Gasson
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -54,6 +54,7 @@ static text_buf_t    *output;
 static ifdef_stack_t *ifdefs = NULL;
 
 static void define_macro(void);
+static void undef_macro(void);
 static void push_ifdef(void);
 static void pop_ifdef(void);
 static void convert_line_ending(void);
@@ -97,6 +98,7 @@ ID    [a-zA-Z_]([a-zA-Z0-9_$])*
                              error_at(&yylloc, "`else outside of `ifdef");
                           BEGIN(IFDEF_FALSE);
                         }
+`undef[ \t]+{ID}[ \t]*  { undef_macro(); }
 
 `timescale              |
 `resetall               |
@@ -208,6 +210,16 @@ static void define_macro(void)
 
    macro_name = NULL;
    tb_rewind(macro_text);
+}
+
+static void undef_macro(void)
+{
+   char *s = yytext + sizeof("`undef");
+   while (*s == ' ' || s == '\t')
+      s++;
+
+   strip_whitespace(s);
+   shash_delete(macros, s);
 }
 
 static void push_ifdef(void)
