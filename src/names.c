@@ -1611,6 +1611,9 @@ static void hint_for_typo(scope_t *top_scope, diag_t *d, ident_t name,
 
 static type_t get_result_type(nametab_t *tab, tree_t decl)
 {
+   if (tree_kind(decl) == T_ALIAS && !tree_has_type(decl))
+      return tree_type(tree_value(decl));
+
    type_t type = tree_type(decl);
    if (type_kind(type) != T_SIGNATURE || !type_has_result(type))
       return type;
