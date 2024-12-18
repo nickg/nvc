@@ -23,6 +23,7 @@
 #include "jit/jit-llvm.h"
 #include "lib.h"
 #include "lower.h"
+#include "object.h"
 #include "option.h"
 #include "phase.h"
 #include "rt/mspace.h"
@@ -268,6 +269,8 @@ int main(int argc, char **argv)
 
       if (pack == NULL)
          fatal("no package found in %s", argv[i]);
+
+      freeze_global_arena();
 
       find_benchmarks(pack, filter, ur);
    }

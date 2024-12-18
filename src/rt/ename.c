@@ -46,8 +46,14 @@ static tree_t select_name(tree_t where, ident_t id)
          return g;
    }
 
-   if (is_package(where))
+   switch (tree_kind(where)) {
+   case T_PACKAGE:
+      return select_name(body_of(where), id);
+   case T_PACK_BODY:
       return NULL;
+   default:
+      break;
+   }
 
    const int nstmts = tree_stmts(where);
    for (int i = 0; i < nstmts; i++) {
@@ -79,8 +85,9 @@ void x_bind_external(tree_t name, jit_scalar_t *result)
    else
       top = root_scope(m)->where;
 
-   assert(tree_kind(top) == T_ELAB);
-   tree_t root = tree_stmt(top, 0);
+   tree_t root = top;
+   if (tree_kind(top) == T_ELAB)
+      root = tree_stmt(top, 0);
 
    tree_t where = root, next = NULL;
    const int nparts = tree_parts(name);

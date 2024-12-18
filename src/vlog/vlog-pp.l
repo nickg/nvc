@@ -215,7 +215,7 @@ static void define_macro(void)
 static void undef_macro(void)
 {
    char *s = yytext + sizeof("`undef");
-   while (*s == ' ' || s == '\t')
+   while (*s == ' ' || *s == '\t')
       s++;
 
    strip_whitespace(s);
