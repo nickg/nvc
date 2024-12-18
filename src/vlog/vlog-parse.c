@@ -3631,6 +3631,27 @@ static void p_timescale_compiler_directive(void)
    set_timescale(unit_value, unit_name, prec_value, prec_name, CURRENT_LOC);
 }
 
+static void p_keywords_directive(void)
+{
+   // `begin_keywords "version_specifier"
+
+   BEGIN("keywords directive");
+
+   consume(tBEGINKEYWORDS);
+
+   consume(tSTRING);
+   free(state.last_lval.str);
+}
+
+static void p_endkeywords_directive(void)
+{
+   // `end_keywords
+
+   BEGIN("endkeywords directive");
+
+   consume(tENDKEYWORDS);
+}
+
 static void p_directive_list(void)
 {
    BEGIN("directive list");
@@ -3639,6 +3660,12 @@ static void p_directive_list(void)
       switch (peek()) {
       case tTIMESCALE:
          p_timescale_compiler_directive();
+         break;
+      case tBEGINKEYWORDS:
+         p_keywords_directive();
+         break;
+      case tENDKEYWORDS:
+         p_endkeywords_directive();
          break;
       default:
          return;
@@ -3655,9 +3682,12 @@ vlog_node_t vlog_parse(void)
    if (peek() == tEOF)
       return NULL;
 
+   p_directive_list();
+
    make_new_arena();
 
-   p_directive_list();
+   if (peek() == tEOF)
+      return NULL;
 
    return p_description();
 }

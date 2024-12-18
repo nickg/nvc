@@ -414,5 +414,7 @@ bool is_scanned_as_psl(void);
 #define tTASK          514
 #define tENDTASK       515
 #define tENDFUNCTION   516
+#define tBEGINKEYWORDS 517
+#define tENDKEYWORDS   518
 
 #endif  // _SCAN_H

@@ -20,3 +20,7 @@ module bad_target (input d, output q, output reg r);
   initial q <= 5; // Error
 
 endmodule // bad_target
+
+`begin_keywords "1800-2023"
+`end_keywords
+// End of file
