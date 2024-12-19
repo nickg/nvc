@@ -54,4 +54,6 @@ module parse1;
   real      r3 = 1.0;
   shortreal r4 = 6.7;
   realtime  r5 = 1.0;
+  assign r2 = {x, y};
+  assign {r1, r2} = {x, y};
 endmodule // parse1

@@ -50,5 +50,6 @@ module mod3;   // Check operator precedence
   end
   real v1 = 1.5;
   integer v2 = x ? 1 : 2;
+  assign z = {x, y};
 endmodule // mod3
 

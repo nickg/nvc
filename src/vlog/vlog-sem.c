@@ -244,6 +244,40 @@ static void vlog_check_bassign(vlog_node_t stmt)
    vlog_check_variable_target(target);
 }
 
+static void vlog_check_net_lvalue(vlog_node_t v, vlog_node_t where)
+{
+   switch (vlog_kind(v)) {
+   case V_NET_DECL:
+      break;
+   case V_PORT_DECL:
+      if (vlog_has_ref(v))
+         vlog_check_net_lvalue(vlog_ref(v), where);
+      break;
+   case V_BIT_SELECT:
+   case V_REF:
+      if (vlog_has_ref(v))
+         vlog_check_net_lvalue(vlog_ref(v), v);
+      break;
+   case V_CONCAT:
+      {
+         const int nparams = vlog_params(v);
+         for (int i = 0; i < nparams; i++) {
+            vlog_node_t p = vlog_param(v, i);
+            vlog_check_net_lvalue(p, p);
+         }
+      }
+      break;
+   default:
+      {
+         diag_t *d = diag_new(DIAG_ERROR, vlog_loc(where));
+         name_for_diag(d, where, "target");
+         diag_suppress(d, has_error(where));
+         diag_printf(d, " cannot be driven by continuous assignment");
+         diag_emit(d);
+      }
+   }
+}
+
 static void vlog_check_assign(vlog_node_t stmt)
 {
    vlog_node_t target = vlog_target(stmt);
@@ -252,13 +286,7 @@ static void vlog_check_assign(vlog_node_t stmt)
    vlog_node_t value = vlog_value(stmt);
    vlog_check(value);
 
-   if (!vlog_is_net(target)) {
-      diag_t *d = diag_new(DIAG_ERROR, vlog_loc(target));
-      name_for_diag(d, target, "target");
-      diag_suppress(d, has_error(target));
-      diag_printf(d, " cannot be driven by continuous assignment");
-      diag_emit(d);
-   }
+   vlog_check_net_lvalue(target, target);
 }
 
 static void vlog_check_timing(vlog_node_t timing)
@@ -613,6 +641,15 @@ static void vlog_check_cond_expr(vlog_node_t expr)
    vlog_check(vlog_right(expr));
 }
 
+static void vlog_check_concat(vlog_node_t expr)
+{
+   const int nparams = vlog_params(expr);
+   for (int i = 0; i < nparams; i++) {
+      vlog_node_t p = vlog_param(expr, i);
+      vlog_check(p);
+   }
+}
+
 void vlog_check(vlog_node_t v)
 {
    switch (vlog_kind(v)) {
@@ -728,6 +765,9 @@ void vlog_check(vlog_node_t v)
       break;
    case V_COND_EXPR:
       vlog_check_cond_expr(v);
+      break;
+   case V_CONCAT:
+      vlog_check_concat(v);
       break;
    default:
       fatal_at(vlog_loc(v), "cannot check verilog node %s",

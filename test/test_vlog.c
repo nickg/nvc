@@ -169,7 +169,7 @@ START_TEST(test_parse1)
    vlog_node_t m = vlog_parse();
    fail_if(m == NULL);
    fail_unless(vlog_kind(m) == V_MODULE);
-   fail_unless(vlog_stmts(m) == 12);
+   fail_unless(vlog_stmts(m) == 14);
    fail_unless(vlog_ports(m) == 0);
    fail_unless(vlog_decls(m) == 14);
 
@@ -632,6 +632,28 @@ START_TEST(test_pp3)
 }
 END_TEST
 
+START_TEST(test_concat1)
+{
+   input_from_file(TESTDIR "/vlog/concat1.v");
+
+   const error_t expect[] = {
+      { 10, "'q' cannot be driven by continuous assignment" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   vlog_node_t m = vlog_parse();
+   fail_if(m == NULL);
+   fail_unless(vlog_kind(m) == V_MODULE);
+
+   vlog_check(m);
+
+   fail_unless(vlog_parse() == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_vlog_tests(void)
 {
    Suite *s = suite_create("vlog");
@@ -656,6 +678,7 @@ Suite *get_vlog_tests(void)
    tcase_add_test(tc, test_union1);
    tcase_add_test(tc, test_param1);
    tcase_add_test(tc, test_pp3);
+   tcase_add_test(tc, test_concat1);
    suite_add_tcase(s, tc);
 
    return s;

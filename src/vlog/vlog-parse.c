@@ -1156,6 +1156,26 @@ static vlog_node_t p_mintypmax_expression(void)
    return p_expression();
 }
 
+static vlog_node_t p_concatenation(void)
+{
+   // { expression { , expression } }
+
+   BEGIN("concatenation");
+
+   consume(tLBRACE);
+
+   vlog_node_t v = vlog_new(V_CONCAT);
+
+   do {
+      vlog_add_param(v, p_expression());
+   } while (optional(tCOMMA));
+
+   consume(tRBRACE);
+
+   vlog_set_loc(v, CURRENT_LOC);
+   return v;
+}
+
 static vlog_node_t p_primary(void)
 {
    // primary_literal | empty_queue
@@ -1186,8 +1206,11 @@ static vlog_node_t p_primary(void)
          consume(tRPAREN);
          return expr;
       }
+   case tLBRACE:
+      return p_concatenation();
    default:
-      one_of(tID, tSTRING, tNUMBER, tUNSIGNED, tREAL, tSYSTASK, tLPAREN);
+      one_of(tID, tSTRING, tNUMBER, tUNSIGNED, tREAL, tSYSTASK, tLPAREN,
+             tLBRACE);
       return p_select(error_marker());
    }
 }
@@ -1255,9 +1278,10 @@ static vlog_node_t p_nonbinary_expression(void)
    case tSTRING:
    case tNUMBER:
    case tUNSIGNED:
+   case tREAL:
    case tSYSTASK:
    case tLPAREN:
-   case tREAL:
+   case tLBRACE:
       return p_primary();
    case tMINUS:
    case tTILDE:
@@ -1270,7 +1294,8 @@ static vlog_node_t p_nonbinary_expression(void)
          return v;
       }
    default:
-      one_of(tID, tSTRING, tNUMBER, tUNSIGNED, tMINUS, tTILDE, tBANG, tSYSTASK);
+      one_of(tID, tSTRING, tNUMBER, tUNSIGNED, tREAL, tSYSTASK, tLPAREN,
+             tLBRACE, tMINUS, tTILDE, tBANG);
       return p_select(error_marker());
    }
 }
@@ -1493,11 +1518,25 @@ static vlog_node_t p_net_lvalue(void)
 
    BEGIN("net lvalue");
 
-   ident_t id = p_identifier();
-   vlog_node_t v = p_constant_select(id);
+   if (optional(tLBRACE)) {
+      vlog_node_t v = vlog_new(V_CONCAT);
 
-   vlog_set_loc(v, CURRENT_LOC);
-   return v;
+      do {
+         vlog_add_param(v, p_net_lvalue());
+      } while (optional(tCOMMA));
+
+      consume(tRBRACE);
+
+      vlog_set_loc(v, CURRENT_LOC);
+      return v;
+   }
+   else {
+      ident_t id = p_identifier();
+      vlog_node_t v = p_constant_select(id);
+
+      vlog_set_loc(v, CURRENT_LOC);
+      return v;
+   }
 }
 
 static vlog_node_t p_operator_assignment(vlog_node_t lhs)

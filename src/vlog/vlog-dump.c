@@ -521,6 +521,19 @@ static void vlog_dump_cond_expr(vlog_node_t v, int indent)
    vlog_dump(vlog_right(v), 0);
 }
 
+static void vlog_dump_concat(vlog_node_t v, int indent)
+{
+   print_syntax("{");
+
+   const int nparams = vlog_params(v);
+   for (int i = 0; i < nparams; i++) {
+      if (i > 0) print_syntax(", ");
+      vlog_dump(vlog_param(v, i), 0);
+   }
+
+   print_syntax("}");
+}
+
 void vlog_dump(vlog_node_t v, int indent)
 {
    switch (vlog_kind(v)) {
@@ -630,6 +643,9 @@ void vlog_dump(vlog_node_t v, int indent)
       break;
    case V_COND_EXPR:
       vlog_dump_cond_expr(v, indent);
+      break;
+   case V_CONCAT:
+      vlog_dump_concat(v, indent);
       break;
    default:
       print_syntax("\n");

@@ -103,6 +103,8 @@ ID    [a-zA-Z_]([a-zA-Z0-9_$])*
 `timescale              |
 `resetall               |
 `pragma                 |
+`begin_keywords         |
+`end_keywords           |
 `celldefine             |
 `endcelldefine          { tb_cat(output, vlogpp_text); }
 

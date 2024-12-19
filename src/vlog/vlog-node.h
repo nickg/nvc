@@ -93,6 +93,7 @@ typedef enum {
    V_PARAM_DECL,
    V_COND_EXPR,
    V_REAL,
+   V_CONCAT,
 
    V_LAST_NODE_KIND
 } vlog_kind_t;

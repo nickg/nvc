@@ -171,6 +171,9 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
 
    // V_REAL
    (I_DVAL),
+
+   // V_CONCAT
+   (I_PARAMS),
 };
 
 static const char *kind_text_map[V_LAST_NODE_KIND] = {
@@ -186,7 +189,7 @@ static const char *kind_text_map[V_LAST_NODE_KIND] = {
    "V_UNION_DECL", "V_STRUCT_DECL", "V_EVENT_CONTROL", "V_EMPTY",
    "V_REPEAT",     "V_WHILE",       "V_DO_WHILE",      "V_TASK_DECL",
    "V_FUNC_DECL",  "V_WAIT",        "V_PARAM_DECL",    "V_COND_EXPR",
-   "V_REAL",
+   "V_REAL",       "V_CONCAT",
 };
 
 static const change_allowed_t change_allowed[] = {
