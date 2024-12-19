@@ -556,6 +556,8 @@ START_TEST(test_vlog1)
              "  wire logic x;\n"
              "  wire logic y;\n"
              "  wire logic z;\n"
+             "  real v1 = 1.5;\n"
+             "  integer v2 = x ? 1 : 2;\n"
              "  initial begin\n"
              "    if (x || (y === z));\n"
              "    if ((x & y) | (y & (z === (x + z))));\n"

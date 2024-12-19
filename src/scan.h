@@ -416,5 +416,8 @@ bool is_scanned_as_psl(void);
 #define tENDFUNCTION   516
 #define tBEGINKEYWORDS 517
 #define tENDKEYWORDS   518
+#define tSVREAL        519
+#define tSHORTREAL     520
+#define tREALTIME      521
 
 #endif  // _SCAN_H

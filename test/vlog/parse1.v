@@ -50,4 +50,8 @@ module parse1;
     x = x - y * x + 1 % y / x;
   end
   parameter x = 6;
+  integer   r2 = 66;
+  real      r3 = 1.0;
+  shortreal r4 = 6.7;
+  realtime  r5 = 1.0;
 endmodule // parse1

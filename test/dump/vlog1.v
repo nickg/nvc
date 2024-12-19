@@ -48,5 +48,7 @@ module mod3;   // Check operator precedence
     if (x == y || y == z);
     if ((x & y) == z);
   end
+  real v1 = 1.5;
+  integer v2 = x ? 1 : 2;
 endmodule // mod3
 

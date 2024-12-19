@@ -168,6 +168,9 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
 
    // V_COND_EXPR
    (I_VALUE | I_LEFT | I_RIGHT),
+
+   // V_REAL
+   (I_DVAL),
 };
 
 static const char *kind_text_map[V_LAST_NODE_KIND] = {
@@ -183,6 +186,7 @@ static const char *kind_text_map[V_LAST_NODE_KIND] = {
    "V_UNION_DECL", "V_STRUCT_DECL", "V_EVENT_CONTROL", "V_EMPTY",
    "V_REPEAT",     "V_WHILE",       "V_DO_WHILE",      "V_TASK_DECL",
    "V_FUNC_DECL",  "V_WAIT",        "V_PARAM_DECL",    "V_COND_EXPR",
+   "V_REAL",
 };
 
 static const change_allowed_t change_allowed[] = {
@@ -531,6 +535,16 @@ void vlog_set_right(vlog_node_t v, vlog_node_t e)
 {
    lookup_item(&vlog_object, v, I_RIGHT)->object = &(e->object);
    object_write_barrier(&(v->object), &(e->object));
+}
+
+double vlog_dval(vlog_node_t v)
+{
+   return lookup_item(&vlog_object, v, I_DVAL)->dval;
+}
+
+void vlog_set_dval(vlog_node_t v, double d)
+{
+   lookup_item(&vlog_object, v, I_DVAL)->dval = d;
 }
 
 void vlog_visit(vlog_node_t v, vlog_visit_fn_t fn, void *context)

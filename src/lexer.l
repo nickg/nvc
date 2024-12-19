@@ -78,6 +78,7 @@ static int parse_ex_id(char *str);
 static int parse_bit_string(const char *str);
 static int parse_string(const char *str);
 static int parse_decimal_literal(const char *str);
+static int parse_verilog_real(const char *str);
 static int parse_based_literal(const char *str);
 static int resolve_ir1045(void);
 static void warn_lrm(vhdl_standard_t std, const char *fmt, ...);
@@ -129,6 +130,7 @@ PSL_COMMENT     {PRAGMA}(?i:psl)[ \t]+
 PSL_CONT        ^{SPACE}*({PSL_COMMENT}|"--")
 UTF8_MB         [\x80-\xff][\x80-\xbf]{1,3}
 VLOG_NUMBER     {INTEGER}?\'[bhd]{HEX}
+VLOG_REAL       {INTEGER}\.{INTEGER}
 UDP_LEVEL       [01xX?bB]
 UDP_EDGE        [rRfFpPnN*]
 UDP_INDICATOR   "("{UDP_LEVEL}{UDP_LEVEL}")"
@@ -674,6 +676,9 @@ BEFORE            ?i:before
 <VLOG>"longint"          { return tLONGINT; }
 <VLOG>"int"              { return tSVINT; }
 <VLOG>"integer"          { return tINTEGER; }
+<VLOG>"real"             { return tSVREAL; }
+<VLOG>"shortreal"        { return tSHORTREAL; }
+<VLOG>"realtime"         { return tREALTIME; }
 <VLOG>"time"             { return tTIME; }
 <VLOG>"typedef"          { return tTYPEDEF; }
 <VLOG>"bit"              { return tBIT; }
@@ -696,6 +701,7 @@ BEFORE            ?i:before
 <VLOG>{INTEGER}          { yylval.str = xstrdup(yytext); return tUNSIGNED; }
 <VLOG>{VLOG_STRING}      { return escape_verilog_string(yytext); }
 <VLOG>{VLOG_NUMBER}      { yylval.str = xstrdup(yytext); return tNUMBER; }
+<VLOG>{VLOG_REAL}        { return parse_verilog_real(yytext); };
 
 <INITIAL,PSL>{DECIMAL}   { return parse_decimal_literal(yytext); }
 <INITIAL,PSL>{BASED}     { return parse_based_literal(yytext); }
@@ -1062,6 +1068,14 @@ static int parse_bit_string(const char *str)
    }
 
    TOKEN(tBITSTRING);
+}
+
+static int parse_verilog_real(const char *str)
+{
+   // unsigned_number [ . unsigned_number ] exp [ sign ] unsigned_number
+
+   yylval.real = strtod(str, NULL);
+   return tREAL;
 }
 
 static int report_unterminated_string(const char *str)
