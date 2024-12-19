@@ -171,6 +171,7 @@ typedef enum {
    VCODE_OP_ARRAY_SCOPE,
    VCODE_OP_RECORD_SCOPE,
    VCODE_OP_SYSCALL,
+   VCODE_OP_PUT_CONVERSION,
 } vcode_op_t;
 
 typedef enum {
@@ -264,6 +265,7 @@ vcode_type_t vtype_closure(vcode_type_t result);
 vcode_type_t vtype_context(ident_t name);
 vcode_type_t vtype_debug_locus(void);
 vcode_type_t vtype_trigger(void);
+vcode_type_t vtype_conversion(void);
 bool vtype_eq(vcode_type_t a, vcode_type_t b);
 vtype_kind_t vtype_kind(vcode_type_t type);
 bool vtype_is_scalar(vcode_type_t type);
@@ -536,5 +538,7 @@ void emit_deposit_signal(vcode_reg_t signal, vcode_reg_t count,
                          vcode_reg_t values);
 vcode_reg_t emit_bind_external(vcode_reg_t locus, vcode_type_t type,
                                vcode_type_t bounds);
+void emit_put_conversion(vcode_reg_t cf, vcode_reg_t target, vcode_reg_t count,
+                         vcode_reg_t values);
 
 #endif  // _VCODE_H

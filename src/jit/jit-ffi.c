@@ -98,36 +98,6 @@ bool ffi_is_integral(ffi_type_t type)
       || type == FFI_UINT32;
 }
 
-int64_t ffi_widen_int(ffi_type_t type, const void *input)
-{
-   switch (type) {
-   case FFI_INT8: return *((int8_t *)input);
-   case FFI_INT16: return *((int16_t *)input);
-   case FFI_INT32: return *((int32_t *)input);
-   case FFI_INT64: return *((int64_t *)input);
-   case FFI_UINT8: return *((uint8_t *)input);
-   case FFI_UINT16: return *((uint16_t *)input);
-   case FFI_UINT32: return *((uint32_t *)input);
-   default:
-      fatal_trace("invalid integer type in ffi_widen_int");
-   }
-}
-
-void ffi_store_int(ffi_type_t type, uint64_t value, void *output)
-{
-   switch (type) {
-   case FFI_UINT8:
-   case FFI_INT8: *(uint8_t *)output = (uint8_t)value; break;
-   case FFI_UINT16:
-   case FFI_INT16: *(uint16_t *)output = (uint16_t)value; break;
-   case FFI_UINT32:
-   case FFI_INT32: *(uint32_t *)output = (uint32_t)value; break;
-   case FFI_INT64: *(uint64_t *)output = value; break;
-   default:
-      fatal_trace("invalid integer type in ffi_store_int");
-   }
-}
-
 static jit_dll_t *ffi_load_exe(void)
 {
    if (dlls != NULL)

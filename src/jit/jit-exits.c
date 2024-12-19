@@ -670,6 +670,22 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
       }
       break;
 
+   case JIT_EXIT_PUT_CONVERSION:
+      {
+         rt_conv_func_t *cf     = args[0].pointer;
+         sig_shared_t   *shared = args[1].pointer;
+         int32_t         offset = args[2].integer;
+         int32_t         count  = args[3].integer;
+         jit_scalar_t    value  = { .integer = args[4].integer };
+         bool            scalar = args[5].integer;
+
+         if (scalar)
+            x_put_conversion(cf, shared, offset, count, &value.integer);
+         else
+            x_put_conversion(cf, shared, offset, count, value.pointer);
+      }
+      break;
+
    case JIT_EXIT_PUSH_SCOPE:
       {
          if (!jit_has_runtime(thread->jit))

@@ -992,6 +992,7 @@ static ffi_type_t irgen_ffi_type(vcode_type_t type)
    case VCODE_TYPE_ACCESS:
    case VCODE_TYPE_FILE:
    case VCODE_TYPE_DEBUG_LOCUS:
+   case VCODE_TYPE_CONVERSION:
       return FFI_POINTER;
    case VCODE_TYPE_UARRAY:
       return FFI_UARRAY;
@@ -3217,6 +3218,26 @@ static void irgen_op_deposit_signal(jit_irgen_t *g, int op)
    macro_exit(g, JIT_EXIT_DEPOSIT_SIGNAL);
 }
 
+static void irgen_op_put_conversion(jit_irgen_t *g, int op)
+{
+   jit_value_t cf     = irgen_get_arg(g, op, 0);
+   jit_value_t shared = irgen_get_arg(g, op, 1);
+   jit_value_t offset = jit_value_from_reg(jit_value_as_reg(shared) + 1);
+   jit_value_t count  = irgen_get_arg(g, op, 2);
+   jit_value_t value  = irgen_get_arg(g, op, 3);
+
+   jit_value_t scalar = irgen_is_scalar(g, op, 3);
+
+   j_send(g, 0, cf);
+   j_send(g, 1, shared);
+   j_send(g, 2, offset);
+   j_send(g, 3, count);
+   j_send(g, 4, value);
+   j_send(g, 5, scalar);
+
+   macro_exit(g, JIT_EXIT_PUT_CONVERSION);
+}
+
 static void irgen_op_sched_event(jit_irgen_t *g, int op)
 {
    jit_value_t shared = irgen_get_arg(g, op, 0);
@@ -3927,6 +3948,9 @@ static void irgen_block(jit_irgen_t *g, vcode_block_t block)
          break;
       case VCODE_OP_DEPOSIT_SIGNAL:
          irgen_op_deposit_signal(g, i);
+         break;
+      case VCODE_OP_PUT_CONVERSION:
+         irgen_op_put_conversion(g, i);
          break;
       case VCODE_OP_EVENT:
          irgen_op_event(g, i);

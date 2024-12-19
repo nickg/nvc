@@ -485,7 +485,7 @@ static void interp_load(jit_interp_t *state, jit_ir_t *ir)
 
    JIT_ASSERT(ir->size != JIT_SZ_UNSPEC);
    JIT_ASSERT(arg1 != NULL);
-   JIT_ASSERT((uintptr_t)arg1 >= 4096);
+   JIT_ASSERT((intptr_t)arg1 >= 4096);
 
    switch (ir->size) {
    case JIT_SZ_8:

@@ -82,8 +82,6 @@ jit_t *jit_for_thread(void);
 typedef void *(*thunk_result_fn_t)(jit_scalar_t *, void *);
 
 bool jit_try_call(jit_t *j, jit_handle_t handle, jit_scalar_t *result, ...);
-bool jit_try_call_packed(jit_t *j, jit_handle_t handle, jit_scalar_t context,
-                         void *input, size_t insz, void *output, size_t outsz);
 jit_scalar_t jit_call(jit_t *j, jit_handle_t handle, ...);
 void *jit_call_thunk(jit_t *j, vcode_unit_t unit, void *context,
                      thunk_result_fn_t fn, void *arg);

@@ -76,6 +76,7 @@ typedef struct _rt_implicit   rt_implicit_t;
 typedef struct _rt_resolution rt_resolution_t;
 typedef struct _rt_trigger    rt_trigger_t;
 typedef struct _rt_prop       rt_prop_t;
+typedef struct _rt_conv_func  rt_conv_func_t;
 
 typedef struct waveform  waveform_t;
 typedef struct sens_list sens_list_t;

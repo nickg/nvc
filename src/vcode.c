@@ -968,6 +968,7 @@ const char *vcode_op_string(vcode_op_t op)
       "port conversion", "convert in", "convert out", "bind foreign",
       "or trigger", "cmp trigger", "instance name", "deposit signal",
       "map implicit", "bind external", "array scope", "record scope", "syscall",
+      "put conversion",
    };
    if ((unsigned)op >= ARRAY_LEN(strs))
       return "???";
@@ -2285,6 +2286,19 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
             {
                printf("%s ", vcode_op_string(op->kind));
                vcode_dump_reg(op->args.items[0]);
+            }
+            break;
+
+         case VCODE_OP_PUT_CONVERSION:
+            {
+               color_printf("%s ", vcode_op_string(op->kind));
+               vcode_dump_reg(op->args.items[0]);
+               printf(" signal ");
+               vcode_dump_reg(op->args.items[1]);
+               printf(" count ");
+               vcode_dump_reg(op->args.items[2]);
+               printf(" values ");
+               vcode_dump_reg(op->args.items[3]);
             }
             break;
 
@@ -6061,6 +6075,25 @@ vcode_reg_t emit_bind_external(vcode_reg_t locus, vcode_type_t type,
 
    vcode_reg_data(op->result)->bounds = bounds;
    return op->result;
+}
+
+void emit_put_conversion(vcode_reg_t cf, vcode_reg_t target, vcode_reg_t count,
+                         vcode_reg_t values)
+{
+   op_t *op = vcode_add_op(VCODE_OP_PUT_CONVERSION);
+   vcode_add_arg(op, cf);
+   vcode_add_arg(op, target);
+   vcode_add_arg(op, count);
+   vcode_add_arg(op, values);
+
+   VCODE_ASSERT(vcode_reg_kind(target) == VCODE_TYPE_SIGNAL,
+                "put conversion target is not signal");
+   VCODE_ASSERT(vcode_reg_kind(count) == VCODE_TYPE_OFFSET,
+                "put conversion net count is not offset type");
+   VCODE_ASSERT(vcode_reg_kind(values) != VCODE_TYPE_SIGNAL,
+                "signal cannot be values argument for put conversion");
+   VCODE_ASSERT(vcode_reg_kind(cf) == VCODE_TYPE_CONVERSION,
+                "cf argument to put conversion must be conversion function");
 }
 
 void emit_convert_in(vcode_reg_t conv, vcode_reg_t nets, vcode_reg_t count)

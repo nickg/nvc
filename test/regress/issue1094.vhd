@@ -6,11 +6,9 @@ architecture arch of A is
 begin
     check: process is
     begin
-        assert din = "11110" report to_string(din)
-            severity warning;  -- XXXX: wrong!
+        assert din = "11110" report to_string(din);
         wait for 1 ns;
-        assert din = "11101" report to_string(din)
-            severity warning;  -- XXXX: wrong!
+        assert din = "11101" report to_string(din);
         wait;
     end process;
 end architecture;

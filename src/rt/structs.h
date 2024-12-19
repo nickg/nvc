@@ -123,33 +123,32 @@ typedef struct {
 } rt_driver_t;
 
 typedef struct {
-   ffi_closure_t driving;
-   ffi_closure_t effective;
-   unsigned      ninputs;
-   unsigned      maxinputs;
-   rt_nexus_t  **inputs;
-   rt_source_t  *outputs;
-   unsigned      insz;
-   unsigned      outsz;
-   unsigned      inoff;
-   unsigned      outoff;
-   void         *outbuf;
-   void         *inbuf;
+   rt_nexus_t *nexus;
+   rt_value_t  result;
+} conv_input_t;
+
+typedef struct _rt_conv_func {
+   ffi_closure_t  driving;
+   ffi_closure_t  effective;
+   unsigned       ninputs;
+   unsigned       maxinputs;
+   conv_input_t  *inputs;
+   rt_source_t   *outputs;
+   uint64_t       when;
+   unsigned       iteration;
 } rt_conv_func_t;
 
 typedef struct {
    rt_nexus_t     *output;
    rt_nexus_t     *input;
    rt_conv_func_t *conv_func;
+   rt_value_t      conv_result;
 } rt_port_t;
 
 typedef struct {
    rt_nexus_t *nexus;
    rt_value_t  value;
 } rt_pseudo_t;
-
-// The recursive call to update_driving relies on this
-STATIC_ASSERT(offsetof(rt_pseudo_t, nexus) == offsetof(rt_port_t, output));
 
 typedef struct _rt_source {
    rt_source_t    *chain_input;

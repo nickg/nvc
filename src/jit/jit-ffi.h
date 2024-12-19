@@ -78,8 +78,6 @@ ffi_spec_t ffi_spec_new(const ffi_type_t *types, size_t count);
 ffi_uarray_t ffi_wrap(void *ptr, int64_t left, int64_t right);
 void ffi_return_string(const char *str, jit_scalar_t *args, tlab_t *tlab);
 bool ffi_is_integral(ffi_type_t type);
-int64_t ffi_widen_int(ffi_type_t type, const void *input);
-void ffi_store_int(ffi_type_t type, uint64_t value, void *output);
 
 typedef struct _jit_dll jit_dll_t;
 

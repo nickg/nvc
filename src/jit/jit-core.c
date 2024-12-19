@@ -776,51 +776,6 @@ bool jit_vfastcall(jit_t *j, jit_handle_t handle, jit_scalar_t *result,
    return jit_try_vcall(j, f, result, args, tlab);
 }
 
-bool jit_try_call_packed(jit_t *j, jit_handle_t handle, jit_scalar_t context,
-                         void *input, size_t insz, void *output, size_t outsz)
-{
-   jit_func_t *f = jit_get_func(j, handle);
-
-   jit_fill_irbuf(f);   // Ensure FFI spec is set
-   assert(ffi_spec_valid(f->spec));
-
-   ffi_type_t atype = ffi_spec_get(f->spec, 2);
-   ffi_type_t rtype = ffi_spec_get(f->spec, 0);
-
-   jit_scalar_t args[JIT_MAX_ARGS];
-   args[0] = context;
-
-   if (ffi_is_integral(atype))
-      args[1].integer = ffi_widen_int(atype, input);
-   else if (atype == FFI_FLOAT) {
-      assert(insz == sizeof(double));
-      args[1].real = *(double *)input;
-   }
-   else if (atype == FFI_POINTER)
-      args[1].pointer = input;
-   else
-      fatal_trace("unhandled FFI argument type %x", atype);
-
-   tlab_t tlab = jit_null_tlab(j);
-
-   jit_scalar_t result;
-   if (!jit_try_vcall(j, f, &result, args, &tlab))
-      return false;
-
-   if (ffi_is_integral(rtype))
-      ffi_store_int(rtype, result.integer, output);
-   else if (rtype == FFI_FLOAT) {
-      assert(outsz == sizeof(double));
-      *(double *)output = result.real;
-   }
-   else if (rtype == FFI_POINTER)
-      memcpy(output, result.pointer, outsz);
-   else
-      fatal_trace("unhandled FFI result type %x", rtype);
-
-   return true;
-}
-
 void *jit_call_thunk(jit_t *j, vcode_unit_t unit, void *context,
                      thunk_result_fn_t fn, void *arg)
 {

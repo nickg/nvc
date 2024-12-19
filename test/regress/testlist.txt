@@ -1085,3 +1085,5 @@ issue1060       fail,gold,vhpi
 ivtest5         verilog
 guard5          normal
 driver23        normal,2008
+conv16          normal,2008
+conv17          normal
