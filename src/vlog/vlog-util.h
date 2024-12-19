@@ -23,5 +23,6 @@
 bool vlog_is_net(vlog_node_t v);
 unsigned vlog_dimensions(vlog_node_t v);
 bool is_top_level(vlog_node_t v);
+void vlog_pp_define_macro(const char *name, char *val);
 
 #endif  // _VLOG_UTIL_H
