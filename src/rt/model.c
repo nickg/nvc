@@ -1158,6 +1158,13 @@ static inline void *nexus_last_value(rt_nexus_t *n)
 
 static inline void *nexus_driving(rt_nexus_t *n)
 {
+   assert(n->flags & NET_F_EFFECTIVE);
+   return n->signal->shared.data + n->offset + 2*n->signal->shared.size;
+}
+
+static inline void *nexus_initial(rt_nexus_t *n)
+{
+   assert(n->flags & NET_F_HAS_INITIAL);
    return n->signal->shared.data + n->offset + 2*n->signal->shared.size;
 }
 
@@ -1767,7 +1774,7 @@ static void setup_signal(rt_model_t *m, rt_signal_t *s, tree_t where,
    s->nexus.size         = size;
    s->nexus.n_sources    = 0;
    s->nexus.offset       = 0;
-   s->nexus.flags        = flags | NET_F_FAST_DRIVER;
+   s->nexus.flags        = flags | NET_F_FAST_DRIVER | NET_F_HAS_INITIAL;
    s->nexus.signal       = s;
    s->nexus.pending      = NULL;
    s->nexus.active_delta = DELTA_CYCLE_MAX;
@@ -2021,7 +2028,7 @@ static void calculate_driving_value(rt_model_t *m, rt_nexus_t *n)
    // If S has no source, then the driving value of S is given by the
    // default value associated with S
    if (n->n_sources == 0) {
-      put_driving(m, n, nexus_driving(n));
+      put_driving(m, n, nexus_initial(n));
       return;
    }
 
@@ -2067,7 +2074,7 @@ static void calculate_driving_value(rt_model_t *m, rt_nexus_t *n)
       if (n->signal->shared.flags & SIG_F_REGISTER)
          put_driving(m, n, nexus_effective(n));
       else if (r == NULL || is_pseudo_source(n->sources.tag))
-         put_driving(m, n, nexus_driving(n));
+         put_driving(m, n, nexus_initial(n));
       else
          put_driving(m, n, call_resolution(n, r, nonnull, s0));
    }
@@ -2939,6 +2946,7 @@ static void put_driving(rt_model_t *m, rt_nexus_t *n, const void *value)
 
       assert(!(n->flags & NET_F_PENDING));
       n->flags |= NET_F_PENDING;
+      n->flags &= ~NET_F_HAS_INITIAL;
       heap_insert(m->effective_heap, MAX_RANK - n->rank, n);
    }
    else
@@ -4147,9 +4155,12 @@ void x_map_const(sig_shared_t *ss, uint32_t offset,
    rt_model_t *m = get_model();
    rt_nexus_t *n = split_nexus(m, s, offset, count);
    for (; count > 0; n = n->chain) {
-      memcpy(nexus_driving(n), values, n->width * n->size);
-      memcpy(nexus_effective(n), values, n->width * n->size);
-      values += n->width * n->size;
+      const size_t valuesz = n->size * n->width;
+      memcpy(nexus_effective(n), values, valuesz);
+      memcpy(nexus_initial(n), values, valuesz);
+
+      n->flags |= NET_F_HAS_INITIAL;
+      values += valuesz;
 
       count -= n->width;
       assert(count >= 0);

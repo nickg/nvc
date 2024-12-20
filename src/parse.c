@@ -5811,8 +5811,7 @@ static void p_interface_declaration(tree_t parent, tree_kind_t kind,
 
    BEGIN("interface declaration");
 
-   const token_t p = peek();
-   switch (p) {
+   switch (peek()) {
    case tCONSTANT:
       p_interface_constant_declaration(parent, kind, ordered);
       break;

@@ -1083,3 +1083,4 @@ vlog13          verilog
 issue1094       normal,2008
 issue1060       fail,gold,vhpi
 ivtest5         verilog
+guard5          normal
