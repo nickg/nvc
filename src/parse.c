@@ -5533,7 +5533,8 @@ static void p_interface_type_declaration(tree_t parent, tree_kind_t kind)
    // immediately following the interface type declaration in the
    // enclosing interface list
 
-   declare_generic_ops(parent, type);
+   if (kind == T_GENERIC_DECL)
+      declare_generic_ops(parent, type);
 }
 
 static void p_formal_parameter_list(tree_t decl, type_t type)
