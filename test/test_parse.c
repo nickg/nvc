@@ -3626,7 +3626,8 @@ START_TEST(test_vhdl2008)
       { 264, "signed bit string literal cannot be an empty string" },
       { 282, "the reserved word INERTIAL can only be used in port map " },
       { 290, "the reserved word INERTIAL can only be used in port map " },
-      { -1, NULL }
+      { 295, "parameter interface list cannot contain type interface " },
+      {  -1, NULL }
    };
    expect_errors(expect);
 

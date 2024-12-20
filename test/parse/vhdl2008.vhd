@@ -289,4 +289,13 @@ begin
     begin
         proc(x => inertial x);          -- Error
     end block;
+
+    b12: block is
+        function fact generic (
+            function foo( type t ) return natural  -- Error
+        ) return natural is
+        begin
+        end function;
+    begin
+    end block;
 end architecture;
