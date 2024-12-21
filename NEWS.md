@@ -41,6 +41,7 @@
 - The `--jit` elaboration mode now works on Windows-on-Arm systems.
 - `vhpi_assert` now behaves the same as VHDL `assert` for the purposes
   of determining the simulation exit code and early termination (#1060).
+- The `'driving_value` attribute now works correctly with record types.
 - Several other minor bugs were resolved (#1038, #1057, #1067).
 
 ## Version 1.14.2 - 2024-11-23

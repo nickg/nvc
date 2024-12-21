@@ -448,8 +448,8 @@ vcode_reg_t emit_implicit_signal(vcode_type_t type, vcode_reg_t count,
                                  vcode_reg_t size, vcode_reg_t locus,
                                  vcode_reg_t kind, vcode_reg_t closure,
                                  vcode_reg_t delay);
-vcode_reg_t emit_resolved(vcode_reg_t sig);
-vcode_reg_t emit_last_value(vcode_reg_t sig);
+vcode_reg_t emit_resolved(vcode_reg_t sig, vcode_reg_t count);
+vcode_reg_t emit_last_value(vcode_reg_t sig, vcode_reg_t count);
 vcode_reg_t emit_event_flag(vcode_reg_t nets, vcode_reg_t len);
 vcode_reg_t emit_active_flag(vcode_reg_t nets, vcode_reg_t len);
 vcode_reg_t emit_record_ref(vcode_reg_t record, unsigned field);

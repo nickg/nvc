@@ -116,7 +116,7 @@ typedef struct {
 typedef void (*lower_field_fn_t)(lower_unit_t *, tree_t, vcode_reg_t,
                                  vcode_reg_t, vcode_reg_t, void *);
 typedef void (*convert_emit_fn)(vcode_reg_t, vcode_reg_t, vcode_reg_t);
-typedef vcode_reg_t (*resolved_fn_t)(vcode_reg_t);
+typedef vcode_reg_t (*resolved_fn_t)(vcode_reg_t, vcode_reg_t);
 
 typedef A(concat_param_t) concat_list_t;
 
@@ -1122,20 +1122,18 @@ static void lower_resolved_field_cb(lower_unit_t *lu, tree_t field,
       vcode_reg_t sig_reg = emit_load_indirect(field_ptr);
 
       if (type_is_array(ftype)) {
-         vcode_reg_t r_reg = (*fn)(lower_array_data(sig_reg));
+         vcode_reg_t count_reg = lower_array_total_len(lu, ftype, sig_reg);
+         vcode_reg_t r_reg = (*fn)(lower_array_data(sig_reg), count_reg);
 
-         if (type_const_bounds(ftype)) {
-            vcode_reg_t count_reg =
-               lower_array_total_len(lu, ftype, VCODE_INVALID_REG);
+         if (type_const_bounds(ftype))
             emit_copy(dst_ptr, r_reg, count_reg);
-         }
          else {
             vcode_reg_t wrap_reg = lower_rewrap(r_reg, sig_reg);
             emit_store_indirect(wrap_reg, dst_ptr);
          }
       }
       else {
-         vcode_reg_t r_reg = (*fn)(sig_reg);
+         vcode_reg_t r_reg = (*fn)(sig_reg, VCODE_INVALID_REG);
          emit_store_indirect(emit_load_indirect(r_reg), dst_ptr);
       }
    }
@@ -1362,7 +1360,8 @@ static vcode_reg_t lower_last_value(lower_unit_t *lu, tree_t ref)
 
    type_t type = tree_type(ref);
    if (type_is_homogeneous(type)) {
-      vcode_reg_t data_reg = emit_last_value(lower_array_data(nets));
+      vcode_reg_t data_reg =
+         emit_last_value(lower_array_data(nets), VCODE_INVALID_REG);
       if (vcode_reg_kind(nets) == VCODE_TYPE_UARRAY)
          return lower_rewrap(data_reg, nets);
       else
@@ -3149,11 +3148,11 @@ static vcode_reg_t lower_resolved(lower_unit_t *lu, type_t type,
       reg = emit_load_indirect(reg);
 
    if (type_is_homogeneous(type)) {
-      vcode_reg_t data_reg;
+      vcode_reg_t data_reg, count_reg = VCODE_INVALID_REG;
       if (vcode_reg_kind(reg) == VCODE_TYPE_POINTER)
-         data_reg = emit_resolved(emit_load_indirect(reg));
+         data_reg = emit_resolved(emit_load_indirect(reg), count_reg);
       else
-         data_reg = emit_resolved(lower_array_data(reg));
+         data_reg = emit_resolved(lower_array_data(reg), count_reg);
 
       if (vcode_reg_kind(reg) == VCODE_TYPE_UARRAY)
          return lower_rewrap(data_reg, reg);
@@ -4688,6 +4687,44 @@ static vcode_reg_t lower_type_conv(lower_unit_t *lu, tree_t expr)
    return lower_conversion(lu, value_reg, expr, from, to);
 }
 
+static vcode_reg_t lower_driving_value(lower_unit_t *lu, tree_t name)
+{
+   vcode_reg_t name_reg = lower_lvalue(lu, name);
+
+   type_t name_type = tree_type(name);
+   if (type_is_homogeneous(name_type)) {
+      if (type_is_array(name_type)) {
+         vcode_reg_t len_reg = lower_array_total_len(lu, name_type, name_reg);
+         vcode_reg_t ptr_reg = emit_driving_value(name_reg, len_reg);
+         if (vcode_reg_kind(name_reg) == VCODE_TYPE_UARRAY)
+            return lower_rewrap(name_reg, ptr_reg);
+         else
+            return ptr_reg;
+      }
+      else {
+         vcode_reg_t ptr_reg = emit_driving_value(name_reg, VCODE_INVALID_REG);
+         return emit_load_indirect(ptr_reg);
+      }
+   }
+   else {
+      type_t base = type_base_recur(name_type);
+      ident_t base_id = type_ident(base);
+      ident_t helper_func = ident_prefix(base_id, ident_new("driving"), '$');
+
+      vcode_reg_t arg_reg;
+      if (type_is_array(base))
+         arg_reg = lower_coerce_arrays(lu, name_type, base, name_reg);
+      else
+         arg_reg = name_reg;
+
+      vcode_type_t vrtype = lower_func_result_type(base);
+
+      vcode_reg_t context_reg = lower_context_for_call(lu, helper_func);
+      vcode_reg_t args[] = { context_reg, arg_reg };
+      return emit_fcall(helper_func, vrtype, vrtype, args, 2);
+   }
+}
+
 static const int lower_get_attr_dimension(tree_t expr)
 {
    if (tree_params(expr) > 0)
@@ -4883,24 +4920,7 @@ static vcode_reg_t lower_attr_ref(lower_unit_t *lu, tree_t expr)
       }
 
    case ATTR_DRIVING_VALUE:
-      {
-         type_t name_type = tree_type(name);
-         vcode_reg_t name_reg = lower_attr_prefix(lu, name);
-         if (type_is_array(name_type)) {
-            vcode_reg_t len_reg =
-               lower_array_total_len(lu, name_type, name_reg);
-            vcode_reg_t ptr_reg = emit_driving_value(name_reg, len_reg);
-            if (type_const_bounds(name_type))
-               return ptr_reg;
-            else
-               return lower_wrap(lu, name_type, ptr_reg);
-         }
-         else {
-            vcode_reg_t ptr_reg =
-               emit_driving_value(name_reg, VCODE_INVALID_REG);
-            return emit_load_indirect(ptr_reg);
-         }
-      }
+      return lower_driving_value(lu, name);
 
    case ATTR_EVENT:
       return lower_signal_flag(lu, name, emit_event_flag);
@@ -4959,7 +4979,7 @@ static vcode_reg_t lower_attr_ref(lower_unit_t *lu, tree_t expr)
          vcode_reg_t value_reg = lower_rvalue(lu, value);
 
          if (lower_have_signal(value_reg))
-            value_reg = emit_resolved(value_reg);
+            value_reg = emit_resolved(value_reg, VCODE_INVALID_REG);
 
          if (vcode_reg_kind(value_reg) != VCODE_TYPE_UARRAY)
             value_reg = lower_wrap(lu, value_type, value_reg);
@@ -9480,6 +9500,11 @@ static void lower_last_value_helper(lower_unit_t *lu, object_t *obj)
    lower_resolved_record_fn(lu, obj, emit_last_value);
 }
 
+static void lower_driving_value_helper(lower_unit_t *lu, object_t *obj)
+{
+   lower_resolved_record_fn(lu, obj, emit_driving_value);
+}
+
 static void lower_copy_helper(lower_unit_t *lu, object_t *obj)
 {
    tree_t decl = tree_from_object(obj);
@@ -9812,6 +9837,10 @@ static void lower_decl(lower_unit_t *lu, tree_t decl)
             ident_t last_value = ident_prefix(id, ident_new("last_value"), '$');
             unit_registry_defer(lu->registry, last_value, lu, emit_function,
                                 lower_last_value_helper, NULL, obj);
+
+            ident_t driving = ident_prefix(id, ident_new("driving"), '$');
+            unit_registry_defer(lu->registry, driving, lu, emit_function,
+                                lower_driving_value_helper, NULL, obj);
          }
 
          if (!lower_trivially_copyable(type)) {
@@ -11003,13 +11032,14 @@ static void lower_predef_file_open3(lower_unit_t *lu, tree_t decl)
 
 static void lower_edge_predef(lower_unit_t *lu, tree_t decl)
 {
-   vcode_reg_t nets_reg  = vcode_param_reg(1);
-   vcode_reg_t value_reg = emit_load_indirect(emit_resolved(nets_reg));
+   vcode_reg_t nets_reg = vcode_param_reg(1);
+   vcode_reg_t count_reg = emit_const(vtype_offset(), 1);
+   vcode_reg_t value_reg =
+      emit_load_indirect(emit_resolved(nets_reg, count_reg));
 
    if (tree_subkind(decl) == S_FALLING_EDGE)
       value_reg = emit_not(value_reg);
 
-   vcode_reg_t count_reg = emit_const(vtype_offset(), 1);
    vcode_reg_t event_reg = emit_event_flag(nets_reg, count_reg);
    emit_return(emit_and(event_reg, value_reg));
 }

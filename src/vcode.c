@@ -5526,12 +5526,12 @@ static vcode_reg_t emit_signal_data_op(vcode_op_t kind, vcode_reg_t sig)
    return op->result;
 }
 
-vcode_reg_t emit_resolved(vcode_reg_t sig)
+vcode_reg_t emit_resolved(vcode_reg_t sig, vcode_reg_t count)
 {
    return emit_signal_data_op(VCODE_OP_RESOLVED, sig);
 }
 
-vcode_reg_t emit_last_value(vcode_reg_t sig)
+vcode_reg_t emit_last_value(vcode_reg_t sig, vcode_reg_t count)
 {
    return emit_signal_data_op(VCODE_OP_LAST_VALUE, sig);
 }

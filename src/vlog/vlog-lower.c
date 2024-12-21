@@ -523,7 +523,8 @@ static vcode_reg_t vlog_lower_rvalue(lower_unit_t *lu, vlog_node_t v)
 
          vcode_reg_t resolved_reg;
          if (vcode_reg_kind(nets_reg) == VCODE_TYPE_UARRAY) {
-            vcode_reg_t data_reg = emit_resolved(emit_unwrap(nets_reg));
+            vcode_reg_t data_reg =
+               emit_resolved(emit_unwrap(nets_reg), VCODE_INVALID_REG);
 
             // XXX: add a rewrap opcode
             vcode_dim_t dims[1] = {
@@ -534,7 +535,7 @@ static vcode_reg_t vlog_lower_rvalue(lower_unit_t *lu, vlog_node_t v)
             resolved_reg = emit_wrap(data_reg, dims, 1);
          }
          else {
-            vcode_reg_t data_reg = emit_resolved(nets_reg);
+            vcode_reg_t data_reg = emit_resolved(nets_reg, VCODE_INVALID_REG);
             if (vlog_dimensions(decl) > 0)
                resolved_reg = vlog_lower_decl_bounds(lu, decl, data_reg);
             else
@@ -1278,7 +1279,8 @@ static void vlog_lower_udp(unit_registry_t *ur, lower_unit_t *parent,
       for (int i = 1; i < nports; i++) {
          vcode_var_t var = in_vars[i - 1];
          vcode_reg_t nets_reg = emit_load_indirect(emit_var_upref(hops, var));
-         vcode_reg_t value_reg = emit_load_indirect(emit_resolved(nets_reg));
+         vcode_reg_t value_reg =
+            emit_load_indirect(emit_resolved(nets_reg, VCODE_INVALID_REG));
          in_regs[i - 1] = vlog_lower_to_logic(lu, value_reg);
          in_nets[i - 1] = nets_reg;
       }
@@ -1327,7 +1329,8 @@ static void vlog_lower_udp(unit_registry_t *ur, lower_unit_t *parent,
 
                   if (sp[1] != '?') {
                      vcode_reg_t last_reg =
-                        emit_load_indirect(emit_last_value(in_nets[j]));
+                        emit_load_indirect(emit_last_value(in_nets[j],
+                                                           VCODE_INVALID_REG));
                      vcode_reg_t logic_reg = vlog_lower_to_logic(lu, last_reg);
                      vcode_reg_t eq_reg = emit_cmp(VCODE_CMP_EQ, logic_reg,
                                                    level_map[(unsigned)sp[1]]);
@@ -1360,7 +1363,9 @@ static void vlog_lower_udp(unit_registry_t *ur, lower_unit_t *parent,
          if (kind == V_UDP_SEQ) {
             vcode_reg_t out_reg =
                emit_load_indirect(emit_var_upref(hops, out_var));
-            vcode_reg_t cur_reg = emit_load_indirect(emit_resolved(out_reg));
+            vcode_reg_t resolved_reg =
+               emit_resolved(out_reg, VCODE_INVALID_REG);
+            vcode_reg_t cur_reg = emit_load_indirect(resolved_reg);
 
             vcode_reg_t cmp_reg = VCODE_INVALID_REG;
             switch (*sp) {
