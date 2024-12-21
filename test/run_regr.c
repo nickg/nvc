@@ -89,7 +89,6 @@
 #define F_MIXED   (1 << 16)
 #define F_WAVE    (1 << 17)
 #define F_PSL     (1 << 18)
-#define F_DEFINE  (1 << 19)
 #define F_TCL     (1 << 20)
 #define F_GTKW    (1 << 21)
 #define F_NOCOLL  (1 << 22)
@@ -114,6 +113,8 @@ struct param {
    param_t      *next;
 };
 
+#define MAX_DEFINES 10
+
 struct test {
    char      *name;
    test_t    *next;
@@ -125,7 +126,8 @@ struct test {
    unsigned   olevel;
    char      *heapsz;
    char      *cover;
-   char      *define;
+   char      *defines[MAX_DEFINES];
+   int       n_defines;
    char      *export;
    char      *plusarg;
    unsigned   arrays;
@@ -475,14 +477,17 @@ static bool parse_test_list(void)
          }
          else if (strncmp(opt, "define", 6) == 0) {
             char *value = strchr(opt, '=');
+
             if (value == NULL) {
                fprintf(stderr, "Error on testlist line %d: missing argument to "
                        "define option in test %s\n", lineno, name);
                goto out_close;
             }
 
-            test->flags |= F_DEFINE;
-            test->define = strdup(value + 1);
+            assert(test->n_defines <= MAX_DEFINES);
+
+            test->defines[test->n_defines] = strdup(value + 1);
+            test->n_defines++;
          }
          else if (strncmp(opt, "export", 6) == 0) {
             char *value = strchr(opt, '=');
@@ -869,8 +874,8 @@ static bool run_test(test_t *test)
       if (test->flags & F_PSL)
          push_arg(&args, "--psl");
 
-      if (test->flags & F_DEFINE)
-         push_arg(&args, "--define=%s", test->define);
+      for (int i = 0; i < test->n_defines; i++)
+         push_arg(&args, "--define=%s", test->defines[i]);
 
       push_arg(&args, "-e");
       push_arg(&args, "%s", test->name);
