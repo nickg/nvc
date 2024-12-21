@@ -28,6 +28,7 @@
 #include "hash.h"
 #include "scan.h"
 #include "vlog/vlog-phase.h"
+#include "vlog/vlog-util.h"
 
 #include <assert.h>
 
@@ -201,17 +202,31 @@ static void convert_line_ending(void)
    begin_token(vlogpp_text, vlogpp_leng);
 }
 
-static void define_macro(void)
+static void init_macros(void)
 {
-   char *copy = xstrdup(tb_get(macro_text));
+   if (macros != NULL)
+      return;
+
+   macros = shash_new(64);
+}
+
+void define_macro(void)
+{
+   char LOCAL *copy = xstrdup(tb_get(macro_text));
 
    strip_whitespace(macro_name);
    strip_whitespace(copy);
 
-   shash_put(macros, macro_name, copy);
+   vlog_pp_define_macro(macro_name, copy);
 
    macro_name = NULL;
    tb_rewind(macro_text);
+}
+
+void vlog_pp_define_macro(const char *name, char *val)
+{
+   init_macros();
+   shash_put(macros, name, xstrdup(val));
 }
 
 static void undef_macro(void)
@@ -246,8 +261,7 @@ static void pop_ifdef(void)
 
 void vlog_preprocess(text_buf_t *tb)
 {
-   assert(macros == NULL);
-   macros = shash_new(64);
+   init_macros();
 
    assert(macro_text == NULL);
    macro_text = tb_new();
@@ -267,9 +281,6 @@ void vlog_preprocess(text_buf_t *tb)
       error_at(&(ifdefs->loc), "no corresponding `endif before end of file");
       pop_ifdef();
    }
-
-   shash_free(macros);
-   macros = NULL;
 
    free(macro_name);
    macro_name = NULL;

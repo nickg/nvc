@@ -37,6 +37,7 @@
 #include "vhpi/vhpi-util.h"
 #include "vlog/vlog-node.h"
 #include "vlog/vlog-phase.h"
+#include "vlog/vlog-util.h"
 #include "vpi/vpi-model.h"
 
 #include <getopt.h>
@@ -140,12 +141,16 @@ static void missing_argument(const char *what, char **argv)
 
 static void parse_pp_define(char *optarg)
 {
-   char *eq = strchr(optarg, '=');
-   if (eq == NULL)
-      fatal("$bold$--define$$ argument must be KEY=VALUE");
+   char *val = strchr(optarg, '=');
+   if (val == NULL)
+      val = "";
+   else {
+      *val = '\0';
+      val++;
+   }
 
-   *eq = '\0';
-   pp_defines_add(optarg, eq + 1);
+   pp_defines_add(optarg, val);
+   vlog_pp_define_macro(optarg, val);
 }
 
 static void do_file_list(const char *file, jit_t *jit, unit_registry_t *ur)
