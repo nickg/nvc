@@ -1084,4 +1084,4 @@ issue1094       normal,2008
 issue1060       fail,gold,vhpi
 ivtest5         verilog
 guard5          normal
-vlog14          verilog,define=FIRST_MACRO,define=SECOND_MACRO="VALUE_OF_SECOND_MACRO",gold
+vlog14          verilog,define=MACRO_A,define=MACRO_B="DEADBEEF",gold,!windows

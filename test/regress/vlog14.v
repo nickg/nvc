@@ -5,11 +5,11 @@ module vlog14;
   initial begin
     #1;
 
-`ifdef FIRST_MACRO
-    $display("FIRST MACRO WAS DEFINED OK !");
+`ifdef MACRO_A
+    $display("MACRO_A WAS DEFINED OK !");
 `endif
 
-    $display(`SECOND_MACRO);
+    $display(`MACRO_B);
 
   end
 endmodule // vlog14
