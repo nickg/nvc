@@ -642,32 +642,18 @@ static void free_waveform(rt_model_t *m, waveform_t *w)
 
 static void cleanup_nexus(rt_model_t *m, rt_nexus_t *n)
 {
-   for (rt_source_t *s = &(n->sources), *tmp; s; s = tmp) {
-      tmp = s->chain_input;
+   for (rt_source_t *s = &(n->sources); s; s = s->chain_input) {
+      if (s->tag != SOURCE_PORT)
+         continue;
 
-      switch (s->tag) {
-      case SOURCE_DRIVER:
-         for (waveform_t *it = s->u.driver.waveforms.next, *next;
-              it; it = next) {
-            next = it->next;
-            free_waveform(m, it);
-         }
-         break;
-
-      case SOURCE_PORT:
-         if (s->u.port.conv_func != NULL) {
-            free(s->u.port.conv_func->inputs);
-            s->u.port.conv_func->inputs = NULL;
-         }
-         break;
-
-      case SOURCE_FORCING:
-      case SOURCE_DEPOSIT:
-      case SOURCE_IMPLICIT:
-         break;
+      rt_conv_func_t *cf = s->u.port.conv_func;
+      if (cf == NULL)
+         continue;
+      else if (cf->inputs != NULL && cf->inputs != cf->tail) {
+         free(cf->inputs);
+         s->u.port.conv_func->inputs = NULL;
       }
    }
-
 
    if (n->pending != NULL && pointer_tag(n->pending) == 0)
       free(n->pending);
@@ -1521,9 +1507,17 @@ static void add_conversion_input(rt_model_t *m, rt_conv_func_t *cf,
                                  rt_nexus_t *in)
 {
    if (cf->ninputs == cf->maxinputs) {
-      cf->maxinputs = MAX(cf->maxinputs * 2, 4);
-      cf->inputs = xrealloc_array(cf->inputs, cf->maxinputs,
-                                  sizeof(conv_input_t));
+      const size_t per_block = MEMBLOCK_ALIGN / sizeof(conv_input_t);
+      cf->maxinputs = ALIGN_UP(MAX(4, cf->maxinputs * 2), per_block);
+
+      if (cf->inputs == cf->tail) {
+         void *new = xmalloc_array(cf->maxinputs, sizeof(conv_input_t));
+         memcpy(new, cf->inputs, cf->ninputs * sizeof(conv_input_t));
+         cf->inputs = new;
+      }
+      else
+         cf->inputs = xrealloc_array(cf->inputs, cf->maxinputs,
+                                     sizeof(conv_input_t));
    }
 
    cf->inputs[cf->ninputs++] = (conv_input_t){
@@ -4638,13 +4632,21 @@ void *x_port_conversion(const ffi_closure_t *driving,
       TRACE("effective value conversion %s context %p",
             istr(jit_get_name(m->jit, effective->handle)), effective->context);
 
-   rt_conv_func_t *cf = static_alloc(m, sizeof(rt_conv_func_t));
+   const size_t tail_bytes = ALIGN_UP(sizeof(rt_conv_func_t), MEMBLOCK_ALIGN)
+      - sizeof(rt_conv_func_t);
+   const int tail_max_inputs = tail_bytes / sizeof(conv_input_t);
+   assert(tail_max_inputs > 0);
+
+   const size_t total_bytes =
+      sizeof(rt_conv_func_t) + tail_max_inputs * sizeof(conv_input_t);
+
+   rt_conv_func_t *cf = static_alloc(m, total_bytes);
    cf->driving   = *driving;
    cf->effective = *effective;
    cf->ninputs   = 0;
-   cf->maxinputs = 0;
+   cf->maxinputs = tail_max_inputs;
    cf->outputs   = NULL;
-   cf->inputs    = NULL;
+   cf->inputs    = cf->tail;
    cf->when      = TIME_HIGH;
    cf->iteration = UINT_MAX;
 

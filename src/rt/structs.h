@@ -138,6 +138,7 @@ typedef struct _rt_conv_func {
    rt_source_t   *outputs;
    uint64_t       when;
    unsigned       iteration;
+   conv_input_t   tail[];
 } rt_conv_func_t;
 
 typedef struct {
