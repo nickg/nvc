@@ -3714,9 +3714,18 @@ static uint64_t nexus_last_active(rt_model_t *m, rt_nexus_t *nexus)
 
    if (nexus->n_sources > 0) {
       for (rt_source_t *s = &(nexus->sources); s; s = s->chain_input) {
-         if (s->tag == SOURCE_PORT) {
-            RT_LOCK(s->u.port.input->signal->lock);
-            last = MIN(last, nexus_last_active(m, s->u.port.input));
+          if (s->tag == SOURCE_PORT) {
+            rt_conv_func_t *cf = s->u.port.conv_func;
+            if (cf == NULL) {
+               RT_LOCK(s->u.port.input->signal->lock);
+               last = MIN(last, nexus_last_active(m, s->u.port.input));
+            }
+            else {
+               for (int i = 0; i < cf->ninputs; i++) {
+                  RT_LOCK(cf->inputs[i]->signal->lock);
+                  last = MIN(last, nexus_last_active(m, cf->inputs[i].nexus));
+               }
+            }
          }
          else if (s->tag == SOURCE_DRIVER
                   && s->u.driver.waveforms.when <= m->now)
