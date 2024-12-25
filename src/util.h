@@ -417,42 +417,6 @@ void *pool_calloc(mem_pool_t *mp, size_t size);
 void *pool_malloc_array(mem_pool_t *mp, size_t nelems, size_t size);
 void pool_stats(mem_pool_t *mp, size_t *alloc, size_t *npages);
 
-typedef struct _ptr_list {
-   unsigned  count;
-   unsigned  max;
-   void     *items[0];
-} *ptr_list_t;
-
-#define LOCAL_LIST __attribute__((cleanup(list_free))) ptr_list_t
-
-typedef int (*list_cmp_fn_t)(const void *, const void *);
-
-void list_add(ptr_list_t *l, void *item);
-void list_free(ptr_list_t *l);
-void list_sort(ptr_list_t *l, list_cmp_fn_t cmp);
-void list_clear(ptr_list_t *l);
-
-#define list_size(l) ((l) == NULL ? 0 : (l)->count)
-
-#define list_get(l, nth) ({                  \
-         typeof (nth) __nth = (nth);         \
-         typeof (l) __l = (l);               \
-         assert(__nth < list_size(__l));     \
-         (__l)->items[(__nth)];              \
-      })
-
-#define list_start(l) ((l) == NULL ? NULL : (l)->items)
-#define list_end(l) ((l) == NULL ? NULL : (l)->items + (l)->count)
-
-#define list_iter(type, it, list)                      \
-   typeof(type) it,                                   \
-      *__p = (typeof(__p))list_start(list),            \
-      *__end = (typeof(__end))list_end(list);          \
-   __p != __end && (it = *__p, 1); __p++               \
-
-#define list_foreach(type, it, list) \
-   for (list_iter(type, it, list))
-
 #define INIT_ONCE(body) do {                    \
       static volatile int __done = 0;           \
       if (!load_acquire(&__done)) {             \

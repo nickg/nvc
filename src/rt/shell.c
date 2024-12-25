@@ -279,7 +279,9 @@ static void recreate_objects(tcl_shell_t *sh, rt_scope_t *scope,
          watch_signal(ss);
    }
 
-   for (list_iter(rt_alias_t *, a, scope->aliases)) {
+   for (int i = 0; i < scope->aliases.count; i++) {
+      rt_alias_t *a = scope->aliases.items[i];
+
       shell_signal_t *ss = (*sptr)++;
       assert(ss->obj.name == ident_downcase(tree_ident(a->where)));
       ss->signal = a->signal;
@@ -1343,7 +1345,7 @@ bool shell_eval(tcl_shell_t *sh, const char *script, const char **result)
 static void count_objects(rt_scope_t *scope, unsigned *nsignals,
                           unsigned *nregions)
 {
-   *nsignals += scope->signals.count + list_size(scope->aliases);
+   *nsignals += scope->signals.count + scope->aliases.count;
    *nregions += 1;
 
    for (int i = 0; i < scope->children.count;i ++)
@@ -1378,7 +1380,9 @@ static void recurse_objects(tcl_shell_t *sh, rt_scope_t *scope,
       hash_put(sh->namemap, ss->obj.path, &(ss->obj));
    }
 
-   list_foreach(rt_alias_t *, a, scope->aliases) {
+   for (int i = 0; i < scope->aliases.count; i++) {
+      rt_alias_t *a = scope->aliases.items[i];
+
       shell_signal_t *ss = (*sptr)++;
       ss->signal = a->signal;
       ss->obj.kind = SHELL_SIGNAL;

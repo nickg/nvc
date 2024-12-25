@@ -32,6 +32,8 @@ typedef void *(*value_fn_t)(rt_nexus_t *);
 typedef A(rt_scope_t *) scope_list_t;
 typedef A(rt_prop_t *) prop_list_t;
 typedef A(rt_signal_t *) signal_list_t;
+typedef A(rt_proc_t *) proc_list_t;
+typedef A(rt_alias_t *) alias_list_t;
 
 typedef enum {
    W_PROC, W_WATCH, W_IMPLICIT, W_PROPERTY, W_TRANSFER,
@@ -250,8 +252,8 @@ typedef enum {
 
 typedef struct _rt_scope {
    signal_list_t    signals;
-   ptr_list_t       procs;
-   ptr_list_t       aliases;
+   proc_list_t      procs;
+   alias_list_t     aliases;
    prop_list_t      properties;
    rt_scope_kind_t  kind;
    rt_scope_flags_t flags;

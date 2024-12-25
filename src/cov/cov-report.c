@@ -91,9 +91,11 @@ typedef struct {
    cover_chain_t   functional;
 } cover_chain_group_t;
 
+typedef A(cover_item_t *) item_ptr_array_t;
+
 struct _cover_rpt_file_ctx {
    cover_file_t         *file;
-   ptr_list_t            items;
+   item_ptr_array_t      items;
    cover_stats_t         stats;
    cover_chain_group_t   chns;
 } ;
@@ -1512,7 +1514,7 @@ static cover_rpt_file_ctx_t *cover_rpt_file_collect_scope(
          (*n_ctxs)++;
       }
 
-      int l_size = list_size(curr_ctx->items);
+      int l_size = curr_ctx->items.count;
 
       // Upon first scope being placed into the file, copy directly.
       // This optimizes for use-case where there is single scope with many
@@ -1521,7 +1523,7 @@ static cover_rpt_file_ctx_t *cover_rpt_file_collect_scope(
       // then this will not help.
       if (l_size == 0) {
          for (int i = 0; i < s->items.count; i++)
-            list_add(&(curr_ctx->items), AREF(s->items, i));
+            APUSH(curr_ctx->items, AREF(s->items, i));
       }
       else {
          // Walk scope items and check if they exist in file items.
@@ -1532,7 +1534,9 @@ static cover_rpt_file_ctx_t *cover_rpt_file_collect_scope(
 
             bool found = false;
 
-            list_foreach(cover_item_t *, file_item, curr_ctx->items) {
+            for (int i = 0; i < curr_ctx->items.count; i++) {
+               cover_item_t *file_item = curr_ctx->items.items[i];
+
                // We must take into account:
                //    - kind   - different kind items can be at the same loc
                //    - loc    - to get aggregated per-file data
@@ -1547,7 +1551,7 @@ static cover_rpt_file_ctx_t *cover_rpt_file_collect_scope(
             }
 
             if (!found)
-               list_add(&(curr_ctx->items), scope_item);
+               APUSH(curr_ctx->items, scope_item);
          }
       }
    }
@@ -1594,9 +1598,9 @@ static void cover_report_per_file(FILE *top_f, cover_data_t *data, char *subdir)
 
       int skipped = 0;
 
-      for (int j = 0; j < list_size(ctx->items);) {
+      for (int j = 0; j < ctx->items.count;) {
          int step = 1;
-         cover_item_t *item = list_get(ctx->items, j);
+         cover_item_t *item = ctx->items.items[j];
          cover_line_t *line = &(ctx->file->lines[item->loc.first_line-1]);
          cover_stats_t nested;
 

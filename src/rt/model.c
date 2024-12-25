@@ -119,7 +119,7 @@ typedef struct _rt_model {
    nvc_lock_t         memlock;
    memblock_t        *memblocks;
    model_thread_t    *threads[MAX_THREADS];
-   ptr_list_t         eventsigs;
+   signal_list_t      eventsigs;
    bool               shuffle;
    bool               liveness;
    rt_trigger_t      *triggertab[TRIGGER_TAB_SIZE];
@@ -492,7 +492,7 @@ static void scope_for_block(rt_model_t *m, tree_t block, rt_scope_t *parent)
             p->wakeable.postponed = false;
             p->wakeable.delayed   = false;
 
-            list_add(&s->procs, p);
+            APUSH(s->procs, p);
          }
          break;
 
@@ -513,7 +513,7 @@ static void scope_for_block(rt_model_t *m, tree_t block, rt_scope_t *parent)
             p->wakeable.postponed = !!(tree_flags(t) & TREE_F_POSTPONED);
             p->wakeable.delayed   = false;
 
-            list_add(&s->procs, p);
+            APUSH(s->procs, p);
          }
          break;
 
@@ -672,21 +672,21 @@ static void cleanup_signal(rt_model_t *m, rt_signal_t *s)
 
 static void cleanup_scope(rt_model_t *m, rt_scope_t *scope)
 {
-   list_foreach(rt_proc_t *, it, scope->procs) {
-      mptr_free(m->mspace, &(it->privdata));
-      tlab_release(it->tlab);
-      free(it);
+   for (int i = 0; i < scope->procs.count; i++) {
+      rt_proc_t *p = scope->procs.items[i];
+      mptr_free(m->mspace, &(p->privdata));
+      tlab_release(p->tlab);
+      free(p);
    }
-   list_free(&scope->procs);
+   ACLEAR(scope->procs);
 
    for (int i = 0; i < scope->signals.count; i++)
       cleanup_signal(m, scope->signals.items[i]);
    ACLEAR(scope->signals);
 
-   list_foreach(rt_alias_t *, it, scope->aliases) {
-      free(it);
-   }
-   list_free(&scope->aliases);
+   for (int i = 0; i < scope->aliases.count; i++)
+      free(scope->aliases.items[i]);
+   ACLEAR(scope->aliases);
 
    for (int i = 0; i < scope->properties.count; i++) {
       rt_prop_t *p = scope->properties.items[i];
@@ -762,7 +762,7 @@ void model_free(rt_model_t *m)
    heap_free(m->eventq_heap);
    hash_free(m->scopes);
    ihash_free(m->res_memo);
-   list_free(&m->eventsigs);
+   ACLEAR(m->eventsigs);
    free(m);
 }
 
@@ -778,9 +778,9 @@ rt_signal_t *find_signal(rt_scope_t *scope, tree_t decl)
          return scope->signals.items[i];
    }
 
-   list_foreach(rt_alias_t *, a, scope->aliases) {
-      if (a->where == decl)
-         return a->signal;
+   for (int i = 0; i < scope->aliases.count; i++) {
+      if (scope->aliases.items[i]->where == decl)
+         return scope->aliases.items[i]->signal;
    }
 
    return NULL;
@@ -788,9 +788,9 @@ rt_signal_t *find_signal(rt_scope_t *scope, tree_t decl)
 
 rt_proc_t *find_proc(rt_scope_t *scope, tree_t proc)
 {
-   list_foreach(rt_proc_t *, p, scope->procs) {
-      if (p->where == proc)
-         return p;
+   for (int i = 0; i < scope->procs.count; i++) {
+      if (scope->procs.items[i]->where == proc)
+         return scope->procs.items[i];
    }
 
    return NULL;
@@ -1068,8 +1068,8 @@ static void reset_scope(rt_model_t *m, rt_scope_t *s)
    for (int i = 0; i < s->children.count; i++)
       reset_scope(m, s->children.items[i]);
 
-   list_foreach(rt_proc_t *, p, s->procs)
-      reset_process(m, p);
+   for (int i = 0; i < s->procs.count; i++)
+      reset_process(m, s->procs.items[i]);
 
    for (int i = 0; i < s->properties.count; i++)
       reset_property(m, s->properties.items[i]);
@@ -2291,8 +2291,10 @@ static void dump_signals(rt_model_t *m, rt_scope_t *scope)
    for (int i = 0; i < scope->signals.count; i++)
       dump_one_signal(m, scope, scope->signals.items[i], NULL);
 
-   for (list_iter(rt_alias_t *, a, scope->aliases))
+   for (int i = 0; i < scope->aliases.count; i++) {
+      rt_alias_t *a = scope->aliases.items[i];
       dump_one_signal(m, scope, a->signal, a->where);
+   }
 
    for (int i = 0; i < scope->children.count; i++) {
       rt_scope_t *c = scope->children.items[i];
@@ -3222,7 +3224,8 @@ static void reached_iteration_limit(rt_model_t *m)
 
 static void sync_event_cache(rt_model_t *m)
 {
-   list_foreach(rt_signal_t *, s, m->eventsigs) {
+   for (int i = 0; i < m->eventsigs.count; i++) {
+      rt_signal_t *s = m->eventsigs.items[i];
       assert(s->shared.flags & SIG_F_CACHE_EVENT);
 
       const bool event = s->nexus.last_event == m->now
@@ -3984,7 +3987,7 @@ int32_t x_test_net_event(sig_shared_t *ss, uint32_t offset, int32_t count)
       assert(!(ss->flags & SIG_F_CACHE_EVENT));   // Should have taken fast-path
       ss->flags |= SIG_F_CACHE_EVENT | (result ? SIG_F_EVENT_FLAG : 0);
       s->nexus.flags |= NET_F_CACHE_EVENT;
-      list_add(&m->eventsigs, s);
+      APUSH(m->eventsigs, s);
    }
 
    return result;
@@ -4073,7 +4076,7 @@ void x_alias_signal(sig_shared_t *ss, tree_t where)
    a->signal = s;
 
    model_thread_t *thread = model_thread(get_model());
-   list_add(&thread->active_scope->aliases, a);
+   APUSH(thread->active_scope->aliases, a);
 }
 
 int64_t x_last_event(sig_shared_t *ss, uint32_t offset, int32_t count)
@@ -4543,7 +4546,7 @@ void x_process_init(jit_handle_t handle, tree_t where)
    p->wakeable.postponed = false;
    p->wakeable.delayed   = false;
 
-   list_add(&s->procs, p);
+   APUSH(s->procs, p);
 }
 
 void *x_function_trigger(jit_handle_t handle, unsigned nargs,
