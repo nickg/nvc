@@ -331,12 +331,14 @@ static void object_init(object_class_t *class)
    assert(class->tag < ARRAY_LEN(classes));
    classes[class->tag] = class;
 
+#ifdef DEBUG
    imask_t all_items = 0;
+#endif
 
    for (int i = 0; i < class->last_kind; i++) {
       const int nitems = __builtin_popcountll(class->has_map[i]);
       class->object_size[i] = sizeof(object_t) + (nitems * sizeof(item_t));
-      all_items |= class->has_map[i];
+      DEBUG_ONLY(all_items |= class->has_map[i]);
 
       // Knuth's multiplicative hash
       format_digest +=
