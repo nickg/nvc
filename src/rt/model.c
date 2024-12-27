@@ -56,16 +56,24 @@ typedef enum {
    EVENT_PROCESS,
 } event_kind_t;
 
-#define MEMBLOCK_LINE_SZ 64
+#define MEMBLOCK_ALIGN   64
 #define MEMBLOCK_PAGE_SZ 0x800000
 #define TRIGGER_TAB_SIZE 64
 
+#if __SANITIZE_ADDRESS__
+#define MEMBLOCK_REDZONE 16
+#else
+#define MEMBLOCK_REDZONE 0
+#endif
+
 typedef struct _memblock {
    memblock_t *chain;
-   unsigned    free;
-   unsigned    pagesz;
-   char       *ptr;
+   size_t      alloc;
+   size_t      limit;
+   uint8_t     data[];
 } memblock_t;
+
+STATIC_ASSERT(sizeof(memblock_t) <= MEMBLOCK_ALIGN);
 
 typedef struct {
    waveform_t    *free_waveforms;
@@ -402,25 +410,31 @@ static void deferq_run(rt_model_t *m, deferq_t *dq)
 
 static void *static_alloc(rt_model_t *m, size_t size)
 {
-   const int nlines = ALIGN_UP(size, MEMBLOCK_LINE_SZ) / MEMBLOCK_LINE_SZ;
+   const int total_bytes = ALIGN_UP(size + MEMBLOCK_REDZONE, MEMBLOCK_ALIGN);
 
    RT_LOCK(m->memlock);
 
    memblock_t *mb = m->memblocks;
-   if (mb == NULL || mb->free < nlines) {
-      mb = xmalloc(sizeof(memblock_t));
-      mb->pagesz = MAX(MEMBLOCK_PAGE_SZ, nlines * MEMBLOCK_LINE_SZ);
-      mb->chain  = m->memblocks;
-      mb->free   = mb->pagesz / MEMBLOCK_LINE_SZ;
-      mb->ptr    = map_huge_pages(MEMBLOCK_LINE_SZ, mb->pagesz);
+
+   if (mb == NULL || mb->alloc + total_bytes > mb->limit) {
+      const size_t pagesz =
+         MAX(MEMBLOCK_PAGE_SZ, total_bytes + 2 * MEMBLOCK_ALIGN);
+
+      mb = map_huge_pages(MEMBLOCK_ALIGN, pagesz);
+      mb->alloc = MEMBLOCK_ALIGN;
+      mb->limit = pagesz - MEMBLOCK_ALIGN;   // Allow overreading in intrinsics
+
+      ASAN_POISON(mb->data, pagesz - sizeof(memblock_t));
 
       m->memblocks = mb;
    }
 
-   assert(nlines <= mb->free);
+   assert((mb->alloc & (MEMBLOCK_ALIGN - 1)) == 0);
 
-   void *ptr = mb->ptr + mb->pagesz - mb->free * MEMBLOCK_LINE_SZ;
-   mb->free -= nlines;
+   void *ptr = (void *)mb + mb->alloc;
+   mb->alloc += total_bytes;
+
+   ASAN_UNPOISON(ptr, size);
    return ptr;
 }
 
@@ -712,7 +726,7 @@ void model_free(rt_model_t *m)
 
       unsigned mem = 0;
       for (memblock_t *mb = m->memblocks; mb; mb = mb->chain)
-         mem += mb->pagesz - (MEMBLOCK_LINE_SZ * mb->free);
+         mem += mb->alloc;
 
       notef("setup:%ums run:%ums user:%ums sys:%ums maxrss:%ukB static:%ukB",
             m->ready_rusage.ms, ru.ms, ru.user, ru.sys, ru.rss, mem / 1024);
@@ -753,8 +767,7 @@ void model_free(rt_model_t *m)
 
    for (memblock_t *mb = m->memblocks, *tmp; mb; mb = tmp) {
       tmp = mb->chain;
-      nvc_munmap(mb->ptr, MEMBLOCK_PAGE_SZ);
-      free(mb);
+      nvc_munmap(mb, mb->limit + MEMBLOCK_ALIGN);
    }
 
    heap_free(m->effective_heap);
