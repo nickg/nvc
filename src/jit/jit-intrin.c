@@ -1852,7 +1852,7 @@ jit_entry_fn_t jit_bind_intrinsic(ident_t name)
    INIT_ONCE({
          const bool want_intrinsics = !!opt_get_int(OPT_JIT_INTRINSICS);
 
-#if __SANITIZE_ADDRESS__
+#if ASAN_ENABLED
          const bool want_vector = false;   // Reads past end of input (benign)
 #else
          const bool want_vector = !!opt_get_int(OPT_VECTOR_INTRINSICS);

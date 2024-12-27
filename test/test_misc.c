@@ -21,6 +21,7 @@
 #include "ident.h"
 #include "mask.h"
 #include "option.h"
+#include "rt/copy.h"
 #include "rt/heap.h"
 #include "thread.h"
 #include "util.h"
@@ -765,6 +766,62 @@ START_TEST(test_pool_stats)
 }
 END_TEST
 
+START_TEST(test_cmp_bytes)
+{
+   unsigned char a[50 + 15], b[50 + 15];
+
+   for (int i = 0; i < ARRAY_LEN(a); i++)
+      a[i] = b[i] = i;
+
+   for (int size = 0; size < 50; size++) {
+      a[size + 1] = 200;
+      b[size + 1] = 201;
+      ck_assert(cmp_bytes(a, b, size));
+
+      for (int diffpos = 0; diffpos < size; diffpos++) {
+         a[diffpos] = 255;
+         ck_assert(!cmp_bytes(a, b, size));
+         a[diffpos] = diffpos;
+
+         b[diffpos] = 255;
+         ck_assert(!cmp_bytes(a, b, size));
+         b[diffpos] = diffpos;
+      }
+
+      a[size + 1] = b[size + 1] = size + 1;
+   }
+}
+END_TEST
+
+START_TEST(test_copy2)
+{
+   unsigned char a[50 + 15], b[50 + 15], c[50 + 15];
+
+   for (int i = 0; i < ARRAY_LEN(a); i++)
+      c[i] = 100 + i;
+
+   for (int size = 0; size < 50; size++) {
+      for (int i = 0; i < ARRAY_LEN(a); i++) {
+         a[i] = 255;
+         b[i] = i;
+      }
+
+      copy2(a, b, c, size);
+
+      for (int i = 0; i < ARRAY_LEN(a); i++) {
+         if (i < size) {
+            ck_assert_int_eq(a[i], i);
+            ck_assert_int_eq(b[i], 100 + i);
+         }
+         else {
+            ck_assert_int_eq(a[i], 255);
+            ck_assert_int_eq(b[i], i);
+         }
+      }
+   }
+}
+END_TEST
+
 Suite *get_misc_tests(void)
 {
    Suite *s = suite_create("misc");
@@ -815,6 +872,11 @@ Suite *get_misc_tests(void)
    tcase_add_test(tc_pool, test_pool_basic);
    tcase_add_test(tc_pool, test_pool_stats);
    suite_add_tcase(s, tc_pool);
+
+   TCase *tc_copy = tcase_create("copy");
+   tcase_add_test(tc_pool, test_cmp_bytes);
+   tcase_add_test(tc_pool, test_copy2);
+   suite_add_tcase(s, tc_copy);
 
    return s;
 }

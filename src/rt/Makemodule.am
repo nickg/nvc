@@ -20,7 +20,9 @@ lib_libnvc_a_SOURCES += \
 	src/rt/reflect.c \
 	src/rt/assert.c \
 	src/rt/assert.h \
-	src/rt/ename.c
+	src/rt/ename.c \
+	src/rt/copy.h \
+	src/rt/copy.c
 
 if ENABLE_TCL
 lib_libnvc_a_SOURCES += \

@@ -27,6 +27,7 @@
 #include "option.h"
 #include "psl/psl-node.h"
 #include "rt/assert.h"
+#include "rt/copy.h"
 #include "rt/heap.h"
 #include "rt/model.h"
 #include "rt/structs.h"
@@ -60,7 +61,7 @@ typedef enum {
 #define MEMBLOCK_PAGE_SZ 0x800000
 #define TRIGGER_TAB_SIZE 64
 
-#if __SANITIZE_ADDRESS__
+#if ASAN_ENABLED
 #define MEMBLOCK_REDZONE 16
 #else
 #define MEMBLOCK_REDZONE 0
@@ -1216,7 +1217,7 @@ static void copy_value_ptr(rt_nexus_t *n, rt_value_t *v, const void *p)
 {
    const size_t valuesz = n->width * n->size;
    if (valuesz <= sizeof(rt_value_t)) {
-#if __SANITIZE_ADDRESS__
+#if ASAN_ENABLED
       memcpy(v->bytes, p, valuesz);
 #else
       v->qword = unaligned_load(p, uint64_t);
@@ -1224,23 +1225,6 @@ static void copy_value_ptr(rt_nexus_t *n, rt_value_t *v, const void *p)
    }
    else
       memcpy(v->ext, p, valuesz);
-}
-
-static inline bool cmp_bytes(const void *a, const void *b, size_t size)
-{
-   if (likely(size <= 128)) {
-      for (; size > 7; size -= 8, a += 8, b += 8) {
-         if (unaligned_load(a, uint64_t) != unaligned_load(b, uint64_t))
-            return false;
-      }
-      for (; size > 0; size--, a++, b++) {
-         if (*(const uint8_t *)a != *(const uint8_t *)b)
-            return false;
-      }
-      return true;
-   }
-   else
-      return memcmp(a, b, size) == 0;
 }
 
 static inline bool cmp_values(rt_nexus_t *n, rt_value_t a, rt_value_t b)
@@ -2886,38 +2870,19 @@ static void notify_event(rt_model_t *m, rt_nexus_t *n)
    }
 }
 
-static inline bool is_event(rt_nexus_t *nexus, const void *new)
-{
-   const size_t valuesz = nexus->size * nexus->width;
-   const void *effective = nexus_effective(nexus);
-
-   if (valuesz == 1)
-      return *(const uint8_t *)effective != *(const uint8_t *)new;
-   else
-      return !cmp_bytes(effective, new, valuesz);
-}
-
 static void put_effective(rt_model_t *m, rt_nexus_t *n, const void *value)
 {
    TRACE("update %s effective value %s", trace_nexus(n), fmt_nexus(n, value));
 
-   if (!is_event(n, value))
-      return;
-
    unsigned char *eff = nexus_effective(n);
    unsigned char *last = nexus_last_value(n);
 
-   if (n->size == 1 && n->width == 1) {
-      *last = *eff;
-      *eff = *(unsigned char *)value;
-   }
-   else {
-      const size_t valuesz = n->size * n->width;
-      memcpy(last, eff, valuesz);
-      memcpy(eff, value, valuesz);
-   }
+   const size_t valuesz = n->size * n->width;
 
-   notify_event(m, n);
+   if (!cmp_bytes(eff, value, valuesz)) {
+      copy2(last, eff, value, valuesz);
+      notify_event(m, n);
+   }
 }
 
 static void enqueue_effective(rt_model_t *m, rt_nexus_t *n)

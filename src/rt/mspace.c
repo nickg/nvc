@@ -62,7 +62,7 @@ typedef struct {
    bit_mask_t        markmask;
    work_list_t       worklist;
    struct cpu_state  cpu[MAX_THREADS];
-#if __SANITIZE_ADDRESS__
+#if ASAN_ENABLED
    void             *fake_stack[MAX_THREADS];
 #endif
 } gc_state_t;
@@ -446,7 +446,7 @@ static void mspace_suspend_cb(int thread_id, struct cpu_state *cpu, void *arg)
    gc_state_t *state = arg;
    assert(thread_id < MAX_THREADS);
    state->cpu[thread_id] = *cpu;
-#if __SANITIZE_ADDRESS__
+#if ASAN_ENABLED
    state->fake_stack[thread_id] = __asan_get_current_fake_stack();
 #endif
 }
@@ -489,7 +489,7 @@ static void mspace_gc(mspace_t *m)
       for (intptr_t *p = stack_top; p < limit; p++) {
          mspace_mark_root(m, *p, &state);
 
-#if __SANITIZE_ADDRESS__
+#if ASAN_ENABLED
          // Address sanitiser relocates possibly-escaping stack
          // allocations to a "fake stack" on the heap which we also need
          // to scan to find roots
@@ -527,7 +527,7 @@ static void mspace_gc(mspace_t *m)
       }
    }
 
-#if __SANITIZE_ADDRESS__
+#if ASAN_ENABLED
    for (int i = 0; i < m->maxlines; i++) {
       if (!mask_test(&(state.markmask), i))
          ASAN_POISON(m->space + i * LINE_SIZE, LINE_SIZE);

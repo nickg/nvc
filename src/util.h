@@ -51,7 +51,13 @@
 
 #define STATIC_ASSERT(x) _Static_assert((x), "Static assertion failed");
 
-#if __SANITIZE_ADDRESS__
+#if defined __has_feature   // Clang
+#define ASAN_ENABLED __has_feature(address_sanitizer)
+#elif defined __SANITIZE_ADDRESS__    // GCC
+#define ASAN_ENABLED 1
+#endif
+
+#if ASAN_ENABLED
 #include <sanitizer/asan_interface.h>
 
 #define ASAN_POISON(addr, size) ASAN_POISON_MEMORY_REGION(addr, size)

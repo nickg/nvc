@@ -60,7 +60,7 @@ typedef struct _object_arena {
    bool            has_locus;
 } object_arena_t;
 
-#ifndef __SANITIZE_ADDRESS__
+#if !ASAN_ENABLED
 #define OBJECT_UNMAP_UNUSED 1
 #endif
 

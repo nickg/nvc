@@ -117,7 +117,7 @@
 #define POOL_PAGE_MIN   POOL_PAGE_4K
 #define POOL_PAGE_MAX   POOL_PAGE_1M
 
-#if __SANITIZE_ADDRESS__
+#if ASAN_ENABLED
 #define POOL_REDZONE 16
 #else
 #define POOL_REDZONE 0
@@ -1232,7 +1232,7 @@ int64_t ipow(int64_t x, int64_t y)
    return result;
 }
 
-#ifndef __SANITIZE_ADDRESS__
+#if !ASAN_ENABLED
 static long nvc_page_size(void)
 {
 #ifdef __MINGW32__
@@ -1247,7 +1247,7 @@ static long nvc_page_size(void)
 
 void nvc_munmap(void *ptr, size_t length)
 {
-#if __SANITIZE_ADDRESS__
+#if ASAN_ENABLED
    free(ptr);
 #elif !defined __MINGW32__
    if (munmap(ptr, length) != 0)
@@ -1260,7 +1260,7 @@ void nvc_munmap(void *ptr, size_t length)
 
 void *nvc_memalign(size_t align, size_t sz)
 {
-#if __SANITIZE_ADDRESS__
+#if ASAN_ENABLED
    void *ptr;
    if (posix_memalign(&ptr, align, sz) != 0)
       fatal_errno("posix_memalign");
@@ -1311,7 +1311,7 @@ void nvc_memprotect(void *ptr, size_t length, mem_access_t prot)
    if (length > 0 && !VirtualProtect(ptr, length, map[prot], &old_prot))
       fatal_errno("VirtualProtect");
 #else
-#if __SANITIZE_ADDRESS__
+#if ASAN_ENABLED
    // LeakSanitizer will not detect leaks in regions mapped read-only
    if (prot == MEM_RO || prot == MEM_NONE)
       return;
