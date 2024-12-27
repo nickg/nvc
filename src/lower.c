@@ -12140,23 +12140,9 @@ static void lower_direct_mapped_port(lower_unit_t *lu, driver_set_t *ds,
 
    assert(tree_kind(port) == T_PORT_DECL);
 
-   const class_t class = tree_class(port);
-   if (class == C_SIGNAL) {
-      switch (tree_subkind(port)) {
-      case PORT_IN:
-         break;   // Always safe
-      case PORT_OUT:
-         if (!has_unique_driver(ds, port))
-            return;
-         break;
-      default:
-         return;
-      }
-   }
-
    tree_t value = tree_value(map);
 
-   if (class == C_VARIABLE) {
+   if (tree_class(port) == C_VARIABLE) {
       // Variable ports are always directly aliased to the actual
       // variable in the parent scope
       vcode_type_t vtype = lower_type(tree_type(port));
@@ -12170,6 +12156,8 @@ static void lower_direct_mapped_port(lower_unit_t *lu, driver_set_t *ds,
       hset_insert(direct, port);
       return;
    }
+   else if (tree_subkind(port) != PORT_IN)
+      return;    // Not safe in general
    else if (!lower_is_signal_ref(value) || tree_kind(value) == T_TYPE_CONV) {
       if (field != -1) {
          // We can't use direct mapping for this record element so make
@@ -12188,23 +12176,6 @@ static void lower_direct_mapped_port(lower_unit_t *lu, driver_set_t *ds,
 
    if (type_is_unconstrained(port_type))
       return;   // Not supported for now
-   else if (tree_subkind(port) == PORT_OUT) {
-      tree_t ref = name_to_ref(value);
-      assert(ref != NULL);
-
-      tree_t signal = tree_ref(ref);
-
-      // Ensure that the default value of the port is the same as the
-      // signal it is connected to
-
-      tree_t def1 = tree_has_value(signal) ? tree_value(signal) : NULL;
-      tree_t def2 = tree_has_value(port) ? tree_value(port) : NULL;
-
-      if (def1 != NULL && def2 != NULL && !same_tree(def1, def2))
-         return;
-      else if ((def1 != NULL) ^ (def2 != NULL))
-         return;
-   }
 
    int hops = 0;
    vcode_var_t var = lower_search_vcode_obj(port, lu, &hops);
@@ -12513,18 +12484,6 @@ static void lower_ports(lower_unit_t *lu, driver_set_t *ds, tree_t block)
          lower_port_signal(lu, port, port_vars[i], bounds_reg);
       else if (poison != NULL && hset_contains(poison, port))
          lower_port_signal(lu, port, port_vars[i], bounds_reg);
-      else if (tree_class(port) == C_SIGNAL && tree_subkind(port) != PORT_IN) {
-         // Any drivers for collapsed output ports must take their
-         // initial value from the port declaration
-         vcode_reg_t def_reg;
-         if (tree_has_value(port))
-            def_reg = lower_rvalue(lu, tree_value(port));
-         else
-            def_reg = lower_default_value(lu, type, VCODE_INVALID_REG);
-
-         vcode_reg_t nets_reg = lower_port_ref(lu, port);
-         lower_map_signal(lu, def_reg, nets_reg, type, type, port);
-      }
    }
 
    for (int i = 0; i < nparams; i++) {

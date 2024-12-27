@@ -1614,7 +1614,7 @@ START_TEST(test_bounds40)
    input_from_file(TESTDIR "/elab/bounds40.vhd");
 
    const error_t expect[] = {
-      { 12, "actual length 3 does not match port P length 8" },
+      { 32, "actual length 3 does not match formal length 8" },
       { -1, NULL }
    };
    expect_errors(expect);

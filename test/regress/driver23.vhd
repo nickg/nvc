@@ -25,7 +25,7 @@ begin
             wait for 0 ns;
             report to_string(p.x);
             report to_string(p.y);
-            assert p = ('X', X"50");    -- XXX: wrong, should be ('0', X"5Z");
+            assert p = ('0', X"5Z");
             assert p'driving_value = ('0', X"5Z");
             wait;
         end process;

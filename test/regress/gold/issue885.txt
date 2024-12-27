@@ -1,11 +1,11 @@
 0ms+10000: limit of 10000 delta cycles reached
     |
+  7 |         b : out std_logic_vector(1 downto 0)
+    |         ^ driver for port B is active
+ ...
  12 |     signal c : std_logic;
     |            ^ driver for signal C is active
  ...
  28 |         b : out std_logic_vector(1 downto 0) := "00"
     |         ^ driver for port B is active
- ...
- 46 |     signal b : std_logic_vector(1 downto 0);
-    |            ^ driver for signal B is active
     |
