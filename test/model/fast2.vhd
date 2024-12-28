@@ -8,14 +8,14 @@ begin
     p1: process is
         variable n : integer := 2;
     begin
-        x <= X"00";
+        x <= X"ff";
         for i in 1 to 8 loop
-            x(i) <= '1';
+            x(i) <= '0';
         end loop;
         wait for 1 ns;
-        x <= X"00";
+        x <= X"ff";
         wait for 1 ns;
-        x(n) <= '1';
+        x(n) <= '0';
 
         -- assert s = X"ff";
         -- s(4) <= '0' after 0 ns, '1' after 2 ns;

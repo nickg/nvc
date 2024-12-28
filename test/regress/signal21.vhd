@@ -23,7 +23,9 @@ begin
         assert x'event;
         assert x'active;
         x <= 5;
+        assert x'active;
         wait for 0 ns;
+        assert x'active;
         wait;
     end process;
 

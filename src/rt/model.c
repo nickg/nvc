@@ -1600,6 +1600,8 @@ static void clone_source(rt_model_t *m, rt_nexus_t *nexus,
             new->fastqueued = 1;
          }
 
+         new->was_active = old->was_active;
+
          // Future transactions
          for (w_old = w_old->next; w_old; w_old = w_old->next) {
             w_new = (w_new->next = alloc_waveform(m));
@@ -2580,18 +2582,18 @@ static inline bool insert_transaction(rt_model_t *m, rt_nexus_t *nexus,
    return already_scheduled;
 }
 
-static void sched_driver(rt_model_t *m, rt_nexus_t *nexus, uint64_t after,
+static void sched_driver(rt_model_t *m, rt_nexus_t *n, uint64_t after,
                          uint64_t reject, const void *value, rt_proc_t *proc)
 {
-   if (after == 0 && (nexus->flags & NET_F_FAST_DRIVER)) {
-      rt_source_t *d = &(nexus->sources);
-      assert(nexus->n_sources == 1);
+   if (after == 0 && (n->flags & NET_F_FAST_DRIVER)) {
+      rt_source_t *d = &(n->sources);
+      assert(n->n_sources == 1);
 
       waveform_t *w = &d->u.driver.waveforms;
       w->when = m->now;
       assert(w->next == NULL);
 
-      rt_signal_t *signal = nexus->signal;
+      rt_signal_t *signal = n->signal;
       rt_source_t *d0 = &(signal->nexus.sources);
 
       if (d->fastqueued)
@@ -2599,6 +2601,12 @@ static void sched_driver(rt_model_t *m, rt_nexus_t *nexus, uint64_t after,
       else if ((signal->shared.flags & NET_F_FAST_DRIVER) && d0->sigqueued) {
          assert(m->next_is_delta);
          d->fastqueued = 1;
+      }
+      else if (cmp_bytes(value, value_ptr(n, &w->value), n->width * n->size)) {
+         m->next_is_delta = true;
+         d->was_active = (n->active_delta == m->iteration);
+         n->active_delta = m->iteration + 1;
+         return;
       }
       else if (signal->shared.flags & NET_F_FAST_DRIVER) {
          deferq_do(&m->delta_driverq, async_fast_all_drivers, signal);
@@ -2612,36 +2620,36 @@ static void sched_driver(rt_model_t *m, rt_nexus_t *nexus, uint64_t after,
          d->fastqueued = 1;
       }
 
-      copy_value_ptr(nexus, &w->value, value);
+      copy_value_ptr(n, &w->value, value);
    }
    else {
-      rt_source_t *d = find_driver(nexus, proc);
+      rt_source_t *d = find_driver(n, proc);
       assert(d != NULL);
 
-      if ((nexus->flags & NET_F_FAST_DRIVER) && d->fastqueued) {
+      if ((n->flags & NET_F_FAST_DRIVER) && d->fastqueued) {
          // A fast update to this driver is already scheduled
          waveform_t *w0 = alloc_waveform(m);
          w0->when  = m->now;
          w0->next  = NULL;
-         w0->value = alloc_value(m, nexus);
+         w0->value = alloc_value(m, n);
 
-         const uint8_t *prev = value_ptr(nexus, &(d->u.driver.waveforms.value));
-         copy_value_ptr(nexus, &w0->value, prev);
+         const uint8_t *prev = value_ptr(n, &(d->u.driver.waveforms.value));
+         copy_value_ptr(n, &w0->value, prev);
 
          assert(d->u.driver.waveforms.next == NULL);
          d->u.driver.waveforms.next = w0;
       }
 
-      nexus->flags &= ~NET_F_FAST_DRIVER;
+      n->flags &= ~NET_F_FAST_DRIVER;
 
       waveform_t *w = alloc_waveform(m);
       w->when  = m->now + after;
       w->next  = NULL;
-      w->value = alloc_value(m, nexus);
+      w->value = alloc_value(m, n);
 
-      copy_value_ptr(nexus, &w->value, value);
+      copy_value_ptr(n, &w->value, value);
 
-      if (!insert_transaction(m, nexus, d, w, w->when, reject))
+      if (!insert_transaction(m, n, d, w, w->when, reject))
          deltaq_insert_driver(m, after, d);
    }
 }
@@ -3671,9 +3679,13 @@ static bool nexus_active(rt_model_t *m, rt_nexus_t *nexus)
                }
             }
          }
-         else if (s->tag == SOURCE_DRIVER && nexus->active_delta == m->iteration
-                  && s->u.driver.waveforms.when == m->now)
-            return true;
+         else if (s->tag == SOURCE_DRIVER
+                  && s->u.driver.waveforms.when == m->now) {
+            if (nexus->active_delta == m->iteration)
+               return true;
+            else if (nexus->active_delta == m->iteration + 1 && s->was_active)
+               return true;
+         }
       }
    }
 
@@ -4206,6 +4218,7 @@ void x_map_implicit(sig_shared_t *src_ss, uint32_t src_offset,
       n->outputs = src;
 
       n->flags |= NET_F_EFFECTIVE;   // Update outputs when active
+      n->flags &= ~NET_F_FAST_DRIVER;
    }
 }
 
