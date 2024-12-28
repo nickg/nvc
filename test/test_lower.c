@@ -6378,12 +6378,31 @@ START_TEST(test_issue1029)
 
    EXPECT_BB(1) = {
       { VCODE_OP_CONTEXT_UPREF, .hops = 1 },
-      { VCODE_OP_DEBUG_LOCUS },
-      { VCODE_OP_BIND_EXTERNAL },
-      { VCODE_OP_PCALL, .func = "WORK.ISSUE1029.P(sJ)", .target = 2 },
+      { VCODE_OP_INDEX, .name = "S.ename" },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_NULL },
+      { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
+      { VCODE_OP_COND, .target = 4, .target_else = 5 },
    };
 
    CHECK_BB(1);
+
+   EXPECT_BB(4) = {
+      { VCODE_OP_DEBUG_LOCUS },
+      { VCODE_OP_BIND_EXTERNAL },
+      { VCODE_OP_STORE_INDIRECT },
+      { VCODE_OP_JUMP, .target = 5 },
+   };
+
+   CHECK_BB(4);
+
+   EXPECT_BB(5) = {
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_PCALL, .func = "WORK.ISSUE1029.P(sJ)", .target = 6 },
+   };
+
+   CHECK_BB(5);
 }
 END_TEST
 

@@ -6065,16 +6065,7 @@ vcode_reg_t emit_bind_external(vcode_reg_t locus, ident_t scope,
    VCODE_ASSERT(vcode_reg_kind(locus) == VCODE_TYPE_DEBUG_LOCUS,
                 "bind external argument must be locus");
 
-   switch (vtype_kind(type)) {
-   case VCODE_TYPE_UARRAY:
-   case VCODE_TYPE_SIGNAL:
-      op->result = vcode_add_reg(type);
-      break;
-   default:
-      op->result = vcode_add_reg(vtype_pointer(type));
-      break;
-   }
-
+   op->result = vcode_add_reg(vtype_pointer(type));
    vcode_reg_data(op->result)->bounds = bounds;
    return op->result;
 }

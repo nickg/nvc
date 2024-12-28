@@ -2994,7 +2994,25 @@ static vcode_reg_t lower_alias_ref(lower_unit_t *lu, tree_t alias,
    tree_t value = tree_value(alias);
    type_t type = tree_type(tree_has_type(alias) ? alias : value);
 
-   if (!type_is_array(type) && tree_kind(value) != T_EXTERNAL_NAME)
+   if (tree_kind(value) == T_EXTERNAL_NAME) {
+      // Elaborating the alias declaration already warmed the cache
+      int hops = 0;
+      vcode_var_t var = lower_search_vcode_obj(value, lu, &hops);
+      assert(var != VCODE_INVALID_VAR);
+
+      vcode_reg_t ptr_reg;
+      if (hops == 0)
+         ptr_reg = emit_index(var, VCODE_INVALID_REG);
+      else
+         ptr_reg = emit_var_upref(hops, var);
+
+      vcode_reg_t result_reg = emit_load_indirect(ptr_reg);
+      if (type_is_record(type))
+         return result_reg;
+      else
+         return emit_load_indirect(result_reg);
+   }
+   else if (!type_is_array(type))
       return lower_expr(lu, value, ctx);
 
    int hops = 0;
@@ -3132,20 +3150,65 @@ static vcode_reg_t lower_external_name(lower_unit_t *lu, tree_t ref)
          break;
    }
 
+   int hops = 0;
+   vcode_var_t var = lower_search_vcode_obj(ref, lu, &hops);
+   assert(var != VCODE_INVALID_VAR);
+
+   vcode_reg_t ptr_reg;
+   if (hops == 0)
+      ptr_reg = emit_index(var, VCODE_INVALID_REG);
+   else
+      ptr_reg = emit_var_upref(hops, var);
+
+   vcode_reg_t cache_reg = emit_load_indirect(ptr_reg);
+   vcode_reg_t null_reg = emit_null(vcode_reg_type(cache_reg));
+   vcode_reg_t test_reg = emit_cmp(VCODE_CMP_EQ, cache_reg, null_reg);
+
+   vcode_block_t bind_bb = emit_block();
+   vcode_block_t cached_bb = emit_block();
+   emit_cond(test_reg, bind_bb, cached_bb);
+
+   vcode_select_block(bind_bb);
+
    vcode_reg_t locus = lower_debug_locus(ref);
    vcode_reg_t ext_reg = emit_bind_external(locus, scope, vtype, vbounds);
 
-   if (type_is_array(type)) {
-      // The external name subtype indication does not have to exactly
-      // match the subtype of the referenced object
-      if (!type_is_unconstrained(type))
-         lower_check_array_sizes(lu, type, base, VCODE_INVALID_REG,
-                                 ext_reg, locus);
-
-      return lower_coerce_arrays(lu, base, type, ext_reg);
+   // The external name subtype indication does not have to exactly
+   // match the subtype of the referenced object
+   if (type_is_array(type) && !type_is_unconstrained(type)) {
+      vcode_reg_t array_reg = emit_load_indirect(ext_reg);
+      lower_check_array_sizes(lu, type, base, VCODE_INVALID_REG,
+                              array_reg, locus);
    }
+
+   emit_store_indirect(ext_reg, ptr_reg);
+   emit_jump(cached_bb);
+
+   vcode_select_block(cached_bb);
+
+   vcode_reg_t result_reg = emit_load_indirect(ptr_reg);
+   if (type_is_record(type))
+      return result_reg;
    else
-      return ext_reg;
+      return emit_load_indirect(result_reg);
+}
+
+static void lower_external_name_cache(tree_t t, void *ctx)
+{
+   ident_t suffix = tree_ident(tree_part(t, tree_parts(t) - 1));
+   ident_t name = ident_prefix(suffix, ident_uniq("ename"), '.');
+
+   type_t type = tree_type(t), base = type_base_recur(type);
+   vcode_type_t vtype, vbounds = lower_bounds(type);
+   if (tree_class(t) == C_SIGNAL)
+      vtype = vtype_pointer(lower_signal_type(base));
+   else
+      vtype = vtype_pointer(lower_type(base));
+
+   vcode_var_t var = emit_var(vtype, vbounds, name, 0);
+   lower_put_vcode_obj(t, var, ctx);
+
+   emit_store(emit_null(vtype), var);
 }
 
 static vcode_reg_t lower_resolved(lower_unit_t *lu, type_t type,
@@ -8337,34 +8400,29 @@ static vcode_type_t lower_alias_type(tree_t alias)
       vcode_type_t vbounds = lower_bounds(type);
       return vtype_uarray(dims_for_type(type), velem, vbounds);
    }
-   else if (tree_kind(value) == T_EXTERNAL_NAME) {
-      // Always create variables to cache external name
-      if (class == C_SIGNAL && type_is_record(type))
-         return vtype_pointer(lower_signal_type(type));
-      else if (class == C_SIGNAL)
-         return lower_signal_type(type);
-      else
-         return vtype_pointer(lower_type(type));
-   }
    else
       return VCODE_INVALID_TYPE;
 }
 
 static void lower_alias_decl(lower_unit_t *lu, tree_t decl)
 {
+   tree_t value = tree_value(decl);
+   if (tree_kind(value) == T_EXTERNAL_NAME) {
+      // Avoid null check on every access to the external name
+      lower_external_name(lu, value);
+      return;
+   }
+
    vcode_type_t vtype = lower_alias_type(decl);
    if (vtype == VCODE_INVALID_TYPE)
       return;
 
-   tree_t value = tree_value(decl);
    type_t value_type = tree_type(value);
    type_t type = tree_has_type(decl) ? tree_type(decl) : value_type;
 
    vcode_reg_t value_reg;
    vcode_var_flags_t flags = 0;
-   if (tree_kind(value) == T_EXTERNAL_NAME)
-      value_reg = lower_external_name(lu, value);
-   else if (class_of(value) == C_SIGNAL) {
+   if (class_of(value) == C_SIGNAL) {
       flags |= VAR_SIGNAL;
       value_reg = lower_lvalue(lu, value);
    }
@@ -11501,6 +11559,9 @@ void lower_process(lower_unit_t *parent, tree_t proc, driver_set_t *ds)
 
    lu->cscope = cover_create_scope(lu->cover, parent->cscope, proc, NULL);
 
+   if (tree_global_flags(proc) & TREE_GF_EXTERNAL_NAME)
+      tree_visit_only(proc, lower_external_name_cache, lu, T_EXTERNAL_NAME);
+
    lower_decls(lu, proc);
 
    driver_info_t *di = get_drivers(ds, proc);
@@ -11992,6 +12053,9 @@ static void lower_inertial_actual(lower_unit_t *parent, tree_t port,
    // Block number one must be the non-reset entry point
    vcode_block_t main_bb = emit_block();
    assert(main_bb == 1);
+
+   if (tree_global_flags(actual) & TREE_GF_EXTERNAL_NAME)
+      tree_visit_only(actual, lower_external_name_cache, lu, T_EXTERNAL_NAME);
 
    if (type_is_homogeneous(type)) {
       vcode_reg_t nets_reg = emit_load_indirect(emit_var_upref(1, var));
@@ -12884,6 +12948,11 @@ static void lower_pack_body(lower_unit_t *lu, object_t *obj)
    if (gflags & TREE_GF_PATH_NAME)
       lower_cache_instance_name(lu, ATTR_PATH_NAME);
 
+   if (gflags & TREE_GF_EXTERNAL_NAME) {
+      tree_visit_only(pack, lower_external_name_cache, lu, T_EXTERNAL_NAME);
+      tree_visit_only(body, lower_external_name_cache, lu, T_EXTERNAL_NAME);
+   }
+
    lower_dependencies(lu, body);
 
    const bool has_scope =
@@ -12910,6 +12979,9 @@ static void lower_package(lower_unit_t *lu, object_t *obj)
 
    if (gflags & TREE_GF_PATH_NAME)
       lower_cache_instance_name(lu, ATTR_PATH_NAME);
+
+   if (gflags & TREE_GF_EXTERNAL_NAME)
+      tree_visit_only(pack, lower_external_name_cache, lu, T_EXTERNAL_NAME);
 
    lower_dependencies(lu, pack);
 
@@ -13163,6 +13235,9 @@ lower_unit_t *lower_instance(unit_registry_t *ur, lower_unit_t *parent,
 
    if (gflags & TREE_GF_PATH_NAME)
       lower_cache_instance_name(lu, ATTR_PATH_NAME);
+
+   if (gflags & TREE_GF_EXTERNAL_NAME)
+      tree_visit_only(block, lower_external_name_cache, lu, T_EXTERNAL_NAME);
 
    lower_dependencies(lu, block);
    lower_generics(lu, block, primary);

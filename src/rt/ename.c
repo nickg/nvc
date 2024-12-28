@@ -245,38 +245,31 @@ void x_bind_external(tree_t name, jit_handle_t scope, jit_scalar_t *result)
 
    void *ptr = jit_get_frame_var(j, handle, tree_ident(where));
 
-   if (type_is_array(type)) {
+   if (type_is_array(type) && type_const_bounds(type)) {
+      const int ndims = dimension_of(type);
+      jit_scalar_t *slots = jit_mspace_alloc(16 * (ndims + 1));
+
       int pos = 0;
-      if (tree_class(name) == C_SIGNAL) {
-         result[pos++].pointer = *(sig_shared_t **)ptr;
-         result[pos++].integer = *(int32_t *)(ptr + 8);
+      if (tree_class(name) == C_SIGNAL && type_is_homogeneous(type)) {
+         slots[pos++].pointer = *(sig_shared_t **)ptr;
+         slots[pos++].integer = *(int32_t *)(ptr + 8);
       }
       else
-         result[pos++].pointer = ptr;
+         slots[pos++].pointer = ptr;
 
-      if (type_const_bounds(type)) {
-         const int ndims = dimension_of(type);
-         for (int i = 0; i < ndims; i++) {
-            tree_t r = range_of(type, i);
-            const range_kind_t dir = tree_subkind(r);
-            const int64_t left = assume_int(tree_left(r));
-            const int64_t right = assume_int(tree_right(r));
-            const int64_t length =
-               MAX(0, dir == RANGE_TO ? right - left + 1 : left - right + 1);
+      for (int i = 0; i < ndims; i++) {
+         tree_t r = range_of(type, i);
+         const range_kind_t dir = tree_subkind(r);
+         const int64_t left = assume_int(tree_left(r));
+         const int64_t right = assume_int(tree_right(r));
+         const int64_t length =
+            MAX(0, dir == RANGE_TO ? right - left + 1 : left - right + 1);
 
-            result[pos++].integer = left;
-            result[pos++].integer = dir == RANGE_TO ? length : ~length;
-         }
+         slots[pos++].integer = left;
+         slots[pos++].integer = dir == RANGE_TO ? length : ~length;
       }
-      else {
-         const int ndims = dimension_of(type);
-         for (int i = 0; i < ndims * 2; i++, pos++)
-            result[pos].integer = ((int64_t *)ptr)[pos];
-      }
-   }
-   else if (tree_class(name) == C_SIGNAL && type_is_homogeneous(type)) {
-      result[0].pointer = *(sig_shared_t **)ptr;
-      result[1].integer = *(int32_t *)(ptr + 8);
+
+      result[0].pointer = slots;
    }
    else
       result[0].pointer = ptr;
