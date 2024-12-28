@@ -244,7 +244,8 @@ static void print_m128i(const char *tag, __m128i vec)
 #endif
 
 __attribute__((cold, noinline))
-static void __ieee_warn(jit_func_t *func, jit_anchor_t *caller, const char *msg)
+static void ieee_warn(jit_func_t *func, jit_anchor_t *caller,
+                      const char *fmt, ...)
 {
    if (!opt_get_int(OPT_IEEE_WARNINGS))
       return;
@@ -257,10 +258,15 @@ static void __ieee_warn(jit_func_t *func, jit_anchor_t *caller, const char *msg)
    jit_thread_local_t *thread = jit_thread_local();
    thread->anchor = &frame;
 
+   va_list ap;
+   va_start(ap, fmt);
+
    diag_t *d = diag_new(DIAG_WARN, NULL);
-   diag_printf(d, "%s", msg);
+   diag_vprintf(d, fmt, ap);
    diag_show_source(d, false);
    diag_emit(d);
+
+   va_end(ap);
 
    thread->anchor = NULL;
 }
@@ -354,6 +360,29 @@ static inline bool __all_01(const void *vec, int size)
    return true;
 }
 
+__attribute__((cold, noinline))
+static uint8_t *ieee_to_01_slow(tlab_t *tlab, const uint8_t *input,
+                                int size, uint8_t xmap)
+{
+   uint8_t *result = __tlab_alloc(tlab, size, 8);
+
+   bool bad = false;
+   for (int i = 0; i < size; i++) {
+      const uint8_t elt = input[i];
+      if (elt == _1 || elt == _H)
+         result[i] = _1;
+      else if (elt == _0 || elt == _L)
+         result[i] = _0;
+      else
+         bad = true;
+   }
+
+   if (bad)
+      memset(result, xmap, size);
+
+   return result;
+}
+
 __attribute__((always_inline))
 static inline uint8_t *__to_01(tlab_t *tlab, const uint8_t *input,
                                int size, uint8_t xmap)
@@ -362,25 +391,8 @@ static inline uint8_t *__to_01(tlab_t *tlab, const uint8_t *input,
 
    if (__all_01(input, size))
       return (uint8_t *)input;
-   else {
-      uint8_t *result = __tlab_alloc(tlab, size, 8);
-
-      bool bad = false;
-      for (int i = 0; i < size; i++) {
-         const uint8_t elt = input[i];
-         if (elt == _1 || elt == _H)
-            result[i] = _1;
-         else if (elt == _0 || elt == _L)
-            result[i] = _0;
-         else
-            bad = true;
-      }
-
-      if (bad)
-         memset(result, xmap, size);
-
-      return result;
-   }
+   else
+      return ieee_to_01_slow(tlab, input, size, xmap);
 }
 
 static void ieee_to_01(jit_func_t *func, jit_anchor_t *anchor,
@@ -391,8 +403,8 @@ static void ieee_to_01(jit_func_t *func, jit_anchor_t *anchor,
    const uint8_t xmap = args[4].integer;
 
    if (size == 0) {
-      __ieee_warn(func, anchor,
-                  "NUMERIC_STD.TO_01: null detected, returning NAU");
+      ieee_warn(func, anchor,
+                "NUMERIC_STD.TO_01: null detected, returning NAU");
 
       args[0].pointer = NULL;
       args[1].integer = 0;
@@ -533,7 +545,7 @@ static inline uint8_t *__to_unsigned(jit_func_t *func, jit_anchor_t *anchor,
 
    const uint8_t spill_mask = ~((1 << (8 - roundup + size)) - 1);
    if (unlikely(arg != 0 || (last & spill_mask)))
-      __ieee_warn(func, anchor, "NUMERIC_STD.TO_UNSIGNED: vector truncated");
+      ieee_warn(func, anchor, "NUMERIC_STD.TO_UNSIGNED: vector truncated");
 
    return result + roundup - size;
 }
@@ -833,6 +845,89 @@ static void ieee_mul_signed(jit_func_t *func, jit_anchor_t *anchor,
       args[1].integer = size - 1;
       args[2].integer = ~size;
    }
+}
+
+static bool ieee_unsigned_cmp(jit_func_t *func, jit_anchor_t *anchor,
+                              jit_scalar_t *args, tlab_t *tlab,
+                              uint8_t *lbyte, uint8_t *rbyte, const char *op)
+{
+   const int lsize = ffi_array_length(args[3].integer);
+   const int rsize = ffi_array_length(args[6].integer);
+   uint8_t *left = args[1].pointer;
+   uint8_t *right = args[4].pointer;
+
+   args[0].integer = 0;   // Return FALSE by default
+
+   if (lsize < 1 || rsize < 1) {
+      ieee_warn(func, anchor, "NUMERIC_STD.\"%s\": null argument detected, "
+                "returning FALSE", op);
+      return false;
+   }
+
+   const uint32_t mark = __tlab_mark(tlab);
+
+   left = __to_01(tlab, left, lsize, _X);
+   right = __to_01(tlab, right, rsize, _X);
+
+   if (left[0] == _X || right[0] == _X) {
+      ieee_warn(func, anchor, "NUMERIC_STD.\"%s\": metavalue detected, "
+                "returning FALSE", op);
+      __tlab_restore(tlab, mark);
+      return false;
+   }
+
+   const int size = MAX(lsize, rsize);
+   left = __resize_unsigned(tlab, left, lsize, size);
+   right = __resize_unsigned(tlab, right, rsize, size);
+
+   int pos = 0;
+   for (; pos < size - 1 && left[pos] == right[pos]; pos++);
+
+   *lbyte = left[pos];
+   *rbyte = right[pos];
+
+   __tlab_restore(tlab, mark);
+   return true;
+}
+
+static void ieee_less_unsigned(jit_func_t *func, jit_anchor_t *anchor,
+                               jit_scalar_t *args, tlab_t *tlab)
+{
+   uint8_t left, right;
+   if (!ieee_unsigned_cmp(func, anchor, args, tlab, &left, &right, "<"))
+      return;
+
+   args[0].integer = left < right;
+}
+
+static void ieee_greater_unsigned(jit_func_t *func, jit_anchor_t *anchor,
+                                  jit_scalar_t *args, tlab_t *tlab)
+{
+   uint8_t left, right;
+   if (!ieee_unsigned_cmp(func, anchor, args, tlab, &left, &right, ">"))
+      return;
+
+   args[0].integer = left > right;
+}
+
+static void ieee_geq_unsigned(jit_func_t *func, jit_anchor_t *anchor,
+                              jit_scalar_t *args, tlab_t *tlab)
+{
+   uint8_t left, right;
+   if (!ieee_unsigned_cmp(func, anchor, args, tlab, &left, &right, ">="))
+      return;
+
+   args[0].integer = left >= right;
+}
+
+static void ieee_leq_unsigned(jit_func_t *func, jit_anchor_t *anchor,
+                              jit_scalar_t *args, tlab_t *tlab)
+{
+   uint8_t left, right;
+   if (!ieee_unsigned_cmp(func, anchor, args, tlab, &left, &right, "<="))
+      return;
+
+   args[0].integer = left <= right;
 }
 
 #ifdef HAVE_SSE41
@@ -1164,7 +1259,7 @@ static void ieee_to_signed(jit_func_t *func, jit_anchor_t *anchor,
                    || (arg == -1 && result[roundup - size] == _0)
                    || (arg == 0 && (last & spill_mask) != 0)
                    || (arg == -1 && (last & spill_mask) != spill_mask)))
-         __ieee_warn(func, anchor, "NUMERIC_STD.TO_SIGNED: vector truncated");
+         ieee_warn(func, anchor, "NUMERIC_STD.TO_SIGNED: vector truncated");
 
       args[0].pointer = result + roundup - size;
       args[1].integer = size - 1;
@@ -1187,7 +1282,7 @@ static inline void __make_binary(jit_func_t *func, jit_anchor_t *anchor,
 
    for (int i = 0; i < size; i++) {
       if (unlikely(__is_x(input[i]))) {
-         __ieee_warn(func, anchor, "There is an 'U'|'X'|'W'|'Z'|'-' in an "
+         ieee_warn(func, anchor, "There is an 'U'|'X'|'W'|'Z'|'-' in an "
                      "arithmetic operand, the result will be 'X'(es).");
          memset(result, _X, size);
          break;
@@ -1731,6 +1826,14 @@ static jit_intrinsic_t intrinsic_list[] = {
    { NS "\"*\"(" UU UU ")" UU, ieee_mul_unsigned },
    { NS "\"*\"(" S S ")" S, ieee_mul_signed },
    { NS "\"*\"(" US US ")" US, ieee_mul_signed },
+   { NS "\"<\"(" U U ")B", ieee_less_unsigned },
+   { NS "\"<\"(" UU UU ")B" , ieee_less_unsigned },
+   { NS "\">\"(" U U ")B", ieee_greater_unsigned },
+   { NS "\">\"(" UU UU ")B" , ieee_greater_unsigned },
+   { NS "\">=\"(" U U ")B", ieee_geq_unsigned },
+   { NS "\">=\"(" UU UU ")B" , ieee_geq_unsigned },
+   { NS "\"<=\"(" U U ")B", ieee_leq_unsigned },
+   { NS "\"<=\"(" UU UU ")B" , ieee_leq_unsigned },
 #ifdef HAVE_SSE41
    { SL "TO_X01(V)V", std_to_x01_sse41, CPU_SSE41 },
    { SL "TO_X01(Y)Y", std_to_x01_sse41, CPU_SSE41 },
