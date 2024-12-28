@@ -999,6 +999,7 @@ static void run_process(rt_model_t *m, rt_proc_t *proc)
 
    model_thread_t *thread = model_thread(m);
    assert(thread->tlab != NULL);
+   assert(thread->tlab->alloc == 0);
 
    thread->active_obj = &(proc->wakeable);
    thread->active_scope = proc->scope;
@@ -1017,7 +1018,8 @@ static void run_process(rt_model_t *m, rt_proc_t *proc)
    if (!jit_fastcall(m->jit, proc->handle, &result, state, context,
                      proc->tlab ?: thread->tlab))
       m->force_stop = true;
-   else if (proc->tlab != NULL && result.pointer == NULL) {
+
+   if (proc->tlab != NULL && result.pointer == NULL) {
       tlab_release(proc->tlab);
       proc->tlab = NULL;
    }
@@ -1191,17 +1193,6 @@ static void free_value(rt_nexus_t *n, rt_value_t v)
       *(void **)v.ext = n->free_value;
       n->free_value = v.ext;
    }
-}
-
-static void *local_alloc(size_t size)
-{
-   rt_model_t *m = get_model();
-   model_thread_t *thread = model_thread(m);
-
-   if (thread->tlab != NULL)
-      return tlab_alloc(thread->tlab, size);
-   else
-      return mspace_alloc(m->mspace, size);
 }
 
 static inline uint8_t *value_ptr(rt_nexus_t *n, rt_value_t *v)
@@ -1839,6 +1830,8 @@ static void convert_driving(rt_conv_func_t *cf)
    if (!jit_fastcall(m->jit, cf->driving.handle, &result, context, arg,
                      thread->tlab))
       m->force_stop = true;
+
+   tlab_reset(thread->tlab);   // No allocations can be live past here
 }
 
 static void convert_effective(rt_conv_func_t *cf)
@@ -1862,6 +1855,8 @@ static void convert_effective(rt_conv_func_t *cf)
    if (!jit_fastcall(m->jit, cf->effective.handle, &result, context, arg,
                      thread->tlab))
       m->force_stop = true;
+
+   tlab_reset(thread->tlab);   // No allocations can be live past here
 }
 
 static void *source_value(rt_nexus_t *nexus, rt_source_t *src)
@@ -1897,46 +1892,54 @@ static void *source_value(rt_nexus_t *nexus, rt_source_t *src)
    return NULL;
 }
 
-static void *call_resolution(rt_nexus_t *nexus, res_memo_t *r, int nonnull,
-                             rt_source_t *s0)
+static void call_resolution(rt_model_t *m, rt_nexus_t *n, res_memo_t *r,
+                            int nonnull, rt_source_t *s0)
 {
-   if ((nexus->flags & NET_F_R_IDENT) && nonnull == 1) {
+   if ((n->flags & NET_F_R_IDENT) && nonnull == 1) {
       // Resolution function behaves like identity for a single driver
-      return source_value(nexus, s0);
+      put_driving(m, n, source_value(n, s0));
    }
    else if ((r->flags & R_MEMO) && nonnull == 1) {
       // Resolution function has been memoised so do a table lookup
 
-      void *resolved = local_alloc(nexus->width * nexus->size);
-      char *p0 = source_value(nexus, s0);
+      model_thread_t *thread = model_thread(m);
+      assert(thread->tlab != NULL);
 
-      for (int j = 0; j < nexus->width; j++) {
+      void *resolved = tlab_alloc(thread->tlab, n->width * n->size);
+      char *p0 = source_value(n, s0);
+
+      for (int j = 0; j < n->width; j++) {
          const int index = ((uint8_t *)p0)[j];
          ((int8_t *)resolved)[j] = r->tab1[index];
       }
 
-      return resolved;
+      put_driving(m, n, resolved);
+      tlab_reset(thread->tlab);   // No allocations can be live past here
    }
    else if ((r->flags & R_MEMO) && nonnull == 2) {
       // Resolution function has been memoised so do a table lookup
 
-      void *resolved = local_alloc(nexus->width * nexus->size);
+      model_thread_t *thread = model_thread(m);
+      assert(thread->tlab != NULL);
 
-      char *p0 = source_value(nexus, s0), *p1 = NULL;
+      void *resolved = tlab_alloc(thread->tlab, n->width * n->size);
+
+      char *p0 = source_value(n, s0), *p1 = NULL;
       for (rt_source_t *s1 = s0->chain_input;
-           s1 && (p1 = source_value(nexus, s1)) == NULL;
+           s1 && (p1 = source_value(n, s1)) == NULL;
            s1 = s1->chain_input)
          ;
 
-      for (int j = 0; j < nexus->width; j++)
+      for (int j = 0; j < n->width; j++)
          ((int8_t *)resolved)[j] = r->tab2[(int)p0[j]][(int)p1[j]];
 
-      return resolved;
+      put_driving(m, n, resolved);
+      tlab_reset(thread->tlab);   // No allocations can be live past here
    }
    else if (r->flags & R_COMPOSITE) {
       // Call resolution function of composite type
 
-      rt_scope_t *scope = nexus->signal->parent, *rscope = scope;
+      rt_scope_t *scope = n->signal->parent, *rscope = scope;
       while (is_signal_scope(scope->parent)) {
          scope = scope->parent;
          if (scope->flags & SCOPE_F_RESOLVED)
@@ -1945,8 +1948,8 @@ static void *call_resolution(rt_nexus_t *nexus, res_memo_t *r, int nonnull,
 
       TRACE("resolved composite signal needs %d bytes", scope->size);
 
-      rt_model_t *m = get_model();
       model_thread_t *thread = model_thread(m);
+      assert(thread->tlab != NULL);
 
       uint8_t *inputs = tlab_alloc(thread->tlab, nonnull * scope->size);
       copy_sub_signal_sources(scope, inputs, scope->size);
@@ -1954,22 +1957,25 @@ static void *call_resolution(rt_nexus_t *nexus, res_memo_t *r, int nonnull,
       jit_scalar_t result;
       if (jit_try_call(m->jit, r->closure.handle, &result,
                        r->closure.context, inputs, r->ileft, nonnull))
-         return result.pointer + nexus->signal->offset
-            + nexus->offset - rscope->offset;
+         put_driving(m, n, result.pointer + n->signal->offset
+                     + n->offset - rscope->offset);
+      else
+         m->force_stop = true;
 
-      m->force_stop = true;
-      return nexus_effective(nexus);   // Dummy result
+      tlab_reset(thread->tlab);   // No allocations can be live past here
    }
    else {
-      void *resolved = local_alloc(nexus->width * nexus->size);
-      rt_model_t *m = get_model();
+      model_thread_t *thread = model_thread(m);
+      assert(thread->tlab != NULL);
 
-      for (int j = 0; j < nexus->width; j++) {
+      void *resolved = tlab_alloc(thread->tlab, n->width * n->size);
+
+      for (int j = 0; j < n->width; j++) {
 #define CALL_RESOLUTION_FN(type) do {                                   \
             type vals[nonnull];                                         \
             unsigned o = 0;                                             \
             for (rt_source_t *s = s0; s; s = s->chain_input) {          \
-               const void *data = source_value(nexus, s);               \
+               const void *data = source_value(n, s);                   \
                if (data != NULL)                                        \
                   vals[o++] = ((const type *)data)[j];                  \
             }                                                           \
@@ -1983,10 +1989,11 @@ static void *call_resolution(rt_nexus_t *nexus, res_memo_t *r, int nonnull,
             p[j] = result.integer;                                      \
          } while (0)
 
-         FOR_ALL_SIZES(nexus->size, CALL_RESOLUTION_FN);
+         FOR_ALL_SIZES(n->size, CALL_RESOLUTION_FN);
       }
 
-      return resolved;
+      put_driving(m, n, resolved);
+      tlab_reset(thread->tlab);   // No allocations can be live past here
    }
 }
 
@@ -2071,7 +2078,7 @@ static void calculate_driving_value(rt_model_t *m, rt_nexus_t *n)
       else if (r == NULL || is_pseudo_source(n->sources.tag))
          put_driving(m, n, nexus_initial(n));
       else
-         put_driving(m, n, call_resolution(n, r, nonnull, s0));
+         call_resolution(m, n, r, nonnull, s0);
    }
    else if (r == NULL) {
       switch (s0->tag) {
@@ -2107,7 +2114,7 @@ static void calculate_driving_value(rt_model_t *m, rt_nexus_t *n)
    else {
       // Otherwise, the driving value of S is obtained by executing the
       // resolution function associated with S
-      put_driving(m, n, call_resolution(n, r, nonnull, s0));
+      call_resolution(m, n, r, nonnull, s0);
    }
 }
 
@@ -2989,9 +2996,6 @@ static void update_driving(rt_model_t *m, rt_nexus_t *n, bool safe)
 
 static void update_driver(rt_model_t *m, rt_nexus_t *n, rt_source_t *source)
 {
-   model_thread_t *thread = model_thread(m);
-   assert(thread->tlab != NULL);
-
    waveform_t *w_now  = &(source->u.driver.waveforms);
    waveform_t *w_next = w_now->next;
 
@@ -3009,8 +3013,6 @@ static void update_driver(rt_model_t *m, rt_nexus_t *n, rt_source_t *source)
       source->disconnected = 1;
       update_driving(m, n, false);
    }
-
-   tlab_reset(thread->tlab);   // No allocations can be live past here
 }
 
 static void fast_update_driver(rt_model_t *m, rt_nexus_t *nexus)
@@ -3018,17 +3020,12 @@ static void fast_update_driver(rt_model_t *m, rt_nexus_t *nexus)
    rt_source_t *src = &(nexus->sources);
 
    if (likely(nexus->flags & NET_F_FAST_DRIVER)) {
-      model_thread_t *thread = model_thread(m);
-      assert(thread->tlab != NULL);
-
       // Preconditions for fast driver updates
       assert(nexus->n_sources == 1);
       assert(src->tag == SOURCE_DRIVER);
       assert(src->u.driver.waveforms.next == NULL);
 
       update_driving(m, nexus, false);
-
-      tlab_reset(thread->tlab);   // No allocations can be live past here
    }
    else
       update_driver(m, nexus, src);
@@ -4333,7 +4330,7 @@ void *x_driving_value(sig_shared_t *ss, uint32_t offset, int32_t count)
          return nexus_effective(n);
    }
 
-   void *result = local_alloc(s->shared.size);
+   void *result = tlab_alloc(model_thread(m)->tlab, s->shared.size);
 
    uint8_t *p = result;
    for (; count > 0; n = n->chain) {
