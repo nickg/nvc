@@ -11367,7 +11367,7 @@ static vcode_reg_t lower_trigger(lower_unit_t *lu, tree_t fcall, tree_t proc)
    }
    else if (kind == S_SCALAR_AND) {
       // Testing x'event is redundant if the process is only
-      // sensistive to x
+      // sensitive to x
       tree_t w = tree_stmt(proc, 1);
       assert(tree_kind(w) == T_WAIT);
 
@@ -11511,6 +11511,7 @@ void lower_process(lower_unit_t *parent, tree_t proc, driver_set_t *ds)
    }
 
    const bool transfer = can_use_transfer_signal(proc, ds);
+   vcode_reg_t trigger_reg = VCODE_INVALID_REG;
 
    if (transfer) {
       tree_t s0 = tree_stmt(proc, 0);
@@ -11557,7 +11558,8 @@ void lower_process(lower_unit_t *parent, tree_t proc, driver_set_t *ds)
          for (int i = 0; i < ntriggers; i++)
             lower_sched_event(lu, tree_trigger(wait, i));
 
-         vcode_reg_t trigger_reg = lower_process_trigger(lu, proc);
+         trigger_reg = lower_process_trigger(lu, proc);
+
          if (trigger_reg != VCODE_INVALID_REG)
             emit_add_trigger(trigger_reg);
       }
@@ -11569,6 +11571,55 @@ void lower_process(lower_unit_t *parent, tree_t proc, driver_set_t *ds)
 
    if (transfer)
       emit_return(VCODE_INVALID_REG);
+   else if (trigger_reg != VCODE_INVALID_REG) {
+      tree_t s0 = tree_stmt(proc, 0);
+      assert(tree_kind(s0) == T_IF);
+      lower_stmt_coverage(lu, s0);
+
+      const int nconds = tree_conds(s0);
+      if (nconds == 1) {
+         tree_t c = tree_cond(s0, 0);
+         PUSH_COVER_SCOPE(lu, c);
+         lower_sequence(lu, c, NULL);
+      }
+      else {
+         assert(nconds == 2);
+         tree_t c0 = tree_cond(s0, 0), c1 = tree_cond(s0, 1);
+
+         vcode_reg_t test = lower_rvalue(lu, tree_value(c0));
+         vcode_block_t btrue = emit_block();
+         vcode_block_t bfalse = emit_block();
+         vcode_block_t bjoin = emit_block();
+         emit_cond(test, btrue, bfalse);
+
+         {
+            vcode_select_block(btrue);
+
+            PUSH_COVER_SCOPE(lu, c0);
+            lower_sequence(lu, c0, NULL);
+
+            if (!vcode_block_finished())
+               emit_jump(bjoin);
+         }
+
+         {
+            vcode_select_block(bfalse);
+
+            PUSH_COVER_SCOPE(lu, c1);
+            lower_sequence(lu, c1, NULL);
+
+            if (!vcode_block_finished())
+               emit_jump(bjoin);
+         }
+
+         vcode_select_block(bjoin);
+      }
+
+      tree_t s1 = tree_stmt(proc, 1);
+      assert(tree_kind(s1) == T_WAIT);
+
+      lower_wait(lu, s1);
+   }
    else
       lower_sequence(lu, proc, NULL);
 

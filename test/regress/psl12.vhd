@@ -33,8 +33,6 @@ begin
         reset <= '1';
 
         -- Not asserted over clock edge
-        -- TODO: bug when areset and clk change in same delta cycle
-        wait for 0 fs;
         areset <= '1';
         wait for 1 fs;
         areset <= '0';

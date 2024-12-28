@@ -6160,6 +6160,20 @@ START_TEST(test_trigger1)
       };
 
       CHECK_BB(0);
+
+      EXPECT_BB(1) = {
+         { VCODE_OP_VAR_UPREF, .name = "X", .hops = 1 },
+         { VCODE_OP_LOAD_INDIRECT },
+         { VCODE_OP_CONST, .value = 1 },
+         { VCODE_OP_CONST, .value = 0 },
+         { VCODE_OP_RESOLVED },
+         { VCODE_OP_LOAD_INDIRECT },
+         { VCODE_OP_NOT },
+         { VCODE_OP_SCHED_WAVEFORM },
+         { VCODE_OP_WAIT, .target = 2 },
+      };
+
+      CHECK_BB(1);
    }
 
    {

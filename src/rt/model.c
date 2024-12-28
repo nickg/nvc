@@ -164,6 +164,7 @@ static rt_nexus_t *clone_nexus(rt_model_t *m, rt_nexus_t *old, int offset);
 static void put_driving(rt_model_t *m, rt_nexus_t *n, const void *value);
 static void put_effective(rt_model_t *m, rt_nexus_t *n, const void *value);
 static void update_implicit_signal(rt_model_t *m, rt_implicit_t *imp);
+static bool run_trigger(rt_model_t *m, rt_trigger_t *t);
 static void async_run_process(rt_model_t *m, void *arg);
 static void async_update_property(rt_model_t *m, void *arg);
 static void async_update_driver(rt_model_t *m, void *arg);
@@ -997,11 +998,16 @@ static void run_process(rt_model_t *m, rt_proc_t *proc)
    TRACE("run %sprocess %s", *mptr_get(proc->privdata) ? "" :  "stateless ",
          istr(proc->name));
 
+   rt_wakeable_t *obj = &(proc->wakeable);
+
+   if (obj->trigger != NULL && !run_trigger(m, obj->trigger))
+      return;   // Filtered
+
    model_thread_t *thread = model_thread(m);
    assert(thread->tlab != NULL);
    assert(thread->tlab->alloc == 0);
 
-   thread->active_obj = &(proc->wakeable);
+   thread->active_obj = obj;
    thread->active_scope = proc->scope;
 
    // Stateless processes have NULL privdata so pass a dummy pointer
@@ -2448,10 +2454,15 @@ static void update_property(rt_model_t *m, rt_prop_t *prop)
    TRACE("update property %s state %s", istr(prop->name),
          trace_states(&prop->state));
 
+   rt_wakeable_t *obj = &(prop->wakeable);
+
+   if (obj->trigger != NULL && !run_trigger(m, obj->trigger))
+      return;   // Filtered
+
    model_thread_t *thread = model_thread(m);
    assert(thread->tlab != NULL);
 
-   thread->active_obj = &(prop->wakeable);
+   thread->active_obj = obj;
    thread->active_scope = prop->scope;
 
    jit_scalar_t context = {
@@ -2795,9 +2806,6 @@ static void wakeup_one(rt_model_t *m, rt_wakeable_t *obj)
 {
    if (obj->pending)
       return;   // Already scheduled
-
-   if (obj->trigger != NULL && !run_trigger(m, obj->trigger))
-      return;   // Filtered
 
    deferq_t *dq = obj->postponed ? &m->postponedq : &m->procq;
 
@@ -4563,7 +4571,11 @@ void *x_or_trigger(void *left, void *right)
 
    TRACE("or trigger %p %p hash=%"PRIx64, left, right, hash);
 
-   const jit_scalar_t args[] = { { .pointer = left }, { .pointer = right } };
+   const jit_scalar_t args[] = {
+      { .pointer = left < right ? left : right },
+      { .pointer = left < right ? right : left }
+   };
+
    return new_trigger(m, OR_TRIGGER, hash, JIT_HANDLE_INVALID, 2, args);
 }
 
