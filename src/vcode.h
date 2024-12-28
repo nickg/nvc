@@ -536,8 +536,8 @@ void emit_bind_foreign(vcode_reg_t spec, vcode_reg_t length, vcode_reg_t locus);
 vcode_reg_t emit_instance_name(vcode_reg_t kind);
 void emit_deposit_signal(vcode_reg_t signal, vcode_reg_t count,
                          vcode_reg_t values);
-vcode_reg_t emit_bind_external(vcode_reg_t locus, vcode_type_t type,
-                               vcode_type_t bounds);
+vcode_reg_t emit_bind_external(vcode_reg_t locus, ident_t scope,
+                               vcode_type_t type, vcode_type_t bounds);
 void emit_put_conversion(vcode_reg_t cf, vcode_reg_t target, vcode_reg_t count,
                          vcode_reg_t values);
 

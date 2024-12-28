@@ -1007,6 +1007,14 @@ ident_t jit_get_name(jit_t *j, jit_handle_t handle)
    return jit_get_func(j, handle)->name;
 }
 
+object_t *jit_get_object(jit_t *j, jit_handle_t handle)
+{
+   jit_func_t *f = jit_get_func(j, handle);
+   jit_fill_irbuf(f);
+
+   return object_from_locus(f->module, f->offset, lib_load_handler);
+}
+
 bool jit_writes_flags(jit_ir_t *ir)
 {
    return ir->op == J_CMP || ir->op == J_FCMP

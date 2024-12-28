@@ -1817,8 +1817,7 @@ START_TEST(test_ename3)
    input_from_file(TESTDIR "/elab/ename3.vhd");
 
    const error_t expect[] = {
-      { 29, "relative pathname has no containing declarative region" },
-      { 30, "relative pathname has no containing declarative region" },
+      {  2, "design hieararchy root has not yet been elaborated" },
       { -1, NULL }
    };
    expect_errors(expect);

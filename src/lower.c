@@ -3123,8 +3123,17 @@ static vcode_reg_t lower_external_name(lower_unit_t *lu, tree_t ref)
    else
       vtype = lower_type(base);
 
+   ident_t scope;
+   for (vcode_unit_t vu = lu->vunit;; vu = vcode_unit_context(vu)) {
+      scope = vcode_unit_name(vu);
+
+      const vunit_kind_t kind = vcode_unit_kind(vu);
+      if (kind == VCODE_UNIT_PACKAGE || kind == VCODE_UNIT_INSTANCE)
+         break;
+   }
+
    vcode_reg_t locus = lower_debug_locus(ref);
-   vcode_reg_t ext_reg = emit_bind_external(locus, vtype, vbounds);
+   vcode_reg_t ext_reg = emit_bind_external(locus, scope, vtype, vbounds);
 
    if (type_is_array(type)) {
       // The external name subtype indication does not have to exactly

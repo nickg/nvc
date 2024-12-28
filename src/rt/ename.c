@@ -19,6 +19,7 @@
 #include "diag.h"
 #include "ident.h"
 #include "jit/jit.h"
+#include "jit/jit-exits.h"
 #include "lib.h"
 #include "rt/model.h"
 #include "rt/structs.h"
@@ -72,26 +73,26 @@ static tree_t select_name(tree_t where, ident_t id)
    return NULL;
 }
 
-void x_bind_external(tree_t name, jit_scalar_t *result)
+static bool is_implicit_block(tree_t block)
+{
+   if (tree_kind(block) != T_BLOCK)
+      return false;
+
+   tree_t hier = tree_decl(block, 0);
+   assert(tree_kind(hier) == T_HIER);
+
+   return tree_subkind(hier) == T_COMPONENT;
+}
+
+void x_bind_external(tree_t name, jit_handle_t scope, jit_scalar_t *result)
 {
    assert(tree_kind(name) == T_EXTERNAL_NAME);
 
-   tree_t p1 = tree_part(name, 1), top;
-   ident_t path = ident_prefix(lib_name(lib_work()), tree_ident(p1), '.');
+   jit_t *j = jit_for_thread();
+   tree_t where = tree_from_object(jit_get_object(j, scope)), next = NULL;
+   ident_t path = jit_get_name(j, scope);
 
-   rt_model_t *m = get_model_or_null();
-   if (m == NULL)
-      top = tree_container(name);
-   else
-      top = root_scope(m)->where;
-
-   tree_t root = top;
-   if (tree_kind(top) == T_ELAB)
-      root = tree_stmt(top, 0);
-
-   tree_t where = root, next = NULL;
    const int nparts = tree_parts(name);
-
    for (int i = 0; i < nparts; i++, where = next, next = NULL) {
       tree_t pe = tree_part(name, i);
       assert(tree_kind(pe) == T_PATH_ELT);
@@ -100,14 +101,28 @@ void x_bind_external(tree_t name, jit_scalar_t *result)
       switch (tree_subkind(pe)) {
       case PE_ABSOLUTE:
          {
+            tree_t top;
+            rt_model_t *m = get_model_or_null();
+            if (m == NULL)
+               top = tree_container(where);
+            else
+               top = root_scope(m)->where;
+
+            if (tree_kind(top) != T_ELAB)
+               jit_msg(tree_loc(pe), DIAG_FATAL, "design hieararchy root has "
+                       "not yet been elaborated");
+
+            tree_t root = tree_stmt(top, 0);
+
             tree_t entity = tree_part(name, ++i);
             assert(tree_subkind(entity) == PE_SIMPLE);
 
             if (root == NULL || tree_ident(root) != tree_ident(entity))
-               jit_msg(tree_loc(entity), DIAG_FATAL, "%s is not the name of "
+               jit_msg(tree_loc(pe), DIAG_FATAL, "%s is not the name of "
                        "the root of the design hierarchy",
                        istr(tree_ident(entity)));
 
+            path = ident_prefix(lib_name(lib_work()), tree_ident(root), '.');
             next = root;
          }
          continue;
@@ -137,26 +152,32 @@ void x_bind_external(tree_t name, jit_scalar_t *result)
                jit_msg(tree_loc(pe), DIAG_FATAL, "%s is not a package",
                        istr(qual));
 
+            path = tree_ident(pack);
             next = pack;
          }
+         continue;
+      case PE_RELATIVE:
+         next = where;
+         continue;
+      case PE_CARET:
+         do {
+            ident_t parent = ident_runtil(path, '.');
+            assert(parent != NULL);
+
+            if (parent == lib_name(lib_work()) || tree_kind(where) != T_BLOCK)
+               jit_msg(tree_loc(pe), DIAG_FATAL, "relative pathname has "
+                       "no containing declarative region");
+
+            scope = jit_lazy_compile(j, parent);
+            path = jit_get_name(j, scope);
+            next = tree_from_object(jit_get_object(j, scope));
+         } while (is_implicit_block(next));
          continue;
       default:
          should_not_reach_here();
       }
 
-      if (tree_kind(where) == T_BLOCK) {
-         tree_t hier = tree_decl(where, 0);
-         assert(tree_kind(hier) == T_HIER);
-
-         if (tree_subkind(hier) == T_COMPONENT) {
-            // Skip over implicit block for component declaration
-            where = tree_stmt(where, 0);
-            assert(tree_kind(where) == T_BLOCK);
-            hier = tree_decl(where, 0);
-            path = ident_prefix(path, tree_ident(where), '.');
-         }
-      }
-      else if (!is_package(where)) {
+      if (!is_concurrent_block(where) && !is_package(where)) {
          diag_t *d = diag_new(DIAG_ERROR, tree_loc(pe));
          diag_printf(d, "%s is not a concurrent region",
                      istr(tree_ident(where)));
@@ -164,6 +185,12 @@ void x_bind_external(tree_t name, jit_scalar_t *result)
                    istr(tree_ident(where)));
          diag_emit(d);
          jit_abort_with_status(1);
+      }
+      else if (is_implicit_block(where)) {
+         // Skip over implicit block for component declaration
+         where = tree_stmt(where, 0);
+         assert(tree_kind(where) == T_BLOCK);
+         path = ident_prefix(path, tree_ident(where), '.');
       }
 
       if ((next = select_name(where, id)) == NULL) {
@@ -173,7 +200,7 @@ void x_bind_external(tree_t name, jit_scalar_t *result)
          diag_hint(d, tree_loc(pe), "name %s not found inside %s", istr(id),
                    istr(tree_ident(where)));
 
-         if (m == NULL)
+         if (get_model_or_null() == NULL)
             diag_hint(d, NULL, "an object cannot be referenced by an "
                       "external name until it has been elaborated");
 
@@ -212,8 +239,6 @@ void x_bind_external(tree_t name, jit_scalar_t *result)
       diag_emit(d);
       jit_abort_with_status(1);
    }
-
-   jit_t *j = jit_for_thread();
 
    jit_handle_t handle = jit_compile(j, path);
    (void)jit_link(j, handle);   // Package may not be loaded

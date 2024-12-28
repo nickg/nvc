@@ -52,7 +52,7 @@ DECLARE_AND_DEFINE_ARRAY(vcode_type);
     || x == VCODE_OP_FUNCTION_TRIGGER)
 #define OP_HAS_IDENT(x)                                                 \
    (x == VCODE_OP_LINK_VAR || x == VCODE_OP_LINK_PACKAGE                \
-    || x == VCODE_OP_DEBUG_LOCUS)
+    || x == VCODE_OP_DEBUG_LOCUS || x == VCODE_OP_BIND_EXTERNAL)
 #define OP_HAS_REAL(x)                                                  \
    (x == VCODE_OP_CONST_REAL)
 #define OP_HAS_VALUE(x)                                                 \
@@ -2346,6 +2346,7 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
                col += vcode_dump_reg(op->result);
                col += color_printf(" := %s ", vcode_op_string(op->kind));
                col += vcode_dump_reg(op->args.items[0]);
+               col += color_printf(" scope $magenta$%s$$", istr(op->ident));
                vcode_dump_result_type(col, op);
             }
             break;
@@ -6053,12 +6054,13 @@ vcode_reg_t emit_port_conversion(vcode_reg_t driving, vcode_reg_t effective)
    return (op->result = vcode_add_reg(vtype_conversion()));
 }
 
-vcode_reg_t emit_bind_external(vcode_reg_t locus, vcode_type_t type,
-                               vcode_type_t bounds)
+vcode_reg_t emit_bind_external(vcode_reg_t locus, ident_t scope,
+                               vcode_type_t type, vcode_type_t bounds)
 {
    op_t *op = vcode_add_op(VCODE_OP_BIND_EXTERNAL);
    vcode_add_arg(op, locus);
-   op->type = type;
+   op->type  = type;
+   op->ident = scope;
 
    VCODE_ASSERT(vcode_reg_kind(locus) == VCODE_TYPE_DEBUG_LOCUS,
                 "bind external argument must be locus");

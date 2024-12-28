@@ -3604,8 +3604,10 @@ static void irgen_op_instance_name(jit_irgen_t *g, int op)
 static void irgen_op_bind_external(jit_irgen_t *g, int op)
 {
    jit_value_t locus = irgen_get_arg(g, op, 0);
+   jit_handle_t handle = jit_lazy_compile(g->func->jit, vcode_get_ident(op));
 
    j_send(g, 0, locus);
+   j_send(g, 1, jit_value_from_handle(handle));
    macro_exit(g, JIT_EXIT_BIND_EXTERNAL);
 
    const int slots = irgen_slots_for_type(vcode_get_type(op));

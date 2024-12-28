@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2022-2023  Nick Gasson
+//  Copyright (C) 2022-2024  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -69,6 +69,7 @@ bool jit_exit_status(jit_t *j, int *status);
 void jit_reset_exit_status(jit_t *j);
 void jit_add_tier(jit_t *j, int threshold, const jit_plugin_t *plugin);
 ident_t jit_get_name(jit_t *j, jit_handle_t handle);
+object_t *jit_get_object(jit_t *j, jit_handle_t handle);
 void jit_register_native_plugin(jit_t *j);
 void jit_interrupt(jit_t *j, jit_irq_fn_t fn, void *ctx);
 void jit_check_interrupt(jit_t *j);
