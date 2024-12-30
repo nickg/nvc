@@ -71,6 +71,7 @@ typedef enum {
    OPT_CHECK_SYNTHESIS,
    OPT_MISSING_WAIT,
    OPT_LAYOUT_VERBOSE,
+   OPT_SINGLE_UNIT,
 
    OPT_LAST_NAME
 } opt_name_t;

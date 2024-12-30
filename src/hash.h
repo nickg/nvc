@@ -41,6 +41,7 @@ void shash_free(shash_t *h);
 void shash_put(shash_t *h, const char *key, void *value);
 void *shash_get(shash_t *h, const char *key);
 void shash_delete(shash_t *h, const void *key);
+bool shash_iter(shash_t *h, hash_iter_t *now, const char **key, void **value);
 
 ihash_t *ihash_new(int size);
 void ihash_free(ihash_t *h);

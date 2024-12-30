@@ -142,10 +142,11 @@ static void parse_pp_define(char *optarg)
 {
    char *eq = strchr(optarg, '=');
    if (eq == NULL)
-      fatal("$bold$--define$$ argument must be KEY=VALUE");
-
-   *eq = '\0';
-   pp_defines_add(optarg, eq + 1);
+      pp_defines_add(optarg, "");
+   else {
+      *eq = '\0';
+      pp_defines_add(optarg, eq + 1);
+   }
 }
 
 static void do_file_list(const char *file, jit_t *jit, unit_registry_t *ur)
@@ -189,6 +190,7 @@ static int analyse(int argc, char **argv, cmd_state_t *state)
       { "files",           required_argument, 0, 'f' },
       { "check-synthesis", no_argument,       0, 's' },
       { "no-save",         no_argument,       0, 'N' },
+      { "single-unit",     no_argument,       0, 'u' },
       { 0, 0, 0, 0 }
    };
 
@@ -238,6 +240,9 @@ static int analyse(int argc, char **argv, cmd_state_t *state)
          break;
       case 'N':
          no_save = true;
+         break;
+      case 'u':
+         opt_set_int(OPT_SINGLE_UNIT, 1);
          break;
       default:
          should_not_reach_here();
@@ -1928,15 +1933,23 @@ static int cover_merge_cmd(int argc, char **argv, cmd_state_t *state)
 static int preprocess_cmd(int argc, char **argv, cmd_state_t *state)
 {
    static struct option long_options[] = {
+      { "define",      required_argument, 0, 'D' },
+      { "single-unit", no_argument,       0, 'u' },
       { 0, 0, 0, 0 }
    };
 
    const int next_cmd = scan_cmd(2, argc, argv);
 
    int c, index;
-   const char *spec = ":o";
+   const char *spec = ":D:";
    while ((c = getopt_long(argc, argv, spec, long_options, &index)) != -1) {
       switch (c) {
+      case 'u':
+         opt_set_int(OPT_SINGLE_UNIT, 1);
+         break;
+      case 'D':
+         parse_pp_define(optarg);
+         break;
       case ':':
          missing_argument("preprocess", argv);
       case '?':
@@ -2013,6 +2026,8 @@ static void usage(void)
           "     --no-save\t\tDo not save analysed design units\n"
           "     --psl\t\tEnable parsing of PSL directives in comments\n"
           "     --relaxed\t\tDisable certain pedantic rule checks\n"
+          "     --single-unit\tTreat all Verilog files as single compilation"
+          "unit\n"
           "\n"
           "Elaboration options:\n"
           "     --cover[=TYPES]\tEnable code coverage collection\n"

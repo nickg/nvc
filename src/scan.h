@@ -46,8 +46,11 @@ token_t processed_yylex(void);
 const char *token_str(token_t tok);
 void free_token(token_t tok, yylval_t *lval);
 
+typedef void (*pp_iter_t)(const char *, const char *, void *);
+
 void pp_defines_add(const char *name, const char *value);
 const char *pp_defines_get(const char *name);
+void pp_defines_iter(pp_iter_t fn, void *ctx);
 
 void scan_as_psl(void);
 void scan_as_vhdl(void);

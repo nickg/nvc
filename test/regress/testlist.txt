@@ -1089,3 +1089,4 @@ conv16          normal,2008
 conv17          normal
 conv18          normal
 ename17         fail,gold,2008
+cmdline13       shell

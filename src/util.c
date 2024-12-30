@@ -1170,15 +1170,19 @@ bool isupper_iso88591(unsigned char ch)
       || (ch >= 0xd8 && ch <= 0xde);
 }
 
-bool isalnum_iso88591(unsigned char ch)
+bool isalpha_iso88591(unsigned char ch)
 {
    return (ch >= 'A' && ch <= 'Z')
       || (ch >= 'a' && ch <= 'z')
-      || (ch >= '0' && ch <= '9')
       || (ch >= 0xc0 && ch <= 0xd6)
       || (ch >= 0xd8 && ch <= 0xde)
       || (ch >= 0xe0 && ch <= 0xf6)
       || (ch >= 0xf8 && ch <= 0xfe);
+}
+
+bool isalnum_iso88591(unsigned char ch)
+{
+   return isalpha_iso88591(ch) || (ch >= '0' && ch <= '9');
 }
 
 int next_power_of_2(int n)

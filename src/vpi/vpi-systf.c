@@ -176,6 +176,15 @@ static PLI_INT32 finish_tf(PLI_BYTE8 *userdata)
    jit_abort();
 }
 
+static PLI_INT32 fatal_tf(PLI_BYTE8 *userdata)
+{
+   diag_t *d = diag_new(DIAG_FATAL, NULL);
+   diag_printf(d, "$fatal called");
+   diag_emit(d);
+
+   jit_abort_with_status(1);
+}
+
 static PLI_INT32 monitor_tf(PLI_BYTE8 *userdata)
 {
    // TODO
@@ -222,6 +231,11 @@ static s_vpi_systf_data builtins[] = {
       .type   = vpiSysTask,
       .tfname = "$finish",
       .calltf = finish_tf
+   },
+   {
+      .type   = vpiSysTask,
+      .tfname = "$fatal",
+      .calltf = fatal_tf
    },
    {
       .type   = vpiSysTask,

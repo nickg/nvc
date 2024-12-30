@@ -276,6 +276,23 @@ void shash_delete(shash_t *h, const void *key)
    }
 }
 
+bool shash_iter(shash_t *h, hash_iter_t *now, const char **key, void **value)
+{
+   assert(*now != HASH_END);
+
+   while (*now < h->size) {
+      const unsigned old = (*now)++;
+      if (h->keys[old] != NULL && h->values[old] != NULL) {
+         *key   = h->keys[old];
+         *value = h->values[old];
+         return true;
+      }
+   }
+
+   *now = HASH_END;
+   return false;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Hash of unsigned integers to pointers
 

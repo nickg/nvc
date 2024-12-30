@@ -287,6 +287,13 @@ void pp_defines_add(const char *name, const char *value)
 {
    pp_defines_init();
 
+   bool valid = isalpha_iso88591(name[0]) || name[0] == '_';
+   for (const char *p = name + 1; valid && *p; p++)
+      valid &= isalnum_iso88591(*p) || *p == '_';
+
+   if (!valid)
+      errorf("\"%s\" is not a valid conditional analysis identifier", name);
+
    char *existing_val = shash_get(pp_defines, name);
    if (existing_val) {
       warnf("conditional analysis identifier '%s' already defined (%s)",
@@ -301,6 +308,17 @@ const char *pp_defines_get(const char *name)
 {
    pp_defines_init();
    return shash_get(pp_defines, name);
+}
+
+void pp_defines_iter(pp_iter_t fn, void *ctx)
+{
+   pp_defines_init();
+
+   const char *key;
+   void *value;
+   for (hash_iter_t it = HASH_BEGIN;
+        shash_iter(pp_defines, &it, &key, &value); )
+      (*fn)(key, value, ctx);
 }
 
 static int pp_yylex(void)

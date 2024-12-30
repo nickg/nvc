@@ -24,8 +24,10 @@
 
 %{
 #include "util.h"
+#include "array.h"
 #include "diag.h"
 #include "hash.h"
+#include "option.h"
 #include "scan.h"
 #include "vlog/vlog-phase.h"
 
@@ -46,12 +48,15 @@ struct _ifdef_stack {
    loc_t          loc;
 };
 
-static int            comment_caller = 0;
-static shash_t       *macros;
-static char          *macro_name;
-static text_buf_t    *macro_text;
-static text_buf_t    *output;
-static ifdef_stack_t *ifdefs = NULL;
+typedef A(YY_BUFFER_STATE) buffer_stack_t;
+
+static int             comment_caller = 0;
+static shash_t        *macros;
+static char           *macro_name;
+static text_buf_t     *macro_text;
+static text_buf_t     *output;
+static ifdef_stack_t  *ifdefs = NULL;
+static buffer_stack_t  buffer_stack = AINIT;
 
 static void define_macro(void);
 static void undef_macro(void);
@@ -109,8 +114,10 @@ ID    [a-zA-Z_]([a-zA-Z0-9_$])*
 `endcelldefine          { tb_cat(output, vlogpp_text); }
 
 `{ID}                   { const char *text = shash_get(macros, vlogpp_text + 1);
-                          if (text != NULL)
-                             tb_cat(output, text);
+                          if (text != NULL) {
+                             APUSH(buffer_stack, YY_CURRENT_BUFFER);
+                             yy_switch_to_buffer(yy_scan_string(text));
+                          }
                           else
                              warn_at(&yylloc, "macro %s undefined",
                                      vlogpp_text + 1);
@@ -171,6 +178,14 @@ ID    [a-zA-Z_]([a-zA-Z0-9_$])*
 \r\n                    |
 \n                      |
 \r                      { tb_append(output, '\n'); }
+
+<<EOF>>                 { if (buffer_stack.count > 0) {
+                             yy_delete_buffer(YY_CURRENT_BUFFER);
+                             yy_switch_to_buffer(APOP(buffer_stack));
+                          }
+                          else
+                             yyterminate();
+                        }
 
 %%
 
@@ -244,10 +259,19 @@ static void pop_ifdef(void)
    }
 }
 
+static void vlog_define_cb(const char *key, const char *value, void *ctx)
+{
+   shash_put(macros, key, (void *)value);
+}
+
 void vlog_preprocess(text_buf_t *tb)
 {
-   assert(macros == NULL);
-   macros = shash_new(64);
+   if (macros == NULL) {
+      macros = shash_new(64);
+      pp_defines_iter(vlog_define_cb, NULL);
+   }
+   else
+      assert(opt_get_int(OPT_SINGLE_UNIT));
 
    assert(macro_text == NULL);
    macro_text = tb_new();
@@ -268,12 +292,17 @@ void vlog_preprocess(text_buf_t *tb)
       pop_ifdef();
    }
 
-   shash_free(macros);
-   macros = NULL;
+   if (!opt_get_int(OPT_SINGLE_UNIT)) {
+      shash_free(macros);
+      macros = NULL;
+   }
 
    free(macro_name);
    macro_name = NULL;
 
    tb_free(macro_text);
    macro_text = NULL;
+
+   assert(buffer_stack.count == 0);
+   ACLEAR(buffer_stack);
 }

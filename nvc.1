@@ -202,10 +202,18 @@ section below for details.
 .\" ------------------------------------------------------------
 .Ss Analysis options
 .Bl -tag -width Ds
-.It Fl \-bootstrap
-Allow compilation of the
-.Ql STANDARD
-package.  Not useful in any other circumstances.
+.\" --check-synthesis
+.It Fl \-check\-synthesis
+Issue warnings for common coding mistakes that may cause problems during
+synthesis such as missing signals from process sensitivity lists.
+.\" -D, --define
+.It Fl D Ar name Ns [= Ns Ar value ] , Fl \-define Ns = Ns Ar name Ns \
+[= Ns Ar value ]
+Define a conditional analysis identifier (VHDL-2019) or preprocessor
+macro (Verilog).  This option can be used multiple times to define
+multiple identifiers or macros.  When
+.Ar value
+is ommited, the macro value is the empty string ("").
 .\" --error-limit
 .It Fl \-error-limit Ns = Ns Ar num
 Stop after reporting
@@ -239,14 +247,11 @@ Disable certain pedantic LRM conformance checks or rules that were
 relaxed by later standards.  See the
 .Sx RELAXED RULES
 section below for details.
-.\" --check-synthesis
-.It Fl \-check\-synthesis
-Issue warnings for common coding mistakes that may cause problems during
-synthesis such as missing signals from process sensitivity lists.
-.\" -D, --define
-.It Fl D Ar name Ns = Ns Ar value , Fl \-define Ns = Ns Ar name Ns = Ns Ar value
-Define a conditional analysis identifier (VHDL-2019).  Option can be
-used multiple times to define multiple identifiers.
+.\" --single-unit
+.It Fl \-single\-unit
+Treat all Verilog source files given on the command line as a single
+compilation unit.  This means macros declared in one file are visible in
+all subsequent files.
 .El
 .\" ------------------------------------------------------------
 .\" Elaboration options
