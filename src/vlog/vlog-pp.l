@@ -57,12 +57,16 @@ static text_buf_t     *macro_text;
 static text_buf_t     *output;
 static ifdef_stack_t  *ifdefs = NULL;
 static buffer_stack_t  buffer_stack = AINIT;
+static bool            emit_locs;
+static bool            continuation = false;
 
 static void define_macro(void);
 static void undef_macro(void);
 static void push_ifdef(void);
 static void pop_ifdef(void);
 static void convert_line_ending(void);
+static void push_macro(const char *name, const char *text);
+static void pop_buffer(void);
 
 extern loc_t yylloc;
 %}
@@ -114,10 +118,8 @@ ID    [a-zA-Z_]([a-zA-Z0-9_$])*
 `endcelldefine          { tb_cat(output, vlogpp_text); }
 
 `{ID}                   { const char *text = shash_get(macros, vlogpp_text + 1);
-                          if (text != NULL) {
-                             APUSH(buffer_stack, YY_CURRENT_BUFFER);
-                             yy_switch_to_buffer(yy_scan_string(text));
-                          }
+                          if (text != NULL)
+                             push_macro(vlogpp_text + 1, text);
                           else
                              warn_at(&yylloc, "macro %s undefined",
                                      vlogpp_text + 1);
@@ -164,13 +166,26 @@ ID    [a-zA-Z_]([a-zA-Z0-9_$])*
 <IFDEF_FALSE>\n         |
 <IFDEF_FALSE>\r         { tb_append(output, '\n'); }
 
-<MACRO_TEXT>[^\r\n]     { tb_cat(macro_text, vlogpp_text); }
+<MACRO_TEXT>\\          { continuation = true; }
+<MACRO_TEXT>[^\r\n]     { if (continuation) {
+                             tb_append(macro_text, '\\');
+                             continuation = false;
+                          }
+                          tb_cat(macro_text, vlogpp_text);
+                        }
 <MACRO_TEXT>\n\r        |
 <MACRO_TEXT>\r\n        |
 <MACRO_TEXT>\n          |
-<MACRO_TEXT>\r          { define_macro();
-                          tb_cat(output, vlogpp_text);
-                          BEGIN(INITIAL);
+<MACRO_TEXT>\r          { if (continuation) {
+                             tb_append(macro_text, '\n');
+                             tb_append(output, '\n');
+                             continuation = false;
+                          }
+                          else {
+                             define_macro();
+                             tb_cat(output, vlogpp_text);
+                             BEGIN(INITIAL);
+                          }
                         }
 
 [^\r\n]                 { tb_cat(output, vlogpp_text); }
@@ -179,10 +194,8 @@ ID    [a-zA-Z_]([a-zA-Z0-9_$])*
 \n                      |
 \r                      { tb_append(output, '\n'); }
 
-<<EOF>>                 { if (buffer_stack.count > 0) {
-                             yy_delete_buffer(YY_CURRENT_BUFFER);
-                             yy_switch_to_buffer(APOP(buffer_stack));
-                          }
+<<EOF>>                 { if (buffer_stack.count > 0)
+                             pop_buffer();
                           else
                              yyterminate();
                         }
@@ -259,12 +272,33 @@ static void pop_ifdef(void)
    }
 }
 
+static void push_macro(const char *name, const char *text)
+{
+   if (emit_locs)
+      tb_printf(output, "\n`__nvc_push %s,%d:%d,%d\n", name, yylloc.first_line,
+                yylloc.first_column, yylloc.column_delta);
+
+   APUSH(buffer_stack, YY_CURRENT_BUFFER);
+   yy_switch_to_buffer(yy_scan_string(text));
+}
+
+static void pop_buffer(void)
+{
+   assert(buffer_stack.count > 0);
+
+   if (emit_locs)
+      tb_printf(output, "\n`__nvc_pop\n");
+
+   yy_delete_buffer(YY_CURRENT_BUFFER);
+   yy_switch_to_buffer(APOP(buffer_stack));
+}
+
 static void vlog_define_cb(const char *key, const char *value, void *ctx)
 {
    shash_put(macros, key, (void *)value);
 }
 
-void vlog_preprocess(text_buf_t *tb)
+void vlog_preprocess(text_buf_t *tb, bool precise)
 {
    if (macros == NULL) {
       macros = shash_new(64);
@@ -280,6 +314,9 @@ void vlog_preprocess(text_buf_t *tb)
    output = tb;
 
    assert(ifdefs == NULL);
+
+   emit_locs = precise;
+   continuation = false;
 
    YY_FLUSH_BUFFER;
    BEGIN(INITIAL);

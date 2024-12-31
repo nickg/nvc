@@ -38,17 +38,25 @@ typedef struct {
 
 typedef A(cond_state_t) cond_stack_t;
 
-static const char   *file_start;
-static size_t        file_sz;
-static const char   *read_ptr;
-static hdl_kind_t    src_kind;
-static file_ref_t    file_ref = FILE_INVALID;
-static int           colno;
-static int           lineno;
-static int           lookahead;
-static int           pperrors;
-static cond_stack_t  cond_stack;
-static shash_t      *pp_defines;
+typedef struct {
+   ident_t name;
+   loc_t   expandloc;
+} macro_expansion_t;
+
+typedef A(macro_expansion_t) macro_stack_t;
+
+static const char    *file_start;
+static size_t         file_sz;
+static const char    *read_ptr;
+static hdl_kind_t     src_kind;
+static file_ref_t     file_ref = FILE_INVALID;
+static int            colno;
+static int            lineno;
+static int            lookahead;
+static int            pperrors;
+static cond_stack_t   cond_stack;
+static shash_t       *pp_defines;
+static macro_stack_t  macro_stack;
 
 extern int yylex(void);
 
@@ -176,18 +184,22 @@ void begin_token(char *tok, int length)
    // Newline must match as a single token for the logic below to work
    assert(strchr(tok, '\n') == NULL || length == 1);
 
-   const int first_col = colno;
-   if (*tok == '\n') {
-      colno = 0;
-      lineno += 1;
+   if (macro_stack.count == 0) {
+      const int first_col = colno;
+      if (*tok == '\n') {
+         colno = 0;
+         lineno += 1;
+      }
+      else
+         colno += length;
+
+      const int last_col = first_col + length - 1;
+
+      extern loc_t yylloc;
+      yylloc = get_loc(lineno, first_col, lineno, last_col, file_ref);
    }
    else
-      colno += length;
-
-   const int last_col = first_col + length - 1;
-
-   extern loc_t yylloc;
-   yylloc = get_loc(lineno, first_col, lineno, last_col, file_ref);
+      yylloc = macro_stack.items[0].expandloc;
 }
 
 const char *token_str(token_t tok)
@@ -250,7 +262,7 @@ const char *token_str(token_t tok)
          "before!", "before_", "before!_", "|->", "|=>", "next", "inf",
          "repeat", "do", "endpoint", "<<", ">>", "<<<", ">>>", "task",
          "endtask", "endfunction", "`begin_keywords", "`end_keywords", "real",
-         "shortreal", "realtime",
+         "shortreal", "realtime", "`__nvc_push", "`__nvc_pop",
       };
 
       if (tok >= 200 && tok - 200 < ARRAY_LEN(token_strs))
@@ -461,6 +473,81 @@ static bool pp_cond_analysis_expr(void)
    return lhs;
 }
 
+static void macro_hint_cb(diag_t *d, void *ctx)
+{
+   assert(macro_stack.count > 0);
+
+   for (int i = 0; i < macro_stack.count; i++)
+      diag_hint(d, NULL, "while expanding macro %s",
+                istr(macro_stack.items[i].name));
+}
+
+static void pp_nvc_push(void)
+{
+   token_t tok;
+   macro_expansion_t exp = {};
+   unsigned first_line, first_column, column_delta;
+
+   if ((tok = pp_yylex()) != tID)
+      goto error;
+
+   exp.name = ident_new(yylval.str);
+   free(yylval.str);
+
+   if ((tok = pp_yylex()) != tCOMMA)
+      goto error;
+
+   if ((tok = pp_yylex()) != tUNSIGNED)
+      goto error;
+
+   first_line = atoi(yylval.str);
+   free(yylval.str);
+
+   if ((tok = pp_yylex()) != tCOLON)
+      goto error;
+
+   if ((tok = pp_yylex()) != tUNSIGNED)
+      goto error;
+
+   first_column = atoi(yylval.str);
+   free(yylval.str);
+
+   if ((tok = pp_yylex()) != tCOMMA)
+      goto error;
+
+   if ((tok = pp_yylex()) != tUNSIGNED)
+      goto error;
+
+   column_delta = atoi(yylval.str);
+   free(yylval.str);
+
+   exp.expandloc = get_loc(first_line, first_column, first_line,
+                           first_column + column_delta, yylloc.file_ref);
+
+   if (macro_stack.count == 0)
+      diag_add_hint_fn(macro_hint_cb, NULL);
+
+   APUSH(macro_stack, exp);
+   return;
+
+ error:
+   pp_error("unexpected %s while parsing `__nvc_push directive",
+            token_str(tok));
+}
+
+static void pp_nvc_pop(void)
+{
+   if (macro_stack.count == 0)
+      return;
+
+   const macro_expansion_t top = APOP(macro_stack);
+   lineno = top.expandloc.first_line - 1;
+   colno = top.expandloc.first_column + top.expandloc.column_delta;
+
+   if (macro_stack.count == 0)
+      diag_remove_hint_fn(macro_hint_cb);
+}
+
 token_t processed_yylex(void)
 {
    assert(lookahead == -1);
@@ -566,6 +653,14 @@ token_t processed_yylex(void)
             APOP(cond_stack);
          }
          return tEOF;
+
+      case tNVCPUSH:
+         pp_nvc_push();
+         break;
+
+      case tNVCPOP:
+         pp_nvc_pop();
+         break;
 
       default:
          if (cond_stack.count == 0 || ATOP(cond_stack).result)

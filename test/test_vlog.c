@@ -363,7 +363,7 @@ START_TEST(test_pp1)
    input_from_file(TESTDIR "/vlog/pp1.v");
 
    LOCAL_TEXT_BUF tb = tb_new();
-   vlog_preprocess(tb);
+   vlog_preprocess(tb, false);
 
    ck_assert_str_eq(
       tb_get(tb),
@@ -458,7 +458,7 @@ START_TEST(test_pp2)
    expect_errors(expect);
 
    LOCAL_TEXT_BUF tb = tb_new();
-   vlog_preprocess(tb);
+   vlog_preprocess(tb, false);
 
    check_expected_errors();
 }
@@ -620,7 +620,7 @@ START_TEST(test_pp3)
    expect_errors(expect);
 
    LOCAL_TEXT_BUF tb = tb_new();
-   vlog_preprocess(tb);
+   vlog_preprocess(tb, false);
 
    ck_assert_str_eq(
       tb_get(tb),
@@ -641,6 +641,37 @@ START_TEST(test_concat1)
       { -1, NULL }
    };
    expect_errors(expect);
+
+   vlog_node_t m = vlog_parse();
+   fail_if(m == NULL);
+   fail_unless(vlog_kind(m) == V_MODULE);
+
+   vlog_check(m);
+
+   fail_unless(vlog_parse() == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
+START_TEST(test_pp4)
+{
+   input_from_file(TESTDIR "/vlog/pp4.v");
+
+   const error_t expect[] = {
+      { 11, "unexpected module while parsing expression" },
+      {  0, "this token was unexpected" },
+      {  0, "while expanding macro MACRO2" },
+      {  0, "while expanding macro MACRO1" },
+      { 16, "unexpected wire while parsing net declaration assignment" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   LOCAL_TEXT_BUF tb = tb_new();
+   vlog_preprocess(tb, true);
+
+   input_from_buffer(tb_get(tb), tb_len(tb), SOURCE_VERILOG);
 
    vlog_node_t m = vlog_parse();
    fail_if(m == NULL);
@@ -679,6 +710,7 @@ Suite *get_vlog_tests(void)
    tcase_add_test(tc, test_param1);
    tcase_add_test(tc, test_pp3);
    tcase_add_test(tc, test_concat1);
+   tcase_add_test(tc, test_pp4);
    suite_add_tcase(s, tc);
 
    return s;

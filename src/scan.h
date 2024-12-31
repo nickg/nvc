@@ -422,5 +422,7 @@ bool is_scanned_as_psl(void);
 #define tSVREAL        519
 #define tSHORTREAL     520
 #define tREALTIME      521
+#define tNVCPUSH       522
+#define tNVCPOP        523
 
 #endif  // _SCAN_H

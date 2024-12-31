@@ -2499,7 +2499,7 @@ void analyse_file(const char *file, jit_t *jit, unit_registry_t *ur)
    case SOURCE_VERILOG:
       {
          LOCAL_TEXT_BUF tb = tb_new();
-         vlog_preprocess(tb);
+         vlog_preprocess(tb, true);
 
          input_from_buffer(tb_get(tb), tb_len(tb), SOURCE_VERILOG);
 

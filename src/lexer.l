@@ -636,6 +636,8 @@ BEFORE            ?i:before
 <VLOG>"`endcelldefine"   { }
 <VLOG>"`begin_keywords"  { return tBEGINKEYWORDS; }
 <VLOG>"`end_keywords"    { return tENDKEYWORDS; }
+<VLOG>"`__nvc_push"      { return tNVCPUSH; }
+<VLOG>"`__nvc_pop"       { return tNVCPOP; }
 <VLOG>"supply0"          { return tSUPPLY0; }
 <VLOG>"supply1"          { return tSUPPLY1; }
 <VLOG>"pulldown"         { return tPULLDOWN; }

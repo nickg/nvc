@@ -1966,7 +1966,7 @@ static int preprocess_cmd(int argc, char **argv, cmd_state_t *state)
       input_from_file(argv[i]);
 
       tb_rewind(tb);
-      vlog_preprocess(tb);
+      vlog_preprocess(tb, false);
 
       fputs(tb_get(tb), stdout);
    }
