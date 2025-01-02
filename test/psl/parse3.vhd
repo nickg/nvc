@@ -65,4 +65,6 @@ begin
     -- psl assert {a} |-> {b};
 
     -- psl assert {a} |=> {{b[->3]} && {(a and not c)[+]}; not c and b};
+
+    -- psl assert {global_vect(1)};    -- OK (issue #1115)
 end architecture;

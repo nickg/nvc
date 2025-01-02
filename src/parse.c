@@ -12310,7 +12310,7 @@ static psl_node_t p_psl_sequence(void)
          tree_t name = p_name(N_PSL);
 
          // Check for sequence instance
-         if (tree_has_ref(name)) {
+         if (tree_kind(name) == T_REF && tree_has_ref(name)) {
             tree_t decl = tree_ref(name);
             if (tree_kind(decl) == T_PSL)
                head = p_sequence_instance(decl);
