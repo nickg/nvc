@@ -519,7 +519,7 @@ const char *vhpi_state_str(vhpiStateT state)
 {
    switch (state) {
    case vhpiEnable: return "vhpiEnable";
-   case vhpiDisable: return "vhpiEnable";
+   case vhpiDisable: return "vhpiDisable";
    case vhpiMature: return "vhpiMature";
    default: return vhpi_fallback_str(state);
    }
