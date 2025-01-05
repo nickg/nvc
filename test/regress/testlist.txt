@@ -1090,3 +1090,4 @@ conv17          normal
 conv18          normal
 ename17         fail,gold,2008
 cmdline13       shell
+issue1117       normal,psl,2008

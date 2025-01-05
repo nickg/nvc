@@ -202,7 +202,7 @@ static void psl_lower_state(lower_unit_t *lu, psl_fsm_t *fsm,
       }
    }
 
-   if (fsm->kind != FSM_COVER) {
+   if (fsm->kind != FSM_COVER && fsm->kind != FSM_NEVER) {
       vcode_reg_t severity_reg = psl_assert_severity();
       vcode_reg_t locus = psl_debug_locus(state->where);
 
