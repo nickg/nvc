@@ -7259,7 +7259,7 @@ static tree_t p_subprogram_instantiation_declaration(void)
    else {
       // Create a dummy subprogram type to avoid later errors
       type_t type = type_new(T_SIGNATURE);
-      type_set_ident(type, tree_ident(name));
+      type_set_ident(type, error_marker());
       if (kind == T_FUNC_INST)
          type_set_result(type, type_new(T_NONE));
 
