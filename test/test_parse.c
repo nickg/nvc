@@ -7096,11 +7096,13 @@ START_TEST(test_alias5)
 
    const error_t expect[] = {
       {  2, "no visible declaration for TYPE_T" },
+      {  9, "no visible declaration for X" },
+      { 10, "no visible subprogram PROC matches signature [INTEGER]" },
       { -1, NULL }
    };
    expect_errors(expect);
 
-   parse_and_check(T_PACKAGE);
+   parse_and_check(T_PACKAGE, T_PACKAGE);
 
    fail_unless(parse() == NULL);
 
