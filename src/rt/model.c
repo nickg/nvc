@@ -2480,6 +2480,8 @@ static void update_property(rt_model_t *m, rt_prop_t *prop)
          m->force_stop = true;
    }
 
+   tlab_reset(thread->tlab);   // No allocations can be live past here
+
    thread->active_obj = NULL;
    thread->active_scope = NULL;
 

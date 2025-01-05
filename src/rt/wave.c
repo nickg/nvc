@@ -987,8 +987,7 @@ static void fst_walk_design(wave_dumper_t *wd, tree_t block)
       block = tree_stmt(block, 0);
       assert(tree_kind(block) == T_BLOCK);
 
-      assert(scope->children.count == 1);
-      scope = scope->children.items[0];
+      scope = find_scope(wd->model, block);
    }
 
    const int nports = tree_ports(block);
