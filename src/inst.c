@@ -85,6 +85,8 @@ void copy_with_renaming(tree_t *roots, int nroots, tree_copy_pred_t tree_pred,
       tree_t decl = copy_ctx.copied_subs.items[i];
       if (tree_kind(decl) == T_GENERIC_DECL)
          continue;   // Does not yet have mangled name
+      else if (is_open_coded_builtin(tree_subkind(decl)))
+         continue;   // Has no mangled name
 
       ident_t orig = tree_ident2(decl);
       for (int j = 0; j < nprefix; j++) {

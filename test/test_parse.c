@@ -7122,7 +7122,7 @@ START_TEST(test_gensub)
    };
    expect_errors(expect);
 
-   parse_and_check(T_PACKAGE);
+   parse_and_check(T_PACKAGE, T_PACKAGE, T_PACK_BODY);
 
    fail_unless(parse() == NULL);
 
