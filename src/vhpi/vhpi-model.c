@@ -881,17 +881,12 @@ static c_designInstUnit *cast_designInstUnit(c_vhpiObject *obj)
    }
 }
 
-static const char *handle_pp(vhpiHandleT handle)
+static void handle_pp_r(vhpiHandleT handle, text_buf_t *tb)
 {
-   static __thread text_buf_t *tb = NULL;
-
-   if (handle == NULL)
-      return "NULL";
-
-   if (tb == NULL)
-      tb = tb_new();
-   else
-      tb_rewind(tb);
+   if (handle == NULL) {
+      tb_cat(tb, "NULL");
+      return;
+   }
 
    tb_printf(tb, "%p:{", handle);
 
@@ -926,17 +921,31 @@ static const char *handle_pp(vhpiHandleT handle)
    }
 
    tb_append(tb, '}');
+}
 
+static const char *handle_pp(vhpiHandleT handle)
+{
+   static __thread text_buf_t *tb = NULL;
+   if (tb == NULL)
+      tb = tb_new();
+
+   tb_rewind(tb);
+   handle_pp_r(handle, tb);
    return tb_get(tb);
 }
 
 static const char *cb_data_pp(const vhpiCbDataT *data)
 {
-   static char buf[256];
-   checked_sprintf(buf, sizeof(buf), "{reason=%s cb_rtn=%p user_data=%p}",
-                   vhpi_cb_reason_str(data->reason), data->cb_rtn,
-                   data->user_data);
-   return buf;
+   static __thread text_buf_t *tb = NULL;
+   if (tb == NULL)
+      tb = tb_new();
+
+   tb_rewind(tb);
+   tb_printf(tb, "{reason=%s obj=", vhpi_cb_reason_str(data->reason));
+   handle_pp_r(data->obj, tb);
+   tb_printf(tb, " cb_rtn=%p user_data=%p}", data->cb_rtn, data->user_data);
+
+   return tb_get(tb);
 }
 
 static void *new_object(size_t size, vhpiClassKindT class)
