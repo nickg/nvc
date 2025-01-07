@@ -35,29 +35,6 @@ START_TEST(test_sanity)
 }
 END_TEST
 
-START_TEST(test_analyse)
-{
-   const error_t expect[] = {
-      { 39, "invalid object class signal for generic X" },
-      { -1, NULL }
-   };
-   expect_errors(expect);
-
-   tcl_shell_t *sh = shell_new(jit_new, NULL);
-
-   const char *result = NULL;
-   fail_if(shell_eval(sh, "analyse " TESTDIR "/parse/entity.vhd", &result));
-
-   tree_t one = lib_get(lib_work(), ident_new("WORK.ONE"));
-   fail_if(one == NULL);
-   fail_unless(tree_kind(one) == T_ENTITY);
-
-   shell_free(sh);
-
-   check_expected_errors();
-}
-END_TEST
-
 START_TEST(test_examine1)
 {
    const error_t expect[] = {
@@ -69,8 +46,10 @@ START_TEST(test_examine1)
 
    const char *result = NULL;
 
-   shell_eval(sh, "analyse " TESTDIR "/shell/examine1.vhd", &result);
-   ck_assert_str_eq(result, "");
+   unit_registry_t *ur = get_registry();
+   jit_t *j = jit_new(ur);
+
+   analyse_file(TESTDIR "/shell/examine1.vhd", j, ur);
 
    shell_eval(sh, "elaborate examine1", &result);
    ck_assert_str_eq(result, "");
@@ -101,6 +80,7 @@ START_TEST(test_examine1)
    }
 
    shell_free(sh);
+   jit_free(j);
 
    check_expected_errors();
 }
@@ -231,8 +211,10 @@ START_TEST(test_wave1)
 
    const char *result = NULL;
 
-   shell_eval(sh, "analyse " TESTDIR "/shell/wave1.vhd", &result);
-   ck_assert_str_eq(result, "");
+   unit_registry_t *ur = get_registry();
+   jit_t *j = jit_new(ur);
+
+   analyse_file(TESTDIR "/shell/wave1.vhd", j, ur);
 
    shell_eval(sh, "elaborate wave1", &result);
    ck_assert_str_eq(result, "");
@@ -263,6 +245,7 @@ START_TEST(test_wave1)
    ck_assert_int_eq(state, 13);
 
    shell_free(sh);
+   jit_free(j);
 
    fail_if_errors();
 }
@@ -388,8 +371,10 @@ START_TEST(test_force1)
 
    const char *result = NULL;
 
-   shell_eval(sh, "analyse " TESTDIR "/shell/force1.vhd", &result);
-   ck_assert_str_eq(result, "");
+   unit_registry_t *ur = get_registry();
+   jit_t *j = jit_new(ur);
+
+   analyse_file(TESTDIR "/shell/force1.vhd", j, ur);
 
    shell_eval(sh, "elaborate force1", &result);
    ck_assert_str_eq(result, "");
@@ -477,8 +462,10 @@ START_TEST(test_describe1)
 
    const char *result = NULL;
 
-   shell_eval(sh, "analyse " TESTDIR "/shell/describe1.vhd", &result);
-   ck_assert_str_eq(result, "");
+   unit_registry_t *ur = get_registry();
+   jit_t *j = jit_new(ur);
+
+   analyse_file(TESTDIR "/shell/describe1.vhd", j, ur);
 
    shell_eval(sh, "elaborate describe1", &result);
    ck_assert_str_eq(result, "");
@@ -513,7 +500,6 @@ Suite *get_shell_tests(void)
 
    TCase *tc = nvc_unit_test();
    tcase_add_test(tc, test_sanity);
-   tcase_add_test(tc, test_analyse);
    tcase_add_test(tc, test_examine1);
    tcase_add_test(tc, test_wave1);
    tcase_add_test(tc, test_redirect);

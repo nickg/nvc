@@ -491,52 +491,6 @@ static int shell_cmd_find(ClientData cd, Tcl_Interp *interp,
    return syntax_error(sh, objv);
 }
 
-static const char analyse_help[] =
-   "Analyse a VHDL source file\n"
-   "\n"
-   "Syntax:\n"
-   "  analyse [options] <file> [<file> ...]\n"
-   "\n"
-   "Note \"vcom\" is an alias of this command.\n"
-   "\n"
-   "Examples:\n"
-   "  analyse file.vhd\n"
-   "  vcom file1.vhd file2.vhd\n";
-
-static int shell_cmd_analyse(ClientData cd, Tcl_Interp *interp,
-                             int objc, Tcl_Obj *const objv[])
-{
-   tcl_shell_t *sh = cd;
-
-   int pos = 1;
-   for (const char *opt; (opt = Tcl_GetString(objv[pos]))[0] == '-'; pos++)
-      goto usage;
-
-   if (pos == objc)
-      goto usage;
-
-   reset_error_count();
-
-   for (; pos < objc; pos++) {
-      const char *fname = Tcl_GetString(objv[pos]);
-
-      file_info_t info;
-      if (access(fname, R_OK) != 0 || !get_file_info(fname, &info))
-         return tcl_error(sh, "cannot open %s: %s", fname, strerror(errno));
-      else if (info.type == FILE_DIR)
-         return tcl_error(sh, "%s is a directory", fname);
-      else if (info.type != FILE_REGULAR)
-         return tcl_error(sh, "%s is not a regular file", fname);
-
-      analyse_file(fname, sh->jit, sh->registry);
-   }
-
-   return error_count() > 0 ? TCL_ERROR : TCL_OK;
-
- usage:
-   return syntax_error(sh, objv);
-}
-
 static const char elaborate_help[] =
    "Elaborate a design hierarchy\n"
    "\n"
@@ -1284,8 +1238,6 @@ tcl_shell_t *shell_new(jit_factory_t make_jit, unit_registry_t *registry)
    shell_add_cmd(sh, "find", shell_cmd_find, find_help);
    shell_add_cmd(sh, "run", shell_cmd_run, run_help);
    shell_add_cmd(sh, "restart", shell_cmd_restart, restart_help);
-   shell_add_cmd(sh, "analyse", shell_cmd_analyse, analyse_help);
-   shell_add_cmd(sh, "vcom", shell_cmd_analyse, analyse_help);
    shell_add_cmd(sh, "elaborate", shell_cmd_elaborate, elaborate_help);
    shell_add_cmd(sh, "vsim", shell_cmd_elaborate, elaborate_help);
    shell_add_cmd(sh, "examine", shell_cmd_examine, examine_help);

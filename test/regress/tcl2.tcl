@@ -6,8 +6,7 @@ proc assert condition {
 
 set testdir [file dirname [file normalize [info script]]]
 
-vcom $testdir/elab1.vhd
-vsim elab1
+vsim tcl2
 
 set sigs [find signals /*]
 puts $sigs

@@ -690,10 +690,21 @@ static bool dir_exists(const char *path)
    return stat(path, &st) == 0 && S_ISDIR(st.st_mode);
 }
 
-static bool file_exists(const char *path)
+__attribute__((format(printf, 1, 2)))
+static bool file_exists(const char *fmt, ...)
 {
+   va_list ap;
+   va_start(ap, fmt);
+   char *path = xvasprintf(fmt, ap);
+   va_end(ap);
+
+   bool exists = false;
    struct stat st;
-   return stat(path, &st) == 0 && S_ISREG(st.st_mode);
+   if (stat(path, &st) == 0 && S_ISREG(st.st_mode))
+      exists = true;
+
+   free(path);
+   return exists;
 }
 
 static bool enter_test_directory(test_t *test, char *dir)
@@ -832,6 +843,13 @@ static bool run_test(test_t *test)
 
       if (test->heapsz != NULL)
          push_arg(&args, "-H%s", test->heapsz);
+
+      if (file_exists("%s/regress/%s.vhd", test_dir, test->name)) {
+         push_arg(&args, "-a");
+         push_arg(&args, "%s/regress/%s.vhd", test_dir, test->name);
+         push_arg(&args, "-e");
+         push_arg(&args, "%s", test->name);
+      }
 
       push_arg(&args, "--do");
       push_arg(&args, "%s" DIR_SEP "regress" DIR_SEP "%s.tcl",
