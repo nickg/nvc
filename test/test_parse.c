@@ -7130,6 +7130,30 @@ START_TEST(test_gensub)
 }
 END_TEST
 
+START_TEST(test_aggregate2)
+{
+   set_standard(STD_19);
+
+   input_from_file(TESTDIR "/parse/aggregate2.vhd");
+
+   const error_t expect[] = {
+      {  4, "no visible declaration for DATA" },
+      {  4, "association choice must be a field name" },
+      { 11, "no visible declaration for WORD" },
+      { 11, "unexpected => while parsing signature" },
+      { 11, "association choice must be a field name" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_PACKAGE, T_PACKAGE);
+
+   fail_unless(parse() == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_parse_tests(void)
 {
    Suite *s = suite_create("parse");
@@ -7304,6 +7328,7 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_issue1096);
    tcase_add_test(tc_core, test_alias5);
    tcase_add_test(tc_core, test_gensub);
+   tcase_add_test(tc_core, test_aggregate2);
    suite_add_tcase(s, tc_core);
 
    return s;
