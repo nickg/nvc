@@ -4417,14 +4417,15 @@ static bool sem_is_named_entity(tree_t t)
    tree_t decl = tree_ref(t);
 
    switch (tree_kind(decl)) {
-   case T_SIGNAL_DECL:  case T_VAR_DECL:     case T_PORT_DECL:
-   case T_ALIAS:        case T_ENTITY:       case T_ARCH:
-   case T_PACKAGE:      case T_PACK_BODY:    case T_BLOCK:
-   case T_FILE_DECL:    case T_CONST_DECL:   case T_FUNC_DECL:
-   case T_FUNC_BODY:    case T_PROC_DECL:    case T_PROC_BODY:
-   case T_PROCESS:      case T_GENERIC_DECL: case T_PARAM_DECL:
-   case T_INSTANCE:     case T_PROT_DECL:    case T_PROT_BODY:
-   case T_TYPE_DECL:    case T_SUBTYPE_DECL:
+   case T_SIGNAL_DECL:  case T_VAR_DECL:       case T_PORT_DECL:
+   case T_ALIAS:        case T_ENTITY:         case T_ARCH:
+   case T_PACKAGE:      case T_PACK_BODY:      case T_BLOCK:
+   case T_FILE_DECL:    case T_CONST_DECL:     case T_FUNC_DECL:
+   case T_FUNC_BODY:    case T_PROC_DECL:      case T_PROC_BODY:
+   case T_PROCESS:      case T_GENERIC_DECL:   case T_PARAM_DECL:
+   case T_INSTANCE:     case T_PROT_DECL:      case T_PROT_BODY:
+   case T_TYPE_DECL:    case T_SUBTYPE_DECL:   case T_FOR_GENERATE:
+   case T_IF_GENERATE:  case T_CASE_GENERATE:
       return true;
    case T_IMPLICIT_SIGNAL:
       return tree_subkind(decl) == IMPLICIT_GUARD;   // See LRM 93 section 4.3

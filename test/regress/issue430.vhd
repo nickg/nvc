@@ -94,14 +94,14 @@ architecture MODEL of CHANNEL_PLAYER is
         read_val(signals.AR.ADDR(ADDR_WIDTH-1 downto 0));
     end procedure;
 begin
-    CHANNEL_M: if (CHANNEL = CHANNEL_M) generate
+    gCHANNEL_M: if (CHANNEL = CHANNEL_M) generate
         PROCESS_M: process
         begin
             FINISH <= '1';
             wait;
         end process;
     end generate;
-    CHANNEL_A:if (CHANNEL = CHANNEL_AW or CHANNEL = CHANNEL_AR) generate
+    gCHANNEL_A:if (CHANNEL = CHANNEL_AW or CHANNEL = CHANNEL_AR) generate
         PROCESS_A: process
             procedure execute_output is
             begin
@@ -125,7 +125,7 @@ begin
             wait;
         end process;
     end generate;
-    CHANNEL_D:if (CHANNEL = CHANNEL_DW  or CHANNEL = CHANNEL_DR) generate
+    gCHANNEL_D:if (CHANNEL = CHANNEL_DW  or CHANNEL = CHANNEL_DR) generate
         PROCESS_D: process
             procedure execute_output is
             begin
