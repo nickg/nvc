@@ -7142,11 +7142,14 @@ START_TEST(test_aggregate2)
       { 11, "no visible declaration for WORD" },
       { 11, "unexpected => while parsing signature" },
       { 11, "association choice must be a field name" },
+      { 18, "no visible declaration for T_DIRECTION" },
+      { 19, "index range of array aggregate with others choice cannot be "
+            "determined from the context" },
       { -1, NULL }
    };
    expect_errors(expect);
 
-   parse_and_check(T_PACKAGE, T_PACKAGE);
+   parse_and_check(T_PACKAGE, T_PACKAGE, T_PACKAGE);
 
    fail_unless(parse() == NULL);
 

@@ -11,3 +11,10 @@ package brack is
     data[word => (others => '0')  -- Error
   );
 end package;
+
+--------------------------------------------------------------------------------
+
+package pkg is
+  type narr is array (t_direction range <>) of natural;  -- Error
+  constant C : narr := (others => 0);                    -- Error
+end package;
