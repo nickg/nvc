@@ -42,6 +42,8 @@
 - `vhpi_assert` now behaves the same as VHDL `assert` for the purposes
   of determining the simulation exit code and early termination (#1060).
 - The `'driving_value` attribute now works correctly with record types.
+- Added basic support for `'instance_name`, `'path_name` and `'simple_name`
+  attributes of generate block labels (from @NikLeberg) (#1125).
 - Several other minor bugs were resolved (#1038, #1057, #1067).
 
 ## Version 1.14.2 - 2024-11-23

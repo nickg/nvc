@@ -11163,12 +11163,14 @@ static tree_t p_for_generate_statement(ident_t label)
 
    consume(tFOR);
 
-   push_scope(nametab);
-   scope_set_prefix(nametab, label);
-
    tree_t g = tree_new(T_FOR_GENERATE);
    tree_set_ident(g, label);
 
+   if (label != NULL)
+      insert_name(nametab, g, NULL);
+
+   push_scope(nametab);
+   scope_set_prefix(nametab, label);
    scope_set_container(nametab, g);
 
    p_parameter_specification(g, T_GENERIC_DECL);
@@ -11206,6 +11208,9 @@ static tree_t p_if_generate_statement(ident_t label)
 
    tree_t g = tree_new(T_IF_GENERATE);
    tree_set_ident(g, label);
+
+   if (label != NULL)
+      insert_name(nametab, g, NULL);
 
    ident_t alt_label = NULL;
    if (peek() == tID && peek_nth(2) == tCOLON) {
@@ -11341,6 +11346,9 @@ static tree_t p_case_generate_statement(ident_t label)
 
    tree_t g = tree_new(T_CASE_GENERATE);
    tree_set_ident(g, label);
+
+   if (label != NULL)
+      insert_name(nametab, g, NULL);
 
    tree_t value = p_expression();
    tree_set_value(g, value);
