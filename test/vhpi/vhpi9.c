@@ -42,7 +42,10 @@ static void end_of_init(const vhpiCbDataT *cb_data)
    check_error();
    fail_if(s_elem == NULL);
    vhpi_printf("s elem type handle %p", s_elem);
-   vhpi_printf("s elem type name is %s", vhpi_get_str(vhpiNameP, s_elem));
+
+   const char *s_elem_type_name = (char *)vhpi_get_str(vhpiNameP, s_elem);
+   vhpi_printf("s elem type name is %s", s_elem_type_name);
+   fail_unless(strcmp(s_elem_type_name, "BIT_VECTOR") == 0);
 
    const char *s_elem_name = (char *)vhpi_get_str(vhpiFullNameP, s_elem);
    vhpi_printf("s elem type full name is %s", s_elem_name);

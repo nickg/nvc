@@ -1137,10 +1137,14 @@ static void init_typeDecl(c_typeDecl *d, tree_t t, type_t type)
    init_abstractDecl(&(d->decl), t, NULL);
 
    char *full LOCAL = xasprintf("@%s", istr(type_ident(type)));
-   char *pos = full;
-   while ((pos = strchr(pos, '.')))
+   char *pos = full, *lastpos;
+   while (lastpos = pos, (pos = strchr(pos, '.')))
       *pos = ':';
    d->decl.FullName = d->decl.FullCaseName = new_string(full);
+
+   // Kludge to set the name correctly for nested arrays
+   d->decl.Name = d->decl.CaseName =
+      (vhpiStringT)d->decl.FullName + (lastpos - full) + 1;
 
    d->type   = type;
    d->format = vhpi_format_for_type(d->type, &d->map_str);
