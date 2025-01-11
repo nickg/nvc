@@ -83,6 +83,23 @@ typedef struct _sym_chunk {
    symbol_t     symbols[SYMBOLS_PER_CHUNK];
 } sym_chunk_t;
 
+typedef struct {
+   type_t type;
+   tree_t src;
+} tracked_type_t;
+
+typedef A(tracked_type_t) tracked_type_list_t;
+
+typedef bool (*type_pred_t)(type_t);
+
+typedef struct _type_set {
+   tracked_type_list_t  members;
+   type_set_t          *down;
+   type_pred_t          pred;
+   unsigned             watermark;
+   bool                 known_subtype;
+} type_set_t;
+
 typedef enum {
    O_IDLE,
    O_POS,
@@ -96,6 +113,7 @@ typedef struct {
    tree_list_t       params;
    nametab_t        *nametab;
    const symbol_t   *symbol;
+   type_set_t        typeset;
    overload_state_t  state;
    bool              error;
    bool              trace;
@@ -161,23 +179,6 @@ typedef struct _nametab {
    tree_t      psl;
 } nametab_t;
 
-typedef struct {
-   type_t type;
-   tree_t src;
-} tracked_type_t;
-
-typedef A(tracked_type_t) tracked_type_list_t;
-
-typedef bool (*type_pred_t)(type_t);
-
-typedef struct _type_set {
-   tracked_type_list_t  members;
-   type_set_t          *down;
-   type_pred_t          pred;
-   unsigned             watermark;
-   bool                 known_subtype;
-} type_set_t;
-
 static type_t _solve_types(nametab_t *tab, tree_t expr);
 static type_t try_solve_type(nametab_t *tab, tree_t expr);
 static bool is_forward_decl(tree_t decl, tree_t existing);
@@ -192,22 +193,21 @@ static tree_t finish_overload_resolution(overload_t *o);
 ////////////////////////////////////////////////////////////////////////////////
 // Type sets
 
-static void type_set_push(nametab_t *tab)
+static void type_set_push(nametab_t *tab, type_set_t *ts)
 {
-   type_set_t *t = xcalloc(sizeof(type_set_t));
-   t->down = tab->top_type_set;
+   assert(ts->down == NULL);
+   assert(ts->members.count == 0);
+   assert(ts->watermark == 0);
 
-   tab->top_type_set = t;
+   ts->down = tab->top_type_set;
+   tab->top_type_set = ts;
 }
 
-static void type_set_pop(nametab_t *tab)
+static void type_set_pop(nametab_t *tab, type_set_t *ts)
 {
-   assert(tab->top_type_set != NULL);
-
-   type_set_t *old = tab->top_type_set;
-   tab->top_type_set = old->down;
-   ACLEAR(old->members);
-   free(old);
+   assert(tab->top_type_set == ts);
+   tab->top_type_set = ts->down;
+   ACLEAR(ts->members);
 }
 
 static void type_set_describe(nametab_t *tab, diag_t *d, const loc_t *loc,
@@ -2129,22 +2129,25 @@ void resolve_resolution(nametab_t *tab, tree_t rname, type_t type)
       break;
 
    case T_REF:
-      tree_set_ref(rname, NULL);
+      {
+         tree_set_ref(rname, NULL);
 
-      type_set_push(tab);
-      type_set_add(tab, type, NULL);
+         type_set_t ts = {};
+         type_set_push(tab, &ts);
+         type_set_add(tab, type, NULL);
 
-      overload_t o = {
-         .tree     = rname,
-         .state    = O_IDLE,
-         .nametab  = tab,
-         .trace    = false,
-         .name     = tree_ident(rname)
-      };
-      begin_overload_resolution(&o);
-      tree_set_ref(rname, finish_overload_resolution(&o));
+         overload_t o = {
+            .tree     = rname,
+            .state    = O_IDLE,
+            .nametab  = tab,
+            .trace    = false,
+            .name     = tree_ident(rname)
+         };
+         begin_overload_resolution(&o);
+         tree_set_ref(rname, finish_overload_resolution(&o));
 
-      type_set_pop(tab);
+         type_set_pop(tab, &ts);
+      }
       break;
 
    default:
@@ -3038,7 +3041,8 @@ static void overload_positional_argument(overload_t *o, int pos)
 {
    assert(o->state == O_IDLE);
 
-   type_set_push(o->nametab);
+   o->typeset = (type_set_t){};
+   type_set_push(o->nametab, &o->typeset);
 
    if (o->trace)
       printf("%s: positional argument %d\n", istr(o->name), pos);
@@ -3130,7 +3134,8 @@ static void overload_named_argument(overload_t *o, tree_t name)
 {
    assert(o->state == O_IDLE);
 
-   type_set_push(o->nametab);
+   o->typeset = (type_set_t){};
+   type_set_push(o->nametab, &o->typeset);
 
    push_scope(o->nametab);
 
@@ -3323,7 +3328,7 @@ static void overload_next_argument(overload_t *o, tree_t p)
 
    APUSH(o->params, p);
 
-   type_set_pop(o->nametab);
+   type_set_pop(o->nametab, &o->typeset);
 
    o->state = O_IDLE;
 }
@@ -3361,7 +3366,7 @@ static void overload_cancel_argument(overload_t *o, tree_t p)
 
    APUSH(o->params, p);
 
-   type_set_pop(o->nametab);
+   type_set_pop(o->nametab, &o->typeset);
    o->state = O_IDLE;
 }
 
@@ -4183,7 +4188,8 @@ static type_t try_solve_attr_ref(nametab_t *tab, tree_t aref)
    const int nparams = tree_params(aref);
    assert(nparams <= 1);
    if (nparams == 1) {
-      type_set_push(tab);
+      type_set_t ts = {};
+      type_set_push(tab, &ts);
 
       switch (tree_subkind(aref)) {
       case ATTR_IMAGE:
@@ -4200,7 +4206,7 @@ static type_t try_solve_attr_ref(nametab_t *tab, tree_t aref)
       }
 
       _solve_types(tab, tree_value(tree_param(aref, 0)));
-      type_set_pop(tab);
+      type_set_pop(tab, &ts);
    }
 
    type_t type = NULL;
@@ -4414,9 +4420,10 @@ static type_t solve_record_aggregate(nametab_t *tab, tree_t agg, type_t type)
    mask_init(&fmask, nfields);
 
    for (int i = 0; i < nassocs; i++) {
-      type_set_push(tab);
-      tree_t a = tree_assoc(agg, i);
+      type_set_t ts = {};
+      type_set_push(tab, &ts);
 
+      tree_t a = tree_assoc(agg, i);
       switch (tree_subkind(a)) {
       case A_POS:
          {
@@ -4471,7 +4478,7 @@ static type_t solve_record_aggregate(nametab_t *tab, tree_t agg, type_t type)
       }
 
       _solve_types(tab, a);
-      type_set_pop(tab);
+      type_set_pop(tab, &ts);
    }
 
    mask_free(&fmask);
@@ -4484,7 +4491,8 @@ static type_t solve_array_aggregate(nametab_t *tab, tree_t agg, type_t type)
    // one-dimensional array otherwise construct an array type with
    // n-1 dimensions.
 
-   type_set_push(tab);
+   type_set_t ts = {};
+   type_set_push(tab, &ts);
 
    type_t t0, t1 = NULL;
    bool composite_elem = false;
@@ -4581,7 +4589,7 @@ static type_t solve_array_aggregate(nametab_t *tab, tree_t agg, type_t type)
       }
    }
 
-   type_set_pop(tab);
+   type_set_pop(tab, &ts);
 
    bool bounds_from_context = true;
    if (type_is_unconstrained(type))
@@ -4956,10 +4964,11 @@ static type_t _solve_types(nametab_t *tab, tree_t expr)
 
 type_t solve_types(nametab_t *tab, tree_t expr, type_t constraint)
 {
-   type_set_push(tab);
+   type_set_t ts = {};
+   type_set_push(tab, &ts);
    type_set_add(tab, constraint, NULL);
    type_t type = _solve_types(tab, expr);
-   type_set_pop(tab);
+   type_set_pop(tab, &ts);
    return type;
 }
 
@@ -4967,14 +4976,14 @@ type_t solve_known_subtype(nametab_t *tab, tree_t expr, type_t constraint)
 {
    assert(constraint != NULL);
 
-   type_set_push(tab);
-   tab->top_type_set->known_subtype = true;
+   type_set_t ts = { .known_subtype = true };
+   type_set_push(tab, &ts);
 
    type_set_add(tab, constraint, NULL);
 
    type_t type = _solve_types(tab, expr);
 
-   type_set_pop(tab);
+   type_set_pop(tab, &ts);
    return type;
 }
 
@@ -4982,12 +4991,12 @@ type_t solve_target(nametab_t *tab, tree_t target, tree_t value)
 {
    type_t value_type = NULL;
    if (tree_kind(target) == T_AGGREGATE) {
-      type_set_push(tab);
-      tab->top_type_set->pred = type_is_composite;
+      type_set_t ts = { .pred = type_is_composite };
+      type_set_push(tab, &ts);
 
       value_type = _solve_types(tab, value);
 
-      type_set_pop(tab);
+      type_set_pop(tab, &ts);
    }
 
    return solve_types(tab, target, value_type);
@@ -5002,7 +5011,8 @@ type_t solve_condition(nametab_t *tab, tree_t *expr)
 
    // Apply the rules for condition conversion from LRM 08 section 9.2.9
 
-   type_set_push(tab);
+   type_set_t ts1 = {};
+   type_set_push(tab, &ts1);
    type_set_add(tab, boolean, NULL);
 
    type_t type;
@@ -5011,12 +5021,13 @@ type_t solve_condition(nametab_t *tab, tree_t *expr)
    else
       type = try_solve_type(tab, *expr);
 
-   type_set_pop(tab);
+   type_set_pop(tab, &ts1);
 
    if (type != NULL && type_eq(type, boolean))
       return type;
 
-   type_set_push(tab);
+   type_set_t ts2 = {};
+   type_set_push(tab, &ts2);
    type_set_add(tab, boolean, NULL);
 
    ident_t cconv = well_known(W_OP_CCONV);
@@ -5054,7 +5065,7 @@ type_t solve_condition(nametab_t *tab, tree_t *expr)
       *expr = fcall;
    }
 
-   type_set_pop(tab);
+   type_set_pop(tab, &ts2);
    return type;
 }
 
@@ -5064,7 +5075,8 @@ type_t solve_psl_condition(nametab_t *tab, tree_t *expr)
       return solve_condition(tab, expr);
    else {
       // Allow BIT and STD_LOGIC in PSL conditions for VHDL-93
-      type_set_push(tab);
+      type_set_t ts = {};
+      type_set_push(tab, &ts);
 
       type_set_add(tab, std_type(NULL, STD_BOOLEAN), NULL);
       type_set_add(tab, std_type(NULL, STD_BIT), NULL);
@@ -5072,7 +5084,7 @@ type_t solve_psl_condition(nametab_t *tab, tree_t *expr)
 
       type_t type = _solve_types(tab, *expr);
 
-      type_set_pop(tab);
+      type_set_pop(tab, &ts);
       return type;
    }
 }
