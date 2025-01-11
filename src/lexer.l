@@ -90,6 +90,7 @@ static int report_bad_identifier(char *str);
 
 static int last_token = -1;
 static int comment_caller = 0;
+static bool in_psl_comment = false;
 
 extern loc_t yylloc;
 extern yylval_t yylval;
@@ -352,6 +353,7 @@ BEFORE            ?i:before
 <PSL,INITIAL>"--"        { comment_caller = YY_START; BEGIN(COMMENT); }
 <VLOG,UDP>"//"           { comment_caller = YY_START; BEGIN(COMMENT); }
 {PSL_COMMENT}            { if (begin_psl_comment()) {
+                              in_psl_comment = true;
                               BEGIN(PSL);
                               TOKEN(tSTARTPSL);
                            }
@@ -373,9 +375,13 @@ BEFORE            ?i:before
 <C_COMMENT>\n            { /* Must match a single character */ }
 <C_COMMENT>.             { }
 
-<PSL>;                   { TOKEN(tSEMI); }
-<PSL>{PSL_CONT}          { /* Multi-line PSL comment */ }
-<PSL>"--"                { comment_caller = YY_START; BEGIN(COMMENT); }
+<PSL>;                   { in_psl_comment = false; TOKEN(tSEMI); }
+<PSL>{PSL_CONT}          { /* Multi-line PSL comment */
+                           if (!in_psl_comment) {
+                              comment_caller = YY_START;
+                              BEGIN(COMMENT);
+                           }
+                         }
 
 {ENTITY}                 { TOKEN(tENTITY); }
 {IS}                     { TOKEN(tIS); }
@@ -1157,6 +1163,10 @@ static void warn_utf8(const char *text)
 
 void reset_scanner(void)
 {
+   last_token = -1;
+   comment_caller = 0;
+   in_psl_comment = false;
+
    YY_FLUSH_BUFFER;
    BEGIN(INITIAL);
 }

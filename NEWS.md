@@ -44,6 +44,7 @@
 - The `'driving_value` attribute now works correctly with record types.
 - Added basic support for `'instance_name`, `'path_name` and `'simple_name`
   attributes of generate block labels (from @NikLeberg) (#1125).
+- Comments are now parsed correctly inside PSL directives (#1129).
 - Several other minor bugs were resolved (#1038, #1057, #1067. #1124).
 
 ## Version 1.14.2 - 2024-11-23
