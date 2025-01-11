@@ -428,42 +428,42 @@ table below.
   <tr>
     <td>5.1</td>
     <td>Boolean expressions</td>
-    <td class="feature-done">master</td>
+    <td class="feature-done">1.15</td>
   </tr>
   <tr>
     <td>5.1.1</td>
     <td>Bit expressions</td>
-    <td class="feature-done">master</td>
+    <td class="feature-done">1.15</td>
   </tr>
   <tr>
     <td>5.1.2</td>
     <td>Boolean expressions</td>
-    <td class="feature-done">master</td>
+    <td class="feature-done">1.15</td>
   </tr>
   <tr>
     <td>5.1.3</td>
     <td>Bit Vector expressions</td>
-    <td class="feature-done">master</td>
+    <td class="feature-done">1.15</td>
   </tr>
   <tr>
     <td>5.1.4</td>
     <td>Numeric expressions</td>
-    <td class="feature-done">master</td>
+    <td class="feature-done">1.15</td>
   </tr>
   <tr>
     <td>5.1.5</td>
     <td>String expressions</td>
-    <td class="feature-done">master</td>
+    <td class="feature-done">1.15</td>
   </tr>
   <tr>
     <td>5.2</td>
     <td>Expression forms</td>
-    <td class="feature-partial">master</td>
+    <td class="feature-partial">1.15</td>
   </tr>
   <tr>
     <td>5.2.1</td>
     <td>HDL expressions</td>
-    <td class="feature-done">master</td>
+    <td class="feature-done">1.15</td>
   </tr>
   <tr>
     <td>5.2.2</td>
@@ -473,7 +473,7 @@ table below.
   <tr>
     <td>5.2.3</td>
     <td>Built-in functions</td>
-    <td class="feature-partial">master</td>
+    <td class="feature-partial">1.15</td>
   </tr>
   <tr>
     <td>5.2.3.1</td>
@@ -508,12 +508,12 @@ table below.
   <tr>
     <td>5.2.3.7</td>
     <td>isunknown()</td>
-    <td class="feature-done">master</td>
+    <td class="feature-done">1.15</td>
   </tr>
   <tr>
     <td>5.2.3.8</td>
     <td>countones()</td>
-    <td class="feature-done">master</td>
+    <td class="feature-done">1.15</td>
   </tr>
   <tr>
     <td>5.2.3.9</td>
@@ -528,7 +528,7 @@ table below.
   <tr>
     <td>5.2.3.11</td>
     <td>onehot(), onehot0()</td>
-    <td class="feature-done">master</td>
+    <td class="feature-done">1.15</td>
   </tr>
   <tr>
     <td>5.2.4</td>
@@ -543,7 +543,7 @@ table below.
   <tr>
     <td>5.4</td>
     <td>Default clock declaration</td>
-    <td class="feature-partial">master</td>
+    <td class="feature-partial">1.15</td>
   </tr>
   <tr class="feature-group">
     <td>6</td>
@@ -552,27 +552,27 @@ table below.
   <tr>
     <td>6.1</td>
     <td>Sequential Expressions</td>
-    <td class="feature-partial">master</td>
+    <td class="feature-partial">1.15</td>
   </tr>
   <tr>
     <td>6.1.1</td>
     <td>Sequential Extended Regular Expressions (SEREs)</td>
-    <td class="feature-partial">master</td>
+    <td class="feature-partial">1.15</td>
   </tr>
   <tr>
     <td>6.1.1.1</td>
     <td>Simple SEREs</td>
-    <td class="feature-done">master</td>
+    <td class="feature-done">1.15</td>
   </tr>
   <tr>
     <td>6.1.1.1.1</td>
     <td>SERE concatenation (;)</td>
-    <td class="feature-done">master</td>
+    <td class="feature-done">1.15</td>
   </tr>
   <tr>
     <td>6.1.1.1.2</td>
     <td>SERE fusion (:)</td>
-    <td class="feature-done">master</td>
+    <td class="feature-done">1.15</td>
   </tr>
   <tr>
     <td>6.1.1.2</td>
@@ -592,7 +592,7 @@ table below.
   <tr>
     <td>6.1.1.2.3</td>
     <td>SERE length-matching and (&&)</td>
-    <td class="feature-done">master</td>
+    <td class="feature-done">1.15</td>
   </tr>
   <tr>
     <td>6.1.1.2.4</td>
@@ -607,27 +607,27 @@ table below.
   <tr>
     <td>6.1.2</td>
     <td>Sequences</td>
-    <td class="feature-partial">master</td>
+    <td class="feature-partial">1.15</td>
   </tr>
   <tr>
     <td>6.1.2.1</td>
     <td>SERE consecutive repetition ([* ])</td>
-    <td class="feature-done">master</td>
+    <td class="feature-done">1.15</td>
   </tr>
   <tr>
     <td>6.1.2.2</td>
     <td>SERE non-consecutive repetition ([= ])</td>
-    <td class="feature-done">master</td>
+    <td class="feature-done">1.15</td>
   </tr>
   <tr>
     <td>6.1.2.3</td>
     <td>SERE goto repetition ([-> ])</td>
-    <td class="feature-done">master</td>
+    <td class="feature-done">1.15</td>
   </tr>
   <tr>
     <td>6.1.2.4</td>
     <td>Braced SERE</td>
-    <td class="feature-done">master</td>
+    <td class="feature-done">1.15</td>
   </tr>
   <tr>
     <td>6.1.2.5</td>
@@ -637,17 +637,17 @@ table below.
   <tr>
     <td>6.2</td>
     <td>Properties</td>
-    <td class="feature-partial">master</td>
+    <td class="feature-partial">1.15</td>
   </tr>
   <tr>
     <td>6.2.1</td>
     <td>FL Properties</td>
-    <td class="feature-partial">master</td>
+    <td class="feature-partial">1.15</td>
   </tr>
   <tr>
     <td>6.2.1.1</td>
     <td>Sequential FL Properties</td>
-    <td class="feature-partial">master</td>
+    <td class="feature-partial">1.15</td>
   </tr>
   <tr>
     <td>6.2.1.2</td>
@@ -657,27 +657,27 @@ table below.
   <tr>
     <td>6.2.1.3</td>
     <td>Simple FL Properties</td>
-    <td class="feature-done">master</td>
+    <td class="feature-done">1.15</td>
   </tr>
   <tr>
     <td>6.2.1.3.1</td>
     <td>always</td>
-    <td class="feature-done">master</td>
+    <td class="feature-done">1.15</td>
   </tr>
   <tr>
     <td>6.2.1.3.2</td>
     <td>never</td>
-    <td class="feature-done">master</td>
+    <td class="feature-done">1.15</td>
   </tr>
   <tr>
     <td>6.2.1.3.3</td>
     <td>eventually!</td>
-    <td class="feature-done">master</td>
+    <td class="feature-done">1.15</td>
   </tr>
   <tr>
     <td>6.2.1.3.4</td>
     <td>next</td>
-    <td class="feature-done">master</td>
+    <td class="feature-done">1.15</td>
   </tr>
   <tr>
     <td>6.2.1.4</td>
@@ -712,32 +712,32 @@ table below.
   <tr>
     <td>6.2.1.5</td>
     <td>Compound FL Properties</td>
-    <td class="feature-partial">master</td>
+    <td class="feature-partial">1.15</td>
   </tr>
   <tr>
     <td>6.2.1.5.1</td>
     <td>abort, async_abort and sync_abort</td>
-    <td class="feature-done">master</td>
+    <td class="feature-done">1.15</td>
   </tr>
   <tr>
     <td>6.2.1.5.2</td>
     <td>before</td>
-    <td class="feature-done">master</td>
+    <td class="feature-done">1.15</td>
   </tr>
   <tr>
     <td>6.2.1.5.3</td>
     <td>until</td>
-    <td class="feature-done">master</td>
+    <td class="feature-done">1.15</td>
   </tr>
   <tr>
     <td>6.2.1.6</td>
     <td>Sequence-based FL Properties</td>
-    <td class="feature-done">master</td>
+    <td class="feature-done">1.15</td>
   </tr>
   <tr>
     <td>6.2.1.6.1</td>
     <td>Suffix implication</td>
-    <td class="feature-done">master</td>
+    <td class="feature-done">1.15</td>
   </tr>
   <tr>
     <td>6.2.1.7</td>
@@ -856,12 +856,12 @@ table below.
   <tr>
     <td>7.1</td>
     <td>Verification directives</td>
-    <td class="feature-partial">master</td>
+    <td class="feature-partial">1.15</td>
   </tr>
   <tr>
     <td>7.1.1</td>
     <td>assert</td>
-    <td class="feature-done">master</td>
+    <td class="feature-done">1.15</td>
   </tr>
   <tr>
     <td>7.1.2</td>
@@ -881,7 +881,7 @@ table below.
   <tr>
     <td>7.1.5</td>
     <td>cover</td>
-    <td class="feature-done">master</td>
+    <td class="feature-done">1.15</td>
   </tr>
   <tr>
     <td>7.1.6</td>

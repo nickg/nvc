@@ -1,4 +1,6 @@
 ## Unreleased changes
+
+## Version 1.15.0 - 2025-01-11
 - `--load` is now a global option and should be placed before the `-r`
   command.  This allows VHPI foreign subprograms to be called during
   elaboration (#988).

@@ -5,4 +5,5 @@ lib_libnvc_a_SOURCES += \
 	src/vpi/vpi-priv.h \
 	src/vpi/vpi-str.c \
 	src/vpi/vpi-util.c \
-	src/vpi/vpi-systf.c
+	src/vpi/vpi-systf.c \
+	src/vpi/vpi-macros.h
