@@ -45,6 +45,7 @@
 - Added basic support for `'instance_name`, `'path_name` and `'simple_name`
   attributes of generate block labels (from @NikLeberg) (#1125).
 - Comments are now parsed correctly inside PSL directives (#1129).
+- Updated to OSVVM 2024.11 and UVVM 2024.10.08 for `nvc --install`.
 - Several other minor bugs were resolved (#1038, #1057, #1067. #1124).
 
 ## Version 1.14.2 - 2024-11-23

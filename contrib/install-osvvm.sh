@@ -13,7 +13,7 @@ if ! command -v tclsh &>/dev/null; then
   exit 1
 fi
 
-git_wrapper https://github.com/osvvm/OsvvmLibraries 2024.07
+git_wrapper https://github.com/osvvm/OsvvmLibraries 2024.11
 
 # Temporary workaround for analysis warnings
 (cd Scripts && patch -p1 -N) <<EOF
