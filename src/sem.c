@@ -3322,7 +3322,16 @@ static bool sem_check_call_args(tree_t t, tree_t decl, nametab_t *tab)
                }
             }
 
-            if (index == -1 || !tree_has_ref(ref)) {
+            if (index == -1) {
+               diag_t *d = diag_new(DIAG_ERROR, tree_loc(param));
+               diag_printf(d, "subprogram %s has no parameter named %s",
+                           type_pp(tree_type(decl)), istr(id));
+               diag_hint(d, tree_loc(decl), "subprogram defined here");
+               diag_emit(d);
+               return false;
+            }
+
+            if (!tree_has_ref(ref)) {
                // Should have generated an error during overload
                // resolution
                assert(error_count() > 0);

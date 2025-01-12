@@ -7071,6 +7071,25 @@ START_TEST(test_issue1091)
 }
 END_TEST
 
+START_TEST(test_issue1091b)
+{
+   input_from_file(TESTDIR "/parse/issue1091b.vhd");
+
+   const error_t expect[] = {
+      { 17, "subprogram MEMORYTABLECORRUPTMASK [INTEGER] "
+            "has no parameter named ENABLEINDEX" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_PACKAGE, T_PACK_BODY);
+
+   fail_unless(parse() == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
 START_TEST(test_issue1096)
 {
    input_from_file(TESTDIR "/parse/issue1096.vhd");
@@ -7356,6 +7375,7 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_pkgindecl);
    tcase_add_test(tc_core, test_issue1090);
    tcase_add_test(tc_core, test_issue1091);
+   tcase_add_test(tc_core, test_issue1091b);
    tcase_add_test(tc_core, test_issue1096);
    tcase_add_test(tc_core, test_alias5);
    tcase_add_test(tc_core, test_gensub);
