@@ -42,7 +42,7 @@ typedef enum {
    P_PROPERTY_INST,
    P_SEQUENCE_INST,
    P_UNION,
-   P_BUILTIN_FUNC,
+   P_BUILTIN_FCALL,
    P_VALUE_SET,
    P_PARAM_DECL,
    P_UNTIL,

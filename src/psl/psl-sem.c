@@ -205,6 +205,24 @@ static void psl_check_number(psl_node_t p, nametab_t *tab)
    psl_check_static(value);
 }
 
+static void psl_check_bit(psl_node_t p, nametab_t *tab)
+{
+   tree_t value = psl_tree(p);
+   type_t std_bit = std_type(NULL, STD_BIT);
+   type_t std_ulogic = ieee_type(IEEE_STD_ULOGIC);
+
+   type_t type = solve_types(tab, value, std_ulogic);
+   if (type_is_none(type))
+      return;   // Prevent cascading errors
+
+   if (!sem_check(value, tab))
+      return;
+
+   if (!type_eq(type, std_ulogic) && !type_eq(type, std_bit))
+      error_at(tree_loc(value), "expression must be a PSL Bit but have "
+               "type %s", type_pp(type));
+}
+
 static void psl_check_hdl_expr(psl_node_t p, nametab_t *tab)
 {
    switch (psl_type(p)) {
@@ -213,6 +231,9 @@ static void psl_check_hdl_expr(psl_node_t p, nametab_t *tab)
       break;
    case PSL_TYPE_NUMERIC:
       psl_check_number(p, tab);
+      break;
+   case PSL_TYPE_BIT:
+      psl_check_bit(p, tab);
       break;
    default:
       should_not_reach_here();
@@ -417,6 +438,16 @@ static void psl_check_clocked(psl_node_t p, nametab_t *tab, bool toplevel)
                "outermost level of a property");
 }
 
+static void psl_check_builtin_fcall(psl_node_t p, nametab_t *tab)
+{
+   const int nparams = psl_operands(p);
+   for (int i = 0; i < nparams; i++)
+      psl_check(psl_operand(p, i), tab);
+
+   switch (psl_subkind(p)) {
+   }
+}
+
 void psl_check(psl_node_t p, nametab_t *tab)
 {
    switch (psl_kind(p)) {
@@ -508,6 +539,9 @@ void psl_check(psl_node_t p, nametab_t *tab)
       break;
    case P_CLOCKED:
       psl_check_clocked(p, tab, false);
+      break;
+   case P_BUILTIN_FCALL:
+      psl_check_builtin_fcall(p, tab);
       break;
    default:
       fatal_trace("cannot check PSL kind %s", psl_kind_str(psl_kind(p)));
