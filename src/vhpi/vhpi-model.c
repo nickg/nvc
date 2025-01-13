@@ -3564,7 +3564,7 @@ vhpiHandleT vhpi_register_foreignf(vhpiForeignDataT *foreignDatap)
 
          // Make a defensive copy of the passed-in strings
          f->data.libraryName = (char *)new_string(foreignDatap->libraryName);
-         f->data.libraryName = (char *)new_string(foreignDatap->libraryName);
+         f->data.modelName = (char *)new_string(foreignDatap->modelName);
 
          vhpi_context_t *c = vhpi_context();
          APUSH(c->foreignfs, &(f->object));
