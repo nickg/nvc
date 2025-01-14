@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2014-2024  Nick Gasson
+//  Copyright (C) 2014-2025  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -262,7 +262,8 @@ const char *token_str(token_t tok)
          "before!", "before_", "before!_", "|->", "|=>", "next", "inf",
          "repeat", "do", "endpoint", "<<", ">>", "<<<", ">>>", "task",
          "endtask", "endfunction", "`begin_keywords", "`end_keywords", "real",
-         "shortreal", "realtime", "`__nvc_push", "`__nvc_pop",
+         "shortreal", "realtime", "`__nvc_push", "`__nvc_pop", "++", "--",
+         "var",
       };
 
       if (tok >= 200 && tok - 200 < ARRAY_LEN(token_strs))

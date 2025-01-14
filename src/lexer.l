@@ -1,7 +1,7 @@
 /* -*- mode: c; c-basic-offset: 3 -*- */
 
 /*
- *  Copyright (C) 2011-2024  Nick Gasson
+ *  Copyright (C) 2011-2025  Nick Gasson
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -662,6 +662,9 @@ BEFORE            ?i:before
 <VLOG>"(*"               { return tATTRBEGIN; }
 <VLOG>"*)"               { return tATTREND; }
 <VLOG>"%"                { return tPERCENT; }
+<VLOG>"++"               { return tPLUSPLUS; }
+<VLOG>"--"               { return tMINUSMINUS; }
+<VLOG>"var"              { return tVAR; }
 <VLOG>"specify"          { return tSPECIFY; }
 <VLOG>"endspecify"       { return tENDSPECIFY; }
 <VLOG>"primitive"        { return tPRIMITIVE; }
@@ -703,6 +706,7 @@ BEFORE            ?i:before
 <VLOG>"endfunction"      { return tENDFUNCTION; }
 <VLOG>"wait"             { return tWAIT; }
 <VLOG>"parameter"        { return tPARAMETER; }
+<VLOG>"for"              { return tFOR; }
 
 <VLOG>{SYSTASK}          { yylval.str = xstrdup(yytext); return tSYSTASK; }
 <VLOG>{VLOG_ID}          { yylval.str = xstrdup(yytext); return tID; }

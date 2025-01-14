@@ -56,4 +56,11 @@ module parse1;
   realtime  r5 = 1.0;
   assign r2 = {x, y};
   assign {r1, r2} = {x, y};
+  initial begin
+    for (r1 = 1; r1 < 5; r1++)
+      x = x + 1;
+    for (;;r2 = r2 * x);
+    for (int i = 0; i > 0; --i);
+    for (var reg x = 5;;);
+  end
 endmodule // parse1

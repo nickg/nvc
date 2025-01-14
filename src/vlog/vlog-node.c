@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2022-2024  Nick Gasson
+//  Copyright (C) 2022-2025  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -174,6 +174,21 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
 
    // V_CONCAT
    (I_PARAMS),
+
+   // V_FOR_LOOP
+   (I_LEFT | I_VALUE | I_RIGHT | I_STMTS),
+
+   // V_FOR_INIT
+   (I_DECLS | I_STMTS),
+
+   // V_FOR_STEP
+   (I_STMTS),
+
+   // V_PREFIX
+   (I_TARGET | I_SUBKIND),
+
+   // V_POSTFIX
+   (I_TARGET | I_SUBKIND),
 };
 
 static const char *kind_text_map[V_LAST_NODE_KIND] = {
@@ -189,7 +204,8 @@ static const char *kind_text_map[V_LAST_NODE_KIND] = {
    "V_UNION_DECL", "V_STRUCT_DECL", "V_EVENT_CONTROL", "V_EMPTY",
    "V_REPEAT",     "V_WHILE",       "V_DO_WHILE",      "V_TASK_DECL",
    "V_FUNC_DECL",  "V_WAIT",        "V_PARAM_DECL",    "V_COND_EXPR",
-   "V_REAL",       "V_CONCAT",
+   "V_REAL",       "V_CONCAT",      "V_FOR_LOOP",      "V_FOR_INIT",
+   "V_FOR_STEP",   "V_PREFIX",      "V_POSTFIX",
 };
 
 static const change_allowed_t change_allowed[] = {
