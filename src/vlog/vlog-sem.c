@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2022-2024  Nick Gasson
+//  Copyright (C) 2022-2025  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -650,6 +650,34 @@ static void vlog_check_concat(vlog_node_t expr)
    }
 }
 
+static void vlog_check_for_loop(vlog_node_t v)
+{
+   vlog_check(vlog_left(v));
+   vlog_check(vlog_right(v));
+
+   const int nstmts = vlog_stmts(v);
+   for (int i = 0; i < nstmts; i++)
+      vlog_check(vlog_stmt(v, i));
+}
+
+static void vlog_check_for_init(vlog_node_t v)
+{
+   const int ndecls = vlog_decls(v);
+   for (int i = 0; i < ndecls; i++)
+      vlog_check(vlog_decl(v, i));
+
+   const int nstmts = vlog_stmts(v);
+   for (int i = 0; i < nstmts; i++)
+      vlog_check(vlog_stmt(v, i));
+}
+
+static void vlog_check_for_step(vlog_node_t v)
+{
+   const int nstmts = vlog_stmts(v);
+   for (int i = 0; i < nstmts; i++)
+      vlog_check(vlog_stmt(v, i));
+}
+
 void vlog_check(vlog_node_t v)
 {
    switch (vlog_kind(v)) {
@@ -768,6 +796,15 @@ void vlog_check(vlog_node_t v)
       break;
    case V_CONCAT:
       vlog_check_concat(v);
+      break;
+   case V_FOR_LOOP:
+      vlog_check_for_loop(v);
+      break;
+   case V_FOR_INIT:
+      vlog_check_for_init(v);
+      break;
+   case V_FOR_STEP:
+      vlog_check_for_step(v);
       break;
    default:
       fatal_at(vlog_loc(v), "cannot check verilog node %s",

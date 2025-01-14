@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2022-2024  Nick Gasson
+//  Copyright (C) 2022-2025  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -94,6 +94,11 @@ typedef enum {
    V_COND_EXPR,
    V_REAL,
    V_CONCAT,
+   V_FOR_LOOP,
+   V_FOR_INIT,
+   V_FOR_STEP,
+   V_PREFIX,
+   V_POSTFIX,
 
    V_LAST_NODE_KIND
 } vlog_kind_t;
@@ -148,6 +153,11 @@ typedef enum {
    V_UNARY_NEG,
    V_UNARY_IDENTITY,
 } vlog_unary_t;
+
+typedef enum {
+   V_INCDEC_PLUS,
+   V_INCDEC_MINUS,
+} vlog_incdec_t;
 
 typedef enum {
    V_ASSIGN_EQUALS,

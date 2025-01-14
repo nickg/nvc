@@ -169,7 +169,7 @@ START_TEST(test_parse1)
    vlog_node_t m = vlog_parse();
    fail_if(m == NULL);
    fail_unless(vlog_kind(m) == V_MODULE);
-   fail_unless(vlog_stmts(m) == 14);
+   fail_unless(vlog_stmts(m) == 15);
    fail_unless(vlog_ports(m) == 0);
    fail_unless(vlog_decls(m) == 14);
 

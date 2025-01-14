@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2022-2024  Nick Gasson
+//  Copyright (C) 2022-2025  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -424,5 +424,8 @@ bool is_scanned_as_psl(void);
 #define tREALTIME      521
 #define tNVCPUSH       522
 #define tNVCPOP        523
+#define tPLUSPLUS      524
+#define tMINUSMINUS    525
+#define tVAR           526
 
 #endif  // _SCAN_H

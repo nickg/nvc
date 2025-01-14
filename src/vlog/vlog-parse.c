@@ -102,6 +102,7 @@ static vlog_node_t p_constant_expression(void);
 static vlog_node_t p_data_type(void);
 static void p_list_of_variable_decl_assignments(vlog_node_t parent,
                                                 vlog_node_t datatype);
+static vlog_node_t p_variable_lvalue(void);
 
 static inline void _pop_state(const rule_state_t *r)
 {
@@ -1267,6 +1268,34 @@ static vlog_unary_t p_unary_operator(void)
    }
 }
 
+static vlog_incdec_t p_inc_or_dec_operator(void)
+{
+   // ++ | --
+
+   BEGIN("inc or dec operator");
+
+   switch (one_of(tPLUSPLUS, tMINUSMINUS)) {
+   case tMINUSMINUS: return V_INCDEC_MINUS;
+   case tPLUSPLUS:
+   default: return V_INCDEC_PLUS;
+   }
+}
+
+static vlog_node_t p_inc_or_dec_expression(vlog_node_t head)
+{
+   // inc_or_dec_operator { attribute_instance } variable_lvalue
+   //   | variable_lvalue { attribute_instance } inc_or_dec_operator
+
+   BEGIN_WITH_HEAD("inc or dec expression", head);
+
+   vlog_node_t v = vlog_new(head ? V_POSTFIX : V_PREFIX);
+   vlog_set_subkind(v, p_inc_or_dec_operator());
+   vlog_set_target(v, head ?: p_variable_lvalue());
+
+   vlog_set_loc(v, CURRENT_LOC);
+   return v;
+}
+
 static vlog_node_t p_nonbinary_expression(void)
 {
    // primary | unary_operator { attribute_instance } primary
@@ -1293,9 +1322,12 @@ static vlog_node_t p_nonbinary_expression(void)
          vlog_set_loc(v, CURRENT_LOC);
          return v;
       }
+   case tPLUSPLUS:
+   case tMINUSMINUS:
+      return p_inc_or_dec_expression(NULL);
    default:
       one_of(tID, tSTRING, tNUMBER, tUNSIGNED, tREAL, tSYSTASK, tLPAREN,
-             tLBRACE, tMINUS, tTILDE, tBANG);
+             tLBRACE, tMINUS, tTILDE, tBANG, tPLUSPLUS, tMINUSMINUS);
       return p_select(error_marker());
    }
 }
@@ -1723,6 +1755,116 @@ static vlog_node_t p_conditional_statement(void)
    return v;
 }
 
+static vlog_node_t p_variable_assignment(vlog_kind_t kind)
+{
+   // variable_lvalue = expression
+
+   BEGIN("variable assignment");
+
+   vlog_node_t v = vlog_new(kind);
+   vlog_set_target(v, p_variable_lvalue());
+
+   consume(tEQ);
+
+   vlog_set_value(v, p_expression());
+
+   vlog_set_loc(v, CURRENT_LOC);
+   return v;
+}
+
+static void p_list_of_variable_assignments(vlog_node_t parent)
+{
+   // variable_assignment { , variable_assignment }
+
+   BEGIN("list of variable assignments");
+
+   do {
+      vlog_node_t v = p_variable_assignment(V_BASSIGN);
+      vlog_add_stmt(parent, v);
+   } while (optional(tCOMMA));
+}
+
+static void p_for_variable_declaration(vlog_node_t parent)
+{
+   // [ var ] data_type variable_identifier = expression
+   //   { , variable_identifier = expression }
+
+   BEGIN("for variable declaration");
+
+   optional(tVAR);
+
+   vlog_node_t dt = p_data_type();
+
+   do {
+      vlog_node_t v = vlog_new(V_VAR_DECL);
+      vlog_set_ident(v, p_identifier());
+      vlog_set_type(v, dt);
+
+      consume(tEQ);
+
+      vlog_set_value(v, p_expression());
+
+      vlog_set_loc(v, CURRENT_LOC);
+      vlog_add_decl(parent, v);
+   } while (optional(tCOMMA));
+}
+
+static vlog_node_t p_for_initialization(void)
+{
+   // list_of_variable_assignments
+   //   | for_variable_declaration { , for_variable_declaration }
+
+   BEGIN("for initialization");
+
+   vlog_node_t v = vlog_new(V_FOR_INIT);
+
+   if (scan(tREG, tSTRUCT, tUNION, tENUM, tSVINT, tINTEGER, tSVREAL,
+            tSHORTREAL, tREALTIME, tLOGIC, tVAR)) {
+      do {
+         p_for_variable_declaration(v);
+      } while (optional(tCOMMA));
+   }
+   else
+      p_list_of_variable_assignments(v);
+
+   vlog_set_loc(v, CURRENT_LOC);
+   return v;
+}
+
+static vlog_node_t p_for_step(void)
+{
+   // operator_assignment | inc_or_dec_expression | function_subroutine_call
+
+   BEGIN("for step");
+
+   vlog_node_t v = vlog_new(V_FOR_STEP);
+
+   switch (peek()) {
+   case tPLUSPLUS:
+   case tMINUSMINUS:
+      vlog_add_stmt(v, p_inc_or_dec_expression(NULL));
+      break;
+   default:
+      {
+         vlog_node_t head = p_variable_lvalue();
+
+         switch (peek()) {
+         case tPLUSPLUS:
+         case tMINUSMINUS:
+            vlog_add_stmt(v, p_inc_or_dec_expression(head));
+            break;
+         default:
+            vlog_add_stmt(v, p_operator_assignment(head));
+            break;
+         }
+      }
+      break;
+   }
+
+   vlog_set_loc(v, CURRENT_LOC);
+   return v;
+}
+
 static vlog_node_t p_loop_statement(void)
 {
    // forever statement_or_null
@@ -1736,7 +1878,7 @@ static vlog_node_t p_loop_statement(void)
 
    BEGIN("loop statement");
 
-   switch (one_of(tFOREVER, tWHILE, tREPEAT, tDO)) {
+   switch (one_of(tFOREVER, tWHILE, tREPEAT, tDO, tFOR)) {
    case tFOREVER:
       {
          vlog_node_t v = vlog_new(V_FOREVER);
@@ -1795,6 +1937,39 @@ static vlog_node_t p_loop_statement(void)
          vlog_set_value(v, p_expression());
          consume(tRPAREN);
          consume(tSEMI);
+
+         vlog_set_loc(v, CURRENT_LOC);
+         return v;
+      }
+
+   case tFOR:
+      {
+         vlog_node_t v = vlog_new(V_FOR_LOOP);
+
+         consume(tLPAREN);
+
+         if (not_at_token(tSEMI))
+            vlog_set_left(v, p_for_initialization());
+         else
+            vlog_set_left(v, vlog_new(V_FOR_INIT));
+
+         consume(tSEMI);
+
+         if (not_at_token(tSEMI))
+            vlog_set_value(v, p_expression());
+
+         consume(tSEMI);
+
+         if (not_at_token(tRPAREN))
+            vlog_set_right(v, p_for_step());
+         else
+            vlog_set_right(v, vlog_new(V_FOR_STEP));
+
+         consume(tRPAREN);
+
+         vlog_node_t s = p_statement_or_null();
+         if (s != NULL)
+            vlog_add_stmt(v, s);
 
          vlog_set_loc(v, CURRENT_LOC);
          return v;
@@ -1872,12 +2047,13 @@ static vlog_node_t p_statement_item(void)
    case tWHILE:
    case tREPEAT:
    case tDO:
+   case tFOR:
       return p_loop_statement();
    case tWAIT:
       return p_wait_statement();
    default:
       one_of(tID, tAT, tHASH, tBEGIN, tSYSTASK, tIF, tFOREVER, tWHILE, tREPEAT,
-             tDO, tWAIT);
+             tDO, tFOR, tWAIT);
       drop_tokens_until(tSEMI);
       return NULL;
    }
