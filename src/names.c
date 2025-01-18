@@ -739,7 +739,7 @@ static name_mask_t name_mask_for(tree_t t)
             return N_OBJECT;
          }
       }
-   case T_PSL:
+   case T_PSL_DECL:
       return N_PSL;
    case T_ENUM_LIT:
    case T_UNIT_DECL:
@@ -1310,7 +1310,7 @@ psl_node_t find_default_clock(nametab_t *tab)
       return NULL;
 
    const decl_t *dd = get_decl(sym, 0);
-   assert(dd->kind == T_PSL);
+   assert(dd->kind == T_PSL_DECL);
    return tree_psl(dd->tree);
 }
 
@@ -1439,7 +1439,7 @@ ident_t get_implicit_label(tree_t t, nametab_t *tab)
    switch (tree_kind(t)) {
    case T_CONCURRENT:
    case T_PROCESS:
-   case T_PSL:
+   case T_PSL_DIRECT:
       cnt = &(tab->top_scope->lbl_cnts.proc);
       c = 'P';
       break;

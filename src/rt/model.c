@@ -533,7 +533,7 @@ static void scope_for_block(rt_model_t *m, tree_t block, rt_scope_t *parent)
          }
          break;
 
-      case T_PSL:
+      case T_PSL_DIRECT:
          {
             psl_node_t psl = tree_psl(t);
 

@@ -9956,7 +9956,7 @@ static void lower_decl(lower_unit_t *lu, tree_t decl)
          lower_instantiated_package(lu, decl);
       break;
 
-   case T_PSL:
+   case T_PSL_DECL:
       psl_lower_decl(lu->registry, lu, tree_psl(decl), tree_ident(decl));
       break;
 

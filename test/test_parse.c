@@ -6831,9 +6831,9 @@ START_TEST(test_issue952)
    fail_unless(tree_kind(a) == T_ARCH);
 
    fail_unless(tree_kind(tree_stmt(a, 0)) == T_CONCURRENT);
-   fail_unless(tree_kind(tree_stmt(a, 1)) == T_PSL);
-   fail_unless(tree_kind(tree_stmt(a, 2)) == T_PSL);
-   fail_unless(tree_kind(tree_stmt(a, 3)) == T_PSL);
+   fail_unless(tree_kind(tree_stmt(a, 1)) == T_PSL_DIRECT);
+   fail_unless(tree_kind(tree_stmt(a, 2)) == T_PSL_DIRECT);
+   fail_unless(tree_kind(tree_stmt(a, 3)) == T_PSL_DIRECT);
 
    fail_unless(parse() == NULL);
 

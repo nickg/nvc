@@ -330,7 +330,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    // T_ALTERNATIVE
    (I_IDENT | I_ASSOCS | I_STMTS | I_DECLS),
 
-   // T_PSL
+   // T_PSL_DECL
    (I_IDENT | I_FOREIGN),
 
    // T_VERILOG
@@ -377,6 +377,9 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
 
    // T_REPORT
    (I_IDENT | I_SEVERITY | I_MESSAGE),
+
+   // T_PSL_DIRECT
+   (I_IDENT | I_FOREIGN),
 };
 
 static const char *kind_text_map[T_LAST_TREE_KIND] = {
@@ -413,12 +416,12 @@ static const char *kind_text_map[T_LAST_TREE_KIND] = {
    "T_PROT_REF",        "T_MATCH_CASE",      "T_FUNC_INST",
    "T_PROC_INST",       "T_ELEM_CONSTRAINT", "T_STRING",
    "T_PATH_ELT",        "T_PRAGMA",          "T_CASE_GENERATE",
-   "T_ALTERNATIVE",     "T_PSL",             "T_VERILOG",
+   "T_ALTERNATIVE",     "T_PSL_DECL",        "T_VERILOG",
    "T_VIEW_DECL",       "T_PACKAGE_MAP",     "T_COND_EXPR",
    "T_COND_VALUE",      "T_COND_RETURN",     "T_VIEW_ELEMENT",
    "T_MATCH_SELECT",    "T_PROT_DECL",       "T_DUMMY_DRIVER",
    "T_GUARD",           "T_INERTIAL",        "T_ELEM_RESOLUTION",
-   "T_LOOP",            "T_REPORT",
+   "T_LOOP",            "T_REPORT",          "T_PSL_DIRECT",
 };
 
 static const change_allowed_t change_allowed[] = {
@@ -489,7 +492,7 @@ static tree_kind_t decl_kinds[] = {
    T_PROT_BODY,      T_BLOCK_CONFIG,   T_IMPLICIT_SIGNAL, T_DISCONNECT,
    T_GROUP_TEMPLATE, T_GROUP,          T_SUBTYPE_DECL,    T_PACKAGE,
    T_PACK_BODY,      T_PACK_INST,      T_GENERIC_DECL,    T_PARAM_DECL,
-   T_PROC_INST,      T_FUNC_INST,      T_PSL,             T_VIEW_DECL,
+   T_PROC_INST,      T_FUNC_INST,      T_PSL_DECL,        T_VIEW_DECL,
    T_PROT_DECL,
 };
 

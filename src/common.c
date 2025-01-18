@@ -573,7 +573,8 @@ class_t class_of(tree_t t)
    case T_INSTANCE:
    case T_CONCURRENT:
    case T_ELAB:
-   case T_PSL:
+   case T_PSL_DECL:
+   case T_PSL_DIRECT:
    case T_FOR_GENERATE:
    case T_IF_GENERATE:
    case T_CASE_GENERATE:
@@ -1996,7 +1997,8 @@ type_t get_type_or_null(tree_t t)
    case T_CASE_GENERATE:
    case T_USE:
    case T_CONTEXT:
-   case T_PSL:
+   case T_PSL_DECL:
+   case T_PSL_DIRECT:
    case T_WAVEFORM:
       return NULL;
    default:

@@ -11603,7 +11603,7 @@ static tree_t p_psl_clock_declaration(void)
 
    psl_node_t p = p_psl_clock_expression();
 
-   tree_t t = tree_new(T_PSL);
+   tree_t t = tree_new(T_PSL_DECL);
    tree_set_psl(t, p);
    tree_set_ident(t, well_known(W_DEFAULT_CLOCK));
 
@@ -12307,7 +12307,7 @@ static psl_node_t p_psl_sequence(void)
          // Check for sequence instance
          if (tree_kind(name) == T_REF && tree_has_ref(name)) {
             tree_t decl = tree_ref(name);
-            if (tree_kind(decl) == T_PSL)
+            if (tree_kind(decl) == T_PSL_DECL)
                head = p_sequence_instance(decl);
          }
 
@@ -12879,7 +12879,7 @@ static tree_t p_psl_directive(ident_t label)
 
    BEGIN("PSL directive");
 
-   tree_t t = tree_new(T_PSL);
+   tree_t t = tree_new(T_PSL_DIRECT);
 
    scan_as_psl();
 
@@ -12922,7 +12922,7 @@ static tree_t p_psl_property_declaration(void)
    ident_t ident = p_identifier();
    psl_set_ident(decl, ident);
 
-   tree_t t = tree_new(T_PSL);
+   tree_t t = tree_new(T_PSL_DECL);
    tree_set_psl(t, decl);
    tree_set_ident(t, ident);
    insert_name(nametab, t, NULL);
@@ -12969,7 +12969,7 @@ static tree_t p_psl_sequence_declaration(void)
    ident_t ident = p_identifier();
    psl_set_ident(decl, ident);
 
-   tree_t t = tree_new(T_PSL);
+   tree_t t = tree_new(T_PSL_DECL);
    tree_set_psl(t, decl);
    tree_set_ident(t, ident);
    insert_name(nametab, t, NULL);
@@ -13016,7 +13016,7 @@ static tree_t p_psl_endpoint_declaration(void)
    ident_t ident = p_identifier();
    psl_set_ident(decl, ident);
 
-   tree_t t = tree_new(T_PSL);
+   tree_t t = tree_new(T_PSL_DECL);
    tree_set_psl(t, decl);
    tree_set_ident(t, ident);
    insert_name(nametab, t, NULL);
@@ -13130,7 +13130,7 @@ static tree_t p_psl_or_concurrent_assert(ident_t label)
       psl_set_loc(a, CURRENT_LOC);
       psl_check(a, nametab);
 
-      conc = tree_new(T_PSL);
+      conc = tree_new(T_PSL_DIRECT);
       tree_set_psl(conc, a);
    }
 

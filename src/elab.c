@@ -1676,7 +1676,7 @@ static void elab_decls(tree_t t, const elab_ctx_t *ctx)
       case T_PACK_BODY:
       case T_PACKAGE:
       case T_PACK_INST:
-      case T_PSL:
+      case T_PSL_DECL:
       case T_ATTR_SPEC:
          tree_add_decl(ctx->out, d);
          break;
@@ -2028,7 +2028,7 @@ static void elab_stmts(tree_t t, const elab_ctx_t *ctx)
       case T_PROCESS:
          elab_process(s, ctx);
          break;
-      case T_PSL:
+      case T_PSL_DIRECT:
          elab_psl(s, ctx);
          break;
       case T_VERILOG:

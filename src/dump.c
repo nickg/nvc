@@ -1026,7 +1026,8 @@ static void dump_decl(tree_t t, int indent)
       dump_package_body(t, indent);
       return;
 
-   case T_PSL:
+   case T_PSL_DECL:
+   case T_PSL_DIRECT:
       dump_psl(t, 0);
       print_syntax(";\n");
       return;
@@ -1455,7 +1456,7 @@ static void dump_stmt(tree_t t, int indent)
       print_syntax("\n");
       return;
 
-   case T_PSL:
+   case T_PSL_DIRECT:
       dump_psl(t, indent);
       break;
 
@@ -1725,7 +1726,7 @@ void vhdl_dump(tree_t t, int indent)
    case T_SIGNAL_ASSIGN:
    case T_IF:
    case T_WAIT:
-   case T_PSL:
+   case T_PSL_DIRECT:
    case T_VAR_ASSIGN:
    case T_RETURN:
    case T_ASSERT:

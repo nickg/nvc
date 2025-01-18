@@ -7415,7 +7415,8 @@ bool sem_check(tree_t t, nametab_t *tab)
    case T_GROUP:
    case T_GROUP_TEMPLATE:
    case T_BOX:
-   case T_PSL:
+   case T_PSL_DIRECT:
+   case T_PSL_DECL:
    case T_LOOP:
    case T_SEQUENCE:
       return true;

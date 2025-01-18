@@ -1018,7 +1018,7 @@ static void fst_walk_design(wave_dumper_t *wd, tree_t block)
       case T_PROCESS:
       case T_VERILOG:
          break;
-      case T_PSL:
+      case T_PSL_DIRECT:
          break;   // TODO: consider emitting to FST
       default:
          fatal_trace("cannot handle tree kind %s in fst_walk_design",

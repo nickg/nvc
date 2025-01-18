@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2024  Nick Gasson
+//  Copyright (C) 2011-2025  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -376,7 +376,7 @@ typedef enum tree_kind {
    T_PRAGMA,
    T_CASE_GENERATE,
    T_ALTERNATIVE,
-   T_PSL,
+   T_PSL_DECL,
    T_VERILOG,
    T_VIEW_DECL,
    T_PACKAGE_MAP,
@@ -392,6 +392,7 @@ typedef enum tree_kind {
    T_ELEM_RESOLUTION,
    T_LOOP,
    T_REPORT,
+   T_PSL_DIRECT,
 
    T_LAST_TREE_KIND
 } tree_kind_t;

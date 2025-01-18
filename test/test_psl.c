@@ -78,7 +78,7 @@ START_TEST(test_parse2)
    fail_unless(tree_kind(a) == T_ARCH);
 
    tree_t s0 = tree_stmt(a, 0);
-   fail_unless(tree_kind(s0) == T_PSL);
+   fail_unless(tree_kind(s0) == T_PSL_DIRECT);
 
    psl_node_t p0 = tree_psl(s0);
    fail_unless(psl_kind(p0) == P_ASSERT);
@@ -185,8 +185,8 @@ START_TEST(test_parse4)
    input_from_file(TESTDIR "/psl/parse4.vhd");
 
    const error_t expect[] = {
-      { 53, "FOO is not a PSL sequence" },
-      { 59, "unexpected ; while parsing architecture statement part" },
+      { 54, "P1 is not a PSL sequence" },
+      { 60, "unexpected ; while parsing architecture statement part" },
       { -1, NULL }
    };
    expect_errors(expect);
