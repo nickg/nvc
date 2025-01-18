@@ -36,4 +36,8 @@ begin
     -- psl assert always (x -> next x) abort y;    -- OK
     -- psl assert always (x -> (y or next x));     -- OK
     -- psl assert (x or y) or (next x);            -- OK
+
+    -- psl
+    --   assert always xxx;                        -- Error (issue #1135)
+    -- psl1111 assert assert assert;               -- Not PSL
 end architecture;

@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2022-2024  Nick Gasson
+//  Copyright (C) 2022-2025  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -35,6 +35,7 @@ START_TEST(test_parse1)
       { 19, "no visible declaration for FFF" },
       { 28, "FOO already declared in this region" },
       { 34, "no visible declaration for XXXX" },
+      { 41, "no visible declaration for XXX" },
       { -1, NULL }
    };
    expect_errors(expect);

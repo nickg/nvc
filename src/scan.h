@@ -68,8 +68,6 @@ void reset_vhdl_parser(void);
 void reset_verilog_parser(void);
 void reset_sdf_parser(void);
 
-bool is_scanned_as_psl(void);
-
 #define tEOF           0
 
 #define tLPAREN        '('
