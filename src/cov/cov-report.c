@@ -551,7 +551,7 @@ static void cover_print_code_loc(FILE *f, cover_pair_t *pair)
             continue;
          }
          else
-            fprintf(f, "%lu:", loc.first_line + (curr_line - pair->line));
+            fprintf(f, "%zu:", loc.first_line + (curr_line - pair->line));
 
          int curr_char = 0;
          while (curr_char < curr_line->len) {

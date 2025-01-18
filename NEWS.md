@@ -5,6 +5,7 @@
   element (#1137).
 - Fixed a regression that caused some array aggregates to be incorrectly
   reported as ambiguous (#1138).
+- The Windows installer now bundles the Tcllib library (#1136).
 
 ## Version 1.15.0 - 2025-01-11
 - `--load` is now a global option and should be placed before the `-r`
