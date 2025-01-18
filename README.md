@@ -1,7 +1,6 @@
 ### Synopsis
 
-[![Build
-Status](https://github.com/nickg/nvc/workflows/Build%20and%20test/badge.svg?branch=master)](https://github.com/nickg/nvc/actions)
+[![Build Status](https://github.com/nickg/nvc/actions/workflows/build-test.yml/badge.svg?branch=master&event=push)](https://github.com/nickg/nvc/actions)
 [![Coverage Status](https://coveralls.io/repos/github/nickg/nvc/badge.svg?branch=master)](https://coveralls.io/github/nickg/nvc?branch=master)
 
 NVC is a [VHDL](https://en.wikipedia.org/wiki/VHDL) compiler and

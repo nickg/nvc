@@ -2,6 +2,8 @@ name: Build and test
 
 on: [push, pull_request]
 
+concurrency: ${{ github.workflow }}-${{ github.ref }}
+
 jobs:
   build-ubuntu:
     name: Ubuntu 22.04
