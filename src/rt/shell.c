@@ -1325,16 +1325,22 @@ void shell_free(tcl_shell_t *sh)
 bool shell_eval(tcl_shell_t *sh, const char *script, const char **result)
 {
    const int code = Tcl_Eval(sh->interp, script);
-   const char *str = Tcl_GetStringResult(sh->interp);
 
    switch (code) {
    case TCL_OK:
       if (result != NULL)
-         *result = str;
+         *result = Tcl_GetStringResult(sh->interp);
       return true;
    case TCL_ERROR:
-      if (str != NULL && *str != '\0')
-         errorf("%s", str);
+      {
+         const char *info = Tcl_GetVar(sh->interp, "::errorInfo", 0);
+         if (info != NULL && *info != '\n')
+            errorf("%s", info);
+
+         *result = Tcl_GetStringResult(sh->interp);
+         if (info == NULL && *result != NULL && **result != '\0')
+            errorf("%s", *result);
+      }
       return false;
    default:
       warnf("Tcl_Eval returned unknown code %d", code);
@@ -1462,16 +1468,13 @@ bool shell_do(tcl_shell_t *sh, const char *file)
       return true;
    case TCL_ERROR:
       {
-         const char *str = Tcl_GetStringResult(sh->interp);
-         if (str != NULL && *str != '\0') {
-            diag_t *d = diag_new(DIAG_ERROR, NULL);
-            diag_printf(d, "%s", str);
-
-            const char *info = Tcl_GetVar(sh->interp, "::errorInfo", 0);
-            if (info != NULL)
-               diag_hint(d, NULL, "%s", info);
-
-            diag_emit(d);
+         const char *info = Tcl_GetVar(sh->interp, "::errorInfo", 0);
+         if (info != NULL && *info != '\n')
+            errorf("%s", info);
+         else {
+            const char *str = Tcl_GetStringResult(sh->interp);
+            if (str != NULL && *str != '\0')
+               errorf("%s", str);
          }
 
          return false;

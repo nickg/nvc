@@ -47,7 +47,6 @@ START_TEST(test_analyse)
 
    const char *result = NULL;
    fail_if(shell_eval(sh, "analyse " TESTDIR "/parse/entity.vhd", &result));
-   ck_assert_ptr_eq(result, NULL);
 
    tree_t one = lib_get(lib_work(), ident_new("WORK.ONE"));
    fail_if(one == NULL);

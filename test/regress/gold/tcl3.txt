@@ -1,0 +1,10 @@
+boo
+while executing
+"error "boo""
+(procedure "proc2" line 2)
+invoked from within
+"proc2"
+(procedure "proc1" line 2)
+invoked from within
+"proc1"
+(file "
