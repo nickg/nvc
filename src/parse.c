@@ -4655,7 +4655,6 @@ static tree_t p_primary(tree_t head)
    case tENDED:
    case tNONDET:
    case tNONDETV:
-      assert(is_scanned_as_psl());
       return p_psl_builtin_function_call();
 
    default:

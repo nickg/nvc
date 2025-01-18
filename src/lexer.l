@@ -127,7 +127,7 @@ COVERAGE_OFF    {PRAGMA}(?i:coverage)[ \t]+(?i:off).*
 COVERAGE_ON     {PRAGMA}(?i:coverage)[ \t]+(?i:on).*
 TRANSLATE_OFF   {PRAGMA}(?i:pragma)[ \t]+(?i:translate_off).*
 TRANSLATE_ON    {PRAGMA}(?i:pragma)[ \t]+(?i:translate_on).*
-PSL_COMMENT     {PRAGMA}(?i:psl)[ \t]+
+PSL_COMMENT     {PRAGMA}(?i:psl)
 PSL_CONT        ^{SPACE}*({PSL_COMMENT}|"--")
 UTF8_MB         [\x80-\xff][\x80-\xbf]{1,3}
 VLOG_NUMBER     {INTEGER}?\'[bhd]{HEX}
@@ -352,6 +352,7 @@ BEFORE            ?i:before
 
 <PSL,INITIAL>"--"        { comment_caller = YY_START; BEGIN(COMMENT); }
 <VLOG,UDP>"//"           { comment_caller = YY_START; BEGIN(COMMENT); }
+{PSL_COMMENT}[^ \t\r\n]  { comment_caller = YY_START; BEGIN(COMMENT); }
 {PSL_COMMENT}            { if (begin_psl_comment()) {
                               in_psl_comment = true;
                               BEGIN(PSL);
@@ -375,7 +376,7 @@ BEFORE            ?i:before
 <C_COMMENT>\n            { /* Must match a single character */ }
 <C_COMMENT>.             { }
 
-<PSL>;                   { in_psl_comment = false; TOKEN(tSEMI); }
+<PSL>;                   { TOKEN(tSEMI); }
 <PSL>{PSL_CONT}          { /* Multi-line PSL comment */
                            if (!in_psl_comment) {
                               comment_caller = YY_START;
@@ -1179,6 +1180,7 @@ void scan_as_psl(void)
 void scan_as_vhdl(void)
 {
    BEGIN(INITIAL);
+   in_psl_comment = false;
 }
 
 void scan_as_verilog(void)
@@ -1199,9 +1201,4 @@ void scan_as_sdf(void)
 void scan_as_sdf_expr(void)
 {
    BEGIN(SDF_EXPR);
-}
-
-bool is_scanned_as_psl(void)
-{
-   return (YY_START == PSL);
 }
