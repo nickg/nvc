@@ -1093,3 +1093,4 @@ cmdline13       shell
 issue1117       normal,psl,2008
 issue1125       normal,2008
 issue1137       normal
+tcl3            tcl,fail,gold

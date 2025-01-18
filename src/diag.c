@@ -868,7 +868,8 @@ static void diag_emit_hints(diag_t *d, FILE *f)
          color_fprintf(f, "%*s", first_col, "");
 
          int ncarets = 1;
-         if (hint->loc.line_delta == 0)
+         if (hint->loc.line_delta == 0
+             && hint->loc.column_delta != DELTA_INVALID)
             ncarets = hint->loc.column_delta + 1;
 
          const int hintcol = fwidth + hint->loc.first_column + ncarets + 4;
