@@ -34,8 +34,6 @@
             </Component>
           </Directory>
           <Directory Id="LIB" Name="lib">
-            <Directory Id="TCL" Name="tcl8.6">
-            </Directory>
             <Directory Id="LIB_NVC" Name="nvc">
               <Component Win64="yes" Id="LIBNVCIMP.A" DiskId="1"
                          Guid="4AA37250-6FCE-4718-9C5A-F269A5AD62D0">

@@ -15,6 +15,40 @@ wprefix = os.getenv("MSYSTEM_PREFIX")
 prefix = subprocess.check_output(
     ["cygpath", "-u", wprefix]).decode("utf-8").strip()
 
+allrefs = []
+
+def get_ref(prefix, d):
+    suffix = os.path.basename(d).upper().replace("-", "_").replace("+", ".")
+    return f"{prefix}_{suffix}"
+
+
+def walk_dir(prefix, d):
+    if not os.path.isdir(d):
+        raise Exception(f"Non-existent directory {d}")
+
+    fs = glob(f"{d}\\*")
+    fs.sort()
+
+    for f in fs:
+        ref = get_ref(prefix, f)
+        base = os.path.basename(f)
+        if os.path.isdir(f):
+            print(f"<Directory Id=\"{ref}\" Name=\"{base}\">")
+            walk_dir(ref, f)
+            print("</Directory>")
+        else:
+            print(f"<Component Id=\"{ref}\" Win64=\"yes\" DiskId=\"1\"")
+            print(f"           Guid=\"{uuid.uuid3(uuid.NAMESPACE_OID, ref)}\">")
+            print(f"  <File Id=\"{ref}\" Name=\"{base}\"")
+            print(f"        Source=\"{f}\" />")
+            print("</Component>")
+
+            allrefs.append(ref)
+
+
+################################################################################
+# DLLs
+
 dlls = set()
 ldd = subprocess.Popen(["ldd", sys.argv[1]], stdout=subprocess.PIPE)
 for line in io.TextIOWrapper(ldd.stdout, encoding="utf-8"):
@@ -28,12 +62,6 @@ for line in io.TextIOWrapper(ldd.stdout, encoding="utf-8"):
 dlls = list(dlls)
 dlls.sort()
 
-
-def get_ref(prefix, d):
-    suffix = os.path.basename(d).upper().replace("-", "_").replace("+", "_")
-    return f"{prefix}_{suffix}"
-
-
 for d in dlls:
     base = os.path.basename(d)
     ref = get_ref("BIN", d)
@@ -42,28 +70,41 @@ for d in dlls:
     print(f"  <File Id=\"{ref}\" Name=\"{base}\"")
     print(f"        Source=\"{d}\" />")
     print("</Component>")
+    allrefs.append(ref)
 
 print("</DirectoryRef>")
 
-print("<DirectoryRef Id=\"TCL\">")
 
-tcl = glob(wprefix + "\\lib\\tcl8.6\\*")
-tcl.sort()
+################################################################################
+# TCL core libraries
 
-for t in tcl:
-    if os.path.isdir(t):
-        pass
-    else:
-        base = os.path.basename(t)
-        ref = get_ref("LIB_TCL", t)
-        print(f"<Component Id=\"{ref}\" Win64=\"yes\" DiskId=\"1\"")
-        print(f"           Guid=\"{uuid.uuid3(uuid.NAMESPACE_OID, base)}\">")
-        print(f"  <File Id=\"{ref}\" Name=\"{base}\"")
-        print(f"        Source=\"{t}\" />")
-        print("</Component>")
+print("<DirectoryRef Id=\"LIB\">")
+
+print("<Directory Id=\"TCL\" Name=\"tcl8.6\">")
+walk_dir("TCL", f"{wprefix}\\lib\\tcl8.6")
+print("</Directory>")
+
+print("<Directory Id=\"TCL8\" Name=\"tcl8\">")
+walk_dir("TCL8", f"{wprefix}\\lib\\tcl8")
+print("</Directory>")
 
 print("</DirectoryRef>")
 
+
+################################################################################
+# TclLib
+
+print("<DirectoryRef Id=\"LIB\">")
+
+print(f"<Directory Id=\"TCLLIB\" Name=\"tcllib1.21\">")
+walk_dir("TCLLIB", f"{sys.argv[2]}\\lib\\tcllib1.21")
+print("</Directory>")
+
+print("</DirectoryRef>")
+
+
+################################################################################
+# Compiled VHDL libraries
 
 libdirs = [
     ("LIB_NVC_NVC", "\\lib\\nvc\\nvc"),
@@ -76,7 +117,6 @@ libdirs = [
     ("LIB_NVC_IEEE.08", "\\lib\\nvc\\ieee.08"),
     ("LIB_NVC_IEEE.19", "\\lib\\nvc\\ieee.19"),
 ]
-allrefs = []
 
 for (prefix, folder) in libdirs:
     print(f"<DirectoryRef Id=\"{prefix}\">")
@@ -102,16 +142,10 @@ for (prefix, folder) in libdirs:
     print("</DirectoryRef>")
 
 
+################################################################################
+# Emit component groups
+
 print("<ComponentGroup Id=\"LIBS\">")
-
-for d in dlls:
-    print(f"<ComponentRef Id=\"{get_ref('BIN', d)}\" />")
-
-for t in tcl:
-    if os.path.isdir(t):
-        pass
-    else:
-        print(f"<ComponentRef Id=\"{get_ref('LIB_TCL', t)}\" />")
 
 for r in allrefs:
     print(f"<ComponentRef Id=\"{r}\" />")

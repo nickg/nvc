@@ -14,7 +14,7 @@ installer.wxs: $(srcdir)/contrib/msi/installer.wxs.in
 	sed -e 's/$$VERSION/'$${vers}'/' \
 	    -e 's|$$PREFIX|$(PREFIX)|' $< > $@
 
-libs.wxs: $(srcdir)/contrib/msi/genlibs.py bin/nvc$(EXEEXT)
+libs.wxs: $(srcdir)/contrib/msi/genlibs.py bin/nvc$(EXEEXT) tcllib.install
 	python3 $< bin/nvc$(EXEEXT) $(PREFIX) > $@
 
 %.wixobj: %.wxs
@@ -27,6 +27,25 @@ $(PACKAGE_NAME)-$(PACKAGE_VERSION).msi: $(WIXOBJS) $(srcdir)/contrib/msi/gpl-3.0
 	  -dWixUILicenseRtf=$(srcdir)/contrib/msi/gpl-3.0.rtf -out $@ $(WIXOBJS)
 
 msi-installer: $(PACKAGE_NAME)-$(PACKAGE_VERSION).msi
+
+tcllib-1.21.tar.gz:
+	wget https://core.tcl-lang.org/tcllib/uv/tcllib-1.21.tar.gz
+
+tcllib.extract: tcllib-1.21.tar.gz
+	tar zxf tcllib-1.21.tar.gz
+	touch tcllib.extract
+
+tcllib.configure: tcllib.extract
+	cd tcllib-1.21 && ./configure --prefix=$$(cygpath -u $(PREFIX))
+	touch tcllib.configure
+
+tcllib.install: tcllib.configure
+	cd tcllib-1.21 && make install-libraries
+	touch tcllib.install
+
+DISTCLEANFILES += tcllib-1.21.tar.gz
+
+CLEANFILES += tcllib.install tcllib.configure tcllib.extract
 
 else
 
