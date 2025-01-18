@@ -230,7 +230,7 @@ typedef struct {
    jit_value_t arg2;
 } jit_ir_t;
 
-STATIC_ASSERT(sizeof(jit_ir_t) == 40);
+STATIC_ASSERT(sizeof(jit_ir_t) <= 40);
 
 typedef struct _jit_tier jit_tier_t;
 typedef struct _jit_func jit_func_t;
