@@ -4495,16 +4495,13 @@ static type_t solve_array_aggregate(nametab_t *tab, tree_t agg, type_t type)
    type_set_push(tab, &ts);
 
    type_t t0, t1 = NULL;
-   bool composite_elem = false;
    const int ndims = dimension_of(type);
    if (ndims == 1) {
       type_t elem = type_elem(type);
       type_set_add(tab, (t0 = elem), NULL);
 
-      if (standard() >= STD_08) {
+      if (standard() >= STD_08)
          t1 = type_base_recur(type);
-         composite_elem = type_is_composite(elem);
-      }
    }
    else
       t0 = array_aggregate_type(type, 1);
@@ -4563,30 +4560,37 @@ static type_t solve_array_aggregate(nametab_t *tab, tree_t agg, type_t type)
          break;
       }
 
-      bool allow_slice = t1 != NULL && (kind == A_POS || kind == A_RANGE);
-
-      // This seems incorrect according to the 2008 LRM but without it
-      // many previously legal nested aggregates are ambiguous
-      tree_t value = tree_value(a);
-      if (composite_elem && tree_kind(value) == T_AGGREGATE)
-         allow_slice = false;
-
       // Hack to avoid pushing/popping type set on each iteration
       ATRIM(tab->top_type_set->members, 0);
       type_set_add(tab, t0, NULL);
-      if (allow_slice)
-         type_set_add(tab, t1, NULL);
 
-      type_t etype = _solve_types(tab, value);
+      tree_t value = tree_value(a);
 
-      if (allow_slice && type_eq(etype, t1)) {
-         // VHDL-2008 slice in aggregate
-         switch (kind) {
-         case A_RANGE: tree_set_subkind(a, A_SLICE); break;
-         case A_POS: tree_set_subkind(a, A_CONCAT); break;
-         default: break;
+      if (t1 != NULL && (kind == A_POS || kind == A_RANGE)) {
+         // In the 2008 LRM the value may have the same type as the
+         // aggregate it which case it behaves as a concatentation.
+         // However we only choose this interpretation if the aggregate
+         // would be illegal without it, as otherwise many previously
+         // legal nested aggregates are ambiguous.
+         type_t etype;
+         if (is_unambiguous(value))
+            etype = _solve_types(tab, value);
+         else if ((etype = try_solve_type(tab, value)) == NULL) {
+            type_set_add(tab, t1, NULL);
+            etype = _solve_types(tab, value);
+         }
+
+         if (type_eq(etype, t1)) {
+            // VHDL-2008 slice in aggregate
+            switch (kind) {
+            case A_RANGE: tree_set_subkind(a, A_SLICE); break;
+            case A_POS: tree_set_subkind(a, A_CONCAT); break;
+            default: should_not_reach_here();
+            }
          }
       }
+      else
+         _solve_types(tab, value);
    }
 
    type_set_pop(tab, &ts);

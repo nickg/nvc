@@ -3,6 +3,8 @@
   (from @NikLeberg) (#1091).
 - Fixed a crash when a constant record aggregate has a null array
   element (#1137).
+- Fixed a regression that caused some array aggregates to be incorrectly
+  reported as ambiguous (#1138).
 
 ## Version 1.15.0 - 2025-01-11
 - `--load` is now a global option and should be placed before the `-r`
