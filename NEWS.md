@@ -1,6 +1,8 @@
 ## Unreleased changes
 - Fixed a crash when a subprogram is called with too many named arguments
   (from @NikLeberg) (#1091).
+- Fixed a crash when a constant record aggregate has a null array
+  element (#1137).
 
 ## Version 1.15.0 - 2025-01-11
 - `--load` is now a global option and should be placed before the `-r`

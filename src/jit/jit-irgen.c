@@ -106,7 +106,7 @@ static inline jit_value_t jit_value_from_loc(const loc_t *loc)
 
 static inline jit_value_t jit_null_ptr(void)
 {
-   jit_value_t value = { .kind = JIT_VALUE_INT64, .int64 = 0 };
+   jit_value_t value = { .kind = JIT_ADDR_ABS, .int64 = 0 };
    return value;
 }
 
@@ -1066,6 +1066,11 @@ static void irgen_copy_const(jit_irgen_t *g, unsigned char *p,
    case JIT_ADDR_CPOOL:
       assert(value.int64 >= 0 && value.int64 + bytes <= g->func->cpoolsz);
       memcpy(p, g->func->cpool + value.int64, bytes);
+      break;
+
+   case JIT_ADDR_ABS:
+      assert(value.int64 == 0);
+      assert(bytes == 0);
       break;
 
    default:

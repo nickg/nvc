@@ -141,6 +141,7 @@ static inline int64_t interp_get_int(jit_interp_t *state, jit_value_t value)
       return state->regs[value.reg].integer;
    case JIT_VALUE_INT64:
    case JIT_VALUE_DOUBLE:
+   case JIT_ADDR_ABS:
       return value.int64;
    default:
       CANNOT_HANDLE(value);
