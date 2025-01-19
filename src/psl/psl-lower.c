@@ -297,13 +297,8 @@ void psl_lower_directive(unit_registry_t *ur, lower_unit_t *parent,
    vcode_type_t vint32 = vtype_int(INT32_MIN, INT32_MAX);
    vcode_reg_t state_reg = emit_param(vint32, vint32, ident_new("state"));
 
-   vcode_block_t reset_bb = emit_block();
-   vcode_block_t case_bb = emit_block();
+   vcode_block_t case_bb = emit_block();   // Must be block 1
    vcode_block_t abort_bb = emit_block();
-
-   vcode_reg_t zero_reg = emit_const(vint32, 0);
-   vcode_reg_t cmp_reg = emit_cmp(VCODE_CMP_LT, state_reg, zero_reg);
-   emit_cond(cmp_reg, reset_bb, case_bb);
 
    // Only handle a single clock for the whole property
    psl_node_t top = psl_value(p);
@@ -316,8 +311,6 @@ void psl_lower_directive(unit_registry_t *ur, lower_unit_t *parent,
    int hops;
    vcode_var_t trigger_var = lower_search_vcode_obj(clk, lu, &hops);
    assert(trigger_var != VCODE_INVALID_VAR);
-
-   vcode_select_block(reset_bb);
 
    emit_comment("Reset property");
 

@@ -85,6 +85,7 @@ typedef struct _rt_prop {
    rt_scope_t    *scope;
    bit_mask_t     state;
    bit_mask_t     newstate;
+   mptr_t         privdata;
    bool           strong;
 } rt_prop_t;
 

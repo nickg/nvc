@@ -88,8 +88,9 @@ void *jit_call_thunk(jit_t *j, vcode_unit_t unit, void *context,
                      thunk_result_fn_t fn, void *arg);
 bool jit_fastcall(jit_t *j, jit_handle_t handle, jit_scalar_t *result,
                   jit_scalar_t p1, jit_scalar_t p2, tlab_t *tlab);
-bool jit_vfastcall(jit_t *j, jit_handle_t handle, jit_scalar_t *result,
-                   unsigned nargs, const jit_scalar_t *inargs, tlab_t *tlab);
+bool jit_vfastcall(jit_t *j, jit_handle_t handle, const jit_scalar_t *inargs,
+                   unsigned nargs, jit_scalar_t *results, unsigned nresults,
+                   tlab_t *tlab);
 
 tlab_t jit_null_tlab(jit_t *j);
 

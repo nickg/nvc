@@ -652,8 +652,8 @@ static void jit_transition(jit_t *j, jit_state_t from, jit_state_t to)
    }
 }
 
-static bool jit_try_vcall(jit_t *j, jit_func_t *f, jit_scalar_t *result,
-                          jit_scalar_t *args, tlab_t *tlab)
+static bool jit_try_vcall(jit_t *j, jit_func_t *f, jit_scalar_t *args,
+                          tlab_t *tlab)
 {
    jit_thread_local_t *volatile thread = jit_thread_local();
    volatile const jit_state_t oldstate = thread->state;
@@ -668,16 +668,12 @@ static bool jit_try_vcall(jit_t *j, jit_func_t *f, jit_scalar_t *result,
       jit_transition(j, JIT_RUNNING, oldstate);
       thread->jmp_buf_valid = 0;
       thread->anchor = NULL;
-
-      *result = args[0];
       return true;
    }
    else {
       jit_transition(j, JIT_RUNNING, oldstate);
       thread->jmp_buf_valid = 0;
       thread->anchor = NULL;
-
-      result->integer = 0;
       return false;
    }
 }
@@ -730,7 +726,11 @@ bool jit_try_call(jit_t *j, jit_handle_t handle, jit_scalar_t *result, ...)
    va_end(ap);
 
    tlab_t tlab = jit_null_tlab(j);
-   return jit_try_vcall(j, f, result, args, &tlab);
+   if (!jit_try_vcall(j, f, args, &tlab))
+      return false;
+
+   *result = args[0];
+   return true;
 }
 
 jit_scalar_t jit_call(jit_t *j, jit_handle_t handle, ...)
@@ -743,14 +743,14 @@ jit_scalar_t jit_call(jit_t *j, jit_handle_t handle, ...)
    jit_scalar_t args[JIT_MAX_ARGS];
    jit_unpack_args(f, args, ap);
 
+   va_end(ap);
+
    tlab_t tlab = jit_null_tlab(j);
 
-   jit_scalar_t result;
-   if (!jit_try_vcall(j, f, &result, args, &tlab))
+   if (!jit_try_vcall(j, f, args, &tlab))
       fatal_trace("call to %s failed", istr(jit_get_func(j, handle)->name));
 
-   va_end(ap);
-   return result;
+   return args[0];
 }
 
 bool jit_fastcall(jit_t *j, jit_handle_t handle, jit_scalar_t *result,
@@ -762,18 +762,27 @@ bool jit_fastcall(jit_t *j, jit_handle_t handle, jit_scalar_t *result,
    args[0] = p1;
    args[1] = p2;
 
-   return jit_try_vcall(j, f, result, args, tlab);
+   if (!jit_try_vcall(j, f, args, tlab))
+      return false;
+
+   *result = args[0];
+   return true;
 }
 
-bool jit_vfastcall(jit_t *j, jit_handle_t handle, jit_scalar_t *result,
-                   unsigned nargs, const jit_scalar_t *inargs, tlab_t *tlab)
+bool jit_vfastcall(jit_t *j, jit_handle_t handle, const jit_scalar_t *inargs,
+                   unsigned nargs, jit_scalar_t *results, unsigned nresults,
+                   tlab_t *tlab)
 {
    jit_func_t *f = jit_get_func(j, handle);
 
    jit_scalar_t args[JIT_MAX_ARGS];
    memcpy(args, inargs, nargs * sizeof(jit_scalar_t));
 
-   return jit_try_vcall(j, f, result, args, tlab);
+   if (!jit_try_vcall(j, f, args, tlab))
+      return false;
+
+   memcpy(results, args, nresults * sizeof(jit_scalar_t));
+   return true;
 }
 
 void *jit_call_thunk(jit_t *j, vcode_unit_t unit, void *context,
@@ -792,13 +801,13 @@ void *jit_call_thunk(jit_t *j, vcode_unit_t unit, void *context,
 
    jit_irgen(f);
 
-   jit_scalar_t args[JIT_MAX_ARGS], result;
+   jit_scalar_t args[JIT_MAX_ARGS];
    args[0].pointer = context;
 
    tlab_t tlab = jit_null_tlab(j);
 
    void *user = NULL;
-   if (jit_try_vcall(j, f, &result, args, &tlab))
+   if (jit_try_vcall(j, f, args, &tlab))
       user = (*fn)(args, arg);
 
    jit_free_func(f);

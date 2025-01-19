@@ -545,10 +545,11 @@ static void scope_for_block(rt_model_t *m, tree_t block, rt_scope_t *parent)
             ident_t sym = ident_prefix(s->name, name, '.');
 
             rt_prop_t *p = xcalloc(sizeof(rt_prop_t));
-            p->where  = tree_psl(t);
-            p->handle = jit_lazy_compile(m->jit, sym);
-            p->scope  = s;
-            p->name   = sym;
+            p->where    = tree_psl(t);
+            p->handle   = jit_lazy_compile(m->jit, sym);
+            p->scope    = s;
+            p->name     = sym;
+            p->privdata = mptr_new(m->mspace, "property privdata");
 
             p->wakeable.kind      = W_PROPERTY;
             p->wakeable.pending   = false;
@@ -694,6 +695,7 @@ static void cleanup_scope(rt_model_t *m, rt_scope_t *scope)
       rt_prop_t *p = scope->properties.items[i];
       mask_free(&p->state);
       mask_free(&p->newstate);
+      mptr_free(m->mspace, &(p->privdata));
       free(p);
    }
    ACLEAR(scope->properties);
@@ -971,21 +973,24 @@ static void reset_property(rt_model_t *m, rt_prop_t *prop)
    thread->active_obj = &(prop->wakeable);
    thread->active_scope = prop->scope;
 
-   jit_scalar_t context = {
-      .pointer = *mptr_get(prop->scope->privdata)
-   };
-   jit_scalar_t state = { .integer = -1 };
-   jit_scalar_t result;
-
    tlab_t tlab = jit_null_tlab(m->jit);
 
-   if (!jit_fastcall(m->jit, prop->handle, &result, context, state, &tlab))
+   jit_scalar_t args[] = {
+      { .pointer = NULL },
+      { .pointer = *mptr_get(prop->scope->privdata) },
+      { .integer = -1 },
+   }, results[2];
+
+   if (jit_vfastcall(m->jit, prop->handle, args, ARRAY_LEN(args),
+                     results, ARRAY_LEN(results), &tlab))
+      *mptr_get(prop->privdata) = results[0].pointer;
+   else
       m->force_stop = true;
 
-   TRACE("needs %"PRIi64" state bits", result.integer);
+   TRACE("needs %"PRIi64" state bits", results[1].integer);
 
-   mask_init(&prop->state, result.integer);
-   mask_init(&prop->newstate, result.integer);
+   mask_init(&prop->state, results[1].integer);
+   mask_init(&prop->newstate, results[1].integer);
 
    mask_set(&prop->state, 0);
 
@@ -2465,8 +2470,10 @@ static void update_property(rt_model_t *m, rt_prop_t *prop)
    thread->active_obj = obj;
    thread->active_scope = prop->scope;
 
-   jit_scalar_t context = {
-      .pointer = *mptr_get(prop->scope->privdata)
+   jit_scalar_t args[] = {
+      { .pointer = *mptr_get(prop->privdata) ?: (void *)-1 },
+      { .pointer = *mptr_get(prop->scope->privdata) },
+      { .integer = -1 },
    };
 
    mask_clearall(&prop->newstate);
@@ -2474,9 +2481,10 @@ static void update_property(rt_model_t *m, rt_prop_t *prop)
 
    size_t bit = -1;
    while (mask_iter(&prop->state, &bit)) {
-      jit_scalar_t state = { .integer = bit }, result;
-      if (!jit_fastcall(m->jit, prop->handle, &result, context,
-                        state, thread->tlab))
+      args[2].integer = bit;
+
+      if (!jit_vfastcall(m->jit, prop->handle, args, ARRAY_LEN(args),
+                         NULL, 0, thread->tlab))
          m->force_stop = true;
    }
 
@@ -2761,8 +2769,8 @@ static bool run_trigger(rt_model_t *m, rt_trigger_t *t)
    case FUNC_TRIGGER:
       {
          tlab_t tlab = jit_null_tlab(m->jit);
-         if (!jit_vfastcall(m->jit, t->handle, &t->result, t->nargs,
-                            t->args, &tlab))
+         if (!jit_vfastcall(m->jit, t->handle, t->args, t->nargs,
+                            &t->result, 1, &tlab))
             m->force_stop = true;
 
          TRACE("run trigger %p %s ==> %"PRIi64, t,
@@ -3362,18 +3370,21 @@ static bool should_stop_now(rt_model_t *m, uint64_t stop_time)
 
 static void check_liveness_properties(rt_model_t *m, rt_scope_t *s)
 {
+   model_thread_t *thread = model_thread(m);
+
    for (int i = 0; i < s->properties.count; i++) {
       rt_prop_t *p = s->properties.items[i];
       if (p->strong) {
          TRACE("property %s in strong state", istr(p->name));
 
          // Passing an invalid state triggers the assertion failure
-         jit_scalar_t context = {
-            .pointer = *mptr_get(p->scope->privdata)
+         jit_scalar_t args[] = {
+            { .pointer = *mptr_get(p->privdata) ?: (void *)-1 },
+            { .pointer = *mptr_get(p->scope->privdata) },
+            { .integer = INT_MAX },
          };
-         jit_scalar_t state = { .integer = INT_MAX }, result;
-         jit_fastcall(m->jit, p->handle, &result, context, state,
-                      model_thread(m)->tlab);
+         jit_vfastcall(m->jit, p->handle, args, ARRAY_LEN(args),
+                       NULL, 0, thread->tlab);
       }
    }
 

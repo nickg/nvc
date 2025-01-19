@@ -1271,7 +1271,12 @@ static void irgen_op_return(jit_irgen_t *g, int op)
 
    case VCODE_UNIT_PROPERTY:
       if (vcode_count_args(op) > 0)
-         irgen_send_args(g, op, 0);
+         irgen_send_args(g, op, 1);
+
+      if (g->statereg.kind != JIT_VALUE_INVALID)
+         j_send(g, 0, g->statereg);
+      else
+         j_send(g, 0, jit_null_ptr());   // Stateless property
       break;
 
    case VCODE_UNIT_FUNCTION:
@@ -4046,6 +4051,7 @@ static void irgen_locals(jit_irgen_t *g)
    const vunit_kind_t kind = vcode_unit_kind(g->func->unit);
    switch (kind) {
    case VCODE_UNIT_PROCESS:
+   case VCODE_UNIT_PROPERTY:
       on_stack = g->stateless;
       break;
    case VCODE_UNIT_INSTANCE:
@@ -4172,9 +4178,10 @@ static void irgen_params(jit_irgen_t *g, int first)
 
 static void irgen_jump_table(jit_irgen_t *g)
 {
+   g->statereg = j_recv(g, 0);
+
    irgen_label_t *cont = irgen_alloc_label(g);
-   jit_value_t locals = g->statereg = j_recv(g, 0);
-   j_cmp(g, JIT_CC_EQ, locals, jit_value_from_int64(0));
+   j_cmp(g, JIT_CC_EQ, g->statereg, jit_value_from_int64(0));
    j_jump(g, JIT_CC_T, cont);
 
    jit_value_t state_ptr = irgen_state_ptr(g);
@@ -4221,7 +4228,8 @@ static void irgen_analyse(jit_irgen_t *g)
 {
    // A process is stateless if it has no non-temporary variables and
    // all wait statements resume at the initial block
-   g->stateless = (vcode_unit_kind(g->func->unit) == VCODE_UNIT_PROCESS);
+   const vunit_kind_t kind = vcode_unit_kind(g->func->unit);
+   g->stateless = (kind == VCODE_UNIT_PROCESS || kind == VCODE_UNIT_PROPERTY);
 
    const int nvars = vcode_count_vars();
    for (int i = 0; i < nvars; i++) {
@@ -4312,8 +4320,23 @@ static void irgen_process_entry(jit_irgen_t *g)
 
 static void irgen_property_entry(jit_irgen_t *g)
 {
-   irgen_params(g, 0);
+   irgen_params(g, 1);
+
+   jit_value_t state = j_recv(g, 0);
+   j_cmp(g, JIT_CC_EQ, state, jit_null_ptr());
+   j_jump(g, JIT_CC_F, g->blocks[1]);
+
+   if (g->stateless)
+      g->contextarg = g->map[0];
+   else
+      g->statereg = state;
+
    irgen_locals(g);
+
+   if (!g->stateless) {
+      // Stash context pointer
+      j_store(g, JIT_SZ_PTR, g->map[0], jit_addr_from_value(g->statereg, 0));
+   }
 }
 
 static void irgen_function_entry(jit_irgen_t *g)
