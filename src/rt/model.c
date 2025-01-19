@@ -993,6 +993,7 @@ static void reset_property(rt_model_t *m, rt_prop_t *prop)
    mask_init(&prop->newstate, results[1].integer);
 
    mask_set(&prop->state, 0);
+   mask_set(&prop->state, results[1].integer - 1);   // Update prev() variables
 
    thread->active_obj = NULL;
    thread->active_scope = NULL;

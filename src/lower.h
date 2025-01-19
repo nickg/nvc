@@ -21,6 +21,7 @@
 #include "prim.h"
 
 typedef int32_t vcode_reg_t;
+typedef int32_t vcode_type_t;
 
 typedef void (*lower_fn_t)(lower_unit_t *, object_t *);
 typedef vcode_unit_t (*emit_fn_t)(ident_t, object_t *, vcode_unit_t);
@@ -50,6 +51,9 @@ cover_scope_t *lower_get_cover_scope(lower_unit_t *lu);
 
 vcode_reg_t lower_lvalue(lower_unit_t *lu, tree_t expr);
 vcode_reg_t lower_rvalue(lower_unit_t *lu, tree_t expr);
+
+vcode_type_t lower_type(type_t type);
+vcode_type_t lower_bounds(type_t type);
 
 lower_unit_t *lower_instance(unit_registry_t *ur, lower_unit_t *parent,
                              vcode_unit_t shape, driver_set_t *ds,

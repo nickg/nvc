@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2023  Nick Gasson
+//  Copyright (C) 2023-2025  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -30,6 +30,10 @@
 
 #include <assert.h>
 #include <stdlib.h>
+
+#define PSL_BLOCK_CASE  1
+#define PSL_BLOCK_ABORT 2
+#define PSL_BLOCK_PREV  3
 
 static void psl_wait_cb(tree_t t, void *ctx)
 {
@@ -182,10 +186,10 @@ static void psl_lower_state(lower_unit_t *lu, psl_fsm_t *fsm,
       assert(e->kind == EDGE_NEXT);
 
       if (e->guard != NULL) {
+         vcode_reg_t guard_reg = psl_lower_guard(lu, e->guard);
+
          vcode_block_t enter_bb = emit_block();
          vcode_block_t skip_bb = emit_block();
-
-         vcode_reg_t guard_reg = psl_lower_guard(lu, e->guard);
          emit_cond(guard_reg, enter_bb, skip_bb);
 
          vcode_select_block(enter_bb);
@@ -270,6 +274,57 @@ static vcode_reg_t psl_lower_async_abort(unit_registry_t *ur,
    return emit_function_trigger(name, args, ARRAY_LEN(args));
 }
 
+vcode_reg_t psl_lower_fcall(lower_unit_t *lu, psl_node_t p)
+{
+   assert(psl_kind(p) == P_BUILTIN_FCALL);
+
+   if (psl_subkind(p) != PSL_BUILTIN_PREV)
+      fatal_at(psl_loc(p), "sorry, this built-in function is not supported");
+
+   vcode_state_t state;
+   vcode_state_save(&state);
+
+   vcode_select_block(PSL_BLOCK_PREV);
+
+   tree_t expr = psl_tree(psl_operand(p, 0));
+   type_t type = tree_type(expr);
+
+   if (psl_operands(p) > 1) {
+      const int num = assume_int(psl_tree(psl_operand(p, 1)));
+      if (num != 1)
+         fatal_at(psl_loc(p), "sorry, cycle counts other than 1 are "
+                  "not supported");
+   }
+
+   vcode_type_t vtype = lower_type(type);
+   vcode_type_t vbounds = lower_bounds(type);
+
+   vcode_var_t var = emit_var(vtype, vbounds, ident_uniq("prev"), 0);
+
+   vcode_reg_t cur_reg = lower_rvalue(lu, expr);
+
+   const bool is_array = type_is_array(type);
+   if (is_array) {
+      int64_t length;
+      if (!folded_length(range_of(type, 0), &length))
+         fatal_at(psl_loc(p), "sorry, only constant length arrays "
+                  "are supported");
+
+      vcode_reg_t dst_reg = emit_index(var, VCODE_INVALID_REG);
+      vcode_reg_t count_reg = emit_const(vtype_offset(), length);
+      emit_copy(dst_reg, cur_reg, count_reg);
+   }
+   else
+      emit_store(cur_reg, var);
+
+   vcode_state_restore(&state);
+
+   if (is_array)
+      return emit_index(var, VCODE_INVALID_REG);
+   else
+      return emit_load(var);
+}
+
 void psl_lower_directive(unit_registry_t *ur, lower_unit_t *parent,
                          cover_data_t *cover, tree_t wrapper)
 {
@@ -297,8 +352,13 @@ void psl_lower_directive(unit_registry_t *ur, lower_unit_t *parent,
    vcode_type_t vint32 = vtype_int(INT32_MIN, INT32_MAX);
    vcode_reg_t state_reg = emit_param(vint32, vint32, ident_new("state"));
 
-   vcode_block_t case_bb = emit_block();   // Must be block 1
+   vcode_block_t case_bb = emit_block();
    vcode_block_t abort_bb = emit_block();
+   vcode_block_t prev_bb = emit_block();
+
+   assert(case_bb == PSL_BLOCK_CASE);
+   assert(abort_bb == PSL_BLOCK_ABORT);
+   assert(prev_bb == PSL_BLOCK_PREV);
 
    // Only handle a single clock for the whole property
    psl_node_t top = psl_value(p);
@@ -330,22 +390,22 @@ void psl_lower_directive(unit_registry_t *ur, lower_unit_t *parent,
    }
 
    emit_add_trigger(trigger_reg);
-
-   emit_return(emit_const(vint32, fsm->next_id));
+   emit_jump(prev_bb);
 
    vcode_select_block(case_bb);
 
    vcode_block_t *state_bb LOCAL =
-      xmalloc_array(fsm->next_id, sizeof(vcode_block_t));
+      xmalloc_array(fsm->next_id + 1, sizeof(vcode_block_t));
    vcode_reg_t *state_ids LOCAL =
-      xmalloc_array(fsm->next_id, sizeof(vcode_reg_t));
+      xmalloc_array(fsm->next_id + 1, sizeof(vcode_reg_t));
 
    for (int i = 0; i < fsm->next_id; i++) {
       state_bb[i] = emit_block();
       state_ids[i] = emit_const(vint32, i);
    }
 
-   emit_case(state_reg, abort_bb, state_ids, state_bb, fsm->next_id);
+   state_bb[fsm->next_id] = prev_bb;
+   state_ids[fsm->next_id] = emit_const(vint32, fsm->next_id);
 
    bool strong = false;
    for (fsm_state_t *s = fsm->states; s; s = s->next) {
@@ -367,6 +427,19 @@ void psl_lower_directive(unit_registry_t *ur, lower_unit_t *parent,
    }
    else
       emit_unreachable(VCODE_INVALID_REG);
+
+   vcode_select_block(prev_bb);
+
+   const bool has_prev = vcode_count_ops() > 0;
+
+   emit_return(emit_const(vint32, fsm->next_id + 1));
+
+   vcode_select_block(case_bb);
+
+   if (has_prev)
+      emit_enter_state(emit_const(vint32, fsm->next_id), VCODE_INVALID_REG);
+
+   emit_case(state_reg, abort_bb, state_ids, state_bb, fsm->next_id + 1);
 
    unit_registry_finalise(ur, lu);
 

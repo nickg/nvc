@@ -121,7 +121,6 @@ typedef vcode_reg_t (*resolved_fn_t)(vcode_reg_t, vcode_reg_t);
 typedef A(concat_param_t) concat_list_t;
 
 static vcode_reg_t lower_expr(lower_unit_t *lu, tree_t expr, expr_ctx_t ctx);
-static vcode_type_t lower_bounds(type_t type);
 static void lower_stmt(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops);
 static void lower_func_body(lower_unit_t *lu, object_t *obj);
 static void lower_proc_body(lower_unit_t *lu, object_t *obj);
@@ -130,7 +129,6 @@ static vcode_reg_t lower_record_aggregate(lower_unit_t *lu, tree_t expr,
                                           vcode_reg_t hint);
 static vcode_reg_t lower_aggregate(lower_unit_t *lu, tree_t expr,
                                    vcode_reg_t hint);
-static vcode_type_t lower_type(type_t type);
 static void lower_decls(lower_unit_t *lu, tree_t scope);
 static void lower_check_array_sizes(lower_unit_t *lu, type_t ltype,
                                     type_t rtype, vcode_reg_t lval,
@@ -634,7 +632,7 @@ static vcode_type_t lower_array_type(type_t type)
       return vtype_uarray(dims_for_type(type), elem_type, elem_bounds);
 }
 
-static vcode_type_t lower_type(type_t type)
+vcode_type_t lower_type(type_t type)
 {
    switch (type_kind(type)) {
    case T_SUBTYPE:
@@ -713,7 +711,7 @@ static vcode_type_t lower_type(type_t type)
    }
 }
 
-static vcode_type_t lower_bounds(type_t type)
+vcode_type_t lower_bounds(type_t type)
 {
    if (type_kind(type) == T_SUBTYPE) {
       if (type_is_integer(type) || type_is_enum(type)) {
@@ -5235,6 +5233,8 @@ static vcode_reg_t lower_expr(lower_unit_t *lu, tree_t expr, expr_ctx_t ctx)
    case T_FCALL:
    case T_PROT_FCALL:
       return lower_fcall(lu, expr, VCODE_INVALID_REG);
+   case T_PSL_FCALL:
+      return psl_lower_fcall(lu, tree_psl(expr));
    case T_LITERAL:
       return lower_literal(expr);
    case T_STRING:

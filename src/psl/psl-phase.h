@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2022-2023  Nick Gasson
+//  Copyright (C) 2022-2025  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -20,6 +20,8 @@
 
 #include "prim.h"
 
+typedef int32_t vcode_reg_t;
+
 // Check PSL statements for errors.
 void psl_check(psl_node_t p, nametab_t *tab);
 
@@ -33,5 +35,8 @@ void psl_lower_directive(unit_registry_t *ur, lower_unit_t *parent,
 // Convert PSL declaration to vcode variable
 void psl_lower_decl(unit_registry_t *ur, lower_unit_t *parent, psl_node_t p,
                     ident_t name);
+
+// Lower embedded PSL function call
+vcode_reg_t psl_lower_fcall(lower_unit_t *lu, psl_node_t p);
 
 #endif  // _PSL_PHASE_H
