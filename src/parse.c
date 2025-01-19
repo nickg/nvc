@@ -4647,6 +4647,21 @@ static tree_t p_primary(tree_t head)
    case tNEW:
       return p_allocator();
 
+   case tPREV:
+   case tPSLNEXT:
+   case tROSE:
+   case tFELL:
+   case tENDED:
+      {
+         psl_node_t p = p_psl_builtin_function_call();
+         psl_check(p, nametab);
+
+         tree_t t = tree_new(T_PSL_FCALL);
+         tree_set_psl(t, p);
+         tree_set_loc(t, CURRENT_LOC);
+         return t;
+      }
+
    default:
       expect(tLPAREN, tINT, tREAL, tNULL, tID, tSTRING, tBITSTRING, tNEW);
       return error_expr();
@@ -11514,22 +11529,7 @@ static psl_node_t p_psl_or_hdl_expression(void)
 
    BEGIN("PSL or HDL expression");
 
-   psl_node_t head;
-   switch (peek()) {
-   case tPSLNEXT:
-   case tPREV:
-   case tSTABLE:
-   case tROSE:
-   case tFELL:
-   case tENDED:
-   case tNONDET:
-   case tNONDETV:
-      head = p_psl_builtin_function_call();
-      break;
-   default:
-      head = p_hdl_expression(NULL, PSL_TYPE_BOOLEAN);
-      break;
-   }
+   psl_node_t head = p_hdl_expression(NULL, PSL_TYPE_BOOLEAN);
 
    if (optional(tUNION)) {
       psl_node_t new = psl_new(P_UNION);
@@ -11653,7 +11653,7 @@ static psl_node_t p_psl_builtin_function_call(void)
    switch (kind) {
    case PSL_BUILTIN_PREV:
       {
-         psl_node_t p1 = p_psl_or_hdl_expression();
+         psl_node_t p1 = p_hdl_expression(NULL, PSL_TYPE_ANY);
          psl_add_operand(p, p1);
 
          if (optional(tCOMMA)) {
@@ -11668,7 +11668,7 @@ static psl_node_t p_psl_builtin_function_call(void)
 
    case PSL_BUILTIN_NEXT:
       {
-         psl_node_t p1 = p_psl_or_hdl_expression();
+         psl_node_t p1 = p_hdl_expression(NULL, PSL_TYPE_ANY);
          psl_add_operand(p, p1);
       }
       break;

@@ -79,7 +79,8 @@ typedef enum {
    PSL_TYPE_NUMERIC,
    PSL_TYPE_STRING,
    PSL_TYPE_SEQUENCE,
-   PSL_TYPE_PROPERTY
+   PSL_TYPE_PROPERTY,
+   PSL_TYPE_ANY,
 } psl_type_t;
 
 typedef enum {

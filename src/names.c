@@ -18,14 +18,13 @@
 #include "util.h"
 #include "array.h"
 #include "common.h"
-#include "debug.h"
 #include "diag.h"
 #include "hash.h"
 #include "lib.h"
 #include "mask.h"
 #include "names.h"
 #include "option.h"
-#include "phase.h"
+#include "psl/psl-node.h"
 #include "thread.h"
 #include "type.h"
 
@@ -3482,6 +3481,7 @@ static bool is_unambiguous(tree_t t)
       || kind == T_TYPE_CONV
       || kind == T_RECORD_REF
       || kind == T_ALL
+      || kind == T_PSL_FCALL
       || (kind == T_REF && tree_has_ref(t));
 }
 
@@ -4883,6 +4883,38 @@ static type_t solve_range(nametab_t *tab, tree_t r)
    }
 }
 
+static type_t solve_psl_fcall(nametab_t *tab, tree_t t)
+{
+   if (tree_has_type(t))
+      return tree_type(t);
+
+   psl_node_t p = tree_psl(t);
+   assert(psl_kind(p) == P_BUILTIN_FCALL);
+
+   type_t type;
+   switch (psl_subkind(p)) {
+   case PSL_BUILTIN_STABLE:
+   case PSL_BUILTIN_ROSE:
+   case PSL_BUILTIN_FELL:
+   case PSL_BUILTIN_ENDED:
+      type = std_type(NULL, STD_BOOLEAN);
+      break;
+   case PSL_BUILTIN_PREV:
+   case PSL_BUILTIN_NEXT:
+      {
+         psl_node_t arg = psl_operand(p, 0);
+         assert(psl_kind(arg) == P_HDL_EXPR);
+         type = tree_type(psl_tree(arg));
+      }
+      break;
+   default:
+      should_not_reach_here();
+   }
+
+   tree_set_type(t, type);
+   return type;
+}
+
 static type_t try_solve_type(nametab_t *tab, tree_t expr)
 {
    switch (tree_kind(expr)) {
@@ -4959,6 +4991,8 @@ static type_t _solve_types(nametab_t *tab, tree_t expr)
       return solve_view_element(tab, expr);
    case T_INERTIAL:
       return solve_inertial(tab, expr);
+   case T_PSL_FCALL:
+      return solve_psl_fcall(tab, expr);
    default:
       fatal_trace("cannot solve types for %s", tree_kind_str(tree_kind(expr)));
    }

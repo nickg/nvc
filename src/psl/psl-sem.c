@@ -223,6 +223,17 @@ static void psl_check_bit(psl_node_t p, nametab_t *tab)
                "type %s", type_pp(type));
 }
 
+static void psl_check_any(psl_node_t p, nametab_t *tab)
+{
+   tree_t value = psl_tree(p);
+   type_t type = solve_types(tab, value, NULL);
+   if (type_is_none(type))
+      return;   // Prevent cascading errors
+
+   if (!sem_check(value, tab))
+      return;
+}
+
 static void psl_check_hdl_expr(psl_node_t p, nametab_t *tab)
 {
    switch (psl_type(p)) {
@@ -234,6 +245,9 @@ static void psl_check_hdl_expr(psl_node_t p, nametab_t *tab)
       break;
    case PSL_TYPE_BIT:
       psl_check_bit(p, tab);
+      break;
+   case PSL_TYPE_ANY:
+      psl_check_any(p, tab);
       break;
    default:
       should_not_reach_here();
@@ -443,9 +457,6 @@ static void psl_check_builtin_fcall(psl_node_t p, nametab_t *tab)
    const int nparams = psl_operands(p);
    for (int i = 0; i < nparams; i++)
       psl_check(psl_operand(p, i), tab);
-
-   switch (psl_subkind(p)) {
-   }
 }
 
 void psl_check(psl_node_t p, nametab_t *tab)

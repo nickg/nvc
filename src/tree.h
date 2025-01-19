@@ -393,6 +393,7 @@ typedef enum tree_kind {
    T_LOOP,
    T_REPORT,
    T_PSL_DIRECT,
+   T_PSL_FCALL,
 
    T_LAST_TREE_KIND
 } tree_kind_t;

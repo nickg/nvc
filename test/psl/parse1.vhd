@@ -40,4 +40,7 @@ begin
     -- psl
     --   assert always xxx;                        -- Error (issue #1135)
     -- psl1111 assert assert assert;               -- Not PSL
+
+    -- psl assert always x = prev(x);              -- OK
+    -- psl assert always prev(y) = '1';            -- OK
 end architecture;
