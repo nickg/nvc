@@ -4217,20 +4217,6 @@ static void irgen_jump_table(jit_irgen_t *g)
    mask_free(&have);
 }
 
-static bool irgen_is_procedure(jit_irgen_t *g)
-{
-   switch (vcode_unit_kind(g->func->unit)) {
-   case VCODE_UNIT_PROCEDURE:
-      return true;
-   case VCODE_UNIT_FUNCTION:
-   case VCODE_UNIT_THUNK:
-      // Procedure compiled as function
-      return vcode_unit_result(g->func->unit) == VCODE_INVALID_TYPE;
-   default:
-      return false;
-   }
-}
-
 static void irgen_analyse(jit_irgen_t *g)
 {
    // A process is stateless if it has no non-temporary variables and
@@ -4276,6 +4262,133 @@ static void irgen_analyse(jit_irgen_t *g)
    }
 }
 
+static void irgen_instance_entry(jit_irgen_t *g)
+{
+   const ffi_type_t types[] = { FFI_POINTER, FFI_POINTER };
+   g->func->spec = ffi_spec_new(types, ARRAY_LEN(types));
+
+#ifdef DEBUG
+   // Instances should only be initialised once
+   irgen_label_t *cont = irgen_alloc_label(g);
+   jit_value_t priv = macro_getpriv(g, g->func->handle);
+   j_cmp(g, JIT_CC_EQ, priv, jit_value_from_int64(0));
+   j_jump(g, JIT_CC_T, cont);
+   j_trap(g);
+   irgen_bind_label(g, cont);
+#endif
+
+   irgen_locals(g);
+
+   // Stash context pointer
+   jit_value_t context = j_recv(g, 0);
+   j_store(g, JIT_SZ_PTR, context, jit_addr_from_value(g->statereg, 0));
+
+   macro_putpriv(g, g->func->handle, g->statereg);
+}
+
+static void irgen_process_entry(jit_irgen_t *g)
+{
+   const ffi_type_t types[] = { FFI_POINTER, FFI_POINTER, FFI_POINTER };
+   g->func->spec = ffi_spec_new(types, ARRAY_LEN(types));
+
+   if (!g->stateless)
+      irgen_jump_table(g);
+
+   irgen_locals(g);
+
+   if (g->stateless) {
+      g->contextarg = j_recv(g, 1);
+
+      jit_value_t state = j_recv(g, 0);
+      j_cmp(g, JIT_CC_EQ, state, jit_null_ptr());
+      j_jump(g, JIT_CC_F, g->blocks[1]);
+   }
+   else {
+      // Stash context pointer
+      jit_value_t context = j_recv(g, 1);
+      j_store(g, JIT_SZ_PTR, context, jit_addr_from_value(g->statereg, 0));
+   }
+}
+
+static void irgen_property_entry(jit_irgen_t *g)
+{
+   irgen_params(g, 0);
+   irgen_locals(g);
+}
+
+static void irgen_function_entry(jit_irgen_t *g)
+{
+   const bool is_procedure =   // Procedure compiled as function
+      vcode_unit_result(g->func->unit) == VCODE_INVALID_TYPE;
+
+   const int first_param = is_procedure ? 1 : 0;
+   irgen_params(g, first_param);
+
+   irgen_locals(g);
+
+   if (g->statereg.kind != JIT_VALUE_INVALID) {
+      // Stash context pointer
+      j_store(g, JIT_SZ_PTR, g->map[0], jit_addr_from_value(g->statereg, 0));
+   }
+}
+
+static void irgen_procedure_entry(jit_irgen_t *g)
+{
+   irgen_jump_table(g);
+   irgen_params(g, 1);
+   irgen_locals(g);
+
+   // Stash context pointer
+   j_store(g, JIT_SZ_PTR, g->map[0], jit_addr_from_value(g->statereg, 0));
+}
+
+static void irgen_thunk_entry(jit_irgen_t *g)
+{
+   g->contextarg = j_recv(g, 0);
+   irgen_locals(g);
+}
+
+static void irgen_package_entry(jit_irgen_t *g)
+{
+   // It's harmless to initialise a package multiple times, just return
+   // the existing context pointer
+   irgen_label_t *cont = irgen_alloc_label(g);
+   jit_value_t priv = macro_getpriv(g, g->func->handle);
+   j_cmp(g, JIT_CC_EQ, priv, jit_value_from_int64(0));
+   j_jump(g, JIT_CC_T, cont);
+   j_send(g, 0, priv);
+   j_ret(g);
+   irgen_bind_label(g, cont);
+
+   irgen_locals(g);
+
+   // Stash context pointer
+   jit_value_t context = j_recv(g, 0);
+   j_store(g, JIT_SZ_PTR, context, jit_addr_from_value(g->statereg, 0));
+
+   macro_putpriv(g, g->func->handle, g->statereg);
+}
+
+static void irgen_protected_entry(jit_irgen_t *g)
+{
+   const ffi_type_t types[] = { FFI_POINTER };
+   g->func->spec = ffi_spec_new(types, ARRAY_LEN(types));
+
+   irgen_params(g, 1);
+   irgen_locals(g);
+
+   // Stash context pointer
+   jit_value_t context = j_recv(g, 0);
+   j_store(g, JIT_SZ_PTR, context, jit_addr_from_value(g->statereg, 0));
+}
+
+static void irgen_shape_entry(jit_irgen_t *g)
+{
+   // TODO: shouldn't really generate code for this
+   irgen_locals(g);
+   j_trap(g);
+}
+
 void jit_irgen(jit_func_t *f)
 {
    assert(load_acquire(&f->state) == JIT_FUNC_COMPILING);
@@ -4290,77 +4403,45 @@ void jit_irgen(jit_func_t *f)
    g->func = f;
    g->map  = xmalloc_array(vcode_count_regs(), sizeof(jit_value_t));
 
-   irgen_analyse(g);
-
-   const vunit_kind_t kind = vcode_unit_kind(g->func->unit);
-   const bool has_privdata =
-      kind == VCODE_UNIT_PACKAGE || kind == VCODE_UNIT_INSTANCE;
-   const bool has_params =
-      kind == VCODE_UNIT_FUNCTION || kind == VCODE_UNIT_PROCEDURE
-      || kind == VCODE_UNIT_PROPERTY;
-   const bool has_jump_table =
-      (kind == VCODE_UNIT_PROCESS && !g->stateless)
-      || kind == VCODE_UNIT_PROCEDURE;
-
-   if (has_privdata) {
-      // It's harmless to initialise a package multiple times, just
-      // return the existing context pointer
-      irgen_label_t *cont = irgen_alloc_label(g);
-      jit_value_t priv = macro_getpriv(g, g->func->handle);
-      j_cmp(g, JIT_CC_EQ, priv, jit_value_from_int64(0));
-      j_jump(g, JIT_CC_T, cont);
-      j_send(g, 0, priv);
-      j_ret(g);
-      irgen_bind_label(g, cont);
-   }
-
-   if (kind == VCODE_UNIT_PROCESS) {
-      const ffi_type_t types[] = { FFI_POINTER, FFI_POINTER, FFI_POINTER };
-      g->func->spec = ffi_spec_new(types, ARRAY_LEN(types));
-   }
-   else if (kind == VCODE_UNIT_PROTECTED) {
-      const ffi_type_t types[] = { FFI_POINTER };
-      g->func->spec = ffi_spec_new(types, ARRAY_LEN(types));
-      irgen_params(g, 1);
-   }
-   else if (kind == VCODE_UNIT_INSTANCE) {
-      const ffi_type_t types[] = { FFI_POINTER, FFI_POINTER };
-      g->func->spec = ffi_spec_new(types, ARRAY_LEN(types));
-   }
-   else if (kind == VCODE_UNIT_THUNK)
-      g->contextarg = j_recv(g, 0);
-
    const int nblocks = vcode_count_blocks();
    g->blocks = xmalloc_array(nblocks, sizeof(irgen_label_t *));
 
    for (int i = 0; i < nblocks; i++)
       g->blocks[i] = irgen_alloc_label(g);
 
-   if (has_jump_table)
-      irgen_jump_table(g);
+   irgen_analyse(g);
 
-   const int first_param = irgen_is_procedure(g) || has_jump_table ? 1 : 0;
-   if (has_params)
-      irgen_params(g, first_param);
-
-   irgen_locals(g);
-
-   if (g->stateless) {
-      g->contextarg = j_recv(g, 1);
-
-      jit_value_t state = j_recv(g, 0);
-      j_cmp(g, JIT_CC_EQ, state, jit_null_ptr());
-      j_jump(g, JIT_CC_F, g->blocks[1]);
+   switch (vcode_unit_kind(g->func->unit)) {
+   case VCODE_UNIT_INSTANCE:
+      irgen_instance_entry(g);
+      break;
+   case VCODE_UNIT_PROCESS:
+      irgen_process_entry(g);
+      break;
+   case VCODE_UNIT_FUNCTION:
+      irgen_function_entry(g);
+      break;
+   case VCODE_UNIT_PROCEDURE:
+      irgen_procedure_entry(g);
+      break;
+   case VCODE_UNIT_THUNK:
+      irgen_thunk_entry(g);
+      break;
+   case VCODE_UNIT_PACKAGE:
+      irgen_package_entry(g);
+      break;
+   case VCODE_UNIT_PROTECTED:
+      irgen_protected_entry(g);
+      break;
+   case VCODE_UNIT_PROPERTY:
+      irgen_property_entry(g);
+      break;
+   case VCODE_UNIT_SHAPE:
+      irgen_shape_entry(g);
+      break;
+   default:
+      should_not_reach_here();
    }
-
-   if (g->statereg.kind != JIT_VALUE_INVALID) {
-      // Stash context pointer
-      jit_value_t context = has_params ? g->map[0] : j_recv(g, first_param);
-      j_store(g, JIT_SZ_PTR, context, jit_addr_from_value(g->statereg, 0));
-   }
-
-   if (has_privdata)
-      macro_putpriv(g, g->func->handle, g->statereg);
 
    for (int i = 0; i < nblocks; i++)
       irgen_block(g, i);
@@ -4379,7 +4460,7 @@ void jit_irgen(jit_func_t *f)
    }
    g->labels = NULL;
 
-   if (kind != VCODE_UNIT_THUNK) {
+   if (vcode_unit_kind(f->unit) != VCODE_UNIT_THUNK) {
       jit_do_mem2reg(f);
       jit_do_lvn(f);
       jit_do_cprop(f);
