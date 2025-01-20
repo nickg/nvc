@@ -293,10 +293,13 @@ vcode_reg_t psl_lower_fcall(lower_unit_t *lu, psl_node_t p)
    if (psl_operands(p) > 1)
       num = assume_int(psl_tree(psl_operand(p, 1)));
 
+   if (num > 512)
+      fatal_at(psl_loc(p), "sorry, Number higher than 512 is not supported");
+
    vcode_type_t vtype = lower_type(type);
    vcode_type_t vbounds = lower_bounds(type);
 
-   vcode_var_t vars[num];
+   vcode_var_t *vars LOCAL = xmalloc_array(num, sizeof(vcode_var_t));
    for (int i = 0; i < num; i++)
       vars[i] = emit_var(vtype, vbounds, ident_uniq("prev"), 0);
 
