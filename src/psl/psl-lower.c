@@ -274,27 +274,15 @@ static vcode_reg_t psl_lower_async_abort(unit_registry_t *ur,
    return emit_function_trigger(name, args, ARRAY_LEN(args));
 }
 
-vcode_reg_t psl_lower_fcall(lower_unit_t *lu, psl_node_t p)
+static vcode_reg_t psl_lower_prev_shift_reg(lower_unit_t *lu, const loc_t *loc,
+                                            tree_t expr, int num)
 {
-   assert(psl_kind(p) == P_BUILTIN_FCALL);
-
-   if (psl_subkind(p) != PSL_BUILTIN_PREV)
-      fatal_at(psl_loc(p), "sorry, this built-in function is not supported");
-
    vcode_state_t state;
    vcode_state_save(&state);
 
    vcode_select_block(PSL_BLOCK_PREV);
 
-   tree_t expr = psl_tree(psl_operand(p, 0));
    type_t type = tree_type(expr);
-
-   int num = 1;
-   if (psl_operands(p) > 1)
-      num = assume_int(psl_tree(psl_operand(p, 1)));
-
-   if (num > 512)
-      fatal_at(psl_loc(p), "sorry, Number higher than 512 is not supported");
 
    vcode_type_t vtype = lower_type(type);
    vcode_type_t vbounds = lower_bounds(type);
@@ -310,7 +298,7 @@ vcode_reg_t psl_lower_fcall(lower_unit_t *lu, psl_node_t p)
    if (is_array) {
       int64_t length;
       if (!folded_length(range_of(type, 0), &length))
-         fatal_at(psl_loc(p), "sorry, only constant length arrays "
+         fatal_at(loc, "sorry, only constant length arrays "
                   "are supported");
 
       count_reg = emit_const(vtype_offset(), length);
@@ -341,6 +329,47 @@ vcode_reg_t psl_lower_fcall(lower_unit_t *lu, psl_node_t p)
       return emit_index(vars[0], VCODE_INVALID_REG);
    else
       return emit_load(vars[0]);
+
+}
+
+vcode_reg_t psl_lower_fcall(lower_unit_t *lu, psl_node_t p)
+{
+   assert(psl_kind(p) == P_BUILTIN_FCALL);
+
+   const loc_t *loc = psl_loc(p);
+   tree_t expr = psl_tree(psl_operand(p, 0));
+
+   switch (psl_subkind(p)) {
+   case PSL_BUILTIN_PREV:
+   {
+      int num = 1;
+      if (psl_operands(p) > 1)
+         num = assume_int(psl_tree(psl_operand(p, 1)));
+
+      if (num > 512)
+         fatal_at(psl_loc(p), "sorry, Number higher than 512 is not supported");
+
+      return psl_lower_prev_shift_reg(lu, loc, expr, num);
+   }
+
+   case PSL_BUILTIN_ROSE:
+   {
+      vcode_reg_t prev = psl_lower_prev_shift_reg(lu, loc, expr, 1);
+      vcode_reg_t prev_n = emit_not(prev);
+      vcode_reg_t rhs = lower_rvalue(lu, expr);
+      return emit_and(prev_n, rhs);
+   }
+
+   case PSL_BUILTIN_FELL:
+   {
+      vcode_reg_t prev = psl_lower_prev_shift_reg(lu, loc, expr, 1);
+      vcode_reg_t expr_n = emit_not(lower_rvalue(lu, expr));
+      return emit_and(prev, expr_n);
+   }
+
+   default:
+      fatal_at(psl_loc(p), "sorry, this built-in function is not supported");
+   }
 }
 
 void psl_lower_directive(unit_registry_t *ur, lower_unit_t *parent,

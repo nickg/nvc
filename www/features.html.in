@@ -493,12 +493,12 @@ table below.
   <tr>
     <td>5.2.3.4</td>
     <td>rose()</td>
-    <td class="feature-missing"></td>
+    <td class="feature-partial"></td>
   </tr>
   <tr>
     <td>5.2.3.5</td>
     <td>fell()</td>
-    <td class="feature-missing"></td>
+    <td class="feature-partial"></td>
   </tr>
   <tr>
     <td>5.2.3.6</td>

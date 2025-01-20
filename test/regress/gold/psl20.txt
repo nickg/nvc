@@ -1,0 +1,4 @@
+** Note: 2ns+1: ROSE
+** Note: 5ns+1: FELL
+** Note: 6ns+1: ROSE
+** Note: 7ns+1: FELL
