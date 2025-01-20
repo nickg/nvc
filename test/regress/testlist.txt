@@ -1095,3 +1095,4 @@ issue1125       normal,2008
 issue1137       normal
 tcl3            tcl,fail,gold
 psl18           fail,gold,2008
+psl19           gold,psl

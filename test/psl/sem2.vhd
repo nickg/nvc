@@ -13,5 +13,6 @@ begin
     -- psl assert rose(i);           -- Error
     -- psl assert rose(x);           -- OK
     -- psl assert ended({x;y});      -- OK
+    -- psl cover  prev(x, i);        -- Error
 
 end architecture;

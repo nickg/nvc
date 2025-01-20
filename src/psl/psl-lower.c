@@ -289,19 +289,22 @@ vcode_reg_t psl_lower_fcall(lower_unit_t *lu, psl_node_t p)
    tree_t expr = psl_tree(psl_operand(p, 0));
    type_t type = tree_type(expr);
 
-   if (psl_operands(p) > 1) {
-      const int num = assume_int(psl_tree(psl_operand(p, 1)));
-      if (num != 1)
-         fatal_at(psl_loc(p), "sorry, cycle counts other than 1 are "
-                  "not supported");
-   }
+   int num = 1;
+   if (psl_operands(p) > 1)
+      num = assume_int(psl_tree(psl_operand(p, 1)));
+
+   if (num > 512)
+      fatal_at(psl_loc(p), "sorry, Number higher than 512 is not supported");
 
    vcode_type_t vtype = lower_type(type);
    vcode_type_t vbounds = lower_bounds(type);
 
-   vcode_var_t var = emit_var(vtype, vbounds, ident_uniq("prev"), 0);
+   vcode_var_t *vars LOCAL = xmalloc_array(num, sizeof(vcode_var_t));
+   for (int i = 0; i < num; i++)
+      vars[i] = emit_var(vtype, vbounds, ident_uniq("prev"), 0);
 
    vcode_reg_t cur_reg = lower_rvalue(lu, expr);
+   vcode_reg_t count_reg = VCODE_INVALID_REG;
 
    const bool is_array = type_is_array(type);
    if (is_array) {
@@ -310,19 +313,34 @@ vcode_reg_t psl_lower_fcall(lower_unit_t *lu, psl_node_t p)
          fatal_at(psl_loc(p), "sorry, only constant length arrays "
                   "are supported");
 
-      vcode_reg_t dst_reg = emit_index(var, VCODE_INVALID_REG);
-      vcode_reg_t count_reg = emit_const(vtype_offset(), length);
-      emit_copy(dst_reg, cur_reg, count_reg);
+      count_reg = emit_const(vtype_offset(), length);
+   }
+
+   for (int i = 0; i < num - 1; i++) {
+      if (is_array) {
+         vcode_reg_t src_ptr = emit_index(vars[i + 1], VCODE_INVALID_REG);
+         vcode_reg_t dst_ptr = emit_index(vars[i], VCODE_INVALID_REG);
+         emit_copy(dst_ptr, src_ptr, count_reg);
+      }
+      else {
+         vcode_reg_t tmp = emit_load(vars[i + 1]);
+         emit_store(tmp, vars[i]);
+      }
+   }
+
+   if (is_array) {
+      vcode_reg_t dst_ptr = emit_index(vars[num - 1], VCODE_INVALID_REG);
+      emit_copy(dst_ptr, cur_reg, count_reg);
    }
    else
-      emit_store(cur_reg, var);
+      emit_store(cur_reg, vars[num - 1]);
 
    vcode_state_restore(&state);
 
    if (is_array)
-      return emit_index(var, VCODE_INVALID_REG);
+      return emit_index(vars[0], VCODE_INVALID_REG);
    else
-      return emit_load(var);
+      return emit_load(vars[0]);
 }
 
 void psl_lower_directive(unit_registry_t *ur, lower_unit_t *parent,
