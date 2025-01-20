@@ -22,4 +22,8 @@ begin
     -- Covered at 5 ns and 7 ns
     -- psl two: cover {fell(a)} report "FELL";
 
+    -- Covered at 3 ns and 4 ns
+    -- TODO: should be covered at 1 ns too! Why isn't it ?
+    -- psl three: cover {stable(a)} report "STABLE";
+
 end architecture;

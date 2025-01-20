@@ -367,6 +367,13 @@ vcode_reg_t psl_lower_fcall(lower_unit_t *lu, psl_node_t p)
       return emit_and(prev, expr_n);
    }
 
+   case PSL_BUILTIN_STABLE:
+   {
+      vcode_reg_t prev = psl_lower_prev_shift_reg(lu, loc, expr, 1);
+      vcode_reg_t rhs = lower_rvalue(lu, expr);
+      return emit_cmp(VCODE_CMP_EQ, prev, rhs);
+   }
+
    default:
       fatal_at(psl_loc(p), "sorry, this built-in function is not supported");
    }

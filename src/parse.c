@@ -4652,6 +4652,7 @@ static tree_t p_primary(tree_t head)
    case tROSE:
    case tFELL:
    case tENDED:
+   case tSTABLE:
       {
          psl_node_t p = p_psl_builtin_function_call();
          psl_check(p, nametab);

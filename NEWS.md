@@ -1,5 +1,6 @@
 ## Unreleased changes
-- Added support for PSL `prev()` built-in function (#1135).
+- Added support for PSL `prev()`, `stable()`, `rose()` and `fell()`
+  built-in functions (#1135).
 
 ## Version 1.15.1 - 2025-01-22
 - Fixed a crash when a subprogram is called with too many named arguments
