@@ -1,4 +1,7 @@
 ## Unreleased changes
+- Added support for PSL `prev()` built-in function (#1135).
+
+## Version 1.15.1 - 2025-01-22
 - Fixed a crash when a subprogram is called with too many named arguments
   (from @NikLeberg) (#1091).
 - Fixed a crash when a constant record aggregate has a null array
@@ -8,7 +11,6 @@
 - The Windows installer now bundles the Tcllib library (#1136).
 - Fixed a bug where PSL directives in comments were parsed incorrectly
   when split over multiple lines (#1135).
-- Added support for PSL `prev()` built-in function (#1135).
 
 ## Version 1.15.0 - 2025-01-11
 - `--load` is now a global option and should be placed before the `-r`
