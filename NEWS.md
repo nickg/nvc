@@ -1,4 +1,6 @@
 ## Unreleased changes
+
+## Version 1.15.1 - 2025-01-22
 - Fixed a crash when a subprogram is called with too many named arguments
   (from @NikLeberg) (#1091).
 - Fixed a crash when a constant record aggregate has a null array

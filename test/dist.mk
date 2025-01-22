@@ -438,10 +438,12 @@ EXTRA_DIST += \
 	test/parse/issue1038.vhd \
 	test/parse/issue1055.vhd \
 	test/parse/issue1090.vhd \
+	test/parse/issue1091b.vhd \
 	test/parse/issue1091.vhd \
 	test/parse/issue1096.vhd \
 	test/parse/issue1124.vhd \
 	test/parse/issue1129.vhd \
+	test/parse/issue1138.vhd \
 	test/parse/issue205.vhd \
 	test/parse/issue222.vhd \
 	test/parse/issue360.vhd \
@@ -1271,6 +1273,7 @@ EXTRA_DIST += \
 	test/regress/gold/stop2.txt \
 	test/regress/gold/synopsys2.txt \
 	test/regress/gold/synopsys3.txt \
+	test/regress/gold/tcl3.txt \
 	test/regress/gold/textio1.txt \
 	test/regress/gold/textio5.txt \
 	test/regress/gold/value3.txt \
@@ -1365,6 +1368,7 @@ EXTRA_DIST += \
 	test/regress/issue111.vhd \
 	test/regress/issue1125.vhd \
 	test/regress/issue112.vhd \
+	test/regress/issue1137.vhd \
 	test/regress/issue115.vhd \
 	test/regress/issue116.vhd \
 	test/regress/issue121.vhd \
@@ -1840,6 +1844,7 @@ EXTRA_DIST += \
 	test/regress/synopsys3.vhd \
 	test/regress/tcl1.tcl \
 	test/regress/tcl2.tcl \
+	test/regress/tcl3.tcl \
 	test/regress/testlist.txt \
 	test/regress/textio1.vhd \
 	test/regress/textio2.vhd \
