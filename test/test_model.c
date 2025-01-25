@@ -429,6 +429,59 @@ START_TEST(test_event1)
 }
 END_TEST
 
+START_TEST(test_process1)
+{
+   input_from_file(TESTDIR "/model/process1.vhd");
+
+   const error_t expect[] = {
+      { 10, "hello, world" },
+      { 13, "after 1 ns" },
+      { -1, NULL },
+   };
+   expect_errors(expect);
+
+   tree_t top = run_elab();
+
+   jit_t *j = jit_new(get_registry());
+   jit_enable_runtime(j, true);
+
+   rt_model_t *m = model_new(top, j);
+   model_reset(m);
+
+   tree_t b0 = tree_stmt(top, 0);
+
+   rt_scope_t *root = find_scope(m, b0);
+   ck_assert_ptr_nonnull(root);
+
+   rt_proc_t *p1 = find_proc(root, tree_stmt(b0, 0));
+   ck_assert_ptr_nonnull(p1);
+
+   void *p1_state = *mptr_get(p1->privdata);
+   ck_assert_ptr_nonnull(p1_state);
+
+   int32_t *fsm_ptr = p1_state + 2*sizeof(void *);
+   ck_assert_int_eq(*fsm_ptr, 1);
+
+   int32_t *x_ptr = p1_state + 2*sizeof(void *) + sizeof(int32_t);
+   ck_assert_int_eq(*x_ptr, INT32_MIN);
+
+   model_step(m);
+
+   ck_assert_int_eq(*fsm_ptr, 2);
+   ck_assert_int_eq(*x_ptr, 42);
+
+   model_step(m);
+
+   ck_assert_int_eq(*fsm_ptr, 3);
+   ck_assert_int_eq(*x_ptr, 43);
+
+   model_free(m);
+   jit_free(j);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_model_tests(void)
 {
    Suite *s = suite_create("model");
@@ -442,6 +495,7 @@ Suite *get_model_tests(void)
    tcase_add_test(tc, test_pending1);
    tcase_add_test(tc, test_fast2);
    tcase_add_test(tc, test_event1);
+   tcase_add_test(tc, test_process1);
    suite_add_tcase(s, tc);
 
    return s;

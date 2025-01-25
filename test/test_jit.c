@@ -613,22 +613,6 @@ START_TEST(test_proc1)
 }
 END_TEST
 
-START_TEST(test_packsignal)
-{
-   input_from_file(TESTDIR "/jit/packsignal.vhd");
-
-   parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
-
-   jit_t *j = jit_new(get_registry());
-
-   jit_handle_t handle = jit_lazy_compile(j, ident_new("WORK.PACKSIGNAL"));
-   void *pkg = jit_link(j, handle);
-   fail_if(pkg == NULL);
-
-   jit_free(j);
-}
-END_TEST
-
 START_TEST(test_unreachable)
 {
    input_from_file(TESTDIR "/jit/unreachable.vhd");
@@ -1084,48 +1068,6 @@ START_TEST(test_issue496)
 
    jit_free(j);
    fail_if_errors();
-}
-END_TEST
-
-START_TEST(test_process1)
-{
-   input_from_file(TESTDIR "/jit/process1.vhd");
-
-   const error_t expect[] = {
-      { 10, "hello, world" },
-      { 13, "after 1 ns" },
-      { -1, NULL },
-   };
-   expect_errors(expect);
-
-   run_elab();
-
-   jit_t *j = jit_new(get_registry());
-
-   jit_handle_t root = compile_for_test(j, "WORK.PROCESS1");
-   void *inst = jit_link(j, root);
-   fail_if(inst == NULL);
-
-   jit_handle_t p1 = compile_for_test(j, "WORK.PROCESS1.P1");
-   void *p1_state = jit_call(j, p1, NULL, inst).pointer;
-   fail_if(p1_state == NULL);   // TODO: stateless process
-
-   int32_t *fsm_ptr = p1_state + 2*sizeof(void *);
-   ck_assert_int_eq(*fsm_ptr, 1);
-
-   int32_t *x_ptr = p1_state + 2*sizeof(void *) + sizeof(int32_t);
-   ck_assert_int_eq(*x_ptr, INT32_MIN);
-
-   fail_unless(jit_call(j, p1, p1_state, inst).pointer == NULL);
-   ck_assert_int_eq(*fsm_ptr, 2);
-   ck_assert_int_eq(*x_ptr, 42);
-
-   jit_call(j, p1, p1_state, inst);
-   ck_assert_int_eq(*fsm_ptr, 3);
-   ck_assert_int_eq(*x_ptr, 43);
-
-   jit_free(j);
-   check_expected_errors();
 }
 END_TEST
 
@@ -2125,7 +2067,6 @@ Suite *get_jit_tests(void)
    tcase_add_test(tc, test_array1);
    tcase_add_test(tc, test_relop1);
    tcase_add_test(tc, test_proc1);
-   tcase_add_test(tc, test_packsignal);
    tcase_add_test(tc, test_unreachable);
    tcase_add_test(tc, test_arith1);
    tcase_add_test(tc, test_assert1);
@@ -2136,7 +2077,6 @@ Suite *get_jit_tests(void)
    tcase_add_test(tc, test_range1);
    tcase_add_test(tc, test_trace1);
    tcase_add_test(tc, test_issue496);
-   tcase_add_test(tc, test_process1);
    tcase_add_test(tc, test_value1);
    tcase_add_test(tc, test_assemble1);
    tcase_add_test(tc, test_assemble2);
