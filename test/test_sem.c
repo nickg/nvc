@@ -875,9 +875,10 @@ START_TEST(test_file)
       { 48, "type T_REC has a subelement with an access type" },
       { 49, "type T_REC2 has a subelement with an access type" },
       { 60, "function result subtype may not denote a file type" },
-      { 76, "no matching subprogram READ [FT, FILE_OPEN_STATUS]" },
-      { 82, "no matching operator \"=\" [FT, FT return BOOLEAN]" },
-      { 83, "no matching operator \"/=\" [FT, FT return BOOLEAN]" },
+      { 62, "index constraint cannot be used with non-array type FT" },
+      { 78, "no matching subprogram READ [FT, FILE_OPEN_STATUS]" },
+      { 84, "no matching operator \"=\" [FT, FT return BOOLEAN]" },
+      { 85, "no matching operator \"/=\" [FT, FT return BOOLEAN]" },
       { -1, NULL }
    };
    expect_errors(expect);
