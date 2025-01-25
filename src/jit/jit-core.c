@@ -93,7 +93,6 @@ typedef struct _jit {
    mspace_t        *mspace;
    void            *lower_ctx;
    bool             silent;
-   bool             runtime;
    bool             shutdown;
    int              exit_status;
    jit_tier_t      *tiers;
@@ -849,16 +848,6 @@ tlab_t jit_null_tlab(jit_t *j)
 void jit_set_silent(jit_t *j, bool silent)
 {
    j->silent = silent;
-}
-
-void jit_enable_runtime(jit_t *j, bool enable)
-{
-   j->runtime = enable;
-}
-
-bool jit_has_runtime(jit_t *j)
-{
-   return j->runtime;
 }
 
 static aot_dll_t *load_dll_internal(jit_t *j, const char *path)

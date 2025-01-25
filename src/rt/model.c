@@ -18,7 +18,6 @@
 #include "util.h"
 #include "array.h"
 #include "common.h"
-#include "cov/cov-api.h"
 #include "debug.h"
 #include "hash.h"
 #include "jit/jit-exits.h"
@@ -165,6 +164,7 @@ static void put_driving(rt_model_t *m, rt_nexus_t *n, const void *value);
 static void put_effective(rt_model_t *m, rt_nexus_t *n, const void *value);
 static void update_implicit_signal(rt_model_t *m, rt_implicit_t *imp);
 static bool run_trigger(rt_model_t *m, rt_trigger_t *t);
+static void reset_scope(rt_model_t *m, rt_scope_t *s);
 static void async_run_process(rt_model_t *m, void *arg);
 static void async_update_property(rt_model_t *m, void *arg);
 static void async_update_driver(rt_model_t *m, void *arg);
@@ -452,152 +452,38 @@ static void global_event(rt_model_t *m, rt_event_t kind)
    }
 }
 
-static void scope_for_block(rt_model_t *m, tree_t block, rt_scope_t *parent)
+static void restore_scopes(rt_model_t *m, tree_t block, rt_scope_t *parent)
 {
-   rt_scope_t *s = xcalloc(sizeof(rt_scope_t));
-   s->where    = block;
-   s->kind     = SCOPE_INSTANCE;
-   s->privdata = mptr_new(m->mspace, "block privdata");
-
-   if (parent != NULL) {
-      s->parent = parent;
-      s->name = ident_prefix(parent->name, tree_ident(block), '.');
-      APUSH(parent->children, s);
-   }
-   else
-      s->name = tree_ident(block);
-
-   hash_put(m->scopes, block, s);
-
-   tree_t hier = tree_decl(block, 0);
-   assert(tree_kind(hier) == T_HIER);
-
-   LOCAL_TEXT_BUF tb = tb_new();
-   instance_name_to_path(tb, istr(tree_ident(hier)));
-
-   ident_t path = ident_new(tb_get(tb));
-   ident_t sym_prefix = tree_ident2(hier);
+   rt_scope_t *s = create_scope(m, block, parent);
 
    const int nstmts = tree_stmts(block);
    for (int i = 0; i < nstmts; i++) {
       tree_t t = tree_stmt(block, i);
-      switch (tree_kind(t)) {
-      case T_BLOCK:
-         scope_for_block(m, t, s);
-         break;
-
-      case T_VERILOG:
-         {
-            vlog_node_t mod = tree_vlog(tree_ref(hier));
-            assert(is_top_level(mod));
-
-            ident_t name = tree_ident(t);
-            ident_t suffix = well_known(W_SHAPE);
-            ident_t shape = ident_prefix(vlog_ident(mod), suffix, '.');
-            ident_t sym = ident_prefix(shape, name, '.');
-
-            rt_proc_t *p = xcalloc(sizeof(rt_proc_t));
-            p->where     = t;
-            p->name      = ident_prefix(path, ident_downcase(name), ':');
-            p->handle    = jit_lazy_compile(m->jit, sym);
-            p->scope     = s;
-            p->privdata  = mptr_new(m->mspace, "process privdata");
-
-            p->wakeable.kind      = W_PROC;
-            p->wakeable.pending   = false;
-            p->wakeable.postponed = false;
-            p->wakeable.delayed   = false;
-
-            APUSH(s->procs, p);
-         }
-         break;
-
-      case T_PROCESS:
-         {
-            ident_t name = tree_ident(t);
-            ident_t sym = ident_prefix(sym_prefix, name, '.');
-
-            rt_proc_t *p = xcalloc(sizeof(rt_proc_t));
-            p->where     = t;
-            p->name      = ident_prefix(path, ident_downcase(name), ':');
-            p->handle    = jit_lazy_compile(m->jit, sym);
-            p->scope     = s;
-            p->privdata  = mptr_new(m->mspace, "process privdata");
-
-            p->wakeable.kind      = W_PROC;
-            p->wakeable.pending   = false;
-            p->wakeable.postponed = !!(tree_flags(t) & TREE_F_POSTPONED);
-            p->wakeable.delayed   = false;
-
-            APUSH(s->procs, p);
-         }
-         break;
-
-      case T_PSL_DIRECT:
-         {
-            psl_node_t psl = tree_psl(t);
-
-            const psl_kind_t kind = psl_kind(psl);
-            if (kind != P_ASSERT && kind != P_COVER)
-               continue;
-
-            ident_t name = tree_ident(t);
-            ident_t sym = ident_prefix(s->name, name, '.');
-
-            rt_prop_t *p = xcalloc(sizeof(rt_prop_t));
-            p->where    = tree_psl(t);
-            p->handle   = jit_lazy_compile(m->jit, sym);
-            p->scope    = s;
-            p->name     = sym;
-            p->privdata = mptr_new(m->mspace, "property privdata");
-
-            p->wakeable.kind      = W_PROPERTY;
-            p->wakeable.pending   = false;
-            p->wakeable.postponed = false;
-            p->wakeable.delayed   = false;
-
-            APUSH(s->properties, p);
-         }
-         break;
-
-      default:
-         break;
-      }
+      if (tree_kind(t) == T_BLOCK)
+         restore_scopes(m, t, s);
    }
 }
 
-rt_model_t *model_new(tree_t top, jit_t *jit)
+rt_model_t *model_new(jit_t *jit, cover_data_t *cover)
 {
    rt_model_t *m = xcalloc(sizeof(rt_model_t));
-   m->top         = top;
    m->scopes      = hash_new(256);
    m->mspace      = jit_get_mspace(jit);
    m->jit         = jit;
    m->nexus_tail  = &(m->nexuses);
    m->iteration   = -1;
-   m->stop_delta  = opt_get_int(OPT_STOP_DELTA);
    m->eventq_heap = heap_new(512);
    m->res_memo    = ihash_new(128);
-   m->shuffle     = opt_get_int(OPT_SHUFFLE_PROCS);
+   m->cover       = cover;
 
    m->driving_heap   = heap_new(64);
    m->effective_heap = heap_new(64);
 
    m->can_create_delta = true;
 
-   m->root = xcalloc(sizeof(rt_scope_t));
-   m->root->kind     = SCOPE_ROOT;
-   m->root->where    = top;
-   m->root->privdata = MPTR_INVALID;
-   m->root->name     = lib_name(lib_work());
-
    m->threads[thread_id()] = static_alloc(m, sizeof(model_thread_t));
 
-   scope_for_block(m, tree_stmt(top, 0), m->root);
-
    __trace_on = opt_get_int(OPT_RT_TRACE);
-
-   nvc_rusage(&m->ready_rusage);
 
    return m;
 }
@@ -728,7 +614,8 @@ void model_free(rt_model_t *m)
          free(untag_pointer(e, rt_callback_t));
    }
 
-   cleanup_scope(m, m->root);
+   if (m->root != NULL)
+      cleanup_scope(m, m->root);
 
    for (int i = 0; i < MAX_THREADS; i++) {
       model_thread_t *thread = m->threads[i];
@@ -826,6 +713,67 @@ rt_watch_t *find_watch(rt_nexus_t *n, sig_event_fn_t fn)
       }
 
       return NULL;
+   }
+}
+
+rt_scope_t *create_scope(rt_model_t *m, tree_t block, rt_scope_t *parent)
+{
+   if (parent == NULL) {
+      assert(m->top == NULL);
+      assert(tree_kind(block) == T_ELAB);
+
+      m->top = block;
+
+      m->root = xcalloc(sizeof(rt_scope_t));
+      m->root->kind     = SCOPE_ROOT;
+      m->root->where    = block;
+      m->root->privdata = MPTR_INVALID;
+      m->root->name     = lib_name(lib_work());
+
+      if (tree_stmts(block) > 0)
+         restore_scopes(m, tree_stmt(block, 0), m->root);
+
+      return m->root;
+   }
+   else {
+      rt_scope_t *s = xcalloc(sizeof(rt_scope_t));
+      s->where    = block;
+      s->kind     = SCOPE_INSTANCE;
+      s->privdata = mptr_new(m->mspace, "block privdata");
+      s->parent   = parent;
+      s->name     = ident_prefix(parent->name, tree_ident(block), '.');
+
+      APUSH(parent->children, s);
+
+      hash_put(m->scopes, block, s);
+
+      MODEL_ENTRY(m);
+
+      TRACE("initialise scope %s", istr(s->name));
+
+      model_thread_t *thread = model_thread(m);
+      thread->active_scope = s;
+
+      jit_handle_t handle = jit_lazy_compile(m->jit, s->name);
+      if (handle == JIT_HANDLE_INVALID)
+         fatal_trace("failed to compile %s", istr(s->name));
+
+      jit_scalar_t result, context = { .pointer = NULL };
+      jit_scalar_t p2 = { .integer = 0 };
+
+      if (s->parent->kind != SCOPE_ROOT)
+         context.pointer = *mptr_get(s->parent->privdata);
+
+      tlab_t tlab = jit_null_tlab(m->jit);
+
+      if (jit_fastcall(m->jit, handle, &result, context, p2, &tlab))
+         *mptr_get(s->privdata) = result.pointer;
+      else
+         m->force_stop = true;
+
+      assert(thread->active_scope == s);
+      thread->active_scope = NULL;
+      return s;
    }
 }
 
@@ -1050,35 +998,6 @@ static void run_process(rt_model_t *m, rt_proc_t *proc)
 
 static void reset_scope(rt_model_t *m, rt_scope_t *s)
 {
-   if (s->kind == SCOPE_INSTANCE) {
-      TRACE("reset scope %s", istr(s->name));
-
-      model_thread_t *thread = model_thread(m);
-      thread->active_scope = s;
-
-      jit_handle_t handle = jit_lazy_compile(m->jit, s->name);
-      if (handle == JIT_HANDLE_INVALID)
-         fatal_trace("failed to compile %s", istr(s->name));
-
-      jit_scalar_t result, context = { .pointer = NULL };
-      jit_scalar_t p2 = { .integer = 0 };
-
-      if (s->parent->kind != SCOPE_ROOT)
-         context.pointer = *mptr_get(s->parent->privdata);
-
-      tlab_t tlab = jit_null_tlab(m->jit);
-
-      if (jit_fastcall(m->jit, handle, &result, context, p2, &tlab))
-         *mptr_get(s->privdata) = result.pointer;
-      else {
-         m->force_stop = true;
-         return;
-      }
-
-      assert(thread->active_scope == s);
-      thread->active_scope = NULL;
-   }
-
    for (int i = 0; i < s->children.count; i++)
       reset_scope(m, s->children.items[i]);
 
@@ -2201,46 +2120,6 @@ static int nexus_rank(rt_nexus_t *n)
       return 0;
 }
 
-static void reset_coverage(rt_model_t *m)
-{
-   assert(m->cover == NULL);
-
-   const unit_meta_t *meta = lib_get_meta(lib_work(), m->top);
-   if (meta == NULL || meta->cover_file == NULL)
-      return;
-
-   fbuf_t *f = fbuf_open(meta->cover_file, FBUF_IN, FBUF_CS_NONE);
-   if (f == NULL)
-      fatal_errno("failed to open coverage database: %s", meta->cover_file);
-
-   m->cover = cover_read_items(f, 0);
-
-   // Pre-allocate coverage counters
-   const int n_tags = cover_count_items(m->cover);
-   jit_get_cover_mem(m->jit, n_tags);
-
-   fbuf_close(f, NULL);
-}
-
-static void emit_coverage(rt_model_t *m)
-{
-   if (m->cover == NULL)
-      return;
-
-   const unit_meta_t *meta = lib_get_meta(lib_work(), m->top);
-   assert(meta->cover_file != NULL);
-
-   fbuf_t *f = fbuf_open(meta->cover_file, FBUF_OUT, FBUF_CS_NONE);
-   if (f == NULL)
-      fatal_errno("failed to open coverage database: %s", meta->cover_file);
-
-   const int n_tags = cover_count_items(m->cover);
-   const int32_t *counts = jit_get_cover_mem(m->jit, n_tags);
-   cover_dump_items(m->cover, f, COV_DUMP_RUNTIME, counts);
-
-   fbuf_close(f, NULL);
-}
-
 cover_data_t *get_coverage(rt_model_t *m)
 {
    return m->cover;
@@ -2387,13 +2266,125 @@ static void check_undriven_std_logic(rt_nexus_t *n)
    n->signal->shared.flags &= ~SIG_F_STD_LOGIC;
 }
 
+static void create_processes(rt_model_t *m, rt_scope_t *s)
+{
+   for (int i = 0; i < s->children.count; i++) {
+      if (s->children.items[i]->kind == SCOPE_INSTANCE)
+         create_processes(m, s->children.items[i]);
+   }
+
+   if (s->kind != SCOPE_INSTANCE)
+      return;
+
+   tree_t hier = tree_decl(s->where, 0);
+   assert(tree_kind(hier) == T_HIER);
+
+   LOCAL_TEXT_BUF tb = tb_new();
+   instance_name_to_path(tb, istr(tree_ident(hier)));
+
+   ident_t path = ident_new(tb_get(tb));
+   ident_t sym_prefix = tree_ident2(hier);
+
+   const int nstmts = tree_stmts(s->where);
+   for (int i = 0; i < nstmts; i++) {
+      tree_t t = tree_stmt(s->where, i);
+      switch (tree_kind(t)) {
+      case T_VERILOG:
+         {
+            vlog_node_t mod = tree_vlog(tree_ref(hier));
+            assert(is_top_level(mod));
+
+            ident_t name = tree_ident(t);
+            ident_t suffix = well_known(W_SHAPE);
+            ident_t shape = ident_prefix(vlog_ident(mod), suffix, '.');
+            ident_t sym = ident_prefix(shape, name, '.');
+
+            rt_proc_t *p = xcalloc(sizeof(rt_proc_t));
+            p->where     = t;
+            p->name      = ident_prefix(path, ident_downcase(name), ':');
+            p->handle    = jit_lazy_compile(m->jit, sym);
+            p->scope     = s;
+            p->privdata  = mptr_new(m->mspace, "process privdata");
+
+            p->wakeable.kind      = W_PROC;
+            p->wakeable.pending   = false;
+            p->wakeable.postponed = false;
+            p->wakeable.delayed   = false;
+
+            APUSH(s->procs, p);
+         }
+         break;
+
+      case T_PROCESS:
+         {
+            ident_t name = tree_ident(t);
+            ident_t sym = ident_prefix(sym_prefix, name, '.');
+
+            rt_proc_t *p = xcalloc(sizeof(rt_proc_t));
+            p->where     = t;
+            p->name      = ident_prefix(path, ident_downcase(name), ':');
+            p->handle    = jit_lazy_compile(m->jit, sym);
+            p->scope     = s;
+            p->privdata  = mptr_new(m->mspace, "process privdata");
+
+            p->wakeable.kind      = W_PROC;
+            p->wakeable.pending   = false;
+            p->wakeable.postponed = !!(tree_flags(t) & TREE_F_POSTPONED);
+            p->wakeable.delayed   = false;
+
+            APUSH(s->procs, p);
+         }
+         break;
+
+      case T_PSL_DIRECT:
+         {
+            psl_node_t psl = tree_psl(t);
+
+            const psl_kind_t kind = psl_kind(psl);
+            if (kind != P_ASSERT && kind != P_COVER)
+               continue;
+
+            ident_t name = tree_ident(t);
+            ident_t sym = ident_prefix(s->name, name, '.');
+
+            rt_prop_t *p = xcalloc(sizeof(rt_prop_t));
+            p->where    = tree_psl(t);
+            p->handle   = jit_lazy_compile(m->jit, sym);
+            p->scope    = s;
+            p->name     = sym;
+            p->privdata = mptr_new(m->mspace, "property privdata");
+
+            p->wakeable.kind      = W_PROPERTY;
+            p->wakeable.pending   = false;
+            p->wakeable.postponed = false;
+            p->wakeable.delayed   = false;
+
+            APUSH(s->properties, p);
+         }
+         break;
+
+      default:
+         break;
+      }
+   }
+}
+
 void model_reset(rt_model_t *m)
 {
    MODEL_ENTRY(m);
 
+   // Re-read options as these may have changed
+   m->stop_delta = opt_get_int(OPT_STOP_DELTA);
+   m->shuffle    = opt_get_int(OPT_SHUFFLE_PROCS);
+
+   __trace_on = opt_get_int(OPT_RT_TRACE);
+
+   create_processes(m, m->root);
+
+   nvc_rusage(&m->ready_rusage);
+
    // Initialisation is described in LRM 93 section 12.6.4
 
-   reset_coverage(m);
    reset_scope(m, m->root);
 
    if (m->force_stop)
@@ -3409,8 +3400,6 @@ void model_run(rt_model_t *m, uint64_t stop_time)
 
    if (m->liveness)
       check_liveness_properties(m, m->root);
-
-   emit_coverage(m);
 }
 
 bool model_step(rt_model_t *m)
@@ -3758,11 +3747,11 @@ void get_forcing_value(rt_signal_t *s, uint8_t *value)
    assert(p == value + s->shared.size);
 }
 
-int32_t *get_cover_counter(rt_model_t *m, int32_t tag)
+int32_t *get_cover_counter(rt_model_t *m, int32_t tag, int count)
 {
    assert(tag >= 0);
    assert(m->cover != NULL);
-   return jit_get_cover_mem(m->jit, tag + 1) + tag;
+   return jit_get_cover_mem(m->jit, tag + count) + tag;
 }
 
 static rt_trigger_t *new_trigger(rt_model_t *m, trigger_kind_t kind,
@@ -3794,6 +3783,12 @@ static rt_trigger_t *new_trigger(rt_model_t *m, trigger_kind_t kind,
    memcpy(t->args, args, argsz);
 
    return (*bucket = t);
+}
+
+void call_with_model(rt_model_t *m, void (*cb)(void *), void *arg)
+{
+   MODEL_ENTRY(m);
+   (*cb)(arg);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -3871,6 +3866,8 @@ void x_drive_signal(sig_shared_t *ss, uint32_t offset, int32_t count)
 void x_sched_process(int64_t delay)
 {
    rt_proc_t *proc = get_active_proc();
+   if (proc == NULL)
+      return;    // May be called during constant folding
 
    TRACE("schedule process %s delay=%s", istr(proc->name), trace_time(delay));
 
@@ -4245,14 +4242,21 @@ void x_push_scope(tree_t where, int32_t size, rt_scope_kind_t kind)
 {
    TRACE("push scope %s size=%d kind=%d", istr(tree_ident(where)), size, kind);
 
-   rt_model_t *m = get_model();
+   rt_model_t *m = get_model_or_null();
+
+   // TODO: this handles a corner case where folding locally static
+   // expression may cause packages with signals to be linked. The eval
+   // module needs to be rewritten to avoid that
+   if (m == NULL)
+      jit_abort();
+
    model_thread_t *thread = model_thread(m);
 
    ident_t name;
-   if (thread->active_scope->kind == SCOPE_ARRAY)
+   if (thread->active_scope && thread->active_scope->kind == SCOPE_ARRAY)
       name = ident_sprintf("%s(%d)", istr(thread->active_scope->name),
                            thread->active_scope->children.count);
-   else if (thread->active_scope->kind == SCOPE_RECORD)
+   else if (thread->active_scope && thread->active_scope->kind == SCOPE_RECORD)
       name = ident_prefix(thread->active_scope->name, tree_ident(where), '.');
    else
       name = tree_ident(where);

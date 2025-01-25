@@ -1,5 +1,5 @@
 package pack is
-    constant kk : integer := <<constant .ename3.k : integer>>;
+    constant kk : integer := <<constant .ename3.k : integer>>;  -- OK (since 1.16)
 end package;
 
 -------------------------------------------------------------------------------

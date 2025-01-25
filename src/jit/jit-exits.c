@@ -413,14 +413,8 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
          int32_t      offset = args[5].integer;
          bool         scalar = args[6].integer;
 
-         sig_shared_t *ss;
-         if (!jit_has_runtime(thread->jit))
-            ss = NULL;
-         else
-            ss = x_init_signal(count, size, value, scalar,
-                               flags, where, offset);
-
-         args[0].pointer = ss;
+         args[0].pointer = x_init_signal(count, size, value, scalar,
+                                         flags, where, offset);
       }
       break;
 
@@ -434,23 +428,14 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
          void         *context = args[5].pointer;
          int64_t       delay   = args[6].integer;
 
-         sig_shared_t *ss;
-         if (!jit_has_runtime(thread->jit))
-            ss = NULL;   // Called during constant folding
-         else {
-            ffi_closure_t closure = { handle, context };
-            ss = x_implicit_signal(count, size, where, kind, &closure, delay);
-         }
-
-         args[0].pointer = ss;
+         ffi_closure_t closure = { handle, context };
+         args[0].pointer = x_implicit_signal(count, size, where, kind,
+                                             &closure, delay);
       }
       break;
 
    case JIT_EXIT_RESOLVE_SIGNAL:
       {
-         if (!jit_has_runtime(thread->jit))
-            return;   // Called during constant folding
-
          sig_shared_t *shared  = args[0].pointer;
          jit_handle_t  handle  = args[1].integer;
          void         *context = args[2].pointer;
@@ -464,9 +449,6 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
 
    case JIT_EXIT_DRIVE_SIGNAL:
       {
-         if (!jit_has_runtime(thread->jit))
-            return;   // Called during constant folding
-
          sig_shared_t *ss     = args[0].pointer;
          int32_t       offset = args[1].integer;
          int32_t       count  = args[2].integer;
@@ -477,9 +459,6 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
 
    case JIT_EXIT_TRANSFER_SIGNAL:
       {
-         if (!jit_has_runtime(thread->jit))
-            return;   // Called during constant folding
-
          sig_shared_t *target    = args[0].pointer;
          int32_t       toffset   = args[1].integer;
          sig_shared_t *source    = args[2].pointer;
@@ -495,9 +474,6 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
 
    case JIT_EXIT_MAP_SIGNAL:
       {
-         if (!jit_has_runtime(thread->jit))
-            return;   // Called during constant folding
-
          sig_shared_t  *src_ss     = args[0].pointer;
          uint32_t       src_offset = args[1].integer;
          sig_shared_t  *dst_ss     = args[2].pointer;
@@ -510,9 +486,6 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
 
    case JIT_EXIT_MAP_CONST:
       {
-         if (!jit_has_runtime(thread->jit))
-            return;   // Called during constant folding
-
          sig_shared_t *dst_ss     = args[0].pointer;
          uint32_t      dst_offset = args[1].integer;
          jit_scalar_t  initval    = { .integer = args[2].integer };
@@ -527,9 +500,6 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
 
    case JIT_EXIT_MAP_IMPLICIT:
       {
-         if (!jit_has_runtime(thread->jit))
-            return;   // Called during constant folding
-
          sig_shared_t  *src_ss     = args[0].pointer;
          uint32_t       src_offset = args[1].integer;
          sig_shared_t  *dst_ss     = args[2].pointer;
@@ -541,12 +511,7 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
       break;
 
    case JIT_EXIT_SCHED_PROCESS:
-      {
-         if (!jit_has_runtime(thread->jit))
-            return;   // TODO: this should not be necessary
-
-         __nvc_sched_process(anchor, args, tlab);
-      }
+      __nvc_sched_process(anchor, args, tlab);
       break;
 
    case JIT_EXIT_SCHED_WAVEFORM:
@@ -565,9 +530,6 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
 
    case JIT_EXIT_ALIAS_SIGNAL:
       {
-         if (!jit_has_runtime(thread->jit))
-            return;   // Called during constant folding
-
          sig_shared_t *ss    = args[0].pointer;
          tree_t        where = args[1].pointer;
 
@@ -688,9 +650,6 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
 
    case JIT_EXIT_PUSH_SCOPE:
       {
-         if (!jit_has_runtime(thread->jit))
-            return;   // Called during constant folding
-
          tree_t          where = args[0].pointer;
          int32_t         size  = args[1].integer;
          rt_scope_kind_t kind  = args[2].integer;
@@ -700,18 +659,11 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
       break;
 
    case JIT_EXIT_POP_SCOPE:
-      {
-         if (!jit_has_runtime(thread->jit))
-            return;   // Called during constant folding
-
-         x_pop_scope();
-      }
+      x_pop_scope();
       break;
 
    case JIT_EXIT_FUNC_WAIT:
-      {
-         x_func_wait();
-      }
+      x_func_wait();
       break;
 
    case JIT_EXIT_DIV_ZERO:
@@ -843,9 +795,6 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
 
    case JIT_EXIT_COVER_TOGGLE:
       {
-         if (!jit_has_runtime(thread->jit))
-            return;   // Called during constant folding
-
          sig_shared_t *shared = args[0].pointer;
          int32_t       tag    = args[1].integer;
 
@@ -855,9 +804,6 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
 
    case JIT_EXIT_COVER_STATE:
       {
-         if (!jit_has_runtime(thread->jit))
-            return;   // Called during constant folding
-
          sig_shared_t *shared = args[0].pointer;
          int64_t      low     = args[1].integer;
          int32_t      tag     = args[2].integer;
@@ -868,9 +814,6 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
 
    case JIT_EXIT_PROCESS_INIT:
       {
-         if (!jit_has_runtime(thread->jit))
-            return;   // Called during constant folding
-
          jit_handle_t handle = args[0].integer;
          tree_t       where  = args[1].pointer;
 
@@ -921,10 +864,7 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
          jit_handle_t handle = args[0].integer;
          unsigned     nargs  = args[1].integer;
 
-         if (jit_has_runtime(thread->jit))
-            args[0].pointer = x_function_trigger(handle, nargs, args + 2);
-         else
-            args[0].pointer = NULL;   // Called during constant folding
+         args[0].pointer = x_function_trigger(handle, nargs, args + 2);
       }
       break;
 
@@ -933,10 +873,7 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
          void *left  = args[0].pointer;
          void *right = args[1].pointer;
 
-         if (jit_has_runtime(thread->jit))
-            args[0].pointer = x_or_trigger(left, right);
-         else
-            args[0].pointer = NULL;   // Called during constant folding
+         args[0].pointer = x_or_trigger(left, right);
       }
       break;
 
@@ -946,10 +883,7 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
          int32_t       offset = args[1].integer;
          int64_t       right  = args[2].integer;
 
-         if (jit_has_runtime(thread->jit))
-            args[0].pointer = x_cmp_trigger(shared, offset, right);
-         else
-            args[0].pointer = NULL;   // Called during constant folding
+         args[0].pointer = x_cmp_trigger(shared, offset, right);
       }
       break;
 
@@ -969,13 +903,9 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
          jit_handle_t  handle2  = args[2].integer;
          void         *context2 = args[3].pointer;
 
-         if (jit_has_runtime(thread->jit)) {
-            ffi_closure_t driving = { handle1, context1 };
-            ffi_closure_t effective = { handle2, context2 };
-            args[0].pointer = x_port_conversion(&driving, &effective);
-         }
-         else
-            args[0].pointer = NULL;   // Called during constant folding
+         ffi_closure_t driving = { handle1, context1 };
+         ffi_closure_t effective = { handle2, context2 };
+         args[0].pointer = x_port_conversion(&driving, &effective);
       }
       break;
 

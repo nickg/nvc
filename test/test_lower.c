@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2014-2024  Nick Gasson
+//  Copyright (C) 2014-2025  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -23,6 +23,7 @@
 #include "lower.h"
 #include "option.h"
 #include "phase.h"
+#include "rt/model.h"
 #include "scan.h"
 #include "vcode.h"
 
@@ -1937,7 +1938,9 @@ START_TEST(test_cover)
    unit_registry_t *ur = get_registry();
    jit_t *jit = jit_new(ur);
    cover_data_t *data = cover_data_init(COVER_MASK_STMT | COVER_MASK_EXPRESSION | COVER_MASK_BRANCH, 0, 0);
-   elab(tree_to_object(a), jit, ur, data, NULL);
+   rt_model_t *m = model_new(jit, data);
+
+   elab(tree_to_object(a), jit, ur, data, NULL, m);
 
    vcode_unit_t v0 = find_unit("WORK.COVER_ENT.P1");
    vcode_select_unit(v0);
@@ -2080,6 +2083,7 @@ START_TEST(test_cover)
 
    CHECK_BB(18);
 
+   model_free(m);
    jit_free(jit);
 
    fail_if_errors();
@@ -2497,7 +2501,8 @@ START_TEST(test_choice1)
    unit_registry_t *ur = get_registry();
    jit_t *jit = jit_new(ur);
    cover_data_t *data = cover_data_init(COVER_MASK_BRANCH, 0, 0);
-   elab(tree_to_object(a), jit, ur, data, NULL);
+   rt_model_t *m = model_new(jit, NULL);
+   elab(tree_to_object(a), jit, ur, data, NULL, m);
 
    vcode_unit_t v0 = find_unit("WORK.CHOICE1.P1");
    vcode_select_unit(v0);
@@ -2583,6 +2588,7 @@ START_TEST(test_choice1)
 
    CHECK_BB(12);
 
+   model_free(m);
    jit_free(jit);
 }
 END_TEST
@@ -5030,8 +5036,11 @@ START_TEST(test_issue582)
    unit_registry_t *ur = unit_registry_new();
    jit_t *jit = jit_new(ur);
    cover_data_t *data = cover_data_init(COVER_MASK_ALL, 0, 0);
-   elab(tree_to_object(a), jit, ur, data, NULL);
+   rt_model_t *m = model_new(jit, NULL);
 
+   elab(tree_to_object(a), jit, ur, data, NULL, m);
+
+   model_free(m);
    jit_free(jit);
    unit_registry_free(ur);
 

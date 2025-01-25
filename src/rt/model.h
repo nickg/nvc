@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2022-2023  Nick Gasson
+//  Copyright (C) 2022-2025  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -26,7 +26,7 @@ typedef enum {
    WATCH_POSTPONED,
 } watch_kind_t;
 
-rt_model_t *model_new(tree_t top, jit_t *jit);
+rt_model_t *model_new(jit_t *jit, cover_data_t *cover);
 void model_free(rt_model_t *m);
 void model_reset(rt_model_t *m);
 void model_run(rt_model_t *m, uint64_t stop_time);
@@ -48,6 +48,8 @@ rt_watch_t *model_set_event_cb(rt_model_t *m, rt_signal_t *s, rt_watch_t *w);
 void model_set_timeout_cb(rt_model_t *m, uint64_t when, rt_event_fn_t fn,
                           void *user);
 
+void call_with_model(rt_model_t *m, void (*cb)(void *), void *arg);
+
 rt_model_t *get_model(void);
 rt_model_t *get_model_or_null(void);
 rt_proc_t *get_active_proc(void);
@@ -61,6 +63,7 @@ rt_scope_t *child_scope_at(rt_scope_t *scope, int index);
 rt_signal_t *find_signal(rt_scope_t *scope, tree_t decl);
 rt_proc_t *find_proc(rt_scope_t *scope, tree_t proc);
 bool is_signal_scope(rt_scope_t *scope);
+rt_scope_t *create_scope(rt_model_t *m, tree_t block, rt_scope_t *parent);
 
 const void *signal_value(rt_signal_t *s);
 const void *signal_last_value(rt_signal_t *s);
@@ -75,6 +78,6 @@ void deposit_signal(rt_model_t *m, rt_signal_t *s, const void *values,
 rt_watch_t *find_watch(rt_nexus_t *n, sig_event_fn_t fn);
 void get_forcing_value(rt_signal_t *s, uint8_t *value);
 
-int32_t *get_cover_counter(rt_model_t *m, int32_t tag);
+int32_t *get_cover_counter(rt_model_t *m, int32_t tag, int count);
 
 #endif  // _RT_MODEL_H

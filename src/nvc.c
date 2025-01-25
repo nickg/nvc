@@ -70,6 +70,8 @@ typedef struct {
    vhpi_context_t  *vhpi;
    vpi_context_t   *vpi;
    const char      *plugins;
+   rt_model_t      *model;
+   cover_data_t    *cover;
 } cmd_state_t;
 
 const char copy_string[] =
@@ -393,6 +395,7 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
       { "no-save",         no_argument,       0, 'N' },
       { "jit",             no_argument,       0, 'j' },
       { "no-collapse",     no_argument,       0, 'C' },
+      { "trace",           no_argument,       0, 't' },
       { 0, 0, 0, 0 }
    };
 
@@ -404,7 +407,7 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
    int threshold = 1;
    const int next_cmd = scan_cmd(2, argc, argv);
    int c, index = 0;
-   const char *spec = ":Vg:O:j";
+   const char *spec = ":Vg:O:jt";
    while ((c = getopt_long(next_cmd, argv, spec, long_options, &index)) != -1) {
       switch (c) {
       case 'O':
@@ -448,6 +451,9 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
       case 'f':
          sdf_args = optarg;
          break;
+      case 't':
+         opt_set_int(OPT_RT_TRACE, 1);
+         break;
       case 0:
          // Set a flag
          break;
@@ -456,7 +462,7 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
       case ':':
          missing_argument("elaboration", argv);
       default:
-         abort();
+         should_not_reach_here();
       }
    }
 
@@ -490,6 +496,11 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
       analyse_file(sdf_args, NULL, NULL);
    }
 
+   if (state->model != NULL) {
+      model_free(state->model);
+      state->model = NULL;
+   }
+
    if (state->registry != NULL) {
       unit_registry_free(state->registry);
       state->registry = NULL;
@@ -502,13 +513,14 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
 
    state->registry = unit_registry_new();
    state->jit = get_jit(state->registry);
+   state->model = model_new(state->jit, cover);
 
    if (state->vhpi == NULL)
       state->vhpi = vhpi_context_new();
 
-   jit_enable_runtime(state->jit, false);
+   tree_t top = elab(obj, state->jit, state->registry, cover,
+                     NULL, state->model);
 
-   tree_t top = elab(obj, state->jit, state->registry, cover, NULL);
    if (top == NULL)
       return EXIT_FAILURE;
 
@@ -557,12 +569,14 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
       progress("writing JIT pack");
    }
 
-   if (!use_jit) {
+   if (!use_jit || cover != NULL) {
       LLVM_ONLY(cgen(top, state->registry, state->jit));
 
       // Must discard current JIT state to load AOT library later
+      model_free(state->model);
       jit_free(state->jit);
       state->jit = NULL;
+      state->model = NULL;
    }
 
    argc -= next_cmd - 1;
@@ -655,7 +669,6 @@ static void ctrl_c_handler(void *arg)
 static jit_t *get_jit(unit_registry_t *ur)
 {
    jit_t *jit = jit_new(ur);
-   jit_enable_runtime(jit, true);
 
 #ifdef HAVE_LLVM
    jit_preload(jit);
@@ -687,6 +700,42 @@ static int plusarg_cmp(const void *lptr, const void *rptr)
       return 1;
    else
       return lptr - rptr;
+}
+
+static cover_data_t *load_coverage(tree_t top, jit_t *j)
+{
+   const unit_meta_t *meta = lib_get_meta(lib_work(), top);
+   if (meta == NULL || meta->cover_file == NULL)
+      return NULL;
+
+   fbuf_t *f = fbuf_open(meta->cover_file, FBUF_IN, FBUF_CS_NONE);
+   if (f == NULL)
+      fatal_errno("failed to open coverage database: %s", meta->cover_file);
+
+   cover_data_t *db = cover_read_items(f, 0);
+
+   // Pre-allocate coverage counters
+   const int n_tags = cover_count_items(db);
+   jit_get_cover_mem(j, n_tags);
+
+   fbuf_close(f, NULL);
+   return db;
+}
+
+static void emit_coverage(tree_t top, jit_t *j, cover_data_t *db)
+{
+   const unit_meta_t *meta = lib_get_meta(lib_work(), top);
+   assert(meta->cover_file != NULL);
+
+   fbuf_t *f = fbuf_open(meta->cover_file, FBUF_OUT, FBUF_CS_NONE);
+   if (f == NULL)
+      fatal_errno("failed to open coverage database: %s", meta->cover_file);
+
+   const int n_tags = cover_count_items(db);
+   const int32_t *counts = jit_get_cover_mem(j, n_tags);
+   cover_dump_items(db, f, COV_DUMP_RUNTIME, counts);
+
+   fbuf_close(f, NULL);
 }
 
 static int run_cmd(int argc, char **argv, cmd_state_t *state)
@@ -871,10 +920,13 @@ static int run_cmd(int argc, char **argv, cmd_state_t *state)
       fclose(f);
    }
 
-   jit_reset(state->jit);
-   jit_enable_runtime(state->jit, true);
+   if (state->cover == NULL)
+      state->cover = load_coverage(top, state->jit);
 
-   rt_model_t *model = model_new(top, state->jit);
+   if (state->model == NULL) {
+      state->model = model_new(state->jit, state->cover);
+      create_scope(state->model, top, NULL);
+   }
 
    if (state->vhpi == NULL)
       state->vhpi = vhpi_context_new();
@@ -883,9 +935,9 @@ static int run_cmd(int argc, char **argv, cmd_state_t *state)
       state->vpi = vpi_context_new();
 
    if (pli_plugins != NULL || state->plugins != NULL) {
-      vhpi_context_initialise(state->vhpi, top, model, state->jit,
+      vhpi_context_initialise(state->vhpi, top, state->model, state->jit,
                               nplusargs, plusargs);
-      vpi_context_initialise(state->vpi, top, model, state->jit,
+      vpi_context_initialise(state->vpi, top, state->model, state->jit,
                              nplusargs, plusargs);
    }
    else if (nplusargs > 0)
@@ -894,21 +946,24 @@ static int run_cmd(int argc, char **argv, cmd_state_t *state)
    if (pli_plugins != NULL)
       vhpi_load_plugins(pli_plugins);
 
-   set_ctrl_c_handler(ctrl_c_handler, model);
+   set_ctrl_c_handler(ctrl_c_handler, state->model);
 
-   model_reset(model);
+   model_reset(state->model);
 
    if (dumper != NULL)
-      wave_dumper_restart(dumper, model, state->jit);
+      wave_dumper_restart(dumper, state->model, state->jit);
 
-   model_run(model, stop_time);
+   model_run(state->model, stop_time);
 
    set_ctrl_c_handler(NULL, NULL);
 
-   const int rc = model_exit_status(model);
+   const int rc = model_exit_status(state->model);
 
    if (dumper != NULL)
       wave_dumper_free(dumper);
+
+   if (state->cover != NULL)
+      emit_coverage(top, state->jit, state->cover);
 
    vhpi_context_free(state->vhpi);
    state->vhpi = NULL;
@@ -916,7 +971,8 @@ static int run_cmd(int argc, char **argv, cmd_state_t *state)
    vpi_context_free(state->vpi);
    state->vpi = NULL;
 
-   model_free(model);
+   model_free(state->model);
+   state->model = NULL;
 
    argc -= next_cmd - 1;
    argv += next_cmd - 1;
@@ -2368,6 +2424,9 @@ int main(int argc, char **argv)
    }
 
    const int ret = process_command(argc, argv, &state);
+
+   if (state.model != NULL)
+      model_free(state.model);
 
    if (state.jit != NULL)
       jit_free(state.jit);   // JIT must be shut down before exiting

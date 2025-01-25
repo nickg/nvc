@@ -15,5 +15,5 @@ if [ -z "$vlog" ] || [ -f $regress/$1.vhd ]; then
   vhd=$regress/$1.vhd
 fi
 PATH="./bin:../bin:$PATH"
-nvc --std=$std $vhpi -a --relaxed --psl $vhd $vlog -e -V $* \
+nvc --std=$std $vhpi -a --relaxed --psl $vhd $vlog -e --trace -V $* \
     -r --trace --stats --exit-severity=error

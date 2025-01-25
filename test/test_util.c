@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2014-2023  Nick Gasson
+//  Copyright (C) 2014-2025  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -25,6 +25,7 @@
 #include "lower.h"
 #include "option.h"
 #include "phase.h"
+#include "rt/model.h"
 #include "vcode.h"
 
 #include <assert.h>
@@ -156,8 +157,11 @@ tree_t run_elab(void)
          last_ent = t;
    }
 
-   tree_t top = elab(tree_to_object(last_ent), j, ur, NULL, NULL);
+   rt_model_t *m = model_new(j, NULL);
 
+   tree_t top = elab(tree_to_object(last_ent), j, ur, NULL, NULL, m);
+
+   model_free(m);
    jit_free(j);
 
    return top;

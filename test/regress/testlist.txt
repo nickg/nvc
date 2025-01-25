@@ -891,7 +891,6 @@ psl6            fail,gold,psl
 cover18         cover,shell
 cover19         cover,shell
 gentype6        normal,2008
-signal34        fail,gold,2008
 mixed1          mixed
 ename5          fail,gold,2008
 ename6          normal,2008

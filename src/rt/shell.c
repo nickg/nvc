@@ -195,7 +195,8 @@ static void shell_create_model(tcl_shell_t *sh)
 {
    assert(sh->model == NULL);
 
-   sh->model = model_new(sh->top, sh->jit);
+   sh->model = model_new(sh->jit, NULL);
+   create_scope(sh->model, sh->top, NULL);
 
    if (sh->handler.next_time_step != NULL)
       model_set_global_cb(sh->model, RT_NEXT_TIME_STEP,
@@ -586,9 +587,10 @@ static int shell_cmd_elaborate(ClientData cd, Tcl_Interp *interp,
    sh->registry = unit_registry_new();
    sh->jit = (*sh->make_jit)(sh->registry);
 
-   jit_enable_runtime(sh->jit, false);
-
-   tree_t top = elab(tree_to_object(unit), sh->jit, sh->registry, NULL, NULL);
+   rt_model_t *m = model_new(sh->jit, NULL);
+   tree_t top = elab(tree_to_object(unit), sh->jit, sh->registry,
+                     NULL, NULL, m);
+   model_free(m);   // XXX: reuse
    if (top == NULL)
       return TCL_ERROR;
 
@@ -1417,7 +1419,6 @@ void shell_reset(tcl_shell_t *sh, tree_t top)
    shell_clear_model(sh);
 
    jit_reset(sh->jit);
-   jit_enable_runtime(sh->jit, true);
 
    sh->top = top;
 

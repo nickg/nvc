@@ -200,7 +200,7 @@ void x_bind_external(tree_t name, jit_handle_t scope, jit_scalar_t *result)
          diag_hint(d, tree_loc(pe), "name %s not found inside %s", istr(id),
                    istr(tree_ident(where)));
 
-         if (get_model_or_null() == NULL)
+         if (!tree_frozen(where))
             diag_hint(d, NULL, "an object cannot be referenced by an "
                       "external name until it has been elaborated");
 

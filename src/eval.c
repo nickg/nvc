@@ -260,6 +260,7 @@ tree_t eval_try_fold(jit_t *jit, tree_t expr, unit_registry_t *registry,
    tree_t result = eval_do_fold(jit, expr, parent, registry, context);
 
    jit_set_silent(jit, false);
+   jit_reset_exit_status(jit);
 
    return result;
 }

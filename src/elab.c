@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2024  Nick Gasson
+//  Copyright (C) 2011-2025  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -30,6 +30,8 @@
 #include "option.h"
 #include "phase.h"
 #include "psl/psl-phase.h"
+#include "rt/model.h"
+#include "rt/structs.h"
 #include "thread.h"
 #include "type.h"
 #include "vlog/vlog-defs.h"
@@ -52,7 +54,7 @@ typedef struct _generic_list generic_list_t;
 typedef struct _elab_ctx {
    const elab_ctx_t *parent;
    tree_t            out;
-   tree_t            root;
+   object_t         *root;
    tree_t            inst;
    tree_t            config;
    ident_t           inst_name;     // Current 'INSTANCE_NAME
@@ -65,9 +67,10 @@ typedef struct _elab_ctx {
    lower_unit_t     *lowered;
    cover_data_t     *cover;
    sdf_file_t       *sdf;
-   void             *context;
    driver_set_t     *drivers;
    hash_t           *modcache;
+   rt_model_t       *model;
+   rt_scope_t       *scope;
    unsigned          depth;
 } elab_ctx_t;
 
@@ -1142,10 +1145,14 @@ static void elab_generics(tree_t entity, tree_t bind, elab_ctx_t *ctx)
       case T_RECORD_REF:
       case T_FCALL:
          if (type_is_scalar(tree_type(value))) {
+            void *context = NULL;
+            if (ctx->parent->scope->kind != SCOPE_ROOT)
+               context = *mptr_get(ctx->parent->scope->privdata);
+
             tree_t folded = eval_try_fold(ctx->jit, value,
                                           ctx->registry,
                                           ctx->parent->lowered,
-                                          ctx->parent->context);
+                                          context);
 
             if (folded != value) {
                tree_t m = tree_new(T_PARAM);
@@ -1318,6 +1325,7 @@ static void elab_inherit_context(elab_ctx_t *ctx, const elab_ctx_t *parent)
    ctx->inst      = ctx->inst ?: parent->inst;
    ctx->modcache  = parent->modcache;
    ctx->depth     = parent->depth + 1;
+   ctx->model     = parent->model;
 }
 
 static driver_set_t *elab_driver_set(const elab_ctx_t *ctx)
@@ -1338,7 +1346,7 @@ static void elab_lower(tree_t b, vcode_unit_t shape, elab_ctx_t *ctx)
    if (ctx->inst != NULL)
       diag_add_hint_fn(elab_hint_fn, ctx->inst);
 
-   ctx->context = eval_instance(ctx->jit, ctx->dotted, ctx->parent->context);
+   ctx->scope = create_scope(ctx->model, b, ctx->parent->scope);
 
    if (ctx->inst != NULL)
       diag_remove_hint_fn(elab_hint_fn);
@@ -1718,8 +1726,8 @@ static void elab_pop_scope(elab_ctx_t *ctx)
 
 static inline tree_t elab_eval_expr(tree_t t, const elab_ctx_t *ctx)
 {
-   return eval_must_fold(ctx->jit, t, ctx->registry,
-                         ctx->lowered, ctx->context);
+   void *context = *mptr_get(ctx->scope->privdata);
+   return eval_must_fold(ctx->jit, t, ctx->registry, ctx->lowered, context);
 }
 
 static bool elab_copy_genvar_cb(tree_t t, void *ctx)
@@ -1898,7 +1906,8 @@ static void elab_if_generate(tree_t t, const elab_ctx_t *ctx)
 
 static void elab_case_generate(tree_t t, const elab_ctx_t *ctx)
 {
-   tree_t chosen = eval_case(ctx->jit, t, ctx->lowered, ctx->context);
+   void *context = *mptr_get(ctx->scope->privdata);
+   tree_t chosen = eval_case(ctx->jit, t, ctx->lowered, context);
    if (chosen == NULL)
       return;
 
@@ -2164,8 +2173,53 @@ void elab_set_generic(const char *name, const char *value)
    generic_override = new;
 }
 
+static void elab_vhdl_root_cb(void *arg)
+{
+   elab_ctx_t *ctx = arg;
+
+   tree_t vhdl = tree_from_object(ctx->root);
+   assert(vhdl != NULL);
+
+   tree_t arch, config = NULL;
+   switch (tree_kind(vhdl)) {
+   case T_ENTITY:
+      arch = elab_pick_arch(&ctx->root->loc, vhdl, ctx);
+      break;
+   case T_ARCH:
+      arch = vhdl;
+      break;
+   case T_CONFIGURATION:
+      config = tree_decl(vhdl, 0);
+      assert(tree_kind(config) == T_BLOCK_CONFIG);
+      arch = tree_ref(config);
+      break;
+   default:
+      fatal("%s is not a suitable top-level unit", istr(tree_ident(vhdl)));
+   }
+
+   const char *name = simple_name(istr(tree_ident2(arch)));
+   ctx->inst_name = hpathf(NULL, ':', ":%s(%s)", name,
+                           simple_name(istr(tree_ident(arch))));
+
+   tree_t bind = elab_top_level_binding(arch, ctx);
+
+   if (error_count() == 0)
+      elab_architecture(bind, arch, config, ctx);
+}
+
+static void elab_verilog_root_cb(void *arg)
+{
+   elab_ctx_t *ctx = arg;
+
+   vlog_node_t vlog = vlog_from_object(ctx->root);
+   assert(vlog != NULL);
+
+   mod_cache_t *mc = elab_cached_module(vlog, ctx);
+   elab_verilog_module(NULL, vlog_ident2(mc->module), mc, ctx);
+}
+
 tree_t elab(object_t *top, jit_t *jit, unit_registry_t *ur, cover_data_t *cover,
-            sdf_file_t *sdf)
+            sdf_file_t *sdf, rt_model_t *m)
 {
    make_new_arena();
 
@@ -2190,7 +2244,7 @@ tree_t elab(object_t *top, jit_t *jit, unit_registry_t *ur, cover_data_t *cover,
 
    elab_ctx_t ctx = {
       .out       = e,
-      .root      = e,
+      .root      = top,
       .inst_name = NULL,
       .cover     = cover,
       .library   = work,
@@ -2199,39 +2253,14 @@ tree_t elab(object_t *top, jit_t *jit, unit_registry_t *ur, cover_data_t *cover,
       .registry  = ur,
       .modcache  = hash_new(16),
       .dotted    = lib_name(work),
+      .model     = m,
+      .scope     = create_scope(m, e, NULL),
    };
 
-   if (vhdl != NULL) {
-      tree_t arch, config = NULL;
-      switch (tree_kind(vhdl)) {
-      case T_ENTITY:
-         arch = elab_pick_arch(&(top->loc), vhdl, &ctx);
-         break;
-      case T_ARCH:
-         arch = vhdl;
-         break;
-      case T_CONFIGURATION:
-         config = tree_decl(vhdl, 0);
-         assert(tree_kind(config) == T_BLOCK_CONFIG);
-         arch = tree_ref(config);
-         break;
-      default:
-         fatal("%s is not a suitable top-level unit", istr(tree_ident(vhdl)));
-      }
-
-      const char *name = simple_name(istr(tree_ident2(arch)));
-      ctx.inst_name = hpathf(NULL, ':', ":%s(%s)", name,
-                             simple_name(istr(tree_ident(arch))));
-
-      tree_t bind = elab_top_level_binding(arch, &ctx);
-
-      if (error_count() == 0)
-         elab_architecture(bind, arch, config, &ctx);
-   }
-   else {
-      mod_cache_t *mc = elab_cached_module(vlog, &ctx);
-      elab_verilog_module(NULL, vlog_ident2(mc->module), mc, &ctx);
-   }
+   if (vhdl != NULL)
+      call_with_model(m, elab_vhdl_root_cb, &ctx);
+   else
+      call_with_model(m, elab_verilog_root_cb, &ctx);
 
    const void *key;
    void *value;

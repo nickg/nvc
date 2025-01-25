@@ -39,7 +39,7 @@ void bounds_check(tree_t top);
 
 // Elaborate a top level design unit
 tree_t elab(object_t *top, jit_t *jit, unit_registry_t *ur,
-            cover_data_t *cover, sdf_file_t *sdf);
+            cover_data_t *cover, sdf_file_t *sdf, rt_model_t *m);
 
 // Set the value of a top-level generic
 void elab_set_generic(const char *name, const char *value);

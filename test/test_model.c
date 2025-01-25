@@ -33,9 +33,8 @@ START_TEST(test_basic1)
    fail_if(top == NULL);
 
    jit_t *j = jit_new(get_registry());
-   jit_enable_runtime(j, true);
-
-   rt_model_t *m = model_new(top, j);
+   rt_model_t *m = model_new(j, NULL);
+   create_scope(m, top, NULL);
 
    tree_t b0 = tree_stmt(top, 0);
    tree_t x = tree_decl(b0, 1);
@@ -79,9 +78,9 @@ START_TEST(test_index1)
    fail_if(top == NULL);
 
    jit_t *j = jit_new(get_registry());
-   jit_enable_runtime(j, true);
 
-   rt_model_t *m = model_new(top, j);
+   rt_model_t *m = model_new(j, NULL);
+   create_scope(m, top, NULL);
 
    tree_t b0 = tree_stmt(top, 0);
    tree_t s1 = get_decl(b0, "S1");
@@ -131,9 +130,9 @@ START_TEST(test_alias1)
    fail_if(top == NULL);
 
    jit_t *j = jit_new(get_registry());
-   jit_enable_runtime(j, true);
 
-   rt_model_t *m = model_new(top, j);
+   rt_model_t *m = model_new(j, NULL);
+   create_scope(m, top, NULL);
    model_reset(m);
 
    tree_t b0 = tree_stmt(top, 0);
@@ -158,9 +157,9 @@ START_TEST(test_fast1)
    fail_if(top == NULL);
 
    jit_t *j = jit_new(get_registry());
-   jit_enable_runtime(j, true);
 
-   rt_model_t *m = model_new(top, j);
+   rt_model_t *m = model_new(j, NULL);
+   create_scope(m, top, NULL);
    model_reset(m);
 
    tree_t b0 = tree_stmt(top, 0);
@@ -209,9 +208,9 @@ START_TEST(test_stateless1)
    fail_if(top == NULL);
 
    jit_t *j = jit_new(get_registry());
-   jit_enable_runtime(j, true);
 
-   rt_model_t *m = model_new(top, j);
+   rt_model_t *m = model_new(j, NULL);
+   create_scope(m, top, NULL);
    model_reset(m);
 
    tree_t b0 = tree_stmt(top, 0);
@@ -245,9 +244,9 @@ START_TEST(test_pending1)
    fail_if(top == NULL);
 
    jit_t *j = jit_new(get_registry());
-   jit_enable_runtime(j, true);
 
-   rt_model_t *m = model_new(top, j);
+   rt_model_t *m = model_new(j, NULL);
+   create_scope(m, top, NULL);
    model_reset(m);
 
    tree_t b0 = tree_stmt(top, 0);
@@ -297,9 +296,9 @@ START_TEST(test_fast2)
    fail_if(top == NULL);
 
    jit_t *j = jit_new(get_registry());
-   jit_enable_runtime(j, true);
 
-   rt_model_t *m = model_new(top, j);
+   rt_model_t *m = model_new(j, NULL);
+   create_scope(m, top, NULL);
    model_reset(m);
 
    tree_t b0 = tree_stmt(top, 0);
@@ -383,9 +382,9 @@ START_TEST(test_event1)
    fail_if(top == NULL);
 
    jit_t *j = jit_new(get_registry());
-   jit_enable_runtime(j, true);
 
-   rt_model_t *m = model_new(top, j);
+   rt_model_t *m = model_new(j, NULL);
+   create_scope(m, top, NULL);
    model_reset(m);
 
    tree_t b0 = tree_stmt(top, 0);
@@ -440,12 +439,15 @@ START_TEST(test_process1)
    };
    expect_errors(expect);
 
-   tree_t top = run_elab();
+   tree_t a = parse_check_and_simplify(T_ENTITY, T_ARCH);
 
-   jit_t *j = jit_new(get_registry());
-   jit_enable_runtime(j, true);
+   unit_registry_t *ur = get_registry();
+   jit_t *j = jit_new(ur);
+   rt_model_t *m = model_new(j, NULL);
 
-   rt_model_t *m = model_new(top, j);
+   tree_t top = elab(tree_to_object(a), j, ur, NULL, NULL, m);
+   ck_assert_ptr_nonnull(top);
+
    model_reset(m);
 
    tree_t b0 = tree_stmt(top, 0);

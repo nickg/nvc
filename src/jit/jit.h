@@ -60,7 +60,6 @@ jit_handle_t jit_assemble(jit_t *j, ident_t name, const char *text);
 void *jit_link(jit_t *j, jit_handle_t handle);
 void *jit_get_frame_var(jit_t *j, jit_handle_t handle, ident_t name);
 void jit_set_silent(jit_t *j, bool silent);
-void jit_enable_runtime(jit_t *j, bool enable);
 mspace_t *jit_get_mspace(jit_t *j);
 void jit_load_dll(jit_t *j, ident_t name);
 void jit_load_pack(jit_t *j, FILE *f);

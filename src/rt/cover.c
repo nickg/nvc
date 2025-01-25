@@ -173,7 +173,7 @@ static inline void cover_toggle_check_0_1_u_z(uint8_t old, uint8_t new,
          if (walk) {                                                                \
             int32_t low = i * sizeof(uint64_t);                                     \
             int32_t high = low + batch_size;                                        \
-            int32_t *toggle_01 = get_cover_counter(m, tag) + low * 2;               \
+            int32_t *toggle_01 = get_cover_counter(m, tag, 2) + low * 2;            \
             int32_t *toggle_10 = toggle_01 + 1;                                     \
             for (int j = low; j < high; j++) {                                      \
                uint8_t new = ((uint8_t*)signal_value(s))[j];                        \
@@ -223,10 +223,15 @@ void x_cover_setup_toggle_cb(sig_shared_t *ss, int32_t tag)
 {
    rt_signal_t *s = container_of(ss, rt_signal_t, shared);
    rt_model_t *m = get_model();
-   cover_mask_t op_mask = get_coverage(m)->mask;
+
+   cover_data_t *data = get_coverage(m);
+   if (data == NULL)
+      return;
+
+   cover_mask_t op_mask = data->mask;
 
    if (is_constant_input(s)) {
-      int32_t *toggle_01 = get_cover_counter(m, tag);
+      int32_t *toggle_01 = get_cover_counter(m, tag, 2 * s->shared.size);
       int32_t *toggle_10 = toggle_01 + 1;
 
       // Each std_logic bit encoded as single byte. There are two run-time
@@ -273,7 +278,7 @@ static void cover_state_cb(uint64_t now, rt_signal_t *s, rt_watch_t *w, void *us
    FOR_ALL_SIZES(size, READ_STATE);
 
    rt_model_t *m = get_model();
-   int32_t *mask = get_cover_counter(m, ((uintptr_t)user) + offset);
+   int32_t *mask = get_cover_counter(m, ((uintptr_t)user) + offset, 1);
 
    increment_counter(mask);
 }
@@ -283,7 +288,11 @@ void x_cover_setup_state_cb(sig_shared_t *ss, int64_t low, int32_t tag)
    rt_signal_t *s = container_of(ss, rt_signal_t, shared);
    rt_model_t *m = get_model();
 
-   int32_t *mask = get_cover_counter(m, tag);
+   cover_data_t *data = get_coverage(m);
+   if (data == NULL)
+      return;
+
+   int32_t *mask = get_cover_counter(m, tag, 1);
 
    // TYPE'left is a default value of enum type that does not
    // cause an event. First tag needs to be flagged as covered manually.
@@ -494,6 +503,6 @@ void _nvc_increment_cover_item(jit_scalar_t *args)
    if (index < 0 || index >= s->items.count)
       jit_msg(NULL, DIAG_FATAL, "cover item index %d out of range", index);
 
-   int32_t *counter = get_cover_counter(m, s->items.items[index].tag);
+   int32_t *counter = get_cover_counter(m, s->items.items[index].tag, 1);
    increment_counter(counter);
 }

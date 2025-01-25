@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2024  Nick Gasson
+//  Copyright (C) 2011-2025  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -22,6 +22,7 @@
 #include "jit/jit.h"
 #include "lib.h"
 #include "phase.h"
+#include "rt/model.h"
 #include "scan.h"
 #include "type.h"
 
@@ -1672,9 +1673,11 @@ START_TEST(test_issue759)
    jit_t *jit = jit_new(ur);
    cover_data_t *cover = cover_data_init(COVER_MASK_ALL, 0, 0);
 
-   tree_t e = elab(tree_to_object(a), jit, ur, cover, NULL);
+   rt_model_t *m = model_new(jit, cover);
+   tree_t e = elab(tree_to_object(a), jit, ur, cover, NULL, m);
    fail_if(e == NULL);
 
+   model_free(m);
    jit_free(jit);
 
    fail_if_errors();
@@ -1797,10 +1800,12 @@ START_TEST(test_vlog1)
 
    unit_registry_t *ur = get_registry();
    jit_t *j = jit_new(ur);
+   rt_model_t *m = model_new(j, NULL);
 
-   tree_t top = elab(obj, j, ur, NULL, NULL);
+   tree_t top = elab(obj, j, ur, NULL, NULL, m);
    fail_unless(top == NULL);
 
+   model_free(m);
    jit_free(j);
 
    check_expected_errors();
@@ -1813,16 +1818,10 @@ START_TEST(test_ename3)
 
    input_from_file(TESTDIR "/elab/ename3.vhd");
 
-   const error_t expect[] = {
-      {  2, "design hieararchy root has not yet been elaborated" },
-      { -1, NULL }
-   };
-   expect_errors(expect);
-
    tree_t e = run_elab();
-   fail_unless(e == NULL);
+   fail_if(e == NULL);
 
-   check_expected_errors();
+   fail_if_errors();
 }
 END_TEST
 
@@ -1996,10 +1995,12 @@ START_TEST(test_issue1012)
    unit_registry_t *ur = get_registry();
    jit_t *jit = jit_new(ur);
    cover_data_t *cover = cover_data_init(COVER_MASK_TOGGLE, 0, 0);
+   rt_model_t *m = model_new(jit, NULL);
 
-   tree_t e = elab(tree_to_object(a), jit, ur, cover, NULL);
+   tree_t e = elab(tree_to_object(a), jit, ur, cover, NULL, m);
    fail_unless(e == NULL);
 
+   model_free(m);
    jit_free(jit);
 
    check_expected_errors();
@@ -2016,6 +2017,26 @@ START_TEST(test_issue1017)
    fail_if(e == NULL);
 
    fail_if_errors();
+}
+END_TEST
+
+START_TEST(test_signal34)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/elab/signal34.vhd");
+
+   const error_t expect[] = {
+      { 16, "signal MEM has 34359738368 sub-elements which is greater than "
+        "the maximum supported 2147483647" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t e = run_elab();
+   fail_unless(e == NULL);
+
+   check_expected_errors();
 }
 END_TEST
 
@@ -2127,6 +2148,7 @@ Suite *get_elab_tests(void)
    tcase_add_test(tc, test_issue969);
    tcase_add_test(tc, test_issue1012);
    tcase_add_test(tc, test_issue1017);
+   tcase_add_test(tc, test_signal34);
    suite_add_tcase(s, tc);
 
    return s;
