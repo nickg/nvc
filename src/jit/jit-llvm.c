@@ -1118,22 +1118,17 @@ static LLVMValueRef cgen_load_from_reloc(llvm_obj_t *obj, cgen_func_t *func,
 
 static LLVMValueRef cgen_rematerialise_object(llvm_obj_t *obj,
                                               cgen_func_t *func,
-                                              ident_t unit, ptrdiff_t offset)
+                                              object_t *locus)
 {
-   if (unit != func->source->module || offset < 0 || func->mode == CGEN_AOT) {
-      // Locus refers to another module that may not be loaded or the
-      // pointer is not stable
-      LLVMValueRef unit_str;
-      if (func->mode == CGEN_AOT) {
-         LOCAL_TEXT_BUF tb = tb_new();
-         tb_istr(tb, unit);
+   if (func->mode == CGEN_AOT) {
+      ident_t module;
+      ptrdiff_t offset;
+      object_locus(locus, &module, &offset);
 
-         object_fixup_locus(unit, &offset);
+      LOCAL_TEXT_BUF tb = tb_new();
+      tb_istr(tb, module);
 
-         unit_str = llvm_const_string(obj, tb_get(tb));
-      }
-      else
-         unit_str = llvm_ptr(obj, (void *)istr(unit));
+      LLVMValueRef unit_str = llvm_const_string(obj, tb_get(tb));
 
       LLVMValueRef args[] = {
          unit_str,
@@ -1141,11 +1136,8 @@ static LLVMValueRef cgen_rematerialise_object(llvm_obj_t *obj,
       };
       return llvm_call_fn(obj, LLVM_GET_OBJECT, args, ARRAY_LEN(args));
    }
-   else {
-      // Locus refers to the module containing the unit being compiled
-      // which is guaranteed to be loaded
-      return llvm_ptr(obj, object_from_locus(unit, offset, NULL));
-   }
+   else
+      return llvm_ptr(obj, locus);
 }
 
 static LLVMValueRef cgen_rematerialise_handle(llvm_obj_t *obj,
@@ -1234,7 +1226,7 @@ static LLVMValueRef cgen_get_value(llvm_obj_t *obj, cgen_block_t *cgb,
       else
          return llvm_ptr(obj, jit_get_cover_ptr(cgb->func->source->jit, value));
    case JIT_VALUE_LOCUS:
-      return cgen_rematerialise_object(obj, cgb->func, value.ident, value.disp);
+      return cgen_rematerialise_object(obj, cgb->func, value.locus);
    default:
       fatal_trace("cannot handle value kind %d", value.kind);
    }

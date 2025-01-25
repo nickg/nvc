@@ -1655,10 +1655,7 @@ START_TEST(test_body1)
    };
    expect_errors(expect);
 
-   tree_t e = run_elab();
-   fail_unless(e == NULL);
-
-   check_expected_errors();
+   (void)run_elab();
 }
 END_TEST
 
@@ -2110,7 +2107,7 @@ Suite *get_elab_tests(void)
    tcase_add_test(tc, test_issue707);
    tcase_add_test(tc, test_bounds40);
    tcase_add_test(tc, test_bounds41);
-   tcase_add_test(tc, test_body1);
+   tcase_add_exit_test(tc, test_body1, 1);
    tcase_add_test(tc, test_issue759);
    tcase_add_test(tc, test_bounds42);
    tcase_add_loop_test(tc, test_block2, STD_02, STD_19 + 1);

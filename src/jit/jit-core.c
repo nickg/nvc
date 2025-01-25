@@ -110,6 +110,8 @@ typedef struct _jit {
    unit_registry_t *registry;
 } jit_t;
 
+static void jit_transition(jit_t *j, jit_state_t from, jit_state_t to);
+
 static void jit_oom_cb(mspace_t *m, size_t size)
 {
    diag_t *d = diag_new(DIAG_FATAL, NULL);
@@ -412,14 +414,19 @@ void jit_fill_irbuf(jit_func_t *f)
    assert(f->irbuf == NULL);
    assert(f->unit == NULL);
 
+#ifndef USE_EMUTLS
+   const jit_state_t oldstate = jit_thread_local()->state;
+   jit_transition(f->jit, oldstate, JIT_COMPILING);
+#endif
+
    if (jit_fill_from_aot(f, f->jit->aotlib))
-      return;
+      goto done;
 
    if (jit_fill_from_aot(f, f->jit->preloadlib))
-      return;
+      goto done;
 
    if (f->jit->pack != NULL && jit_pack_fill(f->jit->pack, f->jit, f))
-      return;
+      goto done;
 
    if (f->jit->registry != NULL) {
       // Unit registry is not thread-safe
@@ -433,6 +440,11 @@ void jit_fill_irbuf(jit_func_t *f)
    }
 
    jit_irgen(f);
+
+ done:
+#ifndef USE_EMUTLS
+   jit_transition(f->jit, JIT_COMPILING, oldstate);
+#endif
 }
 
 jit_handle_t jit_compile(jit_t *j, ident_t name)
@@ -470,8 +482,7 @@ void *jit_link(jit_t *j, jit_handle_t handle)
    tlab_t tlab = jit_null_tlab(j);
    jit_scalar_t p1 = { .pointer = NULL }, p2 = p1, result;
    if (!jit_fastcall(j, f->handle, &result, p1, p2, &tlab)) {
-      object_t *obj = object_from_locus(f->module, f->offset, lib_load_handler);
-      error_at(&(obj->loc), "failed to initialise %s", istr(f->name));
+      error_at(&(f->object->loc), "failed to initialise %s", istr(f->name));
       result.pointer = NULL;
    }
    else if (result.pointer == NULL)
@@ -576,12 +587,18 @@ jit_stack_trace_t *jit_stack_trace(void)
 
    jit_frame_t *frame = stack->frames;
    for (jit_anchor_t *a = thread->anchor; a; a = a->caller, frame++) {
+      frame->loc    = LOC_INVALID;
+      frame->symbol = a->func->name;
+      frame->object = NULL;
+
+#ifdef USE_EMUTLS
+      if (load_acquire(&a->func->state) == JIT_FUNC_COMPILING)
+         continue;   // Cannot use jit_transition in jit_fill_irbuf
+#endif
+
       jit_fill_irbuf(a->func);
 
-      frame->object = NULL;
-      if (a->func->module != NULL)
-         frame->object = object_from_locus(a->func->module, a->func->offset,
-                                           lib_load_handler);
+      frame->object = a->func->object;
 
       // Scan backwards to find the last debug info
       assert(a->irpos < a->func->nirs);
@@ -595,8 +612,6 @@ jit_stack_trace_t *jit_stack_trace(void)
          else if (ir->target)
             break;
       }
-
-      frame->symbol = a->func->name;
    }
 
    return stack;
@@ -610,8 +625,8 @@ static void jit_diag_cb(diag_t *d, void *arg)
       diag_suppress(d, true);
       return;
    }
-   else if (unlikely(jit_thread_local()->state == JIT_IDLE))
-      fatal_trace("JIT diag callback called when idle");
+   else if (unlikely(jit_thread_local()->state != JIT_RUNNING))
+      fatal_trace("JIT diag callback called when not running");
 
    jit_stack_trace_t *stack LOCAL = jit_stack_trace();
 
@@ -638,7 +653,7 @@ static void jit_transition(jit_t *j, jit_state_t from, jit_state_t to)
 
    switch (to) {
    case JIT_RUNNING:
-      if (from == JIT_IDLE) {
+      if (from != JIT_RUNNING) {
          diag_add_hint_fn(jit_diag_cb, j);
          thread->jit = j;
       }
@@ -646,8 +661,16 @@ static void jit_transition(jit_t *j, jit_state_t from, jit_state_t to)
          assert(thread->jit == j);
       break;
    case JIT_IDLE:
-      diag_remove_hint_fn(jit_diag_cb);
-      thread->jit = NULL;
+      if (from == JIT_RUNNING) {
+         diag_remove_hint_fn(jit_diag_cb);
+         thread->jit = NULL;
+      }
+      break;
+   case JIT_COMPILING:
+      if (from == JIT_RUNNING) {
+         diag_remove_hint_fn(jit_diag_cb);
+         thread->jit = NULL;
+      }
       break;
    }
 }
@@ -796,8 +819,7 @@ void *jit_call_thunk(jit_t *j, vcode_unit_t unit, void *context,
    f->jit    = j;
    f->handle = JIT_HANDLE_INVALID;
    f->entry  = jit_interp;
-
-   vcode_unit_object(unit, &f->module, &f->offset);
+   f->object = vcode_unit_object(unit);
 
    jit_irgen(f);
 
@@ -934,6 +956,7 @@ void jit_abort(void)
 
    switch (thread->state) {
    case JIT_IDLE:
+   case JIT_COMPILING:
       fatal_exit(1);
       break;
    case JIT_RUNNING:
@@ -1020,8 +1043,7 @@ object_t *jit_get_object(jit_t *j, jit_handle_t handle)
 {
    jit_func_t *f = jit_get_func(j, handle);
    jit_fill_irbuf(f);
-
-   return object_from_locus(f->module, f->offset, lib_load_handler);
+   return f->object;
 }
 
 bool jit_writes_flags(jit_ir_t *ir)
@@ -1389,12 +1411,6 @@ int32_t *jit_get_cover_ptr(jit_t *j, jit_value_t addr)
    int32_t *base = jit_get_cover_mem(j, addr.int64 + 1);
    assert(base != NULL);
    return base + addr.int64;
-}
-
-object_t *jit_get_locus(jit_value_t value)
-{
-   assert(value.kind == JIT_VALUE_LOCUS);
-   return object_from_locus(value.ident, value.disp, lib_load_handler);
 }
 
 void jit_interrupt(jit_t *j, jit_irq_fn_t fn, void *ctx)

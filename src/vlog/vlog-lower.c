@@ -63,11 +63,7 @@ static inline vcode_type_t vlog_logic_array_type(void)
 
 static vcode_reg_t vlog_debug_locus(vlog_node_t v)
 {
-   ident_t unit;
-   ptrdiff_t offset;
-   vlog_locus(v, &unit, &offset);
-
-   return emit_debug_locus(unit, offset);
+   return emit_debug_locus(vlog_to_object(v));
 }
 
 static vcode_reg_t vlog_helper_package(void)

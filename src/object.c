@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2014-2024  Nick Gasson
+//  Copyright (C) 2014-2025  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -18,9 +18,9 @@
 #include "util.h"
 #include "common.h"
 #include "diag.h"
+#include "fbuf.h"
 #include "hash.h"
 #include "ident.h"
-#include "lib.h"
 #include "object.h"
 #include "option.h"
 #include "thread.h"
@@ -46,6 +46,7 @@ typedef struct _object_arena {
    size_t          mark_sz;
    size_t          mark_low;
    size_t          mark_high;
+   uint32_t        live_bytes;
    uint32_t        flags;
    generation_t    generation;
    arena_key_t     key;
@@ -57,7 +58,6 @@ typedef struct _object_arena {
    generation_t    copygen;
    bool            copyflag;
    bool            frozen;
-   bool            has_locus;
 } object_arena_t;
 
 #if !ASAN_ENABLED
@@ -428,7 +428,7 @@ static void object_one_time_init(void)
 
          // Increment this each time a incompatible change is made to
          // the on-disk format not expressed in the object items table
-         const uint32_t format_fudge = 41;
+         const uint32_t format_fudge = 42;
 
          format_digest += format_fudge * UINT32_C(2654435761);
 
@@ -494,37 +494,6 @@ object_t *object_new(object_arena_t *arena,
    return object;
 }
 
-static void gc_forward_one_pointer(object_t **pobject, object_arena_t *arena,
-                                   uint32_t *forward)
-{
-   if (*pobject != NULL && object_in_arena_p(arena, *pobject)) {
-      ptrdiff_t index = ((void *)*pobject - arena->base) >> OBJECT_ALIGN_BITS;
-      *pobject = (object_t *)((char *)arena->base + forward[index]);
-   }
-}
-
-static void gc_forward_pointers(object_t *object, object_arena_t *arena,
-                                const object_class_t *class, uint32_t *forward)
-{
-   const imask_t has = class->has_map[object->kind];
-   const int nitems = __builtin_popcountll(has);
-   imask_t mask = 1;
-   for (int i = 0; i < nitems; mask <<= 1) {
-      if (has & mask) {
-         item_t *item = &(object->items[i]);
-         if (ITEM_OBJECT & mask)
-            gc_forward_one_pointer(&(item->object), arena, forward);
-         else if ((ITEM_OBJ_ARRAY & mask) && item->obj_array != NULL) {
-            for (unsigned j = 0; j < item->obj_array->count; j++)
-               gc_forward_one_pointer(&(item->obj_array->items[j]),
-                                      arena, forward);
-         }
-
-         i++;
-      }
-   }
-}
-
 static void gc_mark_from_root(object_t *object, object_arena_t *arena,
                               generation_t generation)
 {
@@ -568,14 +537,14 @@ static void gc_free_external(object_t *object)
          if (ITEM_OBJ_ARRAY & mask)
             obj_array_free(&(item->obj_array));
          else if (ITEM_TEXT & mask)
-            free(&(item->text));
+            free(item->text);
          else if (ITEM_NUMBER & mask)
-            number_free(&(item->number));
+            number_free(&item->number);
       }
    }
 }
 
-void object_arena_gc(object_arena_t *arena)
+static void object_arena_gc(object_arena_t *arena)
 {
    const generation_t generation = object_next_generation();
    const uint64_t start_ticks = get_timestamp_us();
@@ -595,9 +564,13 @@ void object_arena_gc(object_arena_t *arena)
       p = (char *)p + size;
    }
 
-   // Calculate forwarding addresses
    const size_t fwdsz = (arena->alloc - arena->base) / OBJECT_ALIGN;
    uint32_t *forward = xmalloc_array(fwdsz, sizeof(uint32_t));
+
+   // Must initialise here for the search in object_from_locus
+   memset(forward, 0xff, fwdsz * sizeof(uint32_t));
+
+   // Calculate forwarding addresses
    unsigned woffset = 0, live = 0, dead = 0;
    for (void *rptr = arena->base; rptr != arena->alloc; ) {
       assert(rptr < arena->alloc);
@@ -623,45 +596,12 @@ void object_arena_gc(object_arena_t *arena)
       rptr = (char *)rptr + size;
    }
 
-   if (dead == 0)
-      goto skip_gc;
-   else if (woffset == 0)
+   if (woffset == 0)
       fatal_trace("GC removed all objects from arena %s",
                   istr(object_arena_name(arena)));
 
-   // Compact
-   for (void *rptr = arena->base; rptr != arena->alloc; ) {
-      assert(rptr < arena->alloc);
-      object_t *object = rptr;
-
-      const object_class_t *class = classes[object->tag];
-
-      const size_t size =
-         ALIGN_UP(class->object_size[object->kind], OBJECT_ALIGN);
-
-      ptrdiff_t index = (rptr - arena->base) >> OBJECT_ALIGN_BITS;
-      if (forward[index] != UINT32_MAX) {
-         void *wptr = (char *)arena->base + forward[index];
-         assert(wptr <= rptr);
-
-         gc_forward_pointers(object, arena, class, forward);
-
-         if (wptr != rptr) memmove(wptr, rptr, size);
-      }
-
-      rptr = (char *)rptr + size;
-   }
-
-   arena->alloc = (char *)arena->base + woffset;
-
- skip_gc:
-   if (arena->has_locus) {
-      // Need to keep a copy of the forwarding table for loci created
-      // before freezing
-      arena->forward = forward;
-   }
-   else
-      free(forward);
+   arena->forward = forward;
+   arena->live_bytes = woffset;
 
    if (opt_get_verbose(OPT_OBJECT_VERBOSE, NULL)) {
       const int ticks = get_timestamp_us() - start_ticks;
@@ -841,8 +781,11 @@ static void object_write_ref(object_t *object, fbuf_t *f)
       assert(arena->key != 0);
       fbuf_put_uint(f, arena->key);
 
-      ptrdiff_t offset = ((void *)object - arena->base) >> OBJECT_ALIGN_BITS;
-      fbuf_put_uint(f, offset);
+      ptrdiff_t index = ((void *)object - arena->base) >> OBJECT_ALIGN_BITS;
+      if (arena->forward != NULL)
+         fbuf_put_uint(f, arena->forward[index] >> OBJECT_ALIGN_BITS);
+      else
+         fbuf_put_uint(f, index);
    }
 }
 
@@ -850,11 +793,6 @@ void object_write(object_t *root, fbuf_t *f, ident_wr_ctx_t ident_ctx,
                   loc_wr_ctx_t *loc_ctx)
 {
    object_arena_t *arena = __object_arena(root);
-
-   write_u32(format_digest, f);
-   fbuf_put_uint(f, standard());
-   fbuf_put_uint(f, arena->limit - arena->base);
-
    if (root != arena_root(arena))
       fatal_trace("must write root object first");
    else if (arena->source == OBJ_DISK)
@@ -864,6 +802,9 @@ void object_write(object_t *root, fbuf_t *f, ident_wr_ctx_t ident_ctx,
       fatal_trace("arena %s must be frozen before writing to disk",
                   istr(object_arena_name(arena)));
 
+   write_u32(format_digest, f);
+   fbuf_put_uint(f, standard());
+   fbuf_put_uint(f, ALIGN_UP(arena->live_bytes, OBJECT_PAGE_SZ));
    fbuf_put_uint(f, arena->flags);
    fbuf_put_uint(f, arena->key);
    ident_write(object_arena_name(arena), ident_ctx);
@@ -881,11 +822,17 @@ void object_write(object_t *root, fbuf_t *f, ident_wr_ctx_t ident_ctx,
       ident_write(object_arena_name(arena->deps.items[i]), ident_ctx);
    }
 
-   for (void *p = arena->base; p != arena->alloc; ) {
+   for (void *p = arena->base, *next; p != arena->alloc; p = next) {
       assert(p < arena->alloc);
 
       object_t *object = p;
       object_class_t *class = classes[object->tag];
+
+      next = p + ALIGN_UP(class->object_size[object->kind], OBJECT_ALIGN);
+
+      ptrdiff_t index = (p - arena->base) >> OBJECT_ALIGN_BITS;
+      if (arena->forward[index] == UINT32_MAX)
+         continue;   // Dead object
 
       STATIC_ASSERT(OBJECT_TAG_COUNT <= 4);
       fbuf_put_uint(f, object->tag | (object->kind << 2));
@@ -931,8 +878,6 @@ void object_write(object_t *root, fbuf_t *f, ident_wr_ctx_t ident_ctx,
             n++;
          }
       }
-
-      p = (char *)p + ALIGN_UP(class->object_size[object->kind], OBJECT_ALIGN);
    }
 
    fbuf_put_uint(f, UINT16_MAX);   // End of objects marker
@@ -1104,6 +1049,8 @@ object_t *object_read(fbuf_t *f, object_load_fn_t loader_fn,
          }
       }
    }
+
+   assert(ALIGN_UP(arena->alloc - arena->base, OBJECT_PAGE_SZ) == size);
 
    object_arena_freeze(arena);
    return (object_t *)arena->base;
@@ -1350,14 +1297,15 @@ void object_arena_walk_deps(object_arena_t *arena, object_arena_deps_fn_t fn,
 void object_locus(object_t *object, ident_t *module, ptrdiff_t *offset)
 {
    object_arena_t *arena = __object_arena(object);
+   assert(arena->frozen);
+
    *module = object_arena_name(arena);
 
-   *offset = ((void *)object - arena->base) >> OBJECT_ALIGN_BITS;
-
-   if (!arena->frozen) {
-      *offset = -*offset;
-      arena->has_locus = true;
-   }
+   const ptrdiff_t index = ((void *)object - arena->base) >> OBJECT_ALIGN_BITS;
+   if (arena->forward != NULL)
+      *offset = arena->forward[index] >> OBJECT_ALIGN_BITS;
+   else
+      *offset = index;
 }
 
 static object_arena_t *arena_by_name(ident_t module)
@@ -1392,15 +1340,21 @@ object_t *object_from_locus(ident_t module, ptrdiff_t offset,
       arena = __object_arena(droot);
    }
 
-   if (offset < 0 && arena->frozen && arena->forward == NULL)
-      fatal_trace("locus %s%+"PRIiPTR" was created before arena was frozen",
-                  istr(module), offset);
-   else if (offset < 0 && arena->frozen)
-      offset = arena->forward[-offset] >> OBJECT_ALIGN_BITS;
-   else if (offset < 0)
-      offset = -offset;
+   assert(arena->frozen);
 
-   void *ptr = (char *)arena->base + (offset << OBJECT_ALIGN_BITS);
+   void *ptr = NULL;
+   if (arena->forward != NULL) {
+      // TODO: could do binary search here
+      for (int i = 0; i < (arena->alloc - arena->base) / OBJECT_ALIGN; i++) {
+         if (arena->forward[i] == offset << OBJECT_ALIGN_BITS) {
+            ptr = arena->base + (i << OBJECT_ALIGN_BITS);
+            break;
+         }
+      }
+      assert(ptr != NULL);
+   }
+   else
+      ptr = arena->base + (offset << OBJECT_ALIGN_BITS);
 
    if (ptr > arena->limit)
       fatal_trace("invalid object locus %s%+"PRIiPTR, istr(module), offset);
@@ -1414,18 +1368,6 @@ object_t *object_from_locus(ident_t module, ptrdiff_t offset,
                   obj->arena, arena->key, istr(module), offset);
 
    return obj;
-}
-
-void object_fixup_locus(ident_t module, ptrdiff_t *offset)
-{
-   if (*offset < 0) {
-      object_arena_t *arena = arena_by_name(module);
-      if (!arena->frozen)
-         fatal_trace("cannot fixup locus %s%+"PRIiPTR" as arena not yet frozen",
-                     istr(module), *offset);
-
-      *offset = arena->forward[-*offset] >> OBJECT_ALIGN_BITS;
-   }
 }
 
 void freeze_global_arena(void)

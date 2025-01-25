@@ -53,11 +53,12 @@ DECLARE_AND_DEFINE_ARRAY(vcode_type);
 #define OP_HAS_IDENT(x)                                                 \
    (x == VCODE_OP_LINK_VAR || x == VCODE_OP_LINK_PACKAGE                \
     || x == VCODE_OP_DEBUG_LOCUS || x == VCODE_OP_BIND_EXTERNAL)
+#define OP_HAS_OBJECT(x)                                                 \
+   (x == VCODE_OP_DEBUG_LOCUS)
 #define OP_HAS_REAL(x)                                                  \
    (x == VCODE_OP_CONST_REAL)
 #define OP_HAS_VALUE(x)                                                 \
-   (x == VCODE_OP_CONST || x == VCODE_OP_CONST_REP                      \
-    || x == VCODE_OP_DEBUG_LOCUS)
+   (x == VCODE_OP_CONST || x == VCODE_OP_CONST_REP)
 #define OP_HAS_DIM(x)                                                   \
    (x == VCODE_OP_UARRAY_LEFT || x == VCODE_OP_UARRAY_RIGHT             \
     || x == VCODE_OP_UARRAY_DIR || x == VCODE_OP_UARRAY_LEN)
@@ -86,6 +87,7 @@ typedef struct {
    union {
       ident_t              func;      // OP_HAS_FUNC
       ident_t              ident;     // OP_HAS_IDENT
+      object_t            *object;    // OP_HAS_OBJECT
       vcode_var_t          address;   // OP_HAS_ADDRESS
    };
    union {
@@ -179,8 +181,7 @@ struct _vcode_unit {
    unit_flags_t   flags;
    vcode_unit_t   children;
    vcode_unit_t   next;
-   ident_t        module;
-   ptrdiff_t      offset;
+   object_t      *object;
 };
 
 #define MASK_CONTEXT(x)   ((x) >> 24)
@@ -819,6 +820,13 @@ ident_t vcode_get_ident(int op)
    op_t *o = vcode_op_data(op);
    assert(OP_HAS_IDENT(o->kind));
    return o->ident;
+}
+
+object_t *vcode_get_object(int op)
+{
+   op_t *o = vcode_op_data(op);
+   assert(OP_HAS_IDENT(o->kind));
+   return o->object;
 }
 
 int64_t vcode_get_value(int op)
@@ -2204,9 +2212,14 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
          case VCODE_OP_DEBUG_LOCUS:
             {
                col += vcode_dump_reg(op->result);
-               col += color_printf(" := %s $magenta$%s$$%+"PRIi64,
-                                   vcode_op_string(op->kind),
-                                   istr(op->ident), op->value);
+               col += color_printf(" := %s $magenta$",
+                                   vcode_op_string(op->kind));
+
+               tree_t t = tree_from_object(op->object);
+               if (t != NULL)
+                  col += printf("%s@", tree_kind_str(tree_kind(t)));
+
+               col += color_printf("%p$$", op->object);
                vcode_dump_result_type(col, op);
             }
             break;
@@ -3048,11 +3061,10 @@ vcode_unit_t vcode_unit_context(vcode_unit_t vu)
    return vu->context;
 }
 
-void vcode_unit_object(vcode_unit_t vu, ident_t *module, ptrdiff_t *offset)
+object_t *vcode_unit_object(vcode_unit_t vu)
 {
    assert(vu != NULL);
-   *module = vu->module;
-   *offset = vu->offset;
+   return vu->object;
 }
 
 static unsigned vcode_unit_calc_depth(vcode_unit_t unit)
@@ -3086,8 +3098,7 @@ vcode_unit_t emit_function(ident_t name, object_t *obj, vcode_unit_t context)
    vu->context  = context;
    vu->result   = VCODE_INVALID_TYPE;
    vu->depth    = vcode_unit_calc_depth(vu);
-
-   object_locus(obj, &vu->module, &vu->offset);
+   vu->object   = obj;
 
    vcode_add_child(context, vu);
 
@@ -3106,8 +3117,7 @@ vcode_unit_t emit_procedure(ident_t name, object_t *obj, vcode_unit_t context)
    vu->context  = context;
    vu->result   = VCODE_INVALID_TYPE;
    vu->depth    = vcode_unit_calc_depth(vu);
-
-   object_locus(obj, &vu->module, &vu->offset);
+   vu->object   = obj;
 
    vcode_add_child(context, vu);
 
@@ -3129,8 +3139,7 @@ vcode_unit_t emit_process(ident_t name, object_t *obj, vcode_unit_t context)
    vu->context  = context;
    vu->depth    = vcode_unit_calc_depth(vu);
    vu->result   = VCODE_INVALID_TYPE;
-
-   object_locus(obj, &vu->module, &vu->offset);
+   vu->object   = obj;
 
    vcode_add_child(context, vu);
 
@@ -3151,8 +3160,7 @@ vcode_unit_t emit_instance(ident_t name, object_t *obj, vcode_unit_t context)
    vu->context  = context;
    vu->depth    = vcode_unit_calc_depth(vu);
    vu->result   = VCODE_INVALID_TYPE;
-
-   object_locus(obj, &vu->module, &vu->offset);
+   vu->object   = obj;
 
    if (context != NULL)
       vcode_add_child(context, vu);
@@ -3174,8 +3182,7 @@ vcode_unit_t emit_shape(ident_t name, object_t *obj, vcode_unit_t context)
    vu->context  = context;
    vu->depth    = vcode_unit_calc_depth(vu);
    vu->result   = VCODE_INVALID_TYPE;
-
-   object_locus(obj, &vu->module, &vu->offset);
+   vu->object   = obj;
 
    if (context != NULL)
       vcode_add_child(context, vu);
@@ -3195,8 +3202,7 @@ vcode_unit_t emit_package(ident_t name, object_t *obj, vcode_unit_t context)
    vu->context  = context;
    vu->depth    = vcode_unit_calc_depth(vu);
    vu->result   = VCODE_INVALID_TYPE;
-
-   object_locus(obj, &vu->module, &vu->offset);
+   vu->object   = obj;
 
    if (context != NULL)
       vcode_add_child(context, vu);
@@ -3216,8 +3222,7 @@ vcode_unit_t emit_protected(ident_t name, object_t *obj, vcode_unit_t context)
    vu->context  = context;
    vu->depth    = vcode_unit_calc_depth(vu);
    vu->result   = VCODE_INVALID_TYPE;
-
-   object_locus(obj, &vu->module, &vu->offset);
+   vu->object   = obj;
 
    if (context != NULL)
       vcode_add_child(context, vu);
@@ -3237,8 +3242,7 @@ vcode_unit_t emit_property(ident_t name, object_t *obj, vcode_unit_t context)
    vu->context  = context;
    vu->depth    = vcode_unit_calc_depth(vu);
    vu->result   = VCODE_INVALID_TYPE;
-
-   object_locus(obj, &vu->module, &vu->offset);
+   vu->object   = obj;
 
    if (context != NULL)
       vcode_add_child(context, vu);
@@ -3259,8 +3263,7 @@ vcode_unit_t emit_thunk(ident_t name, object_t *obj, vcode_unit_t context)
    vu->depth    = vcode_unit_calc_depth(vu);
    vu->result   = VCODE_INVALID_TYPE;
    vu->depth    = vcode_unit_calc_depth(vu);
-
-   object_locus(obj, &vu->module, &vu->offset);
+   vu->object   = obj;
 
    if (context != NULL)
       vcode_add_child(context, vu);
@@ -5815,16 +5818,15 @@ void emit_pop_scope(void)
    vcode_add_op(VCODE_OP_POP_SCOPE);
 }
 
-vcode_reg_t emit_debug_locus(ident_t unit, ptrdiff_t offset)
+vcode_reg_t emit_debug_locus(object_t *obj)
 {
    VCODE_FOR_EACH_MATCHING_OP(other, VCODE_OP_DEBUG_LOCUS) {
-      if (other->ident == unit && other->value == offset)
+      if (other->object == obj)
          return other->result;
    }
 
    op_t *op = vcode_add_op(VCODE_OP_DEBUG_LOCUS);
-   op->ident = unit;
-   op->value = offset;
+   op->object = obj;
 
    return (op->result = vcode_add_reg(vtype_debug_locus()));
 }

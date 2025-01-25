@@ -60,11 +60,7 @@ static vcode_reg_t psl_lower_boolean(lower_unit_t *lu, psl_node_t p)
 
 static vcode_reg_t psl_debug_locus(psl_node_t p)
 {
-   ident_t unit;
-   ptrdiff_t offset;
-   psl_locus(p, &unit, &offset);
-
-   return emit_debug_locus(unit, offset);
+   return emit_debug_locus(psl_to_object(p));
 }
 
 static vcode_reg_t psl_assert_severity(void)

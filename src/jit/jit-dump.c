@@ -155,7 +155,7 @@ static int jit_dump_value(jit_dump_t *d, jit_value_t value)
       return printf("<%s:%d>", loc_file_str(&value.loc), value.loc.first_line);
    case JIT_VALUE_LOCUS:
       {
-         object_t *obj = jit_get_locus(value);
+         object_t *obj = value.locus;
          switch (obj->tag) {
          case OBJECT_TAG_TREE:
             return printf("%s@%p", tree_kind_str(obj->kind), obj);

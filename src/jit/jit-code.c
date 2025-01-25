@@ -672,7 +672,7 @@ static void code_blob_print_value(text_buf_t *tb, jit_value_t value)
       tb_printf(tb, "<%s:%d>", loc_file_str(&value.loc), value.loc.first_line);
       break;
    case JIT_VALUE_LOCUS:
-      tb_printf(tb, "%s%+d", istr(value.ident), value.disp);
+      tb_printf(tb, "%p", value.locus);
       break;
    case JIT_VALUE_VPOS:
       tb_printf(tb, "%u:%u", value.vpos.block, value.vpos.op);

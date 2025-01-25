@@ -214,7 +214,7 @@ typedef struct {
       jit_exit_t   exit;
       loc_t        loc;
       jit_vpos_t   vpos;
-      ident_t      ident;
+      object_t    *locus;
    };
 } jit_value_t;
 
@@ -308,8 +308,7 @@ typedef struct _jit_func {
    jit_tier_t     *next_tier;
    jit_cfg_t      *cfg;
    ffi_spec_t      spec;
-   ident_t         module;
-   ptrdiff_t       offset;
+   object_t       *object;
 } jit_func_t;
 
 // The code generator knows the layout of this struct
@@ -322,7 +321,8 @@ typedef struct _jit_anchor {
 
 typedef enum {
    JIT_IDLE,
-   JIT_RUNNING
+   JIT_RUNNING,
+   JIT_COMPILING,
 } jit_state_t;
 
 #if defined HAVE___BUILTIN_SETJMP && !defined __clang__
@@ -380,7 +380,6 @@ void jit_tier_up(jit_func_t *f);
 jit_thread_local_t *jit_thread_local(void);
 void jit_fill_irbuf(jit_func_t *f);
 int32_t *jit_get_cover_ptr(jit_t *j, jit_value_t addr);
-object_t *jit_get_locus(jit_value_t value);
 jit_entry_fn_t jit_bind_intrinsic(ident_t name);
 jit_thread_local_t *jit_attach_thread(jit_anchor_t *anchor);
 

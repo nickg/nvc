@@ -266,7 +266,6 @@ void object_arena_walk_deps(object_arena_t *arena, object_arena_deps_fn_t fn,
 void object_locus(object_t *object, ident_t *module, ptrdiff_t *offset);
 object_t *object_from_locus(ident_t module, ptrdiff_t offset,
                             object_load_fn_t loader);
-void object_fixup_locus(ident_t module, ptrdiff_t *offset);
 
 void make_new_arena(void);
 void freeze_global_arena(void);

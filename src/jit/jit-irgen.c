@@ -1792,13 +1792,9 @@ static void irgen_op_store(jit_irgen_t *g, int op)
 
 static void irgen_op_debug_locus(jit_irgen_t *g, int op)
 {
-   ident_t unit = vcode_get_ident(op);
-   const ptrdiff_t offset = vcode_get_value(op);
-
    g->map[vcode_get_result(op)] = (jit_value_t){
       .kind  = JIT_VALUE_LOCUS,
-      .disp  = offset,
-      .ident = unit
+      .locus = vcode_get_object(op),
    };
 }
 
@@ -4471,8 +4467,7 @@ void jit_irgen(jit_func_t *f)
 
    f->nregs   = g->next_reg;
    f->cpoolsz = g->cpoolptr;
-
-   vcode_unit_object(f->unit, &f->module, &f->offset);
+   f->object  = vcode_unit_object(f->unit);
 
    for (irgen_label_t *it = g->labels, *tmp; it; it = tmp) {
       assert(it->label < g->func->nirs);

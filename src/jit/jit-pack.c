@@ -171,11 +171,13 @@ static void pack_handle(pack_writer_t *pw, jit_t *j, jit_handle_t handle)
       pack_str(pw, istr(jit_get_func(j, handle)->name));
 }
 
-static void pack_locus(pack_writer_t *pw, ident_t unit, ptrdiff_t offset)
+static void pack_locus(pack_writer_t *pw, object_t *obj)
 {
-   object_fixup_locus(unit, &offset);
+   ident_t module;
+   ptrdiff_t offset;
+   object_locus(obj, &module, &offset);
 
-   pack_str(pw, istr(unit));
+   pack_str(pw, istr(module));
    pack_uint(pw, offset);
 }
 
@@ -225,7 +227,7 @@ static void pack_value(pack_writer_t *pw, jit_t *j, jit_value_t value)
       pack_loc(pw, &(value.loc));
       break;
    case JIT_VALUE_LOCUS:
-      pack_locus(pw, value.ident, value.disp);
+      pack_locus(pw, value.locus);
       break;
    default:
       fatal_trace("cannot handle value kind %d in pack_value", value.kind);
@@ -248,10 +250,12 @@ static void pack_func(pack_writer_t *pw, jit_t *j, jit_func_t *f)
       pack_uint(pw, f->linktab[i].offset);
    }
 
-   object_fixup_locus(f->module, &f->offset);
+   ident_t module;
+   ptrdiff_t offset;
+   object_locus(f->object, &module, &offset);
 
-   pack_str(pw, istr(f->module));
-   pack_uint(pw, f->offset);
+   pack_str(pw, istr(module));
+   pack_uint(pw, offset);
 
    for (int i = 0; i < f->nirs; i++) {
       jit_ir_t *ir = &(f->irbuf[i]);
@@ -459,6 +463,13 @@ static jit_handle_t unpack_handle(pack_func_t *pf, jit_t *j)
       return jit_lazy_compile(j, ident_new(str));
 }
 
+static object_t *unpack_locus(pack_func_t *pf)
+{
+   ident_t module = ident_new(unpack_str(pf));
+   ptrdiff_t disp = unpack_uint(pf);
+   return object_from_locus(module, disp, lib_load_handler);
+}
+
 static jit_value_t unpack_value(pack_func_t *pf, jit_t *j)
 {
    jit_value_t value;
@@ -500,8 +511,7 @@ static jit_value_t unpack_value(pack_func_t *pf, jit_t *j)
       value.loc = unpack_loc(pf);
       break;
    case JIT_VALUE_LOCUS:
-      value.ident = ident_new(unpack_str(pf));
-      value.disp = unpack_uint(pf);
+      value.locus = unpack_locus(pf);
       break;
    default:
       fatal_trace("cannot handle value kind %d in unpack_value", value.kind);
@@ -568,8 +578,9 @@ bool jit_pack_fill(jit_pack_t *jp, jit_t *j, jit_func_t *f)
       }
    }
 
-   f->module = ident_new(unpack_str(pf));
-   f->offset = unpack_uint(pf);
+   ident_t module = ident_new(unpack_str(pf));
+   ptrdiff_t offset = unpack_uint(pf);
+   f->object = object_from_locus(module, offset, lib_load_handler);
 
    for (int i = 0; i < f->nirs; i++) {
       jit_ir_t *ir = &(f->irbuf[i]);

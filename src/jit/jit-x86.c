@@ -1266,7 +1266,7 @@ static void jit_x86_get_copy(code_blob_t *blob, x86_operand_t dst,
       MOV(dst, __EAX, __QWORD);
       break;
    case JIT_VALUE_LOCUS:
-      MOV(dst, PTR(jit_get_locus(src)), __QWORD);
+      MOV(dst, PTR(src.locus), __QWORD);
       break;
    case JIT_ADDR_REG:
       if (src.disp == 0)
@@ -1314,7 +1314,7 @@ static x86_operand_t jit_x86_get(code_blob_t *blob, x86_operand_t tmp,
       MOV(tmp, IMM(src.int64), __QWORD);
       return tmp;
    case JIT_VALUE_LOCUS:
-      MOV(tmp, PTR(jit_get_locus(src)), __QWORD);
+      MOV(tmp, PTR(src.locus), __QWORD);
       return tmp;
    case JIT_ADDR_REG:
       jit_x86_get_copy(blob, tmp, src, slots);

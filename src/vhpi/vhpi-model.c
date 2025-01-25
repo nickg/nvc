@@ -265,8 +265,6 @@ DEF_CLASS(varDecl, vhpiVarDeclK, objDecl.decl.object);
 typedef struct {
    c_vhpiObject    object;
    tree_t          tree;
-   ident_t         module;
-   ptrdiff_t       offset;
    vhpiObjectListT Params;
 } c_subpDecl;
 
@@ -1119,8 +1117,6 @@ static void init_subpDecl(c_subpDecl *d, tree_t t)
 {
    d->object.loc = *tree_loc(t);
    d->tree = t;
-
-   tree_locus(t, &d->module, &d->offset);
 }
 
 static void init_elemDecl(c_elemDecl *ed, tree_t t, c_typeDecl *Type,
@@ -4871,19 +4867,9 @@ vhpiHandleT vhpi_bind_foreign(const char *obj_lib, const char *model,
 
       if (f->decl != NULL && f->decl->tree == sub)
          return f->handle;
-      else if (f->decl != NULL) {
-         // Foreign functions may be registered during elaboration after
-         // which the object may be moved
-         tree_t reloc = tree_from_locus(f->decl->module, f->decl->offset, NULL);
-         if (reloc == sub) {
-            tree_locus(sub, &f->decl->module, &f->decl->offset);
-            f->decl->tree = sub;
-            return f->handle;
-         }
-         else
-            jit_msg(NULL, DIAG_FATAL, "foreign subprogram %s/%s already bound "
-                    "to %s", obj_lib, model, type_pp(tree_type(f->decl->tree)));
-      }
+      else if (f->decl != NULL)
+         jit_msg(NULL, DIAG_FATAL, "foreign subprogram %s/%s already bound "
+                 "to %s", obj_lib, model, type_pp(tree_type(f->decl->tree)));
 
       switch (tree_kind(sub)) {
       case T_FUNC_DECL:

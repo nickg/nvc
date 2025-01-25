@@ -775,11 +775,7 @@ static vcode_type_t lower_signal_type(type_t type)
 
 static vcode_reg_t lower_debug_locus(tree_t t)
 {
-   ident_t unit;
-   ptrdiff_t offset;
-   tree_locus(t, &unit, &offset);
-
-   return emit_debug_locus(unit, offset);
+   return emit_debug_locus(tree_to_object(t));
 }
 
 static vcode_reg_t lower_wrap_with_new_bounds(lower_unit_t *lu,
@@ -13330,12 +13326,11 @@ typedef struct _unit_registry {
 } unit_registry_t;
 
 typedef struct {
-   lower_unit_t    *parent;
-   emit_fn_t        emit_fn;
-   lower_fn_t       fn;
-   ident_t          arena;
-   ptrdiff_t        offset;
-   cover_data_t     *cover;
+   lower_unit_t *parent;
+   emit_fn_t     emit_fn;
+   lower_fn_t    fn;
+   object_t     *object;
+   cover_data_t *cover;
 } deferred_unit_t;
 
 unit_registry_t *unit_registry_new(void)
@@ -13443,7 +13438,7 @@ static void walk_dependency_cb(ident_t name, void *ctx)
    case UNIT_DEFERRED:
       {
          deferred_unit_t *du = untag_pointer(ptr, deferred_unit_t);
-         if (du->offset >= 0)
+         if (arena_frozen(object_arena(du->object)))
             return;
 
          vu = unit_registry_get(ur, name);
@@ -13462,11 +13457,7 @@ static void walk_dependency_cb(ident_t name, void *ctx)
       fatal_trace("invalid tagged pointer %p", ptr);
    }
 
-   ident_t module;
-   ptrdiff_t offset;
-   vcode_unit_object(vu, &module, &offset);
-
-   if (offset >= 0)
+   if (arena_frozen(object_arena(vcode_unit_object(vu))))
       return;
 
    vcode_walk_dependencies(vu, walk_dependency_cb, ur);
@@ -13550,21 +13541,15 @@ vcode_unit_t unit_registry_get(unit_registry_t *ur, ident_t ident)
          vcode_state_t state;
          vcode_state_save(&state);
 
-         object_t *obj = object_from_locus(du->arena, du->offset,
-                                           lib_load_handler);
-
-         // This assertion fails in unit tests
-         // assert(du->offset >= 0 || !arena_frozen(object_arena(obj)));
-
          vcode_unit_t context = du->parent ? du->parent->vunit : NULL;
-         vcode_unit_t vu = (*du->emit_fn)(ident, obj, context);
-         tree_t container = tree_from_object(obj);
+         vcode_unit_t vu = (*du->emit_fn)(ident, du->object, context);
+         tree_t container = tree_from_object(du->object);
          lower_unit_t *lu = lower_unit_new(ur, du->parent, vu,
                                            du->cover, container);
 
          hash_put(ur->map, ident, tag_pointer(lu, UNIT_GENERATED));
 
-         (*du->fn)(lu, obj);
+         (*du->fn)(lu, du->object);
 
          for (lower_unit_t *p = du->parent; p; p = p->parent) {
             assert(p->deferred > 0);
@@ -13637,11 +13622,10 @@ void unit_registry_defer(unit_registry_t *ur, ident_t ident,
       du->fn      = fn;
       du->parent  = parent;
       du->cover   = cover;
+      du->object  = object;
 
       for (lower_unit_t *p = du->parent; p; p = p->parent)
          p->deferred++;
-
-      object_locus(object, &du->arena, &du->offset);
 
       hash_put(ur->map, ident, tag_pointer(du, UNIT_DEFERRED));
    }
@@ -13651,9 +13635,7 @@ void unit_registry_defer(unit_registry_t *ur, ident_t ident,
       assert(du->emit_fn == emit_fn);
       assert(du->fn == fn);
       assert(du->cover == cover);
-
-      object_t *o = object_from_locus(du->arena, du->offset, lib_load_handler);
-      assert(o == object);
+      assert(du->object == object);
    }
 #endif
 }
