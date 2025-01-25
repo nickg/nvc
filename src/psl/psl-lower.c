@@ -274,8 +274,8 @@ static vcode_reg_t psl_lower_async_abort(unit_registry_t *ur,
    return emit_function_trigger(name, args, ARRAY_LEN(args));
 }
 
-static vcode_reg_t psl_lower_prev_shift_reg(lower_unit_t *lu, const loc_t *loc,
-                                            tree_t expr, int num)
+static vcode_reg_t psl_lower_prev_shift_reg(lower_unit_t *lu, tree_t expr,
+                                            int cycles)
 {
    vcode_state_t state;
    vcode_state_save(&state);
@@ -287,8 +287,8 @@ static vcode_reg_t psl_lower_prev_shift_reg(lower_unit_t *lu, const loc_t *loc,
    vcode_type_t vtype = lower_type(type);
    vcode_type_t vbounds = lower_bounds(type);
 
-   vcode_var_t *vars LOCAL = xmalloc_array(num, sizeof(vcode_var_t));
-   for (int i = 0; i < num; i++)
+   vcode_var_t *vars LOCAL = xmalloc_array(cycles, sizeof(vcode_var_t));
+   for (int i = 0; i < cycles; i++)
       vars[i] = emit_var(vtype, vbounds, ident_uniq("prev"), 0);
 
    vcode_reg_t cur_reg = lower_rvalue(lu, expr);
@@ -298,13 +298,13 @@ static vcode_reg_t psl_lower_prev_shift_reg(lower_unit_t *lu, const loc_t *loc,
    if (is_array) {
       int64_t length;
       if (!folded_length(range_of(type, 0), &length))
-         fatal_at(loc, "sorry, only constant length arrays "
+         fatal_at(tree_loc(expr), "sorry, only constant length arrays "
                   "are supported");
 
       count_reg = emit_const(vtype_offset(), length);
    }
 
-   for (int i = 0; i < num - 1; i++) {
+   for (int i = 0; i < cycles - 1; i++) {
       if (is_array) {
          vcode_reg_t src_ptr = emit_index(vars[i + 1], VCODE_INVALID_REG);
          vcode_reg_t dst_ptr = emit_index(vars[i], VCODE_INVALID_REG);
@@ -317,11 +317,11 @@ static vcode_reg_t psl_lower_prev_shift_reg(lower_unit_t *lu, const loc_t *loc,
    }
 
    if (is_array) {
-      vcode_reg_t dst_ptr = emit_index(vars[num - 1], VCODE_INVALID_REG);
+      vcode_reg_t dst_ptr = emit_index(vars[cycles - 1], VCODE_INVALID_REG);
       emit_copy(dst_ptr, cur_reg, count_reg);
    }
    else
-      emit_store(cur_reg, vars[num - 1]);
+      emit_store(cur_reg, vars[cycles - 1]);
 
    vcode_state_restore(&state);
 
@@ -336,43 +336,43 @@ vcode_reg_t psl_lower_fcall(lower_unit_t *lu, psl_node_t p)
 {
    assert(psl_kind(p) == P_BUILTIN_FCALL);
 
-   const loc_t *loc = psl_loc(p);
    tree_t expr = psl_tree(psl_operand(p, 0));
 
    switch (psl_subkind(p)) {
    case PSL_BUILTIN_PREV:
-   {
-      int num = 1;
-      if (psl_operands(p) > 1)
-         num = assume_int(psl_tree(psl_operand(p, 1)));
+      {
+         int num = 1;
+         if (psl_operands(p) > 1)
+            num = assume_int(psl_tree(psl_operand(p, 1)));
 
-      if (num > 512)
-         fatal_at(psl_loc(p), "sorry, Number higher than 512 is not supported");
+         if (num > 512)
+            fatal_at(psl_loc(p), "sorry, no more than 512 cycles "
+                     "are supported");
 
-      return psl_lower_prev_shift_reg(lu, loc, expr, num);
-   }
+         return psl_lower_prev_shift_reg(lu, expr, num);
+      }
 
    case PSL_BUILTIN_ROSE:
-   {
-      vcode_reg_t prev = psl_lower_prev_shift_reg(lu, loc, expr, 1);
-      vcode_reg_t prev_n = emit_not(prev);
-      vcode_reg_t rhs = lower_rvalue(lu, expr);
-      return emit_and(prev_n, rhs);
-   }
+      {
+         vcode_reg_t prev = psl_lower_prev_shift_reg(lu, expr, 1);
+         vcode_reg_t prev_n = emit_not(prev);
+         vcode_reg_t rhs = lower_rvalue(lu, expr);
+         return emit_and(prev_n, rhs);
+      }
 
    case PSL_BUILTIN_FELL:
-   {
-      vcode_reg_t prev = psl_lower_prev_shift_reg(lu, loc, expr, 1);
-      vcode_reg_t expr_n = emit_not(lower_rvalue(lu, expr));
-      return emit_and(prev, expr_n);
-   }
+      {
+         vcode_reg_t prev = psl_lower_prev_shift_reg(lu, expr, 1);
+         vcode_reg_t expr_n = emit_not(lower_rvalue(lu, expr));
+         return emit_and(prev, expr_n);
+      }
 
    case PSL_BUILTIN_STABLE:
-   {
-      vcode_reg_t prev = psl_lower_prev_shift_reg(lu, loc, expr, 1);
-      vcode_reg_t rhs = lower_rvalue(lu, expr);
-      return emit_cmp(VCODE_CMP_EQ, prev, rhs);
-   }
+      {
+         vcode_reg_t prev = psl_lower_prev_shift_reg(lu, expr, 1);
+         vcode_reg_t rhs = lower_rvalue(lu, expr);
+         return emit_cmp(VCODE_CMP_EQ, prev, rhs);
+      }
 
    default:
       fatal_at(psl_loc(p), "sorry, this built-in function is not supported");
