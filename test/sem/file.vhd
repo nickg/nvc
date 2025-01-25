@@ -57,7 +57,9 @@ package p is
 
     type ft4 is file of t_ok_rec;           -- OK
 
-    function get_ft4 return ft4;        -- Error
+    function get_ft4 return ft4;            -- Error
+
+    signal s : ft(1 downto 0);              -- Error
 
 end package;
 
