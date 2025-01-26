@@ -635,10 +635,21 @@ BEFORE            ?i:before
 <VLOG>"begin"            { return tBEGIN; }
 <VLOG>"end"              { return tEND; }
 <VLOG>"wire"             { return tWIRE; }
+<VLOG>"tri"              { return tTRI; }
+<VLOG>"tri0"             { return tTRI0; }
+<VLOG>"tri1"             { return tTRI1; }
+<VLOG>"wand"             { return tWAND; }
+<VLOG>"triand"           { return tTRIAND; }
+<VLOG>"wor"              { return tWOR; }
+<VLOG>"trior"            { return tTRIOR; }
+<VLOG>"trireg"           { return tTRIREG; }
+<VLOG>"uwire"            { return tUWIRE; }
+<VLOG>"none"             { return tNONE; }
 <VLOG>"assign"           { return tASSIGN; }
 <VLOG>"if"               { return tIF; }
 <VLOG>"else"             { return tELSE; }
 <VLOG>"`timescale"       { return tTIMESCALE; }
+<VLOG>"`default_nettype" { return tDEFNETTYPE; }
 <VLOG>"`celldefine"      { }
 <VLOG>"`endcelldefine"   { }
 <VLOG>"`begin_keywords"  { return tBEGINKEYWORDS; }
