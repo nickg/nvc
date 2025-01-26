@@ -199,6 +199,7 @@ void reset_sdf_parser(void);
 #define tSRL           298
 #define tSLA           299
 #define tSRA           300
+#define tSRA           300
 #define tROL           301
 #define tROR           302
 #define tMOD           303
@@ -298,6 +299,7 @@ void reset_sdf_parser(void);
 #define tUNTIL_        397
 #define tUNTIL1_       398
 #define tTIMESCALE     399
+#define tSUPPLY0       400
 #define tSUPPLY0       400
 #define tSUPPLY1       401
 #define tPULLDOWN      402
@@ -425,5 +427,16 @@ void reset_sdf_parser(void);
 #define tPLUSPLUS      524
 #define tMINUSMINUS    525
 #define tVAR           526
+#define tDEFNETTYPE    527
+#define tTRI           528
+#define tTRI0          529
+#define tTRI1          530
+#define tWAND          531
+#define tTRIAND        532
+#define tWOR           533
+#define tTRIOR         534
+#define tTRIREG        535
+#define tUWIRE         536
+#define tNONE          537
 
 #endif  // _SCAN_H

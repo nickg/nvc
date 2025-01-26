@@ -110,6 +110,7 @@ ID    [a-zA-Z_]([a-zA-Z0-9_$])*
 `undef[ \t]+{ID}[ \t]*  { undef_macro(); }
 
 `timescale              |
+`default_nettype        |
 `resetall               |
 `pragma                 |
 `begin_keywords         |
