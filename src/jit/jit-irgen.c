@@ -3644,6 +3644,13 @@ static void irgen_op_bind_external(jit_irgen_t *g, mir_value_t n)
    g->map[n.id] = j_recv(g, 0);
 }
 
+static void irgen_op_get_random(jit_irgen_t *g, mir_value_t n)
+{
+   macro_exit(g, JIT_EXIT_GET_RANDOM);
+
+   g->map[n.id] = j_recv(g, 0);
+}
+
 static void irgen_block(jit_irgen_t *g, mir_block_t block)
 {
    irgen_bind_label(g, g->blocks[block.id]);
@@ -4041,6 +4048,9 @@ static void irgen_block(jit_irgen_t *g, mir_block_t block)
          break;
       case MIR_OP_BIND_EXTERNAL:
          irgen_op_bind_external(g, n);
+         break;
+      case MIR_OP_GET_RANDOM:
+         irgen_op_get_random(g, n);
          break;
       default:
          DEBUG_ONLY(mir_dump(g->mu));

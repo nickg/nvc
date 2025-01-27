@@ -5020,6 +5020,31 @@ static type_t solve_psl_fcall(nametab_t *tab, tree_t t)
    return type;
 }
 
+static type_t solve_psl_union(nametab_t *tab, tree_t t)
+{
+   psl_node_t p = tree_psl(t);
+
+   psl_node_t lhs = psl_operand(p, 0);
+   psl_node_t rhs = psl_operand(p, 1);
+
+   tree_t lhs_tree = psl_tree(lhs);
+   tree_t rhs_tree = psl_tree(rhs);
+
+   type_t lhs_type = solve_types(tab, lhs_tree, NULL);
+   type_t rhs_type = solve_types(tab, rhs_tree, NULL);
+
+   if (!type_eq(lhs_type, rhs_type)) {
+      diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
+      diag_printf(d, "PSL union expression arguments must have equal types\n");
+      diag_hint(d, tree_loc(lhs_tree), "left side: %s\n", istr(type_ident(lhs_type)));
+      diag_hint(d, tree_loc(rhs_tree), "righ side: %s", istr(type_ident(rhs_type)));
+      diag_emit(d);
+   }
+
+   tree_set_type(t, lhs_type);
+   return lhs_type;
+}
+
 static type_t try_solve_type(nametab_t *tab, tree_t expr)
 {
    switch (tree_kind(expr)) {
@@ -5038,6 +5063,8 @@ static type_t try_solve_type(nametab_t *tab, tree_t expr)
       return try_solve_open(tab, expr);
    case T_ATTR_REF:
       return try_solve_attr_ref(tab, expr);
+   case T_PSL_UNION:
+      return solve_psl_union(tab, expr);
    default:
       fatal_trace("cannot solve types for %s", tree_kind_str(tree_kind(expr)));
    }
@@ -5098,6 +5125,8 @@ static type_t _solve_types(nametab_t *tab, tree_t expr)
       return solve_inertial(tab, expr);
    case T_PSL_FCALL:
       return solve_psl_fcall(tab, expr);
+   case T_PSL_UNION:
+      return solve_psl_union(tab, expr);
    default:
       fatal_trace("cannot solve types for %s", tree_kind_str(tree_kind(expr)));
    }

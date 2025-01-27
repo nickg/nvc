@@ -973,7 +973,7 @@ const char *vcode_op_string(vcode_op_t op)
       "port conversion", "convert in", "convert out", "bind foreign",
       "or trigger", "cmp trigger", "instance name", "deposit signal",
       "map implicit", "bind external", "array scope", "record scope", "syscall",
-      "put conversion",
+      "put conversion", "get random",
    };
    if ((unsigned)op >= ARRAY_LEN(strs))
       return "???";
@@ -2358,6 +2358,12 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
                col += vcode_dump_reg(op->args.items[0]);
                col += color_printf(" scope $magenta$%s$$", istr(op->ident));
                vcode_dump_result_type(col, op);
+            }
+            break;
+
+         case VCODE_OP_GET_RANDOM:
+            {
+               color_printf("%s ", vcode_op_string(op->kind));
             }
             break;
          }
@@ -6166,6 +6172,13 @@ void emit_deposit_signal(vcode_reg_t signal, vcode_reg_t count,
                 "deposit signal count is not offset type");
    VCODE_ASSERT(vcode_reg_kind(values) != VCODE_TYPE_SIGNAL,
                 "signal cannot be values argument for deposit signal");
+}
+
+vcode_reg_t emit_get_random(void)
+{
+   op_t *op = vcode_add_op(VCODE_OP_GET_RANDOM);
+   op->result = vcode_add_reg(vtype_int(INT64_MIN, INT64_MAX));
+   return op->result;
 }
 
 void vcode_walk_dependencies(vcode_unit_t vu, vcode_dep_fn_t fn, void *ctx)

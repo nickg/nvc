@@ -2999,3 +2999,8 @@ void mir_build_debug_out(mir_unit_t *mu, mir_value_t value)
 
    MIR_ASSERT(mir_is_integral(mu, value), "argument must be integral");
 }
+
+mir_value_t mir_build_get_random(mir_unit_t *mu)
+{
+   return mir_build_0(mu, MIR_OP_GET_RANDOM, MIR_NULL_TYPE, MIR_NULL_STAMP);
+}

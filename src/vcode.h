@@ -172,6 +172,7 @@ typedef enum {
    VCODE_OP_RECORD_SCOPE,
    VCODE_OP_SYSCALL,
    VCODE_OP_PUT_CONVERSION,
+   VCODE_OP_GET_RANDOM,
 } vcode_op_t;
 
 typedef enum {
@@ -541,5 +542,6 @@ vcode_reg_t emit_bind_external(vcode_reg_t locus, ident_t scope,
                                vcode_type_t type, vcode_type_t bounds);
 void emit_put_conversion(vcode_reg_t cf, vcode_reg_t target, vcode_reg_t count,
                          vcode_reg_t values);
+vcode_reg_t emit_get_random(void);
 
 #endif  // _VCODE_H

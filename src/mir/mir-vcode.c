@@ -1353,6 +1353,11 @@ static void import_reflect_subtype(mir_unit_t *mu, mir_import_t *imp, int op)
       mir_build_reflect_subtype(mu, context, locus, bounds);
 }
 
+static void import_get_random(mir_unit_t *mu, mir_import_t *imp, int op)
+{
+   imp->map[vcode_get_result(op)] = mir_build_get_random(mu);
+}
+
 static void import_block(mir_unit_t *mu, mir_import_t *imp)
 {
    const int nops = vcode_count_ops();
@@ -1753,6 +1758,9 @@ static void import_block(mir_unit_t *mu, mir_import_t *imp)
          break;
       case VCODE_OP_REFLECT_VALUE:
          import_reflect_value(mu, imp, i);
+         break;
+      case VCODE_OP_GET_RANDOM:
+         import_get_random(mu, imp, i);
          break;
       default:
          vcode_dump_with_mark(i, NULL, NULL);

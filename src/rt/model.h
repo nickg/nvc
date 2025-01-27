@@ -38,6 +38,9 @@ void model_stop(rt_model_t *m);
 void model_interrupt(rt_model_t *m);
 int model_exit_status(rt_model_t *m);
 
+void model_set_seed(rt_model_t *m, uint32_t seed);
+uint64_t model_get_random_number(rt_model_t *m);
+
 rt_watch_t *watch_new(rt_model_t *m, sig_event_fn_t fn, void *user,
                       watch_kind_t kind, unsigned slots);
 void watch_free(rt_model_t *m, rt_watch_t *w);

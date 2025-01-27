@@ -404,6 +404,13 @@ are included in or excluded from the waveform dump.  See section
 .Sx SELECTING SIGNALS
 for details on how to select particular signals.  These options can be
 given multiple times.
+.It Fl \-seed Ns = Ns Ar S
+Seed for simulator randomization. The
+.Ar S
+shall be an integer between 0 and 4294967295. If
+.Fl \-seed
+is not used, NVC will pick random
+seed based on system time.
 .\" --shuffle
 .It Fl \-shuffle
 Run processes in random order.  The VHDL standard does not specify the

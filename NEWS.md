@@ -30,6 +30,8 @@
 - A Docker image was added at `ghcr.io/nickg/nvc` (#1165).
 - Unconstrained input ports can now be constrained by the result subtype
   of a conversion function (#1171).
+- Added support for PSL `union` operator.
+- Added `--seed` runtime argument for seeding of simulation randomization.
 
 ## Version 1.15.2 - 2025-03-01
 - Fixed invalid LLVM IR generation which could cause a crash with LLVM

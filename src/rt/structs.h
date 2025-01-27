@@ -279,4 +279,9 @@ typedef struct _rt_watch {
    rt_signal_t    *signals[];
 } rt_watch_t;
 
+typedef struct _rt_randomizer {
+   int64_t         seed;
+   int64_t         state;
+} rt_randomizer_t;
+
 #endif  // _RT_STRUCTS_H

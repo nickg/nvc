@@ -459,6 +459,15 @@ static void psl_check_builtin_fcall(psl_node_t p, nametab_t *tab)
       psl_check(psl_operand(p, i), tab);
 }
 
+static void psl_check_union(psl_node_t p, nametab_t *tab)
+{
+   psl_node_t lhs = psl_operand(p, 0);
+   psl_node_t rhs = psl_operand(p, 1);
+
+   psl_check(lhs, tab);
+   psl_check(rhs, tab);
+}
+
 void psl_check(psl_node_t p, nametab_t *tab)
 {
    switch (psl_kind(p)) {
@@ -553,6 +562,9 @@ void psl_check(psl_node_t p, nametab_t *tab)
       break;
    case P_BUILTIN_FCALL:
       psl_check_builtin_fcall(p, tab);
+      break;
+   case P_UNION:
+      psl_check_union(p, tab);
       break;
    default:
       fatal_trace("cannot check PSL kind %s", psl_kind_str(psl_kind(p)));

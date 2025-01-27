@@ -131,6 +131,7 @@ typedef struct _rt_model {
    bool               shuffle;
    bool               liveness;
    rt_trigger_t      *triggertab[TRIGGER_TAB_SIZE];
+   rt_randomizer_t   *random;
 } rt_model_t;
 
 #define FMT_VALUES_SZ   128
@@ -475,6 +476,7 @@ rt_model_t *model_new(jit_t *jit, cover_data_t *cover)
    m->eventq_heap = heap_new(512);
    m->res_memo    = ihash_new(128);
    m->cover       = cover;
+   m->random      = static_alloc(m, sizeof(rt_randomizer_t));
 
    m->driving_heap   = heap_new(64);
    m->effective_heap = heap_new(64);
@@ -2387,6 +2389,8 @@ void model_reset(rt_model_t *m)
 
    reset_scope(m, m->root);
 
+   m->random->state = m->random->seed;
+
    if (m->force_stop)
       return;   // Error in intialisation
 
@@ -3577,6 +3581,25 @@ void model_set_timeout_cb(rt_model_t *m, uint64_t when, rt_event_fn_t fn,
 
    void *e = tag_pointer(cb, EVENT_TIMEOUT);
    heap_insert(m->eventq_heap, when, e);
+}
+
+void model_set_seed(rt_model_t *m, uint32_t seed)
+{
+   m->random->seed = (((uint64_t)seed) << 32) | seed;
+}
+
+uint64_t model_get_random_number(rt_model_t *m)
+{
+   uint64_t lfsr = m->random->state;
+   uint64_t fb = ~(((lfsr >> 63) & 0x1) ^
+                   ((lfsr >> 62) & 0x1) ^
+                   ((lfsr >> 60) & 0x1) ^
+                   ((lfsr >> 59) & 0x1));
+   uint64_t rnd = (lfsr << 1) | (fb & 0x1);
+
+   m->random->state = rnd;
+
+   return rnd;
 }
 
 rt_watch_t *watch_new(rt_model_t *m, sig_event_fn_t fn, void *user,

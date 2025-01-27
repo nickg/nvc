@@ -389,6 +389,7 @@ START_TEST(test_sem2)
    const error_t expect[] = {
       { 13, "expression must be a PSL Bit but have type INTEGER" },
       { 16, "expression must be static" },
+      { 17, "PSL union expression arguments must have equal types" },
       { -1, NULL }
    };
    expect_errors(expect);

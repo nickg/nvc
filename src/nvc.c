@@ -776,6 +776,7 @@ static int run_cmd(int argc, char **argv, cmd_state_t *state)
       { "vhpi-trace",    no_argument,       0, 'T' },
       { "gtkw",          optional_argument, 0, 'g' },
       { "shuffle",       no_argument,       0, 'H' },
+      { "seed",          required_argument, 0, 'r' },
       { 0, 0, 0, 0 }
    };
 
@@ -794,6 +795,11 @@ static int run_cmd(int argc, char **argv, cmd_state_t *state)
    const int next_cmd = scan_cmd(2, argc, argv);
 
    int c, index = 0;
+
+   time_t now = time(NULL);
+   srand(now);
+   uint32_t seed = rand();
+
    const char *spec = ":w::l:gi";
    while ((c = getopt_long(next_cmd, argv, spec, long_options, &index)) != -1) {
       switch (c) {
@@ -882,6 +888,11 @@ static int run_cmd(int argc, char **argv, cmd_state_t *state)
                "and may introduce significant performance overhead as well "
                "as non-deterministic behaviour");
          opt_set_int(OPT_SHUFFLE_PROCS, 1);
+         break;
+      case 'r':
+         // Hash the user seed to better preseed the model PRNG
+         seed = parse_int(optarg) + 1;
+         seed *= UINT32_C(2654435761);
          break;
       default:
          should_not_reach_here();
@@ -984,6 +995,7 @@ static int run_cmd(int argc, char **argv, cmd_state_t *state)
 
    set_ctrl_c_handler(ctrl_c_handler, state->model);
 
+   model_set_seed(state->model, seed);
    model_reset(state->model);
 
    if (dumper != NULL)
