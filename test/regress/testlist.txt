@@ -1102,3 +1102,4 @@ issue1150       normal,psl
 order4          shell
 issue1161       normal,vhpi,2008
 cmdline14       shell
+psl21           gold,psl,seed=1
