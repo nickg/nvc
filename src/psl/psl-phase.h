@@ -39,4 +39,7 @@ void psl_lower_decl(unit_registry_t *ur, lower_unit_t *parent, psl_node_t p,
 // Lower embedded PSL function call
 vcode_reg_t psl_lower_fcall(lower_unit_t *lu, psl_node_t p);
 
+// Lower PSL union expression
+vcode_reg_t psl_lower_union(lower_unit_t *lu, psl_node_t p);
+
 #endif  // _PSL_PHASE_H

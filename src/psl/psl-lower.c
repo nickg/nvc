@@ -35,6 +35,7 @@
 #define PSL_BLOCK_ABORT 2
 #define PSL_BLOCK_PREV  3
 
+
 static void psl_wait_cb(tree_t t, void *ctx)
 {
    lower_unit_t *lu = ctx;
@@ -56,6 +57,22 @@ static vcode_reg_t psl_lower_boolean(lower_unit_t *lu, psl_node_t p)
    }
    else
       return test_reg;
+}
+
+vcode_reg_t psl_lower_union(lower_unit_t *lu, psl_node_t p)
+{
+   vcode_reg_t lhs = lower_rvalue(lu, psl_tree(psl_operand(p, 0)));
+   vcode_reg_t rhs = lower_rvalue(lu, psl_tree(psl_operand(p, 1)));
+
+   vcode_reg_t rnd = emit_get_random();
+
+   vcode_type_t vint = vtype_int(INT64_MIN, INT64_MAX);
+   vcode_reg_t mod = emit_mod(rnd, emit_const(vint, 2));
+   vcode_reg_t sel = emit_cmp(VCODE_CMP_EQ, mod, emit_const(vint, 0));
+
+   vcode_reg_t res = emit_select(sel, lhs, rhs);
+
+   return res;
 }
 
 static vcode_reg_t psl_debug_locus(psl_node_t p)
