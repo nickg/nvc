@@ -3622,6 +3622,13 @@ static void irgen_op_bind_external(jit_irgen_t *g, int op)
       j_recv(g, i);
 }
 
+static void irgen_op_get_random(jit_irgen_t *g, int op)
+{
+   macro_exit(g, JIT_EXIT_GET_RANDOM);
+
+   g->map[vcode_get_result(op)] = j_recv(g, 0);
+}
+
 static void irgen_block(jit_irgen_t *g, vcode_block_t block)
 {
    vcode_select_block(block);
@@ -4030,6 +4037,9 @@ static void irgen_block(jit_irgen_t *g, vcode_block_t block)
          break;
       case VCODE_OP_BIND_EXTERNAL:
          irgen_op_bind_external(g, i);
+         break;
+      case VCODE_OP_GET_RANDOM:
+         irgen_op_get_random(g, i);
          break;
       default:
          fatal_trace("cannot generate JIT IR for vcode op %s",
