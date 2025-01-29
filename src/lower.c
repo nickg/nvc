@@ -84,7 +84,6 @@ typedef struct _lower_unit {
    cover_data_t    *cover;
    cover_scope_t   *cscope;
    bool             finished;
-   bool             elaborating;
    lower_mode_t     mode;
    unsigned         deferred;
    lazy_cscope_t   *lazy_cscope;
@@ -1238,12 +1237,6 @@ static vcode_reg_t lower_subprogram_arg(lower_unit_t *lu, tree_t fcall,
    type_t port_type = port ? tree_type(port) : value_type;
 
    const class_t class = port ? tree_class(port) : C_DEFAULT;
-
-   // This is not legal in VHDL anyway, but we allow it at analysis time
-   // with --relaxed
-   if (class == C_SIGNAL && lu->elaborating)
-      fatal_at(tree_loc(value), "cannot pass signal argument during "
-               "static elaboration");
 
    vcode_reg_t reg;
    if (class == C_SIGNAL && tree_kind(value) == T_AGGREGATE) {
@@ -3051,19 +3044,6 @@ static bool lower_is_trivial_constant(tree_t decl)
       return tree_kind(tree_value(decl)) == T_LITERAL;
 }
 
-static vcode_reg_t lower_signal_dummy_rvalue(lower_unit_t *lu, tree_t decl)
-{
-   // This is a workaround to allow referencing signal initial values
-   // during elaboration with --relaxed
-   if (tree_has_value(decl))
-      return lower_expr(lu, tree_value(decl), EXPR_RVALUE);
-   else {
-      type_t type = tree_type(decl);
-      assert(!type_is_unconstrained(type));
-      return lower_default_value(lu, type, VCODE_INVALID_REG);
-   }
-}
-
 static vcode_reg_t lower_ref(lower_unit_t *lu, tree_t ref, expr_ctx_t ctx)
 {
    tree_t decl = tree_ref(ref);
@@ -3081,10 +3061,7 @@ static vcode_reg_t lower_ref(lower_unit_t *lu, tree_t ref, expr_ctx_t ctx)
       return lower_var_ref(lu, decl, ctx);
 
    case T_PORT_DECL:
-      if (ctx == EXPR_RVALUE && lu->elaborating)
-         return lower_signal_dummy_rvalue(lu, decl);
-      else
-         return lower_port_ref(lu, decl);
+      return lower_port_ref(lu, decl);
 
    case T_PARAM_DECL:
       return lower_param_ref(lu, decl);
@@ -3094,10 +3071,7 @@ static vcode_reg_t lower_ref(lower_unit_t *lu, tree_t ref, expr_ctx_t ctx)
 
    case T_SIGNAL_DECL:
    case T_IMPLICIT_SIGNAL:
-      if (ctx == EXPR_RVALUE && lu->elaborating)
-         return lower_signal_dummy_rvalue(lu, decl);
-      else
-         return lower_signal_ref(lu, decl);
+      return lower_signal_ref(lu, decl);
 
    case T_TYPE_DECL:
       return VCODE_INVALID_REG;
@@ -12528,11 +12502,7 @@ static vcode_reg_t lower_open_port_map(lower_unit_t *lu, tree_t block, tree_t p)
       else {
          // VHDL-2019 partially connected vectors in port map
          assert(standard() >= STD_19);
-
-         if (tree_has_value(tree_ref(name_to_ref(name))))
-            return lower_rvalue(lu, name);
-         else
-            return VCODE_INVALID_REG;
+         return VCODE_INVALID_REG;
       }
    }
    else
@@ -13265,10 +13235,6 @@ lower_unit_t *lower_unit_new(unit_registry_t *ur, lower_unit_t *parent,
 
    new->name = vcode_unit_name(vunit);
    new->mode = (kind == VCODE_UNIT_THUNK) ? LOWER_THUNK : LOWER_NORMAL;
-
-   // Prevent access to resolved signals during static elaboration
-   new->elaborating = kind == VCODE_UNIT_INSTANCE || kind == VCODE_UNIT_THUNK
-      || kind == VCODE_UNIT_PROTECTED || kind == VCODE_UNIT_PACKAGE;
 
    return new;
 }

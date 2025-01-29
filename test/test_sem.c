@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2024  Nick Gasson
+//  Copyright (C) 2011-2025  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -550,7 +550,6 @@ START_TEST(test_generics)
       {  48, "no visible declaration for X" },
       {  58, "invalid object class signal for generic Y" },
       {  68, "no visible declaration for Y" },
-      { 110, "cannot reference signal SX during static elaboration" },
       { 116, "unexpected integer while parsing name" },
       { 115, "missing actual for generic X without a default expression" },
       { 119, "invalid name in generic map" },
@@ -1624,19 +1623,9 @@ START_TEST(test_varinit)
 {
    input_from_file(TESTDIR "/sem/varinit.vhd");
 
-   const error_t expect[] = {
-      { 43, "cannot reference signal SIZE during static elaboration" },
-      { 45, "cannot reference signal SIZE during static elaboration" },
-      { 53, "cannot reference signal N during static elaboration" },
-      { 54, "cannot reference signal N during static elaboration" },
-      { 56, "cannot reference signal N during static elaboration" },
-      { -1, NULL }
-   };
-   expect_errors(expect);
-
    parse_and_check(T_ENTITY, T_PACKAGE, T_ARCH, T_ARCH);
 
-   check_expected_errors();
+   fail_if_errors();
 }
 END_TEST
 
@@ -2799,7 +2788,6 @@ START_TEST(test_ename)
       { 40, "actual for formal X with class VARIABLE must be a name denoting "
         "a variable" },
       { 44, "an alias of an external name cannot have a subtype indication" },
-      { 15, "cannot reference signal BAR during static elaboration" },
       { -1, NULL }
    };
    expect_errors(expect);
