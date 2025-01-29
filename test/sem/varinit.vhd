@@ -40,9 +40,9 @@ OTHER:
     size <= "01000010" after 1 ns;
 
     block1: block is
-        constant  N: integer:= to_integer (unsigned(size)) ; -- Error
+        constant  N: integer:= to_integer (unsigned(size)) ; -- OK (since 1.16)
         constant  M: integer := size'length;  -- OK
-        constant  P: boolean := size'event;  -- Error
+        constant  P: boolean := size'event;  -- OK (since 1.16)
     begin
     end block;
 
@@ -50,9 +50,9 @@ end architecture;
 
 architecture bar of computation is
     signal N : integer := 5;
-    signal bad : bit_vector(1 to N);    -- Error
-    signal x : integer range 1 to N;    -- Error
+    signal bad : bit_vector(1 to N);    -- OK (since 1.16)
+    signal x : integer range 1 to N;    -- OK (since 1.16)
     signal y : bit_vector(1 to bad'length);  -- OK
-    subtype my_int is integer range 1 to N;  -- Error
+    subtype my_int is integer range 1 to N;  -- OK (since 1.16)
 begin
 end architecture;

@@ -1,6 +1,10 @@
 ## Unreleased changes
 - Added support for PSL `prev()`, `stable()`, `rose()` and `fell()`
   built-in functions (#1135).
+- Signals can now be read and passed to subprograms during elaboration
+  and the effective value is the default value associated with the
+  signal.  This behaviour is not defined by the LRM but matches all
+  other simulators (#1144).
 
 ## Version 1.15.1 - 2025-01-22
 - Fixed a crash when a subprogram is called with too many named arguments

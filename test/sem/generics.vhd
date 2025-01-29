@@ -107,7 +107,7 @@ begin
         generic map ( x => "00" & '1' );  -- OK
 
     i3: component c
-        generic map ( x => "00" & sx );  -- Error
+        generic map ( x => "00" & sx );  -- OK (since 1.16)
 
     i4: component d
         generic map ( t => 100 ns );    -- OK

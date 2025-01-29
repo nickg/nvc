@@ -2172,135 +2172,6 @@ static bool sem_check_sensitivity(tree_t t, nametab_t *tab)
    return true;
 }
 
-static void sem_check_static_elab(tree_t t)
-{
-   // LRM 93 12.3 forbirds references to signals before the design has
-   // been elaborated: "The value of any object denoted by a primary in
-   // such an expression must be defined at the time the primary is read"
-
-   const tree_kind_t kind = tree_kind(t);
-
-   switch (kind) {
-   case T_REF:
-   case T_EXTERNAL_NAME:
-      {
-         if (class_of(t) != C_SIGNAL)
-            return;
-
-         ident_t id;
-         diag_t *d;
-         if (kind == T_EXTERNAL_NAME) {
-            id = tree_ident(tree_part(t, tree_parts(t) - 1));
-            d = diag_new(DIAG_ERROR, tree_loc(t));
-         }
-         else if (!tree_has_ref(t))
-            return;   // Was earlier error
-         else {
-            tree_t decl = tree_ref(t);
-            id = tree_ident(decl);
-            if (tree_has_value(decl) || !type_is_unconstrained(tree_type(decl)))
-               d = pedantic_diag(tree_loc(t));
-            else {
-               d = diag_new(DIAG_ERROR, tree_loc(t));
-               diag_hint(d, NULL, "the $bold$--relaxed$$ option would "
-                         "downgrade this to a warning if %s had an initial "
-                         "value or its type was fully constrained", istr(id));
-            }
-         }
-
-         if (d != NULL) {
-            diag_printf(d, "cannot reference signal %s during static "
-                        "elaboration", istr(id));
-            diag_hint(d, NULL, "the value of a signal is not defined "
-                      "until after the design hierarchy is elaborated");
-            diag_lrm(d, STD_93, "12.3");
-            diag_emit(d);
-         }
-      }
-      break;
-
-   case T_SIGNAL_DECL:
-   case T_VAR_DECL:
-   case T_CONST_DECL:
-      if (tree_has_value(t))
-         sem_check_static_elab(tree_value(t));
-      // Fall-through
-   case T_TYPE_DECL:
-   case T_SUBTYPE_DECL:
-      {
-         type_t type = tree_type(t);
-         if (type_is_generic(type))
-            ;  // Cannot check further
-         else if (type_is_scalar(type) && !type_is_none(type))
-            sem_check_static_elab(range_of(type, 0));
-         else if (type_is_array(type) && !type_is_unconstrained(type)) {
-            const int ndims = dimension_of(type);
-            for (int i = 0; i < ndims; i++)
-               sem_check_static_elab(range_of(type, i));
-         }
-      }
-      break;
-
-   case T_ARRAY_REF:
-      {
-         sem_check_static_elab(tree_value(t));
-
-         const int nparams = tree_params(t);
-         for (int i = 0; i < nparams; i++)
-            sem_check_static_elab(tree_value(tree_param(t, i)));
-      }
-      break;
-
-   case T_FCALL:
-      if (!(tree_flags(t) & TREE_F_GLOBALLY_STATIC)) {
-         const int nparams = tree_params(t);
-         for (int i = 0; i < nparams; i++)
-            sem_check_static_elab(tree_value(tree_param(t, i)));
-      }
-      break;
-
-   case T_ARRAY_SLICE:
-      sem_check_static_elab(tree_value(t));
-      sem_check_static_elab(tree_range(t, 0));
-      break;
-
-   case T_RECORD_REF:
-   case T_TYPE_CONV:
-      sem_check_static_elab(tree_value(t));
-      break;
-
-   case T_RANGE:
-      switch (tree_subkind(t)) {
-      case RANGE_TO:
-      case RANGE_DOWNTO:
-         sem_check_static_elab(tree_left(t));
-         sem_check_static_elab(tree_right(t));
-         break;
-      case RANGE_EXPR:
-         sem_check_static_elab(tree_value(t));
-         break;
-      }
-      break;
-
-   case T_ATTR_REF:
-      {
-         // Same list of predefined attributes as sem_globally_static
-         const attr_kind_t predef = tree_subkind(t);
-         const bool non_static = predef == ATTR_EVENT || predef == ATTR_ACTIVE
-            || predef == ATTR_LAST_EVENT || predef == ATTR_LAST_ACTIVE
-            || predef == ATTR_LAST_VALUE || predef == ATTR_DRIVING
-            || predef == ATTR_DRIVING_VALUE;
-
-         if (non_static)
-            sem_check_static_elab(tree_name(t));
-      }
-      break;
-
-   default:
-      break;
-   }
-}
-
 static void sem_check_missing_wait(tree_t t, nametab_t *tab)
 {
    if (!opt_get_int(OPT_MISSING_WAIT))
@@ -2466,12 +2337,6 @@ static bool sem_check_arch(tree_t t, nametab_t *tab)
 
    if (!sem_check_context_clause(t, tab))
       return false;
-
-   const int ndecls = tree_decls(t);
-   for (int n = 0; n < ndecls; n++) {
-      tree_t d = tree_decl(t, n);
-      sem_check_static_elab(d);
-   }
 
    return true;
 }
@@ -5372,7 +5237,6 @@ static bool sem_check_generic_actual(formal_map_t *formals, int nformals,
                    "generic %s", type_pp(tree_type(value)), type_pp(type),
                    istr(tree_ident(decl)));
 
-      sem_check_static_elab(value);
       break;
 
    default:
@@ -6265,12 +6129,6 @@ static bool sem_check_block(tree_t t, nametab_t *tab)
 
    if (!sem_check_port_map(t, t, tab))
       return false;
-
-   const int ndecls = tree_decls(t);
-   for (int i = 0; i < ndecls; i++) {
-      tree_t d = tree_decl(t, i);
-      sem_check_static_elab(d);
-   }
 
    return true;
 }

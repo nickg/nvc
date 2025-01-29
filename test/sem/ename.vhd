@@ -12,7 +12,7 @@ architecture test of ename is
     alias e1 is <<signal .top.foo.bar : bit>>;  -- OK
     constant k1 : integer := <<constant foo.bar : integer>>;  -- OK
     signal s1 : bit_vector(1 to k1);    -- OK
-    signal s2 : bit_vector(1 to <<signal foo.bar : integer>>);    -- Error
+    signal s2 : bit_vector(1 to <<signal foo.bar : integer>>);    -- OK (since 1.16)
     constant k2 : integer := <<constant foo.baz : bit>>;  -- Error
 begin
 
