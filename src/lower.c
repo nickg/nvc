@@ -11770,7 +11770,7 @@ static vcode_reg_t lower_converter(lower_unit_t *parent, tree_t dst, tree_t src,
                                 istr(tree_ident(dst)),
                                 dir == PORT_IN ? "in" : "out");
 
-   vcode_unit_t vu = emit_function(name, tree_to_object(src), parent->vunit);
+   vcode_unit_t vu = emit_function(name, tree_to_object(dst), parent->vunit);
    emit_debug_info(tree_loc(src));
 
    // Dummy return value to force function calling convention

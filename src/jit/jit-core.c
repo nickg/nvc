@@ -567,7 +567,11 @@ static void jit_emit_trace(diag_t *d, const loc_t *loc, object_t *enclosing,
          diag_trace(d, loc, "Type conversion %s", type_pp(tree_type(tree)));
          break;
       default:
-         diag_trace(d, loc, "$$%s", istr(tree_ident(tree)));
+         {
+            const char *class = class_str(class_of(tree));
+            diag_trace(d, loc, "%c%s %s", toupper_iso88591(class[0]),
+                       class + 1, istr(tree_ident(tree)));
+         }
          break;
       }
    }
