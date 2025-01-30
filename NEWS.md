@@ -5,6 +5,8 @@
   and the effective value is the default value associated with the
   signal.  This behaviour is not defined by the LRM but matches all
   other simulators (#1144).
+- Added support for PSL `union` operator.
+- Added `--seed` runtime argument for seeding of simulation randomization.
 
 ## Version 1.15.1 - 2025-01-22
 - Fixed a crash when a subprogram is called with too many named arguments
