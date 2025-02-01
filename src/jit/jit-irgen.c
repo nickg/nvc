@@ -4318,6 +4318,9 @@ static void irgen_property_entry(jit_irgen_t *g)
 {
    irgen_params(g, 1);
 
+   if (g->stateless)
+      irgen_locals(g);
+
    jit_value_t state = j_recv(g, 0);
    j_cmp(g, JIT_CC_EQ, state, jit_null_ptr());
    j_jump(g, JIT_CC_F, g->blocks[1]);
@@ -4327,11 +4330,12 @@ static void irgen_property_entry(jit_irgen_t *g)
    else
       g->statereg = state;
 
-   irgen_locals(g);
-
    if (!g->stateless) {
+      irgen_locals(g);
+
       // Stash context pointer
-      j_store(g, JIT_SZ_PTR, g->map[0], jit_addr_from_value(g->statereg, 0));
+      jit_value_t context = jit_addr_from_value(g->statereg, 0);
+      j_store(g, JIT_SZ_PTR, g->map[0], context);
    }
 }
 
