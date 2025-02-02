@@ -1,4 +1,4 @@
-name: Build MSYS2 and Ubuntu packages
+name: Build release packages
 
 on:
   push:
