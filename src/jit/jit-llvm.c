@@ -3010,19 +3010,20 @@ static void cgen_function(llvm_obj_t *obj, cgen_func_t *func)
       cgen_ir(obj, cgb, &(func->source->irbuf[i]));
 
       if (i == cgb->source->last) {
-         if (cgb->source->aborts)
-            LLVMBuildUnreachable(obj->builder);
-
          cgen_fix_liveout_types(obj, cgb);
 
          if (LLVMGetBasicBlockTerminator(cgb->bbref) == NULL) {
-            // Fall through to next block
-            assert(!cgb->source->returns);
-            assert(cgb + 1 < func->blocks + cfg->nblocks);
-            LLVMBuildBr(obj->builder, (++cgb)->bbref);
+            if (cgb->source->aborts)
+               LLVMBuildUnreachable(obj->builder);
+            else {
+               // Fall through to next block
+               assert(!cgb->source->returns);
+               assert(cgb + 1 < func->blocks + cfg->nblocks);
+               LLVMBuildBr(obj->builder, (cgb + 1)->bbref);
+            }
          }
-         else
-            ++cgb;
+
+         cgb++;
       }
    }
 
