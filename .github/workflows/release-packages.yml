@@ -7,56 +7,6 @@ on:
   workflow_dispatch:
 
 jobs:
-  pkg-windows-msys2:
-    name: Package for Windows MSYS2
-    runs-on: windows-2022
-    strategy:
-      matrix:
-        include:
-          - { sys: mingw64, env: x86_64 }
-          - { sys: ucrt64,  env: ucrt-x86_64 }
-          - { sys: clang64, env: clang-x86_64 }
-    defaults:
-      run:
-        shell: msys2 {0}
-    steps:
-      - uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
-      - uses: msys2/setup-msys2@v2
-        with:
-          msystem: ${{matrix.sys}}
-          update: true
-          install: >-
-            base-devel
-            git
-            mingw-w64-${{matrix.env}}-tcl
-            mingw-w64-${{matrix.env}}-tcllib
-      - name: Fix missing tags
-        run: |
-          git fetch --tags --force
-      - name: Debugging for tags
-        run: |
-          git tag
-          git describe --tags --long
-      - name: Build MSYS2 ${{matrix.sys}} package
-        run: |
-          cd contrib/msys2
-          makepkg-mingw -sCLf --needed --noconfirm
-          pacman -Qlp *.zst
-          echo "MSYS2_PKG=$(ls *.zst)" >> $GITHUB_ENV
-      - name: Install package
-        run: pacman -U --noconfirm contrib/msys2/*.zst
-      - name: Install OSVVM
-        run: nvc --install osvvm
-      - name: Install UVVM
-        run: nvc --install uvvm
-      - name: 'Upload artifact'
-        uses: actions/upload-artifact@v4
-        with:
-          name: 'MSYS2 ${{matrix.sys}} package'
-          path: contrib/msys2/${{ env.MSYS2_PKG }}
-
   pkg-ubuntu:
     name: Package for Ubuntu
     strategy:
@@ -73,8 +23,7 @@ jobs:
         id: version
         run: |
           vers=$(sed -n '1s/AC_INIT(\[.*\], \[\([0-9\.]*\).*\].*/\1/p' configure.ac)
-          full=$(git log --date=format:%Y%m%d --pretty=$vers~git%cd.%h -1)
-          echo "VERSION=$full" >> $GITHUB_ENV
+          echo "VERSION=$vers" >> $GITHUB_ENV
       - name: Build Debian package
         run: |
           ln -s contrib/debian debian

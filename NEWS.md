@@ -7,6 +7,11 @@
   other simulators (#1144).
 - Fixed invalid LLVM IR generation which could cause a crash with LLVM
   14 (#1145).
+- MSYS2 binary packages are no longer provided with releases as these
+  become out-of-date too quickly.  Windows users should instead download
+  the self-contained MSI package.
+- The Ubuntu binary packages for releases now have predictable names
+  without the git commit hash (#1131).
 
 ## Version 1.15.1 - 2025-01-22
 - Fixed a crash when a subprogram is called with too many named arguments
