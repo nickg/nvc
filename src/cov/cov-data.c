@@ -689,6 +689,9 @@ cover_item_t *cover_add_items_for(cover_data_t *data, cover_scope_t *cs,
    case COV_ITEM_EXPRESSION:
    {
       tree_t tree = tree_from_object(obj);
+      if (tree_kind(tree) == T_PROT_FCALL)
+         break;
+
       assert(tree_kind(tree) == T_FCALL);
 
       // Choose if to emit for built-in or "std_logic"
