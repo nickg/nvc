@@ -5,6 +5,8 @@
   and the effective value is the default value associated with the
   signal.  This behaviour is not defined by the LRM but matches all
   other simulators (#1144).
+- Fixed invalid LLVM IR generation which could cause a crash with LLVM
+  14 (#1145).
 
 ## Version 1.15.1 - 2025-01-22
 - Fixed a crash when a subprogram is called with too many named arguments
