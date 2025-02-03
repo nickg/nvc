@@ -120,7 +120,7 @@ void check_expected_errors(void)
       ck_abort_msg("missing expected error line %d '%s'",
                    error_lines->line, error_lines->snippet);
 
-   ck_assert_int_eq(errors_seen, error_count());
+   ck_assert_int_eq(errors_seen, diag_count(DIAG_NOTE));
 }
 
 TCase *nvc_unit_test(void)
@@ -211,7 +211,7 @@ tree_t _parse_and_check(const tree_kind_t *array, int num, bool simp)
 
 void fail_if_errors(void)
 {
-   ck_assert_msg(error_count() == 0, "have errors");
+   ck_assert_msg(diag_count(DIAG_WARN) == 0, "have errors");
    ck_assert_msg(errors_seen == 0, "have errors or diagnostics");
 }
 

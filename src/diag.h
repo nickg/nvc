@@ -106,6 +106,7 @@ void diag_femit(diag_t *d, FILE *f);
 void diag_suppress(diag_t *d, bool suppress);
 void diag_stacktrace(diag_t *d, bool stacktrace);
 void diag_clear(diag_t *d);
+unsigned diag_count(diag_level_t level);
 
 unsigned error_count(void);
 void reset_error_count(void);

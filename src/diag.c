@@ -99,7 +99,7 @@ typedef struct _hint_rec {
    void           *context;
 } hint_rec_t;
 
-static unsigned    n_errors    = 0;
+static unsigned    n_diags[DIAG_FATAL + 1];
 static unsigned    error_limit = 0;
 static file_list_t loc_files;
 static nvc_lock_t  diag_lock   = 0;
@@ -1054,10 +1054,9 @@ void diag_femit(diag_t *d, FILE *f)
          show_stacktrace();
    }
 
-   const bool is_error = d->level >= DIAG_ERROR
-      || (opt_get_int(OPT_UNIT_TEST) && d->level > DIAG_DEBUG);
+   const unsigned count = relaxed_add(&n_diags[d->level], 1);
 
-   if (is_error && relaxed_add(&n_errors, 1) == error_limit)
+   if (d->level >= DIAG_ERROR && count == error_limit)
       fatal("too many errors, giving up");
 
  cleanup:
@@ -1167,14 +1166,23 @@ void diag_remove_hint_fn(diag_hint_fn_t fn)
    fatal_trace("hint function %p not registered", fn);
 }
 
+unsigned diag_count(diag_level_t level)
+{
+   int sum = 0;
+   for (int i = level; i <= DIAG_FATAL; i++)
+      sum += relaxed_load(&n_diags[i]);
+   return sum;
+}
+
 unsigned error_count(void)
 {
-   return n_errors;
+   return diag_count(DIAG_ERROR);
 }
 
 void reset_error_count(void)
 {
-   n_errors = 0;
+   for (int i = 0; i <= DIAG_FATAL; i++)
+      relaxed_store(&n_diags[i], 0);
 }
 
 unsigned set_error_limit(unsigned limit)
