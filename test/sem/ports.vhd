@@ -426,7 +426,7 @@ end architecture;
 
 -------------------------------------------------------------------------------
 
-architecture conv of top is
+architecture conv2 of top is
     signal s : real;
 begin
 

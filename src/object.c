@@ -58,6 +58,7 @@ typedef struct _object_arena {
    generation_t    copygen;
    bool            copyflag;
    bool            frozen;
+   bool            obsolete;
 } object_arena_t;
 
 #if !ASAN_ENABLED
@@ -207,6 +208,11 @@ uint32_t arena_flags(object_arena_t *arena)
 void arena_set_flags(object_arena_t *arena, uint32_t flags)
 {
    arena->flags |= flags;
+}
+
+void arena_set_obsolete(object_arena_t *arena, bool obsolete)
+{
+   arena->obsolete = true;
 }
 
 object_arena_t *object_arena(object_t *object)
@@ -801,6 +807,8 @@ void object_write(object_t *root, fbuf_t *f, ident_wr_ctx_t ident_ctx,
    else if (!arena->frozen)
       fatal_trace("arena %s must be frozen before writing to disk",
                   istr(object_arena_name(arena)));
+   else if (arena->obsolete)
+      fatal_trace("writing obsolete arena %s", istr(object_arena_name(arena)));
 
    write_u32(format_digest, f);
    fbuf_put_uint(f, standard());
@@ -1287,11 +1295,19 @@ void object_arena_freeze(object_arena_t *arena)
    arena->frozen = true;
 }
 
-void object_arena_walk_deps(object_arena_t *arena, object_arena_deps_fn_t fn,
-                            void *context)
+void arena_walk_deps(object_arena_t *arena, arena_deps_fn_t fn, void *context)
 {
    for (unsigned i = 0; i < arena->deps.count; i++)
       (*fn)(object_arena_name(arena->deps.items[i]), context);
+}
+
+void arena_walk_obsolete_deps(object_arena_t *arena, arena_deps_fn_t fn,
+                              void *context)
+{
+   for (unsigned i = 0; i < arena->deps.count; i++) {
+      if (arena->deps.items[i]->obsolete)
+         (*fn)(object_arena_name(arena->deps.items[i]), context);
+   }
 }
 
 void object_locus(object_t *object, ident_t *module, ptrdiff_t *offset)

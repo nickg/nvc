@@ -241,6 +241,7 @@ void arena_set_checksum(object_arena_t *arena, uint32_t checksum);
 bool arena_frozen(object_arena_t *arena);
 uint32_t arena_flags(object_arena_t *arena);
 void arena_set_flags(object_arena_t *arena, uint32_t flags);
+void arena_set_obsolete(object_arena_t *arena, bool obsolete);
 
 void object_write(object_t *object, fbuf_t *f, ident_wr_ctx_t ident_ctx,
                   loc_wr_ctx_t *loc_ctx);
@@ -259,9 +260,10 @@ void __object_write_barrier(object_t *lhs, object_t *rhs);
 object_arena_t *object_arena_new(size_t size, unsigned std);
 void object_arena_freeze(object_arena_t *arena);
 
-typedef void (*object_arena_deps_fn_t)(ident_t, void *);
-void object_arena_walk_deps(object_arena_t *arena, object_arena_deps_fn_t fn,
-                            void *context);
+typedef void (*arena_deps_fn_t)(ident_t, void *);
+void arena_walk_deps(object_arena_t *arena, arena_deps_fn_t fn, void *context);
+void arena_walk_obsolete_deps(object_arena_t *arena, arena_deps_fn_t fn,
+                              void *context);
 
 void object_locus(object_t *object, ident_t *module, ptrdiff_t *offset);
 object_t *object_from_locus(ident_t module, ptrdiff_t offset,

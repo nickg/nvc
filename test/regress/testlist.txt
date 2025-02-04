@@ -1099,3 +1099,4 @@ psl20           gold,psl
 cover26         shell
 debug4          normal,gold
 issue1150       normal,psl
+order4          shell

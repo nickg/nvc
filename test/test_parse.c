@@ -7037,9 +7037,10 @@ START_TEST(test_issue1090)
    input_from_file(TESTDIR "/parse/issue1090.vhd");
 
    const error_t expect[] = {
-      {  6, "package WORK.P1 references a previously analysed design unit "
-         "with the same name which will be overwritten" },
-      { 12, "entity WORK.P1 references a previously analysed design unit" },
+      {  6, "design unit WORK.P1 replaces a previously analysed unit with "
+        "the same name" },
+      { 12, "design unit WORK.P1 replaces a previously analysed unit with "
+        "the same name" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -7215,6 +7216,24 @@ START_TEST(test_issue1138)
    fail_unless(parse() == NULL);
 
    fail_if_errors();
+}
+END_TEST
+
+START_TEST(test_issue1152)
+{
+   input_from_file(TESTDIR "/parse/issue1152.vhd");
+
+   const error_t expect[] = {
+      { 15, "design unit WORK.P1 replaces a previously analysed" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_PACKAGE, T_PACKAGE, T_PACKAGE, T_ENTITY, T_ARCH);
+
+   fail_unless(parse() == NULL);
+
+   check_expected_errors();
 }
 END_TEST
 
@@ -7397,6 +7416,7 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_issue1124);
    tcase_add_test(tc_core, test_issue1129);
    tcase_add_test(tc_core, test_issue1138);
+   tcase_add_test(tc_core, test_issue1152);
    suite_add_tcase(s, tc_core);
 
    return s;

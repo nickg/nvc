@@ -12,6 +12,8 @@
   the self-contained MSI package.
 - The Ubuntu binary packages for releases now have predictable names
   without the git commit hash (#1131).
+- Improved error messages when design units have circular dependencies
+  or depend on obsolete design units (#1152).
 
 ## Version 1.15.1 - 2025-01-22
 - Fixed a crash when a subprogram is called with too many named arguments

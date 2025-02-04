@@ -1389,7 +1389,7 @@ tree_t tree_from_locus(ident_t unit, ptrdiff_t offset,
 
 void tree_walk_deps(tree_t t, tree_deps_fn_t fn, void *ctx)
 {
-   object_arena_walk_deps(object_arena(&(t->object)), fn, ctx);
+   arena_walk_deps(object_arena(&(t->object)), fn, ctx);
 }
 
 int tree_stable_compar(const void *pa, const void *pb)

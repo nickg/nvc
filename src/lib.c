@@ -256,6 +256,47 @@ static lib_index_t *lib_find_in_index(lib_t lib, ident_t name)
    return it;
 }
 
+static void lib_obsolete_cb(ident_t name, void *ctx)
+{
+   lib_unit_t *lu = ctx;
+
+   diag_t *d = diag_new(DIAG_ERROR, &lu->object->loc);
+
+   tree_t t1 = tree_from_object(lu->object);
+   if (t1 != NULL)
+      diag_printf(d, "%s ", class_str(class_of(t1)));
+   else
+         diag_printf(d, "design unit ");
+
+   diag_printf(d, "%s depends on an obsolete version of ", istr(lu->name));
+
+   if (lu->name == name) {
+      diag_printf(d, "a design unit with the same name");
+      diag_hint(d, NULL, "this is a caused by a circular dependency on the "
+                "design unit being analysed");
+   }
+   else
+      diag_printf(d, "%s", istr(name));
+
+   diag_emit(d);
+}
+
+static void lib_mark_obsolete(lib_t lib, lib_unit_t *lu, object_t *new)
+{
+   if (lu->object == new)
+      return;
+   else if (lu->dirty) {
+      diag_t *d = diag_new(DIAG_WARN, &new->loc);
+      diag_printf(d, "design unit %s replaces a previously analysed unit "
+                  "with the same name", istr(lu->name));
+      diag_hint(d, &new->loc, "latest definition is here");
+      diag_hint(d, &(lu->object->loc), "previous definition is now obsolete");
+      diag_emit(d);
+   }
+
+   arena_set_obsolete(object_arena(lu->object), true);
+}
+
 static lib_unit_t *lib_put_aux(lib_t lib, object_t *object, bool dirty,
                                bool error, timestamp_t mtime,
                                const unit_meta_t *meta)
@@ -283,8 +324,10 @@ static lib_unit_t *lib_put_aux(lib_t lib, object_t *object, bool dirty,
       where = xcalloc(sizeof(lib_unit_t));
       fresh = true;
    }
-   else
-      hash_delete(lib->lookup, object);
+   else {
+      lib_mark_obsolete(lib, where, object);
+      hash_delete(lib->lookup, where->object);
+   }
 
    where->object = object;
    where->name   = name;
@@ -1043,8 +1086,11 @@ void lib_save(lib_t lib)
          if (lu->error)
             fatal_trace("attempting to save unit %s with errors",
                         istr(lu->name));
-         else
+         else {
+            arena_walk_obsolete_deps(object_arena(lu->object),
+                                     lib_obsolete_cb, lu);
             lib_save_unit(lib, lu);
+         }
       }
    }
 

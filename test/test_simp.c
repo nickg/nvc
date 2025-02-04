@@ -1041,12 +1041,19 @@ START_TEST(test_order1)
 {
    input_from_file(TESTDIR "/simp/order1.vhd");
 
+   const error_t expect[] = {
+      {  6, "design unit WORK.ORDER1 replaces a previously analysed unit with "
+         "the same name" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
    tree_t p = parse_check_and_simplify(T_PACKAGE, T_PACKAGE);
 
    tree_t x = get_decl(p, "X");
    fail_unless(folded_b(tree_value(x), false));
 
-   fail_if_errors();
+   check_expected_errors();
 }
 END_TEST
 

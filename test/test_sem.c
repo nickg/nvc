@@ -1150,6 +1150,8 @@ START_TEST(test_supersede)
    input_from_file(TESTDIR "/sem/supersede.vhd");
 
    const error_t expect[] = {
+      {  8, "design unit WORK.PORTLISTTEST replaces a previously "
+         "analysed unit with the same name" },
       { 18, "WORK.PORTLISTTEST has no port named A" },
       { 19, "WORK.PORTLISTTEST has no port named B" },
       { -1, NULL }
@@ -2238,7 +2240,7 @@ START_TEST(test_issue225)
 }
 END_TEST
 
-START_TEST(test_issue377)
+START_TEST(test_issue377_strict)
 {
    input_from_file(TESTDIR "/sem/issue377.vhd");
 
@@ -2251,6 +2253,12 @@ START_TEST(test_issue377)
 
    parse_and_check(T_PACKAGE, T_PACKAGE, T_ENTITY, T_ARCH, T_ARCH);
 
+   check_expected_errors();
+}
+END_TEST
+
+START_TEST(test_issue377_relaxed)
+{
    opt_set_int(OPT_RELAXED, 1);
 
    input_from_file(TESTDIR "/sem/issue377.vhd");
@@ -2283,7 +2291,7 @@ START_TEST(test_issue377)
       fail_unless(tree_ident(decl) == ident_new("\"=\""));
    }
 
-   check_expected_errors();
+   fail_if_errors();
 }
 END_TEST
 
@@ -4008,7 +4016,8 @@ Suite *get_sem_tests(void)
    tcase_add_test(tc_core, test_issue341);
    tcase_add_test(tc_core, test_issue340);
    tcase_add_test(tc_core, test_issue225);
-   tcase_add_test(tc_core, test_issue377);
+   tcase_add_test(tc_core, test_issue377_strict);
+   tcase_add_test(tc_core, test_issue377_relaxed);
    tcase_add_test(tc_core, test_issue386);
    tcase_add_test(tc_core, test_textio);
    tcase_add_test(tc_core, test_vital1);

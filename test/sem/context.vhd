@@ -51,7 +51,7 @@ end nested;
 
 context work.nested;
 
-entity foo is
+entity foo2 is
     port (
         x : in my_int );                -- OK
 end entity;

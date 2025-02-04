@@ -278,6 +278,9 @@ static int analyse(int argc, char **argv, cmd_state_t *state)
    if (!no_save)
       lib_save(work);
 
+   if (error_count() > 0)
+      return EXIT_FAILURE;   // May have errors saving library
+
    argc -= next_cmd - 1;
    argv += next_cmd - 1;
 

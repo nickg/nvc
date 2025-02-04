@@ -108,7 +108,7 @@ end behave;
 
 use work.all;                           -- OK
 
-entity no_use_clause is
+entity no_use_clause2 is
     port (
         a : in pack1.my_int1;           -- OK
         b : out my_int1 );              -- Error
@@ -132,7 +132,7 @@ end package;
 
 use work.pack4.all;
 
-architecture a of foo is
+architecture d of foo is
     signal x : my_enum_array(1 to 3);           -- OK
     signal y : my_enum_array(1 to 3) := (others => E1);
               -- Error: E1 not visible
