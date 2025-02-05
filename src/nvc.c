@@ -572,9 +572,10 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
       progress("writing JIT pack");
    }
 
-   if (!use_jit || cover != NULL) {
+   if (!use_jit)
       LLVM_ONLY(cgen(top, state->registry, state->jit));
 
+   if (!use_jit || cover != NULL) {
       // Must discard current JIT state to load AOT library later
       model_free(state->model);
       jit_free(state->jit);
