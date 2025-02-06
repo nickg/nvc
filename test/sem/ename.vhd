@@ -45,4 +45,6 @@ begin
     begin
     end process;
 
+    << signal ^.foo : bit >> <= '1';    -- OK (issue #1156)
+
 end architecture;

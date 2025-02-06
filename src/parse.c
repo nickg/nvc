@@ -13202,6 +13202,7 @@ static tree_t p_concurrent_statement(void)
       return p_generate_statement(label);
 
    case tLPAREN:
+   case tLTLT:
       return p_concurrent_signal_assignment_statement(label, NULL);
 
    case tID:
@@ -13259,7 +13260,8 @@ static tree_t p_concurrent_statement(void)
       }
    default:
       expect(tPROCESS, tPOSTPONED, tCOMPONENT, tENTITY, tCONFIGURATION,
-             tWITH, tASSERT, tBLOCK, tIF, tFOR, tCASE, tLPAREN, tID);
+             tWITH, tASSERT, tBLOCK, tIF, tFOR, tCASE, tLPAREN, tID,
+             STD(08, tLTLT));
       drop_tokens_until(tSEMI);
       return ensure_labelled(tree_new(T_BLOCK), label);
    }
