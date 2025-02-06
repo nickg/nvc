@@ -420,6 +420,28 @@ START_TEST(test_timescale1)
 }
 END_TEST
 
+START_TEST(test_defaultnettype)
+{
+   input_from_file(TESTDIR "/vlog/defaultnettype.v");
+
+   const error_t expect[] = {
+      { 12, "unexpected identifier while parsing default_nettype directive, expecting one of wire, tri, tri0, tri1, wand, triand, wor, trior," },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   vlog_node_t m = vlog_parse();
+   fail_if(m == NULL);
+   fail_unless(vlog_kind(m) == V_MODULE);
+
+   vlog_check(m);
+
+   fail_unless(vlog_parse() == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
 START_TEST(test_gate1)
 {
    input_from_file(TESTDIR "/vlog/gate1.v");
@@ -699,6 +721,7 @@ Suite *get_vlog_tests(void)
    tcase_add_test(tc, test_pp1);
    tcase_add_test(tc, test_empty1);
    tcase_add_test(tc, test_timescale1);
+   tcase_add_test(tc, test_defaultnettype);
    tcase_add_test(tc, test_gate1);
    tcase_add_test(tc, test_pp2);
    tcase_add_test(tc, test_specify1);

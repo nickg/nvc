@@ -3888,6 +3888,19 @@ static void p_timescale_compiler_directive(void)
    set_timescale(unit_value, unit_name, prec_value, prec_name, CURRENT_LOC);
 }
 
+static void p_defaultnettype_compiler_directive(void)
+{
+   // `default_nettype wire | tri | tri0 | tri1 | wand | triand | wor | trior | trireg | uwire | none
+
+   BEGIN("default_nettype directive");
+
+   consume(tDEFNETTYPE);
+
+   one_of(tWIRE, tTRI, tTRI0, tTRI1, tWAND, tTRIAND, tWOR, tTRIOR, tTRIREG, tUWIRE, tNONE);
+
+   // TODO: do something with the directive
+}
+
 static void p_keywords_directive(void)
 {
    // `begin_keywords "version_specifier"
@@ -3915,6 +3928,9 @@ static void p_directive_list(void)
 
    for (;;) {
       switch (peek()) {
+      case tDEFNETTYPE:
+         p_defaultnettype_compiler_directive();
+         break;
       case tTIMESCALE:
          p_timescale_compiler_directive();
          break;

@@ -425,5 +425,16 @@ void reset_sdf_parser(void);
 #define tPLUSPLUS      524
 #define tMINUSMINUS    525
 #define tVAR           526
+#define tDEFNETTYPE    527
+#define tTRI           528
+#define tTRI0          529
+#define tTRI1          530
+#define tWAND          531
+#define tTRIAND        532
+#define tWOR           533
+#define tTRIOR         534
+#define tTRIREG        535
+#define tUWIRE         536
+#define tNONE          537
 
 #endif  // _SCAN_H
