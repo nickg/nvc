@@ -29,6 +29,7 @@
 #include <stdlib.h>
 #include <time.h>
 #include <libgen.h>
+#include <inttypes.h>
 
 #define MARGIN_LEFT "20%%"
 #define SIDEBAR_WIDTH "15%%"
@@ -727,9 +728,10 @@ static void cover_print_bins(FILE *f, cover_pair_t *first_pair, cov_pair_kind_t 
          const char *v[item->n_ranges] LOCAL;
          for (int i = 0; i < item->n_ranges; i++)
             if (item->ranges[i].min == item->ranges[i].max)
-               v[i] = xasprintf("%d", item->ranges[i].min);
+               v[i] = xasprintf("%"PRIi64, item->ranges[i].min);
             else
-               v[i] = xasprintf("%d - %d", item->ranges[i].min, item->ranges[i].max);
+               v[i] = xasprintf("%"PRIi64" - %"PRIi64, item->ranges[i].min,
+                                item->ranges[i].max);
 
          cover_print_bin(f, pair, COV_FLAG_USER_DEFINED, pkind, item->n_ranges, v);
          break;
