@@ -15,7 +15,9 @@
 - Improved error messages when design units have circular dependencies
   or depend on obsolete design units (#1152).
 - Functional coverage is now reported correctly when summing from nested
-  hierarchies
+  hierarchies (#1154).
+- External names can now be the target of concurrent signal assignment
+  statements (#1156).
 
 ## Version 1.15.1 - 2025-01-22
 - Fixed a crash when a subprogram is called with too many named arguments
