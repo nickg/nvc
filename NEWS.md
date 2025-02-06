@@ -1,6 +1,8 @@
 ## Unreleased changes
 - Fixed invalid LLVM IR generation which could cause a crash with LLVM
   14 (#1145).
+- Functional coverage is now reported correctly when summing from nested
+  hierarchies
 
 ## Version 1.15.1 - 2025-01-22
 - Fixed a crash when a subprogram is called with too many named arguments

@@ -1427,6 +1427,8 @@ static void cover_report_hier_children(cover_rpt_hier_ctx_t *ctx,
          ctx->nested_stats.total_expressions += sub_ctx.nested_stats.total_expressions;
          ctx->nested_stats.hit_states += sub_ctx.nested_stats.hit_states;
          ctx->nested_stats.total_states += sub_ctx.nested_stats.total_states;
+         ctx->nested_stats.hit_functional += sub_ctx.nested_stats.hit_functional;
+         ctx->nested_stats.total_functional += sub_ctx.nested_stats.total_functional;
       }
       else
          cover_report_hier_scope(ctx, it, dir, summf, skipped);
