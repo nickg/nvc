@@ -41,4 +41,7 @@ vcode_reg_t psl_lower_fcall(lower_unit_t *lu, psl_node_t p);
 // Lower PSL union expression
 vcode_reg_t psl_lower_union(lower_unit_t *lu, psl_node_t p);
 
+// Lower PSL parameter reference
+vcode_reg_t psl_lower_param_ref(lower_unit_t *lu, tree_t p);
+
 #endif  // _PSL_PHASE_H

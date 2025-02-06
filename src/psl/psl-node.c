@@ -133,6 +133,11 @@ static const char *kind_text_map[P_LAST_PSL_KIND] = {
    "P_PARAM_SERE", "P_CLOCKED", "P_ENDPOINT_DECL",
 };
 
+static const char *type_text_map[PSL_TYPE_LAST] = {
+   "hdltype", "boolean", "bit", "bitvector", "numeric", "string", "sequence",
+   "property", "any",
+};
+
 static const change_allowed_t change_allowed[] = {
    { -1, -1 }
 };
@@ -223,6 +228,11 @@ void psl_set_subkind(psl_node_t p, unsigned sub)
 psl_type_t psl_type(psl_node_t p)
 {
    return lookup_item(&psl_object, p, I_CLASS)->ival;
+}
+
+const char *psl_type_str(psl_type_t type)
+{
+   return type_text_map[type];
 }
 
 void psl_set_type(psl_node_t p, psl_type_t type)

@@ -47,6 +47,7 @@ typedef struct _lower_unit {
    vcode_unit_t     vunit;
    cover_data_t    *cover;
    cover_scope_t   *cscope;
+   psl_scope_t     *pscope;
    bool             finished;
    lower_mode_t     mode;
    unsigned         deferred;

@@ -18,6 +18,7 @@
 #include "util.h"
 #include "common.h"
 #include "cov/cov-api.h"
+#include "hash.h"
 #include "lib.h"
 #include "lower.h"
 #include "option.h"
@@ -97,6 +98,22 @@ static vcode_reg_t psl_debug_locus(psl_node_t p)
 static vcode_reg_t psl_assert_severity(void)
 {
    return emit_const(vtype_int(0, 3), 2);
+}
+
+vcode_reg_t psl_lower_param_ref(lower_unit_t *lu, tree_t p)
+{
+   assert(lu->pscope != NULL);
+
+   psl_scope_t *scope = lu->pscope;
+   tree_t actual = hash_get(scope->args, p);
+
+   while (actual == NULL && scope->parent != NULL) {
+      scope = scope->parent;
+      actual = hash_get(scope->args, p);
+   }
+
+   assert(actual != NULL);
+   return lower_rvalue(lu, actual);
 }
 
 static vcode_reg_t psl_lower_guard(lower_unit_t *lu, psl_guard_t g)
@@ -202,6 +219,8 @@ static void psl_lower_state(lower_unit_t *lu, psl_fsm_t *fsm,
    vcode_type_t vbool = vtype_bool();
    vcode_reg_t vfalse = emit_const(vbool, 0);
    vcode_reg_t vtrue = emit_const(vbool, 1);
+
+   lu->pscope = state->scope;
 
    if (state->accept) {
       vcode_block_t cont_bb = vcode_active_block();
@@ -681,6 +700,9 @@ void psl_lower_decl(unit_registry_t *ur, lower_unit_t *parent, psl_node_t p,
    switch (psl_kind(p)) {
    case P_CLOCK_DECL:
       psl_lower_clock_decl(ur, parent, p, label);
+      break;
+   case P_SEQUENCE_DECL:
+      // Inlined in the directive where instantiated
       break;
    default:
       fatal_at(psl_loc(p), "cannot lower PSL declaration kind %s",

@@ -284,9 +284,23 @@ static void psl_check_property_inst(psl_node_t p)
 
 }
 
-static void psl_check_sequence_inst(psl_node_t p)
+static void psl_check_sequence_inst(psl_node_t p, nametab_t *tab)
 {
+   psl_node_t decl = psl_ref(p);
 
+   int inst_params = psl_operands(p);
+   int decl_params = psl_ports(decl);
+
+   if (inst_params != decl_params) {
+      diag_t *d = diag_new(DIAG_ERROR, psl_loc(p));
+      diag_printf(d, "PSL sequence instance has incorrect number of arguments");
+      diag_hint(d, psl_loc(decl), "sequence declaration has %d argument(s)", decl_params);
+      diag_hint(d, psl_loc(p), "sequence instance has %d argument(s)", inst_params);
+      diag_emit(d);
+   }
+
+   for (int i = 0; i < inst_params; i++)
+      psl_check(psl_operand(p, i), tab);
 }
 
 static void psl_check_sere(psl_node_t p, nametab_t *tab)
@@ -537,7 +551,7 @@ void psl_check(psl_node_t p, nametab_t *tab)
       psl_check_property_inst(p);
       break;
    case P_SEQUENCE_INST:
-      psl_check_sequence_inst(p);
+      psl_check_sequence_inst(p, tab);
       break;
    case P_NEVER:
       psl_check_never(p, tab);

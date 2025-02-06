@@ -12001,7 +12001,7 @@ static void p_psl_formal_parameter(psl_node_t node)
    type_t type = p_psl_param_spec(node, &psl_type, &class);
 
    do {
-      tree_t p = tree_new(T_PARAM_DECL);
+      tree_t p = tree_new(T_PSL_PARAM_DECL);
       tree_set_ident(p, p_identifier());
       tree_set_loc(p, CURRENT_LOC);
       tree_set_class(p, class);
@@ -12024,7 +12024,7 @@ static void p_psl_formal_parameter_list(psl_node_t node)
       p_psl_formal_parameter(node);
 }
 
-static void p_psl_actual_parameter(psl_node_t node, bool seq)
+static void p_psl_actual_parameter(psl_node_t node, psl_type_t type)
 {
    // Actual_Parameter ::=
    //    AnyType | Sequence | Property
@@ -12033,12 +12033,32 @@ static void p_psl_actual_parameter(psl_node_t node, bool seq)
 
    BEGIN("PSL Actual parameter");
 
-   // "Sequence" includes "Any_Type" parsing (HDL or PSL expression)
-   // "Property" includes "Sequence" parsing
-   psl_add_operand(node, (seq) ? p_psl_sequence() : p_psl_property());
+   psl_node_t arg;
+   switch (type) {
+   case PSL_TYPE_BIT:
+   case PSL_TYPE_BOOLEAN:
+   case PSL_TYPE_BITVECTOR:
+   case PSL_TYPE_NUMERIC:
+   case PSL_TYPE_STRING:
+   case PSL_TYPE_HDLTYPE:
+   case PSL_TYPE_ANY:
+      arg = p_hdl_expression(NULL, type);
+      break;
+   case PSL_TYPE_SEQUENCE:
+      arg = p_psl_sequence();
+      break;
+   case PSL_TYPE_PROPERTY:
+      arg = p_psl_property();
+      break;
+   default:
+      fatal_trace("unexpected psl type kind %s in p_psl_actual_parameter",
+                  psl_type_str(type));
+   }
+
+   psl_add_operand(node, arg);
 }
 
-static void p_psl_actual_parameter_list(psl_node_t node, bool seq)
+static void p_psl_actual_parameter_list(psl_node_t p)
 {
 
    // sequence_Actual_Parameter { , sequence_Actual_Parameter }
@@ -12046,10 +12066,16 @@ static void p_psl_actual_parameter_list(psl_node_t node, bool seq)
 
    BEGIN("PSL Actual parameter list");
 
-   p_psl_actual_parameter(node, seq);
+   psl_node_t decl = psl_ref(p);
+   int decl_params = psl_ports(decl);
+   int n = 0;
 
-   while (optional(tCOMMA))
-      p_psl_actual_parameter(node, seq);
+   do {
+      tree_t param_decl = (n < decl_params) ? psl_port(decl, n) : NULL;
+      psl_type_t type = (param_decl) ? tree_subkind(param_decl) : PSL_TYPE_ANY;
+      p_psl_actual_parameter(p, type);
+   } while (optional(tCOMMA));
+
 }
 
 static psl_node_t p_psl_clocked_sere(psl_node_t head)
@@ -12306,7 +12332,7 @@ static psl_node_t p_psl_repeated_sere(psl_node_t head)
    return p;
 }
 
-static psl_node_t p_sequence_instance(tree_t decl)
+static psl_node_t p_psl_sequence_instance(tree_t decl)
 {
    // Name [ ( Actual_Parameter_List ) ]
 
@@ -12322,7 +12348,7 @@ static psl_node_t p_sequence_instance(tree_t decl)
    psl_set_ref(p, s_decl);
 
    if (optional(tLPAREN)) {
-      p_psl_actual_parameter_list(p, true);
+      p_psl_actual_parameter_list(p);
       consume(tRPAREN);
    }
 
@@ -12349,7 +12375,7 @@ static psl_node_t p_psl_sequence(void)
          if (tree_kind(name) == T_REF && tree_has_ref(name)) {
             tree_t decl = tree_ref(name);
             if (tree_kind(decl) == T_PSL_DECL)
-               head = p_sequence_instance(decl);
+               head = p_psl_sequence_instance(decl);
          }
 
          if (head == NULL)

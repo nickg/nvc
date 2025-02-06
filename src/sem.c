@@ -3926,6 +3926,7 @@ static bool sem_check_ref(tree_t t, nametab_t *tab)
    case T_PARAM_DECL:
    case T_PACKAGE:
    case T_PACK_INST:
+   case T_PSL_PARAM_DECL:
       break;
 
    case T_CONST_DECL:

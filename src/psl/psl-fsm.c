@@ -47,6 +47,7 @@ static fsm_state_t *add_state(psl_fsm_t *fsm, psl_node_t where)
    fsm_state_t *s = pool_calloc(fsm->pool, sizeof(fsm_state_t));
    s->id    = fsm->next_id++;
    s->where = where;
+   s->scope = fsm->curr_scope;
 
    *(fsm->tail) = s;
    fsm->tail = &(s->next);
@@ -636,6 +637,41 @@ static fsm_state_t *build_suffix_impl(psl_fsm_t *fsm, fsm_state_t *state,
    return final;
 }
 
+static psl_scope_t *psl_scope_new(psl_fsm_t *fsm)
+{
+   psl_scope_t *s = pool_malloc(fsm->pool, sizeof(psl_scope_t));
+   s->args = hash_new(8);
+   s->prev = fsm->last_scope;
+   fsm->last_scope = s;
+
+   return s;
+}
+
+static fsm_state_t *build_sequence_inst(psl_fsm_t *fsm, fsm_state_t *state,
+                                        psl_node_t p)
+{
+   psl_scope_t *scope = psl_scope_new(fsm);
+   psl_node_t decl = psl_ref(p);
+   const int n_ports = psl_ports(decl);
+
+   // Sequence arguments always passed by order
+   for (int i = 0; i < n_ports; i++) {
+      tree_t formal = psl_port(decl, i);
+      tree_t actual = psl_tree(psl_operand(p, i));
+      hash_put(scope->args, formal, actual);
+   }
+
+   scope->parent = fsm->curr_scope;
+   fsm->curr_scope = scope;
+   state->scope = scope;
+
+   fsm_state_t *last = build_node(fsm, state, psl_value(psl_ref(p)));
+
+   fsm->curr_scope = fsm->curr_scope->parent;
+
+   return last;
+}
+
 static fsm_state_t *build_node(psl_fsm_t *fsm, fsm_state_t *state, psl_node_t p)
 {
    switch (psl_kind(p)) {
@@ -673,6 +709,8 @@ static fsm_state_t *build_node(psl_fsm_t *fsm, fsm_state_t *state, psl_node_t p)
       return build_suffix_impl(fsm, state, p);
    case P_CLOCKED:
       return build_node(fsm, state, psl_value(p));
+   case P_SEQUENCE_INST:
+      return build_sequence_inst(fsm, state, p);
    default:
       CANNOT_HANDLE(p);
    }
@@ -849,6 +887,9 @@ psl_fsm_t *psl_fsm_new(psl_node_t p, ident_t label)
 
 void psl_fsm_free(psl_fsm_t *fsm)
 {
+   for (psl_scope_t *s = fsm->last_scope; s; s = s->prev)
+      hash_free(s->args);
+
    pool_free(fsm->pool);
    free(fsm);
 }
