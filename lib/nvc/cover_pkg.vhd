@@ -27,7 +27,7 @@ package cover_pkg is
 
     type t_item_handle is range -1 to 2147483647;
 
-    type t_item_range_value is range 0 to 2147483647;
+    type t_item_range_value is range -9223372036854775807 - 1 to 9223372036854775807;
 
     type t_item_range is record
         min : t_item_range_value;
