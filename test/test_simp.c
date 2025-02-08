@@ -1797,6 +1797,37 @@ START_TEST(test_synth1)
 }
 END_TEST
 
+START_TEST(test_genpack2)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/simp/genpack2.vhd");
+
+   tree_t p3 = parse_check_and_simplify(T_PACKAGE, T_PACKAGE, T_PACKAGE);
+   ck_assert_int_eq(tree_generics(p3), 1);
+
+   tree_t p3g0 = tree_generic(p3, 0);
+   fail_unless(tree_class(p3g0) == C_PACKAGE);
+
+   tree_t p3g0v = tree_value(p3g0);
+   fail_unless(tree_kind(p3g0v) == T_PACKAGE_MAP);
+   fail_unless(tree_subkind(p3g0v) == PACKAGE_MAP_BOX);
+   fail_unless(tree_genmaps(p3g0v) == 0);
+
+   tree_t pi = tree_decl(p3, 0);
+   fail_unless(tree_kind(pi) == T_PACK_INST);
+
+   tree_t c = tree_decl(pi, 0);
+   fail_unless(tree_kind(c) == T_CONST_DECL);
+
+   int64_t val;
+   fail_unless(folded_int(tree_value(c), &val));
+   ck_assert_int_eq(val, 3);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_simp_tests(void)
 {
    Suite *s = suite_create("simplify");
@@ -1868,6 +1899,7 @@ Suite *get_simp_tests(void)
    tcase_add_test(tc_core, test_packinst1);
    tcase_add_test(tc_core, test_physical);
    tcase_add_test(tc_core, test_synth1);
+   tcase_add_test(tc_core, test_genpack2);
    suite_add_tcase(s, tc_core);
 
    return s;
