@@ -819,6 +819,18 @@ unreachable coverage items:
 .Bl -bullet
 .It
 Toggle coverage on instance ports driven by constant value.
+.It
+Expression coverage bins where right side of the expression is not evaluated
+due to left side value being sufficient to determine expression result.
+This applies to following cases:
+.Bl -bullet
+.It
+.Ql or
+expression bin with LHS=True, RHS=False
+.It
+.Ql and
+expression bin with LHS=False, RHS=True.
+.El
 .El
 .It
 .Cm fsm-no-default-enums
