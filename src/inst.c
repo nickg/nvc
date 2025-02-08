@@ -346,7 +346,7 @@ static tree_t instance_fixup_cb(tree_t t, void *__ctx)
 
    switch (tree_kind(t)) {
    case T_REF:
-      if (tree_flags(t) & TREE_F_FORMAL_NAME)
+      if (tree_flags(t) & (TREE_F_FORMAL_NAME | TREE_F_ATTR_PREFIX))
          return t;   // Do not rewrite names in generic maps
       // Fall-through
    case T_FCALL:
@@ -355,7 +355,11 @@ static tree_t instance_fixup_cb(tree_t t, void *__ctx)
    case T_PROT_PCALL:
       if (tree_has_ref(t)) {
          tree_t new = hash_get(map, tree_ref(t));
-         if (new != NULL)
+         if (new == NULL)
+            return t;
+         else if (is_literal(new))
+            return new;
+         else
             tree_set_ref(t, new);
       }
       break;
@@ -379,7 +383,18 @@ static tree_t instance_fixup_cb(tree_t t, void *__ctx)
    return t;
 }
 
+static void instance_hint_cb(diag_t *d, void *ctx)
+{
+   tree_t inst = ctx;
+   diag_hint(d, tree_loc(inst), "while instantiating %s",
+             istr(tree_ident(inst)));
+}
+
 void instance_fixup(tree_t inst, hash_t *map)
 {
+   diag_add_hint_fn(instance_hint_cb, inst);
+
    tree_rewrite(inst, NULL, instance_fixup_cb, rewrite_generic_types_cb, map);
+
+   diag_remove_hint_fn(instance_hint_cb);
 }

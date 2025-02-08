@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2024  Nick Gasson
+//  Copyright (C) 2011-2025  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -5225,6 +5225,7 @@ static bool sem_check_generic_actual(formal_map_t *formals, int nformals,
                    "generic %s", type_pp(tree_type(value)), type_pp(type),
                    istr(tree_ident(decl)));
 
+      if (is_full) map_generic_const(tab, decl, value);
       break;
 
    default:

@@ -519,6 +519,19 @@ void map_generic_package(nametab_t *tab, tree_t generic, tree_t actual)
    }
 }
 
+void map_generic_const(nametab_t *tab, tree_t generic, tree_t actual)
+{
+   if (tab->top_scope->container == NULL)
+      return;
+   else if (!is_literal(actual))
+      return;
+
+   if (tab->top_scope->gmap == NULL)
+      tab->top_scope->gmap = hash_new(128);
+
+   hash_put(tab->top_scope->gmap, generic, actual);
+}
+
 hash_t *get_generic_map(nametab_t *tab)
 {
    return tab->top_scope->gmap;

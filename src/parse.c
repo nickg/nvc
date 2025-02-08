@@ -1806,8 +1806,13 @@ static void instantiate_package(tree_t new, tree_t pack, tree_t body)
       tree_add_generic(new, tree_generic(pack_copy, i));
 
    const int ndecls = tree_decls(pack_copy);
-   for (int i = 0; i < ndecls; i++)
-      tree_add_decl(new, tree_decl(pack_copy, i));
+   for (int i = 0; i < ndecls; i++) {
+      tree_t d = tree_decl(pack_copy, i);
+      if (tree_kind(d) == T_CONST_DECL && !tree_has_value(d))
+         continue;   // Skip deferred constants
+
+      tree_add_decl(new, d);
+   }
 
    tree_set_global_flags(new, tree_global_flags(pack));
 
@@ -2617,8 +2622,12 @@ static void package_body_deferred_instantiation(tree_t pack, tree_t container)
             case C_PROCEDURE:
                hash_put(gmap, g, tree_ref(value));
                break;
-            default:
+            case C_CONSTANT:
+               if (is_literal(value))
+                  hash_put(gmap, g, value);
                break;
+            default:
+               should_not_reach_here();
             }
          }
 

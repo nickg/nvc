@@ -171,8 +171,6 @@ static bool _type_eq(type_t a, type_t b, bool strict, hash_t *map)
    type_kind_t kind_b = b->object.kind;
 
    if (map != NULL) {
-      assert(standard() >= STD_08);   // Type generics
-
       a = hash_get(map, a) ?: a;
       kind_a = a->object.kind;
 

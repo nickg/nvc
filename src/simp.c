@@ -1752,55 +1752,6 @@ static tree_t simp_tree(tree_t t, void *_ctx)
    }
 }
 
-static void simp_generics(tree_t t, simp_ctx_t *ctx)
-{
-   const int ngenerics = tree_generics(t);
-   for (int i = 0; i < ngenerics; i++) {
-      tree_t g = tree_generic(t, i);
-
-      tree_t map = find_generic_map(t, i, g);
-      if (map == NULL)
-         continue;
-
-      if (tree_kind(map) == T_OPEN)
-         map = tree_value(g);
-
-      if (ctx->generics != NULL && tree_kind(map) == T_REF) {
-         tree_t remap;
-         if ((remap = hash_get(ctx->generics, tree_ref(map))))
-            map = remap;
-      }
-
-      if (!is_literal(map))
-         continue;
-
-      if (ctx->generics == NULL)
-         ctx->generics = hash_new(128);
-
-      // This value can be safely substituted for all references to
-      // the generic name
-      hash_put(ctx->generics, g, map);
-   }
-}
-
-static void simp_pre_cb(tree_t t, void *__ctx)
-{
-   simp_ctx_t *ctx = __ctx;
-
-   switch (tree_kind(t)) {
-   case T_BLOCK:
-   case T_PACKAGE:
-   case T_PACK_INST:
-   case T_FUNC_INST:
-   case T_PROC_INST:
-      if (tree_genmaps(t) > 0)
-         simp_generics(t, ctx);
-      break;
-   default:
-      break;
-   }
-}
-
 void simplify_local(tree_t top, jit_t *jit, unit_registry_t *ur)
 {
    simp_ctx_t ctx = {
@@ -1810,10 +1761,7 @@ void simplify_local(tree_t top, jit_t *jit, unit_registry_t *ur)
       .eval_mask = TREE_F_LOCALLY_STATIC,
    };
 
-   tree_rewrite(top, simp_pre_cb, simp_tree, NULL, &ctx);
-
-   if (ctx.generics)
-      hash_free(ctx.generics);
+   tree_rewrite(top, NULL, simp_tree, NULL, &ctx);
 }
 
 void simplify_global(tree_t top, hash_t *generics, jit_t *jit,
@@ -1827,8 +1775,5 @@ void simplify_global(tree_t top, hash_t *generics, jit_t *jit,
       .generics  = generics,
    };
 
-   tree_rewrite(top, simp_pre_cb, simp_tree, NULL, &ctx);
-
-   if (generics == NULL && ctx.generics != NULL)
-      hash_free(ctx.generics);
+   tree_rewrite(top, NULL, simp_tree, NULL, &ctx);
 }
