@@ -5,6 +5,8 @@
   hierarchies (#1154).
 - External names can now be the target of concurrent signal assignment
   statements (#1156).
+- Fixed a crash when packages are passed through multiple layers of
+  generics.
 
 ## Version 1.15.1 - 2025-01-22
 - Fixed a crash when a subprogram is called with too many named arguments

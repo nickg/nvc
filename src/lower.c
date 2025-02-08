@@ -2971,8 +2971,19 @@ static vcode_reg_t lower_generic_ref(lower_unit_t *lu, tree_t decl,
                      istr(tree_ident(decl)), istr(tree_ident(unit)));
       }
    }
+   else if (var & INSTANCE_BIT) {
+      // This generic is declared in an instantiated package
+      vcode_var_t pkg_var = var & ~INSTANCE_BIT;
+      vcode_reg_t pkg_reg;
+      if (hops == 0)
+         pkg_reg = emit_load(pkg_var);
+      else
+         pkg_reg = emit_load_indirect(emit_var_upref(hops, pkg_var));
 
-   if (hops > 0)
+      vcode_type_t vtype = lower_var_type(decl);
+      ptr_reg = emit_link_var(pkg_reg, tree_ident(decl), vtype);
+   }
+   else if (hops > 0)
       ptr_reg = emit_var_upref(hops, var);
 
    if (ptr_reg != VCODE_INVALID_REG) {
@@ -9763,6 +9774,10 @@ static void lower_instantiated_package(lower_unit_t *parent, tree_t decl)
    vcode_reg_t pkg_reg = emit_package_init(name, emit_context_upref(0));
    emit_store(pkg_reg, var);
 
+   const int ngenerics = tree_generics(tree_ref(decl));
+   for (int i = 0; i < ngenerics; i++)
+      lower_put_vcode_obj(tree_generic(decl, i), var | INSTANCE_BIT, parent);
+
    const int ndecls = tree_decls(tree_ref(decl));
    for (int i = 0; i < ndecls; i++)
       lower_put_vcode_obj(tree_decl(decl, i), var | INSTANCE_BIT, parent);
@@ -12697,11 +12712,10 @@ static void lower_pack_inst_generics(lower_unit_t *lu, tree_t inst, tree_t map)
    const int ngenerics = tree_generics(inst);
    for (int i = 0; i < ngenerics; i++) {
       tree_t g = tree_generic(inst, i);
-      type_t type = tree_type(g);
-
       if (tree_class(g) != C_CONSTANT)
          continue;
 
+      type_t type = tree_type(g);
       vcode_type_t vtype = lower_type(type);
       vcode_type_t vbounds = lower_bounds(type);
 

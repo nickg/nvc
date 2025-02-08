@@ -1721,9 +1721,12 @@ static tree_t simp_tree(tree_t t, void *_ctx)
       return simp_range(t);
    case T_SEQUENCE:
       return simp_sequence(t);
+   case T_PACKAGE_MAP:
+      if (tree_subkind(t) != PACKAGE_MAP_MATCHING)
+         return t;
+      // Fall-through
    case T_INSTANCE:
    case T_BINDING:
-   case T_PACKAGE_MAP:
       simp_generic_map(t, tree_ref(t));
       return t;
    case T_BLOCK:
