@@ -770,21 +770,25 @@ NVC supports the following additional options to control coverage collection:
 .Bl -bullet
 .It
 .Cm count-from-undefined
-- When set, NVC also counts toggles
+- When set, NVC also counts toggles from
 .Cm U
-->
+/
+.Cm X
+to
 .Cm 1
 as
 .Cm 0
-->
+to
 .Cm 1
-and toggles
+and toggles from
 .Cm U
-->
+/
+.Cm X
+to
 .Cm 0
 as
 .Cm 1
-->
+/
 .Cm 0
 during toggle coverage collection.
 .It

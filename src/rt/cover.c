@@ -73,9 +73,9 @@ static inline void cover_toggle_check_0_1_u(uint8_t old, uint8_t new,
    else if (old == _1 && new == _0)
       increment_counter(toggle_10);
 
-   else if (old == _U && new == _1)
+   else if ((old == _U || old == _X) && new == _1)
       increment_counter(toggle_01);
-   else if (old == _U && new == _0)
+   else if ((old == _U || old == _X) && new == _0)
       increment_counter(toggle_10);
 }
 
@@ -106,9 +106,9 @@ static inline void cover_toggle_check_0_1_u_z(uint8_t old, uint8_t new,
    else if (old == _1 && new == _0)
       increment_counter(toggle_10);
 
-   else if (old == _U && new == _1)
+   else if ((old == _U || old == _X) && new == _1)
       increment_counter(toggle_01);
-   else if (old == _U && new == _0)
+   else if ((old == _U || old == _X) && new == _0)
       increment_counter(toggle_10);
 
    else if (old == _0 && new == _Z)
