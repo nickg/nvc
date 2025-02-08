@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2024  Nick Gasson
+//  Copyright (C) 2011-2025  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -394,6 +394,33 @@ START_TEST(test_new_n)
 }
 END_TEST
 
+START_TEST(test_casecmp)
+{
+   static const struct {
+      const char *a, *b;
+      bool result;
+   } cases[] = {
+      { "abcd", "abcd", true },
+      { "abcd", "abc", false },
+      { "abcd", "aBCd", true },
+      { "123456789123456789abcD", "123456789123456789abcd", true },
+      { "123456789123456789abcD", "123456789123456789abcdx", false },
+      { "123456789123456789abcD", "123456789123456789abbd", false },
+   };
+
+   for (int i = 0; i < ARRAY_LEN(cases); i++) {
+      ident_t a = ident_new(cases[i].a);
+      ident_t b = ident_new(cases[i].b);
+
+      const bool cmp = ident_casecmp(a, b);
+      ck_assert_msg(cmp == cases[i].result,
+                    "%s %c= %s failed", cases[i].a,
+                    cases[i].result ? '=' : '!', cases[i].b);
+      ck_assert((ident_casehash(a) == ident_casehash(b)) == cases[i].result);
+   }
+}
+END_TEST
+
 Suite *get_ident_tests(void)
 {
    Suite *s = suite_create("ident");
@@ -422,6 +449,7 @@ Suite *get_ident_tests(void)
    tcase_add_test(tc_core, test_pos);
    tcase_add_test(tc_core, test_sprintf);
    tcase_add_test(tc_core, test_new_n);
+   tcase_add_test(tc_core, test_casecmp);
    suite_add_tcase(s, tc_core);
 
    return s;

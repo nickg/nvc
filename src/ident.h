@@ -70,6 +70,8 @@ int ident_compare(ident_t a, ident_t b);
 bool ident_glob(ident_t i, const char *glob, int length);
 
 uint32_t ident_hash(ident_t i);
+uint32_t ident_casehash(ident_t i);
+bool ident_casecmp(ident_t a, ident_t b);
 
 // Convert an indentifier to lower case
 ident_t ident_downcase(ident_t i);

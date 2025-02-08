@@ -29,6 +29,10 @@
 #include <ctype.h>
 #include <limits.h>
 
+#ifdef ARCH_X86_64
+#include <x86intrin.h>
+#endif
+
 #define HASH_INIT 5381;
 typedef uint32_t hash_state_t;
 
@@ -53,12 +57,14 @@ struct ident_wr_ctx {
 };
 
 struct _ident {
-   hash_state_t hash;
+   hash_state_t hash[2];
    uint32_t     write_index;
    uint16_t     write_gen;
    uint16_t     length;
    char         bytes[0];
 };
+
+STATIC_ASSERT(offsetof(struct _ident, bytes) == 16);
 
 typedef struct {
    size_t  size;
@@ -84,12 +90,12 @@ static inline int hash_update(hash_state_t *state, const char *key, int nchars)
 
 static ident_t ident_alloc(size_t len, hash_state_t hash)
 {
-   ident_t id = xmalloc_flex(sizeof(struct _ident), len + 1, sizeof(char));
+   const size_t aligned = ALIGN_UP(len + 1, 16);
+   ident_t id = xcalloc_flex(sizeof(struct _ident), aligned, sizeof(char));
    id->length      = len;
    id->write_gen   = 0;
    id->write_index = 0;
-   id->hash        = hash;
-   id->bytes[len]  = '\0';
+   id->hash[0]     = hash;
 
    return id;
 }
@@ -115,7 +121,7 @@ static void copy_table(ident_tab_t *from, ident_tab_t *to)
          assert(pointer_tag(id) != MOVED_TAG);
 
          if (id != NULL) {
-            for (int slot = id->hash & (to->size - 1), i = 1;;
+            for (int slot = id->hash[0] & (to->size - 1), i = 1;;
                  slot = (slot + i) & (to->size - 1), i++) {
                ident_t exist = load_acquire(&(to->slots[slot]));
                if (exist == NULL) {
@@ -501,12 +507,9 @@ bool ident_starts_with(ident_t a, ident_t b)
 
 char ident_char(ident_t i, unsigned n)
 {
-   if (i == NULL)
-      return '\0';
-   else {
-      assert(n < i->length);
-      return i->bytes[n];
-   }
+   assert(i != NULL);
+   assert(n < i->length);
+   return i->bytes[n];
 }
 
 int ident_pos(ident_t i, char ch)
@@ -707,5 +710,55 @@ int ident_distance(ident_t a, ident_t b)
 
 uint32_t ident_hash(ident_t i)
 {
-   return i->hash;
+   return i->hash[0];
+}
+
+uint32_t ident_casehash(ident_t i)
+{
+   if (i->hash[1] != 0)
+      return i->hash[1];
+
+   hash_state_t hash = HASH_INIT;
+   for (int n = 0; n < i->length; n++)
+      hash = ((hash << 5) + hash) + toupper_iso88591(i->bytes[n]);
+
+   return (i->hash[1] = mix_bits_32(hash));
+}
+
+bool ident_casecmp(ident_t a, ident_t b)
+{
+   if (a == b)
+      return true;
+   else if (a->length != b->length)
+      return false;
+
+#ifdef ARCH_X86_64
+   __m128i lower = _mm_set1_epi8('a' - 1);
+   __m128i upper = _mm_set1_epi8('z' + 1);
+   __m128i delta = _mm_set1_epi8('a' - 'A');
+
+   for (int pos = 0; pos < a->length; pos += 16) {
+      __m128i av = _mm_load_si128((const __m128i *)(a->bytes + pos));
+      __m128i bv = _mm_load_si128((const __m128i *)(b->bytes + pos));
+
+      __m128i a_mask = _mm_and_si128(_mm_cmpgt_epi8(av, lower),
+                                     _mm_cmplt_epi8(av, upper));
+      __m128i b_mask = _mm_and_si128(_mm_cmpgt_epi8(bv, lower),
+                                     _mm_cmplt_epi8(bv, upper));
+
+      __m128i a_toupper = _mm_sub_epi8(av, _mm_and_si128(a_mask, delta));
+      __m128i b_toupper = _mm_sub_epi8(bv, _mm_and_si128(b_mask, delta));
+
+      __m128i cmp = _mm_cmpeq_epi8(a_toupper, b_toupper);
+      if (_mm_movemask_epi8(cmp) != 0xffff)
+         return false;
+   }
+#else
+   for (int i = 0; i < a->length; i++) {
+      if (toupper_iso88591(a->bytes[i]) != toupper_iso88591(b->bytes[i]))
+         return false;
+   }
+#endif
+
+   return true;
 }

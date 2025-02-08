@@ -623,15 +623,34 @@ formal_kind_t scope_formal_kind(nametab_t *tab)
    return tab->top_scope->formal_kind;
 }
 
+static uint32_t hash_name(ident_t name)
+{
+   if (isalpha_iso88591(ident_char(name, 0)))
+      return ident_casehash(name);
+   else
+      return ident_hash(name);
+}
+
+static bool compare_name(ident_t a, ident_t b)
+{
+   if (a == b)
+      return true;
+   else if (isalpha_iso88591(ident_char(a, 0)))
+      return ident_casecmp(a, b);
+   else
+      return false;
+}
+
 static symbol_t *lookup_symbol(scope_t *s, ident_t name)
 {
-   const uint32_t hash = ident_hash(name);
+   const uint32_t hash = hash_name(name);
 
    for (int slot = hash & (s->tabsz - 1);; slot = (slot + 1) & (s->tabsz - 1)) {
-      if (s->symtab[slot] == NULL)
+      symbol_t *sym = s->symtab[slot];
+      if (sym == NULL)
          return NULL;
-      else if (s->symtab[slot]->name == name)
-         return s->symtab[slot];
+      else if (sym->hash == hash && compare_name(sym->name, name))
+         return sym;
    }
 }
 
@@ -722,14 +741,15 @@ static symbol_t *local_symbol_for(scope_t *s, ident_t name)
 {
    grow_symbol_table(s, s->tabcount + 1);
 
-   const uint32_t hash = ident_hash(name);
+   const uint32_t hash = hash_name(name);
 
    int slot = hash & (s->tabsz - 1);
    for (;; slot = (slot + 1) & (s->tabsz - 1)) {
-      if (s->symtab[slot] == NULL)
+      symbol_t *sym = s->symtab[slot];
+      if (sym == NULL)
          break;
-      else if (s->symtab[slot]->name == name)
-         return s->symtab[slot];
+      else if (sym->hash == hash && compare_name(sym->name, name))
+         return sym;
    }
 
    sym_chunk_t *chunk = s->sym_tail;
