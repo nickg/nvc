@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2020-2024  Nick Gasson
+//  Copyright (C) 2020-2025  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -33,7 +33,7 @@
 #include <string.h>
 #include <inttypes.h>
 
-typedef struct scope scope_t;
+typedef struct _scope scope_t;
 typedef struct _type_set type_set_t;
 typedef struct _spec spec_t;
 typedef struct _sym_chunk sym_chunk_t;
@@ -68,6 +68,7 @@ typedef struct {
    ident_t      name;
    scope_t     *owner;
    name_mask_t  mask;
+   uint32_t     hash;
    unsigned     ndecls;
    unsigned     overflowsz;
    decl_t       decls[INLINE_DECLS];
@@ -81,6 +82,8 @@ typedef struct _sym_chunk {
    unsigned     count;
    symbol_t     symbols[SYMBOLS_PER_CHUNK];
 } sym_chunk_t;
+
+#define INIT_TABSZ  16
 
 typedef struct {
    type_t type;
@@ -148,11 +151,10 @@ typedef struct {
 
 typedef A(defer_check_t) defer_checks_t;
 
-struct scope {
+typedef struct _scope {
    scope_t        *parent;
    sym_chunk_t     symbols;
    sym_chunk_t    *sym_tail;
-   hash_t         *lookup;
    hash_t         *gmap;
    spec_t         *specs;
    overload_t     *overload;
@@ -167,7 +169,11 @@ struct scope {
    label_cnts_t    lbl_cnts;
    scope_t        *chain;
    defer_checks_t  deferred;
-};
+   unsigned        tabsz;
+   unsigned        tabcount;
+   symbol_t      **symtab;
+   symbol_t       *inlinetab[];
+} scope_t;
 
 typedef struct _nametab {
    scope_t    *top_scope;
@@ -355,14 +361,22 @@ void nametab_finish(nametab_t *tab)
    free(tab);
 }
 
+static scope_t *new_scope(void)
+{
+   scope_t *s = xcalloc_flex(sizeof(scope_t), INIT_TABSZ, sizeof(symbol_t *));
+   s->sym_tail = &(s->symbols);
+   s->tabsz    = INIT_TABSZ;
+   s->symtab   = s->inlinetab;
+
+   return s;
+}
+
 void push_scope(nametab_t *tab)
 {
-   scope_t *s = xcalloc(sizeof(scope_t));
-   s->lookup   = hash_new(128);
+   scope_t *s = new_scope();
    s->parent   = tab->top_scope;
    s->prefix   = tab->top_scope ? tab->top_scope->prefix : NULL;
    s->suppress = tab->top_scope ? tab->top_scope->suppress : false;
-   s->sym_tail = &(s->symbols);
 
    tab->top_scope = s;
 }
@@ -377,7 +391,8 @@ static void free_overflow(sym_chunk_t *chunk)
 
 static void free_scope(scope_t *s)
 {
-   hash_free(s->lookup);
+   if (s->symtab != s->inlinetab)
+      free(s->symtab);
 
    free_overflow(&(s->symbols));
 
@@ -608,10 +623,22 @@ formal_kind_t scope_formal_kind(nametab_t *tab)
    return tab->top_scope->formal_kind;
 }
 
+static symbol_t *lookup_symbol(scope_t *s, ident_t name)
+{
+   const uint32_t hash = ident_hash(name);
+
+   for (int slot = hash & (s->tabsz - 1);; slot = (slot + 1) & (s->tabsz - 1)) {
+      if (s->symtab[slot] == NULL)
+         return NULL;
+      else if (s->symtab[slot]->name == name)
+         return s->symtab[slot];
+   }
+}
+
 static const symbol_t *symbol_for(scope_t *s, ident_t name)
 {
    do {
-      symbol_t *sym = hash_get(s->lookup, name);
+      symbol_t *sym = lookup_symbol(s, name);
       if (sym != NULL)
          return sym;
    } while (s->formal_kind != F_RECORD && (s = s->parent));
@@ -622,7 +649,7 @@ static const symbol_t *symbol_for(scope_t *s, ident_t name)
 static const symbol_t *lazy_symbol_for(scope_t *s, ident_t name)
 {
    do {
-      symbol_t *sym = hash_get(s->lookup, name);
+      symbol_t *sym = lookup_symbol(s, name);
       if (sym != NULL)
          return sym;
       else {
@@ -665,31 +692,68 @@ static decl_t *add_decl(symbol_t *sym)
    return &(sym->overflow[sym->ndecls++ - INLINE_DECLS]);
 }
 
-static symbol_t *local_symbol_for(scope_t *s, ident_t name)
+static void grow_symbol_table(scope_t *s, unsigned mincount)
 {
-   symbol_t *sym = hash_get(s->lookup, name);
-   if (sym == NULL) {
-      sym_chunk_t *chunk = s->sym_tail;
-      if (chunk->count == SYMBOLS_PER_CHUNK) {
-         chunk = s->sym_tail->chain = xcalloc(sizeof(sym_chunk_t));
-         s->sym_tail = chunk;
-      }
+   if (mincount <= s->tabsz / 2)
+      return;
 
-      sym = &(chunk->symbols[chunk->count++]);
-      sym->name   = name;
-      sym->owner  = s;
-      sym->ndecls = 0;
+   const unsigned old_size = s->tabsz;
+   symbol_t **old_tab = s->symtab;
+   s->tabsz = MAX(s->tabsz * 2, next_power_of_2(mincount * 2));
+   s->symtab = xcalloc_array(s->tabsz, sizeof(symbol_t *));
 
-      if (s->parent != NULL && s->formal_kind == F_NONE) {
-         const symbol_t *exist = symbol_for(s->parent, name);
-         if (exist != NULL) {
-            for (int i = 0; i < exist->ndecls; i++)
-               *add_decl(sym) = *get_decl(exist, i);
+   for (int i = 0; i < old_size; i++) {
+      if (old_tab[i] == NULL)
+         continue;
+
+      for (int slot = old_tab[i]->hash & (s->tabsz - 1);;
+           slot = (slot + 1) & (s->tabsz - 1)) {
+         if (s->symtab[slot] == NULL) {
+            s->symtab[slot] = old_tab[i];
+            break;
          }
       }
-
-      hash_put(s->lookup, name, sym);
    }
+
+   if (old_tab != s->inlinetab) free(old_tab);
+}
+
+static symbol_t *local_symbol_for(scope_t *s, ident_t name)
+{
+   grow_symbol_table(s, s->tabcount + 1);
+
+   const uint32_t hash = ident_hash(name);
+
+   int slot = hash & (s->tabsz - 1);
+   for (;; slot = (slot + 1) & (s->tabsz - 1)) {
+      if (s->symtab[slot] == NULL)
+         break;
+      else if (s->symtab[slot]->name == name)
+         return s->symtab[slot];
+   }
+
+   sym_chunk_t *chunk = s->sym_tail;
+   if (chunk->count == SYMBOLS_PER_CHUNK) {
+      chunk = s->sym_tail->chain = xcalloc(sizeof(sym_chunk_t));
+      s->sym_tail = chunk;
+   }
+
+   symbol_t *sym = &(chunk->symbols[chunk->count++]);
+   sym->name   = name;
+   sym->owner  = s;
+   sym->ndecls = 0;
+   sym->hash   = hash;
+
+   if (s->parent != NULL && s->formal_kind == F_NONE) {
+      const symbol_t *exist = symbol_for(s->parent, name);
+      if (exist != NULL) {
+         for (int i = 0; i < exist->ndecls; i++)
+            *add_decl(sym) = *get_decl(exist, i);
+      }
+   }
+
+   s->symtab[slot] = sym;
+   s->tabcount++;
 
    return sym;
 }
@@ -1012,6 +1076,8 @@ static void merge_symbol(scope_t *s, const symbol_t *src)
 
 static void merge_scopes(scope_t *to, scope_t *from)
 {
+   grow_symbol_table(to, from->tabcount);
+
    for (sym_chunk_t *chunk = &(from->symbols); chunk; chunk = chunk->chain) {
       for (int i = 0; i < chunk->count; i++) {
          symbol_t *sym = &(chunk->symbols[i]);
@@ -1108,10 +1174,8 @@ static scope_t *scope_for_type(nametab_t *tab, type_t type)
    if (s != NULL)
       return s;
 
-   s = xcalloc(sizeof(scope_t));
-   s->lookup   = hash_new(128);
-   s->sym_tail = &(s->symbols);
-   s->chain    = tab->globals;
+   s = new_scope();
+   s->chain = tab->globals;
 
    const int nfields = type_fields(type);
    for (int i = 0; i < nfields; i++) {
@@ -1144,9 +1208,7 @@ static scope_t *private_scope_for(nametab_t *tab, tree_t unit)
    if (s != NULL)
       return s;
 
-   s = xcalloc(sizeof(scope_t));
-   s->lookup    = hash_new(128);
-   s->sym_tail  = &(s->symbols);
+   s = new_scope();
    s->container = unit;
 
    if (cache == tab->globalmap) {
@@ -1162,6 +1224,8 @@ static scope_t *private_scope_for(nametab_t *tab, tree_t unit)
       const int ndecls = kind == T_PACK_INST && tree_has_ref(unit)
          ? tree_decls(tree_ref(unit))
          : tree_decls(unit);
+
+      grow_symbol_table(s, ndecls);
 
       for (int i = 0; i < ndecls; i++) {
          tree_t d = tree_decl(unit, i);
@@ -1248,7 +1312,7 @@ tree_t find_forward_decl(nametab_t *tab, tree_t decl)
    if (region->container == decl)
       region = region->parent;
 
-   const symbol_t *sym = hash_get(region->lookup, tree_ident(decl));
+   const symbol_t *sym = lookup_symbol(region, tree_ident(decl));
    if (sym == NULL)
       return NULL;
 
@@ -1269,7 +1333,7 @@ tree_t get_local_decl(nametab_t *tab, tree_t container, ident_t name, int nth)
    else
       scope = private_scope_for(tab, container);
 
-   const symbol_t *sym = hash_get(scope->lookup, name);
+   const symbol_t *sym = lookup_symbol(scope, name);
    if (sym == NULL)
       return NULL;
 
@@ -1286,7 +1350,7 @@ tree_t get_local_decl(nametab_t *tab, tree_t container, ident_t name, int nth)
 
 bool is_same_region(nametab_t *tab, tree_t decl)
 {
-   const symbol_t *sym = hash_get(tab->top_scope->lookup, tree_ident(decl));
+   const symbol_t *sym = lookup_symbol(tab->top_scope, tree_ident(decl));
    if (sym == NULL)
       return false;
 

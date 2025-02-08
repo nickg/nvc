@@ -69,6 +69,8 @@ int ident_compare(ident_t a, ident_t b);
 // if set to the length of glob
 bool ident_glob(ident_t i, const char *glob, int length);
 
+uint32_t ident_hash(ident_t i);
+
 // Convert an indentifier to lower case
 ident_t ident_downcase(ident_t i);
 

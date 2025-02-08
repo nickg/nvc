@@ -448,7 +448,7 @@ ident_t ident_sprintf(const char *fmt, ...)
    va_start(ap, fmt);
    va_copy(ap2, ap);
 
-   static char buf[64];
+   char buf[64];
    size_t req = vsnprintf(buf, sizeof(buf), fmt, ap);
 
    ident_t result;
@@ -703,4 +703,9 @@ int ident_distance(ident_t a, ident_t b)
    }
 
    return v0[n];
+}
+
+uint32_t ident_hash(ident_t i)
+{
+   return i->hash;
 }
