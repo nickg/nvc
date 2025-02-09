@@ -770,21 +770,25 @@ NVC supports the following additional options to control coverage collection:
 .Bl -bullet
 .It
 .Cm count-from-undefined
-- When set, NVC also counts toggles
+- When set, NVC also counts toggles from
 .Cm U
-->
+/
+.Cm X
+to
 .Cm 1
 as
 .Cm 0
-->
+to
 .Cm 1
-and toggles
+and toggles from
 .Cm U
-->
+/
+.Cm X
+to
 .Cm 0
 as
 .Cm 1
-->
+/
 .Cm 0
 during toggle coverage collection.
 .It
@@ -819,6 +823,18 @@ unreachable coverage items:
 .Bl -bullet
 .It
 Toggle coverage on instance ports driven by constant value.
+.It
+Expression coverage bins where right side of the expression is not evaluated
+due to left side value being sufficient to determine expression result.
+This applies to following cases:
+.Bl -bullet
+.It
+.Ql or
+expression bin with LHS=True, RHS=False
+.It
+.Ql and
+expression bin with LHS=False, RHS=True.
+.El
 .El
 .It
 .Cm fsm-no-default-enums

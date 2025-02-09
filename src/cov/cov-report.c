@@ -602,7 +602,9 @@ static void cover_print_bin(FILE *f, cover_pair_t *pair, uint32_t flag,
       for (int i = 0; i < cols; i++)
          fprintf(f, "<td>%s</td>", vals[i]);
 
-      fprintf(f, "<td>%d</td>", pair->item->data);
+      // Toggle flags hold unreachability in highest bit of runtime data
+      // Must be masked out to print properly
+      fprintf(f, "<td>%d</td>", (pair->item->data) & ~COV_FLAG_UNREACHABLE);
       fprintf(f, "<td>%d</td>", pair->item->atleast);
 
       if (pkind == PAIR_UNCOVERED)
