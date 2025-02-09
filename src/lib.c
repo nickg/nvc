@@ -833,8 +833,14 @@ static void lib_encode_file_name(ident_t id, text_buf_t *tb)
       }
       else if (esc)
          tb_printf(tb, "%02x", *p);
+      else if ((*p == '.' && strcmp(p, ".elab") == 0)
+               || (*p == '-' && strcmp(p, "-body") == 0)) {
+         // TODO: remove these special cases
+         tb_cat(tb, p);
+         break;
+      }
       else
-         tb_append(tb, *p);
+         tb_append(tb, toupper_iso88591(*p));
    }
 }
 
