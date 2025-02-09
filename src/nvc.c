@@ -475,7 +475,7 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
 
    lib_t work = lib_work();
 
-   object_t *obj = lib_get_generic(work, top_level);
+   object_t *obj = lib_get_generic(work, top_level, NULL);
    if (obj == NULL)
       fatal("cannot find unit %s in library %s",
             istr(top_level), istr(lib_name(work)));
@@ -706,10 +706,9 @@ static int plusarg_cmp(const void *lptr, const void *rptr)
       return lptr - rptr;
 }
 
-static cover_data_t *load_coverage(tree_t top, jit_t *j)
+static cover_data_t *load_coverage(const unit_meta_t *meta, jit_t *j)
 {
-   const unit_meta_t *meta = lib_get_meta(lib_work(), top);
-   if (meta == NULL || meta->cover_file == NULL)
+   if (meta->cover_file == NULL)
       return NULL;
 
    fbuf_t *f = fbuf_open(meta->cover_file, FBUF_IN, FBUF_CS_NONE);
@@ -726,9 +725,8 @@ static cover_data_t *load_coverage(tree_t top, jit_t *j)
    return db;
 }
 
-static void emit_coverage(tree_t top, jit_t *j, cover_data_t *db)
+static void emit_coverage(const unit_meta_t *meta, jit_t *j, cover_data_t *db)
 {
-   const unit_meta_t *meta = lib_get_meta(lib_work(), top);
    assert(meta->cover_file != NULL);
 
    fbuf_t *f = fbuf_open(meta->cover_file, FBUF_OUT, FBUF_CS_NONE);
@@ -877,9 +875,14 @@ static int run_cmd(int argc, char **argv, cmd_state_t *state)
    set_top_level(argv, next_cmd);
 
    ident_t ename = ident_prefix(top_level, well_known(W_ELAB), '.');
-   tree_t top = lib_get(lib_work(), ename);
-   if (top == NULL)
+
+   const unit_meta_t *meta = NULL;
+   object_t *obj = lib_get_generic(lib_work(), ename, &meta);
+   if (obj == NULL)
       fatal("%s not elaborated", istr(top_level));
+
+   tree_t top = tree_from_object(obj);
+   assert(top != NULL);
 
    wave_dumper_t *dumper = NULL;
    if (wave_fname != NULL) {
@@ -925,7 +928,7 @@ static int run_cmd(int argc, char **argv, cmd_state_t *state)
    }
 
    if (state->cover == NULL)
-      state->cover = load_coverage(top, state->jit);
+      state->cover = load_coverage(meta, state->jit);
 
    if (state->model == NULL) {
       state->model = model_new(state->jit, state->cover);
@@ -967,7 +970,7 @@ static int run_cmd(int argc, char **argv, cmd_state_t *state)
       wave_dumper_free(dumper);
 
    if (state->cover != NULL)
-      emit_coverage(top, state->jit, state->cover);
+      emit_coverage(meta, state->jit, state->cover);
 
    vhpi_context_free(state->vhpi);
    state->vhpi = NULL;
@@ -1732,14 +1735,12 @@ static cover_data_t *merge_coverage_files(int argc, int next_cmd, char **argv,
                ident_t unit_name = ident_new_n(slash + 2, tail - slash - 2);
                lib_t lib = lib_find(ident_until(unit_name, '.'));
                if (lib != NULL) {
-                  tree_t unit = lib_get(lib, unit_name);
-                  if (unit != NULL) {
-                     const unit_meta_t *meta = lib_get_meta(lib, unit);
-                     if (meta->cover_file != NULL) {
-                        warnf("redirecting %s to %s, please update your "
-                              "scripts", argv[i], meta->cover_file);
-                        f = fbuf_open(meta->cover_file, FBUF_IN, FBUF_CS_NONE);
-                     }
+                  const unit_meta_t *meta;
+                  object_t *obj = lib_get_generic(lib, unit_name, &meta);
+                  if (obj != NULL && meta->cover_file != NULL) {
+                     warnf("redirecting %s to %s, please update your scripts",
+                           argv[i], meta->cover_file);
+                     f = fbuf_open(meta->cover_file, FBUF_IN, FBUF_CS_NONE);
                   }
                }
             }

@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2022  Nick Gasson
+//  Copyright (C) 2011-2025  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -69,7 +69,7 @@ struct _lib_index {
 struct _lib {
    char         *path;
    ident_t       name;
-   hash_t       *lookup;
+   ghash_t      *lookup;
    lib_unit_t   *units;
    lib_index_t  *index;
    uint64_t      index_mtime;
@@ -193,6 +193,38 @@ static void lib_read_index(lib_t lib)
    }
 }
 
+static uint32_t lib_name_hash(const void *key)
+{
+   return ident_casehash((ident_t)key);
+}
+
+static bool lib_name_cmp(const void *a, const void *b)
+{
+   ident_t name_a = (ident_t)a, name_b = (ident_t)b;
+   assert(name_a != name_b);   // Checked in ghash already
+
+   if (ident_casecmp(name_a, name_b)) {
+      // Unit names with extended identifiers that differ only in case
+      // should not compare equal
+      const char *astr = istr(name_a);
+      const char *bstr = istr(name_b);
+
+      bool inext = false;
+      for (; *astr && *bstr; astr++, bstr++) {
+         if (*astr == '\\' && *bstr == '\\')
+            inext = !inext;
+         else if (inext && *astr != *bstr)
+            return false;
+         else if (!inext && toupper_iso88591(*astr) != toupper_iso88591(*bstr))
+            return false;
+      }
+
+      return true;
+   }
+   else
+      return false;
+}
+
 static lib_t lib_init(const char *name, const char *rpath, int lock_fd)
 {
    lib_t l = xcalloc(sizeof(struct _lib));
@@ -200,7 +232,8 @@ static lib_t lib_init(const char *name, const char *rpath, int lock_fd)
    l->index    = NULL;
    l->lock_fd  = lock_fd;
    l->readonly = false;
-   l->lookup   = hash_new(128);
+
+   l->lookup = ghash_new(128, lib_name_hash, lib_name_cmp);
 
    char abspath[PATH_MAX];
    if (rpath == NULL)
@@ -214,6 +247,7 @@ static lib_t lib_init(const char *name, const char *rpath, int lock_fd)
    el->item     = l;
    el->next     = loaded;
    el->standard = standard();
+
    loaded = el;
 
    if (opt_get_verbose(OPT_LIB_VERBOSE, name))
@@ -266,7 +300,7 @@ static void lib_obsolete_cb(ident_t name, void *ctx)
    if (t1 != NULL)
       diag_printf(d, "%s ", class_str(class_of(t1)));
    else
-         diag_printf(d, "design unit ");
+      diag_printf(d, "design unit ");
 
    diag_printf(d, "%s depends on an obsolete version of ", istr(lu->name));
 
@@ -319,15 +353,13 @@ static lib_unit_t *lib_put_aux(lib_t lib, object_t *object, bool dirty,
    assert(ident_until(name, '.') == lib->name);
 
    bool fresh = false;
-   lib_unit_t *where = hash_get(lib->lookup, name);
+   lib_unit_t *where = ghash_get(lib->lookup, name);
    if (where == NULL) {
       where = xcalloc(sizeof(lib_unit_t));
       fresh = true;
    }
-   else {
+   else
       lib_mark_obsolete(lib, where, object);
-      hash_delete(lib->lookup, where->object);
-   }
 
    where->object = object;
    where->name   = name;
@@ -350,8 +382,7 @@ static lib_unit_t *lib_put_aux(lib_t lib, object_t *object, bool dirty,
 
    lib_add_to_index(lib, name, where->kind);
 
-   hash_put(lib->lookup, name, where);
-   hash_put(lib->lookup, object, where);
+   ghash_put(lib->lookup, name, where);
 
    return where;
 }
@@ -707,7 +738,7 @@ void lib_free(lib_t lib)
       tmp = lu->next;
       free(lu);
    }
-   hash_free(lib->lookup);
+   ghash_free(lib->lookup);
 
    free(lib->path);
    free(lib);
@@ -875,7 +906,7 @@ static lib_unit_t *lib_get_aux(lib_t lib, ident_t ident)
    else if (lname != lib->name)
       ident = ident_prefix(lib->name, uname, '.');
 
-   lib_unit_t *lu = hash_get(lib->lookup, ident);
+   lib_unit_t *lu = ghash_get(lib->lookup, ident);
    if (lu != NULL)
       return lu;
 
@@ -920,23 +951,22 @@ static void lib_ensure_writable(lib_t lib)
       fatal("cannot write to read-only library %s", istr(lib->name));
 }
 
-object_t *lib_get_generic(lib_t lib, ident_t ident)
+object_t *lib_get_generic(lib_t lib, ident_t ident, const unit_meta_t **meta)
 {
    lib_unit_t *lu = lib_get_aux(lib, ident);
-   if (lu != NULL) {
-      if (lu->error)
-         fatal_at(&lu->object->loc, "design unit %s was analysed with errors",
-                  istr(lu->name));
-      else
-         return lu->object;
-   }
-   else
+   if (lu == NULL)
       return NULL;
+   else if (lu->error)
+      fatal_at(&lu->object->loc, "design unit %s was analysed with errors",
+               istr(lu->name));
+
+   if (meta != NULL) *meta = &lu->meta;
+   return lu->object;
 }
 
 tree_t lib_get(lib_t lib, ident_t ident)
 {
-   object_t *obj = lib_get_generic(lib, ident);
+   object_t *obj = lib_get_generic(lib, ident, NULL);
    if (obj == NULL)
       return NULL;
 
@@ -976,7 +1006,7 @@ object_t *lib_load_handler(ident_t qual)
    if (lib == NULL)
       return NULL;
 
-   return lib_get_generic(lib, qual);
+   return lib_get_generic(lib, qual, NULL);
 }
 
 tree_t lib_get_qualified(ident_t qual)
@@ -994,7 +1024,7 @@ tree_t lib_get_qualified(ident_t qual)
 
 timestamp_t lib_get_mtime(lib_t lib, ident_t ident)
 {
-   lib_unit_t *lu = hash_get(lib->lookup, ident);
+   lib_unit_t *lu = ghash_get(lib->lookup, ident);
    if (lu != NULL)
       return lu->mtime;
 
@@ -1005,15 +1035,6 @@ timestamp_t lib_get_mtime(lib_t lib, ident_t ident)
       return info.mtime;
 
    return 0;
-}
-
-const unit_meta_t *lib_get_meta(lib_t lib, tree_t unit)
-{
-   lib_unit_t *lu = hash_get(lib->lookup, unit);
-   if (lu == NULL)
-      return NULL;
-
-   return &(lu->meta);
 }
 
 bool lib_had_errors(lib_t lib, ident_t ident)

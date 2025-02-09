@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2023  Nick Gasson
+//  Copyright (C) 2011-2025  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -59,12 +59,11 @@ void lib_put(lib_t lib, tree_t unit);
 void lib_put_error(lib_t lib, tree_t unit);
 void lib_put_vlog(lib_t lib, vlog_node_t module);
 void lib_put_meta(lib_t lib, tree_t unit, const unit_meta_t *meta);
-object_t *lib_get_generic(lib_t lib, ident_t ident);
+object_t *lib_get_generic(lib_t lib, ident_t ident, const unit_meta_t **meta);
 tree_t lib_get(lib_t lib, ident_t ident);
 tree_t lib_get_allow_error(lib_t lib, ident_t ident, bool *error);
 tree_t lib_get_qualified(ident_t qual);
 timestamp_t lib_get_mtime(lib_t lib, ident_t ident);
-const unit_meta_t *lib_get_meta(lib_t lib, tree_t unit);
 object_t *lib_load_handler(ident_t qual);
 bool lib_had_errors(lib_t lib, ident_t ident);
 unsigned lib_index_size(lib_t lib);

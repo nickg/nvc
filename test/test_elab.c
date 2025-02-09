@@ -1795,7 +1795,7 @@ START_TEST(test_vlog1)
 
    analyse_file(TESTDIR "/elab/vlog1.v", NULL, NULL);
 
-   object_t *obj = lib_get_generic(lib_work(), ident_new("WORK.VLOG1"));
+   object_t *obj = lib_get_generic(lib_work(), ident_new("WORK.VLOG1"), NULL);
    ck_assert_ptr_nonnull(obj);
 
    unit_registry_t *ur = get_registry();

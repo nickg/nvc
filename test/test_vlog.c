@@ -707,6 +707,33 @@ START_TEST(test_pp4)
 }
 END_TEST
 
+START_TEST(test_casename)
+{
+   input_from_file(TESTDIR "/vlog/casename.v");
+
+   const error_t expect[] = {
+      {  4, "design unit WORK.NAME replaces a previously analysed unit with "
+         "the same name" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   for (int i = 0; i < 2; i++) {
+      vlog_node_t m = vlog_parse();
+      fail_if(m == NULL);
+      fail_unless(vlog_kind(m) == V_MODULE);
+
+      vlog_check(m);
+
+      lib_put_vlog(lib_work(), m);
+   }
+
+   fail_unless(vlog_parse() == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_vlog_tests(void)
 {
    Suite *s = suite_create("vlog");
@@ -734,6 +761,7 @@ Suite *get_vlog_tests(void)
    tcase_add_test(tc, test_pp3);
    tcase_add_test(tc, test_concat1);
    tcase_add_test(tc, test_pp4);
+   tcase_add_test(tc, test_casename);
    suite_add_tcase(s, tc);
 
    return s;

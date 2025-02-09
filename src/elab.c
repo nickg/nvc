@@ -626,7 +626,7 @@ static tree_t elab_default_binding(tree_t inst, const elab_ctx_t *ctx)
       full_i = ident_prefix(lib_i, ident_rfrom(full_i, '.'), '.');
    }
 
-   object_t *obj = lib_get_generic(lib, full_i);
+   object_t *obj = lib_get_generic(lib, full_i, NULL);
 
    vlog_node_t mod = vlog_from_object(obj);
    if (mod != NULL) {
@@ -1975,7 +1975,7 @@ static void elab_verilog_stmt(tree_t wrap, const elab_ctx_t *ctx)
 
          ident_t qual = ident_new(tb_get(tb));
 
-         object_t *obj = lib_get_generic(ctx->library, qual);
+         object_t *obj = lib_get_generic(ctx->library, qual, NULL);
          if (obj == NULL) {
             error_at(vlog_loc(v), "module %s not found in library %s",
                      istr(modname), istr(libname));
