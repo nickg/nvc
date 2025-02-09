@@ -2217,6 +2217,7 @@ static attr_kind_t parse_predefined_attr(ident_t ident)
       const char      *str;
       attr_kind_t      attr;
       vhdl_standard_t  std;
+      uint32_t         hash;
       ident_t          ident;
    } predef[] = {
       { "RANGE", ATTR_RANGE },
@@ -2258,13 +2259,17 @@ static attr_kind_t parse_predefined_attr(ident_t ident)
    };
 
    INIT_ONCE({
-         for (int i = 0; i < ARRAY_LEN(predef); i++)
+         for (int i = 0; i < ARRAY_LEN(predef); i++) {
             predef[i].ident = ident_new(predef[i].str);
+            predef[i].hash  = ident_casehash(predef[i].ident);
+         }
       });
 
-   for (int i = 0; i < ARRAY_LEN(predef); i++) {
-      if (predef[i].ident == ident
-          && (predef[i].std <= STD_93 || standard() >= predef[i].std))
+   const vhdl_standard_t std = standard();
+   const uint32_t hash = ident_casehash(ident);
+
+   for (int i = 0; i < ARRAY_LEN(predef) && predef[i].std <= std; i++) {
+      if (predef[i].hash == hash && ident_casecmp(predef[i].ident, ident))
          return predef[i].attr;
    }
 
