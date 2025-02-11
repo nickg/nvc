@@ -21,9 +21,10 @@
 - Fixed a crash when packages are passed through multiple layers of
   generics.
 - Toggle coverage count is displayed correctly for unreachable constant
-  driven toggle bins.
-- Transitions from `X` are counted (instead of just `U`)
-  with `--count-from-undefined`.
+  driven toggle bins and transitions from `X` are counted with
+  `--count-from-undefined` instead of just `U`.
+- Fixed a crash when a record subtype has a partially constrained
+  element (#1155).
 
 ## Version 1.15.1 - 2025-01-22
 - Fixed a crash when a subprogram is called with too many named arguments

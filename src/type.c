@@ -750,8 +750,11 @@ bool type_is_unconstrained(type_t t)
             const int nfields = type_fields(t);
             for (int i = 0; i < nfields; i++) {
                tree_t f = type_field(t, i);
-               if (type_is_unconstrained(tree_type(f))
-                   && type_constraint_for_field(t, f) == NULL)
+               if (!type_is_unconstrained(tree_type(f)))
+                  continue;
+
+               tree_t ec = type_constraint_for_field(t, f);
+               if (ec == NULL || type_is_unconstrained(tree_type(ec)))
                   return true;
             }
          }

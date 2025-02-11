@@ -6502,6 +6502,51 @@ START_TEST(test_genpack2)
 }
 END_TEST
 
+START_TEST(test_issue1155)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/lower/issue1155.vhd");
+
+   run_elab();
+
+   vcode_unit_t vu = find_unit("WORK.TEST.B");
+   vcode_select_unit(vu);
+
+   EXPECT_BB(0) = {
+      { VCODE_OP_PACKAGE_INIT, .name = "STD.STANDARD" },
+      { VCODE_OP_CONST, .value = 8 },
+      { VCODE_OP_STORE, .name = "IN_LANES" },
+      { VCODE_OP_CONST, .value = 16 },
+      { VCODE_OP_STORE, .name = "IN_WIDTH" },
+      { VCODE_OP_VAR_UPREF, .name = "SOMEARR", .hops = 1 },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_VAR_UPREF, .name = "VALID", .hops = 1 },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_DEBUG_LOCUS },
+      { VCODE_OP_CONST, .value = 8 },
+      { VCODE_OP_UARRAY_LEN },
+      { VCODE_OP_LENGTH_CHECK },
+      { VCODE_OP_INDEX, .name = "DATAIN" },
+      { VCODE_OP_RECORD_REF },
+      { VCODE_OP_UARRAY_LEFT },
+      { VCODE_OP_UARRAY_RIGHT },
+      { VCODE_OP_UARRAY_DIR },
+      { VCODE_OP_CONST, .value = 15 },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_UNWRAP },
+      { VCODE_OP_WRAP },
+      { VCODE_OP_STORE_INDIRECT },
+      { VCODE_OP_RECORD_REF, .field = 1 },
+      { VCODE_OP_STORE_INDIRECT },
+      { VCODE_OP_RETURN },
+   };
+
+   CHECK_BB(0);
+}
+END_TEST
+
 Suite *get_lower_tests(void)
 {
    Suite *s = suite_create("lower");
@@ -6652,6 +6697,7 @@ Suite *get_lower_tests(void)
    tcase_add_test(tc, test_issue1029);
    tcase_add_test(tc, test_issue1080);
    tcase_add_test(tc, test_genpack2);
+   tcase_add_test(tc, test_issue1155);
    suite_add_tcase(s, tc);
 
    return s;

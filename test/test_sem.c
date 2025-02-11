@@ -2704,6 +2704,8 @@ START_TEST(test_record2008)
       { 41,  "declaration of signal R12 cannot have unconstrained type REC3" },
       { 43,  "declaration of signal R14 cannot have unconstrained type REC3" },
       { 110, "variable A1 cannot have unconstrained type REC1_ARRAY" },
+      { 122, "declaration of variable R cannot have unconstrained type "
+            "INTERLACED16BSIGNAL" },
       { -1, NULL }
    };
    expect_errors(expect);
