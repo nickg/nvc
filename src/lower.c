@@ -12329,6 +12329,7 @@ static void lower_direct_mapped_port(lower_unit_t *lu, driver_set_t *ds,
       tree_t f = type_field(port_type, field);
       tree_t cons = type_constraint_for_field(port_type, f);
       field_type = tree_type(cons ?: f);
+      port_type = tree_type(f);
    }
 
    vcode_reg_t bounds_reg = VCODE_INVALID_REG;
@@ -12344,19 +12345,19 @@ static void lower_direct_mapped_port(lower_unit_t *lu, driver_set_t *ds,
       vcode_reg_t ptr_reg = emit_index(var, VCODE_INVALID_REG);
       vcode_reg_t field_reg = emit_record_ref(ptr_reg, field);
 
-      if (type_is_homogeneous(type))
-         emit_store_indirect(src_reg, field_reg);
-      else if (type_is_record(type))
+      if (type_is_record(type))
          emit_copy(field_reg, src_reg, VCODE_INVALID_REG);
-      else if (!have_uarray_ptr(field_reg)) {
-         vcode_reg_t data_reg = lower_array_data(src_reg);
-         vcode_reg_t count_reg = lower_array_total_len(lu, type, bounds_reg);
-         emit_copy(field_reg, data_reg, count_reg);
-      }
-      else if (bounds_reg != VCODE_INVALID_REG) {
-         vcode_reg_t data_reg = lower_array_data(src_reg);
-         vcode_reg_t meta_reg = lower_rewrap(data_reg, bounds_reg);
-         emit_store_indirect(meta_reg, field_reg);
+      else if (type_is_array(type)) {
+         if (type_is_homogeneous(type)){
+            vcode_reg_t coerce_reg =
+               lower_coerce_arrays(lu, type, port_type, src_reg);
+            emit_store_indirect(coerce_reg, field_reg);
+         }
+         else {
+            vcode_reg_t data_reg = lower_array_data(src_reg);
+            vcode_reg_t count_reg = lower_array_total_len(lu, type, src_reg);
+            emit_copy(field_reg, data_reg, count_reg);
+         }
       }
       else
          emit_store_indirect(src_reg, field_reg);

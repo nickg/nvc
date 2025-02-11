@@ -111,4 +111,16 @@ begin
     begin
     end process;
 
+    p7: process is
+        -- See issue #1155
+        type ArrayOfSigned is array (natural range <>) of bit_vector;
+        type InterlacedSignal is record
+            Data : ArrayOfSigned;
+            Valid : bit;
+        end record;
+        subtype Interlaced16bSignal is InterlacedSignal(Data(open)(15 downto 0));
+        variable r : Interlaced16bSignal;  -- Error
+    begin
+    end process;
+
 end architecture;

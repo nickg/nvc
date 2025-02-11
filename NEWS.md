@@ -7,6 +7,8 @@
   statements (#1156).
 - Fixed a crash when packages are passed through multiple layers of
   generics.
+- Fixed a crash when a record subtype has a partially constrained
+  element (#1155).
 
 ## Version 1.15.1 - 2025-01-22
 - Fixed a crash when a subprogram is called with too many named arguments
