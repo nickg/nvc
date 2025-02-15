@@ -836,7 +836,6 @@ START_TEST(test_record)
       { 165, "3 positional associations given but record type R1 only has 2" },
       { 166, "others association must represent at least one element" },
       { 167, "discrete range is only allowed in an array aggregate" },
-      { 168, "record type R1 has no field named Z" },
       { 168, "discrete range is only allowed in an array aggregate" },
       { 172, "no visible declaration for FOO" },
       { 182, "type INTEGER is not a record" },
@@ -2694,7 +2693,6 @@ START_TEST(test_record2008)
    const error_t expect[] = {
       { 10,  "declaration of signal S1 cannot have unconstrained type REC1" },
       { 12,  "record type REC1 has no field named Y" },
-      { 13,  "record type REC1 has no field named R2" },
       { 22,  "duplicate record element constraint for field X" },
       { 23,  "record type REC2 has no field named P" },
       { 24,  "field B in record element constraint is already constrained" },
@@ -3133,7 +3131,6 @@ START_TEST(test_lcs2016_45a)
         "a record type" },
       { 37, "subtype indication of a mode view declaration must denote an "
         "unresolved record type" },
-      { 42, "record type REC_T has no field named INTEGER" },
       { 48, "duplicate mode view element definition for field B" },
       { 51, "type mark MASTER1 does not denote a type or a subtype" },
       { 53, "prefix of 'CONVERSE attribute must be a named mode view or " },

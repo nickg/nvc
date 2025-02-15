@@ -4111,10 +4111,8 @@ static tree_t p_record_element_constraint(type_t base)
 
    BEGIN("record element constraint");
 
-   push_scope_for_fields(nametab, base);
-
    ident_t id = p_identifier();
-   tree_t decl = resolve_name(nametab, CURRENT_LOC, id);
+   tree_t decl = resolve_field_name(nametab, &last_loc, id, base);
 
    type_t ftype;
    if (decl != NULL) {
@@ -4125,8 +4123,6 @@ static tree_t p_record_element_constraint(type_t base)
    }
    else
       ftype = type_new(T_NONE);
-
-   pop_scope(nametab);
 
    tree_t elem = tree_new(T_ELEM_CONSTRAINT);
    tree_set_ident(elem, id);
@@ -8042,25 +8038,27 @@ static void p_mode_view_element_declaration(type_t view, type_t of)
    tree_t name = NULL;
 
    port_mode_t mode;
-   if (peek() == tVIEW) {
-      // View name must be looked up in global scope
-      pop_scope(nametab);
+   if (peek() == tVIEW)
       mode = p_element_mode_view_indication(&name);
-      push_scope_for_fields(nametab, of);
-   }
    else
       mode = p_mode();
 
    for (ident_list_t *it = ids; it != NULL; it = it->next) {
-      tree_t f = tree_new(T_VIEW_ELEMENT);
-      tree_set_ident(f, it->ident);
-      tree_set_loc(f, &(it->loc));
-      tree_set_subkind(f, mode);
-      tree_set_value(f, name);
+      tree_t elt = tree_new(T_VIEW_ELEMENT);
+      tree_set_ident(elt, it->ident);
+      tree_set_loc(elt, &(it->loc));
+      tree_set_subkind(elt, mode);
+      tree_set_value(elt, name);
 
-      type_add_field(view, f);
+      type_add_field(view, elt);
 
-      solve_types(nametab, f, NULL);
+      tree_t f = resolve_field_name(nametab, &(it->loc), it->ident, of);
+      if (f == NULL)
+         tree_set_type(elt, type_new(T_NONE));
+      else {
+         tree_set_ref(elt, f);
+         tree_set_type(elt, tree_type(f));
+      }
    }
 
    consume(tSEMI);
@@ -8093,12 +8091,8 @@ static tree_t p_mode_view_declaration(void)
    consume(tIS);
 
    if (type_is_record(of)) {
-      push_scope_for_fields(nametab, of);
-
       while (not_at_token(tEND))
          p_mode_view_element_declaration(type, of);
-
-      pop_scope(nametab);
 
       consume(tEND);
    }

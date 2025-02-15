@@ -1184,26 +1184,40 @@ static void make_potentially_visible(scope_t *s, ident_t id, tree_t d)
    make_visible(s, id, d, POTENTIAL, s);
 }
 
+static void missing_record_field_cb(diag_t *d, ident_t id, void *arg)
+{
+   diag_printf(d, "record type %s has no field named %s",
+               type_pp((type_t)arg), istr(id));
+}
+
 static scope_t *scope_for_type(nametab_t *tab, type_t type)
 {
-   assert(type_is_protected(type));
+   type_t base = type;
+   while (is_anonymous_subtype(base))
+      base = type_base(base);
 
-   void *key = type;
-
-   scope_t *s = hash_get(tab->globalmap, key);
+   scope_t *s = hash_get(tab->globalmap, base);
    if (s != NULL)
       return s;
 
    s = new_scope();
    s->chain = tab->globals;
 
-   const int nfields = type_fields(type);
+   if (type_is_record(base)) {
+      s->formal_kind = F_RECORD;
+      s->formal_fn   = missing_record_field_cb;
+      s->formal_arg  = base;
+   }
+   else
+      assert(type_is_protected(base));
+
+   const int nfields = type_fields(base);
    for (int i = 0; i < nfields; i++) {
-      tree_t d = type_field(type, i);
+      tree_t d = type_field(base, i);
       make_visible_fast(s, tree_ident(d), d);
    }
 
-   hash_put(tab->globalmap, key, s);
+   hash_put(tab->globalmap, base, s);
    return (tab->globals = s);
 }
 
@@ -2187,6 +2201,20 @@ tree_t resolve_subprogram_name(nametab_t *tab, const loc_t *loc, ident_t name,
    }
 }
 
+tree_t resolve_field_name(nametab_t *tab, const loc_t *loc, ident_t name,
+                          type_t type)
+{
+   assert(type_is_record(type));
+
+   scope_t *tmp = tab->top_scope;
+   tab->top_scope = scope_for_type(tab, type);
+
+   tree_t decl = resolve_name(tab, loc, name);
+
+   tab->top_scope = tmp;
+   return decl;
+}
+
 static tree_t resolve_ref(nametab_t *tab, tree_t ref)
 {
    const loc_t *loc = tree_loc(ref);
@@ -2437,27 +2465,6 @@ void insert_names_for_psl(nametab_t *tab)
    }
 
    insert_names_from_use(tab, tab->psl);
-}
-
-static void missing_record_field_cb(diag_t *d, ident_t id, void *arg)
-{
-   diag_printf(d, "record type %s has no field named %s",
-               type_pp((type_t)arg), istr(id));
-}
-
-void push_scope_for_fields(nametab_t *tab, type_t type)
-{
-   assert(type_is_record(type));
-
-   push_scope(tab);
-
-   tab->top_scope->formal_kind = F_RECORD;
-   tab->top_scope->formal_fn   = missing_record_field_cb;
-   tab->top_scope->formal_arg  = type;
-
-   const int nfields = type_fields(type);
-   for (int i = 0; i < nfields; i++)
-      insert_name(tab, type_field(type, i), NULL);
 }
 
 static void missing_generic_cb(diag_t *d, ident_t id, void *arg)
@@ -4516,6 +4523,8 @@ static type_t solve_record_aggregate(nametab_t *tab, tree_t agg, type_t type)
    bit_mask_t fmask;
    mask_init(&fmask, nfields);
 
+   scope_t *formals = scope_for_type(tab, type);
+
    for (int i = 0; i < nassocs; i++) {
       type_set_t ts = {};
       type_set_push(tab, &ts);
@@ -4535,10 +4544,12 @@ static type_t solve_record_aggregate(nametab_t *tab, tree_t agg, type_t type)
 
       case A_NAMED:
          {
-            push_scope_for_fields(tab, type);
+            scope_t *tmp = tab->top_scope;
+            tab->top_scope = formals;
             tree_t name = tree_name(a);
             type_t ntype = solve_types(tab, name, NULL);
-            pop_scope(tab);
+            tab->top_scope = tmp;
+
             if (!type_is_none(ntype) && tree_has_ref(name)) {
                tree_t field = tree_ref(name);
                type_set_add(tab, solve_field_subtype(type, field), field);
@@ -4566,11 +4577,14 @@ static type_t solve_record_aggregate(nametab_t *tab, tree_t agg, type_t type)
          break;
 
       case A_RANGE:
-         // This is illegal and will generate an error during
-         // semantic checking
-         push_scope_for_fields(tab, type);
-         solve_types(tab, tree_range(a, 0), NULL);
-         pop_scope(tab);
+         {
+            // This is illegal and will generate an error during
+            // semantic checking
+            scope_t *tmp = tab->top_scope;
+            tab->top_scope = formals;
+            solve_types(tab, tree_range(a, 0), NULL);
+            tab->top_scope = tmp;
+         }
          break;
       }
 

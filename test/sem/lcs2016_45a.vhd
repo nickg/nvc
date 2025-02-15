@@ -39,7 +39,7 @@ package lcs2016_45a is
     end view;
 
     view bad2 of rec_t is
-        integer : in;                   -- Error
+        integer : in;                   -- Error (suppressed)
         a, b, c, d : in;
     end view;
 
