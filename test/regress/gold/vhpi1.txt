@@ -5,7 +5,9 @@ tool version is
 arg is +foo=bar
 root handle
 root name is VHPI1
+root case name is VHPI1
 root full name is :VHPI1
+root full case name is :VHPI1
 root port is X
 root port is Y
 root signal is V

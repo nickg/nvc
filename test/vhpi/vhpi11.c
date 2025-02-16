@@ -41,6 +41,10 @@ static void start_of_sim(const vhpiCbDataT *cb_data)
    fail_if(g0x == NULL);
    vhpi_printf("g0x handle %p", g0x);
    fail_unless(vhpi_get(vhpiKindP, g0x) == vhpiSelectedNameK);
+   check_string(vhpi_get_str(vhpiNameP, g0x), "G0.X");
+   check_string(vhpi_get_str(vhpiCaseNameP, g0x), "G0.X");
+   check_string(vhpi_get_str(vhpiFullNameP, g0x), ":VHPI11:G0.X");
+   check_string(vhpi_get_str(vhpiFullCaseNameP, g0x), ":VHPI11:G0.X");
 
    vhpiValueT value = {
       .format = vhpiObjTypeVal

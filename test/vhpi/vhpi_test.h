@@ -26,10 +26,13 @@
 #define fail_unless(x) fail_if(!(x))
 
 #define check_error() __check_error(__FILE__, __LINE__)
-#define check_handle(h) __check_handle(h, __FILE__, __LINE__)
+#define check_handle(h) __check_handle((h), __FILE__, __LINE__)
+#define check_string(v, s) __check_string((v), (s), __FILE__, __LINE__)
 
 void __check_error(const char *file, int lineno);
 void __check_handle(vhpiHandleT h, const char *file, int lineno);
+void __check_string(const vhpiCharT *v, const char *s, const char *file,
+                    int lineno);
 
 #define VHPI_CHECK(call) ({                                             \
    typeof((call)) _r = (call);                                          \

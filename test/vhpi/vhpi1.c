@@ -399,7 +399,9 @@ static void end_of_init(const vhpiCbDataT *cb_data)
 
    const vhpiCharT *root_name = vhpi_get_str(vhpiNameP, root);
    vhpi_printf("root name is %s", root_name);
+   vhpi_printf("root case name is %s", vhpi_get_str(vhpiCaseNameP, root));
    vhpi_printf("root full name is %s", vhpi_get_str(vhpiFullNameP, root));
+   vhpi_printf("root full case name is %s", vhpi_get_str(vhpiFullCaseNameP, root));
 
    fail_unless(vhpi_scan(root) == NULL);
 

@@ -69,6 +69,13 @@ void __check_handle(vhpiHandleT h, const char *file, int lineno)
       vhpi_assert(vhpiFailure, "%s:%d: unexpected NULL handle", file, lineno);
 }
 
+void __check_string(const vhpiCharT *v, const char *s, const char *file,
+                    int lineno)
+{
+   if (strcmp((const char *)v, s) != 0)
+      vhpi_assert(vhpiFailure, "%s:%d: %s != %s", file, lineno, v, s);
+}
+
 static void shared_startup(void)
 {
    const char *test_name = getenv("TEST_NAME");

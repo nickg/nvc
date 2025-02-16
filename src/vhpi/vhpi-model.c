@@ -529,6 +529,8 @@ static c_typeDecl *build_dynamicSubtype(c_typeDecl *base, void *ptr,
 static void *vhpi_get_value_ptr(c_vhpiObject *obj);
 static c_typeDecl *vhpi_get_type(c_vhpiObject *obj);
 static vhpiClassKindT vhpi_get_prefix_kind(c_vhpiObject *obj);
+static vhpiStringT vhpi_get_case_name(c_vhpiObject *obj);
+static vhpiStringT vhpi_get_full_case_name(c_vhpiObject *obj);
 static void vhpi_lazy_decls(c_vhpiObject *obj);
 static void vhpi_lazy_selected_names(c_vhpiObject *obj);
 static void vhpi_lazy_indexed_names(c_vhpiObject *obj);
@@ -700,15 +702,6 @@ static c_abstractDecl *is_abstractDecl(c_vhpiObject *obj)
    default:
       return NULL;
    }
-}
-
-static c_abstractDecl *cast_abstractDecl(c_vhpiObject *obj)
-{
-   c_abstractDecl *decl = is_abstractDecl(obj);
-   if (decl == NULL)
-      vhpi_error(vhpiError, &(obj->loc), "class kind %s is not a declaration",
-                 vhpi_class_str(obj->kind));
-   return decl;
 }
 
 static c_objDecl *is_objDecl(c_vhpiObject *obj)
@@ -897,11 +890,11 @@ static void handle_pp_r(vhpiHandleT handle, text_buf_t *tb)
 
       c_abstractDecl *decl = is_abstractDecl(obj);
       if (decl != NULL)
-         tb_printf(tb, " Name=%s", decl->Name);
+         tb_printf(tb, " Name=%s", vhpi_get_case_name(obj));
 
       c_name *n = is_name(obj);
       if (n != NULL)
-         tb_printf(tb, " Name=%s", n->Name);
+         tb_printf(tb, " Name=%s", vhpi_get_case_name(obj));
 
       c_iterator *it = is_iterator(obj);
       if (it != NULL && it->list != NULL)
@@ -1007,6 +1000,15 @@ static vhpiCharT *new_stringf(const char *fmt, ...)
    return new_string(buf);
 }
 
+static vhpiCharT *new_upper_string(const char *s)
+{
+   char *copy LOCAL = xstrdup(s);
+   for (char *p = copy; *p; p++)
+      *p = toupper_iso88591(*p);
+
+   return new_string(copy);
+}
+
 static void vhpi_list_reserve(vhpiObjectListT *list, unsigned num)
 {
    if (list->limit >= num)
@@ -1037,18 +1039,6 @@ static void init_abstractRegion(c_abstractRegion *r, c_abstractRegion *upper,
    r->LineNo      = loc->first_line;
    r->LineOffset  = loc->line_delta;
 
-   if (is_design_unit(t)) {
-      ident_t qual = tree_ident(t);
-      ident_t suffix = ident_rfrom(qual, '.');
-
-      r->Name = r->CaseName = new_string(istr(suffix));
-      r->FullName = r->FullCaseName = new_stringf("@%s", istr(qual));
-   }
-   else {
-      r->Name = r->CaseName = new_string(istr(tree_ident(t)));
-      r->FullName = r->FullCaseName = new_stringf(":%s", r->Name);
-   }
-
    r->tree   = t;
    r->handle = JIT_HANDLE_INVALID;
 }
@@ -1068,13 +1058,7 @@ static void init_abstractDecl(c_abstractDecl *d, tree_t t, c_abstractRegion *r)
 
    d->LineNo     = loc->first_line;
    d->LineOffset = loc->line_delta;
-
-   d->Name = d->CaseName = new_string(istr(tree_ident(t)));
-   if (r != NULL)
-      d->FullName = d->FullCaseName =
-         new_stringf("%s:%s", r->FullName, d->Name);
-
-   d->ImmRegion = r;
+   d->ImmRegion  = r;
 
    d->type = tree_type(t);
    d->tree = t;
@@ -1195,8 +1179,8 @@ static void init_name(c_name *n, vhpiStaticnessT Staticness, c_typeDecl *Type,
                       vhpiStringT Name, vhpiStringT FullName)
 {
    init_expr(&(n->expr), Staticness, Type);
-   n->Name = n->CaseName = Name;
-   n->FullName = n->FullCaseName = FullName;
+   n->CaseName = Name;
+   n->FullCaseName = FullName;
    n->SelectedNames.fn = vhpi_lazy_selected_names;
    n->IndexedNames.fn = vhpi_lazy_indexed_names;
 }
@@ -1215,8 +1199,8 @@ static void init_prefixedName(c_prefixedName *pn, c_typeDecl *Type,
 
    c_objDecl *obj = is_objDecl(prefix);
    if (obj != NULL) {
-      Name = new_stringf("%s%s", obj->decl.Name, suffix);
-      FullName = new_stringf("%s%s", obj->decl.FullName, suffix);
+      Name = new_stringf("%s%s", vhpi_get_case_name(prefix), suffix);
+      FullName = new_stringf("%s%s", vhpi_get_full_case_name(prefix), suffix);
       Staticness = obj->Staticness;
    }
 
@@ -1280,7 +1264,7 @@ static void init_selectedName(c_selectedName *sn, c_vhpiObject *prefix,
 
    LOCAL_TEXT_BUF suffix = tb_new();
    tb_append(suffix, '.');
-   tb_cat(suffix, (const char *)Suffix->decl.Name);
+   tb_cat(suffix, (const char *)vhpi_get_case_name(&Suffix->decl.object));
 
    init_prefixedName(&(sn->prefixedName), Suffix->Type, prefix, tb_get(suffix));
    sn->Suffix = Suffix;
@@ -1292,7 +1276,6 @@ static void init_designUnit(c_designUnit *u, tree_t t)
 
    ident_t uname = tree_ident(t);
    u->UnitName = new_string(istr(uname));
-   u->Name = u->CaseName = new_string(istr(ident_rfrom(uname, '.')));
 }
 
 static void init_secondaryUnit(c_secondaryUnit *u, tree_t t, c_designUnit *p)
@@ -1562,7 +1545,8 @@ static rt_scope_t *vhpi_get_scope_abstractRegion(c_abstractRegion *region)
    rt_scope_t *scope = find_scope(vhpi_context()->model, region->tree);
    if (scope == NULL) {
       vhpi_error(vhpiError, &(region->object.loc),
-                 "cannot find scope object for %s", region->Name);
+                 "cannot find scope object for %s",
+                 vhpi_get_case_name(&region->object));
       return NULL;
    }
 
@@ -1634,7 +1618,8 @@ static rt_signal_t *vhpi_get_signal_objDecl(c_objDecl *decl)
    rt_signal_t *signal = find_signal(scope, decl->decl.tree);
    if (signal == NULL) {
       vhpi_error(vhpiError, &(decl->decl.object.loc),
-                 "cannot find signal object for %s", decl->decl.Name);
+                 "cannot find signal object for %s",
+                 vhpi_get_case_name(&decl->decl.object));
       return NULL;
    }
 
@@ -1880,6 +1865,128 @@ static void vhpi_watch_scope(rt_model_t *m, rt_scope_t *s, rt_watch_t *w)
 
    for (int i = 0; i < s->children.count; i++)
       vhpi_watch_scope(m, s->children.items[i], w);
+}
+
+static vhpiStringT vhpi_get_case_name(c_vhpiObject *obj)
+{
+   c_abstractDecl *ad = is_abstractDecl(obj);
+   if (ad != NULL && ad->CaseName != NULL)
+      return ad->CaseName;
+   else if (ad != NULL)
+      return (ad->CaseName = new_string(istr(tree_ident(ad->tree))));
+
+   c_name *n = is_name(obj);
+   if (n != NULL && n->CaseName != NULL)
+      return n->CaseName;
+   else if (n != NULL)
+      should_not_reach_here();
+
+   c_abstractRegion *r = is_abstractRegion(obj);
+   if (r != NULL && r->CaseName != NULL)
+      return r->CaseName;
+   else if (r != NULL) {
+      const char *qual = istr(tree_ident(r->tree));
+      if (is_design_unit(r->tree))
+         return (r->CaseName = new_string(strrchr(qual, '.') + 1));
+      else
+         return (r->CaseName = new_string(qual));
+   }
+
+   return NULL;
+}
+
+static vhpiStringT vhpi_get_name(c_vhpiObject *obj)
+{
+   c_abstractDecl *ad = is_abstractDecl(obj);
+   if (ad != NULL && ad->Name != NULL)
+      return ad->Name;
+   else if (ad != NULL)
+      return (ad->Name = new_upper_string((char *)vhpi_get_case_name(obj)));
+
+   c_name *n = is_name(obj);
+   if (n != NULL && n->Name != NULL)
+      return n->Name;
+   else if (n != NULL)
+      return (n->Name = new_upper_string((char *)vhpi_get_case_name(obj)));
+
+   c_abstractRegion *r = is_abstractRegion(obj);
+   if (r != NULL && r->Name != NULL)
+      return r->Name;
+   else if (r != NULL)
+      return (r->Name = new_upper_string((char *)vhpi_get_case_name(obj)));
+
+   c_tool *t = is_tool(obj);
+   if (t != NULL)
+      return (vhpiStringT)PACKAGE_NAME;
+
+   return NULL;
+}
+
+static vhpiStringT vhpi_get_full_case_name(c_vhpiObject *obj)
+{
+   c_abstractDecl *ad = is_abstractDecl(obj);
+   if (ad != NULL && ad->FullCaseName != NULL)
+      return ad->FullCaseName;
+   else if (ad != NULL && ad->ImmRegion != NULL) {
+      vhpiStringT prefix = vhpi_get_full_case_name(&ad->ImmRegion->object);
+      const char *suffix = istr(tree_ident(ad->tree));
+      return (ad->FullCaseName = new_stringf("%s:%s", prefix, suffix));
+   }
+
+   c_abstractRegion *r = is_abstractRegion(obj);
+   if (r != NULL && r->FullCaseName != NULL)
+      return r->FullCaseName;
+   else if (r != NULL) {
+      const char *suffix = istr(tree_ident(r->tree));
+      if (is_design_unit(r->tree))
+         return (r->FullCaseName = new_stringf("@%s", suffix));
+      else
+         return (r->FullCaseName = new_stringf(":%s", suffix));
+   }
+
+   c_name *n = is_name(obj);
+   if (n != NULL && n->FullCaseName != NULL)
+      return n->FullCaseName;
+   else if (n != NULL)
+      should_not_reach_here();
+
+   printf("%s\n", vhpi_class_str(obj->kind));
+   should_not_reach_here();
+}
+
+static vhpiStringT vhpi_get_full_name(c_vhpiObject *obj)
+{
+   c_abstractDecl *ad = is_abstractDecl(obj);
+   if (ad != NULL && ad->FullName != NULL)
+      return ad->FullName;
+   else if (ad != NULL) {
+      vhpiStringT fcn = vhpi_get_full_case_name(obj);
+      return (ad->FullName = new_upper_string((char *)fcn));
+   }
+
+   c_name *n = is_name(obj);
+   if (n != NULL && n->FullName != NULL)
+      return n->FullName;
+   else if (n != NULL) {
+      vhpiStringT fcn = vhpi_get_full_case_name(obj);
+      return (n->FullName = new_upper_string((char *)fcn));
+   }
+
+   c_abstractRegion *r = is_abstractRegion(obj);
+   if (r != NULL && r->FullName != NULL)
+      return r->FullName;
+   else if (r != NULL) {
+      vhpiStringT fcn = vhpi_get_full_case_name(obj);
+      return (r->Name = new_upper_string((char *)fcn));
+   }
+
+   printf("%s\n", vhpi_class_str(obj->kind));
+   should_not_reach_here();
+}
+
+static bool vhpi_name_cmp(c_vhpiObject *obj, const char *str)
+{
+   return strcasecmp((char *)vhpi_get_case_name(obj), str) == 0;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2286,15 +2393,12 @@ vhpiHandleT vhpi_handle_by_name(const char *name, vhpiHandleT scope)
    if (scope == NULL) {
       vhpi_context_t *c = vhpi_context();
 
-      if (strcasecmp(elem, (char *)c->root->designInstUnit.region.Name) == 0)
+      if (vhpi_name_cmp(&c->root->designInstUnit.region.object, elem))
          where = &(c->root->designInstUnit.region.object);
       else {
          for (int i = 0; i < c->packages.count; i++) {
-            c_packInst *pi = is_packInst(c->packages.items[i]);
-            assert(pi != NULL);
-
-            if (strcasecmp(elem, (char *)pi->designInstUnit.region.Name) == 0) {
-               where = &(pi->designInstUnit.region.object);
+            if (vhpi_name_cmp(c->packages.items[i], elem)) {
+               where = c->packages.items[i];
                break;
             }
          }
@@ -2318,9 +2422,8 @@ vhpiHandleT vhpi_handle_by_name(const char *name, vhpiHandleT scope)
       if (region != NULL) {
          vhpiObjectListT *decls = expand_lazy_list(where, &(region->decls));
          for (int i = 0; i < decls->count; i++) {
-            c_abstractDecl *d = cast_abstractDecl(decls->items[i]);
-            if (strcasecmp((char *)d->Name, elem) == 0) {
-               where = &(d->object);
+            if (vhpi_name_cmp(decls->items[i], elem)) {
+               where = decls->items[i];
                found = true;
                break;
             }
@@ -2330,7 +2433,7 @@ vhpiHandleT vhpi_handle_by_name(const char *name, vhpiHandleT scope)
             vhpiObjectListT *stmts = expand_lazy_list(where, &(region->stmts));
             for (int i = 0; i < stmts->count; i++) {
                c_abstractRegion *r = is_abstractRegion(stmts->items[i]);
-               if (r != NULL && strcasecmp((char *)r->Name, elem) == 0) {
+               if (r != NULL && vhpi_name_cmp(stmts->items[i], elem)) {
                   where = &(r->object);
                   found = true;
                   break;
@@ -2343,7 +2446,7 @@ vhpiHandleT vhpi_handle_by_name(const char *name, vhpiHandleT scope)
             c_selectedName *sn = is_selectedName(it.list->items[i]);
             assert(sn != NULL);
 
-            if (strcasecmp((char *)sn->Suffix->decl.Name, elem) == 0) {
+            if (vhpi_name_cmp(&sn->Suffix->decl.object, elem)) {
                where = &(sn->prefixedName.name.expr.object);
                found = true;
                break;
@@ -2694,88 +2797,106 @@ const vhpiCharT *vhpi_get_str(vhpiStrPropertyT property, vhpiHandleT handle)
    if (obj == NULL)
       return NULL;
 
-   if (property == vhpiKindStrP)
+   switch (property) {
+   case vhpiKindStrP:
       return (vhpiCharT *)vhpi_class_str(obj->kind);
 
-   c_designUnit *u = is_designUnit(obj);
-   if (u != NULL) {
-      switch (property) {
-      case vhpiUnitNameP: return u->UnitName;
-      default: break;   // Fallthrough to c_abstractRegion
+   case vhpiNameP:
+      {
+         vhpiStringT str = vhpi_get_name(obj);
+         if (str != NULL)
+            return str;
+
+         goto missing_property;
       }
+
+   case vhpiCaseNameP:
+      {
+         vhpiStringT str = vhpi_get_case_name(obj);
+         if (str != NULL)
+            return str;
+
+         goto missing_property;
+      }
+
+   case vhpiFullNameP:
+      {
+         vhpiStringT str = vhpi_get_full_name(obj);
+         if (str != NULL)
+            return str;
+
+         goto missing_property;
+      }
+
+   case vhpiFullCaseNameP:
+      {
+         vhpiStringT str = vhpi_get_full_case_name(obj);
+         if (str != NULL)
+            return str;
+
+         goto missing_property;
+      }
+
+   case vhpiToolVersionP:
+      {
+         c_tool *t = is_tool(obj);
+         if (t != NULL)
+            return (vhpiCharT *)PACKAGE_VERSION;
+
+         goto missing_property;
+      }
+
+   case vhpiUnitNameP:
+      {
+         c_designUnit *du = is_designUnit(obj);
+         if (du != NULL)
+            return du->UnitName;
+
+         goto missing_property;
+      }
+
+   case vhpiStrValP:
+      {
+         c_argv *arg = is_argv(obj);
+         if (arg != NULL)
+            return arg->StrVal;
+
+         c_enumLiteral *el = is_enumLiteral(obj);
+         if (el != NULL)
+            return vhpi_get_name(obj);
+
+         goto missing_property;
+      }
+
+   case vhpiLabelNameP:
+      {
+         c_stmt *s = is_stmt(obj);
+         if (s != NULL)
+            return s->LabelName;
+
+         goto missing_property;
+      }
+
+   case vhpiFileNameP:
+      {
+         c_abstractRegion *region = is_abstractRegion(obj);
+         if (region != NULL)
+            return (vhpiCharT *)loc_file_str(&(region->object.loc));
+
+         c_abstractDecl *d = is_abstractDecl(obj);
+         if (d != NULL)
+            return (vhpiCharT *)loc_file_str(&(d->object.loc));
+
+         goto missing_property;
+      }
+
+   default:
+      vhpi_error(vhpiFailure, &(obj->loc), "unsupported property %s in "
+                 "vhpi_get_str", vhpi_property_str(property));
+      return NULL;
    }
 
-   c_abstractRegion *region = is_abstractRegion(obj);
-   if (region != NULL) {
-      switch (property) {
-      case vhpiNameP: return region->Name;
-      case vhpiCaseNameP: return region->CaseName;
-      case vhpiFileNameP: return (vhpiCharT *)loc_file_str(&(region->object.loc));
-      case vhpiFullNameP: return region->FullName;
-      case vhpiFullCaseNameP: return region->FullCaseName;
-      default: break;   // May be statement instance
-      }
-   }
-
-   c_enumLiteral *el = is_enumLiteral(obj);
-   if (el != NULL) {
-      switch (property) {
-      case vhpiStrValP: return el->decl.Name;
-      default: goto unsupported;
-      }
-   }
-
-   c_abstractDecl *d = is_abstractDecl(obj);
-   if (d != NULL) {
-      switch (property) {
-      case vhpiNameP: return d->Name;
-      case vhpiCaseNameP: return d->CaseName;
-      case vhpiFileNameP: return (vhpiCharT *)loc_file_str(&(d->object.loc));
-      case vhpiFullNameP: return d->FullName;
-      case vhpiFullCaseNameP: return d->FullCaseName;
-      default: goto unsupported;
-      }
-   }
-
-   c_name *n = is_name(obj);
-   if (n != NULL) {
-      switch (property) {
-      case vhpiNameP: return n->Name;
-      case vhpiCaseNameP: return n->CaseName;
-      case vhpiFullNameP: return n->FullName;
-      case vhpiFullCaseNameP: return n->FullCaseName;
-      default: goto unsupported;
-      }
-   }
-
-   c_tool *t = is_tool(obj);
-   if (t != NULL) {
-      switch (property) {
-      case vhpiToolVersionP:
-         return (vhpiCharT *)PACKAGE_VERSION;
-      case vhpiNameP:
-         return (vhpiCharT *)PACKAGE_NAME;
-      default: goto unsupported;
-      }
-   }
-
-   c_argv *arg = is_argv(obj);
-   if (arg != NULL) {
-      switch (property) {
-      case vhpiStrValP: return arg->StrVal;
-      default: goto unsupported;
-      }
-   }
-
-   c_stmt *s = is_stmt(obj);
-   if (s != NULL) {
-      switch (property) {
-      case vhpiLabelNameP: return s->LabelName;
-      default: goto unsupported;
-      }
-   }
-
-unsupported:
+missing_property:
    vhpi_error(vhpiError, &(obj->loc), "object does not have string property %s",
               vhpi_property_str(property));
    return NULL;
@@ -4306,6 +4427,8 @@ static c_abstractRegion *build_compInstStmt(tree_t t, tree_t inst,
    init_stmt(&(c->stmt), t);
 
    // Make sure all lookups happen in the implicit inner region
+   (void)vhpi_get_case_name(&c->designInstUnit.region.object);
+   (void)vhpi_get_full_case_name(&c->designInstUnit.region.object);
    c->designInstUnit.region.tree = inner;
 
    vhpi_list_add(&region->stmts.list, &(c->designInstUnit.region.object));
