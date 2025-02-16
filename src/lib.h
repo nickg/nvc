@@ -31,7 +31,6 @@ typedef struct {
 
 lib_t lib_find(ident_t name);
 lib_t lib_require(ident_t name) RETURNS_NONNULL;
-lib_t lib_loaded(ident_t name);
 lib_t lib_new(const char *spec);
 lib_t lib_tmp(const char *name);
 void lib_free(lib_t lib);

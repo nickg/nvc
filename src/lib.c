@@ -458,13 +458,15 @@ static text_buf_t *lib_file_path(lib_t lib, const char *name)
    return tb;
 }
 
-lib_t lib_loaded(ident_t name_i)
+static lib_t lib_loaded(ident_t name_i)
 {
    if (name_i == well_known(W_WORK) && work != NULL)
       return work;
 
    for (lib_list_t *it = loaded; it != NULL; it = it->next) {
-      if (lib_name(it->item) == name_i && it->standard == standard())
+      if (it->standard != standard())
+         continue;
+      else if (ident_casecmp(lib_name(it->item), name_i))
          return it->item;
    }
 

@@ -1226,11 +1226,11 @@ static scope_t *private_scope_for(nametab_t *tab, tree_t unit)
    const tree_kind_t kind = tree_kind(unit);
 
    hash_t *cache = tab->globalmap;
-   ident_t id = tree_ident(unit);
+   lib_t lib = NULL;
    void *key = unit;
    if (kind == T_LIBRARY)
-      key = id;   // Tree pointer is not stable
-   else if (is_well_known(id) < NUM_WELL_KNOWN) {
+      key = lib = lib_require(tree_ident(unit));   // Tree pointer is not stable
+   else if (is_well_known(tree_ident(unit)) < NUM_WELL_KNOWN) {
       // Standard packages can be safely stored in a global cache as we
       // know they won't change
       static hash_t *stdcache = NULL;
@@ -1251,7 +1251,7 @@ static scope_t *private_scope_for(nametab_t *tab, tree_t unit)
    }
 
    if (kind == T_LIBRARY)
-      make_library_visible(s, lib_require(tree_ident(unit)));
+      make_library_visible(s, lib);
    else {
       // For package instances do not export the names declared only in
       // the body
