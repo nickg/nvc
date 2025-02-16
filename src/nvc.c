@@ -193,6 +193,7 @@ static int analyse(int argc, char **argv, cmd_state_t *state)
       { "check-synthesis", no_argument,       0, 's' },
       { "no-save",         no_argument,       0, 'N' },
       { "single-unit",     no_argument,       0, 'u' },
+      { "preserve-case",   no_argument,       0, 'p' },
       { 0, 0, 0, 0 }
    };
 
@@ -245,6 +246,9 @@ static int analyse(int argc, char **argv, cmd_state_t *state)
          break;
       case 'u':
          opt_set_int(OPT_SINGLE_UNIT, 1);
+         break;
+      case 'p':
+         opt_set_int(OPT_PRESERVE_CASE, 1);
          break;
       default:
          should_not_reach_here();
@@ -2085,9 +2089,11 @@ static void usage(void)
           "     --error-limit=NUM\tStop after NUM errors\n"
           " -f, --files=LIST\tRead files to analyse from LIST\n"
           "     --no-save\t\tDo not save analysed design units\n"
+          "     --preserve-case\tPreserve the original case of VHDL "
+          "identifiers\n"
           "     --psl\t\tEnable parsing of PSL directives in comments\n"
           "     --relaxed\t\tDisable certain pedantic rule checks\n"
-          "     --single-unit\tTreat all Verilog files as single compilation"
+          "     --single-unit\tTreat all Verilog files as single compilation "
           "unit\n"
           "\n"
           "Elaboration options:\n"

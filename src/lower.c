@@ -10012,11 +10012,10 @@ static void lower_decls(lower_unit_t *lu, tree_t scope)
       tree_t d = tree_decl(scope, i);
       if (tree_kind(d) != T_ATTR_SPEC)
          continue;
-      else if (is_well_known(tree_ident(d)) == W_FOREIGN) {
+      else if (ident_casecmp(tree_ident(d), well_known(W_FOREIGN)))
          unit_registry_defer(lu->registry, tree_ident2(tree_ref(d)), lu,
                              emit_function, lower_foreign_stub, NULL,
                              tree_to_object(d));
-      }
    }
 
    for (int i = 0; i < ndecls; i++) {

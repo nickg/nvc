@@ -5,9 +5,9 @@ tool version is
 arg is +foo=bar
 root handle
 root name is VHPI1
-root case name is VHPI1
+root case name is vhpi1
 root full name is :VHPI1
-root full case name is :VHPI1
+root full case name is :vhpi1
 root port is X
 root port is Y
 root signal is V
@@ -18,10 +18,10 @@ root decl is B
 root decl is R
 arch handle
 arch name is VHPI1-TEST
-arch unit name is WORK.VHPI1-TEST
+arch unit name is WORK.vhpi1-test
 entity handle
 entity name is VHPI1
-entity unit name is WORK.VHPI1
+entity unit name is WORK.vhpi1
 x handle
 x name X
 x full name is :VHPI1:X
@@ -52,8 +52,8 @@ v indexed name is V(2)
 v indexed name is V(1)
 v indexed name is V(0)
 name is A_NAME_WITH_MIXED_CASE
-case name is A_NAME_WITH_MIXED_CASE
-full case name is :VHPI1:A_NAME_WITH_MIXED_CASE
+case name is A_name_with_MIXED_case
+full case name is :vhpi1:A_name_with_MIXED_case
 start of sim callback! user data is 'some user data'
 0ms+0: x=5
 after_5ns callback!

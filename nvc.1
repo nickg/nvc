@@ -238,6 +238,11 @@ for compatibility with other tools.
 .It Fl \-no\-save
 Do not save analysed design units to the working library.  This can be
 used to quickly check for syntax and type errors.
+.\" --preserve-case
+.It Fl \-preserve\-case
+Retain the original spelling of VHDL identifiers instead of converting
+to a canonical upper-case form.  This is an experimental option and may
+lead to incorrect behaviour.
 .\" --psl
 .It Fl \-psl
 Enable parsing of PSL directives in comments.

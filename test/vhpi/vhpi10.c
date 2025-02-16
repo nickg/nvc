@@ -59,7 +59,7 @@ static void start_of_sim(const vhpiCbDataT *cb_data)
    fail_if(vhpi_get(vhpiIsGuardedP, b0));
    fail_if(vhpi_get(vhpiIsSeqStmtP, b0));
    vhpi_printf("b0 label %s", vhpi_get_str(vhpiLabelNameP, b0));
-   fail_unless(strcmp((char *)vhpi_get_str(vhpiLabelNameP, b0), "B0") == 0);
+   check_string(vhpi_get_str(vhpiLabelNameP, b0), "b0");
 
    vhpiHandleT b0s0 = vhpi_handle_by_name("s0", b0);
    check_error();
@@ -89,7 +89,7 @@ static void start_of_sim(const vhpiCbDataT *cb_data)
    fail_unless(vhpi_get(vhpiKindP, i0) == vhpiCompInstStmtK);
    fail_if(vhpi_get(vhpiIsSeqStmtP, i0));
    vhpi_printf("io label %s", vhpi_get_str(vhpiLabelNameP, i0));
-   fail_unless(strcmp((char *)vhpi_get_str(vhpiLabelNameP, i0), "I0") == 0);
+   check_string(vhpi_get_str(vhpiLabelNameP, i0), "i0");
 
    vhpiHandleT i0_du = vhpi_handle(vhpiDesignUnit, i0);
    check_error();
@@ -113,7 +113,7 @@ static void start_of_sim(const vhpiCbDataT *cb_data)
    fail_if(sub_b0 == NULL);
    fail_unless(vhpi_get(vhpiKindP, sub_b0) == vhpiBlockStmtK);
    vhpi_printf("sub_b0 label %s", vhpi_get_str(vhpiLabelNameP, sub_b0));
-   fail_unless(strcmp((char *)vhpi_get_str(vhpiLabelNameP, sub_b0), "SUB_B0") == 0);
+   check_string(vhpi_get_str(vhpiLabelNameP, sub_b0), "sub_b0");
 
    fail_unless(vhpi_handle_by_name("i0.sub_b0", root) == sub_b0);
 

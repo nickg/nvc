@@ -872,6 +872,9 @@ static bool run_test(test_t *test)
       if (test->flags & F_DEFINE)
          push_arg(&args, "--define=%s", test->define);
 
+      if (test->flags & F_VHPI)
+         push_arg(&args, "--preserve-case");
+
       push_arg(&args, "-e");
       push_arg(&args, "%s", test->name);
       push_arg(&args, "-O%u", test->olevel);

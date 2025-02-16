@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2022-2024  Nick Gasson
+//  Copyright (C) 2022-2025  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -72,6 +72,7 @@ typedef enum {
    OPT_MISSING_WAIT,
    OPT_LAYOUT_VERBOSE,
    OPT_SINGLE_UNIT,
+   OPT_PRESERVE_CASE,
 
    OPT_LAST_NAME
 } opt_name_t;

@@ -25,6 +25,8 @@
   `--count-from-undefined` instead of just `U`.
 - Fixed a crash when a record subtype has a partially constrained
   element (#1155).
+- Added an experimental `--preserve-case` analysis option to retain the
+  original spelling of VHDL identifiers (#723).
 
 ## Version 1.15.1 - 2025-01-22
 - Fixed a crash when a subprogram is called with too many named arguments

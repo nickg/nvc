@@ -91,6 +91,7 @@ static int report_bad_identifier(char *str);
 static int last_token = -1;
 static int comment_caller = 0;
 static bool in_psl_comment = false;
+static bool preserve_case = false;
 
 extern loc_t yylloc;
 extern yylval_t yylval;
@@ -904,8 +905,10 @@ static bool begin_psl_comment(void)
 
 static int parse_id(char *str)
 {
-   for (char *p = str; *p; p++)
-      *p = toupper_iso88591(*p);
+   if (!preserve_case) {
+      for (char *p = str; *p; p++)
+         *p = toupper_iso88591(*p);
+   }
 
    yylval.ident = ident_new(str);
    TOKEN(tID);
@@ -1182,6 +1185,7 @@ void reset_scanner(void)
    last_token = -1;
    comment_caller = 0;
    in_psl_comment = false;
+   preserve_case = opt_get_int(OPT_PRESERVE_CASE);
 
    YY_FLUSH_BUFFER;
    BEGIN(INITIAL);

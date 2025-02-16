@@ -38,7 +38,7 @@ static void test_one(void)
    vhpiHandleT t_int64 = vhpi_handle(vhpiType, one);
    check_error();
    fail_if(t_int64 == NULL);
-   fail_unless(strcmp((char *)vhpi_get_str(vhpiNameP, t_int64), "T_INT64") == 0);
+   check_string(vhpi_get_str(vhpiNameP, t_int64), "T_INT64");
    fail_unless(vhpi_get(vhpiKindP, t_int64) == vhpiIntTypeDeclK);
    fail_if(vhpi_get(vhpiIsUnconstrainedP, t_int64));
 
