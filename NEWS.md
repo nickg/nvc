@@ -29,6 +29,9 @@
   original spelling of VHDL identifiers (#723).
 - Fixed wrong result of VHDL-2019 `std.env.file_path` when the source
   file was analysed using a relative path (#1162).
+- `--ieee-warnings` is now a global option and should be placed before
+  the `-r` command.  Passing it to the `-r` command is still supported
+  but deprecated and may not take effect in some situations (#1151).
 
 ## Version 1.15.1 - 2025-01-22
 - Fixed a crash when a subprogram is called with too many named arguments

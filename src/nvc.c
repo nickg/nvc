@@ -755,7 +755,7 @@ static int run_cmd(int argc, char **argv, cmd_state_t *state)
       { "stop-delta",    required_argument, 0, 'd' },
       { "format",        required_argument, 0, 'f' },
       { "include",       required_argument, 0, 'i' },
-      { "ieee-warnings", required_argument, 0, 'I' },
+      { "ieee-warnings", required_argument, 0, 'I' },   // DEPRECATED 1.16
       { "exclude",       required_argument, 0, 'e' },
       { "exit-severity", required_argument, 0, 'x' },
       { "dump-arrays",   optional_argument, 0, 'a' },
@@ -847,7 +847,17 @@ static int run_cmd(int argc, char **argv, cmd_state_t *state)
          parse_exit_severity(optarg);
          break;
       case 'I':
-         opt_set_int(OPT_IEEE_WARNINGS, parse_on_off(optarg));
+         {
+            const bool on = parse_on_off(optarg);
+
+            // TODO: add an unconditional warning after 1.16
+            if (state->jit != NULL && opt_get_int(OPT_IEEE_WARNINGS) != on)
+               warnf("the $bold$--ieee-warnings$$ option may have no affect "
+                     "as the IEEE packages have already been initialised, pass "
+                     "$bold$--ieee-warnings$$ as a global option instead");
+
+            opt_set_int(OPT_IEEE_WARNINGS, on);
+         }
          break;
       case 'a':
          if (optarg == NULL)
@@ -862,7 +872,7 @@ static int run_cmd(int argc, char **argv, cmd_state_t *state)
          opt_set_int(OPT_SHUFFLE_PROCS, 1);
          break;
       default:
-         abort();
+         should_not_reach_here();
       }
    }
 
@@ -2069,6 +2079,8 @@ static void usage(void)
           "Global options may be placed before COMMAND:\n"
           " -h, --help\t\tDisplay this message and exit\n"
           " -H SIZE\t\tSet the maximum heap size to SIZE bytes\n"
+          "     --ieee-warnings=\tEnable ('on') or disable ('off') warnings\n"
+          "                     \tfrom IEEE packages\n"
           "     --ignore-time\tSkip source file timestamp check\n"
           "     --load=PLUGIN\tLoad VHPI plugin at startup\n"
           " -L PATH\t\tAdd PATH to library search paths\n"
@@ -2116,8 +2128,6 @@ static void usage(void)
           "     --exit-severity=\tExit after assertion failure of "
           "this severity\n"
           "     --format=FMT\tWaveform format is either fst or vcd\n"
-          "     --ieee-warnings=\tEnable ('on') or disable ('off') warnings\n"
-          "                     \tfrom IEEE packages\n"
           "     --include=GLOB\tInclude signals matching GLOB in wave dump\n"
           "     --shuffle\t\tRun processes in random order\n"
           "     --stats\t\tPrint time and memory usage at end of run\n"
@@ -2331,19 +2341,20 @@ int main(int argc, char **argv)
    atexit(fbuf_cleanup);
 
    static struct option long_options[] = {
-      { "help",        no_argument,       0, 'h' },
-      { "version",     no_argument,       0, 'v' },
-      { "work",        required_argument, 0, 'w' },
-      { "std",         required_argument, 0, 's' },
-      { "messages",    required_argument, 0, 'I' },
-      { "native",      no_argument,       0, 'n' },   // DEPRECATED 1.4
-      { "map",         required_argument, 0, 'p' },
-      { "ignore-time", no_argument,       0, 'i' },
-      { "force-init",  no_argument,       0, 'f' },   // DEPRECATED 1.7
-      { "stderr",      required_argument, 0, 'E' },
-      { "load",        required_argument, 0, 'l' },
-      { "vhpi-debug",  no_argument,       0, 'D' },
-      { "vhpi-trace",  no_argument,       0, 'T' },
+      { "help",          no_argument,       0, 'h' },
+      { "version",       no_argument,       0, 'v' },
+      { "work",          required_argument, 0, 'w' },
+      { "std",           required_argument, 0, 's' },
+      { "messages",      required_argument, 0, 'I' },
+      { "native",        no_argument,       0, 'n' }, // DEPRECATED 1.4
+      { "map",           required_argument, 0, 'p' },
+      { "ieee-warnings", required_argument, 0, 'W' },
+      { "ignore-time",   no_argument,       0, 'i' },
+      { "force-init",    no_argument,       0, 'f' }, // DEPRECATED 1.7
+      { "stderr",        required_argument, 0, 'E' },
+      { "load",          required_argument, 0, 'l' },
+      { "vhpi-debug",    no_argument,       0, 'D' },
+      { "vhpi-trace",    no_argument,       0, 'T' },
       { 0, 0, 0, 0 }
    };
 
@@ -2415,12 +2426,15 @@ int main(int argc, char **argv)
       case 'D':
          opt_set_int(OPT_PLI_DEBUG, 1);
          break;
+      case 'W':
+         opt_set_int(OPT_IEEE_WARNINGS, parse_on_off(optarg));
+         break;
       case '?':
          bad_option("global", argv);
       case ':':
          missing_argument("global", argv);
       default:
-         abort();
+         should_not_reach_here();
       }
    }
 

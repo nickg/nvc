@@ -42,12 +42,13 @@ _nvc () {
 
   local global_opts='-L -h --help --messages= --std= -v --version --init --list
                      --install --work= -a -e -r -i --dump --print-deps --load=
-                     --map= --do --cover-report --cover-export --cover-merge'
+                     --map= --do --cover-report --cover-export --cover-merge
+                     --ieee-warnings='
   local analyse_opts='-D --define= --error-limit= --relaxed --psl --error-limit=
-                      -f --files --no-save'
+                      -f --files --no-save --preserve-case'
   local elab_opts='--cover --disable-opt --dump-llvm --dump-vcode --jit --no-save
                    --native -V --verbose'
-  local run_opts='--trace --stop-time= --ieee-warnings= --stats= --stop-delta=
+  local run_opts='--trace --stop-time= --stats= --stop-delta=
                   -w --wave --format='
   local export_opts='--format= -o --output='
   local merge_opts='-o --output='
