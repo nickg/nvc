@@ -27,6 +27,8 @@
   element (#1155).
 - Added an experimental `--preserve-case` analysis option to retain the
   original spelling of VHDL identifiers (#723).
+- Fixed wrong result of VHDL-2019 `std.env.file_path` when the source
+  file was analysed using a relative path (#1162).
 
 ## Version 1.15.1 - 2025-01-22
 - Fixed a crash when a subprogram is called with too many named arguments

@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2022-2024  Nick Gasson
+//  Copyright (C) 2022-2025  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -157,20 +157,20 @@ static int8_t errno_to_dir_delete_status(void)
    }
 }
 
-static const char *find_dir_separator(const char *str)
+static char *find_dir_separator(const char *str)
 {
    // Forward slash is a valid separator even on Windows
-   const char *fwd = strrchr(str, '/');
+   char *fwd = strrchr(str, '/');
    if (fwd == NULL && DIR_SEP[0] != '/')
       return strrchr(str, DIR_SEP[0]);
    else
       return fwd;
 }
 
-static ffi_uarray_t *to_absolute_path(const char *input, size_t len)
+static ffi_uarray_t *to_absolute_path(const char *input)
 {
    if (is_absolute_path(input))
-      return to_line_n(input, len);
+      return to_line(input);
 
    char buf[PATH_MAX];
    if (realpath(input, buf) == NULL)
@@ -597,16 +597,17 @@ void _std_env_get_call_path(jit_scalar_t *args, tlab_t *tlab)
       cpe->name = to_line(istr(tree_ident(decl)));
       cpe->file_line = frame->loc.first_line;
 
-      const char *file = loc_file_str(&frame->loc);
-      const char *sep = find_dir_separator(file);
+      char *file LOCAL = xstrdup(loc_file_str(&frame->loc));
+      char *sep = find_dir_separator(file);
 
       if (sep != NULL) {
+         *sep = '\0';
          cpe->file_name = to_line(sep + 1);
-         cpe->file_path = to_absolute_path(file, sep - file);
+         cpe->file_path = to_absolute_path(file);
       }
       else {
          cpe->file_name = to_line(file);
-         cpe->file_path = to_absolute_path(".", 1);
+         cpe->file_path = to_absolute_path(".");
       }
    }
 
@@ -633,13 +634,15 @@ void _std_env_file_path(ffi_uarray_t **ptr)
    jit_stack_trace_t *stack LOCAL = jit_stack_trace();
    assert(stack->count > 1);
 
-   const char *file = loc_file_str(&(stack->frames[1].loc));
-   const char *sep = find_dir_separator(file);
+   char *file LOCAL = xstrdup(loc_file_str(&(stack->frames[1].loc)));
+   char *sep = find_dir_separator(file);
 
    if (sep == NULL)
-      *ptr = to_absolute_path(".", 1);
-   else
-      *ptr = to_absolute_path(file, sep - file);
+      *ptr = to_absolute_path(".");
+   else {
+      *sep = '\0';
+      *ptr = to_absolute_path(file);
+   }
 }
 
 DLLEXPORT
