@@ -1100,3 +1100,4 @@ cover26         shell
 debug4          normal,gold
 issue1150       normal,psl
 order4          shell
+issue1161       normal,vhpi,2008

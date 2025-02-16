@@ -533,7 +533,7 @@ static void jit_emit_trace(diag_t *d, const loc_t *loc, object_t *enclosing,
          }
          break;
       case T_ATTR_SPEC:
-         assert(is_well_known(tree_ident(tree)) == W_FOREIGN);
+         assert(ident_casecmp(tree_ident(tree), well_known(W_FOREIGN)));
          diag_trace(d, loc, "Subprogram$$ %s",
                     type_pp(tree_type(tree_ref(tree))));
          break;

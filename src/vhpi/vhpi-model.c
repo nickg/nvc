@@ -225,10 +225,10 @@ typedef struct {
 DEF_CLASS(recordTypeDecl, vhpiRecordTypeDeclK, composite.typeDecl.decl.object);
 
 typedef struct {
-   c_abstractDecl    decl;
-   c_typeDecl       *Type;
-   c_recordTypeDecl *parent;
-   vhpiIntT          Position;
+   c_abstractDecl  decl;
+   c_typeDecl     *Type;
+   c_abstractDecl *parent;
+   vhpiIntT        Position;
 } c_elemDecl;
 
 DEF_CLASS(elemDecl, vhpiElemDeclK, decl.object);
@@ -527,7 +527,6 @@ static c_designUnit *cached_designUnit(tree_t t);
 static c_typeDecl *build_dynamicSubtype(c_typeDecl *base, void *ptr,
                                         vhpiClassKindT kind);
 static void *vhpi_get_value_ptr(c_vhpiObject *obj);
-static c_typeDecl *vhpi_get_type(c_vhpiObject *obj);
 static vhpiClassKindT vhpi_get_prefix_kind(c_vhpiObject *obj);
 static vhpiStringT vhpi_get_case_name(c_vhpiObject *obj);
 static vhpiStringT vhpi_get_full_case_name(c_vhpiObject *obj);
@@ -1104,9 +1103,9 @@ static void init_subpDecl(c_subpDecl *d, tree_t t)
 }
 
 static void init_elemDecl(c_elemDecl *ed, tree_t t, c_typeDecl *Type,
-                          c_recordTypeDecl *parent)
+                          c_abstractDecl *parent)
 {
-   init_abstractDecl(&(ed->decl), t, parent->composite.typeDecl.decl.ImmRegion);
+   init_abstractDecl(&(ed->decl), t, parent->ImmRegion);
    ed->Type = Type;
    ed->Position = tree_pos(t);
    ed->parent = parent;
@@ -1663,34 +1662,17 @@ static rt_signal_t *vhpi_get_signal_prefixedName(c_prefixedName *pn)
    return pn->signal;
 }
 
-static c_typeDecl *vhpi_get_type(c_vhpiObject *obj)
-{
-   c_objDecl *od = is_objDecl(obj);
-   if (od != NULL)
-      return od->Type;
-
-   c_expr *expr = is_expr(obj);
-   if (expr != NULL)
-      return expr->Type;
-
-   c_elemDecl *ed = is_elemDecl(obj);
-   if (ed != NULL)
-      return ed->Type;
-
-   c_typeDecl *td = is_typeDecl(obj);
-   if (td != NULL)
-      return td;
-
-   return NULL;
-}
-
 static vhpiClassKindT vhpi_get_prefix_kind(c_vhpiObject *obj)
 {
    c_prefixedName *pn = is_prefixedName(obj);
    if (pn != NULL)
       return vhpi_get_prefix_kind(pn->Prefix);
-   else
-      return obj->kind;
+
+   c_elemDecl *ed = is_elemDecl(obj);
+   if (ed != NULL)
+      return vhpi_get_prefix_kind(&ed->parent->object);
+
+   return obj->kind;
 }
 
 static void *vhpi_get_bounds_var(c_typeDecl *td)
@@ -1705,16 +1687,29 @@ static void *vhpi_get_bounds_var(c_typeDecl *td)
 
 static const jit_layout_t *vhpi_get_layout(c_vhpiObject *obj)
 {
-   c_typeDecl *td = vhpi_get_type(obj);
-   if (td == NULL)
+   type_t type = NULL;
+
+   c_objDecl *od = is_objDecl(obj);
+   if (od != NULL)
+      type = od->decl.type;
+
+   c_typeDecl *td = is_typeDecl(obj);
+   if (td != NULL)
+      type = td->type;
+
+   c_expr *expr = is_expr(obj);
+   if (expr != NULL)
+      type = expr->Type->type;
+
+   if (type == NULL)
       return NULL;
 
    switch (vhpi_get_prefix_kind(obj)) {
    case vhpiPortDeclK:
    case vhpiSigDeclK:
-      return signal_layout_of(td->type);
+      return signal_layout_of(type);
    default:
-      return layout_of(td->type);
+      return layout_of(type);
    }
 }
 
@@ -1764,7 +1759,7 @@ static void *vhpi_get_value_ptr(c_vhpiObject *obj)
 
    c_elemDecl *ed = is_elemDecl(obj);
    if (ed != NULL) {
-      c_vhpiObject *pobj = &(ed->parent->composite.typeDecl.decl.object);
+      c_vhpiObject *pobj = &(ed->parent->object);
       void *base = vhpi_get_value_ptr(pobj);
       if (base == NULL)
          return NULL;
@@ -3947,7 +3942,7 @@ static c_typeDecl *build_dynamicSubtype(c_typeDecl *base, void *ptr,
             c_typeDecl *sub = build_dynamicSubtype(ed->Type, fptr, kind);
 
             c_elemDecl *new = new_object(sizeof(c_elemDecl), vhpiElemDeclK);
-            init_elemDecl(new, ed->decl.tree, sub, rt);
+            init_elemDecl(new, ed->decl.tree, sub, &rt->composite.typeDecl.decl);
 
             vhpi_list_add(&td->Constraints, &(new->decl.object));
          }
@@ -4002,8 +3997,13 @@ static c_typeDecl *build_subTypeDecl(type_t type, tree_t where,
          if (ed->Type->IsUnconstrained) {
             tree_t cons = type_constraint_for_field(type, ed->decl.tree);
             if (cons != NULL) {
+               c_abstractDecl *parent = &rtd->composite.typeDecl.decl;
+               if (obj != NULL)
+                   parent = is_abstractDecl(obj);
+               assert(parent != NULL);
+
                c_elemDecl *new = new_object(sizeof(c_elemDecl), vhpiElemDeclK);
-               init_elemDecl(new, ed->decl.tree, NULL, rtd);
+               init_elemDecl(new, ed->decl.tree, NULL, parent);
 
                vhpi_list_add(&td->Constraints, &(new->decl.object));
 
@@ -4625,7 +4625,7 @@ static void vhpi_lazy_fields(c_vhpiObject *obj)
       type_t ft = tree_type(f);
 
       c_elemDecl *ed = new_object(sizeof(c_elemDecl), vhpiElemDeclK);
-      init_elemDecl(ed, f, NULL, td);
+      init_elemDecl(ed, f, NULL, &td->composite.typeDecl.decl);
 
       vhpi_list_add(&td->RecordElems.list, &(ed->decl.object));
 
@@ -4690,6 +4690,7 @@ static void vhpi_lazy_decls(c_vhpiObject *obj)
    case vhpiRootInstK:
    case vhpiCompInstStmtK:
    case vhpiEntityDeclK:
+   case vhpiBlockStmtK:
       nports = tree_ports(r->tree);
       // Fall-through
    case vhpiPackDeclK:
