@@ -1056,7 +1056,7 @@ void diag_femit(diag_t *d, FILE *f)
 
    const unsigned count = relaxed_add(&n_diags[d->level], 1);
 
-   if (d->level >= DIAG_ERROR && count == error_limit)
+   if (d->level == DIAG_ERROR && count == error_limit)
       fatal("too many errors, giving up");
 
  cleanup:
