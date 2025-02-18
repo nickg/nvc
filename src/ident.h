@@ -25,7 +25,8 @@ ident_t ident_new(const char *str);
 ident_t ident_new_n(const char *str, size_t len);
 
 // Generate a unique identifier with the given prefix.
-ident_t ident_uniq(const char *prefix);
+ident_t ident_uniq(const char *prefix, ...)
+   __attribute__((format(printf, 1, 2)));
 
 ident_t ident_sprintf(const char *fmt, ...)
    __attribute__((format(printf, 1, 2)));

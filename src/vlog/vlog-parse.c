@@ -2096,10 +2096,7 @@ static vlog_node_t p_always_construct(void)
    consume(tALWAYS);
 
    vlog_node_t v = vlog_new(V_ALWAYS);
-
-   char *name LOCAL = xasprintf("__always#line%d", yylloc.first_line);
-   vlog_set_ident(v, ident_uniq(name));
-
+   vlog_set_ident(v, ident_uniq("__always#line%d", yylloc.first_line));
    vlog_add_stmt(v, p_statement());
 
    vlog_set_loc(v, CURRENT_LOC);
@@ -2115,9 +2112,7 @@ static vlog_node_t p_initial_construct(void)
    consume(tINITIAL);
 
    vlog_node_t v = vlog_new(V_INITIAL);
-
-   char *name LOCAL = xasprintf("__initial#line%d", yylloc.first_line);
-   vlog_set_ident(v, ident_uniq(name));
+   vlog_set_ident(v, ident_uniq("__initial#line%d", yylloc.first_line));
 
    vlog_node_t s = p_statement_or_null();
    if (s != NULL)
@@ -2135,9 +2130,7 @@ static vlog_node_t p_net_assignment(void)
 
    vlog_node_t v = vlog_new(V_ASSIGN);
    vlog_set_target(v, p_net_lvalue());
-
-   char *name LOCAL = xasprintf("__assign#line%d", state.last_loc.first_line);
-   vlog_set_ident(v, ident_uniq(name));
+   vlog_set_ident(v, ident_uniq("__assign#line%d", state.last_loc.first_line));
 
    consume(tEQ);
 
