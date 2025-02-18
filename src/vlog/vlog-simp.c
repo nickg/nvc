@@ -74,9 +74,7 @@ static vlog_node_t simp_net_decl(vlog_node_t decl, vlog_node_t mod)
       vlog_set_target(a, ref);
       vlog_set_value(a, value);
       vlog_set_loc(a, loc);
-
-      char *name LOCAL = xasprintf("__assign#%s", istr(id));
-      vlog_set_ident(a, ident_uniq(name));
+      vlog_set_ident(a, ident_uniq("__assign#%s", istr(id)));
 
       vlog_add_stmt(mod, a);
    }

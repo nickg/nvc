@@ -227,7 +227,8 @@ static ident_t ident_from_bytes(const char *str, hash_state_t hash, size_t len)
             else
                break;
          }
-         else if (id->length == len && memcmp(id->bytes, str, len) == 0)
+         else if (id->length == len && id->hash[0] == hash
+                  && memcmp(id->bytes, str, len) == 0)
             return id;
 
          if (++reprobe == REPROBE_LIMIT) {
@@ -426,10 +427,26 @@ ident_t ident_read(ident_rd_ctx_t ctx)
             fbuf_file_name(ctx->file), index, (int)ctx->cache_sz);
 }
 
-ident_t ident_uniq(const char *prefix)
+ident_t ident_uniq(const char *fmt, ...)
 {
+   va_list ap, ap2;
+   va_start(ap, fmt);
+   va_copy(ap2, ap);
+
+   char buf[64], *prefix = buf;
+   size_t req = vsnprintf(buf, ARRAY_LEN(buf), fmt, ap);
+
+   if (req + 1 > ARRAY_LEN(buf)) {
+      prefix = xmalloc(req + 1);
+      vsnprintf(prefix, req + 1, fmt, ap2);
+   }
+
+   va_end(ap);
+   va_end(ap2);
+
    hash_state_t base_hash = HASH_INIT;
    int len = hash_update(&base_hash, prefix, INT_MAX);
+   assert(len == req);
 
    static volatile int counter = 0;
    char suffix[16] = "";
@@ -441,8 +458,10 @@ ident_t ident_uniq(const char *prefix)
       const size_t len_vec[] = { len, sufflen };
 
       ident_t new = ident_from_byte_vec(hash, true, 2, str_vec, len_vec);
-      if (new != NULL)
+      if (new != NULL) {
+         if (prefix != buf) free(prefix);
          return new;
+      }
 
       checked_sprintf(suffix, sizeof(suffix), "%d", relaxed_add(&counter, 1));
    }

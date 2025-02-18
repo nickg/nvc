@@ -1959,7 +1959,7 @@ static vcode_var_t lower_temp_var(lower_unit_t *lu, const char *prefix,
    }
 
    if (pos == lu->free_temps.count)
-      return emit_var(vtype, vbounds, ident_uniq(prefix), VAR_TEMP);
+      return emit_var(vtype, vbounds, ident_uniq("%s", prefix), VAR_TEMP);
 
    emit_comment("Reusing temp var %s", istr(vcode_var_name(tmp)));
 
@@ -11754,9 +11754,15 @@ static vcode_reg_t lower_converter(lower_unit_t *parent, tree_t dst, tree_t src,
    vcode_state_t state;
    vcode_state_save(&state);
 
-   ident_t name = ident_sprintf("%s.%s.convert_%s", istr(parent->name),
-                                istr(tree_ident(dst)),
-                                dir == PORT_IN ? "in" : "out");
+   ident_t name;
+   if (tree_kind(dst) == T_PORT_DECL)
+      name = ident_sprintf("%s.%s.convert_%s", istr(parent->name),
+                           istr(tree_ident(dst)),
+                           dir == PORT_IN ? "in" : "out");
+   else
+      name = ident_uniq("%s.%s.convert_%s.part", istr(parent->name),
+                        istr(tree_ident(tree_ref(name_to_ref(dst)))),
+                        dir == PORT_IN ? "in" : "out");
 
    vcode_unit_t vu = emit_function(name, tree_to_object(dst), parent->vunit);
    emit_debug_info(tree_loc(src));
@@ -11998,7 +12004,7 @@ static void lower_convert_signal(lower_unit_t *lu, vcode_reg_t src_reg,
    }
 }
 
-static void lower_inertial_actual(lower_unit_t *parent, tree_t port,
+static void lower_inertial_actual(lower_unit_t *parent, tree_t dst,
                                   type_t type, vcode_reg_t port_reg,
                                   tree_t actual)
 {
@@ -12007,18 +12013,18 @@ static void lower_inertial_actual(lower_unit_t *parent, tree_t port,
 
    assert(standard() >= STD_08);
 
-   LOCAL_TEXT_BUF tb = tb_new();
-   tb_istr(tb, tree_ident(port));
-   tb_cat(tb, "_actual");
-
-   ident_t name = ident_uniq(tb_get(tb));
+   ident_t name;
+   if (tree_kind(dst) == T_PORT_DECL)
+      name = ident_sprintf("%s_actual", istr(tree_ident(dst)));
+   else
+      name = ident_uniq("%s_actual.part", istr(tree_ident(name_to_ref(dst))));
 
    vcode_type_t signal_type = lower_signal_type(type);
    vcode_type_t vbounds = lower_bounds(type);
    vcode_var_t var = emit_var(signal_type, vbounds, name, VAR_SIGNAL);
 
    if (type_is_record(type)) {
-      vcode_reg_t locus = lower_debug_locus(port);
+      vcode_reg_t locus = lower_debug_locus(dst);
       vcode_reg_t ptr_reg = emit_index(var, VCODE_INVALID_REG);
       lower_copy_record(parent, type, ptr_reg, port_reg, locus);
    }
@@ -12098,8 +12104,7 @@ static void lower_port_map(lower_unit_t *lu, tree_t block, tree_t map,
                            vcode_reg_t value_reg)
 {
    vcode_reg_t port_reg = VCODE_INVALID_REG;
-   tree_t port = NULL, view = NULL;
-   type_t name_type = NULL;
+   tree_t view = NULL, name;
    vcode_reg_t out_conv = VCODE_INVALID_REG;
    vcode_reg_t in_conv = VCODE_INVALID_REG;
    tree_t value = tree_value(map);
@@ -12121,8 +12126,7 @@ static void lower_port_map(lower_unit_t *lu, tree_t block, tree_t map,
    switch (tree_subkind(map)) {
    case P_POS:
       {
-         port = tree_port(block, tree_pos(map));
-         name_type = tree_type(port);
+         tree_t port = name = tree_port(block, tree_pos(map));
          mode = tree_subkind(port);
 
          if (mode == PORT_ARRAY_VIEW || mode == PORT_RECORD_VIEW)
@@ -12132,7 +12136,7 @@ static void lower_port_map(lower_unit_t *lu, tree_t block, tree_t map,
          vcode_var_t var = lower_get_var(lu, port, &hops);
          assert(hops == 0);
 
-         if (type_is_homogeneous(name_type))
+         if (type_is_homogeneous(tree_type(port)))
             port_reg = emit_load(var);
          else
             port_reg = emit_index(var, VCODE_INVALID_REG);
@@ -12140,7 +12144,8 @@ static void lower_port_map(lower_unit_t *lu, tree_t block, tree_t map,
       break;
    case P_NAMED:
       {
-         tree_t name = tree_name(map);
+         name = tree_name(map);
+
          const tree_kind_t kind = tree_kind(name);
          if (kind == T_CONV_FUNC || kind == T_TYPE_CONV) {
             tree_t p0 = tree_value(name);
@@ -12149,10 +12154,8 @@ static void lower_port_map(lower_unit_t *lu, tree_t block, tree_t map,
             name = p0;
          }
 
-         port_reg = lower_lvalue(lu, name);
-         port = tree_ref(name_to_ref(name));
+         tree_t port = tree_ref(name_to_ref(name));
          mode = tree_subkind(port);
-         name_type = tree_type(name);
 
          if (mode == PORT_ARRAY_VIEW || mode == PORT_RECORD_VIEW) {
             view = tree_value(port);
@@ -12173,27 +12176,29 @@ static void lower_port_map(lower_unit_t *lu, tree_t block, tree_t map,
                view = tree_value(view);
             }
          }
+
+         port_reg = lower_lvalue(lu, name);
       }
       break;
+   default:
+      should_not_reach_here();
    }
-
-   assert(tree_kind(port) == T_PORT_DECL);
 
    if (value_conv != NULL) {
       // Value has conversion function
-      in_conv = lower_converter(lu, port, value_conv, value, PORT_IN);
+      in_conv = lower_converter(lu, name, value_conv, value, PORT_IN);
       value = value_conv;
    }
 
    if (mode == PORT_ARRAY_VIEW || mode == PORT_RECORD_VIEW) {
       assert(lower_is_signal_ref(value));
-      tree_t view = tree_value(port);
       vcode_reg_t locus = lower_debug_locus(view);
-      lower_for_each_field_2(lu, name_type, tree_type(value), port_reg,
+      lower_for_each_field_2(lu, tree_type(name), tree_type(value), port_reg,
                              value_reg, locus, lower_map_view_field_cb, view);
    }
    else if (lower_is_signal_ref(value)) {
       type_t value_type = tree_type(value);
+      type_t name_type = tree_type(name);
 
       vcode_reg_t src_reg = mode == PORT_IN ? value_reg : port_reg;
       vcode_reg_t dst_reg = mode == PORT_IN ? port_reg : value_reg;
@@ -12213,9 +12218,10 @@ static void lower_port_map(lower_unit_t *lu, tree_t block, tree_t map,
          lower_map_signal(lu, src_reg, dst_reg, src_type, dst_type, map);
    }
    else if (tree_kind(value) == T_INERTIAL)
-      lower_inertial_actual(lu, port, name_type, port_reg, value);
+      lower_inertial_actual(lu, name, tree_type(name), port_reg, value);
    else if (value_reg != VCODE_INVALID_REG) {
       type_t value_type = tree_type(value);
+      type_t name_type = tree_type(name);
       lower_map_signal(lu, value_reg, port_reg, value_type, name_type, map);
    }
 }

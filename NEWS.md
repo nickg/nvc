@@ -32,6 +32,8 @@
 - `--ieee-warnings` is now a global option and should be placed before
   the `-r` command.  Passing it to the `-r` command is still supported
   but deprecated and may not take effect in some situations (#1151).
+- Fixed a crash when a partial association in a port map has a
+  conversion function (#1161).
 
 ## Version 1.15.1 - 2025-01-22
 - Fixed a crash when a subprogram is called with too many named arguments
