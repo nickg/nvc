@@ -533,7 +533,7 @@ table below.
   <tr>
     <td>5.2.4</td>
     <td>Union expressions</td>
-    <td class="feature-missing"></td>
+    <td class="feature-done">master</td>
   </tr>
   <tr>
     <td>5.3</td>
