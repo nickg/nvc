@@ -3253,6 +3253,33 @@ static void p_list_of_port_declarations(vlog_node_t mod)
    consume(tRPAREN);
 }
 
+static void p_ansi_parameter_declaration(vlog_node_t mod)
+{
+   // parameter data_type_or_implicit parameter_assigment
+
+   BEGIN("ANSI parameter declaration");
+
+   consume(tPARAMETER);
+
+   vlog_node_t dt = p_data_type_or_implicit();
+   vlog_add_decl(mod, p_param_assignment(dt));
+}
+
+static void p_list_of_param_declarations(vlog_node_t mod)
+{
+   // parameter_port_list ::= ansi_param_assignments { , ansi_param_assignments }
+
+   BEGIN("list of parameter declarations");
+
+   consume(tHASHLPAREN);
+
+   do {
+      p_ansi_parameter_declaration(mod);
+   } while (optional(tCOMMA));
+
+   consume(tRPAREN);
+}
+
 static void p_module_ansi_header(vlog_node_t mod)
 {
    // { attribute_instance } module_keyword [ lifetime ] module_identifier
@@ -3260,6 +3287,9 @@ static void p_module_ansi_header(vlog_node_t mod)
    ///   [ list_of_port_declarations ] ;
 
    EXTEND("module ANSI header");
+
+   if (peek() == tHASHLPAREN)
+      p_list_of_param_declarations(mod);
 
    if (peek() == tLPAREN)
       p_list_of_port_declarations(mod);
