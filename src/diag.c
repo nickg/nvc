@@ -90,7 +90,6 @@ struct _diag {
    bool          color;
    bool          source;
    bool          suppress;
-   bool          stacktrace;
    bool          prefix;
 };
 
@@ -1049,9 +1048,6 @@ void diag_femit(diag_t *d, FILE *f)
          diag_format_compact(d, f);
       else
          diag_format_full(d, f);
-
-      if (d->stacktrace)
-         show_stacktrace();
    }
 
    const unsigned count = relaxed_add(&n_diags[d->level], 1);
@@ -1086,11 +1082,6 @@ void diag_show_source(diag_t *d, bool show)
 void diag_suppress(diag_t *d, bool suppress)
 {
    d->suppress = suppress;
-}
-
-void diag_stacktrace(diag_t *d, bool stacktrace)
-{
-   d->stacktrace = stacktrace;
 }
 
 void diag_set_consumer(diag_consumer_t fn, void *context)

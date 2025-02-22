@@ -126,6 +126,7 @@
 typedef void (*print_fn_t)(const char *fmt, ...);
 
 static char *ansi_vasprintf(const char *fmt, va_list ap, bool force_plain);
+static void show_bug_report(void);
 
 typedef struct _fault_handler fault_handler_t;
 typedef struct _pool_page pool_page_t;
@@ -597,9 +598,11 @@ void fatal(const char *fmt, ...)
 
 void fatal_trace(const char *fmt, ...)
 {
+   struct cpu_state cpu;
+   capture_registers(&cpu);
+
    diag_t *d = diag_new(DIAG_FATAL, NULL);
    diag_suppress(d, false);
-   diag_stacktrace(d, true);
 
    va_list ap;
    va_start(ap, fmt);
@@ -608,6 +611,10 @@ void fatal_trace(const char *fmt, ...)
 
    diag_set_consumer(NULL, NULL);
    diag_emit(d);
+
+   show_stacktrace();
+   show_bug_report();
+
    fatal_exit(EXIT_FAILURE);
 }
 
@@ -720,14 +727,18 @@ void show_stacktrace(void)
                  "installing the libdw-dev package and reconfiguring$$\n");
 #endif
 
+   fflush(stderr);
+}
+
+static void show_bug_report(void)
+{
 #ifndef DEBUG
    extern const char version_string[];
    color_fprintf(stderr, "\n$!red$%s ["TARGET_SYSTEM"]\n\n"
                  "Please report this bug at "PACKAGE_BUGREPORT"$$\n\n",
                  version_string);
-#endif
-
    fflush(stderr);
+#endif
 }
 
 #ifdef __MINGW32__
@@ -895,6 +906,7 @@ static void signal_handler(int sig, siginfo_t *info, void *context)
    print_fatal_signal(sig, info, &cpu);
 
    show_stacktrace();
+   show_bug_report();
 
    if (sig != SIGUSR1)
       _exit(2);

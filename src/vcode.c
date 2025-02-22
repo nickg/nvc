@@ -6216,7 +6216,6 @@ static void shape_mismatch(vcode_unit_t vu, vcode_unit_t shape,
    diag_t *d = diag_new(DIAG_FATAL, NULL);
    diag_printf(d, "instance %s does not match shape %s", istr(vu->name),
                istr(shape->name));
-   diag_stacktrace(d, true);
    diag_vhint(d, NULL, fmt, ap);
    diag_emit(d);
 
