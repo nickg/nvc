@@ -11,6 +11,8 @@
   element (#1155).
 - Fixed wrong result of VHDL-2019 `std.env.file_path` when the source
   file was analysed using a relative path (#1162).
+- Fixed a crash when `'last_event` or `'last_active` is used with a
+  record type (#1164).
 
 ## Version 1.15.1 - 2025-01-22
 - Fixed a crash when a subprogram is called with too many named arguments
