@@ -778,6 +778,17 @@ static c_typeDecl *is_typeDecl(c_vhpiObject *obj)
    }
 }
 
+static c_compositeTypeDecl *is_compositeTypeDecl(c_vhpiObject *obj)
+{
+   switch (obj->kind) {
+   case vhpiArrayTypeDeclK:
+   case vhpiRecordTypeDeclK:
+      return container_of(obj, c_compositeTypeDecl, typeDecl.decl.object);
+   default:
+      return NULL;
+   }
+}
+
 static c_expr *is_expr(c_vhpiObject *obj)
 {
    switch (obj->kind) {
@@ -1746,14 +1757,14 @@ static void *vhpi_get_value_ptr(c_vhpiObject *obj)
       return NULL;
    }
 
-   c_recordTypeDecl *rtd = is_recordTypeDecl(obj);
-   if (rtd != NULL) {
-      void *base = vhpi_get_bounds_var(&(rtd->composite.typeDecl));
+   c_compositeTypeDecl *ctd = is_compositeTypeDecl(obj);
+   if (ctd != NULL) {
+      void *base = vhpi_get_bounds_var(&(ctd->typeDecl));
       if (base != NULL)
          return base;
 
       vhpi_error(vhpiInternal, &(obj->loc), "missing bounds variable for %s",
-                 type_pp(rtd->composite.typeDecl.type));
+                 type_pp(ctd->typeDecl.type));
       return NULL;
    }
 
@@ -4046,6 +4057,7 @@ static c_typeDecl *build_subTypeDecl(type_t type, tree_t where,
 static c_typeDecl *build_anonymousSubTypeDecl(type_t type, c_vhpiObject *obj)
 {
    assert(is_anonymous_subtype(type));
+   assert(obj != NULL);
 
    c_abstractDecl *decl = is_abstractDecl(obj);
    assert(decl != NULL);
