@@ -119,6 +119,12 @@ typedef vcode_reg_t (*resolved_fn_t)(vcode_reg_t, vcode_reg_t);
 
 typedef A(concat_param_t) concat_list_t;
 
+typedef struct {
+   resolved_fn_t  fn;
+   const char    *suffix;
+   vcode_var_t    var;
+} last_time_params_t;
+
 static vcode_reg_t lower_expr(lower_unit_t *lu, tree_t expr, expr_ctx_t ctx);
 static void lower_stmt(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops);
 static void lower_func_body(lower_unit_t *lu, object_t *obj);
@@ -163,6 +169,9 @@ static void lower_subprogram_ports(lower_unit_t *lu, tree_t body,
                                    bool params_as_vars);
 static vcode_type_t lower_func_result_type(type_t result);
 static vcode_reg_t lower_context_for_call(lower_unit_t *lu, ident_t unit_name);
+static void lower_driver_field_cb(lower_unit_t *lu, tree_t field,
+                                  vcode_reg_t ptr, vcode_reg_t unused,
+                                  vcode_reg_t locus, void *__ctx);
 
 typedef vcode_reg_t (*lower_signal_flag_fn_t)(vcode_reg_t, vcode_reg_t);
 typedef vcode_reg_t (*arith_fn_t)(vcode_reg_t, vcode_reg_t);
@@ -4957,20 +4966,37 @@ static vcode_reg_t lower_attr_ref(lower_unit_t *lu, tree_t expr)
    case ATTR_LAST_EVENT:
    case ATTR_LAST_ACTIVE:
       {
-         type_t name_type = tree_type(name);
          vcode_reg_t name_reg = lower_attr_prefix(lu, name);
-         vcode_reg_t len_reg = VCODE_INVALID_REG;
-         if (type_is_array(name_type)) {
-            len_reg = lower_array_total_len(lu, name_type, name_reg);
-            name_reg = lower_array_data(name_reg);
-         }
+         type_t name_type = tree_type(name);
 
-         if (predef == ATTR_LAST_EVENT)
-            return emit_last_event(name_reg, len_reg);
-         else if (predef == ATTR_LAST_ACTIVE)
-            return emit_last_active(name_reg, len_reg);
-         else
-            return emit_driving_flag(name_reg, len_reg);
+         if (type_is_homogeneous(name_type)) {
+            vcode_reg_t len_reg = VCODE_INVALID_REG;
+            if (type_is_array(name_type)) {
+               len_reg = lower_array_total_len(lu, name_type, name_reg);
+               name_reg = lower_array_data(name_reg);
+            }
+
+            if (predef == ATTR_LAST_EVENT)
+               return emit_last_event(name_reg, len_reg);
+            else
+               return emit_last_active(name_reg, len_reg);
+         }
+         else {
+            ident_t base_id = type_ident(type_base_recur(name_type));
+            const char *suffix = predef == ATTR_LAST_EVENT
+               ? "last_event" : "last_active";
+            ident_t helper_func = ident_sprintf("%s$%s", istr(base_id), suffix);
+
+            vcode_reg_t arg_reg = name_reg;
+            if (type_is_array(name_type)
+                && vcode_reg_kind(arg_reg) != VCODE_TYPE_UARRAY)
+               arg_reg = lower_wrap(lu, name_type, name_reg);
+
+            vcode_type_t vtime = vtype_time();
+            vcode_reg_t context_reg = lower_context_for_call(lu, helper_func);
+            vcode_reg_t args[] = { context_reg, arg_reg };
+            return emit_fcall(helper_func, vtime, vtime, args, 2);
+         }
       }
 
    case ATTR_DRIVING_VALUE:
@@ -8161,10 +8187,15 @@ static void lower_implicit_decl(lower_unit_t *parent, tree_t decl)
          unit_registry_put(parent->registry, lu);
 
          vcode_reg_t nets_reg = lower_signal_ref(lu, decl);
-         vcode_reg_t count_reg = lower_type_width(lu, type, nets_reg);
-         vcode_reg_t data_reg = lower_array_data(nets_reg);
 
-         emit_drive_signal(data_reg, count_reg);
+         if (type_is_homogeneous(type)) {
+            vcode_reg_t count_reg = lower_type_width(lu, type, nets_reg);
+            vcode_reg_t data_reg = lower_array_data(nets_reg);
+            emit_drive_signal(data_reg, count_reg);
+         }
+         else
+            lower_for_each_field(lu, type, nets_reg, VCODE_INVALID_REG,
+                                 lower_driver_field_cb, NULL);
 
          build_wait(expr, lower_build_wait_cb, lu);
 
@@ -9556,6 +9587,86 @@ static void lower_driving_value_helper(lower_unit_t *lu, object_t *obj)
    lower_resolved_record_fn(lu, obj, emit_driving_value);
 }
 
+static void lower_last_time_field_cb(lower_unit_t *lu, tree_t field,
+                                     vcode_reg_t field_ptr, vcode_reg_t dst_ptr,
+                                     vcode_reg_t locus, void *ctx)
+{
+   last_time_params_t *params = ctx;
+   vcode_reg_t last_reg = VCODE_INVALID_REG;
+
+   type_t ftype = tree_type(field);
+   if (type_is_homogeneous(ftype)) {
+      vcode_reg_t field_reg = emit_load_indirect(field_ptr);
+
+      if (type_is_array(ftype)) {
+         vcode_reg_t data_reg = lower_array_data(field_reg);
+         vcode_reg_t count_reg = lower_array_total_len(lu, ftype, field_reg);
+         last_reg = (*params->fn)(data_reg, count_reg);
+      }
+      else
+         last_reg = (*params->fn)(field_reg, VCODE_INVALID_REG);
+   }
+   else {
+      ident_t base_id = type_ident(type_base_recur(ftype));
+      ident_t helper_func =
+         ident_sprintf("%s$%s", istr(base_id), params->suffix);
+
+      vcode_reg_t arg_reg = field_ptr;
+      if (type_is_array(ftype)
+          && vcode_reg_kind(arg_reg) != VCODE_TYPE_UARRAY)
+         arg_reg = lower_wrap(lu, ftype, field_ptr);
+
+      vcode_type_t vtime = vtype_time();
+      vcode_reg_t context_reg = lower_context_for_call(lu, helper_func);
+      vcode_reg_t args[] = { context_reg, arg_reg };
+      last_reg = emit_fcall(helper_func, vtime, vtime, args, 2);
+   }
+
+   vcode_reg_t cur_reg = emit_load(params->var);
+   vcode_reg_t cmp_reg = emit_cmp(VCODE_CMP_LT, last_reg, cur_reg);
+   vcode_reg_t new_reg = emit_select(cmp_reg, last_reg, cur_reg);
+   emit_store(new_reg, params->var);
+}
+
+static void lower_last_time_fn(lower_unit_t *lu, object_t *obj,
+                               resolved_fn_t fn, const char *suffix)
+{
+   tree_t decl = tree_from_object(obj);
+
+   type_t type = tree_type(decl);
+   assert(!type_is_homogeneous(type) && lower_can_be_signal(type));
+
+   vcode_type_t vtime = vtype_time();
+   vcode_type_t vatype = lower_param_type(type, C_SIGNAL, PORT_IN);
+   vcode_type_t vbounds = lower_bounds(type);
+
+   vcode_set_result(vtime);
+
+   vcode_type_t vcontext = vtype_context(lu->parent->name);
+   emit_param(vcontext, vcontext, ident_new("context"));
+
+   vcode_reg_t p_reg = emit_param(vatype, vbounds, ident_new("p"));
+
+   vcode_var_t var = emit_var(vtime, vtime, ident_new("result"), 0);
+   emit_store(emit_const(vtime, TIME_HIGH), var);
+
+   last_time_params_t params = { fn, suffix, var };
+   lower_for_each_field(lu, type, p_reg, VCODE_INVALID_REG,
+                        lower_last_time_field_cb, &params);
+
+   emit_return(emit_load(var));
+}
+
+static void lower_last_event_helper(lower_unit_t *lu, object_t *obj)
+{
+   lower_last_time_fn(lu, obj, emit_last_event, "last_event");
+}
+
+static void lower_last_active_helper(lower_unit_t *lu, object_t *obj)
+{
+   lower_last_time_fn(lu, obj, emit_last_active, "last_active");
+}
+
 static void lower_copy_helper(lower_unit_t *lu, object_t *obj)
 {
    tree_t decl = tree_from_object(obj);
@@ -9892,6 +10003,14 @@ static void lower_decl(lower_unit_t *lu, tree_t decl)
             ident_t last_value = ident_prefix(id, ident_new("last_value"), '$');
             unit_registry_defer(lu->registry, last_value, lu, emit_function,
                                 lower_last_value_helper, NULL, obj);
+
+            ident_t last_event = ident_sprintf("%s$last_event", istr(id));
+            unit_registry_defer(lu->registry, last_event, lu, emit_function,
+                                lower_last_event_helper, NULL, obj);
+
+            ident_t last_active = ident_sprintf("%s$last_active", istr(id));
+            unit_registry_defer(lu->registry, last_active, lu, emit_function,
+                                lower_last_active_helper, NULL, obj);
 
             ident_t driving = ident_prefix(id, ident_new("driving"), '$');
             unit_registry_defer(lu->registry, driving, lu, emit_function,

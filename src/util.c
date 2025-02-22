@@ -906,6 +906,7 @@ static void signal_handler(int sig, siginfo_t *info, void *context)
    print_fatal_signal(sig, info, &cpu);
 
    show_stacktrace();
+
    show_bug_report();
 
    if (sig != SIGUSR1)
