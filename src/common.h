@@ -37,7 +37,6 @@ tree_t get_enum_lit(tree_t t, type_t type, int pos);
 tree_t get_real_lit(tree_t t, type_t type, double r);
 tree_t get_discrete_lit(tree_t t, type_t type, int64_t i);
 tree_t make_ref(tree_t to);
-tree_t find_record_field(tree_t rref);
 tree_t find_element_mode_indication(tree_t view, tree_t field, bool *converse);
 port_mode_t converse_mode(tree_t port, bool converse);
 class_t class_of(tree_t t);

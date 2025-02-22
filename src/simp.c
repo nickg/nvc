@@ -1604,7 +1604,7 @@ static void simp_generic_map(tree_t t, tree_t unit)
                if (tree_kind(name) == T_ARRAY_REF)
                   tree_set_name(a, tree_value(tree_param(name, 0)));
                else
-                  tree_set_name(a, make_ref(find_record_field(name)));
+                  tree_set_name(a, make_ref(tree_ref(name)));
 
                if (value == NULL) {
                   value = tree_new(T_AGGREGATE);

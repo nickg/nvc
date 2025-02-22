@@ -454,24 +454,6 @@ const char *standard_text(vhdl_standard_t s)
       return "????";
 }
 
-tree_t find_record_field(tree_t rref)
-{
-   ident_t fname = tree_ident(rref);
-   type_t value_type = tree_type(tree_value(rref));
-
-   if (!type_is_record(value_type))
-      return NULL;
-
-   const int nfields = type_fields(value_type);
-   for (int i = 0; i < nfields; i++) {
-      tree_t field = type_field(value_type, i);
-      if (tree_ident(field) == fname)
-         return field;
-   }
-
-   return NULL;
-}
-
 tree_t find_element_mode_indication(tree_t view, tree_t field, bool *converse)
 {
    switch (tree_kind(view)) {

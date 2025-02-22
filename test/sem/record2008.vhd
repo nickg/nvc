@@ -10,7 +10,7 @@ architecture test of record2008 is
     signal s1 : rec1;                   -- Error
     signal r1 : rec1(x(1 to 3));        -- OK
     signal r2 : rec1(y(1 to 3));        -- Error
-    signal r3 : rec1(r2(1 to 2));       -- Error (suppressed)
+    signal r3 : rec1(r2(1 to 2));       -- Error
 
     type rec2 is record
         x, y : bit_vector;              -- OK

@@ -1991,6 +1991,8 @@ static type_t apply_element_attribute(tree_t aref)
                   "have a type");
       return type_new(T_NONE);
    }
+   else if (type_is_none(type))
+      return type;
    else if (!type_is_array(type)) {
       parse_error(tree_loc(aref), "prefix of 'ELEMENT attribute must be an "
                   "array type");

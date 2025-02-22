@@ -298,4 +298,15 @@ begin
         end function;
     begin
     end block;
+
+    b13: block is
+        type t_rec is record
+            f : bit;
+        end record;
+        signal s : t_rec;
+        subtype ft1 is s.g'element;      -- Error (once)
+        subtype ft2 is s.g'element;      -- Error (suppressed)
+        subtype ft3 is s.h'subtype;      -- Error
+    begin
+    end block;
 end architecture;

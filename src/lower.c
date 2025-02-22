@@ -12467,8 +12467,8 @@ static vcode_reg_t lower_constrain_port(lower_unit_t *lu, tree_t port, int pos,
 
       case T_RECORD_REF:
          {
-            tree_t f = find_record_field(name);
-            assert(f != NULL);
+            tree_t f = tree_ref(name);
+            assert(tree_kind(f) == T_FIELD_DECL);
 
             type_t ftype = tree_type(f);
             if (!type_is_unconstrained(ftype))

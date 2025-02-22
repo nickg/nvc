@@ -3627,6 +3627,10 @@ START_TEST(test_vhdl2008)
       { 282, "the reserved word INERTIAL can only be used in port map " },
       { 290, "the reserved word INERTIAL can only be used in port map " },
       { 295, "parameter interface list cannot contain type interface " },
+      { 307, "record type T_REC has no field named G" },
+      { 309, "record type T_REC has no field named H" },
+      {   0, "did you mean F?" },
+      {   0, "type T_REC has field F" },
       {  -1, NULL }
    };
    expect_errors(expect);

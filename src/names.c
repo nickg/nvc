@@ -1184,10 +1184,34 @@ static void make_potentially_visible(scope_t *s, ident_t id, tree_t d)
    make_visible(s, id, d, POTENTIAL, s);
 }
 
-static void missing_record_field_cb(diag_t *d, ident_t id, void *arg)
+static void missing_record_field_cb(diag_t *d, ident_t name, void *arg)
 {
+   type_t type = arg;
+
    diag_printf(d, "record type %s has no field named %s",
-               type_pp((type_t)arg), istr(id));
+               type_pp(type), istr(name));
+
+   ident_t best = NULL;
+   int bestd = INT_MAX;
+
+   LOCAL_TEXT_BUF tb = tb_new();
+   int nfields = type_fields(type), i;
+   tb_printf(tb, "type %s has field%s ", type_pp(type), nfields > 1 ? "s" : "");
+   for (i = 0; i < nfields; i++) {
+      ident_t id = tree_ident(type_field(type, i));
+      const int d = ident_distance(id, name);
+      if (d < bestd) {
+         best = id;
+         bestd = d;
+      }
+      if (i > 0 && i == nfields - 1) tb_cat(tb, ", and ");
+      else if (i > 0) tb_cat(tb, ", ");
+      tb_istr(tb, id);
+   }
+   diag_hint(d, NULL, "%s", tb_get(tb));
+
+   if (bestd <= 3)
+      diag_hint(d, diag_get_loc(d), "did you mean %s?", istr(best));
 }
 
 static scope_t *scope_for_type(nametab_t *tab, type_t type)
@@ -1930,7 +1954,6 @@ tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
             diag_printf(d, "invalid formal name %s", istr(name));
 
          diag_emit(d);
-         tab->top_scope->suppress = true;  // Suppress further errors
       }
       else if (tab->top_scope->overload == NULL) {
          diag_t *d = diag_new(DIAG_ERROR, loc);
@@ -2210,6 +2233,7 @@ tree_t resolve_field_name(nametab_t *tab, const loc_t *loc, ident_t name,
    tab->top_scope = scope_for_type(tab, type);
 
    tree_t decl = resolve_name(tab, loc, name);
+   assert(decl == NULL || tree_kind(decl) == T_FIELD_DECL);
 
    tab->top_scope = tmp;
    return decl;
@@ -4172,45 +4196,20 @@ static type_t solve_record_ref(nametab_t *tab, tree_t rref)
       return value_type;
    }
 
-   tree_t field = find_record_field(rref);
+   ident_t name = tree_ident(rref);
+   tree_t f = resolve_field_name(tab, tree_loc(rref), name, value_type);
 
-   type_t type;
-   if (field == NULL) {
-      diag_t *d = diag_new(DIAG_ERROR, tree_loc(rref));
-      diag_printf(d, "record type %s has no field named %s",
-                  type_pp(value_type), istr(tree_ident(rref)));
-
-      ident_t best = NULL;
-      int bestd = INT_MAX;
-
-      LOCAL_TEXT_BUF tb = tb_new();
-      int nfields = type_fields(value_type), i;
-      tb_printf(tb, "type %s has fields ", type_pp(value_type));
-      for (i = 0; i < nfields; i++) {
-         ident_t id = tree_ident(type_field(value_type, i));
-         const int d = ident_distance(id, tree_ident(rref));
-         if (d < bestd) {
-            best = id;
-            bestd = d;
-         }
-         if (i > 0 && i == nfields - 1) tb_cat(tb, ", and ");
-         else if (i > 0) tb_cat(tb, ", ");
-         tb_istr(tb, id);
-      }
-      diag_hint(d, NULL, "%s", tb_get(tb));
-
-      if (bestd <= 3)
-         diag_hint(d, tree_loc(rref), "did you mean %s?", istr(best));
-
-      diag_emit(d);
-      type = type_new(T_NONE);
+   if (f == NULL) {
+      type_t type = type_new(T_NONE);
+      tree_set_type(rref, type);
+      return type;
    }
-   else
-      type = solve_field_subtype(value_type, field);
-
-   tree_set_ref(rref, field);
-   tree_set_type(rref, type);
-   return type;
+   else {
+      type_t type = solve_field_subtype(value_type, f);
+      tree_set_ref(rref, f);
+      tree_set_type(rref, type);
+      return type;
+   }
 }
 
 static type_t solve_array_ref(nametab_t *tab, tree_t ref)

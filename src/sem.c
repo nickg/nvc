@@ -4079,6 +4079,9 @@ static bool sem_check_name_prefix(tree_t t, nametab_t *tab, const char *what)
 
 static bool sem_check_record_ref(tree_t t, nametab_t *tab)
 {
+   if (!tree_has_ref(t))
+      return false;
+
    if (!sem_check_name_prefix(t, tab, "a selected name"))
       return false;
 
