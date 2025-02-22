@@ -34,6 +34,8 @@
   but deprecated and may not take effect in some situations (#1151).
 - Fixed a crash when a partial association in a port map has a
   conversion function (#1161).
+- Fixed a crash when `'last_event` or `'last_active` is used with a
+  record type (#1164).
 
 ## Version 1.15.1 - 2025-01-22
 - Fixed a crash when a subprogram is called with too many named arguments

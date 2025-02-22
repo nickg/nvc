@@ -1103,3 +1103,4 @@ order4          shell
 issue1161       normal,vhpi,2008
 cmdline14       shell
 conv19          normal,2008
+issue1164       normal
