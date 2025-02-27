@@ -4078,11 +4078,9 @@ static void p_array_constraint(type_t type, type_t base)
          consume(tOPEN);
          consume(tRPAREN);
 
-         tree_t c = tree_new(T_CONSTRAINT);
-         tree_set_subkind(c, C_OPEN);
-         tree_set_loc(c, CURRENT_LOC);
-
-         type_set_constraint(type, c);
+         if (!type_is_array(type) && !type_is_none(type))
+            parse_error(CURRENT_LOC, "open array constraint cannot be used "
+                        "with non-array type %s", type_pp(type));
       }
       else if (type_is_record(base)) {
          type_set_constraint(type, p_record_constraint(base));

@@ -953,8 +953,6 @@ tree_t range_of(type_t type, unsigned dim)
       if (type_has_constraint(type)) {
          tree_t c = type_constraint(type);
          switch (tree_subkind(c)) {
-         case C_OPEN:
-            return range_of(type_base(type), dim);
          case C_INDEX:
          case C_RANGE:
             if (dim < tree_ranges(c))
@@ -962,7 +960,7 @@ tree_t range_of(type_t type, unsigned dim)
             else
                return NULL;   // Must be an error
          default:
-            fatal_trace("invalid constraint in range_of");
+            should_not_reach_here();
          }
       }
       else

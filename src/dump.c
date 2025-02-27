@@ -454,9 +454,6 @@ static void dump_constraint(tree_t t)
       }
       print_syntax(")");
       break;
-   case C_OPEN:
-      print_syntax("(#open)");
-      break;
    case C_RECORD:
       print_syntax("(");
       for (int i = 0; i < nranges; i++) {

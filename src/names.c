@@ -4719,11 +4719,6 @@ static type_t solve_array_aggregate(nametab_t *tab, tree_t agg, type_t type)
       sub = type_new(T_SUBTYPE);
       type_set_base(sub, type_base_recur(type));
       type_set_elem(sub, type_elem(type));
-
-      tree_t cons = tree_new(T_CONSTRAINT);
-      tree_set_subkind(cons, C_OPEN);
-
-      type_set_constraint(sub, cons);
    }
 
    tree_set_type(agg, sub);

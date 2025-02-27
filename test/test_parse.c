@@ -5311,8 +5311,6 @@ START_TEST(test_subtype2008)
    fail_unless(type_is_unconstrained(sub1));
 
    type_t sub2 = tree_type(get_decl(p, "SUB2"));
-   fail_unless(type_has_constraint(sub2));
-   fail_unless(tree_subkind(type_constraint(sub2)) == C_OPEN);
    fail_unless(type_is_unconstrained(sub2));
 
    type_t sub3 = tree_type(get_decl(p, "SUB3"));
@@ -5330,8 +5328,6 @@ START_TEST(test_subtype2008)
    ck_assert_ptr_eq(type_elem(sub5), type_elem(sub4));
 
    type_t sub6 = tree_type(get_decl(p, "SUB6"));
-   fail_unless(type_has_constraint(sub6));
-   fail_unless(tree_subkind(type_constraint(sub2)) == C_OPEN);
    fail_if(type_is_unconstrained(sub6));
 
    type_t sub7 = tree_type(get_decl(p, "SUB7"));

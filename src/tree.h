@@ -82,7 +82,6 @@ typedef enum constraint_kind {
    C_RANGE,
    C_INDEX,
    C_RECORD,
-   C_OPEN,
 } constraint_kind_t;
 
 typedef enum {

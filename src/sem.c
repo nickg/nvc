@@ -246,12 +246,6 @@ static bool sem_check_constraint(tree_t constraint, type_t base, nametab_t *tab)
                    "non-array type %s", type_pp(base));
       break;
 
-   case C_OPEN:
-      if (!type_is_array(base))
-         sem_error(constraint, "array constraint cannot be used with "
-                   "non-array type %s", type_pp(base));
-      return true;
-
    case C_RECORD:
       {
          if (!type_is_record(base))
@@ -367,20 +361,17 @@ static bool sem_check_subtype_helper(tree_t decl, type_t type, nametab_t *tab)
       if (!sem_check_constraint(cons, base, tab))
          return false;
 
-      const constraint_kind_t consk = tree_subkind(cons);
-      if (consk != C_OPEN) {
-         // Check the subtype does not already have an index constraint
-         // in this position
-         if (type_kind(base) == T_SUBTYPE && type_has_constraint(base)) {
-            tree_t econs = type_constraint(base);
-            if (tree_subkind(econs) == C_INDEX) {
-               diag_t *d = diag_new(DIAG_ERROR, tree_loc(cons));
-               diag_printf(d, "duplicate index constraint for type %s",
-                           type_pp(base));
-               diag_hint(d, tree_loc(econs), "already constrained here");
-               diag_emit(d);
-               return false;
-            }
+      // Check the subtype does not already have an index constraint in
+      // this position
+      if (type_kind(base) == T_SUBTYPE && type_has_constraint(base)) {
+         tree_t econs = type_constraint(base);
+         if (tree_subkind(econs) == C_INDEX) {
+            diag_t *d = diag_new(DIAG_ERROR, tree_loc(cons));
+            diag_printf(d, "duplicate index constraint for type %s",
+                        type_pp(base));
+            diag_hint(d, tree_loc(econs), "already constrained here");
+            diag_emit(d);
+            return false;
          }
       }
    }
