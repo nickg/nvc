@@ -127,7 +127,7 @@ static tree_t str_to_agg(const char *p, const char *end)
 
    type_t sub = type_new(T_SUBTYPE);
    type_set_base(sub, type);
-   type_add_constraint(sub, cons);
+   type_set_constraint(sub, cons);
 
    tree_set_type(t, sub);
 

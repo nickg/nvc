@@ -86,7 +86,7 @@ static type_t trans_type(vlog_node_t decl, verilog_type_t scalar_type,
 
       type_t sub = type_new(T_SUBTYPE);
       type_set_base(sub, packed);
-      type_add_constraint(sub, c);
+      type_set_constraint(sub, c);
 
       return sub;
    }

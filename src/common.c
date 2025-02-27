@@ -860,7 +860,7 @@ type_t array_aggregate_type(type_t array, int from_dim)
 
       type_t sub = type_new(T_SUBTYPE);
       type_set_base(sub, base);
-      type_add_constraint(sub, constraint);
+      type_set_constraint(sub, constraint);
 
       for (int i = from_dim; i < ndims; i++) {
          tree_t r = range_of(array, i);
@@ -950,15 +950,15 @@ tree_t range_of(type_t type, unsigned dim)
 {
    switch (type_kind(type)) {
    case T_SUBTYPE:
-      if (type_constraints(type) > 0) {
-         tree_t c0 = type_constraint(type, 0);
-         switch (tree_subkind(c0)) {
+      if (type_has_constraint(type)) {
+         tree_t c = type_constraint(type);
+         switch (tree_subkind(c)) {
          case C_OPEN:
             return range_of(type_base(type), dim);
          case C_INDEX:
          case C_RANGE:
-            if (dim < tree_ranges(c0))
-               return tree_range(c0, dim);
+            if (dim < tree_ranges(c))
+               return tree_range(c, dim);
             else
                return NULL;   // Must be an error
          default:
@@ -2062,7 +2062,7 @@ type_t subtype_for_string(tree_t str, type_t base)
    tree_add_range(c, r);
    tree_set_loc(c, tree_loc(str));
 
-   type_add_constraint(sub, c);
+   type_set_constraint(sub, c);
 
    return sub;
 }
@@ -2824,7 +2824,7 @@ type_t calculate_aggregate_subtype(tree_t expr)
    for (int i = 1; i < ndims; i++)
       tree_add_range(cons, range_of(a0_type, i - 1));
 
-   type_add_constraint(sub, cons);
+   type_set_constraint(sub, cons);
 
    return sub;
 }

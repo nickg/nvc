@@ -362,37 +362,32 @@ static bool sem_check_subtype_helper(tree_t decl, type_t type, nametab_t *tab)
    else if (!sem_check_incomplete(decl, type))
       return false;
 
-   type_t elem = base;
-   const int ncon = type_constraints(type);
-   for (int i = 0; i < ncon; i++) {
-      tree_t cons = type_constraint(type, i);
-      if (!sem_check_constraint(cons, elem, tab))
+   if (type_has_constraint(type)) {
+      tree_t cons = type_constraint(type);
+      if (!sem_check_constraint(cons, base, tab))
          return false;
 
       const constraint_kind_t consk = tree_subkind(cons);
       if (consk != C_OPEN) {
          // Check the subtype does not already have an index constraint
          // in this position
-         if (type_kind(elem) == T_SUBTYPE && type_constraints(elem) > 0) {
-            tree_t econs = type_constraint(elem, 0);
+         if (type_kind(base) == T_SUBTYPE && type_has_constraint(base)) {
+            tree_t econs = type_constraint(base);
             if (tree_subkind(econs) == C_INDEX) {
                diag_t *d = diag_new(DIAG_ERROR, tree_loc(cons));
                diag_printf(d, "duplicate index constraint for type %s",
-                           type_pp(elem));
+                           type_pp(base));
                diag_hint(d, tree_loc(econs), "already constrained here");
                diag_emit(d);
                return false;
             }
          }
       }
-
-      if (i + 1 < ncon && (consk == C_INDEX || consk == C_OPEN))
-         elem = type_elem(elem);
    }
 
    if (type_is_array(type) && type_has_elem(type)) {
       type_t elem = type_elem(type);
-      if (type_kind(elem) == T_SUBTYPE && !type_has_ident(elem)) {
+      if (is_anonymous_subtype(elem)) {
          // Anonymous subtype created for array element constraint
          assert(standard() >= STD_08);
 
@@ -959,7 +954,7 @@ static void sem_propagate_constraints(tree_t decl, tree_t value)
 
    for (type_t iter = type; type_kind(iter) == T_SUBTYPE;
         iter = type_base(iter)) {
-      if (type_constraints(iter) > 0)
+      if (type_has_constraint(iter))
          return;
    }
 

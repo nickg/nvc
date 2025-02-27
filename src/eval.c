@@ -181,7 +181,7 @@ static void *thunk_result_cb(jit_scalar_t *args, void *user)
       tree_add_range(c, r);
       tree_set_loc(c, loc);
 
-      type_add_constraint(sub, c);
+      type_set_constraint(sub, c);
 
       if (all_chars) {
          tree_t tree = tree_new(T_STRING);

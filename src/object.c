@@ -71,10 +71,10 @@ typedef struct _object_arena {
                           | I_NAME | I_SPEC | I_RESOLUTION              \
                           | I_LEFT | I_RIGHT | I_TYPE | I_BASE | I_ELEM \
                           | I_DESIGNATED | I_RESULT | I_PRIMARY         \
-                          | I_GUARD | I_FOREIGN)
+                          | I_GUARD | I_FOREIGN | I_CONSTRAINT)
 #define ITEM_OBJ_ARRAY   (I_DECLS | I_STMTS | I_PORTS | I_GENERICS      \
-                          | I_WAVES | I_CONDS | I_TRIGGERS | I_CONSTR   \
-                          | I_PARAMS | I_GENMAPS | I_ASSOCS | I_CONTEXT \
+                          | I_WAVES | I_CONDS | I_TRIGGERS | I_PARAMS   \
+                          | I_GENMAPS | I_ASSOCS | I_CONTEXT            \
                           | I_LITERALS | I_FIELDS | I_UNITS | I_CHARS   \
                           | I_DIMS | I_RANGES | I_INDEXES | I_PARTS \
                           | I_PRAGMAS)
@@ -94,7 +94,7 @@ static const char *item_text_map[] = {
    "I_DVAL",     "I_SPEC",       "I_FOREIGN",  "I_INDEXES",    "I_BASE",
    "I_ELEM",     "I_DESIGNATED", "???",        "I_RESOLUTION", "I_RESULT",
    "I_UNITS",    "I_LITERALS",   "I_DIMS",     "I_FIELDS",     "I_CLOCK",
-   "I_GUARD",    "???",          "I_CHARS",    "I_CONSTR",     "I_FLAGS",
+   "I_GUARD",    "???",          "I_CHARS",    "I_CONSTRAINT", "I_FLAGS",
    "I_TEXT",     "I_LEFT",       "I_RIGHT",    "I_NUMBER",     "I_MESSAGE",
 };
 
@@ -434,7 +434,7 @@ static void object_one_time_init(void)
 
          // Increment this each time a incompatible change is made to
          // the on-disk format not expressed in the object items table
-         const uint32_t format_fudge = 42;
+         const uint32_t format_fudge = 43;
 
          format_digest += format_fudge * UINT32_C(2654435761);
 

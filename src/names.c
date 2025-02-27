@@ -4257,7 +4257,7 @@ static type_t solve_array_slice(nametab_t *tab, tree_t slice)
    tree_add_range(constraint, r);
 
    type_t slice_type = type_new(T_SUBTYPE);
-   type_add_constraint(slice_type, constraint);
+   type_set_constraint(slice_type, constraint);
    type_set_base(slice_type, base_type);
 
    tree_set_type(slice, slice_type);
@@ -4723,7 +4723,7 @@ static type_t solve_array_aggregate(nametab_t *tab, tree_t agg, type_t type)
       tree_t cons = tree_new(T_CONSTRAINT);
       tree_set_subkind(cons, C_OPEN);
 
-      type_add_constraint(sub, cons);
+      type_set_constraint(sub, cons);
    }
 
    tree_set_type(agg, sub);

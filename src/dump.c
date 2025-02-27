@@ -431,9 +431,8 @@ static void dump_record_elem_constraint(tree_t t)
    print_syntax("%s", istr(tree_ident(t)));
 
    type_t ftype = tree_type(t);
-   const int ncon = type_constraints(ftype);
-   for (int i = 0; i < ncon; i++)
-      dump_constraint(type_constraint(ftype, i));
+   if (type_has_constraint(ftype))
+      dump_constraint(type_constraint(ftype));
 
    dump_elem_constraints(ftype);
 }
@@ -475,8 +474,8 @@ static void dump_elem_constraints(type_t type)
       type_t elem = type_elem(type);
       if (is_anonymous_subtype(elem)) {
          // Anonymous subtype created for element constraints
-         assert(type_constraints(elem) == 1);
-         dump_constraint(type_constraint(elem, 0));
+         assert(type_has_constraint(elem));
+         dump_constraint(type_constraint(elem));
          dump_elem_constraints(elem);
       }
    }
@@ -488,9 +487,8 @@ static void dump_type(type_t type)
       // Anonymous subtype
       print_syntax("%s", type_pp(type));
       if (type_ident(type) == type_ident(type_base(type))) {
-         const int ncon = type_constraints(type);
-         for (int i = 0; i < ncon; i++)
-            dump_constraint(type_constraint(type, i));
+         if (type_has_constraint(type))
+            dump_constraint(type_constraint(type));
       }
       dump_elem_constraints(type);
    }
@@ -693,9 +691,8 @@ static void dump_type_decl(tree_t t, int indent)
          print_syntax(")");
       }
       else if (kind == T_SUBTYPE) {
-         const int ncon = type_constraints(type);
-         for (int i = 0; i < ncon; i++)
-            dump_constraint(type_constraint(type, i));
+         if (type_has_constraint(type))
+            dump_constraint(type_constraint(type));
       }
       else {
          print_syntax("(");
@@ -744,9 +741,8 @@ static void dump_subtype_decl(tree_t t, int indent)
    }
    print_syntax("%s", type_pp(type_base(type)));
 
-   const int ncon = type_constraints(type);
-   for (int i = 0; i < ncon; i++)
-      dump_constraint(type_constraint(type, i));
+   if (type_has_constraint(type))
+      dump_constraint(type_constraint(type));
 
    dump_elem_constraints(type);
 

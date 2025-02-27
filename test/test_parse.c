@@ -759,7 +759,7 @@ START_TEST(test_types)
    fail_unless(type_kind(t) == T_SUBTYPE);
    fail_unless(type_kind(type_base(t)) == T_INTEGER);
    fail_unless(type_ident(type_base(t)) == ident_new("WORK.B-A.MY_INT"));
-   r = tree_range(type_constraint(t, 0), 0);
+   r = tree_range(type_constraint(t), 0);
    fail_unless(tree_kind(tree_left(r)) == T_LITERAL);
    fail_unless(tree_kind(tree_right(r)) == T_ATTR_REF);
    fail_unless(tree_ident(tree_name(tree_right(r))) == ident_new("MY_INT"));
@@ -854,7 +854,7 @@ START_TEST(test_types)
    t = tree_type(d);
    fail_unless(type_kind(t) == T_SUBTYPE);
    fail_unless(type_has_ident(t));
-   r = tree_range(type_constraint(t, 0), 0);
+   r = tree_range(type_constraint(t), 0);
    ck_assert_double_eq_tol(tree_dval(tree_left(r)), 0.0, DBL_EPSILON);
    ck_assert_double_eq_tol(tree_dval(tree_right(r)), 10.0, DBL_EPSILON);
 
@@ -1453,7 +1453,7 @@ START_TEST(test_array)
    t = tree_type(d);
    fail_unless(type_kind(t) == T_SUBTYPE);
    fail_unless(type_has_ident(t));
-   fail_unless(tree_ranges(type_constraint(t, 0)) == 1);
+   fail_unless(tree_ranges(type_constraint(t)) == 1);
    fail_unless(type_kind(type_base(t)) == T_ARRAY);
 
    d = get_decl(p, "CHAR_COUNTS");
@@ -1461,8 +1461,8 @@ START_TEST(test_array)
    fail_unless(tree_ident(d) == ident_new("CHAR_COUNTS"));
    t = tree_type(d);
    fail_unless(type_kind(t) == T_SUBTYPE);
-   fail_unless(tree_ranges(type_constraint(t, 0)) == 1);
-   r = tree_range(type_constraint(t, 0), 0);
+   fail_unless(tree_ranges(type_constraint(t)) == 1);
+   r = tree_range(type_constraint(t), 0);
    fail_unless(tree_subkind(r) == RANGE_EXPR);
    fail_unless(tree_kind(tree_value(r)) == T_ATTR_REF);
    fail_unless(tree_ident(tree_value(r)) == ident_new("RANGE"));
@@ -1475,16 +1475,16 @@ START_TEST(test_array)
    fail_unless(tree_ident(d) == ident_new("TWO_D"));
    t = tree_type(d);
    fail_unless(type_kind(t) == T_SUBTYPE);
-   fail_unless(tree_ranges(type_constraint(t, 0)) == 2);
+   fail_unless(tree_ranges(type_constraint(t)) == 2);
    fail_unless(type_indexes(type_base(t)) == 2);
-   r = tree_range(type_constraint(t, 0), 0);
+   r = tree_range(type_constraint(t), 0);
    left = tree_left(r);
    fail_unless(tree_kind(left) == T_TYPE_CONV);
    fail_unless(tree_ival(tree_value(left)) == 1);
    right = tree_right(r);
    fail_unless(tree_kind(right) == T_TYPE_CONV);
    fail_unless(tree_ival(tree_value(right)) == 3);
-   r = tree_range(type_constraint(t, 0), 1);
+   r = tree_range(type_constraint(t), 1);
    left = tree_left(r);
    fail_unless(tree_kind(left) == T_TYPE_CONV);
    fail_unless(tree_ival(tree_value(left)) == 4);
@@ -1506,8 +1506,8 @@ START_TEST(test_array)
    fail_unless(tree_ident(d) == ident_new("X"));
    t = tree_type(d);
    fail_unless(type_kind(t) == T_SUBTYPE);
-   fail_unless(type_constraints(t) == 1);
-   r = tree_range(type_constraint(t, 0), 0);
+   fail_unless(type_has_constraint(t));
+   r = tree_range(type_constraint(t), 0);
    fail_unless(tree_ival(tree_left(r)) == 1);
    fail_unless(tree_ival(tree_right(r)) == 5);
 
@@ -1520,8 +1520,8 @@ START_TEST(test_array)
    d = get_decl(a, "Z");
    t = tree_type(d);
    fail_unless(type_kind(t) == T_SUBTYPE);
-   fail_unless(type_constraints(t) == 1);
-   r = tree_range(type_constraint(t, 0), 0);
+   fail_unless(type_has_constraint(t));
+   r = tree_range(type_constraint(t), 0);
    fail_unless(tree_ival(tree_left(r)) == 1);
    fail_unless(tree_ival(tree_right(r)) == 3);
    fail_unless(tree_has_value(d));
@@ -1538,8 +1538,8 @@ START_TEST(test_array)
    d = get_decl(a, "N");
    t = tree_type(d);
    fail_unless(type_kind(t) == T_SUBTYPE);
-   fail_unless(type_constraints(t) == 1);
-   r = tree_range(type_constraint(t, 0), 0);
+   fail_unless(type_has_constraint(t) == 1);
+   r = tree_range(type_constraint(t), 0);
    fail_unless(tree_ival(tree_left(r)) == 1);
    fail_unless(tree_ival(tree_right(r)) == 3);
    fail_unless(tree_has_value(d));
@@ -1562,8 +1562,8 @@ START_TEST(test_array)
    d = get_decl(a, "M");
    t = tree_type(d);
    fail_unless(type_kind(t) == T_SUBTYPE);
-   fail_unless(type_constraints(t) == 1);
-   r = tree_range(type_constraint(t, 0), 0);
+   fail_unless(type_has_constraint(t));
+   r = tree_range(type_constraint(t), 0);
    fail_unless(tree_ival(tree_left(r)) == 1);
    fail_unless(tree_ival(tree_right(r)) == 3);
    fail_unless(tree_has_value(d));
@@ -3301,7 +3301,7 @@ START_TEST(test_issue367)
    type_t type = tree_type(d);
    fail_unless(type_kind(type) == T_SUBTYPE);
 
-   tree_t c = type_constraint(type, 0);
+   tree_t c = type_constraint(type);
    fail_unless(tree_ranges(c) == 1);
 
    tree_t r = tree_range(c, 0);
@@ -3695,10 +3695,10 @@ START_TEST(test_vhdl2008)
    fail_unless(type_is_unconstrained(p6t0));
    type_t p6t1 = tree_type(get_decl(p6, "A"));
    fail_if(type_is_unconstrained(p6t1));
-   fail_unless(type_constraints(p6t1) == 1);
+   fail_unless(type_has_constraint(p6t1));
    type_t p6t1e = type_elem(p6t1);
    fail_unless(type_kind(p6t1e) == T_SUBTYPE);
-   fail_unless(type_constraints(p6t1e) == 1);
+   fail_unless(type_has_constraint(p6t1e));
 
    fail_unless(parse() == NULL);
 
@@ -5307,44 +5307,44 @@ START_TEST(test_subtype2008)
    fail_unless(tree_kind(p) == T_PACKAGE);
 
    type_t sub1 = tree_type(get_decl(p, "SUB1"));
-   fail_unless(type_constraints(sub1) == 0);
+   fail_if(type_has_constraint(sub1));
    fail_unless(type_is_unconstrained(sub1));
 
    type_t sub2 = tree_type(get_decl(p, "SUB2"));
-   ck_assert_int_eq(type_constraints(sub2), 1);
-   fail_unless(tree_subkind(type_constraint(sub2, 0)) == C_OPEN);
+   fail_unless(type_has_constraint(sub2));
+   fail_unless(tree_subkind(type_constraint(sub2)) == C_OPEN);
    fail_unless(type_is_unconstrained(sub2));
 
    type_t sub3 = tree_type(get_decl(p, "SUB3"));
-   fail_unless(type_constraints(sub3) == 0);
+   fail_if(type_has_constraint(sub3));
    fail_unless(type_is_unconstrained(sub3));
 
    type_t sub4 = tree_type(get_decl(p, "SUB4"));
-   fail_unless(type_constraints(sub4) == 0);
+   fail_if(type_has_constraint(sub4));
    fail_unless(type_is_unconstrained(sub4));
 
    type_t sub5 = tree_type(get_decl(p, "SUB5"));
-   fail_unless(type_constraints(sub5) == 1);
-   fail_unless(tree_subkind(type_constraint(sub5, 0)) == C_INDEX);
+   fail_unless(type_has_constraint(sub5));
+   fail_unless(tree_subkind(type_constraint(sub5)) == C_INDEX);
    fail_unless(type_is_unconstrained(sub5));
    ck_assert_ptr_eq(type_elem(sub5), type_elem(sub4));
 
    type_t sub6 = tree_type(get_decl(p, "SUB6"));
-   ck_assert_int_eq(type_constraints(sub6), 1);
-   fail_unless(tree_subkind(type_constraint(sub2, 0)) == C_OPEN);
+   fail_unless(type_has_constraint(sub6));
+   fail_unless(tree_subkind(type_constraint(sub2)) == C_OPEN);
    fail_if(type_is_unconstrained(sub6));
 
    type_t sub7 = tree_type(get_decl(p, "SUB7"));
-   fail_unless(type_constraints(sub7) == 0);
+   fail_if(type_has_constraint(sub7));
    fail_if(type_is_unconstrained(sub7));
 
    type_t sub10 = tree_type(get_decl(p, "SUB10"));
-   fail_unless(type_constraints(sub10) == 1);
+   fail_unless(type_has_constraint(sub10));
    fail_unless(type_is_unconstrained(sub10));
 
    type_t sub11 = tree_type(get_decl(p, "SUB11"));
-   fail_unless(type_constraints(sub11) == 1);
-   fail_unless(tree_subkind(type_constraint(sub11, 0)) == C_INDEX);
+   fail_unless(type_has_constraint(sub11));
+   fail_unless(tree_subkind(type_constraint(sub11)) == C_INDEX);
    fail_unless(type_is_unconstrained(sub11));
 
    fail_unless(parse() == NULL);

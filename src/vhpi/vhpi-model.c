@@ -4029,8 +4029,8 @@ static c_typeDecl *build_subTypeDecl(type_t type, tree_t where,
       }
    }
 
-   if (td->typeDecl.IsScalar && type_constraints(type) > 0) {
-      tree_t c = type_constraint(type, 0);
+   if (td->typeDecl.IsScalar && type_has_constraint(type)) {
+      tree_t c = type_constraint(type);
       assert(tree_subkind(c) == C_RANGE);
 
       vhpi_list_reserve(&td->Constraints, 1);

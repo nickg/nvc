@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2022  Nick Gasson
+//  Copyright (C) 2011-2025  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -31,7 +31,7 @@
 
 static const imask_t has_map[T_LAST_TYPE_KIND] = {
    // T_SUBTYPE
-   (I_IDENT | I_BASE | I_RESOLUTION | I_CONSTR | I_ELEM),
+   (I_IDENT | I_BASE | I_RESOLUTION | I_CONSTRAINT | I_ELEM),
 
    // T_INTEGER
    (I_IDENT | I_DIMS),
@@ -502,24 +502,24 @@ type_t type_index(type_t t, unsigned n)
    return type_array_nth(item, n);
 }
 
-unsigned type_constraints(type_t t)
+tree_t type_constraint(type_t t)
 {
-   item_t *item = lookup_item(&type_object, t, I_CONSTR);
-   return obj_array_count(item->obj_array);
+   item_t *item = lookup_item(&type_object, t, I_CONSTRAINT);
+   assert(item->object != NULL);
+   return container_of(item->object, struct _tree, object);
 }
 
-void type_add_constraint(type_t t, tree_t c)
+bool type_has_constraint(type_t t)
+{
+   item_t *item = lookup_item(&type_object, t, I_CONSTRAINT);
+   return item->object != NULL;
+}
+
+void type_set_constraint(type_t t, tree_t c)
 {
    assert(c->object.kind == T_CONSTRAINT);
-   tree_array_add(lookup_item(&type_object, t, I_CONSTR), c);
+   lookup_item(&type_object, t, I_CONSTRAINT)->object = &(c->object);
    object_write_barrier(&(t->object), &(c->object));
-}
-
-tree_t type_constraint(type_t t, unsigned n)
-{
-   assert(n == 0);    // TODO: this list is largely redundant now
-   item_t *item = lookup_item(&type_object, t, I_CONSTR);
-   return tree_array_nth(item, n);
 }
 
 void type_set_resolution(type_t t, tree_t r)
@@ -716,28 +716,27 @@ bool type_has_error(type_t t)
 
 tree_t type_constraint_for_field(type_t t, tree_t f)
 {
-   if (t->object.kind == T_SUBTYPE) {
-      const int ncon = type_constraints(t);
-      if (ncon > 0) {
-         tree_t c = type_constraint(t, ncon - 1);
-
-         if (tree_subkind(c) != C_RECORD)
-            return NULL;
-
-         const int nelem = tree_ranges(c);
-         for (int i = 0; i < nelem; i++) {
-            tree_t ei = tree_range(c, i);
-            assert(tree_kind(ei) == T_ELEM_CONSTRAINT);
-
-            if (tree_has_ref(ei) && tree_ref(ei) == f)
-               return ei;
-         }
-      }
-
-      return type_constraint_for_field(type_base(t), f);
-   }
-   else
+   if (t->object.kind != T_SUBTYPE)
       return NULL;
+   else if (!type_has_constraint(t))
+      return NULL;
+
+   tree_t c = type_constraint(t);
+
+   if (tree_subkind(c) != C_RECORD)
+      return NULL;
+
+   const int nelem = tree_ranges(c);
+   for (int i = 0; i < nelem; i++) {
+      tree_t ei = tree_range(c, i);
+      assert(tree_kind(ei) == T_ELEM_CONSTRAINT);
+
+      if (tree_has_ref(ei) && tree_ref(ei) == f)
+         return ei;
+   }
+
+
+   return type_constraint_for_field(type_base(t), f);
 }
 
 bool type_is_unconstrained(type_t t)
@@ -771,8 +770,8 @@ bool type_is_unconstrained(type_t t)
          }
 
          for (; t->object.kind == T_SUBTYPE; t = type_base(t)) {
-            if (type_constraints(t) > 0) {
-               tree_t c = type_constraint(t, 0);
+            if (type_has_constraint(t)) {
+               tree_t c = type_constraint(t);
                if (tree_subkind(c) == C_INDEX)
                   return false;
             }

@@ -7550,8 +7550,8 @@ static vcode_reg_t lower_var_constraints(lower_unit_t *lu, type_t var_type,
       tree_t c = NULL;
       for (type_t iter = var_type; type_kind(iter) == T_SUBTYPE;
            iter = type_base(iter)) {
-         if (type_constraints(iter) > 0) {
-            tree_t c0 = type_constraint(iter, 0);
+         if (type_has_constraint(iter)) {
+            tree_t c0 = type_constraint(iter);
             if (tree_subkind(c0) == C_INDEX) {
                c = c0;
                break;

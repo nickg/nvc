@@ -335,8 +335,8 @@ static void bounds_check_array_ref(tree_t t)
          //     y := a(x);  -- Always in bounds
 
          type_t ptype = tree_type(pvalue);
-         if (type_kind(ptype) == T_SUBTYPE && type_constraints(ptype) == 1) {
-            tree_t c = type_constraint(ptype, 0);
+         if (type_kind(ptype) == T_SUBTYPE && type_has_constraint(ptype)) {
+            tree_t c = type_constraint(ptype);
             if (tree_subkind(c) == C_RANGE) {
                tree_t r = tree_range(c, 0);
                if (tree_subkind(r) == RANGE_EXPR) {
@@ -747,10 +747,10 @@ static void bounds_check_aggregate(tree_t t)
 
 static void bounds_check_index_contraints(type_t type)
 {
-   if (type_kind(type) != T_SUBTYPE || type_constraints(type) == 0)
+   if (type_kind(type) != T_SUBTYPE || !type_has_constraint(type))
       return;
 
-   tree_t c0 = type_constraint(type, 0);
+   tree_t c0 = type_constraint(type);
 
    const constraint_kind_t kind = tree_subkind(c0);
    if (kind != C_INDEX && kind != C_RANGE)

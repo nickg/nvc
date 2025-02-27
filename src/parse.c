@@ -1871,7 +1871,7 @@ static type_t get_subtype_for(tree_t expr)
    tree_t c = tree_new(T_CONSTRAINT);
    tree_set_loc(c, loc);
 
-   type_add_constraint(sub, c);
+   type_set_constraint(sub, c);
 
    if (type_is_record(type)) {
       tree_set_subkind(c, C_RECORD);
@@ -4082,14 +4082,14 @@ static void p_array_constraint(type_t type, type_t base)
          tree_set_subkind(c, C_OPEN);
          tree_set_loc(c, CURRENT_LOC);
 
-         type_add_constraint(type, c);
+         type_set_constraint(type, c);
       }
       else if (type_is_record(base)) {
-         type_add_constraint(type, p_record_constraint(base));
+         type_set_constraint(type, p_record_constraint(base));
          break;
       }
       else
-         type_add_constraint(type, p_index_constraint(base));
+         type_set_constraint(type, p_index_constraint(base));
 
       if (peek() != tLPAREN)
          break;
@@ -4134,7 +4134,7 @@ static tree_t p_record_element_constraint(type_t base)
    type_set_base(sub, ftype);
 
    if (type_is_record(ftype))
-      type_add_constraint(sub, p_record_constraint(ftype));
+      type_set_constraint(sub, p_record_constraint(ftype));
    else
       p_array_constraint(sub, ftype);
 
@@ -4176,14 +4176,14 @@ static void p_constraint(type_t type)
 
    switch (peek()) {
    case tRANGE:
-      type_add_constraint(type, p_range_constraint(base));
+      type_set_constraint(type, p_range_constraint(base));
       break;
 
    case tLPAREN:
       if (standard() < STD_08)
-         type_add_constraint(type, p_index_constraint(base));
+         type_set_constraint(type, p_index_constraint(base));
       else if (type_is_record(base))
-         type_add_constraint(type, p_record_constraint(base));
+         type_set_constraint(type, p_record_constraint(base));
       else
          p_array_constraint(type, base);
       break;
@@ -6513,7 +6513,7 @@ static type_t p_constrained_array_definition(type_t base, tree_t head)
 
    type_t sub = type_new(T_SUBTYPE);
    type_set_base(sub, base);
-   type_add_constraint(sub, constraint);
+   type_set_constraint(sub, constraint);
    type_set_ident(sub, type_ident(base));
 
    mangle_type(nametab, sub);
@@ -10171,7 +10171,7 @@ static void p_parameter_specification(tree_t loop, tree_kind_t pkind)
 
    type_t sub = type_new(T_SUBTYPE);
    type_set_base(sub, base);
-   type_add_constraint(sub, constraint);
+   type_set_constraint(sub, constraint);
 
    tree_t param = tree_new(pkind);
    tree_set_ident(param, id);
