@@ -2054,123 +2054,219 @@ static int preprocess_cmd(int argc, char **argv, cmd_state_t *state)
 
 static void usage(void)
 {
-   printf("Usage: %s [OPTION]... COMMAND [OPTION]...\n"
-          "\n"
-          "COMMAND is one of:\n"
-          " -a [OPTION]... FILE...\t\tAnalyse FILEs into work library\n"
-          " -e [OPTION]... TOP\t\tElaborate design unit TOP\n"
-          " -r [OPTION]... TOP\t\tExecute previously elaborated TOP\n"
-          " -i\t\t\t\tLaunch interactive TCL shell\n"
-          " --cover-export FILE...\t\t"
-          "Export coverage database to external format\n"
-          " --cover-report FILE...\t\t"
-          "Generate HTML report from coverage database\n"
-          " --cover-merge FILE...\t\tMerge multiple coverage databases\n"
-          " --do SCRIPT\t\t\tEvaluate TCL script\n"
-#ifdef ENABLE_GUI
-          " --gui\t\t\t\tLaunch browser-based GUI\n"
+   color_printf("$!cyan$Usage:$$ $bold$%s [OPTION]... "
+                "COMMAND [OPTION]...$$\n\n",  PACKAGE);
+
+   wrapped_printf("Global options are placed before COMMAND, and "
+                  "command-specific options are placed afterwards.  "
+                  "Multiple commands can be given and will be performed "
+                  "in order.\n\n");
+
+   static const struct {
+      const char *group;
+      struct {
+         const char *args;
+         const char *usage;
+      } options[16];
+   } groups[] = {
+      { "Commands",
+        {
+           { "-a [OPTION]... FILE...", "Analyse FILEs into work library" },
+           { "-e [OPTION]... TOP", "Elaborate design unit TOP" },
+           { "-r [OPTION]... TOP", "Execute previously elaborated TOP" },
+#ifdef ENABLE_TCL
+           { "-i", "Launch interactive TCL shell" },
 #endif
-          " --init\t\t\t\tInitialise work library directory\n"
-          " --install PKG\t\t\tInstall third-party packages\n"
-          " --list\t\t\t\tPrint all units in the library\n"
-          " --preprocess FILE...\t\tExpand FILEs with Verilog preprocessor\n"
-          " --print-deps [UNIT]...\t\tPrint dependencies in Makefile format\n"
-          "\n"
-          "Global options may be placed before COMMAND:\n"
-          " -h, --help\t\tDisplay this message and exit\n"
-          " -H SIZE\t\tSet the maximum heap size to SIZE bytes\n"
-          "     --ieee-warnings=\tEnable ('on') or disable ('off') warnings\n"
-          "                     \tfrom IEEE packages\n"
-          "     --ignore-time\tSkip source file timestamp check\n"
-          "     --load=PLUGIN\tLoad VHPI plugin at startup\n"
-          " -L PATH\t\tAdd PATH to library search paths\n"
-          " -M SIZE\t\tLimit design unit heap space to SIZE bytes\n"
-          "     --map=LIB:PATH\tMap library LIB to PATH\n"
-          "     --messages=STYLE\tSelect full or compact message format\n"
-          "     --std=REV\t\tVHDL standard revision to use\n"
-          "     --stderr=SEV\tPrint messages higher than SEV to stderr\n"
-          " -v, --version\t\tDisplay version and copyright information\n"
-          "     --vhpi-debug\tReport VHPI errors as diagnostic messages\n"
-          "     --vhpi-trace\tTrace VHPI calls and events\n"
-          "     --work=NAME\tUse NAME as the work library\n"
-          "\n"
-          "Analysis options:\n"
-          "     --bootstrap\tAllow compilation of STANDARD package\n"
-          "     --check-synthesis\tWarn on common synthesis mistakes\n"
-          " -D, --define NAME=VAL\tSet preprocessor symbol NAME to VAL\n"
-          "     --error-limit=NUM\tStop after NUM errors\n"
-          " -f, --files=LIST\tRead files to analyse from LIST\n"
-          "     --no-save\t\tDo not save analysed design units\n"
-          "     --preserve-case\tPreserve the original case of VHDL "
-          "identifiers\n"
-          "     --psl\t\tEnable parsing of PSL directives in comments\n"
-          "     --relaxed\t\tDisable certain pedantic rule checks\n"
-          "     --single-unit\tTreat all Verilog files as single compilation "
-          "unit\n"
-          "\n"
-          "Elaboration options:\n"
-          "     --cover[=TYPES]\tEnable code coverage collection\n"
-          "                    \t"
-          "Valid TYPES include statement, branch, and toggle\n"
-          "     --cover-file=FILE\tSet the file name of the coverage database\n"
-          "     --cover-spec=FILE\t"
-          "Fine-grained coverage collection specification\n"
-          " -g NAME=VALUE\t\tSet top level generic NAME to VALUE\n"
-          " -j, --jit\t\tEnable just-in-time compilation during simulation\n"
-          "     --no-collapse\tDo not collapse multiple signals into one\n"
-          "     --no-save\t\tDo not save the elaborated design to disk\n"
-          " -O0, -O1, -O2, -O3\tSet optimisation level (default is -O2)\n"
-          " -V, --verbose\t\tPrint resource usage at each step\n"
-          "\n"
-          "Run options:\n"
-          "     --dump-arrays[=N]\tInclude nested arrays in waveform dump\n"
-          "     --exclude=GLOB\tExclude signals matching GLOB from wave dump\n"
-          "     --exit-severity=\tExit after assertion failure of "
-          "this severity\n"
-          "     --format=FMT\tWaveform format is either fst or vcd\n"
-          "     --include=GLOB\tInclude signals matching GLOB in wave dump\n"
-          "     --shuffle\t\tRun processes in random order\n"
-          "     --stats\t\tPrint time and memory usage at end of run\n"
-          "     --stop-delta=N\tStop after N delta cycles (default %d)\n"
-          "     --stop-time=T\tStop after simulation time T (e.g. 5ns)\n"
-          "     --trace\t\tTrace simulation events\n"
-          " -w, --wave=FILE\tWrite waveform data; file name is optional\n"
-          "\n"
-#ifdef ENABLE_GUI
-          "GUI options:\n"
-          "     --init=CMDS\tEvaluate TCL commands on startup\n"
-          "     --port=PORT\tSpecify port for HTTP server\n"
-          "\n"
+           { "--cover-export FILE...",
+             "Export coverage database to external format" },
+           { "--cover-report FILE...",
+             "Generate HTML report from coverage database" },
+           { "--cover-merge FILE...", "Merge multiple coverage databases" },
+#ifdef ENABLE_TCL
+           { "--do SCRIPT", "Evaluate TCL script" },
 #endif
-          "Coverage report options:\n"
-          "     --exclude-file=\tApply exclude file when generating report\n"
-          "     --dont-print=\tExcluded specified items from coverage report\n"
-          "                  \t"
-          "Argument is a list of: covered, uncovered, excluded\n"
-          " -o, --output=DIR\tPlace generated HTML files in DIR\n"
-          "\n"
-          "Coverage merge options:\n"
-          " -o, --output=FILE\tOutput database file name\n"
-          "\n"
-          "Coverage export options:\n"
-          "     --format=FMT\tFile format (must be 'cobertura')\n"
-          " -o, --output=FILE\tOutput file name\n"
-          "     --relative=PATH\tStrip PATH from prefix of absolute paths\n"
-          "\n"
-          "Install options:\n"
-          "     --dest=DIR\t\tCompile libraries into directory DEST\n"
-          "\n",
-          PACKAGE,
-          opt_get_int(OPT_STOP_DELTA));
+#ifdef ENABLE_GUI
+           { "--gui", "Launch browser-based GUI" },
+#endif
+           { "--init", "Initialise work library directory" },
+           { "--install PKG", "Install third-party packages" },
+           { "--list", "Print all units in the library" },
+           { "--preprocess FILE...",
+             "Expand FILEs with Verilog preprocessor" },
+           { "--print-deps [UNIT]...",
+             "Print dependencies in Makefile format" },
+        }
+      },
+      { "Global options",
+        {
+           { "-h, --help", "Display this message and exit" },
+           { "-H SIZE", "Set the maximum heap size to SIZE bytes" },
+           { "--ieee-warnings={on,off}",
+             "Enable or disable warnings from IEEE packages" },
+           { "--ignore-time", "Skip source file timestamp check" },
+           { "--load=PLUGIN", "Load VHPI plugin at startup" },
+           { "-L PATH", "Add PATH to library search paths" },
+           { "-M SIZE", "Limit design unit heap space to SIZE bytes" },
+           { "--map=LIB:PATH", "Map library LIB to PATH" },
+           { "--messages={full,compact}",
+             "Diagnostic message style, compact is less verbose" },
+           { "--std={1993,..,2019}", "VHDL standard revision to use" },
+           { "--stderr={note,warning,error,failure}",
+             "Print messages of this severity level or higher to stderr" },
+           { "-v, --version", "Display version and copyright information" },
+           { "--vhpi-debug", "Report VHPI errors as diagnostic messages" },
+           { "--vhpi-trace", "Trace VHPI calls and events" },
+           { "--work=NAME", "Use NAME as the work library" },
+        }
+      },
+      { "Analysis options",
+        {
+           { "--bootstrap", "Allow compilation of STANDARD package" },
+           { "--check-synthesis", "Warn on common synthesis mistakes" },
+           { "-D, --define NAME=VALUE",
+             "Set preprocessor symbol NAME to VALUE" },
+           { "--error-limit=NUM", "Stop after NUM errors" },
+           { "-f, --files=LIST", "Read files to analyse from LIST" },
+           { "--no-save", "Do not save analysed design units" },
+           { "--preserve-case",
+             "Preserve the original case of VHDL identifiers" },
+           { "--psl", "Enable parsing of PSL directives in comments" },
+           { "--relaxed", "Disable certain pedantic rule checks" },
+           { "--single-unit",
+             "Treat all Verilog files as a single compilation unit" },
+        }
+      },
+      { "Elaboration options",
+        {
+           { "--cover[={statement,branch,expression,toggle,...}]",
+             "Enable code coverage collection" },
+           { "--cover-file=FILE",
+             "Set the file name of the coverage database" },
+           { "--cover-spec=FILE",
+             "Fine-grained coverage collection specification, see the manual "
+             "for details" },
+           { "-g NAME=VALUE", "Set top level generic NAME to VALUE" },
+           { "-j, --jit", "Enable just-in-time compilation during simulation" },
+           { "-O0, -O1, -O2, -O3", "Set optimisation level (default is -O2)" },
+           { "--no-collapse", "Do not collapse multiple signals into one" },
+           { "--no-save", "Do not save the elaborated design to disk" },
+           { "-V, --verbose", "Print resource usage at each step" },
+        }
+      },
+      { "Run options",
+        {
+           { "--dump-arrays[=N]",
+             "Include nested arrays with up to N elements in waveform dump" },
+           { "--exclude=GLOB",
+             "Exclude signals matching GLOB from waveform dump" },
+           { "--exit-severity={note,warning,error,failure}",
+             "Exit after an assertion failure of this severity" },
+           { "--format={fst,vcd}", "Waveform dump format" },
+           { "--include=GLOB",
+             "Include signals matching GLOB in waveform dump" },
+           { "--shuffle", "Run processes in random order" },
+           { "--stats", "Print time and memory usage at end of run" },
+           { "--stop-delta=N", "Stop after N delta cycles (default 10000)" },
+           { "--stop-after=T", "Stop after simulation time T (e.g. 5ns)" },
+           { "--trace", "Trace simulation events" },
+           { "-w, --wave[=FILE]", "Write waveform dump to FILE" },
+        }
+      },
+#ifdef ENABLE_GUI
+      { "GUI options",
+        {
+           { "--init=CMDS", "Evaluate TCL commands on startup" },
+           { "--port=PORT", "Specify port for HTTP server" },
+        }
+      },
+#endif
+      { "Coverage report options",
+        {
+           { "--exclude-file=FILE",
+             "Apply exclude file when generating report, see manual for syntax"
+           },
+           { "--dont-print={covered,uncovered,excluded}",
+             "Exclude specified items from coverage report" },
+        }
+      },
+      { "Coverage merge options",
+        {
+           { "-o, --output=FILE", "Output database file name" },
+        }
+      },
+      { "Coverage export options",
+        {
+           { "--format=FMT", "File format (must be 'cobertura')" },
+           { "-o, --output=FILE", "Output file name" },
+           { "--relative=PATH", "Strip PATH from prefix of absolute paths" },
+        }
+      },
+      { "Install options",
+        {
+           { "--dest=DIR", "Compile libraries into directory DIR" }
+        },
+      }
+   };
+
+   const int right = MAX(60, MIN(120, terminal_width()));
+
+   for (int i = 0; i < ARRAY_LEN(groups); i++) {
+      color_printf("$bold$$cyan$%s:$$\n", groups[i].group);
+
+      for (int j = 0; j < ARRAY_LEN(groups[i].options); j++) {
+         const char *args  = groups[i].options[j].args;
+         const char *usage = groups[i].options[j].usage;
+
+         if (args == NULL || usage == NULL)
+            break;
+
+         int col = 0;
+         if (args[0] == '-' && args[1] == '-' && i > 0)
+            col += color_printf("     $bold$%s$$ ", args);
+         else
+            col += color_printf(" $bold$%s$$ ", args);
+
+         const int indent = i == 0 ? 30 : 20;
+         if (col > indent)
+            printf("\n%*.s", indent, "");
+         else
+            col += printf("%*.s", indent - col, "");
+
+         col = indent;
+
+         const char *p = usage, *begin = usage;
+         for (; *p != '\0'; p++) {
+            if (col + 1 >= right && p - begin + 1 < right - indent) {
+               printf("\n%*s", indent, "");
+               col = indent + p - begin;
+            }
+            else if (isspace_iso88591(*p)) {
+               fwrite(begin, 1, p - begin + 1, stdout);
+               col++;
+               begin = p + 1;
+            }
+            else
+               ++col;
+         }
+
+         if (begin < p)
+            fwrite(begin, 1, p - begin, stdout);
+
+         printf("\n");
+      }
+
+      printf("\n");
+   }
 
    LOCAL_TEXT_BUF tb = tb_new();
    lib_print_search_paths(tb);
-   printf("Library search paths:%s\n", tb_get(tb));
+   color_printf("$!cyan$Library search paths:$$%s\n\n", tb_get(tb));
 
-   printf("\nThe full manual can be read with `man 1 %s' and contains "
-          "detailed\nexplanations of the commands and options above as "
-          "well as examples.\n", PACKAGE_NAME);
-   printf("\nReport bugs at <%s>\n", PACKAGE_BUGREPORT);
+   wrapped_printf("The full manual can be read with $bold$man 1 %s$$ and "
+                  "contains detailed explanations of the commands and options "
+                  "above as well as examples.\n", PACKAGE_NAME);
+   color_printf("\nReport bugs at $link:%s\07%s$\n", PACKAGE_BUGREPORT,
+                PACKAGE_BUGREPORT);
 }
 
 static vhdl_standard_t parse_standard(const char *str)

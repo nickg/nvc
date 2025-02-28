@@ -36,6 +36,7 @@
   conversion function (#1161).
 - Fixed a crash when `'last_event` or `'last_active` is used with a
   record type (#1164).
+- Improved the formatting of the `--help` output.
 
 ## Version 1.15.1 - 2025-01-22
 - Fixed a crash when a subprogram is called with too many named arguments
