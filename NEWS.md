@@ -14,29 +14,33 @@
   without the git commit hash (#1131).
 - Improved error messages when design units have circular dependencies
   or depend on obsolete design units (#1152).
+- Toggle coverage count is displayed correctly for unreachable constant
+  driven toggle bins and transitions from `X` are counted with
+  `--count-from-undefined` instead of just `U`.
+- Added an experimental `--preserve-case` analysis option to retain the
+  original spelling of VHDL identifiers (#723).
+- `--ieee-warnings` is now a global option and should be placed before
+  the `-r` command.  Passing it to the `-r` command is still supported
+  but deprecated and may not take effect in some situations (#1151).
+- Fixed a crash when a partial association in a port map has a
+  conversion function (#1161).
+- Improved the formatting of the `--help` output.
+
+## Version 1.15.2 - 2025-03-01
+- Fixed invalid LLVM IR generation which could cause a crash with LLVM
+  14 (#1145).
 - Functional coverage is now reported correctly when summing from nested
   hierarchies (#1154).
 - External names can now be the target of concurrent signal assignment
   statements (#1156).
 - Fixed a crash when packages are passed through multiple layers of
   generics.
-- Toggle coverage count is displayed correctly for unreachable constant
-  driven toggle bins and transitions from `X` are counted with
-  `--count-from-undefined` instead of just `U`.
 - Fixed a crash when a record subtype has a partially constrained
   element (#1155).
-- Added an experimental `--preserve-case` analysis option to retain the
-  original spelling of VHDL identifiers (#723).
 - Fixed wrong result of VHDL-2019 `std.env.file_path` when the source
   file was analysed using a relative path (#1162).
-- `--ieee-warnings` is now a global option and should be placed before
-  the `-r` command.  Passing it to the `-r` command is still supported
-  but deprecated and may not take effect in some situations (#1151).
-- Fixed a crash when a partial association in a port map has a
-  conversion function (#1161).
 - Fixed a crash when `'last_event` or `'last_active` is used with a
   record type (#1164).
-- Improved the formatting of the `--help` output.
 
 ## Version 1.15.1 - 2025-01-22
 - Fixed a crash when a subprogram is called with too many named arguments
