@@ -3859,10 +3859,12 @@ static c_typeDecl *build_arrayTypeDecl(type_t type, tree_t decl,
       td->ElemType = build_arrayTypeDecl(elem, decl, parent, obj,
                                          nextdim + td->NumDimensions);
    }
-   else {
+   else if (obj == NULL) {
       c_vhpiObject *tobj = &(td->composite.typeDecl.decl.object);
       td->ElemType = cached_typeDecl(elem, tobj);
    }
+   else
+      td->ElemType = cached_typeDecl(elem, obj);
 
    td->composite.typeDecl.size = td->ElemType->size;
 

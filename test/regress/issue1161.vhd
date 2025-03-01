@@ -8,6 +8,8 @@ architecture test of issue1161 is
         Data : ArrayOfSigned;
         Valid : bit;
     end record;
+    type ArrayOfInterlacedSignals is array (natural range <>) of InterlacedSignal;
+    subtype ArrayOfInterlaced16bSignals is ArrayOfInterlacedSignals(open)(Data(open)(15 downto 0));
 
     -- Should not generate a bounds var
     subtype Interlaced16bSignal is InterlacedSignal(Data(open)(15 downto 0));
@@ -37,6 +39,7 @@ begin
             DataIn.Valid => Valid,
             DataOut => SomeRec );
 
+        signal AIn : ArrayOfInterlaced16bSignals(0 to IN_WIDTH - 1)(Data(0 to IN_LANES - 1));
         signal s : datain.data'element;
     begin
     end block;
