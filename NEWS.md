@@ -1,4 +1,6 @@
 ## Unreleased changes
+
+## Version 1.15.2 - 2025-03-01
 - Fixed invalid LLVM IR generation which could cause a crash with LLVM
   14 (#1145).
 - Functional coverage is now reported correctly when summing from nested

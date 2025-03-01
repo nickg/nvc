@@ -267,12 +267,14 @@ EXTRA_DIST += \
 	test/lower/func5.vhd \
 	test/lower/funcif.vhd \
 	test/lower/genpack1.vhd \
+	test/lower/genpack2.vhd \
 	test/lower/hintbug.vhd \
 	test/lower/iffold.vhd \
 	test/lower/incomplete.vhd \
 	test/lower/instance1.vhd \
 	test/lower/issue1029.vhd \
 	test/lower/issue1080.vhd \
+	test/lower/issue1155.vhd \
 	test/lower/issue116.vhd \
 	test/lower/issue122.vhd \
 	test/lower/issue124.vhd \
@@ -1370,6 +1372,7 @@ EXTRA_DIST += \
 	test/regress/issue112.vhd \
 	test/regress/issue1137.vhd \
 	test/regress/issue115.vhd \
+	test/regress/issue1164.vhd \
 	test/regress/issue116.vhd \
 	test/regress/issue121.vhd \
 	test/regress/issue122.vhd \
@@ -2214,6 +2217,7 @@ EXTRA_DIST += \
 	test/simp/func9.vhd \
 	test/simp/genmap.vhd \
 	test/simp/genpack1.vhd \
+	test/simp/genpack2.vhd \
 	test/simp/gentype.vhd \
 	test/simp/grlib1.vhd \
 	test/simp/guard.vhd \
