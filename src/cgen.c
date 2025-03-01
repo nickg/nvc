@@ -363,8 +363,6 @@ void cgen(tree_t top, unit_registry_t *ur, jit_t *jit)
       free(objs.items[i]);
    ACLEAR(objs);
 
-   LLVMShutdown();
-
    ACLEAR(units);
    workq_free(wq);
 }
@@ -548,8 +546,6 @@ void aotgen(const char *outfile, char **argv, int argc)
 
    if (remove(objfile) != 0)
       warnf("remove: %s: %s", objfile, last_os_error());
-
-   LLVMShutdown();
 
    ACLEAR(units);
    jit_free(jit);
