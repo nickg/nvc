@@ -123,4 +123,9 @@ begin
     begin
     end process;
 
+    p8: process is
+        variable x : not_an_array(1 to 2)(not_a_record(data(open)));  -- Error
+    begin
+    end process;
+
 end architecture;

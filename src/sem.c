@@ -281,20 +281,6 @@ static bool sem_check_constraint(tree_t constraint, type_t base, nametab_t *tab)
                   sem_error(ei, "duplicate record element constraint for "
                             "field %s", istr(tree_ident(fi)));
             }
-
-            if (type_kind(base) == T_SUBTYPE) {
-               tree_t dup = type_constraint_for_field(base, fi);
-               if (dup != NULL && !type_is_unconstrained(tree_type(dup))) {
-                  diag_t *d = diag_new(DIAG_ERROR, tree_loc(ei));
-                  diag_printf(d, "duplicate record element constraint for "
-                              "field %s", istr(tree_ident(fi)));
-                  diag_hint(d, tree_loc(dup), "constraint in subtype %s",
-                            type_pp(base));
-                  diag_hint(d, tree_loc(ei), "duplicate constraint here");
-                  diag_emit(d);
-                  return false;
-               }
-            }
          }
 
          // Code belows handles index and range constraints
@@ -351,6 +337,8 @@ static bool sem_check_subtype_helper(tree_t decl, type_t type, nametab_t *tab)
    else if (type_is_access(base))
       base = type_designated(base);
 
+   assert(!is_anonymous_subtype(base));
+
    if (type_is_protected(base))
       sem_error(decl, "subtypes may not have protected base types");
    else if (!sem_check_incomplete(decl, type))
@@ -363,15 +351,17 @@ static bool sem_check_subtype_helper(tree_t decl, type_t type, nametab_t *tab)
 
       // Check the subtype does not already have an index constraint in
       // this position
-      if (type_kind(base) == T_SUBTYPE && type_has_constraint(base)) {
-         tree_t econs = type_constraint(base);
-         if (tree_subkind(econs) == C_INDEX) {
-            diag_t *d = diag_new(DIAG_ERROR, tree_loc(cons));
-            diag_printf(d, "duplicate index constraint for type %s",
-                        type_pp(base));
-            diag_hint(d, tree_loc(econs), "already constrained here");
-            diag_emit(d);
-            return false;
+      for (type_t b = base; type_kind(b) == T_SUBTYPE; b = type_base(b)) {
+         if (type_has_constraint(b)) {
+            tree_t econs = type_constraint(b);
+            if (tree_subkind(econs) == C_INDEX) {
+               diag_t *d = diag_new(DIAG_ERROR, tree_loc(cons));
+               diag_printf(d, "duplicate index constraint for type %s",
+                           type_pp(base));
+               diag_hint(d, tree_loc(econs), "already constrained here");
+               diag_emit(d);
+               return false;
+            }
          }
       }
    }

@@ -5343,6 +5343,12 @@ START_TEST(test_subtype2008)
    fail_unless(tree_subkind(type_constraint(sub11)) == C_INDEX);
    fail_unless(type_is_unconstrained(sub11));
 
+   type_t sub13 = tree_type(get_decl(p, "SUB13"));
+   fail_if(type_is_unconstrained(sub13));
+
+   type_t sub15 = tree_type(get_decl(p, "SUB15"));
+   fail_if(type_is_unconstrained(sub15));
+
    fail_unless(parse() == NULL);
 
    fail_if_errors();

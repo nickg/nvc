@@ -22,4 +22,19 @@ package subtype2008 is
     type rec_array is array (natural range <>) of rec;
 
     subtype sub11 is rec_array(1 to 9);  -- array (1 to 9) of rec(f(open), g(open)(open))
+
+    -- Cases from issue #1161
+    type ArrayOfSigned is array (natural range <>) of bit_vector;
+    type InterlacedSignal is record
+        Data : ArrayOfSigned;
+        Valid : bit;
+    end record;
+    type ArrayOfInterlacedSignals is array (natural range <>) of InterlacedSignal;
+    subtype ArrayOfInterlaced16bSignals is
+        ArrayOfInterlacedSignals(open)(Data(open)(15 downto 0));  -- OK
+
+    subtype sub12 is ArrayOfSigned(open)(15 downto 0);  -- OK
+    subtype sub13 is ArrayOfInterlaced16bSignals(0 to 7)(Data(0 to 7)(open));  -- OK
+    subtype sub14 is sub12(0 to 7)(open);  -- OK
+    subtype sub15 is ArrayOfInterlaced16bSignals(0 to 7)(Data(0 to 7));  -- OK
 end package;

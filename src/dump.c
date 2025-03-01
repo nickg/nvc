@@ -471,8 +471,10 @@ static void dump_elem_constraints(type_t type)
       type_t elem = type_elem(type);
       if (is_anonymous_subtype(elem)) {
          // Anonymous subtype created for element constraints
-         assert(type_has_constraint(elem));
-         dump_constraint(type_constraint(elem));
+         if (type_has_constraint(elem))
+            dump_constraint(type_constraint(elem));
+         else
+            print_syntax("(#open)");
          dump_elem_constraints(elem);
       }
    }

@@ -171,6 +171,7 @@ static type_t p_index_subtype_definition(tree_t head);
 static type_t p_anonymous_type_indication(void);
 static void p_alias_declaration(tree_t parent);
 static void p_variable_declaration(tree_t parent);
+static void p_array_constraint(type_t type, type_t base);
 static void p_psl_declaration(tree_t parent);
 static psl_node_t p_psl_sequence(void);
 static psl_node_t p_psl_property(void);
@@ -4064,6 +4065,31 @@ static tree_t p_index_constraint(type_t base)
    return t;
 }
 
+static type_t p_element_constraint(type_t base)
+{
+   // array_constraint | record_constraint
+
+   BEGIN("element constraint");
+
+   type_t sub = type_new(T_SUBTYPE);
+   if (is_anonymous_subtype(base)) {
+      type_set_base(sub, type_base(base));
+      if (type_has_constraint(base))
+         type_set_constraint(sub, type_constraint(base));
+      if (type_has_elem(base))
+         type_set_elem(sub, type_elem(base));
+   }
+   else
+      type_set_base(sub, base);
+
+   if (type_is_record(base))
+      type_set_constraint(sub, p_record_constraint(sub));
+   else
+      p_array_constraint(sub, base);
+
+   return sub;
+}
+
 static void p_array_constraint(type_t type, type_t base)
 {
    // index_constraint [ array_element_constraint ]
@@ -4071,37 +4097,38 @@ static void p_array_constraint(type_t type, type_t base)
 
    BEGIN("array constraint");
 
-   for (;;) {
-      if (peek_nth(2) == tOPEN) {
-         consume(tLPAREN);
-         consume(tOPEN);
-         consume(tRPAREN);
+   if (peek_nth(2) == tOPEN) {
+      consume(tLPAREN);
+      consume(tOPEN);
+      consume(tRPAREN);
 
-         if (!type_is_array(type) && !type_is_none(type))
-            parse_error(CURRENT_LOC, "open array constraint cannot be used "
-                        "with non-array type %s", type_pp(type));
-      }
-      else if (type_is_record(base)) {
-         type_set_constraint(type, p_record_constraint(base));
-         break;
+      if (!type_is_array(type) && !type_is_none(type))
+         parse_error(CURRENT_LOC, "open array constraint cannot be used "
+                     "with non-array type %s", type_pp(type));
+   }
+   else {
+      tree_t c = p_index_constraint(base);
+
+      if (type_has_constraint(type)) {
+         diag_t *d = diag_new(DIAG_ERROR, tree_loc(c));
+         diag_printf(d, "array element is already constrained");
+         diag_hint(d, tree_loc(type_constraint(type)),
+                   "location of existing constraint");
+         diag_emit(d);
       }
       else
-         type_set_constraint(type, p_index_constraint(base));
-
-      if (peek() != tLPAREN)
-         break;
-
-      // Base type may not actually be an array due to earlier errors
-      if (type_is_array(base))
-         base = type_elem(base);
-
-      type_t sub = type_new(T_SUBTYPE);
-      type_set_base(sub, base);
-
-      type_set_elem(type, sub);
-
-      type = sub;
+         type_set_constraint(type, c);
    }
+
+   if (peek() != tLPAREN)
+      return;
+
+   // Base type may not actually be an array due to earlier errors
+   type_t elem = base;
+   if (type_is_array(base))
+      elem = type_elem(base);
+
+   type_set_elem(type, p_element_constraint(elem));
 }
 
 static tree_t p_record_element_constraint(type_t base)
@@ -4111,7 +4138,11 @@ static tree_t p_record_element_constraint(type_t base)
    BEGIN("record element constraint");
 
    ident_t id = p_identifier();
-   tree_t decl = resolve_field_name(nametab, &last_loc, id, base);
+
+   // Base type may not actually be a record due to earlier errors
+   tree_t decl = NULL;
+   if (type_is_record(base))
+      decl = resolve_field_name(nametab, &last_loc, id, base);
 
    type_t ftype;
    if (decl != NULL) {
@@ -4127,13 +4158,7 @@ static tree_t p_record_element_constraint(type_t base)
    tree_set_ident(elem, id);
    tree_set_ref(elem, decl);
 
-   type_t sub = type_new(T_SUBTYPE);
-   type_set_base(sub, ftype);
-
-   if (type_is_record(ftype))
-      type_set_constraint(sub, p_record_constraint(ftype));
-   else
-      p_array_constraint(sub, ftype);
+   type_t sub = p_element_constraint(ftype);
 
    tree_set_type(elem, sub);
    tree_set_loc(elem, CURRENT_LOC);
