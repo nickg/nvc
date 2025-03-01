@@ -871,20 +871,6 @@ static bool is_bit_or_std_ulogic(type_t type)
    return name == well_known(W_STD_BIT) || name == well_known(W_IEEE_ULOGIC);
 }
 
-static type_t get_element_subtype(type_t type)
-{
-   type_t elem = type_elem(type);
-   if (is_anonymous_subtype(elem)) {
-      // Create a distinct subtype to ensure any errors are only
-      // reported once
-      type_t sub = type_new(T_SUBTYPE);
-      type_set_base(sub, elem);
-      return sub;
-   }
-   else
-      return elem;
-}
-
 static void declare_predefined_ops(tree_t container, type_t t)
 {
    // Prefined operators are defined in LRM 93 section 7.2
@@ -932,7 +918,7 @@ static void declare_predefined_ops(tree_t container, type_t t)
       declare_binary(container, neq, t, t, std_bool, S_ARRAY_NEQ);
 
       if (dimension_of(t) == 1) {
-         type_t elem = get_element_subtype(t);
+         type_t elem = type_elem(t);
          const bool scalar_elem = type_is_scalar(elem);
          const bool ordered =
             standard() >= STD_19 ? scalar_elem : type_is_discrete(elem);
@@ -1960,6 +1946,18 @@ static type_t get_subtype_for(tree_t expr)
    return sub;
 }
 
+static type_t get_element_subtype(tree_t expr)
+{
+   type_t type = tree_type(expr);
+   assert(type_is_array(type));
+
+   // TODO: what if type is unconstrained?
+   // TODO: this causes cascading bounds check errors if the original
+   //       constraint had an error, see test/bounds/cons1.vhd
+
+   return type_elem(type);
+}
+
 static type_t apply_subtype_attribute(tree_t aref)
 {
    assert(tree_subkind(aref) == ATTR_SUBTYPE);
@@ -1984,7 +1982,8 @@ static type_t apply_element_attribute(tree_t aref)
 {
    assert(tree_subkind(aref) == ATTR_ELEMENT);
 
-   type_t type = get_type_or_null(tree_name(aref));
+   tree_t prefix = tree_name(aref);
+   type_t type = get_type_or_null(prefix);
 
    if (type == NULL) {
       parse_error(tree_loc(aref), "prefix of 'ELEMENT attribute does not "
@@ -1999,7 +1998,7 @@ static type_t apply_element_attribute(tree_t aref)
       return type_new(T_NONE);
    }
 
-   return get_element_subtype(type);
+   return get_element_subtype(prefix);
 }
 
 static type_t apply_designated_subtype_attribute(tree_t aref)

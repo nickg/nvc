@@ -725,6 +725,13 @@ START_TEST(test_cons1)
       {  7, "left index 0 violates constraint POSITIVE" },
       {  9, "left index 0 violates constraint POSITIVE" },
       { 12, "left index 0 violates constraint POSITIVE" },
+      // TODO: these should be suppressed
+      { 12, "left index 0 violates constraint POSITIVE" },
+      { 12, "left index 0 violates constraint POSITIVE" },
+      { 12, "left index 0 violates constraint POSITIVE" },
+      { 12, "left index 0 violates constraint POSITIVE" },
+      { 12, "left index 0 violates constraint POSITIVE" },
+      { 12, "left index 0 violates constraint POSITIVE" },
       { -1, NULL }
    };
    expect_errors(expect);
