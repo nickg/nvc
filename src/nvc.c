@@ -2058,7 +2058,7 @@ static void usage(void)
                 "COMMAND [OPTION]...$$\n\n",  PACKAGE);
 
    wrapped_printf("Global options are placed before COMMAND, and "
-                  "command-specific options are placed afterwards.  "
+                  "command-specific options are placed afterwards. "
                   "Multiple commands can be given and will be performed "
                   "in order.\n\n");
 
@@ -2208,7 +2208,7 @@ static void usage(void)
       }
    };
 
-   const int right = MAX(60, MIN(120, terminal_width()));
+   const int right = MAX(60, terminal_width());
 
    for (int i = 0; i < ARRAY_LEN(groups); i++) {
       color_printf("$bold$$cyan$%s:$$\n", groups[i].group);
