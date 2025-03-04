@@ -56,12 +56,13 @@ void mir_context_free(mir_context_t *mc)
    free(mc);
 }
 
-mir_unit_t *mir_unit_new(mir_context_t *mc, ident_t name, mir_unit_kind_t kind,
-                         mir_shape_t *parent)
+mir_unit_t *mir_unit_new(mir_context_t *mc, ident_t name, object_t *object,
+                         mir_unit_kind_t kind, mir_shape_t *parent)
 {
    mir_unit_t *mu = xcalloc(sizeof(mir_unit_t));
    mu->context = mc;
    mu->name    = name;
+   mu->object  = object;
    mu->kind    = kind;
    mu->parent  = parent;
    mu->result  = MIR_NULL_TYPE;
@@ -75,6 +76,11 @@ mir_unit_t *mir_unit_new(mir_context_t *mc, ident_t name, mir_unit_kind_t kind,
 mir_unit_kind_t mir_get_kind(mir_unit_t *mu)
 {
    return mu->kind;
+}
+
+object_t *mir_get_object(mir_unit_t *mu)
+{
+   return mu->object;
 }
 
 static mir_shape_t *mir_build_shape(mir_unit_t *mu)
@@ -159,7 +165,8 @@ mir_unit_t *mir_get_unit(mir_context_t *mc, ident_t name)
       {
          deferred_unit_t *du = untag_pointer(ptr, deferred_unit_t);
 
-         mir_unit_t *mu = mir_unit_new(mc, name, du->kind, du->parent);
+         mir_unit_t *mu =
+            mir_unit_new(mc, name, du->object, du->kind, du->parent);
          (*du->fn)(mu, du->object);
 
          hash_put(mc->map, name, tag_pointer(mu, UNIT_GENERATED));
@@ -185,7 +192,8 @@ mir_shape_t *mir_get_shape(mir_context_t *mc, ident_t name)
       {
          deferred_unit_t *du = untag_pointer(ptr, deferred_unit_t);
 
-         mir_unit_t *mu = mir_unit_new(mc, name, du->kind, du->parent);
+         mir_unit_t *mu =
+            mir_unit_new(mc, name, du->object, du->kind, du->parent);
          (*du->fn)(mu, du->object);
 
          hash_put(mc->map, name, tag_pointer(mu, UNIT_GENERATED));

@@ -219,8 +219,8 @@ START_TEST(test_sanity1)
 {
    mir_context_t *mc = mir_context_new();
 
-   mir_unit_t *mu = mir_unit_new(mc, ident_new("test"), MIR_UNIT_FUNCTION,
-                                 NULL);
+   mir_unit_t *mu = mir_unit_new(mc, ident_new("test"), NULL,
+                                 MIR_UNIT_FUNCTION, NULL);
 
    mir_type_t i32 = mir_int_type(mu, INT32_MIN, INT32_MAX);
    fail_unless(mir_equals(i32, mir_int_type(mu, INT32_MIN, INT32_MAX)));
@@ -301,8 +301,8 @@ START_TEST(test_arith1)
 {
    mir_context_t *mc = mir_context_new();
 
-   mir_unit_t *mu = mir_unit_new(mc, ident_new("arith1"), MIR_UNIT_FUNCTION,
-                                 NULL);
+   mir_unit_t *mu = mir_unit_new(mc, ident_new("arith1"), NULL,
+                                 MIR_UNIT_FUNCTION, NULL);
 
    mir_type_t t_int32 = mir_int_type(mu, INT32_MIN, INT32_MAX);
 
@@ -348,8 +348,8 @@ START_TEST(test_real1)
 {
    mir_context_t *mc = mir_context_new();
 
-   mir_unit_t *mu = mir_unit_new(mc, ident_new("real1"), MIR_UNIT_FUNCTION,
-                                 NULL);
+   mir_unit_t *mu = mir_unit_new(mc, ident_new("real1"), NULL,
+                                 MIR_UNIT_FUNCTION, NULL);
 
    mir_type_t t_double = mir_double_type(mu);
 
@@ -382,8 +382,8 @@ START_TEST(test_control1)
 {
    mir_context_t *mc = mir_context_new();
 
-   mir_unit_t *mu = mir_unit_new(mc, ident_new("control1"), MIR_UNIT_FUNCTION,
-                                 NULL);
+   mir_unit_t *mu = mir_unit_new(mc, ident_new("control1"), NULL,
+                                 MIR_UNIT_FUNCTION, NULL);
 
    mir_type_t t_bool = mir_bool_type(mu);
    mir_value_t p1 = mir_add_param(mu, t_bool, MIR_NULL_STAMP, ident_new("p1"));
@@ -417,8 +417,8 @@ START_TEST(test_gvn1)
 {
    mir_context_t *mc = mir_context_new();
 
-   mir_unit_t *mu = mir_unit_new(mc, ident_new("gvn1"), MIR_UNIT_FUNCTION,
-                                 NULL);
+   mir_unit_t *mu = mir_unit_new(mc, ident_new("gvn1"), NULL,
+                                 MIR_UNIT_FUNCTION, NULL);
 
    mir_type_t t_int32 = mir_int_type(mu, INT32_MIN, INT32_MAX);
    mir_value_t p1 = mir_add_param(mu, t_int32, MIR_NULL_STAMP, ident_new("p1"));
@@ -487,7 +487,7 @@ START_TEST(test_dce1)
 {
    mir_context_t *mc = mir_context_new();
 
-   mir_unit_t *mu = mir_unit_new(mc, ident_new("dce1"),
+   mir_unit_t *mu = mir_unit_new(mc, ident_new("dce1"), NULL,
                                  MIR_UNIT_FUNCTION, NULL);
 
    mir_type_t t_int32 = mir_int_type(mu, INT32_MIN, INT32_MAX);
@@ -516,7 +516,7 @@ START_TEST(test_uarray1)
 {
    mir_context_t *mc = mir_context_new();
 
-   mir_unit_t *mu = mir_unit_new(mc, ident_new("uarray1"),
+   mir_unit_t *mu = mir_unit_new(mc, ident_new("uarray1"), NULL,
                                  MIR_UNIT_FUNCTION, NULL);
 
    mir_type_t t_int32 = mir_int_type(mu, INT32_MIN, INT32_MAX);
@@ -548,7 +548,7 @@ START_TEST(test_logical1)
 {
    mir_context_t *mc = mir_context_new();
 
-   mir_unit_t *mu = mir_unit_new(mc, ident_new("logical1"),
+   mir_unit_t *mu = mir_unit_new(mc, ident_new("logical1"), NULL,
                                  MIR_UNIT_FUNCTION, NULL);
 
    mir_type_t t_bool = mir_bool_type(mu);
@@ -614,7 +614,7 @@ START_TEST(test_signal1)
 {
    mir_context_t *mc = mir_context_new();
 
-   mir_unit_t *mu = mir_unit_new(mc, ident_new("uarray1"),
+   mir_unit_t *mu = mir_unit_new(mc, ident_new("uarray1"), NULL,
                                  MIR_UNIT_INSTANCE, NULL);
 
    mir_type_t t_int32 = mir_int_type(mu, INT32_MIN, INT32_MAX);
@@ -676,7 +676,7 @@ START_TEST(test_select1)
 {
    mir_context_t *mc = mir_context_new();
 
-   mir_unit_t *mu = mir_unit_new(mc, ident_new("select1"),
+   mir_unit_t *mu = mir_unit_new(mc, ident_new("select1"), NULL,
                                  MIR_UNIT_FUNCTION, NULL);
 
    mir_type_t t_int32 = mir_int_type(mu, INT32_MIN, INT32_MAX);
@@ -723,7 +723,7 @@ START_TEST(test_modrem1)
 {
    mir_context_t *mc = mir_context_new();
 
-   mir_unit_t *mu = mir_unit_new(mc, ident_new("modrem1"),
+   mir_unit_t *mu = mir_unit_new(mc, ident_new("modrem1"), NULL,
                                  MIR_UNIT_FUNCTION, NULL);
 
    mir_type_t t_int32 = mir_int_type(mu, INT32_MIN, INT32_MAX);
@@ -776,7 +776,7 @@ START_TEST(test_cmp1)
 {
    mir_context_t *mc = mir_context_new();
 
-   mir_unit_t *mu = mir_unit_new(mc, ident_new("cmp1"),
+   mir_unit_t *mu = mir_unit_new(mc, ident_new("cmp1"), NULL,
                                  MIR_UNIT_FUNCTION, NULL);
 
    static const struct {
@@ -823,7 +823,7 @@ START_TEST(test_wait1)
 {
    mir_context_t *mc = mir_context_new();
 
-   mir_unit_t *mu = mir_unit_new(mc, ident_new("wait1"),
+   mir_unit_t *mu = mir_unit_new(mc, ident_new("wait1"), NULL,
                                  MIR_UNIT_PROCESS, NULL);
 
    ident_t pack = ident_new("foo");
@@ -899,7 +899,7 @@ START_TEST(test_array1)
 {
    mir_context_t *mc = mir_context_new();
 
-   mir_unit_t *mu = mir_unit_new(mc, ident_new("array1"),
+   mir_unit_t *mu = mir_unit_new(mc, ident_new("array1"), NULL,
                                  MIR_UNIT_FUNCTION, NULL);
 
    mir_type_t t_int32 = mir_int_type(mu, INT32_MIN, INT32_MAX);
@@ -934,7 +934,7 @@ START_TEST(test_case1)
 {
    mir_context_t *mc = mir_context_new();
 
-   mir_unit_t *mu = mir_unit_new(mc, ident_new("case1"),
+   mir_unit_t *mu = mir_unit_new(mc, ident_new("case1"), NULL,
                                  MIR_UNIT_FUNCTION, NULL);
 
    mir_type_t t_int32 = mir_int_type(mu, INT32_MIN, INT32_MAX);
@@ -971,7 +971,7 @@ START_TEST(test_record1)
 {
    mir_context_t *mc = mir_context_new();
 
-   mir_unit_t *mu = mir_unit_new(mc, ident_new("record1"),
+   mir_unit_t *mu = mir_unit_new(mc, ident_new("record1"), NULL,
                                  MIR_UNIT_FUNCTION, NULL);
 
    mir_type_t t_int32 = mir_int_type(mu, INT32_MIN, INT32_MAX);

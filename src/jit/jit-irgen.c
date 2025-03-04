@@ -27,7 +27,6 @@
 #include "option.h"
 #include "rt/rt.h"
 #include "tree.h"
-#include "vcode.h"
 
 #include <assert.h>
 #include <inttypes.h>
@@ -4493,7 +4492,7 @@ void jit_irgen(jit_func_t *f, mir_unit_t *mu)
 
    f->nregs   = g->next_reg;
    f->cpoolsz = g->cpoolptr;
-   f->object  = vcode_unit_object(f->unit);
+   f->object  = mir_get_object(g->mu);
 
    for (irgen_label_t *it = g->labels, *tmp; it; it = tmp) {
       assert(it->label < g->func->nirs);

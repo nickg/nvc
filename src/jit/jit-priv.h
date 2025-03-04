@@ -291,7 +291,6 @@ typedef struct _jit_func {
    jit_entry_fn_t  entry;    // Must be first
    func_state_t    state;
    jit_t          *jit;
-   vcode_unit_t    unit;
    ident_t         name;
    link_tab_t     *linktab;
    mptr_t          privdata;

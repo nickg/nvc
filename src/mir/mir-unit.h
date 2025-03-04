@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2024  Nick Gasson
+//  Copyright (C) 2024-2025  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -54,12 +54,13 @@ void mir_defer(mir_context_t *mc, ident_t name, mir_shape_t *parent,
 
 mir_unit_t *mir_import(mir_context_t *mc, vcode_unit_t vu);
 
-mir_unit_t *mir_unit_new(mir_context_t *mc, ident_t name, mir_unit_kind_t kind,
-                         mir_shape_t *parent);
+mir_unit_t *mir_unit_new(mir_context_t *mc, ident_t name, object_t *obj,
+                         mir_unit_kind_t kind, mir_shape_t *parent);
 void mir_dump(mir_unit_t *mu);
 void mir_annotate(mir_unit_t *mu, const mir_annotate_t *cb, void *ctx);
 void mir_unit_free(mir_unit_t *mu);
 mir_unit_kind_t mir_get_kind(mir_unit_t *mu);
+object_t *mir_get_object(mir_unit_t *mu);
 
 typedef enum {
    MIR_PASS_GVN = (1 << 0),

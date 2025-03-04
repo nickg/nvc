@@ -1792,8 +1792,9 @@ mir_unit_t *mir_import(mir_context_t *mc, vcode_unit_t vu)
    }
 
    ident_t name = vcode_unit_name(vu);
+   object_t *obj = vcode_unit_object(vu);
 
-   mir_unit_t *mu = mir_unit_new(mc, name, kind, parent);
+   mir_unit_t *mu = mir_unit_new(mc, name, obj, kind, parent);
 
    vcode_select_unit(vu);
 

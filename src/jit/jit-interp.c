@@ -25,7 +25,6 @@
 #include "rt/mspace.h"
 #include "tree.h"
 #include "type.h"
-#include "vcode.h"
 
 #include <assert.h>
 #include <ctype.h>

@@ -259,7 +259,7 @@ static void *test_mir_types_thread(void *arg)
       spin_wait();
 
    ident_t name = ident_sprintf("func%d", thread_id());
-   mir_unit_t *mu = mir_unit_new(mc, name, MIR_UNIT_FUNCTION, NULL);
+   mir_unit_t *mu = mir_unit_new(mc, name, NULL, MIR_UNIT_FUNCTION, NULL);
 
    uint32_t rng = rng_init;
 

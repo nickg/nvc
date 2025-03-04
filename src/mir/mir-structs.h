@@ -194,6 +194,7 @@ typedef struct {
 typedef struct _mir_unit {
    mir_context_t   *context;
    ident_t          name;
+   object_t        *object;
    mir_unit_kind_t  kind;
    mir_shape_t     *parent;
    mir_shape_t     *shape;

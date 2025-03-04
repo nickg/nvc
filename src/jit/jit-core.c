@@ -246,7 +246,6 @@ static void jit_install(jit_t *j, jit_func_t *f)
    store_release(&(list->items[f->handle]), f);
 
    chash_put(j->index, f->name, f);
-   if (f->unit) chash_put(j->index, f->unit, f);
 }
 
 static jit_handle_t jit_lazy_compile_locked(jit_t *j, ident_t name)
@@ -408,7 +407,6 @@ void jit_fill_irbuf(jit_func_t *f)
    }
 
    assert(f->irbuf == NULL);
-   assert(f->unit == NULL);
 
 #ifndef USE_EMUTLS
    const jit_state_t oldstate = jit_thread_local()->state;
@@ -424,13 +422,14 @@ void jit_fill_irbuf(jit_func_t *f)
    if (f->jit->pack != NULL && jit_pack_fill(f->jit->pack, f->jit, f))
       goto done;
 
+   vcode_unit_t unit = NULL;
    if (f->jit->registry != NULL) {
       // Unit registry is not thread-safe
       SCOPED_LOCK(f->jit->lock);
-      f->unit = unit_registry_get(f->jit->registry, f->name);
+      unit = unit_registry_get(f->jit->registry, f->name);
    }
 
-   if (f->unit == NULL) {
+   if (unit == NULL) {
       store_release(&(f->state), JIT_FUNC_ERROR);
       jit_missing_unit(f);
    }
@@ -442,7 +441,7 @@ void jit_fill_irbuf(jit_func_t *f)
 
       mu = mir_get_unit(f->jit->mir, f->name);
       if (mu == NULL) {
-         mu = mir_import(f->jit->mir, f->unit);
+         mu = mir_import(f->jit->mir, unit);
          mir_put_unit(f->jit->mir, mu);
       }
    }
@@ -485,13 +484,6 @@ void *jit_link(jit_t *j, jit_handle_t handle)
 
    jit_fill_irbuf(f);
 
-   vcode_state_t state;
-   vcode_state_save(&state);
-
-   const vunit_kind_t kind = vcode_unit_kind(f->unit);
-   if (kind != VCODE_UNIT_PACKAGE && kind != VCODE_UNIT_INSTANCE)
-      fatal_trace("cannot link unit %s", istr(f->name));
-
    tlab_t tlab = jit_null_tlab(j);
    jit_scalar_t p1 = { .pointer = NULL }, p2 = p1, result;
    if (!jit_fastcall(j, f->handle, &result, p1, p2, &tlab)) {
@@ -500,8 +492,8 @@ void *jit_link(jit_t *j, jit_handle_t handle)
    }
    else if (result.pointer == NULL)
       fatal_trace("link %s returned NULL", istr(f->name));
-
-   vcode_state_restore(&state);
+   else if (f->privdata == MPTR_INVALID)
+      fatal_trace("cannot link unit %s", istr(f->name));
 
    // Initialisation should save the context pointer
    assert(result.pointer == *mptr_get(f->privdata));
@@ -832,16 +824,13 @@ void *jit_call_thunk(jit_t *j, vcode_unit_t unit, void *context,
 
    jit_func_t *f = xcalloc(sizeof(jit_func_t));
    f->state  = JIT_FUNC_COMPILING;
-   f->unit   = unit;
    f->jit    = j;
    f->handle = JIT_HANDLE_INVALID;
    f->entry  = jit_interp;
    f->object = vcode_unit_object(unit);
 
-   mir_unit_t *mu = mir_import(f->jit->mir, f->unit);
-
+   mir_unit_t *mu = mir_import(f->jit->mir, unit);
    jit_irgen(f, mu);
-
    mir_unit_free(mu);
 
    jit_scalar_t args[JIT_MAX_ARGS];
