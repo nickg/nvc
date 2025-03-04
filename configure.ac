@@ -90,10 +90,10 @@ CHECK_DYNAMIC_LIST(
 AC_SUBST(EXPORT_LDFLAGS)
 
 AX_CHECK_COMPILE_FLAG([-fPIC],
-  [PIC_FLAG="-fPIC"],
-  [PIC_FLAG=""],
+  [SHLIB_CFLAGS="-fPIC"],
+  [SHLIB_CFLAGS=""],
   [-Werror])
-AC_SUBST(PIC_FLAG)
+AC_SUBST(SHLIB_CFLAGS)
 
 case $target_cpu in
   x86_64|amd64)
@@ -363,16 +363,18 @@ AM_CONDITIONAL([IMPLIB_REQUIRED], [test x$implib_required = xyes])
 
 case $host_os in
   darwin*)
-    VHPI_LDFLAGS="-flat_namespace -undefined dynamic_lookup"
+    SHLIB_LDFLAGS="-shared -flat_namespace -undefined dynamic_lookup"
 
     AX_CHECK_LINK_FLAG(
       [-Wl,-no_fixup_chains],
       [AC_DEFINE([HAVE_NO_FIXUP_CHAINS], [1],
                  [Defined if linker supports -no_fixup_chains])
-       AX_APPEND_FLAG([-Wl,-no_fixup_chains], [VHPI_LDFLAGS])])
+       AX_APPEND_FLAG([-Wl,-no_fixup_chains], [SHLIB_LDFLAGS])])
     ;;
+  *)
+    SHLIB_LDFLAGS="-shared"
 esac
-AC_SUBST(VHPI_LDFLAGS)
+AC_SUBST(SHLIB_LDFLAGS)
 
 NVC_CHECK_EMUTLS
 if test "$nvc_cv_use_emutls" = "yes"; then

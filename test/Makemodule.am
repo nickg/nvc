@@ -81,7 +81,6 @@ bin_lockbench_LDADD = \
 	lib/libnvc.a \
 	lib/libfastlz.a \
 	lib/libcpustate.a \
-	lib/libcpustate.a \
 	lib/libgnulib.a \
 	$(libdw_LIBS) \
 	$(libffi_LIBS) \
@@ -126,6 +125,7 @@ bin_mtstress_LDADD = \
 	lib/libnvc.a \
 	lib/libfastlz.a \
 	lib/libcpustate.a \
+	lib/libgnulib.a \
 	$(libdw_LIBS) \
 	$(libffi_LIBS) \
 	$(check_LIBS) \
@@ -133,9 +133,9 @@ bin_mtstress_LDADD = \
 
 vpi_dump_vpi_SOURCES = test/vpi-dump.c
 
-vpi_dump_vpi_CFLAGS = -fPIC $(AM_LDFLAGS)
+vpi_dump_vpi_CFLAGS = $(SHLIB_CFLAGS) $(AM_LDFLAGS)
 
-vpi_dump_vpi_LDFLAGS = -shared $(AM_LDFLAGS)
+vpi_dump_vpi_LDFLAGS = $(SHLIB_LDFLAGS) $(AM_LDFLAGS)
 
 TESTS_ENVIRONMENT = \
 	BUILD_DIR=$(top_builddir) \
