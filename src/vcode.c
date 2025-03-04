@@ -164,7 +164,6 @@ DECLARE_AND_DEFINE_ARRAY(vtype);
 
 typedef enum {
    UNIT_UNDEFINED     = (1 << 1),
-   UNIT_ESCAPING_TLAB = (1 << 2)
 } unit_flags_t;
 
 struct _vcode_unit {
@@ -391,7 +390,6 @@ void vcode_heap_allocate(vcode_reg_t reg)
 
    case VCODE_OP_INDEX:
       vcode_var_data(defn->address)->flags |= VAR_HEAP;
-      active_unit->flags |= UNIT_ESCAPING_TLAB;
       break;
 
    case VCODE_OP_VAR_UPREF:
@@ -406,7 +404,6 @@ void vcode_heap_allocate(vcode_reg_t reg)
          vcode_select_unit(vu);
 
          vcode_var_data(defn->address)->flags |= VAR_HEAP;
-         active_unit->flags |= UNIT_ESCAPING_TLAB;
 
          vcode_state_restore(&state);
       }
@@ -3034,11 +3031,6 @@ bool vcode_unit_has_undefined(vcode_unit_t vu)
    return !!(vu->flags & UNIT_UNDEFINED);
 }
 
-bool vcode_unit_has_escaping_tlab(vcode_unit_t vu)
-{
-   return !!(vu->flags & UNIT_ESCAPING_TLAB);
-}
-
 int vcode_unit_depth(vcode_unit_t vu)
 {
    assert(vu != NULL);
@@ -4283,10 +4275,8 @@ void emit_return(vcode_reg_t reg)
       vcode_add_arg(op, reg);
 
       const vtype_kind_t rkind = vcode_reg_kind(reg);
-      if (rkind == VCODE_TYPE_POINTER || rkind == VCODE_TYPE_UARRAY) {
+      if (rkind == VCODE_TYPE_POINTER || rkind == VCODE_TYPE_UARRAY)
          vcode_heap_allocate(reg);
-         active_unit->flags |= UNIT_ESCAPING_TLAB;
-      }
 
       VCODE_ASSERT(active_unit->kind == VCODE_UNIT_FUNCTION
                    || active_unit->kind == VCODE_UNIT_THUNK

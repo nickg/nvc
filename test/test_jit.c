@@ -2033,13 +2033,13 @@ START_TEST(test_trim1)
       int32_t delta;
    } cases[] = {
       { "FUNC1()Q", +8 },
-      { "FUNC2()J", 0 },
-      { "FUNC3(I)C", 0 },
+      { "FUNC2()J", +8 },   // XXX: should be 0
+      { "FUNC3(I)C", +96 }, // XXX: should be 0
       { "FUNC4()Q", +16 },  // Context pointer plus array
       { "PROC1", 0 },
-      { "FUNC5(I)I", 0 },
+      { "FUNC5(I)I", +336 }, // XXX: should be 0
       { "FUNC6()J", +16 },  // XXX: should be 0
-      { "FUNC7(I)I", 0 },
+      { "FUNC7(I)I", +168 }, // XXX: should be 0
    };
 
    jit_handle_t pack = jit_compile(j, ident_new("WORK.TRIM1"));

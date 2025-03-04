@@ -1371,11 +1371,12 @@ static void irgen_op_return(jit_irgen_t *g, mir_value_t n)
    case MIR_UNIT_THUNK:
       if (mir_count_args(g->mu, n) > 0)
          irgen_send_args(g, n, 0);
-      else
+      else {
          j_send(g, 0, jit_null_ptr());  // Procedure compiled as function
 
-      if (g->used_tlab && !vcode_unit_has_escaping_tlab(g->func->unit))
-         macro_trim(g);
+         if (g->used_tlab)
+            macro_trim(g);
+      }
       break;
 
    case MIR_UNIT_PLACEHOLDER:
