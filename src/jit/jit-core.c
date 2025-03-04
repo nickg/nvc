@@ -44,13 +44,6 @@
 #include <string.h>
 #include <unistd.h>
 
-#ifdef __MINGW32__
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
-#else
-#include <dlfcn.h>
-#endif
-
 #define FUNC_HASH_SZ    1024
 #define FUNC_LIST_SZ    512
 #define COMPILE_TIMEOUT 10000
