@@ -25,6 +25,7 @@
 #include "jit/jit.h"
 #include "lib.h"
 #include "lower.h"
+#include "mir/mir-unit.h"
 #include "option.h"
 #include "phase.h"
 #include "thread.h"
@@ -488,6 +489,7 @@ static void preload_do_link(const char *so_name, const char *obj_file)
 void aotgen(const char *outfile, char **argv, int argc)
 {
    unit_list_t units = AINIT;
+   mir_context_t *mc = mir_context_new();
    unit_registry_t *ur = unit_registry_new();
 
    discover_args_t args = {
@@ -513,7 +515,7 @@ void aotgen(const char *outfile, char **argv, int argc)
    LLVMInitializeNativeTarget();
    LLVMInitializeNativeAsmPrinter();
 
-   jit_t *jit = jit_new(ur);
+   jit_t *jit = jit_new(ur, mc);
 
    progress("initialising");
 
@@ -550,4 +552,5 @@ void aotgen(const char *outfile, char **argv, int argc)
    ACLEAR(units);
    jit_free(jit);
    unit_registry_free(ur);
+   mir_context_free(mc);
 }

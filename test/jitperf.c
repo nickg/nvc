@@ -23,6 +23,7 @@
 #include "jit/jit-llvm.h"
 #include "lib.h"
 #include "lower.h"
+#include "mir/mir-unit.h"
 #include "object.h"
 #include "option.h"
 #include "phase.h"
@@ -57,13 +58,14 @@ static void print_result(double ops_sec, double usec_op)
       printf("%.1f ops/s; %.1f us/op\n", ops_sec, usec_op);
 }
 
-static void run_benchmark(tree_t pack, tree_t proc, unit_registry_t *ur)
+static void run_benchmark(tree_t pack, tree_t proc, unit_registry_t *ur,
+                          mir_context_t *mc)
 {
    color_printf("$!magenta$## %s$$\n\n", istr(tree_ident(proc)));
 
    ident_t name = tree_ident2(proc);
 
-   jit_t *j = jit_new(ur);
+   jit_t *j = jit_new(ur, mc);
 
 #if HAVE_LLVM
    jit_preload(j);
@@ -122,7 +124,7 @@ static void run_benchmark(tree_t pack, tree_t proc, unit_registry_t *ur)
 }
 
 static void find_benchmarks(tree_t pack, const char *filter,
-                            unit_registry_t *ur)
+                            unit_registry_t *ur, mir_context_t *mc)
 {
    ident_t test_i = ident_new("TEST_");
 
@@ -135,7 +137,7 @@ static void find_benchmarks(tree_t pack, const char *filter,
       ident_t id = tree_ident(d);
       if (ident_starts_with(id, test_i)
           && (filter == NULL || strcasestr(istr(id), filter) != NULL))
-         run_benchmark(pack, d, ur);
+         run_benchmark(pack, d, ur, mc);
    }
 }
 
@@ -245,8 +247,9 @@ int main(int argc, char **argv)
    lib_t work = lib_tmp("PERF");
    lib_set_work(work);
 
+   mir_context_t *mc = mir_context_new();
    unit_registry_t *ur = unit_registry_new();
-   jit_t *jit = jit_new(ur);
+   jit_t *jit = jit_new(ur, mc);
 
    for (int i = optind; i < argc; i++) {
       color_printf("$!cyan$--\n-- %s\n--$$\n\n", argv[i]);
@@ -275,7 +278,7 @@ int main(int argc, char **argv)
 
       freeze_global_arena();
 
-      find_benchmarks(pack, filter, ur);
+      find_benchmarks(pack, filter, ur, mc);
    }
 
    jit_free(jit);

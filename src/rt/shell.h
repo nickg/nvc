@@ -20,7 +20,7 @@
 
 #include "prim.h"
 
-typedef jit_t *(*jit_factory_t)(unit_registry_t *);
+typedef jit_t *(*jit_factory_t)(unit_registry_t *, mir_context_t *);
 
 typedef struct {
    void (*add_wave)(ident_t path, const char *enc, void *ctx);

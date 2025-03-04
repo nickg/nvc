@@ -32,7 +32,9 @@ START_TEST(test_basic1)
    tree_t top = run_elab();
    fail_if(top == NULL);
 
-   jit_t *j = jit_new(get_registry());
+   jit_t *j = get_jit();
+   jit_reset(j);
+
    rt_model_t *m = model_new(j, NULL);
    create_scope(m, top, NULL);
 
@@ -64,7 +66,6 @@ START_TEST(test_basic1)
    ck_assert_int_eq(*yp, 1);
 
    model_free(m);
-   jit_free(j);
 
    fail_if_errors();
 }
@@ -77,7 +78,8 @@ START_TEST(test_index1)
    tree_t top = run_elab();
    fail_if(top == NULL);
 
-   jit_t *j = jit_new(get_registry());
+   jit_t *j = get_jit();
+   jit_reset(j);
 
    rt_model_t *m = model_new(j, NULL);
    create_scope(m, top, NULL);
@@ -116,7 +118,6 @@ START_TEST(test_index1)
    ck_assert_ptr_null(ss2->index->nexus[41]);
 
    model_free(m);
-   jit_free(j);
 
    fail_if_errors();
 }
@@ -129,7 +130,8 @@ START_TEST(test_alias1)
    tree_t top = run_elab();
    fail_if(top == NULL);
 
-   jit_t *j = jit_new(get_registry());
+   jit_t *j = get_jit();
+   jit_reset(j);
 
    rt_model_t *m = model_new(j, NULL);
    create_scope(m, top, NULL);
@@ -143,7 +145,6 @@ START_TEST(test_alias1)
    model_run(m, UINT64_MAX);
 
    model_free(m);
-   jit_free(j);
 
    fail_if_errors();
 }
@@ -156,7 +157,8 @@ START_TEST(test_fast1)
    tree_t top = run_elab();
    fail_if(top == NULL);
 
-   jit_t *j = jit_new(get_registry());
+   jit_t *j = get_jit();
+   jit_reset(j);
 
    rt_model_t *m = model_new(j, NULL);
    create_scope(m, top, NULL);
@@ -194,7 +196,6 @@ START_TEST(test_fast1)
    ck_assert_int_eq(deltas, 0);
 
    model_free(m);
-   jit_free(j);
 
    fail_if_errors();
 }
@@ -207,7 +208,8 @@ START_TEST(test_stateless1)
    tree_t top = run_elab();
    fail_if(top == NULL);
 
-   jit_t *j = jit_new(get_registry());
+   jit_t *j = get_jit();
+   jit_reset(j);
 
    rt_model_t *m = model_new(j, NULL);
    create_scope(m, top, NULL);
@@ -230,7 +232,6 @@ START_TEST(test_stateless1)
    ck_assert_ptr_nonnull(*mptr_get(p2->privdata));
 
    model_free(m);
-   jit_free(j);
 
    fail_if_errors();
 }
@@ -243,7 +244,8 @@ START_TEST(test_pending1)
    tree_t top = run_elab();
    fail_if(top == NULL);
 
-   jit_t *j = jit_new(get_registry());
+   jit_t *j = get_jit();
+   jit_reset(j);
 
    rt_model_t *m = model_new(j, NULL);
    create_scope(m, top, NULL);
@@ -282,7 +284,6 @@ START_TEST(test_pending1)
                     &(pwakeup->wakeable));
 
    model_free(m);
-   jit_free(j);
 
    fail_if_errors();
 }
@@ -295,7 +296,8 @@ START_TEST(test_fast2)
    tree_t top = run_elab();
    fail_if(top == NULL);
 
-   jit_t *j = jit_new(get_registry());
+   jit_t *j = get_jit();
+   jit_reset(j);
 
    rt_model_t *m = model_new(j, NULL);
    create_scope(m, top, NULL);
@@ -368,7 +370,6 @@ START_TEST(test_fast2)
    fail_if(sx->shared.flags & NET_F_FAST_DRIVER);   // Not profitable
 
    model_free(m);
-   jit_free(j);
 
    fail_if_errors();
 }
@@ -381,7 +382,8 @@ START_TEST(test_event1)
    tree_t top = run_elab();
    fail_if(top == NULL);
 
-   jit_t *j = jit_new(get_registry());
+   jit_t *j = get_jit();
+   jit_reset(j);
 
    rt_model_t *m = model_new(j, NULL);
    create_scope(m, top, NULL);
@@ -422,7 +424,6 @@ START_TEST(test_event1)
    fail_if(st->shared.flags & SIG_F_EVENT_FLAG);
 
    model_free(m);
-   jit_free(j);
 
    fail_if_errors();
 }
@@ -442,7 +443,7 @@ START_TEST(test_process1)
    tree_t a = parse_check_and_simplify(T_ENTITY, T_ARCH);
 
    unit_registry_t *ur = get_registry();
-   jit_t *j = jit_new(ur);
+   jit_t *j = jit_new(ur, get_mir());
    rt_model_t *m = model_new(j, NULL);
 
    tree_t top = elab(tree_to_object(a), j, ur, NULL, NULL, m);

@@ -144,14 +144,14 @@ jit_thread_local_t *jit_thread_local(void)
    return *ptr;
 }
 
-jit_t *jit_new(unit_registry_t *ur)
+jit_t *jit_new(unit_registry_t *ur, mir_context_t *mc)
 {
    jit_t *j = xcalloc(sizeof(jit_t));
    j->registry    = ur;
    j->index       = chash_new(FUNC_HASH_SZ);
    j->mspace      = mspace_new(opt_get_size(OPT_HEAP_SIZE));
    j->exit_status = INT_MIN;
-   j->mir         = mir_context_new();
+   j->mir         = mc;
 
    j->funcs = xcalloc_flex(sizeof(func_array_t),
                            FUNC_LIST_SZ, sizeof(jit_func_t *));
@@ -204,7 +204,6 @@ void jit_free(jit_t *j)
       free(it);
    }
 
-   mir_context_free(j->mir);
    mspace_destroy(j->mspace);
    chash_free(j->index);
    free(j);

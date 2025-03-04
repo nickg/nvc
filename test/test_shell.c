@@ -47,7 +47,7 @@ START_TEST(test_examine1)
    const char *result = NULL;
 
    unit_registry_t *ur = get_registry();
-   jit_t *j = jit_new(ur);
+   jit_t *j = jit_new(ur, get_mir());
 
    input_from_file(TESTDIR "/shell/examine1.vhd");
 
@@ -192,7 +192,7 @@ static void wave1_next_time_step(uint64_t now, void *user)
 START_TEST(test_wave1)
 {
    unit_registry_t *ur = get_registry();
-   jit_t *j = jit_new(ur);
+   jit_t *j = jit_new(ur, get_mir());
 
    tcl_shell_t *sh = shell_new(j);
 
@@ -359,7 +359,7 @@ START_TEST(test_force1)
    input_from_file(TESTDIR "/shell/force1.vhd");
 
    unit_registry_t *ur = get_registry();
-   jit_t *j = jit_new(ur);
+   jit_t *j = jit_new(ur, get_mir());
 
    tree_t arch = parse_check_and_simplify(T_ENTITY, T_ARCH);
 
@@ -462,7 +462,7 @@ START_TEST(test_describe1)
    expect_errors(expect);
 
    unit_registry_t *ur = get_registry();
-   jit_t *j = jit_new(ur);
+   jit_t *j = jit_new(ur, get_mir());
 
    input_from_file(TESTDIR "/shell/describe1.vhd");
 

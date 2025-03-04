@@ -82,7 +82,8 @@ START_TEST(test_cfold)
    fail_if_errors();
 
    unit_registry_t *ur = get_registry();
-   jit_t *jit = jit_new(ur);
+   mir_context_t *mc = get_mir();
+   jit_t *jit = jit_new(ur, mc);
    simplify_local(a, jit, ur);
    jit_free(jit);
 
@@ -195,7 +196,7 @@ START_TEST(test_proc)
    fail_if_errors();
 
    unit_registry_t *ur = get_registry();
-   jit_t *jit = jit_new(ur);
+   jit_t *jit = jit_new(ur, get_mir());
    simplify_local(a, jit, ur);
    jit_free(jit);
 
@@ -277,7 +278,7 @@ START_TEST(test_args)
    fail_if_errors();
 
    unit_registry_t *ur = get_registry();
-   jit_t *jit = jit_new(ur);
+   jit_t *jit = jit_new(ur, get_mir());
    simplify_local(a, jit, ur);
    jit_free(jit);
 
@@ -320,7 +321,7 @@ START_TEST(test_ffold)
    fail_unless(tree_kind(b) == T_BLOCK);
 
    unit_registry_t *ur = get_registry();
-   jit_t *jit = jit_new(ur);
+   jit_t *jit = jit_new(ur, get_mir());
    simplify_global(b, NULL, jit, ur);
    jit_free(jit);
    fail_if_errors();
@@ -369,7 +370,7 @@ START_TEST(test_ffold2)
    fail_unless(tree_kind(b) == T_BLOCK);
 
    unit_registry_t *ur = get_registry();
-   jit_t *jit = jit_new(ur);
+   jit_t *jit = jit_new(ur, get_mir());
    simplify_global(b, NULL, jit, ur);
    jit_free(jit);
    fail_if_errors();
@@ -386,7 +387,7 @@ START_TEST(test_issue49)
    fail_if_errors();
 
    unit_registry_t *ur = get_registry();
-   jit_t *jit = jit_new(ur);
+   jit_t *jit = jit_new(ur, get_mir());
    simplify_local(a, jit, ur);
    jit_free(jit);
 }
@@ -400,7 +401,7 @@ START_TEST(test_issue155)
    fail_if_errors();
 
    unit_registry_t *ur = get_registry();
-   jit_t *jit = jit_new(ur);
+   jit_t *jit = jit_new(ur, get_mir());
    simplify_global(p, NULL, jit, ur);
    jit_free(jit);
 
@@ -441,7 +442,7 @@ START_TEST(test_context)
    fail_unless(tree_contexts(e) == 5);
 
    unit_registry_t *ur = get_registry();
-   jit_t *jit = jit_new(ur);
+   jit_t *jit = jit_new(ur, get_mir());
    simplify_local(e, jit, ur);
    jit_free(jit);
 

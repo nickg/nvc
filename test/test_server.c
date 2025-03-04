@@ -19,7 +19,7 @@
 #include "ident.h"
 #include "jit/jit.h"
 #include "lib.h"
-#include "lower.h"
+#include "mir/mir-unit.h"
 #include "option.h"
 #include "rt/shell.h"
 #include "scan.h"
@@ -62,10 +62,8 @@ static pid_t fork_server(server_kind_t kind, tree_t top, const char *init_cmd)
    if (pid == 0) {
       close(rfd);
 
-      jit_t *j = jit_new(get_registry());
-      start_server(kind, j, top, server_ready_cb, (void *)(intptr_t)wfd,
+      start_server(kind, get_jit(), top, server_ready_cb, (void *)(intptr_t)wfd,
                    init_cmd);
-      jit_free(j);
 
       exit(0);
    }

@@ -23,6 +23,7 @@
 #include "jit/jit.h"
 #include "lib.h"
 #include "lower.h"
+#include "mir/mir-unit.h"
 #include "option.h"
 #include "phase.h"
 #include "rt/model.h"
@@ -36,6 +37,8 @@ static const error_t   *error_lines = NULL;
 static lib_t            test_lib    = NULL;
 static unsigned         errors_seen = 0;
 static unit_registry_t *registry    = NULL;
+static mir_context_t   *mir_context = NULL;
+static jit_t           *jit         = NULL;
 
 static void test_error_fn(diag_t *d, void *context)
 {
@@ -94,9 +97,19 @@ static void setup_per_test(void)
 
 static void teardown_per_test(void)
 {
+   if (jit != NULL) {
+      jit_free(jit);
+      jit = NULL;
+   }
+
    if (registry != NULL) {
       unit_registry_free(registry);
       registry = NULL;
+   }
+
+   if (mir_context != NULL) {
+      mir_context_free(mir_context);
+      mir_context = NULL;
    }
 
    lib_set_work(NULL);
@@ -138,10 +151,26 @@ unit_registry_t *get_registry(void)
    return registry;
 }
 
+mir_context_t *get_mir(void)
+{
+   if (mir_context == NULL)
+      mir_context = mir_context_new();
+
+   return mir_context;
+}
+
+jit_t *get_jit(void)
+{
+   if (jit == NULL)
+      jit = jit_new(get_registry(), get_mir());
+
+   return jit;
+}
+
 tree_t run_elab(void)
 {
    unit_registry_t *ur = get_registry();
-   jit_t *j = jit_new(ur);
+   jit_t *j = get_jit();
 
    tree_t t, last_ent = NULL;
    while ((t = parse())) {
@@ -162,7 +191,6 @@ tree_t run_elab(void)
    tree_t top = elab(tree_to_object(last_ent), j, ur, NULL, NULL, m);
 
    model_free(m);
-   jit_free(j);
 
    return top;
 }
@@ -190,8 +218,9 @@ tree_t _parse_and_check(const tree_kind_t *array, int num, bool simp)
 
       if (simp && error_count() == 0) {
          unit_registry_t *ur = get_registry();
+         mir_context_t *mc = get_mir();
          if (jit == NULL)
-            jit = jit_new(ur);
+            jit = jit_new(ur, mc);
          else
             unit_registry_purge(ur, tree_ident(last));
 

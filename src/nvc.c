@@ -23,6 +23,7 @@
 #include "jit/jit.h"
 #include "lib.h"
 #include "lower.h"
+#include "mir/mir-unit.h"
 #include "option.h"
 #include "phase.h"
 #include "rt/assert.h"
@@ -66,6 +67,7 @@
 typedef struct {
    jit_t           *jit;
    unit_registry_t *registry;
+   mir_context_t   *mir;
    bool             user_set_std;
    vhpi_context_t  *vhpi;
    vpi_context_t   *vpi;
@@ -88,7 +90,7 @@ const char version_string[] =
 
 static int process_command(int argc, char **argv, cmd_state_t *state);
 static int parse_int(const char *str);
-static jit_t *get_jit(unit_registry_t *ur);
+static jit_t *get_jit(unit_registry_t *ur, mir_context_t *mc);
 
 static ident_t to_unit_name(const char *str)
 {
@@ -256,10 +258,13 @@ static int analyse(int argc, char **argv, cmd_state_t *state)
 
    set_error_limit(error_limit);
 
+   if (state->mir == NULL)
+      state->mir = mir_context_new();
+
    if (state->registry == NULL)
       state->registry = unit_registry_new();
 
-   jit_t *jit = jit_new(state->registry);
+   jit_t *jit = jit_new(state->registry, state->mir);
 
    if (file_list != NULL)
       do_file_list(file_list, jit, state->registry);
@@ -505,18 +510,24 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
       state->model = NULL;
    }
 
-   if (state->registry != NULL) {
-      unit_registry_free(state->registry);
-      state->registry = NULL;
-   }
-
    if (state->jit != NULL) {
       jit_free(state->jit);
       state->jit = NULL;
    }
 
+   if (state->registry != NULL) {
+      unit_registry_free(state->registry);
+      state->registry = NULL;
+   }
+
+   if (state->mir != NULL) {
+      mir_context_free(state->mir);
+      state->mir = NULL;
+   }
+
+   state->mir = mir_context_new();
    state->registry = unit_registry_new();
-   state->jit = get_jit(state->registry);
+   state->jit = get_jit(state->registry, state->mir);
    state->model = model_new(state->jit, cover);
 
    if (state->vhpi == NULL)
@@ -580,8 +591,10 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
       // Must discard current JIT state to load AOT library later
       model_free(state->model);
       jit_free(state->jit);
+      mir_context_free(state->mir);
       state->jit = NULL;
       state->model = NULL;
+      state->mir = NULL;
    }
 
    argc -= next_cmd - 1;
@@ -671,9 +684,9 @@ static void ctrl_c_handler(void *arg)
    model_interrupt(model);
 }
 
-static jit_t *get_jit(unit_registry_t *ur)
+static jit_t *get_jit(unit_registry_t *ur, mir_context_t *mc)
 {
-   jit_t *jit = jit_new(ur);
+   jit_t *jit = jit_new(ur, mc);
 
 #ifdef HAVE_LLVM
    jit_preload(jit);
@@ -921,11 +934,14 @@ static int run_cmd(int argc, char **argv, cmd_state_t *state)
    if (opt_get_size(OPT_HEAP_SIZE) < 0x100000)
       warnf("recommended heap size is at least 1M");
 
+   if (state->mir == NULL)
+      state->mir = mir_context_new();
+
    if (state->registry == NULL)
       state->registry = unit_registry_new();
 
    if (state->jit == NULL)
-      state->jit = get_jit(state->registry);
+      state->jit = get_jit(state->registry, state->mir);
 
 #ifdef ENABLE_LLVM
    jit_load_dll(state->jit, tree_ident(top));
@@ -1437,8 +1453,14 @@ static int do_cmd(int argc, char **argv, cmd_state_t *state)
    if (optind == next_cmd)
       fatal("no script file specified");
 
+   if (state->mir == NULL)
+      state->mir = mir_context_new();
+
+   if (state->registry == NULL)
+      state->registry = unit_registry_new();
+
    if (state->jit == NULL)
-      state->jit = get_jit(state->registry);
+      state->jit = get_jit(state->registry, state->mir);
 
 #ifdef ENABLE_TCL
    tcl_shell_t *sh = shell_new(state->jit);
@@ -1508,8 +1530,14 @@ static int interact_cmd(int argc, char **argv, cmd_state_t *state)
       }
    }
 
+   if (state->mir == NULL)
+      state->mir = mir_context_new();
+
+   if (state->registry == NULL)
+      state->registry = unit_registry_new();
+
    if (state->jit == NULL)
-      state->jit = get_jit(state->registry);
+      state->jit = get_jit(state->registry, state->mir);
 
 #ifdef ENABLE_TCL
    tcl_shell_t *sh = shell_new(state->jit);
@@ -1746,8 +1774,11 @@ static int gui_cmd(int argc, char **argv, cmd_state_t *state)
          fatal("%s not elaborated", istr(state->top_level));
    }
 
+   if (state->mir == NULL)
+      state->mir = mir_context_new();
+
    if (state->jit == NULL)
-      state->jit = get_jit(state->registry);
+      state->jit = get_jit(state->registry, state->mir);
 
    start_server(kind, state->jit, top, NULL, NULL, init_cmd);
 
@@ -2586,6 +2617,9 @@ int main(int argc, char **argv)
 
    if (state.registry != NULL)
       unit_registry_free(state.registry);
+
+   if (state.mir != NULL)
+      mir_context_free(state.mir);
 
    return ret;
 }

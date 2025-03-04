@@ -1936,8 +1936,10 @@ START_TEST(test_cover)
    tree_t a = parse_check_and_simplify(T_ENTITY, T_ARCH);
 
    unit_registry_t *ur = get_registry();
-   jit_t *jit = jit_new(ur);
-   cover_data_t *data = cover_data_init(COVER_MASK_STMT | COVER_MASK_EXPRESSION | COVER_MASK_BRANCH, 0, 0);
+   mir_context_t *mc = get_mir();
+   jit_t *jit = jit_new(ur, mc);
+   cover_data_t *data = cover_data_init(COVER_MASK_STMT | COVER_MASK_EXPRESSION
+                                        | COVER_MASK_BRANCH, 0, 0);
    rt_model_t *m = model_new(jit, data);
 
    elab(tree_to_object(a), jit, ur, data, NULL, m);
@@ -2499,7 +2501,8 @@ START_TEST(test_choice1)
    tree_t a = parse_check_and_simplify(T_ENTITY, T_ARCH);
 
    unit_registry_t *ur = get_registry();
-   jit_t *jit = jit_new(ur);
+   mir_context_t *mc = get_mir();
+   jit_t *jit = jit_new(ur, mc);
    cover_data_t *data = cover_data_init(COVER_MASK_BRANCH, 0, 0);
    rt_model_t *m = model_new(jit, NULL);
    elab(tree_to_object(a), jit, ur, data, NULL, m);
@@ -5034,7 +5037,8 @@ START_TEST(test_issue582)
    tree_t a = parse_check_and_simplify(T_ENTITY, T_ARCH);
 
    unit_registry_t *ur = unit_registry_new();
-   jit_t *jit = jit_new(ur);
+   mir_context_t *mc = get_mir();
+   jit_t *jit = jit_new(ur, mc);
    cover_data_t *data = cover_data_init(COVER_MASK_ALL, 0, 0);
    rt_model_t *m = model_new(jit, NULL);
 

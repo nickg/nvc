@@ -1670,7 +1670,7 @@ START_TEST(test_issue759)
                                        T_ENTITY, T_ARCH);
 
    unit_registry_t *ur = get_registry();
-   jit_t *jit = jit_new(ur);
+   jit_t *jit = jit_new(ur, get_mir());
    cover_data_t *cover = cover_data_init(COVER_MASK_ALL, 0, 0);
 
    rt_model_t *m = model_new(jit, cover);
@@ -1799,7 +1799,7 @@ START_TEST(test_vlog1)
    ck_assert_ptr_nonnull(obj);
 
    unit_registry_t *ur = get_registry();
-   jit_t *j = jit_new(ur);
+   jit_t *j = jit_new(ur, get_mir());
    rt_model_t *m = model_new(j, NULL);
 
    tree_t top = elab(obj, j, ur, NULL, NULL, m);
@@ -1993,7 +1993,7 @@ START_TEST(test_issue1012)
    tree_t a = parse_check_and_simplify(T_ENTITY, T_ARCH);
 
    unit_registry_t *ur = get_registry();
-   jit_t *jit = jit_new(ur);
+   jit_t *jit = jit_new(ur, get_mir());
    cover_data_t *cover = cover_data_init(COVER_MASK_TOGGLE, 0, 0);
    rt_model_t *m = model_new(jit, NULL);
 

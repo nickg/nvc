@@ -90,7 +90,7 @@ START_TEST(test_bounds)
    fail_unless(error_count() == 0);
 
    unit_registry_t *ur = get_registry();
-   jit_t *jit = jit_new(ur);
+   jit_t *jit = jit_new(ur, get_mir());
    simplify_global(a, NULL, jit, ur);   // Global to fold TIME expressions
    jit_free(jit);
    bounds_check(a);
@@ -136,7 +136,7 @@ START_TEST(test_bounds2)
    fail_unless(error_count() == 0);
 
    unit_registry_t *ur = get_registry();
-   jit_t *jit = jit_new(ur);
+   jit_t *jit = jit_new(ur, get_mir());
    simplify_global(a, NULL, jit, ur);   // Global to fold TIME expressions
    jit_free(jit);
    bounds_check(a);
@@ -177,7 +177,7 @@ START_TEST(test_case)
    fail_unless(error_count() == 0);
 
    unit_registry_t *ur = get_registry();
-   jit_t *jit = jit_new(ur);
+   jit_t *jit = jit_new(ur, get_mir());
    simplify_local(a, jit, ur);
    bounds_check(a);
    jit_free(jit);
@@ -193,7 +193,7 @@ START_TEST(test_issue36)
    tree_t e = parse_and_check(T_ENTITY);
 
    unit_registry_t *ur = get_registry();
-   jit_t *jit = jit_new(ur);
+   jit_t *jit = jit_new(ur, get_mir());
    simplify_local(e, jit, ur);
    bounds_check(e);
    jit_free(jit);
@@ -217,7 +217,7 @@ START_TEST(test_issue54)
    fail_unless(error_count() == 0);
 
    unit_registry_t *ur = get_registry();
-   jit_t *jit = jit_new(ur);
+   jit_t *jit = jit_new(ur, get_mir());
    simplify_local(a, jit, ur);
    bounds_check(a);
    jit_free(jit);
@@ -241,7 +241,7 @@ START_TEST(test_issue99)
    fail_unless(error_count() == 0);
 
    unit_registry_t *ur = get_registry();
-   jit_t *jit = jit_new(ur);
+   jit_t *jit = jit_new(ur, get_mir());
    simplify_local(a, jit, ur);
    bounds_check(a);
 
@@ -264,7 +264,7 @@ START_TEST(test_issue150)
    fail_unless(error_count() == 0);
 
    unit_registry_t *ur = get_registry();
-   jit_t *jit = jit_new(ur);
+   jit_t *jit = jit_new(ur, get_mir());
    simplify_local(a, jit, ur);
    bounds_check(a);
    jit_free(jit);
@@ -281,7 +281,7 @@ START_TEST(test_issue200)
    fail_unless(error_count() == 0);
 
    unit_registry_t *ur = get_registry();
-   jit_t *jit = jit_new(ur);
+   jit_t *jit = jit_new(ur, get_mir());
    simplify_local(a, jit, ur);
    bounds_check(a);
    jit_free(jit);
@@ -304,7 +304,7 @@ START_TEST(test_issue208)
    fail_unless(error_count() == 0);
 
    unit_registry_t *ur = get_registry();
-   jit_t *jit = jit_new(ur);
+   jit_t *jit = jit_new(ur, get_mir());
    simplify_local(a, jit, ur);
    bounds_check(a);
    jit_free(jit);
@@ -326,7 +326,7 @@ START_TEST(test_issue247)
    fail_unless(error_count() == 0);
 
    unit_registry_t *ur = get_registry();
-   jit_t *jit = jit_new(ur);
+   jit_t *jit = jit_new(ur, get_mir());
    simplify_local(a, jit, ur);
    bounds_check(a);
    jit_free(jit);
@@ -348,7 +348,7 @@ START_TEST(test_issue269)
    fail_unless(error_count() == 0);
 
    unit_registry_t *ur = get_registry();
-   jit_t *jit = jit_new(ur);
+   jit_t *jit = jit_new(ur, get_mir());
    simplify_local(a, jit, ur);
    bounds_check(a);
    jit_free(jit);
