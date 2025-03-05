@@ -305,7 +305,7 @@ static void sha1_process_x86(uint32_t state[5], const uint8_t data[], size_t len
 
 #ifdef HAVE_ARM_CRYPTO
 #ifdef __clang__
-__attribute__((target("crypto")))
+__attribute__((target("crypto,sha2")))
 #else
 __attribute__((target("+crypto")))
 #endif
