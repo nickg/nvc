@@ -2048,6 +2048,56 @@ START_TEST(test_lscan1)
 }
 END_TEST
 
+START_TEST(test_trim1)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/jit/trim1.vhd");
+
+   parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
+
+   jit_t *j = jit_new(get_registry());
+
+   static const struct {
+      const char *fn;
+      int32_t delta;
+   } cases[] = {
+      { "FUNC1()Q", +8 },
+      { "FUNC2()J", 0 },
+      { "FUNC3(I)C", 0 },
+      { "FUNC4()Q", +16 },  // Context pointer plus array
+      { "PROC1", 0 },
+   };
+
+   jit_handle_t pack = jit_compile(j, ident_new("WORK.TRIM1"));
+   void *context = jit_link(j, pack);
+   ck_assert_ptr_nonnull(context);
+
+   mspace_t *m = jit_get_mspace(j);
+   tlab_t *tlab = tlab_acquire(m);
+
+   for (int i = 0; i < ARRAY_LEN(cases); i++) {
+      ident_t fn = ident_sprintf("WORK.TRIM1.%s", cases[i].fn);
+      jit_handle_t handle = jit_compile(j, fn);
+
+      jit_scalar_t arg0 = { .pointer = context };
+      jit_scalar_t arg1 = { .integer = 42 };
+      jit_scalar_t result;
+
+      const uint32_t entry = ((rand() % (tlab->limit / 2)) + 7) & ~7;
+      tlab->alloc = entry;
+
+      jit_fastcall(j, handle, &result, arg0, arg1, tlab);
+
+      ck_assert_msg(tlab->alloc == entry + cases[i].delta,
+                    "%s: expected alloc delta %+d but have %+d",
+                    cases[i].fn, cases[i].delta, tlab->alloc - entry);
+   }
+
+   tlab_release(tlab);
+   jit_free(j);
+}
+
 Suite *get_jit_tests(void)
 {
    Suite *s = suite_create("jit");
@@ -2104,6 +2154,7 @@ Suite *get_jit_tests(void)
    tcase_add_test(tc, test_cprop2);
    tcase_add_test(tc, test_mem2reg1);
    tcase_add_test(tc, test_lscan1);
+   tcase_add_test(tc, test_trim1);
    suite_add_tcase(s, tc);
 
    return s;
