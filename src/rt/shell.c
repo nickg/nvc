@@ -49,6 +49,10 @@
 
 #define TIME_BUFSZ 32
 
+#if TCL_MAJOR_VERSION < 9
+typedef int Tcl_Size;
+#endif
+
 typedef struct {
    const char     *name;
    Tcl_ObjCmdProc *fn;
@@ -1065,7 +1069,8 @@ static char *shell_list_generator(const char *script, const char *text,
                                   int state, int prefix)
 {
    static Tcl_Obj *list = NULL;
-   static int index, len, max;
+   static int index, len;
+   static Tcl_Size max;
 
    if (!state) {
       if (Tcl_Eval(rl_shell->interp, script) != TCL_OK)
@@ -1470,7 +1475,7 @@ static int shell_redirect_output(ClientData cd, const char *buf, int nchars,
 
 static const Tcl_ChannelType redirect_funcs = {
    .typeName = "redirect",
-   .version = TCL_CHANNEL_VERSION_4,
+   .version = TCL_CHANNEL_VERSION_5,
    .closeProc = shell_redirect_close,
    .watchProc = shell_redirect_watch,
    .outputProc = shell_redirect_output,
