@@ -819,7 +819,7 @@ mir_value_t mir_const_record(mir_unit_t *mu, mir_type_t type,
    node_data_t *n = mir_add_node(mu, MIR_OP_CONST_RECORD, type,
                                  MIR_NULL_STAMP, count);
 
-   const type_data_t *td = mir_type_data(mu, type);
+   DEBUG_ONLY(const type_data_t *td = mir_type_data(mu, type));
 
    MIR_ASSERT(td->class == MIR_TYPE_RECORD,
               "const record must have record type");
@@ -842,14 +842,16 @@ static mir_value_t mir_build_arith(mir_unit_t *mu, mir_op_t op, mir_type_t type,
                                    mir_value_t left, mir_value_t right,
                                    mir_value_t locus, mir_stamp_t stamp)
 {
-   mir_type_t ltype = mir_get_type(mu, left);
-   mir_type_t rtype = mir_get_type(mu, right);
-
    mir_value_t result;
    if (mir_is_null(locus))
       result = mir_build_2(mu, op, type, stamp, left, right);
    else
       result = mir_build_3(mu, op, type, stamp, left, right, locus);
+
+#ifdef DEBUG
+   mir_type_t ltype = mir_get_type(mu, left);
+   mir_type_t rtype = mir_get_type(mu, right);
+#endif
 
    MIR_ASSERT(mir_is_null(ltype) || mir_is_null(rtype)
               || mir_equals(ltype, rtype),
