@@ -38,6 +38,9 @@
 
 #define ITERATIONS 5
 
+const char copy_string[] = "";
+const char version_string[] = "";
+
 static double mean(double *arr, int len)
 {
    double r = 0.0;

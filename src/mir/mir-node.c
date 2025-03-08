@@ -87,7 +87,7 @@ void mir_delete(mir_unit_t *mu)
    nd->op = _MIR_DELETED_OP;
    nd->nargs = 0;
 
-   if (bd->gap_pos < mu->cursor.pos)
+   if (bd->gap_pos == -1 || bd->gap_pos > mu->cursor.pos)
       bd->gap_pos = mu->cursor.pos;
 }
 

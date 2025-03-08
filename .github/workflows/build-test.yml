@@ -8,18 +8,17 @@ concurrency:
 
 jobs:
   build-ubuntu:
-    name: Ubuntu 22.04
-    runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        include:
+          - { os: 22.04, mode: debug }
+          - { os: 22.04, mode: release }
+    name: Ubuntu ${{ matrix.os }} (${{ matrix.mode }})
+    runs-on: ubuntu-${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 1
-      - name: Get version
-        id: version
-        run: |
-          vers=$(sed -n '1s/AC_INIT(\[.*\], \[\([0-9\.]*\).*\].*/\1/p' configure.ac)
-          full=$(git log --date=format:%Y%m%d --pretty=$vers~git%cd.%h -1)
-          echo "VERSION=$full" >> $GITHUB_ENV
       - name: Install dependencies
         run: |
           sudo apt-get update
@@ -28,12 +27,19 @@ jobs:
              libzstd-dev libxml2-utils libjansson-dev
       - name: Generate configure script
         run: ./autogen.sh
-      - name: Configure
+      - name: Configure debug
+        if: ${{ matrix.mode == 'debug' }}
         run: |
           mkdir build && cd build
           ../configure --enable-gcov --enable-asan \
                --with-llvm=/usr/bin/llvm-config --enable-debug \
                --enable-tcl --enable-gui
+      - name: Configure release
+        if: ${{ matrix.mode == 'release' }}
+        run: |
+          mkdir build && cd build
+          ../configure --with-llvm=/usr/bin/llvm-config \
+               --enable-tcl
       - name: Build
         run: ASAN_OPTIONS=detect_leaks=0 make -C build -j $(nproc)
       - name: Test
@@ -73,10 +79,13 @@ jobs:
           export ASAN_OPTIONS=detect_leaks=0    # XXX: remove this
           ./build/bin/jitperf -L build/lib/ test/perf/simple.vhd
       - name: Check for orphan tests
+        if: ${{ matrix.mode == 'debug' }}
         run: make -C build orphan-tests
       - name: Coverage report
+        if: ${{ matrix.mode == 'debug' }}
         run: make -C build cov-generate
       - name: Coveralls
+        if: ${{ matrix.mode == 'debug' }}
         continue-on-error: true
         uses: coverallsapp/github-action@master
         with:
