@@ -87,6 +87,9 @@ page](https://github.com/nickg/nvc/releases/) and can be installed using
 with `winget install NickGasson.NVC`.  Users of systems without existing
 packages should build from source.
 
+For testing in GitHub Actions use
+[setup-nvc](https://github.com/marketplace/actions/setup-nvc).
+
 NVC has both a release branch and a development master branch. The
 master branch should be stable enough for day-to-day use and has
 comprehensive regression tests, but the release branch is more suitable

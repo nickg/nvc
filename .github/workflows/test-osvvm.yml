@@ -10,7 +10,7 @@ jobs:
     name: Test OSVVM
     runs-on: windows-2022
     steps:
-      - uses: nickg/setup-nvc-ci@v1
+      - uses: nickg/setup-nvc@v1
         with:
           version: latest
       - uses: actions/checkout@v4
@@ -35,6 +35,9 @@ jobs:
       #     $Env:OSVVM_DIR = $(Resolve-Path -Path OsvvmLibraries)
       #     echo $Env:OSVVM_DIR
       #     $Env:OSVVM_MUST_BUILD = 1
+      #     Get-ChildItem -Path $Env:OSVVM_DIR -Recurse -Filter "VendorScripts_NVC.tcl" | ForEach-Object {
+      #       (Get-Content $_.FullName) -replace 'puts \$SimulateMessage', '' | Set-Content $_.FullName
+      #     }
       #     nvc.exe --do .\test\test-osvvm.tcl
       - name: Test OSVVM
         shell: msys2 {0}

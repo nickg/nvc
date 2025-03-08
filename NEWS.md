@@ -25,6 +25,8 @@
 - Fixed a crash when a partial association in a port map has a
   conversion function (#1161).
 - Improved the formatting of the `--help` output.
+- The GitHub Action has been renamed from `nickg/setup-nvc-ci` to
+  `nickg/setup-nvc`, although the old name should redirect to the new.
 
 ## Version 1.15.2 - 2025-03-01
 - Fixed invalid LLVM IR generation which could cause a crash with LLVM
