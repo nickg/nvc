@@ -1450,18 +1450,41 @@ static int do_cmd(int argc, char **argv, cmd_state_t *state)
 #ifdef ENABLE_TCL
    tcl_shell_t *sh = shell_new(state->jit);
 
+   if (strpbrk(argv[optind], "./\\") == NULL) {
+      ident_t unit_name = to_unit_name(argv[optind]);
+      if (lib_get(lib_work(), unit_name) != NULL) {
+         free(top_level_orig);
+         top_level_orig = xstrdup(argv[optind]);
+         top_level = unit_name;
+         optind++;
+      }
+   }
+
    if (top_level != NULL) {
       ident_t ename = ident_prefix(top_level, well_known(W_ELAB), '.');
       tree_t top = lib_get(lib_work(), ename);
       if (top == NULL)
          fatal("%s not elaborated", istr(top_level));
 
+#ifdef ENABLE_LLVM
+      jit_load_dll(state->jit, tree_ident(top));
+#endif
+
+      char *name LOCAL = xasprintf("_%s.pack", istr(top_level));
+      FILE *f = lib_fopen(lib_work(), name, "rb");
+      if (f != NULL) {
+         jit_load_pack(state->jit, f);
+         fclose(f);
+      }
+
       shell_reset(sh, top);
    }
 
    for (int i = optind; i < next_cmd; i++) {
-      if (!shell_do(sh, argv[i]))
+      if (!shell_do(sh, argv[i])) {
+         shell_free(sh);
          return EXIT_FAILURE;
+      }
    }
 
    shell_free(sh);
@@ -1493,20 +1516,41 @@ static int interact_cmd(int argc, char **argv, cmd_state_t *state)
       }
    }
 
-   if (optind != next_cmd)
-      fatal("unexpected argument \"%s\"", argv[optind]);
-
    if (state->jit == NULL)
       state->jit = get_jit(state->registry);
 
 #ifdef ENABLE_TCL
    tcl_shell_t *sh = shell_new(state->jit);
 
+   if (strpbrk(argv[optind], "./\\") == NULL) {
+      ident_t unit_name = to_unit_name(argv[optind]);
+      if (lib_get(lib_work(), unit_name) != NULL) {
+         free(top_level_orig);
+         top_level_orig = xstrdup(argv[optind]);
+         top_level = unit_name;
+         optind++;
+      }
+   }
+
+   if (optind != next_cmd)
+      fatal("unexpected argument \"%s\"", argv[optind]);
+
    if (top_level != NULL) {
       ident_t ename = ident_prefix(top_level, well_known(W_ELAB), '.');
       tree_t top = lib_get(lib_work(), ename);
       if (top == NULL)
          fatal("%s not elaborated", istr(top_level));
+
+#ifdef ENABLE_LLVM
+      jit_load_dll(state->jit, tree_ident(top));
+#endif
+
+      char *name LOCAL = xasprintf("_%s.pack", istr(top_level));
+      FILE *f = lib_fopen(lib_work(), name, "rb");
+      if (f != NULL) {
+         jit_load_pack(state->jit, f);
+         fclose(f);
+      }
 
       shell_reset(sh, top);
    }
@@ -2071,7 +2115,7 @@ static void usage(void)
            { "-e [OPTION]... TOP", "Elaborate design unit TOP" },
            { "-r [OPTION]... TOP", "Execute previously elaborated TOP" },
 #ifdef ENABLE_TCL
-           { "-i", "Launch interactive TCL shell" },
+           { "-i [TOP]", "Launch interactive TCL shell" },
 #endif
            { "--cover-export FILE...",
              "Export coverage database to external format" },
@@ -2079,7 +2123,7 @@ static void usage(void)
              "Generate HTML report from coverage database" },
            { "--cover-merge FILE...", "Merge multiple coverage databases" },
 #ifdef ENABLE_TCL
-           { "--do SCRIPT", "Evaluate TCL script" },
+           { "--do [TOP] SCRIPT...", "Evaluate TCL script" },
 #endif
 #ifdef ENABLE_GUI
            { "--gui", "Launch browser-based GUI" },
