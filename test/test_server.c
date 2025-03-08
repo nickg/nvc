@@ -61,8 +61,12 @@ static pid_t fork_server(server_kind_t kind, tree_t top, const char *init_cmd)
    pid_t pid = fork();
    if (pid == 0) {
       close(rfd);
-      start_server(kind, jit_new, get_registry(), top, server_ready_cb,
-                   (void *)(intptr_t)wfd, init_cmd);
+
+      jit_t *j = jit_new(get_registry());
+      start_server(kind, j, top, server_ready_cb, (void *)(intptr_t)wfd,
+                   init_cmd);
+      jit_free(j);
+
       exit(0);
    }
    else if (pid < 0)
@@ -581,6 +585,8 @@ START_TEST(test_bad_command)
 
    json_t *type = json_object_get(resp, "type");
    ck_assert(json_is_string(type));
+
+   json_decref(resp);
 
    cxxrtl_quit_simulation(sock);
 

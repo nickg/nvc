@@ -62,8 +62,7 @@ typedef enum {
    SERVER_CXXRTL,
 } server_kind_t;
 
-void start_server(server_kind_t kind, jit_factory_t make_jit,
-                  unit_registry_t *registry, tree_t top,
+void start_server(server_kind_t kind, jit_t *jit, tree_t top,
                   server_ready_fn_t cb, void *arg, const char *init_cmd);
 
 #endif   // _SERVER_H

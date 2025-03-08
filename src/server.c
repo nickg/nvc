@@ -1272,6 +1272,8 @@ static void cxxrtl_read_message(cxxrtl_server_t *cxxrtl)
          handle_command(cxxrtl, root);
       else
          server_log(LOG_ERROR, "unhandled message type '%s'", typestr);
+
+      json_decref(root);
    } while (cxxrtl->rx_rptr != cxxrtl->rx_wptr);
 }
 
@@ -1411,8 +1413,7 @@ static int open_server_socket(void)
    return sock;
 }
 
-void start_server(server_kind_t kind, jit_factory_t make_jit,
-                  unit_registry_t *registry, tree_t top,
+void start_server(server_kind_t kind, jit_t *jit, tree_t top,
                   server_ready_fn_t cb, void *arg, const char *init_cmd)
 {
    static const server_proto_t *map[] = {
@@ -1421,7 +1422,7 @@ void start_server(server_kind_t kind, jit_factory_t make_jit,
    };
 
    debug_server_t *server = (*map[kind]->new_server)();
-   server->shell     = shell_new(make_jit, registry);
+   server->shell     = shell_new(jit);
    server->top       = top;
    server->packetbuf = pb_new();
    server->init_cmd  = init_cmd;
@@ -1491,5 +1492,6 @@ void start_server(server_kind_t kind, jit_factory_t make_jit,
    assert(server->sock == -1);
 
    pb_free(server->packetbuf);
+   shell_free(server->shell);
    (*server->proto->free_server)(server);
 }

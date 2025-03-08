@@ -1444,14 +1444,11 @@ static int do_cmd(int argc, char **argv, cmd_state_t *state)
    if (optind == next_cmd)
       fatal("no script file specified");
 
-   if (state->jit != NULL) {
-      jit_free(state->jit);   // Shell creates its own instance
-      state->jit = NULL;
-   }
+   if (state->jit == NULL)
+      state->jit = get_jit(state->registry);
 
 #ifdef ENABLE_TCL
-   tcl_shell_t *sh = shell_new(get_jit, state->registry);
-   state->registry = NULL;   // Shell takes ownership
+   tcl_shell_t *sh = shell_new(state->jit);
 
    if (top_level != NULL) {
       ident_t ename = ident_prefix(top_level, well_known(W_ELAB), '.');
@@ -1499,14 +1496,11 @@ static int interact_cmd(int argc, char **argv, cmd_state_t *state)
    if (optind != next_cmd)
       fatal("unexpected argument \"%s\"", argv[optind]);
 
-   if (state->jit != NULL) {
-      jit_free(state->jit);   // Shell creates its own instance
-      state->jit = NULL;
-   }
+   if (state->jit == NULL)
+      state->jit = get_jit(state->registry);
 
 #ifdef ENABLE_TCL
-   tcl_shell_t *sh = shell_new(get_jit, state->registry);
-   state->registry = NULL;   // Shell takes ownership
+   tcl_shell_t *sh = shell_new(state->jit);
 
    if (top_level != NULL) {
       ident_t ename = ident_prefix(top_level, well_known(W_ELAB), '.');
@@ -1717,8 +1711,10 @@ static int gui_cmd(int argc, char **argv, cmd_state_t *state)
          fatal("%s not elaborated", istr(top_level));
    }
 
-   start_server(kind, get_jit, state->registry, top, NULL, NULL, init_cmd);
-   state->registry = NULL;   // Shell takes ownership
+   if (state->jit == NULL)
+      state->jit = get_jit(state->registry);
+
+   start_server(kind, state->jit, top, NULL, NULL, init_cmd);
 
    argc -= next_cmd - 1;
    argv += next_cmd - 1;

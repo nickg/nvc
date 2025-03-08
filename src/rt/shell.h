@@ -36,7 +36,7 @@ typedef struct {
    void *context;
 } shell_handler_t;
 
-tcl_shell_t *shell_new(jit_factory_t make_jit, unit_registry_t *registry);
+tcl_shell_t *shell_new(jit_t *jit);
 void shell_free(tcl_shell_t *sh);
 bool shell_eval(tcl_shell_t *sh, const char *script, const char **result);
 bool shell_do(tcl_shell_t *sh, const char *file);

@@ -27,7 +27,7 @@
 
 START_TEST(test_sanity)
 {
-   tcl_shell_t *sh = shell_new(NULL, NULL);
+   tcl_shell_t *sh = shell_new(NULL);
 
    const char *result = NULL;
    fail_unless(shell_eval(sh, "expr 1 + 2", &result));
@@ -46,7 +46,7 @@ START_TEST(test_examine1)
 
    const char *result = NULL;
 
-   unit_registry_t *ur = unit_registry_new();
+   unit_registry_t *ur = get_registry();
    jit_t *j = jit_new(ur);
 
    input_from_file(TESTDIR "/shell/examine1.vhd");
@@ -58,7 +58,7 @@ START_TEST(test_examine1)
    tree_t top = elab(tree_to_object(arch), j, ur, NULL, NULL, m);
    fail_if(top == NULL);
 
-   tcl_shell_t *sh = shell_new(jit_new, ur);
+   tcl_shell_t *sh = shell_new(j);
    shell_reset(sh, top);
 
    const char *tests[][2] = {
@@ -191,10 +191,10 @@ static void wave1_next_time_step(uint64_t now, void *user)
 
 START_TEST(test_wave1)
 {
-   unit_registry_t *ur = unit_registry_new();
+   unit_registry_t *ur = get_registry();
    jit_t *j = jit_new(ur);
 
-   tcl_shell_t *sh = shell_new(jit_new, ur);
+   tcl_shell_t *sh = shell_new(j);
 
    int state = 0;
    shell_handler_t handler = {
@@ -279,7 +279,7 @@ static void backchannel_handler(const char *buf, size_t nchars, void *ctx)
 
 START_TEST(test_redirect)
 {
-   tcl_shell_t *sh = shell_new(NULL, NULL);
+   tcl_shell_t *sh = shell_new(NULL);
 
    int state = 0;
    shell_handler_t handler = {
@@ -318,7 +318,7 @@ static void exit_handler(int status, void *ctx)
 
 START_TEST(test_exit)
 {
-   tcl_shell_t *sh = shell_new(NULL, NULL);
+   tcl_shell_t *sh = shell_new(NULL);
 
    shell_handler_t handler = {
       .exit = exit_handler
@@ -358,7 +358,7 @@ START_TEST(test_force1)
 
    input_from_file(TESTDIR "/shell/force1.vhd");
 
-   unit_registry_t *ur = unit_registry_new();
+   unit_registry_t *ur = get_registry();
    jit_t *j = jit_new(ur);
 
    tree_t arch = parse_check_and_simplify(T_ENTITY, T_ARCH);
@@ -368,7 +368,7 @@ START_TEST(test_force1)
    tree_t top = elab(tree_to_object(arch), j, ur, NULL, NULL, m);
    fail_if(top == NULL);
 
-   tcl_shell_t *sh = shell_new(jit_new, ur);
+   tcl_shell_t *sh = shell_new(j);
    shell_reset(sh, top);
 
    int state = 0;
@@ -434,7 +434,7 @@ static void echo_stdout_handler(const char *buf, size_t nchars, void *ctx)
 
 START_TEST(test_echo)
 {
-   tcl_shell_t *sh = shell_new(NULL, NULL);
+   tcl_shell_t *sh = shell_new(NULL);
 
    int state = 0;
    shell_handler_t handler = {
@@ -461,7 +461,7 @@ START_TEST(test_describe1)
    };
    expect_errors(expect);
 
-   unit_registry_t *ur = unit_registry_new();
+   unit_registry_t *ur = get_registry();
    jit_t *j = jit_new(ur);
 
    input_from_file(TESTDIR "/shell/describe1.vhd");
@@ -473,7 +473,7 @@ START_TEST(test_describe1)
    tree_t top = elab(tree_to_object(arch), j, ur, NULL, NULL, m);
    fail_if(top == NULL);
 
-   tcl_shell_t *sh = shell_new(jit_new, ur);
+   tcl_shell_t *sh = shell_new(j);
    shell_reset(sh, top);
 
    const char *result = NULL;

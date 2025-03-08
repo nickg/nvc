@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2024  Nick Gasson
+//  Copyright (C) 2011-2025  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -18,16 +18,11 @@
 #include "util.h"
 #include "common.h"
 #include "diag.h"
-#include "eval.h"
 #include "hash.h"
-#include "lib.h"
-#include "lower.h"
-#include "phase.h"
 #include "printer.h"
 #include "rt/assert.h"
 #include "rt/model.h"
 #include "rt/structs.h"
-#include "scan.h"
 #include "shell.h"
 #include "tree.h"
 #include "type.h"
@@ -104,8 +99,6 @@ typedef struct _tcl_shell {
    unsigned         deltas_var;
    printer_t       *printer;
    get_line_fn_t    getline;
-   jit_factory_t    make_jit;
-   unit_registry_t *registry;
    shell_handler_t  handler;
    bool             quit;
    char            *datadir;
@@ -1097,7 +1090,7 @@ static int compare_shell_cmd(const void *a, const void *b)
    return strcmp(((shell_cmd_t *)a)->name, ((shell_cmd_t *)b)->name);
 }
 
-tcl_shell_t *shell_new(jit_factory_t make_jit, unit_registry_t *registry)
+tcl_shell_t *shell_new(jit_t *jit)
 {
    tcl_shell_t *sh = xcalloc(sizeof(tcl_shell_t));
 #ifdef RL_VERSION_MAJOR
@@ -1106,9 +1099,7 @@ tcl_shell_t *shell_new(jit_factory_t make_jit, unit_registry_t *registry)
    sh->prompt   = color_asprintf("$+cyan$%%$$ ");
 #endif
    sh->interp   = Tcl_CreateInterp();
-   sh->make_jit = make_jit;
-   sh->registry = registry ?: unit_registry_new();
-   sh->jit      = make_jit ? (*make_jit)(sh->registry) : NULL;
+   sh->jit      = jit;
    sh->printer  = printer_new();
 
    if (isatty(fileno(stdin)))
@@ -1167,10 +1158,6 @@ void shell_free(tcl_shell_t *sh)
       free(sh->regions);
    }
 
-   if (sh->jit != NULL)
-      jit_free(sh->jit);
-
-   unit_registry_free(sh->registry);
    printer_free(sh->printer);
    Tcl_DeleteInterp(sh->interp);
 
