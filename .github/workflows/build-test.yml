@@ -41,7 +41,7 @@ jobs:
           ../configure --with-llvm=/usr/bin/llvm-config \
                --enable-tcl
       - name: Build
-        run: ASAN_OPTIONS=detect_leaks=0 make -C build -j $(nproc)
+        run: ASAN_OPTIONS=detect_leaks=0 make -C build -j $(nproc) everything
       - name: Test
         run: ASAN_OPTIONS=detect_leaks=0 make -C build check
       - name: Test in JIT mode
@@ -75,9 +75,8 @@ jobs:
           ASAN_OPTIONS=detect_leaks=0 ./bin/run_regr ieee
       - name: JIT benchmarks
         run: |
-          make -C build bin/jitperf
           export ASAN_OPTIONS=detect_leaks=0    # XXX: remove this
-          ./build/bin/jitperf -L build/lib/ test/perf/simple.vhd
+          ./build/bin/jitperf -L build/lib/ test/perf/simple.vhd -f add2
       - name: Check for orphan tests
         if: ${{ matrix.mode == 'debug' }}
         run: make -C build orphan-tests

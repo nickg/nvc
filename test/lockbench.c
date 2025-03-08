@@ -60,6 +60,9 @@ typedef struct {
 
 #define N_COUNTERS 8
 
+const char copy_string[] = "";
+const char version_string[] = "";
+
 static counter_t counter[N_COUNTERS];
 
 STATIC_ASSERT(sizeof(counter) == N_COUNTERS * 64);

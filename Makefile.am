@@ -76,12 +76,14 @@ clean-local: clean-libs
 	rm -f src/vlog/vlog-parse.c
 	-test ! -d logs || rm -r logs
 
+everything: $(BUILT_SOURCES) config.h
+	$(MAKE) $(AM_MAKEFLAGS) all-am $(check_PROGRAMS) $(EXTRA_PROGRAMS)
+
 if MAINTAINER_MODE
 
 compile-commands:
 	$(MAKE) -C $(top_builddir) clean
-	bear -- $(MAKE) -k -j$$(nproc) -C $(top_builddir) $(bin_PROGRAMS) \
-	  $(check_PROGRAMS) $(EXTRA_PROGRAMS) $(pkglibexec_PROGRAMS)
+	bear -- $(MAKE) -k -j$$(nproc) -C $(top_builddir) everything
 
 release: update-test-dist
 	echo $(PACKAGE_VERSION) | grep -E "^[[:digit:]]+\.[[:digit:]]+\.[[:digit:]]+$$"
@@ -137,5 +139,5 @@ upload-artifacts:
 
 endif  # MAINTAINER_MODE
 
-.PHONY: cov-reset cov-report compile-commands
+.PHONY: cov-reset cov-report compile-commands everything
 .PHONY: release sync-branch upload-artifacts

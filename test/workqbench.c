@@ -26,6 +26,9 @@
 #include <limits.h>
 #include <assert.h>
 
+const char copy_string[] = "";
+const char version_string[] = "";
+
 #define NUM_JOBS 100000
 static int *results;
 

@@ -31,6 +31,14 @@
 #include <stdio.h>
 #include <time.h>
 
+#define CHECK(expr) do {                        \
+      if (unlikely(!(expr)))                    \
+         fatal_trace("check " #expr " failed"); \
+} while (0)
+
+const char copy_string[] = "";
+const char version_string[] = "";
+
 static volatile int start = 0;
 
 static void run_test(thread_fn_t fn, void *arg)
@@ -208,7 +216,7 @@ static void gc_alloc_loop(mspace_t *m)
 
    for (int i = 0; i < 100000; i++) {
       int32_t *mem = mspace_alloc(m, 4 + (rand() % 1000));
-      ck_assert_ptr_nonnull(mem);
+      CHECK(mem != NULL);
 
       if (nsaved < ARRAY_LEN(saved) && (rand() % 2 == 0)) {
          saved[nsaved++] = mem;
@@ -217,7 +225,7 @@ static void gc_alloc_loop(mspace_t *m)
    }
 
    for (int i = 0; i < ARRAY_LEN(saved); i++)
-      ck_assert_int_eq(*saved[i], (i + 1) | (thread_id() << 16));
+      CHECK(*saved[i] == ((i + 1) | (thread_id() << 16)));
 }
 
 static void *test_gc_thread(void *arg)
@@ -259,7 +267,7 @@ static void *test_mir_types_thread(void *arg)
 
    for (int i = 0; i < ARRAY_LEN(types); i++) {
       types[i] = mir_int_type(mu, 0, fast_rand(&rng) % (i + 1));
-      assert(!mir_is_null(types[i]));
+      CHECK(!mir_is_null(types[i]));
    }
 
    rng = rng_init;
@@ -268,14 +276,14 @@ static void *test_mir_types_thread(void *arg)
       const uint32_t max = fast_rand(&rng) % (i + 1);
       const mir_repr_t repr = mir_get_repr(mu, types[i]);
 
-      assert(mir_get_class(mu, types[i]) == MIR_TYPE_INT);
+      CHECK(mir_get_class(mu, types[i]) == MIR_TYPE_INT);
 
       if (max <= 1)
-         assert(repr == MIR_REPR_U1);
+         CHECK(repr == MIR_REPR_U1);
       else if (max <= UINT8_MAX)
-         assert(repr == MIR_REPR_U8);
+         CHECK(repr == MIR_REPR_U8);
       else if (max <= UINT16_MAX)
-         assert(repr == MIR_REPR_U16);
+         CHECK(repr == MIR_REPR_U16);
    }
 
    mir_unit_free(mu);
