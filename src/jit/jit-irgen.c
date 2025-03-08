@@ -1313,6 +1313,7 @@ static void irgen_send_args(jit_irgen_t *g, mir_value_t n, int first)
             spill = macro_lalloc(g, jit_value_from_int64(size));
             j_send(g, JIT_MAX_ARGS - 1, spill);
             pslot = JIT_MAX_ARGS;
+            g->used_tlab = true;
          }
 
          jit_reg_t base = irgen_as_reg(g, irgen_get_value(g, arg));
@@ -2678,6 +2679,7 @@ static void irgen_op_alloc(jit_irgen_t *g, mir_value_t n)
    jit_value_t total = j_mul(g, count, jit_value_from_int64(bytes));
 
    g->map[n.id] = macro_lalloc(g, total);
+   g->used_tlab = true;
 }
 
 static void irgen_op_all(jit_irgen_t *g, mir_value_t n)
@@ -4072,8 +4074,10 @@ static void irgen_locals(jit_irgen_t *g)
          mir_type_t type = mir_get_var_type(g->mu, var);
          const int sz = irgen_size_bytes(g, type);
          if ((mir_get_var_flags(g->mu, var) & MIR_VAR_HEAP)
-             || sz > MAX_STACK_ALLOC)
+             || sz > MAX_STACK_ALLOC) {
             g->vars[i] = macro_lalloc(g, jit_value_from_int64(sz));
+            g->used_tlab = true;
+         }
          else
             g->vars[i] = macro_salloc(g, sz);
       }
@@ -4105,8 +4109,10 @@ static void irgen_locals(jit_irgen_t *g)
          // as the result may be stored in an access
          mem = macro_galloc(g, jit_value_from_int64(sz));
       }
-      else
+      else {
          mem = macro_lalloc(g, jit_value_from_int64(sz));
+         g->used_tlab = true;
+      }
 
       if (g->statereg.kind != JIT_VALUE_INVALID) {
          // A null state was passed in by the caller

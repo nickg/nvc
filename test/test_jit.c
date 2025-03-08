@@ -1672,36 +1672,6 @@ START_TEST(test_issue608)
 }
 END_TEST
 
-START_TEST(test_tlab1)
-{
-   set_standard(STD_08);
-
-   input_from_file(TESTDIR "/jit/tlab1.vhd");
-
-   parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
-
-   jit_t *j = jit_new(get_registry());
-
-   jit_handle_t h1 = compile_for_test(j, "WORK.TLAB1.FUNC1(I)I");
-
-   mspace_t *m = jit_get_mspace(j);
-
-   tlab_t *t = tlab_acquire(m);
-
-   jit_scalar_t p0 = { .integer = 0 };
-   jit_scalar_t p1 = { .integer = 5 };
-   jit_scalar_t result;
-   fail_unless(jit_fastcall(j, h1, &result, p0, p1, t));
-
-   ck_assert_int_eq(t->alloc, 0);
-
-   tlab_release(t);
-
-   jit_free(j);
-   fail_if_errors();
-}
-END_TEST
-
 START_TEST(test_lvn7)
 {
    jit_t *j = jit_new(NULL);
@@ -2067,6 +2037,9 @@ START_TEST(test_trim1)
       { "FUNC3(I)C", 0 },
       { "FUNC4()Q", +16 },  // Context pointer plus array
       { "PROC1", 0 },
+      { "FUNC5(I)I", 0 },
+      { "FUNC6()J", +16 },  // XXX: should be 0
+      { "FUNC7(I)I", 0 },
    };
 
    jit_handle_t pack = jit_compile(j, ident_new("WORK.TRIM1"));
@@ -2143,7 +2116,6 @@ Suite *get_jit_tests(void)
    tcase_add_test(tc, test_dce1);
    tcase_add_test(tc, test_nops1);
    tcase_add_test(tc, test_issue608);
-   tcase_add_test(tc, test_tlab1);
    tcase_add_test(tc, test_lvn7);
    tcase_add_test(tc, test_lvn8);
    tcase_add_test(tc, test_lvn9);
