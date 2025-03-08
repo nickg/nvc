@@ -72,6 +72,9 @@ typedef struct {
    const char      *plugins;
    rt_model_t      *model;
    cover_data_t    *cover;
+   ident_t          top_level;
+   const char      *top_level_arg;
+   lib_t            work;
 } cmd_state_t;
 
 const char copy_string[] =
@@ -82,9 +85,6 @@ const char copy_string[] =
 const char version_string[] =
    PACKAGE_STRING GIT_SHA_ONLY(" (" GIT_SHA ")")
    LLVM_ONLY(" (Using LLVM " LLVM_VERSION ")") DEBUG_ONLY(" [debug]");
-
-static ident_t          top_level = NULL;
-static char            *top_level_orig = NULL;
 
 static int process_command(int argc, char **argv, cmd_state_t *state);
 static int parse_int(const char *str);
@@ -98,7 +98,6 @@ static ident_t to_unit_name(const char *str)
          fatal("'%s' is not a valid design unit name", str);
 
       *p = toupper_iso88591(*p);
-
    }
 
    return ident_prefix(lib_name(lib_work()), ident_new(name), '.');
@@ -260,7 +259,6 @@ static int analyse(int argc, char **argv, cmd_state_t *state)
    if (state->registry == NULL)
       state->registry = unit_registry_new();
 
-   lib_t work = lib_work();
    jit_t *jit = jit_new(state->registry);
 
    if (file_list != NULL)
@@ -280,7 +278,7 @@ static int analyse(int argc, char **argv, cmd_state_t *state)
       return EXIT_FAILURE;
 
    if (!no_save)
-      lib_save(work);
+      lib_save(state->work);
 
    if (error_count() > 0)
       return EXIT_FAILURE;   // May have errors saving library
@@ -307,19 +305,18 @@ static void parse_generic(const char *str)
    elab_set_generic(copy, split + 1);
 }
 
-static void set_top_level(char **argv, int next_cmd)
+static void set_top_level(char **argv, int next_cmd, cmd_state_t *state)
 {
    if (optind == next_cmd) {
-      if (top_level == NULL)
+      if (state->top_level == NULL)
          fatal("missing top-level unit name");
    }
    else if (optind != next_cmd - 1)
       fatal("excess positional argument '%s' following top-level unit name",
             argv[optind + 1]);
    else {
-      free(top_level_orig);
-      top_level_orig = xstrdup(argv[optind]);
-      top_level = to_unit_name(top_level_orig);
+      state->top_level_arg = argv[optind];
+      state->top_level = to_unit_name(argv[optind]);
    }
 }
 
@@ -473,16 +470,14 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
       }
    }
 
-   set_top_level(argv, next_cmd);
+   set_top_level(argv, next_cmd, state);
 
    progress("initialising");
 
-   lib_t work = lib_work();
-
-   object_t *obj = lib_get_generic(work, top_level, NULL);
+   object_t *obj = lib_get_generic(state->work, state->top_level, NULL);
    if (obj == NULL)
       fatal("cannot find unit %s in library %s",
-            istr(top_level), istr(lib_name(work)));
+            istr(state->top_level), istr(lib_name(state->work)));
 
    progress("loading top-level unit");
 
@@ -494,8 +489,10 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
       if (cover_spec_file != NULL)
          cover_load_spec_file(cover, cover_spec_file);
 
-      if (meta.cover_file == NULL)
-         meta.cover_file = cover_default = xasprintf("%s.ncdb", top_level_orig);
+      if (meta.cover_file == NULL) {
+         cover_default = xasprintf("%s.ncdb", state->top_level_arg);
+         meta.cover_file = cover_default;
+      }
    }
 
    if (sdf_args != NULL) {
@@ -531,7 +528,7 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
    if (top == NULL)
       return EXIT_FAILURE;
 
-   lib_put_meta(work, top, &meta);
+   lib_put_meta(state->work, top, &meta);
 
    progress("elaborating design");
 
@@ -546,26 +543,26 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
    if (error_count() > 0)
       return EXIT_FAILURE;
 
-   char *pack_name LOCAL = xasprintf("_%s.pack", istr(top_level));
+   char *pack_name LOCAL = xasprintf("_%s.pack", istr(state->top_level));
    char *dll_name LOCAL = xasprintf("_%s." DLL_EXT, istr(tree_ident(top)));
 
    // Delete any existing generated code to avoid accidentally loading
    // the wrong version later
-   lib_delete(work, pack_name);
-   lib_delete(work, dll_name);
+   lib_delete(state->work, pack_name);
+   lib_delete(state->work, dll_name);
 
    if (!no_save) {
-      lib_save(work);
+      lib_save(state->work);
       progress("saving library");
    }
 
    if (use_jit && !no_save) {
-      FILE *f = lib_fopen(work, pack_name, "wb");
+      FILE *f = lib_fopen(state->work, pack_name, "wb");
       if (f == NULL)
          fatal_errno("fopen: %s", pack_name);
 
       ident_t b0 = tree_ident(tree_stmt(top, 0));
-      ident_t root = ident_prefix(lib_name(work), b0, '.');
+      ident_t root = ident_prefix(lib_name(state->work), b0, '.');
 
       vcode_unit_t vu = unit_registry_get(state->registry, root);
       assert(vu != NULL);
@@ -886,14 +883,14 @@ static int run_cmd(int argc, char **argv, cmd_state_t *state)
          nplusargs++, optind++;
    }
 
-   set_top_level(argv, next_cmd);
+   set_top_level(argv, next_cmd, state);
 
-   ident_t ename = ident_prefix(top_level, well_known(W_ELAB), '.');
+   ident_t ename = ident_prefix(state->top_level, well_known(W_ELAB), '.');
 
    const unit_meta_t *meta = NULL;
-   object_t *obj = lib_get_generic(lib_work(), ename, &meta);
+   object_t *obj = lib_get_generic(state->work, ename, &meta);
    if (obj == NULL)
-      fatal("%s not elaborated", istr(top_level));
+      fatal("%s not elaborated", istr(state->top_level));
 
    tree_t top = tree_from_object(obj);
    assert(top != NULL);
@@ -905,13 +902,13 @@ static int run_cmd(int argc, char **argv, cmd_state_t *state)
       char *tmp LOCAL = NULL, *tmp2 LOCAL = NULL;
 
       if (*wave_fname == '\0') {
-         tmp = xasprintf("%s.%s", top_level_orig, ext_map[wave_fmt]);
+         tmp = xasprintf("%s.%s", state->top_level_arg, ext_map[wave_fmt]);
          wave_fname = tmp;
          notef("writing %s waveform data to %s", name_map[wave_fmt], tmp);
       }
 
       if (gtkw_fname != NULL && *gtkw_fname == '\0') {
-         tmp2 = xasprintf("%s.gtkw", top_level_orig);
+         tmp2 = xasprintf("%s.gtkw", state->top_level_arg);
          gtkw_fname = tmp2;
       }
 
@@ -934,8 +931,8 @@ static int run_cmd(int argc, char **argv, cmd_state_t *state)
    jit_load_dll(state->jit, tree_ident(top));
 #endif
 
-   char *name LOCAL = xasprintf("_%s.pack", istr(top_level));
-   FILE *f = lib_fopen(lib_work(), name, "rb");
+   char *name LOCAL = xasprintf("_%s.pack", istr(state->top_level));
+   FILE *f = lib_fopen(state->work, name, "rb");
    if (f != NULL) {
       jit_load_pack(state->jit, f);
       fclose(f);
@@ -1026,15 +1023,13 @@ static int print_deps_cmd(int argc, char **argv, cmd_state_t *state)
    if (count > 0)
       targets = xmalloc_array(count, sizeof(tree_t));
 
-   lib_t work = lib_work();
-
    for (int i = optind; i < next_cmd; i++) {
       ident_t name = to_unit_name(argv[i]);
       ident_t elab = ident_prefix(name, well_known(W_ELAB), '.');
-      if ((targets[i - optind] = lib_get(work, elab)) == NULL) {
-         if ((targets[i - optind] = lib_get(work, name)) == NULL)
+      if ((targets[i - optind] = lib_get(state->work, elab)) == NULL) {
+         if ((targets[i - optind] = lib_get(state->work, name)) == NULL)
             fatal("cannot find unit %s in library %s",
-                  istr(name), istr(lib_name(work)));
+                  istr(name), istr(lib_name(state->work)));
       }
    }
 
@@ -1084,15 +1079,13 @@ static int make_cmd(int argc, char **argv, cmd_state_t *state)
    const int count = next_cmd - optind;
    tree_t *targets = xmalloc_array(count, sizeof(tree_t));
 
-   lib_t work = lib_work();
-
    for (int i = optind; i < next_cmd; i++) {
       ident_t name = to_unit_name(argv[i]);
       ident_t elab = ident_prefix(name, well_known(W_ELAB), '.');
-      if ((targets[i - optind] = lib_get(work, elab)) == NULL) {
-         if ((targets[i - optind] = lib_get(work, name)) == NULL)
+      if ((targets[i - optind] = lib_get(state->work, elab)) == NULL) {
+         if ((targets[i - optind] = lib_get(state->work, name)) == NULL)
             fatal("cannot find unit %s in library %s",
-                  istr(name), istr(lib_name(work)));
+                  istr(name), istr(lib_name(state->work)));
       }
    }
 
@@ -1144,7 +1137,7 @@ static int list_cmd(int argc, char **argv, cmd_state_t *state)
       }
    }
 
-   lib_walk_index(lib_work(), list_walk_fn, NULL);
+   lib_walk_index(state->work, list_walk_fn, NULL);
 
    argc -= next_cmd - 1;
    argv += next_cmd - 1;
@@ -1176,7 +1169,7 @@ static int init_cmd(int argc, char **argv, cmd_state_t *state)
    if (argc != optind)
       fatal("$bold$--init$$ command takes no positional arguments");
 
-   lib_save(lib_work());
+   lib_save(state->work);
 
    argc -= next_cmd - 1;
    argv += next_cmd - 1;
@@ -1364,10 +1357,10 @@ static int dump_cmd(int argc, char **argv, cmd_state_t *state)
    }
 
    if (optind == next_cmd) {
-      if (top_level == NULL)
+      if (state->top_level == NULL)
          fatal("missing top-level unit name");
       else
-         dump_one_unit(top_level, add_elab, add_body);
+         dump_one_unit(state->top_level, add_elab, add_body);
    }
    else {
       for (int i = optind; i < next_cmd; i++)
@@ -1452,26 +1445,25 @@ static int do_cmd(int argc, char **argv, cmd_state_t *state)
 
    if (strpbrk(argv[optind], "./\\") == NULL) {
       ident_t unit_name = to_unit_name(argv[optind]);
-      if (lib_get(lib_work(), unit_name) != NULL) {
-         free(top_level_orig);
-         top_level_orig = xstrdup(argv[optind]);
-         top_level = unit_name;
+      if (lib_get(state->work, unit_name) != NULL) {
+         state->top_level_arg = xstrdup(argv[optind]);
+         state->top_level = unit_name;
          optind++;
       }
    }
 
-   if (top_level != NULL) {
-      ident_t ename = ident_prefix(top_level, well_known(W_ELAB), '.');
-      tree_t top = lib_get(lib_work(), ename);
+   if (state->top_level != NULL) {
+      ident_t ename = ident_prefix(state->top_level, well_known(W_ELAB), '.');
+      tree_t top = lib_get(state->work, ename);
       if (top == NULL)
-         fatal("%s not elaborated", istr(top_level));
+         fatal("%s not elaborated", istr(state->top_level));
 
 #ifdef ENABLE_LLVM
       jit_load_dll(state->jit, tree_ident(top));
 #endif
 
-      char *name LOCAL = xasprintf("_%s.pack", istr(top_level));
-      FILE *f = lib_fopen(lib_work(), name, "rb");
+      char *name LOCAL = xasprintf("_%s.pack", istr(state->top_level));
+      FILE *f = lib_fopen(state->work, name, "rb");
       if (f != NULL) {
          jit_load_pack(state->jit, f);
          fclose(f);
@@ -1524,10 +1516,9 @@ static int interact_cmd(int argc, char **argv, cmd_state_t *state)
 
    if (strpbrk(argv[optind], "./\\") == NULL) {
       ident_t unit_name = to_unit_name(argv[optind]);
-      if (lib_get(lib_work(), unit_name) != NULL) {
-         free(top_level_orig);
-         top_level_orig = xstrdup(argv[optind]);
-         top_level = unit_name;
+      if (lib_get(state->work, unit_name) != NULL) {
+         state->top_level_arg = xstrdup(argv[optind]);
+         state->top_level = unit_name;
          optind++;
       }
    }
@@ -1535,18 +1526,18 @@ static int interact_cmd(int argc, char **argv, cmd_state_t *state)
    if (optind != next_cmd)
       fatal("unexpected argument \"%s\"", argv[optind]);
 
-   if (top_level != NULL) {
-      ident_t ename = ident_prefix(top_level, well_known(W_ELAB), '.');
-      tree_t top = lib_get(lib_work(), ename);
+   if (state->top_level != NULL) {
+      ident_t ename = ident_prefix(state->top_level, well_known(W_ELAB), '.');
+      tree_t top = lib_get(state->work, ename);
       if (top == NULL)
-         fatal("%s not elaborated", istr(top_level));
+         fatal("%s not elaborated", istr(state->top_level));
 
 #ifdef ENABLE_LLVM
       jit_load_dll(state->jit, tree_ident(top));
 #endif
 
-      char *name LOCAL = xasprintf("_%s.pack", istr(top_level));
-      FILE *f = lib_fopen(lib_work(), name, "rb");
+      char *name LOCAL = xasprintf("_%s.pack", istr(state->top_level));
+      FILE *f = lib_fopen(state->work, name, "rb");
       if (f != NULL) {
          jit_load_pack(state->jit, f);
          fclose(f);
@@ -1749,10 +1740,10 @@ static int gui_cmd(int argc, char **argv, cmd_state_t *state)
       fatal("$bold$--gui$$ command takes no positional arguments");
 
    tree_t top = NULL;
-   if (top_level != NULL) {
-      ident_t ename = ident_prefix(top_level, well_known(W_ELAB), '.');
-      if ((top = lib_get(lib_work(), ename)) == NULL)
-         fatal("%s not elaborated", istr(top_level));
+   if (state->top_level != NULL) {
+      ident_t ename = ident_prefix(state->top_level, well_known(W_ELAB), '.');
+      if ((top = lib_get(state->work, ename)) == NULL)
+         fatal("%s not elaborated", istr(state->top_level));
    }
 
    if (state->jit == NULL)
@@ -1881,13 +1872,13 @@ static int cover_export_cmd(int argc, char **argv, cmd_state_t *state)
    if (looks_like_file)
       cover = merge_coverage_files(argc, next_cmd, argv, 0);
    else {
-      set_top_level(argv, next_cmd);
+      set_top_level(argv, next_cmd, state);
 
-      char *fname LOCAL = xasprintf("_%s.elab.covdb", istr(top_level));
-      fbuf_t *f = lib_fbuf_open(lib_work(), fname, FBUF_IN, FBUF_CS_NONE);
+      char *fname LOCAL = xasprintf("_%s.elab.covdb", istr(state->top_level));
+      fbuf_t *f = lib_fbuf_open(state->work, fname, FBUF_IN, FBUF_CS_NONE);
 
       if (f == NULL)
-         fatal("no coverage database for %s", istr(top_level));
+         fatal("no coverage database for %s", istr(state->top_level));
 
       cover = cover_read_items(f, 0);
       fbuf_close(f, NULL);
@@ -2574,7 +2565,8 @@ int main(int argc, char **argv)
       }
    }
 
-   lib_set_work(lib_new(work_name));
+   state.work = lib_new(work_name);
+   lib_set_work(state.work);
 
    argc -= next_cmd - 1;
    argv += next_cmd - 1;
