@@ -841,9 +841,15 @@ static uint32_t mir_hash_stamp(mir_unit_t *mu, const stamp_data_t *sd)
       h ^= mix_bits_64(FLOAT_BITS(sd->u.real.low)) >> 32;
       h ^= mix_bits_64(FLOAT_BITS(sd->u.real.high));
       break;
+
+   case MIR_STAMP_POINTER:
+      h += knuth_hash(sd->u.pointer.memory);
+      if (!mir_is_null(sd->u.pointer.elem))
+         h ^= mir_stamp_data(mu, sd->u.pointer.elem)->hash;
+      break;
    }
 
-   return mix_bits_32(h);
+   return h;
 }
 
 static bool mir_compare_stamps(const stamp_data_t *a, const stamp_data_t *b)
@@ -862,6 +868,10 @@ static bool mir_compare_stamps(const stamp_data_t *a, const stamp_data_t *b)
    case MIR_STAMP_REAL:
       return a->u.real.low == b->u.real.low
          && a->u.real.high == b->u.real.high;
+
+   case MIR_STAMP_POINTER:
+      return a->u.pointer.memory == b->u.pointer.memory
+         && a->u.pointer.elem.bits == b->u.pointer.elem.bits;
    }
 
    should_not_reach_here();
@@ -919,21 +929,14 @@ mir_stamp_t mir_real_stamp(mir_unit_t *mu, double low, double high)
    return mir_build_stamp(mu, &sd);
 }
 
-mir_stamp_t mir_top_stamp(mir_unit_t *mu, mir_type_t type)
+mir_stamp_t mir_pointer_stamp(mir_unit_t *mu, mir_mem_t mem, mir_stamp_t elem)
 {
-   const type_data_t *td = mir_type_data(mu, type);
+   const stamp_data_t sd = {
+      .kind = MIR_STAMP_POINTER,
+      .u = { .pointer = { .memory = mem, .elem = elem } },
+   };
 
-   switch (td->class) {
-   case MIR_TYPE_INT:
-   case MIR_TYPE_OFFSET:
-      return mir_int_stamp(mu, td->u.intg.low, td->u.intg.high);
-
-   case MIR_TYPE_SIGNAL:
-      return mir_top_stamp(mu, td->u.signal.base);
-
-   default:
-      return MIR_NULL_STAMP;
-   }
+   return mir_build_stamp(mu, &sd);
 }
 
 bool mir_is_top(mir_unit_t *mu, mir_type_t type, mir_stamp_t stamp)
@@ -949,6 +952,20 @@ bool mir_is_top(mir_unit_t *mu, mir_type_t type, mir_stamp_t stamp)
 
    default:
       return false;
+   }
+}
+
+mir_stamp_t mir_stamp_elem(mir_unit_t *mu, mir_stamp_t stamp)
+{
+   if (mir_is_null(stamp))
+      return MIR_NULL_STAMP;
+
+   const stamp_data_t *sd = mir_stamp_data(mu, stamp);
+   switch (sd->kind) {
+   case MIR_STAMP_POINTER:
+      return sd->u.pointer.elem;
+   default:
+      return MIR_NULL_STAMP;
    }
 }
 

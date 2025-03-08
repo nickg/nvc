@@ -1370,11 +1370,17 @@ static void irgen_op_return(jit_irgen_t *g, mir_value_t n)
    case MIR_UNIT_THUNK:
       if (mir_count_args(g->mu, n) > 0)
          irgen_send_args(g, n, 0);
-      else {
+      else
          j_send(g, 0, jit_null_ptr());  // Procedure compiled as function
 
-         if (g->used_tlab)
+      if (g->used_tlab) {
+         const mir_mem_t mem = mir_get_mem(g->mu, mir_get_arg(g->mu, n, 0));
+         if (mem <= MIR_MEM_CONST)
             macro_trim(g);
+         else if (mem == MIR_MEM_STACK) {
+            mir_dump(g->mu);
+            fatal_trace("returning pointer to stack allocation");
+         }
       }
       break;
 

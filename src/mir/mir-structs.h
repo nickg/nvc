@@ -132,7 +132,13 @@ typedef enum {
    _MIR_INVALID_STAMP,
    MIR_STAMP_INT,
    MIR_STAMP_REAL,
+   MIR_STAMP_POINTER,
 } mir_stamp_kind_t;
+
+typedef struct {
+   mir_stamp_t elem;
+   mir_mem_t   memory;
+} mir_ptr_stamp_t;
 
 typedef struct {
    mir_stamp_kind_t kind;
@@ -140,6 +146,7 @@ typedef struct {
    union {
       mir_intg_type_t intg;
       mir_real_type_t real;
+      mir_ptr_stamp_t pointer;
    } u;
 } stamp_data_t;
 

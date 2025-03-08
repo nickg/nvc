@@ -294,6 +294,15 @@ typedef enum {
    MIR_REPR_U64,
 } mir_repr_t;
 
+typedef enum {
+   MIR_MEM_NONE,
+   MIR_MEM_CONST,
+   MIR_MEM_STACK,
+   MIR_MEM_LOCAL,
+   MIR_MEM_GLOBAL,
+   MIR_MEM_TOP,
+} mir_mem_t;
+
 #define MIR_APPEND UINT_MAX
 
 mir_type_t mir_int_type(mir_unit_t *mu, int64_t low, int64_t high);
@@ -332,7 +341,7 @@ const mir_type_t *mir_get_fields(mir_unit_t *mu, mir_type_t type,
 
 mir_stamp_t mir_int_stamp(mir_unit_t *mu, int64_t low, int64_t high);
 mir_stamp_t mir_real_stamp(mir_unit_t *mu, double low, double high);
-mir_stamp_t mir_top_stamp(mir_unit_t *mu, mir_type_t type);
+mir_stamp_t mir_pointer_stamp(mir_unit_t *mu, mir_mem_t mem, mir_stamp_t elem);
 
 mir_block_t mir_add_block(mir_unit_t *mu);
 void mir_set_cursor(mir_unit_t *mu, mir_block_t block, unsigned pos);
@@ -362,6 +371,7 @@ bool mir_get_const(mir_unit_t *mu, mir_value_t value, int64_t *result);
 bool mir_get_const_real(mir_unit_t *mu, mir_value_t value, double *result);
 mir_type_t mir_get_type(mir_unit_t *mu, mir_value_t value);
 mir_stamp_t mir_get_stamp(mir_unit_t *mu, mir_value_t value);
+mir_mem_t mir_get_mem(mir_unit_t *mu, mir_value_t value);
 ident_t mir_get_name(mir_unit_t *mu, mir_value_t value);
 object_t *mir_get_locus(mir_unit_t *mu, mir_value_t value);
 mir_var_flags_t mir_get_var_flags(mir_unit_t *mu, mir_value_t value);
@@ -380,6 +390,7 @@ bool mir_is_signal(mir_unit_t *mu, mir_value_t value);
 bool mir_is_offset(mir_unit_t *mu, mir_value_t value);
 bool mir_is(mir_unit_t *mu, mir_value_t value, mir_class_t class);
 bool mir_points_to(mir_unit_t *mu, mir_value_t value, mir_class_t class);
+bool mir_may_alias(mir_unit_t *mu, mir_value_t a, mir_value_t b);
 
 const char *mir_op_string(mir_op_t op);
 

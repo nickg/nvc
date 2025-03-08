@@ -370,29 +370,46 @@ static void mir_dump_stamp(mir_unit_t *mu, mir_type_t type, mir_stamp_t stamp)
 
    printf(" => ");
 
-   const stamp_data_t *sd = mir_stamp_data(mu, stamp);
-   switch (sd->kind) {
-   case _MIR_INVALID_STAMP:
-      break;
+   for (;;) {
+      const stamp_data_t *sd = mir_stamp_data(mu, stamp);
+      switch (sd->kind) {
+      case _MIR_INVALID_STAMP:
+         return;
 
-   case MIR_STAMP_INT:
-      if (sd->u.intg.low != sd->u.intg.high) {
-         mir_pretty_print_int(sd->u.intg.low);
-         printf("..");
-         mir_pretty_print_int(sd->u.intg.high);
+      case MIR_STAMP_INT:
+         if (sd->u.intg.low != sd->u.intg.high) {
+            mir_pretty_print_int(sd->u.intg.low);
+            printf("..");
+            mir_pretty_print_int(sd->u.intg.high);
+         }
+         else
+            mir_pretty_print_int(sd->u.intg.low);
+         return;
+
+      case MIR_STAMP_REAL:
+         if (sd->u.real.low == -DBL_MAX && sd->u.real.high == DBL_MAX)
+            printf("%%");
+         else if (sd->u.real.low == sd->u.real.high)
+            printf("%f", sd->u.real.low);
+         else
+            printf("%f..%f", sd->u.real.low, sd->u.real.high);
+         return;
+
+      case MIR_STAMP_POINTER:
+         {
+            static const char *map[] = {
+               "", "const", "stack", "local", "global", ""
+            };
+            printf("%s", map[sd->u.pointer.memory]);
+
+            if (mir_is_null(sd->u.pointer.elem))
+               return;
+
+            printf(", ");
+            stamp = sd->u.pointer.elem;
+         }
+         break;
       }
-      else
-         mir_pretty_print_int(sd->u.intg.low);
-      break;
-
-   case MIR_STAMP_REAL:
-      if (sd->u.real.low == -DBL_MAX && sd->u.real.high == DBL_MAX)
-         printf("%%");
-      else if (sd->u.real.low == sd->u.real.high)
-         printf("%f", sd->u.real.low);
-      else
-         printf("%f..%f", sd->u.real.low, sd->u.real.high);
-      break;
    }
 }
 
@@ -407,8 +424,9 @@ static int mir_dump_const_array(mir_unit_t *mu, mir_value_t value,
    if (td->class != MIR_TYPE_INT || td->u.intg.low < 0 || td->u.intg.high > 255)
       is_string = false;
 
-   if (!mir_is_null(n->stamp)) {
-      const stamp_data_t *sd = mir_stamp_data(mu, n->stamp);
+   mir_stamp_t elem = mir_stamp_elem(mu, n->stamp);
+   if (!mir_is_null(elem)) {
+      const stamp_data_t *sd = mir_stamp_data(mu, elem);
       if (sd->kind != MIR_STAMP_INT || !isprint(sd->u.intg.low)
           || !isprint(sd->u.intg.high))
          is_string = false;
@@ -934,7 +952,7 @@ void mir_annotate(mir_unit_t *mu, const mir_annotate_t *cb, void *ctx)
                col += printf(" [");
                for (int i = 1; i < n->nargs; i += 3) {
                   if (i > 1) col += printf(", ");
-                  mir_dump_dim(mu, result, i, cb, ctx);
+                  col += mir_dump_dim(mu, result, i, cb, ctx);
                }
                col += printf("]");
                mir_dump_type(mu, col, n->type);

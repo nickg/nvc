@@ -204,7 +204,7 @@ mir_value_t mir_add_param(mir_unit_t *mu, mir_type_t type, mir_stamp_t stamp,
    param_data_t pd = {
       .name  = name,
       .type  = type,
-      .stamp = mir_is_null(stamp) ? mir_top_stamp(mu, type) : stamp
+      .stamp = stamp,
    };
    APUSH(mu->params, pd);
 
@@ -216,11 +216,15 @@ mir_value_t mir_add_var(mir_unit_t *mu, mir_type_t type, mir_stamp_t stamp,
 {
    mir_value_t v = { .tag = MIR_TAG_VAR, .id = mu->vars.count };
 
+   mir_mem_t mem = MIR_MEM_STACK;
+   if (flags & MIR_VAR_HEAP)
+      mem = MIR_MEM_LOCAL;
+
    var_data_t vd = {
       .name    = name,
       .type    = type,
       .pointer = mir_get_var_pointer(mu, type),
-      .stamp   = mir_is_null(stamp) ? mir_top_stamp(mu, type) : stamp,
+      .stamp   = mir_pointer_stamp(mu, mem, stamp),
       .flags   = flags,
    };
    APUSH(mu->vars, vd);
@@ -536,6 +540,8 @@ mir_stamp_t mir_get_stamp(mir_unit_t *mu, mir_value_t value)
       return mir_node_data(mu, value)->stamp;
    case MIR_TAG_PARAM:
       return mir_param_data(mu, value)->stamp;
+   case MIR_TAG_VAR:
+      return mir_var_data(mu, value)->stamp;
    case MIR_TAG_CONST:
       {
          const int64_t ival = (int64_t)value.id - SMALL_CONST_BIAS;
@@ -544,6 +550,33 @@ mir_stamp_t mir_get_stamp(mir_unit_t *mu, mir_value_t value)
    default:
       return MIR_NULL_STAMP;
    }
+}
+
+mir_mem_t mir_get_mem(mir_unit_t *mu, mir_value_t value)
+{
+   mir_type_t type = mir_get_type(mu, value);
+   if (mir_is_null(type))
+      return MIR_MEM_NONE;
+
+   switch (mir_type_data(mu, type)->class) {
+   case MIR_TYPE_UARRAY:
+   case MIR_TYPE_CARRAY:
+   case MIR_TYPE_RECORD:
+   case MIR_TYPE_POINTER:
+   case MIR_TYPE_ACCESS:
+      break;
+   default:
+      return MIR_MEM_NONE;
+   }
+
+   mir_stamp_t stamp = mir_get_stamp(mu, value);
+   if (mir_is_null(stamp))
+      return MIR_MEM_TOP;
+
+   const stamp_data_t *sd = mir_stamp_data(mu, stamp);
+   assert(sd->kind == MIR_STAMP_POINTER);
+
+   return sd->u.pointer.memory;
 }
 
 ident_t mir_get_name(mir_unit_t *mu, mir_value_t value)
@@ -722,6 +755,27 @@ bool mir_is_const(mir_unit_t *mu, mir_value_t value)
    }
 }
 
+bool mir_may_alias(mir_unit_t *mu, mir_value_t a, mir_value_t b)
+{
+   const mir_mem_t a_mem = mir_get_mem(mu, a);
+   if (a_mem == MIR_MEM_NONE)
+      return false;
+
+   if (mir_equals(a, b))
+      return true;
+
+   const mir_mem_t b_mem = mir_get_mem(mu, b);
+   if (b_mem == MIR_MEM_NONE)
+      return false;
+
+   if (a_mem == MIR_MEM_CONST || b_mem == MIR_MEM_CONST) {
+      // Aliasing is only relevant in the presence of mutability
+      return false;
+   }
+
+   return a_mem == b_mem || a_mem == MIR_MEM_TOP || b_mem == MIR_MEM_TOP;
+}
+
 #ifdef DEBUG
 static bool mir_check_type(mir_unit_t *mu, mir_value_t value, mir_type_t type)
 {
@@ -793,8 +847,11 @@ mir_value_t mir_const_array(mir_unit_t *mu, mir_type_t type,
       }
    }
 
+   mir_stamp_t stamp = MIR_NULL_STAMP;
    if (integral && low <= high)
-      n->stamp = mir_int_stamp(mu, low, high);
+      stamp = mir_int_stamp(mu, low, high);
+
+   n->stamp = mir_pointer_stamp(mu, MIR_MEM_CONST, stamp);
 
    return (mir_value_t){ .tag = MIR_TAG_NODE, .id = mir_node_id(mu, n) };
 }
@@ -1319,7 +1376,7 @@ void mir_build_store(mir_unit_t *mu, mir_value_t dest, mir_value_t src)
 mir_value_t mir_build_load(mir_unit_t *mu, mir_value_t value)
 {
    mir_type_t type = mir_get_type(mu, value);
-   mir_stamp_t stamp = mir_get_stamp(mu, value);
+   mir_stamp_t stamp = mir_stamp_elem(mu, mir_get_stamp(mu, value));
    mir_type_t pointed = mir_get_pointer(mu, type);
 
    mir_value_t result = mir_build_1(mu, MIR_OP_LOAD, pointed, stamp, value);

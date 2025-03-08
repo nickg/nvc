@@ -1016,6 +1016,53 @@ START_TEST(test_record1)
 }
 END_TEST
 
+START_TEST(test_alias1)
+{
+   mir_context_t *mc = mir_context_new();
+
+   mir_unit_t *mu = mir_unit_new(mc, ident_new("alias1"), NULL,
+                                 MIR_UNIT_FUNCTION, NULL);
+
+   mir_type_t t_char = mir_int_type(mu, 0, UINT8_MAX);
+   mir_type_t t_string3 = mir_carray_type(mu, 3, t_char);
+   mir_type_t t_offset = mir_offset_type(mu);
+
+   mir_value_t vals[] = {
+      mir_const(mu, t_char, 'a'),
+      mir_const(mu, t_char, 'b'),
+      mir_const(mu, t_char, 'c'),
+   };
+
+   mir_value_t array1 = mir_const_array(mu, t_string3, vals, ARRAY_LEN(vals));
+   ck_assert_int_eq(mir_get_mem(mu, array1), MIR_MEM_CONST);
+
+   mir_value_t v1 = mir_add_var(mu, t_string3, MIR_NULL_STAMP,
+                                ident_new("v1"), 0);
+   ck_assert_int_eq(mir_get_mem(mu, v1), MIR_MEM_STACK);
+
+   mir_value_t v2 = mir_add_var(mu, t_string3, MIR_NULL_STAMP,
+                                ident_new("v2"), MIR_VAR_HEAP);
+   ck_assert_int_eq(mir_get_mem(mu, v2), MIR_MEM_LOCAL);
+
+   mir_value_t ptr1 = mir_build_address_of(mu, array1);
+   ck_assert_int_eq(mir_get_mem(mu, ptr1), MIR_MEM_CONST);
+
+   mir_value_t ref1 = mir_build_array_ref(mu, v1, mir_const(mu, t_offset, 1));
+   ck_assert_int_eq(mir_get_mem(mu, ref1), MIR_MEM_STACK);
+
+   ck_assert(!mir_may_alias(mu, array1, v1));
+   ck_assert(!mir_may_alias(mu, array1, ptr1));
+   ck_assert(!mir_may_alias(mu, v1, ptr1));
+   ck_assert(mir_may_alias(mu, v1, ref1));
+   ck_assert(!mir_may_alias(mu, v1, v2));
+
+   mir_build_return(mu, MIR_NULL_VALUE);
+
+   mir_unit_free(mu);
+   mir_context_free(mc);
+}
+END_TEST
+
 Suite *get_mir_tests(void)
 {
    Suite *s = suite_create("mir");
@@ -1038,6 +1085,7 @@ Suite *get_mir_tests(void)
    tcase_add_test(tc, test_array1);
    tcase_add_test(tc, test_case1);
    tcase_add_test(tc, test_record1);
+   tcase_add_test(tc, test_alias1);
    suite_add_tcase(s, tc);
 
    return s;

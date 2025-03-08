@@ -54,6 +54,7 @@ bool mir_is_top(mir_unit_t *mu, mir_type_t type, mir_stamp_t stamp);
 
 mir_type_t mir_get_var_pointer(mir_unit_t *mu, mir_type_t type);
 
+mir_stamp_t mir_stamp_elem(mir_unit_t *mu, mir_stamp_t stamp);
 mir_stamp_t mir_stamp_add(mir_unit_t *mu, mir_stamp_t left, mir_stamp_t right);
 mir_stamp_t mir_stamp_sub(mir_unit_t *mu, mir_stamp_t left, mir_stamp_t right);
 mir_stamp_t mir_stamp_mul(mir_unit_t *mu, mir_stamp_t left, mir_stamp_t right);
