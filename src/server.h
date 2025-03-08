@@ -35,7 +35,6 @@ typedef enum {
    S2C_INIT_CMD = 0x02,
    S2C_START_SIM = 0x03,
    S2C_RESTART_SIM = 0x04,
-   S2C_QUIT_SIM = 0x05,
    S2C_NEXT_TIME_STEP = 0x06,
    S2C_BACKCHANNEL = 0x07,
 } s2c_opcode_t;

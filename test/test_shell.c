@@ -18,10 +18,12 @@
 #include "test_util.h"
 #include "ident.h"
 #include "jit/jit.h"
-#include "lib.h"
-#include "option.h"
+#include "lower.h"
+#include "phase.h"
+#include "rt/model.h"
 #include "rt/shell.h"
 #include "rt/structs.h"
+#include "scan.h"
 
 START_TEST(test_sanity)
 {
@@ -42,17 +44,22 @@ START_TEST(test_examine1)
    };
    expect_errors(expect);
 
-   tcl_shell_t *sh = shell_new(jit_new, NULL);
-
    const char *result = NULL;
 
-   unit_registry_t *ur = get_registry();
+   unit_registry_t *ur = unit_registry_new();
    jit_t *j = jit_new(ur);
 
-   analyse_file(TESTDIR "/shell/examine1.vhd", j, ur);
+   input_from_file(TESTDIR "/shell/examine1.vhd");
 
-   shell_eval(sh, "elaborate examine1", &result);
-   ck_assert_str_eq(result, "");
+   tree_t arch = parse_check_and_simplify(T_ENTITY, T_ARCH);
+
+   rt_model_t *m = model_new(j, NULL);
+
+   tree_t top = elab(tree_to_object(arch), j, ur, NULL, NULL, m);
+   fail_if(top == NULL);
+
+   tcl_shell_t *sh = shell_new(jit_new, ur);
+   shell_reset(sh, top);
 
    const char *tests[][2] = {
       { "/x", "5" },
@@ -80,6 +87,7 @@ START_TEST(test_examine1)
    }
 
    shell_free(sh);
+   model_free(m);
    jit_free(j);
 
    check_expected_errors();
@@ -161,19 +169,6 @@ static void wave1_start_sim(ident_t top, void *user)
    }
 }
 
-static void wave1_quit_sim(void *user)
-{
-   int *state = user;
-
-   switch ((*state)++) {
-   case 12:
-      break;
-   default:
-      ck_abort_msg("unexpected call to wave1_quit_sim in state %d",
-                   *state - 1);
-   }
-}
-
 static void wave1_next_time_step(uint64_t now, void *user)
 {
    int *state = user;
@@ -196,29 +191,33 @@ static void wave1_next_time_step(uint64_t now, void *user)
 
 START_TEST(test_wave1)
 {
-   tcl_shell_t *sh = shell_new(jit_new, NULL);
+   unit_registry_t *ur = unit_registry_new();
+   jit_t *j = jit_new(ur);
+
+   tcl_shell_t *sh = shell_new(jit_new, ur);
 
    int state = 0;
    shell_handler_t handler = {
       .add_wave = wave1_add_wave,
       .signal_update = wave1_signal_update,
       .start_sim = wave1_start_sim,
-      .quit_sim = wave1_quit_sim,
       .next_time_step = wave1_next_time_step,
       .context = &state,
    };
    shell_set_handler(sh, &handler);
 
+   input_from_file(TESTDIR "/shell/wave1.vhd");
+
+   tree_t arch = parse_check_and_simplify(T_ENTITY, T_ARCH, T_ENTITY, T_ARCH);
+
+   rt_model_t *m = model_new(j, NULL);
+
+   tree_t top = elab(tree_to_object(tree_primary(arch)), j, ur, NULL, NULL, m);
+   fail_if(top == NULL);
+
+   shell_reset(sh, top);
+
    const char *result = NULL;
-
-   unit_registry_t *ur = get_registry();
-   jit_t *j = jit_new(ur);
-
-   analyse_file(TESTDIR "/shell/wave1.vhd", j, ur);
-
-   shell_eval(sh, "elaborate wave1", &result);
-   ck_assert_str_eq(result, "");
-   ck_assert_int_eq(state, 1);
 
    shell_eval(sh, "add wave /x /b", &result);
    ck_assert_str_eq(result, "");
@@ -240,11 +239,8 @@ START_TEST(test_wave1)
    ck_assert_str_eq(result, "");
    ck_assert_int_eq(state, 12);
 
-   shell_eval(sh, "quit -sim", &result);
-   ck_assert_str_eq(result, "");
-   ck_assert_int_eq(state, 13);
-
    shell_free(sh);
+   model_free(m);
    jit_free(j);
 
    fail_if_errors();
@@ -360,7 +356,20 @@ START_TEST(test_force1)
    };
    expect_errors(expect);
 
-   tcl_shell_t *sh = shell_new(jit_new, NULL);
+   input_from_file(TESTDIR "/shell/force1.vhd");
+
+   unit_registry_t *ur = unit_registry_new();
+   jit_t *j = jit_new(ur);
+
+   tree_t arch = parse_check_and_simplify(T_ENTITY, T_ARCH);
+
+   rt_model_t *m = model_new(j, NULL);
+
+   tree_t top = elab(tree_to_object(arch), j, ur, NULL, NULL, m);
+   fail_if(top == NULL);
+
+   tcl_shell_t *sh = shell_new(jit_new, ur);
+   shell_reset(sh, top);
 
    int state = 0;
    shell_handler_t handler = {
@@ -370,14 +379,6 @@ START_TEST(test_force1)
    shell_set_handler(sh, &handler);
 
    const char *result = NULL;
-
-   unit_registry_t *ur = get_registry();
-   jit_t *j = jit_new(ur);
-
-   analyse_file(TESTDIR "/shell/force1.vhd", j, ur);
-
-   shell_eval(sh, "elaborate force1", &result);
-   ck_assert_str_eq(result, "");
 
    shell_eval(sh, "run 1 ns", &result);
    ck_assert_str_eq(result, "");
@@ -416,6 +417,8 @@ START_TEST(test_force1)
    ck_assert_str_eq(result, "");
 
    shell_free(sh);
+   model_free(m);
+   jit_free(j);
 
    check_expected_errors();
 }
@@ -458,17 +461,22 @@ START_TEST(test_describe1)
    };
    expect_errors(expect);
 
-   tcl_shell_t *sh = shell_new(jit_new, NULL);
-
-   const char *result = NULL;
-
-   unit_registry_t *ur = get_registry();
+   unit_registry_t *ur = unit_registry_new();
    jit_t *j = jit_new(ur);
 
-   analyse_file(TESTDIR "/shell/describe1.vhd", j, ur);
+   input_from_file(TESTDIR "/shell/describe1.vhd");
 
-   shell_eval(sh, "elaborate describe1", &result);
-   ck_assert_str_eq(result, "");
+   tree_t arch = parse_check_and_simplify(T_ENTITY, T_ARCH);
+
+   rt_model_t *m = model_new(j, NULL);
+
+   tree_t top = elab(tree_to_object(arch), j, ur, NULL, NULL, m);
+   fail_if(top == NULL);
+
+   tcl_shell_t *sh = shell_new(jit_new, ur);
+   shell_reset(sh, top);
+
+   const char *result = NULL;
 
    const char *tests[][2] = {
       { "/x", "name x path /x kind signal type INTEGER" },
@@ -489,6 +497,8 @@ START_TEST(test_describe1)
    }
 
    shell_free(sh);
+   model_free(m);
+   jit_free(j);
 
    check_expected_errors();
 }

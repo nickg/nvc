@@ -714,15 +714,6 @@ static void restart_sim_handler(void *user)
    ws_send_packet(http->websocket, pb);
 }
 
-static void quit_sim_handler(void *user)
-{
-   http_server_t *http = container_of(user, http_server_t, server);
-
-   packet_buf_t *pb = fresh_packet_buffer(&(http->server));
-   pb_pack_u8(pb, S2C_QUIT_SIM);
-   ws_send_packet(http->websocket, pb);
-}
-
 static void next_time_step_handler(uint64_t now, void *user)
 {
    http_server_t *http = container_of(user, http_server_t, server);
@@ -1445,7 +1436,6 @@ void start_server(server_kind_t kind, jit_factory_t make_jit,
       .backchannel_write = tunnel_backchannel,
       .start_sim = start_sim_handler,
       .restart_sim = restart_sim_handler,
-      .quit_sim = quit_sim_handler,
       .next_time_step = next_time_step_handler,
       .context = server
    };

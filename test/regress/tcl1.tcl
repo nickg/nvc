@@ -6,8 +6,6 @@ proc assert condition {
 
 set testdir [file dirname [file normalize [info script]]]
 
-vsim tcl1
-
 puts "$now +$deltas"
 assert {expr $now == 0}
 assert {expr $deltas == 0}

@@ -161,27 +161,13 @@ static void shell_printf(tcl_shell_t *sh, const char *fmt, ...)
 static bool shell_has_model(tcl_shell_t *sh)
 {
    if (sh->model == NULL) {
-      tcl_error(sh, "no simulation loaded, try the $bold$elaborate$$ "
-                "command first");
+      tcl_error(sh, "no simulation loaded, elaborate first with the "
+                "$bold$-e$$ command or pass the top-level design unit "
+                "as a command line argument");
       return false;
    }
 
    return true;
-}
-
-static void shell_clear_model(tcl_shell_t *sh)
-{
-   if (sh->model == NULL)
-      return;
-
-   model_free(sh->model);
-   hash_free(sh->namemap);
-
-   sh->model = NULL;
-   sh->namemap = NULL;
-
-   if (sh->handler.quit_sim != NULL)
-      (*sh->handler.quit_sim)(sh->handler.context);
 }
 
 static void shell_next_time_step(rt_model_t *m, void *user)
@@ -496,67 +482,15 @@ static int shell_cmd_find(ClientData cd, Tcl_Interp *interp,
 }
 
 static const char elaborate_help[] =
-   "Elaborate a design hierarchy\n"
-   "\n"
-   "Syntax:\n"
-   "  elaborate [options] <toplevel>\n"
-   "\n"
-   "Note \"vsim\" is an alias of this command.\n"
-   "\n"
-   "Options:\n"
-   "\n"
-   "Examples:\n"
-   "  elaborate toplevel\n"
-   "  vsim toplevel\n";
+   "Obsolete command which does nothing.\n";
 
 static int shell_cmd_elaborate(ClientData cd, Tcl_Interp *interp,
                                int objc, Tcl_Obj *const objv[])
 {
    tcl_shell_t *sh = cd;
-   LOCAL_TEXT_BUF tb = tb_new();
-
-   int pos = 1;
-   for (const char *opt; (opt = Tcl_GetString(objv[pos]))[0] == '-'; pos++)
-      goto usage;
-
-   if (pos + 1 != objc)
-      goto usage;
-
-   lib_t work = lib_work();
-
-   tb_istr(tb, lib_name(work));
-   tb_append(tb, '.');
-   tb_cat(tb, Tcl_GetString(objv[pos]));
-   tb_upcase(tb);
-
-   tree_t unit = lib_get(lib_work(), ident_new(tb_get(tb)));
-   if (unit == NULL)
-      return tcl_error(sh, "cannot find unit %s in library %s",
-                       Tcl_GetString(objv[pos]), istr(lib_name(work)));
-
-   shell_clear_model(sh);
-
-   reset_error_count();
-
-   // Recreate the JIT instance and unit registry as it may have
-   // references to stale code
-   jit_free(sh->jit);
-   unit_registry_free(sh->registry);
-   sh->registry = unit_registry_new();
-   sh->jit = (*sh->make_jit)(sh->registry);
-
-   rt_model_t *m = model_new(sh->jit, NULL);
-   tree_t top = elab(tree_to_object(unit), sh->jit, sh->registry,
-                     NULL, NULL, m);
-   model_free(m);   // XXX: reuse
-   if (top == NULL)
-      return TCL_ERROR;
-
-   shell_reset(sh, top);
-   return TCL_OK;
-
- usage:
-   return syntax_error(sh, objv);
+   return tcl_error(sh, "the elaborate/vsim command has been removed, "
+                    "elaborate the design first with \"nvc -e top --do ...\" "
+                    "or \"nvc -e top -i\"");
 }
 
 static const char examine_help[] =
@@ -914,48 +848,13 @@ static int shell_cmd_add(ClientData cd, Tcl_Interp *interp,
 }
 
 static const char quit_help[] =
-   "Exit the simulator or unload the current design\n"
-   "\n"
-   "Syntax:\n"
-   "  quit [-sim]\n"
-   "\n"
-   "Options:\n"
-   "  -sim\t\tUnload the current simulation but do not exit the program.\n";
+   "Obsolete command which does nothing.\n";
 
 static int shell_cmd_quit(ClientData cd, Tcl_Interp *interp,
                           int objc, Tcl_Obj *const objv[])
 {
    tcl_shell_t *sh = cd;
-
-   bool quit_sim = false;
-   int pos = 1;
-   for (const char *opt; (opt = next_option(&pos, objc, objv)); ) {
-      if (strcmp(opt, "-sim") == 0)
-         quit_sim = true;
-      else
-         goto usage;
-   }
-
-   if (pos != objc)
-      goto usage;
-
-   if (quit_sim) {
-      if (!shell_has_model(sh))
-         return TCL_ERROR;
-      else
-         shell_clear_model(sh);
-   }
-   else {
-      sh->quit = true;
-
-      if (sh->handler.exit != NULL)
-         (*sh->handler.exit)(0, sh->handler.context);
-   }
-
-   return TCL_OK;
-
- usage:
-   return syntax_error(sh, objv);
+   return tcl_error(sh, "the quit command has been removed");
 }
 
 static const char exit_help[] =
@@ -1373,8 +1272,6 @@ static void recurse_objects(tcl_shell_t *sh, rt_scope_t *scope,
 
 void shell_reset(tcl_shell_t *sh, tree_t top)
 {
-   shell_clear_model(sh);
-
    jit_reset(sh->jit);
 
    sh->top = top;

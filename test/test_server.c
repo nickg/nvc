@@ -346,11 +346,6 @@ static void wave_binary_frame(web_socket_t *ws, const void *data, size_t len,
       ck_assert_int_eq(bytes[0], S2C_RESTART_SIM);
       break;
 
-   case 7:
-      ck_assert_int_eq(len, 1);
-      ck_assert_int_eq(bytes[0], S2C_QUIT_SIM);
-      break;
-
    default:
       ck_abort_msg("unexpected call to binary_frame in state %d", *state - 1);
    }
@@ -386,7 +381,7 @@ START_TEST(test_wave)
 
    ck_assert_int_eq(state, 6);
 
-   ws_send_text(ws, "restart; quit -sim");
+   ws_send_text(ws, "restart");
    ws_flush(ws);
 
    ws_poll(ws);
@@ -394,7 +389,7 @@ START_TEST(test_wave)
    shutdown_server(ws);
    ws_free(ws);
 
-   ck_assert_int_eq(state, 8);
+   ck_assert_int_eq(state, 7);
 
    close(sock);
    join_server(pid);
