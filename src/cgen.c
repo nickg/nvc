@@ -38,9 +38,6 @@
 #include <unistd.h>
 #include <ctype.h>
 
-#include <llvm-c/Core.h>
-#include <llvm-c/ExecutionEngine.h>
-
 typedef A(vcode_unit_t) unit_list_t;
 typedef A(char *) obj_list_t;
 
@@ -340,12 +337,6 @@ void cgen(tree_t top, unit_registry_t *ur, jit_t *jit)
    unit_list_t units = AINIT;
    cgen_find_units(vu, ur, &units);
 
-   LLVMInitializeNativeTarget();
-   LLVMInitializeNativeAsmPrinter();
-
-   if (!LLVMIsMultithreaded())
-      fatal("LLVM was built without multithreaded support");
-
    workq_t *wq = workq_new(jit);
 
    ident_t name = tree_ident(top);
@@ -511,9 +502,6 @@ void aotgen(const char *outfile, char **argv, int argc)
 
    hset_free(args.filter);
    args.filter = NULL;
-
-   LLVMInitializeNativeTarget();
-   LLVMInitializeNativeAsmPrinter();
 
    jit_t *jit = jit_new(ur, mc);
 

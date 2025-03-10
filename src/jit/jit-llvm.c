@@ -1012,6 +1012,15 @@ static void llvm_dump_value(const char *tag, LLVMValueRef value)
 }
 #endif
 
+static void llvm_native_setup(void)
+{
+   LLVMInitializeNativeTarget();
+   LLVMInitializeNativeAsmPrinter();
+
+   if (!LLVMIsMultithreaded())
+      fatal("LLVM was built without multithreaded support");
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // JIT IR to LLVM lowering
 
@@ -3350,8 +3359,7 @@ typedef struct {
 
 static void *jit_llvm_init(jit_t *jit)
 {
-   LLVMInitializeNativeTarget();
-   LLVMInitializeNativeAsmPrinter();
+   llvm_native_setup();
 
    llvm_jit_state_t *state = xcalloc(sizeof(llvm_jit_state_t));
    state->code = code_cache_new();
@@ -3466,6 +3474,8 @@ void jit_register_llvm_plugin(jit_t *j)
 
 llvm_obj_t *llvm_obj_new(const char *name)
 {
+   llvm_native_setup();
+
    llvm_obj_t *obj = xcalloc(sizeof(llvm_obj_t));
    obj->context     = LLVMContextCreate();
    obj->module      = LLVMModuleCreateWithNameInContext(name, obj->context);
