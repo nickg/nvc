@@ -268,6 +268,8 @@ static int analyse(int argc, char **argv, cmd_state_t *state)
 
    if (file_list != NULL)
       do_file_list(file_list, jit, state->registry);
+   else if (optind == next_cmd)
+      fatal("missing file name");
 
    for (int i = optind; i < next_cmd; i++) {
       if (argv[i][0] == '@')
@@ -1450,9 +1452,6 @@ static int do_cmd(int argc, char **argv, cmd_state_t *state)
       }
    }
 
-   if (optind == next_cmd)
-      fatal("no script file specified");
-
    if (state->mir == NULL)
       state->mir = mir_context_new();
 
@@ -1465,7 +1464,7 @@ static int do_cmd(int argc, char **argv, cmd_state_t *state)
 #ifdef ENABLE_TCL
    tcl_shell_t *sh = shell_new(state->jit);
 
-   if (strpbrk(argv[optind], "./\\") == NULL) {
+   if (optind < next_cmd && strpbrk(argv[optind], "./\\") == NULL) {
       ident_t unit_name = to_unit_name(argv[optind]);
       if (lib_get(state->work, unit_name) != NULL) {
          state->top_level_arg = xstrdup(argv[optind]);
@@ -1493,6 +1492,9 @@ static int do_cmd(int argc, char **argv, cmd_state_t *state)
 
       shell_reset(sh, top);
    }
+
+   if (optind == next_cmd)
+      fatal("no script file specified");
 
    for (int i = optind; i < next_cmd; i++) {
       if (!shell_do(sh, argv[i])) {
@@ -1542,7 +1544,7 @@ static int interact_cmd(int argc, char **argv, cmd_state_t *state)
 #ifdef ENABLE_TCL
    tcl_shell_t *sh = shell_new(state->jit);
 
-   if (strpbrk(argv[optind], "./\\") == NULL) {
+   if (optind < next_cmd && strpbrk(argv[optind], "./\\") == NULL) {
       ident_t unit_name = to_unit_name(argv[optind]);
       if (lib_get(state->work, unit_name) != NULL) {
          state->top_level_arg = xstrdup(argv[optind]);
