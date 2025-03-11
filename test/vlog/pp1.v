@@ -12,4 +12,6 @@ fail
 `else
 pass
 `endif
+`__FILE__
+`__LINE__
 

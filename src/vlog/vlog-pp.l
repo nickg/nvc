@@ -109,6 +109,9 @@ ID    [a-zA-Z_]([a-zA-Z0-9_$])*
                         }
 `undef[ \t]+{ID}[ \t]*  { undef_macro(); }
 
+`__FILE__               { tb_cat(output, loc_file_str(&yylloc)); }
+`__LINE__               { tb_printf(output, "%d", yylloc.first_line); }
+
 `timescale              |
 `default_nettype        |
 `resetall               |
