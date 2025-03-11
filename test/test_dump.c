@@ -565,6 +565,7 @@ START_TEST(test_vlog1)
              "    if ((x & y) == z);\n"
              "  end\n"
              "  assign z = {x, y};\n"
+             "  assign zz = {5{z}};\n"
              "endmodule // mod3\n\n");
    tb_rewind(tb);
 

@@ -1157,19 +1157,37 @@ static vlog_node_t p_mintypmax_expression(void)
    return p_expression();
 }
 
-static vlog_node_t p_concatenation(void)
+static vlog_node_t p_concatenation(vlog_node_t head)
 {
    // { expression { , expression } }
 
-   BEGIN("concatenation");
+   BEGIN_WITH_HEAD("concatenation", head);
 
-   consume(tLBRACE);
+   if (head == NULL) {
+      consume(tLBRACE);
+      head = p_expression();
+   }
 
    vlog_node_t v = vlog_new(V_CONCAT);
+   vlog_add_param(v, head);
 
-   do {
+   while (optional(tCOMMA))
       vlog_add_param(v, p_expression());
-   } while (optional(tCOMMA));
+
+   consume(tRBRACE);
+
+   vlog_set_loc(v, CURRENT_LOC);
+   return v;
+}
+
+static vlog_node_t p_multiple_concatenation(vlog_node_t head)
+{
+   // { expression concatenation }
+
+   BEGIN_WITH_HEAD("multiple concatenation", head);
+
+   vlog_node_t v = p_concatenation(NULL);
+   vlog_set_value(v, head);
 
    consume(tRBRACE);
 
@@ -1208,7 +1226,15 @@ static vlog_node_t p_primary(void)
          return expr;
       }
    case tLBRACE:
-      return p_concatenation();
+      {
+         consume(tLBRACE);
+
+         vlog_node_t head = p_expression();
+         if (peek() == tLBRACE)
+            return p_multiple_concatenation(head);
+         else
+            return p_concatenation(head);
+      }
    default:
       one_of(tID, tSTRING, tNUMBER, tUNSIGNED, tREAL, tSYSTASK, tLPAREN,
              tLBRACE);

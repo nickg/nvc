@@ -8,5 +8,6 @@ module concat1;
   assign a2 = {r1, x};  // Error
   assign {z[0], z[4]} = {x, y};   // OK
   assign {x, q} = 2'b11;  // Error
+  assign a3 = {5{x}};   // OK
   
 endmodule // concat1

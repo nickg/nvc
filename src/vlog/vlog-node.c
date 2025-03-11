@@ -173,7 +173,7 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
    (I_DVAL),
 
    // V_CONCAT
-   (I_PARAMS),
+   (I_PARAMS | I_VALUE),
 
    // V_FOR_LOOP
    (I_LEFT | I_VALUE | I_RIGHT | I_STMTS),

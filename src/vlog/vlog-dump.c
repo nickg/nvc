@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2022-2024 Nick Gasson
+//  Copyright (C) 2022-2025 Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -525,11 +525,20 @@ static void vlog_dump_concat(vlog_node_t v, int indent)
 {
    print_syntax("{");
 
+   const bool multiple = vlog_has_value(v);
+   if (multiple) {
+      vlog_dump(vlog_value(v), 0);
+      print_syntax("{");
+   }
+
    const int nparams = vlog_params(v);
    for (int i = 0; i < nparams; i++) {
       if (i > 0) print_syntax(", ");
       vlog_dump(vlog_param(v, i), 0);
    }
+
+   if (multiple)
+      print_syntax("}");
 
    print_syntax("}");
 }
