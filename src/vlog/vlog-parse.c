@@ -3536,6 +3536,35 @@ static void p_udp_port_declaration(vlog_node_t udp, bool *has_reg)
    consume(tSEMI);
 }
 
+static void p_udp_declaration_port_list(vlog_node_t udp, bool *has_reg)
+{
+   // udp_output_declaration , udp_input_declaration { , udp_input_declaration }
+
+   BEGIN("UDP declaration port list");
+
+   p_udp_output_declaration(udp, has_reg);
+
+   consume(tCOMMA);
+
+   do {
+      p_udp_input_declaration(udp);
+   } while (optional(tCOMMA));
+
+   const int ndecls = vlog_decls(udp);
+   for (int i = 0; i < ndecls; i++) {
+      vlog_node_t p = vlog_decl(udp, i);
+      if (vlog_kind(p) != V_PORT_DECL)
+         continue;
+
+      vlog_node_t ref = vlog_new(V_REF);
+      vlog_set_loc(ref, vlog_loc(p));
+      vlog_set_ident(ref, vlog_ident(p));
+      vlog_set_ref(ref, p);
+
+      vlog_add_port(udp, ref);
+   }
+}
+
 static char p_output_symbol(void)
 {
    // 0 | 1 | x | X
@@ -3804,6 +3833,38 @@ static vlog_node_t p_udp_body(bool has_reg)
       return p_combinational_body();
 }
 
+static vlog_node_t p_udp_ansi_declaration(bool *has_reg)
+{
+   // { attribute_instance } primitive udp_identifier
+   //    ( udp_declaration_port_list ) ;
+
+   BEGIN("UDP ANSI declaration");
+
+   while (peek() == tATTRBEGIN)
+      p_attribute_instance();
+
+   vlog_node_t udp = vlog_new(V_PRIMITIVE);
+
+   consume(tPRIMITIVE);
+
+   ident_t id, ext;
+   p_external_identifier(&id, &ext);
+   vlog_set_ident2(udp, id);
+
+   ident_t qual = ident_prefix(lib_name(lib_work()), ext, '.');
+   vlog_set_ident(udp, qual);
+
+   consume(tLPAREN);
+
+   p_udp_declaration_port_list(udp, has_reg);
+
+   consume(tRPAREN);
+   consume(tSEMI);
+
+   vlog_set_loc(udp, CURRENT_LOC);
+   return udp;
+}
+
 static vlog_node_t p_udp_declaration(void)
 {
    // udp_nonansi_declaration udp_port_declaration { udp_port_declaration }
@@ -3826,7 +3887,7 @@ static vlog_node_t p_udp_declaration(void)
       } while (not_at_token(tTABLE, tINITIAL));
    }
    else
-      abort();  // TODO
+      udp = p_udp_ansi_declaration(&has_reg);
 
    vlog_add_stmt(udp, p_udp_body(has_reg));
 

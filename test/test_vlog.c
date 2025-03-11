@@ -517,7 +517,7 @@ START_TEST(test_udp1)
    };
    expect_errors(expect);
 
-   for (int i = 0; i < 5; i++) {
+   for (int i = 0; i < 6; i++) {
       vlog_node_t udp = vlog_parse();
       fail_if(udp == NULL);
       fail_unless(vlog_kind(udp) == V_PRIMITIVE);

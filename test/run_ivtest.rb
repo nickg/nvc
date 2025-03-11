@@ -74,7 +74,7 @@ passes = 0
         
     Dir.mktmpdir do |workdir|
       f = File.realpath "#{IvtestDir}/#{dir}/#{name}.v"
-      cmd = "#{Tool} --work=work:#{workdir}/work -a #{f}"
+      cmd = "#{Tool} --work=work:#{workdir}/work -a --no-save #{f}"
 
       result = run_cmd cmd, (type == "CE")
       

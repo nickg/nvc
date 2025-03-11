@@ -58,3 +58,9 @@ primitive test3 (x, y, z);
     r (01) : 1 : 0 ; // Error
   endtable
 endprimitive
+
+primitive id_0(output reg id_2, input id_1);
+  table
+    ? : 0 : 0;
+  endtable
+endprimitive
