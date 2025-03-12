@@ -1,0 +1,6 @@
+# -*- mode: fundamental -*-
+build/
+contrib/docker/
+.github/
+*~
+configure

@@ -88,7 +88,10 @@ with `winget install NickGasson.NVC`.  Users of systems without existing
 packages should build from source.
 
 For testing in GitHub Actions use
-[setup-nvc](https://github.com/marketplace/actions/setup-nvc).
+[setup-nvc](https://github.com/marketplace/actions/setup-nvc).  There is
+also a Docker image
+[ghcr.io/nickg/nvc](https://github.com/nickg/nvc/pkgs/container/nvc) for
+other CI environments.
 
 NVC has both a release branch and a development master branch. The
 master branch should be stable enough for day-to-day use and has

@@ -27,6 +27,7 @@
 - Improved the formatting of the `--help` output.
 - The GitHub Action has been renamed from `nickg/setup-nvc-ci` to
   `nickg/setup-nvc`, although the old name should redirect to the new.
+- A Docker image was added at `ghcr.io/nickg/nvc` (#1165).
 
 ## Version 1.15.2 - 2025-03-01
 - Fixed invalid LLVM IR generation which could cause a crash with LLVM

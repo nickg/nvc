@@ -4,4 +4,4 @@
 
 override_dh_auto_configure:
 	dh_auto_configure --builddirectory=build/x-debian -- \
-	  --enable-tcl
+	  --enable-tcl --enable-server

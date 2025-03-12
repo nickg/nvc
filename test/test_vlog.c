@@ -381,7 +381,7 @@ START_TEST(test_pp1)
       "\n"
       "pass\n"
       "\n"
-      "../test/vlog/pp1.v\n"
+      TESTDIR "/vlog/pp1.v\n"
       "16\n"
       "\n");
 }

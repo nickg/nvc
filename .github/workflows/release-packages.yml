@@ -28,7 +28,7 @@ jobs:
         run: |
           ln -s contrib/debian debian
           sed -i 's/nvc (.*)/nvc (${{ env.VERSION }}-1)/' debian/changelog
-          sudo apt-get build-dep .
+          sudo apt-get -y build-dep .
           dpkg-buildpackage -uc -us -b
           mv ../nvc_${{ env.VERSION }}-1_amd64.deb nvc_${{ env.VERSION }}-1_amd64_${{ matrix.os }}.deb
       - name: 'Upload artifact'
@@ -49,3 +49,27 @@ jobs:
           fetch-depth: 0
       - name: Build MSI installer
         uses: ./.github/actions/windows-installer
+
+  docker:
+    name: Docker image
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 1
+      - name: Build Docker image
+        run: ./contrib/docker/build.sh
+      - uses: actions/checkout@v4
+        with:
+          repository: nickg/vhdl-projects
+          path: vhdl-projects
+          fetch-depth: 1
+      - name: Test
+        run: |
+          docker run --rm -v $(pwd)/vhdl-projects:/data \
+            ghcr.io/nickg/nvc:latest /data/flopoco/test.sh
+      - name: Push to ghcr.io
+        run : |
+          echo "${{ secrets.GHCR_TOKEN }}" | \
+            docker login -u ${{ vars.GHCR_USER }} --password-stdin ghcr.io
+          docker push ghcr.io/nickg/nvc:latest

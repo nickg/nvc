@@ -4,9 +4,9 @@ Section: misc
 Priority: optional
 Standards-Version: 3.9.2
 Build-Depends: debhelper (>= 9), tcl-dev, llvm-dev, libreadline-dev,
-  check, libzstd-dev, libdw-dev
+  check, libzstd-dev, libdw-dev, libjansson-dev, flex, pkg-config, git
 
 Package: nvc
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}
+Depends: ${shlibs:Depends}, ${misc:Depends}, binutils
 Description: VHDL compiler and simulator
