@@ -12552,14 +12552,28 @@ static vcode_reg_t lower_constrain_port(lower_unit_t *lu, tree_t port, int pos,
          break;
       }
 
-      assert(map_regs[i] != VCODE_INVALID_REG);
+      vcode_reg_t bounds_reg;
+      if (map_regs[i] == VCODE_INVALID_REG) {
+         // Has conversion function
+         tree_t value = tree_value(map);
+         assert(tree_kind(value) == T_CONV_FUNC);
+
+         // TODO: lower_get_type_bounds does not support records
+         type_t type = tree_type(value);
+         if (type_is_record(type))
+            bounds_reg = lower_default_value(lu, type, VCODE_INVALID_REG);
+         else
+            bounds_reg = lower_get_type_bounds(lu, type);
+      }
+      else
+         bounds_reg = map_regs[i];
 
       if (name == NULL || tree_kind(name) == T_REF) {
          type_t value_type = tree_type(tree_value(map));
          if (type_is_array(port_type))
-            return lower_coerce_arrays(lu, value_type, port_type, map_regs[i]);
+            return lower_coerce_arrays(lu, value_type, port_type, bounds_reg);
          else
-            return map_regs[i];
+            return bounds_reg;
       }
 
       switch (tree_kind(name)) {
@@ -12598,9 +12612,9 @@ static vcode_reg_t lower_constrain_port(lower_unit_t *lu, tree_t port, int pos,
             vcode_reg_t value_reg;
             if (type_is_array(ftype))
                value_reg = lower_coerce_arrays(lu, value_type, ftype,
-                                               map_regs[i]);
+                                               bounds_reg);
             else
-               value_reg = map_regs[i];
+               value_reg = bounds_reg;
 
             vcode_reg_t field_reg = emit_record_ref(rptr_reg, tree_pos(f));
             emit_store_indirect(value_reg, field_reg);
