@@ -34,7 +34,7 @@
 #include <time.h>
 #include <unistd.h>
 
-#define VOIDP(x) ((void *)(uintptr_t)x)
+#define VOIDP(x) ((void *)(uintptr_t)(x))
 
 START_TEST(test_hash_basic)
 {
@@ -197,7 +197,7 @@ START_TEST(test_chash_rand)
 
    for (int i = 0; i < N; i++) {
       do {
-         keys[i] = VOIDP(((i << 16) | (rand() & 0xffff)));
+         keys[i] = VOIDP((i << 20) | (rand() & 0xffff0));
       } while (keys[i] == NULL);
       values[i] = VOIDP(rand());
    }
@@ -206,7 +206,7 @@ START_TEST(test_chash_rand)
       chash_put(h, keys[i], values[i]);
 
    for (int i = 0; i < N; i++)
-      fail_unless(chash_get(h, keys[i]) == values[i]);
+      ck_assert_ptr_eq(chash_get(h, keys[i]), values[i]);
 
    chash_free(h);
 }

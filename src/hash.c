@@ -490,6 +490,16 @@ bool hset_contains(hset_t *h, const void *key)
 
 typedef struct _chash_node chash_node_t;
 
+typedef struct {
+   void *tagged_key;
+   void *value;
+} chash_slot_t;
+
+typedef struct {
+   size_t       size;
+   chash_slot_t slots[0];
+} chash_tab_t;
+
 struct _chash_node {
    chash_node_t *chain;
    const void   *key;
@@ -497,80 +507,239 @@ struct _chash_node {
 };
 
 struct _chash {
-   unsigned      size;
-   unsigned      members;
-   chash_node_t *slots[0];
+   chash_tab_t *tab;
+   chash_tab_t *resizing;
+   size_t       members;
 };
+
+typedef enum {
+   FREE_MARKER,
+   BUSY_MARKER,
+   INUSE_MARKER,
+   MOVED_MARKER,
+} chash_marker_t;
 
 chash_t *chash_new(int size)
 {
    const int roundup = next_power_of_2(size);
 
-   chash_t *h = xcalloc_flex(sizeof(chash_t), roundup, sizeof(chash_node_t));
-   h->size    = roundup;
-   h->members = 0;
+   chash_tab_t *tab =
+      xcalloc_flex(sizeof(chash_tab_t), roundup, sizeof(chash_slot_t));
+   tab->size = roundup;
+
+   chash_t *h = xcalloc(sizeof(chash_t));
+   store_release(&h->resizing, tab);
+   store_release(&h->tab, tab);
 
    return h;
 }
 
-void chash_free(chash_t *h)
+static void chash_wait_for_resize(chash_t *h)
 {
-   if (h != NULL) {
-      for (int i = 0; i < h->size; i++) {
-         for (chash_node_t *it = h->slots[i], *tmp; it; it = tmp) {
-            tmp = it->chain;
-            free(it);
-         }
-      }
+   for (;;) {
+      chash_tab_t *from = atomic_load(&h->tab);
+      chash_tab_t *to = atomic_load(&h->resizing);
 
-      free(h);
+      if (from == to)
+         break;
+
+      thread_sleep(10);
    }
 }
 
-bool chash_put(chash_t *h, const void *key, void *value)
+void chash_free(chash_t *h)
 {
-   const int slot = hash_slot(h->size, key);
+   if (h == NULL)
+      return;
 
-   for (;;) {
-      chash_node_t **p = &(h->slots[slot]);
-      for (chash_node_t *it; (it = load_acquire(p)); p = &(it->chain)) {
-         if (it->key == key) {
-            store_release(&(it->value), value);
+   chash_wait_for_resize(h);
+
+   free(h->tab);
+   free(h);
+}
+
+static void chash_copy_table(chash_tab_t *from, chash_tab_t *to)
+{
+   for (int i = 0; i < from->size; i++) {
+      for (;;) {
+         void *const tagged_key = load_acquire(&from->slots[i].tagged_key);
+         const chash_marker_t marker = pointer_tag(tagged_key);
+         const void *key = untag_pointer(tagged_key, void);
+         switch (marker) {
+         case BUSY_MARKER:
+            spin_wait();
+            continue;
+         case INUSE_MARKER:
+            {
+               for (int j = hash_slot(to->size, key);;
+                    j = (j + 1) & (to->size - 1)) {
+                  void *exist = load_acquire(&(to->slots[j].tagged_key));
+                  if (exist == NULL) {
+                     to->slots[j].value = from->slots[i].value;
+                     store_release(&(to->slots[j].tagged_key), tagged_key);
+                     break;
+                  }
+                  else
+                     assert(exist != tagged_key);
+               }
+            }
+            break;
+         case FREE_MARKER:
+            break;
+         default:
+            should_not_reach_here();
+         }
+
+         void *moved = tag_pointer(key, MOVED_MARKER);
+         if (atomic_cas(&(from->slots[i].tagged_key), tagged_key, moved))
+            break;
+         else
+            assert(marker == FREE_MARKER);   // Raced to move free slot
+      }
+   }
+}
+
+static void chash_grow_table(chash_t *h, chash_tab_t *cur)
+{
+   chash_tab_t *newtab =
+      xcalloc_flex(sizeof(chash_tab_t), cur->size * 2, sizeof(chash_slot_t));
+   newtab->size = cur->size * 2;
+
+   if (atomic_cas(&h->resizing, cur, newtab)) {
+      chash_copy_table(cur, newtab);
+
+      assert(atomic_load(&h->resizing) == newtab);
+
+      if (!atomic_cas(&h->tab, cur, newtab))
+         should_not_reach_here();
+
+      async_free(cur);
+   }
+   else {
+      free(newtab);
+      chash_wait_for_resize(h);
+   }
+}
+
+static bool chash_try_put(chash_t *h, const void *key, void *value)
+{
+   chash_tab_t *tab = load_acquire(&h->tab);
+   assert(is_power_of_2(tab->size));
+
+   if (relaxed_load(&h->members) > tab->size / 2) {
+      chash_grow_table(h, tab);
+      return false;
+   }
+
+   for (int i = hash_slot(tab->size, key);; i = (i + 1) & (tab->size - 1)) {
+      void *const tagged_key = load_acquire(&tab->slots[i].tagged_key);
+      const chash_marker_t marker = pointer_tag(tagged_key);
+
+      switch (marker) {
+      case BUSY_MARKER:
+         spin_wait();
+         return false;
+      case FREE_MARKER:
+         {
+            void *busy = tag_pointer(NULL, BUSY_MARKER);
+            if (atomic_cas(&tab->slots[i].tagged_key, NULL, busy)) {
+               tab->slots[i].value = value;
+               void *inuse = tag_pointer(key, INUSE_MARKER);
+               store_release(&tab->slots[i].tagged_key, inuse);
+               relaxed_add(&h->members, 1);
+               return true;
+            }
+            else {
+               spin_wait();
+               return false;
+            }
+         }
+      case INUSE_MARKER:
+         if (untag_pointer(tagged_key, void) == key) {
+            // Must CAS to busy here to avoid lost update due to
+            // concurrent move
+            void *busy = tag_pointer(key, BUSY_MARKER);
+            if (atomic_cas(&tab->slots[i].tagged_key, tagged_key, busy)) {
+               tab->slots[i].value = value;
+               store_release(&tab->slots[i].tagged_key, tagged_key);
+               return true;
+            }
+            else {
+               spin_wait();
+               return false;
+            }
+         }
+         else
+            break;
+      case MOVED_MARKER:
+         chash_wait_for_resize(h);
+         return false;
+      }
+   }
+}
+
+void chash_put(chash_t *h, const void *key, void *value)
+{
+   while (!chash_try_put(h, key, value));
+}
+
+static bool chash_try_get(chash_t *h, const void *key, void **value)
+{
+   chash_tab_t *tab = load_acquire(&h->tab);
+   assert(is_power_of_2(tab->size));
+
+   for (int i = hash_slot(tab->size, key);; i = (i + 1) & (tab->size - 1)) {
+      void *const tagged_key = load_acquire(&tab->slots[i].tagged_key);
+      const chash_marker_t marker = pointer_tag(tagged_key);
+
+      switch (marker) {
+      case BUSY_MARKER:
+         spin_wait();
+         return false;
+      case FREE_MARKER:
+         *value = NULL;
+         return true;
+      case INUSE_MARKER:
+         if (untag_pointer(tagged_key, void) == key) {
+            *value = tab->slots[i].value;
             return true;
          }
-      }
-
-      chash_node_t *new = xmalloc(sizeof(chash_node_t));
-      new->chain = NULL;
-      new->key   = key;
-      new->value = value;
-
-      if (atomic_cas(p, NULL, new))
+         else
+            break;
+      case MOVED_MARKER:
+         chash_wait_for_resize(h);
          return false;
-
-      free(new);
+      }
    }
 }
 
 void *chash_get(chash_t *h, const void *key)
 {
-   const int slot = hash_slot(h->size, key);
-
-   for (chash_node_t *it = load_acquire(&(h->slots[slot]));
-        it != NULL; it = load_acquire(&(it->chain))) {
-      if (it->key == key)
-         return load_acquire(&(it->value));
-   }
-
-   return NULL;
+   void *value;
+   while (!chash_try_get(h, key, &value));
+   return value;
 }
 
 void chash_iter(chash_t *h, hash_iter_fn_t fn)
 {
-   for (int i = 0; i < h->size; i++) {
-      for (chash_node_t *it = load_acquire(&(h->slots[i]));
-           it != NULL; it = load_acquire(&(it->chain)))
-         (*fn)(it->key, it->value);
+   chash_tab_t *tab = load_acquire(&h->tab);
+   for (int pos = 0; pos < tab->size;) {
+      void *const tagged_key = load_acquire(&tab->slots[pos].tagged_key);
+      const chash_marker_t marker = pointer_tag(tagged_key);
+
+      switch (marker) {
+      case BUSY_MARKER:
+         spin_wait();
+         continue;
+      case FREE_MARKER:
+         break;
+      case MOVED_MARKER:
+      case INUSE_MARKER:
+         (*fn)(untag_pointer(tagged_key, void), tab->slots[pos].value);
+         break;
+      }
+
+      pos++;
    }
 }
 

@@ -66,7 +66,7 @@ typedef void (*hash_iter_fn_t)(const void *, void *);
 
 chash_t *chash_new(int size);
 void chash_free(chash_t *h);
-bool chash_put(chash_t *h, const void *key, void *value);
+void chash_put(chash_t *h, const void *key, void *value);
 void *chash_get(chash_t *h, const void *key);
 void chash_iter(chash_t *h, hash_iter_fn_t fn);
 

@@ -121,8 +121,8 @@ static void copy_table(ident_tab_t *from, ident_tab_t *to)
          assert(pointer_tag(id) != MOVED_TAG);
 
          if (id != NULL) {
-            for (int slot = id->hash[0] & (to->size - 1), i = 1;;
-                 slot = (slot + i) & (to->size - 1), i++) {
+            for (int slot = id->hash[0] & (to->size - 1), j = 1;;
+                 slot = (slot + j) & (to->size - 1), j++) {
                ident_t exist = load_acquire(&(to->slots[slot]));
                if (exist == NULL) {
                   store_release(&(to->slots[slot]), id);
