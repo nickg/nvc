@@ -78,12 +78,13 @@ static ident_t idents[NWORDS];
 static void *test_ident_thread(void *arg)
 {
    const int nproc = nvc_nprocs();
+   uint32_t rng = rand();
 
    while (load_acquire(&start) == 0)
       spin_wait();
 
    for (int i = 0; i < NWORDS / 2 / nproc; i++) {
-      const int pos = rand() % NWORDS;
+      const int pos = fast_rand(&rng) % NWORDS;
       ident_t id = ident_new(words[pos]), exist;
 
    again:
@@ -133,7 +134,7 @@ END_TEST
 // Concurrent hash table updates
 
 #define CHASH_NVALUES 1024
-#define CHASH_ITERS   10000
+#define CHASH_ITERS   1000000
 
 static void *chash_keys[CHASH_NVALUES];
 static void *chash_values[CHASH_NVALUES];
@@ -143,19 +144,21 @@ static void *chash_values[CHASH_NVALUES];
 static void *test_chash_thread(void *arg)
 {
    chash_t *h = arg;
+   uint32_t rng = rand();
 
    while (load_acquire(&start) == 0)
       spin_wait();
 
    for (int i = 0; i < CHASH_ITERS; i++) {
-      int nth = rand() % CHASH_NVALUES;
+      uint32_t randval = fast_rand(&rng);
+      int nth = randval % CHASH_NVALUES;
 
-      if (rand() % 3 == 0)
+      if ((randval >> 16) % 3 == 0)
          chash_put(h, chash_keys[nth], chash_values[nth]);
       else {
          void *value = chash_get(h, chash_keys[nth]);
          if (value != NULL)
-            ck_assert_ptr_eq(value, chash_values[nth]);
+            CHECK(value == chash_values[nth]);
       }
    }
 
@@ -166,12 +169,12 @@ START_TEST(test_chash_rand)
 {
    for (int i = 0; i < CHASH_NVALUES; i++) {
       do {
-         chash_keys[i] = VOIDP(((i << 16) | (rand() & 0xffff)));
+         chash_keys[i] = VOIDP(((i << 20) | (rand() & 0xffff0)));
       } while (chash_keys[i] == NULL);
       chash_values[i] = VOIDP(rand());
    }
 
-   chash_t *h = chash_new(CHASH_NVALUES / 4);
+   chash_t *h = chash_new(4);
 
    run_test(test_chash_thread, h);
 
@@ -213,12 +216,13 @@ static void gc_alloc_loop(mspace_t *m)
 {
    int32_t *saved[5];
    int nsaved = 0;
+   uint32_t rng = rand();
 
    for (int i = 0; i < 100000; i++) {
-      int32_t *mem = mspace_alloc(m, 4 + (rand() % 1000));
+      int32_t *mem = mspace_alloc(m, 4 + (fast_rand(&rng) % 1000));
       CHECK(mem != NULL);
 
-      if (nsaved < ARRAY_LEN(saved) && (rand() % 2 == 0)) {
+      if (nsaved < ARRAY_LEN(saved) && (fast_rand(&rng) % 2 == 0)) {
          saved[nsaved++] = mem;
          *mem = nsaved | (thread_id() << 16);
       }
