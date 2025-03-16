@@ -694,7 +694,8 @@ static bool jit_try_vcall(jit_t *j, jit_func_t *f, jit_scalar_t *args,
       thread->jmp_buf_valid = 1;
       jit_transition(j, oldstate, JIT_RUNNING);
 
-      (*f->entry)(f, NULL, args, tlab);
+      jit_entry_fn_t entry = load_acquire(&f->entry);
+      (*entry)(f, NULL, args, tlab);
 
       jit_transition(j, JIT_RUNNING, oldstate);
       thread->jmp_buf_valid = 0;
