@@ -70,5 +70,6 @@ bool mir_stamp_const(mir_unit_t *mu, mir_stamp_t stamp, int64_t *cval);
 bool mir_is_terminator(mir_op_t op);
 
 void mir_free_types(type_tab_t *tab);
+void *mir_malloc(mir_context_t *mc, size_t fixed, size_t nelems, size_t size);
 
 #endif  // _MIR_PRIV_H

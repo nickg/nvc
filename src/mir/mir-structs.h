@@ -22,6 +22,7 @@
 #include "diag.h"
 #include "mir/mir-unit.h"
 #include "mir/mir-node.h"
+#include "thread.h"
 
 #define MIR_INLINE_ARGS 4
 
@@ -253,6 +254,7 @@ typedef struct _mir_context {
    type_tab_t *resizing;
    chash_t    *map;
    mem_pool_t *pool;
+   nvc_lock_t  pool_mtx;
 } mir_context_t;
 
 typedef struct {

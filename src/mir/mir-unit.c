@@ -83,10 +83,16 @@ object_t *mir_get_object(mir_unit_t *mu)
    return mu->object;
 }
 
+void *mir_malloc(mir_context_t *mc, size_t fixed, size_t nelems, size_t size)
+{
+   SCOPED_LOCK(mc->pool_mtx);
+   return pool_malloc_flex(mc->pool, fixed, nelems, size);
+}
+
 static mir_shape_t *mir_build_shape(mir_unit_t *mu)
 {
-   mir_shape_t *sh = pool_malloc_flex(mu->context->pool, sizeof(mir_shape_t),
-                                      mu->vars.count, sizeof(shape_slot_t));
+   mir_shape_t *sh = mir_malloc(mu->context, sizeof(mir_shape_t),
+                                mu->vars.count, sizeof(shape_slot_t));
    sh->name      = mu->name;
    sh->kind      = mu->kind;
    sh->type      = mir_self_type(mu);
@@ -224,7 +230,7 @@ void mir_defer(mir_context_t *mc, ident_t name, mir_shape_t *parent,
       fatal_trace("%s already registered", istr(name));
 #endif
 
-   deferred_unit_t *du = pool_malloc(mc->pool, sizeof(deferred_unit_t));
+   deferred_unit_t *du = mir_malloc(mc, sizeof(deferred_unit_t), 0, 0);
    du->fn     = fn;
    du->parent = parent;
    du->kind   = kind;

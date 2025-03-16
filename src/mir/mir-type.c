@@ -252,8 +252,8 @@ static void mir_install_type(mir_unit_t *mu, type_data_t *dst,
 
          dst_r->name   = src_r->name;
          dst_r->count  = src_r->count;
-         dst_r->fields = pool_malloc_array(mu->context->pool, src_r->count * 2,
-                                           sizeof(mir_type_t));
+         dst_r->fields = mir_malloc(mu->context, 0, src_r->count * 2,
+                                    sizeof(mir_type_t));
 
          for (int i = 0; i < src_r->count; i++) {
             mir_type_t pointer = mir_get_var_pointer(mu, src_r->fields[i]);
