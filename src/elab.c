@@ -1450,7 +1450,8 @@ static void elab_architecture(tree_t bind, tree_t arch, tree_t config,
    elab_context(arch_copy);
    elab_generics(entity, bind, &new_ctx);
    elab_instance_fixup(arch_copy, &new_ctx);
-   simplify_global(arch_copy, new_ctx.generics, ctx->jit, ctx->registry);
+   simplify_global(arch_copy, new_ctx.generics, ctx->jit, ctx->registry,
+                   ctx->mir);
    elab_ports(entity, bind, &new_ctx);
    elab_decls(entity, &new_ctx);
 
@@ -1835,7 +1836,8 @@ static void elab_for_generate(tree_t t, const elab_ctx_t *ctx)
       elab_push_scope(t, &new_ctx);
       hash_put(new_ctx.generics, g, tree_value(map));
 
-      simplify_global(copy, new_ctx.generics, new_ctx.jit, new_ctx.registry);
+      simplify_global(copy, new_ctx.generics, new_ctx.jit, new_ctx.registry,
+                      new_ctx.mir);
 
       new_ctx.drivers = find_drivers(copy);
 

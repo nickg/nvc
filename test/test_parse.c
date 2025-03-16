@@ -5726,7 +5726,7 @@ START_TEST(test_visibility9)
    tree_t p = parse();
    fail_if(p == NULL);
    fail_unless(tree_kind(p) == T_PACKAGE);
-   simplify_local(p, NULL, NULL);   // XXX: remove me
+   simplify_local(p, NULL, NULL, NULL);   // XXX: remove me
    lib_put(lib_work(), p);
 
    tree_t e = parse();

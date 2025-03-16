@@ -19,6 +19,7 @@
 #define _LOWER_H
 
 #include "prim.h"
+#include "mir/mir-unit.h"
 
 typedef int32_t vcode_reg_t;
 typedef int32_t vcode_type_t;
@@ -26,7 +27,7 @@ typedef int32_t vcode_type_t;
 typedef void (*lower_fn_t)(lower_unit_t *, object_t *);
 typedef vcode_unit_t (*emit_fn_t)(ident_t, object_t *, vcode_unit_t);
 
-unit_registry_t *unit_registry_new(void);
+unit_registry_t *unit_registry_new(mir_context_t *mc);
 void unit_registry_free(unit_registry_t *ur);
 vcode_unit_t unit_registry_get(unit_registry_t *ur, ident_t ident);
 void unit_registry_put(unit_registry_t *ur, lower_unit_t *lu);
@@ -34,6 +35,9 @@ void unit_registry_defer(unit_registry_t *ur, ident_t ident,
                          lower_unit_t *parent, emit_fn_t emit_fn,
                          lower_fn_t fn, cover_data_t *cover,
                          object_t *object);
+void unit_registry_defer2(unit_registry_t *ur, ident_t name,
+                          lower_unit_t *parent, mir_unit_kind_t kind,
+                          mir_lower_fn_t fn, object_t *object);
 void unit_registry_purge(unit_registry_t *ur, ident_t prefix);
 bool unit_registry_query(unit_registry_t *ur, ident_t ident);
 void unit_registry_finalise(unit_registry_t *ur, lower_unit_t *lu);

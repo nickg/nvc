@@ -1428,7 +1428,7 @@ END_TEST
 
 START_TEST(test_mixed1)
 {
-   analyse_file(TESTDIR "/elab/mixed1.v", NULL, NULL);
+   analyse_file(TESTDIR "/elab/mixed1.v", NULL, NULL, NULL);
 
    input_from_file(TESTDIR "/elab/mixed1.vhd");
 
@@ -1743,7 +1743,7 @@ START_TEST(test_vlog1)
    };
    expect_errors(expect);
 
-   analyse_file(TESTDIR "/elab/vlog1.v", NULL, NULL);
+   analyse_file(TESTDIR "/elab/vlog1.v", NULL, NULL, NULL);
 
    object_t *obj = lib_get_generic(lib_work(), ident_new("WORK.VLOG1"), NULL);
    ck_assert_ptr_nonnull(obj);

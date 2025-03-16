@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2021-2023  Nick Gasson
+//  Copyright (C) 2025  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -15,18 +15,17 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-#ifndef _EVAL_H
-#define _EVAL_H
+#ifndef _VHDL_PRIV_H
+#define _VHDL_PRIV_H
 
 #include "prim.h"
-#include "phase.h"
+#include "mir/mir-node.h"
 
-tree_t eval_try_fold(jit_t *jit, tree_t expr, unit_registry_t *registry,
-                     lower_unit_t *parent, void *context);
-tree_t eval_must_fold(jit_t *jit, tree_t expr, unit_registry_t *registry,
-                      lower_unit_t *parent, void *context);
-bool eval_possible(tree_t t, unit_registry_t *ur, mir_context_t *mc);
-tree_t eval_case(jit_t *jit, tree_t stmt, lower_unit_t *parent, void *context);
-void *eval_instance(jit_t *jit, ident_t name, void *context);
+typedef struct {
+   mir_type_t  type;
+   mir_stamp_t stamp;
+} type_info_t;
 
-#endif  // _EVAL_H
+const type_info_t *type_info(mir_unit_t *mu, type_t type);
+
+#endif  // _VHDL_PRIV_H

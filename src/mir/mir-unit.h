@@ -69,6 +69,9 @@ ident_t mir_get_parent(mir_unit_t *mu);
 mir_value_t mir_search_object(mir_unit_t *mu, const void *obj, int *hops);
 void mir_put_object(mir_unit_t *mu, const void *obj, mir_value_t value);
 
+void *mir_get_priv(mir_unit_t *mu, const void *obj);
+void mir_put_priv(mir_unit_t *mu, const void *obj, void *value);
+
 void *mir_malloc(mir_unit_t *mu, size_t size);
 
 typedef enum {

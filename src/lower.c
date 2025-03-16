@@ -24,6 +24,7 @@
 #include "hash.h"
 #include "lib.h"
 #include "lower.h"
+#include "mir/mir-unit.h"
 #include "object.h"
 #include "option.h"
 #include "phase.h"
@@ -32,6 +33,7 @@
 #include "rt/rt.h"
 #include "type.h"
 #include "vcode.h"
+#include "vhdl/vhdl-lower.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -9974,7 +9976,7 @@ void lower_finished(lower_unit_t *lu, vcode_unit_t shape)
    vcode_select_unit(lu->vunit);
    vcode_opt();
 
-   if (opt_get_verbose(OPT_DUMP_VCODE, istr(lu->name)))
+   if (opt_get_verbose(OPT_LOWER_VERBOSE, istr(lu->name)))
       vcode_dump();
 
    if (shape != NULL)
@@ -10080,9 +10082,22 @@ static void lower_decls(lower_unit_t *lu, tree_t scope)
            if (kind == S_USER || is_open_coded_builtin(kind))
               continue;
 
-           unit_registry_defer(lu->registry, tree_ident2(d),
-                               lu, emit_function, lower_predef,
-                               lu->cover, tree_to_object(d));
+           switch (kind) {
+           case S_SLL:
+           case S_SRL:
+           case S_SLA:
+           case S_SRA:
+           case S_ROL:
+           case S_ROR:
+              unit_registry_defer2(lu->registry, tree_ident2(d),
+                                   NULL, MIR_UNIT_FUNCTION, vhdl_lower_predef,
+                                   tree_to_object(d));
+              break;
+           default:
+              unit_registry_defer(lu->registry, tree_ident2(d),
+                                  lu, emit_function, lower_predef,
+                                  lu->cover, tree_to_object(d));
+           }
         }
         break;
       default:
@@ -10420,151 +10435,6 @@ static void lower_predef_to_string(lower_unit_t *lu, tree_t decl)
    }
 
    emit_return(str_reg);
-}
-
-static void lower_predef_bit_shift(lower_unit_t *lu, tree_t decl,
-                                   subprogram_kind_t kind)
-{
-   type_t type = tree_type(tree_port(decl, 0));
-   type_t elem = type_elem(type);
-
-   vcode_type_t vtype = lower_type(elem);
-   vcode_type_t vbounds = lower_bounds(elem);
-   vcode_type_t voffset = vtype_offset();
-
-   vcode_reg_t r0 = 1, r1 = 2;
-
-   vcode_reg_t data_reg = lower_array_data(r0);
-   vcode_reg_t len_reg  = lower_array_len(lu, type, 0, r0);
-
-   vcode_block_t null_bb = emit_block();
-   vcode_block_t non_null_bb = emit_block();
-
-   vcode_reg_t is_null_reg =
-      emit_cmp(VCODE_CMP_EQ, len_reg, emit_const(voffset, 0));
-   emit_cond(is_null_reg, null_bb, non_null_bb);
-
-   vcode_select_block(null_bb);
-   emit_return(r0);
-
-   vcode_select_block(non_null_bb);
-
-   vcode_reg_t shift_reg = emit_cast(voffset, voffset, r1);
-   vcode_reg_t mem_reg = emit_alloc(vtype, vbounds, len_reg);
-
-   vcode_var_t i_var = lower_temp_var(lu, "i", voffset, voffset);
-   emit_store(emit_const(voffset, 0), i_var);
-
-   vcode_block_t cmp_bb  = emit_block();
-   vcode_block_t body_bb = emit_block();
-   vcode_block_t exit_bb = emit_block();
-
-   vcode_reg_t def_reg = VCODE_INVALID_REG;
-   switch (kind) {
-   case S_SLL: case S_SRL: case S_ROL: case S_ROR:
-      def_reg = emit_const(vtype, 0);
-      break;
-   case S_SRA:
-      {
-         vcode_reg_t len_minus_1 = emit_sub(len_reg, emit_const(voffset, 1));
-         vcode_reg_t last_ptr = emit_array_ref(data_reg, len_minus_1);
-         def_reg = emit_load_indirect(last_ptr);
-      }
-      break;
-   case S_SLA:
-      def_reg = emit_load_indirect(data_reg);
-      break;
-   default:
-      break;
-   }
-
-   vcode_reg_t shift_is_neg =
-      emit_cmp(VCODE_CMP_LT, shift_reg, emit_const(voffset, 0));
-
-   emit_jump(cmp_bb);
-
-   vcode_select_block(cmp_bb);
-
-   vcode_reg_t i_reg  = emit_load(i_var);
-   vcode_reg_t eq_reg = emit_cmp(VCODE_CMP_EQ, i_reg, len_reg);
-   emit_cond(eq_reg, exit_bb, body_bb);
-
-   vcode_select_block(body_bb);
-
-   vcode_reg_t cmp_reg = VCODE_INVALID_REG;
-   switch (kind) {
-   case S_SRL: case S_SRA:
-      {
-         vcode_reg_t neg_reg =
-            emit_cmp(VCODE_CMP_LT, i_reg, emit_add(len_reg, shift_reg));
-         vcode_reg_t pos_reg =
-            emit_cmp(VCODE_CMP_GEQ, i_reg, shift_reg);
-         cmp_reg = emit_select(shift_is_neg, neg_reg, pos_reg);
-      }
-      break;
-   case S_SLL: case S_SLA:
-      {
-         vcode_reg_t neg_reg =
-            emit_cmp(VCODE_CMP_GEQ, i_reg, emit_neg(shift_reg));
-         vcode_reg_t pos_reg =
-            emit_cmp(VCODE_CMP_LT, i_reg, emit_sub(len_reg, shift_reg));
-         cmp_reg = emit_select(shift_is_neg, neg_reg, pos_reg);
-      }
-      break;
-   case S_ROL: case S_ROR:
-      cmp_reg = emit_const(vtype_bool(), 1);
-   default:
-      break;
-   }
-
-   vcode_reg_t dst_ptr = emit_array_ref(mem_reg, i_reg);
-
-   vcode_reg_t next_reg = emit_add(i_reg, emit_const(vtype_offset(), 1));
-   emit_store(next_reg, i_var);
-
-   vcode_block_t true_bb = emit_block();
-   vcode_block_t false_bb = emit_block();
-
-   emit_cond(cmp_reg, true_bb, false_bb);
-
-   vcode_select_block(true_bb);
-
-   vcode_reg_t src_reg = VCODE_INVALID_REG;
-   switch (kind) {
-   case S_SLL: case S_SLA:
-      src_reg = emit_add(i_reg, shift_reg);
-      break;
-   case S_SRL: case S_SRA:
-      src_reg = emit_sub(i_reg, shift_reg);
-      break;
-   case S_ROL:
-      src_reg = emit_mod(emit_add(i_reg, emit_add(len_reg, shift_reg)),
-                         len_reg);
-      break;
-   case S_ROR:
-      src_reg = emit_mod(emit_add(i_reg, emit_sub(len_reg, shift_reg)),
-                         len_reg);
-      break;
-   default:
-      break;
-   }
-
-   vcode_reg_t load_reg = emit_load_indirect(emit_array_ref(data_reg, src_reg));
-   emit_store_indirect(load_reg, dst_ptr);
-   emit_jump(cmp_bb);
-
-   vcode_select_block(false_bb);
-   emit_store_indirect(def_reg, dst_ptr);
-   emit_jump(cmp_bb);
-
-   vcode_select_block(exit_bb);
-
-   vcode_reg_t left_reg  = emit_uarray_left(r0, 0);
-   vcode_reg_t right_reg = emit_uarray_right(r0, 0);
-   vcode_reg_t dir_reg   = emit_uarray_dir(r0, 0);
-
-   vcode_dim_t dims[] = { { left_reg, right_reg, dir_reg } };
-   emit_return(emit_wrap(mem_reg, dims, 1));
 }
 
 static void lower_predef_bit_vec_op(lower_unit_t *lu, tree_t decl,
@@ -11173,14 +11043,6 @@ static void lower_predef(lower_unit_t *lu, object_t *obj)
       break;
    case S_TO_OSTRING_BITVEC:
       lower_foreign_predef(lu, decl, "_std_to_ostring_bit_vec");
-      break;
-   case S_SLL:
-   case S_SRL:
-   case S_SLA:
-   case S_SRA:
-   case S_ROL:
-   case S_ROR:
-      lower_predef_bit_shift(lu, decl, kind);
       break;
    case S_ARRAY_NOT:
    case S_ARRAY_AND:
@@ -13362,8 +13224,9 @@ typedef void (*dep_visit_fn_t)(vcode_unit_t, void *);
 typedef bool (*dep_filter_fn_t)(ident_t, void *);
 
 typedef struct _unit_registry {
-   hash_t *map;
-   hset_t *visited;
+   hash_t        *map;
+   hset_t        *visited;
+   mir_context_t *mir;
 } unit_registry_t;
 
 typedef struct {
@@ -13374,10 +13237,11 @@ typedef struct {
    cover_data_t *cover;
 } deferred_unit_t;
 
-unit_registry_t *unit_registry_new(void)
+unit_registry_t *unit_registry_new(mir_context_t *mc)
 {
    unit_registry_t *ur = xcalloc(sizeof(unit_registry_t));
    ur->map = hash_new(128);
+   ur->mir = mc;
 
    return ur;
 }
@@ -13679,4 +13543,11 @@ void unit_registry_defer(unit_registry_t *ur, ident_t ident,
       assert(du->object == object);
    }
 #endif
+}
+
+void unit_registry_defer2(unit_registry_t *ur, ident_t name,
+                          lower_unit_t *parent, mir_unit_kind_t kind,
+                          mir_lower_fn_t fn, object_t *object)
+{
+   mir_defer(ur->mir, name, parent ? parent->name : NULL, kind, fn, object);
 }

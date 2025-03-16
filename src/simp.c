@@ -36,6 +36,7 @@ typedef struct {
    tree_t           top;
    jit_t           *jit;
    unit_registry_t *registry;
+   mir_context_t   *mir;
    tree_flags_t     eval_mask;
    hash_t          *generics;
 } simp_ctx_t;
@@ -395,7 +396,7 @@ static tree_t simp_fcall(tree_t t, simp_ctx_t *ctx)
       // Only evaluate non-scalar expressions if they are locally-static
       if (!(flags & TREE_F_LOCALLY_STATIC) && !type_is_scalar(tree_type(t)))
          return t;
-      else if (!eval_possible(t, ctx->registry))
+      else if (!eval_possible(t, ctx->registry, ctx->mir))
          return t;
 
       return eval_try_fold(ctx->jit, t, ctx->registry, NULL, NULL);
@@ -413,7 +414,7 @@ static tree_t simp_type_conv(tree_t t, simp_ctx_t *ctx)
          return t;   // Not supported currently
    }
 
-   if (eval_possible(t, ctx->registry))
+   if (eval_possible(t, ctx->registry, ctx->mir))
       return eval_try_fold(ctx->jit, t, ctx->registry, NULL, NULL);
 
    return t;
@@ -1804,12 +1805,14 @@ static tree_t simp_tree(tree_t t, void *_ctx)
    }
 }
 
-void simplify_local(tree_t top, jit_t *jit, unit_registry_t *ur)
+void simplify_local(tree_t top, jit_t *jit, unit_registry_t *ur,
+                    mir_context_t *mc)
 {
    simp_ctx_t ctx = {
       .top       = top,
       .jit       = jit,
       .registry  = ur,
+      .mir       = mc,
       .eval_mask = TREE_F_LOCALLY_STATIC,
    };
 
@@ -1817,12 +1820,13 @@ void simplify_local(tree_t top, jit_t *jit, unit_registry_t *ur)
 }
 
 void simplify_global(tree_t top, hash_t *generics, jit_t *jit,
-                     unit_registry_t *ur)
+                     unit_registry_t *ur, mir_context_t *mc)
 {
    simp_ctx_t ctx = {
       .top       = top,
       .jit       = jit,
       .registry  = ur,
+      .mir       = mc,
       .eval_mask = TREE_F_LOCALLY_STATIC | TREE_F_GLOBALLY_STATIC,
       .generics  = generics,
    };

@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2021-2023  Nick Gasson
+//  Copyright (C) 2025  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -15,18 +15,11 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-#ifndef _EVAL_H
-#define _EVAL_H
+#ifndef _VHDL_LOWER_H
+#define _VHDL_LOWER_H
 
 #include "prim.h"
-#include "phase.h"
 
-tree_t eval_try_fold(jit_t *jit, tree_t expr, unit_registry_t *registry,
-                     lower_unit_t *parent, void *context);
-tree_t eval_must_fold(jit_t *jit, tree_t expr, unit_registry_t *registry,
-                      lower_unit_t *parent, void *context);
-bool eval_possible(tree_t t, unit_registry_t *ur, mir_context_t *mc);
-tree_t eval_case(jit_t *jit, tree_t stmt, lower_unit_t *parent, void *context);
-void *eval_instance(jit_t *jit, ident_t name, void *context);
+void vhdl_lower_predef(mir_unit_t *mu, object_t *obj);
 
-#endif  // _EVAL_H
+#endif  // _VHDL_LOWER_H

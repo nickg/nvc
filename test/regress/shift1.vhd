@@ -2,12 +2,13 @@ entity shift1 is
 end entity;
 
 architecture test of shift1 is
+    type my_bit_vector is array (integer range <>) of bit;
 begin
 
     process is
-        variable b : bit_vector(3 downto 0);
-        variable c : bit_vector(0 to 3);
-        variable d : bit_vector(0 to -1);
+        variable b : my_bit_vector(3 downto 0);
+        variable c : my_bit_vector(0 to 3);
+        variable d : my_bit_vector(0 to -1);
     begin
         b := "1011";
         c := "1011";

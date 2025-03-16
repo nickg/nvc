@@ -208,6 +208,7 @@ typedef struct _mir_unit {
    mir_shape_t     *shape;
    mem_pool_t      *pool;
    hash_t          *objmap;
+   hash_t          *privmap;
    mir_type_t       result;
    known_types_t    types;
    mir_cursor_t     cursor;

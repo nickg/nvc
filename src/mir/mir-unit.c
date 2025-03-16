@@ -69,6 +69,7 @@ static void mir_unit_free_memory(mir_unit_t *mu)
    pool_free(mu->pool);
 
    hash_free(mu->objmap);
+   hash_free(mu->privmap);
    free(mu->nodes);
    free(mu->argspill);
    free(mu);
@@ -168,6 +169,22 @@ void mir_put_object(mir_unit_t *mu, const void *obj, mir_value_t value)
    hash_put(mu->objmap, obj, (void *)(uintptr_t)value.bits);
 }
 
+void *mir_get_priv(mir_unit_t *mu, const void *obj)
+{
+   if (mu->privmap == NULL)
+      return NULL;
+   else
+      return hash_get(mu->privmap, obj);
+}
+
+void mir_put_priv(mir_unit_t *mu, const void *obj, void *value)
+{
+   if (mu->privmap == NULL)
+      mu->privmap = hash_new(16);
+
+   hash_put(mu->privmap, obj, value);
+}
+
 void *mir_malloc(mir_unit_t *mu, size_t size)
 {
    if (mu->pool == NULL)
@@ -238,6 +255,9 @@ void mir_put_unit(mir_context_t *mc, mir_unit_t *mu)
       fatal_trace("%s already registered", istr(mu->name));
 #endif
 
+   if (opt_get_verbose(OPT_LOWER_VERBOSE, istr(mu->name)))
+      mir_dump(mu);
+
    chash_put(mc->map, mu->name, tag_pointer(mu, UNIT_GENERATED));
 }
 
@@ -251,7 +271,7 @@ static mir_unit_t *mir_lazy_build(mir_context_t *mc, deferred_unit_t *du)
    mir_unit_t *mu = mir_unit_new(mc, du->name, du->object, du->kind, parent);
    (*du->fn)(mu, du->object);
 
-   if (opt_get_verbose(OPT_DUMP_VCODE, istr(du->name)))
+   if (opt_get_verbose(OPT_LOWER_VERBOSE, istr(du->name)))
       mir_dump(mu);
 
    chash_put(mc->map, du->name, tag_pointer(mu, UNIT_GENERATED));

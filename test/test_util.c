@@ -146,7 +146,7 @@ TCase *nvc_unit_test(void)
 unit_registry_t *get_registry(void)
 {
    if (registry == NULL)
-      registry = unit_registry_new();
+      registry = unit_registry_new(get_mir());
 
    return registry;
 }
@@ -178,7 +178,7 @@ tree_t run_elab(void)
       fail_if(error_count() > 0);
 
       lib_put(lib_work(), t);
-      simplify_local(t, j, ur);
+      simplify_local(t, j, ur, mc);
       bounds_check(t);
       fail_if(error_count() > 0);
 
@@ -225,7 +225,7 @@ tree_t _parse_and_check(const tree_kind_t *array, int num, bool simp)
          else
             unit_registry_purge(ur, tree_ident(last));
 
-         simplify_local(last, jit, ur);
+         simplify_local(last, jit, ur, mc);
          bounds_check(last);
       }
    }

@@ -2486,7 +2486,8 @@ void capture_syntax(text_buf_t *tb)
    syntax_buf = tb;
 }
 
-void analyse_file(const char *file, jit_t *jit, unit_registry_t *ur)
+void analyse_file(const char *file, jit_t *jit, unit_registry_t *ur,
+                  mir_context_t *mc)
 {
    input_from_file(file);
 
@@ -2501,7 +2502,7 @@ void analyse_file(const char *file, jit_t *jit, unit_registry_t *ur)
                lib_put(work, unit);
                unit_registry_purge(ur, tree_ident(unit));
 
-               simplify_local(unit, jit, ur);
+               simplify_local(unit, jit, ur, mc);
                bounds_check(unit);
             }
             else

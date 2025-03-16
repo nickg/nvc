@@ -28,11 +28,12 @@
 bool sem_check(tree_t t, nametab_t *tab);
 
 // Rewrite to simpler forms folding locally static expressions
-void simplify_local(tree_t top, jit_t *jit, unit_registry_t *ur);
+void simplify_local(tree_t top, jit_t *jit, unit_registry_t *ur,
+                    mir_context_t *mc);
 
 // Rewrite to simpler forms folding globally static expressions
 void simplify_global(tree_t top, hash_t *generics, jit_t *jit,
-                     unit_registry_t *ur);
+                     unit_registry_t *ur, mir_context_t *mc);
 
 // Perform static bounds checking
 void bounds_check(tree_t top);

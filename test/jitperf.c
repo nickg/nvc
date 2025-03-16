@@ -248,7 +248,7 @@ int main(int argc, char **argv)
    lib_set_work(work);
 
    mir_context_t *mc = mir_context_new();
-   unit_registry_t *ur = unit_registry_new();
+   unit_registry_t *ur = unit_registry_new(mc);
    jit_t *jit = jit_new(ur, mc);
 
    for (int i = optind; i < argc; i++) {
@@ -263,7 +263,7 @@ int main(int argc, char **argv)
 
          lib_put(work, unit);
 
-         simplify_local(unit, jit, ur);
+         simplify_local(unit, jit, ur, mc);
          bounds_check(unit);
 
          if (error_count() > 0)

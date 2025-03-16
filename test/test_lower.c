@@ -5018,8 +5018,8 @@ START_TEST(test_issue582)
 
    tree_t a = parse_check_and_simplify(T_ENTITY, T_ARCH);
 
-   unit_registry_t *ur = unit_registry_new();
    mir_context_t *mc = get_mir();
+   unit_registry_t *ur = unit_registry_new(mc);
    jit_t *jit = jit_new(ur, mc);
    cover_data_t *data = cover_data_init(COVER_MASK_ALL, 0, 0);
    rt_model_t *m = model_new(jit, NULL);
@@ -6308,7 +6308,7 @@ END_TEST
 
 START_TEST(test_mixed2)
 {
-   analyse_file(TESTDIR "/lower/mixed2.v", NULL, NULL);
+   analyse_file(TESTDIR "/lower/mixed2.v", NULL, NULL, NULL);
 
    input_from_file(TESTDIR "/lower/mixed2.vhd");
 

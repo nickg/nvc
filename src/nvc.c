@@ -152,7 +152,8 @@ static void parse_pp_define(char *optarg)
    }
 }
 
-static void do_file_list(const char *file, jit_t *jit, unit_registry_t *ur)
+static void do_file_list(const char *file, jit_t *jit, unit_registry_t *ur,
+                         mir_context_t *mc)
 {
    FILE *f;
    if (strcmp(file, "-") == 0)
@@ -173,7 +174,7 @@ static void do_file_list(const char *file, jit_t *jit, unit_registry_t *ur)
       if (strlen(line) == 0)
          continue;
 
-      analyse_file(line, jit, ur);
+      analyse_file(line, jit, ur, mc);
    }
 
    free(line);
@@ -217,7 +218,7 @@ static int analyse(int argc, char **argv, cmd_state_t *state)
          opt_set_int(OPT_BOOTSTRAP, 1);
          break;
       case 'v':
-         opt_set_str(OPT_DUMP_VCODE, optarg ?: "");
+         opt_set_str(OPT_LOWER_VERBOSE, optarg ?: "");
          break;
       case 'X':
          warnf("The $bold$--relax=$$ option is deprecated: use the combined "
@@ -262,20 +263,20 @@ static int analyse(int argc, char **argv, cmd_state_t *state)
       state->mir = mir_context_new();
 
    if (state->registry == NULL)
-      state->registry = unit_registry_new();
+      state->registry = unit_registry_new(state->mir);
 
    jit_t *jit = jit_new(state->registry, state->mir);
 
    if (file_list != NULL)
-      do_file_list(file_list, jit, state->registry);
+      do_file_list(file_list, jit, state->registry, state->mir);
    else if (optind == next_cmd)
       fatal("missing file name");
 
    for (int i = optind; i < next_cmd; i++) {
       if (argv[i][0] == '@')
-         do_file_list(argv[i] + 1, jit, state->registry);
+         do_file_list(argv[i] + 1, jit, state->registry, state->mir);
       else
-         analyse_file(argv[i], jit, state->registry);
+         analyse_file(argv[i], jit, state->registry, state->mir);
    }
 
    jit_free(jit);
@@ -438,7 +439,7 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
          opt_set_int(OPT_DUMP_LLVM, 1);
          break;
       case 'v':
-         opt_set_str(OPT_DUMP_VCODE, optarg ?: "");
+         opt_set_str(OPT_LOWER_VERBOSE, optarg ?: "");
          break;
       case 'c':
          if (optarg)
@@ -514,7 +515,7 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
 
    if (sdf_args != NULL) {
       // TODO: Pass min-max spec to underlying sdf_parse somehow
-      analyse_file(sdf_args, NULL, NULL);
+      analyse_file(sdf_args, NULL, NULL, NULL);
    }
 
    if (state->model != NULL) {
@@ -538,7 +539,7 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
    }
 
    state->mir = mir_context_new();
-   state->registry = unit_registry_new();
+   state->registry = unit_registry_new(state->mir);
    state->jit = get_jit(state->registry, state->mir);
    state->model = model_new(state->jit, cover);
 
@@ -936,7 +937,7 @@ static int run_cmd(int argc, char **argv, cmd_state_t *state)
       state->mir = mir_context_new();
 
    if (state->registry == NULL)
-      state->registry = unit_registry_new();
+      state->registry = unit_registry_new(state->mir);
 
    if (state->jit == NULL)
       state->jit = get_jit(state->registry, state->mir);
@@ -1447,7 +1448,7 @@ static int do_cmd(int argc, char **argv, cmd_state_t *state)
       state->mir = mir_context_new();
 
    if (state->registry == NULL)
-      state->registry = unit_registry_new();
+      state->registry = unit_registry_new(state->mir);
 
    if (state->jit == NULL)
       state->jit = get_jit(state->registry, state->mir);
@@ -1522,7 +1523,7 @@ static int interact_cmd(int argc, char **argv, cmd_state_t *state)
       state->mir = mir_context_new();
 
    if (state->registry == NULL)
-      state->registry = unit_registry_new();
+      state->registry = unit_registry_new(state->mir);
 
    if (state->jit == NULL)
       state->jit = get_jit(state->registry, state->mir);

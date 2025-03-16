@@ -547,7 +547,7 @@ void aotgen(const char *outfile, char **argv, int argc)
    unit_list_t initial = AINIT;
    unit_list_t units = AINIT;
    mir_context_t *mc = mir_context_new();
-   unit_registry_t *ur = unit_registry_new();
+   unit_registry_t *ur = unit_registry_new(mc);
 
    discover_args_t args = {
       .registry = ur,
