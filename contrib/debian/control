@@ -9,4 +9,5 @@ Build-Depends: debhelper (>= 9), tcl-dev, llvm-dev, libreadline-dev,
 Package: nvc
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}, binutils
+Recommends: tcllib
 Description: VHDL compiler and simulator

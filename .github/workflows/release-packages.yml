@@ -68,8 +68,14 @@ jobs:
         run: |
           docker run --rm -v $(pwd)/vhdl-projects:/data \
             ghcr.io/nickg/nvc:latest /data/flopoco/test.sh
-      - name: Push to ghcr.io
+      - name: Login to ghcr.io
         run : |
           echo "${{ secrets.GHCR_TOKEN }}" | \
             docker login -u ${{ vars.GHCR_USER }} --password-stdin ghcr.io
+      - name: Push release tag
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          vers=$(sed -n '1s/AC_INIT(\[.*\], \[\([0-9\.]*\).*\].*/\1/p' configure.ac)
           docker push ghcr.io/nickg/nvc:latest
+          docker tag ghcr.io/nickg/nvc:latest ghcr.io/nickg/nvc:$vers
+          docker push ghcr.io/nickg/nvc:$vers
