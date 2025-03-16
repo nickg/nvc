@@ -683,6 +683,57 @@ void chash_put(chash_t *h, const void *key, void *value)
    while (!chash_try_put(h, key, value));
 }
 
+static bool chash_try_cas(chash_t *h, const void *key, void *cmp, void **value)
+{
+   chash_tab_t *tab = load_acquire(&h->tab);
+   assert(is_power_of_2(tab->size));
+
+   if (relaxed_load(&h->members) > tab->size / 2) {
+      chash_grow_table(h, tab);
+      return false;
+   }
+
+   for (int i = hash_slot(tab->size, key);; i = (i + 1) & (tab->size - 1)) {
+      void *const tagged_key = load_acquire(&tab->slots[i].tagged_key);
+      const chash_marker_t marker = pointer_tag(tagged_key);
+
+      switch (marker) {
+      case BUSY_MARKER:
+         spin_wait();
+         return false;
+      case INUSE_MARKER:
+         if (untag_pointer(tagged_key, void) != key)
+            break;
+         // Fall-through
+      case FREE_MARKER:
+         {
+            void *busy = tag_pointer(key, BUSY_MARKER);
+            if (atomic_cas(&tab->slots[i].tagged_key, tagged_key, busy)) {
+               void *new = *value;
+               if ((*value = tab->slots[i].value) == cmp)
+                  tab->slots[i].value = new;
+               void *inuse = tag_pointer(key, INUSE_MARKER);
+               store_release(&tab->slots[i].tagged_key, inuse);
+               return true;
+            }
+            else {
+               spin_wait();
+               return false;
+            }
+         }
+      case MOVED_MARKER:
+         chash_wait_for_resize(h);
+         return false;
+      }
+   }
+}
+
+void *chash_cas(chash_t *h, const void *key, void *cmp, void *value)
+{
+   while (!chash_try_cas(h, key, cmp, &value));
+   return value;
+}
+
 static bool chash_try_get(chash_t *h, const void *key, void **value)
 {
    chash_tab_t *tab = load_acquire(&h->tab);

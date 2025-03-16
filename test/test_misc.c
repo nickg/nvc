@@ -212,6 +212,21 @@ START_TEST(test_chash_rand)
 }
 END_TEST;
 
+START_TEST(test_chash_cas)
+{
+   chash_t *h = chash_new(32);
+
+   ck_assert_ptr_eq(chash_cas(h, VOIDP(0x1000), NULL, VOIDP(0x123)), NULL);
+   ck_assert_ptr_eq(chash_cas(h, VOIDP(0x1000), NULL, VOIDP(0x123)),
+                    VOIDP(0x123));
+   ck_assert_ptr_eq(chash_cas(h, VOIDP(0x1000), VOIDP(0x123), VOIDP(0x456)),
+                    VOIDP(0x123));
+   ck_assert_ptr_eq(chash_get(h, VOIDP(0x1000)), VOIDP(0x456));
+
+   chash_free(h);
+}
+END_TEST;
+
 struct point {
    double x, y;
 };
@@ -881,6 +896,7 @@ Suite *get_misc_tests(void)
    tcase_add_test(tc_hash, test_ihash_rand);
    tcase_add_test(tc_hash, test_hset_rand);
    tcase_add_test(tc_hash, test_chash_rand);
+   tcase_add_test(tc_hash, test_chash_cas);
    tcase_add_test(tc_hash, test_ghash_basic);
    suite_add_tcase(s, tc_hash);
 
