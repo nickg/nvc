@@ -313,8 +313,8 @@ static void mir_copy_table(type_tab_t *from, type_tab_t *to)
 
                max_id = MAX((uint32_t)slot.id, max_id);
 
-               for (int pos = from_td->hash & (to->max_types - 1), j = 1;;
-                    pos = (pos + j) & (to->max_types - 1), j++) {
+               for (int pos = from_td->hash & (to->max_types - 1);;
+                    pos = (pos + 1) & (to->max_types - 1)) {
                   const type_slot_t exist = mir_type_slot(to, pos);
                   if (exist.marker == FREE_MARKER) {
                      *to_td = *from_td;
@@ -341,9 +341,6 @@ static void mir_copy_table(type_tab_t *from, type_tab_t *to)
    }
 
    atomic_store(&to->next_id, max_id + 1);
-
-   DEBUG_ONLY(debugf("grew type table to %d slots, %d/%d in use", to->max_types,
-                     max_id, from->max_types));
 }
 
 static void mir_wait_for_resize(mir_context_t *mc)
@@ -391,8 +388,13 @@ static mir_type_t mir_try_build_type(mir_unit_t *mu, const type_data_t *td,
 
    assert(is_power_of_2(tab->max_types));
 
-   for (int reprobe = 0, i = 1, pos = hash & (tab->max_types - 1);;
-        pos = (pos + i) & (tab->max_types - 1), i++) {
+   if (tab->next_id > tab->max_types / 2) {
+      mir_grow_table(mc, tab);
+      return MIR_NULL_TYPE;
+   }
+
+   for (int pos = hash & (tab->max_types - 1);;
+        pos = (pos + 1) & (tab->max_types - 1)) {
       const type_slot_t slot = mir_type_slot(tab, pos);
       switch (slot.marker) {
       case BUSY_MARKER:
@@ -429,11 +431,6 @@ static mir_type_t mir_try_build_type(mir_unit_t *mu, const type_data_t *td,
          break;
       case MOVED_MARKER:
          mir_wait_for_resize(mc);
-         return MIR_NULL_TYPE;
-      }
-
-      if (++reprobe == REPROBE_LIMIT) {
-         mir_grow_table(mc, tab);
          return MIR_NULL_TYPE;
       }
    }

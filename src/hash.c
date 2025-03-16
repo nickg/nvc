@@ -61,7 +61,7 @@ void hash_free(hash_t *h)
 
 bool hash_put(hash_t *h, const void *key, void *value)
 {
-   if (unlikely(h->members >= h->size / 2)) {
+   if (unlikely(h->members > h->size / 2)) {
       // Rebuild the hash table with a larger size
       // This is expensive so a conservative initial size should be chosen
 
@@ -78,8 +78,20 @@ bool hash_put(hash_t *h, const void *key, void *value)
       h->members = 0;
 
       for (int i = 0; i < old_size; i++) {
-         if (old_keys[i] != NULL)
-            hash_put(h, old_keys[i], old_values[i]);
+         if (old_keys[i] != NULL && old_values[i] != NULL) {
+            int slot = hash_slot(h->size, old_keys[i]);
+
+            for (; ; slot = (slot + 1) & (h->size - 1)) {
+               if (h->keys[slot] == NULL) {
+                  h->values[slot] = old_values[i];
+                  h->keys[slot] = old_keys[i];
+                  h->members++;
+                  break;
+               }
+               else
+                  assert(h->keys[slot] != old_keys[i]);
+            }
+         }
       }
 
       free(old_values);
@@ -87,7 +99,7 @@ bool hash_put(hash_t *h, const void *key, void *value)
 
    int slot = hash_slot(h->size, key);
 
-   for (int i = 1; ; slot = (slot + i++) & (h->size - 1)) {
+   for (; ; slot = (slot + 1) & (h->size - 1)) {
       if (h->keys[slot] == key) {
          h->values[slot] = value;
          return true;
@@ -107,7 +119,7 @@ void hash_delete(hash_t *h, const void *key)
 {
    int slot = hash_slot(h->size, key);
 
-   for (int i = 1; ; slot = (slot + i++) & (h->size - 1)) {
+   for (; ; slot = (slot + 1) & (h->size - 1)) {
       if (h->keys[slot] == key) {
          h->values[slot] = NULL;
          return;
@@ -121,7 +133,7 @@ void *hash_get(hash_t *h, const void *key)
 {
    int slot = hash_slot(h->size, key);
 
-   for (int i = 1; ; slot = (slot + i++) & (h->size - 1)) {
+   for (; ; slot = (slot + 1) & (h->size - 1)) {
       if (h->keys[slot] == key)
          return h->values[slot];
       else if (h->keys[slot] == NULL)
@@ -224,7 +236,7 @@ static void shash_put_copy(shash_t *h, char *key, void *value)
 
 void shash_put(shash_t *h, const char *key, void *value)
 {
-   if (unlikely(h->members >= h->size / 2)) {
+   if (unlikely(h->members > h->size / 2)) {
       // Rebuild the hash table with a larger size
 
       const int old_size = h->size;
@@ -345,7 +357,7 @@ void ihash_free(ihash_t *h)
 
 void ihash_put(ihash_t *h, uint64_t key, void *value)
 {
-   if (unlikely(h->members >= h->size / 2)) {
+   if (unlikely(h->members > h->size / 2)) {
       // Rebuild the hash table with a larger size
 
       const int old_size = h->size;
@@ -443,7 +455,7 @@ void hset_free(hset_t *h)
 
 void hset_insert(hset_t *h, const void *key)
 {
-   if (unlikely(h->members >= h->size / 2)) {
+   if (unlikely(h->members > h->size / 2)) {
       const int old_size = h->size;
       h->size *= 2;
 
@@ -839,7 +851,7 @@ void ghash_free(ghash_t *h)
 
 void ghash_put(ghash_t *h, const void *key, void *value)
 {
-   if (unlikely(h->members >= h->size / 2)) {
+   if (unlikely(h->members > h->size / 2)) {
       // Rebuild the hash table with a larger size
 
       const int old_size = h->size;
@@ -864,7 +876,7 @@ void ghash_put(ghash_t *h, const void *key, void *value)
 
    int slot = ghash_slot(h, key);
 
-   for (int i = 1; ; slot = (slot + i++) & (h->size - 1)) {
+   for (; ; slot = (slot + 1) & (h->size - 1)) {
       if (h->keys[slot] == NULL) {
          h->values[slot] = value;
          h->keys[slot] = key;
@@ -880,7 +892,7 @@ void *ghash_get(ghash_t *h, const void *key)
 {
    int slot = ghash_slot(h, key);
 
-   for (int i = 1; ; slot = (slot + i++) & (h->size - 1)) {
+   for (; ; slot = (slot + 1) & (h->size - 1)) {
       if (h->keys[slot] == NULL)
          return NULL;
       else if (h->keys[slot] == key || (*h->cmp_fn)(h->keys[slot], key))
@@ -892,7 +904,7 @@ void ghash_delete(ghash_t *h, const void *key)
 {
    int slot = ghash_slot(h, key);
 
-   for (int i = 1; ; slot = (slot + i++) & (h->size - 1)) {
+   for (; ; slot = (slot + 1) & (h->size - 1)) {
       if (h->keys[slot] == key || (*h->cmp_fn)(h->keys[slot], key)) {
          h->values[slot] = NULL;
          return;
