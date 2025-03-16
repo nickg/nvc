@@ -34,7 +34,7 @@
 mir_context_t *mir_context_new(void)
 {
    mir_context_t *mc = xcalloc(sizeof(mir_context_t));
-   mc->map  = hash_new(32);
+   mc->map  = chash_new(32);
    mc->pool = pool_new();
 
    type_tab_t *tab =
@@ -52,7 +52,7 @@ void mir_context_free(mir_context_t *mc)
 {
    mir_free_types(mc->typetab);
    pool_free(mc->pool);
-   hash_free(mc->map);
+   chash_free(mc->map);
    free(mc);
 }
 
@@ -106,12 +106,12 @@ static mir_shape_t *mir_build_shape(mir_unit_t *mu)
 void mir_unit_free(mir_unit_t *mu)
 {
    if (mu->name != NULL) {
-      void *ptr = hash_get(mu->context->map, mu->name);
+      void *ptr = chash_get(mu->context->map, mu->name);
       switch (pointer_tag(ptr)) {
       case UNIT_GENERATED:
          {
             mir_shape_t *sh = mu->shape ?: mir_build_shape(mu);
-            hash_put(mu->context->map, mu->name, tag_pointer(sh, UNIT_FREED));
+            chash_put(mu->context->map, mu->name, tag_pointer(sh, UNIT_FREED));
          }
          break;
       case UNIT_FREED:
@@ -146,17 +146,17 @@ void mir_put_unit(mir_context_t *mc, mir_unit_t *mu)
    assert(mu->context == mc);
 
 #ifdef DEBUG
-   void *ptr = hash_get(mc->map, mu->name);
+   void *ptr = chash_get(mc->map, mu->name);
    if (ptr != NULL)
       fatal_trace("%s already registered", istr(mu->name));
 #endif
 
-   hash_put(mc->map, mu->name, tag_pointer(mu, UNIT_GENERATED));
+   chash_put(mc->map, mu->name, tag_pointer(mu, UNIT_GENERATED));
 }
 
 mir_unit_t *mir_get_unit(mir_context_t *mc, ident_t name)
 {
-   void *ptr = hash_get(mc->map, name);
+   void *ptr = chash_get(mc->map, name);
    if (ptr == NULL)
       return NULL;
 
@@ -169,7 +169,7 @@ mir_unit_t *mir_get_unit(mir_context_t *mc, ident_t name)
             mir_unit_new(mc, name, du->object, du->kind, du->parent);
          (*du->fn)(mu, du->object);
 
-         hash_put(mc->map, name, tag_pointer(mu, UNIT_GENERATED));
+         chash_put(mc->map, name, tag_pointer(mu, UNIT_GENERATED));
          return mu;
       }
    case UNIT_GENERATED:
@@ -183,7 +183,7 @@ mir_unit_t *mir_get_unit(mir_context_t *mc, ident_t name)
 
 mir_shape_t *mir_get_shape(mir_context_t *mc, ident_t name)
 {
-   void *ptr = hash_get(mc->map, name);
+   void *ptr = chash_get(mc->map, name);
    if (ptr == NULL)
       return NULL;
 
@@ -196,7 +196,7 @@ mir_shape_t *mir_get_shape(mir_context_t *mc, ident_t name)
             mir_unit_new(mc, name, du->object, du->kind, du->parent);
          (*du->fn)(mu, du->object);
 
-         hash_put(mc->map, name, tag_pointer(mu, UNIT_GENERATED));
+         chash_put(mc->map, name, tag_pointer(mu, UNIT_GENERATED));
 
          return (mu->shape = mir_build_shape(mu));
       }
@@ -219,7 +219,7 @@ void mir_defer(mir_context_t *mc, ident_t name, mir_shape_t *parent,
                mir_unit_kind_t kind, mir_lower_fn_t fn, object_t *object)
 {
 #ifdef DEBUG
-   void *ptr = hash_get(mc->map, name);
+   void *ptr = chash_get(mc->map, name);
    if (ptr != NULL)
       fatal_trace("%s already registered", istr(name));
 #endif
@@ -230,5 +230,5 @@ void mir_defer(mir_context_t *mc, ident_t name, mir_shape_t *parent,
    du->kind   = kind;
    du->object = object;
 
-   hash_put(mc->map, name, tag_pointer(du, UNIT_DEFERRED));
+   chash_put(mc->map, name, tag_pointer(du, UNIT_DEFERRED));
 }

@@ -251,7 +251,7 @@ typedef struct {
 typedef struct _mir_context {
    type_tab_t *typetab;
    type_tab_t *resizing;
-   hash_t     *map;
+   chash_t    *map;
    mem_pool_t *pool;
 } mir_context_t;
 
