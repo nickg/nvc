@@ -2826,3 +2826,30 @@ type_t calculate_aggregate_subtype(tree_t expr)
 
    return sub;
 }
+
+bool can_be_signal(type_t type)
+{
+   switch (type_kind(type)) {
+   case T_RECORD:
+      {
+         const int nfields = type_fields(type);
+         for (int i = 0; i < nfields; i++) {
+            if (!can_be_signal(tree_type(type_field(type, i))))
+               return false;
+         }
+
+         return true;
+      }
+   case T_ARRAY:
+      return can_be_signal(type_elem(type));
+   case T_SUBTYPE:
+      return can_be_signal(type_base(type));
+   case T_ACCESS:
+   case T_FILE:
+   case T_PROTECTED:
+   case T_INCOMPLETE:
+      return false;
+   default:
+      return true;
+   }
+}

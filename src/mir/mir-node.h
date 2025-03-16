@@ -34,6 +34,7 @@
 #define MIR_TAG_VAR     8
 #define MIR_TAG_ENUM    9
 #define MIR_TAG_LINKAGE 10
+#define MIR_TAG_EXTVAR  11
 
 #define _MIR_TAG_BITS   4
 #define _MIR_ID_BITS    28

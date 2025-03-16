@@ -447,11 +447,6 @@ void jit_fill_irbuf(jit_func_t *f)
 
    jit_irgen(f, mu);
 
-   {
-      SCOPED_LOCK(f->jit->lock);
-      mir_unit_free(mu);
-   }
-
  done:
 #ifndef USE_EMUTLS
    jit_transition(f->jit, JIT_COMPILING, oldstate);

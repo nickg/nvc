@@ -48,8 +48,40 @@ mir_context_t *mir_context_new(void)
    return mc;
 }
 
+static void mir_unit_free_memory(mir_unit_t *mu)
+{
+#ifdef DEBUG
+   if (mu->comments != NULL)
+      tb_free(mu->comments);
+#endif
+
+   for (int i = 0; i < mu->blocks.count; i++)
+      free(mu->blocks.items[i].nodes);
+
+   ACLEAR(mu->blocks);
+   ACLEAR(mu->params);
+   ACLEAR(mu->vars);
+   ACLEAR(mu->stamps);
+   ACLEAR(mu->linkage);
+   ACLEAR(mu->extvars);
+
+   free(mu->nodes);
+   free(mu->argspill);
+   free(mu);
+}
+
+static void mir_free_unit_cb(const void *key, void *value)
+{
+   switch (pointer_tag(value)) {
+   case UNIT_GENERATED:
+      mir_unit_free_memory(untag_pointer(value, mir_unit_t));
+      break;
+   }
+}
+
 void mir_context_free(mir_context_t *mc)
 {
+   chash_iter(mc->map, mir_free_unit_cb);
    mir_free_types(mc->typetab);
    pool_free(mc->pool);
    chash_free(mc->map);
@@ -81,6 +113,14 @@ mir_unit_kind_t mir_get_kind(mir_unit_t *mu)
 object_t *mir_get_object(mir_unit_t *mu)
 {
    return mu->object;
+}
+
+ident_t mir_get_parent(mir_unit_t *mu)
+{
+   if (mu->parent != NULL)
+      return mu->parent->name;
+   else
+      return NULL;
 }
 
 void *mir_malloc(mir_context_t *mc, size_t fixed, size_t nelems, size_t size)
@@ -128,23 +168,7 @@ void mir_unit_free(mir_unit_t *mu)
       }
    }
 
-#ifdef DEBUG
-   if (mu->comments != NULL)
-      tb_free(mu->comments);
-#endif
-
-   for (int i = 0; i < mu->blocks.count; i++)
-      free(mu->blocks.items[i].nodes);
-
-   ACLEAR(mu->blocks);
-   ACLEAR(mu->params);
-   ACLEAR(mu->vars);
-   ACLEAR(mu->stamps);
-   ACLEAR(mu->linkage);
-
-   free(mu->nodes);
-   free(mu->argspill);
-   free(mu);
+   mir_unit_free_memory(mu);
 }
 
 void mir_put_unit(mir_context_t *mc, mir_unit_t *mu)
@@ -237,4 +261,14 @@ void mir_defer(mir_context_t *mc, ident_t name, mir_shape_t *parent,
    du->object = object;
 
    chash_put(mc->map, name, tag_pointer(du, UNIT_DEFERRED));
+}
+
+unsigned mir_count_linkage(mir_unit_t *mu)
+{
+   return mu->linkage.count;
+}
+
+ident_t mir_get_linkage(mir_unit_t *mu, unsigned nth)
+{
+   return AGET(mu->linkage, nth);
 }

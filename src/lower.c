@@ -301,33 +301,6 @@ static bool lower_trivially_copyable(type_t type)
       return true;
 }
 
-static bool lower_can_be_signal(type_t type)
-{
-   switch (type_kind(type)) {
-   case T_RECORD:
-      {
-         const int nfields = type_fields(type);
-         for (int i = 0; i < nfields; i++) {
-            if (!lower_can_be_signal(tree_type(type_field(type, i))))
-               return false;
-         }
-
-         return true;
-      }
-   case T_ARRAY:
-      return lower_can_be_signal(type_elem(type));
-   case T_SUBTYPE:
-      return lower_can_be_signal(type_base(type));
-   case T_ACCESS:
-   case T_FILE:
-   case T_PROTECTED:
-   case T_INCOMPLETE:
-      return false;
-   default:
-      return true;
-   }
-}
-
 static vcode_reg_t lower_range_expr(lower_unit_t *lu, tree_t r, int *dim)
 {
    assert(tree_subkind(r) == RANGE_EXPR);
@@ -9539,7 +9512,7 @@ static void lower_resolved_record_fn(lower_unit_t *lu, object_t *obj,
    tree_t decl = tree_from_object(obj);
 
    type_t type = tree_type(decl);
-   assert(!type_is_homogeneous(type) && lower_can_be_signal(type));
+   assert(!type_is_homogeneous(type) && can_be_signal(type));
 
    vcode_set_result(lower_func_result_type(type));
 
@@ -9634,7 +9607,7 @@ static void lower_last_time_fn(lower_unit_t *lu, object_t *obj,
    tree_t decl = tree_from_object(obj);
 
    type_t type = tree_type(decl);
-   assert(!type_is_homogeneous(type) && lower_can_be_signal(type));
+   assert(!type_is_homogeneous(type) && can_be_signal(type));
 
    vcode_type_t vtime = vtype_time();
    vcode_type_t vatype = lower_param_type(type, C_SIGNAL, PORT_IN);
@@ -9995,7 +9968,7 @@ static void lower_decl(lower_unit_t *lu, tree_t decl)
                                 lower_value_helper, NULL, obj);
          }
 
-         if (!type_is_homogeneous(type) && lower_can_be_signal(type)) {
+         if (!type_is_homogeneous(type) && can_be_signal(type)) {
             ident_t resolved = ident_prefix(id, ident_new("resolved"), '$');
             unit_registry_defer(lu->registry, resolved, lu, emit_function,
                                 lower_resolved_helper, NULL, obj);

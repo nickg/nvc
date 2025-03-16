@@ -424,6 +424,20 @@ static mir_value_t mir_add_linkage(mir_unit_t *mu, ident_t ident)
    return link;
 }
 
+static mir_value_t mir_add_extvar(mir_unit_t *mu, ident_t ident)
+{
+   for (int i = 0; i < mu->extvars.count; i++) {
+      if (mu->extvars.items[i] == ident)
+         return (mir_value_t){ .tag = MIR_TAG_EXTVAR, .id = i };
+   }
+
+   mir_value_t var = { .tag = MIR_TAG_EXTVAR, .id = mu->extvars.count };
+
+   APUSH(mu->extvars, ident);
+
+   return var;
+}
+
 void mir_set_arg(mir_unit_t *mu, node_data_t *n, unsigned nth,
                  mir_value_t value)
 {
@@ -588,6 +602,8 @@ ident_t mir_get_name(mir_unit_t *mu, mir_value_t value)
       return mir_var_data(mu, value)->name;
    case MIR_TAG_LINKAGE:
       return AGET(mu->linkage, value.id);
+   case MIR_TAG_EXTVAR:
+      return AGET(mu->extvars, value.id);
    case MIR_TAG_NULL:
       return mu->name;
    default:
@@ -2670,9 +2686,9 @@ mir_value_t mir_build_link_var(mir_unit_t *mu, ident_t unit,
 {
    mir_type_t pointer = mir_get_var_pointer(mu, type);
    mir_value_t link = mir_add_linkage(mu, unit);
-   mir_value_t var_link = mir_add_linkage(mu, name);   // TODO: rethink this
+   mir_value_t var = mir_add_extvar(mu, name);
    mir_value_t result = mir_build_3(mu, MIR_OP_LINK_VAR, pointer,
-                                    MIR_NULL_STAMP, link, context, var_link);
+                                    MIR_NULL_STAMP, link, context, var);
 
    MIR_ASSERT(mir_is(mu, context, MIR_TYPE_CONTEXT),
               "first argument to link var must be context");

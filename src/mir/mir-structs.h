@@ -214,6 +214,7 @@ typedef struct _mir_unit {
    var_tab_t        vars;
    stamp_tab_t      stamps;
    link_tab_t       linkage;
+   link_tab_t       extvars;
    unsigned         num_nodes;
    unsigned         max_nodes;
    node_data_t     *nodes;

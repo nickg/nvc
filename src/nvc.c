@@ -587,7 +587,7 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
    }
 
    if (!use_jit)
-      LLVM_ONLY(cgen(top, state->registry, state->jit));
+      LLVM_ONLY(cgen(top, state->registry, state->mir, state->jit));
 
    if (!use_jit || cover != NULL) {
       // Must discard current JIT state to load AOT library later

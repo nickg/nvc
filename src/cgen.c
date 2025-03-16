@@ -38,7 +38,7 @@
 #include <unistd.h>
 #include <ctype.h>
 
-typedef A(vcode_unit_t) unit_list_t;
+typedef A(ident_t) unit_list_t;
 typedef A(char *) obj_list_t;
 
 typedef struct {
@@ -68,22 +68,6 @@ static A(char *) cleanup_files = AINIT;
 #define MAX_JOBS 1000
 #endif
 
-static void cgen_find_children(vcode_unit_t root, unit_list_t *units)
-{
-   const vunit_kind_t kind = vcode_unit_kind(root);
-   if (kind != VCODE_UNIT_INSTANCE && kind != VCODE_UNIT_PROCESS
-       && kind != VCODE_UNIT_PROPERTY)
-      return;
-
-   for (vcode_unit_t it = vcode_unit_child(root);
-        it != NULL;
-        it = vcode_unit_next(it)) {
-      cgen_find_children(it, units);
-   }
-
-   APUSH(*units, root);
-}
-
 static bool cgen_is_preload(ident_t name)
 {
    const char *preload[] = {
@@ -107,44 +91,60 @@ static bool cgen_is_preload(ident_t name)
    return false;
 }
 
-static void cgen_add_dependency(ident_t name, discover_args_t *args)
+static void cgen_find_dependencies(mir_context_t *mc, unit_registry_t *ur,
+                                   unit_list_t *units, hset_t *seen,
+                                   ident_t name, bool preload)
 {
-   if (hset_contains(args->filter, name))
-      return;
+   mir_unit_t *mu = mir_get_unit(mc, name);
+   if (mu == NULL) {
+      vcode_unit_t vu = unit_registry_get(ur, name);
+      if (vu == NULL)
+         fatal_trace("missing vcode for %s", istr(name));
 
-   vcode_unit_t vu = unit_registry_get(args->registry, name);
-   if (vu == NULL)
-      fatal_trace("missing vcode unit %s", istr(name));
+      mu = mir_import(mc, vu);
+      mir_put_unit(mc, mu);
+   }
 
-   APUSH(*args->units, vu);
-   hset_insert(args->filter, name);
+   const int nlink = mir_count_linkage(mu);
+   for (int i = 0; i < nlink; i++) {
+      ident_t link = mir_get_linkage(mu, i);
+      if (hset_contains(seen, link))
+         continue;
+      else if (preload || !cgen_is_preload(link)) {
+         APUSH(*units, link);
+         hset_insert(seen, link);
+      }
+   }
 }
 
-static void cgen_dep_cb(ident_t name, void *ctx)
+static void cgen_walk_hier(unit_list_t *units, hset_t *seen, tree_t block,
+                           ident_t prefix)
 {
-   discover_args_t *args = ctx;
+   assert(tree_kind(block) == T_BLOCK);
 
-   if (cgen_is_preload(name))
-      return;
+   ident_t unit_name = ident_prefix(prefix, tree_ident(block), '.');
+   APUSH(*units, unit_name);
+   hset_insert(seen, unit_name);
 
-   cgen_add_dependency(name, args);
-}
-
-static void cgen_find_units(vcode_unit_t root, unit_registry_t *ur,
-                            unit_list_t *units)
-{
-   cgen_find_children(root, units);
-
-   discover_args_t args = {
-      .units    = units,
-      .registry = ur,
-      .filter   = hset_new(64),
-   };
-
-   for (unsigned i = 0; i < units->count; i++)
-      vcode_walk_dependencies(units->items[i], cgen_dep_cb, &args);
-
-   hset_free(args.filter);
+   const int nstmts = tree_stmts(block);
+   for (int i = 0; i < nstmts; i++) {
+      tree_t s = tree_stmt(block, i);
+      switch (tree_kind(s)) {
+      case T_BLOCK:
+         cgen_walk_hier(units, seen, s, unit_name);
+         break;
+      case T_PROCESS:
+      case T_PSL_DIRECT:
+         {
+            ident_t proc_name = ident_prefix(unit_name, tree_ident(s), '.');
+            APUSH(*units, proc_name);
+            hset_insert(seen, proc_name);
+         }
+         break;
+      default:
+         break;
+      }
+   }
 }
 
 static void cleanup_temp_dll(void)
@@ -273,9 +273,7 @@ static void cgen_async_work(void *context, void *arg)
       llvm_add_abi_version(obj);
 
    for (int i = 0; i < job->units.count; i++) {
-      vcode_unit_t vu = job->units.items[i];
-
-      jit_handle_t handle = jit_lazy_compile(jit, vcode_unit_name(vu));
+      jit_handle_t handle = jit_lazy_compile(jit, job->units.items[i]);
       assert(handle != JIT_HANDLE_INVALID);
 
       llvm_aot_compile(obj, jit, handle);
@@ -323,7 +321,7 @@ static void cgen_partition_jobs(unit_list_t *units, workq_t *wq,
    }
 }
 
-void cgen(tree_t top, unit_registry_t *ur, jit_t *jit)
+void cgen(tree_t top, unit_registry_t *ur, mir_context_t *mc, jit_t *jit)
 {
    assert(tree_kind(top) == T_ELAB);
 
@@ -334,8 +332,16 @@ void cgen(tree_t top, unit_registry_t *ur, jit_t *jit)
    if (vu == NULL)
       fatal_trace("missing vcode for %s", istr(unit_name));
 
+   hset_t *seen = hset_new(16);
    unit_list_t units = AINIT;
-   cgen_find_units(vu, ur, &units);
+
+   cgen_walk_hier(&units, seen, tree_stmt(top, 0), work_name);
+
+   for (int i = 0; i < units.count; i++)
+      cgen_find_dependencies(mc, ur, &units, seen, units.items[i], false);
+
+   hset_free(seen);
+   seen = NULL;
 
    workq_t *wq = workq_new(jit);
 
@@ -373,30 +379,20 @@ static void preload_walk_index(lib_t lib, ident_t ident, int kind, void *ctx)
    if (is_uninstantiated_package(unit))
       return;
 
-   cgen_add_dependency(ident, args);
-
-   ident_t helper_suffix[] = {
-      ident_new("image"),
-      ident_new("value"),
-      ident_new("resolved"),
-      ident_new("copy"),
-      ident_new("new"),
-   };
+   APUSH(*args->units, ident);
 
    const int ndecls = tree_decls(unit);
    for (int i = 0; i < ndecls; i++) {
       tree_t d = tree_decl(unit, i);
       switch (tree_kind(d)) {
       case T_FUNC_DECL:
-      case T_FUNC_BODY:
       case T_FUNC_INST:
       case T_PROC_DECL:
-      case T_PROC_BODY:
       case T_PROC_INST:
          {
             const subprogram_kind_t kind = tree_subkind(d);
             if (!is_open_coded_builtin(kind))
-               cgen_add_dependency(tree_ident2(d), args);
+               APUSH(*args->units, tree_ident2(d));
          }
          break;
       case T_PROT_DECL:
@@ -404,13 +400,13 @@ static void preload_walk_index(lib_t lib, ident_t ident, int kind, void *ctx)
             type_t type = tree_type(d);
             ident_t id = type_ident(type);
 
-            cgen_add_dependency(id, args);
+            APUSH(*args->units, id);
 
             const int nmeth = tree_decls(d);
             for (int i = 0; i < nmeth; i++) {
                tree_t m = tree_decl(d, i);
                if (is_subprogram(m))
-                  cgen_add_dependency(tree_ident2(m), args);
+                  APUSH(*args->units, tree_ident2(m));
             }
          }
          break;
@@ -419,10 +415,34 @@ static void preload_walk_index(lib_t lib, ident_t ident, int kind, void *ctx)
             type_t type = tree_type(d);
             ident_t id = type_ident(type);
 
-            for (int i = 0; i < ARRAY_LEN(helper_suffix); i++) {
-               ident_t func = ident_prefix(id, helper_suffix[i], '$');
-               if (unit_registry_query(args->registry, func))
-                  cgen_add_dependency(func, args);
+            if (type_is_representable(type)) {
+               ident_t image = ident_prefix(id, ident_new("image"), '$');
+               APUSH(*args->units, image);
+
+               ident_t value = ident_prefix(id, ident_new("value"), '$');
+               APUSH(*args->units, value);
+            }
+
+            if (type_is_record(type) && !type_const_bounds(type)) {
+               ident_t new = ident_prefix(id, ident_new("new"), '$');
+               APUSH(*args->units, new);
+            }
+
+            if (!type_is_homogeneous(type) && can_be_signal(type)) {
+               ident_t resolved = ident_prefix(id, ident_new("resolved"), '$');
+               APUSH(*args->units, resolved);
+
+               ident_t last_value = ident_sprintf("%s$last_value", istr(id));
+               APUSH(*args->units, last_value);
+
+               ident_t last_event = ident_sprintf("%s$last_event", istr(id));
+               APUSH(*args->units, last_event);
+
+               ident_t last_active = ident_sprintf("%s$last_active", istr(id));
+               APUSH(*args->units, last_active);
+
+               ident_t driving = ident_prefix(id, ident_new("driving"), '$');
+               APUSH(*args->units, driving);
             }
          }
          break;
@@ -430,12 +450,6 @@ static void preload_walk_index(lib_t lib, ident_t ident, int kind, void *ctx)
          break;
       }
    }
-}
-
-static void preload_dep_cb(ident_t name, void *ctx)
-{
-   discover_args_t *args = ctx;
-   cgen_add_dependency(name, args);
 }
 
 static void preload_do_link(const char *so_name, const char *obj_file)
@@ -479,6 +493,7 @@ static void preload_do_link(const char *so_name, const char *obj_file)
 
 void aotgen(const char *outfile, char **argv, int argc)
 {
+   unit_list_t initial = AINIT;
    unit_list_t units = AINIT;
    mir_context_t *mc = mir_context_new();
    unit_registry_t *ur = unit_registry_new();
@@ -497,9 +512,17 @@ void aotgen(const char *outfile, char **argv, int argc)
       lib_walk_index(lib, preload_walk_index, &args);
    }
 
-   for (unsigned i = 0; i < units.count; i++)
-      vcode_walk_dependencies(units.items[i], preload_dep_cb, &args);
+   hset_t *seen = hset_new(128);
 
+   for (int i = 0; i < units.count; i++)
+      hset_insert(seen, units.items[i]);
+
+   for (int i = 0; i < units.count; i++)
+      cgen_find_dependencies(mc, ur, &units, seen, units.items[i], true);
+
+   ACLEAR(initial);
+   hset_free(seen);
+   seen = NULL;
    hset_free(args.filter);
    args.filter = NULL;
 
@@ -511,10 +534,7 @@ void aotgen(const char *outfile, char **argv, int argc)
    llvm_add_abi_version(obj);
 
    for (int i = 0; i < units.count; i++) {
-      vcode_unit_t vu = units.items[i];
-      vcode_select_unit(vu);
-
-      jit_handle_t handle = jit_lazy_compile(jit, vcode_unit_name(vu));
+      jit_handle_t handle = jit_lazy_compile(jit, units.items[i]);
       assert(handle != JIT_HANDLE_INVALID);
 
       llvm_aot_compile(obj, jit, handle);

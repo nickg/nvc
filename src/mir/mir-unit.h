@@ -52,6 +52,9 @@ mir_shape_t *mir_get_shape(mir_context_t *mc, ident_t name);
 void mir_defer(mir_context_t *mc, ident_t name, mir_shape_t *parent,
                mir_unit_kind_t kind, mir_lower_fn_t fn, object_t *object);
 
+unsigned mir_count_linkage(mir_unit_t *mu);
+ident_t mir_get_linkage(mir_unit_t *mu, unsigned nth);
+
 mir_unit_t *mir_import(mir_context_t *mc, vcode_unit_t vu);
 
 mir_unit_t *mir_unit_new(mir_context_t *mc, ident_t name, object_t *obj,
@@ -61,6 +64,7 @@ void mir_annotate(mir_unit_t *mu, const mir_annotate_t *cb, void *ctx);
 void mir_unit_free(mir_unit_t *mu);
 mir_unit_kind_t mir_get_kind(mir_unit_t *mu);
 object_t *mir_get_object(mir_unit_t *mu);
+ident_t mir_get_parent(mir_unit_t *mu);
 
 typedef enum {
    MIR_PASS_GVN = (1 << 0),
