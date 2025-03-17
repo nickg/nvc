@@ -506,6 +506,7 @@ BEFORE            ?i:before
 <UDP>{UDP_EDGE}          { yylval.i64 = yytext[0]; return tUDPEDGE; }
 <UDP>{UDP_INDICATOR}     { yylval.str = xstrdup(yytext); return tUDPIND; }
 
+<*>"#("                  { TOKEN(tHASHLPAREN); }
 <*>"("                   { TOKEN(tLPAREN); }
 <*>")"                   { TOKEN(tRPAREN); }
 <*>"["                   { TOKEN(tLSQUARE); }
