@@ -171,7 +171,7 @@ START_TEST(test_parse1)
    fail_unless(vlog_kind(m) == V_MODULE);
    fail_unless(vlog_stmts(m) == 15);
    fail_unless(vlog_ports(m) == 0);
-   fail_unless(vlog_decls(m) == 16);
+   fail_unless(vlog_decls(m) == 17);
 
    vlog_node_t x = vlog_decl(m, 0);
    fail_unless(vlog_kind(x) == V_NET_DECL);
@@ -739,6 +739,28 @@ START_TEST(test_casename)
 }
 END_TEST
 
+START_TEST(test_const1)
+{
+   input_from_file(TESTDIR "/vlog/const1.v");
+
+   const error_t expect[] = {
+      {  4, "cannot reference net 'w1' in constant expression" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   vlog_node_t m = vlog_parse();
+   fail_if(m == NULL);
+   fail_unless(vlog_kind(m) == V_MODULE);
+
+   vlog_check(m);
+
+   fail_unless(vlog_parse() == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_vlog_tests(void)
 {
    Suite *s = suite_create("vlog");
@@ -767,6 +789,7 @@ Suite *get_vlog_tests(void)
    tcase_add_test(tc, test_concat1);
    tcase_add_test(tc, test_pp4);
    tcase_add_test(tc, test_casename);
+   tcase_add_test(tc, test_const1);
    suite_add_tcase(s, tc);
 
    return s;

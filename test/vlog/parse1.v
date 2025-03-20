@@ -63,6 +63,7 @@ module parse1;
     for (int i = 0; i > 0; --i);
     for (var reg x = 5;;);
   end
-  localparam y = 5;
+  localparam [7:0] y = 5;
   localparam bit z = 0;
+  wire [y-1:0]  w2;
 endmodule // parse1

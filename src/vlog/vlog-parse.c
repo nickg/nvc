@@ -103,6 +103,7 @@ static vlog_node_t p_data_type(void);
 static void p_list_of_variable_decl_assignments(vlog_node_t parent,
                                                 vlog_node_t datatype);
 static vlog_node_t p_variable_lvalue(void);
+static vlog_node_t p_bit_select(ident_t id);
 
 static inline void _pop_state(const rule_state_t *r)
 {
@@ -550,24 +551,8 @@ static vlog_node_t p_constant_bit_select(ident_t id)
 
    EXTEND("constant bit select");
 
-   if (peek() == tLSQUARE) {
-      vlog_node_t v = vlog_new(V_BIT_SELECT);
-      vlog_set_ident(v, id);
-
-      while (optional(tLSQUARE)) {
-         vlog_add_param(v, p_constant_expression());
-         consume(tRSQUARE);
-      }
-
-      vlog_set_loc(v, CURRENT_LOC);
-      return v;
-   }
-   else {
-      vlog_node_t v = vlog_new(V_REF);
-      vlog_set_ident(v, id);
-      vlog_set_loc(v, CURRENT_LOC);
-      return v;
-   }
+   // Checked for constant-ness later
+   return p_bit_select(id);
 }
 
 static vlog_node_t p_constant_select(ident_t id)
@@ -580,35 +565,6 @@ static vlog_node_t p_constant_select(ident_t id)
    return p_constant_bit_select(id);
 }
 
-static vlog_node_t p_constant_primary(void)
-{
-   // primary_literal | ps_parameter_identifier constant_select
-   //   | specparam_identifier [ [ constant_range_expression ] ]
-   //   | genvar_identifier | formal_port_identifier constant_select
-   //   | [ package_scope | class_scope ] enum_identifier
-   //   | constant_concatenation [ [ constant_range_expression ] ]
-   //   | constant_multiple_concatenation [ [ constant_range_expression ] ]
-   //   | constant_function_call | constant_let_expression
-   //   | ( constant_mintypmax_expression )
-   //   | constant_cast | constant_assignment_pattern_expression
-   //   | type_reference
-
-   BEGIN("constant primary");
-
-   switch (peek()) {
-   case tNUMBER:
-   case tUNSIGNED:
-   case tSTRING:
-   case tREAL:
-      return p_primary_literal();
-   case tID:
-      return p_constant_select(p_identifier());
-   default:
-      one_of(tNUMBER, tUNSIGNED, tSTRING, tREAL, tID);
-      return dummy_expression();
-   }
-}
-
 static vlog_node_t p_constant_expression(void)
 {
    // constant_primary | unary_operator { attribute_instance } constant_primary
@@ -619,7 +575,8 @@ static vlog_node_t p_constant_expression(void)
 
    BEGIN("constant expression");
 
-   return p_constant_primary();
+   // Checked for constant-ness later
+   return p_expression();
 }
 
 static void p_constant_range(vlog_node_t *left, vlog_node_t *right)
@@ -1339,6 +1296,7 @@ static vlog_node_t p_nonbinary_expression(void)
    case tLBRACE:
       return p_primary();
    case tMINUS:
+   case tPLUS:
    case tTILDE:
    case tBANG:
       {

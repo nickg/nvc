@@ -112,22 +112,42 @@ static void vlog_insert_decl(vlog_node_t v)
 
 static void vlog_check_const_expr(vlog_node_t expr)
 {
-   vlog_check(expr);
-
    switch (vlog_kind(expr)) {
    case V_NUMBER:
       break;
    case V_REF:
       if (vlog_has_ref(expr)) {
          vlog_node_t decl = vlog_ref(expr);
-
-         diag_t *d = diag_new(DIAG_ERROR, vlog_loc(expr));
-         diag_printf(d, "cannot reference %s '%s' in constant expression",
-                     vlog_is_net(decl) ? "net" : "variable",
-                     istr(vlog_ident(decl)));
-         diag_hint(d, vlog_loc(decl), "%s declared here",
-                   istr(vlog_ident(decl)));
-         diag_emit(d);
+         switch (vlog_kind(decl)) {
+         case V_PARAM_DECL:
+         case V_LOCALPARAM:
+            break;
+         default:
+            {
+               diag_t *d = diag_new(DIAG_ERROR, vlog_loc(expr));
+               diag_printf(d, "cannot reference %s '%s' in constant expression",
+                           vlog_is_net(decl) ? "net" : "variable",
+                           istr(vlog_ident(decl)));
+               diag_hint(d, vlog_loc(decl), "%s declared here",
+                         istr(vlog_ident(decl)));
+               diag_emit(d);
+            }
+            break;
+         }
+      }
+      break;
+   case V_BINARY:
+      vlog_check_const_expr(vlog_left(expr));
+      vlog_check_const_expr(vlog_right(expr));
+      break;
+   case V_UNARY:
+      vlog_check_const_expr(vlog_value(expr));
+      break;
+   case V_BIT_SELECT:
+      {
+         const int nparams = vlog_params(expr);
+         for (int i = 0; i < nparams; i++)
+            vlog_check_const_expr(vlog_param(expr, i));
       }
       break;
    default:
@@ -569,8 +589,13 @@ static void vlog_check_mod_inst(vlog_node_t inst)
 
 static void vlog_check_dimension(vlog_node_t dim)
 {
-   vlog_check_const_expr(vlog_left(dim));
-   vlog_check_const_expr(vlog_right(dim));
+   vlog_node_t left = vlog_left(dim);
+   vlog_check(left);
+   vlog_check_const_expr(left);
+
+   vlog_node_t right = vlog_right(dim);
+   vlog_check(right);
+   vlog_check_const_expr(right);
 }
 
 static void vlog_check_bit_select(vlog_node_t bsel)
