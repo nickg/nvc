@@ -171,7 +171,7 @@ START_TEST(test_parse1)
    fail_unless(vlog_kind(m) == V_MODULE);
    fail_unless(vlog_stmts(m) == 15);
    fail_unless(vlog_ports(m) == 0);
-   fail_unless(vlog_decls(m) == 14);
+   fail_unless(vlog_decls(m) == 16);
 
    vlog_node_t x = vlog_decl(m, 0);
    fail_unless(vlog_kind(x) == V_NET_DECL);
@@ -279,6 +279,9 @@ START_TEST(test_parse1)
    fail_unless(vlog_kind(vlog_stmt(s9b, 0)) == V_WHILE);
    fail_unless(vlog_kind(vlog_stmt(s9b, 1)) == V_REPEAT);
    fail_unless(vlog_kind(vlog_stmt(s9b, 2)) == V_DO_WHILE);
+
+   vlog_node_t d15 = vlog_decl(m, 15);
+   fail_unless(vlog_kind(d15) == V_LOCALPARAM);
 
    fail_unless(vlog_parse() == NULL);
 

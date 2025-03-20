@@ -63,4 +63,6 @@ module parse1;
     for (int i = 0; i > 0; --i);
     for (var reg x = 5;;);
   end
+  localparam y = 5;
+  localparam bit z = 0;
 endmodule // parse1

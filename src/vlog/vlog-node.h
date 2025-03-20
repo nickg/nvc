@@ -99,6 +99,7 @@ typedef enum {
    V_FOR_STEP,
    V_PREFIX,
    V_POSTFIX,
+   V_LOCALPARAM,
 
    V_LAST_NODE_KIND
 } vlog_kind_t;

@@ -787,6 +787,7 @@ void vlog_check(vlog_node_t v)
       vlog_check_wait(v);
       break;
    case V_PARAM_DECL:
+   case V_LOCALPARAM:
       vlog_check_param_decl(v);
       break;
    case V_EMPTY:

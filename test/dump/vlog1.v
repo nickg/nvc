@@ -26,6 +26,8 @@ module mod2;
   pullup (supply1, supply0) p1 (w);
   mod u1 (w);
   assign bus[2] = 4'b1;
+  parameter [7:0] p1 = 5;
+  localparam bit p2 = 0;
 endmodule // mod2
 
 primitive multiplexer (mux, control, dataA, dataB);

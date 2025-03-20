@@ -720,6 +720,7 @@ BEFORE            ?i:before
 <VLOG>"wait"             { return tWAIT; }
 <VLOG>"parameter"        { return tPARAMETER; }
 <VLOG>"for"              { return tFOR; }
+<VLOG>"localparam"       { return tLOCALPARAM; }
 
 <VLOG>{SYSTASK}          { yylval.str = xstrdup(yytext); return tSYSTASK; }
 <VLOG>{VLOG_ID}          { yylval.str = xstrdup(yytext); return tID; }

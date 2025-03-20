@@ -504,6 +504,8 @@ START_TEST(test_vlog1)
              "  wire logic [7:0] bus;\n"
              "  wire logic w;\n"
              "  logic r;\n"
+             "  parameter logic [7:0] p1 = 5;\n"
+             "  localparam bit p2 = 0;\n"
              "  initial begin\n"
              "    $display(\"hello\", $time);\n"
              "    if (bus)\n"

@@ -189,6 +189,9 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
 
    // V_POSTFIX
    (I_TARGET | I_SUBKIND),
+
+   // V_LOCALPARAM
+   (I_IDENT | I_VALUE | I_TYPE),
 };
 
 static const char *kind_text_map[V_LAST_NODE_KIND] = {
@@ -205,7 +208,7 @@ static const char *kind_text_map[V_LAST_NODE_KIND] = {
    "V_REPEAT",     "V_WHILE",       "V_DO_WHILE",      "V_TASK_DECL",
    "V_FUNC_DECL",  "V_WAIT",        "V_PARAM_DECL",    "V_COND_EXPR",
    "V_REAL",       "V_CONCAT",      "V_FOR_LOOP",      "V_FOR_INIT",
-   "V_FOR_STEP",   "V_PREFIX",      "V_POSTFIX",
+   "V_FOR_STEP",   "V_PREFIX",      "V_POSTFIX",       "V_LOCALPARAM",
 };
 
 static const change_allowed_t change_allowed[] = {

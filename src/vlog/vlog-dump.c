@@ -473,6 +473,7 @@ static void vlog_dump_data_type(vlog_node_t v, int indent)
    case DT_REALTIME: print_syntax("#realtime"); break;
    case DT_SHORTREAL: print_syntax("#shortreal"); break;
    case DT_INTEGER: print_syntax("#integer"); break;
+   case DT_BIT: print_syntax("#bit"); break;
    default: should_not_reach_here();
    }
 
@@ -541,6 +542,32 @@ static void vlog_dump_concat(vlog_node_t v, int indent)
       print_syntax("}");
 
    print_syntax("}");
+}
+
+static void vlog_dump_param_decl(vlog_node_t v, int indent)
+{
+   tab(indent);
+
+   switch (vlog_kind(v)) {
+   case V_PARAM_DECL:
+      print_syntax("#parameter ");
+      break;
+   case V_LOCALPARAM:
+      print_syntax("#localparam ");
+      break;
+   default:
+      should_not_reach_here();
+   }
+
+   vlog_dump(vlog_type(v), indent);
+   print_syntax(" %s", istr(vlog_ident(v)));
+
+   if (vlog_has_value(v)) {
+      print_syntax(" = ");
+      vlog_dump(vlog_value(v), indent);
+   }
+
+   print_syntax(";\n");
 }
 
 void vlog_dump(vlog_node_t v, int indent)
@@ -655,6 +682,10 @@ void vlog_dump(vlog_node_t v, int indent)
       break;
    case V_CONCAT:
       vlog_dump_concat(v, indent);
+      break;
+   case V_PARAM_DECL:
+   case V_LOCALPARAM:
+      vlog_dump_param_decl(v, indent);
       break;
    default:
       print_syntax("\n");

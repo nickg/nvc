@@ -436,5 +436,6 @@ void reset_sdf_parser(void);
 #define tTRIREG        535
 #define tUWIRE         536
 #define tNONE          537
+#define tLOCALPARAM    538
 
 #endif  // _SCAN_H
