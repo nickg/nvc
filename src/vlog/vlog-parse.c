@@ -1264,10 +1264,13 @@ static vlog_unary_t p_unary_operator(void)
 
    BEGIN("unary operator");
 
-   switch (one_of(tMINUS, tPLUS, tTILDE, tBANG)) {
+   switch (one_of(tMINUS, tPLUS, tTILDE, tBANG, tAMP, tBAR, tCARET)) {
    case tMINUS: return V_UNARY_NEG;
    case tTILDE: return V_UNARY_BITNEG;
    case tBANG: return V_UNARY_NOT;
+   case tAMP: return V_UNARY_AND;
+   case tBAR: return V_UNARY_OR;
+   case tCARET: return V_UNARY_XOR;
    case tPLUS:
    default: return V_UNARY_IDENTITY;
    }
@@ -1321,6 +1324,9 @@ static vlog_node_t p_nonbinary_expression(void)
    case tPLUS:
    case tTILDE:
    case tBANG:
+   case tAMP:
+   case tBAR:
+   case tCARET:
       {
          vlog_node_t v = vlog_new(V_UNARY);
          vlog_set_subkind(v, p_unary_operator());
@@ -1333,7 +1339,8 @@ static vlog_node_t p_nonbinary_expression(void)
       return p_inc_or_dec_expression(NULL);
    default:
       one_of(tID, tSTRING, tNUMBER, tUNSIGNED, tREAL, tSYSTASK, tLPAREN,
-             tLBRACE, tMINUS, tTILDE, tBANG, tPLUSPLUS, tMINUSMINUS);
+             tLBRACE, tMINUS, tTILDE, tBANG, tAMP, tBAR, tCARET, tPLUSPLUS,
+             tMINUSMINUS);
       return p_select(error_marker());
    }
 }

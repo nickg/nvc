@@ -153,6 +153,9 @@ typedef enum {
    V_UNARY_NOT,
    V_UNARY_NEG,
    V_UNARY_IDENTITY,
+   V_UNARY_AND,
+   V_UNARY_OR,
+   V_UNARY_XOR,
 } vlog_unary_t;
 
 typedef enum {

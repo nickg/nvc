@@ -342,6 +342,8 @@ static vcode_reg_t vlog_lower_unary(lower_unit_t *lu, vlog_unary_t op,
       break;
    case V_UNARY_IDENTITY:
       return reg;
+   default:
+      should_not_reach_here();
    }
 
    vcode_type_t vlogic = vlog_logic_type();

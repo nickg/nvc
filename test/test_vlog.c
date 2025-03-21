@@ -169,9 +169,9 @@ START_TEST(test_parse1)
    vlog_node_t m = vlog_parse();
    fail_if(m == NULL);
    fail_unless(vlog_kind(m) == V_MODULE);
-   fail_unless(vlog_stmts(m) == 15);
-   fail_unless(vlog_ports(m) == 0);
-   fail_unless(vlog_decls(m) == 19);
+   ck_assert_int_eq(vlog_stmts(m), 16);
+   ck_assert_int_eq(vlog_ports(m), 0);
+   ck_assert_int_eq(vlog_decls(m), 19);
 
    vlog_node_t x = vlog_decl(m, 0);
    fail_unless(vlog_kind(x) == V_NET_DECL);

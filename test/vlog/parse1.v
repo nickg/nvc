@@ -68,4 +68,5 @@ module parse1;
   wire [y-1:0]  w2;
   reg [7:0]     array1 [31:0];
   wire [3:0]    array2 [6:0];
+  assign w3 = &(y) | ^(|y);
 endmodule // parse1

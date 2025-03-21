@@ -535,6 +535,7 @@ BEFORE            ?i:before
 <*>"~"                   { TOKEN(tTILDE); }
 <*>"[["                  { TOKEN(t2LSQUARE); }
 <*>"]]"                  { TOKEN(t2RSQUARE); }
+<*>"^"                   { TOKEN(tCARET); }
 
 <INITIAL,PSL>"!"         { TOKEN(tBAR); }
 <VLOG>"!"                { TOKEN(tBANG); }
@@ -552,7 +553,6 @@ BEFORE            ?i:before
 <INITIAL,PSL>"?="        { TOKEN_08(tMEQ); }
 <INITIAL,PSL>"<<"        { TOKEN(tLTLT); }
 <INITIAL,PSL>">>"        { TOKEN(tGTGT); }
-<INITIAL,PSL>"^"         { TOKEN(tCARET); }
 
 <INITIAL,PSL,VLOG>"<="   { TOKEN(tLE); }
 <INITIAL,PSL,VLOG>">="   { TOKEN(tGE); }
