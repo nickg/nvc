@@ -1332,6 +1332,12 @@ static int shell_redirect_close(ClientData cd, Tcl_Interp *interp)
    return EINVAL;
 }
 
+static int shell_redirect_close2(void *instanceData, Tcl_Interp *interp,
+                                 int flags)
+{
+   return EINVAL;
+}
+
 static void shell_redirect_watch(ClientData cd, int mask)
 {
 }
@@ -1361,6 +1367,9 @@ static const Tcl_ChannelType redirect_funcs = {
    .typeName = "redirect",
    .version = TCL_CHANNEL_VERSION_5,
    .closeProc = shell_redirect_close,
+#if TCL_MAJOR_VERSION >= 9
+   .close2Proc = shell_redirect_close2,
+#endif
    .watchProc = shell_redirect_watch,
    .outputProc = shell_redirect_output,
 };
