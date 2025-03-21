@@ -171,7 +171,7 @@ START_TEST(test_parse1)
    fail_unless(vlog_kind(m) == V_MODULE);
    fail_unless(vlog_stmts(m) == 15);
    fail_unless(vlog_ports(m) == 0);
-   fail_unless(vlog_decls(m) == 17);
+   fail_unless(vlog_decls(m) == 19);
 
    vlog_node_t x = vlog_decl(m, 0);
    fail_unless(vlog_kind(x) == V_NET_DECL);
@@ -282,6 +282,11 @@ START_TEST(test_parse1)
 
    vlog_node_t d15 = vlog_decl(m, 15);
    fail_unless(vlog_kind(d15) == V_LOCALPARAM);
+
+   vlog_node_t d17 = vlog_decl(m, 17);
+   fail_unless(vlog_kind(d17) == V_VAR_DECL);
+   ck_assert_int_eq(vlog_ranges(d17), 1);
+   fail_unless(vlog_subkind(vlog_range(d17, 0)) == V_DIM_UNPACKED);
 
    fail_unless(vlog_parse() == NULL);
 

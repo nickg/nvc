@@ -614,6 +614,28 @@ static vlog_node_t p_packed_dimension(void)
    return v;
 }
 
+static vlog_node_t p_unpacked_dimension(void)
+{
+   // [ constant_range ] | [ constant_expression ]
+
+   BEGIN("unpacked dimension");
+
+   consume(tLSQUARE);
+
+   vlog_node_t left, right;
+   p_constant_range(&left, &right);
+
+   consume(tRSQUARE);
+
+   vlog_node_t v = vlog_new(V_DIMENSION);
+   vlog_set_subkind(v, V_DIM_UNPACKED);
+   vlog_set_left(v, left);
+   vlog_set_right(v, right);
+   vlog_set_loc(v, CURRENT_LOC);
+
+   return v;
+}
+
 static vlog_node_t p_data_type_or_void(void)
 {
    // data_type | void
@@ -2176,6 +2198,9 @@ static vlog_node_t p_net_decl_assignment(vlog_net_kind_t kind,
    vlog_set_type(v, datatype);
    vlog_set_ident(v, p_identifier());
 
+   while (peek() == tLSQUARE)
+      vlog_add_range(v, p_unpacked_dimension());
+
    if (optional(tEQ))
       vlog_set_value(v, p_expression());
 
@@ -2215,6 +2240,16 @@ static void p_net_declaration(vlog_node_t mod)
    consume(tSEMI);
 }
 
+static vlog_node_t p_variable_dimension(void)
+{
+   // unsized_dimension | unpacked_dimension | associative_dimension
+   //   | queue_dimension
+
+   BEGIN("variable dimension");
+
+   return p_unpacked_dimension();
+}
+
 static vlog_node_t p_variable_decl_assignment(vlog_node_t datatype)
 {
    // variable_identifier { variable_dimension } [ = expression ]
@@ -2227,6 +2262,9 @@ static vlog_node_t p_variable_decl_assignment(vlog_node_t datatype)
    vlog_node_t v = vlog_new(V_VAR_DECL);
    vlog_set_ident(v, p_identifier());
    vlog_set_type(v, datatype);
+
+   while (peek() == tLSQUARE)
+      vlog_add_range(v, p_variable_dimension());
 
    if (optional(tEQ))
       vlog_set_value(v, p_expression());

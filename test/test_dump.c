@@ -506,6 +506,7 @@ START_TEST(test_vlog1)
              "  logic r;\n"
              "  parameter logic [7:0] p1 = 5;\n"
              "  localparam bit p2 = 0;\n"
+             "  logic [7:0] array1 [127:0];\n"
              "  initial begin\n"
              "    $display(\"hello\", $time);\n"
              "    if (bus)\n"

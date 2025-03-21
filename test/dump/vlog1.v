@@ -28,6 +28,7 @@ module mod2;
   assign bus[2] = 4'b1;
   parameter [7:0] p1 = 5;
   localparam bit p2 = 0;
+  reg [7:0]      array1 [127:0];
 endmodule // mod2
 
 primitive multiplexer (mux, control, dataA, dataB);

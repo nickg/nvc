@@ -66,4 +66,6 @@ module parse1;
   localparam [7:0] y = 5;
   localparam bit z = 0;
   wire [y-1:0]  w2;
+  reg [7:0]     array1 [31:0];
+  wire [3:0]    array2 [6:0];
 endmodule // parse1
