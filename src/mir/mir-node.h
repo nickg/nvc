@@ -247,6 +247,7 @@ typedef enum {
    MIR_OP_REFLECT_VALUE,
    MIR_OP_REFLECT_SUBTYPE,
    MIR_OP_DEBUG_OUT,
+   MIR_OP_GET_RANDOM,
 } mir_op_t;
 
 typedef enum {
@@ -673,5 +674,6 @@ mir_value_t mir_build_resolution_wrapper(mir_unit_t *mu, mir_type_t type,
 mir_value_t mir_build_locus(mir_unit_t *mu, object_t *obj);
 mir_value_t mir_build_cast(mir_unit_t *mu, mir_type_t type, mir_value_t value);
 void mir_build_debug_out(mir_unit_t *mu, mir_value_t value);
+mir_value_t mir_build_get_random(mir_unit_t *mu);
 
 #endif   // _MIR_NODE_H

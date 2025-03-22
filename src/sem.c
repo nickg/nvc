@@ -7243,6 +7243,7 @@ bool sem_check(tree_t t, nametab_t *tab)
    case T_PSL_DIRECT:
    case T_PSL_DECL:
    case T_PSL_FCALL:
+   case T_PSL_UNION:
    case T_LOOP:
    case T_SEQUENCE:
       return true;
