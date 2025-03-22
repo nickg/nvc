@@ -1332,11 +1332,13 @@ static int shell_redirect_close(ClientData cd, Tcl_Interp *interp)
    return EINVAL;
 }
 
+#if TCL_MAJOR_VERSION >= 9
 static int shell_redirect_close2(void *instanceData, Tcl_Interp *interp,
                                  int flags)
 {
    return EINVAL;
 }
+#endif
 
 static void shell_redirect_watch(ClientData cd, int mask)
 {
