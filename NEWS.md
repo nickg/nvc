@@ -30,6 +30,7 @@
 - A Docker image was added at `ghcr.io/nickg/nvc` (#1165).
 - Unconstrained input ports can now be constrained by the result subtype
   of a conversion function (#1171).
+- Several other minor bugs were resolved (#1174).
 
 ## Version 1.15.2 - 2025-03-01
 - Fixed invalid LLVM IR generation which could cause a crash with LLVM
@@ -106,7 +107,7 @@
   attributes of generate block labels (from @NikLeberg) (#1125).
 - Comments are now parsed correctly inside PSL directives (#1129).
 - Updated to OSVVM 2024.11 and UVVM 2024.10.08 for `nvc --install`.
-- Several other minor bugs were resolved (#1038, #1057, #1067. #1124).
+- Several other minor bugs were resolved (#1038, #1057, #1067, #1124).
 
 ## Version 1.14.2 - 2024-11-23
 - Fixed a crash when `'last_value` is used with record types (#1043).

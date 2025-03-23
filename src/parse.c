@@ -184,6 +184,7 @@ static psl_node_t p_psl_builtin_function_call(void);
 
 static bool consume(token_t tok);
 static bool optional(token_t tok);
+static type_t get_element_subtype(tree_t expr);
 
 static void _pop_state(const state_t *s)
 {
@@ -1915,29 +1916,7 @@ static type_t get_subtype_for(tree_t expr)
          tree_add_range(c, r);
       }
 
-      type_t elem = type_elem(type);
-      if (type_is_unconstrained(elem)) {
-         tree_t aref = tree_new(T_ARRAY_REF);
-         tree_set_value(aref, expr);
-         tree_set_type(aref, elem);
-         tree_set_loc(aref, tree_loc(expr));
-
-         const int ndims = dimension_of(type);
-         for (int i = 0; i < ndims; i++) {
-            tree_t left = tree_new(T_ATTR_REF);
-            tree_set_loc(left, tree_loc(expr));
-            tree_set_name(left, expr);
-            tree_set_subkind(left, ATTR_LEFT);
-            tree_set_ident(left, ident_new("LEFT"));
-            tree_set_type(left, index_type_of(type, i));
-
-            add_param(aref, left, P_POS, NULL);
-         }
-
-         type_set_elem(sub, get_subtype_for(aref));
-      }
-      else
-         type_set_elem(sub, elem);
+      type_set_elem(sub, get_element_subtype(expr));
    }
    else if (type_is_scalar(type))
       return type;   // TODO: see test/regress/integer3.vhd
@@ -1952,11 +1931,28 @@ static type_t get_element_subtype(tree_t expr)
    type_t type = tree_type(expr);
    assert(type_is_array(type));
 
-   // TODO: what if type is unconstrained?
-   // TODO: this causes cascading bounds check errors if the original
-   //       constraint had an error, see test/bounds/cons1.vhd
+   type_t elem = type_elem(type);
+   if (type_const_bounds(elem))
+      return elem;
 
-   return type_elem(type);
+   tree_t aref = tree_new(T_ARRAY_REF);
+   tree_set_value(aref, expr);
+   tree_set_type(aref, elem);
+   tree_set_loc(aref, tree_loc(expr));
+
+   const int ndims = dimension_of(type);
+   for (int i = 0; i < ndims; i++) {
+      tree_t left = tree_new(T_ATTR_REF);
+      tree_set_loc(left, tree_loc(expr));
+      tree_set_name(left, expr);
+      tree_set_subkind(left, ATTR_LEFT);
+      tree_set_ident(left, ident_new("LEFT"));
+      tree_set_type(left, index_type_of(type, i));
+
+      add_param(aref, left, P_POS, NULL);
+   }
+
+   return get_subtype_for(aref);
 }
 
 static type_t apply_subtype_attribute(tree_t aref)
