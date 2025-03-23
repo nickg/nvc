@@ -122,6 +122,11 @@ static uint32_t mir_hash_type(mir_unit_t *mu, const type_data_t *td)
    case MIR_TYPE_FILE:
       h ^= mir_type_data(mu, td->u.base)->hash;
       break;
+
+   case MIR_TYPE_VEC2:
+   case MIR_TYPE_VEC4:
+      h ^= knuth_hash(td->u.vec.size) ^ td->u.vec.issigned;
+      break;
    }
 
    return h;
@@ -192,6 +197,11 @@ static bool mir_compare_types(const type_data_t *a, const type_data_t *b)
    case MIR_TYPE_RESOLUTION:
    case MIR_TYPE_FILE:
       return a->u.base.bits == b->u.base.bits;
+
+   case MIR_TYPE_VEC2:
+   case MIR_TYPE_VEC4:
+      return a->u.vec.size == b->u.vec.size
+         && a->u.vec.size == b->u.vec.size;
    }
 
    should_not_reach_here();
@@ -556,6 +566,14 @@ mir_type_t mir_time_type(mir_unit_t *mu)
    return mu->types.time_type;
 }
 
+mir_type_t mir_logic_type(mir_unit_t *mu)
+{
+   if (mir_is_null(mu->types.logic_type))
+      mu->types.logic_type = mir_int_type(mu, 0, UINT8_MAX);
+
+   return mu->types.logic_type;
+}
+
 mir_type_t mir_double_type(mir_unit_t *mu)
 {
    if (mir_is_null(mu->types.double_type))
@@ -720,6 +738,30 @@ mir_type_t mir_context_type(mir_unit_t *mu, ident_t name)
    return mir_build_type(mu, &td);
 }
 
+mir_type_t mir_vec2_type(mir_unit_t *mu, int size, bool issigned)
+{
+   assert(size >= 0);
+
+   const type_data_t td = {
+      .class = MIR_TYPE_VEC2,
+      .u = { .vec = { .size = size, .issigned = issigned } }
+   };
+
+   return mir_build_type(mu, &td);
+}
+
+mir_type_t mir_vec4_type(mir_unit_t *mu, int size, bool issigned)
+{
+   assert(size >= 0);
+
+   const type_data_t td = {
+      .class = MIR_TYPE_VEC4,
+      .u = { .vec = { .size = size, .issigned = issigned } }
+   };
+
+   return mir_build_type(mu, &td);
+}
+
 mir_type_t mir_get_base(mir_unit_t *mu, mir_type_t type)
 {
    const type_data_t *td = mir_type_data(mu, type);
@@ -798,6 +840,9 @@ unsigned mir_get_size(mir_unit_t *mu, mir_type_t type)
    switch (td->class) {
    case MIR_TYPE_CARRAY:
       return td->u.carray.size;
+   case MIR_TYPE_VEC2:
+   case MIR_TYPE_VEC4:
+      return td->u.vec.size;
    default:
       should_not_reach_here();
    }

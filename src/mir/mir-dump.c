@@ -24,6 +24,7 @@
 #include "mir/mir-unit.h"
 #include "thread.h"
 #include "tree.h"
+#include "vlog/vlog-node.h"
 
 #include <assert.h>
 #include <ctype.h>
@@ -89,6 +90,7 @@ const char *mir_op_string(mir_op_t op)
       [MIR_OP_CONST_ARRAY] = "const array",
       [MIR_OP_CONST_REP] = "const rep",
       [MIR_OP_CONST_RECORD] = "const record",
+      [MIR_OP_CONST_VEC] = "const vec",
       [MIR_OP_ARRAY_REF] = "array ref",
       [MIR_OP_RECORD_REF] = "record ref",
       [MIR_OP_ADDRESS_OF] = "address of",
@@ -166,6 +168,8 @@ const char *mir_op_string(mir_op_t op)
       [MIR_OP_REFLECT_VALUE] = "reflect value",
       [MIR_OP_REFLECT_SUBTYPE] = "reflect subtype",
       [MIR_OP_DEBUG_OUT] = "debug out",
+      [MIR_OP_PACK] = "pack",
+      [MIR_OP_UNPACK] = "unpack",
    };
 
    return map[op];
@@ -351,6 +355,14 @@ static void mir_dump_one_type(mir_unit_t *mu, mir_type_t type)
    case MIR_TYPE_OPAQUE:
       printf("?");
       break;
+
+   case MIR_TYPE_VEC2:
+      printf("Vec2%s<%u>", td->u.vec.issigned ? "S" : "", td->u.vec.size);
+      break;
+
+   case MIR_TYPE_VEC4:
+      printf("Vec4%s<%u>", td->u.vec.issigned ? "S" : "", td->u.vec.size);
+      break;
    }
 }
 
@@ -463,6 +475,17 @@ static int mir_dump_arg(mir_unit_t *mu, mir_value_t node, int nth,
 {
    mir_value_t arg = mir_get_arg(mu, node, nth);
    return mir_dump_value(mu, arg, cb, ctx);
+}
+
+static int mir_dump_strength(mir_unit_t *mu, mir_value_t value)
+{
+   assert(value.tag == MIR_TAG_ENUM);
+
+   static const char *names[] = {
+      "highz", "small", "medium", "weak", "large", "pull", "strong", "supply"
+   };
+   return color_printf("$green$(%s1,%s0)$$", names[STRENGTH1(value.id)],
+                       names[STRENGTH0(value.id)]);
 }
 
 static int mir_dump_locus(object_t *obj)
@@ -745,6 +768,16 @@ void mir_annotate(mir_unit_t *mu, const mir_annotate_t *cb, void *ctx)
             {
                col += mir_dump_value(mu, result, cb, ctx);
                col += printf(" := const %g ", n->dconst);
+               mir_dump_type(mu, col, n->type);
+               mir_dump_stamp(mu, n->type, n->stamp);
+            }
+            break;
+
+         case MIR_OP_CONST_VEC:
+            {
+               col += mir_dump_value(mu, result, cb, ctx);
+               col += printf(" := const 0x%"PRIx64", 0x%"PRIx64 , n->bits[0],
+                             n->bits[1]);
                mir_dump_type(mu, col, n->type);
                mir_dump_stamp(mu, n->type, n->stamp);
             }
@@ -1639,6 +1672,32 @@ void mir_annotate(mir_unit_t *mu, const mir_annotate_t *cb, void *ctx)
                   col += printf(" bounds ");
                   col += mir_dump_arg(mu, result, 2, cb, ctx);
                }
+               mir_dump_type(mu, col, n->type);
+               mir_dump_stamp(mu, n->type, n->stamp);
+            }
+            break;
+
+         case MIR_OP_UNPACK:
+            {
+               col += mir_dump_value(mu, result, cb, ctx);
+               col += printf(" := %s ", mir_op_string(n->op));
+               col += mir_dump_arg(mu, result, 0, cb, ctx);
+               col += printf(" strength ");
+               col += mir_dump_strength(mu, mir_get_arg(mu, result, 1));
+               if (n->nargs > 2) {
+                  col += printf(" into ");
+                  col += mir_dump_arg(mu, result, 2, cb, ctx);
+               }
+               mir_dump_type(mu, col, n->type);
+               mir_dump_stamp(mu, n->type, n->stamp);
+            }
+            break;
+
+         case MIR_OP_PACK:
+            {
+               col += mir_dump_value(mu, result, cb, ctx);
+               col += printf(" := %s ", mir_op_string(n->op));
+               col += mir_dump_arg(mu, result, 0, cb, ctx);
                mir_dump_type(mu, col, n->type);
                mir_dump_stamp(mu, n->type, n->stamp);
             }

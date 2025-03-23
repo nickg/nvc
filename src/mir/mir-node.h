@@ -170,6 +170,7 @@ typedef enum {
    MIR_OP_CONST_ARRAY,
    MIR_OP_CONST_REP,
    MIR_OP_CONST_RECORD,
+   MIR_OP_CONST_VEC,
    MIR_OP_ADDRESS_OF,
    MIR_OP_ARRAY_REF,
    MIR_OP_VAR_UPREF,
@@ -247,6 +248,8 @@ typedef enum {
    MIR_OP_REFLECT_VALUE,
    MIR_OP_REFLECT_SUBTYPE,
    MIR_OP_DEBUG_OUT,
+   MIR_OP_PACK,
+   MIR_OP_UNPACK,
 } mir_op_t;
 
 typedef enum {
@@ -268,6 +271,8 @@ typedef enum {
    MIR_TYPE_TRIGGER,
    MIR_TYPE_CONVERSION,
    MIR_TYPE_OPAQUE,
+   MIR_TYPE_VEC2,
+   MIR_TYPE_VEC4,
 } mir_class_t;
 
 typedef struct {
@@ -315,6 +320,7 @@ mir_type_t mir_trigger_type(mir_unit_t *mu);
 mir_type_t mir_self_type(mir_unit_t *mu);
 mir_type_t mir_bool_type(mir_unit_t *mu);
 mir_type_t mir_time_type(mir_unit_t *mu);
+mir_type_t mir_logic_type(mir_unit_t *mu);
 mir_type_t mir_double_type(mir_unit_t *mu);
 mir_type_t mir_char_type(mir_unit_t *mu);
 mir_type_t mir_string_type(mir_unit_t *mu);
@@ -330,6 +336,8 @@ mir_type_t mir_record_type(mir_unit_t *mu, ident_t name,
 mir_type_t mir_closure_type(mir_unit_t *mu, mir_type_t atype, mir_type_t rtype);
 mir_type_t mir_resolution_type(mir_unit_t *mu, mir_type_t base);
 mir_type_t mir_file_type(mir_unit_t *mu, mir_type_t base);
+mir_type_t mir_vec2_type(mir_unit_t *mu, int size, bool issigned);
+mir_type_t mir_vec4_type(mir_unit_t *mu, int size, bool issigned);
 
 mir_type_t mir_get_base(mir_unit_t *mu, mir_type_t type);
 mir_type_t mir_get_elem(mir_unit_t *mu, mir_type_t type);
@@ -376,6 +384,8 @@ mir_stamp_t mir_get_stamp(mir_unit_t *mu, mir_value_t value);
 mir_mem_t mir_get_mem(mir_unit_t *mu, mir_value_t value);
 ident_t mir_get_name(mir_unit_t *mu, mir_value_t value);
 object_t *mir_get_locus(mir_unit_t *mu, mir_value_t value);
+void mir_get_bits(mir_unit_t *mu, mir_value_t value, uint64_t *abits,
+                  uint64_t *bbits);
 mir_var_flags_t mir_get_var_flags(mir_unit_t *mu, mir_value_t value);
 mir_type_t mir_get_var_type(mir_unit_t *mu, mir_value_t value);
 void mir_set_input(mir_unit_t *mu, mir_value_t phi, unsigned nth,
@@ -387,6 +397,7 @@ mir_type_t mir_get_result(mir_unit_t *mu);
 
 bool mir_is_integral(mir_unit_t *mu, mir_value_t value);
 bool mir_is_scalar(mir_unit_t *mu, mir_value_t value);
+bool mir_is_vector(mir_unit_t *mu, mir_value_t value);
 bool mir_is_bool(mir_unit_t *mu, mir_value_t value);
 bool mir_is_time(mir_unit_t *mu, mir_value_t value);
 bool mir_is_signal(mir_unit_t *mu, mir_value_t value);
@@ -408,6 +419,8 @@ void mir_comment(mir_unit_t *mu, const char *fmt, ...);
 mir_value_t mir_enum(unsigned value);
 mir_value_t mir_const(mir_unit_t *mu, mir_type_t type, int64_t value);
 mir_value_t mir_const_real(mir_unit_t *mu, mir_type_t type, double value);
+mir_value_t mir_const_vec(mir_unit_t *mu, mir_type_t type, uint64_t abits,
+                          uint64_t bbits);
 mir_value_t mir_const_array(mir_unit_t *mu, mir_type_t type,
                             const mir_value_t *values, size_t count);
 mir_value_t mir_const_string(mir_unit_t *mu, const char *str);
@@ -460,6 +473,11 @@ mir_value_t mir_build_xnor(mir_unit_t *mu, mir_value_t left, mir_value_t right);
 mir_value_t mir_build_not(mir_unit_t *mu, mir_value_t value);
 mir_value_t mir_build_cmp(mir_unit_t *mu, mir_cmp_t cmp, mir_value_t left,
                           mir_value_t right);
+
+// Vectors
+mir_value_t mir_build_pack(mir_unit_t *mu, mir_type_t type, mir_value_t arg);
+mir_value_t mir_build_unpack(mir_unit_t *mu, mir_value_t vec, uint8_t strength,
+                             mir_value_t dest);
 
 // Memory
 void mir_build_store(mir_unit_t *mu, mir_value_t dest, mir_value_t src);

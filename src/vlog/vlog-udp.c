@@ -19,12 +19,9 @@
 #include "ident.h"
 #include "mir/mir-node.h"
 #include "mir/mir-unit.h"
-#include "vlog/vlog-defs.h"
 #include "vlog/vlog-lower.h"
 #include "vlog/vlog-node.h"
 #include "vlog/vlog-number.h"
-#include "vlog/vlog-phase.h"
-#include "vlog/vlog-util.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -34,78 +31,16 @@
                vlog_kind_str(vlog_kind(v)), __FUNCTION__);              \
    } while (0)
 
-static inline mir_type_t vlog_logic_type(mir_unit_t *mu)
-{
-   return mir_int_type(mu, 0, 3);
-}
-
-static inline mir_type_t vlog_net_value_type(mir_unit_t *mu)
-{
-   return mir_int_type(mu, 0, 255);
-}
-
-static mir_value_t vlog_helper_package(mir_unit_t *mu)
-{
-   return mir_build_link_package(mu, ident_new("NVC.VERILOG"));
-}
-
-static mir_value_t vlog_lower_to_logic(mir_unit_t *mu, mir_value_t reg)
-{
-   mir_type_t t_logic = vlog_logic_type(mu);
-
-   if (mir_is_integral(mu, reg)) {
-      mir_value_t context = vlog_helper_package(mu);
-      mir_value_t args[] = { context, reg };
-      ident_t func = ident_new("NVC.VERILOG.TO_LOGIC("
-                               T_NET_VALUE ")" T_LOGIC);
-      return mir_build_fcall(mu, func, t_logic, MIR_NULL_STAMP,
-                             args, ARRAY_LEN(args));
-   }
-   else {
-      mir_dump(mu);
-      fatal_trace("cannot convert %x to logic", reg.bits);
-   }
-}
-
-static mir_value_t vlog_lower_to_net(mir_unit_t *mu, mir_value_t reg,
-                                     mir_value_t strength)
-{
-   mir_type_t t_net = vlog_net_value_type(mu);
-
-   if (mir_is_integral(mu, reg)) {
-      mir_value_t context_reg = vlog_helper_package(mu);
-      mir_value_t args[] = { context_reg, reg, strength };
-      ident_t func = ident_new("NVC.VERILOG.TO_NET(" T_LOGIC T_NET_VALUE
-                               ")" T_NET_VALUE);
-      return mir_build_fcall(mu, func, t_net, MIR_NULL_STAMP,
-                             args, ARRAY_LEN(args));
-   }
-   else {
-      mir_dump(mu);
-      fatal_trace("cannot convert %x to net value", reg.bits);
-   }
-}
-
 static mir_value_t vlog_lower_rvalue(mir_unit_t *mu, vlog_node_t v)
 {
    switch (vlog_kind(v)) {
    case V_NUMBER:
       {
-         mir_type_t t_logic = vlog_logic_type(mu);
-
          number_t num = vlog_number(v);
-         const int width = number_width(num);
+         assert(number_width(num) == 1);
 
-         if (width == 1)
-            return mir_const(mu, t_logic, number_bit(num, 0));
-         else {
-            mir_value_t *bits LOCAL = xmalloc_array(width, sizeof(mir_value_t));
-            for (int i = 0; i < width; i++)
-               bits[width - i - 1] = mir_const(mu, t_logic, number_bit(num, i));
-
-            mir_type_t t_array = mir_carray_type(mu, width, t_logic);
-            return mir_const_array(mu, t_array, bits, width);
-         }
+         mir_type_t t_logic = mir_vec4_type(mu, 1, false);
+         return mir_const_vec(mu, t_logic, number_bit(num, 0), 1);
       }
    default:
       CANNOT_HANDLE(v);
@@ -150,7 +85,7 @@ void vlog_lower_udp(mir_context_t *mc, ident_t parent, vlog_node_t udp)
    }
 
    mir_type_t t_offset = mir_offset_type(mu);
-   mir_type_t t_logic = vlog_logic_type(mu);
+   mir_type_t t_logic = mir_vec4_type(mu, 1, false);
    mir_type_t t_time = mir_time_type(mu);
 
    mir_value_t result_var = mir_add_var(mu, t_logic, MIR_NULL_STAMP,
@@ -183,9 +118,9 @@ void vlog_lower_udp(mir_context_t *mc, ident_t parent, vlog_node_t udp)
    {
       mir_value_t one = mir_const(mu, t_offset, 1);
       mir_value_t zero = mir_const(mu, t_time, 1);
-      mir_value_t logic0 = mir_const(mu, t_logic, LOGIC_0);
-      mir_value_t logic1 = mir_const(mu, t_logic, LOGIC_1);
-      mir_value_t logicX = mir_const(mu, t_logic, LOGIC_X);
+      mir_value_t logic0 = mir_const_vec(mu, t_logic, 0, 1 /*XX*/);
+      mir_value_t logic1 = mir_const_vec(mu, t_logic, 1, 1 /*XX*/);
+      mir_value_t logicX = mir_const_vec(mu, t_logic, 0, 0 /*XX*/);
 
       mir_value_t level_map[127];
       level_map['0'] = logic0;
@@ -199,7 +134,7 @@ void vlog_lower_udp(mir_context_t *mc, ident_t parent, vlog_node_t udp)
          mir_value_t upref = mir_build_var_upref(mu, hops, in_vars[i - 1].id);
          mir_value_t nets = mir_build_load(mu, upref);
          mir_value_t value = mir_build_load(mu, mir_build_resolved(mu, nets));
-         in_regs[i - 1] = vlog_lower_to_logic(mu, value);
+         in_regs[i - 1] = mir_build_pack(mu, t_logic, value);
          in_nets[i - 1] = nets;
       }
 
@@ -248,8 +183,8 @@ void vlog_lower_udp(mir_context_t *mc, ident_t parent, vlog_node_t udp)
                      mir_value_t last_ptr =
                         mir_build_last_value(mu, in_nets[j]);
                      mir_value_t last = mir_build_load(mu, last_ptr);
-                     mir_value_t logic = vlog_lower_to_logic(mu, last);
-                     mir_value_t eq = mir_build_cmp(mu, MIR_CMP_EQ, logic,
+                     mir_value_t packed = mir_build_pack(mu, t_logic, last);
+                     mir_value_t eq = mir_build_cmp(mu, MIR_CMP_EQ, packed,
                                                     level_map[(unsigned)sp[1]]);
                      cmp = mir_build_and(mu, cmp, eq);
                   }
@@ -282,6 +217,7 @@ void vlog_lower_udp(mir_context_t *mc, ident_t parent, vlog_node_t udp)
             mir_value_t out = mir_build_load(mu, upref);
             mir_value_t resolved = mir_build_resolved(mu, out);
             mir_value_t cur = mir_build_load(mu, resolved);
+            mir_value_t packed = mir_build_pack(mu, t_logic, cur);
 
             mir_value_t cmp = MIR_NULL_VALUE;
             switch (*sp) {
@@ -289,7 +225,7 @@ void vlog_lower_udp(mir_context_t *mc, ident_t parent, vlog_node_t udp)
             case '1':
             case 'x':
             case 'X':
-               cmp = mir_build_cmp(mu, MIR_CMP_EQ, cur,
+               cmp = mir_build_cmp(mu, MIR_CMP_EQ, packed,
                                    level_map[(unsigned)*sp]);
                break;
             case '?':
@@ -355,12 +291,10 @@ void vlog_lower_udp(mir_context_t *mc, ident_t parent, vlog_node_t udp)
 
       mir_set_cursor(mu, wait_bb, MIR_APPEND);
 
-      mir_value_t result = mir_build_load(mu, result_var), drive = result;
-      if (kind == V_UDP_COMB) {
-         mir_type_t t_net = vlog_net_value_type(mu);
-         mir_value_t strong = mir_const(mu, t_net, ST_STRONG);
-         drive = vlog_lower_to_net(mu, result, strong);
-      }
+      mir_value_t result = mir_build_load(mu, result_var);
+      const uint8_t strength = kind == V_UDP_COMB ? ST_STRONG : 0;
+      mir_value_t drive =
+         mir_build_unpack(mu, result, strength, MIR_NULL_VALUE);
 
       mir_value_t upref = mir_build_var_upref(mu, hops, out_var.id);
       mir_value_t out = mir_build_load(mu, upref);

@@ -38,6 +38,7 @@ typedef struct {
       object_t   *locus;
       int64_t     iconst;
       double      dconst;
+      uint64_t    bits[2];
    };
 } node_data_t;
 
@@ -109,6 +110,11 @@ typedef struct {
 } mir_closure_type_t;
 
 typedef struct {
+   unsigned size;
+   bool     issigned;
+} mir_vec_type_t;
+
+typedef struct {
    mir_class_t class : 16;
    mir_repr_t  repr : 16;
    uint32_t    hash;
@@ -123,6 +129,7 @@ typedef struct {
       mir_record_type_t  record;
       mir_closure_type_t closure;
       mir_type_t         base;
+      mir_vec_type_t     vec;
       ident_t            context;
    } u;
 } type_data_t;
@@ -161,6 +168,7 @@ typedef struct {
    mir_type_t offset_type;
    mir_type_t bool_type;
    mir_type_t time_type;
+   mir_type_t logic_type;
    mir_type_t double_type;
    mir_type_t char_type;
    mir_type_t locus_type;

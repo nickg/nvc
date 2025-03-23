@@ -408,6 +408,13 @@ static jit_value_t j_asr(jit_irgen_t *g, jit_value_t lhs, jit_value_t rhs)
    return jit_value_from_reg(r);
 }
 
+static jit_value_t j_shl(jit_irgen_t *g, jit_value_t lhs, jit_value_t rhs)
+{
+   jit_reg_t r = irgen_alloc_reg(g);
+   irgen_emit_binary(g, J_SHL, JIT_SZ_UNSPEC, JIT_CC_NONE, r, lhs, rhs);
+   return jit_value_from_reg(r);
+}
+
 static jit_value_t j_add(jit_irgen_t *g, jit_value_t lhs, jit_value_t rhs)
 {
    jit_reg_t r = irgen_alloc_reg(g);
@@ -864,6 +871,12 @@ static int irgen_size_bytes(jit_irgen_t *g, mir_type_t type)
    case MIR_TYPE_RESOLUTION:
       return 2*sizeof(void *) + sizeof(int64_t) + sizeof(int32_t);
 
+   case MIR_TYPE_VEC2:
+      return sizeof(uint64_t);
+
+   case MIR_TYPE_VEC4:
+      return 2*sizeof(uint64_t);
+
    default:
       fatal_trace("cannot handle type %d in irgen_size_bytes",
                   mir_get_class(g->mu, type));
@@ -1140,6 +1153,26 @@ static void irgen_op_const_real(jit_irgen_t *g, mir_value_t n)
       g->map[n.id] = jit_value_from_double(val);
    else
       should_not_reach_here();
+}
+
+static void irgen_op_const_vec(jit_irgen_t *g, mir_value_t n)
+{
+   uint64_t abits, bbits;
+   mir_get_bits(g->mu, n, &abits, &bbits);
+
+   if (mir_is(g->mu, n, MIR_TYPE_VEC2)) {
+      assert(bbits == 0);
+      g->map[n.id] = jit_value_from_int64(bbits);
+   }
+   else {
+      // Registers must be contiguous
+      jit_reg_t areg = irgen_alloc_reg(g);
+      j_mov(g, areg, jit_value_from_int64(abits));
+      jit_reg_t breg = irgen_alloc_reg(g);
+      j_mov(g, breg, jit_value_from_int64(bbits));
+
+      g->map[n.id] = jit_value_from_reg(areg);
+   }
 }
 
 static void irgen_copy_const(jit_irgen_t *g, unsigned char *p,
@@ -1797,6 +1830,17 @@ static jit_value_t irgen_load_addr(jit_irgen_t *g, mir_type_t type,
          return base;
       }
 
+   case MIR_TYPE_VEC2:
+      return j_load(g, JIT_SZ_64, addr);
+
+   case MIR_TYPE_VEC4:
+      {
+         jit_value_t base = j_load(g, JIT_SZ_64, addr);
+         addr = jit_addr_from_value(addr, sizeof(uint64_t));
+         j_load(g, JIT_SZ_PTR, addr);
+         return base;
+      }
+
    default:
       fatal_trace("cannot load type kind %d", mir_get_class(g->mu, type));
    }
@@ -1869,6 +1913,19 @@ static void irgen_store_addr(jit_irgen_t *g, mir_type_t type,
          j_store(g, JIT_SZ_64, jit_value_from_reg(base + 2), addr);  // Literals
          addr = jit_addr_from_value(addr, sizeof(int64_t));
          j_store(g, JIT_SZ_32, jit_value_from_reg(base + 3), addr);  // Flags
+      }
+      break;
+
+   case MIR_TYPE_VEC2:
+      j_store(g, JIT_SZ_64, value, addr);
+      break;
+
+   case MIR_TYPE_VEC4:
+      {
+         jit_reg_t base = jit_value_as_reg(value);
+         j_store(g, JIT_SZ_64, value, addr);
+         addr = jit_addr_from_value(addr, sizeof(uint64_t));
+         j_store(g, JIT_SZ_PTR, jit_value_from_reg(base + 1), addr);
       }
       break;
 
@@ -3691,6 +3748,46 @@ static void irgen_op_bind_external(jit_irgen_t *g, mir_value_t n)
    g->map[n.id] = j_recv(g, 0);
 }
 
+static void irgen_op_pack(jit_irgen_t *g, mir_value_t n)
+{
+   mir_value_t arg = mir_get_arg(g->mu, n, 0);
+   if (mir_is_scalar(g->mu, arg)) {
+      assert(mir_is(g->mu, n, MIR_TYPE_VEC4));  // TODO
+
+      jit_value_t unpacked = irgen_get_value(g, arg);
+
+      jit_value_t one = jit_value_from_int64(1);
+      jit_value_t shifted = j_asr(g, unpacked, one);
+      jit_value_t abits = j_and(g, unpacked, one);
+      jit_value_t bbits = j_and(g, shifted, one);
+      assert(jit_value_as_reg(bbits) == jit_value_as_reg(abits) + 1);
+
+      g->map[n.id] = abits;
+   }
+   else
+      should_not_reach_here();   // TODO
+}
+
+static void irgen_op_unpack(jit_irgen_t *g, mir_value_t n)
+{
+   if (mir_is_scalar(g->mu, n)) {
+      mir_value_t arg = mir_get_arg(g->mu, n, 0);
+      assert(mir_is(g->mu, arg, MIR_TYPE_VEC4));
+
+      jit_value_t strength = jit_value_from_int64(irgen_get_enum(g, n, 1));
+
+      jit_value_t abits = irgen_get_value(g, arg);
+      jit_value_t bbits = jit_value_from_reg(jit_value_as_reg(abits) + 1);
+
+      jit_value_t bshift = j_shl(g, bbits, jit_value_from_int64(1));
+      jit_value_t bits = j_or(g, abits, bshift);
+
+      g->map[n.id] = j_or(g, bits, strength);
+   }
+   else
+      should_not_reach_here();   // TODO
+}
+
 static void irgen_block(jit_irgen_t *g, mir_block_t block)
 {
    irgen_bind_label(g, g->blocks[block.id]);
@@ -3717,6 +3814,9 @@ static void irgen_block(jit_irgen_t *g, mir_block_t block)
          break;
       case MIR_OP_CONST_REAL:
          irgen_op_const_real(g, n);
+         break;
+      case MIR_OP_CONST_VEC:
+         irgen_op_const_vec(g, n);
          break;
       case MIR_OP_CONST_ARRAY:
          irgen_op_const_array(g, n);
@@ -4088,6 +4188,12 @@ static void irgen_block(jit_irgen_t *g, mir_block_t block)
          break;
       case MIR_OP_BIND_EXTERNAL:
          irgen_op_bind_external(g, n);
+         break;
+      case MIR_OP_PACK:
+         irgen_op_pack(g, n);
+         break;
+      case MIR_OP_UNPACK:
+         irgen_op_unpack(g, n);
          break;
       default:
          DEBUG_ONLY(mir_dump(g->mu));

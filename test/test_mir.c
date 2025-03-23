@@ -1085,6 +1085,36 @@ START_TEST(test_cast1)
 }
 END_TEST
 
+START_TEST(test_vec1)
+{
+   mir_unit_t *mu = mir_unit_new(get_mir(), ident_new("vec1"), NULL,
+                                 MIR_UNIT_FUNCTION, NULL);
+
+   mir_type_t t_vec2_8 = mir_vec2_type(mu, 8, false);
+   mir_type_t t_vec2_9 = mir_vec2_type(mu, 9, false);
+
+   mir_set_result(mu, t_vec2_9);
+
+   mir_value_t p1 = mir_add_param(mu, t_vec2_8, MIR_NULL_STAMP,
+                                  ident_new("p1"));
+
+   mir_value_t c1 = mir_const_vec(mu, t_vec2_8, 5, 0);
+   mir_value_t add1 = mir_build_add(mu, t_vec2_9, p1, c1);
+   mir_value_t add2 = mir_build_add(mu, t_vec2_9, add1, c1);
+
+   mir_type_t t_carray9 = mir_carray_type(mu, 9, mir_int_type(mu, 0, 3));
+   mir_value_t tmp1 = mir_add_var(mu, t_carray9, MIR_NULL_STAMP,
+                                  ident_new("tmp1"), MIR_VAR_TEMP);
+
+   mir_value_t unpack1 = mir_build_unpack(mu, add2, 0, tmp1);
+   mir_value_t pack1 = mir_build_pack(mu, t_vec2_9, unpack1);
+
+   mir_build_return(mu, pack1);
+
+   mir_unit_free(mu);
+}
+END_TEST
+
 Suite *get_mir_tests(void)
 {
    Suite *s = suite_create("mir");
@@ -1109,6 +1139,7 @@ Suite *get_mir_tests(void)
    tcase_add_test(tc, test_record1);
    tcase_add_test(tc, test_alias1);
    tcase_add_test(tc, test_cast1);
+   tcase_add_test(tc, test_vec1);
    suite_add_tcase(s, tc);
 
    return s;
