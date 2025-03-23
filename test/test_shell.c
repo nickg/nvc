@@ -46,8 +46,9 @@ START_TEST(test_examine1)
 
    const char *result = NULL;
 
+   mir_context_t *mc = get_mir();
    unit_registry_t *ur = get_registry();
-   jit_t *j = jit_new(ur, get_mir());
+   jit_t *j = jit_new(ur, mc);
 
    input_from_file(TESTDIR "/shell/examine1.vhd");
 
@@ -55,7 +56,7 @@ START_TEST(test_examine1)
 
    rt_model_t *m = model_new(j, NULL);
 
-   tree_t top = elab(tree_to_object(arch), j, ur, NULL, NULL, m);
+   tree_t top = elab(tree_to_object(arch), j, ur, mc, NULL, NULL, m);
    fail_if(top == NULL);
 
    tcl_shell_t *sh = shell_new(j);
@@ -191,8 +192,9 @@ static void wave1_next_time_step(uint64_t now, void *user)
 
 START_TEST(test_wave1)
 {
+   mir_context_t *mc = get_mir();
    unit_registry_t *ur = get_registry();
-   jit_t *j = jit_new(ur, get_mir());
+   jit_t *j = jit_new(ur, mc);
 
    tcl_shell_t *sh = shell_new(j);
 
@@ -212,7 +214,8 @@ START_TEST(test_wave1)
 
    rt_model_t *m = model_new(j, NULL);
 
-   tree_t top = elab(tree_to_object(tree_primary(arch)), j, ur, NULL, NULL, m);
+   tree_t top = elab(tree_to_object(tree_primary(arch)), j, ur, mc,
+                     NULL, NULL, m);
    fail_if(top == NULL);
 
    shell_reset(sh, top);
@@ -358,14 +361,15 @@ START_TEST(test_force1)
 
    input_from_file(TESTDIR "/shell/force1.vhd");
 
+   mir_context_t *mc = get_mir();
    unit_registry_t *ur = get_registry();
-   jit_t *j = jit_new(ur, get_mir());
+   jit_t *j = jit_new(ur, mc);
 
    tree_t arch = parse_check_and_simplify(T_ENTITY, T_ARCH);
 
    rt_model_t *m = model_new(j, NULL);
 
-   tree_t top = elab(tree_to_object(arch), j, ur, NULL, NULL, m);
+   tree_t top = elab(tree_to_object(arch), j, ur, mc, NULL, NULL, m);
    fail_if(top == NULL);
 
    tcl_shell_t *sh = shell_new(j);
@@ -461,8 +465,9 @@ START_TEST(test_describe1)
    };
    expect_errors(expect);
 
+   mir_context_t *mc = get_mir();
    unit_registry_t *ur = get_registry();
-   jit_t *j = jit_new(ur, get_mir());
+   jit_t *j = jit_new(ur, mc);
 
    input_from_file(TESTDIR "/shell/describe1.vhd");
 
@@ -470,7 +475,7 @@ START_TEST(test_describe1)
 
    rt_model_t *m = model_new(j, NULL);
 
-   tree_t top = elab(tree_to_object(arch), j, ur, NULL, NULL, m);
+   tree_t top = elab(tree_to_object(arch), j, ur, mc, NULL, NULL, m);
    fail_if(top == NULL);
 
    tcl_shell_t *sh = shell_new(j);

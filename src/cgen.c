@@ -30,7 +30,7 @@
 #include "phase.h"
 #include "thread.h"
 #include "type.h"
-#include "vcode.h"
+#include "vlog/vlog-node.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -110,6 +110,8 @@ static void cgen_find_dependencies(mir_context_t *mc, unit_registry_t *ur,
       ident_t link = mir_get_linkage(mu, i);
       if (hset_contains(seen, link))
          continue;
+      else if (ident_char(link, 0) == '$')
+         continue;   // TODO: handle VPI differently
       else if (preload || !cgen_is_preload(link)) {
          APUSH(*units, link);
          hset_insert(seen, link);
@@ -126,6 +128,9 @@ static void cgen_walk_hier(unit_list_t *units, hset_t *seen, tree_t block,
    APUSH(*units, unit_name);
    hset_insert(seen, unit_name);
 
+   tree_t hier = tree_decl(block, 0);
+   assert(tree_kind(hier) == T_HIER);
+
    const int nstmts = tree_stmts(block);
    for (int i = 0; i < nstmts; i++) {
       tree_t s = tree_stmt(block, i);
@@ -139,6 +144,17 @@ static void cgen_walk_hier(unit_list_t *units, hset_t *seen, tree_t block,
             ident_t proc_name = ident_prefix(unit_name, tree_ident(s), '.');
             APUSH(*units, proc_name);
             hset_insert(seen, proc_name);
+         }
+         break;
+      case T_VERILOG:
+         {
+            vlog_node_t mod = tree_vlog(tree_ref(hier));
+            ident_t name = tree_ident(s);
+            ident_t suffix = well_known(W_SHAPE);
+            ident_t shape = ident_prefix(vlog_ident(mod), suffix, '.');
+            ident_t sym = ident_prefix(shape, name, '.');
+            APUSH(*units, sym);
+            hset_insert(seen, sym);
          }
          break;
       default:

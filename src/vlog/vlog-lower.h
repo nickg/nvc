@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2022-2024 Nick Gasson
+//  Copyright (C) 2025 Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -15,18 +15,11 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-#ifndef _VLOG_PHASE_H
-#define _VLOG_PHASE_H
+#ifndef _VLOG_LOWER_H
+#define _VLOG_LOWER_H
 
 #include "prim.h"
 
-void vlog_preprocess(text_buf_t *tb, bool precise);
-vlog_node_t vlog_parse(void);
-void vlog_check(vlog_node_t v);
-void vlog_dump(vlog_node_t v, int indent);
-void vlog_simp(vlog_node_t mod);
-void vlog_trans(vlog_node_t mod, tree_t out);
-vcode_unit_t vlog_lower(unit_registry_t *ur, mir_context_t *mc,
-                        vlog_node_t mod);
+void vlog_lower_udp(mir_context_t *mc, ident_t parent, vlog_node_t udp);
 
-#endif  // _VLOG_PHASE_H
+#endif  // _VLOG_LOWER_H

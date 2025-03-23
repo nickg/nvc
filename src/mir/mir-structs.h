@@ -206,6 +206,8 @@ typedef struct _mir_unit {
    mir_unit_kind_t  kind;
    mir_shape_t     *parent;
    mir_shape_t     *shape;
+   mem_pool_t      *pool;
+   hash_t          *objmap;
    mir_type_t       result;
    known_types_t    types;
    mir_cursor_t     cursor;
@@ -267,6 +269,7 @@ typedef struct {
 typedef struct _mir_shape {
    ident_t         name;
    mir_shape_t    *parent;
+   hash_t         *objmap;
    mir_type_t      type;
    mir_unit_kind_t kind;
    unsigned        num_slots;
@@ -274,7 +277,8 @@ typedef struct _mir_shape {
 } mir_shape_t;
 
 typedef struct {
-   mir_shape_t     *parent;
+   ident_t          name;
+   ident_t          parent;
    mir_lower_fn_t   fn;
    object_t        *object;
    mir_unit_kind_t  kind;

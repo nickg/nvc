@@ -379,6 +379,7 @@ mir_var_flags_t mir_get_var_flags(mir_unit_t *mu, mir_value_t value);
 mir_type_t mir_get_var_type(mir_unit_t *mu, mir_value_t value);
 void mir_set_input(mir_unit_t *mu, mir_value_t phi, unsigned nth,
                    mir_block_t block, mir_value_t value);
+bool mir_block_finished(mir_unit_t *mu, mir_block_t block);
 
 void mir_set_result(mir_unit_t *mu, mir_type_t type);
 mir_type_t mir_get_result(mir_unit_t *mu);

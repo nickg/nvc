@@ -442,11 +442,12 @@ START_TEST(test_process1)
 
    tree_t a = parse_check_and_simplify(T_ENTITY, T_ARCH);
 
+   mir_context_t *mc = get_mir();
    unit_registry_t *ur = get_registry();
-   jit_t *j = jit_new(ur, get_mir());
+   jit_t *j = jit_new(ur, mc);
    rt_model_t *m = model_new(j, NULL);
 
-   tree_t top = elab(tree_to_object(a), j, ur, NULL, NULL, m);
+   tree_t top = elab(tree_to_object(a), j, ur, mc, NULL, NULL, m);
    ck_assert_ptr_nonnull(top);
 
    model_reset(m);

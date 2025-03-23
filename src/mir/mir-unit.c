@@ -19,11 +19,12 @@
 #include "hash.h"
 #include "ident.h"
 #include "lib.h"
-#include "object.h"
-#include "mir/mir-unit.h"
 #include "mir/mir-node.h"
 #include "mir/mir-priv.h"
 #include "mir/mir-structs.h"
+#include "mir/mir-unit.h"
+#include "object.h"
+#include "option.h"
 #include "thread.h"
 
 #include <assert.h>
@@ -65,6 +66,9 @@ static void mir_unit_free_memory(mir_unit_t *mu)
    ACLEAR(mu->linkage);
    ACLEAR(mu->extvars);
 
+   pool_free(mu->pool);
+
+   hash_free(mu->objmap);
    free(mu->nodes);
    free(mu->argspill);
    free(mu);
@@ -75,6 +79,12 @@ static void mir_free_unit_cb(const void *key, void *value)
    switch (pointer_tag(value)) {
    case UNIT_GENERATED:
       mir_unit_free_memory(untag_pointer(value, mir_unit_t));
+      break;
+   case UNIT_FREED:
+      {
+         mir_shape_t *s = untag_pointer(value, mir_shape_t);
+         hash_free(s->objmap);
+      }
       break;
    }
 }
@@ -99,8 +109,10 @@ mir_unit_t *mir_unit_new(mir_context_t *mc, ident_t name, object_t *object,
    mu->parent  = parent;
    mu->result  = MIR_NULL_TYPE;
 
-   mir_block_t entry = mir_add_block(mu);
-   mir_set_cursor(mu, entry, MIR_APPEND);
+   if (kind != MIR_UNIT_PLACEHOLDER) {
+      mir_block_t entry = mir_add_block(mu);
+      mir_set_cursor(mu, entry, MIR_APPEND);
+   }
 
    return mu;
 }
@@ -123,7 +135,49 @@ ident_t mir_get_parent(mir_unit_t *mu)
       return NULL;
 }
 
-void *mir_malloc(mir_context_t *mc, size_t fixed, size_t nelems, size_t size)
+mir_value_t mir_search_object(mir_unit_t *mu, const void *obj, int *hops)
+{
+   *hops = 0;
+
+   if (mu->objmap != NULL) {
+      void *ptr = hash_get(mu->objmap, obj);
+      if (ptr != NULL)
+         return (mir_value_t){ .bits = (uintptr_t)ptr };
+   }
+
+   for (mir_shape_t *s = mu->parent; s != NULL; s = s->parent) {
+      (*hops)++;
+      if (s->objmap != NULL) {
+         void *ptr = hash_get(s->objmap, obj);
+         if (ptr != NULL) {
+            mir_value_t value = { .bits = (uintptr_t)ptr };
+            assert(value.tag == MIR_TAG_VAR);
+            return value;
+         }
+      }
+   }
+
+   return MIR_NULL_VALUE;
+}
+
+void mir_put_object(mir_unit_t *mu, const void *obj, mir_value_t value)
+{
+   if (mu->objmap == NULL)
+      mu->objmap = hash_new(16);
+
+   hash_put(mu->objmap, obj, (void *)(uintptr_t)value.bits);
+}
+
+void *mir_malloc(mir_unit_t *mu, size_t size)
+{
+   if (mu->pool == NULL)
+      mu->pool = pool_new();
+
+   return pool_malloc(mu->pool, size);
+}
+
+void *mir_global_malloc(mir_context_t *mc, size_t fixed, size_t nelems,
+                        size_t size)
 {
    SCOPED_LOCK(mc->pool_mtx);
    return pool_malloc_flex(mc->pool, fixed, nelems, size);
@@ -131,13 +185,16 @@ void *mir_malloc(mir_context_t *mc, size_t fixed, size_t nelems, size_t size)
 
 static mir_shape_t *mir_build_shape(mir_unit_t *mu)
 {
-   mir_shape_t *sh = mir_malloc(mu->context, sizeof(mir_shape_t),
-                                mu->vars.count, sizeof(shape_slot_t));
+   mir_shape_t *sh = mir_global_malloc(mu->context, sizeof(mir_shape_t),
+                                       mu->vars.count, sizeof(shape_slot_t));
    sh->name      = mu->name;
    sh->kind      = mu->kind;
    sh->type      = mir_self_type(mu);
    sh->num_slots = mu->vars.count;
    sh->parent    = mu->parent;
+   sh->objmap    = mu->objmap;
+
+   mu->objmap = NULL;   // Takes ownership
 
    for (int i = 0; i < mu->vars.count; i++) {
       const var_data_t *vd = &(mu->vars.items[i]);
@@ -184,6 +241,23 @@ void mir_put_unit(mir_context_t *mc, mir_unit_t *mu)
    chash_put(mc->map, mu->name, tag_pointer(mu, UNIT_GENERATED));
 }
 
+static mir_unit_t *mir_lazy_build(mir_context_t *mc, deferred_unit_t *du)
+{
+   mir_shape_t *parent = NULL;
+   if (du->parent != NULL && (parent = mir_get_shape(mc, du->parent)) == NULL)
+      fatal_trace("cannot get parent %s of unit %s", istr(du->parent),
+                  istr(du->name));
+
+   mir_unit_t *mu = mir_unit_new(mc, du->name, du->object, du->kind, parent);
+   (*du->fn)(mu, du->object);
+
+   if (opt_get_verbose(OPT_DUMP_VCODE, istr(du->name)))
+      mir_dump(mu);
+
+   chash_put(mc->map, du->name, tag_pointer(mu, UNIT_GENERATED));
+   return mu;
+}
+
 mir_unit_t *mir_get_unit(mir_context_t *mc, ident_t name)
 {
    void *ptr = chash_get(mc->map, name);
@@ -194,13 +268,7 @@ mir_unit_t *mir_get_unit(mir_context_t *mc, ident_t name)
    case UNIT_DEFERRED:
       {
          deferred_unit_t *du = untag_pointer(ptr, deferred_unit_t);
-
-         mir_unit_t *mu =
-            mir_unit_new(mc, name, du->object, du->kind, du->parent);
-         (*du->fn)(mu, du->object);
-
-         chash_put(mc->map, name, tag_pointer(mu, UNIT_GENERATED));
-         return mu;
+         return mir_lazy_build(mc, du);
       }
    case UNIT_GENERATED:
       return untag_pointer(ptr, mir_unit_t);
@@ -221,13 +289,7 @@ mir_shape_t *mir_get_shape(mir_context_t *mc, ident_t name)
    case UNIT_DEFERRED:
       {
          deferred_unit_t *du = untag_pointer(ptr, deferred_unit_t);
-
-         mir_unit_t *mu =
-            mir_unit_new(mc, name, du->object, du->kind, du->parent);
-         (*du->fn)(mu, du->object);
-
-         chash_put(mc->map, name, tag_pointer(mu, UNIT_GENERATED));
-
+         mir_unit_t *mu = mir_lazy_build(mc, du);
          return (mu->shape = mir_build_shape(mu));
       }
    case UNIT_GENERATED:
@@ -245,7 +307,7 @@ mir_shape_t *mir_get_shape(mir_context_t *mc, ident_t name)
    }
 }
 
-void mir_defer(mir_context_t *mc, ident_t name, mir_shape_t *parent,
+void mir_defer(mir_context_t *mc, ident_t name, ident_t parent,
                mir_unit_kind_t kind, mir_lower_fn_t fn, object_t *object)
 {
 #ifdef DEBUG
@@ -254,7 +316,8 @@ void mir_defer(mir_context_t *mc, ident_t name, mir_shape_t *parent,
       fatal_trace("%s already registered", istr(name));
 #endif
 
-   deferred_unit_t *du = mir_malloc(mc, sizeof(deferred_unit_t), 0, 0);
+   deferred_unit_t *du = mir_global_malloc(mc, sizeof(deferred_unit_t), 0, 0);
+   du->name   = name;
    du->fn     = fn;
    du->parent = parent;
    du->kind   = kind;

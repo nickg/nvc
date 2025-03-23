@@ -4047,6 +4047,8 @@ static void irgen_block(jit_irgen_t *g, mir_block_t block)
          fatal_trace("cannot generate JIT IR for MIR op %s", mir_op_string(op));
       }
    }
+
+   DEBUG_ONLY(if (nops == 0) j_trap(g));
 }
 
 static void irgen_locals(jit_irgen_t *g)

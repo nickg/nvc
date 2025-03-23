@@ -1669,12 +1669,13 @@ START_TEST(test_issue759)
    tree_t a = parse_check_and_simplify(T_PACKAGE, T_PACK_BODY,
                                        T_ENTITY, T_ARCH);
 
+   mir_context_t *mc = get_mir();
    unit_registry_t *ur = get_registry();
-   jit_t *jit = jit_new(ur, get_mir());
+   jit_t *jit = jit_new(ur, mc);
    cover_data_t *cover = cover_data_init(COVER_MASK_ALL, 0, 0);
 
    rt_model_t *m = model_new(jit, cover);
-   tree_t e = elab(tree_to_object(a), jit, ur, cover, NULL, m);
+   tree_t e = elab(tree_to_object(a), jit, ur, mc, cover, NULL, m);
    fail_if(e == NULL);
 
    model_free(m);
@@ -1798,11 +1799,12 @@ START_TEST(test_vlog1)
    object_t *obj = lib_get_generic(lib_work(), ident_new("WORK.VLOG1"), NULL);
    ck_assert_ptr_nonnull(obj);
 
+   mir_context_t *mc = get_mir();
    unit_registry_t *ur = get_registry();
-   jit_t *j = jit_new(ur, get_mir());
+   jit_t *j = jit_new(ur, mc);
    rt_model_t *m = model_new(j, NULL);
 
-   tree_t top = elab(obj, j, ur, NULL, NULL, m);
+   tree_t top = elab(obj, j, ur, mc, NULL, NULL, m);
    fail_unless(top == NULL);
 
    model_free(m);
@@ -1992,12 +1994,13 @@ START_TEST(test_issue1012)
 
    tree_t a = parse_check_and_simplify(T_ENTITY, T_ARCH);
 
+   mir_context_t *mc = get_mir();
    unit_registry_t *ur = get_registry();
-   jit_t *jit = jit_new(ur, get_mir());
+   jit_t *jit = jit_new(ur, mc);
    cover_data_t *cover = cover_data_init(COVER_MASK_TOGGLE, 0, 0);
    rt_model_t *m = model_new(jit, NULL);
 
-   tree_t e = elab(tree_to_object(a), jit, ur, cover, NULL, m);
+   tree_t e = elab(tree_to_object(a), jit, ur, mc, cover, NULL, m);
    fail_unless(e == NULL);
 
    model_free(m);

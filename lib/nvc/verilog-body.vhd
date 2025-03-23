@@ -377,6 +377,18 @@ package body verilog is
         end if;
     end function;
 
+    function "and" (l, r : t_logic_array) return t_logic is
+        variable result : t_logic := '0';
+    begin
+        for i in l'range loop
+            result := result and l(i);
+        end loop;
+        for i in r'range loop
+            result := result and r(i);
+        end loop;
+        return result;
+    end function;
+
     function "and" (l, r : t_logic_array) return t_logic_array is
         constant llen   : natural := l'length;
         constant rlen   : natural := r'length;

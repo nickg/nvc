@@ -64,6 +64,7 @@ typedef struct _elab_ctx {
    hash_t           *generics;
    jit_t            *jit;
    unit_registry_t  *registry;
+   mir_context_t    *mir;
    lower_unit_t     *lowered;
    cover_data_t     *cover;
    sdf_file_t       *sdf;
@@ -264,7 +265,7 @@ static mod_cache_t *elab_cached_module(vlog_node_t mod, const elab_ctx_t *ctx)
    if (mc == NULL) {
       mc = xcalloc(sizeof(mod_cache_t));
       mc->module = mod;
-      mc->shape  = vlog_lower(ctx->registry, mod);
+      mc->shape  = vlog_lower(ctx->registry, ctx->mir, mod);
 
       mc->block = tree_new(T_BLOCK);
       tree_set_loc(mc->block, vlog_loc(mod));
@@ -1315,6 +1316,7 @@ static void elab_inherit_context(elab_ctx_t *ctx, const elab_ctx_t *parent)
    ctx->parent    = parent;
    ctx->jit       = parent->jit;
    ctx->registry  = parent->registry;
+   ctx->mir       = parent->mir;
    ctx->root      = parent->root;
    ctx->dotted    = ctx->dotted ?: parent->dotted;
    ctx->inst_name = ctx->inst_name ?: parent->inst_name;
@@ -2218,8 +2220,8 @@ static void elab_verilog_root_cb(void *arg)
    elab_verilog_module(NULL, vlog_ident2(mc->module), mc, ctx);
 }
 
-tree_t elab(object_t *top, jit_t *jit, unit_registry_t *ur, cover_data_t *cover,
-            sdf_file_t *sdf, rt_model_t *m)
+tree_t elab(object_t *top, jit_t *jit, unit_registry_t *ur, mir_context_t *mc,
+            cover_data_t *cover, sdf_file_t *sdf, rt_model_t *m)
 {
    make_new_arena();
 
@@ -2251,6 +2253,7 @@ tree_t elab(object_t *top, jit_t *jit, unit_registry_t *ur, cover_data_t *cover,
       .jit       = jit,
       .sdf       = sdf,
       .registry  = ur,
+      .mir       = mc,
       .modcache  = hash_new(16),
       .dotted    = lib_name(work),
       .model     = m,

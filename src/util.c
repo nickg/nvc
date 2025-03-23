@@ -2385,6 +2385,9 @@ mem_pool_t *pool_new(void)
 
 void pool_free(mem_pool_t *mp)
 {
+   if (mp == NULL)
+      return;
+
    for (pool_page_t *p = mp->pages, *tmp; p != NULL; p = tmp) {
       tmp = p->next;
       free(p);

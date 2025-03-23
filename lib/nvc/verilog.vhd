@@ -72,6 +72,7 @@ package verilog is
     function resize (value : t_logic; length : natural) return t_logic_array;
 
     function "and" (l, r : t_logic) return t_logic;
+    function "and" (l, r : t_logic_array) return t_logic;
     function "and" (l, r : t_logic_array) return t_logic_array;
 
     function "nand" (l, r : t_logic) return t_logic;

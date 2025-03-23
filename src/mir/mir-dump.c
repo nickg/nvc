@@ -627,7 +627,8 @@ void mir_annotate(mir_unit_t *mu, const mir_annotate_t *cb, void *ctx)
          color_printf("  $magenta$%s$$\n", istr(mu->linkage.items[i]));
    }
 
-   printf("Begin\n");
+   if (mu->blocks.count > 0)
+      printf("Begin\n");
 
    for (int i = 0; i < mu->blocks.count; i++) {
       const block_data_t *b = &(mu->blocks.items[i]);

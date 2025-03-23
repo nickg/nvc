@@ -13,4 +13,6 @@ lib_libnvc_a_SOURCES += \
 	src/vlog/vlog-util.h \
 	src/vlog/vlog-sem.c \
 	src/vlog/vlog-pp.l \
-	src/vlog/vlog-parse.c
+	src/vlog/vlog-parse.c \
+	src/vlog/vlog-lower.h \
+	src/vlog/vlog-udp.c

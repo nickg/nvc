@@ -39,6 +39,8 @@ block_data_t *mir_block_data(mir_unit_t *mu, mir_block_t block)
 
 mir_block_t mir_add_block(mir_unit_t *mu)
 {
+   assert(mu->kind != MIR_UNIT_PLACEHOLDER);
+
    mir_block_t b = { .tag = MIR_TAG_BLOCK, .id = mu->blocks.count };
 
    block_data_t bd = {
@@ -239,10 +241,22 @@ bool mir_is_terminator(mir_op_t op)
    case MIR_OP_JUMP:
    case MIR_OP_COND:
    case MIR_OP_WAIT:
+   case MIR_OP_CASE:
+   case MIR_OP_PCALL:
+   case MIR_OP_UNREACHABLE:
       return true;
    default:
       return false;
    }
+}
+
+bool mir_block_finished(mir_unit_t *mu, mir_block_t block)
+{
+   const block_data_t *bd = mir_block_data(mu, block);
+   if (bd->num_nodes == 0)
+      return false;
+
+   return mir_is_terminator(mu->nodes[bd->nodes[bd->num_nodes - 1]].op);
 }
 
 static inline node_id_t mir_node_id(mir_unit_t *mu, node_data_t *n)
@@ -254,6 +268,7 @@ static inline node_id_t mir_node_id(mir_unit_t *mu, node_data_t *n)
 static node_data_t *mir_alloc_node(mir_unit_t *mu)
 {
    assert(!mir_is_null(mu->cursor.block));
+   assert(mu->kind != MIR_UNIT_PLACEHOLDER);
 
    node_data_t *n;
    block_data_t *bd = mir_block_data(mu, mu->cursor.block);

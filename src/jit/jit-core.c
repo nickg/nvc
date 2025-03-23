@@ -421,28 +421,21 @@ void jit_fill_irbuf(jit_func_t *f)
    if (f->jit->pack != NULL && jit_pack_fill(f->jit->pack, f->jit, f))
       goto done;
 
-   vcode_unit_t unit = NULL;
-   if (f->jit->registry != NULL) {
-      // Unit registry is not thread-safe
+   mir_unit_t *mu = mir_get_unit(f->jit->mir, f->name);
+
+   if (mu == NULL && f->jit->registry != NULL) {
+      // Unit registry and MIR import is not thread-safe
       SCOPED_LOCK(f->jit->lock);
-      unit = unit_registry_get(f->jit->registry, f->name);
-   }
-
-   if (unit == NULL) {
-      store_release(&(f->state), JIT_FUNC_ERROR);
-      jit_missing_unit(f);
-   }
-
-   mir_unit_t *mu;
-   {
-      // MIR import is not thread-safe
-      SCOPED_LOCK(f->jit->lock);
-
-      mu = mir_get_unit(f->jit->mir, f->name);
-      if (mu == NULL) {
+      vcode_unit_t unit = unit_registry_get(f->jit->registry, f->name);
+      if (unit != NULL) {
          mu = mir_import(f->jit->mir, unit);
          mir_put_unit(f->jit->mir, mu);
       }
+   }
+
+   if (mu == NULL) {
+      store_release(&(f->state), JIT_FUNC_ERROR);
+      jit_missing_unit(f);
    }
 
    jit_irgen(f, mu);

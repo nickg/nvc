@@ -169,6 +169,7 @@ jit_t *get_jit(void)
 
 tree_t run_elab(void)
 {
+   mir_context_t *mc = get_mir();
    unit_registry_t *ur = get_registry();
    jit_t *j = get_jit();
 
@@ -188,7 +189,7 @@ tree_t run_elab(void)
 
    rt_model_t *m = model_new(j, NULL);
 
-   tree_t top = elab(tree_to_object(last_ent), j, ur, NULL, NULL, m);
+   tree_t top = elab(tree_to_object(last_ent), j, ur, mc, NULL, NULL, m);
 
    model_free(m);
 

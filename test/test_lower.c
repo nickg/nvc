@@ -1942,7 +1942,7 @@ START_TEST(test_cover)
                                         | COVER_MASK_BRANCH, 0, 0);
    rt_model_t *m = model_new(jit, data);
 
-   elab(tree_to_object(a), jit, ur, data, NULL, m);
+   elab(tree_to_object(a), jit, ur, mc, data, NULL, m);
 
    vcode_unit_t v0 = find_unit("WORK.COVER_ENT.P1");
    vcode_select_unit(v0);
@@ -2505,7 +2505,7 @@ START_TEST(test_choice1)
    jit_t *jit = jit_new(ur, mc);
    cover_data_t *data = cover_data_init(COVER_MASK_BRANCH, 0, 0);
    rt_model_t *m = model_new(jit, NULL);
-   elab(tree_to_object(a), jit, ur, data, NULL, m);
+   elab(tree_to_object(a), jit, ur, mc, data, NULL, m);
 
    vcode_unit_t v0 = find_unit("WORK.CHOICE1.P1");
    vcode_select_unit(v0);
@@ -5042,7 +5042,7 @@ START_TEST(test_issue582)
    cover_data_t *data = cover_data_init(COVER_MASK_ALL, 0, 0);
    rt_model_t *m = model_new(jit, NULL);
 
-   elab(tree_to_object(a), jit, ur, data, NULL, m);
+   elab(tree_to_object(a), jit, ur, mc, data, NULL, m);
 
    model_free(m);
    jit_free(jit);

@@ -20,9 +20,12 @@
 #include "hash.h"
 #include "lib.h"
 #include "lower.h"
+#include "mir/mir-unit.h"
+#include "mir/mir-node.h"
 #include "tree.h"
 #include "vcode.h"
 #include "vlog/vlog-defs.h"
+#include "vlog/vlog-lower.h"
 #include "vlog/vlog-node.h"
 #include "vlog/vlog-number.h"
 #include "vlog/vlog-phase.h"
@@ -1185,274 +1188,7 @@ static void vlog_lower_concurrent(unit_registry_t *ur, lower_unit_t *parent,
    }
 }
 
-static void vlog_lower_udp(unit_registry_t *ur, lower_unit_t *parent,
-                           vlog_node_t udp)
-{
-   vcode_unit_t context = get_vcode(parent);
-
-   vlog_node_t table = vlog_stmt(udp, 0);
-   assert(vlog_kind(table) == V_UDP_TABLE);
-
-   const vlog_udp_kind_t kind = vlog_subkind(table);
-
-   ident_t name = ident_prefix(vcode_unit_name(context),
-                               vlog_ident(table), '.');
-   vcode_unit_t vu = emit_process(name, vlog_to_object(udp), context);
-
-   vcode_block_t start_bb = emit_block();
-   assert(start_bb == 1);
-
-   lower_unit_t *lu = lower_unit_new(ur, parent, vu, NULL, NULL);
-   unit_registry_put(ur, lu);
-
-   vlog_node_t out_decl = vlog_ref(vlog_port(udp, 0));
-   assert(vlog_kind(out_decl) == V_PORT_DECL);
-   assert(vlog_subkind(out_decl) == V_PORT_OUTPUT);
-
-   int hops;
-   vcode_var_t out_var = lower_search_vcode_obj(out_decl, lu, &hops);
-   assert(out_var != VCODE_INVALID_VAR);
-
-   const int nports = vlog_ports(udp);
-   vcode_var_t *in_vars LOCAL =
-      xmalloc_array(nports - 1, sizeof(vcode_reg_t));
-   for (int i = 1; i < nports; i++) {
-      vlog_node_t decl = vlog_ref(vlog_port(udp, i));
-      assert(vlog_kind(decl) == V_PORT_DECL);
-      assert(vlog_subkind(decl) == V_PORT_INPUT);
-
-      int hops;
-      in_vars[i - 1] = lower_search_vcode_obj(decl, lu, &hops);
-      assert(in_vars[i - 1] != VCODE_INVALID_VAR);
-   }
-
-   vcode_type_t voffset = vtype_offset();
-   vcode_type_t vlogic = vlog_logic_type();
-   vcode_type_t vtime = vtype_time();
-
-   vcode_var_t result_var =
-      emit_var(vlogic, vlogic, ident_new("result"), VAR_TEMP);
-
-   {
-      vcode_reg_t out_reg = emit_load_indirect(emit_var_upref(hops, out_var));
-      vcode_reg_t one_reg = emit_const(voffset, 1);
-      emit_drive_signal(out_reg, one_reg);
-
-      for (int i = 1; i < nports; i++) {
-         vcode_var_t var = in_vars[i - 1];
-         vcode_reg_t nets_reg = emit_load_indirect(emit_var_upref(hops, var));
-         emit_sched_event(nets_reg, one_reg);
-      }
-
-      if (vlog_stmts(table) > 0) {
-         vlog_node_t init = vlog_value(vlog_stmt(table, 0));
-         vcode_reg_t init_reg = vlog_lower_rvalue(lu, init);
-         emit_map_const(init_reg, out_reg, one_reg);
-      }
-
-      emit_return(VCODE_INVALID_REG);
-   }
-
-   vcode_block_t wait_bb = emit_block();
-
-   vcode_select_block(start_bb);
-
-   {
-      vcode_reg_t one_reg = emit_const(voffset, 1);
-      vcode_reg_t zero_reg = emit_const(vtime, 0);
-      vcode_reg_t logic0_reg = emit_const(vlogic, LOGIC_0);
-      vcode_reg_t logic1_reg = emit_const(vlogic, LOGIC_1);
-      vcode_reg_t logicX_reg = emit_const(vlogic, LOGIC_X);
-
-      vcode_reg_t level_map[127];
-      level_map['0'] = logic0_reg;
-      level_map['1'] = logic1_reg;
-      level_map['x'] = level_map['X'] = logicX_reg;
-
-      vcode_reg_t *in_regs LOCAL =
-         xmalloc_array(nports - 1, sizeof(vcode_reg_t));
-      vcode_reg_t *in_nets LOCAL =
-         xmalloc_array(nports - 1, sizeof(vcode_reg_t));
-
-      for (int i = 1; i < nports; i++) {
-         vcode_var_t var = in_vars[i - 1];
-         vcode_reg_t nets_reg = emit_load_indirect(emit_var_upref(hops, var));
-         vcode_reg_t value_reg =
-            emit_load_indirect(emit_resolved(nets_reg, VCODE_INVALID_REG));
-         in_regs[i - 1] = vlog_lower_to_logic(lu, value_reg);
-         in_nets[i - 1] = nets_reg;
-      }
-
-      vcode_block_t test_bb = start_bb;
-
-      const int nentries = vlog_params(table);
-      for (int i = 0; i < nentries; i++) {
-         vlog_node_t entry = vlog_param(table, i);
-         assert(vlog_kind(entry) == V_UDP_ENTRY);
-
-         vcode_block_t hit_bb = emit_block();
-
-         const char *spec = vlog_text(entry), *sp = spec;
-         emit_comment("%s", spec);
-
-         vcode_reg_t and_reg = VCODE_INVALID_REG;
-
-         for (int j = 0; j < nports - 1; j++, sp++) {
-            vcode_reg_t cmp_reg = VCODE_INVALID_REG;
-            switch (*sp) {
-            case '0':
-            case '1':
-            case 'x':
-            case 'X':
-               cmp_reg = emit_cmp(VCODE_CMP_EQ, in_regs[j],
-                                  level_map[(unsigned)*sp]);
-               break;
-            case '*':
-               cmp_reg = emit_event_flag(in_nets[j], one_reg);
-               break;
-            case 'b':
-               {
-                  vcode_reg_t is0_reg =
-                     emit_cmp(VCODE_CMP_EQ, in_regs[j], logic0_reg);
-                  vcode_reg_t is1_reg =
-                     emit_cmp(VCODE_CMP_EQ, in_regs[j], logic1_reg);
-                  cmp_reg = emit_and(is0_reg, is1_reg);
-               }
-               break;
-            case '?':
-               break;
-            case '(':
-               {
-                  cmp_reg = emit_event_flag(in_nets[j], one_reg);
-
-                  if (sp[1] != '?') {
-                     vcode_reg_t last_reg =
-                        emit_load_indirect(emit_last_value(in_nets[j],
-                                                           VCODE_INVALID_REG));
-                     vcode_reg_t logic_reg = vlog_lower_to_logic(lu, last_reg);
-                     vcode_reg_t eq_reg = emit_cmp(VCODE_CMP_EQ, logic_reg,
-                                                   level_map[(unsigned)sp[1]]);
-                     cmp_reg = emit_and(cmp_reg, eq_reg);
-                  }
-
-                  if (sp[2] != '?') {
-                     vcode_reg_t eq_reg = emit_cmp(VCODE_CMP_EQ, in_regs[j],
-                                                   level_map[(unsigned)sp[2]]);
-                     cmp_reg = emit_and(cmp_reg, eq_reg);
-                  }
-
-                  sp += 3;
-               }
-               break;
-
-            default:
-               CANNOT_HANDLE(entry);
-            }
-
-            if (and_reg == VCODE_INVALID_REG)
-               and_reg = cmp_reg;
-            else if (cmp_reg != VCODE_INVALID_REG)
-               and_reg = emit_and(and_reg, cmp_reg);
-         }
-
-         assert(sp[0] == ':');
-         sp++;
-
-         if (kind == V_UDP_SEQ) {
-            vcode_reg_t out_reg =
-               emit_load_indirect(emit_var_upref(hops, out_var));
-            vcode_reg_t resolved_reg =
-               emit_resolved(out_reg, VCODE_INVALID_REG);
-            vcode_reg_t cur_reg = emit_load_indirect(resolved_reg);
-
-            vcode_reg_t cmp_reg = VCODE_INVALID_REG;
-            switch (*sp) {
-            case '0':
-            case '1':
-            case 'x':
-            case 'X':
-               cmp_reg = emit_cmp(VCODE_CMP_EQ, cur_reg,
-                                  level_map[(unsigned)*sp]);
-               break;
-            case '?':
-               break;
-            default:
-               CANNOT_HANDLE(entry);
-            }
-
-            if (and_reg == VCODE_INVALID_REG)
-               and_reg = cmp_reg;
-            else if (cmp_reg != VCODE_INVALID_REG)
-               and_reg = emit_and(and_reg, cmp_reg);
-
-            assert(sp[1] == ':');
-            sp += 2;
-         }
-
-         if (and_reg == VCODE_INVALID_REG) {
-            emit_jump(hit_bb);
-            break;
-         }
-         else {
-            test_bb = emit_block();
-            emit_cond(and_reg, hit_bb, test_bb);
-         }
-
-         vcode_select_block(hit_bb);
-
-         vcode_reg_t drive_reg;
-         switch (*sp) {
-         case '0':
-         case '1':
-         case 'x':
-         case 'X':
-            drive_reg = level_map[(int)*sp];
-            break;
-         case '-':
-            // No change, skip assignment to output
-            drive_reg = VCODE_INVALID_REG;
-            emit_wait(start_bb, VCODE_INVALID_REG);
-            vcode_select_block(test_bb);
-            continue;
-         default: CANNOT_HANDLE(entry);
-         }
-
-         emit_store(drive_reg, result_var);
-         emit_jump(wait_bb);
-
-         vcode_select_block(test_bb);
-      }
-
-      vcode_select_block(test_bb);
-
-      if (!vcode_block_finished()) {
-         if (kind == V_UDP_SEQ)
-            emit_wait(start_bb, VCODE_INVALID_REG);   // Skip assignment
-         else {
-            emit_store(logicX_reg, result_var);
-            emit_jump(wait_bb);
-         }
-      }
-
-      vcode_select_block(wait_bb);
-
-      vcode_reg_t result_reg = emit_load(result_var), drive_reg = result_reg;
-      if (kind == V_UDP_COMB) {
-         vcode_type_t vnet = vlog_net_value_type();
-         vcode_reg_t strong_reg = emit_const(vnet, ST_STRONG);
-         drive_reg = vlog_lower_to_net(lu, result_reg, strong_reg);
-      }
-
-      vcode_reg_t out_reg = emit_load_indirect(emit_var_upref(hops, out_var));
-      emit_sched_waveform(out_reg, one_reg, drive_reg, zero_reg, zero_reg);
-
-      emit_wait(start_bb, VCODE_INVALID_REG);
-   }
-
-   unit_registry_finalise(ur, lu);
-}
-
-vcode_unit_t vlog_lower(unit_registry_t *ur, vlog_node_t mod)
+vcode_unit_t vlog_lower(unit_registry_t *ur, mir_context_t *mc, vlog_node_t mod)
 {
    assert(is_top_level(mod));
 
@@ -1468,6 +1204,13 @@ vcode_unit_t vlog_lower(unit_registry_t *ur, vlog_node_t mod)
    vcode_type_t vlogicsignal = vtype_signal(vlogic);
    vcode_type_t vnetsignal = vtype_signal(vnetvalue);
 
+   mir_unit_t *mu = mir_unit_new(mc, name, vlog_to_object(mod),
+                                 MIR_UNIT_PLACEHOLDER, NULL);
+   mir_type_t t_logic = mir_int_type(mu, 0, 3);
+   mir_type_t t_net_value = mir_int_type(mu, 0, 255);
+   mir_type_t t_logic_signal = mir_signal_type(mu, t_logic);
+   mir_type_t t_net_signal = mir_signal_type(mu, t_net_value);
+
    const int nports = vlog_ports(mod);
    for (int i = 0; i < nports; i++) {
       vlog_node_t ref = vlog_port(mod, i);
@@ -1481,6 +1224,13 @@ vcode_unit_t vlog_lower(unit_registry_t *ur, vlog_node_t mod)
 
       lower_put_vcode_obj(port, var, lu);
       lower_put_vcode_obj(vlog_ref(port), var, lu);
+
+      mir_type_t type = vlog_is_net(port) ? t_net_signal : t_logic_signal;
+      mir_value_t var2 = mir_add_var(mu, type, MIR_NULL_STAMP, vlog_ident(port),
+                                     MIR_VAR_SIGNAL);
+
+      mir_put_object(mu, port, var2);
+      mir_put_object(mu, vlog_ref(port), var2);
    }
 
    const int ndecls = vlog_decls(mod);
@@ -1495,6 +1245,11 @@ vcode_unit_t vlog_lower(unit_registry_t *ur, vlog_node_t mod)
             vcode_type_t vtype = vlog_is_net(d) ? vnetsignal : vlogicsignal;
             vcode_var_t var = emit_var(vtype, vtype, vlog_ident(d), VAR_SIGNAL);
             lower_put_vcode_obj(d, var, lu);
+
+            mir_type_t type = vlog_is_net(d) ? t_net_signal : t_logic_signal;
+            mir_value_t var2 = mir_add_var(mu, type, MIR_NULL_STAMP,
+                                           vlog_ident(d), MIR_VAR_SIGNAL);
+            mir_put_object(mu, d, var2);
          }
          break;
       default:
@@ -1506,8 +1261,11 @@ vcode_unit_t vlog_lower(unit_registry_t *ur, vlog_node_t mod)
 
    lower_finished(lu, NULL);
 
+   mir_put_unit(mc, mu);
+   // TODO: should free here
+
    if (vlog_kind(mod) == V_PRIMITIVE)
-      vlog_lower_udp(ur, lu, mod);
+      vlog_lower_udp(mc, name, mod);
    else
       vlog_lower_concurrent(ur, lu, mod);
 
