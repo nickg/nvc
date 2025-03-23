@@ -3918,6 +3918,26 @@ START_TEST(test_issue1067)
 }
 END_TEST
 
+START_TEST(test_issue1173)
+{
+   opt_set_int(OPT_RELAXED, 1);
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/sem/issue1173.vhd");
+
+   const error_t expect[] = {
+      {  8, "type mark cannot be the prefix of a selected name" },
+      { 17, "invalid use of type T_TEST_2" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_PACKAGE);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_sem_tests(void)
 {
    Suite *s = suite_create("sem");
@@ -4100,6 +4120,7 @@ Suite *get_sem_tests(void)
    tcase_add_test(tc_core, test_issue1038);
    tcase_add_test(tc_core, test_issue1057);
    tcase_add_test(tc_core, test_issue1067);
+   tcase_add_test(tc_core, test_issue1173);
    suite_add_tcase(s, tc_core);
 
    return s;

@@ -3628,6 +3628,15 @@ static tree_t p_selected_name(tree_t prefix, name_mask_t *mask)
 
          return ref;
       }
+      else if (is_type_decl(decl)) {
+         diag_t *d = pedantic_diag(tree_loc(prefix));
+         if (d != NULL) {
+            diag_printf(d, "type mark cannot be the prefix of a selected name");
+            diag_emit(d);
+         }
+
+         *mask |= N_TYPE;
+      }
    }
 
    if (scope_formal_kind(nametab) == F_SUBPROGRAM) {

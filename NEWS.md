@@ -30,6 +30,8 @@
 - A Docker image was added at `ghcr.io/nickg/nvc` (#1165).
 - Unconstrained input ports can now be constrained by the result subtype
   of a conversion function (#1171).
+- Type marks are now allowed in the prefix of selected names in relaxed
+  mode (#1173).
 - Several other minor bugs were resolved (#1174).
 
 ## Version 1.15.2 - 2025-03-01

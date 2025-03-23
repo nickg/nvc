@@ -4022,12 +4022,8 @@ static bool sem_check_ref(tree_t t, nametab_t *tab)
 
 static bool sem_check_name_prefix(tree_t t, nametab_t *tab, const char *what)
 {
-   tree_t value = tree_value(t);
-   if (!sem_check(value, tab))
-      return false;
-
    // The prefix of a name may only be function call or another name
-   switch (tree_kind(value)) {
+   switch (tree_kind(t)) {
    case T_FCALL:
    case T_PROT_FCALL:
    case T_REF:
@@ -4055,10 +4051,14 @@ static bool sem_check_name_prefix(tree_t t, nametab_t *tab, const char *what)
 
 static bool sem_check_record_ref(tree_t t, nametab_t *tab)
 {
+   tree_t value = tree_value(t);
+   if (!sem_check(value, tab))
+      return false;
+
    if (!tree_has_ref(t))
       return false;
 
-   if (!sem_check_name_prefix(t, tab, "a selected name"))
+   if (!sem_check_name_prefix(value, tab, "a selected name"))
       return false;
 
    return true;
@@ -4066,10 +4066,14 @@ static bool sem_check_record_ref(tree_t t, nametab_t *tab)
 
 static bool sem_check_array_ref(tree_t t, nametab_t *tab)
 {
-   if (!sem_check_name_prefix(t, tab, "an indexed name"))
+   tree_t value = tree_value(t);
+   if (!sem_check(value, tab))
       return false;
 
-   type_t type = tree_type(tree_value(t));
+   if (!sem_check_name_prefix(value, tab, "an indexed name"))
+      return false;
+
+   type_t type = tree_type(value);
 
    if (!type_is_array(type))
       return false;  // Checked earlier
@@ -4103,10 +4107,14 @@ static bool sem_check_array_ref(tree_t t, nametab_t *tab)
 
 static bool sem_check_array_slice(tree_t t, nametab_t *tab)
 {
-   if (!sem_check_name_prefix(t, tab, "a slice name"))
+   tree_t value = tree_value(t);
+   if (!sem_check(value, tab))
       return false;
 
-   type_t array_type = tree_type(tree_value(t));
+   if (!sem_check_name_prefix(value, tab, "a slice name"))
+      return false;
+
+   type_t array_type = tree_type(value);
 
    if (type_is_none(array_type))
       return false;
@@ -4275,46 +4283,73 @@ static bool sem_is_named_entity(tree_t t)
    }
 }
 
+static bool sem_check_attr_prefix(tree_t t, bool allow_range, nametab_t *tab,
+                                  type_t *named_type)
+{
+   switch (tree_kind(t)) {
+   case T_REF:
+      {
+         if (!tree_has_ref(t))
+            return false;
+
+         tree_t decl = tree_ref(t), type_decl;
+         if ((type_decl = aliased_type_decl(decl)) != NULL)
+            *named_type = tree_type(type_decl);
+
+         return true;
+      }
+
+   case T_ATTR_REF:
+      {
+         if (is_type_attribute(tree_subkind(t)))
+            *named_type = tree_type(t);
+         else {
+            if (!sem_check_attr_ref(t, allow_range, tab))
+               return false;
+         }
+
+         return true;
+      }
+
+   case T_RECORD_REF:
+      {
+         if (!tree_has_ref(t))
+            return false;
+
+         tree_t value = tree_value(t);
+         if (!sem_check_attr_prefix(value, false, tab, named_type))
+            return false;
+
+         if (!sem_check_name_prefix(t, tab, "a selected name"))
+            return false;
+
+         if (*named_type != NULL)
+            *named_type = tree_type(tree_ref(t));
+
+         return true;
+      }
+
+   default:
+      return sem_check(t, tab);
+   }
+}
+
 static bool sem_check_attr_ref(tree_t t, bool allow_range, nametab_t *tab)
 {
    // Attribute names are in LRM 93 section 6.6
 
-   tree_t name = tree_name(t), decl = NULL, type_decl = NULL;
+   tree_t name = tree_name(t);
    type_t named_type = NULL;
 
    ident_t attr = tree_ident(t);
    const attr_kind_t predef = tree_subkind(t);
 
-   switch (tree_kind(name)) {
-   case T_REF:
-      {
-         if (!tree_has_ref(name))
-            return false;
+   const bool prefix_can_be_range =
+      predef == ATTR_LOW || predef == ATTR_HIGH || predef == ATTR_LEFT
+      || predef == ATTR_RIGHT || predef == ATTR_ASCENDING;
 
-         decl = tree_ref(name);
-
-         if ((type_decl = aliased_type_decl(decl)) != NULL)
-            named_type = tree_type(type_decl);
-      }
-      break;
-
-   case T_ATTR_REF:
-      if (is_type_attribute(tree_subkind(name)))
-         named_type = tree_type(name);
-      else {
-         const bool prefix_can_be_range =
-            predef == ATTR_LOW || predef == ATTR_HIGH || predef == ATTR_LEFT
-            || predef == ATTR_RIGHT || predef == ATTR_ASCENDING;
-
-         if (!sem_check_attr_ref(name, prefix_can_be_range, tab))
-            return false;
-      }
-      break;
-
-   default:
-      if (!sem_check(name, tab))
-         return false;
-   }
+   if (!sem_check_attr_prefix(name, prefix_can_be_range, tab, &named_type))
+      return false;
 
    if (predef == ATTR_INSTANCE_NAME)
       tree_set_global_flags(t, TREE_GF_INSTANCE_NAME);
@@ -4336,7 +4371,7 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range, nametab_t *tab)
 
          if (named_type != NULL) {
             // Range attribute of type
-            if (type_decl != NULL && type_is_unconstrained(type))
+            if (named_type != NULL && type_is_unconstrained(type))
                sem_error(t, "cannot use attribute %s with unconstrained array "
                          "type %s", istr(attr), type_pp(type));
          }
@@ -6306,10 +6341,13 @@ static bool sem_check_new(tree_t t, nametab_t *tab)
 
 static bool sem_check_all(tree_t t, nametab_t *tab)
 {
-   if (!sem_check_name_prefix(t, tab, "a selected name"))
+   tree_t value = tree_value(t);
+   if (!sem_check(value, tab))
       return false;
 
-   tree_t value = tree_value(t);
+   if (!sem_check_name_prefix(value, tab, "a selected name"))
+      return false;
+
    type_t value_type = tree_type(value);
 
    if (type_is_none(value_type))
