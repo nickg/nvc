@@ -8,6 +8,24 @@
       <scope name="_S1" line="19">
         <statement hier="WORK.COVER15._P0._S1" data="1"/>
       </scope>
+      <scope name="_S2" line="20">
+        <statement hier="WORK.COVER15._P0._S2" data="1"/>
+      </scope>
+      <scope name="_S3" line="21">
+        <statement hier="WORK.COVER15._P0._S3" data="1"/>
+      </scope>
+      <scope name="_S4" line="22">
+        <statement hier="WORK.COVER15._P0._S4" data="1"/>
+      </scope>
+      <scope name="_S5" line="23">
+        <statement hier="WORK.COVER15._P0._S5" data="1"/>
+      </scope>
+      <scope name="_S6" line="25">
+        <statement hier="WORK.COVER15._P0._S6" data="1"/>
+      </scope>
+      <scope name="_S7" line="26">
+        <statement hier="WORK.COVER15._P0._S7" data="1"/>
+      </scope>
       <scope name="CROP_AND_SATURATE_TIME" line="9">
         <scope name="_S0" line="11">
           <statement hier="WORK.COVER15._P0.CROP_AND_SATURATE_TIME._S0" data="3"/>
@@ -53,24 +71,6 @@
             </scope>
           </scope>
         </scope>
-      </scope>
-      <scope name="_S2" line="20">
-        <statement hier="WORK.COVER15._P0._S2" data="1"/>
-      </scope>
-      <scope name="_S3" line="21">
-        <statement hier="WORK.COVER15._P0._S3" data="1"/>
-      </scope>
-      <scope name="_S4" line="22">
-        <statement hier="WORK.COVER15._P0._S4" data="1"/>
-      </scope>
-      <scope name="_S5" line="23">
-        <statement hier="WORK.COVER15._P0._S5" data="1"/>
-      </scope>
-      <scope name="_S6" line="25">
-        <statement hier="WORK.COVER15._P0._S6" data="1"/>
-      </scope>
-      <scope name="_S7" line="26">
-        <statement hier="WORK.COVER15._P0._S7" data="1"/>
       </scope>
     </scope>
   </scope>

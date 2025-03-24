@@ -2417,13 +2417,8 @@ static vcode_type_t lower_param_type(type_t type, class_t class,
 
 static vcode_reg_t lower_context_for_call(lower_unit_t *lu, ident_t unit_name)
 {
-   // XXX: this should call unit_registery_get_parent
-   if (lu->registry != NULL && unit_registry_query(lu->registry, unit_name)) {
-      vcode_unit_t vu = unit_registry_get(lu->registry, unit_name);
-
-      vcode_unit_t context = vcode_unit_context(vu);
-      assert(context != NULL);
-
+   vcode_unit_t context = unit_registry_get_parent(lu->registry, unit_name);
+   if (context != NULL) {
       vcode_unit_t ancestor = lu->vunit;
       int hops = 0;
       for (; ancestor && ancestor != context;
