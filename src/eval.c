@@ -25,6 +25,7 @@
 #include "jit/jit.h"
 #include "lib.h"
 #include "lower.h"
+#include "mir/mir-unit.h"
 #include "option.h"
 #include "phase.h"
 #include "rt/assert.h"

@@ -99,13 +99,12 @@ static void cgen_find_dependencies(mir_context_t *mc, unit_registry_t *ur,
 {
    mir_unit_t *mu = mir_get_unit(mc, name);
    if (mu == NULL) {
-      vcode_unit_t vu = unit_registry_get(ur, name);
-      if (vu == NULL)
-         fatal_trace("missing vcode for %s", istr(name));
-
-      mu = mir_import(mc, vu);
-      mir_put_unit(mc, mu);
+      (void)unit_registry_get(ur, name);
+      mu = mir_get_unit(mc, name);
    }
+
+   if (mu == NULL)
+      fatal_trace("missing vcode for %s", istr(name));
 
    const int nlink = mir_count_linkage(mu);
    for (int i = 0; i < nlink; i++) {

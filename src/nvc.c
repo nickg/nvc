@@ -590,10 +590,8 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
       // Must discard current JIT state to load AOT library later
       model_free(state->model);
       jit_free(state->jit);
-      mir_context_free(state->mir);
       state->jit = NULL;
       state->model = NULL;
-      state->mir = NULL;
    }
 
    argc -= next_cmd - 1;

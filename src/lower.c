@@ -10014,6 +10014,9 @@ void lower_finished(lower_unit_t *lu, vcode_unit_t shape)
       vcode_check_shape(lu->vunit, shape);
 
    lu->finished = true;
+
+   if (lu->name != NULL && vcode_unit_kind(lu->vunit) != VCODE_UNIT_SHAPE)
+      unit_registry_import(lu->registry, lu->vunit);
 }
 
 static void lower_protected_body(lower_unit_t *lu, object_t *obj)
@@ -13554,4 +13557,10 @@ void unit_registry_defer2(unit_registry_t *ur, ident_t name,
                           mir_lower_fn_t fn, object_t *object)
 {
    mir_defer(ur->mir, name, parent ? parent->name : NULL, kind, fn, object);
+}
+
+void unit_registry_import(unit_registry_t *ur, vcode_unit_t vu)
+{
+   mir_unit_t *mu = mir_import(ur->mir, vu);
+   mir_put_unit(ur->mir, mu);
 }

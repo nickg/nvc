@@ -431,11 +431,8 @@ void jit_fill_irbuf(jit_func_t *f)
    if (mu == NULL && f->jit->registry != NULL) {
       // Unit registry and MIR import is not thread-safe
       SCOPED_LOCK(f->jit->lock);
-      vcode_unit_t unit = unit_registry_get(f->jit->registry, f->name);
-      if (unit != NULL) {
-         mu = mir_import(f->jit->mir, unit);
-         mir_put_unit(f->jit->mir, mu);
-      }
+      (void)unit_registry_get(f->jit->registry, f->name);
+      mu = mir_get_unit(f->jit->mir, f->name);
    }
 
    if (mu == NULL) {

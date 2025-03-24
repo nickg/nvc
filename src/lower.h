@@ -43,6 +43,7 @@ bool unit_registry_query(unit_registry_t *ur, ident_t ident);
 void unit_registry_finalise(unit_registry_t *ur, lower_unit_t *lu);
 void unit_registry_flush(unit_registry_t *ur, ident_t name);
 vcode_unit_t unit_registry_get_parent(unit_registry_t *ur, ident_t name);
+void unit_registry_import(unit_registry_t *ur, vcode_unit_t vu);
 
 lower_unit_t *lower_unit_new(unit_registry_t *ur, lower_unit_t *parent,
                              vcode_unit_t vunit, cover_data_t *cover,
