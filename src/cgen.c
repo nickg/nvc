@@ -56,8 +56,10 @@ typedef struct {
    unit_registry_t *registry;
 } discover_args_t;
 
+#ifdef ENABLE_LLVM
 static A(char *) link_args;
 static A(char *) cleanup_files = AINIT;
+#endif
 
 #define UNITS_PER_JOB 25
 
@@ -163,6 +165,7 @@ static void cgen_walk_hier(unit_list_t *units, hset_t *seen, tree_t block,
    }
 }
 
+#ifdef ENABLE_LLVM
 static void cleanup_temp_dll(void)
 {
    for (int i = 0; i < cleanup_files.count; i++) {
@@ -305,7 +308,7 @@ static void cgen_async_work(void *context, void *arg)
 
 static void cgen_partition_jobs(unit_list_t *units, workq_t *wq,
                                 const char *base_name, int units_per_job,
-                                tree_t top, obj_list_t *objs)
+                                obj_list_t *objs)
 {
    int counter = 0;
 
@@ -337,7 +340,44 @@ static void cgen_partition_jobs(unit_list_t *units, workq_t *wq,
    }
 }
 
-void cgen(tree_t top, unit_registry_t *ur, mir_context_t *mc, jit_t *jit)
+static void cgen_native(ident_t name, jit_t *jit, unit_list_t *units)
+{
+   workq_t *wq = workq_new(jit);
+
+   obj_list_t objs = AINIT;
+   cgen_partition_jobs(units, wq, istr(name), UNITS_PER_JOB, &objs);
+
+   workq_start(wq);
+   workq_drain(wq);
+
+   progress("code generation for %d units", units->count);
+
+   cgen_link(istr(name), objs.items, objs.count);
+
+   for (unsigned i = 0; i < objs.count; i++)
+      free(objs.items[i]);
+   ACLEAR(objs);
+
+   workq_free(wq);
+}
+#endif   // ENABLE_LLVM
+
+static void cgen_jit_pack(ident_t name, jit_t *jit, unit_list_t *units)
+{
+   const char *fname LOCAL = xasprintf("_%s.pack", istr(name));
+
+   FILE *f = lib_fopen(lib_work(), fname, "wb");
+   if (f == NULL)
+      fatal_errno("fopen: %s", fname);
+
+   jit_write_pack(jit, units->items, units->count, f);
+   fclose(f);
+
+   progress("writing JIT pack");
+}
+
+void cgen(tree_t top, unit_registry_t *ur, mir_context_t *mc, jit_t *jit,
+          cgen_mode_t mode)
 {
    assert(tree_kind(top) == T_ELAB);
 
@@ -359,28 +399,23 @@ void cgen(tree_t top, unit_registry_t *ur, mir_context_t *mc, jit_t *jit)
    hset_free(seen);
    seen = NULL;
 
-   workq_t *wq = workq_new(jit);
-
-   ident_t name = tree_ident(top);
-
-   obj_list_t objs = AINIT;
-   cgen_partition_jobs(&units, wq, istr(name), UNITS_PER_JOB, top, &objs);
-
-   workq_start(wq);
-   workq_drain(wq);
-
-   progress("code generation for %d units", units.count);
-
-   cgen_link(istr(name), objs.items, objs.count);
-
-   for (unsigned i = 0; i < objs.count; i++)
-      free(objs.items[i]);
-   ACLEAR(objs);
+   switch (mode) {
+   case CGEN_NATIVE:
+#ifdef ENABLE_LLVM
+      cgen_native(tree_ident(top), jit, &units);
+#else
+      fatal("native code generation not enabled in this build");
+#endif
+      break;
+   case CGEN_JIT_PACK:
+      cgen_jit_pack(tree_ident(top), jit, &units);
+      break;
+   }
 
    ACLEAR(units);
-   workq_free(wq);
 }
 
+#ifdef ENABLE_LLVM
 static void preload_walk_index(lib_t lib, ident_t ident, int kind, void *ctx)
 {
    discover_args_t *args = ctx;
@@ -578,3 +613,4 @@ void aotgen(const char *outfile, char **argv, int argc)
    unit_registry_free(ur);
    mir_context_free(mc);
 }
+#endif   // ENABLE_LLVM

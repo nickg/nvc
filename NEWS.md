@@ -32,7 +32,7 @@
   of a conversion function (#1171).
 - Type marks are now allowed in the prefix of selected names in relaxed
   mode (#1173).
-- Several other minor bugs were resolved (#1174).
+- Several other minor bugs were resolved (#1174, #1159).
 
 ## Version 1.15.2 - 2025-03-01
 - Fixed invalid LLVM IR generation which could cause a crash with LLVM

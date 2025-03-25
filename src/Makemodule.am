@@ -54,14 +54,11 @@ lib_libnvc_a_SOURCES = \
 	src/driver.h \
 	src/driver.c \
 	src/inst.h \
-	src/inst.c
+	src/inst.c \
+	src/cgen.c
 
 if ENABLE_SERVER
 lib_libnvc_a_SOURCES += src/server.c src/server.h
-endif
-
-if ENABLE_LLVM
-lib_libnvc_a_SOURCES += src/cgen.c
 endif
 
 bin_nvc_SOURCES = src/nvc.c

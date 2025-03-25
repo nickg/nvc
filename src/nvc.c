@@ -393,6 +393,16 @@ static int parse_optimise_level(const char *str)
    return level;
 }
 
+static void load_jit_pack(jit_t *jit, tree_t top)
+{
+   char *name LOCAL = xasprintf("_%s.pack", istr(tree_ident(top)));
+   FILE *f = lib_fopen(lib_work(), name, "rb");
+   if (f != NULL) {
+      jit_load_pack(jit, f);
+      fclose(f);
+   }
+}
+
 static int elaborate(int argc, char **argv, cmd_state_t *state)
 {
    static struct option long_options[] = {
@@ -556,8 +566,9 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
    if (error_count() > 0)
       return EXIT_FAILURE;
 
-   char *pack_name LOCAL = xasprintf("_%s.pack", istr(state->top_level));
-   char *dll_name LOCAL = xasprintf("_%s." DLL_EXT, istr(tree_ident(top)));
+   const char *elab_name = istr(tree_ident(top));
+   char *pack_name LOCAL = xasprintf("_%s.pack", elab_name);
+   char *dll_name LOCAL = xasprintf("_%s." DLL_EXT, elab_name);
 
    // Delete any existing generated code to avoid accidentally loading
    // the wrong version later
@@ -569,25 +580,10 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
       progress("saving library");
    }
 
-   if (use_jit && !no_save) {
-      FILE *f = lib_fopen(state->work, pack_name, "wb");
-      if (f == NULL)
-         fatal_errno("fopen: %s", pack_name);
-
-      ident_t b0 = tree_ident(tree_stmt(top, 0));
-      ident_t root = ident_prefix(lib_name(state->work), b0, '.');
-
-      vcode_unit_t vu = unit_registry_get(state->registry, root);
-      assert(vu != NULL);
-
-      jit_write_pack(state->jit, vu, f);
-      fclose(f);
-
-      progress("writing JIT pack");
-   }
-
    if (!use_jit)
-      LLVM_ONLY(cgen(top, state->registry, state->mir, state->jit));
+      cgen(top, state->registry, state->mir, state->jit, CGEN_NATIVE);
+   else if (!no_save)
+      cgen(top, state->registry, state->mir, state->jit, CGEN_JIT_PACK);
 
    if (!use_jit || cover != NULL) {
       // Must discard current JIT state to load AOT library later
@@ -949,12 +945,7 @@ static int run_cmd(int argc, char **argv, cmd_state_t *state)
    jit_load_dll(state->jit, tree_ident(top));
 #endif
 
-   char *name LOCAL = xasprintf("_%s.pack", istr(state->top_level));
-   FILE *f = lib_fopen(state->work, name, "rb");
-   if (f != NULL) {
-      jit_load_pack(state->jit, f);
-      fclose(f);
-   }
+   load_jit_pack(state->jit, top);
 
    if (state->cover == NULL)
       state->cover = load_coverage(meta, state->jit);
@@ -1483,12 +1474,7 @@ static int do_cmd(int argc, char **argv, cmd_state_t *state)
       jit_load_dll(state->jit, tree_ident(top));
 #endif
 
-      char *name LOCAL = xasprintf("_%s.pack", istr(state->top_level));
-      FILE *f = lib_fopen(state->work, name, "rb");
-      if (f != NULL) {
-         jit_load_pack(state->jit, f);
-         fclose(f);
-      }
+      load_jit_pack(state->jit, top);
 
       shell_reset(sh, top);
    }
@@ -1566,12 +1552,7 @@ static int interact_cmd(int argc, char **argv, cmd_state_t *state)
       jit_load_dll(state->jit, tree_ident(top));
 #endif
 
-      char *name LOCAL = xasprintf("_%s.pack", istr(state->top_level));
-      FILE *f = lib_fopen(state->work, name, "rb");
-      if (f != NULL) {
-         jit_load_pack(state->jit, f);
-         fclose(f);
-      }
+      load_jit_pack(state->jit, top);
 
       shell_reset(sh, top);
    }

@@ -23,7 +23,6 @@
 #include "jit/jit-priv.h"
 #include "lib.h"
 #include "object.h"
-#include "vcode.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -618,47 +617,39 @@ static void write_fully(const void *buf, size_t size, FILE *f)
       fatal_errno("fwrite");
 }
 
-static void write_children(jit_t *j, vcode_unit_t vu, pack_writer_t *pw,
-                           FILE *file)
-{
-   ident_t ident = vcode_unit_name(vu);
-   jit_handle_t handle = jit_compile(j, ident);
-
-   uint8_t bytes[10];
-
-   const uint32_t name = pack_writer_get_string(pw, istr(ident));
-   const int name_nbytes = encode_number(name, bytes);
-   write_fully(bytes, name_nbytes, file);
-
-   uint8_t *buf;
-   size_t size;
-   pack_writer_emit(pw, j, handle, &buf, &size);
-
-   const int size_nbytes = encode_number(size, bytes);
-   write_fully(bytes, size_nbytes, file);
-
-   jit_func_t *f = jit_get_func(j, handle);
-
-   const int cpool_nbytes = encode_number(f->cpoolsz, bytes);
-   write_fully(bytes, cpool_nbytes, file);
-
-   write_fully(buf, size, file);
-
-   if (f->cpoolsz > 0)
-      write_fully(f->cpool, f->cpoolsz, file);
-
-   for (vcode_unit_t it = vcode_unit_child(vu); it; it = vcode_unit_next(it))
-      write_children(j, it, pw, file);
-}
-
-void jit_write_pack(jit_t *j, vcode_unit_t root, FILE *f)
+void jit_write_pack(jit_t *j, const ident_t *units, size_t count, FILE *f)
 {
    pack_writer_t *pw = pack_writer_new();
 
    pack_header_t header = {};
    write_fully(&header, sizeof(header), f);
 
-   write_children(j, root, pw, f);
+   for (size_t i = 0; i < count; i++) {
+      jit_handle_t handle = jit_compile(j, units[i]);
+
+      uint8_t bytes[10];
+
+      const uint32_t name = pack_writer_get_string(pw, istr(units[i]));
+      const int name_nbytes = encode_number(name, bytes);
+      write_fully(bytes, name_nbytes, f);
+
+      uint8_t *buf;
+      size_t size;
+      pack_writer_emit(pw, j, handle, &buf, &size);
+
+      const int size_nbytes = encode_number(size, bytes);
+      write_fully(bytes, size_nbytes, f);
+
+      jit_func_t *func = jit_get_func(j, handle);
+
+      const int cpool_nbytes = encode_number(func->cpoolsz, bytes);
+      write_fully(bytes, cpool_nbytes, f);
+
+      write_fully(buf, size, f);
+
+      if (func->cpoolsz > 0)
+         write_fully(func->cpool, func->cpoolsz, f);
+   }
 
    memcpy(header.magic, PACK_MAGIC, sizeof(header.magic));
    header.strtab = ftell(f);

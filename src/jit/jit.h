@@ -96,7 +96,7 @@ tlab_t jit_null_tlab(jit_t *j);
 jit_pack_t *jit_pack_new(void);
 void jit_pack_free(jit_pack_t *jp);
 
-void jit_write_pack(jit_t *j, vcode_unit_t root, FILE *f);
+void jit_write_pack(jit_t *j, const ident_t *units, size_t count, FILE *f);
 jit_pack_t *jit_read_pack(FILE *f);
 
 __attribute__((format(printf, 3, 4)))
