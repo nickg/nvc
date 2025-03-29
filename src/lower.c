@@ -9860,23 +9860,12 @@ static void lower_new_helper(lower_unit_t *lu, object_t *obj)
    emit_return(VCODE_INVALID_REG);
 }
 
-static void lower_instantiated_package(lower_unit_t *parent, tree_t decl)
+static void lower_instantiated_package(lower_unit_t *lu, object_t *obj)
 {
-   vcode_state_t state;
-   vcode_state_save(&state);
+   tree_t decl = tree_from_object(obj);
+   assert(tree_kind(decl) == T_PACK_INST);
 
-   vcode_select_unit(parent->vunit);
-
-   ident_t context_id = vcode_unit_name(parent->vunit);
-   ident_t name = ident_prefix(context_id, tree_ident(decl), '.');
-
-   vcode_unit_t vu = emit_package(name, tree_to_object(decl), parent->vunit);
-
-   lower_unit_t *lu = lower_unit_new(parent->registry, parent,
-                                     vu, parent->cover, decl);
-   unit_registry_put(parent->registry, lu);
-
-   lu->cscope = cover_create_scope(lu->cover, parent->cscope, decl, NULL);
+   lu->cscope = cover_create_scope(lu->cover, lu->parent->cscope, decl, NULL);
 
    tree_t pack = tree_ref(decl);
    assert(is_uninstantiated_package(pack));
@@ -9887,27 +9876,6 @@ static void lower_instantiated_package(lower_unit_t *parent, tree_t decl)
    lower_decls(lu, decl);
 
    emit_return(VCODE_INVALID_REG);
-
-   unit_registry_finalise(parent->registry, lu);
-
-   vcode_state_restore(&state);
-
-   vcode_type_t vcontext = vtype_context(name);
-   vcode_var_t var = emit_var(vcontext, vcontext, name, 0);
-   lower_put_vcode_obj(decl, var, parent);
-
-   vcode_reg_t pkg_reg = emit_package_init(name, emit_context_upref(0));
-   emit_store(pkg_reg, var);
-
-   lower_put_vcode_obj(name, pkg_reg, parent);
-
-   const int ngenerics = tree_generics(tree_ref(decl));
-   for (int i = 0; i < ngenerics; i++)
-      lower_put_vcode_obj(tree_generic(decl, i), var | INSTANCE_BIT, parent);
-
-   const int ndecls = tree_decls(tree_ref(decl));
-   for (int i = 0; i < ndecls; i++)
-      lower_put_vcode_obj(tree_decl(decl, i), var | INSTANCE_BIT, parent);
 }
 
 static void lower_type_bounds_var(lower_unit_t *lu, type_t type)
@@ -10105,8 +10073,30 @@ static void lower_decl(lower_unit_t *lu, tree_t decl)
    case T_PACKAGE:
    case T_PACK_BODY:
    case T_PACK_INST:
-      if (unit_needs_cgen(decl))
-         lower_instantiated_package(lu, decl);
+      if (unit_needs_cgen(decl)) {
+         ident_t name = ident_prefix(lu->name, tree_ident(decl), '.');
+         object_t *obj = tree_to_object(decl);
+
+         unit_registry_defer(lu->registry, name, lu, emit_package,
+                             lower_instantiated_package, lu->cover, obj);
+
+         vcode_type_t vcontext = vtype_context(name);
+         vcode_var_t var = emit_var(vcontext, vcontext, name, 0);
+         lower_put_vcode_obj(decl, var, lu);
+
+         vcode_reg_t pkg_reg = emit_package_init(name, emit_context_upref(0));
+         emit_store(pkg_reg, var);
+
+         lower_put_vcode_obj(name, pkg_reg, lu);
+
+         const int ngenerics = tree_generics(tree_ref(decl));
+         for (int i = 0; i < ngenerics; i++)
+            lower_put_vcode_obj(tree_generic(decl, i), var | INSTANCE_BIT, lu);
+
+         const int ndecls = tree_decls(tree_ref(decl));
+         for (int i = 0; i < ndecls; i++)
+            lower_put_vcode_obj(tree_decl(decl, i), var | INSTANCE_BIT, lu);
+      }
       break;
 
    case T_PSL_DECL:
