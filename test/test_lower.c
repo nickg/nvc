@@ -3774,14 +3774,14 @@ START_TEST(test_resfn1)
    // Should only be one call to resolution wrapper
    EXPECT_BB(0) = {
       { VCODE_OP_PACKAGE_INIT, .name = "STD.STANDARD" },
-      { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_CONTEXT_UPREF, .hops = 0 },
-      { VCODE_OP_CLOSURE, .func = "WORK.RESFN1.RESOLVED(Q)J" },
+      { VCODE_OP_CLOSURE, .func = "WORK.RESFN1.RBIT$resolution" },
       { VCODE_OP_RESOLUTION_WRAPPER },
       { VCODE_OP_STORE, .name = "WORK.RESFN1.RBIT$resolution" },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_DEBUG_LOCUS },
+      { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_INIT_SIGNAL },
       { VCODE_OP_RESOLVE_SIGNAL },

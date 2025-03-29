@@ -1459,10 +1459,8 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
                col += vcode_dump_reg(op->result);
                col += color_printf(" := %s ", vcode_op_string(op->kind));
                col += vcode_dump_reg(op->args.items[0]);
-               col += printf(" ileft ");
-               col += vcode_dump_reg(op->args.items[1]);
                col += printf(" nlits ");
-               col += vcode_dump_reg(op->args.items[2]);
+               col += vcode_dump_reg(op->args.items[1]);
                vcode_dump_result_type(col, op);
             }
             break;
@@ -5010,12 +5008,10 @@ void emit_transfer_signal(vcode_reg_t target, vcode_reg_t source,
 }
 
 vcode_reg_t emit_resolution_wrapper(vcode_type_t type, vcode_reg_t closure,
-                                    vcode_reg_t ileft, vcode_reg_t nlits)
+                                    vcode_reg_t nlits)
 {
    VCODE_FOR_EACH_MATCHING_OP(other, VCODE_OP_RESOLUTION_WRAPPER) {
-      if (other->args.items[0] == closure
-          && other->args.items[1] == ileft
-          && other->args.items[2] == nlits)
+      if (other->args.items[0] == closure && other->args.items[1] == nlits)
          return other->result;
    }
 
@@ -5024,7 +5020,6 @@ vcode_reg_t emit_resolution_wrapper(vcode_type_t type, vcode_reg_t closure,
 
    op_t *op = vcode_add_op(VCODE_OP_RESOLUTION_WRAPPER);
    vcode_add_arg(op, closure);
-   vcode_add_arg(op, ileft);
    vcode_add_arg(op, nlits);
 
    return (op->result = vcode_add_reg(vtype_resolution(type)));

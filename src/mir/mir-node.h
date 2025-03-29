@@ -669,7 +669,7 @@ void mir_build_enter_state(mir_unit_t *mu, mir_value_t state,
 mir_value_t mir_build_closure(mir_unit_t *mu, ident_t func, mir_value_t context,
                               mir_type_t atype, mir_type_t rtype);
 mir_value_t mir_build_resolution_wrapper(mir_unit_t *mu, mir_type_t type,
-                                         mir_value_t closure, mir_value_t ileft,
+                                         mir_value_t closure,
                                          mir_value_t nlits);
 mir_value_t mir_build_locus(mir_unit_t *mu, object_t *obj);
 mir_value_t mir_build_cast(mir_unit_t *mu, mir_type_t type, mir_value_t value);

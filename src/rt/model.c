@@ -1009,8 +1009,8 @@ static void reset_scope(rt_model_t *m, rt_scope_t *s)
 }
 
 static res_memo_t *memo_resolution_fn(rt_model_t *m, rt_signal_t *signal,
-                                      ffi_closure_t closure, int64_t ileft,
-                                      int32_t nlits, res_flags_t flags)
+                                      ffi_closure_t closure, int32_t nlits,
+                                      res_flags_t flags)
 {
    // Optimise some common resolution functions by memoising them
 
@@ -1021,7 +1021,6 @@ static res_memo_t *memo_resolution_fn(rt_model_t *m, rt_signal_t *signal,
    memo = static_alloc(m, sizeof(res_memo_t));
    memo->closure = closure;
    memo->flags   = flags;
-   memo->ileft   = ileft;
 
    ihash_put(m->res_memo, memo->closure.handle, memo);
 
@@ -1039,7 +1038,7 @@ static res_memo_t *memo_resolution_fn(rt_model_t *m, rt_signal_t *signal,
          int8_t args[2] = { i, j };
          jit_scalar_t result;
          if (jit_try_call(m->jit, memo->closure.handle, &result,
-                          memo->closure.context, args, memo->ileft, 2)) {
+                          memo->closure.context, args, 2)) {
             assert(result.integer < nlits && result.integer >= 0);
             memo->tab2[i][j] = result.integer;
          }
@@ -1054,7 +1053,7 @@ static res_memo_t *memo_resolution_fn(rt_model_t *m, rt_signal_t *signal,
       int8_t args[1] = { i };
       jit_scalar_t result;
       if (jit_try_call(m->jit, memo->closure.handle, &result,
-                       memo->closure.context, args, memo->ileft, 1)) {
+                       memo->closure.context, args, 1)) {
          memo->tab1[i] = result.integer;
          identity = identity && (memo->tab1[i] == i);
       }
@@ -1887,7 +1886,7 @@ static void call_resolution(rt_model_t *m, rt_nexus_t *n, res_memo_t *r,
 
       jit_scalar_t result;
       if (jit_try_call(m->jit, r->closure.handle, &result,
-                       r->closure.context, inputs, r->ileft, nonnull))
+                       r->closure.context, inputs, nonnull))
          put_driving(m, n, result.pointer + n->signal->offset
                      + n->offset - rscope->offset);
       else
@@ -1914,8 +1913,7 @@ static void call_resolution(rt_model_t *m, rt_nexus_t *n, res_memo_t *r,
             type *p = (type *)resolved;                                 \
             jit_scalar_t result;                                        \
             if (!jit_try_call(m->jit, r->closure.handle, &result,       \
-                              r->closure.context, vals, r->ileft,       \
-                              nonnull))                                 \
+                              r->closure.context, vals, nonnull))       \
                m->force_stop = true;                                    \
             p[j] = result.integer;                                      \
          } while (0)
@@ -4515,7 +4513,7 @@ void x_put_conversion(rt_conv_func_t *cf, sig_shared_t *ss, uint32_t offset,
 }
 
 void x_resolve_signal(sig_shared_t *ss, jit_handle_t handle, void *context,
-                      int64_t ileft, int32_t nlits, int32_t flags)
+                      int32_t nlits, int32_t flags)
 {
    rt_signal_t *s = container_of(ss, rt_signal_t, shared);
 
@@ -4527,7 +4525,7 @@ void x_resolve_signal(sig_shared_t *ss, jit_handle_t handle, void *context,
    };
 
    rt_model_t *m = get_model();
-   s->resolution = memo_resolution_fn(m, s, closure, ileft, nlits, flags);
+   s->resolution = memo_resolution_fn(m, s, closure, nlits, flags);
 
    // Copy R_IDENT into the nexus flags to avoid rt_resolve_nexus_fast
    // having to dereference the resolution pointer in the common case

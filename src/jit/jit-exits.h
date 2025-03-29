@@ -85,7 +85,7 @@ void x_deposit_signal(sig_shared_t *ss, uint32_t offset, int32_t count,
 void x_put_conversion(rt_conv_func_t *cf, sig_shared_t *ss, uint32_t offset,
                       int32_t count, void *values);
 void x_resolve_signal(sig_shared_t *ss, jit_handle_t handle, void *context,
-                      int64_t ileft, int32_t nlits, int32_t flags);
+                      int32_t nlits, int32_t flags);
 void x_unreachable(tree_t where);
 void x_cover_setup_toggle_cb(sig_shared_t *ss, int32_t tag);
 void x_cover_setup_state_cb(sig_shared_t *ss, int64_t low, int32_t tag);

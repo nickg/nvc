@@ -984,14 +984,12 @@ static void import_closure(mir_unit_t *mu, mir_import_t *imp, int op)
 static void import_resolution_wrapper(mir_unit_t *mu, mir_import_t *imp, int op)
 {
    mir_value_t closure = imp->map[vcode_get_arg(op, 0)];
-   mir_value_t ileft = imp->map[vcode_get_arg(op, 1)];
-   mir_value_t nlits = imp->map[vcode_get_arg(op, 2)];
+   mir_value_t nlits = imp->map[vcode_get_arg(op, 1)];
 
    vcode_reg_t result = vcode_get_result(op);
    mir_type_t type = import_type(mu, imp, vtype_base(vcode_reg_type(result)));
 
-   imp->map[result] =
-      mir_build_resolution_wrapper(mu, type, closure, ileft, nlits);
+   imp->map[result] = mir_build_resolution_wrapper(mu, type, closure, nlits);
 }
 
 static void import_resolve_signal(mir_unit_t *mu, mir_import_t *imp, int op)

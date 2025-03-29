@@ -439,11 +439,10 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
          sig_shared_t *shared  = args[0].pointer;
          jit_handle_t  handle  = args[1].integer;
          void         *context = args[2].pointer;
-         int32_t       ileft   = args[3].integer;
-         int32_t       nlits   = args[4].integer;
-         int32_t       flags   = args[5].integer;
+         int32_t       nlits   = args[3].integer;
+         int32_t       flags   = args[4].integer;
 
-         x_resolve_signal(shared, handle, context, ileft, nlits, flags);
+         x_resolve_signal(shared, handle, context, nlits, flags);
       }
       break;
 

@@ -2943,12 +2943,11 @@ mir_value_t mir_build_closure(mir_unit_t *mu, ident_t func, mir_value_t context,
 }
 
 mir_value_t mir_build_resolution_wrapper(mir_unit_t *mu, mir_type_t type,
-                                         mir_value_t closure, mir_value_t ileft,
-                                         mir_value_t nlits)
+                                         mir_value_t closure, mir_value_t nlits)
 {
    mir_type_t rtype = mir_resolution_type(mu, type);
-   mir_value_t result = mir_build_3(mu, MIR_OP_RESOLUTION_WRAPPER, rtype,
-                                    MIR_NULL_STAMP, closure, ileft, nlits);
+   mir_value_t result = mir_build_2(mu, MIR_OP_RESOLUTION_WRAPPER, rtype,
+                                    MIR_NULL_STAMP, closure, nlits);
 
    MIR_ASSERT(mir_is(mu, closure, MIR_TYPE_CLOSURE),
               "first argument to resolution wrapper must be closure");

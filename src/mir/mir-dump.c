@@ -1373,10 +1373,8 @@ void mir_annotate(mir_unit_t *mu, const mir_annotate_t *cb, void *ctx)
                col += mir_dump_value(mu, result, cb, ctx);
                col += printf(" := %s ", mir_op_string(n->op));
                col += mir_dump_arg(mu, result, 0, cb, ctx);
-               col += printf(" ileft ");
-               col += mir_dump_arg(mu, result, 1, cb, ctx);
                col += printf(" nlits ");
-               col += mir_dump_arg(mu, result, 2, cb, ctx);
+               col += mir_dump_arg(mu, result, 1, cb, ctx);
                mir_dump_type(mu, col, n->type);
                mir_dump_stamp(mu, n->type, n->stamp);
             }

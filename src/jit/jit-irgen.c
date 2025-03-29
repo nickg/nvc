@@ -728,8 +728,8 @@ static int irgen_slots_for_type(jit_irgen_t *g, mir_type_t type)
       // Function pointer, context
       return 2;
    case MIR_TYPE_RESOLUTION:
-      // Closure slots plus left, nlits, and flags (this is silly)
-      return 5;
+      // Closure slots plus nlits, and flags (this is silly)
+      return 4;
    default:
       // Passed by pointer or fits in 64-bit register
       return 1;
@@ -862,7 +862,7 @@ static int irgen_size_bytes(jit_irgen_t *g, mir_type_t type)
       return sizeof(void *) + sizeof(int32_t);
 
    case MIR_TYPE_RESOLUTION:
-      return 2*sizeof(void *) + 2*sizeof(int64_t) + sizeof(int32_t);
+      return 2*sizeof(void *) + sizeof(int64_t) + sizeof(int32_t);
 
    default:
       fatal_trace("cannot handle type %d in irgen_size_bytes",
@@ -1790,8 +1790,6 @@ static jit_value_t irgen_load_addr(jit_irgen_t *g, mir_type_t type,
          addr = jit_addr_from_value(addr, sizeof(void *));
          j_load(g, JIT_SZ_PTR, addr);   // Context
          addr = jit_addr_from_value(addr, sizeof(void *));
-         j_load(g, JIT_SZ_64, addr);   // Left
-         addr = jit_addr_from_value(addr, sizeof(int64_t));
          j_load(g, JIT_SZ_64, addr);   // Literals
          addr = jit_addr_from_value(addr, sizeof(int64_t));
          j_load(g, JIT_SZ_32, addr);   // Flags
@@ -1867,11 +1865,9 @@ static void irgen_store_addr(jit_irgen_t *g, mir_type_t type,
          addr = jit_addr_from_value(addr, sizeof(void *));
          j_store(g, JIT_SZ_PTR, jit_value_from_reg(base + 1), addr);  // Context
          addr = jit_addr_from_value(addr, sizeof(void *));
-         j_store(g, JIT_SZ_64, jit_value_from_reg(base + 2), addr);  // Left
+         j_store(g, JIT_SZ_64, jit_value_from_reg(base + 2), addr);  // Literals
          addr = jit_addr_from_value(addr, sizeof(int64_t));
-         j_store(g, JIT_SZ_64, jit_value_from_reg(base + 3), addr);  // Literals
-         addr = jit_addr_from_value(addr, sizeof(int64_t));
-         j_store(g, JIT_SZ_32, jit_value_from_reg(base + 4), addr);  // Flags
+         j_store(g, JIT_SZ_32, jit_value_from_reg(base + 3), addr);  // Flags
       }
       break;
 
@@ -2770,11 +2766,8 @@ static void irgen_op_resolution_wrapper(jit_irgen_t *g, mir_value_t n)
    jit_reg_t context = irgen_alloc_reg(g);
    j_mov(g, context, jit_value_from_reg(jit_value_as_reg(closure) + 1));
 
-   jit_reg_t ileft = irgen_alloc_reg(g);
-   j_mov(g, ileft, irgen_get_arg(g, n, 1));
-
    jit_reg_t nlits = irgen_alloc_reg(g);
-   j_mov(g, nlits, irgen_get_arg(g, n, 2));
+   j_mov(g, nlits, irgen_get_arg(g, n, 1));
 
    mir_type_t type = mir_get_base(g->mu, mir_get_type(g->mu, n));
 
@@ -2917,16 +2910,14 @@ static void irgen_op_resolve_signal(jit_irgen_t *g, mir_value_t n)
    jit_value_t resfn   = irgen_get_arg(g, n, 1);
    jit_reg_t   base    = jit_value_as_reg(resfn);
    jit_value_t context = jit_value_from_reg(base + 1);
-   jit_value_t ileft   = jit_value_from_reg(base + 2);
-   jit_value_t nlits   = jit_value_from_reg(base + 3);
-   jit_value_t flags   = jit_value_from_reg(base + 4);
+   jit_value_t nlits   = jit_value_from_reg(base + 2);
+   jit_value_t flags   = jit_value_from_reg(base + 3);
 
    j_send(g, 0, shared);
    j_send(g, 1, resfn);
    j_send(g, 2, context);
-   j_send(g, 3, ileft);
-   j_send(g, 4, nlits);
-   j_send(g, 5, flags);
+   j_send(g, 3, nlits);
+   j_send(g, 4, flags);
 
    macro_exit(g, JIT_EXIT_RESOLVE_SIGNAL);
 }
