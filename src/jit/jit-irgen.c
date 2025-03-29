@@ -1113,6 +1113,7 @@ static void irgen_op_null(jit_irgen_t *g, mir_value_t n)
    switch (mir_get_class(g->mu, mir_get_type(g->mu, n))) {
    case MIR_TYPE_POINTER:
    case MIR_TYPE_ACCESS:
+   case MIR_TYPE_CONTEXT:
       g->map[n.id] = jit_null_ptr();
       break;
    case MIR_TYPE_FILE:

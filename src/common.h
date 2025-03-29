@@ -72,6 +72,7 @@ bool attribute_has_param(attr_kind_t attr);
 tree_t name_to_ref(tree_t name);
 const char *port_mode_str(port_mode_t mode);
 void mangle_one_type(text_buf_t *buf, type_t type);
+ident_t get_call_context(ident_t mangled);
 tree_t primary_unit_of(tree_t unit);
 unsigned get_case_choice_char(tree_t value, int depth);
 int64_t encode_case_choice(tree_t value, int length, int bits);

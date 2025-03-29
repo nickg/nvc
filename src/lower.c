@@ -2428,54 +2428,43 @@ static vcode_reg_t lower_context_for_call(lower_unit_t *lu, ident_t unit_name)
 
       if (ancestor != NULL)
          return emit_context_upref(hops);
-      else if (vcode_unit_kind(context) == VCODE_UNIT_PACKAGE) {
-         ident_t context_name = vcode_unit_name(context);
-         if (vcode_unit_kind(lu->vunit) == VCODE_UNIT_THUNK)
-            return emit_package_init(context_name, VCODE_INVALID_REG);
-         else
-            return emit_link_package(context_name);
-      }
    }
 
-   ident_t it = unit_name;
-   ident_t lname = ident_walk_selected(&it);
-   ident_t uname = ident_walk_selected(&it);
+   ident_t context_name = get_call_context(unit_name);
 
-   lib_t lib = lib_require(lname);
-
-   ident_t base_name = ident_prefix(lname, uname, '.');
-   tree_t unit = lib_get(lib, base_name);
-   if (unit == NULL)
-      fatal_trace("cannot find unit for %s", istr(unit_name));
-
-   if (base_name == lu->name)
+   if (context_name == lu->name)
       return emit_context_upref(0);
 
-   const tree_kind_t kind = tree_kind(unit);
-   if (kind == T_ENTITY || kind == T_ARCH) {
-      // Call to function defined in architecture
-      return emit_null(vtype_context(unit_name));
+   int hops;
+   vcode_reg_t reg = lower_search_vcode_obj(context_name, lu, &hops);
+   if (reg != VCODE_INVALID_REG && hops == 0)
+      return reg;
+   else if (reg != VCODE_INVALID_REG)
+      return emit_link_package(context_name);
+
+   tree_t unit = lib_get_qualified(context_name);
+
+   // Handle corner case with nested packages
+   bool nested = false;
+   for (ident_t it = context_name; unit == NULL; unit = lib_get_qualified(it)) {
+      it = get_call_context(it);
+      nested = true;
    }
 
-   assert(is_package(unit));
-   assert(!is_uninstantiated_package(unit));
-
-   vcode_reg_t pack_reg;
-   if (vcode_unit_kind(lu->vunit) == VCODE_UNIT_THUNK)
-      pack_reg = emit_package_init(base_name, VCODE_INVALID_REG);
-   else
-      pack_reg = emit_link_package(base_name);
-
-   for (;;) {
-      // Context package may be nested inside another package
-      ident_t var_name = ident_walk_selected(&it);
-      if (it == NULL || ident_pos(var_name, '(') != -1)
-         return pack_reg;
-
-      ident_t qual = ident_prefix(base_name, var_name, '.');
-      vcode_reg_t var_reg = emit_link_var(pack_reg, qual, vtype_context(qual));
-      pack_reg = emit_load_indirect(var_reg);
-      base_name = qual;
+   if (!is_package(unit))   // Subprogram in architecture with no context
+      return emit_null(vtype_context(context_name));
+   else if (nested) {
+      vcode_reg_t parent_reg = lower_context_for_call(lu, context_name);
+      vcode_type_t vcontext = vtype_context(context_name);
+      vcode_reg_t var_reg = emit_link_var(parent_reg, context_name, vcontext);
+      return emit_load_indirect(var_reg);
+   }
+   else if (vcode_unit_kind(lu->vunit) == VCODE_UNIT_THUNK)
+      return emit_package_init(context_name, VCODE_INVALID_REG);
+   else {
+      // XXX: this should be impossible but can be triggered since
+      // record subtypes do not currently have bounds variables
+      return emit_link_package(context_name);
    }
 }
 
@@ -9910,6 +9899,8 @@ static void lower_instantiated_package(lower_unit_t *parent, tree_t decl)
    vcode_reg_t pkg_reg = emit_package_init(name, emit_context_upref(0));
    emit_store(pkg_reg, var);
 
+   lower_put_vcode_obj(name, pkg_reg, parent);
+
    const int ngenerics = tree_generics(tree_ref(decl));
    for (int i = 0; i < ngenerics; i++)
       lower_put_vcode_obj(tree_generic(decl, i), var | INSTANCE_BIT, parent);
@@ -13048,8 +13039,11 @@ static void lower_deps_cb(ident_t unit_name, void *__ctx)
          return;   // No code generated for uninstantiated packages
    }
 
-   if (kind == T_PACKAGE || kind == T_PACK_INST)
-      emit_package_init(unit_name, VCODE_INVALID_REG);
+   if (kind != T_PACKAGE && kind != T_PACK_INST)
+      return;
+
+   vcode_reg_t reg = emit_package_init(unit_name, VCODE_INVALID_REG);
+   lower_put_vcode_obj(unit_name, reg, lu);
 }
 
 static void lower_dependencies(lower_unit_t *lu, tree_t unit)

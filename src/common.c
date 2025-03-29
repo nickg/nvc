@@ -1527,6 +1527,18 @@ void mangle_one_type(text_buf_t *buf, type_t type)
    }
 }
 
+ident_t get_call_context(ident_t mangled)
+{
+   const char *str = istr(mangled), *p = str, *end = NULL;
+   for (; *p; p++) {
+      if (*p == '(') break;
+      if (*p == '.') end = p;
+   }
+   assert(end != NULL);
+
+   return ident_new_n(str, end - str);
+}
+
 tree_t primary_unit_of(tree_t unit)
 {
    switch (tree_kind(unit)) {
