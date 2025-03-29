@@ -7231,7 +7231,7 @@ static void lower_match_case(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
       ident_t func = ident_new(
          is_array ? "NVC.IEEE_SUPPORT.CHECK_MATCH_EXPRESSION(Y)"
          : "NVC.IEEE_SUPPORT.CHECK_MATCH_EXPRESSION(U)");
-      vcode_reg_t context_reg = lower_context_for_call(lu, func);
+      vcode_reg_t context_reg = emit_link_package(well_known(W_IEEE_SUPPORT));
 
       vcode_reg_t args[] = { context_reg, value_reg };
       emit_fcall(func, VCODE_INVALID_REG, VCODE_INVALID_REG,
@@ -8500,10 +8500,8 @@ static void lower_physical_image_helper(lower_unit_t *lu, type_t type,
    vcode_reg_t cast_reg = emit_cast(vint64, vint64, preg);
    ident_t conv_fn =
       ident_new("NVC.TEXT_UTIL.INT_TO_STRING(21NVC.TEXT_UTIL.T_INT64)S");
-   vcode_reg_t conv_args[] = {
-      lower_context_for_call(lu, conv_fn),
-      cast_reg
-   };
+   vcode_reg_t text_util_reg = emit_link_package(well_known(W_TEXT_UTIL));
+   vcode_reg_t conv_args[] = { text_util_reg, cast_reg };
    vcode_reg_t num_reg = emit_fcall(conv_fn, vstring, vstring, conv_args, 2);
 
    vcode_reg_t num_len = emit_uarray_len(num_reg, 0);
@@ -8555,10 +8553,8 @@ static void lower_numeric_image_helper(lower_unit_t *lu, type_t type,
          "NVC.TEXT_UTIL.INT_TO_STRING(21NVC.TEXT_UTIL.T_INT64)S");
    }
 
-   vcode_reg_t conv_args[] = {
-      lower_context_for_call(lu, conv_fn),
-      arg_reg
-   };
+   vcode_reg_t text_util_reg = emit_link_package(well_known(W_TEXT_UTIL));
+   vcode_reg_t conv_args[] = { text_util_reg, arg_reg };
    vcode_reg_t str_reg = emit_fcall(conv_fn, vstring, vstring, conv_args, 2);
    emit_return(str_reg);
 }
@@ -8883,10 +8879,8 @@ static void lower_enum_value_helper(lower_unit_t *lu, type_t type,
    vcode_type_t vstring = vtype_uarray(1, vchar, vchar);
 
    ident_t canon_fn = ident_new("NVC.TEXT_UTIL.CANON_VALUE(S)S");
-   vcode_reg_t canon_args[] = {
-      lower_context_for_call(lu, canon_fn),
-      preg,
-   };
+   vcode_reg_t text_util_reg = emit_link_package(well_known(W_TEXT_UTIL));
+   vcode_reg_t canon_args[] = { text_util_reg, preg };
    vcode_reg_t canon_reg = emit_fcall(canon_fn, vstring, vchar,
                                       canon_args, ARRAY_LEN(canon_args));
    vcode_reg_t canon_len_reg  = emit_uarray_len(canon_reg, 0);
@@ -9028,7 +9022,7 @@ static void lower_physical_value_helper(lower_unit_t *lu, type_t type,
 
    ident_t conv_fn =
       ident_new("NVC.TEXT_UTIL.STRING_TO_INT(S21NVC.TEXT_UTIL.T_INT64N)");
-   vcode_reg_t text_util_reg = lower_context_for_call(lu, conv_fn);
+   vcode_reg_t text_util_reg = emit_link_package(well_known(W_TEXT_UTIL));
    vcode_reg_t conv_args[] = {
       text_util_reg,
       preg,
@@ -9202,7 +9196,7 @@ static void lower_numeric_value_helper(lower_unit_t *lu, type_t type,
    if (type_is_real(type)) {
       ident_t conv_fn = ident_new("NVC.TEXT_UTIL.STRING_TO_REAL(S)R");
 
-      vcode_reg_t text_util_reg = lower_context_for_call(lu, conv_fn);
+      vcode_reg_t text_util_reg = emit_link_package(well_known(W_TEXT_UTIL));
       vcode_reg_t conv_args[] = { text_util_reg, preg };
 
       vcode_type_t vreal = vtype_real(-DBL_MAX, DBL_MAX);
@@ -9214,7 +9208,7 @@ static void lower_numeric_value_helper(lower_unit_t *lu, type_t type,
       ident_t conv_fn =
          ident_new("NVC.TEXT_UTIL.STRING_TO_INT(S)21NVC.TEXT_UTIL.T_INT64");
 
-      vcode_reg_t text_util_reg = lower_context_for_call(lu, conv_fn);
+      vcode_reg_t text_util_reg = emit_link_package(well_known(W_TEXT_UTIL));
       vcode_reg_t conv_args[] = { text_util_reg, preg };
 
       vcode_type_t vint64 = vtype_int(INT64_MIN, INT64_MAX);
@@ -9247,7 +9241,7 @@ static void lower_record_value_helper(lower_unit_t *lu, type_t type,
    ident_t find_open_fn = ident_new("NVC.TEXT_UTIL.FIND_OPEN(S)N");
    ident_t find_close_fn = ident_new("NVC.TEXT_UTIL.FIND_CLOSE(SN)");
    ident_t next_delim_fn = ident_new("NVC.TEXT_UTIL.NEXT_DELIMITER(SN)S");
-   vcode_reg_t text_util_reg = lower_context_for_call(lu, next_delim_fn);
+   vcode_reg_t text_util_reg = emit_link_package(well_known(W_TEXT_UTIL));
 
    vcode_reg_t open_args[] = { text_util_reg, preg };
    vcode_reg_t open_reg = emit_fcall(find_open_fn, vnat, vnat, open_args, 2);
@@ -9319,7 +9313,7 @@ static void lower_array_value_helper(lower_unit_t *lu, type_t type,
    ident_t find_open_fn = ident_new("NVC.TEXT_UTIL.FIND_OPEN(S)N");
    ident_t find_close_fn = ident_new("NVC.TEXT_UTIL.FIND_CLOSE(SN)");
    ident_t bad_char_fn = ident_new("NVC.TEXT_UTIL.REPORT_BAD_CHAR(SC)");
-   vcode_reg_t text_util_reg = lower_context_for_call(lu, next_delim_fn);
+   vcode_reg_t text_util_reg = emit_link_package(well_known(W_TEXT_UTIL));
 
    type_t elem = type_base_recur(type_elem_recur(type));
    vcode_type_t velem = lower_type(elem);
@@ -11017,7 +11011,8 @@ static void lower_predef_match_op(lower_unit_t *lu, tree_t decl,
          tmp = emit_cmp(cmp, r0_src_reg, r1_src_reg);
       else {
          ident_t func = ident_new("NVC.IEEE_SUPPORT.REL_MATCH_EQ(UU)U");
-         vcode_reg_t context_reg = lower_context_for_call(lu, func);
+         vcode_reg_t context_reg =
+            emit_link_package(well_known(W_IEEE_SUPPORT));
          vcode_reg_t args[] = { context_reg, r0_src_reg, r1_src_reg };
          tmp = emit_fcall(func, vtype, vbounds, args, 3);
       }
@@ -11064,7 +11059,7 @@ static void lower_predef_match_op(lower_unit_t *lu, tree_t decl,
          fatal_trace("unexpected comparison operator %d", cmp);
       }
 
-      vcode_reg_t context_reg = lower_context_for_call(lu, func);
+      vcode_reg_t context_reg = emit_link_package(well_known(W_IEEE_SUPPORT));
       vcode_reg_t args[3] = { context_reg, r0, r1 };
 
       vcode_type_t rtype = lower_type(r0_type);
@@ -13078,8 +13073,7 @@ static void lower_pack_body(lower_unit_t *lu, object_t *obj)
    if (standard() >= STD_08 && is_well_known(lu->name) == W_IEEE_1164) {
       // VHDL-2008 and later matching operators on STD_LOGIC are
       // implemented in the support package
-      ident_t ieee_support = ident_new("NVC.IEEE_SUPPORT");
-      emit_package_init(ieee_support, VCODE_INVALID_REG);
+      emit_package_init(well_known(W_IEEE_SUPPORT), VCODE_INVALID_REG);
    }
 
    tree_global_flags_t gflags = tree_global_flags(body);
