@@ -2436,21 +2436,6 @@ static vcode_reg_t lower_context_for_call(lower_unit_t *lu, ident_t unit_name)
       }
    }
 
-   int hops = 0;
-   for (vcode_unit_t it = lu->vunit; ; hops++) {
-      ident_t this = vcode_unit_name(it);
-      assert(this != unit_name);
-      if (ident_starts_with(unit_name, this)
-          && ident_char(unit_name, ident_len(this)) == '.')
-         return emit_context_upref(hops);
-
-      vcode_unit_t context = vcode_unit_context(it);
-      if (context == NULL)
-         break;
-
-      it = context;
-   }
-
    ident_t it = unit_name;
    ident_t lname = ident_walk_selected(&it);
    ident_t uname = ident_walk_selected(&it);
