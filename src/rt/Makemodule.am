@@ -15,6 +15,7 @@ lib_libnvc_a_SOURCES += \
 	src/rt/model.h \
 	src/rt/model.c \
 	src/rt/fileio.c \
+	src/rt/fileio.h \
 	src/rt/printer.h \
 	src/rt/printer.c \
 	src/rt/reflect.c \

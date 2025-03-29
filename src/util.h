@@ -376,17 +376,8 @@ typedef struct {
    timestamp_t mtime;
 } file_info_t;
 
-typedef enum {
-   FILE_READ,
-   FILE_WRITE,
-   FILE_APPEND,
-   FILE_READ_WRITE,
-} file_mode_t;
-
 bool get_file_info(const char *path, file_info_t *info);
 bool get_handle_info(int fd, file_info_t *info);
-bool get_handle_path(int fd, text_buf_t *tb);
-bool get_handle_mode(int fd, file_mode_t *mode);
 
 void progress(const char *fmt, ...)
    __attribute__((format(printf, 1, 2)));

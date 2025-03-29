@@ -50,6 +50,10 @@ begin
         assert fvm.get_file_open_kind = WRITE_MODE;
         assert basename(fvm.get_file_logical_name) = "temp.txt";
 
+        fvm := std.textio.output'reflect.to_file;
+        assert fvm.get_file_open_kind = WRITE_MODE;
+        assert basename(fvm.get_file_logical_name) = "STD_OUTPUT";
+
         stm := line'reflect;
         assert stm.get_type_class = CLASS_ACCESS;
         astm := stm.to_access;

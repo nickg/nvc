@@ -23,7 +23,7 @@
 
 #include <stdint.h>
 
-#define RT_ABI_VERSION   29
+#define RT_ABI_VERSION   30
 #define RT_ALIGN_MASK    0x7
 #define RT_MULTITHREADED 0
 
@@ -40,13 +40,6 @@
 typedef void (*sig_event_fn_t)(uint64_t now, rt_signal_t *signal,
                                rt_watch_t *watch, void *user);
 typedef void (*rt_event_fn_t)(rt_model_t *m, void *user);
-
-typedef enum {
-   OPEN_OK      = 0,
-   STATUS_ERROR = 1,
-   NAME_ERROR   = 2,
-   MODE_ERROR   = 3,
-} file_open_status_t;
 
 typedef enum {
    R_MEMO      = (1 << 0),

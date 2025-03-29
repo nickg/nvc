@@ -771,9 +771,10 @@ static int irgen_align_of(jit_irgen_t *g, mir_type_t type)
    case MIR_TYPE_UARRAY:
    case MIR_TYPE_SIGNAL:
    case MIR_TYPE_CONTEXT:
-   case MIR_TYPE_FILE:
    case MIR_TYPE_TRIGGER:
       return sizeof(void *);
+   case MIR_TYPE_FILE:
+      return sizeof(uint32_t);
    case MIR_TYPE_CARRAY:
       return irgen_align_of(g, mir_get_elem(g->mu, type));
    default:
@@ -793,9 +794,10 @@ static int irgen_size_bits(jit_irgen_t *g, mir_type_t type)
    case MIR_TYPE_POINTER:
    case MIR_TYPE_ACCESS:
    case MIR_TYPE_CONTEXT:
-   case MIR_TYPE_FILE:
    case MIR_TYPE_TRIGGER:
       return sizeof(void *) * 8;
+   case MIR_TYPE_FILE:
+      return sizeof(uint32_t) * 8;
    default:
       fatal_trace("cannot handle type %d in irgen_size_bits",
                   mir_get_class(g->mu, type));
@@ -849,9 +851,11 @@ static int irgen_size_bytes(jit_irgen_t *g, mir_type_t type)
    case MIR_TYPE_ACCESS:
    case MIR_TYPE_POINTER:
    case MIR_TYPE_CONTEXT:
-   case MIR_TYPE_FILE:
    case MIR_TYPE_TRIGGER:
       return sizeof(void *);
+
+   case MIR_TYPE_FILE:
+      return sizeof(uint32_t);
 
    case MIR_TYPE_SIGNAL:
       return sizeof(void *) + sizeof(int32_t);
@@ -1063,10 +1067,11 @@ static ffi_type_t irgen_ffi_type(jit_irgen_t *g, mir_type_t type)
    case MIR_TYPE_POINTER:
    case MIR_TYPE_CONTEXT:
    case MIR_TYPE_ACCESS:
-   case MIR_TYPE_FILE:
    case MIR_TYPE_LOCUS:
    case MIR_TYPE_CONVERSION:
       return FFI_POINTER;
+   case MIR_TYPE_FILE:
+      return FFI_UINT32;
    case MIR_TYPE_UARRAY:
       return FFI_UARRAY;
    case MIR_TYPE_SIGNAL:
@@ -1101,7 +1106,17 @@ static jit_value_t irgen_pcall_ptr(jit_irgen_t *g)
 
 static void irgen_op_null(jit_irgen_t *g, mir_value_t n)
 {
-   g->map[n.id] = jit_null_ptr();
+   switch (mir_get_class(g->mu, mir_get_type(g->mu, n))) {
+   case MIR_TYPE_POINTER:
+   case MIR_TYPE_ACCESS:
+      g->map[n.id] = jit_null_ptr();
+      break;
+   case MIR_TYPE_FILE:
+      g->map[n.id] = jit_value_from_int64(0);
+      break;
+   default:
+      should_not_reach_here();
+   }
 }
 
 static void irgen_op_const(jit_irgen_t *g, mir_value_t n)
@@ -1732,9 +1747,11 @@ static jit_value_t irgen_load_addr(jit_irgen_t *g, mir_type_t type,
    case MIR_TYPE_ACCESS:
    case MIR_TYPE_POINTER:
    case MIR_TYPE_CONTEXT:
-   case MIR_TYPE_FILE:
    case MIR_TYPE_TRIGGER:
       return j_load(g, JIT_SZ_PTR, addr);
+
+   case MIR_TYPE_FILE:
+      return j_load(g, JIT_SZ_32, addr);
 
    case MIR_TYPE_SIGNAL:
       {
@@ -1791,9 +1808,12 @@ static void irgen_store_addr(jit_irgen_t *g, mir_type_t type,
    case MIR_TYPE_POINTER:
    case MIR_TYPE_CONTEXT:
    case MIR_TYPE_REAL:
-   case MIR_TYPE_FILE:
    case MIR_TYPE_TRIGGER:
       j_store(g, irgen_jit_size(g, type), value, addr);
+      break;
+
+   case MIR_TYPE_FILE:
+      j_store(g, JIT_SZ_32, value, addr);
       break;
 
    case MIR_TYPE_UARRAY:

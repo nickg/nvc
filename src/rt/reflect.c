@@ -19,6 +19,7 @@
 #include "jit/jit-exits.h"
 #include "jit/jit-layout.h"
 #include "jit/jit.h"
+#include "rt/fileio.h"
 #include "tree.h"
 #include "type.h"
 
@@ -485,17 +486,6 @@ static jit_scalar_t *get_null_array(type_t type)
    return bounds;
 }
 
-static ffi_uarray_t *get_file_logical_name(FILE *fp)
-{
-   LOCAL_TEXT_BUF tb = tb_new();
-   if (get_handle_path(fileno(fp), tb))
-      return get_string(tb_get(tb));
-   else {
-      jit_msg(NULL, DIAG_WARN, "unable to get file logical name");
-      return NULL;
-   }
-}
-
 static value_mirror *get_value_mirror(void *context, jit_scalar_t value,
                                       type_t type, const jit_scalar_t *bounds)
 {
@@ -631,18 +621,21 @@ static value_mirror *get_value_mirror(void *context, jit_scalar_t value,
       fvm->pt.f_owner = vm;
       fvm->pt.f_subtype = vm->pt.f_subtype->pt.f_file;
 
-      FILE *fp = value.pointer;
-      fflush(fp);
-
       file_mode_t mode;
-      if (!get_handle_mode(fileno(fp), &mode)) {
+      if (file_mode(value.integer, &mode))
+         fvm->pt.f_open_kind = mode;
+      else {
          jit_msg(NULL, DIAG_WARN, "cannot determine file mode");
          fvm->pt.f_open_kind = 0;
       }
-      else
-         fvm->pt.f_open_kind = mode;
 
-      fvm->pt.f_logical_name = get_file_logical_name(fp);
+      const char *name;
+      if (file_logical_name(value.integer, &name))
+         fvm->pt.f_logical_name = get_string(name);
+      else {
+         jit_msg(NULL, DIAG_WARN, "cannot determine file logical name");
+         fvm->pt.f_logical_name = NULL;
+      }
 
       vm->pt.f_class = CLASS_FILE;
       vm->pt.f_file = fvm;
