@@ -172,6 +172,7 @@ static vcode_reg_t lower_context_for_call(lower_unit_t *lu, ident_t unit_name);
 static void lower_driver_field_cb(lower_unit_t *lu, tree_t field,
                                   vcode_reg_t ptr, vcode_reg_t unused,
                                   vcode_reg_t locus, void *__ctx);
+static void lower_dependencies(lower_unit_t *lu, tree_t unit);
 
 typedef vcode_reg_t (*lower_signal_flag_fn_t)(vcode_reg_t, vcode_reg_t);
 typedef vcode_reg_t (*arith_fn_t)(vcode_reg_t, vcode_reg_t);
@@ -9790,6 +9791,11 @@ static void lower_instantiated_package(lower_unit_t *parent, tree_t decl)
 
    lu->cscope = cover_create_scope(lu->cover, parent->cscope, decl, NULL);
 
+   tree_t pack = tree_ref(decl);
+   assert(is_uninstantiated_package(pack));
+
+   lower_dependencies(lu, body_of(pack) ?: pack);
+
    lower_generics(lu, decl, NULL);
    lower_decls(lu, decl);
 
@@ -12952,6 +12958,21 @@ static void lower_dependencies(lower_unit_t *lu, tree_t unit)
    case T_ARCH:
    case T_PACK_BODY:
       lower_dependencies(lu, tree_primary(unit));
+      break;
+   case T_PACK_INST:
+      {
+         tree_t pack = tree_ref(unit);
+         assert(is_uninstantiated_package(pack));
+
+         if (package_needs_body(pack)) {
+            tree_t body = body_of(pack);
+            assert(body != NULL);
+
+            lower_dependencies(lu, body);
+         }
+         else
+            lower_dependencies(lu, pack);
+      }
       break;
    case T_BLOCK:
       {
