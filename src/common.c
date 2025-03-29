@@ -1108,6 +1108,7 @@ void intern_strings(void)
    id_cache[W_INSTANCE_NAME]   = ident_new("instance_name");
    id_cache[W_PATH_NAME]       = ident_new("path_name");
    id_cache[W_VITAL]           = ident_new("VITAL");
+   id_cache[W_RESOLUTION]      = ident_new("resolution");
 
    id_cache[W_IEEE_LOGIC_VECTOR] =
       ident_new("IEEE.STD_LOGIC_1164.STD_LOGIC_VECTOR");

@@ -2830,7 +2830,8 @@ bool vtype_is_scalar(vcode_type_t type)
       || kind == VCODE_TYPE_UARRAY || kind == VCODE_TYPE_POINTER
       || kind == VCODE_TYPE_FILE || kind == VCODE_TYPE_ACCESS
       || kind == VCODE_TYPE_REAL || kind == VCODE_TYPE_SIGNAL
-      || kind == VCODE_TYPE_CONTEXT || kind == VCODE_TYPE_TRIGGER;
+      || kind == VCODE_TYPE_CONTEXT || kind == VCODE_TYPE_TRIGGER
+      || kind == VCODE_TYPE_RESOLUTION;
 }
 
 bool vtype_is_composite(vcode_type_t type)
@@ -4177,6 +4178,7 @@ static void vcode_calculate_var_index_type(op_t *op, var_t *var)
    case VCODE_TYPE_CONTEXT:
    case VCODE_TYPE_OFFSET:
    case VCODE_TYPE_TRIGGER:
+   case VCODE_TYPE_RESOLUTION:
       op->type = vtype_pointer(var->type);
       op->result = vcode_add_reg(op->type);
       vcode_reg_data(op->result)->bounds = var->bounds;

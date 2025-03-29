@@ -247,6 +247,7 @@ typedef enum {
    W_SHAPE,
    W_INSTANCE_NAME,
    W_PATH_NAME,
+   W_RESOLUTION,
    W_OP_AND,
    W_OP_OR,
    W_OP_NAND,

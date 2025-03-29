@@ -102,6 +102,9 @@ static mir_type_t import_type(mir_unit_t *mu, mir_import_t *imp,
    case VCODE_TYPE_DEBUG_LOCUS:
       type = mir_locus_type(mu);
       break;
+   case VCODE_TYPE_RESOLUTION:
+      type = mir_resolution_type(mu, import_type(mu, imp, vtype_base(vtype)));
+      break;
    default:
       vcode_dump();
       fatal_trace("cannot import type kind %d", vtype_kind(vtype));

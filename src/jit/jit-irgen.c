@@ -772,6 +772,7 @@ static int irgen_align_of(jit_irgen_t *g, mir_type_t type)
    case MIR_TYPE_SIGNAL:
    case MIR_TYPE_CONTEXT:
    case MIR_TYPE_TRIGGER:
+   case MIR_TYPE_RESOLUTION:
       return sizeof(void *);
    case MIR_TYPE_FILE:
       return sizeof(uint32_t);
@@ -859,6 +860,9 @@ static int irgen_size_bytes(jit_irgen_t *g, mir_type_t type)
 
    case MIR_TYPE_SIGNAL:
       return sizeof(void *) + sizeof(int32_t);
+
+   case MIR_TYPE_RESOLUTION:
+      return 2*sizeof(void *) + 2*sizeof(int64_t) + sizeof(int32_t);
 
    default:
       fatal_trace("cannot handle type %d in irgen_size_bytes",
@@ -1780,6 +1784,20 @@ static jit_value_t irgen_load_addr(jit_irgen_t *g, mir_type_t type,
          return base;
       }
 
+   case MIR_TYPE_RESOLUTION:
+      {
+         jit_value_t base = j_load(g, JIT_SZ_PTR, addr);  // Function pointer
+         addr = jit_addr_from_value(addr, sizeof(void *));
+         j_load(g, JIT_SZ_PTR, addr);   // Context
+         addr = jit_addr_from_value(addr, sizeof(void *));
+         j_load(g, JIT_SZ_64, addr);   // Left
+         addr = jit_addr_from_value(addr, sizeof(int64_t));
+         j_load(g, JIT_SZ_64, addr);   // Literals
+         addr = jit_addr_from_value(addr, sizeof(int64_t));
+         j_load(g, JIT_SZ_32, addr);   // Flags
+         return base;
+      }
+
    default:
       fatal_trace("cannot load type kind %d", mir_get_class(g->mu, type));
    }
@@ -1839,6 +1857,21 @@ static void irgen_store_addr(jit_irgen_t *g, mir_type_t type,
          j_store(g, JIT_SZ_PTR, value, addr);
          addr = jit_addr_from_value(addr, sizeof(void *));
          j_store(g, JIT_SZ_32, jit_value_from_reg(base + 1), addr);
+      }
+      break;
+
+   case MIR_TYPE_RESOLUTION:
+      {
+         jit_reg_t base = jit_value_as_reg(value);
+         j_store(g, JIT_SZ_PTR, value, addr);  // Function pointer
+         addr = jit_addr_from_value(addr, sizeof(void *));
+         j_store(g, JIT_SZ_PTR, jit_value_from_reg(base + 1), addr);  // Context
+         addr = jit_addr_from_value(addr, sizeof(void *));
+         j_store(g, JIT_SZ_64, jit_value_from_reg(base + 2), addr);  // Left
+         addr = jit_addr_from_value(addr, sizeof(int64_t));
+         j_store(g, JIT_SZ_64, jit_value_from_reg(base + 3), addr);  // Literals
+         addr = jit_addr_from_value(addr, sizeof(int64_t));
+         j_store(g, JIT_SZ_32, jit_value_from_reg(base + 4), addr);  // Flags
       }
       break;
 
