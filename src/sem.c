@@ -24,6 +24,7 @@
 #include "names.h"
 #include "option.h"
 #include "phase.h"
+#include "psl/psl-phase.h"
 #include "type.h"
 
 #include <assert.h>
@@ -7130,6 +7131,12 @@ static bool sem_check_inertial(tree_t t, nametab_t *tab)
    return true;
 }
 
+static bool sem_check_psl_union(tree_t t, nametab_t *tab)
+{
+   psl_check(tree_psl(t), tab);
+   return true;
+}
+
 bool sem_check(tree_t t, nametab_t *tab)
 {
    switch (tree_kind(t)) {
@@ -7284,6 +7291,8 @@ bool sem_check(tree_t t, nametab_t *tab)
    case T_LOOP:
    case T_SEQUENCE:
       return true;
+   case T_PSL_UNION:
+      return sem_check_psl_union(t, tab);
    case T_CONV_FUNC:
       return sem_check_conv_func(t, tab);
    case T_CONCURRENT:

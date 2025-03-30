@@ -181,6 +181,7 @@ static psl_node_t p_psl_repeated_sere(psl_node_t head);
 static psl_node_t p_psl_braced_sere(void);
 static psl_node_t p_hdl_expression(tree_t head, psl_type_t type);
 static psl_node_t p_psl_builtin_function_call(void);
+static psl_node_t p_psl_union(tree_t head);
 
 static bool consume(token_t tok);
 static bool optional(token_t tok);
@@ -4991,18 +4992,36 @@ static tree_t p_expression_with_head(tree_t head)
    //   | relation { xor relation } | relation [ nand relation ]
    //   | relation [ nor relation ] | relation { xnor relation }
    //   | 2008: condition_operator primary
+   //   | PSL: relation { union relation }
 
    BEGIN("expression");
 
    tree_t expr = p_relation(head);
 
-   int loop_limit = (scan(tNOR, tNAND) ? 1 : INT_MAX);
-
-   while (loop_limit-- && scan(tAND, tOR, tXOR, tNAND, tNOR, tXNOR)) {
-      tree_t new = tree_new(T_FCALL);
-      tree_set_ident(new, p_logical_operator());
-      binary_op(new, expr, p_relation);
-      expr = new;
+   for (;;) {
+      const token_t tok = peek();
+      if (tok == tUNION) {
+         psl_node_t un = p_psl_union(expr);
+         tree_t new = tree_new(T_PSL_UNION);
+         tree_set_psl(new, un);
+         tree_set_loc(new, CURRENT_LOC);
+         expr = new;
+      }
+      else if (tok == tNOR || tok == tNAND) {
+         tree_t new = tree_new(T_FCALL);
+         tree_set_ident(new, p_logical_operator());
+         binary_op(new, expr, p_relation);
+         expr = new;
+         break;
+      }
+      else if (tok == tAND || tok == tOR || tok == tXOR || tok == tXNOR) {
+         tree_t new = tree_new(T_FCALL);
+         tree_set_ident(new, p_logical_operator());
+         binary_op(new, expr, p_relation);
+         expr = new;
+      }
+      else
+         break;
    }
 
    return expr;
@@ -11535,54 +11554,70 @@ static psl_node_t p_psl_value_set(void)
    return p;
 }
 
+static psl_node_t p_psl_union(tree_t head)
+{
+   consume(tUNION);
+
+   psl_node_t lhs = psl_new(P_HDL_EXPR);
+   psl_set_tree(lhs, head);
+   psl_set_loc(lhs, tree_loc(head));
+   psl_set_type(lhs, PSL_TYPE_ANY);
+   psl_set_loc(lhs, CURRENT_LOC);
+
+   psl_node_t un = psl_new(P_UNION);
+   psl_add_operand(un, lhs);
+   psl_add_operand(un, p_hdl_expression(NULL, PSL_TYPE_ANY));
+   psl_set_loc(un, CURRENT_LOC);
+
+   return un;
+}
+
 static psl_node_t p_hdl_expression(tree_t head, psl_type_t type)
 {
    BEGIN("PSL HDL expression");
 
    tree_t expr = p_relation(head);
 
-   int loop_limit = (scan(tNOR, tNAND) ? 1 : INT_MAX);
-
    // AND and OR must be parsed as PSL operators
-   while (loop_limit-- && scan(tXOR, tNAND, tNOR, tXNOR)) {
-      tree_t new = tree_new(T_FCALL);
-      tree_set_ident(new, p_logical_operator());
-      binary_op(new, expr, p_relation);
-      expr = new;
+   for (;;) {
+      const token_t tok = peek();
+      if (tok == tUNION) {
+         psl_node_t un = p_psl_union(expr);
+         tree_t new = tree_new(T_PSL_UNION);
+         tree_set_psl(new, un);
+         tree_set_loc(new, CURRENT_LOC);
+         expr = new;
+      }
+      else if (tok == tNOR || tok == tNAND) {
+         tree_t new = tree_new(T_FCALL);
+         tree_set_ident(new, p_logical_operator());
+         binary_op(new, expr, p_relation);
+         expr = new;
+         break;
+      }
+      else if (tok == tXOR || tok == tXNOR) {
+         tree_t new = tree_new(T_FCALL);
+         tree_set_ident(new, p_logical_operator());
+         binary_op(new, expr, p_relation);
+         expr = new;
+      }
+      else
+         break;
    }
 
    psl_node_t p = psl_new(P_HDL_EXPR);
    psl_set_tree(p, expr);
    psl_set_loc(p, tree_loc(expr));
    psl_set_type(p, type);
-
    psl_set_loc(p, CURRENT_LOC);
+
    return p;
-}
-
-static psl_node_t p_psl_or_hdl_expression(void)
-{
-   // HDL_Expression | PSL_Expression | Built_In_Function_Call
-   //    | Union_Expression
-
-   BEGIN("PSL or HDL expression");
-
-   psl_node_t head = p_hdl_expression(NULL, PSL_TYPE_BOOLEAN);
-
-   if (optional(tUNION)) {
-      psl_node_t new = psl_new(P_UNION);
-      psl_add_operand(new, head);
-      psl_add_operand(new, p_psl_or_hdl_expression());
-      psl_set_loc(new, CURRENT_LOC);
-      return new;
-   }
-
-   return head;
 }
 
 static psl_node_t p_psl_boolean(tree_t head)
 {
-   // HDL_or_PSL_Expression
+   // HDL_Expression | PSL_Expression | Built_In_Function_Call
+   //    | Union_Expression
 
    BEGIN_WITH_HEAD("PSL Boolean", head);
 
@@ -12570,7 +12605,7 @@ static psl_node_t p_psl_fl_property(void)
       break;
 
    default:
-      p = p_psl_or_hdl_expression();
+      p = p_hdl_expression(NULL, PSL_TYPE_BOOLEAN);
       break;
    }
 
@@ -12697,7 +12732,7 @@ static psl_node_t p_psl_fl_property(void)
          psl_node_t abort = psl_new(P_ABORT);
          psl_set_subkind(abort, kind);
          psl_add_operand(abort, p);
-         psl_add_operand(abort, p_psl_or_hdl_expression());
+         psl_add_operand(abort, p_hdl_expression(NULL, PSL_TYPE_BOOLEAN));
          psl_set_loc(abort, CURRENT_LOC);
 
          return abort;

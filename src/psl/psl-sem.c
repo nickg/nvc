@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2022-2024  Nick Gasson
+//  Copyright (C) 2022-2025  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -459,6 +459,29 @@ static void psl_check_builtin_fcall(psl_node_t p, nametab_t *tab)
       psl_check(psl_operand(p, i), tab);
 }
 
+static void psl_check_union(psl_node_t p, nametab_t *tab)
+{
+   psl_node_t lhs = psl_operand(p, 0);
+   psl_node_t rhs = psl_operand(p, 1);
+
+   psl_check(lhs, tab);
+   psl_check(rhs, tab);
+
+   type_t ltype = tree_type(psl_tree(lhs));
+   type_t rtype = tree_type(psl_tree(rhs));
+
+   if (type_is_none(ltype) || type_is_none(rtype))
+      return;
+
+   if (!type_eq(ltype, rtype)) {
+      diag_t *d = diag_new(DIAG_ERROR, psl_loc(p));
+      diag_printf(d, "PSL union operands must be the same type");
+      diag_hint(d, psl_loc(p), "have %s and %s", type_pp2(ltype, rtype),
+                type_pp2(rtype, ltype));
+      diag_emit(d);
+   }
+}
+
 void psl_check(psl_node_t p, nametab_t *tab)
 {
    switch (psl_kind(p)) {
@@ -553,6 +576,9 @@ void psl_check(psl_node_t p, nametab_t *tab)
       break;
    case P_BUILTIN_FCALL:
       psl_check_builtin_fcall(p, tab);
+      break;
+   case P_UNION:
+      psl_check_union(p, tab);
       break;
    default:
       fatal_trace("cannot check PSL kind %s", psl_kind_str(psl_kind(p)));

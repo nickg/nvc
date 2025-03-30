@@ -43,4 +43,8 @@ begin
 
     -- psl assert always x = prev(x);              -- OK
     -- psl assert always prev(y) = '1';            -- OK
+    -- psl assert x union y;                       -- OK
+    -- psl assert not (x union y);                 -- OK
+    -- psl assert not ('1' union '0');             -- OK
+    -- psl assert not ('1' union '1' union '0');   -- OK
 end architecture;

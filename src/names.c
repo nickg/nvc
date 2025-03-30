@@ -4930,6 +4930,36 @@ static type_t solve_inertial(nametab_t *tab, tree_t expr)
    return type;
 }
 
+static type_t solve_pair(nametab_t *tab, tree_t left, tree_t right)
+{
+   // Constrain left and right to have the same type
+
+   type_t ltype;
+   if (is_unambiguous(left))
+      ltype = _solve_types(tab, left);
+   else
+      ltype = try_solve_type(tab, left);
+
+   type_t rtype;
+   if (is_unambiguous(right))
+      rtype = _solve_types(tab, right);
+   else
+      rtype = try_solve_type(tab, right);
+
+   if (ltype != NULL)
+      rtype = solve_types(tab, right, ltype);
+   else if (rtype != NULL)
+      ltype = solve_types(tab, left, rtype);
+   else {
+      // This relies on try_solve_type filling the empty type set
+      // with the possible types of the left or right sides
+      ltype = _solve_types(tab, left);
+      rtype = _solve_types(tab, right);
+   }
+
+   return ltype;
+}
+
 static type_t solve_range(nametab_t *tab, tree_t r)
 {
    if (tree_has_type(r))
@@ -4951,35 +4981,11 @@ static type_t solve_range(nametab_t *tab, tree_t r)
    case RANGE_TO:
    case RANGE_DOWNTO:
       {
-         tree_t left = tree_left(r);
-         tree_t right = tree_right(r);
+         type_t type = solve_pair(tab, tree_left(r), tree_right(r));
 
          const bool has_context = tab->top_type_set->members.count > 0;
 
-         type_t ltype;
-         if (is_unambiguous(left))
-            ltype = _solve_types(tab, left);
-         else
-            ltype = try_solve_type(tab, left);
-
-         type_t rtype;
-         if (is_unambiguous(right))
-            rtype = _solve_types(tab, right);
-         else
-            rtype = try_solve_type(tab, right);
-
-         if (ltype != NULL)
-            rtype = solve_types(tab, right, ltype);
-         else if (rtype != NULL)
-            ltype = solve_types(tab, left, rtype);
-         else {
-            // This relies on try_solve_type filling the empty type set
-            // with the possible types of the left or right sides
-            ltype = _solve_types(tab, left);
-            rtype = _solve_types(tab, right);
-         }
-
-         type_t result = has_context ? ltype : type_base_recur(ltype);
+         type_t result = has_context ? type : type_base_recur(type);
          tree_set_type(r, result);
          return result;
       }
@@ -5020,6 +5026,36 @@ static type_t solve_psl_fcall(nametab_t *tab, tree_t t)
    return type;
 }
 
+static type_t solve_psl_union(nametab_t *tab, tree_t t)
+{
+   psl_node_t p = tree_psl(t);
+
+   tree_t lhs = psl_tree(psl_operand(p, 0));
+   tree_t rhs = psl_tree(psl_operand(p, 1));
+
+   type_t type = solve_pair(tab, lhs, rhs);
+   tree_set_type(t, type);
+   return type;
+}
+
+static type_t try_solve_psl_union(nametab_t *tab, tree_t t)
+{
+   psl_node_t p = tree_psl(t);
+
+   tree_t lhs = psl_tree(psl_operand(p, 0));
+   tree_t rhs = psl_tree(psl_operand(p, 1));
+
+   type_t ltype = try_solve_type(tab, lhs);
+   type_t rtype = try_solve_type(tab, rhs);
+
+   if (ltype != NULL && rtype != NULL) {
+      tree_set_type(t, ltype);
+      return ltype;
+   }
+   else
+      return NULL;
+}
+
 static type_t try_solve_type(nametab_t *tab, tree_t expr)
 {
    switch (tree_kind(expr)) {
@@ -5038,6 +5074,8 @@ static type_t try_solve_type(nametab_t *tab, tree_t expr)
       return try_solve_open(tab, expr);
    case T_ATTR_REF:
       return try_solve_attr_ref(tab, expr);
+   case T_PSL_UNION:
+      return try_solve_psl_union(tab, expr);
    default:
       fatal_trace("cannot solve types for %s", tree_kind_str(tree_kind(expr)));
    }
@@ -5098,6 +5136,8 @@ static type_t _solve_types(nametab_t *tab, tree_t expr)
       return solve_inertial(tab, expr);
    case T_PSL_FCALL:
       return solve_psl_fcall(tab, expr);
+   case T_PSL_UNION:
+      return solve_psl_union(tab, expr);
    default:
       fatal_trace("cannot solve types for %s", tree_kind_str(tree_kind(expr)));
    }
