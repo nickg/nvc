@@ -2155,6 +2155,7 @@ static void usage(void)
            { "--map=LIB:PATH", "Map library LIB to PATH" },
            { "--messages={full,compact}",
              "Diagnostic message style, compact is less verbose" },
+           { "--seed=N", "Seed for random number generation" },
            { "--std={1993,..,2019}", "VHDL standard revision to use" },
            { "--stderr={note,warning,error,failure}",
              "Print messages of this severity level or higher to stderr" },
@@ -2478,7 +2479,6 @@ int main(int argc, char **argv)
    mspace_stack_limit(MSPACE_CURRENT_FRAME);
    check_cpu_features();
 
-   srand((unsigned)time(NULL));
    atexit(fbuf_cleanup);
 
    static struct option long_options[] = {
@@ -2496,6 +2496,7 @@ int main(int argc, char **argv)
       { "load",          required_argument, 0, 'l' },
       { "vhpi-debug",    no_argument,       0, 'D' },
       { "vhpi-trace",    no_argument,       0, 'T' },
+      { "seed",          required_argument, 0, 'S' },
       { 0, 0, 0, 0 }
    };
 
@@ -2570,6 +2571,9 @@ int main(int argc, char **argv)
       case 'W':
          opt_set_int(OPT_IEEE_WARNINGS, parse_on_off(optarg));
          break;
+      case 'S':
+         opt_set_int(OPT_RANDOM_SEED, parse_int(optarg));
+         break;
       case '?':
          bad_option("global", argv);
       case ':':
@@ -2578,6 +2582,8 @@ int main(int argc, char **argv)
          should_not_reach_here();
       }
    }
+
+   srand(opt_get_int(OPT_RANDOM_SEED));
 
    state.work = lib_new(work_name);
    lib_set_work(state.work);

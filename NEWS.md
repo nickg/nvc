@@ -32,6 +32,8 @@
   of a conversion function (#1171).
 - Type marks are now allowed in the prefix of selected names in relaxed
   mode (#1173).
+- Added the `nvc.random` random number generation package and `--seed`
+  argument for deterministic results.
 - Several other minor bugs were resolved (#1174, #1159).
 
 ## Version 1.15.2 - 2025-03-01

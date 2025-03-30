@@ -14,7 +14,9 @@ nvc_19_DATA = \
 	lib/nvc.19/NVC.VERILOG \
 	lib/nvc.19/NVC.VERILOG-body \
 	lib/nvc.19/NVC.COVER_PKG \
-	lib/nvc.19/NVC.COVER_PKG-body
+	lib/nvc.19/NVC.COVER_PKG-body \
+	lib/nvc.19/NVC.RANDOM \
+	lib/nvc.19/NVC.RANDOM-body
 
 BOOTSTRAPLIBS += $(nvc_19_DATA)
 
@@ -60,6 +62,12 @@ lib/nvc.19/NVC.COVER_PKG: $(srcdir)/lib/nvc/cover_pkg.vhd @ifGNUmake@ | $(DRIVER
 
 lib/nvc.19/NVC.COVER_PKG-body: $(srcdir)/lib/nvc/cover_pkg-body.vhd @ifGNUmake@ | $(DRIVER)
 	$(nvc) --std=2019 -L lib/ --work=lib/nvc.19 -a $(srcdir)/lib/nvc/cover_pkg-body.vhd
+
+lib/nvc.19/NVC.RANDOM: $(srcdir)/lib/nvc/random.vhd @ifGNUmake@ | $(DRIVER)
+	$(nvc) --std=2019 -L lib/ --work=lib/nvc -a $(srcdir)/lib/nvc/random.vhd
+
+lib/nvc.19/NVC.RANDOM-body: $(srcdir)/lib/nvc/random-body.vhd @ifGNUmake@ | $(DRIVER)
+	$(nvc) --std=2019 -L lib/ --work=lib/nvc -a $(srcdir)/lib/nvc/random-body.vhd
 
 gen-deps-nvc-19:
 	$(nvc) --std=2019 -L lib/ --work=lib/nvc.19 --print-deps | \

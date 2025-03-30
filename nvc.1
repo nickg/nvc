@@ -155,6 +155,15 @@ Libraries mapped in this way will not use the normal search path.
 Select the format used for printing error and informational messages.
 The default full message format is designed for readability whereas the
 compact messages can be easily parsed by tools.
+.\" --seed
+.It Fl \-seed Ns = Ns Ar N
+Seed for random number generation.  Affects the
+.Ql get_random
+function in the
+.Ql nvc.random
+package as well as the
+.Fl \-shuffle
+option.
 .\" --std
 .It Fl \-std Ns = Ns Ar rev
 Select the VHDL standard revision to use.  VHDL standard revisions are

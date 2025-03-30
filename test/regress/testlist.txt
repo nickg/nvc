@@ -1106,3 +1106,4 @@ issue1164       normal
 cmdline15       shell,tcl
 issue1171       normal,2008
 genpack19       normal,2008
+rand1           normal,seed=123

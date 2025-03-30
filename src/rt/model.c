@@ -29,6 +29,7 @@
 #include "rt/copy.h"
 #include "rt/heap.h"
 #include "rt/model.h"
+#include "rt/random.h"
 #include "rt/structs.h"
 #include "thread.h"
 #include "tree.h"
@@ -382,7 +383,7 @@ static void deferq_shuffle(deferq_t *dq)
 {
    int cur = dq->count;
    while (cur > 0) {
-      const int swap = rand() % cur--;
+      const int swap = get_random() % cur--;
       const defer_task_t tmp = dq->tasks[cur];
       dq->tasks[cur] = dq->tasks[swap];
       dq->tasks[swap] = tmp;

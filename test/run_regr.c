@@ -97,6 +97,7 @@
 #define F_SHUFFLE (1 << 24)
 #define F_NOTBSD  (1 << 25)
 #define F_ARRAYS  (1 << 26)
+#define F_SEED    (1 << 27)
 
 typedef struct test test_t;
 typedef struct param param_t;
@@ -129,6 +130,7 @@ struct test {
    char      *export;
    char      *plusarg;
    unsigned   arrays;
+   int        seed;
 };
 
 struct arglist {
@@ -412,6 +414,14 @@ static bool parse_test_list(void)
             if (sscanf(opt + 12, "%u", &(test->arrays)) != 1) {
                fprintf(stderr, "Error on testlist line %d: invalid "
                        "dump-arrays argument %s\n", lineno, opt);
+               goto out_close;
+            }
+         }
+         else if (strncmp(opt, "seed=", 5) == 0) {
+            test->flags |= F_SEED;
+            if (sscanf(opt + 5, "%u", &(test->seed)) != 1) {
+               fprintf(stderr, "Error on testlist line %d: invalid "
+                               "seed argument %s\n", lineno, opt);
                goto out_close;
             }
          }
@@ -867,6 +877,9 @@ static bool run_test(test_t *test)
 
       if (test->flags & F_VHPI)
          push_arg(&args, "--load=%s/../lib/vhpi_test.so%s", bin_dir, EXEEXT);
+
+      if (test->flags & F_SEED)
+         push_arg(&args, "--seed=%u", test->seed);
 
       push_arg(&args, "-a");
 

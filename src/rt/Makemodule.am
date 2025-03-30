@@ -23,7 +23,8 @@ lib_libnvc_a_SOURCES += \
 	src/rt/assert.h \
 	src/rt/ename.c \
 	src/rt/copy.h \
-	src/rt/copy.c
+	src/rt/copy.c \
+	src/rt/random.c
 
 if ENABLE_TCL
 lib_libnvc_a_SOURCES += \
