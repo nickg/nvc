@@ -5188,6 +5188,8 @@ static vcode_reg_t lower_expr(lower_unit_t *lu, tree_t expr, expr_ctx_t ctx)
       return lower_fcall(lu, expr, VCODE_INVALID_REG);
    case T_PSL_FCALL:
       return psl_lower_fcall(lu, tree_psl(expr));
+   case T_PSL_UNION:
+      return psl_lower_union(lu, tree_psl(expr));
    case T_LITERAL:
       return lower_literal(expr);
    case T_STRING:

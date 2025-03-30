@@ -34,6 +34,7 @@
   mode (#1173).
 - Added the `nvc.random` random number generation package and `--seed`
   argument for deterministic results.
+- Added support for PSL `union` operator (from @Blebowski).
 - Several other minor bugs were resolved (#1174, #1159).
 
 ## Version 1.15.2 - 2025-03-01

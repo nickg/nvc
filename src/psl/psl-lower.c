@@ -58,6 +58,22 @@ static vcode_reg_t psl_lower_boolean(lower_unit_t *lu, psl_node_t p)
       return test_reg;
 }
 
+vcode_reg_t psl_lower_union(lower_unit_t *lu, psl_node_t p)
+{
+   vcode_reg_t lhs = lower_rvalue(lu, psl_tree(psl_operand(p, 0)));
+   vcode_reg_t rhs = lower_rvalue(lu, psl_tree(psl_operand(p, 1)));
+
+   ident_t func = ident_new("NVC.RANDOM.GET_RANDOM()B");
+
+   vcode_reg_t context_reg = emit_link_package(ident_new("NVC.RANDOM"));
+   vcode_reg_t args[] = { context_reg };
+
+   vcode_type_t vbool = vtype_bool();
+   vcode_reg_t sel = emit_fcall(func, vbool, vbool, args, 1);
+
+   return emit_select(sel, lhs, rhs);
+}
+
 static vcode_reg_t psl_debug_locus(psl_node_t p)
 {
    return emit_debug_locus(psl_to_object(p));
