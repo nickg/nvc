@@ -12163,51 +12163,28 @@ static void lower_convert_signal(lower_unit_t *lu, vcode_reg_t src_reg,
    }
 }
 
-static void lower_inertial_actual(lower_unit_t *parent, tree_t dst,
-                                  type_t type, vcode_reg_t port_reg,
-                                  tree_t actual)
+static void lower_inertial_actual_process(lower_unit_t *lu, object_t *obj)
 {
    // Construct the equivalent process according the procedure in LRM 08
    // section 6.5.6.3
 
-   assert(standard() >= STD_08);
+   tree_t inertial = tree_from_object(obj);
+   assert(tree_kind(inertial) == T_INERTIAL);
 
-   ident_t name;
-   if (tree_kind(dst) == T_PORT_DECL)
-      name = ident_sprintf("%s_actual", istr(tree_ident(dst)));
-   else
-      name = ident_uniq("%s_actual.part", istr(tree_ident(name_to_ref(dst))));
-
-   vcode_type_t signal_type = lower_signal_type(type);
-   vcode_type_t vbounds = lower_bounds(type);
-   vcode_var_t var = emit_var(signal_type, vbounds, name, VAR_SIGNAL);
-
-   if (type_is_record(type)) {
-      vcode_reg_t locus = lower_debug_locus(dst);
-      vcode_reg_t ptr_reg = emit_index(var, VCODE_INVALID_REG);
-      lower_copy_record(parent, type, ptr_reg, port_reg, locus);
-   }
-   else
-      emit_store(port_reg, var);
-
-   tree_t expr = tree_value(actual);
-   tree_t target = tree_target(actual);
-
-   vcode_state_t state;
-   vcode_state_save(&state);
-
-   ident_t pname = ident_prefix(parent->name, name, '.');
-   vcode_unit_t vu = emit_process(pname, tree_to_object(actual), parent->vunit);
-
-   lower_unit_t *lu = lower_unit_new(parent->registry, parent, vu, NULL, NULL);
-   unit_registry_put(parent->registry, lu);
+   tree_t expr = tree_value(inertial);
+   tree_t target = tree_target(inertial);
+   type_t type = tree_type(target);
 
    // Block number one must be the non-reset entry point
    vcode_block_t main_bb = emit_block();
    assert(main_bb == 1);
 
-   if (tree_global_flags(actual) & TREE_GF_EXTERNAL_NAME)
-      tree_visit_only(actual, lower_external_name_cache, lu, T_EXTERNAL_NAME);
+   int hops;
+   vcode_var_t var = lower_search_vcode_obj(inertial, lu, &hops);
+   assert(var != VCODE_INVALID_VAR);
+
+   if (tree_global_flags(inertial) & TREE_GF_EXTERNAL_NAME)
+      tree_visit_only(inertial, lower_external_name_cache, lu, T_EXTERNAL_NAME);
 
    if (type_is_homogeneous(type)) {
       vcode_reg_t nets_reg = emit_load_indirect(emit_var_upref(1, var));
@@ -12251,10 +12228,39 @@ static void lower_inertial_actual(lower_unit_t *parent, tree_t dst,
                               zero_time_reg, zero_time_reg);
 
    emit_return(VCODE_INVALID_REG);
+}
 
-   unit_registry_finalise(parent->registry, lu);
+static void lower_inertial_actual(lower_unit_t *parent, tree_t dst,
+                                  vcode_reg_t port_reg, tree_t actual)
+{
+   assert(standard() >= STD_08);
 
-   vcode_state_restore(&state);
+   ident_t name;
+   if (tree_kind(dst) == T_PORT_DECL)
+      name = ident_sprintf("%s_actual", istr(tree_ident(dst)));
+   else
+      name = ident_uniq("%s_actual.part", istr(tree_ident(name_to_ref(dst))));
+
+   type_t type = tree_type(dst);
+
+   vcode_type_t signal_type = lower_signal_type(type);
+   vcode_type_t vbounds = lower_bounds(type);
+   vcode_var_t var = emit_var(signal_type, vbounds, name, VAR_SIGNAL);
+   lower_put_vcode_obj(actual, var, parent);
+
+   if (type_is_record(type)) {
+      vcode_reg_t locus = lower_debug_locus(dst);
+      vcode_reg_t ptr_reg = emit_index(var, VCODE_INVALID_REG);
+      lower_copy_record(parent, type, ptr_reg, port_reg, locus);
+   }
+   else
+      emit_store(port_reg, var);
+
+   ident_t pname = ident_prefix(parent->name, name, '.');
+
+   unit_registry_defer(parent->registry, pname, parent, emit_process,
+                       lower_inertial_actual_process, parent->cover,
+                       tree_to_object(actual));
 
    emit_process_init(pname, lower_debug_locus(actual));
 }
@@ -12377,7 +12383,7 @@ static void lower_port_map(lower_unit_t *lu, tree_t block, tree_t map,
          lower_map_signal(lu, src_reg, dst_reg, src_type, dst_type, map);
    }
    else if (tree_kind(value) == T_INERTIAL)
-      lower_inertial_actual(lu, name, tree_type(name), port_reg, value);
+      lower_inertial_actual(lu, name, port_reg, value);
    else if (value_reg != VCODE_INVALID_REG) {
       type_t value_type = tree_type(value);
       type_t name_type = tree_type(name);
