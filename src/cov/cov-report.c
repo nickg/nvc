@@ -994,7 +994,7 @@ static void cover_print_jscript_funcs(FILE *f)
             "      let v = tr.getElementsByTagName(\"TD\")[n];\n"
             "      v = parseInt(v.innerHTML.split(\"%%\")[0]);\n"
             "      if (isNaN(v)) {\n"
-            "         v = tr.getElementsByTagName(\"TD\")[n].innerHTML.toLowerCase();\n"
+            "         v = -1;\n"
             "      }\n"
             "      return v;\n"
             "   }\n"
