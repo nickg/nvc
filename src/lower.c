@@ -3840,12 +3840,18 @@ static vcode_reg_t lower_array_aggregate(lower_unit_t *lu, tree_t expr,
 
    bool all_literals = true;
    tree_t def_value = NULL;
+   int last_pos = -1;
    const int nassocs = tree_assocs(expr);
    for (int i = 0; i < nassocs; i++) {
       tree_t a = tree_assoc(expr, i);
       switch (tree_subkind(a)) {
       case A_POS:
          all_literals &= (tree_kind(tree_value(a)) == T_LITERAL);
+         last_pos = i;
+         break;
+      case A_CONCAT:
+         last_pos = i;
+         all_literals = false;
          break;
       case A_OTHERS:
          def_value = tree_value(a);
@@ -4106,14 +4112,16 @@ static vcode_reg_t lower_array_aggregate(lower_unit_t *lu, tree_t expr,
                next_pos = emit_add(next_pos, emit_const(voffset, 1));
             }
 
-            vcode_reg_t locus = lower_debug_locus(a);
-            vcode_reg_t hint = lower_debug_locus(index_r);
+            if (i == 0 || i == last_pos) {
+               vcode_reg_t locus = lower_debug_locus(a);
+               vcode_reg_t hint = lower_debug_locus(index_r);
 
-            vcode_reg_t off_cast_reg = emit_cast(vindex, vindex, off_reg);
-            vcode_reg_t index_reg = emit_add(low_reg, off_cast_reg);
+               vcode_reg_t off_cast_reg = emit_cast(vindex, vindex, off_reg);
+               vcode_reg_t index_reg = emit_add(low_reg, off_cast_reg);
 
-            emit_index_check(index_reg, left_reg, right_reg,
-                             dir_reg, locus, hint);
+               emit_index_check(index_reg, left_reg, right_reg,
+                                dir_reg, locus, hint);
+            }
          }
          break;
 
@@ -4128,23 +4136,22 @@ static vcode_reg_t lower_array_aggregate(lower_unit_t *lu, tree_t expr,
                next_pos = emit_add(next_pos, count_reg);
             }
 
-            vcode_reg_t locus = lower_debug_locus(a);
-            vcode_reg_t hint = lower_debug_locus(index_r);
+            if (i == 0 || i == last_pos) {
+               vcode_reg_t locus = lower_debug_locus(a);
+               vcode_reg_t hint = lower_debug_locus(index_r);
 
-            vcode_reg_t index_off_reg = emit_cast(vindex, vindex, off_reg);
-            vcode_reg_t low_index_reg = emit_add(low_reg, index_off_reg);
+               vcode_reg_t index_off_reg = emit_cast(vindex, vindex, off_reg);
+               vcode_reg_t low_index_reg = emit_add(low_reg, index_off_reg);
 
-            emit_index_check(low_index_reg, left_reg, right_reg,
-                             dir_reg, locus, hint);
+               vcode_reg_t one_reg = emit_const(vindex, 1);
+               vcode_reg_t next_index_reg =
+                  emit_sub(emit_cast(vindex, vindex, count_reg), one_reg);
+               vcode_reg_t high_index_reg =
+                  emit_add(low_index_reg, next_index_reg);
 
-            vcode_reg_t one_reg = emit_const(vindex, 1);
-            vcode_reg_t next_index_reg =
-               emit_sub(emit_cast(vindex, vindex, count_reg), one_reg);
-            vcode_reg_t high_index_reg =
-               emit_add(low_index_reg, next_index_reg);
-
-            emit_index_check(high_index_reg, left_reg, right_reg,
-                             dir_reg, locus, hint);
+               emit_index_check(high_index_reg, left_reg, right_reg,
+                                dir_reg, locus, hint);
+            }
          }
          break;
 

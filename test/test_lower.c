@@ -4304,8 +4304,6 @@ START_TEST(test_array2)
          { VCODE_OP_CONST, .value = 0 },
          { VCODE_OP_DEBUG_LOCUS },
          { VCODE_OP_DEBUG_LOCUS },
-         { VCODE_OP_CONST, .value = 0 },
-         { VCODE_OP_INDEX_CHECK },
          { VCODE_OP_CONST, .value = 1 },
          { VCODE_OP_CAST },
          { VCODE_OP_SUB },
