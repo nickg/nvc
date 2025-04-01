@@ -2977,8 +2977,9 @@ mir_value_t mir_build_cast(mir_unit_t *mu, mir_type_t type, mir_value_t value)
    if (integral && mir_get_const(mu, value, &cval))
       return mir_const(mu, type, cval);
 
-   mir_value_t result = mir_build_1(mu, MIR_OP_CAST, type,
-                                    MIR_NULL_STAMP, value);
+   mir_stamp_t stamp = mir_stamp_cast(mu, type, mir_get_stamp(mu, value));
+
+   mir_value_t result = mir_build_1(mu, MIR_OP_CAST, type, stamp, value);
 
 #ifdef DEBUG
    static const mir_class_t allowed[][2] = {

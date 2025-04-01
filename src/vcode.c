@@ -4251,14 +4251,25 @@ vcode_reg_t emit_cast(vcode_type_t type, vcode_type_t bounds, vcode_reg_t reg)
       { VCODE_TYPE_ACCESS, VCODE_TYPE_ACCESS  },
    };
 
-   if (from == VCODE_TYPE_INT && bounds == VCODE_INVALID_TYPE) {
+   if (integral) {
+      vtype_t *vt = vcode_type_data(type);
+      int64_t low = vt->low, high = vt->high;
+
+      vtype_t *rt = vcode_type_data(vcode_reg_bounds(reg));
+      low = MAX(low, rt->low);
+      high = MIN(high, rt->high);
+
+      if (bounds != VCODE_INVALID_REG) {
+         vtype_t *bt = vcode_type_data(bounds);
+         low = MAX(low, bt->low);
+         high = MIN(high, bt->high);
+      }
+
       reg_t *rr = vcode_reg_data(op->result);
-      rr->bounds = vcode_reg_bounds(reg);
+      rr->bounds = vtype_int(low, high);
    }
-   else if (to == VCODE_TYPE_INT && bounds != VCODE_INVALID_TYPE) {
-      reg_t *rr = vcode_reg_data(op->result);
-      rr->bounds = bounds;
-   }
+   else if (bounds != VCODE_INVALID_REG)
+      vcode_reg_data(op->result)->bounds = bounds;
 
    for (size_t i = 0; i < ARRAY_LEN(allowed); i++) {
       if (from == allowed[i][0] && to == allowed[i][1])
@@ -4702,7 +4713,12 @@ vcode_reg_t emit_uarray_len(vcode_reg_t array, unsigned dim)
    vtype_t *vt = vcode_type_data(atype);
    VCODE_ASSERT(dim < vt->dims, "invalid dimension %d", dim);
 
-   return (op->result = vcode_add_reg(vtype_offset()));
+   op->result = vcode_add_reg(vtype_offset());
+
+   reg_t *rr = vcode_reg_data(op->result);
+   rr->bounds = vtype_int(0, INT64_MAX);
+
+   return op->result;
 }
 
 vcode_reg_t emit_unwrap(vcode_reg_t array)
@@ -4832,7 +4848,12 @@ vcode_reg_t emit_range_length(vcode_reg_t left, vcode_reg_t right,
    VCODE_ASSERT(vcode_reg_kind(dir) == VCODE_TYPE_INT,
                 "dir argument to range length is not int");
 
-   return (op->result = vcode_add_reg(vtype_offset()));
+   op->result = vcode_add_reg(vtype_offset());
+
+   reg_t *rr = vcode_reg_data(op->result);
+   rr->bounds = vtype_int(0, INT64_MAX);
+
+   return op->result;
 }
 
 vcode_reg_t emit_var_upref(int hops, vcode_var_t var)

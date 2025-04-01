@@ -1201,6 +1201,28 @@ mir_stamp_t mir_stamp_union(mir_unit_t *mu, mir_stamp_t left, mir_stamp_t right)
    }
 }
 
+mir_stamp_t mir_stamp_cast(mir_unit_t *mu, mir_type_t type, mir_stamp_t stamp)
+{
+   if (mir_is_null(stamp))
+      return stamp;
+
+   const type_data_t *td = mir_type_data(mu, type);
+   const stamp_data_t *sd = mir_stamp_data(mu, stamp);
+
+   switch (td->class) {
+   case MIR_TYPE_OFFSET:
+   case MIR_TYPE_INT:
+      if (sd->kind == MIR_STAMP_INT)
+         return mir_int_stamp(mu, MAX(td->u.intg.low, sd->u.intg.low),
+                              MIN(td->u.intg.high, sd->u.intg.high));
+      else
+         return MIR_NULL_STAMP;
+
+   default:
+      return MIR_NULL_STAMP;
+   }
+}
+
 bool mir_stamp_const(mir_unit_t *mu, mir_stamp_t stamp, int64_t *cval)
 {
    if (mir_is_null(stamp))

@@ -2277,8 +2277,7 @@ START_TEST(test_issue149)
       { VCODE_OP_UARRAY_LEN },
       { VCODE_OP_CAST },
       { VCODE_OP_CONST, .value = 1 },
-      { VCODE_OP_DEBUG_LOCUS },
-      { VCODE_OP_TRAP_SUB },
+      { VCODE_OP_SUB },
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_DEBUG_LOCUS },
       { VCODE_OP_RANGE_CHECK },
@@ -4290,21 +4289,11 @@ START_TEST(test_array2)
          { VCODE_OP_CAST },
          { VCODE_OP_CONST, .value = 0 },
          { VCODE_OP_CONST, .value = 0 },
-         { VCODE_OP_CMP, .cmp = VCODE_CMP_GT },
          { VCODE_OP_RANGE_LENGTH },
          { VCODE_OP_ALLOC },
-         { VCODE_OP_WRAP },
-         { VCODE_OP_COND, .target = 3, .target_else = 2 },
-      };
-
-      CHECK_BB(1);
-
-      EXPECT_BB(2) = {
-         { VCODE_OP_UARRAY_LEN },
          { VCODE_OP_CONST, .value = 0 },
          { VCODE_OP_DEBUG_LOCUS },
          { VCODE_OP_DEBUG_LOCUS },
-         { VCODE_OP_CONST, .value = 1 },
          { VCODE_OP_CAST },
          { VCODE_OP_SUB },
          { VCODE_OP_INDEX_CHECK },
@@ -4315,10 +4304,18 @@ START_TEST(test_array2)
          { VCODE_OP_INDEX_CHECK },
          { VCODE_OP_ARRAY_REF },
          { VCODE_OP_STORE_INDIRECT },
-         { VCODE_OP_JUMP, .target = 3 },
+         { VCODE_OP_NEW },
+         { VCODE_OP_ALL },
+         { VCODE_OP_LOAD_INDIRECT },
+         { VCODE_OP_UNWRAP },
+         { VCODE_OP_WRAP },
+         { VCODE_OP_COPY },
+         { VCODE_OP_STORE_INDIRECT },
+         { VCODE_OP_STORE, .name = "P" },
+         { VCODE_OP_JUMP, .target = 1 },
       };
 
-      CHECK_BB(2);
+      CHECK_BB(1);
    }
 }
 END_TEST
@@ -4735,8 +4732,7 @@ START_TEST(test_vunit5)
       { VCODE_OP_UARRAY_LEN },
       { VCODE_OP_CAST },
       { VCODE_OP_CONST, .value = 1 },
-      { VCODE_OP_DEBUG_LOCUS },
-      { VCODE_OP_TRAP_SUB },
+      { VCODE_OP_SUB },
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_RANGE_LENGTH },

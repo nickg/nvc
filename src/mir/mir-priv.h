@@ -64,6 +64,7 @@ mir_stamp_t mir_stamp_cmp(mir_unit_t *mu, mir_cmp_t cmp, mir_stamp_t left,
                           mir_stamp_t right);
 mir_stamp_t mir_stamp_union(mir_unit_t *mu, mir_stamp_t left,
                             mir_stamp_t right);
+mir_stamp_t mir_stamp_cast(mir_unit_t *mu, mir_type_t type, mir_stamp_t stamp);
 
 bool mir_stamp_const(mir_unit_t *mu, mir_stamp_t stamp, int64_t *cval);
 

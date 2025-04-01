@@ -1063,6 +1063,28 @@ START_TEST(test_alias1)
 }
 END_TEST
 
+START_TEST(test_cast1)
+{
+   mir_unit_t *mu = mir_unit_new(get_mir(), ident_new("alias1"), NULL,
+                                 MIR_UNIT_FUNCTION, NULL);
+
+   mir_type_t t_offset = mir_offset_type(mu);
+   mir_type_t t_int32 = mir_int_type(mu, INT32_MIN, INT32_MAX);
+
+   mir_value_t p1 = mir_add_param(mu, t_offset, mir_int_stamp(mu, 0, INT64_MAX),
+                                  ident_new("p1"));
+   mir_value_t zero = mir_const(mu, t_int32, 0);
+
+   mir_value_t cast1 = mir_build_cast(mu, t_int32, p1);
+   mir_value_t cmp1 = mir_build_cmp(mu, MIR_CMP_LT, cast1, zero);
+   mir_assert_const_eq(mu, cmp1, 0);
+
+   mir_build_return(mu, MIR_NULL_VALUE);
+
+   mir_unit_free(mu);
+}
+END_TEST
+
 Suite *get_mir_tests(void)
 {
    Suite *s = suite_create("mir");
@@ -1086,6 +1108,7 @@ Suite *get_mir_tests(void)
    tcase_add_test(tc, test_case1);
    tcase_add_test(tc, test_record1);
    tcase_add_test(tc, test_alias1);
+   tcase_add_test(tc, test_cast1);
    suite_add_tcase(s, tc);
 
    return s;
