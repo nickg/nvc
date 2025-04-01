@@ -1573,7 +1573,7 @@ unsigned get_case_choice_char(tree_t value, int depth)
          const int nassocs = tree_assocs(value);
          type_t type = tree_type(value);
 
-         for (int i = 0; i < nassocs; i++) {
+         for (int i = 0, pos = 0; i < nassocs; i++) {
             tree_t a = tree_assoc(value, i);
             switch (tree_subkind(a)) {
             case A_NAMED:
@@ -1582,12 +1582,49 @@ unsigned get_case_choice_char(tree_t value, int depth)
                break;
 
             case A_POS:
-               if (tree_pos(a) == (unsigned)depth)
+               if (pos++ == (unsigned)depth)
                   return assume_int(tree_value(a));
+               break;
+
+            case A_CONCAT:
+               {
+                  tree_t left = tree_value(a);
+
+                  type_t left_type = tree_type(left);
+                  if (type_is_unconstrained(left_type))
+                     fatal_at(tree_loc(left), "sorry, this expression is not "
+                              "currently supported in a case choice");
+
+                  tree_t lr = range_of(tree_type(left), 0);
+                  int64_t left_len;
+                  if (!folded_length(lr, &left_len))
+                     fatal_at(tree_loc(left), "cannot determine length of "
+                              "aggregate element");
+
+                  if (depth < pos + left_len)
+                     return get_case_choice_char(left, depth - pos);
+
+                  pos += left_len;
+               }
                break;
 
             case A_OTHERS:
                return assume_int(tree_value(a));
+
+            case A_SLICE:
+               {
+                  tree_t base = tree_value(a);
+                  tree_t r = tree_range(a, 0);
+
+                  const int64_t rleft = assume_int(tree_left(r));
+                  const int64_t rright = assume_int(tree_right(r));
+
+                  const int64_t loffset = rebase_index(type, 0, rleft);
+                  const int64_t roffset = rebase_index(type, 0, rright);
+
+                  if (depth >= loffset && depth <= roffset)
+                     return get_case_choice_char(base, depth - loffset);
+               }
             }
          }
 

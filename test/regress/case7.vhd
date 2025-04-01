@@ -18,6 +18,10 @@ begin
                 y <= 6;
             when C2 & X"0" =>
                 y <= 10;
+            when (C2, X"5") =>
+                y <= 11;
+            when (7 downto 4 => C1, 3 downto 0 => C2) =>
+                y <= 12;
             when others =>
                 y <= 0;
         end case;
@@ -40,6 +44,14 @@ begin
         x <= X"21";
         wait for 1 ns;
         assert y = 0;
+
+        x <= X"25";
+        wait for 1 ns;
+        assert y = 11;
+
+        x <= X"12";
+        wait for 1 ns;
+        assert y = 12;
 
         wait;
     end process;
