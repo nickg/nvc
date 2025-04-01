@@ -938,6 +938,43 @@ START_TEST(test_map1)
 }
 END_TEST
 
+START_TEST(test_issue817)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/bounds/issue817.vhd");
+
+   const error_t expect[] = {
+      { 37, "length of value 7 does not match length of target 8" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_check_and_simplify(T_PACKAGE, T_ENTITY, T_ARCH, T_ENTITY, T_ARCH);
+
+   fail_unless(parse() == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
+START_TEST(test_map2)
+{
+   input_from_file(TESTDIR "/bounds/map2.vhd");
+
+   const error_t expect[] = {
+      { 19, "length of value 8 does not match length of target 7 for "
+        "generic INFO" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_check_and_simplify(T_ENTITY, T_ARCH);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_bounds_tests(void)
 {
    Suite *s = suite_create("bounds");
@@ -986,6 +1023,8 @@ Suite *get_bounds_tests(void)
    tcase_add_test(tc_core, test_issue1021);
    tcase_add_test(tc_core, test_issue1091);
    tcase_add_test(tc_core, test_map1);
+   tcase_add_test(tc_core, test_issue817);
+   tcase_add_test(tc_core, test_map2);
    suite_add_tcase(s, tc_core);
 
    return s;

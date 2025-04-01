@@ -106,18 +106,10 @@ typedef struct {
    tree_t      target;
 } target_part_t;
 
-typedef struct {
-   tree_t      value;
-   type_t      type;
-   vcode_reg_t reg;
-} concat_param_t;
-
 typedef void (*lower_field_fn_t)(lower_unit_t *, tree_t, vcode_reg_t,
                                  vcode_reg_t, vcode_reg_t, void *);
 typedef void (*convert_emit_fn)(vcode_reg_t, vcode_reg_t, vcode_reg_t);
 typedef vcode_reg_t (*resolved_fn_t)(vcode_reg_t, vcode_reg_t);
-
-typedef A(concat_param_t) concat_list_t;
 
 typedef struct {
    resolved_fn_t  fn;
@@ -1898,8 +1890,6 @@ static bool lower_side_effect_free(tree_t expr)
          if (kind == S_DIV || kind == S_DIV_PR || kind == S_DIV_RI
              || kind == S_REM || kind == S_MOD)
             return false;
-         else if (kind == S_CONCAT)
-            return false;   // Allocates memory
          else if (kind == S_USER || !is_open_coded_builtin(kind))
             return false;
 
@@ -2062,107 +2052,6 @@ static vcode_reg_t lower_short_circuit(lower_unit_t *lu, tree_t fcall,
    return result;
 }
 
-static void lower_flatten_concat(lower_unit_t *lu, tree_t arg,
-                                 concat_list_t *list)
-{
-   if (tree_kind(arg) == T_FCALL && tree_subkind(tree_ref(arg)) == S_CONCAT) {
-      assert(tree_params(arg) == 2);
-      lower_flatten_concat(lu, tree_value(tree_param(arg, 0)), list);
-      lower_flatten_concat(lu, tree_value(tree_param(arg, 1)), list);
-   }
-   else {
-      vcode_reg_t reg = lower_rvalue(lu, arg);
-      APUSH(*list, ((concat_param_t){ arg, tree_type(arg), reg }));
-   }
-}
-
-static vcode_reg_t lower_concat(lower_unit_t *lu, tree_t expr, vcode_reg_t hint,
-                                vcode_reg_t hint_count)
-{
-   assert(tree_params(expr) == 2);
-
-   concat_list_t args = AINIT;
-   lower_flatten_concat(lu, expr, &args);
-
-   type_t type = tree_type(expr);
-   type_t elem = type_elem(type);
-   assert(type_is_unconstrained(type));
-
-   type_t scalar_elem = type_elem_recur(elem);
-
-   vcode_type_t voffset = vtype_offset();
-
-   type_t index_type = index_type_of(type, 0);
-   tree_t index_r = range_of(index_type, 0);
-   vcode_type_t itype = lower_type(index_type);
-   vcode_type_t ibounds = lower_bounds(index_type);
-
-   vcode_reg_t len   = emit_const(voffset, 0);
-   vcode_reg_t elems = emit_const(voffset, -1);
-   vcode_reg_t dir   = lower_range_dir(lu, index_r);
-   vcode_reg_t left  = lower_range_left(lu, index_r);
-
-   for (unsigned i = 0; i < args.count; i++) {
-      concat_param_t *p = &(args.items[i]);
-      if (type_is_array(p->type) && type_eq(p->type, type)) {
-         elems = emit_add(elems, lower_array_len(lu, p->type, 0, p->reg));
-         len   = emit_add(len, lower_array_total_len(lu, p->type, p->reg));
-      }
-      else {
-         vcode_reg_t one_reg = emit_const(vtype_offset(), 1);
-         elems = emit_add(elems, one_reg);
-         len   = emit_add(len, one_reg);
-      }
-   }
-
-   vcode_reg_t mem_reg;
-   if (hint != VCODE_INVALID_REG && len == hint_count)
-      mem_reg = hint;
-   else
-      mem_reg = emit_alloc(lower_type(scalar_elem),
-                           lower_bounds(scalar_elem), len);
-
-   vcode_reg_t cast_reg   = emit_cast(itype, ibounds, elems);
-   vcode_reg_t right_to   = emit_add(left, cast_reg);
-   vcode_reg_t right_down = emit_sub(left, cast_reg);
-   vcode_reg_t right      = emit_select(dir, right_down, right_to);
-
-   vcode_dim_t dims[1] = { { left, right, dir } };
-   vcode_reg_t var_reg = emit_wrap(mem_reg, dims, 1);
-
-   vcode_reg_t off_reg = emit_const(voffset, 0);
-   for (unsigned i = 0; i < args.count; i++) {
-      concat_param_t *p = &(args.items[i]);
-      vcode_reg_t ptr = emit_array_ref(mem_reg, off_reg);
-      if (type_is_array(p->type)) {
-         vcode_reg_t src_len = lower_array_total_len(lu, p->type, p->reg);
-
-         vcode_reg_t data_reg;
-         if (lower_have_signal(p->reg))
-            data_reg = lower_array_data(lower_resolved(lu, p->type, p->reg));
-         else
-            data_reg = lower_array_data(p->reg);
-
-         emit_copy(ptr, data_reg, src_len);
-         if (i + 1 < args.count)
-            off_reg = emit_add(off_reg, src_len);
-      }
-      else if (type_is_record(p->type)) {
-         emit_copy(ptr, p->reg, VCODE_INVALID_REG);
-         if (i + 1 < args.count)
-            off_reg = emit_add(off_reg, emit_const(vtype_offset(), 1));
-      }
-      else {
-         emit_store_indirect(p->reg, ptr);
-         if (i + 1 < args.count)
-            off_reg = emit_add(off_reg, emit_const(vtype_offset(), 1));
-      }
-   }
-
-   ACLEAR(args);
-   return var_reg;
-}
-
 static vcode_reg_t lower_comparison(lower_unit_t *lu, tree_t fcall,
                                     subprogram_kind_t builtin,
                                     vcode_reg_t r0, vcode_reg_t r1)
@@ -2190,8 +2079,6 @@ static vcode_reg_t lower_builtin(lower_unit_t *lu, tree_t fcall,
    if (builtin == S_SCALAR_AND || builtin == S_SCALAR_OR ||
        builtin == S_SCALAR_NOR || builtin == S_SCALAR_NAND)
       return lower_short_circuit(lu, fcall, builtin);
-   else if (builtin == S_CONCAT)
-      return lower_concat(lu, fcall, VCODE_INVALID_REG, VCODE_INVALID_REG);
 
    vcode_reg_t r0 = lower_subprogram_arg(lu, fcall, 0);
    vcode_reg_t r1 = lower_subprogram_arg(lu, fcall, 1);
@@ -5727,27 +5614,6 @@ static bool lower_can_hint_aggregate(tree_t target, tree_t value)
    return decl != NULL;
 }
 
-static bool lower_can_hint_concat(tree_t target, tree_t value)
-{
-   if (tree_kind(value) != T_FCALL)
-      return false;
-
-   tree_t fdecl = tree_ref(value);
-   if (tree_subkind(fdecl) != S_CONCAT)
-      return false;
-
-   if (!type_const_bounds(tree_type(target)))
-      return false;
-
-   tree_t ref = name_to_ref(target);
-   if (ref == NULL)
-      return false;
-
-   tree_t decl = tree_ref(ref);
-   tree_visit_only(value, lower_find_matching_refs, &decl, T_REF);
-   return decl != NULL;
-}
-
 static int lower_count_target_parts(tree_t target, int depth)
 {
    if (tree_kind(target) == T_AGGREGATE) {
@@ -6016,11 +5882,6 @@ static void lower_var_assign(lower_unit_t *lu, tree_t stmt)
       vcode_reg_t value_reg;
       if (lower_can_hint_aggregate(target, value))
          value_reg = lower_aggregate(lu, value, lower_array_data(target_reg));
-      else if (lower_can_hint_concat(target, value)) {
-         vcode_reg_t hint_reg = lower_array_data(target_reg);
-         vcode_reg_t count_reg = lower_array_total_len(lu, type, target_reg);
-         value_reg = lower_concat(lu, value, hint_reg, count_reg);
-      }
       else
          value_reg = lower_known_subtype(lu, value, type, target_reg);
 
@@ -6234,19 +6095,7 @@ static void lower_signal_assign(lower_unit_t *lu, tree_t stmt)
          type_t wtype = tree_type(wvalue);
          vcode_reg_t rhs = VCODE_INVALID_REG;
          if (ptr->kind == PART_ALL) {
-            if (lower_can_hint_concat(ptr->target, wvalue)) {
-               type_t ptype = tree_type(ptr->target);
-
-               vcode_type_t vtype = lower_type(ptype);
-               vcode_type_t vbounds = lower_bounds(ptype);
-               tmp_var = lower_temp_var(lu, "tmp", vtype, vbounds);
-
-               vcode_reg_t count_reg =
-                  lower_array_total_len(lu, ptype, ptr->reg);
-               vcode_reg_t hint_reg = emit_index(tmp_var, VCODE_INVALID_REG);
-               rhs = lower_concat(lu, wvalue, hint_reg, count_reg);
-            }
-            else if (lower_can_hint_aggregate(ptr->target, wvalue)) {
+            if (lower_can_hint_aggregate(ptr->target, wvalue)) {
                type_t ptype = tree_type(ptr->target);
 
                vcode_type_t vtype = lower_type(ptype);

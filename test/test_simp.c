@@ -1313,27 +1313,55 @@ END_TEST
 
 START_TEST(test_concat)
 {
+   set_standard(STD_08);
+
    input_from_file(TESTDIR "/simp/concat.vhd");
 
    tree_t p = parse_check_and_simplify(T_PACKAGE);
 
-   const char *expect[] = {
+   static const char *strings[] = {
       "100", "xyz", "10", "foo"
    };
 
-   for (int i = 0; i < ARRAY_LEN(expect); i++) {
+   for (int i = 0; i < ARRAY_LEN(strings); i++) {
       tree_t c = tree_decl(p, i);
       fail_unless(tree_kind(c) == T_CONST_DECL);
 
       tree_t str = tree_value(c);
       fail_unless(tree_kind(str) == T_STRING);
 
-      const int len = strlen(expect[i]);
+      const int len = strlen(strings[i]);
       ck_assert_int_eq(tree_chars(str), len);
       for (int j = 0; j < len; j++) {
          tree_t lit = tree_char(str, j);
          fail_unless(tree_kind(lit) == T_REF);
-         ck_assert_int_eq(ident_char(tree_ident(lit), 1), expect[i][j]);
+         ck_assert_int_eq(ident_char(tree_ident(lit), 1), strings[i][j]);
+      }
+   }
+
+   static const assoc_kind_t concat[][5] = {
+      { A_POS, A_POS, -1 },
+      { A_POS, A_POS, A_POS, -1 },
+      { A_CONCAT, A_POS, -1 },
+      { A_POS, A_POS, A_POS, -1 },
+      { A_POS, A_CONCAT, -1 },
+      { A_CONCAT, A_CONCAT, -1 },
+      { A_POS, A_POS, A_POS, A_POS, -1 },
+    };
+
+   for (int i = 0; i < ARRAY_LEN(concat); i++) {
+      tree_t c = tree_decl(p, i + ARRAY_LEN(strings));
+      fail_unless(tree_kind(c) == T_CONST_DECL);
+
+      tree_t str = tree_value(c);
+      fail_unless(tree_kind(str) == T_AGGREGATE);
+
+      const int nassocs = tree_assocs(str);
+      for (int j = 0; concat[i][j] != -1; j++) {
+         if (j >= nassocs || tree_subkind(tree_assoc(str, j)) != concat[i][j]) {
+            dump(c);
+            ck_abort_msg("wrong association kind at position %d", j);
+         }
       }
    }
 

@@ -178,44 +178,95 @@ static tree_t simp_concat(tree_t t)
    const tree_kind_t p0_kind = tree_kind(p0);
    const tree_kind_t p1_kind = tree_kind(p1);
 
+   type_t type = tree_type(t);
+
+   bool is_string = true;
+
    // Only handle concatenations of string literals and enumeration
    // literals
 
    if (p0_kind == T_REF) {
       if (tree_kind((p0_enum = tree_ref(p0))) != T_ENUM_LIT)
-         return t;
+         is_string = false;
    }
    else if (p0_kind != T_STRING)
-      return t;
+      is_string = false;
 
    if (p1_kind == T_REF) {
       if (tree_kind((p1_enum = tree_ref(p1))) != T_ENUM_LIT)
-         return t;
+         is_string = false;
    }
    else if (p1_kind != T_STRING)
-      return t;
+      is_string = false;
 
-   tree_t new = tree_new(T_STRING);
-   tree_set_loc(new, tree_loc(t));
+   if (is_string) {
+      tree_t new = tree_new(T_STRING);
+      tree_set_loc(new, tree_loc(t));
 
-   if (p0_enum != NULL)
-      tree_add_char(new, make_ref(p0_enum));
-   else {
-      const int p0_chars = tree_chars(p0);
-      for (int i = 0; i < p0_chars; i++)
-         tree_add_char(new, tree_char(p0, i));
+      if (p0_enum != NULL)
+         tree_add_char(new, make_ref(p0_enum));
+      else {
+         const int p0_chars = tree_chars(p0);
+         for (int i = 0; i < p0_chars; i++)
+            tree_add_char(new, tree_char(p0, i));
+      }
+
+      if (p1_enum != NULL)
+         tree_add_char(new, make_ref(p1_enum));
+      else {
+         const int p1_chars = tree_chars(p1);
+         for (int i = 0; i < p1_chars; i++)
+            tree_add_char(new, tree_char(p1, i));
+      }
+
+      tree_set_type(new, subtype_for_string(new, type));
+      return new;
    }
 
-   if (p1_enum != NULL)
-      tree_add_char(new, make_ref(p1_enum));
-   else {
-      const int p1_chars = tree_chars(p1);
-      for (int i = 0; i < p1_chars; i++)
-         tree_add_char(new, tree_char(p1, i));
+   // Convert all other concatenations to aggregates
+
+   tree_t agg = tree_new(T_AGGREGATE);
+   tree_set_type(agg, type);
+   tree_set_loc(agg, tree_loc(t));
+
+   tree_t params[] = {
+      tree_value(tree_param(t, 0)),
+      tree_value(tree_param(t, 1))
+   };
+
+   for (int i = 0, pos = 0; i < ARRAY_LEN(params); i++) {
+      if (tree_kind(params[i]) == T_AGGREGATE) {
+         bool can_merge = true;
+         const int nassocs = tree_assocs(params[i]);
+         for (int j = 0; j < nassocs; j++) {
+            const assoc_kind_t akind = tree_subkind(tree_assoc(params[i], j));
+            if (akind != A_POS && akind != A_CONCAT) {
+               can_merge = false;
+               break;
+            }
+         }
+
+         if (can_merge) {
+            for (int j = 0; j < nassocs; j++, pos++)
+               tree_add_assoc(agg, tree_assoc(params[i], j));
+
+            continue;
+         }
+      }
+
+      tree_t a = tree_new(T_ASSOC);
+      tree_set_value(a, params[i]);
+      tree_set_pos(a, pos++);
+
+      if (type_eq(tree_type(params[i]), type))
+         tree_set_subkind(a, A_CONCAT);
+      else
+         tree_set_subkind(a, A_POS);
+
+      tree_add_assoc(agg, a);
    }
 
-   tree_set_type(new, subtype_for_string(new, tree_type(t)));
-   return new;
+   return agg;
 }
 
 static bool simp_literal_args(tree_t t, int64_t *p0, int64_t *p1)

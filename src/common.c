@@ -1649,31 +1649,6 @@ unsigned get_case_choice_char(tree_t value, int depth)
          return get_case_choice_char(base, depth + offset);
       }
 
-   case T_FCALL:
-      if (tree_subkind(tree_ref(value)) == S_CONCAT) {
-         const int nparams = tree_params(value);
-         for (int i = 0; i < nparams; i++) {
-            tree_t left = tree_value(tree_param(value, i));
-
-            type_t left_type = tree_type(left);
-            if (type_is_unconstrained(left_type))
-               fatal_at(tree_loc(left), "sorry, this expression is not "
-                        "currently supported in a case choice");
-
-            tree_t lr = range_of(tree_type(left), 0);
-            int64_t left_len;
-            if (!folded_length(lr, &left_len))
-               fatal_at(tree_loc(left), "cannot determine length of left hand "
-                        "side of concatenation");
-
-            if (depth < left_len || i + 1 == nparams)
-               return get_case_choice_char(left, depth);
-
-            depth -= left_len;
-         }
-      }
-      // Fall-through
-
    default:
       fatal_at(tree_loc(value), "unsupported tree type %s in case choice",
                tree_kind_str(tree_kind(value)));

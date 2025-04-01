@@ -1317,23 +1317,6 @@ START_TEST(test_bounds14)
 }
 END_TEST
 
-START_TEST(test_bounds21)
-{
-   input_from_file(TESTDIR "/elab/bounds21.vhd");
-
-   const error_t expect[] = {
-      { 18, "actual length 8 does not match generic INFO length 7" },
-      { -1, NULL }
-   };
-   expect_errors(expect);
-
-   tree_t e = run_elab();
-   fail_unless(e == NULL);
-
-   check_expected_errors();
-}
-END_TEST
-
 START_TEST(test_issue228)
 {
    elab_set_generic("G", "10");
@@ -2075,7 +2058,6 @@ Suite *get_elab_tests(void)
    tcase_add_test(tc, test_assert7);
    tcase_add_test(tc, test_issue539);
    tcase_add_test(tc, test_bounds14);
-   tcase_add_test(tc, test_bounds21);
    tcase_add_test(tc, test_issue228);
    tcase_add_test(tc, test_generic1);
    tcase_add_test(tc, test_generic2);
