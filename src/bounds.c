@@ -609,6 +609,10 @@ static void bounds_check_aggregate(tree_t t)
          else if (!folded_length(range_of(value_type, 0), &count))
             known_elem_count = false;
       }
+      else if (type_is_scalar(elem))
+         bounds_check_scalar(value, elem, NULL);
+      else if (ndims == 1 && type_is_array(elem))
+         bounds_check_array(value, elem, NULL);
 
       switch (akind) {
       case A_NAMED:
@@ -707,11 +711,6 @@ static void bounds_check_aggregate(tree_t t)
 
       if (known_elem_count)
          bounds_cover_choice(&covered, a, index_type, ilow, ihigh);
-
-      if (type_is_scalar(elem))
-         bounds_check_scalar(value, elem, NULL);
-      else if (ndims == 1 && type_is_array(elem))
-         bounds_check_array(value, elem, NULL);
    }
 
    if (known_elem_count)

@@ -4140,17 +4140,22 @@ static vcode_reg_t lower_array_aggregate(lower_unit_t *lu, tree_t expr,
                vcode_reg_t locus = lower_debug_locus(a);
                vcode_reg_t hint = lower_debug_locus(index_r);
 
-               vcode_reg_t index_off_reg = emit_cast(vindex, vindex, off_reg);
-               vcode_reg_t low_index_reg = emit_add(low_reg, index_off_reg);
+               vcode_reg_t off_cast_reg = emit_cast(vindex, vindex, off_reg);
+               vcode_reg_t index_reg = emit_add(low_reg, off_cast_reg);
 
-               vcode_reg_t one_reg = emit_const(vindex, 1);
-               vcode_reg_t next_index_reg =
-                  emit_sub(emit_cast(vindex, vindex, count_reg), one_reg);
-               vcode_reg_t high_index_reg =
-                  emit_add(low_index_reg, next_index_reg);
+               if (i == 0)
+                  emit_index_check(index_reg, left_reg, right_reg,
+                                   dir_reg, locus, hint);
+               else if (i == last_pos) {
+                  vcode_reg_t one_reg = emit_const(vindex, 1);
+                  vcode_reg_t next_index_reg =
+                     emit_sub(emit_cast(vindex, vindex, count_reg), one_reg);
+                  vcode_reg_t high_index_reg =
+                     emit_add(index_reg, next_index_reg);
 
-               emit_index_check(high_index_reg, left_reg, right_reg,
-                                dir_reg, locus, hint);
+                  emit_index_check(high_index_reg, left_reg, right_reg,
+                                   dir_reg, locus, hint);
+               }
             }
          }
          break;

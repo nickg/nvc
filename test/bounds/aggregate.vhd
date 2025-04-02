@@ -38,6 +38,8 @@ architecture test of aggregate is
     constant c17 : t_arr2(1 to 3, false to true) := (others => (others => c4));  -- OK
     constant c18 : t_arr2(1 to 3, false to true) := (others => (true => c4));  -- Error
 
+    constant c19 : t_nibble_vec(1 downto 0) := (c16, X"4");  -- OK
+    constant c20 : t_nibble_vec(1 downto 0) := (1 downto 1 => c16, 0 => X"4");  -- OK
 begin
 
 end architecture;
