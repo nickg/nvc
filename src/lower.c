@@ -4259,8 +4259,12 @@ static vcode_reg_t lower_array_aggregate(lower_unit_t *lu, tree_t expr,
       }
 
       if (count_reg != VCODE_INVALID_REG) {
+         vcode_reg_t total_reg = count_reg;
+         if (stride != VCODE_INVALID_REG)
+            total_reg = emit_mul(count_reg, stride);
+
          vcode_reg_t src_reg = lower_array_data(value_regs[i]);
-         emit_copy(ptr_reg, src_reg, count_reg);
+         emit_copy(ptr_reg, src_reg, total_reg);
       }
       else if (array_of_array || multidim) {
          assert(stride != VCODE_INVALID_REG);
