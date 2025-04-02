@@ -44,6 +44,13 @@ typedef enum {
 } vlog_udp_kind_t;
 
 typedef enum {
+   V_ALWAYS_PLAIN,
+   V_ALWAYS_FF,
+   V_ALWAYS_COMB,
+   V_ALWAYS_LATCH,
+} vlog_always_kind_t;
+
+typedef enum {
    V_MODULE,
    V_PORT_DECL,
    V_REF,

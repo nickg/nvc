@@ -2106,9 +2106,15 @@ static vlog_node_t p_always_construct(void)
 
    BEGIN("always construct");
 
-   consume(tALWAYS);
-
    vlog_node_t v = vlog_new(V_ALWAYS);
+
+   switch (one_of(tALWAYS, tALWAYSCOMB, tALWAYSFF, tALWAYSLATCH)) {
+   case tALWAYSCOMB:  vlog_set_subkind(v, V_ALWAYS_COMB);  break;
+   case tALWAYSFF:    vlog_set_subkind(v, V_ALWAYS_FF);    break;
+   case tALWAYSLATCH: vlog_set_subkind(v, V_ALWAYS_LATCH); break;
+   default:           vlog_set_subkind(v, V_ALWAYS_PLAIN); break;
+   }
+
    vlog_set_ident(v, ident_uniq("__always#line%d", yylloc.first_line));
    vlog_add_stmt(v, p_statement());
 
@@ -2642,6 +2648,9 @@ static void p_module_common_item(vlog_node_t mod)
 
    switch (peek()) {
    case tALWAYS:
+   case tALWAYSCOMB:
+   case tALWAYSFF:
+   case tALWAYSLATCH:
       vlog_add_stmt(mod, p_always_construct());
       break;
    case tINITIAL:
@@ -2670,9 +2679,10 @@ static void p_module_common_item(vlog_node_t mod)
       p_continuous_assign(mod);
       break;
    default:
-      one_of(tALWAYS, tINITIAL, tWIRE, tSUPPLY0, tSUPPLY1, tREG, tSTRUCT,
-             tUNION, tTYPEDEF, tENUM, tSVINT, tINTEGER, tSVREAL, tSHORTREAL,
-             tREALTIME, tTASK, tFUNCTION, tPARAMETER, tLOCALPARAM, tASSIGN);
+      one_of(tALWAYS, tALWAYSCOMB, tALWAYSFF, tALWAYSLATCH, tWIRE, tSUPPLY0,
+             tSUPPLY1, tREG, tSTRUCT, tUNION, tTYPEDEF, tENUM, tSVINT,
+             tINTEGER, tSVREAL, tSHORTREAL, tREALTIME, tTASK, tFUNCTION,
+             tPARAMETER, tLOCALPARAM, tASSIGN);
       drop_tokens_until(tSEMI);
    }
 }
@@ -3122,6 +3132,9 @@ static void p_module_or_generate_item(vlog_node_t mod)
 
    switch (peek()) {
    case tALWAYS:
+   case tALWAYSCOMB:
+   case tALWAYSFF:
+   case tALWAYSLATCH:
    case tWIRE:
    case tSUPPLY0:
    case tSUPPLY1:
@@ -3159,10 +3172,11 @@ static void p_module_or_generate_item(vlog_node_t mod)
       p_module_instantiation(mod);
       break;
    default:
-      one_of(tALWAYS, tWIRE, tSUPPLY0, tSUPPLY1, tREG, tSTRUCT, tUNION, tASSIGN,
-             tINITIAL, tTYPEDEF, tENUM, tSVINT, tINTEGER, tSVREAL, tSHORTREAL,
-             tREALTIME, tTASK, tFUNCTION, tLOCALPARAM, tPARAMETER, tPULLDOWN,
-             tPULLUP, tID, tAND, tNAND, tOR, tNOR, tXOR, tXNOR, tNOT, tBUF);
+      one_of(tALWAYS, tALWAYSCOMB, tALWAYSFF, tALWAYSLATCH, tWIRE, tSUPPLY0,
+             tSUPPLY1, tREG, tSTRUCT, tUNION, tASSIGN, tINITIAL, tTYPEDEF,
+             tENUM, tSVINT, tINTEGER, tSVREAL, tSHORTREAL, tREALTIME, tTASK,
+             tFUNCTION, tLOCALPARAM, tPARAMETER, tPULLDOWN, tPULLUP, tID,
+             tAND, tNAND, tOR, tNOR, tXOR, tXNOR, tNOT, tBUF);
       drop_tokens_until(tSEMI);
    }
 }
@@ -3177,6 +3191,9 @@ static void p_non_port_module_item(vlog_node_t mod)
 
    switch (peek()) {
    case tALWAYS:
+   case tALWAYSCOMB:
+   case tALWAYSFF:
+   case tALWAYSLATCH:
    case tWIRE:
    case tSUPPLY0:
    case tSUPPLY1:
@@ -3214,11 +3231,11 @@ static void p_non_port_module_item(vlog_node_t mod)
       vlog_add_stmt(mod, p_specify_block());
       break;
    default:
-      one_of(tALWAYS, tWIRE, tSUPPLY0, tSUPPLY1, tREG, tSTRUCT, tUNION,
-             tASSIGN, tPULLDOWN, tPULLUP, tID, tATTRBEGIN, tAND, tNAND,
-             tOR, tNOR, tXOR, tXNOR, tNOT, tBUF, tTYPEDEF, tENUM, tSVINT,
-             tINTEGER, tSVREAL, tSHORTREAL, tREALTIME, tTASK, tFUNCTION,
-             tLOCALPARAM, tPARAMETER, tSPECIFY);
+      one_of(tALWAYS, tALWAYSCOMB, tALWAYSFF, tALWAYSLATCH, tWIRE, tSUPPLY0,
+             tSUPPLY1, tREG, tSTRUCT, tUNION, tASSIGN, tPULLDOWN, tPULLUP,
+             tID, tATTRBEGIN, tAND, tNAND, tOR, tNOR, tXOR, tXNOR, tNOT,
+             tBUF, tTYPEDEF, tENUM, tSVINT, tINTEGER, tSVREAL, tSHORTREAL,
+             tREALTIME, tTASK, tFUNCTION, tLOCALPARAM, tPARAMETER, tSPECIFY);
       drop_tokens_until(tSEMI);
    }
 }

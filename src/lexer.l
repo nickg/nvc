@@ -630,6 +630,9 @@ BEFORE            ?i:before
 <VLOG>"inout"            { return tINOUT; }
 <VLOG>"reg"              { return tREG; }
 <VLOG>"always"           { return tALWAYS; }
+<VLOG>"always_ff"        { return tALWAYSFF; }
+<VLOG>"always_comb"      { return tALWAYSCOMB; }
+<VLOG>"always_latch"     { return tALWAYSLATCH; }
 <VLOG>"posedge"          { return tPOSEDGE; }
 <VLOG>"negedge"          { return tNEGEDGE; }
 <VLOG>"initial"          { return tINITIAL; }

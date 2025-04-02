@@ -437,5 +437,8 @@ void reset_sdf_parser(void);
 #define tUWIRE         536
 #define tNONE          537
 #define tLOCALPARAM    538
+#define tALWAYSCOMB    539
+#define tALWAYSFF      540
+#define tALWAYSLATCH   541
 
 #endif  // _SCAN_H
