@@ -40,6 +40,16 @@ architecture test of aggregate is
 
     constant c19 : t_nibble_vec(1 downto 0) := (c16, X"4");  -- OK
     constant c20 : t_nibble_vec(1 downto 0) := (1 downto 1 => c16, 0 => X"4");  -- OK
+
+    type t_rec is record
+        f : bit_vector;
+    end record;
+
+    type t_rec_array is array (natural range <>) of t_rec;
+
+    constant c21 : t_rec_array(3 downto 0)(f(1 to 3)) := (others => (f => "101")); -- OK
+    constant c22 : t_rec_array := (c21(3 downto 1), c21(3));  -- OK
+    constant c23 : t_rec_array := c21(3 downto 1) & c21(3);   -- OK
 begin
 
 end architecture;

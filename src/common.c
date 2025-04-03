@@ -2853,7 +2853,17 @@ type_t calculate_aggregate_subtype(tree_t expr)
 
    type_t elem = type_elem(type);
    if (type_is_unconstrained(elem)) {
-      a0_type = tree_type(tree_value(tree_assoc(expr, 0)));
+      tree_t a0 = tree_assoc(expr, 0);
+      switch (tree_subkind(a0)) {
+      case A_CONCAT:
+      case A_SLICE:
+         a0_type = type_elem(tree_type(tree_value(a0)));
+         break;
+      default:
+         a0_type = tree_type(tree_value(a0));
+         break;
+      }
+
       if (!type_is_unconstrained(a0_type))
          elem = a0_type;
    }
