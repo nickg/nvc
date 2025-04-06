@@ -69,10 +69,10 @@ lib/nvc.08/NVC.COVER_PKG-body: $(srcdir)/lib/nvc/cover_pkg-body.vhd @ifGNUmake@ 
 	$(nvc) --std=2008 -L lib/ --work=lib/nvc.08 -a $(srcdir)/lib/nvc/cover_pkg-body.vhd
 
 lib/nvc.08/NVC.RANDOM: $(srcdir)/lib/nvc/random.vhd @ifGNUmake@ | $(DRIVER)
-	$(nvc) --std=2008 -L lib/ --work=lib/nvc -a $(srcdir)/lib/nvc/random.vhd
+	$(nvc) --std=2008 -L lib/ --work=lib/nvc.08 -a $(srcdir)/lib/nvc/random.vhd
 
 lib/nvc.08/NVC.RANDOM-body: $(srcdir)/lib/nvc/random-body.vhd @ifGNUmake@ | $(DRIVER)
-	$(nvc) --std=2008 -L lib/ --work=lib/nvc -a $(srcdir)/lib/nvc/random-body.vhd
+	$(nvc) --std=2008 -L lib/ --work=lib/nvc.08 -a $(srcdir)/lib/nvc/random-body.vhd
 
 gen-deps-nvc-08:
 	$(nvc) --std=2008 -L lib/ --work=lib/nvc.08 --print-deps | \
