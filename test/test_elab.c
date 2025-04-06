@@ -60,22 +60,6 @@ START_TEST(test_elab3)
 }
 END_TEST
 
-START_TEST(test_elab4)
-{
-   input_from_file(TESTDIR "/elab/elab4.vhd");
-
-   const error_t expect[] = {
-      { 21, "actual length 9 does not match formal length 8" },
-      { -1, NULL }
-   };
-   expect_errors(expect);
-
-   (void)run_elab();
-
-   check_expected_errors();
-}
-END_TEST
-
 START_TEST(test_open)
 {
    tree_t top;
@@ -398,24 +382,6 @@ START_TEST(test_libbind3)
    lib_set_work(lib_tmp("bar"));
    fail_if(run_elab() == NULL);
    fail_if_errors();
-}
-END_TEST
-
-START_TEST(test_issue251)
-{
-   input_from_file(TESTDIR "/elab/issue251.vhd");
-
-   const error_t expect[] = {
-      { 24, "array X index -1 outside of NATURAL range 3 downto 0" },
-      { 30, "array A index -1 outside of NATURAL range 3 downto 0" },
-      { -1, NULL }
-   };
-   expect_errors(expect);
-
-   tree_t a = parse_check_and_simplify(T_ENTITY, T_ARCH, T_ENTITY, T_ARCH);
-   bounds_check(a);
-
-   check_expected_errors();
 }
 END_TEST
 
@@ -1986,12 +1952,6 @@ START_TEST(test_issue1012)
 {
    input_from_file(TESTDIR "/elab/issue1012.vhd");
 
-   const error_t expect[] = {
-      { 15, "actual length 1 does not match formal length 0" },
-      { -1, NULL }
-   };
-   expect_errors(expect);
-
    tree_t a = parse_check_and_simplify(T_ENTITY, T_ARCH);
 
    mir_context_t *mc = get_mir();
@@ -2001,12 +1961,12 @@ START_TEST(test_issue1012)
    rt_model_t *m = model_new(jit, NULL);
 
    tree_t e = elab(tree_to_object(a), jit, ur, mc, cover, NULL, m);
-   fail_unless(e == NULL);
+   fail_if(e == NULL);
 
    model_free(m);
    jit_free(jit);
 
-   check_expected_errors();
+   fail_if_errors();
 }
 END_TEST
 
@@ -2051,7 +2011,6 @@ Suite *get_elab_tests(void)
    tcase_add_test(tc, test_elab1);
    tcase_add_test(tc, test_elab2);
    tcase_add_test(tc, test_elab3);
-   tcase_add_test(tc, test_elab4);
    tcase_add_test(tc, test_open);
    tcase_add_test(tc, test_genagg);
    tcase_add_test(tc, test_comp);
@@ -2073,7 +2032,6 @@ Suite *get_elab_tests(void)
    tcase_add_test(tc, test_libbind2);
    tcase_add_test(tc, test_toplevel2);
    tcase_add_test(tc, test_libbind3);
-   tcase_add_test(tc, test_issue251);
    tcase_add_test(tc, test_jcore1);
    tcase_add_test(tc, test_eval1);
    tcase_add_test(tc, test_issue305);

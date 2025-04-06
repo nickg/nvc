@@ -335,6 +335,31 @@ START_TEST(test_issue247)
 }
 END_TEST
 
+START_TEST(test_issue251)
+{
+   input_from_file(TESTDIR "/bounds/issue251.vhd");
+
+   const error_t expect[] = {
+      { 24, "array X index -1 outside of NATURAL range 3 downto 0" },
+      { 30, "array A index -1 outside of NATURAL range 3 downto 0" },
+      { 31, "length of value 4 does not match length of target 3" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t a = parse_and_check(T_ENTITY, T_ARCH, T_ENTITY, T_ARCH);
+   fail_unless(error_count() == 0);
+
+   unit_registry_t *ur = get_registry();
+   jit_t *jit = jit_new(ur, get_mir());
+   simplify_local(a, jit, ur);
+   bounds_check(a);
+   jit_free(jit);
+
+   check_expected_errors();
+}
+END_TEST
+
 START_TEST(test_issue269)
 {
    const error_t expect[] = {
@@ -888,6 +913,30 @@ START_TEST(test_issue1091)
 }
 END_TEST
 
+START_TEST(test_map1)
+{
+   input_from_file(TESTDIR "/bounds/map1.vhd");
+
+   const error_t expect[] = {
+      { 28, "length of value 4 does not match length of target 3 for "
+        "generic G1" },
+      { 29, "value 7 outside of INTEGER range 0 to 3 for generic G2" },
+      { 33, "length of value 2 does not match length of target 3 for "
+        "signal P1" },
+      { 44, "length of value 2 does not match length of target 3 for "
+        "signal P1" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_check_and_simplify(T_ENTITY, T_ARCH);
+
+   fail_unless(parse() == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_bounds_tests(void)
 {
    Suite *s = suite_create("bounds");
@@ -903,6 +952,7 @@ Suite *get_bounds_tests(void)
    tcase_add_test(tc_core, test_issue200);
    tcase_add_test(tc_core, test_issue208);
    tcase_add_test(tc_core, test_issue247);
+   tcase_add_test(tc_core, test_issue251);
    tcase_add_test(tc_core, test_issue269);
    tcase_add_test(tc_core, test_issue307b);
    tcase_add_test(tc_core, test_issue356);
@@ -934,6 +984,7 @@ Suite *get_bounds_tests(void)
    tcase_add_test(tc_core, test_issue1040);
    tcase_add_test(tc_core, test_issue1021);
    tcase_add_test(tc_core, test_issue1091);
+   tcase_add_test(tc_core, test_map1);
    suite_add_tcase(s, tc_core);
 
    return s;

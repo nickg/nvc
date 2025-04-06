@@ -5,7 +5,7 @@ entity issue1012 is
 end entity;
 
 architecture test of issue1012 is
-    signal addr : std_logic_vector(0 downto 0);
+    signal addr : std_logic_vector(-1 downto 0);
 begin
 
     i_sub_block : block is

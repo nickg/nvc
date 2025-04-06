@@ -1372,6 +1372,57 @@ static void bounds_check_wait(tree_t t)
       bounds_error(tree_delay(t), "wait timeout may not be negative");
 }
 
+static void bounds_check_generic_map(tree_t t, tree_t unit)
+{
+   const int ngenmaps = tree_genmaps(t);
+   for (int i = 0; i < ngenmaps; i++) {
+      tree_t m = tree_genmap(t, i);
+      assert(tree_subkind(m) == P_POS);
+
+      tree_t g = tree_generic(unit, i);
+      if (tree_class(g) == C_CONSTANT)
+         bounds_check_assignment(g, tree_value(m));
+   }
+}
+
+static void bounds_check_port_map(tree_t t, tree_t unit)
+{
+   const int nparams = tree_params(t);
+   for (int i = 0; i < nparams; i++) {
+      tree_t m = tree_param(t, i);
+
+      tree_t value = tree_value(m);
+      switch (tree_kind(value)) {
+      case T_OPEN:
+         continue;
+      case T_INERTIAL:
+         value = tree_value(value);
+         break;
+      default:
+         break;
+      }
+
+      tree_t formal = NULL;
+      switch (tree_subkind(m)) {
+      case P_POS:
+         formal = tree_port(unit, tree_pos(m));
+         break;
+      case P_NAMED:
+         formal = tree_name(m);
+         break;
+      }
+
+      switch (tree_kind(formal)) {
+      case T_TYPE_CONV:
+      case T_CONV_FUNC:
+         continue;   // Ignore for now
+      default:
+         bounds_check_assignment(formal, value);
+         break;
+      }
+   }
+}
+
 static tree_t bounds_visit_fn(tree_t t, void *context)
 {
    switch (tree_kind(t)) {
@@ -1433,6 +1484,20 @@ static tree_t bounds_visit_fn(tree_t t, void *context)
       break;
    case T_SUBTYPE_DECL:
       bounds_check_subtype_decl(t);
+      break;
+   case T_BLOCK:
+      bounds_check_generic_map(t, t);
+      bounds_check_port_map(t, t);
+      break;
+   case T_INSTANCE:
+      {
+         tree_t primary = primary_unit_of(tree_ref(t));
+         bounds_check_generic_map(t, primary);
+         bounds_check_port_map(t, primary);
+      }
+      break;
+   case T_PACK_INST:
+      bounds_check_generic_map(t, tree_ref(t));
       break;
    default:
       break;

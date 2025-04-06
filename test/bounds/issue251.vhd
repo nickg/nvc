@@ -28,7 +28,7 @@ begin
     sub2_i: entity work.sub
         port map (
             x(3) => a(-1),               -- Error
-            x(2 downto 0) => a,
+            x(2 downto 0) => a,          -- Error
             y => open );
 
 end architecture;
