@@ -9,6 +9,8 @@
   non-equal coverage databases.
 - Fixed a debug assertion failure when initialising an array with more
   than 2**32 elements (#1196).
+- `generate` statements now create separate hierarchy in the code
+  coverage report
 
 ## Version 1.16.0 - 2025-04-21
 - Added support for PSL `prev()`, `stable()`, `rose()` and `fell()`
