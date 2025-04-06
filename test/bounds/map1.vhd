@@ -16,7 +16,7 @@ architecture test of map1 is
     function to_bv2(x : integer) return bv2 is
         constant c1 : bit_vector(1 to 3) := "111";
     begin
-        return c1;                      -- XXX
+        return c1;                      -- Error
     end function;
 begin
 

@@ -10312,8 +10312,10 @@ static tree_t p_return_statement(ident_t label)
       if (peek() != tSEMI) {
          type_t return_type = NULL;
          tree_t subprog = find_enclosing(nametab, S_SUBPROGRAM);
-         if (subprog != NULL && tree_kind(subprog) == T_FUNC_BODY)
+         if (subprog != NULL && tree_kind(subprog) == T_FUNC_BODY) {
             return_type = type_result(tree_type(subprog));
+            tree_set_type(stmt, return_type);
+         }
 
          tree_t value = p_conditional_or_unaffected_expression(STD_19);
          solve_types(nametab, value, return_type);

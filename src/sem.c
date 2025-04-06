@@ -6060,14 +6060,14 @@ static bool sem_check_return(tree_t t, nametab_t *tab)
       if (tree_kind(sub) == T_PROC_BODY)
          sem_error(t, "cannot return a value from a procedure");
 
-      type_t expect = type_result(tree_type(sub));
-
-      if (!sem_check(tree_value(t), tab))
+      tree_t value = tree_value(t);
+      if (!sem_check(value, tab))
          return false;
 
-      if (!sem_check_type(tree_value(t), expect, tab))
+      type_t expect = tree_type(t);
+      if (!sem_check_type(value, expect, tab))
          sem_error(t, "expected return type %s but have %s",
-                   type_pp(expect), type_pp(tree_type(tree_value(t))));
+                   type_pp(expect), type_pp(tree_type(value)));
    }
    else if (tree_kind(sub) == T_FUNC_BODY)
       sem_error(t, "return in function must have an expression");

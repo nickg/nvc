@@ -1372,6 +1372,20 @@ static void bounds_check_wait(tree_t t)
       bounds_error(tree_delay(t), "wait timeout may not be negative");
 }
 
+static void bounds_check_return(tree_t t)
+{
+   if (!tree_has_value(t))
+      return;
+
+   tree_t value = tree_value(t);
+
+   type_t type = tree_type(t);
+   if (type_is_scalar(type))
+      bounds_check_scalar(value, type, NULL);
+   else if (type_is_array(type))
+      bounds_check_array(value, type, NULL);
+}
+
 static void bounds_check_generic_map(tree_t t, tree_t unit)
 {
    const int ngenmaps = tree_genmaps(t);
@@ -1475,6 +1489,9 @@ static tree_t bounds_visit_fn(tree_t t, void *context)
       break;
    case T_WAIT:
       bounds_check_wait(t);
+      break;
+   case T_RETURN:
+      bounds_check_return(t);
       break;
    case T_ELEM_CONSTRAINT:
       bounds_check_elem_constraint(t);

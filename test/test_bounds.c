@@ -918,6 +918,7 @@ START_TEST(test_map1)
    input_from_file(TESTDIR "/bounds/map1.vhd");
 
    const error_t expect[] = {
+      { 19, "length of value 3 does not match length of target 2" },
       { 28, "length of value 4 does not match length of target 3 for "
         "generic G1" },
       { 29, "value 7 outside of INTEGER range 0 to 3 for generic G2" },

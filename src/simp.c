@@ -1364,6 +1364,7 @@ static tree_t simp_return(tree_t t)
          tree_t s = tree_new(T_RETURN);
          tree_set_loc(s, tree_loc(tree_result(e)));
          tree_set_value(s, tree_result(e));
+         tree_set_type(s, tree_type(t));
 
          tree_add_stmt(c, s);
          tree_add_cond(new, c);

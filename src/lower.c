@@ -6491,10 +6491,8 @@ static void lower_return(lower_unit_t *lu, tree_t stmt)
          type_t access = type_designated(type);
          emit_return(lower_incomplete_access(value_reg, access));
       }
-      else if (type_is_array(type)) {
-         type_t rtype = type_result(tree_type(lu->container));
-         emit_return(lower_coerce_arrays(lu, type, rtype, value_reg));
-      }
+      else if (type_is_array(type))
+         emit_return(lower_coerce_arrays(lu, type, tree_type(stmt), value_reg));
       else
          emit_return(value_reg);
    }

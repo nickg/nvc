@@ -115,7 +115,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
     | I_IDENT2 | I_SUBKIND),
 
    // T_RETURN
-   (I_IDENT | I_VALUE),
+   (I_IDENT | I_TYPE | I_VALUE),
 
    // T_COND_ASSIGN
    (I_IDENT | I_TARGET | I_CONDS | I_GUARD),
