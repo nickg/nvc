@@ -21,6 +21,7 @@
   using this.
 - Passing scalar `out` arguments using the non-standard `VHPIDIRECT`
   calling convention now works correctly (#1301).
+- PSL `nondet` built-in function is now supported.
 - Several other minor bugs were resolved (#1253, #1269, #1277, #1279,
   #1280, #1281).
 
