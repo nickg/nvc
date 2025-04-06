@@ -1110,3 +1110,4 @@ rand1           normal,seed=123
 psl21           gold,psl,seed=1
 agg11           normal,2008
 agg12           normal,2008
+agg13           normal,2008

@@ -4077,7 +4077,7 @@ static vcode_reg_t lower_array_aggregate(lower_unit_t *lu, tree_t expr,
       }
    }
 
-   vcode_reg_t next_pos = VCODE_INVALID_REG;
+   vcode_reg_t next_pos = emit_const(voffset, 0);
 
    type_t index_type = index_type_of(type, 0);
    tree_t index_r = range_of(index_type, 0);
@@ -4105,12 +4105,8 @@ static vcode_reg_t lower_array_aggregate(lower_unit_t *lu, tree_t expr,
       switch (tree_subkind(a)) {
       case A_POS:
          {
-            if (next_pos == VCODE_INVALID_REG)
-               off_reg = emit_const(voffset, tree_pos(a));
-            else {
-               off_reg = next_pos;
-               next_pos = emit_add(next_pos, emit_const(voffset, 1));
-            }
+            off_reg = next_pos;
+            next_pos = emit_add(off_reg, emit_const(voffset, 1));
 
             if (i == 0 || i == last_pos) {
                vcode_reg_t locus = lower_debug_locus(a);
@@ -4127,14 +4123,8 @@ static vcode_reg_t lower_array_aggregate(lower_unit_t *lu, tree_t expr,
 
       case A_CONCAT:
          {
-            if (next_pos == VCODE_INVALID_REG) {
-               off_reg = emit_const(voffset, tree_pos(a));
-               next_pos = count_reg;
-            }
-            else {
-               off_reg = next_pos;
-               next_pos = emit_add(next_pos, count_reg);
-            }
+            off_reg = next_pos;
+            next_pos = emit_add(off_reg, count_reg);
 
             if (i == 0 || i == last_pos) {
                vcode_reg_t locus = lower_debug_locus(a);

@@ -4159,9 +4159,9 @@ START_TEST(test_array2)
 
       EXPECT_BB(3) = {
          { VCODE_OP_CONST, .value = 0 },
+         { VCODE_OP_CONST, .value = 1 },
          { VCODE_OP_ARRAY_REF, .value = 0 },
          { VCODE_OP_LOAD, .name = "X" },
-         { VCODE_OP_CONST, .value = 1 },
          { VCODE_OP_ARRAY_REF, .value = 0 },
          { VCODE_OP_STORE_INDIRECT },
          { VCODE_OP_ARRAY_REF },
@@ -6129,8 +6129,8 @@ START_TEST(test_issue844)
       // TODO: just pass a scalar init value
       { VCODE_OP_ALLOC },
       { VCODE_OP_MEMSET },
-      { VCODE_OP_DEBUG_LOCUS },
       { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_DEBUG_LOCUS },
       { VCODE_OP_INIT_SIGNAL },
       { VCODE_OP_WRAP },
       { VCODE_OP_STORE, .name = "P" },
