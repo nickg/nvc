@@ -827,17 +827,26 @@ mir_value_t mir_enum(unsigned value)
 
 mir_value_t mir_const(mir_unit_t *mu, mir_type_t type, int64_t value)
 {
+   mir_value_t result;
    if (value >= SMALL_CONST_MIN && value <= SMALL_CONST_MAX) {
       const unsigned biased = value + SMALL_CONST_BIAS;
-      return (mir_value_t){ .tag = MIR_TAG_CONST, .id = biased };
+      result = (mir_value_t){ .tag = MIR_TAG_CONST, .id = biased };
    }
    else {
       mir_stamp_t stamp = mir_int_stamp(mu, value, value);
       node_data_t *n = mir_add_node(mu, MIR_OP_CONST, type, stamp, 0);
       n->iconst = value;
 
-      return (mir_value_t){ .tag = MIR_TAG_NODE, .id = mir_node_id(mu, n) };
+      result = (mir_value_t){ .tag = MIR_TAG_NODE, .id = mir_node_id(mu, n) };
    }
+
+#ifdef DEBUG
+   const mir_class_t class = mir_get_class(mu, type);
+   MIR_ASSERT(class == MIR_TYPE_INT || class == MIR_TYPE_OFFSET,
+              "constant must have integral type");
+#endif
+
+   return result;
 }
 
 mir_value_t mir_const_real(mir_unit_t *mu, mir_type_t type, double value)
@@ -1011,7 +1020,8 @@ static mir_value_t mir_build_sub_op(mir_unit_t *mu, mir_op_t op,
    else if (lconst && rconst && !__builtin_sub_overflow(lval, rval, &cval))
       return mir_const(mu, type, cval);
    else if (mir_equals(left, right))
-      return mir_const(mu, type, 0);
+      return mir_get_class(mu, type) == MIR_TYPE_REAL
+         ? mir_const_real(mu, type, 0.0) : mir_const(mu, type, 0);
 
    double lreal, rreal;
    const bool lconst_real = mir_get_const_real(mu, left, &lreal);

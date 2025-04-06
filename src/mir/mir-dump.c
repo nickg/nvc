@@ -744,7 +744,7 @@ void mir_annotate(mir_unit_t *mu, const mir_annotate_t *cb, void *ctx)
          case MIR_OP_CONST_REAL:
             {
                col += mir_dump_value(mu, result, cb, ctx);
-               col += printf(" := const %f ", n->dconst);
+               col += printf(" := const %g ", n->dconst);
                mir_dump_type(mu, col, n->type);
                mir_dump_stamp(mu, n->type, n->stamp);
             }

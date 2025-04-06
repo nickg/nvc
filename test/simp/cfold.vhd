@@ -151,4 +151,12 @@ begin
         i := 1 mod 0;           -- should yield divide-by-zero error
     end process;
 
+    -- Billowitch tc2705
+    tc2705: process is
+        constant i : real := 0.12;
+        constant m : real := 1.2e-1;
+    begin
+        assert abs(i-m) < 0.00000000001;  -- True
+    end process;
+
 end architecture;
