@@ -591,6 +591,8 @@ void psl_check(psl_node_t p, nametab_t *tab)
    case P_UNION:
       psl_check_union(p, tab);
       break;
+   case P_VALUE_SET:
+      break;
    default:
       fatal_trace("cannot check PSL kind %s", psl_kind_str(psl_kind(p)));
    }

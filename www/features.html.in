@@ -518,7 +518,7 @@ table below.
   <tr>
     <td>5.2.3.9</td>
     <td>nondet()</td>
-    <td class="feature-missing"></td>
+    <td class="feature-partial">master</td>
   </tr>
   <tr>
     <td>5.2.3.10</td>
