@@ -69,7 +69,7 @@ def guess_top(src)
   return best
 end
 
-unless Dir.exists? VestsDir
+unless Dir.exist? VestsDir
   puts "VESTs source missing from #{VestsDir}"
   puts
   puts "You can download this using"

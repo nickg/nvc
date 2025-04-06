@@ -9224,13 +9224,15 @@ static void p_component_configuration(tree_t unit)
 
    push_scope(nametab);
 
-   // TODO: should be optional
-   tree_t bind = p_binding_indication(comp);
-   consume(tSEMI);
+   tree_t bind = NULL;
+   if (peek() != tEND && peek() != tFOR) {
+      bind = p_binding_indication(comp);
+      consume(tSEMI);
+   }
 
    tree_t bcfg = NULL;
    if (peek() == tFOR) {
-      tree_t of = tree_has_ref(bind) ? tree_ref(bind) : NULL;
+      tree_t of = bind != NULL && tree_has_ref(bind) ? tree_ref(bind) : NULL;
       bcfg = p_block_configuration(of);
    }
 
