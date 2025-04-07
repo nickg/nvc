@@ -4085,6 +4085,7 @@ static vcode_reg_t lower_array_aggregate(lower_unit_t *lu, tree_t expr,
    vcode_type_t vindex = lower_type(index_type);
 
    vcode_reg_t low_reg = emit_select(dir_reg, right_reg, left_reg);
+   vcode_reg_t length0_reg = VCODE_INVALID_REG;
 
    for (int i = 0; i < nassocs; i++) {
       tree_t a = tree_assoc(expr, i);
@@ -4102,7 +4103,7 @@ static vcode_reg_t lower_array_aggregate(lower_unit_t *lu, tree_t expr,
       vcode_var_t tmp_var = VCODE_INVALID_VAR;
       vcode_reg_t off_reg = VCODE_INVALID_REG;
 
-      switch (tree_subkind(a)) {
+      switch (akind) {
       case A_POS:
          {
             off_reg = next_pos;
@@ -4240,12 +4241,18 @@ static vcode_reg_t lower_array_aggregate(lower_unit_t *lu, tree_t expr,
          value_regs[i] = lower_aggregate(lu, value, ptr_reg);
       }
 
-      if (array_of_array && i > 0 && ndims == 1
-          && vcode_reg_kind(value_regs[0]) == VCODE_TYPE_UARRAY) {
-         // Element type is unconstrained so we need a length check here
-         vcode_reg_t locus = lower_debug_locus(a);
-         lower_check_array_sizes(lu, elem_type, elem_type,
-                                 value_regs[0], value_regs[i], locus);
+      if (array_of_array && is_unconstrained && ndims == 1) {
+         vcode_reg_t length_reg = count_reg;
+         if (length_reg == VCODE_INVALID_REG)
+            length_reg = lower_array_len(lu, elem_type, 0, value_regs[i]);
+
+         if (i == 0)
+            length0_reg = length_reg;
+         else {
+            vcode_reg_t locus = lower_debug_locus(a);
+            emit_length_check(length0_reg, length_reg, locus,
+                              emit_const(voffset, 0));
+         }
       }
 
       if (count_reg != VCODE_INVALID_REG) {
