@@ -8111,6 +8111,24 @@ static void lower_implicit_stable(lower_unit_t *lu, object_t *obj)
    emit_return(emit_not(flag_reg));
 }
 
+static void lower_implicit_guard(lower_unit_t *lu, object_t *obj)
+{
+   tree_t decl = tree_from_object(obj);
+   assert(tree_kind(decl) == T_IMPLICIT_SIGNAL);
+
+   vcode_type_t vtype = lower_type(tree_type(decl));
+   vcode_set_result(vtype);
+
+   vcode_type_t vcontext = vtype_context(lu->parent->name);
+   emit_param(vcontext, vcontext, ident_new("context"));
+
+   tree_t expr = tree_value(decl);
+
+   build_wait(expr, lower_build_wait_cb, lu);
+
+   emit_return(lower_rvalue(lu, expr));
+}
+
 static void lower_implicit_decl(lower_unit_t *parent, tree_t decl)
 {
    ident_t name = tree_ident(decl);
@@ -8126,32 +8144,11 @@ static void lower_implicit_decl(lower_unit_t *parent, tree_t decl)
    switch (kind) {
    case IMPLICIT_GUARD:
       {
-         tree_t expr = tree_value(decl);
-
          ident_t qual = ident_prefix(parent->name, name, '.');
          ident_t func = ident_prefix(qual, ident_new("guard"), '$');
 
-         vcode_state_t state;
-         vcode_state_save(&state);
-
-         object_t *obj = tree_to_object(expr);
-         vcode_unit_t vu = emit_function(func, obj, parent->vunit);
-         vcode_set_result(vtype);
-
-         vcode_type_t vcontext = vtype_context(parent->name);
-         emit_param(vcontext, vcontext, ident_new("context"));
-
-         lower_unit_t *lu = lower_unit_new(parent->registry, parent,
-                                           vu, NULL, NULL);
-         unit_registry_put(parent->registry, lu);
-
-         build_wait(expr, lower_build_wait_cb, lu);
-
-         emit_return(lower_rvalue(lu, expr));
-
-         unit_registry_finalise(parent->registry, lu);
-
-         vcode_state_restore(&state);
+         unit_registry_defer(parent->registry, func, parent, emit_function,
+                             lower_implicit_guard, NULL, tree_to_object(decl));
 
          vcode_reg_t one_reg = emit_const(vtype_offset(), 1);
          vcode_reg_t locus = lower_debug_locus(decl);
