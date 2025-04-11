@@ -37,6 +37,8 @@
 - Added support for PSL `union` operator (from @Blebowski).
 - The implementation of concatenations has been reworked fixing several
   bugs (#1178).
+- `generate` statements now create separate hierarchy in the code
+  coverage report
 - Several other minor bugs were resolved (#1174, #1159).
 
 ## Version 1.15.2 - 2025-03-01

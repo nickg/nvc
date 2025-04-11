@@ -1103,6 +1103,47 @@ to
 .Bd -literal -offset indent
 fold TB_TOP_LIB.TB_TOP.DUT.I_CPU_DATAPATH.I_INSTR_CACHE UNIT_TEST_LIB.CACHE_UNIT_TEST.DUT
 .Ed
+.Ss Code coverage limitations
+When part of the design hierarchy is formed by an if-generate-else or
+case-generate statement, the hierarchical path of implicit block statements
+for each of the if-else branches / case choices is the same unless
+user uses alternative label for the branch or choice. Therefore code
+coverage items in such distinc blocks will have equal hierarchical path.
+Consider following example:
+.Bd -literal -offset indent
+my_gen : case (op_kind) generate
+when op_add => x <= a + b;
+when op_sub => x <= a - b;
+end generate my_gen;
+.Ed
+Both assign statements above have the following hierarchical path:
+.Bd -literal -offset indent
+<PLACE_IN_HIER>.MY_GEN._P0._SO
+.Ed
+When merging code coverage and generating code coverage report, NVC recognizes
+these two coverage items are distinc despite their equal hierarchical path.
+NVC distinguishes these two coverage items based on different location in the
+source code. NVC does not merge such two items, and displays them separately
+in the code coverage items (no aliasing will occur). However, since these two
+coverage items have equal hierarchical paths, it is not possible to distinguish
+them in the exclude file. Either both or none can be excluded.
+Consider another example:
+.Bd -literal -offset indent
+my_gen : case (op_kind) generate
+when op_add => my_inst : entity work.ent
+               generic map (op => op_add);
+when op_sub => my_inst : entity work.ent
+               generic map (op => op_sub);
+end generate my_gen;
+.Ed
+The two instances will have completely equal hierarchical paths. Since
+they are both implemented by the same entity, all coverage items between
+the two of them will have equal hierarchical paths as well as locations
+in the source code. Coverage data from these two instances will alias
+and NVC will merge them together. To guarantee fine-grained exlude possibility
+or prevent aliasing in corner-cases, it is recommended to use alternative
+labels for branches / choices of if-generage-else and case-generate
+statements.
 .Ss Additional Information
 In coverage specification file and Exclude file
 .Ql <ENTITY_NAME>
