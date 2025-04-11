@@ -28,6 +28,18 @@
 #include <stdlib.h>
 #include <assert.h>
 
+typedef enum {
+   _U = 0x0,
+   _X = 0x1,
+   _0 = 0x2,
+   _1 = 0x3,
+   _Z = 0x4,
+   _W = 0x5,
+   _L = 0x6,
+   _H = 0x7,
+   _D = 0x8
+} std_ulogic_t;
+
 static void predef_bit_shift(mir_unit_t *mu, tree_t decl,
                              subprogram_kind_t kind)
 {
@@ -289,9 +301,9 @@ static void predef_match_op(mir_unit_t *mu, tree_t decl, subprogram_kind_t kind)
       if (is_bit)
          tmp = mir_build_cmp(mu, cmp, left_src, right_src);
       else {
-         ident_t func = ident_new("NVC.IEEE_SUPPORT.REL_MATCH_EQ(UU)U");
+         ident_t func = ident_new( "IEEE.STD_LOGIC_1164.\"?=\"(UU)U$predef");
          mir_value_t context =
-            mir_build_link_package(mu, well_known(W_IEEE_SUPPORT));
+            mir_build_link_package(mu, well_known(W_IEEE_1164));
          mir_value_t args[] = { context, left_src, right_src };
          tmp = mir_build_fcall(mu, func, ti->type, ti->stamp, args, 3);
       }
@@ -330,28 +342,97 @@ static void predef_match_op(mir_unit_t *mu, tree_t decl, subprogram_kind_t kind)
    }
    else if (is_bit)
       result = mir_build_cmp(mu, cmp, left, right);
-   else {
-      ident_t func = NULL;
-      switch (cmp) {
-      case MIR_CMP_LT:
-         func = ident_new("NVC.IEEE_SUPPORT.REL_MATCH_LT(UU)U");
-         break;
-      case MIR_CMP_LEQ:
-         func = ident_new("NVC.IEEE_SUPPORT.REL_MATCH_LEQ(UU)U");
-         break;
-      case MIR_CMP_EQ:
-         func = ident_new("NVC.IEEE_SUPPORT.REL_MATCH_EQ(UU)U");
-         break;
-      default:
-         fatal_trace("unexpected comparison operator %d", cmp);
-      }
+   else if (cmp == MIR_CMP_LEQ) {
+      ident_t less_func = ident_new("IEEE.STD_LOGIC_1164.\"?<\"(UU)U$predef");
+      ident_t eq_func = ident_new("IEEE.STD_LOGIC_1164.\"?=\"(UU)U$predef");
 
-      mir_value_t context =
-         mir_build_link_package(mu, well_known(W_IEEE_SUPPORT));
-      mir_value_t args[3] = { context, left, right };
+      mir_value_t context = mir_build_link_package(mu, well_known(W_IEEE_1164));
+      mir_value_t args1[] = { context, left, right };
 
       const type_info_t *ti = type_info(mu, type);
-      result = mir_build_fcall(mu, func, ti->type, ti->stamp, args, 3);
+
+      mir_value_t eq =
+         mir_build_fcall(mu, eq_func, ti->type, ti->stamp, args1, 3);
+      mir_value_t less =
+         mir_build_fcall(mu, less_func, ti->type, ti->stamp, args1, 3);
+
+      ident_t or_func =
+         ident_new("IEEE.STD_LOGIC_1164.\"or\"(UU)24IEEE.STD_LOGIC_1164.UX01");
+
+      mir_value_t args2[] = { context, eq, less };
+      result = mir_build_fcall(mu, or_func, ti->type, ti->stamp, args2, 3);
+   }
+   else {
+      static const std_ulogic_t match_eq_table[9][9] = {
+         { _U, _U, _U, _U, _U, _U, _U, _U, _1 },
+         { _U, _X, _X, _X, _X, _X, _X, _X, _1 },
+         { _U, _X, _1, _0, _X, _X, _1, _0, _1 },
+         { _U, _X, _0, _1, _X, _X, _0, _1, _1 },
+         { _U, _X, _X, _X, _X, _X, _X, _X, _1 },
+         { _U, _X, _X, _X, _X, _X, _X, _X, _1 },
+         { _U, _X, _1, _0, _X, _X, _1, _0, _1 },
+         { _U, _X, _0, _1, _X, _X, _0, _1, _1 },
+         { _1, _1, _1, _1, _1, _1, _1, _1, _1 }
+      };
+
+      static const std_ulogic_t match_lt_table[9][9] = {
+         { _U, _U, _U, _U, _U, _U, _U, _U, _X },
+         { _U, _X, _X, _X, _X, _X, _X, _X, _X },
+         { _U, _X, _0, _1, _X, _X, _0, _1, _X },
+         { _U, _X, _0, _0, _X, _X, _0, _0, _X },
+         { _U, _X, _X, _X, _X, _X, _X, _X, _X },
+         { _U, _X, _X, _X, _X, _X, _X, _X, _X },
+         { _U, _X, _0, _1, _X, _X, _0, _1, _X },
+         { _U, _X, _0, _0, _X, _X, _0, _0, _X },
+         { _X, _X, _X, _X, _X, _X, _X, _X, _X }
+      };
+
+      const std_ulogic_t (*table)[9] =
+         cmp == MIR_CMP_LT ? match_lt_table : match_eq_table;
+
+      const type_info_t *ti = type_info(mu, type);
+      mir_type_t t_table = mir_carray_type(mu, 9*9, ti->type);
+
+      mir_value_t elems[9 * 9];
+      for (int i = 0; i < 9; i++) {
+         for (int j = 0; j < 9; j++)
+            elems[i*9 + j] = mir_const(mu, ti->type, table[i][j]);
+      }
+
+      mir_value_t table_buf = mir_const_array(mu, t_table, elems, 9*9);
+      mir_value_t table_ptr = mir_build_address_of(mu, table_buf);
+
+      mir_type_t t_offset = mir_offset_type(mu);
+
+      if (cmp == MIR_CMP_LT) {
+         mir_value_t dontcare = mir_const(mu, ti->type, _D);
+         mir_value_t lcmp = mir_build_cmp(mu, MIR_CMP_NEQ, left, dontcare);
+         mir_value_t rcmp = mir_build_cmp(mu, MIR_CMP_NEQ, right, dontcare);
+         mir_value_t and = mir_build_and(mu, lcmp, rcmp);
+
+         const char *msg =
+            "STD_LOGIC_1164: '-' operand for matching ordering operator";
+         mir_value_t msg_buf = mir_const_string(mu, msg);
+         mir_value_t msg_ptr = mir_build_address_of(mu, msg_buf);
+         mir_value_t msg_len = mir_const(mu, t_offset, sizeof(msg) - 1);
+
+         mir_type_t t_severity = mir_int_type(mu, 0, SEVERITY_FAILURE - 1);
+         mir_value_t error = mir_const(mu, t_severity, SEVERITY_ERROR);
+         mir_value_t locus = mir_build_locus(mu, tree_to_object(decl));
+
+         mir_build_assert(mu, and, msg_ptr, msg_len, error, locus,
+                          MIR_NULL_VALUE, MIR_NULL_VALUE);
+      }
+
+      mir_value_t l_off = mir_build_cast(mu, t_offset, left);
+      mir_value_t r_off = mir_build_cast(mu, t_offset, right);
+      mir_value_t nine = mir_const(mu, t_offset, 9);
+      mir_value_t index =
+         mir_build_add(mu, t_offset,
+                       mir_build_mul(mu, t_offset, l_off, nine), r_off);
+      mir_value_t ptr = mir_build_array_ref(mu, table_ptr, index);
+
+      result = mir_build_load(mu, ptr);
    }
 
    if (invert && is_bit)

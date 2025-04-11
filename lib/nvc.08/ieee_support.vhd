@@ -30,9 +30,4 @@ package ieee_support is
     procedure check_match_expression (val : std_ulogic_vector);
     procedure check_match_expression (val : std_ulogic);
 
-    -- Matching relational operators
-    function rel_match_eq (l, r : std_ulogic) return std_ulogic;
-    function rel_match_lt (l, r : std_ulogic) return std_ulogic;
-    function rel_match_leq (l, r : std_ulogic) return std_ulogic;
-
 end package;
