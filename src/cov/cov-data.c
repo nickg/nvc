@@ -1164,8 +1164,10 @@ static void cover_merge_scope(cover_scope_t *old_s, cover_scope_t *new_s)
          if (n_old_visits == old_s->items.count)
             break;
 
-         if ((new->hier == old->hier) && (new->flags == old->flags) &&
-             (loc_eq(&new->loc, &old->loc))) {
+         if ((new->hier == old->hier) &&
+             (new->flags == old->flags) &&
+             (loc_eq(&(new->loc), &(old->loc)))) {
+
             assert(new->kind == old->kind);
 #ifdef COVER_DEBUG_MERGE
             printf("Merging coverage item: %s\n", istr(old->hier));
