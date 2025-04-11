@@ -896,6 +896,27 @@ mir_value_t mir_const_array(mir_unit_t *mu, mir_type_t type,
    return (mir_value_t){ .tag = MIR_TAG_NODE, .id = mir_node_id(mu, n) };
 }
 
+mir_value_t mir_const_string(mir_unit_t *mu, const char *str)
+{
+   int count = 0, low = UINT8_MAX, high = 0;
+   for (const char *p = str; *p; p++, count++) {
+      low = MIN(low, (unsigned char)*p);
+      high = MAX(high, (unsigned char)*p);
+   }
+
+   mir_type_t t_char = mir_char_type(mu);
+   mir_type_t type = mir_carray_type(mu, count, t_char);
+   mir_stamp_t stamp = mir_int_stamp(mu, low, high);
+
+   node_data_t *n = mir_add_node(mu, MIR_OP_CONST_ARRAY, type,
+                                 stamp, count);
+
+   for (int i = 0; i < count; i++)
+      mir_set_arg(mu, n, i, mir_const(mu, t_char, (unsigned char)str[i]));
+
+   return (mir_value_t){ .tag = MIR_TAG_NODE, .id = mir_node_id(mu, n) };
+}
+
 mir_value_t mir_build_const_rep(mir_unit_t *mu, mir_type_t type,
                                 mir_value_t value, unsigned rep)
 {

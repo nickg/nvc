@@ -564,10 +564,18 @@ mir_type_t mir_double_type(mir_unit_t *mu)
    return mu->types.double_type;
 }
 
+mir_type_t mir_char_type(mir_unit_t *mu)
+{
+   if (mir_is_null(mu->types.char_type))
+      mu->types.char_type = mir_int_type(mu, 0, UINT8_MAX);
+
+   return mu->types.char_type;
+}
+
 mir_type_t mir_string_type(mir_unit_t *mu)
 {
    if (mir_is_null(mu->types.string_type))
-      mu->types.string_type = mir_uarray_type(mu, 1, mir_int_type(mu, 0, 255));
+      mu->types.string_type = mir_uarray_type(mu, 1, mir_char_type(mu));
 
    return mu->types.string_type;
 }

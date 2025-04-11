@@ -19,6 +19,7 @@
 #include "common.h"
 #include "mir/mir-node.h"
 #include "mir/mir-unit.h"
+#include "rt/assert.h"
 #include "tree.h"
 #include "type.h"
 #include "vhdl/vhdl-lower.h"
@@ -185,6 +186,190 @@ static void predef_bit_shift(mir_unit_t *mu, tree_t decl,
    mir_build_return(mu, mir_build_wrap(mu, mem, dims, 1));
 }
 
+static void predef_match_op(mir_unit_t *mu, tree_t decl, subprogram_kind_t kind)
+{
+   type_t type = tree_type(tree_port(decl, 0));
+
+   mir_cmp_t cmp;
+   bool invert = false;
+   switch (kind) {
+   case S_MATCH_NEQ:
+      invert = true;
+   case S_MATCH_EQ:
+      cmp = MIR_CMP_EQ;
+      break;
+   case S_MATCH_GE:
+      invert = true;
+   case S_MATCH_LT:
+      cmp = MIR_CMP_LT;
+      break;
+   case S_MATCH_GT:
+      invert = true;
+   case S_MATCH_LE:
+      cmp = MIR_CMP_LEQ;
+      break;
+   default:
+      should_not_reach_here();
+   }
+
+   bool is_array = false, is_bit = false;
+   if (type_is_array(type)) {
+      is_array = true;
+      is_bit = type_ident(type_elem(type)) == well_known(W_STD_BIT);
+   }
+   else
+      is_bit = type_ident(type) == well_known(W_STD_BIT);
+
+   mir_value_t left = mir_get_param(mu, 1);
+   mir_value_t right = mir_get_param(mu, 2);
+
+   mir_value_t result = MIR_NULL_VALUE;
+   if (is_array) {
+      assert(kind == S_MATCH_EQ || kind == S_MATCH_NEQ);
+
+      mir_value_t left_len = mir_build_uarray_len(mu, left, 0);
+      mir_value_t right_len = mir_build_uarray_len(mu, right, 0);
+
+      mir_block_t fail_bb = mir_add_block(mu);
+      mir_block_t cont_bb = mir_add_block(mu);
+
+      mir_value_t len_eq = mir_build_cmp(mu, MIR_CMP_EQ, left_len, right_len);
+      mir_build_cond(mu, len_eq, cont_bb, fail_bb);
+
+      mir_set_cursor(mu, fail_bb, MIR_APPEND);
+
+      mir_type_t t_severity = mir_int_type(mu, 0, SEVERITY_FAILURE - 1);
+      mir_value_t failure = mir_const(mu, t_severity, SEVERITY_FAILURE);
+
+      mir_type_t t_offset = mir_offset_type(mu);
+
+      static const char msg[] = "arguments have different lengths";
+      mir_value_t msg_buf = mir_const_string(mu, msg);
+      mir_value_t msg_ptr = mir_build_address_of(mu, msg_buf);
+      mir_value_t msg_len = mir_const(mu, t_offset, sizeof(msg) - 1);
+
+      mir_value_t locus = mir_build_locus(mu, tree_to_object(decl));
+      mir_build_report(mu, msg_ptr, msg_len, failure, locus);
+      mir_build_jump(mu, cont_bb);
+
+      mir_set_cursor(mu, cont_bb, MIR_APPEND);
+
+      const type_info_t *ti = type_info(mu, type_elem(type));
+      mir_value_t mem = mir_build_alloc(mu, ti->type, ti->stamp, left_len);
+
+      mir_value_t result_var = mir_add_var(mu, ti->type, ti->stamp,
+                                           ident_new("result"), MIR_VAR_TEMP);
+      mir_build_store(mu, result_var, mir_const(mu, ti->type, 0));
+
+      mir_value_t i_var = mir_add_var(mu, t_offset, MIR_NULL_STAMP,
+                                      ident_new("i"), MIR_VAR_TEMP);
+      mir_value_t zero = mir_const(mu, t_offset, 0);
+      mir_build_store(mu, i_var, zero);
+
+      mir_value_t null = mir_build_cmp(mu, MIR_CMP_EQ, left_len, zero);
+
+      mir_value_t left_ptr = mir_build_unwrap(mu, left);
+      mir_value_t right_ptr = mir_build_unwrap(mu, right);
+
+      mir_block_t body_bb = mir_add_block(mu);
+      mir_block_t exit_bb = mir_add_block(mu);
+
+      mir_build_cond(mu, null, exit_bb, body_bb);
+
+      mir_set_cursor(mu, body_bb, MIR_APPEND);
+
+      mir_value_t i_val = mir_build_load(mu, i_var);
+      mir_value_t left_ptr_i = mir_build_array_ref(mu, left_ptr, i_val);
+      mir_value_t right_ptr_i = mir_build_array_ref(mu, right_ptr, i_val);
+
+      mir_value_t left_src = mir_build_load(mu, left_ptr_i);
+      mir_value_t right_src = mir_build_load(mu, right_ptr_i);
+
+      mir_value_t tmp;
+      if (is_bit)
+         tmp = mir_build_cmp(mu, cmp, left_src, right_src);
+      else {
+         ident_t func = ident_new("NVC.IEEE_SUPPORT.REL_MATCH_EQ(UU)U");
+         mir_value_t context =
+            mir_build_link_package(mu, well_known(W_IEEE_SUPPORT));
+         mir_value_t args[] = { context, left_src, right_src };
+         tmp = mir_build_fcall(mu, func, ti->type, ti->stamp, args, 3);
+      }
+      mir_build_store(mu, mir_build_array_ref(mu, mem, i_val), tmp);
+
+      mir_value_t one = mir_const(mu, t_offset, 1);
+      mir_value_t next = mir_build_add(mu, t_offset, i_val, one);
+      mir_value_t finished = mir_build_cmp(mu, MIR_CMP_EQ, next, left_len);
+      mir_build_store(mu, i_var, next);
+      mir_build_cond(mu, finished, exit_bb, body_bb);
+
+      mir_set_cursor(mu, exit_bb, MIR_APPEND);
+
+      mir_dim_t dims[1] = {
+         {
+            .left  = mir_build_uarray_left(mu, left, 0),
+            .right = mir_build_uarray_right(mu, left, 0),
+            .dir   = mir_build_uarray_dir(mu, left, 0),
+         }
+      };
+      mir_value_t wrap = mir_build_wrap(mu, mem, dims, 1);
+
+      ident_t func, context_name;
+      if (is_bit) {
+         func = ident_new("STD.STANDARD.\"and\"(Q)J$predef");
+         context_name = well_known(W_STD_STANDARD);
+      }
+      else {
+         func = ident_new("IEEE.STD_LOGIC_1164.\"and\"(Y)U");
+         context_name = well_known(W_IEEE_1164);
+      }
+
+      mir_value_t context = mir_build_link_package(mu, context_name);
+      mir_value_t args[] = { context, wrap };
+      result = mir_build_fcall(mu, func, ti->type, ti->stamp, args, 2);
+   }
+   else if (is_bit)
+      result = mir_build_cmp(mu, cmp, left, right);
+   else {
+      ident_t func = NULL;
+      switch (cmp) {
+      case MIR_CMP_LT:
+         func = ident_new("NVC.IEEE_SUPPORT.REL_MATCH_LT(UU)U");
+         break;
+      case MIR_CMP_LEQ:
+         func = ident_new("NVC.IEEE_SUPPORT.REL_MATCH_LEQ(UU)U");
+         break;
+      case MIR_CMP_EQ:
+         func = ident_new("NVC.IEEE_SUPPORT.REL_MATCH_EQ(UU)U");
+         break;
+      default:
+         fatal_trace("unexpected comparison operator %d", cmp);
+      }
+
+      mir_value_t context =
+         mir_build_link_package(mu, well_known(W_IEEE_SUPPORT));
+      mir_value_t args[3] = { context, left, right };
+
+      const type_info_t *ti = type_info(mu, type);
+      result = mir_build_fcall(mu, func, ti->type, ti->stamp, args, 3);
+   }
+
+   if (invert && is_bit)
+      mir_build_return(mu, mir_build_not(mu, result));
+   else if (invert) {
+      const type_info_t *ti = type_info(mu, type_result(tree_type(decl)));
+      ident_t func = ident_new(
+         "IEEE.STD_LOGIC_1164.\"not\"(U)24IEEE.STD_LOGIC_1164.UX01");
+      mir_value_t context = mir_build_link_package(mu, well_known(W_IEEE_1164));
+      mir_value_t args[2] = { context, result };
+      mir_value_t call =
+         mir_build_fcall(mu, func, ti->type, ti->stamp, args, 2);
+      mir_build_return(mu, call);
+   }
+   else
+      mir_build_return(mu, result);
+}
+
 void vhdl_lower_predef(mir_unit_t *mu, object_t *obj)
 {
    tree_t decl = tree_from_object(obj);
@@ -217,6 +402,14 @@ void vhdl_lower_predef(mir_unit_t *mu, object_t *obj)
    case S_ROL:
    case S_ROR:
       predef_bit_shift(mu, decl, kind);
+      break;
+   case S_MATCH_EQ:
+   case S_MATCH_NEQ:
+   case S_MATCH_LT:
+   case S_MATCH_LE:
+   case S_MATCH_GT:
+   case S_MATCH_GE:
+      predef_match_op(mu, decl, kind);
       break;
    default:
       should_not_reach_here();

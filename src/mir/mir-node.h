@@ -316,6 +316,7 @@ mir_type_t mir_self_type(mir_unit_t *mu);
 mir_type_t mir_bool_type(mir_unit_t *mu);
 mir_type_t mir_time_type(mir_unit_t *mu);
 mir_type_t mir_double_type(mir_unit_t *mu);
+mir_type_t mir_char_type(mir_unit_t *mu);
 mir_type_t mir_string_type(mir_unit_t *mu);
 mir_type_t mir_pointer_type(mir_unit_t *mu, mir_type_t to);
 mir_type_t mir_access_type(mir_unit_t *mu, mir_type_t to);
@@ -409,6 +410,7 @@ mir_value_t mir_const(mir_unit_t *mu, mir_type_t type, int64_t value);
 mir_value_t mir_const_real(mir_unit_t *mu, mir_type_t type, double value);
 mir_value_t mir_const_array(mir_unit_t *mu, mir_type_t type,
                             const mir_value_t *values, size_t count);
+mir_value_t mir_const_string(mir_unit_t *mu, const char *str);
 mir_value_t mir_build_const_rep(mir_unit_t *mu, mir_type_t type,
                                 mir_value_t value, unsigned rep);
 mir_value_t mir_const_record(mir_unit_t *mu, mir_type_t type,

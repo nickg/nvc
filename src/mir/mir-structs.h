@@ -162,6 +162,7 @@ typedef struct {
    mir_type_t bool_type;
    mir_type_t time_type;
    mir_type_t double_type;
+   mir_type_t char_type;
    mir_type_t locus_type;
    mir_type_t conversion_type;
    mir_type_t trigger_type;
