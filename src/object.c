@@ -667,11 +667,11 @@ static object_t *object_rewrite_iter(object_t *object,
    // The callback may return a new object or a pointer to an existing
    // object in the same arena that that needs to be rewritten so
    // iterate rewriting until we reach a fixed point
-   for (;;) {
-      object_t *new = (*ctx->post_fn[object->tag])(object, ctx->context);
-      if (new == object || (object = object_rewrite(new, ctx)) == NULL)
-         return new;
-   }
+   object_t *new = (*ctx->post_fn[object->tag])(object, ctx->context);
+   if (new == object)
+      return new;
+   else
+      return object_rewrite(new, ctx);
 }
 
 object_t *object_rewrite(object_t *object, object_rewrite_ctx_t *ctx)
@@ -686,7 +686,7 @@ object_t *object_rewrite(object_t *object, object_rewrite_ctx_t *ctx)
       ((void *)object - ctx->arena->base) >> OBJECT_ALIGN_BITS;
 
    // New objects can be allocated while rewrite is in progress so we
-   // need to check if the inex is greater than the current cache size
+   // need to check if the index is greater than the current cache size
    if (unlikely(ctx->cache == NULL || index >= ctx->cache_sz)) {
       ctx->cache_sz = (ctx->arena->alloc - ctx->arena->base) / OBJECT_ALIGN;
       ctx->cache = xrealloc_array(ctx->cache, sizeof(object_t *),

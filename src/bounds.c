@@ -1336,8 +1336,7 @@ static void bounds_check_type_conv(tree_t t)
 
 static void bounds_check_attr_ref(tree_t t)
 {
-   const attr_kind_t predef = tree_subkind(t);
-   switch (predef) {
+   switch (tree_subkind(t)) {
    case ATTR_LENGTH:
    case ATTR_LOW:
    case ATTR_HIGH:

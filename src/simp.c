@@ -404,7 +404,11 @@ static tree_t simp_type_conv(tree_t t, simp_ctx_t *ctx)
 
 static tree_t simp_pcall(tree_t t, simp_ctx_t *ctx)
 {
-   return simp_call_args(t);
+   tree_t new = simp_call_args(t);
+   if (new != t)
+      return new;
+
+   return t;
 }
 
 static tree_t simp_record_ref(tree_t t, simp_ctx_t *ctx)
@@ -491,9 +495,8 @@ static tree_t simp_attr_ref(tree_t t, simp_ctx_t *ctx)
          int64_t ipos;
          if (folded_int(value, &ipos))
             return get_int_lit(t, NULL, ipos);
-
-         return t;
       }
+      break;
 
    case ATTR_LENGTH:
    case ATTR_LEFT:
@@ -503,28 +506,44 @@ static tree_t simp_attr_ref(tree_t t, simp_ctx_t *ctx)
    case ATTR_ASCENDING:
       {
          tree_t name = tree_name(t);
-         tree_kind_t name_kind = tree_kind(name);
 
-         if (name_kind == T_ATTR_REF) {
+         if (tree_kind(name) == T_ATTR_REF) {
             // Try to rewrite expressions like X'RANGE(1)'LEFT to X'LEFT(1)
-            attr_kind_t prefix_predef = tree_subkind(name);
-            if (prefix_predef == ATTR_RANGE || prefix_predef == ATTR_BASE
-                || prefix_predef == ATTR_REVERSE_RANGE) {
-               tree_t new = tree_new(T_ATTR_REF);
-               tree_set_loc(new, tree_loc(t));
-               tree_set_name(new, tree_name(name));
-               tree_set_ident(new, tree_ident(t));
-               tree_set_subkind(new, predef);
-               tree_set_type(new, tree_type(t));
+            switch (tree_subkind(name)) {
+            case ATTR_RANGE:
+            case ATTR_BASE:
+            case ATTR_REVERSE_RANGE:
+               {
+                  tree_t prefix = tree_name(name);
 
-               const int nparams = tree_params(name);
-               for (int i = 0; i < nparams; i++)
-                  tree_add_param(new, tree_param(name, i));
+                  tree_t new = tree_new(T_ATTR_REF);
+                  tree_set_loc(new, tree_loc(t));
+                  tree_set_name(new, prefix);
+                  tree_set_ident(new, tree_ident(t));
+                  tree_set_subkind(new, predef);
+                  tree_set_type(new, tree_type(t));
 
-               t = new;
-               name = tree_name(new);
-               name_kind = tree_kind(name);
+                  const int nparams = tree_params(name);
+                  if (nparams == 1) {
+                     // Avoid duplicated error messages if dimension is
+                     // out of range
+                     tree_t p0 = tree_param(name, 0);
+                     int64_t dim;
+                     if (!folded_int(tree_value(p0), &dim))
+                        break;
+                     else if (dim < 1 || dim > dimension_of(tree_type(prefix)))
+                        break;
+
+                     tree_add_param(new, p0);
+                  }
+                  else
+                     assert(nparams == 0);
+
+                  return new;
+               }
             }
+
+            break;  // Prefix may contain errors
          }
 
          type_t type = tree_type(name);
@@ -557,33 +576,33 @@ static tree_t simp_attr_ref(tree_t t, simp_ctx_t *ctx)
                            "expression was not folded");
             }
 
-            if (name_kind == T_REF
+            if (tree_kind(name) == T_REF
                 && tree_kind(tree_ref(name)) == T_TYPE_DECL
                 && type_kind(type) == T_ARRAY) {
 
                // Get index type of unconstrained array
 
                if (dim_i < 1 || dim_i > type_indexes(type))
-                  return t;
+                  break;
 
                type  = type_index(type, dim_i - 1);
                dim_i = 1;
             }
             else if (type_is_unconstrained(type))
-               return t;
+               break;
             else if (dim_i < 1 || dim_i > dimension_of(type))
-               return t;
+               break;
          }
 
          tree_t r = range_of(type, dim_i - 1);
 
          const range_kind_t rkind = tree_subkind(r);
          if (rkind != RANGE_TO && rkind != RANGE_DOWNTO)
-            return t;
+            break;
 
          int64_t low, high;
          if (!folded_bounds(r, &low, &high))
-            return t;
+            break;
 
          switch (predef) {
          case ATTR_LENGTH:
@@ -615,13 +634,16 @@ static tree_t simp_attr_ref(tree_t t, simp_ctx_t *ctx)
          case ATTR_ASCENDING:
             return get_enum_lit(t, NULL, (rkind == RANGE_TO));
          default:
-            return t;
+            break;
          }
       }
+      break;
 
    default:
-      return t;
+      break;
    }
+
+   return t;
 }
 
 static void simp_build_wait_cb(tree_t expr, void *ctx)
@@ -1251,14 +1273,12 @@ static tree_t simp_context_ref(tree_t t, simp_ctx_t *ctx)
 static tree_t simp_assert(tree_t t)
 {
    bool value_b;
-   if (!tree_has_value(t))
-      return t;
-   else if (folded_bool(tree_value(t), &value_b) && value_b) {
+   if (tree_has_value(t) && folded_bool(tree_value(t), &value_b) && value_b) {
       // Assertion always passes
       return NULL;
    }
-   else
-      return t;
+
+   return t;
 }
 
 static tree_t simp_if_generate(tree_t t)
@@ -1371,37 +1391,36 @@ static tree_t simp_var_assign(tree_t t)
 
 static tree_t simp_return(tree_t t)
 {
-   if (!tree_has_value(t))
-      return t;
+   if (tree_has_value(t)) {
+      tree_t value = tree_value(t);
+      if (tree_kind(value) == T_COND_VALUE) {
+         // Replace with an if statement
+         tree_t new = tree_new(T_IF);
+         tree_set_loc(new, tree_loc(t));
 
-   tree_t value = tree_value(t);
-   if (tree_kind(value) == T_COND_VALUE) {
-      // Replace with an if statement
-      tree_t new = tree_new(T_IF);
-      tree_set_loc(new, tree_loc(t));
+         const int nconds = tree_conds(value);
+         for (int i = 0; i < nconds; i++) {
+            tree_t e = tree_cond(value, i);
 
-      const int nconds = tree_conds(value);
-      for (int i = 0; i < nconds; i++) {
-         tree_t e = tree_cond(value, i);
+            tree_t c = tree_new(T_COND_STMT);
+            tree_set_loc(c, tree_loc(e));
 
-         tree_t c = tree_new(T_COND_STMT);
-         tree_set_loc(c, tree_loc(e));
+            if (tree_has_value(e))
+               tree_set_value(c, tree_value(e));
+            else
+               assert(i == nconds - 1);
 
-         if (tree_has_value(e))
-            tree_set_value(c, tree_value(e));
-         else
-            assert(i == nconds - 1);
+            tree_t s = tree_new(T_RETURN);
+            tree_set_loc(s, tree_loc(tree_result(e)));
+            tree_set_value(s, tree_result(e));
+            tree_set_type(s, tree_type(t));
 
-         tree_t s = tree_new(T_RETURN);
-         tree_set_loc(s, tree_loc(tree_result(e)));
-         tree_set_value(s, tree_result(e));
-         tree_set_type(s, tree_type(t));
+            tree_add_stmt(c, s);
+            tree_add_cond(new, c);
+         }
 
-         tree_add_stmt(c, s);
-         tree_add_cond(new, c);
+         return new;
       }
-
-      return new;
    }
 
    return t;

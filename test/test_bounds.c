@@ -93,7 +93,6 @@ START_TEST(test_bounds)
    mir_context_t *mc = get_mir();
    jit_t *jit = jit_new(ur, mc);
    simplify_local(a, jit, ur, mc);
-   simplify_global(a, NULL, jit, ur, mc);   // Global to fold TIME expressions
    jit_free(jit);
    bounds_check(a);
 
@@ -141,7 +140,6 @@ START_TEST(test_bounds2)
    unit_registry_t *ur = get_registry();
    jit_t *jit = jit_new(ur, mc);
    simplify_local(a, jit, ur, mc);
-   simplify_global(a, NULL, jit, ur, mc);   // Global to fold TIME expressions
    jit_free(jit);
    bounds_check(a);
 
