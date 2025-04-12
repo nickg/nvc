@@ -2321,6 +2321,22 @@ void build_wait(tree_t expr, build_wait_fn_t fn, void *ctx)
       }
       break;
 
+   case T_COND_VALUE:
+      {
+         const int nconds = tree_conds(expr);
+         for (int i = 0; i < nconds; i++)
+            build_wait(tree_cond(expr, i), fn, ctx);
+         break;
+      }
+
+   case T_COND_EXPR:
+      {
+         if (tree_has_value(expr))
+            build_wait(tree_value(expr), fn, ctx);
+         build_wait(tree_result(expr), fn, ctx);
+         break;
+      }
+
    case T_PROCESS:
    case T_SEQUENCE:
    case T_PROC_BODY:

@@ -2765,7 +2765,7 @@ START_TEST(test_force)
       { 13, "variable V is not a valid target of simple force assignment" },
       { 14, "type of force expression universal_real does not match type "
         "of target INTEGER" },
-      { 15, "target of a simple force assignment may not be an aggregate" },
+      { 15, "target of a force assignment may not be an aggregate" },
       { 29, "force mode OUT may not be used with target of mode IN" },
       { 30, "target of simple force assignment must be a signal name" },
       { 31, "force expression BOOLEAN does not match type of target BIT" },
