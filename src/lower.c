@@ -7079,18 +7079,6 @@ static void lower_match_case(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
    if (is_array && vcode_reg_kind(value_reg) != VCODE_TYPE_UARRAY)
       value_reg = lower_wrap(lu, type, value_reg);
 
-   // Call support function to check argument does not contain '-'
-   {
-      ident_t func = ident_new(
-         is_array ? "NVC.IEEE_SUPPORT.CHECK_MATCH_EXPRESSION(Y)"
-         : "NVC.IEEE_SUPPORT.CHECK_MATCH_EXPRESSION(U)");
-      vcode_reg_t context_reg = emit_link_package(well_known(W_IEEE_SUPPORT));
-
-      vcode_reg_t args[] = { context_reg, value_reg };
-      emit_fcall(func, VCODE_INVALID_REG, VCODE_INVALID_REG,
-                 args, ARRAY_LEN(args));
-   }
-
    ident_t func = ident_new(is_array ? "IEEE.STD_LOGIC_1164.\"?=\"(YY)U$predef"
                             : "IEEE.STD_LOGIC_1164.\"?=\"(UU)U$predef");
    vcode_reg_t context_reg = lower_context_for_call(lu, func);
@@ -12662,12 +12650,6 @@ static void lower_pack_body(lower_unit_t *lu, object_t *obj)
 
    tree_t pack = tree_primary(body);
    assert(!is_uninstantiated_package(pack));
-
-   if (standard() >= STD_08 && is_well_known(lu->name) == W_IEEE_1164) {
-      // VHDL-2008 and later matching operators on STD_LOGIC are
-      // implemented in the support package
-      emit_package_init(well_known(W_IEEE_SUPPORT), VCODE_INVALID_REG);
-   }
 
    tree_global_flags_t gflags = tree_global_flags(body);
    gflags |= tree_global_flags(pack);

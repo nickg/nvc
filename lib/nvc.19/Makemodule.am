@@ -5,8 +5,6 @@ nvc_19_DATA = \
 	lib/nvc.19/NVC.SIM_PKG \
 	lib/nvc.19/NVC.SIM_PKG-body \
 	lib/nvc.19/NVC.POLYFILL \
-	lib/nvc.19/NVC.IEEE_SUPPORT \
-	lib/nvc.19/NVC.IEEE_SUPPORT-body \
 	lib/nvc.19/NVC.TEXT_UTIL \
 	lib/nvc.19/NVC.TEXT_UTIL-body \
 	lib/nvc.19/NVC.PSL_SUPPORT \
@@ -32,12 +30,6 @@ lib/nvc.19/NVC.SIM_PKG-body: $(srcdir)/lib/nvc/sim_pkg-body.vhd @ifGNUmake@ | $(
 
 lib/nvc.19/NVC.POLYFILL: $(srcdir)/lib/nvc.08/polyfill.vhd @ifGNUmake@ | $(DRIVER)
 	$(nvc) --std=2019 -L lib/ --work=lib/nvc.19 -a $(srcdir)/lib/nvc.08/polyfill.vhd
-
-lib/nvc.19/NVC.IEEE_SUPPORT: $(srcdir)/lib/nvc.08/ieee_support.vhd @ifGNUmake@ | $(DRIVER)
-	$(nvc) --std=2019 -L lib/ --work=lib/nvc.19 -a $(srcdir)/lib/nvc.08/ieee_support.vhd
-
-lib/nvc.19/NVC.IEEE_SUPPORT-body: $(srcdir)/lib/nvc.08/ieee_support-body.vhd @ifGNUmake@ | $(DRIVER)
-	$(nvc) --std=2019 -L lib/ --work=lib/nvc.19 -a $(srcdir)/lib/nvc.08/ieee_support-body.vhd
 
 lib/nvc.19/NVC.TEXT_UTIL: $(srcdir)/lib/nvc/text_util.vhd @ifGNUmake@ | $(DRIVER)
 	$(nvc) --std=2019 -L lib/ --work=lib/nvc.19 -a $(srcdir)/lib/nvc/text_util.vhd

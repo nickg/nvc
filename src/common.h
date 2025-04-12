@@ -288,7 +288,6 @@ typedef enum {
    W_IEEE_1164_RISING_EDGE,
    W_IEEE_1164_FALLING_EDGE,
    W_TEXT_UTIL,
-   W_IEEE_SUPPORT,
 
    NUM_WELL_KNOWN
 } well_known_t;

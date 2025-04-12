@@ -1110,7 +1110,6 @@ void intern_strings(void)
    id_cache[W_VITAL]           = ident_new("VITAL");
    id_cache[W_RESOLUTION]      = ident_new("resolution");
    id_cache[W_TEXT_UTIL]       = ident_new("NVC.TEXT_UTIL");
-   id_cache[W_IEEE_SUPPORT]    = ident_new("NVC.IEEE_SUPPORT");
 
    id_cache[W_IEEE_LOGIC_VECTOR] =
       ident_new("IEEE.STD_LOGIC_1164.STD_LOGIC_VECTOR");

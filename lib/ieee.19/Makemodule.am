@@ -110,6 +110,3 @@ gen-deps-ieee-19:
 		 | $(deps_pp) > $(srcdir)/lib/ieee.19/deps.mk
 
 include lib/ieee.19/deps.mk
-
-# Code generation dependency for predefined operators
-lib/ieee.19/IEEE.STD_LOGIC_1164-body: lib/nvc.19/NVC.IEEE_SUPPORT

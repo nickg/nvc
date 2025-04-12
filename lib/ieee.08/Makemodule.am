@@ -132,6 +132,3 @@ gen-deps-ieee-08:
 		 | $(deps_pp) > $(srcdir)/lib/ieee.08/deps.mk
 
 include lib/ieee.08/deps.mk
-
-# Code generation dependency for predefined operators
-lib/ieee.08/IEEE.STD_LOGIC_1164-body: lib/nvc.08/NVC.IEEE_SUPPORT
