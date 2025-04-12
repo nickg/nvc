@@ -37,7 +37,6 @@ typedef struct {
    jit_t           *jit;
    unit_registry_t *registry;
    mir_context_t   *mir;
-   tree_flags_t     eval_mask;
    hash_t          *generics;
 } simp_ctx_t;
 
@@ -149,22 +148,6 @@ static tree_t simp_call_args(tree_t t)
    return new;
 }
 
-static void simp_generic_subprogram(tree_t t, simp_ctx_t *ctx)
-{
-   tree_t decl = tree_ref(t);
-   if (tree_kind(decl) == T_GENERIC_DECL) {
-      tree_t map = hash_get(ctx->generics, tree_ref(t));
-      if (map == NULL)
-         return;
-
-      if (tree_kind(map) == T_REF)
-         map = tree_ref(map);
-
-      assert(is_subprogram(map));
-      tree_set_ref(t, map);
-   }
-}
-
 static tree_t simp_concat(tree_t t)
 {
    assert(tree_params(t) == 2);
@@ -268,129 +251,130 @@ static tree_t simp_concat(tree_t t)
    return agg;
 }
 
-static bool simp_literal_args(tree_t t, int64_t *p0, int64_t *p1)
+static tree_t simp_literal_expr(tree_t t, subprogram_kind_t kind)
 {
+   // Simplify basic operations on literals without the overhead of
+   // generating code
+   int64_t p0, p1, result;
    switch (tree_params(t)) {
    case 2:
-      if (!folded_int(tree_value(tree_param(t, 1)), p1))
-         return false;
+      if (!folded_int(tree_value(tree_param(t, 1)), &p1))
+         return t;
       // Fall-through
    case 1:
-      return folded_int(tree_value(tree_param(t, 0)), p0);
+      if (!folded_int(tree_value(tree_param(t, 0)), &p0))
+         return t;
+      break;
    default:
-      return false;
+      return t;
+   }
+
+   switch (kind) {
+   case S_NEGATE:
+      if (p0 == INT64_MIN)
+         return t;
+      else
+         return get_int_lit(t, NULL, -p0);
+   case S_IDENTITY:
+      return get_int_lit(t, NULL, p0);
+   case S_SCALAR_NOT:
+      return get_enum_lit(t, NULL, !p0);
+   case S_SCALAR_EQ:
+      return get_enum_lit(t, NULL, p0 == p1);
+   case S_SCALAR_NEQ:
+      return get_enum_lit(t, NULL, p0 != p1);
+   case S_SCALAR_GT:
+      return get_enum_lit(t, NULL, p0 > p1);
+   case S_SCALAR_LT:
+      return get_enum_lit(t, NULL, p0 < p1);
+   case S_SCALAR_GE:
+      return get_enum_lit(t, NULL, p0 >= p1);
+   case S_SCALAR_LE:
+      return get_enum_lit(t, NULL, p0 <= p1);
+   case S_SCALAR_XOR:
+      return get_enum_lit(t, NULL, p0 ^ p1);
+   case S_SCALAR_XNOR:
+      return get_enum_lit(t, NULL, !(p0 ^ p1));
+   case S_SCALAR_AND:
+      return get_enum_lit(t, NULL, p0 & p1);
+   case S_SCALAR_NAND:
+      return get_enum_lit(t, NULL, !(p0 & p1));
+   case S_SCALAR_OR:
+      return get_enum_lit(t, NULL, p0 | p1);
+   case S_SCALAR_NOR:
+      return get_enum_lit(t, NULL, !(p0 | p1));
+   case S_ADD:
+      if (__builtin_add_overflow(p0, p1, &result))
+         return t;
+      else
+         return get_int_lit(t, NULL, result);
+   case S_SUB:
+      if (__builtin_sub_overflow(p0, p1, &result))
+         return t;
+      else
+         return get_int_lit(t, NULL, result);
+   case S_MUL:
+      if (__builtin_mul_overflow(p0, p1, &result))
+         return t;
+      else
+         return get_int_lit(t, NULL, result);
+   case S_DIV:
+      if ((p0 == INT64_MIN && p1 == -1) || p1 == 0)
+         return t;
+      else
+         return get_int_lit(t, NULL, p0 / p1);
+   case S_EXP:
+      if (p1 >= 0 && ipow_safe(p0, p1, &result))
+         return get_int_lit(t, NULL, result);
+      else
+         return t;
+   case S_ABS:
+      if (p0 == INT64_MIN)
+         return t;
+      else
+         return get_int_lit(t, NULL, llabs(p0));
+   default:
+      return t;
    }
 }
 
-static tree_t simp_fcall(tree_t t, simp_ctx_t *ctx)
+static tree_t simp_fcall_local(tree_t t, simp_ctx_t *ctx)
 {
-   if (standard() >= STD_08 && ctx->generics != NULL)
-      simp_generic_subprogram(t, ctx);
-
-   t = simp_call_args(t);
+   tree_t new = simp_call_args(t);
+   if (new != t)
+      return new;   // Will be called again on new tree
 
    const subprogram_kind_t kind = tree_subkind(tree_ref(t));
-   const tree_flags_t flags = tree_flags(t);
-
    if (kind == S_CONCAT)
       return simp_concat(t);
    else if (kind != S_USER) {
-      // Simplify basic operations on literals without the overhead of
-      // generating code
-      int64_t p0, p1, result;
-      if (simp_literal_args(t, &p0, &p1)) {
-         switch (kind) {
-         case S_NEGATE:
-            if (p0 == INT64_MIN)
-               break;
-            else
-               return get_int_lit(t, NULL, -p0);
-
-         case S_IDENTITY:
-            return get_int_lit(t, NULL, p0);
-
-         case S_SCALAR_NOT:
-            return get_enum_lit(t, NULL, !p0);
-
-         case S_SCALAR_EQ:
-            return get_enum_lit(t, NULL, p0 == p1);
-
-         case S_SCALAR_NEQ:
-            return get_enum_lit(t, NULL, p0 != p1);
-
-         case S_SCALAR_GT:
-            return get_enum_lit(t, NULL, p0 > p1);
-
-         case S_SCALAR_LT:
-            return get_enum_lit(t, NULL, p0 < p1);
-
-         case S_SCALAR_GE:
-            return get_enum_lit(t, NULL, p0 >= p1);
-
-         case S_SCALAR_LE:
-            return get_enum_lit(t, NULL, p0 <= p1);
-
-         case S_SCALAR_XOR:
-            return get_enum_lit(t, NULL, p0 ^ p1);
-
-         case S_SCALAR_XNOR:
-            return get_enum_lit(t, NULL, !(p0 ^ p1));
-
-         case S_SCALAR_AND:
-            return get_enum_lit(t, NULL, p0 & p1);
-
-         case S_SCALAR_NAND:
-            return get_enum_lit(t, NULL, !(p0 & p1));
-
-         case S_SCALAR_OR:
-            return get_enum_lit(t, NULL, p0 | p1);
-
-         case S_SCALAR_NOR:
-            return get_enum_lit(t, NULL, !(p0 | p1));
-
-         case S_ADD:
-            if (__builtin_add_overflow(p0, p1, &result))
-               break;
-            else
-               return get_int_lit(t, NULL, result);
-
-         case S_SUB:
-            if (__builtin_sub_overflow(p0, p1, &result))
-               break;
-            else
-               return get_int_lit(t, NULL, result);
-
-         case S_MUL:
-            if (__builtin_mul_overflow(p0, p1, &result))
-               break;
-            else
-               return get_int_lit(t, NULL, result);
-
-         case S_DIV:
-            if ((p0 == INT64_MIN && p1 == -1) || p1 == 0)
-               break;
-            else
-               return get_int_lit(t, NULL, p0 / p1);
-
-         case S_EXP:
-            if (p1 >= 0 && ipow_safe(p0, p1, &result))
-               return get_int_lit(t, NULL, result);
-            else
-               break;
-
-         case S_ABS:
-            if (p0 == INT64_MIN)
-               break;
-            else
-               return get_int_lit(t, NULL, llabs(p0));
-
-         default:
-            break;
-         }
-      }
+      tree_t new = simp_literal_expr(t, kind);
+      if (new != t)
+         return new;
    }
 
-   if (flags & ctx->eval_mask) {
+   if (!(tree_flags(t) & TREE_F_LOCALLY_STATIC))
+      return t;
+
+   if (eval_possible(t, ctx->registry, ctx->mir))
+      return eval_try_fold(ctx->jit, t, ctx->registry, NULL, NULL);
+
+   return t;
+}
+
+static tree_t simp_fcall_global(tree_t t, simp_ctx_t *ctx)
+{
+   const subprogram_kind_t kind = tree_subkind(tree_ref(t));
+   assert(kind != S_CONCAT);
+
+   if (kind != S_USER) {
+      tree_t new = simp_literal_expr(t, kind);
+      if (new != t)
+         return new;
+   }
+
+   const tree_flags_t flags = tree_flags(t);
+   if (flags & TREE_F_GLOBALLY_STATIC) {
       // Only evaluate non-scalar expressions if they are locally-static
       if (!(flags & TREE_F_LOCALLY_STATIC) && !type_is_scalar(tree_type(t)))
          return t;
@@ -420,9 +404,6 @@ static tree_t simp_type_conv(tree_t t, simp_ctx_t *ctx)
 
 static tree_t simp_pcall(tree_t t, simp_ctx_t *ctx)
 {
-   if (standard() >= STD_08 && ctx->generics != NULL)
-      simp_generic_subprogram(t, ctx);
-
    return simp_call_args(t);
 }
 
@@ -1723,7 +1704,7 @@ static tree_t simp_tree_local(tree_t t, void *_ctx)
       return simp_attr_ref(t, ctx);
    case T_FCALL:
    case T_PROT_FCALL:
-      return simp_fcall(t, ctx);
+      return simp_fcall_local(t, ctx);
    case T_PCALL:
    case T_PROT_PCALL:
       return simp_pcall(t, ctx);
@@ -1811,7 +1792,6 @@ void simplify_local(tree_t top, jit_t *jit, unit_registry_t *ur,
       .jit       = jit,
       .registry  = ur,
       .mir       = mc,
-      .eval_mask = TREE_F_LOCALLY_STATIC,
    };
 
    tree_rewrite(top, NULL, simp_tree_local, NULL, &ctx);
@@ -1828,7 +1808,7 @@ static tree_t simp_tree_global(tree_t t, void *_ctx)
       return simp_attr_ref(t, ctx);
    case T_FCALL:
    case T_PROT_FCALL:
-      return simp_fcall(t, ctx);
+      return simp_fcall_global(t, ctx);
    case T_REF:
       return simp_ref(t, ctx);
    case T_IF:
@@ -1878,7 +1858,6 @@ void simplify_global(tree_t top, hash_t *generics, jit_t *jit,
       .jit       = jit,
       .registry  = ur,
       .mir       = mc,
-      .eval_mask = TREE_F_LOCALLY_STATIC | TREE_F_GLOBALLY_STATIC,
       .generics  = generics,
    };
 
