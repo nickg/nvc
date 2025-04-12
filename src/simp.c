@@ -43,8 +43,6 @@ typedef struct {
 
 typedef A(tree_t) tree_list_t;
 
-static tree_t simp_tree(tree_t t, void *context);
-
 static tree_t simp_call_args(tree_t t)
 {
    tree_t decl = tree_ref(t);
@@ -1714,7 +1712,7 @@ static void simp_generic_map(tree_t t, tree_t unit)
       tree_trim_genmaps(t, last_pos + values.count);
 }
 
-static tree_t simp_tree(tree_t t, void *_ctx)
+static tree_t simp_tree_local(tree_t t, void *_ctx)
 {
    simp_ctx_t *ctx = _ctx;
 
@@ -1816,7 +1814,60 @@ void simplify_local(tree_t top, jit_t *jit, unit_registry_t *ur,
       .eval_mask = TREE_F_LOCALLY_STATIC,
    };
 
-   tree_rewrite(top, NULL, simp_tree, NULL, &ctx);
+   tree_rewrite(top, NULL, simp_tree_local, NULL, &ctx);
+}
+
+static tree_t simp_tree_global(tree_t t, void *_ctx)
+{
+   simp_ctx_t *ctx = _ctx;
+
+   switch (tree_kind(t)) {
+   case T_PROCESS:
+      return simp_process(t);
+   case T_ATTR_REF:
+      return simp_attr_ref(t, ctx);
+   case T_FCALL:
+   case T_PROT_FCALL:
+      return simp_fcall(t, ctx);
+   case T_REF:
+      return simp_ref(t, ctx);
+   case T_IF:
+      return simp_if(t);
+   case T_CASE:
+      return simp_case(t);
+   case T_CASE_GENERATE:
+      return simp_case_generate(t);
+   case T_WHILE:
+      return simp_while(t);
+   case T_RECORD_REF:
+      return simp_record_ref(t, ctx);
+   case T_ASSERT:
+      return simp_assert(t);
+   case T_IF_GENERATE:
+      return simp_if_generate(t);
+   case T_TYPE_CONV:
+      return simp_type_conv(t, ctx);
+   case T_RANGE:
+      return simp_range(t);
+   case T_SEQUENCE:
+      return simp_sequence(t);
+   case T_COND_EXPR:
+      return simp_cond_expr(t);
+   case T_COND_VALUE:
+      return simp_cond_value(t);
+   case T_AGGREGATE:
+      return simp_aggregate(t);  // TODO: remove this
+   case T_CONCURRENT:
+   case T_COND_ASSIGN:
+   case T_SELECT:
+   case T_MATCH_SELECT:
+   case T_NULL:
+   case T_COND_RETURN:
+   case T_CONTEXT_REF:
+      should_not_reach_here();   // Should already have been rewritten
+   default:
+      return t;
+   }
 }
 
 void simplify_global(tree_t top, hash_t *generics, jit_t *jit,
@@ -1831,5 +1882,5 @@ void simplify_global(tree_t top, hash_t *generics, jit_t *jit,
       .generics  = generics,
    };
 
-   tree_rewrite(top, NULL, simp_tree, NULL, &ctx);
+   tree_rewrite(top, NULL, simp_tree_global, NULL, &ctx);
 }
