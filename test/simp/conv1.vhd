@@ -10,6 +10,12 @@ architecture test of conv1 is
 
     type byte_array1 is array (natural range <>) of bit_vector(1 to 8);
     type byte_array2 is array (natural range <>) of bit_vector(7 downto 0);
+
+    function func1 (x : in natural_vector) return natural_vector is
+        constant padding : integer_vector(1 to (4-(x'length mod 4))) := (others => 0);
+    begin
+        return natural_vector(padding);  -- Should not fold
+    end function;
 begin
 
     p1: process is

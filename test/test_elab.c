@@ -432,9 +432,9 @@ START_TEST(test_issue305)
    fail_unless(tree_kind(s) == T_SIGNAL_DECL);
    fail_unless(icmp(tree_ident(s), "DATA_I"));
 
-   // This used to be folded but currently not
    int64_t len;
-   fail_if(folded_length(range_of(tree_type(s), 0), &len));
+   fail_unless(folded_length(range_of(tree_type(s), 0), &len));
+   ck_assert_int_eq(len, 8);
 
    fail_if_errors();
 }

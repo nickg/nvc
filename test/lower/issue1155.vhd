@@ -16,7 +16,12 @@ architecture test of test is
         x, y : integer;
     end record;
 
-    constant p : p_rec := (x => 8, y => 16);
+    impure function get_p return p_rec is
+    begin
+        return (x => 8, y => 16);
+    end function;
+
+    constant p : p_rec := get_p;
 
     signal SomeArr : ArrayOfSigned16(0 to p.x - 1);
     signal Valid : bit;

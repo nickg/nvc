@@ -223,7 +223,7 @@ static bool lower_is_const(tree_t t)
                break;
             }
 
-            if (!lower_is_const(tree_value(tree_assoc(t, i))))
+            if (!lower_is_const(tree_value(a)))
                return false;
          }
 
@@ -2619,41 +2619,50 @@ static vcode_type_t lower_var_type(tree_t decl)
 static vcode_reg_t lower_link_var(lower_unit_t *lu, tree_t decl)
 {
    tree_t container = tree_container(decl);
-   const tree_kind_t kind = tree_kind(container);
-   vcode_reg_t context = VCODE_INVALID_REG;
-   vcode_type_t vtype = lower_var_type(decl);
-
-   if (kind != T_PACKAGE && kind != T_PACK_INST) {
-      if (lu->mode == LOWER_THUNK)
-         return emit_undefined(vtype_pointer(vtype), vtype);
-      else {
-         vcode_dump();
-         fatal_trace("invalid container kind %s for %s", tree_kind_str(kind),
-                     istr(tree_ident(decl)));
-      }
-   }
-   else if (lu->mode == LOWER_THUNK && container == lu->container) {
-      // Must avoid circular references to the current package but for
-      // simple constants we can just regenerate the value inline
-      assert(tree_kind(decl) == T_CONST_DECL);
-
-      if (tree_has_value(decl)) {
-         tree_t value = tree_value(decl);
-         if (lower_is_const(value))
-            return lower_rvalue(lu, value);
-      }
-
-      return emit_undefined(vtype_pointer(vtype), vtype);
-   }
-
    assert(!is_uninstantiated_package(container));
 
-   if (lu->mode == LOWER_THUNK)
-      context = emit_package_init(tree_ident(container), VCODE_INVALID_REG);
-   else
-      context = emit_link_package(tree_ident(container));
+   vcode_reg_t context;
+   int hops;
+   ident_t container_name = tree_ident(container);
+   vcode_reg_t reg = lower_search_vcode_obj(container_name, lu, &hops);
+   if (reg != VCODE_INVALID_REG)
+      context = emit_link_package(container_name);
+   else if (lu->mode == LOWER_THUNK) {
+      if (tree_kind(decl) == T_CONST_DECL && tree_has_value(decl)) {
+         tree_t value = tree_value(decl);
+         if (lower_is_const(value)) {
+            type_t to_type = tree_type(decl);
+            type_t from_type = tree_type(value);
 
-   return emit_link_var(context, tree_ident(decl), vtype);
+            emit_comment("Expanding constant %s", istr(tree_ident(decl)));
+
+            vcode_reg_t value_reg = lower_rvalue(lu, value);
+            if (type_is_array(from_type))
+               return lower_coerce_arrays(lu, from_type, to_type, value_reg);
+            else
+               return value_reg;
+         }
+      }
+
+      if (is_well_known(container_name) < NUM_WELL_KNOWN)
+         context = emit_package_init(container_name, VCODE_INVALID_REG);
+      else {
+         vcode_type_t vcontext = vtype_context(container_name);
+         context = emit_undefined(vcontext, vcontext);
+      }
+   }
+   else if (is_package(container)) {
+      // XXX: this should be impossible but can be triggered since
+      // record subtypes do not currently have bounds variables
+      context = emit_link_package(container_name);
+   }
+   else {
+      vcode_dump();
+      fatal_trace("invalid container kind %s for %s",
+                  tree_kind_str(tree_kind(container)), istr(tree_ident(decl)));
+   }
+
+   return emit_link_var(context, tree_ident(decl), lower_var_type(decl));
 }
 
 static vcode_reg_t lower_var_ref(lower_unit_t *lu, tree_t decl, expr_ctx_t ctx)
@@ -2766,6 +2775,7 @@ static vcode_reg_t lower_param_ref(lower_unit_t *lu, tree_t decl)
    int obj = lower_search_vcode_obj(decl, lu, &hops);
 
    const bool is_proc_var = (obj != -1 && !!(obj & PARAM_VAR_BIT));
+   const bool is_invalid = obj == VCODE_INVALID_REG;
    obj &= ~PARAM_VAR_BIT;
 
    if (hops > 0) {
@@ -2777,7 +2787,7 @@ static vcode_reg_t lower_param_ref(lower_unit_t *lu, tree_t decl)
    else {
       vcode_reg_t reg = obj;
       const bool undefined_in_thunk =
-         lu->mode == LOWER_THUNK && (reg == VCODE_INVALID_REG
+         lu->mode == LOWER_THUNK && (is_invalid
                                      || tree_class(decl) == C_SIGNAL
                                      || type_is_protected(tree_type(decl)));
       if (undefined_in_thunk) {
@@ -2793,7 +2803,7 @@ static vcode_reg_t lower_param_ref(lower_unit_t *lu, tree_t decl)
                return emit_undefined(vtype, lower_bounds(type));
          }
       }
-      else if (reg == VCODE_INVALID_REG) {
+      else if (is_invalid) {
          vcode_dump();
          fatal_trace("missing register for parameter %s",
                      istr(tree_ident(decl)));

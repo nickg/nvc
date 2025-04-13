@@ -1676,9 +1676,9 @@ START_TEST(test_issue782)
    tree_t s = tree_decl(b_block, 1);
    fail_unless(tree_kind(s) == T_SIGNAL_DECL);
 
+   // This used to be folded but is not currently
    tree_t left = tree_left(range_of(tree_type(s), 0));
-   fail_unless(tree_kind(left) == T_LITERAL);
-   fail_unless(tree_ival(left) == 7);
+   fail_unless(tree_kind(left) == T_FCALL);
 
    fail_if_errors();
 }

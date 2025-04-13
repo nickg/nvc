@@ -18,7 +18,13 @@ end entity;
 
 architecture test of issue837 is
     signal x : bit_vector(1 to 12);
-    constant str : string := "12";
+
+    impure function get_str return string is
+    begin
+        return "12";
+    end function;
+
+    constant str : string := get_str;
 begin
     b: block is
         port ( p : in bit_vector(1 to expensive(str)) );
