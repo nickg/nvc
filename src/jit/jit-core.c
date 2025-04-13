@@ -558,6 +558,9 @@ static void jit_emit_trace(diag_t *d, const loc_t *loc, object_t *enclosing,
       case T_TYPE_CONV:
          diag_trace(d, loc, "Type conversion %s", type_pp(tree_type(tree)));
          break;
+      case T_PARAM_DECL:
+         diag_trace(d, loc, "Parameter %s", istr(tree_ident(tree)));
+         break;
       default:
          {
             const char *class = class_str(class_of(tree));

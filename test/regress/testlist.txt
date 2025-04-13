@@ -1110,3 +1110,4 @@ agg11           normal,2008
 agg12           normal,2008
 agg13           normal,2008
 agg14           normal,2008
+proc13          fail,gold,2002

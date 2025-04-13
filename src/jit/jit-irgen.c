@@ -2687,9 +2687,11 @@ static void irgen_op_link_var(jit_irgen_t *g, mir_value_t n)
          break;
    }
 
-   if (tab == f->linktab + f->nvars)
+   if (tab == f->linktab + f->nvars) {
+      mir_dump(g->mu);
       fatal_trace("variable %s not found in unit %s", istr(var_name),
                   istr(f->name));
+   }
 
    g->map[n.id] = jit_addr_from_value(context, tab->offset);
 }

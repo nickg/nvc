@@ -1219,10 +1219,38 @@ static vcode_reg_t lower_subprogram_arg(lower_unit_t *lu, tree_t fcall,
    else if (class == C_SIGNAL || class == C_FILE || mode != PORT_IN)
       reg = lower_lvalue(lu, value);
    else if (tree_kind(value) == T_OPEN) {
-      // TODO: need to evaluate in context where expression was defined
       tree_t def = tree_value(port);
-      reg = lower_rvalue(lu, def);
-      value_type = tree_type(def);
+      if (is_body(decl) || is_literal(def) || tree_kind(def) == T_STRING) {
+         reg = lower_rvalue(lu, def);
+         value_type = tree_type(def);
+      }
+      else {
+         // Need to evaluate default expression in the context where it
+         // was defined
+         ident_t func = ident_sprintf("%s$default_%s", istr(tree_ident2(decl)),
+                                      istr(tree_ident(port)));
+
+         vcode_type_t vtype = lower_func_result_type(port_type);
+         vcode_type_t vbounds = lower_bounds(port_type);
+
+         vcode_reg_t context_reg;
+         switch (tree_kind(fcall)) {
+         case T_PROT_FCALL:
+         case T_PROT_PCALL:
+            if (tree_has_name(fcall)) {
+               // XXX: evaluates prefix twice
+               context_reg = lower_rvalue(lu, tree_name(fcall));
+               break;
+            }
+            // Fall-through
+         default:
+            context_reg = lower_context_for_call(lu, func);
+            break;
+         }
+
+         vcode_reg_t args[] = { context_reg };
+         reg = emit_fcall(func, vtype, vbounds, args, 1);
+      }
    }
    else
       reg = lower_rvalue(lu, value);
@@ -10003,12 +10031,33 @@ static void lower_protected_body(lower_unit_t *lu, object_t *obj)
          lower_put_vcode_obj(inst_i, inst_var, lu);
          emit_store(inst_reg, inst_var);
       }
-
-      lower_decls(lu, tree_primary(body));
    }
 
+   lower_decls(lu, tree_primary(body));
    lower_decls(lu, body);
    emit_return(VCODE_INVALID_REG);
+}
+
+static void lower_subprogram_default(lower_unit_t *lu, object_t *obj)
+{
+   tree_t port = tree_from_object(obj);
+   assert(tree_kind(port) == T_PARAM_DECL);
+
+   tree_t value = tree_value(port);
+   type_t value_type = tree_type(value);
+   type_t port_type = tree_type(port);
+
+   vcode_set_result(lower_func_result_type(port_type));
+
+   vcode_type_t vcontext = vtype_context(lu->parent->name);
+   emit_param(vcontext, vcontext, ident_new("context"));
+
+   vcode_reg_t result_reg = lower_rvalue(lu, value);
+
+   if (type_is_array(value_type))
+      emit_return(lower_coerce_arrays(lu, value_type, port_type, result_reg));
+   else
+      emit_return(result_reg);
 }
 
 static void lower_decls(lower_unit_t *lu, tree_t scope)
@@ -10066,7 +10115,28 @@ static void lower_decls(lower_unit_t *lu, tree_t scope)
       case T_PROC_DECL:
         {
            const subprogram_kind_t kind = tree_subkind(d);
-           if (kind == S_USER || is_open_coded_builtin(kind))
+           if (kind == S_USER) {
+              const int nports = tree_ports(d);
+              for (int i = 0; i < nports; i++) {
+                 tree_t p = tree_port(d, i);
+                 if (!tree_has_value(p))
+                    continue;
+
+                 tree_t value = tree_value(p);
+                 if (is_literal(value) || tree_kind(value) == T_STRING)
+                    continue;
+
+                 ident_t def_func = ident_sprintf("%s$default_%s",
+                                                  istr(tree_ident2(d)),
+                                                  istr(tree_ident(p)));
+                 unit_registry_defer(lu->registry, def_func, lu,
+                                     emit_function, lower_subprogram_default,
+                                     lu->cover, tree_to_object(p));
+              }
+
+              continue;
+           }
+           else if (is_open_coded_builtin(kind))
               continue;
 
            switch (kind) {

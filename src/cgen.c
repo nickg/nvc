@@ -437,13 +437,32 @@ static void preload_walk_index(lib_t lib, ident_t ident, int kind, void *ctx)
       tree_t d = tree_decl(unit, i);
       switch (tree_kind(d)) {
       case T_FUNC_DECL:
-      case T_FUNC_INST:
       case T_PROC_DECL:
+         {
+            const int nports = tree_ports(d);
+            for (int i = 0; i < nports; i++) {
+               tree_t p = tree_port(d, i);
+               if (!tree_has_value(p))
+                  continue;
+
+               tree_t value = tree_value(p);
+               if (is_literal(value) || tree_kind(value) == T_STRING)
+                  continue;
+
+               ident_t def_func = ident_sprintf("%s$default_%s",
+                                                istr(tree_ident2(d)),
+                                                istr(tree_ident(p)));
+               APUSH(*args->units, def_func);
+            }
+         }
+         // Fall-through
+      case T_FUNC_INST:
       case T_PROC_INST:
          {
-            const subprogram_kind_t kind = tree_subkind(d);
-            if (!is_open_coded_builtin(kind))
-               APUSH(*args->units, tree_ident2(d));
+            if (is_open_coded_builtin(tree_subkind(d)))
+               continue;
+
+            APUSH(*args->units, tree_ident2(d));
          }
          break;
       case T_PROT_DECL:
