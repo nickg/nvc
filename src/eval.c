@@ -21,12 +21,13 @@
 #include "eval.h"
 #include "hash.h"
 #include "ident.h"
-#include "jit/jit.h"
 #include "jit/jit-ffi.h"
+#include "jit/jit.h"
 #include "lib.h"
 #include "lower.h"
 #include "option.h"
 #include "phase.h"
+#include "rt/assert.h"
 #include "tree.h"
 #include "type.h"
 #include "vcode.h"
@@ -266,6 +267,8 @@ tree_t eval_try_fold(jit_t *jit, tree_t expr, unit_registry_t *registry,
 
    jit_set_silent(jit, false);
    jit_reset_exit_status(jit);
+
+   clear_vhdl_assert();
 
    return result;
 }

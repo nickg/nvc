@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2024  Nick Gasson
+//  Copyright (C) 2011-2025  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -611,8 +611,12 @@ START_TEST(test_issue344)
 
    tree_t top = run_elab();
 
+   // The assertions could be folded but aren't currently
    tree_t p0 = tree_stmt(tree_stmt(top, 0), 0);
-   fail_unless(tree_stmts(p0) == 2);
+   fail_unless(tree_stmts(p0) == 6);
+   fail_unless(tree_kind(tree_value(tree_stmt(p0, 0))) == T_FCALL);
+
+   fail_if_errors();
 }
 END_TEST
 
@@ -1067,7 +1071,7 @@ START_TEST(test_order1)
    tree_t p = parse_check_and_simplify(T_PACKAGE, T_PACKAGE);
 
    tree_t x = get_decl(p, "X");
-   fail_unless(folded_b(tree_value(x), false));
+   fail_unless(tree_kind(tree_value(x)) == T_FCALL);
 
    check_expected_errors();
 }
@@ -1872,6 +1876,29 @@ START_TEST(test_genpack2)
 }
 END_TEST
 
+START_TEST(test_issue1182)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/simp/issue1182.vhd");
+
+   tree_t a = parse_check_and_simplify(T_PACKAGE, T_PACKAGE, T_ENTITY, T_ARCH);
+
+   tree_t p_proc = tree_stmt(a, 0);
+   fail_unless(tree_stmts(p_proc) == 4);
+
+   tree_t a0 = tree_stmt(p_proc, 0);
+   fail_unless(tree_kind(a0) == T_ASSERT);
+   fail_unless(tree_kind(tree_value(a0)) == T_FCALL);  // Could be folded
+
+   tree_t a2 = tree_stmt(p_proc, 2);
+   fail_unless(tree_kind(a2) == T_ASSERT);
+   fail_unless(tree_kind(tree_value(a2)) == T_FCALL);  // Could be folded
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_simp_tests(void)
 {
    Suite *s = suite_create("simplify");
@@ -1944,6 +1971,7 @@ Suite *get_simp_tests(void)
    tcase_add_test(tc_core, test_physical);
    tcase_add_test(tc_core, test_synth1);
    tcase_add_test(tc_core, test_genpack2);
+   tcase_add_test(tc_core, test_issue1182);
    suite_add_tcase(s, tc_core);
 
    return s;

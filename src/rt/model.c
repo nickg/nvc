@@ -4241,14 +4241,7 @@ void x_push_scope(tree_t where, int32_t size, rt_scope_kind_t kind)
 {
    TRACE("push scope %s size=%d kind=%d", istr(tree_ident(where)), size, kind);
 
-   rt_model_t *m = get_model_or_null();
-
-   // TODO: this handles a corner case where folding locally static
-   // expression may cause packages with signals to be linked. The eval
-   // module needs to be rewritten to avoid that
-   if (m == NULL)
-      jit_abort();
-
+   rt_model_t *m = get_model();
    model_thread_t *thread = model_thread(m);
 
    ident_t name;

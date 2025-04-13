@@ -2375,8 +2375,14 @@ static vcode_reg_t lower_context_for_call(lower_unit_t *lu, ident_t unit_name)
       vcode_reg_t var_reg = emit_link_var(parent_reg, context_name, vcontext);
       return emit_load_indirect(var_reg);
    }
-   else if (vcode_unit_kind(lu->vunit) == VCODE_UNIT_THUNK)
-      return emit_package_init(context_name, VCODE_INVALID_REG);
+   else if (vcode_unit_kind(lu->vunit) == VCODE_UNIT_THUNK) {
+      if (is_well_known(context_name) < NUM_WELL_KNOWN)
+         return emit_package_init(context_name, VCODE_INVALID_REG);
+      else {
+         vcode_type_t vcontext = vtype_context(context_name);
+         return emit_undefined(vcontext, vcontext);
+      }
+   }
    else {
       // XXX: this should be impossible but can be triggered since
       // record subtypes do not currently have bounds variables
@@ -12946,10 +12952,13 @@ static void lower_thunk_body(lower_unit_t *lu, tree_t t)
 
 vcode_unit_t lower_global_thunk(unit_registry_t *registry, tree_t t)
 {
-   tree_t container = primary_unit_of(tree_container(t));
+   tree_t container = tree_container(t);
 
    vcode_unit_t thunk = emit_thunk(NULL, tree_to_object(t), NULL);
    lower_unit_t *lu = lower_unit_new(registry, NULL, thunk, NULL, container);
+
+   if (tree_kind(t) == T_FCALL && !(tree_flags(t) & TREE_F_LOCALLY_STATIC))
+      lower_dependencies(lu, container);
 
    lower_thunk_body(lu, t);
 
