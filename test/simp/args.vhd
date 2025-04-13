@@ -8,7 +8,7 @@ architecture a of args is
         return x + y;
     end function;
 
-    procedure proc(x, y : in integer) is
+    procedure proc(x, y : in integer := 55) is
     begin
     end procedure;
 
@@ -21,6 +21,8 @@ begin
         c := func(a, y => b);
         c := func(y => b, x => a);
         proc(y => b, x => a);
+        proc(y => a);
+        wait;
     end process;
 
 end architecture;

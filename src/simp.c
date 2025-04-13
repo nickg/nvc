@@ -76,12 +76,8 @@ static tree_t simp_call_args(tree_t t)
       tree_set_name(new, tree_name(t));
 
    for (int i = 0; i <= last_pos; i++) {
-      tree_t port  = tree_port(decl, i);
       tree_t param = tree_param(t, i);
       tree_t value = tree_value(param);
-
-      if (tree_kind(value) == T_OPEN)
-         value = tree_value(port);
 
       add_param(new, value, P_POS, NULL);
    }
@@ -99,12 +95,7 @@ static tree_t simp_call_args(tree_t t)
          const tree_kind_t name_kind = tree_kind(name);
          if (name_kind == T_REF) {
             if (tree_ref(name) == port) {
-               tree_t value = tree_value(p);
-
-               if (tree_kind(value) == T_OPEN)
-                  value = tree_value(port);
-
-               add_param(new, value, P_POS, NULL);
+               add_param(new, tree_value(p), P_POS, NULL);
                found = true;
                break;
             }
@@ -141,7 +132,12 @@ static tree_t simp_call_args(tree_t t)
 
       if (!found) {
          assert(tree_has_value(port));  // Checked by sem
-         add_param(new, tree_value(port), P_POS, NULL);
+
+         tree_t open = tree_new(T_OPEN);
+         tree_set_loc(open, tree_loc(t));
+         tree_set_type(open, tree_type(port));
+
+         add_param(new, open, P_POS, NULL);
       }
    }
 

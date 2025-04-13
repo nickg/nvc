@@ -313,6 +313,7 @@ bool eval_possible(tree_t t, unit_registry_t *ur, mir_context_t *mc)
 
    case T_LITERAL:
    case T_STRING:
+   case T_OPEN:
       return true;
 
    case T_TYPE_CONV:

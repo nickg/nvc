@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2024  Nick Gasson
+//  Copyright (C) 2011-2025  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -165,14 +165,23 @@ static tree_t bounds_check_call_args(tree_t t)
    bool known_arg_length = true;
 
    for (int i = 0; (i < nparams) && (i < nports); i++) {
-      tree_t param = tree_param(t, i);
-      assert(tree_subkind(param) == P_POS);
+      tree_t param = tree_param(t, i), port;
+      switch (tree_subkind(param)) {
+      case P_POS:
+         port = tree_port(decl, tree_pos(param));
+         break;
+      case P_NAMED:
+         port = tree_ref(name_to_ref(tree_name(param)));
+         break;
+      default:
+         should_not_reach_here();
+      }
+      assert(tree_kind(port) == T_PARAM_DECL);
 
       tree_t value = tree_value(param);
-      tree_t port  = tree_port(decl, tree_pos(param));
 
       type_t ftype = tree_type(port);
-      type_t atype = tree_type(tree_value(param));
+      type_t atype = tree_type(value);
 
       if (type_is_array(ftype)) {
          // Check bounds of constrained array parameters

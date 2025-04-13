@@ -1201,19 +1201,13 @@ static vcode_reg_t lower_subprogram_arg(lower_unit_t *lu, tree_t fcall,
 
    tree_t value = tree_value(param);
    tree_t decl = tree_ref(fcall);
-
-   port_mode_t mode = PORT_IN;
-   if (nth < tree_ports(decl))
-      mode = tree_subkind(tree_port(decl, nth));
-
-   tree_t port = NULL;
-   if (!is_open_coded_builtin(tree_subkind(decl)))
-      port = tree_port(decl, nth);
+   tree_t port = tree_port(decl, nth);
 
    type_t value_type = tree_type(value);
-   type_t port_type = port ? tree_type(port) : value_type;
+   type_t port_type = tree_type(port);
 
-   const class_t class = port ? tree_class(port) : C_DEFAULT;
+   const class_t class = tree_class(port);
+   const port_mode_t mode = tree_subkind(port);
 
    vcode_reg_t reg;
    if (class == C_SIGNAL && tree_kind(value) == T_AGGREGATE) {
@@ -1224,14 +1218,17 @@ static vcode_reg_t lower_subprogram_arg(lower_unit_t *lu, tree_t fcall,
    }
    else if (class == C_SIGNAL || class == C_FILE || mode != PORT_IN)
       reg = lower_lvalue(lu, value);
+   else if (tree_kind(value) == T_OPEN) {
+      // TODO: need to evaluate in context where expression was defined
+      tree_t def = tree_value(port);
+      reg = lower_rvalue(lu, def);
+      value_type = tree_type(def);
+   }
    else
       reg = lower_rvalue(lu, value);
 
-   if (reg == VCODE_INVALID_REG)
-      return reg;
-
    if (type_is_array(value_type)) {
-      if (port != NULL && !type_is_unconstrained(port_type)) {
+      if (!type_is_unconstrained(port_type)) {
          vcode_reg_t locus = lower_debug_locus(port);
          lower_check_array_sizes(lu, port_type, value_type,
                                  VCODE_INVALID_REG, reg, locus);
@@ -1240,7 +1237,7 @@ static vcode_reg_t lower_subprogram_arg(lower_unit_t *lu, tree_t fcall,
    }
    else if (class == C_SIGNAL || class == C_FILE)
       return reg;
-   else if (mode == PORT_OUT || port == NULL || !type_is_scalar(port_type))
+   else if (mode == PORT_OUT || !type_is_scalar(port_type))
       return reg;
    else if (mode == PORT_INOUT) {
       vcode_reg_t scalar_reg = emit_load_indirect(reg);
@@ -2181,7 +2178,9 @@ static vcode_reg_t lower_builtin(lower_unit_t *lu, tree_t fcall,
          if (tree_params(fcall) == 3)
             outlen = lower_subprogram_arg(lu, fcall, 2);
 
-         emit_file_read(r0, r1, inlen, outlen);
+         vcode_reg_t data_reg = lower_array_data(r1);
+         emit_file_read(r0, data_reg, inlen, outlen);
+
          return VCODE_INVALID_REG;
       }
    case S_DEALLOCATE:

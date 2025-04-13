@@ -308,6 +308,14 @@ START_TEST(test_args)
    fail_unless(icmp(tree_ident(tree_value(tree_param(s, 0))), "A"));
    fail_unless(tree_subkind(tree_param(s, 1)) == P_POS);
    fail_unless(icmp(tree_ident(tree_value(tree_param(s, 1))), "B"));
+
+   s = tree_stmt(p, 4);
+   fail_unless(tree_kind(s) == T_PCALL);
+   fail_unless(tree_params(s) == 2);
+   fail_unless(tree_subkind(tree_param(s, 0)) == P_POS);
+   fail_unless(tree_kind(tree_value(tree_param(s, 0))) == T_OPEN);
+   fail_unless(tree_subkind(tree_param(s, 1)) == P_POS);
+   fail_unless(icmp(tree_ident(tree_value(tree_param(s, 1))), "A"));
 }
 END_TEST
 

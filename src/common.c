@@ -2238,10 +2238,20 @@ void build_wait(tree_t expr, build_wait_fn_t fn, void *ctx)
          tree_t decl = tree_ref(expr);
          const int nparams = tree_params(expr);
          for (int i = 0; i < nparams; i++) {
-            tree_t p = tree_param(expr, i);
-            assert(tree_subkind(p) == P_POS);
+            tree_t p = tree_param(expr, i), port;
+            switch (tree_subkind(p)) {
+            case P_POS:
+               port = tree_port(decl, tree_pos(p));
+               break;
+            case P_NAMED:
+               port = tree_ref(name_to_ref(tree_name(p)));
+               break;
+            default:
+               should_not_reach_here();
+            }
+            assert(tree_kind(port) == T_PARAM_DECL);
 
-            switch (tree_subkind(tree_port(decl, tree_pos(p)))) {
+            switch (tree_subkind(port)) {
             case PORT_IN:
             case PORT_INOUT:
             case PORT_ARRAY_VIEW:
@@ -2398,6 +2408,9 @@ void build_wait(tree_t expr, build_wait_fn_t fn, void *ctx)
          build_wait(tree_left(expr), fn, ctx);
          build_wait(tree_right(expr), fn, ctx);
       }
+      break;
+
+   case T_OPEN:
       break;
 
    default:
