@@ -12904,17 +12904,8 @@ vcode_unit_t lower_case_generate_thunk(lower_unit_t *parent, tree_t t)
    return thunk;
 }
 
-vcode_unit_t lower_thunk(unit_registry_t *registry, tree_t t,
-                         lower_unit_t *parent)
+static void lower_thunk_body(lower_unit_t *lu, tree_t t)
 {
-   tree_t container = primary_unit_of(tree_container(t));
-
-   assert(parent == NULL || parent->registry == registry);
-
-   vcode_unit_t context = parent ? parent->vunit : NULL;
-   vcode_unit_t thunk = emit_thunk(NULL, tree_to_object(t), context);
-   lower_unit_t *lu = lower_unit_new(registry, parent, thunk, NULL, container);
-
    type_t to_type = tree_type(t), from_type = to_type;
 
    vcode_type_t vtype = VCODE_INVALID_TYPE;
@@ -12933,11 +12924,6 @@ vcode_unit_t lower_thunk(unit_registry_t *registry, tree_t t,
 
    vcode_set_result(vtype);
 
-   if (parent != NULL) {
-      vcode_type_t vcontext = vtype_context(parent->name);
-      emit_param(vcontext, vcontext, ident_new("context"));
-   }
-
    vcode_reg_t result_reg = lower_rvalue(lu, t);
 
    if (type_is_scalar(tree_type(t)))
@@ -12946,6 +12932,43 @@ vcode_unit_t lower_thunk(unit_registry_t *registry, tree_t t,
       emit_return(lower_coerce_arrays(lu, from_type, to_type, result_reg));
    else
       emit_return(result_reg);
+}
+
+vcode_unit_t lower_global_thunk(unit_registry_t *registry, tree_t t)
+{
+   tree_t container = primary_unit_of(tree_container(t));
+
+   vcode_unit_t thunk = emit_thunk(NULL, tree_to_object(t), NULL);
+   lower_unit_t *lu = lower_unit_new(registry, NULL, thunk, NULL, container);
+
+   lower_thunk_body(lu, t);
+
+   lower_finished(lu, NULL);
+   lower_unit_free(lu);
+
+   if (vcode_unit_has_undefined(thunk)) {
+      vcode_unit_unref(thunk);
+      return NULL;
+   }
+
+   vcode_close();
+   return thunk;
+}
+
+vcode_unit_t lower_thunk_in_context(unit_registry_t *registry, tree_t t,
+                                    lower_unit_t *parent)
+{
+   tree_t container = primary_unit_of(tree_container(t));
+   assert(parent->registry == registry);
+
+   vcode_unit_t context = parent->vunit;
+   vcode_unit_t thunk = emit_thunk(NULL, tree_to_object(t), context);
+   lower_unit_t *lu = lower_unit_new(registry, parent, thunk, NULL, container);
+
+   vcode_type_t vcontext = vtype_context(parent->name);
+   emit_param(vcontext, vcontext, ident_new("context"));
+
+   lower_thunk_body(lu, t);
 
    lower_finished(lu, NULL);
    lower_unit_free(lu);

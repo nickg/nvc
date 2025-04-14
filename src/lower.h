@@ -63,8 +63,9 @@ lower_unit_t *lower_instance(unit_registry_t *ur, lower_unit_t *parent,
                              vcode_unit_t shape, driver_set_t *ds,
                              cover_data_t *cover, tree_t block);
 void lower_process(lower_unit_t *parent, tree_t proc, driver_set_t *ds);
-vcode_unit_t lower_thunk(unit_registry_t *registry, tree_t t,
-                         lower_unit_t *parent);
+vcode_unit_t lower_global_thunk(unit_registry_t *registry, tree_t t);
+vcode_unit_t lower_thunk_in_context(unit_registry_t *registry, tree_t t,
+                                    lower_unit_t *parent);
 vcode_unit_t lower_case_generate_thunk(lower_unit_t *parent, tree_t t);
 
 int lower_search_vcode_obj(void *key, lower_unit_t *scope, int *hops);

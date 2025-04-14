@@ -2771,7 +2771,7 @@ START_TEST(test_thunk)
    unit_registry_t *ur = get_registry();
 
    {
-      vcode_unit_t t0 = lower_thunk(ur, tree_value(tree_decl(arch, 0)), NULL);
+      vcode_unit_t t0 = lower_global_thunk(ur, tree_value(tree_decl(arch, 0)));
       fail_if(t0 == NULL);
       vcode_select_unit(t0);
 

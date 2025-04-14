@@ -218,7 +218,12 @@ static void *thunk_result_cb(jit_scalar_t *args, void *user)
 static tree_t eval_do_fold(jit_t *jit, tree_t expr, lower_unit_t *parent,
                            unit_registry_t *registry, void *context)
 {
-   vcode_unit_t thunk = lower_thunk(registry, expr, parent);
+   vcode_unit_t thunk;
+   if (parent != NULL)
+      thunk = lower_thunk_in_context(registry, expr, parent);
+   else
+      thunk = lower_global_thunk(registry, expr);
+
    if (thunk == NULL)
       return expr;
 
