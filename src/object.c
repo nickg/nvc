@@ -730,8 +730,8 @@ object_t *object_rewrite(object_t *object, object_rewrite_ctx_t *ctx)
    for (int n = 0; n < nitems; mask <<= 1) {
       if (has & mask & ~skip_mask) {
          if (ITEM_OBJECT & mask) {
-            object_t *o = object->items[n].object;
-            object->items[n].object = object_rewrite(o, ctx);
+            object_t *o = object_rewrite(object->items[n].object, ctx);
+            object->items[n].object = o;
             object_write_barrier(object, o);
          }
          else if (ITEM_OBJ_ARRAY & mask) {
