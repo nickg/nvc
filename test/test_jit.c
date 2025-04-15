@@ -2068,6 +2068,7 @@ START_TEST(test_trim1)
    tlab_release(tlab);
    jit_free(j);
 }
+END_TEST
 
 Suite *get_jit_tests(void)
 {
