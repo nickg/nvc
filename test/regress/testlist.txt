@@ -1112,3 +1112,4 @@ agg13           normal,2008
 agg14           normal,2008
 proc13          fail,gold,2002
 assert13        normal
+issue1185       normal,2008

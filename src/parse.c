@@ -9907,7 +9907,7 @@ static port_mode_t p_force_mode(void)
 
 static tree_t p_simple_force_assignment(ident_t label, tree_t target)
 {
-   // target <= force [ force_mode ] expression ;
+   // target <= force [ force_mode ] conditional_or_unaffected_expression ;
 
    EXTEND("simple force assignment");
 
@@ -9930,7 +9930,7 @@ static tree_t p_simple_force_assignment(ident_t label, tree_t target)
    tree_set_target(t, target);
    tree_set_subkind(t, p_force_mode());
 
-   tree_t expr = p_expression();
+   tree_t expr = p_conditional_or_unaffected_expression(STD_08);
    solve_types(nametab, expr, target_type);
 
    tree_set_value(t, expr);
