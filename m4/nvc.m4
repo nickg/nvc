@@ -40,3 +40,9 @@ AC_DEFUN([NVC_CHECK_MSYS], [
              ;;
          esac],
         [AC_MSG_RESULT([no])])])
+
+dnl Certain options are not valid for release builds
+AC_DEFUN([NVC_DEBUG_ONLY], [
+  AS_IF([test x$enable_debug$enable_maintainer_mode != xyesyes],
+        [AC_MSG_ERROR(m4_normalize([$1 is intended for debug/development of the simulator
+                                    itself and should not be enabled in release builds]))])])

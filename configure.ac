@@ -395,10 +395,6 @@ AC_ARG_ENABLE([vital],
 
 AM_CONDITIONAL([ENABLE_VITAL], [test x$enable_vital = xyes])
 
-AC_ARG_ENABLE([werror],
-  [AS_HELP_STRING([--enable-werror], [Treat warnings as errors])],
-  [EXTRA_CFLAGS="$EXTRA_CFLAGS -Werror"])
-
 AC_ARG_ENABLE([frame-pointer],
   [AS_HELP_STRING([--enable-frame-pointer],
                   [Preserve frame pointer for profiling])],
@@ -412,9 +408,24 @@ if test x$preserve_frame_pointer = xyes ; then
                      [Preserve frame pointer for profiling])
 fi
 
+AC_ARG_ENABLE([debug],
+  [AS_HELP_STRING([--enable-debug],
+                  [Enable extra debugging checks for development])],
+  [enable_debug=$enableval
+   if test x$enableval = xyes; then
+     NVC_DEBUG_ONLY([--enable-debug])
+   fi],
+  [enable_debug=no])
+
+if test x$enable_debug != xyes ; then
+  AC_DEFINE_UNQUOTED([NDEBUG], [1],
+                     [Disable extra debugging checks for development])
+fi
+
 AC_ARG_ENABLE([asan],
   [AS_HELP_STRING([--enable-asan], [Enable address sanitiser])],
   [if test x$enableval = xyes; then
+     NVC_DEBUG_ONLY([--enable-asan])
      EXTRA_CFLAGS="$EXTRA_CFLAGS -fsanitize=address -fno-omit-frame-pointer"
      EXTRA_LDFLAGS="$EXTRA_LDFLAGS -fsanitize=address -fno-omit-frame-pointer"
    fi])
@@ -422,6 +433,7 @@ AC_ARG_ENABLE([asan],
 AC_ARG_ENABLE([tsan],
   [AS_HELP_STRING([--enable-tsan], [Enable thread sanitiser])],
   [if test x$enableval = xyes; then
+     NVC_DEBUG_ONLY([--enable-tsan])
      EXTRA_CFLAGS="$EXTRA_CFLAGS -fsanitize=thread"
      EXTRA_LDFLAGS="$EXTRA_LDFLAGS -fsanitize=thread"
    fi])
@@ -429,20 +441,10 @@ AC_ARG_ENABLE([tsan],
 AC_ARG_ENABLE([ubsan],
   [AS_HELP_STRING([--enable-ubsan], [Enable undefined behaviour sanitiser])],
   [if test x$enableval = xyes; then
+     NVC_DEBUG_ONLY([--enable-ubsan])
      EXTRA_CFLAGS="$EXTRA_CFLAGS -fsanitize=undefined"
      EXTRA_LDFLAGS="$EXTRA_LDFLAGS -fsanitize=undefined"
    fi])
-
-AC_ARG_ENABLE([debug],
-  [AS_HELP_STRING([--enable-debug],
-                  [Enable extra debugging checks for development])],
-  [enable_debug=$enableval],
-  [enable_debug=no])
-
-if test x$enable_debug != xyes ; then
-  AC_DEFINE_UNQUOTED([NDEBUG], [1],
-                     [Disable extra debugging checks for development])
-fi
 
 AC_ARG_ENABLE([default-paths],
   [AS_HELP_STRING([--disable-default-paths],
@@ -522,17 +524,18 @@ fi
 
 AC_SUBST(MAKEFLAGS)
 
-# Optional code coverage statistics
+# Instrument the compiler with code coverage
 AC_ARG_ENABLE([gcov],
   [AS_HELP_STRING([--enable-gcov],
     [Instrument compiler with gcov (for development only)])],
-  [enable_gcov=$enableval],
-  [])
-if test x$enable_gcov = xyes ; then
-  EXTRA_CFLAGS="$EXTRA_CFLAGS --coverage -fno-inline -Og"
-  EXTRA_LDFLAGS="$EXTRA_LDFLAGS --coverage"
-  AC_MSG_WARN([code coverage with gcov is for use in development only])
-fi
+  [enable_gcov=$enableval
+   if test x$enableval = xyes; then
+     NVC_DEBUG_ONLY([--enable-gcov])
+     EXTRA_CFLAGS="$EXTRA_CFLAGS --coverage -fno-inline -Og"
+     EXTRA_LDFLAGS="$EXTRA_LDFLAGS --coverage"
+   fi],
+  [enable_gcov=no])
+
 AM_CONDITIONAL([ENABLE_GCOV], [test x$enable_gcov = xyes])
 
 AC_DEFINE_UNQUOTED([TARGET_SYSTEM], ["$target"],
