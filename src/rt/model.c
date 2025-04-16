@@ -3133,22 +3133,27 @@ static void update_implicit_signal(rt_model_t *m, rt_implicit_t *imp)
 
    n0->active_delta = m->iteration;
 
-   put_effective(m, n0, &result.integer);
+   if (n0->n_sources > 0 && n0->sources.tag == SOURCE_DRIVER) {
+      if (!result.integer) {
+         // Update driver for 'STABLE and 'QUIET
+         // TODO: this should happen inside the callback
+         waveform_t *w = alloc_waveform(m);
+         w->when  = m->now + imp->delay;
+         w->next  = NULL;
+         w->value = alloc_value(m, n0);
 
-   if (n0->n_sources > 0 && n0->sources.tag == SOURCE_DRIVER
-       && !result.integer) {
-      // Update driver for 'STABLE and 'QUIET
-      // TODO: this should happen inside the callback
-      waveform_t *w = alloc_waveform(m);
-      w->when  = m->now + imp->delay;
-      w->next  = NULL;
-      w->value = alloc_value(m, n0);
+         w->value.bytes[0] = 1;   // Boolean TRUE
 
-      w->value.bytes[0] = 1;   // Boolean TRUE
+         if (!insert_transaction(m, n0, &(n0->sources), w, w->when, imp->delay))
+            deltaq_insert_driver(m, imp->delay, &(n0->sources));
 
-      if (!insert_transaction(m, n0, &(n0->sources), w, w->when, imp->delay))
-         deltaq_insert_driver(m, imp->delay, &(n0->sources));
+         put_effective(m, n0, &result.integer);
+      }
+      else if (n0->sources.u.driver.waveforms.next == NULL)
+         put_effective(m, n0, &result.integer);
    }
+   else
+      put_effective(m, n0, &result.integer);
 }
 
 static void iteration_limit_proc_cb(void *fn, void *arg, void *extra)
