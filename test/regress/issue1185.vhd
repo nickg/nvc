@@ -45,6 +45,34 @@ begin
     wait;
   end process;
 
+  check: postponed process is
+  begin
+      assert now = 0 ns;
+      assert tgt = t_src_unknown;
+      wait on tgt;
+      assert now = 1 ns;
+      assert tgt = t_src_a_1;
+      wait on tgt;
+      assert now = 2 ns;
+      assert tgt = t_src_a_0;
+      wait on tgt;
+      assert now = 10 ns;
+      assert tgt = t_src_unknown;
+      wait on tgt;
+      assert now = 22 ns;
+      assert tgt = t_src_b_1;
+      wait on tgt;
+      assert now = 23 ns;
+      assert tgt = t_src_b_0;
+      wait on tgt;
+      assert now = 24 ns;
+      assert tgt = t_src_b_1;
+      wait on tgt;
+      assert now = 40 ns;
+      assert tgt = t_src_c;
+      wait;
+  end process;
+
   process(all)begin
     tgt <= force       a when sel_a else
                  T_SRC_C when sel_const else

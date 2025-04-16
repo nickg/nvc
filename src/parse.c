@@ -6912,7 +6912,7 @@ static tree_t p_subtype_declaration(void)
    return t;
 }
 
-static tree_t p_conditional_expression(vhdl_standard_t std)
+static tree_t p_conditional_expression(void)
 {
    // expression { when condition else expression }
 
@@ -6921,7 +6921,7 @@ static tree_t p_conditional_expression(vhdl_standard_t std)
    tree_t expr0 = p_expression();
 
    if (optional(tWHEN)) {
-      require_std(std, "conditional expressions");
+      require_std(STD_19, "conditional expressions");
 
       tree_t value = tree_new(T_COND_VALUE);
 
@@ -7027,7 +7027,7 @@ static void p_constant_declaration(tree_t parent)
 
    tree_t init = NULL;
    if (optional(tWALRUS)) {
-      init = p_conditional_expression(STD_19);
+      init = p_conditional_expression();
 
       if (standard() < STD_19 || type_is_unconstrained(type))
          solve_types(nametab, init, type);
@@ -7368,7 +7368,7 @@ static void p_variable_declaration(tree_t parent)
 
    tree_t init = NULL;
    if (optional(tWALRUS)) {
-      init = p_conditional_expression(STD_19);
+      init = p_conditional_expression();
       solve_types(nametab, init, type);
    }
 
@@ -7429,7 +7429,7 @@ static void p_signal_declaration(tree_t parent)
 
    tree_t init = NULL;
    if (optional(tWALRUS)) {
-      init = p_conditional_expression(STD_19);
+      init = p_conditional_expression();
       solve_known_subtype(nametab, init, type);
    }
 
@@ -9905,22 +9905,19 @@ static port_mode_t p_force_mode(void)
    }
 }
 
-static tree_t p_force_assignment(ident_t label, tree_t target)
+static tree_t p_simple_force_assignment(ident_t label, tree_t target)
 {
-   // simple_force_assignment ::=
-   //    target <= force [ force_mode ] expression ;
-   // conditional_force_assignment ::=
-   //    target <= force [ force_mode ] conditional_expressions ;
+   // target <= force [ force_mode ] conditional_or_unaffected_expression ;
 
-   EXTEND("force assignment");
+   EXTEND("simple force assignment");
 
    consume(tFORCE);
 
-   require_std(STD_08, "force assignments");
+   require_std(STD_08, "simple force assignments");
 
    type_t target_type;
    if (tree_kind(target) == T_AGGREGATE) {
-      parse_error(CURRENT_LOC, "target of a force assignment may "
+      parse_error(CURRENT_LOC, "target of a simple force assignment may "
                   "not be an aggregate");
       target_type = type_new(T_NONE);
    }
@@ -9933,7 +9930,7 @@ static tree_t p_force_assignment(ident_t label, tree_t target)
    tree_set_target(t, target);
    tree_set_subkind(t, p_force_mode());
 
-   tree_t expr = p_conditional_expression(STD_08);
+   tree_t expr = p_conditional_or_unaffected_expression(STD_08);
    solve_types(nametab, expr, target_type);
 
    tree_set_value(t, expr);
@@ -9988,7 +9985,7 @@ static tree_t p_signal_assignment_statement(ident_t label, tree_t name)
    consume(tLE);
 
    switch (peek()) {
-   case tFORCE: return p_force_assignment(label, target);
+   case tFORCE: return p_simple_force_assignment(label, target);
    case tRELEASE: return p_simple_release_assignment(label, target);
    default: break;
    }

@@ -2333,6 +2333,7 @@ void build_wait(tree_t expr, build_wait_fn_t fn, void *ctx)
       {
          if (tree_has_value(expr))
             build_wait(tree_value(expr), fn, ctx);
+
          build_wait(tree_result(expr), fn, ctx);
          break;
       }
