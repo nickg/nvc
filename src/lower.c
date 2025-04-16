@@ -4025,6 +4025,8 @@ static vcode_reg_t lower_array_aggregate(lower_unit_t *lu, tree_t expr,
 
       const assoc_kind_t akind = tree_subkind(a);
 
+      bool need_length_check = array_of_array && is_unconstrained && ndims == 1;
+
       vcode_reg_t count_reg = VCODE_INVALID_REG;
       if (akind == A_CONCAT || akind == A_SLICE)
          count_reg = lower_array_len(lu, tree_type(value), 0, value_regs[i]);
@@ -4080,6 +4082,8 @@ static vcode_reg_t lower_array_aggregate(lower_unit_t *lu, tree_t expr,
                                    dir_reg, locus, hint);
                }
             }
+
+            need_length_check = false;
          }
          break;
 
@@ -4154,6 +4158,7 @@ static vcode_reg_t lower_array_aggregate(lower_unit_t *lu, tree_t expr,
                emit_select(dir_cmp_reg, r_left_reg, r_right_reg);
 
             off_reg = lower_array_off(lu, base_reg, wrap_reg, type, 0);
+            need_length_check = false;
          }
          break;
 
@@ -4173,7 +4178,7 @@ static vcode_reg_t lower_array_aggregate(lower_unit_t *lu, tree_t expr,
          value_regs[i] = lower_aggregate(lu, value, ptr_reg);
       }
 
-      if (array_of_array && is_unconstrained && ndims == 1) {
+      if (need_length_check) {
          vcode_reg_t length_reg = count_reg;
          if (length_reg == VCODE_INVALID_REG)
             length_reg = lower_array_len(lu, elem_type, 0, value_regs[i]);

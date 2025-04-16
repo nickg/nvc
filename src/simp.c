@@ -233,6 +233,7 @@ static tree_t simp_concat(tree_t t)
       }
 
       tree_t a = tree_new(T_ASSOC);
+      tree_set_loc(a, tree_loc(t));
       tree_set_value(a, params[i]);
       tree_set_pos(a, pos++);
 
