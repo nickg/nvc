@@ -1594,6 +1594,23 @@ static uint32_t parse_cover_print_spec(char *str)
    return mask;
 }
 
+static merge_mode_t parse_cover_merge_mode(char *str)
+{
+   if (strcmp(str, "intersect") == 0)
+      return MERGE_INTERSECT;
+   else if (strcmp(str, "union") == 0)
+      return MERGE_UNION;
+   else {
+      diag_t *d = diag_new(DIAG_FATAL, NULL);
+      diag_printf(d, "invalid option: '%s' for $bold$--merge-mode$$", str);
+      diag_hint(d, NULL, "valid options are: 'union', 'intersect'");
+      diag_emit(d);
+      fatal_exit(EXIT_FAILURE);
+   }
+
+   return 0;
+}
+
 static int coverage_cmd(int argc, char **argv, cmd_state_t *state)
 {
    warnf("the $bold$-c$$ sub-command is deprecated, use $bold$--cover-report$$ "
@@ -1665,7 +1682,7 @@ static int coverage_cmd(int argc, char **argv, cmd_state_t *state)
          if (i == optind)
             cover = cover_read_items(f, rpt_mask);
          else
-            cover_merge_items(f, cover);
+            cover_merge_items(f, cover, MERGE_UNION);
       }
       else
          fatal("Could not open coverage database: %s", argv[i]);
@@ -1774,7 +1791,8 @@ static int gui_cmd(int argc, char **argv, cmd_state_t *state)
 #endif
 
 static cover_data_t *merge_coverage_files(int argc, int next_cmd, char **argv,
-                                          cover_mask_t rpt_mask)
+                                          cover_mask_t rpt_mask,
+                                          merge_mode_t mode)
 {
    // Merge all input coverage databases given on command line
 
@@ -1815,7 +1833,7 @@ static cover_data_t *merge_coverage_files(int argc, int next_cmd, char **argv,
       if (i == optind)
          cover = cover_read_items(f, rpt_mask);
       else
-         cover_merge_items(f, cover);
+         cover_merge_items(f, cover, mode);
 
       fbuf_close(f, NULL);
    }
@@ -1885,7 +1903,7 @@ static int cover_export_cmd(int argc, char **argv, cmd_state_t *state)
 
    cover_data_t *cover;
    if (looks_like_file)
-      cover = merge_coverage_files(argc, next_cmd, argv, 0);
+      cover = merge_coverage_files(argc, next_cmd, argv, 0, MERGE_UNION);
    else {
       set_top_level(argv, next_cmd, state);
 
@@ -1985,7 +2003,8 @@ static int cover_report_cmd(int argc, char **argv, cmd_state_t *state)
 
    progress("initialising");
 
-   cover_data_t *cover = merge_coverage_files(argc, next_cmd, argv, rpt_mask);
+   cover_data_t *cover =
+      merge_coverage_files(argc, next_cmd, argv, rpt_mask, MERGE_UNION);
 
    if (exclude_file && cover) {
       progress("loading exclude file %s", exclude_file);
@@ -2005,6 +2024,7 @@ static int cover_merge_cmd(int argc, char **argv, cmd_state_t *state)
 {
    static struct option long_options[] = {
       { "output",       required_argument, 0, 'o' },
+      { "merge-mode",   required_argument, 0, 'm' },
       { "verbose",      no_argument,       0, 'V' },
       { 0, 0, 0, 0 }
    };
@@ -2014,11 +2034,15 @@ static int cover_merge_cmd(int argc, char **argv, cmd_state_t *state)
    const char *out_db = NULL;
    int c, index;
    const char *spec = ":Vo:";
+   merge_mode_t mode = MERGE_UNION;
 
    while ((c = getopt_long(next_cmd, argv, spec, long_options, &index)) != -1) {
       switch (c) {
       case 'o':
          out_db = optarg;
+         break;
+      case 'm':
+         mode = parse_cover_merge_mode(optarg);
          break;
       case 'V':
          opt_set_int(OPT_VERBOSE, 1);
@@ -2037,7 +2061,7 @@ static int cover_merge_cmd(int argc, char **argv, cmd_state_t *state)
 
    progress("initialising");
 
-   cover_data_t *cover = merge_coverage_files(argc, next_cmd, argv, 0);
+   cover_data_t *cover = merge_coverage_files(argc, next_cmd, argv, 0, mode);
 
    progress("saving merged coverage database to %s", out_db);
 
@@ -2238,6 +2262,9 @@ static void usage(void)
       },
       { "Coverage merge options",
         {
+           { "--merge-mode={union,intersect}",
+             "Merge hierarchies by union or intersection, default is union"
+           },
            { "-o, --output=FILE", "Output database file name" },
         }
       },

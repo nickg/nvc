@@ -1132,7 +1132,8 @@ cover_data_t *cover_read_items(fbuf_t *f, uint32_t pre_mask)
    return data;
 }
 
-static void cover_merge_scope(cover_scope_t *old_s, cover_scope_t *new_s)
+static void cover_merge_scope(cover_scope_t *old_s, cover_scope_t *new_s,
+                              merge_mode_t mode)
 {
    // Most merged cover scopes have equal items.
    // Start from equal item index in old and new scope instead of iterating
@@ -1169,7 +1170,7 @@ static void cover_merge_scope(cover_scope_t *old_s, cover_scope_t *new_s)
          n_old_visits++;
       } while (true);
 
-      if (!found) {
+      if (!found && mode == MERGE_UNION) {
          APUSH(old_s->items, *new);
          n_added++;
       }
@@ -1181,18 +1182,18 @@ static void cover_merge_scope(cover_scope_t *old_s, cover_scope_t *new_s)
       for (int j = 0; j < old_s->children.count; j++) {
          cover_scope_t *old_c = old_s->children.items[j];
          if (new_c->name == old_c->name) {
-            cover_merge_scope(old_c, new_c);
+            cover_merge_scope(old_c, new_c, mode);
             found = true;
             break;
          }
       }
 
-      if (!found)
+      if (!found && mode == MERGE_UNION)
          APUSH(old_s->children, new_c);
    }
 }
 
-void cover_merge_items(fbuf_t *f, cover_data_t *data)
+void cover_merge_items(fbuf_t *f, cover_data_t *data, merge_mode_t mode)
 {
    assert (data != NULL);
 
@@ -1208,7 +1209,7 @@ void cover_merge_items(fbuf_t *f, cover_data_t *data)
       case CTRL_PUSH_SCOPE:
          {
             cover_scope_t *new = cover_read_scope(f, ident_ctx, loc_rd);
-            cover_merge_scope(data->root_scope, new);
+            cover_merge_scope(data->root_scope, new, mode);
          }
          break;
       case CTRL_END_OF_FILE:
