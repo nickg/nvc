@@ -171,6 +171,7 @@ typedef enum {
    COV_FLAG_EXPR_STD_LOGIC = (1 << 24),
    COV_FLAG_EXCLUDED       = (1 << 25),
    COV_FLAG_EXCLUDED_USER  = (1 << 26),
+   COV_FLAG_MM_INTERSECT   = (1 << 27),
 
    // This needs to stay at highest bit of int32_t.
    // Used in run-time data of COV_ITEM_TOGGLE to mark unreachability.
