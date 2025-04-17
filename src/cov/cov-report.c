@@ -233,14 +233,19 @@ static void cover_print_html_header(FILE *f)
               "      height: 2px;\n"
               "      background: black;\n"
               "   }\n"
+              "   footer{\n"
+              "      display: table;\n"
+              "      text-align: center;\n"
+              "      margin-left: auto;\n"
+              "      margin-right: auto;\n"
+              "   }\n"
               "   nav {\n"
               "      float: left;\n"
               "      background-color: #ccc;\n"
               "      width: " SIDEBAR_WIDTH ";\n"
-              "      height: 100%%;\n"
+              "      overflow: auto; \n"
               "      padding: 10px;\n"
               "      margin-top: 100px;\n"
-              "      word-wrap: break-word;\n"
               "     }\n"
               "   table {\n"
               "     table-layout: fixed;"
@@ -1327,9 +1332,10 @@ static char *cover_get_report_name(const char *in)
    SHA1_CTX ctx;
    unsigned char buf[SHA1_LEN];
    char *rv = xcalloc(2 * SHA1_LEN + 1);
+   char *in_cpy LOCAL = xstrdup(in);
 
    SHA1Init(&ctx);
-   SHA1Update(&ctx, (const char unsigned*)in, strlen(in));
+   SHA1Update(&ctx, (const char unsigned*)in_cpy, strlen(in_cpy));
    SHA1Final(buf, &ctx);
 
    for (int i = 0; i < SHA1_LEN; i++)
