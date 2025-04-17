@@ -1594,6 +1594,23 @@ static uint32_t parse_cover_print_spec(char *str)
    return mask;
 }
 
+static cover_flags_t parse_cover_merge_mode(char *str)
+{
+   if (!strcmp(str, "intersect"))
+      return COV_FLAG_MM_INTERSECT;
+   else if (!strcmp(str, "union"))
+      return 0;
+   else {
+      diag_t *d = diag_new(DIAG_FATAL, NULL);
+      diag_printf(d, "invalid option: '%s' for $bold$--merge-mode$$", str);
+      diag_hint(d, NULL, "valid options are: 'union', 'intersect'");
+      diag_emit(d);
+      fatal_exit(EXIT_FAILURE);
+   }
+
+   return 0;
+}
+
 static int coverage_cmd(int argc, char **argv, cmd_state_t *state)
 {
    warnf("the $bold$-c$$ sub-command is deprecated, use $bold$--cover-report$$ "
@@ -2005,6 +2022,7 @@ static int cover_merge_cmd(int argc, char **argv, cmd_state_t *state)
 {
    static struct option long_options[] = {
       { "output",       required_argument, 0, 'o' },
+      { "merge-mode",   required_argument, 0, 'm' },
       { "verbose",      no_argument,       0, 'V' },
       { 0, 0, 0, 0 }
    };
@@ -2014,11 +2032,15 @@ static int cover_merge_cmd(int argc, char **argv, cmd_state_t *state)
    const char *out_db = NULL;
    int c, index;
    const char *spec = ":Vo:";
+   cover_flags_t merge_mask = 0;
 
    while ((c = getopt_long(next_cmd, argv, spec, long_options, &index)) != -1) {
       switch (c) {
       case 'o':
          out_db = optarg;
+         break;
+      case 'm':
+         merge_mask = parse_cover_merge_mode(optarg);
          break;
       case 'V':
          opt_set_int(OPT_VERBOSE, 1);
@@ -2037,7 +2059,7 @@ static int cover_merge_cmd(int argc, char **argv, cmd_state_t *state)
 
    progress("initialising");
 
-   cover_data_t *cover = merge_coverage_files(argc, next_cmd, argv, 0);
+   cover_data_t *cover = merge_coverage_files(argc, next_cmd, argv, merge_mask);
 
    progress("saving merged coverage database to %s", out_db);
 
