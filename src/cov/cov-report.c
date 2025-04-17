@@ -1332,9 +1332,10 @@ static char *cover_get_report_name(const char *in)
    SHA1_CTX ctx;
    unsigned char buf[SHA1_LEN];
    char *rv = xcalloc(2 * SHA1_LEN + 1);
+   char *in_cpy LOCAL = xstrdup(in);
 
    SHA1Init(&ctx);
-   SHA1Update(&ctx, (const char unsigned*)in, strlen(in));
+   SHA1Update(&ctx, (const char unsigned*)in_cpy, strlen(in_cpy));
    SHA1Final(buf, &ctx);
 
    for (int i = 0; i < SHA1_LEN; i++)
