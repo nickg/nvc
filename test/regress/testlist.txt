@@ -1115,3 +1115,4 @@ assert13        normal
 issue1185       normal,2008
 issue1186       normal,2008
 issue1177       normal
+issue1192       normal,vhpi
