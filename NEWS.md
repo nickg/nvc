@@ -38,7 +38,7 @@
 - The implementation of concatenations has been reworked fixing several
   bugs (#1178).
 - Added support for conditional force assignment (#1185).
-- Several other minor bugs were resolved (#1174, #1159, #1177).
+- Several other minor bugs were resolved (#1174, #1159, #1177, #1191).
 
 ## Version 1.15.2 - 2025-03-01
 - Fixed invalid LLVM IR generation which could cause a crash with LLVM

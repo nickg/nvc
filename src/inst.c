@@ -273,14 +273,17 @@ static void collect_decls(tree_t t, hset_t **decls, tree_list_t *roots)
       case T_PACKAGE:
          collect_generics(d, decls, roots);
          // Fall-through
-      case T_PROT_DECL:
-      case T_PROT_BODY:
       case T_PACK_BODY:
       case T_PACK_INST:
          collect_decls(d, decls, roots);
          break;
       case T_TYPE_DECL:
          hset_insert(*decls, type_base_recur(tree_type(d)));
+         break;
+      case T_PROT_DECL:
+      case T_PROT_BODY:
+         hset_insert(*decls, tree_type(d));
+         collect_decls(d, decls, roots);
          break;
       default:
          break;
@@ -314,7 +317,6 @@ void new_instance(tree_t *roots, int nroots, ident_t dotted,
          break;
       case T_PACK_BODY:
          collect_decls(roots[i], &decls, &troots);
-         break;
          break;
       default:
          break;

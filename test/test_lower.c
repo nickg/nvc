@@ -330,6 +330,7 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
          break;
 
       case VCODE_OP_PACKAGE_INIT:
+      case VCODE_OP_PROTECTED_INIT:
          if (!fuzzy_cmp(vcode_get_func(i), e->name)) {
             vcode_dump_with_mark(i, NULL, NULL);
             fail("expected op %d in block %d to initialise package %s "
@@ -6552,6 +6553,32 @@ START_TEST(test_issue1155)
 }
 END_TEST
 
+START_TEST(test_issue1191)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/lower/issue1191.vhd");
+
+   run_elab();
+
+   vcode_unit_t vu = find_unit("WORK.TEST");
+   vcode_select_unit(vu);
+
+   EXPECT_BB(0) = {
+      { VCODE_OP_PACKAGE_INIT, .name = "STD.STANDARD" },
+      { VCODE_OP_CONTEXT_UPREF, .hops = 0 },
+      { VCODE_OP_PACKAGE_INIT, .name = "WORK.TEST.TEST_PKG_INST" },
+      { VCODE_OP_STORE, .name = "WORK.TEST.TEST_PKG_INST" },
+      { VCODE_OP_NULL },
+      { VCODE_OP_PROTECTED_INIT, .name = "WORK.TEST-SIM.TEST_PKG_INST.T_TEST" },
+      { VCODE_OP_STORE, .name = "S_TEST_PKG_INST" },
+      { VCODE_OP_RETURN },
+   };
+
+   CHECK_BB(0);
+}
+END_TEST
+
 Suite *get_lower_tests(void)
 {
    Suite *s = suite_create("lower");
@@ -6703,6 +6730,7 @@ Suite *get_lower_tests(void)
    tcase_add_test(tc, test_issue1080);
    tcase_add_test(tc, test_genpack2);
    tcase_add_test(tc, test_issue1155);
+   tcase_add_test(tc, test_issue1191);
    suite_add_tcase(s, tc);
 
    return s;
