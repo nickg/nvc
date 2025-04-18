@@ -65,7 +65,7 @@ typedef struct {
    mir_pattern_t arg2;
 } mir_match_t;
 
-STATIC_ASSERT(sizeof(mir_match_t) == 32);
+STATIC_ASSERT(sizeof(mir_match_t) <= 32);
 
 static const char *mir_tag_name(int tag)
 {

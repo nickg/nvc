@@ -39,6 +39,7 @@ typedef uint32_t hash_state_t;
 #define INITIAL_SIZE  1024
 #define REPROBE_LIMIT 20
 #define MOVED_TAG     1
+#define MAX_LEN       UINT16_MAX
 
 struct ident_rd_ctx {
    fbuf_t  *file;
@@ -102,7 +103,7 @@ static ident_t ident_alloc(size_t len, hash_state_t hash)
 
 static inline bool ident_install(ident_t *where, ident_t new, size_t len)
 {
-   if (unlikely(len >= UINT16_MAX))
+   if (unlikely(len >= MAX_LEN))
       fatal("identifier '%s' too long", new->bytes);
 
    if (atomic_cas(where, NULL, new))
@@ -296,7 +297,7 @@ ident_t ident_new(const char *str)
    assert(*str != '\0');
 
    hash_state_t hash = HASH_INIT;
-   int len = hash_update(&hash, str, INT_MAX);
+   int len = hash_update(&hash, str, MAX_LEN);
 
    return ident_from_bytes(str, hash, len);
 }
@@ -445,7 +446,7 @@ ident_t ident_uniq(const char *fmt, ...)
    va_end(ap2);
 
    hash_state_t base_hash = HASH_INIT;
-   int len = hash_update(&base_hash, prefix, INT_MAX);
+   int len = hash_update(&base_hash, prefix, MAX_LEN);
    assert(len == req);
 
    static volatile int counter = 0;
