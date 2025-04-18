@@ -10026,7 +10026,7 @@ static void lower_protected_body(lower_unit_t *lu, object_t *obj)
    tree_t body = tree_from_object(obj);
    assert(tree_kind(body) == T_PROT_BODY);
 
-   lu->cscope = cover_create_scope(lu->cover, lu->cscope, body, NULL);
+   lu->cscope = cover_create_scope(lu->cover, lu->parent->cscope, body, NULL);
 
    if (standard() >= STD_19) {
       // LCS-2016-032 requires dynamic 'PATH_NAME and 'INSTANCE_NAME for
