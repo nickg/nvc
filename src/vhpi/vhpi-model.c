@@ -209,6 +209,20 @@ typedef struct {
 } c_floatTypeDecl;
 
 typedef struct {
+   c_typeDecl  typeDecl;
+   c_typeDecl *ValType;
+} c_accessTypeDecl;
+
+DEF_CLASS(accessTypeDecl, vhpiAccessTypeDeclK, typeDecl.decl.object);
+
+typedef struct {
+   c_typeDecl  typeDecl;
+   c_typeDecl *ValType;
+} c_fileTypeDecl;
+
+DEF_CLASS(fileTypeDecl, vhpiFileTypeDeclK, typeDecl.decl.object);
+
+typedef struct {
    c_compositeTypeDecl composite;
    c_typeDecl         *ElemType;
    vhpiIntT            NumDimensions;
@@ -690,6 +704,8 @@ static c_abstractDecl *is_abstractDecl(c_vhpiObject *obj)
    case vhpiFloatTypeDeclK:
    case vhpiArrayTypeDeclK:
    case vhpiRecordTypeDeclK:
+   case vhpiAccessTypeDeclK:
+   case vhpiFileTypeDeclK:
    case vhpiSubtypeDeclK:
    case vhpiElemDeclK:
    case vhpiGenericDeclK:
@@ -772,6 +788,8 @@ static c_typeDecl *is_typeDecl(c_vhpiObject *obj)
    case vhpiPhysTypeDeclK:
    case vhpiArrayTypeDeclK:
    case vhpiRecordTypeDeclK:
+   case vhpiAccessTypeDeclK:
+   case vhpiFileTypeDeclK:
       return container_of(obj, c_typeDecl, decl.object);
    default:
       return NULL;
@@ -2318,11 +2336,25 @@ vhpiHandleT vhpi_handle(vhpiOneToOneT type, vhpiHandleT referenceHandle)
 
    case vhpiElemType:
       {
-         c_arrayTypeDecl *a = cast_arrayTypeDecl(obj);
-         if (a == NULL)
-            return NULL;
-         return handle_for(&(a->ElemType->decl.object));
+         c_arrayTypeDecl *a = is_arrayTypeDecl(obj);
+         if (a != NULL)
+            return handle_for(&(a->ElemType->decl.object));
       }
+      break;
+
+   case vhpiValType:
+      {
+         c_accessTypeDecl *atd = is_accessTypeDecl(obj);
+         if (atd != NULL && atd->ValType == NULL)
+            return NULL;   // Access to incomplete type
+         else if (atd != NULL)
+            return handle_for(&(atd->ValType->decl.object));
+
+         c_fileTypeDecl *ftd = is_fileTypeDecl(obj);
+         if (ftd != NULL)
+            return handle_for(&(ftd->ValType->decl.object));
+      }
+      break;
 
    case vhpiDesignUnit:
       {
@@ -4184,6 +4216,39 @@ static c_typeDecl *build_typeDecl(tree_t decl, c_abstractRegion *region)
          assert(hash_get(vhpi_context()->objcache, type) == td);
 
          return td;
+      }
+
+   case T_INCOMPLETE:
+      return NULL;   // Ignore it
+
+   case T_ACCESS:
+      {
+         c_accessTypeDecl *td =
+            new_object(sizeof(c_accessTypeDecl), vhpiAccessTypeDeclK);
+         init_typeDecl(&td->typeDecl, decl, type);
+
+         vhpi_list_add(&region->decls.list, &(td->typeDecl.decl.object));
+         hash_put(vhpi_context()->objcache, type, td);
+
+         type_t desig = type_designated(type);
+         if (!type_is_incomplete(desig))
+            td->ValType = cached_typeDecl(desig, NULL);
+
+         return &(td->typeDecl);
+      }
+
+   case T_FILE:
+      {
+         c_fileTypeDecl *td =
+            new_object(sizeof(c_fileTypeDecl), vhpiFileTypeDeclK);
+         init_typeDecl(&td->typeDecl, decl, type);
+
+         vhpi_list_add(&region->decls.list, &(td->typeDecl.decl.object));
+         hash_put(vhpi_context()->objcache, type, td);
+
+         td->ValType = cached_typeDecl(type_designated(type), NULL);
+
+         return &(td->typeDecl);
       }
 
    default:
