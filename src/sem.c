@@ -3283,6 +3283,16 @@ static bool sem_check_call_args(tree_t t, tree_t decl, nametab_t *tab)
                return false;
          }
       }
+
+      if (tree_kind(value) == T_OPEN && !tree_has_value(port)) {
+         diag_t *d = diag_new(DIAG_ERROR, tree_loc(param));
+         diag_printf(d, "OPEN actual for formal parameter %s without "
+                     "default value", istr(tree_ident(port)));
+         diag_hint(d, tree_loc(port), "%s declared here",
+                   istr(tree_ident(port)));
+         diag_emit(d);
+         return false;
+      }
    }
 
    for (int i = 0; i < nports; i++) {
