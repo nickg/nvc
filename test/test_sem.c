@@ -154,12 +154,14 @@ START_TEST(test_ports)
         "conversion" },
       { 437, "type of actual REAL does not match type INTEGER of formal "
         "port IO2" },
+      { 451, "OPEN actual for formal parameter C without default value" },
       { -1, NULL }
    };
    expect_errors(expect);
 
    parse_and_check(T_PACKAGE, T_ENTITY, T_ARCH, T_ENTITY, T_ARCH, T_ARCH,
-                   T_ARCH, T_ENTITY, T_ARCH, T_ARCH, T_ARCH, T_ARCH, T_ARCH);
+                   T_ARCH, T_ENTITY, T_ARCH, T_ARCH, T_ARCH, T_ARCH, T_ARCH,
+                   T_ARCH);
 
    fail_unless(parse() == NULL);
    check_expected_errors();

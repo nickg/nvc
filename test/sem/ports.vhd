@@ -439,3 +439,16 @@ begin
     end block;
 
 end architecture;
+
+-------------------------------------------------------------------------------
+
+architecture open_actual of top is
+begin
+    process is
+        procedure test (constant c: natural) is begin
+        end procedure;
+    begin
+        test(open);
+        wait;
+    end process;
+end architecture;
