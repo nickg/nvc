@@ -24,6 +24,7 @@ lib_libnvc_a_SOURCES += \
 	src/rt/ename.c \
 	src/rt/copy.h \
 	src/rt/copy.c \
+	src/rt/random.h \
 	src/rt/random.c
 
 if ENABLE_TCL

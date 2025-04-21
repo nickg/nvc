@@ -6,4 +6,6 @@ lib_libnvc_a_SOURCES += \
 	src/mir/mir-type.c \
 	src/mir/mir-dump.c \
 	src/mir/mir-optim.c \
-	src/mir/mir-vcode.c
+	src/mir/mir-vcode.c \
+	src/mir/mir-priv.h \
+	src/mir/mir-structs.h

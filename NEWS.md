@@ -1,12 +1,12 @@
 ## Unreleased changes
+
+## Version 1.16.0 - 2025-04-21
 - Added support for PSL `prev()`, `stable()`, `rose()` and `fell()`
   built-in functions (#1135).
 - Signals can now be read and passed to subprograms during elaboration
   and the effective value is the default value associated with the
   signal.  This behaviour is not defined by the LRM but matches all
   other simulators (#1144).
-- Fixed invalid LLVM IR generation which could cause a crash with LLVM
-  14 (#1145).
 - MSYS2 binary packages are no longer provided with releases as these
   become out-of-date too quickly.  Windows users should instead download
   the self-contained MSI package.
