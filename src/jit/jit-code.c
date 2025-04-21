@@ -25,6 +25,7 @@
 #include "thread.h"
 
 #include <assert.h>
+#include <math.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -146,6 +147,7 @@ typedef struct _code_cache {
    code_span_t *spans;
    code_span_t *freelist[MAX_THREADS];
    code_span_t *globalfree;
+   shash_t     *symbols;
    FILE        *perfmap;
 #ifdef HAVE_CAPSTONE
    csh          capstone;
@@ -274,6 +276,37 @@ code_cache_t *code_cache_new(void)
       fatal_trace("failed to set capstone detailed mode");
 #endif
 
+   shash_t *s = shash_new(32);
+
+   extern void __nvc_putpriv(jit_handle_t, void *);
+   extern void __nvc_sched_waveform(jit_anchor_t *, jit_scalar_t *, tlab_t *);
+   extern void __nvc_sched_process(jit_anchor_t *, jit_scalar_t *, tlab_t *);
+   extern void __nvc_test_event(jit_anchor_t *, jit_scalar_t *, tlab_t *);
+   extern void __nvc_last_event(jit_anchor_t *, jit_scalar_t *, tlab_t *);
+
+   shash_put(s, "__nvc_sched_waveform", &__nvc_sched_waveform);
+   shash_put(s, "__nvc_sched_process", &__nvc_sched_process);
+   shash_put(s, "__nvc_test_event", &__nvc_test_event);
+   shash_put(s, "__nvc_last_event", &__nvc_last_event);
+   shash_put(s, "__nvc_mspace_alloc", &__nvc_mspace_alloc);
+   shash_put(s, "__nvc_putpriv", &__nvc_putpriv);
+   shash_put(s, "__nvc_do_exit", &__nvc_do_exit);
+   shash_put(s, "memmove", &memmove);
+   shash_put(s, "memcpy", &memcpy);
+   shash_put(s, "memset", &memset);
+   shash_put(s, "pow", &pow);
+
+#if defined __APPLE__ && defined ARCH_ARM64
+   shash_put(s, "bzero", &bzero);
+#elif defined __APPLE__ && defined ARCH_X86_64
+   shash_put(s, "__bzero", &bzero);
+#elif defined __MINGW32__ && defined ARCH_X86_64
+   extern void ___chkstk_ms(void);
+   shash_put(s, "___chkstk_ms", &___chkstk_ms);
+#endif
+
+   store_release(&code->symbols, s);
+
    return code;
 }
 
@@ -303,6 +336,7 @@ void code_cache_free(code_cache_t *code)
       debugf("JIT code footprint: %zu bytes", code->used);
 #endif
 
+   shash_free(code->symbols);
    free(code);
 }
 
@@ -868,6 +902,8 @@ static void code_load_pe(code_blob_t *blob, const void *data, size_t size)
    if (blob->overflow)
       return;   // Relocations might point outside of code span
 
+   shash_t *external = load_acquire(&blob->span->owner->symbols);
+
    for (int i = 0; i < imghdr->NumberOfSections; i++) {
       const IMAGE_RELOCATION *relocs = data + sections[i].PointerToRelocations;
       for (int j = 0; j < sections[i].NumberOfRelocations; j++) {
@@ -890,14 +926,8 @@ static void code_load_pe(code_blob_t *blob, const void *data, size_t size)
             assert(sym->SectionNumber - 1 < imghdr->NumberOfSections);
             ptr = load_addr[sym->SectionNumber - 1] + sym->Value;
          }
-#ifdef ARCH_X86_64
-         else if (strcmp(name, "___chkstk_ms") == 0) {
-            extern void ___chkstk_ms(void);
-            ptr = &___chkstk_ms;
-         }
-#endif
          else
-            ptr = ffi_find_symbol(NULL, name);
+            ptr = shash_get(external, name);
 
          if (ptr == NULL && icmp(blob->span->name, name))
             ptr = blob->span->base;
@@ -1027,6 +1057,8 @@ static void code_load_macho(code_blob_t *blob, const void *data, size_t size)
    assert(seg != NULL);
    assert(symtab != NULL);
 
+   shash_t *external = load_acquire(&blob->span->owner->symbols);
+
    for (int i = 0; i < seg->nsects; i++) {
       const struct section_64 *sec =
          (void *)seg + sizeof(struct segment_command_64)
@@ -1047,7 +1079,7 @@ static void code_load_macho(code_blob_t *blob, const void *data, size_t size)
             if (nl->n_type & N_EXT) {
                if (icmp(blob->span->name, name + 1))
                   ptr = blob->span->base;
-               else if ((ptr = ffi_find_symbol(NULL, name + 1)) == NULL)
+               else if ((ptr = shash_get(external, name + 1)) == NULL)
                   fatal_trace("failed to resolve symbol %s", name + 1);
             }
             else if (nl->n_sect != NO_SECT)
@@ -1191,6 +1223,8 @@ static void code_load_elf(code_blob_t *blob, const void *data, size_t size)
    if (blob->overflow)
       return;   // Relocations might point outside of code span
 
+   shash_t *external = load_acquire(&blob->span->owner->symbols);
+
    for (int i = 0; i < ehdr->e_shnum; i++) {
       const Elf64_Shdr *shdr = data + ehdr->e_shoff + i * ehdr->e_shentsize;
       if (shdr->sh_type != SHT_RELA)
@@ -1218,18 +1252,18 @@ static void code_load_elf(code_blob_t *blob, const void *data, size_t size)
          switch (ELF64_ST_TYPE(sym->st_info)) {
          case STT_NOTYPE:
          case STT_FUNC:
-            ptr = ffi_find_symbol(NULL, strtab + sym->st_name);
+            if (sym->st_shndx == 0)
+               ptr = shash_get(external, strtab + sym->st_name);
+            else
+               ptr = load_addr[sym->st_shndx] + sym->st_value;
             break;
          case STT_SECTION:
             ptr = load_addr[sym->st_shndx];
             break;
+         default:
+            fatal_trace("cannot handle ELF symbol type %d",
+                        ELF64_ST_TYPE(sym->st_info));
          }
-
-         if (ptr == NULL && icmp(blob->span->name, strtab + sym->st_name))
-            ptr = (char *)blob->span->base;
-
-         if (ptr == NULL && sym->st_shndx != 0)
-            ptr = load_addr[sym->st_shndx] + sym->st_value;
 
          if (ptr == NULL)
             fatal_trace("cannot resolve symbol %s type %d",
