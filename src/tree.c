@@ -1375,37 +1375,9 @@ tree_t tree_container(tree_t t)
    return container_of(o, struct _tree, object);
 }
 
-void tree_locus(tree_t t, ident_t *unit, ptrdiff_t *offset)
-{
-   assert(t != NULL);
-   object_locus(&(t->object), unit, offset);
-}
-
-tree_t tree_from_locus(ident_t unit, ptrdiff_t offset,
-                       tree_load_fn_t find_deps_fn)
-{
-   object_t *o = object_from_locus(unit, offset,
-                                   (object_load_fn_t)find_deps_fn);
-   assert(o->tag == OBJECT_TAG_TREE);
-   return container_of(o, struct _tree, object);
-}
-
 void tree_walk_deps(tree_t t, tree_deps_fn_t fn, void *ctx)
 {
    arena_walk_deps(object_arena(&(t->object)), fn, ctx);
-}
-
-int tree_stable_compar(const void *pa, const void *pb)
-{
-   tree_t a = *(tree_t *)pa;
-   tree_t b = *(tree_t *)pb;
-
-   if (a == NULL)
-      return -1;
-   else if (b == NULL)
-      return 1;
-   else
-      return tree_loc(a)->first_line - tree_loc(b)->first_line;
 }
 
 object_t *tree_to_object(tree_t t)

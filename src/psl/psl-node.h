@@ -188,8 +188,6 @@ void psl_set_right(psl_node_t p, psl_node_t right);
 psl_flags_t psl_flags(psl_node_t p);
 void psl_set_flag(psl_node_t p, psl_flags_t mask);
 
-void psl_locus(psl_node_t p, ident_t *unit, ptrdiff_t *offset);
-
 object_t *psl_to_object(psl_node_t p);
 psl_node_t psl_from_object(object_t *obj);
 

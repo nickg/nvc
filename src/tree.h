@@ -634,12 +634,7 @@ object_arena_t *tree_arena(tree_t t);
 tree_t tree_container(tree_t t);
 bool tree_frozen(tree_t t);
 
-void tree_locus(tree_t t, ident_t *unit, ptrdiff_t *offset);
-tree_t tree_from_locus(ident_t unit, ptrdiff_t offset,
-                       tree_load_fn_t find_deps_fn);
 void tree_walk_deps(tree_t t, tree_deps_fn_t fn, void *ctx);
-
-int tree_stable_compar(const void *pa, const void *pb);
 
 object_t *tree_to_object(tree_t t);
 tree_t tree_from_object(object_t *obj);

@@ -420,9 +420,3 @@ psl_node_t psl_from_object(object_t *obj)
    else
       return NULL;
 }
-
-void psl_locus(psl_node_t p, ident_t *unit, ptrdiff_t *offset)
-{
-   assert(p != NULL);
-   object_locus(&(p->object), unit, offset);
-}

@@ -624,9 +624,3 @@ vlog_node_t vlog_from_object(object_t *obj)
    else
       return NULL;
 }
-
-void vlog_locus(vlog_node_t v, ident_t *unit, ptrdiff_t *offset)
-{
-   assert(v != NULL);
-   object_locus(&(v->object), unit, offset);
-}
