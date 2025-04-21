@@ -315,6 +315,21 @@ static int code_print_spaces(int col, int tab)
 }
 #endif
 
+#ifdef DEBUG
+static int code_comment_compare(const void *a, const void *b)
+{
+   const code_comment_t *ca = a;
+   const code_comment_t *cb = b;
+
+   if (ca->addr < cb->addr)
+      return -1;
+   else if (ca->addr > cb->addr)
+      return 1;
+   else
+      return 0;
+}
+#endif
+
 static void code_disassemble(code_span_t *span, uintptr_t mark,
                              struct cpu_state *cpu)
 {
@@ -332,6 +347,8 @@ static void code_disassemble(code_span_t *span, uintptr_t mark,
    cs_insn *insn = cs_malloc(span->owner->capstone);
 
 #ifdef DEBUG
+   qsort(span->debug.comments, span->debug.count, sizeof(code_comment_t),
+         code_comment_compare);
    code_comment_t *comment = span->debug.comments;
 #endif
 
@@ -682,7 +699,7 @@ static void code_blob_print_value(text_buf_t *tb, jit_value_t value)
    }
 }
 
-static void code_blob_add_comment(code_blob_t *blob, char *text)
+static void code_blob_add_comment(code_blob_t *blob, uintptr_t addr, char *text)
 {
    code_debug_t *dbg = &(blob->span->debug);
 
@@ -692,7 +709,7 @@ static void code_blob_add_comment(code_blob_t *blob, char *text)
                                      sizeof(code_comment_t));
    }
 
-   dbg->comments[dbg->count].addr = (uintptr_t)blob->wptr;
+   dbg->comments[dbg->count].addr = addr;
    dbg->comments[dbg->count].text = text;
    dbg->count++;
 }
@@ -721,49 +738,36 @@ void code_blob_print_ir(code_blob_t *blob, jit_ir_t *ir)
       code_blob_print_value(tb, ir->arg2);
    }
 
-   code_blob_add_comment(blob, tb_claim(tb));
+   code_blob_add_comment(blob, (uintptr_t)blob->wptr, tb_claim(tb));
 }
 
 void code_blob_printf(code_blob_t *blob, const char *fmt, ...)
 {
-   code_debug_t *dbg = &(blob->span->debug);
-
-   if (dbg->count == dbg->max) {
-      dbg->max = MAX(128, dbg->max * 2);
-      dbg->comments = xrealloc_array(dbg->comments, dbg->max,
-                                     sizeof(code_comment_t));
-   }
-
    va_list ap;
    va_start(ap, fmt);
 
    char *text = xvasprintf(fmt, ap);
-   code_blob_add_comment(blob, text);
+   code_blob_add_comment(blob, (uintptr_t)blob->wptr, text);
 
    va_end(ap);
 }
+
+__attribute__((format(printf, 3, 4)))
+static void debug_reloc(code_blob_t *blob, void *patch, const char *fmt, ...)
+{
+   va_list ap;
+   va_start(ap, fmt);
+
+   char *text = xvasprintf(fmt, ap);
+   code_blob_add_comment(blob, (uintptr_t)patch, text);
+
+   va_end(ap);
+}
+#else
+#define debug_reloc(...)
 #endif   // DEBUG
 
 #ifdef ARCH_ARM64
-static void *arm64_emit_trampoline(code_blob_t *blob, uintptr_t dest)
-{
-   const uint8_t veneer[] = {
-      0x50, 0x00, 0x00, 0x58,   // LDR X16, [PC+8]
-      0x00, 0x02, 0x1f, 0xd6,   // BR X16
-      __IMM64(dest)
-   };
-
-   void *prev = memmem(blob->span->base, blob->span->size,
-                       veneer, ARRAY_LEN(veneer));
-   if (prev != NULL)
-      return prev;
-   else {
-      void *addr = blob->wptr;
-      code_blob_emit(blob, veneer, ARRAY_LEN(veneer));
-      return addr;
-   }
-}
-
 static void arm64_patch_page_offset21(code_blob_t *blob, uint32_t *patch,
                                       void *ptr)
 {
@@ -792,9 +796,37 @@ static void arm64_patch_page_base_rel21(uint32_t *patch, void *ptr)
    *(uint32_t *)patch |= (upper21 & 3) << 29;
    *(uint32_t *)patch |= ((upper21 >> 2) & 0x7ffff) << 5;
 }
-#else
-#define arm64_emit_trampoline(blob, dest) NULL
 #endif
+
+static void *code_emit_trampoline(code_blob_t *blob, void *dest)
+{
+#if defined ARCH_X86_64
+   const uint8_t veneer[] = {
+      0x48, 0xb8, __IMM64((uintptr_t)dest),  // MOVABS RAX, dest
+      0xff, 0xe0                             // CALL RAX
+   };
+#elif defined ARCH_ARM64
+   const uint8_t veneer[] = {
+      0x50, 0x00, 0x00, 0x58,   // LDR X16, [PC+8]
+      0x00, 0x02, 0x1f, 0xd6,   // BR X16
+      __IMM64((uintptr_t)dest)
+   };
+#else
+   should_not_reach_here();
+#endif
+
+   void *prev = memmem(blob->span->base, blob->span->size,
+                       veneer, ARRAY_LEN(veneer));
+   if (prev != NULL)
+      return prev;
+   else {
+      DEBUG_ONLY(code_blob_printf(blob, "Trampoline for %p", dest));
+
+      void *addr = blob->wptr;
+      code_blob_emit(blob, veneer, ARRAY_LEN(veneer));
+      return addr;
+   }
+}
 
 #if defined __MINGW32__
 static void code_load_pe(code_blob_t *blob, const void *data, size_t size)
@@ -888,7 +920,7 @@ static void code_load_pe(code_blob_t *blob, const void *data, size_t size)
 #elif defined ARCH_ARM64
          case IMAGE_REL_ARM64_BRANCH26:
             {
-               void *veneer = arm64_emit_trampoline(blob, (uintptr_t)ptr);
+               void *veneer = code_emit_trampoline(blob, ptr);
                const ptrdiff_t pcrel = (veneer - patch) >> 2;
                *(uint32_t *)patch &= ~0x3ffffff;
                *(uint32_t *)patch |= pcrel & 0x3ffffff;
@@ -1049,7 +1081,7 @@ static void code_load_macho(code_blob_t *blob, const void *data, size_t size)
             break;
          case ARM64_RELOC_BRANCH26:
             {
-               void *veneer = arm64_emit_trampoline(blob, (uintptr_t)ptr);
+               void *veneer = code_emit_trampoline(blob, ptr);
                const ptrdiff_t pcrel = (veneer - patch) >> 2;
                *(uint32_t *)patch &= ~0x3ffffff;
                *(uint32_t *)patch |= pcrel & 0x3ffffff;
@@ -1117,6 +1149,7 @@ static void code_load_elf(code_blob_t *blob, const void *data, size_t size)
          if (shdr->sh_flags & SHF_ALLOC) {
             code_blob_align(blob, shdr->sh_addralign);
             load_addr[i] = blob->wptr;
+            DEBUG_ONLY(code_blob_printf(blob, "%s", strtab + shdr->sh_name));
             code_blob_emit(blob, data + shdr->sh_offset, shdr->sh_size);
          }
          break;
@@ -1195,41 +1228,67 @@ static void code_load_elf(code_blob_t *blob, const void *data, size_t size)
          if (ptr == NULL && icmp(blob->span->name, strtab + sym->st_name))
             ptr = (char *)blob->span->base;
 
+         if (ptr == NULL && sym->st_shndx != 0)
+            ptr = load_addr[sym->st_shndx] + sym->st_value;
+
          if (ptr == NULL)
             fatal_trace("cannot resolve symbol %s type %d",
                         strtab + sym->st_name, ELF64_ST_TYPE(sym->st_info));
-
-         ptr += r->r_addend;
 
          void *patch = load_addr[shdr->sh_info] + r->r_offset;
          assert(r->r_offset < mod->sh_size);
 
          switch (ELF64_R_TYPE(r->r_info)) {
          case R_X86_64_64:
-            *(uint64_t *)patch = (uint64_t)ptr;
+            debug_reloc(blob, patch, "R_X86_64_64 %s", strtab + sym->st_name);
+            *(uint64_t *)patch = (uint64_t)ptr + r->r_addend;
+            break;
+         case R_X86_64_PC32:
+         case R_X86_64_GOTPCREL:
+            {
+               const ptrdiff_t pcrel = ptr + r->r_addend - (char *)patch;
+               debug_reloc(blob, patch, "R_X86_64_PC32 %s PC%+"PRIiPTR,
+                           strtab + sym->st_name, pcrel);
+               assert(pcrel >= INT32_MIN && pcrel <= INT32_MAX);
+               *(uint32_t *)patch = pcrel;
+            }
+            break;
+         case R_X86_64_PLT32:
+            {
+               void *veneer = code_emit_trampoline(blob, ptr);
+               const ptrdiff_t pcrel = veneer + r->r_addend - patch;
+               debug_reloc(blob, patch, "R_X86_64_PLT32 %s PC%+"PRIiPTR,
+                           strtab + sym->st_name, pcrel);
+               assert(pcrel >= INT32_MIN && pcrel <= INT32_MAX);
+               *(uint32_t *)patch = pcrel;
+            }
             break;
          case R_AARCH64_CALL26:
             {
-               void *veneer = arm64_emit_trampoline(blob, (uintptr_t)ptr);
-               const ptrdiff_t pcrel = (veneer - patch) >> 2;
+               void *veneer = code_emit_trampoline(blob, ptr);
+               const ptrdiff_t pcrel = (veneer + r->r_addend - patch) >> 2;
                *(uint32_t *)patch &= ~0x3ffffff;
                *(uint32_t *)patch |= pcrel & 0x3ffffff;
             }
             break;
          case R_AARCH64_PREL64:
-            *(uint64_t *)patch = ptr - (char *)patch;
+            *(uint64_t *)patch = ptr + r->r_addend - (char *)patch;
             break;
          case R_AARCH64_MOVW_UABS_G0_NC:
-            *(uint32_t *)patch |= ((uintptr_t)ptr & 0xffff) << 5;
+            *(uint32_t *)patch |=
+               (((uintptr_t)ptr + r->r_addend) & 0xffff) << 5;
             break;
          case R_AARCH64_MOVW_UABS_G1_NC:
-            *(uint32_t *)patch |= (((uintptr_t)ptr >> 16) & 0xffff) << 5;
+            *(uint32_t *)patch |=
+               ((((uintptr_t)ptr + r->r_addend) >> 16) & 0xffff) << 5;
             break;
          case R_AARCH64_MOVW_UABS_G2_NC:
-            *(uint32_t *)patch |= (((uintptr_t)ptr >> 32) & 0xffff) << 5;
+            *(uint32_t *)patch |=
+               ((((uintptr_t)ptr + r->r_addend) >> 32) & 0xffff) << 5;
             break;
          case R_AARCH64_MOVW_UABS_G3:
-            *(uint32_t *)patch |= (((uintptr_t)ptr >> 48) & 0xffff) << 5;
+            *(uint32_t *)patch |=
+               ((((uintptr_t)ptr + r->r_addend) >> 48) & 0xffff) << 5;
             break;
          default:
             blob->span->size = blob->wptr - blob->span->base;

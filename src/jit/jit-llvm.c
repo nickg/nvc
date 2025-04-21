@@ -151,6 +151,8 @@ typedef struct _cgen_block cgen_block_t;
 
 #if defined __APPLE__ && defined ARCH_ARM64
 #define JIT_CODE_MODEL LLVMCodeModelDefault
+#elif defined __linux__ && defined ARCH_X86_64
+#define JIT_CODE_MODEL LLVMCodeModelMedium
 #else
 #define JIT_CODE_MODEL LLVMCodeModelJITDefault
 #endif
