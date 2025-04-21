@@ -130,7 +130,7 @@ upload-artifacts:
 	tag=$$(git describe --tags $$(git rev-list --tags --max-count=1)) && \
 	gh release upload $$tag $(top_builddir)/$(PACKAGE)-$${tag/r/}.tar.gz{,.sig} && \
 	scp $(top_builddir)/$(PACKAGE)-$${tag/r/}.tar.gz{,.sig} vds:/sites/nick/files && \
-	run_id=$$(gh run list -w "Build MSYS2 and Ubuntu packages" \
+	run_id=$$(gh run list -w "Build release packages" \
 		  -L 1 --json headBranch,databaseId \
 		  --jq '.[0] | select(.headBranch == "'$$tag'").databaseId') && \
 	echo "Run ID : $$run_id" && \
