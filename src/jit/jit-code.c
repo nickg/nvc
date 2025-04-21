@@ -324,6 +324,7 @@ void code_cache_free(code_cache_t *code)
 
    for (code_span_t *it = code->spans, *tmp; it; it = tmp) {
       tmp = it->next;
+      DEBUG_ONLY(free(it->debug.comments));
       free(it);
    }
 
@@ -849,7 +850,7 @@ static void *code_emit_trampoline(code_blob_t *blob, void *dest)
    should_not_reach_here();
 #endif
 
-   void *prev = memmem(blob->span->base, blob->span->size,
+   void *prev = memmem(blob->veneers, blob->wptr - blob->veneers,
                        veneer, ARRAY_LEN(veneer));
    if (prev != NULL)
       return prev;
@@ -858,6 +859,23 @@ static void *code_emit_trampoline(code_blob_t *blob, void *dest)
 
       void *addr = blob->wptr;
       code_blob_emit(blob, veneer, ARRAY_LEN(veneer));
+      return addr;
+   }
+}
+
+static void *code_emit_got(code_blob_t *blob, void *dest)
+{
+   const uint8_t data[] = { __IMM64((uintptr_t)dest) };
+
+   void *prev = memmem(blob->veneers, blob->veneers - blob->wptr,
+                       data, ARRAY_LEN(data));
+   if (prev != NULL)
+      return prev;
+   else {
+      DEBUG_ONLY(code_blob_printf(blob, "GOT entry for %p", dest));
+
+      void *addr = blob->wptr;
+      code_blob_emit(blob, data, ARRAY_LEN(data));
       return addr;
    }
 }
@@ -901,6 +919,8 @@ static void code_load_pe(code_blob_t *blob, const void *data, size_t size)
 
    if (blob->overflow)
       return;   // Relocations might point outside of code span
+
+   blob->veneers = blob->wptr;
 
    shash_t *external = load_acquire(&blob->span->owner->symbols);
 
@@ -1053,6 +1073,8 @@ static void code_load_macho(code_blob_t *blob, const void *data, size_t size)
 
    if (blob->overflow)
       return;   // Relocations might point outside of code span
+
+   blob->veneers = blob->wptr;
 
    assert(seg != NULL);
    assert(symtab != NULL);
@@ -1223,6 +1245,8 @@ static void code_load_elf(code_blob_t *blob, const void *data, size_t size)
    if (blob->overflow)
       return;   // Relocations might point outside of code span
 
+   blob->veneers = blob->wptr;
+
    shash_t *external = load_acquire(&blob->span->owner->symbols);
 
    for (int i = 0; i < ehdr->e_shnum; i++) {
@@ -1248,7 +1272,7 @@ static void code_load_elf(code_blob_t *blob, const void *data, size_t size)
          const Elf64_Sym *sym = data + symtab->sh_offset
             + ELF64_R_SYM(r->r_info) * symtab->sh_entsize;
 
-         char *ptr = NULL;
+         void *ptr = NULL;
          switch (ELF64_ST_TYPE(sym->st_info)) {
          case STT_NOTYPE:
          case STT_FUNC:
@@ -1278,10 +1302,19 @@ static void code_load_elf(code_blob_t *blob, const void *data, size_t size)
             *(uint64_t *)patch = (uint64_t)ptr + r->r_addend;
             break;
          case R_X86_64_PC32:
+            {
+               const ptrdiff_t pcrel = ptr + r->r_addend - patch;
+               debug_reloc(blob, patch, "R_X86_64_PC32 %s PC%+"PRIiPTR,
+                           strtab + sym->st_name, pcrel);
+               assert(pcrel >= INT32_MIN && pcrel <= INT32_MAX);
+               *(uint32_t *)patch = pcrel;
+            }
+            break;
          case R_X86_64_GOTPCREL:
             {
-               const ptrdiff_t pcrel = ptr + r->r_addend - (char *)patch;
-               debug_reloc(blob, patch, "R_X86_64_PC32 %s PC%+"PRIiPTR,
+               void *got = code_emit_got(blob, ptr);
+               const ptrdiff_t pcrel = got + r->r_addend - patch;
+               debug_reloc(blob, patch, "R_X86_64_GOTPCREL %s PC%+"PRIiPTR,
                            strtab + sym->st_name, pcrel);
                assert(pcrel >= INT32_MIN && pcrel <= INT32_MAX);
                *(uint32_t *)patch = pcrel;
@@ -1306,7 +1339,7 @@ static void code_load_elf(code_blob_t *blob, const void *data, size_t size)
             }
             break;
          case R_AARCH64_PREL64:
-            *(uint64_t *)patch = ptr + r->r_addend - (char *)patch;
+            *(uint64_t *)patch = ptr + r->r_addend - patch;
             break;
          case R_AARCH64_MOVW_UABS_G0_NC:
             *(uint32_t *)patch |=

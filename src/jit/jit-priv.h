@@ -352,6 +352,7 @@ typedef struct {
    uint8_t      *wptr;
    ihash_t      *labels;
    patch_list_t *patches;
+   uint8_t      *veneers;
    bool          overflow;
 } code_blob_t;
 
