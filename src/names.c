@@ -1738,6 +1738,9 @@ static void hint_for_typo(scope_t *top_scope, diag_t *d, ident_t name,
             }
          }
       }
+
+      if (s->formal_kind != F_NONE)
+         break;
    }
 
    if (bestd <= (ident_len(name) <= 4 ? 2 : 3))
@@ -3623,7 +3626,15 @@ static bool solve_one_param(nametab_t *tab, tree_t p, overload_t *o, bool trial)
       {
          tree_t name = tree_name(p);
          overload_named_argument(o, name);
-         solve_types(tab, name, NULL);
+
+         if (!trial || is_unambiguous(name))
+            solve_types(tab, name, NULL);
+         else if (!try_solve_type(o->nametab, name)) {
+            pop_scope(o->nametab);
+            overload_cancel_argument(o, p);
+            return false;
+         }
+
          pop_scope(o->nametab);
       }
       break;
@@ -3658,7 +3669,7 @@ static void solve_subprogram_params(nametab_t *tab, tree_t call, overload_t *o)
       tree_t p = tree_param(call, i);
       tree_t value = tree_value(p);
       if (is_unambiguous(value)) {
-         solve_one_param(tab, p, o, false);
+         solve_one_param(tab, p, o, o->trial);
          mask_set(&pmask, i);
       }
    }

@@ -4970,6 +4970,8 @@ START_TEST(test_typo)
       {  0, "did you mean FOO?" },
       { 44, "protected type PT has no method named ONN" },
       {  0, "did you mean ONE?" },
+      { 53, "no possible overload of MYFUNC has formal X" },
+      {  0, "formal argument name X" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -7269,6 +7271,20 @@ START_TEST(test_vests6)
 }
 END_TEST
 
+START_TEST(test_issue1188)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/parse/issue1188.vhd");
+
+   parse_and_check(T_PACKAGE, T_PACK_BODY);
+
+   fail_unless(parse() == NULL);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_parse_tests(void)
 {
    Suite *s = suite_create("parse");
@@ -7451,6 +7467,7 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_issue1152);
    tcase_add_test(tc_core, test_issue1174);
    tcase_add_test(tc_core, test_vests6);
+   tcase_add_test(tc_core, test_issue1188);
    suite_add_tcase(s, tc_core);
 
    return s;

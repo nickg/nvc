@@ -43,4 +43,13 @@ begin
     begin
         p.onn;                          -- Error
     end process;
+
+    p4: process is
+        function myfunc return integer is
+        begin
+            return 2;
+        end function;
+    begin
+        assert myfunc(x => 4) = 1;      -- Error (no typo hint)
+    end process;
 end architecture;
