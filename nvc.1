@@ -48,6 +48,11 @@ Elaborate a previously analysed top level design unit.
 .\" -r
 .It Fl r Ar unit
 Execute a previously elaborated top level design unit.
+.\" -i
+.It Fl i Bo Ar unit Bc
+Start an interactive TCL shell, optionally with
+.Ar unit
+loaded.
 .\" --cover-export
 .It Fl \-cover-export Ar
 Export collected coverage information from the internal database format
@@ -58,6 +63,11 @@ Merge multiple coverage databases into a single database.
 .\" --cover-report
 .It Fl \-cover-report Ar
 Generate an HTML report from a coverage database.
+.\" --do
+.It Fl \-do Bo Ar unit Bc Ar script
+Evaluate a batch TCL script, optionally with
+.Ar unit
+loaded.
 .\" --init
 .It Fl \-init
 Initialise the working library directory.  This is not normally
@@ -71,9 +81,11 @@ vendor libraries.
 .\" --list
 .It Fl \-list
 Print all analysed and elaborated units in the work library.
-.\" --make
-.It Fl \-make Ar unit ...
-Generate a makefile for already analysed units.
+.\" --print-deps
+.It Fl \-print-deps Ar unit ...
+Print dependencies of
+.Ar unit
+in Makefile format.
 .El
 .\"
 .Pp
@@ -625,6 +637,22 @@ Concurrent access to a single library by multiple processes is
 completely safe and protected by a lock in the filesystem using
 .Xr flock 2
 that allows multiple concurrent readers but only a single writer.
+.\" ------------------------------------------------------------
+.\" TCL SCRIPTING
+.\" ------------------------------------------------------------
+.Sh TCL SCRIPTING
+.Nm
+supports both interactive and batch scripting using TCL.  This must be
+enabled at compile time using
+.Ql --enable-tcl .
+The TCL environment supports standard TCL commands, the
+.Ql tcllib
+extension library, and a number of NVC-specific commands.  Use the
+.Cm help
+command in the interactive environment
+.Ns ( Fl i Ns )
+to list these.
+.Pp
 .\" ------------------------------------------------------------
 .\" CODE COVERAGE
 .\" ------------------------------------------------------------
