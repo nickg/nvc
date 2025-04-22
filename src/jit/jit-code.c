@@ -828,6 +828,7 @@ static void arm64_patch_page_base_rel21(uint32_t *patch, void *ptr)
    const intptr_t dst_page = (intptr_t)ptr & ~UINT64_C(0xfff);
    const intptr_t src_page = (intptr_t)patch & ~UINT64_C(0xfff);
    const intptr_t upper21 = (dst_page - src_page) >> 12;
+   assert((upper21 & ~UINT64_C(0x1fffff)) == 0);
    *(uint32_t *)patch |= (upper21 & 3) << 29;
    *(uint32_t *)patch |= ((upper21 >> 2) & 0x7ffff) << 5;
 }
@@ -1050,6 +1051,7 @@ static void code_load_macho(code_blob_t *blob, const void *data, size_t size)
                   + j * sizeof(struct section_64);
                code_blob_align(blob, 1 << sec->align);
                load_addr[j] = blob->wptr;
+               DEBUG_ONLY(code_blob_printf(blob, "%s", sec->sectname));
                code_blob_emit(blob, data + sec->offset, sec->size);
             }
          }
@@ -1137,6 +1139,8 @@ static void code_load_macho(code_blob_t *blob, const void *data, size_t size)
             {
                void *veneer = code_emit_trampoline(blob, ptr);
                const ptrdiff_t pcrel = (veneer - patch) >> 2;
+               debug_reloc(blob, patch, "ARM64_RELOC_BRANCH26 %s PC%+"PRIiPTR,
+                           name, pcrel);
                *(uint32_t *)patch &= ~0x3ffffff;
                *(uint32_t *)patch |= pcrel & 0x3ffffff;
             }
