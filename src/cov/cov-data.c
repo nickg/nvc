@@ -942,17 +942,12 @@ cover_scope_t *cover_create_scope(cover_data_t *data, cover_scope_t *parent,
    assert(data->root_scope != NULL);
 
    cover_scope_t *s = xcalloc(sizeof(cover_scope_t));
-   char prefix[16] = {0};
-   int *cnt;
-   char c = 0;
 
    if (cover_is_branch(t)) {
       if (tree_kind(t) == T_ASSOC && tree_subkind(t) == A_OTHERS)
-         checked_sprintf(prefix, sizeof(prefix), "_B_OTHERS");
-      else {
-         cnt = &(parent->branch_label);
-         c = 'B';
-      }
+         name = ident_new("_B_OTHERS");
+      else
+         name = ident_sprintf("_B%u", parent->branch_label++);
    }
    // For toggle coverage, remember the position where its name in
    // the hierarchy starts.
@@ -961,24 +956,15 @@ cover_scope_t *cover_create_scope(cover_data_t *data, cover_scope_t *parent,
       name = tree_ident(t);
       s->sig_pos = ident_len(parent->hier) + 1;
    }
-   else if (tree_has_ident(t)) {
-      if (name == NULL)
-         name = tree_ident(t);
-   }
+   else if (tree_kind(t) == T_INERTIAL)   // Process without label
+      name = ident_sprintf("_S%u", parent->stmt_label++);
+   else if (name == NULL && tree_has_ident(t))
+      name = tree_ident(t);
    // Consider everything else as statement
    // Expressions do not get scope pushed, so if scope for e.g.
    // T_FCALL is pushed it will be concurent function call -> Label as statement
-   else {
-      cnt = &(parent->stmt_label);
-      c = 'S';
-   }
-
-   if (c) {
-      checked_sprintf(prefix, sizeof(prefix), "_%c%u", c, *cnt);
-      (*cnt)++;
-   }
-   if (name == NULL)
-      name = ident_new(prefix);
+   else if (name == NULL)
+      name = ident_sprintf("_S%u", parent->stmt_label++);
 
    s->name       = name;
    s->parent     = parent;

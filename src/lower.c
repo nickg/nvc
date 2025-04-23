@@ -11828,6 +11828,9 @@ static void lower_inertial_actual_process(lower_unit_t *lu, object_t *obj)
 
    vcode_select_block(main_bb);
 
+   lu->cscope = cover_create_scope(lu->cover, lu->parent->cscope,
+                                   inertial, NULL);
+
    vcode_reg_t zero_time_reg = emit_const(vtype_time(), 0);
    vcode_reg_t value_reg = lower_rvalue(lu, expr);
    vcode_reg_t nets_reg = emit_var_upref(1, var);

@@ -6576,6 +6576,78 @@ START_TEST(test_issue1191)
    };
 
    CHECK_BB(0);
+
+   fail_if_errors();
+}
+END_TEST
+
+START_TEST(test_issue1194)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/lower/issue1194.vhd");
+
+   tree_t a = parse_check_and_simplify(T_ENTITY, T_ARCH);
+
+   jit_t *jit = get_jit();
+   cover_data_t *data = cover_data_init(COVER_MASK_EXPRESSION, 0, 0);
+   rt_model_t *m = model_new(jit, NULL);
+
+   elab(tree_to_object(a), jit, get_registry(), get_mir(), data, NULL, m);
+
+   vcode_unit_t vu = find_unit("WORK.ISSUE1194.B.P_actual");
+   vcode_select_unit(vu);
+
+   EXPECT_BB(1) = {
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_VAR_UPREF, .hops = 2, .name = "X" },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_RESOLVED },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_VAR_UPREF, .hops = 2, .name = "Y" },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_RESOLVED },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_OR },
+      { VCODE_OP_NOT },
+      { VCODE_OP_NOT },
+      { VCODE_OP_AND },
+      { VCODE_OP_COND, .target = 3, .target_else = 2 },
+   };
+
+   CHECK_BB(1);
+
+   EXPECT_BB(2) = {
+      { VCODE_OP_AND },
+      { VCODE_OP_COND, .target = 5, .target_else = 4 },
+   };
+
+   CHECK_BB(2);
+
+   EXPECT_BB(3) = {
+      { VCODE_OP_COVER_EXPR, .tag = 0 },
+      { VCODE_OP_JUMP, .target = 2 },
+   };
+
+   CHECK_BB(3);
+
+   EXPECT_BB(4) = {
+      { VCODE_OP_AND },
+      { VCODE_OP_COND, .target = 7, .target_else = 6 },
+   };
+
+   CHECK_BB(4);
+
+   EXPECT_BB(5) = {
+      { VCODE_OP_COVER_EXPR, .tag = 1 },
+      { VCODE_OP_JUMP, .target = 4 },
+   };
+
+   CHECK_BB(5);
+
+   model_free(m);
+
+   fail_if_errors();
 }
 END_TEST
 
@@ -6731,6 +6803,7 @@ Suite *get_lower_tests(void)
    tcase_add_test(tc, test_genpack2);
    tcase_add_test(tc, test_issue1155);
    tcase_add_test(tc, test_issue1191);
+   tcase_add_test(tc, test_issue1194);
    suite_add_tcase(s, tc);
 
    return s;
