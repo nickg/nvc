@@ -672,7 +672,7 @@ static tree_t elab_default_binding(tree_t inst, const elab_ctx_t *ctx)
       tree_t match = NULL;
       for (int j = 0; j < c_ngenerics; j++) {
          tree_t cg = tree_generic(comp, j);
-         if (tree_ident(eg) == tree_ident(cg)) {
+         if (ident_casecmp(tree_ident(eg), tree_ident(cg))) {
             match = cg;
             break;
          }
@@ -764,7 +764,7 @@ static tree_t elab_default_binding(tree_t inst, const elab_ctx_t *ctx)
       tree_t match = NULL;
       for (int j = 0; j < c_nports; j++) {
          tree_t cp = tree_port(comp, j);
-         if (tree_ident(ep) == tree_ident(cp)) {
+         if (ident_casecmp(tree_ident(ep), tree_ident(cp))) {
             match = cp;
             break;
          }

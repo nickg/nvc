@@ -2651,7 +2651,7 @@ bool same_tree(tree_t a, tree_t b)
       }
 
    case T_RECORD_REF:
-      return tree_ident(a) == tree_ident(b)
+      return ident_casecmp(tree_ident(a), tree_ident(b))
          && same_tree(tree_value(a), tree_value(b));
 
    case T_LITERAL:

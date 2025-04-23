@@ -12633,7 +12633,7 @@ static void lower_generics(lower_unit_t *lu, tree_t block, tree_t primary)
          // which case we also need to associate the variable with the
          // original generic in the primary unit
          tree_t g2 = tree_generic(primary, i);
-         assert(tree_ident(g2) == tree_ident(g));
+         assert(ident_casecmp(tree_ident(g2), tree_ident(g)));
          if (g2 != g) lower_put_vcode_obj(g2, var, lu);
       }
    }
