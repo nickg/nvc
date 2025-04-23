@@ -53,7 +53,7 @@ typedef struct _rt_trigger {
    trigger_kind_t  kind;
    rt_trigger_t   *chain;
    jit_scalar_t    result;
-   jit_scalar_t    args[0];
+   jit_scalar_t    args[];
 } rt_trigger_t;
 
 typedef struct {
@@ -203,12 +203,12 @@ STATIC_ASSERT(sizeof(rt_nexus_t) <= 128);
 typedef struct _sig_shared {
    uint32_t    size;
    sig_flags_t flags;
-   uint8_t     data[0];
+   uint8_t     data[];
 } sig_shared_t;
 
 typedef struct {
    int         how;
-   rt_nexus_t *nexus[0];
+   rt_nexus_t *nexus[];
 } rt_index_t;
 
 typedef struct _rt_signal {
