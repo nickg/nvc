@@ -3026,7 +3026,7 @@ static tree_t finish_overload_resolution(overload_t *o)
                   {
                      tree_t ref = name_to_ref(tree_name(param));
                      if (ref != NULL)
-                        match = tree_ident(ref) == tree_ident(port);
+                        match = ident_casecmp(tree_ident(ref), tree_ident(port));
                   }
                   break;
                }

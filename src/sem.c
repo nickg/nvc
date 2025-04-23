@@ -757,7 +757,7 @@ static bool sem_check_type_decl(tree_t t, nametab_t *tab)
             ident_t f_name = tree_ident(f);
             for (int j = 0; j < i; j++) {
                tree_t fj = type_field(type, j);
-               if (f_name == tree_ident(fj)) {
+               if (ident_casecmp(f_name, tree_ident(fj))) {
                   diag_t *d = diag_new(DIAG_ERROR, tree_loc(f));
                   diag_printf(d, "duplicate field name %s", istr(f_name));
                   diag_hint(d, tree_loc(fj), "previously declared here");
@@ -4709,13 +4709,16 @@ static bool sem_check_port_actual(formal_map_t *formals, int nformals,
          ref = name_to_ref(ref);
          assert(ref != NULL && tree_kind(ref) == T_REF);
 
+         if (!tree_has_ref(ref))
+            return false;
+
+         tree_t d = tree_ref(ref);
          for (int i = 0; i < nformals; i++) {
-            if (tree_ident(formals[i].decl) == tree_ident(ref)) {
+            if (formals[i].decl == d) {
                if (formals[i].state == MAP_FULL)
                   sem_error(value, "formal port %s already has an actual",
                             istr(tree_ident(formals[i].decl)));
-               formals[i].state = (tree_kind(name) == T_REF)
-                  ? MAP_FULL : MAP_PARTIAL;
+               formals[i].state = ref == name ? MAP_FULL : MAP_PARTIAL;
                decl = formals[i].decl;
                tree_set_flag(ref, TREE_F_FORMAL_NAME);
                break;
@@ -6440,7 +6443,7 @@ static bool sem_check_spec(tree_t t, nametab_t *tab)
          tree_t match = NULL;
          for (; epos < e_ngenerics; epos++) {
             tree_t eg = tree_generic(entity, epos);
-            if (tree_ident(eg) == tree_ident(cg)) {
+            if (ident_casecmp(tree_ident(eg), tree_ident(cg))) {
                match = eg;
                mask_set(&have, epos);
                break;
@@ -6564,7 +6567,7 @@ static bool sem_check_spec(tree_t t, nametab_t *tab)
          tree_t match = NULL;
          for (; match == NULL && epos < e_nports; epos++) {
             tree_t ep = tree_port(entity, epos);
-            if (tree_ident(ep) == tree_ident(cp)) {
+            if (ident_casecmp(tree_ident(ep), tree_ident(cp))) {
                match = ep;
                mask_set(&have, epos);
                break;
