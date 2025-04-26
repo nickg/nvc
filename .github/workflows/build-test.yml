@@ -48,17 +48,15 @@ jobs:
         run: |
           export NVC_JIT_ASYNC=0
           export NVC_JIT_THRESHOLD=1
-          export FORCE_JIT=1
           export ASAN_OPTIONS=detect_leaks=0
           cd build
-          ./bin/run_regr
+          ./bin/run_regr -j -s
       - name: Test in interpreter mode
         run: |
           export NVC_JIT_THRESHOLD=0
-          export FORCE_JIT=1
           export ASAN_OPTIONS=detect_leaks=0
           cd build
-          ./bin/run_regr
+          ./bin/run_regr -j -s
 # ieee12 too slow
 #      - name: Test without intrinsics
 #        run: |
@@ -126,10 +124,9 @@ jobs:
         run: |
           export NVC_JIT_ASYNC=0
           export NVC_JIT_THRESHOLD=1
-          export FORCE_JIT=1
           cd build
           rm -rf logs
-          ./bin/run_regr
+          ./bin/run_regr -j -s
       - name: Dist clean
         run: make -C build distclean
       - name: Configure for release
@@ -183,10 +180,9 @@ jobs:
         run: |
           export NVC_JIT_ASYNC=0
           export NVC_JIT_THRESHOLD=1
-          export FORCE_JIT=1
           cd build
           rm -rf logs
-          ./bin/run_regr
+          ./bin/run_regr -j -s
       - name: Build MSYS2 package
         run: |
           cd contrib/msys2

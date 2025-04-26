@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2016-2024  Nick Gasson
+//  Copyright (C) 2016-2025  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -31,15 +31,18 @@
 #include <string.h>
 #include <stdarg.h>
 #include <unistd.h>
+#include <getopt.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <limits.h>
 #include <libgen.h>
 #include <fcntl.h>
 #include <assert.h>
+#include <stdint.h>
 #include <signal.h>
 #include <dirent.h>
 #include <ctype.h>
+#include <time.h>
 
 #ifdef __CYGWIN__
 #include <process.h>
@@ -131,6 +134,7 @@ struct test {
    char      *plusarg;
    unsigned   arrays;
    int        seed;
+   double     duration;
 };
 
 struct arglist {
@@ -150,7 +154,6 @@ static char test_dir[PATH_MAX];
 static char bin_dir[PATH_MAX];
 static bool is_tty = false;
 static bool force_jit = false;
-static bool broken_libc = false;
 
 #ifdef __MINGW32__
 static char *strndup(const char *s, size_t n)
@@ -279,6 +282,29 @@ static run_status_t win32_run_cmd(FILE *log, arglist_t **args)
 }
 #endif
 
+static double get_timestamp_ns(void)
+{
+#if defined __MINGW32__
+   static volatile uint64_t freq;
+   if (freq == 0) {
+      LARGE_INTEGER tmp;
+      if (!QueryPerformanceFrequency(&tmp))
+         win32_error("QueryPerformanceFrequency");
+      freq = tmp.QuadPart;
+   }
+
+   LARGE_INTEGER ticks;
+   if (!QueryPerformanceCounter(&ticks))
+      win32_error("QueryPerformanceCounter");
+   return (double)ticks.QuadPart * (1e9 / (double)freq);
+#else
+   struct timespec ts;
+   if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0)
+      abort();
+   return (double)ts.tv_nsec * 1.0e-9 + ts.tv_sec;
+#endif
+}
+
 static char *xvasprintf(const char *fmt, va_list ap)
 {
    char *strp = NULL;
@@ -325,7 +351,7 @@ static bool parse_test_list(void)
    while (lineno++, !feof(f)) {
       char line[256];
       if (fgets(line, sizeof(line), f) == NULL)
-          break;
+         break;
 
       char *name = strtok(line, WHITESPACE);
       if (name == NULL || is_comment(name))
@@ -838,6 +864,7 @@ static bool run_test(test_t *test)
    setenv("TEST_NAME", test->name, 1);
 
    arglist_t *args = NULL;
+   const double start_ns = get_timestamp_ns();
 
    if (test->flags & F_SHELL) {
       push_arg(&args, SH_PATH);
@@ -934,7 +961,7 @@ static bool run_test(test_t *test)
       if (force_jit)
          push_arg(&args, "--jit");
 
-      if ((test->flags & F_FAIL) || broken_libc) {
+      if (test->flags & F_FAIL) {
          if (run_cmd(outf, &args) != RUN_OK) {
             failed(NULL);
             result = false;
@@ -1225,6 +1252,9 @@ static bool run_test(test_t *test)
          fputs(line, stdout);
    }
 
+   const double end_ns = get_timestamp_ns();
+   test->duration = end_ns - start_ns;
+
  out_close:
    fclose(outf);
 
@@ -1305,11 +1335,25 @@ int main(int argc, char **argv)
    if (getenv("QUICK"))
       return 0;
 
+   bool print_stats= false;
+   int c;
+   while ((c = getopt(argc, argv, "sj")) != -1) {
+      switch (c) {
+      case 's':
+         print_stats = true;
+         break;
+      case 'j':
+         force_jit = true;
+         break;
+      case '?':
+         return EXIT_FAILURE;
+      default:
+         abort();
+      }
+   }
+
    if (!parse_test_list())
       return EXIT_FAILURE;
-
-   force_jit = getenv("FORCE_JIT") != NULL;
-   broken_libc = getenv("BROKEN_LIBC") != NULL;
 
    char *newpath = xasprintf("%s:%s", bin_dir, getenv("PATH"));
 
@@ -1321,7 +1365,7 @@ int main(int argc, char **argv)
    free(newpath);
 
    unsigned mask = 0;
-   for (int i = 1; i < argc; i++) {
+   for (int i = optind; i < argc; i++) {
       if (strcmp(argv[i], "wave") == 0)
          mask |= F_WAVE;
       else if (strcmp(argv[i], "vhpi") == 0)
@@ -1337,9 +1381,9 @@ int main(int argc, char **argv)
    int fails = 0;
    for (test_t *it = test_list; it != NULL; it = it->next) {
       bool found;
-      if (argc > 1) {
+      if (argc > optind) {
          found = !!(it->flags & mask);
-         for (int i = 1; i < argc && !found; i++) {
+         for (int i = optind; i < argc && !found; i++) {
             if (isdigit((int)argv[i][strlen(argv[i]) - 1]))
                found = strcmp(it->name, argv[i]) == 0;
             else
@@ -1351,6 +1395,28 @@ int main(int argc, char **argv)
 
       if (found && !run_test(it))
          fails++;
+   }
+
+   if (print_stats) {
+      test_t *slowest = test_list;
+      double sum = 0.0;
+      int count = 0;
+      for (test_t *it = test_list; it != NULL; it = it->next) {
+         if (it->duration == 0.0)
+            continue;
+         else if (it->duration > slowest->duration)
+            slowest = it;
+
+         count++;
+         sum += it->duration;
+      }
+
+      printf("%d tests in %.2f seconds; ", count, sum);
+      if (slowest->duration > 2 * (sum / count))
+         printf("slowest test was %s (%.1f ms); ",
+                slowest->name, slowest->duration * 1000.0);
+      printf("average %.1f ms\n", (sum / count) * 1000.0);
+      set_attr(ANSI_RESET);
    }
 
    if (fails > 0) {
