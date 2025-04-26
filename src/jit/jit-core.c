@@ -209,6 +209,11 @@ void jit_free(jit_t *j)
    free(j);
 }
 
+bool jit_is_shutdown(jit_t *j)
+{
+   return load_acquire(&j->shutdown);
+}
+
 mspace_t *jit_get_mspace(jit_t *j)
 {
    return j->mspace;
@@ -994,7 +999,7 @@ static void jit_async_cgen(void *context, void *arg)
    jit_func_t *f = context;
    jit_tier_t *tier = arg;
 
-   if (!load_acquire(&f->jit->shutdown))
+   if (!jit_is_shutdown(f->jit))
       (*tier->plugin.cgen)(f->jit, f->handle, tier->context);
 }
 

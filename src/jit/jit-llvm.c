@@ -3414,11 +3414,17 @@ static void jit_llvm_cgen(jit_t *j, jit_handle_t handle, void *context)
 
    llvm_obj_finalise(&obj, LLVM_O0);
 
+   if (jit_is_shutdown(f->jit))
+      goto skip_emit;
+
    LLVMMemoryBufferRef buf;
    char *error;
    if (LLVMTargetMachineEmitToMemoryBuffer(tm, obj.module, LLVMObjectFile,
                                            &error, &buf))
      fatal("failed to generate native code: %s", error);
+
+   if (jit_is_shutdown(f->jit))
+      goto skip_load;
 
    const size_t objsz = LLVMGetBufferSize(buf);
 
@@ -3440,7 +3446,10 @@ static void jit_llvm_cgen(jit_t *j, jit_handle_t handle, void *context)
              entry_addr, size, end_us - start_us);
    }
 
+ skip_load:
    LLVMDisposeMemoryBuffer(buf);
+
+ skip_emit:
    LLVMDisposeTargetData(obj.data_ref);
    LLVMDisposeTargetMachine(tm);
    LLVMDisposeBuilder(obj.builder);
