@@ -509,20 +509,17 @@ static void gc_mark_from_root(object_t *object, object_arena_t *arena,
 
    const object_class_t *class = classes[object->tag];
 
-   const imask_t has = class->has_map[object->kind];
-   const int nitems = __builtin_popcountll(has);
-   imask_t mask = 1;
-   for (int i = 0; i < nitems; mask <<= 1) {
-      if (has & mask) {
-         item_t *item = &(object->items[i++]);
-         if (ITEM_OBJECT & mask)
-            gc_mark_from_root(item->object, arena, generation);
-         else if (ITEM_OBJ_ARRAY & mask) {
-            if (item->obj_array != NULL) {
-               for (unsigned j = 0; j < item->obj_array->count; j++)
-                  gc_mark_from_root(item->obj_array->items[j], arena,
-                                    generation);
-            }
+   imask_t has = class->has_map[object->kind];
+   for (int n = 0; has; has &= has - 1, n++) {
+      const uint64_t mask = has & -has;
+      item_t *item = &(object->items[n]);
+      if (ITEM_OBJECT & mask)
+         gc_mark_from_root(item->object, arena, generation);
+      else if (ITEM_OBJ_ARRAY & mask) {
+         if (item->obj_array != NULL) {
+            for (unsigned j = 0; j < item->obj_array->count; j++)
+               gc_mark_from_root(item->obj_array->items[j], arena,
+                                 generation);
          }
       }
    }
@@ -531,19 +528,20 @@ static void gc_mark_from_root(object_t *object, object_arena_t *arena,
 static void gc_free_external(object_t *object)
 {
    const object_class_t *class = classes[object->tag];
-   const imask_t has = class->has_map[object->kind];
-   const int nitems = __builtin_popcountll(has);
-   imask_t mask = 1;
-   for (int i = 0; i < nitems; mask <<= 1) {
-      if (has & mask) {
-         item_t *item = &(object->items[i++]);
-         if (ITEM_OBJ_ARRAY & mask)
-            obj_array_free(&(item->obj_array));
-         else if (ITEM_TEXT & mask)
-            free(item->text);
-         else if (ITEM_NUMBER & mask)
-            number_free(&item->number);
-      }
+
+   imask_t has = class->has_map[object->kind];
+   if ((has & (ITEM_OBJ_ARRAY | ITEM_TEXT | ITEM_NUMBER)) == 0)
+      return;
+
+   for (int n = 0; has; has &= has - 1, n++) {
+      const uint64_t mask = has & -has;
+      item_t *item = &(object->items[n]);
+      if (ITEM_OBJ_ARRAY & mask)
+         obj_array_free(&(item->obj_array));
+      else if (ITEM_TEXT & mask)
+         free(item->text);
+      else if (ITEM_NUMBER & mask)
+         number_free(&item->number);
    }
 }
 
@@ -634,12 +632,11 @@ void object_visit(object_t *object, object_visit_ctx_t *ctx)
 
    const imask_t deep_mask = ~(ctx->deep ? 0 : I_TYPE | I_REF);
 
-   const imask_t has = class->has_map[object->kind];
-   const int nitems = __builtin_popcountll(has);
-   imask_t mask = 1;
-   for (int i = 0; i < nitems; mask <<= 1) {
-      if (has & mask & deep_mask) {
-         item_t *item = &(object->items[i]);
+   imask_t has = class->has_map[object->kind];
+   for (int n = 0; has; has &= has - 1, n++) {
+      const uint64_t mask = has & -has;
+      if (mask & deep_mask) {
+         item_t *item = &(object->items[n]);
          if (ITEM_OBJECT & mask)
             object_visit(item->object, ctx);
          else if (ITEM_OBJ_ARRAY & mask) {
@@ -649,9 +646,6 @@ void object_visit(object_t *object, object_visit_ctx_t *ctx)
             }
          }
       }
-
-      if (has & mask)
-         i++;
    }
 
    if (visit) {
@@ -724,11 +718,10 @@ object_t *object_rewrite(object_t *object, object_rewrite_ctx_t *ctx)
 
    const object_class_t *class = classes[object->tag];
 
-   const imask_t has = class->has_map[object->kind];
-   const int nitems = __builtin_popcountll(has);
-   imask_t mask = 1;
-   for (int n = 0; n < nitems; mask <<= 1) {
-      if (has & mask & ~skip_mask) {
+   imask_t has = class->has_map[object->kind];
+   for (int n = 0; has; has &= has - 1, n++) {
+      const uint64_t mask = has & -has;
+      if (mask & ~skip_mask) {
          if (ITEM_OBJECT & mask) {
             object_t *o = object_rewrite(object->items[n].object, ctx);
             object->items[n].object = o;
@@ -757,9 +750,6 @@ object_t *object_rewrite(object_t *object, object_rewrite_ctx_t *ctx)
          else
             should_not_reach_here();
       }
-
-      if (has & mask)
-         n++;
    }
 
    if (ctx->cache[index] != (object_t *)-1) {
@@ -845,43 +835,39 @@ void object_write(object_t *root, fbuf_t *f, ident_wr_ctx_t ident_ctx,
       if (class->has_loc)
          loc_write(&object->loc, loc_ctx);
 
-      const imask_t has = class->has_map[object->kind];
-      const int nitems = __builtin_popcountll(has);
-      imask_t mask = 1;
-      for (int n = 0; n < nitems; mask <<= 1) {
-         if (has & mask) {
-            item_t *item = &(object->items[n]);
-            if (ITEM_IDENT & mask)
-               ident_write(item->ident, ident_ctx);
-            else if (ITEM_OBJECT & mask)
-               object_write_ref(item->object, f);
-            else if (ITEM_OBJ_ARRAY & mask) {
-               if (item->obj_array != NULL) {
-                  const unsigned count = item->obj_array->count;
-                  fbuf_put_uint(f, count);
-                  for (unsigned i = 0; i < count; i++)
-                     object_write_ref(item->obj_array->items[i], f);
-               }
-               else
-                  fbuf_put_uint(f, 0);
+      imask_t has = class->has_map[object->kind];
+      for (int n = 0; has; has &= has - 1, n++) {
+         const uint64_t mask = has & -has;
+         item_t *item = &(object->items[n]);
+         if (ITEM_IDENT & mask)
+            ident_write(item->ident, ident_ctx);
+         else if (ITEM_OBJECT & mask)
+            object_write_ref(item->object, f);
+         else if (ITEM_OBJ_ARRAY & mask) {
+            if (item->obj_array != NULL) {
+               const unsigned count = item->obj_array->count;
+               fbuf_put_uint(f, count);
+               for (unsigned i = 0; i < count; i++)
+                  object_write_ref(item->obj_array->items[i], f);
             }
-            else if (ITEM_INT64 & mask)
-               fbuf_put_int(f, item->ival);
-            else if (ITEM_INT32 & mask)
-               fbuf_put_int(f, item->ival);
-            else if (ITEM_DOUBLE & mask)
-               write_double(item->dval, f);
-            else if (ITEM_TEXT & mask) {
-               const size_t len = strlen(item->text);
-               fbuf_put_uint(f, len);
-               write_raw(item->text, len, f);
-            }
-            else if (ITEM_NUMBER & mask)
-               number_write(item->number, f);
             else
-               should_not_reach_here();
-            n++;
+               fbuf_put_uint(f, 0);
          }
+         else if (ITEM_INT64 & mask)
+            fbuf_put_int(f, item->ival);
+         else if (ITEM_INT32 & mask)
+            fbuf_put_int(f, item->ival);
+         else if (ITEM_DOUBLE & mask)
+            write_double(item->dval, f);
+         else if (ITEM_TEXT & mask) {
+            const size_t len = strlen(item->text);
+            fbuf_put_uint(f, len);
+            write_raw(item->text, len, f);
+         }
+         else if (ITEM_NUMBER & mask)
+            number_write(item->number, f);
+         else
+            should_not_reach_here();
       }
    }
 
@@ -1011,47 +997,41 @@ object_t *object_read(fbuf_t *f, object_load_fn_t loader_fn,
       if (class->has_loc)
          loc_read(&(object->loc), loc_ctx);
 
-      const imask_t has = class->has_map[object->kind];
-      const int nitems = __builtin_popcountll(has);
-      imask_t mask = 1;
-      for (int n = 0; n < nitems; mask <<= 1) {
-         if (has & mask) {
-            item_t *item = &(object->items[n]);
-            if (ITEM_IDENT & mask)
-               item->ident = ident_read(ident_ctx);
-            else if (ITEM_OBJECT & mask)
-               item->object = object_read_ref(f, key_map);
-            else if (ITEM_OBJ_ARRAY & mask) {
-               const unsigned count = fbuf_get_uint(f);
-               if (count > 0) {
-                  item->obj_array = xmalloc_flex(sizeof(obj_array_t),
-                                                 count, sizeof(object_t *));
-                  item->obj_array->count =
-                     item->obj_array->limit = count;
-                  for (unsigned i = 0; i < count; i++) {
-                     object_t *o = object_read_ref(f, key_map);
-                     item->obj_array->items[i] = o;
-                  }
+      imask_t has = class->has_map[object->kind];
+      for (int n = 0; has; has &= has - 1, n++) {
+         const uint64_t mask = has & -has;
+         item_t *item = &(object->items[n]);
+         if (ITEM_IDENT & mask)
+            item->ident = ident_read(ident_ctx);
+         else if (ITEM_OBJECT & mask)
+            item->object = object_read_ref(f, key_map);
+         else if (ITEM_OBJ_ARRAY & mask) {
+            const unsigned count = fbuf_get_uint(f);
+            if (count > 0) {
+               item->obj_array = xmalloc_flex(sizeof(obj_array_t),
+                                              count, sizeof(object_t *));
+               item->obj_array->count =
+                  item->obj_array->limit = count;
+               for (unsigned i = 0; i < count; i++) {
+                  object_t *o = object_read_ref(f, key_map);
+                  item->obj_array->items[i] = o;
                }
             }
-            else if (ITEM_INT64 & mask)
-               item->ival = fbuf_get_int(f);
-            else if (ITEM_INT32 & mask)
-               item->ival = fbuf_get_int(f);
-            else if (ITEM_DOUBLE & mask)
-               item->dval = read_double(f);
-            else if (ITEM_TEXT & mask) {
-               const size_t len = fbuf_get_uint(f);
-               item->text = xmalloc(len + 1);
-               read_raw(item->text, len, f);
-               item->text[len] = '\0';
-            }
-            else if (ITEM_NUMBER & mask)
-               item->number = number_read(f);
-            else
-               should_not_reach_here();
-            n++;
          }
+         else if ((ITEM_INT64 | ITEM_INT32) & mask)
+            item->ival = fbuf_get_int(f);
+         else if (ITEM_DOUBLE & mask)
+            item->dval = read_double(f);
+         else if (ITEM_TEXT & mask) {
+            const size_t len = fbuf_get_uint(f);
+            item->text = xmalloc(len + 1);
+            read_raw(item->text, len, f);
+            item->text[len] = '\0';
+         }
+         else if (ITEM_NUMBER & mask)
+            item->number = number_read(f);
+         else
+            should_not_reach_here();
       }
    }
 
@@ -1093,23 +1073,19 @@ static bool object_copy_mark(object_t *object, object_copy_ctx_t *ctx)
       hash_put(ctx->copy_map, object, copy);
    }
 
-   const imask_t has = class->has_map[object->kind];
-   const int nitems = __builtin_popcountll(has);
-   imask_t mask = 1;
-   for (int n = 0; n < nitems; mask <<= 1) {
-      if (has & mask) {
-         item_t *item = &(object->items[n]);
-         if (ITEM_OBJECT & mask)
-            marked |= object_copy_mark(item->object, ctx);
-         else if (ITEM_OBJ_ARRAY & mask) {
-            if (item->obj_array != NULL) {
-               for (unsigned i = 0; i < item->obj_array->count; i++) {
-                  object_t *o = item->obj_array->items[i];
-                  marked |= object_copy_mark(o, ctx);
-               }
+   imask_t has = class->has_map[object->kind];
+   for (int n = 0; has; has &= has - 1, n++) {
+      const uint64_t mask = has & -has;
+      item_t *item = &(object->items[n]);
+      if (ITEM_OBJECT & mask)
+         marked |= object_copy_mark(item->object, ctx);
+      else if (ITEM_OBJ_ARRAY & mask) {
+         if (item->obj_array != NULL) {
+            for (unsigned i = 0; i < item->obj_array->count; i++) {
+               object_t *o = item->obj_array->items[i];
+               marked |= object_copy_mark(o, ctx);
             }
          }
-         n++;
       }
    }
 
@@ -1172,44 +1148,40 @@ void object_copy(object_copy_ctx_t *ctx)
 
       const object_class_t *class = classes[object->tag];
 
-      const imask_t has = class->has_map[object->kind];
-      const int nitems = __builtin_popcountll(has);
-      imask_t mask = 1;
-      for (int n = 0; n < nitems; mask <<= 1) {
-         if (has & mask) {
-            const item_t *from = &(object->items[n]);
-            item_t *to = &(copy->items[n]);
+      imask_t has = class->has_map[object->kind];
+      for (int n = 0; has; has &= has - 1, n++) {
+         const uint64_t mask = has & -has;
+         const item_t *from = &(object->items[n]);
+         item_t *to = &(copy->items[n]);
 
-            if (ITEM_IDENT & mask)
-               to->ident = from->ident;
-            else if (ITEM_OBJECT & mask) {
-               to->object = object_copy_map(from->object, ctx);
-               object_write_barrier(copy, to->object);
-            }
-            else if (ITEM_DOUBLE & mask)
-               to->dval = from->dval;
-            else if (ITEM_OBJ_ARRAY & mask) {
-               if (from->obj_array != NULL) {
-                  // TODO: make a resize macro
-                  to->obj_array = xmalloc_flex(sizeof(obj_array_t),
-                                               from->obj_array->count,
-                                               sizeof(object_t *));
-                  to->obj_array->count =
-                     to->obj_array->limit = from->obj_array->count;
-                  for (size_t i = 0; i < from->obj_array->count; i++) {
-                     object_t *o =
-                        object_copy_map(from->obj_array->items[i], ctx);
-                     to->obj_array->items[i] = o;
-                     object_write_barrier(copy, o);
-                  }
+         if (ITEM_IDENT & mask)
+            to->ident = from->ident;
+         else if (ITEM_OBJECT & mask) {
+            to->object = object_copy_map(from->object, ctx);
+            object_write_barrier(copy, to->object);
+         }
+         else if (ITEM_DOUBLE & mask)
+            to->dval = from->dval;
+         else if (ITEM_OBJ_ARRAY & mask) {
+            if (from->obj_array != NULL) {
+               // TODO: make a resize macro
+               to->obj_array = xmalloc_flex(sizeof(obj_array_t),
+                                            from->obj_array->count,
+                                            sizeof(object_t *));
+               to->obj_array->count =
+                  to->obj_array->limit = from->obj_array->count;
+               for (size_t i = 0; i < from->obj_array->count; i++) {
+                  object_t *o =
+                     object_copy_map(from->obj_array->items[i], ctx);
+                  to->obj_array->items[i] = o;
+                  object_write_barrier(copy, o);
                }
             }
-            else if ((ITEM_INT64 & mask) || (ITEM_INT32 & mask))
-               to->ival = from->ival;
-            else
-               should_not_reach_here();
-            n++;
          }
+         else if ((ITEM_INT64 | ITEM_INT32) & mask)
+            to->ival = from->ival;
+         else
+            should_not_reach_here();
       }
    }
 
