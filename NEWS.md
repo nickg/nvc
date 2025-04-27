@@ -4,6 +4,8 @@
   `--preserve-case` (#1195).
 - Fixed a crash when expression coverage is enabled and a port is
   associated with a non-static expression (#1194).
+- Added `--merge-mode` option to control behaviour when merging
+  non-equal coverage databases.
 
 ## Version 1.16.0 - 2025-04-21
 - Added support for PSL `prev()`, `stable()`, `rose()` and `fell()`

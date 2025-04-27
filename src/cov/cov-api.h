@@ -215,6 +215,11 @@ typedef enum {
                         | COVER_MASK_TOGGLE | COVER_MASK_EXPRESSION     \
                         | COVER_MASK_STATE | COVER_MASK_FUNCTIONAL)
 
+typedef enum {
+   MERGE_INTERSECT,
+   MERGE_UNION,
+} merge_mode_t;
+
 cover_data_t *cover_data_init(cover_mask_t mask, int array_limit, int threshold);
 bool cover_enabled(cover_data_t *data, cover_mask_t mask);
 
@@ -223,7 +228,7 @@ unsigned cover_count_items(cover_data_t *data);
 void cover_dump_items(cover_data_t *data, fbuf_t *f, cover_dump_t dt,
                       const int32_t *counts);
 cover_data_t *cover_read_items(fbuf_t *f, uint32_t pre_mask);
-void cover_merge_items(fbuf_t *f, cover_data_t *data);
+void cover_merge_items(fbuf_t *f, cover_data_t *data, merge_mode_t mode);
 
 //
 // Spec and exclude file handling

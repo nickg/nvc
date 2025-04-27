@@ -504,6 +504,13 @@ names in the output.
 .\" --output
 .It Fl o , Fl \-output= Ns Ar file
 File name of output coverage database.
+.\" --merge-mode
+.It Fl m , Fl \-merge-mode= Ns Ar mode
+Where
+.Ar mode
+can be one of:
+.Ar union ,
+.Ar intersect
 .El
 .\" ------------------------------------------------------------
 .\" Coverage report options
@@ -758,10 +765,22 @@ $ nvc --cover-merge -o merged.ncdb first.ncdb second.ncdb third.ncdb ...
 During code coverage merging, NVC sums together coverage bins with equal
 hierarchical paths in the elaborated design.
 .Pp
-NVC creates union of all coverage bins from all input coverage databases
-in the merged code coverage database. This allows merging code coverage from
-different designs (e.g. where part of the hierarchy is formed by
-"if-generate" statement).
+NVC supports different modes of merging. The merge mode controls what NVC
+does if a coverage database that is being merged (new) contains a coverage
+item that is not present in the coverage database being merged into (old).
+The merge mode can be selected by a
+.Cm --merge-mode=mode
+option where
+.Cm mode
+can be one of:
+.Bl -bullet
+.It
+.Cm union
+- The item is added to the merged (old) database. This is the default mode.
+.It
+.Cm intersect
+- The item is dropped from the merged (old) database.
+.El
 .Ss Generating code coverage report
 To generate code coverage report in HTML format, run:
 .Bd -literal -offset indent
