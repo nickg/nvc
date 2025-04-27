@@ -171,6 +171,8 @@ static void lower_dependencies(lower_unit_t *lu, tree_t unit);
 typedef vcode_reg_t (*lower_signal_flag_fn_t)(vcode_reg_t, vcode_reg_t);
 typedef vcode_reg_t (*arith_fn_t)(vcode_reg_t, vcode_reg_t);
 
+#define MAX_INLINE_CONST 32
+
 #define PUSH_DEBUG_INFO(t)                              \
    __attribute__((cleanup(emit_debug_info), unused))    \
    const loc_t _old_loc = *vcode_last_loc();            \
@@ -579,16 +581,18 @@ static vcode_reg_t lower_type_width(lower_unit_t *lu, type_t type,
    }
 }
 
-static int lower_array_const_size(type_t type)
+static size_t lower_array_const_size(type_t type)
 {
    const int ndims = dimension_of(type);
 
-   int size = 1;
+   size_t size = 1;
    for (int i = 0; i < ndims; i++) {
       tree_t r = range_of(type, i);
       int64_t low, high;
       range_bounds(r, &low, &high);
-      size *= MAX(high - low + 1, 0);
+
+      if (__builtin_mul_overflow(size, MAX(high - low + 1, 0), &size))
+         return SIZE_MAX;
    }
 
    type_t elem = type_elem(type);
@@ -5186,7 +5190,7 @@ static vcode_reg_t lower_nested_default_value(lower_unit_t *lu, type_t type)
       assert(type_const_bounds(type));
       type_t elem = type_elem_recur(type);
       vcode_reg_t elem_reg = lower_nested_default_value(lu, elem);
-      const int size = lower_array_const_size(type);
+      const size_t size = lower_array_const_size(type);
 
       if (vtype_is_scalar(vcode_reg_type(elem_reg)))
          return emit_const_rep(lower_type(type), elem_reg, size);
@@ -5228,22 +5232,16 @@ static vcode_reg_t lower_default_value(lower_unit_t *lu, type_t type,
       type_t elem_type = type_elem_recur(type);
 
       if (type_const_bounds(type)) {
-         if (type_is_scalar(elem_type)) {
-            vcode_reg_t elem_reg = lower_nested_default_value(lu, elem_type);
-            const int size = lower_array_const_size(type);
-            if (hint_reg == VCODE_INVALID_REG) {
-               vcode_type_t vtype = lower_type(type);
-               return emit_address_of(emit_const_rep(vtype, elem_reg, size));
-            }
-            else {
-               vcode_reg_t count_reg = emit_const(vtype_offset(), size);
-               vcode_reg_t data_reg = lower_array_data(hint_reg);
-               emit_memset(data_reg, elem_reg, count_reg);
-               return hint_reg;
-            }
+         const size_t size = lower_array_const_size(type);
+         if (hint_reg != VCODE_INVALID_REG && type_is_scalar(elem_type)) {
+            vcode_reg_t elem_reg = lower_scalar_type_left(lu, elem_type);
+            vcode_reg_t count_reg = emit_const(vtype_offset(), size);
+            vcode_reg_t data_reg = lower_array_data(hint_reg);
+            emit_memset(data_reg, elem_reg, count_reg);
+            return hint_reg;
          }
-         else
-            return emit_address_of(lower_nested_default_value(lu, type));
+         else if (size < MAX_INLINE_CONST)
+             return emit_address_of(lower_nested_default_value(lu, type));
       }
 
       vcode_reg_t count_reg = lower_array_total_len(lu, type, hint_reg);
@@ -5352,9 +5350,7 @@ static vcode_reg_t lower_default_value(lower_unit_t *lu, type_t type,
             }
          }
          else if (type_is_record(ftype)) {
-            vcode_reg_t def_reg =
-               lower_default_value(lu, ftype, VCODE_INVALID_REG);
-
+            vcode_reg_t def_reg = lower_default_value(lu, ftype, ptr_reg);
             emit_copy(ptr_reg, def_reg, VCODE_INVALID_REG);
          }
          else {

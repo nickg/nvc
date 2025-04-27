@@ -6651,6 +6651,48 @@ START_TEST(test_issue1194)
 }
 END_TEST
 
+START_TEST(test_issue1196)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/lower/issue1196.vhd");
+
+   run_elab();
+
+   vcode_unit_t vu = find_unit("WORK.ISSUE1196.P1");
+   vcode_select_unit(vu);
+
+   EXPECT_BB(1) = {
+      { VCODE_OP_CONST, .value = INT32_MAX + INT64_C(1) },
+      { VCODE_OP_NEW },
+      { VCODE_OP_ALL },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_UNWRAP },
+      { VCODE_OP_NULL },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_STORE, .name = "i" },
+      { VCODE_OP_JUMP, .target = 2 },
+   };
+
+   CHECK_BB(1);
+
+   EXPECT_BB(2) = {
+      { VCODE_OP_LOAD, .name = "i" },
+      { VCODE_OP_ARRAY_REF },
+      { VCODE_OP_STORE_INDIRECT },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_ADD },
+      { VCODE_OP_STORE, .name = "i" },
+      { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
+      { VCODE_OP_COND, .target = 3, .target_else = 2 },
+   };
+
+   CHECK_BB(2);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_lower_tests(void)
 {
    Suite *s = suite_create("lower");
@@ -6804,6 +6846,7 @@ Suite *get_lower_tests(void)
    tcase_add_test(tc, test_issue1155);
    tcase_add_test(tc, test_issue1191);
    tcase_add_test(tc, test_issue1194);
+   tcase_add_test(tc, test_issue1196);
    suite_add_tcase(s, tc);
 
    return s;
