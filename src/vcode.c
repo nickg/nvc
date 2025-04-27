@@ -3579,6 +3579,7 @@ vcode_reg_t emit_const_rep(vcode_type_t type, vcode_reg_t value, int rep)
 
    VCODE_ASSERT(vtype_kind(type) == VCODE_TYPE_CARRAY,
                 "constant array must have constrained array type");
+   VCODE_ASSERT(rep >= 0, "repeat count must be non-negative");
 
    DEBUG_ONLY(vcode_assert_const(value, "repeat"));
 
