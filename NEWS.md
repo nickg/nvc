@@ -1,4 +1,5 @@
 ## Unreleased changes
+- Updated to OSVVM 2025.02 for `nvc --install`.
 - Fixed an elaboration failure where generic names differ in case
   between entity and component and the files were analysed with
   `--preserve-case` (#1195).
