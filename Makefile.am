@@ -109,7 +109,7 @@ release: update-test-dist
 	    $(top_srcdir)/www/defs.m4; \
 	  sed -i 's/'$$last'/'$$v'/g' $(top_srcdir)/README.md; \
 	  $(MAKE) -C $(top_builddir) distcheck; \
-	  gpg -b $(top_builddir)/$(PACKAGE)-$(VERSION).tar.gz \
+	  gpg --yes -b $(top_builddir)/$(PACKAGE)-$(VERSION).tar.gz \
 	)
 
 sync-branch:
