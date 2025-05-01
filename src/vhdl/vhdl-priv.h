@@ -20,10 +20,15 @@
 
 #include "prim.h"
 #include "mir/mir-node.h"
+#include "type.h"
 
 typedef struct {
    mir_type_t  type;
    mir_stamp_t stamp;
+   type_kind_t kind;
+   size_t      size;
+   unsigned    ndims;
+   unsigned    udims;
 } type_info_t;
 
 const type_info_t *type_info(mir_unit_t *mu, type_t type);

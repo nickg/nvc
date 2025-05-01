@@ -27,6 +27,7 @@
 
 #include <stdlib.h>
 #include <assert.h>
+#include <string.h>
 
 typedef enum {
    _U = 0x0,
@@ -39,6 +40,23 @@ typedef enum {
    _H = 0x7,
    _D = 0x8
 } std_ulogic_t;
+
+static mir_value_t wrap_string(mir_unit_t *mu, const char *str)
+{
+   mir_value_t array = mir_const_string(mu, str);
+   mir_value_t addr = mir_build_address_of(mu, array);
+
+   mir_type_t t_offset = mir_offset_type(mu);
+   mir_type_t t_bool = mir_bool_type(mu);
+
+   mir_dim_t dims[] = {
+      { mir_const(mu, t_offset, 1),
+        mir_const(mu, t_offset, strlen(str)),
+        mir_const(mu, t_bool, RANGE_TO)
+      },
+   };
+   return mir_build_wrap(mu, addr, dims, 1);
+}
 
 static void predef_bit_shift(mir_unit_t *mu, tree_t decl,
                              subprogram_kind_t kind)
@@ -494,5 +512,432 @@ void vhdl_lower_predef(mir_unit_t *mu, object_t *obj)
       break;
    default:
       should_not_reach_here();
+   }
+}
+
+static void enum_image_helper(mir_unit_t *mu, type_t type, mir_value_t arg)
+{
+   const int nlits = type_enum_literals(type);
+   assert(nlits >= 1);
+
+   mir_block_t *blocks LOCAL = xmalloc_array(nlits, sizeof(mir_block_t));
+   mir_value_t *cases LOCAL = xmalloc_array(nlits, sizeof(mir_value_t));
+
+   const type_info_t *ti = type_info(mu, type);
+
+   for (int i = 0; i < nlits; i++) {
+      cases[i]  = mir_const(mu, ti->type, i);
+      blocks[i] = mir_add_block(mu);
+   }
+
+   mir_build_case(mu, arg, blocks[0], cases, blocks, nlits);
+
+   for (int i = 0; i < nlits; i++) {
+      // LRM specifies result is lowercase for enumerated types when
+      // the value is a basic identifier
+      ident_t id = tree_ident(type_enum_literal(type, i));
+      if (ident_char(id, 0) != '\'')
+         id = ident_downcase(id);
+
+      mir_set_cursor(mu, blocks[i], MIR_APPEND);
+
+      mir_value_t str = wrap_string(mu, istr(id));
+      mir_build_return(mu, str);
+   }
+}
+
+static void numeric_image_helper(mir_unit_t *mu, type_t type, mir_value_t arg)
+{
+   ident_t conv_fn;
+   mir_value_t cast;
+   if (type_is_real(type)) {
+      cast = arg;
+      conv_fn = ident_new("NVC.TEXT_UTIL.REAL_TO_STRING(R)S");
+   }
+   else {
+      mir_type_t t_int64 = mir_int_type(mu, INT64_MIN, INT64_MAX);
+      cast = mir_build_cast(mu, t_int64, arg);
+      conv_fn = ident_new(
+         "NVC.TEXT_UTIL.INT_TO_STRING(21NVC.TEXT_UTIL.T_INT64)S");
+   }
+
+   mir_type_t t_string = mir_string_type(mu);
+
+   mir_value_t text_util = mir_build_link_package(mu, well_known(W_TEXT_UTIL));
+   mir_value_t conv_args[] = { text_util, cast };
+   mir_value_t str = mir_build_fcall(mu, conv_fn, t_string, MIR_NULL_STAMP,
+                                     conv_args, 2);
+   mir_build_return(mu, str);
+}
+
+static void physical_image_helper(mir_unit_t *mu, type_t type, mir_value_t arg)
+{
+   mir_type_t t_int64 = mir_int_type(mu, INT64_MIN, INT64_MAX);
+   mir_type_t t_string = mir_string_type(mu);
+   mir_type_t t_offset = mir_offset_type(mu);
+   mir_type_t t_char = mir_char_type(mu);
+   mir_type_t t_bool = mir_bool_type(mu);
+
+   mir_value_t cast = mir_build_cast(mu, t_int64, arg);
+   ident_t conv_fn =
+      ident_new("NVC.TEXT_UTIL.INT_TO_STRING(21NVC.TEXT_UTIL.T_INT64)S");
+   mir_value_t text_util = mir_build_link_package(mu, well_known(W_TEXT_UTIL));
+   mir_value_t conv_args[] = { text_util, cast };
+   mir_value_t num_str = mir_build_fcall(mu, conv_fn, t_string, MIR_NULL_STAMP,
+                                         conv_args, 2);
+
+   mir_value_t num_len = mir_build_uarray_len(mu, num_str, 0);
+
+   const char *unit0 = istr(ident_downcase(tree_ident(type_unit(type, 0))));
+
+   mir_value_t append_len = mir_const(mu, t_offset, strlen(unit0) + 1);
+   mir_value_t total_len = mir_build_add(mu, t_offset, num_len, append_len);
+
+   mir_value_t mem = mir_build_alloc(mu, t_char, MIR_NULL_STAMP, total_len);
+   mir_build_copy(mu, mem, mir_build_unwrap(mu, num_str), num_len);
+
+   mir_value_t ptr0 = mir_build_array_ref(mu, mem, num_len);
+   mir_build_store(mu, ptr0, mir_const(mu, t_char, ' '));
+
+   mir_value_t unit = wrap_string(mu, unit0);
+   mir_value_t ptr1 =
+      mir_build_array_ref(mu, ptr0, mir_const(mu, t_offset, 1));
+   mir_build_copy(mu, ptr1, mir_build_unwrap(mu, unit),
+                  mir_const(mu, t_offset, strlen(unit0)));
+
+   mir_dim_t dims[] = {
+      { .left  = mir_const(mu, t_offset, 1),
+        .right = total_len,
+        .dir   = mir_const(mu, t_bool, RANGE_TO),
+      }
+   };
+   mir_build_return(mu, mir_build_wrap(mu, mem, dims, 1));
+}
+
+static void record_image_helper(mir_unit_t *mu, type_t type, mir_value_t arg)
+{
+   const int nfields = type_fields(type);
+   mir_value_t regs[nfields];
+   mir_value_t lengths[nfields];
+
+   mir_type_t t_string = mir_string_type(mu);
+   mir_type_t t_char = mir_char_type(mu);
+   mir_type_t t_offset = mir_offset_type(mu);
+   mir_type_t t_bool = mir_bool_type(mu);
+
+   mir_value_t sum = mir_const(mu, t_offset, nfields + 1);
+
+   mir_type_t t_dummy = mir_context_type(mu, ident_new("dummy"));
+   mir_value_t context_reg = mir_build_null(mu, t_dummy);
+
+   for (int i = 0; i < nfields; i++) {
+      type_t ftype = type_base_recur(tree_type(type_field(type, i)));
+      ident_t func = ident_prefix(type_ident(ftype), ident_new("image"), '$');
+
+      mir_value_t field = mir_build_record_ref(mu, arg, i);
+
+      if (type_is_scalar(ftype) || mir_points_to(mu, field, MIR_TYPE_UARRAY))
+         field = mir_build_load(mu, field);
+
+      mir_value_t args[] = { context_reg, field };
+      regs[i] = mir_build_fcall(mu, func, t_string, MIR_NULL_STAMP, args, 2);
+      lengths[i] = mir_build_uarray_len(mu, regs[i], 0);
+
+      sum = mir_build_add(mu, t_offset, sum, lengths[i]);
+   }
+
+   mir_value_t mem = mir_build_alloc(mu, t_char, MIR_NULL_STAMP, sum);
+   mir_value_t zero = mir_const(mu, t_offset, 0);
+   mir_value_t lparen_ptr = mir_build_array_ref(mu, mem, zero);
+   mir_build_store(mu, lparen_ptr, mir_const(mu, t_char, '('));
+
+   mir_value_t one = mir_const(mu, t_offset, 1);
+   mir_value_t comma = mir_const(mu, t_char, ',');
+
+   mir_value_t index = one;
+   for (int i = 0; i < nfields; i++) {
+      if (i > 0) {
+         mir_value_t comma_ptr = mir_build_array_ref(mu, mem, index);
+         mir_build_store(mu, comma_ptr, comma);
+
+         index = mir_build_add(mu, t_offset, index, one);
+      }
+
+      mir_value_t src_ptr = mir_build_unwrap(mu, regs[i]);
+      mir_value_t dest_ptr = mir_build_array_ref(mu, mem, index);
+      mir_build_copy(mu, dest_ptr, src_ptr, lengths[i]);
+
+      index = mir_build_add(mu, t_offset, index, lengths[i]);
+   }
+
+   mir_value_t rparen_ptr = mir_build_array_ref(mu, mem, index);
+   mir_build_store(mu, rparen_ptr, mir_const(mu, t_char, ')'));
+
+   mir_dim_t dims[] = {
+      { .left  = one,
+        .right = sum,
+        .dir   = mir_const(mu, t_bool, RANGE_TO)
+      }
+   };
+   mir_build_return(mu, mir_build_wrap(mu, mem, dims, 1));
+}
+
+static void array_image_helper(mir_unit_t *mu, type_t type, mir_value_t arg)
+{
+   mir_type_t t_char = mir_char_type(mu);
+   mir_type_t t_string = mir_string_type(mu);
+   mir_type_t t_offset = mir_offset_type(mu);
+   mir_type_t t_bool = mir_bool_type(mu);
+
+   mir_type_t fields[] = { mir_pointer_type(mu, t_char), t_offset };
+   mir_type_t t_rec = mir_record_type(mu, ident_new("elem"), fields, 2);
+
+   mir_value_t length = mir_build_uarray_len(mu, arg, 0);
+
+   mir_value_t elems_mem = mir_build_alloc(mu, t_rec, MIR_NULL_STAMP, length);
+   mir_value_t zero = mir_const(mu, t_offset, 0);
+   mir_value_t one = mir_const(mu, t_offset, 1);
+   mir_value_t data_ptr = mir_build_unwrap(mu, arg);
+
+   mir_value_t i_var = mir_add_var(mu, t_offset, MIR_NULL_STAMP,
+                                   ident_new("i"), MIR_VAR_TEMP);
+   mir_build_store(mu, i_var, zero);
+
+   mir_block_t loop1_bb = mir_add_block(mu);
+   mir_block_t alloc_bb = mir_add_block(mu);
+
+   mir_value_t sum_var = mir_add_var(mu, t_offset, MIR_NULL_STAMP,
+                                     ident_new("sum"), MIR_VAR_TEMP);
+   mir_build_store(mu, sum_var, mir_build_add(mu, t_offset, length, one));
+
+   type_t elem = type_base_recur(type_elem(type));
+   ident_t func = ident_prefix(type_ident(elem), ident_new("image"), '$');
+
+   mir_type_t t_dummy = mir_context_type(mu, ident_new("dummy"));
+   mir_value_t context = mir_build_null(mu, t_dummy);
+
+   mir_value_t null = mir_build_cmp(mu, MIR_CMP_EQ, length, zero);
+   mir_build_cond(mu, null, alloc_bb, loop1_bb);
+
+   mir_set_cursor(mu, loop1_bb, MIR_APPEND);
+
+   {
+      mir_value_t i_val = mir_build_load(mu, i_var);
+      mir_value_t sum_val = mir_build_load(mu, sum_var);
+
+      mir_value_t elem_arg = mir_build_array_ref(mu, data_ptr, i_val);
+      if (type_is_scalar(elem))
+         elem_arg = mir_build_load(mu, elem_arg);
+
+      mir_value_t args[] = { context, elem_arg };
+      mir_value_t str =
+         mir_build_fcall(mu, func, t_string, MIR_NULL_STAMP, args, 2);
+
+      mir_value_t edata_ptr = mir_build_unwrap(mu, str);
+      mir_value_t elen = mir_build_uarray_len(mu, str, 0);
+      mir_build_store(mu, sum_var, mir_build_add(mu, t_offset, sum_val, elen));
+
+      mir_value_t rptr = mir_build_array_ref(mu, elems_mem, i_val);
+      mir_build_store(mu, mir_build_record_ref(mu, rptr, 0), edata_ptr);
+      mir_build_store(mu, mir_build_record_ref(mu, rptr, 1), elen);
+
+      mir_value_t i_next = mir_build_add(mu, t_offset, i_val, one);
+      mir_build_store(mu, i_var, i_next);
+
+      mir_value_t done = mir_build_cmp(mu, MIR_CMP_EQ, i_next, length);
+      mir_build_cond(mu, done, alloc_bb, loop1_bb);
+   }
+
+   mir_set_cursor(mu, alloc_bb, MIR_APPEND);
+
+   mir_value_t sum_val = mir_build_load(mu, sum_var);
+   mir_value_t mem = mir_build_alloc(mu, t_char, MIR_NULL_STAMP, sum_val);
+
+   mir_value_t lparen_ptr = mir_build_array_ref(mu, mem, zero);
+   mir_build_store(mu, lparen_ptr, mir_const(mu, t_char, '('));
+
+   mir_block_t loop2_bb = mir_add_block(mu);
+   mir_block_t exit_bb = mir_add_block(mu);
+
+   mir_value_t index_var = mir_add_var(mu, t_offset, MIR_NULL_STAMP,
+                                       ident_new("index"), MIR_VAR_TEMP);
+   mir_build_store(mu, i_var, zero);
+   mir_build_store(mu, index_var, one);
+
+   mir_build_cond(mu, null, exit_bb, loop2_bb);
+
+   mir_set_cursor(mu, loop2_bb, MIR_APPEND);
+
+   {
+      mir_value_t i_val = mir_build_load(mu, i_var);
+      mir_value_t index = mir_build_load(mu, index_var);
+
+      mir_value_t rptr = mir_build_array_ref(mu, elems_mem, i_val);
+      mir_value_t edata = mir_build_load(mu, mir_build_record_ref(mu, rptr, 0));
+      mir_value_t elen = mir_build_load(mu, mir_build_record_ref(mu, rptr, 1));
+
+      mir_value_t dest_ptr = mir_build_array_ref(mu, mem, index);
+      mir_build_copy(mu, dest_ptr, edata, elen);
+
+      mir_value_t comma_index = mir_build_add(mu, t_offset, index, elen);
+      mir_value_t comma_ptr = mir_build_array_ref(mu, mem, comma_index);
+      mir_build_store(mu, comma_ptr, mir_const(mu, t_char, ','));
+
+      mir_value_t index_next = mir_build_add(mu, t_offset, comma_index, one);
+      mir_build_store(mu, index_var, index_next);
+
+      mir_value_t i_next = mir_build_add(mu, t_offset, i_val, one);
+      mir_build_store(mu, i_var, i_next);
+
+      mir_value_t done = mir_build_cmp(mu, MIR_CMP_EQ, i_next, length);
+      mir_build_cond(mu, done, exit_bb, loop2_bb);
+   }
+
+   mir_set_cursor(mu, exit_bb, MIR_APPEND);
+
+   mir_value_t last = mir_build_sub(mu, t_offset, sum_val, one);
+   mir_value_t rparen_ptr = mir_build_array_ref(mu, mem, last);
+   mir_build_store(mu, rparen_ptr, mir_const(mu, t_char, ')'));
+
+   mir_dim_t dims[] = {
+      { .left  = mir_const(mu, t_offset, 1),
+        .right = sum_val,
+        .dir   = mir_const(mu, t_bool, RANGE_TO),
+      }
+   };
+   mir_build_return(mu, mir_build_wrap(mu, mem, dims, 1));
+}
+
+static void character_array_image_helper(mir_unit_t *mu, type_t type,
+                                         mir_value_t arg, bool quote)
+{
+   type_t elem = type_base_recur(type_elem(type));
+
+   mir_type_t t_char = mir_char_type(mu);
+   mir_type_t t_offset = mir_offset_type(mu);
+   mir_type_t t_bool = mir_bool_type(mu);
+
+   const int nlits = type_enum_literals(elem);
+   mir_value_t *map LOCAL = xmalloc_array(nlits, sizeof(mir_value_t));
+   for (int i = 0; i < nlits; i++) {
+      const ident_t id = tree_ident(type_enum_literal(elem, i));
+      assert(ident_char(id, 0) == '\'');
+      map[i] = mir_const(mu, t_char, ident_char(id, 1));
+   }
+
+   mir_type_t t_map = mir_carray_type(mu, nlits, t_char);
+   mir_value_t map_array = mir_const_array(mu, t_map, map, nlits);
+
+   mir_value_t zero = mir_const(mu, t_offset, 0);
+   mir_value_t one = mir_const(mu, t_offset, 1);
+   mir_value_t two = mir_const(mu, t_offset, 2);
+
+   mir_value_t length = mir_build_uarray_len(mu, arg, 0);
+   mir_value_t data_ptr = mir_build_unwrap(mu, arg);
+
+   mir_value_t total = length;
+   if (quote)
+      total = mir_build_add(mu, t_offset, length, two);
+
+   mir_value_t mem = mir_build_alloc(mu, t_char, MIR_NULL_STAMP, total);
+
+   mir_value_t i_var = mir_add_var(mu, t_offset, MIR_NULL_STAMP,
+                                   ident_new("i"), MIR_VAR_TEMP);
+   mir_build_store(mu, i_var, zero);
+
+   if (quote) {
+      mir_value_t lquote_ptr = mir_build_array_ref(mu, mem, zero);
+      mir_build_store(mu, lquote_ptr, mir_const(mu, t_char, '"'));
+   }
+
+   mir_value_t null_reg = mir_build_cmp(mu, MIR_CMP_EQ, length, zero);
+
+   mir_block_t body_bb = mir_add_block(mu);
+   mir_block_t exit_bb = mir_add_block(mu);
+
+   mir_build_cond(mu, null_reg, exit_bb, body_bb);
+
+   mir_set_cursor(mu, body_bb, MIR_APPEND);
+
+   mir_value_t i_val   = mir_build_load(mu, i_var);
+   mir_value_t sptr    = mir_build_array_ref(mu, data_ptr, i_val);
+   mir_value_t src     = mir_build_load(mu, sptr);
+   mir_value_t off     = mir_build_cast(mu, t_offset, src);
+   mir_value_t map_ptr = mir_build_address_of(mu, map_array);
+   mir_value_t lptr    = mir_build_array_ref(mu, map_ptr, off);
+
+   mir_value_t doff = i_val;
+   if (quote)
+      doff = mir_build_add(mu, t_offset, doff, one);
+
+   mir_value_t dptr = mir_build_array_ref(mu, mem, doff);
+
+   mir_build_store(mu, dptr, mir_build_load(mu, lptr));
+
+   mir_value_t next = mir_build_add(mu, t_offset, i_val, one);
+   mir_value_t cmp  = mir_build_cmp(mu, MIR_CMP_EQ, next, length);
+   mir_build_store(mu, i_var, next);
+   mir_build_cond(mu, cmp, exit_bb, body_bb);
+
+   mir_set_cursor(mu, exit_bb, MIR_APPEND);
+
+   if (quote) {
+      mir_value_t right = mir_build_add(mu, t_offset, length, one);
+      mir_value_t rquote_ptr = mir_build_array_ref(mu, mem, right);
+      mir_build_store(mu, rquote_ptr, mir_const(mu, t_char, '"'));
+   }
+
+   mir_dim_t dims[] = {
+      {
+         .left  = one,
+         .right = total,
+         .dir   = mir_const(mu, t_bool, RANGE_TO)
+      }
+   };
+   mir_build_return(mu, mir_build_wrap(mu, mem, dims, 1));
+}
+
+void vhdl_lower_image_helper(mir_unit_t *mu, object_t *obj)
+{
+   tree_t decl = tree_from_object(obj);
+
+   type_t type = type_base_recur(tree_type(decl));
+   assert(type_is_representable(type));
+
+   mir_set_result(mu, mir_string_type(mu));
+
+   mir_type_t t_parent = mir_context_type(mu, mir_get_parent(mu));
+   mir_add_param(mu, t_parent, MIR_NULL_STAMP, ident_new("context"));
+
+   const type_info_t *ti = type_info(mu, type);
+   mir_type_t t_param = ti->kind == T_RECORD
+      ? mir_pointer_type(mu, ti->type) : ti->type;
+   mir_value_t arg = mir_add_param(mu, t_param, ti->stamp, ident_new("VAL"));
+
+   switch (type_kind(type)) {
+   case T_ENUM:
+      enum_image_helper(mu, type, arg);
+      break;
+   case T_INTEGER:
+   case T_REAL:
+      numeric_image_helper(mu, type, arg);
+      break;
+   case T_PHYSICAL:
+      physical_image_helper(mu, type, arg);
+      break;
+   case T_RECORD:
+      record_image_helper(mu, type, arg);
+      break;
+   case T_ARRAY:
+      {
+         type_t elem = type_elem(type);
+         if (type_is_enum(elem) && all_character_literals(elem))
+            character_array_image_helper(mu, type, arg, true);
+         else
+            array_image_helper(mu, type, arg);
+      }
+      break;
+   default:
+      fatal_trace("cannot lower image helper for type %s", type_pp(type));
    }
 }

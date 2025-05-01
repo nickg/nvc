@@ -1842,6 +1842,7 @@ static jit_value_t irgen_load_addr(jit_irgen_t *g, mir_type_t type,
       }
 
    default:
+      mir_dump(g->mu);
       fatal_trace("cannot load type kind %d", mir_get_class(g->mu, type));
    }
 }
@@ -3143,7 +3144,7 @@ static void irgen_op_file_write(jit_irgen_t *g, mir_value_t n)
    }
 
    jit_value_t bytes = jit_value_from_int64(irgen_size_bytes(g, elem_type));
-   jit_value_t scalar = jit_value_from_int64(mir_is_scalar(g->mu, arg1));
+   jit_value_t scalar = jit_value_from_int64(mir_is_numeric(g->mu, arg1));
 
    j_send(g, 0, file);
    j_send(g, 1, data);

@@ -332,8 +332,33 @@ void mir_defer(mir_context_t *mc, ident_t name, ident_t parent,
 {
 #ifdef DEBUG
    void *ptr = chash_get(mc->map, name);
-   if (ptr != NULL)
-      fatal_trace("%s already registered", istr(name));
+   if (ptr != NULL) {
+      switch (pointer_tag(ptr)) {
+      case UNIT_DEFERRED:
+         {
+            deferred_unit_t *du = untag_pointer(ptr, deferred_unit_t);
+            assert(du->fn == fn);
+            assert(du->kind == kind);
+            assert(du->object == object);
+         }
+         return;
+      case UNIT_GENERATED:
+         {
+            mir_unit_t *mu = untag_pointer(ptr, mir_unit_t);
+            assert(mu->kind == kind);
+            assert(mu->object == object);
+         }
+         return;
+      case UNIT_FREED:
+         {
+            mir_shape_t *s = untag_pointer(ptr, mir_shape_t);
+            assert(s->kind == kind);
+         }
+         return;
+      default:
+         should_not_reach_here();
+      }
+   }
 #endif
 
    deferred_unit_t *du = mir_global_malloc(mc, sizeof(deferred_unit_t), 0, 0);

@@ -23,84 +23,32 @@
 #include "vhdl/vhdl-lower.h"
 #include "vhdl/vhdl-priv.h"
 
-static mir_type_t lower_type(mir_unit_t *mu, type_t type)
+static void fill_array_type_info(mir_unit_t *mu, type_t type, type_info_t *ti)
 {
-   switch (type_kind(type)) {
-   case T_SUBTYPE:
-      if (type_is_array(type))
-         should_not_reach_here();
-      else
-         return lower_type(mu, type_base(type));
+   ti->ndims = ti->udims = dimension_of(type);
 
-   case T_ARRAY:
-      {
-         const type_info_t *elem = type_info(mu, type_elem_recur(type));
+   for (type_t e = type_elem(type);
+        type_is_array(e) && !type_const_bounds(e);
+        e = type_elem(e))
+      ti->udims += dimension_of(e);
 
-         if (type_const_bounds(type))
-            should_not_reach_here();
-         else
-            return mir_uarray_type(mu, 1 /*XXX*/, elem->type);
-      }
+   const type_info_t *elem = type_info(mu, type_elem_recur(type));
 
-   case T_PHYSICAL:
-   case T_INTEGER:
-      {
-         tree_t r = type_dim(type, 0);
+   if (type_const_bounds(type)) {
+      ti->size = elem->size;
+      for (int i = 0; i < ti->ndims; i++) {
+         tree_t r = range_of(type, i);
          int64_t low, high;
-         const bool folded = folded_bounds(r, &low, &high);
-         if (folded)
-            return mir_int_type(mu, low, high);
-         else
-            return mir_int_type(mu, INT64_MIN, INT64_MAX);
+         range_bounds(r, &low, &high);
+         ti->size *= MAX(high - low + 1, 0);
       }
 
-   case T_ENUM:
-      return mir_int_type(mu, 0, type_enum_literals(type) - 1);
-
-   case T_RECORD:
-      should_not_reach_here();
-
-   case T_PROTECTED:
-      return mir_context_type(mu, type_ident(type));
-
-   case T_FILE:
-      return mir_file_type(mu, lower_type(mu, type_designated(type)));
-
-   case T_ACCESS:
-      should_not_reach_here();
-
-   case T_REAL:
-      should_not_reach_here();
-
-   case T_INCOMPLETE:
-      return mir_opaque_type(mu);
-
-   default:
-      fatal_trace("cannot lower type kind %s", type_kind_str(type_kind(type)));
+      ti->type = mir_carray_type(mu, ti->size, elem->type);
    }
-}
+   else
+      ti->type = mir_uarray_type(mu, ti->ndims, elem->type);
 
-static mir_stamp_t lower_bounds(mir_unit_t *mu, type_t type)
-{
-   if (type_kind(type) == T_SUBTYPE) {
-      if (type_is_integer(type) || type_is_enum(type)) {
-         tree_t r = range_of(type, 0);
-         int64_t low, high;
-         if (folded_bounds(r, &low, &high))
-            return mir_int_stamp(mu, low, high);
-      }
-      else if (type_is_real(type)) {
-         tree_t r = range_of(type, 0);
-         double low, high;
-         if (folded_bounds_real(r, &low, &high))
-            return mir_real_stamp(mu, low, high);
-      }
-   }
-
-   if (type_is_array(type))
-      return lower_bounds(mu, type_elem(type));
-
-   return MIR_NULL_STAMP;
+   ti->stamp = elem->stamp;
 }
 
 const type_info_t *type_info(mir_unit_t *mu, type_t type)
@@ -110,8 +58,97 @@ const type_info_t *type_info(mir_unit_t *mu, type_t type)
       return ti;
 
    ti = mir_malloc(mu, sizeof(type_info_t));
-   ti->type  = lower_type(mu, type);
-   ti->stamp = lower_bounds(mu, type);
+   ti->type  = MIR_NULL_TYPE;
+   ti->stamp = MIR_NULL_STAMP;
+   ti->kind  = type_base_kind(type);
+   ti->ndims = 0;
+   ti->udims = 0;
+   ti->size  = 1;
+
+   switch (type_kind(type)) {
+   case T_SUBTYPE:
+      if (type_is_array(type))
+         fill_array_type_info(mu, type, ti);
+      else {
+         ti->type = type_info(mu, type_base(type))->type;
+
+         if (type_is_integer(type) || type_is_enum(type)) {
+            tree_t r = range_of(type, 0);
+            int64_t low, high;
+            if (folded_bounds(r, &low, &high))
+               ti->stamp = mir_int_stamp(mu, low, high);
+         }
+         else if (type_is_real(type)) {
+            tree_t r = range_of(type, 0);
+            double low, high;
+            if (folded_bounds_real(r, &low, &high))
+               ti->stamp = mir_real_stamp(mu, low, high);
+         }
+      }
+      break;
+
+   case T_ARRAY:
+      fill_array_type_info(mu, type, ti);
+      break;
+
+   case T_PHYSICAL:
+   case T_INTEGER:
+      {
+         tree_t r = type_dim(type, 0);
+         int64_t low, high;
+         const bool folded = folded_bounds(r, &low, &high);
+         if (folded)
+            ti->type = mir_int_type(mu, low, high);
+         else
+            ti->type = mir_int_type(mu, INT64_MIN, INT64_MAX);
+      }
+      break;
+
+   case T_ENUM:
+      ti->type = mir_int_type(mu, 0, type_enum_literals(type) - 1);
+      break;
+
+   case T_RECORD:
+      {
+         const int nfields = type_fields(type);
+         mir_type_t *fields = xmalloc_array(nfields, sizeof(mir_type_t));
+         for (int i = 0; i < nfields; i++)
+            fields[i] = type_info(mu, tree_type(type_field(type, i)))->type;
+
+         ti->type = mir_record_type(mu, type_ident(type), fields, nfields);
+      }
+      break;
+
+   case T_PROTECTED:
+      ti->type = mir_context_type(mu, type_ident(type));
+      break;
+
+   case T_FILE:
+      ti->type = mir_file_type(mu, type_info(mu, type_designated(type))->type);
+      break;
+
+   case T_ACCESS:
+      should_not_reach_here();
+
+   case T_REAL:
+      {
+         tree_t r = type_dim(type, 0);
+         double low, high;
+         const bool folded = folded_bounds_real(r, &low, &high);
+         if (folded)
+            ti->type = mir_real_type(mu, low, high);
+         else
+            ti->type = mir_double_type(mu);
+      }
+      break;
+
+   case T_INCOMPLETE:
+      ti->type = mir_opaque_type(mu);
+      break;
+
+   default:
+      fatal_trace("cannot lower type kind %s", type_kind_str(type_kind(type)));
+   }
 
    mir_put_priv(mu, type, ti);
    return ti;

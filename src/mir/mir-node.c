@@ -708,6 +708,27 @@ bool mir_is_integral(mir_unit_t *mu, mir_value_t value)
    }
 }
 
+bool mir_is_numeric(mir_unit_t *mu, mir_value_t value)
+{
+   if (value.tag == MIR_TAG_CONST)
+      return true;
+
+   mir_type_t type = mir_get_type(mu, value);
+   if (mir_is_null(type))
+      return false;
+
+   switch (mir_type_data(mu, type)->class) {
+   case MIR_TYPE_INT:
+   case MIR_TYPE_OFFSET:
+   case MIR_TYPE_REAL:
+   case MIR_TYPE_VEC2:
+   case MIR_TYPE_VEC4:
+      return true;
+   default:
+      return false;
+   }
+}
+
 bool mir_is_scalar(mir_unit_t *mu, mir_value_t value)
 {
    if (value.tag == MIR_TAG_CONST)
@@ -722,6 +743,15 @@ bool mir_is_scalar(mir_unit_t *mu, mir_value_t value)
    case MIR_TYPE_OFFSET:
    case MIR_TYPE_REAL:
    case MIR_TYPE_ACCESS:
+   case MIR_TYPE_POINTER:
+   case MIR_TYPE_UARRAY:
+   case MIR_TYPE_SIGNAL:
+   case MIR_TYPE_CONTEXT:
+   case MIR_TYPE_RESOLUTION:
+   case MIR_TYPE_FILE:
+   case MIR_TYPE_TRIGGER:
+   case MIR_TYPE_VEC2:
+   case MIR_TYPE_VEC4:
       return true;
    default:
       return false;
@@ -1166,7 +1196,7 @@ mir_value_t mir_build_neg(mir_unit_t *mu, mir_type_t type, mir_value_t value)
    mir_value_t result = mir_build_1(mu, MIR_OP_NEG, type,
                                     MIR_NULL_STAMP, value);
 
-   MIR_ASSERT(mir_is_scalar(mu, value), "argument must be scalar");
+   MIR_ASSERT(mir_is_numeric(mu, value), "argument must be numeric");
 
    return result;
 }
@@ -1182,7 +1212,7 @@ mir_value_t mir_build_trap_neg(mir_unit_t *mu, mir_type_t type,
    mir_value_t result = mir_build_2(mu, MIR_OP_TRAP_NEG, type,
                                     MIR_NULL_STAMP, value, locus);
 
-   MIR_ASSERT(mir_is_scalar(mu, value), "argument must be scalar");
+   MIR_ASSERT(mir_is_numeric(mu, value), "argument must be numeric");
    MIR_ASSERT(mir_is(mu, locus, MIR_TYPE_LOCUS),
               "locus argument must be debug locus");
 
@@ -1198,7 +1228,7 @@ mir_value_t mir_build_abs(mir_unit_t *mu, mir_type_t type, mir_value_t value)
    mir_value_t result = mir_build_1(mu, MIR_OP_ABS, type, MIR_NULL_STAMP,
                                     value);
 
-   MIR_ASSERT(mir_is_scalar(mu, value), "argument must be scalar");
+   MIR_ASSERT(mir_is_numeric(mu, value), "argument must be numeric");
 
    return result;
 }
@@ -1572,6 +1602,7 @@ mir_value_t mir_build_load(mir_unit_t *mu, mir_value_t value)
    MIR_ASSERT(!mir_is_null(type), "cannot load this value");
    MIR_ASSERT(mir_get_class(mu, type) == MIR_TYPE_POINTER,
               "argument to load is not a pointer or variable");
+   MIR_ASSERT(mir_is_scalar(mu, result), "cannot load non-scalar type");
 
    return result;
 }

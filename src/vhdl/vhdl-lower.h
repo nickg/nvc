@@ -21,5 +21,6 @@
 #include "prim.h"
 
 void vhdl_lower_predef(mir_unit_t *mu, object_t *obj);
+void vhdl_lower_image_helper(mir_unit_t *mu, object_t *obj);
 
 #endif  // _VHDL_LOWER_H

@@ -396,6 +396,7 @@ void mir_set_result(mir_unit_t *mu, mir_type_t type);
 mir_type_t mir_get_result(mir_unit_t *mu);
 
 bool mir_is_integral(mir_unit_t *mu, mir_value_t value);
+bool mir_is_numeric(mir_unit_t *mu, mir_value_t value);
 bool mir_is_scalar(mir_unit_t *mu, mir_value_t value);
 bool mir_is_vector(mir_unit_t *mu, mir_value_t value);
 bool mir_is_bool(mir_unit_t *mu, mir_value_t value);
