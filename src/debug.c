@@ -407,8 +407,12 @@ static bool libdwarf_die_has_pc(libdwarf_handle_t *handle, Dwarf_Die die,
 #ifdef __APPLE__
 static void get_macho_uuid(const char *fname, uint8_t uuid[16])
 {
+   memset(uuid, '\0', 16);
+
    FILE *f = fopen(fname, "r");
-   if (f == NULL) {
+   if (f == NULL && errno == ENOENT)
+      return;
+   else if (f == NULL) {
       warnf("open: %s", fname);
       return;
    }
@@ -468,13 +472,15 @@ static libdwarf_handle_t *libdwarf_handle_for_file(const char *fname)
                                 &debug, &err);
 
 #ifdef __APPLE__
-      uint8_t exe_uuid[16], dsym_uuid[16];
-      get_macho_uuid(fname, exe_uuid);
-      get_macho_uuid(true_path, dsym_uuid);
+      if (strcmp(fname, true_path) != 0) {
+         uint8_t exe_uuid[16], dsym_uuid[16];
+         get_macho_uuid(fname, exe_uuid);
+         get_macho_uuid(true_path, dsym_uuid);
 
-      if (memcmp(exe_uuid, dsym_uuid, 16) != 0)
-         warnf("UUID of %s does not match %s, symbols may be incorrect",
-               fname, true_path);
+         if (memcmp(exe_uuid, dsym_uuid, 16) != 0)
+            warnf("UUID of %s does not match %s, symbols may be incorrect",
+                  fname, true_path);
+      }
 #endif
 
       if (ret == DW_DLV_ERROR) {
