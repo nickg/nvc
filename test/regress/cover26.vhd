@@ -37,7 +37,7 @@ begin
 
     sub_inst_long_path : entity work.sub
     generic map (
-        nest => 16
+        nest => 60
     );
 
 end architecture;

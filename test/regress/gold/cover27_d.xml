@@ -1,0 +1,48 @@
+<?xml version="1.0"?>
+<scope name="WORK" /cover27.vhd">
+  <scope name="COVER27" block_name="COVER27-TEST" line="10">
+    <scope name="T_FOR_GEN(0)" block_name="T_FOR_GEN" line="23">
+      <scope name="_P0" line="24">
+        <scope name="_S0">
+          <scope name="_S0">
+            <statement hier="WORK.COVER27.T_FOR_GEN(0)._P0._S0._S0" data="1"/>
+          </scope>
+        </scope>
+      </scope>
+    </scope>
+    <scope name="T_FOR_GEN(1)" block_name="T_FOR_GEN" line="23">
+      <scope name="_P0" line="24">
+        <scope name="_S0">
+          <scope name="_S0" line="25">
+            <statement hier="WORK.COVER27.T_FOR_GEN(1)._P0._S0._S0" data="1"/>
+          </scope>
+        </scope>
+      </scope>
+    </scope>
+    <scope name="T_FOR_GEN(2)" block_name="T_FOR_GEN" line="23">
+      <scope name="_P0" line="24">
+        <scope name="_S0">
+          <scope name="_S0" line="26">
+            <statement hier="WORK.COVER27.T_FOR_GEN(2)._P0._S0._S0" data="1"/>
+          </scope>
+        </scope>
+      </scope>
+    </scope>
+    <scope name="T_FOR_GEN(3)" block_name="T_FOR_GEN" line="23">
+      <scope name="_P0" line="24">
+        <scope name="_S0">
+          <scope name="_S0" line="27">
+            <statement hier="WORK.COVER27.T_FOR_GEN(3)._P0._S0._S0" data="1"/>
+          </scope>
+        </scope>
+      </scope>
+    </scope>
+    <scope name="G_CASE_GEN" block_name="G_CASE_GEN" line="34">
+      <scope name="_P0">
+        <scope name="_S0">
+          <statement hier="WORK.COVER27.G_CASE_GEN._P0._S0" data="1"/>
+        </scope>
+      </scope>
+    </scope>
+  </scope>
+</scope>
