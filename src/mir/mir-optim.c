@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2024  Nick Gasson
+//  Copyright (C) 2024-2025  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -53,8 +53,9 @@ typedef struct {
 #endif
 } cfg_block_t;
 
-typedef unsigned valnum_t;
+typedef uint32_t valnum_t;
 #define VN_INVALID UINT_MAX
+#define VN_CONST   0x80000000
 
 typedef struct {
    mir_value_t value;
@@ -318,6 +319,8 @@ static valnum_t gvn_get_value(mir_value_t value, gvn_state_t *gvn)
    case MIR_TAG_PARAM:
       assert(gvn->paramvn[value.id] != VN_INVALID);
       return gvn->paramvn[value.id];
+   case MIR_TAG_CONST:
+      return VN_CONST + value.id;
    default:
       should_not_reach_here();
    }
@@ -409,6 +412,31 @@ static void gvn_generic(mir_unit_t *mu, mir_value_t node, mir_block_t block,
    opt->gvn->nodevn[node.id] = gvn_new_value(node, opt->gvn);
 }
 
+static void gvn_sub(mir_unit_t *mu, mir_value_t node, mir_block_t block,
+                    mir_optim_t *opt)
+{
+   node_data_t *n = mir_node_data(mu, node);
+   assert(n->nargs == 2);
+
+   // (X + Y) - Y ==> X
+
+   mir_value_t left = n->args[0], right = n->args[1];
+   if (left.tag == MIR_TAG_NODE) {
+      node_data_t *nl = mir_node_data(mu, left);
+      if (nl->op == MIR_OP_ADD) {
+         valnum_t left0_vn = gvn_get_value(nl->args[0], opt->gvn);
+         valnum_t left1_vn = gvn_get_value(nl->args[1], opt->gvn);
+         valnum_t right_vn = gvn_get_value(right, opt->gvn);
+         if (left1_vn == right_vn) {
+            opt->gvn->nodevn[node.id] = left0_vn;
+            return;
+         }
+      }
+   }
+
+   gvn_generic(mu, node, block, opt);
+}
+
 static void gvn_commutative(mir_unit_t *mu, mir_value_t node, mir_block_t block,
                             mir_optim_t *opt, int first)
 {
@@ -494,7 +522,7 @@ static void gvn_phi(mir_unit_t *mu, mir_value_t node, mir_block_t block,
    valnum_t vn = gvn_get_value(args[1], opt->gvn);
 
    for (int i = 3; i < n->nargs; i += 2) {
-      if (!gvn_tracked(args[i]) || gvn_get_value(args[i], opt->gvn) != vn)
+      if (gvn_get_value(args[i], opt->gvn) != vn)
          return;
    }
 
@@ -526,12 +554,17 @@ static void gvn_visit_block(mir_unit_t *mu, mir_block_t block,
          gvn_commutative(mu, node, block, opt, 0);
          break;
       case MIR_OP_SUB:
+         gvn_sub(mu, node, block, opt);
+         break;
       case MIR_OP_NOT:
       case MIR_OP_RESOLVED:
       case MIR_OP_SELECT:
       case MIR_OP_REM:
       case MIR_OP_LINK_PACKAGE:
       case MIR_OP_LOCUS:
+      case MIR_OP_UARRAY_LEN:
+      case MIR_OP_RANGE_LENGTH:
+      case MIR_OP_CAST:
          gvn_generic(mu, node, block, opt);
          break;
       case MIR_OP_AND:

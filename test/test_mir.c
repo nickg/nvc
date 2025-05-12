@@ -462,9 +462,9 @@ START_TEST(test_gvn1)
    static const mir_match_t bb0[] = {
       { MIR_OP_ADD, PARAM("p1"), PARAM("p2") },
       { MIR_OP_SUB, NODE(0), PARAM("p2") },
-      { MIR_OP_MUL, PARAM("p1"), NODE(1) },
+      { MIR_OP_MUL, PARAM("p1"), PARAM("p1") },
       { MIR_OP_CMP, ENUM(MIR_CMP_EQ), NODE(2), CONST(10) },
-      { MIR_OP_CMP, ENUM(MIR_CMP_EQ), NODE(1), CONST(10) },
+      { MIR_OP_CMP, ENUM(MIR_CMP_EQ), PARAM("p1"), CONST(10) },
       { MIR_OP_AND, NODE(3), NODE(4) },
       { MIR_OP_OR, NODE(4), NODE(5) },
       { MIR_OP_NOT, NODE(6) },
