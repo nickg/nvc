@@ -1,12 +1,14 @@
 ## Unreleased changes
 - Updated to OSVVM 2025.02 for `nvc --install`.
+- Added `--merge-mode` option to control behaviour when merging
+  non-equal coverage databases.
+
+## Version 1.16.1 - 2025-05-12
 - Fixed an elaboration failure where generic names differ in case
   between entity and component and the files were analysed with
   `--preserve-case` (#1195).
 - Fixed a crash when expression coverage is enabled and a port is
   associated with a non-static expression (#1194).
-- Added `--merge-mode` option to control behaviour when merging
-  non-equal coverage databases.
 - Fixed a debug assertion failure when initialising an array with more
   than 2**32 elements (#1196).
 - Fixed a crash when concatenating unconstrained arrays of arrays
