@@ -1,4 +1,6 @@
 ## Unreleased changes
+
+## Version 1.16.1 - 2025-05-12
 - Fixed an elaboration failure where generic names differ in case
   between entity and component and the files were analysed with
   `--preserve-case` (#1195).

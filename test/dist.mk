@@ -107,6 +107,7 @@ EXTRA_DIST += \
 	test/elab/ifgen.vhd \
 	test/elab/issue1012.vhd \
 	test/elab/issue1017.vhd \
+	test/elab/issue1195.vhd \
 	test/elab/issue153.vhd \
 	test/elab/issue157.vhd \
 	test/elab/issue159.vhd \
@@ -277,6 +278,9 @@ EXTRA_DIST += \
 	test/lower/issue1155.vhd \
 	test/lower/issue116.vhd \
 	test/lower/issue1191.vhd \
+	test/lower/issue1194.vhd \
+	test/lower/issue1196.vhd \
+	test/lower/issue1199.vhd \
 	test/lower/issue122.vhd \
 	test/lower/issue124.vhd \
 	test/lower/issue125.vhd \
