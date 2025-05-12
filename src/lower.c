@@ -4027,13 +4027,15 @@ static vcode_reg_t lower_array_aggregate(lower_unit_t *lu, tree_t expr,
       tree_t a = tree_assoc(expr, i);
       tree_t value = tree_value(a);
 
+      type_t value_type = tree_type(value);
+
       const assoc_kind_t akind = tree_subkind(a);
 
       bool need_length_check = array_of_array && is_unconstrained && ndims == 1;
 
       vcode_reg_t count_reg = VCODE_INVALID_REG;
       if (akind == A_CONCAT || akind == A_SLICE)
-         count_reg = lower_array_len(lu, tree_type(value), 0, value_regs[i]);
+         count_reg = lower_array_len(lu, value_type, 0, value_regs[i]);
 
       vcode_reg_t loop_bb = VCODE_INVALID_BLOCK;
       vcode_reg_t exit_bb = VCODE_INVALID_BLOCK;
@@ -4185,7 +4187,7 @@ static vcode_reg_t lower_array_aggregate(lower_unit_t *lu, tree_t expr,
       if (need_length_check) {
          vcode_reg_t length_reg = count_reg;
          if (length_reg == VCODE_INVALID_REG)
-            length_reg = lower_array_len(lu, elem_type, 0, value_regs[i]);
+            length_reg = lower_array_len(lu, value_type, 0, value_regs[i]);
 
          if (i == 0)
             length0_reg = length_reg;
