@@ -6,6 +6,8 @@
   associated with a non-static expression (#1194).
 - Fixed a debug assertion failure when initialising an array with more
   than 2**32 elements (#1196).
+- Fixed a crash when concatenating unconstrained arrays of arrays
+  (#1199).
 
 ## Version 1.16.0 - 2025-04-21
 - Added support for PSL `prev()`, `stable()`, `rose()` and `fell()`
