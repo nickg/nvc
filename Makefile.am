@@ -112,6 +112,10 @@ release: update-test-dist
 	  gpg --yes -b $(top_builddir)/$(PACKAGE)-$(VERSION).tar.gz \
 	)
 
+tag:
+	echo "Tagging $(PACKAGE_VERSION)"
+	git tag -a -m "Release $(PACKAGE_VERSION)" r$(PACKAGE_VERSION) -s
+
 sync-branch:
 	head -n1 $(top_srcdir)/configure.ac | grep -q \\-devel || exit 1; \
 	last=$$(awk '/## Version/ { print($$3); exit }' $(top_srcdir)/NEWS.md); \
