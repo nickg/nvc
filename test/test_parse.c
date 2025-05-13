@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2024  Nick Gasson
+//  Copyright (C) 2011-2025  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -7285,6 +7285,30 @@ START_TEST(test_issue1188)
 }
 END_TEST
 
+START_TEST(test_issue1202)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/parse/issue1202.vhd");
+
+   const error_t expect[] = {
+      {  7, "unexpected identifier while parsing interface package "
+         "declaration, expecting new" },
+      // TODO: error recovery could be better here
+      { 14, "unexpected architecture while parsing entity declaration" },
+      { 14, "unexpected ; while parsing library unit" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_PACKAGE, T_ENTITY);
+
+   fail_unless(parse() == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_parse_tests(void)
 {
    Suite *s = suite_create("parse");
@@ -7468,6 +7492,7 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_issue1174);
    tcase_add_test(tc_core, test_vests6);
    tcase_add_test(tc_core, test_issue1188);
+   tcase_add_test(tc_core, test_issue1202);
    suite_add_tcase(s, tc_core);
 
    return s;
