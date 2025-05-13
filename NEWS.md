@@ -2,6 +2,7 @@
 - Updated to OSVVM 2025.02 for `nvc --install`.
 - Added `--merge-mode` option to control behaviour when merging
   non-equal coverage databases.
+- Several other minor bugs were resolved (#1202).
 
 ## Version 1.16.1 - 2025-05-12
 - Fixed an elaboration failure where generic names differ in case

@@ -2340,6 +2340,9 @@ void insert_names_from_use(nametab_t *tab, tree_t use)
       tree_t map = tree_value(unit);
       assert(tree_kind(map) == T_PACKAGE_MAP);
 
+      if (!tree_has_ref(map))
+         return;   // Was earlier error
+
       unit = tree_ref(map);
       assert(is_uninstantiated_package(unit));
    }
