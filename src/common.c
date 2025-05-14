@@ -2099,10 +2099,12 @@ tree_t change_ref(tree_t name, tree_t new)
 
    case T_ARRAY_REF:
       {
+         tree_t value = change_ref(tree_value(name), new);
+
          tree_t t = tree_new(T_ARRAY_REF);
          tree_set_loc(t, tree_loc(name));
-         tree_set_value(t, change_ref(tree_value(name), new));
-         tree_set_type(t, tree_type(name));
+         tree_set_value(t, value);
+         tree_set_type(t, type_elem(tree_type(value)));
 
          const int nparams = tree_params(name);
          for (int i = 0; i < nparams; i++)
@@ -2113,11 +2115,22 @@ tree_t change_ref(tree_t name, tree_t new)
 
    case T_ARRAY_SLICE:
       {
+         tree_t value = change_ref(tree_value(name), new);
+         tree_t r = tree_range(name, 0);
+
+         tree_t constraint = tree_new(T_CONSTRAINT);
+         tree_set_subkind(constraint, C_INDEX);
+         tree_add_range(constraint, r);
+
+         type_t slice_type = type_new(T_SUBTYPE);
+         type_set_constraint(slice_type, constraint);
+         type_set_base(slice_type, tree_type(value));
+
          tree_t t = tree_new(T_ARRAY_SLICE);
          tree_set_loc(t, tree_loc(name));
-         tree_set_value(t, change_ref(tree_value(name), new));
-         tree_set_type(t, tree_type(name));
-         tree_add_range(t, tree_range(name, 0));
+         tree_set_value(t, value);
+         tree_set_type(t, slice_type);
+         tree_add_range(t, r);
 
          return t;
       }
