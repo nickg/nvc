@@ -2,6 +2,9 @@
 - Updated to OSVVM 2025.02 for `nvc --install`.
 - Added `--merge-mode` option to control behaviour when merging
   non-equal coverage databases.
+- Fixed a crash when an entity uses VHDL-2019 enhanced type generics and
+  sub-elements of a port with a generic array type are associated
+  individually (#1201).
 - Several other minor bugs were resolved (#1202).
 
 ## Version 1.16.1 - 2025-05-12
