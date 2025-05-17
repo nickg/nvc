@@ -1,8 +1,8 @@
 (init): warning
 Function FUNC2 [BIT_VECTOR return BIT_VECTOR] at
 Function FUNC1 [BIT_VECTOR return BIT_VECTOR] at
-Signal S2 at
+Port conversion at
 (init): warning
 Function FUNC2 [BIT_VECTOR return BIT_VECTOR] at
 Function FUNC1 [BIT_VECTOR return BIT_VECTOR] at
-Signal P1 at
+Port conversion at
