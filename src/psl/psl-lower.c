@@ -512,33 +512,33 @@ void psl_lower_directive(unit_registry_t *ur, lower_unit_t *parent,
    psl_fsm_free(fsm);
 }
 
-static void psl_lower_clock_decl(unit_registry_t *ur, lower_unit_t *parent,
-                                 psl_node_t p, ident_t label)
+static void psl_lower_clock_func(lower_unit_t *lu, object_t *obj)
 {
-   vcode_state_t state;
-   vcode_state_save(&state);
+   psl_node_t p = psl_from_object(obj);
+   assert(psl_kind(p) == P_CLOCK_DECL);
 
-   vcode_unit_t context = get_vcode(parent);
-   vcode_select_unit(context);
-
+   vcode_unit_t context = vcode_unit_context(get_vcode(lu));
    ident_t prefix = vcode_unit_name(context);
-   ident_t name = ident_prefix(prefix, label, '.');
-
-   vcode_unit_t vu = emit_function(name, psl_to_object(p), context);
-   vcode_set_result(vtype_bool());
 
    vcode_type_t vcontext = vtype_context(prefix);
    emit_param(vcontext, vcontext, ident_new("context"));
 
-   lower_unit_t *lu = lower_unit_new(ur, parent, vu, NULL, NULL);
-   unit_registry_put(ur, lu);
+   vcode_set_result(vtype_bool());
 
    vcode_reg_t clk_reg = lower_rvalue(lu, psl_tree(p));
    emit_return(clk_reg);
+}
 
-   unit_registry_finalise(ur, lu);
+static void psl_lower_clock_decl(unit_registry_t *ur, lower_unit_t *parent,
+                                 psl_node_t p, ident_t label)
+{
+   vcode_unit_t context = get_vcode(parent);
 
-   vcode_state_restore(&state);
+   ident_t prefix = vcode_unit_name(context);
+   ident_t name = ident_prefix(prefix, label, '.');
+
+   unit_registry_defer(ur, name, parent, emit_function, psl_lower_clock_func,
+                       NULL, psl_to_object(p));
 
    vcode_type_t vtrigger = vtype_trigger();
    vcode_var_t var = emit_var(vtrigger, vtrigger, label, 0);
