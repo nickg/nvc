@@ -105,7 +105,6 @@ typedef struct {
 } mir_record_type_t;
 
 typedef struct {
-   mir_type_t atype;
    mir_type_t rtype;
 } mir_closure_type_t;
 

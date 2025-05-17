@@ -7634,10 +7634,6 @@ static void lower_resolution_var(lower_unit_t *lu, tree_t decl, type_t type)
    else
       nlits_reg = emit_const(vtype_offset(), 0);
 
-   vcode_type_t velem = lower_type(type_elem_recur(type));
-   vcode_type_t rtype = lower_func_result_type(type);
-   vcode_type_t atype = vtype_pointer(velem);
-
    ident_t prefix;
    if (is_anonymous_subtype(type))
       prefix = tree_ident(decl);
@@ -7649,8 +7645,10 @@ static void lower_resolution_var(lower_unit_t *lu, tree_t decl, type_t type)
    unit_registry_defer(lu->registry, name, lu, emit_function,
                        lower_resolution_wrapper, NULL, type_to_object(type));
 
+   vcode_type_t rtype = lower_func_result_type(type);
+
    vcode_reg_t context_reg = emit_context_upref(0);
-   vcode_reg_t closure_reg = emit_closure(name, context_reg, atype, rtype);
+   vcode_reg_t closure_reg = emit_closure(name, context_reg, rtype);
    vcode_reg_t wrapper_reg =
       emit_resolution_wrapper(rtype, closure_reg, nlits_reg);
 
@@ -8189,8 +8187,7 @@ static void lower_implicit_decl(lower_unit_t *parent, tree_t decl)
          vcode_reg_t one_reg = emit_const(vtype_offset(), 1);
          vcode_reg_t locus = lower_debug_locus(decl);
          vcode_reg_t context_reg = lower_context_for_call(parent, func);
-         vcode_reg_t closure =
-            emit_closure(func, context_reg, VCODE_INVALID_TYPE, vtype);
+         vcode_reg_t closure = emit_closure(func, context_reg, vtype);
          vcode_reg_t delay_reg = emit_const(vtype_time(), TIME_HIGH);
          vcode_reg_t kind_reg = emit_const(vtype_offset(), IMPLICIT_GUARD);
          vcode_reg_t sig = emit_implicit_signal(vtype, one_reg, one_reg, locus,
@@ -8234,7 +8231,7 @@ static void lower_implicit_decl(lower_unit_t *parent, tree_t decl)
          vcode_reg_t delay_reg = emit_const(vtype_time(), TIME_HIGH);
          vcode_reg_t kind_reg = emit_const(voffset, IMPLICIT_TRANSACTION);
          vcode_reg_t context_reg = lower_context_for_call(parent, qual);
-         vcode_reg_t closure = emit_closure(qual, context_reg, vtype, vtype);
+         vcode_reg_t closure = emit_closure(qual, context_reg, vtype);
 
          vcode_reg_t sig = emit_implicit_signal(vtype, one_reg, one_reg, locus,
                                                 kind_reg, closure, delay_reg);
@@ -8279,7 +8276,7 @@ static void lower_implicit_decl(lower_unit_t *parent, tree_t decl)
          vcode_reg_t one_reg = emit_const(vtype_offset(), 1);
          vcode_reg_t locus = lower_debug_locus(decl);
          vcode_reg_t context_reg = lower_context_for_call(parent, qual);
-         vcode_reg_t closure = emit_closure(qual, context_reg, vtype, vtype);
+         vcode_reg_t closure = emit_closure(qual, context_reg, vtype);
          vcode_reg_t kind_reg = emit_const(vtype_offset(), kind);
          vcode_reg_t sig = emit_implicit_signal(vtype, one_reg, one_reg, locus,
                                                 kind_reg, closure, delay_reg);
@@ -11625,7 +11622,7 @@ static vcode_reg_t lower_converter(lower_unit_t *parent, tree_t dst, tree_t src,
 
    vcode_reg_t context_reg = lower_context_for_call(parent, name);
    vcode_reg_t vdummy = vtype_opaque();
-   return emit_closure(name, context_reg, vdummy, vdummy);
+   return emit_closure(name, context_reg, vdummy);
 }
 
 static void lower_map_signal_field_cb(lower_unit_t *lu, tree_t field,

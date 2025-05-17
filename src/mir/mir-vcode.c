@@ -971,10 +971,6 @@ static void import_closure(mir_unit_t *mu, mir_import_t *imp, int op)
    ident_t func = vcode_get_func(op);
 
    mir_type_t atype = MIR_NULL_TYPE;
-   vcode_type_t vatype = vcode_get_type(op);
-   if (vatype != VCODE_INVALID_TYPE)
-      atype = import_type(mu, imp, vatype);
-
    vcode_reg_t result = vcode_get_result(op);
    mir_type_t rtype = import_type(mu, imp, vtype_base(vcode_reg_type(result)));
 

@@ -39,7 +39,7 @@ DECLARE_AND_DEFINE_ARRAY(vcode_type);
 #define OP_HAS_TYPE(x)                                                  \
    (x == VCODE_OP_ALLOC || x == VCODE_OP_COPY                           \
     || x == VCODE_OP_CONST || x == VCODE_OP_CAST                        \
-    || x == VCODE_OP_CONST_RECORD || x == VCODE_OP_CLOSURE              \
+    || x == VCODE_OP_CONST_RECORD                                       \
     || x == VCODE_OP_BIND_EXTERNAL || x == VCODE_OP_ARRAY_SCOPE         \
     || x == VCODE_OP_RECORD_SCOPE || x == VCODE_OP_SYSCALL)
 #define OP_HAS_ADDRESS(x)                                               \
@@ -5047,8 +5047,7 @@ vcode_reg_t emit_resolution_wrapper(vcode_type_t type, vcode_reg_t closure,
    return (op->result = vcode_add_reg(vtype_resolution(type)));
 }
 
-vcode_reg_t emit_closure(ident_t func, vcode_reg_t context, vcode_type_t atype,
-                         vcode_type_t rtype)
+vcode_reg_t emit_closure(ident_t func, vcode_reg_t context, vcode_type_t rtype)
 {
    VCODE_FOR_EACH_MATCHING_OP(other, VCODE_OP_CLOSURE) {
       if (other->func == func && other->args.items[0] == context)
@@ -5058,7 +5057,6 @@ vcode_reg_t emit_closure(ident_t func, vcode_reg_t context, vcode_type_t atype,
    op_t *op = vcode_add_op(VCODE_OP_CLOSURE);
    vcode_add_arg(op, context);
    op->func = func;
-   op->type = atype;
 
    VCODE_ASSERT(vcode_reg_kind(context) == VCODE_TYPE_CONTEXT,
                 "invalid closure context argument");

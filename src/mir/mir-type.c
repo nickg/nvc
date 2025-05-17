@@ -113,8 +113,6 @@ static uint32_t mir_hash_type(mir_unit_t *mu, const type_data_t *td)
       break;
 
    case MIR_TYPE_CLOSURE:
-      if (!mir_is_null(td->u.closure.atype))
-         h ^= mir_type_data(mu, td->u.closure.atype)->hash;
       h ^= mir_type_data(mu, td->u.closure.rtype)->hash;
       break;
 
@@ -191,8 +189,7 @@ static bool mir_compare_types(const type_data_t *a, const type_data_t *b)
       }
 
    case MIR_TYPE_CLOSURE:
-      return a->u.closure.atype.bits == b->u.closure.atype.bits
-         && a->u.closure.rtype.bits == b->u.closure.rtype.bits;
+      return a->u.closure.rtype.bits == b->u.closure.rtype.bits;
 
    case MIR_TYPE_RESOLUTION:
    case MIR_TYPE_FILE:
@@ -653,7 +650,6 @@ mir_type_t mir_closure_type(mir_unit_t *mu, mir_type_t atype, mir_type_t rtype)
       .class = MIR_TYPE_CLOSURE,
       .u = {
          .closure = {
-            .atype = atype,
             .rtype = rtype
          }
       },
