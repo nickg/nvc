@@ -1150,6 +1150,29 @@ to
 .Bd -literal -offset indent
 fold TB_TOP_LIB.TB_TOP.DUT.I_CPU_DATAPATH.I_INSTR_CACHE UNIT_TEST_LIB.CACHE_UNIT_TEST.DUT
 .Ed
+.Ss Code coverage limitations
+When part of the design hierarchy is formed by an if-generate-else or
+case-generate statement, the hierarchical path of implicit block
+statements for each of the if-else branches or case choices is identical
+unless the user provides an alternative label for each branch or choice.
+For example:
+.Bd -literal -offset indent
+my_gen : case (op_kind) generate
+when op_add => x <= a + b;
+when op_sub => x <= a - b;
+end generate my_gen;
+.Ed
+.Pp
+Both assignment statements have a hierarchical path that ends with
+.Ql .MY_GEN._P0._SO
+and will not be considered distinct when merging.
+To avoid this give each case branch a unique label:
+.Bd -literal -offset indent
+my_gen : case (op_kind) generate
+when branch1: op_add => x <= a + b;
+when branch2: op_sub => x <= a - b;
+end generate my_gen;
+.Ed
 .Ss Additional Information
 In coverage specification file and Exclude file
 .Ql <ENTITY_NAME>

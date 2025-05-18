@@ -695,6 +695,7 @@ bool is_concurrent_block(tree_t t)
    case T_BLOCK:
    case T_IF_GENERATE:
    case T_FOR_GENERATE:
+   case T_CASE_GENERATE:
       return true;
    default:
       return false;
