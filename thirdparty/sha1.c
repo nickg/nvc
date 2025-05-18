@@ -62,7 +62,7 @@ typedef union {
  * Hash a single 512-bit block. This is the core of the algorithm.
  */
 static void
-SHA1Transform(uint32_t state[5], const unsigned char buffer[64])
+SHA1Transform(uint32_t state[5], unsigned char buffer[64])
 {
     uint32_t a, b, c, d, e;
     CHAR64LONG16 *block;
@@ -494,13 +494,13 @@ static void sha1_process_arm(uint32_t state[5], const uint8_t data[], uint32_t l
 __attribute__((always_inline))
 static inline void
 sha1_transform_generic(uint32_t state[5],
-                       const unsigned char *buffer,
+                       const unsigned char *data,
                        size_t length)
 {
     assert(length % 64 == 0);
 
 #ifdef HAVE_SSE_SHA
-#if __GNUC__ >= 11
+#if __GNUC__ >= 11 || __clang_major__ >= 19
     const bool have_sha = __builtin_cpu_supports("sha");
 #else
     static int have_sha = -1;
@@ -514,18 +514,21 @@ sha1_transform_generic(uint32_t state[5],
 #endif
 
     if (have_sha) {
-        sha1_process_x86(state, buffer, length);
+        sha1_process_x86(state, data, length);
         return;
     }
 #endif
 
 #ifdef HAVE_ARM_CRYPTO
-    sha1_process_arm(state, buffer, length);
+    sha1_process_arm(state, data, length);
     return;
 #endif
 
-    for (int i = 0; i < length; i += 64)
-        SHA1Transform(state, buffer + i);
+    unsigned char buffer[64];
+    for (int i = 0; i < length; i += 64) {
+        memcpy(buffer, data + i, 64);
+        SHA1Transform(state, buffer);
+    }
 }
 
 /*
