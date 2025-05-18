@@ -74,6 +74,7 @@ void jit_interrupt(jit_t *j, jit_irq_fn_t fn, void *ctx);
 void jit_check_interrupt(jit_t *j);
 void jit_reset(jit_t *j);
 int32_t *jit_get_cover_mem(jit_t *j, int mintags);
+int32_t *jit_sync_cover_mem(jit_t *j, int mintags);
 bool jit_is_shutdown(jit_t *j);
 
 void *jit_mspace_alloc(size_t size) RETURNS_NONNULL;
