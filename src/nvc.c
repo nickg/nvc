@@ -747,7 +747,7 @@ static void emit_coverage(const unit_meta_t *meta, jit_t *j, cover_data_t *db)
       fatal_errno("failed to open coverage database: %s", meta->cover_file);
 
    const int n_tags = cover_count_items(db);
-   const int32_t *counts = jit_get_cover_mem(j, n_tags);
+   const int32_t *counts = jit_sync_cover_mem(j, n_tags);
    cover_dump_items(db, f, COV_DUMP_RUNTIME, counts);
 
    fbuf_close(f, NULL);

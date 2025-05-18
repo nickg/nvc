@@ -48,6 +48,8 @@
 #define FUNC_LIST_SZ    512
 #define COMPILE_TIMEOUT 10000
 
+typedef struct _jit_cover_page jit_cover_page_t;
+
 typedef struct _jit_tier {
    jit_tier_t    *next;
    int            threshold;
@@ -82,26 +84,32 @@ typedef struct {
    aot_reloc_t     relocs[0];
 } aot_descr_t;
 
+typedef struct _jit_cover_page {
+   jit_cover_page_t *next;
+   unsigned          ntags;
+   int32_t           tags[];
+} jit_cover_page_t;
+
 typedef struct _jit {
-   chash_t         *index;
-   mspace_t        *mspace;
-   void            *lower_ctx;
-   bool             silent;
-   bool             shutdown;
-   int              exit_status;
-   jit_tier_t      *tiers;
-   aot_dll_t       *aotlib;
-   aot_dll_t       *preloadlib;
-   jit_pack_t      *pack;
-   func_array_t    *funcs;
-   unsigned         next_handle;
-   nvc_lock_t       lock;
-   int32_t         *cover_mem;
-   unsigned         cover_ntags;
-   jit_irq_fn_t     interrupt;
-   void            *interrupt_ctx;
-   unit_registry_t *registry;
-   mir_context_t   *mir;
+   chash_t          *index;
+   mspace_t         *mspace;
+   void             *lower_ctx;
+   bool              silent;
+   bool              shutdown;
+   int               exit_status;
+   jit_tier_t       *tiers;
+   aot_dll_t        *aotlib;
+   aot_dll_t        *preloadlib;
+   jit_pack_t       *pack;
+   func_array_t     *funcs;
+   unsigned          next_handle;
+   nvc_lock_t        lock;
+   jit_cover_page_t *cover_pages;
+   int32_t          *cover_mem;
+   jit_irq_fn_t      interrupt;
+   void             *interrupt_ctx;
+   unit_registry_t  *registry;
+   mir_context_t    *mir;
 } jit_t;
 
 static void jit_transition(jit_t *j, jit_state_t from, jit_state_t to);
@@ -196,7 +204,10 @@ void jit_free(jit_t *j)
       jit_free_func(j->funcs->items[i]);
    free(j->funcs);
 
-   free(j->cover_mem);
+   for (jit_cover_page_t *p = j->cover_pages, *tmp; p; p = tmp) {
+      tmp = p->next;
+      free(p);
+   }
 
    for (jit_tier_t *it = j->tiers, *tmp; it; it = tmp) {
       tmp = it->next;
@@ -1386,14 +1397,33 @@ bool jit_will_abort(jit_ir_t *ir)
 
 int32_t *jit_get_cover_mem(jit_t *j, int mintags)
 {
-   if (mintags > j->cover_ntags) {
-      j->cover_mem = xrealloc_array(j->cover_mem, mintags, sizeof(int32_t));
-      memset(j->cover_mem + j->cover_ntags, '\0',
-             (mintags - j->cover_ntags) * sizeof(int32_t));
-      j->cover_ntags = mintags;
+   if (j->cover_pages == NULL || mintags > j->cover_pages->ntags) {
+      const int roundup = MAX(16, next_power_of_2(mintags));
+      jit_cover_page_t *new = xcalloc_flex(sizeof(jit_cover_page_t),
+                                           roundup, sizeof(int32_t));
+      new->next  = j->cover_pages;
+      new->ntags = roundup;
+
+      j->cover_pages = new;
+      j->cover_mem = new->tags;
    }
 
    return j->cover_mem;
+}
+
+int32_t *jit_sync_cover_mem(jit_t *j, int mintags)
+{
+   int32_t *tags = jit_get_cover_mem(j, mintags);
+
+   for (jit_cover_page_t *p = j->cover_pages->next; p; p = p->next) {
+      assert(p->ntags < mintags);
+      for (int i = 0; i < p->ntags; i++) {
+         tags[i] += p->tags[i];
+         p->tags[i] = 0;
+      }
+   }
+
+   return tags;
 }
 
 int32_t *jit_get_cover_ptr(jit_t *j, jit_value_t addr)
