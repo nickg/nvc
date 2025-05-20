@@ -44,7 +44,12 @@ jobs:
         run: ASAN_OPTIONS=detect_leaks=0 make -C build -j $(nproc) everything
       - name: Test
         run: ASAN_OPTIONS=detect_leaks=0 make -C build check
-      - name: Test in JIT mode
+      - name: Test in precompile mode
+        run: |
+          export ASAN_OPTIONS=detect_leaks=0
+          cd build
+          ./bin/run_regr -p -s
+      - name: Test in synchronous JIT mode
         run: |
           export NVC_JIT_ASYNC=0
           export NVC_JIT_THRESHOLD=1
@@ -120,13 +125,18 @@ jobs:
         run: make -C build -j $(sysctl -n hw.logicalcpu)
       - name: Test
         run: make -C build check
-      - name: Test in JIT mode
+      - name: Test in synchronous JIT mode
         run: |
           export NVC_JIT_ASYNC=0
           export NVC_JIT_THRESHOLD=1
           cd build
           rm -rf logs
           ./bin/run_regr -j -s
+      - name: Test in precompile mode
+        run: |
+          cd build
+          rm -rf logs
+          ./bin/run_regr -p -s
       - name: Dist clean
         run: make -C build distclean
       - name: Configure for release
@@ -176,13 +186,18 @@ jobs:
         run: make -C build -j $(nproc)
       - name: Test
         run: make -C build check
-      - name: Test in JIT mode
+      - name: Test in synchronous JIT mode
         run: |
           export NVC_JIT_ASYNC=0
           export NVC_JIT_THRESHOLD=1
           cd build
           rm -rf logs
           ./bin/run_regr -j -s
+      - name: Test in precompile mode
+        run: |
+          cd build
+          rm -rf logs
+          ./bin/run_regr -p -s
       - name: Build MSYS2 package
         run: |
           cd contrib/msys2

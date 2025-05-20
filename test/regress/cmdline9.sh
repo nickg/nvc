@@ -10,7 +10,7 @@ begin
 end architecture;
 EOF
 
-nvc -e cmdline9
+nvc -e cmdline9 --precompile
 
 ls -l work
 

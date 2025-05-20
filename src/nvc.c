@@ -61,7 +61,7 @@
 #if !defined HAVE_LLVM || !defined SYSTEM_CC
 #define DEFAULT_JIT true
 #else
-#define DEFAULT_JIT false
+#define DEFAULT_JIT true
 #endif
 
 typedef struct {
@@ -416,6 +416,7 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
       { "verbose",         no_argument,       0, 'V' },
       { "no-save",         no_argument,       0, 'N' },
       { "jit",             no_argument,       0, 'j' },
+      { "precompile",      no_argument,       0, 'p' },
       { "no-collapse",     no_argument,       0, 'C' },
       { "trace",           no_argument,       0, 't' },
       { 0, 0, 0, 0 }
@@ -460,6 +461,9 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
          break;
       case 'j':
          use_jit = true;
+         break;
+      case 'p':
+         use_jit = false;
          break;
       case 'g':
          parse_generic(optarg);
@@ -2513,7 +2517,6 @@ int main(int argc, char **argv)
       { "work",          required_argument, 0, 'w' },
       { "std",           required_argument, 0, 's' },
       { "messages",      required_argument, 0, 'I' },
-      { "native",        no_argument,       0, 'n' }, // DEPRECATED 1.4
       { "map",           required_argument, 0, 'p' },
       { "ieee-warnings", required_argument, 0, 'W' },
       { "ignore-time",   no_argument,       0, 'i' },
@@ -2566,9 +2569,6 @@ int main(int argc, char **argv)
          break;
       case 'f':
          warnf("the --force-init option is deprecated and has no effect");
-         break;
-      case 'n':
-         warnf("the --native option is deprecated and has no effect");
          break;
       case 'M':
          opt_set_size(OPT_ARENA_SIZE, parse_size(optarg));

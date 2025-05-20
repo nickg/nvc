@@ -9,6 +9,9 @@
   coverage report
 - Fixed "unit is too big to compile" error with very large number of
   signals (#1200).
+- Just-in-time compilation is now the default and the `--jit`
+  elaboration option has no effect.  Use `--precompile` to restore the
+  previous behaviour.
 - Several other minor bugs were resolved (#1202).
 
 ## Version 1.16.1 - 2025-05-12

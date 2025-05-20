@@ -154,6 +154,7 @@ static char test_dir[PATH_MAX];
 static char bin_dir[PATH_MAX];
 static bool is_tty = false;
 static bool force_jit = false;
+static bool force_precompile = false;
 
 #ifdef __MINGW32__
 static char *strndup(const char *s, size_t n)
@@ -820,7 +821,9 @@ static bool run_test(test_t *test)
 #ifndef HAVE_LLVM
    skip |= (test->flags & F_SLOW);
 #else
-   if (force_jit) skip |= (test->flags & F_SLOW);
+   const char *threshold = getenv("NVC_JIT_THRESHOLD");
+   if (threshold != NULL && atoi(threshold) == 0)
+      skip |= (test->flags & F_SLOW);
 #endif
 #ifndef ENABLE_TCL
    skip |= (test->flags & F_TCL);
@@ -960,6 +963,8 @@ static bool run_test(test_t *test)
 
       if (force_jit)
          push_arg(&args, "--jit");
+      else if (force_precompile)
+         push_arg(&args, "--precompile");
 
       if (test->flags & F_FAIL) {
          if (run_cmd(outf, &args) != RUN_OK) {
@@ -1337,13 +1342,16 @@ int main(int argc, char **argv)
 
    bool print_stats= false;
    int c;
-   while ((c = getopt(argc, argv, "sj")) != -1) {
+   while ((c = getopt(argc, argv, "sjp")) != -1) {
       switch (c) {
       case 's':
          print_stats = true;
          break;
       case 'j':
          force_jit = true;
+         break;
+      case 'p':
+         force_precompile = true;
          break;
       case '?':
          return EXIT_FAILURE;

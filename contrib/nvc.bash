@@ -47,7 +47,7 @@ _nvc () {
   local analyse_opts='-D --define= --error-limit= --relaxed --psl --error-limit=
                       -f --files --no-save --preserve-case'
   local elab_opts='--cover --disable-opt --dump-llvm --dump-vcode --jit --no-save
-                   --native -V --verbose'
+                   -V --verbose'
   local run_opts='--trace --stop-time= --stats= --stop-delta=
                   -w --wave --format='
   local export_opts='--format= -o --output='

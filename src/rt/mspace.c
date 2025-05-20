@@ -412,7 +412,8 @@ void *tlab_alloc(tlab_t *t, size_t size)
       return mspace_alloc(t->mspace, size);
 }
 
-static bool is_mspace_ptr(mspace_t *m, char *p)
+__attribute__((always_inline))
+static inline bool is_mspace_ptr(mspace_t *m, char *p)
 {
    return p >= m->space && p < m->space + m->maxsize;
 }

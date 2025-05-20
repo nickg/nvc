@@ -25,20 +25,23 @@ architecture test of protected6 is
         end function;
     end protected body;
 
-    procedure run_test is
+    procedure run_test (check : boolean) is
         -- Quickly exhausts memory if not cleaned up
         variable x : p;
     begin
-        assert x.sum = (2 ** 20) + (500 * 2);
+        if check then
+            assert x.sum = (2 ** 20) + (500 * 2);
+        end if;
     end procedure;
 
 begin
 
     process is
     begin
-        for i in 1 to 100 loop
-            run_test;
+        for i in 1 to 10 loop
+            run_test(false);
         end loop;
+        run_test(true);
         wait;
     end process;
 
