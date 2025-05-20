@@ -1322,7 +1322,9 @@ static tree_t simp_if_generate(tree_t t)
          else {
             tree_t b = tree_new(T_BLOCK);
             tree_set_loc(b, tree_loc(t));
-            if (tree_has_ident(t))
+            if (tree_has_ident(c))
+               tree_set_ident(b, tree_ident(c));
+            else if (tree_has_ident(t))
                tree_set_ident(b, tree_ident(t));
 
             const int ndecls = tree_decls(c);

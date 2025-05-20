@@ -13131,7 +13131,7 @@ lower_unit_t *lower_instance(unit_registry_t *ur, lower_unit_t *parent,
          lu->cscope = cover_create_instance(cover, parent->parent->cscope,
                                             parent->container, unit);
       }
-      else if (tree_kind(unit) == T_ARCH)
+      else if (is_concurrent_block(unit))
          lu->cscope = cover_create_instance(cover, parent->cscope, block, unit);
       else
          lu->cscope = cover_create_scope(cover, parent->cscope, block, NULL);
