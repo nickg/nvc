@@ -19,6 +19,7 @@
 #define _MIR_NODE_H
 
 #include "prim.h"
+#include "diag.h"
 #include "util.h"
 
 #include <limits.h>
@@ -247,6 +248,8 @@ typedef enum {
    MIR_OP_DEBUG_OUT,
    MIR_OP_PACK,
    MIR_OP_UNPACK,
+   MIR_OP_BINARY,
+   MIR_OP_UNARY,
 } mir_op_t;
 
 typedef enum {
@@ -305,6 +308,26 @@ typedef enum {
    MIR_MEM_GLOBAL,
    MIR_MEM_TOP,
 } mir_mem_t;
+
+typedef enum {
+   MIR_VEC_BIT_AND,
+   MIR_VEC_BIT_OR,
+   MIR_VEC_BIT_XOR,
+   MIR_VEC_BIT_NOT,
+   MIR_VEC_LOG_AND,
+   MIR_VEC_LOG_OR,
+   MIR_VEC_LOG_NOT,
+   MIR_VEC_LT,
+   MIR_VEC_LEQ,
+   MIR_VEC_GT,
+   MIR_VEC_GEQ,
+   MIR_VEC_LOG_EQ,
+   MIR_VEC_LOG_NEQ,
+   MIR_VEC_CASE_EQ,
+   MIR_VEC_CASE_NEQ,
+   MIR_VEC_ADD,
+   MIR_VEC_SUB,
+} mir_vec_op_t;
 
 #define MIR_APPEND UINT_MAX
 
@@ -413,6 +436,19 @@ void mir_comment(mir_unit_t *mu, const char *fmt, ...);
 #define mir_comment(mu, fmt, ...)
 #endif
 
+typedef struct {
+   mir_unit_t *mu;
+   loc_t       loc;
+} mir_saved_loc_t;
+
+mir_saved_loc_t _mir_push_debug_info(mir_unit_t *mu, const loc_t *loc);
+
+__attribute__((always_inline))
+static inline void _mir_pop_debug_info(const mir_saved_loc_t *sl)
+{
+   mir_set_loc(sl->mu, &sl->loc);
+}
+
 // Constants
 mir_value_t mir_enum(unsigned value);
 mir_value_t mir_const(mir_unit_t *mu, mir_type_t type, int64_t value);
@@ -473,6 +509,10 @@ mir_value_t mir_build_cmp(mir_unit_t *mu, mir_cmp_t cmp, mir_value_t left,
 mir_value_t mir_build_pack(mir_unit_t *mu, mir_type_t type, mir_value_t arg);
 mir_value_t mir_build_unpack(mir_unit_t *mu, mir_value_t vec, uint8_t strength,
                              mir_value_t dest);
+mir_value_t mir_build_binary(mir_unit_t *mu, mir_vec_op_t op, mir_type_t type,
+                             mir_value_t left, mir_value_t right);
+mir_value_t mir_build_unary(mir_unit_t *mu, mir_vec_op_t op, mir_type_t type,
+                            mir_value_t arg);
 
 // Memory
 void mir_build_store(mir_unit_t *mu, mir_value_t dest, mir_value_t src);

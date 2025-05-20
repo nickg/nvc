@@ -65,6 +65,7 @@ void mir_unit_free(mir_unit_t *mu);
 mir_unit_kind_t mir_get_kind(mir_unit_t *mu);
 object_t *mir_get_object(mir_unit_t *mu);
 ident_t mir_get_parent(mir_unit_t *mu);
+mir_context_t *mir_get_context(mir_unit_t *mu);
 
 mir_value_t mir_search_object(mir_unit_t *mu, const void *obj, int *hops);
 void mir_put_object(mir_unit_t *mu, const void *obj, mir_value_t value);
@@ -78,6 +79,8 @@ typedef enum {
    MIR_PASS_GVN = (1 << 0),
    MIR_PASS_DCE = (1 << 1),
 } mir_pass_t;
+
+#define MIR_PASS_O2 (MIR_PASS_GVN | MIR_PASS_DCE)
 
 void mir_optimise(mir_unit_t *mu, mir_pass_t passes);
 

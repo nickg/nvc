@@ -24,10 +24,10 @@
 #include <stdint.h>
 
 typedef enum {
-   LOGIC_X = 0b00,
-   LOGIC_Z = 0b01,
-   LOGIC_0 = 0b10,
-   LOGIC_1 = 0b11,
+   LOGIC_0 = 0b00,
+   LOGIC_1 = 0b01,
+   LOGIC_X = 0b11,
+   LOGIC_Z = 0b10,
 } vlog_logic_t;
 
 #define STRIP_STRENGTH(x) (x & 3)

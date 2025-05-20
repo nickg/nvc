@@ -565,6 +565,8 @@ static void gvn_visit_block(mir_unit_t *mu, mir_block_t block,
       case MIR_OP_UARRAY_LEN:
       case MIR_OP_RANGE_LENGTH:
       case MIR_OP_CAST:
+      case MIR_OP_PACK:
+      case MIR_OP_UNPACK:
          gvn_generic(mu, node, block, opt);
          break;
       case MIR_OP_AND:

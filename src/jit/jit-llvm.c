@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2022-2023  Nick Gasson
+//  Copyright (C) 2022-2025  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -137,6 +137,8 @@ typedef enum {
    LLVM_TEST_EVENT,
    LLVM_LAST_EVENT,
    LLVM_SCHED_PROCESS,
+   LLVM_PACK,
+   LLVM_UNPACK,
 
    LLVM_LAST_FN,
 } llvm_fn_t;
@@ -895,6 +897,44 @@ static LLVMValueRef llvm_get_fn(llvm_obj_t *obj, llvm_fn_t which)
                                                 ARRAY_LEN(args), false);
 
          fn = llvm_add_fn(obj, "__nvc_putpriv", obj->fntypes[which]);
+         llvm_add_func_attr(obj, fn, FUNC_ATTR_NOUNWIND, -1);
+      }
+      break;
+
+   case LLVM_PACK:
+      {
+         LLVMTypeRef args[] = {
+            obj->types[LLVM_PTR],
+            obj->types[LLVM_INT32],
+#ifdef LLVM_HAS_OPAQUE_POINTERS
+            obj->types[LLVM_PTR],
+#else
+            LLVMPointerType(obj->types[LLVM_INT64], 0),
+#endif
+         };
+         obj->fntypes[which] = LLVMFunctionType(obj->types[LLVM_VOID], args,
+                                                ARRAY_LEN(args), false);
+
+         fn = llvm_add_fn(obj, "__nvc_pack", obj->fntypes[which]);
+         llvm_add_func_attr(obj, fn, FUNC_ATTR_NOUNWIND, -1);
+      }
+      break;
+
+   case LLVM_UNPACK:
+      {
+         LLVMTypeRef args[] = {
+            obj->types[LLVM_INT64],
+            obj->types[LLVM_INT64],
+#ifdef LLVM_HAS_OPAQUE_POINTERS
+            obj->types[LLVM_PTR],
+#else
+            LLVMPointerType(obj->types[LLVM_INT64], 0),
+#endif
+         };
+         obj->fntypes[which] = LLVMFunctionType(obj->types[LLVM_VOID], args,
+                                                ARRAY_LEN(args), false);
+
+         fn = llvm_add_fn(obj, "__nvc_unpack", obj->fntypes[which]);
          llvm_add_func_attr(obj, fn, FUNC_ATTR_NOUNWIND, -1);
       }
       break;
@@ -2234,6 +2274,26 @@ static void cgen_macro_putpriv(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
    }
 }
 
+static void cgen_macro_pack(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
+{
+   LLVMValueRef args[] = {
+      cgen_coerce_value(obj, cgb, ir->arg1, LLVM_PTR),
+      cgen_coerce_value(obj, cgb, ir->arg2, LLVM_INT32),
+      cgb->func->args,
+   };
+   llvm_call_fn(obj, LLVM_PACK, args, ARRAY_LEN(args));
+}
+
+static void cgen_macro_unpack(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
+{
+   LLVMValueRef args[] = {
+      cgen_get_value(obj, cgb, ir->arg1),
+      cgen_get_value(obj, cgb, ir->arg2),
+      cgb->func->args,
+   };
+   llvm_call_fn(obj, LLVM_UNPACK, args, ARRAY_LEN(args));
+}
+
 static void cgen_macro_case(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
 {
    jit_ir_t *first = cgb->func->source->irbuf + cgb->source->first;
@@ -2474,6 +2534,12 @@ static void cgen_ir(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
       break;
    case MACRO_PUTPRIV:
       cgen_macro_putpriv(obj, cgb, ir);
+      break;
+   case MACRO_PACK:
+      cgen_macro_pack(obj, cgb, ir);
+      break;
+   case MACRO_UNPACK:
+      cgen_macro_unpack(obj, cgb, ir);
       break;
    case MACRO_CASE:
       cgen_macro_case(obj, cgb, ir);

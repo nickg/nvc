@@ -43,5 +43,7 @@ void vpi_trace(const char *func, const char *fmt, ...);
 void vpi_register_builtins(void);
 void vpi_clear_error(void);
 void vpi_format_number(number_t n, PLI_INT32 format, text_buf_t *tb);
+void vpi_format_number2(int size, uint64_t abits, uint64_t bbits,
+                        PLI_INT32 format, text_buf_t *tb);
 
 #endif  // _VPI_PRIV_H

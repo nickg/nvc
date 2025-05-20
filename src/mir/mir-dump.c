@@ -167,6 +167,8 @@ const char *mir_op_string(mir_op_t op)
       [MIR_OP_DEBUG_OUT] = "debug out",
       [MIR_OP_PACK] = "pack",
       [MIR_OP_UNPACK] = "unpack",
+      [MIR_OP_BINARY] = "vector binary",
+      [MIR_OP_UNARY] = "vector unary",
    };
 
    return map[op];
@@ -481,6 +483,32 @@ static int mir_dump_strength(mir_unit_t *mu, mir_value_t value)
    };
    return color_printf("$green$(%s1,%s0)$$", names[STRENGTH1(value.id)],
                        names[STRENGTH0(value.id)]);
+}
+
+static int mir_dump_vector_op(mir_unit_t *mu, mir_value_t value)
+{
+   assert(value.tag == MIR_TAG_ENUM);
+
+   switch (value.id) {
+   case MIR_VEC_BIT_AND:  return printf(" & ");
+   case MIR_VEC_BIT_OR:   return printf(" | ");
+   case MIR_VEC_BIT_XOR:  return printf(" ^ ");
+   case MIR_VEC_LOG_AND:  return printf(" && ");
+   case MIR_VEC_LOG_OR:   return printf(" || ");
+   case MIR_VEC_BIT_NOT:  return printf(" ~ ");
+   case MIR_VEC_LOG_NOT:  return printf(" ! ");
+   case MIR_VEC_LT:       return printf(" < ");
+   case MIR_VEC_LEQ:      return printf(" <= ");
+   case MIR_VEC_GT:       return printf(" > ");
+   case MIR_VEC_GEQ:      return printf(" >= ");
+   case MIR_VEC_LOG_EQ:   return printf(" == ");
+   case MIR_VEC_LOG_NEQ:  return printf(" != ");
+   case MIR_VEC_CASE_EQ:  return printf(" === ");
+   case MIR_VEC_CASE_NEQ: return printf(" !== ");
+   case MIR_VEC_ADD:      return printf(" + ");
+   case MIR_VEC_SUB:      return printf(" - ");
+   default: return printf(" <%d> ", value.id);
+   }
 }
 
 static int mir_dump_locus(object_t *obj)
@@ -955,12 +983,11 @@ void mir_annotate(mir_unit_t *mu, const mir_annotate_t *cb, void *ctx)
                }
                col += printf("%s ", mir_op_string(n->op));
                col += mir_dump_arg(mu, result, 0, cb, ctx);
-               col += printf(" ");
                for (int i = 2; i < n->nargs; i++) {
-                  if (i > 2) col += printf(", ");
+                  col += printf("%s ", i > 2 ? "," : "");
                   col += mir_dump_arg(mu, result, i, cb, ctx);
                }
-               col += color_printf("locus ");
+               col += color_printf(" locus ");
                col += mir_dump_arg(mu, result, 1, cb, ctx);
                mir_dump_type(mu, col, n->type);
                mir_dump_stamp(mu, n->type, n->stamp);
@@ -1196,9 +1223,13 @@ void mir_annotate(mir_unit_t *mu, const mir_annotate_t *cb, void *ctx)
                col += printf(" := %s ", mir_op_string(n->op));
                col += mir_dump_value(mu, n->args[0], cb, ctx);
                ident_t link = mir_get_name(mu, n->args[1]);
-               mir_shape_t *s = mir_get_shape(mu->context, link);
-               ident_t name = s->slots[n->args[2].id].name;
-               col += color_printf(", $magenta$%s$$", istr(name));
+               if (link == NULL)
+                  col += color_printf(", $red$invalid$$");
+               else {
+                  mir_shape_t *s = mir_get_shape(mu->context, link);
+                  ident_t name = s->slots[n->args[2].id].name;
+                  col += color_printf(", $magenta$%s$$", istr(name));
+               }
                mir_dump_type(mu, col, n->type);
                mir_dump_stamp(mu, n->type, n->stamp);
             }
@@ -1668,8 +1699,11 @@ void mir_annotate(mir_unit_t *mu, const mir_annotate_t *cb, void *ctx)
 
          case MIR_OP_UNPACK:
             {
-               col += mir_dump_value(mu, result, cb, ctx);
-               col += printf(" := %s ", mir_op_string(n->op));
+               if (!mir_is_null(n->type)) {
+                  col += mir_dump_value(mu, result, cb, ctx);
+                  col += printf(" := ");
+               }
+               col += printf("%s ", mir_op_string(n->op));
                col += mir_dump_arg(mu, result, 0, cb, ctx);
                col += printf(" strength ");
                col += mir_dump_strength(mu, mir_get_arg(mu, result, 1));
@@ -1687,6 +1721,29 @@ void mir_annotate(mir_unit_t *mu, const mir_annotate_t *cb, void *ctx)
                col += mir_dump_value(mu, result, cb, ctx);
                col += printf(" := %s ", mir_op_string(n->op));
                col += mir_dump_arg(mu, result, 0, cb, ctx);
+               mir_dump_type(mu, col, n->type);
+               mir_dump_stamp(mu, n->type, n->stamp);
+            }
+            break;
+
+         case MIR_OP_BINARY:
+            {
+               col += mir_dump_value(mu, result, cb, ctx);
+               col += printf(" := vector ");
+               col += mir_dump_arg(mu, result, 1, cb, ctx);
+               col += mir_dump_vector_op(mu, n->args[0]);
+               col += mir_dump_arg(mu, result, 2, cb, ctx);
+               mir_dump_type(mu, col, n->type);
+               mir_dump_stamp(mu, n->type, n->stamp);
+            }
+            break;
+
+         case MIR_OP_UNARY:
+            {
+               col += mir_dump_value(mu, result, cb, ctx);
+               col += printf(" := vector");
+               col += mir_dump_vector_op(mu, n->args[0]);
+               col += mir_dump_arg(mu, result, 1, cb, ctx);
                mir_dump_type(mu, col, n->type);
                mir_dump_stamp(mu, n->type, n->stamp);
             }

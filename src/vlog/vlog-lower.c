@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2023-2024  Nick Gasson
+//  Copyright (C) 2023-2025  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -35,18 +35,32 @@
 #include <string.h>
 #include <stdlib.h>
 
+typedef struct {
+   mir_type_t  type;
+   unsigned    size;
+   mir_value_t temp;
+} type_info_t;
+
+typedef struct {
+   mir_value_t  nets;
+   unsigned     size;
+   type_info_t *base;
+} vlog_lvalue_t;
+
+STATIC_ASSERT(sizeof(vlog_lvalue_t) <= 16);
+
 #define CANNOT_HANDLE(v) do {                                           \
       fatal_at(vlog_loc(v), "cannot handle %s in %s" ,                  \
                vlog_kind_str(vlog_kind(v)), __FUNCTION__);              \
    } while (0)
 
-#define PUSH_DEBUG_INFO(v)                               \
-   __attribute__((cleanup(emit_debug_info), unused))     \
-   const loc_t _old_loc = *vcode_last_loc();             \
-   emit_debug_info(vlog_loc((v)));                       \
+#define PUSH_DEBUG_INFO(mu, v)                                          \
+   __attribute__((cleanup(_mir_pop_debug_info), unused))                \
+   const mir_saved_loc_t _old_loc =                                     \
+      _mir_push_debug_info((mu), vlog_loc((v)));
 
-static void vlog_lower_stmts(lower_unit_t *lu, vlog_node_t v);
-static vcode_reg_t vlog_lower_rvalue(lower_unit_t *lu, vlog_node_t v);
+static void vlog_lower_stmts(mir_unit_t *mu, vlog_node_t v);
+static mir_value_t vlog_lower_rvalue(mir_unit_t *mu, vlog_node_t v);
 
 static inline vcode_type_t vlog_logic_type(void)
 {
@@ -58,452 +72,212 @@ static inline vcode_type_t vlog_net_value_type(void)
    return vtype_int(0, 255);
 }
 
-static inline vcode_type_t vlog_logic_array_type(void)
+static type_info_t *vlog_type_info(mir_unit_t *mu, vlog_node_t v)
 {
-   vcode_type_t vlogic = vlog_logic_type();
-   return vtype_uarray(1, vlogic, vlogic);
-}
+   assert(vlog_kind(v) == V_DATA_TYPE);
 
-static vcode_reg_t vlog_debug_locus(vlog_node_t v)
-{
-   return emit_debug_locus(vlog_to_object(v));
-}
-
-static vcode_reg_t vlog_helper_package(void)
-{
-   return emit_link_package(ident_new("NVC.VERILOG"));
-}
-
-static vcode_reg_t vlog_lower_wrap(lower_unit_t *lu, vcode_reg_t reg)
-{
-   vcode_type_t voffset = vtype_offset();
-   vcode_type_t regtype = vcode_reg_type(reg);
-   vcode_reg_t left_reg = emit_const(voffset, 0), right_reg, data_reg;
-
-   switch (vtype_kind(regtype)) {
-   case VCODE_TYPE_CARRAY:
-      data_reg = emit_address_of(reg);
-      right_reg = emit_const(voffset, vtype_size(regtype) - 1);
-      break;
-   case VCODE_TYPE_INT:
-      {
-         ident_t name = ident_uniq("wrap_temp");
-         vcode_var_t tmp = emit_var(regtype, regtype, name, VAR_TEMP);
-         emit_store(reg, tmp);
-
-         data_reg = emit_index(tmp, VCODE_INVALID_REG);
-         right_reg = left_reg;
-      }
-      break;
-   case VCODE_TYPE_UARRAY:
-      return reg;
-   default:
-      vcode_dump();
-      fatal_trace("cannot wrap r%d", reg);
+   type_info_t *ti = mir_get_priv(mu, v);
+   if (ti == NULL) {
+      ti = mir_malloc(mu, sizeof(type_info_t));
+      ti->size = vlog_size(v);
+      ti->type = mir_vec4_type(mu, ti->size, false);
+      ti->temp = MIR_NULL_VALUE;
    }
 
-   vcode_reg_t dir_reg = emit_const(vtype_bool(), RANGE_TO);
-
-   vcode_dim_t dims[1] = {
-      { left_reg, right_reg, dir_reg }
-   };
-   return emit_wrap(data_reg, dims, 1);
+   return ti;
 }
 
-static vcode_reg_t vlog_lower_resize(lower_unit_t *lu, vcode_reg_t value_reg,
-                                     vcode_reg_t count_reg)
+static mir_value_t vlog_get_temp(mir_unit_t *mu, type_info_t *ti)
 {
-   vcode_reg_t arg_reg;
-   ident_t fn;
-   switch (vcode_reg_kind(value_reg)) {
-   case VCODE_TYPE_UARRAY:
-   case VCODE_TYPE_CARRAY:
-      arg_reg = vlog_lower_wrap(lu, value_reg);
-      fn = ident_new("NVC.VERILOG.RESIZE(" T_LOGIC_ARRAY "N)" T_LOGIC_ARRAY);
-      break;
-   case VCODE_TYPE_INT:
-      arg_reg = value_reg;
-      fn = ident_new("NVC.VERILOG.RESIZE(" T_LOGIC "N)" T_LOGIC_ARRAY);
-      break;
-   default:
-      vcode_dump();
-      fatal_trace("cannot resize r%d", value_reg);
+   if (mir_is_null(ti->temp)) {
+      mir_type_t t_array = mir_carray_type(mu, ti->size, mir_logic_type(mu));
+      ti->temp = mir_add_var(mu, t_array, MIR_NULL_STAMP, ident_uniq("tmp"),
+                             MIR_VAR_TEMP);
    }
 
-   vcode_type_t vlogic = vlog_logic_type();
-   vcode_type_t vpacked = vlog_logic_array_type();
-
-   vcode_reg_t context_reg = vlog_helper_package();
-   vcode_reg_t args[] = { context_reg, arg_reg, count_reg };
-   return emit_fcall(fn, vpacked, vlogic, args, ARRAY_LEN(args));
+   return ti->temp;
 }
 
-static vcode_reg_t vlog_lower_to_time(lower_unit_t *lu, vcode_reg_t reg)
+static vlog_lvalue_t vlog_lower_lvalue_ref(mir_unit_t *mu, vlog_node_t v)
 {
-   vcode_reg_t context_reg = vlog_helper_package();
-   vcode_reg_t wrap_reg = vlog_lower_wrap(lu, reg);
-   vcode_reg_t args[] = { context_reg, wrap_reg };
-   vcode_type_t vtime = vtype_time();
-   ident_t func = ident_new("NVC.VERILOG.TO_TIME(" T_LOGIC_ARRAY ")"
-                            "25STD.STANDARD.DELAY_LENGTH");
-   return emit_fcall(func, vtime, vtime, args, ARRAY_LEN(args));
-}
-
-static vcode_reg_t vlog_lower_to_integer(lower_unit_t *lu, vcode_reg_t reg)
-{
-   vcode_reg_t context_reg = vlog_helper_package();
-   vcode_reg_t wrap_reg = vlog_lower_wrap(lu, reg);
-   vcode_reg_t args[] = { context_reg, wrap_reg };
-   vcode_type_t vint64 = vtype_int(INT64_MIN, INT64_MAX);
-   ident_t func = ident_new("NVC.VERILOG.TO_INTEGER("
-                            T_LOGIC_ARRAY ")" T_INT64);
-   return emit_fcall(func, vint64, vint64, args, ARRAY_LEN(args));
-}
-
-static vcode_reg_t vlog_lower_to_offset(lower_unit_t *lu, vcode_reg_t reg)
-{
-   vcode_type_t voffset = vtype_offset();
-   vcode_reg_t int_reg = vlog_lower_to_integer(lu, reg);
-   return emit_cast(voffset, voffset, int_reg);
-}
-
-static vcode_reg_t vlog_lower_to_bool(lower_unit_t *lu, vcode_reg_t reg)
-{
-   switch (vcode_reg_kind(reg)) {
-   case VCODE_TYPE_INT:
-      if (vtype_eq(vcode_reg_type(reg), vtype_bool()))
-         return reg;
-      else {
-         vcode_type_t vlogic = vlog_logic_type();
-         vcode_reg_t one_reg = emit_const(vlogic, LOGIC_1);
-         assert(vtype_eq(vcode_reg_type(reg), vlogic));
-         return emit_cmp(VCODE_CMP_EQ, reg, one_reg);
-      }
-   default:
-      vcode_dump();
-      fatal_trace("cannot convert r%d to bool", reg);
-   }
-}
-
-static vcode_reg_t vlog_lower_to_logic(lower_unit_t *lu, vcode_reg_t reg)
-{
-   vcode_type_t vlogic = vlog_logic_type();
-
-   switch (vcode_reg_kind(reg)) {
-   case VCODE_TYPE_INT:
-      if (vtype_eq(vcode_reg_type(reg), vlogic))
-         return reg;
-      else {
-         vcode_reg_t context_reg = vlog_helper_package();
-         vcode_reg_t args[] = { context_reg, reg };
-         ident_t func = ident_new("NVC.VERILOG.TO_LOGIC("
-                                  T_NET_VALUE ")" T_LOGIC);
-         return emit_fcall(func, vlogic, vlogic, args, ARRAY_LEN(args));
-      }
-   case VCODE_TYPE_UARRAY:
-      {
-         vcode_type_t vpacked = vlog_logic_array_type();
-         vcode_reg_t context_reg = vlog_helper_package();
-         vcode_reg_t args[] = { context_reg, reg };
-         ident_t func = ident_new("NVC.VERILOG.TO_LOGIC("
-                                  T_NET_ARRAY ")" T_LOGIC_ARRAY);
-         return emit_fcall(func, vpacked, vlogic, args, ARRAY_LEN(args));
-      }
-   default:
-      vcode_dump();
-      fatal_trace("cannot convert r%d to logic", reg);
-   }
-}
-
-static vcode_reg_t vlog_lower_to_net(lower_unit_t *lu, vcode_reg_t reg,
-                                     vcode_reg_t strength)
-{
-   vcode_type_t vnet = vlog_net_value_type();
-
-   switch (vcode_reg_kind(reg)) {
-   case VCODE_TYPE_INT:
-      if (vtype_eq(vcode_reg_type(reg), vnet))
-         return reg;
-      else {
-         vcode_reg_t context_reg = vlog_helper_package();
-         vcode_reg_t args[] = { context_reg, reg, strength };
-         ident_t func = ident_new("NVC.VERILOG.TO_NET(" T_LOGIC T_NET_VALUE
-                                  ")" T_NET_VALUE);
-         return emit_fcall(func, vnet, vnet, args, ARRAY_LEN(args));
-      }
-   case VCODE_TYPE_UARRAY:
-      {
-         vcode_type_t varray = vtype_uarray(1, vnet, vnet);
-         vcode_reg_t context_reg = vlog_helper_package();
-         vcode_reg_t args[] = { context_reg, reg, strength };
-         ident_t func = ident_new("NVC.VERILOG.TO_NET(" T_LOGIC_ARRAY
-                                  T_NET_VALUE ")" T_NET_ARRAY);
-         return emit_fcall(func, varray, vnet, args, ARRAY_LEN(args));
-      }
-   default:
-      vcode_dump();
-      fatal_trace("cannot convert r%d to net value", reg);
-   }
-}
-
-static vcode_reg_t vlog_lower_integer(lower_unit_t *lu, vlog_node_t expr)
-{
-   if (vlog_kind(expr) == V_NUMBER) {
-      number_t n = vlog_number(expr);
-      if (number_is_defined(n)) {
-         vcode_type_t vint64 = vtype_int(INT64_MIN, INT64_MAX);
-         return emit_const(vint64, number_integer(n));
-      }
-   }
-
-   return vlog_lower_to_integer(lu, vlog_lower_rvalue(lu, expr));
-}
-
-static vcode_reg_t vlog_lower_decl_bounds(lower_unit_t *lu, vlog_node_t decl,
-                                          vcode_reg_t data)
-{
-   vlog_node_t type = vlog_type(decl);
-
-   const int nranges = vlog_ranges(type);
-   vcode_dim_t *dims LOCAL = xmalloc_array(nranges, sizeof(vcode_dim_t));
-
-   for (int i = 0; i < nranges; i++) {
-      vlog_node_t r = vlog_range(type, i);
-
-      vcode_reg_t left_reg = vlog_lower_integer(lu, vlog_left(r));
-      vcode_reg_t right_reg = vlog_lower_integer(lu, vlog_right(r));
-
-      vcode_reg_t dir_reg = emit_cmp(VCODE_CMP_GT, left_reg, right_reg);
-
-      dims[i].left = left_reg;
-      dims[i].right = right_reg;
-      dims[i].dir = dir_reg;
-   };
-
-   return emit_wrap(data, dims, nranges);
-}
-
-static vcode_reg_t vlog_lower_lvalue_ref(lower_unit_t *lu, vlog_node_t ref)
-{
-   vlog_node_t decl = vlog_ref(ref);
+   vlog_node_t decl = vlog_ref(v);
    if (vlog_kind(decl) == V_PORT_DECL)
       decl = vlog_ref(decl);
 
    int hops;
-   vcode_var_t var = lower_search_vcode_obj(decl, lu, &hops);
-   assert(var != VCODE_INVALID_VAR);
+   mir_value_t var = mir_search_object(mu, decl, &hops);
+   assert(!mir_is_null(var));
 
-   vcode_reg_t nets_reg;
-   if (hops == 0)
-      nets_reg = emit_load(var);
-   else
-      nets_reg = emit_load_indirect(emit_var_upref(hops, var));
+   assert(hops > 0);
+   mir_value_t upref = mir_build_var_upref(mu, hops, var.id);
 
-   if (vcode_reg_kind(nets_reg) != VCODE_TYPE_UARRAY
-       && vlog_dimensions(decl) > 0)
-      return vlog_lower_decl_bounds(lu, decl, nets_reg);
-   else
-      return nets_reg;
+   type_info_t *ti = vlog_type_info(mu, vlog_type(decl));
+
+   vlog_lvalue_t result = {
+      .nets = mir_build_load(mu, upref),
+      .size = ti->size,
+      .base = ti,
+   };
+   return result;
 }
 
-static vcode_reg_t vlog_lower_lvalue(lower_unit_t *lu, vlog_node_t v)
+static vlog_lvalue_t vlog_lower_lvalue(mir_unit_t *mu, vlog_node_t v)
 {
-   PUSH_DEBUG_INFO(v);
+   PUSH_DEBUG_INFO(mu, v);
 
    switch (vlog_kind(v)) {
    case V_REF:
-      return vlog_lower_lvalue_ref(lu, v);
+      return vlog_lower_lvalue_ref(mu, v);
    case V_BIT_SELECT:
       {
-         vcode_reg_t wrap_reg = vlog_lower_lvalue_ref(lu, v);
-         vcode_reg_t nets_reg = emit_unwrap(wrap_reg);
+         vlog_lvalue_t ref = vlog_lower_lvalue_ref(mu, v);
 
          assert(vlog_params(v) == 1);
-         vcode_reg_t p0_reg = vlog_lower_rvalue(lu, vlog_param(v, 0));
-         vcode_reg_t off_reg = vlog_lower_to_offset(lu, p0_reg);
+         mir_value_t p0 = vlog_lower_rvalue(mu, vlog_param(v, 0));
 
-         return emit_array_ref(nets_reg, off_reg);
+         mir_type_t t_offset = mir_offset_type(mu);
+         mir_value_t off = mir_build_cast(mu, t_offset, p0);
+
+         vlog_lvalue_t lvalue = {
+            .nets = mir_build_array_ref(mu, ref.nets, off),
+            .size = 1,
+            .base = ref.base,
+         };
+         return lvalue;
       }
    default:
       CANNOT_HANDLE(v);
    }
 }
 
-static vcode_reg_t vlog_lower_unary(lower_unit_t *lu, vlog_unary_t op,
-                                    vcode_reg_t reg)
+static mir_value_t vlog_lower_unary(mir_unit_t *mu, vlog_node_t v)
 {
-   LOCAL_TEXT_BUF tb = tb_new();
-   tb_cat(tb, "NVC.VERILOG.");
+   mir_value_t input = vlog_lower_rvalue(mu, vlog_value(v));
+   mir_type_t type = mir_get_type(mu, input);
 
-   switch (op) {
-   case V_UNARY_BITNEG:
-   case V_UNARY_NOT:
-      tb_cat(tb, "\"not\"(");
-      break;
-   case V_UNARY_NEG:
-      tb_cat(tb, "\"-\"(");
-      break;
-   case V_UNARY_IDENTITY:
-      return reg;
+   mir_vec_op_t mop;
+   switch (vlog_subkind(v)) {
+   case V_UNARY_BITNEG: mop = MIR_VEC_BIT_NOT; break;
+   case V_UNARY_NOT:    mop = MIR_VEC_LOG_NOT; break;
+   case V_UNARY_NEG:    mop = MIR_VEC_SUB; break;
    default:
-      should_not_reach_here();
+      CANNOT_HANDLE(v);
    }
 
-   vcode_type_t vlogic = vlog_logic_type();
-   vcode_type_t vpacked = vlog_logic_array_type();
-
-   vcode_type_t rtype;
-   if (vcode_reg_kind(reg) == VCODE_TYPE_INT) {
-      tb_cat(tb, T_LOGIC ")" T_LOGIC);
-      rtype = vlogic;
-   }
-   else {
-      reg = vlog_lower_wrap(lu, reg);
-      tb_cat(tb, T_LOGIC_ARRAY ")");
-
-      if (op == V_UNARY_NOT) {
-         tb_cat(tb, T_LOGIC);
-         rtype = vlogic;
-      }
-      else {
-         tb_cat(tb, T_LOGIC_ARRAY);
-         rtype = vpacked;
-      }
-   }
-
-   vcode_reg_t context_reg = vlog_helper_package();
-
-   ident_t func = ident_new(tb_get(tb));
-
-   vcode_reg_t args[] = { context_reg, reg };
-   return emit_fcall(func, rtype, vlogic, args, ARRAY_LEN(args));
+   return mir_build_unary(mu, mop, type, input);
 }
 
-static vcode_reg_t vlog_lower_binary(lower_unit_t *lu, vlog_binary_t op,
-                                     vcode_reg_t left_reg,
-                                     vcode_reg_t right_reg)
+static mir_value_t vlog_lower_binary(mir_unit_t *mu, vlog_node_t v)
 {
-   LOCAL_TEXT_BUF tb = tb_new();
-   tb_cat(tb, "NVC.VERILOG.");
+   mir_value_t left = vlog_lower_rvalue(mu, vlog_left(v));
+   mir_value_t right = vlog_lower_rvalue(mu, vlog_right(v));
 
-   switch (op) {
-   case V_BINARY_AND:
-   case V_BINARY_LOG_AND:
-      tb_cat(tb, "\"and\"(");
-      break;
-   case V_BINARY_OR:
-   case V_BINARY_LOG_OR:
-      tb_cat(tb, "\"or\"(");
-      break;
-   case V_BINARY_CASE_EQ:
-   case V_BINARY_LOG_EQ:
-      tb_cat(tb, "\"=\"(");
-      break;
-   case V_BINARY_CASE_NEQ:
-   case V_BINARY_LOG_NEQ:
-      tb_cat(tb, "\"/=\"(");
-      break;
-   case V_BINARY_PLUS:
-      tb_cat(tb, "\"+\"(");
-      break;
-   case V_BINARY_MINUS:
-      tb_cat(tb, "\"-\"(");
-      break;
-   case V_BINARY_LT:
-      tb_cat(tb, "\"<\"(");
-      break;
-   case V_BINARY_GT:
-      tb_cat(tb, "\">\"(");
-      break;
-   case V_BINARY_LEQ:
-      tb_cat(tb, "\"<=\"(");
-      break;
-   case V_BINARY_GEQ:
-      tb_cat(tb, "\">=\"(");
-      break;
+   assert(mir_is_vector(mu, left));
+   assert(mir_is_vector(mu, right));
+
+   mir_type_t ltype = mir_get_type(mu, left);
+   mir_type_t rtype = mir_get_type(mu, right);
+
+   const mir_class_t lclass = mir_get_class(mu, ltype);
+   const mir_class_t rclass = mir_get_class(mu, rtype);
+
+   const int lsize = mir_get_size(mu, ltype);
+   const int rsize = mir_get_size(mu, rtype);
+
+   mir_type_t type;
+   if (lclass == MIR_TYPE_VEC4 || rclass == MIR_TYPE_VEC4)
+      type = mir_vec4_type(mu, MAX(lsize, rsize), false);
+   else
+      type = mir_vec2_type(mu, MAX(lsize, rsize), false);
+
+   mir_value_t lcast = mir_build_cast(mu, type, left);
+   mir_value_t rcast = mir_build_cast(mu, type, right);
+
+   mir_vec_op_t mop;
+   switch (vlog_subkind(v)) {
+   case V_BINARY_AND:      mop = MIR_VEC_BIT_AND; break;
+   case V_BINARY_OR:       mop = MIR_VEC_BIT_OR; break;
+   case V_BINARY_LOG_AND:  mop = MIR_VEC_LOG_AND; break;
+   case V_BINARY_LOG_OR:   mop = MIR_VEC_LOG_OR; break;
+   case V_BINARY_LT:       mop = MIR_VEC_LT; break;
+   case V_BINARY_LEQ:      mop = MIR_VEC_LEQ; break;
+   case V_BINARY_GT:       mop = MIR_VEC_GT; break;
+   case V_BINARY_GEQ:      mop = MIR_VEC_GEQ; break;
+   case V_BINARY_LOG_EQ:   mop = MIR_VEC_LOG_EQ; break;
+   case V_BINARY_LOG_NEQ:  mop = MIR_VEC_LOG_NEQ; break;
+   case V_BINARY_CASE_EQ:  mop = MIR_VEC_CASE_EQ; break;
+   case V_BINARY_CASE_NEQ: mop = MIR_VEC_CASE_NEQ; break;
+   case V_BINARY_PLUS:     mop = MIR_VEC_ADD; break;
    default:
-      should_not_reach_here();
+      CANNOT_HANDLE(v);
    }
 
-   tb_cat(tb, T_LOGIC_ARRAY T_LOGIC_ARRAY ")");
-
-   vcode_type_t rtype;
-   switch (op) {
-   case V_BINARY_CASE_EQ:
-   case V_BINARY_CASE_NEQ:
-      rtype = vtype_bool();
-      tb_cat(tb, "B");
-      break;
-   case V_BINARY_LOG_EQ:
-   case V_BINARY_LOG_NEQ:
-   case V_BINARY_LOG_OR:
-   case V_BINARY_LOG_AND:
-   case V_BINARY_LT:
-   case V_BINARY_GT:
-   case V_BINARY_LEQ:
-   case V_BINARY_GEQ:
-      rtype = vlog_logic_type();
-      tb_cat(tb, T_LOGIC);
-      break;
-   default:
-      rtype = vlog_logic_array_type();
-      tb_cat(tb, T_LOGIC_ARRAY);
-      break;
-   }
-
-   ident_t func = ident_new(tb_get(tb));
-
-   vcode_reg_t context_reg = vlog_helper_package();
-
-   vcode_reg_t args[] = {
-      context_reg,
-      vlog_lower_wrap(lu, left_reg),
-      vlog_lower_wrap(lu, right_reg)
-   };
-
-   return emit_fcall(func, rtype, rtype, args, ARRAY_LEN(args));
+   return mir_build_binary(mu, mop, type, lcast, rcast);
 }
 
-static vcode_reg_t vlog_lower_systf_param(lower_unit_t *lu, vlog_node_t v)
+static mir_value_t vlog_lower_systf_param(mir_unit_t *mu, vlog_node_t v)
 {
    switch (vlog_kind(v)) {
    case V_REF:
    case V_STRING:
    case V_NUMBER:
    case V_EMPTY:
-      return VCODE_INVALID_REG;
+      return MIR_NULL_VALUE;
    case V_UNARY:
    case V_BINARY:
    case V_SYS_FCALL:
       // TODO: these should not be evaluated until vpi_get_value is called
-      return vlog_lower_rvalue(lu, v);
+      return vlog_lower_rvalue(mu, v);
    default:
       CANNOT_HANDLE(v);
    }
 }
 
-static vcode_reg_t vlog_lower_sys_fcall(lower_unit_t *lu, vlog_node_t v)
+static mir_value_t vlog_lower_sys_tfcall(mir_unit_t *mu, vlog_node_t v)
 {
    const int nparams = vlog_params(v);
-   vcode_reg_t *args LOCAL = xmalloc_array(nparams, sizeof(vcode_reg_t));
+   mir_value_t *args LOCAL =
+      xmalloc_array((nparams * 2) + 1, sizeof(mir_value_t));
    int actual = 0;
+   mir_type_t t_offset = mir_offset_type(mu);
    for (int i = 0; i < nparams; i++) {
-      vcode_reg_t p_reg = vlog_lower_systf_param(lu, vlog_param(v, i));
-      if (p_reg != VCODE_INVALID_REG)
-         args[actual++] = vlog_lower_wrap(lu, p_reg);
+      mir_value_t arg = vlog_lower_systf_param(mu, vlog_param(v, i));
+      if (mir_is_null(arg))
+         continue;
+
+      mir_type_t type = mir_get_type(mu, arg);
+      switch (mir_get_class(mu, type)) {
+      case MIR_TYPE_VEC4:
+         args[actual++] = mir_const(mu, t_offset, mir_get_size(mu, type));
+         args[actual++] = arg;
+         break;
+      case MIR_TYPE_VEC2:
+         {
+            // TODO: remove the cast
+            const int size = mir_get_size(mu, type);
+            mir_type_t t_vec4 = mir_vec4_type(mu, size, false);
+            args[actual++] = mir_const(mu, t_offset, size);
+            args[actual++] = mir_build_cast(mu, t_vec4, arg);
+         }
+         break;
+      default:
+         should_not_reach_here();
+      }
    }
 
-   vcode_reg_t locus = vlog_debug_locus(v);
+   mir_value_t locus = mir_build_locus(mu, vlog_to_object(v));
 
-   vcode_type_t vlogic = vlog_logic_type();
-   vcode_type_t vpacked = vlog_logic_array_type();
+   mir_type_t type = MIR_NULL_TYPE;
+   if (vlog_kind(v) == V_SYS_FCALL)
+      type = mir_vec2_type(mu, 64, false);  // XXX: hack for $time
 
-   return emit_syscall(vlog_ident(v), vpacked, vlogic, locus, args, actual);
+   return mir_build_syscall(mu, vlog_ident(v), type, MIR_NULL_STAMP,
+                            locus, args, actual);
 }
 
-static vcode_reg_t vlog_lower_rvalue(lower_unit_t *lu, vlog_node_t v)
+static mir_value_t vlog_lower_rvalue(mir_unit_t *mu, vlog_node_t v)
 {
-   PUSH_DEBUG_INFO(v);
+   PUSH_DEBUG_INFO(mu, v);
 
    switch (vlog_kind(v)) {
    case V_REF:
@@ -513,289 +287,237 @@ static vcode_reg_t vlog_lower_rvalue(lower_unit_t *lu, vlog_node_t v)
             decl = vlog_ref(decl);
 
          int hops;
-         vcode_var_t var = lower_search_vcode_obj(decl, lu, &hops);
-         assert(var != VCODE_INVALID_VAR);
+         mir_value_t var = mir_search_object(mu, decl, &hops);
+         assert(!mir_is_null(var));
 
-         vcode_reg_t nets_reg;
-         if (hops == 0)
-            nets_reg = emit_load(var);
-         else
-            nets_reg = emit_load_indirect(emit_var_upref(hops, var));
+         assert(hops > 0);
+         mir_value_t upref = mir_build_var_upref(mu, hops, var.id);
+         mir_value_t nets = mir_build_load(mu, upref);
+         mir_value_t data = mir_build_resolved(mu, nets);
 
-         vcode_reg_t resolved_reg;
-         if (vcode_reg_kind(nets_reg) == VCODE_TYPE_UARRAY) {
-            vcode_reg_t data_reg =
-               emit_resolved(emit_unwrap(nets_reg), VCODE_INVALID_REG);
+         type_info_t *ti = vlog_type_info(mu, vlog_type(decl));
 
-            // XXX: add a rewrap opcode
-            vcode_dim_t dims[1] = {
-               { .left = emit_uarray_left(nets_reg, 0),
-                 .right = emit_uarray_right(nets_reg, 0),
-                 .dir = emit_uarray_dir(nets_reg, 0) },
-            };
-            resolved_reg = emit_wrap(data_reg, dims, 1);
-         }
-         else {
-            vcode_reg_t data_reg = emit_resolved(nets_reg, VCODE_INVALID_REG);
-            if (vlog_dimensions(decl) > 0)
-               resolved_reg = vlog_lower_decl_bounds(lu, decl, data_reg);
-            else
-               resolved_reg = emit_load_indirect(data_reg);
-         }
+         if (ti->size == 1)
+            data = mir_build_load(mu, data);
 
-         if (vlog_is_net(decl))
-            return vlog_lower_to_logic(lu, resolved_reg);
-         else
-            return resolved_reg;
+         return mir_build_pack(mu, ti->type, data);
       }
    case V_EVENT:
       {
          vlog_node_t value = vlog_value(v);
-         vcode_reg_t lvalue_reg = vlog_lower_lvalue(lu, value);
 
-         vcode_reg_t nets_reg, count_reg;
-         if (vcode_reg_kind(lvalue_reg) == VCODE_TYPE_UARRAY) {
-            nets_reg = emit_unwrap(lvalue_reg);
-            count_reg = emit_uarray_len(lvalue_reg, 0);
-         }
-         else {
-            nets_reg = lvalue_reg;
-            count_reg = emit_const(vtype_offset(), 1);
-         }
+         mir_type_t t_offset = mir_offset_type(mu);
 
-         vcode_reg_t event_reg = emit_event_flag(nets_reg, count_reg);
+         vlog_lvalue_t lvalue = vlog_lower_lvalue(mu, value);
+         mir_value_t count = mir_const(mu, t_offset, lvalue.size);
+
+         mir_value_t event = mir_build_event_flag(mu, lvalue.nets, count);
 
          const v_event_kind_t ekind = vlog_subkind(v);
          if (ekind == V_EVENT_LEVEL)
-            return event_reg;
+            return event;
 
-         vcode_type_t vlogic = vlog_logic_type();
+         mir_type_t t_logic = mir_vec4_type(mu, 1, false);
 
-         const vlog_logic_t level =
-            ekind == V_EVENT_POSEDGE ? LOGIC_1 : LOGIC_0;
+         mir_value_t level =
+            mir_const_vec(mu, t_logic, ekind == V_EVENT_POSEDGE, 0);
+         mir_value_t rvalue = vlog_lower_rvalue(mu, value);
+         mir_value_t cmp = mir_build_cmp(mu, MIR_CMP_EQ, rvalue, level);
 
-         vcode_reg_t const_reg = emit_const(vlogic, level);
-         vcode_reg_t value_reg = vlog_lower_rvalue(lu, value);
-         vcode_reg_t cmp_reg = emit_cmp(VCODE_CMP_EQ, value_reg, const_reg);
-
-         return emit_and(event_reg, cmp_reg);
-      }
-   case V_STRING:
-      {
-         const char *text = vlog_text(v);
-         size_t len = strlen(text) + 1;
-         vcode_reg_t *chars LOCAL = xmalloc_array(len, sizeof(vcode_reg_t));
-         vcode_type_t vchar = vtype_char();
-
-         for (int i = 0; i < len; i++)
-            chars[i] = emit_const(vchar, text[i]);
-
-         vcode_type_t vtype = vtype_carray(len, vchar, vchar);
-         return emit_const_array(vtype, chars, len);
+         return mir_build_and(mu, event, cmp);
       }
    case V_NUMBER:
       {
-         vcode_type_t vlogic = vlog_logic_type();
 
          number_t num = vlog_number(v);
          const int width = number_width(num);
+         assert(width < 64);
 
-         if (width == 1)
-            return emit_const(vlogic, number_bit(num, 0));
+         if (number_is_defined(num)) {
+            mir_type_t t_vec2 = mir_vec2_type(mu, width, false);
+            return mir_const_vec(mu, t_vec2, number_integer(num), 0);
+         }
          else {
-            vcode_reg_t *bits LOCAL = xmalloc_array(width, sizeof(vcode_reg_t));
-            for (int i = 0; i < width; i++)
-               bits[width - i - 1] = emit_const(vlogic, number_bit(num, i));
+            uint64_t abits = 0, bbits = 0;
+            for (int i = 0; i < width; i++) {
+               vlog_logic_t bit = number_bit(num, width - i - 1);
+               abits = (abits << 1) | (bit & 1);
+               bbits = (bbits << 1) | ((bit >> 1) & 1);
+            }
 
-            vcode_type_t varray = vtype_carray(width, vlogic, vlogic);
-            return emit_const_array(varray, bits, width);
+            mir_type_t t_vec4 = mir_vec4_type(mu, width, false);
+            return mir_const_vec(mu, t_vec4, abits, bbits);
          }
       }
    case V_BINARY:
-      {
-         vcode_reg_t left_reg = vlog_lower_rvalue(lu, vlog_left(v));
-         vcode_reg_t right_reg = vlog_lower_rvalue(lu, vlog_right(v));
-         return vlog_lower_binary(lu, vlog_subkind(v), left_reg, right_reg);
-      }
+      return vlog_lower_binary(mu, v);
    case V_UNARY:
-      {
-         vcode_reg_t value_reg = vlog_lower_rvalue(lu, vlog_value(v));
-         return vlog_lower_unary(lu, vlog_subkind(v), value_reg);
-      }
-   case V_STRENGTH:
-      {
-         vcode_type_t vnet = vlog_net_value_type();
-         return emit_const(vnet, vlog_subkind(v));
-      }
+      return vlog_lower_unary(mu, v);
    case V_SYS_FCALL:
-      return vlog_lower_sys_fcall(lu, v);
+      return vlog_lower_sys_tfcall(mu, v);
    default:
       CANNOT_HANDLE(v);
    }
 }
 
-static void vlog_lower_sensitivity(lower_unit_t *lu, vlog_node_t v)
+static mir_value_t vlog_lower_time(mir_unit_t *mu, vlog_node_t v)
+{
+   assert(vlog_kind(v) == V_NUMBER);
+
+   mir_type_t t_time = mir_time_type(mu);
+   number_t num = vlog_number(v);
+
+   return mir_const(mu, t_time, number_integer(num));
+}
+
+static void vlog_lower_sensitivity(mir_unit_t *mu, vlog_node_t v)
 {
    switch (vlog_kind(v)) {
    case V_REF:
       {
-         vcode_reg_t value_reg = vlog_lower_lvalue(lu, v), count_reg, nets_reg;
-         if (vcode_reg_kind(value_reg) == VCODE_TYPE_UARRAY) {
-            nets_reg = emit_unwrap(value_reg);
-            count_reg = emit_uarray_len(value_reg, 0);
-         }
-         else {
-            nets_reg = value_reg;
-            count_reg = emit_const(vtype_offset(), 1);
-         }
+         mir_type_t t_offset = mir_offset_type(mu);
 
-         emit_sched_event(nets_reg, count_reg);
+         vlog_lvalue_t lvalue = vlog_lower_lvalue(mu, v);
+         mir_value_t count = mir_const(mu, t_offset, lvalue.size);
+
+         mir_build_sched_event(mu, lvalue.nets, count);
       }
       break;
    case V_EVENT:
-      vlog_lower_sensitivity(lu, vlog_value(v));
+      vlog_lower_sensitivity(mu, vlog_value(v));
       break;
    case V_NUMBER:
       break;
    case V_BINARY:
-      vlog_lower_sensitivity(lu, vlog_left(v));
-      vlog_lower_sensitivity(lu, vlog_right(v));
+      vlog_lower_sensitivity(mu, vlog_left(v));
+      vlog_lower_sensitivity(mu, vlog_right(v));
       break;
    case V_UNARY:
-      vlog_lower_sensitivity(lu, vlog_value(v));
+      vlog_lower_sensitivity(mu, vlog_value(v));
       break;
    default:
       CANNOT_HANDLE(v);
    }
 }
 
-static void vlog_lower_timing(lower_unit_t *lu, vlog_node_t v, bool is_static)
+static void vlog_lower_timing(mir_unit_t *mu, vlog_node_t v, bool is_static)
 {
-   vcode_block_t true_bb = emit_block(), false_bb = VCODE_INVALID_BLOCK;
+   mir_block_t true_bb = mir_add_block(mu), false_bb = MIR_NULL_BLOCK;
 
    vlog_node_t ctrl = vlog_value(v);
    switch (vlog_kind(ctrl)) {
    case V_DELAY_CONTROL:
       {
-         vcode_reg_t delay_reg = vlog_lower_rvalue(lu, vlog_value(ctrl));
-         emit_wait(true_bb, vlog_lower_to_time(lu, delay_reg));
+         mir_type_t t_time = mir_time_type(mu);
+         mir_value_t delay = vlog_lower_rvalue(mu, vlog_value(ctrl));
+         mir_value_t cast = mir_build_cast(mu, t_time, delay);
 
-         vcode_select_block(true_bb);
+         mir_build_wait(mu, true_bb, cast);
+
+         mir_set_cursor(mu, true_bb, MIR_APPEND);
       }
       break;
    case V_EVENT_CONTROL:
       {
-         vcode_reg_t test_reg = VCODE_INVALID_REG;
+         mir_value_t test = MIR_NULL_VALUE;
          const int nparams = vlog_params(ctrl);
          if (nparams > 0) {
-            test_reg = vlog_lower_rvalue(lu, vlog_param(ctrl, 0));
+            test = vlog_lower_rvalue(mu, vlog_param(ctrl, 0));
             for (int i = 1; i < nparams; i++) {
-               vcode_reg_t sub_reg = vlog_lower_rvalue(lu, vlog_param(ctrl, i));
-               test_reg = emit_or(test_reg, sub_reg);
+               mir_value_t sub = vlog_lower_rvalue(mu, vlog_param(ctrl, i));
+               test = mir_build_or(mu, test, sub);
             }
          }
 
-         false_bb = emit_block();
+         false_bb = mir_add_block(mu);
 
-         if (test_reg == VCODE_INVALID_REG)
-            emit_jump(false_bb);
+         if (mir_is_null(test))
+            mir_build_jump(mu, false_bb);
          else
-            emit_cond(test_reg, true_bb, false_bb);
+            mir_build_cond(mu, test, true_bb, false_bb);
 
-         vcode_select_block(true_bb);
+         mir_set_cursor(mu, true_bb, MIR_APPEND);
       }
       break;
    default:
       CANNOT_HANDLE(ctrl);
    }
 
-   vlog_lower_stmts(lu, v);
+   vlog_lower_stmts(mu, v);
 
-   if (false_bb != VCODE_INVALID_BLOCK) {
-      if (!vcode_block_finished())
-         emit_jump(false_bb);
+   if (!mir_is_null(false_bb)) {
+      if (!mir_block_finished(mu, mir_get_cursor(mu, NULL)))
+         mir_build_jump(mu, false_bb);
 
-      vcode_select_block(false_bb);
+      mir_set_cursor(mu, false_bb, MIR_APPEND);
    }
 }
 
-static void vlog_lower_procedural_assign(lower_unit_t *lu, vlog_node_t v)
+static void vlog_lower_procedural_assign(mir_unit_t *mu, vlog_node_t v)
 {
    if (vlog_kind(v) == V_BASSIGN && vlog_has_delay(v)) {
       vlog_node_t delay = vlog_delay(v);
       assert(vlog_kind(delay) == V_DELAY_CONTROL);
 
-      vcode_block_t delay_bb = emit_block();
-      vcode_reg_t delay_reg = vlog_lower_rvalue(lu, vlog_value(delay));
-      vcode_reg_t time_reg = vlog_lower_to_time(lu, delay_reg);
+      mir_block_t delay_bb = mir_add_block(mu);
 
-      emit_wait(delay_bb, time_reg);
+      mir_build_wait(mu, delay_bb, vlog_lower_time(mu, vlog_value(delay)));
 
-      vcode_select_block(delay_bb);
+      mir_set_cursor(mu, delay_bb, MIR_APPEND);
    }
 
    vlog_node_t target = vlog_target(v);
 
-   vcode_reg_t target_reg = vlog_lower_lvalue(lu, target);
-   vcode_reg_t value_reg = vlog_lower_rvalue(lu, vlog_value(v));
+   vlog_lvalue_t lvalue = vlog_lower_lvalue(mu, target);
+   mir_value_t value = vlog_lower_rvalue(mu, vlog_value(v));
+   assert(mir_is_vector(mu, value));
 
-   vcode_reg_t count_reg, nets_reg;
-   if (vcode_reg_kind(target_reg) == VCODE_TYPE_UARRAY) {
-      nets_reg = emit_unwrap(target_reg);
-      count_reg = emit_uarray_len(target_reg, 0);
-   }
-   else {
-      nets_reg = target_reg;
-      count_reg = emit_const(vtype_offset(), 1);
-   }
+   mir_type_t t_offset = mir_offset_type(mu);
+   mir_type_t t_vec = mir_vec4_type(mu, lvalue.size, false);
 
-   vcode_reg_t resize_reg = vlog_lower_resize(lu, value_reg, count_reg);
+   mir_value_t resize = mir_build_cast(mu, t_vec, value);
+   mir_value_t count = mir_const(mu, t_offset, lvalue.size);
 
-   vcode_reg_t data_reg;
-   if (vlog_is_net(target)) {
-      vcode_type_t vnet = vlog_net_value_type();
-      vcode_reg_t strong_reg = emit_const(vnet, ST_STRONG);
-      vcode_reg_t conv_reg = vlog_lower_to_net(lu, resize_reg, strong_reg);
-      data_reg = emit_unwrap(conv_reg);
-   }
-   else
-      data_reg = emit_unwrap(resize_reg);
+   mir_value_t tmp = MIR_NULL_VALUE;
+   if (lvalue.size > 1)
+      tmp = vlog_get_temp(mu, lvalue.base);
+
+   const uint8_t strength = vlog_is_net(target) ? ST_STRONG : 0;
+   mir_value_t unpacked = mir_build_unpack(mu, resize, strength, tmp);
 
    switch (vlog_kind(v)) {
    case V_NBASSIGN:
    case V_ASSIGN:
       {
-         vcode_type_t vtime = vtype_time();
-         vcode_reg_t reject_reg = emit_const(vtime, 0);
+         mir_type_t t_time = mir_time_type(mu);
+         mir_value_t reject = mir_const(mu, t_time, 0);
 
-         vcode_reg_t after_reg;
+         mir_value_t after;
          if (vlog_has_delay(v)) {
             vlog_node_t delay = vlog_delay(v);
             assert(vlog_kind(delay) == V_DELAY_CONTROL);
 
-            vcode_reg_t delay_reg = vlog_lower_rvalue(lu, vlog_value(delay));
-            after_reg = vlog_lower_to_time(lu, delay_reg);
+            after = vlog_lower_time(mu, vlog_value(delay));
          }
          else
-            after_reg = emit_const(vtime, 0);
+            after = mir_const(mu, t_time, 0);
 
-         emit_sched_waveform(nets_reg, count_reg, data_reg,
-                             reject_reg, after_reg);
+         mir_build_sched_waveform(mu, lvalue.nets, count, unpacked,
+                                  reject, after);
       }
       break;
    case V_BASSIGN:
       {
-         emit_deposit_signal(nets_reg, count_reg, data_reg);
+         mir_build_deposit_signal(mu, lvalue.nets, count, unpacked);
 
          // Delay one delta cycle to see the update
 
-         vcode_type_t vtime = vtype_time();
-         vcode_reg_t zero_time_reg = emit_const(vtime, 0);
+         mir_value_t zero_time = mir_const(mu, mir_time_type(mu), 0);
 
-         vcode_block_t resume_bb = emit_block();
-         emit_wait(resume_bb, zero_time_reg);
+         mir_block_t resume_bb = mir_add_block(mu);
+         mir_build_wait(mu, resume_bb, zero_time);
 
-         vcode_select_block(resume_bb);
+         mir_set_cursor(mu, resume_bb, MIR_APPEND);
       }
       break;
    default:
@@ -803,107 +525,93 @@ static void vlog_lower_procedural_assign(lower_unit_t *lu, vlog_node_t v)
    }
 }
 
-static void vlog_lower_sys_tcall(lower_unit_t *lu, vlog_node_t v)
+static void vlog_lower_if(mir_unit_t *mu, vlog_node_t v)
 {
-   const int nparams = vlog_params(v);
-   vcode_reg_t *args LOCAL = xmalloc_array(nparams, sizeof(vcode_reg_t));
-   int actual = 0;
-   for (int i = 0; i < nparams; i++) {
-      vcode_reg_t p_reg = vlog_lower_systf_param(lu, vlog_param(v, i));
-      if (p_reg != VCODE_INVALID_REG)
-         args[actual++] = vlog_lower_wrap(lu, p_reg);
-   }
-
-   vcode_reg_t locus = vlog_debug_locus(v);
-
-   emit_syscall(vlog_ident(v), VCODE_INVALID_TYPE, VCODE_INVALID_TYPE,
-                locus, args, actual);
-}
-
-static void vlog_lower_if(lower_unit_t *lu, vlog_node_t v)
-{
-   vcode_block_t exit_bb = VCODE_INVALID_BLOCK;
+   mir_block_t exit_bb = MIR_NULL_BLOCK;
 
    const int nconds = vlog_conds(v);
    for (int i = 0; i < nconds; i++) {
       vlog_node_t c = vlog_cond(v, i);
-      vcode_block_t next_bb = VCODE_INVALID_BLOCK;
+      mir_block_t next_bb = MIR_NULL_BLOCK;
 
       if (vlog_has_value(c)) {
-         vcode_reg_t test_reg = vlog_lower_rvalue(lu, vlog_value(c));
-         vcode_reg_t bool_reg = vlog_lower_to_bool(lu, test_reg);
+         mir_value_t test = vlog_lower_rvalue(mu, vlog_value(c));
+         assert(mir_is_vector(mu, test));
 
-         vcode_block_t btrue = emit_block();
+         mir_value_t zero = mir_const_vec(mu, mir_get_type(mu, test), 0, 0);
+         mir_value_t cmp = mir_build_cmp(mu, MIR_CMP_NEQ, test, zero);
+
+         mir_block_t btrue = mir_add_block(mu);
 
          if (i == nconds - 1) {
-            if (exit_bb == VCODE_INVALID_BLOCK)
-               exit_bb = emit_block();
+            if (mir_is_null(exit_bb))
+               exit_bb = mir_add_block(mu);
             next_bb = exit_bb;
          }
          else
-            next_bb = emit_block();
+            next_bb = mir_add_block(mu);
 
-         emit_cond(bool_reg, btrue, next_bb);
+         mir_build_cond(mu, cmp, btrue, next_bb);
 
-         vcode_select_block(btrue);
+         mir_set_cursor(mu, btrue, MIR_APPEND);
       }
 
-      vlog_lower_stmts(lu, c);
+      vlog_lower_stmts(mu, c);
 
-      if (!vcode_block_finished()) {
-         if (exit_bb == VCODE_INVALID_BLOCK)
-            exit_bb = emit_block();
-         emit_jump(exit_bb);
+      if (!mir_block_finished(mu, MIR_NULL_BLOCK)) {
+         if (mir_is_null(exit_bb))
+            exit_bb = mir_add_block(mu);
+         mir_build_jump(mu, exit_bb);
       }
 
-      if (next_bb == VCODE_INVALID_BLOCK)
+      if (mir_is_null(next_bb))
          break;
 
-      vcode_select_block(next_bb);
+      mir_set_cursor(mu, next_bb, MIR_APPEND);
    }
 
-   if (exit_bb != VCODE_INVALID_BLOCK)
-      vcode_select_block(exit_bb);
+   if (!mir_is_null(exit_bb))
+      mir_set_cursor(mu, exit_bb, MIR_APPEND);
 }
 
-static void vlog_lower_forever(lower_unit_t *lu, vlog_node_t v)
+static void vlog_lower_forever(mir_unit_t *mu, vlog_node_t v)
 {
-   vcode_block_t body_bb = emit_block();
-   emit_jump(body_bb);
+   mir_block_t body_bb = mir_add_block(mu);
+   mir_build_jump(mu, body_bb);
 
-   vcode_select_block(body_bb);
+   mir_set_cursor(mu, body_bb, MIR_APPEND);
 
-   vlog_lower_stmts(lu, v);
+   vlog_lower_stmts(mu, v);
 
-   emit_jump(body_bb);
+   mir_build_jump(mu, body_bb);
 }
 
-static void vlog_lower_stmts(lower_unit_t *lu, vlog_node_t v)
+static void vlog_lower_stmts(mir_unit_t *mu, vlog_node_t v)
 {
    const int nstmts = vlog_stmts(v);
    for (int i = 0; i < nstmts; i++) {
       vlog_node_t s = vlog_stmt(v, i);
-      emit_debug_info(vlog_loc(s));
+      mir_set_loc(mu, vlog_loc(s));
 
       switch (vlog_kind(s)) {
       case V_TIMING:
-         vlog_lower_timing(lu, s, false);
+         vlog_lower_timing(mu, s, false);
          break;
       case V_NBASSIGN:
       case V_BASSIGN:
-         vlog_lower_procedural_assign(lu, s);
+         vlog_lower_procedural_assign(mu, s);
          break;
       case V_SEQ_BLOCK:
-         vlog_lower_stmts(lu, s);
+         vlog_lower_stmts(mu, s);
          break;
       case V_SYS_TCALL:
-         vlog_lower_sys_tcall(lu, s);
+         vlog_lower_sys_tfcall(mu, s);
          break;
       case V_IF:
-         vlog_lower_if(lu, s);
+         vlog_lower_if(mu, s);
          break;
       case V_FOREVER:
-         vlog_lower_forever(lu, s);
+         vlog_lower_forever(mu, s);
          break;
       default:
          CANNOT_HANDLE(s);
@@ -911,54 +619,45 @@ static void vlog_lower_stmts(lower_unit_t *lu, vlog_node_t v)
    }
 }
 
-static void vlog_lower_driver(lower_unit_t *lu, vlog_node_t v)
+static void vlog_lower_driver(mir_unit_t *mu, vlog_node_t v)
 {
-   vcode_reg_t target_reg = vlog_lower_lvalue(lu, v);
+   mir_type_t t_offset = mir_offset_type(mu);
 
-   vcode_reg_t nets_reg, count_reg;
-   if (vcode_reg_kind(target_reg) == VCODE_TYPE_UARRAY) {
-      nets_reg = emit_unwrap(target_reg);
-      count_reg = emit_uarray_len(target_reg, 0);
-   }
-   else {
-      nets_reg = target_reg;
-      count_reg = emit_const(vtype_offset(), 1);
-   }
+   vlog_lvalue_t target = vlog_lower_lvalue(mu, v);
+   mir_value_t one = mir_const(mu, t_offset, target.size);
 
-   emit_drive_signal(nets_reg, count_reg);
+   mir_build_drive_signal(mu, target.nets, one);
 }
 
 static void vlog_driver_cb(vlog_node_t v, void *context)
 {
-   lower_unit_t *lu = context;
+   mir_unit_t *mu = context;
 
    switch (vlog_kind(v)) {
    case V_NBASSIGN:
    case V_ASSIGN:
-      vlog_lower_driver(lu, vlog_target(v));
+      vlog_lower_driver(mu, vlog_target(v));
       break;
    default:
       break;
    }
 }
 
-static void vlog_lower_always(unit_registry_t *ur, lower_unit_t *parent,
-                              vlog_node_t stmt)
+static void vlog_lower_always(mir_context_t *mc, ident_t parent, vlog_node_t v)
 {
-   vcode_unit_t context = get_vcode(parent);
+   mir_shape_t *shape = mir_get_shape(mc, parent);
+   assert(shape != NULL);
 
-   ident_t name = ident_prefix(vcode_unit_name(context), vlog_ident(stmt), '.');
-   vcode_unit_t vu = emit_process(name, vlog_to_object(stmt), context);
+   ident_t name = ident_prefix(parent, vlog_ident(v), '.');
+   mir_unit_t *mu = mir_unit_new(mc, name, vlog_to_object(v),
+                                 MIR_UNIT_PROCESS, shape);
 
-   vcode_block_t start_bb = emit_block();
-   assert(start_bb == 1);
+   mir_block_t start_bb = mir_add_block(mu);
+   assert(start_bb.id == 1);
 
-   lower_unit_t *lu = lower_unit_new(ur, parent, vu, NULL, NULL);
-   unit_registry_put(ur, lu);
+   vlog_visit(v, vlog_driver_cb, mu);
 
-   vlog_visit(stmt, vlog_driver_cb, lu);
-
-   vlog_node_t timing = NULL, s0 = vlog_stmt(stmt, 0);
+   vlog_node_t timing = NULL, s0 = vlog_stmt(v, 0);
    if (vlog_kind(s0) == V_TIMING) {
       timing = s0;
 
@@ -967,215 +666,182 @@ static void vlog_lower_always(unit_registry_t *ur, lower_unit_t *parent,
 
       const int nparams = vlog_params(ctrl);
       for (int i = 0; i < nparams; i++)
-         vlog_lower_sensitivity(lu, vlog_param(ctrl, i));
+         vlog_lower_sensitivity(mu, vlog_param(ctrl, i));
    }
 
-   emit_return(VCODE_INVALID_REG);
+   mir_build_return(mu, MIR_NULL_VALUE);
 
-   vcode_select_block(start_bb);
+   mir_set_cursor(mu, start_bb, MIR_APPEND);
 
    if (timing != NULL)
-      vlog_lower_timing(lu, timing, true);
+      vlog_lower_timing(mu, timing, true);
    else
-      vlog_lower_stmts(lu, stmt);
+      vlog_lower_stmts(mu, v);
 
-   emit_wait(start_bb, VCODE_INVALID_REG);
+   mir_build_wait(mu, start_bb, MIR_NULL_VALUE);
 
-   unit_registry_finalise(ur, lu);
+   mir_put_unit(mc, mu);
 }
 
-static void vlog_lower_initial(unit_registry_t *ur, lower_unit_t *parent,
-                               vlog_node_t stmt)
+static void vlog_lower_initial(mir_context_t *mc, ident_t parent, vlog_node_t v)
 {
-   vcode_unit_t context = get_vcode(parent);
+   mir_shape_t *shape = mir_get_shape(mc, parent);
+   assert(shape != NULL);
 
-   ident_t name = ident_prefix(vcode_unit_name(context), vlog_ident(stmt), '.');
-   vcode_unit_t vu = emit_process(name, vlog_to_object(stmt), context);
+   ident_t name = ident_prefix(parent, vlog_ident(v), '.');
+   mir_unit_t *mu = mir_unit_new(mc, name, vlog_to_object(v),
+                                 MIR_UNIT_PROCESS, shape);
 
-   vcode_block_t start_bb = emit_block();
-   assert(start_bb == 1);
+   mir_block_t start_bb = mir_add_block(mu);
+   assert(start_bb.id == 1);
 
-   lower_unit_t *lu = lower_unit_new(ur, parent, vu, NULL, NULL);
-   unit_registry_put(ur, lu);
+   vlog_visit(v, vlog_driver_cb, mu);
 
-   vlog_visit(stmt, vlog_driver_cb, lu);
+   mir_build_return(mu, MIR_NULL_VALUE);
 
-   emit_return(VCODE_INVALID_REG);
+   mir_set_cursor(mu, start_bb, MIR_APPEND);
 
-   vcode_select_block(start_bb);
+   vlog_lower_stmts(mu, v);
 
-   vlog_lower_stmts(lu, stmt);
+   if (!mir_block_finished(mu, MIR_NULL_BLOCK))
+      mir_build_return(mu, MIR_NULL_VALUE);
 
-   if (!vcode_block_finished())
-      emit_return(VCODE_INVALID_REG);
-
-   unit_registry_finalise(ur, lu);
+   mir_put_unit(mc, mu);
 }
 
-static void vlog_lower_continuous_assign(unit_registry_t *ur,
-                                         lower_unit_t *parent,
-                                         vlog_node_t stmt)
+static void vlog_lower_continuous_assign(mir_context_t *mc, ident_t parent,
+                                         vlog_node_t v)
 {
-   vcode_unit_t context = get_vcode(parent);
+   mir_shape_t *shape = mir_get_shape(mc, parent);
+   assert(shape != NULL);
 
-   ident_t name = ident_prefix(vcode_unit_name(context), vlog_ident(stmt), '.');
-   vcode_unit_t vu = emit_process(name, vlog_to_object(stmt), context);
+   ident_t name = ident_prefix(parent, vlog_ident(v), '.');
+   mir_unit_t *mu = mir_unit_new(mc, name, vlog_to_object(v),
+                                 MIR_UNIT_PROCESS, shape);
 
-   vcode_block_t start_bb = emit_block();
-   assert(start_bb == 1);
+   mir_block_t start_bb = mir_add_block(mu);
+   assert(start_bb.id == 1);
 
-   lower_unit_t *lu = lower_unit_new(ur, parent, vu, NULL, NULL);
-   unit_registry_put(ur, lu);
+   vlog_visit(v, vlog_driver_cb, mu);
 
-   vlog_visit(stmt, vlog_driver_cb, lu);
+   vlog_lower_sensitivity(mu, vlog_value(v));
 
-   vlog_lower_sensitivity(lu, vlog_value(stmt));
+   mir_build_return(mu, MIR_NULL_VALUE);
 
-   emit_return(VCODE_INVALID_REG);
+   mir_set_cursor(mu, start_bb, MIR_APPEND);
 
-   vcode_select_block(start_bb);
+   vlog_lower_procedural_assign(mu, v);
 
-   vlog_lower_procedural_assign(lu, stmt);
+   mir_build_wait(mu, start_bb, MIR_NULL_VALUE);
 
-   emit_wait(start_bb, VCODE_INVALID_REG);
-
-   unit_registry_finalise(ur, lu);
+   mir_put_unit(mc, mu);
 }
 
-static void vlog_lower_gate_inst(unit_registry_t *ur, lower_unit_t *parent,
-                                 vlog_node_t stmt)
+static void vlog_lower_gate_inst(mir_context_t *mc, ident_t parent,
+                                 vlog_node_t v)
 {
-   vcode_unit_t context = get_vcode(parent);
+   mir_shape_t *shape = mir_get_shape(mc, parent);
+   assert(shape != NULL);
 
-   ident_t name = ident_prefix(vcode_unit_name(context), vlog_ident(stmt), '.');
-   vcode_unit_t vu = emit_process(name, vlog_to_object(stmt), context);
+   ident_t name = ident_prefix(parent, vlog_ident(v), '.');
+   mir_unit_t *mu = mir_unit_new(mc, name, vlog_to_object(v),
+                                 MIR_UNIT_PROCESS, shape);
 
-   vcode_block_t start_bb = emit_block();
-   assert(start_bb == 1);
+   mir_block_t start_bb = mir_add_block(mu);
+   assert(start_bb.id == 1);
 
-   lower_unit_t *lu = lower_unit_new(ur, parent, vu, NULL, NULL);
-   unit_registry_put(ur, lu);
+   vlog_lower_driver(mu, vlog_target(v));
 
-   vlog_lower_driver(lu, vlog_target(stmt));
+   mir_type_t t_offset = mir_offset_type(mu);
+   mir_type_t t_time = mir_time_type(mu);
+   mir_type_t t_logic = mir_vec4_type(mu, 1, false);
 
-   const int nparams = vlog_params(stmt);
+   const int nparams = vlog_params(v);
    int first_term = 0;
    for (int i = 0; i < nparams; i++) {
-      vlog_node_t p = vlog_param(stmt, i);
+      vlog_node_t p = vlog_param(v, i);
       if (vlog_kind(p) == V_STRENGTH)
          first_term = i + 1;
       else {
-         vcode_reg_t nets_reg = vlog_lower_lvalue(lu, p);
-         vcode_reg_t count_reg = emit_const(vtype_offset(), 1);
-         emit_sched_event(nets_reg, count_reg);
+         vlog_lvalue_t lvalue = vlog_lower_lvalue(mu, p);
+         mir_value_t count = mir_const(mu, t_offset, lvalue.size);
+         mir_build_sched_event(mu, lvalue.nets, count);
       }
    }
 
-   emit_return(VCODE_INVALID_REG);
+   mir_build_return(mu, MIR_NULL_VALUE);
 
-   vcode_select_block(start_bb);
+   mir_set_cursor(mu, start_bb, MIR_APPEND);
 
-   vcode_type_t vnet = vlog_net_value_type();
-   vcode_type_t vlogic = vlog_logic_type();
-   vcode_reg_t value_reg;
-
-   const vlog_gate_kind_t kind = vlog_subkind(stmt);
+   bool negate = false;
+   uint8_t strength = ST_STRONG;
+   mir_value_t value = MIR_NULL_VALUE;
+   const vlog_gate_kind_t kind = vlog_subkind(v);
    switch (kind) {
    case V_GATE_PULLUP:
    case V_GATE_PULLDOWN:
-      {
-         vcode_reg_t strength_reg = vlog_lower_rvalue(lu, vlog_param(stmt, 0));
-         vcode_reg_t logic_reg =
-            emit_const(vlogic, kind == V_GATE_PULLUP ? LOGIC_1 : LOGIC_0);
-         value_reg = vlog_lower_to_net(lu, logic_reg, strength_reg);
-      }
+      strength = vlog_subkind(vlog_param(v, 0));
+      value = mir_const_vec(mu, t_logic, kind == V_GATE_PULLUP, 0);
       break;
-   case V_GATE_AND:
+
    case V_GATE_NAND:
-   case V_GATE_OR:
    case V_GATE_NOR:
-   case V_GATE_XOR:
    case V_GATE_XNOR:
+      negate = true;
+   case V_GATE_AND:
+   case V_GATE_OR:
+   case V_GATE_XOR:
       {
-         static const char *func_map[] = {
-            [V_GATE_AND] = "NVC.VERILOG.AND_REDUCE(" T_LOGIC_ARRAY ")" T_LOGIC,
-            [V_GATE_NAND] =
-               "NVC.VERILOG.NAND_REDUCE(" T_LOGIC_ARRAY ")" T_LOGIC,
-            [V_GATE_OR] = "NVC.VERILOG.OR_REDUCE(" T_LOGIC_ARRAY ")" T_LOGIC,
-            [V_GATE_NOR] = "NVC.VERILOG.NOR_REDUCE(" T_LOGIC_ARRAY ")" T_LOGIC,
-            [V_GATE_XOR] = "NVC.VERILOG.XOR_REDUCE(" T_LOGIC_ARRAY ")" T_LOGIC,
-            [V_GATE_XNOR] =
-               "NVC.VERILOG.XNOR_REDUCE(" T_LOGIC_ARRAY ")" T_LOGIC,
+         static const mir_vec_op_t op_map[] = {
+            [V_GATE_AND] = MIR_VEC_BIT_AND,
+            [V_GATE_NAND] = MIR_VEC_BIT_AND,
+            [V_GATE_OR] = MIR_VEC_BIT_OR,
+            [V_GATE_NOR] = MIR_VEC_BIT_OR,
+            [V_GATE_XOR] = MIR_VEC_BIT_XOR,
+            [V_GATE_XNOR] = MIR_VEC_BIT_XOR,
          };
+
+         value = vlog_lower_rvalue(mu, vlog_param(v, first_term));
 
          const int nelems = nparams - first_term;
-         vcode_type_t varray = vtype_carray(nelems, vlogic, vlogic);
-         vcode_var_t temp_var =
-            emit_var(varray, vlogic, ident_new("temp"), VAR_TEMP);
-
-         vcode_reg_t ptr_reg = emit_index(temp_var, VCODE_INVALID_REG);
-         vcode_type_t voffset = vtype_offset();
-
-         for (int i = 0; i < nelems; i++) {
-            vlog_node_t p = vlog_param(stmt, first_term + i);
-            vcode_reg_t arg_reg = vlog_lower_rvalue(lu, p);
-            vcode_reg_t index_reg = emit_const(voffset, i);
-            vcode_reg_t dest_reg = emit_array_ref(ptr_reg, index_reg);
-            emit_store_indirect(arg_reg, dest_reg);
+         for (int i = 1; i < nelems; i++) {
+            vlog_node_t p = vlog_param(v, first_term + i);
+            mir_value_t arg = vlog_lower_rvalue(mu, p);
+            value = mir_build_binary(mu, op_map[kind], t_logic, value, arg);
          }
 
-         vcode_reg_t dir_reg = emit_const(vtype_bool(), RANGE_TO);
-         vcode_reg_t left_reg = emit_const(voffset, 1);
-         vcode_reg_t right_reg = emit_const(voffset, nelems);
-
-         vcode_dim_t dims[1] = {
-            { left_reg, right_reg, dir_reg }
-         };
-         vcode_reg_t wrap_reg = emit_wrap(ptr_reg, dims, 1);;
-
-         vcode_reg_t context_reg = vlog_helper_package();
-         vcode_reg_t args[] = { context_reg, wrap_reg };
-
-         ident_t func = ident_new(func_map[kind]);
-         vcode_reg_t logic_reg =
-            emit_fcall(func, vlogic, vlogic, args, ARRAY_LEN(args));
-         vcode_reg_t strength_reg = emit_const(vnet, ST_STRONG);
-         value_reg = vlog_lower_to_net(lu, logic_reg, strength_reg);
+         if (negate)
+            value = mir_build_unary(mu, MIR_VEC_BIT_NOT, t_logic, value);
       }
       break;
+
    case V_GATE_NOT:
       {
-         const int nparams = vlog_params(stmt);
-         vcode_reg_t input_reg =
-            vlog_lower_rvalue(lu, vlog_param(stmt, nparams - 1));
-         vcode_reg_t args[] = { vlog_helper_package(), input_reg };
-
-         ident_t func = ident_new("NVC.VERILOG.\"not\"(" T_LOGIC ")" T_LOGIC);
-         vcode_reg_t logic_reg =  emit_fcall(func, vlogic, vlogic,
-                                             args, ARRAY_LEN(args));
-         vcode_reg_t strength_reg = emit_const(vnet, ST_STRONG);
-         value_reg = vlog_lower_to_net(lu, logic_reg, strength_reg);
+         const int nparams = vlog_params(v);
+         mir_value_t input = vlog_lower_rvalue(mu, vlog_param(v, nparams - 1));
+         value = mir_build_unary(mu, MIR_VEC_BIT_NOT, t_logic, input);
       }
       break;
+
    default:
-      CANNOT_HANDLE(stmt);
+      CANNOT_HANDLE(v);
    }
 
-   vcode_type_t vtime = vtype_time();
-   vcode_reg_t reject_reg = emit_const(vtime, 0);
-   vcode_reg_t after_reg = emit_const(vtime, 0);
+   mir_value_t unpacked = mir_build_unpack(mu, value, strength, MIR_NULL_VALUE);
 
-   vcode_reg_t nets_reg = vlog_lower_lvalue(lu, vlog_target(stmt));
-   vcode_reg_t count_reg = emit_const(vtype_offset(), 1);
+   mir_value_t reject = mir_const(mu, t_time, 0);
+   mir_value_t after = mir_const(mu, t_time, 0);
 
-   emit_sched_waveform(nets_reg, count_reg, value_reg, reject_reg, after_reg);
+   vlog_lvalue_t lvalue = vlog_lower_lvalue(mu, vlog_target(v));
+   mir_value_t count = mir_const(mu, t_offset, lvalue.size);
 
-   emit_wait(start_bb, VCODE_INVALID_REG);
+   mir_build_sched_waveform(mu, lvalue.nets, count, unpacked, reject, after);
+   mir_build_wait(mu, start_bb, MIR_NULL_VALUE);
 
-   unit_registry_finalise(ur, lu);
+   mir_put_unit(mc, mu);
 }
 
-static void vlog_lower_concurrent(unit_registry_t *ur, lower_unit_t *parent,
+static void vlog_lower_concurrent(mir_context_t *mc, ident_t parent,
                                   vlog_node_t scope)
 {
    const int nstmts = vlog_stmts(scope);
@@ -1183,16 +849,16 @@ static void vlog_lower_concurrent(unit_registry_t *ur, lower_unit_t *parent,
       vlog_node_t s = vlog_stmt(scope, i);
       switch (vlog_kind(s)) {
       case V_ALWAYS:
-         vlog_lower_always(ur, parent, s);
+         vlog_lower_always(mc, parent, s);
          break;
       case V_INITIAL:
-         vlog_lower_initial(ur, parent, s);
+         vlog_lower_initial(mc, parent, s);
          break;
       case V_ASSIGN:
-         vlog_lower_continuous_assign(ur, parent, s);
+         vlog_lower_continuous_assign(mc, parent, s);
          break;
       case V_GATE_INST:
-         vlog_lower_gate_inst(ur, parent, s);
+         vlog_lower_gate_inst(mc, parent, s);
          break;
       case V_MOD_INST:
          break;
@@ -1281,7 +947,7 @@ vcode_unit_t vlog_lower(unit_registry_t *ur, mir_context_t *mc, vlog_node_t mod)
    if (vlog_kind(mod) == V_PRIMITIVE)
       vlog_lower_udp(mc, name, mod);
    else
-      vlog_lower_concurrent(ur, lu, mod);
+      vlog_lower_concurrent(mc, name, mod);
 
    unit_registry_finalise(ur, lu);
    return vu;

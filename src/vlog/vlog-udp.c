@@ -118,9 +118,9 @@ void vlog_lower_udp(mir_context_t *mc, ident_t parent, vlog_node_t udp)
    {
       mir_value_t one = mir_const(mu, t_offset, 1);
       mir_value_t zero = mir_const(mu, t_time, 1);
-      mir_value_t logic0 = mir_const_vec(mu, t_logic, 0, 1 /*XX*/);
-      mir_value_t logic1 = mir_const_vec(mu, t_logic, 1, 1 /*XX*/);
-      mir_value_t logicX = mir_const_vec(mu, t_logic, 0, 0 /*XX*/);
+      mir_value_t logic0 = mir_const_vec(mu, t_logic, 0, 0);
+      mir_value_t logic1 = mir_const_vec(mu, t_logic, 1, 0);
+      mir_value_t logicX = mir_const_vec(mu, t_logic, 1, 1);
 
       mir_value_t level_map[127];
       level_map['0'] = logic0;

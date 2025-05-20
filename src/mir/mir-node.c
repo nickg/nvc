@@ -171,7 +171,14 @@ mir_op_t mir_get_op(mir_unit_t *mu, mir_value_t node)
 
 const loc_t *mir_get_loc(mir_unit_t *mu, mir_value_t node)
 {
-   return &(mir_node_data(mu, node)->loc);
+   switch (node.tag) {
+   case MIR_TAG_NODE:
+      return &(mir_node_data(mu, node)->loc);
+   case MIR_TAG_NULL:
+      return &(mu->cursor.loc);
+   default:
+      should_not_reach_here();
+   }
 }
 
 unsigned mir_count_args(mir_unit_t *mu, mir_value_t node)
@@ -252,6 +259,9 @@ bool mir_is_terminator(mir_op_t op)
 
 bool mir_block_finished(mir_unit_t *mu, mir_block_t block)
 {
+   if (mir_is_null(block))
+      block = mu->cursor.block;
+
    const block_data_t *bd = mir_block_data(mu, block);
    if (bd->num_nodes == 0)
       return false;
@@ -505,6 +515,13 @@ void mir_comment(mir_unit_t *mu, const char *fmt, ...)
    mir_build_1(mu, MIR_OP_COMMENT, MIR_NULL_TYPE, MIR_NULL_STAMP, value);
 }
 #endif
+
+mir_saved_loc_t _mir_push_debug_info(mir_unit_t *mu, const loc_t *loc)
+{
+   mir_saved_loc_t result = { mu, mu->cursor.loc };
+   mu->cursor.loc = *loc;
+   return result;
+}
 
 bool mir_get_const(mir_unit_t *mu, mir_value_t value, int64_t *result)
 {
@@ -924,9 +941,13 @@ mir_value_t mir_const_real(mir_unit_t *mu, mir_type_t type, double value)
 mir_value_t mir_const_vec(mir_unit_t *mu, mir_type_t type, uint64_t abits,
                           uint64_t bbits)
 {
+   uint64_t mask = ~UINT64_C(0), size = mir_get_size(mu, type);
+   if (size < 64)
+      mask >>= 64 - size;
+
    node_data_t *n = mir_add_node(mu, MIR_OP_CONST_VEC, type, MIR_NULL_STAMP, 0);
-   n->bits[0] = abits;
-   n->bits[1] = bbits;
+   n->bits[0] = abits & mask;
+   n->bits[1] = bbits & mask;
 
 #ifdef DEBUG
    const type_data_t *td = mir_type_data(mu, type);
@@ -1513,26 +1534,74 @@ mir_value_t mir_build_pack(mir_unit_t *mu, mir_type_t type, mir_value_t arg)
 mir_value_t mir_build_unpack(mir_unit_t *mu, mir_value_t vec, uint8_t strength,
                              mir_value_t dest)
 {
-   mir_type_t type, vec_type = mir_get_type(mu, vec);
-   if (mir_get_size(mu, vec_type) == 1)
-      type = mir_logic_type(mu);
-   else
-      type = mir_get_type(mu, dest);
-
-   mir_value_t result;
+   mir_value_t result = dest;
    if (mir_is_null(dest))
-      result = mir_build_2(mu, MIR_OP_UNPACK, type, MIR_NULL_STAMP,
-                           vec, mir_enum(strength));
+      result = mir_build_2(mu, MIR_OP_UNPACK, mir_logic_type(mu),
+                           MIR_NULL_STAMP, vec, mir_enum(strength));
    else
-      result = mir_build_3(mu, MIR_OP_UNPACK, type, MIR_NULL_STAMP,
-                           vec, mir_enum(strength), dest);
+      mir_build_3(mu, MIR_OP_UNPACK, MIR_NULL_TYPE, MIR_NULL_STAMP,
+                  vec, mir_enum(strength), dest);
 
    MIR_ASSERT(mir_is_vector(mu, vec), "unpack argument must be vector");
    MIR_ASSERT(mir_is_null(dest) || mir_points_to(mu, dest, MIR_TYPE_INT),
               "unpack dest must be pointer to logic or null");
-   MIR_ASSERT(mir_get_size(mu, vec_type) == 1 || !mir_is_null(dest),
+   MIR_ASSERT(mir_get_size(mu, mir_get_type(mu, vec)) == 1
+              || !mir_is_null(dest),
               "unpack dest must be non-null if wide vector");
    MIR_ASSERT((strength & 3) == 0, "strength lower bits must be zero");
+
+   return result;
+}
+
+mir_value_t mir_build_binary(mir_unit_t *mu, mir_vec_op_t op, mir_type_t type,
+                             mir_value_t left, mir_value_t right)
+{
+   mir_type_t otype;
+   switch (op) {
+   case MIR_VEC_CASE_EQ:
+   case MIR_VEC_CASE_NEQ:
+   case MIR_VEC_LOG_AND:
+   case MIR_VEC_LOG_OR:
+      // XXX: these should be vec2
+   case MIR_VEC_LT:
+   case MIR_VEC_LEQ:
+   case MIR_VEC_GT:
+   case MIR_VEC_GEQ:
+   case MIR_VEC_LOG_EQ:
+   case MIR_VEC_LOG_NEQ:
+      otype = mir_vec4_type(mu, 1, false);
+      break;
+   default:
+      otype = type;
+   }
+
+   mir_value_t result = mir_build_3(mu, MIR_OP_BINARY, otype, MIR_NULL_STAMP,
+                                    mir_enum(op), left, right);
+
+   MIR_ASSERT(mir_is_vector(mu, result), "binary operation must be vector");
+   MIR_ASSERT(mir_check_type(mu, left, type), "left type does not match");
+   MIR_ASSERT(mir_check_type(mu, right, type), "right type does not match");
+
+   return result;
+}
+
+mir_value_t mir_build_unary(mir_unit_t *mu, mir_vec_op_t op, mir_type_t type,
+                            mir_value_t arg)
+{
+   mir_type_t otype;
+   switch (op) {
+   case MIR_VEC_LOG_NOT:
+      otype = mir_vec2_type(mu, 1, false);
+      break;
+   default:
+      otype = type;
+   }
+
+   mir_value_t result = mir_build_2(mu, MIR_OP_UNARY, otype, MIR_NULL_STAMP,
+                                    mir_enum(op), arg);
+
+   MIR_ASSERT(mir_is_vector(mu, result), "unary operation must be vector");
+   MIR_ASSERT(mir_check_type(mu, arg, type), "arg type does not match");
 
    return result;
 }
@@ -3126,6 +3195,21 @@ mir_value_t mir_build_cast(mir_unit_t *mu, mir_type_t type, mir_value_t value)
    if (integral && mir_get_const(mu, value, &cval))
       return mir_const(mu, type, cval);
 
+   if (class == MIR_TYPE_VEC2 || class == MIR_TYPE_VEC4) {
+      node_data_t *n = mir_node_data(mu, value);
+      if (n->op == MIR_OP_CONST_VEC) {
+         const uint64_t bbits = (class == MIR_TYPE_VEC2 ? 0 : n->bits[1]);
+         return mir_const_vec(mu, type, n->bits[0], bbits);
+      }
+   }
+   else if (integral && mir_is_vector(mu, value)) {
+      node_data_t *n = mir_node_data(mu, value);
+      if (n->op == MIR_OP_CONST_VEC) {
+         MIR_ASSERT(n->bits[1] == 0, "X value in integral cast");
+         return mir_const(mu, type, n->bits[0]);
+      }
+   }
+
    mir_stamp_t stamp = mir_stamp_cast(mu, type, mir_get_stamp(mu, value));
 
    mir_value_t result = mir_build_1(mu, MIR_OP_CAST, type, stamp, value);
@@ -3140,6 +3224,11 @@ mir_value_t mir_build_cast(mir_unit_t *mu, mir_type_t type, mir_value_t value)
       { MIR_TYPE_REAL,   MIR_TYPE_REAL    },
       { MIR_TYPE_ACCESS, MIR_TYPE_ACCESS  },
       { MIR_TYPE_VEC4,   MIR_TYPE_VEC2    },
+      { MIR_TYPE_VEC2,   MIR_TYPE_VEC4    },
+      { MIR_TYPE_VEC2,   MIR_TYPE_VEC2    },
+      { MIR_TYPE_VEC4,   MIR_TYPE_VEC4    },
+      { MIR_TYPE_VEC2,   MIR_TYPE_INT     },
+      { MIR_TYPE_VEC2,   MIR_TYPE_OFFSET  },
    };
 
    if (value.tag == MIR_TAG_CONST)

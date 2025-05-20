@@ -106,6 +106,32 @@ static type_t trans_net_type(vlog_node_t decl)
    return trans_type(type, VERILOG_WIRE, VERILOG_WIRE_ARRAY);
 }
 
+static tree_t trans_make_x(type_t type, bool is_net)
+{
+   tree_t x;
+   if (is_net) {
+      x = tree_new(T_LITERAL);
+      tree_set_ival(x, LOGIC_X);
+      tree_set_type(x, verilog_type(VERILOG_WIRE));
+   }
+   else
+      x = make_ref(type_enum_literal(verilog_type(VERILOG_LOGIC), 3));
+
+   if (type_is_array(type)) {
+      tree_t a = tree_new(T_ASSOC);
+      tree_set_subkind(a, A_OTHERS);
+      tree_set_value(a, x);
+
+      tree_t agg = tree_new(T_AGGREGATE);
+      tree_add_assoc(agg, a);
+      tree_set_type(agg, type);
+
+      return agg;
+   }
+   else
+      return x;
+}
+
 static void trans_port_decl(vlog_node_t decl, tree_t out)
 {
    static const port_mode_t map[] = {
@@ -122,19 +148,28 @@ static void trans_port_decl(vlog_node_t decl, tree_t out)
    tree_set_class(t, C_SIGNAL);
 
    vlog_node_t net = vlog_ref(decl);
-   if (vlog_is_net(net))
-      tree_set_type(t, trans_net_type(net));
-   else
-      tree_set_type(t, trans_var_type(net));
+   if (vlog_is_net(net)) {
+      type_t type = trans_net_type(net);
+      tree_set_type(t, type);
+      tree_set_value(t, trans_make_x(type, true));
+   }
+   else {
+      type_t type = trans_var_type(net);
+      tree_set_type(t, type);
+      tree_set_value(t, trans_make_x(type, false));
+   }
 
    tree_add_port(out, t);
 }
 
 static void trans_var_decl(vlog_node_t decl, tree_t out)
 {
+   type_t type = trans_var_type(decl);
+
    tree_t t = tree_new(T_SIGNAL_DECL);
    tree_set_ident(t, vlog_ident(decl));
-   tree_set_type(t, trans_var_type(decl));
+   tree_set_type(t, type);
+   tree_set_value(t, trans_make_x(type, false));
 
    tree_add_decl(out, t);
 }
@@ -146,6 +181,7 @@ static void trans_net_decl(vlog_node_t decl, tree_t out)
    tree_t t = tree_new(T_SIGNAL_DECL);
    tree_set_ident(t, vlog_ident(decl));
    tree_set_type(t, type);
+   tree_set_value(t, trans_make_x(type, true));
 
    tree_add_decl(out, t);
 }

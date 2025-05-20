@@ -131,3 +131,27 @@ void vpi_format_number(number_t n, PLI_INT32 format, text_buf_t *tb)
       break;
    }
 }
+
+void vpi_format_number2(int size, uint64_t abits, uint64_t bbits,
+                        PLI_INT32 format, text_buf_t *tb)
+{
+   switch (format) {
+   case vpiBinStrVal:
+      should_not_reach_here();
+      break;
+
+   case vpiDecStrVal:
+      if (bbits == 0)
+         tb_printf(tb, "%"PRIi64, abits);
+      else
+         tb_cat(tb, "x");
+      break;
+
+   case vpiHexStrVal:
+      if (bbits == 0)
+         tb_printf(tb, "%0*"PRIx64, size / 4, abits);
+      else
+         tb_printf(tb, "%*s", size / 4, "x");
+      break;
+   }
+}

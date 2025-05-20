@@ -883,6 +883,36 @@ static void interp_sadd(jit_interp_t *state, jit_ir_t *ir)
    FOR_EACH_SIZE(ir->size, SADD);
 }
 
+static void interp_pack(jit_interp_t *state, jit_ir_t *ir)
+{
+   const uint8_t *src = interp_get_pointer(state, ir->arg1);
+   const size_t size = interp_get_int(state, ir->arg2);
+   assert(size <= 64);  // TODO
+
+   uint64_t abits = 0, bbits = 0;
+
+   for (size_t i = 0; i < size; i++) {
+      abits = (abits << 1) | (src[i] & 1);
+      bbits = (bbits << 1) | ((src[i] >> 1) & 1);
+   }
+
+   state->args[0].integer = abits;
+   state->args[1].integer = bbits;
+}
+
+static void interp_unpack(jit_interp_t *state, jit_ir_t *ir)
+{
+   uint8_t *dest = state->args[0].pointer;
+   size_t size = state->args[1].integer;
+   uint8_t strength = state->args[2].integer;
+
+   uint64_t abits = interp_get_int(state, ir->arg1);
+   uint64_t bbits = interp_get_int(state, ir->arg2);
+
+   for (size_t i = 0; i < size; i++, abits >>= 1, bbits >>= 1)
+      dest[size - i - 1] = (abits & 1) | ((bbits & 1) << 1) | strength;
+}
+
 static void interp_loop(jit_interp_t *state)
 {
    for (;;) {
@@ -1049,6 +1079,12 @@ static void interp_loop(jit_interp_t *state)
          return;
       case MACRO_SADD:
          interp_sadd(state, ir);
+         break;
+      case MACRO_PACK:
+         interp_pack(state, ir);
+         break;
+      case MACRO_UNPACK:
+         interp_unpack(state, ir);
          break;
       default:
          interp_dump(state);

@@ -1035,3 +1035,30 @@ object_t *__nvc_get_object(const char *unit, ptrdiff_t offset)
 {
    return object_from_locus(ident_new(unit), offset, lib_load_handler);
 }
+
+DLLEXPORT
+void __nvc_pack(const uint8_t *src, int32_t size, jit_scalar_t *args)
+{
+   assert(size <= 64);  // TODO
+
+   uint64_t abits = 0, bbits = 0;
+
+   for (size_t i = 0; i < size; i++) {
+      abits = (abits << 1) | (src[i] & 1);
+      bbits = (bbits << 1) | ((src[i] >> 1) & 1);
+   }
+
+   args[0].integer = abits;
+   args[1].integer = bbits;
+}
+
+DLLEXPORT
+void __nvc_unpack(uint64_t abits, uint64_t bbits, jit_scalar_t *args)
+{
+   uint8_t *dest = args[0].pointer;
+   size_t size = args[1].integer;
+   uint8_t strength = args[2].integer;
+
+   for (size_t i = 0; i < size; i++, abits >>= 1, bbits >>= 1)
+      dest[size - i - 1] = (abits & 1) | ((bbits & 1) << 1) | strength;
+}

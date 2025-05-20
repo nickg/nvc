@@ -16,8 +16,12 @@
 //
 
 #include "util.h"
+#include "ident.h"
 #include "vlog/vlog-node.h"
+#include "vlog/vlog-number.h"
 #include "vlog/vlog-util.h"
+
+#include <assert.h>
 
 bool vlog_is_net(vlog_node_t v)
 {
@@ -36,6 +40,33 @@ bool vlog_is_net(vlog_node_t v)
 unsigned vlog_dimensions(vlog_node_t v)
 {
    return vlog_ranges(vlog_type(v)) + vlog_ranges(v);
+}
+
+unsigned vlog_size(vlog_node_t v)
+{
+   unsigned size = 1;
+
+   const int nranges = vlog_ranges(v);
+   for (int i = 0; i < nranges; i++) {
+      vlog_node_t r = vlog_range(v, i);
+      assert(vlog_subkind(r) == V_DIM_PACKED);
+
+      vlog_node_t left = vlog_left(r);
+      vlog_node_t right = vlog_right(r);
+
+      if (vlog_kind(left) != V_NUMBER || vlog_kind(right) != V_NUMBER)
+         fatal_at(vlog_loc(v), "packed dimensions are not constant");
+
+      int64_t lbound = number_integer(vlog_number(left));
+      int64_t rbound = number_integer(vlog_number(right));
+
+      if (lbound > rbound)
+         size *= lbound - rbound + 1;
+      else
+         size *= rbound - lbound + 1;
+   }
+
+   return size;
 }
 
 bool is_top_level(vlog_node_t v)

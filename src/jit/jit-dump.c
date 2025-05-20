@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2022-2024  Nick Gasson
+//  Copyright (C) 2022-2025  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -49,7 +49,8 @@ const char *jit_op_name(jit_op_t op)
       static const char *names[] = {
          "$COPY", "$GALLOC", "$EXIT", "$FEXP", "$EXP", "$BZERO",
          "$GETPRIV", "$PUTPRIV", "$LALLOC", "$SALLOC", "$CASE",
-         "$TRIM", "$MOVE", "$MEMSET", "$REEXEC", "$SADD",
+         "$TRIM", "$MOVE", "$MEMSET", "$REEXEC", "$SADD", "$PACK",
+         "$UNPACK",
       };
       assert(op - __MACRO_BASE < ARRAY_LEN(names));
       return names[op - __MACRO_BASE];

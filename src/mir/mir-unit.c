@@ -139,6 +139,11 @@ ident_t mir_get_parent(mir_unit_t *mu)
       return NULL;
 }
 
+mir_context_t *mir_get_context(mir_unit_t *mu)
+{
+   return mu->context;
+}
+
 mir_value_t mir_search_object(mir_unit_t *mu, const void *obj, int *hops)
 {
    *hops = 0;
@@ -258,8 +263,10 @@ void mir_put_unit(mir_context_t *mc, mir_unit_t *mu)
       fatal_trace("%s already registered", istr(mu->name));
 #endif
 
-   if (opt_get_verbose(OPT_LOWER_VERBOSE, istr(mu->name)))
+   if (opt_get_verbose(OPT_LOWER_VERBOSE, istr(mu->name))) {
+      mir_set_cursor(mu, MIR_NULL_BLOCK, MIR_APPEND);
       mir_dump(mu);
+   }
 
    chash_put(mc->map, mu->name, tag_pointer(mu, UNIT_GENERATED));
 }
@@ -274,8 +281,10 @@ static mir_unit_t *mir_lazy_build(mir_context_t *mc, deferred_unit_t *du)
    mir_unit_t *mu = mir_unit_new(mc, du->name, du->object, du->kind, parent);
    (*du->fn)(mu, du->object);
 
-   if (opt_get_verbose(OPT_LOWER_VERBOSE, istr(du->name)))
+   if (opt_get_verbose(OPT_LOWER_VERBOSE, istr(du->name))) {
+      mir_set_cursor(mu, MIR_NULL_BLOCK, MIR_APPEND);
       mir_dump(mu);
+   }
 
    chash_put(mc->map, du->name, tag_pointer(mu, UNIT_GENERATED));
    return mu;

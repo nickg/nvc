@@ -1,5 +1,5 @@
 -------------------------------------------------------------------------------
---  Copyright (C) 2023-2024  Nick Gasson
+--  Copyright (C) 2023-2025  Nick Gasson
 --
 --  Licensed under the Apache License, Version 2.0 (the "License");
 --  you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@ package verilog is
 
     type t_int64 is range -9223372036854775807 - 1 to 9223372036854775807;
 
-    type t_logic is ('X', 'Z', '0', '1');
+    type t_logic is ('0', '1', 'Z', 'X');
 
     type t_logic_array is array (natural range <>) of t_logic;
 
@@ -70,42 +70,5 @@ package verilog is
 
     function resize (value : t_logic_array; length : natural) return t_logic_array;
     function resize (value : t_logic; length : natural) return t_logic_array;
-
-    function "and" (l, r : t_logic) return t_logic;
-    function "and" (l, r : t_logic_array) return t_logic;
-    function "and" (l, r : t_logic_array) return t_logic_array;
-
-    function "nand" (l, r : t_logic) return t_logic;
-
-    function "xor" (l, r : t_logic) return t_logic;
-
-    function "or" (l, r : t_logic) return t_logic;
-    function "or" (l, r : t_logic_array) return t_logic;
-    function "or" (l, r : t_logic_array) return t_logic_array;
-
-    function "not" (x : t_logic) return t_logic;
-    function "not" (x : t_logic_array) return t_logic_array;
-    function "not" (x : t_logic_array) return t_logic;
-
-    function "+" (l, r : t_logic_array) return t_logic_array;
-
-    function "-" (arg : t_logic_array) return t_logic_array;
-
-    function "=" (l, r : t_logic_array) return boolean;
-    function "=" (l, r : t_logic_array) return t_logic;
-
-    function "<" (l, r : t_logic_array) return t_logic;
-    function ">" (l, r : t_logic_array) return t_logic;
-    function "<=" (l, r : t_logic_array) return t_logic;
-    function ">=" (l, r : t_logic_array) return t_logic;
-
-    function "/=" (l, r : t_logic_array) return boolean;
-
-    function and_reduce (arg : t_logic_array) return t_logic;
-    function nand_reduce (arg : t_logic_array) return t_logic;
-    function or_reduce (arg : t_logic_array) return t_logic;
-    function nor_reduce (arg : t_logic_array) return t_logic;
-    function xor_reduce (arg : t_logic_array) return t_logic;
-    function xnor_reduce (arg : t_logic_array) return t_logic;
 
 end package;

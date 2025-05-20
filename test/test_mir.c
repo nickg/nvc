@@ -1106,6 +1106,26 @@ START_TEST(test_vec1)
 }
 END_TEST
 
+START_TEST(test_vec2)
+{
+   mir_unit_t *mu = mir_unit_new(get_mir(), ident_new("vec2"), NULL,
+                                 MIR_UNIT_FUNCTION, NULL);
+
+   mir_type_t t_vec2_8 = mir_vec2_type(mu, 8, false);
+   mir_type_t t_vec2_1 = mir_vec2_type(mu, 1, false);
+   mir_type_t t_offset = mir_offset_type(mu);
+
+   mir_value_t const1 = mir_const_vec(mu, t_vec2_8, 1, 0);
+   mir_value_t cast1 = mir_build_cast(mu, t_vec2_1, const1);
+   ck_assert_int_eq(mir_get_op(mu, cast1), MIR_OP_CONST_VEC);
+
+   mir_value_t cast2 = mir_build_cast(mu, t_offset, const1);
+   mir_assert_const_eq(mu, cast2, 1);
+
+   mir_unit_free(mu);
+}
+END_TEST
+
 Suite *get_mir_tests(void)
 {
    Suite *s = suite_create("mir");
@@ -1131,6 +1151,7 @@ Suite *get_mir_tests(void)
    tcase_add_test(tc, test_alias1);
    tcase_add_test(tc, test_cast1);
    tcase_add_test(tc, test_vec1);
+   tcase_add_test(tc, test_vec2);
    suite_add_tcase(s, tc);
 
    return s;

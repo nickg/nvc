@@ -713,6 +713,18 @@ static void macro_sadd(jit_irgen_t *g, jit_size_t sz, jit_value_t addr,
                      addr, addend);
 }
 
+static void macro_pack(jit_irgen_t *g, jit_value_t ptr, jit_value_t size)
+{
+   irgen_emit_binary(g, MACRO_PACK, JIT_SZ_UNSPEC, JIT_CC_NONE,
+                     JIT_REG_INVALID, ptr, size);
+}
+
+static void macro_unpack(jit_irgen_t *g, jit_value_t abits, jit_value_t bbits)
+{
+   irgen_emit_binary(g, MACRO_UNPACK, JIT_SZ_UNSPEC, JIT_CC_NONE,
+                     JIT_REG_INVALID, abits, bbits);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // MIR to JIT IR lowering
 
@@ -737,6 +749,8 @@ static int irgen_slots_for_type(jit_irgen_t *g, mir_type_t type)
    case MIR_TYPE_RESOLUTION:
       // Closure slots plus nlits, and flags (this is silly)
       return 4;
+   case MIR_TYPE_VEC4:
+      return 2;
    default:
       // Passed by pointer or fits in 64-bit register
       return 1;
@@ -2167,7 +2181,8 @@ static void irgen_op_cast(jit_irgen_t *g, mir_value_t n)
       g->map[n.id] = j_scvtf(g, irgen_get_value(g, arg));
    else if (result_kind == MIR_TYPE_INT && mir_is(g->mu, arg, MIR_TYPE_REAL))
       g->map[n.id] = j_fcvtns(g, irgen_get_value(g, arg));
-   else if (result_kind == MIR_TYPE_INT || result_kind == MIR_TYPE_OFFSET) {
+   else if ((result_kind == MIR_TYPE_INT || result_kind == MIR_TYPE_OFFSET)
+            && mir_is_integral(g->mu, arg)) {
       // No sign extension or truncation is necessary as integer
       // registers are always 64 bits wide
       g->map[n.id] = irgen_get_value(g, arg);
@@ -2181,6 +2196,36 @@ static void irgen_op_cast(jit_irgen_t *g, mir_value_t n)
       // Casting away opaqueness
       assert(mir_is(g->mu, arg, MIR_TYPE_ACCESS));
       g->map[n.id] = irgen_get_value(g, arg);
+   }
+   else if (result_kind == MIR_TYPE_VEC4) {
+      mir_type_t arg_type = mir_get_type(g->mu, arg);
+
+      jit_value_t abits = irgen_get_value(g, arg), bbits;
+      if (mir_get_class(g->mu, arg_type) == MIR_TYPE_VEC4)
+         bbits = jit_value_from_reg(jit_value_as_reg(abits) + 1);
+      else
+         bbits = jit_value_from_int64(0);
+
+      const int result_size = mir_get_size(g->mu, result_type);
+      const int arg_size = mir_get_size(g->mu, result_type);
+      assert(result_size <= 64); // TODO
+      assert(arg_size <= 64); // TODO
+
+      if (result_size < arg_size) {
+         uint64_t mask = ~UINT64_C(0);
+         if (result_size < 64) mask >>= 64 - result_size;
+
+         g->map[n.id] = j_and(g, abits, jit_value_from_int64(mask));
+         j_and(g, bbits, jit_value_from_int64(mask));
+      }
+      else if (bbits.kind != JIT_VALUE_REG) {
+         jit_reg_t areg = irgen_alloc_reg(g), breg = irgen_alloc_reg(g);
+         j_mov(g, areg, abits);
+         j_mov(g, breg, bbits);
+         g->map[n.id] = jit_value_from_reg(areg);
+      }
+      else
+         g->map[n.id] = abits;  // No-op  (TODO: sign extend)
    }
    else {
       mir_dump(g->mu);
@@ -3717,12 +3762,19 @@ static void irgen_op_bind_external(jit_irgen_t *g, mir_value_t n)
 
 static void irgen_op_pack(jit_irgen_t *g, mir_value_t n)
 {
+   assert(mir_is(g->mu, n, MIR_TYPE_VEC4));  // TODO
+
    mir_value_t arg = mir_get_arg(g->mu, n, 0);
-   if (mir_is_scalar(g->mu, arg)) {
-      assert(mir_is(g->mu, n, MIR_TYPE_VEC4));  // TODO
+   jit_value_t unpacked = irgen_get_value(g, arg);
 
-      jit_value_t unpacked = irgen_get_value(g, arg);
+   if (mir_is(g->mu, arg, MIR_TYPE_POINTER)) {
+      const int size = mir_get_size(g->mu, mir_get_type(g->mu, n));
+      macro_pack(g, unpacked, jit_value_from_int64(size));
 
+      g->map[n.id] = j_recv(g, 0);
+      j_recv(g, 1);  // B-bits
+   }
+   else {
       jit_value_t one = jit_value_from_int64(1);
       jit_value_t shifted = j_asr(g, unpacked, one);
       jit_value_t abits = j_and(g, unpacked, one);
@@ -3730,29 +3782,160 @@ static void irgen_op_pack(jit_irgen_t *g, mir_value_t n)
       assert(jit_value_as_reg(bbits) == jit_value_as_reg(abits) + 1);
 
       g->map[n.id] = abits;
+      (void)bbits;
    }
-   else
-      should_not_reach_here();   // TODO
 }
 
 static void irgen_op_unpack(jit_irgen_t *g, mir_value_t n)
 {
+   mir_value_t arg = mir_get_arg(g->mu, n, 0);
+   assert(mir_is(g->mu, arg, MIR_TYPE_VEC4));
+
+   jit_value_t strength = jit_value_from_int64(irgen_get_enum(g, n, 1));
+
+   jit_value_t abits = irgen_get_value(g, arg);
+   jit_value_t bbits = jit_value_from_reg(jit_value_as_reg(abits) + 1);
+
    if (mir_is_scalar(g->mu, n)) {
-      mir_value_t arg = mir_get_arg(g->mu, n, 0);
-      assert(mir_is(g->mu, arg, MIR_TYPE_VEC4));
-
-      jit_value_t strength = jit_value_from_int64(irgen_get_enum(g, n, 1));
-
-      jit_value_t abits = irgen_get_value(g, arg);
-      jit_value_t bbits = jit_value_from_reg(jit_value_as_reg(abits) + 1);
-
       jit_value_t bshift = j_shl(g, bbits, jit_value_from_int64(1));
       jit_value_t bits = j_or(g, abits, bshift);
 
       g->map[n.id] = j_or(g, bits, strength);
    }
+   else {
+      const int size = mir_get_size(g->mu, mir_get_type(g->mu, arg));
+      jit_value_t dest = irgen_get_arg(g, n, 2);
+      j_send(g, 0, dest);
+      j_send(g, 1, jit_value_from_int64(size));
+      j_send(g, 2, strength);
+      macro_unpack(g, abits, bbits);
+   }
+}
+
+static jit_cc_t irgen_vector_cmp(mir_vec_op_t op)
+{
+   switch (op) {
+   case MIR_VEC_LT:       return JIT_CC_LT;
+   case MIR_VEC_LEQ:      return JIT_CC_LE;
+   case MIR_VEC_GT:       return JIT_CC_GT;
+   case MIR_VEC_GEQ:      return JIT_CC_GE;
+   case MIR_VEC_LOG_EQ:
+   case MIR_VEC_CASE_EQ:  return JIT_CC_EQ;
+   case MIR_VEC_LOG_NEQ:
+   case MIR_VEC_CASE_NEQ: return JIT_CC_NE;
+   default: should_not_reach_here();
+   }
+}
+
+static void irgen_op_binary(jit_irgen_t *g, mir_value_t n)
+{
+   mir_value_t left = mir_get_arg(g->mu, n, 1);
+   mir_value_t right = mir_get_arg(g->mu, n, 2);
+
+   jit_value_t aleft = irgen_get_value(g, left);
+   jit_value_t aright = irgen_get_value(g, right);
+
+   jit_value_t bleft, bright;
+   if (mir_is(g->mu, left, MIR_TYPE_VEC4)) {
+      bleft = jit_value_from_reg(jit_value_as_reg(aleft) + 1);
+      bright = jit_value_from_reg(jit_value_as_reg(aright) + 1);
+   }
    else
-      should_not_reach_here();   // TODO
+      assert(false);  // TODO
+
+   mir_type_t type = mir_get_type(g->mu, n);
+   const int size = mir_get_size(g->mu, type);
+   assert(size <= 64);  // TODO
+   (void)size;
+
+   bool logical = false;
+   jit_value_t abits;
+   const mir_vec_op_t op = irgen_get_enum(g, n, 0);
+   switch (op) {
+   case MIR_VEC_LOG_AND:
+      logical = true;
+   case MIR_VEC_BIT_AND:
+      abits = j_and(g, aleft, aright);
+      break;
+   case MIR_VEC_LOG_OR:
+      logical = true;
+   case MIR_VEC_BIT_OR:
+      abits = j_or(g, aleft, aright);
+      break;
+   case MIR_VEC_BIT_XOR:
+      abits = j_xor(g, aleft, aright);
+      break;
+   case MIR_VEC_ADD:
+      abits = j_add(g, aleft, aright);
+      break;
+   case MIR_VEC_CASE_EQ:
+   case MIR_VEC_CASE_NEQ:
+      {
+         const jit_cc_t cc = irgen_vector_cmp(op);
+         j_cmp(g, cc, aleft, aright);
+         j_ccmp(g, cc, bleft, bright);
+         abits = j_cset(g);
+      }
+      break;
+   case MIR_VEC_LT:
+   case MIR_VEC_LEQ:
+   case MIR_VEC_GT:
+   case MIR_VEC_GEQ:
+   case MIR_VEC_LOG_EQ:
+   case MIR_VEC_LOG_NEQ:
+      j_cmp(g, irgen_vector_cmp(op), aleft, aright);
+      abits = j_cset(g);
+      break;
+   default:
+      should_not_reach_here();
+   }
+
+   if (logical) {
+      j_cmp(g, JIT_CC_NE, abits, jit_value_from_int64(0));
+      abits = j_cset(g);
+   }
+
+   jit_reg_t bbits = irgen_alloc_reg(g);
+   assert(abits.kind == JIT_VALUE_REG);
+   assert(bbits == abits.reg + 1);
+
+   j_mov(g, bbits, jit_value_from_int64(0));
+   g->map[n.id] = abits;
+}
+
+static void irgen_op_unary(jit_irgen_t *g, mir_value_t n)
+{
+   jit_value_t arg = irgen_get_arg(g, n, 1);
+
+   mir_type_t type = mir_get_type(g->mu, n);
+   const int size = mir_get_size(g->mu, type);
+   assert(size <= 64);  // TODO
+
+   jit_value_t abits;
+   switch (irgen_get_enum(g, n, 0)) {
+   case MIR_VEC_BIT_NOT:
+      {
+         uint64_t mask = ~UINT64_C(0);
+         if (size < 64) mask >>= 64 - size;
+         abits = j_xor(g, arg, jit_value_from_int64(mask));
+      }
+      break;
+   case MIR_VEC_LOG_NOT:
+      abits = j_not(g, arg);
+      break;
+   case MIR_VEC_SUB:
+      abits = j_neg(g, arg);
+      break;
+   default:
+      should_not_reach_here();
+   }
+
+   jit_reg_t bbits = irgen_alloc_reg(g);
+   assert(abits.kind == JIT_VALUE_REG);
+   assert(bbits == abits.reg + 1);
+
+   j_mov(g, bbits, jit_value_from_int64(0));
+   g->map[n.id] = abits;
 }
 
 static void irgen_block(jit_irgen_t *g, mir_block_t block)
@@ -4152,6 +4335,12 @@ static void irgen_block(jit_irgen_t *g, mir_block_t block)
          break;
       case MIR_OP_UNPACK:
          irgen_op_unpack(g, n);
+         break;
+      case MIR_OP_BINARY:
+         irgen_op_binary(g, n);
+         break;
+      case MIR_OP_UNARY:
+         irgen_op_unary(g, n);
          break;
       default:
          DEBUG_ONLY(mir_dump(g->mu));

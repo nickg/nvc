@@ -837,7 +837,7 @@ PLI_INT32 vpi_get(PLI_INT32 property, vpiHandle object)
          {
             vpi_context_t *c = vpi_context();
             if (c->args != NULL)
-               return ffi_array_length(c->args[op->argslot + 2].integer);
+               return c->args[op->argslot].integer;
 
             goto missing_property;
          }
@@ -899,12 +899,13 @@ void vpi_get_value(vpiHandle handle, p_vpi_value value_p)
 
    c_operation *op = is_operation(obj);
    if (op != NULL && c->args != NULL) {
-      void *ptr = c->args[op->argslot].pointer;
-      const int nbits = ffi_array_length(c->args[op->argslot + 2].integer);
-      number_t num = number_pack(ptr, nbits);
+      int size = c->args[op->argslot].integer;
+      assert(size <= 64);
 
-      vpi_format_number(num, value_p->format, c->valuestr);
-      number_free(&num);
+      uint64_t abits = c->args[op->argslot + 1].integer;
+      uint64_t bbits = c->args[op->argslot + 2].integer;
+
+      vpi_format_number2(size, abits, bbits, value_p->format, c->valuestr);
 
       value_p->value.str = (PLI_BYTE8 *)tb_get(c->valuestr);
       return;
@@ -945,18 +946,9 @@ vpiHandle vpi_put_value(vpiHandle handle, p_vpi_value value_p,
       assert(fcall->systfcall.callback->systf.sysfunctype == vpiTimeFunc);
       assert(value_p->format == vpiTimeVal);
 
-      uint8_t *bits = tlab_alloc(c->tlab, 64);
-
-      c->args[0].pointer = bits;
-      c->args[1].integer = 1;
-      c->args[2].integer = 64;
-
       const p_vpi_time tm = value_p->value.time;
-      PLI_UINT32 mask = 1;
-      for (int i = 0; i < 32; i++, mask <<= 1) {
-         bits[63 - i] = tm->low & mask ? LOGIC_1 : LOGIC_0;
-         bits[31 - i] = tm->high & mask ? LOGIC_1 : LOGIC_0;
-      }
+      c->args[0].integer = (uint64_t)tm->high << 32 | tm->low;
+      c->args[1].integer = 0;
 
       return NULL;
    }

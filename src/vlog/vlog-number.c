@@ -37,8 +37,8 @@ typedef struct _bignum {
    uint64_t packed[0];
 } bignum_t;
 
-#define SMALL_PACKED_ZERO UINT64_C(0xaaaaaaaaaaaaaa)
-#define BIG_PACKED_ZERO UINT64_C(0xaaaaaaaaaaaaaaaa)
+#define SMALL_PACKED_XZ UINT64_C(0xaaaaaaaaaaaaaa)
+#define BIG_PACKED_XZ UINT64_C(0xaaaaaaaaaaaaaaaa)
 #define BIGNUM_WORDS(w) (((w) + 31) / 32)
 
 #define MAKE_HEX(a, b, c, d) \
@@ -63,6 +63,7 @@ static void number_shift_left(number_t *n, unsigned count, uint64_t carry_in)
          n->small.packed <<= count * 2;
       else
          n->small.packed = 0;
+      n->small.packed |= carry_in;
       break;
    default:
       DEBUG_ONLY(fatal_trace("invalid number tag %x", n->common.tag));
@@ -146,7 +147,7 @@ number_t number_new(const char *str)
       else {
          assert(false);
 
-         uint64_t packed = SMALL_PACKED_ZERO;
+         uint64_t packed = 0;
          for (int i = width; i >= 0; i--) {
             packed <<= 2;
             if (bits & (1 << i))
@@ -171,7 +172,7 @@ number_t number_new(const char *str)
          result.small.tag      = TAG_SMALLNUM;
          result.small.width    = width;
          result.small.issigned = 0;
-         result.small.packed   = SMALL_PACKED_ZERO;
+         result.small.packed   = 0;
       }
       else {
          const int nwords = BIGNUM_WORDS(width);
@@ -180,7 +181,7 @@ number_t number_new(const char *str)
          result.big->issigned = 0;
 
          for (int i = 0; i < nwords; i++)
-            result.big->packed[i] = BIG_PACKED_ZERO;
+            result.big->packed[i] = 0;
       }
 
       for (; *p; p++) {
@@ -256,7 +257,7 @@ void number_print(number_t val, text_buf_t *tb)
       {
          tb_printf(tb, "%u'b", number_width(val));
 
-         static const char map[] = "xz01";
+         static const char map[] = "01zx";
 
          bool leading = true;
          for (int i = number_width(val) - 1; i >= 0; i--) {
@@ -292,12 +293,12 @@ bool number_is_defined(number_t val)
 {
    switch (val.common.tag) {
    case TAG_SMALLNUM:
-      return (val.small.packed & SMALL_PACKED_ZERO) == SMALL_PACKED_ZERO;
+      return !(val.small.packed & SMALL_PACKED_XZ);
    case TAG_INTEGER:
       return true;
    case TAG_BIGNUM:
       for (int i = 0; i < BIGNUM_WORDS(val.big->width); i++) {
-         if ((val.big->packed[i] & BIG_PACKED_ZERO) != BIG_PACKED_ZERO)
+         if (val.big->packed[i] & BIG_PACKED_XZ)
             return false;
       }
       return true;
@@ -395,7 +396,7 @@ number_t number_pack(const uint8_t *bits, unsigned width)
       };
    }
    else if (width <= SMALLNUM_WIDTH_MAX) {
-      uint64_t packed = SMALL_PACKED_ZERO;
+      uint64_t packed = 0;
       for (int i = 0; i < width; i++) {
          packed <<= 2;
          packed |= STRIP_STRENGTH(bits[i]);
@@ -417,7 +418,7 @@ number_t number_pack(const uint8_t *bits, unsigned width)
       bn->issigned = 0;
 
       for (int i = 0; i < nwords; i++) {
-         bn->packed[i] = BIG_PACKED_ZERO;
+         bn->packed[i] = 0;
 
          for (int j = 0; j < 32 && i*32 + j < width; j++) {
             bn->packed[i] <<= 2;

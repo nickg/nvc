@@ -83,6 +83,8 @@
   __nvc_sched_waveform;
   __nvc_sched_process;
   __nvc_test_event;
+  __nvc_pack;
+  __nvc_unpack;
   _debug_dump;
   _debug_out;
 
