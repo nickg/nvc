@@ -2591,7 +2591,7 @@ void mir_build_resolve_signal(mir_unit_t *mu, mir_value_t signal,
                signal, resolution);
 
    MIR_ASSERT(mir_is_signal(mu, signal), "signal argument has wrong type");
-   MIR_ASSERT(mir_is(mu, resolution, MIR_TYPE_RESOLUTION),
+   MIR_ASSERT(mir_points_to(mu, resolution, MIR_TYPE_RESOLUTION),
               "resolution wrapper argument has wrong type");
 }
 

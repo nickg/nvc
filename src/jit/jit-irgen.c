@@ -2968,16 +2968,9 @@ static void irgen_op_resolve_signal(jit_irgen_t *g, mir_value_t n)
 {
    jit_value_t shared  = irgen_get_arg(g, n, 0);
    jit_value_t resfn   = irgen_get_arg(g, n, 1);
-   jit_reg_t   base    = jit_value_as_reg(resfn);
-   jit_value_t context = jit_value_from_reg(base + 1);
-   jit_value_t nlits   = jit_value_from_reg(base + 2);
-   jit_value_t flags   = jit_value_from_reg(base + 3);
 
    j_send(g, 0, shared);
    j_send(g, 1, resfn);
-   j_send(g, 2, context);
-   j_send(g, 3, nlits);
-   j_send(g, 4, flags);
 
    macro_exit(g, JIT_EXIT_RESOLVE_SIGNAL);
 }

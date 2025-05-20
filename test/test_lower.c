@@ -3802,6 +3802,7 @@ START_TEST(test_resfn1)
       { VCODE_OP_CLOSURE, .func = "WORK.RESFN1.RBIT$resolution" },
       { VCODE_OP_RESOLUTION_WRAPPER },
       { VCODE_OP_STORE, .name = "WORK.RESFN1.RBIT$resolution" },
+      { VCODE_OP_INDEX, .name = "WORK.RESFN1.RBIT$resolution" },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_DEBUG_LOCUS },
       { VCODE_OP_CONST, .value = 0 },

@@ -436,11 +436,12 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
 
    case JIT_EXIT_RESOLVE_SIGNAL:
       {
-         sig_shared_t *shared  = args[0].pointer;
-         jit_handle_t  handle  = args[1].integer;
-         void         *context = args[2].pointer;
-         int32_t       nlits   = args[3].integer;
-         int32_t       flags   = args[4].integer;
+         sig_shared_t *shared = args[0].pointer;
+
+         jit_handle_t  handle  = *(jit_handle_t *)(args[1].pointer + 0);
+         void         *context = *(void **)(args[1].pointer + 8);
+         int32_t       nlits   = *(int64_t *)(args[1].pointer + 16);
+         int32_t       flags   = *(int32_t *)(args[1].pointer + 24);
 
          x_resolve_signal(shared, handle, context, nlits, flags);
       }

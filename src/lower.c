@@ -7695,14 +7695,12 @@ static vcode_reg_t lower_resolution_func(lower_unit_t *lu, type_t type,
       ident_t var_name =
          ident_prefix(type_ident(rtype), well_known(W_RESOLUTION), '$');
       vcode_reg_t context_reg = lower_context_for_call(lu, var_name);
-      vcode_reg_t ptr_reg =
-         emit_link_var(context_reg, var_name, vtype_resolution(vtype));
-      return emit_load_indirect(ptr_reg);
+      return emit_link_var(context_reg, var_name, vtype_resolution(vtype));
    }
    else if (hops == 0)
-      return emit_load(var);
+      return emit_index(var, VCODE_INVALID_REG);
    else
-      return emit_load_indirect(emit_var_upref(hops, var));
+      return emit_var_upref(hops, var);
 }
 
 static void lower_sub_signals(lower_unit_t *lu, type_t type, type_t var_type,

@@ -4919,7 +4919,11 @@ void emit_resolve_signal(vcode_reg_t signal, vcode_reg_t resolution)
 
    VCODE_ASSERT(vcode_reg_kind(signal) == VCODE_TYPE_SIGNAL,
                 "signal argument has wrong type");
-   VCODE_ASSERT(vcode_reg_kind(resolution) == VCODE_TYPE_RESOLUTION,
+
+   vcode_type_t rtype = vcode_reg_type(resolution);
+   VCODE_ASSERT(vtype_kind(rtype) == VCODE_TYPE_POINTER,
+                "resolution wrapper argument must be pointer");
+   VCODE_ASSERT(vtype_kind(vtype_pointed(rtype)) == VCODE_TYPE_RESOLUTION,
                 "resolution wrapper argument has wrong type");
 }
 

@@ -7,6 +7,8 @@
   individually (#1201).
 - `generate` statements now create separate hierarchy in the code
   coverage report
+- Fixed "unit is too big to compile" error with very large number of
+  signals (#1200).
 - Several other minor bugs were resolved (#1202).
 
 ## Version 1.16.1 - 2025-05-12
