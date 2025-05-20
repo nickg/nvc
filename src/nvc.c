@@ -859,7 +859,7 @@ static int run_cmd(int argc, char **argv, cmd_state_t *state)
 
             // TODO: add an unconditional warning after 1.16
             if (state->jit != NULL && opt_get_int(OPT_IEEE_WARNINGS) != on)
-               warnf("the $bold$--ieee-warnings$$ option may have no affect "
+               warnf("the $bold$--ieee-warnings$$ option may have no effect "
                      "as the IEEE packages have already been initialised, pass "
                      "$bold$--ieee-warnings$$ as a global option instead");
 
