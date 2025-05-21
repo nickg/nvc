@@ -1116,3 +1116,4 @@ issue1185       normal,2008
 issue1186       normal,2008
 issue1177       normal
 issue1192       normal,vhpi
+issue1143       normal,2008
