@@ -11979,7 +11979,11 @@ static void lower_port_map(lower_unit_t *lu, tree_t block, tree_t map,
       value = value_conv;
    }
 
-   if (mode == PORT_ARRAY_VIEW || mode == PORT_RECORD_VIEW) {
+   if (tree_kind(value) == T_INERTIAL)
+      lower_inertial_actual(lu, name, port_reg, value);
+   else if (value_reg == VCODE_INVALID_REG)
+      return;
+   else if (mode == PORT_ARRAY_VIEW || mode == PORT_RECORD_VIEW) {
       assert(lower_is_signal_ref(value));
       vcode_reg_t locus = lower_debug_locus(view);
       lower_for_each_field_2(lu, tree_type(name), tree_type(value), port_reg,
@@ -12006,9 +12010,7 @@ static void lower_port_map(lower_unit_t *lu, tree_t block, tree_t map,
       else
          lower_map_signal(lu, src_reg, dst_reg, src_type, dst_type, map);
    }
-   else if (tree_kind(value) == T_INERTIAL)
-      lower_inertial_actual(lu, name, port_reg, value);
-   else if (value_reg != VCODE_INVALID_REG) {
+   else {
       type_t value_type = tree_type(value);
       type_t name_type = tree_type(name);
       lower_map_signal(lu, value_reg, port_reg, value_type, name_type, map);
@@ -12332,7 +12334,7 @@ static vcode_reg_t lower_open_port_map(lower_unit_t *lu, tree_t block, tree_t p)
    else
       port = tree_port(block, tree_pos(p));
 
-   if (tree_has_value(port)) {
+   if (tree_subkind(port) == PORT_IN && tree_has_value(port)) {
       tree_t def = tree_value(port);
       vcode_reg_t def_reg = lower_rvalue(lu, def);
 
