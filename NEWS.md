@@ -12,7 +12,7 @@
 - Just-in-time compilation is now the default and the `--jit`
   elaboration option has no effect.  Use `--precompile` to restore the
   previous behaviour.
-- Several other minor bugs were resolved (#1202).
+- Several other minor bugs were resolved (#1202, #1204).
 
 ## Version 1.16.1 - 2025-05-12
 - Fixed an elaboration failure where generic names differ in case

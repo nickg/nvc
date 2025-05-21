@@ -2138,7 +2138,7 @@ static tree_t elab_top_level_binding(tree_t arch, const elab_ctx_t *ctx)
       tree_set_subkind(m, P_POS);
       tree_set_pos(m, i);
 
-      if (tree_has_value(p))
+      if (tree_subkind(p) == PORT_IN && tree_has_value(p))
          tree_set_value(m, tree_value(p));
       else {
          type_t type = tree_type(p);
