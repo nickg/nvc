@@ -5552,10 +5552,6 @@ static bool sem_locally_static(tree_t t)
           || predef == ATTR_DRIVING_VALUE || predef == ATTR_PATH_NAME
           || predef == ATTR_INSTANCE_NAME || predef == ATTR_SIMPLE_NAME)
          return false;
-      else if (!tree_has_value(t)) {
-         type_t type = tree_type(tree_name(t));
-         return sem_static_subtype(type, sem_locally_static);
-      }
 
       // Whose actual parameter (if any) is a locally static expression
       const int nparams = tree_params(t);
@@ -5564,9 +5560,13 @@ static bool sem_locally_static(tree_t t)
             return false;
       }
 
-      // A user-defined attribute whose value is a locally static expression
-      assert(tree_has_value(t));
-      return sem_locally_static(tree_value(t));
+      if (tree_has_value(t)) {
+         // A user-defined attribute whose value is a locally static expression
+         return sem_locally_static(tree_value(t));
+      }
+
+      type_t type = tree_type(tree_name(t));
+      return sem_static_subtype(type, sem_locally_static);
    }
 
    // A qualified expression whose operand is locally static
@@ -5838,6 +5838,12 @@ static bool sem_globally_static(tree_t t)
          // A user-defined attribute whose value is a globally static
          // expression
          return sem_globally_static(tree_value(t));
+      }
+
+      const int nparams = tree_params(t);
+      for (int i = 0; i < nparams; i++) {
+         if (!sem_globally_static(tree_value(tree_param(t, i))))
+            return false;
       }
 
       tree_t name = tree_name(t);

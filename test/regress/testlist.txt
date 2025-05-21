@@ -1117,3 +1117,4 @@ issue1186       normal,2008
 issue1177       normal
 issue1192       normal,vhpi
 cover27         shell
+issue1143       normal,2008
