@@ -124,6 +124,14 @@ static const uint8_t or_table[16][16] = {
    {    _U, _X, _X, _1, _X, _X, _X, _1, _X   },  // | - |
 };
 
+#if defined HAVE_SSE41
+static const uint8_t not_table[1][16] = {
+   // ---------------------------------------------------
+   // |  U   X   0   1   Z   W   L   H   -          |   |
+   {    _U, _X, _1, _0, _X, _X, _1, _0, _X   },
+};
+#endif
+
 #if defined HAVE_SSE41 || defined HAVE_NEON
 
 // Compressed lookup tables for vectorised intrinsics.  Note the
@@ -1218,6 +1226,30 @@ static void std_xor_vector(jit_func_t *func, jit_anchor_t *anchor,
    }
 }
 
+#ifdef HAVE_SSE41
+__attribute__((target("sse4.1")))
+static void ieee_not_vector_sse41(jit_func_t *func, jit_anchor_t *anchor,
+                                  jit_scalar_t *args, tlab_t *tlab)
+{
+   const int lsize = ffi_array_length(args[3].integer);
+   uint8_t *left = args[1].pointer;
+
+   uint8_t *result = __tlab_alloc(tlab, ALIGN_UP(lsize, 16), 16);
+
+   __m128i not_tbl = _mm_load_si128((const __m128i *)not_table);
+
+   for (int pos = 0; pos < lsize; pos += 16) {
+      __m128i input  = _mm_loadu_si128((const __m128i *)(left + pos));
+      __m128i output = _mm_shuffle_epi8(not_tbl, input);
+      _mm_store_si128((__m128i *)(result + pos), output);
+   }
+
+   args[0].pointer = result;
+   args[1].integer = 1;
+   args[2].integer = lsize;
+}
+#endif
+
 static void ieee_to_unsigned(jit_func_t *func, jit_anchor_t *anchor,
                              jit_scalar_t *args, tlab_t *tlab)
 {
@@ -1873,11 +1905,15 @@ static jit_intrinsic_t intrinsic_list[] = {
    { SL "\"xor\"(YY)Y", ieee_xor_vector_sse41, CPU_SSE41 },
 #endif
 #ifdef HAVE_NEON
-   { SL "\"neon\"(VV)V", ieee_xor_vector_neon, CPU_NEON },
-   { SL "\"neon\"(YY)Y", ieee_xor_vector_neon, CPU_NEON },
+   { SL "\"xor\"(VV)V", ieee_xor_vector_neon, CPU_NEON },
+   { SL "\"xor\"(YY)Y", ieee_xor_vector_neon, CPU_NEON },
 #endif
    { SL "\"xor\"(VV)V", std_xor_vector },
    { SL "\"xor\"(YY)Y", std_xor_vector },
+#ifdef HAVE_SSE41
+   { SL "\"not\"(V)V", ieee_not_vector_sse41, CPU_SSE41 },
+   { SL "\"not\"(Y)Y", ieee_not_vector_sse41, CPU_SSE41 },
+#endif
    { NS "TO_UNSIGNED(NN)" U, ieee_to_unsigned },
    { NS "TO_UNSIGNED(NN)" UU, ieee_to_unsigned },
    { NS "TO_SIGNED(IN)" S, ieee_to_signed },
