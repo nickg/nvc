@@ -980,4 +980,35 @@ package body reflection is
         end function;
     end protected body;
 
+    ---------------------------------------------------------------------------
+
+    impure function init return boolean is
+        -- Create dummy instances of each protected type to ensure that the
+        -- code is loaded in the correct order
+        variable vm  : value_mirror_pt;
+        variable ivm : integer_value_mirror_pt;
+        variable avm : array_value_mirror_pt;
+        variable fvm : floating_value_mirror_pt;
+        variable evm : enumeration_value_mirror_pt;
+        variable rvm : record_value_mirror_pt;
+        variable lvm : file_value_mirror_pt;
+        variable cvm : access_value_mirror_pt;
+        variable pvm : physical_value_mirror_pt;
+        variable tvm : protected_value_mirror_pt;
+        variable sm  : subtype_mirror_pt;
+        variable ism : integer_subtype_mirror_pt;
+        variable asm : array_subtype_mirror_pt;
+        variable fsm : floating_subtype_mirror_pt;
+        variable esm : enumeration_subtype_mirror_pt;
+        variable rsm : record_subtype_mirror_pt;
+        variable lsm : file_subtype_mirror_pt;
+        variable csm : access_subtype_mirror_pt;
+        variable psm : physical_subtype_mirror_pt;
+        variable tsm : protected_subtype_mirror_pt;
+    begin
+        return true;
+    end function;
+
+    constant init_done : boolean := init;
+
 end package body;
