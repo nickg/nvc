@@ -3908,7 +3908,8 @@ void x_sched_waveform(sig_shared_t *ss, uint32_t offset, void *values,
    RT_LOCK(s->lock);
 
    TRACE("_sched_waveform %s+%d value=%s count=%d after=%s reject=%s",
-         istr(tree_ident(s->where)), offset, fmt_values(values, count),
+         istr(tree_ident(s->where)), offset,
+         fmt_values(values, count * s->nexus.size),
          count, trace_time(after), trace_time(reject));
 
    rt_proc_t *proc = get_active_proc();

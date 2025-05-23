@@ -92,7 +92,7 @@ entity issue831 is
 end entity;
 
 architecture test of issue831 is
-    signal x, w, y : fft_data_vector(0 to DIM-1);
+    signal x, w, y : fft_data_vector(0 to DIM-1) := (others => (others => 0.0));
 begin
 
     u: entity work.fft

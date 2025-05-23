@@ -1686,6 +1686,10 @@ START_TEST(test_memset)
          { VCODE_OP_WRAP },
          { VCODE_OP_STORE, .name = "V" },
          { VCODE_OP_CONST, .value = 2880154539 },
+         { VCODE_OP_CONST, .value = INT32_MIN },
+         { VCODE_OP_CONST, .value = INT32_MAX },
+         { VCODE_OP_DEBUG_LOCUS },
+         { VCODE_OP_RANGE_CHECK },
          { VCODE_OP_MEMSET },
          { VCODE_OP_RETURN }
       };

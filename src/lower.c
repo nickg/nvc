@@ -3951,6 +3951,7 @@ static vcode_reg_t lower_array_aggregate(lower_unit_t *lu, tree_t expr,
       // Initialise the array with the default value
       if (type_is_scalar(elem_type) && !multidim) {
          vcode_reg_t def_reg = lower_rvalue(lu, def_value);
+         lower_check_scalar_bounds(lu, def_reg, elem_type, def_value, NULL);
          emit_memset(mem_reg, def_reg, len_reg);
       }
       else {
@@ -4213,6 +4214,10 @@ static vcode_reg_t lower_array_aggregate(lower_unit_t *lu, tree_t expr,
       }
       else if (type_is_record(elem_type))
          emit_copy(ptr_reg, value_regs[i], VCODE_INVALID_REG);
+      else if (type_is_scalar(elem_type)) {
+         lower_check_scalar_bounds(lu, value_regs[i], elem_type, value, NULL);
+         emit_store_indirect(value_regs[i], ptr_reg);
+      }
       else
          emit_store_indirect(value_regs[i], ptr_reg);
 

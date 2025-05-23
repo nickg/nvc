@@ -1066,12 +1066,12 @@ static void cgen_abort(cgen_block_t *cgb, jit_ir_t *ir, const char *fmt, ...)
 static LLVMRealPredicate cgen_real_pred(cgen_block_t *cgb, jit_ir_t *ir)
 {
    switch (ir->cc) {
-   case JIT_CC_EQ: return LLVMRealUEQ;
-   case JIT_CC_NE: return LLVMRealUNE;
-   case JIT_CC_GT: return LLVMRealUGT;
-   case JIT_CC_LT: return LLVMRealULT;
-   case JIT_CC_LE: return LLVMRealULE;
-   case JIT_CC_GE: return LLVMRealUGE;
+   case JIT_CC_EQ: return LLVMRealOEQ;
+   case JIT_CC_NE: return LLVMRealONE;
+   case JIT_CC_GT: return LLVMRealOGT;
+   case JIT_CC_LT: return LLVMRealOLT;
+   case JIT_CC_LE: return LLVMRealOLE;
+   case JIT_CC_GE: return LLVMRealOGE;
    default:
       cgen_abort(cgb, ir, "unhandled fcmp condition code");
    }
