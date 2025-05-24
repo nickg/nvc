@@ -864,6 +864,7 @@ static void *code_emit_trampoline(code_blob_t *blob, void *dest)
    }
 }
 
+#if defined ARCH_X86_64
 static void *code_emit_got(code_blob_t *blob, void *dest)
 {
    const uint8_t data[] = { __IMM64((uintptr_t)dest) };
@@ -880,6 +881,7 @@ static void *code_emit_got(code_blob_t *blob, void *dest)
       return addr;
    }
 }
+#endif
 
 #if defined __MINGW32__
 static void code_load_pe(code_blob_t *blob, const void *data, size_t size)
@@ -1304,22 +1306,6 @@ static void code_load_elf(code_blob_t *blob, const void *data, size_t size)
          case R_X86_64_64:
             debug_reloc(blob, patch, "R_X86_64_64 %s", strtab + sym->st_name);
             *(uint64_t *)patch = (uint64_t)ptr + r->r_addend;
-            break;
-         case R_X86_64_32:
-            {
-               uint32_t trunc = (uintptr_t)(ptr + r->r_addend);
-               debug_reloc(blob, patch, "R_X86_64_32 %p", ptr + r->r_addend);
-               assert((void *)(uintptr_t)trunc == ptr + r->r_addend);
-               *(uint32_t *)patch = trunc;
-            }
-            break;
-         case R_X86_64_32S:
-            {
-               int32_t trunc = (intptr_t)(ptr + r->r_addend);
-               debug_reloc(blob, patch, "R_X86_64_32S %p", ptr + r->r_addend);
-               assert((void *)(intptr_t)trunc == ptr + r->r_addend);
-               *(int32_t *)patch = trunc;
-            }
             break;
          case R_X86_64_PC32:
             {

@@ -152,7 +152,7 @@ typedef struct _cgen_block cgen_block_t;
 #if defined __APPLE__ && defined ARCH_ARM64
 #define JIT_CODE_MODEL LLVMCodeModelSmall
 #elif defined __linux__ && defined ARCH_X86_64
-#define JIT_CODE_MODEL LLVMCodeModelMedium
+#define JIT_CODE_MODEL LLVMCodeModelLarge
 #else
 #define JIT_CODE_MODEL LLVMCodeModelJITDefault
 #endif
@@ -3383,7 +3383,7 @@ static void jit_llvm_cgen(jit_t *j, jit_handle_t handle, void *context)
 
    const uint64_t start_us = get_timestamp_us();
 
-   LLVMTargetMachineRef tm = llvm_target_machine(LLVMRelocDefault,
+   LLVMTargetMachineRef tm = llvm_target_machine(LLVMRelocStatic,
                                                  JIT_CODE_MODEL);
 
    llvm_obj_t obj = {
