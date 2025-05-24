@@ -11,6 +11,8 @@
   previous behaviour.
 - Fixed a crash when `set_cover_scope_name` from `nvc.cover_pkg` was
   called with coverage disabled (#1218).
+- Code coverage reports now contain the source files instead of
+  referencing them.
 
 ## Version 1.16.2 - 2025-06-11
 - Fixed a crash when an entity uses VHDL-2019 enhanced type generics and
