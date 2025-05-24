@@ -999,7 +999,7 @@ cover_scope_t *cover_create_instance(cover_data_t *data, cover_scope_t *parent,
    cover_scope_t *s = xcalloc(sizeof(cover_scope_t));
    s->name       = tree_ident(block);
    s->parent     = parent;
-   s->loc        = *tree_loc(block);
+   s->loc        = *tree_loc(unit);
    s->hier       = ident_prefix(s->parent->hier, s->name, '.');
    s->emit       = cover_should_emit_scope(data, s, block);
    s->block_name = ident_rfrom(tree_ident(unit), '.');
