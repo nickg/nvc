@@ -1,0 +1,44 @@
+name: Test LLVM releases
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '30 21 * * 1'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-ubuntu:
+    strategy:
+      matrix:
+        include:
+          - { llvm: 9 }
+    name: LLVM ${{ matrix.llvm }}
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Install LLVM
+        run: |
+          wget https://apt.llvm.org/llvm.sh
+          chmod +x llvm.sh
+          sudo ./llvm.sh ${{ matrix.llvm }}
+      - name: Install other dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install automake flex check \
+             libdw-dev libffi-dev libreadline-dev tcl8.6-dev \
+             libzstd-dev libxml2-utils libjansson-dev
+      - name: Generate configure script
+        run: ./autogen.sh
+      - name: Configure
+        run: |
+          mkdir build && cd build
+          ../configure --with-llvm=/usr/bin/llvm-config --enable-debug
+      - name: Build
+        run: make -C build -j $(nproc)
+      - name: Test
+        run: make -C build check
