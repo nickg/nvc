@@ -1,0 +1,55 @@
+name: Test LLVM releases
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '30 21 * * 1'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-ubuntu:
+    strategy:
+      matrix:
+        include:
+          - { llvm: 13 }
+          - { llvm: 15 }
+          - { llvm: 17 }
+          - { llvm: 18 }
+          - { llvm: 19 }
+          - { llvm: 20 }
+    name: LLVM ${{ matrix.llvm }}
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Install LLVM
+        run: |
+          wget https://apt.llvm.org/llvm.sh
+          chmod +x llvm.sh
+          sudo ./llvm.sh ${{ matrix.llvm }}
+      - name: Install other dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install automake flex check \
+             libdw-dev libffi-dev libreadline-dev tcl8.6-dev \
+             libzstd-dev libxml2-utils libjansson-dev
+      - name: Generate configure script
+        run: ./autogen.sh
+      - name: Configure
+        run: |
+          mkdir build && cd build
+          ../configure --with-llvm=/usr/bin/llvm-config --enable-debug \
+             --with-llvm=/usr/bin/llvm-config-${{ matrix.llvm }}
+      - name: Build
+        run: make -C build -j $(nproc)
+      - name: Check version
+        run: ./build/bin/nvc --version
+      - name: Test
+        run: |
+          export NVC_JIT_ASYNC=0
+          export NVC_JIT_THRESHOLD=1
+          make -C build check
