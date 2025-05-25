@@ -289,26 +289,26 @@ static cover_file_t *cover_file_for_scope(cover_scope_t *s)
    if (cover_files == NULL)
       cover_files = shash_new(64);
 
-   const char *path = loc_file_str(&(s->loc));
-   cover_file_t *f = shash_get(cover_files, path);
+   const char *src_path = loc_file_str(&(s->loc));
+   cover_file_t *f = shash_get(cover_files, src_path);
 
    if (f != NULL)
       return f->valid ? f : NULL;
 
    f = xmalloc(sizeof(cover_file_t));
-   f->src_path    = path;
+   f->src_path    = src_path;
    f->n_lines     = 0;
    f->alloc_lines = 1024;
    f->lines       = xmalloc_array(f->alloc_lines, sizeof(cover_line_t));
    f->valid       = false;
 
-   shash_put(cover_files, path, f);
+   shash_put(cover_files, src_path, f);
 
-   FILE *fp = fopen(path, "r");
+   FILE *fp = fopen(src_path, "r");
 
    if (fp == NULL) {
       // Guess the path is relative to the work library
-      char *path LOCAL = xasprintf("%s/../%s", lib_path(lib_work()), path);
+      char *path LOCAL = xasprintf("%s/../%s", lib_path(lib_work()), src_path);
       fp = fopen(path, "r");
    }
 
@@ -325,7 +325,7 @@ static cover_file_t *cover_file_for_scope(cover_scope_t *s)
       if (fgets(buf, sizeof(buf), fp) != NULL)
          cover_append_line(f, buf);
       else if (ferror(fp))
-         fatal("error reading %s", path);
+         fatal("error reading %s", src_path);
    }
 
    fclose(fp);
