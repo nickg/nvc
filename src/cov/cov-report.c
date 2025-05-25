@@ -132,6 +132,8 @@ typedef enum {
 static void cover_report_hier_children(cover_rpt_hier_ctx_t *ctx,
                                   cover_scope_t *s, const char *dir,
                                   FILE *summf, int *skipped);
+static char *cover_get_report_name(const char *in);
+static void cover_print_html_header(FILE *f);
 
 static shash_t *cover_files = NULL;
 
@@ -150,6 +152,84 @@ static void cover_append_line(cover_file_t *f, const char *buf)
    cover_line_t *l = &(f->lines[(f->n_lines)++]);
    l->text = xstrdup(buf);
    l->len  = strlen(buf);
+}
+
+static cover_file_t *cover_file_for_scope(cover_scope_t *s)
+{
+   if (loc_invalid_p(&(s->loc)))
+      return NULL;
+
+   if (cover_files == NULL)
+      cover_files = shash_new(64);
+
+   const char *src_path = loc_file_str(&(s->loc));
+   cover_file_t *f = shash_get(cover_files, src_path);
+
+   if (f != NULL)
+      return f->valid ? f : NULL;
+
+   f = xmalloc(sizeof(cover_file_t));
+   f->src_path    = src_path;
+   f->n_lines     = 0;
+   f->alloc_lines = 1024;
+   f->lines       = xmalloc_array(f->alloc_lines, sizeof(cover_line_t));
+   f->valid       = false;
+
+   shash_put(cover_files, src_path, f);
+
+   FILE *fp = fopen(src_path, "r");
+
+   if (fp == NULL) {
+      // Guess the path is relative to the work library
+      char *path LOCAL = xasprintf("%s/../%s", lib_path(lib_work()), src_path);
+      fp = fopen(path, "r");
+   }
+
+   if (fp == NULL) {
+      warn_at(&(s->loc), "omitting hierarchy %s from the coverage report as "
+              "the correpsonding source file could not be found",
+              istr(s->hier));
+      return NULL;
+   }
+
+   // Load the source file to buffer for follow-up processing
+   while (!feof(fp)) {
+      char buf[1024];
+      if (fgets(buf, sizeof(buf), fp) != NULL)
+         cover_append_line(f, buf);
+      else if (ferror(fp))
+         fatal("error reading %s", src_path);
+   }
+
+   fclose(fp);
+
+   // Generate report file with source file contents
+   char *hash = cover_get_report_name(f->src_path);
+   f->rpt_path = xasprintf("%s.html", hash);
+   free(hash);
+   fp = fopen(f->rpt_path, "w");
+
+   if (fp == NULL) {
+      fatal("failed to open report file with source code of: %s\n",
+            f->src_path);
+      return NULL;
+   }
+
+   cover_print_html_header(fp);
+
+   fprintf(fp, "<h2 style=\"text-align: left;\">\n");
+   fprintf(fp, "   File:&nbsp; %s\n", f->src_path);
+   fprintf(fp, "</h2>");
+
+   fprintf(fp, "<pre><code>");
+   for (int i = 0; i < f->n_lines; i++) {
+      fprintf(fp, "%6d: &nbsp; %s", i, f->lines[i].text);
+   }
+   fprintf(fp, "</code></pre>");
+
+   f->valid = true;
+
+   return f;
 }
 
 static void cover_print_html_header(FILE *f)
@@ -263,100 +343,6 @@ static void cover_print_html_header(FILE *f)
    fprintf(f, "<header>");
    fprintf(f, COV_RPT_TITLE "\n");
    fprintf(f, "</header>\n\n");
-}
-
-static char *cover_get_report_name(const char *in)
-{
-   SHA1_CTX ctx;
-   unsigned char buf[SHA1_LEN];
-   char *rv = xcalloc(2 * SHA1_LEN + 1);
-
-   SHA1Init(&ctx);
-   SHA1Update(&ctx, (const char unsigned*)in, strlen(in));
-   SHA1Final(buf, &ctx);
-
-   for (int i = 0; i < SHA1_LEN; i++)
-      snprintf(rv + i * 2, 3, "%02x", buf[i]);
-
-   return rv;
-}
-
-static cover_file_t *cover_file_for_scope(cover_scope_t *s)
-{
-   if (loc_invalid_p(&(s->loc)))
-      return NULL;
-
-   if (cover_files == NULL)
-      cover_files = shash_new(64);
-
-   const char *src_path = loc_file_str(&(s->loc));
-   cover_file_t *f = shash_get(cover_files, src_path);
-
-   if (f != NULL)
-      return f->valid ? f : NULL;
-
-   f = xmalloc(sizeof(cover_file_t));
-   f->src_path    = src_path;
-   f->n_lines     = 0;
-   f->alloc_lines = 1024;
-   f->lines       = xmalloc_array(f->alloc_lines, sizeof(cover_line_t));
-   f->valid       = false;
-
-   shash_put(cover_files, src_path, f);
-
-   FILE *fp = fopen(src_path, "r");
-
-   if (fp == NULL) {
-      // Guess the path is relative to the work library
-      char *path LOCAL = xasprintf("%s/../%s", lib_path(lib_work()), src_path);
-      fp = fopen(path, "r");
-   }
-
-   if (fp == NULL) {
-      warn_at(&(s->loc), "omitting hierarchy %s from the coverage report as "
-              "the correpsonding source file could not be found",
-              istr(s->hier));
-      return NULL;
-   }
-
-   // Load the source file to buffer for follow-up processing
-   while (!feof(fp)) {
-      char buf[1024];
-      if (fgets(buf, sizeof(buf), fp) != NULL)
-         cover_append_line(f, buf);
-      else if (ferror(fp))
-         fatal("error reading %s", src_path);
-   }
-
-   fclose(fp);
-
-   // Generate report file with source file contents
-   char *hash = cover_get_report_name(f->src_path);
-   f->rpt_path = xasprintf("%s.html", hash);
-   free(hash);
-   fp = fopen(f->rpt_path, "w");
-
-   if (fp == NULL) {
-      fatal("failed to open report file with source code of: %s\n",
-            f->src_path);
-      return NULL;
-   }
-
-   cover_print_html_header(fp);
-
-   fprintf(fp, "<h2 style=\"text-align: left;\">\n");
-   fprintf(fp, "   File:&nbsp; %s\n", f->src_path);
-   fprintf(fp, "</h2>");
-
-   fprintf(fp, "<pre><code>");
-   for (int i = 0; i < f->n_lines; i++) {
-      fprintf(fp, "%6d: &nbsp; %s", i, f->lines[i].text);
-   }
-   fprintf(fp, "</code></pre>");
-
-   f->valid = true;
-
-   return f;
 }
 
 static void cover_print_file_name(FILE *f, const char *src_name,
@@ -1368,6 +1354,22 @@ static void cover_print_summary_table_row(FILE *f, cover_data_t *data, cover_sta
          perc_expr, stats->hit_expressions, stats->total_expressions,
          perc_state, stats->hit_states, stats->total_states);
    }
+}
+
+static char *cover_get_report_name(const char *in)
+{
+   SHA1_CTX ctx;
+   unsigned char buf[SHA1_LEN];
+   char *rv = xcalloc(2 * SHA1_LEN + 1);
+
+   SHA1Init(&ctx);
+   SHA1Update(&ctx, (const char unsigned*)in, strlen(in));
+   SHA1Final(buf, &ctx);
+
+   for (int i = 0; i < SHA1_LEN; i++)
+      snprintf(rv + i * 2, 3, "%02x", buf[i]);
+
+   return rv;
 }
 
 static void cover_print_hier_nav_tree(FILE *f, cover_scope_t *s)
