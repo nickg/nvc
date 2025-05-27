@@ -1493,13 +1493,18 @@ static vlog_node_t p_event_control(void)
    BEGIN("event control");
 
    consume(tAT);
-   consume(tLPAREN);
 
    vlog_node_t v = vlog_new(V_EVENT_CONTROL);
 
-   p_event_expression(v);
-
-   consume(tRPAREN);
+   switch (one_of(tLPAREN, tTIMES, tPARENSTAR)) {
+   case tLPAREN:
+      p_event_expression(v);
+      consume(tRPAREN);
+      break;
+   case tTIMES:
+   case tPARENSTAR:
+      break;
+   }
 
    vlog_set_loc(v, CURRENT_LOC);
    return v;

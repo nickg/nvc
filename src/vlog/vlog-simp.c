@@ -99,6 +99,53 @@ static vlog_node_t simp_port_decl(vlog_node_t decl, vlog_node_t mod)
    return decl;
 }
 
+static void build_sensitivity(vlog_node_t ctrl, vlog_node_t v)
+{
+   switch (vlog_kind(v)) {
+   case V_NBASSIGN:
+   case V_BASSIGN:
+   case V_UNARY:
+      build_sensitivity(ctrl, vlog_value(v));
+      break;
+   case V_BINARY:
+      build_sensitivity(ctrl, vlog_left(v));
+      build_sensitivity(ctrl, vlog_right(v));
+      break;
+   case V_REF:
+      {
+         vlog_node_t e = vlog_new(V_EVENT);
+         vlog_set_subkind(e, V_EVENT_LEVEL);
+         vlog_set_value(e, v);
+         vlog_set_loc(e, vlog_loc(ctrl));
+
+         vlog_add_param(ctrl, e);
+      }
+      break;
+   case V_NUMBER:
+      break;
+   default:
+      fatal_at(vlog_loc(v), "cannot handle %s in build_sensitivity",
+               vlog_kind_str(vlog_kind(v)));
+   }
+}
+
+static vlog_node_t simp_timing(vlog_node_t v)
+{
+   vlog_node_t ctrl = vlog_value(v);
+
+   if (vlog_kind(ctrl) == V_EVENT_CONTROL && vlog_params(ctrl) == 0) {
+      const int nstmts = vlog_stmts(v);
+      for (int i = 0; i < nstmts; i++)
+         build_sensitivity(ctrl, vlog_stmt(v, i));
+
+      if (vlog_params(ctrl) == 0)
+         warn_at(vlog_loc(v), "timing statement has no sensitivities and "
+                 "so will never trigger");
+   }
+
+   return v;
+}
+
 static vlog_node_t vlog_simp_cb(vlog_node_t v, void *context)
 {
    switch (vlog_kind(v)) {
@@ -106,6 +153,8 @@ static vlog_node_t vlog_simp_cb(vlog_node_t v, void *context)
       return simp_net_decl(v, context);
    case V_PORT_DECL:
       return simp_port_decl(v, context);
+   case V_TIMING:
+      return simp_timing(v);
    default:
       return v;
    }

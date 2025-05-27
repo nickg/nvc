@@ -551,9 +551,18 @@ static vcode_reg_t vlog_lower_rvalue(lower_unit_t *lu, vlog_node_t v)
    case V_EVENT:
       {
          vlog_node_t value = vlog_value(v);
-         vcode_reg_t nets_reg = vlog_lower_lvalue(lu, value);
+         vcode_reg_t lvalue_reg = vlog_lower_lvalue(lu, value);
 
-         vcode_reg_t count_reg = emit_const(vtype_offset(), 1);
+         vcode_reg_t nets_reg, count_reg;
+         if (vcode_reg_kind(lvalue_reg) == VCODE_TYPE_UARRAY) {
+            nets_reg = emit_unwrap(lvalue_reg);
+            count_reg = emit_uarray_len(lvalue_reg, 0);
+         }
+         else {
+            nets_reg = lvalue_reg;
+            count_reg = emit_const(vtype_offset(), 1);
+         }
+
          vcode_reg_t event_reg = emit_event_flag(nets_reg, count_reg);
 
          const v_event_kind_t ekind = vlog_subkind(v);
@@ -676,17 +685,22 @@ static void vlog_lower_timing(lower_unit_t *lu, vlog_node_t v, bool is_static)
       break;
    case V_EVENT_CONTROL:
       {
+         vcode_reg_t test_reg = VCODE_INVALID_REG;
          const int nparams = vlog_params(ctrl);
-         assert(nparams > 0);
-
-         vcode_reg_t test_reg = vlog_lower_rvalue(lu, vlog_param(ctrl, 0));
-         for (int i = 1; i < nparams; i++) {
-            vcode_reg_t sub_reg = vlog_lower_rvalue(lu, vlog_param(ctrl, i));
-            test_reg = emit_or(test_reg, sub_reg);
+         if (nparams > 0) {
+            test_reg = vlog_lower_rvalue(lu, vlog_param(ctrl, 0));
+            for (int i = 1; i < nparams; i++) {
+               vcode_reg_t sub_reg = vlog_lower_rvalue(lu, vlog_param(ctrl, i));
+               test_reg = emit_or(test_reg, sub_reg);
+            }
          }
 
          false_bb = emit_block();
-         emit_cond(test_reg, true_bb, false_bb);
+
+         if (test_reg == VCODE_INVALID_REG)
+            emit_jump(false_bb);
+         else
+            emit_cond(test_reg, true_bb, false_bb);
 
          vcode_select_block(true_bb);
       }

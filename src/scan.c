@@ -265,7 +265,7 @@ const char *token_str(token_t tok)
          "shortreal", "realtime", "`__nvc_push", "`__nvc_pop", "++", "--",
          "var", "`default_nettype", "tri", "tri0", "tri1", "wand", "triand",
          "wor", "trior", "trireg", "uwire", "none", "localparam", "always_comb",
-         "always_ff", "always_latch"
+         "always_ff", "always_latch", "(*)",
       };
 
       if (tok >= 200 && tok - 200 < ARRAY_LEN(token_strs))
