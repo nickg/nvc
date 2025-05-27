@@ -138,6 +138,7 @@ UDP_EDGE        [rRfFpPnN*]
 UDP_INDICATOR   "("{UDP_LEVEL}{UDP_LEVEL}")"
 SCALAR_ZERO     ('b0|'B0|1'b0|1'B0)
 SCALAR_ONE      ('b1|'B1|1'b1|1'B1)
+PAREN_STAR      "("{SPACE}*"*"{SPACE}*")"
 
 %x COMMENT C_COMMENT PSL VLOG UDP SDF SDF_EXPR
 
@@ -731,6 +732,7 @@ BEFORE            ?i:before
 <VLOG>{VLOG_STRING}      { return escape_verilog_string(yytext); }
 <VLOG>{VLOG_NUMBER}      { yylval.str = xstrdup(yytext); return tNUMBER; }
 <VLOG>{VLOG_REAL}        { return parse_verilog_real(yytext); };
+<VLOG>{PAREN_STAR}       { return tPARENSTAR; }
 
 <INITIAL,PSL>{DECIMAL}   { return parse_decimal_literal(yytext); }
 <INITIAL,PSL>{BASED}     { return parse_based_literal(yytext); }

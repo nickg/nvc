@@ -74,4 +74,5 @@ module parse1;
   always_latch begin
     x = 3;
   end
+  always @(  *) x <= y;
 endmodule // parse1
