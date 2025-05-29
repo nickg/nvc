@@ -45,7 +45,7 @@ mir_block_t mir_add_block(mir_unit_t *mu)
 
    block_data_t bd = {
       .gap_pos = -1,
-      .last_loc = LOC_INVALID,
+      .last_loc = mu->cursor.loc,
    };
    APUSH(mu->blocks, bd);
 

@@ -469,6 +469,114 @@ static void predef_match_op(mir_unit_t *mu, tree_t decl, subprogram_kind_t kind)
       mir_build_return(mu, result);
 }
 
+static void predef_bit_vec_op(mir_unit_t *mu, tree_t decl,
+                              subprogram_kind_t kind)
+{
+   type_t type = tree_type(tree_port(decl, 0));
+   type_t elem = type_elem(type);
+
+   const type_info_t *ti = type_info(mu, elem);
+
+   mir_type_t t_offset = mir_offset_type(mu);
+
+   mir_value_t left = mir_get_param(mu, 1), right = MIR_NULL_VALUE;
+   if (kind != S_ARRAY_NOT)
+      right = mir_get_param(mu, 2);
+
+   mir_value_t left_len = mir_build_uarray_len(mu, left, 0);
+   mir_value_t right_len = MIR_NULL_VALUE;
+
+   mir_value_t left_data = mir_build_unwrap(mu, left);
+   mir_value_t right_data = MIR_NULL_VALUE;
+
+   if (kind != S_ARRAY_NOT) {
+      right_len = mir_build_uarray_len(mu, right, 0);
+      right_data = mir_build_unwrap(mu, right);
+
+      mir_block_t fail_bb = mir_add_block(mu);
+      mir_block_t cont_bb = mir_add_block(mu);
+
+      mir_value_t len_eq = mir_build_cmp(mu, MIR_CMP_EQ, left_len, right_len);
+      mir_build_cond(mu, len_eq, cont_bb, fail_bb);
+
+      mir_set_cursor(mu, fail_bb, MIR_APPEND);
+
+      mir_type_t t_severity = mir_int_type(mu, 0, SEVERITY_FAILURE - 1);
+      mir_value_t failure = mir_const(mu, t_severity, SEVERITY_FAILURE);
+
+      static const char msg_str[] = "arguments have different lengths";
+      mir_value_t msg_array = mir_const_string(mu, msg_str);
+      mir_value_t msg_ptr = mir_build_address_of(mu, msg_array);
+      mir_value_t msg_len = mir_const(mu, t_offset, sizeof(msg_str) - 1);
+
+      mir_value_t locus = mir_build_locus(mu, tree_to_object(decl));
+      mir_build_report(mu, msg_ptr, msg_len, failure, locus);
+
+      mir_build_return(mu, left);
+
+      mir_set_cursor(mu, cont_bb, MIR_APPEND);
+   }
+
+   mir_value_t mem = mir_build_alloc(mu, ti->type, ti->stamp, left_len);
+
+   mir_value_t i_var = mir_add_var(mu, t_offset, MIR_NULL_STAMP,
+                                   ident_new("i"), MIR_VAR_TEMP);
+   mir_build_store(mu, i_var, mir_const(mu, t_offset, 0));
+
+   mir_block_t cmp_bb  = mir_add_block(mu);
+   mir_block_t body_bb = mir_add_block(mu);
+   mir_block_t exit_bb = mir_add_block(mu);
+
+   mir_build_jump(mu, cmp_bb);
+
+   mir_set_cursor(mu, cmp_bb, MIR_APPEND);
+
+   mir_value_t i_val = mir_build_load(mu, i_var);
+   mir_value_t eq = mir_build_cmp(mu, MIR_CMP_EQ, i_val, left_len);
+   mir_build_cond(mu, eq, exit_bb, body_bb);
+
+   mir_set_cursor(mu, body_bb, MIR_APPEND);
+
+   mir_value_t dst_ptr = mir_build_array_ref(mu, mem, i_val);
+
+   mir_value_t src0_ptr = mir_build_array_ref(mu, left_data, i_val);
+   mir_value_t src0 = mir_build_load(mu, src0_ptr);
+
+   mir_value_t src1 = MIR_NULL_VALUE;
+   if (kind != S_ARRAY_NOT) {
+      mir_value_t src1_ptr = mir_build_array_ref(mu, right_data, i_val);
+      src1 = mir_build_load(mu, src1_ptr);
+   }
+
+   mir_value_t op;
+   switch (kind) {
+   case S_ARRAY_NOT:  op = mir_build_not(mu, src0); break;
+   case S_ARRAY_AND:  op = mir_build_and(mu, src0, src1); break;
+   case S_ARRAY_OR:   op = mir_build_or(mu, src0, src1); break;
+   case S_ARRAY_XOR:  op = mir_build_xor(mu, src0, src1); break;
+   case S_ARRAY_XNOR: op = mir_build_xnor(mu, src0, src1); break;
+   case S_ARRAY_NAND: op = mir_build_nand(mu, src0, src1); break;
+   case S_ARRAY_NOR:  op = mir_build_nor(mu, src0, src1); break;
+   default:           should_not_reach_here();
+   }
+
+   mir_build_store(mu, dst_ptr, op);
+
+   mir_value_t one = mir_const(mu, t_offset, 1);
+   mir_value_t next = mir_build_add(mu, t_offset, i_val, one);
+   mir_build_store(mu, i_var, next);
+   mir_build_jump(mu, cmp_bb);
+
+   mir_set_cursor(mu, exit_bb, MIR_APPEND);
+
+   mir_value_t b_left  = mir_build_uarray_left(mu, left, 0);
+   mir_value_t b_right = mir_build_uarray_right(mu, left, 0);
+   mir_value_t b_dir   = mir_build_uarray_dir(mu, left, 0);
+
+   mir_dim_t dims[] = { { b_left, b_right, b_dir } };
+   mir_build_return(mu, mir_build_wrap(mu, mem, dims, 1));
+}
+
 void vhdl_lower_predef(mir_unit_t *mu, object_t *obj)
 {
    tree_t decl = tree_from_object(obj);
@@ -509,6 +617,15 @@ void vhdl_lower_predef(mir_unit_t *mu, object_t *obj)
    case S_MATCH_GT:
    case S_MATCH_GE:
       predef_match_op(mu, decl, kind);
+      break;
+   case S_ARRAY_NOT:
+   case S_ARRAY_AND:
+   case S_ARRAY_OR:
+   case S_ARRAY_XOR:
+   case S_ARRAY_XNOR:
+   case S_ARRAY_NAND:
+   case S_ARRAY_NOR:
+      predef_bit_vec_op(mu, decl, kind);
       break;
    default:
       should_not_reach_here();

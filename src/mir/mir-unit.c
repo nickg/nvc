@@ -115,6 +115,9 @@ mir_unit_t *mir_unit_new(mir_context_t *mc, ident_t name, object_t *object,
       mir_set_cursor(mu, entry, MIR_APPEND);
    }
 
+   if (object != NULL)
+      mir_set_loc(mu, &(object->loc));
+
    return mu;
 }
 
