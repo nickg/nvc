@@ -441,5 +441,6 @@ void reset_sdf_parser(void);
 #define tALWAYSFF      540
 #define tALWAYSLATCH   541
 #define tPARENSTAR     542
+#define tHASHLPAREN    543
 
 #endif  // _SCAN_H

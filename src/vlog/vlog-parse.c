@@ -3325,6 +3325,57 @@ static void p_list_of_port_declarations(vlog_node_t mod)
    consume(tRPAREN);
 }
 
+static void p_parameter_port_declaration(vlog_node_t mod, vlog_kind_t kind)
+{
+   // parameter_port_declaration ::= parameter_declaration
+   //    | local_parameter_declaration
+   //    | data_type list_of_param_assignments
+   //    | type list_of_type_assignments
+
+   BEGIN("parameter port declaration");
+
+   // TODO: Add parsing of "type" declarations example #(type T = bit)
+   vlog_node_t datatype = p_data_type_or_implicit();
+   vlog_add_decl(mod, p_param_assignment(datatype, kind));
+}
+
+static void p_parameter_port_list(vlog_node_t mod)
+{
+   // parameter_port_list ::=
+   //   | # ( parameter_port_declaration { , parameter_port_declaration } )
+   //   | #( )
+
+   BEGIN("parameter port list");
+
+   consume(tHASHLPAREN);
+
+   if (peek() != tRPAREN) {
+      vlog_kind_t kind = V_PARAM_DECL;
+
+      do {
+         switch(peek()) {
+         case tLOCALPARAM:
+            kind = V_LOCALPARAM;
+            consume(tLOCALPARAM);
+            break;
+         case tPARAMETER:
+            kind = V_PARAM_DECL;
+            consume(tPARAMETER);
+            break;
+         case tTYPE:
+            // TODO: Add parsing of "type" declarations example #(type T = bit)
+            kind = V_LAST_NODE_KIND;
+            break;
+         default:
+            break;
+         }
+         p_parameter_port_declaration(mod, kind);
+      } while(optional(tCOMMA));
+   }
+
+   consume(tRPAREN);
+}
+
 static void p_module_ansi_header(vlog_node_t mod)
 {
    // { attribute_instance } module_keyword [ lifetime ] module_identifier
@@ -3332,6 +3383,9 @@ static void p_module_ansi_header(vlog_node_t mod)
    ///   [ list_of_port_declarations ] ;
 
    EXTEND("module ANSI header");
+
+   if (peek() == tHASHLPAREN)
+      p_parameter_port_list(mod);
 
    if (peek() == tLPAREN)
       p_list_of_port_declarations(mod);

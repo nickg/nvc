@@ -653,6 +653,28 @@ START_TEST(test_param1)
 }
 END_TEST
 
+START_TEST(test_param2)
+{
+   input_from_file(TESTDIR "/vlog/param2.v");
+
+   const error_t expect[] = {
+      {  13, "duplicate declaration" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   vlog_node_t m = vlog_parse();
+   fail_if(m == NULL);
+   fail_unless(vlog_kind(m) == V_MODULE);
+
+   vlog_check(m);
+
+   fail_unless(vlog_parse() == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
 START_TEST(test_pp3)
 {
    input_from_file(TESTDIR "/vlog/pp3.v");
@@ -802,6 +824,7 @@ Suite *get_vlog_tests(void)
    tcase_add_test(tc, test_enum1);
    tcase_add_test(tc, test_union1);
    tcase_add_test(tc, test_param1);
+   tcase_add_test(tc, test_param2);
    tcase_add_test(tc, test_pp3);
    tcase_add_test(tc, test_concat1);
    tcase_add_test(tc, test_pp4);
