@@ -11610,7 +11610,7 @@ static void lower_port_map(lower_unit_t *lu, tree_t block, tree_t map,
 
             // Adjust view for partial association
             bool converse = false;
-            for (tree_t it = name; tree_kind(name) == T_RECORD_REF;
+            for (tree_t it = name; tree_kind(it) == T_RECORD_REF;
                  it = tree_value(it)) {
                tree_t elem = find_element_mode_indication(view, tree_ref(it),
                                                           &converse);
@@ -11621,7 +11621,7 @@ static void lower_port_map(lower_unit_t *lu, tree_t block, tree_t map,
                if (mode != PORT_ARRAY_VIEW && mode != PORT_RECORD_VIEW)
                   break;
 
-               view = tree_value(view);
+               view = tree_value(elem);
             }
          }
 
