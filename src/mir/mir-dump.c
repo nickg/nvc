@@ -49,11 +49,8 @@ const char *mir_op_string(mir_op_t op)
       [MIR_OP_CMP] = "cmp",
       [MIR_OP_PHI] = "phi",
       [MIR_OP_AND] = "and",
-      [MIR_OP_NAND] = "nand",
       [MIR_OP_OR] = "or",
-      [MIR_OP_NOR] = "nor",
       [MIR_OP_XOR] = "xor",
-      [MIR_OP_XNOR] = "xnor",
       [MIR_OP_CONSUME] = "consume",
       [MIR_OP_SUB] = "sub",
       [MIR_OP_MUL] = "mul",
@@ -674,11 +671,8 @@ void mir_annotate(mir_unit_t *mu, const mir_annotate_t *cb, void *ctx)
          case MIR_OP_MUL:
          case MIR_OP_DIV:
          case MIR_OP_AND:
-         case MIR_OP_NAND:
          case MIR_OP_OR:
-         case MIR_OP_NOR:
          case MIR_OP_XOR:
-         case MIR_OP_XNOR:
          case MIR_OP_MOD:
          case MIR_OP_REM:
          case MIR_OP_EXP:
@@ -692,11 +686,8 @@ void mir_annotate(mir_unit_t *mu, const mir_annotate_t *cb, void *ctx)
                case MIR_OP_MUL:  col += printf(" * "); break;
                case MIR_OP_DIV:  col += printf(" / "); break;
                case MIR_OP_AND:  col += printf(" && "); break;
-               case MIR_OP_NAND: col += printf(" !& "); break;
                case MIR_OP_OR:   col += printf(" || "); break;
-               case MIR_OP_NOR:  col += printf(" !| "); break;
                case MIR_OP_XOR:  col += printf(" ^ "); break;
-               case MIR_OP_XNOR: col += printf(" !^ "); break;
                case MIR_OP_MOD:  col += printf(" %% "); break;
                case MIR_OP_REM:  col += printf(" %% "); break;
                case MIR_OP_EXP:  col += printf(" ** "); break;

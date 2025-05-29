@@ -129,7 +129,6 @@ typedef enum {
    MIR_OP_CMP,
    MIR_OP_PHI,
    MIR_OP_AND,
-   MIR_OP_NAND,
    MIR_OP_SUB,
    MIR_OP_MUL,
    MIR_OP_DIV,
@@ -137,9 +136,7 @@ typedef enum {
    MIR_OP_MOD,
    MIR_OP_EXP,
    MIR_OP_OR,
-   MIR_OP_NOR,
    MIR_OP_XOR,
-   MIR_OP_XNOR,
    MIR_OP_CONSUME,
    MIR_OP_FCALL,
    MIR_OP_PCALL,
@@ -466,11 +463,8 @@ mir_value_t mir_build_trap_neg(mir_unit_t *mu, mir_type_t type,
 
 // Logical
 mir_value_t mir_build_and(mir_unit_t *mu, mir_value_t left, mir_value_t right);
-mir_value_t mir_build_nand(mir_unit_t *mu, mir_value_t left, mir_value_t right);
 mir_value_t mir_build_or(mir_unit_t *mu, mir_value_t left, mir_value_t right);
-mir_value_t mir_build_nor(mir_unit_t *mu, mir_value_t left, mir_value_t right);
 mir_value_t mir_build_xor(mir_unit_t *mu, mir_value_t left, mir_value_t right);
-mir_value_t mir_build_xnor(mir_unit_t *mu, mir_value_t left, mir_value_t right);
 mir_value_t mir_build_not(mir_unit_t *mu, mir_value_t value);
 mir_value_t mir_build_cmp(mir_unit_t *mu, mir_cmp_t cmp, mir_value_t left,
                           mir_value_t right);

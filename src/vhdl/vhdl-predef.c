@@ -548,17 +548,21 @@ static void predef_bit_vec_op(mir_unit_t *mu, tree_t decl,
       src1 = mir_build_load(mu, src1_ptr);
    }
 
+   bool negate = false;
    mir_value_t op;
    switch (kind) {
    case S_ARRAY_NOT:  op = mir_build_not(mu, src0); break;
+   case S_ARRAY_NAND: negate = true;
    case S_ARRAY_AND:  op = mir_build_and(mu, src0, src1); break;
+   case S_ARRAY_NOR:  negate = true;
    case S_ARRAY_OR:   op = mir_build_or(mu, src0, src1); break;
+   case S_ARRAY_XNOR: negate = true;
    case S_ARRAY_XOR:  op = mir_build_xor(mu, src0, src1); break;
-   case S_ARRAY_XNOR: op = mir_build_xnor(mu, src0, src1); break;
-   case S_ARRAY_NAND: op = mir_build_nand(mu, src0, src1); break;
-   case S_ARRAY_NOR:  op = mir_build_nor(mu, src0, src1); break;
    default:           should_not_reach_here();
    }
+
+   if (negate)
+      op = mir_build_not(mu, op);
 
    mir_build_store(mu, dst_ptr, op);
 
