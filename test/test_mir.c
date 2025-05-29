@@ -596,15 +596,6 @@ START_TEST(test_logical1)
    mir_value_t and4 = mir_build_and(mu, p1, t);
    ck_assert_int_eq(and4.bits, p1.bits);
 
-   mir_value_t nand1 = mir_build_nand(mu, t, f);
-   mir_assert_const_eq(mu, nand1, 1);
-
-   mir_value_t nor1 = mir_build_nor(mu, t, f);
-   mir_assert_const_eq(mu, nor1, 0);
-
-   mir_value_t xnor1 = mir_build_nor(mu, t, f);
-   mir_assert_const_eq(mu, xnor1, 0);
-
    mir_unit_free(mu);
    mir_context_free(mc);
 }

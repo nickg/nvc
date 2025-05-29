@@ -1458,15 +1458,6 @@ static void irgen_op_and(jit_irgen_t *g, mir_value_t n)
    g->map[n.id] = j_and(g, arg0, arg1);
 }
 
-static void irgen_op_nand(jit_irgen_t *g, mir_value_t n)
-{
-   jit_value_t arg0 = irgen_get_arg(g, n, 0);
-   jit_value_t arg1 = irgen_get_arg(g, n, 1);
-
-   jit_value_t and = j_and(g, arg0, arg1);
-   g->map[n.id] = j_not(g, and);
-}
-
 static void irgen_op_or(jit_irgen_t *g, mir_value_t n)
 {
    jit_value_t arg0 = irgen_get_arg(g, n, 0);
@@ -1475,30 +1466,12 @@ static void irgen_op_or(jit_irgen_t *g, mir_value_t n)
    g->map[n.id] = j_or(g, arg0, arg1);
 }
 
-static void irgen_op_nor(jit_irgen_t *g, mir_value_t n)
-{
-   jit_value_t arg0 = irgen_get_arg(g, n, 0);
-   jit_value_t arg1 = irgen_get_arg(g, n, 1);
-
-   jit_value_t or = j_or(g, arg0, arg1);
-   g->map[n.id] = j_not(g, or);
-}
-
 static void irgen_op_xor(jit_irgen_t *g, mir_value_t n)
 {
    jit_value_t arg0 = irgen_get_arg(g, n, 0);
    jit_value_t arg1 = irgen_get_arg(g, n, 1);
 
    g->map[n.id] = j_xor(g, arg0, arg1);
-}
-
-static void irgen_op_xnor(jit_irgen_t *g, mir_value_t n)
-{
-   jit_value_t arg0 = irgen_get_arg(g, n, 0);
-   jit_value_t arg1 = irgen_get_arg(g, n, 1);
-
-   jit_value_t xor = j_xor(g, arg0, arg1);
-   g->map[n.id] = j_not(g, xor);
 }
 
 static void irgen_op_trap_add(jit_irgen_t *g, mir_value_t n)
@@ -3836,20 +3809,11 @@ static void irgen_block(jit_irgen_t *g, mir_block_t block)
       case MIR_OP_AND:
          irgen_op_and(g, n);
          break;
-      case MIR_OP_NAND:
-         irgen_op_nand(g, n);
-         break;
       case MIR_OP_OR:
          irgen_op_or(g, n);
          break;
-      case MIR_OP_NOR:
-         irgen_op_nor(g, n);
-         break;
       case MIR_OP_XOR:
          irgen_op_xor(g, n);
-         break;
-      case MIR_OP_XNOR:
-         irgen_op_xnor(g, n);
          break;
       case MIR_OP_ADD:
          irgen_op_add(g, n);

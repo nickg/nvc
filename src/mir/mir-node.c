@@ -1403,20 +1403,6 @@ mir_value_t mir_build_and(mir_unit_t *mu, mir_value_t left, mir_value_t right)
    return mir_build_logical(mu, MIR_OP_AND, t_bool, left, right);
 }
 
-mir_value_t mir_build_nand(mir_unit_t *mu, mir_value_t left, mir_value_t right)
-{
-   int64_t lval, rval;
-   const bool lconst = mir_get_const(mu, left, &lval);
-   const bool rconst = mir_get_const(mu, right, &rval);
-
-   mir_type_t t_bool = mir_bool_type(mu);
-
-   if (lconst && rconst)
-      return mir_const(mu, t_bool, !(lval && rval));
-
-   return mir_build_logical(mu, MIR_OP_NAND, t_bool, left, right);
-}
-
 mir_value_t mir_build_or(mir_unit_t *mu, mir_value_t left, mir_value_t right)
 {
    int64_t lval, rval;
@@ -1435,20 +1421,6 @@ mir_value_t mir_build_or(mir_unit_t *mu, mir_value_t left, mir_value_t right)
    return mir_build_logical(mu, MIR_OP_OR, t_bool, left, right);
 }
 
-mir_value_t mir_build_nor(mir_unit_t *mu, mir_value_t left, mir_value_t right)
-{
-   int64_t lval, rval;
-   const bool lconst = mir_get_const(mu, left, &lval);
-   const bool rconst = mir_get_const(mu, right, &rval);
-
-   mir_type_t t_bool = mir_bool_type(mu);
-
-   if (lconst && rconst)
-      return mir_const(mu, t_bool, !(lval || rval));
-
-   return mir_build_logical(mu, MIR_OP_NOR, t_bool, left, right);
-}
-
 mir_value_t mir_build_xor(mir_unit_t *mu, mir_value_t left, mir_value_t right)
 {
    int64_t lval, rval;
@@ -1462,19 +1434,6 @@ mir_value_t mir_build_xor(mir_unit_t *mu, mir_value_t left, mir_value_t right)
       return mir_const(mu, t_bool, 0);
 
    return mir_build_logical(mu, MIR_OP_XOR, t_bool, left, right);
-}
-
-mir_value_t mir_build_xnor(mir_unit_t *mu, mir_value_t left, mir_value_t right)
-{
-   int64_t lval, rval;
-   const bool lconst = mir_get_const(mu, left, &lval);
-   const bool rconst = mir_get_const(mu, right, &rval);
-
-   mir_type_t t_bool = mir_bool_type(mu);
-   if (lconst && rconst)
-      return mir_const(mu, t_bool, !(lval ^ rval));
-
-   return mir_build_logical(mu, MIR_OP_XNOR, t_bool, left, right);
 }
 
 mir_value_t mir_build_not(mir_unit_t *mu, mir_value_t value)

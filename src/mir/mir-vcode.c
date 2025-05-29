@@ -625,7 +625,8 @@ static void import_nor(mir_unit_t *mu, mir_import_t *imp, int op)
    mir_value_t left  = imp->map[vcode_get_arg(op, 0)];
    mir_value_t right = imp->map[vcode_get_arg(op, 1)];
 
-   imp->map[vcode_get_result(op)] = mir_build_nor(mu, left, right);
+   mir_value_t or = mir_build_or(mu, left, right);
+   imp->map[vcode_get_result(op)] = mir_build_not(mu, or);
 }
 
 static void import_xor(mir_unit_t *mu, mir_import_t *imp, int op)
@@ -641,7 +642,8 @@ static void import_xnor(mir_unit_t *mu, mir_import_t *imp, int op)
    mir_value_t left  = imp->map[vcode_get_arg(op, 0)];
    mir_value_t right = imp->map[vcode_get_arg(op, 1)];
 
-   imp->map[vcode_get_result(op)] = mir_build_xnor(mu, left, right);
+   mir_value_t xor = mir_build_xor(mu, left, right);
+   imp->map[vcode_get_result(op)] = mir_build_not(mu, xor);
 }
 
 static void import_and(mir_unit_t *mu, mir_import_t *imp, int op)
@@ -657,7 +659,8 @@ static void import_nand(mir_unit_t *mu, mir_import_t *imp, int op)
    mir_value_t left  = imp->map[vcode_get_arg(op, 0)];
    mir_value_t right = imp->map[vcode_get_arg(op, 1)];
 
-   imp->map[vcode_get_result(op)] = mir_build_nand(mu, left, right);
+   mir_value_t and = mir_build_and(mu, left, right);
+   imp->map[vcode_get_result(op)] = mir_build_not(mu, and);
 }
 
 static void import_event(mir_unit_t *mu, mir_import_t *imp, int op)
