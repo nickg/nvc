@@ -726,6 +726,9 @@ BEFORE            ?i:before
 <VLOG>"parameter"        { return tPARAMETER; }
 <VLOG>"for"              { return tFOR; }
 <VLOG>"localparam"       { return tLOCALPARAM; }
+<VLOG>"ifnone"           { return tIFNONE; }
+<VLOG>"edge"             { return tEDGE; }
+<VLOG>"*>"               { return tTIMESGT; }
 
 <VLOG>{SYSTASK}          { yylval.str = xstrdup(yytext); return tSYSTASK; }
 <VLOG>{VLOG_ID}          { yylval.str = xstrdup(yytext); return tID; }

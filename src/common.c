@@ -1101,6 +1101,13 @@ void intern_strings(void)
    id_cache[W_NUMERIC_BIT]     = ident_new("IEEE.NUMERIC_BIT");
    id_cache[W_NVC]             = ident_new("NVC");
    id_cache[W_DEFAULT_CLOCK]   = ident_new("default clock");
+   id_cache[W_DOLLAR_SETUP]    = ident_new("$setup");
+   id_cache[W_DOLLAR_HOLD]     = ident_new("$hold");
+   id_cache[W_DOLLAR_RECOVERY] = ident_new("$recovery");
+   id_cache[W_DOLLAR_REMOVAL]  = ident_new("$removal");
+   id_cache[W_DOLLAR_SETUPHOLD]= ident_new("$setuphold");
+   id_cache[W_DOLLAR_RECREM]   = ident_new("$recrem");
+   id_cache[W_DOLLAR_WIDTH]    = ident_new("$width");
    id_cache[W_STD_REFLECTION]  = ident_new("STD.REFLECTION");
    id_cache[W_NEVER_WAITS]     = ident_new("NEVER_WAITS");
    id_cache[W_NVC_VERILOG]     = ident_new("NVC.VERILOG");
