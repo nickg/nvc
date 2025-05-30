@@ -104,6 +104,7 @@ static void p_list_of_variable_decl_assignments(vlog_node_t parent,
                                                 vlog_node_t datatype);
 static vlog_node_t p_variable_lvalue(void);
 static vlog_node_t p_bit_select(ident_t id);
+static vlog_net_kind_t p_net_type(void);
 
 static inline void _pop_state(const rule_state_t *r)
 {
@@ -878,14 +879,20 @@ static vlog_node_t p_data_type_or_implicit(void)
       return p_implicit_data_type();
 }
 
-static vlog_node_t p_net_port_type(void)
+static void p_net_port_type(vlog_net_kind_t *kind, vlog_node_t *dt)
 {
    // [ net_type ] data_type_or_implicit | net_type_identifier
    //   | interconnect implicit_data_type
 
    BEGIN("net port type");
 
-   return p_data_type_or_implicit();
+   if (scan(tSUPPLY0, tSUPPLY1, tTRI, tTRIAND, tTRIOR, tTRIREG,
+            tTRI0, tTRI1, tUWIRE, tWIRE, tWAND, tWOR))
+      *kind = p_net_type();
+   else
+      *kind = V_NET_WIRE;
+
+   *dt = p_data_type_or_implicit();
 }
 
 static vlog_node_t p_var_data_type(void)
@@ -907,7 +914,7 @@ static vlog_node_t p_variable_port_type(void)
 }
 
 static void p_list_of_port_identifiers(vlog_node_t mod, v_port_kind_t kind,
-                                       bool isreg, vlog_node_t datatype)
+                                       vlog_node_t datatype)
 {
    // port_identifier { unpacked_dimension }
    //    { , port_identifier { unpacked_dimension } }
@@ -927,14 +934,43 @@ static void p_list_of_port_identifiers(vlog_node_t mod, v_port_kind_t kind,
 
       vlog_add_decl(mod, v);
 
-      if (isreg) {
-         vlog_node_t reg = vlog_new(V_VAR_DECL);
-         vlog_set_loc(reg, vlog_loc(v));
-         vlog_set_ident(reg, id);
-         vlog_set_type(reg, datatype);
+      vlog_node_t ref = vlog_new(V_REF);
+      vlog_set_loc(ref, CURRENT_LOC);
+      vlog_set_ident(ref, id);
+      vlog_set_ref(ref, v);
 
-         vlog_add_decl(mod, reg);
-      }
+      vlog_add_port(mod, ref);
+   } while (optional(tCOMMA));
+}
+
+static void p_list_of_variable_port_identifiers(vlog_node_t mod,
+                                                v_port_kind_t kind,
+                                                vlog_node_t datatype)
+{
+   // port_identifier { variable_dimension } [ = constant_expression ]
+   //   { , port_identifier { variable_dimension } [ = constant_expression ] }
+
+   BEGIN("list of variable port identifiers");
+
+   do {
+      ident_t id, ext;
+      p_external_identifier(&id, &ext);
+
+      vlog_node_t v = vlog_new(V_PORT_DECL);
+      vlog_set_subkind(v, kind);
+      vlog_set_ident(v, id);
+      vlog_set_ident2(v, ext);
+      vlog_set_type(v, datatype);
+      vlog_set_loc(v, &state.last_loc);
+
+      vlog_add_decl(mod, v);
+
+      vlog_node_t reg = vlog_new(V_VAR_DECL);
+      vlog_set_loc(reg, vlog_loc(v));
+      vlog_set_ident(reg, id);
+      vlog_set_type(reg, datatype);
+
+      vlog_add_decl(mod, reg);
 
       vlog_node_t ref = vlog_new(V_REF);
       vlog_set_loc(ref, CURRENT_LOC);
@@ -953,8 +989,11 @@ static void p_inout_declaration(vlog_node_t mod)
 
    consume(tINOUT);
 
-   vlog_node_t dt = p_net_port_type();
-   p_list_of_port_identifiers(mod, V_PORT_INOUT, false, dt);
+   vlog_node_t dt;
+   vlog_net_kind_t kind;
+   p_net_port_type(&kind, &dt);
+
+   p_list_of_port_identifiers(mod, V_PORT_INOUT, dt);
 }
 
 static void p_input_declaration(vlog_node_t mod)
@@ -966,19 +1005,18 @@ static void p_input_declaration(vlog_node_t mod)
 
    consume(tINPUT);
 
-   bool isreg = false;
    vlog_node_t dt;
+   vlog_net_kind_t kind;
    switch (peek()) {
    case tREG:
       dt = p_variable_port_type();
-      isreg = true;
+      p_list_of_variable_port_identifiers(mod, V_PORT_INPUT, dt);
       break;
    default:
-      dt = p_net_port_type();
+      p_net_port_type(&kind, &dt);
+      p_list_of_port_identifiers(mod, V_PORT_INPUT, dt);
       break;
    }
-
-   p_list_of_port_identifiers(mod, V_PORT_INPUT, isreg, dt);
 }
 
 static void p_output_declaration(vlog_node_t mod)
@@ -990,19 +1028,22 @@ static void p_output_declaration(vlog_node_t mod)
 
    consume(tOUTPUT);
 
-   bool isreg = false;
-   vlog_node_t dt;
    switch (peek()) {
    case tREG:
-      dt = p_variable_port_type();
-      isreg = true;
+      {
+         vlog_node_t dt = p_variable_port_type();
+         p_list_of_variable_port_identifiers(mod, V_PORT_OUTPUT, dt);
+      }
       break;
    default:
-      dt = p_net_port_type();
+      {
+         vlog_node_t dt;
+         vlog_net_kind_t kind;
+         p_net_port_type(&kind, &dt);
+         p_list_of_port_identifiers(mod, V_PORT_OUTPUT, dt);
+      }
       break;
    }
-
-   p_list_of_port_identifiers(mod, V_PORT_OUTPUT, isreg, dt);
 }
 
 static void p_port_declaration(vlog_node_t mod)
@@ -1023,26 +1064,29 @@ static void p_port_declaration(vlog_node_t mod)
    }
 }
 
-static vlog_node_t p_net_port_header(v_port_kind_t *kind, bool *isreg)
+static vlog_node_t p_net_port_header(v_port_kind_t *dir, bool *isreg)
 {
    // [ port_direction ] net_port_type
 
    BEGIN("net port header");
 
    if (optional(tINPUT)) {
-      *kind = V_PORT_INPUT;
+      *dir = V_PORT_INPUT;
       *isreg = (peek() == tREG);
    }
    else if (optional(tINOUT)) {
-      *kind = V_PORT_INOUT;
+      *dir = V_PORT_INOUT;
       *isreg = false;
    }
    else if (optional(tOUTPUT)) {
-      *kind = V_PORT_OUTPUT;
+      *dir = V_PORT_OUTPUT;
       *isreg = (peek() == tREG);
    }
 
-   return p_net_port_type();
+   vlog_net_kind_t kind;
+   vlog_node_t dt;
+   p_net_port_type(&kind, &dt);
+   return dt;
 }
 
 static vlog_node_t p_bit_select(ident_t id)

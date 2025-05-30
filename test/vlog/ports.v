@@ -47,3 +47,6 @@ endmodule // ports6
 module ports7 (x, y, z);
   input x, y, z;     // OK
 endmodule // ports7
+
+module ports8 (input wire i0);
+endmodule // ports8

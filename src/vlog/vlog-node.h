@@ -281,9 +281,6 @@ void vlog_set_text(vlog_node_t v, const char *text);
 number_t vlog_number(vlog_node_t v);
 void vlog_set_number(vlog_node_t v, number_t n);
 
-data_type_t vlog_datatype(vlog_node_t v);
-void vlog_set_datatype(vlog_node_t v, data_type_t dt);
-
 double vlog_dval(vlog_node_t v);
 void vlog_set_dval(vlog_node_t v, double d);
 
