@@ -105,25 +105,20 @@ int vhpi_assert(vhpiSeverityT severity, char *formatmsg,  ...)
 
    VHPI_TRACE("severity=%d formatmsg=\"%s\"", severity, formatmsg);
 
-   diag_level_t level = DIAG_ERROR;
    vhdl_severity_t vhdl = SEVERITY_ERROR;
    switch (severity) {
    case vhpiNote:
-      level = DIAG_NOTE;
       vhdl = SEVERITY_NOTE;
       break;
    case vhpiWarning:
-      level = DIAG_WARN;
       vhdl = SEVERITY_WARNING;
       break;
    case vhpiError:
-      level = DIAG_ERROR;
       vhdl = SEVERITY_ERROR;
       break;
    case vhpiFailure:
    case vhpiSystem:
    case vhpiInternal:
-      level = DIAG_FATAL;
       vhdl = SEVERITY_FAILURE;
       break;
    }
@@ -131,7 +126,7 @@ int vhpi_assert(vhpiSeverityT severity, char *formatmsg,  ...)
    va_list ap;
    va_start(ap, formatmsg);
 
-   diag_t *d = diag_new(level, NULL);
+   diag_t *d = diag_new(get_diag_severity(vhdl), NULL);
    diag_vprintf(d, formatmsg, ap);
 
    va_end(ap);

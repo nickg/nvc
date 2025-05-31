@@ -369,7 +369,7 @@ static void apply_format(diag_t *d, format_part_t *p, vhdl_severity_t severity,
    }
 }
 
-static diag_level_t get_diag_severity(vhdl_severity_t severity)
+diag_level_t get_diag_severity(vhdl_severity_t severity)
 {
    switch (severity) {
    case SEVERITY_NOTE:    return DIAG_NOTE;

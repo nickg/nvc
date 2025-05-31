@@ -38,6 +38,7 @@ void set_vhdl_assert_enable(vhdl_severity_t severity, bool enable);
 bool get_vhdl_assert_enable(vhdl_severity_t severity);
 int get_vhdl_assert_exit_status(void);
 
+diag_level_t get_diag_severity(vhdl_severity_t severity);
 void emit_vhdl_diag(diag_t *d, vhdl_severity_t severity);
 
 #endif   // _RT_ASSERT_H
