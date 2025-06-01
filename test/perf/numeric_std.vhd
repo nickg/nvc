@@ -13,6 +13,8 @@ package numeric_std_perf is
     procedure test_add_zero;
     procedure test_less_unsigned;
     procedure test_geq_unsigned;
+    procedure test_div_unsigned;
+    procedure test_big_div_unsigned;
 end package;
 
 library ieee;
@@ -204,5 +206,29 @@ package body numeric_std_perf is
             value := value + one;
         end loop;
         assert accum = ITERS / 2;
+    end procedure;
+
+    procedure test_div_unsigned is
+        constant WIDTH : integer := 16;
+        constant ITERS : integer := 500;
+        variable accum : unsigned(WIDTH - 1 downto 0) := (WIDTH - 1 => '1', others => '0');
+        constant two   : unsigned(0 to WIDTH - 1) := to_unsigned(2, WIDTH);
+    begin
+        for i in 1 to ITERS loop
+            accum := accum / two;
+        end loop;
+        assert accum = to_unsigned(0, WIDTH);
+    end procedure;
+
+    procedure test_big_div_unsigned is
+        constant WIDTH : integer := 140;
+        constant ITERS : integer := 500;
+        variable accum : unsigned(WIDTH - 1 downto 0) := (WIDTH - 1 => '1', others => '0');
+        constant two   : unsigned(0 to WIDTH - 1) := to_unsigned(2, WIDTH);
+    begin
+        for i in 1 to ITERS loop
+            accum := accum / two;
+        end loop;
+        assert accum = to_unsigned(0, WIDTH);
     end procedure;
 end package body;

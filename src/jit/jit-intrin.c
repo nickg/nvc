@@ -856,6 +856,73 @@ static void ieee_mul_signed(jit_func_t *func, jit_anchor_t *anchor,
    }
 }
 
+static void ieee_divmod(jit_func_t *func, jit_anchor_t *anchor,
+                        jit_scalar_t *args, tlab_t *tlab)
+{
+   uint8_t *num = args[2].pointer;
+   const int num_size = ffi_array_length(args[4].integer);
+   uint8_t *denom = args[5].pointer;
+   const int denom_size = ffi_array_length(args[7].integer);
+   uint8_t *xquot = args[8].pointer;
+   uint8_t *xremain = args[11].pointer;
+
+   assert(ffi_array_length(args[10].integer) == num_size);
+   assert(ffi_array_length(args[13].integer) == denom_size);
+
+   const uint32_t mark = __tlab_mark(tlab);
+
+   uint8_t *temp = __tlab_alloc(tlab, num_size + 1, 16);
+   temp[0] = _0;
+   memcpy(temp + 1, num, num_size);
+
+   const int quot_size = MAX(num_size, denom_size);
+   uint8_t *quot = __tlab_alloc(tlab, quot_size, 16);
+   memset(quot, _0, quot_size);
+
+   int topbit = -1;
+   for (int j = denom_size - 1; j >= 0; j--) {
+      if (denom[denom_size - 1 - j] == _1) {
+         topbit = j;
+         break;
+      }
+   }
+
+   if (unlikely(topbit < 0))
+      __ieee_msg(func, anchor, SEVERITY_ERROR,
+                 "NUMERIC_STD.DIVMOD: DIV, MOD, or REM by zero");
+   else {
+      uint8_t *denom2 = __tlab_alloc(tlab, topbit + 2, 16);
+      denom2[0] = _0;
+      memcpy(denom2 + 1, denom + denom_size - 1 - topbit , topbit + 1);
+
+      uint8_t *denom3 = __tlab_alloc(tlab, topbit + 2, 16);
+      __invert_bits(denom2, topbit + 2, denom3);
+
+      for (int j = num_size - (topbit + 1); j >= 0; j--) {
+         uint8_t *slice = temp + num_size - (topbit + j + 1);
+
+         int pos = 0;
+         for (; pos < topbit + 1 && slice[pos] == denom2[pos]; pos++);
+
+         if (slice[pos] >= denom2[pos]) {
+            __ieee_packed_add(slice, denom3, topbit + 2, 1, slice);
+            quot[quot_size - 1 - j] = _1;
+         }
+      }
+   }
+
+   memcpy(xquot, quot + quot_size - num_size, num_size);
+
+   if (denom_size > num_size + 1) {
+      memset(xremain, _0, denom_size - (num_size + 1));
+      memcpy(xremain + denom_size - (num_size + 1), temp, num_size + 1);
+   }
+   else
+      memcpy(xremain, temp + num_size + 1 - denom_size, denom_size);
+
+   __tlab_restore(tlab, mark);
+}
+
 static bool ieee_unsigned_cmp(jit_func_t *func, jit_anchor_t *anchor,
                               jit_scalar_t *args, tlab_t *tlab,
                               uint8_t *lbyte, uint8_t *rbyte, const char *op)
@@ -1865,6 +1932,8 @@ static jit_intrinsic_t intrinsic_list[] = {
    { NS "\"*\"(" UU UU ")" UU, ieee_mul_unsigned },
    { NS "\"*\"(" S S ")" S, ieee_mul_signed },
    { NS "\"*\"(" US US ")" US, ieee_mul_signed },
+   { NS "DIVMOD(" UU UU UU UU ")", ieee_divmod },
+   { NS "DIVMOD(" U U U U ")", ieee_divmod },
    { NS "\"<\"(" U U ")B", ieee_less_unsigned },
    { NS "\"<\"(" UU UU ")B" , ieee_less_unsigned },
    { NS "\">\"(" U U ")B", ieee_greater_unsigned },
