@@ -2208,11 +2208,18 @@ static void usage(void)
 #endif
       { "Coverage report options",
         {
+           { "-o, --output=dir",
+             "Output directory where to store HTML report" },
            { "--exclude-file=FILE",
              "Apply exclude file when generating report, see manual for syntax"
            },
            { "--dont-print={covered,uncovered,excluded}",
              "Exclude specified items from coverage report" },
+           { "--item-limit=limit",
+             "Maximal number of items displayed in single report file. "
+             "Default is 5000." },
+           { "--per-file",
+             "Create source file code coverage report."},
         }
       },
       { "Coverage merge options",
