@@ -21,6 +21,7 @@ clean-libs:
 	rm -f lib/nvc.19/NVC.TEXTBUF lib/nvc.19/NVC.TEXTBUF-body
 	rm -f lib/nvc.08/NVC.IEEE_SUPPORT lib/nvc.08/NVC.IEEE_SUPPORT-body
 	rm -f lib/nvc.19/NVC.IEEE_SUPPORT lib/nvc.19/NVC.IEEE_SUPPORT-body
+	rm -f lib/preload93.$(DLL_EXT) lib/preload08.$(DLL_EXT) lib/preload19.$(DLL_EXT)
 	for d in std std.08 std.19 nvc nvc.08 nvc.19 ieee ieee.08 \
 	         ieee.19 synopsys; do \
 	  if test -d lib/$$d; then rmdir lib/$$d; fi; \
@@ -37,58 +38,9 @@ bootstrap: $(DRIVER)
 @ifGNUmake@.NOTPARALLEL:
 @ifGNUmake@endif
 
-if ENABLE_LLVM
-preloaddir = $(pkglibdir)
-
-if IMPLIB_REQUIRED
-aotgen = $(nvc_verbose)NVC_IMP_LIB=$(top_builddir)/lib $(top_builddir)/bin/nvc$(EXEEXT)
-else
-aotgen = $(nvc)
-endif
-
-preload_SCRIPTS = lib/preload93.$(DLL_EXT) lib/preload08.$(DLL_EXT) lib/preload19.$(DLL_EXT)
-
-BOOTSTRAPLIBS += $(preload_SCRIPTS)
-
-preload: $(preload_SCRIPTS)
-
-PRELOAD93_DEPS = \
-	$(std_DATA) \
-	$(ieee_DATA) \
-	$(nvc_DATA) \
-	$(vital_DATA) \
-	$(synopsys_ieee_DATA)
-
-PRELOAD08_DEPS = \
-	$(std_08_DATA) \
-	$(ieee_08_DATA) \
-	$(nvc_08_DATA) \
-	$(vital_08_DATA) \
-	$(synopsys_ieee_08_DATA)
-
-PRELOAD19_DEPS = \
-	$(std_19_DATA) \
-	$(ieee_19_DATA) \
-	$(nvc_19_DATA) \
-	$(vital_19_DATA) \
-	$(synopsys_ieee_19_DATA)
-
-lib/preload93.@DLL_EXT@: $(PRELOAD93_DEPS) @ifGNUmake@ | $(DRIVER)
-	$(aotgen) --work=lib/std -L lib/ --std=1993 --aotgen -O2 -o $@ std nvc ieee
-
-lib/preload08.@DLL_EXT@: $(PRELOAD08_DEPS) @ifGNUmake@ | $(DRIVER)
-	$(aotgen) --work=lib/std.08 -L lib/ --std=2008 --aotgen -O2 -o $@ std nvc ieee
-
-lib/preload19.@DLL_EXT@: $(PRELOAD19_DEPS) @ifGNUmake@ | $(DRIVER)
-	$(aotgen) --work=lib/std.19 -L lib/ --std=2019 --aotgen -O2 -o $@ std nvc ieee
-endif
-
-.PHONY: bootstrap clean-libs all-libs gen-deps preload
+.PHONY: bootstrap clean-libs all-libs gen-deps
 
 # For compatibility with BSD make
 @ifnGNUmake@.ORDER: $(DRIVER) lib/std/STD.STANDARD
 @ifnGNUmake@.ORDER: $(DRIVER) lib/std.08/STD.STANDARD
 @ifnGNUmake@.ORDER: $(DRIVER) lib/std.19/STD.STANDARD
-@ifnGNUmake@.ORDER: $(DRIVER) lib/preload93.$(DLL_EXT)
-@ifnGNUmake@.ORDER: $(DRIVER) lib/preload08.$(DLL_EXT)
-@ifnGNUmake@.ORDER: $(DRIVER) lib/preload19.$(DLL_EXT)

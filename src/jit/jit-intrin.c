@@ -1054,8 +1054,9 @@ static void ieee_and_vector_neon(jit_func_t *func, jit_anchor_t *anchor,
    uint8_t *right = args[4].pointer;
 
    if (unlikely(lsize != rsize))
-      __ieee_failure(func, anchor, "STD_LOGIC_1164.\"and\": arguments of "
-                     "overloaded 'and' operator are not of the same length");
+      __ieee_msg(func, anchor, SEVERITY_FAILURE,
+                 "STD_LOGIC_1164.\"and\": arguments of overloaded 'and' "
+                 "operator are not of the same length");
    else {
       uint8_t *result = __tlab_alloc(tlab, ALIGN_UP(lsize, 16), 16);
 
@@ -1152,8 +1153,9 @@ static void ieee_or_vector_neon(jit_func_t *func, jit_anchor_t *anchor,
    uint8_t *right = args[4].pointer;
 
    if (unlikely(lsize != rsize))
-      __ieee_failure(func, anchor, "STD_LOGIC_1164.\"or\": arguments of "
-                     "overloaded 'or' operator are not of the same length");
+      __ieee_msg(func, anchor, SEVERITY_FAILURE,
+                 "STD_LOGIC_1164.\"or\": arguments of overloaded 'or' "
+                 "operator are not of the same length");
    else {
       uint8_t *result = __tlab_alloc(tlab, ALIGN_UP(lsize, 16), 16);
 
@@ -1250,8 +1252,9 @@ static void ieee_xor_vector_neon(jit_func_t *func, jit_anchor_t *anchor,
    uint8_t *right = args[4].pointer;
 
    if (unlikely(lsize != rsize))
-      __ieee_failure(func, anchor, "STD_LOGIC_1164.\"xor\": arguments of "
-                     "overloaded 'xor' operator are not of the same length");
+      __ieee_msg(func, anchor, SEVERITY_FAILURE,
+                 "STD_LOGIC_1164.\"xor\": arguments of overloaded 'xor' "
+                 "operator are not of the same length");
    else {
       uint8_t *result = __tlab_alloc(tlab, ALIGN_UP(lsize, 16), 16);
 

@@ -99,7 +99,6 @@ typedef struct _jit {
    int               exit_status;
    jit_tier_t       *tiers;
    aot_dll_t        *aotlib;
-   aot_dll_t        *preloadlib;
    jit_pack_t       *pack;
    func_array_t     *funcs;
    unsigned          next_handle;
@@ -188,7 +187,7 @@ void jit_free(jit_t *j)
    store_release(&j->shutdown, true);
    async_barrier();
 
-   aot_dll_t *libs[] = { j->aotlib, j->preloadlib };
+   aot_dll_t *libs[] = { j->aotlib };
    for (int i = 0; i < ARRAY_LEN(libs); i++) {
       if (libs[i] != NULL) {
          ffi_unload_dll(libs[i]->dll);
@@ -272,11 +271,11 @@ static jit_handle_t jit_lazy_compile_locked(jit_t *j, ident_t name)
       return f->handle;
 
    aot_descr_t *descr = NULL;
-   if (j->aotlib != NULL || j->preloadlib != NULL) {
+   if (j->aotlib != NULL) {
       LOCAL_TEXT_BUF tb = safe_symbol(name);
       tb_cat(tb, ".descr");
 
-      aot_dll_t *try[] = { j->aotlib, j->preloadlib };
+      aot_dll_t *try[] = { j->aotlib };
       for (int i = 0; i < ARRAY_LEN(try); i++) {
          if (try[i] == NULL)
             continue;
@@ -429,9 +428,6 @@ void jit_fill_irbuf(jit_func_t *f)
 #endif
 
    if (jit_fill_from_aot(f, f->jit->aotlib))
-      goto done;
-
-   if (jit_fill_from_aot(f, f->jit->preloadlib))
       goto done;
 
    if (f->jit->pack != NULL && jit_pack_fill(f->jit->pack, f->jit, f))
@@ -886,32 +882,6 @@ static aot_dll_t *load_dll_internal(jit_t *j, const char *path)
       debugf("loaded AOT library from %s", path);
 
    return lib;
-}
-
-void jit_preload(jit_t *j)
-{
-#ifdef HAVE_LLVM
-   if (j->preloadlib != NULL)
-      fatal_trace("Preload library already loaded");
-
-   lib_t std = lib_find(well_known(W_STD));
-   if (std == NULL)
-      fatal("cannot find STD library");
-
-   LOCAL_TEXT_BUF tb = tb_new();
-   tb_cat(tb, lib_path(std));
-   tb_cat(tb, DIR_SEP "..");
-
-   const char *preload_vers[] = { "93", "93", "93", "93", "08", "19" };
-   tb_printf(tb, DIR_SEP "preload%s." DLL_EXT, preload_vers[standard()]);
-
-   const char *path = tb_get(tb);
-   file_info_t info;
-   if (!get_file_info(path, &info) || info.type != FILE_REGULAR)
-      fatal("missing preload library at %s", path);
-
-   j->preloadlib = load_dll_internal(j, path);
-#endif  // HAVE_LLVM
 }
 
 void jit_load_dll(jit_t *j, ident_t name)

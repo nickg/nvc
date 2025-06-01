@@ -70,32 +70,9 @@ static A(char *) cleanup_files = AINIT;
 #define MAX_JOBS 1000
 #endif
 
-static bool cgen_is_preload(ident_t name)
-{
-   const char *preload[] = {
-      "STD.STANDARD",
-      "STD.TEXTIO",
-      "STD.ENV",
-      "STD.REFLECTION",
-      "IEEE.STD_LOGIC",
-      "IEEE.NUMERIC",
-      "IEEE.MATH",
-      "IEEE.FLOAT",
-      "IEEE.FIXED",
-      "NVC."
-   };
-   const char *str = istr(name);
-   for (int i = 0; i < ARRAY_LEN(preload); i++) {
-      if (strncmp(str, preload[i], strlen(preload[i])) == 0)
-         return true;
-   }
-
-   return false;
-}
-
 static void cgen_find_dependencies(mir_context_t *mc, unit_registry_t *ur,
                                    unit_list_t *units, hset_t *seen,
-                                   ident_t name, bool preload)
+                                   ident_t name)
 {
    mir_unit_t *mu = mir_get_unit(mc, name);
    if (mu == NULL) {
@@ -113,7 +90,7 @@ static void cgen_find_dependencies(mir_context_t *mc, unit_registry_t *ur,
          continue;
       else if (ident_char(link, 0) == '$')
          continue;   // TODO: handle VPI differently
-      else if (preload || !cgen_is_preload(link)) {
+      else {
          APUSH(*units, link);
          hset_insert(seen, link);
       }
@@ -259,9 +236,6 @@ static void cgen_link(const char *module_name, char **objs, int nobjs)
    cgen_link_arg("-L%s", tb_get(tb));
    cgen_link_arg("-L%s/nvc", LIBDIR);
    cgen_link_arg("-lnvcimp");
-
-   const char *preload_vers[] = { "93", "93", "93", "93", "08", "19" };
-   cgen_link_arg("%s/preload%s.dll", tb_get(tb), preload_vers[standard()]);
 #endif
 
    APUSH(link_args, NULL);
@@ -393,7 +367,7 @@ void cgen(tree_t top, unit_registry_t *ur, mir_context_t *mc, jit_t *jit,
    cgen_walk_hier(&units, seen, tree_stmt(top, 0), work_name);
 
    for (int i = 0; i < units.count; i++)
-      cgen_find_dependencies(mc, ur, &units, seen, units.items[i], false);
+      cgen_find_dependencies(mc, ur, &units, seen, units.items[i]);
 
    hset_free(seen);
    seen = NULL;
@@ -413,222 +387,3 @@ void cgen(tree_t top, unit_registry_t *ur, mir_context_t *mc, jit_t *jit,
 
    ACLEAR(units);
 }
-
-#ifdef ENABLE_LLVM
-static void preload_walk_index(lib_t lib, ident_t ident, int kind, void *ctx)
-{
-   discover_args_t *args = ctx;
-
-   if (kind != T_PACKAGE && kind != T_PACK_INST)
-      return;
-   else if (!cgen_is_preload(ident))
-      return;
-
-   tree_t unit = lib_get(lib, ident);
-
-   if (is_uninstantiated_package(unit))
-      return;
-
-   APUSH(*args->units, ident);
-
-   const int ndecls = tree_decls(unit);
-   for (int i = 0; i < ndecls; i++) {
-      tree_t d = tree_decl(unit, i);
-      switch (tree_kind(d)) {
-      case T_FUNC_DECL:
-      case T_PROC_DECL:
-         {
-            const int nports = tree_ports(d);
-            for (int i = 0; i < nports; i++) {
-               tree_t p = tree_port(d, i);
-               if (!tree_has_value(p))
-                  continue;
-
-               tree_t value = tree_value(p);
-               if (is_literal(value) || tree_kind(value) == T_STRING)
-                  continue;
-
-               ident_t def_func = ident_sprintf("%s$default_%s",
-                                                istr(tree_ident2(d)),
-                                                istr(tree_ident(p)));
-               APUSH(*args->units, def_func);
-            }
-         }
-         // Fall-through
-      case T_FUNC_INST:
-      case T_PROC_INST:
-         {
-            if (is_open_coded_builtin(tree_subkind(d)))
-               continue;
-
-            APUSH(*args->units, tree_ident2(d));
-         }
-         break;
-      case T_PROT_DECL:
-         {
-            type_t type = tree_type(d);
-            ident_t id = type_ident(type);
-
-            APUSH(*args->units, id);
-
-            const int nmeth = tree_decls(d);
-            for (int i = 0; i < nmeth; i++) {
-               tree_t m = tree_decl(d, i);
-               if (is_subprogram(m))
-                  APUSH(*args->units, tree_ident2(m));
-            }
-         }
-         break;
-      case T_TYPE_DECL:
-         {
-            type_t type = tree_type(d);
-            ident_t id = type_ident(type);
-
-            if (type_is_representable(type)) {
-               ident_t image = ident_prefix(id, ident_new("image"), '$');
-               APUSH(*args->units, image);
-
-               ident_t value = ident_prefix(id, ident_new("value"), '$');
-               APUSH(*args->units, value);
-            }
-
-            if (type_is_record(type) && !type_const_bounds(type)) {
-               ident_t new = ident_prefix(id, ident_new("new"), '$');
-               APUSH(*args->units, new);
-            }
-
-            if (!type_is_homogeneous(type) && can_be_signal(type)) {
-               ident_t resolved = ident_prefix(id, ident_new("resolved"), '$');
-               APUSH(*args->units, resolved);
-
-               ident_t last_value = ident_sprintf("%s$last_value", istr(id));
-               APUSH(*args->units, last_value);
-
-               ident_t last_event = ident_sprintf("%s$last_event", istr(id));
-               APUSH(*args->units, last_event);
-
-               ident_t last_active = ident_sprintf("%s$last_active", istr(id));
-               APUSH(*args->units, last_active);
-
-               ident_t driving = ident_prefix(id, ident_new("driving"), '$');
-               APUSH(*args->units, driving);
-            }
-         }
-         break;
-      default:
-         break;
-      }
-   }
-}
-
-static void preload_do_link(const char *so_name, const char *obj_file)
-{
-   cgen_linker_setup();
-
-   cgen_link_arg("-o");
-   cgen_link_arg("%s", so_name);
-
-   cgen_link_arg("%s", obj_file);
-
-#if defined LINKER_PATH && defined __OpenBSD__
-   // Extra linker arguments to make constructors work on OpenBSD
-   cgen_link_arg("-L/usr/lib");
-   cgen_link_arg("-lcompiler_rt");
-   cgen_link_arg("/usr/lib/crtendS.o");
-#endif
-
-#ifdef IMPLIB_REQUIRED
-   LOCAL_TEXT_BUF tb = tb_new();
-   const char *cyglib = getenv("NVC_IMP_LIB");
-   if (cyglib != NULL)
-      tb_cat(tb, cyglib);
-   else
-      get_lib_dir(tb);
-
-   cgen_link_arg("-L%s", tb_get(tb));
-   cgen_link_arg("-lnvcimp");
-#endif
-
-   APUSH(link_args, NULL);
-
-   run_program((const char * const *)link_args.items);
-
-   progress("linking shared library");
-
-   for (size_t i = 0; i < link_args.count; i++)
-      free(link_args.items[i]);
-   ACLEAR(link_args);
-}
-
-void aotgen(const char *outfile, char **argv, int argc)
-{
-   unit_list_t initial = AINIT;
-   unit_list_t units = AINIT;
-   mir_context_t *mc = mir_context_new();
-   unit_registry_t *ur = unit_registry_new(mc);
-
-   discover_args_t args = {
-      .registry = ur,
-      .units    = &units,
-      .filter   = hset_new(64),
-   };
-
-   for (int i = 0; i < argc; i++) {
-      for (char *p = argv[i]; *p; p++)
-         *p = toupper((int)*p);
-
-      lib_t lib = lib_require(ident_new(argv[i]));
-      lib_walk_index(lib, preload_walk_index, &args);
-   }
-
-   hset_t *seen = hset_new(128);
-
-   for (int i = 0; i < units.count; i++)
-      hset_insert(seen, units.items[i]);
-
-   for (int i = 0; i < units.count; i++)
-      cgen_find_dependencies(mc, ur, &units, seen, units.items[i], true);
-
-   ACLEAR(initial);
-   hset_free(seen);
-   seen = NULL;
-   hset_free(args.filter);
-   args.filter = NULL;
-
-   jit_t *jit = jit_new(ur, mc);
-
-   progress("initialising");
-
-   llvm_obj_t *obj = llvm_obj_new("preload");
-   llvm_add_abi_version(obj);
-
-   for (int i = 0; i < units.count; i++) {
-      jit_handle_t handle = jit_lazy_compile(jit, units.items[i]);
-      assert(handle != JIT_HANDLE_INVALID);
-
-      llvm_aot_compile(obj, jit, handle);
-   }
-
-   progress("code generation for %d units", units.count);
-
-   llvm_opt_level_t olevel = opt_get_int(OPT_OPTIMISE);
-   llvm_obj_finalise(obj, olevel);
-
-   progress("LLVM module optimisation passes");
-
-   char *objfile LOCAL = nvc_temp_file();
-   llvm_obj_emit(obj, objfile);
-
-   progress("native code generation");
-
-   preload_do_link(outfile, objfile);
-
-   if (remove(objfile) != 0)
-      warnf("remove: %s: %s", objfile, last_os_error());
-
-   ACLEAR(units);
-   jit_free(jit);
-   unit_registry_free(ur);
-   mir_context_free(mc);
-}
-#endif   // ENABLE_LLVM

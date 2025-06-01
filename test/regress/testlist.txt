@@ -861,7 +861,7 @@ issue548        shell
 alias15         normal,2002
 protected12     normal,2019
 ieee11          normal,gold
-ieee12          normal
+ieee12          normal,slow
 ieee13          normal,gold
 ieee14          normal,gold
 ieee15          fail,gold

@@ -54,9 +54,6 @@ typedef enum {
 void cgen(tree_t top, unit_registry_t *ur, mir_context_t *mc, jit_t *jit,
           cgen_mode_t mode);
 
-// Generate ahead-of-time preload library
-void aotgen(const char *outfile, char **argv, int argc);
-
 // Dump out a VHDL representation of the given unit
 void dump(tree_t top);
 

@@ -41,24 +41,6 @@
                       Source="$PREFIX\lib\nvc\libnvcimp.a"
                       />
               </Component>
-              <Component Win64="yes" Id="PRELOAD08.DLL" DiskId="1"
-                         Guid="EEF72905-C4DE-40AC-A21E-9E2167810969">
-                <File Id="PRELOAD08.DLL" Name="preload08.dll"
-                      Source="$PREFIX\lib\nvc\preload08.dll"
-                      />
-              </Component>
-              <Component Win64="yes" Id="PRELOAD19.DLL" DiskId="1"
-                         Guid="9F7AAEE5-118B-4401-8C00-2A12FDC33E0F">
-                <File Id="PRELOAD19.DLL" Name="preload19.dll"
-                      Source="$PREFIX\lib\nvc\preload19.dll"
-                      />
-              </Component>
-              <Component Win64="yes" Id="PRELOAD93.DLL" DiskId="1"
-                         Guid="7778EAC7-5A12-4333-BECC-822EEF70C277">
-                <File Id="PRELOAD93.DLL" Name="preload93.dll"
-                      Source="$PREFIX\lib\nvc\preload93.dll"
-                      />
-              </Component>
               <Directory Id="LIB_NVC_IEEE" Name="ieee">
               </Directory>
               <Directory Id="LIB_NVC_IEEE.08" Name="ieee.08">
@@ -248,9 +230,6 @@
       <ComponentRef Id="NVC.EXE" />
       <ComponentRef Id="VHPI_USER.H" />
       <ComponentRef Id="LIBNVCIMP.A" />
-      <ComponentRef Id="PRELOAD08.DLL" />
-      <ComponentRef Id="PRELOAD19.DLL" />
-      <ComponentRef Id="PRELOAD93.DLL" />
       <ComponentRef Id="FUNCTIONS.SH" />
       <ComponentRef Id="INSTALL_FMF.SH" />
       <ComponentRef Id="INSTALL_ICECUBE2.SH" />

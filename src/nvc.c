@@ -109,7 +109,7 @@ static int scan_cmd(int start, int argc, char **argv)
 {
    const char *commands[] = {
       "-a", "-e", "-r", "-c", "--dump", "--make", "--syntax", "--list",
-      "--init", "--install", "--print-deps", "--aotgen", "--do", "-i",
+      "--init", "--install", "--print-deps", "--do", "-i",
       "--cover-export", "--preprocess", "--gui", "--cover-merge",
       "--cover-report",
    };
@@ -688,10 +688,6 @@ static void ctrl_c_handler(void *arg)
 static jit_t *get_jit(unit_registry_t *ur, mir_context_t *mc)
 {
    jit_t *jit = jit_new(ur, mc);
-
-#ifdef HAVE_LLVM
-   jit_preload(jit);
-#endif
 
 #if defined HAVE_LLVM && 1
    jit_register_llvm_plugin(jit);
@@ -1384,49 +1380,6 @@ static int dump_cmd(int argc, char **argv, cmd_state_t *state)
 
    return argc > 1 ? process_command(argc, argv, state) : EXIT_SUCCESS;
 }
-
-#if ENABLE_LLVM
-static int aotgen_cmd(int argc, char **argv, cmd_state_t *state)
-{
-   static struct option long_options[] = {
-      { 0, 0, 0, 0 }
-   };
-
-   const char *outfile = "preload." DLL_EXT;
-
-   const int next_cmd = scan_cmd(2, argc, argv);
-   int c, index = 0;
-   const char *spec = ":o:VO:";
-   while ((c = getopt_long(next_cmd, argv, spec, long_options, &index)) != -1) {
-      switch (c) {
-      case 0: break;  // Set a flag
-      case 'V':
-         opt_set_int(OPT_VERBOSE, 1);
-         break;
-      case 'O':
-         opt_set_int(OPT_OPTIMISE, parse_optimise_level(optarg));
-         break;
-      case 'o': outfile = optarg; break;
-      case '?': bad_option("aotgen", argv);
-      case ':': missing_argument("aotgen", argv);
-      default: abort();
-      }
-   }
-
-   const int count = next_cmd - optind;
-   aotgen(outfile, argv + optind, count);
-
-   argc -= next_cmd - 1;
-   argv += next_cmd - 1;
-
-   return argc > 1 ? process_command(argc, argv, state) : EXIT_SUCCESS;
-}
-#else
-static int aotgen_cmd(int argc, char **argv, cmd_state_t *state)
-{
-   fatal("$bold$--aotgen$$ not supported without LLVM");
-}
-#endif
 
 static int do_cmd(int argc, char **argv, cmd_state_t *state)
 {
@@ -2435,7 +2388,6 @@ static int process_command(int argc, char **argv, cmd_state_t *state)
       { "init",         no_argument, 0, 'n' },
       { "install",      no_argument, 0, 'I' },
       { "print-deps",   no_argument, 0, 'P' },
-      { "aotgen",       no_argument, 0, 'A' },
       { "do",           no_argument, 0, 'D' },
       { "cover-export", no_argument, 0, 'E' },
       { "cover-merge",  no_argument, 0, 'M' },
@@ -2475,8 +2427,6 @@ static int process_command(int argc, char **argv, cmd_state_t *state)
       return install_cmd(argc, argv, state);
    case 'P':
       return print_deps_cmd(argc, argv, state);
-   case 'A':
-      return aotgen_cmd(argc, argv, state);
    case 'D':
       return do_cmd(argc, argv, state);
    case 'i':
