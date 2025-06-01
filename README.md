@@ -135,10 +135,12 @@ required dependencies:
     sudo dnf install autoconf automake flex check llvm-devel libffi-devel \
       zlib-ng-compat-devel libzstd-devel elfutils-devel
 
-Only the MSYS2 environment on Windows is supported.  The required
+Only the MSYS2 environment on Windows is supported.  The "Clang x64"
+environment should be used because it supports native Windows
+thread-local storage unlike the GCC-based environments.  The required
 dependencies can be installed with:
 
-    pacman -S base-devel mingw-w64-x86_64-{llvm,ncurses,libffi,check,pkg-config,zstd}
+    pacman -S base-devel mingw-w64-clang-x86_64-{llvm,ncurses,libffi,check,pkgconf,zstd,autotools,clang}
 
 [GTKWave](http://gtkwave.sourceforge.net/) or [Surfer](https://surfer-project.org/)
 can be used to view simulation waveforms.  For GTKWave, version 3.3.79 or later is
