@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2024  Nick Gasson
+//  Copyright (C) 2024-2025  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -2069,6 +2069,67 @@ static vlog_node_t p_wait_statement(void)
    return v;
 }
 
+static vlog_node_t p_case_item(void)
+{
+   // case_item_expression { , case_item_expression } : statement_or_null
+   //   | default [ : ] statement_or_null
+
+   BEGIN("case item");
+
+   vlog_node_t v = vlog_new(V_CASE_ITEM);
+
+   if (optional(tDEFAULT))
+      optional(tCOLON);
+   else {
+      do {
+         vlog_add_param(v, p_expression());
+      } while (optional(tCOMMA));
+
+      consume(tCOLON);
+   }
+
+   vlog_set_loc(v, CURRENT_LOC);
+
+   vlog_add_stmt(v, p_statement_or_null());
+   return v;
+}
+
+static vlog_node_t p_case_statement(void)
+{
+   // [ unique_priority ] case_keyword ( case_expression )
+   //        case_item { case_item } endcase
+   //   | [ unique_priority ] case_keyword ( case_expression ) matches
+   //        case_pattern_item { case_pattern_item } endcase
+   //   | [ unique_priority ] case ( case_expression ) inside case_inside_item
+   //        { case_inside_item } endcase
+
+   BEGIN("case statement");
+
+   vlog_case_kind_t kind = V_CASE_NORMAL;
+   switch (one_of(tCASE, tCASEX, tCASEZ)) {
+   case tCASEX: kind = V_CASE_X; break;
+   case tCASEZ: kind = V_CASE_Z; break;
+   }
+
+   vlog_node_t v = vlog_new(V_CASE);
+   vlog_set_subkind(v, kind);
+
+   consume(tLPAREN);
+
+   vlog_set_value(v, p_expression());
+
+   consume(tRPAREN);
+
+   do {
+      vlog_add_stmt(v, p_case_item());
+   } while (not_at_token(tENDCASE));
+
+   consume(tENDCASE);
+
+   vlog_set_loc(v, CURRENT_LOC);
+   return v;
+}
+
 static vlog_node_t p_statement_item(void)
 {
    // blocking_assignment ; | nonblocking_assignment ;
@@ -2113,9 +2174,13 @@ static vlog_node_t p_statement_item(void)
       return p_loop_statement();
    case tWAIT:
       return p_wait_statement();
+   case tCASE:
+   case tCASEX:
+   case tCASEZ:
+      return p_case_statement();
    default:
       one_of(tID, tAT, tHASH, tBEGIN, tSYSTASK, tIF, tFOREVER, tWHILE, tREPEAT,
-             tDO, tFOR, tWAIT);
+             tDO, tFOR, tWAIT, tCASE, tCASEX, tCASEZ);
       drop_tokens_until(tSEMI);
       return NULL;
    }
@@ -3391,7 +3456,8 @@ static void p_parameter_port_list(vlog_node_t mod)
 
    BEGIN("parameter port list");
 
-   consume(tHASHLPAREN);
+   consume(tHASH);
+   consume(tLPAREN);
 
    if (peek() != tRPAREN) {
       vlog_kind_t kind = V_PARAM_DECL;
@@ -3428,7 +3494,7 @@ static void p_module_ansi_header(vlog_node_t mod)
 
    EXTEND("module ANSI header");
 
-   if (peek() == tHASHLPAREN)
+   if (peek() == tHASH)
       p_parameter_port_list(mod);
 
    if (peek() == tLPAREN)

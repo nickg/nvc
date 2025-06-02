@@ -169,7 +169,7 @@ START_TEST(test_parse1)
    vlog_node_t m = vlog_parse();
    fail_if(m == NULL);
    fail_unless(vlog_kind(m) == V_MODULE);
-   ck_assert_int_eq(vlog_stmts(m), 20);
+   ck_assert_int_eq(vlog_stmts(m), 21);
    ck_assert_int_eq(vlog_ports(m), 0);
    ck_assert_int_eq(vlog_decls(m), 19);
 
@@ -800,6 +800,29 @@ START_TEST(test_const1)
 }
 END_TEST
 
+START_TEST(test_case1)
+{
+   input_from_file(TESTDIR "/vlog/case1.v");
+
+   const error_t expect[] = {
+      { 10, "no visible declaration for aaa" },
+      { 15, "multiple default statements within a single case statement" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   vlog_node_t m = vlog_parse();
+   fail_if(m == NULL);
+   fail_unless(vlog_kind(m) == V_MODULE);
+
+   vlog_check(m);
+
+   fail_unless(vlog_parse() == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_vlog_tests(void)
 {
    Suite *s = suite_create("vlog");
@@ -830,6 +853,7 @@ Suite *get_vlog_tests(void)
    tcase_add_test(tc, test_pp4);
    tcase_add_test(tc, test_casename);
    tcase_add_test(tc, test_const1);
+   tcase_add_test(tc, test_case1);
    suite_add_tcase(s, tc);
 
    return s;

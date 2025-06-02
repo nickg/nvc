@@ -29,6 +29,11 @@ module mod2;
   parameter [7:0] p1 = 5;
   localparam bit p2 = 0;
   reg [7:0]      array1 [127:0];
+  initial
+    casex (w)
+      'b0, 'b1: r = 1;
+      default: r = 0;
+    endcase
 endmodule // mod2
 
 primitive multiplexer (mux, control, dataA, dataB);

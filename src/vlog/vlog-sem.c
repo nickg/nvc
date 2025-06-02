@@ -703,6 +703,32 @@ static void vlog_check_for_step(vlog_node_t v)
       vlog_check(vlog_stmt(v, i));
 }
 
+static void vlog_check_case(vlog_node_t v)
+{
+   vlog_check(vlog_value(v));
+
+   bool seen_default = false;
+   const int nstmts = vlog_stmts(v);
+   for (int i = 0; i < nstmts; i++) {
+      vlog_node_t item = vlog_stmt(v, i);
+      assert(vlog_kind(item) == V_CASE_ITEM);
+
+      const int nparams = vlog_params(item);
+      if (nparams == 0 && !seen_default)
+         seen_default = true;
+      else if (nparams == 0)
+         error_at(vlog_loc(item), "multiple default statements within a single "
+                  "case statement");
+
+      for (int i = 0; i < nparams; i++)
+         vlog_check(vlog_param(item, i));
+
+      const int nstmts = vlog_stmts(item);
+      for (int i = 0; i < nstmts; i++)
+         vlog_check(vlog_stmt(item, i));
+   }
+}
+
 void vlog_check(vlog_node_t v)
 {
    switch (vlog_kind(v)) {
@@ -831,6 +857,9 @@ void vlog_check(vlog_node_t v)
       break;
    case V_FOR_STEP:
       vlog_check_for_step(v);
+      break;
+   case V_CASE:
+      vlog_check_case(v);
       break;
    default:
       fatal_at(vlog_loc(v), "cannot check verilog node %s",

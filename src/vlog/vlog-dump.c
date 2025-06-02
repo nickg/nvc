@@ -186,12 +186,13 @@ static void vlog_dump_initial(vlog_node_t v, int indent)
 {
    tab(indent);
 
-   print_syntax("#initial ");
-   vlog_dump(vlog_stmt(v, 0), indent);
+   print_syntax("#initial\n");
+   vlog_dump(vlog_stmt(v, 0), indent + 2);
 }
 
 static void vlog_dump_seq_block(vlog_node_t v, int indent)
 {
+   tab(indent);
    print_syntax("#begin\n");
 
    const int nstmts = vlog_stmts(v);
@@ -513,6 +514,42 @@ static void vlog_dump_repeat(vlog_node_t v, int indent)
    vlog_dump_stmt_or_null(v, indent);
 }
 
+static void vlog_dump_case(vlog_node_t v, int indent)
+{
+   static const char *suffix[] = { "", "x", "z" };
+
+   tab(indent);
+   print_syntax("#case%s (", suffix[vlog_subkind(v)]);
+   vlog_dump(vlog_value(v), indent);
+   print_syntax(")\n");
+
+   const int nstmts = vlog_stmts(v);
+   for (int i = 0; i < nstmts; i++)
+      vlog_dump(vlog_stmt(v, i), indent + 2);
+
+   tab(indent);
+   print_syntax("#endcase\n");
+}
+
+static void vlog_dump_case_item(vlog_node_t v, int indent)
+{
+   tab(indent);
+
+   const int nparams = vlog_params(v);
+   if (nparams == 0)
+      print_syntax("#default");
+   else {
+      vlog_dump(vlog_param(v, 0), 0);
+      for (int i = 1; i < nparams; i++) {
+         print_syntax(", ");
+         vlog_dump(vlog_param(v, i), 0);
+      }
+   }
+
+   print_syntax(":");
+   vlog_dump_stmt_or_null(v, indent);
+}
+
 static void vlog_dump_cond_expr(vlog_node_t v, int indent)
 {
    vlog_dump(vlog_value(v), 0);
@@ -677,8 +714,14 @@ void vlog_dump(vlog_node_t v, int indent)
    case V_REPEAT:
       vlog_dump_repeat(v, indent);
       break;
+   case V_CASE:
+      vlog_dump_case(v, indent);
+      break;
    case V_COND_EXPR:
       vlog_dump_cond_expr(v, indent);
+      break;
+   case V_CASE_ITEM:
+      vlog_dump_case_item(v, indent);
       break;
    case V_CONCAT:
       vlog_dump_concat(v, indent);

@@ -51,6 +51,12 @@ typedef enum {
 } vlog_always_kind_t;
 
 typedef enum {
+   V_CASE_NORMAL,
+   V_CASE_X,
+   V_CASE_Z,
+} vlog_case_kind_t;
+
+typedef enum {
    V_MODULE,
    V_PORT_DECL,
    V_REF,
@@ -107,6 +113,8 @@ typedef enum {
    V_PREFIX,
    V_POSTFIX,
    V_LOCALPARAM,
+   V_CASE,
+   V_CASE_ITEM,
 
    V_LAST_NODE_KIND
 } vlog_kind_t;

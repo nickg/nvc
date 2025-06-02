@@ -75,4 +75,10 @@ module parse1;
     x = 3;
   end
   always @(  *) x <= y;
+  initial
+    case (x)
+      2'b00: y = 1;
+      2'b01, 2'b10: y = 0;
+      default: y = 2;
+    endcase
 endmodule // parse1

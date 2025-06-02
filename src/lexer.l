@@ -139,7 +139,6 @@ UDP_INDICATOR   "("{UDP_LEVEL}{UDP_LEVEL}")"
 SCALAR_ZERO     ('b0|'B0|1'b0|1'B0)
 SCALAR_ONE      ('b1|'B1|1'b1|1'B1)
 PAREN_STAR      "("{SPACE}*"*"{SPACE}*")"
-HASH_LPAREN     #{SPACE}*"("
 
 %x COMMENT C_COMMENT PSL VLOG UDP SDF SDF_EXPR
 
@@ -726,6 +725,11 @@ BEFORE            ?i:before
 <VLOG>"parameter"        { return tPARAMETER; }
 <VLOG>"for"              { return tFOR; }
 <VLOG>"localparam"       { return tLOCALPARAM; }
+<VLOG>"case"             { return tCASE; }
+<VLOG>"casex"            { return tCASEX; }
+<VLOG>"casez"            { return tCASEZ; }
+<VLOG>"endcase"          { return tENDCASE; }
+<VLOG>"default"          { return tDEFAULT; }
 
 <VLOG>{SYSTASK}          { yylval.str = xstrdup(yytext); return tSYSTASK; }
 <VLOG>{VLOG_ID}          { yylval.str = xstrdup(yytext); return tID; }
@@ -734,7 +738,6 @@ BEFORE            ?i:before
 <VLOG>{VLOG_NUMBER}      { yylval.str = xstrdup(yytext); return tNUMBER; }
 <VLOG>{VLOG_REAL}        { return parse_verilog_real(yytext); };
 <VLOG>{PAREN_STAR}       { return tPARENSTAR; }
-<VLOG>{HASH_LPAREN}      { return tHASHLPAREN; }
 
 <INITIAL,PSL>{DECIMAL}   { return parse_decimal_literal(yytext); }
 <INITIAL,PSL>{BASED}     { return parse_based_literal(yytext); }
