@@ -478,9 +478,24 @@ static bool sem_check_readable(tree_t t)
             break;
 
          case T_PARAM_DECL:
-            if (tree_subkind(decl) == PORT_OUT && standard() < STD_08)
-               sem_error(t, "cannot read OUT parameter %s",
-                         istr(tree_ident(t)));
+            if (tree_subkind(decl) == PORT_OUT) {
+               // LRM 08 section 6.5.2: The value of the interface
+               // object is allowed to be updated and, provided it is
+               // not a signal parameter, read.
+               if (standard() < STD_08)
+                  sem_error(t, "cannot read OUT parameter %s",
+                            istr(tree_ident(t)));
+               else if (tree_class(decl) == C_SIGNAL) {
+                  diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
+                  diag_printf(d, "cannot read OUT signal parameter %s",
+                              istr(tree_ident(t)));
+                  diag_hint(d, NULL, "OUT parameters can be read provided they "
+                            "are not signal parameters");
+                  diag_lrm(d, STD_08, "6.5.2");
+                  diag_emit(d);
+                  return false;
+               }
+            }
             break;
 
          default:

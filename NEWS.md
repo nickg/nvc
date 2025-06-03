@@ -2,7 +2,7 @@
 - Fixed a crash when an entity uses VHDL-2019 enhanced type generics and
   sub-elements of a port with a generic array type are associated
   individually (#1201).
-- Several other minor bugs were resolved (#1202, #1204).
+- Several other minor bugs were resolved (#1202, #1204, #1212).
 
 ## Version 1.16.1 - 2025-05-12
 - Fixed an elaboration failure where generic names differ in case
