@@ -2220,7 +2220,7 @@ static void jit_x86_op(code_blob_t *blob, jit_x86_state_t *state, jit_ir_t *ir,
       jit_x86_macro_trim(blob, ir);
       break;
    default:
-      jit_dump_with_mark(blob->func, ir - blob->func->irbuf, false);
+      jit_dump_with_mark(blob->func, ir - blob->func->irbuf);
       fatal_trace("unhandled opcode %s in x86 backend", jit_op_name(ir->op));
    }
 }

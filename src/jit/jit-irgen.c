@@ -4564,7 +4564,6 @@ void jit_irgen(jit_func_t *f, mir_unit_t *mu)
       jit_do_cprop(f);
       jit_do_dce(f);
       jit_delete_nops(f);
-      jit_free_cfg(f);
    }
 
    // Function can be executed immediately after this store

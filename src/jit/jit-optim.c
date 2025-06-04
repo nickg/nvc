@@ -160,9 +160,6 @@ static void cfg_liveness(jit_cfg_t *cfg, jit_func_t *f)
 
 jit_cfg_t *jit_get_cfg(jit_func_t *f)
 {
-   if (f->cfg != NULL)
-      return f->cfg;
-
    int nb = 1;
    for (int i = 0, first = 0; i < f->nirs; i++) {
       jit_ir_t *ir = &(f->irbuf[i]);
@@ -218,25 +215,22 @@ jit_cfg_t *jit_get_cfg(jit_func_t *f)
 
    cfg_liveness(cfg, f);
 
-   return (f->cfg = cfg);
+   return cfg;
 }
 
-void jit_free_cfg(jit_func_t *f)
+void jit_free_cfg(jit_cfg_t *cfg)
 {
-   if (f->cfg != NULL) {
-      for (int i = 0; i < f->cfg->nblocks; i++) {
-         jit_block_t *b = &(f->cfg->blocks[i]);
-         mask_free(&b->livein);
-         mask_free(&b->liveout);
-         mask_free(&b->varkill);
+   for (int i = 0; i < cfg->nblocks; i++) {
+      jit_block_t *b = &(cfg->blocks[i]);
+      mask_free(&b->livein);
+      mask_free(&b->liveout);
+      mask_free(&b->varkill);
 
-         if (b->in.max > 4) free(b->in.u.external);
-         if (b->out.max > 4) free(b->out.u.external);
-      }
-
-      free(f->cfg);
-      f->cfg = NULL;
+      if (b->in.max > 4) free(b->in.u.external);
+      if (b->out.max > 4) free(b->out.u.external);
    }
+
+   free(cfg);
 }
 
 jit_block_t *jit_block_for(jit_cfg_t *cfg, int pos)
@@ -829,7 +823,7 @@ static void jit_lvn_copy(jit_ir_t *ir, lvn_state_t *state)
             ir->arg1 = LVN_CONST(*(uint8_t *)src);
             break;
          default:
-            jit_dump_with_mark(state->func, ir - state->func->irbuf, NULL);
+            jit_dump_with_mark(state->func, ir - state->func->irbuf);
             fatal_trace("unhandled constant copy from constant pool");
          }
 
@@ -985,8 +979,6 @@ void jit_do_lvn(jit_func_t *f)
             state.regvn[ir->result] = VN_INVALID;
       }
    }
-
-   jit_free_cfg(f);   // Jump threading may have changed CFG
 
    free(state.regvn);
    free(state.hashtab);
@@ -1369,7 +1361,7 @@ int jit_do_lscan(jit_func_t *f, phys_slot_t *slots, uint64_t badmask)
    lscan_walk_cfg(f, cfg, 0, li, &visited);
    mask_free(&visited);
 
-   jit_free_cfg(f);
+   jit_free_cfg(cfg);
 
    qsort(li, f->nregs, sizeof(lscan_interval_t), lscan_interval_cmp);
 

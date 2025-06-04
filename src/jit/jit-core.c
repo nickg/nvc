@@ -175,7 +175,6 @@ jit_t *jit_new(unit_registry_t *ur, mir_context_t *mc)
 
 static void jit_free_func(jit_func_t *f)
 {
-   jit_free_cfg(f);
    mptr_free(f->jit->mspace, &(f->privdata));
    free(f->irbuf);
    free(f->linktab);

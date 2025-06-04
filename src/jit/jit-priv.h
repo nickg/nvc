@@ -305,7 +305,6 @@ typedef struct _jit_func {
    jit_handle_t    handle;
    unsigned        hotness;
    jit_tier_t     *next_tier;
-   jit_cfg_t      *cfg;
    ffi_spec_t      spec;
    object_t       *object;
 } jit_func_t;
@@ -363,7 +362,8 @@ typedef struct _jit_interp jit_interp_t;
 
 void jit_irgen(jit_func_t *f, mir_unit_t *mu);
 void jit_dump(jit_func_t *f);
-void jit_dump_with_mark(jit_func_t *f, jit_label_t label, bool cpool);
+void jit_dump_with_mark(jit_func_t *f, jit_label_t label);
+void jit_dump_with_cfg(jit_func_t *f, jit_cfg_t *cfg);
 void jit_dump_interleaved(jit_func_t *f, mir_unit_t *mu);
 const char *jit_op_name(jit_op_t op);
 const char *jit_cc_name(jit_cc_t cc);
@@ -382,7 +382,7 @@ jit_entry_fn_t jit_bind_intrinsic(ident_t name);
 jit_thread_local_t *jit_attach_thread(jit_anchor_t *anchor);
 
 jit_cfg_t *jit_get_cfg(jit_func_t *f);
-void jit_free_cfg(jit_func_t *f);
+void jit_free_cfg(jit_cfg_t *cfg);
 jit_block_t *jit_block_for(jit_cfg_t *cfg, int pos);
 int jit_get_edge(jit_edge_list_t *list, int nth);
 

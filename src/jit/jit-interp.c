@@ -101,7 +101,7 @@ static void interp_dump_reg(jit_interp_t *state, int64_t ival)
 
 static void interp_dump(jit_interp_t *state)
 {
-   jit_dump_with_mark(state->func, state->pc - 1, false);
+   jit_dump_with_mark(state->func, state->pc - 1);
 
    printf("Arguments:\n");
    for (int i = 0; i < state->nargs; i++) {
@@ -629,7 +629,7 @@ static void interp_call(jit_interp_t *state, jit_ir_t *ir)
    state->anchor->irpos = ir - state->func->irbuf;
 
    if (ir->arg1.handle == JIT_HANDLE_INVALID) {
-      jit_dump_with_mark(state->func, state->anchor->irpos, false);
+      jit_dump_with_mark(state->func, state->anchor->irpos);
       jit_msg(NULL, DIAG_FATAL, "missing definition for subprogram");
    }
    else {
