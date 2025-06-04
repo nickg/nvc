@@ -62,7 +62,7 @@ static void check_nullary(jit_func_t *f, int nth, jit_op_t expect)
    if (ir->op == expect)
       return;
 
-   jit_dump_with_mark(f, nth, false);
+   jit_dump_with_mark(f, nth);
 
    if (ir->op != expect)
       ck_abort_msg("expected op %s but have %s", jit_op_name(expect),
@@ -77,7 +77,7 @@ static void check_unary(jit_func_t *f, int nth, jit_op_t expect,
        && extend_value(ir->arg1) == extend_value(arg1))
       return;
 
-   jit_dump_with_mark(f, nth, false);
+   jit_dump_with_mark(f, nth);
 
    if (ir->op != expect)
       ck_abort_msg("expected op %s but have %s", jit_op_name(expect),
@@ -100,7 +100,7 @@ static void check_binary(jit_func_t *f, int nth, jit_op_t expect,
        && extend_value(ir->arg2) == extend_value(arg2))
       return;
 
-   jit_dump_with_mark(f, nth, false);
+   jit_dump_with_mark(f, nth);
 
    if (ir->op != expect)
       ck_abort_msg("expected op %s but have %s", jit_op_name(expect),

@@ -32,12 +32,15 @@
 // LCOV_EXCL_START /////////////////////////////////////////////////////////////
 
 typedef struct {
-   ihash_t    *labels;
-   int         next_label;
-   int         next_ir;
-   int         lpend;
-   jit_t      *jit;
-   jit_func_t *func;
+   ihash_t     *labels;
+   int          next_label;
+   int          next_ir;
+   int          lpend;
+   jit_t       *jit;
+   jit_func_t  *func;
+   jit_cfg_t   *cfg;
+   jit_label_t  label;
+   bool         cpool;
 } jit_dump_t;
 
 const char *jit_op_name(jit_op_t op)
@@ -195,12 +198,11 @@ static void jit_dump_regset(jit_dump_t *d, bit_mask_t *m)
 
 static void jit_dump_ir(jit_dump_t *d, jit_ir_t *ir)
 {
-   jit_cfg_t *cfg = d->func->cfg;
-   if (cfg != NULL) {
+   if (d->cfg != NULL) {
       const int pos = ir - d->func->irbuf;
-      jit_block_t *bb = jit_block_for(cfg, pos);
+      jit_block_t *bb = jit_block_for(d->cfg, pos);
       if (pos == bb->first) {
-         printf("\t;; BB%"PRIiPTR, bb - d->func->cfg->blocks);
+         printf("\t;; BB%"PRIiPTR, bb - d->cfg->blocks);
 
          if (bb->in.count > 0) {
             printf(" in:");
@@ -261,7 +263,7 @@ static void jit_dump_ir(jit_dump_t *d, jit_ir_t *ir)
    printf("\n");
 }
 
-void jit_dump_with_mark(jit_func_t *f, jit_label_t label, bool cpool)
+static void jit_do_dump(jit_dump_t *d, jit_func_t *f)
 {
    printf("------------------------------------------------------------\n");
    printf("%s:\n", istr(f->name));
@@ -269,27 +271,23 @@ void jit_dump_with_mark(jit_func_t *f, jit_label_t label, bool cpool)
    if (f->framesz > 0)
       printf("\t;; Frame size: %u bytes\n", f->framesz);
 
-   jit_dump_t d = {
-      .labels = ihash_new(128),
-      .jit    = f->jit,
-      .func   = f,
-   };
+   d->labels = ihash_new(128);
 
    for (int i = 0; i < f->nirs; i++) {
-      if (i == label)
+      if (i == d->label)
          color_printf("$!red$");
       if (f->irbuf[i].target) {
-         jit_dump_label(&d, i);
+         jit_dump_label(d, i);
          printf(":");
       }
-      jit_dump_ir(&d, &(f->irbuf[i]));
-      if (i == label)
+      jit_dump_ir(d, &(f->irbuf[i]));
+      if (i == d->label)
          color_printf("$$");
    }
 
-   ihash_free(d.labels);
+   ihash_free(d->labels);
 
-   if (cpool && f->cpoolsz > 0) {
+   if (d->cpool && f->cpoolsz > 0) {
       printf("\n");
       jit_hexdump(f->cpool, f->cpoolsz, 16, NULL, "\t");
    }
@@ -298,9 +296,36 @@ void jit_dump_with_mark(jit_func_t *f, jit_label_t label, bool cpool)
    fflush(stdout);
 }
 
+void jit_dump_with_mark(jit_func_t *f, jit_label_t label)
+{
+   jit_dump_t d = {
+      .jit   = f->jit,
+      .func  = f,
+      .label = label,
+   };
+   jit_do_dump(&d, f);
+}
+
+void jit_dump_with_cfg(jit_func_t *f, jit_cfg_t *cfg)
+{
+   jit_dump_t d = {
+      .jit   = f->jit,
+      .func  = f,
+      .label = JIT_LABEL_INVALID,
+      .cfg   = cfg,
+   };
+   jit_do_dump(&d, f);
+}
+
 void jit_dump(jit_func_t *f)
 {
-   jit_dump_with_mark(f, JIT_LABEL_INVALID, true);
+   jit_dump_t d = {
+      .jit   = f->jit,
+      .func  = f,
+      .label = JIT_LABEL_INVALID,
+      .cpool = true,
+   };
+   jit_do_dump(&d, f);
 }
 
 static void jit_interleaved_cb(mir_unit_t *mu, mir_block_t b, mir_value_t n,

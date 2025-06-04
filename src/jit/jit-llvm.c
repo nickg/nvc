@@ -1057,7 +1057,7 @@ static void cgen_abort(cgen_block_t *cgb, jit_ir_t *ir, const char *fmt, ...)
    va_start(ap, fmt);
 
    char *text LOCAL = xvasprintf(fmt, ap);
-   jit_dump_with_mark(cgb->func->source, ir - cgb->func->source->irbuf, false);
+   jit_dump_with_mark(cgb->func->source, ir - cgb->func->source->irbuf);
    fatal_trace("%s", text);
 
    va_end(ap);
@@ -1888,7 +1888,7 @@ static void cgen_op_call(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
 
 #if CLOSED_WORLD
       // Do not generate direct calls for intrinsics
-      if (callee->entry == jit_interp) {
+      if (relaxed_load(&callee->entry) == jit_interp) {
          LOCAL_TEXT_BUF symbol = safe_symbol(callee->name);
          entry = llvm_add_fn(obj, tb_get(symbol), obj->types[LLVM_ENTRY_FN]);
       }
@@ -3080,9 +3080,7 @@ static void cgen_function(llvm_obj_t *obj, cgen_func_t *func)
    LLVMPositionBuilderAtEnd(obj->builder, entry_bb);
    LLVMBuildBr(obj->builder, func->blocks[0].bbref);
 
-   jit_free_cfg(func->source);
-   func->cfg = cfg = NULL;
-
+   jit_free_cfg(cfg);
    mask_free(&(func->ptr_mask));
 
    free(func->blocks);
