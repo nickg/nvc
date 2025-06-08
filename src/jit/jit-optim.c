@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2022-2024  Nick Gasson
+//  Copyright (C) 2022-2025  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -636,6 +636,19 @@ static void jit_lvn_neg(jit_ir_t *ir, lvn_state_t *state)
       jit_lvn_generic(ir, state, VN_INVALID);
 }
 
+static void jit_lvn_or(jit_ir_t *ir, lvn_state_t *state)
+{
+   int64_t lhs, rhs;
+   if (lvn_can_fold(ir, state, &lhs, &rhs))
+      lvn_convert_mov(ir, state, LVN_CONST(lhs | rhs));
+   else if (lvn_is_const(ir->arg1, state, &lhs) && lhs == 0)
+      lvn_convert_mov(ir, state, ir->arg2);
+   else if (lvn_is_const(ir->arg2, state, &rhs) && rhs == 0)
+      lvn_convert_mov(ir, state, ir->arg1);
+   else
+      jit_lvn_generic(ir, state, VN_INVALID);
+}
+
 static void jit_lvn_xor(jit_ir_t *ir, lvn_state_t *state)
 {
    int64_t lhs, rhs;
@@ -645,6 +658,15 @@ static void jit_lvn_xor(jit_ir_t *ir, lvn_state_t *state)
       lvn_convert_mov(ir, state, ir->arg2);
    else if (lvn_is_const(ir->arg2, state, &rhs) && rhs == 0)
       lvn_convert_mov(ir, state, ir->arg1);
+   else
+      jit_lvn_generic(ir, state, VN_INVALID);
+}
+
+static void jit_lvn_shl(jit_ir_t *ir, lvn_state_t *state)
+{
+   int64_t lhs, rhs;
+   if (lvn_can_fold(ir, state, &lhs, &rhs) && rhs >= 0 && rhs < 64)
+      lvn_convert_mov(ir, state, LVN_CONST(lhs << rhs));
    else
       jit_lvn_generic(ir, state, VN_INVALID);
 }
@@ -952,7 +974,9 @@ void jit_do_lvn(jit_func_t *f)
       case J_ADD: jit_lvn_add(ir, &state); break;
       case J_SUB: jit_lvn_sub(ir, &state); break;
       case J_NEG: jit_lvn_neg(ir, &state); break;
+      case J_OR:  jit_lvn_or(ir, &state); break;
       case J_XOR: jit_lvn_xor(ir, &state); break;
+      case J_SHL: jit_lvn_shl(ir, &state); break;
       case J_ASR: jit_lvn_asr(ir, &state); break;
       case J_MOV: jit_lvn_mov(ir, &state); break;
       case J_CMP: jit_lvn_cmp(ir, &state); break;

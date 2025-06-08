@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2021-2024  Nick Gasson
+//  Copyright (C) 2021-2025  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -2070,6 +2070,30 @@ START_TEST(test_trim1)
 }
 END_TEST
 
+START_TEST(test_lvn11)
+{
+   jit_t *j = jit_new(NULL, NULL);
+
+   const char *text1 =
+      "    SHL         R0, #0, #1   \n"
+      "    OR          R1, #1, R0   \n"
+      "    OR          R2, R1, #0   \n"
+      "    SEND        #0, R2       \n"
+      "    RET                      \n";
+
+   jit_handle_t h1 = jit_assemble(j, ident_new("myfunc1"), text1);
+
+   jit_func_t *f = jit_get_func(j, h1);
+   jit_do_lvn(f);
+
+   check_unary(f, 0, J_MOV, CONST(0));
+   check_unary(f, 1, J_MOV, CONST(1));
+   check_unary(f, 2, J_MOV, CONST(1));
+
+   jit_free(j);
+}
+END_TEST
+
 Suite *get_jit_tests(void)
 {
    Suite *s = suite_create("jit");
@@ -2126,6 +2150,7 @@ Suite *get_jit_tests(void)
    tcase_add_test(tc, test_mem2reg1);
    tcase_add_test(tc, test_lscan1);
    tcase_add_test(tc, test_trim1);
+   tcase_add_test(tc, test_lvn11);
    suite_add_tcase(s, tc);
 
    return s;
