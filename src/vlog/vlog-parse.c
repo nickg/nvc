@@ -3215,6 +3215,72 @@ static vlog_node_t p_hierarchical_instance(ident_t module_id)
    return v;
 }
 
+static vlog_node_t p_param_expression(void)
+{
+   // mintypmax_expression | data_type | $
+
+   BEGIN("param expression");
+
+   return p_expression();   // TODO
+}
+
+static void p_named_parameter_assignment(void)
+{
+   // . parameter_identifier ( [ param_expression ] )
+
+   BEGIN("named parameter assignment");
+
+   consume(tDOT);
+
+   (void)p_identifier();
+
+   consume(tLPAREN);
+
+   if (peek() != tRPAREN)
+      (void)p_param_expression();
+
+   consume(tRPAREN);
+}
+
+static void p_ordered_parameter_assignment(void)
+{
+   // param_expression
+
+   BEGIN("ordered parameter assignment");
+
+   (void)p_param_expression();
+}
+
+static void p_list_of_parameter_assignments(void)
+{
+   // ordered_parameter_assignment { , ordered_parameter_assignment }
+   //   | named_parameter_assignment { , named_parameter_assignment }
+
+   BEGIN("list of parameter assignments");
+
+   do {
+      if (peek() == tDOT)
+         p_named_parameter_assignment();
+      else
+         p_ordered_parameter_assignment();
+   } while (optional(tCOMMA));
+}
+
+static void p_parameter_value_assignment(void)
+{
+   // # ( [ list_of_parameter_assignments ] )
+
+   BEGIN("parameter value assignment");
+
+   consume(tHASH);
+   consume(tLPAREN);
+
+   if (peek() != tRPAREN)
+      p_list_of_parameter_assignments();
+
+   consume(tRPAREN);
+}
+
 static void p_module_instantiation(vlog_node_t mod)
 {
    // module_identifier [ parameter_value_assignment ] hierarchical_instance
@@ -3223,6 +3289,9 @@ static void p_module_instantiation(vlog_node_t mod)
    BEGIN("module instantiation");
 
    ident_t module_id = p_identifier();
+
+   if (peek() == tHASH)
+      p_parameter_value_assignment();
 
    do {
       vlog_add_stmt(mod, p_hierarchical_instance(module_id));
