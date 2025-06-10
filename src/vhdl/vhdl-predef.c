@@ -581,6 +581,21 @@ static void predef_bit_vec_op(mir_unit_t *mu, tree_t decl,
    mir_build_return(mu, mir_build_wrap(mu, mem, dims, 1));
 }
 
+static void predef_edge_op(mir_unit_t *mu, tree_t decl)
+{
+   mir_type_t t_offset = mir_offset_type(mu);
+
+   mir_value_t nets = mir_get_param(mu, 1);
+   mir_value_t count = mir_const(mu, t_offset, 1);
+   mir_value_t value = mir_build_load(mu, mir_build_resolved(mu, nets));
+
+   if (tree_subkind(decl) == S_FALLING_EDGE)
+      value = mir_build_not(mu, value);
+
+   mir_value_t event = mir_build_event_flag(mu, nets, count);
+   mir_build_return(mu, mir_build_and(mu, event, value));
+}
+
 void vhdl_lower_predef(mir_unit_t *mu, object_t *obj)
 {
    tree_t decl = tree_from_object(obj);
@@ -595,7 +610,12 @@ void vhdl_lower_predef(mir_unit_t *mu, object_t *obj)
       assert(tree_subkind(p) == PORT_IN);
 
       const type_info_t *ti = type_info(mu, tree_type(p));
-      mir_add_param(mu, ti->type, ti->stamp, tree_ident(p));
+
+      mir_type_t type = ti->type;
+      if (tree_class(p) == C_SIGNAL)
+         type = mir_signal_type(mu, type);
+
+      mir_add_param(mu, type, ti->stamp, tree_ident(p));
    }
 
    const type_info_t *ti = type_info(mu, type_result(tree_type(decl)));
@@ -631,6 +651,9 @@ void vhdl_lower_predef(mir_unit_t *mu, object_t *obj)
    case S_ARRAY_NOR:
       predef_bit_vec_op(mu, decl, kind);
       break;
+   case S_RISING_EDGE:
+   case S_FALLING_EDGE:
+      return predef_edge_op(mu, decl);
    default:
       should_not_reach_here();
    }

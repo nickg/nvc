@@ -9854,6 +9854,8 @@ static void lower_decls(lower_unit_t *lu, tree_t scope)
            case S_ARRAY_XNOR:
            case S_ARRAY_NAND:
            case S_ARRAY_NOR:
+           case S_RISING_EDGE:
+           case S_FALLING_EDGE:
               unit_registry_defer2(lu->registry, tree_ident2(d),
                                    NULL, MIR_UNIT_FUNCTION, vhdl_lower_predef,
                                    tree_to_object(d));
@@ -10464,20 +10466,6 @@ static void lower_predef_file_open3(lower_unit_t *lu, tree_t decl)
    emit_return(emit_load(status_var));
 }
 
-static void lower_edge_predef(lower_unit_t *lu, tree_t decl)
-{
-   vcode_reg_t nets_reg = vcode_param_reg(1);
-   vcode_reg_t count_reg = emit_const(vtype_offset(), 1);
-   vcode_reg_t value_reg =
-      emit_load_indirect(emit_resolved(nets_reg, count_reg));
-
-   if (tree_subkind(decl) == S_FALLING_EDGE)
-      value_reg = emit_not(value_reg);
-
-   vcode_reg_t event_reg = emit_event_flag(nets_reg, count_reg);
-   emit_return(emit_and(event_reg, value_reg));
-}
-
 static void lower_predef(lower_unit_t *lu, object_t *obj)
 {
    tree_t decl = tree_from_object(obj);
@@ -10594,9 +10582,6 @@ static void lower_predef(lower_unit_t *lu, object_t *obj)
    case S_FILE_POSITION:
       lower_foreign_predef(lu, decl, "__nvc_file_position");
       break;
-   case S_RISING_EDGE:
-   case S_FALLING_EDGE:
-      return lower_edge_predef(lu, decl);
    default:
       fatal_trace("cannot lower predefined function %s", type_pp(type));
    }
