@@ -1,7 +1,10 @@
 ## Unreleased changes
 - Fixed a crash when an entity uses VHDL-2019 enhanced type generics and
   sub-elements of a port with a generic array type are associated
-  individually (#1201).
+  individually (#1201). no effect.  Use `--precompile` to restore the
+  previous behaviour.
+- Fixed an issue where some `generate` statements were inaccessible from
+  VHPI (#1213).
 - Several other minor bugs were resolved (#1202, #1204, #1212).
 
 ## Version 1.16.1 - 2025-05-12

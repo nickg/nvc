@@ -477,6 +477,13 @@ typedef struct {
 DEF_CLASS(forGenerate, vhpiForGenerateK, region.object);
 
 typedef struct {
+   c_abstractRegion region;
+   c_stmt           stmt;
+} c_ifGenerate;
+
+DEF_CLASS(ifGenerate, vhpiIfGenerateK, region.object);
+
+typedef struct {
    c_vhpiObject  object;
    vhpiStateT    State;
    vhpiEnumT     Reason;
@@ -682,6 +689,7 @@ static c_abstractRegion *is_abstractRegion(c_vhpiObject *obj)
    case vhpiBlockStmtK:
    case vhpiCompInstStmtK:
    case vhpiForGenerateK:
+   case vhpiIfGenerateK:
    case vhpiPackInstK:
    case vhpiEntityDeclK:
    case vhpiArchBodyK:
@@ -838,6 +846,8 @@ static c_stmt *is_stmt(c_vhpiObject *obj)
                             designInstUnit.region.object)->stmt);
    case vhpiForGenerateK:
       return &(container_of(obj, c_forGenerate, region.object)->stmt);
+   case vhpiIfGenerateK:
+      return &(container_of(obj, c_ifGenerate, region.object)->stmt);
    default:
       return NULL;
    }
@@ -2361,6 +2371,9 @@ vhpiHandleT vhpi_handle(vhpiOneToOneT type, vhpiHandleT referenceHandle)
          c_designInstUnit *iu = cast_designInstUnit(obj);
          if (iu == NULL)
             return NULL;
+
+         if (iu->DesignUnit == NULL)
+            return NULL;  // Unbound instance
 
          return handle_for(&(iu->DesignUnit->region.object));
       }
@@ -4477,15 +4490,13 @@ static c_abstractRegion *build_compInstStmt(tree_t t, tree_t inst,
    assert(tree_kind(t) == T_BLOCK);
 
    tree_t inner = t;
-   c_designUnit *du;
+   c_designUnit *du = NULL;
    switch (tree_kind(inst)) {
    case T_ARCH:
       du = cached_designUnit(inst);
       break;
    case T_COMPONENT:
-      {
-         assert(tree_stmts(t) == 1);
-
+      if (tree_stmts(t) >= 1) {
          inner = tree_stmt(t, 0);
          assert(tree_kind(inner) == T_BLOCK);
 
@@ -4530,6 +4541,19 @@ static c_abstractRegion *build_forGenerate(tree_t t, c_abstractRegion *region)
 
    tree_t g0 = tree_generic(t, 0);
    g->ParamDecl = build_constDecl(g0, &(g->region));
+
+   vhpi_list_add(&region->stmts.list, &(g->region.object));
+
+   return &(g->region);
+}
+
+static c_abstractRegion *build_ifGenerate(tree_t t, c_abstractRegion *region)
+{
+   c_ifGenerate *g = new_object(sizeof(c_forGenerate), vhpiIfGenerateK);
+   init_abstractRegion(&(g->region), region, t);
+   init_stmt(&(g->stmt), t);
+
+   vhpi_list_reserve(&(g->region.decls.list), tree_decls(t));
 
    vhpi_list_add(&region->stmts.list, &(g->region.object));
 
@@ -4744,6 +4768,12 @@ static void vhpi_lazy_stmts(c_vhpiObject *obj)
                break;
             case T_FOR_GENERATE:
                sub = build_forGenerate(s, r);
+               sub->stmts.fn = vhpi_lazy_stmts;
+               sub->decls.fn = vhpi_lazy_decls;
+               break;
+            case T_CASE_GENERATE:  // No VHPI kind for this
+            case T_IF_GENERATE:
+               sub = build_ifGenerate(s, r);
                sub->stmts.fn = vhpi_lazy_stmts;
                sub->decls.fn = vhpi_lazy_decls;
                break;
