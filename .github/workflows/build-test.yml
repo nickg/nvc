@@ -400,9 +400,7 @@ jobs:
         with:
           repository: OSVVM/OsvvmLibraries
           path: OsvvmLibraries
-          # TODO: switch to OSVVM_VERSION after next release
-          #ref: ${{ env.OSVVM_VERSION }}
-          ref: dev
+          ref: ${{ env.OSVVM_VERSION }}
           submodules: recursive
           fetch-depth: 1
       - name: Patch OSVVM to reduce verbosity

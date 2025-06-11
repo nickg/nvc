@@ -1,4 +1,6 @@
 ## Unreleased changes
+
+## Version 1.16.2 - 2025-06-11
 - Fixed a crash when an entity uses VHDL-2019 enhanced type generics and
   sub-elements of a port with a generic array type are associated
   individually (#1201). no effect.  Use `--precompile` to restore the
