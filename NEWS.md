@@ -2,9 +2,6 @@
 - Updated to OSVVM 2025.02 for `nvc --install`.
 - Added `--merge-mode` option to control behaviour when merging
   non-equal coverage databases.
-- Fixed a crash when an entity uses VHDL-2019 enhanced type generics and
-  sub-elements of a port with a generic array type are associated
-  individually (#1201).
 - `generate` statements now create separate hierarchy in the code
   coverage report
 - Fixed "unit is too big to compile" error with very large number of
@@ -12,6 +9,11 @@
 - Just-in-time compilation is now the default and the `--jit`
   elaboration option has no effect.  Use `--precompile` to restore the
   previous behaviour.
+
+## Version 1.16.2 - 2025-06-11
+- Fixed a crash when an entity uses VHDL-2019 enhanced type generics and
+  sub-elements of a port with a generic array type are associated
+  individually (#1201).
 - Fixed an issue where some `generate` statements were inaccessible from
   VHPI (#1213).
 - Several other minor bugs were resolved (#1202, #1204, #1212).
