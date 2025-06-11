@@ -1122,3 +1122,4 @@ real7           fail,gold,2008
 vlog14          verilog
 issue1208       normal,2019
 ieee18          fail,gold,2008
+issue1213       normal,vhpi,2008

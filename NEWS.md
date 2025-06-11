@@ -12,6 +12,8 @@
 - Just-in-time compilation is now the default and the `--jit`
   elaboration option has no effect.  Use `--precompile` to restore the
   previous behaviour.
+- Fixed an issue where some `generate` statements were inaccessible from
+  VHPI (#1213).
 - Several other minor bugs were resolved (#1202, #1204, #1212).
 
 ## Version 1.16.1 - 2025-05-12
