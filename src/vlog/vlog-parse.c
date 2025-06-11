@@ -3194,7 +3194,7 @@ static void p_list_of_port_connections(vlog_node_t inst)
    } while (optional(tCOMMA));
 }
 
-static vlog_node_t p_hierarchical_instance(ident_t module_id)
+static vlog_node_t p_hierarchical_instance(void)
 {
    // name_of_instance ( [ list_of_port_connections ] )
 
@@ -3202,7 +3202,6 @@ static vlog_node_t p_hierarchical_instance(ident_t module_id)
 
    vlog_node_t v = vlog_new(V_MOD_INST);
    vlog_set_ident(v, p_identifier());
-   vlog_set_ident2(v, module_id);
 
    consume(tLPAREN);
 
@@ -3224,7 +3223,7 @@ static vlog_node_t p_param_expression(void)
    return p_expression();   // TODO
 }
 
-static void p_named_parameter_assignment(void)
+static vlog_node_t p_named_parameter_assignment(void)
 {
    // . parameter_identifier ( [ param_expression ] )
 
@@ -3232,26 +3231,34 @@ static void p_named_parameter_assignment(void)
 
    consume(tDOT);
 
-   (void)p_identifier();
+   vlog_node_t v = vlog_new(V_PARAM_ASSIGN);
+   vlog_set_ident(v, p_identifier());
 
    consume(tLPAREN);
 
    if (peek() != tRPAREN)
-      (void)p_param_expression();
+      vlog_set_value(v, p_param_expression());
 
    consume(tRPAREN);
+
+   vlog_set_loc(v, CURRENT_LOC);
+   return v;
 }
 
-static void p_ordered_parameter_assignment(void)
+static vlog_node_t p_ordered_parameter_assignment(void)
 {
    // param_expression
 
    BEGIN("ordered parameter assignment");
 
-   (void)p_param_expression();
+   vlog_node_t v = vlog_new(V_PARAM_ASSIGN);
+   vlog_set_value(v, p_param_expression());
+
+   vlog_set_loc(v, CURRENT_LOC);
+   return v;
 }
 
-static void p_list_of_parameter_assignments(void)
+static void p_list_of_parameter_assignments(vlog_node_t inst)
 {
    // ordered_parameter_assignment { , ordered_parameter_assignment }
    //   | named_parameter_assignment { , named_parameter_assignment }
@@ -3260,13 +3267,13 @@ static void p_list_of_parameter_assignments(void)
 
    do {
       if (peek() == tDOT)
-         p_named_parameter_assignment();
+         vlog_add_param(inst, p_named_parameter_assignment());
       else
-         p_ordered_parameter_assignment();
+         vlog_add_param(inst, p_ordered_parameter_assignment());
    } while (optional(tCOMMA));
 }
 
-static void p_parameter_value_assignment(void)
+static void p_parameter_value_assignment(vlog_node_t inst)
 {
    // # ( [ list_of_parameter_assignments ] )
 
@@ -3276,7 +3283,7 @@ static void p_parameter_value_assignment(void)
    consume(tLPAREN);
 
    if (peek() != tRPAREN)
-      p_list_of_parameter_assignments();
+      p_list_of_parameter_assignments(inst);
 
    consume(tRPAREN);
 }
@@ -3288,16 +3295,23 @@ static void p_module_instantiation(vlog_node_t mod)
 
    BEGIN("module instantiation");
 
+   vlog_node_t v = vlog_new(V_INST_LIST);
+
    ident_t module_id = p_identifier();
+   vlog_set_ident(v, module_id);
 
    if (peek() == tHASH)
-      p_parameter_value_assignment();
+      p_parameter_value_assignment(v);
 
    do {
-      vlog_add_stmt(mod, p_hierarchical_instance(module_id));
+      vlog_add_stmt(v, p_hierarchical_instance());
    } while (optional(tCOMMA));
 
    consume(tSEMI);
+
+   vlog_set_loc(v, CURRENT_LOC);
+
+   vlog_add_stmt(mod, v);
 }
 
 static void p_module_or_generate_item(vlog_node_t mod)

@@ -1966,9 +1966,9 @@ static void elab_verilog_stmt(tree_t wrap, const elab_ctx_t *ctx)
 {
    vlog_node_t v = tree_vlog(wrap);
    switch (vlog_kind(v)) {
-   case V_MOD_INST:
+   case V_INST_LIST:
       {
-         ident_t modname = vlog_ident2(v);
+         ident_t modname = vlog_ident(v);
          ident_t libname = lib_name(ctx->library);
 
          text_buf_t *tb = tb_new();
@@ -1996,7 +1996,7 @@ static void elab_verilog_stmt(tree_t wrap, const elab_ctx_t *ctx)
             diag_printf(d, "name of Verilog module %s in library unit %s "
                         "does not match name %s in module instance %s",
                         istr(vlog_ident2(mod)), istr(qual), istr(modname),
-                        istr(vlog_ident(v)));
+                        istr(vlog_ident(vlog_stmt(v, 0))));
             diag_hint(d, NULL, "this tool does not preserve case sensitivity "
                       "in module names");
             diag_emit(d);
@@ -2005,9 +2005,15 @@ static void elab_verilog_stmt(tree_t wrap, const elab_ctx_t *ctx)
 
          mod_cache_t *mc = elab_cached_module(mod, ctx);
 
-         tree_t bind = elab_verilog_binding(v, mc, ctx);
-         if (bind != NULL)
-            elab_verilog_module(bind, vlog_ident(v), mc, ctx);
+         const int nstmts = vlog_stmts(v);
+         for (int i = 0; i < nstmts; i++) {
+            vlog_node_t inst = vlog_stmt(v, i);
+            assert(vlog_kind(inst) == V_MOD_INST);
+
+            tree_t bind = elab_verilog_binding(inst, mc, ctx);
+            if (bind != NULL)
+               elab_verilog_module(bind, vlog_ident(inst), mc, ctx);
+         }
       }
       break;
    default:

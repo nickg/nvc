@@ -24,7 +24,7 @@ module mod2;
   end
   assign bus = 3;
   pullup (supply1, supply0) p1 (w);
-  mod u1 (w);
+  mod #(42) u1 (w), u2(bus[1]);
   assign bus[2] = 4'b1;
   parameter [7:0] p1 = 5;
   localparam bit p2 = 0;
@@ -61,4 +61,3 @@ module mod3;   // Check operator precedence
   assign z = {x, y};
   assign zz = {5{z}};
 endmodule // mod3
-

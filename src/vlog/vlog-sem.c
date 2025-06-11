@@ -587,6 +587,13 @@ static void vlog_check_mod_inst(vlog_node_t inst)
    vlog_insert_decl(inst);
 }
 
+static void vlog_check_inst_list(vlog_node_t v)
+{
+   const int nstmts = vlog_stmts(v);
+   for (int i = 0; i < nstmts; i++)
+      vlog_check(vlog_stmt(v, i));
+}
+
 static void vlog_check_dimension(vlog_node_t dim)
 {
    vlog_node_t left = vlog_left(dim);
@@ -806,6 +813,9 @@ void vlog_check(vlog_node_t v)
       break;
    case V_MOD_INST:
       vlog_check_mod_inst(v);
+      break;
+   case V_INST_LIST:
+      vlog_check_inst_list(v);
       break;
    case V_DIMENSION:
       vlog_check_dimension(v);

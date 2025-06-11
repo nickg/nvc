@@ -860,7 +860,7 @@ static void vlog_lower_concurrent(mir_context_t *mc, ident_t parent,
       case V_GATE_INST:
          vlog_lower_gate_inst(mc, parent, s);
          break;
-      case V_MOD_INST:
+      case V_INST_LIST:
          break;
       default:
          CANNOT_HANDLE(s);

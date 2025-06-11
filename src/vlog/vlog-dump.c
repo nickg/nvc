@@ -425,10 +425,6 @@ static void vlog_dump_gate_inst(vlog_node_t v, int indent)
 
 static void vlog_dump_mod_inst(vlog_node_t v, int indent)
 {
-   tab(indent);
-
-   print_syntax("%s ", istr(vlog_ident2(v)));
-
    print_syntax("%s ", istr(vlog_ident(v)));
 
    const int nparams = vlog_params(v);
@@ -440,8 +436,43 @@ static void vlog_dump_mod_inst(vlog_node_t v, int indent)
       }
       print_syntax(")");
    }
+}
+
+static void vlog_dump_inst_list(vlog_node_t v, int indent)
+{
+   tab(indent);
+
+   print_syntax("%s ", istr(vlog_ident(v)));
+
+   const int nparams = vlog_params(v);
+   if (nparams > 0) {
+      print_syntax("##(");
+      for (int i = 0; i < nparams; i++) {
+         if (i > 0) print_syntax(",");
+         vlog_dump(vlog_param(v, i), 0);
+      }
+      print_syntax(") ");
+   }
+
+   const int nstmts = vlog_stmts(v);
+   for (int i = 0; i < nstmts; i++) {
+      if (i > 0) print_syntax(", ");
+      vlog_dump(vlog_stmt(v, i), indent + 2);
+   }
 
    print_syntax(";\n");
+}
+
+static void vlog_dump_param_assign(vlog_node_t v, int indent)
+{
+   if (vlog_has_ident(v)) {
+      print_syntax(".%s(", istr(vlog_ident(v)));
+      if (vlog_has_value(v))
+         vlog_dump(vlog_value(v), indent);
+      print_syntax(")");
+   }
+   else
+      vlog_dump(vlog_value(v), indent);
 }
 
 static void vlog_dump_strength(vlog_node_t v, int indent)
@@ -688,6 +719,9 @@ void vlog_dump(vlog_node_t v, int indent)
    case V_MOD_INST:
       vlog_dump_mod_inst(v, indent);
       break;
+   case V_INST_LIST:
+      vlog_dump_inst_list(v, indent);
+      break;
    case V_STRENGTH:
       vlog_dump_strength(v, indent);
       break;
@@ -729,6 +763,9 @@ void vlog_dump(vlog_node_t v, int indent)
    case V_PARAM_DECL:
    case V_LOCALPARAM:
       vlog_dump_param_decl(v, indent);
+      break;
+   case V_PARAM_ASSIGN:
+      vlog_dump_param_assign(v, indent);
       break;
    default:
       print_syntax("\n");

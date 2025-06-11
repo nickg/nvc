@@ -527,7 +527,7 @@ START_TEST(test_vlog1)
              "    end\n"
              "  assign bus = 3;\n"
              "  pullup (supply0,supply1) p1 (w);\n"
-             "  mod u1 (w);\n"
+             "  mod #(42) u1 (w), u2 (bus[1]);\n"
              "  assign bus[2] = 4'd1;\n"
              "  initial\n"
              "    casex (w)\n"

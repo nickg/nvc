@@ -115,6 +115,8 @@ typedef enum {
    V_LOCALPARAM,
    V_CASE,
    V_CASE_ITEM,
+   V_INST_LIST,
+   V_PARAM_ASSIGN,
 
    V_LAST_NODE_KIND
 } vlog_kind_t;
