@@ -1736,10 +1736,12 @@ END_TEST
 START_TEST(test_vlog1)
 {
    const error_t expect[] = {
-      { 10, "name of Verilog module sub1 in library unit WORK.SUB1 does "
+      { 11, "name of Verilog module sub1 in library unit WORK.SUB1 does "
         "not match name SUB1 in module instance u2" },
-      { 11, "expected 2 port connections for module WORK.SUB1 but found 1" },
-      { 12, "module bad not found in library WORK" },
+      { 12, "expected 2 port connections for module sub1 but found 1" },
+      { 13, "module bad not found in library WORK" },
+      { 14, "missing value for parameter p" },
+      { 15, "module sub1 has 1 parameter but 2 values given" },
       { -1, NULL }
    };
    expect_errors(expect);

@@ -50,6 +50,7 @@ typedef A(tree_t) tree_list_t;
 
 typedef struct _elab_ctx elab_ctx_t;
 typedef struct _generic_list generic_list_t;
+typedef struct _elab_instance elab_instance_t;
 
 typedef struct _elab_ctx {
    const elab_ctx_t *parent;
@@ -93,11 +94,18 @@ typedef struct _generic_list {
 } generic_list_t;
 
 typedef struct {
-   vcode_unit_t shape;
-   tree_t       block;
-   tree_t       wrap;
-   vlog_node_t  module;
+   tree_t           block;
+   tree_t           wrap;
+   vlog_node_t      module;
+   elab_instance_t *instances;
 } mod_cache_t;
+
+typedef struct _elab_instance {
+   elab_instance_t *next;
+   mod_cache_t     *module;
+   vcode_unit_t     shape;
+   vlog_node_t      body;
+} elab_instance_t;
 
 static void elab_block(tree_t t, const elab_ctx_t *ctx);
 static void elab_stmts(tree_t t, const elab_ctx_t *ctx);
@@ -262,26 +270,43 @@ static mod_cache_t *elab_cached_module(vlog_node_t mod, const elab_ctx_t *ctx)
    assert(is_top_level(mod));
 
    mod_cache_t *mc = hash_get(ctx->modcache, mod);
-   if (mc == NULL) {
-      mc = xcalloc(sizeof(mod_cache_t));
-      mc->module = mod;
-      mc->shape  = vlog_lower(ctx->registry, ctx->mir, mod);
+   if (mc != NULL)
+      return mc;
 
-      mc->block = tree_new(T_BLOCK);
-      tree_set_loc(mc->block, vlog_loc(mod));
-      tree_set_ident(mc->block, vlog_ident(mod));
+   mc = xcalloc(sizeof(mod_cache_t));
+   mc->module = mod;
 
-      vlog_trans(mod, mc->block);
+   mc->block = tree_new(T_BLOCK);
+   tree_set_loc(mc->block, vlog_loc(mod));
+   tree_set_ident(mc->block, vlog_ident(mod));
 
-      mc->wrap = tree_new(T_VERILOG);
-      tree_set_loc(mc->wrap, vlog_loc(mod));
-      tree_set_ident(mc->wrap, vlog_ident(mod));
-      tree_set_vlog(mc->wrap, mod);
+   vlog_trans(mc->module, mc->block);
 
-      hash_put(ctx->modcache, mod, mc);
-   }
+   mc->wrap = tree_new(T_VERILOG);
+   tree_set_loc(mc->wrap, vlog_loc(mod));
+   tree_set_ident(mc->wrap, vlog_ident(mod));
+   tree_set_vlog(mc->wrap, mod);
 
+   hash_put(ctx->modcache, mod, mc);
    return mc;
+}
+
+static elab_instance_t *elab_new_instance(vlog_node_t mod, vlog_node_t inst,
+                                          const elab_ctx_t *ctx)
+{
+   assert(is_top_level(mod));
+
+   mod_cache_t *mc = elab_cached_module(mod, ctx);
+
+   elab_instance_t *ei = xcalloc(sizeof(elab_instance_t));
+   ei->next   = mc->instances;
+   ei->module = mc;
+   ei->body   = vlog_new_instance(mod, inst, ctx->dotted);
+   ei->shape  = vlog_lower(ctx->registry, ctx->mir, ei->body);
+
+   mc->instances = ei;
+
+   return ei;
 }
 
 static bool elab_synth_binding_cb(lib_t lib, void *__ctx)
@@ -526,7 +551,7 @@ static tree_t elab_verilog_binding(vlog_node_t inst, mod_cache_t *mc,
 
    if (nports != nparams) {
       error_at(vlog_loc(inst), "expected %d port connections for module %s "
-               "but found %d", nports, istr(vlog_ident(mc->module)), nparams);
+               "but found %d", nports, istr(vlog_ident2(mc->module)), nparams);
       return NULL;
    }
 
@@ -1354,7 +1379,8 @@ static void elab_lower(tree_t b, vcode_unit_t shape, elab_ctx_t *ctx)
       diag_remove_hint_fn(elab_hint_fn);
 }
 
-static void elab_verilog_module(tree_t bind, ident_t label, mod_cache_t *mc,
+static void elab_verilog_module(tree_t bind, ident_t label,
+                                const elab_instance_t *ei,
                                 const elab_ctx_t *ctx)
 {
    const char *label_str = istr(label);
@@ -1374,18 +1400,18 @@ static void elab_verilog_module(tree_t bind, ident_t label, mod_cache_t *mc,
    tree_add_stmt(ctx->out, b);
    new_ctx.out = b;
 
-   elab_push_scope(mc->wrap, &new_ctx);
+   elab_push_scope(ei->module->wrap, &new_ctx);
 
    if (bind != NULL)
-      elab_ports(mc->block, bind, &new_ctx);
+      elab_ports(ei->module->block, bind, &new_ctx);
 
    if (error_count() == 0)
-      elab_decls(mc->block, &new_ctx);
+      elab_decls(ei->module->block, &new_ctx);
 
    if (error_count() == 0) {
-      new_ctx.drivers = find_drivers(mc->block);
-      elab_lower(b, mc->shape, &new_ctx);
-      elab_stmts(mc->block, &new_ctx);
+      new_ctx.drivers = find_drivers(ei->module->block);
+      elab_lower(b, ei->shape, &new_ctx);
+      elab_stmts(ei->module->block, &new_ctx);
    }
 
    elab_pop_scope(&new_ctx);
@@ -1592,8 +1618,17 @@ static void elab_component(tree_t inst, tree_t comp, const elab_ctx_t *ctx)
    if (arch == NULL)
       ;   // Unbound architecture
    else if (tree_kind(arch) == T_VERILOG) {
-      mod_cache_t *mc = elab_cached_module(tree_vlog(arch), ctx);
-      elab_verilog_module(bind, vlog_ident2(mc->module), mc, &new_ctx);
+      vlog_node_t mod = tree_vlog(arch);
+
+      vlog_node_t stmt = vlog_new(V_MOD_INST);
+      vlog_set_ident(stmt, vlog_ident2(mod));
+
+      vlog_node_t list = vlog_new(V_INST_LIST);
+      vlog_set_ident(list, vlog_ident2(mod));
+      vlog_add_stmt(list, stmt);
+
+      elab_instance_t *ei = elab_new_instance(mod, list, &new_ctx);
+      elab_verilog_module(bind, vlog_ident2(mod), ei, &new_ctx);
    }
    else if (error_count() == 0)
       elab_architecture(bind, arch, config, &new_ctx);
@@ -2003,16 +2038,16 @@ static void elab_verilog_stmt(tree_t wrap, const elab_ctx_t *ctx)
             return;
          }
 
-         mod_cache_t *mc = elab_cached_module(mod, ctx);
+         elab_instance_t *ei = elab_new_instance(mod, v, ctx);
 
          const int nstmts = vlog_stmts(v);
          for (int i = 0; i < nstmts; i++) {
             vlog_node_t inst = vlog_stmt(v, i);
             assert(vlog_kind(inst) == V_MOD_INST);
 
-            tree_t bind = elab_verilog_binding(inst, mc, ctx);
+            tree_t bind = elab_verilog_binding(inst, ei->module, ctx);
             if (bind != NULL)
-               elab_verilog_module(bind, vlog_ident(inst), mc, ctx);
+               elab_verilog_module(bind, vlog_ident(inst), ei, ctx);
          }
       }
       break;
@@ -2224,8 +2259,17 @@ static void elab_verilog_root_cb(void *arg)
    vlog_node_t vlog = vlog_from_object(ctx->root);
    assert(vlog != NULL);
 
-   mod_cache_t *mc = elab_cached_module(vlog, ctx);
-   elab_verilog_module(NULL, vlog_ident2(mc->module), mc, ctx);
+   ident_t label = vlog_ident2(vlog);
+
+   vlog_node_t stmt = vlog_new(V_MOD_INST);
+   vlog_set_ident(stmt, label);
+
+   vlog_node_t list = vlog_new(V_INST_LIST);
+   vlog_set_ident(list, label);
+   vlog_add_stmt(list, stmt);
+
+   elab_instance_t *ei = elab_new_instance(vlog, list, ctx);
+   elab_verilog_module(NULL, label, ei, ctx);
 }
 
 tree_t elab(object_t *top, jit_t *jit, unit_registry_t *ur, mir_context_t *mc,

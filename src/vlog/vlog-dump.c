@@ -17,6 +17,7 @@
 
 #include "util.h"
 #include "common.h"
+#include "object.h"
 #include "ident.h"
 #include "vlog/vlog-node.h"
 #include "vlog/vlog-number.h"
@@ -24,9 +25,33 @@
 
 #include <ctype.h>
 
+#define DUMP_ADDRESS 0
+
 static inline void tab(int indent)
 {
    print_syntax("%*s", indent, "");
+}
+
+static void vlog_dump_address(vlog_node_t v)
+{
+#if DUMP_ADDRESS
+   uint32_t a = (uint32_t)((uintptr_t)object_arena(vlog_to_object(v)) >> 2);
+   a = (a ^ 61) ^ (a >> 16);
+   a = a + (a << 3);
+   a = a ^ (a >> 4);
+   a = a * UINT32_C(0x27d4eb2d);
+   a = a ^ (a >> 15);
+
+   const int r = 1 + a % 5;
+   const int g = 1 + (a >> 8) % 5;
+   const int b = 1 + (a >> 16) % 5;
+
+   const int color = 16 + 36*r + 6*g + b;
+
+   char *LOCAL fmt = xasprintf("$!#%d${%%p:%s}$$", color,
+                               vlog_kind_str(vlog_kind(v)));
+   color_printf(fmt, v);
+#endif
 }
 
 static void vlog_dump_paren(vlog_node_t v, int indent)
@@ -46,6 +71,7 @@ static void vlog_dump_paren(vlog_node_t v, int indent)
 
 static void vlog_dump_module(vlog_node_t v, int indent)
 {
+   vlog_dump_address(v);
    print_syntax("#module %s", istr(vlog_ident2(v)));
 
    const int nports = vlog_ports(v);
@@ -73,6 +99,7 @@ static void vlog_dump_module(vlog_node_t v, int indent)
 
 static void vlog_dump_primitive(vlog_node_t v, int indent)
 {
+   vlog_dump_address(v);
    print_syntax("#primitive %s", istr(vlog_ident2(v)));
 
    const int nports = vlog_ports(v);
@@ -120,6 +147,7 @@ static void vlog_dump_udp_table(vlog_node_t v, int indent)
 static void vlog_dump_port_decl(vlog_node_t v, int indent)
 {
    tab(indent);
+   vlog_dump_address(v);
 
    switch (vlog_subkind(v)) {
    case V_PORT_INPUT: print_syntax("#input"); break;
@@ -147,6 +175,7 @@ static void vlog_dump_dimensions(vlog_node_t v, int indent)
 static void vlog_dump_net_decl(vlog_node_t v, int indent)
 {
    tab(indent);
+   vlog_dump_address(v);
 
    switch (vlog_subkind(v)) {
    case V_NET_WIRE: print_syntax("#wire "); break;
@@ -161,6 +190,7 @@ static void vlog_dump_net_decl(vlog_node_t v, int indent)
 static void vlog_dump_var_decl(vlog_node_t v, int indent)
 {
    tab(indent);
+   vlog_dump_address(v);
 
    vlog_dump(vlog_type(v), indent);
    print_syntax(" %s", istr(vlog_ident(v)));
@@ -615,6 +645,7 @@ static void vlog_dump_concat(vlog_node_t v, int indent)
 static void vlog_dump_param_decl(vlog_node_t v, int indent)
 {
    tab(indent);
+   vlog_dump_address(v);
 
    switch (vlog_kind(v)) {
    case V_PARAM_DECL:
@@ -638,9 +669,20 @@ static void vlog_dump_param_decl(vlog_node_t v, int indent)
    print_syntax(";\n");
 }
 
+static void vlog_dump_ref(vlog_node_t v, int indent)
+{
+   if (vlog_has_ref(v))
+      vlog_dump_address(vlog_ref(v));
+
+   print_syntax("%s", istr(vlog_ident(v)));
+}
+
 void vlog_dump(vlog_node_t v, int indent)
 {
    switch (vlog_kind(v)) {
+   case V_INST_BODY:
+      print_syntax("// Instantiated module %s\n", istr(vlog_ident(v)));
+      // Fall-through
    case V_MODULE:
       vlog_dump_module(v, indent);
       break;
@@ -648,7 +690,7 @@ void vlog_dump(vlog_node_t v, int indent)
       vlog_dump_primitive(v, indent);
       break;
    case V_REF:
-      print_syntax("%s", istr(vlog_ident(v)));
+      vlog_dump_ref(v, indent);
       break;
    case V_PORT_DECL:
       vlog_dump_port_decl(v, indent);

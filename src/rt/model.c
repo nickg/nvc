@@ -2295,7 +2295,7 @@ static void create_processes(rt_model_t *m, rt_scope_t *s)
 
             ident_t name = tree_ident(t);
             ident_t suffix = well_known(W_SHAPE);
-            ident_t shape = ident_prefix(vlog_ident(mod), suffix, '.');
+            ident_t shape = ident_prefix(tree_ident2(hier), suffix, '.');
             ident_t sym = ident_prefix(shape, name, '.');
 
             rt_proc_t *p = xcalloc(sizeof(rt_proc_t));

@@ -74,6 +74,7 @@ bool is_top_level(vlog_node_t v)
    switch (vlog_kind(v)) {
    case V_MODULE:
    case V_PRIMITIVE:
+   case V_INST_BODY:
       return true;
    default:
       return false;

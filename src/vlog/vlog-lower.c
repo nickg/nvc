@@ -285,6 +285,8 @@ static mir_value_t vlog_lower_rvalue(mir_unit_t *mu, vlog_node_t v)
          vlog_node_t decl = vlog_ref(v);
          if (vlog_kind(decl) == V_PORT_DECL)
             decl = vlog_ref(decl);
+         else if (vlog_kind(decl) == V_LOCALPARAM)
+            return vlog_lower_rvalue(mu, vlog_value(decl));
 
          int hops;
          mir_value_t var = mir_search_object(mu, decl, &hops);
@@ -375,12 +377,25 @@ static void vlog_lower_sensitivity(mir_unit_t *mu, vlog_node_t v)
    switch (vlog_kind(v)) {
    case V_REF:
       {
-         mir_type_t t_offset = mir_offset_type(mu);
+         switch (vlog_kind(vlog_ref(v))) {
+         case V_PORT_DECL:
+         case V_NET_DECL:
+         case V_VAR_DECL:
+            {
+               mir_type_t t_offset = mir_offset_type(mu);
 
-         vlog_lvalue_t lvalue = vlog_lower_lvalue(mu, v);
-         mir_value_t count = mir_const(mu, t_offset, lvalue.size);
+               vlog_lvalue_t lvalue = vlog_lower_lvalue(mu, v);
+               mir_value_t count = mir_const(mu, t_offset, lvalue.size);
 
-         mir_build_sched_event(mu, lvalue.nets, count);
+               mir_build_sched_event(mu, lvalue.nets, count);
+            }
+            break;
+         case V_PARAM_DECL:
+         case V_LOCALPARAM:
+            break;
+         default:
+            CANNOT_HANDLE(v);
+         }
       }
       break;
    case V_EVENT:
@@ -860,6 +875,9 @@ static void vlog_lower_concurrent(mir_context_t *mc, ident_t parent,
       case V_GATE_INST:
          vlog_lower_gate_inst(mc, parent, s);
          break;
+      case V_UDP_TABLE:
+         vlog_lower_udp(mc, parent, scope);
+         break;
       case V_INST_LIST:
          break;
       default:
@@ -932,6 +950,8 @@ vcode_unit_t vlog_lower(unit_registry_t *ur, mir_context_t *mc, vlog_node_t mod)
             mir_put_object(mu, d, var2);
          }
          break;
+      case V_LOCALPARAM:
+         break;  // Always inlined for now
       default:
          CANNOT_HANDLE(d);
       }
@@ -944,10 +964,9 @@ vcode_unit_t vlog_lower(unit_registry_t *ur, mir_context_t *mc, vlog_node_t mod)
    mir_put_unit(mc, mu);
    // TODO: should free here
 
-   if (vlog_kind(mod) == V_PRIMITIVE)
-      vlog_lower_udp(mc, name, mod);
-   else
-      vlog_lower_concurrent(mc, name, mod);
+   assert(vlog_kind(mod) == V_INST_BODY);
+
+   vlog_lower_concurrent(mc, name, mod);
 
    unit_registry_finalise(ur, lu);
    return vu;

@@ -117,6 +117,7 @@ typedef enum {
    V_CASE_ITEM,
    V_INST_LIST,
    V_PARAM_ASSIGN,
+   V_INST_BODY,
 
    V_LAST_NODE_KIND
 } vlog_kind_t;
@@ -303,6 +304,10 @@ void vlog_visit_only(vlog_node_t v, vlog_visit_fn_t fn, void *context,
 typedef vlog_node_t (*vlog_rewrite_fn_t)(vlog_node_t t, void *context);
 
 vlog_node_t vlog_rewrite(vlog_node_t v, vlog_rewrite_fn_t fn, void *context);
+
+typedef bool (*vlog_copy_pred_t)(vlog_node_t, void *);
+
+vlog_node_t vlog_copy(vlog_node_t v, vlog_copy_pred_t pred, void *ctx);
 
 object_t *vlog_to_object(vlog_node_t v);
 vlog_node_t vlog_from_object(object_t *obj);

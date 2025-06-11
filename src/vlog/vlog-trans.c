@@ -218,6 +218,9 @@ void vlog_trans(vlog_node_t mod, tree_t out)
          if (!hset_contains(ports, d))
             trans_net_decl(d, out);
          break;
+      case V_LOCALPARAM:
+      case V_PARAM_DECL:
+         break;
       default:
          CANNOT_HANDLE(d);
       }

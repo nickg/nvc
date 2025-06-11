@@ -126,11 +126,9 @@ static void cgen_walk_hier(unit_list_t *units, hset_t *seen, tree_t block,
          break;
       case T_VERILOG:
          {
-            vlog_node_t mod = tree_vlog(tree_ref(hier));
-            ident_t name = tree_ident(s);
             ident_t suffix = well_known(W_SHAPE);
-            ident_t shape = ident_prefix(vlog_ident(mod), suffix, '.');
-            ident_t sym = ident_prefix(shape, name, '.');
+            ident_t shape = ident_prefix(tree_ident2(hier), suffix, '.');
+            ident_t sym = ident_prefix(shape, tree_ident(s), '.');
             APUSH(*units, sym);
             hset_insert(seen, sym);
          }

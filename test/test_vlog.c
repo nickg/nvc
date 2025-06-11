@@ -658,16 +658,26 @@ START_TEST(test_param2)
    input_from_file(TESTDIR "/vlog/param2.v");
 
    const error_t expect[] = {
-      {  13, "duplicate declaration" },
+      { 13, "duplicate declaration" },
+      { 18, "local parameter declaration must have a default value" },
       { -1, NULL }
    };
    expect_errors(expect);
 
-   vlog_node_t m = vlog_parse();
-   fail_if(m == NULL);
-   fail_unless(vlog_kind(m) == V_MODULE);
+   vlog_node_t m1 = vlog_parse();
+   fail_if(m1 == NULL);
+   fail_unless(vlog_kind(m1) == V_MODULE);
 
-   vlog_check(m);
+   vlog_check(m1);
+
+   vlog_node_t m2 = vlog_parse();
+   fail_if(m2 == NULL);
+   fail_unless(vlog_kind(m2) == V_MODULE);
+
+   vlog_node_t p2 = vlog_decl(m2, 1);
+   fail_unless(vlog_kind(p2) == V_LOCALPARAM);
+
+   vlog_check(m2);
 
    fail_unless(vlog_parse() == NULL);
 

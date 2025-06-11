@@ -204,6 +204,9 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
 
    // V_PARAM_ASSIGN
    (I_IDENT | I_VALUE),
+
+   // V_INST_BODY
+   (I_IDENT | I_IDENT2 | I_PORTS | I_STMTS | I_DECLS),
 };
 
 static const char *kind_text_map[V_LAST_NODE_KIND] = {
@@ -222,6 +225,7 @@ static const char *kind_text_map[V_LAST_NODE_KIND] = {
    "V_REAL",       "V_CONCAT",      "V_FOR_LOOP",      "V_FOR_INIT",
    "V_FOR_STEP",   "V_PREFIX",      "V_POSTFIX",       "V_LOCALPARAM",
    "V_CASE",       "V_CASE_ITEM",   "V_INST_LIST",     "V_PARAM_ASSIGN",
+   "V_INST_BODY",
 };
 
 static const change_allowed_t change_allowed[] = {
@@ -623,6 +627,22 @@ vlog_node_t vlog_rewrite(vlog_node_t v, vlog_rewrite_fn_t fn, void *context)
    object_t *result = object_rewrite(&(v->object), &ctx);
    free(ctx.cache);
    return container_of(result, struct _vlog_node, object);
+}
+
+vlog_node_t vlog_copy(vlog_node_t v, vlog_copy_pred_t pred, void *ctx)
+{
+   object_copy_ctx_t *copy LOCAL = xcalloc_flex(sizeof(object_copy_ctx_t),
+                                                1, sizeof(object_t *));
+   copy->generation   = object_next_generation();
+   copy->pred_context = ctx;
+   copy->nroots       = 1;
+   copy->roots[0]     = &(v->object);
+
+   copy->should_copy[OBJECT_TAG_VLOG] = (object_copy_pred_t)pred;
+
+   object_copy(copy);
+
+   return container_of(copy->roots[0], struct _vlog_node, object);
 }
 
 object_t *vlog_to_object(vlog_node_t v)

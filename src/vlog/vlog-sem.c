@@ -664,6 +664,9 @@ static void vlog_check_param_decl(vlog_node_t decl)
 
    if (vlog_has_value(decl))
       vlog_check(vlog_value(decl));
+   else if (vlog_kind(decl) == V_LOCALPARAM)
+      error_at(vlog_loc(decl), "local parameter declaration must have a "
+               "default value");
 }
 
 static void vlog_check_cond_expr(vlog_node_t expr)

@@ -62,6 +62,7 @@ typedef struct {
 } rule_state_t;
 
 static parse_state_t state;
+static vlog_kind_t   param_kind;
 
 extern loc_t yylloc;
 
@@ -2659,7 +2660,7 @@ static void p_list_of_param_assignments(vlog_node_t parent,
 
    do {
       vlog_add_decl(parent, p_param_assignment(datatype, kind));
-   } while (optional(tCOMMA));
+   } while (peek_nth(2) == tID && optional(tCOMMA));
 }
 
 static void p_parameter_declaration(vlog_node_t mod)
@@ -2671,7 +2672,7 @@ static void p_parameter_declaration(vlog_node_t mod)
    consume(tPARAMETER);
 
    vlog_node_t dt = p_data_type_or_implicit();
-   p_list_of_param_assignments(mod, dt, V_PARAM_DECL);
+   p_list_of_param_assignments(mod, dt, param_kind);
 }
 
 static void p_local_parameter_declaration(vlog_node_t mod)
@@ -3517,25 +3518,37 @@ static void p_list_of_port_declarations(vlog_node_t mod)
    consume(tRPAREN);
 }
 
-static void p_parameter_port_declaration(vlog_node_t mod, vlog_kind_t kind)
+static void p_parameter_port_declaration(vlog_node_t mod)
 {
-   // parameter_port_declaration ::= parameter_declaration
+   // parameter_declaration
    //    | local_parameter_declaration
    //    | data_type list_of_param_assignments
    //    | type list_of_type_assignments
 
    BEGIN("parameter port declaration");
 
-   // TODO: Add parsing of "type" declarations example #(type T = bit)
-   vlog_node_t datatype = p_data_type_or_implicit();
-   vlog_add_decl(mod, p_param_assignment(datatype, kind));
+   switch (peek()) {
+   case tPARAMETER:
+      p_parameter_declaration(mod);
+      break;
+   case tLOCALPARAM:
+      p_local_parameter_declaration(mod);
+      break;
+   default:
+      // TODO: Add parsing of "type" declarations example #(type T = bit)
+      {
+         vlog_node_t datatype = p_data_type();
+         p_list_of_param_assignments(mod, datatype, V_PARAM_DECL);
+      }
+      break;
+   }
 }
 
 static void p_parameter_port_list(vlog_node_t mod)
 {
-   // parameter_port_list ::=
-   //   | # ( parameter_port_declaration { , parameter_port_declaration } )
-   //   | #( )
+   // # ( list_of_param_assignments { , parameter_port_declaration } )
+   //    | # ( parameter_port_declaration { , parameter_port_declaration } )
+   //    | # ( )
 
    BEGIN("parameter port list");
 
@@ -3543,26 +3556,11 @@ static void p_parameter_port_list(vlog_node_t mod)
    consume(tLPAREN);
 
    if (peek() != tRPAREN) {
-      vlog_kind_t kind = V_PARAM_DECL;
-
       do {
-         switch(peek()) {
-         case tLOCALPARAM:
-            kind = V_LOCALPARAM;
-            consume(tLOCALPARAM);
-            break;
-         case tPARAMETER:
-            kind = V_PARAM_DECL;
-            consume(tPARAMETER);
-            break;
-         case tTYPE:
-            // TODO: Add parsing of "type" declarations example #(type T = bit)
-            kind = V_LAST_NODE_KIND;
-            break;
-         default:
-            break;
-         }
-         p_parameter_port_declaration(mod, kind);
+         if (peek() == tID)
+            p_list_of_param_assignments(mod, NULL, V_PARAM_DECL);
+         else
+            p_parameter_port_declaration(mod);
       } while(optional(tCOMMA));
    }
 
@@ -3577,8 +3575,10 @@ static void p_module_ansi_header(vlog_node_t mod)
 
    EXTEND("module ANSI header");
 
-   if (peek() == tHASH)
+   if (peek() == tHASH) {
       p_parameter_port_list(mod);
+      param_kind = V_LOCALPARAM;
+   }
 
    if (peek() == tLPAREN)
       p_list_of_port_declarations(mod);
@@ -4322,6 +4322,7 @@ static void p_directive_list(void)
 vlog_node_t vlog_parse(void)
 {
    state.n_correct = RECOVER_THRESH;
+   param_kind = V_PARAM_DECL;
 
    scan_as_verilog();
 

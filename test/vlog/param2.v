@@ -1,5 +1,5 @@
 module param2 # (
-  [7:0] p1 = 8'd5,
+  logic [7:0] p1 = 8'd5,
   parameter p2 = 8,
   p3 = 7,
   localparam bit p4 = 0,
@@ -12,3 +12,8 @@ module param2 # (
   assign w1 = p1;   // OK
   parameter logic p1 = 1;   // Error
 endmodule // param2
+
+module mod2 #(p1);
+  parameter p2 = 5;   // OK (really a localparam)
+  parameter p3;   // Error
+endmodule

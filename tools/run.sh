@@ -4,24 +4,26 @@ export NVC_LIBPATH=./lib/
 export NVC_IMP_LIB=./lib/
 root=$(git rev-parse --show-toplevel)
 aopts="--relaxed --psl"
-if [ -e $root/test/vhpi/$1.c ]; then
+name="$1"
+shift
+if [ -e $root/test/vhpi/$name.c ]; then
   vhpi="--load lib/vhpi_test.so --vhpi-trace --vhpi-debug"
   aopts="$aopts --preserve-case"
-  export TEST_NAME=$1
+  export TEST_NAME=$name
 fi
 regress=$root/test/regress
-if [ -f $regress/$1.v ]; then
-  vlog=$regress/$1.v
+if [ -f $regress/$name.v ]; then
+  vlog=$regress/$name.v
 fi
-if [ -z "$vlog" ] || [ -f $regress/$1.vhd ]; then
-  vhd=$regress/$1.vhd
+if [ -z "$vlog" ] || [ -f $regress/$name.vhd ]; then
+  vhd=$regress/$name.vhd
 fi
 PATH="./bin:../bin:$PATH"
-if [ -f $regress/$1.tcl ]; then
-  nvc --std=$std $vhpi -a $aopts $vhd $vlog -e --trace -V $* \
-      --do $regress/$1.tcl
+if [ -f $regress/$name.tcl ]; then
+  nvc --std=$std $vhpi -a $aopts $vhd $vlog -e $name -V \
+      --do $regress/$name.tcl $*
 else
-  nvc --std=$std $vhpi -a $aopts $vhd $vlog -e --trace -V $* \
-      -r --trace --stats --exit-severity=error
+  nvc --std=$std $vhpi -a $aopts $vhd $vlog -e $name -V \
+      -r --stats --exit-severity=error $*
 fi
 
