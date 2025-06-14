@@ -3558,7 +3558,7 @@ static void p_parameter_value_assignment(void)
    consume(tRPAREN);
 }
 
-static void p_module_instantiation(vlog_node_t mod)
+static void p_module_or_udp_instantiation(vlog_node_t mod)
 {
    // module_identifier [ parameter_value_assignment ] hierarchical_instance
    //   { , hierarchical_instance } ;
