@@ -9,6 +9,8 @@
 - Just-in-time compilation is now the default and the `--jit`
   elaboration option has no effect.  Use `--precompile` to restore the
   previous behaviour.
+- Code coverage reports now contain the source files instead of
+  referencing them.
 
 ## Version 1.16.2 - 2025-06-11
 - Fixed a crash when an entity uses VHDL-2019 enhanced type generics and
