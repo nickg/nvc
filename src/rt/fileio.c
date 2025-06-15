@@ -178,13 +178,6 @@ bool file_logical_name(file_handle_t fh, const char **name)
    return true;
 }
 
-void clear_file_handles(void)
-{
-   for (int i = 0; i < num_handles; i++) {
-
-   }
-}
-
 DLLEXPORT
 void __nvc_file_close(jit_scalar_t *args)
 {
