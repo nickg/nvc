@@ -332,9 +332,7 @@ static void apply_format(diag_t *d, format_part_t *p, vhdl_severity_t severity,
                   if (proc != NULL) {
                      // The LRM says this produces the "instance path"
                      // but that is not defined anywhere
-                     tree_t hier = tree_decl(proc->scope->where, 0);
-                     assert(tree_kind(hier) == T_HIER);
-                     tb_cat(tb, istr(tree_ident(hier)));
+                     get_instance_name(proc->scope, tb);
                   }
                }
                break;

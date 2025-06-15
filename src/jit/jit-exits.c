@@ -260,50 +260,6 @@ void x_func_wait(void)
    jit_msg(NULL, DIAG_FATAL, "cannot wait inside %s", what);
 }
 
-void x_instance_name(attr_kind_t kind, text_buf_t *tb)
-{
-   assert(kind == ATTR_INSTANCE_NAME || kind == ATTR_PATH_NAME);
-
-   jit_stack_trace_t *trace LOCAL = jit_stack_trace();
-   for (int i = 0; i < trace->count; i++) {
-      tree_t where = tree_from_object(trace->frames[i].object);
-      if (where == NULL)
-         continue;
-
-      switch (tree_kind(where)) {
-      case T_BLOCK:
-         {
-            tree_t hier = tree_decl(where, 0);
-            assert(tree_kind(hier) == T_HIER);
-
-            ident_t inst = tree_ident(hier);
-
-            if (kind == ATTR_PATH_NAME)
-               instance_name_to_path(tb, istr(inst));
-            else
-               tb_istr(tb, inst);
-         }
-         return;
-
-      case T_PACKAGE:
-      case T_PACK_BODY:
-      case T_PACK_INST:
-         {
-            tb_append(tb, ':');
-            tb_istr(tb, tree_ident(primary_unit_of(where)));
-            tb_replace(tb, '.', ':');
-            tb_downcase(tb);
-         }
-         return;
-
-      default:
-         break;
-      }
-   }
-
-   fatal_trace("cannot get instance name");
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 // Entry point from interpreter or JIT compiled code
 

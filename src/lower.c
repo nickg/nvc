@@ -12374,9 +12374,32 @@ static void lower_cache_instance_name(lower_unit_t *lu, attr_kind_t which)
    vcode_type_t vchar = vtype_char();
    vcode_type_t vstring = vtype_uarray(1, vchar, vchar);
    vcode_var_t var = emit_var(vstring, vchar, name, VAR_CONST);
-   vcode_reg_t kind_reg = emit_const(vtype_offset(), which);
-   vcode_reg_t str_reg = emit_instance_name(kind_reg);
-   emit_store(str_reg, var);
+
+   switch (tree_kind(lu->container)) {
+   case T_BLOCK:
+      {
+         vcode_reg_t kind_reg = emit_const(vtype_offset(), which);
+         vcode_reg_t str_reg = emit_instance_name(kind_reg);
+         emit_store(str_reg, var);
+      }
+      break;
+   case T_PACKAGE:
+   case T_PACK_BODY:
+   case T_PACK_INST:
+      {
+         LOCAL_TEXT_BUF tb = tb_new();
+         tb_append(tb, ':');
+         tb_istr(tb, tree_ident(primary_unit_of(lu->container)));
+         tb_replace(tb, '.', ':');
+         tb_downcase(tb);
+
+         vcode_reg_t str_reg = lower_wrap_string(tb_get(tb));
+         emit_store(str_reg, var);
+      }
+      break;
+   default:
+      should_not_reach_here();
+   }
 
    lower_put_vcode_obj(name, var, lu);
 }

@@ -968,16 +968,14 @@ static void fst_walk_design(wave_dumper_t *wd, tree_t block)
    tree_t h = tree_decl(block, 0);
    assert(tree_kind(h) == T_HIER);
 
-   ident_t hinst = tree_ident(h);
-
-   LOCAL_TEXT_BUF tb = tb_new();
-   instance_name_to_path(tb, istr(hinst));
-
-   ident_t hpath = ident_new(tb_get(tb));
-
    rt_scope_t *scope = find_scope(wd->model, block);
    if (scope == NULL)
-      fatal_trace("missing scope for %s", istr(hinst));
+      fatal_trace("missing scope for %s", istr(tree_ident(block)));
+
+   LOCAL_TEXT_BUF tb = tb_new();
+   get_path_name(scope, tb);
+
+   ident_t hpath = ident_new(tb_get(tb));
 
    fst_enter_scope(wd, tree_ref(h), scope, tb);
 

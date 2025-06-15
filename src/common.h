@@ -88,7 +88,6 @@ tree_t change_ref(tree_t name, tree_t new);
 bool all_character_literals(type_t type);
 bool is_operator_symbol(ident_t ident);
 bool same_tree(tree_t a, tree_t b);
-void instance_name_to_path(text_buf_t *tb, const char *str);
 bool calculate_aggregate_bounds(tree_t expr, range_kind_t *kind,
                                 int64_t *left, int64_t *right);
 type_t calculate_aggregate_subtype(tree_t expr);

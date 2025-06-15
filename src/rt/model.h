@@ -65,6 +65,9 @@ rt_proc_t *find_proc(rt_scope_t *scope, tree_t proc);
 bool is_signal_scope(rt_scope_t *scope);
 rt_scope_t *create_scope(rt_model_t *m, tree_t block, rt_scope_t *parent);
 
+void get_instance_name(rt_scope_t *s, text_buf_t *tb);
+void get_path_name(rt_scope_t *s, text_buf_t *tb);
+
 const void *signal_value(rt_signal_t *s);
 const void *signal_last_value(rt_signal_t *s);
 uint8_t signal_size(rt_signal_t *s);

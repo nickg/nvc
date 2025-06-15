@@ -2279,7 +2279,7 @@ static void create_processes(rt_model_t *m, rt_scope_t *s)
    assert(tree_kind(hier) == T_HIER);
 
    LOCAL_TEXT_BUF tb = tb_new();
-   instance_name_to_path(tb, istr(tree_ident(hier)));
+   get_path_name(s, tb);
 
    ident_t path = ident_new(tb_get(tb));
    ident_t sym_prefix = tree_ident2(hier);
@@ -3795,6 +3795,81 @@ void call_with_model(rt_model_t *m, void (*cb)(void *), void *arg)
    (*cb)(arg);
 }
 
+void get_instance_name(rt_scope_t *s, text_buf_t *tb)
+{
+   if (s->kind == SCOPE_ROOT)
+      return;
+
+   tree_t hier = tree_decl(s->where, 0);
+   assert(tree_kind(hier) == T_HIER);
+
+   switch (tree_subkind(hier)) {
+   case T_ARCH:
+      {
+         tree_t unit = tree_ref(hier);
+
+         get_instance_name(s->parent, tb);
+
+         if (s->parent->kind != SCOPE_ROOT) {
+            tree_t hier2 = tree_decl(s->parent->where, 0);
+            assert(tree_kind(hier2) == T_HIER);
+
+            if (tree_subkind(hier2) != T_COMPONENT) {
+               tb_append(tb, ':');
+               tb_istr(tb, tree_ident(s->where));
+            }
+
+            tb_append(tb, '@');
+         }
+         else
+            tb_append(tb, ':');
+
+         const char *arch = strchr(istr(tree_ident(unit)), '-') + 1;
+         tb_printf(tb, "%s(%s)", istr(tree_ident2(unit)), arch);
+      }
+      break;
+
+   case T_BLOCK:
+   case T_FOR_GENERATE:
+   case T_IF_GENERATE:
+   case T_CASE_GENERATE:
+      get_instance_name(s->parent, tb);
+      tb_append(tb, ':');
+      tb_printf(tb, "%s", istr(tree_ident(s->where)));
+      break;
+
+   case T_COMPONENT:
+      get_instance_name(s->parent, tb);
+      tb_printf(tb, ":%s", istr(tree_ident(s->where)));
+      break;
+
+   default:
+      should_not_reach_here();
+   }
+
+   tb_downcase(tb);
+}
+
+void get_path_name(rt_scope_t *s, text_buf_t *tb)
+{
+   if (s->kind == SCOPE_ROOT)
+      return;
+
+   get_path_name(s->parent, tb);
+
+   if (s->parent->kind != SCOPE_ROOT) {
+      tree_t hier = tree_decl(s->parent->where, 0);
+      assert(tree_kind(hier) == T_HIER);
+
+      if (tree_subkind(hier) == T_COMPONENT)
+         return;   // Skip implicit block for components
+   }
+
+   tb_append(tb, ':');
+   tb_istr(tb, tree_ident(s->where));
+   tb_downcase(tb);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Entry points from compiled code
 
@@ -4702,5 +4777,22 @@ void x_convert_out(void *ptr, sig_shared_t *ss, uint32_t offset, int32_t count)
 
       src->chain_output = cf->outputs;
       cf->outputs = src;
+   }
+}
+
+void x_instance_name(attr_kind_t kind, text_buf_t *tb)
+{
+   rt_model_t *m = get_model();
+   rt_scope_t *s = get_active_scope(m);
+
+   switch (kind) {
+   case ATTR_INSTANCE_NAME:
+      get_instance_name(s, tb);
+      break;
+   case ATTR_PATH_NAME:
+      get_path_name(s, tb);
+      break;
+   default:
+      should_not_reach_here();
    }
 }
