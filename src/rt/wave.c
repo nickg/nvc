@@ -121,7 +121,7 @@ static glob_array_t excl;
 
 static void fst_process_signal(wave_dumper_t *wd, rt_scope_t *scope, tree_t d,
                                type_t type, text_buf_t *tb);
-static bool wave_should_dump(ident_t name);
+static bool wave_should_dump(rt_scope_t *scope, ident_t id);
 
 static bool should_dump_array(tree_t where, unsigned length)
 {
@@ -973,10 +973,6 @@ static void fst_walk_design(wave_dumper_t *wd, tree_t block)
       fatal_trace("missing scope for %s", istr(tree_ident(block)));
 
    LOCAL_TEXT_BUF tb = tb_new();
-   get_path_name(scope, tb);
-
-   ident_t hpath = ident_new(tb_get(tb));
-
    fst_enter_scope(wd, tree_ref(h), scope, tb);
 
    if (tree_subkind(h) == T_COMPONENT && tree_stmts(block) > 0) {
@@ -991,8 +987,7 @@ static void fst_walk_design(wave_dumper_t *wd, tree_t block)
    const int nports = tree_ports(block);
    for (int i = 0; i < nports; i++) {
       tree_t p = tree_port(block, i);
-      ident_t path = ident_prefix(hpath, ident_downcase(tree_ident(p)), ':');
-      if (wave_should_dump(path))
+      if (wave_should_dump(scope, tree_ident(p)))
          fst_process_signal(wd, scope, p, tree_type(p), tb);
    }
 
@@ -1000,8 +995,7 @@ static void fst_walk_design(wave_dumper_t *wd, tree_t block)
    for (int i = 0; i < ndecls; i++) {
       tree_t d = tree_decl(block, i);
       if (tree_kind(d) == T_SIGNAL_DECL) {
-         ident_t path = ident_prefix(hpath, ident_downcase(tree_ident(d)), ':');
-         if (wave_should_dump(path))
+         if (wave_should_dump(scope, tree_ident(d)))
             fst_process_signal(wd, scope, d, tree_type(d), tb);
       }
    }
@@ -1196,8 +1190,19 @@ void wave_include_file(const char *base)
    wave_process_file(exclf, false);
 }
 
-static bool wave_should_dump(ident_t name)
+static bool wave_should_dump(rt_scope_t *scope, ident_t id)
 {
+   if (excl.count == 0 && incl.count == 0)
+      return true;
+
+   LOCAL_TEXT_BUF tb = tb_new();
+   get_path_name(scope, tb);
+   tb_append(tb, ':');
+   tb_istr(tb, id);
+   tb_downcase(tb);
+
+   ident_t name = ident_new(tb_get(tb));
+
    for (int i = 0; i < excl.count; i++) {
       if (ident_glob(name, excl.items[i].text, excl.items[i].len))
          return false;

@@ -40,6 +40,7 @@ typedef uint32_t hash_state_t;
 #define REPROBE_LIMIT 20
 #define MOVED_TAG     1
 #define MAX_LEN       UINT16_MAX
+#define PRINT_STATS   0
 
 struct ident_rd_ctx {
    fbuf_t  *file;
@@ -782,3 +783,19 @@ bool ident_casecmp(ident_t a, ident_t b)
 
    return true;
 }
+
+#if PRINT_STATS
+__attribute__((destructor))
+static void print_ident_stats(void)
+{
+   ident_tab_t *tab = atomic_load(&table);
+
+   size_t count = 0;
+   for (size_t i = 0; i < tab->size; i++) {
+      if (tab->slots[i] != NULL)
+         count++;
+   }
+
+   debugf("%zd unique identifiers in size %zd table", count, tab->size);
+}
+#endif
