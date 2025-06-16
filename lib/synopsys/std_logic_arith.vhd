@@ -200,7 +200,10 @@ use nvc.sim_pkg.ieee_warnings;
 
 package body std_logic_arith is
 
-    constant NO_WARNING : BOOLEAN := not ieee_warnings;
+    function NO_WARNING return BOOLEAN is
+    begin
+        return not ieee_warnings;
+    end NO_WARNING;
 
     function max(L, R: INTEGER) return INTEGER is
     begin

@@ -141,7 +141,7 @@ void set_default_options(void)
    opt_set_int(OPT_IGNORE_TIME, 0);
    opt_set_int(OPT_VERBOSE, 0);
    opt_set_int(OPT_MISSING_BODY, 1);
-   opt_set_int(OPT_IEEE_WARNINGS, 1);
+   opt_set_int(OPT_IEEE_WARNINGS, IEEE_WARNINGS_ON);
    opt_set_size(OPT_ARENA_SIZE, 1 << 24);
    opt_set_int(OPT_DUMP_ARRAYS, 0);
    opt_set_str(OPT_OBJECT_VERBOSE, getenv("NVC_OBJECT_VERBOSE"));

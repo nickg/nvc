@@ -289,7 +289,7 @@ __attribute__((cold, noinline))
 static void ieee_warn(jit_func_t *func, jit_anchor_t *caller,
                       const char *fmt, ...)
 {
-   if (!opt_get_int(OPT_IEEE_WARNINGS))
+   if (opt_get_int(OPT_IEEE_WARNINGS) == IEEE_WARNINGS_OFF)
       return;
 
    va_list ap;

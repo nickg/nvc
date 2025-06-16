@@ -641,7 +641,19 @@ static bool parse_on_off(const char *str)
    else if (strcasecmp(str, "off") == 0)
       return false;
 
-   fatal("specifiy 'on' or 'off' instead of '%s'", str);
+   fatal("specify 'on' or 'off' instead of '%s'", str);
+}
+
+static ieee_warnings_t parse_ieee_warnings(const char *str)
+{
+   if (strcasecmp(str, "off") == 0)
+      return IEEE_WARNINGS_OFF;
+   else if (strcasecmp(str, "on") == 0)
+      return IEEE_WARNINGS_ON;
+   else if (strcasecmp(str, "off-at-0") == 0)
+      return IEEE_WARNINGS_OFF_AT_0;
+   else
+      fatal("specify 'on', 'off' or 'off-at-0' instead of '%s'", str);
 }
 
 static vhdl_severity_t parse_severity(const char *str)
@@ -855,7 +867,7 @@ static int run_cmd(int argc, char **argv, cmd_state_t *state)
          break;
       case 'I':
          {
-            const bool on = parse_on_off(optarg);
+            const ieee_warnings_t on = parse_ieee_warnings(optarg);
 
             // TODO: add an unconditional warning after 1.16
             if (state->jit != NULL && opt_get_int(OPT_IEEE_WARNINGS) != on)
@@ -2126,7 +2138,7 @@ static void usage(void)
         {
            { "-h, --help", "Display this message and exit" },
            { "-H SIZE", "Set the maximum heap size to SIZE bytes" },
-           { "--ieee-warnings={on,off}",
+           { "--ieee-warnings={on,off,off-at-0}",
              "Enable or disable warnings from IEEE packages" },
            { "--ignore-time", "Skip source file timestamp check" },
            { "--load=PLUGIN", "Load VHPI plugin at startup" },
@@ -2545,7 +2557,7 @@ int main(int argc, char **argv)
          opt_set_int(OPT_PLI_DEBUG, 1);
          break;
       case 'W':
-         opt_set_int(OPT_IEEE_WARNINGS, parse_on_off(optarg));
+         opt_set_int(OPT_IEEE_WARNINGS, parse_ieee_warnings(optarg));
          break;
       case 'S':
          opt_set_int(OPT_RANDOM_SEED, parse_int(optarg));

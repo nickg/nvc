@@ -26,6 +26,15 @@ DLLEXPORT
 void _nvc_ieee_warnings(jit_scalar_t *args)
 {
    args[0].integer = opt_get_int(OPT_IEEE_WARNINGS);
+   if (args[0].integer == IEEE_WARNINGS_OFF_AT_0) {
+      rt_model_t *m = get_model_or_null();
+      if (m != NULL) {
+         unsigned delta;
+         int64_t now = model_now(m, &delta);
+         if (now == 0)
+            args[0].integer = IEEE_WARNINGS_OFF;
+      }
+   }
 }
 
 DLLEXPORT

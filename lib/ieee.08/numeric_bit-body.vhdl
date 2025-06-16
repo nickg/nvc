@@ -66,7 +66,10 @@ package body NUMERIC_BIT is
 
   -- implementation controls
 
-  constant NO_WARNING : BOOLEAN := not ieee_warnings;
+  function NO_WARNING return BOOLEAN is
+  begin
+    return not ieee_warnings;
+  end NO_WARNING;
 
   -- =========================Local Subprograms =================================
 
