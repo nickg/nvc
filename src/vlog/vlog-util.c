@@ -42,6 +42,29 @@ unsigned vlog_dimensions(vlog_node_t v)
    return vlog_ranges(vlog_type(v)) + vlog_ranges(v);
 }
 
+void vlog_bounds(vlog_node_t v, int64_t *low, int64_t *high)
+{
+   assert(vlog_subkind(v) == V_DIM_PACKED);
+
+   vlog_node_t left = vlog_left(v);
+   vlog_node_t right = vlog_right(v);
+
+   if (vlog_kind(left) != V_NUMBER || vlog_kind(right) != V_NUMBER)
+      fatal_at(vlog_loc(v), "packed dimensions are not constant");
+
+   int64_t lbound = number_integer(vlog_number(left));
+   int64_t rbound = number_integer(vlog_number(right));
+
+   if (lbound < rbound) {
+      *low = lbound;
+      *high = rbound;
+   }
+   else {
+      *low = rbound;
+      *high = lbound;
+   }
+}
+
 unsigned vlog_size(vlog_node_t v)
 {
    unsigned size = 1;
@@ -51,19 +74,10 @@ unsigned vlog_size(vlog_node_t v)
       vlog_node_t r = vlog_range(v, i);
       assert(vlog_subkind(r) == V_DIM_PACKED);
 
-      vlog_node_t left = vlog_left(r);
-      vlog_node_t right = vlog_right(r);
+      int64_t low, high;
+      vlog_bounds(r, &low, &high);
 
-      if (vlog_kind(left) != V_NUMBER || vlog_kind(right) != V_NUMBER)
-         fatal_at(vlog_loc(v), "packed dimensions are not constant");
-
-      int64_t lbound = number_integer(vlog_number(left));
-      int64_t rbound = number_integer(vlog_number(right));
-
-      if (lbound > rbound)
-         size *= lbound - rbound + 1;
-      else
-         size *= rbound - lbound + 1;
+      size *= high - low + 1;
    }
 
    return size;

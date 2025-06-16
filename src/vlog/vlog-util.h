@@ -22,6 +22,7 @@
 
 bool vlog_is_net(vlog_node_t v);
 unsigned vlog_dimensions(vlog_node_t v);
+void vlog_bounds(vlog_node_t v, int64_t *low, int64_t *high);
 unsigned vlog_size(vlog_node_t v);
 bool is_top_level(vlog_node_t v);
 

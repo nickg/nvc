@@ -275,6 +275,62 @@ static mir_value_t vlog_lower_sys_tfcall(mir_unit_t *mu, vlog_node_t v)
                             locus, args, actual);
 }
 
+static mir_value_t vlog_lower_resolved(mir_unit_t *mu, vlog_node_t decl)
+{
+  if (vlog_kind(decl) == V_PORT_DECL)
+      decl = vlog_ref(decl);
+
+   int hops;
+   mir_value_t var = mir_search_object(mu, decl, &hops);
+   assert(!mir_is_null(var));
+
+   assert(hops > 0);
+   mir_value_t upref = mir_build_var_upref(mu, hops, var.id);
+   mir_value_t nets = mir_build_load(mu, upref);
+   return mir_build_resolved(mu, nets);
+}
+
+static mir_value_t vlog_lower_rvalue_bit_select(mir_unit_t *mu, vlog_node_t v)
+{
+   vlog_node_t decl = vlog_ref(v);
+   mir_value_t data = vlog_lower_resolved(mu, decl);
+
+   assert(vlog_params(v) == 1);
+   mir_value_t p0 = vlog_lower_rvalue(mu, vlog_param(v, 0));
+
+   vlog_node_t dt = vlog_type(decl);
+   assert(vlog_ranges(dt) == 1);
+
+   int64_t low, high;
+   vlog_bounds(vlog_range(dt, 0), &low, &high);
+
+   mir_type_t t_offset = mir_offset_type(mu);
+   mir_value_t off = mir_build_cast(mu, t_offset, p0);
+
+   mir_value_t cmp_low = mir_build_cmp(mu, MIR_CMP_GEQ, off,
+                                       mir_const(mu, t_offset, low));
+   mir_value_t cmp_high = mir_build_cmp(mu, MIR_CMP_LEQ, off,
+                                        mir_const(mu, t_offset, high));
+   mir_value_t in_range = mir_build_and(mu, cmp_low, cmp_high);
+
+   mir_type_t type = mir_vec4_type(mu, 1, false);
+
+   int64_t in_range_const;
+   if (mir_get_const(mu, in_range, &in_range_const)) {
+      if (in_range_const) {
+         mir_value_t ptr = mir_build_array_ref(mu, data, off);
+         mir_value_t bit = mir_build_load(mu, ptr);
+         return mir_build_pack(mu, type, bit);
+      }
+      else
+         return mir_const_vec(mu, type, 1, 1);
+   }
+   else {
+      mir_dump(mu);
+      fatal_trace("TODO non-const bit select");
+   }
+}
+
 static mir_value_t vlog_lower_rvalue(mir_unit_t *mu, vlog_node_t v)
 {
    PUSH_DEBUG_INFO(mu, v);
@@ -283,19 +339,10 @@ static mir_value_t vlog_lower_rvalue(mir_unit_t *mu, vlog_node_t v)
    case V_REF:
       {
          vlog_node_t decl = vlog_ref(v);
-         if (vlog_kind(decl) == V_PORT_DECL)
-            decl = vlog_ref(decl);
-         else if (vlog_kind(decl) == V_LOCALPARAM)
+         if (vlog_kind(decl) == V_LOCALPARAM)
             return vlog_lower_rvalue(mu, vlog_value(decl));
 
-         int hops;
-         mir_value_t var = mir_search_object(mu, decl, &hops);
-         assert(!mir_is_null(var));
-
-         assert(hops > 0);
-         mir_value_t upref = mir_build_var_upref(mu, hops, var.id);
-         mir_value_t nets = mir_build_load(mu, upref);
-         mir_value_t data = mir_build_resolved(mu, nets);
+         mir_value_t data = vlog_lower_resolved(mu, decl);
 
          type_info_t *ti = vlog_type_info(mu, vlog_type(decl));
 
@@ -357,6 +404,8 @@ static mir_value_t vlog_lower_rvalue(mir_unit_t *mu, vlog_node_t v)
       return vlog_lower_unary(mu, v);
    case V_SYS_FCALL:
       return vlog_lower_sys_tfcall(mu, v);
+   case V_BIT_SELECT:
+      return vlog_lower_rvalue_bit_select(mu, v);
    default:
       CANNOT_HANDLE(v);
    }
