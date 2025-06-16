@@ -196,11 +196,10 @@ library IEEE;
 use IEEE.std_logic_1164.all;
 
 library nvc;
-use nvc.sim_pkg.ieee_warnings;
 
 package body std_logic_arith is
 
-    constant NO_WARNING : BOOLEAN := not ieee_warnings;
+    alias NO_WARNING is nvc.sim_pkg.ieee_no_warning;
 
     function max(L, R: INTEGER) return INTEGER is
     begin

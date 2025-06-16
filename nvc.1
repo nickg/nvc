@@ -126,9 +126,11 @@ parameter takes an optional k, m, or g suffix to indicate kilobytes,
 megabytes, and gigabytes respectively.  The default size is 16
 megabytes.
 .\" --ieee-warnings
-.It Fl \-ieee-warnings= Ns Bo Cm on Ns | Ns Cm off Bc
+.It Fl \-ieee-warnings= Ns Bo Cm on Ns | Ns Cm off Ns | Ns Cm off-at-0 Bc
 Enable or disable warning messages from the standard IEEE packages.  The
-default is warnings enabled.
+.Cm off-at-0
+option disables warnings in the first time step only.  The default is
+warnings enabled.
 .\" --ignore-time
 .It Fl \-ignore-time
 Do not check the timestamps of source files when the corresponding

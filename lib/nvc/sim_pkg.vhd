@@ -21,10 +21,8 @@
 
 package sim_pkg is
 
-    -- Return TRUE if IEEE warning messages should be displayed
-    function ieee_warnings return boolean;
-
-    attribute foreign of ieee_warnings : function is "INTERNAL _nvc_ieee_warnings";
+    -- TRUE if IEEE warning messages should be suppressed
+    constant ieee_no_warning : boolean;
 
     -- Return the current delta cycle number
     impure function current_delta_cycle return natural;

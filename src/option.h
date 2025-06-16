@@ -80,6 +80,12 @@ typedef enum {
    OPT_LAST_NAME
 } opt_name_t;
 
+typedef enum {
+   IEEE_WARNINGS_OFF,
+   IEEE_WARNINGS_ON,
+   IEEE_WARNINGS_OFF_AT_0
+} ieee_warnings_t;
+
 void opt_set_int(opt_name_t name, int val);
 void opt_set_size(opt_name_t name, size_t val);
 void opt_set_str(opt_name_t name, const char *val);

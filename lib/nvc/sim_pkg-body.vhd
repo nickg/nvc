@@ -16,10 +16,18 @@
 
 package body sim_pkg is
 
-    function ieee_warnings return boolean is
+    impure function init_ieee_no_warning return boolean is
+        function get_option return boolean is
+        begin
+            return false;                -- Has a foreign implementation
+        end function;
+
+        attribute foreign of get_option : function is "INTERNAL _nvc_ieee_warnings";
     begin
-        return false;                   -- Has a foreign implementation
+        return not get_option;
     end function;
+
+    constant ieee_no_warning : boolean := init_ieee_no_warning;
 
     impure function current_delta_cycle return natural is
     begin

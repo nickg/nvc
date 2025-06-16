@@ -25,7 +25,7 @@
 DLLEXPORT
 void _nvc_ieee_warnings(jit_scalar_t *args)
 {
-   args[0].integer = opt_get_int(OPT_IEEE_WARNINGS);
+   args[0].integer = (opt_get_int(OPT_IEEE_WARNINGS) == IEEE_WARNINGS_ON);
 }
 
 DLLEXPORT

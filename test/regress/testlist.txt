@@ -1126,3 +1126,4 @@ issue1213       normal,vhpi,2008
 param1          verilog
 vlog15          verilog
 issue1218       normal
+cmdline16       shell

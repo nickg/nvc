@@ -58,7 +58,6 @@
 -- --------------------------------------------------------------------
 
 library nvc;
-use nvc.sim_pkg.ieee_warnings;
 
 package body NUMERIC_STD is
 
@@ -69,7 +68,7 @@ package body NUMERIC_STD is
 
   -- implementation controls
 
-  constant NO_WARNING : BOOLEAN := not ieee_warnings;
+  alias NO_WARNING is nvc.sim_pkg.ieee_no_warning;
 
   -- =========================Local Subprograms =================================
 
