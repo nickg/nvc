@@ -309,27 +309,27 @@ END_TEST
 START_TEST(test_number1)
 {
    number_t x = number_new("1'b1");
-   ck_assert_int_eq(x.common.tag, TAG_INTEGER);
+   ck_assert_int_eq(x.common.tag, TAG_BIGNUM);
    fail_unless(number_is_defined(x));
    ck_assert_int_eq(number_width(x), 1);
    ck_assert_int_eq(number_integer(x), 1);
    number_free(&x);
 
    number_t y = number_new("5'b101");
-   ck_assert_int_eq(y.common.tag, TAG_INTEGER);
+   ck_assert_int_eq(y.common.tag, TAG_BIGNUM);
    fail_unless(number_is_defined(y));
    ck_assert_int_eq(number_width(y), 5);
    ck_assert_int_eq(number_integer(y), 5);
    number_free(&y);
 
    number_t z = number_new("5'b1xx");
-   ck_assert_int_eq(z.common.tag, TAG_SMALLNUM);
+   ck_assert_int_eq(z.common.tag, TAG_BIGNUM);
    fail_if(number_is_defined(z));
    ck_assert_int_eq(number_width(z), 5);
    number_free(&z);
 
    number_t n1 = number_new("1'bx");
-   ck_assert_int_eq(n1.common.tag, TAG_SMALLNUM);
+   ck_assert_int_eq(n1.common.tag, TAG_BIGNUM);
    fail_if(number_is_defined(n1));
    ck_assert_int_eq(number_width(n1), 1);
    number_free(&n1);
@@ -340,30 +340,28 @@ START_TEST(test_number2)
 {
    struct {
       const char *input;
-      unsigned    tag;
       unsigned    width;
       int64_t     ival;
       const char *string;
    } cases[] = {
-      { "1'b1",          TAG_INTEGER, 1,   1,           "1'b1"       },
-      { "5'b100",        TAG_INTEGER, 5,   4,           "5'd4"       },
-      { "1",             TAG_INTEGER, 32,  1,           "1"          },
-      { "42",            TAG_INTEGER, 32,  42,          "42"         },
-      { "251251",        TAG_INTEGER, 32,  251251,      "251251"     },
-      { "'hffffffff",    TAG_INTEGER, 32,  0xffffffff,  "4294967295" },
-      { "33'h100000000", TAG_BIGNUM,  33,  0x100000000,
+      { "1'b1",          1,   1,           "1'b1"       },
+      { "5'b100",        5,   4,           "5'd4"       },
+      { "1",             32,  1,           "1"          },
+      { "42",            32,  42,          "42"         },
+      { "251251",        32,  251251,      "251251"     },
+      { "'hffffffff",    32,  0xffffffff,  "4294967295" },
+      { "33'h100000000", 33,  0x100000000,
         "33'b100000000000000000000000000000000" },
-      { "64'b0",         TAG_BIGNUM,  64,  0,           "64'b0"      },
-      { "64'b101",       TAG_BIGNUM,  64,  5,           "64'b101"    },
-      { "8'b00_01",      TAG_INTEGER, 8,   1,           "8'd1"       },
-      { "128'bx",        TAG_BIGNUM,  128, 0,           "128'bx"     },
+      { "64'b0",         64,  0,           "64'b0"      },
+      { "64'b101",       64,  5,           "64'b101"    },
+      { "8'b00_01",      8,   1,           "8'd1"       },
+      { "128'bx",        128, 0,           "128'bx"     },
    };
 
    LOCAL_TEXT_BUF tb = tb_new();
 
    for (int i = 0; i < ARRAY_LEN(cases); i++) {
       number_t n = number_new(cases[i].input);
-      ck_assert_int_eq(n.common.tag, cases[i].tag);
       ck_assert_int_eq(number_width(n), cases[i].width);
 
       if (cases[i].width <= 64)
