@@ -477,9 +477,11 @@ static libdwarf_handle_t *libdwarf_handle_for_file(const char *fname)
          get_macho_uuid(fname, exe_uuid);
          get_macho_uuid(true_path, dsym_uuid);
 
-         if (memcmp(exe_uuid, dsym_uuid, 16) != 0)
-            warnf("UUID of %s does not match %s, symbols may be incorrect",
-                  fname, true_path);
+         if (memcmp(exe_uuid, dsym_uuid, 16) != 0) {
+            warnf("UUID of %s does not match %s", fname, true_path);
+            shash_put(hash, fname, (void *)-1);
+            return NULL;
+         }
       }
 #endif
 
