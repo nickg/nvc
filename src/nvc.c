@@ -2134,7 +2134,7 @@ static void usage(void)
              "Generate HTML report from coverage database" },
            { "--cover-merge FILE...", "Merge multiple coverage databases" },
 #ifdef ENABLE_TCL
-           { "--do [TOP] SCRIPT...", "Evaluate TCL script" },
+           { "--do [TOP] FILE...", "Evaluate TCL script" },
 #endif
 #ifdef ENABLE_GUI
            { "--gui", "Launch browser-based GUI" },
