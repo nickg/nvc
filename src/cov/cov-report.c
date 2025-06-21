@@ -77,7 +77,8 @@ typedef struct {
 } cover_chain_t;
 
 typedef struct {
-   const char   *name;
+   const char   *src_path;
+   const char   *rpt_path;
    cover_line_t *lines;
    unsigned      n_lines;
    unsigned      alloc_lines;
@@ -131,6 +132,8 @@ typedef enum {
 static void cover_report_hier_children(cover_rpt_hier_ctx_t *ctx,
                                   cover_scope_t *s, const char *dir,
                                   FILE *summf, int *skipped);
+static char *cover_get_report_name(const char *in);
+static void cover_print_html_header(FILE *f);
 
 static shash_t *cover_files = NULL;
 
@@ -159,26 +162,26 @@ static cover_file_t *cover_file_for_scope(cover_scope_t *s)
    if (cover_files == NULL)
       cover_files = shash_new(64);
 
-   const char *name = loc_file_str(&(s->loc));
-   cover_file_t *f = shash_get(cover_files, name);
+   const char *src_path = loc_file_str(&(s->loc));
+   cover_file_t *f = shash_get(cover_files, src_path);
 
    if (f != NULL)
       return f->valid ? f : NULL;
 
    f = xmalloc(sizeof(cover_file_t));
-   f->name        = name;
+   f->src_path    = src_path;
    f->n_lines     = 0;
    f->alloc_lines = 1024;
    f->lines       = xmalloc_array(f->alloc_lines, sizeof(cover_line_t));
    f->valid       = false;
 
-   shash_put(cover_files, name, f);
+   shash_put(cover_files, src_path, f);
 
-   FILE *fp = fopen(name, "r");
+   FILE *fp = fopen(src_path, "r");
 
    if (fp == NULL) {
       // Guess the path is relative to the work library
-      char *path LOCAL = xasprintf("%s/../%s", lib_path(lib_work()), name);
+      char *path LOCAL = xasprintf("%s/../%s", lib_path(lib_work()), src_path);
       fp = fopen(path, "r");
    }
 
@@ -189,17 +192,42 @@ static cover_file_t *cover_file_for_scope(cover_scope_t *s)
       return NULL;
    }
 
-   f->valid = true;
-
+   // Load the source file to buffer for follow-up processing
    while (!feof(fp)) {
       char buf[1024];
       if (fgets(buf, sizeof(buf), fp) != NULL)
          cover_append_line(f, buf);
       else if (ferror(fp))
-         fatal("error reading %s", name);
+         fatal("error reading %s", src_path);
    }
 
    fclose(fp);
+
+   // Generate report file with source file contents
+   char *hash = cover_get_report_name(f->src_path);
+   f->rpt_path = xasprintf("%s.html", hash);
+   free(hash);
+   fp = fopen(f->rpt_path, "w");
+
+   if (fp == NULL) {
+      fatal("failed to open report file with source code of: %s\n",
+            f->src_path);
+      return NULL;
+   }
+
+   cover_print_html_header(fp);
+
+   fprintf(fp, "<h2 style=\"text-align: left;\">\n");
+   fprintf(fp, "   File:&nbsp; %s\n", f->src_path);
+   fprintf(fp, "</h2>");
+
+   fprintf(fp, "<pre><code>");
+   for (int i = 0; i < f->n_lines; i++) {
+      fprintf(fp, "%6d: &nbsp; %s", i, f->lines[i].text);
+   }
+   fprintf(fp, "</code></pre>");
+
+   f->valid = true;
 
    return f;
 }
@@ -317,11 +345,12 @@ static void cover_print_html_header(FILE *f)
    fprintf(f, "</header>\n\n");
 }
 
-static void cover_print_file_name(FILE *f, const char *name)
+static void cover_print_file_name(FILE *f, const char *src_name,
+                                  const char *rpt_name)
 {
    fprintf(f, "<h2 style=\"margin-left: " MARGIN_LEFT ";\">\n");
    fprintf(f, "   File:&nbsp; <a href=\"../../%s\">../../%s</a>\n",
-            name, name);
+            rpt_name, src_name);
    fprintf(f, "</h2>\n\n");
 }
 
@@ -1389,8 +1418,10 @@ static void cover_report_hier(cover_rpt_hier_ctx_t *ctx,
    cover_print_inst_name(f, s);
 
    cover_file_t *src = cover_file_for_scope(s);
-   const char *filename = (src) ? src->name : "";
-   cover_print_file_name(f, filename);
+   if (src)
+      cover_print_file_name(f, src->src_path, src->rpt_path);
+   else
+      cover_print_file_name(f, "", "");
 
    fprintf(f, "<h2 style=\"margin-left: " MARGIN_LEFT ";\">\n  Sub-instances:\n</h2>\n\n");
    cover_print_summary_table_header(f, "sub_inst_table", true);
@@ -1499,12 +1530,12 @@ static void cover_print_file_nav_tree(FILE *f, cover_rpt_file_ctx_t *ctx_list,
 {
    fprintf(f, "<nav>\n");
    fprintf(f, "<b><a href=../index.html>Back to summary</a></p></b>\n");
-   fprintf(f, "<b>Files:</b><br>\n");
+   fprintf(f, "<b>Coverage report for file:</b><br>\n");
 
    for (int i = 0; i < n_ctxs; i++) {
       cover_rpt_file_ctx_t *ctx = ctx_list + i;
 
-      char *tmp LOCAL = xstrdup((char *)ctx->file->name);
+      char *tmp LOCAL = xstrdup((char *)ctx->file->src_path);
       const char *file_name = basename(tmp);
       fprintf(f, "<p style=\"margin-left: %dpx\"><a href=%s.html>%s</a></p>\n",
                   10, file_name, file_name);
@@ -1654,7 +1685,7 @@ static void cover_report_per_file(FILE *top_f, cover_data_t *data, char *subdir)
       }
 
       // Print per-file report
-      char *file_name LOCAL = xstrdup((char*)ctx->file->name);
+      char *file_name LOCAL = xstrdup((char*)ctx->file->src_path);
       ident_t base_name_id = ident_new(basename(file_name));
       char *file_path LOCAL = xasprintf("%s/%s.html", subdir, istr(base_name_id));
 
@@ -1665,7 +1696,7 @@ static void cover_report_per_file(FILE *top_f, cover_data_t *data, char *subdir)
 
       cover_print_html_header(f);
       cover_print_file_nav_tree(f, ctx_list, n_ctxs);
-      cover_print_file_name(f, ctx->file->name);
+      cover_print_file_name(f, ctx->file->src_path, ctx->file->rpt_path);
 
       fprintf(f, "<h2 style=\"margin-left: " MARGIN_LEFT ";\">\n  Current File:\n</h2>\n\n");
       cover_print_summary_table_header(f, "cur_file_table", true);
