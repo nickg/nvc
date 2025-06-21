@@ -397,9 +397,12 @@ void _nvc_set_cover_scope_name(jit_scalar_t *args)
    if (name_len == 0)
       jit_msg(NULL, DIAG_FATAL, "coverage scope name cannot be empty");
 
-   // Rename the scope
+   if (s == NULL)
+      return;
+
    LOCAL_TEXT_BUF tb = tb_new();
    sanitise_name(tb, name_bytes, name_len);
+
    ident_t name_id = ident_new(tb_get(tb));
 
    if (s->items.count > 0)
