@@ -47,4 +47,10 @@ begin
 
     << signal ^.foo : bit >> <= '1';    -- OK (issue #1156)
 
+    b1: block is
+        port ( p : inout integer );
+        port map ( << signal .foo.s : integer >> );  -- OK (issue #1220)
+    begin
+    end block;
+
 end architecture;

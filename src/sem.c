@@ -4664,11 +4664,7 @@ static bool sem_static_signal_name(tree_t t)
    if (!sem_static_name(t, sem_globally_static))
       return false;
 
-   tree_t ref = name_to_ref(t);
-   if (ref != NULL && !tree_has_ref(ref))
-      return true;  // Suppress cascading error
-
-   return ref != NULL && class_of(tree_ref(ref)) == C_SIGNAL;
+   return class_of(t) == C_SIGNAL;
 }
 
 static bool sem_check_port_actual(formal_map_t *formals, int nformals,
