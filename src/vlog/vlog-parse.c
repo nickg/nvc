@@ -2929,7 +2929,7 @@ static vlog_node_t p_n_terminal_gate_instance(vlog_gate_kind_t kind)
    consume(tCOMMA);
 
    do {
-      vlog_add_param(v, p_net_lvalue());
+      vlog_add_param(v, p_expression());
    } while (optional(tCOMMA));
 
    consume(tRPAREN);
@@ -3688,6 +3688,29 @@ static vlog_node_t p_hierarchical_instance(void)
    return v;
 }
 
+static vlog_node_t p_udp_instance(void)
+{
+   // [ name_of_instance ] ( output_terminal , input_terminal
+   //   { , input_terminal } )
+
+   BEGIN("udp instance");
+
+   vlog_node_t v = vlog_new(V_MOD_INST);
+   if (peek() == tID)
+      vlog_set_ident(v, p_identifier());
+   else
+      vlog_set_ident(v, ident_uniq("$unnamed"));
+
+   consume(tLPAREN);
+
+   p_list_of_port_connections(v);
+
+   consume(tRPAREN);
+
+   vlog_set_loc(v, CURRENT_LOC);
+   return v;
+}
+
 static vlog_node_t p_param_expression(void)
 {
    // mintypmax_expression | data_type | $
@@ -3762,10 +3785,13 @@ static void p_parameter_value_assignment(vlog_node_t inst)
    consume(tRPAREN);
 }
 
-static void p_module_instantiation(vlog_node_t mod)
+static void p_module_or_udp_instantiation(vlog_node_t mod)
 {
    // module_identifier [ parameter_value_assignment ] hierarchical_instance
    //   { , hierarchical_instance } ;
+   //
+   // udp_identifier [ drive_strength ] [ delay2 ] udp_instance
+   //   { , udp_instance } ;
 
    BEGIN("module instantiation");
 
@@ -3778,7 +3804,10 @@ static void p_module_instantiation(vlog_node_t mod)
       p_parameter_value_assignment(v);
 
    do {
-      vlog_add_stmt(v, p_hierarchical_instance());
+      if (peek() == tLPAREN)
+         vlog_add_stmt(v, p_udp_instance());
+      else
+         vlog_add_stmt(v, p_hierarchical_instance());
    } while (optional(tCOMMA));
 
    consume(tSEMI);
@@ -3840,7 +3869,7 @@ static void p_module_or_generate_item(vlog_node_t mod)
       p_gate_instantiation(mod);
       break;
    case tID:
-      p_module_instantiation(mod);
+      p_module_or_udp_instantiation(mod);
       break;
    default:
       one_of(tALWAYS, tALWAYSCOMB, tALWAYSFF, tALWAYSLATCH, tWIRE, tSUPPLY0,

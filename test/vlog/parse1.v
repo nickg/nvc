@@ -83,4 +83,6 @@ module parse1;
     endcase // case (x)
   mymod #(.x(1),.y(2)) m1(), m2();
   mymod #(1+2) m3(x);
+  myudp (1);
+  buf (x, 1'b0);
 endmodule // parse1
