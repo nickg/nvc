@@ -104,7 +104,7 @@ static vlog_node_t p_data_type(void);
 static void p_list_of_variable_decl_assignments(vlog_node_t parent,
                                                 vlog_node_t datatype);
 static vlog_node_t p_variable_lvalue(void);
-static vlog_node_t p_bit_select(ident_t id);
+static vlog_node_t p_select(ident_t id);
 static vlog_net_kind_t p_net_type(void);
 
 static inline void _pop_state(const rule_state_t *r)
@@ -547,16 +547,6 @@ static vlog_node_t p_primary_literal(void)
    }
 }
 
-static vlog_node_t p_constant_bit_select(ident_t id)
-{
-   // { [ constant_expression ] }
-
-   EXTEND("constant bit select");
-
-   // Checked for constant-ness later
-   return p_bit_select(id);
-}
-
 static vlog_node_t p_constant_select(ident_t id)
 {
    // [ { . member_identifier constant_bit_select } . member_identifier ]
@@ -564,7 +554,8 @@ static vlog_node_t p_constant_select(ident_t id)
 
    EXTEND("constant select");
 
-   return p_constant_bit_select(id);
+   // Checked for constant-ness later
+   return p_select(id);
 }
 
 static vlog_node_t p_constant_expression(void)
@@ -1090,23 +1081,69 @@ static vlog_node_t p_net_port_header(v_port_kind_t *dir, bool *isreg)
    return dt;
 }
 
-static vlog_node_t p_bit_select(ident_t id)
+static void p_part_select_range(vlog_node_t ps)
 {
-   // { [ expression ] }
+   // constant_expression : constant_expression
+   //   | expression +: constant_expression
+   //   | expression -: constant_expression
 
-   EXTEND("bit select");
+   BEGIN("part select range");
 
-   if (peek() == tLSQUARE) {
-      vlog_node_t v = vlog_new(V_BIT_SELECT);
-      vlog_set_ident(v, id);
+   vlog_range_kind_t kind = V_RANGE_CONST;
+   switch (one_of(tCOLON, tINDEXPOS, tINDEXNEG)) {
+   case tINDEXPOS: kind = V_RANGE_POS; break;
+   case tINDEXNEG: kind = V_RANGE_NEG; break;
+   }
 
-      while (optional(tLSQUARE)) {
-         vlog_add_param(v, p_expression());
+   vlog_set_subkind(ps, kind);
+   vlog_set_right(ps, p_constant_expression());
+}
+
+static vlog_node_t p_select(ident_t id)
+{
+   // [ { . member_identifier bit_select } . member_identifier ]
+   //    { [ expression ] } [ [ part_select_range ] ]
+
+   EXTEND("select");
+
+    if (optional(tLSQUARE)) {
+      vlog_node_t bs = NULL;
+      do {
+         vlog_node_t expr = p_expression();
+         if (scan(tCOLON, tINDEXPOS, tINDEXNEG)) {
+            vlog_node_t ps = vlog_new(V_PART_SELECT);
+            vlog_set_left(ps, expr);
+
+            p_part_select_range(ps);
+
+            if (bs == NULL) {
+               vlog_node_t ref = vlog_new(V_REF);
+               vlog_set_ident(ref, id);
+               vlog_set_loc(ref, CURRENT_LOC);
+
+               vlog_set_value(ps, ref);
+            }
+            else
+               vlog_set_value(ps, bs);
+
+            consume(tRSQUARE);
+
+            vlog_set_loc(ps, CURRENT_LOC);
+            return ps;
+         }
+
+         if (bs == NULL) {
+            bs = vlog_new(V_BIT_SELECT);
+            vlog_set_ident(bs, id);
+         }
+
+         vlog_add_param(bs, expr);
+
          consume(tRSQUARE);
-      }
+      } while (optional(tLSQUARE));
 
-      vlog_set_loc(v, CURRENT_LOC);
-      return v;
+      assert(bs != NULL);
+      return bs;
    }
    else {
       vlog_node_t v = vlog_new(V_REF);
@@ -1114,17 +1151,6 @@ static vlog_node_t p_bit_select(ident_t id)
       vlog_set_loc(v, CURRENT_LOC);
       return v;
    }
-}
-
-
-static vlog_node_t p_select(ident_t id)
-{
-   // [ { . member_identifier bit_select } . member_identifier ]
-   //    bit_select [ [ part_select_range ] ]
-
-   EXTEND("select");
-
-   return p_bit_select(id);
 }
 
 static void p_list_of_arguments(vlog_node_t call)
@@ -3241,10 +3267,14 @@ static vlog_node_t p_parallel_edge_sensitive_path_description(void)
 
    (void)p_specify_terminal_descriptor();
 
-   if (scan(tPLUS, tMINUS))
+   if (scan(tPLUS, tMINUS)) {
       (void)p_polarity_operator();
-
-   consume(tCOLON);
+      consume(tCOLON);
+   }
+   else if (scan(tINDEXPOS, tINDEXNEG))
+      consume(peek());  // Lexing abiguity with +: and -:
+   else
+      consume(tCOLON);
 
    (void)p_expression();
 
@@ -3277,10 +3307,14 @@ static vlog_node_t p_full_edge_sensitive_path_description(void)
 
    p_list_of_path_outputs(NULL);
 
-   if (scan(tPLUS, tMINUS))
+   if (scan(tPLUS, tMINUS)) {
       (void)p_polarity_operator();
-
-   consume(tCOLON);
+      consume(tCOLON);
+   }
+   else if (scan(tINDEXPOS, tINDEXNEG))
+      consume(peek());  // Lexing abiguity with +: and -:
+   else
+      consume(tCOLON);
 
    (void)p_expression();
 

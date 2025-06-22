@@ -85,4 +85,5 @@ module parse1;
   mymod #(1+2) m3(x);
   myudp (1);
   buf (x, 1'b0);
+  initial x[1:0] = y[7+:6];
 endmodule // parse1

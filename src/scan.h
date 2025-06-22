@@ -454,5 +454,7 @@ void reset_sdf_parser(void);
 #define tDLRSETUPHOLD  553
 #define tDLRRECREM     554
 #define tDLRWIDTH      555
+#define tINDEXPOS      556
+#define tINDEXNEG      557
 
 #endif  // _SCAN_H

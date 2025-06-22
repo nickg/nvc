@@ -618,6 +618,19 @@ static void vlog_check_bit_select(vlog_node_t bsel)
       vlog_check(vlog_param(bsel, i));
 }
 
+static void vlog_check_part_select(vlog_node_t v)
+{
+   vlog_check(vlog_value(v));
+
+   vlog_node_t left = vlog_left(v);
+   vlog_check(left);
+   vlog_check_const_expr(left);
+
+   vlog_node_t right = vlog_right(v);
+   vlog_check(right);
+   vlog_check_const_expr(right);
+}
+
 static void vlog_check_forever(vlog_node_t stmt)
 {
    const int nstmts = vlog_stmts(stmt);
@@ -842,6 +855,9 @@ void vlog_check(vlog_node_t v)
       break;
    case V_BIT_SELECT:
       vlog_check_bit_select(v);
+      break;
+   case V_PART_SELECT:
+      vlog_check_part_select(v);
       break;
    case V_FOREVER:
       vlog_check_forever(v);

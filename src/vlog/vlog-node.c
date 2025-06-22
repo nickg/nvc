@@ -210,6 +210,9 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
 
    // V_PORT_CONN
    (I_IDENT | I_VALUE),
+
+   // V_PART_SELECT
+   (I_SUBKIND | I_VALUE | I_LEFT | I_RIGHT),
 };
 
 static const char *kind_text_map[V_LAST_NODE_KIND] = {
@@ -228,7 +231,7 @@ static const char *kind_text_map[V_LAST_NODE_KIND] = {
    "V_REAL",       "V_CONCAT",      "V_FOR_LOOP",      "V_FOR_INIT",
    "V_FOR_STEP",   "V_PREFIX",      "V_POSTFIX",       "V_LOCALPARAM",
    "V_CASE",       "V_CASE_ITEM",   "V_INST_LIST",     "V_PARAM_ASSIGN",
-   "V_INST_BODY",  "V_PORT_CONN",
+   "V_INST_BODY",  "V_PORT_CONN",   "V_PART_SELECT",
 };
 
 static const change_allowed_t change_allowed[] = {

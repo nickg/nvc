@@ -119,6 +119,7 @@ typedef enum {
    V_PARAM_ASSIGN,
    V_INST_BODY,
    V_PORT_CONN,
+   V_PART_SELECT,
 
    V_LAST_NODE_KIND
 } vlog_kind_t;
@@ -142,6 +143,12 @@ typedef enum {
    V_DIM_PACKED,
    V_DIM_UNPACKED
 } vlog_dimension_kind_t;
+
+typedef enum {
+   V_RANGE_CONST,
+   V_RANGE_POS,
+   V_RANGE_NEG,
+} vlog_range_kind_t;
 
 typedef enum {
    V_BINARY_OR,

@@ -681,6 +681,8 @@ BEFORE            ?i:before
 <VLOG>"%"                { return tPERCENT; }
 <VLOG>"++"               { return tPLUSPLUS; }
 <VLOG>"--"               { return tMINUSMINUS; }
+<VLOG>"+:"               { return tINDEXPOS; }
+<VLOG>"-:"               { return tINDEXNEG; }
 <VLOG>"var"              { return tVAR; }
 <VLOG>"specify"          { return tSPECIFY; }
 <VLOG>"endspecify"       { return tENDSPECIFY; }
