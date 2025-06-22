@@ -527,7 +527,7 @@ START_TEST(test_vlog1)
              "  mod #(42) u1 (w), u2 (bus[1]);\n"
              "  assign bus[2] = 4'd1;\n"
              "  initial casex (w)\n"
-             "    0, 1: r = 1;\n"
+             "    0, 1: r = p1[3:0];\n"
              "    default: r = 0;\n"
              "  endcase\n"
              "endmodule // mod2\n\n");

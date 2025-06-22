@@ -86,4 +86,9 @@ module parse1;
   myudp (1);
   buf (x, 1'b0);
   initial x[1:0] = y[7+:6];
+  generate if (y == 7) begin
+    mod1 m4(x);
+  end else begin
+    mod1 m5(x);
+  end endgenerate
 endmodule // parse1

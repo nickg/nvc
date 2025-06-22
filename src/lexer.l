@@ -723,6 +723,8 @@ BEFORE            ?i:before
 <VLOG>"endtask"          { return tENDTASK; }
 <VLOG>"function"         { return tFUNCTION; }
 <VLOG>"endfunction"      { return tENDFUNCTION; }
+<VLOG>"generate"         { return tGENERATE; }
+<VLOG>"endgenerate"      { return tENDGENERATE; }
 <VLOG>"wait"             { return tWAIT; }
 <VLOG>"parameter"        { return tPARAMETER; }
 <VLOG>"for"              { return tFOR; }

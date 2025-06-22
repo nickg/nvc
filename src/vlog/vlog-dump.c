@@ -222,9 +222,13 @@ static void vlog_dump_initial(vlog_node_t v, int indent)
    print_syntax("\n");
 }
 
-static void vlog_dump_seq_block(vlog_node_t v, int indent)
+static void vlog_dump_block(vlog_node_t v, int indent)
 {
    print_syntax("#begin\n");
+
+   const int ndecls = vlog_decls(v);
+   for (int i = 0; i < ndecls; i++)
+      vlog_dump(vlog_decl(v, i), indent + 2);
 
    const int nstmts = vlog_stmts(v);
    for (int i = 0; i < nstmts; i++) {
@@ -321,7 +325,7 @@ static void vlog_dump_if(vlog_node_t v, int indent)
    const int nconds = vlog_conds(v);
    for (int i = 0; i < nconds; i++) {
       if (i > 0) {
-         print_syntax("\n;");
+         print_syntax("\n");
          tab(indent);
          print_syntax("#else ");
       }
@@ -426,6 +430,16 @@ static void vlog_dump_postfix(vlog_node_t v)
    case V_INCDEC_PLUS: print_syntax("++"); break;
    case V_INCDEC_MINUS: print_syntax("--"); break;
    }
+}
+
+static void vlog_dump_prefix(vlog_node_t v)
+{
+   switch (vlog_subkind(v)) {
+   case V_INCDEC_PLUS: print_syntax("++"); break;
+   case V_INCDEC_MINUS: print_syntax("--"); break;
+   }
+
+   vlog_dump(vlog_target(v), 0);
 }
 
 static void vlog_dump_delay_control(vlog_node_t v, int indent)
@@ -536,6 +550,16 @@ static void vlog_dump_bit_select(vlog_node_t v, int indent)
    }
 }
 
+static void vlog_dump_part_select(vlog_node_t v, int indent)
+{
+   vlog_dump(vlog_value(v), 0);
+   print_syntax("[");
+   vlog_dump(vlog_left(v), 0);
+   print_syntax(":");
+   vlog_dump(vlog_right(v), 0);
+   print_syntax("]");
+}
+
 static void vlog_dump_data_type(vlog_node_t v, int indent)
 {
    switch (vlog_subkind(v)) {
@@ -545,6 +569,7 @@ static void vlog_dump_data_type(vlog_node_t v, int indent)
    case DT_SHORTREAL: print_syntax("#shortreal"); break;
    case DT_INTEGER: print_syntax("#integer"); break;
    case DT_BIT: print_syntax("#bit"); break;
+   case DT_INT: print_syntax("#int"); break;
    default: should_not_reach_here();
    }
 
@@ -610,7 +635,10 @@ static void vlog_dump_for_loop(vlog_node_t v, int indent)
 {
    print_syntax("#for (");
    vlog_dump(vlog_left(v), 0);
-   vlog_dump(vlog_value(v), 0);
+
+   if (vlog_has_value(v))
+      vlog_dump(vlog_value(v), 0);
+
    print_syntax(";");
    vlog_dump(vlog_right(v), 0);
    print_syntax(") ");
@@ -720,6 +748,50 @@ static void vlog_dump_ref(vlog_node_t v, int indent)
    print_syntax("%s", istr(vlog_ident(v)));
 }
 
+static void vlog_dump_task_decl(vlog_node_t v, int indent)
+{
+   tab(indent);
+   print_syntax("#task %s(", istr(vlog_ident(v)));
+
+   print_syntax(");\n");
+
+   const int nstmts = vlog_stmts(v);
+   for (int i = 0; i < nstmts; i++) {
+      tab(indent + 2);
+      vlog_dump(vlog_stmt(v, i), indent + 2);
+      print_syntax("\n");
+   }
+
+   tab(indent);
+   print_syntax("#endtask\n");
+}
+
+static void vlog_dump_func_decl(vlog_node_t v, int indent)
+{
+   tab(indent);
+   print_syntax("#function %s(", istr(vlog_ident(v)));
+
+   print_syntax(");\n");
+
+   const int nstmts = vlog_stmts(v);
+   for (int i = 0; i < nstmts; i++) {
+      tab(indent + 2);
+      vlog_dump(vlog_stmt(v, i), indent + 2);
+      print_syntax("\n");
+   }
+
+   tab(indent);
+   print_syntax("#endfunction\n");
+}
+
+static void vlog_dump_wait(vlog_node_t v, int indent)
+{
+   print_syntax("#wait (");
+   vlog_dump(vlog_value(v), 0);
+   print_syntax(") ");
+   vlog_dump_stmt_or_null(v, indent);
+}
+
 void vlog_dump(vlog_node_t v, int indent)
 {
    switch (vlog_kind(v)) {
@@ -768,8 +840,8 @@ void vlog_dump(vlog_node_t v, int indent)
    case V_ASSIGN:
       vlog_dump_assign(v, indent);
       break;
-   case V_SEQ_BLOCK:
-      vlog_dump_seq_block(v, indent);
+   case V_BLOCK:
+      vlog_dump_block(v, indent);
       break;
    case V_SYS_TCALL:
       vlog_dump_sys_tcall(v, indent);
@@ -787,6 +859,7 @@ void vlog_dump(vlog_node_t v, int indent)
       vlog_dump_real(v);
       break;
    case V_IF:
+   case V_IF_GENERATE:
       vlog_dump_if(v, indent);
       break;
    case V_BINARY:
@@ -797,6 +870,9 @@ void vlog_dump(vlog_node_t v, int indent)
       break;
    case V_POSTFIX:
       vlog_dump_postfix(v);
+      break;
+   case V_PREFIX:
+      vlog_dump_prefix(v);
       break;
    case V_DELAY_CONTROL:
       vlog_dump_delay_control(v, indent);
@@ -815,6 +891,9 @@ void vlog_dump(vlog_node_t v, int indent)
       break;
    case V_BIT_SELECT:
       vlog_dump_bit_select(v, indent);
+      break;
+   case V_PART_SELECT:
+      vlog_dump_part_select(v, indent);
       break;
    case V_UDP_ENTRY:
       vlog_dump_udp_entry(v, indent);
@@ -862,7 +941,17 @@ void vlog_dump(vlog_node_t v, int indent)
       vlog_dump_param_decl(v, indent);
       break;
    case V_PARAM_ASSIGN:
+   case V_PORT_CONN:
       vlog_dump_param_assign(v, indent);
+      break;
+   case V_TASK_DECL:
+      vlog_dump_task_decl(v, indent);
+      break;
+   case V_FUNC_DECL:
+      vlog_dump_func_decl(v, indent);
+      break;
+   case V_WAIT:
+      vlog_dump_wait(v, indent);
       break;
    default:
       print_syntax("\n");

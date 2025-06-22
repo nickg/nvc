@@ -65,7 +65,7 @@ typedef enum {
    V_NBASSIGN,
    V_EVENT,
    V_INITIAL,
-   V_SEQ_BLOCK,
+   V_BLOCK,
    V_SYS_TCALL,
    V_STRING,
    V_NUMBER,
@@ -120,6 +120,7 @@ typedef enum {
    V_INST_BODY,
    V_PORT_CONN,
    V_PART_SELECT,
+   V_IF_GENERATE,
 
    V_LAST_NODE_KIND
 } vlog_kind_t;

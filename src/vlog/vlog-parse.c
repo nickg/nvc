@@ -106,6 +106,7 @@ static void p_list_of_variable_decl_assignments(vlog_node_t parent,
 static vlog_node_t p_variable_lvalue(void);
 static vlog_node_t p_select(ident_t id);
 static vlog_net_kind_t p_net_type(void);
+static void p_module_or_generate_item(vlog_node_t mod);
 
 static inline void _pop_state(const rule_state_t *r)
 {
@@ -1768,7 +1769,7 @@ static vlog_node_t p_seq_block(void)
 
    consume(tBEGIN);
 
-   vlog_node_t v = vlog_new(V_SEQ_BLOCK);
+   vlog_node_t v = vlog_new(V_BLOCK);
 
    if (optional(tCOLON))
       vlog_set_ident(v, p_identifier());
@@ -2224,7 +2225,7 @@ static vlog_node_t p_statement(void)
 
    vlog_node_t s = p_statement_item();
    if (s == NULL)
-      return vlog_new(V_SEQ_BLOCK);
+      return vlog_new(V_BLOCK);
 
    return s;
 }
@@ -2776,6 +2777,101 @@ static void p_module_or_generate_item_declaration(vlog_node_t mod)
    p_package_or_generate_item_declaration(mod);
 }
 
+static void p_generate_item(vlog_node_t parent)
+{
+   // module_or_generate_item | interface_or_generate_item
+   //   | checker_or_generate_item
+
+   BEGIN("generate item");
+
+   p_module_or_generate_item(parent);
+}
+
+static void p_generate_block(vlog_node_t parent)
+{
+   // generate_item
+   //   | [ generate_block_identifier : ] begin [ : generate_block_identifier ]
+   //         { generate_item } end [ : generate_block_identifier ]
+
+   BEGIN("generate item");
+
+   if (scan(tID, tBEGIN)) {
+      vlog_node_t b = vlog_new(V_BLOCK);
+
+      if (peek() == tID) {
+         vlog_set_ident(b, p_identifier());
+         consume(tCOLON);
+      }
+
+      consume(tBEGIN);
+
+      if (optional(tCOLON))
+         vlog_set_ident(b, p_identifier());  // XXX: check rules
+
+      while (not_at_token(tEND))
+         p_generate_item(b);
+
+      consume(tEND);
+
+      if (optional(tCOLON))
+         (void)p_identifier(); // XXX: check
+
+      vlog_set_loc(b, CURRENT_LOC);
+      vlog_add_stmt(parent, b);
+   }
+   else
+      p_generate_item(parent);
+}
+
+static vlog_node_t p_if_generate_construct(void)
+{
+   // if ( constant_expression ) generate_block [ else generate_block ]
+
+   BEGIN("if generate construct");
+
+   vlog_node_t v = vlog_new(V_IF_GENERATE);
+
+   consume(tIF);
+   consume(tLPAREN);
+
+   vlog_node_t c0 = vlog_new(V_COND);
+   vlog_set_value(c0, p_constant_expression());
+
+   consume(tRPAREN);
+
+   vlog_set_loc(c0, CURRENT_LOC);
+
+   p_generate_block(c0);
+
+   vlog_add_cond(v, c0);
+
+   if (optional(tELSE)) {
+      vlog_node_t c1 = vlog_new(V_COND);
+      vlog_set_loc(c1, &state.last_loc);
+
+      p_generate_block(c1);
+
+      vlog_add_cond(v, c1);
+   }
+
+   vlog_set_loc(v, CURRENT_LOC);
+   return v;
+}
+
+static vlog_node_t p_conditional_generate_construct(void)
+{
+   // if_generate_construct | case_generate_construct
+
+   BEGIN("conditional generate construct");
+
+   switch (peek()) {
+   case tIF:
+      return p_if_generate_construct();
+   default:
+      should_not_reach_here();
+   }
+}
+
 static void p_module_common_item(vlog_node_t mod)
 {
    // module_or_generate_item_declaration
@@ -2819,11 +2915,14 @@ static void p_module_common_item(vlog_node_t mod)
    case tASSIGN:
       p_continuous_assign(mod);
       break;
+   case tIF:
+      vlog_add_stmt(mod, p_conditional_generate_construct());
+      break;
    default:
       one_of(tALWAYS, tALWAYSCOMB, tALWAYSFF, tALWAYSLATCH, tWIRE, tSUPPLY0,
              tSUPPLY1, tREG, tSTRUCT, tUNION, tTYPEDEF, tENUM, tSVINT,
              tINTEGER, tSVREAL, tSHORTREAL, tREALTIME, tTASK, tFUNCTION,
-             tPARAMETER, tLOCALPARAM, tASSIGN);
+             tPARAMETER, tLOCALPARAM, tASSIGN, tIF);
       drop_tokens_until(tSEMI);
    }
 }
@@ -3919,6 +4018,7 @@ static void p_module_or_generate_item(vlog_node_t mod)
    case tFUNCTION:
    case tLOCALPARAM:
    case tPARAMETER:
+   case tIF:
       p_module_common_item(mod);
       break;
    case tPULLDOWN:
@@ -3940,10 +4040,28 @@ static void p_module_or_generate_item(vlog_node_t mod)
       one_of(tALWAYS, tALWAYSCOMB, tALWAYSFF, tALWAYSLATCH, tWIRE, tSUPPLY0,
              tSUPPLY1, tREG, tSTRUCT, tUNION, tASSIGN, tINITIAL, tTYPEDEF,
              tENUM, tSVINT, tINTEGER, tSVREAL, tSHORTREAL, tREALTIME, tTASK,
-             tFUNCTION, tLOCALPARAM, tPARAMETER, tPULLDOWN, tPULLUP, tID,
+             tFUNCTION, tLOCALPARAM, tPARAMETER, tIF, tPULLDOWN, tPULLUP, tID,
              tAND, tNAND, tOR, tNOR, tXOR, tXNOR, tNOT, tBUF);
       drop_tokens_until(tSEMI);
    }
+}
+
+static void p_generate_region(vlog_node_t mod)
+{
+   // generate { generate_item } endgenerate
+
+   BEGIN("generate region");
+
+   // Has no real meaning in System Verilog
+
+   // TODO: generate regions do not nest so check mod is V_MODULE
+
+   consume(tGENERATE);
+
+   while (not_at_token(tENDGENERATE))
+      p_generate_item(mod);
+
+   consume(tENDGENERATE);
 }
 
 static void p_non_port_module_item(vlog_node_t mod)
@@ -3995,12 +4113,16 @@ static void p_non_port_module_item(vlog_node_t mod)
    case tSPECIFY:
       vlog_add_stmt(mod, p_specify_block());
       break;
+   case tGENERATE:
+      p_generate_region(mod);
+      break;
    default:
       one_of(tALWAYS, tALWAYSCOMB, tALWAYSFF, tALWAYSLATCH, tWIRE, tSUPPLY0,
              tSUPPLY1, tREG, tSTRUCT, tUNION, tASSIGN, tPULLDOWN, tPULLUP,
              tID, tATTRBEGIN, tAND, tNAND, tOR, tNOR, tXOR, tXNOR, tNOT,
              tBUF, tTYPEDEF, tENUM, tSVINT, tINTEGER, tSVREAL, tSHORTREAL,
-             tREALTIME, tTASK, tFUNCTION, tLOCALPARAM, tPARAMETER, tSPECIFY);
+             tREALTIME, tTASK, tFUNCTION, tLOCALPARAM, tPARAMETER, tSPECIFY,
+             tGENERATE);
       drop_tokens_until(tSEMI);
    }
 }

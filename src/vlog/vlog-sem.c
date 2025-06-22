@@ -349,11 +349,15 @@ static void vlog_check_initial(vlog_node_t initial)
       vlog_check(vlog_stmt(initial, i));
 }
 
-static void vlog_check_seq_block(vlog_node_t block)
+static void vlog_check_block(vlog_node_t v)
 {
-   const int nstmts = vlog_stmts(block);
+   const int ndecls = vlog_decls(v);
+   for (int i = 0; i < ndecls; i++)
+      vlog_check(vlog_decl(v, i));
+
+   const int nstmts = vlog_stmts(v);
    for (int i = 0; i < nstmts; i++)
-      vlog_check(vlog_stmt(block, i));
+      vlog_check(vlog_stmt(v, i));
 }
 
 static void vlog_check_sys_tcall(vlog_node_t call)
@@ -817,8 +821,8 @@ void vlog_check(vlog_node_t v)
    case V_VAR_DECL:
       vlog_check_var_decl(v);
       break;
-   case V_SEQ_BLOCK:
-      vlog_check_seq_block(v);
+   case V_BLOCK:
+      vlog_check_block(v);
       break;
    case V_SYS_TCALL:
       vlog_check_sys_tcall(v);

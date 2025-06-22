@@ -49,8 +49,8 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
    // V_INITIAL
    (I_IDENT | I_STMTS),
 
-   // V_SEQ_BLOCK
-   (I_IDENT | I_STMTS),
+   // V_BLOCK
+   (I_IDENT | I_DECLS | I_STMTS),
 
    // V_SYS_TCALL
    (I_IDENT | I_PARAMS),
@@ -213,12 +213,15 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
 
    // V_PART_SELECT
    (I_SUBKIND | I_VALUE | I_LEFT | I_RIGHT),
+
+   // V_IF_GENERATE
+   (I_CONDS),
 };
 
 static const char *kind_text_map[V_LAST_NODE_KIND] = {
    "V_MODULE",     "V_PORT_DECL",   "V_REF",           "V_ALWAYS",
    "V_TIMING",     "V_NBASSIGN",    "V_EVENT",         "V_INITIAL",
-   "V_SEQ_BLOCK",  "V_SYS_TCALL",   "V_STRING",        "V_NUMBER",
+   "V_BLOCK",      "V_SYS_TCALL",   "V_STRING",        "V_NUMBER",
    "V_NET_DECL",   "V_ASSIGN",      "V_DIMENSION",     "V_IF",
    "V_COND",       "V_VAR_DECL",    "V_DELAY_CONTROL", "V_BINARY",
    "V_BASSIGN",    "V_UNARY",       "V_GATE_INST",     "V_STRENGTH",
@@ -231,7 +234,7 @@ static const char *kind_text_map[V_LAST_NODE_KIND] = {
    "V_REAL",       "V_CONCAT",      "V_FOR_LOOP",      "V_FOR_INIT",
    "V_FOR_STEP",   "V_PREFIX",      "V_POSTFIX",       "V_LOCALPARAM",
    "V_CASE",       "V_CASE_ITEM",   "V_INST_LIST",     "V_PARAM_ASSIGN",
-   "V_INST_BODY",  "V_PORT_CONN",   "V_PART_SELECT",
+   "V_INST_BODY",  "V_PORT_CONN",   "V_PART_SELECT",   "V_IF_GENERATE",
 };
 
 static const change_allowed_t change_allowed[] = {

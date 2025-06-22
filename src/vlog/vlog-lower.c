@@ -831,7 +831,7 @@ static void vlog_lower_stmts(mir_unit_t *mu, vlog_node_t v)
       case V_BASSIGN:
          vlog_lower_procedural_assign(mu, s);
          break;
-      case V_SEQ_BLOCK:
+      case V_BLOCK:
          vlog_lower_stmts(mu, s);
          break;
       case V_SYS_TCALL:
