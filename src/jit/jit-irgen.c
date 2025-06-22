@@ -3868,6 +3868,9 @@ static void irgen_op_binary(jit_irgen_t *g, mir_value_t n)
    case MIR_VEC_ADD:
       abits = j_add(g, aleft, aright);
       break;
+   case MIR_VEC_SUB:
+      abits = j_sub(g, aleft, aright);
+      break;
    case MIR_VEC_CASE_EQ:
    case MIR_VEC_CASE_NEQ:
       {
@@ -3885,6 +3888,9 @@ static void irgen_op_binary(jit_irgen_t *g, mir_value_t n)
    case MIR_VEC_LOG_NEQ:
       j_cmp(g, irgen_vector_cmp(op), aleft, aright);
       abits = j_cset(g);
+      break;
+   case MIR_VEC_SLL:
+      abits = j_shl(g, aleft, aright);
       break;
    default:
       should_not_reach_here();

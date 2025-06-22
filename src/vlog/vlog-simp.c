@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2024 Nick Gasson
+//  Copyright (C) 2024-2025 Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -123,6 +123,16 @@ static void build_sensitivity(vlog_node_t ctrl, vlog_node_t v)
       break;
    case V_NUMBER:
       break;
+   case V_CASE:
+      build_sensitivity(ctrl, vlog_value(v));
+      // Fall-through
+   case V_CASE_ITEM:
+      {
+         const int nstmts = vlog_stmts(v);
+         for (int i = 0; i < nstmts; i++)
+            build_sensitivity(ctrl, vlog_stmt(v, i));
+      }
+      break;
    default:
       fatal_at(vlog_loc(v), "cannot handle %s in build_sensitivity",
                vlog_kind_str(vlog_kind(v)));
@@ -146,6 +156,36 @@ static vlog_node_t simp_timing(vlog_node_t v)
    return v;
 }
 
+static vlog_node_t simp_data_type(vlog_node_t v)
+{
+   switch (vlog_subkind(v)) {
+   case DT_INTEGER:
+      {
+         const loc_t *loc = vlog_loc(v);
+
+         vlog_node_t left = vlog_new(V_NUMBER);
+         vlog_set_number(left, number_new("31"));
+         vlog_set_loc(left, loc);
+
+         vlog_node_t right = vlog_new(V_NUMBER);
+         vlog_set_number(right, number_new("0"));
+         vlog_set_loc(right, loc);
+
+         vlog_node_t r = vlog_new(V_DIMENSION);
+         vlog_set_subkind(r, V_DIM_PACKED);
+         vlog_set_left(r, left);
+         vlog_set_right(r, right);
+         vlog_set_loc(r, loc);
+
+         vlog_set_subkind(v, DT_LOGIC);
+         vlog_add_range(v, r);
+      }
+      break;
+   }
+
+   return v;
+}
+
 static vlog_node_t vlog_simp_cb(vlog_node_t v, void *context)
 {
    switch (vlog_kind(v)) {
@@ -155,6 +195,8 @@ static vlog_node_t vlog_simp_cb(vlog_node_t v, void *context)
       return simp_port_decl(v, context);
    case V_TIMING:
       return simp_timing(v);
+   case V_DATA_TYPE:
+      return simp_data_type(v);
    default:
       return v;
    }

@@ -688,6 +688,7 @@ static void vlog_check_concat(vlog_node_t expr)
 static void vlog_check_for_loop(vlog_node_t v)
 {
    vlog_check(vlog_left(v));
+   vlog_check(vlog_value(v));
    vlog_check(vlog_right(v));
 
    const int nstmts = vlog_stmts(v);

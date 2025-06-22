@@ -208,6 +208,9 @@ static mir_value_t vlog_lower_binary(mir_unit_t *mu, vlog_node_t v)
    case V_BINARY_CASE_EQ:  mop = MIR_VEC_CASE_EQ; break;
    case V_BINARY_CASE_NEQ: mop = MIR_VEC_CASE_NEQ; break;
    case V_BINARY_PLUS:     mop = MIR_VEC_ADD; break;
+   case V_BINARY_MINUS:    mop = MIR_VEC_SUB; break;
+   case V_BINARY_SHIFT_LL: mop = MIR_VEC_SLL; break;
+   case V_BINARY_SHIFT_RL: mop = MIR_VEC_SRL; break;
    default:
       CANNOT_HANDLE(v);
    }
@@ -650,6 +653,123 @@ static void vlog_lower_forever(mir_unit_t *mu, vlog_node_t v)
    mir_build_jump(mu, body_bb);
 }
 
+static void vlog_lower_for_loop(mir_unit_t *mu, vlog_node_t v)
+{
+   mir_comment(mu, "Begin for loop");
+
+   vlog_node_t init = vlog_left(v);
+   assert(vlog_kind(init) == V_FOR_INIT);
+
+   assert(vlog_decls(init) == 0);   // TODO
+
+   vlog_lower_stmts(mu, init);
+
+   mir_block_t body_bb = mir_add_block(mu);
+   mir_block_t step_bb = mir_add_block(mu);
+   mir_block_t test_bb = mir_add_block(mu);
+   mir_block_t exit_bb = mir_add_block(mu);
+
+   mir_build_jump(mu, test_bb);
+
+   mir_set_cursor(mu, test_bb, MIR_APPEND);
+
+   mir_comment(mu, "For loop test");
+
+   mir_value_t test = vlog_lower_rvalue(mu, vlog_value(v));
+   assert(mir_is_vector(mu, test));
+
+   mir_value_t zero = mir_const_vec(mu, mir_get_type(mu, test), 0, 0);
+   mir_value_t cmp = mir_build_cmp(mu, MIR_CMP_NEQ, test, zero);
+   mir_build_cond(mu, cmp, body_bb, exit_bb);
+
+   mir_set_cursor(mu, body_bb, MIR_APPEND);
+
+   mir_comment(mu, "For loop body");
+
+   vlog_lower_stmts(mu, v);
+
+   if (!mir_block_finished(mu, MIR_NULL_BLOCK))
+      mir_build_jump(mu, step_bb);
+
+   mir_set_cursor(mu, step_bb, MIR_APPEND);
+
+   mir_comment(mu, "For loop step");
+
+   vlog_node_t step = vlog_right(v);
+   assert(vlog_kind(step) == V_FOR_STEP);
+
+   vlog_lower_stmts(mu, step);
+
+   mir_build_jump(mu, test_bb);
+
+   mir_set_cursor(mu, exit_bb, MIR_APPEND);
+
+   mir_comment(mu, "End for loop");
+}
+
+static void vlog_lower_case(mir_unit_t *mu, vlog_node_t v)
+{
+   mir_comment(mu, "Begin case statement");
+
+   mir_value_t value = vlog_lower_rvalue(mu, vlog_value(v));
+   mir_type_t type = mir_get_type(mu, value);
+
+   // TODO: use a parallel case for small integer types
+
+   const int nitems = vlog_stmts(v);
+   mir_block_t *blocks LOCAL = xmalloc_array(nitems, sizeof(mir_block_t));
+
+   mir_value_t zero = mir_const_vec(mu, mir_vec4_type(mu, 1, false), 0, 0);
+
+   for (int i = 0; i < nitems; i++) {
+      vlog_node_t item = vlog_stmt(v, i);
+      assert(vlog_kind(item) == V_CASE_ITEM);
+
+      blocks[i] = mir_add_block(mu);
+
+      mir_block_t else_bb = mir_add_block(mu);
+
+      mir_value_t comb = MIR_NULL_VALUE;
+      const int nparams = vlog_params(item);
+      for (int j = 0; j < nparams; j++) {
+         mir_value_t test = vlog_lower_rvalue(mu, vlog_param(item, j));
+         mir_value_t cast = mir_build_cast(mu, type, test);
+         mir_value_t case_eq =
+            mir_build_binary(mu, MIR_VEC_CASE_EQ, type, cast, value);
+         mir_value_t cmp = mir_build_cmp(mu, MIR_CMP_NEQ, case_eq, zero);
+
+         if (mir_is_null(comb))
+            comb = cmp;
+         else
+            comb = mir_build_or(mu, comb, cmp);
+      }
+
+      if (mir_is_null(comb))
+         mir_build_jump(mu, blocks[i]);
+      else
+         mir_build_cond(mu, comb, blocks[i], else_bb);
+
+      mir_set_cursor(mu, else_bb, MIR_APPEND);
+   }
+
+   mir_block_t exit_bb = mir_get_cursor(mu, NULL);
+
+   for (int i = 0; i < nitems; i++) {
+      vlog_node_t item = vlog_stmt(v, i);
+      assert(vlog_kind(item) == V_CASE_ITEM);
+
+      mir_set_cursor(mu, blocks[i], MIR_APPEND);
+      vlog_lower_stmts(mu, item);
+
+      if (!mir_block_finished(mu, MIR_NULL_BLOCK))
+         mir_build_jump(mu, exit_bb);
+   }
+
+   mir_set_cursor(mu, exit_bb, MIR_APPEND);
+
+   mir_comment(mu, "End case statement");
+}
+
 static void vlog_lower_stmts(mir_unit_t *mu, vlog_node_t v)
 {
    const int nstmts = vlog_stmts(v);
@@ -676,6 +796,12 @@ static void vlog_lower_stmts(mir_unit_t *mu, vlog_node_t v)
          break;
       case V_FOREVER:
          vlog_lower_forever(mu, s);
+         break;
+      case V_FOR_LOOP:
+         vlog_lower_for_loop(mu, s);
+         break;
+      case V_CASE:
+         vlog_lower_case(mu, s);
          break;
       default:
          CANNOT_HANDLE(s);
