@@ -133,6 +133,9 @@ static cfg_block_t *mir_get_cfg(mir_unit_t *mu)
    cfg_block_t *cfg = xcalloc_array(mu->blocks.count, sizeof(cfg_block_t));
    cfg[0].entry = true;
 
+   if (mir_get_kind(mu) == MIR_UNIT_PROCESS && mu->blocks.count > 1)
+      cfg[1].entry = true;
+
    for (int i = 0; i < mu->blocks.count; i++) {
       const block_data_t *bd = &(mu->blocks.items[i]);
       mir_block_t this = { .tag = MIR_TAG_BLOCK, .id = i };
@@ -329,16 +332,18 @@ static valnum_t gvn_get_value(mir_value_t value, gvn_state_t *gvn)
 static uint32_t gvn_hash_node(mir_unit_t *mu, const node_data_t *n,
                               gvn_state_t *gvn)
 {
-   if (n->op == MIR_OP_CONST)
-      return mix_bits_64(n->iconst) & 0xffffffff;
-   else if (n->op == MIR_OP_CONST_REAL)
-      return mix_bits_64(FLOAT_BITS(n->dconst)) & 0xffffffff;
-   else if (n->op == MIR_OP_LOCUS)
-      return mix_bits_64(n->locus) & 0xffffffff;
-   else {
-      uint32_t hash = knuth_hash(n->op) + knuth_hash(n->nargs);
-      hash ^= mir_type_data(mu, n->type)->hash;
+   uint32_t hash = knuth_hash(n->op) + knuth_hash(n->nargs);
+   hash ^= mir_type_data(mu, n->type)->hash;
 
+   if (n->op == MIR_OP_CONST)
+      return hash ^ mix_bits_64(n->iconst);
+   else if (n->op == MIR_OP_CONST_REAL)
+      return hash ^ mix_bits_64(FLOAT_BITS(n->dconst));
+   else if (n->op == MIR_OP_CONST_VEC)
+      return hash ^ mix_bits_64(n->bits[0]) ^ mix_bits_64(n->bits[1]);
+   else if (n->op == MIR_OP_LOCUS)
+      return hash ^ mix_bits_64(n->locus);
+   else {
       const mir_value_t *args = mir_get_args(mu, n);
       for (int i = 0; i < n->nargs; i++) {
          hash <<= 1;   // Argument order should affect hash
@@ -355,12 +360,14 @@ static uint32_t gvn_hash_node(mir_unit_t *mu, const node_data_t *n,
 static bool gvn_compare(mir_unit_t *mu, const node_data_t *a,
                         const node_data_t *b, gvn_state_t *gvn)
 {
-   if (a->op != b->op || a->nargs != b->nargs)
+   if (a->op != b->op || a->nargs != b->nargs || !mir_equals(a->type, b->type))
       return false;
    else if (a->op == MIR_OP_CONST)
       return a->iconst == b->iconst;
    else if (a->op == MIR_OP_CONST_REAL)
       return a->dconst == b->dconst;
+   else if (a->op == MIR_OP_CONST_VEC)
+      return a->bits[0] == b->bits[0] && a->bits[1] == b->bits[1];
    else if (a->op == MIR_OP_LOCUS)
       return a->locus == b->locus;
 
@@ -529,6 +536,24 @@ static void gvn_phi(mir_unit_t *mu, mir_value_t node, mir_block_t block,
    opt->gvn->nodevn[node.id] = vn;
 }
 
+static void gvn_unpack(mir_unit_t *mu, mir_value_t node, mir_block_t block,
+                       mir_optim_t *opt)
+{
+   const node_data_t *n = mir_node_data(mu, node);
+   if (mir_is_null(n->type))
+      return;   // Unpack into memory
+
+   gvn_generic(mu, node, block, opt);
+}
+
+static void gvn_load(mir_unit_t *mu, mir_value_t node, mir_block_t block,
+                     mir_optim_t *opt)
+{
+   // TODO: check if stamp is const or pointer
+
+   opt->gvn->nodevn[node.id] = gvn_new_value(node, opt->gvn);
+}
+
 static void gvn_visit_block(mir_unit_t *mu, mir_block_t block,
                             mir_optim_t *opt)
 {
@@ -566,7 +591,10 @@ static void gvn_visit_block(mir_unit_t *mu, mir_block_t block,
       case MIR_OP_RANGE_LENGTH:
       case MIR_OP_CAST:
       case MIR_OP_PACK:
-      case MIR_OP_UNPACK:
+      case MIR_OP_VAR_UPREF:
+      case MIR_OP_CONST_VEC:
+      case MIR_OP_BINARY:
+      case MIR_OP_UNARY:
          gvn_generic(mu, node, block, opt);
          break;
       case MIR_OP_AND:
@@ -575,6 +603,12 @@ static void gvn_visit_block(mir_unit_t *mu, mir_block_t block,
          break;
       case MIR_OP_PHI:
          gvn_phi(mu, node, block, opt);
+         break;
+      case MIR_OP_UNPACK:
+         gvn_unpack(mu, node, block, opt);
+         break;
+      case MIR_OP_LOAD:
+         gvn_load(mu, node, block, opt);
          break;
       default:
          break;
