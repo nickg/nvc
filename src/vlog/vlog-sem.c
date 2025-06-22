@@ -582,13 +582,17 @@ static void vlog_check_mod_inst(vlog_node_t inst)
 {
    const int nparams = vlog_params(inst);
    for (int i = 0; i < nparams; i++)
-      vlog_check_implicit_net(vlog_param(inst, i));
+      vlog_check(vlog_param(inst, i));
 
    vlog_insert_decl(inst);
 }
 
 static void vlog_check_inst_list(vlog_node_t v)
 {
+   const int nparams = vlog_params(v);
+   for (int i = 0; i < nparams; i++)
+      vlog_check(vlog_param(v, i));
+
    const int nstmts = vlog_stmts(v);
    for (int i = 0; i < nstmts; i++)
       vlog_check(vlog_stmt(v, i));
@@ -740,6 +744,18 @@ static void vlog_check_case(vlog_node_t v)
    }
 }
 
+static void vlog_check_port_conn(vlog_node_t v)
+{
+   if (vlog_has_value(v))
+      vlog_check_implicit_net(vlog_value(v));
+}
+
+static void vlog_check_param_assign(vlog_node_t v)
+{
+   if (vlog_has_value(v))
+      vlog_check(vlog_value(v));
+}
+
 void vlog_check(vlog_node_t v)
 {
    switch (vlog_kind(v)) {
@@ -874,6 +890,12 @@ void vlog_check(vlog_node_t v)
       break;
    case V_CASE:
       vlog_check_case(v);
+      break;
+   case V_PORT_CONN:
+      vlog_check_port_conn(v);
+      break;
+   case V_PARAM_ASSIGN:
+      vlog_check_param_assign(v);
       break;
    default:
       fatal_at(vlog_loc(v), "cannot check verilog node %s",

@@ -526,9 +526,11 @@ static tree_t elab_verilog_binding(vlog_node_t inst, mod_cache_t *mc,
    bool have_named = false;
    for (int i = 0; i < nports; i++) {
       vlog_node_t conn = vlog_param(inst, i);
-      assert(vlog_kind(conn) == V_REF);
+      assert(vlog_kind(conn) == V_PORT_CONN);
 
-      ident_t id = vlog_ident(conn);
+      vlog_node_t expr = vlog_value(conn);
+
+      ident_t id = vlog_ident(expr);
       tree_t decl = NULL;
 
       for (int j = 0; j < outports; j++) {

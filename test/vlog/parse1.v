@@ -81,7 +81,7 @@ module parse1;
       2'b01, 2'b10: y = 0;
       default: y = 2;
     endcase // case (x)
-  mymod #(.x(1),.y(2)) m1(), m2();
+  mymod #(.x(1),.y(2)) m1(), m2(.foo(5));
   mymod #(1+2) m3(x);
   myudp (1);
   buf (x, 1'b0);

@@ -3653,7 +3653,35 @@ static vlog_node_t p_ordered_port_connection(void)
 
    BEGIN("ordered port connection");
 
-   return p_expression();
+   vlog_node_t v = vlog_new(V_PORT_CONN);
+
+   if (not_at_token(tCOMMA, tRPAREN))
+      vlog_set_value(v, p_expression());
+
+   vlog_set_loc(v, CURRENT_LOC);
+   return v;
+}
+
+static vlog_node_t p_named_port_connection(void)
+{
+   // { attribute_instance } . port_identifier [ ( [ expression ] ) ]
+   //    | { attribute_instance } .*
+
+   BEGIN("named port connection");
+
+   vlog_node_t v = vlog_new(V_PORT_CONN);
+
+   consume(tDOT);
+
+   vlog_set_ident(v, p_identifier());
+
+   if (optional(tLPAREN)) {
+      vlog_set_value(v, p_expression());
+      consume(tRPAREN);
+   }
+
+   vlog_set_loc(v, CURRENT_LOC);
+   return v;
 }
 
 static void p_list_of_port_connections(vlog_node_t inst)
@@ -3664,7 +3692,10 @@ static void p_list_of_port_connections(vlog_node_t inst)
    BEGIN("list of port connections");
 
    do {
-      vlog_add_param(inst, p_ordered_port_connection());
+      if (peek() == tDOT)
+         vlog_add_param(inst, p_named_port_connection());
+      else
+         vlog_add_param(inst, p_ordered_port_connection());
    } while (optional(tCOMMA));
 }
 

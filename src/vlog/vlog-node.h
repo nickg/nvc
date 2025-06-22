@@ -118,6 +118,7 @@ typedef enum {
    V_INST_LIST,
    V_PARAM_ASSIGN,
    V_INST_BODY,
+   V_PORT_CONN,
 
    V_LAST_NODE_KIND
 } vlog_kind_t;
