@@ -1,11 +1,11 @@
-#!/bin/bash -ex
+#!/bin/bash -e
 
 vlib work
 
 root=$(git rev-parse --show-toplevel)
 regress=$root/test/regress
 plusopt=+acc
-vsimopt=
+vsimopt="-t fs"
 cover=false
 
 if $cover; then
