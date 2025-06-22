@@ -8,6 +8,7 @@ module mod2;
   wire [7:0] bus;
   wire       w;
   reg        r;
+  integer    i;
   initial begin
     $display("hello", $time);
     if (bus)
@@ -21,6 +22,8 @@ module mod2;
     do w = r && w; while (r);
     while (1);
     repeat (5) r = r + 1;
+    for (i = 0; i < 10; i++)
+      r = !r;
   end
   assign bus = 3;
   pullup (supply1, supply0) p1 (w);
