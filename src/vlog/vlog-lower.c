@@ -32,6 +32,7 @@
 #include "vlog/vlog-util.h"
 
 #include <assert.h>
+#include <inttypes.h>
 #include <string.h>
 #include <stdlib.h>
 
@@ -278,19 +279,47 @@ static mir_value_t vlog_lower_sys_tfcall(mir_unit_t *mu, vlog_node_t v)
                             locus, args, actual);
 }
 
-static mir_value_t vlog_lower_resolved(mir_unit_t *mu, vlog_node_t decl)
+static mir_value_t vlog_lower_resolved(mir_unit_t *mu, vlog_node_t v)
 {
-  if (vlog_kind(decl) == V_PORT_DECL)
-      decl = vlog_ref(decl);
+   switch (vlog_kind(v)) {
+   case V_PORT_DECL:
+   case V_REF:
+      return vlog_lower_resolved(mu, vlog_ref(v));
+   case V_VAR_DECL:
+   case V_NET_DECL:
+      {
+         int hops;
+         mir_value_t var = mir_search_object(mu, v, &hops);
+         assert(!mir_is_null(var));
 
-   int hops;
-   mir_value_t var = mir_search_object(mu, decl, &hops);
-   assert(!mir_is_null(var));
+         assert(hops > 0);
+         mir_value_t upref = mir_build_var_upref(mu, hops, var.id);
+         mir_value_t nets = mir_build_load(mu, upref);
+         return mir_build_resolved(mu, nets);
+      }
+   default:
+      CANNOT_HANDLE(v);
+   }
+}
 
-   assert(hops > 0);
-   mir_value_t upref = mir_build_var_upref(mu, hops, var.id);
-   mir_value_t nets = mir_build_load(mu, upref);
-   return mir_build_resolved(mu, nets);
+static mir_value_t vlog_lower_array_off(mir_unit_t *mu, vlog_node_t dt,
+                                        vlog_node_t v)
+{
+   mir_type_t t_offset = mir_offset_type(mu);
+
+   mir_value_t index = vlog_lower_rvalue(mu, v);
+   mir_value_t cast = mir_build_cast(mu, t_offset, index);
+
+   vlog_node_t r = vlog_range(dt, 0);
+   assert(vlog_subkind(r) == V_DIM_PACKED);
+
+   int64_t left, right;
+   vlog_bounds(r, &left, &right);
+
+   if (left < right)
+      return mir_build_sub(mu, t_offset, cast, mir_const(mu, t_offset, left));
+   else
+      return mir_build_sub(mu, t_offset, mir_const(mu, t_offset, left), cast);
 }
 
 static mir_value_t vlog_lower_rvalue_bit_select(mir_unit_t *mu, vlog_node_t v)
@@ -409,6 +438,23 @@ static mir_value_t vlog_lower_rvalue(mir_unit_t *mu, vlog_node_t v)
       return vlog_lower_sys_tfcall(mu, v);
    case V_BIT_SELECT:
       return vlog_lower_rvalue_bit_select(mu, v);
+   case V_PART_SELECT:
+      {
+         mir_value_t base = vlog_lower_resolved(mu, vlog_value(v));
+
+         vlog_node_t dt = vlog_type(vlog_ref(vlog_value(v)));
+
+         mir_value_t off = vlog_lower_array_off(mu, dt, vlog_left(v));
+         mir_value_t ptr = mir_build_array_ref(mu, base, off);
+
+         int64_t left, right;
+         vlog_bounds(v, &left, &right);
+
+         int64_t size = left < right ? right - left + 1 : left - right + 1;
+
+         mir_type_t t_vec = mir_vec4_type(mu, size, false);
+         return mir_build_pack(mu, t_vec, ptr);
+      }
    default:
       CANNOT_HANDLE(v);
    }
