@@ -69,11 +69,13 @@ module parse1;
   reg [7:0]     array1 [31:0];
   wire [3:0]    array2 [6:0];
   assign w3 = &(y) | ^(|y);
+  event e;
   always_comb x = 1;
   always_ff x = 2;
   always_latch begin
     x = 3;
   end
+  always @(w2) ->e;
   always @(  *) x <= y;
   initial
     case (x)

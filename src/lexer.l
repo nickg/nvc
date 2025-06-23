@@ -745,6 +745,8 @@ BEFORE            ?i:before
 <VLOG>"$setuphold"       { return tDLRSETUPHOLD; }
 <VLOG>"$recrem"          { return tDLRRECREM; }
 <VLOG>"$width"           { return tDLRWIDTH; }
+<VLOG>"event"            { return tEVENT; }
+<VLOG>"->"               { return tIFIMPL; }
 
 <VLOG>{SYSTASK}          { yylval.str = xstrdup(yytext); return tSYSTASK; }
 <VLOG>{VLOG_ID}          { yylval.str = xstrdup(yytext); return tID; }

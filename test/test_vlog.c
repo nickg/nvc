@@ -169,9 +169,9 @@ START_TEST(test_parse1)
    vlog_node_t m = vlog_parse();
    fail_if(m == NULL);
    fail_unless(vlog_kind(m) == V_MODULE);
-   ck_assert_int_eq(vlog_stmts(m), 27);
+   ck_assert_int_eq(vlog_stmts(m), 28);
    ck_assert_int_eq(vlog_ports(m), 0);
-   ck_assert_int_eq(vlog_decls(m), 19);
+   ck_assert_int_eq(vlog_decls(m), 20);
 
    vlog_node_t x = vlog_decl(m, 0);
    fail_unless(vlog_kind(x) == V_NET_DECL);
@@ -288,6 +288,11 @@ START_TEST(test_parse1)
    ck_assert_int_eq(vlog_ranges(d17), 1);
    fail_unless(vlog_subkind(vlog_range(d17, 0)) == V_DIM_UNPACKED);
 
+   vlog_node_t d19 = vlog_decl(m, 19);
+   fail_unless(vlog_kind(d19) == V_VAR_DECL);
+   vlog_node_t d19t = vlog_type(d19);
+   fail_unless(vlog_subkind(d19t) == DT_EVENT);
+
    vlog_node_t s10 = vlog_stmt(m, 16);
    fail_unless(vlog_kind(s10) == V_ALWAYS);
    fail_unless(vlog_subkind(s10) == V_ALWAYS_COMB);
@@ -299,6 +304,12 @@ START_TEST(test_parse1)
    vlog_node_t s12 = vlog_stmt(m, 18);
    fail_unless(vlog_kind(s12) == V_ALWAYS);
    fail_unless(vlog_subkind(s12) == V_ALWAYS_LATCH);
+
+   vlog_node_t s19 = vlog_stmt(m, 19);
+   fail_unless(vlog_kind(s19) == V_ALWAYS);
+   vlog_node_t s19b = vlog_stmt(s19, 0);
+   vlog_node_t et = vlog_stmt(s19b, 0);
+   fail_unless(vlog_kind(et) == V_EVENT_TRIGGER);
 
    fail_unless(vlog_parse() == NULL);
 
