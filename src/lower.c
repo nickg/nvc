@@ -11599,6 +11599,11 @@ static void lower_port_map(lower_unit_t *lu, tree_t block, tree_t map,
                  it = tree_value(it)) {
                tree_t elem = find_element_mode_indication(view, tree_ref(it),
                                                           &converse);
+               if (elem == NULL)
+                  fatal_at(tree_loc(it), "missing element mode indication for "
+                           "field %s type %s view %s", istr(tree_ident(it)),
+                           type_pp(tree_type(tree_value(it))),
+                           istr(tree_ident(view)));  // Debug for issue #1208
                assert(elem != NULL);
 
                mode = converse_mode(elem, converse);
