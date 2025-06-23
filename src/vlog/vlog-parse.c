@@ -4984,6 +4984,15 @@ static void p_endkeywords_directive(void)
    consume(tENDKEYWORDS);
 }
 
+static void p_resetall_directive(void)
+{
+   // `resetall
+
+   BEGIN("resetall directive");
+
+   consume(tRESETALL);
+}
+
 static void p_directive_list(void)
 {
    BEGIN("directive list");
@@ -5001,6 +5010,9 @@ static void p_directive_list(void)
          break;
       case tENDKEYWORDS:
          p_endkeywords_directive();
+         break;
+      case tRESETALL:
+         p_resetall_directive();
          break;
       default:
          return;
