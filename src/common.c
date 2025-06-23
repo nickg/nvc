@@ -277,15 +277,53 @@ bool parse_value(type_t type, const char *str, parsed_value_t *value)
       while (map[(uint8_t)*str] == INT_MAX && isspace_iso88591(*str))
          ++str;
 
-      const bool quoted = map['\"'] == INT_MAX && *str == '\"';
-      if (quoted) str++;
+      int base = 0, dbits = 1;
+      bool quoted = false;
+      if (map['\"'] == INT_MAX) {
+         if (str[0] == '\"') {
+            quoted = true;
+            str++;
+         }
+         else if (str[1] == '\"' && toupper_iso88591(str[0]) == 'X') {
+            quoted = true;
+            base = 16;
+            dbits = 4;
+            str += 2;
+         }
+      }
 
-      const size_t max = strlen(str);
+      const size_t max = strlen(str) * dbits;
       enum_array_t *array = xmalloc_flex(sizeof(enum_array_t), max, 1);
 
       int n = 0, m;
-      for (; *str != '\0' && (m = map[(uint8_t)*str]) != INT_MAX; str++, n++)
-         array->values[n] = m;
+      for (; *str != '\0'; str++, n += dbits) {
+         if (base > 0) {
+            const bool extended = (isdigit_iso88591(*str) && *str < '0' + base)
+               || (base > 10 && *str >= 'A' && *str < 'A' + base - 10)
+               || (base > 10 && *str >= 'a' && *str < 'a' + base - 10);
+
+            if (!extended)
+               break;
+
+            int digit = isdigit_iso88591(*str)
+               ? (*str - '0')
+               : 10 + (toupper_iso88591(*str) - 'A');
+
+            bool valid = true;
+            for (int i = dbits - 1; i >= 0; i--) {
+               const uint8_t bit = (digit >> i) & 1 ? '1' : '0';
+               valid &= (m = map[bit]) != INT_MAX;
+               array->values[n + dbits - i - 1] = m;
+            }
+
+            if (!valid)
+               break;
+         }
+         else if ((m = map[(uint8_t)*str]) == INT_MAX)
+            break;
+         else
+            array->values[n] = m;
+      }
 
       assert(n <= max);
       array->count = n;

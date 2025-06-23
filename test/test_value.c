@@ -220,6 +220,30 @@ START_TEST(test_string)
 }
 END_TEST
 
+START_TEST(test_hex)
+{
+   type_t bv = std_type(NULL, STD_BIT_VECTOR);
+   parsed_value_t v;
+
+   fail_unless(parse_value(bv, "X\"12\"  ", &v));
+   ck_assert_int_eq(v.enums->count, 8);
+
+   const uint8_t bits1[] = { 0, 0, 0, 1, 0, 0, 1, 0 };
+   ck_assert_mem_eq(v.enums->values, bits1, 8);
+   free(v.enums);
+
+   fail_unless(parse_value(bv, "  x\"4A\"  ", &v));
+   ck_assert_int_eq(v.enums->count, 8);
+
+   const uint8_t bits2[] = { 0, 1, 0, 0, 1, 0, 1, 0 };
+   ck_assert_mem_eq(v.enums->values, bits2, 8);
+   free(v.enums);
+
+   fail_if(parse_value(bv, " X\"10101h\"  ", &v));
+   fail_if(parse_value(bv, " X1010121  ", &v));
+}
+END_TEST
+
 Suite *get_value_tests(void)
 {
    Suite *s = suite_create("value");
@@ -231,6 +255,7 @@ Suite *get_value_tests(void)
    tcase_add_test(tc_core, test_real);
    tcase_add_test(tc_core, test_physical);
    tcase_add_test(tc_core, test_string);
+   tcase_add_test(tc_core, test_hex);
    suite_add_tcase(s, tc_core);
 
    return s;

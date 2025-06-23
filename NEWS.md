@@ -15,6 +15,9 @@
   referencing them (from @Blebowski).
 - The `--ieee-warnings` option now supports `off-at-0` to suppress
   warnings only in the first time step (from @supleed2).
+- Top-level generics can now be set to hexadecimal values from the
+  command line using `-g name='X"12"'`.  The value must be escaped or
+  quoted to avoid the double quotes being interpreted by the shell.
 - Several other minor bugs were resolved (#1220).
 
 ## Version 1.16.2 - 2025-06-11
