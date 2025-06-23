@@ -216,6 +216,9 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
 
    // V_IF_GENERATE
    (I_CONDS),
+
+   // V_EVENT_TRIGGER
+   (I_IDENT),
 };
 
 static const char *kind_text_map[V_LAST_NODE_KIND] = {

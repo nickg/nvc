@@ -121,6 +121,7 @@ typedef enum {
    V_PORT_CONN,
    V_PART_SELECT,
    V_IF_GENERATE,
+   V_EVENT_TRIGGER,
 
    V_LAST_NODE_KIND
 } vlog_kind_t;
@@ -138,6 +139,7 @@ typedef enum {
    DT_BIT,
    DT_SHORTREAL,
    DT_REALTIME,
+   DT_EVENT,
 } data_type_t;
 
 typedef enum {
