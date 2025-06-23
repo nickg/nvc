@@ -831,6 +831,22 @@ START_TEST(test_case1)
 }
 END_TEST
 
+START_TEST(test_resetall)
+{
+   input_from_file(TESTDIR "/vlog/resetall.v");
+
+   vlog_node_t m = vlog_parse();
+   fail_if(m == NULL);
+   fail_unless(vlog_kind(m) == V_MODULE);
+
+   vlog_check(m);
+
+   fail_unless(vlog_parse() == NULL);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_vlog_tests(void)
 {
    Suite *s = suite_create("vlog");
@@ -862,6 +878,7 @@ Suite *get_vlog_tests(void)
    tcase_add_test(tc, test_casename);
    tcase_add_test(tc, test_const1);
    tcase_add_test(tc, test_case1);
+   tcase_add_test(tc, test_resetall);
    suite_add_tcase(s, tc);
 
    return s;
