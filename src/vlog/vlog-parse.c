@@ -837,15 +837,15 @@ static vlog_node_t p_data_type(void)
       }
 
    case tEVENT:
-   {
-      consume(tEVENT);
+      {
+         consume(tEVENT);
 
-      vlog_node_t v = vlog_new(V_DATA_TYPE);
-      vlog_set_subkind(v, DT_EVENT);
-      vlog_set_loc(v, &state.last_loc);
+         vlog_node_t v = vlog_new(V_DATA_TYPE);
+         vlog_set_subkind(v, DT_EVENT);
+         vlog_set_loc(v, &state.last_loc);
 
-      return v;
-   }
+         return v;
+      }
 
    default:
       one_of(tBIT, tLOGIC, tREG, tBYTE, tSHORTINT, tSVINT, tLONGINT, tINTEGER,
@@ -2172,6 +2172,9 @@ static vlog_node_t p_case_statement(void)
 
 static vlog_node_t p_event_trigger(void)
 {
+   // -> hierarchical_event_identifier ;
+   //   | ->> [ delay_or_event_control ] hierarchical_event_identifier ;
+
    BEGIN("event trigger");
 
    consume(tIFIMPL);
@@ -2179,6 +2182,9 @@ static vlog_node_t p_event_trigger(void)
    vlog_node_t v = vlog_new(V_EVENT_TRIGGER);
    vlog_set_ident(v, p_identifier());
 
+   consume(tSEMI);
+
+   vlog_set_loc(v, CURRENT_LOC);
    return v;
 }
 
@@ -2231,11 +2237,7 @@ static vlog_node_t p_statement_item(void)
    case tCASEZ:
       return p_case_statement();
    case tIFIMPL:
-   {
-      vlog_node_t v = p_event_trigger();
-      consume(tSEMI);
-      return v;
-   }
+      return p_event_trigger();
    default:
       one_of(tID, tAT, tHASH, tBEGIN, tSYSTASK, tIF, tFOREVER, tWHILE, tREPEAT,
              tDO, tFOR, tWAIT, tCASE, tCASEX, tCASEZ, tIFIMPL);
