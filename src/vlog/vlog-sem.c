@@ -136,6 +136,9 @@ static void vlog_check_const_expr(vlog_node_t expr)
          }
       }
       break;
+   case V_COND_EXPR:
+      vlog_check_const_expr(vlog_value(expr));
+      // Fall-through
    case V_BINARY:
       vlog_check_const_expr(vlog_left(expr));
       vlog_check_const_expr(vlog_right(expr));
@@ -351,6 +354,8 @@ static void vlog_check_initial(vlog_node_t initial)
 
 static void vlog_check_block(vlog_node_t v)
 {
+   // TODO: push/pop scope
+
    const int ndecls = vlog_decls(v);
    for (int i = 0; i < ndecls; i++)
       vlog_check(vlog_decl(v, i));
@@ -773,6 +778,50 @@ static void vlog_check_param_assign(vlog_node_t v)
       vlog_check(vlog_value(v));
 }
 
+static void vlog_check_func_decl(vlog_node_t v)
+{
+   push_scope(v);
+
+   const int ndecls = vlog_decls(v);
+   for (int i = 0; i < ndecls; i++)
+      vlog_check(vlog_decl(v, i));
+
+   const int nstmts = vlog_stmts(v);
+   for (int i = 0; i < nstmts; i++)
+      vlog_check(vlog_stmt(v, i));
+
+   pop_scope();
+}
+
+static void vlog_check_user_fcall(vlog_node_t v)
+{
+   const int nparams = vlog_params(v);
+   for (int i = 0; i < nparams; i++) {
+      vlog_node_t p = vlog_param(v, i);
+      vlog_check(p);
+   }
+}
+
+static void vlog_check_if_generate(vlog_node_t v)
+{
+   const int nconds = vlog_conds(v);
+   for (int i = 0; i < nconds; i++) {
+      vlog_node_t c = vlog_cond(v, i);
+      assert(vlog_kind(c) == V_COND);
+
+      if (vlog_has_value(c)) {
+         vlog_node_t value = vlog_value(c);
+         vlog_check(value);
+
+         // XXX: check const
+      }
+
+      const int nstmts = vlog_stmts(c);
+      for (int i = 0; i < nstmts; i++)
+         vlog_check(vlog_stmt(c, i));
+   }
+}
+
 void vlog_check(vlog_node_t v)
 {
    switch (vlog_kind(v)) {
@@ -916,6 +965,15 @@ void vlog_check(vlog_node_t v)
       break;
    case V_PARAM_ASSIGN:
       vlog_check_param_assign(v);
+      break;
+   case V_FUNC_DECL:
+      vlog_check_func_decl(v);
+      break;
+   case V_USER_FCALL:
+      vlog_check_user_fcall(v);
+      break;
+   case V_IF_GENERATE:
+      vlog_check_if_generate(v);
       break;
    default:
       fatal_at(vlog_loc(v), "cannot check verilog node %s",

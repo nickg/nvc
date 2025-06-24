@@ -36,6 +36,8 @@ module parse1;
   int r1 = 5;
   wire w1 = 0;
   task task1;
+    input int x = 6;
+    bit       y;
     @(x) y = 2;
   endtask // task1
   task task2(input int x, output logic y);
@@ -93,4 +95,5 @@ module parse1;
   end else begin
     mod1 m5(x);
   end endgenerate
+  assign x = sum(y, z);
 endmodule // parse1

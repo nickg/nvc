@@ -29,7 +29,7 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
    (I_IDENT | I_PORTS | I_STMTS | I_DECLS | I_IDENT2),
 
    // V_PORT_DECL
-   (I_IDENT | I_SUBKIND | I_IDENT2 | I_REF | I_RANGES | I_TYPE),
+   (I_IDENT | I_SUBKIND | I_IDENT2 | I_REF | I_RANGES | I_TYPE | I_VALUE),
 
    // V_REF
    (I_IDENT | I_REF),
@@ -219,25 +219,29 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
 
    // V_EVENT_TRIGGER
    (I_IDENT),
+
+   // V_USER_FCALL
+   (I_IDENT | I_PARAMS),
 };
 
 static const char *kind_text_map[V_LAST_NODE_KIND] = {
-   "V_MODULE",     "V_PORT_DECL",   "V_REF",           "V_ALWAYS",
-   "V_TIMING",     "V_NBASSIGN",    "V_EVENT",         "V_INITIAL",
-   "V_BLOCK",      "V_SYS_TCALL",   "V_STRING",        "V_NUMBER",
-   "V_NET_DECL",   "V_ASSIGN",      "V_DIMENSION",     "V_IF",
-   "V_COND",       "V_VAR_DECL",    "V_DELAY_CONTROL", "V_BINARY",
-   "V_BASSIGN",    "V_UNARY",       "V_GATE_INST",     "V_STRENGTH",
-   "V_MOD_INST",   "V_BIT_SELECT",  "V_SYS_FCALL",     "V_FOREVER",
-   "V_SPECIFY",    "V_PRIMITIVE",   "V_UDP_TABLE",     "V_UDP_ENTRY",
-   "V_DATA_TYPE",  "V_TYPE_DECL",   "V_ENUM_DECL",     "V_ENUM_NAME",
-   "V_UNION_DECL", "V_STRUCT_DECL", "V_EVENT_CONTROL", "V_EMPTY",
-   "V_REPEAT",     "V_WHILE",       "V_DO_WHILE",      "V_TASK_DECL",
-   "V_FUNC_DECL",  "V_WAIT",        "V_PARAM_DECL",    "V_COND_EXPR",
-   "V_REAL",       "V_CONCAT",      "V_FOR_LOOP",      "V_FOR_INIT",
-   "V_FOR_STEP",   "V_PREFIX",      "V_POSTFIX",       "V_LOCALPARAM",
-   "V_CASE",       "V_CASE_ITEM",   "V_INST_LIST",     "V_PARAM_ASSIGN",
-   "V_INST_BODY",  "V_PORT_CONN",   "V_PART_SELECT",   "V_IF_GENERATE",
+   "V_MODULE",        "V_PORT_DECL",   "V_REF",           "V_ALWAYS",
+   "V_TIMING",        "V_NBASSIGN",    "V_EVENT",         "V_INITIAL",
+   "V_BLOCK",         "V_SYS_TCALL",   "V_STRING",        "V_NUMBER",
+   "V_NET_DECL",      "V_ASSIGN",      "V_DIMENSION",     "V_IF",
+   "V_COND",          "V_VAR_DECL",    "V_DELAY_CONTROL", "V_BINARY",
+   "V_BASSIGN",       "V_UNARY",       "V_GATE_INST",     "V_STRENGTH",
+   "V_MOD_INST",      "V_BIT_SELECT",  "V_SYS_FCALL",     "V_FOREVER",
+   "V_SPECIFY",       "V_PRIMITIVE",   "V_UDP_TABLE",     "V_UDP_ENTRY",
+   "V_DATA_TYPE",     "V_TYPE_DECL",   "V_ENUM_DECL",     "V_ENUM_NAME",
+   "V_UNION_DECL",    "V_STRUCT_DECL", "V_EVENT_CONTROL", "V_EMPTY",
+   "V_REPEAT",        "V_WHILE",       "V_DO_WHILE",      "V_TASK_DECL",
+   "V_FUNC_DECL",     "V_WAIT",        "V_PARAM_DECL",    "V_COND_EXPR",
+   "V_REAL",          "V_CONCAT",      "V_FOR_LOOP",      "V_FOR_INIT",
+   "V_FOR_STEP",      "V_PREFIX",      "V_POSTFIX",       "V_LOCALPARAM",
+   "V_CASE",          "V_CASE_ITEM",   "V_INST_LIST",     "V_PARAM_ASSIGN",
+   "V_INST_BODY",     "V_PORT_CONN",   "V_PART_SELECT",   "V_IF_GENERATE",
+   "V_EVENT_TRIGGER", "V_USER_FCALL",
 };
 
 static const change_allowed_t change_allowed[] = {

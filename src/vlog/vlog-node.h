@@ -122,6 +122,7 @@ typedef enum {
    V_PART_SELECT,
    V_IF_GENERATE,
    V_EVENT_TRIGGER,
+   V_USER_FCALL,
 
    V_LAST_NODE_KIND
 } vlog_kind_t;

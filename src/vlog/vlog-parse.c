@@ -107,6 +107,7 @@ static vlog_node_t p_variable_lvalue(void);
 static vlog_node_t p_select(ident_t id);
 static vlog_net_kind_t p_net_type(void);
 static void p_module_or_generate_item(vlog_node_t mod);
+static void p_block_item_declaration(vlog_node_t parent);
 
 static inline void _pop_state(const rule_state_t *r)
 {
@@ -1202,13 +1203,35 @@ static vlog_node_t p_system_tf_call(vlog_kind_t kind)
    return v;
 }
 
+static vlog_node_t p_tf_call(vlog_kind_t kind)
+{
+   // ps_or_hierarchical_tf_identifier { attribute_instance }
+   //    [ ( list_of_arguments ) ]
+
+   BEGIN("task or function call");
+
+   vlog_node_t v = vlog_new(kind);
+   vlog_set_ident(v, p_identifier());
+
+   if (optional(tLPAREN)) {
+      p_list_of_arguments(v);
+      consume(tRPAREN);
+   }
+
+   vlog_set_loc(v, CURRENT_LOC);
+   return v;
+}
+
 static vlog_node_t p_subroutine_call(vlog_kind_t kind)
 {
    // tf_call | system_tf_call | method_call | [ std:: ] randomize_call
 
    BEGIN("subroutine call");
 
-   return p_system_tf_call(kind);
+   if (peek() == tSYSTASK)
+      return p_system_tf_call(kind);
+   else
+      return p_tf_call(kind);
 }
 
 static vlog_node_t p_mintypmax_expression(void)
@@ -1273,7 +1296,10 @@ static vlog_node_t p_primary(void)
 
    switch (peek()) {
    case tID:
-      return p_select(p_identifier());
+      if (peek_nth(2) == tLPAREN)
+         return p_subroutine_call(V_USER_FCALL);
+      else
+         return p_select(p_identifier());
    case tSTRING:
    case tNUMBER:
    case tUNSIGNED:
@@ -1433,7 +1459,7 @@ static vlog_node_t p_conditional_expression(vlog_node_t head)
 {
    // cond_predicate ? { attribute_instance } expression : expression
 
-   BEGIN("conditional expression");
+   BEGIN_WITH_HEAD("conditional expression", head);
 
    vlog_node_t v = vlog_new(V_COND_EXPR);
    vlog_set_value(v, head);
@@ -2579,6 +2605,65 @@ static void p_tf_port_list(vlog_node_t tf)
    } while (optional(tCOMMA));
 }
 
+static void p_list_of_tf_variable_identifiers(vlog_node_t tf,
+                                              v_port_kind_t kind,
+                                              vlog_node_t dt)
+{
+   // port_identifier { variable_dimension } [ = expression ]
+   //    { , port_identifier { variable_dimension } [ = expression ] }
+
+   BEGIN("list of task or function variable identifiers");
+
+   do {
+      vlog_node_t v = vlog_new(V_PORT_DECL);
+      vlog_set_subkind(v, kind);
+      vlog_set_type(v, dt);
+      vlog_set_ident(v, p_identifier());
+      vlog_set_loc(v, &state.last_loc);
+
+      if (optional(tEQ))
+         vlog_set_value(v, p_expression());
+
+      vlog_add_decl(tf, v);
+   } while (optional(tCOMMA));
+}
+
+static void p_tf_port_declaration(vlog_node_t tf)
+{
+   // { attribute_instance } tf_port_direction [ var ] data_type_or_implicit
+   //    list_of_tf_variable_identifiers ;
+
+   BEGIN("task or function port declaration");
+
+   v_port_kind_t kind = p_tf_port_direction();
+
+   optional(tVAR);
+
+   vlog_node_t dt = p_data_type_or_implicit();
+
+   p_list_of_tf_variable_identifiers(tf, kind, dt);
+
+   consume(tSEMI);
+}
+
+static void p_tf_item_declaration(vlog_node_t tf)
+{
+   // block_item_declaration | tf_port_declaration
+
+   BEGIN("task or function item declaration");
+
+   switch (peek()) {
+   case tINPUT:
+   case tOUTPUT:
+   case tCONST:
+      p_tf_port_declaration(tf);
+      break;
+   default:
+      p_block_item_declaration(tf);
+      break;
+   }
+}
+
 static void p_task_body_declaration(vlog_node_t task)
 {
    // [ interface_identifier . | class_scope ] task_identifier ;
@@ -2596,9 +2681,21 @@ static void p_task_body_declaration(vlog_node_t task)
    if (optional(tLPAREN)) {
       p_tf_port_list(task);
       consume(tRPAREN);
-   }
 
-   consume(tSEMI);
+      consume(tSEMI);
+
+      while (scan(tREG, tSTRUCT, tUNION, tTYPEDEF, tENUM, tSVINT, tINTEGER,
+                  tSVREAL, tSHORTREAL, tREALTIME, tBIT, tLOGIC))
+         p_block_item_declaration(task);
+   }
+   else {
+      consume(tSEMI);
+
+      while (scan(tREG, tSTRUCT, tUNION, tTYPEDEF, tENUM, tSVINT, tINTEGER,
+                  tSVREAL, tSHORTREAL, tREALTIME, tBIT, tLOGIC, tINPUT,
+                  tOUTPUT))
+         p_tf_item_declaration(task);
+   }
 
    while (not_at_token(tENDTASK)) {
       vlog_node_t s = p_statement_or_null();
@@ -2653,9 +2750,21 @@ static void p_function_body_declaration(vlog_node_t func)
    if (optional(tLPAREN)) {
       p_tf_port_list(func);
       consume(tRPAREN);
-   }
 
-   consume(tSEMI);
+      consume(tSEMI);
+
+      while (scan(tREG, tSTRUCT, tUNION, tTYPEDEF, tENUM, tSVINT, tINTEGER,
+                  tSVREAL, tSHORTREAL, tREALTIME, tBIT, tLOGIC))
+         p_block_item_declaration(func);
+   }
+   else {
+      consume(tSEMI);
+
+      while (scan(tREG, tSTRUCT, tUNION, tTYPEDEF, tENUM, tSVINT, tINTEGER,
+                  tSVREAL, tSHORTREAL, tREALTIME, tBIT, tLOGIC, tINPUT,
+                  tOUTPUT))
+         p_tf_item_declaration(func);
+   }
 
    while (not_at_token(tENDFUNCTION)) {
       vlog_node_t s = p_statement_or_null();
@@ -2744,6 +2853,36 @@ static void p_local_parameter_declaration(vlog_node_t mod)
 
    vlog_node_t dt = p_data_type_or_implicit();
    p_list_of_param_assignments(mod, dt, V_LOCALPARAM);
+}
+
+static void p_block_item_declaration(vlog_node_t parent)
+{
+   // { attribute_instance } data_declaration
+   //   | { attribute_instance } local_parameter_declaration ;
+   //   | { attribute_instance } parameter_declaration ;
+   //   | { attribute_instance } overload_declaration
+   //   | { attribute_instance } let_declaration
+
+   BEGIN("block item declaration");
+
+   switch (peek()) {
+   case tREG:
+   case tSTRUCT:
+   case tUNION:
+   case tTYPEDEF:
+   case tENUM:
+   case tSVINT:
+   case tINTEGER:
+   case tSVREAL:
+   case tSHORTREAL:
+   case tREALTIME:
+   case tBIT:
+   case tLOGIC:
+      p_data_declaration(parent);
+      break;
+   default:
+      should_not_reach_here();
+   }
 }
 
 static void p_package_or_generate_item_declaration(vlog_node_t mod)
