@@ -1342,7 +1342,7 @@ static vlog_binary_t p_binary_operator(void)
    switch (one_of(tBAR, tPLUS, tAMP, tCASEEQ, tCASENEQ, tLOGOR,
                   tLOGEQ, tLOGNEQ, tDBLAMP, tSHIFTLL, tSHIFTRL,
                   tSHIFTLA, tSHIFTRA, tLT, tGT, tLE, tGE, tMINUS,
-                  tTIMES, tOVER, tPERCENT)) {
+                  tTIMES, tOVER, tPERCENT, tPOWER)) {
    case tBAR:     return V_BINARY_OR;
    case tAMP:     return V_BINARY_AND;
    case tCASEEQ:  return V_BINARY_CASE_EQ;
@@ -1363,6 +1363,7 @@ static vlog_binary_t p_binary_operator(void)
    case tTIMES:   return V_BINARY_TIMES;
    case tOVER:    return V_BINARY_DIVIDE;
    case tPERCENT: return V_BINARY_MOD;
+   case tPOWER:   return V_BINARY_EXP;
    case tPLUS:
    default:       return V_BINARY_PLUS;
    }
@@ -1484,6 +1485,7 @@ static bool peek_binary_operator(int *prec)
    // See LRM 1800-2017 section 11.3.2 for operator precedence table
 
    switch (peek()) {
+   case tPOWER:    *prec = 12; return true;
    case tTIMES:
    case tOVER:
    case tPERCENT:  *prec = 11; return true;

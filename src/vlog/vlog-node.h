@@ -176,6 +176,7 @@ typedef enum {
    V_BINARY_GT,
    V_BINARY_LEQ,
    V_BINARY_GEQ,
+   V_BINARY_EXP,
 } vlog_binary_t;
 
 typedef enum {
