@@ -50,6 +50,7 @@ module parse1;
     wait (x) y = 1;
     x = x ? 1 : y;
     x = x - y * x + 1 % y / x;
+    x = x ** y;
   end
   parameter x = 6;
   integer   r2 = 66;

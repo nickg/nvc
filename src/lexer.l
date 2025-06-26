@@ -684,6 +684,7 @@ BEFORE            ?i:before
 <VLOG>"--"               { return tMINUSMINUS; }
 <VLOG>"+:"               { return tINDEXPOS; }
 <VLOG>"-:"               { return tINDEXNEG; }
+<VLOG>"**"               { return tPOWER; }
 <VLOG>"var"              { return tVAR; }
 <VLOG>"specify"          { return tSPECIFY; }
 <VLOG>"endspecify"       { return tENDSPECIFY; }
