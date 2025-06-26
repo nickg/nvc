@@ -375,7 +375,13 @@ static void vlog_dump_sys_fcall(vlog_node_t v)
 
 static void vlog_dump_string(vlog_node_t v)
 {
-   print_syntax("\"%s\"", vlog_text(v));
+   print_syntax("\"");
+
+   number_t n = vlog_number(v);
+   for (int i = number_width(n)/8 - 1; i >= 0; i--)
+      print_syntax("%c", number_byte(n, i));
+
+   print_syntax("\"");
 }
 
 static void vlog_dump_number(vlog_node_t v)

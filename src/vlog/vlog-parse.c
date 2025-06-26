@@ -522,10 +522,7 @@ static vlog_node_t p_string_literal(void)
 
    vlog_node_t v = vlog_new(V_STRING);
    vlog_set_loc(v, CURRENT_LOC);
-
-   state.last_lval.str[strlen(state.last_lval.str) - 1] = '\0';
-   vlog_set_text(v, state.last_lval.str + 1);
-   free(state.last_lval.str);
+   vlog_set_number(v, number_new(state.last_lval.str));
 
    return v;
 }

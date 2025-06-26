@@ -27,6 +27,8 @@
 #include "vlog/vlog-number.h"
 #include "vlog/vlog-phase.h"
 
+#include <inttypes.h>
+
 START_TEST(test_dff)
 {
    input_from_file(TESTDIR "/vlog/dff.v");
@@ -202,7 +204,13 @@ START_TEST(test_parse1)
 
    vlog_node_t hello = vlog_param(s1s0s0, 0);
    fail_unless(vlog_kind(hello) == V_STRING);
-   ck_assert_str_eq(vlog_text(hello), "hello");
+
+   number_t n1 = vlog_number(hello);
+   ck_assert_int_eq(number_byte(n1, 0), 'o');
+   ck_assert_int_eq(number_byte(n1, 1), 'l');
+   ck_assert_int_eq(number_byte(n1, 2), 'l');
+   ck_assert_int_eq(number_byte(n1, 3), 'e');
+   ck_assert_int_eq(number_byte(n1, 4), 'h');
 
    vlog_node_t s1s0s1 = vlog_stmt(s1s0, 1);
    fail_unless(vlog_kind(s1s0s1) == V_SYS_TCALL);
@@ -858,6 +866,30 @@ START_TEST(test_resetall)
 }
 END_TEST
 
+START_TEST(test_string1)
+{
+   static const struct {
+      const char *input;
+      const char *output;
+   } cases[] = {
+      { "\"hello\"", "hello" },
+      { "\"\"", "" },
+   };
+
+   for (int i = 0; i < ARRAY_LEN(cases); i++) {
+      number_t n = number_new(cases[i].input);
+      ck_assert(number_is_defined(n));
+
+      const int width = number_width(n);
+      ck_assert_int_eq(width, strlen(cases[i].output) * 8);
+
+      for (int j = 0; j < width / 8; j++)
+         ck_assert_msg(number_byte(n, width/8 - 1 - j) == cases[i].output[j],
+                       "%s != %s", cases[i].input, cases[i].output);
+   }
+}
+END_TEST
+
 Suite *get_vlog_tests(void)
 {
    Suite *s = suite_create("vlog");
@@ -890,6 +922,7 @@ Suite *get_vlog_tests(void)
    tcase_add_test(tc, test_const1);
    tcase_add_test(tc, test_case1);
    tcase_add_test(tc, test_resetall);
+   tcase_add_test(tc, test_string1);
    suite_add_tcase(s, tc);
 
    return s;

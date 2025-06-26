@@ -56,7 +56,7 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
    (I_IDENT | I_PARAMS),
 
    // V_STRING
-   (I_TEXT),
+   (I_NUMBER),
 
    // V_NUMBER
    (I_NUMBER),

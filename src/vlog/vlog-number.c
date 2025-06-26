@@ -26,6 +26,7 @@
 #include <stdlib.h>
 
 typedef enum {
+   RADIX_STR = 0,
    RADIX_BIN = 2,
    RADIX_DEC = 10,
    RADIX_HEX = 16,
@@ -92,16 +93,21 @@ static inline void bignum_set_nibble(bignum_t *bn, unsigned n, int value)
 number_t number_new(const char *str)
 {
    int width = 32;
-   const char *tick = strchr(str, '\''), *p = str;
-   if (tick == str)
-      p++;
-   else if (tick != NULL) {
-      char *eptr;
-      width = strtol(str, &eptr, 10);
-      if (eptr != tick)
-         abort();
+   const char *p = str;
+   if (*p == '"')
+      width = 8 * (strlen(str) - 2);
+   else {
+      const char *tick = strchr(str, '\'');
+      if (tick == str)
+         p++;
+      else if (tick != NULL) {
+         char *eptr;
+         width = strtol(str, &eptr, 10);
+         if (eptr != tick)
+            should_not_reach_here();
 
-      p = tick + 1;
+         p = tick + 1;
+      }
    }
 
    vlog_radix_t radix = RADIX_DEC;
@@ -109,6 +115,7 @@ number_t number_new(const char *str)
    case 'b': radix = RADIX_BIN; p++; break;
    case 'h': radix = RADIX_HEX; p++; break;
    case 'd': radix = RADIX_DEC; p++; break;
+   case '"': radix = RADIX_STR; p++; break;
    default: break;
    }
 
@@ -121,7 +128,15 @@ number_t number_new(const char *str)
    for (int i = 0; i < nwords * 2; i++)
       result.big->words[i] = 0;
 
-   if (radix == RADIX_DEC) {
+   if (radix == RADIX_STR) {
+      for (int bit = width - 8; !(*p == '"' && *(p + 1) == '\0');
+           p++, bit -= 8) {
+         const uint8_t byte = *p;
+         bignum_set_nibble(result.big, bit, byte);
+         bignum_set_nibble(result.big, bit + 4, byte >> 4);
+      }
+   }
+   else if (radix == RADIX_DEC) {
       char *eptr;
       result.big->words[0] = strtoull(p, &eptr, 10);
       if (*eptr != '\0')
@@ -187,7 +202,7 @@ number_t number_new(const char *str)
             }
             break;
 
-         case RADIX_DEC:
+         default:
             should_not_reach_here();
          }
       }
@@ -265,6 +280,15 @@ unsigned number_width(number_t val)
 vlog_logic_t number_bit(number_t val, unsigned n)
 {
    return bignum_abit(val.big, n) | (bignum_bbit(val.big, n) << 1);
+}
+
+uint8_t number_byte(number_t val, unsigned n)
+{
+   assert(number_is_defined(val));
+   assert(n < bignum_words(val.big) * 8);
+
+   const uint64_t *abits = bignum_abits(val.big);
+   return (abits[n / 8] >> (n * 8) % 64) & 0xff;
 }
 
 number_t number_pack(const uint8_t *bits, unsigned width)

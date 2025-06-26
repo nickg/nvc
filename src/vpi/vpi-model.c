@@ -513,7 +513,8 @@ static c_constant *build_constant(vlog_node_t v)
    switch (vlog_kind(v)) {
    case V_STRING:
       con->subtype = vpiStringConst;
-      con->size = strlen(vlog_text(v));
+      con->size = number_width(vlog_number(v));
+      assert(con->size % 8 == 0);
       break;
    case V_NUMBER:
       con->subtype = vpiBinaryConst;
@@ -880,10 +881,14 @@ void vpi_get_value(vpiHandle handle, p_vpi_value value_p)
    if (con != NULL) {
       switch (con->subtype) {
       case vpiStringConst:
-         tb_cat(c->valuestr, vlog_text(con->expr.where));
+         {
+            number_t n = vlog_number(con->expr.where);
+            for (int i = con->size/8 - 1; i >= 0; i--)
+               tb_append(c->valuestr, number_byte(n, i));
 
-         value_p->format = vpiStringVal;
-         value_p->value.str = (PLI_BYTE8 *)tb_get(c->valuestr);
+            value_p->format = vpiStringVal;
+            value_p->value.str = (PLI_BYTE8 *)tb_get(c->valuestr);
+         }
          return;
 
       case vpiBinaryConst:
