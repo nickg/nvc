@@ -8,8 +8,15 @@
 `default_nettype trior    // OK
 `default_nettype trireg   // OK
 `default_nettype uwire    // OK
-`default_nettype none     // OK
 `default_nettype foo      // Error
+`default_nettype none     // OK
 
 module foo;
+  assign x = 5;   // Error
+endmodule // foo
+
+`resetall                 // OK
+
+module bar;
+  assign x = 5;   // OK
 endmodule // foo

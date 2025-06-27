@@ -5247,15 +5247,18 @@ static void p_timescale_compiler_directive(void)
 
 static void p_defaultnettype_compiler_directive(void)
 {
-   // `default_nettype wire | tri | tri0 | tri1 | wand | triand | wor | trior | trireg | uwire | none
+   // `default_nettype wire | tri | tri0 | tri1 | wand | triand | wor
+   //    | trior | trireg | uwire | none
 
    BEGIN("default_nettype directive");
 
    consume(tDEFNETTYPE);
 
-   one_of(tWIRE, tTRI, tTRI0, tTRI1, tWAND, tTRIAND, tWOR, tTRIOR, tTRIREG, tUWIRE, tNONE);
-
-   // TODO: do something with the directive
+   switch (one_of(tWIRE, tTRI, tTRI0, tTRI1, tWAND, tTRIAND, tWOR, tTRIOR,
+                  tTRIREG, tUWIRE, tNONE)) {
+   case tWIRE: implicit_kind = V_NET_WIRE; break;
+   case tNONE: implicit_kind = V_NET_NONE; break;
+   }
 }
 
 static void p_keywords_directive(void)
@@ -5286,6 +5289,8 @@ static void p_resetall_directive(void)
    BEGIN("resetall directive");
 
    consume(tRESETALL);
+
+   implicit_kind = V_NET_WIRE;
 }
 
 static void p_directive_list(void)
