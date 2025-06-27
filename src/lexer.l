@@ -135,7 +135,6 @@ VLOG_NUMBER     {INTEGER}?\'[bhd]{HEX}
 VLOG_REAL       {INTEGER}\.{INTEGER}
 UDP_LEVEL       [01xX?bB]
 UDP_EDGE        [rRfFpPnN*]
-UDP_INDICATOR   "("{UDP_LEVEL}{UDP_LEVEL}")"
 SCALAR_ZERO     ('b0|'B0|1'b0|1'B0)
 SCALAR_ONE      ('b1|'B1|1'b1|1'B1)
 PAREN_STAR      "("{SPACE}*"*"{SPACE}*")"
@@ -505,7 +504,6 @@ BEFORE            ?i:before
 
 <UDP>{UDP_LEVEL}         { yylval.i64 = yytext[0]; return tUDPLEVEL; }
 <UDP>{UDP_EDGE}          { yylval.i64 = yytext[0]; return tUDPEDGE; }
-<UDP>{UDP_INDICATOR}     { yylval.str = xstrdup(yytext); return tUDPIND; }
 
 <*>"("                   { TOKEN(tLPAREN); }
 <*>")"                   { TOKEN(tRPAREN); }

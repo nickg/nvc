@@ -4747,11 +4747,14 @@ static void p_udp_declaration_port_list(vlog_node_t udp, bool *has_reg)
    }
 }
 
-static char p_output_symbol(void)
+static vlog_node_t p_output_symbol(void)
 {
    // 0 | 1 | x | X
 
    BEGIN("output symbol");
+
+   vlog_node_t v = vlog_new(V_UDP_LEVEL);
+   vlog_set_subkind(v, V_UDP_SYMBOL_OUTPUT);
 
    if (consume(tUDPLEVEL)) {
       switch (state.last_lval.i64) {
@@ -4759,7 +4762,8 @@ static char p_output_symbol(void)
       case '1':
       case 'x':
       case 'X':
-         return (char)state.last_lval.i64;
+         vlog_set_ival(v, state.last_lval.i64);
+         break;
       default:
          parse_error(&state.last_loc, "'%c' is not a valid output symbol",
                   (char)state.last_lval.i64);
@@ -4767,22 +4771,27 @@ static char p_output_symbol(void)
       }
    }
 
-   return 'x';
+   vlog_set_loc(v, CURRENT_LOC);
+   return v;
 }
 
-static char p_level_symbol(void)
+static vlog_node_t p_level_symbol(void)
 {
    // 0 | 1 | x | X | ? | b | B
 
    BEGIN("level symbol");
 
-   if (consume(tUDPLEVEL))
-      return (char)state.last_lval.i64;
-   else
-      return 'x';
+   consume(tUDPLEVEL);
+
+   vlog_node_t v = vlog_new(V_UDP_LEVEL);
+   vlog_set_subkind(v, V_UDP_SYMBOL_INPUT);
+   vlog_set_ival(v, state.last_lval.i64);
+
+   vlog_set_loc(v, CURRENT_LOC);
+   return v;
 }
 
-static char p_next_state(void)
+static vlog_node_t p_next_state(void)
 {
    // output_symbol | -
 
@@ -4791,39 +4800,65 @@ static char p_next_state(void)
    switch (peek()) {
    case tMINUS:
       consume(tMINUS);
-      return '-';
+      break;
    case tUDPLEVEL:
       return p_output_symbol();
    default:
       one_of(tUDPLEVEL, tMINUS);
-      return '-';
    }
+
+   vlog_node_t v = vlog_new(V_UDP_LEVEL);
+   vlog_set_subkind(v, V_UDP_SYMBOL_OUTPUT);
+   vlog_set_ival(v, '-');
+
+   vlog_set_loc(v, CURRENT_LOC);
+   return v;
 }
 
-static char p_edge_symbol(void)
+static vlog_node_t p_edge_symbol(void)
 {
    // r | R | f | F | p | P | n | N | *
 
    BEGIN("edge symbol");
 
-   if (consume(tUDPEDGE))
-      return (char)state.last_lval.i64;
-   else
-      return '*';
+   consume(tUDPEDGE);
+
+   char left, right;
+   switch (state.last_lval.i64) {
+   case 'r': case 'R': left = '0'; right = '1'; break;
+   case 'f': case 'F': left = '1'; right = '0'; break;
+   case 'p': case 'P': left = 'p'; right = 'p'; break;
+   case 'n': case 'N': left = 'n'; right = 'N'; break;
+   case '*':           left = '?'; right = '?'; break;
+   }
+
+   vlog_node_t lsym = vlog_new(V_UDP_LEVEL);
+   vlog_set_ival(lsym, left);
+
+   vlog_node_t rsym = vlog_new(V_UDP_LEVEL);
+   vlog_set_ival(rsym, right);
+
+   vlog_node_t v = vlog_new(V_UDP_EDGE);
+   vlog_set_subkind(v, V_UDP_SYMBOL_INPUT);
+   vlog_set_left(v, lsym);
+   vlog_set_right(v, rsym);
+
+   vlog_set_loc(v, CURRENT_LOC);
+   return v;
 }
 
-static void p_level_input_list(text_buf_t *tb)
+static void p_level_input_list(vlog_node_t entry)
 {
    // level_symbol { level_symbol }
 
    BEGIN("level input list");
 
    do {
-      tb_append(tb, p_level_symbol());
+      vlog_add_param(entry, p_level_symbol());
    } while (not_at_token(tCOLON));
 }
 
-static void p_edge_indicator(text_buf_t *tb)
+static vlog_node_t p_edge_indicator(void)
 {
    // ( level_symbol level_symbol ) | edge_symbol
 
@@ -4831,19 +4866,27 @@ static void p_edge_indicator(text_buf_t *tb)
 
    switch (peek()) {
    case tUDPEDGE:
-      tb_append(tb, p_edge_symbol());
-      break;
-   case tUDPIND:
-      consume(tUDPIND);
-      tb_cat(tb, state.last_lval.str);
-      free(state.last_lval.str);
+      return p_edge_symbol();
+   case tLPAREN:
+      {
+         consume(tLPAREN);
+
+         vlog_node_t v = vlog_new(V_UDP_EDGE);
+         vlog_set_left(v, p_level_symbol());
+         vlog_set_right(v, p_level_symbol());
+
+         consume(tRPAREN);
+
+         vlog_set_loc(v, CURRENT_LOC);
+         return v;
+      }
       break;
    default:
       should_not_reach_here();
    }
 }
 
-static void p_seq_input_list(text_buf_t *tb)
+static void p_seq_input_list(vlog_node_t entry)
 {
    // level_input_list | edge_input_list
 
@@ -4853,8 +4896,8 @@ static void p_seq_input_list(text_buf_t *tb)
    do {
       switch (peek()) {
       case tUDPEDGE:
-      case tUDPIND:
-         p_edge_indicator(tb);
+      case tLPAREN:
+         vlog_add_param(entry, p_edge_indicator());
          if (have_edge)
             parse_error(&state.last_loc, "a sequential input list may have at "
                         "most one edge indicator");
@@ -4862,7 +4905,7 @@ static void p_seq_input_list(text_buf_t *tb)
          break;
 
       case tUDPLEVEL:
-         tb_append(tb, p_level_symbol());
+         vlog_add_param(entry, p_level_symbol());
          break;
 
       default:
@@ -4878,16 +4921,12 @@ static vlog_node_t p_combinational_entry(void)
 
    BEGIN("combinational entry");
 
-   LOCAL_TEXT_BUF tb = tb_new();
-   p_level_input_list(tb);
+   vlog_node_t v = vlog_new(V_UDP_ENTRY);
+   p_level_input_list(v);
 
    consume(tCOLON);
-   tb_append(tb, ':');
 
-   tb_append(tb, p_output_symbol());
-
-   vlog_node_t v = vlog_new(V_UDP_ENTRY);
-   vlog_set_text(v, tb_get(tb));
+   vlog_add_param(v, p_output_symbol());
 
    consume(tSEMI);
 
@@ -4927,21 +4966,16 @@ static vlog_node_t p_sequential_entry(void)
 
    BEGIN("sequential entry");
 
-   LOCAL_TEXT_BUF tb = tb_new();
-   p_seq_input_list(tb);
-
-   consume(tCOLON);
-   tb_append(tb, ':');
-
-   tb_append(tb, p_level_symbol());
-
-   consume(tCOLON);
-   tb_append(tb, ':');
-
-   tb_append(tb, p_next_state());
-
    vlog_node_t v = vlog_new(V_UDP_ENTRY);
-   vlog_set_text(v, tb_get(tb));
+   p_seq_input_list(v);
+
+   consume(tCOLON);
+
+   vlog_add_param(v, p_level_symbol());
+
+   consume(tCOLON);
+
+   vlog_add_param(v, p_next_state());
 
    consume(tSEMI);
 

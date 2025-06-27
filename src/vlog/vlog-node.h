@@ -123,6 +123,8 @@ typedef enum {
    V_IF_GENERATE,
    V_EVENT_TRIGGER,
    V_USER_FCALL,
+   V_UDP_LEVEL,
+   V_UDP_EDGE,
 
    V_LAST_NODE_KIND
 } vlog_kind_t;
@@ -222,6 +224,11 @@ typedef enum {
    V_STRENGTH_SUPPLY,
 } vlog_strength_t;
 
+typedef enum {
+   V_UDP_SYMBOL_OUTPUT,
+   V_UDP_SYMBOL_INPUT,
+} vlog_udp_symbol_t;
+
 #define STRENGTH1(st) (((st) >> 5) & 7)
 #define STRENGTH0(st) (((st) >> 2) & 7)
 
@@ -307,6 +314,9 @@ void vlog_set_number(vlog_node_t v, number_t n);
 
 double vlog_dval(vlog_node_t v);
 void vlog_set_dval(vlog_node_t v, double d);
+
+int64_t vlog_ival(vlog_node_t v);
+void vlog_set_ival(vlog_node_t v, int64_t i);
 
 typedef void (*vlog_visit_fn_t)(vlog_node_t v, void *context);
 

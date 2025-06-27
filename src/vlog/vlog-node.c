@@ -119,7 +119,7 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
    (I_IDENT | I_PARAMS | I_SUBKIND | I_STMTS),
 
    // V_UDP_ENTRY
-   (I_TEXT),
+   (I_PARAMS),
 
    // V_DATA_TYPE
    (I_SUBKIND | I_RANGES),
@@ -222,6 +222,12 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
 
    // V_USER_FCALL
    (I_IDENT | I_PARAMS),
+
+   // V_UDP_LEVEL
+   (I_SUBKIND | I_IVAL),
+
+   // V_UDP_EDGE
+   (I_SUBKIND | I_LEFT | I_RIGHT),
 };
 
 static const char *kind_text_map[V_LAST_NODE_KIND] = {
@@ -241,7 +247,7 @@ static const char *kind_text_map[V_LAST_NODE_KIND] = {
    "V_FOR_STEP",      "V_PREFIX",      "V_POSTFIX",       "V_LOCALPARAM",
    "V_CASE",          "V_CASE_ITEM",   "V_INST_LIST",     "V_PARAM_ASSIGN",
    "V_INST_BODY",     "V_PORT_CONN",   "V_PART_SELECT",   "V_IF_GENERATE",
-   "V_EVENT_TRIGGER", "V_USER_FCALL",
+   "V_EVENT_TRIGGER", "V_USER_FCALL",  "V_UDP_LEVEL",     "V_UDP_EDGE",
 };
 
 static const change_allowed_t change_allowed[] = {
@@ -544,18 +550,6 @@ void vlog_set_type(vlog_node_t v, vlog_node_t t)
    object_write_barrier(&(v->object), &(t->object));
 }
 
-const char *vlog_text(vlog_node_t v)
-{
-   item_t *item = lookup_item(&vlog_object, v, I_TEXT);
-   assert(item->text != NULL);
-   return item->text;
-}
-
-void vlog_set_text(vlog_node_t v, const char *text)
-{
-   lookup_item(&vlog_object, v, I_TEXT)->text = xstrdup(text);
-}
-
 number_t vlog_number(vlog_node_t v)
 {
    return lookup_item(&vlog_object, v, I_NUMBER)->number;
@@ -600,6 +594,16 @@ double vlog_dval(vlog_node_t v)
 void vlog_set_dval(vlog_node_t v, double d)
 {
    lookup_item(&vlog_object, v, I_DVAL)->dval = d;
+}
+
+int64_t vlog_ival(vlog_node_t v)
+{
+   return lookup_item(&vlog_object, v, I_IVAL)->ival;
+}
+
+void vlog_set_ival(vlog_node_t v, int64_t i)
+{
+   lookup_item(&vlog_object, v, I_IVAL)->ival = i;
 }
 
 void vlog_visit(vlog_node_t v, vlog_visit_fn_t fn, void *context)

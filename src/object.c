@@ -81,7 +81,6 @@ typedef struct _object_arena {
 #define ITEM_INT64       (I_POS | I_IVAL)
 #define ITEM_INT32       (I_SUBKIND | I_CLASS | I_FLAGS)
 #define ITEM_DOUBLE      (I_DVAL)
-#define ITEM_TEXT        (I_TEXT)
 #define ITEM_NUMBER      (I_NUMBER)
 
 static const char *item_text_map[] = {
@@ -95,7 +94,7 @@ static const char *item_text_map[] = {
    "I_ELEM",     "I_DESIGNATED", "???",        "I_RESOLUTION", "I_RESULT",
    "I_UNITS",    "I_LITERALS",   "I_DIMS",     "I_FIELDS",     "I_CLOCK",
    "I_GUARD",    "???",          "I_CHARS",    "I_CONSTRAINT", "I_FLAGS",
-   "I_TEXT",     "I_LEFT",       "I_RIGHT",    "I_NUMBER",     "I_MESSAGE",
+   "???",        "I_LEFT",       "I_RIGHT",    "I_NUMBER",     "I_MESSAGE",
 };
 
 static object_class_t *classes[4];
@@ -380,7 +379,7 @@ static void object_init(object_class_t *class)
 
    const imask_t known_types =
       ITEM_IDENT | ITEM_OBJECT | ITEM_OBJ_ARRAY | ITEM_INT64 | ITEM_INT32
-      | ITEM_DOUBLE | ITEM_TEXT | ITEM_NUMBER;
+      | ITEM_DOUBLE | ITEM_NUMBER;
 
    const imask_t missing = all_items & ~known_types;
    if (missing != 0) {
@@ -530,7 +529,7 @@ static void gc_free_external(object_t *object)
    const object_class_t *class = classes[object->tag];
 
    imask_t has = class->has_map[object->kind];
-   if ((has & (ITEM_OBJ_ARRAY | ITEM_TEXT | ITEM_NUMBER)) == 0)
+   if ((has & (ITEM_OBJ_ARRAY | ITEM_NUMBER)) == 0)
       return;
 
    for (int n = 0; has; has &= has - 1, n++) {
@@ -538,8 +537,6 @@ static void gc_free_external(object_t *object)
       item_t *item = &(object->items[n]);
       if (ITEM_OBJ_ARRAY & mask)
          obj_array_free(&(item->obj_array));
-      else if (ITEM_TEXT & mask)
-         free(item->text);
       else if (ITEM_NUMBER & mask)
          number_free(&item->number);
    }
@@ -713,8 +710,7 @@ object_t *object_rewrite(object_t *object, object_rewrite_ctx_t *ctx)
       (*ctx->pre_fn[object->tag])(object, ctx->context);
 
    const imask_t skip_mask =
-      I_REF | ITEM_INT64 | ITEM_INT32 | ITEM_DOUBLE | ITEM_NUMBER
-      | ITEM_TEXT | ITEM_IDENT;
+      I_REF | ITEM_INT64 | ITEM_INT32 | ITEM_DOUBLE | ITEM_NUMBER | ITEM_IDENT;
 
    const object_class_t *class = classes[object->tag];
 
@@ -859,11 +855,6 @@ void object_write(object_t *root, fbuf_t *f, ident_wr_ctx_t ident_ctx,
             fbuf_put_int(f, item->ival);
          else if (ITEM_DOUBLE & mask)
             write_double(item->dval, f);
-         else if (ITEM_TEXT & mask) {
-            const size_t len = strlen(item->text);
-            fbuf_put_uint(f, len);
-            write_raw(item->text, len, f);
-         }
          else if (ITEM_NUMBER & mask)
             number_write(item->number, f);
          else
@@ -1022,12 +1013,6 @@ object_t *object_read(fbuf_t *f, object_load_fn_t loader_fn,
             item->ival = fbuf_get_int(f);
          else if (ITEM_DOUBLE & mask)
             item->dval = read_double(f);
-         else if (ITEM_TEXT & mask) {
-            const size_t len = fbuf_get_uint(f);
-            item->text = xmalloc(len + 1);
-            read_raw(item->text, len, f);
-            item->text[len] = '\0';
-         }
          else if (ITEM_NUMBER & mask)
             item->number = number_read(f);
          else

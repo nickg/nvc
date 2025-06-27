@@ -540,6 +540,9 @@ static void vlog_check_primitive(vlog_node_t udp)
    vlog_node_t table = vlog_stmt(udp, 0);
    assert(vlog_kind(table) == V_UDP_TABLE);
 
+   const vlog_udp_kind_t kind = vlog_subkind(table);
+   const int expect = kind == V_UDP_SEQ ? nports + 1 : nports;
+
    const int nstmts = vlog_stmts(table);
    for (int i = 0; i < nstmts; i++)
       vlog_check(vlog_stmt(table, i));
@@ -549,24 +552,12 @@ static void vlog_check_primitive(vlog_node_t udp)
       vlog_node_t row = vlog_param(table, i);
       assert(vlog_kind(row) == V_UDP_ENTRY);
 
-      const char *spec = vlog_text(row), *sp = spec;
-
-      for (int pos = 0; pos < nports - 1; pos++) {
-         if (*sp == ':') {
-            error_at(vlog_loc(row), "missing symbol for input %s",
-                     istr(vlog_ident(vlog_port(udp, pos))));
-            break;
-         }
-         else if (*sp == '(') {
-            assert(sp[3] == ')');
-            sp += 4;
-         }
-         else
-            sp++;
+      const int nsymbols = vlog_params(row);
+      if (nsymbols != expect) {
+         error_at(vlog_loc(row), "expected %d symbols in UDP table entry but "
+                  "have %d", expect, nsymbols);
+         break;
       }
-
-      if (*sp != ':')
-         error_at(vlog_loc(row), "too many symbols in UDP table entry");
    }
 
    pop_scope();

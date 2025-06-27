@@ -549,8 +549,7 @@ START_TEST(test_udp1)
       { 13, "the first port of a primitive must be an output" },
       { 13, "all ports of a primitive except the first must be inputs" },
       { 13, "no visible declaration for z" },
-      { 25, "missing symbol for input y" },
-      { 26, "too many symbols in UDP table entry" },
+      { 25, "expected 3 symbols in UDP table entry but have 2" },
       { 58, "a sequential input list may have at most one edge indicator" },
       { -1, NULL }
    };

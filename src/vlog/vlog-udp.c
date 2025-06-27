@@ -146,56 +146,63 @@ void vlog_lower_udp(mir_context_t *mc, ident_t parent, vlog_node_t udp)
          assert(vlog_kind(entry) == V_UDP_ENTRY);
 
          mir_block_t hit_bb = mir_add_block(mu);
-         const char *spec = vlog_text(entry), *sp = spec;
-         mir_comment(mu, "%s", spec);
-
          mir_value_t and = MIR_NULL_VALUE;
 
-         for (int j = 0; j < nports - 1; j++, sp++) {
+         int pos = 0;
+         for (int j = 0; j < nports - 1; j++) {
             mir_value_t cmp = MIR_NULL_VALUE;
-            switch (*sp) {
-            case '0':
-            case '1':
-            case 'x':
-            case 'X':
-               cmp = mir_build_cmp(mu, MIR_CMP_EQ, in_regs[j],
-                                   level_map[(unsigned)*sp]);
-               break;
-            case '*':
-               cmp = mir_build_event_flag(mu, in_nets[j], one);
-               break;
-            case 'b':
-               {
-                  mir_value_t is0 =
-                     mir_build_cmp(mu, MIR_CMP_EQ, in_regs[j], logic0);
-                  mir_value_t is1 =
-                     mir_build_cmp(mu, MIR_CMP_EQ, in_regs[j], logic1);
-                  cmp = mir_build_and(mu, is0, is1);
+            vlog_node_t sym = vlog_param(entry, pos++);
+            switch (vlog_kind(sym)) {
+            case V_UDP_LEVEL:
+               switch (vlog_ival(sym)) {
+               case '0':
+               case '1':
+               case 'x':
+               case 'X':
+                  cmp = mir_build_cmp(mu, MIR_CMP_EQ, in_regs[j],
+                                      level_map[vlog_ival(sym)]);
+                  break;
+               case '*':
+                  cmp = mir_build_event_flag(mu, in_nets[j], one);
+                  break;
+               case 'b':
+                  {
+                     mir_value_t is0 =
+                        mir_build_cmp(mu, MIR_CMP_EQ, in_regs[j], logic0);
+                     mir_value_t is1 =
+                        mir_build_cmp(mu, MIR_CMP_EQ, in_regs[j], logic1);
+                     cmp = mir_build_and(mu, is0, is1);
+                  }
+                  break;
+               case '?':
+                  break;
+               default:
+                  CANNOT_HANDLE(sym);
                }
                break;
-            case '?':
-               break;
-            case '(':
+
+            case V_UDP_EDGE:
                {
+                  const char left = vlog_ival(vlog_left(sym));
+                  const char right = vlog_ival(vlog_right(sym));
+
                   cmp = mir_build_event_flag(mu, in_nets[j], one);
 
-                  if (sp[1] != '?') {
+                  if (left != '?') {
                      mir_value_t last_ptr =
                         mir_build_last_value(mu, in_nets[j]);
                      mir_value_t last = mir_build_load(mu, last_ptr);
                      mir_value_t packed = mir_build_pack(mu, t_logic, last);
                      mir_value_t eq = mir_build_cmp(mu, MIR_CMP_EQ, packed,
-                                                    level_map[(unsigned)sp[1]]);
+                                                    level_map[(unsigned)left]);
                      cmp = mir_build_and(mu, cmp, eq);
                   }
 
-                  if (sp[2] != '?') {
+                  if (right != '?') {
                      mir_value_t eq = mir_build_cmp(mu, MIR_CMP_EQ, in_regs[j],
-                                                    level_map[(unsigned)sp[2]]);
+                                                    level_map[(unsigned)right]);
                      cmp = mir_build_and(mu, cmp, eq);
                   }
-
-                  sp += 3;
                }
                break;
 
@@ -209,9 +216,6 @@ void vlog_lower_udp(mir_context_t *mc, ident_t parent, vlog_node_t udp)
                and = mir_build_and(mu, and, cmp);
          }
 
-         assert(sp[0] == ':');
-         sp++;
-
          if (kind == V_UDP_SEQ) {
             mir_value_t upref = mir_build_var_upref(mu, hops, out_var.id);
             mir_value_t out = mir_build_load(mu, upref);
@@ -219,28 +223,28 @@ void vlog_lower_udp(mir_context_t *mc, ident_t parent, vlog_node_t udp)
             mir_value_t cur = mir_build_load(mu, resolved);
             mir_value_t packed = mir_build_pack(mu, t_logic, cur);
 
+            vlog_node_t sym = vlog_param(entry, pos++);
+            assert(vlog_kind(sym) == V_UDP_LEVEL);
+
             mir_value_t cmp = MIR_NULL_VALUE;
-            switch (*sp) {
+            switch (vlog_ival(sym)) {
             case '0':
             case '1':
             case 'x':
             case 'X':
                cmp = mir_build_cmp(mu, MIR_CMP_EQ, packed,
-                                   level_map[(unsigned)*sp]);
+                                   level_map[vlog_ival(sym)]);
                break;
             case '?':
                break;
             default:
-               CANNOT_HANDLE(entry);
+               CANNOT_HANDLE(sym);
             }
 
             if (mir_is_null(and))
                and = cmp;
             else if (!mir_is_null(cmp))
                and = mir_build_and(mu, and, cmp);
-
-            assert(sp[1] == ':');
-            sp += 2;
          }
 
          if (mir_is_null(and)) {
@@ -254,13 +258,17 @@ void vlog_lower_udp(mir_context_t *mc, ident_t parent, vlog_node_t udp)
 
          mir_set_cursor(mu, hit_bb, MIR_APPEND);
 
+         vlog_node_t sym = vlog_param(entry, pos++);
+         assert(vlog_kind(sym) == V_UDP_LEVEL);
+         assert(pos == vlog_params(entry));
+
          mir_value_t drive;
-         switch (*sp) {
+         switch (vlog_ival(sym)) {
          case '0':
          case '1':
          case 'x':
          case 'X':
-            drive = level_map[(int)*sp];
+            drive = level_map[vlog_ival(sym)];
             break;
          case '-':
             // No change, skip assignment to output

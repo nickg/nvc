@@ -128,7 +128,22 @@ static void vlog_dump_primitive(vlog_node_t v, int indent)
 static void vlog_dump_udp_entry(vlog_node_t v, int indent)
 {
    tab(indent);
-   print_syntax("%s;\n", vlog_text(v));
+
+   vlog_udp_symbol_t last = V_UDP_SYMBOL_INPUT;
+   const int nsymbols = vlog_params(v);
+   for (int i = 0; i < nsymbols; i++) {
+      vlog_node_t sym = vlog_param(v, i);
+
+      const vlog_udp_symbol_t kind = vlog_subkind(sym);
+      if (kind != last) {
+         print_syntax(":");
+         last = kind;
+      }
+
+      print_syntax("%c", (char)vlog_ival(sym));
+   }
+
+   print_syntax(";\n");
 }
 
 static void vlog_dump_udp_table(vlog_node_t v, int indent)
