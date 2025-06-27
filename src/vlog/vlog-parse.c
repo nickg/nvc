@@ -587,6 +587,15 @@ static void p_constant_range(vlog_node_t *left, vlog_node_t *right)
    *right = p_constant_expression();
 }
 
+static vlog_node_t p_constant_range_expression(void)
+{
+   // constant_expression | constant_part_select_range
+
+   BEGIN("constant range expression");
+
+   return p_constant_expression();
+}
+
 static vlog_node_t p_packed_dimension(void)
 {
    // [ constant_range ] | unsized_dimension
@@ -3489,20 +3498,23 @@ static vlog_node_t p_specify_terminal_descriptor(void)
    vlog_node_t v = vlog_new(V_REF);
    vlog_set_ident(v, p_identifier());
    vlog_set_loc(v, CURRENT_LOC);
-   // TODO: add support for range expression
+
+   if (optional(tLSQUARE)) {
+      (void)p_constant_range_expression();
+      consume(tRSQUARE);
+   }
 
    return v;
 }
 
-static void p_list_of_path_inputs(vlog_node_t v)
+static void p_list_of_path_inputs(vlog_node_t v, vlog_node_t head)
 {
    // specify_input_terminal_descriptor { , specify_input_terminal_descriptor }
 
-   BEGIN("list of path inputs");
+   BEGIN_WITH_HEAD("list of path inputs", head);
 
-   do {
+   while (optional(tCOMMA))
       (void)p_specify_terminal_descriptor();
-   } while (optional(tCOMMA));
 }
 
 static void p_list_of_path_outputs(vlog_node_t v)
@@ -3526,16 +3538,12 @@ static void p_polarity_operator(void)
    (void)one_of(tPLUS, tMINUS);
 }
 
-static vlog_node_t p_parallel_path_description(void)
+static vlog_node_t p_parallel_path_description(vlog_node_t head)
 {
    // ( specify_input_terminal_descriptor [ polarity_operator ]
    //     => specify_output_terminal_descriptor )
 
-   BEGIN("parallel path description");
-
-   consume(tLPAREN);
-
-   (void)p_specify_terminal_descriptor();
+   EXTEND("parallel path description");
 
    if (scan(tPLUS, tMINUS))
       (void)p_polarity_operator();
@@ -3548,15 +3556,13 @@ static vlog_node_t p_parallel_path_description(void)
    return NULL;
 }
 
-static vlog_node_t p_full_path_description(void)
+static vlog_node_t p_full_path_description(vlog_node_t head)
 {
    // ( list_of_path_inputs [ polarity_operator ] *> list_of_path_outputs )
 
-   BEGIN("full path description");
+   EXTEND("full path description");
 
-   consume(tLPAREN);
-
-   p_list_of_path_inputs(NULL);
+   p_list_of_path_inputs(NULL, head);
 
    if (scan(tPLUS, tMINUS))
       (void)p_polarity_operator();
@@ -3576,10 +3582,17 @@ static vlog_node_t p_simple_path_declaration(void)
 
    BEGIN("simple path declaration");
 
-   if (peek_nth(3) == tCOMMA)
-      (void)p_full_path_description();
+   // Parse up to the first terminal descriptor to determine which
+   // production to use
+
+   consume(tLPAREN);
+
+   vlog_node_t head = p_specify_terminal_descriptor();
+
+   if (scan(tCOMMA, tTIMESGT) || peek_nth(2) == tTIMESGT)
+      (void)p_full_path_description(head);
    else
-      (void)p_parallel_path_description();
+      (void)p_parallel_path_description(head);
 
    consume(tEQ);
 
@@ -3597,20 +3610,13 @@ static void p_edge_identifier(void)
    one_of(tPOSEDGE, tNEGEDGE, tEDGE);
 }
 
-static vlog_node_t p_parallel_edge_sensitive_path_description(void)
+static vlog_node_t p_parallel_edge_sensitive_path_description(vlog_node_t head)
 {
    // ( [ edge_identifier ] specify_input_terminal_descriptor
    //     [ polarity_operator ] => ( specify_output_terminal_descriptor
    //     [ polarity_operator ] : data_source_expression ) )
 
-   BEGIN("parallel edege sensitive path description");
-
-   consume(tLPAREN);
-
-   if (scan(tEDGE, tPOSEDGE, tNEGEDGE))
-      p_edge_identifier();
-
-   (void)p_specify_terminal_descriptor();
+   EXTEND("parallel edge sensitive path description");
 
    if (scan(tPLUS, tMINUS))
       (void)p_polarity_operator();
@@ -3626,7 +3632,7 @@ static vlog_node_t p_parallel_edge_sensitive_path_description(void)
       consume(tCOLON);
    }
    else if (scan(tINDEXPOS, tINDEXNEG))
-      consume(peek());  // Lexing abiguity with +: and -:
+      consume(peek());  // Lexing ambiguity with +: and -:
    else
       consume(tCOLON);
 
@@ -3637,20 +3643,15 @@ static vlog_node_t p_parallel_edge_sensitive_path_description(void)
    return NULL;
 }
 
-static vlog_node_t p_full_edge_sensitive_path_description(void)
+static vlog_node_t p_full_edge_sensitive_path_description(vlog_node_t head)
 {
    // ( [ edge_identifier ] list_of_path_inputs [ polarity_operator ] *>
    //     ( list_of_path_outputs [ polarity_operator ]
    //     : data_source_expression ) )
 
-   BEGIN("full edge sensitive path description");
+   EXTEND("full edge sensitive path description");
 
-   consume(tLPAREN);
-
-   if (scan(tEDGE, tPOSEDGE, tNEGEDGE))
-      p_edge_identifier();
-
-   p_list_of_path_inputs(NULL);
+   p_list_of_path_inputs(NULL, head);
 
    if (scan(tPLUS, tMINUS))
       (void)p_polarity_operator();
@@ -3666,7 +3667,7 @@ static vlog_node_t p_full_edge_sensitive_path_description(void)
       consume(tCOLON);
    }
    else if (scan(tINDEXPOS, tINDEXNEG))
-      consume(peek());  // Lexing abiguity with +: and -:
+      consume(peek());  // Lexing ambiguity with +: and -:
    else
       consume(tCOLON);
 
@@ -3684,10 +3685,20 @@ static vlog_node_t p_edge_sensitive_path_declaration(void)
 
    BEGIN("edge sensitive path declaration");
 
-   if (peek_nth(4) == tCOMMA)
-      (void)p_full_edge_sensitive_path_description();
+   // Parse up to the first terminal descriptor to determine which
+   // production to use
+
+   consume(tLPAREN);
+
+   if (scan(tEDGE, tPOSEDGE, tNEGEDGE))
+      p_edge_identifier();
+
+   vlog_node_t head = p_specify_terminal_descriptor();
+
+   if (scan(tCOMMA, tTIMESGT) || peek_nth(2) == tTIMESGT)
+      (void)p_full_edge_sensitive_path_description(head);
    else
-      (void)p_parallel_edge_sensitive_path_description();
+      (void)p_parallel_edge_sensitive_path_description(head);
 
    consume(tEQ);
 

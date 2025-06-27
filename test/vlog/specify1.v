@@ -19,6 +19,10 @@ module test1(a, b, c, d);
     ifnone (a => r) = 1;
     (negedge e,f - *> (r,s +:1)) = 7;
     ifnone (posedge c => (f+:(a&&b))) = 0;  // Not really allowed
+    (posedge a *> (b : c)) = (1.0, 1.0);
+    (posedge a +*> (b : c)) = (1.0, 1.0);
+    (a[1],b,c -*> u,v,w) = 2.5;
+    (a[1] -*> u,v,w) = 2.5;
 
     $setup(a, clk, 0.5);
     $setup(b, clk, 0.4,);
