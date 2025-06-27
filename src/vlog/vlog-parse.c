@@ -3240,6 +3240,8 @@ static vlog_node_t p_pull_gate_instance(vlog_gate_kind_t kind, vlog_node_t st)
       vlog_set_loc(v, &state.last_loc);
       vlog_symtab_put(symtab, v);
    }
+   else
+      vlog_set_ident(v, ident_uniq("#gate"));
 
    consume(tLPAREN);
 
@@ -3265,8 +3267,13 @@ static vlog_node_t p_n_terminal_gate_instance(vlog_gate_kind_t kind)
    vlog_node_t v = vlog_new(V_GATE_INST);
    vlog_set_subkind(v, kind);
 
-   if (peek() == tID)
+   if (peek() == tID) {
       vlog_set_ident(v, p_identifier());
+      vlog_set_loc(v, &state.last_loc);
+      vlog_symtab_put(symtab, v);
+   }
+   else
+      vlog_set_ident(v, ident_uniq("#gate"));
 
    consume(tLPAREN);
 

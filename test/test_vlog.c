@@ -271,7 +271,7 @@ START_TEST(test_parse1)
    fail_unless(vlog_kind(s7) == V_GATE_INST);
    ck_assert_int_eq(vlog_subkind(s7), V_GATE_PULLUP);
    ck_assert_int_eq(vlog_params(s7), 1);
-   fail_if(vlog_has_ident(s7));
+   fail_unless(vlog_has_ident(s7));
    fail_unless(vlog_kind(vlog_target(s7)) == V_REF);
 
    vlog_node_t s8 = vlog_stmt(m, 8);

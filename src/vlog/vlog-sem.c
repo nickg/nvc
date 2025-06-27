@@ -16,7 +16,6 @@
 //
 
 #include "util.h"
-#include "common.h"
 #include "diag.h"
 #include "ident.h"
 #include "vlog/vlog-node.h"
@@ -26,7 +25,6 @@
 
 #include <assert.h>
 #include <stdlib.h>
-
 
 static void name_for_diag(diag_t *d, vlog_node_t v, const char *alt)
 {
@@ -44,7 +42,18 @@ static bool has_error(vlog_node_t v)
 {
    switch (vlog_kind(v)) {
    case V_REF:
-      return !vlog_has_ref(v);
+   case V_BIT_SELECT:
+      if (vlog_has_ref(v))
+         return false;
+      else {
+         assert(error_count() > 0);
+         return true;
+      }
+   case V_PORT_DECL:
+      if (vlog_has_ref(v))
+         return false;
+      else
+         return true; // XXX: check this
    default:
       return false;
    }
@@ -110,32 +119,6 @@ static void vlog_check_const_expr(vlog_node_t expr)
    }
 }
 
-static void vlog_check_ref(vlog_node_t ref)
-{
-   assert(vlog_has_ref(ref) || error_count() > 0);
-}
-
-static void vlog_check_number(vlog_node_t num)
-{
-
-}
-
-static void vlog_check_string(vlog_node_t num)
-{
-
-}
-
-static void vlog_check_binary(vlog_node_t op)
-{
-   vlog_check(vlog_left(op));
-   vlog_check(vlog_right(op));
-}
-
-static void vlog_check_unary(vlog_node_t op)
-{
-   vlog_check(vlog_value(op));
-}
-
 static void vlog_check_variable_target(vlog_node_t target)
 {
    if (vlog_is_net(target)) {
@@ -149,28 +132,12 @@ static void vlog_check_variable_target(vlog_node_t target)
 static void vlog_check_nbassign(vlog_node_t stmt)
 {
    vlog_node_t target = vlog_target(stmt);
-   vlog_check(target);
-
-   if (vlog_has_delay(stmt))
-      vlog_check(vlog_delay(stmt));
-
-   vlog_node_t value = vlog_value(stmt);
-   vlog_check(value);
-
    vlog_check_variable_target(target);
 }
 
 static void vlog_check_bassign(vlog_node_t stmt)
 {
    vlog_node_t target = vlog_target(stmt);
-   vlog_check(target);
-
-   if (vlog_has_delay(stmt))
-      vlog_check(vlog_delay(stmt));
-
-   vlog_node_t value = vlog_value(stmt);
-   vlog_check(value);
-
    vlog_check_variable_target(target);
 }
 
@@ -211,94 +178,7 @@ static void vlog_check_net_lvalue(vlog_node_t v, vlog_node_t where)
 static void vlog_check_assign(vlog_node_t stmt)
 {
    vlog_node_t target = vlog_target(stmt);
-   vlog_check(target);
-
-   vlog_node_t value = vlog_value(stmt);
-   vlog_check(value);
-
    vlog_check_net_lvalue(target, target);
-}
-
-static void vlog_check_timing(vlog_node_t timing)
-{
-   vlog_check(vlog_value(timing));
-
-   const int nstmts = vlog_stmts(timing);
-   for (int i = 0; i < nstmts; i++)
-      vlog_check(vlog_stmt(timing, i));
-}
-
-static void vlog_check_event(vlog_node_t event)
-{
-   vlog_check(vlog_value(event));
-}
-
-static void vlog_check_event_control(vlog_node_t ctrl)
-{
-   const int nparams = vlog_params(ctrl);
-   for (int i = 0; i < nparams; i++)
-      vlog_check(vlog_param(ctrl, i));
-}
-
-static void vlog_check_delay_control(vlog_node_t delay)
-{
-   vlog_check(vlog_value(delay));
-}
-
-static void vlog_check_always(vlog_node_t always)
-{
-   const int nstmts = vlog_stmts(always);
-   for (int i = 0; i < nstmts; i++)
-      vlog_check(vlog_stmt(always, i));
-}
-
-static void vlog_check_initial(vlog_node_t initial)
-{
-   const int nstmts = vlog_stmts(initial);
-   for (int i = 0; i < nstmts; i++)
-      vlog_check(vlog_stmt(initial, i));
-}
-
-static void vlog_check_block(vlog_node_t v)
-{
-   const int ndecls = vlog_decls(v);
-   for (int i = 0; i < ndecls; i++)
-      vlog_check(vlog_decl(v, i));
-
-   const int nstmts = vlog_stmts(v);
-   for (int i = 0; i < nstmts; i++)
-      vlog_check(vlog_stmt(v, i));
-}
-
-static void vlog_check_sys_tcall(vlog_node_t call)
-{
-   const int nparams = vlog_params(call);
-   for (int i = 0; i < nparams; i++)
-      vlog_check(vlog_param(call, i));
-}
-
-static void vlog_check_sys_fcall(vlog_node_t call)
-{
-   const int nparams = vlog_params(call);
-   for (int i = 0; i < nparams; i++)
-      vlog_check(vlog_param(call, i));
-}
-
-static void vlog_check_if(vlog_node_t stmt)
-{
-   const int nconds = vlog_conds(stmt);
-   for (int i = 0; i < nconds; i++) {
-      vlog_node_t c = vlog_cond(stmt, i);
-
-      if (vlog_has_value(c))
-         vlog_check(vlog_value(c));
-      else
-         assert(i == nconds - 1);
-
-      const int nstmts = vlog_stmts(c);
-      for (int i = 0; i < nstmts; i++)
-         vlog_check(vlog_stmt(c, i));
-   }
 }
 
 static void vlog_check_consistent(vlog_node_t a, vlog_node_t b)
@@ -332,56 +212,16 @@ static void vlog_check_consistent(vlog_node_t a, vlog_node_t b)
    }
 }
 
-static void vlog_check_data_type(vlog_node_t dt)
-{
-   const int nranges = vlog_ranges(dt);
-   for (int i = 0; i < nranges; i++)
-      vlog_check(vlog_range(dt, i));
-}
-
 static void vlog_check_port_decl(vlog_node_t port)
 {
-   vlog_check(vlog_type(port));
-
-   if (vlog_has_ref(port))
-      vlog_check_consistent(port, vlog_ref(port));
-}
-
-static void vlog_check_net_decl(vlog_node_t net)
-{
-   vlog_check(vlog_type(net));
-}
-
-static void vlog_check_var_decl(vlog_node_t var)
-{
-   vlog_check(vlog_type(var));
-}
-
-static void vlog_check_module(vlog_node_t module)
-{
-   const int ndecls = vlog_decls(module);
-   for (int i = 0; i < ndecls; i++)
-      vlog_check(vlog_decl(module, i));
-
-   const int nports = vlog_ports(module);
-   for (int i = 0; i < nports; i++)
-      vlog_check(vlog_port(module, i));
-
-   const int nstmts = vlog_stmts(module);
-   for (int i = 0; i < nstmts; i++)
-      vlog_check(vlog_stmt(module, i));
+   vlog_check_consistent(port, vlog_ref(port));
 }
 
 static void vlog_check_primitive(vlog_node_t udp)
 {
-   const int ndecls = vlog_decls(udp);
-   for (int i = 0; i < ndecls; i++)
-      vlog_check(vlog_decl(udp, i));
-
    const int nports = vlog_ports(udp);
    for (int i = 0; i < nports; i++) {
       vlog_node_t p = vlog_port(udp, i);
-      vlog_check(p);
 
       if (vlog_has_ref(p)) {
          vlog_node_t decl = vlog_ref(p);
@@ -411,10 +251,6 @@ static void vlog_check_primitive(vlog_node_t udp)
    const vlog_udp_kind_t kind = vlog_subkind(table);
    const int expect = kind == V_UDP_SEQ ? nports + 1 : nports;
 
-   const int nstmts = vlog_stmts(table);
-   for (int i = 0; i < nstmts; i++)
-      vlog_check(vlog_stmt(table, i));
-
    const int nparams = vlog_params(table);
    for (int i = 0; i < nparams; i++) {
       vlog_node_t row = vlog_param(table, i);
@@ -429,168 +265,38 @@ static void vlog_check_primitive(vlog_node_t udp)
    }
 }
 
-static void vlog_check_gate_inst(vlog_node_t g)
+static void vlog_check_dimension(vlog_node_t v)
 {
-   vlog_node_t target = vlog_target(g);
-   vlog_check(target);
-
-   const int nparams = vlog_params(g);
-   for (int i = 0; i < nparams; i++)
-      vlog_check(vlog_param(g, i));
-
-   if (!vlog_has_ident(g))  // XXX: move to parser
-      vlog_set_ident(g, ident_uniq("#gate"));
-}
-
-static void vlog_check_mod_inst(vlog_node_t inst)
-{
-   const int nparams = vlog_params(inst);
-   for (int i = 0; i < nparams; i++)
-      vlog_check(vlog_param(inst, i));
-}
-
-static void vlog_check_inst_list(vlog_node_t v)
-{
-   const int nparams = vlog_params(v);
-   for (int i = 0; i < nparams; i++)
-      vlog_check(vlog_param(v, i));
-
-   const int nstmts = vlog_stmts(v);
-   for (int i = 0; i < nstmts; i++)
-      vlog_check(vlog_stmt(v, i));
-}
-
-static void vlog_check_dimension(vlog_node_t dim)
-{
-   vlog_node_t left = vlog_left(dim);
-   vlog_check(left);
+   vlog_node_t left = vlog_left(v);
    vlog_check_const_expr(left);
 
-   vlog_node_t right = vlog_right(dim);
-   vlog_check(right);
+   vlog_node_t right = vlog_right(v);
    vlog_check_const_expr(right);
 }
 
-static void vlog_check_bit_select(vlog_node_t bsel)
+static void vlog_check_bit_select(vlog_node_t v)
 {
-   vlog_check_ref(bsel);
-
-   const int nparams = vlog_params(bsel);
-   for (int i = 0; i < nparams; i++)
-      vlog_check(vlog_param(bsel, i));
+   assert(vlog_has_ref(v) || error_count() > 0);
 }
 
 static void vlog_check_part_select(vlog_node_t v)
 {
-   vlog_check(vlog_value(v));
-
    vlog_node_t left = vlog_left(v);
-   vlog_check(left);
    vlog_check_const_expr(left);
 
    vlog_node_t right = vlog_right(v);
-   vlog_check(right);
    vlog_check_const_expr(right);
 }
 
-static void vlog_check_forever(vlog_node_t stmt)
+static void vlog_check_localparam(vlog_node_t decl)
 {
-   const int nstmts = vlog_stmts(stmt);
-   for (int i = 0; i < nstmts; i++)
-      vlog_check(vlog_stmt(stmt, i));
-}
-
-static void vlog_check_specify(vlog_node_t spec)
-{
-
-}
-
-static void vlog_check_type_decl(vlog_node_t spec)
-{
-
-}
-
-static void vlog_check_enum_decl(vlog_node_t spec)
-{
-
-}
-
-static void vlog_check_struct_union_decl(vlog_node_t decl)
-{
-   const int ndecls = vlog_decls(decl);
-   for (int i = 0; i < ndecls; i++) {
-      vlog_node_t d = vlog_decl(decl, i);
-      vlog_check(d);
-   }
-}
-
-static void vlog_check_wait(vlog_node_t stmt)
-{
-   vlog_check(vlog_value(stmt));
-
-   const int nstmts = vlog_stmts(stmt);
-   for (int i = 0; i < nstmts; i++)
-      vlog_check(vlog_stmt(stmt, i));
-}
-
-static void vlog_check_param_decl(vlog_node_t decl)
-{
-   if (vlog_has_value(decl))
-      vlog_check(vlog_value(decl));
-   else if (vlog_kind(decl) == V_LOCALPARAM)
+   if (!vlog_has_value(decl))
       error_at(vlog_loc(decl), "local parameter declaration must have a "
                "default value");
 }
 
-static void vlog_check_cond_expr(vlog_node_t expr)
-{
-   vlog_check(vlog_value(expr));
-   vlog_check(vlog_left(expr));
-   vlog_check(vlog_right(expr));
-}
-
-static void vlog_check_concat(vlog_node_t expr)
-{
-   const int nparams = vlog_params(expr);
-   for (int i = 0; i < nparams; i++) {
-      vlog_node_t p = vlog_param(expr, i);
-      vlog_check(p);
-   }
-}
-
-static void vlog_check_for_loop(vlog_node_t v)
-{
-   vlog_check(vlog_left(v));
-   vlog_check(vlog_value(v));
-   vlog_check(vlog_right(v));
-
-   const int nstmts = vlog_stmts(v);
-   for (int i = 0; i < nstmts; i++)
-      vlog_check(vlog_stmt(v, i));
-}
-
-static void vlog_check_for_init(vlog_node_t v)
-{
-   const int ndecls = vlog_decls(v);
-   for (int i = 0; i < ndecls; i++)
-      vlog_check(vlog_decl(v, i));
-
-   const int nstmts = vlog_stmts(v);
-   for (int i = 0; i < nstmts; i++)
-      vlog_check(vlog_stmt(v, i));
-}
-
-static void vlog_check_for_step(vlog_node_t v)
-{
-   const int nstmts = vlog_stmts(v);
-   for (int i = 0; i < nstmts; i++)
-      vlog_check(vlog_stmt(v, i));
-}
-
 static void vlog_check_case(vlog_node_t v)
 {
-   vlog_check(vlog_value(v));
-
    bool seen_default = false;
    const int nstmts = vlog_stmts(v);
    for (int i = 0; i < nstmts; i++) {
@@ -603,45 +309,6 @@ static void vlog_check_case(vlog_node_t v)
       else if (nparams == 0)
          error_at(vlog_loc(item), "multiple default statements within a single "
                   "case statement");
-
-      for (int i = 0; i < nparams; i++)
-         vlog_check(vlog_param(item, i));
-
-      const int nstmts = vlog_stmts(item);
-      for (int i = 0; i < nstmts; i++)
-         vlog_check(vlog_stmt(item, i));
-   }
-}
-
-static void vlog_check_port_conn(vlog_node_t v)
-{
-   if (vlog_has_value(v))
-      vlog_check(vlog_value(v));
-}
-
-static void vlog_check_param_assign(vlog_node_t v)
-{
-   if (vlog_has_value(v))
-      vlog_check(vlog_value(v));
-}
-
-static void vlog_check_func_decl(vlog_node_t v)
-{
-   const int ndecls = vlog_decls(v);
-   for (int i = 0; i < ndecls; i++)
-      vlog_check(vlog_decl(v, i));
-
-   const int nstmts = vlog_stmts(v);
-   for (int i = 0; i < nstmts; i++)
-      vlog_check(vlog_stmt(v, i));
-}
-
-static void vlog_check_user_fcall(vlog_node_t v)
-{
-   const int nparams = vlog_params(v);
-   for (int i = 0; i < nparams; i++) {
-      vlog_node_t p = vlog_param(v, i);
-      vlog_check(p);
    }
 }
 
@@ -654,43 +321,22 @@ static void vlog_check_if_generate(vlog_node_t v)
 
       if (vlog_has_value(c)) {
          vlog_node_t value = vlog_value(c);
-         vlog_check(value);
-
+         (void)value;
          // XXX: check const
       }
-
-      const int nstmts = vlog_stmts(c);
-      for (int i = 0; i < nstmts; i++)
-         vlog_check(vlog_stmt(c, i));
    }
 }
 
-void vlog_check(vlog_node_t v)
+static vlog_node_t vlog_check_cb(vlog_node_t v, void *ctx)
 {
+   if (has_error(v))
+      return v;
+
    switch (vlog_kind(v)) {
    case V_MODULE:
-      vlog_check_module(v);
       break;
    case V_PRIMITIVE:
       vlog_check_primitive(v);
-      break;
-   case V_ALWAYS:
-      vlog_check_always(v);
-      break;
-   case V_INITIAL:
-      vlog_check_initial(v);
-      break;
-   case V_TIMING:
-      vlog_check_timing(v);
-      break;
-   case V_EVENT:
-      vlog_check_event(v);
-      break;
-   case V_EVENT_CONTROL:
-      vlog_check_event_control(v);
-      break;
-   case V_DELAY_CONTROL:
-      vlog_check_delay_control(v);
       break;
    case V_NBASSIGN:
       vlog_check_nbassign(v);
@@ -701,50 +347,8 @@ void vlog_check(vlog_node_t v)
    case V_ASSIGN:
       vlog_check_assign(v);
       break;
-   case V_REF:
-      vlog_check_ref(v);
-      break;
    case V_PORT_DECL:
       vlog_check_port_decl(v);
-      break;
-   case V_NET_DECL:
-      vlog_check_net_decl(v);
-      break;
-   case V_VAR_DECL:
-      vlog_check_var_decl(v);
-      break;
-   case V_BLOCK:
-      vlog_check_block(v);
-      break;
-   case V_SYS_TCALL:
-      vlog_check_sys_tcall(v);
-      break;
-   case V_SYS_FCALL:
-      vlog_check_sys_fcall(v);
-      break;
-   case V_NUMBER:
-      vlog_check_number(v);
-      break;
-   case V_STRING:
-      vlog_check_string(v);
-      break;
-   case V_IF:
-      vlog_check_if(v);
-      break;
-   case V_BINARY:
-      vlog_check_binary(v);
-      break;
-   case V_UNARY:
-      vlog_check_unary(v);
-      break;
-   case V_GATE_INST:
-      vlog_check_gate_inst(v);
-      break;
-   case V_MOD_INST:
-      vlog_check_mod_inst(v);
-      break;
-   case V_INST_LIST:
-      vlog_check_inst_list(v);
       break;
    case V_DIMENSION:
       vlog_check_dimension(v);
@@ -755,71 +359,73 @@ void vlog_check(vlog_node_t v)
    case V_PART_SELECT:
       vlog_check_part_select(v);
       break;
-   case V_FOREVER:
-      vlog_check_forever(v);
-      break;
-   case V_SPECIFY:
-      vlog_check_specify(v);
-      break;
-   case V_STRENGTH:
-      break;
-   case V_TYPE_DECL:
-      vlog_check_type_decl(v);
-      break;
-   case V_DATA_TYPE:
-      vlog_check_data_type(v);
-      break;
-   case V_ENUM_DECL:
-      vlog_check_enum_decl(v);
-      break;
-   case V_STRUCT_DECL:
-   case V_UNION_DECL:
-      vlog_check_struct_union_decl(v);
-      break;
-   case V_WAIT:
-      vlog_check_wait(v);
-      break;
-   case V_PARAM_DECL:
    case V_LOCALPARAM:
-      vlog_check_param_decl(v);
-      break;
-   case V_EMPTY:
-      break;
-   case V_COND_EXPR:
-      vlog_check_cond_expr(v);
-      break;
-   case V_CONCAT:
-      vlog_check_concat(v);
-      break;
-   case V_FOR_LOOP:
-      vlog_check_for_loop(v);
-      break;
-   case V_FOR_INIT:
-      vlog_check_for_init(v);
-      break;
-   case V_FOR_STEP:
-      vlog_check_for_step(v);
+      vlog_check_localparam(v);
       break;
    case V_CASE:
       vlog_check_case(v);
       break;
-   case V_PORT_CONN:
-      vlog_check_port_conn(v);
-      break;
-   case V_PARAM_ASSIGN:
-      vlog_check_param_assign(v);
-      break;
-   case V_FUNC_DECL:
-      vlog_check_func_decl(v);
-      break;
-   case V_USER_FCALL:
-      vlog_check_user_fcall(v);
-      break;
    case V_IF_GENERATE:
       vlog_check_if_generate(v);
+      break;
+   case V_CASE_ITEM:
+   case V_UDP_LEVEL:
+   case V_UDP_EDGE:
+   case V_UDP_ENTRY:
+   case V_UDP_TABLE:
+   case V_GATE_INST:
+   case V_ENUM_NAME:
+   case V_ENUM_DECL:
+   case V_STRUCT_DECL:
+   case V_UNION_DECL:
+   case V_WAIT:
+   case V_PARAM_DECL:
+   case V_FOREVER:
+   case V_TYPE_DECL:
+   case V_DATA_TYPE:
+   case V_SPECIFY:
+   case V_STRENGTH:
+   case V_NET_DECL:
+   case V_VAR_DECL:
+   case V_PORT_CONN:
+   case V_PARAM_ASSIGN:
+   case V_FUNC_DECL:
+   case V_USER_FCALL:
+   case V_EMPTY:
+   case V_COND_EXPR:
+   case V_CONCAT:
+   case V_FOR_LOOP:
+   case V_FOR_INIT:
+   case V_FOR_STEP:
+   case V_MOD_INST:
+   case V_INST_LIST:
+   case V_ALWAYS:
+   case V_INITIAL:
+   case V_TIMING:
+   case V_EVENT:
+   case V_EVENT_CONTROL:
+   case V_DELAY_CONTROL:
+   case V_BLOCK:
+   case V_SYS_TCALL:
+   case V_SYS_FCALL:
+   case V_NUMBER:
+   case V_STRING:
+   case V_IF:
+   case V_BINARY:
+   case V_UNARY:
+   case V_REF:
+   case V_COND:
       break;
    default:
       fatal_at(vlog_loc(v), "cannot check verilog node %s",
                vlog_kind_str(vlog_kind(v)));
    }
+
+   return v;
+}
+
+void vlog_check(vlog_node_t v)
+{
+   assert(is_top_level(v));
+   vlog_rewrite(v, vlog_check_cb, NULL);
 }
