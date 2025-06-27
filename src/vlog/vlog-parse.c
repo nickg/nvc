@@ -3018,16 +3018,32 @@ static void p_generate_block(vlog_node_t parent)
 
       consume(tBEGIN);
 
-      if (optional(tCOLON))
-         vlog_set_ident(b, p_identifier());  // XXX: check rules
+      if (optional(tCOLON)) {
+         ident_t name = p_identifier();
+         if (vlog_has_ident(b))    // 1800-2023 section 9.3.5
+            parse_error(&state.last_loc, "cannot specify both a label and a "
+                        "name for the same block");
+         else
+            vlog_set_ident(b, name);
+      }
+
+      vlog_symtab_push(symtab, b);
 
       while (not_at_token(tEND))
          p_generate_item(b);
 
+      vlog_symtab_pop(symtab);
+
       consume(tEND);
 
-      if (optional(tCOLON))
-         (void)p_identifier(); // XXX: check
+      if (optional(tCOLON)) {
+         ident_t name = p_identifier();
+         if (!vlog_has_ident(b))
+            parse_error(&state.last_loc, "block does not have a label");
+         else if (name != vlog_ident(b))
+            parse_error(&state.last_loc, "'%s' does not match label '%s'",
+                        istr(name), istr(vlog_ident(b)));
+      }
 
       vlog_set_loc(b, CURRENT_LOC);
       vlog_add_stmt(parent, b);
@@ -4347,6 +4363,7 @@ static void p_non_port_module_item(vlog_node_t mod)
    case tLOCALPARAM:
    case tPARAMETER:
    case tEVENT:
+   case tIF:
       p_module_or_generate_item(mod);
       break;
    case tSPECIFY:
@@ -4360,8 +4377,8 @@ static void p_non_port_module_item(vlog_node_t mod)
              tSUPPLY1, tREG, tSTRUCT, tUNION, tASSIGN, tPULLDOWN, tPULLUP,
              tID, tATTRBEGIN, tAND, tNAND, tOR, tNOR, tXOR, tXNOR, tNOT,
              tBUF, tTYPEDEF, tENUM, tSVINT, tINTEGER, tSVREAL, tSHORTREAL,
-             tREALTIME, tTASK, tFUNCTION, tLOCALPARAM, tPARAMETER, tSPECIFY,
-             tGENERATE, tEVENT);
+             tREALTIME, tTASK, tFUNCTION, tLOCALPARAM, tPARAMETER, tEVENT,
+             tIF, tSPECIFY, tGENERATE);
       drop_tokens_until(tSEMI);
    }
 }

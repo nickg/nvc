@@ -321,8 +321,7 @@ static void vlog_check_if_generate(vlog_node_t v)
 
       if (vlog_has_value(c)) {
          vlog_node_t value = vlog_value(c);
-         (void)value;
-         // XXX: check const
+         vlog_check_const_expr(value);
       }
    }
 }
