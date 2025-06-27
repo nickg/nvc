@@ -155,10 +155,10 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
    (I_VALUE | I_STMTS),
 
    // V_TASK_DECL
-   (I_IDENT | I_STMTS | I_DECLS),
+   (I_IDENT | I_STMTS | I_DECLS | I_PORTS),
 
    // V_FUNC_DECL
-   (I_IDENT | I_STMTS | I_DECLS | I_TYPE),
+   (I_IDENT | I_STMTS | I_DECLS | I_TYPE | I_PORTS),
 
    // V_WAIT
    (I_VALUE | I_STMTS),
@@ -221,7 +221,7 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
    (I_IDENT),
 
    // V_USER_FCALL
-   (I_IDENT | I_PARAMS),
+   (I_IDENT | I_REF | I_PARAMS),
 
    // V_UDP_LEVEL
    (I_SUBKIND | I_IVAL),
@@ -391,7 +391,7 @@ vlog_node_t vlog_port(vlog_node_t v, unsigned n)
 void vlog_add_port(vlog_node_t v, vlog_node_t p)
 {
    assert(p != NULL);
-   assert(p->object.kind == V_REF);
+   assert(p->object.kind == V_REF || p->object.kind == V_PORT_DECL);
    vlog_array_add(lookup_item(&vlog_object, v, I_PORTS), p);
    object_write_barrier(&(v->object), &(p->object));
 }

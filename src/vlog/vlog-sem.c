@@ -43,6 +43,7 @@ static bool has_error(vlog_node_t v)
    switch (vlog_kind(v)) {
    case V_REF:
    case V_BIT_SELECT:
+   case V_USER_FCALL:
       if (vlog_has_ref(v))
          return false;
       else {
@@ -326,6 +327,36 @@ static void vlog_check_if_generate(vlog_node_t v)
    }
 }
 
+static void vlog_check_call_args(vlog_node_t v, vlog_node_t sub)
+{
+   const int nparams = vlog_params(v);
+   const int nports = vlog_ports(sub);
+
+   if (nparams != nports) {
+      diag_t *d = diag_new(DIAG_ERROR, vlog_loc(v));
+      diag_printf(d, "expected %d argument%s for '%s' but have %d", nports,
+                  nports != 1 ? "s" : "", istr(vlog_ident(sub)), nparams);
+      diag_hint(d, vlog_loc(sub), "'%s' declared here", istr(vlog_ident(sub)));
+      diag_emit(d);
+      return;
+   }
+}
+
+static void vlog_check_user_fcall(vlog_node_t v)
+{
+   vlog_node_t func = vlog_ref(v);
+   if (vlog_kind(func) != V_FUNC_DECL) {
+      diag_t *d = diag_new(DIAG_ERROR, vlog_loc(v));
+      diag_printf(d, "'%s' is not a function", istr(vlog_ident(func)));
+      diag_hint(d, vlog_loc(func), "'%s' declared here",
+                istr(vlog_ident(func)));
+      diag_emit(d);
+      return;
+   }
+
+   vlog_check_call_args(v, func);
+}
+
 static vlog_node_t vlog_check_cb(vlog_node_t v, void *ctx)
 {
    if (has_error(v))
@@ -367,6 +398,9 @@ static vlog_node_t vlog_check_cb(vlog_node_t v, void *ctx)
    case V_IF_GENERATE:
       vlog_check_if_generate(v);
       break;
+   case V_USER_FCALL:
+      vlog_check_user_fcall(v);
+      break;
    case V_CASE_ITEM:
    case V_UDP_LEVEL:
    case V_UDP_EDGE:
@@ -389,7 +423,6 @@ static vlog_node_t vlog_check_cb(vlog_node_t v, void *ctx)
    case V_PORT_CONN:
    case V_PARAM_ASSIGN:
    case V_FUNC_DECL:
-   case V_USER_FCALL:
    case V_EMPTY:
    case V_COND_EXPR:
    case V_CONCAT:

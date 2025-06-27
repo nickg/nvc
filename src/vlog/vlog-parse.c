@@ -1233,6 +1233,7 @@ static vlog_node_t p_tf_call(vlog_kind_t kind)
    }
 
    vlog_set_loc(v, CURRENT_LOC);
+   vlog_symtab_lookup(symtab, v);
    return v;
 }
 
@@ -2619,7 +2620,6 @@ static vlog_node_t p_tf_port_item(void)
    }
 
    vlog_set_loc(v, CURRENT_LOC);
-   vlog_symtab_put(symtab, v);
    return v;
 }
 
@@ -2630,7 +2630,9 @@ static void p_tf_port_list(vlog_node_t tf)
    BEGIN("task or function port list");
 
    do {
-      p_tf_port_item();
+      vlog_node_t v = p_tf_port_item();
+      vlog_add_port(tf, v);
+      vlog_symtab_put(symtab, v);
    } while (optional(tCOMMA));
 }
 
@@ -2653,7 +2655,8 @@ static void p_list_of_tf_variable_identifiers(vlog_node_t tf,
       if (optional(tEQ))
          vlog_set_value(v, p_expression());
 
-      vlog_add_decl(tf, v);
+      vlog_add_port(tf, v);
+      vlog_symtab_put(symtab, v);
    } while (optional(tCOMMA));
 }
 
@@ -2706,6 +2709,9 @@ static void p_task_body_declaration(vlog_node_t task)
 
    ident_t id = p_identifier();
    vlog_set_ident(task, id);
+   vlog_set_loc(task, &state.last_loc);
+
+   vlog_symtab_put(symtab, task);
 
    vlog_symtab_push(symtab, task);
 
@@ -2781,8 +2787,9 @@ static void p_function_body_declaration(vlog_node_t func)
    vlog_set_ident(func, id);
    vlog_set_loc(func, &state.last_loc);
 
-   vlog_symtab_push(symtab, func);
    vlog_symtab_put(symtab, func);
+
+   vlog_symtab_push(symtab, func);
 
    if (optional(tLPAREN)) {
       p_tf_port_list(func);
@@ -5344,6 +5351,14 @@ static void p_directive_list(void)
    }
 }
 
+static vlog_node_t end_of_file(void)
+{
+   vlog_symtab_pop(symtab);
+   vlog_symtab_free(symtab);
+   symtab = NULL;
+   return NULL;
+}
+
 vlog_node_t vlog_parse(void)
 {
    state.n_correct = RECOVER_THRESH;
@@ -5351,26 +5366,21 @@ vlog_node_t vlog_parse(void)
 
    scan_as_verilog();
 
-   if (peek() == tEOF)
-      return NULL;
-
    if (symtab == NULL) {
       symtab = vlog_symtab_new();
       vlog_symtab_push(symtab, NULL);   // Compilation unit scope
       vlog_symtab_poison(symtab, error_marker());
    }
 
+   if (peek() == tEOF)
+      return end_of_file();
+
    p_directive_list();
 
    make_new_arena();
 
-   if (peek() == tEOF) {
-      vlog_symtab_pop(symtab);
-      vlog_symtab_free(symtab);
-      symtab = NULL;
-
-      return NULL;
-   }
+   if (peek() == tEOF)
+      return end_of_file();
 
    return p_description();
 }

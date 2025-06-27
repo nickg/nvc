@@ -907,6 +907,31 @@ START_TEST(test_generate1)
 }
 END_TEST
 
+START_TEST(test_tfcall1)
+{
+   input_from_file(TESTDIR "/vlog/tfcall1.v");
+
+   const error_t expect[] = {
+      {  8, "expected 2 arguments for 'sum' but have 1" },
+      {  9, "expected 2 arguments for 'sum' but have 3" },
+      { 13, "'x4' is not a function" },
+      { 12, "no visible declaration for not_here" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   vlog_node_t m1 = vlog_parse();
+   fail_if(m1 == NULL);
+   fail_unless(vlog_kind(m1) == V_MODULE);
+
+   vlog_check(m1);
+
+   fail_unless(vlog_parse() == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_vlog_tests(void)
 {
    Suite *s = suite_create("vlog");
@@ -940,6 +965,7 @@ Suite *get_vlog_tests(void)
    tcase_add_test(tc, test_direct1);
    tcase_add_test(tc, test_string1);
    tcase_add_test(tc, test_generate1);
+   tcase_add_test(tc, test_tfcall1);
    suite_add_tcase(s, tc);
 
    return s;

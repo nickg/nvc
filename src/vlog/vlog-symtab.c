@@ -16,6 +16,7 @@
 //
 
 #include "util.h"
+#include "array.h"
 #include "diag.h"
 #include "hash.h"
 #include "ident.h"
@@ -28,6 +29,7 @@
 #define POISON_NODE (vlog_node_t)-1
 
 typedef struct _vlog_scope vlog_scope_t;
+typedef A(vlog_node_t) node_list_t;
 
 typedef struct _vlog_symtab {
    vlog_scope_t    *top;
@@ -47,6 +49,7 @@ typedef struct _vlog_scope {
    size_t         max_symbols;
    size_t         num_symbols;
    vlog_symbol_t *symbols;
+   node_list_t    tfcalls;
 } vlog_scope_t;
 
 vlog_symtab_t *vlog_symtab_new(void)
@@ -65,26 +68,6 @@ void vlog_symtab_free(vlog_symtab_t *st)
    pool_free(st->pool);
    hash_free(st->scopes);
    free(st);
-}
-
-void vlog_symtab_push(vlog_symtab_t *st, vlog_node_t v)
-{
-   vlog_scope_t *s = pool_calloc(st->pool, sizeof(vlog_scope_t));
-   s->parent    = st->top;
-   s->container = v;
-
-   st->top = s;
-}
-
-void vlog_symtab_pop(vlog_symtab_t *st)
-{
-   assert(st->top != NULL);
-   st->top = st->top->parent;
-}
-
-void vlog_symtab_set_implicit(vlog_symtab_t *st, vlog_net_kind_t kind)
-{
-   st->implicit = kind;
 }
 
 static vlog_symbol_t *fresh_symbol_for(vlog_symtab_t *st, ident_t name)
@@ -146,6 +129,47 @@ static const vlog_symbol_t *symbol_for(vlog_symtab_t *st, ident_t name)
    return NULL;
 }
 
+void vlog_symtab_push(vlog_symtab_t *st, vlog_node_t v)
+{
+   vlog_scope_t *s = pool_calloc(st->pool, sizeof(vlog_scope_t));
+   s->parent    = st->top;
+   s->container = v;
+
+   st->top = s;
+}
+
+void vlog_symtab_pop(vlog_symtab_t *st)
+{
+   assert(st->top != NULL);
+
+   if (st->top->parent == NULL) {
+      for (int i = 0; i < st->top->tfcalls.count; i++) {
+         vlog_node_t v = st->top->tfcalls.items[i];
+         ident_t name = vlog_ident(v);
+         error_at(vlog_loc(v), "no visible declaration for %s", istr(name));
+         vlog_symtab_poison(st, name);
+      }
+   }
+   else {
+      for (int i = 0; i < st->top->tfcalls.count; i++) {
+         vlog_node_t v = st->top->tfcalls.items[i];
+         const vlog_symbol_t *sym = symbol_for(st, vlog_ident(v));
+         if (sym != NULL)
+            vlog_set_ref(v, sym->node);
+         else
+            APUSH(st->top->parent->tfcalls, v);
+      }
+   }
+   ACLEAR(st->top->tfcalls);
+
+   st->top = st->top->parent;
+}
+
+void vlog_symtab_set_implicit(vlog_symtab_t *st, vlog_net_kind_t kind)
+{
+   st->implicit = kind;
+}
+
 void vlog_symtab_lookup(vlog_symtab_t *st, vlog_node_t v)
 {
    if (vlog_has_ref(v))
@@ -175,8 +199,15 @@ void vlog_symtab_lookup(vlog_symtab_t *st, vlog_node_t v)
       fresh_symbol_for(st, name)->node = decl;
    }
    else if (sym == NULL) {
-      error_at(vlog_loc(v), "no visible declaration for %s", istr(name));
-      vlog_symtab_poison(st, name);
+      switch (vlog_kind(v)) {
+      case V_USER_FCALL:
+         // May be declared later
+         APUSH(st->top->tfcalls, v);
+         break;
+      default:
+         error_at(vlog_loc(v), "no visible declaration for %s", istr(name));
+         vlog_symtab_poison(st, name);
+      }
    }
    else if (sym->node != POISON_NODE)
       vlog_set_ref(v, sym->node);
