@@ -8,7 +8,7 @@ endmodule
 
 module ports2 (x, y, z);
   input x;
-  always @(x) y <= x; // OK
+  always @(x) y <= x; // Error (iverilog accepts it?)
   output reg y;
   inout      z;   // OK
 endmodule // ports2
@@ -44,7 +44,7 @@ module ports6 (x, y, z);
   input [x:0]  z;    // Error
 endmodule // ports6
 
-module ports7 (x, y, z);
+module ports7 (x, y, z, zz /* Error */);
   input x, y, z;     // OK
 endmodule // ports7
 

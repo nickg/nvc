@@ -23,6 +23,7 @@
 #include "scan.h"
 #include "vlog/vlog-node.h"
 #include "vlog/vlog-phase.h"
+#include "vlog/vlog-symtab.h"
 
 #include <ctype.h>
 #include <string.h>
@@ -61,8 +62,10 @@ typedef struct {
    loc_t       old_start_loc;
 } rule_state_t;
 
-static parse_state_t state;
-static vlog_kind_t   param_kind;
+static parse_state_t    state;
+static vlog_kind_t      param_kind;
+static vlog_net_kind_t  implicit_kind;
+static vlog_symtab_t   *symtab;
 
 extern loc_t yylloc;
 
@@ -800,9 +803,13 @@ static vlog_node_t p_data_type(void)
 
          consume(tLBRACE);
 
+         vlog_symtab_push(symtab, v);
+
          do {
             p_struct_union_member(v);
          } while (not_at_token(tRBRACE));
+
+         vlog_symtab_pop(symtab);
 
          consume(tRBRACE);
 
@@ -936,6 +943,7 @@ static void p_list_of_port_identifiers(vlog_node_t mod, v_port_kind_t kind,
       vlog_set_loc(v, &state.last_loc);
 
       vlog_add_decl(mod, v);
+      vlog_symtab_put(symtab, v);
 
       vlog_node_t ref = vlog_new(V_REF);
       vlog_set_loc(ref, CURRENT_LOC);
@@ -967,6 +975,7 @@ static void p_list_of_variable_port_identifiers(vlog_node_t mod,
       vlog_set_loc(v, &state.last_loc);
 
       vlog_add_decl(mod, v);
+      vlog_symtab_put(symtab, v);
 
       vlog_node_t reg = vlog_new(V_VAR_DECL);
       vlog_set_loc(reg, vlog_loc(v));
@@ -974,6 +983,7 @@ static void p_list_of_variable_port_identifiers(vlog_node_t mod,
       vlog_set_type(reg, datatype);
 
       vlog_add_decl(mod, reg);
+      vlog_symtab_put(symtab, reg);
 
       vlog_node_t ref = vlog_new(V_REF);
       vlog_set_loc(ref, CURRENT_LOC);
@@ -1132,6 +1142,8 @@ static vlog_node_t p_select(ident_t id)
                vlog_set_ident(ref, id);
                vlog_set_loc(ref, CURRENT_LOC);
 
+               vlog_symtab_lookup(symtab, ref);
+
                vlog_set_value(ps, ref);
             }
             else
@@ -1146,6 +1158,9 @@ static vlog_node_t p_select(ident_t id)
          if (bs == NULL) {
             bs = vlog_new(V_BIT_SELECT);
             vlog_set_ident(bs, id);
+            vlog_set_loc(bs, CURRENT_LOC);
+
+            vlog_symtab_lookup(symtab, bs);
          }
 
          vlog_add_param(bs, expr);
@@ -1160,6 +1175,8 @@ static vlog_node_t p_select(ident_t id)
       vlog_node_t v = vlog_new(V_REF);
       vlog_set_ident(v, id);
       vlog_set_loc(v, CURRENT_LOC);
+
+      vlog_symtab_lookup(symtab, v);
       return v;
    }
 }
@@ -1933,6 +1950,8 @@ static void p_for_variable_declaration(vlog_node_t parent)
 
       vlog_set_loc(v, CURRENT_LOC);
       vlog_add_decl(parent, v);
+
+      vlog_symtab_put(symtab, v);
    } while (optional(tCOMMA));
 }
 
@@ -2073,6 +2092,8 @@ static vlog_node_t p_loop_statement(void)
       {
          vlog_node_t v = vlog_new(V_FOR_LOOP);
 
+         vlog_symtab_push(symtab, v);
+
          consume(tLPAREN);
 
          if (not_at_token(tSEMI))
@@ -2097,6 +2118,8 @@ static vlog_node_t p_loop_statement(void)
          vlog_node_t s = p_statement_or_null();
          if (s != NULL)
             vlog_add_stmt(v, s);
+
+         vlog_symtab_pop(symtab);
 
          vlog_set_loc(v, CURRENT_LOC);
          return v;
@@ -2346,9 +2369,13 @@ static vlog_node_t p_net_assignment(void)
 
    BEGIN("net assignment");
 
+   vlog_symtab_set_implicit(symtab, implicit_kind);
+
    vlog_node_t v = vlog_new(V_ASSIGN);
    vlog_set_target(v, p_net_lvalue());
    vlog_set_ident(v, ident_uniq("__assign#line%d", state.last_loc.first_line));
+
+   vlog_symtab_set_implicit(symtab, V_NET_NONE);
 
    consume(tEQ);
 
@@ -2417,6 +2444,7 @@ static vlog_node_t p_net_decl_assignment(vlog_net_kind_t kind,
       vlog_set_value(v, p_expression());
 
    vlog_set_loc(v, CURRENT_LOC);
+   vlog_symtab_put(symtab, v);
    return v;
 }
 
@@ -2482,6 +2510,7 @@ static vlog_node_t p_variable_decl_assignment(vlog_node_t datatype)
       vlog_set_value(v, p_expression());
 
    vlog_set_loc(v, CURRENT_LOC);
+   vlog_symtab_put(symtab, v);
    return v;
 }
 
@@ -2590,6 +2619,7 @@ static vlog_node_t p_tf_port_item(void)
    }
 
    vlog_set_loc(v, CURRENT_LOC);
+   vlog_symtab_put(symtab, v);
    return v;
 }
 
@@ -2677,6 +2707,8 @@ static void p_task_body_declaration(vlog_node_t task)
    ident_t id = p_identifier();
    vlog_set_ident(task, id);
 
+   vlog_symtab_push(symtab, task);
+
    if (optional(tLPAREN)) {
       p_tf_port_list(task);
       consume(tRPAREN);
@@ -2703,6 +2735,8 @@ static void p_task_body_declaration(vlog_node_t task)
    }
 
    consume(tENDTASK);
+
+   vlog_symtab_pop(symtab);
 }
 
 static vlog_node_t p_task_declaration(void)
@@ -2745,6 +2779,10 @@ static void p_function_body_declaration(vlog_node_t func)
 
    ident_t id = p_identifier();
    vlog_set_ident(func, id);
+   vlog_set_loc(func, &state.last_loc);
+
+   vlog_symtab_push(symtab, func);
+   vlog_symtab_put(symtab, func);
 
    if (optional(tLPAREN)) {
       p_tf_port_list(func);
@@ -2772,6 +2810,8 @@ static void p_function_body_declaration(vlog_node_t func)
    }
 
    consume(tENDFUNCTION);
+
+   vlog_symtab_pop(symtab);
 }
 
 static vlog_node_t p_function_declaration(void)
@@ -2826,7 +2866,9 @@ static void p_list_of_param_assignments(vlog_node_t parent,
    BEGIN("list of parameter assignments");
 
    do {
-      vlog_add_decl(parent, p_param_assignment(datatype, kind));
+      vlog_node_t v = p_param_assignment(datatype, kind);
+      vlog_symtab_put(symtab, v);
+      vlog_add_decl(parent, v);
    } while (peek_nth(2) == tID && optional(tCOMMA));
 }
 
@@ -3193,12 +3235,19 @@ static vlog_node_t p_pull_gate_instance(vlog_gate_kind_t kind, vlog_node_t st)
    vlog_set_subkind(v, kind);
    vlog_add_param(v, st);
 
-   if (peek() == tID)
+   if (peek() == tID) {
       vlog_set_ident(v, p_identifier());
+      vlog_set_loc(v, &state.last_loc);
+      vlog_symtab_put(symtab, v);
+   }
 
    consume(tLPAREN);
 
+   vlog_symtab_set_implicit(symtab, implicit_kind);
+
    vlog_set_target(v, p_net_lvalue());
+
+   vlog_symtab_set_implicit(symtab, V_NET_NONE);
 
    consume(tRPAREN);
 
@@ -3221,6 +3270,8 @@ static vlog_node_t p_n_terminal_gate_instance(vlog_gate_kind_t kind)
 
    consume(tLPAREN);
 
+   vlog_symtab_set_implicit(symtab, implicit_kind);
+
    vlog_set_target(v, p_net_lvalue());
 
    consume(tCOMMA);
@@ -3228,6 +3279,8 @@ static vlog_node_t p_n_terminal_gate_instance(vlog_gate_kind_t kind)
    do {
       vlog_add_param(v, p_expression());
    } while (optional(tCOMMA));
+
+   vlog_symtab_set_implicit(symtab, V_NET_NONE);
 
    consume(tRPAREN);
 
@@ -3996,12 +4049,16 @@ static void p_list_of_port_connections(vlog_node_t inst)
 
    BEGIN("list of port connections");
 
+   vlog_symtab_set_implicit(symtab, implicit_kind);
+
    do {
       if (peek() == tDOT)
          vlog_add_param(inst, p_named_port_connection());
       else
          vlog_add_param(inst, p_ordered_port_connection());
    } while (optional(tCOMMA));
+
+   vlog_symtab_set_implicit(symtab, V_NET_NONE);
 }
 
 static vlog_node_t p_hierarchical_instance(void)
@@ -4021,6 +4078,7 @@ static vlog_node_t p_hierarchical_instance(void)
    consume(tRPAREN);
 
    vlog_set_loc(v, CURRENT_LOC);
+   vlog_symtab_put(symtab, v);
    return v;
 }
 
@@ -4343,6 +4401,7 @@ static void p_ansi_port_declaration(vlog_node_t mod, v_port_kind_t *kind,
    vlog_set_loc(v, &state.last_loc);
 
    vlog_add_decl(mod, v);
+   vlog_symtab_put(symtab, v);
 
    if (*isreg) {
       vlog_node_t reg = vlog_new(V_VAR_DECL);
@@ -4351,6 +4410,7 @@ static void p_ansi_port_declaration(vlog_node_t mod, v_port_kind_t *kind,
       vlog_set_type(reg, dt);
 
       vlog_add_decl(mod, reg);
+      vlog_symtab_put(symtab, reg);
    }
 
    vlog_node_t ref = vlog_new(V_REF);
@@ -4457,7 +4517,10 @@ static vlog_node_t p_port_reference(void)
 
    BEGIN("port reference");
 
-   return p_constant_select(p_identifier());
+   vlog_node_t v = vlog_new(V_REF);
+   vlog_set_ident(v, p_identifier());
+   vlog_set_loc(v, CURRENT_LOC);
+   return v;
 }
 
 static vlog_node_t p_port_expression(void)
@@ -4532,8 +4595,12 @@ static vlog_node_t p_module_declaration(void)
    p_external_identifier(&id, &ext);
    vlog_set_ident2(mod, id);
 
+   vlog_set_loc(mod, &state.last_loc);
+
    ident_t qual = ident_prefix(lib_name(lib_work()), ext, '.');
    vlog_set_ident(mod, qual);
+
+   vlog_symtab_push(symtab, mod);
 
    if (peek() == tLPAREN && peek_nth(2) == tID)
       p_module_nonansi_header(mod);
@@ -4545,6 +4612,7 @@ static vlog_node_t p_module_declaration(void)
 
    consume(tENDMODULE);
 
+   vlog_symtab_pop(symtab);
    return mod;
 }
 
@@ -4623,6 +4691,7 @@ static void p_list_of_udp_port_identifiers(vlog_node_t udp, v_port_kind_t kind)
       vlog_set_loc(p, &state.last_loc);
 
       vlog_add_decl(udp, p);
+      vlog_symtab_put(symtab, p);
    } while (optional(tCOMMA));
 }
 
@@ -4651,6 +4720,7 @@ static void p_udp_output_declaration(vlog_node_t udp, bool *has_reg)
    vlog_set_loc(v, &state.last_loc);
 
    vlog_add_decl(udp, v);
+   vlog_symtab_put(symtab, v);
 
    if (isreg) {
       vlog_node_t reg = vlog_new(V_VAR_DECL);
@@ -4659,6 +4729,7 @@ static void p_udp_output_declaration(vlog_node_t udp, bool *has_reg)
       vlog_set_type(reg, logic);
 
       vlog_add_decl(udp, reg);
+      vlog_symtab_put(symtab, reg);
 
       *has_reg = true;
    }
@@ -4707,8 +4778,12 @@ static void p_udp_port_declaration(vlog_node_t udp, bool *has_reg)
       p_udp_input_declaration(udp);
       break;
    case tREG:
-      vlog_add_decl(udp, p_udp_reg_declaration());
-      *has_reg = true;
+      {
+         vlog_node_t v = p_udp_reg_declaration();
+         vlog_add_decl(udp, v);
+         vlog_symtab_put(symtab, v);
+         *has_reg = true;
+      }
       break;
    default:
       one_of(tOUTPUT, tINPUT, tREG);
@@ -4995,6 +5070,8 @@ static vlog_node_t p_udp_initial_statement(void)
    vlog_set_ident(ref, p_identifier());
    vlog_set_loc(ref, &state.last_loc);
 
+   vlog_symtab_lookup(symtab, ref);
+
    consume(tEQ);
 
    vlog_node_t v = vlog_new(V_BASSIGN);
@@ -5070,6 +5147,8 @@ static vlog_node_t p_udp_ansi_declaration(bool *has_reg)
    ident_t qual = ident_prefix(lib_name(lib_work()), ext, '.');
    vlog_set_ident(udp, qual);
 
+   vlog_symtab_push(symtab, udp);
+
    consume(tLPAREN);
 
    p_udp_declaration_port_list(udp, has_reg);
@@ -5098,14 +5177,22 @@ static vlog_node_t p_udp_declaration(void)
    if (peek_nth(4) == tID) {
       udp = p_udp_nonansi_declaration();
 
+      vlog_symtab_push(symtab, udp);
+
       do {
          p_udp_port_declaration(udp, &has_reg);
       } while (not_at_token(tTABLE, tINITIAL));
+
+      const int nports = vlog_ports(udp);
+      for (int i = 0; i < nports; i++)
+         vlog_symtab_lookup(symtab, vlog_port(udp, i));
    }
    else
       udp = p_udp_ansi_declaration(&has_reg);
 
    vlog_add_stmt(udp, p_udp_body(has_reg));
+
+   vlog_symtab_pop(symtab);
 
    consume(tENDPRIMITIVE);
 
@@ -5238,12 +5325,23 @@ vlog_node_t vlog_parse(void)
    if (peek() == tEOF)
       return NULL;
 
+   if (symtab == NULL) {
+      symtab = vlog_symtab_new();
+      vlog_symtab_push(symtab, NULL);   // Compilation unit scope
+      vlog_symtab_poison(symtab, error_marker());
+   }
+
    p_directive_list();
 
    make_new_arena();
 
-   if (peek() == tEOF)
+   if (peek() == tEOF) {
+      vlog_symtab_pop(symtab);
+      vlog_symtab_free(symtab);
+      symtab = NULL;
+
       return NULL;
+   }
 
    return p_description();
 }
@@ -5251,4 +5349,10 @@ vlog_node_t vlog_parse(void)
 void reset_verilog_parser(void)
 {
    state.tokenq_head = state.tokenq_tail = 0;
+   implicit_kind = V_NET_WIRE;
+
+   if (symtab != NULL) {
+      vlog_symtab_free(symtab);
+      symtab = NULL;
+   }
 }

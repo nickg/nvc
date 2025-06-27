@@ -18,7 +18,6 @@
 #include "util.h"
 #include "common.h"
 #include "diag.h"
-#include "hash.h"
 #include "ident.h"
 #include "vlog/vlog-node.h"
 #include "vlog/vlog-number.h"
@@ -28,15 +27,6 @@
 #include <assert.h>
 #include <stdlib.h>
 
-typedef struct _vlog_scope vlog_scope_t;
-
-struct _vlog_scope {
-   vlog_scope_t *parent;
-   vlog_node_t   container;
-   hash_t       *symbols;
-};
-
-static vlog_scope_t *top_scope = NULL;
 
 static void name_for_diag(diag_t *d, vlog_node_t v, const char *alt)
 {
@@ -48,27 +38,6 @@ static void name_for_diag(diag_t *d, vlog_node_t v, const char *alt)
       diag_printf(d, "%s", alt);
       break;
    }
-}
-
-static void push_scope(vlog_node_t container)
-{
-   vlog_scope_t *s = xcalloc(sizeof(vlog_scope_t));
-   s->symbols   = hash_new(128);
-   s->container = container;
-   s->parent    = top_scope;
-
-   top_scope = s;
-}
-
-static void pop_scope(void)
-{
-   assert(top_scope != NULL);
-
-   vlog_scope_t *tmp = top_scope;
-   top_scope = top_scope->parent;
-
-   hash_free(tmp->symbols);
-   free(tmp);
 }
 
 static bool has_error(vlog_node_t v)
@@ -90,24 +59,6 @@ static bool constant_equal(vlog_node_t a, vlog_node_t b)
    number_t bn = vlog_number(b);
 
    return number_equal(an, bn);
-}
-
-static void vlog_insert_decl(vlog_node_t v)
-{
-   ident_t id = vlog_ident(v);
-
-   vlog_node_t exist = hash_get(top_scope->symbols, id);
-   if (exist != NULL) {
-      diag_t *d = diag_new(DIAG_ERROR, vlog_loc(v));
-      diag_printf(d, "duplicate declaration of %s", istr(id));
-      diag_hint(d, vlog_loc(exist), "%s was previously declared here",
-                istr(id));
-      diag_hint(d, vlog_loc(v), "duplicate declaration");
-      diag_emit(d);
-      return;
-   }
-
-   hash_put(top_scope->symbols, id, v);
 }
 
 static void vlog_check_const_expr(vlog_node_t expr)
@@ -161,51 +112,7 @@ static void vlog_check_const_expr(vlog_node_t expr)
 
 static void vlog_check_ref(vlog_node_t ref)
 {
-   ident_t id = vlog_ident(ref);
-
-   vlog_node_t decl = hash_get(top_scope->symbols, id);
-   if (decl == NULL) {
-      error_at(vlog_loc(ref), "no visible declaration for %s", istr(id));
-      return;
-   }
-
-   vlog_set_ref(ref, decl);
-}
-
-static void vlog_check_implicit_net(vlog_node_t v)
-{
-   switch (vlog_kind(v)) {
-   case V_REF:
-      {
-         ident_t id = vlog_ident(v);
-
-         vlog_node_t decl = hash_get(top_scope->symbols, id);
-         if (decl == NULL) {
-            // See 1800-2017 section 6.10 "Implicit declarations"
-            decl = vlog_new(V_NET_DECL);
-            vlog_set_ident(decl, id);
-            vlog_set_loc(decl, vlog_loc(v));
-            vlog_set_subkind(decl, V_NET_WIRE);
-
-            vlog_node_t dt = vlog_new(V_DATA_TYPE);
-            vlog_set_subkind(dt, DT_LOGIC);
-
-            vlog_set_type(decl, dt);
-
-            assert(vlog_kind(top_scope->container) == V_MODULE);
-            vlog_add_decl(top_scope->container, decl);
-
-            hash_put(top_scope->symbols, id, decl);
-         }
-
-         vlog_set_ref(v, decl);
-      }
-      break;
-
-   default:
-      vlog_check(v);
-      break;
-   }
+   assert(vlog_has_ref(ref) || error_count() > 0);
 }
 
 static void vlog_check_number(vlog_node_t num)
@@ -304,7 +211,7 @@ static void vlog_check_net_lvalue(vlog_node_t v, vlog_node_t where)
 static void vlog_check_assign(vlog_node_t stmt)
 {
    vlog_node_t target = vlog_target(stmt);
-   vlog_check_implicit_net(target);
+   vlog_check(target);
 
    vlog_node_t value = vlog_value(stmt);
    vlog_check(value);
@@ -354,8 +261,6 @@ static void vlog_check_initial(vlog_node_t initial)
 
 static void vlog_check_block(vlog_node_t v)
 {
-   // TODO: push/pop scope
-
    const int ndecls = vlog_decls(v);
    for (int i = 0; i < ndecls; i++)
       vlog_check(vlog_decl(v, i));
@@ -438,54 +343,22 @@ static void vlog_check_port_decl(vlog_node_t port)
 {
    vlog_check(vlog_type(port));
 
-   ident_t id = vlog_ident(port);
-   vlog_node_t exist = hash_get(top_scope->symbols, id);
-   if (exist != NULL) {
-      const vlog_kind_t kind = vlog_kind(exist);
-      if (kind == V_VAR_DECL || kind == V_NET_DECL) {
-         vlog_set_ref(port, exist);
-         vlog_check_consistent(exist, port);
-         hash_put(top_scope->symbols, id, port);
-         return;
-      }
-   }
-
-   vlog_insert_decl(port);
+   if (vlog_has_ref(port))
+      vlog_check_consistent(port, vlog_ref(port));
 }
 
 static void vlog_check_net_decl(vlog_node_t net)
 {
    vlog_check(vlog_type(net));
-
-   vlog_node_t exist = hash_get(top_scope->symbols, vlog_ident(net));
-   if (exist != NULL && vlog_kind(exist) == V_PORT_DECL
-       && !vlog_has_ref(exist)) {
-      vlog_set_ref(exist, net);
-      vlog_check_consistent(exist, net);
-   }
-   else
-      vlog_insert_decl(net);
 }
 
 static void vlog_check_var_decl(vlog_node_t var)
 {
    vlog_check(vlog_type(var));
-
-   vlog_node_t exist = hash_get(top_scope->symbols, vlog_ident(var));
-   if (exist != NULL && vlog_kind(exist) == V_PORT_DECL
-       && !vlog_has_ref(exist)) {
-      vlog_set_ref(exist, var);
-      vlog_check_consistent(exist, var);
-   }
-   else
-      vlog_insert_decl(var);
 }
 
 static void vlog_check_module(vlog_node_t module)
 {
-   assert(top_scope == NULL);
-   push_scope(module);
-
    const int ndecls = vlog_decls(module);
    for (int i = 0; i < ndecls; i++)
       vlog_check(vlog_decl(module, i));
@@ -497,15 +370,10 @@ static void vlog_check_module(vlog_node_t module)
    const int nstmts = vlog_stmts(module);
    for (int i = 0; i < nstmts; i++)
       vlog_check(vlog_stmt(module, i));
-
-   pop_scope();
 }
 
 static void vlog_check_primitive(vlog_node_t udp)
 {
-   assert(top_scope == NULL);
-   push_scope(udp);
-
    const int ndecls = vlog_decls(udp);
    for (int i = 0; i < ndecls; i++)
       vlog_check(vlog_decl(udp, i));
@@ -559,22 +427,18 @@ static void vlog_check_primitive(vlog_node_t udp)
          break;
       }
    }
-
-   pop_scope();
 }
 
 static void vlog_check_gate_inst(vlog_node_t g)
 {
    vlog_node_t target = vlog_target(g);
-   vlog_check_implicit_net(target);
+   vlog_check(target);
 
    const int nparams = vlog_params(g);
    for (int i = 0; i < nparams; i++)
-      vlog_check_implicit_net(vlog_param(g, i));
+      vlog_check(vlog_param(g, i));
 
-   if (vlog_has_ident(g))
-      vlog_insert_decl(g);
-   else
+   if (!vlog_has_ident(g))  // XXX: move to parser
       vlog_set_ident(g, ident_uniq("#gate"));
 }
 
@@ -583,8 +447,6 @@ static void vlog_check_mod_inst(vlog_node_t inst)
    const int nparams = vlog_params(inst);
    for (int i = 0; i < nparams; i++)
       vlog_check(vlog_param(inst, i));
-
-   vlog_insert_decl(inst);
 }
 
 static void vlog_check_inst_list(vlog_node_t v)
@@ -655,15 +517,11 @@ static void vlog_check_enum_decl(vlog_node_t spec)
 
 static void vlog_check_struct_union_decl(vlog_node_t decl)
 {
-   push_scope(decl);
-
    const int ndecls = vlog_decls(decl);
    for (int i = 0; i < ndecls; i++) {
       vlog_node_t d = vlog_decl(decl, i);
       vlog_check(d);
    }
-
-   pop_scope();
 }
 
 static void vlog_check_wait(vlog_node_t stmt)
@@ -677,8 +535,6 @@ static void vlog_check_wait(vlog_node_t stmt)
 
 static void vlog_check_param_decl(vlog_node_t decl)
 {
-   vlog_insert_decl(decl);
-
    if (vlog_has_value(decl))
       vlog_check(vlog_value(decl));
    else if (vlog_kind(decl) == V_LOCALPARAM)
@@ -760,7 +616,7 @@ static void vlog_check_case(vlog_node_t v)
 static void vlog_check_port_conn(vlog_node_t v)
 {
    if (vlog_has_value(v))
-      vlog_check_implicit_net(vlog_value(v));
+      vlog_check(vlog_value(v));
 }
 
 static void vlog_check_param_assign(vlog_node_t v)
@@ -771,8 +627,6 @@ static void vlog_check_param_assign(vlog_node_t v)
 
 static void vlog_check_func_decl(vlog_node_t v)
 {
-   push_scope(v);
-
    const int ndecls = vlog_decls(v);
    for (int i = 0; i < ndecls; i++)
       vlog_check(vlog_decl(v, i));
@@ -780,8 +634,6 @@ static void vlog_check_func_decl(vlog_node_t v)
    const int nstmts = vlog_stmts(v);
    for (int i = 0; i < nstmts; i++)
       vlog_check(vlog_stmt(v, i));
-
-   pop_scope();
 }
 
 static void vlog_check_user_fcall(vlog_node_t v)

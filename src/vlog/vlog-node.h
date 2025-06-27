@@ -33,6 +33,7 @@ typedef enum {
 } v_port_kind_t;
 
 typedef enum {
+   V_NET_NONE,
    V_NET_WIRE,
    V_NET_SUPPLY0,
    V_NET_SUPPLY1,

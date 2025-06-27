@@ -1,6 +1,6 @@
 module parse1;
   wire [8:0] x, y, z;
-  reg        z;
+  reg        zz;
   assign y = x;
   always begin : foo
     $display("hello");
@@ -52,7 +52,7 @@ module parse1;
     x = x - y * x + 1 % y / x;
     x = x ** y;
   end
-  parameter x = 6;
+  parameter xx = 6;
   integer   r2 = 66;
   real      r3 = 1.0;
   shortreal r4 = 6.7;
@@ -66,8 +66,8 @@ module parse1;
     for (int i = 0; i > 0; --i);
     for (var reg x = 5;;);
   end
-  localparam [7:0] y = 5;
-  localparam bit z = 0;
+  localparam [7:0] yy = 5;
+  localparam bit zzz = 0;
   wire [y-1:0]  w2;
   reg [7:0]     array1 [31:0];
   wire [3:0]    array2 [6:0];

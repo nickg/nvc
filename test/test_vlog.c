@@ -139,6 +139,7 @@ START_TEST(test_ports)
 {
    const error_t expect[] = {
       {  4, "duplicate declaration of y" },
+      { 11, "no visible declaration for y" },
       { 19, "duplicate declaration of x" },
       { 22, "duplicate declaration of y" },
       { 31, "'o3' cannot be assigned in a procedural block" },
@@ -173,7 +174,7 @@ START_TEST(test_parse1)
    fail_unless(vlog_kind(m) == V_MODULE);
    ck_assert_int_eq(vlog_stmts(m), 29);
    ck_assert_int_eq(vlog_ports(m), 0);
-   ck_assert_int_eq(vlog_decls(m), 20);
+   ck_assert_int_eq(vlog_decls(m), 21);
 
    vlog_node_t x = vlog_decl(m, 0);
    fail_unless(vlog_kind(x) == V_NET_DECL);
@@ -296,10 +297,10 @@ START_TEST(test_parse1)
    ck_assert_int_eq(vlog_ranges(d17), 1);
    fail_unless(vlog_subkind(vlog_range(d17, 0)) == V_DIM_UNPACKED);
 
-   vlog_node_t d19 = vlog_decl(m, 19);
-   fail_unless(vlog_kind(d19) == V_VAR_DECL);
-   vlog_node_t d19t = vlog_type(d19);
-   fail_unless(vlog_subkind(d19t) == DT_EVENT);
+   vlog_node_t d20 = vlog_decl(m, 20);
+   fail_unless(vlog_kind(d20) == V_VAR_DECL);
+   vlog_node_t d20t = vlog_type(d20);
+   fail_unless(vlog_subkind(d20t) == DT_EVENT);
 
    vlog_node_t s10 = vlog_stmt(m, 16);
    fail_unless(vlog_kind(s10) == V_ALWAYS);
@@ -546,9 +547,9 @@ START_TEST(test_udp1)
    input_from_file(TESTDIR "/vlog/udp1.v");
 
    const error_t expect[] = {
+      { 13, "no visible declaration for z" },
       { 13, "the first port of a primitive must be an output" },
       { 13, "all ports of a primitive except the first must be inputs" },
-      { 13, "no visible declaration for z" },
       { 25, "expected 3 symbols in UDP table entry but have 2" },
       { 58, "a sequential input list may have at most one edge indicator" },
       { -1, NULL }
