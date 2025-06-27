@@ -112,6 +112,8 @@ static void build_sensitivity(vlog_node_t ctrl, vlog_node_t v)
       build_sensitivity(ctrl, vlog_right(v));
       break;
    case V_REF:
+   case V_BIT_SELECT:
+   case V_PART_SELECT:
       {
          vlog_node_t e = vlog_new(V_EVENT);
          vlog_set_subkind(e, V_EVENT_LEVEL);
@@ -123,15 +125,45 @@ static void build_sensitivity(vlog_node_t ctrl, vlog_node_t v)
       break;
    case V_NUMBER:
       break;
+   case V_IF:
+      {
+         const int nconds = vlog_conds(v);
+         for (int i = 0; i < nconds; i++)
+            build_sensitivity(ctrl, vlog_cond(v, i));
+      }
+      break;
+   case V_COND:
+      {
+         if (vlog_has_value(v))
+            build_sensitivity(ctrl, vlog_value(v));
+
+         const int nstmts = vlog_stmts(v);
+         for (int i = 0; i < nstmts; i++)
+            build_sensitivity(ctrl, vlog_stmt(v, i));
+      }
+      break;
    case V_CASE:
       build_sensitivity(ctrl, vlog_value(v));
       // Fall-through
    case V_CASE_ITEM:
+   case V_BLOCK:
       {
          const int nstmts = vlog_stmts(v);
          for (int i = 0; i < nstmts; i++)
             build_sensitivity(ctrl, vlog_stmt(v, i));
       }
+      break;
+   case V_CONCAT:
+      {
+         const int nparams = vlog_params(v);
+         for (int i = 0; i < nparams; i++)
+            build_sensitivity(ctrl, vlog_param(v, i));
+      }
+      break;
+   case V_COND_EXPR:
+      build_sensitivity(ctrl, vlog_value(v));
+      build_sensitivity(ctrl, vlog_left(v));
+      build_sensitivity(ctrl, vlog_right(v));
       break;
    default:
       fatal_at(vlog_loc(v), "cannot handle %s in build_sensitivity",

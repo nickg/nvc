@@ -282,8 +282,10 @@ static void vlog_check_bit_select(vlog_node_t v)
 
 static void vlog_check_part_select(vlog_node_t v)
 {
-   vlog_node_t left = vlog_left(v);
-   vlog_check_const_expr(left);
+   if (vlog_subkind(v) == V_RANGE_CONST) {
+      vlog_node_t left = vlog_left(v);
+      vlog_check_const_expr(left);
+   }
 
    vlog_node_t right = vlog_right(v);
    vlog_check_const_expr(right);
