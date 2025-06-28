@@ -6757,6 +6757,18 @@ START_TEST(test_issue1199)
 }
 END_TEST
 
+START_TEST(test_issue1208)
+{
+   set_standard(STD_19);
+
+   input_from_file(TESTDIR "/lower/issue1208.vhd");
+
+   run_elab();
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_lower_tests(void)
 {
    Suite *s = suite_create("lower");
@@ -6912,6 +6924,7 @@ Suite *get_lower_tests(void)
    tcase_add_test(tc, test_issue1194);
    tcase_add_test(tc, test_issue1196);
    tcase_add_test(tc, test_issue1199);
+   tcase_add_test(tc, test_issue1208);
    suite_add_tcase(s, tc);
 
    return s;

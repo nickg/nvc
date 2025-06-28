@@ -11535,6 +11535,42 @@ static void lower_inertial_actual(lower_unit_t *parent, tree_t dst,
    emit_process_init(pname, lower_debug_locus(actual));
 }
 
+static tree_t lower_get_view(tree_t name, port_mode_t *mode, bool *converse)
+{
+   switch (tree_kind(name)) {
+   case T_REF:
+      {
+         tree_t port = tree_ref(name);
+         assert(tree_kind(port) == T_PORT_DECL);
+
+         *mode = tree_subkind(port);
+         return tree_value(port);
+      }
+   case T_RECORD_REF:
+      {
+         tree_t view = lower_get_view(tree_value(name), mode, converse);
+         if (view == NULL)
+            return NULL;
+
+         tree_t elem = find_element_mode_indication(view, tree_ref(name),
+                                                    converse);
+         assert(elem != NULL);
+
+         *mode = converse_mode(elem, *converse);
+
+         if (*mode == PORT_ARRAY_VIEW || *mode == PORT_RECORD_VIEW)
+            return tree_value(elem);
+         else
+            return NULL;
+      }
+   case T_ARRAY_REF:
+   case T_ARRAY_SLICE:
+      return lower_get_view(tree_value(name), mode, converse);
+   default:
+      should_not_reach_here();
+   }
+}
+
 static void lower_port_map(lower_unit_t *lu, tree_t block, tree_t map,
                            vcode_reg_t value_reg)
 {
@@ -11591,28 +11627,8 @@ static void lower_port_map(lower_unit_t *lu, tree_t block, tree_t map,
          mode = tree_subkind(port);
 
          if (mode == PORT_ARRAY_VIEW || mode == PORT_RECORD_VIEW) {
-            view = tree_value(port);
-
-            // Adjust view for partial association
             bool converse = false;
-            for (tree_t it = name; tree_kind(it) == T_RECORD_REF;
-                 it = tree_value(it)) {
-               tree_t elem = find_element_mode_indication(view, tree_ref(it),
-                                                          &converse);
-               if (elem == NULL)
-                  fatal_at(tree_loc(it), "missing element mode indication for "
-                           "field %s type %s view %s", istr(tree_ident(it)),
-                           type_pp(tree_type(tree_value(it))),
-                           istr(tree_ident(view)));  // Debug for issue #1208
-               assert(elem != NULL);
-
-               mode = converse_mode(elem, converse);
-
-               if (mode != PORT_ARRAY_VIEW && mode != PORT_RECORD_VIEW)
-                  break;
-
-               view = tree_value(elem);
-            }
+            view = lower_get_view(name, &mode, &converse);
          }
 
          port_reg = lower_lvalue(lu, name);
