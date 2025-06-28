@@ -671,6 +671,7 @@ BEFORE            ?i:before
 <VLOG>"!=="              { return tCASENEQ; }
 <VLOG>"||"               { return tLOGOR; }
 <VLOG>"&&"               { return tDBLAMP; }
+<VLOG>"&&&"              { return tTRPLAMP; }
 <VLOG>"<<"               { return tSHIFTLL; }
 <VLOG>">>"               { return tSHIFTRL; }
 <VLOG>"<<<"              { return tSHIFTLA; }

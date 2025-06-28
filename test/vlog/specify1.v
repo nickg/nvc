@@ -24,10 +24,10 @@ module test1(a, b, c, d);
     (a[1],b,c -*> u,v,w) = 2.5;
     (a[1] -*> u,v,w) = 2.5;
 
-    $setup(a, clk, 0.5);
-    $setup(b, clk, 0.4,);
-    $setup(c, clk, 0.4, notifier);
-    $hold (clk, a, 0.1);
+    $setup(a &&& b == 1, clk, 0.5);
+    $setup(b &&& ~c, clk, 0.4,);
+    $setup(c, clk &&& a !== 1'b0, 0.4, notifier);
+    $hold (clk, a &&& (b), 0.1);
     $hold (clk, b, 0.2,);
     $hold (clk, c, 0.2, notifier);
     $recovery(rst, d, 0.5);
