@@ -1374,30 +1374,32 @@ static vlog_binary_t p_binary_operator(void)
    switch (one_of(tBAR, tPLUS, tAMP, tCASEEQ, tCASENEQ, tLOGOR,
                   tLOGEQ, tLOGNEQ, tDBLAMP, tSHIFTLL, tSHIFTRL,
                   tSHIFTLA, tSHIFTRA, tLT, tGT, tLE, tGE, tMINUS,
-                  tTIMES, tOVER, tPERCENT, tPOWER)) {
-   case tBAR:     return V_BINARY_OR;
-   case tAMP:     return V_BINARY_AND;
-   case tCASEEQ:  return V_BINARY_CASE_EQ;
-   case tCASENEQ: return V_BINARY_CASE_NEQ;
-   case tLOGEQ:   return V_BINARY_LOG_EQ;
-   case tLOGNEQ:  return V_BINARY_LOG_NEQ;
-   case tLOGOR:   return V_BINARY_LOG_OR;
-   case tDBLAMP:  return V_BINARY_LOG_AND;
-   case tSHIFTLL: return V_BINARY_SHIFT_LL;
-   case tSHIFTRL: return V_BINARY_SHIFT_RL;
-   case tSHIFTLA: return V_BINARY_SHIFT_LA;
-   case tSHIFTRA: return V_BINARY_SHIFT_RA;
-   case tLT:      return V_BINARY_LT;
-   case tGT:      return V_BINARY_GT;
-   case tLE:      return V_BINARY_LEQ;
-   case tGE:      return V_BINARY_GEQ;
-   case tMINUS:   return V_BINARY_MINUS;
-   case tTIMES:   return V_BINARY_TIMES;
-   case tOVER:    return V_BINARY_DIVIDE;
-   case tPERCENT: return V_BINARY_MOD;
-   case tPOWER:   return V_BINARY_EXP;
+                  tTIMES, tOVER, tPERCENT, tPOWER, tCARET, tTILDECARET)) {
+   case tBAR:        return V_BINARY_OR;
+   case tAMP:        return V_BINARY_AND;
+   case tCASEEQ:     return V_BINARY_CASE_EQ;
+   case tCASENEQ:    return V_BINARY_CASE_NEQ;
+   case tLOGEQ:      return V_BINARY_LOG_EQ;
+   case tLOGNEQ:     return V_BINARY_LOG_NEQ;
+   case tLOGOR:      return V_BINARY_LOG_OR;
+   case tDBLAMP:     return V_BINARY_LOG_AND;
+   case tSHIFTLL:    return V_BINARY_SHIFT_LL;
+   case tSHIFTRL:    return V_BINARY_SHIFT_RL;
+   case tSHIFTLA:    return V_BINARY_SHIFT_LA;
+   case tSHIFTRA:    return V_BINARY_SHIFT_RA;
+   case tLT:         return V_BINARY_LT;
+   case tGT:         return V_BINARY_GT;
+   case tLE:         return V_BINARY_LEQ;
+   case tGE:         return V_BINARY_GEQ;
+   case tMINUS:      return V_BINARY_MINUS;
+   case tTIMES:      return V_BINARY_TIMES;
+   case tOVER:       return V_BINARY_DIVIDE;
+   case tPERCENT:    return V_BINARY_MOD;
+   case tPOWER:      return V_BINARY_EXP;
+   case tCARET:      return V_BINARY_XOR;
+   case tTILDECARET: return V_BINARY_XNOR;
    case tPLUS:
-   default:       return V_BINARY_PLUS;
+   default:          return V_BINARY_PLUS;
    }
 }
 
@@ -1517,29 +1519,31 @@ static bool peek_binary_operator(int *prec)
    // See LRM 1800-2017 section 11.3.2 for operator precedence table
 
    switch (peek()) {
-   case tPOWER:    *prec = 12; return true;
+   case tPOWER:      *prec = 12; return true;
    case tTIMES:
    case tOVER:
-   case tPERCENT:  *prec = 11; return true;
+   case tPERCENT:    *prec = 11; return true;
    case tPLUS:
-   case tMINUS:    *prec = 10; return true;
+   case tMINUS:      *prec = 10; return true;
    case tSHIFTLL:
    case tSHIFTRL:
    case tSHIFTLA:
-   case tSHIFTRA:  *prec = 9;  return true;
+   case tSHIFTRA:    *prec = 9;  return true;
    case tLT:
    case tGT:
    case tLE:
-   case tGE:       *prec = 8;  return true;
+   case tGE:         *prec = 8;  return true;
    case tCASEEQ:
    case tCASENEQ:
    case tLOGEQ:
-   case tLOGNEQ:   *prec = 7;  return true;
-   case tAMP:      *prec = 6;  return true;
-   case tBAR:      *prec = 4;  return true;
-   case tDBLAMP:   *prec = 3;  return true;
-   case tLOGOR:    *prec = 2;  return true;
-   case tQUESTION: *prec = 1;  return true;
+   case tLOGNEQ:     *prec = 7;  return true;
+   case tAMP:        *prec = 6;  return true;
+   case tTILDECARET:
+   case tCARET:      *prec = 5;  return true;
+   case tBAR:        *prec = 4;  return true;
+   case tDBLAMP:     *prec = 3;  return true;
+   case tLOGOR:      *prec = 2;  return true;
+   case tQUESTION:   *prec = 1;  return true;
    default:
       return false;
    }
@@ -2438,11 +2442,14 @@ static vlog_net_kind_t p_net_type(void)
 
    BEGIN("net type");
 
-   switch (one_of(tWIRE, tSUPPLY0, tSUPPLY1)) {
+   switch (one_of(tWIRE, tSUPPLY0, tSUPPLY1, tTRI, tTRIAND, tTRIOR)) {
    case tSUPPLY0: return V_NET_SUPPLY0;
    case tSUPPLY1: return V_NET_SUPPLY1;
+   case tTRI:     return V_NET_TRI;
+   case tTRIAND:  return V_NET_TRIAND;
+   case tTRIOR:   return V_NET_TRIOR;
    case tWIRE:
-   default: return V_NET_WIRE;
+   default:       return V_NET_WIRE;
    }
 }
 
@@ -2972,6 +2979,9 @@ static void p_package_or_generate_item_declaration(vlog_node_t mod)
    case tWIRE:
    case tSUPPLY0:
    case tSUPPLY1:
+   case tTRI:
+   case tTRIAND:
+   case tTRIOR:
       p_net_declaration(mod);
       break;
    case tREG:
@@ -3157,6 +3167,9 @@ static void p_module_common_item(vlog_node_t mod)
    case tWIRE:
    case tSUPPLY0:
    case tSUPPLY1:
+   case tTRI:
+   case tTRIAND:
+   case tTRIOR:
    case tREG:
    case tSTRUCT:
    case tUNION:
@@ -3183,9 +3196,9 @@ static void p_module_common_item(vlog_node_t mod)
       break;
    default:
       one_of(tALWAYS, tALWAYSCOMB, tALWAYSFF, tALWAYSLATCH, tWIRE, tSUPPLY0,
-             tSUPPLY1, tREG, tSTRUCT, tUNION, tTYPEDEF, tENUM, tSVINT,
-             tINTEGER, tSVREAL, tSHORTREAL, tREALTIME, tTIME, tTASK, tFUNCTION,
-             tPARAMETER, tLOCALPARAM, tASSIGN, tIF, tEVENT);
+             tSUPPLY1, tTRI, tTRIAND, tTRIOR, tREG, tSTRUCT, tUNION, tTYPEDEF,
+             tENUM, tSVINT, tINTEGER, tSVREAL, tSHORTREAL, tREALTIME, tTIME,
+             tTASK, tFUNCTION, tPARAMETER, tLOCALPARAM, tASSIGN, tIF, tEVENT);
       drop_tokens_until(tSEMI);
    }
 }
@@ -4382,6 +4395,9 @@ static void p_module_or_generate_item(vlog_node_t mod)
    case tWIRE:
    case tSUPPLY0:
    case tSUPPLY1:
+   case tTRI:
+   case tTRIAND:
+   case tTRIOR:
    case tREG:
    case tSTRUCT:
    case tUNION:
@@ -4420,11 +4436,11 @@ static void p_module_or_generate_item(vlog_node_t mod)
       break;
    default:
       one_of(tALWAYS, tALWAYSCOMB, tALWAYSFF, tALWAYSLATCH, tWIRE, tSUPPLY0,
-             tSUPPLY1, tREG, tSTRUCT, tUNION, tASSIGN, tINITIAL, tTYPEDEF,
-             tENUM, tSVINT, tINTEGER, tSVREAL, tSHORTREAL, tREALTIME, tTIME,
-             tTASK, tFUNCTION, tLOCALPARAM, tPARAMETER, tIF, tPULLDOWN,
-             tPULLUP, tID, tAND, tNAND, tOR, tNOR, tXOR, tXNOR, tNOT, tBUF,
-             tEVENT);
+             tSUPPLY1, tTRI, tTRIAND, tTRIOR, tREG, tSTRUCT, tUNION, tASSIGN,
+             tINITIAL, tTYPEDEF, tENUM, tSVINT, tINTEGER, tSVREAL, tSHORTREAL,
+             tREALTIME, tTIME, tTASK, tFUNCTION, tLOCALPARAM, tPARAMETER, tIF,
+             tPULLDOWN, tPULLUP, tID, tAND, tNAND, tOR, tNOR, tXOR, tXNOR, tNOT,
+             tBUF, tEVENT);
       drop_tokens_until(tSEMI);
    }
 }
@@ -4463,6 +4479,9 @@ static void p_non_port_module_item(vlog_node_t mod)
    case tWIRE:
    case tSUPPLY0:
    case tSUPPLY1:
+   case tTRI:
+   case tTRIAND:
+   case tTRIOR:
    case tREG:
    case tSTRUCT:
    case tUNION:
@@ -4504,11 +4523,11 @@ static void p_non_port_module_item(vlog_node_t mod)
       break;
    default:
       one_of(tALWAYS, tALWAYSCOMB, tALWAYSFF, tALWAYSLATCH, tWIRE, tSUPPLY0,
-             tSUPPLY1, tREG, tSTRUCT, tUNION, tASSIGN, tPULLDOWN, tPULLUP,
-             tID, tATTRBEGIN, tAND, tNAND, tOR, tNOR, tXOR, tXNOR, tNOT,
-             tBUF, tTYPEDEF, tENUM, tSVINT, tINTEGER, tSVREAL, tSHORTREAL,
-             tREALTIME, tTIME, tTASK, tFUNCTION, tLOCALPARAM, tPARAMETER,
-             tEVENT, tIF, tSPECIFY, tGENERATE);
+             tSUPPLY1, tTRI, tTRIAND, tTRIOR, tREG, tSTRUCT, tUNION, tASSIGN,
+             tPULLDOWN, tPULLUP, tID, tATTRBEGIN, tAND, tNAND, tOR, tNOR, tXOR,
+             tXNOR, tNOT, tBUF, tTYPEDEF, tENUM, tSVINT, tINTEGER, tSVREAL,
+             tSHORTREAL, tREALTIME, tTIME, tTASK, tFUNCTION, tLOCALPARAM,
+             tPARAMETER, tEVENT, tIF, tSPECIFY, tGENERATE);
       drop_tokens_until(tSEMI);
    }
 }
@@ -4588,6 +4607,9 @@ static void p_list_of_port_declarations(vlog_node_t mod)
       v_port_kind_t kind = V_PORT_INPUT;
       bool isreg = false;
       do {
+         while (peek() == tATTRBEGIN)
+            p_attribute_instance();
+
          p_ansi_port_declaration(mod, &kind, &isreg);
       } while (optional(tCOMMA));
    }

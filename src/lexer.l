@@ -532,8 +532,6 @@ BEFORE            ?i:before
 <*>"="                   { TOKEN(tEQ); }
 <*>"#"                   { TOKEN(tHASH); }
 <*>"~"                   { TOKEN(tTILDE); }
-<*>"[["                  { TOKEN(t2LSQUARE); }
-<*>"]]"                  { TOKEN(t2RSQUARE); }
 <*>"^"                   { TOKEN(tCARET); }
 
 <INITIAL,PSL>"!"         { TOKEN(tBAR); }
@@ -552,6 +550,8 @@ BEFORE            ?i:before
 <INITIAL,PSL>"?="        { TOKEN_08(tMEQ); }
 <INITIAL,PSL>"<<"        { TOKEN(tLTLT); }
 <INITIAL,PSL>">>"        { TOKEN(tGTGT); }
+<INITIAL,PSL>"[["        { TOKEN(t2LSQUARE); }
+<INITIAL,PSL>"]]"        { TOKEN(t2RSQUARE); }
 
 <INITIAL,PSL,VLOG>"<="   { TOKEN(tLE); }
 <INITIAL,PSL,VLOG>">="   { TOKEN(tGE); }
@@ -684,6 +684,8 @@ BEFORE            ?i:before
 <VLOG>"+:"               { return tINDEXPOS; }
 <VLOG>"-:"               { return tINDEXNEG; }
 <VLOG>"**"               { return tPOWER; }
+<VLOG>"^"                { return tCARET; }
+<VLOG>("~^"|"^~")        { return tTILDECARET; }
 <VLOG>"var"              { return tVAR; }
 <VLOG>"specify"          { return tSPECIFY; }
 <VLOG>"endspecify"       { return tENDSPECIFY; }

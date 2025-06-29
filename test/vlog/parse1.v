@@ -102,4 +102,13 @@ module parse1;
     else min = b;
   endfunction // min
   time t1;
+  initial begin
+    x = y ^ z;
+    x = y ~^ z;
+    x = y ^~ z;
+  end
+  triand w4;
+  trior  w5;
+  (* foo=1 *) tri w6 = w5;
+  assign x = array1[array2[y]];
 endmodule // parse1

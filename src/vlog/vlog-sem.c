@@ -417,6 +417,7 @@ static vlog_node_t vlog_check_cb(vlog_node_t v, void *ctx)
    case V_PARAM_DECL:
    case V_SPECPARAM:
    case V_FOREVER:
+   case V_REPEAT:
    case V_TYPE_DECL:
    case V_DATA_TYPE:
    case V_SPECIFY:

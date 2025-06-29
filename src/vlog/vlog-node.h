@@ -37,6 +37,9 @@ typedef enum {
    V_NET_WIRE,
    V_NET_SUPPLY0,
    V_NET_SUPPLY1,
+   V_NET_TRI,
+   V_NET_TRIAND,
+   V_NET_TRIOR,
 } vlog_net_kind_t;
 
 typedef enum {
@@ -181,6 +184,8 @@ typedef enum {
    V_BINARY_LEQ,
    V_BINARY_GEQ,
    V_BINARY_EXP,
+   V_BINARY_XOR,
+   V_BINARY_XNOR,
 } vlog_binary_t;
 
 typedef enum {
