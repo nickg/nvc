@@ -3778,6 +3778,35 @@ static void p_timing_check_event_control(void)
    one_of(tPOSEDGE, tNEGEDGE, tEDGE);
 }
 
+static void p_scalar_timing_check_condition(void)
+{
+   //    expression
+   // | ~ expression
+   // | expression == scalar_constant
+   // | expression === scalar_constant
+   // | expression != scalar_constant
+   // | expression !== scalar_constant
+
+   BEGIN("scalar timing check condition")
+
+   p_expression();
+}
+
+static void p_timing_check_condition(void)
+{
+   //     scalar_timing_check_condition
+   // | ( scalar_timing_check_condition )
+
+   BEGIN("timing check condition");
+
+   if (optional(tLPAREN)) {
+      p_scalar_timing_check_condition();
+      consume(tRPAREN);
+   }
+   else
+      p_scalar_timing_check_condition();
+}
+
 static vlog_node_t p_timing_check_event(void)
 {
    // [ timing_check_event_control ] specify_terminal_descriptor
@@ -3789,6 +3818,9 @@ static vlog_node_t p_timing_check_event(void)
       p_timing_check_event_control();
 
    (void)p_specify_terminal_descriptor();
+
+   if (optional(tTRPLAMP))
+      p_timing_check_condition();
 
    return NULL;
 }
@@ -3803,6 +3835,9 @@ static vlog_node_t p_controlled_timing_check_event(void)
    p_timing_check_event_control();
 
    (void)p_specify_terminal_descriptor();
+
+   if (optional(tTRPLAMP))
+      p_timing_check_condition();
 
    return NULL;
 }
