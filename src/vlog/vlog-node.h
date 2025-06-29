@@ -35,6 +35,7 @@ typedef enum {
 typedef enum {
    V_NET_NONE,
    V_NET_WIRE,
+   V_NET_UWIRE,
    V_NET_SUPPLY0,
    V_NET_SUPPLY1,
    V_NET_TRI,
@@ -130,6 +131,7 @@ typedef enum {
    V_UDP_LEVEL,
    V_UDP_EDGE,
    V_SPECPARAM,
+   V_FORK,
 
    V_LAST_NODE_KIND
 } vlog_kind_t;

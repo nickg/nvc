@@ -1862,6 +1862,37 @@ static vlog_node_t p_seq_block(void)
    return v;
 }
 
+static vlog_node_t p_par_block(void)
+{
+   // fork [ : block_identifier ] { block_item_declaration }
+   //   { statement_or_null } join_keyword [ : block_identifier ]
+
+   BEGIN("parallel block");
+
+   consume(tFORK);
+
+   vlog_node_t v = vlog_new(V_FORK);
+   vlog_set_loc(v, CURRENT_LOC);
+
+   vlog_symtab_push(symtab, v);
+
+   if (optional(tCOLON))
+      vlog_set_ident(v, p_identifier());
+
+   while (not_at_token(tJOIN)) {
+      vlog_node_t s = p_statement_or_null();
+      if (s != NULL)
+         vlog_add_stmt(v, s);
+   }
+
+   vlog_symtab_pop(symtab);
+
+   consume(tJOIN);
+
+   vlog_set_loc(v, CURRENT_LOC);
+   return v;
+}
+
 static vlog_node_t p_subroutine_call_statement(void)
 {
    // subroutine_call ; | void ' ( function_subroutine_call ) ;
@@ -2293,6 +2324,8 @@ static vlog_node_t p_statement_item(void)
       return p_procedural_timing_control_statement();
    case tBEGIN:
       return p_seq_block();
+   case tFORK:
+      return p_par_block();
    case tSYSTASK:
       return p_subroutine_call_statement();
    case tIF:
@@ -2312,8 +2345,8 @@ static vlog_node_t p_statement_item(void)
    case tIFIMPL:
       return p_event_trigger();
    default:
-      one_of(tID, tAT, tHASH, tBEGIN, tSYSTASK, tIF, tFOREVER, tWHILE, tREPEAT,
-             tDO, tFOR, tWAIT, tCASE, tCASEX, tCASEZ, tIFIMPL);
+      one_of(tID, tAT, tHASH, tBEGIN, tFORK, tSYSTASK, tIF, tFOREVER, tWHILE,
+             tREPEAT, tDO, tFOR, tWAIT, tCASE, tCASEX, tCASEZ, tIFIMPL);
       drop_tokens_until(tSEMI);
       return NULL;
    }
@@ -2442,12 +2475,13 @@ static vlog_net_kind_t p_net_type(void)
 
    BEGIN("net type");
 
-   switch (one_of(tWIRE, tSUPPLY0, tSUPPLY1, tTRI, tTRIAND, tTRIOR)) {
+   switch (one_of(tWIRE, tUWIRE, tSUPPLY0, tSUPPLY1, tTRI, tTRIAND, tTRIOR)) {
    case tSUPPLY0: return V_NET_SUPPLY0;
    case tSUPPLY1: return V_NET_SUPPLY1;
    case tTRI:     return V_NET_TRI;
    case tTRIAND:  return V_NET_TRIAND;
    case tTRIOR:   return V_NET_TRIOR;
+   case tUWIRE:   return V_NET_UWIRE;
    case tWIRE:
    default:       return V_NET_WIRE;
    }
@@ -2772,6 +2806,15 @@ static void p_task_body_declaration(vlog_node_t task)
    vlog_symtab_pop(symtab);
 }
 
+static void p_lifetime(void)
+{
+   // static | automatic
+
+   BEGIN("lifetime");
+
+   one_of(tAUTOMATIC);
+}
+
 static vlog_node_t p_task_declaration(void)
 {
    // task [ dynamic_override_specifiers ] [ lifetime ] task_body_declaration
@@ -2781,6 +2824,9 @@ static vlog_node_t p_task_declaration(void)
    vlog_node_t v = vlog_new(V_TASK_DECL);
 
    consume(tTASK);
+
+   if (scan(tAUTOMATIC))
+      p_lifetime();
 
    p_task_body_declaration(v);
 
@@ -2861,6 +2907,9 @@ static vlog_node_t p_function_declaration(void)
    vlog_node_t v = vlog_new(V_FUNC_DECL);
 
    consume(tFUNCTION);
+
+   if (scan(tAUTOMATIC))
+      p_lifetime();
 
    p_function_body_declaration(v);
 
@@ -2977,6 +3026,7 @@ static void p_package_or_generate_item_declaration(vlog_node_t mod)
 
    switch (peek()) {
    case tWIRE:
+   case tUWIRE:
    case tSUPPLY0:
    case tSUPPLY1:
    case tTRI:
@@ -3013,7 +3063,7 @@ static void p_package_or_generate_item_declaration(vlog_node_t mod)
       consume(tSEMI);
       break;
    default:
-      one_of(tWIRE, tSUPPLY0, tSUPPLY1, tREG, tSTRUCT, tUNION, tTYPEDEF,
+      one_of(tWIRE, tUWIRE, tSUPPLY0, tSUPPLY1, tREG, tSTRUCT, tUNION, tTYPEDEF,
              tENUM, tSVINT, tINTEGER, tSVREAL, tSHORTREAL, tREALTIME, tTIME,
              tEVENT, tTASK, tFUNCTION, tLOCALPARAM, tPARAMETER);
       drop_tokens_until(tSEMI);
@@ -3165,6 +3215,7 @@ static void p_module_common_item(vlog_node_t mod)
       vlog_add_stmt(mod, p_initial_construct());
       break;
    case tWIRE:
+   case tUWIRE:
    case tSUPPLY0:
    case tSUPPLY1:
    case tTRI:
@@ -3195,10 +3246,11 @@ static void p_module_common_item(vlog_node_t mod)
       vlog_add_stmt(mod, p_conditional_generate_construct());
       break;
    default:
-      one_of(tALWAYS, tALWAYSCOMB, tALWAYSFF, tALWAYSLATCH, tWIRE, tSUPPLY0,
-             tSUPPLY1, tTRI, tTRIAND, tTRIOR, tREG, tSTRUCT, tUNION, tTYPEDEF,
-             tENUM, tSVINT, tINTEGER, tSVREAL, tSHORTREAL, tREALTIME, tTIME,
-             tTASK, tFUNCTION, tPARAMETER, tLOCALPARAM, tASSIGN, tIF, tEVENT);
+      one_of(tALWAYS, tALWAYSCOMB, tALWAYSFF, tALWAYSLATCH, tWIRE, tUWIRE,
+             tSUPPLY0, tSUPPLY1, tTRI, tTRIAND, tTRIOR, tREG, tSTRUCT, tUNION,
+             tTYPEDEF, tENUM, tSVINT, tINTEGER, tSVREAL, tSHORTREAL, tREALTIME,
+             tTIME, tTASK, tFUNCTION, tPARAMETER, tLOCALPARAM, tASSIGN, tIF,
+             tEVENT);
       drop_tokens_until(tSEMI);
    }
 }
@@ -4393,6 +4445,7 @@ static void p_module_or_generate_item(vlog_node_t mod)
    case tALWAYSFF:
    case tALWAYSLATCH:
    case tWIRE:
+   case tUWIRE:
    case tSUPPLY0:
    case tSUPPLY1:
    case tTRI:
@@ -4435,12 +4488,12 @@ static void p_module_or_generate_item(vlog_node_t mod)
       p_module_or_udp_instantiation(mod);
       break;
    default:
-      one_of(tALWAYS, tALWAYSCOMB, tALWAYSFF, tALWAYSLATCH, tWIRE, tSUPPLY0,
-             tSUPPLY1, tTRI, tTRIAND, tTRIOR, tREG, tSTRUCT, tUNION, tASSIGN,
-             tINITIAL, tTYPEDEF, tENUM, tSVINT, tINTEGER, tSVREAL, tSHORTREAL,
-             tREALTIME, tTIME, tTASK, tFUNCTION, tLOCALPARAM, tPARAMETER, tIF,
-             tPULLDOWN, tPULLUP, tID, tAND, tNAND, tOR, tNOR, tXOR, tXNOR, tNOT,
-             tBUF, tEVENT);
+      one_of(tALWAYS, tALWAYSCOMB, tALWAYSFF, tALWAYSLATCH, tWIRE, tUWIRE,
+             tSUPPLY0, tSUPPLY1, tTRI, tTRIAND, tTRIOR, tREG, tSTRUCT, tUNION,
+             tASSIGN, tINITIAL, tTYPEDEF, tENUM, tSVINT, tINTEGER, tSVREAL,
+             tSHORTREAL, tREALTIME, tTIME, tTASK, tFUNCTION, tLOCALPARAM,
+             tPARAMETER, tIF, tPULLDOWN, tPULLUP, tID, tAND, tNAND, tOR, tNOR,
+             tXOR, tXNOR, tNOT, tBUF, tEVENT);
       drop_tokens_until(tSEMI);
    }
 }
@@ -4477,6 +4530,7 @@ static void p_non_port_module_item(vlog_node_t mod)
    case tALWAYSFF:
    case tALWAYSLATCH:
    case tWIRE:
+   case tUWIRE:
    case tSUPPLY0:
    case tSUPPLY1:
    case tTRI:
@@ -4522,12 +4576,12 @@ static void p_non_port_module_item(vlog_node_t mod)
       p_generate_region(mod);
       break;
    default:
-      one_of(tALWAYS, tALWAYSCOMB, tALWAYSFF, tALWAYSLATCH, tWIRE, tSUPPLY0,
-             tSUPPLY1, tTRI, tTRIAND, tTRIOR, tREG, tSTRUCT, tUNION, tASSIGN,
-             tPULLDOWN, tPULLUP, tID, tATTRBEGIN, tAND, tNAND, tOR, tNOR, tXOR,
-             tXNOR, tNOT, tBUF, tTYPEDEF, tENUM, tSVINT, tINTEGER, tSVREAL,
-             tSHORTREAL, tREALTIME, tTIME, tTASK, tFUNCTION, tLOCALPARAM,
-             tPARAMETER, tEVENT, tIF, tSPECIFY, tGENERATE);
+      one_of(tALWAYS, tALWAYSCOMB, tALWAYSFF, tALWAYSLATCH, tWIRE, tUWIRE,
+             tSUPPLY0, tSUPPLY1, tTRI, tTRIAND, tTRIOR, tREG, tSTRUCT, tUNION,
+             tASSIGN, tPULLDOWN, tPULLUP, tID, tATTRBEGIN, tAND, tNAND, tOR,
+             tNOR, tXOR, tXNOR, tNOT, tBUF, tTYPEDEF, tENUM, tSVINT, tINTEGER,
+             tSVREAL,  tSHORTREAL, tREALTIME, tTIME, tTASK, tFUNCTION,
+             tLOCALPARAM, tPARAMETER, tEVENT, tIF, tSPECIFY, tGENERATE);
       drop_tokens_until(tSEMI);
    }
 }

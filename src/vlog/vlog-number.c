@@ -192,6 +192,9 @@ number_t number_new(const char *str)
                case 'a'...'f':
                   bignum_set_nibble(result.big, bit, 10 + *p - 'a');
                   break;
+               case 'A'...'F':
+                  bignum_set_nibble(result.big, bit, 10 + *p - 'A');
+                  break;
                case '_':
                   continue;
                default:

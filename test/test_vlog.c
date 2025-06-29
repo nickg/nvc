@@ -172,9 +172,9 @@ START_TEST(test_parse1)
    vlog_node_t m = vlog_parse();
    fail_if(m == NULL);
    fail_unless(vlog_kind(m) == V_MODULE);
-   ck_assert_int_eq(vlog_stmts(m), 31);
+   ck_assert_int_eq(vlog_stmts(m), 32);
    ck_assert_int_eq(vlog_ports(m), 0);
-   ck_assert_int_eq(vlog_decls(m), 26);
+   ck_assert_int_eq(vlog_decls(m), 27);
 
    vlog_node_t x = vlog_decl(m, 0);
    fail_unless(vlog_kind(x) == V_NET_DECL);
@@ -369,7 +369,7 @@ START_TEST(test_number2)
       { "1",             32,  1,           "1"          },
       { "42",            32,  42,          "42"         },
       { "251251",        32,  251251,      "251251"     },
-      { "'hffffffff",    32,  0xffffffff,  "4294967295" },
+      { "'hffffFFff",    32,  0xffffffff,  "4294967295" },
       { "33'h100000000", 33,  0x100000000,
         "33'b100000000000000000000000000000000" },
       { "64'b0",         64,  0,           "64'b0"      },

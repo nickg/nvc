@@ -97,7 +97,7 @@ module parse1;
     mod1 m5(x);
   end endgenerate
   assign x = sum(y, z);
-  function real min(input real a, input real b);
+  function automatic real min(input real a, input real b);
     if (a < b) min = a;
     else min = b;
   endfunction // min
@@ -110,5 +110,10 @@ module parse1;
   triand w4;
   trior  w5;
   (* foo=1 *) tri w6 = w5;
+  uwire  w7;
   assign x = array1[array2[y]];
+  initial fork
+    #1 x = 1;
+    #5 y = 2;
+  join
 endmodule // parse1

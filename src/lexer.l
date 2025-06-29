@@ -651,6 +651,9 @@ BEFORE            ?i:before
 <VLOG>"assign"           { return tASSIGN; }
 <VLOG>"if"               { return tIF; }
 <VLOG>"else"             { return tELSE; }
+<VLOG>"fork"             { return tFORK; }
+<VLOG>"join"             { return tJOIN; }
+<VLOG>"automatic"        { return tAUTOMATIC; }
 <VLOG>"`timescale"       { return tTIMESCALE; }
 <VLOG>"`default_nettype" { return tDEFNETTYPE; }
 <VLOG>"`celldefine"      { }

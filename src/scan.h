@@ -461,5 +461,8 @@ void reset_sdf_parser(void);
 #define tEVENT         560
 #define tTRPLAMP       561
 #define tSPECPARAM     562
+#define tFORK          563
+#define tJOIN          564
+#define tAUTOMATIC     565
 
 #endif  // _SCAN_H
