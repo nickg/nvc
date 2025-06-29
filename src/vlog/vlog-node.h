@@ -126,6 +126,7 @@ typedef enum {
    V_USER_FCALL,
    V_UDP_LEVEL,
    V_UDP_EDGE,
+   V_SPECPARAM,
 
    V_LAST_NODE_KIND
 } vlog_kind_t;

@@ -5,9 +5,12 @@ module test1(a, b, c, d);
   wire delayed_clk, delayed_d;
 
   specify
+    specparam t1 = 5.2;
+    specparam [7:0] t2 = 2;
+
     (a => r) = 1;
-    (b => s) = (1.2, 5.2);
-    (c + => t) = 2;
+    (b => s) = (1.2, t1);
+    (c + => t) = t2;
     (a,b,c -*> u,v,w) = 2.5;
     if (a)
       (posedge d,e *> (u,v: (5+6))) = (2.3,4.5);

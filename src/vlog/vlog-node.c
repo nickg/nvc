@@ -110,7 +110,7 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
    (I_STMTS),
 
    // V_SPECIFY
-   (0),
+   (I_DECLS),
 
    // V_PRIMITIVE
    (I_IDENT | I_IDENT2 | I_PORTS | I_DECLS | I_STMTS),
@@ -228,6 +228,9 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
 
    // V_UDP_EDGE
    (I_SUBKIND | I_LEFT | I_RIGHT),
+
+   // V_SPECPARAM
+   (I_IDENT | I_VALUE),
 };
 
 static const char *kind_text_map[V_LAST_NODE_KIND] = {
@@ -248,6 +251,7 @@ static const char *kind_text_map[V_LAST_NODE_KIND] = {
    "V_CASE",          "V_CASE_ITEM",   "V_INST_LIST",     "V_PARAM_ASSIGN",
    "V_INST_BODY",     "V_PORT_CONN",   "V_PART_SELECT",   "V_IF_GENERATE",
    "V_EVENT_TRIGGER", "V_USER_FCALL",  "V_UDP_LEVEL",     "V_UDP_EDGE",
+   "V_SPECPARAM",
 };
 
 static const change_allowed_t change_allowed[] = {

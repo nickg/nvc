@@ -415,6 +415,7 @@ static vlog_node_t vlog_check_cb(vlog_node_t v, void *ctx)
    case V_UNION_DECL:
    case V_WAIT:
    case V_PARAM_DECL:
+   case V_SPECPARAM:
    case V_FOREVER:
    case V_TYPE_DECL:
    case V_DATA_TYPE:
@@ -444,6 +445,7 @@ static vlog_node_t vlog_check_cb(vlog_node_t v, void *ctx)
    case V_SYS_FCALL:
    case V_NUMBER:
    case V_STRING:
+   case V_REAL:
    case V_IF:
    case V_BINARY:
    case V_UNARY:

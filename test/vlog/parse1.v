@@ -83,7 +83,7 @@ module parse1;
   initial
     case (x)
       2'b00: y = 1;
-      2'b01, 2'b10: y = 0;
+      2'b01, 2'b10: ;
       default: y = 2;
     endcase // case (x)
   mymod #(.x(1),.y(2)) m1(), m2(.foo(5));
@@ -97,4 +97,9 @@ module parse1;
     mod1 m5(x);
   end endgenerate
   assign x = sum(y, z);
+  function real min(input real a, input real b);
+    if (a < b) min = a;
+    else min = b;
+  endfunction // min
+  time t1;
 endmodule // parse1

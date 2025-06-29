@@ -737,6 +737,7 @@ BEFORE            ?i:before
 <VLOG>"default"          { return tDEFAULT; }
 <VLOG>"ifnone"           { return tIFNONE; }
 <VLOG>"edge"             { return tEDGE; }
+<VLOG>"specparam"        { return tSPECPARAM; }
 <VLOG>"*>"               { return tTIMESGT; }
 <VLOG>"$setup"           { return tDLRSETUP; }
 <VLOG>"$hold"            { return tDLRHOLD; }

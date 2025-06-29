@@ -460,5 +460,6 @@ void reset_sdf_parser(void);
 #define tRESETALL      559
 #define tEVENT         560
 #define tTRPLAMP       561
+#define tSPECPARAM     562
 
 #endif  // _SCAN_H
