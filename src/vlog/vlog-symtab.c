@@ -271,3 +271,12 @@ void vlog_symtab_poison(vlog_symtab_t *st, ident_t name)
    vlog_symbol_t *sym = fresh_symbol_for(st, name);
    sym->node = POISON_NODE;
 }
+
+vlog_node_t vlog_symtab_query(vlog_symtab_t *st, ident_t name)
+{
+   const vlog_symbol_t *sym = symbol_for(st, name);
+   if (sym == NULL || sym->node == POISON_NODE)
+      return NULL;
+
+   return sym->node;
+}

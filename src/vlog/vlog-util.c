@@ -88,3 +88,17 @@ bool is_top_level(vlog_node_t v)
       return false;
    }
 }
+
+bool is_data_type(vlog_node_t v)
+{
+   switch (vlog_kind(v)) {
+   case V_DATA_TYPE:
+   case V_ENUM_DECL:
+   case V_STRUCT_DECL:
+   case V_UNION_DECL:
+   case V_TYPE_DECL:
+      return true;
+   default:
+      return false;
+   }
+}

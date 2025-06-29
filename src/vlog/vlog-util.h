@@ -25,5 +25,6 @@ unsigned vlog_dimensions(vlog_node_t v);
 void vlog_bounds(vlog_node_t v, int64_t *left, int64_t *right);
 unsigned vlog_size(vlog_node_t v);
 bool is_top_level(vlog_node_t v);
+bool is_data_type(vlog_node_t v);
 
 #endif  // _VLOG_UTIL_H

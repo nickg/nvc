@@ -24,6 +24,7 @@
 #include "vlog/vlog-node.h"
 #include "vlog/vlog-phase.h"
 #include "vlog/vlog-symtab.h"
+#include "vlog/vlog-util.h"
 
 #include <ctype.h>
 #include <string.h>
@@ -219,6 +220,13 @@ static void _vexpect(va_list ap)
    state.n_correct = 0;
 
    drop_token();
+}
+
+static vlog_node_t peek_reference(void)
+{
+   assert(peek() == tID);
+   ident_t id = ident_new(state.tokenq[state.tokenq_tail].lval.str);
+   return vlog_symtab_query(symtab, id);
 }
 
 static void _expect(int dummy, ...)
@@ -688,6 +696,9 @@ static void p_enum_name_declaration(vlog_node_t parent)
    vlog_set_type(v, parent);
 
    vlog_add_decl(parent, v);
+
+   vlog_set_loc(v, CURRENT_LOC);
+   vlog_symtab_put(symtab, v);
 }
 
 static vlog_node_t p_integer_atom_type(void)
@@ -869,10 +880,28 @@ static vlog_node_t p_data_type(void)
          return v;
       }
 
+   case tID:
+      {
+         ident_t id = p_identifier();
+         vlog_node_t dt = vlog_symtab_query(symtab, id);
+         if (dt == NULL)
+            should_not_reach_here();   // Guarded by peek_reference() call
+         else if (!is_data_type(dt)) {
+            diag_t *d = diag_new(DIAG_ERROR, &state.last_loc);
+            diag_printf(d, "'%s' is not a data type", istr(id));
+            diag_hint(d, vlog_loc(dt), "'%s' declared here", istr(id));
+            diag_emit(d);
+
+            return logic_type();
+         }
+         else
+            return dt;
+      }
+
    default:
       one_of(tBIT, tLOGIC, tREG, tBYTE, tSHORTINT, tSVINT, tLONGINT, tINTEGER,
              tTIME, tSVREAL, tREALTIME, tSHORTREAL, tSTRUCT, tUNION, tENUM,
-             tEVENT);
+             tEVENT, tID);
       return logic_type();
    }
 }
@@ -899,11 +928,30 @@ static vlog_node_t p_data_type_or_implicit(void)
 
    BEGIN("data type or implicit");
 
-   if (scan(tREG, tSTRUCT, tUNION, tENUM, tSVINT, tINTEGER, tSVREAL,
-            tSHORTREAL, tREALTIME, tTIME, tLOGIC, tBIT, tEVENT))
+   switch (peek()) {
+   case tID:
+      if (peek_nth(2) == tID)
+         return p_data_type();
+      else
+         return p_implicit_data_type();
+      break;
+   case tREG:
+   case tSTRUCT:
+   case tUNION:
+   case tENUM:
+   case tSVINT:
+   case tINTEGER:
+   case tSVREAL:
+   case tSHORTREAL:
+   case tREALTIME:
+   case tTIME:
+   case tLOGIC:
+   case tBIT:
+   case tEVENT:
       return p_data_type();
-   else
+   default:
       return p_implicit_data_type();
+   }
 }
 
 static void p_net_port_type(vlog_net_kind_t *kind, vlog_node_t *dt)
@@ -2607,6 +2655,7 @@ static vlog_node_t p_type_declaration(void)
    consume(tSEMI);
 
    vlog_set_loc(v, CURRENT_LOC);
+   vlog_symtab_put(symtab, v);
    return v;
 }
 
@@ -3046,6 +3095,7 @@ static void p_package_or_generate_item_declaration(vlog_node_t mod)
    case tREALTIME:
    case tTIME:
    case tEVENT:
+   case tID:
       p_data_declaration(mod);
       break;
    case tTASK:
@@ -3237,6 +3287,7 @@ static void p_module_common_item(vlog_node_t mod)
    case tLOCALPARAM:
    case tPARAMETER:
    case tEVENT:
+   case tID:
       p_module_or_generate_item_declaration(mod);
       break;
    case tASSIGN:
@@ -4405,9 +4456,7 @@ static void p_module_or_udp_instantiation(vlog_node_t mod)
    BEGIN("module instantiation");
 
    vlog_node_t v = vlog_new(V_INST_LIST);
-
-   ident_t module_id = p_identifier();
-   vlog_set_ident(v, module_id);
+   vlog_set_ident(v, p_identifier());
 
    if (peek() == tHASH)
       p_parameter_value_assignment(v);
@@ -4485,7 +4534,13 @@ static void p_module_or_generate_item(vlog_node_t mod)
       p_gate_instantiation(mod);
       break;
    case tID:
-      p_module_or_udp_instantiation(mod);
+      {
+         vlog_node_t ref = peek_reference();
+         if (ref == NULL)
+            p_module_or_udp_instantiation(mod);
+         else
+            p_module_common_item(mod);
+      }
       break;
    default:
       one_of(tALWAYS, tALWAYSCOMB, tALWAYSFF, tALWAYSLATCH, tWIRE, tUWIRE,
