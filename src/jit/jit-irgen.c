@@ -1176,7 +1176,7 @@ static void irgen_op_const_vec(jit_irgen_t *g, mir_value_t n)
 
    if (mir_is(g->mu, n, MIR_TYPE_VEC2)) {
       assert(bbits == 0);
-      g->map[n.id] = jit_value_from_int64(bbits);
+      g->map[n.id] = jit_value_from_int64(abits);
    }
    else {
       // Registers must be contiguous
@@ -3815,14 +3815,12 @@ static void irgen_op_unpack(jit_irgen_t *g, mir_value_t n)
 static jit_cc_t irgen_vector_cmp(mir_vec_op_t op)
 {
    switch (op) {
-   case MIR_VEC_LT:       return JIT_CC_LT;
-   case MIR_VEC_LEQ:      return JIT_CC_LE;
-   case MIR_VEC_GT:       return JIT_CC_GT;
-   case MIR_VEC_GEQ:      return JIT_CC_GE;
-   case MIR_VEC_LOG_EQ:
-   case MIR_VEC_CASE_EQ:  return JIT_CC_EQ;
-   case MIR_VEC_LOG_NEQ:
-   case MIR_VEC_CASE_NEQ: return JIT_CC_NE;
+   case MIR_VEC_LT:      return JIT_CC_LT;
+   case MIR_VEC_LEQ:     return JIT_CC_LE;
+   case MIR_VEC_GT:      return JIT_CC_GT;
+   case MIR_VEC_GEQ:     return JIT_CC_GE;
+   case MIR_VEC_LOG_EQ:  return JIT_CC_EQ;
+   case MIR_VEC_LOG_NEQ: return JIT_CC_NE;
    default: should_not_reach_here();
    }
 }
@@ -3872,13 +3870,14 @@ static void irgen_op_binary(jit_irgen_t *g, mir_value_t n)
       abits = j_sub(g, aleft, aright);
       break;
    case MIR_VEC_CASE_EQ:
+      j_cmp(g, JIT_CC_EQ, aleft, aright);
+      j_ccmp(g, JIT_CC_EQ, bleft, bright);
+      abits = j_cset(g);
+      break;
    case MIR_VEC_CASE_NEQ:
-      {
-         const jit_cc_t cc = irgen_vector_cmp(op);
-         j_cmp(g, cc, aleft, aright);
-         j_ccmp(g, cc, bleft, bright);
-         abits = j_cset(g);
-      }
+      j_cmp(g, JIT_CC_EQ, aleft, aright);
+      j_ccmp(g, JIT_CC_EQ, bleft, bright);
+      abits = j_not(g, j_cset(g));
       break;
    case MIR_VEC_LT:
    case MIR_VEC_LEQ:

@@ -327,22 +327,17 @@ static mir_value_t vlog_lower_rvalue_bit_select(mir_unit_t *mu, vlog_node_t v)
    vlog_node_t decl = vlog_ref(v);
    mir_value_t data = vlog_lower_resolved(mu, decl);
 
-   assert(vlog_params(v) == 1);
-   mir_value_t p0 = vlog_lower_rvalue(mu, vlog_param(v, 0));
-
    vlog_node_t dt = vlog_type(decl);
    assert(vlog_ranges(dt) == 1);
-
-   int64_t low, high;
-   vlog_bounds(vlog_range(dt, 0), &low, &high);
+   assert(vlog_params(v) == 1);
 
    mir_type_t t_offset = mir_offset_type(mu);
-   mir_value_t off = mir_build_cast(mu, t_offset, p0);
+   mir_value_t off = vlog_lower_array_off(mu, dt, vlog_param(v, 0));
 
    mir_value_t cmp_low = mir_build_cmp(mu, MIR_CMP_GEQ, off,
-                                       mir_const(mu, t_offset, low));
-   mir_value_t cmp_high = mir_build_cmp(mu, MIR_CMP_LEQ, off,
-                                        mir_const(mu, t_offset, high));
+                                       mir_const(mu, t_offset, 0));
+   mir_value_t cmp_high = mir_build_cmp(mu, MIR_CMP_LT, off,
+                                        mir_const(mu, t_offset, vlog_size(dt)));
    mir_value_t in_range = mir_build_and(mu, cmp_low, cmp_high);
 
    mir_type_t type = mir_vec4_type(mu, 1, false);
