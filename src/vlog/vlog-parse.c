@@ -4825,6 +4825,7 @@ static vlog_node_t p_port(void)
    // [ port_expression ] | . port_identifier ( [ port_expression ] )
 
    BEGIN("port");
+
    return p_port_expression();
 }
 
