@@ -450,6 +450,35 @@ static mir_value_t vlog_lower_rvalue(mir_unit_t *mu, vlog_node_t v)
          mir_type_t t_vec = mir_vec4_type(mu, size, false);
          return mir_build_pack(mu, t_vec, ptr);
       }
+   case V_CONCAT:
+      {
+         int size = 0;
+         const int nparams = vlog_params(v);
+         mir_value_t *inputs LOCAL =
+            xmalloc_array(nparams, sizeof(mir_value_t));
+
+         for (int i = 0; i < nparams; i++) {
+            inputs[i] = vlog_lower_rvalue(mu, vlog_param(v, i));
+            assert(mir_is_vector(mu, inputs[i]));
+            size += mir_get_size(mu, mir_get_type(mu, inputs[i]));
+         }
+
+         mir_type_t type = mir_vec4_type(mu, size, false);
+         mir_value_t result = mir_build_cast(mu, type, inputs[nparams - 1]);
+
+         int pos = mir_get_size(mu, mir_get_type(mu, inputs[nparams - 1]));
+
+         for (int i = nparams - 2; i >= 0; i--) {
+            // TODO: add a vector-insert operation
+            mir_value_t cast = mir_build_cast(mu, type, inputs[i]);
+            mir_value_t amount = mir_const_vec(mu, type, pos, 0);
+            mir_value_t shift =
+               mir_build_binary(mu, MIR_VEC_SLL, type, cast, amount);
+            result = mir_build_binary(mu, MIR_VEC_BIT_OR, type, result, shift);
+         }
+
+         return result;
+      }
    default:
       CANNOT_HANDLE(v);
    }
