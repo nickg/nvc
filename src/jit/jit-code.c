@@ -354,7 +354,7 @@ static int code_print_spaces(int col, int tab)
 }
 #endif
 
-#ifdef DEBUG
+#if defined DEBUG && HAVE_CAPSTONE
 static int code_comment_compare(const void *a, const void *b)
 {
    const code_comment_t *ca = a;
