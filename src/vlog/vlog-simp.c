@@ -196,11 +196,11 @@ static vlog_node_t simp_data_type(vlog_node_t v)
          const loc_t *loc = vlog_loc(v);
 
          vlog_node_t left = vlog_new(V_NUMBER);
-         vlog_set_number(left, number_new("31"));
+         vlog_set_number(left, number_new("31", NULL));
          vlog_set_loc(left, loc);
 
          vlog_node_t right = vlog_new(V_NUMBER);
-         vlog_set_number(right, number_new("0"));
+         vlog_set_number(right, number_new("0", NULL));
          vlog_set_loc(right, loc);
 
          vlog_node_t r = vlog_new(V_DIMENSION);

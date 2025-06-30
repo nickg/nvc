@@ -47,7 +47,7 @@ typedef union _number {
 
 STATIC_ASSERT(sizeof(number_t) == 8);
 
-number_t number_new(const char *str);
+number_t number_new(const char *str, const loc_t *loc);
 void number_free(number_t *val);
 void number_print(number_t val, text_buf_t *tb);
 bool number_is_defined(number_t val);

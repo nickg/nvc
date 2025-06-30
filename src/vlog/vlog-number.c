@@ -90,7 +90,7 @@ static inline void bignum_set_nibble(bignum_t *bn, unsigned n, int value)
       bignum_set_abit(bn, n + i, value >> i);
 }
 
-number_t number_new(const char *str)
+number_t number_new(const char *str, const loc_t *loc)
 {
    int width = 32;
    const char *p = str;
@@ -140,7 +140,7 @@ number_t number_new(const char *str)
       char *eptr;
       result.big->words[0] = strtoull(p, &eptr, 10);
       if (*eptr != '\0')
-         errorf("invalid character '%c' in number %s", *eptr, str);
+         error_at(loc, "invalid character '%c' in number %s", *eptr, str);
    }
    else {
       const char *start = p;
@@ -166,7 +166,12 @@ number_t number_new(const char *str)
                case '_':
                   continue;
                default:
-                  errorf("invalid character '%c' in number %s", *p, str);
+                  error_at(loc, "invalid character '%c' in number %s", *p, str);
+               }
+
+               if (bit >= width) {
+                  warn_at(loc, "excess digits in binary constant %s", str);
+                  return result;
                }
 
                bit++;
@@ -198,7 +203,12 @@ number_t number_new(const char *str)
                case '_':
                   continue;
                default:
-                  errorf("invalid character '%c' in number %s", *p, str);
+                  error_at(loc, "invalid character '%c' in number %s", *p, str);
+               }
+
+               if (bit >= width) {
+                  warn_at(loc, "excess digits in hex constant %s", str);
+                  return result;
                }
 
                bit += 4;

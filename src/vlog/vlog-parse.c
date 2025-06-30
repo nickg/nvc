@@ -389,7 +389,7 @@ static ident_t error_marker(void)
 static vlog_node_t dummy_expression(void)
 {
    vlog_node_t v = vlog_new(V_NUMBER);
-   vlog_set_number(v, number_new("1'b0"));
+   vlog_set_number(v, number_new("1'b0", NULL));
    return v;
 }
 
@@ -472,7 +472,7 @@ static vlog_node_t p_unsigned_number(void)
 
    vlog_node_t v = vlog_new(V_NUMBER);
    vlog_set_loc(v, CURRENT_LOC);
-   vlog_set_number(v, number_new(state.last_lval.str));
+   vlog_set_number(v, number_new(state.last_lval.str, CURRENT_LOC));
    free(state.last_lval.str);
    return v;
 }
@@ -490,7 +490,7 @@ static vlog_node_t p_integral_number(void)
 
       vlog_node_t v = vlog_new(V_NUMBER);
       vlog_set_loc(v, CURRENT_LOC);
-      vlog_set_number(v, number_new(state.last_lval.str));
+      vlog_set_number(v, number_new(state.last_lval.str, CURRENT_LOC));
       free(state.last_lval.str);
       return v;
    }
@@ -533,7 +533,7 @@ static vlog_node_t p_string_literal(void)
 
    vlog_node_t v = vlog_new(V_STRING);
    vlog_set_loc(v, CURRENT_LOC);
-   vlog_set_number(v, number_new(state.last_lval.str));
+   vlog_set_number(v, number_new(state.last_lval.str, CURRENT_LOC));
 
    return v;
 }
