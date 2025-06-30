@@ -4300,7 +4300,10 @@ static vlog_node_t p_named_port_connection(void)
    vlog_set_ident(v, p_identifier());
 
    if (optional(tLPAREN)) {
-      vlog_set_value(v, p_expression());
+
+      if (peek() != tRPAREN)
+         vlog_set_value(v, p_expression());
+
       consume(tRPAREN);
    }
 
