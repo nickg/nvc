@@ -49,7 +49,6 @@ struct ident_rd_ctx {
    ident_t *cache;
    char    *scratch;
    size_t   scratch_sz;
-   bool     new_format;   // Added in 1.13
 };
 
 struct ident_wr_ctx {
@@ -365,7 +364,6 @@ ident_rd_ctx_t ident_read_begin(fbuf_t *f)
    ctx->cache       = xmalloc_array(ctx->cache_alloc, sizeof(ident_t));
    ctx->scratch_sz  = 128;
    ctx->scratch     = xmalloc(ctx->scratch_sz);
-   ctx->new_format  = true;
 
    // First index is implicit null
    ctx->cache[ctx->cache_sz++] = NULL;
@@ -382,8 +380,7 @@ void ident_read_end(ident_rd_ctx_t ctx)
 
 ident_t ident_read(ident_rd_ctx_t ctx)
 {
-   const int32_t index =
-      ctx->new_format ? fbuf_get_int(ctx->file) : fbuf_get_uint(ctx->file);
+   const int32_t index = fbuf_get_int(ctx->file);
    if (index < 0) {
       if (unlikely(-index + 1 > ctx->scratch_sz)) {
          ctx->scratch_sz = MAX(-index + 1, (ctx->scratch_sz * 3) / 2);
@@ -400,32 +397,10 @@ ident_t ident_read(ident_rd_ctx_t ctx)
 
       return (ctx->cache[ctx->cache_sz++] = ident_new(ctx->scratch));
    }
-   else if (index == 0) {
-      // Format prior to 1.13
-      ctx->new_format = false;
-
-      int num = 0;
-      char ch;
-      do {
-         if (num == ctx->scratch_sz) {
-            ctx->scratch_sz = (ctx->scratch_sz * 3) / 2;
-            ctx->scratch = xrealloc(ctx->scratch, ctx->scratch_sz);
-         }
-
-         ch = ctx->scratch[num++] = read_u8(ctx->file);
-      } while (ch);
-
-      if (unlikely(ctx->cache_sz == ctx->cache_alloc)) {
-         ctx->cache_alloc *= 2;
-         ctx->cache = xrealloc(ctx->cache, ctx->cache_alloc * sizeof(ident_t));
-      }
-
-      return (ctx->cache[ctx->cache_sz++] = ident_new(ctx->scratch));
-   }
-   else if (likely(index - 1 < ctx->cache_sz))
+   else if (likely(index > 0 && index - 1 < ctx->cache_sz))
       return ctx->cache[index - 1];
    else
-      fatal("ident index in %s is corrupt: index=%d cache_sz=%d",
+      fatal_trace("ident index in %s is corrupt: index=%d cache_sz=%d",
             fbuf_file_name(ctx->file), index, (int)ctx->cache_sz);
 }
 
