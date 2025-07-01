@@ -971,6 +971,33 @@ START_TEST(test_attr1)
 }
 END_TEST
 
+START_TEST(test_initial1)
+{
+   input_from_file(TESTDIR "/vlog/initial1.v");
+
+   const error_t expect[] = {
+      { 9, "unexpected reg while parsing statement item, expecting one of " },
+      { 14, "initial block does not have a label" },
+      { 16, "'another_label' does not match label 'a_label'" },
+      { 22, "unexpected reg while parsing statement item, expecting one of " },
+      { 28, "fork block does not have a label" },
+      { 30, "'fork5' does not match label 'fork4'" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   vlog_node_t m1 = vlog_parse();
+   fail_if(m1 == NULL);
+   fail_unless(vlog_kind(m1) == V_MODULE);
+
+   vlog_check(m1);
+
+   fail_unless(vlog_parse() == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_vlog_tests(void)
 {
    Suite *s = suite_create("vlog");
@@ -1006,6 +1033,7 @@ Suite *get_vlog_tests(void)
    tcase_add_test(tc, test_generate1);
    tcase_add_test(tc, test_tfcall1);
    tcase_add_test(tc, test_attr1);
+   tcase_add_test(tc, test_initial1);
    suite_add_tcase(s, tc);
 
    return s;

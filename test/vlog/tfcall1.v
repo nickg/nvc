@@ -11,9 +11,14 @@ module tfcall1;
   assign x4 = double(2);     // OK
   assign x5 = not_here(1);   // Error
   assign x6 = x4(6);         // Error
+  assign x7 = no_args();     // OK
 
   function [3:0] double(input [3:0] x);
     double = x * 2;
   endfunction // double
+
+  function [3:0] no_args( );
+    no_args = 1;
+  endfunction 
 
 endmodule // tfcall1

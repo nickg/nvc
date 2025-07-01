@@ -437,6 +437,7 @@ static vlog_node_t vlog_check_cb(vlog_node_t v, void *ctx)
    case V_EVENT_CONTROL:
    case V_DELAY_CONTROL:
    case V_BLOCK:
+   case V_FORK:
    case V_SYS_TCALL:
    case V_SYS_FCALL:
    case V_NUMBER:
