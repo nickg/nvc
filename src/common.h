@@ -171,6 +171,8 @@ tree_t std_func(ident_t mangled);
 typedef enum {
    IEEE_STD_ULOGIC,
    IEEE_STD_LOGIC,
+   IEEE_STD_ULOGIC_VECTOR,
+   IEEE_STD_LOGIC_VECTOR,
 } ieee_type_t;
 
 type_t ieee_type(ieee_type_t which);

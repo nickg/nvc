@@ -128,6 +128,7 @@ vlog_node_t vlog_new_instance(vlog_node_t mod, vlog_node_t inst, ident_t prefix)
       vlog_add_stmt(v, vlog_stmt(copy, i));
 
    vlog_rewrite(v, fixup_refs_cb, map);
+   vlog_simp(v);
 
    hash_free(map);
    return v;

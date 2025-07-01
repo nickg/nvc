@@ -1343,13 +1343,15 @@ type_t std_type(tree_t std, std_type_t which)
 
 type_t ieee_type(ieee_type_t which)
 {
-   static type_t cache[IEEE_STD_LOGIC + 1] = {};
+   static type_t cache[IEEE_STD_LOGIC_VECTOR + 1] = {};
    assert(which < ARRAY_LEN(cache));
 
    if (cache[which] == NULL) {
-      const char *names[] = {
-         "STD_ULOGIC",
-         "STD_LOGIC",
+      static const char *const names[] = {
+         [IEEE_STD_ULOGIC] = "STD_ULOGIC",
+         [IEEE_STD_LOGIC] = "STD_LOGIC",
+         [IEEE_STD_ULOGIC_VECTOR] = "STD_ULOGIC_VECTOR",
+         [IEEE_STD_LOGIC_VECTOR] = "STD_LOGIC_VECTOR",
       };
 
       static tree_t ieee_cache[STD_19 + 1] = {};
@@ -1380,7 +1382,7 @@ type_t verilog_type(verilog_type_t which)
    assert(which < ARRAY_LEN(cache));
 
    if (cache[which] == NULL) {
-      const char *names[] = {
+      static const char *const names[] = {
          [VERILOG_LOGIC] = "T_LOGIC",
          [VERILOG_LOGIC_ARRAY] = "T_LOGIC_ARRAY",
          [VERILOG_INT64] = "T_INT64",
@@ -1409,9 +1411,9 @@ type_t reflection_type(reflect_type_t which)
    assert(which < ARRAY_LEN(cache));
 
    if (cache[which] == NULL) {
-      const char *names[] = {
-         "VALUE_MIRROR",
-         "SUBTYPE_MIRROR",
+      static const char *const names[] = {
+         [REFLECT_VALUE_MIRROR] = "VALUE_MIRROR",
+         [REFLECT_SUBTYPE_MIRROR] = "SUBTYPE_MIRROR",
       };
 
       static tree_t reflect_cache[STD_19 + 1] = {};

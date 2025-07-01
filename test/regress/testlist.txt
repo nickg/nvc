@@ -1130,3 +1130,4 @@ cmdline16       shell
 ivtest6         verilog
 select2         verilog
 vlog15          verilog
+mixed4          mixed

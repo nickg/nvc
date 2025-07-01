@@ -452,7 +452,7 @@ static mir_value_t vlog_lower_rvalue(mir_unit_t *mu, vlog_node_t v)
       }
    case V_CONCAT:
       {
-         int size = 0;
+         int size = 0, repeat = 1, pos = 0;
          const int nparams = vlog_params(v);
          mir_value_t *inputs LOCAL =
             xmalloc_array(nparams, sizeof(mir_value_t));
@@ -463,18 +463,23 @@ static mir_value_t vlog_lower_rvalue(mir_unit_t *mu, vlog_node_t v)
             size += mir_get_size(mu, mir_get_type(mu, inputs[i]));
          }
 
+         if (vlog_has_value(v))
+            size *= (repeat = vlog_get_const(vlog_value(v)));
+
          mir_type_t type = mir_vec4_type(mu, size, false);
-         mir_value_t result = mir_build_cast(mu, type, inputs[nparams - 1]);
+         mir_value_t result = mir_const_vec(mu, type, 0, 0);
 
-         int pos = mir_get_size(mu, mir_get_type(mu, inputs[nparams - 1]));
-
-         for (int i = nparams - 2; i >= 0; i--) {
-            // TODO: add a vector-insert operation
-            mir_value_t cast = mir_build_cast(mu, type, inputs[i]);
-            mir_value_t amount = mir_const_vec(mu, type, pos, 0);
-            mir_value_t shift =
-               mir_build_binary(mu, MIR_VEC_SLL, type, cast, amount);
-            result = mir_build_binary(mu, MIR_VEC_BIT_OR, type, result, shift);
+         for (int i = 0; i < repeat; i++) {
+            for (int j = nparams - 1; j >= 0; j--) {
+               // TODO: add a vector-insert operation
+               mir_value_t cast = mir_build_cast(mu, type, inputs[j]);
+               mir_value_t amount = mir_const_vec(mu, type, pos, 0);
+               mir_value_t shift =
+                  mir_build_binary(mu, MIR_VEC_SLL, type, cast, amount);
+               result = mir_build_binary(mu, MIR_VEC_BIT_OR, type,
+                                         result, shift);
+               pos += mir_get_size(mu, mir_get_type(mu, inputs[j]));
+            }
          }
 
          return result;
@@ -531,6 +536,13 @@ static void vlog_lower_sensitivity(mir_unit_t *mu, vlog_node_t v)
       break;
    case V_UNARY:
       vlog_lower_sensitivity(mu, vlog_value(v));
+      break;
+   case V_CONCAT:
+      {
+         const int nparams = vlog_params(v);
+         for (int i = 0; i < nparams; i++)
+            vlog_lower_sensitivity(mu, vlog_param(v, i));
+      }
       break;
    default:
       CANNOT_HANDLE(v);

@@ -1434,11 +1434,16 @@ START_TEST(test_mixed1)
    input_from_file(TESTDIR "/elab/mixed1.vhd");
 
    const error_t expect[] = {
-      { 22, "missing matching VHDL port declaration for Verilog port two "
+      { 23, "missing matching VHDL port declaration for Verilog port 'two' "
         "in component MOD1" },
-      { 34, "port FOUR not found in Verilog module mod1" },
-      { 44, "cannot connect VHDL signal with type BIT to Verilog output "
-        "port three" },
+      { 37, "port FOUR not found in Verilog module mod1" },
+      { 48, "cannot connect VHDL signal with type BIT to Verilog output "
+        "port 'three'" },
+      { 56, "missing matching VHDL generic declaration for Verilog parameter "
+        "'g1' in component MOD1" },
+      { 67, "generic G1 should have type INTEGER to match corresponding "
+        "Verilog parameter" },
+      { 79, "generic G2 not found in Verilog module mod1" },
       { -1, NULL }
    };
    expect_errors(expect);

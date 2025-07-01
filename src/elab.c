@@ -93,8 +93,8 @@ typedef struct _generic_list {
 } generic_list_t;
 
 typedef struct {
-   tree_t           block;
    tree_t           wrap;
+   tree_t           entity;
    vlog_node_t      module;
    elab_instance_t *instances;
 } mod_cache_t;
@@ -104,6 +104,7 @@ typedef struct _elab_instance {
    mod_cache_t     *module;
    vcode_unit_t     shape;
    vlog_node_t      body;
+   tree_t           block;
 } elab_instance_t;
 
 static void elab_block(tree_t t, const elab_ctx_t *ctx);
@@ -111,6 +112,7 @@ static void elab_stmts(tree_t t, const elab_ctx_t *ctx);
 static void elab_decls(tree_t t, const elab_ctx_t *ctx);
 static void elab_push_scope(tree_t t, elab_ctx_t *ctx);
 static void elab_pop_scope(elab_ctx_t *ctx);
+static void elab_verilog_stmts(vlog_node_t v, const elab_ctx_t *ctx);
 
 static generic_list_t *generic_override = NULL;
 
@@ -244,12 +246,6 @@ static mod_cache_t *elab_cached_module(vlog_node_t mod, const elab_ctx_t *ctx)
    mc = xcalloc(sizeof(mod_cache_t));
    mc->module = mod;
 
-   mc->block = tree_new(T_BLOCK);
-   tree_set_loc(mc->block, vlog_loc(mod));
-   tree_set_ident(mc->block, vlog_ident(mod));
-
-   vlog_trans(mc->module, mc->block);
-
    mc->wrap = tree_new(T_VERILOG);
    tree_set_loc(mc->wrap, vlog_loc(mod));
    tree_set_ident(mc->wrap, vlog_ident(mod));
@@ -271,6 +267,12 @@ static elab_instance_t *elab_new_instance(vlog_node_t mod, vlog_node_t inst,
    ei->module = mc;
    ei->body   = vlog_new_instance(mod, inst, ctx->dotted);
    ei->shape  = vlog_lower(ctx->registry, ctx->mir, ei->body);
+
+   ei->block = tree_new(T_BLOCK);
+   tree_set_loc(ei->block, vlog_loc(inst));
+   tree_set_ident(ei->block, vlog_ident(inst));
+
+   vlog_trans(ei->body, ei->block);
 
    mc->instances = ei;
 
@@ -300,6 +302,10 @@ static tree_t elab_to_vhdl(type_t from, type_t to)
       { VERILOG_LOGIC, IEEE_STD_LOGIC, "NVC.VERILOG.TO_VHDL(" T_LOGIC ")U" },
       { VERILOG_NET_VALUE, IEEE_STD_LOGIC,
         "NVC.VERILOG.TO_VHDL(" T_NET_VALUE ")U" },
+      { VERILOG_WIRE_ARRAY, IEEE_STD_ULOGIC_VECTOR,
+        "NVC.VERILOG.TO_VHDL(" T_WIRE_ARRAY ")Y" },
+      { VERILOG_WIRE_ARRAY, IEEE_STD_LOGIC_VECTOR,
+        "NVC.VERILOG.TO_VHDL(" T_WIRE_ARRAY ")Y" },
    };
 
    INIT_ONCE({
@@ -330,7 +336,9 @@ static tree_t elab_to_verilog(type_t from, type_t to)
    } table[] = {
       { IEEE_STD_ULOGIC, VERILOG_LOGIC, "NVC.VERILOG.TO_VERILOG(U)" T_LOGIC },
       { IEEE_STD_ULOGIC, VERILOG_NET_VALUE,
-        "NVC.VERILOG.TO_VERILOG(U)" T_NET_VALUE }
+        "NVC.VERILOG.TO_VERILOG(U)" T_NET_VALUE },
+      { IEEE_STD_ULOGIC_VECTOR, VERILOG_WIRE_ARRAY,
+        "NVC.VERILOG.TO_VERILOG(Y)" T_NET_ARRAY },
    };
 
    INIT_ONCE({
@@ -353,33 +361,43 @@ static tree_t elab_mixed_binding(tree_t comp, mod_cache_t *mc)
 {
    assert(tree_kind(comp) == T_COMPONENT);
 
+   if (mc->entity == NULL) {
+      mc->entity = tree_new(T_ENTITY);
+      tree_set_ident(mc->entity, vlog_ident(mc->module));
+      tree_set_loc(mc->entity, vlog_loc(mc->module));
+
+      vlog_trans(mc->module, mc->entity);
+   }
+
    tree_t bind = tree_new(T_BINDING);
    tree_set_ident(bind, vlog_ident(mc->module));
    tree_set_loc(bind, tree_loc(comp));
    tree_set_ref(bind, mc->wrap);
    tree_set_class(bind, C_ENTITY);
 
-   const int nports = tree_ports(comp);
-   const int ndecls = vlog_decls(mc->module);
+   const int vhdl_nports = tree_ports(comp);
+   const int vlog_nports = vlog_ports(mc->module);
 
    bit_mask_t have;
-   mask_init(&have, nports);
+   mask_init(&have, vhdl_nports);
 
    bool have_named = false;
-   for (int i = 0; i < ndecls; i++) {
-      vlog_node_t mport = vlog_decl(mc->module, i);
-      if (vlog_kind(mport) != V_PORT_DECL)
-         continue;
+   for (int i = 0; i < vlog_nports; i++) {
+      vlog_node_t ref = vlog_port(mc->module, i);
+      assert(vlog_kind(ref) == V_REF);
+
+      vlog_node_t mport = vlog_ref(ref);
+      assert(vlog_kind(mport) == V_PORT_DECL);
 
       ident_t name = vlog_ident2(mport);
 
-      tree_t vport = tree_port(mc->block, i);
+      tree_t vport = tree_port(mc->entity, i);
       assert(tree_ident(vport) == vlog_ident(mport));
 
       tree_t cport = NULL;
-      for (int j = 0; j < nports; j++) {
+      for (int j = 0; j < vhdl_nports; j++) {
          tree_t pj = tree_port(comp, j);
-         if (tree_ident(pj) == name) {
+         if (ident_casecmp(tree_ident(pj), name)) {
             cport = pj;
             mask_set(&have, j);
             break;
@@ -388,15 +406,7 @@ static tree_t elab_mixed_binding(tree_t comp, mod_cache_t *mc)
 
       if (cport == NULL) {
          error_at(tree_loc(comp), "missing matching VHDL port declaration for "
-                  "Verilog port %s in component %s", istr(vlog_ident(mport)),
-                  istr(tree_ident(comp)));
-         return NULL;
-      }
-
-      if (name != tree_ident(cport)) {
-         error_at(tree_loc(cport), "expected VHDL port name %s to match "
-                  "Verilog port name %s in component %s",
-                  istr(tree_ident(cport)), istr(vlog_ident(mport)),
+                  "Verilog port '%s' in component %s", istr(vlog_ident(mport)),
                   istr(tree_ident(comp)));
          return NULL;
       }
@@ -408,7 +418,7 @@ static tree_t elab_mixed_binding(tree_t comp, mod_cache_t *mc)
          tree_t func = elab_to_verilog(btype, vtype);
          if (func == NULL) {
             error_at(tree_loc(cport), "cannot connect VHDL signal with type "
-                     "%s to Verilog input port %s", type_pp(btype),
+                     "%s to Verilog input port '%s'", type_pp(btype),
                      istr(vlog_ident(mport)));
             return NULL;
          }
@@ -429,7 +439,7 @@ static tree_t elab_mixed_binding(tree_t comp, mod_cache_t *mc)
          tree_t func = elab_to_vhdl(vtype, btype);
          if (func == NULL) {
             error_at(tree_loc(cport), "cannot connect VHDL signal with type "
-                     "%s to Verilog output port %s", type_pp(btype),
+                     "%s to Verilog output port '%s'", type_pp(btype),
                      istr(vlog_ident(mport)));
             return NULL;
          }
@@ -446,7 +456,7 @@ static tree_t elab_mixed_binding(tree_t comp, mod_cache_t *mc)
       }
    }
 
-   for (int i = 0; i < nports; i++) {
+   for (int i = 0; i < vhdl_nports; i++) {
       if (!mask_test(&have, i)) {
          tree_t p = tree_port(comp, i);
          diag_t *d = diag_new(DIAG_ERROR, tree_loc(p));
@@ -458,6 +468,68 @@ static tree_t elab_mixed_binding(tree_t comp, mod_cache_t *mc)
 
    mask_free(&have);
 
+   const int vhdl_ngenerics = tree_generics(comp);
+   const int vlog_ndecls = vlog_decls(mc->module);
+
+   mask_init(&have, vhdl_ngenerics);
+
+   for (int i = 0, nth = 0; i < vlog_ndecls; i++) {
+      vlog_node_t d = vlog_decl(mc->module, i);
+      if (vlog_kind(d) != V_PARAM_DECL)
+         continue;
+
+      ident_t name = vlog_ident(d);
+
+      tree_t eg = tree_generic(mc->entity, nth++);
+      assert(tree_ident(eg) == name);
+
+      tree_t cg = NULL;
+      for (int j = 0; j < vhdl_ngenerics; j++) {
+         tree_t gj = tree_generic(comp, j);
+         if (ident_casecmp(tree_ident(gj), name)) {
+            cg = gj;
+            mask_set(&have, j);
+            break;
+         }
+      }
+
+      if (cg == NULL) {
+         error_at(tree_loc(comp), "missing matching VHDL generic declaration "
+                  "for Verilog parameter '%s' in component %s", istr(name),
+                  istr(tree_ident(comp)));
+         return NULL;
+      }
+
+      type_t ctype = tree_type(cg);
+      type_t etype = tree_type(eg);
+      assert(type_eq(etype, std_type(NULL, STD_INTEGER)));
+
+      if (!type_eq(ctype, etype)) {
+         error_at(tree_loc(cg), "generic %s should have type %s to match "
+                  "corresponding Verilog parameter", istr(tree_ident(cg)),
+                  type_pp(etype));
+         return NULL;
+      }
+
+      tree_t map = tree_new(T_PARAM);
+      tree_set_subkind(map, P_POS);
+      tree_set_pos(map, tree_genmaps(bind));
+      tree_set_value(map, make_ref(cg));
+
+      tree_add_genmap(bind, map);
+   }
+
+   for (int i = 0; i < vhdl_ngenerics; i++) {
+      if (!mask_test(&have, i)) {
+         tree_t g = tree_generic(comp, i);
+         diag_t *d = diag_new(DIAG_ERROR, tree_loc(g));
+         diag_printf(d, "generic %s not found in Verilog module %s",
+                     istr(tree_ident(g)), istr(vlog_ident2(mc->module)));
+         diag_emit(d);
+      }
+   }
+
+   mask_free(&have);
    return bind;
 }
 
@@ -501,25 +573,25 @@ static tree_t elab_verilog_conversion(type_t from, type_t to)
    return NULL;
 }
 
-static tree_t elab_verilog_binding(vlog_node_t inst, mod_cache_t *mc,
+static tree_t elab_verilog_binding(vlog_node_t inst, elab_instance_t *ei,
                                    const elab_ctx_t *ctx)
 {
    assert(vlog_kind(inst) == V_MOD_INST);
 
    tree_t bind = tree_new(T_BINDING);
-   tree_set_ident(bind, vlog_ident(mc->module));
+   tree_set_ident(bind, vlog_ident(ei->body));
    tree_set_loc(bind, vlog_loc(inst));
-   tree_set_ref(bind, mc->wrap);
+   tree_set_ref(bind, ei->module->wrap);
    tree_set_class(bind, C_ENTITY);
 
-   const int nports = vlog_ports(mc->module);
+   const int nports = vlog_ports(ei->body);
    const int nparams = vlog_params(inst);
    const int outports = tree_ports(ctx->out);
    const int outdecls = tree_decls(ctx->out);
 
    if (nports != nparams) {
       error_at(vlog_loc(inst), "expected %d port connections for module %s "
-               "but found %d", nports, istr(vlog_ident2(mc->module)), nparams);
+               "but found %d", nports, istr(vlog_ident2(ei->body)), nparams);
       return NULL;
    }
 
@@ -553,7 +625,7 @@ static tree_t elab_verilog_binding(vlog_node_t inst, mod_cache_t *mc,
 
       assert(decl != NULL);
 
-      tree_t port = tree_port(mc->block, i);
+      tree_t port = tree_port(ei->block, i);
 
       type_t dtype = tree_type(decl);
       type_t ptype = tree_type(port);
@@ -1369,18 +1441,101 @@ static void elab_verilog_module(tree_t bind, ident_t label,
    elab_push_scope(ei->module->wrap, &new_ctx);
 
    if (bind != NULL)
-      elab_ports(ei->module->block, bind, &new_ctx);
+      elab_ports(ei->block, bind, &new_ctx);
 
    if (error_count() == 0)
-      elab_decls(ei->module->block, &new_ctx);
+      elab_decls(ei->block, &new_ctx);
 
    if (error_count() == 0) {
-      new_ctx.drivers = find_drivers(ei->module->block);
+      new_ctx.drivers = find_drivers(ei->block);
       elab_lower(b, ei->shape, &new_ctx);
-      elab_stmts(ei->module->block, &new_ctx);
    }
 
+   if (error_count() == 0)
+      elab_verilog_stmts(ei->body, &new_ctx);
+
    elab_pop_scope(&new_ctx);
+}
+
+static void elab_verilog_instance_list(vlog_node_t v, const elab_ctx_t *ctx)
+{
+   ident_t modname = vlog_ident(v);
+   ident_t libname = lib_name(ctx->library);
+
+   text_buf_t *tb = tb_new();
+   tb_istr(tb, libname);
+   tb_append(tb, '.');
+   tb_istr(tb, modname);
+   tb_upcase(tb);
+
+   ident_t qual = ident_new(tb_get(tb));
+
+   object_t *obj = lib_get_generic(ctx->library, qual, NULL);
+   if (obj == NULL) {
+      error_at(vlog_loc(v), "module %s not found in library %s",
+               istr(modname), istr(libname));
+      return;
+   }
+
+   vlog_node_t mod = vlog_from_object(obj);
+   if (mod == NULL) {
+      error_at(&obj->loc, "unit %s is not a Verilog module", istr(qual));
+      return;
+   }
+   else if (vlog_ident2(mod) != modname) {
+      diag_t *d = diag_new(DIAG_ERROR, vlog_loc(v));
+      diag_printf(d, "name of Verilog module %s in library unit %s "
+                  "does not match name %s in module instance %s",
+                  istr(vlog_ident2(mod)), istr(qual), istr(modname),
+                  istr(vlog_ident(vlog_stmt(v, 0))));
+      diag_hint(d, NULL, "this tool does not preserve case sensitivity "
+                "in module names");
+      diag_emit(d);
+      return;
+   }
+
+   elab_instance_t *ei = elab_new_instance(mod, v, ctx);
+
+   const int nstmts = vlog_stmts(v);
+   for (int i = 0; i < nstmts; i++) {
+      vlog_node_t inst = vlog_stmt(v, i);
+      assert(vlog_kind(inst) == V_MOD_INST);
+
+      tree_t bind = elab_verilog_binding(inst, ei, ctx);
+      if (bind != NULL)
+         elab_verilog_module(bind, vlog_ident(inst), ei, ctx);
+   }
+}
+
+static void elab_verilog_stmts(vlog_node_t v, const elab_ctx_t *ctx)
+{
+   const int nstmts = vlog_stmts(v);
+   for (int i = 0; i < nstmts; i++) {
+      vlog_node_t s = vlog_stmt(v, i);
+
+      switch (vlog_kind(s)) {
+      case V_INST_LIST:
+         elab_verilog_instance_list(s, ctx);
+         break;
+      case V_INITIAL:
+      case V_ALWAYS:
+      case V_ASSIGN:
+      case V_UDP_TABLE:
+      case V_GATE_INST:
+         {
+            tree_t w = tree_new(T_VERILOG);
+            tree_set_ident(w, vlog_ident(s));
+            tree_set_loc(w, vlog_loc(s));
+            tree_set_vlog(w, s);
+
+            tree_add_stmt(ctx->out, w);
+         }
+         break;
+      default:
+         fatal_at(vlog_loc(s), "sorry, this Verilog statement is not "
+                  "currently supported");
+      }
+   }
 }
 
 static void elab_architecture(tree_t bind, tree_t arch, tree_t config,
@@ -1567,7 +1722,7 @@ static void elab_component(tree_t inst, tree_t comp, const elab_ctx_t *ctx)
    if (error_count() == 0)
       elab_lower(b, NULL, &new_ctx);
 
-   if (arch == NULL)
+   if (error_count() > 0 || arch == NULL)
       ;   // Unbound architecture
    else if (tree_kind(arch) == T_VERILOG) {
       vlog_node_t mod = tree_vlog(arch);
@@ -1579,10 +1734,33 @@ static void elab_component(tree_t inst, tree_t comp, const elab_ctx_t *ctx)
       vlog_set_ident(list, vlog_ident2(mod));
       vlog_add_stmt(list, stmt);
 
+      const int ngenmaps = tree_genmaps(bind);
+      for (int i = 0; i < ngenmaps; i++) {
+         tree_t decl = tree_ref(tree_value(tree_genmap(bind, i)));
+         assert(tree_kind(decl) == T_GENERIC_DECL);
+
+         tree_t map = hash_get(new_ctx.generics, decl);
+         if (map == NULL)
+            fatal_at(tree_loc(inst), "cannot get value of generic %s",
+                     istr(tree_ident(decl)));
+
+         // TODO: have some better way of constructing these
+         char buf[64];
+         checked_sprintf(buf, sizeof(buf), "32'd%"PRIi64, assume_int(map));
+
+         vlog_node_t num = vlog_new(V_NUMBER);
+         vlog_set_number(num, number_new(buf, NULL));
+
+         vlog_node_t pa = vlog_new(V_PARAM_ASSIGN);
+         vlog_set_value(pa, num);
+
+         vlog_add_param(list, pa);
+      }
+
       elab_instance_t *ei = elab_new_instance(mod, list, &new_ctx);
       elab_verilog_module(bind, vlog_ident2(mod), ei, &new_ctx);
    }
-   else if (error_count() == 0)
+   else
       elab_architecture(bind, arch, config, &new_ctx);
 
    elab_pop_scope(&new_ctx);
@@ -1942,66 +2120,6 @@ static void elab_psl(tree_t t, const elab_ctx_t *ctx)
    tree_add_stmt(ctx->out, t);
 }
 
-static void elab_verilog_stmt(tree_t wrap, const elab_ctx_t *ctx)
-{
-   vlog_node_t v = tree_vlog(wrap);
-   switch (vlog_kind(v)) {
-   case V_INST_LIST:
-      {
-         ident_t modname = vlog_ident(v);
-         ident_t libname = lib_name(ctx->library);
-
-         text_buf_t *tb = tb_new();
-         tb_istr(tb, libname);
-         tb_append(tb, '.');
-         tb_istr(tb, modname);
-         tb_upcase(tb);
-
-         ident_t qual = ident_new(tb_get(tb));
-
-         object_t *obj = lib_get_generic(ctx->library, qual, NULL);
-         if (obj == NULL) {
-            error_at(vlog_loc(v), "module %s not found in library %s",
-                     istr(modname), istr(libname));
-            return;
-         }
-
-         vlog_node_t mod = vlog_from_object(obj);
-         if (mod == NULL) {
-            error_at(&obj->loc, "unit %s is not a Verilog module", istr(qual));
-            return;
-         }
-         else if (vlog_ident2(mod) != modname) {
-            diag_t *d = diag_new(DIAG_ERROR, vlog_loc(v));
-            diag_printf(d, "name of Verilog module %s in library unit %s "
-                        "does not match name %s in module instance %s",
-                        istr(vlog_ident2(mod)), istr(qual), istr(modname),
-                        istr(vlog_ident(vlog_stmt(v, 0))));
-            diag_hint(d, NULL, "this tool does not preserve case sensitivity "
-                      "in module names");
-            diag_emit(d);
-            return;
-         }
-
-         elab_instance_t *ei = elab_new_instance(mod, v, ctx);
-
-         const int nstmts = vlog_stmts(v);
-         for (int i = 0; i < nstmts; i++) {
-            vlog_node_t inst = vlog_stmt(v, i);
-            assert(vlog_kind(inst) == V_MOD_INST);
-
-            tree_t bind = elab_verilog_binding(inst, ei->module, ctx);
-            if (bind != NULL)
-               elab_verilog_module(bind, vlog_ident(inst), ei, ctx);
-         }
-      }
-      break;
-   default:
-      tree_add_stmt(ctx->out, wrap);
-      break;
-   }
-}
-
 static void elab_stmts(tree_t t, const elab_ctx_t *ctx)
 {
    const int nstmts = tree_stmts(t);
@@ -2029,9 +2147,6 @@ static void elab_stmts(tree_t t, const elab_ctx_t *ctx)
          break;
       case T_PSL_DIRECT:
          elab_psl(s, ctx);
-         break;
-      case T_VERILOG:
-         elab_verilog_stmt(s, ctx);
          break;
       default:
          fatal_trace("unexpected statement %s", tree_kind_str(tree_kind(s)));

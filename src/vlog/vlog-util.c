@@ -42,18 +42,26 @@ unsigned vlog_dimensions(vlog_node_t v)
    return vlog_ranges(vlog_type(v)) + vlog_ranges(v);
 }
 
+int64_t vlog_get_const(vlog_node_t v)
+{
+   switch (vlog_kind(v)) {
+   case V_NUMBER:
+      return number_integer(vlog_number(v));
+   case V_REF:
+      return vlog_get_const(vlog_ref(v));
+   case V_LOCALPARAM:
+      return vlog_get_const(vlog_value(v));
+   default:
+      fatal_at(vlog_loc(v), "expression is not constant");
+   }
+}
+
 void vlog_bounds(vlog_node_t v, int64_t *left, int64_t *right)
 {
    assert(vlog_subkind(v) == V_DIM_PACKED);
 
-   vlog_node_t left_node = vlog_left(v);
-   vlog_node_t right_node = vlog_right(v);
-
-   if (vlog_kind(left_node) != V_NUMBER || vlog_kind(right_node) != V_NUMBER)
-      fatal_at(vlog_loc(v), "packed dimensions are not constant");
-
-   *left = number_integer(vlog_number(left_node));
-   *right = number_integer(vlog_number(right_node));
+   *left = vlog_get_const(vlog_left(v));
+   *right = vlog_get_const(vlog_right(v));
 }
 
 unsigned vlog_size(vlog_node_t v)

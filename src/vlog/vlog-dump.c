@@ -426,6 +426,7 @@ static void vlog_dump_binary(vlog_node_t v)
    case V_BINARY_LOG_OR:   print_syntax(" || "); break;
    case V_BINARY_LOG_AND:  print_syntax(" && "); break;
    case V_BINARY_PLUS:     print_syntax(" + "); break;
+   case V_BINARY_MINUS:    print_syntax(" - "); break;
    case V_BINARY_LT:       print_syntax(" < "); break;
    case V_BINARY_GT:       print_syntax(" > "); break;
    }
@@ -502,14 +503,12 @@ static void vlog_dump_mod_inst(vlog_node_t v, int indent)
    print_syntax("%s ", istr(vlog_ident(v)));
 
    const int nparams = vlog_params(v);
-   if (nparams > 0) {
-      print_syntax("(");
-      for (int i = 0; i < nparams; i++) {
-         if (i > 0) print_syntax(",");
-         vlog_dump(vlog_param(v, i), 0);
-      }
-      print_syntax(")");
+   print_syntax("(");
+   for (int i = 0; i < nparams; i++) {
+      if (i > 0) print_syntax(",");
+      vlog_dump(vlog_param(v, i), 0);
    }
+   print_syntax(")");
 }
 
 static void vlog_dump_inst_list(vlog_node_t v, int indent)
@@ -718,7 +717,7 @@ static void vlog_dump_concat(vlog_node_t v, int indent)
 
    const bool multiple = vlog_has_value(v);
    if (multiple) {
-      vlog_dump(vlog_value(v), 0);
+      vlog_dump_paren(vlog_value(v), 0);
       print_syntax("{");
    }
 

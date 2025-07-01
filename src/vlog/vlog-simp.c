@@ -24,6 +24,7 @@
 #include "vlog/vlog-util.h"
 
 #include <assert.h>
+#include <inttypes.h>
 #include <string.h>
 #include <stdlib.h>
 
@@ -218,6 +219,66 @@ static vlog_node_t simp_data_type(vlog_node_t v)
    return v;
 }
 
+static vlog_node_t simp_ref(vlog_node_t v)
+{
+   vlog_node_t decl = vlog_ref(v);
+   switch (vlog_kind(decl)) {
+   case V_LOCALPARAM:
+      {
+         vlog_node_t value = vlog_value(decl);
+         if (vlog_kind(value) == V_NUMBER)
+            return value;
+         else
+            return v;
+      }
+   default:
+      return v;
+   }
+}
+
+static vlog_node_t simp_binary(vlog_node_t v)
+{
+   vlog_node_t left = vlog_left(v);
+   vlog_node_t right = vlog_right(v);
+
+   if (vlog_kind(left) != V_NUMBER || vlog_kind(right) != V_NUMBER)
+      return v;
+
+   number_t nleft = vlog_number(left);
+   number_t nright = vlog_number(right);
+
+   number_t result;
+   switch (vlog_subkind(v)) {
+   case V_BINARY_MINUS:
+      {
+         // XXX: handle this with number_sub()
+         int64_t ival = number_integer(nleft) - number_integer(nright);
+         char buf[64];
+         checked_sprintf(buf, sizeof(buf), "32'd%"PRIi64, ival);
+
+         result = number_new(buf, vlog_loc(v));
+      }
+      break;
+   case V_BINARY_PLUS:
+      {
+         // XXX: handle this with number_add()
+         int64_t ival = number_integer(nleft) + number_integer(nright);
+         char buf[64];
+         checked_sprintf(buf, sizeof(buf), "32'd%"PRIi64, ival);
+
+         result = number_new(buf, vlog_loc(v));
+      }
+      break;
+   default:
+      return v;
+   }
+
+   vlog_node_t new = vlog_new(V_NUMBER);
+   vlog_set_loc(new, vlog_loc(v));
+   vlog_set_number(new, result);
+   return new;
+}
+
 static vlog_node_t vlog_simp_cb(vlog_node_t v, void *context)
 {
    switch (vlog_kind(v)) {
@@ -229,6 +290,10 @@ static vlog_node_t vlog_simp_cb(vlog_node_t v, void *context)
       return simp_timing(v);
    case V_DATA_TYPE:
       return simp_data_type(v);
+   case V_BINARY:
+      return simp_binary(v);
+   case V_REF:
+      return simp_ref(v);
    default:
       return v;
    }

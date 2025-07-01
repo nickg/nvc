@@ -236,6 +236,16 @@ package body verilog is
         end case;
     end function;
 
+    function to_vhdl (value : t_wire_array) return std_ulogic_vector is
+        alias xvalue : t_wire_array(1 to value'length) is value;
+        variable result : std_ulogic_vector(1 to value'length);
+    begin
+        for i in 1 to value'length loop
+            result(i) := to_vhdl(xvalue(i));
+        end loop;
+        return result;
+    end function;
+
     function to_verilog (value : std_ulogic) return t_logic is
     begin
         case value is
@@ -272,6 +282,16 @@ package body verilog is
                 data := 'X';
         end case;
         encode_net(result, data, strength0, strength1);
+        return result;
+    end function;
+
+    function to_verilog (value : std_ulogic_vector) return t_net_array is
+        alias xvalue : std_ulogic_vector(1 to value'length) is value;
+        variable result : t_net_array(1 to value'length);
+    begin
+        for i in 1 to value'length loop
+            result(i) := to_verilog(xvalue(i));
+        end loop;
         return result;
     end function;
 
