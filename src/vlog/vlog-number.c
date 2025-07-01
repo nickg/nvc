@@ -357,7 +357,7 @@ number_t number_read(fbuf_t *f)
    result.big->width = width;
    result.big->issigned = enc < 0;
 
-   read_raw(result.big->words, nwords * sizeof(uint64_t), f);
+   read_raw(result.big->words, nwords * 2 * sizeof(uint64_t), f);
 
    return result;
 }
