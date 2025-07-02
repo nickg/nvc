@@ -481,6 +481,12 @@ typedef PLI_UINT32 *vpiHandle;
 #define vpiArithRShiftOp          42   /* arithmetic right shift (1364-2001) */
 #define vpiPowerOp                43   /* arithmetic power op    (1364-2001) */
 
+/* From System Verilog */
+#define vpiPostIncOp              62   /* ++ post-increment */
+#define vpiPreIncOp               63   /* ++ pre-increment */
+#define vpiPostDecOp              64   /* -- post-decrement */
+#define vpiPreDecOp               65   /* -- pre-decrement */
+
 #define vpiConstType             40   /* constant subtypes: */
 #define vpiDecConst                1   /* decimal integer */
 #define vpiRealConst               2   /* real */

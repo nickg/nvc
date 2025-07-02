@@ -453,6 +453,8 @@ static vlog_node_t vlog_check_cb(vlog_node_t v, void *ctx)
    case V_UNARY:
    case V_REF:
    case V_COND:
+   case V_PREFIX:
+   case V_POSTFIX:
       break;
    default:
       fatal_at(vlog_loc(v), "cannot check verilog node %s",

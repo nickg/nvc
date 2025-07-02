@@ -795,6 +795,9 @@ static int irgen_align_of(jit_irgen_t *g, mir_type_t type)
    case MIR_TYPE_TRIGGER:
    case MIR_TYPE_RESOLUTION:
       return sizeof(void *);
+   case MIR_TYPE_VEC4:
+   case MIR_TYPE_VEC2:
+      return sizeof(uint64_t);
    case MIR_TYPE_FILE:
       return sizeof(uint32_t);
    case MIR_TYPE_CARRAY:

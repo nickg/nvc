@@ -151,6 +151,37 @@ static vlog_lvalue_t vlog_lower_lvalue(mir_unit_t *mu, vlog_node_t v)
    }
 }
 
+static void vlog_assign_variable(mir_unit_t *mu, vlog_node_t target,
+                                 mir_value_t value)
+{
+   assert(mir_is_vector(mu, value));
+
+   vlog_lvalue_t lvalue = vlog_lower_lvalue(mu, target);
+
+   mir_type_t t_offset = mir_offset_type(mu);
+   mir_type_t t_vec = mir_vec4_type(mu, lvalue.size, false);
+
+   mir_value_t resize = mir_build_cast(mu, t_vec, value);
+   mir_value_t count = mir_const(mu, t_offset, lvalue.size);
+
+   mir_value_t tmp = MIR_NULL_VALUE;
+   if (lvalue.size > 1)
+      tmp = vlog_get_temp(mu, lvalue.base);
+
+   mir_value_t unpacked = mir_build_unpack(mu, resize, 0, tmp);
+
+   mir_build_deposit_signal(mu, lvalue.nets, count, unpacked);
+
+   // Delay one delta cycle to see the update
+
+   mir_value_t zero_time = mir_const(mu, mir_time_type(mu), 0);
+
+   mir_block_t resume_bb = mir_add_block(mu);
+   mir_build_wait(mu, resume_bb, zero_time);
+
+   mir_set_cursor(mu, resume_bb, MIR_APPEND);
+}
+
 static mir_value_t vlog_lower_unary(mir_unit_t *mu, vlog_node_t v)
 {
    mir_value_t input = vlog_lower_rvalue(mu, vlog_value(v));
@@ -230,6 +261,8 @@ static mir_value_t vlog_lower_systf_param(mir_unit_t *mu, vlog_node_t v)
    case V_UNARY:
    case V_BINARY:
    case V_SYS_FCALL:
+   case V_PREFIX:
+   case V_POSTFIX:
       // TODO: these should not be evaluated until vpi_get_value is called
       return vlog_lower_rvalue(mu, v);
    default:
@@ -484,6 +517,24 @@ static mir_value_t vlog_lower_rvalue(mir_unit_t *mu, vlog_node_t v)
 
          return result;
       }
+   case V_PREFIX:
+      {
+         vlog_node_t target = vlog_target(v);
+
+         mir_value_t prev = vlog_lower_rvalue(mu, target);
+         mir_type_t type = mir_get_type(mu, prev);
+         mir_value_t one = mir_const_vec(mu, type, 1, 0);
+         mir_value_t inc = mir_build_binary(mu, MIR_VEC_ADD, type, prev, one);
+
+         // Must save/restore around blocking assignment
+         mir_value_t tmp = mir_add_var(mu, type, MIR_NULL_STAMP,
+                                       ident_uniq("prefix"), MIR_VAR_TEMP);
+         mir_build_store(mu, tmp, inc);
+
+         vlog_assign_variable(mu, target, inc);
+
+         return mir_build_load(mu, tmp);
+      }
    default:
       CANNOT_HANDLE(v);
    }
@@ -503,6 +554,7 @@ static void vlog_lower_sensitivity(mir_unit_t *mu, vlog_node_t v)
 {
    switch (vlog_kind(v)) {
    case V_REF:
+   case V_BIT_SELECT:
       {
          switch (vlog_kind(vlog_ref(v))) {
          case V_PORT_DECL:
@@ -602,9 +654,9 @@ static void vlog_lower_timing(mir_unit_t *mu, vlog_node_t v, bool is_static)
    }
 }
 
-static void vlog_lower_procedural_assign(mir_unit_t *mu, vlog_node_t v)
+static void vlog_lower_blocking_assignment(mir_unit_t *mu, vlog_node_t v)
 {
-   if (vlog_kind(v) == V_BASSIGN && vlog_has_delay(v)) {
+   if (vlog_has_delay(v)) {
       vlog_node_t delay = vlog_delay(v);
       assert(vlog_kind(delay) == V_DELAY_CONTROL);
 
@@ -615,6 +667,12 @@ static void vlog_lower_procedural_assign(mir_unit_t *mu, vlog_node_t v)
       mir_set_cursor(mu, delay_bb, MIR_APPEND);
    }
 
+   mir_value_t value = vlog_lower_rvalue(mu, vlog_value(v));
+   vlog_assign_variable(mu, vlog_target(v), value);
+}
+
+static void vlog_lower_non_blocking_assignment(mir_unit_t *mu, vlog_node_t v)
+{
    vlog_node_t target = vlog_target(v);
 
    vlog_lvalue_t lvalue = vlog_lower_lvalue(mu, target);
@@ -634,44 +692,21 @@ static void vlog_lower_procedural_assign(mir_unit_t *mu, vlog_node_t v)
    const uint8_t strength = vlog_is_net(target) ? ST_STRONG : 0;
    mir_value_t unpacked = mir_build_unpack(mu, resize, strength, tmp);
 
-   switch (vlog_kind(v)) {
-   case V_NBASSIGN:
-   case V_ASSIGN:
-      {
-         mir_type_t t_time = mir_time_type(mu);
-         mir_value_t reject = mir_const(mu, t_time, 0);
+   mir_type_t t_time = mir_time_type(mu);
+   mir_value_t reject = mir_const(mu, t_time, 0);
 
-         mir_value_t after;
-         if (vlog_has_delay(v)) {
-            vlog_node_t delay = vlog_delay(v);
-            assert(vlog_kind(delay) == V_DELAY_CONTROL);
+   mir_value_t after;
+   if (vlog_has_delay(v)) {
+      vlog_node_t delay = vlog_delay(v);
+      assert(vlog_kind(delay) == V_DELAY_CONTROL);
 
-            after = vlog_lower_time(mu, vlog_value(delay));
-         }
-         else
-            after = mir_const(mu, t_time, 0);
-
-         mir_build_sched_waveform(mu, lvalue.nets, count, unpacked,
-                                  reject, after);
-      }
-      break;
-   case V_BASSIGN:
-      {
-         mir_build_deposit_signal(mu, lvalue.nets, count, unpacked);
-
-         // Delay one delta cycle to see the update
-
-         mir_value_t zero_time = mir_const(mu, mir_time_type(mu), 0);
-
-         mir_block_t resume_bb = mir_add_block(mu);
-         mir_build_wait(mu, resume_bb, zero_time);
-
-         mir_set_cursor(mu, resume_bb, MIR_APPEND);
-      }
-      break;
-   default:
-      CANNOT_HANDLE(v);
+      after = vlog_lower_time(mu, vlog_value(delay));
    }
+   else
+      after = mir_const(mu, t_time, 0);
+
+   mir_build_sched_waveform(mu, lvalue.nets, count, unpacked,
+                            reject, after);
 }
 
 static void vlog_lower_if(mir_unit_t *mu, vlog_node_t v)
@@ -863,9 +898,11 @@ static void vlog_lower_stmts(mir_unit_t *mu, vlog_node_t v)
       case V_TIMING:
          vlog_lower_timing(mu, s, false);
          break;
-      case V_NBASSIGN:
       case V_BASSIGN:
-         vlog_lower_procedural_assign(mu, s);
+         vlog_lower_blocking_assignment(mu, s);
+         break;
+      case V_NBASSIGN:
+         vlog_lower_non_blocking_assignment(mu, s);
          break;
       case V_BLOCK:
          vlog_lower_stmts(mu, s);
@@ -1002,7 +1039,7 @@ static void vlog_lower_continuous_assign(mir_context_t *mc, ident_t parent,
 
    mir_set_cursor(mu, start_bb, MIR_APPEND);
 
-   vlog_lower_procedural_assign(mu, v);
+   vlog_lower_non_blocking_assignment(mu, v);
 
    mir_build_wait(mu, start_bb, MIR_NULL_VALUE);
 

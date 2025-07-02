@@ -536,6 +536,14 @@ static c_operation *build_operation(vlog_node_t v)
    case V_EMPTY:
       op->subtype = vpiNullOp;
       break;
+   case V_POSTFIX:
+      op->subtype = vlog_subkind(v) == V_INCDEC_PLUS
+         ? vpiPostIncOp : vpiPostDecOp;
+      break;
+   case V_PREFIX:
+      op->subtype = vlog_subkind(v) == V_INCDEC_PLUS
+         ? vpiPreIncOp : vpiPreDecOp;
+      break;
    default:
       break;
    }
@@ -569,6 +577,8 @@ static c_vpiObject *build_expr(vlog_node_t v, c_abstractScope *scope)
    case V_UNARY:
    case V_SYS_FCALL:
    case V_EMPTY:
+   case V_PREFIX:
+   case V_POSTFIX:
       return &(build_operation(v)->expr.object);
    default:
       fatal_trace("cannot build VPI expr for node kind %s",
