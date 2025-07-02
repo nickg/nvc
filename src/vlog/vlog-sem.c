@@ -42,7 +42,6 @@ static bool has_error(vlog_node_t v)
 {
    switch (vlog_kind(v)) {
    case V_REF:
-   case V_BIT_SELECT:
    case V_USER_FCALL:
       if (vlog_has_ref(v))
          return false;
@@ -151,10 +150,13 @@ static void vlog_check_net_lvalue(vlog_node_t v, vlog_node_t where)
       if (vlog_has_ref(v))
          vlog_check_net_lvalue(vlog_ref(v), where);
       break;
-   case V_BIT_SELECT:
    case V_REF:
       if (vlog_has_ref(v))
          vlog_check_net_lvalue(vlog_ref(v), v);
+      break;
+   case V_BIT_SELECT:
+   case V_PART_SELECT:
+      vlog_check_net_lvalue(vlog_value(v), v);
       break;
    case V_CONCAT:
       {
@@ -275,11 +277,6 @@ static void vlog_check_dimension(vlog_node_t v)
    vlog_check_const_expr(right);
 }
 
-static void vlog_check_bit_select(vlog_node_t v)
-{
-   assert(vlog_has_ref(v) || error_count() > 0);
-}
-
 static void vlog_check_part_select(vlog_node_t v)
 {
    if (vlog_subkind(v) == V_RANGE_CONST) {
@@ -385,9 +382,6 @@ static vlog_node_t vlog_check_cb(vlog_node_t v, void *ctx)
    case V_DIMENSION:
       vlog_check_dimension(v);
       break;
-   case V_BIT_SELECT:
-      vlog_check_bit_select(v);
-      break;
    case V_PART_SELECT:
       vlog_check_part_select(v);
       break;
@@ -455,6 +449,7 @@ static vlog_node_t vlog_check_cb(vlog_node_t v, void *ctx)
    case V_COND:
    case V_PREFIX:
    case V_POSTFIX:
+   case V_BIT_SELECT:
       break;
    default:
       fatal_at(vlog_loc(v), "cannot check verilog node %s",

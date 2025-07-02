@@ -23,9 +23,11 @@
 bool vlog_is_net(vlog_node_t v);
 unsigned vlog_dimensions(vlog_node_t v);
 int64_t vlog_get_const(vlog_node_t v);
+bool vlog_is_const(vlog_node_t v);
 void vlog_bounds(vlog_node_t v, int64_t *left, int64_t *right);
 unsigned vlog_size(vlog_node_t v);
 bool is_top_level(vlog_node_t v);
 bool is_data_type(vlog_node_t v);
+vlog_node_t vlog_longest_static_prefix(vlog_node_t v);
 
 #endif  // _VLOG_UTIL_H

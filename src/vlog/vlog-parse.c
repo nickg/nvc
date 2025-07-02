@@ -1223,58 +1223,40 @@ static vlog_node_t p_select(ident_t id)
 
    EXTEND("select");
 
+   vlog_node_t prefix = vlog_new(V_REF);
+   vlog_set_ident(prefix, id);
+   vlog_set_loc(prefix, CURRENT_LOC);
+
+   vlog_symtab_lookup(symtab, prefix);
+
     if (optional(tLSQUARE)) {
-      vlog_node_t bs = NULL;
-      do {
-         vlog_node_t expr = p_expression();
-         if (scan(tCOLON, tINDEXPOS, tINDEXNEG)) {
-            vlog_node_t ps = vlog_new(V_PART_SELECT);
-            vlog_set_left(ps, expr);
+       do {
+          vlog_node_t expr = p_expression();
+          if (scan(tCOLON, tINDEXPOS, tINDEXNEG)) {
+             vlog_node_t ps = vlog_new(V_PART_SELECT);
+             vlog_set_left(ps, expr);
+             vlog_set_value(ps, prefix);
 
-            p_part_select_range(ps);
+             p_part_select_range(ps);
 
-            if (bs == NULL) {
-               vlog_node_t ref = vlog_new(V_REF);
-               vlog_set_ident(ref, id);
-               vlog_set_loc(ref, CURRENT_LOC);
+             consume(tRSQUARE);
 
-               vlog_symtab_lookup(symtab, ref);
+             vlog_set_loc(ps, CURRENT_LOC);
+             return ps;
+          }
 
-               vlog_set_value(ps, ref);
-            }
-            else
-               vlog_set_value(ps, bs);
+          vlog_node_t bs = vlog_new(V_BIT_SELECT);
+          vlog_set_loc(bs, CURRENT_LOC);
+          vlog_set_value(bs, prefix);
+          vlog_add_param(bs, expr);
 
-            consume(tRSQUARE);
+          prefix = bs;
 
-            vlog_set_loc(ps, CURRENT_LOC);
-            return ps;
-         }
+          consume(tRSQUARE);
+       } while (optional(tLSQUARE));
+    }
 
-         if (bs == NULL) {
-            bs = vlog_new(V_BIT_SELECT);
-            vlog_set_ident(bs, id);
-            vlog_set_loc(bs, CURRENT_LOC);
-
-            vlog_symtab_lookup(symtab, bs);
-         }
-
-         vlog_add_param(bs, expr);
-
-         consume(tRSQUARE);
-      } while (optional(tLSQUARE));
-
-      assert(bs != NULL);
-      return bs;
-   }
-   else {
-      vlog_node_t v = vlog_new(V_REF);
-      vlog_set_ident(v, id);
-      vlog_set_loc(v, CURRENT_LOC);
-
-      vlog_symtab_lookup(symtab, v);
-      return v;
-   }
+    return prefix;
 }
 
 static void p_list_of_arguments(vlog_node_t call)

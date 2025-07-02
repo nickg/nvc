@@ -560,7 +560,7 @@ static void vlog_dump_strength(vlog_node_t v, int indent)
 
 static void vlog_dump_bit_select(vlog_node_t v, int indent)
 {
-   print_syntax("%s", istr(vlog_ident(v)));
+   vlog_dump(vlog_value(v), 0);
 
    const int nparams = vlog_params(v);
    for (int i = 0; i < nparams; i++) {

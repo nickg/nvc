@@ -56,6 +56,20 @@ int64_t vlog_get_const(vlog_node_t v)
    }
 }
 
+bool vlog_is_const(vlog_node_t v)
+{
+   switch (vlog_kind(v)) {
+   case V_NUMBER:
+      return true;
+   case V_REF:
+      return vlog_is_const(vlog_ref(v));
+   case V_LOCALPARAM:
+      return vlog_is_const(vlog_value(v));
+   default:
+      return false;
+   }
+}
+
 void vlog_bounds(vlog_node_t v, int64_t *left, int64_t *right)
 {
    assert(vlog_subkind(v) == V_DIM_PACKED);
@@ -108,5 +122,31 @@ bool is_data_type(vlog_node_t v)
       return true;
    default:
       return false;
+   }
+}
+
+vlog_node_t vlog_longest_static_prefix(vlog_node_t v)
+{
+   switch (vlog_kind(v)) {
+   case V_REF:
+      return v;
+   case V_BIT_SELECT:
+      {
+         vlog_node_t value = vlog_value(v);
+         vlog_node_t prefix = vlog_longest_static_prefix(value);
+
+         if (prefix != value)
+            return prefix;
+
+         const int nparams = vlog_params(v);
+         for (int i = 0; i < nparams; i++) {
+            if (!vlog_is_const(vlog_param(v, i)))
+               return prefix;
+         }
+
+         return v;
+      }
+   default:
+      fatal_at(vlog_loc(v), "cannot calculate longest static prefix");
    }
 }

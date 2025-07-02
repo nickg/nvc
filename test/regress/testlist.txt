@@ -1132,3 +1132,4 @@ select2         verilog
 vlog15          verilog
 mixed4          mixed
 vlog16          verilog
+select3         verilog

@@ -131,10 +131,18 @@ static vlog_lvalue_t vlog_lower_lvalue(mir_unit_t *mu, vlog_node_t v)
       return vlog_lower_lvalue_ref(mu, v);
    case V_BIT_SELECT:
       {
-         vlog_lvalue_t ref = vlog_lower_lvalue_ref(mu, v);
+         vlog_lvalue_t ref = vlog_lower_lvalue_ref(mu, vlog_value(v));
 
          assert(vlog_params(v) == 1);
          mir_value_t p0 = vlog_lower_rvalue(mu, vlog_param(v, 0));
+
+         mir_type_t p0_type = mir_get_type(mu, p0);
+         if (mir_get_class(mu, p0_type) == MIR_TYPE_VEC4) {
+            // TODO: check X/Z handling
+            mir_type_t t_vec2 =
+               mir_vec2_type(mu, mir_get_size(mu, p0_type), false);
+            p0 = mir_build_cast(mu, t_vec2, p0);
+         }
 
          mir_type_t t_offset = mir_offset_type(mu);
          mir_value_t off = mir_build_cast(mu, t_offset, p0);
@@ -338,9 +346,16 @@ static mir_value_t vlog_lower_resolved(mir_unit_t *mu, vlog_node_t v)
 static mir_value_t vlog_lower_array_off(mir_unit_t *mu, vlog_node_t dt,
                                         vlog_node_t v)
 {
-   mir_type_t t_offset = mir_offset_type(mu);
-
    mir_value_t index = vlog_lower_rvalue(mu, v);
+
+   mir_type_t index_type = mir_get_type(mu, index);
+   if (mir_get_class(mu, index_type) == MIR_TYPE_VEC4) {
+      // TODO: check X/Z handling
+      mir_type_t vec2 = mir_vec2_type(mu, mir_get_size(mu, index_type), false);
+      index = mir_build_cast(mu, vec2, index);
+   }
+
+   mir_type_t t_offset = mir_offset_type(mu);
    mir_value_t cast = mir_build_cast(mu, t_offset, index);
 
    vlog_node_t r = vlog_range(dt, 0);
@@ -357,10 +372,12 @@ static mir_value_t vlog_lower_array_off(mir_unit_t *mu, vlog_node_t dt,
 
 static mir_value_t vlog_lower_rvalue_bit_select(mir_unit_t *mu, vlog_node_t v)
 {
-   vlog_node_t decl = vlog_ref(v);
-   mir_value_t data = vlog_lower_resolved(mu, decl);
+   vlog_node_t value = vlog_value(v);
+   assert(vlog_kind(value) == V_REF);
 
-   vlog_node_t dt = vlog_type(decl);
+   mir_value_t data = vlog_lower_resolved(mu, value);
+
+   vlog_node_t dt = vlog_type(vlog_ref(value));
    assert(vlog_ranges(dt) == 1);
    assert(vlog_params(v) == 1);
 
@@ -386,8 +403,26 @@ static mir_value_t vlog_lower_rvalue_bit_select(mir_unit_t *mu, vlog_node_t v)
          return mir_const_vec(mu, type, 1, 1);
    }
    else {
-      mir_dump(mu);
-      fatal_trace("TODO non-const bit select");
+      // TODO: use a phi node here
+      mir_value_t tmp = mir_add_var(mu, type, MIR_NULL_STAMP,
+                                    ident_uniq("tmp"), MIR_VAR_TEMP);
+      mir_build_store(mu, tmp, mir_const_vec(mu, type, 1, 1));
+
+      mir_block_t guarded_bb = mir_add_block(mu);
+      mir_block_t merge_bb = mir_add_block(mu);
+
+      mir_build_cond(mu, in_range, guarded_bb, merge_bb);
+
+      mir_set_cursor(mu, guarded_bb, MIR_APPEND);
+
+      mir_value_t ptr = mir_build_array_ref(mu, data, off);
+      mir_value_t bit = mir_build_load(mu, ptr);
+      mir_build_store(mu, tmp, mir_build_pack(mu, type, bit));
+      mir_build_jump(mu, merge_bb);
+
+      mir_set_cursor(mu, merge_bb, MIR_APPEND);
+
+      return mir_build_load(mu, tmp);
    }
 }
 
@@ -554,7 +589,6 @@ static void vlog_lower_sensitivity(mir_unit_t *mu, vlog_node_t v)
 {
    switch (vlog_kind(v)) {
    case V_REF:
-   case V_BIT_SELECT:
       {
          switch (vlog_kind(vlog_ref(v))) {
          case V_PORT_DECL:
@@ -575,6 +609,15 @@ static void vlog_lower_sensitivity(mir_unit_t *mu, vlog_node_t v)
          default:
             CANNOT_HANDLE(v);
          }
+      }
+      break;
+   case V_BIT_SELECT:
+      {
+         vlog_lower_sensitivity(mu, vlog_value(v));
+
+         const int nparams = vlog_params(v);
+         for (int i = 0; i < nparams; i++)
+            vlog_lower_sensitivity(mu, vlog_param(v, i));
       }
       break;
    case V_EVENT:
@@ -932,7 +975,9 @@ static void vlog_lower_driver(mir_unit_t *mu, vlog_node_t v)
 {
    mir_type_t t_offset = mir_offset_type(mu);
 
-   vlog_lvalue_t target = vlog_lower_lvalue(mu, v);
+   vlog_node_t prefix = vlog_longest_static_prefix(v);
+
+   vlog_lvalue_t target = vlog_lower_lvalue(mu, prefix);
    mir_value_t one = mir_const(mu, t_offset, target.size);
 
    mir_build_drive_signal(mu, target.nets, one);

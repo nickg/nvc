@@ -2230,6 +2230,12 @@ static void irgen_op_cast(jit_irgen_t *g, mir_value_t n)
       else
          g->map[n.id] = abits;  // No-op  (TODO: sign extend)
    }
+   else if (result_kind == MIR_TYPE_VEC2 && mir_is(g->mu, arg, MIR_TYPE_VEC4)) {
+      g->map[n.id] = irgen_get_value(g, arg);  // No-op  (TODO: sign extend)
+   }
+   else if ((result_kind == MIR_TYPE_INT || result_kind == MIR_TYPE_OFFSET)
+            && mir_is_vector(g->mu, arg))
+      g->map[n.id] = irgen_get_value(g, arg);  // No-op (take A-bits)
    else {
       mir_dump(g->mu);
       fatal_trace("unhandled cast");
