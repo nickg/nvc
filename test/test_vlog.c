@@ -949,6 +949,28 @@ START_TEST(test_tfcall1)
 }
 END_TEST
 
+START_TEST(test_attr1)
+{
+   input_from_file(TESTDIR "/vlog/attr1.v");
+
+   const error_t expect[] = {
+      { 11, "attribute instance is not allowed here" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   vlog_node_t m1 = vlog_parse();
+   fail_if(m1 == NULL);
+   fail_unless(vlog_kind(m1) == V_MODULE);
+
+   vlog_check(m1);
+
+   fail_unless(vlog_parse() == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_vlog_tests(void)
 {
    Suite *s = suite_create("vlog");
@@ -983,6 +1005,7 @@ Suite *get_vlog_tests(void)
    tcase_add_test(tc, test_string1);
    tcase_add_test(tc, test_generate1);
    tcase_add_test(tc, test_tfcall1);
+   tcase_add_test(tc, test_attr1);
    suite_add_tcase(s, tc);
 
    return s;

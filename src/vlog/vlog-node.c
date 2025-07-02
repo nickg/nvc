@@ -234,6 +234,9 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
 
    // V_FORK
    (I_IDENT | I_DECLS | I_STMTS),
+
+   // V_ATTR_INST
+   (0),
 };
 
 static const char *kind_text_map[V_LAST_NODE_KIND] = {
@@ -254,7 +257,7 @@ static const char *kind_text_map[V_LAST_NODE_KIND] = {
    "V_CASE",          "V_CASE_ITEM",   "V_INST_LIST",     "V_PARAM_ASSIGN",
    "V_INST_BODY",     "V_PORT_CONN",   "V_PART_SELECT",   "V_IF_GENERATE",
    "V_EVENT_TRIGGER", "V_USER_FCALL",  "V_UDP_LEVEL",     "V_UDP_EDGE",
-   "V_SPECPARAM",     "V_FORK",
+   "V_SPECPARAM",     "V_FORK",        "V_ATTR_INST",
 };
 
 static const change_allowed_t change_allowed[] = {

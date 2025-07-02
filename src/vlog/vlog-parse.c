@@ -67,6 +67,7 @@ static parse_state_t    state;
 static vlog_kind_t      param_kind;
 static vlog_net_kind_t  implicit_kind;
 static vlog_symtab_t   *symtab;
+static vlog_node_t      last_attr;
 
 extern loc_t yylloc;
 
@@ -112,6 +113,7 @@ static vlog_node_t p_select(ident_t id);
 static vlog_net_kind_t p_net_type(void);
 static void p_module_or_generate_item(vlog_node_t mod);
 static void p_block_item_declaration(vlog_node_t parent);
+static vlog_node_t p_attribute_instance(void);
 
 static inline void _pop_state(const rule_state_t *r)
 {
@@ -381,6 +383,31 @@ static void set_timescale(const char *unit_value, const char *unit_name,
    // TODO: do something with parsed scale/precision
 }
 
+static void skip_over_attributes(void)
+{
+   while (peek() == tATTRBEGIN)
+      last_attr = p_attribute_instance();
+}
+
+static void optional_attributes(void)
+{
+   if (peek() == tATTRBEGIN) {
+      // If the current token is (* and there is a saved attribute
+      // instance from skip_over_attributes() then the attribute must
+      // have been placed incorrectly as there were other tokens between
+      // the last closing *) and this
+      if (last_attr != NULL)
+         parse_error(vlog_loc(last_attr), "attribute instance is not "
+                     "allowed here");
+
+      do {
+         (void)p_attribute_instance();
+      } while (peek() == tATTRBEGIN);
+   }
+
+   last_attr = NULL;
+}
+
 static ident_t error_marker(void)
 {
    return well_known(W_ERROR);
@@ -447,7 +474,7 @@ static void p_attr_spec(void)
       (void)p_constant_expression();
 }
 
-static void p_attribute_instance(void)
+static vlog_node_t p_attribute_instance(void)
 {
    // (* attr_spec { , attr_spec } *)
 
@@ -455,11 +482,16 @@ static void p_attribute_instance(void)
 
    consume(tATTRBEGIN);
 
+   vlog_node_t v = vlog_new(V_ATTR_INST);
+
    do {
       p_attr_spec();
    } while (optional(tCOMMA));
 
    consume(tATTREND);
+
+   vlog_set_loc(v, CURRENT_LOC);
+   return v;
 }
 
 static vlog_node_t p_unsigned_number(void)
@@ -675,8 +707,7 @@ static void p_struct_union_member(vlog_node_t v)
 
    BEGIN("struct or union member");
 
-   while (peek() == tATTRBEGIN)
-      p_attribute_instance();
+   optional_attributes();
 
    vlog_node_t dt = p_data_type_or_void();
    p_list_of_variable_decl_assignments(v, dt);
@@ -1549,8 +1580,7 @@ static vlog_node_t p_conditional_expression(vlog_node_t head)
 
    consume(tQUESTION);
 
-   while (peek() == tATTRBEGIN)
-      p_attribute_instance();
+   optional_attributes();
 
    vlog_set_left(v, p_expression());
 
@@ -2396,7 +2426,7 @@ static vlog_node_t p_statement_item(void)
       one_of(tID, tAT, tHASH, tBEGIN, tFORK, tSYSTASK, tIF, tFOREVER, tWHILE,
              tREPEAT, tDO, tFOR, tWAIT, tCASE, tCASEX, tCASEZ, tIFIMPL);
       drop_tokens_until(tSEMI);
-      return NULL;
+      return vlog_new(V_BLOCK);  // Dummy statement
    }
 }
 
@@ -2406,14 +2436,14 @@ static vlog_node_t p_statement(void)
 
    BEGIN("statement");
 
-   while (peek() == tATTRBEGIN)
-      p_attribute_instance();
+   if (peek() == tID && peek_nth(2) == tCOLON) {
+      (void)p_identifier();
+      consume(tCOLON);
+   }
 
-   vlog_node_t s = p_statement_item();
-   if (s == NULL)
-      return vlog_new(V_BLOCK);
+   optional_attributes();
 
-   return s;
+   return p_statement_item();
 }
 
 static vlog_node_t p_statement_or_null(void)
@@ -2831,17 +2861,25 @@ static void p_task_body_declaration(vlog_node_t task)
 
       consume(tSEMI);
 
+      skip_over_attributes();
+
       while (scan(tREG, tSTRUCT, tUNION, tTYPEDEF, tENUM, tSVINT, tINTEGER,
-                  tSVREAL, tSHORTREAL, tREALTIME, tBIT, tLOGIC))
+                  tSVREAL, tSHORTREAL, tREALTIME, tBIT, tLOGIC)) {
          p_block_item_declaration(task);
+         skip_over_attributes();
+      }
    }
    else {
       consume(tSEMI);
 
+      skip_over_attributes();
+
       while (scan(tREG, tSTRUCT, tUNION, tTYPEDEF, tENUM, tSVINT, tINTEGER,
                   tSVREAL, tSHORTREAL, tREALTIME, tBIT, tLOGIC, tINPUT,
-                  tOUTPUT))
+                  tOUTPUT)) {
          p_tf_item_declaration(task);
+         skip_over_attributes();
+      }
    }
 
    while (not_at_token(tENDTASK)) {
@@ -3041,6 +3079,8 @@ static void p_block_item_declaration(vlog_node_t parent)
    //   | { attribute_instance } let_declaration
 
    BEGIN("block item declaration");
+
+   optional_attributes();
 
    switch (peek()) {
    case tREG:
@@ -4488,8 +4528,7 @@ static void p_module_or_generate_item(vlog_node_t mod)
 
    BEGIN("module or generate item");
 
-   while (peek() == tATTRBEGIN)
-      p_attribute_instance();
+   optional_attributes();
 
    switch (peek()) {
    case tALWAYS:
@@ -4719,9 +4758,7 @@ static void p_list_of_port_declarations(vlog_node_t mod)
       v_port_kind_t kind = V_PORT_INPUT;
       bool isreg = false;
       do {
-         while (peek() == tATTRBEGIN)
-            p_attribute_instance();
-
+         optional_attributes();
          p_ansi_port_declaration(mod, &kind, &isreg);
       } while (optional(tCOMMA));
    }
@@ -4874,8 +4911,7 @@ static vlog_node_t p_module_declaration(void)
 
    vlog_node_t mod = vlog_new(V_MODULE);
 
-   while (peek() == tATTRBEGIN)
-      p_attribute_instance();
+   optional_attributes();
 
    consume(tMODULE);
 
@@ -5421,8 +5457,7 @@ static vlog_node_t p_udp_ansi_declaration(bool *has_reg)
 
    BEGIN("UDP ANSI declaration");
 
-   while (peek() == tATTRBEGIN)
-      p_attribute_instance();
+   optional_attributes();
 
    vlog_node_t udp = vlog_new(V_PRIMITIVE);
 
@@ -5496,6 +5531,8 @@ static vlog_node_t p_description(void)
    //   | config_declaration
 
    BEGIN("description");
+
+   skip_over_attributes();
 
    switch (peek()) {
    case tMODULE:
@@ -5646,6 +5683,7 @@ void reset_verilog_parser(void)
 {
    state.tokenq_head = state.tokenq_tail = 0;
    implicit_kind = V_NET_WIRE;
+   last_attr = NULL;
 
    if (symtab != NULL) {
       vlog_symtab_free(symtab);

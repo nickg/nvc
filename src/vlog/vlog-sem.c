@@ -427,6 +427,7 @@ static vlog_node_t vlog_check_cb(vlog_node_t v, void *ctx)
    case V_PORT_CONN:
    case V_PARAM_ASSIGN:
    case V_FUNC_DECL:
+   case V_TASK_DECL:
    case V_EMPTY:
    case V_COND_EXPR:
    case V_CONCAT:

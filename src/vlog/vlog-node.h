@@ -132,6 +132,7 @@ typedef enum {
    V_UDP_EDGE,
    V_SPECPARAM,
    V_FORK,
+   V_ATTR_INST,
 
    V_LAST_NODE_KIND
 } vlog_kind_t;
