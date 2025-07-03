@@ -1266,15 +1266,16 @@ static void p_list_of_arguments(vlog_node_t call)
 
    BEGIN("list of arguments");
 
-   do {
-      if (peek() == tCOMMA) {
-         vlog_node_t v = vlog_new(V_EMPTY);
-         vlog_set_loc(v, &state.last_loc);
-         vlog_add_param(call, v);
-      }
-      else
-         vlog_add_param(call, p_expression());
-   } while (optional(tCOMMA));
+   if (peek() != tRPAREN)
+      do {
+         if (peek() == tCOMMA) {
+            vlog_node_t v = vlog_new(V_EMPTY);
+            vlog_set_loc(v, &state.last_loc);
+            vlog_add_param(call, v);
+         }
+         else
+            vlog_add_param(call, p_expression());
+      } while (optional(tCOMMA));
 }
 
 static vlog_node_t p_system_tf_call(vlog_kind_t kind)
@@ -1906,9 +1907,20 @@ static vlog_node_t p_seq_block(void)
    consume(tBEGIN);
 
    vlog_node_t v = vlog_new(V_BLOCK);
+   vlog_set_loc(v, CURRENT_LOC);
+
+   vlog_symtab_push(symtab, v);
 
    if (optional(tCOLON))
       vlog_set_ident(v, p_identifier());
+
+   skip_over_attributes();
+
+   while (scan(tREG, tSTRUCT, tUNION, tTYPEDEF, tENUM, tSVINT, tINTEGER,
+               tSVREAL, tSHORTREAL, tREALTIME, tBIT, tLOGIC)) {
+      p_block_item_declaration(v);
+      skip_over_attributes();
+   }
 
    while (not_at_token(tEND)) {
       vlog_node_t s = p_statement_or_null();
@@ -1916,9 +1928,19 @@ static vlog_node_t p_seq_block(void)
          vlog_add_stmt(v, s);
    }
 
+   vlog_symtab_pop(symtab);
+
    consume(tEND);
 
-   vlog_set_loc(v, CURRENT_LOC);
+   if (optional(tCOLON)) {
+      ident_t name = p_identifier();
+      if (!vlog_has_ident(v))
+         parse_error(&state.last_loc, "initial block does not have a label");
+      else if (name != vlog_ident(v))
+         parse_error(&state.last_loc, "'%s' does not match label '%s'",
+                     istr(name), istr(vlog_ident(v)));
+   }
+
    return v;
 }
 
@@ -1939,6 +1961,14 @@ static vlog_node_t p_par_block(void)
    if (optional(tCOLON))
       vlog_set_ident(v, p_identifier());
 
+   skip_over_attributes();
+
+   while (scan(tREG, tSTRUCT, tUNION, tTYPEDEF, tENUM, tSVINT, tINTEGER,
+               tSVREAL, tSHORTREAL, tREALTIME, tBIT, tLOGIC)) {
+      p_block_item_declaration(v);
+      skip_over_attributes();
+   }
+
    while (not_at_token(tJOIN)) {
       vlog_node_t s = p_statement_or_null();
       if (s != NULL)
@@ -1949,7 +1979,15 @@ static vlog_node_t p_par_block(void)
 
    consume(tJOIN);
 
-   vlog_set_loc(v, CURRENT_LOC);
+   if (optional(tCOLON)) {
+      ident_t name = p_identifier();
+      if (!vlog_has_ident(v))
+         parse_error(&state.last_loc, "fork block does not have a label");
+      else if (name != vlog_ident(v))
+         parse_error(&state.last_loc, "'%s' does not match label '%s'",
+                     istr(name), istr(vlog_ident(v)));
+   }
+
    return v;
 }
 
@@ -2726,6 +2764,8 @@ static vlog_node_t p_tf_port_item(void)
    BEGIN("task or function port item");
 
    vlog_node_t v = vlog_new(V_PORT_DECL);
+   
+   skip_over_attributes();
 
    if (scan(tINPUT, tOUTPUT))
       vlog_set_subkind(v, p_tf_port_direction());
@@ -2838,7 +2878,8 @@ static void p_task_body_declaration(vlog_node_t task)
    vlog_symtab_push(symtab, task);
 
    if (optional(tLPAREN)) {
-      p_tf_port_list(task);
+      if (peek() != tRPAREN)
+         p_tf_port_list(task);
       consume(tRPAREN);
 
       consume(tSEMI);
@@ -2938,22 +2979,31 @@ static void p_function_body_declaration(vlog_node_t func)
    vlog_symtab_push(symtab, func);
 
    if (optional(tLPAREN)) {
-      p_tf_port_list(func);
+      if (peek() != tRPAREN)
+         p_tf_port_list(func);
       consume(tRPAREN);
 
       consume(tSEMI);
 
+      skip_over_attributes();
+
       while (scan(tREG, tSTRUCT, tUNION, tTYPEDEF, tENUM, tSVINT, tINTEGER,
-                  tSVREAL, tSHORTREAL, tREALTIME, tBIT, tLOGIC))
+                  tSVREAL, tSHORTREAL, tREALTIME, tBIT, tLOGIC)) {
          p_block_item_declaration(func);
+         skip_over_attributes();
+      }
    }
    else {
       consume(tSEMI);
 
+      skip_over_attributes();
+
       while (scan(tREG, tSTRUCT, tUNION, tTYPEDEF, tENUM, tSVINT, tINTEGER,
                   tSVREAL, tSHORTREAL, tREALTIME, tBIT, tLOGIC, tINPUT,
-                  tOUTPUT))
+                  tOUTPUT)) {
          p_tf_item_declaration(func);
+         skip_over_attributes();
+      }
    }
 
    while (not_at_token(tENDFUNCTION)) {
