@@ -249,25 +249,14 @@ static vlog_node_t simp_binary(vlog_node_t v)
 
    number_t result;
    switch (vlog_subkind(v)) {
-   case V_BINARY_MINUS:
-      {
-         // XXX: handle this with number_sub()
-         int64_t ival = number_integer(nleft) - number_integer(nright);
-         char buf[64];
-         checked_sprintf(buf, sizeof(buf), "32'd%"PRIi64, ival);
-
-         result = number_new(buf, vlog_loc(v));
-      }
-      break;
    case V_BINARY_PLUS:
-      {
-         // XXX: handle this with number_add()
-         int64_t ival = number_integer(nleft) + number_integer(nright);
-         char buf[64];
-         checked_sprintf(buf, sizeof(buf), "32'd%"PRIi64, ival);
-
-         result = number_new(buf, vlog_loc(v));
-      }
+      result = number_add(nleft, nright);
+      break;
+   case V_BINARY_MINUS:
+      result = number_sub(nleft, nright);
+      break;
+   case V_BINARY_LOG_EQ:
+      result = number_logical_equal(nleft, nright);
       break;
    default:
       return v;
@@ -277,6 +266,26 @@ static vlog_node_t simp_binary(vlog_node_t v)
    vlog_set_loc(new, vlog_loc(v));
    vlog_set_number(new, result);
    return new;
+}
+
+static vlog_node_t simp_if_generate(vlog_node_t v)
+{
+   const int nconds = vlog_conds(v);
+   for (int i = 0; i < nconds; i++) {
+      vlog_node_t c = vlog_cond(v, i);
+      if (vlog_has_value(c)) {
+         vlog_node_t value = vlog_value(c);
+         if (vlog_kind(value) != V_NUMBER)
+            return v;
+         else if (!number_truthy(vlog_number(value)))
+            continue;
+      }
+
+      assert(vlog_stmts(c) == 1);
+      return vlog_stmt(c, 0);
+   }
+
+   return v;
 }
 
 static vlog_node_t vlog_simp_cb(vlog_node_t v, void *context)
@@ -294,6 +303,8 @@ static vlog_node_t vlog_simp_cb(vlog_node_t v, void *context)
       return simp_binary(v);
    case V_REF:
       return simp_ref(v);
+   case V_IF_GENERATE:
+      return simp_if_generate(v);
    default:
       return v;
    }

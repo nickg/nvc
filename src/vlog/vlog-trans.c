@@ -49,8 +49,12 @@ static tree_t trans_expr(trans_gen_t *g, vlog_node_t v)
 
          tree_t lit = tree_new(T_LITERAL);
          tree_set_subkind(lit, L_INT);
-         tree_set_ival(lit, number_integer(n));
          tree_set_type(lit, std_int);
+
+         if (number_is_defined(n))
+            tree_set_ival(lit, number_integer(n));
+         else
+            tree_set_ival(lit, 0);
 
          return lit;
       }

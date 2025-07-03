@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2023-2024  Nick Gasson
+//  Copyright (C) 2023-2025  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -57,8 +57,13 @@ vlog_logic_t number_bit(number_t val, unsigned n);
 uint8_t number_byte(number_t val, unsigned n);
 number_t number_pack(const uint8_t *bits, unsigned width);
 bool number_equal(number_t a, number_t b);
+bool number_truthy(number_t a);
 
 void number_write(number_t val, fbuf_t *f);
 number_t number_read(fbuf_t *f);
+
+number_t number_add(number_t a, number_t b);
+number_t number_sub(number_t a, number_t b);
+number_t number_logical_equal(number_t a, number_t b);
 
 #endif  // _VLOG_NUMBER_H

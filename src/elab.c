@@ -1531,6 +1531,14 @@ static void elab_verilog_stmts(vlog_node_t v, const elab_ctx_t *ctx)
             tree_add_stmt(ctx->out, w);
          }
          break;
+      case V_BLOCK:
+         // TODO: should create a block in hierarchy
+         elab_verilog_stmts(s, ctx);
+         break;
+      case V_IF_GENERATE:
+         error_at(vlog_loc(s), "if-generate construct could not be "
+                  "evaluated at elaboration time");
+         break;
       default:
          fatal_at(vlog_loc(s), "sorry, this Verilog statement is not "
                   "currently supported");

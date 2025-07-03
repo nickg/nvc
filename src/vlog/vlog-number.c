@@ -338,6 +338,19 @@ bool number_equal(number_t a, number_t b)
    return true;
 }
 
+bool number_truthy(number_t a)
+{
+   const int nwords = bignum_words(a.big);
+   for (int i = 0; i < nwords; i++) {
+      if (bignum_bbits(a.big)[i] != 0)
+         return false;
+      else if (bignum_abits(a.big)[i] != 0)
+         return true;
+   }
+
+   return false;
+}
+
 void number_write(number_t val, fbuf_t *f)
 {
    fbuf_put_int(f, val.big->issigned ? -val.big->width : val.big->width);
@@ -353,11 +366,73 @@ number_t number_read(fbuf_t *f)
    const int nwords = BIGNUM_WORDS(width);
 
    number_t result = { .bits = 0 };
-   result.big = xmalloc_flex(sizeof(bignum_t), nwords, sizeof(uint64_t));
+   result.big = xmalloc_flex(sizeof(bignum_t), nwords * 2, sizeof(uint64_t));
    result.big->width = width;
    result.big->issigned = enc < 0;
 
    read_raw(result.big->words, nwords * 2 * sizeof(uint64_t), f);
 
    return result;
+}
+
+number_t number_add(number_t a, number_t b)
+{
+   const int width = MAX(a.big->width, b.big->width) + 1;
+   const int nwords = BIGNUM_WORDS(width);
+
+   number_t result = { .bits = 0 };
+   result.big = xmalloc_flex(sizeof(bignum_t), nwords * 2, sizeof(uint64_t));
+   result.big->width = width;
+   result.big->issigned = a.big->issigned || b.big->issigned;
+
+   assert(nwords == 1);  // TODO
+
+   bignum_abits(result.big)[0] =
+      bignum_abits(a.big)[0] + bignum_abits(b.big)[0];
+   bignum_bbits(result.big)[0] =
+      bignum_bbits(a.big)[0] | bignum_bbits(b.big)[0];
+
+   return result;
+}
+
+number_t number_sub(number_t a, number_t b)
+{
+   const int width = MAX(a.big->width, b.big->width) + 1;
+   const int nwords = BIGNUM_WORDS(width);
+
+   number_t result = { .bits = 0 };
+   result.big = xmalloc_flex(sizeof(bignum_t), nwords * 2, sizeof(uint64_t));
+   result.big->width = width;
+   result.big->issigned = a.big->issigned || b.big->issigned;
+
+   assert(nwords == 1);  // TODO
+
+   bignum_abits(result.big)[0] =
+      bignum_abits(a.big)[0] - bignum_abits(b.big)[0];
+   bignum_bbits(result.big)[0] =
+      bignum_bbits(a.big)[0] | bignum_bbits(b.big)[0];
+
+   return result;
+}
+
+number_t number_logical_equal(number_t a, number_t b)
+{
+   const int width = 1;
+   const int nwords = BIGNUM_WORDS(width);
+
+   number_t result = { .bits = 0 };
+   result.big = xmalloc_flex(sizeof(bignum_t), nwords * 2, sizeof(uint64_t));
+   result.big->width = width;
+   result.big->issigned = false;
+
+   assert(bignum_words(a.big) == 1);  // TODO
+   assert(bignum_words(b.big) == 1);  // TODO
+
+   bignum_abits(result.big)[0] =
+      bignum_abits(a.big)[0] == bignum_abits(b.big)[0];
+   bignum_bbits(result.big)[0] =
+      bignum_bbits(a.big)[0] | bignum_bbits(b.big)[0];
+
+   return result;
+
 }

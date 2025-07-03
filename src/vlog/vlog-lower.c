@@ -1218,6 +1218,11 @@ static void vlog_lower_concurrent(mir_context_t *mc, ident_t parent,
          vlog_lower_udp(mc, parent, scope);
          break;
       case V_INST_LIST:
+      case V_IF_GENERATE:
+         break;
+      case V_BLOCK:
+         // TODO: this is not correct
+         vlog_lower_concurrent(mc, parent, s);
          break;
       default:
          CANNOT_HANDLE(s);
