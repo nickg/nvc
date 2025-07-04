@@ -41,6 +41,11 @@ typedef enum {
    V_NET_TRI,
    V_NET_TRIAND,
    V_NET_TRIOR,
+   V_NET_TRIREG,
+   V_NET_TRI0,
+   V_NET_TRI1,
+   V_NET_WAND,
+   V_NET_WOR,
 } vlog_net_kind_t;
 
 typedef enum {

@@ -114,6 +114,9 @@ static vlog_net_kind_t p_net_type(void);
 static void p_module_or_generate_item(vlog_node_t mod);
 static void p_block_item_declaration(vlog_node_t parent);
 static vlog_node_t p_attribute_instance(void);
+static vlog_node_t  p_drive_strength(void);
+static vlog_strength_t p_strength0(void);
+static vlog_strength_t p_strength1(void);
 
 static inline void _pop_state(const rule_state_t *r)
 {
@@ -1743,9 +1746,37 @@ static vlog_node_t p_delay_control(void)
    consume(tHASH);
 
    vlog_node_t v = vlog_new(V_DELAY_CONTROL);
-   vlog_set_value(v, p_delay_value());
+
+   if (peek() != tLPAREN)
+      vlog_set_value(v, p_delay_value());
+   else
+      vlog_set_value(v, p_mintypmax_expression());
+
    vlog_set_loc(v, CURRENT_LOC);
    return v;
+}
+
+static void p_delay3(void)
+{
+   // # delay_value | # ( mintypmax_expression [ , mintypmax_expression [ , mintypmax_expression ] ] )
+
+   BEGIN("delay3");
+
+   consume(tHASH);
+
+   if (peek() != tLPAREN) {
+      p_delay_value();
+   } else {
+      consume(tLPAREN);
+
+      int expr_cnt = 0;
+      do {
+         (void)p_mintypmax_expression();
+         expr_cnt++;
+      } while (optional(tCOMMA) && (expr_cnt < 3));
+
+      consume(tRPAREN);
+   }
 }
 
 static vlog_node_t p_delay_or_event_control(void)
@@ -2594,6 +2625,15 @@ static void p_continuous_assign(vlog_node_t mod)
 
    consume(tASSIGN);
 
+   if (peek() == tLPAREN) {
+      p_drive_strength();
+      if (peek() == tHASH)
+         p_delay3();
+   } else {
+      if (peek() == tHASH)
+         p_delay_control();
+   }
+
    p_list_of_net_assignments(mod);
 
    consume(tSEMI);
@@ -2606,13 +2646,19 @@ static vlog_net_kind_t p_net_type(void)
 
    BEGIN("net type");
 
-   switch (one_of(tWIRE, tUWIRE, tSUPPLY0, tSUPPLY1, tTRI, tTRIAND, tTRIOR)) {
+   switch (one_of(tWIRE, tUWIRE, tSUPPLY0, tSUPPLY1, tTRI, tTRIAND,
+                  tTRIOR, tTRIREG, tTRI0, tTRI1, tWAND, tWOR)) {
    case tSUPPLY0: return V_NET_SUPPLY0;
    case tSUPPLY1: return V_NET_SUPPLY1;
    case tTRI:     return V_NET_TRI;
    case tTRIAND:  return V_NET_TRIAND;
    case tTRIOR:   return V_NET_TRIOR;
+   case tTRIREG:  return V_NET_TRIREG;
+   case tTRI0:    return V_NET_TRI0;
+   case tTRI1:    return V_NET_TRI1;
    case tUWIRE:   return V_NET_UWIRE;
+   case tWAND:    return V_NET_WAND;
+   case tWOR:     return V_NET_WOR;
    case tWIRE:
    default:       return V_NET_WIRE;
    }
@@ -2655,6 +2701,94 @@ static void p_list_of_net_decl_assignments(vlog_node_t mod,
    } while (optional(tCOMMA));
 }
 
+static vlog_node_t p_drive_strength(void)
+{
+   //( strength0 , strength1 ) | ( strength1 , strength0 )
+   //| ( strength0 , highz1 )  | ( strength1 , highz0 )
+   //| ( highz0 , strength1 )  | ( highz1 , strength0 )
+
+   BEGIN("drive strength");
+
+   consume(tLPAREN);
+
+   vlog_strength_t s0, s1;
+   switch (peek()) {
+   case tSUPPLY0:
+   case tSTRONG0:
+   case tPULL0:
+   case tWEAK0:
+      {
+         s0 = p_strength0();
+         consume(tCOMMA);
+         if (optional(tHIGHZ1))
+            s1 = V_STRENGTH_HIGHZ;
+         else
+            s1 = p_strength1();
+      }
+      break;
+   case tHIGHZ0:
+      {
+         s0 = V_STRENGTH_HIGHZ;
+         consume(tHIGHZ0);
+         consume(tCOMMA);
+         s1 = p_strength1();
+      }
+      break;
+   case tSUPPLY1:
+   case tSTRONG1:
+   case tPULL1:
+   case tWEAK1:
+      {
+         s1 = p_strength1();
+         consume(tCOMMA);
+         if (optional(tHIGHZ0))
+            s0 = V_STRENGTH_HIGHZ;
+         else
+            s0 = p_strength0();
+      }
+      break;
+   case tHIGHZ1:
+      {
+         s1 = V_STRENGTH_HIGHZ;
+         consume(tHIGHZ1);
+         consume(tCOMMA);
+         s0 = p_strength0();
+      }
+      break;
+   default:
+      should_not_reach_here();
+   }
+
+   consume(tRPAREN);
+
+   vlog_node_t v = vlog_new(V_STRENGTH);
+   vlog_set_subkind(v, MAKE_STRENGTH(s0, s1));
+   vlog_set_loc(v, CURRENT_LOC);
+
+   return v;
+}
+
+static vlog_strength_t p_charge_strength(void)
+{
+   // ( small ) | ( medium ) | ( large )
+
+   BEGIN("drive charge");
+
+   consume(tLPAREN);
+
+   vlog_strength_t s;
+   switch (one_of(tSMALL, tMEDIUM, tLARGE)) {
+   default:
+   case tSMALL:  s = V_STRENGTH_SMALL;
+   case tMEDIUM: s = V_STRENGTH_MEDIUM;
+   case tLARGE:  s = V_STRENGTH_LARGE;
+   }
+
+   consume(tRPAREN);
+
+   return s;
+}
+
 static void p_net_declaration(vlog_node_t mod)
 {
    // net_type [ drive_strength | charge_strength ] [ vectored | scalared ]
@@ -2665,10 +2799,101 @@ static void p_net_declaration(vlog_node_t mod)
 
    BEGIN("net declaration");
 
-   const vlog_net_kind_t kind = p_net_type();
+   ident_t id;
+   vlog_node_t dt;
+   vlog_net_kind_t kind = V_NET_WIRE;
 
-   vlog_node_t dt = p_data_type_or_implicit();
-   p_list_of_net_decl_assignments(mod, kind, dt);
+   switch (peek()) {
+   case tINTERCONNECT:
+      {
+         consume(tINTERCONNECT);
+
+         dt = p_implicit_data_type();
+
+         if (optional(tHASH))
+            p_delay_value();
+
+         do {
+            id = p_identifier();
+            if (peek() == tLSQUARE)
+               p_unpacked_dimension();
+         } while (optional(tCOMMA));
+      }
+      break;
+
+   case tID:
+      {
+         id = p_identifier();
+         dt = vlog_symtab_query(symtab, id);
+         if (dt == NULL)
+            should_not_reach_here();
+         // TODO check that the identifier is actually
+         // a user declared nettype
+
+         if (peek() == tHASH)
+            p_delay_control();
+
+         p_list_of_net_decl_assignments(mod, kind, dt);
+      }
+      break;
+
+   default:
+      {
+         kind = p_net_type();
+
+         if (peek() == tLPAREN) {
+            switch (peek_nth(2)) {
+            case tHIGHZ0:
+            case tHIGHZ1:
+            case tSUPPLY0:
+            case tSUPPLY1:
+            case tSTRONG0:
+            case tSTRONG1:
+            case tPULL0:
+            case tPULL1:
+            case tWEAK0:
+            case tWEAK1:
+               p_drive_strength();
+               break;
+            case tSMALL:
+            case tMEDIUM:
+            case tLARGE:
+               if (kind != V_NET_TRIREG)
+                  parse_error(&state.last_loc, "charge strength only allowed with the trireg keyword");
+               p_charge_strength();
+               break;
+            default:
+               one_of(tHIGHZ0, tHIGHZ1, tSUPPLY0, tSUPPLY1, tSTRONG0, tSTRONG1,
+                     tPULL0, tPULL1, tWEAK0, tWEAK1, tSMALL, tMEDIUM, tLARGE);
+               drop_tokens_until(tSEMI);
+               return;
+            }
+         }
+
+         bool need_packed = false;
+         if (optional(tVECTORED) || optional(tSCALARED))
+            need_packed = true;
+
+         dt = p_data_type_or_implicit();
+
+         if (need_packed) {
+            bool has_packed = false;
+            unsigned ranges = vlog_ranges(dt);
+            for (unsigned i = 0; i < ranges; i++) {
+               vlog_node_t r = vlog_range(dt, i);
+               if (vlog_subkind(r) == V_DIM_PACKED)
+                  has_packed |= true;
+            }
+            if (!has_packed)
+               parse_error(&state.last_loc, "vectored and scalared keywords are only allowed with at least a packed dimension");
+         }
+
+         if (peek() == tHASH)
+            p_delay3();
+
+         p_list_of_net_decl_assignments(mod, kind, dt);
+      }
+   }
 
    consume(tSEMI);
 }
@@ -3186,8 +3411,14 @@ static void p_package_or_generate_item_declaration(vlog_node_t mod)
    case tSUPPLY0:
    case tSUPPLY1:
    case tTRI:
+   case tTRI0:
+   case tTRI1:
    case tTRIAND:
    case tTRIOR:
+   case tTRIREG:
+   case tWAND:
+   case tWOR:
+   case tINTERCONNECT:
       p_net_declaration(mod);
       break;
    case tREG:
@@ -3220,9 +3451,10 @@ static void p_package_or_generate_item_declaration(vlog_node_t mod)
       consume(tSEMI);
       break;
    default:
-      one_of(tWIRE, tUWIRE, tSUPPLY0, tSUPPLY1, tREG, tSTRUCT, tUNION, tTYPEDEF,
-             tENUM, tSVINT, tINTEGER, tSVREAL, tSHORTREAL, tREALTIME, tTIME,
-             tEVENT, tTASK, tFUNCTION, tLOCALPARAM, tPARAMETER);
+      one_of(tWIRE, tUWIRE, tSUPPLY0, tSUPPLY1, tTRI, tTRI0, tTRI1, tTRIAND,
+             tTRIOR, tTRIREG, tWAND, tWOR, tINTERCONNECT, tREG, tSTRUCT, tUNION,
+             tTYPEDEF, tENUM, tSVINT, tINTEGER, tSVREAL, tSHORTREAL, tREALTIME,
+             tTIME, tEVENT, tTASK, tFUNCTION, tLOCALPARAM, tPARAMETER);
       drop_tokens_until(tSEMI);
       break;
    }
@@ -3496,8 +3728,14 @@ static void p_module_common_item(vlog_node_t mod)
    case tSUPPLY0:
    case tSUPPLY1:
    case tTRI:
+   case tTRI0:
+   case tTRI1:
    case tTRIAND:
    case tTRIOR:
+   case tTRIREG:
+   case tWAND:
+   case tWOR:
+   case tINTERCONNECT:
    case tREG:
    case tSTRUCT:
    case tUNION:
@@ -3529,10 +3767,11 @@ static void p_module_common_item(vlog_node_t mod)
       break;
    default:
       one_of(tALWAYS, tALWAYSCOMB, tALWAYSFF, tALWAYSLATCH, tWIRE, tUWIRE,
-             tSUPPLY0, tSUPPLY1, tTRI, tTRIAND, tTRIOR, tREG, tSTRUCT, tUNION,
-             tTYPEDEF, tENUM, tSVINT, tINTEGER, tSVREAL, tSHORTREAL, tREALTIME,
-             tTIME, tTASK, tFUNCTION, tPARAMETER, tLOCALPARAM, tEVENT, tID,
-             tGENVAR, tASSIGN, tFOR, tIF);
+             tSUPPLY0, tSUPPLY1, tTRI, tTRI0, tTRI1, tTRIAND, tTRIOR, tTRIREG,
+             tWAND, tWOR, tINTERCONNECT, tREG, tSTRUCT, tUNION, tTYPEDEF, tENUM,
+             tSVINT, tINTEGER, tSVREAL, tSHORTREAL, tREALTIME, tTIME, tTASK,
+             tFUNCTION, tPARAMETER, tLOCALPARAM, tEVENT, tID, tGENVAR, tASSIGN,
+             tFOR, tIF);
       drop_tokens_until(tSEMI);
    }
 }
@@ -3543,9 +3782,12 @@ static vlog_strength_t p_strength0(void)
 
    BEGIN("strength0");
 
-   switch (one_of(tSUPPLY0)) {
+   switch (one_of(tSUPPLY0, tSTRONG0, tPULL0, tWEAK0)) {
    default:
    case tSUPPLY0: return V_STRENGTH_SUPPLY;
+   case tSTRONG0: return V_STRENGTH_STRONG;
+   case tPULL0:   return V_STRENGTH_PULL;
+   case tWEAK0:   return V_STRENGTH_WEAK;
    }
 }
 
@@ -3555,9 +3797,12 @@ static vlog_strength_t p_strength1(void)
 
    BEGIN("strength1");
 
-   switch (one_of(tSUPPLY1)) {
+   switch (one_of(tSUPPLY1, tSTRONG1, tPULL1, tWEAK1)) {
    default:
    case tSUPPLY1: return V_STRENGTH_SUPPLY;
+   case tSTRONG1: return V_STRENGTH_STRONG;
+   case tPULL1:   return V_STRENGTH_PULL;
+   case tWEAK1:   return V_STRENGTH_WEAK;
    }
 }
 
@@ -3572,6 +3817,9 @@ static vlog_node_t p_pulldown_strength(void)
    vlog_strength_t s0, s1;
    switch (peek()) {
    case tSUPPLY1:
+   case tSTRONG1:
+   case tPULL1:
+   case tWEAK1:
       s1 = p_strength1();
       consume(tCOMMA);
       s0 = p_strength0();
@@ -3602,6 +3850,9 @@ static vlog_node_t p_pullup_strength(void)
    vlog_strength_t s0, s1;
    switch (peek()) {
    case tSUPPLY0:
+   case tSTRONG0:
+   case tPULL0:
+   case tWEAK0:
       s0 = p_strength0();
       consume(tCOMMA);
       s1 = p_strength1();
@@ -4731,8 +4982,14 @@ static void p_module_or_generate_item(vlog_node_t mod)
    case tSUPPLY0:
    case tSUPPLY1:
    case tTRI:
+   case tTRI0:
+   case tTRI1:
    case tTRIAND:
    case tTRIOR:
+   case tTRIREG:
+   case tWAND:
+   case tWOR:
+   case tINTERCONNECT:
    case tREG:
    case tSTRUCT:
    case tUNION:
@@ -4779,11 +5036,12 @@ static void p_module_or_generate_item(vlog_node_t mod)
       break;
    default:
       one_of(tALWAYS, tALWAYSCOMB, tALWAYSFF, tALWAYSLATCH, tWIRE, tUWIRE,
-             tSUPPLY0, tSUPPLY1, tTRI, tTRIAND, tTRIOR, tREG, tSTRUCT, tUNION,
-             tASSIGN, tINITIAL, tTYPEDEF, tENUM, tSVINT, tINTEGER, tSVREAL,
-             tSHORTREAL, tREALTIME, tTIME, tTASK, tFUNCTION, tLOCALPARAM,
-             tPARAMETER, tIF, tFOR, tEVENT, tGENVAR, tPULLDOWN, tPULLUP, tID,
-             tAND, tNAND, tOR, tNOR, tXOR, tXNOR, tNOT, tBUF);
+             tSUPPLY0, tSUPPLY1, tTRI,  tTRI0, tTRI1, tTRIAND, tTRIOR, tTRIREG,
+             tWAND, tWOR, tINTERCONNECT, tREG, tSTRUCT, tUNION, tASSIGN,
+             tINITIAL, tTYPEDEF, tENUM, tSVINT, tINTEGER, tSVREAL, tSHORTREAL,
+             tREALTIME, tTIME, tTASK, tFUNCTION, tLOCALPARAM, tPARAMETER, tIF,
+             tFOR, tEVENT, tGENVAR, tPULLDOWN, tPULLUP, tID, tAND, tNAND, tOR,
+             tNOR, tXOR, tXNOR, tNOT, tBUF);
       drop_tokens_until(tSEMI);
    }
 }
@@ -4824,8 +5082,14 @@ static void p_non_port_module_item(vlog_node_t mod)
    case tSUPPLY0:
    case tSUPPLY1:
    case tTRI:
+   case tTRI0:
+   case tTRI1:
    case tTRIAND:
    case tTRIOR:
+   case tTRIREG:
+   case tWAND:
+   case tWOR:
+   case tINTERCONNECT:
    case tREG:
    case tSTRUCT:
    case tUNION:
@@ -4869,12 +5133,12 @@ static void p_non_port_module_item(vlog_node_t mod)
       break;
    default:
       one_of(tALWAYS, tALWAYSCOMB, tALWAYSFF, tALWAYSLATCH, tWIRE, tUWIRE,
-             tSUPPLY0, tSUPPLY1, tTRI, tTRIAND, tTRIOR, tREG, tSTRUCT, tUNION,
-             tASSIGN, tPULLDOWN, tPULLUP, tID, tATTRBEGIN, tAND, tNAND, tOR,
-             tNOR, tXOR, tXNOR, tNOT, tBUF, tTYPEDEF, tENUM, tSVINT, tINTEGER,
-             tSVREAL,  tSHORTREAL, tREALTIME, tTIME, tTASK, tFUNCTION,
-             tLOCALPARAM, tPARAMETER, tEVENT, tIF, tFOR, tGENVAR, tSPECIFY,
-             tGENERATE);
+             tSUPPLY0, tSUPPLY1, tTRI, tTRI0, tTRI1, tTRIAND, tTRIOR, tTRIREG,
+             tWAND, tWOR, tINTERCONNECT, tREG, tSTRUCT, tUNION, tASSIGN,
+             tPULLDOWN, tPULLUP, tID, tATTRBEGIN, tAND, tNAND, tOR, tNOR, tXOR,
+             tXNOR, tNOT, tBUF, tTYPEDEF, tENUM, tSVINT, tINTEGER, tSVREAL,
+             tSHORTREAL, tREALTIME, tTIME, tTASK, tFUNCTION, tLOCALPARAM,
+             tPARAMETER, tEVENT, tIF, tFOR, tGENVAR, tSPECIFY, tGENERATE);
       drop_tokens_until(tSEMI);
    }
 }
