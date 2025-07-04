@@ -133,6 +133,8 @@ typedef enum {
    V_SPECPARAM,
    V_FORK,
    V_ATTR_INST,
+   V_USER_TCALL,
+   V_VOID_CALL,
 
    V_LAST_NODE_KIND
 } vlog_kind_t;

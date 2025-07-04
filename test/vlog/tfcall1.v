@@ -19,6 +19,17 @@ module tfcall1;
 
   function [3:0] no_args( );
     no_args = 1;
-  endfunction 
+  endfunction // no_args
+
+  reg x, y;
+  initial begin
+    task1(x, y);        // OK
+    no_args();          // Error
+    void'(no_args());   // OK
+  end
+
+  task task1(input x, output y);
+    //y = x * 2;    // OK (TODO)
+  endtask // task1
 
 endmodule // tfcall1

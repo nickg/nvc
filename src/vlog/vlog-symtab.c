@@ -201,6 +201,7 @@ void vlog_symtab_lookup(vlog_symtab_t *st, vlog_node_t v)
    else if (sym == NULL) {
       switch (vlog_kind(v)) {
       case V_USER_FCALL:
+      case V_USER_TCALL:
          // May be declared later
          APUSH(st->top->tfcalls, v);
          break;

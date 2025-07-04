@@ -1997,7 +1997,31 @@ static vlog_node_t p_subroutine_call_statement(void)
 
    BEGIN("subroutine call statement");
 
-   vlog_node_t v = p_subroutine_call(V_SYS_TCALL);
+   vlog_node_t v;
+   switch (peek()) {
+   case tSYSTASK:
+      v = p_subroutine_call(V_SYS_TCALL);
+      break;
+   case tVOID:
+      {
+         consume(tVOID);
+         consume(tTICK);
+         consume(tLPAREN);
+
+         const vlog_kind_t kind =
+            peek() == tSYSTASK ? V_SYS_FCALL : V_USER_FCALL;
+
+         v = vlog_new(V_VOID_CALL);
+         vlog_set_value(v, p_subroutine_call(kind));
+
+         consume(tRPAREN);
+      }
+      break;
+   case tID:
+   default:
+      v = p_subroutine_call(V_USER_TCALL);
+      break;
+   }
 
    consume(tSEMI);
 
@@ -2406,7 +2430,9 @@ static vlog_node_t p_statement_item(void)
 
    switch (peek()) {
    case tID:
-      {
+      if (peek_nth(2) == tLPAREN)
+         return p_subroutine_call_statement();
+      else {
          vlog_node_t lhs = p_variable_lvalue(), v = NULL;
 
          if (peek() == tLE)
@@ -2425,6 +2451,7 @@ static vlog_node_t p_statement_item(void)
    case tFORK:
       return p_par_block();
    case tSYSTASK:
+   case tVOID:
       return p_subroutine_call_statement();
    case tIF:
       return p_conditional_statement();
@@ -2443,8 +2470,8 @@ static vlog_node_t p_statement_item(void)
    case tIFIMPL:
       return p_event_trigger();
    default:
-      one_of(tID, tAT, tHASH, tBEGIN, tFORK, tSYSTASK, tIF, tFOREVER, tWHILE,
-             tREPEAT, tDO, tFOR, tWAIT, tCASE, tCASEX, tCASEZ, tIFIMPL);
+      one_of(tID, tAT, tHASH, tBEGIN, tFORK, tSYSTASK, tVOID, tIF, tFOREVER,
+             tWHILE, tREPEAT, tDO, tFOR, tWAIT, tCASE, tCASEX, tCASEZ, tIFIMPL);
       drop_tokens_until(tSEMI);
       return vlog_new(V_BLOCK);  // Dummy statement
    }
@@ -2764,10 +2791,10 @@ static vlog_node_t p_tf_port_item(void)
    BEGIN("task or function port item");
 
    vlog_node_t v = vlog_new(V_PORT_DECL);
-   
+
    skip_over_attributes();
 
-   if (scan(tINPUT, tOUTPUT))
+   if (scan(tINPUT, tOUTPUT, tINOUT))
       vlog_set_subkind(v, p_tf_port_direction());
    else
       vlog_set_subkind(v, V_PORT_INPUT);
@@ -2794,7 +2821,9 @@ static void p_tf_port_list(vlog_node_t tf)
    do {
       vlog_node_t v = p_tf_port_item();
       vlog_add_port(tf, v);
-      vlog_symtab_put(symtab, v);
+
+      if (vlog_has_ident(v))  // Ignore unnamed ports
+         vlog_symtab_put(symtab, v);
    } while (optional(tCOMMA));
 }
 

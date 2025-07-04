@@ -120,7 +120,6 @@ BASED_HASH      {INTEGER}[#]{HEX}(\.{HEX})?[#]{EXPONENT}?
 BASED_COLON     {INTEGER}[:]{HEX}(\.{HEX})?[:]{EXPONENT}?
 BASED           {BASED_HASH}|{BASED_COLON}
 SPACE           [ \t\r]+
-TICK            \'
 PRAGMA          --[ \t]*
 SYNTH_OFF       {PRAGMA}(?i:synthesis)[ \t]+(?i:translate_off).*
 SYNTH_ON        {PRAGMA}(?i:synthesis)[ \t]+(?i:translate_on).*
@@ -484,7 +483,6 @@ BEFORE            ?i:before
 <INITIAL,PSL>{ABS}       { TOKEN(tABS); }
 <INITIAL,PSL>{NOT}       { TOKEN(tNOT); }
 <INITIAL,PSL>{ALL}       { TOKEN(tALL); }
-<INITIAL,PSL>{TICK}      { TOKEN(tTICK); }
 <INITIAL,PSL>{SLL}       { TOKEN(tSLL); }
 <INITIAL,PSL>{SRL}       { TOKEN(tSRL); }
 <INITIAL,PSL>{SLA}       { TOKEN(tSLA); }
@@ -533,6 +531,7 @@ BEFORE            ?i:before
 <*>"#"                   { TOKEN(tHASH); }
 <*>"~"                   { TOKEN(tTILDE); }
 <*>"^"                   { TOKEN(tCARET); }
+<*>"'"                   { TOKEN(tTICK); }
 
 <INITIAL,PSL>"!"         { TOKEN(tBAR); }
 <VLOG>"!"                { TOKEN(tBANG); }
@@ -796,7 +795,6 @@ BEFORE            ?i:before
      Must be scanned in separate mode! Tokens that may be lookahead
      after an identifier must be scanned too. */
 <SDF,SDF_EXPR>"!"       { TOKEN(tBANG); }
-<SDF,SDF_EXPR>{TICK}    { TOKEN(tTICK); }
 <SDF,SDF_EXPR>"<<"      { TOKEN(tLTLT); }
 <SDF,SDF_EXPR>">>"      { TOKEN(tGTGT); }
 <SDF,SDF_EXPR>"<="      { TOKEN(tLE); }

@@ -43,6 +43,7 @@ static bool has_error(vlog_node_t v)
    switch (vlog_kind(v)) {
    case V_REF:
    case V_USER_FCALL:
+   case V_USER_TCALL:
       if (vlog_has_ref(v))
          return false;
       else {
@@ -356,6 +357,21 @@ static void vlog_check_user_fcall(vlog_node_t v)
    vlog_check_call_args(v, func);
 }
 
+static void vlog_check_user_tcall(vlog_node_t v)
+{
+   vlog_node_t func = vlog_ref(v);
+   if (vlog_kind(func) != V_TASK_DECL) {
+      diag_t *d = diag_new(DIAG_ERROR, vlog_loc(v));
+      diag_printf(d, "'%s' is not a task", istr(vlog_ident(func)));
+      diag_hint(d, vlog_loc(func), "'%s' declared here",
+                istr(vlog_ident(func)));
+      diag_emit(d);
+      return;
+   }
+
+   vlog_check_call_args(v, func);
+}
+
 static vlog_node_t vlog_check_cb(vlog_node_t v, void *ctx)
 {
    if (has_error(v))
@@ -396,6 +412,9 @@ static vlog_node_t vlog_check_cb(vlog_node_t v, void *ctx)
       break;
    case V_USER_FCALL:
       vlog_check_user_fcall(v);
+      break;
+   case V_USER_TCALL:
+      vlog_check_user_tcall(v);
       break;
    case V_CASE_ITEM:
    case V_UDP_LEVEL:
@@ -451,6 +470,7 @@ static vlog_node_t vlog_check_cb(vlog_node_t v, void *ctx)
    case V_PREFIX:
    case V_POSTFIX:
    case V_BIT_SELECT:
+   case V_VOID_CALL:
       break;
    default:
       fatal_at(vlog_loc(v), "cannot check verilog node %s",

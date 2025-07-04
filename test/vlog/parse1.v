@@ -40,7 +40,7 @@ module parse1;
     bit       y;
     @(x) y = 2;
   endtask // task1
-  task task2(input int x, output logic y);
+  task task2(input int x, inout logic, output logic y);
     y = !x;
   endtask // task2
   function sum(input int a, b);
@@ -51,6 +51,7 @@ module parse1;
     x = x ? 1 : y;
     x = x - y * x + 1 % y / x;
     x = x ** y;
+    task2(1, x, y);
   end
   parameter xx = 6;
   integer   r2 = 66;

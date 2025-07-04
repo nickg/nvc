@@ -932,6 +932,7 @@ START_TEST(test_tfcall1)
       {  8, "expected 2 arguments for 'sum' but have 1" },
       {  9, "expected 2 arguments for 'sum' but have 3" },
       { 13, "'x4' is not a function" },
+      { 27, "'no_args' is not a task" },
       { 12, "no visible declaration for not_here" },
       { -1, NULL }
    };
