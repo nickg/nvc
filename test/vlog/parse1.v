@@ -117,4 +117,7 @@ module parse1;
     #1 x = 1;
     #5 y = 2;
   join
+  genvar i;
+  for (i = 0; i < 5; i++)
+    assign x[i] = 1;
 endmodule // parse1

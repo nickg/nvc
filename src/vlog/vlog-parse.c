@@ -222,6 +222,8 @@ static void _vexpect(va_list ap)
    state.n_correct = 0;
 
    drop_token();
+
+   vlog_symtab_suppress(symtab);
 }
 
 static vlog_node_t peek_reference(void)
@@ -3222,6 +3224,36 @@ static void p_package_or_generate_item_declaration(vlog_node_t mod)
    }
 }
 
+static void p_list_of_genvar_identifiers(vlog_node_t mod)
+{
+   // genvar_identifier { , genvar_identifier }
+
+   BEGIN("list of genvar identifiers");
+
+   do {
+      vlog_node_t v = vlog_new(V_GENVAR_DECL);
+      vlog_set_ident(v, p_identifier());
+      vlog_set_loc(v, CURRENT_LOC);
+
+      vlog_add_decl(mod, v);
+
+      vlog_symtab_put(symtab, v);
+   } while (optional(tCOMMA));
+}
+
+static void p_genvar_declaration(vlog_node_t mod)
+{
+   // genvar list_of_genvar_identifiers ;
+
+   BEGIN("genvar declaration");
+
+   consume(tGENVAR);
+
+   p_list_of_genvar_identifiers(mod);
+
+   consume(tSEMI);
+}
+
 static void p_module_or_generate_item_declaration(vlog_node_t mod)
 {
    // package_or_generate_item_declaration | genvar_declaration
@@ -3230,7 +3262,14 @@ static void p_module_or_generate_item_declaration(vlog_node_t mod)
 
    BEGIN("module or generate item declaration");
 
-   p_package_or_generate_item_declaration(mod);
+   switch (peek()) {
+   case tGENVAR:
+      p_genvar_declaration(mod);
+      break;
+   default:
+      p_package_or_generate_item_declaration(mod);
+      break;
+   }
 }
 
 static void p_generate_item(vlog_node_t parent)
@@ -3344,6 +3383,89 @@ static vlog_node_t p_conditional_generate_construct(void)
    }
 }
 
+static vlog_node_t p_genvar_initialization(void)
+{
+   // [ genvar ] genvar_identifier = constant_expression
+
+   BEGIN("genvar initialization");
+
+   vlog_node_t v = vlog_new(V_FOR_INIT);
+
+   vlog_node_t ref = vlog_new(V_REF);
+   vlog_set_ident(ref, p_identifier());
+   vlog_set_loc(ref, &state.last_loc);
+
+   vlog_symtab_lookup(symtab, ref);
+
+   consume(tEQ);
+
+   vlog_node_t a = vlog_new(V_BASSIGN);
+   vlog_set_target(a, ref);
+   vlog_set_value(a, p_constant_expression());
+   vlog_set_loc(a, CURRENT_LOC);
+
+   vlog_add_stmt(v, a);
+
+   vlog_set_loc(v, CURRENT_LOC);
+   return v;
+}
+
+static vlog_node_t p_genvar_iteration(void)
+{
+   // genvar_identifier assignment_operator genvar_expression
+   //   | inc_or_dec_operator genvar_identifier
+   //   | genvar_identifier inc_or_dec_operator
+
+   BEGIN("genvar iteration");
+
+   vlog_node_t v = vlog_new(V_FOR_STEP);
+
+   vlog_node_t ref = vlog_new(V_REF);
+   vlog_set_ident(ref, p_identifier());
+   vlog_set_loc(ref, &state.last_loc);
+
+   vlog_node_t a = vlog_new(V_POSTFIX);
+   vlog_set_subkind(a, p_inc_or_dec_operator());
+   vlog_set_target(a, ref);
+
+   vlog_set_loc(v, CURRENT_LOC);
+   return v;
+}
+
+static vlog_node_t p_loop_generate_construct(void)
+{
+   // for ( genvar_initialization ; genvar_expression ; genvar_iteration )
+   //   generate_block
+
+   BEGIN("loop generate construct");
+
+   consume(tFOR);
+   consume(tLPAREN);
+
+   vlog_node_t v = vlog_new(V_FOR_GENERATE);
+
+   vlog_symtab_push(symtab, v);
+
+   vlog_set_left(v, p_genvar_initialization());
+
+   consume(tSEMI);
+
+   vlog_set_value(v, p_constant_expression());
+
+   consume(tSEMI);
+
+   vlog_set_right(v, p_genvar_iteration());
+
+   consume(tRPAREN);
+
+   p_generate_block(v);
+
+   vlog_symtab_pop(symtab);
+
+   vlog_set_loc(v, CURRENT_LOC);
+   return v;
+}
+
 static void p_module_common_item(vlog_node_t mod)
 {
    // module_or_generate_item_declaration
@@ -3389,10 +3511,14 @@ static void p_module_common_item(vlog_node_t mod)
    case tPARAMETER:
    case tEVENT:
    case tID:
+   case tGENVAR:
       p_module_or_generate_item_declaration(mod);
       break;
    case tASSIGN:
       p_continuous_assign(mod);
+      break;
+   case tFOR:
+      vlog_add_stmt(mod, p_loop_generate_construct());
       break;
    case tIF:
       vlog_add_stmt(mod, p_conditional_generate_construct());
@@ -3401,8 +3527,8 @@ static void p_module_common_item(vlog_node_t mod)
       one_of(tALWAYS, tALWAYSCOMB, tALWAYSFF, tALWAYSLATCH, tWIRE, tUWIRE,
              tSUPPLY0, tSUPPLY1, tTRI, tTRIAND, tTRIOR, tREG, tSTRUCT, tUNION,
              tTYPEDEF, tENUM, tSVINT, tINTEGER, tSVREAL, tSHORTREAL, tREALTIME,
-             tTIME, tTASK, tFUNCTION, tPARAMETER, tLOCALPARAM, tASSIGN, tIF,
-             tEVENT);
+             tTIME, tTASK, tFUNCTION, tPARAMETER, tLOCALPARAM, tEVENT, tID,
+             tGENVAR, tASSIGN, tFOR, tIF);
       drop_tokens_until(tSEMI);
    }
 }
@@ -4621,7 +4747,9 @@ static void p_module_or_generate_item(vlog_node_t mod)
    case tLOCALPARAM:
    case tPARAMETER:
    case tIF:
+   case tFOR:
    case tEVENT:
+   case tGENVAR:
       p_module_common_item(mod);
       break;
    case tPULLDOWN:
@@ -4650,8 +4778,8 @@ static void p_module_or_generate_item(vlog_node_t mod)
              tSUPPLY0, tSUPPLY1, tTRI, tTRIAND, tTRIOR, tREG, tSTRUCT, tUNION,
              tASSIGN, tINITIAL, tTYPEDEF, tENUM, tSVINT, tINTEGER, tSVREAL,
              tSHORTREAL, tREALTIME, tTIME, tTASK, tFUNCTION, tLOCALPARAM,
-             tPARAMETER, tIF, tPULLDOWN, tPULLUP, tID, tAND, tNAND, tOR, tNOR,
-             tXOR, tXNOR, tNOT, tBUF, tEVENT);
+             tPARAMETER, tIF, tFOR, tEVENT, tGENVAR, tPULLDOWN, tPULLUP, tID,
+             tAND, tNAND, tOR, tNOR, tXOR, tXNOR, tNOT, tBUF);
       drop_tokens_until(tSEMI);
    }
 }
@@ -4725,6 +4853,8 @@ static void p_non_port_module_item(vlog_node_t mod)
    case tPARAMETER:
    case tEVENT:
    case tIF:
+   case tFOR:
+   case tGENVAR:
       p_module_or_generate_item(mod);
       break;
    case tSPECIFY:
@@ -4739,7 +4869,8 @@ static void p_non_port_module_item(vlog_node_t mod)
              tASSIGN, tPULLDOWN, tPULLUP, tID, tATTRBEGIN, tAND, tNAND, tOR,
              tNOR, tXOR, tXNOR, tNOT, tBUF, tTYPEDEF, tENUM, tSVINT, tINTEGER,
              tSVREAL,  tSHORTREAL, tREALTIME, tTIME, tTASK, tFUNCTION,
-             tLOCALPARAM, tPARAMETER, tEVENT, tIF, tSPECIFY, tGENERATE);
+             tLOCALPARAM, tPARAMETER, tEVENT, tIF, tFOR, tGENVAR, tSPECIFY,
+             tGENERATE);
       drop_tokens_until(tSEMI);
    }
 }

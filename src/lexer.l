@@ -688,6 +688,7 @@ BEFORE            ?i:before
 <VLOG>"**"               { return tPOWER; }
 <VLOG>"^"                { return tCARET; }
 <VLOG>("~^"|"^~")        { return tTILDECARET; }
+<VLOG>"->"               { return tIFIMPL; }
 <VLOG>"var"              { return tVAR; }
 <VLOG>"specify"          { return tSPECIFY; }
 <VLOG>"endspecify"       { return tENDSPECIFY; }
@@ -751,7 +752,7 @@ BEFORE            ?i:before
 <VLOG>"$recrem"          { return tDLRRECREM; }
 <VLOG>"$width"           { return tDLRWIDTH; }
 <VLOG>"event"            { return tEVENT; }
-<VLOG>"->"               { return tIFIMPL; }
+<VLOG>"genvar"           { return tGENVAR; }
 
 <VLOG>{SYSTASK}          { yylval.str = xstrdup(yytext); return tSYSTASK; }
 <VLOG>{VLOG_ID}          { yylval.str = xstrdup(yytext); return tID; }

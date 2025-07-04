@@ -269,6 +269,7 @@ const char *token_str(token_t tok)
          "ifnone", "edge", "*>", "$setup", "$hold", "$recovery", "$removal",
          "$setuphold", "$recrem", "$width", "+:", "-:", "endgenerate",
          "`resetall", "event", "&&&", "specparam", "fork", "join", "automatic",
+         "genvar",
       };
 
       if (tok >= 200 && tok - 200 < ARRAY_LEN(token_strs))

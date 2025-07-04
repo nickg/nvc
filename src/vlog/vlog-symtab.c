@@ -50,6 +50,7 @@ typedef struct _vlog_scope {
    size_t         num_symbols;
    vlog_symbol_t *symbols;
    node_list_t    tfcalls;
+   bool           suppress;
 } vlog_scope_t;
 
 vlog_symtab_t *vlog_symtab_new(void)
@@ -261,6 +262,7 @@ void vlog_symtab_put(vlog_symtab_t *st, vlog_node_t v)
       diag_hint(d, vlog_loc(sym->node), "%s was previously declared here",
                 istr(name));
       diag_hint(d, vlog_loc(v), "duplicate declaration");
+      diag_suppress(d, name == well_known(W_ERROR) || st->top->suppress);
       diag_emit(d);
    }
 
@@ -280,4 +282,9 @@ vlog_node_t vlog_symtab_query(vlog_symtab_t *st, ident_t name)
       return NULL;
 
    return sym->node;
+}
+
+void vlog_symtab_suppress(vlog_symtab_t *st)
+{
+   st->top->suppress = true;
 }
