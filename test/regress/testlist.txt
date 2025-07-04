@@ -1134,3 +1134,4 @@ mixed4          mixed
 vlog16          verilog
 select3         verilog
 vlog17          verilog
+issue1229       normal

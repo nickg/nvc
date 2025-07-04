@@ -20,6 +20,8 @@
   quoted to avoid the double quotes being interpreted by the shell.
 - Fixed a crash when ports with view mode indications are partially
   associated in a port map (#1208).
+- Files declared in impure functions are now closed after the `return`
+  expression has been evaluated rather than before (#1229).
 - Several other minor bugs were resolved (#1220).
 
 ## Version 1.16.2 - 2025-06-11

@@ -6373,30 +6373,25 @@ static void lower_return(lower_unit_t *lu, tree_t stmt)
 {
    lower_stmt_coverage(lu, stmt);
 
-   if (is_subprogram(lu->container))
-      lower_leave_subprogram(lu);
-
+   vcode_reg_t value_reg = VCODE_INVALID_REG;
    if (tree_has_value(stmt)) {
       tree_t value = tree_value(stmt);
       type_t type = tree_type(value);
 
-      vcode_reg_t value_reg = lower_rvalue(lu, value);
+      value_reg = lower_rvalue(lu, value);
 
-      if (type_is_scalar(type)) {
+      if (type_is_scalar(type))
          lower_check_scalar_bounds(lu, value_reg, type, value, NULL);
-         emit_return(value_reg);
-      }
-      else if (type_is_access(type)) {
-         type_t access = type_designated(type);
-         emit_return(lower_incomplete_access(value_reg, access));
-      }
+      else if (type_is_access(type))
+         value_reg = lower_incomplete_access(value_reg, type_designated(type));
       else if (type_is_array(type))
-         emit_return(lower_coerce_arrays(lu, type, tree_type(stmt), value_reg));
-      else
-         emit_return(value_reg);
+         value_reg = lower_coerce_arrays(lu, type, tree_type(stmt), value_reg);
    }
-   else
-      emit_return(VCODE_INVALID_REG);
+
+   if (is_subprogram(lu->container))
+      lower_leave_subprogram(lu);
+
+   emit_return(value_reg);
 }
 
 static void lower_pcall(lower_unit_t *lu, tree_t pcall)
