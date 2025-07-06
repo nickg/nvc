@@ -1201,10 +1201,22 @@ static void vlog_lower_var_decl(mir_unit_t *mu, vlog_node_t v, tree_t wrap)
    mir_type_t t_logic_signal = mir_signal_type(mu, t_logic);
    mir_type_t t_offset = mir_offset_type(mu);
 
-   assert(!vlog_has_value(v));   // Should have been replaced with initial
+   type_info_t *ti = vlog_type_info(mu, vlog_type(v));
 
-   mir_value_t value = mir_const(mu, t_logic, LOGIC_X);
-   mir_value_t count = mir_const(mu, t_offset, vlog_size(vlog_type(v)));
+   mir_value_t value;
+   if (vlog_has_value(v)) {
+      mir_value_t tmp = MIR_NULL_VALUE;
+      if (ti->size > 1)
+         tmp = vlog_get_temp(mu, ti);
+
+      mir_value_t packed = vlog_lower_rvalue(mu, vlog_value(v));
+      mir_value_t cast = mir_build_cast(mu, ti->type, packed);
+      value = mir_build_unpack(mu, cast, 0, tmp);
+   }
+   else
+      value = mir_const(mu, t_logic, LOGIC_X);
+
+   mir_value_t count = mir_const(mu, t_offset, ti->size);
    mir_value_t size = mir_const(mu, t_offset, 1);
    mir_value_t flags = mir_const(mu, t_offset, 0);
    mir_value_t locus = mir_build_locus(mu, tree_to_object(wrap));
