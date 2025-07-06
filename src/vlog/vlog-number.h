@@ -65,8 +65,12 @@ number_t number_read(fbuf_t *f);
 number_t number_add(number_t a, number_t b);
 number_t number_sub(number_t a, number_t b);
 number_t number_logical_equal(number_t a, number_t b);
+number_t number_greater(number_t a, number_t b);
 
 void vec2_add(uint64_t *a, size_t asize, const uint64_t *b, size_t bsize);
 void vec2_mul(uint64_t *a, size_t asize, const uint64_t *b, size_t bsize);
+
+vlog_logic_t vec2_gt(const uint64_t *a, size_t asize,
+                     const uint64_t *b, size_t bsize);
 
 #endif  // _VLOG_NUMBER_H

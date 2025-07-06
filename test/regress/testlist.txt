@@ -1139,3 +1139,4 @@ vlog18          verilog
 select4         verilog
 select5         verilog
 select6         verilog
+select7         verilog

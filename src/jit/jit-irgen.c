@@ -2207,7 +2207,7 @@ static void irgen_op_cast(jit_irgen_t *g, mir_value_t n)
          bbits = jit_value_from_int64(0);
 
       const int result_size = mir_get_size(g->mu, result_type);
-      const int arg_size = mir_get_size(g->mu, result_type);
+      const int arg_size = mir_get_size(g->mu, arg_type);
       assert(result_size <= 64); // TODO
       assert(arg_size <= 64); // TODO
 

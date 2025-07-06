@@ -102,6 +102,7 @@ unsigned vlog_size(vlog_node_t v)
          return size;
       }
    case V_DIMENSION:
+   case V_PART_SELECT:
       {
          int64_t left, right;
          vlog_bounds(v, &left, &right);
@@ -160,6 +161,19 @@ vlog_node_t vlog_longest_static_prefix(vlog_node_t v)
             if (!vlog_is_const(vlog_param(v, i)))
                return prefix;
          }
+
+         return v;
+      }
+   case V_PART_SELECT:
+      {
+         vlog_node_t value = vlog_value(v);
+         vlog_node_t prefix = vlog_longest_static_prefix(value);
+
+         if (prefix != value)
+            return prefix;
+
+         if (!vlog_is_const(vlog_left(v)))
+            return prefix;
 
          return v;
       }

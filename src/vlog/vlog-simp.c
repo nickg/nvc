@@ -258,6 +258,9 @@ static vlog_node_t simp_binary(vlog_node_t v)
    case V_BINARY_LOG_EQ:
       result = number_logical_equal(nleft, nright);
       break;
+   case V_BINARY_GT:
+      result = number_greater(nleft, nright);
+      break;
    default:
       return v;
    }

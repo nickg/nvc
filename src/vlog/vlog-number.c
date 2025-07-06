@@ -447,7 +447,27 @@ number_t number_logical_equal(number_t a, number_t b)
       bignum_bbits(a.big)[0] | bignum_bbits(b.big)[0];
 
    return result;
+}
 
+number_t number_greater(number_t a, number_t b)
+{
+   const int width = 1;
+   const int nwords = BIGNUM_WORDS(width);
+
+   number_t result = { .bits = 0 };
+   result.big = xmalloc_flex(sizeof(bignum_t), nwords * 2, sizeof(uint64_t));
+   result.big->width = width;
+   result.big->issigned = false;
+
+   if (number_is_defined(a) && number_is_defined(b)) {
+      bignum_abits(result.big)[0] = vec2_gt(bignum_abits(a.big), a.big->width,
+                                            bignum_abits(b.big), b.big->width);
+      bignum_bbits(result.big)[0] = 0;
+   }
+   else
+      bignum_abits(result.big)[0] = bignum_bbits(result.big)[0] = 1;
+
+   return result;
 }
 
 void vec2_add(uint64_t *a, size_t asize, const uint64_t *b, size_t bsize)
@@ -462,6 +482,15 @@ void vec2_mul(uint64_t *a, size_t asize, const uint64_t *b, size_t bsize)
 {
    if (asize <= 64 && bsize <= 64)
       a[0] *= b[0];
+   else
+      should_not_reach_here();   // TODO
+}
+
+vlog_logic_t vec2_gt(const uint64_t *a, size_t asize,
+                     const uint64_t *b, size_t bsize)
+{
+   if (asize <= 64 && bsize <= 64)
+      return a[0] > b[0] ? LOGIC_1 : LOGIC_0;
    else
       should_not_reach_here();   // TODO
 }

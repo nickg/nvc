@@ -213,6 +213,25 @@ static vlog_lvalue_t vlog_lower_lvalue(vlog_gen_t *g, vlog_node_t v)
          };
          return lvalue;
       }
+   case V_PART_SELECT:
+      {
+         vlog_lvalue_t prefix = vlog_lower_lvalue(g, vlog_value(v));
+
+         vlog_node_t dt = vlog_type(vlog_ref(vlog_value(v)));
+         vlog_node_t dim = vlog_range(dt, 0);
+
+         mir_value_t off = vlog_lower_array_off(g, dim, vlog_left(v));
+
+         mir_type_t t_offset = mir_offset_type(g->mu);
+
+         vlog_lvalue_t lvalue = {
+            .nets     = prefix.nets,
+            .offset   = mir_build_add(g->mu, t_offset, off, prefix.offset),
+            .size     = vlog_size(v),
+            .in_range = prefix.in_range,   // XXX
+         };
+         return lvalue;
+      }
    default:
       CANNOT_HANDLE(v);
    }
@@ -603,12 +622,7 @@ static mir_value_t vlog_lower_rvalue(vlog_gen_t *g, vlog_node_t v)
          mir_value_t off = vlog_lower_array_off(g, dim, vlog_left(v));
          mir_value_t ptr = mir_build_array_ref(g->mu, base, off);
 
-         int64_t left, right;
-         vlog_bounds(v, &left, &right);
-
-         int64_t size = left < right ? right - left + 1 : left - right + 1;
-
-         mir_type_t t_vec = mir_vec4_type(g->mu, size, false);
+         mir_type_t t_vec = mir_vec4_type(g->mu, vlog_size(v), false);
          return mir_build_pack(g->mu, t_vec, ptr);
       }
    case V_CONCAT:
@@ -681,7 +695,8 @@ static mir_value_t vlog_lower_time(vlog_gen_t *g, vlog_node_t v)
 
 static void vlog_lower_sensitivity(vlog_gen_t *g, vlog_node_t v)
 {
-   switch (vlog_kind(v)) {
+   const vlog_kind_t kind = vlog_kind(v);
+   switch (kind) {
    case V_REF:
       {
          switch (vlog_kind(vlog_ref(v))) {
@@ -706,12 +721,32 @@ static void vlog_lower_sensitivity(vlog_gen_t *g, vlog_node_t v)
       }
       break;
    case V_BIT_SELECT:
+   case V_PART_SELECT:
       {
-         vlog_lower_sensitivity(g, vlog_value(v));
+         vlog_node_t prefix = vlog_longest_static_prefix(v);
+         if (prefix == v) {
+            mir_type_t t_offset = mir_offset_type(g->mu);
 
-         const int nparams = vlog_params(v);
-         for (int i = 0; i < nparams; i++)
-            vlog_lower_sensitivity(g, vlog_param(v, i));
+            vlog_lvalue_t lvalue = vlog_lower_lvalue(g, v);
+
+            mir_value_t count = mir_const(g->mu, t_offset, lvalue.size);
+
+            // XXX: check in range
+            mir_value_t nets =
+               mir_build_array_ref(g->mu, lvalue.nets, lvalue.offset);
+
+            mir_build_sched_event(g->mu, nets, count);
+         }
+         else
+            vlog_lower_sensitivity(g, prefix);
+
+         if (kind == V_BIT_SELECT) {
+            const int nparams = vlog_params(v);
+            for (int i = 0; i < nparams; i++)
+               vlog_lower_sensitivity(g, vlog_param(v, i));
+         }
+         else
+            vlog_lower_sensitivity(g, vlog_left(v));
       }
       break;
    case V_EVENT:
@@ -1381,7 +1416,8 @@ static mir_type_t vlog_lower_vhdl_type(mir_unit_t *mu, type_t type)
       return mir_int_type(mu, 0, 255);
    else if (type_eq(type, verilog_type(VERILOG_LOGIC)))
       return mir_int_type(mu, 0, 3);
-   else if (type_eq(type, verilog_type(VERILOG_WIRE_ARRAY)))
+   else if (type_eq(type, verilog_type(VERILOG_WIRE_ARRAY))
+            || type_eq(type, verilog_type(VERILOG_NET_ARRAY)))
       return mir_uarray_type(mu, 1, mir_int_type(mu, 0, 3));
 
    fatal_trace("cannot lower VHDL type %s", type_pp(type));
