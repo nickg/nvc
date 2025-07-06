@@ -72,31 +72,47 @@ bool vlog_is_const(vlog_node_t v)
 
 void vlog_bounds(vlog_node_t v, int64_t *left, int64_t *right)
 {
-   assert(vlog_subkind(v) == V_DIM_PACKED);
-
    *left = vlog_get_const(vlog_left(v));
    *right = vlog_get_const(vlog_right(v));
 }
 
 unsigned vlog_size(vlog_node_t v)
 {
-   unsigned size = 1;
+   switch (vlog_kind(v)) {
+   case V_DATA_TYPE:
+   case V_VAR_DECL:
+   case V_NET_DECL:
+      {
+         unsigned size = 1;
 
-   const int nranges = vlog_ranges(v);
-   for (int i = 0; i < nranges; i++) {
-      vlog_node_t r = vlog_range(v, i);
-      assert(vlog_subkind(r) == V_DIM_PACKED);
+         const int nranges = vlog_ranges(v);
+         for (int i = 0; i < nranges; i++) {
+            vlog_node_t r = vlog_range(v, i);
 
-      int64_t left, right;
-      vlog_bounds(r, &left, &right);
+            int64_t left, right;
+            vlog_bounds(r, &left, &right);
 
-      if (left < right)
-         size *= right - left + 1;
-      else
-         size *= left - right + 1;
+            if (left < right)
+               size *= right - left + 1;
+            else
+               size *= left - right + 1;
+         }
+
+         return size;
+      }
+   case V_DIMENSION:
+      {
+         int64_t left, right;
+         vlog_bounds(v, &left, &right);
+
+         if (left < right)
+            return right - left + 1;
+         else
+            return left - right + 1;
+      }
+   default:
+      CANNOT_HANDLE(v);
    }
-
-   return size;
 }
 
 bool is_top_level(vlog_node_t v)

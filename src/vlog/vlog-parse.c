@@ -1247,12 +1247,16 @@ static vlog_node_t p_select(ident_t id)
              return ps;
           }
 
-          vlog_node_t bs = vlog_new(V_BIT_SELECT);
-          vlog_set_loc(bs, CURRENT_LOC);
-          vlog_set_value(bs, prefix);
-          vlog_add_param(bs, expr);
+          if (vlog_kind(prefix) == V_BIT_SELECT)
+             vlog_add_param(prefix, expr);
+          else {
+             vlog_node_t bs = vlog_new(V_BIT_SELECT);
+             vlog_set_loc(bs, CURRENT_LOC);
+             vlog_set_value(bs, prefix);
+             vlog_add_param(bs, expr);
 
-          prefix = bs;
+             prefix = bs;
+          }
 
           consume(tRSQUARE);
        } while (optional(tLSQUARE));
