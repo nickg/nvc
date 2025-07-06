@@ -169,7 +169,7 @@ static vlog_lvalue_t vlog_lower_lvalue(vlog_gen_t *g, vlog_node_t v)
          const int nparams = vlog_params(v);
          assert(nparams <= npacked + nunpacked);
 
-         unsigned size = 0;
+         unsigned size = vlog_size(decl) * ref.size;
 
          mir_type_t t_offset = mir_offset_type(g->mu);
          mir_value_t zero = mir_const(g->mu, t_offset, 0), off = zero;
@@ -177,19 +177,19 @@ static vlog_lvalue_t vlog_lower_lvalue(vlog_gen_t *g, vlog_node_t v)
 
          for (int i = 0; i < nparams; i++) {
             vlog_node_t dim;
-            if (i < nunpacked) {
+            if (i < nunpacked)
                dim = vlog_range(decl, i);
-               size = ref.size;
-            }
-            else {
+            else
                dim = vlog_range(dt, i - nunpacked);
-               size = 1;
-            }
+
+            const unsigned dim_size = vlog_size(dim);
+            assert(size % dim_size == 0);
+            size /= dim_size;
 
             mir_value_t this_off =
                vlog_lower_array_off(g, dim, vlog_param(v, i));
 
-            mir_value_t count = mir_const(g->mu, t_offset, vlog_size(dim));
+            mir_value_t count = mir_const(g->mu, t_offset, dim_size);
             mir_value_t cmp_low =
                mir_build_cmp(g->mu, MIR_CMP_GEQ, this_off, zero);
             mir_value_t cmp_high =
@@ -437,7 +437,7 @@ static mir_value_t vlog_lower_bit_select(vlog_gen_t *g, vlog_node_t v)
    const int nparams = vlog_params(v);
    assert(nparams <= npacked + nunpacked);
 
-   unsigned size = 0;
+   unsigned size = vlog_size(decl) * vlog_size(dt);
 
    mir_type_t t_offset = mir_offset_type(g->mu);
    mir_value_t zero = mir_const(g->mu, t_offset, 0), off = zero;
@@ -445,18 +445,18 @@ static mir_value_t vlog_lower_bit_select(vlog_gen_t *g, vlog_node_t v)
 
    for (int i = 0; i < nparams; i++) {
       vlog_node_t dim;
-      if (i < nunpacked) {
+      if (i < nunpacked)
          dim = vlog_range(decl, i);
-         size = vlog_size(dt);
-      }
-      else {
+      else
          dim = vlog_range(dt, i - nunpacked);
-         size = 1;
-      }
 
-      mir_value_t this_off = vlog_lower_array_off(g, dim, vlog_param(v, 0));
+      const unsigned dim_size = vlog_size(dim);
+      assert(size % dim_size == 0);
+      size /= dim_size;
 
-      mir_value_t count = mir_const(g->mu, t_offset, vlog_size(dim));
+      mir_value_t this_off = vlog_lower_array_off(g, dim, vlog_param(v, i));
+
+      mir_value_t count = mir_const(g->mu, t_offset, dim_size);
 
       mir_value_t cmp_low = mir_build_cmp(g->mu, MIR_CMP_GEQ, this_off, zero);
       mir_value_t cmp_high = mir_build_cmp(g->mu, MIR_CMP_LT, this_off, count);

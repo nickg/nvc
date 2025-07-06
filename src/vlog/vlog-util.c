@@ -82,6 +82,7 @@ unsigned vlog_size(vlog_node_t v)
    case V_DATA_TYPE:
    case V_VAR_DECL:
    case V_NET_DECL:
+   case V_PORT_DECL:
       {
          unsigned size = 1;
 
