@@ -3937,6 +3937,9 @@ static void irgen_op_unary(jit_irgen_t *g, mir_value_t n)
    case MIR_VEC_SUB:
       abits = j_neg(g, arg);
       break;
+   case MIR_VEC_BIT_OR:
+      abits = j_not(g, j_not(g, arg));
+      break;
    default:
       should_not_reach_here();
    }

@@ -343,6 +343,8 @@ static tree_t elab_to_verilog(type_t from, type_t to)
         "NVC.VERILOG.TO_VERILOG(U)" T_NET_VALUE },
       { IEEE_STD_ULOGIC_VECTOR, VERILOG_WIRE_ARRAY,
         "NVC.VERILOG.TO_VERILOG(Y)" T_NET_ARRAY },
+      { IEEE_STD_LOGIC_VECTOR, VERILOG_WIRE_ARRAY,
+        "NVC.VERILOG.TO_VERILOG(Y)" T_NET_ARRAY },
    };
 
    INIT_ONCE({

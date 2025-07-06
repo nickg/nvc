@@ -298,6 +298,7 @@ static mir_value_t vlog_lower_unary(vlog_gen_t *g, vlog_node_t v)
    case V_UNARY_BITNEG: mop = MIR_VEC_BIT_NOT; break;
    case V_UNARY_NOT:    mop = MIR_VEC_LOG_NOT; break;
    case V_UNARY_NEG:    mop = MIR_VEC_SUB; break;
+   case V_UNARY_OR:     mop = MIR_VEC_BIT_OR; break;
    default:
       CANNOT_HANDLE(v);
    }
@@ -1470,16 +1471,23 @@ static void vlog_lower_converter(mir_unit_t *mu, tree_t cf, mir_value_t in,
 
    mir_value_t pkg = mir_build_link_package(mu, well_known(W_NVC_VERILOG));
 
-   mir_value_t resolved = mir_build_resolved(mu, in);
-
-   mir_value_t arg, count;
-   if (type_is_array(rtype)) {
+   mir_value_t count = MIR_NULL_VALUE;
+   if (mir_is(mu, in, MIR_TYPE_UARRAY)) {
+      count = mir_build_uarray_len(mu, in, 0);
+      in = mir_build_unwrap(mu, in);
+   }
+   else if (type_is_array(rtype)) {
       int64_t length;
       if (!folded_length(range_of(tree_type(tree_value(cf)), 0), &length))
          should_not_reach_here();
 
       count = mir_const(mu, t_offset, length);
+   }
 
+   mir_value_t resolved = mir_build_resolved(mu, in);
+
+   mir_value_t arg;
+   if (!mir_is_null(count)) {
       mir_dim_t dims[] = {
          { .left  = mir_const(mu, t_offset, 1),
            .right = count,

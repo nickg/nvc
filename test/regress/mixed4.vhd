@@ -11,26 +11,47 @@ architecture test of mixed4 is
                o : out std_logic_vector(WIDTH - 1 downto 0) );
     end component;
 
-    signal i : std_logic;
-    signal o : std_logic_vector(7 downto 0);
+    component combine is
+        generic ( WIDTH : integer );
+        port ( i : in std_logic_vector(WIDTH - 1 downto 0);
+               o : out std_logic );
+    end component;
+
+    signal i1, o2 : std_logic;
+    signal o1, i2 : std_logic_vector(7 downto 0);
 begin
 
-    u: component extend
+    u1: component extend
         generic map (8)
-        port map (i, o);
+        port map (i1, o1);
+
+    u2: component combine
+        generic map (8)
+        port map (i2, o2);
 
     check: process is
     begin
-        i <= '1';
+        i1 <= '1';
         wait for 1 ns;
-        assert o = X"ff";
-        i <= '0';
+        assert o1 = X"ff";
+        i1 <= '0';
         wait for 1 ns;
-        assert o = X"00";
-        i <= 'U';
+        assert o1 = X"00";
+        i1 <= 'U';
         wait for 1 ns;
         -- TODO: X is not propagated
         -- assert o = (7 downto 0 => 'U');
+
+        i2 <= X"00";
+        wait for 1 ns;
+        assert o2 = '0';
+        i2 <= X"10";
+        wait for 1 ns;
+        assert o2 = '1';
+        i2 <= X"AA";
+        wait for 1 ns;
+        assert o2 = '1';
+
         wait;
     end process;
 
