@@ -137,10 +137,23 @@ number_t number_new(const char *str, const loc_t *loc)
       }
    }
    else if (radix == RADIX_DEC) {
-      char *eptr;
-      result.big->words[0] = strtoull(p, &eptr, 10);
-      if (*eptr != '\0')
-         error_at(loc, "invalid character '%c' in number %s", *eptr, str);
+      for (; *p; p++) {
+         switch (*p) {
+         case '0'...'9':
+            {
+               const uint64_t ten[] = { 10 };
+               const uint64_t digit[] = { *p - '0' };
+
+               vec2_mul(result.big->words, width, ten, 64);
+               vec2_add(result.big->words, width, digit, 64);
+            }
+            break;
+         case '_':
+            continue;
+         default:
+            error_at(loc, "invalid character '%c' in number %s", *p, str);
+         }
+      }
    }
    else {
       const char *start = p;
@@ -435,4 +448,20 @@ number_t number_logical_equal(number_t a, number_t b)
 
    return result;
 
+}
+
+void vec2_add(uint64_t *a, size_t asize, const uint64_t *b, size_t bsize)
+{
+   if (asize <= 64 && bsize <= 64)
+      a[0] += b[0];
+   else
+      should_not_reach_here();   // TODO
+}
+
+void vec2_mul(uint64_t *a, size_t asize, const uint64_t *b, size_t bsize)
+{
+   if (asize <= 64 && bsize <= 64)
+      a[0] *= b[0];
+   else
+      should_not_reach_here();   // TODO
 }

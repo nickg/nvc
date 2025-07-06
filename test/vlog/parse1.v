@@ -119,5 +119,5 @@ module parse1;
   join
   genvar i;
   for (i = 0; i < 5; i++)
-    assign x[i] = 1;
+    assign x[i] = 1_000;
 endmodule // parse1
