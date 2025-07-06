@@ -173,32 +173,6 @@ static type_t trans_net_type(trans_gen_t *g, vlog_node_t v)
    return trans_type(g, type, VERILOG_WIRE, VERILOG_WIRE_ARRAY);
 }
 
-static tree_t trans_make_x(type_t type, bool is_net)
-{
-   tree_t x;
-   if (is_net) {
-      x = tree_new(T_LITERAL);
-      tree_set_ival(x, LOGIC_X);
-      tree_set_type(x, verilog_type(VERILOG_WIRE));
-   }
-   else
-      x = make_ref(type_enum_literal(verilog_type(VERILOG_LOGIC), 3));
-
-   if (type_is_array(type)) {
-      tree_t a = tree_new(T_ASSOC);
-      tree_set_subkind(a, A_OTHERS);
-      tree_set_value(a, x);
-
-      tree_t agg = tree_new(T_AGGREGATE);
-      tree_add_assoc(agg, a);
-      tree_set_type(agg, type);
-
-      return agg;
-   }
-   else
-      return x;
-}
-
 static void trans_port_decl(trans_gen_t *g, vlog_node_t v)
 {
    static const port_mode_t map[] = {
@@ -218,12 +192,10 @@ static void trans_port_decl(trans_gen_t *g, vlog_node_t v)
    if (vlog_is_net(net)) {
       type_t type = trans_net_type(g, net);
       tree_set_type(t, type);
-      tree_set_value(t, trans_make_x(type, true));
    }
    else {
       type_t type = trans_var_type(g, net);
       tree_set_type(t, type);
-      tree_set_value(t, trans_make_x(type, false));
    }
 
    tree_add_port(g->out, t);
@@ -271,7 +243,6 @@ static void trans_var_decl(trans_gen_t *g, vlog_node_t v)
    tree_t t = tree_new(T_SIGNAL_DECL);
    tree_set_ident(t, vlog_ident(v));
    tree_set_type(t, type);
-   tree_set_value(t, trans_make_x(type, false));
 
    tree_add_decl(g->out, t);
 }
@@ -283,7 +254,6 @@ static void trans_net_decl(trans_gen_t *g, vlog_node_t decl)
    tree_t t = tree_new(T_SIGNAL_DECL);
    tree_set_ident(t, vlog_ident(decl));
    tree_set_type(t, type);
-   tree_set_value(t, trans_make_x(type, true));
 
    tree_add_decl(g->out, t);
 }
