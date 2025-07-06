@@ -126,9 +126,7 @@ static void cgen_walk_hier(unit_list_t *units, hset_t *seen, tree_t block,
          break;
       case T_VERILOG:
          {
-            ident_t suffix = well_known(W_SHAPE);
-            ident_t shape = ident_prefix(tree_ident2(hier), suffix, '.');
-            ident_t sym = ident_prefix(shape, tree_ident(s), '.');
+            ident_t sym = ident_prefix(unit_name, tree_ident(s), '.');
             APUSH(*units, sym);
             hset_insert(seen, sym);
          }
@@ -352,12 +350,7 @@ void cgen(tree_t top, unit_registry_t *ur, mir_context_t *mc, jit_t *jit,
 {
    assert(tree_kind(top) == T_ELAB);
 
-   ident_t b0_name = tree_ident(tree_stmt(top, 0));
    ident_t work_name = lib_name(lib_work());
-   ident_t unit_name = ident_prefix(work_name, b0_name, '.');
-   vcode_unit_t vu = unit_registry_get(ur, unit_name);
-   if (vu == NULL)
-      fatal_trace("missing vcode for %s", istr(unit_name));
 
    hset_t *seen = hset_new(16);
    unit_list_t units = AINIT;

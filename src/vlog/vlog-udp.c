@@ -19,7 +19,6 @@
 #include "ident.h"
 #include "mir/mir-node.h"
 #include "mir/mir-unit.h"
-#include "vlog/vlog-lower.h"
 #include "vlog/vlog-node.h"
 #include "vlog/vlog-number.h"
 
@@ -47,19 +46,15 @@ static mir_value_t vlog_lower_rvalue(mir_unit_t *mu, vlog_node_t v)
    }
 }
 
-void vlog_lower_udp(mir_context_t *mc, ident_t parent, vlog_node_t udp)
+void vlog_lower_udp(mir_unit_t *mu, object_t *obj)
 {
+   vlog_node_t udp = vlog_from_object(obj);
+   assert(vlog_kind(udp) == V_INST_BODY);
+
    vlog_node_t table = vlog_stmt(udp, 0);
    assert(vlog_kind(table) == V_UDP_TABLE);
 
    const vlog_udp_kind_t kind = vlog_subkind(table);
-
-   mir_shape_t *shape = mir_get_shape(mc, parent);
-   assert(shape != NULL);
-
-   ident_t name = ident_prefix(parent, vlog_ident(table), '.');
-   mir_unit_t *mu = mir_unit_new(mc, name, vlog_to_object(udp),
-                                 MIR_UNIT_PROCESS, shape);
 
    mir_block_t start_bb = mir_add_block(mu);
    assert(start_bb.id == 1);
@@ -310,6 +305,4 @@ void vlog_lower_udp(mir_context_t *mc, ident_t parent, vlog_node_t udp)
 
       mir_build_wait(mu, start_bb, MIR_NULL_VALUE);
    }
-
-   mir_put_unit(mc, mu);
 }

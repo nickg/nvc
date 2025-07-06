@@ -102,9 +102,9 @@ typedef struct {
 typedef struct _elab_instance {
    elab_instance_t *next;
    mod_cache_t     *module;
-   vcode_unit_t     shape;
    vlog_node_t      body;
    tree_t           block;
+   tree_t           wrap;
 } elab_instance_t;
 
 static void elab_block(tree_t t, const elab_ctx_t *ctx);
@@ -266,7 +266,11 @@ static elab_instance_t *elab_new_instance(vlog_node_t mod, vlog_node_t inst,
    ei->next   = mc->instances;
    ei->module = mc;
    ei->body   = vlog_new_instance(mod, inst, ctx->dotted);
-   ei->shape  = vlog_lower(ctx->registry, ctx->mir, ei->body);
+
+   ei->wrap = tree_new(T_VERILOG);
+   tree_set_loc(ei->wrap, vlog_loc(mod));
+   tree_set_ident(ei->wrap, vlog_ident(mod));
+   tree_set_vlog(ei->wrap, ei->body);
 
    ei->block = tree_new(T_BLOCK);
    tree_set_loc(ei->block, vlog_loc(inst));
@@ -1406,10 +1410,13 @@ static driver_set_t *elab_driver_set(const elab_ctx_t *ctx)
       return NULL;
 }
 
-static void elab_lower(tree_t b, vcode_unit_t shape, elab_ctx_t *ctx)
+static void elab_lower(tree_t b, const elab_instance_t *ei, elab_ctx_t *ctx)
 {
-   ctx->lowered = lower_instance(ctx->registry, ctx->parent->lowered, shape,
-                                 elab_driver_set(ctx), ctx->cover, b);
+   if (ei != NULL)
+      vlog_lower_block(ctx->mir, ctx->parent->dotted, b);
+   else
+      ctx->lowered = lower_instance(ctx->registry, ctx->parent->lowered, NULL,
+                                    elab_driver_set(ctx), ctx->cover, b);
 
    if (ctx->inst != NULL)
       diag_add_hint_fn(elab_hint_fn, ctx->inst);
@@ -1438,7 +1445,7 @@ static void elab_verilog_module(tree_t bind, ident_t label,
    tree_add_stmt(ctx->out, b);
    new_ctx.out = b;
 
-   elab_push_scope(ei->module->wrap, &new_ctx);
+   elab_push_scope(ei->wrap, &new_ctx);
 
    if (bind != NULL)
       elab_ports(ei->block, bind, &new_ctx);
@@ -1448,7 +1455,7 @@ static void elab_verilog_module(tree_t bind, ident_t label,
 
    if (error_count() == 0) {
       new_ctx.drivers = find_drivers(ei->block);
-      elab_lower(b, ei->shape, &new_ctx);
+      elab_lower(b, ei, &new_ctx);
    }
 
    if (error_count() == 0)
@@ -1513,7 +1520,8 @@ static void elab_verilog_stmts(vlog_node_t v, const elab_ctx_t *ctx)
    for (int i = 0; i < nstmts; i++) {
       vlog_node_t s = vlog_stmt(v, i);
 
-      switch (vlog_kind(s)) {
+      const vlog_kind_t kind = vlog_kind(s);
+      switch (kind) {
       case V_INST_LIST:
          elab_verilog_instance_list(s, ctx);
          break;
@@ -1523,12 +1531,22 @@ static void elab_verilog_stmts(vlog_node_t v, const elab_ctx_t *ctx)
       case V_UDP_TABLE:
       case V_GATE_INST:
          {
+            ident_t name = vlog_ident(s);
+            ident_t sym = ident_prefix(ctx->dotted, name, '.');
+
             tree_t w = tree_new(T_VERILOG);
-            tree_set_ident(w, vlog_ident(s));
+            tree_set_ident(w, name);
             tree_set_loc(w, vlog_loc(s));
             tree_set_vlog(w, s);
 
             tree_add_stmt(ctx->out, w);
+
+            if (kind == V_UDP_TABLE)
+               mir_defer(ctx->mir, sym, ctx->dotted, MIR_UNIT_PROCESS,
+                         vlog_lower_udp, vlog_to_object(v));
+            else
+               mir_defer(ctx->mir, sym, ctx->dotted, MIR_UNIT_PROCESS,
+                         vlog_lower_deferred, vlog_to_object(s));
          }
          break;
       case V_BLOCK:
@@ -1862,6 +1880,7 @@ static void elab_decls(tree_t t, const elab_ctx_t *ctx)
       case T_PACK_INST:
       case T_PSL_DECL:
       case T_ATTR_SPEC:
+      case T_VERILOG:
          tree_add_decl(ctx->out, d);
          break;
       case T_FUNC_DECL:

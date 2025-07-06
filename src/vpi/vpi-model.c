@@ -645,10 +645,10 @@ static c_module *cached_module(tree_t block, rt_scope_t *s)
       tree_t wrap = tree_ref(hier);
       assert(tree_kind(wrap) == T_VERILOG);
 
-      vlog_node_t mod = tree_vlog(wrap);
-      assert(vlog_kind(mod) == V_MODULE);
+      vlog_node_t body = tree_vlog(wrap);
+      assert(vlog_kind(body) == V_INST_BODY);
 
-      m = build_module(mod, block, s);
+      m = build_module(body, block, s);
       hash_put(cache, block, m);
    }
 

@@ -144,6 +144,21 @@ mir_context_t *mir_get_context(mir_unit_t *mu)
    return mu->context;
 }
 
+int mir_find_slot(mir_shape_t *shape, ident_t name)
+{
+   for (int i = 0; i < shape->num_slots; i++) {
+      if (shape->slots[i].name == name)
+         return i;
+   }
+
+   return -1;
+}
+
+ident_t mir_get_shape_parent(mir_shape_t *shape)
+{
+   return shape->parent ? shape->parent->name : NULL;
+}
+
 mir_value_t mir_search_object(mir_unit_t *mu, const void *obj, int *hops)
 {
    *hops = 0;

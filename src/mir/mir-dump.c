@@ -521,6 +521,10 @@ static int mir_dump_locus(object_t *obj)
    if (t != NULL)
       col += printf("%s@", tree_kind_str(tree_kind(t)));
 
+   vlog_node_t v = vlog_from_object(obj);
+   if (v != NULL)
+      col += printf("%s@", vlog_kind_str(vlog_kind(v)));
+
    col += color_printf("%p$$", obj);
    return col;
 }

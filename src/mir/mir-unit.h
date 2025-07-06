@@ -65,7 +65,9 @@ void mir_unit_free(mir_unit_t *mu);
 mir_unit_kind_t mir_get_kind(mir_unit_t *mu);
 object_t *mir_get_object(mir_unit_t *mu);
 ident_t mir_get_parent(mir_unit_t *mu);
+ident_t mir_get_shape_parent(mir_shape_t *shape);
 mir_context_t *mir_get_context(mir_unit_t *mu);
+int mir_find_slot(mir_shape_t *shape, ident_t name);
 
 mir_value_t mir_search_object(mir_unit_t *mu, const void *obj, int *hops);
 void mir_put_object(mir_unit_t *mu, const void *obj, mir_value_t value);
@@ -80,6 +82,8 @@ typedef enum {
    MIR_PASS_DCE = (1 << 1),
 } mir_pass_t;
 
+#define MIR_PASS_O0 0
+#define MIR_PASS_O1 (MIR_PASS_GVN | MIR_PASS_DCE)
 #define MIR_PASS_O2 (MIR_PASS_GVN | MIR_PASS_DCE)
 
 void mir_optimise(mir_unit_t *mu, mir_pass_t passes);

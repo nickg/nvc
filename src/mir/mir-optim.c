@@ -317,10 +317,8 @@ static valnum_t gvn_get_value(mir_value_t value, gvn_state_t *gvn)
 {
    switch (value.tag) {
    case MIR_TAG_NODE:
-      assert(gvn->nodevn[value.id] != VN_INVALID);
       return gvn->nodevn[value.id];
    case MIR_TAG_PARAM:
-      assert(gvn->paramvn[value.id] != VN_INVALID);
       return gvn->paramvn[value.id];
    case MIR_TAG_CONST:
       return VN_CONST + value.id;
@@ -586,6 +584,8 @@ static void gvn_visit_block(mir_unit_t *mu, mir_block_t block,
       case MIR_OP_SELECT:
       case MIR_OP_REM:
       case MIR_OP_LINK_PACKAGE:
+      case MIR_OP_LINK_VAR:
+      case MIR_OP_PACKAGE_INIT:
       case MIR_OP_LOCUS:
       case MIR_OP_UARRAY_LEN:
       case MIR_OP_RANGE_LENGTH:
@@ -595,6 +595,9 @@ static void gvn_visit_block(mir_unit_t *mu, mir_block_t block,
       case MIR_OP_CONST_VEC:
       case MIR_OP_BINARY:
       case MIR_OP_UNARY:
+      case MIR_OP_CLOSURE:
+      case MIR_OP_CONTEXT_UPREF:
+      case MIR_OP_UNWRAP:
          gvn_generic(mu, node, block, opt);
          break;
       case MIR_OP_AND:
@@ -609,6 +612,10 @@ static void gvn_visit_block(mir_unit_t *mu, mir_block_t block,
          break;
       case MIR_OP_LOAD:
          gvn_load(mu, node, block, opt);
+         break;
+      case MIR_OP_INIT_SIGNAL:
+      case MIR_OP_PORT_CONVERSION:
+         opt->gvn->nodevn[node.id] = gvn_new_value(node, opt->gvn);
          break;
       default:
          break;
@@ -651,7 +658,7 @@ static void mir_do_gvn(mir_unit_t *mu, mir_optim_t *opt)
          if (args[j].tag == MIR_TAG_NODE) {
             const valnum_t vn = opt->gvn->nodevn[args[j].id];
             if (unlikely(vn == VN_INVALID)) {
-               mir_dump(mu);
+               mir_dump_optim(mu, opt);
                fatal_trace("node %%%d has no value number", args[j].id);
             }
             else if (!mir_equals(opt->gvn->canon[vn], args[j]))
@@ -692,7 +699,7 @@ static void dce_visit_block(mir_unit_t *mu, mir_block_t block, mir_optim_t *opt)
             opt->dce->uses[arg.id] = saturate_add(opt->dce->uses[arg.id], 1);
       }
 
-      if (mir_is_null(n->type))
+      if (mir_is_null(n->type) || n->op == MIR_OP_STORE)
          opt->dce->uses[node.id] = 1;   // Does not produce value
    }
 
@@ -844,8 +851,12 @@ void mir_optimise(mir_unit_t *mu, mir_pass_t passes)
 {
    mir_optim_t opt = {};
 
-   opt.cfg = mir_get_cfg(mu);
-   mir_dominator_tree(mu, opt.cfg);
+   const mir_pass_t need_cfg = MIR_PASS_GVN | MIR_PASS_DCE;
+
+   if (passes & need_cfg) {
+      opt.cfg = mir_get_cfg(mu);
+      mir_dominator_tree(mu, opt.cfg);
+   }
 
    if (passes & MIR_PASS_GVN)
       mir_do_gvn(mu, &opt);
@@ -853,5 +864,6 @@ void mir_optimise(mir_unit_t *mu, mir_pass_t passes)
    if (passes & MIR_PASS_DCE)
       mir_do_dce(mu, &opt);
 
-   mir_free_cfg(mu, opt.cfg);
+   if (passes & need_cfg)
+      mir_free_cfg(mu, opt.cfg);
 }

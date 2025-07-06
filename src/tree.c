@@ -500,7 +500,7 @@ static tree_kind_t decl_kinds[] = {
    T_GROUP_TEMPLATE, T_GROUP,          T_SUBTYPE_DECL,    T_PACKAGE,
    T_PACK_BODY,      T_PACK_INST,      T_GENERIC_DECL,    T_PARAM_DECL,
    T_PROC_INST,      T_FUNC_INST,      T_PSL_DECL,        T_VIEW_DECL,
-   T_PROT_DECL,
+   T_PROT_DECL,      T_VERILOG,
 };
 
 static void tree_assert_kind(tree_t t, const tree_kind_t *list, size_t len,

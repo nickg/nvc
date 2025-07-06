@@ -811,9 +811,12 @@ static void dump_view_decl(tree_t t, int indent)
 static void dump_decl(tree_t t, int indent)
 {
    tab(indent);
-   if (tree_kind(t) != T_HIER) dump_address(t);
 
-   switch (tree_kind(t)) {
+   const tree_kind_t kind = tree_kind(t);
+   if (kind != T_HIER)
+      dump_address(t);
+
+   switch (kind) {
    case T_IMPLICIT_SIGNAL:
       print_syntax("/* implicit */ ");
       // Fall-through
@@ -1033,6 +1036,10 @@ static void dump_decl(tree_t t, int indent)
 
    case T_VIEW_DECL:
       dump_view_decl(t, 0);
+      return;
+
+   case T_VERILOG:
+      vlog_dump(tree_vlog(t), indent);
       return;
 
    default:

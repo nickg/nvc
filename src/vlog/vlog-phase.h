@@ -26,8 +26,9 @@ void vlog_check(vlog_node_t v);
 void vlog_dump(vlog_node_t v, int indent);
 void vlog_simp(vlog_node_t mod);
 void vlog_trans(vlog_node_t mod, tree_t out);
-vcode_unit_t vlog_lower(unit_registry_t *ur, mir_context_t *mc,
-                        vlog_node_t mod);
+void vlog_lower_deferred(mir_unit_t *mu, object_t *obj);
+void vlog_lower_udp(mir_unit_t *mu, object_t *obj);
+void vlog_lower_block(mir_context_t *mc, ident_t parent, tree_t b);
 vlog_node_t vlog_new_instance(vlog_node_t mod, vlog_node_t inst,
                               ident_t prefix);
 

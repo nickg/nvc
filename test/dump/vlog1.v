@@ -24,6 +24,7 @@ module mod2;
     repeat (5) r = r + 1;
     for (i = 0; i < 10; i++)
       r = !r;
+    forever i = ++i;
   end
   assign bus = 3;
   pullup (supply1, supply0) g1 (w);

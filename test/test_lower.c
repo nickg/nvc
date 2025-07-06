@@ -6331,26 +6331,6 @@ START_TEST(test_issue934)
 }
 END_TEST
 
-START_TEST(test_mixed2)
-{
-   analyse_file(TESTDIR "/lower/mixed2.v", NULL, NULL, NULL);
-
-   input_from_file(TESTDIR "/lower/mixed2.vhd");
-
-   run_elab();
-
-   vcode_unit_t vu = find_unit("WORK.POLARFIRE_TEST.U.SLE_Prim.mux_0");
-   vcode_select_unit(vu);
-
-   // Ports should be in declaration order
-   ck_assert_int_eq(vcode_count_vars(), 4);
-   fail_unless(vcode_var_name(0) == ident_new("Q"));
-   fail_unless(vcode_var_name(1) == ident_new("A"));
-   fail_unless(vcode_var_name(2) == ident_new("B"));
-   fail_unless(vcode_var_name(3) == ident_new("SL"));
-}
-END_TEST
-
 START_TEST(test_issue972)
 {
    input_from_file(TESTDIR "/lower/issue972.vhd");
@@ -6914,7 +6894,6 @@ Suite *get_lower_tests(void)
    tcase_add_test(tc, test_trigger1);
    tcase_add_test(tc, test_issue859);
    tcase_add_test(tc, test_issue934);
-   tcase_add_test(tc, test_mixed2);
    tcase_add_test(tc, test_issue972);
    tcase_add_test(tc, test_issue1029);
    tcase_add_test(tc, test_issue1080);

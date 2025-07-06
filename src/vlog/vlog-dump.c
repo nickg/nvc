@@ -625,6 +625,12 @@ static void vlog_dump_repeat(vlog_node_t v, int indent)
    vlog_dump_stmt_or_null(v, indent);
 }
 
+static void vlog_dump_forever(vlog_node_t v, int indent)
+{
+   print_syntax("#forever ");
+   vlog_dump_stmt_or_null(v, indent);
+}
+
 static void vlog_dump_for_init(vlog_node_t v, int indent)
 {
    const int nstmts = vlog_stmts(v);
@@ -934,6 +940,9 @@ void vlog_dump(vlog_node_t v, int indent)
       break;
    case V_REPEAT:
       vlog_dump_repeat(v, indent);
+      break;
+   case V_FOREVER:
+      vlog_dump_forever(v, indent);
       break;
    case V_FOR_LOOP:
       vlog_dump_for_loop(v, indent);

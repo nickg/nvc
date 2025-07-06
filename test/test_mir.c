@@ -491,10 +491,15 @@ START_TEST(test_dce1)
                                  MIR_UNIT_FUNCTION, NULL);
 
    mir_type_t t_int32 = mir_int_type(mu, INT32_MIN, INT32_MAX);
+   mir_type_t t_ptr = mir_pointer_type(mu, t_int32);
+
    mir_value_t p1 = mir_add_param(mu, t_int32, MIR_NULL_STAMP, ident_new("p1"));
    mir_value_t p2 = mir_add_param(mu, t_int32, MIR_NULL_STAMP, ident_new("p2"));
+   mir_value_t p3 = mir_add_param(mu, t_ptr, MIR_NULL_STAMP, ident_new("p3"));
 
    mir_set_result(mu, t_int32);
+
+   mir_build_store(mu, p3, p2);
 
    mir_value_t add1 = mir_build_add(mu, t_int32, p1, p2);
    mir_build_add(mu, t_int32, add1, p2);
@@ -503,6 +508,7 @@ START_TEST(test_dce1)
    mir_optimise(mu, MIR_PASS_DCE);
 
    static const mir_match_t bb0[] = {
+      { MIR_OP_STORE, PARAM("p3"), PARAM("p2") },
       { MIR_OP_RETURN, PARAM("p1") },
    };
    mir_match(mu, 0, bb0);
