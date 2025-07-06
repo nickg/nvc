@@ -442,6 +442,16 @@ static mir_value_t vlog_lower_resolved(mir_unit_t *mu, vlog_node_t v)
    }
 }
 
+static mir_value_t vlog_lower_truthy(vlog_gen_t *g, vlog_node_t v)
+{
+   mir_value_t test = vlog_lower_rvalue(g, v);
+   assert(mir_is_vector(g->mu, test));
+
+   mir_type_t type = mir_get_type(g->mu, test);
+   mir_value_t zero = mir_const_vec(g->mu, type, 0, 0);
+   return mir_build_cmp(g->mu, MIR_CMP_NEQ, test, zero);
+}
+
 static mir_value_t vlog_lower_bit_select(vlog_gen_t *g, vlog_node_t v)
 {
    vlog_node_t value = vlog_value(v);
@@ -639,7 +649,7 @@ static mir_value_t vlog_lower_rvalue(vlog_gen_t *g, vlog_node_t v)
          }
 
          if (vlog_has_value(v))
-            size *= (repeat = vlog_get_const(vlog_value(v)));
+            size *= (repeat = MAX(0, vlog_get_const(vlog_value(v))));
 
          mir_type_t type = mir_vec4_type(g->mu, size, false);
          mir_value_t result = mir_const_vec(g->mu, type, 0, 0);
@@ -677,6 +687,18 @@ static mir_value_t vlog_lower_rvalue(vlog_gen_t *g, vlog_node_t v)
          vlog_assign_variable(g, target, inc);
 
          return mir_build_load(g->mu, tmp);
+      }
+   case V_COND_EXPR:
+      {
+         // TODO: check semantics for return type
+         // TODO: do not evaluate both sides
+
+         mir_value_t cmp = vlog_lower_truthy(g, vlog_value(v));
+         mir_value_t left = vlog_lower_rvalue(g, vlog_left(v));
+         mir_value_t right = vlog_lower_rvalue(g, vlog_right(v));
+
+         mir_type_t type = mir_get_type(g->mu, left);
+         return mir_build_select(g->mu, type, cmp, left, right);
       }
    default:
       CANNOT_HANDLE(v);
@@ -760,6 +782,11 @@ static void vlog_lower_sensitivity(vlog_gen_t *g, vlog_node_t v)
       break;
    case V_UNARY:
       vlog_lower_sensitivity(g, vlog_value(v));
+      break;
+   case V_COND_EXPR:
+      vlog_lower_sensitivity(g, vlog_value(v));
+      vlog_lower_sensitivity(g, vlog_left(v));
+      vlog_lower_sensitivity(g, vlog_right(v));
       break;
    case V_CONCAT:
       {
@@ -897,12 +924,7 @@ static void vlog_lower_if(vlog_gen_t *g, vlog_node_t v)
       mir_block_t next_bb = MIR_NULL_BLOCK;
 
       if (vlog_has_value(c)) {
-         mir_value_t test = vlog_lower_rvalue(g, vlog_value(c));
-         assert(mir_is_vector(g->mu, test));
-
-         mir_type_t type = mir_get_type(g->mu, test);
-         mir_value_t zero = mir_const_vec(g->mu, type, 0, 0);
-         mir_value_t cmp = mir_build_cmp(g->mu, MIR_CMP_NEQ, test, zero);
+         mir_value_t cmp = vlog_lower_truthy(g, vlog_value(c));
 
          mir_block_t btrue = mir_add_block(g->mu);
 
