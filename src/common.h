@@ -247,7 +247,6 @@ typedef enum {
    W_VITAL,
    W_NEVER_WAITS,
    W_NVC_VERILOG,
-   W_SHAPE,
    W_INSTANCE_NAME,
    W_PATH_NAME,
    W_RESOLUTION,

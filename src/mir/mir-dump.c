@@ -629,7 +629,6 @@ void mir_annotate(mir_unit_t *mu, const mir_annotate_t *cb, void *ctx)
    case MIR_UNIT_THUNK:       printf("thunk"); break;
    case MIR_UNIT_PROPERTY:    printf("property"); break;
    case MIR_UNIT_PROTECTED:   printf("protected"); break;
-   case MIR_UNIT_PLACEHOLDER: printf("placeholder"); break;
    }
    color_printf("$$\n");
    if (mu->parent != NULL)

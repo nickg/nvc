@@ -1453,9 +1453,6 @@ static void irgen_op_return(jit_irgen_t *g, mir_value_t n)
          }
       }
       break;
-
-   case MIR_UNIT_PLACEHOLDER:
-      break;
    }
 
    j_ret(g);
@@ -4381,7 +4378,6 @@ static void irgen_locals(jit_irgen_t *g)
    case MIR_UNIT_PROCEDURE:
    case MIR_UNIT_PACKAGE:
    case MIR_UNIT_PROTECTED:
-   case MIR_UNIT_PLACEHOLDER:
       on_stack = false;
       break;
    default:
@@ -4747,13 +4743,6 @@ static void irgen_protected_entry(jit_irgen_t *g)
    j_store(g, JIT_SZ_PTR, context, jit_addr_from_value(g->statereg, 0));
 }
 
-static void irgen_shape_entry(jit_irgen_t *g)
-{
-   // TODO: shouldn't really generate code for this
-   irgen_locals(g);
-   j_trap(g);
-}
-
 void jit_irgen(jit_func_t *f, mir_unit_t *mu)
 {
    assert(load_acquire(&f->state) == JIT_FUNC_COMPILING);
@@ -4801,9 +4790,6 @@ void jit_irgen(jit_func_t *f, mir_unit_t *mu)
       break;
    case MIR_UNIT_PROPERTY:
       irgen_property_entry(g);
-      break;
-   case MIR_UNIT_PLACEHOLDER:
-      irgen_shape_entry(g);
       break;
    default:
       should_not_reach_here();

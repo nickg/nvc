@@ -1143,7 +1143,6 @@ void intern_strings(void)
    id_cache[W_NEVER_WAITS]     = ident_new("NEVER_WAITS");
    id_cache[W_NVC_VERILOG]     = ident_new("NVC.VERILOG");
    id_cache[W_NVC_PSL_SUPPORT] = ident_new("NVC.PSL_SUPPORT");
-   id_cache[W_SHAPE]           = ident_new("shape");
    id_cache[W_INSTANCE_NAME]   = ident_new("instance_name");
    id_cache[W_PATH_NAME]       = ident_new("path_name");
    id_cache[W_VITAL]           = ident_new("VITAL");

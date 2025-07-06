@@ -49,7 +49,7 @@ lower_unit_t *lower_unit_new(unit_registry_t *ur, lower_unit_t *parent,
                              vcode_unit_t vunit, cover_data_t *cover,
                              tree_t container);
 void lower_unit_free(lower_unit_t *lu);
-void lower_finished(lower_unit_t *lu, vcode_unit_t shape);
+void lower_finished(lower_unit_t *lu);
 
 vcode_unit_t get_vcode(lower_unit_t *lu);
 cover_scope_t *lower_get_cover_scope(lower_unit_t *lu);
@@ -61,8 +61,8 @@ vcode_type_t lower_type(type_t type);
 vcode_type_t lower_bounds(type_t type);
 
 lower_unit_t *lower_instance(unit_registry_t *ur, lower_unit_t *parent,
-                             vcode_unit_t shape, driver_set_t *ds,
-                             cover_data_t *cover, tree_t block);
+                             driver_set_t *ds, cover_data_t *cover,
+                             tree_t block);
 void lower_process(lower_unit_t *parent, tree_t proc, driver_set_t *ds);
 vcode_unit_t lower_global_thunk(unit_registry_t *registry, tree_t t);
 vcode_unit_t lower_thunk_in_context(unit_registry_t *registry, tree_t t,

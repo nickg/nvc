@@ -1773,7 +1773,6 @@ mir_unit_t *mir_import(mir_context_t *mc, vcode_unit_t vu)
       [VCODE_UNIT_THUNK] = MIR_UNIT_THUNK,
       [VCODE_UNIT_PROTECTED] = MIR_UNIT_PROTECTED,
       [VCODE_UNIT_PROPERTY] = MIR_UNIT_PROPERTY,
-      [VCODE_UNIT_SHAPE] = MIR_UNIT_PLACEHOLDER,
    };
 
    const mir_unit_kind_t kind = kind_map[vcode_unit_kind(vu)];

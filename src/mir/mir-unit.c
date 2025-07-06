@@ -110,10 +110,8 @@ mir_unit_t *mir_unit_new(mir_context_t *mc, ident_t name, object_t *object,
    mu->parent  = parent;
    mu->result  = MIR_NULL_TYPE;
 
-   if (kind != MIR_UNIT_PLACEHOLDER) {
-      mir_block_t entry = mir_add_block(mu);
-      mir_set_cursor(mu, entry, MIR_APPEND);
-   }
+   mir_block_t entry = mir_add_block(mu);
+   mir_set_cursor(mu, entry, MIR_APPEND);
 
    if (object != NULL)
       mir_set_loc(mu, &(object->loc));

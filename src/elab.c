@@ -1415,7 +1415,7 @@ static void elab_lower(tree_t b, const elab_instance_t *ei, elab_ctx_t *ctx)
    if (ei != NULL)
       vlog_lower_block(ctx->mir, ctx->parent->dotted, b);
    else
-      ctx->lowered = lower_instance(ctx->registry, ctx->parent->lowered, NULL,
+      ctx->lowered = lower_instance(ctx->registry, ctx->parent->lowered,
                                     elab_driver_set(ctx), ctx->cover, b);
 
    if (ctx->inst != NULL)

@@ -32,7 +32,6 @@ typedef enum {
    MIR_UNIT_PROTECTED,
    MIR_UNIT_THUNK,
    MIR_UNIT_PROPERTY,
-   MIR_UNIT_PLACEHOLDER,
 } mir_unit_kind_t;
 
 typedef struct {
