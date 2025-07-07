@@ -2561,6 +2561,11 @@ static vcode_reg_t lower_get_type_bounds(lower_unit_t *lu, type_t type)
       vcode_reg_t null_reg = emit_null(vtype_pointer(lower_type(type)));
       return emit_wrap(null_reg, dims, 1);
    }
+   else if (type_const_bounds(type)) {
+      vcode_type_t velem = lower_type(type_elem_recur(type));
+      vcode_reg_t null_reg = emit_null(vtype_pointer(velem));
+      return lower_wrap(lu, type, null_reg);
+   }
    else if (type_has_ident(type)) {
       int hops = 0;
       vcode_var_t var = lower_search_vcode_obj(type, lu, &hops);
@@ -4666,9 +4671,10 @@ static vcode_reg_t lower_driving_value(lower_unit_t *lu, tree_t name)
    if (type_is_homogeneous(name_type)) {
       if (type_is_array(name_type)) {
          vcode_reg_t len_reg = lower_array_total_len(lu, name_type, name_reg);
-         vcode_reg_t ptr_reg = emit_driving_value(name_reg, len_reg);
+         vcode_reg_t nets_reg = lower_array_data(name_reg);
+         vcode_reg_t ptr_reg = emit_driving_value(nets_reg, len_reg);
          if (vcode_reg_kind(name_reg) == VCODE_TYPE_UARRAY)
-            return lower_rewrap(name_reg, ptr_reg);
+            return lower_rewrap(ptr_reg, name_reg);
          else
             return ptr_reg;
       }
@@ -11875,7 +11881,19 @@ static vcode_reg_t lower_constrain_port(lower_unit_t *lu, tree_t port, int pos,
 
       case P_NAMED:
          {
-            tree_t ref = name_to_ref((name = tree_name(map)));
+            name = tree_name(map);
+
+            tree_t ref;
+            switch (tree_kind(name)) {
+            case T_TYPE_CONV:
+            case T_CONV_FUNC:
+               ref = name_to_ref(tree_value(name));
+               break;
+            default:
+               ref = name_to_ref(name);
+               break;
+            }
+
             if (ref == NULL || tree_ref(ref) != port)
                continue;
          }
@@ -11950,6 +11968,10 @@ static vcode_reg_t lower_constrain_port(lower_unit_t *lu, tree_t port, int pos,
             emit_store_indirect(value_reg, field_reg);
          }
          break;
+
+      case T_CONV_FUNC:
+      case T_TYPE_CONV:
+         return lower_get_type_bounds(lu, tree_type(name));
 
       default:
          // TODO: this should be an assert and a proper error generated
