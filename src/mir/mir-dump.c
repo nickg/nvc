@@ -169,6 +169,7 @@ const char *mir_op_string(mir_op_t op)
       [MIR_OP_UNPACK] = "unpack",
       [MIR_OP_BINARY] = "vector binary",
       [MIR_OP_UNARY] = "vector unary",
+      [MIR_OP_DIR_CHECK] = "dir check",
    };
 
    return map[op];
@@ -1319,6 +1320,17 @@ void mir_annotate(mir_unit_t *mu, const mir_annotate_t *cb, void *ctx)
                   printf(" hint ");
                   mir_dump_value(mu, hint, cb, ctx);
                }
+            }
+            break;
+
+         case MIR_OP_DIR_CHECK:
+            {
+               printf("%s ", mir_op_string(n->op));
+               mir_dump_arg(mu, result, 0, cb, ctx);
+               printf(" == ");
+               mir_dump_arg(mu, result, 1, cb, ctx);
+               printf(" locus ");
+               mir_dump_arg(mu, result, 2, cb, ctx);
             }
             break;
 

@@ -973,7 +973,7 @@ const char *vcode_op_string(vcode_op_t op)
       "port conversion", "convert in", "convert out", "bind foreign",
       "or trigger", "cmp trigger", "instance name", "deposit signal",
       "map implicit", "bind external", "array scope", "record scope", "syscall",
-      "put conversion",
+      "put conversion", "dir check",
    };
    if ((unsigned)op >= ARRAY_LEN(strs))
       return "???";
@@ -2122,6 +2122,17 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
                   col += printf(" hint ");
                   col += vcode_dump_reg(op->args.items[5]);
                }
+            }
+            break;
+
+         case VCODE_OP_DIR_CHECK:
+            {
+               col += printf("%s ", vcode_op_string(op->kind));
+               col += vcode_dump_reg(op->args.items[0]);
+               col += printf(" == ");
+               col += vcode_dump_reg(op->args.items[1]);
+               col += printf(" locus ");
+               col += vcode_dump_reg(op->args.items[2]);
             }
             break;
 
@@ -5781,6 +5792,20 @@ void emit_index_check(vcode_reg_t reg, vcode_reg_t left, vcode_reg_t right,
                       vcode_reg_t dir, vcode_reg_t locus, vcode_reg_t hint)
 {
    emit_bounds_check(VCODE_OP_INDEX_CHECK, reg, left, right, dir, locus, hint);
+}
+
+void emit_dir_check(vcode_reg_t reg, vcode_reg_t dir, vcode_reg_t locus)
+{
+   if (reg == dir)
+      return;
+
+   op_t *op = vcode_add_op(VCODE_OP_DIR_CHECK);
+   vcode_add_arg(op, reg);
+   vcode_add_arg(op, dir);
+   vcode_add_arg(op, locus);
+
+   VCODE_ASSERT(vcode_reg_kind(locus) == VCODE_TYPE_DEBUG_LOCUS,
+                "locus argument to dir check must be a debug locus");
 }
 
 void emit_package_scope(vcode_reg_t locus)

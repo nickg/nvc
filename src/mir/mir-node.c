@@ -2214,6 +2214,25 @@ void mir_build_index_check(mir_unit_t *mu, mir_value_t value, mir_value_t left,
                        locus, hint);
 }
 
+void mir_build_dir_check(mir_unit_t *mu, mir_value_t value, mir_value_t dir,
+                         mir_value_t locus)
+{
+   if (mir_equals(value, dir)) {
+      mir_comment(mu, "Elided direction check");
+      return;
+   }
+
+   mir_build_3(mu, MIR_OP_DIR_CHECK, MIR_NULL_TYPE, MIR_NULL_STAMP,
+               value, dir, locus);
+
+   MIR_ASSERT(mir_check_type(mu, value, mir_bool_type(mu)),
+              "null check argument must be a bool");
+   MIR_ASSERT(mir_check_type(mu, dir, mir_bool_type(mu)),
+              "null check direction must be a bool");
+   MIR_ASSERT(mir_is(mu, locus, MIR_TYPE_LOCUS),
+              "locus argument to null check must be a debug locus");
+}
+
 void mir_build_null_check(mir_unit_t *mu, mir_value_t ptr, mir_value_t locus)
 {
    mir_build_2(mu, MIR_OP_NULL_CHECK, MIR_NULL_TYPE, MIR_NULL_STAMP,

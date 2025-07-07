@@ -2615,6 +2615,25 @@ static void irgen_op_index_check(jit_irgen_t *g, mir_value_t n)
    irgen_bind_label(g, l_pass);
 }
 
+static void irgen_op_dir_check(jit_irgen_t *g, mir_value_t n)
+{
+   jit_value_t value = irgen_get_arg(g, n, 0);
+   jit_value_t dir   = irgen_get_arg(g, n, 1);
+   jit_value_t locus = irgen_get_arg(g, n, 2);
+
+   irgen_label_t *l_pass = irgen_alloc_label(g);
+
+   j_cmp(g, JIT_CC_EQ, value, dir);
+   j_jump(g, JIT_CC_T, l_pass);
+
+   j_send(g, 0, value);
+   j_send(g, 1, dir);
+   j_send(g, 2, locus);
+   macro_exit(g, JIT_EXIT_DIR_FAIL);
+
+   irgen_bind_label(g, l_pass);
+}
+
 static void irgen_op_range_check(jit_irgen_t *g, mir_value_t n)
 {
    mir_value_t arg0 = mir_get_arg(g->mu, n, 0);
@@ -4131,6 +4150,9 @@ static void irgen_block(jit_irgen_t *g, mir_block_t block)
          break;
       case MIR_OP_INDEX_CHECK:
          irgen_op_index_check(g, n);
+         break;
+      case MIR_OP_DIR_CHECK:
+         irgen_op_dir_check(g, n);
          break;
       case MIR_OP_RANGE_CHECK:
          irgen_op_range_check(g, n);

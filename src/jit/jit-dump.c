@@ -95,6 +95,7 @@ const char *jit_exit_name(jit_exit_t exit)
       "PORT_CONVERSION", "CONVERT_IN", "CONVERT_OUT", "BIND_FOREIGN",
       "OR_TRIGGER", "CMP_TRIGGER", "INSTANCE_NAME", "DEPOSIT_SIGNAL",
       "MAP_IMPLICIT", "BIND_EXTERNAL", "SYSCALL", "PUT_CONVERSION",
+      "DIR_FAIL",
    };
    assert(exit < ARRAY_LEN(names));
    return names[exit];

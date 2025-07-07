@@ -150,6 +150,17 @@ void x_length_fail(int64_t left, int64_t right, int32_t dim, tree_t where)
    jit_msg(tree_loc(where), DIAG_FATAL, "%s", tb_get(tb));
 }
 
+void x_dir_fail(range_kind_t value, range_kind_t dir, tree_t where)
+{
+   assert(tree_kind(where) == T_RANGE);
+   assert(value == RANGE_TO || value == RANGE_DOWNTO);
+   assert(dir == RANGE_TO || dir == RANGE_DOWNTO);
+
+   const char *map[] = { "TO", "DOWNTO" };
+   jit_msg(tree_loc(where), DIAG_FATAL, "range direction of slice %s does "
+           "not match prefix %s", map[value], map[dir]);
+}
+
 void x_range_fail(int64_t value, int64_t left, int64_t right, int8_t dir,
                   tree_t where, tree_t hint)
 {
@@ -637,6 +648,16 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
          tree_t  where = args[3].pointer;
 
          x_length_fail(left, right, dim, where);
+      }
+      break;
+
+   case JIT_EXIT_DIR_FAIL:
+      {
+         range_kind_t value = args[0].integer;
+         range_kind_t dir   = args[1].integer;
+         tree_t       where = args[2].pointer;
+
+         x_dir_fail(value, dir, where);
       }
       break;
 

@@ -250,6 +250,7 @@ typedef enum {
    MIR_OP_UNPACK,
    MIR_OP_BINARY,
    MIR_OP_UNARY,
+   MIR_OP_DIR_CHECK,
 } mir_op_t;
 
 typedef enum {
@@ -580,6 +581,8 @@ void mir_build_range_check(mir_unit_t *mu, mir_value_t value, mir_value_t left,
 void mir_build_index_check(mir_unit_t *mu, mir_value_t value, mir_value_t left,
                            mir_value_t right, mir_value_t dir,
                            mir_value_t locus, mir_value_t hint);
+void mir_build_dir_check(mir_unit_t *mu, mir_value_t value, mir_value_t dir,
+                         mir_value_t locus);
 void mir_build_null_check(mir_unit_t *mu, mir_value_t ptr, mir_value_t locus);
 void mir_build_zero_check(mir_unit_t *mu, mir_value_t value, mir_value_t locus);
 void mir_build_length_check(mir_unit_t *mu, mir_value_t llen, mir_value_t rlen,

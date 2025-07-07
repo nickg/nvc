@@ -22,6 +22,7 @@
   associated in a port map (#1208).
 - Files declared in impure functions are now closed after the `return`
   expression has been evaluated rather than before (#1229).
+- Added missing slice direction check at runtime (#1231).
 - Several other minor bugs were resolved (#1220).
 
 ## Version 1.16.2 - 2025-06-11

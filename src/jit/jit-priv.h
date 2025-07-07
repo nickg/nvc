@@ -174,6 +174,7 @@ typedef enum {
    JIT_EXIT_BIND_EXTERNAL,
    JIT_EXIT_SYSCALL,
    JIT_EXIT_PUT_CONVERSION,
+   JIT_EXIT_DIR_FAIL,
 } jit_exit_t;
 
 typedef uint16_t jit_reg_t;

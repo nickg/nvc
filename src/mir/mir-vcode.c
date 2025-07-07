@@ -882,9 +882,18 @@ static void import_index_check(mir_unit_t *mu, mir_import_t *imp, int op)
    mir_value_t right = imp->map[vcode_get_arg(op, 2)];
    mir_value_t dir   = imp->map[vcode_get_arg(op, 3)];
    mir_value_t locus = imp->map[vcode_get_arg(op, 4)];
-   mir_value_t hint  = imp->map[vcode_get_arg(op, 5)];;
+   mir_value_t hint  = imp->map[vcode_get_arg(op, 5)];
 
    mir_build_index_check(mu, value, left, right, dir, locus, hint);
+}
+
+static void import_dir_check(mir_unit_t *mu, mir_import_t *imp, int op)
+{
+   mir_value_t value = imp->map[vcode_get_arg(op, 0)];
+   mir_value_t dir   = imp->map[vcode_get_arg(op, 1)];
+   mir_value_t locus = imp->map[vcode_get_arg(op, 2)];
+
+   mir_build_dir_check(mu, value, dir, locus);
 }
 
 static void import_alias_signal(mir_unit_t *mu, mir_import_t *imp, int op)
@@ -1604,6 +1613,9 @@ static void import_block(mir_unit_t *mu, mir_import_t *imp)
          break;
       case VCODE_OP_INDEX_CHECK:
          import_index_check(mu, imp, i);
+         break;
+      case VCODE_OP_DIR_CHECK:
+         import_dir_check(mu, imp, i);
          break;
       case VCODE_OP_ALIAS_SIGNAL:
          import_alias_signal(mu, imp, i);

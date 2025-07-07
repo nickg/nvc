@@ -3264,6 +3264,7 @@ static vcode_reg_t lower_array_slice(lower_unit_t *lu, tree_t slice,
                     locus, locus);
    emit_index_check(right_reg, aleft_reg, aright_reg, adir_reg,
                     locus, locus);
+   emit_dir_check(kind_reg, adir_reg, locus);
 
    if (!known_not_null) {
       emit_jump(after_bounds_bb);

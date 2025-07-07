@@ -1132,6 +1132,26 @@ START_TEST(test_vec2)
 }
 END_TEST
 
+START_TEST(test_check1)
+{
+   mir_unit_t *mu = mir_unit_new(get_mir(), ident_new("check1"), NULL,
+                                 MIR_UNIT_FUNCTION, NULL);
+
+   mir_type_t t_bool = mir_bool_type(mu);
+   mir_value_t p1 = mir_add_param(mu, t_bool, MIR_NULL_STAMP, ident_new("p1"));
+   mir_value_t locus = mir_build_locus(mu, NULL);
+
+   mir_build_dir_check(mu, p1, mir_const(mu, t_bool, RANGE_TO), locus);
+   mir_build_dir_check(mu, p1, p1, locus);
+
+   static const mir_match_t bb0[] = {
+      { MIR_OP_LOCUS },
+      { MIR_OP_DIR_CHECK, PARAM("p1"), CONST(0) },
+   };
+   mir_match(mu, 0, bb0);
+}
+END_TEST
+
 Suite *get_mir_tests(void)
 {
    Suite *s = suite_create("mir");
@@ -1158,6 +1178,7 @@ Suite *get_mir_tests(void)
    tcase_add_test(tc, test_cast1);
    tcase_add_test(tc, test_vec1);
    tcase_add_test(tc, test_vec2);
+   tcase_add_test(tc, test_check1);
    suite_add_tcase(s, tc);
 
    return s;

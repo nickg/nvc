@@ -172,6 +172,7 @@ typedef enum {
    VCODE_OP_RECORD_SCOPE,
    VCODE_OP_SYSCALL,
    VCODE_OP_PUT_CONVERSION,
+   VCODE_OP_DIR_CHECK,
 } vcode_op_t;
 
 typedef enum {
@@ -408,6 +409,7 @@ void emit_range_check(vcode_reg_t reg, vcode_reg_t left, vcode_reg_t right,
                       vcode_reg_t dir, vcode_reg_t locus, vcode_reg_t hint);
 void emit_index_check(vcode_reg_t reg, vcode_reg_t left, vcode_reg_t right,
                       vcode_reg_t dir, vcode_reg_t locus, vcode_reg_t hint);
+void emit_dir_check(vcode_reg_t reg, vcode_reg_t dir, vcode_reg_t locus);
 vcode_reg_t emit_index(vcode_var_t var, vcode_reg_t offset);
 vcode_reg_t emit_cast(vcode_type_t type, vcode_reg_t bounds, vcode_reg_t reg);
 void emit_return(vcode_reg_t reg);
