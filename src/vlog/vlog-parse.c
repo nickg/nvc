@@ -1758,15 +1758,16 @@ static vlog_node_t p_delay_control(void)
 
 static void p_delay3(void)
 {
-   // # delay_value | # ( mintypmax_expression [ , mintypmax_expression [ , mintypmax_expression ] ] )
+   // # delay_value | # ( mintypmax_expression [ , mintypmax_expression
+   //   [ , mintypmax_expression ] ] )
 
    BEGIN("delay3");
 
    consume(tHASH);
 
-   if (peek() != tLPAREN) {
+   if (peek() != tLPAREN)
       p_delay_value();
-   } else {
+   else {
       consume(tLPAREN);
 
       int expr_cnt = 0;
@@ -2859,7 +2860,8 @@ static void p_net_declaration(vlog_node_t mod)
             case tMEDIUM:
             case tLARGE:
                if (kind != V_NET_TRIREG)
-                  parse_error(&state.last_loc, "charge strength only allowed with the trireg keyword");
+                  parse_error(&state.last_loc, "charge strength only allowed "
+                              "with the trireg keyword");
                p_charge_strength();
                break;
             default:
@@ -2885,7 +2887,8 @@ static void p_net_declaration(vlog_node_t mod)
                   has_packed |= true;
             }
             if (!has_packed)
-               parse_error(&state.last_loc, "vectored and scalared keywords are only allowed with at least a packed dimension");
+               parse_error(&state.last_loc, "vectored and scalared keywords "
+                           "are only allowed with at least a packed dimension");
          }
 
          if (peek() == tHASH)

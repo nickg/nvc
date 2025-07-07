@@ -1006,8 +1006,10 @@ START_TEST(test_nets1)
 
    const error_t expect[] = {
       { 10, "charge strength only allowed with the trireg keyword" },
-      { 13, "vectored and scalared keywords are only allowed with at least a packed dimension" },
-      { 27, "unexpected highz1 while parsing strength1, expecting one of supply1, strong1, pull1 or weak1" },
+      { 13, "vectored and scalared keywords are only allowed with at least "
+        "a packed dimension" },
+      { 27, "unexpected highz1 while parsing strength1, expecting one of "
+        "supply1, strong1, pull1 or weak1" },
       { -1, NULL }
    };
    expect_errors(expect);
