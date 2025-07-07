@@ -465,5 +465,18 @@ void reset_sdf_parser(void);
 #define tJOIN          564
 #define tAUTOMATIC     565
 #define tGENVAR        566
+#define tHIGHZ0        567
+#define tHIGHZ1        568
+#define tSTRONG0       569
+#define tSTRONG1       570
+#define tPULL0         571
+#define tPULL1         572
+#define tWEAK0         573
+#define tWEAK1         574
+#define tSMALL         575
+#define tMEDIUM        576
+#define tLARGE         577
+#define tVECTORED      578
+#define tSCALARED      579
 
 #endif  // _SCAN_H

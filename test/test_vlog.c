@@ -1000,6 +1000,32 @@ START_TEST(test_initial1)
 }
 END_TEST
 
+START_TEST(test_nets1)
+{
+   input_from_file(TESTDIR "/vlog/nets1.v");
+
+   const error_t expect[] = {
+      { 10, "charge strength only allowed with the trireg keyword" },
+      { 13, "vectored and scalared keywords are only allowed with at least "
+        "a packed dimension" },
+      { 27, "unexpected highz1 while parsing strength1, expecting one of "
+        "supply1, strong1, pull1 or weak1" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   vlog_node_t m1 = vlog_parse();
+   fail_if(m1 == NULL);
+   fail_unless(vlog_kind(m1) == V_MODULE);
+
+   vlog_check(m1);
+
+   fail_unless(vlog_parse() == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_vlog_tests(void)
 {
    Suite *s = suite_create("vlog");
@@ -1036,6 +1062,7 @@ Suite *get_vlog_tests(void)
    tcase_add_test(tc, test_tfcall1);
    tcase_add_test(tc, test_attr1);
    tcase_add_test(tc, test_initial1);
+   tcase_add_test(tc, test_nets1);
    suite_add_tcase(s, tc);
 
    return s;
