@@ -3659,13 +3659,37 @@ static vlog_node_t p_genvar_iteration(void)
 
    vlog_node_t v = vlog_new(V_FOR_STEP);
 
+   vlog_node_t prefix = NULL;
+   if (scan(tPLUSPLUS, tMINUSMINUS)) {
+      prefix = vlog_new(V_PREFIX);
+      vlog_set_subkind(prefix, p_inc_or_dec_operator());
+   }
+
    vlog_node_t ref = vlog_new(V_REF);
    vlog_set_ident(ref, p_identifier());
    vlog_set_loc(ref, &state.last_loc);
 
-   vlog_node_t a = vlog_new(V_POSTFIX);
-   vlog_set_subkind(a, p_inc_or_dec_operator());
-   vlog_set_target(a, ref);
+   vlog_symtab_lookup(symtab, ref);
+
+   if (prefix != NULL) {
+      vlog_set_target(prefix, ref);
+
+      vlog_add_stmt(v, prefix);
+   }
+   else if (optional(tEQ)) {
+      vlog_node_t a = vlog_new(V_BASSIGN);
+      vlog_set_target(a, ref);
+      vlog_set_value(a, p_constant_expression());
+
+      vlog_add_stmt(v, a);
+   }
+   else {
+      vlog_node_t a = vlog_new(V_POSTFIX);
+      vlog_set_subkind(a, p_inc_or_dec_operator());
+      vlog_set_target(a, ref);
+
+      vlog_add_stmt(v, a);
+   }
 
    vlog_set_loc(v, CURRENT_LOC);
    return v;

@@ -118,6 +118,11 @@ module parse1;
     #5 y = 2;
   join
   genvar i;
-  for (i = 0; i < 5; i++)
-    assign x[i] = 1_000;
+  for (i = 0; i < 5; i++) begin
+    genvar j;
+    for (j = 0; j < 10; j = j * 2)
+      assign x[i] = 1_000;
+    for (j = 0; j < 10; ++j) begin
+    end
+  end
 endmodule // parse1
