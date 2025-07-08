@@ -1143,3 +1143,4 @@ select7         verilog
 vlog19          verilog
 issue1231       fail,gold,2008
 conv20          normal,2008
+issue1233       normal,vhpi

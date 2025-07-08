@@ -3576,6 +3576,7 @@ int vhpi_put_value(vhpiHandleT handle,
             return 0;
          }
          else if (td->IsScalar) {
+            assert(td->size > 0 && td->size <= sizeof(uint64_t));
 #define PUT_SCALAR(type) *(type *)c->args[slot].pointer = scalar.type##_val;
             FOR_ALL_SIZES(td->size, PUT_SCALAR);
             return 0;
@@ -4036,6 +4037,7 @@ static c_typeDecl *build_subTypeDecl(type_t type, tree_t where,
    td->typeDecl.IsAnonymous = is_anonymous_subtype(type);
    td->typeDecl.IsScalar = td->typeDecl.BaseType->IsScalar;
    td->typeDecl.IsComposite = td->typeDecl.BaseType->IsComposite;
+   td->typeDecl.size = td->typeDecl.BaseType->size;
 
    td->isResolved = type_has_resolution(type);
 
