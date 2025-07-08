@@ -249,6 +249,7 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
       case VCODE_OP_TRAP_NEG:
       case VCODE_OP_TRAP_EXP:
       case VCODE_OP_PACKAGE_SCOPE:
+      case VCODE_OP_ARRAY_SCOPE:
       case VCODE_OP_POP_SCOPE:
       case VCODE_OP_ADD_TRIGGER:
       case VCODE_OP_OR_TRIGGER:
@@ -6749,6 +6750,49 @@ START_TEST(test_issue1208)
 }
 END_TEST
 
+START_TEST(test_issue1234)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/lower/issue1234.vhd");
+
+   run_elab();
+
+   vcode_unit_t vu = find_unit("WORK.ISSUE1234.ENT_INST");
+   vcode_select_unit(vu);
+
+   EXPECT_BB(0) = {
+      { VCODE_OP_PACKAGE_INIT, .name = "WORK.PKG" },
+      { VCODE_OP_PACKAGE_INIT, .name = "STD.STANDARD" },
+      { VCODE_OP_INDEX, .name = "PARAMS" },
+      { VCODE_OP_VAR_UPREF, .hops = 1, .name = "PARAMS" },
+      { VCODE_OP_COPY },
+      { VCODE_OP_VAR_UPREF, .hops = 1, .name = "REC_OUT" },
+      { VCODE_OP_CONST, .value = 4 },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_FCALL, .func = "*WORK.PKG.INIT" },
+      { VCODE_OP_NULL },
+      { VCODE_OP_INDEX, .name = "REC_OUT" },
+      { VCODE_OP_DEBUG_LOCUS },
+      { VCODE_OP_CONST, .value = 5 },
+      { VCODE_OP_UARRAY_LEN },
+      { VCODE_OP_LENGTH_CHECK },
+      { VCODE_OP_ALLOC },
+      { VCODE_OP_WRAP },
+      { VCODE_OP_STORE_INDIRECT },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_STORE, .name = "i1" },
+      { VCODE_OP_ARRAY_SCOPE },
+      { VCODE_OP_JUMP, .target = 1 },
+   };
+
+   CHECK_BB(0);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_lower_tests(void)
 {
    Suite *s = suite_create("lower");
@@ -6904,6 +6948,7 @@ Suite *get_lower_tests(void)
    tcase_add_test(tc, test_issue1196);
    tcase_add_test(tc, test_issue1199);
    tcase_add_test(tc, test_issue1208);
+   tcase_add_test(tc, test_issue1234);
    suite_add_tcase(s, tc);
 
    return s;

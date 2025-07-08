@@ -7812,7 +7812,7 @@ static void lower_sub_signals(lower_unit_t *lu, type_t type, type_t var_type,
       vcode_reg_t locus = lower_debug_locus(where);
 
       if (init_reg != VCODE_INVALID_REG)
-         lower_check_array_sizes(lu, type, init_type, VCODE_INVALID_REG,
+         lower_check_array_sizes(lu, type, init_type, bounds_reg,
                                  init_reg, locus);
 
       vcode_reg_t len_reg = lower_array_total_len(lu, type, bounds_reg);
