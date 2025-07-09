@@ -334,7 +334,6 @@ START_TEST(test_number1)
    fail_if(number_signed(x));
    ck_assert_int_eq(number_width(x), 1);
    ck_assert_int_eq(number_integer(x), 1);
-   number_free(&x);
 
    number_t y = number_new("5'b101", NULL);
    ck_assert_int_eq(y.common.tag, TAG_BIGNUM);
@@ -342,28 +341,24 @@ START_TEST(test_number1)
    fail_if(number_signed(y));
    ck_assert_int_eq(number_width(y), 5);
    ck_assert_int_eq(number_integer(y), 5);
-   number_free(&y);
 
    number_t z = number_new("5'b1xx", NULL);
    ck_assert_int_eq(z.common.tag, TAG_BIGNUM);
    fail_if(number_is_defined(z));
    fail_if(number_signed(z));
    ck_assert_int_eq(number_width(z), 5);
-   number_free(&z);
 
    number_t n1 = number_new("1'bx", NULL);
    ck_assert_int_eq(n1.common.tag, TAG_BIGNUM);
    fail_if(number_is_defined(n1));
    fail_if(number_signed(n1));
    ck_assert_int_eq(number_width(n1), 1);
-   number_free(&n1);
 
    number_t n2 = number_new("456", NULL);
    ck_assert_int_eq(n2.common.tag, TAG_BIGNUM);
    fail_unless(number_is_defined(n2));
    fail_unless(number_signed(n2));
    ck_assert_int_eq(number_width(n2), 32);
-   number_free(&n2);
 }
 END_TEST
 
@@ -411,8 +406,6 @@ START_TEST(test_number2)
       tb_rewind(tb);
       number_print(n, tb);
       ck_assert_str_eq(tb_get(tb), cases[i].string);
-
-      number_free(&n);
    }
 
    check_expected_errors();

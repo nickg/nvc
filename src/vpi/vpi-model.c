@@ -936,7 +936,6 @@ void vpi_get_value(vpiHandle handle, p_vpi_value value_p)
       number_t num = number_pack(signal_value(s), signal_width(s));
 
       vpi_format_number(num, value_p->format, c->valuestr);
-      number_free(&num);
 
       value_p->value.str = (PLI_BYTE8 *)tb_get(c->valuestr);
       return;

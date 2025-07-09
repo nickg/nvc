@@ -18,7 +18,9 @@
 #include "util.h"
 #include "diag.h"
 #include "fbuf.h"
+#include "hash.h"
 #include "vlog/vlog-number.h"
+#include "thread.h"
 
 #include <assert.h>
 #include <inttypes.h>
@@ -40,8 +42,14 @@ typedef struct _bignum {
 
 #define BIGNUM_WORDS(w) (((w) + 63) / 64)
 
+#ifdef DEBUG
+#define SCRATCH_NUMBER number_t __attribute__((cleanup(_number_zap)))
+#else
+#define SCRATCH_NUMBER number_t
+#endif
+
 __attribute__((always_inline))
-static inline int bignum_words(bignum_t *bn)
+static inline int bignum_words(const bignum_t *bn)
 {
    return BIGNUM_WORDS(bn->width);
 }
@@ -90,6 +98,110 @@ static inline void bignum_set_nibble(bignum_t *bn, unsigned n, int value)
       bignum_set_abit(bn, n + i, value >> i);
 }
 
+static uint32_t bignum_hash(const void *p)
+{
+   const bignum_t *bn = p;
+
+   uint64_t hash = knuth_hash(bn->width) ^ bn->issigned;
+
+   for (int i = 0; i < bignum_words(bn) * 2; i++)
+      hash ^= mix_bits_64(bn->words[i]);
+
+   return hash;
+}
+
+static bool bignum_cmp(const void *pa, const void *pb)
+{
+   const bignum_t *a = pa, *b = pb;
+
+   if (a->width != b->width || a->issigned != b->issigned)
+      return false;
+
+   for (int i = 0; i < bignum_words(a) * 2; i++) {
+      if (a->words[i] != b->words[i])
+         return false;
+   }
+
+   return true;
+}
+
+static number_t number_intern(number_t n)
+{
+   static mem_pool_t *pool = NULL;
+   static ghash_t *hash = NULL;
+
+   INIT_ONCE(
+      pool = pool_new();
+      hash = ghash_new(32, bignum_hash, bignum_cmp);
+   );
+
+   LOCAL_TEXT_BUF tb = tb_new();
+   number_print(n, tb);
+
+   bignum_t *bn = ghash_get(hash, n.big);
+   if (bn == NULL) {
+      const int nwords = bignum_words(n.big) * 2;
+      bn = pool_malloc_flex(pool, sizeof(bignum_t), nwords, sizeof(uint64_t));
+      bn->width    = n.big->width;
+      bn->issigned = n.big->issigned;
+
+      for (int i = 0; i < nwords; i++)
+         bn->words[i] = n.big->words[i];
+
+      ghash_put(hash, bn, bn);
+   }
+
+   return (number_t){ .big = bn };
+}
+
+static number_t number_scratch(int width, bool issigned)
+{
+   static __thread bignum_t *cache = NULL;
+   static __thread int max_words = -1;
+
+   const int nwords = MAX(1, BIGNUM_WORDS(width));
+
+   if (nwords > max_words) {
+      cache = xrealloc_flex(cache, sizeof(bignum_t), nwords * 2,
+                            sizeof(uint64_t));
+      max_words = nwords;
+   }
+
+   ASAN_UNPOISON(cache, sizeof(bignum_t) + nwords * 2 * sizeof(uint64_t));
+
+   cache->width = width;
+   cache->issigned = issigned;
+
+   for (int i = 0; i < nwords * 2; i++)
+      cache->words[i] = 0;
+
+   return (number_t){ .big = cache };
+}
+
+static number_t number_scratch_copy(number_t n)
+{
+   number_t copy = number_scratch(n.big->width, n.big->issigned);
+
+   memcpy(copy.big->words, n.big->words,
+          bignum_words(n.big) * 2 * sizeof(uint64_t));
+
+   return copy;
+}
+
+#ifdef DEBUG
+static void _number_zap(number_t *p)
+{
+#if ASAN_ENABLED
+   const int nwords = bignum_words(p->big);
+   ASAN_POISON(p->big, sizeof(bignum_t) + nwords * 2 * sizeof(uint64_t));
+#else
+   p->big->width = 0;
+   p->big->issigned = false;
+   p->bits = 0;
+#endif
+}
+#endif
+
 number_t number_new(const char *str, const loc_t *loc)
 {
    int width = 32;
@@ -110,11 +222,7 @@ number_t number_new(const char *str, const loc_t *loc)
       }
    }
 
-   number_t result = { .bits = 0 };
-   const int nwords = MAX(1, BIGNUM_WORDS(width));
-   result.big = xmalloc_flex(sizeof(bignum_t), nwords * 2, sizeof(uint64_t));
-   result.big->width = width;
-   result.big->issigned = false;
+   SCRATCH_NUMBER result = number_scratch(width, false);
 
    vlog_radix_t radix = RADIX_DEC;
    switch (*p) {
@@ -124,9 +232,6 @@ number_t number_new(const char *str, const loc_t *loc)
    case '"': radix = RADIX_STR; p++; break;
    default: result.big->issigned = true; break;
    }
-
-   for (int i = 0; i < nwords * 2; i++)
-      result.big->words[i] = 0;
 
    if (radix == RADIX_STR) {
       for (int bit = width - 8; !(*p == '"' && *(p + 1) == '\0');
@@ -184,7 +289,7 @@ number_t number_new(const char *str, const loc_t *loc)
 
                if (bit >= width) {
                   warn_at(loc, "excess digits in binary constant %s", str);
-                  return result;
+                  return number_intern(result);
                }
 
                bit++;
@@ -221,7 +326,7 @@ number_t number_new(const char *str, const loc_t *loc)
 
                if (bit >= width) {
                   warn_at(loc, "excess digits in hex constant %s", str);
-                  return result;
+                  return number_intern(result);
                }
 
                bit += 4;
@@ -234,15 +339,7 @@ number_t number_new(const char *str, const loc_t *loc)
       }
    }
 
-   return result;
-}
-
-void number_free(number_t *val)
-{
-   if (val->common.tag == TAG_BIGNUM)
-      free(val->big);
-
-   val->bits = 0;
+   return number_intern(result);
 }
 
 void number_print(number_t val, text_buf_t *tb)
@@ -317,6 +414,7 @@ uint8_t number_byte(number_t val, unsigned n)
    return (abits[n / 8] >> (n * 8) % 64) & 0xff;
 }
 
+// TODO: remove this
 number_t number_pack(const uint8_t *bits, unsigned width)
 {
    const int nwords = BIGNUM_WORDS(width);
@@ -384,80 +482,59 @@ number_t number_read(fbuf_t *f)
    const unsigned width = llabs(enc);
    const int nwords = BIGNUM_WORDS(width);
 
-   number_t result = { .bits = 0 };
-   result.big = xmalloc_flex(sizeof(bignum_t), nwords * 2, sizeof(uint64_t));
-   result.big->width = width;
-   result.big->issigned = enc < 0;
+   SCRATCH_NUMBER result = number_scratch(width, enc < 0);
 
    read_raw(result.big->words, nwords * 2 * sizeof(uint64_t), f);
 
-   return result;
+   return number_intern(result);
 }
 
 number_t number_add(number_t a, number_t b)
 {
    const int width = MAX(a.big->width, b.big->width) + 1;
-   const int nwords = BIGNUM_WORDS(width);
+   const bool issigned = a.big->issigned && b.big->issigned;
 
-   number_t result = { .bits = 0 };
-   result.big = xmalloc_flex(sizeof(bignum_t), nwords * 2, sizeof(uint64_t));
-   result.big->width = width;
-   result.big->issigned = a.big->issigned || b.big->issigned;
+   SCRATCH_NUMBER result = number_scratch(width, issigned);
 
-   assert(nwords == 1);  // TODO
+   assert(bignum_words(result.big) == 1);  // TODO
 
    bignum_abits(result.big)[0] =
       bignum_abits(a.big)[0] + bignum_abits(b.big)[0];
    bignum_bbits(result.big)[0] =
       bignum_bbits(a.big)[0] | bignum_bbits(b.big)[0];
 
-   return result;
+   return number_intern(result);
 }
 
 number_t number_sub(number_t a, number_t b)
 {
    const int width = MAX(a.big->width, b.big->width) + 1;
-   const int nwords = BIGNUM_WORDS(width);
+   const bool issigned = a.big->issigned && b.big->issigned;
 
-   number_t result = { .bits = 0 };
-   result.big = xmalloc_flex(sizeof(bignum_t), nwords * 2, sizeof(uint64_t));
-   result.big->width = width;
-   result.big->issigned = a.big->issigned || b.big->issigned;
+   SCRATCH_NUMBER result = number_scratch(width, issigned);
 
-   assert(nwords == 1);  // TODO
+   assert(bignum_words(result.big) == 1);  // TODO
 
    bignum_abits(result.big)[0] =
       bignum_abits(a.big)[0] - bignum_abits(b.big)[0];
    bignum_bbits(result.big)[0] =
       bignum_bbits(a.big)[0] | bignum_bbits(b.big)[0];
 
-   return result;
+   return number_intern(result);
 }
 
 number_t number_negate(number_t a)
 {
-   const int nwords = BIGNUM_WORDS(a.big->width);
+   SCRATCH_NUMBER result = number_scratch_copy(a);
 
-   number_t result = { .bits = 0 };
-   result.big = xmalloc_flex(sizeof(bignum_t), nwords * 2, sizeof(uint64_t));
-   result.big->width = a.big->width;
-   result.big->issigned = a.big->issigned;
-
-   memcpy(result.big->words, a.big->words, nwords * 2 * sizeof(uint64_t));
    vec2_negate(result.big->words, result.big->width);
 
-   return result;
+   return number_intern(result);
 }
 
 number_t number_logical_equal(number_t a, number_t b)
 {
-   const int width = 1;
-   const int nwords = BIGNUM_WORDS(width);
-
-   number_t result = { .bits = 0 };
-   result.big = xmalloc_flex(sizeof(bignum_t), nwords * 2, sizeof(uint64_t));
-   result.big->width = width;
-   result.big->issigned = false;
+   SCRATCH_NUMBER result = number_scratch(1, false);
 
    assert(bignum_words(a.big) == 1);  // TODO
    assert(bignum_words(b.big) == 1);  // TODO
@@ -467,18 +544,12 @@ number_t number_logical_equal(number_t a, number_t b)
    bignum_bbits(result.big)[0] =
       bignum_bbits(a.big)[0] | bignum_bbits(b.big)[0];
 
-   return result;
+   return number_intern(result);
 }
 
 number_t number_greater(number_t a, number_t b)
 {
-   const int width = 1;
-   const int nwords = BIGNUM_WORDS(width);
-
-   number_t result = { .bits = 0 };
-   result.big = xmalloc_flex(sizeof(bignum_t), nwords * 2, sizeof(uint64_t));
-   result.big->width = width;
-   result.big->issigned = false;
+   SCRATCH_NUMBER result = number_scratch(1, false);
 
    if (number_is_defined(a) && number_is_defined(b)) {
       vlog_logic_t cmp;
@@ -493,18 +564,12 @@ number_t number_greater(number_t a, number_t b)
    else
       bignum_abits(result.big)[0] = bignum_bbits(result.big)[0] = 1;
 
-   return result;
+   return number_intern(result);
 }
 
 number_t number_greater_equal(number_t a, number_t b)
 {
-   const int width = 1;
-   const int nwords = BIGNUM_WORDS(width);
-
-   number_t result = { .bits = 0 };
-   result.big = xmalloc_flex(sizeof(bignum_t), nwords * 2, sizeof(uint64_t));
-   result.big->width = width;
-   result.big->issigned = false;
+   SCRATCH_NUMBER result = number_scratch(1, false);
 
    if (number_is_defined(a) && number_is_defined(b)) {
       vlog_logic_t cmp;
@@ -519,18 +584,12 @@ number_t number_greater_equal(number_t a, number_t b)
    else
       bignum_abits(result.big)[0] = bignum_bbits(result.big)[0] = 1;
 
-   return result;
+   return number_intern(result);
 }
 
 number_t number_less(number_t a, number_t b)
 {
-   const int width = 1;
-   const int nwords = BIGNUM_WORDS(width);
-
-   number_t result = { .bits = 0 };
-   result.big = xmalloc_flex(sizeof(bignum_t), nwords * 2, sizeof(uint64_t));
-   result.big->width = width;
-   result.big->issigned = false;
+   SCRATCH_NUMBER result = number_scratch(1, false);
 
    if (number_is_defined(a) && number_is_defined(b)) {
       vlog_logic_t cmp;
@@ -545,18 +604,12 @@ number_t number_less(number_t a, number_t b)
    else
       bignum_abits(result.big)[0] = bignum_bbits(result.big)[0] = 1;
 
-   return result;
+   return number_intern(result);
 }
 
 number_t number_less_equal(number_t a, number_t b)
 {
-   const int width = 1;
-   const int nwords = BIGNUM_WORDS(width);
-
-   number_t result = { .bits = 0 };
-   result.big = xmalloc_flex(sizeof(bignum_t), nwords * 2, sizeof(uint64_t));
-   result.big->width = width;
-   result.big->issigned = false;
+   SCRATCH_NUMBER result = number_scratch(1, false);
 
    if (number_is_defined(a) && number_is_defined(b)) {
       vlog_logic_t cmp;
@@ -571,7 +624,7 @@ number_t number_less_equal(number_t a, number_t b)
    else
       bignum_abits(result.big)[0] = bignum_bbits(result.big)[0] = 1;
 
-   return result;
+   return number_intern(result);
 }
 
 void vec2_add(uint64_t *a, size_t asize, const uint64_t *b, size_t bsize)

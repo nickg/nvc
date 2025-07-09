@@ -529,7 +529,7 @@ static void gc_free_external(object_t *object)
    const object_class_t *class = classes[object->tag];
 
    imask_t has = class->has_map[object->kind];
-   if ((has & (ITEM_OBJ_ARRAY | ITEM_NUMBER)) == 0)
+   if ((has & ITEM_OBJ_ARRAY) == 0)
       return;
 
    for (int n = 0; has; has &= has - 1, n++) {
@@ -537,8 +537,6 @@ static void gc_free_external(object_t *object)
       item_t *item = &(object->items[n]);
       if (ITEM_OBJ_ARRAY & mask)
          obj_array_free(&(item->obj_array));
-      else if (ITEM_NUMBER & mask)
-         number_free(&item->number);
    }
 }
 
