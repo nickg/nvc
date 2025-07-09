@@ -1,4 +1,5 @@
 entity sanity2 is
+    port ( p : out bit_vector );
 end entity;
 
 architecture test of sanity2 is
@@ -19,5 +20,8 @@ begin
         y(4) <= '1';
         wait;
     end process;
+
+    p2: p(1) <= '1';                    -- { P(1) }
+    p3: p(2 to p'length) <= (others => '0');
 
 end architecture;

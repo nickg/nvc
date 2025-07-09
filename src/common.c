@@ -1842,19 +1842,18 @@ static bool is_static(tree_t expr)
          case ATTR_LOW:
          case ATTR_HIGH:
             {
-               type_t type = tree_type(tree_name(expr));
-               if (type_is_unconstrained(type))
+               tree_t ref = name_to_ref(tree_name(expr));
+               if (ref == NULL)
                   return false;
 
-               int64_t dim = 1;
-               if (tree_params(expr) == 1)
-                  dim = assume_int(tree_value(tree_param(expr, 0)));
-
-               tree_t r = range_of(type, dim - 1);
-               if (tree_subkind(r) == RANGE_EXPR)
+               switch (tree_kind(tree_ref(ref))) {
+               case T_GENERIC_DECL:
+               case T_PORT_DECL:
+               case T_SIGNAL_DECL:
+                  return true;
+               default:
                   return false;
-
-               return is_static(tree_left(r)) && is_static(tree_right(r));
+               }
             }
          default:
             return true;

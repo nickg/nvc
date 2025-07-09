@@ -1490,6 +1490,10 @@ static void clone_source(rt_model_t *m, rt_nexus_t *nexus,
          if (old->u.port.conv_func != NULL) {
             new->u.port.conv_func = old->u.port.conv_func;
             new->u.port.conv_result = alloc_value(m, nexus);
+
+            rt_source_t **p = &(old->u.port.conv_func->outputs);
+            for (; *p != NULL; p = &((*p)->chain_output));
+            *p = new;
          }
          else {
             if (old->u.port.input->width == offset)

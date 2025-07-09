@@ -111,9 +111,12 @@ START_TEST(test_sanity2)
 
    tree_t x = get_decl(a, "X");
    tree_t y = get_decl(a, "Y");
+   tree_t p = tree_port(tree_primary(a), 0);
 
    tree_t p0 = tree_stmt(a, 0);
    tree_t p1 = tree_stmt(a, 1);
+   tree_t p2 = tree_stmt(a, 2);
+   tree_t p3 = tree_stmt(a, 3);
 
    driver_info_t *p0di = get_drivers(di, p0);
    ck_assert_ptr_nonnull(p0);
@@ -132,6 +135,25 @@ START_TEST(test_sanity2)
    ck_assert(tree_kind(p1di->prefix) == T_REF);
    ck_assert_ptr_eq(p1di->decl, y);
    ck_assert(!p1di->tentative);
+
+   driver_info_t *p2di = get_drivers(di, p2);
+   ck_assert_ptr_nonnull(p2di);
+   ck_assert_ptr_nonnull(p2di->chain_decl);
+   ck_assert_ptr_null(p2di->chain_proc);
+   ck_assert_ptr_eq(p2di->where, p2);
+   ck_assert(tree_kind(p2di->prefix) == T_ARRAY_REF);
+   ck_assert_ptr_eq(p2di->decl, p);
+   ck_assert(!p2di->tentative);
+
+   driver_info_t *p3di = get_drivers(di, p3);
+   ck_assert_ptr_nonnull(p3di);
+   ck_assert_ptr_null(p3di->chain_decl);
+   ck_assert_ptr_null(p3di->chain_proc);
+   ck_assert_ptr_eq(p2di->chain_decl, p3di);
+   ck_assert_ptr_eq(p3di->where, p3);
+   ck_assert(tree_kind(p3di->prefix) == T_ARRAY_SLICE);
+   ck_assert_ptr_eq(p3di->decl, p);
+   ck_assert(!p3di->tentative);
 
    free_drivers(di);
 
