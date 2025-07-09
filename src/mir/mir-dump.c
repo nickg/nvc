@@ -508,6 +508,7 @@ static int mir_dump_vector_op(mir_unit_t *mu, mir_value_t value)
    case MIR_VEC_CASE_NEQ: return printf(" !== ");
    case MIR_VEC_ADD:      return printf(" + ");
    case MIR_VEC_SUB:      return printf(" - ");
+   case MIR_VEC_MUL:      return printf(" * ");
    case MIR_VEC_SLL:      return printf(" << ");
    case MIR_VEC_SRL:      return printf(" >> ");
    default: return printf(" <%d> ", value.id);

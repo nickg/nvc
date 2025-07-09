@@ -560,6 +560,8 @@ static c_vpiObject *build_expr(vlog_node_t v, c_abstractScope *scope)
    case V_REF:
       {
          vlog_node_t d = vlog_ref(v);
+         if (vlog_kind(d) == V_PORT_DECL)
+            d = vlog_ref(d);
 
          vpiObjectList *list =
             expand_lazy_list(&(scope->object), &(scope->decls));

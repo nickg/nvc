@@ -3894,6 +3894,9 @@ static void irgen_op_binary(jit_irgen_t *g, mir_value_t n)
    case MIR_VEC_SUB:
       abits = j_sub(g, aleft, aright);
       break;
+   case MIR_VEC_MUL:
+      abits = j_mul(g, aleft, aright);
+      break;
    case MIR_VEC_CASE_EQ:
       j_cmp(g, JIT_CC_EQ, aleft, aright);
       j_ccmp(g, JIT_CC_EQ, bleft, bright);

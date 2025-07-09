@@ -281,8 +281,10 @@ static void vlog_dump_event_control(vlog_node_t v)
    print_syntax("@(");
 
    const int nparams = vlog_params(v);
-   for (int i = 0; i < nparams; i++)
+   for (int i = 0; i < nparams; i++) {
+      if (i > 0) print_syntax(", ");
       vlog_dump(vlog_param(v, i), 0);
+   }
 
    print_syntax(") ");
 }

@@ -348,6 +348,7 @@ static mir_value_t vlog_lower_binary(vlog_gen_t *g, vlog_node_t v)
    case V_BINARY_CASE_NEQ: mop = MIR_VEC_CASE_NEQ; break;
    case V_BINARY_PLUS:     mop = MIR_VEC_ADD; break;
    case V_BINARY_MINUS:    mop = MIR_VEC_SUB; break;
+   case V_BINARY_TIMES:    mop = MIR_VEC_MUL; break;
    case V_BINARY_SHIFT_LL: mop = MIR_VEC_SLL; break;
    case V_BINARY_SHIFT_RL: mop = MIR_VEC_SRL; break;
    default:
@@ -680,7 +681,7 @@ static mir_value_t vlog_lower_rvalue(vlog_gen_t *g, vlog_node_t v)
          mir_value_t inc =
             mir_build_binary(g->mu, MIR_VEC_ADD, type, prev, one);
 
-         // G->Must save/restore around blocking assignment
+         // Must save/restore around blocking assignment
          mir_value_t tmp = mir_add_var(g->mu, type, MIR_NULL_STAMP,
                                        ident_uniq("prefix"), MIR_VAR_TEMP);
          mir_build_store(g->mu, tmp, inc);
@@ -688,6 +689,20 @@ static mir_value_t vlog_lower_rvalue(vlog_gen_t *g, vlog_node_t v)
          vlog_assign_variable(g, target, inc);
 
          return mir_build_load(g->mu, tmp);
+      }
+   case V_POSTFIX:
+      {
+         vlog_node_t target = vlog_target(v);
+
+         mir_value_t prev = vlog_lower_rvalue(g, target);
+         mir_type_t type = mir_get_type(g->mu, prev);
+         mir_value_t one = mir_const_vec(g->mu, type, 1, 0);
+         mir_value_t inc =
+            mir_build_binary(g->mu, MIR_VEC_ADD, type, prev, one);
+
+         vlog_assign_variable(g, target, inc);
+
+         return inc;
       }
    case V_COND_EXPR:
       {
@@ -1017,7 +1032,14 @@ static void vlog_lower_for_loop(vlog_gen_t *g, vlog_node_t v)
    vlog_node_t step = vlog_right(v);
    assert(vlog_kind(step) == V_FOR_STEP);
 
-   vlog_lower_stmts(g, step);
+   const int nstmts = vlog_stmts(step);
+   for (int i = 0; i < nstmts; i++) {
+      vlog_node_t s = vlog_stmt(step, i);
+      if (vlog_kind(s) == V_BASSIGN)  // XXX: should be op assign
+         vlog_lower_blocking_assignment(g, s);
+      else
+         vlog_lower_rvalue(g, s);
+   }
 
    mir_build_jump(g->mu, test_bb);
 

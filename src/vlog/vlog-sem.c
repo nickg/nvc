@@ -62,13 +62,30 @@ static bool has_error(vlog_node_t v)
 
 static bool constant_equal(vlog_node_t a, vlog_node_t b)
 {
-   if (vlog_kind(a) != V_NUMBER || vlog_kind(b) != V_NUMBER)
+   const vlog_kind_t kind = vlog_kind(a);
+   if (kind != vlog_kind(b))
       return false;
 
-   number_t an = vlog_number(a);
-   number_t bn = vlog_number(b);
+   if (has_error(a) || has_error(b))
+      return true;   // Suppress cascading errors
 
-   return number_equal(an, bn);
+   switch (kind) {
+   case V_NUMBER:
+      {
+         number_t an = vlog_number(a);
+         number_t bn = vlog_number(b);
+
+         return number_equal(an, bn);
+      }
+   case V_BINARY:
+      return vlog_subkind(a) == vlog_subkind(b)
+         && constant_equal(vlog_left(a), vlog_left(b))
+         && constant_equal(vlog_right(a), vlog_right(b));
+   case V_REF:
+      return vlog_ref(a) == vlog_ref(b);
+   default:
+      return false;
+   }
 }
 
 static void vlog_check_const_expr(vlog_node_t expr)

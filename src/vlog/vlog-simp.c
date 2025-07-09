@@ -125,6 +125,7 @@ static void build_sensitivity(vlog_node_t ctrl, vlog_node_t v)
       }
       break;
    case V_NUMBER:
+   case V_STRING:
       break;
    case V_IF:
       {
@@ -155,6 +156,10 @@ static void build_sensitivity(vlog_node_t ctrl, vlog_node_t v)
       }
       break;
    case V_CONCAT:
+   case V_SYS_FCALL:
+   case V_SYS_TCALL:
+   case V_USER_FCALL:
+   case V_USER_TCALL:
       {
          const int nparams = vlog_params(v);
          for (int i = 0; i < nparams; i++)
