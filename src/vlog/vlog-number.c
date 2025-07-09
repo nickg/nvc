@@ -110,20 +110,20 @@ number_t number_new(const char *str, const loc_t *loc)
       }
    }
 
+   number_t result = { .bits = 0 };
+   const int nwords = MAX(1, BIGNUM_WORDS(width));
+   result.big = xmalloc_flex(sizeof(bignum_t), nwords * 2, sizeof(uint64_t));
+   result.big->width = width;
+   result.big->issigned = false;
+
    vlog_radix_t radix = RADIX_DEC;
    switch (*p) {
    case 'b': radix = RADIX_BIN; p++; break;
    case 'h': radix = RADIX_HEX; p++; break;
    case 'd': radix = RADIX_DEC; p++; break;
    case '"': radix = RADIX_STR; p++; break;
-   default: break;
+   default: result.big->issigned = true; break;
    }
-
-   number_t result = { .bits = 0 };
-   const int nwords = MAX(1, BIGNUM_WORDS(width));
-   result.big = xmalloc_flex(sizeof(bignum_t), nwords * 2, sizeof(uint64_t));
-   result.big->width = width;
-   result.big->issigned = false;
 
    for (int i = 0; i < nwords * 2; i++)
       result.big->words[i] = 0;
@@ -248,7 +248,7 @@ void number_free(number_t *val)
 void number_print(number_t val, text_buf_t *tb)
 {
    if (number_is_defined(val)) {
-      if (val.big->width == 32 && !val.big->issigned) {
+      if (val.big->width == 32 && val.big->issigned) {
          tb_printf(tb, "%"PRIi64, bignum_abits(val.big)[0]);
          return;
       }
@@ -364,9 +364,15 @@ bool number_truthy(number_t a)
    return false;
 }
 
+bool number_signed(number_t a)
+{
+   return a.big->issigned;
+}
+
 void number_write(number_t val, fbuf_t *f)
 {
-   fbuf_put_int(f, val.big->issigned ? -val.big->width : val.big->width);
+   const int64_t width = val.big->width;  // Widen
+   fbuf_put_int(f, val.big->issigned ? -width : width);
 
    const int nwords = bignum_words(val.big);
    write_raw(val.big->words, nwords * 2  * sizeof(uint64_t), f);
@@ -428,6 +434,21 @@ number_t number_sub(number_t a, number_t b)
    return result;
 }
 
+number_t number_negate(number_t a)
+{
+   const int nwords = BIGNUM_WORDS(a.big->width);
+
+   number_t result = { .bits = 0 };
+   result.big = xmalloc_flex(sizeof(bignum_t), nwords * 2, sizeof(uint64_t));
+   result.big->width = a.big->width;
+   result.big->issigned = a.big->issigned;
+
+   memcpy(result.big->words, a.big->words, nwords * 2 * sizeof(uint64_t));
+   vec2_negate(result.big->words, result.big->width);
+
+   return result;
+}
+
 number_t number_logical_equal(number_t a, number_t b)
 {
    const int width = 1;
@@ -460,8 +481,91 @@ number_t number_greater(number_t a, number_t b)
    result.big->issigned = false;
 
    if (number_is_defined(a) && number_is_defined(b)) {
-      bignum_abits(result.big)[0] = vec2_gt(bignum_abits(a.big), a.big->width,
-                                            bignum_abits(b.big), b.big->width);
+      vlog_logic_t cmp;
+      if (a.big->issigned && b.big->issigned)
+         cmp = vec2_sgt(a.big->words, a.big->width, b.big->words, b.big->width);
+      else
+         cmp = vec2_gt(a.big->words, a.big->width, b.big->words, b.big->width);
+
+      bignum_abits(result.big)[0] = (cmp == LOGIC_1);
+      bignum_bbits(result.big)[0] = 0;
+   }
+   else
+      bignum_abits(result.big)[0] = bignum_bbits(result.big)[0] = 1;
+
+   return result;
+}
+
+number_t number_greater_equal(number_t a, number_t b)
+{
+   const int width = 1;
+   const int nwords = BIGNUM_WORDS(width);
+
+   number_t result = { .bits = 0 };
+   result.big = xmalloc_flex(sizeof(bignum_t), nwords * 2, sizeof(uint64_t));
+   result.big->width = width;
+   result.big->issigned = false;
+
+   if (number_is_defined(a) && number_is_defined(b)) {
+      vlog_logic_t cmp;
+      if (a.big->issigned && b.big->issigned)
+         cmp = vec2_sge(a.big->words, a.big->width, b.big->words, b.big->width);
+      else
+         cmp = vec2_ge(a.big->words, a.big->width, b.big->words, b.big->width);
+
+      bignum_abits(result.big)[0] = (cmp == LOGIC_1);
+      bignum_bbits(result.big)[0] = 0;
+   }
+   else
+      bignum_abits(result.big)[0] = bignum_bbits(result.big)[0] = 1;
+
+   return result;
+}
+
+number_t number_less(number_t a, number_t b)
+{
+   const int width = 1;
+   const int nwords = BIGNUM_WORDS(width);
+
+   number_t result = { .bits = 0 };
+   result.big = xmalloc_flex(sizeof(bignum_t), nwords * 2, sizeof(uint64_t));
+   result.big->width = width;
+   result.big->issigned = false;
+
+   if (number_is_defined(a) && number_is_defined(b)) {
+      vlog_logic_t cmp;
+      if (a.big->issigned && b.big->issigned)
+         cmp = vec2_slt(a.big->words, a.big->width, b.big->words, b.big->width);
+      else
+         cmp = vec2_lt(a.big->words, a.big->width, b.big->words, b.big->width);
+
+      bignum_abits(result.big)[0] = (cmp == LOGIC_1);
+      bignum_bbits(result.big)[0] = 0;
+   }
+   else
+      bignum_abits(result.big)[0] = bignum_bbits(result.big)[0] = 1;
+
+   return result;
+}
+
+number_t number_less_equal(number_t a, number_t b)
+{
+   const int width = 1;
+   const int nwords = BIGNUM_WORDS(width);
+
+   number_t result = { .bits = 0 };
+   result.big = xmalloc_flex(sizeof(bignum_t), nwords * 2, sizeof(uint64_t));
+   result.big->width = width;
+   result.big->issigned = false;
+
+   if (number_is_defined(a) && number_is_defined(b)) {
+      vlog_logic_t cmp;
+      if (a.big->issigned && b.big->issigned)
+         cmp = vec2_sle(a.big->words, a.big->width, b.big->words, b.big->width);
+      else
+         cmp = vec2_le(a.big->words, a.big->width, b.big->words, b.big->width);
+
+      bignum_abits(result.big)[0] = (cmp == LOGIC_1);
       bignum_bbits(result.big)[0] = 0;
    }
    else
@@ -486,11 +590,34 @@ void vec2_mul(uint64_t *a, size_t asize, const uint64_t *b, size_t bsize)
       should_not_reach_here();   // TODO
 }
 
-vlog_logic_t vec2_gt(const uint64_t *a, size_t asize,
-                     const uint64_t *b, size_t bsize)
+void vec2_negate(uint64_t *a, size_t asize)
 {
-   if (asize <= 64 && bsize <= 64)
-      return a[0] > b[0] ? LOGIC_1 : LOGIC_0;
+   if (asize <= 64)
+      a[0] = -a[0];
    else
       should_not_reach_here();   // TODO
 }
+
+#define VEC2_CMP_OP(name, op)                                           \
+   vlog_logic_t vec2_##name(const uint64_t *a, size_t asize,            \
+                            const uint64_t *b, size_t bsize)            \
+   {                                                                    \
+      if (asize <= 64 && bsize <= 64)                                   \
+         return a[0] op b[0] ? LOGIC_1 : LOGIC_0;                       \
+      else                                                              \
+         should_not_reach_here();   /* TODO */                          \
+   }                                                                    \
+                                                                        \
+   vlog_logic_t vec2_s##name(const uint64_t *a, size_t asize,           \
+                             const uint64_t *b, size_t bsize)           \
+   {                                                                    \
+      if (asize <= 64 && bsize <= 64)                                   \
+         return (int64_t)a[0] op (int64_t)b[0] ? LOGIC_1 : LOGIC_0;     \
+      else                                                              \
+         should_not_reach_here();   /* TODO */                          \
+   }
+
+VEC2_CMP_OP(lt, <);
+VEC2_CMP_OP(gt, >);
+VEC2_CMP_OP(le, <=);
+VEC2_CMP_OP(ge, >=);

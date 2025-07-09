@@ -266,6 +266,42 @@ static vlog_node_t simp_binary(vlog_node_t v)
    case V_BINARY_GT:
       result = number_greater(nleft, nright);
       break;
+   case V_BINARY_GEQ:
+      result = number_greater_equal(nleft, nright);
+      break;
+   case V_BINARY_LT:
+      result = number_less(nleft, nright);
+      break;
+   case V_BINARY_LEQ:
+      result = number_less_equal(nleft, nright);
+      break;
+   default:
+      return v;
+   }
+
+   vlog_node_t new = vlog_new(V_NUMBER);
+   vlog_set_loc(new, vlog_loc(v));
+   vlog_set_number(new, result);
+   return new;
+}
+
+static vlog_node_t simp_unary(vlog_node_t v)
+{
+   vlog_node_t value = vlog_value(v);
+
+   if (vlog_kind(value) != V_NUMBER)
+      return v;
+
+   number_t n = vlog_number(value);
+
+   number_t result;
+   switch (vlog_subkind(v)) {
+   case V_UNARY_NEG:
+      result = number_negate(n);
+      break;
+   case V_UNARY_IDENTITY:
+      result = n;
+      break;
    default:
       return v;
    }
@@ -289,11 +325,10 @@ static vlog_node_t simp_if_generate(vlog_node_t v)
             continue;
       }
 
-      assert(vlog_stmts(c) == 1);
-      return vlog_stmt(c, 0);
+      return vlog_stmts(c) == 1 ? vlog_stmt(c, 0) : NULL;
    }
 
-   return v;
+   return NULL;   // None of the conditions are true
 }
 
 static vlog_node_t vlog_simp_cb(vlog_node_t v, void *context)
@@ -309,6 +344,8 @@ static vlog_node_t vlog_simp_cb(vlog_node_t v, void *context)
       return simp_data_type(v);
    case V_BINARY:
       return simp_binary(v);
+   case V_UNARY:
+      return simp_unary(v);
    case V_REF:
       return simp_ref(v);
    case V_IF_GENERATE:

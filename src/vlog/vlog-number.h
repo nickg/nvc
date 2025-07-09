@@ -58,19 +58,39 @@ uint8_t number_byte(number_t val, unsigned n);
 number_t number_pack(const uint8_t *bits, unsigned width);
 bool number_equal(number_t a, number_t b);
 bool number_truthy(number_t a);
+bool number_signed(number_t a);
 
 void number_write(number_t val, fbuf_t *f);
 number_t number_read(fbuf_t *f);
 
 number_t number_add(number_t a, number_t b);
 number_t number_sub(number_t a, number_t b);
+number_t number_negate(number_t a);
 number_t number_logical_equal(number_t a, number_t b);
 number_t number_greater(number_t a, number_t b);
+number_t number_greater_equal(number_t a, number_t b);
+number_t number_less(number_t a, number_t b);
+number_t number_less_equal(number_t a, number_t b);
 
 void vec2_add(uint64_t *a, size_t asize, const uint64_t *b, size_t bsize);
 void vec2_mul(uint64_t *a, size_t asize, const uint64_t *b, size_t bsize);
+void vec2_negate(uint64_t *a, size_t asize);
 
+vlog_logic_t vec2_sgt(const uint64_t *a, size_t asize,
+                      const uint64_t *b, size_t bsize);
 vlog_logic_t vec2_gt(const uint64_t *a, size_t asize,
+                     const uint64_t *b, size_t bsize);
+vlog_logic_t vec2_slt(const uint64_t *a, size_t asize,
+                      const uint64_t *b, size_t bsize);
+vlog_logic_t vec2_lt(const uint64_t *a, size_t asize,
+                     const uint64_t *b, size_t bsize);
+vlog_logic_t vec2_sge(const uint64_t *a, size_t asize,
+                      const uint64_t *b, size_t bsize);
+vlog_logic_t vec2_ge(const uint64_t *a, size_t asize,
+                     const uint64_t *b, size_t bsize);
+vlog_logic_t vec2_sle(const uint64_t *a, size_t asize,
+                      const uint64_t *b, size_t bsize);
+vlog_logic_t vec2_le(const uint64_t *a, size_t asize,
                      const uint64_t *b, size_t bsize);
 
 #endif  // _VLOG_NUMBER_H

@@ -35,7 +35,7 @@ module mod2;
   reg [7:0]      array1 [127:0];
   initial
     casex (w)
-      'b0, 'b1: r = p1[3:0];
+      1'b0, 1'b1: r = p1[3:0];
       default: r = 0;
     endcase
 endmodule // mod2

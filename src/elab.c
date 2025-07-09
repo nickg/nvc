@@ -1772,12 +1772,18 @@ static void elab_component(tree_t inst, tree_t comp, const elab_ctx_t *ctx)
             fatal_at(tree_loc(inst), "cannot get value of generic %s",
                      istr(tree_ident(decl)));
 
+         const int64_t ival = assume_int(map);
+
          // TODO: have some better way of constructing these
          char buf[64];
-         checked_sprintf(buf, sizeof(buf), "32'd%"PRIi64, assume_int(map));
+         checked_sprintf(buf, sizeof(buf), "%lld", llabs(ival));
+
+         number_t n = number_new(buf, NULL);
+         if (ival < 0)
+            n = number_negate(n);
 
          vlog_node_t num = vlog_new(V_NUMBER);
-         vlog_set_number(num, number_new(buf, NULL));
+         vlog_set_number(num, n);
 
          vlog_node_t pa = vlog_new(V_PARAM_ASSIGN);
          vlog_set_value(pa, num);
