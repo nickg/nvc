@@ -1899,6 +1899,26 @@ START_TEST(test_issue1182)
 }
 END_TEST
 
+START_TEST(test_issue1239)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/simp/issue1239.vhd");
+
+   tree_t a = parse_check_and_simplify(T_ENTITY, T_ARCH);
+
+   tree_t r = tree_stmt(tree_stmt(a, 0), 0);
+   fail_unless(tree_kind(r) == T_REPORT);
+
+   tree_t s = tree_message(r);
+   fail_unless(tree_kind(s) == T_STRING);
+   fail_unless(tree_chars(s) == 1);
+   fail_unless(tree_ident(tree_char(s, 0)) == ident_new("'2'"));
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_simp_tests(void)
 {
    Suite *s = suite_create("simplify");
@@ -1972,6 +1992,7 @@ Suite *get_simp_tests(void)
    tcase_add_test(tc_core, test_synth1);
    tcase_add_test(tc_core, test_genpack2);
    tcase_add_test(tc_core, test_issue1182);
+   tcase_add_test(tc_core, test_issue1239);
    suite_add_tcase(s, tc_core);
 
    return s;

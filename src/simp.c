@@ -527,9 +527,9 @@ static tree_t simp_attr_ref(tree_t t, simp_ctx_t *ctx)
                      tree_t p0 = tree_param(name, 0);
                      int64_t dim;
                      if (!folded_int(tree_value(p0), &dim))
-                        break;
+                        return t;
                      else if (dim < 1 || dim > dimension_of(tree_type(prefix)))
-                        break;
+                        return t;
 
                      tree_add_param(new, p0);
                   }
@@ -539,8 +539,6 @@ static tree_t simp_attr_ref(tree_t t, simp_ctx_t *ctx)
                   return new;
                }
             }
-
-            break;  // Prefix may contain errors
          }
 
          type_t type = tree_type(name);
