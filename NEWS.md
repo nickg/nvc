@@ -1,5 +1,5 @@
 ## Unreleased changes
-- Updated to OSVVM 2025.02 for `nvc --install`.
+- Updated to OSVVM 2025.02 and UVVM 2025.04.18 for `nvc --install`.
 - Added `--merge-mode` option to control behaviour when merging
   non-equal coverage databases.
 - `generate` statements now create separate hierarchy in the code
