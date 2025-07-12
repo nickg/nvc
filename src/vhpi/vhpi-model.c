@@ -4191,9 +4191,13 @@ static c_typeDecl *build_typeDecl(tree_t decl, c_abstractRegion *region)
          vhpi_list_add(&region->decls.list, tobj);
          hash_put(vhpi_context()->objcache, type, td);
 
+         type_t elem = type_elem(type);
+         if (is_anonymous_subtype(elem) && !type_const_bounds(elem))
+            elem = type_base_recur(elem);
+
          td->NumDimensions = dimension_of(type);
          td->composite.typeDecl.wrapped = true;
-         td->ElemType = cached_typeDecl(type_elem(type), tobj);
+         td->ElemType = cached_typeDecl(elem, tobj);
          td->composite.typeDecl.size = td->ElemType->size;
 
          vhpi_list_reserve(&td->Constraints, td->NumDimensions);
