@@ -9923,142 +9923,6 @@ static void lower_subprogram_ports(lower_unit_t *lu, tree_t body,
    }
 }
 
-static void lower_array_cmp_inner(lower_unit_t *lu,
-                                  vcode_reg_t lhs_data,
-                                  vcode_reg_t rhs_data,
-                                  vcode_reg_t lhs_array,
-                                  vcode_reg_t rhs_array,
-                                  type_t left_type,
-                                  type_t right_type,
-                                  vcode_cmp_t pred,
-                                  vcode_block_t fail_bb)
-{
-   // Behaviour of relational operators on arrays is described in
-   // LRM 93 section 7.2.2
-
-   assert(pred == VCODE_CMP_EQ || pred == VCODE_CMP_LT
-          || pred == VCODE_CMP_LEQ);
-
-   const int ndims = dimension_of(left_type);
-   assert(dimension_of(right_type) == ndims);
-
-   vcode_reg_t left_len = lower_array_len(lu, left_type, 0, lhs_array);
-   for (int i = 1; i < ndims; i++) {
-      vcode_reg_t dim_len = lower_array_len(lu, left_type, i, lhs_array);
-      left_len = emit_mul(dim_len, left_len);
-   }
-
-   vcode_reg_t right_len = lower_array_len(lu, right_type, 0, rhs_array);
-   for (int i = 1; i < ndims; i++) {
-      vcode_reg_t dim_len = lower_array_len(lu, right_type, i, rhs_array);
-      right_len = emit_mul(dim_len, right_len);
-   }
-
-   vcode_type_t voffset = vtype_offset();
-   vcode_var_t i_var = lower_temp_var(lu, "i", voffset, voffset);
-   emit_store(emit_const(voffset, 0), i_var);
-
-   vcode_block_t test_bb = emit_block();
-   vcode_block_t body_bb = emit_block();
-   vcode_block_t exit_bb = emit_block();
-
-   type_t elem_type = type_elem(left_type);
-
-   vcode_reg_t stride = VCODE_INVALID_REG;
-   if (type_is_array(elem_type))
-      stride = lower_array_stride(lu, left_type, lhs_array);
-
-   vcode_reg_t len_eq = emit_cmp(VCODE_CMP_EQ, left_len, right_len);
-
-   if (pred == VCODE_CMP_EQ)
-      emit_cond(len_eq, test_bb, fail_bb);
-   else
-      emit_jump(test_bb);
-
-   // Loop test
-
-   vcode_select_block(test_bb);
-
-   vcode_reg_t i_loaded = emit_load(i_var);
-
-   if (pred == VCODE_CMP_EQ) {
-      vcode_reg_t done = emit_cmp(VCODE_CMP_EQ, i_loaded, left_len);
-      emit_cond(done, exit_bb, body_bb);
-   }
-   else {
-      vcode_block_t check_r_len_bb = emit_block();
-
-      vcode_reg_t len_ge_l = emit_cmp(VCODE_CMP_GEQ, i_loaded, left_len);
-      emit_cond(len_ge_l, exit_bb, check_r_len_bb);
-
-      vcode_select_block(check_r_len_bb);
-
-      vcode_reg_t len_ge_r = emit_cmp(VCODE_CMP_GEQ, i_loaded, right_len);
-      emit_cond(len_ge_r, fail_bb, body_bb);
-   }
-
-   // Loop body
-
-   vcode_select_block(body_bb);
-
-   vcode_reg_t ptr_inc = i_loaded;
-   if (stride != VCODE_INVALID_REG)
-      ptr_inc = emit_mul(ptr_inc, stride);
-
-   vcode_reg_t inc = emit_add(i_loaded, emit_const(voffset, 1));
-   emit_store(inc, i_var);
-
-   vcode_reg_t i_eq_len = emit_cmp(VCODE_CMP_EQ, inc, left_len);
-
-   vcode_reg_t l_ptr = emit_array_ref(lhs_data, ptr_inc);
-   vcode_reg_t r_ptr = emit_array_ref(rhs_data, ptr_inc);
-
-   if (type_is_array(elem_type)) {
-      vcode_reg_t lhs_sub_array = VCODE_INVALID_REG;
-      vcode_reg_t rhs_sub_array = VCODE_INVALID_REG;
-      if (type_is_unconstrained(elem_type)) {
-         lhs_sub_array = lower_wrap_element(lu, left_type, lhs_array, l_ptr);
-         rhs_sub_array = lower_wrap_element(lu, right_type, rhs_array, r_ptr);
-      }
-
-      lower_array_cmp_inner(lu, l_ptr, r_ptr, lhs_sub_array, rhs_sub_array,
-                            type_elem(left_type), type_elem(right_type),
-                            pred, fail_bb);
-      emit_jump(test_bb);
-   }
-   else if (type_is_record(elem_type)) {
-      lower_for_each_field_2(lu, elem_type, elem_type, l_ptr, r_ptr,
-                             VCODE_INVALID_REG, lower_predef_field_eq_cb,
-                             (void *)(uintptr_t)fail_bb);
-      emit_jump(test_bb);
-   }
-   else {
-      vcode_reg_t l_val = emit_load_indirect(l_ptr);
-      vcode_reg_t r_val = emit_load_indirect(r_ptr);
-
-      if (pred == VCODE_CMP_EQ) {
-         vcode_reg_t eq = emit_cmp(pred, l_val, r_val);
-         emit_cond(eq, test_bb, fail_bb);
-      }
-      else {
-         vcode_reg_t cmp = emit_cmp(pred, l_val, r_val);
-         vcode_reg_t eq  = emit_cmp(VCODE_CMP_EQ, l_val, r_val);
-
-         vcode_reg_t done = emit_or(emit_not(eq), emit_and(len_eq, i_eq_len));
-
-         vcode_block_t cmp_result_bb = emit_block();
-         emit_cond(done, cmp_result_bb, test_bb);
-
-         vcode_select_block(cmp_result_bb);
-         emit_cond(cmp, exit_bb, fail_bb);
-      }
-   }
-
-   // Epilogue
-
-   vcode_select_block(exit_bb);
-}
-
 static void lower_predef_field_eq_cb(lower_unit_t *lu, tree_t field,
                                      vcode_reg_t r0, vcode_reg_t r1,
                                      vcode_reg_t locus, void *context)
@@ -10067,20 +9931,28 @@ static void lower_predef_field_eq_cb(lower_unit_t *lu, tree_t field,
 
    type_t ftype = tree_type(field);
    if (type_is_array(ftype)) {
-      vcode_reg_t r0_data = r0, r0_array = VCODE_INVALID_REG;
-      if (have_uarray_ptr(r0)) {
-         r0_array = emit_load_indirect(r0);
-         r0_data = lower_array_data(r0_array);
-      }
+      type_t base = type_base_recur(ftype);
 
-      vcode_reg_t r1_data = r1, r1_array = VCODE_INVALID_REG;
-      if (have_uarray_ptr(r1)) {
-         r1_array = emit_load_indirect(r1);
-         r1_data = lower_array_data(r1_array);
-      }
+      if (have_uarray_ptr(r0))
+         r0 = emit_load_indirect(r0);
 
-      lower_array_cmp_inner(lu, r0_data, r1_data, r0_array, r1_array,
-                            ftype, ftype, VCODE_CMP_EQ, fail_bb);
+      if (have_uarray_ptr(r1))
+         r1 = emit_load_indirect(r1);
+
+      ident_t func = predef_func_name(base, "=");
+      vcode_type_t vbool = vtype_bool();
+
+      vcode_reg_t context_reg = lower_context_for_call(lu, func);
+      vcode_reg_t r0_array = lower_coerce_arrays(lu, ftype, base, r0);
+      vcode_reg_t r1_array = lower_coerce_arrays(lu, ftype, base, r1);
+
+      vcode_reg_t args[] = { context_reg, r0_array, r1_array };
+      vcode_reg_t cmp_reg = emit_fcall(func, vbool, vbool,
+                                       args, ARRAY_LEN(args));
+
+      vcode_block_t next_bb = emit_block();
+      emit_cond(cmp_reg, next_bb, fail_bb);
+      vcode_select_block(next_bb);
    }
    else if (type_is_record(ftype))
       lower_for_each_field_2(lu, ftype, ftype, r0, r1, locus,
