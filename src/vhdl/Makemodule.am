@@ -2,4 +2,5 @@ lib_libnvc_a_SOURCES += \
 	src/vhdl/vhdl-lower.h \
 	src/vhdl/vhdl-predef.c \
 	src/vhdl/vhdl-priv.h \
-	src/vhdl/vhdl-lower.c
+	src/vhdl/vhdl-lower.c \
+	src/vhdl/vhdl-util.c

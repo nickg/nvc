@@ -1263,6 +1263,10 @@ static mir_value_t mir_build_mul_op(mir_unit_t *mu, mir_op_t op,
       return left;
    else if (rconst && rval == 0)
       return right;
+   else if (lconst && lval == 1)
+      return right;
+   else if (rconst && rval == 1)
+      return left;
    else if (lconst && rconst && !__builtin_mul_overflow(lval, rval, &cval))
       return mir_const(mu, type, cval);
 
