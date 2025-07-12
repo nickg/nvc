@@ -34,6 +34,7 @@
 #include "type.h"
 #include "vcode.h"
 #include "vhdl/vhdl-lower.h"
+#include "vhdl/vhdl-util.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -134,7 +135,6 @@ static void lower_check_array_sizes(lower_unit_t *lu, type_t ltype,
                                     vcode_reg_t rval, vcode_reg_t locus);
 static vcode_type_t lower_alias_type(tree_t alias);
 static void lower_predef(lower_unit_t *lu, object_t *obj);
-static ident_t lower_predef_func_name(type_t type, const char *op);
 static void lower_generics(lower_unit_t *lu, tree_t block, tree_t primary);
 static vcode_reg_t lower_default_value(lower_unit_t *lu, type_t type,
                                        vcode_reg_t hint_reg);
@@ -7004,7 +7004,7 @@ static void lower_case_array(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
 
    if (!exact_map) {
       fallthrough_bb = emit_block();
-      cmp_func = lower_predef_func_name(tree_type(value), "=");
+      cmp_func = predef_func_name(tree_type(value), "=");
    }
 
    int cptr = 0;
@@ -8566,7 +8566,7 @@ static void lower_enum_value_helper(lower_unit_t *lu, type_t type,
    vcode_reg_t str_reg = emit_wrap(char_ptr, dims, 1);
 
    type_t std_string = std_type(NULL, STD_STRING);
-   ident_t func = lower_predef_func_name(std_string, "=");
+   ident_t func = predef_func_name(std_string, "=");
 
    vcode_type_t vbool = vtype_bool();
    vcode_reg_t context_reg = lower_context_for_call(lu, func);
@@ -8752,7 +8752,7 @@ static void lower_physical_value_helper(lower_unit_t *lu, type_t type,
    vcode_reg_t str_reg = emit_wrap(char_ptr, dims, 1);
 
    type_t std_string = std_type(NULL, STD_STRING);
-   ident_t func = lower_predef_func_name(std_string, "=");
+   ident_t func = predef_func_name(std_string, "=");
 
    vcode_reg_t std_reg = emit_link_package(well_known(W_STD_STANDARD));
    vcode_type_t vbool = vtype_bool();
@@ -9853,6 +9853,9 @@ static void lower_decls(lower_unit_t *lu, tree_t scope)
            case S_ARRAY_XNOR:
            case S_ARRAY_NAND:
            case S_ARRAY_NOR:
+           case S_ARRAY_EQ:
+           case S_ARRAY_LT:
+           case S_ARRAY_LE:
            case S_RISING_EDGE:
            case S_FALLING_EDGE:
               unit_registry_defer2(lu->registry, tree_ident2(d),
@@ -9918,21 +9921,6 @@ static void lower_subprogram_ports(lower_unit_t *lu, tree_t body,
       else
          lower_put_vcode_obj(p, preg, lu);
    }
-}
-
-static ident_t lower_predef_func_name(type_t type, const char *op)
-{
-   type_t base = type_base_recur(type);
-
-   LOCAL_TEXT_BUF tb = tb_new();
-   tb_printf(tb, "%s.\"%s\"(", istr(ident_runtil(type_ident(base), '.')), op);
-   mangle_one_type(tb, base);
-   mangle_one_type(tb, base);
-   tb_cat(tb, ")");
-   mangle_one_type(tb, std_type(NULL, STD_BOOLEAN));
-   tb_cat(tb, "$predef");
-
-   return ident_new(tb_get(tb));
 }
 
 static void lower_array_cmp_inner(lower_unit_t *lu,
@@ -10069,27 +10057,6 @@ static void lower_array_cmp_inner(lower_unit_t *lu,
    // Epilogue
 
    vcode_select_block(exit_bb);
-}
-
-static void lower_predef_array_cmp(lower_unit_t *lu, tree_t decl,
-                                   vcode_cmp_t pred)
-{
-   type_t r0_type = tree_type(tree_port(decl, 0));
-   type_t r1_type = tree_type(tree_port(decl, 1));
-
-   vcode_reg_t r0 = 1, r1 = 2;
-   vcode_reg_t r0_data = lower_array_data(r0);
-   vcode_reg_t r1_data = lower_array_data(r1);
-
-   vcode_block_t fail_bb = emit_block();
-
-   lower_array_cmp_inner(lu, r0_data, r1_data, r0, r1, r0_type, r1_type,
-                         pred, fail_bb);
-
-   emit_return(emit_const(vtype_bool(), 1));
-
-   vcode_select_block(fail_bb);
-   emit_return(emit_const(vtype_bool(), 0));
 }
 
 static void lower_predef_field_eq_cb(lower_unit_t *lu, tree_t field,
@@ -10407,7 +10374,7 @@ static void lower_predef_min_max(lower_unit_t *lu, tree_t decl, vcode_cmp_t cmp)
          test_reg = emit_cmp(cmp, r0, r1);
       else {
          const char *op = cmp == VCODE_CMP_GT ? ">" : "<";
-         ident_t func = lower_predef_func_name(type, op);
+         ident_t func = predef_func_name(type, op);
          vcode_reg_t args[] = { context_reg, r0, r1 };
          vcode_type_t vbool = vtype_bool();
          test_reg = emit_fcall(func, vbool, vbool, args, 3);
@@ -10422,7 +10389,7 @@ static void lower_predef_negate(tree_t decl, const char *op)
    type_t type = tree_type(tree_port(decl, 0));
    vcode_type_t vbool = vtype_bool();
    vcode_reg_t args[] = { 0, 1, 2 };
-   vcode_reg_t eq_reg = emit_fcall(lower_predef_func_name(type, op),
+   vcode_reg_t eq_reg = emit_fcall(predef_func_name(type, op),
                                    vbool, vbool, args, 3);
 
    emit_return(emit_not(eq_reg));
@@ -10483,15 +10450,6 @@ static void lower_predef(lower_unit_t *lu, object_t *obj)
    lower_subprogram_ports(lu, decl, false);
 
    switch (tree_subkind(decl)) {
-   case S_ARRAY_EQ:
-      lower_predef_array_cmp(lu, decl, VCODE_CMP_EQ);
-      break;
-   case S_ARRAY_LE:
-      lower_predef_array_cmp(lu, decl, VCODE_CMP_LEQ);
-      break;
-   case S_ARRAY_LT:
-      lower_predef_array_cmp(lu, decl, VCODE_CMP_LT);
-      break;
    case S_ARRAY_GE:
       lower_predef_negate(decl, "<");
       break;
@@ -12141,7 +12099,7 @@ static void lower_check_generic_constraint(lower_unit_t *lu, tree_t expect,
          right_reg = lower_wrap(lu, type, expect_reg);
       }
 
-      ident_t func = lower_predef_func_name(type, "=");
+      ident_t func = predef_func_name(type, "=");
       vcode_reg_t context_reg = lower_context_for_call(lu, func);
       vcode_reg_t args[] = { context_reg, left_reg, right_reg };
       vcode_type_t vbool = vtype_bool();
@@ -12565,7 +12523,7 @@ vcode_unit_t lower_case_generate_thunk(lower_unit_t *parent, tree_t t)
 
    ident_t cmp_func = NULL;
    if (!type_is_scalar(type))
-      cmp_func = lower_predef_func_name(tree_type(value), "=");
+      cmp_func = predef_func_name(tree_type(value), "=");
 
    vcode_reg_t value_reg = lower_rvalue(lu, value);
 

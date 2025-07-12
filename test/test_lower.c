@@ -1604,7 +1604,7 @@ START_TEST(test_slice1)
       { VCODE_OP_ADDRESS_OF },
       { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_COPY },
-      { VCODE_OP_CONTEXT_UPREF, .hops = 1 },
+      { VCODE_OP_NULL },
       { VCODE_OP_ARRAY_REF },
       { VCODE_OP_WRAP },
       { VCODE_OP_CONST_ARRAY, .length = 2 },
