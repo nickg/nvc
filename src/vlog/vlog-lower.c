@@ -164,10 +164,9 @@ static vlog_lvalue_t vlog_lower_lvalue(vlog_gen_t *g, vlog_node_t v)
 
          vlog_node_t decl = vlog_ref(prefix), dt = vlog_type(decl);
 
-         const int npacked = vlog_ranges(dt);
          const int nunpacked = vlog_ranges(decl);
          const int nparams = vlog_params(v);
-         assert(nparams <= npacked + nunpacked);
+         assert(nparams <= vlog_ranges(dt) + nunpacked);
 
          unsigned size = vlog_size(decl) * ref.size;
 
@@ -463,10 +462,9 @@ static mir_value_t vlog_lower_bit_select(vlog_gen_t *g, vlog_node_t v)
 
    vlog_node_t decl = vlog_ref(value), dt = vlog_type(decl);
 
-   const int npacked = vlog_ranges(dt);
    const int nunpacked = vlog_ranges(decl);
    const int nparams = vlog_params(v);
-   assert(nparams <= npacked + nunpacked);
+   assert(nparams <= vlog_ranges(dt) + nunpacked);
 
    unsigned size = vlog_size(decl) * vlog_size(dt);
 

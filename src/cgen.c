@@ -106,9 +106,6 @@ static void cgen_walk_hier(unit_list_t *units, hset_t *seen, tree_t block,
    APUSH(*units, unit_name);
    hset_insert(seen, unit_name);
 
-   tree_t hier = tree_decl(block, 0);
-   assert(tree_kind(hier) == T_HIER);
-
    const int nstmts = tree_stmts(block);
    for (int i = 0; i < nstmts; i++) {
       tree_t s = tree_stmt(block, i);
