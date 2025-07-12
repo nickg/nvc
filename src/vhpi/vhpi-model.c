@@ -2579,14 +2579,22 @@ vhpiHandleT vhpi_scan(vhpiHandleT iterator)
    if (it == NULL)
       return NULL;
 
-   if (it->single)
-      return it->pos++ ? NULL : handle_for(it->single);
+   if (it->single != NULL && it->pos++ > 0)
+      goto end_of_iterator;
+   else if (it->single != NULL)
+      return handle_for(it->single);
 
    while (it->pos < it->list->count) {
       c_vhpiObject *obj = it->list->items[it->pos++];
       if (it->filter == NULL || (*it->filter)(obj) != NULL)
          return handle_for(obj);
    }
+
+
+ end_of_iterator:
+   // According to LRM 2008 section 23.33 the handle is released by
+   // vhpi_scan when it reaches the end of the list
+   drop_handle(vhpi_context(), iterator);
 
    return NULL;
 }
