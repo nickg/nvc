@@ -868,7 +868,7 @@ static void *code_emit_trampoline(code_blob_t *blob, void *dest)
    }
 }
 
-#if defined ARCH_X86_64
+#if !defined __MINGW32__ && !defined __APPLE__
 static void *code_emit_got(code_blob_t *blob, void *dest)
 {
    const uint8_t data[] = { __IMM64((uintptr_t)dest) };
