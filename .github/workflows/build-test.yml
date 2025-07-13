@@ -19,6 +19,8 @@ jobs:
         include:
           - { os: 22.04, mode: debug }
           - { os: 22.04, mode: release }
+          # Disabled as too slow
+          #- { os: 24.04-arm, mode: debug }
     name: Ubuntu ${{ matrix.os }} (${{ matrix.mode }})
     runs-on: ubuntu-${{ matrix.os }}
     steps:
