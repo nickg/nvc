@@ -1,4 +1,5 @@
 ## Unreleased changes
+- Fixed a build failure on Linux Arm64.
 
 ## Version 1.17.0 - 2025-07-12
 - Updated to OSVVM 2025.02 and UVVM 2025.04.18 for `nvc --install`.
