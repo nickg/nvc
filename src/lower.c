@@ -9858,6 +9858,8 @@ static void lower_decls(lower_unit_t *lu, tree_t scope)
            case S_ARRAY_LE:
            case S_RISING_EDGE:
            case S_FALLING_EDGE:
+           case S_MAXIMUM:
+           case S_MINIMUM:
               unit_registry_defer2(lu->registry, tree_ident2(d),
                                    NULL, MIR_UNIT_FUNCTION, vhdl_lower_predef,
                                    tree_to_object(d));
@@ -10180,82 +10182,6 @@ static void lower_predef_reduction_op(lower_unit_t *lu, tree_t decl,
       emit_return(emit_load(result_var));
 }
 
-static void lower_predef_min_max(lower_unit_t *lu, tree_t decl, vcode_cmp_t cmp)
-{
-   type_t type = tree_type(tree_port(decl, 0));
-
-   if (type_is_array(type) && tree_ports(decl) == 1) {
-      type_t elem = type_elem(type);
-      assert(type_is_scalar(elem));
-
-      vcode_reg_t array_reg = 1;
-      vcode_type_t voffset = vtype_offset();
-
-      vcode_var_t i_var = lower_temp_var(lu, "i", voffset, voffset);
-      emit_store(emit_const(voffset, 0), i_var);
-
-      vcode_type_t elem_vtype = lower_type(elem);
-      vcode_var_t result_var =
-         lower_temp_var(lu, "result", elem_vtype, elem_vtype);
-
-      tree_t elem_r = range_of(elem, 0);
-      vcode_reg_t def_reg =
-         (cmp == VCODE_CMP_GT && tree_subkind(elem_r) == RANGE_TO)
-         || (cmp == VCODE_CMP_LT && tree_subkind(elem_r) == RANGE_DOWNTO)
-         ? lower_range_left(lu, elem_r)
-         : lower_range_right(lu, elem_r);
-
-      emit_store(def_reg, result_var);
-
-      vcode_reg_t left_reg  = lower_array_left(lu, type, 0, array_reg);
-      vcode_reg_t right_reg = lower_array_right(lu, type, 0, array_reg);
-      vcode_reg_t len_reg   = lower_array_len(lu, type, 0, array_reg);
-      vcode_reg_t kind_reg  = lower_array_dir(lu, type, 0, array_reg);
-      vcode_reg_t data_reg  = lower_array_data(array_reg);
-      vcode_reg_t null_reg  = emit_range_null(left_reg, right_reg, kind_reg);
-
-      vcode_block_t body_bb = emit_block();
-      vcode_block_t exit_bb = emit_block();
-
-      emit_cond(null_reg, exit_bb, body_bb);
-
-      vcode_select_block(body_bb);
-
-      vcode_reg_t i_reg    = emit_load(i_var);
-      vcode_reg_t elem_ptr = emit_array_ref(data_reg, i_reg);
-      vcode_reg_t elem_reg = emit_load_indirect(elem_ptr);
-      vcode_reg_t cur_reg  = emit_load(result_var);
-      vcode_reg_t cmp_reg  = emit_cmp(cmp, elem_reg, cur_reg);
-      vcode_reg_t next_reg = emit_select(cmp_reg, elem_reg, cur_reg);
-      emit_store(next_reg, result_var);
-
-      vcode_reg_t i_next = emit_add(i_reg, emit_const(voffset, 1));
-      emit_store(i_next, i_var);
-
-      vcode_reg_t done_reg = emit_cmp(VCODE_CMP_EQ, i_next, len_reg);
-      emit_cond(done_reg, exit_bb, body_bb);
-
-      vcode_select_block(exit_bb);
-      emit_return(emit_load(result_var));
-   }
-   else {
-      vcode_reg_t context_reg = 0, r0 = 1, r1 = 2;
-
-      vcode_reg_t test_reg;
-      if (type_is_scalar(type))
-         test_reg = emit_cmp(cmp, r0, r1);
-      else {
-         const char *op = cmp == VCODE_CMP_GT ? ">" : "<";
-         ident_t func = predef_func_name(type, op);
-         vcode_reg_t args[] = { context_reg, r0, r1 };
-         vcode_type_t vbool = vtype_bool();
-         test_reg = emit_fcall(func, vbool, vbool, args, 3);
-      }
-
-      emit_return(emit_select(test_reg, r0, r1));
-   }
-}
-
 static void lower_predef_negate(tree_t decl, const char *op)
 {
    type_t type = tree_type(tree_port(decl, 0));
@@ -10368,12 +10294,6 @@ static void lower_predef(lower_unit_t *lu, object_t *obj)
    case S_REDUCE_XOR:
    case S_REDUCE_XNOR:
       lower_predef_reduction_op(lu, decl, kind);
-      break;
-   case S_MAXIMUM:
-      lower_predef_min_max(lu, decl, VCODE_CMP_GT);
-      break;
-   case S_MINIMUM:
-      lower_predef_min_max(lu, decl, VCODE_CMP_LT);
       break;
    case S_FILE_FLUSH:
       lower_foreign_predef(lu, decl, "__nvc_flush");

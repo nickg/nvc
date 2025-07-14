@@ -15,11 +15,14 @@ begin
 
     p1: process is
         variable v : t_freqvec(1 to 3);
+        variable n : t_freqvec(3 to 1);
     begin
         v := ( 1 hz, 10 khz, 3 mhz );
         wait for 1 ns;
         assert minimum(v) = 1 hz;
         assert maximum(v) = 3 mhz;
+        assert minimum(n) = integer'high * hz;
+        assert maximum(n) = 0 hz;
         wait;
     end process;
 

@@ -801,6 +801,91 @@ static void predef_array_eq(mir_unit_t *mu, tree_t decl)
    mir_build_return(mu, mir_const(mu, t_bool, 0));
 }
 
+
+static void predef_min_max(mir_unit_t *mu, tree_t decl, mir_cmp_t cmp)
+{
+   type_t type = tree_type(tree_port(decl, 0));
+
+   if (type_is_array(type) && tree_ports(decl) == 1) {
+      const type_info_t *elem = type_info(mu, type_elem(type));
+      assert(type_is_scalar(elem->source));
+
+      mir_value_t array = mir_get_param(mu, 1);
+
+      mir_type_t t_offset = mir_offset_type(mu);
+      mir_value_t i_var = mir_add_var(mu, t_offset, MIR_NULL_STAMP,
+                                      ident_new("i"), MIR_VAR_TEMP);
+      mir_value_t zero = mir_const(mu, t_offset, 0);
+      mir_build_store(mu, i_var, zero);
+
+      mir_value_t result_var =
+         mir_add_var(mu, elem->type, elem->stamp, ident_new("result"), 0);
+
+      tree_t elem_r = range_of(elem->source, 0);
+      tree_t def = (cmp == MIR_CMP_GT && tree_subkind(elem_r) == RANGE_TO)
+         || (cmp == MIR_CMP_LT && tree_subkind(elem_r) == RANGE_DOWNTO)
+         ? tree_left(elem_r) : tree_right(elem_r);
+
+      mir_value_t def_val;
+      if (tree_kind(def) == T_LITERAL && tree_subkind(def) == L_REAL)
+         def_val = mir_const_real(mu, elem->type, tree_dval(def));
+      else
+         def_val = mir_const(mu, elem->type, assume_int(def));
+
+      mir_build_store(mu, result_var, def_val);
+
+      mir_value_t len   = mir_build_uarray_len(mu, array, 0);
+      mir_value_t data  = mir_build_unwrap(mu, array);
+      mir_value_t null = mir_build_cmp(mu, MIR_CMP_EQ, len, zero);
+
+      mir_block_t body_bb = mir_add_block(mu);
+      mir_block_t exit_bb = mir_add_block(mu);
+
+      mir_build_cond(mu, null, exit_bb, body_bb);
+
+      mir_set_cursor(mu, body_bb, MIR_APPEND);
+
+      mir_value_t i_val    = mir_build_load(mu, i_var);
+      mir_value_t elem_ptr = mir_build_array_ref(mu, data, i_val);
+      mir_value_t elem_val = mir_build_load(mu, elem_ptr);
+      mir_value_t cur_val  = mir_build_load(mu, result_var);
+      mir_value_t cmp_val  = mir_build_cmp(mu, cmp, elem_val, cur_val);
+
+      mir_value_t next =
+         mir_build_select(mu, elem->type, cmp_val, elem_val, cur_val);
+      mir_build_store(mu, result_var, next);
+
+      mir_value_t one = mir_const(mu, t_offset, 1);
+      mir_value_t i_next = mir_build_add(mu, t_offset, i_val, one);
+      mir_build_store(mu, i_var, i_next);
+
+      mir_value_t done = mir_build_cmp(mu, MIR_CMP_EQ, i_next, len);
+      mir_build_cond(mu, done, exit_bb, body_bb);
+
+      mir_set_cursor(mu, exit_bb, MIR_APPEND);
+      mir_build_return(mu, mir_build_load(mu, result_var));
+   }
+   else {
+      mir_value_t context = mir_get_param(mu, 0);
+      mir_value_t lhs = mir_get_param(mu, 1);
+      mir_value_t rhs = mir_get_param(mu, 2);
+
+      mir_value_t test;
+      if (type_is_scalar(type))
+         test = mir_build_cmp(mu, cmp, lhs, rhs);
+      else {
+         const char *op = cmp == MIR_CMP_GT ? ">" : "<";
+         ident_t func = predef_func_name(type, op);
+         mir_value_t args[] = { context, lhs, rhs };
+         mir_type_t t_bool = mir_bool_type(mu);
+         test = mir_build_fcall(mu, func, t_bool, MIR_NULL_STAMP, args, 3);
+      }
+
+      mir_type_t t_result = mir_get_type(mu, lhs);
+      mir_build_return(mu, mir_build_select(mu, t_result, test, lhs, rhs));
+   }
+}
+
 void vhdl_lower_predef(mir_unit_t *mu, object_t *obj)
 {
    tree_t decl = tree_from_object(obj);
@@ -867,7 +952,14 @@ void vhdl_lower_predef(mir_unit_t *mu, object_t *obj)
       break;
    case S_RISING_EDGE:
    case S_FALLING_EDGE:
-      return predef_edge_op(mu, decl);
+      predef_edge_op(mu, decl);
+      break;
+   case S_MAXIMUM:
+      predef_min_max(mu, decl, MIR_CMP_GT);
+      break;
+   case S_MINIMUM:
+      predef_min_max(mu, decl, MIR_CMP_LT);
+      break;
    default:
       should_not_reach_here();
    }
