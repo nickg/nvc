@@ -232,7 +232,7 @@ static void _vexpect(va_list ap)
 static vlog_node_t peek_reference(void)
 {
    assert(peek() == tID);
-   ident_t id = ident_new(state.tokenq[state.tokenq_tail].lval.str);
+   ident_t id = state.tokenq[state.tokenq_tail].lval.ident;
    return vlog_symtab_query(symtab, id);
 }
 
@@ -334,16 +334,16 @@ static const loc_t *_diff_loc(const loc_t *start, const loc_t *end)
    return &result;
 }
 
-static void set_timescale(const char *unit_value, const char *unit_name,
-                          const char *prec_value, const char *prec_name,
+static void set_timescale(uint64_t unit_value, const char *unit_name,
+                          uint64_t prec_value, const char *prec_name,
                           const loc_t *loc)
 {
    // See IEEE 1800-2017 section 22.7 for rules
 
    struct {
-      const char *value;
+      uint64_t    value;
       const char *name;
-      int64_t     parsed;
+      uint64_t    parsed;
    } args[] = {
       { unit_value, unit_name },
       { prec_value, prec_name },
@@ -374,15 +374,14 @@ static void set_timescale(const char *unit_value, const char *unit_name,
       if (!name_valid)
          error_at(loc, "invalid time unit name '%s'", args[i].name);
 
-      const int scale = atoi(args[i].value);
-      if (scale != 1 && scale != 10 && scale != 100) {
+      if (args[i].value != 1 && args[i].value != 10 && args[i].value != 100) {
          diag_t *d = diag_new(DIAG_ERROR, loc);
          diag_printf(d, "invalid order of magnitude in `timescale directive");
          diag_hint(d, NULL, "the valid values are 1, 10, and 100");
          diag_emit(d);
       }
 
-      args[i].parsed *= scale;
+      args[i].parsed *= args[i].value;
    }
 
    // TODO: do something with parsed scale/precision
@@ -435,9 +434,7 @@ static vlog_node_t logic_type(void)
 static ident_t p_identifier(void)
 {
    if (consume(tID)) {
-      ident_t id = ident_new(state.last_lval.str);
-      free(state.last_lval.str);
-      return id;
+      return state.last_lval.ident;
    }
    else
       return error_marker();
@@ -446,11 +443,13 @@ static ident_t p_identifier(void)
 static void p_external_identifier(ident_t *id, ident_t *ext)
 {
    if (consume(tID)) {
-      *id = ident_new(state.last_lval.str);
-      for (char *p = state.last_lval.str; *p; p++)
-         *p = toupper_iso88591(*p);
-      *ext = ident_new(state.last_lval.str);
-      free(state.last_lval.str);
+      *id = state.last_lval.ident;
+
+      LOCAL_TEXT_BUF tb = tb_new();
+      tb_istr(tb, state.last_lval.ident);
+      tb_upcase(tb);
+
+      *ext = ident_new(tb_get(tb));
    }
    else
       *id = *ext = error_marker();
@@ -458,11 +457,8 @@ static void p_external_identifier(ident_t *id, ident_t *ext)
 
 static ident_t p_system_tf_identifier(void)
 {
-   if (consume(tSYSTASK)) {
-      ident_t id = ident_new(state.last_lval.str);
-      free(state.last_lval.str);
-      return id;
-   }
+   if (consume(tSYSTASK))
+      return state.last_lval.ident;
    else
       return error_marker();
 }
@@ -6039,20 +6035,22 @@ static void p_timescale_compiler_directive(void)
    BEGIN("timescale compiler directive");
 
    consume(tTIMESCALE);
-
    consume(tUNSIGNED);
-   char *unit_value LOCAL = state.last_lval.str;
+
+   const uint64_t unit_value = atoll(state.last_lval.str);
 
    consume(tID);
-   char *unit_name LOCAL = state.last_lval.str;
+
+   const char *unit_name = istr(state.last_lval.ident);
 
    consume(tOVER);
-
    consume(tUNSIGNED);
-   char *prec_value LOCAL = state.last_lval.str;
+
+   const uint64_t prec_value = atoll(state.last_lval.str);
 
    consume(tID);
-   char *prec_name LOCAL = state.last_lval.str;
+
+   const char *prec_name = istr(state.last_lval.ident);
 
    set_timescale(unit_value, unit_name, prec_value, prec_name, CURRENT_LOC);
 }

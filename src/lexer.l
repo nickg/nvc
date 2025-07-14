@@ -103,6 +103,7 @@ VHDL_ID         ({LOWER}|{UPPER})(_?({LOWER}|{UPPER}|[0-9]))*
 BAD_ID          ({LOWER}|{UPPER}|_)({LOWER}|{UPPER}|[0-9_])*
 EXID            \\([^\\\n]|\\\\)*\\
 VLOG_ID         [a-zA-Z_]([a-zA-Z0-9_$])*
+VLOG_ESCAPED    \\[\x21-\x7e]+
 /* TODO: Add "escaped_character" handling to SDF ID */
 /* TODO: According to spec, identifier could even start with number*/
 SDF_ID          ([a-zA-Z$_])([a-zA-Z$_0-9])*
@@ -768,8 +769,9 @@ BEFORE            ?i:before
 <VLOG>"event"            { return tEVENT; }
 <VLOG>"genvar"           { return tGENVAR; }
 
-<VLOG>{SYSTASK}          { yylval.str = xstrdup(yytext); return tSYSTASK; }
-<VLOG>{VLOG_ID}          { yylval.str = xstrdup(yytext); return tID; }
+<VLOG>{SYSTASK}          { yylval.ident = ident_new(yytext); return tSYSTASK; }
+<VLOG>{VLOG_ID}          { yylval.ident = ident_new(yytext); return tID; }
+<VLOG>{VLOG_ESCAPED}     { yylval.ident = ident_new(yytext + 1); return tID; }
 <VLOG>{INTEGER}          { yylval.str = xstrdup(yytext); return tUNSIGNED; }
 <VLOG>{VLOG_STRING}      { return escape_verilog_string(yytext); }
 <VLOG>{VLOG_NUMBER}      { yylval.str = xstrdup(yytext); return tNUMBER; }

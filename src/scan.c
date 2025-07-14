@@ -499,8 +499,7 @@ static void pp_nvc_push(void)
    if ((tok = pp_yylex()) != tID)
       goto error;
 
-   exp.name = ident_new(yylval.str);
-   free(yylval.str);
+   exp.name = yylval.ident;
 
    if ((tok = pp_yylex()) != tCOMMA)
       goto error;
