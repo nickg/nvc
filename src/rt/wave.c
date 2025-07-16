@@ -257,6 +257,26 @@ static void fst_fmt_enum(rt_watch_t *w, fst_data_t *data)
 }
 #endif
 
+static void fst_fmt_net(rt_watch_t *w, fst_data_t *data)
+{
+   static const char map[] = "01zx";
+   const uint8_t *value = signal_value(data->signal);
+   fstWriterEmitValueChange(data->dumper->fst_ctx, data->handle[0],
+                            map + (value[0] & 3));
+}
+
+static void fst_fmt_net_array(rt_watch_t *w, fst_data_t *data)
+{
+   static const char map[] = "01zx";
+   const uint8_t *p = signal_value(data->signal);
+   for (int i = 0; i < data->count; i++, p += data->size) {
+      char buf[data->size];
+      for (int j = 0; j < data->size; j++)
+         buf[j] = map[p[j] & 3];
+      fstWriterEmitValueChange(data->dumper->fst_ctx, data->handle[i], buf);
+   }
+}
+
 static void fst_event_cb(uint64_t now, rt_signal_t *s, rt_watch_t *w,
                          void *user)
 {
@@ -322,7 +342,13 @@ static fst_type_t *fst_type_for(wave_dumper_t *wd, type_t type,
       break;
 
    case T_INTEGER:
-      {
+      if (is_well_known(type_ident(type)) == W_VERILOG_NET_VALUE) {
+         ft->vartype = FST_VT_VCD_WIRE;
+         ft->fn      = fst_fmt_net;
+         ft->size    = 1;
+         ft->sdt     = FST_SDT_NONE;
+      }
+      else {
          int64_t low, high;
          range_bounds(range_of(type, 0), &low, &high);
 
@@ -355,6 +381,14 @@ static fst_type_t *fst_type_for(wave_dumper_t *wd, type_t type,
             ft->vartype = FST_VT_SV_LOGIC;
             ft->fn      = fst_fmt_chars;
             ft->u.map   = "01";
+            ft->size    = 1;
+            break;
+
+         case W_VERILOG_LOGIC:
+            ft->sdt     = FST_SDT_NONE;
+            ft->vartype = FST_VT_SV_LOGIC;
+            ft->fn      = fst_fmt_chars;
+            ft->u.map   = "01zx";
             ft->size    = 1;
             break;
 
@@ -460,6 +494,13 @@ static fst_type_t *fst_type_for(wave_dumper_t *wd, type_t type,
             ft->sdt     = FST_SDT_VHDL_STRING;
             ft->vartype = FST_VT_GEN_STRING;
             ft->fn      = fst_fmt_chars;
+            ft->u.map   = NULL;
+            ft->size    = 1;
+            break;
+         case W_VERILOG_WIRE_ARRAY:
+            ft->sdt     = FST_SDT_NONE;
+            ft->vartype = FST_VT_VCD_WIRE;
+            ft->fn      = fst_fmt_net_array;
             ft->u.map   = NULL;
             ft->size    = 1;
             break;
@@ -608,11 +649,12 @@ static void fst_create_array_var(wave_dumper_t *wd, tree_t d, rt_signal_t *s,
    fst_data_t *data;
 
    type_t elem = type_elem(type);
-   if (type_is_enum(elem)) {
-      fst_type_t *ft = fst_type_for(wd, type, tree_loc(d));
-      if (ft == NULL)
-         return;
 
+   fst_type_t *ft = fst_type_for(wd, type, tree_loc(d));
+   if (ft == NULL)
+      return;
+
+   if (type_is_enum(elem) || ft->vartype == FST_VT_VCD_WIRE) {
       data = xcalloc(sizeof(fst_data_t) + sizeof(fstHandle));
       data->type  = ft;
       data->size  = length * ft->size;
@@ -628,10 +670,6 @@ static void fst_create_array_var(wave_dumper_t *wd, tree_t d, rt_signal_t *s,
    else if (type_is_record(elem))
       return;   // Not yet supported
    else if (type_is_array(elem)) {
-      fst_type_t *ft = fst_type_for(wd, elem, tree_loc(d));
-      if (ft == NULL)
-         return;
-
       SCOPED_A(fst_dim_t) dims = AINIT;
 
       fst_dim_t dim0 = { length, left, right, dir };
@@ -669,10 +707,6 @@ static void fst_create_array_var(wave_dumper_t *wd, tree_t d, rt_signal_t *s,
       fstWriterSetAttrEnd(wd->fst_ctx);
    }
    else {
-      fst_type_t *ft = fst_type_for(wd, elem, tree_loc(d));
-      if (ft == NULL)
-         return;
-
       data = xcalloc_flex(sizeof(fst_data_t), length, sizeof(fstHandle));
       data->count = length;
       data->size  = ft->size;

@@ -1148,6 +1148,7 @@ void intern_strings(void)
    id_cache[W_VITAL]           = ident_new("VITAL");
    id_cache[W_RESOLUTION]      = ident_new("resolution");
    id_cache[W_TEXT_UTIL]       = ident_new("NVC.TEXT_UTIL");
+   id_cache[W_VERILOG_LOGIC]   = ident_new("NVC.VERILOG.T_LOGIC");
 
    id_cache[W_IEEE_LOGIC_VECTOR] =
       ident_new("IEEE.STD_LOGIC_1164.STD_LOGIC_VECTOR");
@@ -1160,6 +1161,8 @@ void intern_strings(void)
 
    id_cache[W_NUMERIC_STD_UNSIGNED] = ident_new("IEEE.NUMERIC_STD_UNSIGNED");
    id_cache[W_NUMERIC_BIT_UNSIGNED] = ident_new("IEEE.NUMERIC_BIT_UNSIGNED");
+   id_cache[W_VERILOG_NET_VALUE]    = ident_new("NVC.VERILOG.T_NET_VALUE");
+   id_cache[W_VERILOG_WIRE_ARRAY]   = ident_new("NVC.VERILOG.T_WIRE_ARRAY");
 
    id_cache[W_OP_CCONV]               = ident_new("\"??\"");
    id_cache[W_OP_AND]                 = ident_new("\"and\"");
