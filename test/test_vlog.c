@@ -439,8 +439,13 @@ START_TEST(test_pp1)
       "\n"
       "pass\n"
       "\n"
-      TESTDIR "/vlog/pp1.v\n"
-      "16\n"
+      "\""TESTDIR "/vlog/pp1.v""\"\n"
+      "\"16\"\n"
+      "\n"
+      "\n"
+      "\n"
+      "\n"
+      "\n"
       "\n");
 }
 END_TEST
@@ -509,9 +514,13 @@ START_TEST(test_pp2)
    const error_t expect[] = {
       {  1, "`else outside of `ifdef" },
       {  2, "`endif outside of `ifdef" },
-      {  3, "expected macro name after `ifdef" },
-      {  4, "expected macro name after `ifndef" },
-      {  5, "expected macro name after `define" },
+      {  3, "`elsif outside of `ifdef" },
+      {  3, "expected macro name after `elsif" },
+      {  4, "expected macro name after `ifdef" },
+      {  5, "expected macro name after `ifndef" },
+      {  7, "expected macro name after `elsif" },
+      {  8, "expected macro name after `define" },
+      {  9, "no corresponding `endif before end of file" },
       {  6, "no corresponding `endif before end of file" },
       { -1, NULL }
    };

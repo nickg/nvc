@@ -14,4 +14,9 @@ pass
 `endif
 `__FILE__
 `__LINE__
-
+`undefineall
+`ifdef FOO
+fail
+`elsif BAZ
+fail
+`endif

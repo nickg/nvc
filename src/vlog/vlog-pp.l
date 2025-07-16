@@ -46,6 +46,7 @@ typedef struct _ifdef_stack ifdef_stack_t;
 struct _ifdef_stack {
    ifdef_stack_t *next;
    loc_t          loc;
+   bool           cond;
 };
 
 typedef A(YY_BUFFER_STATE) buffer_stack_t;
@@ -62,7 +63,8 @@ static bool            continuation = false;
 
 static void define_macro(void);
 static void undef_macro(void);
-static void push_ifdef(void);
+static void undefall_macro(void);
+static void push_ifdef(bool cond);
 static void pop_ifdef(void);
 static void convert_line_ending(void);
 static void push_macro(const char *name, const char *text);
@@ -73,7 +75,7 @@ extern loc_t yylloc;
 
 ID    [a-zA-Z_]([a-zA-Z0-9_$])*
 
-%x COMMENT C_COMMENT MACRO_NAME MACRO_TEXT IFDEF_NAME IFDEF_TRUE IFDEF_FALSE
+%x COMMENT C_COMMENT MACRO_NAME MACRO_TEXT IFDEF_NAME IFDEF_FALSE ELSIF_NAME
 %x IFNDEF_NAME
 
 %%
@@ -94,23 +96,24 @@ ID    [a-zA-Z_]([a-zA-Z0-9_$])*
                         }
 
 `define[ \t]*           { BEGIN(MACRO_NAME); }
-`ifdef[ \t]*            { push_ifdef();
-                          BEGIN(IFDEF_NAME);
-                        }
-`ifndef[ \t]*           { push_ifdef();
-                          BEGIN(IFNDEF_NAME);
-                        }
+`ifdef[ \t]*            { BEGIN(IFDEF_NAME); }
+`ifndef[ \t]*           { BEGIN(IFNDEF_NAME); }
 `endif                  { pop_ifdef();
                           BEGIN(INITIAL);
+                        }
+`elsif[ \t]*            { if (ifdefs == NULL)
+                             error_at(&yylloc, "`elsif outside of `ifdef");
+                          BEGIN(ELSIF_NAME);
                         }
 `else                   { if (ifdefs == NULL)
                              error_at(&yylloc, "`else outside of `ifdef");
                           BEGIN(IFDEF_FALSE);
                         }
 `undef[ \t]+{ID}[ \t]*  { undef_macro(); }
+`undefineall[ \t]*      { undefall_macro(); }
 
-`__FILE__               { tb_cat(output, loc_file_str(&yylloc)); }
-`__LINE__               { tb_printf(output, "%d", yylloc.first_line); }
+`__FILE__               { tb_printf(output, "\"%s\"", loc_file_str(&yylloc)); }
+`__LINE__               { tb_printf(output, "\"%d\"", yylloc.first_line); }
 
 `timescale              |
 `default_nettype        |
@@ -137,26 +140,43 @@ ID    [a-zA-Z_]([a-zA-Z0-9_$])*
                           BEGIN(INITIAL);
                         }
 
-<IFDEF_NAME>{ID}        { if (shash_get(macros, vlogpp_text) != NULL)
+<IFDEF_NAME>{ID}        { bool cond = (shash_get(macros, vlogpp_text) != NULL);
+                          push_ifdef(cond);
+                          if (cond == true)
                              BEGIN(INITIAL);
                           else
                              BEGIN(IFDEF_FALSE);
                         }
 <IFDEF_NAME>.           { error_at(&yylloc, "expected macro name after `ifdef");
-                          pop_ifdef();
                           BEGIN(INITIAL);
                         }
 
-<IFNDEF_NAME>{ID}       { if (shash_get(macros, vlogpp_text) == NULL)
+<IFNDEF_NAME>{ID}       { bool cond = (shash_get(macros, vlogpp_text) == NULL);
+                          push_ifdef(cond);
+                          if (cond == true)
                              BEGIN(INITIAL);
                           else
                              BEGIN(IFDEF_FALSE);
                         }
 <IFNDEF_NAME>.          { error_at(&yylloc, "expected macro name after "
                                    "`ifndef");
-                          pop_ifdef();
                           BEGIN(INITIAL);
                         }
+
+<ELSIF_NAME>{ID}        { if (ifdefs->cond == true)
+                             BEGIN(IFDEF_FALSE);
+                          else if (shash_get(macros, vlogpp_text) == NULL)
+                             BEGIN(IFDEF_FALSE);
+                          else
+                             BEGIN(INITIAL);
+                        }
+<ELSIF_NAME>.           { error_at(&yylloc, "expected macro name after `elsif");
+                          BEGIN(INITIAL);
+                        }
+
+<IFDEF_FALSE>`elsif[ \t]* { assert(ifdefs != NULL);
+                            BEGIN(ELSIF_NAME);
+                          }
 
 <IFDEF_FALSE>`else      { assert(ifdefs != NULL);
                           BEGIN(INITIAL);
@@ -256,10 +276,18 @@ static void undef_macro(void)
    shash_delete(macros, s);
 }
 
-static void push_ifdef(void)
+static void undefall_macro(void)
+{
+   shash_free(macros);
+   macros = shash_new(64);
+}
+
+
+static void push_ifdef(bool cond)
 {
    ifdef_stack_t *s = xcalloc(sizeof(ifdef_stack_t));
    s->next = ifdefs;
+   s->cond = cond;
    s->loc = yylloc;
 
    ifdefs = s;
