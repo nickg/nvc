@@ -478,5 +478,7 @@ void reset_sdf_parser(void);
 #define tLARGE         577
 #define tVECTORED      578
 #define tSCALARED      579
+#define tUNCTDRIVE     580
+#define tNOUNCTDRIVE   581
 
 #endif  // _SCAN_H

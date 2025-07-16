@@ -871,6 +871,7 @@ START_TEST(test_direct1)
       { 11, "unexpected identifier while parsing default_nettype directive, "
         "expecting one of wire, tri, tri0, tri1, wand, triand, wor, trior," },
       { 15, "no visible declaration for x" },
+      { 29, "unexpected wire while parsing unconnected_drive directive, expecting one of pull0 or pull1" },
       { -1, NULL }
    };
    expect_errors(expect);

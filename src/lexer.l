@@ -658,6 +658,8 @@ BEFORE            ?i:before
 <VLOG>"`default_nettype" { return tDEFNETTYPE; }
 <VLOG>"`celldefine"      { }
 <VLOG>"`endcelldefine"   { }
+<VLOG>"`unconnected_drive" { return tUNCTDRIVE; }
+<VLOG>"`nounconnected_drive" { return tNOUNCTDRIVE; }
 <VLOG>"`begin_keywords"  { return tBEGINKEYWORDS; }
 <VLOG>"`end_keywords"    { return tENDKEYWORDS; }
 <VLOG>"`__nvc_push"      { return tNVCPUSH; }

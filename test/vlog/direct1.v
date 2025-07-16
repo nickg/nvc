@@ -17,6 +17,13 @@ endmodule // foo
 
 `resetall                 // OK
 
+`unconnected_drive pull1 // OK
+
 module bar;
+  wire y;
   assign x = 5;   // OK
 endmodule // foo
+
+`nounconnected_drive // OK
+
+`unconnected_drive wire // Error

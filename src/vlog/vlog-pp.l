@@ -119,6 +119,8 @@ ID    [a-zA-Z_]([a-zA-Z0-9_$])*
 `default_nettype        |
 `resetall               |
 `pragma                 |
+`unconnected_drive      |
+`nounconnected_drive    |
 `begin_keywords         |
 `end_keywords           |
 `celldefine             |
