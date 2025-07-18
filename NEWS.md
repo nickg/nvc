@@ -1,5 +1,9 @@
 ## Unreleased changes
 - Fixed a build failure on Linux Arm64.
+- An `others` choice is now allowed in an unconstrained array aggregate
+  if the `--relaxed` option is passed and the aggregates appears in one
+  of the contexts where the VHDL-2019 "function knows vector size"
+  feature applies (#641, #1175).
 
 ## Version 1.17.0 - 2025-07-12
 - Updated to OSVVM 2025.02 and UVVM 2025.04.18 for `nvc --install`.

@@ -2178,7 +2178,6 @@ START_TEST(test_bitstring)
       { 26, "a bit string literal may not contain multiple consecutive "
         "underscores" },
       { 28, "unterminated string literal" },
-      { 28, "no visible declaration for X" },
       { 28, "unexpected string while parsing constant declaration" },
       { 29, "unterminated string literal" },
       { -1, NULL }

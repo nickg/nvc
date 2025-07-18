@@ -99,7 +99,7 @@ typedef struct _type_set {
    type_set_t          *down;
    type_pred_t          pred;
    unsigned             watermark;
-   bool                 known_subtype;
+   tree_t               target;
 } type_set_t;
 
 typedef enum {
@@ -3803,7 +3803,7 @@ static type_t resolve_fcall(nametab_t *tab, tree_t fcall, tree_t decl,
    if ((flags & TREE_F_PROTECTED) && tree_kind(fcall) != T_PROT_FCALL)
       tree_change_kind(fcall, T_PROT_FCALL);
 
-   if ((flags & TREE_F_KNOWS_SUBTYPE) && !tab->top_type_set->known_subtype)
+   if ((flags & TREE_F_KNOWS_SUBTYPE) && tab->top_type_set->target == NULL)
       error_at(tree_loc(fcall), "function %s with return identifier %s "
                "cannot be called in this context as the result subtype "
                "is not known", istr(tree_ident(decl)),
@@ -4632,6 +4632,8 @@ static type_t solve_array_aggregate(nametab_t *tab, tree_t agg, type_t type)
 
    type_t index_type = index_type_of(type, 0);
 
+   const bool unconstrained = type_is_unconstrained(type);
+
    bool have_named = false, have_others = false;
    const int nassocs = tree_assocs(agg);
    for (int i = 0; i < nassocs; i++) {
@@ -4643,6 +4645,33 @@ static type_t solve_array_aggregate(nametab_t *tab, tree_t agg, type_t type)
          break;
       case A_OTHERS:
          have_others = true;
+         if (unconstrained && ts.down->target != NULL && relaxed_rules()) {
+            // Non-standard but supported by many other implementations
+            tree_t aref = tree_new(T_ATTR_REF);
+            tree_set_subkind(aref, ATTR_RANGE);
+            tree_set_name(aref, ts.down->target);
+            tree_set_ident(aref, ident_new("RANGE"));
+            tree_set_type(aref, index_type);
+            tree_set_loc(aref, tree_loc(a));
+
+            tree_t r = tree_new(T_RANGE);
+            tree_set_subkind(r, RANGE_EXPR);
+            tree_set_value(r, aref);
+            tree_set_type(r, index_type);
+            tree_set_loc(r, tree_loc(a));
+
+            tree_add_range(a, r);
+         }
+         else if (unconstrained) {
+            diag_t *d = diag_new(DIAG_ERROR, tree_loc(agg));
+            diag_printf(d, "index range of array aggregate with others choice "
+                        "cannot be determined from the context");
+            if (ts.down->target != NULL)
+               diag_hint(d, NULL, "this would be allowed with the "
+                         "$bold$--relaxed$$ option");
+            diag_lrm(d, STD_08, "9.3.3");
+            diag_emit(d);
+         }
          break;
       case A_NAMED:
          {
@@ -4720,7 +4749,7 @@ static type_t solve_array_aggregate(nametab_t *tab, tree_t agg, type_t type)
    type_set_pop(tab, &ts);
 
    bool bounds_from_context = true;
-   if (type_is_unconstrained(type))
+   if (unconstrained)
       bounds_from_context = false;
    else if (have_named && !have_others && is_anonymous_subtype(type))
       bounds_from_context = false;
@@ -5169,14 +5198,14 @@ type_t solve_types(nametab_t *tab, tree_t expr, type_t constraint)
    return type;
 }
 
-type_t solve_known_subtype(nametab_t *tab, tree_t expr, type_t constraint)
+type_t solve_known_subtype(nametab_t *tab, tree_t expr, tree_t target)
 {
-   assert(constraint != NULL);
+   assert(tree_has_type(target));
 
-   type_set_t ts = { .known_subtype = true };
+   type_set_t ts = { .target = target };
    type_set_push(tab, &ts);
 
-   type_set_add(tab, constraint, NULL);
+   type_set_add(tab, tree_type(target), NULL);
 
    type_t type = _solve_types(tab, expr);
 

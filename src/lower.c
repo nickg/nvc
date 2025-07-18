@@ -2434,20 +2434,23 @@ static vcode_reg_t lower_fcall(lower_unit_t *lu, tree_t fcall,
 static vcode_reg_t lower_known_subtype(lower_unit_t *lu, tree_t value,
                                        type_t type, vcode_reg_t bounds_reg)
 {
-   if (tree_kind(value) != T_FCALL)
+   const tree_kind_t kind = tree_kind(value);
+   switch (tree_kind(value)) {
+   case T_FCALL:
+      {
+         tree_t decl = tree_ref(value);
+         if (!(tree_flags(decl) & TREE_F_KNOWS_SUBTYPE))
+            return lower_rvalue(lu, value);
+      }
+      break;
+   default:
       return lower_rvalue(lu, value);
-
-   tree_t decl = tree_ref(value);
-   if (!(tree_flags(decl) & TREE_F_KNOWS_SUBTYPE))
-      return lower_rvalue(lu, value);
+   }
 
    if (type_is_array(type)) {
       if (bounds_reg == VCODE_INVALID_REG
-          || vcode_reg_kind(bounds_reg) != VCODE_TYPE_UARRAY) {
-         vcode_type_t velem = lower_type(type_elem_recur(type));
-         vcode_reg_t null_reg = emit_null(vtype_pointer(velem));
-         bounds_reg = lower_wrap(lu, type, null_reg);
-      }
+          || vcode_reg_kind(bounds_reg) != VCODE_TYPE_UARRAY)
+         bounds_reg = lower_get_type_bounds(lu, type);
    }
    else if (type_is_record(type)) {
       if (bounds_reg == VCODE_INVALID_REG) {
@@ -2458,7 +2461,12 @@ static vcode_reg_t lower_known_subtype(lower_unit_t *lu, tree_t value,
          bounds_reg = lower_resolved(lu, type, bounds_reg);
    }
 
-   return lower_fcall(lu, value, bounds_reg);
+   switch (kind) {
+   case T_FCALL:
+      return lower_fcall(lu, value, bounds_reg);
+   default:
+      should_not_reach_here();
+   }
 }
 
 static vcode_reg_t *lower_string_literal_chars(tree_t lit, int *nchars)
@@ -3661,6 +3669,9 @@ static vcode_reg_t lower_aggregate_bounds(lower_unit_t *lu, tree_t expr,
             left_reg = right_reg = lower_rvalue(lu, tree_name(a));
             dir_reg = lower_range_dir(lu, range_of(index_type, 0));
             break;
+         case A_OTHERS:
+            assert(tree_ranges(a) > 0);   // With relaxed rules
+            // Fall-through
          case A_RANGE:
          case A_SLICE:
             {
@@ -3687,9 +3698,6 @@ static vcode_reg_t lower_aggregate_bounds(lower_unit_t *lu, tree_t expr,
                   length_reg = emit_add(length_reg, count_reg);
             }
             break;
-         default:
-            fatal_trace("unexpected association kind %d in unconstrained "
-                        "aggregate", tree_subkind(a));
          }
       }
 

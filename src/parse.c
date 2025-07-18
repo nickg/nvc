@@ -7026,14 +7026,8 @@ static void p_constant_declaration(tree_t parent)
    type_t type = p_subtype_indication();
 
    tree_t init = NULL;
-   if (optional(tWALRUS)) {
+   if (optional(tWALRUS))
       init = p_conditional_expression();
-
-      if (standard() < STD_19 || type_is_unconstrained(type))
-         solve_types(nametab, init, type);
-      else
-         solve_known_subtype(nametab, init, type);
-   }
 
    // According to the LRM all constants are globally static but that
    // leads to a number of logical inconsistencies so we retrict to only
@@ -7063,8 +7057,15 @@ static void p_constant_declaration(tree_t parent)
       tree_set_type(t, type);
       tree_set_flag(t, flags);
       tree_set_loc(t, &(it->loc));
-      if (init != NULL)
+
+      if (init != NULL) {
          tree_set_value(t, init);
+
+         if (standard() < STD_19 || type_is_unconstrained(type))
+            solve_types(nametab, init, type);
+         else
+            solve_known_subtype(nametab, init, t);
+      }
 
       tree_add_decl(parent, t);
 
@@ -7428,10 +7429,8 @@ static void p_signal_declaration(tree_t parent)
    tree_flags_t flags = p_signal_kind();
 
    tree_t init = NULL;
-   if (optional(tWALRUS)) {
+   if (optional(tWALRUS))
       init = p_conditional_expression();
-      solve_known_subtype(nametab, init, type);
-   }
 
    consume(tSEMI);
 
@@ -7440,8 +7439,12 @@ static void p_signal_declaration(tree_t parent)
       tree_set_loc(t, &(it->loc));
       tree_set_ident(t, it->ident);
       tree_set_type(t, type);
-      tree_set_value(t, init);
       tree_set_flag(t, flags);
+
+      if (init != NULL) {
+         solve_known_subtype(nametab, init, t);
+         tree_set_value(t, init);
+      }
 
       tree_add_decl(parent, t);
 
@@ -9699,8 +9702,8 @@ static tree_t p_simple_variable_assignment(ident_t label, tree_t name)
 
    tree_t value = p_conditional_or_unaffected_expression(STD_08);
 
-   type_t target_type = solve_target(nametab, target, value);
-   solve_known_subtype(nametab, value, target_type);
+   solve_target(nametab, target, value);
+   solve_known_subtype(nametab, value, target);
 
    tree_t t = tree_new(T_VAR_ASSIGN);
    tree_set_target(t, target);
@@ -9726,13 +9729,10 @@ static void p_selected_expressions(tree_t stmt, tree_t target)
    do {
       tree_t expr = p_expression();
 
-      type_t constraint;
-      if (tree_has_type(target))
-         constraint = tree_type(target);
-      else
-         constraint = solve_target(nametab, target, expr);
+      if (!tree_has_type(target))
+         solve_target(nametab, target, expr);
 
-      solve_known_subtype(nametab, expr, constraint);
+      solve_known_subtype(nametab, expr, target);
 
       tree_t a = tree_new(T_VAR_ASSIGN);
       tree_set_target(a, target);
@@ -9824,13 +9824,10 @@ static tree_t p_waveform_element(tree_t target)
       tree_t value = p_expression();
       tree_set_value(w, value);
 
-      type_t constraint;
-      if (tree_has_type(target))
-         constraint = tree_type(target);
-      else
-         constraint = solve_target(nametab, target, value);
+      if (!tree_has_type(target))
+         solve_target(nametab, target, value);
 
-      solve_known_subtype(nametab, value, constraint);
+      solve_known_subtype(nametab, value, target);
    }
    else if (!tree_has_type(target))
       solve_types(nametab, target, NULL);
