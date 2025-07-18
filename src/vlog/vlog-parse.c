@@ -6071,6 +6071,29 @@ static void p_defaultnettype_compiler_directive(void)
    }
 }
 
+static void p_unconnected_drive_directive(void)
+{
+   // `unconnected_drive pull0 | pull1
+
+   BEGIN("unconnected_drive directive");
+
+   consume(tUNCTDRIVE);
+
+   // TODO set default drive for unconnected nets
+   one_of(tPULL0, tPULL1);
+}
+
+static void p_nounconnected_drive_directive(void)
+{
+   // `nounconnected_drive
+
+   BEGIN("nounconnected_drive directive");
+
+   consume(tNOUNCTDRIVE);
+
+   // TODO reset default drive for unconnected nets
+}
+
 static void p_keywords_directive(void)
 {
    // `begin_keywords "version_specifier"
@@ -6115,6 +6138,12 @@ static void p_directive_list(void)
       case tTIMESCALE:
          p_timescale_compiler_directive();
          break;
+      case tUNCTDRIVE:
+         p_unconnected_drive_directive();
+         break;
+      case tNOUNCTDRIVE:
+         p_nounconnected_drive_directive();
+         break;
       case tBEGINKEYWORDS:
          p_keywords_directive();
          break;
@@ -6151,10 +6180,10 @@ vlog_node_t vlog_parse(void)
       vlog_symtab_poison(symtab, error_marker());
    }
 
+   p_directive_list();
+
    if (peek() == tEOF)
       return end_of_file();
-
-   p_directive_list();
 
    make_new_arena();
 
