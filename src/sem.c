@@ -3624,8 +3624,6 @@ static bool sem_check_array_aggregate(tree_t t, nametab_t *tab)
    type_t composite_type = tree_type(t);
    type_t base_type = type_base_recur(composite_type);
 
-   const bool unconstrained = type_is_unconstrained(composite_type);
-
    type_t elem_type = NULL;
    const int ndims = dimension_of(composite_type);
    if (ndims == 1)
@@ -3694,9 +3692,6 @@ static bool sem_check_array_aggregate(tree_t t, nametab_t *tab)
          break;
 
       case A_OTHERS:
-         if (unconstrained)
-            sem_error(a, "index range of array aggregate with others choice "
-                      "cannot be determined from the context");
          break;
       }
 

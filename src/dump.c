@@ -302,7 +302,13 @@ static void dump_expr(tree_t t)
             dump_expr(value);
             break;
          case A_OTHERS:
-            print_syntax("#others => ");
+            print_syntax("#others ");
+            if (tree_ranges(a) > 0) {
+               print_syntax("/*");
+               dump_range(tree_range(a, 0));
+               print_syntax("*/ ");
+            }
+            print_syntax("=> ");
             dump_expr(value);
             break;
          case A_SLICE:
