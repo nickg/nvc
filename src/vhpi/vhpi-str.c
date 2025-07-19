@@ -525,4 +525,24 @@ const char *vhpi_state_str(vhpiStateT state)
    }
 }
 
+const char *vhpi_format_str(vhpiFormatT format)
+{
+   switch (format) {
+   case vhpiBinStrVal: return "vhpiBinStrVal";
+   case vhpiOctStrVal: return "vhpiOctStrVal";
+   case vhpiDecStrVal: return "vhpiDecStrVal";
+   case vhpiHexStrVal: return "vhpiHexStrVal";
+   case vhpiEnumVal: return "vhpiEnumVal";
+   case vhpiIntVal: return "vhpiIntVal";
+   case vhpiLongIntVal: return "vhpiLongIntVal";
+   case vhpiLogicVal: return "vhpiLogicVal";
+   case vhpiRealVal: return "vhpiRealVal";
+   case vhpiStrVal: return "vhpiStrVal";
+   case vhpiCharVal: return "vhpiCharVal";
+   case vhpiObjTypeVal: return "vhpiObjTypeVal";
+   case vhpiLogicVecVal: return "vhpiLogicVecVal";
+   default: return vhpi_fallback_str(format);
+   }
+}
+
 LCOV_EXCL_STOP

@@ -3258,9 +3258,10 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
       value_p->format = vhpiBinStrVal;
    else if (value_p->format != td->format
             && !vhpi_scalar_fits_format(value_p->format, size)) {
-      vhpi_error(vhpiError, &(obj->loc), "invalid format %d for "
-                 "object %s: expecting %d", value_p->format,
-                 pn ? pn->name.Name : decl->decl.Name, td->format);
+      vhpi_error(vhpiError, &(obj->loc), "invalid format %s for object %s: "
+                 "expecting %s", vhpi_format_str(value_p->format),
+                 pn ? pn->name.Name : decl->decl.Name,
+                 vhpi_format_str(td->format));
       return -1;
    }
 
@@ -3422,8 +3423,8 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
       }
 
    default:
-      vhpi_error(vhpiError, &(obj->loc), "unsupported format %d",
-                 value_p->format);
+      vhpi_error(vhpiError, &(obj->loc), "unsupported format %s",
+                 vhpi_format_str(value_p->format));
       return -1;
    }
 }
