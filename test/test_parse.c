@@ -3442,6 +3442,7 @@ START_TEST(test_issue388)
    const error_t expect[] = {
       { 11, "unexpected => while parsing slice name, expecting one of" },
       { 12, "expected concurrent statement" },
+      { 14, "no visible declaration for CALL" },
       { 14, "expected concurrent statement" },
       { -1, NULL }
    };
@@ -3491,11 +3492,11 @@ START_TEST(test_names)
       { 106, "type of string literal cannot be determined from the" },
       {   0, "could be BIT_VECTOR or STRING" },
       { 107, "expected procedure name" },
-      { 108, "no visible subprogram declaration for FOO" },
+      { 108, "no visible declaration for FOO" },
       { 222, "ambiguous use of name FOO" },
       { 233, "name X not found in \"+\"" },
-      { 256, "no visible subprogram declaration for NOTHERE" },
-      { 313, "no visible subprogram declaration for FNORK" },
+      { 256, "no visible declaration for NOTHERE" },
+      { 313, "no visible declaration for FNORK" },
       { 323, "no matching subprogram P26_1 [universal_integer" },
       { 332, "no matching operator \"and\" [BIT, BOOLEAN return BOOLEAN]" },
       { 360, "object X with type INTEGER cannot be selected" },
@@ -3591,6 +3592,7 @@ START_TEST(test_error2)
       { 42, "unexpected function while parsing subprogram body" },
       { 45, "trailing protected type declaration label to match OTHER" },
       { 47, "unexpected integer while parsing subtype declaration" },
+      { 53, "cannot index non-array type FT" },
       { 57, "type mark does not denote a type or a subtype" },
       { -1, NULL }
    };
@@ -3630,6 +3632,8 @@ START_TEST(test_vhdl2008)
       { 309, "record type T_REC has no field named H" },
       {   0, "did you mean F?" },
       {   0, "type T_REC has field F" },
+      { 318, "type of aggregate cannot be determined from the surrounding " },
+      {   0, "context contains type BIT which is not a composite type" },
       {  -1, NULL }
    };
    expect_errors(expect);
@@ -4962,8 +4966,8 @@ START_TEST(test_typo)
       { 23, "no visible declaration for RSET" },
       {  0, "did you mean RESET?" },
       { 31, "no visible declaration for NOEW" },
-      {  0, NULL },
-      { 32, "no visible subprogram declaration for MY_FUNC" },
+      {  0, "did you mean NOW?" },
+      { 32, "no visible declaration for MY_FUNC" },
       {  0, "did you mean MYFUNC?" },
       { 38, "record type REC has no field named FRODO" },
       {  0, "did you mean FOO?" },
