@@ -1055,7 +1055,7 @@ static void vpi_check_leaks(vpi_context_t *c)
 
    if (nuser > 0) {
       diag_t *d = diag_new(DIAG_WARN, NULL);
-      diag_printf(d, "VHPI program exited with %d active handles", nuser);
+      diag_printf(d, "VPI program exited with %d active handles", nuser);
       vpi_handles_diag(c, d, HANDLE_USER);
       diag_emit(d);
    }
@@ -1063,7 +1063,7 @@ static void vpi_check_leaks(vpi_context_t *c)
 #ifdef DEBUG
    if (ninternal > 0) {
       diag_t *d = diag_new(DIAG_DEBUG, NULL);
-      diag_printf(d, "VHPI program exited with %d active internal handles",
+      diag_printf(d, "VPI program exited with %d active internal handles",
                   ninternal);
       vpi_handles_diag(c, d, HANDLE_INTERNAL);
       diag_emit(d);
