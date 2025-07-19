@@ -78,16 +78,6 @@ int vhpi_vprintf(const char *format, va_list args)
 }
 
 DLLEXPORT
-int vhpi_compare_handles(vhpiHandleT handle1, vhpiHandleT handle2)
-{
-   vhpi_clear_error();
-
-   VHPI_TRACE("vhpi_compare_handles handle1=%p handle2=%p", handle1, handle2);
-
-   return handle1 == handle2;
-}
-
-DLLEXPORT
 int vhpi_check_error(vhpiErrorInfoT *error_info_p)
 {
    if (last_error.severity == 0)

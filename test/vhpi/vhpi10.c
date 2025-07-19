@@ -21,13 +21,12 @@ static void start_of_sim(const vhpiCbDataT *cb_data)
 
    vhpiHandleT it1 = vhpi_iterator(vhpiGenericDecls, root);
    fail_if(it1 == NULL);
-   fail_unless(vhpi_scan(it1) == g0);
+   fail_unless(vhpi_compare_handles(vhpi_scan(it1), g0));
 
    vhpiHandleT g1 = vhpi_scan(it1);
    fail_if(g1 == NULL);
 
    fail_unless(vhpi_scan(it1) == NULL);
-   vhpi_release_handle(it1);
 
    vhpiHandleT c0 = vhpi_handle_by_name("c0", root);
    check_error();
@@ -37,7 +36,7 @@ static void start_of_sim(const vhpiCbDataT *cb_data)
 
    vhpiHandleT it2 = vhpi_iterator(vhpiConstDecls, root);
    fail_if(it2 == NULL);
-   fail_unless(vhpi_scan(it2) == c0);
+   fail_unless(vhpi_compare_handles(vhpi_scan(it2), c0));
 
    vhpiHandleT c1 = vhpi_scan(it2);
    fail_if(c1 == NULL);
@@ -68,7 +67,7 @@ static void start_of_sim(const vhpiCbDataT *cb_data)
 
    vhpiHandleT it3 = vhpi_iterator(vhpiBlockStmts, root);
    fail_if(it3 == NULL);
-   fail_unless(vhpi_scan(it3) == b0);
+   fail_unless(vhpi_compare_handles(vhpi_scan(it3), b0));
 
    vhpiHandleT b1 = vhpi_scan(it3);
    fail_if(b1 == NULL);
@@ -103,7 +102,7 @@ static void start_of_sim(const vhpiCbDataT *cb_data)
 
    vhpiHandleT it4 = vhpi_iterator(vhpiCompInstStmts, root);
    fail_if(it4 == NULL);
-   fail_unless(vhpi_scan(it4) == i0);
+   fail_unless(vhpi_compare_handles(vhpi_scan(it4), i0));
 
    fail_unless(vhpi_scan(it4) == NULL);
    vhpi_release_handle(it4);
@@ -115,11 +114,12 @@ static void start_of_sim(const vhpiCbDataT *cb_data)
    vhpi_printf("sub_b0 label %s", vhpi_get_str(vhpiLabelNameP, sub_b0));
    check_string(vhpi_get_str(vhpiLabelNameP, sub_b0), "sub_b0");
 
-   fail_unless(vhpi_handle_by_name("i0.sub_b0", root) == sub_b0);
+   vhpiHandleT sub_b0_2 = VHPI_CHECK(vhpi_handle_by_name("i0.sub_b0", root));
+   fail_unless(vhpi_compare_handles(sub_b0, sub_b0_2));
 
    vhpiHandleT it5 = vhpi_iterator(vhpiBlockStmts, i0);
    fail_if(it5 == NULL);
-   fail_unless(vhpi_scan(it5) == sub_b0);
+   fail_unless(vhpi_compare_handles(vhpi_scan(it5), sub_b0));
 
    fail_unless(vhpi_scan(it5) == NULL);
    vhpi_release_handle(it5);
@@ -137,7 +137,9 @@ static void start_of_sim(const vhpiCbDataT *cb_data)
    check_error();
    fail_if(genblk1_i == NULL);
    fail_unless(vhpi_get(vhpiKindP, genblk1_i) == vhpiConstDeclK);
-   fail_unless(vhpi_handle(vhpiParamDecl, genblk1) == genblk1_i);
+
+   vhpiHandleT genblk1_i_2 = vhpi_handle(vhpiParamDecl, genblk1);
+   fail_unless(vhpi_compare_handles(genblk1_i, genblk1_i_2));
 
    vhpiHandleT genblk1_s = vhpi_handle_by_name("S", genblk1);
    check_error();
