@@ -971,6 +971,7 @@ unsigned dimension_of(type_t type)
    case T_RECORD:
    case T_INCOMPLETE:
    case T_FILE:
+   case T_SIGNATURE:
       return 0;
    case T_INTEGER:
    case T_REAL:

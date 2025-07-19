@@ -827,6 +827,8 @@ static name_mask_t name_mask_for(tree_t t)
          case T_REF:
             if (tree_has_ref(value))
                return name_mask_for(tree_ref(value));
+            else if (tree_has_type(t) && type_is_subprogram(tree_type(t)))
+               return N_SUBPROGRAM;
             else
                return N_OVERLOAD;   // Suppress cascading errors
          case T_PROT_REF:
@@ -1993,7 +1995,7 @@ tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
          else
             diag_printf(d, "no visible declaration for %s", istr(name));
 
-         hint_for_typo(tab->top_scope, d, name, N_OBJECT | N_TYPE);
+         hint_for_typo(tab->top_scope, d, name, N_OBJECT | N_TYPE | N_FUNC);
          diag_emit(d);
       }
 
@@ -4239,6 +4241,9 @@ static type_t solve_array_ref(nametab_t *tab, tree_t ref)
       assert(tree_subkind(p) == P_POS);
 
       type_t index_type = index_type_of(base_type, i);
+      if (index_type == NULL)
+         index_type = type_new(T_NONE);   // Out of bounds or earlier error
+
       solve_types(tab, tree_value(p), index_type);
    }
 

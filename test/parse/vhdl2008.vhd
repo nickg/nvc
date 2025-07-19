@@ -309,4 +309,14 @@ begin
         subtype ft3 is s.h'subtype;      -- Error
     begin
     end block;
+
+    b14: block is
+        port ( p : in bit_vector);
+        port map (p => (1 to 3 => '0'));
+
+        constant k1 : data_in(data_in'low)'subtype := (others => '0');  -- Error
+        constant k2 : p(p'low)'subtype := (others => '0');  -- Error
+        constant k3 : p(p'low)'subtype := '0';  -- OK
+    begin
+    end block;
 end architecture;

@@ -3994,8 +3994,6 @@ static tree_t p_name(name_mask_t stop_mask)
 
       if (mask & stop_mask)
          return prefix;
-      else if (!(mask & N_FUNC) && (stop_mask == N_TYPE))
-         return prefix;   // Better error messages for bad type declaration
 
       if (!(mask & N_FUNC) && scope_formal_kind(nametab) == F_SUBPROGRAM) {
          // Assume that A in F(A(N) => ...) is a parameter name
@@ -4010,7 +4008,7 @@ static tree_t p_name(name_mask_t stop_mask)
          mask = N_OBJECT;
          continue;
       }
-      else if (!(mask & N_OBJECT) && prefix_kind == T_REF) {
+      else if ((mask & N_SUBPROGRAM) && prefix_kind == T_REF) {
          // Function call
          prefix = p_function_call(tree_ident(prefix), NULL);
          mask = N_OBJECT;
