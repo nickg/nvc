@@ -115,7 +115,9 @@ static void startup_2d(vhpiHandleT root, char *sig, vhpiHandleT outer[3],
       fail_if(outer[i] == NULL);
 
       fail_unless(vhpi_get(vhpiBaseIndexP, outer[i]) == i);
-      fail_unless(vhpi_handle(vhpiPrefix, outer[i]) == handle);
+
+      vhpiHandleT prefix = vhpi_handle(vhpiPrefix, outer[i]);
+      fail_unless(vhpi_compare_handles(prefix, handle));
 
       snprintf(name, sizeof(name), "%s(%d)", sig, i);
       fail_if(strcmp(name, (char *)vhpi_get_str(vhpiNameP, outer[i])));
@@ -126,7 +128,9 @@ static void startup_2d(vhpiHandleT root, char *sig, vhpiHandleT outer[3],
          fail_if(inner[i][j] == NULL);
 
          fail_unless(vhpi_get(vhpiBaseIndexP, inner[i][j]) == j);
-         fail_unless(vhpi_handle(vhpiPrefix, inner[i][j]) == outer[i]);
+
+         vhpiHandleT prefix = vhpi_handle(vhpiPrefix, inner[i][j]);
+         fail_unless(vhpi_compare_handles(prefix, outer[i]));
 
          snprintf(name, sizeof(name), "%s(%d)(%d)", sig, i, j);
          fail_if(strcmp(name, (char *)vhpi_get_str(vhpiNameP, inner[i][j])));
@@ -156,7 +160,9 @@ static void end_of_init(const vhpiCbDataT *cb_data)
          fail_if(n_outer[i][j] == NULL);
 
          fail_unless(vhpi_get(vhpiBaseIndexP, n_outer[i][j]) == i * 5 + j);
-         fail_unless(vhpi_handle(vhpiPrefix, n_outer[i][j]) == n);
+
+         vhpiHandleT prefix = vhpi_handle(vhpiPrefix, n_outer[i][j]);
+         fail_unless(vhpi_compare_handles(prefix, n));
 
          snprintf(name, sizeof(name), "N(%d,%d)", i, j);
          fail_if(strcmp(name, (char *)vhpi_get_str(vhpiNameP, n_outer[i][j])));
@@ -169,7 +175,9 @@ static void end_of_init(const vhpiCbDataT *cb_data)
                fail_if(n_inner[i][j][k][l] == NULL);
 
                fail_unless(vhpi_get(vhpiBaseIndexP, n_inner[i][j][k][l]) == k * 2 + l);
-               fail_unless(vhpi_handle(vhpiPrefix, n_inner[i][j][k][l]) == n_outer[i][j]);
+
+               vhpiHandleT prefix = vhpi_handle(vhpiPrefix, n_inner[i][j][k][l]);
+               fail_unless(vhpi_compare_handles(prefix, n_outer[i][j]));
 
                snprintf(name, sizeof(name), "N(%d,%d)(%d,%d)", i, j, k, l);
                fail_if(strcmp(name, (char *)vhpi_get_str(vhpiNameP, n_inner[i][j][k][l])));

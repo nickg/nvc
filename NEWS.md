@@ -3,6 +3,10 @@
   if the `--relaxed` option is passed and the aggregates appears in one
   of the contexts where the VHDL-2019 "function knows vector size"
   feature applies (#641, #1175).
+- VHPI handles have been made more robust.  A user-visible effect of
+  this change this that handles with distinct pointer values may refer
+  to the same object.  Always use `vhpi_compare_handles` to compare
+  handles rather than comparing the value of the handles directly.
 
 ## Version 1.17.0 - 2025-07-12
 - Updated to OSVVM 2025.02 and UVVM 2025.04.18 for `nvc --install`.

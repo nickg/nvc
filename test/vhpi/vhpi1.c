@@ -410,7 +410,8 @@ static void end_of_init(const vhpiCbDataT *cb_data)
    i = 0;
    for (vhpiHandleT port = vhpi_scan(root_ports); port != NULL; port = vhpi_scan(root_ports), i++) {
       vhpi_printf("root port is %s", vhpi_get_str(vhpiNameP, port));
-      fail_unless(vhpi_handle_by_index(vhpiPortDecls, root, i) == port);
+      vhpiHandleT by_index = vhpi_handle_by_index(vhpiPortDecls, root, i);
+      fail_unless(vhpi_compare_handles(port, by_index));
    }
 
    vhpiHandleT root_signals = vhpi_iterator(vhpiSigDecls, root);
@@ -424,7 +425,8 @@ static void end_of_init(const vhpiCbDataT *cb_data)
    i = 0;
    for (vhpiHandleT decl = vhpi_scan(root_decls); decl != NULL; decl = vhpi_scan(root_decls), i++) {
       vhpi_printf("root decl is %s", vhpi_get_str(vhpiNameP, decl));
-      fail_unless(vhpi_handle_by_index(vhpiDecls, root, i) == decl);
+      vhpiHandleT by_index = vhpi_handle_by_index(vhpiDecls, root, i);
+      fail_unless(vhpi_compare_handles(decl, by_index));
    }
 
    vhpiHandleT arch = VHPI_CHECK(vhpi_handle(vhpiDesignUnit, root));
@@ -456,11 +458,11 @@ static void end_of_init(const vhpiCbDataT *cb_data)
    vhpi_printf("y full name is %s", vhpi_get_str(vhpiFullNameP, handle_y));
 
    vhpiHandleT handle_y2 = VHPI_CHECK(vhpi_handle_by_name(":vhpi1.y", NULL));
-   fail_unless(handle_y == handle_y2);
+   fail_unless(vhpi_compare_handles(handle_y, handle_y2));
    vhpi_release_handle(handle_y2);
 
    vhpiHandleT handle_y3 = VHPI_CHECK(vhpi_handle_by_name("vhpi1.y", NULL));
-   fail_unless(handle_y == handle_y3);
+   fail_unless(vhpi_compare_handles(handle_y, handle_y3));
    vhpi_release_handle(handle_y3);
 
    fail_unless(vhpi_get(vhpiKindP, handle_x) == vhpiPortDeclK);

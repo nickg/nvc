@@ -1151,3 +1151,4 @@ issue1240       normal,vhpi,2008
 array20         normal,2008
 wave13          wave,verilog
 issue1175       normal,relaxed
+vhpi16          normal,vhpi

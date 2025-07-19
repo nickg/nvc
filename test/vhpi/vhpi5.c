@@ -74,7 +74,7 @@ void start_recursive(vhpiHandleT parent, int base, int scale, bool by_name)
         child;
         child = vhpi_scan(children), i++) {
       vhpiHandleT prefix = vhpi_handle(vhpiPrefix, child);
-      fail_unless(parent == prefix);
+      fail_unless(vhpi_compare_handles(parent, prefix));
 
       vhpiHandleT suffix = vhpi_handle(vhpiSuffix, child);
       fail_unless(vhpi_get(vhpiPositionP, suffix) == i);
@@ -85,7 +85,7 @@ void start_recursive(vhpiHandleT parent, int base, int scale, bool by_name)
          snprintf(name, sizeof(name), "%s.%s", parent_full_name,
                   vhpi_get_str(vhpiNameP, suffix));
          vhpiHandleT child2 = vhpi_handle_by_name(name, NULL);
-         fail_unless(child2 == child);
+         fail_unless(vhpi_compare_handles(child2, child));
          vhpi_release_handle(child2);
       }
 
@@ -95,7 +95,6 @@ void start_recursive(vhpiHandleT parent, int base, int scale, bool by_name)
       vhpi_release_handle(suffix);
       vhpi_release_handle(child);
    }
-   vhpi_release_handle(children);
 
    children = vhpi_iterator(vhpiIndexedNames, parent);
    for (vhpiHandleT child = vhpi_scan(children);
@@ -108,7 +107,6 @@ void start_recursive(vhpiHandleT parent, int base, int scale, bool by_name)
          start_recursive(child, base + i * scale, scale / 16, false);
       vhpi_release_handle(child);
    }
-   vhpi_release_handle(children);
 
    if (!i) {
       vhpiValueT val = {

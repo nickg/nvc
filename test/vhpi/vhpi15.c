@@ -31,7 +31,7 @@ static void start_of_sim(const vhpiCbDataT *cb_data)
    fail_unless(bad1 == NULL);
 
    vhpiHandleT root2 = vhpi_handle_by_name(":vhpi15", NULL);
-   fail_unless(root2 == root);
+   fail_unless(vhpi_compare_handles(root2, root));
    vhpi_release_handle(root2);
 
    vhpiHandleT pack1 = vhpi_handle_by_name(":pack1", NULL);

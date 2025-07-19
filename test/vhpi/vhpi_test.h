@@ -54,6 +54,7 @@ void vhpi12_startup(void);
 void vhpi13_startup(void);
 void vhpi14_startup(void);
 void vhpi15_startup(void);
+void vhpi16_startup(void);
 void issue744_startup(void);
 void issue762_startup(void);
 void issue978_startup(void);

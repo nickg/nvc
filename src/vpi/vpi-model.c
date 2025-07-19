@@ -38,9 +38,13 @@
 
 typedef struct {
    PLI_INT32 type;
-   vpiHandle handle;
    loc_t     loc;
 } c_vpiObject;
+
+typedef struct {
+   c_vpiObject object;
+   uint32_t    refcount;
+} c_refcounted;
 
 typedef struct {
    unsigned      count;
@@ -58,12 +62,12 @@ typedef struct {
 } vpiLazyList;
 
 typedef struct {
-   c_vpiObject      object;
+   c_refcounted     refcounted;
    ident_t          name;
    s_vpi_systf_data systf;
 } c_callback;
 
-DEF_CLASS(callback, vpiCallback, object);
+DEF_CLASS(callback, vpiCallback, refcounted.object);
 
 typedef struct {
    c_vpiObject  object;
@@ -128,12 +132,12 @@ typedef struct {
 DEF_CLASS(operation, vpiOperation, expr.object);
 
 typedef struct {
-   c_vpiObject    object;
+   c_refcounted   refcounted;
    vpiObjectList *list;
    uint32_t       pos;
 } c_iterator;
 
-DEF_CLASS(iterator, vpiIterator, object);
+DEF_CLASS(iterator, vpiIterator, refcounted.object);
 
 typedef struct {
    c_vpiObject      object;
@@ -157,11 +161,18 @@ DEF_CLASS(reg, vpiReg, decl.object);
 #define HANDLE_BITS      (sizeof(vpiHandle) * 8)
 #define HANDLE_MAX_INDEX ((UINT64_C(1) << (HANDLE_BITS / 2)) - 1)
 
+typedef enum {
+   HANDLE_USER,
+   HANDLE_INTERNAL,
+} handle_kind_t;
+
 typedef struct {
-   c_vpiObject *obj;
-   uint32_t     refcount;
-   uint32_t     generation;
+   c_vpiObject  *obj;
+   handle_kind_t kind;
+   uint32_t      generation;
 } handle_slot_t;
+
+STATIC_ASSERT(sizeof(handle_slot_t) <= 16);
 
 typedef struct _vpi_context {
    shash_t       *strtab;
@@ -184,6 +195,7 @@ typedef struct _vpi_context {
 
 static c_vpiObject *build_expr(vlog_node_t v, c_abstractScope *scope);
 static void vpi_lazy_decls(c_vpiObject *obj);
+static c_refcounted *is_refcounted(c_vpiObject *obj);
 
 static vpi_context_t *global_context = NULL;   // TODO: thread local
 
@@ -208,27 +220,20 @@ static handle_slot_t *decode_handle(vpi_context_t *c, vpiHandle handle)
    else if (slot->generation != generation)
       return NULL;   // Use-after-free
 
-   assert(slot->refcount > 0);
-   assert(slot->obj->handle == handle);
-
    return slot;
 }
 
-static vpiHandle handle_for(c_vpiObject *obj)
+static inline vpiHandle encode_handle(handle_slot_t *slot, uint32_t index)
+{
+   const uintptr_t bits = (uintptr_t)slot->generation << HANDLE_BITS/2 | index;
+   return (vpiHandle)bits;
+}
+
+static vpiHandle handle_for(c_vpiObject *obj, handle_kind_t kind)
 {
    assert(obj != NULL);
 
    vpi_context_t *c = vpi_context();
-
-   if (obj->handle != NULL) {
-      handle_slot_t *slot = decode_handle(c, obj->handle);
-      assert(slot != NULL);
-      assert(slot->refcount > 0);
-      assert(slot->obj == obj);
-
-      slot->refcount++;
-      return obj->handle;
-   }
 
    uint32_t index = c->free_hint;
    if (index >= c->num_handles || c->handles[index].obj != NULL) {
@@ -250,20 +255,31 @@ static vpiHandle handle_for(c_vpiObject *obj)
 
       for (int i = index; i < new_size; i++) {
          c->handles[i].obj = NULL;
-         c->handles[i].refcount = 0;
          c->handles[i].generation = 1;
       }
    }
 
    handle_slot_t *slot = &(c->handles[index]);
-   assert(slot->refcount == 0);
-   slot->refcount = 1;
-   slot->obj = obj;
+   slot->obj  = obj;
+   slot->kind = kind;
 
    c->free_hint = index + 1;
 
-   const uintptr_t bits = (uintptr_t)slot->generation << HANDLE_BITS/2 | index;
-   return (obj->handle = (vpiHandle)bits);
+   c_refcounted *rc = is_refcounted(obj);
+   if (rc != NULL)
+      rc->refcount++;
+
+   return encode_handle(slot, index);
+}
+
+static inline vpiHandle user_handle_for(c_vpiObject *obj)
+{
+   return handle_for(obj, HANDLE_USER);
+}
+
+static inline vpiHandle internal_handle_for(c_vpiObject *obj)
+{
+   return handle_for(obj, HANDLE_INTERNAL);
 }
 
 static void drop_handle(vpi_context_t *c, vpiHandle handle)
@@ -272,25 +288,17 @@ static void drop_handle(vpi_context_t *c, vpiHandle handle)
    if (slot == NULL)
       return;
 
-   assert(slot->refcount > 0);
-   if (--(slot->refcount) > 0)
-      return;
-
    c_vpiObject *obj = slot->obj;
    slot->obj = NULL;
    slot->generation++;
 
-   obj->handle = NULL;
-
    c->free_hint = slot - c->handles;
 
-   switch (obj->type) {
-   case vpiCallback:
-   case vpiIterator:
-      APUSH(c->recycle, obj);
-      break;
-   default:
-      break;
+   c_refcounted *rc = is_refcounted(obj);
+   if (rc != NULL) {
+      assert(rc->refcount > 0);
+      if (--(rc->refcount) == 0)
+         APUSH(c->recycle, obj);
    }
 }
 
@@ -302,6 +310,17 @@ static inline c_vpiObject *from_handle(vpiHandle handle)
 
    vpi_error(vpiSystem, NULL, "invalid handle %p", handle);
    return NULL;
+}
+
+static c_refcounted *is_refcounted(c_vpiObject *obj)
+{
+   switch (obj->type) {
+   case vpiCallback:
+   case vpiIterator:
+      return container_of(obj, c_refcounted, object);
+   default:
+      return NULL;
+   }
 }
 
 static c_tfCall *is_tfCall(c_vpiObject *obj)
@@ -727,7 +746,7 @@ vpiHandle vpi_register_systf(p_vpi_systf_data systf_data_p)
    cb->systf = *systf_data_p;
    cb->name  = ident_new(systf_data_p->tfname);
 
-   vpiHandle handle = handle_for(&cb->object);
+   vpiHandle handle = internal_handle_for(&cb->refcounted.object);
    APUSH(vpi_context()->systasks, handle);
 
    return handle;
@@ -740,15 +759,20 @@ PLI_INT32 vpi_release_handle(vpiHandle object)
 
    VPI_TRACE("handle=%s", handle_pp(object));
 
-   c_vpiObject *obj = from_handle(object);
-   if (obj == NULL) {
+   vpi_context_t *c = vpi_context();
+   handle_slot_t *slot = decode_handle(c, object);
+   if (slot == NULL) {
       vpi_error(vpiError, NULL, "invalid handle %p", object);
       return 0;
    }
+   else if (slot->kind == HANDLE_INTERNAL) {
+      vpi_error(vpiError, &(slot->obj->loc), "cannot release this handle as "
+                "it is owned by the system");
+      return 0;
+   }
 
-   drop_handle(vpi_context(), object);
+   drop_handle(c, object);
    return 1;
-
 }
 
 DLLEXPORT
@@ -765,7 +789,7 @@ vpiHandle vpi_handle(PLI_INT32 type, vpiHandle refHandle)
       switch (type) {
       case vpiSysTfCall:
          if (c->call != NULL)
-            return handle_for(&c->call->tfcall.object);
+            return user_handle_for(&c->call->tfcall.object);
          else
             return NULL;
       }
@@ -793,7 +817,7 @@ vpiHandle vpi_iterate(PLI_INT32 type, vpiHandle refHandle)
       return NULL;
    }
 
-   return handle_for(&(it->object));
+   return user_handle_for(&(it->refcounted.object));
 }
 
 DLLEXPORT
@@ -812,7 +836,7 @@ vpiHandle vpi_scan(vpiHandle iterator)
       return NULL;
 
    if (it->pos < it->list->count)
-      return handle_for(it->list->items[it->pos++]);
+      return user_handle_for(it->list->items[it->pos++]);
 
    return NULL;
 }
@@ -1001,27 +1025,50 @@ void vpi_context_initialise(vpi_context_t *c, tree_t top, rt_model_t *model,
    c->jit   = jit;
 }
 
+static void vpi_handles_diag(vpi_context_t *c, diag_t *d, handle_kind_t kind)
+{
+   for (int i = 0; i < c->num_handles; i++) {
+      handle_slot_t *slot = &(c->handles[i]);
+      if (slot->obj == NULL || slot->kind != kind)
+         continue;
+
+      diag_printf(d, "\n%s", handle_pp(encode_handle(slot, i)));
+
+      c_refcounted *rc = is_refcounted(slot->obj);
+      if (rc != NULL)
+         diag_printf(d, " with %d reference%s", rc->refcount,
+                     rc->refcount != 1 ? "s" : "");
+   }
+}
+
 static void vpi_check_leaks(vpi_context_t *c)
 {
-   int nactive = 0;
+   int nuser = 0, ninternal UNUSED = 0;
    for (int i = 0; i < c->num_handles; i++) {
-      if (c->handles[i].obj != NULL)
-         nactive++;
+      if (c->handles[i].obj == NULL)
+         continue;
+      else if (c->handles[i].kind == HANDLE_INTERNAL)
+         ninternal++;
+      else
+         nuser++;
    }
 
-   if (nactive > 0) {
+   if (nuser > 0) {
       diag_t *d = diag_new(DIAG_WARN, NULL);
-      diag_printf(d, "VPI program exited with %d active handles", nactive);
-
-      for (int i = 0; i < c->num_handles; i++) {
-         handle_slot_t *slot = &(c->handles[i]);
-         if (slot->obj != NULL)
-            diag_printf(d, "\n%s with %d references",
-                        handle_pp(slot->obj->handle), slot->refcount);
-      }
-
+      diag_printf(d, "VHPI program exited with %d active handles", nuser);
+      vpi_handles_diag(c, d, HANDLE_USER);
       diag_emit(d);
    }
+
+#ifdef DEBUG
+   if (ninternal > 0) {
+      diag_t *d = diag_new(DIAG_DEBUG, NULL);
+      diag_printf(d, "VHPI program exited with %d active internal handles",
+                  ninternal);
+      vpi_handles_diag(c, d, HANDLE_INTERNAL);
+      diag_emit(d);
+   }
+#endif
 }
 
 void vpi_context_free(vpi_context_t *c)
@@ -1101,7 +1148,7 @@ vpiHandle vpi_bind_foreign(ident_t name, vlog_node_t where)
       else
          call = &(build_sysFuncCall(where, cb, &(mod->scope))->systfcall);
 
-      return (call->handle = handle_for(&(call->tfcall.object)));
+      return (call->handle = internal_handle_for(&(call->tfcall.object)));
    }
 
    return NULL;
