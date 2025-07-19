@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2014-2023  Nick Gasson
+//  Copyright (C) 2014-2025  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -62,5 +62,6 @@ const char *vhpi_class_str(vhpiClassKindT kind);
 const char *vhpi_property_str(int property);
 const char *vhpi_put_value_mode_str(vhpiPutValueModeT mode);
 const char *vhpi_state_str(vhpiStateT state);
+const char *vhpi_format_str(vhpiFormatT format);
 
 #endif  // _VHPI_UTIL_H
