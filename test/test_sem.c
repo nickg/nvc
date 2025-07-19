@@ -111,7 +111,7 @@ START_TEST(test_ports)
       { 163, "BAR has no port named U" },
       { 168, "formal name must be locally static" },
       { 177, "formal name must be locally static" },
-      { 185, "no visible subprogram declaration for HELLO" },
+      { 185, "no visible declaration for HELLO" },
       { 217, "port O of unconstrained type INT_VEC cannot be unconnected" },
       { 221, "type of actual universal_real does not match type INTEGER" },
       { 272, "result of conversion for unconstrained formal I must" },
@@ -181,7 +181,7 @@ START_TEST(test_scope)
       {  71, "P already declared in this region" },
       { 114, "no visible declaration for MY_INT1" },
       { 137, "no visible declaration for E1" },
-      { 160, "no visible subprogram declaration for FUNC2" },
+      { 160, "no visible declaration for FUNC2" },
       { 167, "name NOT_HERE not found in package WORK.PACK5" },
       { 189, "no visible declaration for MY_INT1" },
       { 211, "no visible declaration for PACK5" },
@@ -428,7 +428,7 @@ START_TEST(test_func)
       { 239, "class variable of subprogram body TEST25 parameter" },
       { 245, "class constant of subprogram body TEST26 parameter" },
       { 271, "cannot reference signal X in pure function NESTED" },
-      { 288, "no visible subprogram declaration for FNORK" },
+      { 288, "no visible declaration for FNORK" },
       { 293, "function CONSTPURE [INTEGER return INTEGER] cannot be called " },
       { 294, "procedure NOTDEF not allowed in an expression" },
       { 297, "no visible declaration for BAD_TYPE" },
@@ -904,7 +904,7 @@ START_TEST(test_access)
       {  41, "does not match type of target INT_PTR" },
       {  47, "type of value REC does not match type of" },
       {  55, "type of allocator expresion INTEGER does not match" },
-      {  56, "type mark S does not denote a type or a subtype" },
+      {  56, "type mark does not denote a type or a subtype" },
       {  76, "unconstrained array type INT_PTR_ARRAY not allowed" },
       {  84, "index constraint cannot be used with non-array type INTEGER" },
       {  90, "invalid use of incomplete type FOO" },
@@ -1022,7 +1022,7 @@ START_TEST(test_static)
       {  42, "case choice must be locally static" },
       {  65, "with port X of mode IN must be a globally static" },
       {  85, "formal name must be locally static" },
-      { 104, "no visible subprogram declaration for BAD_FUNC" },
+      { 104, "no visible declaration for BAD_FUNC" },
       {  -1, NULL }
    };
    expect_errors(expect);
@@ -2403,9 +2403,7 @@ START_TEST(test_resolution)
 
    const error_t expect[] = {
       {  6, "no visible subprogram declaration for BIT_VECTOR" },
-      { 10, "type mark VEC does not denote a type or a subtype" },
-      { 10, "expecting a discrete range" },
-      { 10, "unexpected identifier while parsing subtype declaration" },
+      { 10, "not a valid resolution function for type MY_UTYPE" },
       { 17, "non-record type MY_UTYPE_VECTOR may not have record element" },
       { 29, "non-composite type MY_UTYPE may not have element resolution" },
       { 33, "resolution function name PROC is not a function" },
@@ -2708,7 +2706,7 @@ START_TEST(test_record2008)
       { 122, "declaration of variable R cannot have unconstrained type "
             "INTERLACED16BSIGNAL" },
       { 127, "no visible declaration for NOT_AN_ARRAY" },
-      { 127, "no visible subprogram declaration for NOT_A_RECORD" },
+      { 127, "unexpected open while parsing primary, expecting one of" },
       { -1, NULL }
    };
    expect_errors(expect);

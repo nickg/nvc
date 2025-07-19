@@ -8,6 +8,7 @@
   this change is that handles with distinct pointer values may refer to
   the same object.  Always use `vhpi_compare_handles` to compare handles
   rather than comparing the value of the handles directly.
+- Type marks like `arr(index)'subtype` are now parsed correctly (#1245).
 
 ## Version 1.17.0 - 2025-07-12
 - Updated to OSVVM 2025.02 and UVVM 2025.04.18 for `nvc --install`.
