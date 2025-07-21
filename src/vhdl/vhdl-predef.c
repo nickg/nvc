@@ -886,6 +886,21 @@ static void predef_min_max(mir_unit_t *mu, tree_t decl, mir_cmp_t cmp)
    }
 }
 
+static void predef_negate(mir_unit_t *mu, tree_t decl, const char *op)
+{
+   mir_value_t args[3];
+   for (int i = 0; i < ARRAY_LEN(args); i++)
+      args[i] = mir_get_param(mu, i);
+
+   type_t type = tree_type(tree_port(decl, 0));
+   ident_t func = predef_func_name(type, op);
+
+   mir_type_t t_bool = mir_bool_type(mu);
+
+   mir_value_t eq = mir_build_fcall(mu, func, t_bool, MIR_NULL_STAMP, args, 3);
+   mir_build_return(mu, mir_build_not(mu, eq));
+}
+
 void vhdl_lower_predef(mir_unit_t *mu, object_t *obj)
 {
    tree_t decl = tree_from_object(obj);
@@ -941,6 +956,10 @@ void vhdl_lower_predef(mir_unit_t *mu, object_t *obj)
    case S_ARRAY_NOR:
       predef_bit_vec_op(mu, decl, kind);
       break;
+   case S_ARRAY_NEQ:
+   case S_RECORD_NEQ:
+      predef_negate(mu, decl, "=");
+      break;
    case S_ARRAY_EQ:
       predef_array_eq(mu, decl);
       break;
@@ -949,6 +968,12 @@ void vhdl_lower_predef(mir_unit_t *mu, object_t *obj)
       break;
    case S_ARRAY_LE:
       predef_array_cmp(mu, decl, MIR_CMP_LEQ);
+      break;
+   case S_ARRAY_GE:
+      predef_negate(mu, decl, "<");
+      break;
+   case S_ARRAY_GT:
+      predef_negate(mu, decl, "<=");
       break;
    case S_RISING_EDGE:
    case S_FALLING_EDGE:

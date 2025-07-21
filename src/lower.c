@@ -9864,6 +9864,10 @@ static void lower_decls(lower_unit_t *lu, tree_t scope)
            case S_ARRAY_EQ:
            case S_ARRAY_LT:
            case S_ARRAY_LE:
+           case S_ARRAY_GT:
+           case S_ARRAY_GE:
+           case S_ARRAY_NEQ:
+           case S_RECORD_NEQ:
            case S_RISING_EDGE:
            case S_FALLING_EDGE:
            case S_MAXIMUM:
@@ -10190,17 +10194,6 @@ static void lower_predef_reduction_op(lower_unit_t *lu, tree_t decl,
       emit_return(emit_load(result_var));
 }
 
-static void lower_predef_negate(tree_t decl, const char *op)
-{
-   type_t type = tree_type(tree_port(decl, 0));
-   vcode_type_t vbool = vtype_bool();
-   vcode_reg_t args[] = { 0, 1, 2 };
-   vcode_reg_t eq_reg = emit_fcall(predef_func_name(type, op),
-                                   vbool, vbool, args, 3);
-
-   emit_return(emit_not(eq_reg));
-}
-
 static void lower_foreign_predef(lower_unit_t *lu, tree_t decl, const char *fn)
 {
    static const char prefix[] = "INTERNAL ";
@@ -10256,18 +10249,8 @@ static void lower_predef(lower_unit_t *lu, object_t *obj)
    lower_subprogram_ports(lu, decl, false);
 
    switch (tree_subkind(decl)) {
-   case S_ARRAY_GE:
-      lower_predef_negate(decl, "<");
-      break;
-   case S_ARRAY_GT:
-      lower_predef_negate(decl, "<=");
-      break;
    case S_RECORD_EQ:
       lower_predef_record_eq(lu, decl);
-      break;
-   case S_ARRAY_NEQ:
-   case S_RECORD_NEQ:
-      lower_predef_negate(decl, "=");
       break;
    case S_TO_STRING:
       lower_predef_to_string(lu, decl);
