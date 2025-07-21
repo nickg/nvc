@@ -901,6 +901,78 @@ static void predef_negate(mir_unit_t *mu, tree_t decl, const char *op)
    mir_build_return(mu, mir_build_not(mu, eq));
 }
 
+static void predef_reduction_op(mir_unit_t *mu, tree_t decl,
+                                subprogram_kind_t kind)
+{
+   mir_value_t param = mir_get_param(mu, 1);
+
+   mir_type_t t_bool = mir_bool_type(mu);
+   mir_type_t t_offset = mir_offset_type(mu);
+
+   mir_value_t result_var = mir_add_var(mu, t_bool, MIR_NULL_STAMP,
+                                        ident_new("result"), MIR_VAR_TEMP);
+   mir_value_t init = mir_const(mu, t_bool,
+                                kind == S_REDUCE_NAND || kind == S_REDUCE_AND);
+   mir_build_store(mu, result_var, init);
+
+   mir_value_t zero = mir_const(mu, t_offset, 0);
+
+   mir_value_t i_var = mir_add_var(mu, t_offset, MIR_NULL_STAMP,
+                                   ident_new("i"), MIR_VAR_TEMP);
+   mir_build_store(mu, i_var, zero);
+
+   mir_value_t len   = mir_build_uarray_len(mu, param, 0);
+   mir_value_t data  = mir_build_unwrap(mu, param);
+   mir_value_t null  = mir_build_cmp(mu, MIR_CMP_EQ, len, zero);
+
+   mir_block_t body_bb = mir_add_block(mu);
+   mir_block_t exit_bb = mir_add_block(mu);
+
+   mir_build_cond(mu, null, exit_bb, body_bb);
+
+   mir_set_cursor(mu, body_bb, MIR_APPEND);
+
+   mir_value_t i_val = mir_build_load(mu, i_var);
+   mir_value_t ptr   = mir_build_array_ref(mu, data, i_val);
+   mir_value_t src   = mir_build_load(mu, ptr);
+   mir_value_t cur   = mir_build_load(mu, result_var);
+
+   mir_value_t result;
+   switch (kind) {
+   case S_REDUCE_OR:
+   case S_REDUCE_NOR:
+      result = mir_build_or(mu, cur, src);
+      break;
+   case S_REDUCE_AND:
+   case S_REDUCE_NAND:
+      result = mir_build_and(mu, cur, src);
+      break;
+   case S_REDUCE_XOR:
+   case S_REDUCE_XNOR:
+      result = mir_build_xor(mu, cur, src);
+      break;
+   default:
+      should_not_reach_here();
+   }
+
+   mir_build_store(mu, result_var, result);
+
+   mir_value_t one  = mir_const(mu, t_offset, 1);
+   mir_value_t next = mir_build_add(mu, t_offset, i_val, one);
+   mir_value_t cmp  = mir_build_cmp(mu, MIR_CMP_EQ, next, len);
+   mir_build_store(mu, i_var, next);
+   mir_build_cond(mu, cmp, exit_bb, body_bb);
+
+   mir_set_cursor(mu, exit_bb, MIR_APPEND);
+
+   mir_value_t loaded = mir_build_load(mu, result_var);
+
+   if (kind == S_REDUCE_NOR || kind == S_REDUCE_NAND || kind == S_REDUCE_XNOR)
+      mir_build_return(mu, mir_build_not(mu, loaded));
+   else
+      mir_build_return(mu, loaded);
+}
+
 void vhdl_lower_predef(mir_unit_t *mu, object_t *obj)
 {
    tree_t decl = tree_from_object(obj);
@@ -984,6 +1056,14 @@ void vhdl_lower_predef(mir_unit_t *mu, object_t *obj)
       break;
    case S_MINIMUM:
       predef_min_max(mu, decl, MIR_CMP_LT);
+      break;
+   case S_REDUCE_OR:
+   case S_REDUCE_AND:
+   case S_REDUCE_NAND:
+   case S_REDUCE_NOR:
+   case S_REDUCE_XOR:
+   case S_REDUCE_XNOR:
+      predef_reduction_op(mu, decl, kind);
       break;
    default:
       should_not_reach_here();

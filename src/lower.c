@@ -9872,6 +9872,12 @@ static void lower_decls(lower_unit_t *lu, tree_t scope)
            case S_FALLING_EDGE:
            case S_MAXIMUM:
            case S_MINIMUM:
+           case S_REDUCE_OR:
+           case S_REDUCE_AND:
+           case S_REDUCE_NAND:
+           case S_REDUCE_NOR:
+           case S_REDUCE_XOR:
+           case S_REDUCE_XNOR:
               unit_registry_defer2(lu->registry, tree_ident2(d),
                                    NULL, MIR_UNIT_FUNCTION, vhdl_lower_predef,
                                    tree_to_object(d));
@@ -10126,74 +10132,6 @@ static void lower_predef_mixed_bit_vec_op(lower_unit_t *lu, tree_t decl,
    emit_return(emit_wrap(mem_reg, dims, 1));
 }
 
-static void lower_predef_reduction_op(lower_unit_t *lu, tree_t decl,
-                                      subprogram_kind_t kind)
-{
-   vcode_reg_t r0 = 1;
-   type_t r0_type = tree_type(tree_port(decl, 0));
-
-   vcode_type_t vbool = vtype_bool();
-   vcode_type_t voffset = vtype_offset();
-
-   vcode_var_t result_var = lower_temp_var(lu, "result", vbool, vbool);
-   vcode_reg_t init_reg =
-      emit_const(vbool, kind == S_REDUCE_NAND || kind == S_REDUCE_AND);
-   emit_store(init_reg, result_var);
-
-   vcode_var_t i_var = lower_temp_var(lu, "i", voffset, voffset);
-   emit_store(emit_const(vtype_offset(), 0), i_var);
-
-   vcode_reg_t len_reg   = lower_array_len(lu, r0_type, 0, r0);
-   vcode_reg_t data_reg  = lower_array_data(r0);
-   vcode_reg_t left_reg  = lower_array_left(lu, r0_type, 0, r0);
-   vcode_reg_t right_reg = lower_array_right(lu, r0_type, 0, r0);
-   vcode_reg_t dir_reg   = lower_array_dir(lu, r0_type, 0, r0);
-   vcode_reg_t null_reg  = emit_range_null(left_reg, right_reg, dir_reg);
-
-   vcode_block_t body_bb = emit_block();
-   vcode_block_t exit_bb = emit_block();
-
-   emit_cond(null_reg, exit_bb, body_bb);
-
-   vcode_select_block(body_bb);
-
-   vcode_reg_t i_reg   = emit_load(i_var);
-   vcode_reg_t src_reg = emit_load_indirect(emit_array_ref(data_reg, i_reg));
-   vcode_reg_t cur_reg = emit_load(result_var);
-
-   vcode_reg_t result_reg = VCODE_INVALID_REG;
-   switch (kind) {
-   case S_REDUCE_OR:
-   case S_REDUCE_NOR:
-      result_reg = emit_or(cur_reg, src_reg);
-      break;
-   case S_REDUCE_AND:
-   case S_REDUCE_NAND:
-      result_reg = emit_and(cur_reg, src_reg);
-      break;
-   case S_REDUCE_XOR:
-   case S_REDUCE_XNOR:
-      result_reg = emit_xor(cur_reg, src_reg);
-      break;
-   default:
-      break;
-   }
-
-   emit_store(result_reg, result_var);
-
-   vcode_reg_t next_reg = emit_add(i_reg, emit_const(vtype_offset(), 1));
-   vcode_reg_t cmp_reg  = emit_cmp(VCODE_CMP_EQ, next_reg, len_reg);
-   emit_store(next_reg, i_var);
-   emit_cond(cmp_reg, exit_bb, body_bb);
-
-   vcode_select_block(exit_bb);
-
-   if (kind == S_REDUCE_NOR || kind == S_REDUCE_NAND || kind == S_REDUCE_XNOR)
-      emit_return(emit_not(emit_load(result_var)));
-   else
-      emit_return(emit_load(result_var));
-}
-
 static void lower_foreign_predef(lower_unit_t *lu, tree_t decl, const char *fn)
 {
    static const char prefix[] = "INTERNAL ";
@@ -10277,14 +10215,6 @@ static void lower_predef(lower_unit_t *lu, object_t *obj)
    case S_MIXED_NAND:
    case S_MIXED_NOR:
       lower_predef_mixed_bit_vec_op(lu, decl, kind);
-      break;
-   case S_REDUCE_OR:
-   case S_REDUCE_AND:
-   case S_REDUCE_NAND:
-   case S_REDUCE_NOR:
-   case S_REDUCE_XOR:
-   case S_REDUCE_XNOR:
-      lower_predef_reduction_op(lu, decl, kind);
       break;
    case S_FILE_FLUSH:
       lower_foreign_predef(lu, decl, "__nvc_flush");
