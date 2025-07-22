@@ -2078,7 +2078,10 @@ START_TEST(test_lvn11)
       "    SHL         R0, #0, #1   \n"
       "    OR          R1, #1, R0   \n"
       "    OR          R2, R1, #0   \n"
-      "    SEND        #0, R2       \n"
+      "    RECV        R3, #0       \n"
+      "    SHL         R4, R3, #0   \n"
+      "    ASR         R5, R4, #0   \n"
+      "    SEND        #0, R5       \n"
       "    RET                      \n";
 
    jit_handle_t h1 = jit_assemble(j, ident_new("myfunc1"), text1);
@@ -2089,6 +2092,8 @@ START_TEST(test_lvn11)
    check_unary(f, 0, J_MOV, CONST(0));
    check_unary(f, 1, J_MOV, CONST(1));
    check_unary(f, 2, J_MOV, CONST(1));
+   check_unary(f, 4, J_MOV, REG(3));
+   check_unary(f, 5, J_MOV, REG(4));
 
    jit_free(j);
 }

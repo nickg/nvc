@@ -667,6 +667,8 @@ static void jit_lvn_shl(jit_ir_t *ir, lvn_state_t *state)
    int64_t lhs, rhs;
    if (lvn_can_fold(ir, state, &lhs, &rhs) && rhs >= 0 && rhs < 64)
       lvn_convert_mov(ir, state, LVN_CONST(lhs << rhs));
+   else if (lvn_is_const(ir->arg2, state, &rhs) && rhs == 0)
+      lvn_convert_mov(ir, state, ir->arg1);
    else
       jit_lvn_generic(ir, state, VN_INVALID);
 }
@@ -676,6 +678,8 @@ static void jit_lvn_asr(jit_ir_t *ir, lvn_state_t *state)
    int64_t lhs, rhs;
    if (lvn_can_fold(ir, state, &lhs, &rhs) && rhs >= 0 && rhs < 64)
       lvn_convert_mov(ir, state, LVN_CONST(lhs >> rhs));
+   else if (lvn_is_const(ir->arg2, state, &rhs) && rhs == 0)
+      lvn_convert_mov(ir, state, ir->arg1);
    else
       jit_lvn_generic(ir, state, VN_INVALID);
 }
