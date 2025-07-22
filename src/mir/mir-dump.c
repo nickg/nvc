@@ -170,6 +170,7 @@ const char *mir_op_string(mir_op_t op)
       [MIR_OP_BINARY] = "vector binary",
       [MIR_OP_UNARY] = "vector unary",
       [MIR_OP_DIR_CHECK] = "dir check",
+      [MIR_OP_INSERT] = "insert",
    };
 
    return map[op];
@@ -1762,6 +1763,20 @@ void mir_annotate(mir_unit_t *mu, const mir_annotate_t *cb, void *ctx)
                col += printf(" := vector");
                col += mir_dump_vector_op(mu, n->args[0]);
                col += mir_dump_arg(mu, result, 1, cb, ctx);
+               mir_dump_type(mu, col, n->type);
+               mir_dump_stamp(mu, n->type, n->stamp);
+            }
+            break;
+
+         case MIR_OP_INSERT:
+            {
+               col += mir_dump_value(mu, result, cb, ctx);
+               col += printf(" := %s ", mir_op_string(n->op));
+               col += mir_dump_arg(mu, result, 0, cb, ctx);
+               col += printf(" into ");
+               col += mir_dump_arg(mu, result, 1, cb, ctx);
+               col += printf(" at ");
+               col += mir_dump_arg(mu, result, 2, cb, ctx);
                mir_dump_type(mu, col, n->type);
                mir_dump_stamp(mu, n->type, n->stamp);
             }

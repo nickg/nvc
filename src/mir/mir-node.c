@@ -1607,6 +1607,27 @@ mir_value_t mir_build_unary(mir_unit_t *mu, mir_vec_op_t op, mir_type_t type,
    return result;
 }
 
+mir_value_t mir_build_insert(mir_unit_t *mu, mir_value_t part, mir_value_t full,
+                             unsigned pos)
+{
+   mir_type_t type = mir_get_type(mu, full);
+   mir_value_t result = mir_build_3(mu, MIR_OP_INSERT, type, MIR_NULL_STAMP,
+                                    part, full, mir_enum(pos));
+
+   MIR_ASSERT(mir_is_vector(mu, full), "full argument must be vector");
+   MIR_ASSERT(mir_is_vector(mu, part), "part argument must be vector");
+
+#ifdef DEBUG
+   mir_type_t part_type = mir_get_type(mu, part);
+   MIR_ASSERT(mir_get_size(mu, part_type) + pos <= mir_get_size(mu, type),
+              "out of bounds insert");
+   MIR_ASSERT(mir_get_class(mu, part_type) == mir_get_class(mu, type),
+              "mismatched vector types");
+#endif
+
+   return result;
+}
+
 void mir_build_store(mir_unit_t *mu, mir_value_t dest, mir_value_t src)
 {
    mir_type_t type = mir_get_type(mu, dest);

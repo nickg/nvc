@@ -3984,6 +3984,30 @@ static void irgen_op_unary(jit_irgen_t *g, mir_value_t n)
    g->map[n.id] = abits;
 }
 
+static void irgen_op_insert(jit_irgen_t *g, mir_value_t n)
+{
+   jit_value_t part = irgen_get_arg(g, n, 0);
+   jit_value_t full = irgen_get_arg(g, n, 1);
+   unsigned pos = irgen_get_enum(g, n, 2);
+
+   jit_value_t abits = j_shl(g, part, jit_value_from_int64(pos));
+   abits = g->map[n.id] = j_or(g, full, abits);
+
+   if (mir_is(g->mu, n, MIR_TYPE_VEC4)) {
+      jit_reg_t bbits = irgen_alloc_reg(g);
+      assert(abits.kind == JIT_VALUE_REG);
+      assert(bbits == abits.reg + 1);
+
+      jit_value_t bpart = jit_value_from_reg(jit_value_as_reg(part) + 1);
+      jit_value_t bfull = jit_value_from_reg(jit_value_as_reg(full) + 1);
+
+      jit_value_t tmp = j_shl(g, bpart, jit_value_from_int64(pos));
+      tmp = j_or(g, bfull, tmp);
+
+      j_mov(g, bbits, tmp);
+   }
+}
+
 static void irgen_block(jit_irgen_t *g, mir_block_t block)
 {
    irgen_bind_label(g, g->blocks[block.id]);
@@ -4390,6 +4414,9 @@ static void irgen_block(jit_irgen_t *g, mir_block_t block)
          break;
       case MIR_OP_UNARY:
          irgen_op_unary(g, n);
+         break;
+      case MIR_OP_INSERT:
+         irgen_op_insert(g, n);
          break;
       default:
          DEBUG_ONLY(mir_dump(g->mu));

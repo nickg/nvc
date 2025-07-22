@@ -646,7 +646,16 @@ static mir_value_t vlog_lower_rvalue(vlog_gen_t *g, vlog_node_t v)
          for (int i = 0; i < nparams; i++) {
             inputs[i] = vlog_lower_rvalue(g, vlog_param(v, i));
             assert(mir_is_vector(g->mu, inputs[i]));
-            size += mir_get_size(g->mu, mir_get_type(g->mu, inputs[i]));
+
+            mir_type_t part_type = mir_get_type(g->mu, inputs[i]);
+            int part_size = mir_get_size(g->mu, part_type);
+
+            if (mir_get_class(g->mu, part_type) != MIR_TYPE_VEC4) {
+               mir_type_t t_vec4 = mir_vec4_type(g->mu, part_size, false);
+               inputs[i] = mir_build_cast(g->mu, t_vec4, inputs[i]);
+            }
+
+            size += part_size;
          }
 
          if (vlog_has_value(v))
@@ -657,13 +666,7 @@ static mir_value_t vlog_lower_rvalue(vlog_gen_t *g, vlog_node_t v)
 
          for (int i = 0; i < repeat; i++) {
             for (int j = nparams - 1; j >= 0; j--) {
-               // TODO: add a vector-insert operation
-               mir_value_t cast = mir_build_cast(g->mu, type, inputs[j]);
-               mir_value_t amount = mir_const_vec(g->mu, type, pos, 0);
-               mir_value_t shift =
-                  mir_build_binary(g->mu, MIR_VEC_SLL, type, cast, amount);
-               result = mir_build_binary(g->mu, MIR_VEC_BIT_OR, type,
-                                         result, shift);
+               result = mir_build_insert(g->mu, inputs[j], result, pos);
                pos += mir_get_size(g->mu, mir_get_type(g->mu, inputs[j]));
             }
          }
