@@ -4843,7 +4843,7 @@ static type_t solve_type_conv(nametab_t *tab, tree_t expr)
    return tree_type(expr);
 }
 
-static type_t solve_new(nametab_t *tab, tree_t new)
+static type_t try_solve_new(nametab_t *tab, tree_t new)
 {
    if (tree_has_type(new))
       return tree_type(new);
@@ -4851,17 +4851,26 @@ static type_t solve_new(nametab_t *tab, tree_t new)
    type_set_restrict(tab, type_is_access);
 
    type_t type;
-   if (!type_set_uniq(tab, &type)) {
-      diag_t *d = diag_new(DIAG_ERROR, tree_loc(new));
-      diag_printf(d, "cannot determine type of allocator expression "
-                  "from the surrounding context");
-      type_set_describe(tab, d, NULL, type_is_access, "an access type");
-      diag_emit(d);
-
-      type = type_new(T_NONE);
-   }
+   if (!type_set_uniq(tab, &type))
+      return NULL;
 
    tree_set_type(new, type);
+   return type;
+}
+
+static type_t solve_new(nametab_t *tab, tree_t new)
+{
+   type_t type = try_solve_new(tab, new);
+   if (type != NULL)
+      return type;
+
+   diag_t *d = diag_new(DIAG_ERROR, tree_loc(new));
+   diag_printf(d, "cannot determine type of allocator expression "
+               "from the surrounding context");
+   type_set_describe(tab, d, NULL, type_is_access, "an access type");
+   diag_emit(d);
+
+   tree_set_type(new, (type = type_new(T_NONE)));
    return type;
 }
 
@@ -5124,6 +5133,8 @@ static type_t try_solve_type(nametab_t *tab, tree_t expr)
       return try_solve_attr_ref(tab, expr);
    case T_PSL_UNION:
       return try_solve_psl_union(tab, expr);
+   case T_NEW:
+      return try_solve_new(tab, expr);
    default:
       fatal_trace("cannot solve types for %s", tree_kind_str(tree_kind(expr)));
    }
