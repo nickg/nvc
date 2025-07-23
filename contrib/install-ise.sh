@@ -35,13 +35,12 @@ src=$XILINX/vhdl/src
 GLOBAL_OPTS="-M 64m"
 A_OPTS="--relaxed"
 
-for STD in 1993 2008; do
-  WORK=unisim$(std_suffix $STD)
-  analyse $src/unisims/unisim_VPKG.vhd
-  analyse $src/unisims/unisim_VCOMP.vhd
+for STD in ${NVC_STD:-1993 2008}; do
+    analyse_list unisim$(std_suffix $STD) <<EOF
+$src/unisims/unisim_VPKG.vhd
+$src/unisims/unisim_VCOMP.vhd
+EOF
 
-  WORK=unisim$(std_suffix $STD)
-  while IFS= read -r line; do
-    analyse $src/unisims/primitive/$line
-  done < $src/unisims/primitive/vhdl_analyze_order
+  cd $src/unisims/primitive
+  analyse_list unisim$(std_suffix $STD) vhdl_analyze_order
 done
