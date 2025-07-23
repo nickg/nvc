@@ -9,7 +9,7 @@ git_wrapper https://github.com/nickg/fmf-packages 20080525
 
 A_OPTS="--relaxed"
 
-for STD in 1993 2008; do
+for STD in ${NVC_STD:-1993 2008}; do
   analyse_list fmf$(std_suffix $STD) <<EOF
 conversions.vhd
 ecl_package.vhd
