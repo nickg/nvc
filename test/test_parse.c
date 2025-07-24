@@ -7319,7 +7319,7 @@ START_TEST(test_issue1249)
    input_from_file(TESTDIR "/parse/issue1249.vhd");
 
    const error_t expect[] = {
-      { 18, "actual for formal Y with class VARIABLE must be a name denoting "
+      { 21, "actual for formal Y with class VARIABLE must be a name denoting "
         "a variable" },
       { -1, NULL }
    };
