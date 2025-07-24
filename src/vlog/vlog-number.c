@@ -30,6 +30,7 @@
 typedef enum {
    RADIX_STR = 0,
    RADIX_BIN = 2,
+   RADIX_OCT = 8,
    RADIX_DEC = 10,
    RADIX_HEX = 16,
 } vlog_radix_t;
@@ -227,6 +228,7 @@ number_t number_new(const char *str, const loc_t *loc)
    vlog_radix_t radix = RADIX_DEC;
    switch (*p) {
    case 'b': radix = RADIX_BIN; p++; break;
+   case 'o': radix = RADIX_OCT; p++; break;
    case 'h': radix = RADIX_HEX; p++; break;
    case 'd': radix = RADIX_DEC; p++; break;
    case '"': radix = RADIX_STR; p++; break;
@@ -293,6 +295,38 @@ number_t number_new(const char *str, const loc_t *loc)
                }
 
                bit++;
+            }
+            break;
+
+         case RADIX_OCT:
+            {
+               switch (*p) {
+               case 'x':
+                  for (int i = 0; i < 3; i++) {
+                     bignum_set_abit(result.big, bit + i, 1);
+                     bignum_set_bbit(result.big, bit + i, 1);
+                  }
+                  break;
+               case 'z':
+                  for (int i = 0; i < 3; i++)
+                     bignum_set_bbit(result.big, bit + i, 1);
+                  break;
+               case '0'...'7':
+                  for (int i = 0; i < 3; i++)
+                     bignum_set_abit(result.big, bit + i, (*p - '0') >> i);
+                  break;
+               case '_':
+                  continue;
+               default:
+                  error_at(loc, "invalid character '%c' in number %s", *p, str);
+               }
+
+               if (bit >= width) {
+                  warn_at(loc, "excess digits in octal constant %s", str);
+                  return number_intern(result);
+               }
+
+               bit += 3;
             }
             break;
 

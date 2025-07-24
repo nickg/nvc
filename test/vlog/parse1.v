@@ -126,4 +126,5 @@ module parse1;
     end
   end
   wire \wire[x]net; ;
+  assign x = 6'o02;
 endmodule // parse1

@@ -172,7 +172,7 @@ START_TEST(test_parse1)
    vlog_node_t m = vlog_parse();
    fail_if(m == NULL);
    fail_unless(vlog_kind(m) == V_MODULE);
-   ck_assert_int_eq(vlog_stmts(m), 33);
+   ck_assert_int_eq(vlog_stmts(m), 34);
    ck_assert_int_eq(vlog_ports(m), 0);
    ck_assert_int_eq(vlog_decls(m), 29);
 
@@ -389,6 +389,7 @@ START_TEST(test_number2)
       { "4'h12",         4,   2,           "4'd2"           },
       { "1'b110",        1,   0,           "1'b0"           },
       { "1_000",         32,  1000,        "1000"           },
+      { "6'o02",         6,   2,           "6'd2"           },
    };
 
    const error_t expect[] = {
