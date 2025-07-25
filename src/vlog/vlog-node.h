@@ -142,6 +142,9 @@ typedef enum {
    V_VOID_CALL,
    V_GENVAR_DECL,
    V_FOR_GENERATE,
+   V_DEASSIGN,
+   V_FORCE,
+   V_RELEASE,
 
    V_LAST_NODE_KIND
 } vlog_kind_t;

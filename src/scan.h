@@ -480,5 +480,6 @@ void reset_sdf_parser(void);
 #define tSCALARED      579
 #define tUNCTDRIVE     580
 #define tNOUNCTDRIVE   581
+#define tDEASSIGN      582
 
 #endif  // _SCAN_H

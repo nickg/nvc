@@ -389,6 +389,13 @@ static void vlog_check_user_tcall(vlog_node_t v)
    vlog_check_call_args(v, func);
 }
 
+static void vlog_check_deassign(vlog_node_t v)
+{
+   error_at(vlog_loc(v), "procedural deassign statements are not supported "
+            "as they are being considered for removal from the System Verilog "
+            "standard");
+}
+
 static vlog_node_t vlog_check_cb(vlog_node_t v, void *ctx)
 {
    if (has_error(v))
@@ -432,6 +439,9 @@ static vlog_node_t vlog_check_cb(vlog_node_t v, void *ctx)
       break;
    case V_USER_TCALL:
       vlog_check_user_tcall(v);
+      break;
+   case V_DEASSIGN:
+      vlog_check_deassign(v);
       break;
    case V_CASE_ITEM:
    case V_UDP_LEVEL:
@@ -490,6 +500,8 @@ static vlog_node_t vlog_check_cb(vlog_node_t v, void *ctx)
    case V_VOID_CALL:
    case V_GENVAR_DECL:
    case V_FOR_GENERATE:
+   case V_FORCE:
+   case V_RELEASE:
       break;
    default:
       fatal_at(vlog_loc(v), "cannot check verilog node %s",

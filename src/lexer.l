@@ -649,6 +649,7 @@ BEFORE            ?i:before
 <VLOG>"uwire"            { return tUWIRE; }
 <VLOG>"none"             { return tNONE; }
 <VLOG>"assign"           { return tASSIGN; }
+<VLOG>"deassign"         { return tDEASSIGN; }
 <VLOG>"if"               { return tIF; }
 <VLOG>"else"             { return tELSE; }
 <VLOG>"fork"             { return tFORK; }
@@ -658,8 +659,6 @@ BEFORE            ?i:before
 <VLOG>"`default_nettype" { return tDEFNETTYPE; }
 <VLOG>"`celldefine"      { }
 <VLOG>"`endcelldefine"   { }
-<VLOG>"`unconnected_drive" { return tUNCTDRIVE; }
-<VLOG>"`nounconnected_drive" { return tNOUNCTDRIVE; }
 <VLOG>"`begin_keywords"  { return tBEGINKEYWORDS; }
 <VLOG>"`end_keywords"    { return tENDKEYWORDS; }
 <VLOG>"`__nvc_push"      { return tNVCPUSH; }
@@ -760,6 +759,8 @@ BEFORE            ?i:before
 <VLOG>"ifnone"           { return tIFNONE; }
 <VLOG>"edge"             { return tEDGE; }
 <VLOG>"specparam"        { return tSPECPARAM; }
+<VLOG>"force"            { return tFORCE; }
+<VLOG>"release"          { return tRELEASE; }
 <VLOG>"*>"               { return tTIMESGT; }
 <VLOG>"$setup"           { return tDLRSETUP; }
 <VLOG>"$hold"            { return tDLRHOLD; }
@@ -770,6 +771,9 @@ BEFORE            ?i:before
 <VLOG>"$width"           { return tDLRWIDTH; }
 <VLOG>"event"            { return tEVENT; }
 <VLOG>"genvar"           { return tGENVAR; }
+
+<VLOG>"`unconnected_drive"   { return tUNCTDRIVE; }
+<VLOG>"`nounconnected_drive" { return tNOUNCTDRIVE; }
 
 <VLOG>{SYSTASK}          { yylval.ident = ident_new(yytext); return tSYSTASK; }
 <VLOG>{VLOG_ID}          { yylval.ident = ident_new(yytext); return tID; }

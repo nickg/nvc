@@ -2448,6 +2448,37 @@ static vlog_node_t p_event_trigger(void)
    return v;
 }
 
+static vlog_node_t p_procedural_continuous_assignment(void)
+{
+   // assign variable_assignment | deassign variable_lvalue
+   //   | force variable_assignment | force net_assignment
+   //   | release variable_lvalue | release net_lvalue
+
+   BEGIN("procedural continuous assignment");
+
+   switch (one_of(tASSIGN, tDEASSIGN, tFORCE, tRELEASE)) {
+   case tASSIGN:
+   default:
+      return p_variable_assignment(V_ASSIGN);
+   case tDEASSIGN:
+      {
+         vlog_node_t v = vlog_new(V_DEASSIGN);
+         vlog_set_target(v, p_variable_lvalue());
+         vlog_set_loc(v, CURRENT_LOC);
+         return v;
+      }
+   case tFORCE:
+      return p_variable_assignment(V_FORCE);
+   case tRELEASE:
+      {
+         vlog_node_t v = vlog_new(V_RELEASE);
+         vlog_set_target(v, p_variable_lvalue());
+         vlog_set_loc(v, CURRENT_LOC);
+         return v;
+      }
+   }
+}
+
 static vlog_node_t p_statement_item(void)
 {
    // blocking_assignment ; | nonblocking_assignment ;
@@ -2503,9 +2534,19 @@ static vlog_node_t p_statement_item(void)
       return p_case_statement();
    case tIFIMPL:
       return p_event_trigger();
+   case tASSIGN:
+   case tDEASSIGN:
+   case tFORCE:
+   case tRELEASE:
+      {
+         vlog_node_t v = p_procedural_continuous_assignment();
+         consume(tSEMI);
+         return v;
+      }
    default:
       one_of(tID, tAT, tHASH, tBEGIN, tFORK, tSYSTASK, tVOID, tIF, tFOREVER,
-             tWHILE, tREPEAT, tDO, tFOR, tWAIT, tCASE, tCASEX, tCASEZ, tIFIMPL);
+             tWHILE, tREPEAT, tDO, tFOR, tWAIT, tCASE, tCASEX, tCASEZ, tIFIMPL,
+             tASSIGN, tDEASSIGN, tFORCE, tRELEASE);
       drop_tokens_until(tSEMI);
       return vlog_new(V_BLOCK);  // Dummy statement
    }

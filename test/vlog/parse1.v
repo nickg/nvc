@@ -107,6 +107,10 @@ module parse1;
     x = y ^ z;
     x = y ~^ z;
     x = y ^~ z;
+    assign x = y;
+    deassign x;
+    force x = 1;
+    release x;
   end
   triand w4;
   trior  w5;
