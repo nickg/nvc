@@ -1,4 +1,6 @@
 ## Unreleased changes
+
+## Version 1.17.1 - 2025-07-26
 - Fixed a build failure on Linux Arm64.
 - An `others` choice is now allowed in an unconstrained array aggregate
   if the `--relaxed` option is passed and the aggregate appears in one

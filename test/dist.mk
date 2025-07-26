@@ -460,6 +460,7 @@ EXTRA_DIST += \
 	test/parse/issue1174.vhd \
 	test/parse/issue1188.vhd \
 	test/parse/issue1202.vhd \
+	test/parse/issue1249.vhd \
 	test/parse/issue205.vhd \
 	test/parse/issue222.vhd \
 	test/parse/issue360.vhd \
@@ -1422,6 +1423,7 @@ EXTRA_DIST += \
 	test/regress/issue1164.vhd \
 	test/regress/issue116.vhd \
 	test/regress/issue1171.vhd \
+	test/regress/issue1175.vhd \
 	test/regress/issue1177.vhd \
 	test/regress/issue1185.vhd \
 	test/regress/issue1186.vhd \
@@ -2002,6 +2004,7 @@ EXTRA_DIST += \
 	test/regress/vhpi13.vhd \
 	test/regress/vhpi14.vhd \
 	test/regress/vhpi15.vhd \
+	test/regress/vhpi16.vhd \
 	test/regress/vhpi1.vhd \
 	test/regress/vhpi2.vhd \
 	test/regress/vhpi3.vhd \
