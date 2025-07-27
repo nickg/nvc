@@ -165,7 +165,6 @@ typedef enum {
    VCODE_OP_OR_TRIGGER,
    VCODE_OP_CMP_TRIGGER,
    VCODE_OP_INSTANCE_NAME,
-   VCODE_OP_DEPOSIT_SIGNAL,
    VCODE_OP_MAP_IMPLICIT,
    VCODE_OP_BIND_EXTERNAL,
    VCODE_OP_ARRAY_SCOPE,
@@ -533,8 +532,6 @@ void emit_convert_in(vcode_reg_t conv, vcode_reg_t nets, vcode_reg_t count);
 void emit_convert_out(vcode_reg_t conv, vcode_reg_t nets, vcode_reg_t count);
 void emit_bind_foreign(vcode_reg_t spec, vcode_reg_t length, vcode_reg_t locus);
 vcode_reg_t emit_instance_name(vcode_reg_t kind);
-void emit_deposit_signal(vcode_reg_t signal, vcode_reg_t count,
-                         vcode_reg_t values);
 vcode_reg_t emit_bind_external(vcode_reg_t locus, ident_t scope,
                                vcode_type_t type, vcode_type_t bounds);
 void emit_put_conversion(vcode_reg_t cf, vcode_reg_t target, vcode_reg_t count,
