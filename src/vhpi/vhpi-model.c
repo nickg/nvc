@@ -5056,7 +5056,7 @@ static void vhpi_phase_cb(rt_model_t *m, void *arg)
    case vhpiCbNextTimeStep:
    case vhpiCbEndOfTimeStep:
    case vhpiCbStartOfNextCycle:
-      model_set_global_cb(m, vhpi_get_rt_event(reason), vhpi_phase_cb,
+      model_set_phase_cb(m, vhpi_get_phase(reason), vhpi_phase_cb,
                           (void *)(intptr_t)reason);
       break;
    }
@@ -5097,7 +5097,7 @@ void vhpi_context_initialise(vhpi_context_t *c, tree_t top, rt_model_t *model,
    tree_walk_deps(c->top, vhpi_build_deps_cb, visited);
    hset_free(visited);
 
-   model_set_global_cb(model, RT_END_OF_INITIALISATION, vhpi_initialise_cb, c);
+   model_set_phase_cb(model, END_OF_INITIALISATION, vhpi_initialise_cb, c);
 
    static const int32_t reasons[] = {
       vhpiCbStartOfSimulation,
@@ -5110,7 +5110,7 @@ void vhpi_context_initialise(vhpi_context_t *c, tree_t top, rt_model_t *model,
    };
 
    for (size_t i = 0; i < ARRAY_LEN(reasons); i++)
-      model_set_global_cb(model, vhpi_get_rt_event(reasons[i]),
+      model_set_phase_cb(model, vhpi_get_phase(reasons[i]),
                           vhpi_phase_cb, (void *)(uintptr_t)reasons[i]);
 }
 

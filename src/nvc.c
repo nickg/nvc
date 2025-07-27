@@ -19,6 +19,7 @@
 #include "common.h"
 #include "cov/cov-api.h"
 #include "diag.h"
+#include "ident.h"
 #include "jit/jit-llvm.h"
 #include "jit/jit.h"
 #include "lib.h"
@@ -1012,8 +1013,8 @@ static int run_cmd(int argc, char **argv, cmd_state_t *state)
       wave_dumper_restart(dumper, state->model, state->jit);
 
    if (opt_get_int(OPT_IEEE_WARNINGS) == IEEE_WARNINGS_OFF_AT_0)
-      model_set_global_cb(state->model, RT_END_TIME_STEP,
-                          enable_ieee_warnings_cb, state);
+      model_set_phase_cb(state->model, END_TIME_STEP,
+                         enable_ieee_warnings_cb, state);
 
    model_run(state->model, stop_time);
 

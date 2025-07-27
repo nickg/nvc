@@ -225,30 +225,33 @@ void vhpi_error(vhpiSeverityT sev, const loc_t *loc, const char *fmt, ...)
    diag_emit(d);
 }
 
-rt_event_t vhpi_get_rt_event(int reason)
+model_phase_t vhpi_get_phase(int reason)
 {
    switch (reason){
    case vhpiCbNextTimeStep:
    case vhpiCbRepNextTimeStep:
-      return RT_NEXT_TIME_STEP;
+      return NEXT_TIME_STEP;
    case vhpiCbStartOfNextCycle:
    case vhpiCbRepStartOfNextCycle:
-      return RT_NEXT_CYCLE;
+      return NEXT_CYCLE;
    case vhpiCbEndOfTimeStep:
    case vhpiCbRepEndOfTimeStep:
-      return RT_END_TIME_STEP;
+      return END_TIME_STEP;
    case vhpiCbRepEndOfProcesses:
    case vhpiCbEndOfProcesses:
-      return RT_END_OF_PROCESSES;
+      return END_OF_PROCESSES;
    case vhpiCbStartOfSimulation:
-      return RT_START_OF_SIMULATION;
+      return START_OF_SIMULATION;
    case vhpiCbEndOfSimulation:
-      return RT_END_OF_SIMULATION;
+      return END_OF_SIMULATION;
    case vhpiCbRepLastKnownDeltaCycle:
    case vhpiCbLastKnownDeltaCycle:
-      return RT_LAST_KNOWN_DELTA_CYCLE;
+      return LAST_KNOWN_DELTA_CYCLE;
    case vhpiCbEndOfInitialization:
-      return RT_END_OF_INITIALISATION;
+      return END_OF_INITIALISATION;
+   case vhpiCbStartOfProcesses:
+   case vhpiCbRepStartOfProcesses:
+      return START_OF_PROCESSES;
    default:
       fatal_trace("unhandled value %d in vhpi_get_rt_event", reason);
    }

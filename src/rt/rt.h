@@ -18,7 +18,6 @@
 #ifndef _RT_H
 #define _RT_H
 
-#include "ident.h"
 #include "prim.h"
 
 #include <stdint.h>
@@ -63,24 +62,6 @@ typedef uint8_t net_flags_t;
 #define SIG_F_EVENT_FLAG   (1 << 11)
 #define SIG_F_REGISTER     (1 << 12)
 typedef uint32_t sig_flags_t;
-
-typedef enum {
-   SIGNAL_BUS,
-   SIGNAL_REGISTER
-} rt_signal_kind_t;
-
-typedef enum {
-   RT_END_OF_INITIALISATION,
-   RT_START_OF_SIMULATION,
-   RT_END_OF_SIMULATION,
-   RT_END_OF_PROCESSES,
-   RT_LAST_KNOWN_DELTA_CYCLE,
-   RT_NEXT_TIME_STEP,
-   RT_END_TIME_STEP,
-   RT_NEXT_CYCLE,
-
-   RT_LAST_EVENT
-} rt_event_t;
 
 typedef enum {
    SCOPE_ROOT,

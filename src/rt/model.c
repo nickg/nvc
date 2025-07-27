@@ -122,7 +122,7 @@ typedef struct _rt_model {
    deferq_t           implicitq;
    heap_t            *driving_heap;
    heap_t            *effective_heap;
-   rt_callback_t     *global_cbs[RT_LAST_EVENT];
+   rt_callback_t     *phase_cbs[END_OF_SIMULATION + 1];
    cover_data_t      *cover;
    nvc_rusage_t       ready_rusage;
    nvc_lock_t         memlock;
@@ -441,10 +441,10 @@ static void *static_alloc(rt_model_t *m, size_t size)
    return ptr;
 }
 
-static void global_event(rt_model_t *m, rt_event_t kind)
+static void mark_phase(rt_model_t *m, model_phase_t phase)
 {
-   rt_callback_t *list = m->global_cbs[kind];
-   m->global_cbs[kind] = NULL;
+   rt_callback_t *list = m->phase_cbs[phase];
+   m->phase_cbs[phase] = NULL;
 
    for (rt_callback_t *it = list, *tmp; it; it = tmp) {
       tmp = it->next;
@@ -636,8 +636,8 @@ void model_free(rt_model_t *m)
       free(it);
    }
 
-   for (int i = 0; i < RT_LAST_EVENT; i++) {
-      for (rt_callback_t *it = m->global_cbs[i], *tmp; it; it = tmp) {
+   for (int i = 0; i < ARRAY_LEN(m->phase_cbs); i++) {
+      for (rt_callback_t *it = m->phase_cbs[i], *tmp; it; it = tmp) {
          tmp = it->next;
          free(it);
       }
@@ -2443,7 +2443,7 @@ void model_reset(rt_model_t *m)
 
    tlab_reset(thread->tlab);   // No allocations can be live past here
 
-   global_event(m, RT_END_OF_INITIALISATION);
+   mark_phase(m, END_OF_INITIALISATION);
 }
 
 static void update_property(rt_model_t *m, rt_prop_t *prop)
@@ -3264,9 +3264,9 @@ static void model_cycle(rt_model_t *m)
    swap_deferq(&m->driverq, &m->delta_driverq);
 
    if (m->iteration == 0)
-      global_event(m, RT_NEXT_TIME_STEP);
+      mark_phase(m, NEXT_TIME_STEP);
 
-   global_event(m, RT_NEXT_CYCLE);
+   mark_phase(m, NEXT_CYCLE);
 
    if (!is_delta_cycle) {
       for (;;) {
@@ -3324,16 +3324,18 @@ static void model_cycle(rt_model_t *m)
       dump_signals(m, m->root);
 #endif
 
+   mark_phase(m, START_OF_PROCESSES);
+
    if (m->shuffle)
       deferq_shuffle(&m->procq);
 
    // Run all non-postponed processes and event callbacks
    deferq_run(m, &m->procq);
 
-   global_event(m, RT_END_OF_PROCESSES);
+   mark_phase(m, END_OF_PROCESSES);
 
    if (!m->next_is_delta)
-      global_event(m, RT_LAST_KNOWN_DELTA_CYCLE);
+      mark_phase(m, LAST_KNOWN_DELTA_CYCLE);
 
    if (!m->next_is_delta) {
       m->can_create_delta = false;
@@ -3341,7 +3343,7 @@ static void model_cycle(rt_model_t *m)
       // Run all postponed processes and event callbacks
       deferq_run(m, &m->postponedq);
 
-      global_event(m, RT_END_TIME_STEP);
+      mark_phase(m, END_TIME_STEP);
 
       m->can_create_delta = true;
    }
@@ -3396,12 +3398,12 @@ void model_run(rt_model_t *m, uint64_t stop_time)
    if (m->force_stop)
       return;   // Was error during intialisation
 
-   global_event(m, RT_START_OF_SIMULATION);
+   mark_phase(m, START_OF_SIMULATION);
 
    while (!should_stop_now(m, stop_time))
       model_cycle(m);
 
-   global_event(m, RT_END_OF_SIMULATION);
+   mark_phase(m, END_OF_SIMULATION);
 
    if (m->liveness)
       check_liveness_properties(m, m->root);
@@ -3553,13 +3555,11 @@ void model_stop(rt_model_t *m)
    relaxed_store(&m->force_stop, true);
 }
 
-void model_set_global_cb(rt_model_t *m, rt_event_t event, rt_event_fn_t fn,
-                         void *user)
+void model_set_phase_cb(rt_model_t *m, model_phase_t phase, rt_event_fn_t fn,
+                        void *user)
 {
-   assert(event < RT_LAST_EVENT);
-
    // Add to end of list so callbacks are called in registration order
-   rt_callback_t **p = &(m->global_cbs[event]);
+   rt_callback_t **p = &(m->phase_cbs[phase]);
    for (; *p; p = &(*p)->next);
 
    rt_callback_t *cb = xcalloc(sizeof(rt_callback_t));

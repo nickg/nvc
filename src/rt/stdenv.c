@@ -17,13 +17,14 @@
 
 #include "util.h"
 #include "common.h"
-#include "jit/jit.h"
-#include "jit/jit-ffi.h"
+#include "ident.h"
 #include "jit/jit-exits.h"
-#include "scan.h"
+#include "jit/jit-ffi.h"
+#include "jit/jit.h"
 #include "rt/assert.h"
 #include "rt/mspace.h"
 #include "rt/rt.h"
+#include "scan.h"
 
 #include <assert.h>
 #include <ctype.h>

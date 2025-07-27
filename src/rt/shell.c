@@ -171,7 +171,7 @@ static void shell_next_time_step(rt_model_t *m, void *user)
    uint64_t now = model_now(m, NULL);
    (*sh->handler.next_time_step)(now, sh->handler.context);
 
-   model_set_global_cb(sh->model, RT_NEXT_TIME_STEP, shell_next_time_step, sh);
+   model_set_phase_cb(sh->model, NEXT_TIME_STEP, shell_next_time_step, sh);
 }
 
 static void shell_create_model(tcl_shell_t *sh)
@@ -182,8 +182,7 @@ static void shell_create_model(tcl_shell_t *sh)
    create_scope(sh->model, sh->top, NULL);
 
    if (sh->handler.next_time_step != NULL)
-      model_set_global_cb(sh->model, RT_NEXT_TIME_STEP,
-                          shell_next_time_step, sh);
+      model_set_phase_cb(sh->model, NEXT_TIME_STEP, shell_next_time_step, sh);
 
    model_reset(sh->model);
 

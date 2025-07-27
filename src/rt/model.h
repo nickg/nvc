@@ -26,6 +26,19 @@ typedef enum {
    WATCH_POSTPONED,
 } watch_kind_t;
 
+typedef enum {
+   END_OF_INITIALISATION,
+   START_OF_SIMULATION,
+   START_OF_PROCESSES,
+   END_OF_PROCESSES,
+   START_OF_POSTPONED,
+   LAST_KNOWN_DELTA_CYCLE,
+   NEXT_TIME_STEP,
+   END_TIME_STEP,
+   NEXT_CYCLE,
+   END_OF_SIMULATION,
+} model_phase_t;
+
 rt_model_t *model_new(jit_t *jit, cover_data_t *cover);
 void model_free(rt_model_t *m);
 void model_reset(rt_model_t *m);
@@ -42,8 +55,8 @@ rt_watch_t *watch_new(rt_model_t *m, sig_event_fn_t fn, void *user,
                       watch_kind_t kind, unsigned slots);
 void watch_free(rt_model_t *m, rt_watch_t *w);
 
-void model_set_global_cb(rt_model_t *m, rt_event_t event, rt_event_fn_t fn,
-                         void *user);
+void model_set_phase_cb(rt_model_t *m, model_phase_t phase, rt_event_fn_t fn,
+                        void *user);
 rt_watch_t *model_set_event_cb(rt_model_t *m, rt_signal_t *s, rt_watch_t *w);
 void model_set_timeout_cb(rt_model_t *m, uint64_t when, rt_event_fn_t fn,
                           void *user);

@@ -18,6 +18,7 @@
 #include "util.h"
 #include "cov/cov-api.h"
 #include "diag.h"
+#include "ident.h"
 #include "jit/jit-ffi.h"
 #include "jit/jit-ffi.h"
 #include "jit/jit-priv.h"

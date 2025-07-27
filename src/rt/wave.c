@@ -1107,7 +1107,7 @@ void wave_dumper_restart(wave_dumper_t *wd, rt_model_t *m, jit_t *jit)
       fst_event_cb(0, data->signal, data->watch, data);
    }
 
-   model_set_global_cb(m, RT_END_OF_SIMULATION, fst_close, wd);
+   model_set_phase_cb(m, END_OF_SIMULATION, fst_close, wd);
 }
 
 wave_dumper_t *wave_dumper_new(const char *file, const char *gtkw_file,

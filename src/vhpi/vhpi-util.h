@@ -20,7 +20,7 @@
 
 #include "prim.h"
 #include "jit/jit.h"
-#include "rt/rt.h"
+#include "rt/model.h"
 
 #ifdef __MINGW32__
 #define PLI_DLLISPEC __declspec(dllexport)
@@ -46,7 +46,7 @@ void vhpi_context_free(vhpi_context_t *c);
 void vhpi_load_plugins(const char *plugins);
 
 void vhpi_clear_error(void);
-rt_event_t vhpi_get_rt_event(int reason);
+model_phase_t vhpi_get_phase(int reason);
 vhpiFormatT vhpi_format_for_type(type_t type, const char **map_str);
 uint64_t vhpi_time_to_native(const vhpiTimeT *time);
 vhpiPhysT vhpi_phys_from_native(int64_t value);
