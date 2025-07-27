@@ -45,18 +45,22 @@ typedef struct {
 
 typedef A(macro_expansion_t) macro_stack_t;
 
-static const char    *file_start;
-static size_t         file_sz;
-static const char    *read_ptr;
-static hdl_kind_t     src_kind;
-static file_ref_t     file_ref = FILE_INVALID;
-static int            colno;
-static int            lineno;
-static int            lookahead;
-static int            pperrors;
-static cond_stack_t   cond_stack;
-static shash_t       *pp_defines;
-static macro_stack_t  macro_stack;
+typedef A(vlog_version_t) keywords_stack_t;
+
+static const char       *file_start;
+static size_t            file_sz;
+static const char       *read_ptr;
+static hdl_kind_t        src_kind;
+static file_ref_t        file_ref = FILE_INVALID;
+static int               colno;
+static int               lineno;
+static int               lookahead;
+static int               pperrors;
+static cond_stack_t      cond_stack;
+static shash_t          *pp_defines;
+static macro_stack_t     macro_stack;
+static vlog_version_t    default_keywords = VLOG_1800_2023;
+static keywords_stack_t  keywords_stack;
 
 extern int yylex(void);
 
@@ -103,10 +107,14 @@ void input_from_file(const char *file)
    // TODO: need a more sophisticated mechanism to determine HDL type
    hdl_kind_t kind = SOURCE_VHDL;
    size_t len = strlen(file);
-   if (len > 2 && file[len - 2] == '.' && file[len - 1] == 'v')
+   if (len > 2 && file[len - 2] == '.' && file[len - 1] == 'v') {
       kind = SOURCE_VERILOG;
-   else if (len > 3 && strcmp(file + len - 3, ".sv") == 0)
+      set_default_keywords(VLOG_1364_2001);
+   }
+   else if (len > 3 && strcmp(file + len - 3, ".sv") == 0) {
       kind = SOURCE_VERILOG;
+      set_default_keywords(VLOG_1800_2023);
+   }
    else if (len > 4 && !strcmp(&(file[len - 4]), ".sdf")) {
       kind = SOURCE_SDF;
    }
@@ -678,5 +686,65 @@ token_t processed_yylex(void)
             break;
          }
       }
+   }
+}
+
+const char *verilog_version_string(vlog_version_t vers)
+{
+   static const char *const map[] = {
+      [VLOG_1364_1995] = "1364-1995",
+      [VLOG_1364_2001_NOCONFIG] = "1364-2001-noconfig",
+      [VLOG_1364_2001] = "1364-2001",
+      [VLOG_1364_2005] = "1364-2005",
+      [VLOG_1800_2005] = "1800-2005",
+      [VLOG_1800_2009] = "1800-2009",
+      [VLOG_1800_2012] = "1800-2012",
+      [VLOG_1800_2017] = "1800-2017",
+      [VLOG_1800_2023] = "1800-2023",
+   };
+   return map[vers];
+}
+
+bool parse_verilog_version(const char *str, vlog_version_t *vers)
+{
+   for (vlog_version_t i = 0; i < VLOG_1800_2023 + 1; i++) {
+      if (strcmp(str, verilog_version_string(i)) == 0) {
+         *vers = i;
+         return true;
+      }
+   }
+
+   return false;
+}
+
+void set_default_keywords(vlog_version_t vers)
+{
+   default_keywords = vers;
+}
+
+void push_keywords(vlog_version_t vers)
+{
+   APUSH(keywords_stack, vers);
+}
+
+bool pop_keywords(void)
+{
+   if (keywords_stack.count == 0)
+      return false;
+   else {
+      APOP(keywords_stack);
+      return true;
+   }
+}
+
+bool get_verilog_keywords(vlog_version_t *vers)
+{
+   if (keywords_stack.count == 0) {
+      *vers = default_keywords;
+      return false;
+   }
+   else {
+      *vers = keywords_stack.items[keywords_stack.count - 1];
+      return true;
    }
 }

@@ -169,6 +169,8 @@ START_TEST(test_parse1)
 {
    input_from_file(TESTDIR "/vlog/parse1.v");
 
+   set_default_keywords(VLOG_1800_2023);
+
    vlog_node_t m = vlog_parse();
    fail_if(m == NULL);
    fail_unless(vlog_kind(m) == V_MODULE);
@@ -598,7 +600,7 @@ END_TEST
 
 START_TEST(test_struct1)
 {
-   input_from_file(TESTDIR "/vlog/struct1.v");
+   input_from_file(TESTDIR "/vlog/struct1.sv");
 
    const error_t expect[] = {
       { 13, "duplicate declaration of a" },
@@ -622,7 +624,7 @@ END_TEST
 
 START_TEST(test_enum1)
 {
-   input_from_file(TESTDIR "/vlog/enum1.v");
+   input_from_file(TESTDIR "/vlog/enum1.sv");
 
    const error_t expect[] = {
       {  5, "'a' is not a data type" },
@@ -646,7 +648,7 @@ END_TEST
 
 START_TEST(test_union1)
 {
-   input_from_file(TESTDIR "/vlog/union1.v");
+   input_from_file(TESTDIR "/vlog/union1.sv");
 
    vlog_node_t m = vlog_parse();
    fail_if(m == NULL);
@@ -665,6 +667,8 @@ END_TEST
 START_TEST(test_param1)
 {
    input_from_file(TESTDIR "/vlog/param1.v");
+
+   set_default_keywords(VLOG_1800_2023);
 
    const error_t expect[] = {
       {  4, "duplicate declaration of p1" },
@@ -687,6 +691,8 @@ END_TEST
 START_TEST(test_param2)
 {
    input_from_file(TESTDIR "/vlog/param2.v");
+
+   set_default_keywords(VLOG_1800_2023);
 
    const error_t expect[] = {
       { 13, "duplicate declaration" },
@@ -823,6 +829,8 @@ START_TEST(test_const1)
 {
    input_from_file(TESTDIR "/vlog/const1.v");
 
+   set_default_keywords(VLOG_1800_2023);
+
    const error_t expect[] = {
       {  4, "cannot reference net 'w1' in constant expression" },
       { -1, NULL }
@@ -868,11 +876,14 @@ START_TEST(test_direct1)
 {
    input_from_file(TESTDIR "/vlog/direct1.v");
 
+   set_default_keywords(VLOG_1800_2023);
+
    const error_t expect[] = {
       { 11, "unexpected identifier while parsing default_nettype directive, "
         "expecting one of wire, tri, tri0, tri1, wand, triand, wor, trior," },
       { 15, "no visible declaration for x" },
-      { 29, "unexpected wire while parsing unconnected_drive directive, expecting one of pull0 or pull1" },
+      { 29, "unexpected wire while parsing unconnected_drive directive, "
+        "expecting one of pull0 or pull1" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -946,7 +957,7 @@ END_TEST
 
 START_TEST(test_tfcall1)
 {
-   input_from_file(TESTDIR "/vlog/tfcall1.v");
+   input_from_file(TESTDIR "/vlog/tfcall1.sv");
 
    const error_t expect[] = {
       {  8, "expected 2 arguments for 'sum' but have 1" },
@@ -973,6 +984,8 @@ END_TEST
 START_TEST(test_attr1)
 {
    input_from_file(TESTDIR "/vlog/attr1.v");
+
+   set_default_keywords(VLOG_1800_2023);
 
    const error_t expect[] = {
       { 11, "attribute instance is not allowed here" },
@@ -1045,6 +1058,50 @@ START_TEST(test_nets1)
 }
 END_TEST
 
+START_TEST(test_keywords)
+{
+   input_from_file(TESTDIR "/vlog/keywords.v");
+
+   const error_t expect[] = {
+      {  9, "'logic' is a keyword in System Verilog 1800-2005" },
+      { 13, "`end_keywords directive without matching `begin_keywords" },
+      { 14, "\"fizz\" is not a recognised Verilog or System Verilog version" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   for (int i = 0; i < 2; i++) {
+      vlog_node_t m = vlog_parse();
+      fail_if(m == NULL);
+      fail_unless(vlog_kind(m) == V_MODULE);
+   }
+
+   fail_unless(vlog_parse() == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
+START_TEST(test_error1)
+{
+   input_from_file(TESTDIR "/vlog/error1.v");
+
+   const error_t expect[] = {
+      {  2, "no data type declaration for 'foo'" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   vlog_node_t m = vlog_parse();
+   fail_if(m == NULL);
+   fail_unless(vlog_kind(m) == V_MODULE);
+
+   fail_unless(vlog_parse() == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_vlog_tests(void)
 {
    Suite *s = suite_create("vlog");
@@ -1082,6 +1139,8 @@ Suite *get_vlog_tests(void)
    tcase_add_test(tc, test_attr1);
    tcase_add_test(tc, test_initial1);
    tcase_add_test(tc, test_nets1);
+   tcase_add_test(tc, test_keywords);
+   tcase_add_test(tc, test_error1);
    suite_add_tcase(s, tc);
 
    return s;

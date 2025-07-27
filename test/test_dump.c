@@ -477,6 +477,8 @@ START_TEST(test_vlog1)
 {
    input_from_file(TESTDIR "/dump/vlog1.v");
 
+   set_default_keywords(VLOG_1800_2023);
+
    vlog_node_t m1 = vlog_parse();
    fail_if(m1 == NULL);
 

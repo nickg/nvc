@@ -261,6 +261,27 @@ Comments starting with
 are ignored.  Alternatively this argument may be passed as
 .Ar @list
 for compatibility with other tools.
+.\" --keywords
+.It Fl \-keywords Ns = Ns Ar version
+Use the set of keywords from the given Verilog or System Verilog
+standard version.  The set of allowed versions is the same as those
+accepted by the
+.Ql `begin_keywords
+directive.  For example
+.Ql "1364-2001"
+or
+.Ql "1800-2017" .
+In the absence of this option or a
+.Ql `begin_keywords
+directive, the default is
+.Ql "1364-2001"
+for files with a
+.Ql .v
+extension, and
+.Ql "1800-2023"
+for files with a
+.Ql .sv
+extension.
 .\" --no-save
 .It Fl \-no\-save
 Do not save analysed design units to the working library.  This can be

@@ -39,6 +39,18 @@ typedef enum {
 
 typedef int token_t;
 
+typedef enum {
+   VLOG_1364_1995,
+   VLOG_1364_2001_NOCONFIG,
+   VLOG_1364_2001,
+   VLOG_1364_2005,
+   VLOG_1800_2005,
+   VLOG_1800_2009,
+   VLOG_1800_2012,
+   VLOG_1800_2017,
+   VLOG_1800_2023,
+} vlog_version_t;
+
 void input_from_file(const char *file);
 void input_from_buffer(const char *buf, size_t len, hdl_kind_t hdl);
 hdl_kind_t source_kind(void);
@@ -58,6 +70,14 @@ void scan_as_verilog(void);
 void scan_as_udp(void);
 void scan_as_sdf(void);
 void scan_as_sdf_expr(void);
+
+const char *verilog_version_string(vlog_version_t vers);
+bool parse_verilog_version(const char *str, vlog_version_t *vers);
+
+void set_default_keywords(vlog_version_t vers);
+void push_keywords(vlog_version_t vers);
+bool pop_keywords(void);
+bool get_verilog_keywords(vlog_version_t *vers);
 
 // Private interface to Flex scanners
 

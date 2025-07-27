@@ -73,6 +73,9 @@
 #define TOKEN_08(t) TOKEN_LRM(t, STD_08)
 #define TOKEN_19(t) TOKEN_LRM(t, STD_19)
 
+#define KEYWORD_2001(t) verilog_keyword(t, VLOG_1364_2001);
+#define KEYWORD_2005(t) verilog_keyword(t, VLOG_1800_2005);
+
 static int parse_id(char *str);
 static int parse_ex_id(char *str);
 static int parse_bit_string(const char *str);
@@ -87,6 +90,7 @@ static bool begin_psl_comment(void);
 static int escape_verilog_string(const char *str);
 static int report_unterminated_string(const char *str);
 static int report_bad_identifier(char *str);
+static int verilog_keyword(int token, vlog_version_t vers);
 
 static int last_token = -1;
 static int comment_caller = 0;
@@ -629,9 +633,9 @@ BEFORE            ?i:before
 <VLOG>"inout"            { return tINOUT; }
 <VLOG>"reg"              { return tREG; }
 <VLOG>"always"           { return tALWAYS; }
-<VLOG>"always_ff"        { return tALWAYSFF; }
-<VLOG>"always_comb"      { return tALWAYSCOMB; }
-<VLOG>"always_latch"     { return tALWAYSLATCH; }
+<VLOG>"always_ff"        { return KEYWORD_2005(tALWAYSFF); }
+<VLOG>"always_comb"      { return KEYWORD_2005(tALWAYSCOMB); }
+<VLOG>"always_latch"     { return KEYWORD_2005(tALWAYSLATCH); }
 <VLOG>"posedge"          { return tPOSEDGE; }
 <VLOG>"negedge"          { return tNEGEDGE; }
 <VLOG>"initial"          { return tINITIAL; }
@@ -646,7 +650,7 @@ BEFORE            ?i:before
 <VLOG>"wor"              { return tWOR; }
 <VLOG>"trior"            { return tTRIOR; }
 <VLOG>"trireg"           { return tTRIREG; }
-<VLOG>"uwire"            { return tUWIRE; }
+<VLOG>"uwire"            { return KEYWORD_2005(tUWIRE); }
 <VLOG>"none"             { return tNONE; }
 <VLOG>"assign"           { return tASSIGN; }
 <VLOG>"deassign"         { return tDEASSIGN; }
@@ -654,7 +658,7 @@ BEFORE            ?i:before
 <VLOG>"else"             { return tELSE; }
 <VLOG>"fork"             { return tFORK; }
 <VLOG>"join"             { return tJOIN; }
-<VLOG>"automatic"        { return tAUTOMATIC; }
+<VLOG>"automatic"        { return KEYWORD_2001(tAUTOMATIC); }
 <VLOG>"`timescale"       { return tTIMESCALE; }
 <VLOG>"`default_nettype" { return tDEFNETTYPE; }
 <VLOG>"`celldefine"      { }
@@ -705,7 +709,7 @@ BEFORE            ?i:before
 <VLOG>"^"                { return tCARET; }
 <VLOG>("~^"|"^~")        { return tTILDECARET; }
 <VLOG>"->"               { return tIFIMPL; }
-<VLOG>"var"              { return tVAR; }
+<VLOG>"var"              { return KEYWORD_2005(tVAR); }
 <VLOG>"specify"          { return tSPECIFY; }
 <VLOG>"endspecify"       { return tENDSPECIFY; }
 <VLOG>"primitive"        { return tPRIMITIVE; }
@@ -720,37 +724,37 @@ BEFORE            ?i:before
 <VLOG>"xnor"             { return tXNOR; }
 <VLOG>"not"              { return tNOT; }
 <VLOG>"buf"              { return tBUF; }
-<VLOG>"struct"           { return tSTRUCT; }
-<VLOG>"packed"           { return tPACKED; }
-<VLOG>"void"             { return tVOID; }
-<VLOG>"byte"             { return tBYTE; }
-<VLOG>"shortint"         { return tSHORTINT; }
-<VLOG>"longint"          { return tLONGINT; }
-<VLOG>"int"              { return tSVINT; }
+<VLOG>"struct"           { return KEYWORD_2005(tSTRUCT); }
+<VLOG>"packed"           { return KEYWORD_2005(tPACKED); }
+<VLOG>"void"             { return KEYWORD_2005(tVOID); }
+<VLOG>"byte"             { return KEYWORD_2005(tBYTE); }
+<VLOG>"shortint"         { return KEYWORD_2005(tSHORTINT); }
+<VLOG>"longint"          { return KEYWORD_2005(tLONGINT); }
+<VLOG>"int"              { return KEYWORD_2005(tSVINT); }
 <VLOG>"integer"          { return tINTEGER; }
 <VLOG>"real"             { return tSVREAL; }
-<VLOG>"shortreal"        { return tSHORTREAL; }
-<VLOG>"realtime"         { return tREALTIME; }
+<VLOG>"shortreal"        { return KEYWORD_2005(tSHORTREAL); }
+<VLOG>"realtime"         { return KEYWORD_2005(tREALTIME); }
 <VLOG>"time"             { return tTIME; }
-<VLOG>"typedef"          { return tTYPEDEF; }
-<VLOG>"bit"              { return tBIT; }
-<VLOG>"logic"            { return tLOGIC; }
-<VLOG>"enum"             { return tENUM; }
-<VLOG>"union"            { return tUNION; }
-<VLOG>"tagged"           { return tTAGGED; }
+<VLOG>"typedef"          { return KEYWORD_2005(tTYPEDEF); }
+<VLOG>"bit"              { return KEYWORD_2005(tBIT); }
+<VLOG>"logic"            { return KEYWORD_2005(tLOGIC); }
+<VLOG>"enum"             { return KEYWORD_2005(tENUM); }
+<VLOG>"union"            { return KEYWORD_2005(tUNION); }
+<VLOG>"tagged"           { return KEYWORD_2005(tTAGGED); }
 <VLOG>"while"            { return tWHILE; }
 <VLOG>"repeat"           { return tREPEAT; }
-<VLOG>"do"               { return tDO; }
+<VLOG>"do"               { return KEYWORD_2005(tDO); }
 <VLOG>"task"             { return tTASK; }
 <VLOG>"endtask"          { return tENDTASK; }
 <VLOG>"function"         { return tFUNCTION; }
 <VLOG>"endfunction"      { return tENDFUNCTION; }
-<VLOG>"generate"         { return tGENERATE; }
-<VLOG>"endgenerate"      { return tENDGENERATE; }
+<VLOG>"generate"         { return KEYWORD_2001(tGENERATE); }
+<VLOG>"endgenerate"      { return KEYWORD_2001(tENDGENERATE); }
 <VLOG>"wait"             { return tWAIT; }
 <VLOG>"parameter"        { return tPARAMETER; }
 <VLOG>"for"              { return tFOR; }
-<VLOG>"localparam"       { return tLOCALPARAM; }
+<VLOG>"localparam"       { return KEYWORD_2001(tLOCALPARAM); }
 <VLOG>"case"             { return tCASE; }
 <VLOG>"casex"            { return tCASEX; }
 <VLOG>"casez"            { return tCASEZ; }
@@ -770,7 +774,7 @@ BEFORE            ?i:before
 <VLOG>"$recrem"          { return tDLRRECREM; }
 <VLOG>"$width"           { return tDLRWIDTH; }
 <VLOG>"event"            { return tEVENT; }
-<VLOG>"genvar"           { return tGENVAR; }
+<VLOG>"genvar"           { return KEYWORD_2001(tGENVAR); }
 
 <VLOG>"`unconnected_drive"   { return tUNCTDRIVE; }
 <VLOG>"`nounconnected_drive" { return tNOUNCTDRIVE; }
@@ -1233,6 +1237,36 @@ static void warn_utf8(const char *text)
 
       warned = true;
    }
+}
+
+static int verilog_keyword(int token, vlog_version_t vers)
+{
+   vlog_version_t cur;
+   const bool explicit = get_verilog_keywords(&cur);
+
+   if (cur >= vers)
+      return token;
+
+   static bool warned = false;
+   if (!explicit && !warned) {
+      const char *cur_str = verilog_version_string(cur);
+      const char *ver_str = verilog_version_string(vers);
+
+      diag_t *d = diag_new(DIAG_WARN, &yylloc);
+      diag_printf(d, "'%s' is a keyword in %sVerilog %s", yytext,
+                  vers >= VLOG_1800_2005 ? "System " : "", ver_str);
+      diag_hint(d, NULL, "the current Verilog version is %s", cur_str);
+      diag_hint(d, NULL, "use $bold$--keywords=%s$$ or $bold$`begin_keywords "
+                "\"%s\"$$ to parse this as a keyword", ver_str, ver_str);
+      diag_hint(d, NULL, "use $bold$--keywords=%s$$ or $bold$`begin_keywords "
+                "\"%s\"$$ to suppress this warning", cur_str, cur_str);
+      diag_emit(d);
+
+      warned = true;
+   }
+
+   yylval.ident = ident_new(yytext);
+   return tID;
 }
 
 void reset_scanner(void)

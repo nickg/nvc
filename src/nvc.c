@@ -196,6 +196,7 @@ static int analyse(int argc, char **argv, cmd_state_t *state)
       { "no-save",         no_argument,       0, 'N' },
       { "single-unit",     no_argument,       0, 'u' },
       { "preserve-case",   no_argument,       0, 'p' },
+      { "keywords",        required_argument, 0, 'k' },
       { 0, 0, 0, 0 }
    };
 
@@ -251,6 +252,15 @@ static int analyse(int argc, char **argv, cmd_state_t *state)
          break;
       case 'p':
          opt_set_int(OPT_PRESERVE_CASE, 1);
+         break;
+      case 'k':
+         {
+            vlog_version_t vers;
+            if (parse_verilog_version(optarg, &vers))
+               push_keywords(vers);
+            else
+               fatal("'%s' is not a valid Verilog version", optarg);
+         }
          break;
       default:
          should_not_reach_here();
@@ -2179,6 +2189,8 @@ static void usage(void)
              "Set preprocessor symbol NAME to VALUE" },
            { "--error-limit=NUM", "Stop after NUM errors" },
            { "-f, --files=LIST", "Read files to analyse from LIST" },
+           { "--keywords=VERSION",
+             "Use keywords from specified Verilog version" },
            { "--no-save", "Do not save analysed design units" },
            { "--preserve-case",
              "Preserve the original case of VHDL identifiers" },

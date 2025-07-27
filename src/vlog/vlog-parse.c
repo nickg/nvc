@@ -916,8 +916,11 @@ static vlog_node_t p_data_type(void)
       {
          ident_t id = p_identifier();
          vlog_node_t dt = vlog_symtab_query(symtab, id);
-         if (dt == NULL)
-            should_not_reach_here();   // Guarded by peek_reference() call
+         if (dt == NULL) {
+            error_at(&state.last_loc, "no data type declaration for '%s'",
+                     istr(id));
+            return logic_type();
+         }
          else if (!is_data_type(dt)) {
             diag_t *d = diag_new(DIAG_ERROR, &state.last_loc);
             diag_printf(d, "'%s' is not a data type", istr(id));
@@ -6142,8 +6145,17 @@ static void p_keywords_directive(void)
    BEGIN("keywords directive");
 
    consume(tBEGINKEYWORDS);
-
    consume(tSTRING);
+
+   state.last_lval.str[strlen(state.last_lval.str) - 1] = '\0';
+
+   vlog_version_t vers;
+   if (parse_verilog_version(state.last_lval.str + 1, &vers))
+      push_keywords(vers);
+   else
+      error_at(&state.last_loc, "\"%s\" is not a recognised Verilog or System "
+               "Verilog version", state.last_lval.str + 1);
+
    free(state.last_lval.str);
 }
 
@@ -6154,6 +6166,10 @@ static void p_endkeywords_directive(void)
    BEGIN("endkeywords directive");
 
    consume(tENDKEYWORDS);
+
+   if (!pop_keywords())
+      error_at(&state.last_loc, "`end_keywords directive without matching "
+               "`begin_keywords");
 }
 
 static void p_resetall_directive(void)
