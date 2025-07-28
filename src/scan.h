@@ -503,5 +503,6 @@ void reset_sdf_parser(void);
 #define tDEASSIGN      582
 #define tSIGNED        583
 #define tUNSIGNED      584
+#define tDISABLE       585
 
 #endif  // _SCAN_H

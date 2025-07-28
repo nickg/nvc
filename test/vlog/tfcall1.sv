@@ -32,4 +32,8 @@ module tfcall1;
     //y = x * 2;    // OK (TODO)
   endtask // task1
 
+  initial main;    // OK
+
+  task main; endtask
+
 endmodule // tfcall1

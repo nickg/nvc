@@ -145,6 +145,7 @@ typedef enum {
    V_DEASSIGN,
    V_FORCE,
    V_RELEASE,
+   V_DISABLE,
 
    V_LAST_NODE_KIND
 } vlog_kind_t;
@@ -201,6 +202,7 @@ typedef enum {
    V_BINARY_EXP,
    V_BINARY_XOR,
    V_BINARY_XNOR,
+   V_BINARY_NAND,
 } vlog_binary_t;
 
 typedef enum {
@@ -211,6 +213,7 @@ typedef enum {
    V_UNARY_AND,
    V_UNARY_OR,
    V_UNARY_XOR,
+   V_UNARY_NAND,
 } vlog_unary_t;
 
 typedef enum {

@@ -258,6 +258,9 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
 
    // V_RELEASE
    (I_TARGET | I_VALUE),
+
+   // V_DISABLE
+   (I_IDENT),
 };
 
 static const char *kind_text_map[V_LAST_NODE_KIND] = {
@@ -280,7 +283,7 @@ static const char *kind_text_map[V_LAST_NODE_KIND] = {
    "V_EVENT_TRIGGER", "V_USER_FCALL",  "V_UDP_LEVEL",     "V_UDP_EDGE",
    "V_SPECPARAM",     "V_FORK",        "V_ATTR_INST",     "V_USER_TCALL",
    "V_VOID_CALL",     "V_GENVAR_DECL", "V_FOR_GENERATE",  "V_DEASSIGN",
-   "V_FORCE",         "V_RELEASE",
+   "V_FORCE",         "V_RELEASE",     "V_DISABLE",
 };
 
 static const change_allowed_t change_allowed[] = {

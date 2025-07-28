@@ -107,10 +107,12 @@ module parse1;
     x = y ^ z;
     x = y ~^ z;
     x = y ^~ z;
+    x = ~&(y);
     assign x = y;
     deassign x;
     force x = 1;
     release x;
+    disable task1;
   end
   triand w4;
   trior  w5;
@@ -133,4 +135,5 @@ module parse1;
   assign x = 6'o02;
   wire signed [3:0] w8[-7:7];
   var int unsigned uns;
+  logic v1;
 endmodule // parse1

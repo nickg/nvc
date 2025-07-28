@@ -708,6 +708,7 @@ BEFORE            ?i:before
 <VLOG>"**"               { return tPOWER; }
 <VLOG>"^"                { return tCARET; }
 <VLOG>("~^"|"^~")        { return tTILDECARET; }
+<VLOG>"~&"               { return tTILDEAMP; }
 <VLOG>"->"               { return tIFIMPL; }
 <VLOG>"var"              { return KEYWORD_2005(tVAR); }
 <VLOG>"specify"          { return tSPECIFY; }
@@ -767,6 +768,7 @@ BEFORE            ?i:before
 <VLOG>"release"          { return tRELEASE; }
 <VLOG>"signed"           { return tSIGNED; }
 <VLOG>"unsigned"         { return tUNSIGNED; }
+<VLOG>"disable"          { return tDISABLE; }
 <VLOG>"*>"               { return tTIMESGT; }
 <VLOG>"$setup"           { return tDLRSETUP; }
 <VLOG>"$hold"            { return tDLRHOLD; }

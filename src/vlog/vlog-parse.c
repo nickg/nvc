@@ -1466,7 +1466,8 @@ static vlog_binary_t p_binary_operator(void)
    switch (one_of(tBAR, tPLUS, tAMP, tCASEEQ, tCASENEQ, tLOGOR,
                   tLOGEQ, tLOGNEQ, tDBLAMP, tSHIFTLL, tSHIFTRL,
                   tSHIFTLA, tSHIFTRA, tLT, tGT, tLE, tGE, tMINUS,
-                  tTIMES, tOVER, tPERCENT, tPOWER, tCARET, tTILDECARET)) {
+                  tTIMES, tOVER, tPERCENT, tPOWER, tCARET, tTILDECARET,
+                  tTILDEAMP)) {
    case tBAR:        return V_BINARY_OR;
    case tAMP:        return V_BINARY_AND;
    case tCASEEQ:     return V_BINARY_CASE_EQ;
@@ -1490,6 +1491,7 @@ static vlog_binary_t p_binary_operator(void)
    case tPOWER:      return V_BINARY_EXP;
    case tCARET:      return V_BINARY_XOR;
    case tTILDECARET: return V_BINARY_XNOR;
+   case tTILDEAMP:   return V_BINARY_NAND;
    case tPLUS:
    default:          return V_BINARY_PLUS;
    }
@@ -1501,15 +1503,17 @@ static vlog_unary_t p_unary_operator(void)
 
    BEGIN("unary operator");
 
-   switch (one_of(tMINUS, tPLUS, tTILDE, tBANG, tAMP, tBAR, tCARET)) {
-   case tMINUS: return V_UNARY_NEG;
-   case tTILDE: return V_UNARY_BITNEG;
-   case tBANG: return V_UNARY_NOT;
-   case tAMP: return V_UNARY_AND;
-   case tBAR: return V_UNARY_OR;
-   case tCARET: return V_UNARY_XOR;
+   switch (one_of(tMINUS, tPLUS, tTILDE, tBANG, tAMP, tBAR, tCARET,
+                  tTILDEAMP)) {
+   case tMINUS:    return V_UNARY_NEG;
+   case tTILDE:    return V_UNARY_BITNEG;
+   case tBANG:     return V_UNARY_NOT;
+   case tAMP:      return V_UNARY_AND;
+   case tBAR:      return V_UNARY_OR;
+   case tCARET:    return V_UNARY_XOR;
+   case tTILDEAMP: return V_UNARY_NAND;
    case tPLUS:
-   default: return V_UNARY_IDENTITY;
+   default:        return V_UNARY_IDENTITY;
    }
 }
 
@@ -1564,6 +1568,7 @@ static vlog_node_t p_nonbinary_expression(void)
    case tAMP:
    case tBAR:
    case tCARET:
+   case tTILDEAMP:
       {
          vlog_node_t v = vlog_new(V_UNARY);
          vlog_set_subkind(v, p_unary_operator());
@@ -2504,6 +2509,25 @@ static vlog_node_t p_procedural_continuous_assignment(void)
    }
 }
 
+static vlog_node_t p_disable_statement(void)
+{
+   // disable hierarchical_task_identifier ;
+   //   | disable hierarchical_block_identifier ;
+   //   | disable fork ;
+
+   BEGIN("disable statement");
+
+   consume(tDISABLE);
+
+   vlog_node_t v = vlog_new(V_DISABLE);
+   vlog_set_ident(v, p_identifier());
+
+   consume(tSEMI);
+
+   vlog_set_loc(v, CURRENT_LOC);
+   return v;
+}
+
 static vlog_node_t p_statement_item(void)
 {
    // blocking_assignment ; | nonblocking_assignment ;
@@ -2520,19 +2544,25 @@ static vlog_node_t p_statement_item(void)
 
    switch (peek()) {
    case tID:
-      if (peek_nth(2) == tLPAREN)
+      switch (peek_nth(2)) {
+      case tLPAREN:
+      case tSEMI:
          return p_subroutine_call_statement();
-      else {
-         vlog_node_t lhs = p_variable_lvalue(), v = NULL;
+      default:
+         {
+            vlog_node_t lhs = p_variable_lvalue(), v = NULL;
 
-         if (peek() == tLE)
-            v = p_nonblocking_assignment(lhs);
-         else
-            v = p_blocking_assignment(lhs);
+            if (peek() == tLE)
+               v = p_nonblocking_assignment(lhs);
+            else
+               v = p_blocking_assignment(lhs);
 
-         consume(tSEMI);
-         return v;
+            consume(tSEMI);
+            return v;
+         }
       }
+   case tDISABLE:
+      return p_disable_statement();
    case tAT:
    case tHASH:
       return p_procedural_timing_control_statement();
@@ -3502,6 +3532,7 @@ static void p_package_or_generate_item_declaration(vlog_node_t mod)
    case tEVENT:
    case tID:
    case tVAR:
+   case tLOGIC:
       p_data_declaration(mod);
       break;
    case tTASK:
@@ -3522,7 +3553,7 @@ static void p_package_or_generate_item_declaration(vlog_node_t mod)
       one_of(tWIRE, tUWIRE, tSUPPLY0, tSUPPLY1, tTRI, tTRI0, tTRI1, tTRIAND,
              tTRIOR, tTRIREG, tWAND, tWOR, tINTERCONNECT, tREG, tSTRUCT, tUNION,
              tTYPEDEF, tENUM, tSVINT, tINTEGER, tSVREAL, tSHORTREAL, tREALTIME,
-             tTIME, tEVENT, tID, tVAR, tTASK, tFUNCTION, tLOCALPARAM,
+             tTIME, tEVENT, tID, tVAR, tLOGIC, tTASK, tFUNCTION, tLOCALPARAM,
              tPARAMETER);
       drop_tokens_until(tSEMI);
       break;
@@ -3848,6 +3879,7 @@ static void p_module_common_item(vlog_node_t mod)
    case tID:
    case tGENVAR:
    case tVAR:
+   case tLOGIC:
       p_module_or_generate_item_declaration(mod);
       break;
    case tASSIGN:
@@ -3865,7 +3897,7 @@ static void p_module_common_item(vlog_node_t mod)
              tWAND, tWOR, tINTERCONNECT, tREG, tSTRUCT, tUNION, tTYPEDEF, tENUM,
              tSVINT, tINTEGER, tSVREAL, tSHORTREAL, tREALTIME, tTIME, tTASK,
              tFUNCTION, tPARAMETER, tLOCALPARAM, tEVENT, tID, tGENVAR, tVAR,
-             tASSIGN, tFOR, tIF);
+             tLOGIC, tASSIGN, tFOR, tIF);
       drop_tokens_until(tSEMI);
    }
 }
@@ -5106,6 +5138,7 @@ static void p_module_or_generate_item(vlog_node_t mod)
    case tEVENT:
    case tGENVAR:
    case tVAR:
+   case tLOGIC:
       p_module_common_item(mod);
       break;
    case tPULLDOWN:
@@ -5135,8 +5168,8 @@ static void p_module_or_generate_item(vlog_node_t mod)
              tWAND, tWOR, tINTERCONNECT, tREG, tSTRUCT, tUNION, tASSIGN,
              tINITIAL, tTYPEDEF, tENUM, tSVINT, tINTEGER, tSVREAL, tSHORTREAL,
              tREALTIME, tTIME, tTASK, tFUNCTION, tLOCALPARAM, tPARAMETER, tIF,
-             tFOR, tEVENT, tGENVAR, tVAR, tPULLDOWN, tPULLUP, tID, tAND, tNAND,
-             tOR, tNOR, tXOR, tXNOR, tNOT, tBUF);
+             tFOR, tEVENT, tGENVAR, tVAR, tLOGIC, tPULLDOWN, tPULLUP, tID, tAND,
+             tNAND, tOR, tNOR, tXOR, tXNOR, tNOT, tBUF);
       drop_tokens_until(tSEMI);
    }
 }
@@ -5219,6 +5252,7 @@ static void p_non_port_module_item(vlog_node_t mod)
    case tFOR:
    case tGENVAR:
    case tVAR:
+   case tLOGIC:
       p_module_or_generate_item(mod);
       break;
    case tSPECIFY:
@@ -5234,7 +5268,8 @@ static void p_non_port_module_item(vlog_node_t mod)
              tPULLDOWN, tPULLUP, tID, tATTRBEGIN, tAND, tNAND, tOR, tNOR, tXOR,
              tXNOR, tNOT, tBUF, tTYPEDEF, tENUM, tSVINT, tINTEGER, tSVREAL,
              tSHORTREAL, tREALTIME, tTIME, tTASK, tFUNCTION, tLOCALPARAM,
-             tPARAMETER, tEVENT, tIF, tFOR, tGENVAR, tVAR, tSPECIFY, tGENERATE);
+             tPARAMETER, tEVENT, tIF, tFOR, tGENVAR, tVAR, tLOGIC, tSPECIFY,
+             tGENERATE);
       drop_tokens_until(tSEMI);
    }
 }

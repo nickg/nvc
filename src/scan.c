@@ -280,7 +280,7 @@ const char *token_str(token_t tok)
          "genvar", "highz0", "highz1", "strong0", "strong1", "pull0", "pull1",
          "weak0", "weak1", "small", "medium", "large", "vectored", "scalared",
          "`unconnected_drive", "`nounconnected_drive", "deassign", "signed",
-         "unsigned",
+         "unsigned", "disable",
       };
 
       if (tok >= 200 && tok - 200 < ARRAY_LEN(token_strs))
