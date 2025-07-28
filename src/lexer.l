@@ -765,6 +765,8 @@ BEFORE            ?i:before
 <VLOG>"specparam"        { return tSPECPARAM; }
 <VLOG>"force"            { return tFORCE; }
 <VLOG>"release"          { return tRELEASE; }
+<VLOG>"signed"           { return tSIGNED; }
+<VLOG>"unsigned"         { return tUNSIGNED; }
 <VLOG>"*>"               { return tTIMESGT; }
 <VLOG>"$setup"           { return tDLRSETUP; }
 <VLOG>"$hold"            { return tDLRHOLD; }
@@ -782,7 +784,7 @@ BEFORE            ?i:before
 <VLOG>{SYSTASK}          { yylval.ident = ident_new(yytext); return tSYSTASK; }
 <VLOG>{VLOG_ID}          { yylval.ident = ident_new(yytext); return tID; }
 <VLOG>{VLOG_ESCAPED}     { yylval.ident = ident_new(yytext + 1); return tID; }
-<VLOG>{INTEGER}          { yylval.str = xstrdup(yytext); return tUNSIGNED; }
+<VLOG>{INTEGER}          { yylval.str = xstrdup(yytext); return tUNSNUM; }
 <VLOG>{VLOG_STRING}      { return escape_verilog_string(yytext); }
 <VLOG>{VLOG_NUMBER}      { yylval.str = xstrdup(yytext); return tNUMBER; }
 <VLOG>{VLOG_REAL}        { return parse_verilog_real(yytext); };

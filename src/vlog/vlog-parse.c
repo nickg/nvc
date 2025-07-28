@@ -501,7 +501,7 @@ static vlog_node_t p_unsigned_number(void)
 
    BEGIN("unsigned number");
 
-   consume(tUNSIGNED);
+   consume(tUNSNUM);
 
    vlog_node_t v = vlog_new(V_NUMBER);
    vlog_set_loc(v, CURRENT_LOC);
@@ -516,7 +516,7 @@ static vlog_node_t p_integral_number(void)
 
    BEGIN("integral number");
 
-   if (peek() == tUNSIGNED)
+   if (peek() == tUNSNUM)
       return p_unsigned_number();
    else {
       consume(tNUMBER);
@@ -579,13 +579,13 @@ static vlog_node_t p_primary_literal(void)
 
    switch (peek()) {
    case tNUMBER:
-   case tUNSIGNED:
+   case tUNSNUM:
    case tREAL:
       return p_number();
    case tSTRING:
       return p_string_literal();
    default:
-      one_of(tNUMBER, tUNSIGNED, tREAL, tSTRING);
+      one_of(tNUMBER, tUNSNUM, tREAL, tSTRING);
       return dummy_expression();
    }
 }
@@ -812,6 +812,15 @@ static vlog_node_t p_struct_union(void)
    }
 }
 
+static void p_signing(void)
+{
+   // signed | unsigned
+
+   BEGIN("signing");
+
+   one_of(tSIGNED, tUNSIGNED);
+}
+
 static vlog_node_t p_data_type(void)
 {
    // integer_vector_type [ signing ] { packed_dimension }
@@ -835,6 +844,9 @@ static vlog_node_t p_data_type(void)
       {
          vlog_node_t v = p_integer_vector_type();
 
+         if (scan(tSIGNED, tUNSIGNED))
+            p_signing();
+
          while (peek() == tLSQUARE)
             vlog_add_range(v, p_packed_dimension());
 
@@ -847,7 +859,14 @@ static vlog_node_t p_data_type(void)
    case tLONGINT:
    case tINTEGER:
    case tTIME:
-      return p_integer_atom_type();
+      {
+         vlog_node_t v = p_integer_atom_type();
+
+         if (scan(tSIGNED, tUNSIGNED))
+            p_signing();
+
+         return v;
+      }
 
    case tSVREAL:
    case tREALTIME:
@@ -949,6 +968,9 @@ static vlog_node_t p_implicit_data_type(void)
 
    vlog_node_t v = vlog_new(V_DATA_TYPE);
    vlog_set_subkind(v, DT_LOGIC);
+
+   if (scan(tSIGNED, tUNSIGNED))
+      p_signing();
 
    while (peek() == tLSQUARE)
       vlog_add_range(v, p_packed_dimension());
@@ -1404,7 +1426,7 @@ static vlog_node_t p_primary(void)
          return p_select(p_identifier());
    case tSTRING:
    case tNUMBER:
-   case tUNSIGNED:
+   case tUNSNUM:
    case tREAL:
       return p_primary_literal();
    case tSYSTASK:
@@ -1427,7 +1449,7 @@ static vlog_node_t p_primary(void)
             return p_concatenation(head);
       }
    default:
-      one_of(tID, tSTRING, tNUMBER, tUNSIGNED, tREAL, tSYSTASK, tLPAREN,
+      one_of(tID, tSTRING, tNUMBER, tUNSNUM, tREAL, tSYSTASK, tLPAREN,
              tLBRACE);
       return p_select(error_marker());
    }
@@ -1529,7 +1551,7 @@ static vlog_node_t p_nonbinary_expression(void)
    case tID:
    case tSTRING:
    case tNUMBER:
-   case tUNSIGNED:
+   case tUNSNUM:
    case tREAL:
    case tSYSTASK:
    case tLPAREN:
@@ -1553,7 +1575,7 @@ static vlog_node_t p_nonbinary_expression(void)
    case tMINUSMINUS:
       return p_inc_or_dec_expression(NULL);
    default:
-      one_of(tID, tSTRING, tNUMBER, tUNSIGNED, tREAL, tSYSTASK, tLPAREN,
+      one_of(tID, tSTRING, tNUMBER, tUNSNUM, tREAL, tSYSTASK, tLPAREN,
              tLBRACE, tMINUS, tTILDE, tBANG, tAMP, tBAR, tCARET, tPLUSPLUS,
              tMINUSMINUS);
       return p_select(error_marker());
@@ -3025,6 +3047,8 @@ static void p_data_declaration(vlog_node_t mod)
 
    default:
       {
+         optional(tVAR);
+
          vlog_node_t dt = p_data_type_or_implicit();
          p_list_of_variable_decl_assignments(mod, dt);
 
@@ -3477,6 +3501,7 @@ static void p_package_or_generate_item_declaration(vlog_node_t mod)
    case tTIME:
    case tEVENT:
    case tID:
+   case tVAR:
       p_data_declaration(mod);
       break;
    case tTASK:
@@ -3497,7 +3522,8 @@ static void p_package_or_generate_item_declaration(vlog_node_t mod)
       one_of(tWIRE, tUWIRE, tSUPPLY0, tSUPPLY1, tTRI, tTRI0, tTRI1, tTRIAND,
              tTRIOR, tTRIREG, tWAND, tWOR, tINTERCONNECT, tREG, tSTRUCT, tUNION,
              tTYPEDEF, tENUM, tSVINT, tINTEGER, tSVREAL, tSHORTREAL, tREALTIME,
-             tTIME, tEVENT, tTASK, tFUNCTION, tLOCALPARAM, tPARAMETER);
+             tTIME, tEVENT, tID, tVAR, tTASK, tFUNCTION, tLOCALPARAM,
+             tPARAMETER);
       drop_tokens_until(tSEMI);
       break;
    }
@@ -3821,6 +3847,7 @@ static void p_module_common_item(vlog_node_t mod)
    case tEVENT:
    case tID:
    case tGENVAR:
+   case tVAR:
       p_module_or_generate_item_declaration(mod);
       break;
    case tASSIGN:
@@ -3837,8 +3864,8 @@ static void p_module_common_item(vlog_node_t mod)
              tSUPPLY0, tSUPPLY1, tTRI, tTRI0, tTRI1, tTRIAND, tTRIOR, tTRIREG,
              tWAND, tWOR, tINTERCONNECT, tREG, tSTRUCT, tUNION, tTYPEDEF, tENUM,
              tSVINT, tINTEGER, tSVREAL, tSHORTREAL, tREALTIME, tTIME, tTASK,
-             tFUNCTION, tPARAMETER, tLOCALPARAM, tEVENT, tID, tGENVAR, tASSIGN,
-             tFOR, tIF);
+             tFUNCTION, tPARAMETER, tLOCALPARAM, tEVENT, tID, tGENVAR, tVAR,
+             tASSIGN, tFOR, tIF);
       drop_tokens_until(tSEMI);
    }
 }
@@ -5078,6 +5105,7 @@ static void p_module_or_generate_item(vlog_node_t mod)
    case tFOR:
    case tEVENT:
    case tGENVAR:
+   case tVAR:
       p_module_common_item(mod);
       break;
    case tPULLDOWN:
@@ -5107,8 +5135,8 @@ static void p_module_or_generate_item(vlog_node_t mod)
              tWAND, tWOR, tINTERCONNECT, tREG, tSTRUCT, tUNION, tASSIGN,
              tINITIAL, tTYPEDEF, tENUM, tSVINT, tINTEGER, tSVREAL, tSHORTREAL,
              tREALTIME, tTIME, tTASK, tFUNCTION, tLOCALPARAM, tPARAMETER, tIF,
-             tFOR, tEVENT, tGENVAR, tPULLDOWN, tPULLUP, tID, tAND, tNAND, tOR,
-             tNOR, tXOR, tXNOR, tNOT, tBUF);
+             tFOR, tEVENT, tGENVAR, tVAR, tPULLDOWN, tPULLUP, tID, tAND, tNAND,
+             tOR, tNOR, tXOR, tXNOR, tNOT, tBUF);
       drop_tokens_until(tSEMI);
    }
 }
@@ -5190,6 +5218,7 @@ static void p_non_port_module_item(vlog_node_t mod)
    case tIF:
    case tFOR:
    case tGENVAR:
+   case tVAR:
       p_module_or_generate_item(mod);
       break;
    case tSPECIFY:
@@ -5205,7 +5234,7 @@ static void p_non_port_module_item(vlog_node_t mod)
              tPULLDOWN, tPULLUP, tID, tATTRBEGIN, tAND, tNAND, tOR, tNOR, tXOR,
              tXNOR, tNOT, tBUF, tTYPEDEF, tENUM, tSVINT, tINTEGER, tSVREAL,
              tSHORTREAL, tREALTIME, tTIME, tTASK, tFUNCTION, tLOCALPARAM,
-             tPARAMETER, tEVENT, tIF, tFOR, tGENVAR, tSPECIFY, tGENERATE);
+             tPARAMETER, tEVENT, tIF, tFOR, tGENVAR, tVAR, tSPECIFY, tGENERATE);
       drop_tokens_until(tSEMI);
    }
 }
@@ -6079,7 +6108,7 @@ static void p_timescale_compiler_directive(void)
    BEGIN("timescale compiler directive");
 
    consume(tTIMESCALE);
-   consume(tUNSIGNED);
+   consume(tUNSNUM);
 
    const uint64_t unit_value = atoll(state.last_lval.str);
 
@@ -6088,7 +6117,7 @@ static void p_timescale_compiler_directive(void)
    const char *unit_name = istr(state.last_lval.ident);
 
    consume(tOVER);
-   consume(tUNSIGNED);
+   consume(tUNSNUM);
 
    const uint64_t prec_value = atoll(state.last_lval.str);
 

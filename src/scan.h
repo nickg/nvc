@@ -277,7 +277,7 @@ void reset_sdf_parser(void);
 #define tNEGEDGE       356
 #define tINITIAL       357
 #define tWIRE          358
-#define tUNSIGNED      359
+#define tUNSNUM        359
 #define tASSUME        360
 #define tASSUMEG       361
 #define tRESTRICT      362
@@ -501,5 +501,7 @@ void reset_sdf_parser(void);
 #define tUNCTDRIVE     580
 #define tNOUNCTDRIVE   581
 #define tDEASSIGN      582
+#define tSIGNED        583
+#define tUNSIGNED      584
 
 #endif  // _SCAN_H

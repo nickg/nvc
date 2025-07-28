@@ -243,7 +243,7 @@ const char *token_str(token_t tok)
          "->", "<->", "default", "clock", "next!", "never", "eventually!",
          "next_a", "next_a!", "next_e", "next_e!", "next_event", "next_event!",
          "module", "endmodule", "input", "output", "reg", "posedge", "negedge",
-         "initial", "wire", "unsigned", "assume", "assume_guarantee",
+         "initial", "wire", "unsigned number", "assume", "assume_guarantee",
          "restrict", "restrict_guarantee", "strong", "fairness", "cover",
          "property", "sequence", "const", "mutable", "hdltype", "boolean",
          "bit", "bitvector", "numeric", "string", "[*", "[+]", "[->", "[=",
@@ -279,7 +279,8 @@ const char *token_str(token_t tok)
          "`resetall", "event", "&&&", "specparam", "fork", "join", "automatic",
          "genvar", "highz0", "highz1", "strong0", "strong1", "pull0", "pull1",
          "weak0", "weak1", "small", "medium", "large", "vectored", "scalared",
-         "`unconnected_drive", "`nounconnected_drive", "deassign",
+         "`unconnected_drive", "`nounconnected_drive", "deassign", "signed",
+         "unsigned",
       };
 
       if (tok >= 200 && tok - 200 < ARRAY_LEN(token_strs))
@@ -513,7 +514,7 @@ static void pp_nvc_push(void)
    if ((tok = pp_yylex()) != tCOMMA)
       goto error;
 
-   if ((tok = pp_yylex()) != tUNSIGNED)
+   if ((tok = pp_yylex()) != tUNSNUM)
       goto error;
 
    first_line = atoi(yylval.str);
@@ -522,7 +523,7 @@ static void pp_nvc_push(void)
    if ((tok = pp_yylex()) != tCOLON)
       goto error;
 
-   if ((tok = pp_yylex()) != tUNSIGNED)
+   if ((tok = pp_yylex()) != tUNSNUM)
       goto error;
 
    first_column = atoi(yylval.str);
@@ -531,7 +532,7 @@ static void pp_nvc_push(void)
    if ((tok = pp_yylex()) != tCOMMA)
       goto error;
 
-   if ((tok = pp_yylex()) != tUNSIGNED)
+   if ((tok = pp_yylex()) != tUNSNUM)
       goto error;
 
    column_delta = atoi(yylval.str);

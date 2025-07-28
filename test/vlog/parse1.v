@@ -131,4 +131,6 @@ module parse1;
   end
   wire \wire[x]net; ;
   assign x = 6'o02;
+  wire signed [3:0] w8[-7:7];
+  var int unsigned uns;
 endmodule // parse1
