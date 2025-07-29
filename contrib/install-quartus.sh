@@ -49,9 +49,11 @@ $src/220pack.vhd
 $src/220model.vhd
 EOF
 
-    analyse_list altera_lnsim$(std_suffix $STD) <<EOF
+    if [ -f "$src/altera_lnsim_components.vhd" ]; then
+      analyse_list altera_lnsim$(std_suffix $STD) <<EOF
 $src/altera_lnsim_components.vhd
 EOF
+    fi
 
     analyse_list sgate$(std_suffix $STD) <<EOF
 $src/sgate_pack.vhd
@@ -68,24 +70,33 @@ $src/maxii_atoms.vhd
 $src/maxii_components.vhd
 EOF
 
-    analyse_list maxv$(std_suffix $STD) <<EOF
+    if [ -f "$src/maxv_atoms.vhd" ]; then
+      analyse_list maxv$(std_suffix $STD) <<EOF
 $src/maxv_atoms.vhd
 $src/maxv_components.vhd
 EOF
+    fi
 
-    analyse_list fiftyfivenm$(std_suffix $STD) <<EOF
+    if [ -f "$src/fiftyfivenm_atoms.vhd" ]; then
+      analyse_list fiftyfivenm$(std_suffix $STD) <<EOF
 $src/fiftyfivenm_atoms.vhd
 $src/fiftyfivenm_components.vhd
 EOF
+    fi
 
     analyse_list cycloneiv$(std_suffix $STD) <<EOF
 $src/cycloneiv_atoms.vhd
 $src/cycloneiv_components.vhd
 $src/cycloneiv_hssi_components.vhd
 $src/cycloneiv_hssi_atoms.vhd
+EOF
+
+    if [ -f "$src/cycloneive_atoms.vhd" ]; then
+      analyse_list cycloneiv$(std_suffix $STD) <<EOF
 $src/cycloneive_atoms.vhd
 $src/cycloneive_components.vhd
 EOF
+    fi
 
     # produces compilation error
     #  analyse_list cycloneiv_pcie_hip$(std_suffix $STD) <<EOF
@@ -93,17 +104,21 @@ EOF
     #$src/cycloneiv_pcie_hip_atoms.vhd
     #EOF
 
-    analyse_list cyclonev$(std_suffix $STD) <<EOF
+    if [ -f "$src/cyclonev_atoms.vhd" ]; then
+      analyse_list cyclonev$(std_suffix $STD) <<EOF
 $src/cyclonev_atoms.vhd
 $src/cyclonev_components.vhd
 $src/cyclonev_hssi_components.vhd
 $src/cyclonev_hssi_atoms.vhd
 EOF
+    fi
 
-    analyse_list cyclone10lp$(std_suffix $STD) <<EOF
+    if [ -f "$src/cyclone10lp_atoms.vhd" ]; then
+      analyse_list cyclone10lp$(std_suffix $STD) <<EOF
 $src/cyclone10lp_atoms.vhd
 $src/cyclone10lp_components.vhd
 EOF
+    fi
 
     analyse_list arriaii$(std_suffix $STD) <<EOF
 $src/arriaii_atoms.vhd
