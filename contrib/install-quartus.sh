@@ -170,29 +170,49 @@ $src/sgate/sgate_pack.vhd
 $src/sgate/sgate.vhd
 EOF
 
-    analyse_list maxii$(std_suffix $STD) <<EOF
+    if [ -d "$src/maxii" ]; then
+      analyse_list maxii$(std_suffix $STD) <<EOF
 $src/maxii/maxii_atoms.vhd
 $src/maxii/maxii_components.vhd
 EOF
+    fi
 
-    analyse_list maxv$(std_suffix $STD) <<EOF
+    if [ -d "$src/maxv" ]; then
+      analyse_list maxv$(std_suffix $STD) <<EOF
 $src/maxv/maxv_atoms.vhd
 $src/maxv/maxv_components.vhd
 EOF
+    fi
 
-    analyse_list fiftyfivenm$(std_suffix $STD) <<EOF
+    if [ -d "$src/fiftyfivenm" ]; then
+      analyse_list fiftyfivenm$(std_suffix $STD) <<EOF
 $src/fiftyfivenm/fiftyfivenm_atoms.vhd
 $src/fiftyfivenm/fiftyfivenm_components.vhd
 EOF
+    fi
 
-    analyse_list cycloneiv$(std_suffix $STD) <<EOF
+    if [ -d "$src/cycloneiv" ]; then
+      analyse_list cycloneiv$(std_suffix $STD) <<EOF
 $src/cycloneiv/cycloneiv_atoms.vhd
 $src/cycloneiv/cycloneiv_components.vhd
 $src/cycloneiv_hssi/cycloneiv_hssi_components.vhd
 $src/cycloneiv_hssi/cycloneiv_hssi_atoms.vhd
+EOF
+    fi
+
+    if [ -d "$src/cycloneiv_hssi" ]; then
+      analyse_list cycloneiv$(std_suffix $STD) <<EOF
+$src/cycloneiv_hssi/cycloneiv_hssi_components.vhd
+$src/cycloneiv_hssi/cycloneiv_hssi_atoms.vhd
+EOF
+    fi
+
+    if [ -d "$src/cycloneive" ]; then
+      analyse_list cycloneiv$(std_suffix $STD) <<EOF
 $src/cycloneive/cycloneive_atoms.vhd
 $src/cycloneive/cycloneive_components.vhd
 EOF
+    fi
 
     # produces compilation error
 #    analyse_list cycloneiv_pcie_hip$(std_suffix $STD) <<EOF
@@ -200,24 +220,40 @@ EOF
 #$src/cycloneiv_pcie_hip/cycloneiv_pcie_hip_atoms.vhd
 #EOF
 
-    analyse_list cyclonev$(std_suffix $STD) <<EOF
+    if [ -d "$src/cyclonev" ]; then
+      analyse_list cyclonev$(std_suffix $STD) <<EOF
 $src/cyclonev/cyclonev_atoms.vhd
 $src/cyclonev/cyclonev_components.vhd
+EOF
+    fi
+
+    if [ -d "$src/cyclonev_hssi" ]; then
+      analyse_list cyclonev$(std_suffix $STD) <<EOF
 $src/cyclonev_hssi/cyclonev_hssi_components.vhd
 $src/cyclonev_hssi/cyclonev_hssi_atoms.vhd
 EOF
+    fi
 
-    analyse_list cyclone10lp$(std_suffix $STD) <<EOF
+    if [ -d "$src/cyclone10lp" ]; then
+      analyse_list cyclone10lp$(std_suffix $STD) <<EOF
 $src/cyclone10lp/cyclone10lp_atoms.vhd
 $src/cyclone10lp/cyclone10lp_components.vhd
 EOF
+    fi
 
-    analyse_list arriaii$(std_suffix $STD) <<EOF
+    if [ -d "$src/arriaii" ]; then
+      analyse_list arriaii$(std_suffix $STD) <<EOF
 $src/arriaii/arriaii_atoms.vhd
 $src/arriaii/arriaii_components.vhd
+EOF
+    fi
+
+    if [ -d "$src/arriaii_hssi" ]; then
+      analyse_list arriaii$(std_suffix $STD) <<EOF
 $src/arriaii_hssi/arriaii_hssi_components.vhd
 $src/arriaii_hssi/arriaii_hssi_atoms.vhd
 EOF
+    fi
 
     # produces compilation error
 #    analyse_list arriaii_pcie_hip$(std_suffix $STD) <<EOF
