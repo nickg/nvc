@@ -782,7 +782,52 @@ static mir_value_t vlog_lower_time(vlog_gen_t *g, vlog_node_t v)
    return mir_const(g->mu, t_time, number_integer(num));
 }
 
-static void vlog_lower_sensitivity(vlog_gen_t *g, vlog_node_t v)
+static mir_value_t vlog_or_triggers(vlog_gen_t *g, int n, ...)
+{
+   va_list ap;
+   va_start(ap, n);
+
+   mir_value_t or = MIR_NULL_VALUE;
+   for (int i = 0; i < n; i++) {
+      mir_value_t t = va_arg(ap, mir_value_t);
+      if (mir_is_null(t))
+         continue;
+      else if (mir_is_null(or))
+         or = t;
+      else
+         or = mir_build_or_trigger(g->mu, or, t);
+   }
+
+   va_end(ap);
+   return or;
+}
+
+static void vlog_lower_edge_fn(mir_unit_t *mu, object_t *obj)
+{
+   const v_event_kind_t kind = vlog_subkind(vlog_from_object(obj));
+
+   mir_type_t t_context = mir_context_type(mu, ident_new("dummy"));
+   mir_type_t t_bool = mir_bool_type(mu);
+   mir_type_t t_logic = mir_vec4_type(mu, 1, false);
+   mir_type_t t_net_value = mir_int_type(mu, 0, 255);
+   mir_type_t t_net_signal = mir_signal_type(mu, t_net_value);
+
+   mir_set_result(mu, t_bool);
+
+   mir_add_param(mu, t_context, MIR_NULL_STAMP, ident_new("context"));
+   mir_value_t nets = mir_add_param(mu, t_net_signal, MIR_NULL_STAMP,
+                                    ident_new("arg"));
+
+   mir_value_t ptr = mir_build_resolved(mu, nets);
+   mir_value_t data = mir_build_load(mu, ptr);
+   mir_value_t rvalue = mir_build_pack(mu, t_logic, data);
+
+   mir_value_t level = mir_const_vec(mu, t_logic, kind == V_EVENT_POSEDGE, 0);
+   mir_value_t cmp = mir_build_cmp(mu, MIR_CMP_EQ, rvalue, level);
+   mir_build_return(mu, cmp);
+}
+
+static mir_value_t vlog_lower_sensitivity(vlog_gen_t *g, vlog_node_t v)
 {
    const vlog_kind_t kind = vlog_kind(v);
    switch (kind) {
@@ -799,12 +844,11 @@ static void vlog_lower_sensitivity(vlog_gen_t *g, vlog_node_t v)
                vlog_lvalue_t lvalue = vlog_lower_lvalue(g, v);
                mir_value_t count = mir_const(g->mu, t_offset, lvalue.size);
 
-               mir_build_sched_event(g->mu, lvalue.nets, count);
+               return mir_build_level_trigger(g->mu, lvalue.nets, count);
             }
-            break;
          case V_PARAM_DECL:
          case V_LOCALPARAM:
-            break;
+            return MIR_NULL_VALUE;
          default:
             CANNOT_HANDLE(v);
          }
@@ -813,6 +857,7 @@ static void vlog_lower_sensitivity(vlog_gen_t *g, vlog_node_t v)
    case V_BIT_SELECT:
    case V_PART_SELECT:
       {
+         mir_value_t trigger;
          vlog_node_t prefix = vlog_longest_static_prefix(v);
          if (prefix == v) {
             mir_type_t t_offset = mir_offset_type(g->mu);
@@ -825,44 +870,74 @@ static void vlog_lower_sensitivity(vlog_gen_t *g, vlog_node_t v)
             mir_value_t nets =
                mir_build_array_ref(g->mu, lvalue.nets, lvalue.offset);
 
-            mir_build_sched_event(g->mu, nets, count);
+            trigger = mir_build_level_trigger(g->mu, nets, count);
          }
          else
-            vlog_lower_sensitivity(g, prefix);
+            trigger = vlog_lower_sensitivity(g, prefix);
 
          if (kind == V_BIT_SELECT) {
             const int nparams = vlog_params(v);
-            for (int i = 0; i < nparams; i++)
-               vlog_lower_sensitivity(g, vlog_param(v, i));
+            for (int i = 0; i < nparams; i++) {
+               mir_value_t p = vlog_lower_sensitivity(g, vlog_param(v, i));
+               trigger = vlog_or_triggers(g, 2, trigger, p);
+            }
          }
-         else
-            vlog_lower_sensitivity(g, vlog_left(v));
+         else {
+            mir_value_t left = vlog_lower_sensitivity(g, vlog_left(v));
+            trigger = vlog_or_triggers(g, 2, trigger, left);
+         }
+
+         return trigger;
       }
-      break;
    case V_EVENT:
-      vlog_lower_sensitivity(g, vlog_value(v));
-      break;
+      {
+         const v_event_kind_t kind = vlog_subkind(v);
+         if (kind == V_EVENT_LEVEL)
+            return vlog_lower_sensitivity(g, vlog_value(v));
+         else {
+            vlog_lvalue_t lvalue = vlog_lower_lvalue(g, vlog_value(v));
+
+            ident_t func =
+               ident_new(kind == V_EVENT_POSEDGE ? "@posedge" : "@negedge");
+
+            mir_defer(mir_get_context(g->mu), func, NULL, MIR_UNIT_FUNCTION,
+                      vlog_lower_edge_fn, vlog_to_object(v));
+
+            mir_value_t context = mir_build_context_upref(g->mu, 0);
+            mir_value_t args[] = { context, lvalue.nets };
+            return mir_build_function_trigger(g->mu, func, args, 2);
+         }
+      }
    case V_NUMBER:
-      break;
+      return MIR_NULL_VALUE;
    case V_BINARY:
-      vlog_lower_sensitivity(g, vlog_left(v));
-      vlog_lower_sensitivity(g, vlog_right(v));
-      break;
+      {
+         mir_value_t left = vlog_lower_sensitivity(g, vlog_left(v));
+         mir_value_t right = vlog_lower_sensitivity(g, vlog_right(v));
+
+         return vlog_or_triggers(g, 2, left, right);
+      }
    case V_UNARY:
-      vlog_lower_sensitivity(g, vlog_value(v));
-      break;
+      return vlog_lower_sensitivity(g, vlog_value(v));
    case V_COND_EXPR:
-      vlog_lower_sensitivity(g, vlog_value(v));
-      vlog_lower_sensitivity(g, vlog_left(v));
-      vlog_lower_sensitivity(g, vlog_right(v));
-      break;
+      {
+         mir_value_t value = vlog_lower_sensitivity(g, vlog_value(v));
+         mir_value_t left = vlog_lower_sensitivity(g, vlog_left(v));
+         mir_value_t right = vlog_lower_sensitivity(g, vlog_right(v));
+
+         return vlog_or_triggers(g, 3, value, left, right);
+      }
    case V_CONCAT:
       {
+         mir_value_t trigger = MIR_NULL_VALUE;
          const int nparams = vlog_params(v);
-         for (int i = 0; i < nparams; i++)
-            vlog_lower_sensitivity(g, vlog_param(v, i));
+         for (int i = 0; i < nparams; i++) {
+            mir_value_t p = vlog_lower_sensitivity(g, vlog_param(v, i));
+            trigger = vlog_or_triggers(g, 2, trigger, p);
+         }
+
+         return trigger;
       }
-      break;
    default:
       CANNOT_HANDLE(v);
    }
@@ -1249,9 +1324,15 @@ static void vlog_lower_always(vlog_gen_t *g, vlog_node_t v)
       vlog_node_t ctrl = vlog_value(timing);
       assert(vlog_kind(ctrl) == V_EVENT_CONTROL);
 
+      mir_value_t trigger = MIR_NULL_VALUE;
       const int nparams = vlog_params(ctrl);
-      for (int i = 0; i < nparams; i++)
-         vlog_lower_sensitivity(g, vlog_param(ctrl, i));
+      for (int i = 0; i < nparams; i++) {
+         mir_value_t t = vlog_lower_sensitivity(g, vlog_param(ctrl, i));
+         trigger = vlog_or_triggers(g, 2, trigger, t);
+      }
+
+      if (!mir_is_null(trigger))
+         mir_build_sched_event(g->mu, trigger, MIR_NULL_VALUE);
    }
 
    mir_build_return(g->mu, MIR_NULL_VALUE);
@@ -1290,7 +1371,9 @@ static void vlog_lower_continuous_assign(vlog_gen_t *g, vlog_node_t v)
 
    vlog_visit(v, vlog_driver_cb, g);
 
-   vlog_lower_sensitivity(g, vlog_value(v));
+   mir_value_t trigger = vlog_lower_sensitivity(g, vlog_value(v));
+   if (!mir_is_null(trigger))
+      mir_build_sched_event(g->mu, trigger, MIR_NULL_VALUE);
 
    mir_build_return(g->mu, MIR_NULL_VALUE);
 

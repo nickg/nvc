@@ -235,6 +235,7 @@ typedef enum {
    MIR_OP_FUNCTION_TRIGGER,
    MIR_OP_OR_TRIGGER,
    MIR_OP_CMP_TRIGGER,
+   MIR_OP_LEVEL_TRIGGER,
    MIR_OP_ADD_TRIGGER,
    MIR_OP_INSTANCE_NAME,
    MIR_OP_LAST_EVENT,
@@ -684,6 +685,8 @@ void mir_build_map_implicit(mir_unit_t *mu, mir_value_t src, mir_value_t dst,
                             mir_value_t count);
 
 // Triggers
+mir_value_t mir_build_level_trigger(mir_unit_t *mu, mir_value_t signal,
+                                    mir_value_t count);
 mir_value_t mir_build_cmp_trigger(mir_unit_t *mu, mir_value_t left,
                                   mir_value_t right);
 mir_value_t mir_build_function_trigger(mir_unit_t *mu, ident_t name,
@@ -706,10 +709,8 @@ mir_value_t mir_build_context_upref(mir_unit_t *mu, int hops);
 mir_value_t mir_build_var_upref(mir_unit_t *mu, int hops, int nth);
 
 // Events
-void mir_build_sched_event(mir_unit_t *mu, mir_value_t signal,
-                           mir_value_t count);
-void mir_build_clear_event(mir_unit_t *mu, mir_value_t signal,
-                           mir_value_t count);
+void mir_build_sched_event(mir_unit_t *mu, mir_value_t on, mir_value_t count);
+void mir_build_clear_event(mir_unit_t *mu, mir_value_t on, mir_value_t count);
 
 // Reflection
 mir_value_t mir_build_reflect_value(mir_unit_t *mu, mir_value_t value,

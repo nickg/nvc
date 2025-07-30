@@ -36,25 +36,14 @@ typedef A(rt_proc_t *) proc_list_t;
 typedef A(rt_alias_t *) alias_list_t;
 
 typedef enum {
-   W_PROC, W_WATCH, W_IMPLICIT, W_PROPERTY, W_TRANSFER,
+   W_PROC, W_WATCH, W_IMPLICIT, W_PROPERTY, W_TRANSFER, W_TRIGGER,
 } wakeable_kind_t;
 
 typedef uint32_t wakeup_gen_t;
 
 typedef enum {
-   FUNC_TRIGGER, OR_TRIGGER, CMP_TRIGGER
+   FUNC_TRIGGER, OR_TRIGGER, CMP_TRIGGER, LEVEL_TRIGGER
 } trigger_kind_t;
-
-typedef struct _rt_trigger {
-   jit_handle_t    handle;
-   unsigned        nargs;
-   uint64_t        when;
-   unsigned        iteration;
-   trigger_kind_t  kind;
-   rt_trigger_t   *chain;
-   jit_scalar_t    result;
-   jit_scalar_t    args[];
-} rt_trigger_t;
 
 typedef struct {
    wakeable_kind_t kind : 8;
@@ -64,6 +53,18 @@ typedef struct {
    unsigned        zombie : 1;
    rt_trigger_t   *trigger;
 } rt_wakeable_t;
+
+typedef struct _rt_trigger {
+   rt_wakeable_t   wakeable;
+   jit_handle_t    handle;
+   unsigned        nargs;
+   uint64_t        epoch;
+   void           *pending;
+   rt_trigger_t   *chain;
+   trigger_kind_t  kind;
+   jit_scalar_t    result;
+   jit_scalar_t    args[];
+} rt_trigger_t;
 
 typedef struct _rt_proc {
    rt_wakeable_t  wakeable;

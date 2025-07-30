@@ -98,8 +98,9 @@ void *x_reflect_subtype(void *context, tree_t where,
                         const jit_scalar_t *bounds);
 void *x_function_trigger(jit_handle_t handle, unsigned nargs,
                          const jit_scalar_t *args);
-void *x_or_trigger(void *left, void *right);
+rt_trigger_t *x_or_trigger(rt_trigger_t *left, rt_trigger_t *right);
 void *x_cmp_trigger(sig_shared_t *ss, uint32_t offset, int64_t right);
+void *x_level_trigger(sig_shared_t *ss, uint32_t offset, int32_t count);
 void x_add_trigger(void *ptr);
 void *x_port_conversion(const ffi_closure_t *driving,
                         const ffi_closure_t *effective);
@@ -107,5 +108,6 @@ void x_convert_in(void *ptr, sig_shared_t *ss, uint32_t offset, int32_t count);
 void x_convert_out(void *ptr, sig_shared_t *ss, uint32_t offset, int32_t count);
 void x_bind_external(tree_t where, jit_handle_t scope, jit_scalar_t *result);
 void x_instance_name(attr_kind_t kind, text_buf_t *tb);
+void x_enable_trigger(rt_trigger_t *trigger);
 
 #endif  // _JIT_EXITS_H

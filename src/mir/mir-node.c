@@ -2888,6 +2888,21 @@ void mir_build_map_implicit(mir_unit_t *mu, mir_value_t src, mir_value_t dst,
               "count argument type to map implicit is not offset");
 }
 
+mir_value_t mir_build_level_trigger(mir_unit_t *mu, mir_value_t signal,
+                                    mir_value_t count)
+{
+   mir_type_t type = mir_trigger_type(mu);
+   mir_value_t result = mir_build_2(mu, MIR_OP_LEVEL_TRIGGER, type,
+                                    MIR_NULL_STAMP, signal, count);
+
+   MIR_ASSERT(mir_is_signal(mu, signal),
+              "level trigger argument must be signal");
+   MIR_ASSERT(mir_is_offset(mu, count),
+              "level trigger count argument must be offset");
+
+   return result;
+}
+
 mir_value_t mir_build_cmp_trigger(mir_unit_t *mu, mir_value_t left,
                                   mir_value_t right)
 {
@@ -2914,6 +2929,12 @@ mir_value_t mir_build_function_trigger(mir_unit_t *mu, ident_t name,
 
    for (int i = 0; i < nargs; i++)
       mir_set_arg(mu, n, i + 1, args[i]);
+
+   MIR_ASSERT(nargs >= 1, "function trigger requires at least one argument");
+   MIR_ASSERT(mir_is(mu, args[0], MIR_TYPE_CONTEXT),
+              "first argument must be context");
+   MIR_ASSERT(nargs == 1 || mir_is_signal(mu, args[1]),
+              "second argument must be signal if present");
 
    return (mir_value_t){ .tag = MIR_TAG_NODE, .id = mir_node_id(mu, n) };
 }
@@ -3046,24 +3067,36 @@ mir_value_t mir_build_var_upref(mir_unit_t *mu, int hops, int nth)
    return result;
 }
 
-void mir_build_sched_event(mir_unit_t *mu, mir_value_t signal,
-                           mir_value_t count)
+void mir_build_sched_event(mir_unit_t *mu, mir_value_t on, mir_value_t count)
 {
-   mir_build_2(mu, MIR_OP_SCHED_EVENT, MIR_NULL_TYPE, MIR_NULL_STAMP,
-               signal, count);
+   if (mir_is_null(count)) {
+      mir_build_1(mu, MIR_OP_SCHED_EVENT, MIR_NULL_TYPE, MIR_NULL_STAMP, on);
 
-   MIR_ASSERT(mir_is_signal(mu, signal), "argument must be signal");
-   MIR_ASSERT(mir_is_offset(mu, count), "count argument must be offset");
+      MIR_ASSERT(mir_is(mu, on, MIR_TYPE_TRIGGER), "argument must be trigger");
+   }
+   else {
+      mir_build_2(mu, MIR_OP_SCHED_EVENT, MIR_NULL_TYPE, MIR_NULL_STAMP,
+                  on, count);
+
+      MIR_ASSERT(mir_is_signal(mu, on), "argument must be signal");
+      MIR_ASSERT(mir_is_offset(mu, count), "count argument must be offset");
+   }
 }
 
-void mir_build_clear_event(mir_unit_t *mu, mir_value_t signal,
-                           mir_value_t count)
+void mir_build_clear_event(mir_unit_t *mu, mir_value_t on, mir_value_t count)
 {
-   mir_build_2(mu, MIR_OP_CLEAR_EVENT, MIR_NULL_TYPE, MIR_NULL_STAMP,
-               signal, count);
+   if (mir_is_null(count)) {
+      mir_build_1(mu, MIR_OP_CLEAR_EVENT, MIR_NULL_TYPE, MIR_NULL_STAMP, on);
 
-   MIR_ASSERT(mir_is_signal(mu, signal), "argument must be signal");
-   MIR_ASSERT(mir_is_offset(mu, count), "count argument must be offset");
+      MIR_ASSERT(mir_is(mu, on, MIR_TYPE_TRIGGER), "argument must be trigger");
+   }
+   else {
+      mir_build_2(mu, MIR_OP_CLEAR_EVENT, MIR_NULL_TYPE, MIR_NULL_STAMP,
+                  on, count);
+
+      MIR_ASSERT(mir_is_signal(mu, on), "argument must be signal");
+      MIR_ASSERT(mir_is_offset(mu, count), "count argument must be offset");
+   }
 }
 
 mir_value_t mir_build_reflect_value(mir_unit_t *mu, mir_value_t value,

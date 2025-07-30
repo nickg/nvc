@@ -155,6 +155,7 @@ const char *mir_op_string(mir_op_t op)
       [MIR_OP_FUNCTION_TRIGGER] = "function trigger",
       [MIR_OP_OR_TRIGGER] = "or trigger",
       [MIR_OP_CMP_TRIGGER] = "cmp trigger",
+      [MIR_OP_LEVEL_TRIGGER] = "level trigger",
       [MIR_OP_INSTANCE_NAME] = "instance name",
       [MIR_OP_LAST_EVENT] = "last event",
       [MIR_OP_LAST_ACTIVE] = "last active",
@@ -1370,8 +1371,10 @@ void mir_annotate(mir_unit_t *mu, const mir_annotate_t *cb, void *ctx)
             {
                printf("%s on ", mir_op_string(n->op));
                mir_dump_arg(mu, result, 0, cb, ctx);
-               printf(" count " );
-               mir_dump_arg(mu, result, 1, cb, ctx);
+               if (n->nargs > 1) {
+                  printf(" count " );
+                  mir_dump_arg(mu, result, 1, cb, ctx);
+               }
             }
             break;
 
@@ -1665,6 +1668,18 @@ void mir_annotate(mir_unit_t *mu, const mir_annotate_t *cb, void *ctx)
                   col += printf(" || ");
                else
                   col += printf(" == ");
+               col += mir_dump_value(mu, n->args[1], cb, ctx);
+               mir_dump_type(mu, col, n->type);
+               mir_dump_stamp(mu, n->type, n->stamp);
+            }
+            break;
+
+         case MIR_OP_LEVEL_TRIGGER:
+            {
+               col += mir_dump_value(mu, result, cb, ctx);
+               col += printf(" := %s ", mir_op_string(n->op));
+               col += mir_dump_value(mu, n->args[0], cb, ctx);
+               col += printf(" count ");
                col += mir_dump_value(mu, n->args[1], cb, ctx);
                mir_dump_type(mu, col, n->type);
                mir_dump_stamp(mu, n->type, n->stamp);

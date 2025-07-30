@@ -107,6 +107,7 @@ typedef struct _rt_model {
    delta_cycle_t      stop_delta;
    int                iteration;
    uint64_t           now;
+   uint64_t           trigger_epoch;
    bool               can_create_delta;
    bool               next_is_delta;
    bool               force_stop;
@@ -120,6 +121,7 @@ typedef struct _rt_model {
    deferq_t           delta_driverq;
    deferq_t           postponedq;
    deferq_t           implicitq;
+   deferq_t           triggerq;
    heap_t            *driving_heap;
    heap_t            *effective_heap;
    rt_callback_t     *phase_cbs[END_OF_SIMULATION + 1];
@@ -173,6 +175,7 @@ static void async_fast_driver(rt_model_t *m, void *arg);
 static void async_fast_all_drivers(rt_model_t *m, void *arg);
 static void async_pseudo_source(rt_model_t *m, void *arg);
 static void async_transfer_signal(rt_model_t *m, void *arg);
+static void async_run_trigger(rt_model_t *m, void *arg);
 static void async_update_implicit_signal(rt_model_t *m, void *arg);
 
 static int fmt_time_r(char *buf, size_t len, int64_t t, const char *sep)
@@ -628,6 +631,7 @@ void model_free(rt_model_t *m)
    free(m->delta_procq.tasks);
    free(m->postponedq.tasks);
    free(m->implicitq.tasks);
+   free(m->triggerq.tasks);
    free(m->driverq.tasks);
    free(m->delta_driverq.tasks);
 
@@ -2493,12 +2497,12 @@ static void update_property(rt_model_t *m, rt_prop_t *prop)
    m->liveness |= prop->strong;
 }
 
-static void sched_event(rt_model_t *m, rt_nexus_t *n, rt_wakeable_t *obj)
+static void sched_event(rt_model_t *m, void **pending, rt_wakeable_t *obj)
 {
-   if (n->pending == NULL)
-      n->pending = tag_pointer(obj, 1);
-   else if (pointer_tag(n->pending) == 1) {
-      rt_wakeable_t *cur = untag_pointer(n->pending, rt_wakeable_t);
+   if (*pending == NULL)
+      *pending = tag_pointer(obj, 1);
+   else if (pointer_tag(*pending) == 1) {
+      rt_wakeable_t *cur = untag_pointer(*pending, rt_wakeable_t);
       if (cur == obj)
          return;
 
@@ -2509,10 +2513,10 @@ static void sched_event(rt_model_t *m, rt_nexus_t *n, rt_wakeable_t *obj)
       p->wake[0] = cur;
       p->wake[1] = obj;
 
-      n->pending = tag_pointer(p, 0);
+      *pending = tag_pointer(p, 0);
    }
    else {
-      rt_pending_t *p = untag_pointer(n->pending, rt_pending_t);
+      rt_pending_t *p = untag_pointer(*pending, rt_pending_t);
 
       for (int i = 0; i < p->count; i++) {
          if (p->wake[i] == NULL || p->wake[i] == obj) {
@@ -2525,7 +2529,7 @@ static void sched_event(rt_model_t *m, rt_nexus_t *n, rt_wakeable_t *obj)
          p->max = MAX(PENDING_MIN, p->max * 2);
          p = xrealloc_flex(p, sizeof(rt_pending_t), p->max,
                            sizeof(rt_wakeable_t *));
-         n->pending = tag_pointer(p, 0);
+         *pending = tag_pointer(p, 0);
       }
 
       p->wake[p->count++] = obj;
@@ -2754,7 +2758,7 @@ static bool heap_delete_proc_cb(uint64_t key, void *value, void *search)
 
 static bool run_trigger(rt_model_t *m, rt_trigger_t *t)
 {
-   if (t->when == m->now && t->iteration == m->iteration)
+   if (t->epoch == m->trigger_epoch)
       return t->result.integer != 0;   // Cached
 
    switch (t->kind) {
@@ -2796,10 +2800,33 @@ static bool run_trigger(rt_model_t *m, rt_trigger_t *t)
          TRACE("cmp trigger %p ==> %"PRIi64, t, t->result.integer);
       }
       break;
+
+   case LEVEL_TRIGGER:
+      {
+         rt_signal_t *s = t->args[0].pointer;
+         uint32_t offset = t->args[1].integer;
+         int32_t count = t->args[2].integer;
+
+         t->result.integer = 0;
+
+         rt_nexus_t *n = split_nexus(m, s, offset, count);
+         for (; count > 0; n = n->chain) {
+            if (n->last_event == m->now && n->event_delta == m->iteration) {
+               t->result.integer = 1;
+               break;
+            }
+
+            count -= n->width;
+            assert(count >= 0);
+         }
+
+         TRACE("level trigger %s+%d ==> %"PRIi64, istr(tree_ident(s->where)),
+               offset, t->result.integer);
+      }
+      break;
    }
 
-   t->when = m->now;
-   t->iteration = m->iteration;
+   t->epoch = m->trigger_epoch;
 
    return t->result.integer != 0;
 }
@@ -2866,9 +2893,32 @@ static void wakeup_one(rt_model_t *m, rt_wakeable_t *obj)
          deferq_do(dq, async_transfer_signal, t);
       }
       break;
+
+   case W_TRIGGER:
+      {
+         rt_trigger_t *t = container_of(obj, rt_trigger_t, wakeable);
+         TRACE("wakeup trigger %p", t);
+         deferq_do(&m->triggerq, async_run_trigger, t);
+      }
+      break;
    }
 
    set_pending(obj);
+}
+
+static void wakeup_all(rt_model_t *m, void **pending)
+{
+   if (pointer_tag(*pending) == 1) {
+      rt_wakeable_t *wake = untag_pointer(*pending, rt_wakeable_t);
+      wakeup_one(m, wake);
+   }
+   else if (*pending != NULL) {
+      rt_pending_t *p = untag_pointer(*pending, rt_pending_t);
+      for (int i = 0; i < p->count; i++) {
+         if (p->wake[i] != NULL)
+            wakeup_one(m, p->wake[i]);
+      }
+   }
 }
 
 static void notify_event(rt_model_t *m, rt_nexus_t *n)
@@ -2882,17 +2932,7 @@ static void notify_event(rt_model_t *m, rt_nexus_t *n)
    if (n->flags & NET_F_CACHE_EVENT)
       n->signal->shared.flags |= SIG_F_EVENT_FLAG;
 
-   if (pointer_tag(n->pending) == 1) {
-      rt_wakeable_t *wake = untag_pointer(n->pending, rt_wakeable_t);
-      wakeup_one(m, wake);
-   }
-   else if (n->pending != NULL) {
-      rt_pending_t *p = untag_pointer(n->pending, rt_pending_t);
-      for (int i = 0; i < p->count; i++) {
-         if (p->wake[i] != NULL)
-            wakeup_one(m, p->wake[i]);
-      }
-   }
+   wakeup_all(m, &(n->pending));
 }
 
 static void put_effective(rt_model_t *m, rt_nexus_t *n, const void *value)
@@ -3113,6 +3153,17 @@ static void async_transfer_signal(rt_model_t *m, void *arg)
    }
 }
 
+static void async_run_trigger(rt_model_t *m, void *arg)
+{
+   rt_trigger_t *t = arg;
+
+   assert(t->wakeable.pending);
+   t->wakeable.pending = false;
+
+   if (run_trigger(m, t))
+      wakeup_all(m, &(t->pending));
+}
+
 static void update_implicit_signal(rt_model_t *m, rt_implicit_t *imp)
 {
    model_thread_t *thread = model_thread(m);
@@ -3323,6 +3374,9 @@ static void model_cycle(rt_model_t *m)
    if (__trace_on)
       dump_signals(m, m->root);
 #endif
+
+   m->trigger_epoch++;
+   deferq_run(m, &m->triggerq);  // Sensitivity list filter
 
    mark_phase(m, START_OF_PROCESSES);
 
@@ -3639,7 +3693,7 @@ rt_watch_t *model_set_event_cb(rt_model_t *m, rt_signal_t *s, rt_watch_t *w)
 
    rt_nexus_t *n = &(s->nexus);
    for (int i = 0; i < s->n_nexus; i++, n = n->chain)
-      sched_event(m, n, &(w->wakeable));
+      sched_event(m, &(n->pending), &(w->wakeable));
 
    return w;
 }
@@ -3759,6 +3813,59 @@ int32_t *get_cover_counter(rt_model_t *m, int32_t tag, int count)
    return jit_get_cover_mem(m->jit, tag + count) + tag;
 }
 
+static void watch_trigger_inputs(rt_model_t *m, rt_trigger_t *t,
+                                 rt_wakeable_t *obj)
+{
+   switch (t->kind) {
+   case CMP_TRIGGER:
+      {
+         assert(t->nargs == 3);
+         rt_signal_t *s = t->args[0].pointer;
+         int32_t offset = t->args[1].integer;
+
+         rt_nexus_t *n = split_nexus(m, s, offset, 1);
+         sched_event(m, &(n->pending), obj);
+      }
+      break;
+   case FUNC_TRIGGER:
+      {
+         if (t->nargs >= 3) {
+            sig_shared_t *ss = t->args[1].pointer;
+            int32_t offset = t->args[2].integer;
+
+            rt_signal_t *s = container_of(ss, rt_signal_t, shared);
+
+            rt_nexus_t *n = split_nexus(m, s, offset, 1);
+            sched_event(m, &(n->pending), obj);
+         }
+      }
+      break;
+   case LEVEL_TRIGGER:
+      {
+         assert(t->nargs == 3);
+         rt_signal_t *s = t->args[0].pointer;
+         int32_t offset = t->args[1].integer;
+         int32_t count = t->args[2].integer;
+
+         rt_nexus_t *n = split_nexus(m, s, offset, count);
+         for (; count > 0; n = n->chain) {
+            sched_event(m, &(n->pending), obj);
+
+            count -= n->width;
+            assert(count >= 0);
+         }
+      }
+      break;
+   case OR_TRIGGER:
+      {
+         assert(t->nargs == 2);
+         watch_trigger_inputs(m, t->args[0].pointer, obj);
+         watch_trigger_inputs(m, t->args[1].pointer, obj);
+      }
+      break;
+   }
+}
+
 static rt_trigger_t *new_trigger(rt_model_t *m, trigger_kind_t kind,
                                  uint64_t hash, jit_handle_t handle,
                                  unsigned nargs, const jit_scalar_t *args)
@@ -3780,12 +3887,16 @@ static rt_trigger_t *new_trigger(rt_model_t *m, trigger_kind_t kind,
    const size_t argsz = nargs * sizeof(jit_scalar_t);
 
    rt_trigger_t *t = static_alloc(m, sizeof(rt_trigger_t) + argsz);
+   memset(t, '\0', sizeof(rt_trigger_t));
+   t->wakeable.kind = W_TRIGGER;
    t->handle = handle;
    t->nargs  = nargs;
-   t->when   = TIME_HIGH;
+   t->epoch  = UINT64_MAX;
    t->kind   = kind;
    t->chain  = *bucket;
    memcpy(t->args, args, argsz);
+
+   watch_trigger_inputs(m, t, &(t->wakeable));
 
    return (*bucket = t);
 }
@@ -4039,7 +4150,7 @@ void x_transfer_signal(sig_shared_t *target_ss, uint32_t toffset,
    t->wakeable.delayed   = false;
 
    for (rt_nexus_t *n = t->source; count > 0; n = n->chain) {
-      sched_event(m, n, &(t->wakeable));
+      sched_event(m, &(n->pending), &(t->wakeable));
 
       if (!t->wakeable.pending) {
          // Schedule initial update immediately
@@ -4117,7 +4228,7 @@ void x_sched_event(sig_shared_t *ss, uint32_t offset, int32_t count)
    rt_model_t *m = get_model();
    rt_nexus_t *n = split_nexus(m, s, offset, count);
    for (; count > 0; n = n->chain) {
-      sched_event(m, n, obj);
+      sched_event(m, &(n->pending), obj);
 
       count -= n->width;
       assert(count >= 0);
@@ -4141,6 +4252,16 @@ void x_clear_event(sig_shared_t *ss, uint32_t offset, int32_t count)
       count -= n->width;
       assert(count >= 0);
    }
+}
+
+void x_enable_trigger(rt_trigger_t *trigger)
+{
+   TRACE("enable trigger %p", trigger);
+
+   rt_wakeable_t *obj = get_active_wakeable();
+   rt_model_t *m = get_model();
+
+   sched_event(m, &(trigger->pending), obj);
 }
 
 void x_enter_state(int32_t state, bool strong)
@@ -4655,7 +4776,7 @@ void *x_function_trigger(jit_handle_t handle, unsigned nargs,
    return new_trigger(m, FUNC_TRIGGER, hash, handle, nargs, args);
 }
 
-void *x_or_trigger(void *left, void *right)
+rt_trigger_t *x_or_trigger(rt_trigger_t *left, rt_trigger_t *right)
 {
    rt_model_t *m = get_model();
 
@@ -4686,7 +4807,27 @@ void *x_cmp_trigger(sig_shared_t *ss, uint32_t offset, int64_t right)
       { .integer = offset },
       { .integer = right }
    };
+
    return new_trigger(m, CMP_TRIGGER, hash, JIT_HANDLE_INVALID, 3, args);
+}
+
+void *x_level_trigger(sig_shared_t *ss, uint32_t offset, int32_t count)
+{
+   rt_model_t *m = get_model();
+   rt_signal_t *s = container_of(ss, rt_signal_t, shared);
+
+   uint64_t hash = mix_bits_64(s) ^ mix_bits_32(offset) ^ mix_bits_32(count);
+
+   TRACE("level trigger %s+%d count=%d hash=%"PRIx64,
+         istr(tree_ident(s->where)), offset, count, hash);
+
+   const jit_scalar_t args[] = {
+      { .pointer = s },
+      { .integer = offset },
+      { .integer = count }
+   };
+
+   return new_trigger(m, LEVEL_TRIGGER, hash, JIT_HANDLE_INVALID, 3, args);
 }
 
 void x_add_trigger(void *ptr)

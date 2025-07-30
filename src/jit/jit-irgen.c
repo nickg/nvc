@@ -3414,14 +3414,23 @@ static void irgen_op_put_conversion(jit_irgen_t *g, mir_value_t n)
 
 static void irgen_op_sched_event(jit_irgen_t *g, mir_value_t n)
 {
-   jit_value_t shared = irgen_get_arg(g, n, 0);
-   jit_value_t offset = jit_value_from_reg(jit_value_as_reg(shared) + 1);
-   jit_value_t count  = irgen_get_arg(g, n, 1);
+   mir_value_t on = mir_get_arg(g->mu, n, 0);
+   if (mir_is_signal(g->mu, on)) {
+      jit_value_t shared = irgen_get_value(g, on);
+      jit_value_t offset = jit_value_from_reg(jit_value_as_reg(shared) + 1);
+      jit_value_t count = irgen_get_arg(g, n, 1);
 
-   j_send(g, 0, shared);
-   j_send(g, 1, offset);
-   j_send(g, 2, count);
-   macro_exit(g, JIT_EXIT_SCHED_EVENT);
+      j_send(g, 0, shared);
+      j_send(g, 1, offset);
+      j_send(g, 2, count);
+      macro_exit(g, JIT_EXIT_SCHED_EVENT);
+   }
+   else {
+      jit_value_t trigger = irgen_get_value(g, on);
+
+      j_send(g, 0, trigger);
+      macro_exit(g, JIT_EXIT_ENABLE_TRIGGER);
+   }
 }
 
 static void irgen_op_clear_event(jit_irgen_t *g, mir_value_t n)
@@ -3660,6 +3669,21 @@ static void irgen_op_cmp_trigger(jit_irgen_t *g, mir_value_t n)
    j_send(g, 2, right);
 
    macro_exit(g, JIT_EXIT_CMP_TRIGGER);
+
+   g->map[n.id] = j_recv(g, 0);
+}
+
+static void irgen_op_level_trigger(jit_irgen_t *g, mir_value_t n)
+{
+   jit_value_t shared = irgen_get_arg(g, n, 0);
+   jit_value_t offset = jit_value_from_reg(jit_value_as_reg(shared) + 1);
+   jit_value_t count = irgen_get_arg(g, n, 1);
+
+   j_send(g, 0, shared);
+   j_send(g, 1, offset);
+   j_send(g, 2, count);
+
+   macro_exit(g, JIT_EXIT_LEVEL_TRIGGER);
 
    g->map[n.id] = j_recv(g, 0);
 }
@@ -4382,6 +4406,9 @@ static void irgen_block(jit_irgen_t *g, mir_block_t block)
          break;
       case MIR_OP_CMP_TRIGGER:
          irgen_op_cmp_trigger(g, n);
+         break;
+      case MIR_OP_LEVEL_TRIGGER:
+         irgen_op_level_trigger(g, n);
          break;
       case MIR_OP_ADD_TRIGGER:
          irgen_op_add_trigger(g, n);
