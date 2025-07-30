@@ -598,6 +598,7 @@ static void gvn_visit_block(mir_unit_t *mu, mir_block_t block,
       case MIR_OP_CLOSURE:
       case MIR_OP_CONTEXT_UPREF:
       case MIR_OP_UNWRAP:
+      case MIR_OP_INSERT:
          gvn_generic(mu, node, block, opt);
          break;
       case MIR_OP_AND:

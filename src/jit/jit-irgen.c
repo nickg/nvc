@@ -3435,14 +3435,23 @@ static void irgen_op_sched_event(jit_irgen_t *g, mir_value_t n)
 
 static void irgen_op_clear_event(jit_irgen_t *g, mir_value_t n)
 {
-   jit_value_t shared = irgen_get_arg(g, n, 0);
-   jit_value_t offset = jit_value_from_reg(jit_value_as_reg(shared) + 1);
-   jit_value_t count  = irgen_get_arg(g, n, 1);
+   mir_value_t on = mir_get_arg(g->mu, n, 0);
+   if (mir_is_signal(g->mu, on)) {
+      jit_value_t shared = irgen_get_value(g, on);
+      jit_value_t offset = jit_value_from_reg(jit_value_as_reg(shared) + 1);
+      jit_value_t count = irgen_get_arg(g, n, 1);
 
-   j_send(g, 0, shared);
-   j_send(g, 1, offset);
-   j_send(g, 2, count);
-   macro_exit(g, JIT_EXIT_CLEAR_EVENT);
+      j_send(g, 0, shared);
+      j_send(g, 1, offset);
+      j_send(g, 2, count);
+      macro_exit(g, JIT_EXIT_CLEAR_EVENT);
+   }
+   else {
+      jit_value_t trigger = irgen_get_value(g, on);
+
+      j_send(g, 0, trigger);
+      macro_exit(g, JIT_EXIT_DISABLE_TRIGGER);
+   }
 }
 
 static void irgen_op_event(jit_irgen_t *g, mir_value_t n)

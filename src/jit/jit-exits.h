@@ -109,5 +109,6 @@ void x_convert_out(void *ptr, sig_shared_t *ss, uint32_t offset, int32_t count);
 void x_bind_external(tree_t where, jit_handle_t scope, jit_scalar_t *result);
 void x_instance_name(attr_kind_t kind, text_buf_t *tb);
 void x_enable_trigger(rt_trigger_t *trigger);
+void x_disable_trigger(rt_trigger_t *trigger);
 
 #endif  // _JIT_EXITS_H

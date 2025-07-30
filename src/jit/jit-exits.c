@@ -498,8 +498,14 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
    case JIT_EXIT_ENABLE_TRIGGER:
       {
          rt_trigger_t *trigger = args[0].pointer;
-
          x_enable_trigger(trigger);
+      }
+      break;
+
+   case JIT_EXIT_DISABLE_TRIGGER:
+      {
+         rt_trigger_t *trigger = args[0].pointer;
+         x_disable_trigger(trigger);
       }
       break;
 

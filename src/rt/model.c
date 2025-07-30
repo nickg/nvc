@@ -167,6 +167,7 @@ static void put_driving(rt_model_t *m, rt_nexus_t *n, const void *value);
 static void put_effective(rt_model_t *m, rt_nexus_t *n, const void *value);
 static void update_implicit_signal(rt_model_t *m, rt_implicit_t *imp);
 static bool run_trigger(rt_model_t *m, rt_trigger_t *t);
+static void wakeup_all(rt_model_t *m, void **pending, bool blocking);
 static void reset_scope(rt_model_t *m, rt_scope_t *s);
 static void async_run_process(rt_model_t *m, void *arg);
 static void async_update_property(rt_model_t *m, void *arg);
@@ -2536,15 +2537,15 @@ static void sched_event(rt_model_t *m, void **pending, rt_wakeable_t *obj)
    }
 }
 
-static void clear_event(rt_model_t *m, rt_nexus_t *n, rt_wakeable_t *obj)
+static void clear_event(rt_model_t *m, void **pending, rt_wakeable_t *obj)
 {
-   if (pointer_tag(n->pending) == 1) {
-      rt_wakeable_t *wake = untag_pointer(n->pending, rt_wakeable_t);
+   if (pointer_tag(*pending) == 1) {
+      rt_wakeable_t *wake = untag_pointer(*pending, rt_wakeable_t);
       if (wake == obj)
-         n->pending = NULL;
+         *pending = NULL;
    }
-   else if (n->pending != NULL) {
-      rt_pending_t *p = untag_pointer(n->pending, rt_pending_t);
+   else if (*pending != NULL) {
+      rt_pending_t *p = untag_pointer(*pending, rt_pending_t);
       for (int i = 0; i < p->count; i++) {
          if (p->wake[i] == obj) {
             p->wake[i] = NULL;
@@ -2831,12 +2832,25 @@ static bool run_trigger(rt_model_t *m, rt_trigger_t *t)
    return t->result.integer != 0;
 }
 
-static void wakeup_one(rt_model_t *m, rt_wakeable_t *obj)
+static void procq_do(rt_model_t *m, rt_wakeable_t *obj, bool blocking,
+                     defer_fn_t fn, void *arg)
+{
+   if (obj->postponed)
+      deferq_do(&m->postponedq, fn, arg);
+   else if (blocking) {
+      deferq_do(&m->delta_procq, fn, arg);
+      m->next_is_delta = true;
+   }
+   else
+      deferq_do(&m->procq, fn, arg);
+
+   set_pending(obj);
+}
+
+static void wakeup_one(rt_model_t *m, rt_wakeable_t *obj, bool blocking)
 {
    if (obj->pending)
       return;   // Already scheduled
-
-   deferq_t *dq = obj->postponed ? &m->postponedq : &m->procq;
 
    switch (obj->kind) {
    case W_PROC:
@@ -2844,7 +2858,6 @@ static void wakeup_one(rt_model_t *m, rt_wakeable_t *obj)
          rt_proc_t *proc = container_of(obj, rt_proc_t, wakeable);
          TRACE("wakeup %sprocess %s", obj->postponed ? "postponed " : "",
                istr(proc->name));
-         deferq_do(dq, async_run_process, proc);
 
          if (proc->wakeable.delayed) {
             // This process was already scheduled to run at a later
@@ -2852,6 +2865,8 @@ static void wakeup_one(rt_model_t *m, rt_wakeable_t *obj)
             heap_delete(m->eventq_heap, heap_delete_proc_cb, proc);
             proc->wakeable.delayed = false;
          }
+
+         procq_do(m, obj, blocking, async_run_process, proc);
       }
       break;
 
@@ -2859,7 +2874,7 @@ static void wakeup_one(rt_model_t *m, rt_wakeable_t *obj)
       {
          rt_prop_t *prop = container_of(obj, rt_prop_t, wakeable);
          TRACE("wakeup property %s", istr(prop->name));
-         deferq_do(dq, async_update_property, prop);
+         procq_do(m, obj, blocking, async_update_property, prop);
       }
       break;
 
@@ -2869,7 +2884,9 @@ static void wakeup_one(rt_model_t *m, rt_wakeable_t *obj)
          TRACE("wakeup implicit signal %s closure %s",
                istr(tree_ident(imp->signal.where)),
                istr(jit_get_name(m->jit, imp->closure.handle)));
+
          deferq_do(&m->implicitq, async_update_implicit_signal, imp);
+         set_pending(obj);
       }
       break;
 
@@ -2881,7 +2898,7 @@ static void wakeup_one(rt_model_t *m, rt_wakeable_t *obj)
                debug_symbol_name(w->fn));
 
          assert(!w->wakeable.zombie);
-         deferq_do(dq, async_watch_callback, w);
+         procq_do(m, obj, blocking, async_watch_callback, w);
       }
       break;
 
@@ -2890,7 +2907,8 @@ static void wakeup_one(rt_model_t *m, rt_wakeable_t *obj)
          rt_transfer_t *t = container_of(obj, rt_transfer_t, wakeable);
          TRACE("wakeup signal transfer for %s",
                istr(tree_ident(t->target->signal->where)));
-         deferq_do(dq, async_transfer_signal, t);
+
+         procq_do(m, obj, blocking, async_transfer_signal, t);
       }
       break;
 
@@ -2898,25 +2916,29 @@ static void wakeup_one(rt_model_t *m, rt_wakeable_t *obj)
       {
          rt_trigger_t *t = container_of(obj, rt_trigger_t, wakeable);
          TRACE("wakeup trigger %p", t);
-         deferq_do(&m->triggerq, async_run_trigger, t);
+
+         if (!blocking) {
+            deferq_do(&m->triggerq, async_run_trigger, t);
+            set_pending(obj);
+         }
+         else if (run_trigger(m, t))
+            wakeup_all(m, &(t->pending), true);
       }
       break;
    }
-
-   set_pending(obj);
 }
 
-static void wakeup_all(rt_model_t *m, void **pending)
+static void wakeup_all(rt_model_t *m, void **pending, bool blocking)
 {
    if (pointer_tag(*pending) == 1) {
       rt_wakeable_t *wake = untag_pointer(*pending, rt_wakeable_t);
-      wakeup_one(m, wake);
+      wakeup_one(m, wake, blocking);
    }
    else if (*pending != NULL) {
       rt_pending_t *p = untag_pointer(*pending, rt_pending_t);
       for (int i = 0; i < p->count; i++) {
          if (p->wake[i] != NULL)
-            wakeup_one(m, p->wake[i]);
+            wakeup_one(m, p->wake[i], blocking);
       }
    }
 }
@@ -2932,7 +2954,7 @@ static void notify_event(rt_model_t *m, rt_nexus_t *n)
    if (n->flags & NET_F_CACHE_EVENT)
       n->signal->shared.flags |= SIG_F_EVENT_FLAG;
 
-   wakeup_all(m, &(n->pending));
+   wakeup_all(m, &(n->pending), false);
 }
 
 static void put_effective(rt_model_t *m, rt_nexus_t *n, const void *value)
@@ -3161,7 +3183,7 @@ static void async_run_trigger(rt_model_t *m, void *arg)
    t->wakeable.pending = false;
 
    if (run_trigger(m, t))
-      wakeup_all(m, &(t->pending));
+      wakeup_all(m, &(t->pending), false);
 }
 
 static void update_implicit_signal(rt_model_t *m, rt_implicit_t *imp)
@@ -3665,7 +3687,7 @@ void watch_free(rt_model_t *m, rt_watch_t *w)
    for (int i = 0; i < w->next_slot; i++) {
       rt_nexus_t *n = &(w->signals[i]->nexus);
       for (int j = 0; j < w->signals[i]->n_nexus; j++, n = n->chain)
-         clear_event(m, n, &(w->wakeable));
+         clear_event(m, &(n->pending), &(w->wakeable));
    }
 
    rt_watch_t **last = &m->watches;
@@ -4247,7 +4269,7 @@ void x_clear_event(sig_shared_t *ss, uint32_t offset, int32_t count)
    rt_proc_t *proc = get_active_proc();
    rt_nexus_t *n = split_nexus(m, s, offset, count);
    for (; count > 0; n = n->chain) {
-      clear_event(m, n, &(proc->wakeable));
+      clear_event(m, &(n->pending), &(proc->wakeable));
 
       count -= n->width;
       assert(count >= 0);
@@ -4262,6 +4284,16 @@ void x_enable_trigger(rt_trigger_t *trigger)
    rt_model_t *m = get_model();
 
    sched_event(m, &(trigger->pending), obj);
+}
+
+void x_disable_trigger(rt_trigger_t *trigger)
+{
+   TRACE("disable trigger %p", trigger);
+
+   rt_wakeable_t *obj = get_active_wakeable();
+   rt_model_t *m = get_model();
+
+   clear_event(m, &(trigger->pending), obj);
 }
 
 void x_enter_state(int32_t state, bool strong)
@@ -4666,12 +4698,34 @@ void x_deposit_signal(sig_shared_t *ss, uint32_t offset, int32_t count,
    TRACE("deposit signal %s+%d value=%s count=%d", istr(tree_ident(s->where)),
          offset, fmt_values(values, count * s->nexus.size), count);
 
-   rt_proc_t *proc = get_active_proc();
+   assert(!get_active_proc()->wakeable.postponed);
+
    rt_model_t *m = get_model();
+   rt_nexus_t *n = split_nexus(m, s, offset, count);
+   const char *vptr = values;
+   for (; count > 0; n = n->chain) {
+      count -= n->width;
+      assert(count >= 0);
 
-   check_postponed(0, proc);
+      unsigned char *eff = nexus_effective(n);
+      unsigned char *last = nexus_last_value(n);
 
-   deposit_signal(m, s, values, offset, count);
+      const size_t valuesz = n->size * n->width;
+
+      if (!cmp_bytes(eff, vptr, valuesz)) {
+         copy2(last, eff, vptr, valuesz);
+         m->trigger_epoch++;
+
+         n->last_event = m->now;
+         n->event_delta = m->iteration;
+
+         assert(!(n->flags & NET_F_CACHE_EVENT));
+
+         wakeup_all(m, &(n->pending), true);
+      }
+
+      vptr += valuesz;
+   }
 }
 
 void x_put_conversion(rt_conv_func_t *cf, sig_shared_t *ss, uint32_t offset,

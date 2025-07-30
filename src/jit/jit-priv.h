@@ -177,6 +177,7 @@ typedef enum {
    JIT_EXIT_DIR_FAIL,
    JIT_EXIT_LEVEL_TRIGGER,
    JIT_EXIT_ENABLE_TRIGGER,
+   JIT_EXIT_DISABLE_TRIGGER,
 } jit_exit_t;
 
 typedef uint16_t jit_reg_t;
