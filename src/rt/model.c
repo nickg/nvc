@@ -3835,8 +3835,7 @@ int32_t *get_cover_counter(rt_model_t *m, int32_t tag, int count)
    return jit_get_cover_mem(m->jit, tag + count) + tag;
 }
 
-static void watch_trigger_inputs(rt_model_t *m, rt_trigger_t *t,
-                                 rt_wakeable_t *obj)
+static void arm_trigger(rt_model_t *m, rt_trigger_t *t, rt_wakeable_t *obj)
 {
    switch (t->kind) {
    case CMP_TRIGGER:
@@ -3881,8 +3880,8 @@ static void watch_trigger_inputs(rt_model_t *m, rt_trigger_t *t,
    case OR_TRIGGER:
       {
          assert(t->nargs == 2);
-         watch_trigger_inputs(m, t->args[0].pointer, obj);
-         watch_trigger_inputs(m, t->args[1].pointer, obj);
+         arm_trigger(m, t->args[0].pointer, obj);
+         arm_trigger(m, t->args[1].pointer, obj);
       }
       break;
    }
@@ -3917,8 +3916,6 @@ static rt_trigger_t *new_trigger(rt_model_t *m, trigger_kind_t kind,
    t->kind   = kind;
    t->chain  = *bucket;
    memcpy(t->args, args, argsz);
-
-   watch_trigger_inputs(m, t, &(t->wakeable));
 
    return (*bucket = t);
 }
@@ -4282,6 +4279,9 @@ void x_enable_trigger(rt_trigger_t *trigger)
 
    rt_wakeable_t *obj = get_active_wakeable();
    rt_model_t *m = get_model();
+
+   if (trigger->pending == NULL)
+      arm_trigger(m, trigger, &(trigger->wakeable));
 
    sched_event(m, &(trigger->pending), obj);
 }
