@@ -172,12 +172,16 @@ static void pack_handle(pack_writer_t *pw, jit_t *j, jit_handle_t handle)
 
 static void pack_locus(pack_writer_t *pw, object_t *obj)
 {
-   ident_t module;
-   ptrdiff_t offset;
-   object_locus(obj, &module, &offset);
+   if (obj == NULL)
+      pack_str(pw, NULL);
+   else {
+      ident_t module;
+      ptrdiff_t offset;
+      object_locus(obj, &module, &offset);
 
-   pack_str(pw, istr(module));
-   pack_uint(pw, offset);
+      pack_str(pw, istr(module));
+      pack_uint(pw, offset);
+   }
 }
 
 static void pack_value(pack_writer_t *pw, jit_t *j, jit_value_t value)
@@ -249,12 +253,7 @@ static void pack_func(pack_writer_t *pw, jit_t *j, jit_func_t *f)
       pack_uint(pw, f->linktab[i].offset);
    }
 
-   ident_t module;
-   ptrdiff_t offset;
-   object_locus(f->object, &module, &offset);
-
-   pack_str(pw, istr(module));
-   pack_uint(pw, offset);
+   pack_locus(pw, f->object);
 
    for (int i = 0; i < f->nirs; i++) {
       jit_ir_t *ir = &(f->irbuf[i]);
@@ -464,7 +463,11 @@ static jit_handle_t unpack_handle(pack_func_t *pf, jit_t *j)
 
 static object_t *unpack_locus(pack_func_t *pf)
 {
-   ident_t module = ident_new(unpack_str(pf));
+   const char *str = unpack_str(pf);
+   if (str == NULL)
+      return NULL;
+
+   ident_t module = ident_new(str);
    ptrdiff_t disp = unpack_uint(pf);
    return object_from_locus(module, disp, lib_load_handler);
 }
@@ -577,9 +580,7 @@ bool jit_pack_fill(jit_pack_t *jp, jit_t *j, jit_func_t *f)
       }
    }
 
-   ident_t module = ident_new(unpack_str(pf));
-   ptrdiff_t offset = unpack_uint(pf);
-   f->object = object_from_locus(module, offset, lib_load_handler);
+   f->object = unpack_locus(pf);
 
    for (int i = 0; i < f->nirs; i++) {
       jit_ir_t *ir = &(f->irbuf[i]);
