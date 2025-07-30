@@ -344,6 +344,8 @@ jobs:
         run: ./vhdl-projects/realmatrix/test.sh
       - name: Test Canola
         run: ./vhdl-projects/canola/test.sh
+      - name: Test mixed_cic
+        run: ./vhdl-projects/mixed_cic/test.sh
 
   vunit:
     name: VUnit
