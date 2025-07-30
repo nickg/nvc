@@ -146,6 +146,7 @@ typedef enum {
    V_FORCE,
    V_RELEASE,
    V_DISABLE,
+   V_HIER_REF,
 
    V_LAST_NODE_KIND
 } vlog_kind_t;

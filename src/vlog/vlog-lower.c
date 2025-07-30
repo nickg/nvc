@@ -155,6 +155,32 @@ static vlog_lvalue_t vlog_lower_lvalue(vlog_gen_t *g, vlog_node_t v)
    switch (vlog_kind(v)) {
    case V_REF:
       return vlog_lower_lvalue_ref(g, v);
+   case V_HIER_REF:
+      {
+         mir_type_t t_net_value = mir_int_type(g->mu, 0, 255);
+         mir_type_t t_net_signal = mir_signal_type(g->mu, t_net_value);
+
+         // XXX: reconsider this
+         ident_t unit_name =
+            ident_prefix(mir_get_parent(g->mu), vlog_ident2(v), '.');
+         mir_value_t context = mir_build_link_package(g->mu, unit_name);
+         mir_value_t ptr = mir_build_link_var(g->mu, unit_name, context,
+                                              vlog_ident(v), t_net_signal);
+
+         mir_type_t t_bool = mir_bool_type(g->mu);
+         mir_type_t t_offset = mir_offset_type(g->mu);
+
+         vlog_node_t decl = vlog_ref(v);
+         const type_info_t *ti = vlog_type_info(g, vlog_type(decl));
+
+         vlog_lvalue_t result = {
+            .nets     = mir_build_load(g->mu, ptr),
+            .size     = ti->size,
+            .offset   = mir_const(g->mu, t_offset, 0),
+            .in_range = mir_const(g->mu, t_bool, 1),
+         };
+         return result;
+      }
    case V_BIT_SELECT:
       {
          vlog_node_t prefix = vlog_value(v);
@@ -564,6 +590,29 @@ static mir_value_t vlog_lower_rvalue(vlog_gen_t *g, vlog_node_t v)
 
          return mir_build_pack(g->mu, ti->type, data);
       }
+   case V_HIER_REF:
+      {
+         mir_type_t t_net_value = mir_int_type(g->mu, 0, 255);
+         mir_type_t t_net_signal = mir_signal_type(g->mu, t_net_value);
+
+         // XXX: reconsider this
+         ident_t unit_name =
+            ident_prefix(mir_get_parent(g->mu), vlog_ident2(v), '.');
+         mir_value_t context = mir_build_link_package(g->mu, unit_name);
+         mir_value_t ptr = mir_build_link_var(g->mu, unit_name, context,
+                                              vlog_ident(v), t_net_signal);
+         mir_value_t nets = mir_build_load(g->mu, ptr);
+
+         vlog_node_t decl = vlog_ref(v);
+         const type_info_t *ti = vlog_type_info(g, vlog_type(decl));
+
+         mir_value_t data = mir_build_resolved(g->mu, nets);
+
+         if (ti->size == 1)
+            data = mir_build_load(g->mu, data);
+
+         return mir_build_pack(g->mu, ti->type, data);
+      }
    case V_EVENT:
       {
          vlog_node_t value = vlog_value(v);
@@ -738,6 +787,7 @@ static void vlog_lower_sensitivity(vlog_gen_t *g, vlog_node_t v)
    const vlog_kind_t kind = vlog_kind(v);
    switch (kind) {
    case V_REF:
+   case V_HIER_REF:
       {
          switch (vlog_kind(vlog_ref(v))) {
          case V_PORT_DECL:
@@ -1391,6 +1441,7 @@ static void vlog_lower_net_decl(mir_unit_t *mu, vlog_node_t v, tree_t wrap,
    mir_type_t t_net_signal = mir_signal_type(mu, t_net_value);
    mir_type_t t_offset = mir_offset_type(mu);
 
+   assert(wrap != NULL);
    assert(!vlog_has_value(v));   // Should have been replaced with assign
 
    mir_value_t value = mir_const(mu, t_net_value, LOGIC_X);
@@ -1417,6 +1468,8 @@ static void vlog_lower_var_decl(vlog_gen_t *g, vlog_node_t v, tree_t wrap)
    mir_type_t t_logic = mir_int_type(g->mu, 0, 3);
    mir_type_t t_logic_signal = mir_signal_type(g->mu, t_logic);
    mir_type_t t_offset = mir_offset_type(g->mu);
+
+   assert(wrap != NULL);
 
    const type_info_t *ti = vlog_type_info(g, vlog_type(v));
    const int total_size = ti->size * vlog_size(v);
@@ -1639,7 +1692,9 @@ void vlog_lower_block(mir_context_t *mc, ident_t parent, tree_t b)
       ident_t id = tree_ident(t);
       for (; pos < vlog_ndecls; pos++) {
          vlog_node_t v = vlog_decl(body, pos);
-         if (vlog_ident(v) == id) {
+         if (vlog_kind(v) == V_PORT_DECL)
+            continue;
+         else if (vlog_ident(v) == id) {
             hash_put(map, v, t);
             break;
          }
@@ -1649,11 +1704,10 @@ void vlog_lower_block(mir_context_t *mc, ident_t parent, tree_t b)
          fatal_trace("missing VHDL signal for %s", istr(id));
    }
 
-   const int nports = vlog_ports(body);
-   assert(tree_ports(b) == nports);
-   assert(tree_params(b) == nports);
+   const int vhdl_nports = tree_ports(b);
+   const int vlog_nports = vlog_ports(body);
 
-   for (int i = 0; i < nports; i++)
+   for (int i = 0; i < vhdl_nports; i++)
       hash_put(map, vlog_ref(vlog_ref(vlog_port(body, i))), tree_port(b, i));
 
    ident_t pkg_name = well_known(W_NVC_VERILOG);
@@ -1693,7 +1747,7 @@ void vlog_lower_block(mir_context_t *mc, ident_t parent, tree_t b)
    mir_type_t t_self = mir_context_type(mu, qual);
    mir_type_t t_offset = mir_offset_type(mu);
 
-   for (int i = 0; i < nports; i++) {
+   for (int i = 0; i < vlog_nports; i++) {
       vlog_node_t ref = vlog_port(body, i);
       assert(vlog_kind(ref) == V_REF);
 
@@ -1706,6 +1760,9 @@ void vlog_lower_block(mir_context_t *mc, ident_t parent, tree_t b)
       assert(hops == 0);
 
       mir_put_object(mu, port, var);
+
+      if (i >= vhdl_nports)
+         continue;   // Port conversion only for mixed instantiation
 
       mir_value_t count = mir_const(mu, t_offset, vlog_size(vlog_type(port)));
 

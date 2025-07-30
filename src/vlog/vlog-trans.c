@@ -285,12 +285,10 @@ void vlog_trans(vlog_node_t mod, tree_t out)
       case V_PORT_DECL:
          break;   // Translated below
       case V_VAR_DECL:
-         if (!hset_contains(ports, d))
-            trans_var_decl(&gen, d);
+         trans_var_decl(&gen, d);
          break;
       case V_NET_DECL:
-         if (!hset_contains(ports, d))
-            trans_net_decl(&gen, d);
+         trans_net_decl(&gen, d);
          break;
       case V_PARAM_DECL:
          trans_param_decl(&gen, d);

@@ -539,144 +539,6 @@ static tree_t elab_mixed_binding(tree_t comp, mod_cache_t *mc)
    return bind;
 }
 
-static tree_t elab_verilog_conversion(type_t from, type_t to)
-{
-   static struct {
-      const verilog_type_t from_id;
-      const verilog_type_t to_id;
-      const char *const    func;
-      type_t               from;
-      type_t               to;
-      tree_t               decl;
-   } table[] = {
-      { VERILOG_NET_VALUE, VERILOG_LOGIC,
-        "NVC.VERILOG.TO_LOGIC(" T_NET_VALUE ")" T_LOGIC },
-      { VERILOG_NET_ARRAY, VERILOG_LOGIC_ARRAY,
-        "NVC.VERILOG.TO_LOGIC(" T_NET_ARRAY ")" T_LOGIC_ARRAY },
-      { VERILOG_WIRE_ARRAY, VERILOG_LOGIC_ARRAY,
-        "NVC.VERILOG.TO_LOGIC(" T_WIRE_ARRAY ")" T_LOGIC_ARRAY },
-      { VERILOG_LOGIC, VERILOG_NET_VALUE,
-        "NVC.VERILOG.TO_NET(" T_LOGIC ")" T_NET_VALUE },
-      { VERILOG_LOGIC_ARRAY, VERILOG_NET_ARRAY,
-        "NVC.VERILOG.TO_NET(" T_LOGIC_ARRAY ")" T_NET_ARRAY },
-      { VERILOG_LOGIC_ARRAY, VERILOG_WIRE_ARRAY,
-        "NVC.VERILOG.TO_NET(" T_LOGIC_ARRAY ")" T_WIRE_ARRAY },
-   };
-
-   INIT_ONCE({
-         for (int i = 0; i < ARRAY_LEN(table); i++) {
-            table[i].from = verilog_type(table[i].from_id);
-            table[i].to   = verilog_type(table[i].to_id);
-            table[i].decl = verilog_func(ident_new(table[i].func));
-         }
-      });
-
-   for (int i = 0; i < ARRAY_LEN(table); i++) {
-      if (type_eq(table[i].from, from) && type_eq(table[i].to, to))
-         return table[i].decl;
-   }
-
-   return NULL;
-}
-
-static tree_t elab_verilog_binding(vlog_node_t inst, elab_instance_t *ei,
-                                   const elab_ctx_t *ctx)
-{
-   assert(vlog_kind(inst) == V_MOD_INST);
-
-   tree_t bind = tree_new(T_BINDING);
-   tree_set_ident(bind, vlog_ident(ei->body));
-   tree_set_loc(bind, vlog_loc(inst));
-   tree_set_ref(bind, ei->module->wrap);
-   tree_set_class(bind, C_ENTITY);
-
-   const int nports = vlog_ports(ei->body);
-   const int nparams = vlog_params(inst);
-   const int outports = tree_ports(ctx->out);
-   const int outdecls = tree_decls(ctx->out);
-
-   if (nports != nparams) {
-      error_at(vlog_loc(inst), "expected %d port connections for module %s "
-               "but found %d", nports, istr(vlog_ident2(ei->body)), nparams);
-      return NULL;
-   }
-
-   bool have_named = false;
-   for (int i = 0; i < nports; i++) {
-      vlog_node_t conn = vlog_param(inst, i);
-      assert(vlog_kind(conn) == V_PORT_CONN);
-
-      vlog_node_t expr = vlog_value(conn);
-
-      ident_t id = vlog_ident(expr);
-      tree_t decl = NULL;
-
-      for (int j = 0; j < outports; j++) {
-         tree_t p = tree_port(ctx->out, j);
-         if (tree_ident(p) == id) {
-            decl = p;
-            break;
-         }
-      }
-
-      if (decl == NULL) {
-         for (int j = 0; j < outdecls; j++) {
-            tree_t d = tree_decl(ctx->out, j);
-            if (tree_ident(d) == id) {
-               decl = d;
-               break;
-            }
-         }
-      }
-
-      assert(decl != NULL);
-
-      tree_t port = tree_port(ei->block, i);
-
-      type_t dtype = tree_type(decl);
-      type_t ptype = tree_type(port);
-
-      if (type_eq(dtype, ptype)) {
-         if (have_named)
-            add_param(bind, make_ref(decl), P_NAMED, make_ref(port));
-         else
-            add_param(bind, make_ref(decl), P_POS, NULL);
-      }
-      else if (tree_subkind(port) == PORT_IN) {
-         tree_t func = elab_verilog_conversion(dtype, ptype);
-         assert(func != NULL);
-
-         tree_t conv = tree_new(T_CONV_FUNC);
-         tree_set_loc(conv, vlog_loc(conn));
-         tree_set_ref(conv, func);
-         tree_set_ident(conv, tree_ident(func));
-         tree_set_type(conv, type_result(tree_type(func)));
-         tree_set_value(conv, make_ref(decl));
-
-         if (have_named)
-            add_param(bind, conv, P_NAMED, make_ref(port));
-         else
-            add_param(bind, conv, P_POS, NULL);
-      }
-      else {
-         tree_t func = elab_verilog_conversion(ptype, dtype);
-         assert(func != NULL);
-
-         tree_t conv = tree_new(T_CONV_FUNC);
-         tree_set_loc(conv, vlog_loc(conn));
-         tree_set_ref(conv, func);
-         tree_set_ident(conv, tree_ident(func));
-         tree_set_type(conv, type_result(tree_type(func)));
-         tree_set_value(conv, make_ref(port));
-
-         add_param(bind, make_ref(decl), P_NAMED, conv);
-         have_named = true;
-      }
-   }
-
-   return bind;
-}
-
 static tree_t elab_default_binding(tree_t inst, const elab_ctx_t *ctx)
 {
    // Default binding indication is described in LRM 93 section 5.2.2
@@ -1466,6 +1328,70 @@ static void elab_verilog_module(tree_t bind, ident_t label,
    elab_pop_scope(&new_ctx);
 }
 
+static void elab_verilog_ports(vlog_node_t inst, elab_instance_t *ei,
+                               const elab_ctx_t *ctx)
+{
+   assert(vlog_kind(inst) == V_MOD_INST);
+
+   const int nports = vlog_ports(ei->body);
+   const int nparams = vlog_params(inst);
+
+   if (nports != nparams) {
+      error_at(vlog_loc(inst), "expected %d port connections for module %s "
+               "but found %d", nports, istr(vlog_ident2(ei->body)), nparams);
+      return;
+   }
+
+   ident_t block_name = vlog_ident(inst);
+
+   for (int i = 0; i < nports; i++) {
+      vlog_node_t conn = vlog_param(inst, i);
+      assert(vlog_kind(conn) == V_PORT_CONN);
+
+      vlog_node_t port = vlog_ref(vlog_port(ei->body, i));
+      ident_t port_name = vlog_ident(port);
+
+      const loc_t *loc = vlog_loc(conn);
+      ident_t name = ident_uniq("#assign#%s.%s", istr(block_name),
+                                istr(port_name));
+
+      vlog_node_t ref = vlog_new(V_HIER_REF);
+      vlog_set_ident(ref, port_name);
+      vlog_set_ref(ref, port);
+      vlog_set_ident2(ref, block_name);
+
+      vlog_node_t assign = vlog_new(V_ASSIGN);
+      vlog_set_ident(assign, name);
+
+      switch (vlog_subkind(port)) {
+      case V_PORT_INPUT:
+         vlog_set_target(assign, ref);
+         vlog_set_value(assign, vlog_value(conn));
+         break;
+      case V_PORT_OUTPUT:
+         vlog_set_target(assign, vlog_value(conn));
+         vlog_set_value(assign, ref);
+         break;
+      default:
+         fatal_at(vlog_loc(port), "sorry, this port kind is not supported");
+      }
+
+      vlog_set_loc(assign, loc);
+
+      tree_t wrap = tree_new(T_VERILOG);
+      tree_set_ident(wrap, name);
+      tree_set_vlog(wrap, assign);
+      tree_set_loc(wrap, loc);
+
+      tree_add_stmt(ctx->out, wrap);
+
+      ident_t sym = ident_prefix(ctx->dotted, name, '.');
+
+      mir_defer(ctx->mir, sym, ctx->dotted, MIR_UNIT_PROCESS,
+                vlog_lower_deferred, vlog_to_object(assign));
+   }
+}
+
 static void elab_verilog_instance_list(vlog_node_t v, const elab_ctx_t *ctx)
 {
    ident_t modname = vlog_ident(v);
@@ -1510,9 +1436,8 @@ static void elab_verilog_instance_list(vlog_node_t v, const elab_ctx_t *ctx)
       vlog_node_t inst = vlog_stmt(v, i);
       assert(vlog_kind(inst) == V_MOD_INST);
 
-      tree_t bind = elab_verilog_binding(inst, ei, ctx);
-      if (bind != NULL)
-         elab_verilog_module(bind, vlog_ident(inst), ei, ctx);
+      elab_verilog_module(NULL, vlog_ident(inst), ei, ctx);
+      elab_verilog_ports(inst, ei, ctx);
    }
 }
 

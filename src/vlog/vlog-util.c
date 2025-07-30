@@ -147,6 +147,7 @@ vlog_node_t vlog_longest_static_prefix(vlog_node_t v)
 {
    switch (vlog_kind(v)) {
    case V_REF:
+   case V_HIER_REF:
       return v;
    case V_BIT_SELECT:
       {
