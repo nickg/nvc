@@ -260,10 +260,12 @@ static void vlog_dump_timing(vlog_node_t v, int indent)
 {
    vlog_dump(vlog_value(v), indent);
 
-   if (vlog_stmts(v) > 0)
+   if (vlog_stmts(v) > 0) {
+      print_syntax(" ");
       vlog_dump(vlog_stmt(v, 0), indent);
+   }
    else
-      print_syntax(";\n");
+      print_syntax(";");
 }
 
 static void vlog_dump_event(vlog_node_t v)
@@ -286,15 +288,17 @@ static void vlog_dump_event_control(vlog_node_t v)
       vlog_dump(vlog_param(v, i), 0);
    }
 
-   print_syntax(") ");
+   print_syntax(")");
 }
 
 static void vlog_dump_nbassign(vlog_node_t v, int indent)
 {
    vlog_dump(vlog_target(v), 0);
    print_syntax(" <= ");
-   if (vlog_has_delay(v))
+   if (vlog_has_delay(v)) {
       vlog_dump(vlog_delay(v), 0);
+      print_syntax(" ");
+   }
    vlog_dump(vlog_value(v), 0);
    print_syntax(";");
 }
@@ -309,8 +313,10 @@ static void vlog_dump_bassign(vlog_node_t v, int indent)
       break;
    }
 
-   if (vlog_has_delay(v))
+   if (vlog_has_delay(v)) {
       vlog_dump(vlog_delay(v), 0);
+      print_syntax(" ");
+   }
 
    vlog_dump(vlog_value(v), 0);
    print_syntax(";");
@@ -470,7 +476,6 @@ static void vlog_dump_delay_control(vlog_node_t v, int indent)
 {
    print_syntax("##");
    vlog_dump(vlog_value(v), 0);
-   print_syntax(" ");
 }
 
 static void vlog_dump_gate_inst(vlog_node_t v, int indent)

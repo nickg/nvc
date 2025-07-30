@@ -523,6 +523,7 @@ START_TEST(test_vlog1)
              "    while (1);\n"
              "    repeat (5) r = r + 1;\n"
              "    for (i = 0; i < 10; i++) r = !r;\n"
+             "    #1;\n"
              "    forever i = ++i;\n"
              "  end\n"
              "  assign bus = 3;\n"
