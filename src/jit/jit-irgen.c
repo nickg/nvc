@@ -3978,14 +3978,13 @@ static void irgen_op_unary(jit_irgen_t *g, mir_value_t n)
    const int size = mir_get_size(g->mu, type);
    assert(size <= 64);  // TODO
 
+   uint64_t mask = ~UINT64_C(0);
+   if (size < 64) mask >>= 64 - size;
+
    jit_value_t abits;
    switch (irgen_get_enum(g, n, 0)) {
    case MIR_VEC_BIT_NOT:
-      {
-         uint64_t mask = ~UINT64_C(0);
-         if (size < 64) mask >>= 64 - size;
-         abits = j_xor(g, arg, jit_value_from_int64(mask));
-      }
+      abits = j_xor(g, arg, jit_value_from_int64(mask));
       break;
    case MIR_VEC_LOG_NOT:
       abits = j_not(g, arg);
@@ -3995,6 +3994,10 @@ static void irgen_op_unary(jit_irgen_t *g, mir_value_t n)
       break;
    case MIR_VEC_BIT_OR:
       abits = j_not(g, j_not(g, arg));
+      break;
+   case MIR_VEC_BIT_AND:
+      j_cmp(g, JIT_CC_EQ, arg, jit_value_from_int64(mask));
+      abits = j_cset(g);
       break;
    case MIR_VEC_BIT_XOR:
       {

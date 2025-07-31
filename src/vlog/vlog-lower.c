@@ -325,6 +325,7 @@ static mir_value_t vlog_lower_unary(vlog_gen_t *g, vlog_node_t v)
    case V_UNARY_NEG:    mop = MIR_VEC_SUB; break;
    case V_UNARY_OR:     mop = MIR_VEC_BIT_OR; break;
    case V_UNARY_XOR:    mop = MIR_VEC_BIT_XOR; break;
+   case V_UNARY_AND:    mop = MIR_VEC_BIT_AND; break;
    default:
       CANNOT_HANDLE(v);
    }
