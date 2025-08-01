@@ -18,7 +18,7 @@ LibPath = "#{BuildDir}/lib/std:#{BuildDir}/lib/ieee"
 IvtestDir = Pathname.new(ARGV[0]).realpath
 GitRev = IO::popen("git rev-parse --short HEAD").read.chomp
 Tool = ENV['NVC'] || 'nvc'
-ExpectFails = 1280
+ExpectFails = 1265
 
 ENV['NVC_COLORS'] = 'always'
 
@@ -62,6 +62,17 @@ def run_cmd(c, expfail)
   end
 end
 
+def get_module_name(f)
+  last_match = File.readlines(f)
+                 .reverse
+                 .find { |line| line.match?(/^module\s+(\w+)/) }
+
+  return last_match.match(/^module\s+(\w+)/)[1] if last_match
+
+  puts "Cannot find module name for #{f}".red
+  return nil
+end
+
 fails  = 0
 passes = 0
 
@@ -71,13 +82,20 @@ passes = 0
     next if cleaned.empty?
 
     name, type, dir, flags = cleaned.split
-        
+
     Dir.mktmpdir do |workdir|
       f = File.realpath "#{IvtestDir}/#{dir}/#{name}.v"
-      cmd = "#{Tool} --work=work:#{workdir}/work -a --no-save #{f}"
+      m = get_module_name(f)
 
-      result = run_cmd cmd, (type == "CE")
-      
+      if type == "CE" then
+        cmd = "#{Tool} --work=work:#{workdir}/work -a --no-save #{f}"
+      else
+        cmd = "#{Tool} --work=work:#{workdir}/work -a --no-save #{f} " +
+              "-e --jit --no-save #{m} -r"
+      end
+
+      result = run_cmd cmd, (type == "CE" || type == "RE")
+
       if result then
         passes += 1
         print '+'.green
