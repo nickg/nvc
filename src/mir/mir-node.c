@@ -1561,6 +1561,7 @@ mir_value_t mir_build_binary(mir_unit_t *mu, mir_vec_op_t op, mir_type_t type,
    switch (op) {
    case MIR_VEC_CASE_EQ:
    case MIR_VEC_CASE_NEQ:
+   case MIR_VEC_CASEX_EQ:
    case MIR_VEC_LOG_AND:
    case MIR_VEC_LOG_OR:
       // XXX: these should be vec2

@@ -1184,6 +1184,9 @@ static void vlog_lower_case(vlog_gen_t *g, vlog_node_t v)
    mir_type_t t_logic = mir_vec4_type(g->mu, 1, false);
    mir_value_t zero = mir_const_vec(g->mu, t_logic, 0, 0);
 
+   const mir_vec_op_t op = vlog_subkind(v) == V_CASE_NORMAL
+      ? MIR_VEC_CASE_EQ : MIR_VEC_CASEX_EQ;
+
    for (int i = 0; i < nitems; i++) {
       vlog_node_t item = vlog_stmt(v, i);
       assert(vlog_kind(item) == V_CASE_ITEM);
@@ -1197,8 +1200,7 @@ static void vlog_lower_case(vlog_gen_t *g, vlog_node_t v)
       for (int j = 0; j < nparams; j++) {
          mir_value_t test = vlog_lower_rvalue(g, vlog_param(item, j));
          mir_value_t cast = mir_build_cast(g->mu, type, test);
-         mir_value_t case_eq =
-            mir_build_binary(g->mu, MIR_VEC_CASE_EQ, type, cast, value);
+         mir_value_t case_eq = mir_build_binary(g->mu, op, type, cast, value);
          mir_value_t cmp = mir_build_cmp(g->mu, MIR_CMP_NEQ, case_eq, zero);
 
          if (mir_is_null(comb))

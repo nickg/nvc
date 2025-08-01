@@ -81,6 +81,14 @@ static void format_number(vpiHandle it, char radix, int fwidth)
          fputs(argval.value.str, stdout);
       }
       break;
+   case 'b':
+      {
+         s_vpi_value argval = { .format = vpiBinStrVal };
+         vpi_get_value(arg, &argval);
+
+         fputs(argval.value.str, stdout);
+      }
+      break;
    }
 
    vpi_release_handle(arg);
@@ -106,6 +114,7 @@ static void interpret_format(const char *fmt, vpiHandle it)
             format_string(it, fwidth);
             break;
          case 'd':
+         case 'b':
          case 'x':
          case 'h':
          case 't':

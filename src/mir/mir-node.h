@@ -328,6 +328,7 @@ typedef enum {
    MIR_VEC_LOG_NEQ,
    MIR_VEC_CASE_EQ,
    MIR_VEC_CASE_NEQ,
+   MIR_VEC_CASEX_EQ,
    MIR_VEC_ADD,
    MIR_VEC_SUB,
    MIR_VEC_MUL,

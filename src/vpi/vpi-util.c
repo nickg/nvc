@@ -113,7 +113,12 @@ void vpi_format_number(number_t n, PLI_INT32 format, text_buf_t *tb)
 {
    switch (format) {
    case vpiBinStrVal:
-      number_print(n, tb);
+      {
+         const char map[] = "01zx";
+         const int width = number_width(n);
+         for (int i = width - 1; i >= 0; i--)
+            tb_append(tb, map[number_bit(n, i)]);
+      }
       break;
 
    case vpiDecStrVal:

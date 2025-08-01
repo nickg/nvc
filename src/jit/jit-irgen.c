@@ -3903,7 +3903,9 @@ static void irgen_op_binary(jit_irgen_t *g, mir_value_t n)
    mir_type_t type = mir_get_type(g->mu, n);
    const int size = mir_get_size(g->mu, type);
    assert(size <= 64);  // TODO
-   (void)size;
+
+   uint64_t mask = ~UINT64_C(0);
+   if (size < 64) mask >>= 64 - size;
 
    bool logical = false;
    jit_value_t abits;
@@ -3940,6 +3942,15 @@ static void irgen_op_binary(jit_irgen_t *g, mir_value_t n)
       j_cmp(g, JIT_CC_EQ, aleft, aright);
       j_ccmp(g, JIT_CC_EQ, bleft, bright);
       abits = j_not(g, j_cset(g));
+      break;
+   case MIR_VEC_CASEX_EQ:
+      {
+         jit_value_t xbits = j_or(g, bleft, bright);
+         jit_value_t lcmp = j_or(g, aleft, xbits);
+         jit_value_t rcmp = j_or(g, aright, xbits);
+         j_cmp(g, JIT_CC_EQ, lcmp, rcmp);
+         abits = j_cset(g);
+      }
       break;
    case MIR_VEC_LT:
    case MIR_VEC_LEQ:
