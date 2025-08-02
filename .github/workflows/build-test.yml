@@ -264,20 +264,14 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install ruby ruby-colorize
-      - uses: actions/download-artifact@v4
-        with:
-          name: 'Ubuntu package'
-      - name: Install pre-built package
-        run: >-
-          sudo apt-get install ./nvc_*.deb
-      - name: Check --version output
-        run: nvc --version
+      - name: Install Ubuntu Package
+        uses: ./.github/actions/install-package
       - name: Run VESTs
         run: >-
           cd vests && ../test/run_vests.rb .
 
   projects:
-    name: External Projects
+    name: External projects
     needs: [ build-package ]
     runs-on: ubuntu-22.04
     timeout-minutes: 15
@@ -290,14 +284,8 @@ jobs:
           repository: nickg/vhdl-projects
           path: vhdl-projects
           fetch-depth: 1
-      - uses: actions/download-artifact@v4
-        with:
-          name: 'Ubuntu package'
-      - name: Install pre-built package
-        run: >-
-          sudo apt-get install ./nvc_*.deb tcllib
-      - name: Check --version output
-        run: nvc --version
+      - name: Install Ubuntu Package
+        uses: ./.github/actions/install-package
       - name: Install OSVVM
         run: nvc --install osvvm
       - name: Install UVVM
@@ -354,6 +342,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          fetch-depth: 1
+      - uses: actions/checkout@v4
+        with:
           repository: VUnit/vunit
           ref: master
           path: vunit
@@ -369,14 +360,8 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install python3 python3-colorama make
-      - uses: actions/download-artifact@v4
-        with:
-          name: 'Ubuntu package'
-      - name: Install pre-built package
-        run: >-
-          sudo apt-get install ./nvc_*.deb
-      - name: Check --version output
-        run: nvc --version
+      - name: Install Ubuntu Package
+        uses: ./.github/actions/install-package
       - name: Set environment variables
         run: |
           echo "VUNIT_SIMULATOR=nvc" >> $GITHUB_ENV
@@ -432,14 +417,8 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install tcl tcllib git
-      - uses: actions/download-artifact@v4
-        with:
-          name: 'Ubuntu package'
-      - name: Install pre-built package
-        run: >-
-          sudo apt-get install ./nvc_*.deb
-      - name: Check --version output
-        run: nvc --version
+      - name: Install Ubuntu Package
+        uses: ./.github/actions/install-package
       - name: Run OSVVM tests
         run: |
           export OSVVM_DIR=./OsvvmLibraries
@@ -453,6 +432,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          fetch-depth: 1
+      - uses: actions/checkout@v4
+        with:
           repository: cocotb/cocotb
           ref: master
           path: cocotb
@@ -462,18 +444,35 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install python3 python3-nox
-      - uses: actions/download-artifact@v4
-        with:
-          name: 'Ubuntu package'
-      - name: Install pre-built package
-        run: >-
-          sudo apt-get install ./nvc_*.deb
-      - name: Check --version output
-        run: nvc --version
+      - name: Install Ubuntu Package
+        uses: ./.github/actions/install-package
       - name: Run cocotb regression tests
         run: |
           cd cocotb
           python3 -mnox -k "dev_test_sim and nvc and vhdl"
+
+  ivtest:
+    name: Icarus Verilog tests
+    needs: [ build-package ]
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: actions/checkout@v4
+        with:
+          repository: steveicarus/ivtest
+          path: ivtest
+          fetch-depth: 1
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install ruby ruby-colorize
+      - name: Install Ubuntu Package
+        uses: ./.github/actions/install-package
+      - name: Run Icarus Verilog test suite
+        run: |
+          ./test/run_ivtest.rb ./ivtest
 
   msi-installer:
     name: Windows installer
