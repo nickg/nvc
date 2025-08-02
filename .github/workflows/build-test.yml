@@ -221,23 +221,30 @@ jobs:
 
   build-package:
     name: Build package
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
+    container:
+      image: ubuntu:22.04
     steps:
+      - name: Install dependencies
+        run: |
+          apt-get -y update
+          apt-get -y install git
       - uses: actions/checkout@v4
         with:
           fetch-depth: 1
       - name: Get version
         id: version
         run: |
+          git config --global --add safe.directory $GITHUB_WORKSPACE
           vers=$(sed -n '1s/AC_INIT(\[.*\], \[\([0-9\.]*\).*\].*/\1/p' configure.ac)
           full=$(git log --date=format:%Y%m%d --pretty=$vers~git%cd.%h -1)
           echo "VERSION=$full" >> $GITHUB_ENV
       - name: Build Debian package
         run: |
+          export DEBIAN_FRONTEND=noninteractive
           ln -s contrib/debian debian
           sed -i 's/nvc (.*)/nvc (${{ env.VERSION }}-1)/' debian/changelog
-          sudo apt-get update
-          sudo apt-get build-dep .
+          apt-get -y build-dep .
           export DEB_BUILD_OPTIONS=nocheck
           dpkg-buildpackage -uc -us -b
           mv ../*.deb .
