@@ -6,7 +6,7 @@ runs:
         name: 'Ubuntu package'
     - name: Install pre-built package
       shell: bash
-      run: sudo apt-get install ./nvc_*.deb
+      run: apt-get -y install ./nvc_*.deb
     - name: Check --version output
       shell: bash
       run: nvc --version

@@ -16,7 +16,7 @@ jobs:
           - { version: 24.04 }
     runs-on: ubuntu-latest
     container:
-      image: ubuntu:${{matrix.version}}
+      image: ghcr.io/nickg/nvc-ubuntu-builder:${{matrix.version}}
     steps:
       - uses: actions/checkout@v3
         with:
@@ -28,11 +28,8 @@ jobs:
           echo "VERSION=$vers" >> $GITHUB_ENV
       - name: Build Debian package
         run: |
-          export DEBIAN_FRONTEND=noninteractive
           ln -s contrib/debian debian
           sed -i 's/nvc (.*)/nvc (${{ env.VERSION }}-1)/' debian/changelog
-          apt-get -y update
-          apt-get -y build-dep .
           dpkg-buildpackage -uc -us -b
           mv ../nvc_${{ env.VERSION }}-1_amd64.deb nvc_${{ env.VERSION }}-1_amd64_ubuntu-${{ matrix.version }}.deb
       - name: 'Upload artifact'

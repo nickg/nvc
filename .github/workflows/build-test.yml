@@ -22,26 +22,24 @@ jobs:
           # Disabled as too slow
           #- { os: 24.04-arm, mode: debug }
     name: Ubuntu ${{ matrix.os }} (${{ matrix.mode }})
-    runs-on: ubuntu-${{ matrix.os }}
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/nickg/nvc-ubuntu-builder:${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 1
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install automake flex llvm-dev check lcov \
-             libdw-dev libffi-dev libreadline-dev tcl8.6-dev \
-             libzstd-dev libxml2-utils libjansson-dev
       - name: Generate configure script
-        run: ./autogen.sh
+        run: |
+          git config --global --add safe.directory $GITHUB_WORKSPACE
+          ./autogen.sh
       - name: Configure debug
         if: ${{ matrix.mode == 'debug' }}
         run: |
           mkdir build && cd build
           ../configure --enable-gcov --enable-asan \
                --with-llvm=/usr/bin/llvm-config --enable-debug \
-               --enable-tcl --enable-gui
+               --enable-tcl
       - name: Configure release
         if: ${{ matrix.mode == 'release' }}
         run: |
@@ -223,12 +221,8 @@ jobs:
     name: Build package
     runs-on: ubuntu-latest
     container:
-      image: ubuntu:22.04
+      image: ghcr.io/nickg/nvc-ubuntu-builder:22.04
     steps:
-      - name: Install dependencies
-        run: |
-          apt-get -y update
-          apt-get -y install git
       - uses: actions/checkout@v4
         with:
           fetch-depth: 1
@@ -241,10 +235,8 @@ jobs:
           echo "VERSION=$full" >> $GITHUB_ENV
       - name: Build Debian package
         run: |
-          export DEBIAN_FRONTEND=noninteractive
           ln -s contrib/debian debian
           sed -i 's/nvc (.*)/nvc (${{ env.VERSION }}-1)/' debian/changelog
-          apt-get -y build-dep .
           export DEB_BUILD_OPTIONS=nocheck
           dpkg-buildpackage -uc -us -b
           mv ../*.deb .
@@ -257,7 +249,9 @@ jobs:
   vests:
     name: VESTs
     needs: [ build-package ]
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/nickg/nvc-ubuntu-builder:22.04
     steps:
       - uses: actions/checkout@v4
         with:
@@ -267,10 +261,6 @@ jobs:
           repository: nickg/vests
           path: vests
           fetch-depth: 1
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install ruby ruby-colorize
       - name: Install Ubuntu Package
         uses: ./.github/actions/install-package
       - name: Run VESTs
@@ -280,7 +270,9 @@ jobs:
   projects:
     name: External projects
     needs: [ build-package ]
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/nickg/nvc-ubuntu-builder:22.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
@@ -345,7 +337,9 @@ jobs:
   vunit:
     name: VUnit
     needs: [ build-package ]
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/nickg/nvc-ubuntu-builder:22.04
     steps:
       - uses: actions/checkout@v4
         with:
@@ -363,10 +357,6 @@ jobs:
           ref: master
           path: microwatt
           fetch-depth: 1
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install python3 python3-colorama make
       - name: Install Ubuntu Package
         uses: ./.github/actions/install-package
       - name: Set environment variables
@@ -400,7 +390,9 @@ jobs:
   osvvm:
     name: OSVVM
     needs: [ build-package ]
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/nickg/nvc-ubuntu-builder:22.04
     steps:
       - uses: actions/checkout@v4
         with:
@@ -420,10 +412,6 @@ jobs:
         run: |
           find OsvvmLibraries/Scripts -name VendorScripts_NVC.tcl -exec \
             sed -i '/puts $SimulateMessage/d' \{} \;
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install tcl tcllib git
       - name: Install Ubuntu Package
         uses: ./.github/actions/install-package
       - name: Run OSVVM tests
@@ -435,7 +423,9 @@ jobs:
   cocotb:
     name: Cocotb
     needs: [ build-package ]
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/nickg/nvc-ubuntu-builder:22.04
     steps:
       - uses: actions/checkout@v4
         with:
@@ -447,10 +437,6 @@ jobs:
           path: cocotb
           submodules: recursive
           fetch-depth: 1
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install python3 python3-nox
       - name: Install Ubuntu Package
         uses: ./.github/actions/install-package
       - name: Run cocotb regression tests
@@ -461,7 +447,9 @@ jobs:
   ivtest:
     name: Icarus Verilog tests
     needs: [ build-package ]
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/nickg/nvc-ubuntu-builder:22.04
     steps:
       - uses: actions/checkout@v4
         with:
@@ -471,10 +459,6 @@ jobs:
           repository: steveicarus/ivtest
           path: ivtest
           fetch-depth: 1
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install ruby ruby-colorize
       - name: Install Ubuntu Package
         uses: ./.github/actions/install-package
       - name: Run Icarus Verilog test suite
