@@ -412,10 +412,18 @@ static void interp_fadd(jit_interp_t *state, jit_ir_t *ir)
 
 static void interp_shl(jit_interp_t *state, jit_ir_t *ir)
 {
-   const int64_t arg1 = interp_get_int(state, ir->arg1);
-   const int64_t arg2 = interp_get_int(state, ir->arg2);
+   const uint64_t arg1 = interp_get_int(state, ir->arg1);
+   const uint64_t arg2 = interp_get_int(state, ir->arg2);
 
    state->regs[ir->result].integer = arg1 << arg2;
+}
+
+static void interp_shr(jit_interp_t *state, jit_ir_t *ir)
+{
+   const uint64_t arg1 = interp_get_int(state, ir->arg1);
+   const uint64_t arg2 = interp_get_int(state, ir->arg2);
+
+   state->regs[ir->result].integer = arg1 >> arg2;
 }
 
 static void interp_asr(jit_interp_t *state, jit_ir_t *ir)
@@ -960,6 +968,9 @@ static void interp_loop(jit_interp_t *state)
          break;
       case J_SHL:
          interp_shl(state, ir);
+         break;
+      case J_SHR:
+         interp_shr(state, ir);
          break;
       case J_ASR:
          interp_asr(state, ir);

@@ -21,7 +21,7 @@ module vlog14;
     end
     #1;
     if (q == 1) begin
-      $display("FAILED: %d == 1", q);
+      $display("FAILED: %d == 1 (%x)", q, q == 1);
       $finish;
     end
     $display("PASSED");

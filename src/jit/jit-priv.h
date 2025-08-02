@@ -68,6 +68,7 @@ typedef enum {
    J_CLAMP,
    J_CCMP,
    J_FCCMP,
+   J_SHR,
 
    __MACRO_BASE = 0x80,
    MACRO_COPY = __MACRO_BASE,

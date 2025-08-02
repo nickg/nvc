@@ -1155,3 +1155,4 @@ vhpi16          normal,vhpi
 vlog21          verilog
 ivtest7         verilog
 ivtest8         verilog
+ivtest9         verilog

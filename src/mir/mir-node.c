@@ -1629,6 +1629,16 @@ mir_value_t mir_build_insert(mir_unit_t *mu, mir_value_t part, mir_value_t full,
    return result;
 }
 
+mir_value_t mir_build_test(mir_unit_t *mu, mir_value_t vec)
+{
+   mir_value_t result = mir_build_1(mu, MIR_OP_TEST, mir_bool_type(mu),
+                                    MIR_NULL_STAMP, vec);
+
+   MIR_ASSERT(mir_is_vector(mu, vec), "argument must be vector");
+
+   return result;
+}
+
 void mir_build_store(mir_unit_t *mu, mir_value_t dest, mir_value_t src)
 {
    mir_type_t type = mir_get_type(mu, dest);

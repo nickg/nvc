@@ -1685,6 +1685,15 @@ static void cgen_op_shl(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
                                            cgen_reg_name(ir->result));
 }
 
+static void cgen_op_shr(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
+{
+   LLVMValueRef arg1 = cgen_get_value(obj, cgb, ir->arg1);
+   LLVMValueRef arg2 = cgen_get_value(obj, cgb, ir->arg2);
+
+   cgb->outregs[ir->result] = LLVMBuildLShr(obj->builder, arg1, arg2,
+                                            cgen_reg_name(ir->result));
+}
+
 static void cgen_op_asr(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
 {
    LLVMValueRef arg1 = cgen_get_value(obj, cgb, ir->arg1);
@@ -2417,6 +2426,9 @@ static void cgen_ir(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
       break;
    case J_SHL:
       cgen_op_shl(obj, cgb, ir);
+      break;
+   case J_SHR:
+      cgen_op_shr(obj, cgb, ir);
       break;
    case J_ASR:
       cgen_op_asr(obj, cgb, ir);

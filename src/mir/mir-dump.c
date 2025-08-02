@@ -172,6 +172,7 @@ const char *mir_op_string(mir_op_t op)
       [MIR_OP_UNARY] = "vector unary",
       [MIR_OP_DIR_CHECK] = "dir check",
       [MIR_OP_INSERT] = "insert",
+      [MIR_OP_TEST] = "test",
    };
 
    return map[op];
@@ -1752,6 +1753,7 @@ void mir_annotate(mir_unit_t *mu, const mir_annotate_t *cb, void *ctx)
             break;
 
          case MIR_OP_PACK:
+         case MIR_OP_TEST:
             {
                col += mir_dump_value(mu, result, cb, ctx);
                col += printf(" := %s ", mir_op_string(n->op));
