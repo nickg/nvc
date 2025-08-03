@@ -3956,6 +3956,23 @@ START_TEST(test_issue1212)
 }
 END_TEST
 
+START_TEST(test_issue1257)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/sem/issue1257.vhd");
+
+   const error_t expect[] = {
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_PACKAGE);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_sem_tests(void)
 {
    Suite *s = suite_create("sem");
@@ -4140,6 +4157,7 @@ Suite *get_sem_tests(void)
    tcase_add_test(tc_core, test_issue1067);
    tcase_add_test(tc_core, test_issue1173);
    tcase_add_test(tc_core, test_issue1212);
+   tcase_add_test(tc_core, test_issue1257);
    suite_add_tcase(s, tc_core);
 
    return s;
