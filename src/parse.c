@@ -1933,7 +1933,7 @@ static type_t get_element_subtype(tree_t expr)
    assert(type_is_array(type));
 
    type_t elem = type_elem(type);
-   if (type_const_bounds(elem))
+   if (type_const_bounds(elem) || class_of(expr) == C_TYPE)
       return elem;
 
    tree_t aref = tree_new(T_ARRAY_REF);

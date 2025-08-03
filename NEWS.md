@@ -1,6 +1,7 @@
 ## Unreleased changes
 - Scheduling of blocking and non-blocking assignments in mixed-language
   simulation now more accurately reflects Verilog semantics (#1227).
+- Several other minor bugs were resolved (#1257).
 
 ## Version 1.17.1 - 2025-07-26
 - Fixed a build failure on Linux Arm64 (#1246).
