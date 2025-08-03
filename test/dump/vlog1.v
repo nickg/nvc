@@ -26,6 +26,7 @@ module mod2;
       r = !r;
     #1;
     forever i = ++i;
+    r = func(4);
   end
   assign bus = 3;
   pullup (supply1, supply0) g1 (w);
@@ -38,7 +39,10 @@ module mod2;
     casex (w)
       1'b0, 1'b1: r = p1[3:0];
       default: r = 0;
-    endcase
+    endcase // casex (w)
+  function func;
+    input [7:0] p;
+  endfunction // func
 endmodule // mod2
 
 primitive multiplexer (mux, control, dataA, dataB);

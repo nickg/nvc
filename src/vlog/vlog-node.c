@@ -264,6 +264,9 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
 
    // V_HIER_REF
    (I_IDENT | I_IDENT2 | I_REF),
+
+   // V_TF_PORT_DECL
+   (I_IDENT | I_SUBKIND | I_RANGES | I_TYPE | I_VALUE),
 };
 
 static const char *kind_text_map[V_LAST_NODE_KIND] = {
@@ -287,6 +290,7 @@ static const char *kind_text_map[V_LAST_NODE_KIND] = {
    "V_SPECPARAM",     "V_FORK",        "V_ATTR_INST",     "V_USER_TCALL",
    "V_VOID_CALL",     "V_GENVAR_DECL", "V_FOR_GENERATE",  "V_DEASSIGN",
    "V_FORCE",         "V_RELEASE",     "V_DISABLE",       "V_HIER_REF",
+   "V_TF_PORT_DECL",
 };
 
 static const change_allowed_t change_allowed[] = {
@@ -430,7 +434,8 @@ vlog_node_t vlog_port(vlog_node_t v, unsigned n)
 void vlog_add_port(vlog_node_t v, vlog_node_t p)
 {
    assert(p != NULL);
-   assert(p->object.kind == V_REF || p->object.kind == V_PORT_DECL);
+   assert(p->object.kind == V_REF || p->object.kind == V_PORT_DECL
+          || p->object.kind == V_TF_PORT_DECL);
    vlog_array_add(lookup_item(&vlog_object, v, I_PORTS), p);
    object_write_barrier(&(v->object), &(p->object));
 }

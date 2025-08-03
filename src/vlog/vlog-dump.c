@@ -472,6 +472,19 @@ static void vlog_dump_prefix(vlog_node_t v)
    vlog_dump(vlog_target(v), 0);
 }
 
+static void vlog_dump_user_fcall(vlog_node_t v)
+{
+   print_syntax("%s(", istr(vlog_ident(v)));
+
+   const int nparams = vlog_params(v);
+   for (int i = 0; i < nparams; i++) {
+      if (i > 0) print_syntax(", ");
+      vlog_dump(vlog_param(v, i), 0);
+   }
+
+   print_syntax(")");
+}
+
 static void vlog_dump_delay_control(vlog_node_t v, int indent)
 {
    print_syntax("##");
@@ -810,9 +823,15 @@ static void vlog_dump_task_decl(vlog_node_t v, int indent)
 static void vlog_dump_func_decl(vlog_node_t v, int indent)
 {
    tab(indent);
-   print_syntax("#function %s(", istr(vlog_ident(v)));
+   print_syntax("#function %s;\n", istr(vlog_ident(v)));
 
-   print_syntax(");\n");
+   const int nports = vlog_ports(v);
+   for (int i = 0; i < nports; i++)
+      vlog_dump(vlog_port(v, i), indent + 2);
+
+   const int ndecls = vlog_decls(v);
+   for (int i = 0; i < ndecls; i++)
+      vlog_dump(vlog_decl(v, i), indent + 2);
 
    const int nstmts = vlog_stmts(v);
    for (int i = 0; i < nstmts; i++) {
@@ -852,6 +871,7 @@ void vlog_dump(vlog_node_t v, int indent)
       vlog_dump_hier_ref(v, indent);
       break;
    case V_PORT_DECL:
+   case V_TF_PORT_DECL:
       vlog_dump_port_decl(v, indent);
       break;
    case V_NET_DECL:
@@ -999,6 +1019,9 @@ void vlog_dump(vlog_node_t v, int indent)
       break;
    case V_WAIT:
       vlog_dump_wait(v, indent);
+      break;
+   case V_USER_FCALL:
+      vlog_dump_user_fcall(v);
       break;
    default:
       print_syntax("\n");

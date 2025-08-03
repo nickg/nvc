@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2023-2024  Nick Gasson
+//  Copyright (C) 2023-2025  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -510,6 +510,9 @@ START_TEST(test_vlog1)
              "  parameter logic [7:0] p1 = 5;\n"
              "  localparam bit p2 = 0;\n"
              "  logic [7:0] array1 [127:0];\n"
+             "  function func;\n"
+             "    input p;\n"
+             "  endfunction\n"
              "  initial begin\n"
              "    $display(\"hello\", $time);\n"
              "    if (bus) r <= 1 | r;\n"
@@ -525,6 +528,7 @@ START_TEST(test_vlog1)
              "    for (i = 0; i < 10; i++) r = !r;\n"
              "    #1;\n"
              "    forever i = ++i;\n"
+             "    r = func(4);\n"
              "  end\n"
              "  assign bus = 3;\n"
              "  pullup (supply0,supply1) g1 (w);\n"

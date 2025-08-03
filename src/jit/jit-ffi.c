@@ -229,7 +229,7 @@ ffi_spec_t ffi_spec_new(const ffi_type_t *types, size_t count)
 
 #ifdef DEBUG
    for (int i = 0; i < count; i++)
-      assert(isalpha(types[i]));
+      assert(isalnum(types[i]));
 #endif
 
    ffi_spec_t spec = {};

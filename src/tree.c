@@ -334,7 +334,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_FOREIGN),
 
    // T_VERILOG
-   (I_IDENT | I_FOREIGN | I_PARAMS | I_GENMAPS),
+   (I_IDENT | I_FOREIGN),
 
    // T_VIEW_DECL
    (I_IDENT | I_TYPE),

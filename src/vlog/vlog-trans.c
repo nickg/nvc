@@ -258,6 +258,16 @@ static void trans_net_decl(trans_gen_t *g, vlog_node_t decl)
    tree_add_decl(g->out, t);
 }
 
+static void trans_generic(trans_gen_t *g, vlog_node_t decl)
+{
+   tree_t wrap = tree_new(T_VERILOG);
+   tree_set_vlog(wrap, decl);
+   tree_set_ident(wrap, vlog_ident(decl));
+   tree_set_loc(wrap, vlog_loc(decl));
+
+   tree_add_decl(g->out, wrap);
+}
+
 void vlog_trans(vlog_node_t mod, tree_t out)
 {
    assert(is_top_level(mod));
@@ -295,6 +305,10 @@ void vlog_trans(vlog_node_t mod, tree_t out)
          break;
       case V_LOCALPARAM:
          trans_localparam(&gen, d);
+         break;
+      case V_FUNC_DECL:
+      case V_TASK_DECL:
+         trans_generic(&gen, d);
          break;
       default:
          CANNOT_HANDLE(d);

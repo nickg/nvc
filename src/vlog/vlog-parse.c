@@ -3165,7 +3165,7 @@ static void p_list_of_tf_variable_identifiers(vlog_node_t tf,
    BEGIN("list of task or function variable identifiers");
 
    do {
-      vlog_node_t v = vlog_new(V_PORT_DECL);
+      vlog_node_t v = vlog_new(V_TF_PORT_DECL);
       vlog_set_subkind(v, kind);
       vlog_set_type(v, dt);
       vlog_set_ident(v, p_identifier());

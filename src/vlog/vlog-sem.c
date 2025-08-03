@@ -502,6 +502,7 @@ static vlog_node_t vlog_check_cb(vlog_node_t v, void *ctx)
    case V_FOR_GENERATE:
    case V_FORCE:
    case V_RELEASE:
+   case V_TF_PORT_DECL:
       break;
    default:
       fatal_at(vlog_loc(v), "cannot check verilog node %s",
