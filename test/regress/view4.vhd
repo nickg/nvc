@@ -4,7 +4,7 @@ package pack is
     subtype rbit_vector is (resolved) bit_vector;
 
     type vec_t is record
-        p : bit_vector(1 to 3);
+        p : rbit_vector(1 to 3);
         q : rbit_vector(1 to 3);
     end record;
 
@@ -78,14 +78,14 @@ begin
         assert o = (0, 0, ("000", "000"));
         wait for 0 ns;
         assert i = (0, 5, ("000", "000"));
-        assert o = (1, 0, ("111", "111"));
+        assert o = (1, 0, ("000", "111"));
         i.x <= 7;
         o.y <= 12;
         i.z.p <= "101";
         i.z.q <= "001";
         wait for 1 ns;
         assert i = (7, 17, ("101", "001"));
-        assert o = (8, 12, ("010", "110"));
+        assert o = (8, 12, ("000", "110"));
         wait;
     end process;
 

@@ -896,6 +896,7 @@ ename6          normal,2008
 cover20         cover,shell
 issue787        normal
 view6           normal,2019
+view7           normal,2019
 issue790        normal
 issue791        normal,2008
 issue794        normal,2008

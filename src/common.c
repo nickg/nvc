@@ -514,8 +514,31 @@ tree_t find_element_mode_indication(tree_t view, tree_t field, bool *converse)
          const int nelems = type_fields(view_type);
          for (int i = 0; i < nelems; i++) {
             tree_t e = type_field(view_type, i);
-            if (tree_ref(e) == field)
+            if (tree_ref(e) == field) {
+               // If this element has a view and we need to apply converse,
+               // recursively apply converse to the element's view
+               if (*converse && tree_has_value(e)) {
+                  tree_t elem_view = tree_value(e);
+                  
+                  // Create a 'converse attribute reference for the element's view
+                  tree_t converse_attr = tree_new(T_ATTR_REF);
+                  tree_set_name(converse_attr, elem_view);
+                  tree_set_subkind(converse_attr, ATTR_CONVERSE);
+                  tree_set_loc(converse_attr, tree_loc(elem_view));
+                  
+                  // Create a new element with the converse view
+                  tree_t new_e = tree_new(tree_kind(e));
+                  tree_set_ref(new_e, tree_ref(e));
+                  tree_set_subkind(new_e, tree_subkind(e));
+                  tree_set_value(new_e, converse_attr);
+                  tree_set_loc(new_e, tree_loc(e));
+                  if (tree_has_type(e))
+                     tree_set_type(new_e, tree_type(e));
+                  
+                  return new_e;
+               }
                return e;
+            }
          }
 
          return NULL;
