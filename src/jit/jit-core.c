@@ -1088,6 +1088,7 @@ jit_handle_t jit_assemble(jit_t *j, ident_t name, const char *text)
       { "LOAD",    J_LOAD,       1, 1 },
       { "ULOAD",   J_ULOAD,      1, 1 },
       { "SHL",     J_SHL,        1, 2 },
+      { "SHR",     J_SHR,        1, 2 },
       { "ASR",     J_ASR,        1, 2 },
       { "LEA",     J_LEA,        1, 1 },
       { "AND",     J_AND,        1, 2 },
