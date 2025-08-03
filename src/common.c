@@ -519,13 +519,13 @@ tree_t find_element_mode_indication(tree_t view, tree_t field, bool *converse)
                // recursively apply converse to the element's view
                if (*converse && tree_has_value(e)) {
                   tree_t elem_view = tree_value(e);
-                  
+
                   // Create a 'converse attribute reference for the element's view
                   tree_t converse_attr = tree_new(T_ATTR_REF);
                   tree_set_name(converse_attr, elem_view);
                   tree_set_subkind(converse_attr, ATTR_CONVERSE);
                   tree_set_loc(converse_attr, tree_loc(elem_view));
-                  
+
                   // Create a new element with the converse view
                   tree_t new_e = tree_new(tree_kind(e));
                   tree_set_ref(new_e, tree_ref(e));
