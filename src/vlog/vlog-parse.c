@@ -1336,6 +1336,8 @@ static vlog_node_t p_tf_call(vlog_kind_t kind)
    vlog_node_t v = vlog_new(kind);
    vlog_set_ident(v, p_identifier());
 
+   optional_attributes();
+
    if (optional(tLPAREN)) {
       p_list_of_arguments(v);
       consume(tRPAREN);
@@ -1420,10 +1422,13 @@ static vlog_node_t p_primary(void)
 
    switch (peek()) {
    case tID:
-      if (peek_nth(2) == tLPAREN)
+      switch (peek_nth(2)) {
+      case tLPAREN:
+      case tATTRBEGIN:
          return p_subroutine_call(V_USER_FCALL);
-      else
+      default:
          return p_select(p_identifier());
+      }
    case tSTRING:
    case tNUMBER:
    case tUNSNUM:
@@ -1572,6 +1577,9 @@ static vlog_node_t p_nonbinary_expression(void)
       {
          vlog_node_t v = vlog_new(V_UNARY);
          vlog_set_subkind(v, p_unary_operator());
+
+         optional_attributes();
+
          vlog_set_value(v, p_primary());
          vlog_set_loc(v, CURRENT_LOC);
          return v;
@@ -1658,6 +1666,8 @@ static vlog_node_t p_binary_expression(vlog_node_t lhs, int min_prec)
          vlog_node_t v = vlog_new(V_BINARY);
          vlog_set_subkind(v, p_binary_operator());
          vlog_set_left(v, lhs);
+
+         optional_attributes();
 
          vlog_node_t rhs = p_nonbinary_expression();
 
@@ -2547,6 +2557,7 @@ static vlog_node_t p_statement_item(void)
       switch (peek_nth(2)) {
       case tLPAREN:
       case tSEMI:
+      case tATTRBEGIN:
          return p_subroutine_call_statement();
       default:
          {
@@ -4885,6 +4896,8 @@ static vlog_node_t p_ordered_port_connection(void)
 
    BEGIN("ordered port connection");
 
+   optional_attributes();
+
    vlog_node_t v = vlog_new(V_PORT_CONN);
 
    if (not_at_token(tCOMMA, tRPAREN))
@@ -4900,6 +4913,8 @@ static vlog_node_t p_named_port_connection(void)
    //    | { attribute_instance } .*
 
    BEGIN("named port connection");
+
+   optional_attributes();
 
    vlog_node_t v = vlog_new(V_PORT_CONN);
 
@@ -4929,6 +4944,8 @@ static void p_list_of_port_connections(vlog_node_t inst)
    vlog_symtab_set_implicit(symtab, implicit_kind);
 
    do {
+      skip_over_attributes();
+
       if (peek() == tDOT)
          vlog_add_param(inst, p_named_port_connection());
       else
