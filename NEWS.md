@@ -1,6 +1,9 @@
 ## Unreleased changes
 - Scheduling of blocking and non-blocking assignments in mixed-language
   simulation now more accurately reflects Verilog semantics (#1227).
+- Fixed an issue where sub-elements of a port with `'converse` record
+  mode view would have the wrong direction when the port was partially
+  associated.
 - Several other minor bugs were resolved (#1257).
 
 ## Version 1.17.1 - 2025-07-26
