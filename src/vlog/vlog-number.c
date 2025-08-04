@@ -223,7 +223,10 @@ number_t number_new(const char *str, const loc_t *loc)
       }
    }
 
-   SCRATCH_NUMBER result = number_scratch(width, false);
+   const bool issigned = (*p == 's');
+   if (issigned) p++;
+
+   SCRATCH_NUMBER result = number_scratch(width, issigned);
 
    vlog_radix_t radix = RADIX_DEC;
    switch (*p) {

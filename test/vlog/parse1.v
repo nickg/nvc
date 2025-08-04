@@ -135,5 +135,5 @@ module parse1;
   assign x = 6'o02;
   wire signed [3:0] w8[-7:7];
   var int unsigned uns;
-  logic v1;
+  logic v1 = 1'sb0;
 endmodule // parse1
