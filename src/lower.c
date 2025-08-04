@@ -11583,6 +11583,7 @@ static void lower_port_map(lower_unit_t *lu, tree_t block, tree_t map,
 {
    vcode_reg_t port_reg = VCODE_INVALID_REG;
    tree_t view = NULL, name;
+   bool converse = false;
    vcode_reg_t out_conv = VCODE_INVALID_REG;
    vcode_reg_t in_conv = VCODE_INVALID_REG;
    tree_t value = tree_value(map);
@@ -11633,10 +11634,8 @@ static void lower_port_map(lower_unit_t *lu, tree_t block, tree_t map,
          tree_t port = tree_ref(name_to_ref(name));
          mode = tree_subkind(port);
 
-         if (mode == PORT_ARRAY_VIEW || mode == PORT_RECORD_VIEW) {
-            bool converse = false;
+         if (mode == PORT_ARRAY_VIEW || mode == PORT_RECORD_VIEW)
             view = lower_get_view(name, &mode, &converse);
-         }
 
          port_reg = lower_lvalue(lu, name);
       }
@@ -11659,7 +11658,8 @@ static void lower_port_map(lower_unit_t *lu, tree_t block, tree_t map,
       assert(lower_is_signal_ref(value));
       vcode_reg_t locus = lower_debug_locus(view);
       lower_for_each_field_2(lu, tree_type(name), tree_type(value), port_reg,
-                             value_reg, locus, lower_map_view_field_cb, view);
+                             value_reg, locus, lower_map_view_field_cb,
+                             tag_pointer(view, converse));
    }
    else if (lower_is_signal_ref(value)) {
       type_t value_type = tree_type(value);

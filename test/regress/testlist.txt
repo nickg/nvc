@@ -1150,3 +1150,4 @@ signed1         mixed
 issue1240       normal,vhpi,2008
 issue1175       normal,relaxed
 vhpi16          normal,vhpi
+view7           normal,2019
