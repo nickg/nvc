@@ -415,7 +415,7 @@ static void interp_shl(jit_interp_t *state, jit_ir_t *ir)
    const uint64_t arg1 = interp_get_int(state, ir->arg1);
    const uint64_t arg2 = interp_get_int(state, ir->arg2);
 
-   state->regs[ir->result].integer = arg1 << arg2;
+   state->regs[ir->result].integer = arg2 < 64 ? arg1 << arg2 : 0;
 }
 
 static void interp_shr(jit_interp_t *state, jit_ir_t *ir)
@@ -423,7 +423,7 @@ static void interp_shr(jit_interp_t *state, jit_ir_t *ir)
    const uint64_t arg1 = interp_get_int(state, ir->arg1);
    const uint64_t arg2 = interp_get_int(state, ir->arg2);
 
-   state->regs[ir->result].integer = arg1 >> arg2;
+   state->regs[ir->result].integer = arg2 < 64 ? arg1 >> arg2 : 0;
 }
 
 static void interp_asr(jit_interp_t *state, jit_ir_t *ir)
@@ -431,7 +431,10 @@ static void interp_asr(jit_interp_t *state, jit_ir_t *ir)
    const int64_t arg1 = interp_get_int(state, ir->arg1);
    const int64_t arg2 = interp_get_int(state, ir->arg2);
 
-   state->regs[ir->result].integer = arg1 >> arg2;
+   if (arg2 < 64)
+      state->regs[ir->result].integer = arg1 >> arg2;
+   else
+      state->regs[ir->result].integer = arg1 < 0 ? -1 : 0;
 }
 
 static void interp_store(jit_interp_t *state, jit_ir_t *ir)

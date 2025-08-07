@@ -3989,12 +3989,17 @@ static void irgen_op_binary(jit_irgen_t *g, mir_value_t n)
       abits = j_cset(g);
       break;
    case MIR_VEC_SLL:
+   case MIR_VEC_SLA:
       arith = true;
       abits = j_shl(g, aleft, aright);
       break;
    case MIR_VEC_SRL:
       arith = true;
       abits = j_shr(g, aleft, aright);
+      break;
+   case MIR_VEC_SRA:
+      arith = true;
+      abits = j_asr(g, aleft, aright);
       break;
    default:
       should_not_reach_here();

@@ -391,6 +391,8 @@ static mir_value_t vlog_lower_binary(vlog_gen_t *g, vlog_node_t v)
    case V_BINARY_TIMES:    mop = MIR_VEC_MUL; break;
    case V_BINARY_SHIFT_LL: mop = MIR_VEC_SLL; break;
    case V_BINARY_SHIFT_RL: mop = MIR_VEC_SRL; break;
+   case V_BINARY_SHIFT_RA: mop = MIR_VEC_SRA; break;
+   case V_BINARY_SHIFT_LA: mop = MIR_VEC_SLA; break;
    default:
       CANNOT_HANDLE(v);
    }
