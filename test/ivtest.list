@@ -281,7 +281,8 @@ br_gh33			normal			ivltests gold=br_gh33.gold
 br_gh37			normal			ivltests
 br_gh60a		CE			ivltests
 br_gh62			CE			ivltests gold=br_gh62.gold
-br_gh79			CE			ivltests gold=br_gh79.gold
+# Checks iverilog errors, covered by unit test
+#br_gh79			CE			ivltests gold=br_gh79.gold
 br_gh99a		normal			ivltests
 br_gh99b		normal			ivltests
 br_gh99d		normal			ivltests
@@ -1696,7 +1697,8 @@ vvp_scalar_value	normal			ivltests
 wait1			normal			ivltests
 wait2			normal			ivltests
 wait3			normal			ivltests gold=wait3.gold
-warn_opt_sys_tf		RE			ivltests gold=warn_opt_sys_tf.gold
+# iverilog specific warnings
+#warn_opt_sys_tf		RE			ivltests gold=warn_opt_sys_tf.gold
 wildsense		normal			ivltests # Wildcard sensitivity list.
 wildsense2		normal			ivltests # Wildcard sensitivity list.
 wireadd1		normal			ivltests

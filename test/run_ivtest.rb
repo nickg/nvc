@@ -18,11 +18,11 @@ LibPath = "#{BuildDir}/lib/std:#{BuildDir}/lib/ieee"
 IvtestDir = Pathname.new(ARGV[0]).realpath
 GitRev = IO::popen("git rev-parse --short HEAD").read.chomp
 Tool = ENV['NVC'] || 'nvc'
-ExpectFails = 1180
+ExpectFails = 1222
 
 ENV['NVC_COLORS'] = 'always'
 
-def run_cmd(c, expfail)
+def run_cmd(c, expfail, gold)
   Open3.popen2e(c) do |i, oe, t|
     i.close
 
@@ -56,13 +56,29 @@ def run_cmd(c, expfail)
       puts output
       puts "expected failure!".magenta
       return false
+    elsif gold then
+      expected = File.read(gold)
+      if output != expected
+        puts
+        puts c.magenta
+        puts "Output did not match gold file: #{gold}".red
+        puts ">>>> Expected".yellow
+        puts expected
+        puts "<<<< Actual".yellow
+        puts output
+        return false
+      end
     end
 
     return true
   end
 end
 
-def get_module_name(f)
+def get_module_name(f, flags)
+  if flags[:type] == :module then
+    return flags[:name]
+  end
+
   last_match = File.readlines(f)
                  .reverse
                  .find { |line| line.match?(/^module\s+(\w+)/) }
@@ -73,28 +89,50 @@ def get_module_name(f)
   return nil
 end
 
+def parse_flags(arg)
+  case arg
+  when /^gold=(.+)$/
+    { type: :gold, filename: Regexp.last_match(1) }
+  when /^unordered=(.+)$/
+    { type: :unordered, filename: Regexp.last_match(1) }
+  when /^diff=([^:]+):([^:]+)(?::(\d+))?$/
+    {
+      type: :diff,
+      file1: Regexp.last_match(1),
+      file2: Regexp.last_match(2),
+      skip_lines: Regexp.last_match(3)&.to_i || 0
+    }
+  else
+    { type: :module, name: arg }
+  end
+end
+
 fails  = 0
 passes = 0
 
 File.open("#{TestDir}/ivtest.list").each_line do |line|
   cleaned = line.gsub(/#.*/, '').strip
   next if cleaned.empty?
-  
-  name, type, dir, flags = cleaned.split
-  
+
+  name, type, dir, *rest = cleaned.split
+
+  flags = rest.empty? ? {} : parse_flags(rest[0])
+
   Dir.mktmpdir do |workdir|
     f = File.realpath "#{IvtestDir}/#{dir}/#{name}.v"
-    m = get_module_name(f)
-    
+    m = get_module_name(f, flags)
+
     if type == "CE" then
       cmd = "#{Tool} --work=work:#{workdir}/work -a --no-save #{f}"
     else
       cmd = "#{Tool} --work=work:#{workdir}/work -a --no-save #{f} " +
             "-e --jit --no-save #{m} -r"
     end
-    
-    result = run_cmd cmd, (type == "CE" || type == "RE")
-      
+
+    gold = flags[:type] == :gold ? "#{IvtestDir}/gold/#{flags[:filename]}" : nil
+
+    result = run_cmd cmd, (type == "CE" || type == "RE"), gold
+
     if result then
       passes += 1
       print '+'.green
