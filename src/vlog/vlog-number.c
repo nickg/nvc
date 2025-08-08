@@ -238,6 +238,9 @@ number_t number_new(const char *str, const loc_t *loc)
    default: result.big->issigned = true; break;
    }
 
+   if (*p == '_' && radix != RADIX_STR)
+      error_at(loc, "number cannot start with an underscore");
+
    if (radix == RADIX_STR) {
       for (int bit = width - 8; !(*p == '"' && *(p + 1) == '\0');
            p++, bit -= 8) {

@@ -392,11 +392,13 @@ START_TEST(test_number2)
       { "1'b110",        1,   0,           "1'b0"           },
       { "1_000",         32,  1000,        "1000"           },
       { "6'o02",         6,   2,           "6'd2"           },
+      { "4'o_1",         4,   1,           "4'd1",          }
    };
 
    const error_t expect[] = {
       { LINE_INVALID, "excess digits in hex constant 4'h12" },
       { LINE_INVALID, "excess digits in binary constant 1'b110" },
+      { LINE_INVALID, "number cannot start with an underscore" },
       { -1, NULL }
    };
    expect_errors(expect);
