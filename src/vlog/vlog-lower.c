@@ -755,7 +755,8 @@ static mir_value_t vlog_lower_rvalue(vlog_gen_t *g, vlog_node_t v)
       }
    case V_COND_EXPR:
       {
-         // TODO: check semantics for return type
+         // See 1800-2023 section 11.4.11 for semantics
+
          // TODO: do not evaluate both sides
 
          mir_value_t value = vlog_lower_rvalue(g, vlog_value(v));
@@ -763,8 +764,17 @@ static mir_value_t vlog_lower_rvalue(vlog_gen_t *g, vlog_node_t v)
          mir_value_t left = vlog_lower_rvalue(g, vlog_left(v));
          mir_value_t right = vlog_lower_rvalue(g, vlog_right(v));
 
-         mir_type_t type = mir_get_type(g->mu, left);
-         return mir_build_select(g->mu, type, cmp, left, right);
+         mir_type_t ltype = mir_get_type(g->mu, left);
+         mir_type_t rtype = mir_get_type(g->mu, right);
+
+         unsigned size = MAX(mir_get_size(g->mu, ltype),
+                             mir_get_size(g->mu, rtype));
+         mir_type_t type = mir_vec4_type(g->mu, size, false);
+
+         mir_value_t lcast = mir_build_cast(g->mu, type, left);
+         mir_value_t rcast = mir_build_cast(g->mu, type, right);
+
+         return mir_build_select(g->mu, type, cmp, lcast, rcast);
       }
    case V_USER_FCALL:
       {

@@ -1,5 +1,6 @@
 module vlog19;
-  reg [7:0] x, y;
+  reg [7:0] x;
+  reg [5:0] y;
   wire [7:0] out;
 
   assign out = x > y ? x : y;
@@ -14,7 +15,7 @@ module vlog19;
 
     x[7] = 1;
     #1 if (out !== 130) begin
-      $display("FAILED (1) -- %d", out);
+      $display("FAILED (2) -- %d", out);
       $finish;
     end
 
