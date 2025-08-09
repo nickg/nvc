@@ -48,6 +48,8 @@ typedef union _number {
 STATIC_ASSERT(sizeof(number_t) == 8);
 
 number_t number_new(const char *str, const loc_t *loc);
+number_t number_from_int(int64_t value);
+number_t number_from_bool(bool value);
 void number_print(number_t val, text_buf_t *tb);
 bool number_is_defined(number_t val);
 int64_t number_integer(number_t val);

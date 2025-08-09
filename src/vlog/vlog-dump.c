@@ -455,7 +455,7 @@ static void vlog_dump_unary(vlog_node_t v)
    case V_UNARY_BITNEG: print_syntax("~~"); break;
    }
 
-   vlog_dump(vlog_value(v), 0);
+   vlog_dump_paren(vlog_value(v), 0);
 }
 
 static void vlog_dump_postfix(vlog_node_t v)

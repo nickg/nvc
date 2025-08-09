@@ -1475,15 +1475,7 @@ static vlog_node_t elab_mixed_generics(tree_t comp, vlog_node_t mod,
          fatal_at(tree_loc(ctx->out), "cannot get value of generic %s",
                   istr(tree_ident(cg)));
 
-      const int64_t ival = assume_int(value);
-
-      // TODO: have some better way of constructing these
-      char buf[64];
-      checked_sprintf(buf, sizeof(buf), "%lld", llabs(ival));
-
-      number_t n = number_new(buf, NULL);
-      if (ival < 0)
-         n = number_negate(n);
+      number_t n = number_from_int(assume_int(value));
 
       vlog_node_t num = vlog_new(V_NUMBER);
       vlog_set_number(num, n);

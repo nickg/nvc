@@ -202,11 +202,11 @@ static vlog_node_t simp_data_type(vlog_node_t v)
          const loc_t *loc = vlog_loc(v);
 
          vlog_node_t left = vlog_new(V_NUMBER);
-         vlog_set_number(left, number_new("31", NULL));
+         vlog_set_number(left, number_from_int(31));
          vlog_set_loc(left, loc);
 
          vlog_node_t right = vlog_new(V_NUMBER);
-         vlog_set_number(right, number_new("0", NULL));
+         vlog_set_number(right, number_from_int(0));
          vlog_set_loc(right, loc);
 
          vlog_node_t r = vlog_new(V_DIMENSION);
@@ -284,6 +284,12 @@ static vlog_node_t simp_binary(vlog_node_t v)
    case V_BINARY_LEQ:
       result = number_less_equal(nleft, nright);
       break;
+   case V_BINARY_LOG_AND:
+      result = number_from_bool(number_truthy(nleft) && number_truthy(nright));
+      break;
+   case V_BINARY_LOG_OR:
+      result = number_from_bool(number_truthy(nleft) || number_truthy(nright));
+      break;
    default:
       return v;
    }
@@ -310,6 +316,9 @@ static vlog_node_t simp_unary(vlog_node_t v)
       break;
    case V_UNARY_IDENTITY:
       result = n;
+      break;
+   case V_UNARY_NOT:
+      result = number_from_bool(!number_truthy(n));
       break;
    default:
       return v;
@@ -349,13 +358,9 @@ static vlog_node_t simp_sys_fcall(vlog_node_t v)
          if (vlog_kind(arg) == V_NUMBER) {
             number_t n = vlog_number(arg);
             if (number_is_defined(n)) {
-               char buf[32];
-               checked_sprintf(buf, sizeof(buf), "%d",
-                               ilog2(number_integer(n)));
-
                vlog_node_t new = vlog_new(V_NUMBER);
                vlog_set_loc(new, vlog_loc(v));
-               vlog_set_number(new, number_new(buf, vlog_loc(v)));
+               vlog_set_number(new, number_from_int(ilog2(number_integer(n))));
                return new;
             }
          }

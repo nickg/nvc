@@ -420,7 +420,7 @@ static ident_t error_marker(void)
 static vlog_node_t dummy_expression(void)
 {
    vlog_node_t v = vlog_new(V_NUMBER);
-   vlog_set_number(v, number_new("1'b0", NULL));
+   vlog_set_number(v, number_from_bool(false));
    return v;
 }
 

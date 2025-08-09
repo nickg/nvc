@@ -382,6 +382,30 @@ number_t number_new(const char *str, const loc_t *loc)
    return number_intern(result);
 }
 
+number_t number_from_int(int64_t value)
+{
+   int width = 32;
+   if (value < INT32_MIN || value > INT32_MAX)
+      width = ilog2(llabs(value)) + 1;
+
+   SCRATCH_NUMBER result = number_scratch(width, true);
+
+   bignum_abits(result.big)[0] = value;
+   bignum_bbits(result.big)[0] = 0;
+
+   return number_intern(result);
+}
+
+number_t number_from_bool(bool value)
+{
+   SCRATCH_NUMBER result = number_scratch(1, false);
+
+   bignum_abits(result.big)[0] = value;
+   bignum_bbits(result.big)[0] = 0;
+
+   return number_intern(result);
+}
+
 void number_print(number_t val, text_buf_t *tb)
 {
    if (number_is_defined(val)) {
