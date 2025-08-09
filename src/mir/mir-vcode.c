@@ -1353,6 +1353,12 @@ static void import_reflect_subtype(mir_unit_t *mu, mir_import_t *imp, int op)
       mir_build_reflect_subtype(mu, context, locus, bounds);
 }
 
+static void import_debug_out(mir_unit_t *mu, mir_import_t *imp, int op)
+{
+   mir_value_t value = imp->map[vcode_get_arg(op, 0)];
+   mir_build_debug_out(mu, value);
+}
+
 static void import_block(mir_unit_t *mu, mir_import_t *imp)
 {
    const int nops = vcode_count_ops();
@@ -1753,6 +1759,9 @@ static void import_block(mir_unit_t *mu, mir_import_t *imp)
          break;
       case VCODE_OP_REFLECT_VALUE:
          import_reflect_value(mu, imp, i);
+         break;
+      case VCODE_OP_DEBUG_OUT:
+         import_debug_out(mu, imp, i);
          break;
       default:
          vcode_dump_with_mark(i, NULL, NULL);
