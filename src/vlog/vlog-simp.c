@@ -331,6 +331,33 @@ static vlog_node_t simp_if_generate(vlog_node_t v)
    return NULL;   // None of the conditions are true
 }
 
+static vlog_node_t simp_sys_fcall(vlog_node_t v)
+{
+   switch (is_well_known(vlog_ident(v))) {
+   case W_DLR_CLOG2:
+      {
+         vlog_node_t arg = vlog_param(v, 0);
+         if (vlog_kind(arg) == V_NUMBER) {
+            number_t n = vlog_number(arg);
+            if (number_is_defined(n)) {
+               char buf[32];
+               checked_sprintf(buf, sizeof(buf), "%d",
+                               ilog2(number_integer(n)));
+
+               vlog_node_t new = vlog_new(V_NUMBER);
+               vlog_set_loc(new, vlog_loc(v));
+               vlog_set_number(new, number_new(buf, vlog_loc(v)));
+               return new;
+            }
+         }
+
+         return v;
+      }
+   default:
+      return v;
+   }
+}
+
 static vlog_node_t vlog_simp_cb(vlog_node_t v, void *context)
 {
    switch (vlog_kind(v)) {
@@ -350,6 +377,8 @@ static vlog_node_t vlog_simp_cb(vlog_node_t v, void *context)
       return simp_ref(v);
    case V_IF_GENERATE:
       return simp_if_generate(v);
+   case V_SYS_FCALL:
+      return simp_sys_fcall(v);
    default:
       return v;
    }

@@ -1151,6 +1151,7 @@ void intern_strings(void)
    id_cache[W_TEXT_UTIL]       = ident_new("NVC.TEXT_UTIL");
    id_cache[W_VERILOG_LOGIC]   = ident_new("NVC.VERILOG.T_LOGIC");
    id_cache[W_DLR_SIGNED]      = ident_new("$signed");
+   id_cache[W_DLR_CLOG2]       = ident_new("$clog2");
 
    id_cache[W_IEEE_LOGIC_VECTOR] =
       ident_new("IEEE.STD_LOGIC_1164.STD_LOGIC_VECTOR");

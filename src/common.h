@@ -292,6 +292,7 @@ typedef enum {
    W_VERILOG_LOGIC,
    W_VERILOG_WIRE_ARRAY,
    W_DLR_SIGNED,
+   W_DLR_CLOG2,
 
    NUM_WELL_KNOWN
 } well_known_t;

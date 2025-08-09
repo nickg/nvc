@@ -37,7 +37,14 @@ static vlog_node_t bind_parameter(vlog_node_t decl, int nth, vlog_node_t inst)
       if (nth < nparams && !vlog_has_ident((p = vlog_param(inst, nth))))
          value = vlog_value(p);
       else {
-         // TODO: search named
+         ident_t id = vlog_ident(decl);
+         for (int i = 0; i < nparams; i++) {
+            p = vlog_param(inst, i);
+            if (vlog_has_ident(p) && vlog_ident(p) == id) {
+               value = vlog_value(p);
+               break;
+            }
+         }
       }
    }
 
@@ -46,6 +53,7 @@ static vlog_node_t bind_parameter(vlog_node_t decl, int nth, vlog_node_t inst)
       diag_printf(d, "missing value for parameter %s", istr(vlog_ident(decl)));
       diag_hint(d, vlog_loc(decl), "parameter declared here");
       diag_emit(d);
+      return NULL;
    }
 
    vlog_node_t local = vlog_new(V_LOCALPARAM);
@@ -105,8 +113,10 @@ vlog_node_t vlog_new_instance(vlog_node_t mod, vlog_node_t inst, ident_t prefix)
       case V_PARAM_DECL:
          {
             vlog_node_t local = bind_parameter(d, pidx++, inst);
-            vlog_add_decl(v, local);
-            hash_put(map, d, local);
+            if (local != NULL) {
+               vlog_add_decl(v, local);
+               hash_put(map, d, local);
+            }
          }
          break;
       default:

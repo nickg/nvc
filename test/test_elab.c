@@ -1440,7 +1440,7 @@ START_TEST(test_mixed1)
       { 48, "cannot connect VHDL signal with type BIT to Verilog output "
         "port 'three'" },
       { 56, "missing matching VHDL generic declaration for Verilog parameter "
-        "'g1' in component MOD1" },
+        "'g1' with no default value in component MOD1" },
       { 67, "generic G1 should have type INTEGER to match corresponding "
         "Verilog parameter" },
       { 79, "generic G2 not found in Verilog module mod1" },

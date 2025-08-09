@@ -1431,6 +1431,7 @@ static vlog_node_t elab_mixed_generics(tree_t comp, vlog_node_t mod,
    LOCAL_BIT_MASK have;
    mask_init(&have, vhdl_ngenerics);
 
+   bool named = false;
    for (int i = 0; i < vlog_ndecls; i++) {
       vlog_node_t d = vlog_decl(mod, i);
       if (vlog_kind(d) != V_PARAM_DECL)
@@ -1448,10 +1449,14 @@ static vlog_node_t elab_mixed_generics(tree_t comp, vlog_node_t mod,
          }
       }
 
-      if (cg == NULL) {
+      if (cg == NULL && vlog_has_value(d)) {
+         named = true;
+         continue;
+      }
+      else if (cg == NULL) {
          error_at(tree_loc(comp), "missing matching VHDL generic declaration "
-                  "for Verilog parameter '%s' in component %s", istr(name),
-                  istr(tree_ident(comp)));
+                  "for Verilog parameter '%s' with no default value in "
+                  "component %s", istr(name), istr(tree_ident(comp)));
          return NULL;
       }
 
@@ -1485,6 +1490,7 @@ static vlog_node_t elab_mixed_generics(tree_t comp, vlog_node_t mod,
 
       vlog_node_t pa = vlog_new(V_PARAM_ASSIGN);
       vlog_set_value(pa, num);
+      if (named) vlog_set_ident(pa, vlog_ident(d));
 
       vlog_add_param(list, pa);
    }

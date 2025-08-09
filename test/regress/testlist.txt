@@ -1161,3 +1161,4 @@ view7           normal,2019
 ivtest10        verilog
 ivtest11        verilog
 issue1260       normal,2008
+mixed5          mixed
