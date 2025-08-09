@@ -27,6 +27,7 @@ module mod2;
     #1;
     forever i = ++i;
     r = func(4);
+    i = (bus >>> 1 * 4) / (r << 1 >> 2) <<< 2;
   end
   assign bus = 3;
   pullup (supply1, supply0) g1 (w);

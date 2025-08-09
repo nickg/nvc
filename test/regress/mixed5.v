@@ -1,7 +1,7 @@
 module sub(o);
   parameter p = 100;
   parameter q;
-  localparam width = $clog2(p);
+  localparam width = $clog2((p * 4) / 4) << 0;
   output [width-1:0] o;
   assign o = q;
 endmodule // sub

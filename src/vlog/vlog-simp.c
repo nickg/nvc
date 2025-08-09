@@ -260,6 +260,15 @@ static vlog_node_t simp_binary(vlog_node_t v)
    case V_BINARY_MINUS:
       result = number_sub(nleft, nright);
       break;
+   case V_BINARY_TIMES:
+      result = number_mul(nleft, nright);
+      break;
+   case V_BINARY_DIVIDE:
+      result = number_div(nleft, nright);
+      break;
+   case V_BINARY_SHIFT_LL:
+      result = number_shl(nleft, nright);
+      break;
    case V_BINARY_LOG_EQ:
       result = number_logical_equal(nleft, nright);
       break;
@@ -358,6 +367,16 @@ static vlog_node_t simp_sys_fcall(vlog_node_t v)
    }
 }
 
+static vlog_node_t simp_cond_expr(vlog_node_t v)
+{
+   vlog_node_t test = vlog_value(v);
+   if (vlog_kind(test) != V_NUMBER)
+      return v;
+
+   number_t n = vlog_number(test);
+   return number_truthy(n) ? vlog_left(v) : vlog_right(v);
+}
+
 static vlog_node_t vlog_simp_cb(vlog_node_t v, void *context)
 {
    switch (vlog_kind(v)) {
@@ -379,6 +398,8 @@ static vlog_node_t vlog_simp_cb(vlog_node_t v, void *context)
       return simp_if_generate(v);
    case V_SYS_FCALL:
       return simp_sys_fcall(v);
+   case V_COND_EXPR:
+      return simp_cond_expr(v);
    default:
       return v;
    }

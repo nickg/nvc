@@ -529,6 +529,7 @@ START_TEST(test_vlog1)
              "    #1;\n"
              "    forever i = ++i;\n"
              "    r = func(4);\n"
+             "    i = ((bus >>> (1 * 4)) / ((r << 1) >> 2)) <<< 2;\n"
              "  end\n"
              "  assign bus = 3;\n"
              "  pullup (supply0,supply1) g1 (w);\n"

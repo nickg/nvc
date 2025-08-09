@@ -563,6 +563,63 @@ number_t number_sub(number_t a, number_t b)
    return number_intern(result);
 }
 
+number_t number_mul(number_t a, number_t b)
+{
+   const int width = MAX(a.big->width, b.big->width);
+   const bool issigned = a.big->issigned && b.big->issigned;
+
+   SCRATCH_NUMBER result = number_scratch(width, issigned);
+
+   assert(bignum_words(result.big) == 1);  // TODO
+
+   bignum_abits(result.big)[0] =
+      bignum_abits(a.big)[0] * bignum_abits(b.big)[0];
+   bignum_bbits(result.big)[0] =
+      bignum_bbits(a.big)[0] | bignum_bbits(b.big)[0];
+
+   return number_intern(result);
+}
+
+number_t number_div(number_t a, number_t b)
+{
+   const int width = MAX(a.big->width, b.big->width);
+   const bool issigned = a.big->issigned && b.big->issigned;
+
+   SCRATCH_NUMBER result = number_scratch(width, issigned);
+
+   assert(bignum_words(result.big) == 1);  // TODO
+
+   bignum_abits(result.big)[0] =
+      bignum_abits(a.big)[0] / bignum_abits(b.big)[0];
+   bignum_bbits(result.big)[0] =
+      bignum_bbits(a.big)[0] | bignum_bbits(b.big)[0];
+
+   return number_intern(result);
+}
+
+number_t number_shl(number_t a, number_t b)
+{
+   const int width = a.big->width;
+   const bool issigned = a.big->issigned;
+
+   SCRATCH_NUMBER result = number_scratch(width, issigned);
+
+   assert(bignum_words(result.big) == 1);  // TODO
+
+   const uint64_t amount = bignum_abits(b.big)[0];
+
+   if (amount < 64) {
+      bignum_abits(result.big)[0] = bignum_abits(a.big)[0] << amount;
+      bignum_bbits(result.big)[0] = bignum_bbits(a.big)[0] << amount;
+   }
+   else {
+      bignum_abits(result.big)[0] = 0;
+      bignum_bbits(result.big)[0] = 0;
+   }
+
+   return number_intern(result);
+}
+
 number_t number_negate(number_t a)
 {
    SCRATCH_NUMBER result = number_scratch_copy(a);

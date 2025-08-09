@@ -435,8 +435,14 @@ static void vlog_dump_binary(vlog_node_t v)
    case V_BINARY_LOG_AND:  print_syntax(" && "); break;
    case V_BINARY_PLUS:     print_syntax(" + "); break;
    case V_BINARY_MINUS:    print_syntax(" - "); break;
+   case V_BINARY_TIMES:    print_syntax(" * "); break;
+   case V_BINARY_DIVIDE:   print_syntax(" / "); break;
    case V_BINARY_LT:       print_syntax(" < "); break;
    case V_BINARY_GT:       print_syntax(" > "); break;
+   case V_BINARY_SHIFT_LL: print_syntax(" << "); break;
+   case V_BINARY_SHIFT_RL: print_syntax(" >> "); break;
+   case V_BINARY_SHIFT_LA: print_syntax(" <<< "); break;
+   case V_BINARY_SHIFT_RA: print_syntax(" >>> "); break;
    }
 
    vlog_dump_paren(vlog_right(v), 0);
