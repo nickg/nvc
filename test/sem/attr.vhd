@@ -261,6 +261,12 @@ begin
         assert bit2d'value("1010") = (('1','0'),('1','0'));  -- Error
     end process;
 
+    issue1262: block is
+        signal s : integer;
+    begin
+        assert s'high = 1;               -- Error
+    end block;
+
 end architecture;
 
 use work.pack.all;

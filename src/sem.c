@@ -4445,7 +4445,25 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range, nametab_t *tab)
          else if (!sem_check_dimension_attr(t, tab))
             return false;
 
-         if (!type_is_array(type) && !type_is_scalar(type))
+         if (type_is_scalar(type)) {
+            bool prefix_range = false;
+            if (tree_kind(name) == T_ATTR_REF) {
+               const attr_kind_t prefix_attr = tree_subkind(name);
+               prefix_range = (prefix_attr == ATTR_RANGE
+                               || prefix_attr == ATTR_REVERSE_RANGE);
+            }
+
+            if (named_type == NULL && !prefix_range && standard() < STD_19) {
+               diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
+               diag_printf(d, "attribute %s cannot be used with scalar objects "
+                           "in VHDL-%s", istr(attr), standard_text(standard()));
+               diag_hint(d, NULL, "pass $bold$--std=2019$$ to enable this "
+                         "feature");
+               diag_emit(d);
+               return false;
+            }
+         }
+         else if (!type_is_array(type))
             sem_error(t, "prefix does not have attribute %s", istr(attr));
 
          return true;
