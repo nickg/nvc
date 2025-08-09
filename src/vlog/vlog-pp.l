@@ -46,12 +46,13 @@ typedef struct _ifdef_stack ifdef_stack_t;
 struct _ifdef_stack {
    ifdef_stack_t *next;
    loc_t          loc;
+   int            state;
    bool           cond;
 };
 
 typedef A(YY_BUFFER_STATE) buffer_stack_t;
 
-static int             comment_caller = 0;
+static int             caller = 0;
 static shash_t        *macros;
 static char           *macro_name;
 static text_buf_t     *macro_text;
@@ -64,8 +65,8 @@ static bool            continuation = false;
 static void define_macro(void);
 static void undef_macro(void);
 static void undefall_macro(void);
-static void push_ifdef(bool cond);
-static void pop_ifdef(void);
+static int push_ifdef(bool cond, int state);
+static int pop_ifdef(void);
 static void convert_line_ending(void);
 static void push_macro(const char *name, const char *text);
 static void pop_buffer(void);
@@ -82,7 +83,7 @@ ID    [a-zA-Z_]([a-zA-Z0-9_$])*
 
 "//"[^\r\n]*            { tb_cat(output, vlogpp_text); }
 
-"/*"                    { comment_caller = YY_START;
+"/*"                    { caller = YY_START;
                           tb_cat(output, vlogpp_text);
                           BEGIN(C_COMMENT);
                         }
@@ -92,17 +93,16 @@ ID    [a-zA-Z_]([a-zA-Z0-9_$])*
 <C_COMMENT>\n           |
 <C_COMMENT>\r           { tb_append(output, '\n'); }
 <C_COMMENT>"*/"         { tb_cat(output, vlogpp_text);
-                          BEGIN(comment_caller);
+                          BEGIN(caller);
                         }
 
 `define[ \t]*           { BEGIN(MACRO_NAME); }
-`ifdef[ \t]*            { BEGIN(IFDEF_NAME); }
-`ifndef[ \t]*           { BEGIN(IFNDEF_NAME); }
-`endif                  { pop_ifdef();
-                          BEGIN(INITIAL);
-                        }
+`ifdef[ \t]*            { caller = YY_START; BEGIN(IFDEF_NAME); }
+`ifndef[ \t]*           { caller = YY_START; BEGIN(IFNDEF_NAME); }
+`endif                  { BEGIN(pop_ifdef()); }
 `elsif[ \t]*            { if (ifdefs == NULL)
                              error_at(&yylloc, "`elsif outside of `ifdef");
+                          caller = YY_START;
                           BEGIN(ELSIF_NAME);
                         }
 `else                   { if (ifdefs == NULL)
@@ -143,26 +143,18 @@ ID    [a-zA-Z_]([a-zA-Z0-9_$])*
                         }
 
 <IFDEF_NAME>{ID}        { bool cond = (shash_get(macros, vlogpp_text) != NULL);
-                          push_ifdef(cond);
-                          if (cond == true)
-                             BEGIN(INITIAL);
-                          else
-                             BEGIN(IFDEF_FALSE);
+                          BEGIN(push_ifdef(cond, caller));
                         }
 <IFDEF_NAME>.           { error_at(&yylloc, "expected macro name after `ifdef");
-                          BEGIN(INITIAL);
+                          BEGIN(caller);
                         }
 
 <IFNDEF_NAME>{ID}       { bool cond = (shash_get(macros, vlogpp_text) == NULL);
-                          push_ifdef(cond);
-                          if (cond == true)
-                             BEGIN(INITIAL);
-                          else
-                             BEGIN(IFDEF_FALSE);
+                          BEGIN(push_ifdef(cond, caller));
                         }
 <IFNDEF_NAME>.          { error_at(&yylloc, "expected macro name after "
                                    "`ifndef");
-                          BEGIN(INITIAL);
+                          BEGIN(caller);
                         }
 
 <ELSIF_NAME>{ID}        { if (ifdefs->cond == true)
@@ -170,21 +162,23 @@ ID    [a-zA-Z_]([a-zA-Z0-9_$])*
                           else if (shash_get(macros, vlogpp_text) == NULL)
                              BEGIN(IFDEF_FALSE);
                           else
-                             BEGIN(INITIAL);
+                             BEGIN(caller);
                         }
 <ELSIF_NAME>.           { error_at(&yylloc, "expected macro name after `elsif");
-                          BEGIN(INITIAL);
+                          BEGIN(caller);
                         }
 
-<IFDEF_FALSE>`elsif[ \t]* { assert(ifdefs != NULL);
-                            BEGIN(ELSIF_NAME);
-                          }
+<IFDEF_FALSE>`elsif[ \t]*  { assert(ifdefs != NULL);
+                             caller = YY_START;
+                             BEGIN(ELSIF_NAME);
+                           }
+<IFDEF_FALSE>`ifdef[ \t]*  { caller = YY_START; BEGIN(IFDEF_NAME); }
+<IFDEF_FALSE>`ifndef[ \t]* { caller = YY_START; BEGIN(IFNDEF_NAME); }
 
 <IFDEF_FALSE>`else      { assert(ifdefs != NULL);
-                          BEGIN(INITIAL);
+                          BEGIN(ifdefs->state);
                         }
-<IFDEF_FALSE>`endif     { pop_ifdef();
-                          BEGIN(INITIAL);
+<IFDEF_FALSE>`endif     { BEGIN(pop_ifdef());
                         }
 <IFDEF_FALSE>[^\r\n]    { }
 <IFDEF_FALSE>\n\r       |
@@ -285,24 +279,31 @@ static void undefall_macro(void)
 }
 
 
-static void push_ifdef(bool cond)
+static int push_ifdef(bool cond, int state)
 {
    ifdef_stack_t *s = xcalloc(sizeof(ifdef_stack_t));
-   s->next = ifdefs;
-   s->cond = cond;
-   s->loc = yylloc;
+   s->next  = ifdefs;
+   s->cond  = cond;
+   s->state = state;
+   s->loc   = yylloc;
 
    ifdefs = s;
+
+   return cond ? state : IFDEF_FALSE;
 }
 
-static void pop_ifdef(void)
+static int pop_ifdef(void)
 {
-   if (ifdefs == NULL)
+   if (ifdefs == NULL) {
       error_at(&yylloc, "`endif outside of `ifdef");
+      return INITIAL;
+   }
    else {
       ifdef_stack_t *tmp = ifdefs->next;
+      const int state = ifdefs->state;
       free(ifdefs);
       ifdefs = tmp;
+      return state;
    }
 }
 

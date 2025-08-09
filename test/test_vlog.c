@@ -524,7 +524,6 @@ START_TEST(test_pp2)
       {  4, "expected macro name after `ifdef" },
       {  5, "expected macro name after `ifndef" },
       {  7, "expected macro name after `elsif" },
-      {  8, "expected macro name after `define" },
       {  9, "no corresponding `endif before end of file" },
       {  6, "no corresponding `endif before end of file" },
       { -1, NULL }
@@ -1104,6 +1103,17 @@ START_TEST(test_error1)
 }
 END_TEST
 
+START_TEST(test_pp5)
+{
+   input_from_file(TESTDIR "/vlog/pp5.v");
+
+   LOCAL_TEXT_BUF tb = tb_new();
+   vlog_preprocess(tb, false);
+
+   ck_assert_str_eq(tb_get(tb), "\n\n\n\n\n\n\n\n\n\n //  `ifdef VERIFIC\n");
+}
+END_TEST
+
 Suite *get_vlog_tests(void)
 {
    Suite *s = suite_create("vlog");
@@ -1143,6 +1153,7 @@ Suite *get_vlog_tests(void)
    tcase_add_test(tc, test_nets1);
    tcase_add_test(tc, test_keywords);
    tcase_add_test(tc, test_error1);
+   tcase_add_test(tc, test_pp5);
    suite_add_tcase(s, tc);
 
    return s;
