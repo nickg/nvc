@@ -1159,3 +1159,4 @@ ivtest9         verilog
 tfcall1         verilog
 view7           normal,2019
 ivtest10        verilog
+ivtest11        verilog

@@ -1199,6 +1199,13 @@ static void irgen_op_const_vec(jit_irgen_t *g, mir_value_t n)
    uint64_t abits, bbits;
    mir_get_bits(g->mu, n, &abits, &bbits);
 
+   mir_type_t type = mir_get_type(g->mu, n);
+   unsigned size = mir_get_size(g->mu, type);
+   assert(size <= 64);  // TODO
+
+   if (mir_get_signed(g->mu, type) && size < 64)
+      abits = (int64_t)(abits << (64 - size)) >> (64 - size);
+
    if (mir_is(g->mu, n, MIR_TYPE_VEC2)) {
       assert(bbits == 0);
       g->map[n.id] = jit_value_from_int64(abits);
@@ -2219,7 +2226,7 @@ static void irgen_op_cast(jit_irgen_t *g, mir_value_t n)
       assert(mir_is(g->mu, arg, MIR_TYPE_ACCESS));
       g->map[n.id] = irgen_get_value(g, arg);
    }
-   else if (result_kind == MIR_TYPE_VEC4) {
+   else if (result_kind == MIR_TYPE_VEC4 || result_kind == MIR_TYPE_VEC2) {
       mir_type_t arg_type = mir_get_type(g->mu, arg);
 
       jit_value_t abits = irgen_get_value(g, arg), bbits;
@@ -2233,6 +2240,19 @@ static void irgen_op_cast(jit_irgen_t *g, mir_value_t n)
       assert(result_size <= 64); // TODO
       assert(arg_size <= 64); // TODO
 
+      const bool arg_signed = mir_get_signed(g->mu, arg_type);
+      const bool result_signed = mir_get_signed(g->mu, result_type);
+
+      if (result_signed && !arg_signed && arg_size < 64) {
+         jit_value_t shift = jit_value_from_int64(64 - arg_size);
+         abits = j_shl(g, abits, shift);
+         abits = j_asr(g, abits, shift);
+
+         jit_reg_t breg = irgen_alloc_reg(g);
+         j_mov(g, breg, bbits);
+         bbits = jit_value_from_reg(breg);
+      }
+
       if (result_size < arg_size) {
          jit_value_t mask = irgen_vector_mask(result_size);
          g->map[n.id] = j_and(g, abits, mask);
@@ -2245,10 +2265,7 @@ static void irgen_op_cast(jit_irgen_t *g, mir_value_t n)
          g->map[n.id] = jit_value_from_reg(areg);
       }
       else
-         g->map[n.id] = abits;  // No-op  (TODO: sign extend)
-   }
-   else if (result_kind == MIR_TYPE_VEC2 && mir_is(g->mu, arg, MIR_TYPE_VEC4)) {
-      g->map[n.id] = irgen_get_value(g, arg);  // No-op  (TODO: sign extend)
+         g->map[n.id] = abits;  // No-op
    }
    else if ((result_kind == MIR_TYPE_INT || result_kind == MIR_TYPE_OFFSET)
             && mir_is_vector(g->mu, arg))
@@ -3911,20 +3928,22 @@ static void irgen_op_binary(jit_irgen_t *g, mir_value_t n)
    jit_value_t aleft = irgen_get_value(g, left);
    jit_value_t aright = irgen_get_value(g, right);
 
-   jit_value_t bleft, bright;
-   if (mir_is(g->mu, left, MIR_TYPE_VEC4)) {
+   const bool is_vec4 = mir_is(g->mu, left, MIR_TYPE_VEC4);
+
+   jit_value_t bleft, bright, xbits;
+   if (is_vec4) {
       bleft = jit_value_from_reg(jit_value_as_reg(aleft) + 1);
       bright = jit_value_from_reg(jit_value_as_reg(aright) + 1);
+      xbits = j_or(g, bleft, bright);
    }
    else
-      assert(false);  // TODO
+      xbits = jit_value_from_int64(0);
 
    mir_type_t type = mir_get_type(g->mu, n);
    const int size = mir_get_size(g->mu, type);
    assert(size <= 64);  // TODO
 
    jit_value_t mask = irgen_vector_mask(size);
-   jit_value_t xbits = j_or(g, bleft, bright);
 
    bool logical = false, arith = false;
    jit_value_t abits;
@@ -3959,13 +3978,13 @@ static void irgen_op_binary(jit_irgen_t *g, mir_value_t n)
       break;
    case MIR_VEC_CASE_EQ:
       j_cmp(g, JIT_CC_EQ, aleft, aright);
-      j_ccmp(g, JIT_CC_EQ, bleft, bright);
+      if (is_vec4) j_ccmp(g, JIT_CC_EQ, bleft, bright);
       abits = j_cset(g);
       xbits = jit_value_from_int64(0);
       break;
    case MIR_VEC_CASE_NEQ:
       j_cmp(g, JIT_CC_EQ, aleft, aright);
-      j_ccmp(g, JIT_CC_EQ, bleft, bright);
+      if (is_vec4) j_ccmp(g, JIT_CC_EQ, bleft, bright);
       abits = j_not(g, j_cset(g));
       xbits = jit_value_from_int64(0);
       break;
@@ -4018,11 +4037,13 @@ static void irgen_op_binary(jit_irgen_t *g, mir_value_t n)
 
    abits = j_or(g, abits, xbits);
 
-   jit_reg_t bbits = irgen_alloc_reg(g);
-   assert(abits.kind == JIT_VALUE_REG);
-   assert(bbits == abits.reg + 1);
+   if (is_vec4) {
+      jit_reg_t bbits = irgen_alloc_reg(g);
+      assert(abits.kind == JIT_VALUE_REG);
+      assert(bbits == abits.reg + 1);
 
-   j_mov(g, bbits, xbits);
+      j_mov(g, bbits, xbits);
+   }
 
    g->map[n.id] = abits;
 }

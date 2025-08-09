@@ -198,7 +198,8 @@ static bool mir_compare_types(const type_data_t *a, const type_data_t *b)
    case MIR_TYPE_VEC2:
    case MIR_TYPE_VEC4:
       return a->u.vec.size == b->u.vec.size
-         && a->u.vec.size == b->u.vec.size;
+         && a->u.vec.size == b->u.vec.size
+         && a->u.vec.issigned == b->u.vec.issigned;
    }
 
    should_not_reach_here();
@@ -839,6 +840,18 @@ unsigned mir_get_size(mir_unit_t *mu, mir_type_t type)
    case MIR_TYPE_VEC2:
    case MIR_TYPE_VEC4:
       return td->u.vec.size;
+   default:
+      should_not_reach_here();
+   }
+}
+
+bool mir_get_signed(mir_unit_t *mu, mir_type_t type)
+{
+   const type_data_t *td = mir_type_data(mu, type);
+   switch (td->class) {
+   case MIR_TYPE_VEC2:
+   case MIR_TYPE_VEC4:
+      return td->u.vec.issigned;
    default:
       should_not_reach_here();
    }

@@ -363,11 +363,14 @@ static mir_value_t vlog_lower_binary(vlog_gen_t *g, vlog_node_t v)
    const int lsize = mir_get_size(g->mu, ltype);
    const int rsize = mir_get_size(g->mu, rtype);
 
+   const bool is_signed =
+      mir_get_signed(g->mu, ltype) || mir_get_signed(g->mu, rtype);
+
    mir_type_t type;
    if (lclass == MIR_TYPE_VEC4 || rclass == MIR_TYPE_VEC4)
-      type = mir_vec4_type(g->mu, MAX(lsize, rsize), false);
+      type = mir_vec4_type(g->mu, MAX(lsize, rsize), is_signed);
    else
-      type = mir_vec2_type(g->mu, MAX(lsize, rsize), false);
+      type = mir_vec2_type(g->mu, MAX(lsize, rsize), is_signed);
 
    mir_value_t lcast = mir_build_cast(g->mu, type, left);
    mir_value_t rcast = mir_build_cast(g->mu, type, right);
@@ -590,6 +593,32 @@ static mir_value_t vlog_lower_bit_select(vlog_gen_t *g, vlog_node_t v)
    }
 }
 
+static mir_value_t vlog_lower_sys_fcall(vlog_gen_t *g, vlog_node_t v)
+{
+   switch (is_well_known(vlog_ident(v))) {
+   case W_DLR_SIGNED:
+      {
+         mir_value_t arg = vlog_lower_rvalue(g, vlog_param(v, 0));
+         mir_type_t arg_type = mir_get_type(g->mu, arg), type;
+         switch (mir_get_class(g->mu, arg_type)) {
+         case MIR_TYPE_VEC2:
+            type = mir_vec2_type(g->mu, mir_get_size(g->mu, arg_type), true);
+            break;
+         case MIR_TYPE_VEC4:
+            type = mir_vec4_type(g->mu, mir_get_size(g->mu, arg_type), true);
+            break;
+         default:
+            type = arg_type;
+            break;
+         }
+
+         return mir_build_cast(g->mu, type, arg);
+      }
+   default:
+      return vlog_lower_sys_tfcall(g, v);
+   }
+}
+
 static mir_value_t vlog_lower_rvalue(vlog_gen_t *g, vlog_node_t v)
 {
    PUSH_DEBUG_INFO(g->mu, v);
@@ -661,7 +690,7 @@ static mir_value_t vlog_lower_rvalue(vlog_gen_t *g, vlog_node_t v)
    case V_UNARY:
       return vlog_lower_unary(g, v);
    case V_SYS_FCALL:
-      return vlog_lower_sys_tfcall(g, v);
+      return vlog_lower_sys_fcall(g, v);
    case V_BIT_SELECT:
       return vlog_lower_bit_select(g, v);
    case V_PART_SELECT:

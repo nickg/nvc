@@ -142,7 +142,11 @@ void vpi_format_number2(int size, uint64_t abits, uint64_t bbits,
 {
    switch (format) {
    case vpiBinStrVal:
-      should_not_reach_here();
+      for (int i = size - 1; i >= 0; i--) {
+         const vlog_logic_t bit = ((bbits >> i) & 1) << 1 | ((abits >> i) & 1);
+         static const char map[] = "01zx";
+         tb_append(tb, map[bit]);
+      }
       break;
 
    case vpiDecStrVal:
