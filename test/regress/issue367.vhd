@@ -13,7 +13,7 @@ package body r is
         loop
             report integer'image(i);
             ret(i) := not a(i);
-            exit when i = i'right;
+            exit when i = a'right;
             i := i + 1;
         end loop;
 
