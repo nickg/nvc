@@ -3724,23 +3724,26 @@ static vcode_reg_t lower_aggregate_bounds(lower_unit_t *lu, tree_t expr,
       dims[0].right = right_reg;
       dims[0].dir   = dir_reg;
 
-      tree_t a0 = tree_value(tree_assoc(expr, 0));
+      tree_t a0 = tree_assoc(expr, 0);
       vcode_reg_t a0_reg = value_regs[0];
       assert(a0_reg != VCODE_INVALID_REG);
 
+      const assoc_kind_t a0_kind = tree_subkind(a0);
+      const int off = (a0_kind == A_CONCAT || a0_kind == A_SLICE) ? 0 : 1;
+
       if (vcode_reg_kind(a0_reg) == VCODE_TYPE_UARRAY) {
          for (int i = 1; i < ndims; i++) {
-            dims[i].left  = emit_uarray_left(a0_reg, i - 1);
-            dims[i].right = emit_uarray_right(a0_reg, i - 1);
-            dims[i].dir   = emit_uarray_dir(a0_reg, i - 1);
+            dims[i].left  = emit_uarray_left(a0_reg, i - off);
+            dims[i].right = emit_uarray_right(a0_reg, i - off);
+            dims[i].dir   = emit_uarray_dir(a0_reg, i - off);
          }
       }
       else {
-         type_t a0_type = tree_type(a0);
+         type_t a0_type = tree_type(tree_value(a0));
          for (int i = 1; i < ndims; i++) {
-            dims[i].left  = lower_array_left(lu, a0_type, i - 1, a0_reg);
-            dims[i].right = lower_array_right(lu, a0_type, i - 1, a0_reg);
-            dims[i].dir   = lower_array_dir(lu, a0_type, i - 1, a0_reg);
+            dims[i].left  = lower_array_left(lu, a0_type, i - off, a0_reg);
+            dims[i].right = lower_array_right(lu, a0_type, i - off, a0_reg);
+            dims[i].dir   = lower_array_dir(lu, a0_type, i - off, a0_reg);
          }
       }
 
