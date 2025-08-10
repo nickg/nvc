@@ -1443,6 +1443,10 @@ static void elab_verilog_stmts(vlog_node_t v, const elab_ctx_t *ctx)
          error_at(vlog_loc(s), "if-generate construct could not be "
                   "evaluated at elaboration time");
          break;
+      case V_SPECIFY:
+         warn_at(vlog_loc(s), "specify blocks are not currently supported and "
+                 "will be ignored");
+         break;
       default:
          fatal_at(vlog_loc(s), "sorry, this Verilog statement is not "
                   "currently supported");
