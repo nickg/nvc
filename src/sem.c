@@ -2540,13 +2540,17 @@ static tree_t sem_check_view_target(tree_t target)
    case T_REF:
       {
          tree_t decl = tree_ref(target);
-         if (tree_kind(decl) == T_PORT_DECL) {
-            const port_mode_t mode = tree_subkind(decl);
-            if (mode == PORT_ARRAY_VIEW || mode == PORT_RECORD_VIEW)
-               return tree_value(decl);
+         switch (tree_kind(decl)) {
+         case T_PORT_DECL:
+         case T_PARAM_DECL:
+            {
+               const port_mode_t mode = tree_subkind(decl);
+               if (mode == PORT_ARRAY_VIEW || mode == PORT_RECORD_VIEW)
+                  return tree_value(decl);
+            }
+         default:
+            return NULL;
          }
-
-         return NULL;
       }
 
    case T_ARRAY_REF:

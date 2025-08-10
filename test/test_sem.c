@@ -3963,12 +3963,26 @@ START_TEST(test_issue1257)
 
    input_from_file(TESTDIR "/sem/issue1257.vhd");
 
+   parse_and_check(T_PACKAGE);
+
+   fail_if_errors();
+}
+END_TEST
+
+START_TEST(test_issue1264)
+{
+   set_standard(STD_19);
+
+   input_from_file(TESTDIR "/sem/issue1264.vhd");
+
    const error_t expect[] = {
+      { 25, "cannot assign to element REQ of port X which has mode IN from "
+        "mode view indication" },
       { -1, NULL }
    };
    expect_errors(expect);
 
-   parse_and_check(T_PACKAGE);
+   parse_and_check(T_PACKAGE, T_ENTITY, T_ARCH);
 
    check_expected_errors();
 }
@@ -4159,6 +4173,7 @@ Suite *get_sem_tests(void)
    tcase_add_test(tc_core, test_issue1173);
    tcase_add_test(tc_core, test_issue1212);
    tcase_add_test(tc_core, test_issue1257);
+   tcase_add_test(tc_core, test_issue1264);
    suite_add_tcase(s, tc_core);
 
    return s;
