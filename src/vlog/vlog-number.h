@@ -71,6 +71,7 @@ number_t number_div(number_t a, number_t b);
 number_t number_shl(number_t a, number_t b);
 number_t number_negate(number_t a);
 number_t number_logical_equal(number_t a, number_t b);
+number_t number_not(number_t a);
 number_t number_greater(number_t a, number_t b);
 number_t number_greater_equal(number_t a, number_t b);
 number_t number_less(number_t a, number_t b);

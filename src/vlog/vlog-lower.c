@@ -1885,7 +1885,8 @@ void vlog_lower_block(mir_context_t *mc, ident_t parent, tree_t b)
    assert(tree_kind(wrap) == T_VERILOG);
 
    vlog_node_t body = tree_vlog(wrap);
-   assert(vlog_kind(body) == V_INST_BODY);
+   const vlog_kind_t body_kind = vlog_kind(body);
+   assert(body_kind == V_INST_BODY || body_kind == V_BLOCK);
 
    hash_t *map = hash_new(16);
 
@@ -1910,7 +1911,7 @@ void vlog_lower_block(mir_context_t *mc, ident_t parent, tree_t b)
    }
 
    const int vhdl_nports = tree_ports(b);
-   const int vlog_nports = vlog_ports(body);
+   const int vlog_nports = body_kind == V_INST_BODY ? vlog_ports(body) : 0;
 
    for (int i = 0; i < vhdl_nports; i++)
       hash_put(map, vlog_ref(vlog_ref(vlog_port(body, i))), tree_port(b, i));

@@ -270,15 +270,13 @@ static void trans_generic(trans_gen_t *g, vlog_node_t decl)
 
 void vlog_trans(vlog_node_t mod, tree_t out)
 {
-   assert(is_top_level(mod));
-
    trans_gen_t gen = {
       .map = hash_new(16),
       .out = out,
    };
 
    hset_t *ports = hset_new(16);
-   const int nports = vlog_ports(mod);
+   const int nports = vlog_kind(mod) == V_BLOCK ? 0 : vlog_ports(mod);
    for (int i = 0; i < nports; i++) {
       vlog_node_t ref = vlog_port(mod, i);
       assert(vlog_kind(ref) == V_REF);

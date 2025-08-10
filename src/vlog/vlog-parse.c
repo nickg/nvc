@@ -431,6 +431,12 @@ static vlog_node_t logic_type(void)
    return v;
 }
 
+static ident_t default_label(const char *prefix)
+{
+   return ident_sprintf("%s#%d#%d", prefix, state.start_loc.first_line,
+                        state.start_loc.first_column);
+}
+
 static ident_t p_identifier(void)
 {
    if (consume(tID)) {
@@ -2661,7 +2667,7 @@ static vlog_node_t p_always_construct(void)
    default:           vlog_set_subkind(v, V_ALWAYS_PLAIN); break;
    }
 
-   vlog_set_ident(v, ident_uniq("__always#line%d", yylloc.first_line));
+   vlog_set_ident(v, default_label("always"));
    vlog_add_stmt(v, p_statement());
 
    vlog_set_loc(v, CURRENT_LOC);
@@ -2677,7 +2683,7 @@ static vlog_node_t p_initial_construct(void)
    consume(tINITIAL);
 
    vlog_node_t v = vlog_new(V_INITIAL);
-   vlog_set_ident(v, ident_uniq("__initial#line%d", yylloc.first_line));
+   vlog_set_ident(v, default_label("initial"));
 
    vlog_node_t s = p_statement_or_null();
    if (s != NULL)
@@ -3673,6 +3679,9 @@ static void p_generate_block(vlog_node_t parent)
             parse_error(&state.last_loc, "'%s' does not match label '%s'",
                         istr(name), istr(vlog_ident(b)));
       }
+
+      if (!vlog_has_ident(b))
+         vlog_set_ident(b, default_label("genblk"));
 
       vlog_set_loc(b, CURRENT_LOC);
       vlog_add_stmt(parent, b);

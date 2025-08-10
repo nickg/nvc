@@ -1198,9 +1198,12 @@ static driver_set_t *elab_driver_set(const elab_ctx_t *ctx)
       return NULL;
 }
 
-static void elab_lower(tree_t b, const elab_instance_t *ei, elab_ctx_t *ctx)
+static void elab_lower(tree_t b, elab_ctx_t *ctx)
 {
-   if (ei != NULL)
+   tree_t hier = tree_decl(b, 0);
+   assert(tree_kind(hier) == T_HIER);
+
+   if (tree_subkind(hier) == T_VERILOG)
       vlog_lower_block(ctx->mir, ctx->parent->dotted, b);
    else
       ctx->lowered = lower_instance(ctx->registry, ctx->parent->lowered,
@@ -1243,7 +1246,7 @@ static void elab_verilog_module(tree_t bind, ident_t label,
 
    if (error_count() == 0) {
       new_ctx.drivers = find_drivers(ei->block);
-      elab_lower(b, ei, &new_ctx);
+      elab_lower(b, &new_ctx);
    }
 
    if (error_count() == 0)
@@ -1365,6 +1368,39 @@ static void elab_verilog_instance_list(vlog_node_t v, const elab_ctx_t *ctx)
    }
 }
 
+static void elab_verilog_block(vlog_node_t v, const elab_ctx_t *ctx)
+{
+   ident_t id = vlog_ident(v);
+
+   tree_t b = tree_new(T_BLOCK);
+   tree_set_ident(b, id);
+   tree_set_loc(b, vlog_loc(v));
+
+   tree_add_stmt(ctx->out, b);
+
+   ident_t ndotted = ident_prefix(ctx->dotted, id, '.');
+
+   elab_ctx_t new_ctx = {
+      .out    = b,
+      .dotted = ndotted,
+   };
+   elab_inherit_context(&new_ctx, ctx);
+
+   tree_t wrap = tree_new(T_VERILOG);
+   tree_set_ident(wrap, id);
+   tree_set_loc(wrap, vlog_loc(v));
+   tree_set_vlog(wrap, v);
+
+   elab_push_scope(wrap, &new_ctx);
+
+   vlog_trans(v, b);
+
+   elab_lower(b, &new_ctx);
+   elab_verilog_stmts(v, &new_ctx);
+
+   elab_pop_scope(&new_ctx);
+}
+
 static void elab_verilog_stmts(vlog_node_t v, const elab_ctx_t *ctx)
 {
    const int nstmts = vlog_stmts(v);
@@ -1401,8 +1437,7 @@ static void elab_verilog_stmts(vlog_node_t v, const elab_ctx_t *ctx)
          }
          break;
       case V_BLOCK:
-         // TODO: should create a block in hierarchy
-         elab_verilog_stmts(s, ctx);
+         elab_verilog_block(s, ctx);
          break;
       case V_IF_GENERATE:
          error_at(vlog_loc(s), "if-generate construct could not be "
@@ -1524,7 +1559,7 @@ static void elab_mixed_instance(tree_t inst, tree_t comp, vlog_node_t mod,
    elab_ports(comp, inst, &new_ctx);
 
    if (error_count() == 0)
-      elab_lower(b, NULL, &new_ctx);
+      elab_lower(b, &new_ctx);
 
    vlog_node_t list = elab_mixed_generics(comp, mod, &new_ctx);
    if (list != NULL) {
@@ -1601,7 +1636,7 @@ static void elab_architecture(tree_t bind, tree_t arch, tree_t config,
 
    if (error_count() == 0) {
       new_ctx.drivers = find_drivers(arch_copy);
-      elab_lower(b, NULL, &new_ctx);
+      elab_lower(b, &new_ctx);
       elab_stmts(entity, &new_ctx);
       elab_stmts(arch_copy, &new_ctx);
    }
@@ -1734,7 +1769,7 @@ static void elab_component(tree_t inst, tree_t comp, const elab_ctx_t *ctx)
       new_ctx.drivers = find_drivers(bind);
 
    if (error_count() == 0)
-      elab_lower(b, NULL, &new_ctx);
+      elab_lower(b, &new_ctx);
 
    if (arch != NULL && error_count() == 0)
       elab_architecture(bind, arch, config, &new_ctx);
@@ -1984,7 +2019,7 @@ static void elab_for_generate(tree_t t, const elab_ctx_t *ctx)
          elab_decls(copy, &new_ctx);
 
       if (error_count() == 0) {
-         elab_lower(b, NULL, &new_ctx);
+         elab_lower(b, &new_ctx);
          elab_stmts(copy, &new_ctx);
       }
 
@@ -2035,7 +2070,7 @@ static void elab_if_generate(tree_t t, const elab_ctx_t *ctx)
          new_ctx.drivers = find_drivers(cond);
 
          if (error_count() == 0) {
-            elab_lower(b, NULL, &new_ctx);
+            elab_lower(b, &new_ctx);
             elab_stmts(cond, &new_ctx);
          }
 
@@ -2074,7 +2109,7 @@ static void elab_case_generate(tree_t t, const elab_ctx_t *ctx)
    new_ctx.drivers = find_drivers(chosen);
 
    if (error_count() == 0) {
-      elab_lower(b, NULL, &new_ctx);
+      elab_lower(b, &new_ctx);
       elab_stmts(chosen, &new_ctx);
    }
 
@@ -2158,7 +2193,7 @@ static void elab_block(tree_t t, const elab_ctx_t *ctx)
    elab_decls(t, &new_ctx);
 
    if (error_count() == base_errors) {
-      elab_lower(b, NULL, &new_ctx);
+      elab_lower(b, &new_ctx);
       elab_stmts(t, &new_ctx);
    }
 

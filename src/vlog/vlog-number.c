@@ -668,6 +668,18 @@ number_t number_logical_equal(number_t a, number_t b)
    return number_intern(result);
 }
 
+number_t number_not(number_t a)
+{
+   SCRATCH_NUMBER result = number_scratch(1, false);
+
+   assert(bignum_words(a.big) == 1);  // TODO
+
+   bignum_abits(result.big)[0] = !bignum_abits(a.big)[0];
+   bignum_bbits(result.big)[0] = bignum_bbits(a.big)[0];
+
+   return number_intern(result);
+}
+
 number_t number_greater(number_t a, number_t b)
 {
    SCRATCH_NUMBER result = number_scratch(1, false);
