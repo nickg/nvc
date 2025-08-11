@@ -1197,6 +1197,63 @@ static void vlog_lower_forever(vlog_gen_t *g, vlog_node_t v)
    mir_build_jump(g->mu, body_bb);
 }
 
+static void vlog_lower_repeat(vlog_gen_t *g, vlog_node_t v)
+{
+   mir_type_t t_offset = mir_offset_type(g->mu);
+   mir_value_t i_var = mir_add_var(g->mu, t_offset, MIR_NULL_STAMP,
+                                   ident_new("i"), MIR_VAR_TEMP);
+   mir_value_t zero = mir_const(g->mu, t_offset, 0);
+   mir_build_store(g->mu, i_var, zero);
+
+   mir_value_t rvalue = vlog_lower_rvalue(g, vlog_value(v));
+   mir_value_t limit = mir_build_cast(g->mu, t_offset, rvalue);
+   mir_value_t enter = mir_build_cmp(g->mu, MIR_CMP_LT, zero, limit);
+
+   mir_block_t body_bb = mir_add_block(g->mu);
+   mir_block_t cont_bb = mir_add_block(g->mu);
+   mir_build_cond(g->mu, enter, body_bb, cont_bb);
+
+   mir_set_cursor(g->mu, body_bb, MIR_APPEND);
+
+   vlog_lower_stmts(g, v);
+
+   if (!mir_block_finished(g->mu, MIR_NULL_BLOCK)) {
+      mir_value_t i_val = mir_build_load(g->mu, i_var);
+      mir_value_t one = mir_const(g->mu, t_offset, 1);
+      mir_value_t next = mir_build_add(g->mu, t_offset, i_val, one);
+      mir_build_store(g->mu, i_var, next);
+
+      mir_value_t done = mir_build_cmp(g->mu, MIR_CMP_LT, next, limit);
+      mir_build_cond(g->mu, done, body_bb, cont_bb);
+   }
+
+   mir_set_cursor(g->mu, cont_bb, MIR_APPEND);
+}
+
+static void vlog_lower_while(vlog_gen_t *g, vlog_node_t v)
+{
+   mir_block_t test_bb = mir_add_block(g->mu);
+   mir_block_t body_bb = mir_add_block(g->mu);
+   mir_block_t cont_bb = mir_add_block(g->mu);
+
+   mir_build_jump(g->mu, test_bb);
+
+   mir_set_cursor(g->mu, test_bb, MIR_APPEND);
+
+   mir_value_t rvalue = vlog_lower_rvalue(g, vlog_value(v));
+   mir_value_t test = mir_build_test(g->mu, rvalue);
+   mir_build_cond(g->mu, test, body_bb, cont_bb);
+
+   mir_set_cursor(g->mu, body_bb, MIR_APPEND);
+
+   vlog_lower_stmts(g, v);
+
+   if (!mir_block_finished(g->mu, MIR_NULL_BLOCK))
+      mir_build_jump(g->mu, test_bb);
+
+   mir_set_cursor(g->mu, cont_bb, MIR_APPEND);
+}
+
 static void vlog_lower_for_loop(vlog_gen_t *g, vlog_node_t v)
 {
    mir_comment(g->mu, "Begin for loop");
@@ -1353,11 +1410,20 @@ static void vlog_lower_stmts(vlog_gen_t *g, vlog_node_t v)
       case V_FOREVER:
          vlog_lower_forever(g, s);
          break;
+      case V_REPEAT:
+         vlog_lower_repeat(g, s);
+         break;
+      case V_WHILE:
+         vlog_lower_while(g, s);
+         break;
       case V_FOR_LOOP:
          vlog_lower_for_loop(g, s);
          break;
       case V_CASE:
          vlog_lower_case(g, s);
+         break;
+      case V_POSTFIX:
+         vlog_lower_rvalue(g, s);
          break;
       default:
          CANNOT_HANDLE(s);

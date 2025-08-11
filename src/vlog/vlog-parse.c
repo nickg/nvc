@@ -2606,10 +2606,18 @@ static vlog_node_t p_statement_item(void)
          {
             vlog_node_t lhs = p_variable_lvalue(), v = NULL;
 
-            if (peek() == tLE)
+            switch (peek()) {
+            case tLE:
                v = p_nonblocking_assignment(lhs);
-            else
+               break;
+            case tPLUSPLUS:
+            case tMINUSMINUS:
+               v = p_inc_or_dec_expression(lhs);
+               break;
+            default:
                v = p_blocking_assignment(lhs);
+               break;
+            }
 
             consume(tSEMI);
             return v;

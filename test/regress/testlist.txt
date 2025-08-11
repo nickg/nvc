@@ -1164,3 +1164,4 @@ issue1260       normal,2008
 mixed5          mixed
 vlog22          verilog
 ivtest12        verilog
+vlog23          verilog
