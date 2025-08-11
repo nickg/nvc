@@ -631,6 +631,8 @@ static mir_value_t vlog_lower_rvalue(vlog_gen_t *g, vlog_node_t v)
             return vlog_lower_rvalue(g, vlog_value(decl));
 
          mir_value_t data = vlog_lower_resolved(g->mu, decl);
+         if (mir_is_vector(g->mu, data))
+            return data;
 
          const type_info_t *ti = vlog_type_info(g, vlog_type(decl));
 
