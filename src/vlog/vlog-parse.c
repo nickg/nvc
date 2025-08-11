@@ -437,6 +437,21 @@ static ident_t default_label(const char *prefix)
                         state.start_loc.first_column);
 }
 
+static vlog_gate_kind_t get_gate_kind(token_t tok)
+{
+   switch (tok) {
+   case tAND:  return V_GATE_AND;
+   case tNAND: return V_GATE_NAND;
+   case tOR:   return V_GATE_OR;
+   case tNOR:  return V_GATE_NOR;
+   case tXOR:  return V_GATE_XOR;
+   case tXNOR: return V_GATE_XNOR;
+   case tNOT:  return V_GATE_NOT;
+   case tBUF:  return V_GATE_BUF;
+   default:    should_not_reach_here();
+   }
+}
+
 static ident_t p_identifier(void)
 {
    if (consume(tID)) {
@@ -1817,6 +1832,28 @@ static void p_delay3(void)
          (void)p_mintypmax_expression();
          expr_cnt++;
       } while (optional(tCOMMA) && (expr_cnt < 3));
+
+      consume(tRPAREN);
+   }
+}
+
+static void p_delay2(void)
+{
+   // # delay_value | # ( mintypmax_expression [ , mintypmax_expression ] )
+
+   BEGIN("delay2");
+
+   consume(tHASH);
+
+   if (peek() != tLPAREN)
+      p_delay_value();
+   else {
+      consume(tLPAREN);
+
+      (void)p_mintypmax_expression();
+
+      if (optional(tCOMMA))
+         (void)p_mintypmax_expression();
 
       consume(tRPAREN);
    }
@@ -4110,8 +4147,10 @@ static void p_gate_instantiation(vlog_node_t mod)
 
    BEGIN("gate instantiation");
 
-   switch (one_of(tPULLDOWN, tPULLUP, tAND, tNAND, tOR, tNOR, tXOR, tXNOR,
-                  tNOT, tBUF)) {
+   token_t token = one_of(tPULLDOWN, tPULLUP, tAND, tNAND, tOR, tNOR,
+                          tXOR, tXNOR, tNOT, tBUF);
+
+   switch (token) {
    case tPULLDOWN:
       {
          vlog_node_t st;
@@ -4147,50 +4186,17 @@ static void p_gate_instantiation(vlog_node_t mod)
       break;
 
    case tAND:
-      do {
-         vlog_add_stmt(mod, p_n_terminal_gate_instance(V_GATE_AND));
-      } while (optional(tCOMMA));
-      break;
-
    case tNAND:
-      do {
-         vlog_add_stmt(mod, p_n_terminal_gate_instance(V_GATE_NAND));
-      } while (optional(tCOMMA));
-      break;
-
    case tOR:
-      do {
-         vlog_add_stmt(mod, p_n_terminal_gate_instance(V_GATE_OR));
-      } while (optional(tCOMMA));
-      break;
-
    case tNOR:
-      do {
-         vlog_add_stmt(mod, p_n_terminal_gate_instance(V_GATE_NOR));
-      } while (optional(tCOMMA));
-      break;
-
    case tXOR:
-      do {
-         vlog_add_stmt(mod, p_n_terminal_gate_instance(V_GATE_XOR));
-      } while (optional(tCOMMA));
-      break;
-
    case tXNOR:
-      do {
-         vlog_add_stmt(mod, p_n_terminal_gate_instance(V_GATE_XNOR));
-      } while (optional(tCOMMA));
-      break;
-
    case tNOT:
-      do {
-         vlog_add_stmt(mod, p_n_terminal_gate_instance(V_GATE_NOT));
-      } while (optional(tCOMMA));
-      break;
-
    case tBUF:
+      if (peek() == tHASH)
+         p_delay2();
       do {
-         vlog_add_stmt(mod, p_n_terminal_gate_instance(V_GATE_BUF));
+         vlog_add_stmt(mod, p_n_terminal_gate_instance(get_gate_kind(token)));
       } while (optional(tCOMMA));
       break;
 
