@@ -12,3 +12,4 @@ endmodule // foo
 
 `end_keywords  // Error
 `begin_keywords "fizz"  // Error
+`begin_keywords 123

@@ -474,6 +474,8 @@ START_TEST(test_timescale1)
    const error_t expect[] = {
       {  2, "invalid time unit name 'hello'" },
       {  3, "invalid order of magnitude in `timescale directive" },
+      {  4, "unexpected real while parsing timescale compiler directive, "
+         "expecting unsigned number" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -563,6 +565,7 @@ START_TEST(test_udp1)
       { 13, "all ports of a primitive except the first must be inputs" },
       { 25, "expected 3 symbols in UDP table entry but have 2" },
       { 58, "a sequential input list may have at most one edge indicator" },
+      { 63, "unexpected identifier while parsing integral number, " },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -1067,6 +1070,8 @@ START_TEST(test_keywords)
       {  9, "'logic' is a keyword in System Verilog 1800-2005" },
       { 13, "`end_keywords directive without matching `begin_keywords" },
       { 14, "\"fizz\" is not a recognised Verilog or System Verilog version" },
+      { 15, "unexpected unsigned number while parsing keywords directive, "
+        "expecting string" },
       { -1, NULL }
    };
    expect_errors(expect);

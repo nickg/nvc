@@ -828,6 +828,11 @@ static mir_value_t vlog_lower_rvalue(vlog_gen_t *g, vlog_node_t v)
          return mir_build_fcall(g->mu, func, ti->type, MIR_NULL_STAMP,
                                 args, nparams + 1);
       }
+   case V_REAL:
+      {
+         mir_type_t t_double = mir_double_type(g->mu);
+         return mir_const_real(g->mu, t_double, vlog_dval(v));
+      }
    default:
       CANNOT_HANDLE(v);
    }

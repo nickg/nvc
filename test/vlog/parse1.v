@@ -113,6 +113,7 @@ module parse1;
     force x = 1;
     release x;
     disable task1;
+    #0.9;
   end
   triand w4;
   trior  w5;

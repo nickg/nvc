@@ -454,9 +454,8 @@ static vlog_gate_kind_t get_gate_kind(token_t tok)
 
 static ident_t p_identifier(void)
 {
-   if (consume(tID)) {
+   if (consume(tID))
       return state.last_lval.ident;
-   }
    else
       return error_marker();
 }
@@ -522,12 +521,17 @@ static vlog_node_t p_unsigned_number(void)
 
    BEGIN("unsigned number");
 
-   consume(tUNSNUM);
+   number_t n;
+   if (consume(tUNSNUM)) {;
+      n = number_new(state.last_lval.str, CURRENT_LOC);
+      free(state.last_lval.str);
+   }
+   else
+      n = number_from_int(0);
 
    vlog_node_t v = vlog_new(V_NUMBER);
+   vlog_set_number(v, n);
    vlog_set_loc(v, CURRENT_LOC);
-   vlog_set_number(v, number_new(state.last_lval.str, CURRENT_LOC));
-   free(state.last_lval.str);
    return v;
 }
 
@@ -540,12 +544,17 @@ static vlog_node_t p_integral_number(void)
    if (peek() == tUNSNUM)
       return p_unsigned_number();
    else {
-      consume(tNUMBER);
+      number_t n;
+      if (consume(tNUMBER)) {
+         n = number_new(state.last_lval.str, &state.last_loc);
+         free(state.last_lval.str);
+      }
+      else
+         n = number_from_int(0);
 
       vlog_node_t v = vlog_new(V_NUMBER);
+      vlog_set_number(v, n);
       vlog_set_loc(v, CURRENT_LOC);
-      vlog_set_number(v, number_new(state.last_lval.str, CURRENT_LOC));
-      free(state.last_lval.str);
       return v;
    }
 }
@@ -583,12 +592,17 @@ static vlog_node_t p_string_literal(void)
 
    BEGIN("string literal");
 
-   consume(tSTRING);
+   number_t n;
+   if (consume(tSTRING)) {
+      n = number_new(state.last_lval.str, CURRENT_LOC);
+      free(state.last_lval.str);
+   }
+   else
+      should_not_reach_here();
 
    vlog_node_t v = vlog_new(V_STRING);
+   vlog_set_number(v, n);
    vlog_set_loc(v, CURRENT_LOC);
-   vlog_set_number(v, number_new(state.last_lval.str, CURRENT_LOC));
-
    return v;
 }
 
@@ -1791,7 +1805,13 @@ static vlog_node_t p_delay_value(void)
 
    BEGIN("delay value");
 
-   return p_unsigned_number();
+   switch (peek()) {
+   case tREAL:
+      return p_real_number();
+   case tUNSNUM:
+   default:
+      return p_unsigned_number();
+   }
 }
 
 static vlog_node_t p_delay_control(void)
@@ -6183,22 +6203,24 @@ static void p_timescale_compiler_directive(void)
    BEGIN("timescale compiler directive");
 
    consume(tTIMESCALE);
-   consume(tUNSNUM);
 
-   const uint64_t unit_value = atoll(state.last_lval.str);
+   uint64_t unit_value = 1;
+   if (consume(tUNSNUM))
+      unit_value = atoll(state.last_lval.str);
 
-   consume(tID);
-
-   const char *unit_name = istr(state.last_lval.ident);
+   const char *unit_name = "fs";
+   if (consume(tID))
+      unit_name = istr(state.last_lval.ident);
 
    consume(tOVER);
-   consume(tUNSNUM);
 
-   const uint64_t prec_value = atoll(state.last_lval.str);
+   uint64_t prec_value = 1;
+   if (consume(tUNSNUM))
+      prec_value = atoll(state.last_lval.str);
 
-   consume(tID);
-
-   const char *prec_name = istr(state.last_lval.ident);
+   const char *prec_name = "fs";
+   if (consume(tID))
+      prec_name = istr(state.last_lval.ident);
 
    set_timescale(unit_value, unit_name, prec_value, prec_name, CURRENT_LOC);
 }
@@ -6249,16 +6271,17 @@ static void p_keywords_directive(void)
    BEGIN("keywords directive");
 
    consume(tBEGINKEYWORDS);
-   consume(tSTRING);
 
-   state.last_lval.str[strlen(state.last_lval.str) - 1] = '\0';
+   if (consume(tSTRING)) {
+      state.last_lval.str[strlen(state.last_lval.str) - 1] = '\0';
 
-   vlog_version_t vers;
-   if (parse_verilog_version(state.last_lval.str + 1, &vers))
-      push_keywords(vers);
-   else
-      error_at(&state.last_loc, "\"%s\" is not a recognised Verilog or System "
-               "Verilog version", state.last_lval.str + 1);
+      vlog_version_t vers;
+      if (parse_verilog_version(state.last_lval.str + 1, &vers))
+         push_keywords(vers);
+      else
+         error_at(&state.last_loc, "\"%s\" is not a recognised Verilog or "
+                  "System Verilog version", state.last_lval.str + 1);
+   }
 
    free(state.last_lval.str);
 }

@@ -60,6 +60,7 @@ primitive test3 (x, y, z);
 endprimitive
 
 primitive id_0(output reg id_2, input id_1);
+  initial id_2 = hello;  // Error
   table
     ? : 0 : 0;
   endtable
