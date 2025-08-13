@@ -134,8 +134,10 @@ static void cover_report_hier_children(cover_rpt_hier_ctx_t *ctx,
                                   FILE *summf, int *skipped);
 static char *cover_get_report_name(const char *in);
 static void cover_print_html_header(FILE *f);
+static inline void cover_print_char(FILE *f, char c);
 
 static shash_t *cover_files = NULL;
+static const char *outdir = NULL;
 
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -205,13 +207,12 @@ static cover_file_t *cover_file_for_scope(cover_scope_t *s)
 
    // Generate report file with source file contents
    char *hash = cover_get_report_name(f->src_path);
-   f->rpt_path = xasprintf("%s.html", hash);
+   f->rpt_path = xasprintf("%s/source/%s.html", outdir, hash);
    free(hash);
    fp = fopen(f->rpt_path, "w");
 
    if (fp == NULL) {
-      fatal("failed to open report file with source code of: %s\n",
-            f->src_path);
+      fatal("failed to open report file with source code of: %s", f->src_path);
       return NULL;
    }
 
@@ -223,7 +224,10 @@ static cover_file_t *cover_file_for_scope(cover_scope_t *s)
 
    fprintf(fp, "<pre><code>");
    for (int i = 0; i < f->n_lines; i++) {
-      fprintf(fp, "%6d: &nbsp; %s", i, f->lines[i].text);
+      fprintf(fp, "%6d: &nbsp; ", i);
+      for (const char *p = f->lines[i].text; *p; p++)
+         cover_print_char(fp, *p);
+      fprintf(fp, "\n");
    }
    fprintf(fp, "</code></pre>");
 
@@ -1729,9 +1733,13 @@ static void cover_report_per_file(FILE *top_f, cover_data_t *data, char *subdir)
 
 void cover_report(const char *path, cover_data_t *data, int item_limit)
 {
+   outdir = path;
+
    char *subdir LOCAL = xasprintf("%s/hier", path);
+   char *srcdir LOCAL = xasprintf("%s/source", path);
    make_dir(path);
    make_dir(subdir);
+   make_dir(srcdir);
 
    static const struct {
       const char *name;
