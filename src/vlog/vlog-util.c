@@ -196,3 +196,59 @@ vlog_node_t vlog_longest_static_prefix(vlog_node_t v)
       fatal_at(vlog_loc(v), "cannot calculate longest static prefix");
    }
 }
+
+bool vlog_equal_node(vlog_node_t a, vlog_node_t b)
+{
+   if (a == b)
+      return true;
+
+   const vlog_kind_t kind = vlog_kind(a);
+   if (kind != vlog_kind(b))
+      return false;
+
+   switch (kind) {
+   case V_NUMBER:
+      {
+         number_t an = vlog_number(a);
+         number_t bn = vlog_number(b);
+
+         return number_equal(an, bn);
+      }
+   case V_BINARY:
+      return vlog_subkind(a) == vlog_subkind(b)
+         && vlog_equal_node(vlog_left(a), vlog_left(b))
+         && vlog_equal_node(vlog_right(a), vlog_right(b));
+   case V_REF:
+      if (!vlog_has_ref(a) || !vlog_has_ref(b))
+         return true;   // Suppress cascading errors
+      else
+         return vlog_ref(a) == vlog_ref(b);
+   case V_PARAM_ASSIGN:
+      {
+         ident_t ia = vlog_has_ident(a) ? vlog_ident(a) : NULL;
+         ident_t ib = vlog_has_ident(b) ? vlog_ident(b) : NULL;
+         return ia == ib && vlog_equal_node(vlog_value(a), vlog_value(b));
+      }
+   default:
+      return false;
+   }
+}
+
+uint32_t vlog_hash_node(vlog_node_t v)
+{
+   switch (vlog_kind(v)) {
+   case V_NUMBER:
+      return number_hash(vlog_number(v));
+   case V_REF:
+      return vlog_hash_node(vlog_ref(v));
+   case V_PARAM_ASSIGN:
+      {
+         uint32_t h = vlog_hash_node(vlog_value(v));
+         if (vlog_has_ident(v))
+            h ^= ident_hash(vlog_ident(v));
+         return h;
+      }
+   default:
+      return mix_bits_64((uintptr_t)v);
+   }
+}

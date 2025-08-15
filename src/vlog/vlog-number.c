@@ -478,6 +478,11 @@ uint8_t number_byte(number_t val, unsigned n)
    return (abits[n / 8] >> (n * 8) % 64) & 0xff;
 }
 
+uint32_t number_hash(number_t n)
+{
+   return bignum_hash(n.big);
+}
+
 bool number_equal(number_t a, number_t b)
 {
    if (a.big->width != b.big->width)

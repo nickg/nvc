@@ -2033,6 +2033,58 @@ START_TEST(test_issue1204)
 }
 END_TEST
 
+START_TEST(test_clone1)
+{
+   analyse_file(TESTDIR "/elab/clone1.v", NULL, NULL, NULL);
+
+   input_from_file(TESTDIR "/elab/clone1.vhd");
+
+   tree_t e = run_elab();
+   fail_if(e == NULL);
+
+   tree_t top = tree_stmt(e, 0);
+   fail_unless(tree_kind(top) == T_BLOCK);
+   ck_assert_int_eq(tree_stmts(top), 10);
+
+   tree_t u0 = tree_stmt(tree_stmt(tree_stmt(top, 0), 0), 0);
+   fail_unless(tree_kind(u0) == T_BLOCK);
+
+   tree_t h0 = tree_decl(u0, 0);
+   fail_unless(tree_kind(h0) == T_HIER);
+
+   ident_t dotted0 = ident_new("WORK.TOP.G(1).U.sub");
+   fail_unless(tree_ident(h0) == dotted0);
+   fail_unless(tree_ident2(h0) == dotted0);
+
+   const int ndecls = tree_decls(u0);
+   const int nstmts = tree_stmts(u0);
+
+   for (int i = 1; i < 10; i++) {
+      tree_t u = tree_stmt(tree_stmt(tree_stmt(top, i), 0), 0);
+      fail_unless(tree_kind(u) == T_BLOCK);
+
+      ck_assert_int_eq(tree_decls(u), ndecls);
+      ck_assert_int_eq(tree_stmts(u), nstmts);
+
+      ident_t id = ident_sprintf("WORK.TOP.G(%d).U.sub", i + 1);
+
+      tree_t h = tree_decl(u, 0);
+      fail_unless(tree_kind(h) == T_HIER);
+      fail_unless(tree_ident(h) == id);
+      // fail_unless(tree_ident2(h) == dotted0);  TODO
+
+      for (int j = 1; j < ndecls; j++)
+         ck_assert_ptr_eq(tree_decl(u0, j), tree_decl(u, j));
+
+      // TODO
+      //for (int j = 0; j < nstmts; j++)
+      //   ck_assert_ptr_eq(tree_stmt(u0, j), tree_stmt(u, j));
+   }
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_elab_tests(void)
 {
    Suite *s = suite_create("elab");
@@ -2142,6 +2194,7 @@ Suite *get_elab_tests(void)
    tcase_add_test(tc, test_issue1195);
    tcase_add_test(tc, test_issue1201);
    tcase_add_test(tc, test_issue1204);
+   tcase_add_test(tc, test_clone1);
    suite_add_tcase(s, tc);
 
    return s;

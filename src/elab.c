@@ -50,7 +50,6 @@ typedef A(tree_t) tree_list_t;
 
 typedef struct _elab_ctx elab_ctx_t;
 typedef struct _generic_list generic_list_t;
-typedef struct _elab_instance elab_instance_t;
 
 typedef struct _elab_ctx {
    const elab_ctx_t *parent;
@@ -95,15 +94,14 @@ typedef struct _generic_list {
 typedef struct {
    tree_t           wrap;
    vlog_node_t      module;
-   elab_instance_t *instances;
+   ghash_t         *instances;
 } mod_cache_t;
 
-typedef struct _elab_instance {
-   elab_instance_t *next;
-   mod_cache_t     *module;
-   vlog_node_t      body;
-   tree_t           block;
-   tree_t           wrap;
+typedef struct {
+   mod_cache_t *module;
+   vlog_node_t  body;
+   tree_t       block;
+   tree_t       wrap;
 } elab_instance_t;
 
 static void elab_block(tree_t t, const elab_ctx_t *ctx);
@@ -234,6 +232,41 @@ static void elab_subprogram_prefix(tree_t arch, elab_ctx_t *ctx)
    ctx->prefix[1] = tree_ident(tree_primary(arch));
 }
 
+static uint32_t elab_hash_inst(const void *key)
+{
+   vlog_node_t v = (void *)key;
+   assert(vlog_kind(v) == V_INST_LIST);
+
+   uint32_t h = ident_hash(vlog_ident(v));
+
+   const int nparams = vlog_params(v);
+   for (int i = 0; i < nparams; i++)
+      h ^= vlog_hash_node(vlog_param(v, i));
+
+   return h;
+}
+
+static bool elab_cmp_inst(const void *a, const void *b)
+{
+   vlog_node_t va = (vlog_node_t)a, vb = (vlog_node_t)b;
+   assert(vlog_kind(va) == V_INST_LIST);
+   assert(vlog_kind(vb) == V_INST_LIST);
+
+   if (vlog_ident(va) != vlog_ident(vb))
+      return false;
+
+   const int nparams = vlog_params(va);
+   if (vlog_params(vb) != nparams)
+      return false;
+
+   for (int i = 0; i < nparams; i++) {
+      if (!vlog_equal_node(vlog_param(va, i), vlog_param(vb, i)))
+         return false;
+   }
+
+   return true;
+}
+
 static mod_cache_t *elab_cached_module(vlog_node_t mod, const elab_ctx_t *ctx)
 {
    assert(is_top_level(mod));
@@ -243,7 +276,8 @@ static mod_cache_t *elab_cached_module(vlog_node_t mod, const elab_ctx_t *ctx)
       return mc;
 
    mc = xcalloc(sizeof(mod_cache_t));
-   mc->module = mod;
+   mc->module    = mod;
+   mc->instances = ghash_new(4, elab_hash_inst, elab_cmp_inst);
 
    mc->wrap = tree_new(T_VERILOG);
    tree_set_loc(mc->wrap, vlog_loc(mod));
@@ -261,8 +295,12 @@ static elab_instance_t *elab_new_instance(vlog_node_t mod, vlog_node_t inst,
 
    mod_cache_t *mc = elab_cached_module(mod, ctx);
 
-   elab_instance_t *ei = xcalloc(sizeof(elab_instance_t));
-   ei->next   = mc->instances;
+   elab_instance_t *ei = ghash_get(mc->instances, inst);
+   if (ei != NULL) {
+      return ei;
+   }
+
+   ei = xcalloc(sizeof(elab_instance_t));
    ei->module = mc;
    ei->body   = vlog_new_instance(mod, inst, ctx->dotted);
 
@@ -277,8 +315,7 @@ static elab_instance_t *elab_new_instance(vlog_node_t mod, vlog_node_t inst,
 
    vlog_trans(ei->body, ei->block);
 
-   mc->instances = ei;
-
+   ghash_put(mc->instances, inst, ei);
    return ei;
 }
 
