@@ -230,9 +230,13 @@ number_t number_new(const char *str, const loc_t *loc)
 
    vlog_radix_t radix = RADIX_DEC;
    switch (*p) {
+   case 'B':
    case 'b': radix = RADIX_BIN; p++; break;
+   case 'O':
    case 'o': radix = RADIX_OCT; p++; break;
+   case 'H':
    case 'h': radix = RADIX_HEX; p++; break;
+   case 'D':
    case 'd': radix = RADIX_DEC; p++; break;
    case '"': radix = RADIX_STR; p++; break;
    default: result.big->issigned = true; break;
@@ -240,6 +244,10 @@ number_t number_new(const char *str, const loc_t *loc)
 
    if (*p == '_' && radix != RADIX_STR)
       error_at(loc, "number cannot start with an underscore");
+
+   // Skip optional spaces after the radix
+   while (*p == ' ')
+      p++;
 
    if (radix == RADIX_STR) {
       for (int bit = width - 8; !(*p == '"' && *(p + 1) == '\0');
@@ -250,21 +258,42 @@ number_t number_new(const char *str, const loc_t *loc)
       }
    }
    else if (radix == RADIX_DEC) {
-      for (; *p; p++) {
-         switch (*p) {
-         case '0'...'9':
-            {
-               const uint64_t ten[] = { 10 };
-               const uint64_t digit[] = { *p - '0' };
+      bool is_x_digit = false;
+      switch (*p) {
+      case 'X':
+      case 'x':
+         is_x_digit = true;
+      case '?':
+      case 'Z':
+      case 'z':
+         p++;
+         for (int bit = 0; bit < width; bit++) {
+            if (is_x_digit)
+               bignum_set_abit(result.big, bit, 1);
+            bignum_set_bbit(result.big, bit, 1);
+         }
+         if (*p == '_')
+            p++;
+         if (*p != '\0')
+            error_at(loc, "invalid character '%c' in decimal number %s", *p, str);
+         break;
+      default:
+         for (; *p; p++) {
+            switch (*p) {
+            case '0'...'9':
+               {
+                  const uint64_t ten[] = { 10 };
+                  const uint64_t digit[] = { *p - '0' };
 
-               vec2_mul(result.big->words, width, ten, 64);
-               vec2_add(width, result.big->words, digit);
+                  vec2_mul(result.big->words, width, ten, 64);
+                  vec2_add(width, result.big->words, digit);
+               }
+               break;
+            case '_':
+               continue;
+            default:
+               error_at(loc, "invalid character '%c' in decimal number %s", *p, str);
             }
-            break;
-         case '_':
-            continue;
-         default:
-            error_at(loc, "invalid character '%c' in number %s", *p, str);
          }
       }
    }
@@ -282,17 +311,20 @@ number_t number_new(const char *str, const loc_t *loc)
                case '1':
                   bignum_set_abit(result.big, bit, 1);
                   break;
+               case 'X':
                case 'x':
                   bignum_set_abit(result.big, bit, 1);
                   bignum_set_bbit(result.big, bit, 1);
                   break;
+               case '?':
+               case 'Z':
                case 'z':
                   bignum_set_bbit(result.big, bit, 1);
                   break;
                case '_':
                   continue;
                default:
-                  error_at(loc, "invalid character '%c' in number %s", *p, str);
+                  error_at(loc, "invalid character '%c' in binary number %s", *p, str);
                }
 
                if (bit >= width) {
@@ -307,12 +339,15 @@ number_t number_new(const char *str, const loc_t *loc)
          case RADIX_OCT:
             {
                switch (*p) {
+               case 'X':
                case 'x':
                   for (int i = 0; i < 3; i++) {
                      bignum_set_abit(result.big, bit + i, 1);
                      bignum_set_bbit(result.big, bit + i, 1);
                   }
                   break;
+               case '?':
+               case 'Z':
                case 'z':
                   for (int i = 0; i < 3; i++)
                      bignum_set_bbit(result.big, bit + i, 1);
@@ -324,7 +359,7 @@ number_t number_new(const char *str, const loc_t *loc)
                case '_':
                   continue;
                default:
-                  error_at(loc, "invalid character '%c' in number %s", *p, str);
+                  error_at(loc, "invalid character '%c' in octal number %s", *p, str);
                }
 
                if (bit >= width) {
@@ -339,12 +374,15 @@ number_t number_new(const char *str, const loc_t *loc)
          case RADIX_HEX:
             {
                switch (*p) {
+               case 'X':
                case 'x':
                   for (int i = 0; i < 4; i++) {
                      bignum_set_abit(result.big, bit + i, 1);
                      bignum_set_bbit(result.big, bit + i, 1);
                   }
                   break;
+               case '?':
+               case 'Z':
                case 'z':
                   for (int i = 0; i < 4; i++)
                      bignum_set_bbit(result.big, bit + i, 1);
@@ -361,7 +399,7 @@ number_t number_new(const char *str, const loc_t *loc)
                case '_':
                   continue;
                default:
-                  error_at(loc, "invalid character '%c' in number %s", *p, str);
+                  error_at(loc, "invalid character '%c' in hex number %s", *p, str);
                }
 
                if (bit >= width) {
