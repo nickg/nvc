@@ -1165,3 +1165,4 @@ mixed5          mixed
 vlog22          verilog
 ivtest12        verilog
 vlog23          verilog
+vlog24          verilog

@@ -3884,12 +3884,14 @@ static void irgen_op_pack(jit_irgen_t *g, mir_value_t n)
 static void irgen_op_unpack(jit_irgen_t *g, mir_value_t n)
 {
    mir_value_t arg = mir_get_arg(g->mu, n, 0);
-   assert(mir_is(g->mu, arg, MIR_TYPE_VEC4));
 
    jit_value_t strength = jit_value_from_int64(irgen_get_enum(g, n, 1));
 
-   jit_value_t abits = irgen_get_value(g, arg);
-   jit_value_t bbits = jit_value_from_reg(jit_value_as_reg(abits) + 1);
+   jit_value_t abits = irgen_get_value(g, arg), bbits;
+   if (mir_is(g->mu, arg, MIR_TYPE_VEC4))
+      bbits = jit_value_from_reg(jit_value_as_reg(abits) + 1);
+   else
+      bbits = jit_value_from_int64(0);
 
    if (mir_is_scalar(g->mu, n)) {
       jit_value_t bshift = j_shl(g, bbits, jit_value_from_int64(1));

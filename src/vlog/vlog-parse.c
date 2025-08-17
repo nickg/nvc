@@ -2768,7 +2768,7 @@ static vlog_node_t p_net_assignment(void)
 
    vlog_node_t v = vlog_new(V_ASSIGN);
    vlog_set_target(v, p_net_lvalue());
-   vlog_set_ident(v, ident_uniq("__assign#line%d", state.last_loc.first_line));
+   vlog_set_ident(v, default_label("assign"));
 
    vlog_symtab_set_implicit(symtab, V_NET_NONE);
 
