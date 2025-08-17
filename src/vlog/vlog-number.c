@@ -478,25 +478,6 @@ uint8_t number_byte(number_t val, unsigned n)
    return (abits[n / 8] >> (n * 8) % 64) & 0xff;
 }
 
-// TODO: remove this
-number_t number_pack(const uint8_t *bits, unsigned width)
-{
-   const int nwords = BIGNUM_WORDS(width);
-   bignum_t *bn = xmalloc_flex(sizeof(bignum_t), nwords * 2, sizeof(uint64_t));
-   bn->width = width;
-   bn->issigned = 0;
-
-   for (int i = 0; i < nwords * 2; i++)
-      bn->words[i] = 0;
-
-   for (int i = 0; i < width; i++) {
-      bignum_set_abit(bn, i, bits[width - 1 - i]);
-      bignum_set_bbit(bn, i, bits[width - 1 - i] >> 1);
-   }
-
-   return (number_t){ .big = bn };
-}
-
 bool number_equal(number_t a, number_t b)
 {
    if (a.big->width != b.big->width)
@@ -529,6 +510,12 @@ bool number_truthy(number_t a)
 bool number_signed(number_t a)
 {
    return a.big->issigned;
+}
+
+void number_get(number_t val, const uint64_t **abits, const uint64_t **bbits)
+{
+   *abits = bignum_abits(val.big);
+   *bbits = bignum_bbits(val.big);
 }
 
 void number_write(number_t val, fbuf_t *f)

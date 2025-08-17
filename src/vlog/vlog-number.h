@@ -56,7 +56,7 @@ int64_t number_integer(number_t val);
 unsigned number_width(number_t val);
 vlog_logic_t number_bit(number_t val, unsigned n);
 uint8_t number_byte(number_t val, unsigned n);
-number_t number_pack(const uint8_t *bits, unsigned width);
+void number_get(number_t val, const uint64_t **abits, const uint64_t **bbits);
 bool number_equal(number_t a, number_t b);
 bool number_truthy(number_t a);
 bool number_signed(number_t a);

@@ -935,7 +935,12 @@ void vpi_get_value(vpiHandle handle, p_vpi_value value_p)
       case vpiBinaryConst:
          {
             number_t n = vlog_number(con->expr.where);
-            vpi_format_number(n, value_p->format, c->valuestr);
+
+            const uint64_t *abits, *bbits;
+            number_get(n, &abits, &bbits);
+
+            vpi_format_number(number_width(n), abits, bbits, value_p->format,
+                              c->valuestr);
 
             value_p->value.str = (PLI_BYTE8 *)tb_get(c->valuestr);
             return;
@@ -948,10 +953,10 @@ void vpi_get_value(vpiHandle handle, p_vpi_value value_p)
       int size = c->args[op->argslot].integer;
       assert(size <= 64);
 
-      uint64_t abits = c->args[op->argslot + 1].integer;
-      uint64_t bbits = c->args[op->argslot + 2].integer;
+      uint64_t abits[1] = { c->args[op->argslot + 1].integer };
+      uint64_t bbits[1] = { c->args[op->argslot + 2].integer };
 
-      vpi_format_number2(size, abits, bbits, value_p->format, c->valuestr);
+      vpi_format_number(size, abits, bbits, value_p->format, c->valuestr);
 
       value_p->value.str = (PLI_BYTE8 *)tb_get(c->valuestr);
       return;
@@ -961,9 +966,24 @@ void vpi_get_value(vpiHandle handle, p_vpi_value value_p)
    if (decl != NULL) {
       sig_shared_t **ss = vpi_get_ptr(decl);
       rt_signal_t *s = container_of(*ss, rt_signal_t, shared);
-      number_t num = number_pack(signal_value(s), signal_width(s));
 
-      vpi_format_number(num, value_p->format, c->valuestr);
+      const int width = signal_width(s);
+      const int nwords = (width + 63) / 64;
+      uint64_t *mem LOCAL = xmalloc_array(nwords * 2, sizeof(uint64_t));
+      uint64_t *abits = mem, *bbits = mem + nwords;
+
+      for (int i = 0; i < nwords * 2; i++)
+         mem[i] = 0;
+
+      const uint8_t *vals = signal_value(s);
+
+      for (int i = 0; i < width; i++) {
+         const int pos = width - 1 - i;
+         abits[pos / 64] |= (vals[i] & 1) << (pos % 64);
+         bbits[pos / 64] |= ((vals[i] >> 1) & 1) << (pos % 64);
+      }
+
+      vpi_format_number(width, abits, bbits, value_p->format, c->valuestr);
 
       value_p->value.str = (PLI_BYTE8 *)tb_get(c->valuestr);
       return;

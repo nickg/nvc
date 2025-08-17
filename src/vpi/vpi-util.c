@@ -22,6 +22,7 @@
 #include "vlog/vlog-number.h"
 #include "vpi/vpi-priv.h"
 
+#include <assert.h>
 #include <inttypes.h>
 #include <string.h>
 #include <stdlib.h>
@@ -109,58 +110,41 @@ void vpi_clear_error(void)
    last_error.message = 0;
 }
 
-void vpi_format_number(number_t n, PLI_INT32 format, text_buf_t *tb)
+void vpi_format_number(int size, const uint64_t *abits, const uint64_t *bbits,
+                       PLI_INT32 format, text_buf_t *tb)
 {
-   switch (format) {
-   case vpiBinStrVal:
-      {
-         const char map[] = "01zx";
-         const int width = number_width(n);
-         for (int i = width - 1; i >= 0; i--)
-            tb_append(tb, map[number_bit(n, i)]);
-      }
-      break;
+   const int nwords = (size + 63) / 64;
+   bool is_defined = true;
+   for (int i = 0; i < nwords; i++)
+      is_defined &= (bbits[i] == 0);
 
-   case vpiDecStrVal:
-      if (number_is_defined(n))
-         tb_printf(tb, "%"PRIi64, number_integer(n));
-      else
-         tb_cat(tb, "x");
-      break;
-
-   case vpiHexStrVal:
-      if (number_is_defined(n))
-         tb_printf(tb, "%0*"PRIx64, number_width(n) / 4, number_integer(n));
-      else
-         tb_printf(tb, "%*s", number_width(n) / 4, "x");
-      break;
-   }
-}
-
-void vpi_format_number2(int size, uint64_t abits, uint64_t bbits,
-                        PLI_INT32 format, text_buf_t *tb)
-{
    switch (format) {
    case vpiBinStrVal:
       for (int i = size - 1; i >= 0; i--) {
-         const vlog_logic_t bit = ((bbits >> i) & 1) << 1 | ((abits >> i) & 1);
+         const vlog_logic_t bit =
+            ((bbits[i / 64] >> (i % 64)) & 1) << 1
+            | ((abits[i / 64] >> (i % 64)) & 1);
          static const char map[] = "01zx";
          tb_append(tb, map[bit]);
       }
       break;
 
    case vpiDecStrVal:
-      if (bbits == 0)
-         tb_printf(tb, "%"PRIi64, abits);
+      assert(size <= 64);  // TODO
+      if (is_defined)
+         tb_printf(tb, "%"PRIi64, abits[0]);
       else
          tb_cat(tb, "x");
       break;
 
    case vpiHexStrVal:
-      if (bbits == 0)
-         tb_printf(tb, "%0*"PRIx64, size / 4, abits);
+      if (is_defined) {
+         for (int i = nwords - 1, field = ((size % 64) + 3) / 4;
+              i >= 0; i--, field = 16)
+            tb_printf(tb, "%0*"PRIx64, field, abits[i]);
+      }
       else
-         tb_printf(tb, "%*s", size / 4, "x");
+         tb_printf(tb, "%*s", (size + 3) / 4, "x");
       break;
    }
 }
