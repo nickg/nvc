@@ -70,6 +70,16 @@ bool vlog_is_const(vlog_node_t v)
    }
 }
 
+bool vlog_is_up(vlog_node_t v)
+{
+   assert(vlog_kind(v) == V_DIMENSION);
+
+   int64_t left, right;
+   vlog_bounds(v, &left, &right);
+
+   return left <= right;
+}
+
 void vlog_bounds(vlog_node_t v, int64_t *left, int64_t *right)
 {
    *left = vlog_get_const(vlog_left(v));
@@ -83,6 +93,7 @@ unsigned vlog_size(vlog_node_t v)
    case V_VAR_DECL:
    case V_NET_DECL:
    case V_PORT_DECL:
+   case V_TF_PORT_DECL:
       {
          unsigned size = 1;
 
@@ -101,8 +112,11 @@ unsigned vlog_size(vlog_node_t v)
 
          return size;
       }
-   case V_DIMENSION:
    case V_PART_SELECT:
+      if (vlog_subkind(v) != V_RANGE_CONST)
+         return vlog_get_const(vlog_right(v));
+      // Fall-through
+   case V_DIMENSION:
       {
          int64_t left, right;
          vlog_bounds(v, &left, &right);

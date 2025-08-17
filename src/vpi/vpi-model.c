@@ -581,6 +581,8 @@ static c_vpiObject *build_expr(vlog_node_t v, c_abstractScope *scope)
          vlog_node_t d = vlog_ref(v);
          if (vlog_kind(d) == V_PORT_DECL)
             d = vlog_ref(d);
+         else if (vlog_kind(d) == V_TF_PORT_DECL || vlog_kind(d) == V_FUNC_DECL)
+            return &(build_operation(v)->expr.object);  /// XXX: hack
 
          vpiObjectList *list =
             expand_lazy_list(&(scope->object), &(scope->decls));
@@ -600,6 +602,8 @@ static c_vpiObject *build_expr(vlog_node_t v, c_abstractScope *scope)
    case V_EMPTY:
    case V_PREFIX:
    case V_POSTFIX:
+   case V_COND_EXPR:
+   case V_PART_SELECT:
    case V_BIT_SELECT:   // XXX: check this
       return &(build_operation(v)->expr.object);
    default:

@@ -526,7 +526,7 @@ mir_value_t mir_build_binary(mir_unit_t *mu, mir_vec_op_t op, mir_type_t type,
 mir_value_t mir_build_unary(mir_unit_t *mu, mir_vec_op_t op, mir_type_t type,
                             mir_value_t arg);
 mir_value_t mir_build_insert(mir_unit_t *mu, mir_value_t part, mir_value_t full,
-                             unsigned pos);
+                             mir_value_t pos);
 mir_value_t mir_build_extract(mir_unit_t *mu, mir_type_t type, mir_value_t full,
                               mir_value_t pos);
 mir_value_t mir_build_test(mir_unit_t *mu, mir_value_t vec);

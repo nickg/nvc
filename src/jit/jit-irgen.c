@@ -4116,12 +4116,26 @@ static void irgen_op_test(jit_irgen_t *g, mir_value_t n)
 
 static void irgen_op_insert(jit_irgen_t *g, mir_value_t n)
 {
-   jit_value_t part = irgen_get_arg(g, n, 0);
-   jit_value_t full = irgen_get_arg(g, n, 1);
-   unsigned pos = irgen_get_enum(g, n, 2);
+   mir_value_t arg0 = mir_get_arg(g->mu, n, 0);
+   mir_value_t arg1 = mir_get_arg(g->mu, n, 1);
 
-   jit_value_t abits = j_shl(g, part, jit_value_from_int64(pos));
-   abits = g->map[n.id] = j_or(g, full, abits);
+   jit_value_t part = irgen_get_value(g, arg0);
+   jit_value_t full = irgen_get_value(g, arg1);
+   jit_value_t pos  = irgen_get_arg(g, n, 2);
+
+   const int part_size = mir_get_size(g->mu, mir_get_type(g->mu, arg0));
+   const int full_size = mir_get_size(g->mu, mir_get_type(g->mu, arg1));
+   assert(part_size <= full_size);
+   assert(full_size <= 64);  // TODO
+
+   jit_value_t align = jit_value_from_int64(full_size - part_size);
+   jit_value_t bitpos = j_sub(g, align, pos);
+   jit_value_t mask = j_shl(g, irgen_vector_mask(part_size), bitpos);
+   jit_value_t nmask = j_xor(g, mask, jit_value_from_int64(~UINT64_C(0)));
+
+   jit_value_t abits = j_shl(g, part, bitpos);
+   jit_value_t amask = j_and(g, full, nmask);
+   abits = g->map[n.id] = j_or(g, amask, abits);
 
    if (mir_is(g->mu, n, MIR_TYPE_VEC4)) {
       jit_reg_t bbits = irgen_alloc_reg(g);
@@ -4131,8 +4145,9 @@ static void irgen_op_insert(jit_irgen_t *g, mir_value_t n)
       jit_value_t bpart = jit_value_from_reg(jit_value_as_reg(part) + 1);
       jit_value_t bfull = jit_value_from_reg(jit_value_as_reg(full) + 1);
 
-      jit_value_t tmp = j_shl(g, bpart, jit_value_from_int64(pos));
-      tmp = j_or(g, bfull, tmp);
+      jit_value_t tmp = j_shl(g, bpart, bitpos);
+      jit_value_t bmask = j_and(g, bfull, nmask);
+      tmp = j_or(g, bmask, tmp);
 
       j_mov(g, bbits, tmp);
    }
@@ -4145,12 +4160,13 @@ static void irgen_op_extract(jit_irgen_t *g, mir_value_t n)
    jit_value_t full = irgen_get_value(g, arg0);
    jit_value_t pos = irgen_get_arg(g, n, 1);
 
-   assert(mir_get_size(g->mu, mir_get_type(g->mu, arg0)) <= 64);  // TODO
+   const int arg_size = mir_get_size(g->mu, mir_get_type(g->mu, arg0));
+   assert(arg_size <= 64);  // TODO
 
    mir_type_t type = mir_get_type(g->mu, n);
    const int size = mir_get_size(g->mu, type);
 
-   jit_value_t bitpos = j_sub(g, jit_value_from_int64(size), pos);
+   jit_value_t bitpos = j_sub(g, jit_value_from_int64(arg_size - size), pos);
    jit_value_t mask = irgen_vector_mask(size);
    jit_value_t ashift = j_shr(g, full, bitpos);
    jit_value_t abits = g->map[n.id] = j_and(g, ashift, mask);
