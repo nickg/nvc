@@ -76,6 +76,7 @@
 
   # Exported from src/jit/jit-exits.c
   __nvc_do_exit;
+  __nvc_vec4op;
   __nvc_get_object;
   __nvc_last_event;
   __nvc_mspace_alloc;

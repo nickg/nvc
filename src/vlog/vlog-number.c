@@ -258,7 +258,7 @@ number_t number_new(const char *str, const loc_t *loc)
                const uint64_t digit[] = { *p - '0' };
 
                vec2_mul(result.big->words, width, ten, 64);
-               vec2_add(result.big->words, width, digit, 64);
+               vec2_add(width, result.big->words, digit);
             }
             break;
          case '_':
@@ -747,12 +747,17 @@ number_t number_less_equal(number_t a, number_t b)
    return number_intern(result);
 }
 
-void vec2_add(uint64_t *a, size_t asize, const uint64_t *b, size_t bsize)
+void vec2_add(int size, uint64_t *a, const uint64_t *b)
 {
-   if (asize <= 64 && bsize <= 64)
-      a[0] += b[0];
-   else
-      should_not_reach_here();   // TODO
+   uint64_t carry = 0;
+   for (size_t i = 0; i < BIGNUM_WORDS(size); i++) {
+      uint64_t sum = a[i] + b[i];
+      uint64_t c1 = (sum < a[i]);
+      uint64_t sum2 = sum + carry;
+      uint64_t c2 = (sum2 < sum);
+      a[i] = sum2;
+      carry = (c1 | c2);
+   }
 }
 
 void vec2_mul(uint64_t *a, size_t asize, const uint64_t *b, size_t bsize)
@@ -794,3 +799,31 @@ VEC2_CMP_OP(lt, <);
 VEC2_CMP_OP(gt, >);
 VEC2_CMP_OP(le, <=);
 VEC2_CMP_OP(ge, >=);
+
+static bool vec4_arith_defined(int size, uint64_t *a1, uint64_t *b1,
+                               const uint64_t *a2, const uint64_t *b2)
+{
+   bool is_defined = true;
+   for (int i = 0; i < BIGNUM_WORDS(size); i++)
+      is_defined &= b1[i] == 0 && b2[i] == 0;
+
+   if (is_defined)
+      return true;
+
+   for (int i = 0; i < BIGNUM_WORDS(size); i++) {
+      b1[i] = a1[i] = ~UINT64_C(0);
+      if ((i + 1) * 64 > size) {
+         a1[i] >>= 64 - size % 64;
+         b1[i] >>= 64 - size % 64;
+      }
+   }
+
+   return false;
+}
+
+void vec4_add(int size, uint64_t *a1, uint64_t *b1, const uint64_t *a2,
+              const uint64_t *b2)
+{
+   if (vec4_arith_defined(size, a1, b1, a2, b2))
+      vec2_add(size, a1, a2);
+}

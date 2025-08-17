@@ -89,6 +89,8 @@ typedef enum {
    MACRO_SADD,
    MACRO_PACK,
    MACRO_UNPACK,
+   MACRO_VEC2OP,
+   MACRO_VEC4OP,
 } jit_op_t;
 
 typedef enum {
@@ -200,6 +202,12 @@ typedef enum {
    JIT_VALUE_VPOS,
    JIT_VALUE_LOCUS,
 } jit_value_kind_t;
+
+typedef enum {
+   JIT_VEC_ZEXT,
+   JIT_VEC_SEXT,
+   JIT_VEC_ADD,
+} jit_vec_op_t;
 
 typedef uint32_t jit_label_t;
 #define JIT_LABEL_INVALID UINT32_MAX
@@ -455,6 +463,11 @@ void jit_do_syscall(vlog_node_t where, jit_anchor_t *caller, jit_scalar_t *args,
 
 DLLEXPORT void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor,
                              jit_scalar_t *args, tlab_t *tlab);
+DLLEXPORT void __nvc_vec4op(jit_vec_op_t op, jit_anchor_t *anchor,
+                            jit_scalar_t *args, int size);
+DLLEXPORT void __nvc_pack(const uint8_t *src, int32_t size, jit_scalar_t *args);
+DLLEXPORT void __nvc_unpack(jit_scalar_t aval, jit_scalar_t bval,
+                            jit_scalar_t *args);
 DLLEXPORT void *__nvc_mspace_alloc(uintptr_t size, jit_anchor_t *anchor);
 DLLEXPORT void _debug_out(intptr_t val, int32_t reg);
 

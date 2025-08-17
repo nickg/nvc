@@ -50,7 +50,7 @@ const char *jit_op_name(jit_op_t op)
          "$COPY", "$GALLOC", "$EXIT", "$FEXP", "$EXP", "$BZERO",
          "$GETPRIV", "$PUTPRIV", "$LALLOC", "$SALLOC", "$CASE",
          "$TRIM", "$MOVE", "$MEMSET", "$REEXEC", "$SADD", "$PACK",
-         "$UNPACK",
+         "$UNPACK", "$VEC2OP", "$VEC4OP",
       };
       assert(op - __MACRO_BASE < ARRAY_LEN(names));
       return names[op - __MACRO_BASE];

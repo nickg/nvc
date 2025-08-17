@@ -1009,6 +1009,10 @@ void jit_do_lvn(jit_func_t *f)
       case MACRO_MEMSET: jit_lvn_memset(ir, &state); break;
       case MACRO_EXP: jit_lvn_exp(ir, &state); break;
       case MACRO_EXIT:
+      case MACRO_VEC4OP:
+      case MACRO_VEC2OP:
+      case MACRO_PACK:
+      case MACRO_UNPACK:
       case J_CALL:
          lvn_kill_args(&state);
          // Fall-through

@@ -979,8 +979,8 @@ void vpi_get_value(vpiHandle handle, p_vpi_value value_p)
 
       for (int i = 0; i < width; i++) {
          const int pos = width - 1 - i;
-         abits[pos / 64] |= (vals[i] & 1) << (pos % 64);
-         bbits[pos / 64] |= ((vals[i] >> 1) & 1) << (pos % 64);
+         abits[pos / 64] |= (uint64_t)(vals[i] & 1) << (pos % 64);
+         bbits[pos / 64] |= (uint64_t)((vals[i] >> 1) & 1) << (pos % 64);
       }
 
       vpi_format_number(width, abits, bbits, value_p->format, c->valuestr);

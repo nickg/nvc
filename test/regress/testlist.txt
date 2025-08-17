@@ -1167,3 +1167,4 @@ ivtest12        verilog
 vlog23          verilog
 vlog24          verilog
 tfcall2         verilog
+wide1           verilog,gold

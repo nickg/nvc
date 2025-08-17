@@ -139,6 +139,7 @@ typedef enum {
    LLVM_SCHED_PROCESS,
    LLVM_PACK,
    LLVM_UNPACK,
+   LLVM_VEC4OP,
 
    LLVM_LAST_FN,
 } llvm_fn_t;
@@ -935,6 +936,30 @@ static LLVMValueRef llvm_get_fn(llvm_obj_t *obj, llvm_fn_t which)
                                                 ARRAY_LEN(args), false);
 
          fn = llvm_add_fn(obj, "__nvc_unpack", obj->fntypes[which]);
+         llvm_add_func_attr(obj, fn, FUNC_ATTR_NOUNWIND, -1);
+      }
+      break;
+
+   case LLVM_VEC4OP:
+      {
+         LLVMTypeRef args[] = {
+            obj->types[LLVM_INT32],
+#ifdef LLVM_HAS_OPAQUE_POINTERS
+            obj->types[LLVM_PTR],
+#else
+            LLVMPointerType(obj->types[LLVM_ANCHOR], 0),
+#endif
+#ifdef LLVM_HAS_OPAQUE_POINTERS
+            obj->types[LLVM_PTR],
+#else
+            LLVMPointerType(obj->types[LLVM_INT64], 0),
+#endif
+            obj->types[LLVM_INT32],
+         };
+         obj->fntypes[which] = LLVMFunctionType(obj->types[LLVM_VOID], args,
+                                                ARRAY_LEN(args), false);
+
+         fn = llvm_add_fn(obj, "__nvc_vec4op", obj->fntypes[which]);
          llvm_add_func_attr(obj, fn, FUNC_ATTR_NOUNWIND, -1);
       }
       break;
@@ -2318,6 +2343,22 @@ static void cgen_macro_unpack(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
    llvm_call_fn(obj, LLVM_UNPACK, args, ARRAY_LEN(args));
 }
 
+static void cgen_macro_vec4op(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
+{
+   cgen_sync_irpos(obj, cgb, ir);
+
+   LLVMValueRef op = cgen_get_value(obj, cgb, ir->arg1);
+   LLVMValueRef size = cgen_get_value(obj, cgb, ir->arg2);
+
+   LLVMValueRef args[] = {
+      LLVMBuildTrunc(obj->builder, op, obj->types[LLVM_INT32], ""),
+      cgb->func->anchor,
+      cgb->func->args,
+      LLVMBuildTrunc(obj->builder, size, obj->types[LLVM_INT32], ""),
+   };
+   llvm_call_fn(obj, LLVM_VEC4OP, args, ARRAY_LEN(args));
+}
+
 static void cgen_macro_case(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
 {
    jit_ir_t *first = cgb->func->source->irbuf + cgb->source->first;
@@ -2567,6 +2608,9 @@ static void cgen_ir(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
       break;
    case MACRO_UNPACK:
       cgen_macro_unpack(obj, cgb, ir);
+      break;
+   case MACRO_VEC4OP:
+      cgen_macro_vec4op(obj, cgb, ir);
       break;
    case MACRO_CASE:
       cgen_macro_case(obj, cgb, ir);

@@ -707,23 +707,13 @@ static mir_value_t vlog_lower_rvalue(vlog_gen_t *g, vlog_node_t v)
 
          number_t num = vlog_number(v);
          const int width = number_width(num);
-         assert(width < 64);
+         assert(width <= 64);
 
-         if (number_is_defined(num)) {
-            mir_type_t t_vec2 = mir_vec2_type(g->mu, width, false);
-            return mir_const_vec(g->mu, t_vec2, number_integer(num), 0);
-         }
-         else {
-            uint64_t abits = 0, bbits = 0;
-            for (int i = 0; i < width; i++) {
-               vlog_logic_t bit = number_bit(num, width - i - 1);
-               abits = (abits << 1) | (bit & 1);
-               bbits = (bbits << 1) | ((bit >> 1) & 1);
-            }
+         const uint64_t *abits, *bbits;
+         number_get(num, &abits, &bbits);
 
-            mir_type_t t_vec4 = mir_vec4_type(g->mu, width, false);
-            return mir_const_vec(g->mu, t_vec4, abits, bbits);
-         }
+         mir_type_t t_vec4 = mir_vec4_type(g->mu, width, false);
+         return mir_const_vec(g->mu, t_vec4, abits[0], bbits[0]);
       }
    case V_BINARY:
       return vlog_lower_binary(g, v);

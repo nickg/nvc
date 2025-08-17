@@ -283,8 +283,6 @@ code_cache_t *code_cache_new(void)
    extern void __nvc_sched_process(jit_anchor_t *, jit_scalar_t *, tlab_t *);
    extern void __nvc_test_event(jit_anchor_t *, jit_scalar_t *, tlab_t *);
    extern void __nvc_last_event(jit_anchor_t *, jit_scalar_t *, tlab_t *);
-   extern void __nvc_pack(const uint8_t *, int32_t, jit_scalar_t *);
-   extern void __nvc_unpack(uint64_t, uint64_t, jit_scalar_t *);
 
    shash_put(s, "__nvc_sched_waveform", &__nvc_sched_waveform);
    shash_put(s, "__nvc_sched_process", &__nvc_sched_process);
@@ -295,6 +293,7 @@ code_cache_t *code_cache_new(void)
    shash_put(s, "__nvc_do_exit", &__nvc_do_exit);
    shash_put(s, "__nvc_pack", &__nvc_pack);
    shash_put(s, "__nvc_unpack", &__nvc_unpack);
+   shash_put(s, "__nvc_vec4op", &__nvc_vec4op);
    shash_put(s, "memmove", &memmove);
    shash_put(s, "memcpy", &memcpy);
    shash_put(s, "memset", &memset);

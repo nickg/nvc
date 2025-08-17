@@ -897,31 +897,21 @@ static void interp_sadd(jit_interp_t *state, jit_ir_t *ir)
 static void interp_pack(jit_interp_t *state, jit_ir_t *ir)
 {
    const uint8_t *src = interp_get_pointer(state, ir->arg1);
-   const size_t size = interp_get_int(state, ir->arg2);
-   assert(size <= 64);  // TODO
-
-   uint64_t abits = 0, bbits = 0;
-
-   for (size_t i = 0; i < size; i++) {
-      abits = (abits << 1) | (src[i] & 1);
-      bbits = (bbits << 1) | ((src[i] >> 1) & 1);
-   }
-
-   state->args[0].integer = abits;
-   state->args[1].integer = bbits;
+   const int size = interp_get_int(state, ir->arg2);
+   __nvc_pack(src, size, state->args);
 }
 
 static void interp_unpack(jit_interp_t *state, jit_ir_t *ir)
 {
-   uint8_t *dest = state->args[0].pointer;
-   size_t size = state->args[1].integer;
-   uint8_t strength = state->args[2].integer;
+   jit_scalar_t aval = interp_get_scalar(state, ir->arg1);
+   jit_scalar_t bval = interp_get_scalar(state, ir->arg2);
+   __nvc_unpack(aval, bval, state->args);
+}
 
-   uint64_t abits = interp_get_int(state, ir->arg1);
-   uint64_t bbits = interp_get_int(state, ir->arg2);
-
-   for (size_t i = 0; i < size; i++, abits >>= 1, bbits >>= 1)
-      dest[size - i - 1] = (abits & 1) | ((bbits & 1) << 1) | strength;
+static void interp_vec4op(jit_interp_t *state, jit_ir_t *ir)
+{
+   state->anchor->irpos = ir - state->func->irbuf;
+   __nvc_vec4op(ir->arg1.int64, state->anchor, state->args, ir->arg2.int64);
 }
 
 static void interp_loop(jit_interp_t *state)
@@ -1099,6 +1089,9 @@ static void interp_loop(jit_interp_t *state)
          break;
       case MACRO_UNPACK:
          interp_unpack(state, ir);
+         break;
+      case MACRO_VEC4OP:
+         interp_vec4op(state, ir);
          break;
       default:
          interp_dump(state);

@@ -29,6 +29,7 @@
 #include "rt/rt.h"
 #include "rt/structs.h"
 #include "type.h"
+#include "vlog/vlog-number.h"
 
 #include <assert.h>
 #include <ctype.h>
@@ -977,6 +978,52 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
    thread->anchor = NULL;
 }
 
+DLLEXPORT
+void __nvc_vec4op(jit_vec_op_t op, jit_anchor_t *anchor, jit_scalar_t *args,
+                  int size)
+{
+   assert(size > 64);
+
+   jit_thread_local_t *thread = jit_attach_thread(anchor);
+
+   const int nwords = (size + 63) / 64;
+   void *ptr = jit_mspace_alloc(nwords * 2 * sizeof(uint64_t));
+   uint64_t *aresult = ptr, *bresult = aresult + nwords;
+
+   if (op == JIT_VEC_ZEXT) {
+      const int arg_size = args[2].integer;
+      assert(arg_size <= 64);   // TODO
+
+      aresult[0] = args[0].integer;
+      bresult[0] = args[1].integer;
+
+      for (int i = 1; i < nwords; i++)
+         aresult[i] = bresult[i] = 0;
+   }
+   else {
+      const uint64_t *a1 = args[0].pointer;
+      const uint64_t *b1 = args[1].pointer;
+      const uint64_t *a2 = args[2].pointer;
+      const uint64_t *b2 = args[3].pointer;
+
+      memcpy(aresult, a1, nwords * sizeof(uint64_t));
+      memcpy(bresult, b1, nwords * sizeof(uint64_t));
+
+      switch (op) {
+      case JIT_VEC_ADD:
+         vec4_add(size, aresult, bresult, a2, b2);
+         break;
+      default:
+         should_not_reach_here();
+      }
+   }
+
+   args[0].pointer = aresult;
+   args[1].pointer = bresult;
+
+   thread->anchor = NULL;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Entry points from AOT compiled code
 
@@ -1040,26 +1087,58 @@ object_t *__nvc_get_object(const char *unit, ptrdiff_t offset)
 DLLEXPORT
 void __nvc_pack(const uint8_t *src, int32_t size, jit_scalar_t *args)
 {
-   assert(size <= 64);  // TODO
+   if (size > 64) {
+      const int nwords = (size + 63) / 64;
+      uint64_t *mem = jit_mspace_alloc(nwords * 2 * sizeof(uint64_t));
+      uint64_t *abits = mem, *bbits = mem + nwords;
 
-   uint64_t abits = 0, bbits = 0;
+      for (int i = 0; i < nwords * 2; i++)
+         mem[i] = 0;
 
-   for (size_t i = 0; i < size; i++) {
-      abits = (abits << 1) | (src[i] & 1);
-      bbits = (bbits << 1) | ((src[i] >> 1) & 1);
+      for (int i = 0; i < size; i++) {
+         const int pos = size - 1 - i;
+         abits[pos / 64] |= (uint64_t)(src[i] & 1) << (pos % 64);
+         bbits[pos / 64] |= (uint64_t)((src[i] >> 1) & 1) << (pos % 64);
+      }
+
+      args[0].pointer = abits;
+      args[1].pointer = bbits;
    }
+   else {
+      uint64_t abits = 0, bbits = 0;
 
-   args[0].integer = abits;
-   args[1].integer = bbits;
+      for (int i = 0; i < size; i++) {
+         abits = (abits << 1) | (src[i] & 1);
+         bbits = (bbits << 1) | ((src[i] >> 1) & 1);
+      }
+
+      args[0].integer = abits;
+      args[1].integer = bbits;
+   }
 }
 
 DLLEXPORT
-void __nvc_unpack(uint64_t abits, uint64_t bbits, jit_scalar_t *args)
+void __nvc_unpack(jit_scalar_t aval, jit_scalar_t bval, jit_scalar_t *args)
 {
    uint8_t *dest = args[0].pointer;
    size_t size = args[1].integer;
    uint8_t strength = args[2].integer;
 
-   for (size_t i = 0; i < size; i++, abits >>= 1, bbits >>= 1)
-      dest[size - i - 1] = (abits & 1) | ((bbits & 1) << 1) | strength;
+   if (size > 64) {
+      const uint64_t *abits = aval.pointer;
+      const uint64_t *bbits = bval.pointer;
+
+      for (int i = 0; i < size; i++) {
+         const uint64_t abit = (abits[i / 64] >> (i % 64)) & 1;
+         const uint64_t bbit = (bbits[i / 64] >> (i % 64)) & 1;
+         dest[size - i - 1] = abit | (bbit << 1) | strength;
+      }
+   }
+   else {
+      uint64_t abits = aval.integer;
+      uint64_t bbits = bval.integer;
+
+      for (int i = 0; i < size; i++, abits >>= 1, bbits >>= 1)
+         dest[size - i - 1] = (abits & 1) | ((bbits & 1) << 1) | strength;
+   }
 }

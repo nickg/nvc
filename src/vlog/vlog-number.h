@@ -77,7 +77,7 @@ number_t number_greater_equal(number_t a, number_t b);
 number_t number_less(number_t a, number_t b);
 number_t number_less_equal(number_t a, number_t b);
 
-void vec2_add(uint64_t *a, size_t asize, const uint64_t *b, size_t bsize);
+void vec2_add(int size, uint64_t *a, const uint64_t *b);
 void vec2_mul(uint64_t *a, size_t asize, const uint64_t *b, size_t bsize);
 void vec2_negate(uint64_t *a, size_t asize);
 
@@ -97,5 +97,8 @@ vlog_logic_t vec2_sle(const uint64_t *a, size_t asize,
                       const uint64_t *b, size_t bsize);
 vlog_logic_t vec2_le(const uint64_t *a, size_t asize,
                      const uint64_t *b, size_t bsize);
+
+void vec4_add(int size, uint64_t *a1, uint64_t *b1, const uint64_t *a2,
+              const uint64_t *b2);
 
 #endif  // _VLOG_NUMBER_H

@@ -952,6 +952,7 @@ mir_value_t mir_const_vec(mir_unit_t *mu, mir_type_t type, uint64_t abits,
               "constant vector must have vector type");
    MIR_ASSERT(bbits == 0 || td->class == MIR_TYPE_VEC4,
               "b-bits cannot be set for two-value vector");
+   MIR_ASSERT(size <= 64, "constant vector size must be 64 bits or less");
 #endif
 
    return (mir_value_t){ .tag = MIR_TAG_NODE, .id = mir_node_id(mu, n) };
@@ -3300,7 +3301,7 @@ mir_value_t mir_build_cast(mir_unit_t *mu, mir_type_t type, mir_value_t value)
 
    if (class == MIR_TYPE_VEC2 || class == MIR_TYPE_VEC4) {
       node_data_t *n = mir_node_data(mu, value);
-      if (n->op == MIR_OP_CONST_VEC) {
+      if (n->op == MIR_OP_CONST_VEC && mir_get_size(mu, type) <= 64) {
          const uint64_t bbits = (class == MIR_TYPE_VEC2 ? 0 : n->bits[1]);
          return mir_const_vec(mu, type, n->bits[0], bbits);
       }
