@@ -8171,7 +8171,7 @@ static void p_entity_declarative_item(tree_t entity)
    //   | attribute_declaration | attribute_specification
    //   | disconnection_specification | use_clause | group_template_declaration
    //   | group_declaration | 2008: subprogram_instantiation_declaration
-   //   | 2019: mode_view_declaration
+   //   | 2008: package_instantiation_declaration | 2019: mode_view_declaration
 
    BEGIN("entity declarative item");
 
@@ -8237,6 +8237,15 @@ static void p_entity_declarative_item(tree_t entity)
       p_signal_declaration(entity);
       break;
 
+   case tPACKAGE:
+      if (peek_nth(4) == tNEW)
+         tree_add_decl(entity, p_package_instantiation_declaration(NULL));
+      else {
+         require_std(STD_08, "nested package declarations");
+         tree_add_decl(entity, p_package_declaration(NULL));
+      }
+      break;
+
    case tVIEW:
       tree_add_decl(entity, p_mode_view_declaration());
       break;
@@ -8244,7 +8253,7 @@ static void p_entity_declarative_item(tree_t entity)
    default:
       expect(tATTRIBUTE, tTYPE, tSUBTYPE, tCONSTANT, tFUNCTION, tPROCEDURE,
              tIMPURE, tPURE, tALIAS, tUSE, tDISCONNECT, tGROUP, tSHARED,
-             tSIGNAL, STD(19, tVIEW));
+             tSIGNAL, STD(08, tPACKAGE), STD(19, tVIEW));
    }
 }
 
@@ -8778,7 +8787,8 @@ static void p_package_declarative_item(tree_t pack)
    //   | attribute_specification | disconnection_specification | use_clause
    //   | group_template_declaration | group_declaration
    //   | 2008: package_instantiation_declaration
-   //   | 2008: package_declaration | 2019: mode_view_declaration
+   //   | 2008: package_declaration | 2008: package_body
+   //   | 2008: package_instantiation_declaration | 2019: mode_view_declaration
    //
 
    BEGIN("package declarative item");
