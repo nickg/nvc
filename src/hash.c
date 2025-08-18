@@ -816,14 +816,22 @@ struct _ghash {
    ghash_cmp_fn_t    cmp_fn;
    void            **values;
    const void      **keys;
+   uint32_t         *hashes;
 };
 
-static inline int ghash_slot(ghash_t *h, const char *key)
+static void ghash_alloc(ghash_t *h)
+{
+   size_t size = h->size * 2 * sizeof(void *) + h->size * sizeof(uint32_t);
+   char *mem = xcalloc(size);
+   h->values = (void **)mem;
+   h->keys   = (const void **)(mem + (h->size * sizeof(void *)));
+   h->hashes = (uint32_t *)(mem + (2 * h->size * sizeof(void *)));
+}
+
+static inline uint32_t ghash_hash_fn(ghash_t *h, const void *key)
 {
    assert(key != NULL);
-
-   const uint64_t hash = (*h->hash_fn)(key);
-   return mix_bits_64(hash) & (h->size - 1);
+   return mix_bits_32((*h->hash_fn)(key));
 }
 
 ghash_t *ghash_new(int size, ghash_hash_fn_t hash_fn, ghash_cmp_fn_t cmp_fn)
@@ -834,9 +842,7 @@ ghash_t *ghash_new(int size, ghash_hash_fn_t hash_fn, ghash_cmp_fn_t cmp_fn)
    h->hash_fn = hash_fn;
    h->cmp_fn  = cmp_fn;
 
-   char *mem = xcalloc(h->size * 2 * sizeof(void *));
-   h->values = (void **)mem;
-   h->keys   = (const void **)(mem + (h->size * sizeof(void *)));
+   ghash_alloc(h);
 
    return h;
 }
@@ -859,42 +865,63 @@ void ghash_put(ghash_t *h, const void *key, void *value)
 
       const void **old_keys = h->keys;
       void **old_values = h->values;
+      uint32_t *old_hashes = h->hashes;
 
-      char *mem = xcalloc(h->size * 2 * sizeof(void *));
-      h->values = (void **)mem;
-      h->keys   = (const void **)(mem + (h->size * sizeof(void *)));
+      ghash_alloc(h);
 
       h->members = 0;
 
       for (int i = 0; i < old_size; i++) {
-         if (old_keys[i] != NULL)
-            ghash_put(h, old_keys[i], old_values[i]);
+         if (old_keys[i] != NULL && old_values[i] != NULL) {
+            int slot = old_hashes[i] & (h->size - 1);
+
+            for (; ; slot = (slot + 1) & (h->size - 1)) {
+               if (h->keys[slot] == NULL) {
+                  h->values[slot] = old_values[i];
+                  h->keys[slot] = old_keys[i];
+                  h->hashes[slot] = old_hashes[i];
+                  h->members++;
+                  break;
+               }
+               else
+                  assert(h->keys[slot] != old_keys[i]);
+            }
+         }
       }
 
       free(old_values);
    }
 
-   int slot = ghash_slot(h, key);
+   uint32_t hash = ghash_hash_fn(h, key);
+   int slot = hash & (h->size - 1);
 
    for (; ; slot = (slot + 1) & (h->size - 1)) {
       if (h->keys[slot] == NULL) {
          h->values[slot] = value;
          h->keys[slot] = key;
+         h->hashes[slot] = hash;
          h->members++;
          break;
       }
-      else if (h->keys[slot] == key || (*h->cmp_fn)(h->keys[slot], key))
+      else if (h->hashes[slot] != hash)
+         continue;
+      else if (h->keys[slot] == key || (*h->cmp_fn)(h->keys[slot], key)) {
          h->values[slot] = value;
+         break;
+      }
    }
 }
 
 void *ghash_get(ghash_t *h, const void *key)
 {
-   int slot = ghash_slot(h, key);
+   uint32_t hash = ghash_hash_fn(h, key);
+   int slot = hash & (h->size - 1);
 
    for (; ; slot = (slot + 1) & (h->size - 1)) {
       if (h->keys[slot] == NULL)
          return NULL;
+      else if (h->hashes[slot] != hash)
+         continue;
       else if (h->keys[slot] == key || (*h->cmp_fn)(h->keys[slot], key))
          return h->values[slot];
    }
@@ -902,14 +929,18 @@ void *ghash_get(ghash_t *h, const void *key)
 
 void ghash_delete(ghash_t *h, const void *key)
 {
-   int slot = ghash_slot(h, key);
+   uint32_t hash = ghash_hash_fn(h, key);
+   int slot = hash & (h->size - 1);
 
    for (; ; slot = (slot + 1) & (h->size - 1)) {
-      if (h->keys[slot] == key || (*h->cmp_fn)(h->keys[slot], key)) {
+      if (h->keys[slot] == NULL)
+         return;
+      else if (h->hashes[slot] != hash)
+         continue;
+      else if (h->keys[slot] == key || (*h->cmp_fn)(h->keys[slot], key)) {
          h->values[slot] = NULL;
+         h->hashes[slot] = 0;
          return;
       }
-      else if (h->keys[slot] == NULL)
-         return;
    }
 }
