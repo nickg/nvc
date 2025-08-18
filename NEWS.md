@@ -6,6 +6,8 @@
   associated.
 - Added missing check that partial associations appear in a contiguous
   sequence (#1254).
+- Package instantiation declarations are now allowed in the entity
+  declarative part (#1266).
 - Several other minor bugs were resolved (#1257, #1260, #1262, #1264).
 
 ## Version 1.17.1 - 2025-07-26

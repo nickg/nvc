@@ -1168,3 +1168,4 @@ vlog23          verilog
 vlog24          verilog
 tfcall2         verilog
 wide1           verilog,gold
+issue1266       normal,2008
