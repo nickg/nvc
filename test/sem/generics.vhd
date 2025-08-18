@@ -154,4 +154,13 @@ begin
     begin
     end block;
 
+    b5: block is
+        generic ( x, y : bit_vector(1 to 2) );
+        generic map (
+            x(1) => '1',
+            y => "10",
+            x(2) => '0' );              -- Error
+    begin
+    end block;
+
 end architecture;

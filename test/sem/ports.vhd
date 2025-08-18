@@ -177,6 +177,13 @@ begin
                 o(3 to k) => x(3 to 10),  -- Error
                 i         => y );
 
+        bar9: bar
+            port map (
+                o(1)       => x(1),
+                o(2)       => x(2),
+                i          => y,
+                o(3 to 10) => x(3 to 10) );  -- Error
+
     end block;
 
     foo9: foo                           -- Error

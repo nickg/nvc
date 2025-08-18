@@ -111,50 +111,52 @@ START_TEST(test_ports)
       { 163, "BAR has no port named U" },
       { 168, "formal name must be locally static" },
       { 177, "formal name must be locally static" },
-      { 185, "no visible declaration for HELLO" },
-      { 217, "port O of unconstrained type INT_VEC cannot be unconnected" },
-      { 221, "type of actual universal_real does not match type INTEGER" },
-      { 272, "result of conversion for unconstrained formal I must" },
-      { 280, "port N of mode IN must be a globally static expression or " },
-      { 284, "conversion not allowed for formal O with mode OUT" },
-      { 294, "output conversion not allowed for formal I with mode IN" },
-      { 298, "output conversion for formal B must not have OPEN actual" },
-      { 304, "port B of mode INOUT must be a static signal name or OPEN" },
-      { 307, "port B of mode INOUT must be a static signal name or OPEN" },
-      { 256, "missing body for function FUNC1 [BIT return MY_INT1]" },
-      { 257, "missing body for function FUNC2 [BIT, INTEGER return MY_INT1]" },
-      { 258, "missing body for function FUNC3 [BIT return INTEGER]" },
-      { 259, "missing body for function FUNC4 [INTEGER return BIT]" },
-      { 318, "cannot assign to input port X" },
-      { 319, "cannot read output port Y" },
-      { 339, "parameter X of mode IN with formal X of mode OUT" },
-      { 363, "associated with port I of mode IN must be a globally static" },
-      { 367, "actual associated with port I of mode IN must be a globally " },
-      { 375, "invalid output conversion \"not\"" },
-      { 373, "missing actual for port I of mode IN without a default " },
-      { 353, "missing body for function \"not\" [INTEGER return INTEGER]" },
-      { 354, "missing body for function FOO" },
-      { 394, "port UIO with mode INOUT cannot be associated with formal port "
+      { 185, "associations for formal port O must appear in a contiguous "
+        "sequence" },
+      { 192, "no visible declaration for HELLO" },
+      { 224, "port O of unconstrained type INT_VEC cannot be unconnected" },
+      { 228, "type of actual universal_real does not match type INTEGER" },
+      { 279, "result of conversion for unconstrained formal I must" },
+      { 287, "port N of mode IN must be a globally static expression or " },
+      { 291, "conversion not allowed for formal O with mode OUT" },
+      { 301, "output conversion not allowed for formal I with mode IN" },
+      { 305, "output conversion for formal B must not have OPEN actual" },
+      { 311, "port B of mode INOUT must be a static signal name or OPEN" },
+      { 314, "port B of mode INOUT must be a static signal name or OPEN" },
+      { 263, "missing body for function FUNC1 [BIT return MY_INT1]" },
+      { 264, "missing body for function FUNC2 [BIT, INTEGER return MY_INT1]" },
+      { 265, "missing body for function FUNC3 [BIT return INTEGER]" },
+      { 266, "missing body for function FUNC4 [INTEGER return BIT]" },
+      { 325, "cannot assign to input port X" },
+      { 326, "cannot read output port Y" },
+      { 346, "parameter X of mode IN with formal X of mode OUT" },
+      { 370, "associated with port I of mode IN must be a globally static" },
+      { 374, "actual associated with port I of mode IN must be a globally " },
+      { 382, "invalid output conversion \"not\"" },
+      { 380, "missing actual for port I of mode IN without a default " },
+      { 360, "missing body for function \"not\" [INTEGER return INTEGER]" },
+      { 361, "missing body for function FOO" },
+      { 401, "port UIO with mode INOUT cannot be associated with formal port "
         "LB with mode BUFFER" },
-      { 395, "port UB with mode BUFFER cannot be associated with formal port "
+      { 402, "port UB with mode BUFFER cannot be associated with formal port "
         "LIO with mode INOUT" },
-      { 396, "port UO with mode OUT cannot be associated with formal port LI "
+      { 403, "port UO with mode OUT cannot be associated with formal port LI "
         "with mode IN" },
-      { 397, "port UI with mode IN cannot be associated with formal port LO "
+      { 404, "port UI with mode IN cannot be associated with formal port LO "
         "with mode OUT" },
-      { 405, "port UO with mode OUT cannot be associated with formal port "
+      { 412, "port UO with mode OUT cannot be associated with formal port "
         "LIO with mode INOUT" },
-      { 407, "port UL with mode LINKAGE cannot be associated with formal "
+      { 414, "port UL with mode LINKAGE cannot be associated with formal "
         "port LI with mode IN" },
-      { 416, "port UI with mode IN cannot be associated with formal port "
+      { 423, "port UI with mode IN cannot be associated with formal port "
         "LB with mode BUFFER" },
-      { 417, "port UB with mode BUFFER cannot be associated with formal port "
+      { 424, "port UB with mode BUFFER cannot be associated with formal port "
         "LO with mode OUT" },
-      { 436, "INOUT port IO1 has output conversion but no corresponding input "
+      { 443, "INOUT port IO1 has output conversion but no corresponding input "
         "conversion" },
-      { 437, "type of actual REAL does not match type INTEGER of formal "
+      { 444, "type of actual REAL does not match type INTEGER of formal "
         "port IO2" },
-      { 451, "OPEN actual for formal parameter C without default value" },
+      { 458, "OPEN actual for formal parameter C without default value" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -567,6 +569,8 @@ START_TEST(test_generics)
         "associated" },
       { 153, "formal generic G associated with OPEN cannot be individually "
         "associated" },
+      { 162, "associations for formal generic X must appear in a contiguous "
+        "sequence" },
       {  87, "missing body for function F [BIT_VECTOR return INTEGER]" },
       { -1, NULL }
    };

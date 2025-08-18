@@ -43,6 +43,7 @@ typedef enum {
 typedef struct {
    tree_t      decl;
    map_state_t state;
+   int         last_pos;
 } formal_map_t;
 
 static bool sem_check_array_ref(tree_t t, nametab_t *tab);
@@ -4685,7 +4686,8 @@ static bool sem_static_signal_name(tree_t t)
 }
 
 static bool sem_check_port_actual(formal_map_t *formals, int nformals,
-                                  tree_t param, tree_t unit, nametab_t *tab)
+                                  tree_t param, tree_t unit, int pos,
+                                  nametab_t *tab)
 {
    tree_t value = tree_value(param), name = NULL, out_conv = NULL;
    tree_t decl = NULL;
@@ -4742,15 +4744,27 @@ static bool sem_check_port_actual(formal_map_t *formals, int nformals,
 
          tree_t d = tree_ref(ref);
          for (int i = 0; i < nformals; i++) {
-            if (formals[i].decl == d) {
-               if (formals[i].state == MAP_FULL)
-                  sem_error(value, "formal port %s already has an actual",
-                            istr(tree_ident(formals[i].decl)));
-               formals[i].state = ref == name ? MAP_FULL : MAP_PARTIAL;
-               decl = formals[i].decl;
-               tree_set_flag(ref, TREE_F_FORMAL_NAME);
-               break;
+            if (formals[i].decl != d)
+               continue;
+            else if (formals[i].state == MAP_FULL)
+               sem_error(value, "formal port %s already has an actual",
+                         istr(tree_ident(formals[i].decl)));
+            else if (formals[i].state == MAP_PARTIAL
+                     && formals[i].last_pos != pos - 1) {
+               diag_t *d = diag_new(DIAG_ERROR, tree_loc(name));
+               diag_printf(d, "associations for formal port %s must appear in "
+                           "a contiguous sequence",
+                           istr(tree_ident(formals[i].decl)));
+               diag_lrm(d, STD_08, "6.5.7");
+               diag_emit(d);
+               return false;
             }
+
+            formals[i].state = ref == name ? MAP_FULL : MAP_PARTIAL;
+            formals[i].last_pos = pos;
+            decl = formals[i].decl;
+            tree_set_flag(ref, TREE_F_FORMAL_NAME);
+            break;
          }
 
          if (decl == NULL)
@@ -4959,8 +4973,9 @@ static bool sem_check_port_map(tree_t t, tree_t unit, nametab_t *tab)
    formal_map_t *formals LOCAL = xmalloc_array(nformals, sizeof(formal_map_t));
 
    for (int i = 0; i < nformals; i++) {
-      formals[i].decl  = tree_port(unit, i);
-      formals[i].state = MAP_MISSING;
+      formals[i].decl     = tree_port(unit, i);
+      formals[i].state    = MAP_MISSING;
+      formals[i].last_pos = -1;
    }
 
    for (int i = 0; i < nactuals; i++) {
@@ -4989,7 +5004,7 @@ static bool sem_check_port_map(tree_t t, tree_t unit, nametab_t *tab)
 
    for (int i = 0; i < nactuals; i++) {
       tree_t actual = tree_param(t, i);
-      ok &= sem_check_port_actual(formals, nformals, actual, unit, tab);
+      ok &= sem_check_port_actual(formals, nformals, actual, unit, i, tab);
 
       if (!ok && tree_subkind(actual) == P_POS && i >= nformals)
          break;   // Prevent useless repeated errors
@@ -5026,7 +5041,8 @@ static bool sem_check_port_map(tree_t t, tree_t unit, nametab_t *tab)
 }
 
 static bool sem_check_generic_actual(formal_map_t *formals, int nformals,
-                                     tree_t param, tree_t unit, nametab_t *tab)
+                                     tree_t param, tree_t unit, int nth,
+                                     nametab_t *tab)
 {
    tree_t name = NULL;
    int pos = -1;
@@ -5091,13 +5107,25 @@ static bool sem_check_generic_actual(formal_map_t *formals, int nformals,
    if (formals[pos].state >= (is_full ? MAP_PARTIAL : MAP_FULL))
       sem_error(param, "formal generic %s already has an actual",
                 istr(tree_ident(formals[pos].decl)));
+   else if (formals[pos].state == MAP_PARTIAL
+            && formals[pos].last_pos != nth - 1) {
+      diag_t *d = diag_new(DIAG_ERROR, tree_loc(name));
+      diag_printf(d, "associations for formal generic %s must appear in "
+                  "a contiguous sequence",
+                  istr(tree_ident(formals[pos].decl)));
+      diag_lrm(d, STD_08, "6.5.7");
+      diag_emit(d);
+      return false;
+   }
 
    if (is_open)
       formals[pos].state = MAP_OPEN;
    else if (is_full)
       formals[pos].state = MAP_FULL;
-   else
+   else {
       formals[pos].state = MAP_PARTIAL;
+      formals[pos].last_pos = nth;
+   }
 
    if (is_open && !tree_has_value(decl))
       sem_error(param, "generic %s without a default expression cannot "
@@ -5311,7 +5339,7 @@ static bool sem_check_generic_map(tree_t t, tree_t unit, nametab_t *tab)
 
    for (int i = 0; i < nactuals; i++) {
       tree_t actual = tree_genmap(t, i);
-      ok &= sem_check_generic_actual(formals, nformals, actual, unit, tab);
+      ok &= sem_check_generic_actual(formals, nformals, actual, unit, i, tab);
 
       if (!ok && tree_subkind(actual) == P_POS && i >= nformals)
          break;   // Prevent useless repeated errors

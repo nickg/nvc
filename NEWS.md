@@ -4,6 +4,8 @@
 - Fixed an issue where sub-elements of a port with `'converse` record
   mode view would have the wrong direction when the port was partially
   associated.
+- Added missing check that partial associations appear in a contiguous
+  sequence (#1254).
 - Several other minor bugs were resolved (#1257, #1260, #1262, #1264).
 
 ## Version 1.17.1 - 2025-07-26
