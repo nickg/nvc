@@ -4,7 +4,8 @@
   associated.
 - Package instantiation declarations are now allowed in the entity
   declarative part (#1266).
-- Several other minor bugs were resolved (#1257, #1260, #1262, #1264).
+- Several other minor bugs were resolved (#1257, #1260, #1262, #1264,
+  #1270).
 
 ## Version 1.17.1 - 2025-07-26
 - Fixed a build failure on Linux Arm64.

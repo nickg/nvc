@@ -9158,7 +9158,7 @@ static void lower_resolved_record_fn(lower_unit_t *lu, object_t *obj,
 {
    tree_t decl = tree_from_object(obj);
 
-   type_t type = tree_type(decl);
+   type_t type = type_base_recur(tree_type(decl));
    assert(!type_is_homogeneous(type) && can_be_signal(type));
 
    vcode_set_result(lower_func_result_type(type));
@@ -9253,7 +9253,7 @@ static void lower_last_time_fn(lower_unit_t *lu, object_t *obj,
 {
    tree_t decl = tree_from_object(obj);
 
-   type_t type = tree_type(decl);
+   type_t type = type_base_recur(tree_type(decl));
    assert(!type_is_homogeneous(type) && can_be_signal(type));
 
    vcode_type_t vtime = vtype_time();
