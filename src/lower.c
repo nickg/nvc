@@ -6896,22 +6896,31 @@ static void lower_case_array(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
    vcode_block_t hit_bb   = VCODE_INVALID_BLOCK;
    vcode_block_t start_bb = vcode_active_block();
 
+   vcode_reg_t length_reg = lower_array_len(lu, type, 0, val_reg);
+
+   vcode_reg_t c0_length_reg, c0_reg = VCODE_INVALID_REG;
+   tree_t a0 = tree_assoc(tree_stmt(stmt, 0), 0);
+   if (tree_subkind(a0) == A_NAMED) {
+      tree_t c0 = tree_name(a0);
+      type_t c0_type = tree_type(c0);
+
+      int64_t c0_length;
+      if (folded_length(range_of(c0_type, 0), &c0_length))
+         c0_length_reg = emit_const(voffset, c0_length);
+      else {
+         c0_reg = lower_rvalue(lu, c0);
+         c0_length_reg = lower_array_len(lu, c0_type, 0, c0_reg);
+      }
+   }
+   else
+      c0_length_reg = length_reg;   // Only others choice
+
    int64_t length = INT64_MAX;
    if (type_is_unconstrained(type)
        || !folded_length(range_of(type, 0), &length)) {
-      vcode_reg_t length_reg = lower_array_len(lu, type, 0, val_reg);
 
       // Need a runtime check of expression length against choice length
-      vcode_reg_t c0_length_reg;
-      tree_t a0 = tree_assoc(tree_stmt(stmt, 0), 0);
-      if (tree_subkind(a0) == A_NAMED) {
-         tree_t c0 = tree_name(a0);
-         vcode_reg_t c0_reg = lower_rvalue(lu, c0);
-         c0_length_reg = lower_array_len(lu, tree_type(c0), 0, c0_reg);
-      }
-      else
-         c0_length_reg = length_reg;   // Only others choice
-
+      // XXX: is this correct?
       if (!vcode_reg_const(length_reg, &length)) {
          if (!vcode_reg_const(c0_length_reg, &length)) {
             error_at(tree_loc(stmt), "cannot determine length of "
@@ -7062,7 +7071,12 @@ static void lower_case_array(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
                vcode_select_block(hit_bb);
                hit_bb = emit_block();
 
-               vcode_reg_t name_reg = lower_rvalue(lu, name);
+               vcode_reg_t name_reg;
+               if (i == 0 && j == 0 && c0_reg != VCODE_INVALID_REG)
+                  name_reg = c0_reg;
+               else
+                  name_reg = lower_rvalue(lu, name);
+
                if (vcode_reg_kind(name_reg) != VCODE_TYPE_UARRAY)
                   name_reg = lower_wrap(lu, tree_type(name), name_reg);
 
@@ -7107,7 +7121,25 @@ static void lower_case_array(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
 
    vcode_select_block(start_bb);
 
-   emit_case(enc_reg, def_bb, cases, blocks, cptr);
+   vcode_reg_t cmp_reg = emit_cmp(VCODE_CMP_EQ, length_reg, c0_length_reg);
+   int64_t cmp_const;
+   if (vcode_reg_const(cmp_reg, &cmp_const)) {
+      // The hashes computed above can be bogus if the expression length
+      // is constant but does not match the choice length so do not emit
+      // the case and immediately jump to the default branch
+      if (cmp_const)
+         emit_case(enc_reg, def_bb, cases, blocks, cptr);
+      else
+         emit_jump(def_bb);   // None of the cases can match
+   }
+   else {
+      vcode_block_t match_bb = emit_block();
+      emit_cond(cmp_reg, match_bb, def_bb);
+
+      vcode_select_block(match_bb);
+
+      emit_case(enc_reg, def_bb, cases, blocks, cptr);
+   }
 
    vcode_select_block(exit_bb);
 }
