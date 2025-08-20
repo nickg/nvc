@@ -709,6 +709,7 @@ BEFORE            ?i:before
 <VLOG>"^"                { return tCARET; }
 <VLOG>("~^"|"^~")        { return tTILDECARET; }
 <VLOG>"~&"               { return tTILDEAMP; }
+<VLOG>"~|"               { return tTILDEBAR; }
 <VLOG>"->"               { return tIFIMPL; }
 <VLOG>"var"              { return KEYWORD_2005(tVAR); }
 <VLOG>"specify"          { return tSPECIFY; }

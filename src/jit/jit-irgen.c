@@ -4091,34 +4091,35 @@ static void irgen_op_binary(jit_irgen_t *g, mir_value_t n)
 
 static void irgen_op_unary(jit_irgen_t *g, mir_value_t n)
 {
-   jit_value_t arg = irgen_get_arg(g, n, 1);
+   mir_value_t arg1 = mir_get_arg(g->mu, n, 1);
 
-   mir_type_t type = mir_get_type(g->mu, n);
-   const int size = mir_get_size(g->mu, type);
-   assert(size <= 64);  // TODO
+   const int isize = mir_get_size(g->mu, mir_get_type(g->mu, arg1));
+   assert(isize <= 64);  // TODO
 
-   jit_value_t mask = irgen_vector_mask(size), abits;
+   jit_value_t input = irgen_get_value(g, arg1);
+
+   jit_value_t imask = irgen_vector_mask(isize), abits;
    switch (irgen_get_enum(g, n, 0)) {
    case MIR_VEC_BIT_NOT:
-      abits = j_xor(g, arg, mask);
+      abits = j_xor(g, input, imask);
       break;
    case MIR_VEC_LOG_NOT:
-      abits = j_not(g, arg);
+      abits = j_not(g, input);
       break;
    case MIR_VEC_SUB:
-      abits = j_neg(g, arg);
+      abits = j_neg(g, input);
       break;
    case MIR_VEC_BIT_OR:
-      abits = j_not(g, j_not(g, arg));
+      abits = j_not(g, j_not(g, input));
       break;
    case MIR_VEC_BIT_AND:
-      j_cmp(g, JIT_CC_EQ, arg, mask);
+      j_cmp(g, JIT_CC_EQ, input, imask);
       abits = j_cset(g);
       break;
    case MIR_VEC_BIT_XOR:
       {
-         abits = arg;
-         for (int n = size; n > 1; n /= 2) {
+         abits = input;
+         for (int n = isize; n > 1; n /= 2) {
             jit_value_t shr = j_shr(g, abits, jit_value_from_int64(n / 2));
             abits = j_xor(g, shr, abits);
          }
@@ -4127,6 +4128,10 @@ static void irgen_op_unary(jit_irgen_t *g, mir_value_t n)
    default:
       should_not_reach_here();
    }
+
+   const int osize = mir_get_size(g->mu, mir_get_type(g->mu, n));
+   if (osize != isize)
+      abits = j_and(g, abits, irgen_vector_mask(osize));
 
    jit_reg_t bbits = irgen_alloc_reg(g);
    assert(abits.kind == JIT_VALUE_REG);

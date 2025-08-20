@@ -1171,3 +1171,4 @@ wide1           verilog,gold
 issue1266       normal,2008
 issue1270       normal
 issue1267       normal,2008
+unary1          verilog

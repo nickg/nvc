@@ -1594,6 +1594,9 @@ mir_value_t mir_build_unary(mir_unit_t *mu, mir_vec_op_t op, mir_type_t type,
    mir_type_t otype;
    switch (op) {
    case MIR_VEC_LOG_NOT:
+   case MIR_VEC_BIT_AND:
+   case MIR_VEC_BIT_OR:
+   case MIR_VEC_BIT_XOR:
       otype = mir_vec2_type(mu, 1, false);
       break;
    default:

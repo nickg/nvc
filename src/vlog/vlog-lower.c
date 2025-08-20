@@ -352,6 +352,7 @@ static mir_value_t vlog_lower_unary(vlog_gen_t *g, vlog_node_t v)
    mir_value_t input = vlog_lower_rvalue(g, vlog_value(v));
    mir_type_t type = mir_get_type(g->mu, input);
 
+   bool negate = false;
    mir_vec_op_t mop;
    switch (vlog_subkind(v)) {
    case V_UNARY_BITNEG: mop = MIR_VEC_BIT_NOT; break;
@@ -360,11 +361,21 @@ static mir_value_t vlog_lower_unary(vlog_gen_t *g, vlog_node_t v)
    case V_UNARY_OR:     mop = MIR_VEC_BIT_OR; break;
    case V_UNARY_XOR:    mop = MIR_VEC_BIT_XOR; break;
    case V_UNARY_AND:    mop = MIR_VEC_BIT_AND; break;
+   case V_UNARY_NAND:   mop = MIR_VEC_BIT_AND; negate = true; break;
+   case V_UNARY_NOR:    mop = MIR_VEC_BIT_OR; negate = true; break;
+   case V_UNARY_XNOR:   mop = MIR_VEC_BIT_XOR; negate = true; break;
    default:
       CANNOT_HANDLE(v);
    }
 
-   return mir_build_unary(g->mu, mop, type, input);
+   mir_value_t result = mir_build_unary(g->mu, mop, type, input);
+   if (!negate)
+      return result;
+
+   mir_type_t otype = mir_get_type(g->mu, result);
+   assert(mir_get_size(g->mu, otype) == 1);
+
+   return mir_build_unary(g->mu, MIR_VEC_BIT_NOT, otype, result);
 }
 
 static mir_value_t vlog_lower_binary(vlog_gen_t *g, vlog_node_t v)

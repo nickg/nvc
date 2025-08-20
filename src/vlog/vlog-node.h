@@ -216,6 +216,8 @@ typedef enum {
    V_UNARY_OR,
    V_UNARY_XOR,
    V_UNARY_NAND,
+   V_UNARY_NOR,
+   V_UNARY_XNOR,
 } vlog_unary_t;
 
 typedef enum {
