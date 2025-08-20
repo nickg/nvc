@@ -216,10 +216,11 @@ number_t number_new(const char *str, const loc_t *loc)
       else if (tick != NULL) {
          char *eptr;
          width = strtol(str, &eptr, 10);
-         if (eptr != tick)
-            should_not_reach_here();
 
-         p = tick + 1;
+         p = eptr;
+         while (isspace_iso88591(*p)) p++;
+         assert(p == tick);
+         p++;
       }
    }
 
@@ -246,7 +247,7 @@ number_t number_new(const char *str, const loc_t *loc)
       error_at(loc, "number cannot start with an underscore");
 
    // Skip optional spaces after the radix
-   while (*p == ' ')
+   while (isspace_iso88591(*p))
       p++;
 
    if (radix == RADIX_STR) {
@@ -275,7 +276,8 @@ number_t number_new(const char *str, const loc_t *loc)
          if (*p == '_')
             p++;
          if (*p != '\0')
-            error_at(loc, "invalid character '%c' in decimal number %s", *p, str);
+            error_at(loc, "invalid character '%c' in decimal number %s",
+                     *p, str);
          break;
       default:
          for (; *p; p++) {
@@ -292,7 +294,8 @@ number_t number_new(const char *str, const loc_t *loc)
             case '_':
                continue;
             default:
-               error_at(loc, "invalid character '%c' in decimal number %s", *p, str);
+               error_at(loc, "invalid character '%c' in decimal number %s",
+                        *p, str);
             }
          }
       }
@@ -324,7 +327,8 @@ number_t number_new(const char *str, const loc_t *loc)
                case '_':
                   continue;
                default:
-                  error_at(loc, "invalid character '%c' in binary number %s", *p, str);
+                  error_at(loc, "invalid character '%c' in binary number %s",
+                           *p, str);
                }
 
                if (bit >= width) {
@@ -359,7 +363,8 @@ number_t number_new(const char *str, const loc_t *loc)
                case '_':
                   continue;
                default:
-                  error_at(loc, "invalid character '%c' in octal number %s", *p, str);
+                  error_at(loc, "invalid character '%c' in octal number %s",
+                           *p, str);
                }
 
                if (bit >= width) {
@@ -399,7 +404,8 @@ number_t number_new(const char *str, const loc_t *loc)
                case '_':
                   continue;
                default:
-                  error_at(loc, "invalid character '%c' in hex number %s", *p, str);
+                  error_at(loc, "invalid character '%c' in hex number %s",
+                           *p, str);
                }
 
                if (bit >= width) {
