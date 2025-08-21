@@ -4,6 +4,8 @@
   associated.
 - Package instantiation declarations are now allowed in the entity
   declarative part (#1266).
+- Fixed a crash when `'subtype` is a applied to an array object with
+  static bounds declared in another design unit (#1271).
 - Several other minor bugs were resolved (#1257, #1260, #1262, #1264,
   #1267, #1270).
 
