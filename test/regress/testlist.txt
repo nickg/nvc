@@ -1155,3 +1155,4 @@ issue1260       normal,2008
 issue1266       normal,2008
 issue1270       normal
 issue1267       normal,2008
+issue1273       normal,2008
