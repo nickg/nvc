@@ -396,8 +396,10 @@ static void object_init(object_class_t *class)
 static void check_frozen_object_fault(int sig, void *addr,
                                       struct cpu_state *cpu, void *context)
 {
-   if (sig != SIGSEGV)
+#ifndef __MINGW32__
+   if (sig != SIGSEGV && sig != SIGBUS)
       return;
+#endif
 
    for (unsigned i = 1; i < all_arenas.count; i++) {
       object_arena_t *arena = AGET(all_arenas, i);

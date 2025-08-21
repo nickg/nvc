@@ -1911,6 +1911,7 @@ static type_t get_subtype_for(tree_t expr)
          tree_t r = tree_new(T_RANGE);
          tree_set_subkind(r, RANGE_EXPR);
          tree_set_value(r, rref);
+         tree_set_loc(r, loc);
 
          solve_types(nametab, r, NULL);
 
@@ -1919,10 +1920,15 @@ static type_t get_subtype_for(tree_t expr)
 
       type_set_elem(sub, get_element_subtype(expr));
    }
-   else if (type_is_scalar(type))
-      return type;   // TODO: see test/regress/integer3.vhd
+   else if (!is_anonymous_subtype(type))
+      return type;
+   else if (type_is_scalar(type)) {
+      // TODO: wrong, see test/regress/integer3.vhd
+      tree_set_subkind(c, C_RANGE);
+      tree_add_range(c, range_of(type, 0));
+   }
    else
-      fatal_trace("unhandled type %s in get_subtype_for", type_pp(type));
+      should_not_reach_here();
 
    return sub;
 }
@@ -1968,8 +1974,6 @@ static type_t apply_subtype_attribute(tree_t aref)
                   "have a type");
       return type_new(T_NONE);
    }
-   else if (type_const_bounds(type))
-      return type;
    else {
       // Construct a new subtype using the constraints from the prefix
       return get_subtype_for(name);
