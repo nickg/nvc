@@ -11,7 +11,7 @@
 - Fixed a crash when `'subtype` is a applied to an array object with
   static bounds declared in another design unit (#1271).
 - Several other minor bugs were resolved (#1257, #1260, #1262, #1264,
-  #1267, #1270).
+  #1267, #1270, #1273).
 
 ## Version 1.17.1 - 2025-07-26
 - Fixed a build failure on Linux Arm64 (#1246).

@@ -7870,7 +7870,7 @@ static void lower_sub_signals(lower_unit_t *lu, type_t type, type_t var_type,
          if (bounds_reg != VCODE_INVALID_REG)
             wrap_reg = lower_rewrap(mem_reg, bounds_reg);
          else
-            wrap_reg = lower_wrap(lu, type, mem_reg);
+            wrap_reg = lower_coerce_arrays(lu, type, var_type, mem_reg);
 
          emit_store_indirect(wrap_reg, sig_ptr);
 
