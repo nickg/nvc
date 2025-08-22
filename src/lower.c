@@ -9606,7 +9606,7 @@ static void lower_decl(lower_unit_t *lu, tree_t decl)
    case T_TYPE_DECL:
       {
          type_t type = tree_type(decl);
-         ident_t id = type_ident(type);
+         ident_t id = type_ident(type_base_recur(type));
          object_t *obj = tree_to_object(decl);
 
          if (needs_bounds_var(type))

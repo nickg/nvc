@@ -1173,3 +1173,4 @@ issue1270       normal
 issue1267       normal,2008
 unary1          verilog
 issue1273       normal,2008
+issue1272       normal,2008
