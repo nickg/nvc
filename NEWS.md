@@ -1,4 +1,6 @@
 ## Unreleased changes
+
+## Version 1.17.2 - 2025-08-22
 - Fixed an issue where sub-elements of a port with `'converse` record
   mode view would have the wrong direction when the port was partially
   associated.
