@@ -1,14 +1,16 @@
 ## Unreleased changes
 - Scheduling of blocking and non-blocking assignments in mixed-language
   simulation now more accurately reflects Verilog semantics (#1227).
+- Added missing check that partial associations appear in a contiguous
+  sequence (#1254).
+
+## Version 1.17.2 - 2025-08-22
 - Fixed an issue where sub-elements of a port with `'converse` record
   mode view would have the wrong direction when the port was partially
   associated.
-- Added missing check that partial associations appear in a contiguous
-  sequence (#1254).
 - Package instantiation declarations are now allowed in the entity
   declarative part (#1266).
-- Fixed a crash when `'subtype` is a applied to an array object with
+- Fixed a crash when `'subtype` is applied to an array object with
   static bounds declared in another design unit (#1271).
 - Several other minor bugs were resolved (#1257, #1260, #1262, #1264,
   #1267, #1270, #1272, #1273).
