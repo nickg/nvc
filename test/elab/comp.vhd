@@ -63,6 +63,8 @@ architecture test of foo is
             y : out integer);
     end component;
 
+    alias e1_a is e1;
+
     signal x : integer;
     signal y : integer;
 begin
@@ -87,5 +89,11 @@ begin
             x => '1',
             y => y);
 
+    e1_2: e1_a                          -- OK
+        generic map (
+            g => 5 )
+        port map (
+            x => x,
+            y => open );
 
 end architecture;

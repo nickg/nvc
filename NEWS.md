@@ -1,6 +1,7 @@
 ## Unreleased changes
 - Scheduling of blocking and non-blocking assignments in mixed-language
   simulation now more accurately reflects Verilog semantics (#1227).
+- Aliases of component declarations are now allowed (#1276).
 - Added missing check that partial associations appear in a contiguous
   sequence (#1254).
 

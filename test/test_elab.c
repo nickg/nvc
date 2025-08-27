@@ -93,9 +93,9 @@ START_TEST(test_comp)
    input_from_file(TESTDIR "/elab/comp.vhd");
 
    const error_t expect[] = {
-      { 77, "port X in entity WORK.E2 without a default value has no "
+      { 79, "port X in entity WORK.E2 without a default value has no "
         "corresponding port in component E2" },
-      { 83, "port X in component E3 has type BIT which is incompatible "
+      { 85, "port X in component E3 has type BIT which is incompatible "
         "with type INTEGER in entity WORK.E3" },
       { -1, NULL }
    };

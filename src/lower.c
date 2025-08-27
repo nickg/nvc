@@ -8378,14 +8378,15 @@ static void lower_file_decl(lower_unit_t *lu, tree_t decl)
 
 static vcode_type_t lower_alias_type(tree_t alias)
 {
-   tree_t value = tree_value(alias);
-   const class_t class = class_of(value);
+   if (tree_flags(alias) & TREE_F_NONOBJECT_ALIAS)
+      return VCODE_INVALID_TYPE;
 
+   tree_t value = tree_value(alias);
    type_t type = tree_has_type(alias) ? tree_type(alias) : tree_type(value);
 
    if (type_is_array(type)) {
       vcode_type_t velem;
-      switch (class) {
+      switch (class_of(value)) {
       case C_SIGNAL:
          velem = lower_signal_type(type_elem_recur(type));
          break;

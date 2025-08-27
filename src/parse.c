@@ -7542,7 +7542,7 @@ static void p_alias_declaration(tree_t parent)
    else if (value_kind == T_REF && tree_has_ref(value)) {
       // A nonobject alias may be a design unit which does not have a type
       tree_t decl = tree_ref(value);
-      if (is_design_unit(decl)) {
+      if (is_design_unit(decl) || tree_kind(decl) == T_COMPONENT) {
          tree_set_flag(t, TREE_F_NONOBJECT_ALIAS);
          nonobject_alias = true;
       }

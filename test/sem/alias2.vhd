@@ -44,6 +44,11 @@ architecture test of alias2 is
     alias fb2 is fb1 [];                -- OK
     alias inc2 is inc [];               -- OK
 
+    component comp is
+    end component;
+
+    alias acomp is comp;                -- OK (issue #1276)
+
 begin
 
     tb: process is
