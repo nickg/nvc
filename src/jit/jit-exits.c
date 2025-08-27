@@ -1000,6 +1000,57 @@ void __nvc_vec4op(jit_vec_op_t op, jit_anchor_t *anchor, jit_scalar_t *args,
       for (int i = 1; i < nwords; i++)
          aresult[i] = bresult[i] = 0;
    }
+   else if (op == JIT_VEC_INSERT) {
+      const uint64_t *afull = args[0].pointer;
+      const uint64_t *bfull = args[1].pointer;
+
+      memcpy(aresult, afull, nwords * sizeof(uint64_t));
+      memcpy(bresult, bfull, nwords * sizeof(uint64_t));
+
+      const int part_size = args[4].integer;
+      const int pos       = args[5].integer;
+
+      const int bitpos = size - part_size - pos;
+
+      for (int i = 0; i < part_size; i += 64) {
+         uint64_t apart, bpart;
+         if (part_size < 64) {
+            apart = args[2].integer;
+            bpart = args[3].integer;
+         }
+         else {
+            apart = ((const uint64_t *)args[2].pointer)[i / 64];
+            bpart = ((const uint64_t *)args[3].pointer)[i / 64];
+         }
+
+         const int opos = bitpos + i;
+
+         uint64_t mask = ~UINT64_C(0);
+         if (part_size - i < 64)
+            mask >>= 64 - (part_size - i);
+         mask <<= opos % 64;
+
+         aresult[opos / 64] &= ~mask;
+         bresult[opos / 64] &= ~mask;
+
+         aresult[opos / 64] |= apart << (opos % 64);
+         bresult[opos / 64] |= bpart << (opos % 64);
+
+         const int msb = opos + MIN(64, part_size - i) - 1;
+
+         if (msb / 64 != opos / 64) {
+            const int shift = 64 - opos;
+            apart >>= shift;
+            bpart >>= shift;
+
+            aresult[msb / 64] &= ~UINT64_C(0) >> (64 - shift);
+            bresult[msb / 64] &= ~UINT64_C(0) >> (64 - shift);
+
+            aresult[msb / 64] |= apart;
+            bresult[msb / 64] |= bpart;
+         }
+      }
+   }
    else {
       const uint64_t *a1 = args[0].pointer;
       const uint64_t *b1 = args[1].pointer;

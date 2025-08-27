@@ -207,6 +207,7 @@ typedef enum {
    JIT_VEC_ZEXT,
    JIT_VEC_SEXT,
    JIT_VEC_ADD,
+   JIT_VEC_INSERT,
 } jit_vec_op_t;
 
 typedef uint32_t jit_label_t;

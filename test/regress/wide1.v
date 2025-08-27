@@ -19,6 +19,12 @@ module wide1;
     x = 7;
     #1;
     x = 64'hffffffffffffffff;
+    #1;
+    x[75:60] = 16'hf00d;
+    #1;
+    x = {y[7:0], x[91:0]};
+    #1;
+    x = {y[23:0], 16'hbeef, x[59:0]};
   end
 
   always @(*)

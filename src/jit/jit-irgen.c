@@ -4170,7 +4170,29 @@ static void irgen_op_insert(jit_irgen_t *g, mir_value_t n)
    const int part_size = mir_get_size(g->mu, mir_get_type(g->mu, arg0));
    const int full_size = mir_get_size(g->mu, mir_get_type(g->mu, arg1));
    assert(part_size <= full_size);
-   assert(full_size <= 64);  // TODO
+
+   if (full_size > 64) {
+      if (mir_is(g->mu, n, MIR_TYPE_VEC4)) {
+         jit_value_t bpart = jit_value_from_reg(jit_value_as_reg(part) + 1);
+         jit_value_t bfull = jit_value_from_reg(jit_value_as_reg(full) + 1);
+
+         j_send(g, 0, full);
+         j_send(g, 1, bfull);
+         j_send(g, 2, part);
+         j_send(g, 3, bpart);
+         j_send(g, 4, jit_value_from_int64(part_size));
+         j_send(g, 5, pos);
+
+         macro_vec4op(g, JIT_VEC_INSERT, full_size);
+
+         g->map[n.id] = j_recv(g, 0);
+         j_recv(g, 1);
+      }
+      else
+         assert(false);  // TODO
+
+      return;
+   }
 
    jit_value_t align = jit_value_from_int64(full_size - part_size);
    jit_value_t bitpos = j_sub(g, align, pos);

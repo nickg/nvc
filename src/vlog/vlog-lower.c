@@ -778,7 +778,16 @@ static mir_value_t vlog_lower_rvalue(vlog_gen_t *g, vlog_node_t v)
             size *= (repeat = MAX(0, vlog_get_const(vlog_value(v))));
 
          mir_type_t type = mir_vec4_type(g->mu, size, false);
-         mir_value_t result = mir_const_vec(g->mu, type, 0, 0);
+
+         mir_value_t result;
+         if (size <= 64)
+            result = mir_const_vec(g->mu, type, 0, 0);
+         else {
+            mir_type_t t_bit = mir_vec4_type(g->mu, 1, false);
+            mir_value_t zero = mir_const_vec(g->mu, t_bit, 0, 0);
+            result = mir_build_cast(g->mu, type, zero);
+         }
+
          mir_type_t t_offset = mir_offset_type(g->mu);
 
          for (int i = 0, pos = size; i < repeat; i++) {
