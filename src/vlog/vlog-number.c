@@ -280,22 +280,37 @@ number_t number_new(const char *str, const loc_t *loc)
                      *p, str);
          break;
       default:
-         for (; *p; p++) {
-            switch (*p) {
-            case '0'...'9':
-               {
-                  const uint64_t ten[] = { 10 };
-                  const uint64_t digit[] = { *p - '0' };
+         {
+            uint64_t ten_small[1], *ten = ten_small;
+            uint64_t digit_small[1], *digit = digit_small;
 
-                  vec2_mul(result.big->words, width, ten, 64);
-                  vec2_add(width, result.big->words, digit);
+            if (width > 64) {
+               ten = xcalloc_array(BIGNUM_WORDS(width), sizeof(uint64_t));
+               digit = xcalloc_array(BIGNUM_WORDS(width), sizeof(uint64_t));
+            }
+
+            for (; *p; p++) {
+               switch (*p) {
+               case '0'...'9':
+                  {
+                     ten[0] = 10;
+                     digit[0] = *p - '0';
+
+                     vec2_mul(width, result.big->words, ten);
+                     vec2_add(width, result.big->words, digit);
+                  }
+                  break;
+               case '_':
+                  continue;
+               default:
+                  error_at(loc, "invalid character '%c' in decimal number %s",
+                           *p, str);
                }
-               break;
-            case '_':
-               continue;
-            default:
-               error_at(loc, "invalid character '%c' in decimal number %s",
-                        *p, str);
+            }
+
+            if (width > 64) {
+               free(ten);
+               free(digit);
             }
          }
       }
@@ -659,23 +674,9 @@ number_t number_div(number_t a, number_t b)
 
 number_t number_shl(number_t a, number_t b)
 {
-   const int width = a.big->width;
-   const bool issigned = a.big->issigned;
+   SCRATCH_NUMBER result = number_scratch_copy(a);
 
-   SCRATCH_NUMBER result = number_scratch(width, issigned);
-
-   assert(bignum_words(result.big) == 1);  // TODO
-
-   const uint64_t amount = bignum_abits(b.big)[0];
-
-   if (amount < 64) {
-      bignum_abits(result.big)[0] = bignum_abits(a.big)[0] << amount;
-      bignum_bbits(result.big)[0] = bignum_bbits(a.big)[0] << amount;
-   }
-   else {
-      bignum_abits(result.big)[0] = 0;
-      bignum_bbits(result.big)[0] = 0;
-   }
+   vec2_shl(result.big->width, result.big->words, b.big->words);
 
    return number_intern(result);
 }
@@ -796,6 +797,14 @@ number_t number_less_equal(number_t a, number_t b)
    return number_intern(result);
 }
 
+static void vec2_mask(int size, uint64_t *a)
+{
+   uint64_t mask = ~UINT64_C(0);
+   if (size % 64 != 0) mask >>= 64 - size % 64;
+
+   a[BIGNUM_WORDS(size) - 1] &= mask;
+}
+
 void vec2_add(int size, uint64_t *a, const uint64_t *b)
 {
    uint64_t carry = 0;
@@ -807,14 +816,82 @@ void vec2_add(int size, uint64_t *a, const uint64_t *b)
       a[i] = sum2;
       carry = (c1 | c2);
    }
+
+   vec2_mask(size, a);
 }
 
-void vec2_mul(uint64_t *a, size_t asize, const uint64_t *b, size_t bsize)
+void vec2_mul(int size, uint64_t *a, const uint64_t *b)
 {
-   if (asize <= 64 && bsize <= 64)
+   if (size > 0 && size <= 64)
       a[0] *= b[0];
-   else
-      should_not_reach_here();   // TODO
+   else if (size > 64) {
+      const int n = BIGNUM_WORDS(size);
+      uint64_t *tmp LOCAL = xcalloc_array(2 * n, sizeof(uint64_t));
+
+      for (int i = 0; i < n; i++) {
+         unsigned __int128 carry = 0;
+         for (int j = 0; j < n; j++) {
+            unsigned __int128 t =
+               (unsigned __int128)tmp[i + j] +
+               (unsigned __int128)a[i] * (unsigned __int128)b[j] +
+               carry;
+            tmp[i + j] = (uint64_t)t;
+            carry = t >> 64;
+         }
+         int k = i + n;
+         while (carry) {
+            unsigned __int128 t = (unsigned __int128)tmp[k] + (uint64_t)carry;
+            tmp[k] = (uint64_t)t;
+            carry = t >> 64;
+            k++;
+         }
+      }
+
+      memcpy(a, tmp, n * sizeof(uint64_t));
+      vec2_mask(size, a);
+   }
+}
+
+void vec2_shl(int size, uint64_t *a, const uint64_t *b)
+{
+   const int n = BIGNUM_WORDS(size);
+   if (n == 0)
+      return;
+
+   uint64_t k = b[0];
+   // TODO: check upper bits
+   if (k == 0) {
+      vec2_mask(size, a);
+      return;
+   }
+
+   if (k >= size) {
+      for (int i = 0; i < n; i++)
+         a[i] = 0;
+      return;
+   }
+
+   const int s = k / 64;
+   const int r = k % 64;
+
+   if (s) {
+      for (int i = n - 1; i >= 0; --i)
+         a[i] = (i - s >= 0) ? a[i - s] : 0;
+   }
+
+   if (r) {
+      uint64_t carry = 0;
+      for (int i = s; i < n; ++i) {
+         const uint64_t cur = a[i];
+         a[i] = (cur << r) | carry;
+         carry = cur >> (64 - r);
+      }
+   }
+
+   for (int i = 0; i < s && i < n; ++i)
+      a[i] = 0;
+
+   vec2_mask(size, a);
 }
 
 void vec2_negate(uint64_t *a, size_t asize)
@@ -875,4 +952,18 @@ void vec4_add(int size, uint64_t *a1, uint64_t *b1, const uint64_t *a2,
 {
    if (vec4_arith_defined(size, a1, b1, a2, b2))
       vec2_add(size, a1, a2);
+}
+
+void vec4_mul(int size, uint64_t *a1, uint64_t *b1, const uint64_t *a2,
+              const uint64_t *b2)
+{
+   if (vec4_arith_defined(size, a1, b1, a2, b2))
+      vec2_mul(size, a1, a2);
+}
+
+void vec4_shl(int size, uint64_t *a1, uint64_t *b1, const uint64_t *a2,
+              const uint64_t *b2)
+{
+   vec2_shl(size, a1, a2);
+   vec2_shl(size, b1, b2);
 }

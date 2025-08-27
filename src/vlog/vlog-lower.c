@@ -407,10 +407,13 @@ static mir_value_t vlog_lower_binary(vlog_gen_t *g, vlog_node_t v)
    mir_value_t lcast = mir_build_cast(g->mu, type, left);
    mir_value_t rcast = mir_build_cast(g->mu, type, right);
 
+   bool negate = false;
    mir_vec_op_t mop;
    switch (vlog_subkind(v)) {
    case V_BINARY_AND:      mop = MIR_VEC_BIT_AND; break;
    case V_BINARY_OR:       mop = MIR_VEC_BIT_OR; break;
+   case V_BINARY_XOR:      mop = MIR_VEC_BIT_XOR; break;
+   case V_BINARY_XNOR:     mop = MIR_VEC_BIT_XOR; negate = true; break;
    case V_BINARY_LOG_AND:  mop = MIR_VEC_LOG_AND; break;
    case V_BINARY_LOG_OR:   mop = MIR_VEC_LOG_OR; break;
    case V_BINARY_LT:       mop = MIR_VEC_LT; break;
@@ -432,7 +435,12 @@ static mir_value_t vlog_lower_binary(vlog_gen_t *g, vlog_node_t v)
       CANNOT_HANDLE(v);
    }
 
-   return mir_build_binary(g->mu, mop, type, lcast, rcast);
+   mir_value_t result = mir_build_binary(g->mu, mop, type, lcast, rcast);
+   if (!negate)
+      return result;
+
+   mir_type_t otype = mir_get_type(g->mu, result);
+   return mir_build_unary(g->mu, MIR_VEC_BIT_NOT, otype, result);
 }
 
 static mir_value_t vlog_lower_systf_param(vlog_gen_t *g, vlog_node_t v)
@@ -715,16 +723,39 @@ static mir_value_t vlog_lower_rvalue(vlog_gen_t *g, vlog_node_t v)
       }
    case V_NUMBER:
       {
-
          number_t num = vlog_number(v);
          const int width = number_width(num);
-         assert(width <= 64);
 
          const uint64_t *abits, *bbits;
          number_get(num, &abits, &bbits);
 
-         mir_type_t t_vec4 = mir_vec4_type(g->mu, width, false);
-         return mir_const_vec(g->mu, t_vec4, abits[0], bbits[0]);
+         mir_type_t t_low = mir_vec4_type(g->mu, MIN(width, 64), false);
+         mir_value_t low = mir_const_vec(g->mu, t_low, abits[0], bbits[0]);
+
+         if (width <= 64)
+            return low;
+
+         mir_type_t t_full = mir_vec4_type(g->mu, width, false);
+         mir_value_t full = mir_build_cast(g->mu, t_full, low);
+
+         mir_type_t t_offset = mir_offset_type(g->mu);
+
+         for (int i = 64; i < width; i += 64) {
+            const uint64_t aword = abits[i / 64];
+            const uint64_t bword = bbits[i / 64];
+            if (aword == 0 && bword == 0)
+               continue;
+
+            const int part_size = MIN(width - i, 64);
+
+            mir_type_t t_part = mir_vec4_type(g->mu, part_size, false);
+            mir_value_t part = mir_const_vec(g->mu, t_part, aword, bword);
+
+            mir_value_t pos = mir_const(g->mu, t_offset, width - i - part_size);
+            full = mir_build_insert(g->mu, part, full, pos);
+         }
+
+         return full;
       }
    case V_BINARY:
       return vlog_lower_binary(g, v);

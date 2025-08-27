@@ -1208,7 +1208,7 @@ static void irgen_op_const_vec(jit_irgen_t *g, mir_value_t n)
 
    mir_type_t type = mir_get_type(g->mu, n);
    unsigned size = mir_get_size(g->mu, type);
-   assert(size <= 64);  // TODO
+   assert(size <= 64);
 
    if (mir_get_signed(g->mu, type) && size < 64)
       abits = (int64_t)(abits << (64 - size)) >> (64 - size);
@@ -3969,8 +3969,12 @@ static void irgen_op_binary(jit_irgen_t *g, mir_value_t n)
    if (size > 64) {
       static const jit_vec_op_t map[] = {
          [MIR_VEC_ADD] = JIT_VEC_ADD,
+         [MIR_VEC_MUL] = JIT_VEC_MUL,
+         [MIR_VEC_SLL] = JIT_VEC_SHL,
+         [MIR_VEC_CASE_EQ] = JIT_VEC_CASE_EQ,
+         [MIR_VEC_CASE_NEQ] = JIT_VEC_CASE_NEQ,
       };
-      assert(map[op] != 0);
+      assert(op < ARRAY_LEN(map) && map[op] != 0);
 
       j_send(g, 0, aleft);
       j_send(g, 1, bleft);

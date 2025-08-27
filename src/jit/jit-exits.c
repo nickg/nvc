@@ -982,95 +982,151 @@ DLLEXPORT
 void __nvc_vec4op(jit_vec_op_t op, jit_anchor_t *anchor, jit_scalar_t *args,
                   int size)
 {
+   const int nwords = (size + 63) / 64;
    assert(size > 64);
 
    jit_thread_local_t *thread = jit_attach_thread(anchor);
 
-   const int nwords = (size + 63) / 64;
-   void *ptr = jit_mspace_alloc(nwords * 2 * sizeof(uint64_t));
-   uint64_t *aresult = ptr, *bresult = aresult + nwords;
+   switch (op) {
+   case JIT_VEC_CASE_EQ:
+   case JIT_VEC_CASE_NEQ:
+      {
+         const uint64_t *aleft  = args[0].pointer;
+         const uint64_t *bleft  = args[1].pointer;
+         const uint64_t *aright = args[2].pointer;
+         const uint64_t *bright = args[3].pointer;
 
-   if (op == JIT_VEC_ZEXT) {
-      const int arg_size = args[2].integer;
-      assert(arg_size <= 64);   // TODO
-
-      aresult[0] = args[0].integer;
-      bresult[0] = args[1].integer;
-
-      for (int i = 1; i < nwords; i++)
-         aresult[i] = bresult[i] = 0;
-   }
-   else if (op == JIT_VEC_INSERT) {
-      const uint64_t *afull = args[0].pointer;
-      const uint64_t *bfull = args[1].pointer;
-
-      memcpy(aresult, afull, nwords * sizeof(uint64_t));
-      memcpy(bresult, bfull, nwords * sizeof(uint64_t));
-
-      const int part_size = args[4].integer;
-      const int pos       = args[5].integer;
-
-      const int bitpos = size - part_size - pos;
-
-      for (int i = 0; i < part_size; i += 64) {
-         uint64_t apart, bpart;
-         if (part_size < 64) {
-            apart = args[2].integer;
-            bpart = args[3].integer;
-         }
-         else {
-            apart = ((const uint64_t *)args[2].pointer)[i / 64];
-            bpart = ((const uint64_t *)args[3].pointer)[i / 64];
+         int aresult, bresult;
+         switch (op) {
+         case JIT_VEC_CASE_EQ:
+            aresult = memcmp(aleft, aright, nwords * sizeof(uint64_t)) == 0
+               && memcmp(bleft, bright, nwords * sizeof(uint64_t)) == 0;
+            bresult = 0;
+            break;
+         case JIT_VEC_CASE_NEQ:
+            aresult = memcmp(aleft, aright, nwords * sizeof(uint64_t)) != 0
+               || memcmp(bleft, bright, nwords * sizeof(uint64_t)) != 0;
+            bresult = 0;
+            break;
+         default:
+            should_not_reach_here();
          }
 
-         const int opos = bitpos + i;
-
-         uint64_t mask = ~UINT64_C(0);
-         if (part_size - i < 64)
-            mask >>= 64 - (part_size - i);
-         mask <<= opos % 64;
-
-         aresult[opos / 64] &= ~mask;
-         bresult[opos / 64] &= ~mask;
-
-         aresult[opos / 64] |= apart << (opos % 64);
-         bresult[opos / 64] |= bpart << (opos % 64);
-
-         const int msb = opos + MIN(64, part_size - i) - 1;
-
-         if (msb / 64 != opos / 64) {
-            const int shift = 64 - opos;
-            apart >>= shift;
-            bpart >>= shift;
-
-            aresult[msb / 64] &= ~UINT64_C(0) >> (64 - shift);
-            bresult[msb / 64] &= ~UINT64_C(0) >> (64 - shift);
-
-            aresult[msb / 64] |= apart;
-            bresult[msb / 64] |= bpart;
-         }
+         args[0].integer = aresult;
+         args[1].integer = bresult;
       }
-   }
-   else {
-      const uint64_t *a1 = args[0].pointer;
-      const uint64_t *b1 = args[1].pointer;
-      const uint64_t *a2 = args[2].pointer;
-      const uint64_t *b2 = args[3].pointer;
+      break;
+   case JIT_VEC_ZEXT:
+      {
+         void *ptr = jit_mspace_alloc(nwords * 2 * sizeof(uint64_t));
+         uint64_t *aresult = ptr, *bresult = aresult + nwords;
 
-      memcpy(aresult, a1, nwords * sizeof(uint64_t));
-      memcpy(bresult, b1, nwords * sizeof(uint64_t));
+         if (op == JIT_VEC_ZEXT) {
+            const int arg_size = args[2].integer;
+            assert(arg_size <= 64);   // TODO
 
-      switch (op) {
-      case JIT_VEC_ADD:
-         vec4_add(size, aresult, bresult, a2, b2);
-         break;
-      default:
-         should_not_reach_here();
+            aresult[0] = args[0].integer;
+            bresult[0] = args[1].integer;
+
+            for (int i = 1; i < nwords; i++)
+               aresult[i] = bresult[i] = 0;
+         }
+
+         args[0].pointer = aresult;
+         args[1].pointer = bresult;
       }
-   }
+      break;
+   case JIT_VEC_INSERT:
+      {
+         void *ptr = jit_mspace_alloc(nwords * 2 * sizeof(uint64_t));
+         uint64_t *aresult = ptr, *bresult = aresult + nwords;
 
-   args[0].pointer = aresult;
-   args[1].pointer = bresult;
+         const uint64_t *afull = args[0].pointer;
+         const uint64_t *bfull = args[1].pointer;
+
+         memcpy(aresult, afull, nwords * sizeof(uint64_t));
+         memcpy(bresult, bfull, nwords * sizeof(uint64_t));
+
+         const int part_size = args[4].integer;
+         const int pos       = args[5].integer;
+
+         const int bitpos = size - part_size - pos;
+
+         for (int i = 0; i < part_size; i += 64) {
+            uint64_t apart, bpart;
+            if (part_size <= 64) {
+               apart = args[2].integer;
+               bpart = args[3].integer;
+            }
+            else {
+               apart = ((const uint64_t *)args[2].pointer)[i / 64];
+               bpart = ((const uint64_t *)args[3].pointer)[i / 64];
+            }
+
+            const int opos = bitpos + i;
+
+            uint64_t mask = ~UINT64_C(0);
+            if (part_size - i < 64)
+               mask >>= 64 - (part_size - i);
+            mask <<= opos % 64;
+
+            aresult[opos / 64] &= ~mask;
+            bresult[opos / 64] &= ~mask;
+
+            aresult[opos / 64] |= apart << (opos % 64);
+            bresult[opos / 64] |= bpart << (opos % 64);
+
+            const int msb = opos + MIN(64, part_size - i) - 1;
+
+            if (msb / 64 != opos / 64) {
+               const int shift = 64 - opos;
+               apart >>= shift;
+               bpart >>= shift;
+
+               aresult[msb / 64] &= ~UINT64_C(0) >> (64 - shift);
+               bresult[msb / 64] &= ~UINT64_C(0) >> (64 - shift);
+
+               aresult[msb / 64] |= apart;
+               bresult[msb / 64] |= bpart;
+            }
+         }
+
+         args[0].pointer = aresult;
+         args[1].pointer = bresult;
+      }
+      break;
+   default:
+      {
+         void *ptr = jit_mspace_alloc(nwords * 2 * sizeof(uint64_t));
+         uint64_t *aresult = ptr, *bresult = aresult + nwords;
+
+         const uint64_t *a1 = args[0].pointer;
+         const uint64_t *b1 = args[1].pointer;
+         const uint64_t *a2 = args[2].pointer;
+         const uint64_t *b2 = args[3].pointer;
+
+         memcpy(aresult, a1, nwords * sizeof(uint64_t));
+         memcpy(bresult, b1, nwords * sizeof(uint64_t));
+
+         switch (op) {
+         case JIT_VEC_ADD:
+            vec4_add(size, aresult, bresult, a2, b2);
+            break;
+         case JIT_VEC_MUL:
+            vec4_mul(size, aresult, bresult, a2, b2);
+            break;
+         case JIT_VEC_SHL:
+            vec4_shl(size, aresult, bresult, a2, b2);
+            break;
+         default:
+            should_not_reach_here();
+         }
+
+         args[0].pointer = aresult;
+         args[1].pointer = bresult;
+      }
+      break;
+   }
 
    thread->anchor = NULL;
 }

@@ -143,8 +143,10 @@ void vpi_format_number(int size, const uint64_t *abits, const uint64_t *bbits,
               i >= 0; i--, field = 16)
             tb_printf(tb, "%0*"PRIx64, field, abits[i]);
       }
-      else
-         tb_printf(tb, "%*s", (size + 3) / 4, "x");
+      else {
+         for (int i = 0; i < (size + 3) / 4; i++)
+            tb_append(tb, 'x');
+      }
       break;
    }
 }
