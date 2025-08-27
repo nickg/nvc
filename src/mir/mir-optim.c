@@ -592,6 +592,8 @@ static void gvn_visit_block(mir_unit_t *mu, mir_block_t block,
       case MIR_OP_CAST:
       case MIR_OP_PACK:
       case MIR_OP_VAR_UPREF:
+      case MIR_OP_CONST:
+      case MIR_OP_CONST_REAL:
       case MIR_OP_CONST_VEC:
       case MIR_OP_BINARY:
       case MIR_OP_UNARY:

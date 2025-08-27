@@ -805,8 +805,11 @@ static mir_value_t vlog_lower_rvalue(vlog_gen_t *g, vlog_node_t v)
             size += part_size;
          }
 
-         if (vlog_has_value(v))
-            size *= (repeat = MAX(0, vlog_get_const(vlog_value(v))));
+         if (vlog_has_value(v)) {
+            int64_t cval;
+            vlog_get_const(vlog_value(v), &cval);
+            size *= (repeat = MAX(0, cval));
+         }
 
          mir_type_t type = mir_vec4_type(g->mu, size, false);
 
@@ -1668,7 +1671,7 @@ static void vlog_lower_continuous_assign(vlog_gen_t *g, vlog_node_t v)
    mir_value_t resize = mir_build_cast(g->mu, t_vec, value);
 
    mir_value_t tmp = MIR_NULL_VALUE;
-   if (targetsz > 1) {
+   if (targetsz != 1) {
       mir_type_t t_elem = mir_logic_type(g->mu);
       mir_type_t t_array = mir_carray_type(g->mu, targetsz, t_elem);
       tmp = vlog_get_temp(g, t_array);

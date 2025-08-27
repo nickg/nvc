@@ -42,15 +42,23 @@ unsigned vlog_dimensions(vlog_node_t v)
    return vlog_ranges(vlog_type(v)) + vlog_ranges(v);
 }
 
-int64_t vlog_get_const(vlog_node_t v)
+bool vlog_get_const(vlog_node_t v, int64_t *value)
 {
    switch (vlog_kind(v)) {
    case V_NUMBER:
-      return number_integer(vlog_number(v));
+      {
+         number_t n = vlog_number(v);
+         if (number_is_defined(n)) {
+            *value = number_integer(n);
+            return true;
+         }
+         else
+            return false;
+      }
    case V_REF:
-      return vlog_get_const(vlog_ref(v));
+      return vlog_get_const(vlog_ref(v), value);
    case V_LOCALPARAM:
-      return vlog_get_const(vlog_value(v));
+      return vlog_get_const(vlog_value(v), value);
    default:
       fatal_at(vlog_loc(v), "expression is not constant");
    }
@@ -80,10 +88,12 @@ bool vlog_is_up(vlog_node_t v)
    return left <= right;
 }
 
-void vlog_bounds(vlog_node_t v, int64_t *left, int64_t *right)
+bool vlog_bounds(vlog_node_t v, int64_t *left, int64_t *right)
 {
-   *left = vlog_get_const(vlog_left(v));
-   *right = vlog_get_const(vlog_right(v));
+   bool is_defined = true;
+   is_defined &= vlog_get_const(vlog_left(v), left);
+   is_defined &= vlog_get_const(vlog_right(v), right);
+   return is_defined;
 }
 
 unsigned vlog_size(vlog_node_t v)
@@ -113,13 +123,19 @@ unsigned vlog_size(vlog_node_t v)
          return size;
       }
    case V_PART_SELECT:
-      if (vlog_subkind(v) != V_RANGE_CONST)
-         return vlog_get_const(vlog_right(v));
+      if (vlog_subkind(v) != V_RANGE_CONST) {
+         int64_t width;
+         if (vlog_get_const(vlog_right(v), &width))
+            return width;
+         else
+            return 0;  // Undefined
+      }
       // Fall-through
    case V_DIMENSION:
       {
          int64_t left, right;
-         vlog_bounds(v, &left, &right);
+         if (!vlog_bounds(v, &left, &right))
+            return 0;  // Undefined
 
          if (left < right)
             return right - left + 1;

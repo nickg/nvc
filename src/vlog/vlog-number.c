@@ -206,6 +206,7 @@ static void _number_zap(number_t *p)
 number_t number_new(const char *str, const loc_t *loc)
 {
    int width = 32;
+   bool issigned = true;
    const char *p = str;
    if (*p == '"')
       width = 8 * (strlen(str) - 2);
@@ -221,11 +222,14 @@ number_t number_new(const char *str, const loc_t *loc)
          while (isspace_iso88591(*p)) p++;
          assert(p == tick);
          p++;
+         issigned = false;
       }
    }
 
-   const bool issigned = (*p == 's');
-   if (issigned) p++;
+   if (*p == 's') {
+      issigned = true;
+      p++;
+   }
 
    SCRATCH_NUMBER result = number_scratch(width, issigned);
 
@@ -469,12 +473,12 @@ void number_print(number_t val, text_buf_t *tb)
 {
    if (number_is_defined(val)) {
       if (val.big->width == 32 && val.big->issigned) {
-         tb_printf(tb, "%"PRIi64, bignum_abits(val.big)[0]);
+         tb_printf(tb, "%"PRIi64, number_integer(val));
          return;
       }
       else if (val.big->width > 1 && val.big->width <= 32) {
          tb_printf(tb, "%u'%sd%"PRIu64, val.big->width,
-                   val.big->issigned ? "s" : "", bignum_abits(val.big)[0]);
+                   val.big->issigned ? "s" : "", number_integer(val));
          return;
       }
    }
@@ -515,7 +519,11 @@ int64_t number_integer(number_t val)
    assert(number_width(val) <= 64);
    assert(number_is_defined(val));
 
-   return bignum_abits(val.big)[0];
+   const uint64_t w0 = bignum_abits(val.big)[0];
+   if (val.big->issigned)
+      return (int64_t)(w0 << (64 - val.big->width)) >> (64 - val.big->width);
+   else
+      return w0;
 }
 
 unsigned number_width(number_t val)
