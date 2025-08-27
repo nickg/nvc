@@ -685,7 +685,7 @@ number_t number_negate(number_t a)
 {
    SCRATCH_NUMBER result = number_scratch_copy(a);
 
-   vec2_negate(result.big->words, result.big->width);
+   vec2_neg(result.big->width, result.big->words);
 
    return number_intern(result);
 }
@@ -894,12 +894,43 @@ void vec2_shl(int size, uint64_t *a, const uint64_t *b)
    vec2_mask(size, a);
 }
 
-void vec2_negate(uint64_t *a, size_t asize)
+void vec2_neg(int size, uint64_t *a)
 {
-   if (asize <= 64)
+   if (size <= 64)
       a[0] = -a[0];
    else
       should_not_reach_here();   // TODO
+
+   vec2_mask(size, a);
+}
+
+void vec2_inv(int size, uint64_t *a)
+{
+   for (int i = 0; i < BIGNUM_WORDS(size); i++)
+      a[i] = ~a[i];
+
+   vec2_mask(size, a);
+}
+
+int vec2_and1(int size, const uint64_t *a)
+{
+   int result = 1;
+   for (int i = 0; i < size / 64; i++)
+      result &= (a[i] == ~UINT64_C(0));
+
+   if (size % 64 != 0)
+      result &= (a[BIGNUM_WORDS(size) - 1] == ~UINT64_C(0) >> (-size & 63));
+
+   return result;
+}
+
+int vec2_or1(int size, const uint64_t *a)
+{
+   int result = 0;
+   for (int i = 0; i < BIGNUM_WORDS(size); i++)
+      result |= (a[i] != 0);
+
+   return result;
 }
 
 #define VEC2_CMP_OP(name, op)                                           \
@@ -966,4 +997,9 @@ void vec4_shl(int size, uint64_t *a1, uint64_t *b1, const uint64_t *a2,
 {
    vec2_shl(size, a1, a2);
    vec2_shl(size, b1, b2);
+}
+
+void vec4_inv(int size, uint64_t *a, uint64_t *b)
+{
+   vec2_inv(size, a);
 }

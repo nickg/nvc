@@ -990,6 +990,8 @@ void __nvc_vec4op(jit_vec_op_t op, jit_anchor_t *anchor, jit_scalar_t *args,
    switch (op) {
    case JIT_VEC_CASE_EQ:
    case JIT_VEC_CASE_NEQ:
+   case JIT_VEC_AND1:
+   case JIT_VEC_OR1:
       {
          const uint64_t *aleft  = args[0].pointer;
          const uint64_t *bleft  = args[1].pointer;
@@ -1007,6 +1009,14 @@ void __nvc_vec4op(jit_vec_op_t op, jit_anchor_t *anchor, jit_scalar_t *args,
             aresult = memcmp(aleft, aright, nwords * sizeof(uint64_t)) != 0
                || memcmp(bleft, bright, nwords * sizeof(uint64_t)) != 0;
             bresult = 0;
+            break;
+         case JIT_VEC_AND1:
+            bresult = vec2_or1(size, bleft);
+            aresult = vec2_and1(size, aleft) | bresult;
+            break;
+         case JIT_VEC_OR1:
+            bresult = vec2_or1(size, bleft);
+            aresult = vec2_or1(size, aleft) | bresult;
             break;
          default:
             should_not_reach_here();
@@ -1117,6 +1127,9 @@ void __nvc_vec4op(jit_vec_op_t op, jit_anchor_t *anchor, jit_scalar_t *args,
             break;
          case JIT_VEC_SHL:
             vec4_shl(size, aresult, bresult, a2, b2);
+            break;
+         case JIT_VEC_NOT:
+            vec4_inv(size, aresult, bresult);
             break;
          default:
             should_not_reach_here();

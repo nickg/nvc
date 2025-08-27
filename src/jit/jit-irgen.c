@@ -4097,13 +4097,41 @@ static void irgen_op_unary(jit_irgen_t *g, mir_value_t n)
 {
    mir_value_t arg1 = mir_get_arg(g->mu, n, 1);
 
+   const mir_vec_op_t op = irgen_get_enum(g, n, 0);
    const int isize = mir_get_size(g->mu, mir_get_type(g->mu, arg1));
-   assert(isize <= 64);  // TODO
+   const bool is_vec4 = mir_is(g->mu, arg1, MIR_TYPE_VEC4);
 
    jit_value_t input = irgen_get_value(g, arg1);
 
+   jit_value_t xbits;
+   if (is_vec4)
+      xbits = jit_value_from_reg(jit_value_as_reg(input) + 1);
+   else
+      xbits = jit_value_from_int64(0);
+
+   if (isize > 64) {
+      static const jit_vec_op_t map[] = {
+         [MIR_VEC_BIT_NOT] = JIT_VEC_NOT,
+         [MIR_VEC_BIT_AND] = JIT_VEC_AND1,
+         [MIR_VEC_BIT_OR] = JIT_VEC_OR1,
+      };
+      assert(op < ARRAY_LEN(map) && map[op] != 0);
+
+      j_send(g, 0, input);
+      j_send(g, 1, xbits);
+      j_send(g, 2, jit_value_from_int64(0));
+      j_send(g, 3, jit_value_from_int64(0));
+
+      macro_vec4op(g, map[op], isize);
+
+      g->map[n.id] = j_recv(g, 0);
+      j_recv(g, 1);
+
+      return;
+   }
+
    jit_value_t imask = irgen_vector_mask(isize), abits;
-   switch (irgen_get_enum(g, n, 0)) {
+   switch (op) {
    case MIR_VEC_BIT_NOT:
       abits = j_xor(g, input, imask);
       break;
