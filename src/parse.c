@@ -3500,6 +3500,8 @@ static tree_t p_attribute_name(tree_t prefix)
 
    const bool deref_prefix =
       !is_type_attribute(kind) && kind != ATTR_REFLECT
+      && kind != ATTR_PATH_NAME && kind != ATTR_INSTANCE_NAME
+      && kind != ATTR_SIMPLE_NAME
       && type != NULL && type_is_access(type);
 
    if (deref_prefix) {

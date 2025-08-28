@@ -1177,3 +1177,4 @@ issue1272       normal,2008
 binary1         verilog
 ivtest13        verilog
 issue1277       normal,2008
+issue1281       gold,2008
