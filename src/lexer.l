@@ -43,6 +43,10 @@
 
 #define YY_USER_ACTION begin_token(yytext, yyleng);
 
+#define YY_FATAL_ERROR(msg) fatal_at(&yylloc, "%s", msg)
+
+#pragma GCC diagnostic ignored "-Wunused-function"
+
 #define TOKEN(t) return (last_token = (t))
 
 #define TOKEN_LRM(t, lrm) do {                                          \
