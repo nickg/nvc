@@ -3729,7 +3729,7 @@ static vcode_reg_t lower_aggregate_bounds(lower_unit_t *lu, tree_t expr,
       assert(a0_reg != VCODE_INVALID_REG);
 
       const assoc_kind_t a0_kind = tree_subkind(a0);
-      const int off = (a0_kind == A_CONCAT || a0_kind == A_SLICE) ? 0 : 1;
+      int off = (a0_kind == A_CONCAT || a0_kind == A_SLICE) ? 0 : 1;
 
       if (vcode_reg_kind(a0_reg) == VCODE_TYPE_UARRAY) {
          for (int i = 1; i < ndims; i++) {
@@ -3740,7 +3740,14 @@ static vcode_reg_t lower_aggregate_bounds(lower_unit_t *lu, tree_t expr,
       }
       else {
          type_t a0_type = tree_type(tree_value(a0));
+         int a0_dims = dimension_of(a0_type);
          for (int i = 1; i < ndims; i++) {
+            if (i - off >= a0_dims) {
+               off += a0_dims;
+               a0_type = type_elem(a0_type);
+               a0_dims = dimension_of(a0_type);
+            }
+
             dims[i].left  = lower_array_left(lu, a0_type, i - off, a0_reg);
             dims[i].right = lower_array_right(lu, a0_type, i - off, a0_reg);
             dims[i].dir   = lower_array_dir(lu, a0_type, i - off, a0_reg);
