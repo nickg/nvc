@@ -385,6 +385,12 @@ static void vlog_check_return(vlog_node_t v)
                "expression");
 }
 
+static void vlog_check_concat(vlog_node_t v)
+{
+   if (vlog_has_value(v))
+      vlog_check_const_expr(vlog_value(v));
+}
+
 static vlog_node_t vlog_check_cb(vlog_node_t v, void *ctx)
 {
    if (has_error(v))
@@ -435,6 +441,9 @@ static vlog_node_t vlog_check_cb(vlog_node_t v, void *ctx)
    case V_RETURN:
       vlog_check_return(v);
       break;
+   case V_CONCAT:
+      vlog_check_concat(v);
+      break;
    case V_CASE_ITEM:
    case V_UDP_LEVEL:
    case V_UDP_EDGE:
@@ -462,7 +471,6 @@ static vlog_node_t vlog_check_cb(vlog_node_t v, void *ctx)
    case V_TASK_DECL:
    case V_EMPTY:
    case V_COND_EXPR:
-   case V_CONCAT:
    case V_FOR_LOOP:
    case V_FOR_INIT:
    case V_FOR_STEP:

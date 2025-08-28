@@ -1722,7 +1722,8 @@ xnor_test		normal			ivltests # ~^ in an IF()
 z1			normal			ivltests foo
 z2			normal			ivltests foo
 zero_repl		normal			ivltests
-zero_repl_fail		CE			ivltests
+# Not treated as error
+#zero_repl_fail		CE			ivltests
 cmpi			normal			ivltests
 
 

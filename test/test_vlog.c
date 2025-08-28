@@ -755,6 +755,7 @@ START_TEST(test_concat1)
 
    const error_t expect[] = {
       { 10, "'q' cannot be driven by continuous assignment" },
+      { 12, "cannot reference net 'z' in constant expression" },
       { -1, NULL }
    };
    expect_errors(expect);
