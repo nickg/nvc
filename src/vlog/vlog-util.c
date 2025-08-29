@@ -27,11 +27,15 @@ bool vlog_is_net(vlog_node_t v)
 {
    switch (vlog_kind(v)) {
    case V_REF:
+   case V_HIER_REF:
       return vlog_has_ref(v) ? vlog_is_net(vlog_ref(v)) : false;
    case V_PORT_DECL:
       return vlog_has_ref(v) ? vlog_is_net(vlog_ref(v)) : true;
    case V_NET_DECL:
       return true;
+   case V_BIT_SELECT:
+   case V_PART_SELECT:
+      return vlog_is_net(vlog_value(v));
    default:
       return false;
    }

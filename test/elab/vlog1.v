@@ -6,6 +6,7 @@ endmodule // sub1
 
 module vlog1;
   wire x, y;
+  reg  z;
 
   sub1 #(1) u1 (x, y);    // OK
   SUB1 #(2) u2 (x, y);    // Error
@@ -14,4 +15,6 @@ module vlog1;
   sub1 u5 (x, y);         // Error
   sub1 #(1, 2) u6 (x, y); // Error
   sub1 #(1) u7 (.foo(x), .y(y)); // Error
+  sub1 #(1) u8 (1, z);    // Error
+  sub1 #(1) u9 (1, 2);    // Error
 endmodule // vlog1

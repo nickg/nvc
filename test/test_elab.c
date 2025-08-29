@@ -1741,13 +1741,16 @@ END_TEST
 START_TEST(test_vlog1)
 {
    const error_t expect[] = {
-      { 11, "name of Verilog module sub1 in library unit WORK.SUB1 does "
+      { 12, "name of Verilog module sub1 in library unit WORK.SUB1 does "
         "not match name SUB1 in module instance u2" },
-      { 12, "expected 2 port connections for module sub1 but found 1" },
-      { 13, "module bad not found in library WORK" },
-      { 14, "missing value for parameter p" },
-      { 15, "module sub1 has 1 parameter but 2 values given" },
-      { 16, "missing port connection for 'x'" },
+      { 13, "expected 2 port connections for module sub1 but found 1" },
+      { 14, "module bad not found in library WORK" },
+      { 15, "missing value for parameter p" },
+      { 16, "module sub1 has 1 parameter but 2 values given" },
+      { 17, "missing port connection for 'x'" },
+      { 18, "'z' cannot be driven by continuous assignment from port 'y'" },
+      { 19, "expression cannot be driven by continuous assignment from "
+        "port 'y'" },
       { -1, NULL }
    };
    expect_errors(expect);

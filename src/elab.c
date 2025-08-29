@@ -1348,20 +1348,31 @@ static void elab_verilog_ports(vlog_node_t inst, elab_instance_t *ei,
       vlog_set_ref(ref, port);
       vlog_set_ident2(ref, block_name);
 
-      vlog_node_t assign = vlog_new(V_ASSIGN);
+      vlog_node_t assign = vlog_new(V_ASSIGN), target;
       vlog_set_ident(assign, name);
 
       switch (vlog_subkind(port)) {
       case V_PORT_INPUT:
-         vlog_set_target(assign, ref);
+         vlog_set_target(assign, (target = ref));
          vlog_set_value(assign, vlog_value(conn));
          break;
       case V_PORT_OUTPUT:
-         vlog_set_target(assign, vlog_value(conn));
+         vlog_set_target(assign, (target = vlog_value(conn)));
          vlog_set_value(assign, ref);
          break;
       default:
          fatal_at(vlog_loc(port), "sorry, this port kind is not supported");
+      }
+
+      if (!vlog_is_net(target)) {
+         diag_t *d = diag_new(DIAG_ERROR, vlog_loc(conn));
+         if (vlog_kind(target) == V_REF)
+            diag_printf(d, "'%s'", istr(vlog_ident(target)));
+         else
+            diag_printf(d, "expression");
+         diag_printf(d, " cannot be driven by continuous assignment from "
+                     "port '%s'", istr(vlog_ident(port)));
+         diag_emit(d);
       }
 
       vlog_set_loc(assign, loc);
