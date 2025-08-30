@@ -6793,6 +6793,56 @@ START_TEST(test_issue1234)
 }
 END_TEST
 
+START_TEST(test_issue1280)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/lower/issue1280.vhd");
+
+   run_elab();
+
+   vcode_unit_t vu = find_unit("WORK.ISSUE1280.CMP_TEST.MY_SIG$delayed_2_NS");
+   vcode_select_unit(vu);
+
+   EXPECT_BB(0) = {
+      { VCODE_OP_VAR_UPREF, .hops = 1, .name = "MY_SIG$delayed_2_NS" },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_STORE, .name = "i2" },
+      { VCODE_OP_UARRAY_LEN },
+      { VCODE_OP_UNWRAP },
+      { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
+      { VCODE_OP_COND, .target = 3, .target_else = 2 },
+   };
+
+   CHECK_BB(0);
+
+   EXPECT_BB(1) = {  // Process entry must be block 1
+      { VCODE_OP_CONST, .value = 2000000 },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_VAR_UPREF, .hops = 1, .name = "MY_SIG" },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_CONTEXT_UPREF, .hops = 1 },
+      { VCODE_OP_FCALL, .func = "WORK.TEST-RTL.T_REAL_RECORD_ARRAY$resolved" },
+      { VCODE_OP_VAR_UPREF, .hops = 1, .name = "MY_SIG$delayed_2_NS" },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_DEBUG_LOCUS },
+      { VCODE_OP_UARRAY_LEN },
+      { VCODE_OP_UARRAY_LEN },
+      { VCODE_OP_LENGTH_CHECK },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_STORE, .name = "i2" },
+      { VCODE_OP_UNWRAP },
+      { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
+      { VCODE_OP_COND, .target = 7, .target_else = 6 },
+   };
+
+   CHECK_BB(1);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_lower_tests(void)
 {
    Suite *s = suite_create("lower");
@@ -6949,6 +6999,7 @@ Suite *get_lower_tests(void)
    tcase_add_test(tc, test_issue1199);
    tcase_add_test(tc, test_issue1208);
    tcase_add_test(tc, test_issue1234);
+   tcase_add_test(tc, test_issue1280);
    suite_add_tcase(s, tc);
 
    return s;

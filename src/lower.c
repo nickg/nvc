@@ -8115,6 +8115,9 @@ static void lower_implicit_delayed(lower_unit_t *lu, object_t *obj)
    type_t type = tree_type(decl);
    tree_t expr = tree_value(wave);
 
+   vcode_block_t main_bb = emit_block();
+   assert(main_bb == 1);
+
    vcode_reg_t nets_reg = lower_signal_ref(lu, decl);
 
    if (type_is_homogeneous(type)) {
@@ -8130,7 +8133,6 @@ static void lower_implicit_delayed(lower_unit_t *lu, object_t *obj)
 
    emit_return(VCODE_INVALID_REG);
 
-   vcode_block_t main_bb = emit_block();
    vcode_select_block(main_bb);
 
    vcode_type_t vtime = vtype_time();
