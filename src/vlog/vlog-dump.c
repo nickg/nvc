@@ -140,7 +140,17 @@ static void vlog_dump_udp_entry(vlog_node_t v, int indent)
          last = kind;
       }
 
-      print_syntax("%c", (char)vlog_ival(sym));
+      switch (vlog_kind(sym)) {
+      case V_UDP_LEVEL:
+         print_syntax("%c", (char)vlog_ival(sym));
+         break;
+      case V_UDP_EDGE:
+         print_syntax("(%c%c)", (char)vlog_ival(vlog_left(sym)),
+                      (char)vlog_ival(vlog_right(sym)));
+         break;
+      default:
+         should_not_reach_here();
+      }
    }
 
    print_syntax(";\n");

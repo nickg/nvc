@@ -1589,17 +1589,19 @@ static void vlog_lower_always(vlog_gen_t *g, vlog_node_t v)
       timing = s0;
 
       vlog_node_t ctrl = vlog_value(timing);
-      assert(vlog_kind(ctrl) == V_EVENT_CONTROL);
+      if (vlog_kind(ctrl) == V_EVENT_CONTROL) {
+         mir_value_t trigger = MIR_NULL_VALUE;
+         const int nparams = vlog_params(ctrl);
+         for (int i = 0; i < nparams; i++) {
+            mir_value_t t = vlog_lower_sensitivity(g, vlog_param(ctrl, i));
+            trigger = vlog_or_triggers(g, 2, trigger, t);
+         }
 
-      mir_value_t trigger = MIR_NULL_VALUE;
-      const int nparams = vlog_params(ctrl);
-      for (int i = 0; i < nparams; i++) {
-         mir_value_t t = vlog_lower_sensitivity(g, vlog_param(ctrl, i));
-         trigger = vlog_or_triggers(g, 2, trigger, t);
+         if (!mir_is_null(trigger))
+            mir_build_sched_event(g->mu, trigger, MIR_NULL_VALUE);
       }
-
-      if (!mir_is_null(trigger))
-         mir_build_sched_event(g->mu, trigger, MIR_NULL_VALUE);
+      else
+         timing = NULL;
    }
 
    mir_build_return(g->mu, MIR_NULL_VALUE);

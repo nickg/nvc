@@ -23,7 +23,7 @@ begin
     begin
 	assert q = '1';
 	wait for 0 ns;
-	assert q = '1';
+	assert q = 'U';
 	wait until falling_edge(cp);
 	assert q = '0';
 	wait for 1 ps;

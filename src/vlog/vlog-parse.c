@@ -5881,8 +5881,8 @@ static vlog_node_t p_edge_symbol(void)
    switch (state.last_lval.i64) {
    case 'r': case 'R': left = '0'; right = '1'; break;
    case 'f': case 'F': left = '1'; right = '0'; break;
-   case 'p': case 'P': left = 'p'; right = 'p'; break;
-   case 'n': case 'N': left = 'n'; right = 'N'; break;
+   case 'p': case 'P': left = '?'; right = '1'; break;
+   case 'n': case 'N': left = '?'; right = '0'; break;
    case '*':           left = '?'; right = '?'; break;
    }
 

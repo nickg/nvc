@@ -46,6 +46,14 @@ static mir_value_t vlog_lower_rvalue(mir_unit_t *mu, vlog_node_t v)
    }
 }
 
+static mir_value_t vlog_udp_cmp(mir_unit_t *mu, mir_value_t left,
+                                mir_value_t right)
+{
+   mir_type_t t_logic = mir_vec4_type(mu, 1, false);
+   mir_value_t eq = mir_build_binary(mu, MIR_VEC_CASE_EQ, t_logic, left, right);
+   return mir_build_test(mu, eq);
+}
+
 void vlog_lower_udp(mir_unit_t *mu, object_t *obj)
 {
    vlog_node_t udp = vlog_from_object(obj);
@@ -110,9 +118,11 @@ void vlog_lower_udp(mir_unit_t *mu, object_t *obj)
 
    mir_set_cursor(mu, start_bb, MIR_APPEND);
 
+   mir_build_store(mu, result_var, mir_const_vec(mu, t_logic, 1, 1));
+
    {
       mir_value_t one = mir_const(mu, t_offset, 1);
-      mir_value_t zero = mir_const(mu, t_time, 1);
+      mir_value_t zero = mir_const(mu, t_time, 0);
       mir_value_t logic0 = mir_const_vec(mu, t_logic, 0, 0);
       mir_value_t logic1 = mir_const_vec(mu, t_logic, 1, 0);
       mir_value_t logicX = mir_const_vec(mu, t_logic, 1, 1);
@@ -154,18 +164,15 @@ void vlog_lower_udp(mir_unit_t *mu, object_t *obj)
                case '1':
                case 'x':
                case 'X':
-                  cmp = mir_build_cmp(mu, MIR_CMP_EQ, in_regs[j],
-                                      level_map[vlog_ival(sym)]);
+                  cmp = vlog_udp_cmp(mu, in_regs[j], level_map[vlog_ival(sym)]);
                   break;
                case '*':
                   cmp = mir_build_event_flag(mu, in_nets[j], one);
                   break;
                case 'b':
                   {
-                     mir_value_t is0 =
-                        mir_build_cmp(mu, MIR_CMP_EQ, in_regs[j], logic0);
-                     mir_value_t is1 =
-                        mir_build_cmp(mu, MIR_CMP_EQ, in_regs[j], logic1);
+                     mir_value_t is0 = vlog_udp_cmp(mu, in_regs[j], logic0);
+                     mir_value_t is1 = vlog_udp_cmp(mu, in_regs[j], logic1);
                      cmp = mir_build_and(mu, is0, is1);
                   }
                   break;
@@ -188,14 +195,14 @@ void vlog_lower_udp(mir_unit_t *mu, object_t *obj)
                         mir_build_last_value(mu, in_nets[j]);
                      mir_value_t last = mir_build_load(mu, last_ptr);
                      mir_value_t packed = mir_build_pack(mu, t_logic, last);
-                     mir_value_t eq = mir_build_cmp(mu, MIR_CMP_EQ, packed,
-                                                    level_map[(unsigned)left]);
+                     mir_value_t eq = vlog_udp_cmp(mu, packed,
+                                                   level_map[(unsigned)left]);
                      cmp = mir_build_and(mu, cmp, eq);
                   }
 
                   if (right != '?') {
-                     mir_value_t eq = mir_build_cmp(mu, MIR_CMP_EQ, in_regs[j],
-                                                    level_map[(unsigned)right]);
+                     mir_value_t eq = vlog_udp_cmp(mu, in_regs[j],
+                                                   level_map[(unsigned)right]);
                      cmp = mir_build_and(mu, cmp, eq);
                   }
                }
@@ -227,8 +234,7 @@ void vlog_lower_udp(mir_unit_t *mu, object_t *obj)
             case '1':
             case 'x':
             case 'X':
-               cmp = mir_build_cmp(mu, MIR_CMP_EQ, packed,
-                                   level_map[vlog_ival(sym)]);
+               cmp = vlog_udp_cmp(mu, packed, level_map[vlog_ival(sym)]);
                break;
             case '?':
                break;
@@ -284,12 +290,8 @@ void vlog_lower_udp(mir_unit_t *mu, object_t *obj)
       mir_set_cursor(mu, test_bb, MIR_APPEND);
 
       if (!mir_block_finished(mu, test_bb)) {
-         if (kind == V_UDP_SEQ)
-            mir_build_wait(mu, start_bb, MIR_NULL_VALUE);   // Skip assignment
-         else {
-            mir_build_store(mu, result_var, logicX);
-            mir_build_jump(mu, wait_bb);
-         }
+         mir_build_store(mu, result_var, logicX);
+         mir_build_jump(mu, wait_bb);
       }
 
       mir_set_cursor(mu, wait_bb, MIR_APPEND);
