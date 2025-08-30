@@ -1316,11 +1316,27 @@ static void elab_verilog_ports(vlog_node_t inst, elab_instance_t *ei,
    ident_t block_name = vlog_ident(inst);
 
    for (int i = 0; i < nports; i++) {
+      vlog_node_t port = vlog_ref(vlog_port(ei->body, i));
+      ident_t port_name = vlog_ident(port);
+
       vlog_node_t conn = vlog_param(inst, i);
       assert(vlog_kind(conn) == V_PORT_CONN);
 
-      vlog_node_t port = vlog_ref(vlog_port(ei->body, i));
-      ident_t port_name = vlog_ident(port);
+      if (vlog_has_ident(conn) && vlog_ident(conn) != port_name) {
+         bool found = false;
+         for (int j = 0; j < nparams && !found; j++) {
+            if (vlog_ident((conn = vlog_param(inst, j))) == port_name)
+               found = true;
+         }
+
+         if (!found) {
+            diag_t *d = diag_new(DIAG_ERROR, vlog_loc(inst));
+            diag_printf(d, "missing port connection for '%s'", istr(port_name));
+            diag_hint(d, vlog_loc(port), "'%s' declared here", istr(port_name));
+            diag_emit(d);
+            continue;
+         }
+      }
 
       const loc_t *loc = vlog_loc(conn);
       ident_t name = ident_uniq("#assign#%s.%s", istr(block_name),

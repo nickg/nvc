@@ -13,4 +13,5 @@ module vlog1;
   bad #(4) u4 (x);        // Error
   sub1 u5 (x, y);         // Error
   sub1 #(1, 2) u6 (x, y); // Error
+  sub1 #(1) u7 (.foo(x), .y(y)); // Error
 endmodule // vlog1

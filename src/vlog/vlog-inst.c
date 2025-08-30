@@ -220,7 +220,5 @@ vlog_node_t vlog_generate_instance(vlog_node_t v, vlog_node_t genvar,
    vlog_simp(copy);
 
    hash_free(map);
-   vlog_dump(copy, 0);
-   printf("\n");
    return copy;
 }

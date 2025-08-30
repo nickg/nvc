@@ -1747,6 +1747,7 @@ START_TEST(test_vlog1)
       { 13, "module bad not found in library WORK" },
       { 14, "missing value for parameter p" },
       { 15, "module sub1 has 1 parameter but 2 values given" },
+      { 16, "missing port connection for 'x'" },
       { -1, NULL }
    };
    expect_errors(expect);
