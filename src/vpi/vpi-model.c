@@ -1200,7 +1200,10 @@ vpiHandle vpi_bind_foreign(ident_t name, vlog_node_t where)
       else
          call = &(build_sysFuncCall(where, cb, scope)->systfcall);
 
-      return (call->handle = internal_handle_for(&(call->tfcall.object)));
+      call->handle = internal_handle_for(&(call->tfcall.object));
+
+      hash_put(c->objcache, where, call);
+      return call->handle;
    }
 
    return NULL;
