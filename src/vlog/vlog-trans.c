@@ -187,6 +187,7 @@ static void trans_port_decl(trans_gen_t *g, vlog_node_t v)
    tree_set_ident(t, vlog_ident(v));
    tree_set_subkind(t, map[kind]);
    tree_set_class(t, C_SIGNAL);
+   tree_set_loc(t, vlog_loc(v));
 
    vlog_node_t net = vlog_ref(v);
    if (vlog_is_net(net)) {

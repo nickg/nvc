@@ -72,6 +72,7 @@ typedef struct _elab_ctx {
    rt_model_t       *model;
    rt_scope_t       *scope;
    unsigned          depth;
+   unsigned          errors;
 } elab_ctx_t;
 
 typedef struct {
@@ -1209,20 +1210,26 @@ static void elab_context(tree_t t)
 
 static void elab_inherit_context(elab_ctx_t *ctx, const elab_ctx_t *parent)
 {
-   ctx->parent    = parent;
-   ctx->jit       = parent->jit;
-   ctx->registry  = parent->registry;
-   ctx->mir       = parent->mir;
-   ctx->root      = parent->root;
-   ctx->dotted    = ctx->dotted ?: parent->dotted;
-   ctx->library   = ctx->library ?: parent->library;
-   ctx->out       = ctx->out ?: parent->out;
-   ctx->cover     = parent->cover;
-   ctx->sdf       = parent->sdf;
-   ctx->inst      = ctx->inst ?: parent->inst;
-   ctx->modcache  = parent->modcache;
-   ctx->depth     = parent->depth + 1;
-   ctx->model     = parent->model;
+   ctx->parent   = parent;
+   ctx->jit      = parent->jit;
+   ctx->registry = parent->registry;
+   ctx->mir      = parent->mir;
+   ctx->root     = parent->root;
+   ctx->dotted   = ctx->dotted ?: parent->dotted;
+   ctx->library  = ctx->library ?: parent->library;
+   ctx->out      = ctx->out ?: parent->out;
+   ctx->cover    = parent->cover;
+   ctx->sdf      = parent->sdf;
+   ctx->inst     = ctx->inst ?: parent->inst;
+   ctx->modcache = parent->modcache;
+   ctx->depth    = parent->depth + 1;
+   ctx->model    = parent->model;
+   ctx->errors   = error_count();
+}
+
+static bool elab_new_errors(const elab_ctx_t *ctx)
+{
+   return error_count() - ctx->errors;
 }
 
 static driver_set_t *elab_driver_set(const elab_ctx_t *ctx)
@@ -1278,15 +1285,15 @@ static void elab_verilog_module(tree_t bind, ident_t label,
    if (bind != NULL)
       elab_ports(ei->block, bind, &new_ctx);
 
-   if (error_count() == 0)
+   if (elab_new_errors(&new_ctx) == 0)
       elab_decls(ei->block, &new_ctx);
 
-   if (error_count() == 0) {
+   if (elab_new_errors(&new_ctx) == 0) {
       new_ctx.drivers = find_drivers(ei->block);
       elab_lower(b, &new_ctx);
    }
 
-   if (error_count() == 0)
+   if (elab_new_errors(&new_ctx) == 0)
       elab_verilog_stmts(ei->body, &new_ctx);
 
    elab_pop_scope(&new_ctx);
@@ -1645,7 +1652,7 @@ static void elab_mixed_instance(tree_t inst, tree_t comp, vlog_node_t mod,
    elab_instance_fixup(comp, &new_ctx);
    elab_ports(comp, inst, &new_ctx);
 
-   if (error_count() == 0)
+   if (elab_new_errors(&new_ctx) == 0)
       elab_lower(b, &new_ctx);
 
    vlog_node_t list = elab_mixed_generics(comp, mod, &new_ctx);
@@ -1653,7 +1660,7 @@ static void elab_mixed_instance(tree_t inst, tree_t comp, vlog_node_t mod,
       elab_instance_t *ei = elab_new_instance(mod, list, &new_ctx);
 
       tree_t bind = elab_mixed_binding(comp, ei);
-      if (bind != NULL && error_count() == 0)
+      if (bind != NULL && elab_new_errors(&new_ctx) == 0)
          elab_verilog_module(bind, vlog_ident2(mod), ei, &new_ctx);
    }
 
@@ -2272,14 +2279,12 @@ static void elab_block(tree_t t, const elab_ctx_t *ctx)
    };
    elab_inherit_context(&new_ctx, ctx);
 
-   const int base_errors = error_count();
-
    elab_push_scope(t, &new_ctx);
    elab_generics(t, t, &new_ctx);
    elab_ports(t, t, &new_ctx);
    elab_decls(t, &new_ctx);
 
-   if (error_count() == base_errors) {
+   if (elab_new_errors(&new_ctx) == 0) {
       elab_lower(b, &new_ctx);
       elab_stmts(t, &new_ctx);
    }

@@ -2085,6 +2085,28 @@ START_TEST(test_clone1)
 }
 END_TEST
 
+START_TEST(test_mixed2)
+{
+   analyse_file(TESTDIR "/elab/mixed2.v", NULL, NULL, NULL);
+
+   input_from_file(TESTDIR "/elab/mixed2.vhd");
+
+   const error_t expect[] = {
+      { 12, "actual length 20 does not match formal length 8" },
+      { 22, "actual length 6 does not match formal length 8" },
+      { 33, "actual length 100 does not match formal length 4" },
+      { 44, "actual length 8 does not match formal length 4" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t e = run_elab();
+   fail_unless(e == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_elab_tests(void)
 {
    Suite *s = suite_create("elab");
@@ -2195,6 +2217,7 @@ Suite *get_elab_tests(void)
    tcase_add_test(tc, test_issue1201);
    tcase_add_test(tc, test_issue1204);
    tcase_add_test(tc, test_clone1);
+   tcase_add_test(tc, test_mixed2);
    suite_add_tcase(s, tc);
 
    return s;

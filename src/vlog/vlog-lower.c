@@ -2291,14 +2291,34 @@ void vlog_lower_block(mir_context_t *mc, ident_t parent, tree_t b)
 
       assert(tree_kind(value) == T_REF);
 
-      int nth = mir_find_slot(shape, tree_ident(tree_ref(value)));
+      tree_t vhdl_port = tree_ref(value);
+      assert(tree_kind(vhdl_port) == T_PORT_DECL);
+
+      int nth = mir_find_slot(shape, tree_ident(vhdl_port));
       assert(nth >= 0);
 
       mir_value_t upref = mir_build_var_upref(mu, 1, nth);
       mir_value_t dst_nets = mir_build_load(mu, upref);
 
-      if (mir_is(mu, dst_nets, MIR_TYPE_UARRAY))
+      type_t vhdl_type = tree_type(vhdl_port);
+      assert(dimension_of(vhdl_type) == 1);
+
+      mir_value_t dst_count;
+      if (mir_is(mu, dst_nets, MIR_TYPE_UARRAY)) {
+         dst_count = mir_build_uarray_len(mu, dst_nets, 0);
          dst_nets = mir_build_unwrap(mu, dst_nets);
+      }
+      else if (type_is_array(vhdl_type)) {
+         int64_t cval;
+         if (folded_length(range_of(vhdl_type, 0), &cval))
+            dst_count = mir_const(mu, t_offset, cval);
+         else
+            should_not_reach_here();
+      }
+      else if (type_is_scalar(vhdl_type))
+         dst_count = mir_const(mu, t_offset, 1);
+      else
+         should_not_reach_here();
 
       mir_value_t out_conv = MIR_NULL_VALUE;
       if (tree_subkind(map) == P_NAMED) {
@@ -2318,9 +2338,11 @@ void vlog_lower_block(mir_context_t *mc, ident_t parent, tree_t b)
       }
 
       mir_value_t src_nets = mir_build_load(mu, var);
+      mir_value_t src_count =
+         mir_const(mu, t_offset, vlog_size(vlog_type(port)));
 
-      if (mir_is(mu, src_nets, MIR_TYPE_UARRAY))
-         src_nets = mir_build_unwrap(mu, src_nets);
+      mir_value_t locus = mir_build_locus(mu, tree_to_object(map));
+      mir_build_length_check(mu, src_count, dst_count, locus, MIR_NULL_VALUE);
 
       switch (vlog_subkind(port)) {
       case V_PORT_INPUT:

@@ -460,6 +460,7 @@ tree_t make_ref(tree_t to)
    tree_set_ident(t, tree_ident(to));
    tree_set_ref(t, to);
    tree_set_type(t, tree_type(to));
+   tree_set_loc(t, tree_loc(to));
    return t;
 }
 
