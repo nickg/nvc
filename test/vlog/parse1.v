@@ -139,4 +139,11 @@ module parse1;
   logic v1 = 1'sb0;
   and #5 g1(x, y);
   or #(1, 2) g2(x, y);
+  bit b1;
+  shortint si;
+  longint  li;
+  initial begin
+    shortreal sr;
+    shortint si;
+  end
 endmodule // parse1

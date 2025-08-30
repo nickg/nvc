@@ -1039,6 +1039,8 @@ static vlog_node_t p_data_type_or_implicit(void)
    case tTIME:
    case tLOGIC:
    case tBIT:
+   case tSHORTINT:
+   case tLONGINT:
    case tEVENT:
       return p_data_type();
    default:
@@ -2058,7 +2060,7 @@ static vlog_node_t p_seq_block(void)
    skip_over_attributes();
 
    while (scan(tREG, tSTRUCT, tUNION, tTYPEDEF, tENUM, tSVINT, tINTEGER,
-               tSVREAL, tSHORTREAL, tREALTIME, tBIT, tLOGIC)) {
+               tSVREAL, tSHORTREAL, tREALTIME, tBIT, tLOGIC, tSHORTINT)) {
       p_block_item_declaration(v);
       skip_over_attributes();
    }
@@ -2105,7 +2107,7 @@ static vlog_node_t p_par_block(void)
    skip_over_attributes();
 
    while (scan(tREG, tSTRUCT, tUNION, tTYPEDEF, tENUM, tSVINT, tINTEGER,
-               tSVREAL, tSHORTREAL, tREALTIME, tBIT, tLOGIC)) {
+               tSVREAL, tSHORTREAL, tREALTIME, tBIT, tLOGIC, tSHORTINT)) {
       p_block_item_declaration(v);
       skip_over_attributes();
    }
@@ -3330,7 +3332,7 @@ static void p_task_body_declaration(vlog_node_t task)
       skip_over_attributes();
 
       while (scan(tREG, tSTRUCT, tUNION, tTYPEDEF, tENUM, tSVINT, tINTEGER,
-                  tSVREAL, tSHORTREAL, tREALTIME, tBIT, tLOGIC)) {
+                  tSVREAL, tSHORTREAL, tREALTIME, tBIT, tLOGIC, tSHORTINT)) {
          p_block_item_declaration(task);
          skip_over_attributes();
       }
@@ -3341,8 +3343,8 @@ static void p_task_body_declaration(vlog_node_t task)
       skip_over_attributes();
 
       while (scan(tREG, tSTRUCT, tUNION, tTYPEDEF, tENUM, tSVINT, tINTEGER,
-                  tSVREAL, tSHORTREAL, tREALTIME, tBIT, tLOGIC, tINPUT,
-                  tOUTPUT)) {
+                  tSVREAL, tSHORTREAL, tREALTIME, tBIT, tLOGIC, tSHORTINT,
+                  tINPUT, tOUTPUT)) {
          p_tf_item_declaration(task);
          skip_over_attributes();
       }
@@ -3431,7 +3433,7 @@ static void p_function_body_declaration(vlog_node_t func)
       skip_over_attributes();
 
       while (scan(tREG, tSTRUCT, tUNION, tTYPEDEF, tENUM, tSVINT, tINTEGER,
-                  tSVREAL, tSHORTREAL, tREALTIME, tBIT, tLOGIC)) {
+                  tSVREAL, tSHORTREAL, tREALTIME, tBIT, tLOGIC, tSHORTINT)) {
          p_block_item_declaration(func);
          skip_over_attributes();
       }
@@ -3442,8 +3444,8 @@ static void p_function_body_declaration(vlog_node_t func)
       skip_over_attributes();
 
       while (scan(tREG, tSTRUCT, tUNION, tTYPEDEF, tENUM, tSVINT, tINTEGER,
-                  tSVREAL, tSHORTREAL, tREALTIME, tBIT, tLOGIC, tINPUT,
-                  tOUTPUT)) {
+                  tSVREAL, tSHORTREAL, tREALTIME, tBIT, tLOGIC, tSHORTINT,
+                  tINPUT, tOUTPUT)) {
          p_tf_item_declaration(func);
          skip_over_attributes();
       }
@@ -3570,6 +3572,7 @@ static void p_block_item_declaration(vlog_node_t parent)
    case tREALTIME:
    case tBIT:
    case tLOGIC:
+   case tSHORTINT:
       p_data_declaration(parent);
       break;
    default:
@@ -3619,6 +3622,9 @@ static void p_package_or_generate_item_declaration(vlog_node_t mod)
    case tID:
    case tVAR:
    case tLOGIC:
+   case tBIT:
+   case tSHORTINT:
+   case tLONGINT:
       p_data_declaration(mod);
       break;
    case tTASK:
@@ -3639,8 +3645,8 @@ static void p_package_or_generate_item_declaration(vlog_node_t mod)
       one_of(tWIRE, tUWIRE, tSUPPLY0, tSUPPLY1, tTRI, tTRI0, tTRI1, tTRIAND,
              tTRIOR, tTRIREG, tWAND, tWOR, tINTERCONNECT, tREG, tSTRUCT, tUNION,
              tTYPEDEF, tENUM, tSVINT, tINTEGER, tSVREAL, tSHORTREAL, tREALTIME,
-             tTIME, tEVENT, tID, tVAR, tLOGIC, tTASK, tFUNCTION, tLOCALPARAM,
-             tPARAMETER);
+             tTIME, tEVENT, tID, tVAR, tLOGIC, tBIT, tSHORTINT, tLONGINT, tTASK,
+             tFUNCTION, tLOCALPARAM, tPARAMETER);
       drop_tokens_until(tSEMI);
       break;
    }
@@ -3972,6 +3978,9 @@ static void p_module_common_item(vlog_node_t mod)
    case tGENVAR:
    case tVAR:
    case tLOGIC:
+   case tBIT:
+   case tSHORTINT:
+   case tLONGINT:
       p_module_or_generate_item_declaration(mod);
       break;
    case tASSIGN:
@@ -3989,7 +3998,7 @@ static void p_module_common_item(vlog_node_t mod)
              tWAND, tWOR, tINTERCONNECT, tREG, tSTRUCT, tUNION, tTYPEDEF, tENUM,
              tSVINT, tINTEGER, tSVREAL, tSHORTREAL, tREALTIME, tTIME, tTASK,
              tFUNCTION, tPARAMETER, tLOCALPARAM, tEVENT, tID, tGENVAR, tVAR,
-             tLOGIC, tASSIGN, tFOR, tIF);
+             tLOGIC, tBIT, tSHORTINT, tLONGINT, tASSIGN, tFOR, tIF);
       drop_tokens_until(tSEMI);
    }
 }
@@ -5206,6 +5215,9 @@ static void p_module_or_generate_item(vlog_node_t mod)
    case tGENVAR:
    case tVAR:
    case tLOGIC:
+   case tBIT:
+   case tSHORTINT:
+   case tLONGINT:
       p_module_common_item(mod);
       break;
    case tPULLDOWN:
@@ -5235,8 +5247,9 @@ static void p_module_or_generate_item(vlog_node_t mod)
              tWAND, tWOR, tINTERCONNECT, tREG, tSTRUCT, tUNION, tASSIGN,
              tINITIAL, tTYPEDEF, tENUM, tSVINT, tINTEGER, tSVREAL, tSHORTREAL,
              tREALTIME, tTIME, tTASK, tFUNCTION, tLOCALPARAM, tPARAMETER, tIF,
-             tFOR, tEVENT, tGENVAR, tVAR, tLOGIC, tPULLDOWN, tPULLUP, tID, tAND,
-             tNAND, tOR, tNOR, tXOR, tXNOR, tNOT, tBUF);
+             tFOR, tEVENT, tGENVAR, tVAR, tLOGIC, tBIT, tSHORTINT, tLONGINT,
+             tPULLDOWN, tPULLUP, tID, tAND, tNAND, tOR, tNOR, tXOR, tXNOR,
+             tNOT, tBUF);
       drop_tokens_until(tSEMI);
    }
 }
@@ -5320,6 +5333,9 @@ static void p_non_port_module_item(vlog_node_t mod)
    case tGENVAR:
    case tVAR:
    case tLOGIC:
+   case tBIT:
+   case tSHORTINT:
+   case tLONGINT:
       p_module_or_generate_item(mod);
       break;
    case tSPECIFY:
@@ -5335,8 +5351,8 @@ static void p_non_port_module_item(vlog_node_t mod)
              tPULLDOWN, tPULLUP, tID, tATTRBEGIN, tAND, tNAND, tOR, tNOR, tXOR,
              tXNOR, tNOT, tBUF, tTYPEDEF, tENUM, tSVINT, tINTEGER, tSVREAL,
              tSHORTREAL, tREALTIME, tTIME, tTASK, tFUNCTION, tLOCALPARAM,
-             tPARAMETER, tEVENT, tIF, tFOR, tGENVAR, tVAR, tLOGIC, tSPECIFY,
-             tGENERATE);
+             tPARAMETER, tEVENT, tIF, tFOR, tGENVAR, tVAR, tLOGIC, tBIT,
+             tSHORTINT, tLONGINT, tSPECIFY, tGENERATE);
       drop_tokens_until(tSEMI);
    }
 }
