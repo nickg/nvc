@@ -415,6 +415,5 @@ static vlog_node_t vlog_simp_cb(vlog_node_t v, void *context)
 
 void vlog_simp(vlog_node_t mod)
 {
-   assert(is_top_level(mod));
    vlog_rewrite(mod, vlog_simp_cb, mod);
 }

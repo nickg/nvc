@@ -71,6 +71,7 @@ static void vlog_check_const_expr(vlog_node_t expr)
          switch (vlog_kind(decl)) {
          case V_PARAM_DECL:
          case V_LOCALPARAM:
+         case V_GENVAR_DECL:
             break;
          default:
             {

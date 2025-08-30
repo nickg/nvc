@@ -1179,3 +1179,4 @@ ivtest13        verilog
 issue1277       normal,2008
 issue1281       gold,2008
 udp1            verilog
+tfcall3         verilog

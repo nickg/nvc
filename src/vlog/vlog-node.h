@@ -282,6 +282,7 @@ bool vlog_has_ident(vlog_node_t v);
 
 ident_t vlog_ident2(vlog_node_t v);
 void vlog_set_ident2(vlog_node_t v, ident_t i);
+bool vlog_has_ident2(vlog_node_t v);
 
 vlog_node_t vlog_ref(vlog_node_t v);
 void vlog_set_ref(vlog_node_t v, vlog_node_t d);

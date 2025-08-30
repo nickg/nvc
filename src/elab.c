@@ -1438,6 +1438,49 @@ static void elab_verilog_block(vlog_node_t v, const elab_ctx_t *ctx)
    elab_pop_scope(&new_ctx);
 }
 
+static void *elab_verilog_for_generate_cb(jit_scalar_t *args, void *ctx)
+{
+   const uint64_t abits = args[0].integer;
+   const uint64_t bbits = args[1].integer;
+   return (void *)(uintptr_t)(abits == 1 && bbits == 0);
+}
+
+static void elab_verilog_for_generate(vlog_node_t v, const elab_ctx_t *ctx)
+{
+   mir_unit_t *init = vlog_lower_thunk(ctx->mir, ctx->dotted, vlog_left(v));
+   mir_unit_t *test = vlog_lower_thunk(ctx->mir, ctx->dotted, vlog_value(v));
+   mir_unit_t *step = vlog_lower_thunk(ctx->mir, ctx->dotted, vlog_right(v));
+
+   void *context = *mptr_get(ctx->scope->privdata);
+
+   jit_call_thunk2(ctx->jit, init, context, NULL, NULL);
+
+   vlog_node_t genvar = vlog_ref(vlog_target(vlog_stmt(vlog_left(v), 0)));
+   assert(vlog_kind(genvar) == V_GENVAR_DECL);
+
+   vlog_node_t s0 = vlog_stmt(v, 0);
+   assert(vlog_kind(s0) == V_BLOCK);
+
+   jit_handle_t handle = jit_compile(ctx->jit, ctx->dotted);
+   uint64_t *val = jit_get_frame_var(ctx->jit, handle, vlog_ident(genvar));
+
+   while (jit_call_thunk2(ctx->jit, test, context,
+                          elab_verilog_for_generate_cb, NULL)) {
+      const int32_t index = (int32_t)val[0];
+      // TODO: check not X/Z
+
+      vlog_node_t copy = vlog_generate_instance(s0, genvar, index, ctx->dotted);
+
+      elab_verilog_block(copy, ctx);
+
+      jit_call_thunk2(ctx->jit, step, context, NULL, NULL);
+   }
+
+   mir_unit_free(init);
+   mir_unit_free(test);
+   mir_unit_free(step);
+}
+
 static void elab_verilog_stmts(vlog_node_t v, const elab_ctx_t *ctx)
 {
    const int nstmts = vlog_stmts(v);
@@ -1479,6 +1522,9 @@ static void elab_verilog_stmts(vlog_node_t v, const elab_ctx_t *ctx)
       case V_IF_GENERATE:
          error_at(vlog_loc(s), "if-generate construct could not be "
                   "evaluated at elaboration time");
+         break;
+      case V_FOR_GENERATE:
+         elab_verilog_for_generate(s, ctx);
          break;
       case V_SPECIFY:
          warn_at(vlog_loc(s), "specify blocks are not currently supported and "

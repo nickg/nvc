@@ -839,7 +839,12 @@ static void vlog_dump_task_decl(vlog_node_t v, int indent)
 static void vlog_dump_func_decl(vlog_node_t v, int indent)
 {
    tab(indent);
-   print_syntax("#function %s;\n", istr(vlog_ident(v)));
+   print_syntax("#function %s;", istr(vlog_ident(v)));
+
+   if (vlog_has_ident2(v))
+      print_syntax(" -- %s.%s", istr(vlog_ident2(v)), istr(vlog_ident(v)));
+
+   print_syntax("\n");
 
    const int nports = vlog_ports(v);
    for (int i = 0; i < nports; i++)

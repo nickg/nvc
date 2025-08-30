@@ -308,6 +308,8 @@ void vlog_trans(vlog_node_t mod, tree_t out)
       case V_TASK_DECL:
          trans_generic(&gen, d);
          break;
+      case V_GENVAR_DECL:
+         break;
       default:
          CANNOT_HANDLE(d);
       }

@@ -3646,7 +3646,7 @@ static void p_package_or_generate_item_declaration(vlog_node_t mod)
    }
 }
 
-static void p_list_of_genvar_identifiers(vlog_node_t mod)
+static void p_list_of_genvar_identifiers(vlog_node_t mod, vlog_node_t dt)
 {
    // genvar_identifier { , genvar_identifier }
 
@@ -3655,6 +3655,7 @@ static void p_list_of_genvar_identifiers(vlog_node_t mod)
    do {
       vlog_node_t v = vlog_new(V_GENVAR_DECL);
       vlog_set_ident(v, p_identifier());
+      vlog_set_type(v, dt);
       vlog_set_loc(v, CURRENT_LOC);
 
       vlog_add_decl(mod, v);
@@ -3671,7 +3672,11 @@ static void p_genvar_declaration(vlog_node_t mod)
 
    consume(tGENVAR);
 
-   p_list_of_genvar_identifiers(mod);
+   vlog_node_t dt = vlog_new(V_DATA_TYPE);
+   vlog_set_subkind(dt, DT_INTEGER);
+   vlog_set_loc(dt, &state.last_loc);
+
+   p_list_of_genvar_identifiers(mod, dt);
 
    consume(tSEMI);
 }
@@ -3704,17 +3709,17 @@ static void p_generate_item(vlog_node_t parent)
    p_module_or_generate_item(parent);
 }
 
-static void p_generate_block(vlog_node_t parent)
+static vlog_node_t p_generate_block(void)
 {
    // generate_item
    //   | [ generate_block_identifier : ] begin [ : generate_block_identifier ]
    //         { generate_item } end [ : generate_block_identifier ]
 
-   BEGIN("generate item");
+   BEGIN("generate block");
+
+   vlog_node_t b = vlog_new(V_BLOCK);
 
    if (scan(tID, tBEGIN)) {
-      vlog_node_t b = vlog_new(V_BLOCK);
-
       if (peek() == tID) {
          vlog_set_ident(b, p_identifier());
          consume(tCOLON);
@@ -3748,15 +3753,15 @@ static void p_generate_block(vlog_node_t parent)
             parse_error(&state.last_loc, "'%s' does not match label '%s'",
                         istr(name), istr(vlog_ident(b)));
       }
-
-      if (!vlog_has_ident(b))
-         vlog_set_ident(b, default_label("genblk"));
-
-      vlog_set_loc(b, CURRENT_LOC);
-      vlog_add_stmt(parent, b);
    }
    else
-      p_generate_item(parent);
+      p_generate_item(b);
+
+   if (!vlog_has_ident(b))
+      vlog_set_ident(b, default_label("genblk"));
+
+   vlog_set_loc(b, CURRENT_LOC);
+   return b;
 }
 
 static vlog_node_t p_if_generate_construct(void)
@@ -3776,16 +3781,14 @@ static vlog_node_t p_if_generate_construct(void)
    consume(tRPAREN);
 
    vlog_set_loc(c0, CURRENT_LOC);
-
-   p_generate_block(c0);
+   vlog_add_stmt(c0, p_generate_block());
 
    vlog_add_cond(v, c0);
 
    if (optional(tELSE)) {
       vlog_node_t c1 = vlog_new(V_COND);
       vlog_set_loc(c1, &state.last_loc);
-
-      p_generate_block(c1);
+      vlog_add_stmt(c1, p_generate_block());
 
       vlog_add_cond(v, c1);
    }
@@ -3907,7 +3910,7 @@ static vlog_node_t p_loop_generate_construct(void)
 
    consume(tRPAREN);
 
-   p_generate_block(v);
+   vlog_add_stmt(v, p_generate_block());
 
    vlog_symtab_pop(symtab);
 

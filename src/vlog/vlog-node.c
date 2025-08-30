@@ -155,10 +155,10 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
    (I_VALUE | I_STMTS),
 
    // V_TASK_DECL
-   (I_IDENT | I_STMTS | I_DECLS | I_PORTS),
+   (I_IDENT | I_IDENT2 | I_STMTS | I_DECLS | I_PORTS),
 
    // V_FUNC_DECL
-   (I_IDENT | I_STMTS | I_DECLS | I_TYPE | I_PORTS),
+   (I_IDENT | I_IDENT2 | I_STMTS | I_DECLS | I_TYPE | I_PORTS),
 
    // V_WAIT
    (I_VALUE | I_STMTS),
@@ -245,7 +245,7 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
    (I_VALUE),
 
    // V_GENVAR_DECL
-   (I_IDENT),
+   (I_IDENT | I_TYPE),
 
    // V_FOR_GENERATE
    (I_LEFT | I_VALUE | I_RIGHT | I_STMTS),
@@ -362,6 +362,11 @@ ident_t vlog_ident2(vlog_node_t v)
    item_t *item = lookup_item(&vlog_object, v, I_IDENT2);
    assert(item->ident != NULL);
    return item->ident;
+}
+
+bool vlog_has_ident2(vlog_node_t v)
+{
+   return lookup_item(&vlog_object, v, I_IDENT2)->ident != NULL;
 }
 
 void vlog_set_ident2(vlog_node_t v, ident_t i)

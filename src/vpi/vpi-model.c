@@ -85,6 +85,14 @@ typedef struct {
 DEF_CLASS(module, vpiModule, scope.object);
 
 typedef struct {
+   c_abstractScope  scope;
+   tree_t           block;
+   rt_scope_t      *rtscope;
+} c_genScope;
+
+DEF_CLASS(genScope, vpiGenScope, scope.object);
+
+typedef struct {
    c_vpiObject      object;
    vpiObjectList    args;
    vlog_node_t      where;
@@ -658,27 +666,46 @@ static c_module *build_module(vlog_node_t v, tree_t block, rt_scope_t *s)
    return m;
 }
 
-static c_module *cached_module(tree_t block, rt_scope_t *s)
+static c_genScope *build_genScope(vlog_node_t v, tree_t block, rt_scope_t *s)
+{
+   c_genScope *m = new_object(sizeof(c_genScope), vpiGenScope);
+   init_abstractScope(&m->scope, v);
+   m->block = block;
+   m->rtscope = s;
+
+   return m;
+}
+
+static c_abstractScope *cached_scope(tree_t block, rt_scope_t *s)
 {
    assert(tree_kind(block) == T_BLOCK);
 
    hash_t *cache = vpi_context()->objcache;
-   c_module *m = hash_get(cache, block);
-   if (m == NULL) {
+   c_abstractScope *as = hash_get(cache, block);
+   if (as == NULL) {
       tree_t hier = tree_decl(block, 0);
       assert(tree_kind(hier) == T_HIER);
 
       tree_t wrap = tree_ref(hier);
       assert(tree_kind(wrap) == T_VERILOG);
 
-      vlog_node_t body = tree_vlog(wrap);
-      assert(vlog_kind(body) == V_INST_BODY);
+      vlog_node_t v = tree_vlog(wrap);
 
-      m = build_module(body, block, s);
-      hash_put(cache, block, m);
+      switch (vlog_kind(v)) {
+      case V_INST_BODY:
+         as = &(build_module(v, block, s)->scope);
+         break;
+      case V_BLOCK:
+         as = &(build_genScope(v, block, s)->scope);
+         break;
+      default:
+         should_not_reach_here();
+      }
+
+      hash_put(cache, block, as);
    }
 
-   return m;
+   return as;
 }
 
 static jit_t *vpi_get_jit(vpi_context_t *c)
@@ -1152,8 +1179,9 @@ vpiHandle vpi_bind_foreign(ident_t name, vlog_node_t where)
    }
 
    rt_model_t *m = get_model();
-   rt_scope_t *scope = get_active_scope(m);
-   c_module *mod = cached_module(scope->where, scope);
+   rt_scope_t *rs = get_active_scope(m);
+
+   c_abstractScope *scope = cached_scope(rs->where, rs);
 
    for (int i = 0; i < c->systasks.count; i++) {
       c_vpiObject *obj = from_handle(c->systasks.items[i]);
@@ -1168,9 +1196,9 @@ vpiHandle vpi_bind_foreign(ident_t name, vlog_node_t where)
 
       c_sysTfCall *call;
       if (cb->systf.type == vpiSysTask)
-         call = &(build_sysTaskCall(where, cb, &(mod->scope))->systfcall);
+         call = &(build_sysTaskCall(where, cb, scope)->systfcall);
       else
-         call = &(build_sysFuncCall(where, cb, &(mod->scope))->systfcall);
+         call = &(build_sysFuncCall(where, cb, scope)->systfcall);
 
       return (call->handle = internal_handle_for(&(call->tfcall.object)));
    }

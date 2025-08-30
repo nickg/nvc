@@ -20,6 +20,7 @@
 #include "hash.h"
 #include "ident.h"
 #include "vlog/vlog-node.h"
+#include "vlog/vlog-number.h"
 #include "vlog/vlog-phase.h"
 #include "vlog/vlog-util.h"
 
@@ -65,11 +66,20 @@ static vlog_node_t bind_parameter(vlog_node_t decl, int nth, vlog_node_t inst)
    return local;
 }
 
-static bool should_copy_pred(vlog_node_t v, void *ctx)
+static bool copy_instance_pred(vlog_node_t v, void *ctx)
 {
    switch (vlog_kind(v)) {
    case V_REF:
-      return vlog_kind(vlog_ref(v)) == V_PARAM_DECL;
+      switch (vlog_kind(vlog_ref(v))) {
+      case V_PARAM_DECL:
+      case V_GENVAR_DECL:
+         return true;
+      default:
+         return false;
+      }
+   case V_FUNC_DECL:
+   case V_TASK_DECL:
+      return true;
    default:
       return false;
    }
@@ -88,16 +98,34 @@ static vlog_node_t fixup_refs_cb(vlog_node_t v, void *ctx)
    return v;
 }
 
+static void rename_tf_decls(vlog_node_t v, ident_t prefix)
+{
+   const int ndecls = vlog_decls(v);
+   for (int i = 0; i < ndecls; i++) {
+      vlog_node_t d = vlog_decl(v, i);
+      switch (vlog_kind(d)) {
+      case V_FUNC_DECL:
+      case V_TASK_DECL:
+         assert(!vlog_has_ident2(d));
+         vlog_set_ident2(d, prefix);
+         break;
+      default:
+         break;
+      }
+   }
+}
+
 vlog_node_t vlog_new_instance(vlog_node_t mod, vlog_node_t inst, ident_t prefix)
 {
    ident_t suffix = vlog_ident(vlog_stmt(inst, 0));
+   ident_t id = ident_prefix(prefix, suffix, '.');
 
    vlog_node_t v = vlog_new(V_INST_BODY);
-   vlog_set_ident(v, ident_prefix(prefix, suffix, '.'));
+   vlog_set_ident(v, id);
    vlog_set_ident2(v, vlog_ident2(mod));
    vlog_set_loc(v, vlog_loc(inst));
 
-   vlog_node_t copy = vlog_copy(mod, should_copy_pred, NULL);
+   vlog_node_t copy = vlog_copy(mod, copy_instance_pred, NULL);
 
    hash_t *map = hash_new(16);
 
@@ -137,9 +165,62 @@ vlog_node_t vlog_new_instance(vlog_node_t mod, vlog_node_t inst, ident_t prefix)
    for (int i = 0; i < nstmts; i++)
       vlog_add_stmt(v, vlog_stmt(copy, i));
 
+   rename_tf_decls(v, id);
+
    vlog_rewrite(v, fixup_refs_cb, map);
    vlog_simp(v);
 
    hash_free(map);
    return v;
+}
+
+static bool copy_generate_pred(vlog_node_t v, void *ctx)
+{
+   switch (vlog_kind(v)) {
+   case V_REF:
+      return vlog_kind(vlog_ref(v)) == V_GENVAR_DECL;
+   case V_BLOCK:
+      return v == ctx;
+   case V_FUNC_DECL:
+   case V_TASK_DECL:
+      return true;
+   default:
+      return false;
+   }
+}
+
+vlog_node_t vlog_generate_instance(vlog_node_t v, vlog_node_t genvar,
+                                   int32_t value, ident_t prefix)
+{
+   assert(vlog_kind(v) == V_BLOCK);
+   assert(vlog_kind(genvar) == V_GENVAR_DECL);
+
+   vlog_node_t copy = vlog_copy(v, copy_generate_pred, v);
+
+   ident_t id = ident_sprintf("%s[%d]", istr(vlog_ident(v)), value);
+   vlog_set_ident(copy, id);
+
+   vlog_node_t num = vlog_new(V_NUMBER);
+   vlog_set_number(num, number_from_int(value));
+   vlog_set_loc(num, vlog_loc(genvar));
+
+   vlog_node_t lp = vlog_new(V_LOCALPARAM);
+   vlog_set_ident(lp, vlog_ident(genvar));
+   vlog_set_type(lp, vlog_type(genvar));
+   vlog_set_value(lp, num);
+
+   vlog_add_decl(copy, lp);
+
+   rename_tf_decls(copy, ident_prefix(prefix, id, '.'));
+
+   hash_t *map = hash_new(4);
+   hash_put(map, genvar, lp);
+
+   vlog_rewrite(copy, fixup_refs_cb, map);
+   vlog_simp(copy);
+
+   hash_free(map);
+   vlog_dump(copy, 0);
+   printf("\n");
+   return copy;
 }

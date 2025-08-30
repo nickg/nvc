@@ -848,6 +848,33 @@ void *jit_call_thunk(jit_t *j, vcode_unit_t unit, void *context,
    return user;
 }
 
+void *jit_call_thunk2(jit_t *j, mir_unit_t *mu, void *context,
+                      thunk_result_fn_t fn, void *arg)
+{
+   assert(mir_get_kind(mu) == MIR_UNIT_THUNK);
+
+   jit_func_t *f = xcalloc(sizeof(jit_func_t));
+   f->state  = JIT_FUNC_COMPILING;
+   f->jit    = j;
+   f->handle = JIT_HANDLE_INVALID;
+   f->entry  = jit_interp;
+   f->object = mir_get_object(mu);
+
+   jit_irgen(f, mu);
+
+   jit_scalar_t args[JIT_MAX_ARGS];
+   args[0].pointer = context;
+
+   tlab_t tlab = jit_null_tlab(j);
+
+   void *user = NULL;
+   if (jit_try_vcall(j, f, args, &tlab) && fn != NULL)
+      user = (*fn)(args, arg);
+
+   jit_free_func(f);
+   return user;
+}
+
 tlab_t jit_null_tlab(jit_t *j)
 {
    tlab_t t = { .mspace = j->mspace };

@@ -524,6 +524,7 @@ static mir_value_t vlog_lower_resolved(mir_unit_t *mu, vlog_node_t v)
    case V_VAR_DECL:
    case V_NET_DECL:
    case V_FUNC_DECL:
+   case V_GENVAR_DECL:
       {
          int hops;
          mir_value_t var = mir_search_object(mu, v, &hops), val;
@@ -893,7 +894,7 @@ static mir_value_t vlog_lower_rvalue(vlog_gen_t *g, vlog_node_t v)
    case V_USER_FCALL:
       {
          vlog_node_t decl = vlog_ref(v);
-         ident_t func = vlog_ident(decl);
+         ident_t func = ident_prefix(vlog_ident2(decl), vlog_ident(decl), '.');
 
          const int nparams = vlog_params(v);
          mir_value_t *args LOCAL =
@@ -1926,6 +1927,17 @@ static void vlog_lower_var_decl(vlog_gen_t *g, vlog_node_t v, tree_t wrap)
    mir_put_object(g->mu, v, var);
 }
 
+static void vlog_lower_genvar_decl(vlog_gen_t *g, vlog_node_t v)
+{
+   const type_info_t *ti = vlog_type_info(g, vlog_type(v));
+
+   mir_value_t var = mir_add_var(g->mu, ti->type, MIR_NULL_STAMP,
+                                 vlog_ident(v), 0);
+   mir_build_store(g->mu, var, mir_const_vec(g->mu, ti->type, ~0, ~0));
+
+   mir_put_object(g->mu, v, var);
+}
+
 static void vlog_lower_locals(vlog_gen_t *g, vlog_node_t v)
 {
    const int ndecls = vlog_decls(v);
@@ -2221,11 +2233,14 @@ void vlog_lower_block(mir_context_t *mc, ident_t parent, tree_t b)
       case V_VAR_DECL:
          vlog_lower_var_decl(&g, d, hash_get(map, d));
          break;
+      case V_GENVAR_DECL:
+         vlog_lower_genvar_decl(&g, d);
+         break;
       case V_LOCALPARAM:
          break;  // Always inlined for now
       case V_FUNC_DECL:
-         mir_defer(mc, vlog_ident(d), qual, MIR_UNIT_FUNCTION,
-                   vlog_lower_func_decl, vlog_to_object(d));
+         mir_defer(mc, ident_prefix(vlog_ident2(d), vlog_ident(d), '.'), qual,
+                   MIR_UNIT_FUNCTION, vlog_lower_func_decl, vlog_to_object(d));
          break;
       default:
          CANNOT_HANDLE(d);
@@ -2337,4 +2352,33 @@ void vlog_lower_block(mir_context_t *mc, ident_t parent, tree_t b)
 
    mir_optimise(mu, MIR_PASS_O1);
    mir_put_unit(mc, mu);
+}
+
+mir_unit_t *vlog_lower_thunk(mir_context_t *mc, ident_t parent, vlog_node_t v)
+{
+   mir_unit_t *mu = mir_unit_new(mc, NULL, vlog_to_object(v), MIR_UNIT_THUNK,
+                                 mir_get_shape(mc, parent));
+
+   vlog_gen_t g = {
+      .mu = mu,
+   };
+
+   switch (vlog_kind(v)) {
+   case V_FOR_INIT:
+      assert(vlog_decls(v) == 0);   // TODO
+      // Fall-through
+   case V_FOR_STEP:
+      vlog_lower_stmts(&g, v);
+      mir_build_return(mu, MIR_NULL_VALUE);
+      break;
+   default:
+      {
+         mir_value_t value = vlog_lower_rvalue(&g, v);
+         mir_set_result(mu, mir_get_type(mu, value));
+         mir_build_return(mu, value);
+      }
+   }
+
+   vlog_lower_cleanup(&g);
+   return mu;
 }
