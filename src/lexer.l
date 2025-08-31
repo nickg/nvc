@@ -784,6 +784,25 @@ BEFORE            ?i:before
 <VLOG>"$width"           { return tDLRWIDTH; }
 <VLOG>"event"            { return tEVENT; }
 <VLOG>"genvar"           { return KEYWORD_2001(tGENVAR); }
+<VLOG>"assert"           { return KEYWORD_2005(tASSERT); }
+<VLOG>"assume"           { return KEYWORD_2005(tASSUME); }
+<VLOG>"class"            { return KEYWORD_2005(tCLASS); }
+<VLOG>"chandle"          { return KEYWORD_2005(tCHANDLE); }
+<VLOG>"export"           { return KEYWORD_2005(tEXPORT); }
+<VLOG>"import"           { return KEYWORD_2005(tIMPORT); }
+<VLOG>"package"          { return KEYWORD_2005(tPACKAGE); }
+<VLOG>"endpackage"       { return KEYWORD_2005(tENDPACKAGE); }
+<VLOG>"extends"          { return KEYWORD_2005(tEXTENDS); }
+<VLOG>"this"             { return KEYWORD_2005(tTHIS); }
+<VLOG>"new"              { return KEYWORD_2005(tNEW); }
+<VLOG>"nettype"          { return KEYWORD_2005(tNETTYPE); }
+<VLOG>"null"             { return KEYWORD_2005(tNULL); }
+<VLOG>"ref"              { return KEYWORD_2005(tREF); }
+<VLOG>"super"            { return KEYWORD_2005(tSUPER); }
+<VLOG>"restrict"         { return KEYWORD_2005(tRESTRICT); }
+<VLOG>"string"           { return KEYWORD_2005(tSTRINGK); }
+<VLOG>"static"           { return KEYWORD_2005(tSTATIC); }
+<VLOG>"with"             { return KEYWORD_2005(tWITH); }
 
 <VLOG>"`unconnected_drive"   { return tUNCTDRIVE; }
 <VLOG>"`nounconnected_drive" { return tNOUNCTDRIVE; }

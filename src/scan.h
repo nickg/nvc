@@ -504,5 +504,16 @@ void reset_sdf_parser(void);
 #define tSIGNED        583
 #define tUNSIGNED      584
 #define tDISABLE       585
+#define tCLASS         586
+#define tCHANDLE       587
+#define tEXPORT        588
+#define tIMPORT        589
+#define tENDPACKAGE    590
+#define tEXTENDS       591
+#define tTHIS          592
+#define tNETTYPE       593
+#define tREF           594
+#define tSUPER         595
+#define tSTATIC        596
 
 #endif  // _SCAN_H
