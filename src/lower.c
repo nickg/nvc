@@ -2338,6 +2338,7 @@ static vcode_type_t lower_param_type(type_t type, class_t class,
 
 static vcode_reg_t lower_context_for_call(lower_unit_t *lu, ident_t unit_name)
 {
+   ident_t context_name;
    vcode_unit_t context = unit_registry_get_parent(lu->registry, unit_name);
    if (context != NULL) {
       vcode_unit_t ancestor = lu->vunit;
@@ -2348,9 +2349,11 @@ static vcode_reg_t lower_context_for_call(lower_unit_t *lu, ident_t unit_name)
 
       if (ancestor != NULL)
          return emit_context_upref(hops);
-   }
 
-   ident_t context_name = get_call_context(unit_name);
+      context_name = vcode_unit_name(context);
+   }
+   else
+      context_name = get_call_context(unit_name);
 
    if (context_name == lu->name)
       return emit_context_upref(0);

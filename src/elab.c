@@ -34,6 +34,7 @@
 #include "rt/structs.h"
 #include "thread.h"
 #include "type.h"
+#include "vhdl/vhdl-phase.h"
 #include "vlog/vlog-defs.h"
 #include "vlog/vlog-node.h"
 #include "vlog/vlog-phase.h"
@@ -2020,12 +2021,6 @@ static inline tree_t elab_eval_expr(tree_t t, const elab_ctx_t *ctx)
    return eval_must_fold(ctx->jit, t, ctx->registry, ctx->lowered, context);
 }
 
-static bool elab_copy_genvar_cb(tree_t t, void *ctx)
-{
-   tree_t genvar = ctx;
-   return tree_kind(t) == T_REF && tree_ref(t) == genvar;
-}
-
 static void elab_generate_range(tree_t r, int64_t *low, int64_t *high,
                                 const elab_ctx_t *ctx)
 {
@@ -2075,17 +2070,15 @@ static void elab_for_generate(tree_t t, const elab_ctx_t *ctx)
    tree_t g = tree_decl(t, 0);
    assert(tree_kind(g) == T_GENERIC_DECL);
 
-   ident_t base = tree_ident(t);
+   ident_t prefix = ident_prefix(ctx->dotted, tree_ident(t), '.');
 
    for (int64_t i = low; i <= high; i++) {
-      LOCAL_TEXT_BUF tb = tb_new();
-      tb_cat(tb, istr(base));
-      tb_printf(tb, "(%"PRIi64")", i);
+      ident_t id = ident_sprintf("%s(%"PRIi64")", istr(tree_ident(t)), i);
+      ident_t ndotted = ident_prefix(ctx->dotted, id, '.');
 
-      ident_t id = ident_new(tb_get(tb));
+      tree_t copy = vhdl_generate_instance(t, prefix, ndotted);
 
       tree_t b = tree_new(T_BLOCK);
-      tree_set_loc(b, tree_loc(t));
       tree_set_ident(b, id);
       tree_set_loc(b, tree_loc(t));
 
@@ -2099,8 +2092,6 @@ static void elab_for_generate(tree_t t, const elab_ctx_t *ctx)
       tree_add_generic(b, g);
       tree_add_genmap(b, map);
 
-      ident_t ndotted = ident_prefix(ctx->dotted, id, '.');
-
       elab_ctx_t new_ctx = {
          .out       = b,
          .dotted    = ndotted,
@@ -2108,14 +2099,6 @@ static void elab_for_generate(tree_t t, const elab_ctx_t *ctx)
          .config    = elab_block_config(t, ctx),
       };
       elab_inherit_context(&new_ctx, ctx);
-
-      new_ctx.prefix[0] = ident_prefix(ctx->dotted, base, '.');
-
-      tree_t roots[] = { t };
-      copy_with_renaming(roots, 1, elab_copy_genvar_cb, NULL, g, ndotted,
-                         new_ctx.prefix, ARRAY_LEN(new_ctx.prefix));
-
-      tree_t copy = roots[0];
 
       elab_push_scope(t, &new_ctx);
       hash_put(new_ctx.generics, g, tree_value(map));

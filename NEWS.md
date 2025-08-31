@@ -4,7 +4,7 @@
 - Aliases of component declarations are now allowed (#1276).
 - Added missing check that partial associations appear in a contiguous
   sequence (#1254).
-- Several other minor bugs were resolved (#1277, #1280, #1281).
+- Several other minor bugs were resolved (#1269, #1277, #1280, #1281).
 
 ## Version 1.17.2 - 2025-08-22
 - Fixed an issue where sub-elements of a port with `'converse` record
