@@ -17,6 +17,7 @@
 
 #include "util.h"
 #include "diag.h"
+#include "hash.h"
 #include "ident.h"
 #include "vlog/vlog-node.h"
 #include "vlog/vlog-number.h"
@@ -100,19 +101,28 @@ static vlog_node_t simp_port_decl(vlog_node_t decl, vlog_node_t mod)
    return decl;
 }
 
-static void build_sensitivity(vlog_node_t ctrl, vlog_node_t v)
+static void build_sensitivity(vlog_node_t ctrl, vlog_node_t v, hset_t *set,
+                              bool is_comb)
 {
    switch (vlog_kind(v)) {
    case V_NBASSIGN:
    case V_BASSIGN:
    case V_UNARY:
-      build_sensitivity(ctrl, vlog_value(v));
+      build_sensitivity(ctrl, vlog_value(v), set, is_comb);
       break;
    case V_BINARY:
-      build_sensitivity(ctrl, vlog_left(v));
-      build_sensitivity(ctrl, vlog_right(v));
+      build_sensitivity(ctrl, vlog_left(v), set, is_comb);
+      build_sensitivity(ctrl, vlog_right(v), set, is_comb);
       break;
    case V_REF:
+      {
+         vlog_node_t d = vlog_ref(v);
+         if (hset_contains(set, d))
+            break;
+
+         hset_insert(set, d);
+      }
+      // Fall-through
    case V_BIT_SELECT:
    case V_PART_SELECT:
       {
@@ -131,45 +141,68 @@ static void build_sensitivity(vlog_node_t ctrl, vlog_node_t v)
       {
          const int nconds = vlog_conds(v);
          for (int i = 0; i < nconds; i++)
-            build_sensitivity(ctrl, vlog_cond(v, i));
+            build_sensitivity(ctrl, vlog_cond(v, i), set, is_comb);
       }
       break;
    case V_COND:
       {
          if (vlog_has_value(v))
-            build_sensitivity(ctrl, vlog_value(v));
+            build_sensitivity(ctrl, vlog_value(v), set, is_comb);
 
          const int nstmts = vlog_stmts(v);
          for (int i = 0; i < nstmts; i++)
-            build_sensitivity(ctrl, vlog_stmt(v, i));
+            build_sensitivity(ctrl, vlog_stmt(v, i), set, is_comb);
       }
       break;
    case V_CASE:
-      build_sensitivity(ctrl, vlog_value(v));
+      build_sensitivity(ctrl, vlog_value(v), set, is_comb);
       // Fall-through
    case V_CASE_ITEM:
-   case V_BLOCK:
       {
          const int nstmts = vlog_stmts(v);
          for (int i = 0; i < nstmts; i++)
-            build_sensitivity(ctrl, vlog_stmt(v, i));
+            build_sensitivity(ctrl, vlog_stmt(v, i), set, is_comb);
       }
       break;
+   case V_FUNC_DECL:
+   case V_TASK_DECL:
+      {
+         // Ignore task/function ports
+         const int nports = vlog_ports(v);
+         for (int i = 0; i < nports; i++)
+            hset_insert(set, vlog_port(v, i));
+      }
+      // Fall-through
+   case V_BLOCK:
+      {
+         // Ignore local variables
+         const int ndecls = vlog_decls(v);
+         for (int i = 0; i < ndecls; i++)
+            hset_insert(set, vlog_decl(v, i));
+
+         const int nstmts = vlog_stmts(v);
+         for (int i = 0; i < nstmts; i++)
+            build_sensitivity(ctrl, vlog_stmt(v, i), set, is_comb);
+      }
+      break;
+   case V_USER_FCALL:
+   case V_USER_TCALL:
+      if (is_comb)
+         build_sensitivity(ctrl, vlog_ref(v), set, is_comb);
+      // Fall-through
    case V_CONCAT:
    case V_SYS_FCALL:
    case V_SYS_TCALL:
-   case V_USER_FCALL:
-   case V_USER_TCALL:
       {
          const int nparams = vlog_params(v);
          for (int i = 0; i < nparams; i++)
-            build_sensitivity(ctrl, vlog_param(v, i));
+            build_sensitivity(ctrl, vlog_param(v, i), set, is_comb);
       }
       break;
    case V_COND_EXPR:
-      build_sensitivity(ctrl, vlog_value(v));
-      build_sensitivity(ctrl, vlog_left(v));
-      build_sensitivity(ctrl, vlog_right(v));
+      build_sensitivity(ctrl, vlog_value(v), set, is_comb);
+      build_sensitivity(ctrl, vlog_left(v), set, is_comb);
+      build_sensitivity(ctrl, vlog_right(v), set, is_comb);
       break;
    default:
       fatal_at(vlog_loc(v), "cannot handle %s in build_sensitivity",
@@ -182,16 +215,59 @@ static vlog_node_t simp_timing(vlog_node_t v)
    vlog_node_t ctrl = vlog_value(v);
 
    if (vlog_kind(ctrl) == V_EVENT_CONTROL && vlog_params(ctrl) == 0) {
+      hset_t *set = hset_new(16);
+
       const int nstmts = vlog_stmts(v);
       for (int i = 0; i < nstmts; i++)
-         build_sensitivity(ctrl, vlog_stmt(v, i));
+         build_sensitivity(ctrl, vlog_stmt(v, i), set, false);
 
       if (vlog_params(ctrl) == 0)
          warn_at(vlog_loc(v), "timing statement has no sensitivities and "
                  "so will never trigger");
+
+      hset_free(set);
    }
 
    return v;
+}
+
+static vlog_node_t simp_always(vlog_node_t v)
+{
+   switch (vlog_subkind(v)) {
+   case V_ALWAYS_COMB:
+   case V_ALWAYS_LATCH:
+      {
+         // See 1800-2023 section 9.2.2.2.1
+         vlog_node_t ctrl = vlog_new(V_EVENT_CONTROL);
+         vlog_set_loc(ctrl, vlog_loc(v));
+
+         hset_t *set = hset_new(16);
+
+         vlog_node_t s0 = vlog_stmt(v, 0);
+         build_sensitivity(ctrl, s0, set, true);
+
+         hset_free(set);
+
+         vlog_node_t timing = vlog_new(V_TIMING);
+         vlog_set_loc(timing, vlog_loc(v));
+         vlog_set_value(timing, ctrl);
+
+         vlog_node_t b = vlog_new(V_BLOCK);
+         vlog_set_loc(b, vlog_loc(v));
+         vlog_add_stmt(b, s0);
+         vlog_add_stmt(b, timing);
+
+         vlog_node_t new = vlog_new(V_ALWAYS);
+         vlog_set_loc(new, vlog_loc(v));
+         vlog_set_subkind(new, V_ALWAYS_PLAIN);
+         vlog_set_ident(new, vlog_ident(v));
+         vlog_add_stmt(new, b);
+
+         return new;
+      }
+   default:
+      return v;
+   }
 }
 
 static vlog_node_t simp_data_type(vlog_node_t v)
@@ -408,6 +484,8 @@ static vlog_node_t vlog_simp_cb(vlog_node_t v, void *context)
       return simp_sys_fcall(v);
    case V_COND_EXPR:
       return simp_cond_expr(v);
+   case V_ALWAYS:
+      return simp_always(v);
    default:
       return v;
    }

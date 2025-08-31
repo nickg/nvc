@@ -60,6 +60,8 @@ static void vlog_dump_paren(vlog_node_t v, int indent)
    case V_REF:
    case V_BIT_SELECT:
    case V_NUMBER:
+   case V_USER_FCALL:
+   case V_SYS_FCALL:
       vlog_dump(v, indent);
       break;
    default:
@@ -233,7 +235,13 @@ static void vlog_dump_always(vlog_node_t v, int indent)
 {
    tab(indent);
 
-   print_syntax("#always ");
+   switch (vlog_subkind(v)) {
+   case V_ALWAYS_FF:    print_syntax("#always_ff "); break;
+   case V_ALWAYS_COMB:  print_syntax("#always_comb "); break;
+   case V_ALWAYS_LATCH: print_syntax("#always_latch "); break;
+   default:             print_syntax("#always "); break;
+   }
+
    vlog_dump(vlog_stmt(v, 0), indent);
    print_syntax("\n");
 }
@@ -437,6 +445,7 @@ static void vlog_dump_binary(vlog_node_t v)
    switch (vlog_subkind(v)) {
    case V_BINARY_OR:       print_syntax(" | "); break;
    case V_BINARY_AND:      print_syntax(" & "); break;
+   case V_BINARY_XOR:      print_syntax(" ^ "); break;
    case V_BINARY_CASE_EQ:  print_syntax(" === "); break;
    case V_BINARY_CASE_NEQ: print_syntax(" !== "); break;
    case V_BINARY_LOG_EQ:   print_syntax(" == "); break;

@@ -17,6 +17,10 @@ if [ -f $regress/$1.v ]; then
   vlog $plusopt $regress/$1.v
 fi
 
+if [ -f $regress/$1.sv ]; then
+  vlog $plusopt $regress/$1.sv
+fi
+
 if [ -f $regress/$1.vhd ]; then
   vcom $plusopt -2008 $regress/$1.vhd
 fi

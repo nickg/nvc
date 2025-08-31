@@ -3206,7 +3206,7 @@ static vlog_node_t p_tf_port_item(void)
 
    BEGIN("task or function port item");
 
-   vlog_node_t v = vlog_new(V_PORT_DECL);
+   vlog_node_t v = vlog_new(V_TF_PORT_DECL);
 
    skip_over_attributes();
 

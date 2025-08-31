@@ -917,9 +917,14 @@ static bool run_test(test_t *test)
          push_arg(&args, "%s" DIR_SEP "regress" DIR_SEP "%s.vhd",
                   test_dir, test->name);
 
-      if (test->flags & (F_MIXED | F_VERILOG))
-         push_arg(&args, "%s" DIR_SEP "regress" DIR_SEP "%s.v",
-                  test_dir, test->name);
+      if (test->flags & (F_MIXED | F_VERILOG)) {
+         if (file_exists("%s/regress/%s.sv", test_dir, test->name))
+            push_arg(&args, "%s" DIR_SEP "regress" DIR_SEP "%s.sv",
+                     test_dir, test->name);
+         else
+            push_arg(&args, "%s" DIR_SEP "regress" DIR_SEP "%s.v",
+                     test_dir, test->name);
+      }
 
       if (test->flags & F_RELAX)
          push_arg(&args, "--relax=%s", test->relax);

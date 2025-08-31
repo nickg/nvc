@@ -1182,3 +1182,4 @@ udp1            verilog
 tfcall3         verilog
 ivtest14        verilog
 issue1269       normal,2008
+ivtest15        verilog

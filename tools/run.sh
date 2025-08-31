@@ -14,6 +14,8 @@ fi
 regress=$root/test/regress
 if [ -f $regress/$name.v ]; then
   vlog=$regress/$name.v
+elif [ -f $regress/$name.sv ]; then
+  vlog=$regress/$name.sv
 fi
 if [ -z "$vlog" ] || [ -f $regress/$name.vhd ]; then
   vhd=$regress/$name.vhd

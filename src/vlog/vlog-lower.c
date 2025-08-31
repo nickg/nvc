@@ -1136,7 +1136,7 @@ static void vlog_lower_timing(vlog_gen_t *g, vlog_node_t v, bool is_static)
          if (!is_static) {
             mir_value_t trigger = MIR_NULL_VALUE;
             for (int i = 0; i < nparams; i++) {
-               mir_value_t p = vlog_lower_sensitivity(g, vlog_param(ctrl, 0));
+               mir_value_t p = vlog_lower_sensitivity(g, vlog_param(ctrl, i));
                trigger = vlog_or_triggers(g, 2, trigger, p);
             }
 
