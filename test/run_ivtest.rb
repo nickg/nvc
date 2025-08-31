@@ -18,7 +18,7 @@ LibPath = "#{BuildDir}/lib/std:#{BuildDir}/lib/ieee"
 IvtestDir = Pathname.new(ARGV[0]).realpath
 GitRev = IO::popen("git rev-parse --short HEAD").read.chomp
 Tool = ENV['NVC'] || 'nvc'
-ExpectFails = 1085
+ExpectFails = 1527
 
 ENV['NVC_COLORS'] = 'always'
 
@@ -110,11 +110,34 @@ end
 fails  = 0
 passes = 0
 
+buffer = ""
 File.open("#{TestDir}/ivtest.list").each_line do |line|
   cleaned = line.gsub(/#.*/, '').strip
   next if cleaned.empty?
 
-  name, type, dir, *rest = cleaned.split
+  if cleaned.end_with?("\\")
+    buffer << cleaned.chomp("\\") # strip the backslash and append
+    next
+  else
+    buffer << cleaned
+  end
+
+  name, typelist, dir, *rest = buffer.split
+
+  type, *options = typelist.split(",")
+
+  aflags = options.map do |o|
+    case o
+    when "-g2005-sv"
+      "--keywords=1800-2005"
+    when "-g2009"
+      "--keywords=1800-2009"
+    when "-g2012"
+      "--keywords=1800-2012"
+    else
+      puts "Unknown iverilog option #{o}".yellow
+    end
+  end.join(" ")
 
   flags = rest.empty? ? {} : parse_flags(rest[0])
 
@@ -123,9 +146,9 @@ File.open("#{TestDir}/ivtest.list").each_line do |line|
     m = get_module_name(f, flags)
 
     if type == "CE" then
-      cmd = "#{Tool} --work=work:#{workdir}/work -a --no-save #{f}"
+      cmd = "#{Tool} --work=work:#{workdir}/work -a #{aflags} --no-save #{f}"
     else
-      cmd = "#{Tool} --work=work:#{workdir}/work -a --no-save #{f} " +
+      cmd = "#{Tool} --work=work:#{workdir}/work -a #{aflags} --no-save #{f} " +
             "-e --jit --no-save #{m} -r"
     end
 
@@ -140,6 +163,8 @@ File.open("#{TestDir}/ivtest.list").each_line do |line|
       fails += 1
     end
   end
+
+  buffer = ""
 end
 
 puts
