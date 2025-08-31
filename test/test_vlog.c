@@ -964,6 +964,9 @@ START_TEST(test_tfcall1)
    input_from_file(TESTDIR "/vlog/tfcall1.sv");
 
    const error_t expect[] = {
+      { 43, "return statement can only be used in a subroutine" },
+      { 40, "return statement in a task cannot have an expression" },
+      { 46, "return statement in a non-void function must have an expression" },
       {  8, "expected 2 arguments for 'sum' but have 1" },
       {  9, "expected 2 arguments for 'sum' but have 3" },
       { 13, "'x4' is not a function" },

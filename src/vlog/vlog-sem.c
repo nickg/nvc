@@ -369,6 +369,22 @@ static void vlog_check_deassign(vlog_node_t v)
             "standard");
 }
 
+static void vlog_check_return(vlog_node_t v)
+{
+   if (!vlog_has_ref(v))
+      return;   // Was earlier error
+
+   vlog_node_t subr = vlog_ref(v);
+   const vlog_kind_t kind = vlog_kind(subr);
+
+   if (kind == V_FUNC_DECL && !vlog_has_value(v))
+      error_at(vlog_loc(v), "return statement in a non-void function must "
+               "have an expression");
+   else if (kind == V_TASK_DECL && vlog_has_value(v))
+      error_at(vlog_loc(v), "return statement in a task cannot have an "
+               "expression");
+}
+
 static vlog_node_t vlog_check_cb(vlog_node_t v, void *ctx)
 {
    if (has_error(v))
@@ -415,6 +431,9 @@ static vlog_node_t vlog_check_cb(vlog_node_t v, void *ctx)
       break;
    case V_DEASSIGN:
       vlog_check_deassign(v);
+      break;
+   case V_RETURN:
+      vlog_check_return(v);
       break;
    case V_CASE_ITEM:
    case V_UDP_LEVEL:

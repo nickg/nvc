@@ -267,6 +267,9 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
 
    // V_TF_PORT_DECL
    (I_IDENT | I_SUBKIND | I_RANGES | I_TYPE | I_VALUE),
+
+   // V_RETURN
+   (I_REF | I_VALUE),
 };
 
 static const char *kind_text_map[V_LAST_NODE_KIND] = {
@@ -290,7 +293,7 @@ static const char *kind_text_map[V_LAST_NODE_KIND] = {
    "V_SPECPARAM",     "V_FORK",        "V_ATTR_INST",     "V_USER_TCALL",
    "V_VOID_CALL",     "V_GENVAR_DECL", "V_FOR_GENERATE",  "V_DEASSIGN",
    "V_FORCE",         "V_RELEASE",     "V_DISABLE",       "V_HIER_REF",
-   "V_TF_PORT_DECL",
+   "V_TF_PORT_DECL",  "V_RETURN",
 };
 
 static const change_allowed_t change_allowed[] = {

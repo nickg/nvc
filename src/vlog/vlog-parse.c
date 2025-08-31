@@ -2607,6 +2607,37 @@ static vlog_node_t p_disable_statement(void)
    return v;
 }
 
+static vlog_node_t p_jump_statement(void)
+{
+   // return [ expression ] ; | break ; | continue ;
+
+   BEGIN("jump statement");
+
+   switch (one_of(tRETURN)) {
+   case tRETURN:
+      {
+         vlog_node_t v = vlog_new(V_RETURN);
+
+         vlog_node_t subr = vlog_symtab_subr(symtab);
+         if (subr == NULL)
+            parse_error(&state.last_loc, "return statement can only be used "
+                        "in a subroutine");
+         else
+            vlog_set_ref(v, subr);
+
+         if (peek() != tSEMI)
+            vlog_set_value(v, p_expression());
+
+         consume(tSEMI);
+
+         vlog_set_loc(v, CURRENT_LOC);
+         return v;
+      }
+   default:
+      should_not_reach_here();
+   }
+}
+
 static vlog_node_t p_statement_item(void)
 {
    // blocking_assignment ; | nonblocking_assignment ;
@@ -2686,10 +2717,12 @@ static vlog_node_t p_statement_item(void)
          consume(tSEMI);
          return v;
       }
+   case tRETURN:
+      return p_jump_statement();
    default:
       one_of(tID, tAT, tHASH, tBEGIN, tFORK, tSYSTASK, tVOID, tIF, tFOREVER,
              tWHILE, tREPEAT, tDO, tFOR, tWAIT, tCASE, tCASEX, tCASEZ, tIFIMPL,
-             tASSIGN, tDEASSIGN, tFORCE, tRELEASE);
+             tASSIGN, tDEASSIGN, tFORCE, tRELEASE, tRETURN);
       drop_tokens_until(tSEMI);
       return vlog_new(V_BLOCK);  // Dummy statement
    }

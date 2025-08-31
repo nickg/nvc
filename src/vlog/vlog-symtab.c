@@ -288,3 +288,20 @@ void vlog_symtab_suppress(vlog_symtab_t *st)
 {
    st->top->suppress = true;
 }
+
+vlog_node_t vlog_symtab_subr(vlog_symtab_t *st)
+{
+   for (vlog_scope_t *s = st->top; s != NULL; s = s->parent) {
+      if (s->container != NULL) {
+         switch (vlog_kind(s->container)) {
+         case V_FUNC_DECL:
+         case V_TASK_DECL:
+            return s->container;
+         default:
+            break;
+         }
+      }
+   }
+
+   return NULL;
+}

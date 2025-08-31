@@ -378,12 +378,60 @@ static mir_value_t vlog_lower_unary(vlog_gen_t *g, vlog_node_t v)
    return mir_build_unary(g->mu, MIR_VEC_BIT_NOT, otype, result);
 }
 
+static bool vlog_has_side_effects(vlog_node_t v)
+{
+   switch (vlog_kind(v)) {
+   case V_REF:
+   case V_BIT_SELECT:
+   case V_PART_SELECT:
+   case V_NUMBER:
+      return false;
+   case V_UNARY:
+      return vlog_has_side_effects(vlog_value(v));
+   case V_BINARY:
+      return vlog_has_side_effects(vlog_left(v))
+         || vlog_has_side_effects(vlog_right(v));
+   default:
+      return true;
+   }
+}
+
 static mir_value_t vlog_lower_binary(vlog_gen_t *g, vlog_node_t v)
 {
    mir_value_t left = vlog_lower_rvalue(g, vlog_left(v));
-   mir_value_t right = vlog_lower_rvalue(g, vlog_right(v));
-
    assert(mir_is_vector(g->mu, left));
+
+   // For short-circuiting operators check if the RHS can have side effects
+   vlog_node_t rhs_expr = vlog_right(v);
+   mir_block_t guard_bb = MIR_NULL_BLOCK, skip_bb = MIR_NULL_BLOCK;
+   mir_value_t var = MIR_NULL_VALUE;
+   const vlog_binary_t binop = vlog_subkind(v);
+   const bool is_short_circuit =
+      binop == V_BINARY_LOG_AND || binop == V_BINARY_LOG_OR;
+
+   if (is_short_circuit && vlog_has_side_effects(rhs_expr)) {
+      guard_bb = mir_add_block(g->mu);
+      skip_bb = mir_add_block(g->mu);
+
+      // TODO: use a phi
+      mir_type_t t_logic = mir_vec4_type(g->mu, 1, false);
+      var = mir_add_var(g->mu, t_logic, MIR_NULL_STAMP,
+                        ident_uniq("shortcircuit"), MIR_VAR_TEMP);
+
+      mir_value_t def = mir_const_vec(g->mu, t_logic,
+                                      binop == V_BINARY_LOG_OR, 0);
+      mir_build_store(g->mu, var, def);
+
+      mir_value_t test = mir_build_test(g->mu, left);
+      if (binop == V_BINARY_LOG_OR)
+         mir_build_cond(g->mu, test, skip_bb, guard_bb);
+      else
+         mir_build_cond(g->mu, test, guard_bb, skip_bb);
+
+      mir_set_cursor(g->mu, guard_bb, MIR_APPEND);
+   }
+
+   mir_value_t right = vlog_lower_rvalue(g, rhs_expr);
    assert(mir_is_vector(g->mu, right));
 
    mir_type_t ltype = mir_get_type(g->mu, left);
@@ -409,7 +457,7 @@ static mir_value_t vlog_lower_binary(vlog_gen_t *g, vlog_node_t v)
 
    bool negate = false;
    mir_vec_op_t mop;
-   switch (vlog_subkind(v)) {
+   switch (binop) {
    case V_BINARY_AND:      mop = MIR_VEC_BIT_AND; break;
    case V_BINARY_OR:       mop = MIR_VEC_BIT_OR; break;
    case V_BINARY_XOR:      mop = MIR_VEC_BIT_XOR; break;
@@ -436,11 +484,19 @@ static mir_value_t vlog_lower_binary(vlog_gen_t *g, vlog_node_t v)
    }
 
    mir_value_t result = mir_build_binary(g->mu, mop, type, lcast, rcast);
-   if (!negate)
+   if (negate) {
+      mir_type_t otype = mir_get_type(g->mu, result);
+      result = mir_build_unary(g->mu, MIR_VEC_BIT_NOT, otype, result);
+   }
+
+   if (mir_is_null(var))
       return result;
 
-   mir_type_t otype = mir_get_type(g->mu, result);
-   return mir_build_unary(g->mu, MIR_VEC_BIT_NOT, otype, result);
+   mir_build_store(g->mu, var, result);
+
+   mir_set_cursor(g->mu, skip_bb, MIR_APPEND);
+
+   return mir_build_load(g->mu, var);
 }
 
 static mir_value_t vlog_lower_systf_param(vlog_gen_t *g, vlog_node_t v)
@@ -1491,6 +1547,19 @@ static void vlog_lower_case(vlog_gen_t *g, vlog_node_t v)
    mir_comment(g->mu, "End case statement");
 }
 
+static void vlog_lower_return(vlog_gen_t *g, vlog_node_t v)
+{
+   mir_value_t result = MIR_NULL_VALUE;
+   if (vlog_has_value(v)) {
+      mir_value_t value = vlog_lower_rvalue(g, vlog_value(v));
+
+      const type_info_t *ti = vlog_type_info(g, vlog_type(vlog_ref(v)));
+      result = mir_build_cast(g->mu, ti->type, value);
+   }
+
+   mir_build_return(g->mu, result);
+}
+
 static void vlog_lower_stmts(vlog_gen_t *g, vlog_node_t v)
 {
    const int nstmts = vlog_stmts(v);
@@ -1535,6 +1604,9 @@ static void vlog_lower_stmts(vlog_gen_t *g, vlog_node_t v)
       case V_POSTFIX:
          vlog_lower_rvalue(g, s);
          break;
+      case V_RETURN:
+         vlog_lower_return(g, s);
+         return;
       default:
          CANNOT_HANDLE(s);
       }

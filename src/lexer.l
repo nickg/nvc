@@ -803,6 +803,7 @@ BEFORE            ?i:before
 <VLOG>"string"           { return KEYWORD_2005(tSTRINGK); }
 <VLOG>"static"           { return KEYWORD_2005(tSTATIC); }
 <VLOG>"with"             { return KEYWORD_2005(tWITH); }
+<VLOG>"return"           { return KEYWORD_2005(tRETURN); }
 
 <VLOG>"`unconnected_drive"   { return tUNCTDRIVE; }
 <VLOG>"`nounconnected_drive" { return tNOUNCTDRIVE; }

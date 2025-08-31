@@ -36,4 +36,14 @@ module tfcall1;
 
   task main; endtask
 
+  task task2;
+    return 5;    // Error
+  endtask // task2
+
+  initial return;   // Error
+
+  function logic func1;
+    return;  // Error
+  endfunction // func1
+
 endmodule // tfcall1
