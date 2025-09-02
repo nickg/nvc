@@ -50,17 +50,16 @@ struct _ifdef_stack {
    bool           cond;
 };
 
-typedef A(YY_BUFFER_STATE) buffer_stack_t;
-
-static int             caller = 0;
-static shash_t        *macros;
-static char           *macro_name;
-static text_buf_t     *macro_text;
-static text_buf_t     *output;
-static ifdef_stack_t  *ifdefs = NULL;
-static buffer_stack_t  buffer_stack = AINIT;
-static bool            emit_locs;
-static bool            continuation = false;
+static int            caller = 0;
+static shash_t       *macros;
+static char          *macro_name;
+static text_buf_t    *macro_text;
+static text_buf_t    *output;
+static ifdef_stack_t *ifdefs = NULL;
+static bool           emit_locs;
+static bool           continuation = false;
+static char          *incname = NULL;
+static loc_t          incloc;
 
 static void define_macro(void);
 static void undef_macro(void);
@@ -68,8 +67,9 @@ static void undefall_macro(void);
 static int push_ifdef(bool cond, int state);
 static int pop_ifdef(void);
 static void convert_line_ending(void);
+static void push_include(void);
 static void push_macro(const char *name, const char *text);
-static void pop_buffer(void);
+static void end_of_buffer(void);
 
 extern loc_t yylloc;
 %}
@@ -77,7 +77,7 @@ extern loc_t yylloc;
 ID    [a-zA-Z_]([a-zA-Z0-9_$])*
 
 %x COMMENT C_COMMENT MACRO_NAME MACRO_TEXT IFDEF_NAME IFDEF_FALSE ELSIF_NAME
-%x IFNDEF_NAME
+%x IFNDEF_NAME INCLUDE INCLUDE2
 
 %%
 
@@ -111,6 +111,7 @@ ID    [a-zA-Z_]([a-zA-Z0-9_$])*
                         }
 `undef[ \t]+{ID}[ \t]*  { undef_macro(); }
 `undefineall[ \t]*      { undefall_macro(); }
+`include[ \t]*          { caller = YY_START; BEGIN(INCLUDE); }
 
 `__FILE__               { tb_printf(output, "\"%s\"", loc_file_str(&yylloc)); }
 `__LINE__               { tb_printf(output, "\"%d\"", yylloc.first_line); }
@@ -130,7 +131,7 @@ ID    [a-zA-Z_]([a-zA-Z0-9_$])*
                           if (text != NULL)
                              push_macro(vlogpp_text + 1, text);
                           else
-                             warn_at(&yylloc, "macro %s undefined",
+                             warn_at(&yylloc, "macro '%s' undefined",
                                      vlogpp_text + 1);
                         }
 
@@ -208,14 +209,40 @@ ID    [a-zA-Z_]([a-zA-Z0-9_$])*
                           }
                         }
 
+<INCLUDE>"\""[^\"]*"\"" { yytext[strlen(yytext) - 1] = '\0';
+                          incname = xstrdup(yytext + 1);
+                          incloc = yylloc;
+                          BEGIN(INCLUDE2);
+                        }
+<INCLUDE>.              { error_at(&yylloc, "expected file name");
+                          BEGIN(caller);
+                        }
+
+<INCLUDE2>[ \t]*        { }
+<INCLUDE2>"//"[^\r\n]*  { }
+<INCLUDE2>"/*"          { BEGIN(C_COMMENT); }
+<INCLUDE2>\n\r          |
+<INCLUDE2>\r\n          |
+<INCLUDE2>\n            |
+<INCLUDE2>\r            { if (incname != NULL)
+                             push_include();
+                          BEGIN(caller);
+                        }
+<INCLUDE2>.             { error_at(&yylloc, "only white space or a comment "
+                                   "may appear on the same line as an "
+                                   "`include directive");
+                          BEGIN(caller);
+                        }
+
 [^\r\n]                 { tb_cat(output, vlogpp_text); }
 \n\r                    |
 \r\n                    |
 \n                      |
 \r                      { tb_append(output, '\n'); }
 
-<<EOF>>                 { if (buffer_stack.count > 0)
-                             pop_buffer();
+<<EOF>>                 { yypop_buffer_state();
+                          if (YY_CURRENT_BUFFER)
+                             end_of_buffer();
                           else
                              yyterminate();
                         }
@@ -307,25 +334,35 @@ static int pop_ifdef(void)
    }
 }
 
+static void push_include(void)
+{
+   if (emit_locs)
+      tb_printf(output, "\n`__nvc_push \"%s\",%d:%d,%d\n", incname,
+                yylloc.first_line, yylloc.first_column, yylloc.column_delta);
+
+   push_file(incname, &incloc);
+   yypush_buffer_state(yy_create_buffer(NULL, YY_BUF_SIZE));
+
+   free(incname);
+   incname = NULL;
+}
+
 static void push_macro(const char *name, const char *text)
 {
    if (emit_locs)
       tb_printf(output, "\n`__nvc_push %s,%d:%d,%d\n", name, yylloc.first_line,
                 yylloc.first_column, yylloc.column_delta);
 
-   APUSH(buffer_stack, YY_CURRENT_BUFFER);
-   yy_switch_to_buffer(yy_scan_string(text));
+   push_buffer(text, strlen(text), FILE_INVALID);
+   yypush_buffer_state(yy_create_buffer(NULL, YY_BUF_SIZE));
 }
 
-static void pop_buffer(void)
+static void end_of_buffer(void)
 {
-   assert(buffer_stack.count > 0);
-
    if (emit_locs)
       tb_printf(output, "\n`__nvc_pop\n");
 
-   yy_delete_buffer(YY_CURRENT_BUFFER);
-   yy_switch_to_buffer(APOP(buffer_stack));
+   pop_buffer();
 }
 
 static void vlog_define_cb(const char *key, const char *value, void *ctx)
@@ -353,6 +390,12 @@ void vlog_preprocess(text_buf_t *tb, bool precise)
    emit_locs = precise;
    continuation = false;
 
+   free(incname);
+   incname = NULL;
+
+   if (!YY_CURRENT_BUFFER)
+      yypush_buffer_state(yy_create_buffer(NULL, YY_BUF_SIZE));
+
    YY_FLUSH_BUFFER;
    BEGIN(INITIAL);
 
@@ -374,7 +417,4 @@ void vlog_preprocess(text_buf_t *tb, bool precise)
 
    tb_free(macro_text);
    macro_text = NULL;
-
-   assert(buffer_stack.count == 0);
-   ACLEAR(buffer_stack);
 }

@@ -19,6 +19,7 @@
 #define _SCAN_H
 
 #include "prim.h"
+#include "diag.h"
 
 typedef struct { ident_t left, right; } ident_pair_t;
 
@@ -52,7 +53,11 @@ typedef enum {
 } vlog_version_t;
 
 void input_from_file(const char *file);
-void input_from_buffer(const char *buf, size_t len, hdl_kind_t hdl);
+void input_from_buffer(const char *buf, size_t len, file_ref_t file_ref,
+                       hdl_kind_t hdl);
+void push_buffer(const char *buf, size_t len, file_ref_t file_ref);
+void push_file(const char *file, const loc_t *srcloc);
+void pop_buffer(void);
 hdl_kind_t source_kind(void);
 token_t processed_yylex(void);
 const char *token_str(token_t tok);
@@ -63,6 +68,8 @@ typedef void (*pp_iter_t)(const char *, const char *, void *);
 void pp_defines_add(const char *name, const char *value);
 const char *pp_defines_get(const char *name);
 void pp_defines_iter(pp_iter_t fn, void *ctx);
+
+void add_include_dir(const char *str);
 
 void scan_as_psl(void);
 void scan_as_vhdl(void);

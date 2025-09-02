@@ -457,7 +457,7 @@ END_TEST
 
 START_TEST(test_empty1)
 {
-   input_from_buffer("", 0, SOURCE_VERILOG);
+   input_from_buffer("", 0, FILE_INVALID, SOURCE_VERILOG);
 
    fail_unless(vlog_parse() == NULL);
 
@@ -731,7 +731,7 @@ START_TEST(test_pp3)
    input_from_file(TESTDIR "/vlog/pp3.v");
 
    const error_t expect[] = {
-      {  3, "macro FOO undefined" },
+      {  3, "macro 'FOO' undefined" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -789,7 +789,9 @@ START_TEST(test_pp4)
    LOCAL_TEXT_BUF tb = tb_new();
    vlog_preprocess(tb, true);
 
-   input_from_buffer(tb_get(tb), tb_len(tb), SOURCE_VERILOG);
+   file_ref_t file_ref = loc_file_ref(TESTDIR "/vlog/pp4.v", NULL);
+
+   input_from_buffer(tb_get(tb), tb_len(tb), file_ref, SOURCE_VERILOG);
 
    vlog_node_t m = vlog_parse();
    fail_if(m == NULL);
@@ -1144,6 +1146,37 @@ START_TEST(test_integers1)
 }
 END_TEST
 
+START_TEST(test_pp6)
+{
+   add_include_dir(TESTDIR "/vlog");
+
+   input_from_file(TESTDIR "/vlog/pp6.v");
+
+   const error_t expect[] = {
+      {  2, "macro 'bad' undefined" },
+      {  4, "only white space or a comment may appear on the same "
+         "line as an `include directive" },
+      {  5, "cannot find not.here in the current working directory" },
+      {  0, "searched include directory " TESTDIR "/vlog" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   LOCAL_TEXT_BUF tb = tb_new();
+   vlog_preprocess(tb, false);
+
+   ck_assert_str_eq(
+      tb_get(tb),
+      "one\n"
+      "hello\n"
+      "\n"
+      "two\n"
+      "23\n");
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_vlog_tests(void)
 {
    Suite *s = suite_create("vlog");
@@ -1185,6 +1218,7 @@ Suite *get_vlog_tests(void)
    tcase_add_test(tc, test_error1);
    tcase_add_test(tc, test_pp5);
    tcase_add_test(tc, test_integers1);
+   tcase_add_test(tc, test_pp6);
    suite_add_tcase(s, tc);
 
    return s;

@@ -24,6 +24,7 @@
 #include "hash.h"
 
 #include <assert.h>
+#include <errno.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <string.h>
@@ -39,28 +40,40 @@ typedef struct {
 typedef A(cond_state_t) cond_stack_t;
 
 typedef struct {
-   ident_t name;
-   loc_t   expandloc;
+   ident_t     macro;
+   char       *include;
+   loc_t       expandloc;
+   file_ref_t  file_ref;
 } macro_expansion_t;
 
 typedef A(macro_expansion_t) macro_stack_t;
 
 typedef A(vlog_version_t) keywords_stack_t;
 
-static const char       *file_start;
-static size_t            file_sz;
-static const char       *read_ptr;
+typedef A(char *) string_list_t;
+
+typedef struct {
+   const char *file_start;
+   size_t      file_sz;
+   const char *read_ptr;
+   int         colno;
+   int         lineno;
+   int         lookahead;
+   file_ref_t  file_ref;
+} input_buf_t;
+
+typedef A(input_buf_t) buf_stack_t;
+
+static input_buf_t       input_buf;
+static buf_stack_t       buf_stack;
 static hdl_kind_t        src_kind;
-static file_ref_t        file_ref = FILE_INVALID;
-static int               colno;
-static int               lineno;
-static int               lookahead;
 static int               pperrors;
 static cond_stack_t      cond_stack;
 static shash_t          *pp_defines;
 static macro_stack_t     macro_stack;
 static vlog_version_t    default_keywords = VLOG_1800_2023;
 static keywords_stack_t  keywords_stack;
+static string_list_t     include_dirs;
 
 extern int yylex(void);
 
@@ -72,7 +85,8 @@ static void pp_defines_init();
 yylval_t yylval;
 loc_t yylloc;
 
-void input_from_buffer(const char *buf, size_t len, hdl_kind_t kind)
+void input_from_buffer(const char *buf, size_t len, file_ref_t file_ref,
+                       hdl_kind_t kind)
 {
    pp_defines_init();
 
@@ -80,14 +94,16 @@ void input_from_buffer(const char *buf, size_t len, hdl_kind_t kind)
 
    yylloc = LOC_INVALID;
 
-   file_start = buf;
-   file_sz    = len;
-   src_kind   = kind;
-   read_ptr   = buf;
-   lineno     = 1;
-   colno      = 0;
-   lookahead  = -1;
-   pperrors   = 0;
+   input_buf.file_start = buf;
+   input_buf.file_sz    = len;
+   input_buf.read_ptr   = buf;
+   input_buf.lineno     = 1;
+   input_buf.colno      = 0;
+   input_buf.lookahead  = -1;
+   input_buf.file_ref   = file_ref;
+
+   src_kind = kind;
+   pperrors = 0;
 
    switch (kind) {
    case SOURCE_VERILOG:
@@ -138,7 +154,7 @@ void input_from_file(const char *file)
       char *buf = xmalloc(bufsz);
       int nbytes;
       do {
-         if (bufsz - 1 - file_sz == 0)
+         if (bufsz - 1 - input_buf.file_sz == 0)
             buf = xrealloc(buf, bufsz *= 2);
 
          nbytes = read(fd, buf + total, bufsz - 1 - total);
@@ -149,21 +165,96 @@ void input_from_file(const char *file)
          buf[total] = '\0';
       } while (nbytes > 0);
 
-      input_from_buffer(buf, total, kind);
+      input_from_buffer(buf, total, FILE_INVALID, kind);
    }
    else if (info.type == FILE_REGULAR) {
       void *map = NULL;
       if (info.size > 0)
          map = map_file(fd, info.size);
 
-      file_ref = loc_file_ref(file, map);
+      file_ref_t file_ref = loc_file_ref(file, map);
 
-      input_from_buffer(map, info.size, kind);
+      input_from_buffer(map, info.size, file_ref, kind);
    }
    else
       fatal("opening %s: not a regular file", file);
 
    close(fd);
+}
+
+void push_buffer(const char *buf, size_t len, file_ref_t file_ref)
+{
+   APUSH(buf_stack, input_buf);
+
+   yylloc = LOC_INVALID;
+
+   input_buf.file_start = buf;
+   input_buf.file_sz    = len;
+   input_buf.read_ptr   = buf;
+   input_buf.lineno     = 1;
+   input_buf.colno      = 0;
+   input_buf.lookahead  = -1;
+   input_buf.file_ref   = file_ref;
+}
+
+void push_file(const char *file, const loc_t *srcloc)
+{
+   int fd = open(file, O_RDONLY);
+   if (fd < 0) {
+      for (int i = 0; i < include_dirs.count; i++) {
+         char path[PATH_MAX];
+         checked_sprintf(path, sizeof(path), "%s" DIR_SEP "%s",
+                         include_dirs.items[i], file);
+         if ((fd = open(path, O_RDONLY)) != -1)
+            break;
+      }
+   }
+
+   if (fd < 0) {
+      diag_t *d = diag_new(DIAG_ERROR, srcloc);
+      if (errno != ENOENT)
+         diag_printf(d, "opening %s: %s", file, last_os_error());
+      else {
+         char *cwd LOCAL = getcwd(NULL, 0);
+         diag_printf(d, "cannot find %s in the current working directory %s",
+                     file, cwd);
+         if (include_dirs.count > 0) {
+            diag_printf(d, " or any of the supplied include directories");
+            for (int i = 0; i < include_dirs.count; i++)
+               diag_hint(d, NULL, "searched include directory %s",
+                         include_dirs.items[i]);
+         }
+         diag_hint(d, NULL, "add additional include directories with the "
+                   "$bold$-I$$ option");
+      }
+      diag_emit(d);
+
+      push_buffer("", 0, FILE_INVALID);
+   }
+   else {
+      file_info_t info;
+      if (!get_handle_info(fd, &info))
+         fatal_errno("%s: cannot get file info", file);
+
+      void *map = NULL;
+      if (info.size > 0)
+         map = map_file(fd, info.size);
+
+      file_ref_t file_ref = loc_file_ref(file, map);
+
+      push_buffer(map, info.size, file_ref);
+   }
+}
+
+void pop_buffer(void)
+{
+   input_buf = APOP(buf_stack);
+   yylloc = LOC_INVALID;
+}
+
+void add_include_dir(const char *str)
+{
+   APUSH(include_dirs, xstrdup(str));
 }
 
 hdl_kind_t source_kind(void)
@@ -173,7 +264,8 @@ hdl_kind_t source_kind(void)
 
 int get_next_char(char *b, int max_buffer)
 {
-   const ptrdiff_t navail = (file_start - read_ptr) + file_sz;
+   const ptrdiff_t navail =
+      (input_buf.file_start - input_buf.read_ptr) + input_buf.file_sz;
    assert(navail >= 0);
 
    if (navail == 0)
@@ -181,8 +273,8 @@ int get_next_char(char *b, int max_buffer)
 
    const int nchars = MIN(navail, max_buffer);
 
-   memcpy(b, read_ptr, nchars);
-   read_ptr += nchars;
+   memcpy(b, input_buf.read_ptr, nchars);
+   input_buf.read_ptr += nchars;
 
    return nchars;
 }
@@ -192,22 +284,26 @@ void begin_token(char *tok, int length)
    // Newline must match as a single token for the logic below to work
    assert(strchr(tok, '\n') == NULL || length == 1);
 
-   if (macro_stack.count == 0) {
-      const int first_col = colno;
+   if (macro_stack.count == 0 || input_buf.file_ref != FILE_INVALID) {
+      const int first_col = input_buf.colno;
       if (*tok == '\n') {
-         colno = 0;
-         lineno += 1;
+         input_buf.colno = 0;
+         input_buf.lineno += 1;
       }
       else
-         colno += length;
+         input_buf.colno += length;
 
       const int last_col = first_col + length - 1;
 
       extern loc_t yylloc;
-      yylloc = get_loc(lineno, first_col, lineno, last_col, file_ref);
+      yylloc = get_loc(input_buf.lineno, first_col, input_buf.lineno,
+                       last_col, input_buf.file_ref);
    }
-   else
-      yylloc = macro_stack.items[0].expandloc;
+   else {
+      yylloc = LOC_INVALID;
+      for (int i = 0; i < macro_stack.count && loc_invalid_p(&yylloc); i++)
+         yylloc = macro_stack.items[i].expandloc;
+   }
 }
 
 const char *token_str(token_t tok)
@@ -355,8 +451,8 @@ void pp_defines_iter(pp_iter_t fn, void *ctx)
 
 static int pp_yylex(void)
 {
-   const int tok = lookahead != -1 ? lookahead : yylex();
-   lookahead = -1;
+   const int tok = input_buf.lookahead != -1 ? input_buf.lookahead : yylex();
+   input_buf.lookahead = -1;
    return tok;
 }
 
@@ -474,18 +570,18 @@ static bool pp_cond_analysis_expr(void)
    //   | conditional_analysis_relation { xnor conditional_analysis_relation }
 
    const bool lhs = pp_cond_analysis_relation();
-   switch ((lookahead = pp_yylex())) {
+   switch ((input_buf.lookahead = pp_yylex())) {
    case tAND:
-      lookahead = -1;
+      input_buf.lookahead = -1;
       return pp_cond_analysis_relation() && lhs;
    case tOR:
-      lookahead = -1;
+      input_buf.lookahead = -1;
       return pp_cond_analysis_relation() || lhs;
    case tXOR:
-      lookahead = -1;
+      input_buf.lookahead = -1;
       return pp_cond_analysis_relation() ^ lhs;
    case tXNOR:
-      lookahead = -1;
+      input_buf.lookahead = -1;
       return !(pp_cond_analysis_relation() ^ lhs);
    default:
       return lhs;
@@ -497,9 +593,14 @@ static void macro_hint_cb(diag_t *d, void *ctx)
 {
    assert(macro_stack.count > 0);
 
-   for (int i = 0; i < macro_stack.count; i++)
-      diag_hint(d, NULL, "while expanding macro %s",
-                istr(macro_stack.items[i].name));
+   for (int i = 0; i < macro_stack.count; i++) {
+      const macro_expansion_t *me = &(macro_stack.items[i]);
+      if (me->include != NULL)
+         diag_hint(d, &me->expandloc, "while processing `include \"%s\" "
+                   "directive", me->include);
+      else
+         diag_hint(d, NULL, "while expanding macro %s", istr(me->macro));
+   }
 }
 
 static void pp_nvc_push(void)
@@ -508,10 +609,18 @@ static void pp_nvc_push(void)
    macro_expansion_t exp = {};
    unsigned first_line, first_column, column_delta;
 
-   if ((tok = pp_yylex()) != tID)
+   switch ((tok = pp_yylex())) {
+   case tID:
+      exp.macro = yylval.ident;
+      break;
+   case tSTRING:
+      yylval.str[strlen(yylval.str) - 1] = '\0';
+      exp.include = xstrdup(yylval.str + 1);
+      free(yylval.str);
+      break;
+   default:
       goto error;
-
-   exp.name = yylval.ident;
+   }
 
    if ((tok = pp_yylex()) != tCOMMA)
       goto error;
@@ -543,6 +652,16 @@ static void pp_nvc_push(void)
    exp.expandloc = get_loc(first_line, first_column, first_line,
                            first_column + column_delta, yylloc.file_ref);
 
+   input_buf.lineno = 0;
+   input_buf.colno = 0;
+
+   if (exp.include != NULL)
+      input_buf.file_ref = loc_file_ref(exp.include, NULL);
+   else
+      input_buf.file_ref = FILE_INVALID;
+
+   yylloc = LOC_INVALID;
+
    if (macro_stack.count == 0)
       diag_add_hint_fn(macro_hint_cb, NULL);
 
@@ -560,8 +679,11 @@ static void pp_nvc_pop(void)
       return;
 
    const macro_expansion_t top = APOP(macro_stack);
-   lineno = top.expandloc.first_line - 1;
-   colno = top.expandloc.first_column + top.expandloc.column_delta;
+   input_buf.lineno = top.expandloc.first_line - 1;
+   input_buf.colno = top.expandloc.first_column + top.expandloc.column_delta;
+   input_buf.file_ref = top.expandloc.file_ref;
+
+   free(top.include);
 
    if (macro_stack.count == 0)
       diag_remove_hint_fn(macro_hint_cb);
@@ -569,7 +691,7 @@ static void pp_nvc_pop(void)
 
 token_t processed_yylex(void)
 {
-   assert(lookahead == -1);
+   assert(input_buf.lookahead == -1);
 
    for (;;) {
       token_t token = pp_yylex();
@@ -637,8 +759,8 @@ token_t processed_yylex(void)
             else
                APOP(cond_stack);
 
-            if ((lookahead = yylex()) == tIF)
-               lookahead = -1;
+            if ((input_buf.lookahead = yylex()) == tIF)
+               input_buf.lookahead = -1;
          }
          break;
 

@@ -177,7 +177,8 @@ update-test-dist:
 	  cd $(top_srcdir) ; \
 	  git ls-files -- 'test/*.vhd' 'test/*.txt' 'test/*.sh' 'test/*.dump' \
 	    'test/*.gtkw' 'test/*.tcl' 'test/*.v' 'test/*.sv' 'test/*.xml' \
-	    'test/*.sdf' | sort | sed -e 's/^/\t/' -e '$$ ! s/$$/ \\/' ; \
+	    'test/*.sdf' 'test/*.vh' 'test/*.svh' \
+	    | sort | sed -e 's/^/\t/' -e '$$ ! s/$$/ \\/' ; \
 	) > $(top_srcdir)/test/dist.mk
 
 orphan-tests:

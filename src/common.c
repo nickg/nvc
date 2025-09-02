@@ -2604,7 +2604,8 @@ void analyse_file(const char *file, jit_t *jit, unit_registry_t *ur,
          LOCAL_TEXT_BUF tb = tb_new();
          vlog_preprocess(tb, true);
 
-         input_from_buffer(tb_get(tb), tb_len(tb), SOURCE_VERILOG);
+         file_ref_t file_ref = loc_file_ref(file, NULL);
+         input_from_buffer(tb_get(tb), tb_len(tb), file_ref, SOURCE_VERILOG);
 
          lib_t work = lib_work();
          vlog_node_t module;

@@ -4,6 +4,8 @@
 - Aliases of component declarations are now allowed (#1276).
 - Added missing check that partial associations appear in a contiguous
   sequence (#1254).
+- The new `-I` analysis option adds search directories for the Verilog
+  `include` directive.
 - Several other minor bugs were resolved (#1269, #1277, #1280, #1281).
 
 ## Version 1.17.2 - 2025-08-22

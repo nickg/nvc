@@ -204,7 +204,7 @@ static int analyse(int argc, char **argv, cmd_state_t *state)
    const int next_cmd = scan_cmd(2, argc, argv);
    int c, index = 0, error_limit = 20;
    const char *file_list = NULL;
-   const char *spec = ":D:f:";
+   const char *spec = ":D:f:I:";
    bool no_save = false;
 
    while ((c = getopt_long(next_cmd, argv, spec, long_options, &index)) != -1) {
@@ -247,6 +247,9 @@ static int analyse(int argc, char **argv, cmd_state_t *state)
          break;
       case 'N':
          no_save = true;
+         break;
+      case 'I':
+         add_include_dir(optarg);
          break;
       case 'u':
          opt_set_int(OPT_SINGLE_UNIT, 1);
@@ -2190,6 +2193,7 @@ static void usage(void)
              "Set preprocessor symbol NAME to VALUE" },
            { "--error-limit=NUM", "Stop after NUM errors" },
            { "-f, --files=LIST", "Read files to analyse from LIST" },
+           { "-I DIR", "Add DIR to list of Verilog include directories" },
            { "--keywords=VERSION",
              "Use keywords from specified Verilog version" },
            { "--no-save", "Do not save analysed design units" },
