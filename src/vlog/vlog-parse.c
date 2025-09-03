@@ -2040,7 +2040,7 @@ static vlog_node_t p_procedural_timing_control_statement(void)
    return v;
 }
 
-static vlog_node_t p_seq_block(void)
+static vlog_node_t p_seq_block(ident_t id)
 {
    // begin [ : block_identifier ] { block_item_declaration }
    //   { statement_or_null } end [ : block_identifier ]
@@ -2050,12 +2050,19 @@ static vlog_node_t p_seq_block(void)
    consume(tBEGIN);
 
    vlog_node_t v = vlog_new(V_BLOCK);
+   vlog_set_ident(v, id);
    vlog_set_loc(v, CURRENT_LOC);
 
    vlog_symtab_push(symtab, v);
 
-   if (optional(tCOLON))
-      vlog_set_ident(v, p_identifier());
+   if (optional(tCOLON)) {
+      ident_t name = p_identifier();
+      if (vlog_has_ident(v))
+         parse_error(&state.last_loc, "cannot specify both a statement label "
+                     "and a block name");
+      else
+         vlog_set_ident(v, name);
+   }
 
    skip_over_attributes();
 
@@ -2087,7 +2094,7 @@ static vlog_node_t p_seq_block(void)
    return v;
 }
 
-static vlog_node_t p_par_block(void)
+static vlog_node_t p_par_block(ident_t id)
 {
    // fork [ : block_identifier ] { block_item_declaration }
    //   { statement_or_null } join_keyword [ : block_identifier ]
@@ -2097,12 +2104,19 @@ static vlog_node_t p_par_block(void)
    consume(tFORK);
 
    vlog_node_t v = vlog_new(V_FORK);
+   vlog_set_ident(v, id);
    vlog_set_loc(v, CURRENT_LOC);
 
    vlog_symtab_push(symtab, v);
 
-   if (optional(tCOLON))
-      vlog_set_ident(v, p_identifier());
+   if (optional(tCOLON)) {
+      ident_t name = p_identifier();
+      if (vlog_has_ident(v))
+         parse_error(&state.last_loc, "cannot specify both a statement label "
+                     "and a block name");
+      else
+         vlog_set_ident(v, name);
+   }
 
    skip_over_attributes();
 
@@ -2638,7 +2652,7 @@ static vlog_node_t p_jump_statement(void)
    }
 }
 
-static vlog_node_t p_statement_item(void)
+static vlog_node_t p_statement_item(ident_t id)
 {
    // blocking_assignment ; | nonblocking_assignment ;
    //   | procedural_continuous_assignment ; | case_statement
@@ -2686,9 +2700,9 @@ static vlog_node_t p_statement_item(void)
    case tHASH:
       return p_procedural_timing_control_statement();
    case tBEGIN:
-      return p_seq_block();
+      return p_seq_block(id);
    case tFORK:
-      return p_par_block();
+      return p_par_block(id);
    case tSYSTASK:
    case tVOID:
       return p_subroutine_call_statement();
@@ -2734,14 +2748,15 @@ static vlog_node_t p_statement(void)
 
    BEGIN("statement");
 
+   ident_t id = NULL;
    if (peek() == tID && peek_nth(2) == tCOLON) {
-      (void)p_identifier();
+      id = p_identifier();
       consume(tCOLON);
    }
 
    optional_attributes();
 
-   return p_statement_item();
+   return p_statement_item(id);
 }
 
 static vlog_node_t p_statement_or_null(void)

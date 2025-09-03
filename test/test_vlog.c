@@ -1177,6 +1177,27 @@ START_TEST(test_pp6)
 }
 END_TEST
 
+START_TEST(test_label1)
+{
+   input_from_file(TESTDIR "/vlog/label1.v");
+
+   const error_t expect[] = {
+      { 10, "cannot specify both a statement label and a block name" },
+      { 20, "cannot specify both a statement label and a block name" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   vlog_node_t m = vlog_parse();
+   fail_if(m == NULL);
+   fail_unless(vlog_kind(m) == V_MODULE);
+
+   fail_unless(vlog_parse() == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_vlog_tests(void)
 {
    Suite *s = suite_create("vlog");
@@ -1219,6 +1240,7 @@ Suite *get_vlog_tests(void)
    tcase_add_test(tc, test_pp5);
    tcase_add_test(tc, test_integers1);
    tcase_add_test(tc, test_pp6);
+   tcase_add_test(tc, test_label1);
    suite_add_tcase(s, tc);
 
    return s;
