@@ -11619,11 +11619,15 @@ static vcode_reg_t lower_constrain_port(lower_unit_t *lu, tree_t port, int pos,
          break;
       }
 
+      tree_t value = tree_value(map);
+
       vcode_reg_t bounds_reg;
       if (map_regs[i] == VCODE_INVALID_REG) {
-         // Has conversion function
-         tree_t value = tree_value(map);
-         assert(tree_kind(value) == T_CONV_FUNC);
+         // Has conversion function or inertial expression
+         if (tree_kind(value) == T_INERTIAL)
+            value = tree_value(value);
+         else
+            assert(tree_kind(value) == T_CONV_FUNC);
 
          // TODO: lower_get_type_bounds does not support records
          type_t type = tree_type(value);
@@ -11636,7 +11640,7 @@ static vcode_reg_t lower_constrain_port(lower_unit_t *lu, tree_t port, int pos,
          bounds_reg = map_regs[i];
 
       if (name == NULL || tree_kind(name) == T_REF) {
-         type_t value_type = tree_type(tree_value(map));
+         type_t value_type = tree_type(value);
          if (type_is_array(port_type))
             return lower_coerce_arrays(lu, value_type, port_type, bounds_reg);
          else

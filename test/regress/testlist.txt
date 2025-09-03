@@ -1187,3 +1187,4 @@ tfcall4         verilog
 cmdline17       shell
 issue1282       verilog
 ivtest16        verilog
+issue1253       normal,2008
