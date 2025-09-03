@@ -1866,9 +1866,17 @@ static void vlog_lower_gate_inst(vlog_gen_t *g, vlog_node_t v)
 
    case V_GATE_NOT:
       {
-         const int nparams = vlog_params(v);
          mir_value_t input = vlog_lower_rvalue(g, vlog_param(v, nparams - 1));
          value = mir_build_unary(g->mu, MIR_VEC_BIT_NOT, t_logic, input);
+      }
+      break;
+
+   case V_GATE_BUF:
+      {
+         // Invert twice for correct X/Z behaviour
+         mir_value_t input = vlog_lower_rvalue(g, vlog_param(v, nparams - 1));
+         value = mir_build_unary(g->mu, MIR_VEC_BIT_NOT, t_logic, input);
+         value = mir_build_unary(g->mu, MIR_VEC_BIT_NOT, t_logic, value);
       }
       break;
 

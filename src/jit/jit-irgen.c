@@ -4161,15 +4161,19 @@ static void irgen_op_unary(jit_irgen_t *g, mir_value_t n)
       should_not_reach_here();
    }
 
+   abits = j_or(g, abits, xbits);
+
    const int osize = mir_get_size(g->mu, mir_get_type(g->mu, n));
-   if (osize != isize)
+   if (osize != isize) {
+      xbits = j_and(g, xbits, irgen_vector_mask(osize));
       abits = j_and(g, abits, irgen_vector_mask(osize));
+   }
 
    jit_reg_t bbits = irgen_alloc_reg(g);
    assert(abits.kind == JIT_VALUE_REG);
    assert(bbits == abits.reg + 1);
 
-   j_mov(g, bbits, jit_value_from_int64(0));
+   j_mov(g, bbits, xbits);
    g->map[n.id] = abits;
 }
 
