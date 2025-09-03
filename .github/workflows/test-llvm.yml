@@ -20,6 +20,7 @@ jobs:
           - { llvm: 18 }
           - { llvm: 19 }
           - { llvm: 20 }
+          - { llvm: 21 }
     name: LLVM ${{ matrix.llvm }}
     runs-on: ubuntu-latest
     container:

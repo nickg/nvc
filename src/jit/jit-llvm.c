@@ -313,6 +313,16 @@ static void llvm_add_func_attr(llvm_obj_t *obj, LLVMValueRef fn,
       ref = LLVMCreateStringAttribute(obj->context, "frame-pointer",
                                       13, "all", 3);
    }
+#ifdef LLVM_HAS_CAPTURES
+   else if (attr == FUNC_ATTR_NOCAPTURE) {
+      const unsigned kind =
+         LLVMGetEnumAttributeKindForName("captures", 8);
+      if (kind == 0)
+         fatal_trace("Cannot get LLVM captures attribute");
+
+      ref = LLVMCreateEnumAttribute(obj->context, kind, 0);
+   }
+#endif
    else {
       const char *names[] = {
          "nounwind", "noreturn", "readonly", "nocapture", "byval",

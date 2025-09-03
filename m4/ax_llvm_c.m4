@@ -127,6 +127,10 @@ AC_DEFUN([AX_LLVM_C], [
                          [LLVM uwtable attribute takes an argument])
     fi
 
+    if test "$llvm_ver_num" -ge "210"; then
+      AC_DEFINE_UNQUOTED(LLVM_HAS_CAPTURES, [1], [LLVM has captures attribute])
+    fi
+
     LLVM_OBJ_EXT="o"
     case $host_os in
       *cygwin*|msys*|mingw32*)
