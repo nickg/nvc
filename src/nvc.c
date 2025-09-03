@@ -1157,6 +1157,7 @@ static void list_walk_fn(lib_t lib, ident_t ident, int kind, void *context)
    case T_PACK_INST: pretty = "Instantiated package"; break;
    case T_CONFIGURATION: pretty = "Configuration"; break;
    case T_CONTEXT: pretty = "Context"; break;
+   case T_LAST_TREE_KIND: pretty = "Verilog"; break;
    }
 
    printf("%-30s  : %s\n", istr(ident), pretty);
@@ -2081,7 +2082,7 @@ static int preprocess_cmd(int argc, char **argv, cmd_state_t *state)
    const int next_cmd = scan_cmd(2, argc, argv);
 
    int c, index;
-   const char *spec = ":D:";
+   const char *spec = ":D:I:";
    while ((c = getopt_long(argc, argv, spec, long_options, &index)) != -1) {
       switch (c) {
       case 'u':
@@ -2089,6 +2090,9 @@ static int preprocess_cmd(int argc, char **argv, cmd_state_t *state)
          break;
       case 'D':
          parse_pp_define(optarg);
+         break;
+      case 'I':
+         add_include_dir(optarg);
          break;
       case ':':
          missing_argument("preprocess", argv);

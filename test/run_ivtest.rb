@@ -18,7 +18,7 @@ LibPath = "#{BuildDir}/lib/std:#{BuildDir}/lib/ieee"
 IvtestDir = Pathname.new(ARGV[0]).realpath
 GitRev = IO::popen("git rev-parse --short HEAD").read.chomp
 Tool = ENV['NVC'] || 'nvc'
-ExpectFails = 1527
+ExpectFails = 1517
 
 ENV['NVC_COLORS'] = 'always'
 
@@ -79,11 +79,16 @@ def get_module_name(f, flags)
     return flags[:name]
   end
 
-  last_match = File.readlines(f)
-                 .reverse
-                 .find { |line| line.match?(/^module\s+(\w+)/) }
-
-  return last_match.match(/^module\s+(\w+)/)[1] if last_match
+  if File.exist?(f) then
+    File.readlines(f).reverse.each do |line|
+      case line
+      when /^module\s+(\w+)/
+        return $1
+      when /^`include\s+"(.*)"/
+        return get_module_name($1, flags) || next
+      end
+    end
+  end
 
   puts "Cannot find module name for #{f}".red
   return nil
@@ -110,6 +115,8 @@ end
 fails  = 0
 passes = 0
 
+Dir.chdir IvtestDir
+
 buffer = ""
 File.open("#{TestDir}/ivtest.list").each_line do |line|
   cleaned = line.gsub(/#.*/, '').strip
@@ -128,6 +135,12 @@ File.open("#{TestDir}/ivtest.list").each_line do |line|
 
   aflags = options.map do |o|
     case o
+    when "-g2001"
+      "--keywords=1364-2001"
+    when "-g2001-noconfig"
+      "--keywords=1364-2001-noconfig"
+    when "-g2005-sv"
+      "--keywords=1800-2005"
     when "-g2005-sv"
       "--keywords=1800-2005"
     when "-g2009"
