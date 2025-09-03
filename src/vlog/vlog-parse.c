@@ -5936,6 +5936,7 @@ static vlog_node_t p_edge_symbol(void)
    case 'p': case 'P': left = '?'; right = '1'; break;
    case 'n': case 'N': left = '?'; right = '0'; break;
    case '*':           left = '?'; right = '?'; break;
+   default: should_not_reach_here();
    }
 
    vlog_node_t lsym = vlog_new(V_UDP_LEVEL);
