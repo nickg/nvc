@@ -1186,3 +1186,4 @@ ivtest15        verilog
 tfcall4         verilog
 cmdline17       shell
 issue1282       verilog
+ivtest16        verilog

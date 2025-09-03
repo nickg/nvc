@@ -919,12 +919,12 @@ START_TEST(test_string1)
       const char *input;
       const char *output;
    } cases[] = {
-      { "\"hello\"", "hello" },
-      { "\"\"", "" },
+      { "hello", "hello" },
+      { "", "" },
    };
 
    for (int i = 0; i < ARRAY_LEN(cases); i++) {
-      number_t n = number_new(cases[i].input, NULL);
+      number_t n = number_from_string(cases[i].input);
       ck_assert(number_is_defined(n));
 
       const int width = number_width(n);

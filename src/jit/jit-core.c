@@ -35,6 +35,7 @@
 #include "tree.h"
 #include "type.h"
 #include "vcode.h"
+#include "vlog/vlog-node.h"
 
 #include <assert.h>
 #include <ctype.h>
@@ -579,6 +580,20 @@ static void jit_emit_trace(diag_t *d, const loc_t *loc, object_t *enclosing,
                        class + 1, istr(tree_ident(tree)));
          }
          break;
+      }
+   }
+
+   vlog_node_t v = vlog_from_object(enclosing);
+   if (v != NULL) {
+      switch (vlog_kind(v)) {
+      case V_INITIAL:
+         diag_trace(d, loc, "Initial procedure %s", istr(vlog_ident(v)));
+         break;
+      case V_ALWAYS:
+         diag_trace(d, loc, "Always procedure %s", istr(vlog_ident(v)));
+         break;
+      default:
+         diag_trace(d, loc, "%s", istr(vlog_ident(v)));
       }
    }
 }

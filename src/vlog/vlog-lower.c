@@ -779,6 +779,7 @@ static mir_value_t vlog_lower_rvalue(vlog_gen_t *g, vlog_node_t v)
          return mir_build_pack(g->mu, ti->type, data);
       }
    case V_NUMBER:
+   case V_STRING:
       {
          number_t num = vlog_number(v);
          const int width = number_width(num);

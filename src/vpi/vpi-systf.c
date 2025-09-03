@@ -94,6 +94,21 @@ static void format_number(vpiHandle it, char radix, int fwidth)
    vpi_release_handle(arg);
 }
 
+static void format_char(vpiHandle it, int fwidth)
+{
+   vpiHandle arg = vpi_scan(it);
+   if (arg == NULL)
+      return;
+
+   s_vpi_value argval = { .format = vpiDecStrVal };
+   vpi_get_value(arg, &argval);
+
+   const char ch = atoi(argval.value.str);
+   fputc(ch, stdout);
+
+   vpi_release_handle(arg);
+}
+
 static void interpret_format(const char *fmt, vpiHandle it)
 {
    const char *start = fmt, *p = fmt;
@@ -120,8 +135,11 @@ static void interpret_format(const char *fmt, vpiHandle it)
          case 't':
             format_number(it, *p, fwidth);
             break;
+         case 'c':
+            format_char(it, fwidth);
+            break;
          default:
-            jit_msg(NULL, DIAG_FATAL, "unknown format specifier '%c'", *p);
+            jit_msg(NULL, DIAG_WARN, "unknown format specifier '%c'", *p);
          }
 
          start = p + 1;

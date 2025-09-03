@@ -28,7 +28,6 @@
 #include <stdlib.h>
 
 typedef enum {
-   RADIX_STR = 0,
    RADIX_BIN = 2,
    RADIX_OCT = 8,
    RADIX_DEC = 10,
@@ -224,11 +223,11 @@ number_t number_new(const char *str, const loc_t *loc)
          p++;
          issigned = false;
       }
-   }
 
-   if (*p == 's') {
-      issigned = true;
-      p++;
+      if (*p == 's') {
+         issigned = true;
+         p++;
+      }
    }
 
    SCRATCH_NUMBER result = number_scratch(width, issigned);
@@ -243,26 +242,17 @@ number_t number_new(const char *str, const loc_t *loc)
    case 'h': radix = RADIX_HEX; p++; break;
    case 'D':
    case 'd': radix = RADIX_DEC; p++; break;
-   case '"': radix = RADIX_STR; p++; break;
    default: result.big->issigned = true; break;
    }
 
-   if (*p == '_' && radix != RADIX_STR)
+   if (*p == '_')
       error_at(loc, "number cannot start with an underscore");
 
    // Skip optional spaces after the radix
    while (isspace_iso88591(*p))
       p++;
 
-   if (radix == RADIX_STR) {
-      for (int bit = width - 8; !(*p == '"' && *(p + 1) == '\0');
-           p++, bit -= 8) {
-         const uint8_t byte = *p;
-         bignum_set_nibble(result.big, bit, byte);
-         bignum_set_nibble(result.big, bit + 4, byte >> 4);
-      }
-   }
-   else if (radix == RADIX_DEC) {
+   if (radix == RADIX_DEC) {
       bool is_x_digit = false;
       switch (*p) {
       case 'X':
@@ -440,6 +430,21 @@ number_t number_new(const char *str, const loc_t *loc)
             should_not_reach_here();
          }
       }
+   }
+
+   return number_intern(result);
+}
+
+number_t number_from_string(const char *str)
+{
+   const int width = 8 * strlen(str);
+   SCRATCH_NUMBER result = number_scratch(width, false);
+
+   const char *p = str;
+   for (int bit = width - 8; *p != '\0'; p++, bit -= 8) {
+      const uint8_t byte = *p;
+      bignum_set_nibble(result.big, bit, byte);
+      bignum_set_nibble(result.big, bit + 4, byte >> 4);
    }
 
    return number_intern(result);

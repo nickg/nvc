@@ -594,7 +594,8 @@ static vlog_node_t p_string_literal(void)
 
    number_t n;
    if (consume(tSTRING)) {
-      n = number_new(state.last_lval.str, CURRENT_LOC);
+      state.last_lval.str[strlen(state.last_lval.str) - 1] = '\0';
+      n = number_from_string(state.last_lval.str + 1);
       free(state.last_lval.str);
    }
    else
