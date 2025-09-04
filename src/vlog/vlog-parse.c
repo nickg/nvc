@@ -1042,6 +1042,7 @@ static vlog_node_t p_data_type_or_implicit(void)
    case tBIT:
    case tSHORTINT:
    case tLONGINT:
+   case tBYTE:
    case tEVENT:
       return p_data_type();
    default:
@@ -3674,6 +3675,7 @@ static void p_package_or_generate_item_declaration(vlog_node_t mod)
    case tBIT:
    case tSHORTINT:
    case tLONGINT:
+   case tBYTE:
       p_data_declaration(mod);
       break;
    case tTASK:
@@ -3694,8 +3696,8 @@ static void p_package_or_generate_item_declaration(vlog_node_t mod)
       one_of(tWIRE, tUWIRE, tSUPPLY0, tSUPPLY1, tTRI, tTRI0, tTRI1, tTRIAND,
              tTRIOR, tTRIREG, tWAND, tWOR, tINTERCONNECT, tREG, tSTRUCT, tUNION,
              tTYPEDEF, tENUM, tSVINT, tINTEGER, tSVREAL, tSHORTREAL, tREALTIME,
-             tTIME, tEVENT, tID, tVAR, tLOGIC, tBIT, tSHORTINT, tLONGINT, tTASK,
-             tFUNCTION, tLOCALPARAM, tPARAMETER);
+             tTIME, tEVENT, tID, tVAR, tLOGIC, tBIT, tSHORTINT, tLONGINT, tBYTE,
+             tTASK, tFUNCTION, tLOCALPARAM, tPARAMETER);
       drop_tokens_until(tSEMI);
       break;
    }
@@ -4030,6 +4032,7 @@ static void p_module_common_item(vlog_node_t mod)
    case tBIT:
    case tSHORTINT:
    case tLONGINT:
+   case tBYTE:
       p_module_or_generate_item_declaration(mod);
       break;
    case tASSIGN:
@@ -4047,7 +4050,7 @@ static void p_module_common_item(vlog_node_t mod)
              tWAND, tWOR, tINTERCONNECT, tREG, tSTRUCT, tUNION, tTYPEDEF, tENUM,
              tSVINT, tINTEGER, tSVREAL, tSHORTREAL, tREALTIME, tTIME, tTASK,
              tFUNCTION, tPARAMETER, tLOCALPARAM, tEVENT, tID, tGENVAR, tVAR,
-             tLOGIC, tBIT, tSHORTINT, tLONGINT, tASSIGN, tFOR, tIF);
+             tLOGIC, tBIT, tSHORTINT, tLONGINT, tBYTE, tASSIGN, tFOR, tIF);
       drop_tokens_until(tSEMI);
    }
 }
@@ -5267,6 +5270,7 @@ static void p_module_or_generate_item(vlog_node_t mod)
    case tBIT:
    case tSHORTINT:
    case tLONGINT:
+   case tBYTE:
       p_module_common_item(mod);
       break;
    case tPULLDOWN:
@@ -5297,8 +5301,8 @@ static void p_module_or_generate_item(vlog_node_t mod)
              tINITIAL, tTYPEDEF, tENUM, tSVINT, tINTEGER, tSVREAL, tSHORTREAL,
              tREALTIME, tTIME, tTASK, tFUNCTION, tLOCALPARAM, tPARAMETER, tIF,
              tFOR, tEVENT, tGENVAR, tVAR, tLOGIC, tBIT, tSHORTINT, tLONGINT,
-             tPULLDOWN, tPULLUP, tID, tAND, tNAND, tOR, tNOR, tXOR, tXNOR,
-             tNOT, tBUF);
+             tBYTE, tPULLDOWN, tPULLUP, tID, tAND, tNAND, tOR, tNOR, tXOR,
+             tXNOR, tNOT, tBUF);
       drop_tokens_until(tSEMI);
    }
 }
@@ -5385,6 +5389,7 @@ static void p_non_port_module_item(vlog_node_t mod)
    case tBIT:
    case tSHORTINT:
    case tLONGINT:
+   case tBYTE:
       p_module_or_generate_item(mod);
       break;
    case tSPECIFY:
@@ -5401,7 +5406,7 @@ static void p_non_port_module_item(vlog_node_t mod)
              tXNOR, tNOT, tBUF, tTYPEDEF, tENUM, tSVINT, tINTEGER, tSVREAL,
              tSHORTREAL, tREALTIME, tTIME, tTASK, tFUNCTION, tLOCALPARAM,
              tPARAMETER, tEVENT, tIF, tFOR, tGENVAR, tVAR, tLOGIC, tBIT,
-             tSHORTINT, tLONGINT, tSPECIFY, tGENERATE);
+             tSHORTINT, tLONGINT, tBYTE, tSPECIFY, tGENERATE);
       drop_tokens_until(tSEMI);
    }
 }

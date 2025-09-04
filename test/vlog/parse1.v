@@ -142,6 +142,7 @@ module parse1;
   bit b1;
   shortint si;
   longint  li;
+  byte     by1;
   initial begin
     shortreal sr;
     shortint si;
