@@ -7,7 +7,8 @@
 - The new `-I` analysis option adds search directories for the Verilog
   `include` directive.
 - Fixed compatibility with LLVM 21.
-- Several other minor bugs were resolved (#1269, #1277, #1280, #1281).
+- Several other minor bugs were resolved (#1269, #1277, #1279, #1280,
+  #1281).
 
 ## Version 1.17.2 - 2025-08-22
 - Fixed an issue where sub-elements of a port with `'converse` record

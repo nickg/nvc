@@ -515,31 +515,6 @@ static bool sem_check_readable(tree_t t)
    }
 }
 
-static bool sem_check_array_dims(type_t type, type_t constraint, nametab_t *tab)
-{
-   const int ndims = dimension_of(type);
-   for (int i = 0; i < ndims; i++) {
-      tree_t r = range_of(type, i);
-
-      type_t index_type = NULL;
-      if (constraint != NULL && i < dimension_of(constraint))
-         index_type = index_type_of(constraint, i);
-
-      if (!sem_check_discrete_range(r, index_type, tab))
-         return false;
-
-      if (index_type == NULL)
-         index_type = tree_type(r);
-
-      if (!sem_check_type(r, index_type, tab))
-         sem_error(r, "type of bound %s does not match type of index %s",
-                   type_pp(tree_type(r)),
-                   type_pp(index_type));
-   }
-
-   return true;
-}
-
 static bool sem_check_type(tree_t t, type_t expect, nametab_t *tab)
 {
    type_t actual = tree_type(t);
@@ -3646,11 +3621,6 @@ static bool sem_check_array_aggregate(tree_t t, nametab_t *tab)
       // The parser will have constructed a type with ndims - 1
       // dimensions.
       elem_type = tree_type(tree_value(tree_assoc(t, 0)));
-
-      if (!type_is_unconstrained(elem_type)) {
-         if (!sem_check_array_dims(elem_type, NULL, tab))
-            return false;
-      }
    }
 
    type_t index_type = index_type_of(composite_type, 0);
