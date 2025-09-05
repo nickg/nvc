@@ -939,6 +939,20 @@ static jit_value_t irgen_vector_mask(int size)
    return jit_value_from_int64(mask);
 }
 
+static jit_value_t irgen_sign_extend(jit_irgen_t *g, jit_value_t value,
+                                     int size)
+{
+   assert(size >= 0 && size <= 64);
+
+   if (size < 64) {
+      jit_value_t shift = jit_value_from_int64(64 - size);
+      value = j_shl(g, value, shift);
+      value = j_asr(g, value, shift);
+   }
+
+   return value;
+}
+
 static jit_value_t irgen_get_value(jit_irgen_t *g, mir_value_t value)
 {
    assert(!mir_is_null(value));
@@ -2268,9 +2282,7 @@ static void irgen_op_cast(jit_irgen_t *g, mir_value_t n)
       }
       else {
          if (result_signed && arg_signed && arg_size < 64) {
-            jit_value_t shift = jit_value_from_int64(64 - arg_size);
-            abits = j_shl(g, abits, shift);
-            abits = j_asr(g, abits, shift);
+            abits = irgen_sign_extend(g, abits, arg_size);
 
             jit_reg_t breg = irgen_alloc_reg(g);
             j_mov(g, breg, bbits);
@@ -3967,6 +3979,7 @@ static void irgen_op_binary(jit_irgen_t *g, mir_value_t n)
       xbits = jit_value_from_int64(0);
 
    mir_type_t type = mir_get_type(g->mu, left);
+   const bool issigned = mir_get_signed(g->mu, type);
    const int size = mir_get_size(g->mu, type);
    assert(mir_get_size(g->mu, mir_get_type(g->mu, right)) == size);
 
@@ -4052,6 +4065,11 @@ static void irgen_op_binary(jit_irgen_t *g, mir_value_t n)
    case MIR_VEC_LEQ:
    case MIR_VEC_GT:
    case MIR_VEC_GEQ:
+      if (issigned) {
+         aleft = irgen_sign_extend(g, aleft, size);
+         aright = irgen_sign_extend(g, aright, size);
+      }
+      // Fall-through
    case MIR_VEC_LOG_EQ:
    case MIR_VEC_LOG_NEQ:
       arith = true;
