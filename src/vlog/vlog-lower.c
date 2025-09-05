@@ -1962,33 +1962,36 @@ void vlog_lower_deferred(mir_unit_t *mu, object_t *obj)
    vlog_lower_cleanup(&g);
 }
 
-static void vlog_lower_net_decl(mir_unit_t *mu, vlog_node_t v, tree_t wrap,
+static void vlog_lower_net_decl(vlog_gen_t *g, vlog_node_t v, tree_t wrap,
                                 mir_value_t resfn)
 {
-   mir_type_t t_net_value = mir_int_type(mu, 0, 255);
-   mir_type_t t_net_signal = mir_signal_type(mu, t_net_value);
-   mir_type_t t_offset = mir_offset_type(mu);
+   mir_type_t t_net_value = mir_int_type(g->mu, 0, 255);
+   mir_type_t t_net_signal = mir_signal_type(g->mu, t_net_value);
+   mir_type_t t_offset = mir_offset_type(g->mu);
 
    assert(wrap != NULL);
    assert(!vlog_has_value(v));   // Should have been replaced with assign
 
-   mir_value_t value = mir_const(mu, t_net_value, LOGIC_X);
-   mir_value_t count = mir_const(mu, t_offset, vlog_size(vlog_type(v)));
-   mir_value_t size = mir_const(mu, t_offset, 1);
-   mir_value_t flags = mir_const(mu, t_offset, 0);
-   mir_value_t locus = mir_build_locus(mu, tree_to_object(wrap));
+   const type_info_t *ti = vlog_type_info(g, vlog_type(v));
+   const int total_size = ti->size * vlog_size(v);
 
-   mir_value_t signal = mir_build_init_signal(mu, t_net_value, count, size,
+   mir_value_t value = mir_const(g->mu, t_net_value, LOGIC_X);
+   mir_value_t count = mir_const(g->mu, t_offset, total_size);
+   mir_value_t size = mir_const(g->mu, t_offset, 1);
+   mir_value_t flags = mir_const(g->mu, t_offset, 0);
+   mir_value_t locus = mir_build_locus(g->mu, tree_to_object(wrap));
+
+   mir_value_t signal = mir_build_init_signal(g->mu, t_net_value, count, size,
                                               value, flags, locus,
                                               MIR_NULL_VALUE);
 
-   mir_build_resolve_signal(mu, signal, resfn);
+   mir_build_resolve_signal(g->mu, signal, resfn);
 
-   mir_value_t var = mir_add_var(mu, t_net_signal, MIR_NULL_STAMP,
+   mir_value_t var = mir_add_var(g->mu, t_net_signal, MIR_NULL_STAMP,
                                  vlog_ident(v), MIR_VAR_SIGNAL);
-   mir_build_store(mu, var, signal);
+   mir_build_store(g->mu, var, signal);
 
-   mir_put_object(mu, v, var);
+   mir_put_object(g->mu, v, var);
 }
 
 static void vlog_lower_var_decl(vlog_gen_t *g, vlog_node_t v, tree_t wrap)
@@ -2335,7 +2338,7 @@ void vlog_lower_block(mir_context_t *mc, ident_t parent, tree_t b)
       case V_PORT_DECL:
          break;   // Translated below
       case V_NET_DECL:
-         vlog_lower_net_decl(mu, d, hash_get(map, d), resfn);
+         vlog_lower_net_decl(&g, d, hash_get(map, d), resfn);
          break;
       case V_VAR_DECL:
          vlog_lower_var_decl(&g, d, hash_get(map, d));
