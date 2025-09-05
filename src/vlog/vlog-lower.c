@@ -69,9 +69,24 @@ static const type_info_t *vlog_type_info(vlog_gen_t *g, vlog_node_t v)
    type_info_t *ti = mir_get_priv(g->mu, v);
    if (ti == NULL) {
       ti = mir_malloc(g->mu, sizeof(type_info_t));
-      ti->size  = vlog_size(v);
-      ti->type  = mir_vec4_type(g->mu, ti->size, false);
       ti->stamp = MIR_NULL_STAMP;
+
+      switch (vlog_subkind(v)) {
+      case DT_LOGIC:
+         ti->size = vlog_size(v);
+         ti->type = mir_vec4_type(g->mu, ti->size, false);
+         break;
+      case DT_INTEGER:
+         ti->size = 32;
+         ti->type = mir_vec4_type(g->mu, ti->size, true);
+         break;
+      case DT_INT:
+         ti->size = 32;
+         ti->type = mir_vec2_type(g->mu, ti->size, true);
+         break;
+      default:
+         CANNOT_HANDLE(v);
+      }
    }
 
    return ti;
@@ -295,9 +310,7 @@ static void vlog_assign_variable(vlog_gen_t *g, vlog_node_t target,
    vlog_lvalue_t lvalue = vlog_lower_lvalue(g, target);
 
    mir_type_t t_offset = mir_offset_type(g->mu);
-   mir_type_t t_vec = mir_vec4_type(g->mu, lvalue.size, false);
 
-   mir_value_t resize = mir_build_cast(g->mu, t_vec, value);
    mir_value_t count = mir_const(g->mu, t_offset, lvalue.size);
 
    mir_block_t merge_bb = MIR_NULL_BLOCK;
@@ -328,16 +341,29 @@ static void vlog_assign_variable(vlog_gen_t *g, vlog_node_t target,
          tmp = vlog_get_temp(g, t_array);
       }
 
+      mir_type_t t_vec = mir_vec4_type(g->mu, lvalue.size, false);
+
+      mir_value_t resize = mir_build_cast(g->mu, t_vec, value);
       mir_value_t unpacked = mir_build_unpack(g->mu, resize, 0, tmp);
 
       mir_build_deposit_signal(g->mu, dst, count, unpacked);
    }
-   else if (vlog_kind(target) == V_REF)
-      mir_build_store(g->mu, lvalue.nets, resize);
    else {
-      mir_value_t cur = mir_build_load(g->mu, lvalue.nets);
-      mir_value_t ins = mir_build_insert(g->mu, resize, cur, lvalue.offset);
-      mir_build_store(g->mu, lvalue.nets, ins);
+      mir_type_t t_pointer = mir_get_type(g->mu, lvalue.nets);
+      mir_type_t t_vec = mir_get_pointer(g->mu, t_pointer);
+
+      if (vlog_kind(target) == V_REF) {
+         mir_value_t resize = mir_build_cast(g->mu, t_vec, value);
+         mir_build_store(g->mu, lvalue.nets, resize);
+      }
+      else {
+         const bool issigned = mir_get_signed(g->mu, t_vec);
+         mir_type_t t_part = mir_vec4_type(g->mu, lvalue.size, issigned);
+         mir_value_t resize = mir_build_cast(g->mu, t_part, value);
+         mir_value_t cur = mir_build_load(g->mu, lvalue.nets);
+         mir_value_t ins = mir_build_insert(g->mu, resize, cur, lvalue.offset);
+         mir_build_store(g->mu, lvalue.nets, ins);
+      }
    }
 
    if (!mir_is_null(merge_bb)) {

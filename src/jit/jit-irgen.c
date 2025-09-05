@@ -1213,6 +1213,12 @@ static void irgen_op_const_vec(jit_irgen_t *g, mir_value_t n)
    if (mir_get_signed(g->mu, type) && size < 64)
       abits = (int64_t)(abits << (64 - size)) >> (64 - size);
 
+   uint64_t mask = ~UINT64_C(0);
+   if (size < 64) mask >>= 64 - size;
+
+   abits &= mask;
+   bbits &= mask;
+
    if (mir_is(g->mu, n, MIR_TYPE_VEC2)) {
       assert(bbits == 0);
       g->map[n.id] = jit_value_from_int64(abits);
@@ -2261,7 +2267,7 @@ static void irgen_op_cast(jit_irgen_t *g, mir_value_t n)
          j_recv(g, 1);
       }
       else {
-         if (result_signed && !arg_signed && arg_size < 64) {
+         if (result_signed && arg_signed && arg_size < 64) {
             jit_value_t shift = jit_value_from_int64(64 - arg_size);
             abits = j_shl(g, abits, shift);
             abits = j_asr(g, abits, shift);

@@ -110,55 +110,104 @@ static tree_t trans_expr(trans_gen_t *g, vlog_node_t v)
    }
 }
 
+static type_t trans_sized_type(vlog_node_t decl, verilog_type_t packed_type,
+                               int width)
+{
+   type_t packed = verilog_type(packed_type);
+
+   tree_t c = tree_new(T_CONSTRAINT);
+   tree_set_subkind(c, C_INDEX);
+   tree_set_loc(c, vlog_loc(decl));
+
+   type_t std_int = std_type(NULL, STD_INTEGER);
+
+   tree_t left = tree_new(T_LITERAL);
+   tree_set_subkind(left, L_INT);
+   tree_set_type(left, std_int);
+   tree_set_ival(left, width - 1);
+
+   tree_t right = tree_new(T_LITERAL);
+   tree_set_subkind(right, L_INT);
+   tree_set_type(right, std_int);
+   tree_set_ival(right, 0);
+
+   tree_t r = tree_new(T_RANGE);
+   tree_set_subkind(r, RANGE_DOWNTO);
+   tree_set_left(r, left);
+   tree_set_right(r, right);
+   tree_set_loc(r, vlog_loc(decl));
+   tree_set_type(r, std_int);
+
+   tree_add_range(c, r);
+
+   type_t sub = type_new(T_SUBTYPE);
+   type_set_base(sub, packed);
+   type_set_constraint(sub, c);
+
+   return sub;
+}
+
 static type_t trans_type(trans_gen_t *g, vlog_node_t decl,
                          verilog_type_t scalar_type,
                          verilog_type_t packed_type)
 {
-   const int nranges = vlog_ranges(decl);
-   if (nranges > 0) {
-      type_t packed = verilog_type(packed_type);
+   switch (vlog_subkind(decl)) {
+   case DT_LOGIC:
+   case DT_BIT:
+      {
+         const int nranges = vlog_ranges(decl);
+         if (nranges == 0)
+            return verilog_type(scalar_type);
 
-      tree_t c = tree_new(T_CONSTRAINT);
-      tree_set_subkind(c, C_INDEX);
-      tree_set_loc(c, vlog_loc(decl));
+         type_t packed = verilog_type(packed_type);
 
-      for (int i = 0; i < nranges; i++) {
-         type_t index_type = index_type_of(packed, i);
-         vlog_node_t vr = vlog_range(decl, i);
+         tree_t c = tree_new(T_CONSTRAINT);
+         tree_set_subkind(c, C_INDEX);
+         tree_set_loc(c, vlog_loc(decl));
 
-         tree_t left = trans_expr(g, vlog_left(vr));
-         tree_t right = trans_expr(g, vlog_right(vr));
+         for (int i = 0; i < nranges; i++) {
+            type_t index_type = index_type_of(packed, i);
+            vlog_node_t vr = vlog_range(decl, i);
 
-         int64_t ileft, iright;
-         const bool left_is_const = folded_int(left, &ileft);
-         const bool right_is_const = folded_int(right, &iright);
+            tree_t left = trans_expr(g, vlog_left(vr));
+            tree_t right = trans_expr(g, vlog_right(vr));
 
-         range_kind_t dir;
-         if (left_is_const && right_is_const)
-            dir = ileft < iright ? RANGE_TO : RANGE_DOWNTO;
-         else if (left_is_const)
-            dir = RANGE_TO;   // Heuristic
-         else
-            dir = RANGE_DOWNTO;   // Heuristic
+            int64_t ileft, iright;
+            const bool left_is_const = folded_int(left, &ileft);
+            const bool right_is_const = folded_int(right, &iright);
 
-         tree_t r = tree_new(T_RANGE);
-         tree_set_subkind(r, dir);
-         tree_set_left(r, left);
-         tree_set_right(r, right);
-         tree_set_loc(r, vlog_loc(decl));
-         tree_set_type(r, index_type);
+            range_kind_t dir;
+            if (left_is_const && right_is_const)
+               dir = ileft < iright ? RANGE_TO : RANGE_DOWNTO;
+            else if (left_is_const)
+               dir = RANGE_TO;   // Heuristic
+            else
+               dir = RANGE_DOWNTO;   // Heuristic
 
-         tree_add_range(c, r);
+            tree_t r = tree_new(T_RANGE);
+            tree_set_subkind(r, dir);
+            tree_set_left(r, left);
+            tree_set_right(r, right);
+            tree_set_loc(r, vlog_loc(decl));
+            tree_set_type(r, index_type);
+
+            tree_add_range(c, r);
+         }
+
+         type_t sub = type_new(T_SUBTYPE);
+         type_set_base(sub, packed);
+         type_set_constraint(sub, c);
+
+         return sub;
       }
 
-      type_t sub = type_new(T_SUBTYPE);
-      type_set_base(sub, packed);
-      type_set_constraint(sub, c);
+   case DT_INT:
+   case DT_INTEGER:
+      return trans_sized_type(decl, packed_type, 32);
 
-      return sub;
+   default:
+      CANNOT_HANDLE(decl);
    }
-   else
-      return verilog_type(scalar_type);
 }
 
 static type_t trans_var_type(trans_gen_t *g, vlog_node_t v)

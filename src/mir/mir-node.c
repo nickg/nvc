@@ -3303,10 +3303,12 @@ mir_value_t mir_build_cast(mir_unit_t *mu, mir_type_t type, mir_value_t value)
       return mir_const(mu, type, cval);
 
    if (class == MIR_TYPE_VEC2 || class == MIR_TYPE_VEC4) {
-      node_data_t *n = mir_node_data(mu, value);
-      if (n->op == MIR_OP_CONST_VEC && mir_get_size(mu, type) <= 64) {
-         const uint64_t bbits = (class == MIR_TYPE_VEC2 ? 0 : n->bits[1]);
-         return mir_const_vec(mu, type, n->bits[0], bbits);
+      if (value.tag == MIR_TAG_NODE) {
+         node_data_t *n = mir_node_data(mu, value);
+         if (n->op == MIR_OP_CONST_VEC && mir_get_size(mu, type) <= 64) {
+            const uint64_t bbits = (class == MIR_TYPE_VEC2 ? 0 : n->bits[1]);
+            return mir_const_vec(mu, type, n->bits[0], bbits);
+         }
       }
    }
    else if (integral && mir_is_vector(mu, value)) {

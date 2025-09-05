@@ -270,36 +270,6 @@ static vlog_node_t simp_always(vlog_node_t v)
    }
 }
 
-static vlog_node_t simp_data_type(vlog_node_t v)
-{
-   switch (vlog_subkind(v)) {
-   case DT_INTEGER:
-      {
-         const loc_t *loc = vlog_loc(v);
-
-         vlog_node_t left = vlog_new(V_NUMBER);
-         vlog_set_number(left, number_from_int(31));
-         vlog_set_loc(left, loc);
-
-         vlog_node_t right = vlog_new(V_NUMBER);
-         vlog_set_number(right, number_from_int(0));
-         vlog_set_loc(right, loc);
-
-         vlog_node_t r = vlog_new(V_DIMENSION);
-         vlog_set_subkind(r, V_DIM_PACKED);
-         vlog_set_left(r, left);
-         vlog_set_right(r, right);
-         vlog_set_loc(r, loc);
-
-         vlog_set_subkind(v, DT_LOGIC);
-         vlog_add_range(v, r);
-      }
-      break;
-   }
-
-   return v;
-}
-
 static vlog_node_t simp_ref(vlog_node_t v)
 {
    vlog_node_t decl = vlog_ref(v);
@@ -470,8 +440,6 @@ static vlog_node_t vlog_simp_cb(vlog_node_t v, void *context)
       return simp_port_decl(v, context);
    case V_TIMING:
       return simp_timing(v);
-   case V_DATA_TYPE:
-      return simp_data_type(v);
    case V_BINARY:
       return simp_binary(v);
    case V_UNARY:
