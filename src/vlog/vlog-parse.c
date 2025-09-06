@@ -1949,9 +1949,21 @@ static vlog_assign_t p_assignment_operator(void)
 
    BEGIN("assignment operator");
 
-   switch (one_of(tEQ, tPLUSEQ)) {
-   case tPLUSEQ: return V_ASSIGN_PLUS;
-   default:      return V_ASSIGN_EQUALS;
+   switch (one_of(tEQ, tPLUSEQ, tMINUSEQ, tTIMESEQ, tDIVEQ, tPERCENTEQ, tAMPEQ,
+                  tBAREQ, tCARETEQ, tLSLEQ, tLSREQ, tASLEQ, tASREQ)) {
+   case tPLUSEQ:    return V_ASSIGN_PLUS;
+   case tMINUSEQ:   return V_ASSIGN_MINUS;
+   case tTIMESEQ:   return V_ASSIGN_TIMES;
+   case tDIVEQ:     return V_ASSIGN_DIVIDE;
+   case tPERCENTEQ: return V_ASSIGN_MOD;
+   case tAMPEQ:     return V_ASSIGN_AND;
+   case tBAREQ:     return V_ASSIGN_OR;
+   case tCARETEQ:   return V_ASSIGN_XOR;
+   case tLSLEQ:     return V_ASSIGN_SHIFT_LL;
+   case tLSREQ:     return V_ASSIGN_SHIFT_RL;
+   case tASLEQ:     return V_ASSIGN_SHIFT_LA;
+   case tASREQ:     return V_ASSIGN_SHIFT_RA;
+   default:         return V_ASSIGN_EQUALS;
    }
 }
 
@@ -1983,6 +1995,17 @@ static vlog_node_t p_blocking_assignment(vlog_node_t lhs)
 
    switch (peek()) {
    case tPLUSEQ:
+   case tMINUSEQ:
+   case tTIMESEQ:
+   case tDIVEQ:
+   case tPERCENTEQ:
+   case tAMPEQ:
+   case tBAREQ:
+   case tCARETEQ:
+   case tLSLEQ:
+   case tLSREQ:
+   case tASLEQ:
+   case tASREQ:
       return p_operator_assignment(lhs);
    }
 

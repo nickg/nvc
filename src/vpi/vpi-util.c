@@ -148,5 +148,16 @@ void vpi_format_number(int size, const uint64_t *abits, const uint64_t *bbits,
             tb_append(tb, 'x');
       }
       break;
+
+   case vpiStringVal:
+      if (is_defined) {
+         for (int i = (size - 7) & ~7; i >= 0; i -= 8)
+            tb_append(tb, abits[i / 64] >> (i % 64));
+      }
+      break;
+
+   default:
+      vpi_error(vpiError, NULL, "unsupported number format %d", format);
+      break;
    }
 }

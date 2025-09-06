@@ -2283,6 +2283,7 @@ static void irgen_op_cast(jit_irgen_t *g, mir_value_t n)
       else {
          if (result_signed && arg_signed && arg_size < 64) {
             abits = irgen_sign_extend(g, abits, arg_size);
+            abits = j_and(g, abits, irgen_vector_mask(result_size));
 
             jit_reg_t breg = irgen_alloc_reg(g);
             j_mov(g, breg, bbits);
@@ -3894,8 +3895,6 @@ static void irgen_op_bind_external(jit_irgen_t *g, mir_value_t n)
 
 static void irgen_op_pack(jit_irgen_t *g, mir_value_t n)
 {
-   assert(mir_is(g->mu, n, MIR_TYPE_VEC4));  // TODO
-
    mir_value_t arg = mir_get_arg(g->mu, n, 0);
    jit_value_t unpacked = irgen_get_value(g, arg);
 
@@ -3906,6 +3905,8 @@ static void irgen_op_pack(jit_irgen_t *g, mir_value_t n)
       g->map[n.id] = j_recv(g, 0);
       j_recv(g, 1);  // B-bits
    }
+   else if (mir_is(g->mu, n, MIR_TYPE_VEC2))
+      g->map[n.id] = j_and(g, unpacked, jit_value_from_int64(1));
    else {
       jit_value_t one = jit_value_from_int64(1);
       jit_value_t shifted = j_asr(g, unpacked, one);
@@ -4086,6 +4087,8 @@ static void irgen_op_binary(jit_irgen_t *g, mir_value_t n)
       abits = j_shr(g, aleft, aright);
       break;
    case MIR_VEC_SRA:
+      if (issigned)
+         aleft = irgen_sign_extend(g, aleft, size);
       arith = true;
       abits = j_asr(g, aleft, aright);
       break;

@@ -205,6 +205,9 @@ static type_t trans_type(trans_gen_t *g, vlog_node_t decl,
    case DT_INTEGER:
       return trans_sized_type(decl, packed_type, 32);
 
+   case DT_BYTE:
+      return trans_sized_type(decl, packed_type, 8);
+
    default:
       CANNOT_HANDLE(decl);
    }

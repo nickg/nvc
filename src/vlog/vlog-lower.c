@@ -76,12 +76,20 @@ static const type_info_t *vlog_type_info(vlog_gen_t *g, vlog_node_t v)
          ti->size = vlog_size(v);
          ti->type = mir_vec4_type(g->mu, ti->size, false);
          break;
+      case DT_BIT:
+         ti->size = vlog_size(v);
+         ti->type = mir_vec2_type(g->mu, ti->size, false);
+         break;
       case DT_INTEGER:
          ti->size = 32;
          ti->type = mir_vec4_type(g->mu, ti->size, true);
          break;
       case DT_INT:
          ti->size = 32;
+         ti->type = mir_vec2_type(g->mu, ti->size, true);
+         break;
+      case DT_BYTE:
+         ti->size = 8;
          ti->type = mir_vec2_type(g->mu, ti->size, true);
          break;
       default:
@@ -539,7 +547,16 @@ static mir_value_t vlog_lower_operator_assignment(vlog_gen_t *g, vlog_node_t v)
 
       mir_vec_op_t op;
       switch (kind) {
-      case V_ASSIGN_PLUS: op = MIR_VEC_ADD; break;
+      case V_ASSIGN_PLUS:     op = MIR_VEC_ADD; break;
+      case V_ASSIGN_MINUS:    op = MIR_VEC_SUB; break;
+      case V_ASSIGN_TIMES:    op = MIR_VEC_MUL; break;
+      case V_ASSIGN_AND:      op = MIR_VEC_BIT_AND; break;
+      case V_ASSIGN_OR:       op = MIR_VEC_BIT_OR; break;
+      case V_ASSIGN_XOR:      op = MIR_VEC_BIT_XOR; break;
+      case V_ASSIGN_SHIFT_LL: op = MIR_VEC_SLL; break;
+      case V_ASSIGN_SHIFT_RL: op = MIR_VEC_SRL; break;
+      case V_ASSIGN_SHIFT_LA: op = MIR_VEC_SLA; break;
+      case V_ASSIGN_SHIFT_RA: op = MIR_VEC_SRA; break;
       default:
          CANNOT_HANDLE(v);
       }

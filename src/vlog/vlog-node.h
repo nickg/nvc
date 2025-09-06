@@ -230,6 +230,17 @@ typedef enum {
 typedef enum {
    V_ASSIGN_EQUALS,
    V_ASSIGN_PLUS,
+   V_ASSIGN_MINUS,
+   V_ASSIGN_TIMES,
+   V_ASSIGN_DIVIDE,
+   V_ASSIGN_MOD,
+   V_ASSIGN_AND,
+   V_ASSIGN_OR,
+   V_ASSIGN_XOR,
+   V_ASSIGN_SHIFT_LL,
+   V_ASSIGN_SHIFT_RL,
+   V_ASSIGN_SHIFT_LA,
+   V_ASSIGN_SHIFT_RA,
 } vlog_assign_t;
 
 typedef enum {
