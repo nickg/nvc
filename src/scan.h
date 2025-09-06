@@ -522,5 +522,17 @@ void reset_sdf_parser(void);
 #define tREF           594
 #define tSUPER         595
 #define tSTATIC        596
+#define tPLUSEQ        597
+#define tMINUSEQ       598
+#define tTIMESEQ       599
+#define tDIVEQ         600
+#define tPERCENTEQ     601
+#define tAMPEQ         602
+#define tBAREQ         603
+#define tCARETEQ       604
+#define tLSLEQ         605
+#define tLSREQ         606
+#define tASLEQ         607
+#define tASREQ         608
 
 #endif  // _SCAN_H

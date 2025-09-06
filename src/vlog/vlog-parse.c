@@ -1943,15 +1943,26 @@ static vlog_node_t p_net_lvalue(void)
    }
 }
 
+static vlog_assign_t p_assignment_operator(void)
+{
+   // = | += | -= | *= | /= | %= | &= | |= | ^= | <<= | >>= | <<<= | >>>=
+
+   BEGIN("assignment operator");
+
+   switch (one_of(tEQ, tPLUSEQ)) {
+   case tPLUSEQ: return V_ASSIGN_PLUS;
+   default:      return V_ASSIGN_EQUALS;
+   }
+}
+
 static vlog_node_t p_operator_assignment(vlog_node_t lhs)
 {
    // variable_lvalue assignment_operator expression
 
    BEGIN_WITH_HEAD("operator assignment", lhs);
 
-   consume(tEQ);
-
-   vlog_node_t v = vlog_new(V_BASSIGN);
+   vlog_node_t v = vlog_new(V_OP_ASSIGN);
+   vlog_set_subkind(v, p_assignment_operator());
    vlog_set_target(v, lhs);
 
    vlog_set_value(v, p_expression());
@@ -1965,28 +1976,28 @@ static vlog_node_t p_blocking_assignment(vlog_node_t lhs)
    // variable_lvalue = delay_or_event_control expression
    //   | nonrange_variable_lvalue = dynamic_array_new
    //   | [ implicit_class_handle . | class_scope | package_scope ]
-   //         hierarchical_variable_identifier select != class_new
+   //         hierarchical_variable_identifier select = class_new
    //   | operator_assignment
 
    BEGIN_WITH_HEAD("blocking assignment", lhs);
 
-   switch (peek_nth(2)) {
-   case tHASH:
-   case tAT:
-      {
-         consume(tEQ);
-
-         vlog_node_t v = vlog_new(V_BASSIGN);
-         vlog_set_target(v, lhs);
-         vlog_set_delay(v, p_delay_or_event_control());
-         vlog_set_value(v, p_expression());
-
-         vlog_set_loc(v, CURRENT_LOC);
-         return v;
-      }
-   default:
+   switch (peek()) {
+   case tPLUSEQ:
       return p_operator_assignment(lhs);
    }
+
+   consume(tEQ);
+
+   vlog_node_t v = vlog_new(V_BASSIGN);
+   vlog_set_target(v, lhs);
+
+   if (scan(tHASH, tAT))
+      vlog_set_delay(v, p_delay_or_event_control());
+
+   vlog_set_value(v, p_expression());
+
+   vlog_set_loc(v, CURRENT_LOC);
+   return v;
 }
 
 static vlog_node_t p_nonblocking_assignment(vlog_node_t lhs)

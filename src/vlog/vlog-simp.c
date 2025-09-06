@@ -108,6 +108,7 @@ static void build_sensitivity(vlog_node_t ctrl, vlog_node_t v, hset_t *set,
    case V_NBASSIGN:
    case V_BASSIGN:
    case V_UNARY:
+   case V_OP_ASSIGN:
       build_sensitivity(ctrl, vlog_value(v), set, is_comb);
       break;
    case V_BINARY:

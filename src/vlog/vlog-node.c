@@ -86,7 +86,7 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
    (I_LEFT | I_RIGHT | I_SUBKIND),
 
    // V_BASSIGN
-   (I_TARGET | I_VALUE | I_SUBKIND | I_DELAY),
+   (I_TARGET | I_VALUE | I_DELAY),
 
    // V_UNARY
    (I_VALUE | I_SUBKIND),
@@ -270,6 +270,9 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
 
    // V_RETURN
    (I_REF | I_VALUE),
+
+   // V_OP_ASSIGN
+   (I_TARGET | I_SUBKIND | I_VALUE),
 };
 
 static const char *kind_text_map[V_LAST_NODE_KIND] = {
@@ -293,7 +296,7 @@ static const char *kind_text_map[V_LAST_NODE_KIND] = {
    "V_SPECPARAM",     "V_FORK",        "V_ATTR_INST",     "V_USER_TCALL",
    "V_VOID_CALL",     "V_GENVAR_DECL", "V_FOR_GENERATE",  "V_DEASSIGN",
    "V_FORCE",         "V_RELEASE",     "V_DISABLE",       "V_HIER_REF",
-   "V_TF_PORT_DECL",  "V_RETURN",
+   "V_TF_PORT_DECL",  "V_RETURN",      "V_OP_ASSIGN",
 };
 
 static const change_allowed_t change_allowed[] = {

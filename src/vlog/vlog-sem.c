@@ -132,6 +132,12 @@ static void vlog_check_bassign(vlog_node_t stmt)
    vlog_check_variable_target(target);
 }
 
+static void vlog_check_op_assign(vlog_node_t stmt)
+{
+   vlog_node_t target = vlog_target(stmt);
+   vlog_check_variable_target(target);
+}
+
 static void vlog_check_net_lvalue(vlog_node_t v, vlog_node_t where)
 {
    switch (vlog_kind(v)) {
@@ -407,6 +413,9 @@ static vlog_node_t vlog_check_cb(vlog_node_t v, void *ctx)
       break;
    case V_BASSIGN:
       vlog_check_bassign(v);
+      break;
+   case V_OP_ASSIGN:
+      vlog_check_op_assign(v);
       break;
    case V_ASSIGN:
       vlog_check_assign(v);

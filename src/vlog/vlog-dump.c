@@ -324,12 +324,7 @@ static void vlog_dump_nbassign(vlog_node_t v, int indent)
 static void vlog_dump_bassign(vlog_node_t v, int indent)
 {
    vlog_dump(vlog_target(v), 0);
-
-   switch (vlog_subkind(v)) {
-   case V_ASSIGN_EQUALS:
-      print_syntax(" = ");
-      break;
-   }
+   print_syntax(" = ");
 
    if (vlog_has_delay(v)) {
       vlog_dump(vlog_delay(v), 0);
@@ -882,6 +877,19 @@ static void vlog_dump_wait(vlog_node_t v, int indent)
    vlog_dump_stmt_or_null(v, indent);
 }
 
+static void vlog_dump_op_assign(vlog_node_t v)
+{
+   vlog_dump(vlog_target(v), 0);
+
+   switch (vlog_subkind(v)) {
+   case V_ASSIGN_EQUALS: print_syntax(" = "); break;
+   case V_ASSIGN_PLUS:   print_syntax(" += "); break;
+   }
+
+   vlog_dump(vlog_value(v), 0);
+   print_syntax(";");
+}
+
 void vlog_dump(vlog_node_t v, int indent)
 {
    switch (vlog_kind(v)) {
@@ -1052,6 +1060,9 @@ void vlog_dump(vlog_node_t v, int indent)
       break;
    case V_USER_FCALL:
       vlog_dump_user_fcall(v);
+      break;
+   case V_OP_ASSIGN:
+      vlog_dump_op_assign(v);
       break;
    default:
       print_syntax("\n");

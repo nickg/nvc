@@ -525,6 +525,32 @@ static mir_value_t vlog_lower_binary(vlog_gen_t *g, vlog_node_t v)
    return mir_build_load(g->mu, var);
 }
 
+static mir_value_t vlog_lower_operator_assignment(vlog_gen_t *g, vlog_node_t v)
+{
+   vlog_node_t target = vlog_target(v);
+
+   mir_value_t value = vlog_lower_rvalue(g, vlog_value(v));
+   mir_value_t cur = vlog_lower_rvalue(g, target);
+
+   const vlog_assign_t kind = vlog_subkind(v);
+   if (kind != V_ASSIGN_EQUALS) {
+      mir_type_t type = mir_get_type(g->mu, cur);
+      mir_value_t cast = mir_build_cast(g->mu, type, value);
+
+      mir_vec_op_t op;
+      switch (kind) {
+      case V_ASSIGN_PLUS: op = MIR_VEC_ADD; break;
+      default:
+         CANNOT_HANDLE(v);
+      }
+
+      value = mir_build_binary(g->mu, op, type, cur, cast);
+   }
+
+   vlog_assign_variable(g, target, value);
+   return value;
+}
+
 static mir_value_t vlog_lower_systf_param(vlog_gen_t *g, vlog_node_t v)
 {
    switch (vlog_kind(v)) {
@@ -1000,6 +1026,8 @@ static mir_value_t vlog_lower_rvalue(vlog_gen_t *g, vlog_node_t v)
          mir_type_t t_double = mir_double_type(g->mu);
          return mir_const_real(g->mu, t_double, vlog_dval(v));
       }
+   case V_OP_ASSIGN:
+      return vlog_lower_operator_assignment(g, v);
    default:
       CANNOT_HANDLE(v);
    }
@@ -1493,13 +1521,8 @@ static void vlog_lower_for_loop(vlog_gen_t *g, vlog_node_t v)
    assert(vlog_kind(step) == V_FOR_STEP);
 
    const int nstmts = vlog_stmts(step);
-   for (int i = 0; i < nstmts; i++) {
-      vlog_node_t s = vlog_stmt(step, i);
-      if (vlog_kind(s) == V_BASSIGN)  // XXX: should be op assign
-         vlog_lower_blocking_assignment(g, s);
-      else
-         vlog_lower_rvalue(g, s);
-   }
+   for (int i = 0; i < nstmts; i++)
+      vlog_lower_rvalue(g, vlog_stmt(step, i));
 
    mir_build_jump(g->mu, test_bb);
 
@@ -1603,6 +1626,9 @@ static void vlog_lower_stmts(vlog_gen_t *g, vlog_node_t v)
          break;
       case V_NBASSIGN:
          vlog_lower_non_blocking_assignment(g, s);
+         break;
+      case V_OP_ASSIGN:
+         vlog_lower_operator_assignment(g, s);
          break;
       case V_BLOCK:
          vlog_lower_stmts(g, s);

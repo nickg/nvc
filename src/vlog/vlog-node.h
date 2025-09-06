@@ -149,6 +149,7 @@ typedef enum {
    V_HIER_REF,
    V_TF_PORT_DECL,
    V_RETURN,
+   V_OP_ASSIGN,
 
    V_LAST_NODE_KIND
 } vlog_kind_t;
@@ -228,6 +229,7 @@ typedef enum {
 
 typedef enum {
    V_ASSIGN_EQUALS,
+   V_ASSIGN_PLUS,
 } vlog_assign_t;
 
 typedef enum {

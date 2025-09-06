@@ -377,8 +377,9 @@ const char *token_str(token_t tok)
          "weak0", "weak1", "small", "medium", "large", "vectored", "scalared",
          "`unconnected_drive", "`nounconnected_drive", "deassign", "signed",
          "unsigned", "disable", "class", "chandle", "export", "import",
-         "package", "endpackage", "extends", "this", "nettype", "ref",
-         "super", "static",
+         "endpackage", "extends", "this", "nettype", "ref", "super", "static",
+         "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "<<=", ">>=", "<<<=",
+         ">>>=",
       };
 
       if (tok >= 200 && tok - 200 < ARRAY_LEN(token_strs))
