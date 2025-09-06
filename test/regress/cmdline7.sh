@@ -6,7 +6,7 @@ which nvc
 cat >compile_list.txt <<EOF
 $TESTDIR/regress/wait1.vhd   # This is a comment
 
-$TESTDIR/regress/signal1.vhd
+\$TESTDIR/regress/signal1.vhd   # This interpolates the env var
 # Another blank line
 EOF
 

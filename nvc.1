@@ -258,7 +258,9 @@ is
 then reads from the standard input instead.
 Comments starting with
 .Ql #
-are ignored.  Alternatively this argument may be passed as
+are ignored.  References to environment variables such as
+.Ql $FOO
+are automatically expanded.  This argument may also be passed as
 .Ar @list
 for compatibility with other tools.
 .\" -I

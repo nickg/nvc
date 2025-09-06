@@ -9,6 +9,8 @@
 - Fixed compatibility with LLVM 21.
 - Fixed a crash when `--cover-file` is specified with a non-existent
   directory (#1287).
+- The `-f` analysis option can now interpolate environment variables in
+  the file list using `$var`.
 - Several other minor bugs were resolved (#1269, #1277, #1279, #1280,
   #1281).
 

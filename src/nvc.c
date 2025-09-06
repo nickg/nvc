@@ -162,6 +162,7 @@ static void do_file_list(const char *file, jit_t *jit, unit_registry_t *ur,
    else if ((f = fopen(file, "r")) == NULL)
       fatal_errno("failed to open %s", file);
 
+   LOCAL_TEXT_BUF tb = tb_new();
    char *line = NULL;
    size_t nchars, bufsz = 0;
    while ((nchars = getline(&line, &bufsz, f)) != -1) {
@@ -175,7 +176,30 @@ static void do_file_list(const char *file, jit_t *jit, unit_registry_t *ur,
       if (strlen(line) == 0)
          continue;
 
-      analyse_file(line, jit, ur, mc);
+      tb_rewind(tb);
+
+      for (char *p = line; *p;) {
+         if (*p == '$') {  // Interpolate environment variable
+            const char *start = ++p;
+            while (isalnum_iso88591(*p) || *p == '_') p++;
+            const char tail = *p;
+            *p++ = '\0';
+
+            const char *envvar = getenv(start);
+            if (envvar == NULL) {
+               warnf("environment variable $%s not set", start);
+               tb_cat(tb, start - 1);
+            }
+            else
+               tb_cat(tb, envvar);
+
+            tb_append(tb, tail);
+         }
+         else
+            tb_append(tb, *p++);
+      }
+
+      analyse_file(tb_get(tb), jit, ur, mc);
    }
 
    free(line);
