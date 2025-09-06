@@ -64,7 +64,15 @@ static mir_value_t vlog_lower_rvalue(vlog_gen_t *g, vlog_node_t v);
 
 static const type_info_t *vlog_type_info(vlog_gen_t *g, vlog_node_t v)
 {
-   assert(vlog_kind(v) == V_DATA_TYPE);
+   switch (vlog_kind(v)) {
+   case V_TYPE_DECL:
+   case V_ENUM_DECL:
+      return vlog_type_info(g, vlog_type(v));
+   case V_DATA_TYPE:
+      break;
+   default:
+      CANNOT_HANDLE(v);
+   }
 
    type_info_t *ti = mir_get_priv(g->mu, v);
    if (ti == NULL) {
@@ -86,6 +94,10 @@ static const type_info_t *vlog_type_info(vlog_gen_t *g, vlog_node_t v)
          break;
       case DT_INT:
          ti->size = 32;
+         ti->type = mir_vec2_type(g->mu, ti->size, true);
+         break;
+      case DT_SHORTINT:
+         ti->size = 16;
          ti->type = mir_vec2_type(g->mu, ti->size, true);
          break;
       case DT_BYTE:
@@ -640,42 +652,44 @@ static mir_value_t vlog_lower_sys_tfcall(vlog_gen_t *g, vlog_node_t v)
                             locus, args, actual);
 }
 
-static mir_value_t vlog_lower_resolved(mir_unit_t *mu, vlog_node_t v)
+static mir_value_t vlog_lower_resolved(vlog_gen_t *g, vlog_node_t v)
 {
    switch (vlog_kind(v)) {
    case V_PORT_DECL:
    case V_REF:
-      return vlog_lower_resolved(mu, vlog_ref(v));
+      return vlog_lower_resolved(g, vlog_ref(v));
    case V_VAR_DECL:
    case V_NET_DECL:
    case V_FUNC_DECL:
    case V_GENVAR_DECL:
       {
          int hops;
-         mir_value_t var = mir_search_object(mu, v, &hops), val;
+         mir_value_t var = mir_search_object(g->mu, v, &hops), val;
          assert(!mir_is_null(var));
 
          if (hops == 0)
-            val = mir_build_load(mu, var);
+            val = mir_build_load(g->mu, var);
          else {
-            mir_value_t upref = mir_build_var_upref(mu, hops, var.id);
-            val = mir_build_load(mu, upref);
+            mir_value_t upref = mir_build_var_upref(g->mu, hops, var.id);
+            val = mir_build_load(g->mu, upref);
          }
 
-         if (mir_is_signal(mu, val))
-            return mir_build_resolved(mu, val);
+         if (mir_is_signal(g->mu, val))
+            return mir_build_resolved(g->mu, val);
          else
             return val;
       }
    case V_TF_PORT_DECL:
       {
          int hops;
-         mir_value_t param = mir_search_object(mu, v, &hops);
+         mir_value_t param = mir_search_object(g->mu, v, &hops);
          assert(!mir_is_null(param));
          assert(param.tag == MIR_TAG_PARAM);
          assert(hops == 0);
          return param;
       }
+   case V_ENUM_NAME:
+      return vlog_lower_rvalue(g, vlog_value(v));
    default:
       CANNOT_HANDLE(v);
    }
@@ -686,7 +700,7 @@ static mir_value_t vlog_lower_bit_select(vlog_gen_t *g, vlog_node_t v)
    vlog_node_t value = vlog_value(v);
    assert(vlog_kind(value) == V_REF);
 
-   mir_value_t data = vlog_lower_resolved(g->mu, value);
+   mir_value_t data = vlog_lower_resolved(g, value);
 
    vlog_node_t decl = vlog_ref(value), dt = vlog_type(decl);
 
@@ -813,7 +827,7 @@ static mir_value_t vlog_lower_rvalue(vlog_gen_t *g, vlog_node_t v)
          if (vlog_kind(decl) == V_LOCALPARAM)
             return vlog_lower_rvalue(g, vlog_value(decl));
 
-         mir_value_t data = vlog_lower_resolved(g->mu, decl);
+         mir_value_t data = vlog_lower_resolved(g, decl);
          if (mir_is_vector(g->mu, data))
             return data;
 
@@ -894,7 +908,7 @@ static mir_value_t vlog_lower_rvalue(vlog_gen_t *g, vlog_node_t v)
       return vlog_lower_bit_select(g, v);
    case V_PART_SELECT:
       {
-         mir_value_t base = vlog_lower_resolved(g->mu, vlog_value(v));
+         mir_value_t base = vlog_lower_resolved(g, vlog_value(v));
 
          vlog_node_t dt = vlog_type(vlog_ref(vlog_value(v)));
          vlog_node_t dim = vlog_range(dt, 0);
@@ -2397,6 +2411,8 @@ void vlog_lower_block(mir_context_t *mc, ident_t parent, tree_t b)
       case V_FUNC_DECL:
          mir_defer(mc, ident_prefix(vlog_ident2(d), vlog_ident(d), '.'), qual,
                    MIR_UNIT_FUNCTION, vlog_lower_func_decl, vlog_to_object(d));
+         break;
+      case V_TYPE_DECL:
          break;
       default:
          CANNOT_HANDLE(d);

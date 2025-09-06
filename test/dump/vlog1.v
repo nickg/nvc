@@ -45,6 +45,7 @@ module mod2;
   function func;
     input [7:0] p;
   endfunction // func
+  enum byte { a = 5, b } e1;
 endmodule // mod2
 
 primitive multiplexer (mux, control, dataA, dataB);

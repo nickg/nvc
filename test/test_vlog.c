@@ -635,6 +635,7 @@ START_TEST(test_enum1)
 
    const error_t expect[] = {
       {  5, "'a' is not a data type" },
+      {  8, "cannot reference variable 'zz' in constant expression" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -645,7 +646,7 @@ START_TEST(test_enum1)
 
    vlog_check(m);
 
-   ck_assert_int_eq(vlog_decls(m), 4);
+   ck_assert_int_eq(vlog_decls(m), 7);
 
    fail_unless(vlog_parse() == NULL);
 

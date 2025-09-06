@@ -432,6 +432,57 @@ static vlog_node_t simp_cond_expr(vlog_node_t v)
    return number_truthy(n) ? vlog_left(v) : vlog_right(v);
 }
 
+static vlog_node_t simp_enum_decl(vlog_node_t v)
+{
+   if (!vlog_has_type(v)) {
+      vlog_node_t dt = vlog_new(V_DATA_TYPE);
+      vlog_set_subkind(dt, DT_INT);
+      vlog_set_loc(dt, vlog_loc(v));
+
+      vlog_set_type(v, dt);
+   }
+
+   vlog_node_t last = NULL;
+   const int ndecls = vlog_decls(v);
+   for (int i = 0; i < ndecls; i++) {
+      vlog_node_t d = vlog_decl(v, i);
+      if (!vlog_has_value(d)) {
+         if (last == NULL) {
+            vlog_node_t n = vlog_new(V_NUMBER);
+            vlog_set_loc(n, vlog_loc(d));
+            vlog_set_number(n, number_from_int(i));
+
+            vlog_set_value(d, n);
+         }
+         else if (vlog_kind(last) == V_NUMBER) {
+            number_t next = number_add(vlog_number(last), number_from_int(1));
+
+            vlog_node_t n = vlog_new(V_NUMBER);
+            vlog_set_loc(n, vlog_loc(d));
+            vlog_set_number(n, next);
+
+            vlog_set_value(d, n);
+         }
+         else {
+            vlog_node_t one = vlog_new(V_NUMBER);
+            vlog_set_number(one, number_from_int(1));
+
+            vlog_node_t plus = vlog_new(V_BINARY);
+            vlog_set_loc(plus, vlog_loc(d));
+            vlog_set_subkind(plus, V_BINARY_PLUS);
+            vlog_set_left(plus, last);
+            vlog_set_right(plus, one);
+
+            vlog_set_value(d, plus);
+         }
+      }
+      else
+         last = vlog_value(d);
+   }
+
+   return v;
+}
+
 static vlog_node_t vlog_simp_cb(vlog_node_t v, void *context)
 {
    switch (vlog_kind(v)) {
@@ -455,6 +506,8 @@ static vlog_node_t vlog_simp_cb(vlog_node_t v, void *context)
       return simp_cond_expr(v);
    case V_ALWAYS:
       return simp_always(v);
+   case V_ENUM_DECL:
+      return simp_enum_decl(v);
    default:
       return v;
    }

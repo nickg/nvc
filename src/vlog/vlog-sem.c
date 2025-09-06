@@ -72,6 +72,7 @@ static void vlog_check_const_expr(vlog_node_t expr)
          case V_PARAM_DECL:
          case V_LOCALPARAM:
          case V_GENVAR_DECL:
+         case V_ENUM_NAME:
             break;
          default:
             {
@@ -408,6 +409,12 @@ static void vlog_check_module(vlog_node_t v)
    }
 }
 
+static void vlog_check_enum_name(vlog_node_t v)
+{
+   if (vlog_has_value(v))
+      vlog_check_const_expr(vlog_value(v));
+}
+
 static vlog_node_t vlog_check_cb(vlog_node_t v, void *ctx)
 {
    if (has_error(v))
@@ -465,13 +472,15 @@ static vlog_node_t vlog_check_cb(vlog_node_t v, void *ctx)
    case V_CONCAT:
       vlog_check_concat(v);
       break;
+   case V_ENUM_NAME:
+      vlog_check_enum_name(v);
+      break;
    case V_CASE_ITEM:
    case V_UDP_LEVEL:
    case V_UDP_EDGE:
    case V_UDP_ENTRY:
    case V_UDP_TABLE:
    case V_GATE_INST:
-   case V_ENUM_NAME:
    case V_ENUM_DECL:
    case V_STRUCT_DECL:
    case V_UNION_DECL:

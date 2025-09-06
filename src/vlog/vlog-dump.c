@@ -630,6 +630,7 @@ static void vlog_dump_data_type(vlog_node_t v, int indent)
    case DT_INTEGER: print_syntax("#integer"); break;
    case DT_BIT: print_syntax("#bit"); break;
    case DT_INT: print_syntax("#int"); break;
+   case DT_BYTE: print_syntax("#byte"); break;
    default: should_not_reach_here();
    }
 
@@ -890,6 +891,36 @@ static void vlog_dump_op_assign(vlog_node_t v)
    print_syntax(";");
 }
 
+static void vlog_dump_enum_decl(vlog_node_t v)
+{
+   print_syntax("#enum");
+
+   if (vlog_has_type(v)) {
+      print_syntax(" ");
+      vlog_dump(vlog_type(v), 0);
+   }
+
+   print_syntax(" { ");
+
+   const int ndecls = vlog_decls(v);
+   for (int i = 0; i < ndecls; i++) {
+      if (i > 0) print_syntax(", ");
+      vlog_dump(vlog_decl(v, i), 0);
+   }
+
+   print_syntax(" }");
+}
+
+static void vlog_dump_enum_name(vlog_node_t v)
+{
+   print_syntax("%s", istr(vlog_ident(v)));
+
+   if (vlog_has_value(v)) {
+      print_syntax("=");
+      vlog_dump(vlog_value(v), 0);
+   }
+}
+
 void vlog_dump(vlog_node_t v, int indent)
 {
    switch (vlog_kind(v)) {
@@ -1063,6 +1094,12 @@ void vlog_dump(vlog_node_t v, int indent)
       break;
    case V_OP_ASSIGN:
       vlog_dump_op_assign(v);
+      break;
+   case V_ENUM_DECL:
+      vlog_dump_enum_decl(v);
+      break;
+   case V_ENUM_NAME:
+      vlog_dump_enum_name(v);
       break;
    default:
       print_syntax("\n");

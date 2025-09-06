@@ -786,6 +786,9 @@ static void p_enum_name_declaration(vlog_node_t parent)
    vlog_set_ident(v, p_identifier());
    vlog_set_type(v, parent);
 
+   if (optional(tEQ))
+      vlog_set_value(v, p_constant_expression());
+
    vlog_add_decl(parent, v);
 
    vlog_set_loc(v, CURRENT_LOC);
@@ -880,6 +883,17 @@ static void p_signing(void)
    one_of(tSIGNED, tUNSIGNED);
 }
 
+static vlog_node_t p_enum_base_type(void)
+{
+   // integer_atom_type [ signing ]
+   //   | integer_vector_type [ signing ] [ packed_dimension ]
+   //   | type_identifier [ packed_dimension ]
+
+   BEGIN("enum base type");
+
+   return p_integer_atom_type();
+}
+
 static vlog_node_t p_data_type(void)
 {
    // integer_vector_type [ signing ] { packed_dimension }
@@ -963,6 +977,9 @@ static vlog_node_t p_data_type(void)
          consume(tENUM);
 
          vlog_node_t v = vlog_new(V_ENUM_DECL);
+
+         if (peek() != tLBRACE)
+            vlog_set_type(v, p_enum_base_type());
 
          consume(tLBRACE);
 

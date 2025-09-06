@@ -513,6 +513,7 @@ START_TEST(test_vlog1)
              "  function func;\n"
              "    input p;\n"
              "  endfunction\n"
+             "  enum byte { a=5, b } e1;\n"
              "  initial begin\n"
              "    $display(\"hello\", $time);\n"
              "    if (bus) r <= 1 | r;\n"

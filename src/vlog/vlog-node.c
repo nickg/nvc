@@ -131,7 +131,7 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
    (I_IDENT | I_TYPE | I_RANGES | I_DECLS),
 
    // V_ENUM_NAME
-   (I_IDENT | I_TYPE),
+   (I_IDENT | I_TYPE | I_VALUE),
 
    // V_UNION_DECL
    (I_IDENT | I_DECLS),

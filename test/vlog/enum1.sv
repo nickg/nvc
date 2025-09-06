@@ -3,4 +3,7 @@ module enum1;
   typedef enum { c, d } t_y;   // OK
   t_y var1;  // OK
   a var2; // Error
+  enum byte { e = 6, f } z;    // OK
+  enum byte { g = f, h } zz;   // OK
+  enum byte { i = zz, j } zzz; // Error
 endmodule // enum1

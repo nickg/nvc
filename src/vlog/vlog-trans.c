@@ -151,6 +151,18 @@ static type_t trans_type(trans_gen_t *g, vlog_node_t decl,
                          verilog_type_t scalar_type,
                          verilog_type_t packed_type)
 {
+   // TODO: cache decl ^ scalar_type ^ packed_type
+
+   switch (vlog_kind(decl)) {
+   case V_TYPE_DECL:
+   case V_ENUM_DECL:
+      return trans_type(g, vlog_type(decl), scalar_type, packed_type);
+   case V_DATA_TYPE:
+      break;
+   default:
+      CANNOT_HANDLE(decl);
+   }
+
    switch (vlog_subkind(decl)) {
    case DT_LOGIC:
    case DT_BIT:
@@ -207,6 +219,9 @@ static type_t trans_type(trans_gen_t *g, vlog_node_t decl,
 
    case DT_BYTE:
       return trans_sized_type(decl, packed_type, 8);
+
+   case DT_SHORTINT:
+      return trans_sized_type(decl, packed_type, 16);
 
    default:
       CANNOT_HANDLE(decl);
@@ -362,6 +377,7 @@ void vlog_trans(vlog_node_t mod, tree_t out)
          trans_generic(&gen, d);
          break;
       case V_GENVAR_DECL:
+      case V_TYPE_DECL:
          break;
       default:
          CANNOT_HANDLE(d);
