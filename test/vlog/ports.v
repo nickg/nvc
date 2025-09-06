@@ -50,3 +50,11 @@ endmodule // ports7
 
 module ports8 (input wire i0);
 endmodule // ports8
+
+module ports9;
+  output o;  // Error
+endmodule // ports9
+
+module ports10 (input wire i0);
+  input i1;  // Error
+endmodule // ports10

@@ -111,8 +111,8 @@ START_TEST(test_simple_sem)
 {
    const error_t expect[] = {
       {  7, "duplicate declaration of x" },
-      { 13, "no visible declaration for qq" },
-      { 13, "no visible declaration for dd" },
+      { 13, "no visible declaration for 'qq'" },
+      { 13, "no visible declaration for 'dd'" },
       { 19, "'r' cannot be driven by continuous assignment" },
       { 20, "'q' cannot be assigned in a procedural block" },
       { -1, NULL }
@@ -139,19 +139,22 @@ START_TEST(test_ports)
 {
    const error_t expect[] = {
       {  4, "duplicate declaration of y" },
-      { 11, "no visible declaration for y" },
+      { 11, "no visible declaration for 'y'" },
       { 19, "duplicate declaration of x" },
       { 22, "duplicate declaration of y" },
       { 31, "'o3' cannot be assigned in a procedural block" },
       { 43, "inconsistent dimensions for 'y'" },
       { 44, "cannot reference net 'x' in constant expression" },
+      { 47, "missing port declaration for 'zz'" },
+      { 55, "'o' does not appear in module port list" },
+      { 59, "'i1' does not appear in module port list" },
       { -1, NULL }
    };
    expect_errors(expect);
 
    input_from_file(TESTDIR "/vlog/ports.v");
 
-   for (int i = 0; i < 8; i++) {
+   for (int i = 0; i < 10; i++) {
       vlog_node_t m = vlog_parse();
       fail_if(m == NULL);
       fail_unless(vlog_kind(m) == V_MODULE);
@@ -560,7 +563,7 @@ START_TEST(test_udp1)
    input_from_file(TESTDIR "/vlog/udp1.v");
 
    const error_t expect[] = {
-      { 13, "no visible declaration for z" },
+      { 13, "no visible declaration for 'z'" },
       { 13, "the first port of a primitive must be an output" },
       { 13, "all ports of a primitive except the first must be inputs" },
       { 25, "expected 3 symbols in UDP table entry but have 2" },
@@ -861,7 +864,7 @@ START_TEST(test_case1)
    input_from_file(TESTDIR "/vlog/case1.v");
 
    const error_t expect[] = {
-      { 10, "no visible declaration for aaa" },
+      { 10, "no visible declaration for 'aaa'" },
       { 15, "multiple default statements within a single case statement" },
       { -1, NULL }
    };
@@ -888,7 +891,7 @@ START_TEST(test_direct1)
    const error_t expect[] = {
       { 11, "unexpected identifier while parsing default_nettype directive, "
         "expecting one of wire, tri, tri0, tri1, wand, triand, wor, trior," },
-      { 15, "no visible declaration for x" },
+      { 15, "no visible declaration for 'x'" },
       { 29, "unexpected wire while parsing unconnected_drive directive, "
         "expecting one of pull0 or pull1" },
       { -1, NULL }
@@ -974,7 +977,7 @@ START_TEST(test_tfcall1)
       {  9, "expected 2 arguments for 'sum' but have 3" },
       { 13, "'x4' is not a function" },
       { 27, "'no_args' is not a task" },
-      { 12, "no visible declaration for not_here" },
+      { 12, "no visible declaration for 'not_here'" },
       { -1, NULL }
    };
    expect_errors(expect);

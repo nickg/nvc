@@ -147,7 +147,7 @@ void vlog_symtab_pop(vlog_symtab_t *st)
       for (int i = 0; i < st->top->tfcalls.count; i++) {
          vlog_node_t v = st->top->tfcalls.items[i];
          ident_t name = vlog_ident(v);
-         error_at(vlog_loc(v), "no visible declaration for %s", istr(name));
+         error_at(vlog_loc(v), "no visible declaration for '%s'", istr(name));
          vlog_symtab_poison(st, name);
       }
    }
@@ -207,7 +207,7 @@ void vlog_symtab_lookup(vlog_symtab_t *st, vlog_node_t v)
          APUSH(st->top->tfcalls, v);
          break;
       default:
-         error_at(vlog_loc(v), "no visible declaration for %s", istr(name));
+         error_at(vlog_loc(v), "no visible declaration for '%s'", istr(name));
          vlog_symtab_poison(st, name);
       }
    }

@@ -452,6 +452,29 @@ static vlog_gate_kind_t get_gate_kind(token_t tok)
    }
 }
 
+static void declare_port(vlog_node_t mod, vlog_node_t port)
+{
+   ident_t id = vlog_ident(port);
+
+   const int nports = vlog_ports(mod);
+   bool found = false;
+   for (int i = 0; i < nports; i++) {
+      vlog_node_t p = vlog_port(mod, i);
+      if (vlog_ident(p) == id) {
+         vlog_set_ref(p, port);
+         found = true;
+      }
+   }
+
+   if (!found) {
+      diag_t *d = diag_new(DIAG_ERROR, vlog_loc(port));
+      diag_printf(d, "'%s' does not appear in module port list", istr(id));
+      diag_hint(d, vlog_loc(mod), "module declaration for '%s'",
+                istr(vlog_ident2(mod)));
+      diag_emit(d);
+   }
+}
+
 static ident_t p_identifier(void)
 {
    if (consume(tID))
@@ -1106,12 +1129,7 @@ static void p_list_of_port_identifiers(vlog_node_t mod, v_port_kind_t kind,
       vlog_add_decl(mod, v);
       vlog_symtab_put(symtab, v);
 
-      vlog_node_t ref = vlog_new(V_REF);
-      vlog_set_loc(ref, CURRENT_LOC);
-      vlog_set_ident(ref, id);
-      vlog_set_ref(ref, v);
-
-      vlog_add_port(mod, ref);
+      declare_port(mod, v);
    } while (optional(tCOMMA));
 }
 
@@ -1146,12 +1164,7 @@ static void p_list_of_variable_port_identifiers(vlog_node_t mod,
       vlog_add_decl(mod, reg);
       vlog_symtab_put(symtab, reg);
 
-      vlog_node_t ref = vlog_new(V_REF);
-      vlog_set_loc(ref, CURRENT_LOC);
-      vlog_set_ident(ref, id);
-      vlog_set_ref(ref, v);
-
-      vlog_add_port(mod, ref);
+      declare_port(mod, v);
    } while (optional(tCOMMA));
 }
 
@@ -5637,7 +5650,7 @@ static void p_list_of_ports(vlog_node_t mod)
    consume(tLPAREN);
 
    do {
-      p_port();
+      vlog_add_port(mod, p_port());
    } while (optional(tCOMMA));
 
    consume(tRPAREN);

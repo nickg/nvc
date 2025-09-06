@@ -1,4 +1,4 @@
-module test1(a, b, c, d);
+module test1(a, b, c, d, e, f, clk, rst, r, s, t, u, v, w);
   input  a, b, c, d, e, f, clk, rst;
   output r, s, t, u, v, w;
   reg notifier;

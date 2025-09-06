@@ -397,6 +397,17 @@ static void vlog_check_concat(vlog_node_t v)
       vlog_check_const_expr(vlog_value(v));
 }
 
+static void vlog_check_module(vlog_node_t v)
+{
+   const int nports = vlog_ports(v);
+   for (int i = 0; i < nports; i++) {
+      vlog_node_t ref = vlog_port(v, i);
+      if (!vlog_has_ref(ref))
+         error_at(vlog_loc(ref), "missing port declaration for '%s'",
+                  istr(vlog_ident(ref)));
+   }
+}
+
 static vlog_node_t vlog_check_cb(vlog_node_t v, void *ctx)
 {
    if (has_error(v))
@@ -404,6 +415,7 @@ static vlog_node_t vlog_check_cb(vlog_node_t v, void *ctx)
 
    switch (vlog_kind(v)) {
    case V_MODULE:
+      vlog_check_module(v);
       break;
    case V_PRIMITIVE:
       vlog_check_primitive(v);
