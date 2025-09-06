@@ -1393,11 +1393,17 @@ static void dump_one_unit(ident_t name, bool add_elab, bool add_body)
    else if (add_body)
       name = ident_prefix(name, well_known(W_BODY), '-');
 
-   tree_t top = lib_get(lib_work(), name);
-   if (top == NULL)
+   object_t *obj = lib_get_generic(lib_work(), name, NULL);
+   if (obj == NULL)
       fatal("%s not analysed", istr(name));
 
-   dump(top);
+   tree_t t = tree_from_object(obj);
+   if (t != NULL)
+      dump(t);
+
+   vlog_node_t v = vlog_from_object(obj);
+   if (v != NULL)
+      vlog_dump(v, 0);
 }
 
 static int dump_cmd(int argc, char **argv, cmd_state_t *state)

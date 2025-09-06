@@ -254,7 +254,11 @@ typedef enum {
    V_GATE_XOR,
    V_GATE_XNOR,
    V_GATE_NOT,
+   V_GATE_NOTIF0,
+   V_GATE_NOTIF1,
    V_GATE_BUF,
+   V_GATE_BUFIF0,
+   V_GATE_BUFIF1,
 } vlog_gate_kind_t;
 
 typedef enum {

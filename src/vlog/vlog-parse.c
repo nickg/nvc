@@ -433,22 +433,26 @@ static vlog_node_t logic_type(void)
 
 static ident_t default_label(const char *prefix)
 {
-   return ident_sprintf("%s#%d#%d", prefix, state.start_loc.first_line,
-                        state.start_loc.first_column);
+   return ident_sprintf("%s#%d#%d", prefix, state.last_loc.first_line,
+                        state.last_loc.first_column);
 }
 
 static vlog_gate_kind_t get_gate_kind(token_t tok)
 {
    switch (tok) {
-   case tAND:  return V_GATE_AND;
-   case tNAND: return V_GATE_NAND;
-   case tOR:   return V_GATE_OR;
-   case tNOR:  return V_GATE_NOR;
-   case tXOR:  return V_GATE_XOR;
-   case tXNOR: return V_GATE_XNOR;
-   case tNOT:  return V_GATE_NOT;
-   case tBUF:  return V_GATE_BUF;
-   default:    should_not_reach_here();
+   case tAND:    return V_GATE_AND;
+   case tNAND:   return V_GATE_NAND;
+   case tOR:     return V_GATE_OR;
+   case tNOR:    return V_GATE_NOR;
+   case tXOR:    return V_GATE_XOR;
+   case tXNOR:   return V_GATE_XNOR;
+   case tNOT:    return V_GATE_NOT;
+   case tNOTIF0: return V_GATE_NOTIF0;
+   case tNOTIF1: return V_GATE_NOTIF1;
+   case tBUF:    return V_GATE_BUF;
+   case tBUFIF0: return V_GATE_BUFIF0;
+   case tBUFIF1: return V_GATE_BUFIF1;
+   default:      should_not_reach_here();
    }
 }
 
@@ -1857,6 +1861,15 @@ static vlog_node_t p_delay_value(void)
    switch (peek()) {
    case tREAL:
       return p_real_number();
+   case tID:
+      {
+         vlog_node_t v = vlog_new(V_REF);
+         vlog_set_ident(v, p_identifier());
+         vlog_set_loc(v, CURRENT_LOC);
+
+         vlog_symtab_lookup(symtab, v);
+         return v;
+      }
    case tUNSNUM:
    default:
       return p_unsigned_number();
@@ -4242,7 +4255,7 @@ static vlog_node_t p_pull_gate_instance(vlog_gate_kind_t kind, vlog_node_t st)
       vlog_symtab_put(symtab, v);
    }
    else
-      vlog_set_ident(v, ident_uniq("#gate"));
+      vlog_set_ident(v, default_label("gate"));
 
    consume(tLPAREN);
 
@@ -4274,7 +4287,7 @@ static vlog_node_t p_n_terminal_gate_instance(vlog_gate_kind_t kind)
       vlog_symtab_put(symtab, v);
    }
    else
-      vlog_set_ident(v, ident_uniq("#gate"));
+      vlog_set_ident(v, default_label("gate"));
 
    consume(tLPAREN);
 
@@ -4287,6 +4300,46 @@ static vlog_node_t p_n_terminal_gate_instance(vlog_gate_kind_t kind)
    do {
       vlog_add_param(v, p_expression());
    } while (optional(tCOMMA));
+
+   vlog_symtab_set_implicit(symtab, V_NET_NONE);
+
+   consume(tRPAREN);
+
+   vlog_set_loc(v, CURRENT_LOC);
+   return v;
+}
+
+static vlog_node_t p_enable_gate_instance(vlog_gate_kind_t kind)
+{
+   // [ name_of_instance ] ( output_terminal , input_terminal ,
+   //     enable_terminal )
+
+   BEGIN("enable gate instance");
+
+   vlog_node_t v = vlog_new(V_GATE_INST);
+   vlog_set_subkind(v, kind);
+
+   if (peek() == tID) {
+      vlog_set_ident(v, p_identifier());
+      vlog_set_loc(v, &state.last_loc);
+      vlog_symtab_put(symtab, v);
+   }
+   else
+      vlog_set_ident(v, default_label("gate"));
+
+   consume(tLPAREN);
+
+   vlog_symtab_set_implicit(symtab, implicit_kind);
+
+   vlog_set_target(v, p_net_lvalue());
+
+   consume(tCOMMA);
+
+   vlog_add_param(v, p_expression());
+
+   consume(tCOMMA);
+
+   vlog_add_param(v, p_expression());
 
    vlog_symtab_set_implicit(symtab, V_NET_NONE);
 
@@ -4319,7 +4372,8 @@ static void p_gate_instantiation(vlog_node_t mod)
    BEGIN("gate instantiation");
 
    token_t token = one_of(tPULLDOWN, tPULLUP, tAND, tNAND, tOR, tNOR,
-                          tXOR, tXNOR, tNOT, tBUF);
+                          tXOR, tXNOR, tNOT, tBUF, tBUFIF0, tBUFIF1,
+                          tNOTIF0, tNOTIF1);
 
    switch (token) {
    case tPULLDOWN:
@@ -4369,6 +4423,28 @@ static void p_gate_instantiation(vlog_node_t mod)
       do {
          vlog_add_stmt(mod, p_n_terminal_gate_instance(get_gate_kind(token)));
       } while (optional(tCOMMA));
+      break;
+
+   case tBUFIF0:
+   case tBUFIF1:
+   case tNOTIF0:
+   case tNOTIF1:
+      {
+         vlog_node_t st;
+         if (peek() == tLPAREN && peek_nth(2) != tID)
+            st = p_drive_strength();
+         else {
+            st = vlog_new(V_STRENGTH);
+            vlog_set_subkind(st, ST_STRONG);
+         }
+
+         if (peek() == tHASH)
+            p_delay3();
+
+         do {
+            vlog_add_stmt(mod, p_enable_gate_instance(get_gate_kind(token)));
+         } while (optional(tCOMMA));
+      }
       break;
 
    default:
@@ -5358,6 +5434,10 @@ static void p_module_or_generate_item(vlog_node_t mod)
    case tXNOR:
    case tNOT:
    case tBUF:
+   case tBUFIF0:
+   case tBUFIF1:
+   case tNOTIF0:
+   case tNOTIF1:
       p_gate_instantiation(mod);
       break;
    case tID:
@@ -5377,7 +5457,7 @@ static void p_module_or_generate_item(vlog_node_t mod)
              tREALTIME, tTIME, tTASK, tFUNCTION, tLOCALPARAM, tPARAMETER, tIF,
              tFOR, tEVENT, tGENVAR, tVAR, tLOGIC, tBIT, tSHORTINT, tLONGINT,
              tBYTE, tPULLDOWN, tPULLUP, tID, tAND, tNAND, tOR, tNOR, tXOR,
-             tXNOR, tNOT, tBUF);
+             tXNOR, tNOT, tBUF, tBUFIF0, tBUFIF1, tNOTIF0, tNOTIF1);
       drop_tokens_until(tSEMI);
    }
 }
@@ -5443,6 +5523,10 @@ static void p_non_port_module_item(vlog_node_t mod)
    case tXNOR:
    case tNOT:
    case tBUF:
+   case tBUFIF0:
+   case tBUFIF1:
+   case tNOTIF0:
+   case tNOTIF1:
    case tTYPEDEF:
    case tENUM:
    case tSVINT:
@@ -5478,10 +5562,11 @@ static void p_non_port_module_item(vlog_node_t mod)
              tSUPPLY0, tSUPPLY1, tTRI, tTRI0, tTRI1, tTRIAND, tTRIOR, tTRIREG,
              tWAND, tWOR, tINTERCONNECT, tREG, tSTRUCT, tUNION, tASSIGN,
              tPULLDOWN, tPULLUP, tID, tATTRBEGIN, tAND, tNAND, tOR, tNOR, tXOR,
-             tXNOR, tNOT, tBUF, tTYPEDEF, tENUM, tSVINT, tINTEGER, tSVREAL,
-             tSHORTREAL, tREALTIME, tTIME, tTASK, tFUNCTION, tLOCALPARAM,
-             tPARAMETER, tEVENT, tIF, tFOR, tGENVAR, tVAR, tLOGIC, tBIT,
-             tSHORTINT, tLONGINT, tBYTE, tSPECIFY, tGENERATE);
+             tXNOR, tNOT, tBUF, tBUFIF0, tBUFIF1, tNOTIF0, tNOTIF1, tTYPEDEF,
+             tENUM, tSVINT, tINTEGER, tSVREAL, tSHORTREAL, tREALTIME, tTIME,
+             tTASK, tFUNCTION, tLOCALPARAM, tPARAMETER, tEVENT, tIF, tFOR,
+             tGENVAR, tVAR, tLOGIC, tBIT, tSHORTINT, tLONGINT, tBYTE, tSPECIFY,
+             tGENERATE);
       drop_tokens_until(tSEMI);
    }
 }

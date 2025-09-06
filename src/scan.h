@@ -534,5 +534,9 @@ void reset_sdf_parser(void);
 #define tLSREQ         606
 #define tASLEQ         607
 #define tASREQ         608
+#define tBUFIF0        609
+#define tBUFIF1        610
+#define tNOTIF0        611
+#define tNOTIF1        612
 
 #endif  // _SCAN_H

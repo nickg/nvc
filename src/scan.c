@@ -379,7 +379,7 @@ const char *token_str(token_t tok)
          "unsigned", "disable", "class", "chandle", "export", "import",
          "endpackage", "extends", "this", "nettype", "ref", "super", "static",
          "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "<<=", ">>=", "<<<=",
-         ">>>=",
+         ">>>=", "bufif0", "bufif1", "notif0", "notif1",
       };
 
       if (tok >= 200 && tok - 200 < ARRAY_LEN(token_strs))

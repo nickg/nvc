@@ -115,6 +115,7 @@ module parse1;
     disable task1;
     #0.9;
     x %= 5;
+    #t1;
   end
   triand w4;
   trior  w5;
@@ -148,4 +149,5 @@ module parse1;
     shortreal sr;
     shortint si;
   end
+  bufif0 (pull0,pull1) (x, y, z);
 endmodule // parse1

@@ -742,6 +742,10 @@ BEFORE            ?i:before
 <VLOG>"xnor"             { return tXNOR; }
 <VLOG>"not"              { return tNOT; }
 <VLOG>"buf"              { return tBUF; }
+<VLOG>"bufif0"           { return tBUFIF0; }
+<VLOG>"bufif1"           { return tBUFIF1; }
+<VLOG>"notif0"           { return tNOTIF0; }
+<VLOG>"notif1"           { return tNOTIF1; }
 <VLOG>"struct"           { return KEYWORD_2005(tSTRUCT); }
 <VLOG>"packed"           { return KEYWORD_2005(tPACKED); }
 <VLOG>"void"             { return KEYWORD_2005(tVOID); }

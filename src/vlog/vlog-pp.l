@@ -130,9 +130,11 @@ ID    [a-zA-Z_]([a-zA-Z0-9_$])*
 `{ID}                   { const char *text = shash_get(macros, vlogpp_text + 1);
                           if (text != NULL)
                              push_macro(vlogpp_text + 1, text);
-                          else
+                          else {
                              warn_at(&yylloc, "macro '%s' undefined",
                                      vlogpp_text + 1);
+                             shash_put(macros, vlogpp_text + 1, "");
+                          }
                         }
 
 <MACRO_NAME>{ID}[ \t]*  { macro_name = xstrdup(vlogpp_text);
