@@ -36,6 +36,15 @@ bool vlog_is_net(vlog_node_t v)
    case V_BIT_SELECT:
    case V_PART_SELECT:
       return vlog_is_net(vlog_value(v));
+   case V_CONCAT:
+      {
+         const int nparams = vlog_params(v);
+         for (int i = 0; i < nparams; i++) {
+            if (!vlog_is_net(vlog_param(v, i)))
+               return false;
+         }
+         return true;
+      }
    default:
       return false;
    }

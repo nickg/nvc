@@ -1191,3 +1191,4 @@ issue1253       normal,2008
 ivtest17        verilog
 issue1287       shell
 issue1285       mixed,2008
+vlog25          verilog
