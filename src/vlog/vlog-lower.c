@@ -1657,9 +1657,12 @@ static void vlog_lower_driver(vlog_gen_t *g, vlog_node_t v)
       // XXX: check in range
       mir_value_t nets = mir_build_array_ref(g->mu, target.nets, target.offset);
 
-      mir_value_t one = mir_const(g->mu, t_offset, target.size);
+      int total_size = target.size;
+      if (vlog_kind(prefix) == V_REF)
+         total_size *= vlog_size(vlog_ref(prefix));
 
-      mir_build_drive_signal(g->mu, nets, one);
+      mir_value_t count = mir_const(g->mu, t_offset, total_size);
+      mir_build_drive_signal(g->mu, nets, count);
    }
 }
 
