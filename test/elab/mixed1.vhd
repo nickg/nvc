@@ -86,4 +86,15 @@ begin
             port map ( x, y, z );       -- Error
     end block;
 
+    b8: block is
+        component mod1 is
+            generic ( g1 : integer := 0 );
+            port ( one, two : in std_logic;
+                   three : in std_logic );
+        end component;
+    begin
+        u: component mod1
+            port map ( x, y, z );       -- Error
+    end block;
+
 end architecture;

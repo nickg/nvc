@@ -1444,6 +1444,8 @@ START_TEST(test_mixed1)
       { 67, "generic G1 should have type INTEGER to match corresponding "
         "Verilog parameter" },
       { 79, "generic G2 not found in Verilog module mod1" },
+      { 93, "VHDL port direction IN does not match corresponding Verilog "
+        "port 'three' which is declared as output" },
       { -1, NULL }
    };
    expect_errors(expect);

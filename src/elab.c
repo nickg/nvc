@@ -447,10 +447,30 @@ static tree_t elab_mixed_binding(tree_t comp, const elab_instance_t *ei)
          return NULL;
       }
 
+      const v_port_kind_t mdir = vlog_subkind(mport);
+      const port_mode_t cdir = tree_subkind(cport);
+
+      if (mdir != V_PORT_INPUT && mdir != V_PORT_OUTPUT) {
+         error_at(tree_loc(cport), "only input and output ports are supported "
+                  "for mixed language instantiation");
+         return NULL;
+      }
+      else if (!(mdir == V_PORT_INPUT && cdir == PORT_IN)
+               && !(mdir == V_PORT_OUTPUT && cdir == PORT_OUT)) {
+         error_at(tree_loc(cport), "VHDL port direction %s does not match "
+                  "corresponding Verilog port '%s' which is declared as %s",
+                  port_mode_str(cdir), istr(vlog_ident(mport)),
+                  mdir == V_PORT_INPUT ? "input" : "output");
+         return NULL;
+      }
+
       type_t btype = tree_type(cport);
       type_t vtype = tree_type(vport);
 
-      if (vlog_subkind(mport) == V_PORT_INPUT) {
+      tree_t conv = tree_new(T_CONV_FUNC);
+      tree_set_loc(conv, tree_loc(cport));
+
+      if (mdir == V_PORT_INPUT) {
          tree_t func = elab_to_verilog(btype, vtype);
          if (func == NULL) {
             error_at(tree_loc(cport), "cannot connect VHDL signal with type "
@@ -459,8 +479,6 @@ static tree_t elab_mixed_binding(tree_t comp, const elab_instance_t *ei)
             return NULL;
          }
 
-         tree_t conv = tree_new(T_CONV_FUNC);
-         tree_set_loc(conv, tree_loc(cport));
          tree_set_ref(conv, func);
          tree_set_ident(conv, tree_ident(func));
          tree_set_type(conv, type_result(tree_type(func)));
@@ -480,8 +498,6 @@ static tree_t elab_mixed_binding(tree_t comp, const elab_instance_t *ei)
             return NULL;
          }
 
-         tree_t conv = tree_new(T_CONV_FUNC);
-         tree_set_loc(conv, tree_loc(cport));
          tree_set_ref(conv, func);
          tree_set_ident(conv, tree_ident(func));
          tree_set_type(conv, type_result(tree_type(func)));
