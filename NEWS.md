@@ -7,6 +7,8 @@
 - The new `-I` analysis option adds search directories for the Verilog
   `include` directive.
 - Fixed compatibility with LLVM 21.
+- Fixed a crash when `--cover-file` is specified with a non-existent
+  directory (#1287).
 - Several other minor bugs were resolved (#1269, #1277, #1279, #1280,
   #1281).
 

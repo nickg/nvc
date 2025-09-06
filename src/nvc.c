@@ -575,9 +575,12 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
    progress("elaborating design");
 
    if (cover != NULL) {
-      fbuf_t *covdb = fbuf_open(meta.cover_file, FBUF_OUT, FBUF_CS_NONE);
-      cover_dump_items(cover, covdb, COV_DUMP_ELAB, NULL);
-      fbuf_close(covdb, NULL);
+      fbuf_t *f = fbuf_open(meta.cover_file, FBUF_OUT, FBUF_CS_NONE);
+      if (f == NULL)
+         fatal_errno("failed to open coverage database: %s", meta.cover_file);
+
+      cover_dump_items(cover, f, COV_DUMP_ELAB, NULL);
+      fbuf_close(f, NULL);
 
       progress("dumping coverage data");
    }
