@@ -1194,3 +1194,4 @@ issue1285       mixed,2008
 vlog25          verilog
 binary2         verilog
 enum1           verilog
+cover28         shell
