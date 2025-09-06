@@ -150,6 +150,7 @@ typedef enum {
    V_TF_PORT_DECL,
    V_RETURN,
    V_OP_ASSIGN,
+   V_STRUCT_REF,
 
    V_LAST_NODE_KIND
 } vlog_kind_t;

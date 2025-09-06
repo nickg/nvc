@@ -281,3 +281,25 @@ uint32_t vlog_hash_node(vlog_node_t v)
       return mix_bits_64((uintptr_t)v);
    }
 }
+
+vlog_node_t vlog_get_type(vlog_node_t v)
+{
+   switch (vlog_kind(v)) {
+   case V_STRUCT_DECL:
+   case V_ENUM_DECL:
+   case V_DATA_TYPE:
+      return v;
+   case V_VAR_DECL:
+   case V_NET_DECL:
+   case V_TYPE_DECL:
+      return vlog_type(v);
+   case V_REF:
+   case V_STRUCT_REF:
+      if (vlog_has_ref(v))
+         return vlog_get_type(vlog_ref(v));
+      else
+         return NULL;
+   default:
+      CANNOT_HANDLE(v);
+   }
+}

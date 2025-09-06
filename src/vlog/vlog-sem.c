@@ -51,10 +51,6 @@ static bool has_error(vlog_node_t v)
          return true;
       }
    case V_PORT_DECL:
-      if (vlog_has_ref(v))
-         return false;
-      else
-         return true; // XXX: check this
    default:
       return false;
    }
@@ -111,32 +107,68 @@ static void vlog_check_const_expr(vlog_node_t expr)
    }
 }
 
-static void vlog_check_variable_target(vlog_node_t target)
+static void vlog_check_variable_lvalue(vlog_node_t v, vlog_node_t where)
 {
-   if (vlog_is_net(target)) {
-      diag_t *d = diag_new(DIAG_ERROR, vlog_loc(target));
-      name_for_diag(d, target, "target");
-      diag_printf(d, " cannot be assigned in a procedural block");
-      diag_emit(d);
+   switch (vlog_kind(v)) {
+   case V_VAR_DECL:
+   case V_FUNC_DECL:
+   case V_STRUCT_DECL:
+   case V_ENUM_DECL:
+   case V_UNION_DECL:
+   case V_GENVAR_DECL:
+      break;
+   case V_REF:
+      if (vlog_has_ref(v))
+         vlog_check_variable_lvalue(vlog_ref(v), v);
+      break;
+   case V_BIT_SELECT:
+   case V_PART_SELECT:
+   case V_STRUCT_REF:
+      vlog_check_variable_lvalue(vlog_value(v), v);
+      break;
+   case V_CONCAT:
+      {
+         const int nparams = vlog_params(v);
+         for (int i = 0; i < nparams; i++) {
+            vlog_node_t p = vlog_param(v, i);
+            vlog_check_variable_lvalue(p, p);
+         }
+      }
+      break;
+   case V_PORT_DECL:
+      if (vlog_has_ref(v)) {
+         vlog_check_variable_lvalue(vlog_ref(v), where);
+         break;
+      }
+      // Fall-through
+   default:
+      {
+         diag_t *d = diag_new(DIAG_ERROR, vlog_loc(where));
+         name_for_diag(d, where, "target");
+         diag_suppress(d, has_error(where));
+         diag_printf(d, " cannot be assigned in a procedural block");
+         diag_emit(d);
+      }
+      break;
    }
 }
 
 static void vlog_check_nbassign(vlog_node_t stmt)
 {
    vlog_node_t target = vlog_target(stmt);
-   vlog_check_variable_target(target);
+   vlog_check_variable_lvalue(target, target);
 }
 
 static void vlog_check_bassign(vlog_node_t stmt)
 {
    vlog_node_t target = vlog_target(stmt);
-   vlog_check_variable_target(target);
+   vlog_check_variable_lvalue(target, target);
 }
 
 static void vlog_check_op_assign(vlog_node_t stmt)
 {
    vlog_node_t target = vlog_target(stmt);
-   vlog_check_variable_target(target);
+   vlog_check_variable_lvalue(target, target);
 }
 
 static void vlog_check_net_lvalue(vlog_node_t v, vlog_node_t where)
@@ -173,6 +205,7 @@ static void vlog_check_net_lvalue(vlog_node_t v, vlog_node_t where)
          diag_printf(d, " cannot be driven by continuous assignment");
          diag_emit(d);
       }
+      break;
    }
 }
 
@@ -215,7 +248,8 @@ static void vlog_check_consistent(vlog_node_t a, vlog_node_t b)
 
 static void vlog_check_port_decl(vlog_node_t port)
 {
-   vlog_check_consistent(port, vlog_ref(port));
+   if (vlog_has_ref(port))
+      vlog_check_consistent(port, vlog_ref(port));
 }
 
 static void vlog_check_primitive(vlog_node_t udp)
@@ -535,6 +569,7 @@ static vlog_node_t vlog_check_cb(vlog_node_t v, void *ctx)
    case V_TF_PORT_DECL:
    case V_WHILE:
    case V_DO_WHILE:
+   case V_STRUCT_REF:
       break;
    default:
       fatal_at(vlog_loc(v), "cannot check verilog node %s",

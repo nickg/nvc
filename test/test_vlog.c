@@ -611,6 +611,9 @@ START_TEST(test_struct1)
 
    const error_t expect[] = {
       { 13, "duplicate declaration of a" },
+      { 18, "struct has no field named 'c'" },
+      { 19, "prefix is not a struct or class" },
+      { 20, "'t_pair' cannot be assigned in a procedural block" },
       { -1, NULL }
    };
    expect_errors(expect);

@@ -1324,38 +1324,49 @@ static vlog_node_t p_select(ident_t id)
 
    vlog_symtab_lookup(symtab, prefix);
 
-    if (optional(tLSQUARE)) {
-       do {
-          vlog_node_t expr = p_expression();
-          if (scan(tCOLON, tINDEXPOS, tINDEXNEG)) {
-             vlog_node_t ps = vlog_new(V_PART_SELECT);
-             vlog_set_left(ps, expr);
-             vlog_set_value(ps, prefix);
+   while (optional(tDOT)) {
+      vlog_node_t ref = vlog_new(V_STRUCT_REF);
+      vlog_set_ident(ref, p_identifier());
+      vlog_set_value(ref, prefix);
+      vlog_set_loc(ref, CURRENT_LOC);
 
-             p_part_select_range(ps);
+      vlog_symtab_lookup(symtab, ref);
 
-             consume(tRSQUARE);
+      prefix = ref;
+   }
 
-             vlog_set_loc(ps, CURRENT_LOC);
-             return ps;
-          }
+   if (optional(tLSQUARE)) {
+      do {
+         vlog_node_t expr = p_expression();
+         if (scan(tCOLON, tINDEXPOS, tINDEXNEG)) {
+            vlog_node_t ps = vlog_new(V_PART_SELECT);
+            vlog_set_left(ps, expr);
+            vlog_set_value(ps, prefix);
 
-          if (vlog_kind(prefix) == V_BIT_SELECT)
-             vlog_add_param(prefix, expr);
-          else {
-             vlog_node_t bs = vlog_new(V_BIT_SELECT);
-             vlog_set_loc(bs, CURRENT_LOC);
-             vlog_set_value(bs, prefix);
-             vlog_add_param(bs, expr);
+            p_part_select_range(ps);
 
-             prefix = bs;
-          }
+            consume(tRSQUARE);
 
-          consume(tRSQUARE);
-       } while (optional(tLSQUARE));
-    }
+            vlog_set_loc(ps, CURRENT_LOC);
+            return ps;
+         }
 
-    return prefix;
+         if (vlog_kind(prefix) == V_BIT_SELECT)
+            vlog_add_param(prefix, expr);
+         else {
+            vlog_node_t bs = vlog_new(V_BIT_SELECT);
+            vlog_set_loc(bs, CURRENT_LOC);
+            vlog_set_value(bs, prefix);
+            vlog_add_param(bs, expr);
+
+            prefix = bs;
+         }
+
+         consume(tRSQUARE);
+      } while (optional(tLSQUARE));
+   }
+
+   return prefix;
 }
 
 static void p_list_of_arguments(vlog_node_t call)
