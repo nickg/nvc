@@ -83,7 +83,7 @@ module parse1;
   always @(  *) x <= y;
   initial
     case (x)
-      2'b00: y = 1;
+      2'b00: {x, y} = 153;
       2'b01, 2'b10: ;
       default: y = 2;
     endcase // case (x)

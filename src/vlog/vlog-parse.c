@@ -1965,11 +1965,25 @@ static vlog_node_t p_variable_lvalue(void)
 
    BEGIN("variable lvalue");
 
-   ident_t id = p_identifier();
-   vlog_node_t v = p_select(id);
+   if (optional(tLBRACE)) {
+      vlog_node_t v = vlog_new(V_CONCAT);
 
-   vlog_set_loc(v, CURRENT_LOC);
-   return v;
+      do {
+         vlog_add_param(v, p_variable_lvalue());
+      } while (optional(tCOMMA));
+
+      consume(tRBRACE);
+
+      vlog_set_loc(v, CURRENT_LOC);
+      return v;
+   }
+   else {
+      ident_t id = p_identifier();
+      vlog_node_t v = p_select(id);
+
+      vlog_set_loc(v, CURRENT_LOC);
+      return v;
+   }
 }
 
 static vlog_node_t p_net_lvalue(void)
@@ -2769,7 +2783,7 @@ static vlog_node_t p_statement_item(ident_t id)
          return p_subroutine_call_statement();
       default:
          {
-            vlog_node_t lhs = p_variable_lvalue(), v = NULL;
+            vlog_node_t lhs = p_variable_lvalue(), v;
 
             switch (peek()) {
             case tLE:
@@ -2787,6 +2801,18 @@ static vlog_node_t p_statement_item(ident_t id)
             consume(tSEMI);
             return v;
          }
+      }
+   case tLBRACE:
+      {
+         vlog_node_t lhs = p_variable_lvalue(), v;
+
+         if (peek() == tLE)
+            v = p_nonblocking_assignment(lhs);
+         else
+            v = p_blocking_assignment(lhs);
+
+         consume(tSEMI);
+         return v;
       }
    case tDISABLE:
       return p_disable_statement();
