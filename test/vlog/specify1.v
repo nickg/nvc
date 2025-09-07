@@ -38,6 +38,8 @@ module test1(a, b, c, d, e, f, clk, rst, r, s, t, u, v, w);
     $width(posedge clk, 10, 11);
     $setuphold (posedge clk, negedge a, 0, 0, notifier,,, delayed_clk, delayed_d);
     $recrem (negedge rst, posedge clk, 0, 0, notifier,,,,);
+    (c +=> t) = t2;   // Parsing ambiguity
+    (c -=> t) = t2;   // Parsing ambiguity
   endspecify
 
 endmodule // test1

@@ -727,6 +727,8 @@ BEFORE            ?i:before
 <VLOG>">>="              { return tLSREQ; }
 <VLOG>"<<<="             { return tASLEQ; }
 <VLOG>">>>="             { return tASREQ; }
+<VLOG>"+=>"              { yyless(1); return tPLUS; }
+<VLOG>"-=>"              { yyless(1); return tMINUS; }
 <VLOG>"var"              { return KEYWORD_2005(tVAR); }
 <VLOG>"specify"          { return tSPECIFY; }
 <VLOG>"endspecify"       { return tENDSPECIFY; }
