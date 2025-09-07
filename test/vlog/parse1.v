@@ -150,4 +150,5 @@ module parse1;
     shortint si;
   end
   bufif0 (pull0,pull1) (x, y, z);
+  always @(/* AUTOSENSE*/ *) x = y;
 endmodule // parse1

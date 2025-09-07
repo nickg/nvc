@@ -1840,8 +1840,12 @@ static vlog_node_t p_event_control(void)
 
    switch (one_of(tLPAREN, tTIMES, tPARENSTAR)) {
    case tLPAREN:
-      p_event_expression(v);
-      consume(tRPAREN);
+      if (peek() == tATTREND)
+         consume(tATTREND);   // Lexing ambiguity
+      else {
+         p_event_expression(v);
+         consume(tRPAREN);
+      }
       break;
    case tTIMES:
    case tPARENSTAR:
