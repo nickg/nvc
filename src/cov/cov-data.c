@@ -641,18 +641,22 @@ cover_item_t *cover_add_items_for(cover_data_t *data, cover_scope_t *cs,
    if (!cs->emit)
       return NULL;
 
-   // Skip coverage emit when ignored by spec-file -> Common for all item kinds
-   cover_scope_t *ignore_scope = cs;
-   for (; ignore_scope->type != CSCOPE_INSTANCE && ignore_scope->parent;
-        ignore_scope = ignore_scope->parent)
-      ;
-
    const loc_t loc = get_cover_loc(kind, obj);
 
-   for (int i = 0; i < ignore_scope->ignore_lines.count; i++) {
-      line_range_t *lr = &(ignore_scope->ignore_lines.items[i]);
-      if (loc.first_line > lr->start && loc.first_line <= lr->end)
-         return NULL;
+   // Multiple scopes may be emitted from a single file for generate
+   // statements, blocks, etc.
+   for (cover_scope_t *ignore_scope = cs; ignore_scope->parent;
+        ignore_scope = ignore_scope->parent) {
+      if (ignore_scope->type != CSCOPE_INSTANCE)
+         continue;
+      else if (ignore_scope->loc.file_ref != loc.file_ref)
+         break;
+
+      for (int i = 0; i < ignore_scope->ignore_lines.count; i++) {
+         line_range_t *lr = &(ignore_scope->ignore_lines.items[i]);
+         if (loc.first_line > lr->start && loc.first_line <= lr->end)
+            return NULL;
+      }
    }
 
    // Emit items based on item kind
