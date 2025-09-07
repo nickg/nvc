@@ -643,18 +643,14 @@ cover_item_t *cover_add_items_for(cover_data_t *data, cover_scope_t *cs,
 
    const loc_t loc = get_cover_loc(kind, obj);
 
-   // Skip coverage emit when it shall be ignored
-   //    - coverage spec file
-   //    - pragma
-   // Need to look-up all upper scopes in the same source file since
-   // generate statements create CSCOPE_INSTANCE within file, but ignores
-   // from pragma are collected in the scope of the surrounding design unit.
-   for (cover_scope_t *ignore_scope = cs;
-        ignore_scope->parent && ignore_scope->loc.file_ref == loc.file_ref;
-        ignore_scope = ignore_scope->parent)
-   {
+   // Multiple scopes may be emitted from a single file for generate
+   // statements, blocks, etc.
+   for (cover_scope_t *ignore_scope = cs; ignore_scope->parent;
+        ignore_scope = ignore_scope->parent) {
       if (ignore_scope->type != CSCOPE_INSTANCE)
          continue;
+      else if (ignore_scope->loc.file_ref != loc.file_ref)
+         break;
 
       for (int i = 0; i < ignore_scope->ignore_lines.count; i++) {
          line_range_t *lr = &(ignore_scope->ignore_lines.items[i]);
