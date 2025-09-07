@@ -680,9 +680,17 @@ static void pp_nvc_pop(void)
       return;
 
    const macro_expansion_t top = APOP(macro_stack);
+
    input_buf.lineno = top.expandloc.first_line - 1;
-   input_buf.colno = top.expandloc.first_column + top.expandloc.column_delta;
    input_buf.file_ref = top.expandloc.file_ref;
+
+   // Eat the following newline and adjust the next token location
+   input_buf.lookahead = yylex();
+
+   yylloc.first_column +=
+      top.expandloc.first_column + top.expandloc.column_delta + 1;
+
+   input_buf.colno = yylloc.first_column + yylloc.column_delta;
 
    free(top.include);
 

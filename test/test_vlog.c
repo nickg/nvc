@@ -784,11 +784,11 @@ START_TEST(test_pp4)
    input_from_file(TESTDIR "/vlog/pp4.v");
 
    const error_t expect[] = {
-      { 11, "unexpected module while parsing expression" },
+      { 16, "unexpected module while parsing expression" },
       {  0, "this token was unexpected" },
       {  0, "while expanding macro MACRO2" },
       {  0, "while expanding macro MACRO1" },
-      { 16, "unexpected wire while parsing net declaration assignment" },
+      { 21, "unexpected wire while parsing net declaration assignment" },
       { -1, NULL }
    };
    expect_errors(expect);
