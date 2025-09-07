@@ -435,13 +435,13 @@ number_t number_new(const char *str, const loc_t *loc)
    return number_intern(result);
 }
 
-number_t number_from_string(const char *str)
+number_t number_from_string(const char *bytes, size_t len)
 {
-   const int width = 8 * strlen(str);
+   const int width = 8 * len;
    SCRATCH_NUMBER result = number_scratch(width, false);
 
-   const char *p = str;
-   for (int bit = width - 8; *p != '\0'; p++, bit -= 8) {
+   const char *p = bytes;
+   for (int bit = width - 8; p < bytes + len; p++, bit -= 8) {
       const uint8_t byte = *p;
       bignum_set_nibble(result.big, bit, byte);
       bignum_set_nibble(result.big, bit + 4, byte >> 4);

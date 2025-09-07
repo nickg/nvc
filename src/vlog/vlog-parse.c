@@ -549,7 +549,7 @@ static vlog_node_t p_unsigned_number(void)
    BEGIN("unsigned number");
 
    number_t n;
-   if (consume(tUNSNUM)) {;
+   if (consume(tUNSNUM)) {
       n = number_new(state.last_lval.str, CURRENT_LOC);
       free(state.last_lval.str);
    }
@@ -621,9 +621,9 @@ static vlog_node_t p_string_literal(void)
 
    number_t n;
    if (consume(tSTRING)) {
-      state.last_lval.str[strlen(state.last_lval.str) - 1] = '\0';
-      n = number_from_string(state.last_lval.str + 1);
-      free(state.last_lval.str);
+      text_buf_t *tb = state.last_lval.text;
+      n = number_from_string(tb_get(tb), tb_len(tb));
+      tb_free(tb);
    }
    else
       should_not_reach_here();
@@ -6541,17 +6541,15 @@ static void p_keywords_directive(void)
    consume(tBEGINKEYWORDS);
 
    if (consume(tSTRING)) {
-      state.last_lval.str[strlen(state.last_lval.str) - 1] = '\0';
-
       vlog_version_t vers;
-      if (parse_verilog_version(state.last_lval.str + 1, &vers))
+      if (parse_verilog_version(tb_get(state.last_lval.text), &vers))
          push_keywords(vers);
       else
          error_at(&state.last_loc, "\"%s\" is not a recognised Verilog or "
-                  "System Verilog version", state.last_lval.str + 1);
-   }
+                  "System Verilog version", tb_get(state.last_lval.text));
 
-   free(state.last_lval.str);
+      tb_free(state.last_lval.text);
+   }
 }
 
 static void p_endkeywords_directive(void)

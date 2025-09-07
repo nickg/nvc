@@ -21,13 +21,12 @@
 #include "prim.h"
 #include "diag.h"
 
-typedef struct { ident_t left, right; } ident_pair_t;
-
 typedef union {
-   double   real;
-   char    *str;
-   int64_t  i64;
-   ident_t  ident;
+   double      real;
+   char       *str;
+   int64_t     i64;
+   ident_t     ident;
+   text_buf_t *text;
 } yylval_t;
 
 // Functions shared between VHDL and Verilog scanners

@@ -29,8 +29,8 @@
 #include "ident.h"
 #include "option.h"
 #include "scan.h"
-#include "tree.h"
 
+#include <assert.h>
 #include <ctype.h>
 #include <math.h>
 #include <string.h>
@@ -91,15 +91,18 @@ static int resolve_ir1045(void);
 static void warn_lrm(vhdl_standard_t std, const char *fmt, ...);
 static void warn_utf8(const char *str);
 static bool begin_psl_comment(void);
-static int escape_verilog_string(const char *str);
 static int report_unterminated_string(const char *str);
 static int report_bad_identifier(char *str);
 static int verilog_keyword(int token, vlog_version_t vers);
+static void cstring_begin(void);
+static token_t cstring_end(void);
+static void cstring_append(const char *text);
 
 static int last_token = -1;
 static int comment_caller = 0;
 static bool in_psl_comment = false;
 static bool preserve_case = false;
+static loc_t start_loc = LOC_INVALID;
 
 extern loc_t yylloc;
 extern yylval_t yylval;
@@ -118,7 +121,6 @@ SDF_ID          ([a-zA-Z$_])([a-zA-Z$_0-9])*
 SYSTASK         \$[a-zA-Z_$]([a-zA-Z0-9_$])*
 STRING          (\"([^\"\n]|\"\")*\")|(\%([^\"\n\%]|\%\%)*\%)
 BADSTRING       (\"([^\"\n]|\"\")*)|(\%([^\"\n\%]|\%\%)*)
-VLOG_STRING     "\""[^\n\"]*"\""
 BITSTRING       [0-9]*[usUS]?(?i:[boxd]\"[^\"\n]*\")|(?i:[boxd]\%[^\n\%]*\%)
 CHAR            '.'
 INTEGER         [0-9][0-9_]*
@@ -147,7 +149,7 @@ SCALAR_ZERO     ('b0|'B0|1'b0|1'B0)
 SCALAR_ONE      ('b1|'B1|1'b1|1'B1)
 PAREN_STAR      "("{SPACE}*"*"{SPACE}*")"
 
-%x COMMENT C_COMMENT PSL VLOG UDP SDF SDF_EXPR
+%x COMMENT C_COMMENT PSL VLOG UDP SDF SDF_EXPR CSTRING
 
 ENTITY        ?i:entity
 IS            ?i:is
@@ -384,6 +386,14 @@ BEFORE            ?i:before
 <C_COMMENT>"*/"          { BEGIN(comment_caller); }
 <C_COMMENT>\n            { /* Must match a single character */ }
 <C_COMMENT>.             { }
+
+<VLOG>"\""               { cstring_begin(); }
+
+<CSTRING>"\\x"{HEX}      { cstring_append(yytext); }
+<CSTRING>"\\x"[0-7]+     { cstring_append(yytext); }
+<CSTRING>"\\".           { cstring_append(yytext); }
+<CSTRING>"\""            { return cstring_end(); }
+<CSTRING>.               { cstring_append(yytext); }
 
 <PSL>;                   { TOKEN(tSEMI); }
 <PSL>{PSL_CONT}          { /* Multi-line PSL comment */
@@ -830,7 +840,6 @@ BEFORE            ?i:before
 <VLOG>{VLOG_ID}          { yylval.ident = ident_new(yytext); return tID; }
 <VLOG>{VLOG_ESCAPED}     { yylval.ident = ident_new(yytext + 1); return tID; }
 <VLOG>{INTEGER}          { yylval.str = xstrdup(yytext); return tUNSNUM; }
-<VLOG>{VLOG_STRING}      { return escape_verilog_string(yytext); }
 <VLOG>{VLOG_NUMBER}      { yylval.str = xstrdup(yytext); return tNUMBER; }
 <VLOG>{VLOG_REAL}        { return parse_verilog_real(yytext); };
 <VLOG>{PAREN_STAR}       { return tPARENSTAR; }
@@ -897,8 +906,7 @@ BEFORE            ?i:before
 % /* TODO: Crosscheck SDF definition of decimal */
 <SDF,SDF_EXPR>{DECIMAL} { return parse_decimal_literal(yytext); }
 
-% /* VLOG_STRING is defined almost equally as SDF qstring */
-<SDF>{VLOG_STRING}     { return parse_string(yytext); }
+<SDF>"\""[^\n\"]*"\""   { return parse_string(yytext); }
 
 <SDF>{DELAYFILE}        { TOKEN(tDELAYFILE); }
 <SDF>{SDFVERSION}       { TOKEN(tSDFVERSION); }
@@ -1235,27 +1243,73 @@ static int report_bad_identifier(char *str)
    return parse_id(str);
 }
 
-static int escape_verilog_string(const char *str)
+static void cstring_begin(void)
 {
-   char *s = (yylval.str = xstrdup(str));
-   for (char *p = s; *p; p++) {
-      if (*p == '\\') {
-         switch (*++p) {
-         case 'n': *s++ = '\n'; break;
-         case 'r': *s++ = '\r'; break;
-         case 't': *s++ = '\t'; break;
-         case 'b': *s++ = '\b'; break;
-         default:
-            warn_at(&yylloc, "unrecognised escaped character '%c'", *p);
-            *s++ = *p;
-         }
-      }
-      else
-         *s++ = *p;
-   }
-   *s = '\0';
+   BEGIN(CSTRING);
+   assert(loc_invalid_p(&start_loc));
+   start_loc = yylloc;
+   yylval.text = tb_new();
+}
 
+static token_t cstring_end(void)
+{
+   BEGIN(VLOG);
+   yylloc = get_loc(start_loc.first_line,
+                    start_loc.first_column,
+                    yylloc.first_line + yylloc.line_delta,
+                    yylloc.first_column + yylloc.column_delta,
+                    start_loc.file_ref);
+   start_loc = LOC_INVALID;
    return tSTRING;
+}
+
+static void cstring_append(const char *text)
+{
+   const char *p = text;
+   if (*p == '\\') {
+      switch (*++p) {
+      case 'n': tb_append(yylval.text, '\n'); p++; break;
+      case 't': tb_append(yylval.text, '\t'); p++; break;
+      case 'r': tb_append(yylval.text, '\r'); p++; break;
+      case 'v': tb_append(yylval.text, '\v'); p++; break;
+      case 'f': tb_append(yylval.text, '\f'); p++; break;
+      case 'a': tb_append(yylval.text, '\a'); p++; break;
+      case 'x':  // 1-2 hex digits
+         {
+            int num = 0;
+            while (*p) {
+               const char ch = *++p;
+               if (ch >= '0' && ch <= '9')
+                  num = num * 16 + (ch - '0');
+               else if (ch >= 'a' && ch <= 'f')
+                  num = num * 16 + (ch - 'a');
+               else if (ch >= 'A' && ch <= 'F')
+                  num = num * 16 + (ch - 'A');
+               else
+                  break;
+            }
+
+            tb_append(yylval.text, num);
+         }
+         break;
+      case '0'...'7':  // 1-3 octal digits
+         {
+            int num = *p - '0';
+            while (*p) {
+               const char ch = *++p;
+               if (ch >= '0' && ch <= '7')
+                  num = num * 8 + (ch - '0');
+               else
+                  break;
+            }
+
+            tb_append(yylval.text, num);
+         }
+         break;
+      }
+   }
+
+   tb_cat(yylval.text, p);
 }
 
 static void warn_lrm(vhdl_standard_t std, const char *fmt, ...)

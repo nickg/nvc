@@ -414,8 +414,13 @@ static void vlog_dump_string(vlog_node_t v)
    print_syntax("\"");
 
    number_t n = vlog_number(v);
-   for (int i = number_width(n)/8 - 1; i >= 0; i--)
-      print_syntax("%c", number_byte(n, i));
+   for (int i = number_width(n)/8 - 1; i >= 0; i--) {
+      const uint8_t byte = number_byte(n, i);
+      if (byte >= 0x20 && byte <= 0x7e)
+         print_syntax("%c", byte);
+      else
+         print_syntax("\\x%02x", byte);
+   }
 
    print_syntax("\"");
 }

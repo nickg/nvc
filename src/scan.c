@@ -391,7 +391,7 @@ const char *token_str(token_t tok)
 
 void free_token(token_t tok, yylval_t *lval)
 {
-   if (tok == tSTRING || tok == tBITSTRING)
+   if (tok == tSTRING || tok == tBITSTRING || tok == tUNSNUM)
       free(lval->str);
 
    DEBUG_ONLY(lval->str = NULL);
@@ -615,9 +615,7 @@ static void pp_nvc_push(void)
       exp.macro = yylval.ident;
       break;
    case tSTRING:
-      yylval.str[strlen(yylval.str) - 1] = '\0';
-      exp.include = xstrdup(yylval.str + 1);
-      free(yylval.str);
+      exp.include = tb_claim(yylval.text);
       break;
    default:
       goto error;

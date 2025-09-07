@@ -928,10 +928,11 @@ START_TEST(test_string1)
    } cases[] = {
       { "hello", "hello" },
       { "", "" },
+      { "1\0002", "1\0002" },
    };
 
    for (int i = 0; i < ARRAY_LEN(cases); i++) {
-      number_t n = number_from_string(cases[i].input);
+      number_t n = number_from_string(cases[i].input, strlen(cases[i].input));
       ck_assert(number_is_defined(n));
 
       const int width = number_width(n);
