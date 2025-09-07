@@ -17,4 +17,16 @@ begin
             wait;
         end process;
     end block;
+
+    b1 : block is
+        port (m : in matrix_t(0 to 1));
+        port map (m(0) => x, m(1) => y);
+    begin
+        p0 : process is
+        begin
+            assert m(0) = "01";
+            assert m(1) = "10";
+            wait;
+        end process;
+    end block;
 end architecture;

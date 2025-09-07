@@ -11,8 +11,8 @@
   directory (#1287).
 - The `-f` analysis option can now interpolate environment variables in
   the file list using `$var`.
-- Several other minor bugs were resolved (#1269, #1277, #1279, #1280,
-  #1281).
+- Several other minor bugs were resolved (#1253, #1269, #1277, #1279,
+  #1280, #1281).
 
 ## Version 1.17.2 - 2025-08-22
 - Fixed an issue where sub-elements of a port with `'converse` record

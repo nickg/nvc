@@ -11589,6 +11589,7 @@ static vcode_reg_t lower_constrain_port(lower_unit_t *lu, tree_t port, int pos,
       rptr_reg = emit_index(rec_var, VCODE_INVALID_REG);
    }
 
+   vcode_reg_t elem_reg = VCODE_INVALID_REG;
    const int nparams = tree_params(block);
    for (int i = 0; i < nparams; i++) {
       tree_t map = tree_param(block, i), name = NULL;
@@ -11652,12 +11653,12 @@ static vcode_reg_t lower_constrain_port(lower_unit_t *lu, tree_t port, int pos,
          {
             // The name is of the form X(I) so use this to derive
             // the bounds of a single-element array
-            tree_t value = tree_value(tree_param(name, 0));
+            tree_t index = tree_value(tree_param(name, 0));
 
             if (left_reg == VCODE_INVALID_REG)
-               left_reg = right_reg = lower_rvalue(lu, value);
+               left_reg = right_reg = lower_rvalue(lu, index);
             else {
-               vcode_reg_t value_reg = lower_rvalue(lu, value);
+               vcode_reg_t value_reg = lower_rvalue(lu, index);
                vcode_reg_t below_reg =
                   emit_cmp(VCODE_CMP_LT, value_reg, left_reg);
                vcode_reg_t above_reg =
@@ -11666,6 +11667,10 @@ static vcode_reg_t lower_constrain_port(lower_unit_t *lu, tree_t port, int pos,
                left_reg = emit_select(below_reg, value_reg, left_reg);
                right_reg = emit_select(above_reg, value_reg, right_reg);
             }
+
+            if (elem_reg == VCODE_INVALID_REG)
+               elem_reg = lower_coerce_arrays(lu, tree_type(value),
+                                              type_elem(port_type), bounds_reg);
          }
          break;
 
@@ -11708,16 +11713,33 @@ static vcode_reg_t lower_constrain_port(lower_unit_t *lu, tree_t port, int pos,
       return rptr_reg;
    else {
       assert(left_reg != VCODE_INVALID_REG);
+      assert(elem_reg != VCODE_INVALID_REG);
 
       type_t elem = type_elem_recur(port_type);
       vcode_type_t velem = lower_type(elem);
 
       vcode_reg_t dir_reg = emit_const(vtype_bool(), RANGE_TO);
       vcode_reg_t null_reg = emit_null(vtype_pointer(velem));
-      vcode_dim_t dims[] = {
-         { left_reg, right_reg, dir_reg },
-      };
-      return emit_wrap(null_reg, dims, 1);
+
+      vcode_dim_t dim0 = { left_reg, right_reg, dir_reg };
+
+      if (vcode_reg_kind(elem_reg) == VCODE_TYPE_UARRAY) {
+         const int ndims = vtype_dims(vcode_reg_type(elem_reg));
+         vcode_dim_t *dims LOCAL =
+            xmalloc_array(ndims + 1, sizeof(vcode_dim_t));
+         dims[0] = dim0;
+         for (int i = 0; i < ndims; i++) {
+            dims[i + 1].left  = emit_uarray_left(elem_reg, i);
+            dims[i + 1].right = emit_uarray_right(elem_reg, i);
+            dims[i + 1].dir   = emit_uarray_dir(elem_reg, i);
+         }
+
+         return emit_wrap(null_reg, dims, ndims + 1);
+      }
+      else {
+         vcode_dim_t dims[] = { dim0 };
+         return emit_wrap(null_reg, dims, 1);
+      }
    }
 }
 
