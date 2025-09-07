@@ -1195,3 +1195,4 @@ vlog25          verilog
 binary2         verilog
 enum1           verilog
 cover28         cover=statement
+issue1274       normal,2019

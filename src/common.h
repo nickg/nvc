@@ -92,6 +92,7 @@ bool calculate_aggregate_bounds(tree_t expr, range_kind_t *kind,
                                 int64_t *left, int64_t *right);
 type_t calculate_aggregate_subtype(tree_t expr);
 bool can_be_signal(type_t type);
+type_t merge_constraints(type_t to, type_t from);
 
 void analyse_file(const char *file, jit_t *jit, unit_registry_t *ur,
                   mir_context_t *mc);

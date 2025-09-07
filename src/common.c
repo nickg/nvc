@@ -2963,3 +2963,62 @@ bool can_be_signal(type_t type)
       return true;
    }
 }
+
+type_t merge_constraints(type_t to, type_t from)
+{
+   assert(type_is_unconstrained(to));
+   assert(type_eq(to, from));
+
+   tree_t cto = NULL;
+   if (type_kind(to) == T_SUBTYPE && type_has_constraint(to))
+      cto = type_constraint(to);
+
+   tree_t cfrom = NULL;
+   if (type_kind(from) == T_SUBTYPE && type_has_constraint(from))
+      cfrom = type_constraint(from);
+
+   if (cfrom == NULL)
+      return to;
+
+   type_t sub = type_new(T_SUBTYPE);
+   type_set_base(sub, type_base_recur(to));
+
+   if (type_is_array(to)) {
+      type_set_constraint(sub, cto ?: cfrom);
+
+      type_t elem = type_elem(to);
+      if (type_is_unconstrained(elem))
+         type_set_elem(sub, merge_constraints(elem, type_elem(from)));
+      else
+         type_set_elem(sub, elem);
+   }
+   else {
+      tree_t cnew = tree_new(T_CONSTRAINT);
+      tree_set_subkind(cnew, C_RECORD);
+      tree_set_loc(cnew, tree_loc(cto ?: cfrom));
+
+      type_set_constraint(sub, cnew);
+
+      if (cto != NULL) {
+         const int nto = tree_ranges(cto);
+         for (int i = 0; i < nto; i++)
+            tree_add_range(cnew, tree_range(cto, i));
+      }
+
+      const int nfrom = tree_ranges(cfrom), base = tree_ranges(cnew);
+      for (int i = 0; i < nfrom; i++) {
+         tree_t ec = tree_range(cfrom, i);
+         assert(tree_kind(ec) == T_ELEM_CONSTRAINT);
+
+         ident_t id = tree_ident(ec);
+         bool found = false;
+         for (int j = 0; j < base && !found; j++)
+            found |= tree_ident(tree_range(cnew, j)) == id;
+
+         if (!found)
+            tree_add_range(cnew, ec);
+      }
+   }
+
+   return sub;
+}

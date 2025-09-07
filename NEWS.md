@@ -11,6 +11,9 @@
   directory (#1287).
 - The `-f` analysis option can now interpolate environment variables in
   the file list using `$var`.
+- Constraints for variables and signals declared with partially
+  constrained subtypes are now correctly propagated from the initial
+  value (#1274).
 - Several other minor bugs were resolved (#1253, #1269, #1277, #1279,
   #1280, #1281).
 

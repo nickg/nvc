@@ -912,28 +912,6 @@ static void sem_unconstrained_decl_hint(diag_t *d, type_t type)
    }
 }
 
-static void sem_propagate_constraints(tree_t decl, tree_t value)
-{
-   // Propagate the constraints from an initial value to an object
-   // declaration with unconstrained type but only if the object subtype
-   // has no constraints of its own
-
-   if (standard() < STD_19 && tree_kind(decl) != T_CONST_DECL)
-      return;
-
-   type_t type = tree_type(decl);
-   if (!type_is_unconstrained(type))
-      return;
-
-   for (type_t iter = type; type_kind(iter) == T_SUBTYPE;
-        iter = type_base(iter)) {
-      if (type_has_constraint(iter))
-         return;
-   }
-
-   tree_set_type(decl, tree_type(value));
-}
-
 static bool sem_check_const_decl(tree_t t, nametab_t *tab)
 {
    type_t type = tree_type(t);
@@ -960,8 +938,8 @@ static bool sem_check_const_decl(tree_t t, nametab_t *tab)
                    "of declaration %s", type_pp2(tree_type(value), type),
                    type_pp2(type, tree_type(value)));
 
-      if (fwd == NULL)
-         sem_propagate_constraints(t, value);
+      if (fwd == NULL && type_is_unconstrained(type))
+         tree_set_type(t, (type = merge_constraints(type, tree_type(value))));
 
       // A constant with a globaly static value should be treated as
       // globally static regardless of where it is declared
@@ -971,7 +949,7 @@ static bool sem_check_const_decl(tree_t t, nametab_t *tab)
          // A reference to a constant with a locally static subype and
          // locally static value is locally static
          if (sem_locally_static(value)
-             && sem_static_subtype(tree_type(t), sem_locally_static))
+             && sem_static_subtype(type, sem_locally_static))
             tree_set_flag(t, TREE_F_LOCALLY_STATIC);
       }
    }
@@ -1004,7 +982,9 @@ static bool sem_check_signal_decl(tree_t t, nametab_t *tab)
    else if (type_is_none(type))
       return false;
 
-   if (type_is_unconstrained(type)) {
+   const bool is_unconstrained = type_is_unconstrained(type);
+
+   if (is_unconstrained) {
       if (standard() < STD_19) {
          diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
          diag_printf(d, "declaration of signal %s cannot have unconstrained "
@@ -1042,8 +1022,8 @@ static bool sem_check_signal_decl(tree_t t, nametab_t *tab)
                    "of declaration %s", type_pp2(tree_type(value), type),
                    type_pp2(type, tree_type(value)));
 
-      if (standard() >= STD_19 && type_is_unconstrained(type))
-         tree_set_type(t, tree_type(value));
+      if (is_unconstrained)  // Infer constraints from intial value
+         tree_set_type(t, merge_constraints(type, tree_type(value)));
    }
 
    return true;
@@ -1058,7 +1038,9 @@ static bool sem_check_var_decl(tree_t t, nametab_t *tab)
    else if (type_is_none(type))
       return false;
 
-   if (type_is_unconstrained(type)) {
+   const bool is_unconstrained = type_is_unconstrained(type);
+
+   if (is_unconstrained) {
       if (standard() < STD_19) {
          diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
          diag_printf(d, "declaration of variable %s cannot have unconstrained "
@@ -1094,7 +1076,8 @@ static bool sem_check_var_decl(tree_t t, nametab_t *tab)
                    "of declaration %s", type_pp2(tree_type(value), type),
                    type_pp2(type, tree_type(value)));
 
-      sem_propagate_constraints(t, value);
+      if (is_unconstrained)  // Infer constraints from intial value
+         tree_set_type(t, merge_constraints(type, tree_type(value)));
    }
 
    // From VHDL-2000 onwards shared variables must be protected types
