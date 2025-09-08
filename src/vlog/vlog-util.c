@@ -299,6 +299,9 @@ vlog_node_t vlog_get_type(vlog_node_t v)
          return vlog_get_type(vlog_ref(v));
       else
          return NULL;
+   case V_HIER_REF:
+   case V_MOD_INST:
+      return NULL;
    default:
       CANNOT_HANDLE(v);
    }

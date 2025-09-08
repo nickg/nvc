@@ -42,14 +42,17 @@ static bool has_error(vlog_node_t v)
 {
    switch (vlog_kind(v)) {
    case V_REF:
-   case V_USER_FCALL:
-   case V_USER_TCALL:
       if (vlog_has_ref(v))
          return false;
       else {
          assert(error_count() > 0);
          return true;
       }
+   case V_USER_FCALL:
+   case V_USER_TCALL:
+   case V_HIER_REF:
+      // May not have reported error yet
+      return !vlog_has_ref(v);
    case V_PORT_DECL:
    default:
       return false;
@@ -449,6 +452,14 @@ static void vlog_check_enum_name(vlog_node_t v)
       vlog_check_const_expr(vlog_value(v));
 }
 
+static void vlog_check_hier_ref(vlog_node_t v)
+{
+   vlog_node_t inst = vlog_ref(v);
+   if (vlog_kind(inst) != V_MOD_INST)
+      error_at(vlog_loc(v), "prefix of hierarchical identifier is not an "
+               "instance");
+}
+
 static vlog_node_t vlog_check_cb(vlog_node_t v, void *ctx)
 {
    if (has_error(v))
@@ -508,6 +519,9 @@ static vlog_node_t vlog_check_cb(vlog_node_t v, void *ctx)
       break;
    case V_ENUM_NAME:
       vlog_check_enum_name(v);
+      break;
+   case V_HIER_REF:
+      vlog_check_hier_ref(v);
       break;
    case V_CASE_ITEM:
    case V_UDP_LEVEL:

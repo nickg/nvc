@@ -1315,6 +1315,30 @@ static void p_part_select_range(vlog_node_t ps)
    vlog_set_right(ps, p_constant_expression());
 }
 
+static vlog_node_t p_hierarchical_identifier(ident_t id)
+{
+   // [ $root . ] { identifier constant_bit_select . } identifier
+
+   EXTEND("hierarchical identifier");
+
+   vlog_node_t v = vlog_new(V_HIER_REF);
+
+   consume(tDOT);
+
+   ident_t prefix = NULL;
+   do {
+      prefix = ident_prefix(prefix, id, '.');
+      id = p_identifier();
+
+      vlog_set_ident(v, prefix);
+      vlog_set_ident2(v, id);
+   } while (optional(tDOT));
+
+   vlog_set_loc(v, CURRENT_LOC);
+   vlog_symtab_lookup(symtab, v);
+   return v;
+}
+
 static vlog_node_t p_select(ident_t id)
 {
    // [ { . member_identifier bit_select } . member_identifier ]
@@ -1322,21 +1346,30 @@ static vlog_node_t p_select(ident_t id)
 
    EXTEND("select");
 
-   vlog_node_t prefix = vlog_new(V_REF);
-   vlog_set_ident(prefix, id);
-   vlog_set_loc(prefix, CURRENT_LOC);
+   vlog_node_t d = vlog_symtab_query(symtab, id), prefix;
+   if (d != NULL && vlog_kind(d) == V_MOD_INST)
+      prefix = p_hierarchical_identifier(id);
+   else if (d == NULL && peek() == tDOT) {
+      // Assume this is a hierarchical reference to a later instance
+      prefix = p_hierarchical_identifier(id);
+   }
+   else {
+      prefix = vlog_new(V_REF);
+      vlog_set_ident(prefix, id);
+      vlog_set_loc(prefix, CURRENT_LOC);
 
-   vlog_symtab_lookup(symtab, prefix);
+      vlog_symtab_lookup(symtab, prefix);
 
-   while (optional(tDOT)) {
-      vlog_node_t ref = vlog_new(V_STRUCT_REF);
-      vlog_set_ident(ref, p_identifier());
-      vlog_set_value(ref, prefix);
-      vlog_set_loc(ref, CURRENT_LOC);
+      while (optional(tDOT)) {
+         vlog_node_t ref = vlog_new(V_STRUCT_REF);
+         vlog_set_ident(ref, p_identifier());
+         vlog_set_value(ref, prefix);
+         vlog_set_loc(ref, CURRENT_LOC);
 
-      vlog_symtab_lookup(symtab, ref);
+         vlog_symtab_lookup(symtab, ref);
 
-      prefix = ref;
+         prefix = ref;
+      }
    }
 
    if (optional(tLSQUARE)) {

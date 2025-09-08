@@ -50,7 +50,7 @@ typedef struct _vlog_scope {
    size_t         max_symbols;
    size_t         num_symbols;
    vlog_symbol_t *symbols;
-   node_list_t    tfcalls;
+   node_list_t    deferred;
    bool           suppress;
 } vlog_scope_t;
 
@@ -145,24 +145,24 @@ void vlog_symtab_pop(vlog_symtab_t *st)
    assert(st->top != NULL);
 
    if (st->top->parent == NULL) {
-      for (int i = 0; i < st->top->tfcalls.count; i++) {
-         vlog_node_t v = st->top->tfcalls.items[i];
+      for (int i = 0; i < st->top->deferred.count; i++) {
+         vlog_node_t v = st->top->deferred.items[i];
          ident_t name = vlog_ident(v);
          error_at(vlog_loc(v), "no visible declaration for '%s'", istr(name));
          vlog_symtab_poison(st, name);
       }
    }
    else {
-      for (int i = 0; i < st->top->tfcalls.count; i++) {
-         vlog_node_t v = st->top->tfcalls.items[i];
+      for (int i = 0; i < st->top->deferred.count; i++) {
+         vlog_node_t v = st->top->deferred.items[i];
          const vlog_symbol_t *sym = symbol_for(st, vlog_ident(v));
          if (sym != NULL)
             vlog_set_ref(v, sym->node);
          else
-            APUSH(st->top->parent->tfcalls, v);
+            APUSH(st->top->parent->deferred, v);
       }
    }
-   ACLEAR(st->top->tfcalls);
+   ACLEAR(st->top->deferred);
 
    st->top = st->top->parent;
 }
@@ -224,7 +224,7 @@ void vlog_symtab_lookup(vlog_symtab_t *st, vlog_node_t v)
 
    ident_t name = vlog_ident(v);
    const vlog_symbol_t *sym = symbol_for(st, name);
-   if (sym == NULL && st->implicit != V_NET_NONE) {
+   if (sym == NULL && vlog_kind(v) == V_REF && st->implicit != V_NET_NONE) {
       // See 1800-2017 section 6.10 "Implicit declarations"
       vlog_node_t decl = vlog_new(V_NET_DECL);
       vlog_set_ident(decl, name);
@@ -247,8 +247,9 @@ void vlog_symtab_lookup(vlog_symtab_t *st, vlog_node_t v)
       switch (vlog_kind(v)) {
       case V_USER_FCALL:
       case V_USER_TCALL:
+      case V_HIER_REF:
          // May be declared later
-         APUSH(st->top->tfcalls, v);
+         APUSH(st->top->deferred, v);
          break;
       default:
          error_at(vlog_loc(v), "no visible declaration for '%s'", istr(name));
