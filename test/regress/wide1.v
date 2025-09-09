@@ -33,6 +33,8 @@ module wide1;
     x = &(~x);
     #1;
     x = |add;
+    #1;
+    x = x << 65'h10000000000000001;
   end
 
   always @(*)

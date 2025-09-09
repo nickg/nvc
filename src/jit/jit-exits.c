@@ -1033,13 +1033,26 @@ void __nvc_vec4op(jit_vec_op_t op, jit_anchor_t *anchor, jit_scalar_t *args,
 
          if (op == JIT_VEC_ZEXT) {
             const int arg_size = args[2].integer;
-            assert(arg_size <= 64);   // TODO
+            if (arg_size <= 64) {
+               aresult[0] = args[0].integer;
+               bresult[0] = args[1].integer;
 
-            aresult[0] = args[0].integer;
-            bresult[0] = args[1].integer;
+               for (int i = 1; i < nwords; i++)
+                  aresult[i] = bresult[i] = 0;
+            }
+            else {
+               const uint64_t *asrc = args[0].pointer;
+               const uint64_t *bsrc = args[1].pointer;
 
-            for (int i = 1; i < nwords; i++)
-               aresult[i] = bresult[i] = 0;
+               for (int i = 0; i < nwords; i++) {
+                  if (i < (arg_size + 63) / 64) {
+                     aresult[i] = asrc[i];
+                     bresult[i] = bsrc[i];
+                  }
+                  else
+                     aresult[i] = bresult[i] = 0;
+               }
+            }
          }
 
          args[0].pointer = aresult;
@@ -1127,6 +1140,9 @@ void __nvc_vec4op(jit_vec_op_t op, jit_anchor_t *anchor, jit_scalar_t *args,
             break;
          case JIT_VEC_SHL:
             vec4_shl(size, aresult, bresult, a2, b2);
+            break;
+         case JIT_VEC_SHR:
+            vec4_shr(size, aresult, bresult, a2, b2);
             break;
          case JIT_VEC_NOT:
             vec4_inv(size, aresult, bresult);
