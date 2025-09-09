@@ -2267,7 +2267,7 @@ static void irgen_op_cast(jit_irgen_t *g, mir_value_t n)
 
       const int result_size = mir_get_size(g->mu, result_type);
       const int arg_size = mir_get_size(g->mu, arg_type);
-      if (arg_size > 64 || result_size > 64) {
+      if (result_size > 64) {
          j_send(g, 0, abits);
          j_send(g, 1, bbits);
          j_send(g, 2, jit_value_from_int64(arg_size));
@@ -2281,6 +2281,13 @@ static void irgen_op_cast(jit_irgen_t *g, mir_value_t n)
          j_recv(g, 1);
       }
       else {
+         if (arg_size > 64) {
+            // Truncating wide vector
+            abits = j_load(g, JIT_SZ_64, abits);
+            if (bbits.kind != JIT_VALUE_INT64)
+               bbits = j_load(g, JIT_SZ_64, bbits);
+         }
+
          if (result_signed && arg_signed && arg_size < 64) {
             abits = irgen_sign_extend(g, abits, arg_size);
             abits = j_and(g, abits, irgen_vector_mask(result_size));
@@ -3991,6 +3998,7 @@ static void irgen_op_binary(jit_irgen_t *g, mir_value_t n)
          [MIR_VEC_ADD] = JIT_VEC_ADD,
          [MIR_VEC_MUL] = JIT_VEC_MUL,
          [MIR_VEC_SLL] = JIT_VEC_SHL,
+         [MIR_VEC_SRL] = JIT_VEC_SHR,
          [MIR_VEC_CASE_EQ] = JIT_VEC_CASE_EQ,
          [MIR_VEC_CASE_NEQ] = JIT_VEC_CASE_NEQ,
       };
