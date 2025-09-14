@@ -1378,7 +1378,6 @@ static void vlog_lower_non_blocking_assignment(vlog_gen_t *g, vlog_node_t v)
    mir_value_t unpacked = mir_build_unpack(g->mu, resize, strength, tmp);
 
    mir_type_t t_time = mir_time_type(g->mu);
-   mir_value_t reject = mir_const(g->mu, t_time, 0);
 
    mir_value_t after;
    if (vlog_has_delay(v)) {
@@ -1390,7 +1389,7 @@ static void vlog_lower_non_blocking_assignment(vlog_gen_t *g, vlog_node_t v)
    else
       after = mir_const(g->mu, t_time, 0);
 
-   mir_build_sched_waveform(g->mu, nets, count, unpacked, reject, after);
+   mir_build_sched_deposit(g->mu, nets, count, unpacked, after);
 }
 
 static void vlog_lower_if(vlog_gen_t *g, vlog_node_t v)
@@ -1725,26 +1724,10 @@ static void vlog_lower_driver(vlog_gen_t *g, vlog_node_t v)
    }
 }
 
-static void vlog_driver_cb(vlog_node_t v, void *context)
-{
-   vlog_gen_t *g = context;
-
-   switch (vlog_kind(v)) {
-   case V_NBASSIGN:
-   case V_ASSIGN:
-      vlog_lower_driver(g, vlog_target(v));
-      break;
-   default:
-      break;
-   }
-}
-
 static void vlog_lower_always(vlog_gen_t *g, vlog_node_t v)
 {
    mir_block_t start_bb = mir_add_block(g->mu);
    assert(start_bb.id == 1);
-
-   vlog_visit(v, vlog_driver_cb, g);
 
    vlog_node_t timing = NULL, s0 = vlog_stmt(v, 0);
    if (vlog_kind(s0) == V_TIMING) {
@@ -1784,8 +1767,6 @@ static void vlog_lower_initial(vlog_gen_t *g, vlog_node_t v)
    mir_block_t start_bb = mir_add_block(g->mu);
    assert(start_bb.id == 1);
 
-   vlog_visit(v, vlog_driver_cb, g);
-
    mir_build_return(g->mu, MIR_NULL_VALUE);
 
    mir_set_cursor(g->mu, start_bb, MIR_APPEND);
@@ -1801,7 +1782,7 @@ static void vlog_lower_continuous_assign(vlog_gen_t *g, vlog_node_t v)
    mir_block_t start_bb = mir_add_block(g->mu);
    assert(start_bb.id == 1);
 
-   vlog_visit(v, vlog_driver_cb, g);
+   vlog_lower_driver(g, vlog_target(v));
 
    mir_value_t trigger = vlog_lower_sensitivity(g, vlog_value(v));
    if (!mir_is_null(trigger))

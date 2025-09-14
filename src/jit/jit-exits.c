@@ -614,6 +614,22 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
       }
       break;
 
+   case JIT_EXIT_SCHED_DEPOSIT:
+      {
+         sig_shared_t *shared = args[0].pointer;
+         int32_t       offset = args[1].integer;
+         int32_t       count  = args[2].integer;
+         jit_scalar_t  value  = { .integer = args[3].integer };
+         bool          scalar = args[4].integer;
+         int64_t       after  = args[5].integer;
+
+         if (scalar)
+            x_sched_deposit(shared, offset, count, &value.integer, after);
+         else
+            x_sched_deposit(shared, offset, count, value.pointer, after);
+      }
+      break;
+
    case JIT_EXIT_PUT_CONVERSION:
       {
          rt_conv_func_t *cf     = args[0].pointer;

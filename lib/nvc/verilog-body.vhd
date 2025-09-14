@@ -211,6 +211,16 @@ package body verilog is
         end case;
     end function;
 
+    function to_vhdl (value : t_logic_array) return std_ulogic_vector is
+        alias xvalue : t_logic_array(1 to value'length) is value;
+        variable result : std_ulogic_vector(1 to value'length);
+    begin
+        for i in 1 to value'length loop
+            result(i) := to_vhdl(xvalue(i));
+        end loop;
+        return result;
+    end function;
+
     function to_vhdl (value : t_net_value) return std_ulogic is
         variable data : t_logic;
         variable strength0, strength1 : t_strength;

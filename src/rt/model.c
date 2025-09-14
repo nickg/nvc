@@ -55,6 +55,7 @@ typedef enum {
    EVENT_TIMEOUT,
    EVENT_DRIVER,
    EVENT_PROCESS,
+   EVENT_PSEUDO,
 } event_kind_t;
 
 #define MEMBLOCK_ALIGN   64
@@ -2706,6 +2707,26 @@ static void sched_disconnect(rt_model_t *m, rt_nexus_t *nexus, uint64_t after,
       deltaq_insert_driver(m, after, d);
 }
 
+static void sched_deposit(rt_model_t *m, rt_nexus_t *n, uint64_t after,
+                          const void *value)
+{
+   rt_source_t *src = get_pseudo_source(m, n, SOURCE_DEPOSIT);
+   copy_value_ptr(n, &(src->u.pseudo.value), value);
+   src->disconnected = 0;
+
+   if (src->pseudoqueued)
+      return;
+
+   if (after == 0)
+      deltaq_insert_pseudo_source(m, src);
+   else if (after > 0) {
+      void *e = tag_pointer(src, EVENT_PSEUDO);
+      heap_insert(m->eventq_heap, m->now + after, e);
+   }
+
+   src->pseudoqueued = 1;
+}
+
 static void async_watch_callback(rt_model_t *m, void *arg)
 {
    rt_watch_t *w = arg;
@@ -3376,6 +3397,12 @@ static void model_cycle(rt_model_t *m)
                deferq_do(&m->driverq, async_timeout_callback, cb);
             }
             break;
+         case EVENT_PSEUDO:
+            {
+               rt_source_t *source = untag_pointer(e, rt_source_t);
+               deferq_do(&m->driverq, async_pseudo_source, source);
+            }
+            break;
          }
 
          if (heap_size(m->eventq_heap) == 0)
@@ -3616,14 +3643,7 @@ void deposit_signal(rt_model_t *m, rt_signal_t *s, const void *values,
       count -= n->width;
       assert(count >= 0);
 
-      rt_source_t *src = get_pseudo_source(m, n, SOURCE_DEPOSIT);
-      copy_value_ptr(n, &(src->u.pseudo.value), vptr);
-      src->disconnected = 0;
-
-      if (!src->pseudoqueued) {
-         deltaq_insert_pseudo_source(m, src);
-         src->pseudoqueued = 1;
-      }
+      sched_deposit(m, n, 0, vptr);
 
       vptr += n->width * n->size;
    }
@@ -4748,6 +4768,30 @@ void x_deposit_signal(sig_shared_t *ss, uint32_t offset, int32_t count,
       }
 
       vptr += valuesz;
+   }
+}
+
+void x_sched_deposit(sig_shared_t *ss, uint32_t offset, int32_t count,
+                     void *values, int64_t after)
+{
+   rt_signal_t *s = container_of(ss, rt_signal_t, shared);
+
+   TRACE("schedule deposit %s+%d value=%s count=%d after=%s",
+         istr(tree_ident(s->where)), offset,
+         fmt_values(values, count * s->nexus.size), count, trace_time(after));
+
+   assert(get_active_proc()->wakeable.region == VLOG_ACTIVE);
+
+   rt_model_t *m = get_model();
+   rt_nexus_t *n = split_nexus(m, s, offset, count);
+   const char *vptr = values;
+   for (; count > 0; n = n->chain) {
+      count -= n->width;
+      assert(count >= 0);
+
+      sched_deposit(m, n, after, vptr);
+
+      vptr += n->size * n->width;
    }
 }
 

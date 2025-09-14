@@ -256,6 +256,7 @@ typedef enum {
    MIR_OP_TEST,
    MIR_OP_EXTRACT,
    MIR_OP_SCHED_PROCESS,
+   MIR_OP_SCHED_DEPOSIT,
 } mir_op_t;
 
 typedef enum {
@@ -641,6 +642,9 @@ void mir_build_sched_waveform(mir_unit_t *mu, mir_value_t target,
                               mir_value_t reject, mir_value_t after);
 void mir_build_deposit_signal(mir_unit_t *mu, mir_value_t target,
                               mir_value_t count, mir_value_t values);
+void mir_build_sched_deposit(mir_unit_t *mu, mir_value_t target,
+                             mir_value_t count, mir_value_t values,
+                             mir_value_t after);
 mir_value_t mir_build_resolved(mir_unit_t *mu, mir_value_t signal);
 mir_value_t mir_build_last_value(mir_unit_t *mu, mir_value_t signal);
 mir_value_t mir_build_driving_value(mir_unit_t *mu, mir_value_t signal,

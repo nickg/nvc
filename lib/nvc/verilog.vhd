@@ -61,6 +61,7 @@ package verilog is
     function to_time (value : t_logic_array) return delay_length;
 
     function to_vhdl (value : t_logic) return std_ulogic;
+    function to_vhdl (value : t_logic_array) return std_ulogic_vector;
     function to_vhdl (value : t_net_value) return std_ulogic;
     function to_vhdl (value : t_wire_array) return std_ulogic_vector;
 

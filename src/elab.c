@@ -348,6 +348,10 @@ static tree_t elab_to_vhdl(type_t from, type_t to)
         "NVC.VERILOG.TO_VHDL(" T_WIRE_ARRAY ")Y" },
       { VERILOG_WIRE_ARRAY, IEEE_STD_LOGIC_VECTOR,
         "NVC.VERILOG.TO_VHDL(" T_WIRE_ARRAY ")Y" },
+      { VERILOG_LOGIC_ARRAY, IEEE_STD_ULOGIC_VECTOR,
+        "NVC.VERILOG.TO_VHDL(" T_LOGIC_ARRAY ")Y" },
+      { VERILOG_LOGIC_ARRAY, IEEE_STD_LOGIC_VECTOR,
+        "NVC.VERILOG.TO_VHDL(" T_LOGIC_ARRAY ")Y" },
    };
 
    INIT_ONCE({
