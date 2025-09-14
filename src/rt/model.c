@@ -3350,8 +3350,7 @@ static void model_cycle(rt_model_t *m)
                rt_proc_t *proc = untag_pointer(e, rt_proc_t);
                assert(proc->wakeable.delayed);
                proc->wakeable.delayed = false;
-               set_pending(&proc->wakeable);
-               deferq_do(&m->procq, async_run_process, proc);
+               procq_do(m, &proc->wakeable, false, async_run_process, proc);
             }
             break;
          case EVENT_DRIVER:

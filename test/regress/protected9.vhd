@@ -60,7 +60,7 @@ begin
     begin
         assert sv.get = 1;
         wait for 5 ns;
-        assert sv.get = 5;
+        assert sv.get = 6;
         wait for 5 ns;
         assert sv.get = 10;
         wait;
