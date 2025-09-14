@@ -242,7 +242,7 @@ static void shell_event_cb(uint64_t now, rt_signal_t *s, rt_watch_t *w,
 static void watch_signal(shell_signal_t *ss)
 {
    ss->watch = watch_new(ss->owner->model, shell_event_cb, ss,
-                         WATCH_POSTPONED, 1);
+                         VHDL_POSTPONED, 1);
    model_set_event_cb(ss->owner->model, ss->signal, ss->watch);
 }
 

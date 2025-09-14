@@ -47,8 +47,8 @@ typedef enum {
 
 typedef struct {
    wakeable_kind_t kind : 8;
+   rt_region_t     region : 8;
    unsigned        pending : 1;
-   unsigned        postponed : 1;
    unsigned        delayed : 1;
    unsigned        zombie : 1;
    rt_trigger_t   *trigger;

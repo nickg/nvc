@@ -2220,7 +2220,7 @@ vhpiHandleT vhpi_register_cb(vhpiCbDataT *cb_data_p, int32_t flags)
 
          cb->handle = internal_handle_for(&(cb->refcounted.object));
          cb->watch = watch_new(m, vhpi_signal_event_cb, cb->handle,
-                               WATCH_EVENT, slots);
+                               VHDL_PROCESS, slots);
 
          if (signal != NULL)
             cb->watch = model_set_event_cb(m, signal, cb->watch);
