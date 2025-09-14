@@ -840,7 +840,7 @@ START_TEST(test_wait1)
    mir_build_fcall(mu, func, MIR_NULL_TYPE, MIR_NULL_STAMP, &p2, 1);
 
    mir_block_t b1 = mir_add_block(mu);
-   mir_build_wait(mu, b1, MIR_NULL_VALUE);
+   mir_build_wait(mu, b1);
 
    mir_set_cursor(mu, b1, MIR_APPEND);
 

@@ -1263,9 +1263,10 @@ static void vlog_lower_timing(vlog_gen_t *g, vlog_node_t v, bool is_static)
          mir_type_t t_time = mir_time_type(g->mu);
          mir_value_t delay = vlog_lower_rvalue(g, vlog_value(ctrl));
          mir_value_t cast = mir_build_cast(g->mu, t_time, delay);
+         mir_build_sched_process(g->mu, cast);
 
          mir_block_t wait_bb = mir_add_block(g->mu);
-         mir_build_wait(g->mu, wait_bb, cast);
+         mir_build_wait(g->mu, wait_bb);
 
          mir_set_cursor(g->mu, wait_bb, MIR_APPEND);
       }
@@ -1293,7 +1294,7 @@ static void vlog_lower_timing(vlog_gen_t *g, vlog_node_t v, bool is_static)
          }
 
          mir_block_t wait_bb = mir_add_block(g->mu);
-         mir_build_wait(g->mu, wait_bb, MIR_NULL_VALUE);
+         mir_build_wait(g->mu, wait_bb);
 
          mir_set_cursor(g->mu, wait_bb, MIR_APPEND);
 
@@ -1336,9 +1337,10 @@ static void vlog_lower_blocking_assignment(vlog_gen_t *g, vlog_node_t v)
       vlog_node_t delay = vlog_delay(v);
       assert(vlog_kind(delay) == V_DELAY_CONTROL);
 
-      mir_block_t delay_bb = mir_add_block(g->mu);
+      mir_build_sched_process(g->mu, vlog_lower_time(g, vlog_value(delay)));
 
-      mir_build_wait(g->mu, delay_bb, vlog_lower_time(g, vlog_value(delay)));
+      mir_block_t delay_bb = mir_add_block(g->mu);
+      mir_build_wait(g->mu, delay_bb);
 
       mir_set_cursor(g->mu, delay_bb, MIR_APPEND);
    }
@@ -1872,7 +1874,7 @@ static void vlog_lower_continuous_assign(vlog_gen_t *g, vlog_node_t v)
       mir_build_sched_waveform(g->mu, nets, count, src, reject, after);
    }
 
-   mir_build_wait(g->mu, start_bb, MIR_NULL_VALUE);
+   mir_build_wait(g->mu, start_bb);
 
    if (lvalues != &lvalue1)
       free(lvalues);
@@ -1984,7 +1986,7 @@ static void vlog_lower_gate_inst(vlog_gen_t *g, vlog_node_t v)
    mir_value_t nets = mir_build_array_ref(g->mu, lvalue.nets, lvalue.offset);
 
    mir_build_sched_waveform(g->mu, nets, count, unpacked, reject, after);
-   mir_build_wait(g->mu, start_bb, MIR_NULL_VALUE);
+   mir_build_wait(g->mu, start_bb);
 }
 
 static void vlog_lower_cleanup(vlog_gen_t *g)

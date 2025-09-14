@@ -1197,3 +1197,4 @@ enum1           verilog
 cover28         cover=statement
 issue1274       normal,2019
 ivtest18        verilog
+wait29          normal

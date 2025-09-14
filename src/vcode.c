@@ -973,7 +973,7 @@ const char *vcode_op_string(vcode_op_t op)
       "port conversion", "convert in", "convert out", "bind foreign",
       "or trigger", "cmp trigger", "instance name",
       "map implicit", "bind external", "array scope", "record scope", "syscall",
-      "put conversion", "dir check",
+      "put conversion", "dir check", "sched process",
    };
    if ((unsigned)op >= ARRAY_LEN(strs))
       return "???";
@@ -1513,10 +1513,13 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
             {
                color_printf("%s $yellow$%d$$", vcode_op_string(op->kind),
                             op->targets.items[0]);
-               if (op->args.items[0] != VCODE_INVALID_REG) {
-                  printf(" for ");
-                  vcode_dump_reg(op->args.items[0]);
-               }
+            }
+            break;
+
+         case VCODE_OP_SCHED_PROCESS:
+            {
+               color_printf("%s after ", vcode_op_string(op->kind));
+               vcode_dump_reg(op->args.items[0]);
             }
             break;
 
@@ -3642,18 +3645,10 @@ vcode_reg_t emit_address_of(vcode_reg_t value)
       return (op->result = vcode_add_reg(vtype_pointer(type)));
 }
 
-void emit_wait(vcode_block_t target, vcode_reg_t time)
+void emit_wait(vcode_block_t target)
 {
    op_t *op = vcode_add_op(VCODE_OP_WAIT);
    vcode_add_target(op, target);
-   vcode_add_arg(op, time);
-
-   VCODE_ASSERT(time == VCODE_INVALID_REG
-                || vcode_reg_kind(time) == VCODE_TYPE_INT,
-                "wait time must have integer type");
-   VCODE_ASSERT(active_unit->kind == VCODE_UNIT_PROCEDURE
-                || active_unit->kind == VCODE_UNIT_PROCESS,
-                "wait only allowed in process or procedure");
 }
 
 void emit_jump(vcode_block_t target)
@@ -5306,6 +5301,18 @@ void emit_clear_event(vcode_reg_t nets, vcode_reg_t n_elems)
 
    VCODE_ASSERT(vcode_reg_kind(nets) == VCODE_TYPE_SIGNAL,
                 "nets argument to clear event must be signal");
+}
+
+void emit_sched_process(vcode_reg_t delay)
+{
+   op_t *op = vcode_add_op(VCODE_OP_SCHED_PROCESS);
+   vcode_add_arg(op, delay);
+
+   VCODE_ASSERT(vcode_reg_kind(delay) == VCODE_TYPE_INT,
+                "delay must have integer type");
+   VCODE_ASSERT(active_unit->kind == VCODE_UNIT_PROCEDURE
+                || active_unit->kind == VCODE_UNIT_PROCESS,
+                "sched process only allowed in process or procedure");
 }
 
 void emit_resume(ident_t func)

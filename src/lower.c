@@ -5593,8 +5593,10 @@ static void lower_wait(lower_unit_t *lu, tree_t wait)
    const bool has_value = tree_has_value(wait);
 
    vcode_reg_t delay = VCODE_INVALID_REG;
-   if (has_delay)
+   if (has_delay) {
       delay = lower_rvalue(lu, tree_delay(wait));
+      emit_sched_process(delay);
+   }
 
    vcode_var_t remain = VCODE_INVALID_VAR;
    if (has_value && has_delay) {
@@ -5611,7 +5613,7 @@ static void lower_wait(lower_unit_t *lu, tree_t wait)
    }
 
    vcode_block_t resume = emit_block();
-   emit_wait(resume, delay);
+   emit_wait(resume);
 
    vcode_select_block(resume);
 
@@ -5647,7 +5649,10 @@ static void lower_wait(lower_unit_t *lu, tree_t wait)
       for (int i = 0; i < ntriggers; i++)
          lower_sched_event(lu, tree_trigger(wait, i));
 
-      emit_wait(resume, timeout_reg);
+      if (timeout_reg != VCODE_INVALID_REG)
+         emit_sched_process(timeout_reg);
+
+      emit_wait(resume);
 
       vcode_select_block(done_bb);
    }

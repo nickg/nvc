@@ -274,7 +274,7 @@ void vlog_lower_udp(mir_unit_t *mu, object_t *obj)
          case '-':
             // No change, skip assignment to output
             drive = MIR_NULL_VALUE;
-            mir_build_wait(mu, start_bb, MIR_NULL_VALUE);
+            mir_build_wait(mu, start_bb);
             mir_set_cursor(mu, test_bb, MIR_APPEND);
             continue;
          default:
@@ -305,6 +305,6 @@ void vlog_lower_udp(mir_unit_t *mu, object_t *obj)
       mir_value_t out = mir_build_load(mu, upref);
       mir_build_sched_waveform(mu, out, one, drive, zero, zero);
 
-      mir_build_wait(mu, start_bb, MIR_NULL_VALUE);
+      mir_build_wait(mu, start_bb);
    }
 }

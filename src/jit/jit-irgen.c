@@ -2569,12 +2569,6 @@ static void irgen_op_resume(jit_irgen_t *g, mir_value_t n)
 
 static void irgen_op_wait(jit_irgen_t *g, mir_value_t n)
 {
-   if (mir_count_args(g->mu, n) > 1) {
-      jit_value_t after = irgen_get_arg(g, n, 1);
-      j_send(g, 0, after);
-      macro_exit(g, JIT_EXIT_SCHED_PROCESS);
-   }
-
    if (g->statereg.kind != JIT_VALUE_INVALID) {
       mir_block_t target = mir_cast_block(mir_get_arg(g->mu, n, 0));
       jit_value_t ptr = irgen_state_ptr(g);
@@ -2587,6 +2581,13 @@ static void irgen_op_wait(jit_irgen_t *g, mir_value_t n)
       j_send(g, 0, jit_value_from_int64(0));
 
    j_ret(g);
+}
+
+static void irgen_op_sched_process(jit_irgen_t *g, mir_value_t n)
+{
+   jit_value_t delay = irgen_get_arg(g, n, 0);
+   j_send(g, 0, delay);
+   macro_exit(g, JIT_EXIT_SCHED_PROCESS);
 }
 
 static void irgen_op_protected_init(jit_irgen_t *g, mir_value_t n)
@@ -4487,6 +4488,9 @@ static void irgen_block(jit_irgen_t *g, mir_block_t block)
          break;
       case MIR_OP_WAIT:
          irgen_op_wait(g, n);
+         break;
+      case MIR_OP_SCHED_PROCESS:
+         irgen_op_sched_process(g, n);
          break;
       case MIR_OP_COPY:
          irgen_op_copy(g, n);

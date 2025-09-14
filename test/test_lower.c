@@ -142,6 +142,7 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
       case VCODE_OP_RANGE_LENGTH:
       case VCODE_OP_NULL_CHECK:
       case VCODE_OP_FILE_WRITE:
+      case VCODE_OP_SCHED_PROCESS:
          break;
 
       case VCODE_OP_UARRAY_LEFT:
@@ -397,6 +398,7 @@ START_TEST(test_wait1)
       { VCODE_OP_DEBUG_LOCUS },
       { VCODE_OP_ASSERT },
       { VCODE_OP_CONST, .value = 1000000 },
+      { VCODE_OP_SCHED_PROCESS },
       { VCODE_OP_WAIT,  .target = 2 }
    };
 
@@ -411,6 +413,7 @@ START_TEST(test_wait1)
       { VCODE_OP_DEBUG_LOCUS },
       { VCODE_OP_ASSERT },
       { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_SCHED_PROCESS },
       { VCODE_OP_WAIT,  .target = 3 }
    };
 
@@ -462,6 +465,7 @@ START_TEST(test_assign1)
 
    const check_bb_t bb1[] = {
       { VCODE_OP_CONST, .value = 4000000 },
+      { VCODE_OP_SCHED_PROCESS },
       { VCODE_OP_WAIT,  .target = 2 }
    };
 
@@ -491,6 +495,7 @@ START_TEST(test_assign1)
       { VCODE_OP_CONST, .value = 7 },
       { VCODE_OP_STORE, .name = "Y" },
       { VCODE_OP_CONST, .value = 1000000 },
+      { VCODE_OP_SCHED_PROCESS },
       { VCODE_OP_WAIT,  .target = 3 }
    };
 
@@ -768,6 +773,7 @@ START_TEST(test_arith1)
       { VCODE_OP_CONST, .value = 12 },
       { VCODE_OP_STORE, .name = "Y" },
       { VCODE_OP_CONST, .value = 1000000 },
+      { VCODE_OP_SCHED_PROCESS },
       { VCODE_OP_WAIT, .target = 2 }
    };
 
@@ -1508,6 +1514,7 @@ START_TEST(test_proc3)
       EXPECT_BB(0) = {
          { VCODE_OP_STORE, .name = "X" },
          { VCODE_OP_CONST, .value = 10000000 },
+         { VCODE_OP_SCHED_PROCESS },
          { VCODE_OP_WAIT, .target = 1 }
       };
 
@@ -1518,6 +1525,7 @@ START_TEST(test_proc3)
          { VCODE_OP_LOAD, .name = "X" },
          { VCODE_OP_STORE_INDIRECT },
          { VCODE_OP_CONST, .value = 5000000 },
+         { VCODE_OP_SCHED_PROCESS },
          { VCODE_OP_WAIT, .target = 2 }
       };
 
@@ -1617,6 +1625,7 @@ START_TEST(test_slice1)
       { VCODE_OP_DEBUG_LOCUS },
       { VCODE_OP_ASSERT },
       { VCODE_OP_CONST, .value = 1000000 },
+      { VCODE_OP_SCHED_PROCESS },
       { VCODE_OP_WAIT, .target = 2 },
    };
 
@@ -1891,6 +1900,7 @@ START_TEST(test_proc7)
 
    EXPECT_BB(2) = {
       { VCODE_OP_CONST, .value = 1000000 },
+      { VCODE_OP_SCHED_PROCESS },
       { VCODE_OP_WAIT, .target = 3 },
    };
 

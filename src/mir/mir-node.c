@@ -2147,17 +2147,11 @@ void mir_build_return(mir_unit_t *mu, mir_value_t value)
               || mir_is_null(value), "cannot return a result");
 }
 
-void mir_build_wait(mir_unit_t *mu, mir_block_t target, mir_value_t time)
+void mir_build_wait(mir_unit_t *mu, mir_block_t target)
 {
-   if (mir_is_null(time))
-      mir_build_1(mu, MIR_OP_WAIT, MIR_NULL_TYPE, MIR_NULL_STAMP,
-                  mir_cast_value(target));
-   else
-      mir_build_2(mu, MIR_OP_WAIT, MIR_NULL_TYPE, MIR_NULL_STAMP,
-                  mir_cast_value(target), time);
+   mir_build_1(mu, MIR_OP_WAIT, MIR_NULL_TYPE, MIR_NULL_STAMP,
+               mir_cast_value(target));
 
-   MIR_ASSERT(mir_is_null(time) || mir_is_time(mu, time),
-              "time argument to wait is not a time");
    MIR_ASSERT(mu->kind == MIR_UNIT_PROCEDURE || mu->kind == MIR_UNIT_PROCESS,
               "wait only allowed in process or procedure");
 }
@@ -3130,6 +3124,15 @@ void mir_build_clear_event(mir_unit_t *mu, mir_value_t on, mir_value_t count)
       MIR_ASSERT(mir_is_signal(mu, on), "argument must be signal");
       MIR_ASSERT(mir_is_offset(mu, count), "count argument must be offset");
    }
+}
+
+void mir_build_sched_process(mir_unit_t *mu, mir_value_t delay)
+{
+   mir_build_1(mu, MIR_OP_SCHED_PROCESS, MIR_NULL_TYPE, MIR_NULL_STAMP, delay);
+
+   MIR_ASSERT(mir_is_time(mu, delay), "delay argument is not a time");
+   MIR_ASSERT(mu->kind == MIR_UNIT_PROCEDURE || mu->kind == MIR_UNIT_PROCESS,
+              "sched process only allowed in process or procedure");
 }
 
 mir_value_t mir_build_reflect_value(mir_unit_t *mu, mir_value_t value,

@@ -172,6 +172,7 @@ typedef enum {
    VCODE_OP_SYSCALL,
    VCODE_OP_PUT_CONVERSION,
    VCODE_OP_DIR_CHECK,
+   VCODE_OP_SCHED_PROCESS,
 } vcode_op_t;
 
 typedef enum {
@@ -398,7 +399,7 @@ void emit_pcall(ident_t func, const vcode_reg_t *args, int nargs,
                 vcode_block_t resume_bb);
 vcode_reg_t emit_syscall(ident_t func, vcode_type_t type, vcode_type_t bounds,
                          vcode_reg_t locus, const vcode_reg_t *args, int nargs);
-void emit_wait(vcode_block_t target, vcode_reg_t time);
+void emit_wait(vcode_block_t target);
 void emit_jump(vcode_block_t target);
 vcode_reg_t emit_load(vcode_var_t var);
 vcode_reg_t emit_load_indirect(vcode_reg_t reg);
@@ -458,6 +459,7 @@ vcode_reg_t emit_array_ref(vcode_reg_t array, vcode_reg_t offset);
 void emit_copy(vcode_reg_t dest, vcode_reg_t src, vcode_reg_t count);
 void emit_sched_event(vcode_reg_t nets, vcode_reg_t n_elems);
 void emit_clear_event(vcode_reg_t nets, vcode_reg_t count);
+void emit_sched_process(vcode_reg_t delay);
 void emit_resume(ident_t func);
 void emit_memset(vcode_reg_t ptr, vcode_reg_t value, vcode_reg_t len);
 void emit_case(vcode_reg_t value, vcode_block_t def, const vcode_reg_t *cases,

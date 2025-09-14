@@ -254,7 +254,8 @@ typedef enum {
    MIR_OP_DIR_CHECK,
    MIR_OP_INSERT,
    MIR_OP_TEST,
-   MIR_OP_EXTRACT
+   MIR_OP_EXTRACT,
+   MIR_OP_SCHED_PROCESS,
 } mir_op_t;
 
 typedef enum {
@@ -575,7 +576,7 @@ void mir_build_case(mir_unit_t *mu, mir_value_t value, mir_block_t def,
                     const mir_value_t *cases, const mir_block_t *blocks,
                     int ncases);
 void mir_build_return(mir_unit_t *mu, mir_value_t value);
-void mir_build_wait(mir_unit_t *mu, mir_block_t target, mir_value_t time);
+void mir_build_wait(mir_unit_t *mu, mir_block_t target);
 void mir_build_consume(mir_unit_t *mu, mir_value_t value);
 mir_value_t mir_build_fcall(mir_unit_t *mu, ident_t name, mir_type_t type,
                             mir_stamp_t stamp, const mir_value_t *args,
@@ -720,6 +721,7 @@ mir_value_t mir_build_var_upref(mir_unit_t *mu, int hops, int nth);
 // Events
 void mir_build_sched_event(mir_unit_t *mu, mir_value_t on, mir_value_t count);
 void mir_build_clear_event(mir_unit_t *mu, mir_value_t on, mir_value_t count);
+void mir_build_sched_process(mir_unit_t *mu, mir_value_t delay);
 
 // Reflection
 mir_value_t mir_build_reflect_value(mir_unit_t *mu, mir_value_t value,

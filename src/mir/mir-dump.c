@@ -174,6 +174,7 @@ const char *mir_op_string(mir_op_t op)
       [MIR_OP_INSERT] = "insert",
       [MIR_OP_TEST] = "test",
       [MIR_OP_EXTRACT] = "extract",
+      [MIR_OP_SCHED_PROCESS] = "sched process",
    };
 
    return map[op];
@@ -895,6 +896,13 @@ void mir_annotate(mir_unit_t *mu, const mir_annotate_t *cb, void *ctx)
                   printf(" for ");
                   mir_dump_value(mu, n->args[1], cb, ctx);
                }
+            }
+            break;
+
+         case MIR_OP_SCHED_PROCESS:
+            {
+               printf("%s after ", mir_op_string(n->op));
+               mir_dump_value(mu, n->args[0], cb, ctx);
             }
             break;
 
