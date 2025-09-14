@@ -125,6 +125,9 @@ typedef struct _rt_model {
    deferq_t           triggerq;
    deferq_t           activeq;
    deferq_t           next_activeq;
+   deferq_t           inactiveq;
+   deferq_t           next_inactiveq;
+   deferq_t           nonblockq;
    heap_t            *driving_heap;
    heap_t            *effective_heap;
    rt_callback_t     *phase_cbs[END_OF_SIMULATION + 1];
@@ -145,6 +148,7 @@ typedef struct _rt_model {
 #define WAVEFORM_CHUNK  256
 #define PENDING_MIN     4
 #define MAX_RANK        UINT8_MAX
+#define ITERATE_ACTIVE  0   // Matches Questa behaviour
 
 #define TRACE(...) do {                                 \
       if (unlikely(__trace_on))                         \
@@ -638,6 +642,9 @@ void model_free(rt_model_t *m)
    free(m->triggerq.tasks);
    free(m->activeq.tasks);
    free(m->next_activeq.tasks);
+   free(m->inactiveq.tasks);
+   free(m->next_inactiveq.tasks);
+   free(m->nonblockq.tasks);
    free(m->driverq.tasks);
    free(m->delta_driverq.tasks);
 
@@ -2707,26 +2714,6 @@ static void sched_disconnect(rt_model_t *m, rt_nexus_t *nexus, uint64_t after,
       deltaq_insert_driver(m, after, d);
 }
 
-static void sched_deposit(rt_model_t *m, rt_nexus_t *n, uint64_t after,
-                          const void *value)
-{
-   rt_source_t *src = get_pseudo_source(m, n, SOURCE_DEPOSIT);
-   copy_value_ptr(n, &(src->u.pseudo.value), value);
-   src->disconnected = 0;
-
-   if (src->pseudoqueued)
-      return;
-
-   if (after == 0)
-      deltaq_insert_pseudo_source(m, src);
-   else if (after > 0) {
-      void *e = tag_pointer(src, EVENT_PSEUDO);
-      heap_insert(m->eventq_heap, m->now + after, e);
-   }
-
-   src->pseudoqueued = 1;
-}
-
 static void async_watch_callback(rt_model_t *m, void *arg)
 {
    rt_watch_t *w = arg;
@@ -3448,18 +3435,35 @@ static void model_cycle(rt_model_t *m)
    mark_phase(m, END_OF_PROCESSES);
 
    // Verilog scheduling regions
-   if (m->activeq.count > 0) {
-      do {
+   do {
+      if (m->activeq.count > 0) {
          TRACE("begin active region");
          swap_deferq(&m->next_activeq, &m->activeq);
          deferq_run(m, &m->next_activeq);
+      }
 
-         if (m->activeq.count > 0)
-            continue;
+      if (m->activeq.count > 0)
+         break;
 
+      if (m->inactiveq.count > 0 && !m->next_is_delta) {
+         TRACE("begin inactive region");
+         swap_deferq(&m->next_inactiveq, &m->inactiveq);
+         deferq_run(m, &m->next_inactiveq);
+      }
+
+      if (m->activeq.count > 0 || m->inactiveq.count > 0)
+         break;
+
+      if (m->nonblockq.count > 0) {
          TRACE("begin non-blocking assignment region");
-      } while (m->activeq.count > 0 && !m->force_stop);
-   }
+         deferq_run(m, &m->nonblockq);
+
+         m->trigger_epoch++;
+         deferq_run(m, &m->triggerq);
+      }
+   } while (ITERATE_ACTIVE && m->activeq.count > 0);
+
+   m->next_is_delta |= m->activeq.count > 0 || m->inactiveq.count > 0;
 
    if (!m->next_is_delta)
       mark_phase(m, LAST_KNOWN_DELTA_CYCLE);
@@ -3643,7 +3647,14 @@ void deposit_signal(rt_model_t *m, rt_signal_t *s, const void *values,
       count -= n->width;
       assert(count >= 0);
 
-      sched_deposit(m, n, 0, vptr);
+      rt_source_t *src = get_pseudo_source(m, n, SOURCE_DEPOSIT);
+      copy_value_ptr(n, &(src->u.pseudo.value), vptr);
+      src->disconnected = 0;
+
+      if (!src->pseudoqueued) {
+         deltaq_insert_pseudo_source(m, src);
+         src->pseudoqueued = 1;
+      }
 
       vptr += n->width * n->size;
    }
@@ -4765,6 +4776,12 @@ void x_deposit_signal(sig_shared_t *ss, uint32_t offset, int32_t count,
          assert(!(n->flags & NET_F_CACHE_EVENT));
 
          wakeup_all(m, &(n->pending), true);
+
+         for (rt_source_t *o = n->outputs; o; o = o->chain_output) {
+            assert(o->tag == SOURCE_PORT);
+            defer_driving_update(m, o->u.port.output);
+            m->next_is_delta = true;
+         }
       }
 
       vptr += valuesz;
@@ -4789,7 +4806,21 @@ void x_sched_deposit(sig_shared_t *ss, uint32_t offset, int32_t count,
       count -= n->width;
       assert(count >= 0);
 
-      sched_deposit(m, n, after, vptr);
+      rt_source_t *src = get_pseudo_source(m, n, SOURCE_DEPOSIT);
+      copy_value_ptr(n, &(src->u.pseudo.value), vptr);
+      src->disconnected = 0;
+
+      if (src->pseudoqueued)
+         return;
+
+      if (after == 0)
+         deferq_do(&m->nonblockq, async_pseudo_source, src);
+      else if (after > 0) {
+         void *e = tag_pointer(src, EVENT_PSEUDO);
+         heap_insert(m->eventq_heap, m->now + after, e);
+      }
+
+      src->pseudoqueued = 1;
 
       vptr += n->size * n->width;
    }
