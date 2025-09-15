@@ -1200,3 +1200,4 @@ ivtest18        verilog
 wait29          normal
 wait30          normal
 mixed6          mixed,2008
+vlog26          verilog

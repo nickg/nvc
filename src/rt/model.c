@@ -492,6 +492,7 @@ rt_model_t *model_new(jit_t *jit, cover_data_t *cover)
    m->effective_heap = heap_new(64);
 
    m->can_create_delta = true;
+   m->next_is_delta    = true;
 
    m->threads[thread_id()] = static_alloc(m, sizeof(model_thread_t));
 
@@ -863,11 +864,20 @@ static inline void set_pending(rt_wakeable_t *wake)
    wake->pending = true;
 }
 
+static deferq_t *zero_delay_region(rt_model_t *m, rt_proc_t *proc)
+{
+   switch (proc->wakeable.region) {
+   case VHDL_PROCESS: return &m->delta_procq;
+   case VLOG_ACTIVE:  return &m->inactiveq;
+   default: should_not_reach_here();
+   }
+}
+
 static void deltaq_insert_proc(rt_model_t *m, uint64_t delta, rt_proc_t *proc)
 {
    if (delta == 0) {
       set_pending(&proc->wakeable);
-      deferq_do(&m->delta_procq, async_run_process, proc);
+      deferq_do(zero_delay_region(m, proc), async_run_process, proc);
       m->next_is_delta = true;
    }
    else {
@@ -926,7 +936,8 @@ static void reset_process(rt_model_t *m, rt_proc_t *proc)
    thread->active_scope = NULL;
 
    // Schedule the process to run immediately
-   deltaq_insert_proc(m, 0, proc);
+   set_pending(&proc->wakeable);
+   deferq_do(&m->delta_procq, async_run_process, proc);
 }
 
 static void reset_property(rt_model_t *m, rt_prop_t *prop)
