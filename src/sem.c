@@ -4886,15 +4886,40 @@ static bool sem_check_port_actual(formal_map_t *formals, int nformals,
       if (tree_kind(odecl) == T_PORT_DECL) {
          const port_mode_t omode = tree_subkind(odecl);
 
-         const bool error =
-            (omode == PORT_BUFFER && (mode == PORT_OUT || mode == PORT_INOUT))
-            || (omode != PORT_BUFFER && mode == PORT_BUFFER)
-            || (omode == PORT_IN && (mode == PORT_OUT || mode == PORT_INOUT))
-            || (omode == PORT_OUT && mode == PORT_IN && standard() < STD_08)
-            || (omode == PORT_OUT && mode == PORT_INOUT)
-            || (omode == PORT_LINKAGE && mode != PORT_LINKAGE);
+         // TODO: how to handle views?
+         bool ok = omode == PORT_ARRAY_VIEW || omode == PORT_RECORD_VIEW;
 
-         if (error) {
+         switch (mode) {
+         case PORT_IN:
+            ok |= omode == PORT_IN || omode == PORT_INOUT;
+            if (standard() >= STD_02)
+               ok |= omode == PORT_BUFFER;
+            if (standard() >= STD_08)
+               ok |= omode == PORT_OUT;
+            break;
+         case PORT_OUT:
+            ok |= omode == PORT_OUT || omode == PORT_INOUT;
+            if (standard() >= STD_02)
+               ok |= omode == PORT_BUFFER;
+            break;
+         case PORT_INOUT:
+            ok |= omode == PORT_INOUT;
+            if (standard() >= STD_02)
+               ok |= omode == PORT_BUFFER;
+            if (standard() >= STD_08)
+               ok |= omode == PORT_OUT;
+            break;
+         case PORT_BUFFER:
+            ok |= omode == PORT_BUFFER;
+            if (standard() >= STD_02)
+               ok |= omode == PORT_OUT || omode == PORT_INOUT;
+            break;
+         default:
+            ok = true;
+            break;
+         }
+
+         if (!ok) {
             diag_t *d = diag_new(DIAG_ERROR, tree_loc(value));
             diag_printf(d, "port %s with mode %s cannot be associated "
                         "with formal port %s with mode %s",

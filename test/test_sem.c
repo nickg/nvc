@@ -152,6 +152,8 @@ START_TEST(test_ports)
         "LB with mode BUFFER" },
       { 424, "port UB with mode BUFFER cannot be associated with formal port "
         "LO with mode OUT" },
+      { 425, "port UB with mode BUFFER cannot be associated with formal port "
+        "LI with mode IN" },
       { 443, "INOUT port IO1 has output conversion but no corresponding input "
         "conversion" },
       { 444, "type of actual REAL does not match type INTEGER of formal "
@@ -4002,6 +4004,18 @@ START_TEST(test_issue1279)
 }
 END_TEST
 
+START_TEST(test_issue1290)
+{
+   set_standard(STD_02);
+
+   input_from_file(TESTDIR "/sem/issue1290.vhd");
+
+   parse_and_check(T_ENTITY, T_ARCH);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_sem_tests(void)
 {
    Suite *s = suite_create("sem");
@@ -4189,6 +4203,7 @@ Suite *get_sem_tests(void)
    tcase_add_test(tc_core, test_issue1257);
    tcase_add_test(tc_core, test_issue1264);
    tcase_add_test(tc_core, test_issue1279);
+   tcase_add_test(tc_core, test_issue1290);
    suite_add_tcase(s, tc_core);
 
    return s;

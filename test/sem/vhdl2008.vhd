@@ -112,4 +112,18 @@ begin
     begin
     end block;
 
+    -- Changes to port connection rules
+    b4: block is
+        port ( o1, o2 : out bit );
+        port map ( open );
+    begin
+        sub: block is
+            port ( i1 : in bit; io1 : inout bit );
+            port map (
+                i1 => o1,               -- OK
+                io1 => o2 );            -- OK
+        begin
+        end block;
+    end block;
+
 end architecture;

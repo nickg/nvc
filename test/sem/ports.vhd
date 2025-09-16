@@ -422,7 +422,7 @@ begin
             port map (
                 lb => ui,               -- Error
                 lo => ub,               -- Error
-                li => ub,               -- OK
+                li => ub,               -- Error (1993)
                 ll => ub                -- OK
             );
         begin
