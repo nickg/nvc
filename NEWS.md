@@ -16,6 +16,7 @@
   value (#1274).
 - VHDL-2002 changes for buffer port connections are now implemented
   correctly (#1290).
+- PSL `nondet` built-in function is now supported.
 - Several other minor bugs were resolved (#1253, #1269, #1277, #1279,
   #1280, #1281).
 
