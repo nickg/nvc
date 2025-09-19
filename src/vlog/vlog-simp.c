@@ -313,6 +313,9 @@ static vlog_node_t simp_binary(vlog_node_t v)
    case V_BINARY_DIVIDE:
       result = number_div(nleft, nright);
       break;
+   case V_BINARY_EXP:
+      result = number_exp(nleft, nright);
+      break;
    case V_BINARY_SHIFT_LL:
       result = number_shl(nleft, nright);
       break;

@@ -70,6 +70,7 @@ number_t number_add(number_t a, number_t b);
 number_t number_sub(number_t a, number_t b);
 number_t number_mul(number_t a, number_t b);
 number_t number_div(number_t a, number_t b);
+number_t number_exp(number_t a, number_t b);
 number_t number_shl(number_t a, number_t b);
 number_t number_negate(number_t a);
 number_t number_logical_equal(number_t a, number_t b);
@@ -80,7 +81,9 @@ number_t number_less(number_t a, number_t b);
 number_t number_less_equal(number_t a, number_t b);
 
 void vec2_add(int size, uint64_t *a, const uint64_t *b);
+void vec2_sub(int size, uint64_t *a, const uint64_t *b);
 void vec2_mul(int size, uint64_t *a, const uint64_t *b);
+void vec2_exp(int size, uint64_t *a, const uint64_t *b);
 void vec2_shl(int size, uint64_t *a, const uint64_t *b);
 void vec2_shr(int size, uint64_t *a, const uint64_t *b);
 void vec2_neg(int size, uint64_t *a);
@@ -108,6 +111,8 @@ vlog_logic_t vec2_le(const uint64_t *a, size_t asize,
 void vec4_add(int size, uint64_t *a1, uint64_t *b1, const uint64_t *a2,
               const uint64_t *b2);
 void vec4_mul(int size, uint64_t *a1, uint64_t *b1, const uint64_t *a2,
+              const uint64_t *b2);
+void vec4_exp(int size, uint64_t *a1, uint64_t *b1, const uint64_t *a2,
               const uint64_t *b2);
 void vec4_shl(int size, uint64_t *a1, uint64_t *b1, const uint64_t *a2,
               const uint64_t *b2);

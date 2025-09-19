@@ -192,6 +192,19 @@ static bignum_t *bignum_for_unary(number_t in)
    return big;
 }
 
+static bool bignum_is_defined(bignum_t *bn)
+{
+   const int nwords = bignum_words(bn);
+   const uint64_t *bbits = bignum_bbits(bn);
+
+   for (int i = 0; i < nwords; i++) {
+      if (bbits[i] != 0)
+         return false;
+   }
+
+   return true;
+}
+
 static number_t number_intern(const bignum_t *in)
 {
    static mem_pool_t *pool = NULL;
@@ -531,15 +544,7 @@ void number_print(number_t val, text_buf_t *tb)
 
 bool number_is_defined(number_t val)
 {
-   const int nwords = bignum_words(val.big);
-   const uint64_t *bbits = bignum_bbits(val.big);
-
-   for (int i = 0; i < nwords; i++) {
-      if (bbits[i] != 0)
-         return false;
-   }
-
-   return true;
+   return bignum_is_defined(val.big);
 }
 
 int64_t number_integer(number_t val)
@@ -693,6 +698,17 @@ number_t number_div(number_t a, number_t b)
    return number_intern(left);
 }
 
+number_t number_exp(number_t a, number_t b)
+{
+   bignum_t *left, *right;
+   bignum_for_binary(a, b, &left, &right);
+
+   vec4_exp(left->width, bignum_abits(left), bignum_bbits(left),
+            bignum_abits(right), bignum_bbits(right));
+
+   return number_intern(left);
+}
+
 number_t number_shl(number_t a, number_t b)
 {
    bignum_t *left, *right;
@@ -831,6 +847,16 @@ static void vec2_mask(int size, uint64_t *a)
    a[BIGNUM_WORDS(size) - 1] &= mask;
 }
 
+static bool vec2_is_zero(int size, const uint64_t *a)
+{
+   for (int i = 0; i < BIGNUM_WORDS(size); i++) {
+      if (a[i] != 0)
+         return false;
+   }
+
+   return true;
+}
+
 void vec2_add(int size, uint64_t *a, const uint64_t *b)
 {
    uint64_t carry = 0;
@@ -844,6 +870,20 @@ void vec2_add(int size, uint64_t *a, const uint64_t *b)
    }
 
    vec2_mask(size, a);
+}
+
+void vec2_sub(int size, uint64_t *a, const uint64_t *b)
+{
+    uint64_t borrow = 0;
+    for (size_t i = 0; i < BIGNUM_WORDS(size); i++) {
+        uint64_t bi = b[i] + borrow;
+        uint64_t new_borrow = (bi < b[i]) || (a[i] < bi);
+        uint64_t diff = a[i] - bi;
+        a[i] = diff;
+        borrow = new_borrow;
+    }
+
+    vec2_mask(size, a);
 }
 
 void vec2_mul(int size, uint64_t *a, const uint64_t *b)
@@ -876,6 +916,31 @@ void vec2_mul(int size, uint64_t *a, const uint64_t *b)
       memcpy(a, tmp, n * sizeof(uint64_t));
       vec2_mask(size, a);
    }
+}
+
+void vec2_exp(int size, uint64_t *a, const uint64_t *b)
+{
+   uint64_t base[BIGNUM_WORDS(size)];
+   memcpy(base, a, sizeof(base));
+
+   uint64_t exp[BIGNUM_WORDS(size)];
+   memcpy(exp, b, sizeof(exp));
+
+   uint64_t one[BIGNUM_WORDS(size)];
+   memset(one, 0, sizeof(one));
+   one[0] = 1;
+
+   memset(a, 0, BIGNUM_WORDS(size));
+   a[0] = 1;
+
+   while (!vec2_is_zero(size, exp)) {
+      if (exp[0] & 1)
+         vec2_mul(size, a, base);
+      vec2_mul(size, base, base);
+      vec2_shr(size, exp, one);
+   }
+
+   vec2_mask(size, a);
 }
 
 static uint64_t get_shift_amount(int size, const uint64_t *a)
@@ -1063,6 +1128,13 @@ void vec4_mul(int size, uint64_t *a1, uint64_t *b1, const uint64_t *a2,
 {
    if (vec4_arith_defined(size, a1, b1, a2, b2))
       vec2_mul(size, a1, a2);
+}
+
+void vec4_exp(int size, uint64_t *a1, uint64_t *b1, const uint64_t *a2,
+              const uint64_t *b2)
+{
+   if (vec4_arith_defined(size, a1, b1, a2, b2))
+      vec2_exp(size, a1, a2);
 }
 
 void vec4_shl(int size, uint64_t *a1, uint64_t *b1, const uint64_t *a2,

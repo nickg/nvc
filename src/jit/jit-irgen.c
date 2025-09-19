@@ -3988,6 +3988,15 @@ static jit_cc_t irgen_vector_cmp(mir_vec_op_t op)
    }
 }
 
+static jit_value_t irgen_arith_xbits(jit_irgen_t *g, jit_value_t left,
+                                     jit_value_t right, jit_value_t mask)
+{
+   jit_value_t or = j_or(g, left, right);
+   jit_value_t zero = jit_value_from_int64(0);
+   j_cmp(g, JIT_CC_NE, or, zero);
+   return j_csel(g, mask, zero);
+}
+
 static void irgen_op_binary(jit_irgen_t *g, mir_value_t n)
 {
    mir_value_t left = mir_get_arg(g->mu, n, 1);
@@ -4002,10 +4011,10 @@ static void irgen_op_binary(jit_irgen_t *g, mir_value_t n)
    if (is_vec4) {
       bleft = jit_value_from_reg(jit_value_as_reg(aleft) + 1);
       bright = jit_value_from_reg(jit_value_as_reg(aright) + 1);
-      xbits = j_or(g, bleft, bright);
+      xbits = jit_value_from_int64(0);
    }
    else
-      xbits = jit_value_from_int64(0);
+      xbits = bleft = bright = jit_value_from_int64(0);
 
    mir_type_t type = mir_get_type(g->mu, left);
    const bool issigned = mir_get_signed(g->mu, type);
@@ -4040,7 +4049,7 @@ static void irgen_op_binary(jit_irgen_t *g, mir_value_t n)
 
    jit_value_t mask = irgen_vector_mask(size);
 
-   bool logical = false, arith = false;
+   bool logical = false;
    jit_value_t abits;
    switch (op) {
    case MIR_VEC_LOG_AND:
@@ -4048,47 +4057,48 @@ static void irgen_op_binary(jit_irgen_t *g, mir_value_t n)
       // Fall-through
    case MIR_VEC_BIT_AND:
       abits = j_and(g, aleft, aright);
+      xbits = j_and(g, bleft, bright);
       break;
    case MIR_VEC_LOG_OR:
       logical = true;
       // Fall-through
    case MIR_VEC_BIT_OR:
       abits = j_or(g, aleft, aright);
+      xbits = j_or(g, bleft, bright);
       break;
    case MIR_VEC_BIT_XOR:
       abits = j_xor(g, aleft, aright);
+      xbits = j_or(g, bleft, bright);
       break;
    case MIR_VEC_ADD:
-      arith = true;
       abits = j_add(g, aleft, aright);
+      xbits = irgen_arith_xbits(g, bleft, bright, mask);
       break;
    case MIR_VEC_SUB:
-      arith = true;
       abits = j_sub(g, aleft, aright);
+      xbits = irgen_arith_xbits(g, bleft, bright, mask);
       break;
    case MIR_VEC_MUL:
-      arith = true;
       abits = j_mul(g, aleft, aright);
+      xbits = irgen_arith_xbits(g, bleft, bright, mask);
       break;
    case MIR_VEC_CASE_EQ:
       j_cmp(g, JIT_CC_EQ, aleft, aright);
       if (is_vec4) j_ccmp(g, JIT_CC_EQ, bleft, bright);
       abits = j_cset(g);
-      xbits = jit_value_from_int64(0);
       break;
    case MIR_VEC_CASE_NEQ:
       j_cmp(g, JIT_CC_EQ, aleft, aright);
       if (is_vec4) j_ccmp(g, JIT_CC_EQ, bleft, bright);
       abits = j_not(g, j_cset(g));
-      xbits = jit_value_from_int64(0);
       break;
    case MIR_VEC_CASEX_EQ:
       {
-         jit_value_t lcmp = j_or(g, aleft, xbits);
-         jit_value_t rcmp = j_or(g, aright, xbits);
+         jit_value_t mask = j_or(g, bleft, bright);
+         jit_value_t lcmp = j_or(g, aleft, mask);
+         jit_value_t rcmp = j_or(g, aright, mask);
          j_cmp(g, JIT_CC_EQ, lcmp, rcmp);
          abits = j_cset(g);
-         xbits = jit_value_from_int64(0);
       }
       break;
    case MIR_VEC_LT:
@@ -4102,24 +4112,24 @@ static void irgen_op_binary(jit_irgen_t *g, mir_value_t n)
       // Fall-through
    case MIR_VEC_LOG_EQ:
    case MIR_VEC_LOG_NEQ:
-      arith = true;
       j_cmp(g, irgen_vector_cmp(op), aleft, aright);
       abits = j_cset(g);
+      xbits = irgen_arith_xbits(g, bleft, bright, mask);
       break;
    case MIR_VEC_SLL:
    case MIR_VEC_SLA:
-      arith = true;
       abits = j_shl(g, aleft, aright);
+      xbits = irgen_arith_xbits(g, bleft, bright, mask);
       break;
    case MIR_VEC_SRL:
-      arith = true;
       abits = j_shr(g, aleft, aright);
+      xbits = irgen_arith_xbits(g, bleft, bright, mask);
       break;
    case MIR_VEC_SRA:
       if (issigned)
          aleft = irgen_sign_extend(g, aleft, size);
-      arith = true;
       abits = j_asr(g, aleft, aright);
+      xbits = irgen_arith_xbits(g, bleft, bright, mask);
       break;
    default:
       should_not_reach_here();
@@ -4128,12 +4138,6 @@ static void irgen_op_binary(jit_irgen_t *g, mir_value_t n)
    if (logical) {
       j_cmp(g, JIT_CC_NE, abits, jit_value_from_int64(0));
       abits = j_cset(g);
-   }
-
-   if (arith) {
-      jit_value_t zero = jit_value_from_int64(0);
-      j_cmp(g, JIT_CC_NE, xbits, zero);
-      xbits = j_csel(g, mask, zero);
    }
 
    abits = j_or(g, abits, xbits);

@@ -1201,3 +1201,4 @@ wait29          normal
 wait30          normal
 mixed6          mixed,2008
 vlog26          verilog
+issue1294       mixed,2008
