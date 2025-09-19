@@ -1202,3 +1202,4 @@ wait30          normal
 mixed6          mixed,2008
 vlog26          verilog
 issue1294       mixed,2008
+rand2           verilog,seed=123

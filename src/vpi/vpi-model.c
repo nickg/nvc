@@ -1035,14 +1035,28 @@ vpiHandle vpi_put_value(vpiHandle handle, p_vpi_value value_p,
 
    c_sysFuncCall *fcall = is_sysFuncCall(obj);
    if (fcall != NULL && c->args != NULL) {
-      assert(fcall->systfcall.callback->systf.sysfunctype == vpiTimeFunc);
-      assert(value_p->format == vpiTimeVal);
+      switch (fcall->systfcall.callback->systf.sysfunctype) {
+      case vpiTimeFunc:
+         {
+            assert(value_p->format == vpiTimeVal);
 
-      const p_vpi_time tm = value_p->value.time;
-      c->args[0].integer = (uint64_t)tm->high << 32 | tm->low;
-      c->args[1].integer = 0;
+            const p_vpi_time tm = value_p->value.time;
+            c->args[0].integer = (uint64_t)tm->high << 32 | tm->low;
+            c->args[1].integer = 0;
 
-      return NULL;
+            return NULL;
+         }
+
+      case vpiIntFunc:
+         {
+            assert(value_p->format == vpiIntVal);
+
+            c->args[0].integer = value_p->value.integer;
+            c->args[1].integer = 0;
+
+            return NULL;
+         }
+      }
    }
 
    vpi_error(vpiError, &(obj->loc), "cannot change value of %s",

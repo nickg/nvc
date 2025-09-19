@@ -100,6 +100,10 @@ static const type_info_t *vlog_type_info(vlog_gen_t *g, vlog_node_t v)
          ti->size = 16;
          ti->type = mir_vec2_type(g->mu, ti->size, true);
          break;
+      case DT_LONGINT:
+         ti->size = 64;
+         ti->type = mir_vec2_type(g->mu, ti->size, true);
+         break;
       case DT_BYTE:
          ti->size = 8;
          ti->type = mir_vec2_type(g->mu, ti->size, true);

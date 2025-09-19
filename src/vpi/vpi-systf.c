@@ -19,6 +19,7 @@
 #include "diag.h"
 #include "jit/jit.h"
 #include "rt/model.h"
+#include "rt/random.h"
 #include "vpi/vpi-priv.h"
 
 #include <assert.h>
@@ -243,6 +244,22 @@ static PLI_INT32 time_tf(PLI_BYTE8 *userdata)
    return 0;
 }
 
+static PLI_INT32 random_tf(PLI_BYTE8 *userdata)
+{
+   s_vpi_value result = {
+      .format = vpiIntVal,
+      .value = { .integer = get_random() },
+   };
+
+   vpiHandle call = vpi_handle(vpiSysTfCall, NULL);
+   assert(call != NULL);
+
+   vpi_put_value(call, &result, NULL, 0);
+
+   vpi_release_handle(call);
+   return 0;
+}
+
 static s_vpi_systf_data builtins[] = {
    {
       .type   = vpiSysTask,
@@ -274,6 +291,12 @@ static s_vpi_systf_data builtins[] = {
       .tfname      = "$time",
       .sysfunctype = vpiTimeFunc,
       .calltf      = time_tf
+   },
+   {
+      .type        = vpiSysFunc,
+      .tfname      = "$random",
+      .sysfunctype = vpiIntFunc,
+      .calltf      = random_tf
    }
 };
 
