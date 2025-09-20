@@ -3781,7 +3781,7 @@ static void p_block_item_declaration(vlog_node_t parent)
    }
 }
 
-static void p_package_or_generate_item_declaration(vlog_node_t mod)
+static void p_package_or_generate_item_declaration(vlog_node_t v)
 {
    // net_declaration | data_declaration | task_declaration
    //   | function_declaration | checker_declaration | dpi_import_export
@@ -3806,7 +3806,7 @@ static void p_package_or_generate_item_declaration(vlog_node_t mod)
    case tWAND:
    case tWOR:
    case tINTERCONNECT:
-      p_net_declaration(mod);
+      p_net_declaration(v);
       break;
    case tREG:
    case tSTRUCT:
@@ -3827,20 +3827,20 @@ static void p_package_or_generate_item_declaration(vlog_node_t mod)
    case tSHORTINT:
    case tLONGINT:
    case tBYTE:
-      p_data_declaration(mod);
+      p_data_declaration(v);
       break;
    case tTASK:
-      vlog_add_decl(mod, p_task_declaration());
+      vlog_add_decl(v, p_task_declaration());
       break;
    case tFUNCTION:
-      vlog_add_decl(mod, p_function_declaration());
+      vlog_add_decl(v, p_function_declaration());
       break;
    case tLOCALPARAM:
-      p_local_parameter_declaration(mod);
+      p_local_parameter_declaration(v);
       consume(tSEMI);
       break;
    case tPARAMETER:
-      p_parameter_declaration(mod);
+      p_parameter_declaration(v);
       consume(tSEMI);
       break;
    default:
@@ -6474,6 +6474,44 @@ static vlog_node_t p_udp_declaration(void)
    return udp;
 }
 
+static vlog_node_t p_package_declaration(void)
+{
+   // { attribute_instance } package [ lifetime ] package_identifier ;
+   //    [ timeunits_declaration ] { { attribute_instance } package_item }
+   // endpackage [ : package_identifier ]
+
+   BEGIN("package declaration");
+
+   consume(tPACKAGE);
+
+   if (scan(tSTATIC, tAUTOMATIC))
+      p_lifetime();
+
+   vlog_node_t v = vlog_new(V_PACKAGE);
+   ident_t name = p_identifier();
+   vlog_set_ident(v, name);
+   consume(tSEMI);
+
+   while (scan(tWIRE, tUWIRE, tSUPPLY0, tSUPPLY1, tTRI, tTRI0, tTRI1, tTRIAND,
+               tTRIOR, tTRIREG, tWAND, tWOR, tINTERCONNECT, tREG, tSTRUCT,
+               tUNION, tTYPEDEF, tENUM, tSVINT, tINTEGER, tSVREAL, tSHORTREAL,
+               tREALTIME, tTIME, tEVENT, tID, tVAR, tLOGIC, tBIT, tSHORTINT,
+               tLONGINT, tBYTE, tTASK, tFUNCTION, tLOCALPARAM, tPARAMETER))
+      p_package_or_generate_item_declaration(v);
+
+   consume(tENDPACKAGE);
+
+   if (optional(tCOLON)) {
+      ident_t end_name = p_identifier();
+      if (name != end_name)
+         error_at(&state.last_loc, "Trailing identifier '%s' "
+                  "must match the package name '%s'",
+                  istr(end_name), istr(name));
+   }
+
+   return v;
+}
+
 static vlog_node_t p_description(void)
 {
    // module_declaration | udp_declaration | interface_declaration
@@ -6491,8 +6529,10 @@ static vlog_node_t p_description(void)
       return p_module_declaration();
    case tPRIMITIVE:
       return p_udp_declaration();
+   case tPACKAGE:
+      return p_package_declaration();
    default:
-      expect(tPRIMITIVE, tMODULE);
+      expect(tPRIMITIVE, tMODULE, tPACKAGE);
       return NULL;
    }
 }

@@ -1229,6 +1229,25 @@ START_TEST(test_href1)
 }
 END_TEST
 
+START_TEST(test_package1)
+{
+   input_from_file(TESTDIR "/vlog/package1.sv");
+
+   const error_t expect[] = {
+      {  3, "Trailing identifier 'different_name' must match the package name 'dummy_pkg'" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   vlog_node_t m = vlog_parse();
+   fail_if(m == NULL);
+   fail_unless(vlog_kind(m) == V_PACKAGE);
+
+   check_expected_errors();
+}
+END_TEST
+
+
 Suite *get_vlog_tests(void)
 {
    Suite *s = suite_create("vlog");
@@ -1273,6 +1292,7 @@ Suite *get_vlog_tests(void)
    tcase_add_test(tc, test_pp6);
    tcase_add_test(tc, test_label1);
    tcase_add_test(tc, test_href1);
+   tcase_add_test(tc, test_package1);
    suite_add_tcase(s, tc);
 
    return s;
