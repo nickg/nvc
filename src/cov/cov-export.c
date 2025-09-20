@@ -223,7 +223,7 @@ void cover_export_cobertura(cover_data_t *data, FILE *f, const char *relative)
    const double line_rate = (double)hitlines / (double)nlines;
    const double branch_rate = (double)hitbranches / (double)nbranches;
 
-   unsigned long timestamp;
+   time_t timestamp;
    const long override_time = opt_get_int(OPT_COVER_TIMESTAMP);
    if (override_time >= 0)
       timestamp = override_time;
