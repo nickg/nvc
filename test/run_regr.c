@@ -157,6 +157,7 @@ static bool force_jit = false;
 static bool force_precompile = false;
 static bool capture_html = false;
 static bool diff_html = false;
+static bool check_html = false;
 
 #ifdef __MINGW32__
 static char *strndup(const char *s, size_t n)
@@ -1156,6 +1157,18 @@ static bool run_test(test_t *test)
          free(cmp_dir);
       }
 
+      if (check_html) {
+         push_arg(&args, "/usr/bin/env");
+         push_arg(&args, "vnu");
+         push_arg(&args, "%s", html_dir);
+
+         if (run_cmd(outf, &args) != RUN_OK) {
+            failed("HTML validation errors");
+            result = false;
+            goto out_print;
+         }
+      }
+
       free(html_dir);
       free(unit);
    }
@@ -1377,6 +1390,7 @@ int main(int argc, char **argv)
    static struct option long_options[] = {
       { "capture-html", no_argument, 0, 'h' },
       { "diff-html",    no_argument, 0, 'H' },
+      { "check-html",   no_argument, 0, 'C' },
       { 0, 0, 0, 0 }
    };
 
@@ -1400,6 +1414,9 @@ int main(int argc, char **argv)
          break;
       case 'H':
          diff_html = true;
+         break;
+      case 'C':
+         check_html = true;
          break;
       case '?':
          if (optopt == 0)
