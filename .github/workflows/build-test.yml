@@ -433,7 +433,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: cocotb/cocotb
-          ref: master
+          ref: v2.0.0
           path: cocotb
           submodules: recursive
           fetch-depth: 1
