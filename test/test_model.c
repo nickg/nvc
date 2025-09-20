@@ -486,6 +486,45 @@ START_TEST(test_process1)
 }
 END_TEST
 
+START_TEST(test_split1)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/model/split1.vhd");
+
+   tree_t top = run_elab();
+   fail_if(top == NULL);
+
+   jit_t *j = get_jit();
+   jit_reset(j);
+
+   rt_model_t *m = model_new(j, NULL);
+   create_scope(m, top, NULL);
+   model_reset(m);
+
+   tree_t b0 = tree_stmt(top, 0);
+
+   rt_scope_t *root = find_scope(m, b0);
+   fail_if(root == NULL);
+
+   rt_signal_t *ss = find_signal(root, get_decl(b0, "S"));
+   fail_if(ss == NULL);
+
+   ck_assert_int_eq(ss->n_nexus, 1);
+
+   fail_if(model_step(m));
+
+   ck_assert_int_eq(ss->n_nexus, 3);
+   ck_assert_int_eq(ss->nexus.width, 3);
+   ck_assert_int_eq(ss->nexus.chain->width, 1);
+   ck_assert_int_eq(ss->nexus.chain->chain->width, 4);
+
+   model_free(m);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_model_tests(void)
 {
    Suite *s = suite_create("model");
@@ -500,6 +539,7 @@ Suite *get_model_tests(void)
    tcase_add_test(tc, test_fast2);
    tcase_add_test(tc, test_event1);
    tcase_add_test(tc, test_process1);
+   tcase_add_test(tc, test_split1);
    suite_add_tcase(s, tc);
 
    return s;

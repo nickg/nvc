@@ -34,8 +34,6 @@
 #include "thread.h"
 #include "tree.h"
 #include "type.h"
-#include "vlog/vlog-node.h"
-#include "vlog/vlog-util.h"
 
 #include <assert.h>
 #include <inttypes.h>
@@ -1574,9 +1572,15 @@ static void clone_source(rt_model_t *m, rt_nexus_t *nexus,
 
    case SOURCE_FORCING:
    case SOURCE_DEPOSIT:
-      split_value(nexus, &(new->u.pseudo.value), &(old->u.pseudo.value),
-                  offset);
-      assert(!old->pseudoqueued);   // TODO
+      {
+         split_value(nexus, &(new->u.pseudo.value), &(old->u.pseudo.value),
+                     offset);
+
+         if (old->pseudoqueued) {
+            deltaq_insert_pseudo_source(m, new);
+            new->pseudoqueued = 1;
+         }
+      }
       break;
 
    case SOURCE_IMPLICIT:
