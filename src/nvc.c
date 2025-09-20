@@ -454,7 +454,7 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
       { "verbose",         no_argument,       0, 'V' },
       { "no-save",         no_argument,       0, 'N' },
       { "jit",             no_argument,       0, 'j' },
-      { "precompile",      no_argument,       0, 'p' },
+      { "precompile",      no_argument,       0, 'p' },   // DEPRECATED 1.18
       { "no-collapse",     no_argument,       0, 'C' },
       { "trace",           no_argument,       0, 't' },
       { 0, 0, 0, 0 }
@@ -501,6 +501,8 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
          use_jit = true;
          break;
       case 'p':
+         warnf("the $bold$--precompile$$ option is deprecated and will be "
+               "removed in a future release");
          use_jit = false;
          break;
       case 'g':

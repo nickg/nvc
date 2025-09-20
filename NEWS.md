@@ -16,6 +16,9 @@
   value (#1274).
 - VHDL-2002 changes for buffer port connections are now implemented
   correctly (#1290).
+- The `--precompile` elaboration option is deprecated and will be
+  removed in the next release.  Please get in touch if you are still
+  using this.
 - Several other minor bugs were resolved (#1253, #1269, #1277, #1279,
   #1280, #1281).
 
