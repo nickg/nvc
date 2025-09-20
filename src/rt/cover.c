@@ -45,19 +45,22 @@ enum std_ulogic {
    _DC = 0x8
 };
 
-//#define COVER_DEBUG_CALLBACK
-
 ///////////////////////////////////////////////////////////////////////////////
 // Toggle coverage
 ///////////////////////////////////////////////////////////////////////////////
 
+typedef void (*toggle_check_fn_t)(uint8_t, uint8_t, int32_t *, int32_t *);
+
+__attribute__((always_inline))
 static inline void increment_counter(int32_t *ptr)
 {
    *ptr = saturate_add(*ptr, 1);
 }
 
+__attribute__((always_inline))
 static inline void cover_toggle_check_0_1(uint8_t old, uint8_t new,
-                                          int32_t *toggle_01, int32_t *toggle_10)
+                                          int32_t *toggle_01,
+                                          int32_t *toggle_10)
 {
    if (old == _0 && new == _1)
       increment_counter(toggle_01);
@@ -65,8 +68,10 @@ static inline void cover_toggle_check_0_1(uint8_t old, uint8_t new,
       increment_counter(toggle_10);
 }
 
+__attribute__((always_inline))
 static inline void cover_toggle_check_0_1_u(uint8_t old, uint8_t new,
-                                            int32_t *toggle_01, int32_t *toggle_10)
+                                            int32_t *toggle_01,
+                                            int32_t *toggle_10)
 {
    if (old == _0 && new == _1)
       increment_counter(toggle_01);
@@ -79,8 +84,10 @@ static inline void cover_toggle_check_0_1_u(uint8_t old, uint8_t new,
       increment_counter(toggle_10);
 }
 
+__attribute__((always_inline))
 static inline void cover_toggle_check_0_1_z(uint8_t old, uint8_t new,
-                                            int32_t *toggle_01, int32_t *toggle_10)
+                                            int32_t *toggle_01,
+                                            int32_t *toggle_10)
 {
    if (old == _0 && new == _1)
       increment_counter(toggle_01);
@@ -97,10 +104,11 @@ static inline void cover_toggle_check_0_1_z(uint8_t old, uint8_t new,
       increment_counter(toggle_10);
 }
 
+__attribute__((always_inline))
 static inline void cover_toggle_check_0_1_u_z(uint8_t old, uint8_t new,
-                                              int32_t *toggle_01, int32_t *toggle_10)
+                                              int32_t *toggle_01,
+                                              int32_t *toggle_10)
 {
-
    if (old == _0 && new == _1)
       increment_counter(toggle_01);
    else if (old == _1 && new == _0)
@@ -121,77 +129,69 @@ static inline void cover_toggle_check_0_1_u_z(uint8_t old, uint8_t new,
       increment_counter(toggle_10);
 }
 
-#ifdef COVER_DEBUG_CALLBACK
-#define COVER_TGL_CB_MSG(signal)                                              \
-   do {                                                                       \
-      printf("Time: %lu Callback on signal: %s with size: %d \n",             \
-              now, istr(tree_ident(signal->where)), s->shared.size);          \
-   } while (0);
+__attribute__((always_inline))
+static inline void cover_toggle_generic(rt_signal_t *s, void *user,
+                                        toggle_check_fn_t fn)
+{
+   const void *cur = signal_value(s);
+   const void *last = signal_last_value(s);
 
-#define COVER_TGL_SIGNAL_DETAILS(signal, size)                                \
-   do {                                                                       \
-      printf("New signal value:\n");                                          \
-      for (int i = 0; i < size; i++)                                          \
-         printf("0x%x ", ((uint8_t*)signal_value(signal))[i]);                \
-      printf("\n");                                                           \
-      printf("Old signal value:\n");                                          \
-      for (int i = 0; i < size; i++)                                          \
-         printf("0x%x ", ((const uint8_t *)signal_last_value(signal))[i]);    \
-      printf("\n\n");                                                         \
-   } while (0);
+   // Callback is optimized for performance
+   // Check only group of 8 bytes that do have change of signal value
+   // Optimize for assumption that most bits don't change in large signals
+   uint32_t s_size = s->shared.size;
+   rt_model_t *m = get_model();
+   const int32_t tag = (uintptr_t)user;
+   uint32_t batches = ((s_size - 1) / sizeof(uint64_t)) + 1;
+   for (int i = 0; i < batches; i++) {
+      int batch_size = sizeof(uint64_t);
+      if (i < batches - 1) {
+         const void *batch_new = cur + i * sizeof(uint64_t);
+         const void *batch_old = last + i * sizeof(uint64_t);
+         if (memcmp(batch_new, batch_old, sizeof(uint64_t)) == 0)
+            continue;
+      }
+      else
+         batch_size = ((s_size - 1) % sizeof(uint64_t)) + 1;
 
-#else
-#define COVER_TGL_CB_MSG(signal)
-#define COVER_TGL_SIGNAL_DETAILS(signal, size)
-#endif
+      int32_t low = i * sizeof(uint64_t);
+      int32_t high = low + batch_size;
+      int32_t *toggle_01 = get_cover_counter(m, tag, 2) + low * 2;
+      int32_t *toggle_10 = toggle_01 + 1;
+      for (int j = low; j < high; j++) {
+         uint8_t new = ((const uint8_t *)cur)[j];
+         uint8_t old = ((const uint8_t *)last)[j];
+         if (new != old)
+            (*fn)(old, new, toggle_01, toggle_10);
+         toggle_01 += 2;
+         toggle_10 += 2;
+      }
+   }
+}
 
-// Callback is optimized for performance
-// Check only group of 8 bytes that do have change of signal value
-// Optimize for assumption that most bits don't change in large signals
-#define DEFINE_COVER_TOGGLE_CB(name, check_fnc)                                     \
-   static void name(uint64_t now, rt_signal_t *s, rt_watch_t *w, void *user)        \
-   {                                                                                \
-      uint32_t s_size = s->shared.size;                                             \
-      rt_model_t *m = get_model();                                                  \
-      const int32_t tag = (uintptr_t)user;                                          \
-      COVER_TGL_CB_MSG(s)                                                           \
-      uint32_t batches = ((s_size - 1) / sizeof(uint64_t)) + 1;                     \
-      for (int i = 0; i < batches; i++) {                                           \
-         bool walk = false;                                                         \
-         int batch_size = sizeof(uint64_t);                                         \
-         if (i < batches - 1) {                                                     \
-            const void *batch_new = signal_value(s) + i * sizeof(uint64_t);         \
-            const void *batch_old = signal_last_value(s) + i * sizeof(uint64_t);    \
-            if (unaligned_load(batch_new, uint64_t) !=                              \
-                unaligned_load(batch_old, uint64_t))                                \
-               walk = true;                                                         \
-         }                                                                          \
-         else {                                                                     \
-            batch_size = ((s_size - 1) % sizeof(uint64_t)) + 1;                     \
-            walk = true;                                                            \
-         }                                                                          \
-         if (walk) {                                                                \
-            int32_t low = i * sizeof(uint64_t);                                     \
-            int32_t high = low + batch_size;                                        \
-            int32_t *toggle_01 = get_cover_counter(m, tag, 2) + low * 2;            \
-            int32_t *toggle_10 = toggle_01 + 1;                                     \
-            for (int j = low; j < high; j++) {                                      \
-               uint8_t new = ((uint8_t*)signal_value(s))[j];                        \
-               uint8_t old = ((uint8_t*)signal_last_value(s))[j];                   \
-               if (new != old)                                                      \
-                  check_fnc(old, new, toggle_01, toggle_10);                        \
-               toggle_01 += 2;                                                      \
-               toggle_10 += 2;                                                      \
-            }                                                                       \
-         }                                                                          \
-      }                                                                             \
-      COVER_TGL_SIGNAL_DETAILS(s, s_size)                                           \
-   }                                                                                \
+static void cover_toggle_cb_0_1(uint64_t now, rt_signal_t *s, rt_watch_t *w,
+                                void *user)
+{
+   cover_toggle_generic(s, user, cover_toggle_check_0_1);
+}
 
-DEFINE_COVER_TOGGLE_CB(cover_toggle_cb_0_1,     cover_toggle_check_0_1)
-DEFINE_COVER_TOGGLE_CB(cover_toggle_cb_0_1_u,   cover_toggle_check_0_1_u)
-DEFINE_COVER_TOGGLE_CB(cover_toggle_cb_0_1_z,   cover_toggle_check_0_1_z)
-DEFINE_COVER_TOGGLE_CB(cover_toggle_cb_0_1_u_z, cover_toggle_check_0_1_u_z)
+static void cover_toggle_cb_0_1_u(uint64_t now, rt_signal_t *s, rt_watch_t *w,
+                                  void *user)
+{
+   cover_toggle_generic(s, user, cover_toggle_check_0_1_u);
+}
+
+static void cover_toggle_cb_0_1_z(uint64_t now, rt_signal_t *s, rt_watch_t *w,
+                                  void *user)
+{
+   cover_toggle_generic(s, user, cover_toggle_check_0_1_z);
+}
+
+static void cover_toggle_cb_0_1_u_z(uint64_t now, rt_signal_t *s, rt_watch_t *w,
+                                    void *user)
+{
+   cover_toggle_generic(s, user, cover_toggle_check_0_1_u_z);
+}
 
 static bool is_constant_input(rt_signal_t *s)
 {
