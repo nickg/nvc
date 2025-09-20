@@ -19,6 +19,7 @@
 #include "array.h"
 #include "cov/cov-api.h"
 #include "cov/cov-data.h"
+#include "cov/cov-structs.h"
 #include "ident.h"
 #include "lib.h"
 #include "object.h"
@@ -936,6 +937,40 @@ static bool cover_should_emit_scope(cover_data_t *data, cover_scope_t *cs,
    return false;
 }
 
+cover_scope_t *cover_create_block(cover_data_t *data, ident_t name,
+                                  cover_scope_t *parent, tree_t inst,
+                                  tree_t unit)
+{
+   cover_block_t *b = xmalloc(sizeof(cover_block_t));
+   b->name = name;
+
+   if (tree_kind(inst) == T_BLOCK) {
+      if (parent == NULL) {
+         assert(data->root_scope == NULL);
+
+         parent = data->root_scope = xcalloc(sizeof(cover_scope_t));
+         parent->name = parent->hier = lib_name(lib_work());
+      }
+
+      cover_scope_t *s = xcalloc(sizeof(cover_scope_t));
+      s->name       = tree_ident(inst);
+      s->parent     = parent;
+      s->loc        = *tree_loc(unit);
+      s->hier       = ident_prefix(s->parent->hier, s->name, '.');
+      s->emit       = cover_should_emit_scope(data, s, inst);
+      s->block_name = ident_rfrom(tree_ident(unit), '.');
+      s->type       = CSCOPE_INSTANCE;
+      s->sig_pos    = parent->sig_pos;
+
+      APUSH(parent->children, s);
+      b->self = s;
+   }
+   else
+      b->self = cover_create_scope(data, parent, inst, NULL);
+
+   return b->self;
+}
+
 cover_scope_t *cover_create_scope(cover_data_t *data, cover_scope_t *parent,
                                   tree_t t, ident_t name)
 {
@@ -976,38 +1011,6 @@ cover_scope_t *cover_create_scope(cover_data_t *data, cover_scope_t *parent,
    s->loc        = *tree_loc(t);
    s->hier       = ident_prefix(s->parent->hier, name, '.');
    s->emit       = cover_should_emit_scope(data, s, t);
-
-   if (s->sig_pos == 0)
-      s->sig_pos = parent->sig_pos;
-
-   APUSH(parent->children, s);
-   return s;
-}
-
-cover_scope_t *cover_create_instance(cover_data_t *data, cover_scope_t *parent,
-                                     tree_t block, tree_t unit)
-{
-
-   if (data == NULL)
-      return NULL;
-   else if (parent == NULL) {
-      assert(data->root_scope == NULL);
-
-      parent = data->root_scope = xcalloc(sizeof(cover_scope_t));
-      parent->name = parent->hier = lib_name(lib_work());
-   }
-
-   assert(is_concurrent_block(unit));
-   assert(tree_kind(block) == T_BLOCK);
-
-   cover_scope_t *s = xcalloc(sizeof(cover_scope_t));
-   s->name       = tree_ident(block);
-   s->parent     = parent;
-   s->loc        = *tree_loc(unit);
-   s->hier       = ident_prefix(s->parent->hier, s->name, '.');
-   s->emit       = cover_should_emit_scope(data, s, block);
-   s->block_name = ident_rfrom(tree_ident(unit), '.');
-   s->type       = CSCOPE_INSTANCE;
 
    if (s->sig_pos == 0)
       s->sig_pos = parent->sig_pos;

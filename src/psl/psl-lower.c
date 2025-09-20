@@ -397,16 +397,16 @@ void psl_lower_directive(unit_registry_t *ur, lower_unit_t *parent,
    psl_node_t p = tree_psl(wrapper);
    ident_t label = tree_ident(wrapper);
 
-   cover_scope_t *parent_cscope = lower_get_cover_scope(parent);
-   cover_scope_t *cscope =
-      cover_create_scope(cover, parent_cscope, wrapper, NULL);
-
    psl_fsm_t *fsm = psl_fsm_new(p, label);
 
    vcode_unit_t context = get_vcode(parent);
 
    ident_t prefix = vcode_unit_name(context);
    ident_t name = ident_prefix(prefix, label, '.');
+
+   cover_scope_t *parent_cscope = lower_get_cover_scope(parent);
+   cover_scope_t *cscope = cover_create_block(cover, name, parent_cscope,
+                                              wrapper, wrapper);
 
    vcode_unit_t vu = emit_property(name, psl_to_object(p), context);
    lower_unit_t *lu = lower_unit_new(ur, parent, vu, NULL, NULL);
