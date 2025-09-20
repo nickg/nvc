@@ -155,6 +155,8 @@ static char bin_dir[PATH_MAX];
 static bool is_tty = false;
 static bool force_jit = false;
 static bool force_precompile = false;
+static bool capture_html = false;
+static bool diff_html = false;
 
 #ifdef __MINGW32__
 static char *strndup(const char *s, size_t n)
@@ -1092,9 +1094,15 @@ static bool run_test(test_t *test)
       for (char *p = unit; *p; p++)
          *p = toupper((int)*p);
 
+      char *html_dir;
+      if (capture_html)
+         html_dir = xasprintf("%s/html/%s", cwd, test->name);
+      else
+         html_dir = strdup("./html");
+
       push_arg(&args, "%s/nvc%s", bin_dir, EXEEXT);
       push_arg(&args, "--cover-report");
-      push_arg(&args, "--output=./html");
+      push_arg(&args, "--output=%s", html_dir);
       push_arg(&args, "%s.ncdb", test->name);
       push_arg(&args, "--cover-export");
       push_arg(&args, "--relative=%s" DIR_SEP "regress", test_dir);
@@ -1103,14 +1111,12 @@ static bool run_test(test_t *test)
       push_arg(&args, "--format=xml");
       push_arg(&args, "%s.ncdb", test->name);
 
-      free(unit);
-
       if (run_cmd(outf, &args) != RUN_OK) {
          failed("coverage report");
          result = false;
          goto out_print;
       }
-      else if (!file_exists("html/index.html")) {
+      else if (!file_exists("%s/index.html", html_dir)) {
          failed("missing coverage report index.html");
          result = false;
          goto out_print;
@@ -1129,6 +1135,29 @@ static bool run_test(test_t *test)
          result = false;
          goto out_print;
       }
+
+      if (diff_html) {
+         char *cmp_dir = xasprintf("%s/html/%s", cwd, test->name);
+
+         push_arg(&args, "%s", DIFF_PATH);
+#if defined __MINGW32__ || defined __CYGWIN__
+         push_arg(&args, "--strip-trailing-cr");
+#endif
+         push_arg(&args, "-ru");
+         push_arg(&args, "%s", cmp_dir);
+         push_arg(&args, "%s", html_dir);
+
+         if (run_cmd(outf, &args) != RUN_OK) {
+            failed("HTML mismatch");
+            result = false;
+            goto out_print;
+         }
+
+         free(cmp_dir);
+      }
+
+      free(html_dir);
+      free(unit);
    }
 
    if (test->flags & F_WAVE) {
@@ -1345,9 +1374,16 @@ int main(int argc, char **argv)
    if (getenv("QUICK"))
       return 0;
 
+   static struct option long_options[] = {
+      { "capture-html", no_argument, 0, 'h' },
+      { "diff-html",    no_argument, 0, 'H' },
+      { 0, 0, 0, 0 }
+   };
+
    bool print_stats= false;
-   int c;
-   while ((c = getopt(argc, argv, "sjp")) != -1) {
+   int c, index = 0;
+   const char *spec = ":sjp";
+   while ((c = getopt_long(argc, argv, spec, long_options, &index)) != -1) {
       switch (c) {
       case 's':
          print_stats = true;
@@ -1358,7 +1394,18 @@ int main(int argc, char **argv)
       case 'p':
          force_precompile = true;
          break;
+      case 'h':
+         capture_html = true;
+         make_dir("html");
+         break;
+      case 'H':
+         diff_html = true;
+         break;
       case '?':
+         if (optopt == 0)
+            fprintf(stderr, "Invalid option %s\n", argv[optind - 1]);
+         else
+            fprintf(stderr, "Invalid option -%c\n", optopt);
          return EXIT_FAILURE;
       default:
          abort();

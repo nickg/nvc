@@ -412,12 +412,16 @@ static void cover_print_table_footer(FILE *f)
 
 static void cover_print_timestamp(FILE *f)
 {
-   time_t t;
-   time(&t);
+   time_t timestamp;
+   const long override_time = opt_get_int(OPT_COVER_TIMESTAMP);
+   if (override_time >= 0)
+      timestamp = override_time;
+   else
+      timestamp = time(NULL);
 
    fprintf(f, "<footer>");
    fprintf(f, "   <p> NVC version: %s </p>\n", PACKAGE_VERSION);
-   fprintf(f, "   <p> Generated on: %s </p>\n", ctime(&t));
+   fprintf(f, "   <p> Generated on: %s </p>\n", ctime(&timestamp));
    fprintf(f, "</footer>\n");
 
    fprintf(f, "</body>\n");
