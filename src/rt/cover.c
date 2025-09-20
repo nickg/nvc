@@ -396,7 +396,6 @@ void _nvc_set_cover_scope_name(jit_scalar_t *args)
               "items are created");
 
    us->scope->name = name_id;
-   us->scope->block_name = name_id;
 
    ident_t prefix = ident_runtil(us->scope->hier,'.');
    us->scope->hier = ident_prefix(prefix, name_id, '.');
@@ -450,7 +449,7 @@ void _nvc_add_cover_item(jit_scalar_t *args)
                                  //      does not make sense here
 
    // Name remembered at the time of cover point creation in its scope
-   item->func_name = us->scope->block_name;
+   item->func_name = us->scope->name;
 
    item->source = COV_SRC_USER_COVER;
    item->atleast = args[7].integer;

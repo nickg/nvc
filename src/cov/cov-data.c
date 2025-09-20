@@ -19,6 +19,7 @@
 #include "array.h"
 #include "cov/cov-api.h"
 #include "cov/cov-data.h"
+#include "cov/cov-priv.h"
 #include "cov/cov-structs.h"
 #include "hash.h"
 #include "ident.h"
@@ -64,7 +65,7 @@ static const struct {
 };
 
 #define COVER_FILE_MAGIC   0x6e636462   // ASCII "ncdb"
-#define COVER_FILE_VERSION 3
+#define COVER_FILE_VERSION 4
 
 static inline unsigned get_next_tag(cover_block_t *b)
 {
@@ -656,7 +657,7 @@ cover_item_t *cover_add_items_for(cover_data_t *data, cover_scope_t *cs,
    // statements, blocks, etc.
    for (cover_scope_t *ignore_scope = cs; ignore_scope->parent;
         ignore_scope = ignore_scope->parent) {
-      if (ignore_scope->type != CSCOPE_INSTANCE)
+      if (cover_block_kind(ignore_scope) == CBLOCK_NONE)
          continue;
       else if (ignore_scope->loc.file_ref != loc.file_ref)
          break;
@@ -782,18 +783,16 @@ static void cover_write_scope(cover_scope_t *s, fbuf_t *f,
       write_u8(CTRL_PUSH_UNIT, f);
 
       ident_write(s->block->name, ident_ctx);
+      ident_write(s->block->block_name, ident_ctx);
+      fbuf_put_uint(f, s->block->kind);
       fbuf_put_uint(f, s->block->next_tag);
    }
    else
       write_u8(CTRL_PUSH_SCOPE, f);
 
-   fbuf_put_uint(f, s->type);
    ident_write(s->name, ident_ctx);
    ident_write(s->hier, ident_ctx);
    loc_write(&s->loc, loc_ctx);
-
-   if (s->type == CSCOPE_INSTANCE)
-      ident_write(s->block_name, ident_ctx);
 
    fbuf_put_uint(f, s->items.count);
    for (int i = 0; i < s->items.count; i++) {
@@ -836,12 +835,10 @@ static void cover_write_scope(cover_scope_t *s, fbuf_t *f,
 LCOV_EXCL_START
 static void cover_debug_dump(cover_scope_t *s, int indent)
 {
-   color_printf("%*s$!blue$%s", indent, "", istr(s->name));
-   switch (s->type) {
-   case CSCOPE_INSTANCE: color_printf(" : instance"); break;
-   default: break;
-   }
-   color_printf("$$\n");
+   color_printf("%*s$!blue$%s$$", indent, "", istr(s->name));
+   if (cover_is_hier(s))
+      printf(" : %s", istr(s->block->block_name));
+   color_printf("\n");
 
    for (int i = 0; i < s->items.count; i++) {
       cover_item_t *item = &(s->items.items[i]);
@@ -906,8 +903,8 @@ static bool cover_should_emit_scope(cover_data_t *data, cover_scope_t *cs)
       return true;
 
    // Block (entity, package instance or block) name
-   if (cs->block_name) {
-      ident_t ename = ident_until(cs->block_name, '-');
+   if (cs->block->block_name != NULL) {
+      ident_t ename = ident_until(cs->block->block_name, '-');
 
       for (int i = 0; i < spc->block_exclude.count; i++) {
          if (ident_glob(ename, AGET(spc->block_exclude, i), -1))
@@ -973,12 +970,36 @@ cover_scope_t *cover_create_block(cover_data_t *data, ident_t qual,
    s->hier    = ident_prefix(parent->hier, scope_name, '.');
    s->emit    = cover_should_emit_scope(data, s);
 
-   if (tree_kind(inst) == T_BLOCK && name == NULL) {
-      s->block_name = ident_rfrom(tree_ident(unit), '.');
-      s->type       = CSCOPE_INSTANCE;
+   switch (tree_kind(inst)) {
+   case T_BLOCK:
+      if (name == NULL) {
+         b->kind = CBLOCK_INSTANCE;
+         b->block_name = ident_rfrom(tree_ident(unit), '.');
+      }
+      else
+         b->kind = CBLOCK_USER;   // XXX
+      break;
+   case T_PROCESS:
+   case T_INERTIAL:
+      b->kind = CBLOCK_PROCESS;
+      b->block_name = parent->block->block_name;
+      break;
+   case T_PROC_BODY:
+   case T_FUNC_BODY:
+      b->kind = CBLOCK_SUBPROG;
+      break;
+   case T_PSL_DIRECT:
+      b->kind = CBLOCK_PROPERTY;
+      break;
+   case T_PACK_INST:
+   case T_PACKAGE:
+   case T_PACK_BODY:
+      b->kind = CBLOCK_PACKAGE;
+      b->block_name = tree_ident(unit);
+      break;
+   default:
+      should_not_reach_here();
    }
-   else
-      s->block_name = parent->block_name;
 
    APUSH(parent->children, s);
    b->self = s;
@@ -1020,13 +1041,12 @@ cover_scope_t *cover_create_scope(cover_data_t *data, cover_scope_t *parent,
    else if (name == NULL)
       name = ident_sprintf("_S%u", parent->stmt_label++);
 
-   s->name       = name;
-   s->parent     = parent;
-   s->block      = parent->block;
-   s->block_name = parent->block_name;
-   s->loc        = *tree_loc(t);
-   s->hier       = ident_prefix(parent->hier, name, '.');
-   s->emit       = cover_should_emit_scope(data, s);
+   s->name   = name;
+   s->parent = parent;
+   s->block  = parent->block;
+   s->loc    = *tree_loc(t);
+   s->hier   = ident_prefix(parent->hier, name, '.');
+   s->emit   = cover_should_emit_scope(data, s);
 
    if (s->sig_pos == 0)
       s->sig_pos = parent->sig_pos;
@@ -1091,15 +1111,11 @@ static cover_scope_t *cover_read_scope(cover_data_t *db, fbuf_t *f,
                                        cover_block_t *b)
 {
    cover_scope_t *s = xcalloc(sizeof(cover_scope_t));
-   s->type  = fbuf_get_uint(f);
    s->name  = ident_read(ident_ctx);
    s->hier  = ident_read(ident_ctx);
    s->block = b;
 
    loc_read(&s->loc, loc_ctx);
-
-   if (s->type == CSCOPE_INSTANCE)
-      s->block_name = ident_read(ident_ctx);
 
    const int nitems = fbuf_get_uint(f);
    for (int i = 0; i < nitems; i++) {
@@ -1119,7 +1135,9 @@ static cover_scope_t *cover_read_scope(cover_data_t *db, fbuf_t *f,
             cover_block_t *b = hash_get(db->blocks, name);
             if (b == NULL) {
                b = xcalloc(sizeof(cover_block_t));
-               b->name     = name;
+               b->name = name;
+               b->block_name = ident_read(ident_ctx);
+               b->kind = fbuf_get_uint(f);
                b->next_tag = fbuf_get_uint(f);
                b->self = cover_read_scope(db, f, ident_ctx, loc_ctx, b);
 
@@ -1128,6 +1146,8 @@ static cover_scope_t *cover_read_scope(cover_data_t *db, fbuf_t *f,
                APUSH(s->children, b->self);
             }
             else {
+               (void)ident_read(ident_ctx);
+               (void)fbuf_get_uint(f);
                (void)fbuf_get_uint(f);
 
                cover_scope_t *child =
@@ -1348,4 +1368,26 @@ const char *cover_item_kind_str(cover_item_kind_t kind)
    };
    assert(kind < ARRAY_LEN(item_kind_str));
    return item_kind_str[kind];
+}
+
+block_kind_t cover_block_kind(cover_scope_t *s)
+{
+   if (s->block == NULL)
+      return CBLOCK_NONE;  // Dummy root scope
+   else if (s->block->self == s)
+      return s->block->kind;
+   else
+      return CBLOCK_NONE;
+}
+
+bool cover_is_hier(cover_scope_t *s)
+{
+   switch (cover_block_kind(s)) {
+   case CBLOCK_INSTANCE:
+   case CBLOCK_PACKAGE:
+      assert(s->block->block_name != NULL);
+      return true;
+   default:
+      return false;
+   }
 }

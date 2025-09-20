@@ -76,11 +76,6 @@ struct _cover_data {
    hash_t          *blocks;
 };
 
-typedef enum {
-   CSCOPE_UNKNOWN,
-   CSCOPE_INSTANCE,
-} scope_type_t;
-
 typedef struct {
    int start;
    int end;
@@ -91,7 +86,6 @@ typedef A(cover_item_t) cov_item_array_t;
 typedef A(cover_scope_t *) scope_array_t;
 
 typedef struct _cover_scope {
-   scope_type_t      type;
    ident_t           name;
    ident_t           hier;
    loc_t             loc;
@@ -103,7 +97,6 @@ typedef struct _cover_scope {
    scope_array_t     children;
    cov_item_array_t  items;
    range_array_t     ignore_lines;
-   ident_t           block_name;
    int               sig_pos;
    bool              emit;
 } cover_scope_t;

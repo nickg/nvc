@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2013-2023  Nick Gasson
+//  Copyright (C) 2013-2025  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -18,6 +18,8 @@
 #include "util.h"
 #include "cov/cov-api.h"
 #include "cov/cov-data.h"
+#include "cov/cov-priv.h"
+#include "cov/cov-structs.h"
 #include "hash.h"
 #include "ident.h"
 #include "lib.h"
@@ -1470,7 +1472,7 @@ static void cover_report_hier_children(cover_rpt_hier_ctx_t *ctx,
 {
    for (int i = 0; i < s->children.count; i++) {
       cover_scope_t *it = s->children.items[i];
-      if (it->type == CSCOPE_INSTANCE) {
+      if (cover_is_hier(it)) {
          // Collect coverage of sub-block
          cover_rpt_hier_ctx_t sub_ctx = {};
          sub_ctx.parent = ctx;

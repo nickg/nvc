@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2025  Nick Gasson
+//  Copyright (C) 2013-2025  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -15,28 +15,14 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-#ifndef _COV_STRUCTS_H
-#define _COV_STRUCTS_H
+#ifndef _COV_PRIV_H
+#define _COV_PRIV_H
 
 #include "prim.h"
+#include "cov/cov-api.h"
+#include "cov/cov-structs.h"
 
-typedef enum {
-   CBLOCK_NONE,
-   CBLOCK_INSTANCE,
-   CBLOCK_SUBPROG,
-   CBLOCK_PACKAGE,
-   CBLOCK_PROCESS,
-   CBLOCK_USER,
-   CBLOCK_PROPERTY,
-} block_kind_t;
+block_kind_t cover_block_kind(cover_scope_t *s);
+bool cover_is_hier(cover_scope_t *s);
 
-typedef struct _cover_block {
-   ident_t        name;
-   ident_t        block_name;
-   block_kind_t   kind;
-   unsigned       next_tag;
-   cover_scope_t *self;
-   int32_t       *data;
-} cover_block_t;
-
-#endif   // _COV_STRUCTS_H
+#endif   // _COV_PRIV_H

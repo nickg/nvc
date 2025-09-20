@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2023  Nick Gasson
+//  Copyright (C) 2023-2025  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -18,6 +18,7 @@
 #include "util.h"
 #include "cov/cov-api.h"
 #include "cov/cov-data.h"
+#include "cov/cov-priv.h"
 #include "hash.h"
 #include "ident.h"
 #include "option.h"
@@ -115,8 +116,8 @@ static void cobertura_export_scope(cobertura_report_t *report,
                                    cobertura_class_t *class,
                                    cover_scope_t *s)
 {
-   if (s->block_name != NULL)
-      class = cobertura_get_class(report, s->block_name, &s->loc);
+   if (cover_is_hier(s))
+      class = cobertura_get_class(report, s->block->block_name, &s->loc);
 
    for (int i = 0; i < s->items.count; i++) {
       cover_item_t *t = &(s->items.items[i]);
@@ -274,8 +275,8 @@ static void dump_scope_xml(cover_scope_t *s, int indent, const loc_t *loc,
 {
    fprintf(f, "%*s<scope name=\"%s\"", indent, "", istr(s->name));
 
-   if (s->block_name != NULL)
-      fprintf(f, " block_name=\"%s\"", istr(s->block_name));
+   if (cover_is_hier(s))
+      fprintf(f, " block_name=\"%s\"", istr(s->block->block_name));
 
    if (s->loc.file_ref != FILE_INVALID && s->loc.file_ref != loc->file_ref) {
       const char *path = get_relative_path(loc_file_str(&s->loc), relative);
