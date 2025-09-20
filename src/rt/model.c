@@ -3898,13 +3898,6 @@ void get_forcing_value(rt_signal_t *s, uint8_t *value)
    assert(p == value + s->shared.size);
 }
 
-int32_t *get_cover_counter(rt_model_t *m, int32_t tag, int count)
-{
-   assert(tag >= 0);
-   assert(m->cover != NULL);
-   return jit_get_cover_mem(m->jit, tag + count) + tag;
-}
-
 static void arm_trigger(rt_model_t *m, rt_trigger_t *t, rt_wakeable_t *obj)
 {
    switch (t->kind) {

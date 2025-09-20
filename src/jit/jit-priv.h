@@ -320,6 +320,7 @@ typedef struct _jit_func {
    link_tab_t     *linktab;
    mptr_t          privdata;
    jit_ir_t       *irbuf;
+   int32_t        *counters;
    unsigned char  *cpool;
    unsigned        framesz;
    unsigned        nirs;
@@ -403,7 +404,7 @@ void **jit_get_privdata_ptr(jit_t *j, jit_func_t *f);
 void jit_tier_up(jit_func_t *f);
 jit_thread_local_t *jit_thread_local(void);
 void jit_fill_irbuf(jit_func_t *f);
-int32_t *jit_get_cover_ptr(jit_t *j, jit_value_t addr);
+int32_t *jit_get_cover_ptr(jit_func_t *f, jit_value_t addr);
 jit_entry_fn_t jit_bind_intrinsic(ident_t name);
 jit_thread_local_t *jit_attach_thread(jit_anchor_t *anchor);
 

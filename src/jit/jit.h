@@ -52,7 +52,7 @@ typedef struct {
 
 typedef void (*jit_irq_fn_t)(jit_t *, void *);
 
-jit_t *jit_new(unit_registry_t *ur, mir_context_t *mc);
+jit_t *jit_new(unit_registry_t *ur, mir_context_t *mc, cover_data_t *db);
 void jit_free(jit_t *j);
 jit_handle_t jit_compile(jit_t *j, ident_t name);
 jit_handle_t jit_lazy_compile(jit_t *j, ident_t name);
@@ -72,8 +72,6 @@ void jit_register_native_plugin(jit_t *j);
 void jit_interrupt(jit_t *j, jit_irq_fn_t fn, void *ctx);
 void jit_check_interrupt(jit_t *j);
 void jit_reset(jit_t *j);
-int32_t *jit_get_cover_mem(jit_t *j, int mintags);
-int32_t *jit_sync_cover_mem(jit_t *j, int mintags);
 bool jit_is_shutdown(jit_t *j);
 
 void *jit_mspace_alloc(size_t size) RETURNS_NONNULL;

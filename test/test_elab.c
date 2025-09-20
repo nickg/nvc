@@ -1614,6 +1614,8 @@ START_TEST(test_body1)
    expect_errors(expect);
 
    (void)run_elab();
+
+   check_expected_errors();
 }
 END_TEST
 
@@ -1628,8 +1630,8 @@ START_TEST(test_issue759)
 
    mir_context_t *mc = get_mir();
    unit_registry_t *ur = get_registry();
-   jit_t *jit = jit_new(ur, mc);
    cover_data_t *cover = cover_data_init(COVER_MASK_ALL, 0, 0);
+   jit_t *jit = jit_new(ur, mc, cover);
 
    rt_model_t *m = model_new(jit, cover);
    tree_t e = elab(tree_to_object(a), jit, ur, mc, cover, NULL, m);
@@ -1764,7 +1766,7 @@ START_TEST(test_vlog1)
 
    mir_context_t *mc = get_mir();
    unit_registry_t *ur = get_registry();
-   jit_t *j = jit_new(ur, mc);
+   jit_t *j = jit_new(ur, mc, NULL);
    rt_model_t *m = model_new(j, NULL);
 
    tree_t top = elab(obj, j, ur, mc, NULL, NULL, m);
@@ -1953,7 +1955,7 @@ START_TEST(test_issue1012)
 
    mir_context_t *mc = get_mir();
    unit_registry_t *ur = get_registry();
-   jit_t *jit = jit_new(ur, mc);
+   jit_t *jit = jit_new(ur, mc, NULL);
    cover_data_t *cover = cover_data_init(COVER_MASK_TOGGLE, 0, 0);
    rt_model_t *m = model_new(jit, NULL);
 

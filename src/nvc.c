@@ -91,7 +91,7 @@ const char version_string[] =
 
 static int process_command(int argc, char **argv, cmd_state_t *state);
 static int parse_int(const char *str);
-static jit_t *get_jit(unit_registry_t *ur, mir_context_t *mc);
+static jit_t *get_jit(cmd_state_t *state);
 
 static ident_t to_unit_name(const char *str)
 {
@@ -303,7 +303,7 @@ static int analyse(int argc, char **argv, cmd_state_t *state)
    if (state->registry == NULL)
       state->registry = unit_registry_new(state->mir);
 
-   jit_t *jit = jit_new(state->registry, state->mir);
+   jit_t *jit = jit_new(state->registry, state->mir, NULL);
 
    if (file_list != NULL)
       do_file_list(file_list, jit, state->registry, state->mir);
@@ -544,12 +544,11 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
    progress("loading top-level unit");
 
    char *cover_default LOCAL = NULL;
-   cover_data_t *cover = NULL;
    if (cover_mask != 0) {
-      cover = cover_data_init(cover_mask, cover_array_limit, threshold);
+      state->cover = cover_data_init(cover_mask, cover_array_limit, threshold);
 
       if (cover_spec_file != NULL)
-         cover_load_spec_file(cover, cover_spec_file);
+         cover_load_spec_file(state->cover, cover_spec_file);
 
       if (meta.cover_file == NULL) {
          cover_default = xasprintf("%s.ncdb", state->top_level_arg);
@@ -584,14 +583,14 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
 
    state->mir = mir_context_new();
    state->registry = unit_registry_new(state->mir);
-   state->jit = get_jit(state->registry, state->mir);
-   state->model = model_new(state->jit, cover);
+   state->jit = get_jit(state);
+   state->model = model_new(state->jit, state->cover);
 
    if (state->vhpi == NULL)
       state->vhpi = vhpi_context_new();
 
-   tree_t top = elab(obj, state->jit, state->registry, state->mir, cover,
-                     NULL, state->model);
+   tree_t top = elab(obj, state->jit, state->registry, state->mir,
+                     state->cover, NULL, state->model);
 
    if (top == NULL)
       return EXIT_FAILURE;
@@ -600,12 +599,12 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
 
    progress("elaborating design");
 
-   if (cover != NULL) {
+   if (state->cover != NULL) {
       fbuf_t *f = fbuf_open(meta.cover_file, FBUF_OUT, FBUF_CS_NONE);
       if (f == NULL)
          fatal_errno("failed to open coverage database: %s", meta.cover_file);
 
-      cover_dump_items(cover, f, COV_DUMP_ELAB, NULL);
+      cover_dump_items(state->cover, f, COV_DUMP_ELAB, NULL);
       fbuf_close(f, NULL);
 
       progress("dumping coverage data");
@@ -633,7 +632,7 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
    else if (!no_save)
       cgen(top, state->registry, state->mir, state->jit, CGEN_JIT_PACK);
 
-   if (!use_jit || cover != NULL) {
+   if (!use_jit || state->cover != NULL) {
       // Must discard current JIT state to load AOT library later
       model_free(state->model);
       jit_free(state->jit);
@@ -730,9 +729,9 @@ static void ctrl_c_handler(void *arg)
    model_interrupt(model);
 }
 
-static jit_t *get_jit(unit_registry_t *ur, mir_context_t *mc)
+static jit_t *get_jit(cmd_state_t *state)
 {
-   jit_t *jit = jit_new(ur, mc);
+   jit_t *jit = jit_new(state->registry, state->mir, state->cover);
 
 #if defined HAVE_LLVM && 1
    jit_register_llvm_plugin(jit);
@@ -762,7 +761,7 @@ static int plusarg_cmp(const void *lptr, const void *rptr)
       return lptr - rptr;
 }
 
-static cover_data_t *load_coverage(const unit_meta_t *meta, jit_t *j)
+static cover_data_t *load_coverage(const unit_meta_t *meta)
 {
    if (meta->cover_file == NULL)
       return NULL;
@@ -772,10 +771,6 @@ static cover_data_t *load_coverage(const unit_meta_t *meta, jit_t *j)
       fatal_errno("failed to open coverage database: %s", meta->cover_file);
 
    cover_data_t *db = cover_read_items(f, 0);
-
-   // Pre-allocate coverage counters
-   const int n_tags = cover_count_items(db);
-   jit_get_cover_mem(j, n_tags);
 
    fbuf_close(f, NULL);
    return db;
@@ -789,9 +784,7 @@ static void emit_coverage(const unit_meta_t *meta, jit_t *j, cover_data_t *db)
    if (f == NULL)
       fatal_errno("failed to open coverage database: %s", meta->cover_file);
 
-   const int n_tags = cover_count_items(db);
-   const int32_t *counts = jit_sync_cover_mem(j, n_tags);
-   cover_dump_items(db, f, COV_DUMP_RUNTIME, counts);
+   cover_dump_items(db, f, COV_DUMP_RUNTIME, NULL);
 
    fbuf_close(f, NULL);
 }
@@ -996,6 +989,9 @@ static int run_cmd(int argc, char **argv, cmd_state_t *state)
    if (opt_get_size(OPT_HEAP_SIZE) < 0x100000)
       warnf("recommended heap size is at least 1M");
 
+   if (state->cover == NULL)
+      state->cover = load_coverage(meta);
+
    if (state->mir == NULL)
       state->mir = mir_context_new();
 
@@ -1003,16 +999,13 @@ static int run_cmd(int argc, char **argv, cmd_state_t *state)
       state->registry = unit_registry_new(state->mir);
 
    if (state->jit == NULL)
-      state->jit = get_jit(state->registry, state->mir);
+      state->jit = get_jit(state);
 
 #ifdef ENABLE_LLVM
    jit_load_dll(state->jit, tree_ident(top));
 #endif
 
    load_jit_pack(state->jit, top);
-
-   if (state->cover == NULL)
-      state->cover = load_coverage(meta, state->jit);
 
    if (state->model == NULL) {
       state->model = model_new(state->jit, state->cover);
@@ -1482,7 +1475,7 @@ static int do_cmd(int argc, char **argv, cmd_state_t *state)
       state->registry = unit_registry_new(state->mir);
 
    if (state->jit == NULL)
-      state->jit = get_jit(state->registry, state->mir);
+      state->jit = get_jit(state);
 
 #ifdef ENABLE_TCL
    tcl_shell_t *sh = shell_new(state->jit);
@@ -1557,7 +1550,7 @@ static int interact_cmd(int argc, char **argv, cmd_state_t *state)
       state->registry = unit_registry_new(state->mir);
 
    if (state->jit == NULL)
-      state->jit = get_jit(state->registry, state->mir);
+      state->jit = get_jit(state);
 
 #ifdef ENABLE_TCL
    tcl_shell_t *sh = shell_new(state->jit);
@@ -1810,7 +1803,7 @@ static int gui_cmd(int argc, char **argv, cmd_state_t *state)
       state->mir = mir_context_new();
 
    if (state->jit == NULL)
-      state->jit = get_jit(state->registry, state->mir);
+      state->jit = get_jit(state);
 
    start_server(kind, state->jit, top, NULL, NULL, init_cmd);
 
