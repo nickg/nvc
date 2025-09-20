@@ -206,10 +206,10 @@ static cover_file_t *cover_file_for_scope(cover_scope_t *s)
    fclose(fp);
 
    // Generate report file with source file contents
-   char *hash = cover_get_report_name(f->src_path);
-   f->rpt_path = xasprintf("%s/source/%s.html", outdir, hash);
-   free(hash);
-   fp = fopen(f->rpt_path, "w");
+   char *hash LOCAL = cover_get_report_name(f->src_path);
+   f->rpt_path = xasprintf("source/%s.html", hash);
+   char *rpt_full LOCAL = xasprintf("%s/%s", outdir, f->rpt_path);
+   fp = fopen(rpt_full, "w");
 
    if (fp == NULL) {
       fatal("failed to open report file with source code of: %s", f->src_path);
@@ -353,7 +353,7 @@ static void cover_print_file_name(FILE *f, const char *src_name,
                                   const char *rpt_name)
 {
    fprintf(f, "<h2 style=\"margin-left: " MARGIN_LEFT ";\">\n");
-   fprintf(f, "   File:&nbsp; <a href=\"../../%s\">../../%s</a>\n",
+   fprintf(f, "   File:&nbsp; <a href=\"../%s\">%s</a>\n",
             rpt_name, src_name);
    fprintf(f, "</h2>\n\n");
 }
