@@ -1972,7 +1972,7 @@ START_TEST(test_cover)
 
    unit_registry_t *ur = get_registry();
    mir_context_t *mc = get_mir();
-   jit_t *jit = jit_new(ur, mc);
+   jit_t *jit = jit_new(ur, mc, NULL);
    cover_data_t *data = cover_data_init(COVER_MASK_STMT | COVER_MASK_EXPRESSION
                                         | COVER_MASK_BRANCH, 0, 0);
    rt_model_t *m = model_new(jit, data);
@@ -2539,7 +2539,7 @@ START_TEST(test_choice1)
 
    unit_registry_t *ur = get_registry();
    mir_context_t *mc = get_mir();
-   jit_t *jit = jit_new(ur, mc);
+   jit_t *jit = jit_new(ur, mc, NULL);
    cover_data_t *data = cover_data_init(COVER_MASK_BRANCH, 0, 0);
    rt_model_t *m = model_new(jit, NULL);
    elab(tree_to_object(a), jit, ur, mc, data, NULL, m);
@@ -5057,7 +5057,7 @@ START_TEST(test_issue582)
 
    mir_context_t *mc = get_mir();
    unit_registry_t *ur = unit_registry_new(mc);
-   jit_t *jit = jit_new(ur, mc);
+   jit_t *jit = jit_new(ur, mc, NULL);
    cover_data_t *data = cover_data_init(COVER_MASK_ALL, 0, 0);
    rt_model_t *m = model_new(jit, NULL);
 

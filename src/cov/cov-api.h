@@ -222,12 +222,13 @@ typedef enum {
 cover_data_t *cover_data_init(cover_mask_t mask, int array_limit, int threshold);
 bool cover_enabled(cover_data_t *data, cover_mask_t mask);
 
-unsigned cover_count_items(cover_data_t *data);
-
 void cover_dump_items(cover_data_t *data, fbuf_t *f, cover_dump_t dt,
                       const int32_t *counts);
 cover_data_t *cover_read_items(fbuf_t *f, uint32_t pre_mask);
 void cover_merge_items(fbuf_t *f, cover_data_t *data, merge_mode_t mode);
+
+int32_t *cover_get_counters(cover_data_t *db, ident_t name);
+cover_scope_t *cover_get_scope(cover_data_t *db, ident_t name);
 
 //
 // Spec and exclude file handling
@@ -251,9 +252,9 @@ void cover_export_xml(cover_data_t *data, FILE *f, const char *relative);
 // Interface to code generator
 //
 
-cover_scope_t *cover_create_block(cover_data_t *data, ident_t name,
+cover_scope_t *cover_create_block(cover_data_t *data, ident_t qual,
                                   cover_scope_t *parent, tree_t inst,
-                                  tree_t unit);
+                                  tree_t unit, ident_t name);
 cover_scope_t *cover_create_scope(cover_data_t *data, cover_scope_t *parent,
                                   tree_t t, ident_t name);
 cover_item_t *cover_add_items_for(cover_data_t *data, cover_scope_t *cscope,

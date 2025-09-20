@@ -406,7 +406,7 @@ void psl_lower_directive(unit_registry_t *ur, lower_unit_t *parent,
 
    cover_scope_t *parent_cscope = lower_get_cover_scope(parent);
    cover_scope_t *cscope = cover_create_block(cover, name, parent_cscope,
-                                              wrapper, wrapper);
+                                              wrapper, wrapper, NULL);
 
    vcode_unit_t vu = emit_property(name, psl_to_object(p), context);
    lower_unit_t *lu = lower_unit_new(ur, parent, vu, NULL, NULL);

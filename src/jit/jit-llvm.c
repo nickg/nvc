@@ -1310,7 +1310,7 @@ static LLVMValueRef cgen_get_value(llvm_obj_t *obj, cgen_block_t *cgb,
                               base, indexes, 1, "");
       }
       else
-         return llvm_ptr(obj, jit_get_cover_ptr(cgb->func->source->jit, value));
+         return llvm_ptr(obj, jit_get_cover_ptr(cgb->func->source, value));
    case JIT_VALUE_LOCUS:
       return cgen_rematerialise_object(obj, cgb->func, value.locus);
    default:

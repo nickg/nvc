@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2013-2024  Nick Gasson
+//  Copyright (C) 2013-2025  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -20,6 +20,7 @@
 #include "cov/cov-api.h"
 #include "cov/cov-data.h"
 #include "cov/cov-structs.h"
+#include "hash.h"
 #include "ident.h"
 #include "lib.h"
 #include "object.h"
@@ -44,6 +45,7 @@ typedef enum {
    CTRL_PUSH_SCOPE,
    CTRL_POP_SCOPE,
    CTRL_END_OF_FILE,
+   CTRL_PUSH_UNIT,
 } cov_control_t;
 
 static const struct {
@@ -62,7 +64,13 @@ static const struct {
 };
 
 #define COVER_FILE_MAGIC   0x6e636462   // ASCII "ncdb"
-#define COVER_FILE_VERSION 2
+#define COVER_FILE_VERSION 3
+
+static inline unsigned get_next_tag(cover_block_t *b)
+{
+   assert(b->data == NULL);
+   return b->next_tag++;
+}
 
 static bool cover_is_branch(tree_t branch)
 {
@@ -189,7 +197,7 @@ static int32_t cover_add_item(cover_data_t *data, cover_scope_t *cs,
 
    cover_item_t new = {
       .kind          = kind,
-      .tag           = data->next_tag++,
+      .tag           = get_next_tag(cs->block),
       .data          = 0,
       .flags         = flags,
       .loc           = loc,
@@ -756,11 +764,11 @@ void cover_merge_one_item(cover_item_t *item, int32_t data)
 
 static void cover_update_counts(cover_scope_t *s, const int32_t *counts)
 {
-   for (int i = 0; i < s->items.count; i++) {
-      cover_item_t *item = &(s->items.items[i]);
-
-      const int32_t data = counts ? counts[item->tag] : 0;
-      cover_merge_one_item(item, data);
+   if (s->block != NULL && s->block->data != NULL) {
+      for (int i = 0; i < s->items.count; i++) {
+         cover_item_t *item = &(s->items.items[i]);
+         cover_merge_one_item(item, s->block->data[item->tag]);
+      }
    }
 
    for (int i = 0; i < s->children.count; i++)
@@ -770,7 +778,14 @@ static void cover_update_counts(cover_scope_t *s, const int32_t *counts)
 static void cover_write_scope(cover_scope_t *s, fbuf_t *f,
                               ident_wr_ctx_t ident_ctx, loc_wr_ctx_t *loc_ctx)
 {
-   write_u8(CTRL_PUSH_SCOPE, f);
+   if (s->block != NULL && s == s->block->self) {
+      write_u8(CTRL_PUSH_UNIT, f);
+
+      ident_write(s->block->name, ident_ctx);
+      fbuf_put_uint(f, s->block->next_tag);
+   }
+   else
+      write_u8(CTRL_PUSH_SCOPE, f);
 
    fbuf_put_uint(f, s->type);
    ident_write(s->name, ident_ctx);
@@ -856,7 +871,6 @@ void cover_dump_items(cover_data_t *data, fbuf_t *f, cover_dump_t dt,
 
    fbuf_put_uint(f, data->mask);
    fbuf_put_uint(f, data->array_limit);
-   fbuf_put_uint(f, data->next_tag);
 
    loc_wr_ctx_t *loc_wr = loc_write_begin(f);
    ident_wr_ctx_t ident_ctx = ident_write_begin(f);
@@ -875,6 +889,7 @@ cover_data_t *cover_data_init(cover_mask_t mask, int array_limit, int threshold)
    data->mask = mask;
    data->array_limit = array_limit;
    data->threshold = threshold;
+   data->blocks = hash_new(16);
 
    return data;
 }
@@ -884,8 +899,7 @@ bool cover_enabled(cover_data_t *data, cover_mask_t mask)
    return data != NULL && (data->mask & mask);
 }
 
-static bool cover_should_emit_scope(cover_data_t *data, cover_scope_t *cs,
-                                    tree_t t)
+static bool cover_should_emit_scope(cover_data_t *data, cover_scope_t *cs)
 {
    cover_spec_t *spc = data->spec;
    if (spc == NULL)
@@ -895,78 +909,79 @@ static bool cover_should_emit_scope(cover_data_t *data, cover_scope_t *cs,
    if (cs->block_name) {
       ident_t ename = ident_until(cs->block_name, '-');
 
-      for (int i = 0; i < spc->block_exclude.count; i++)
-
-         if (ident_glob(ename, AGET(spc->block_exclude, i), -1)) {
-#ifdef COVER_DEBUG_EMIT
-            printf("Cover emit: False, block (Block: %s, Pattern: %s)\n",
-                   istr(cs->block_name), AGET(spc->block_exclude, i));
-#endif
+      for (int i = 0; i < spc->block_exclude.count; i++) {
+         if (ident_glob(ename, AGET(spc->block_exclude, i), -1))
             return false;
-         }
+      }
 
-      for (int i = 0; i < data->spec->block_include.count; i++)
-         if (ident_glob(ename, AGET(spc->block_include, i), -1)) {
-#ifdef COVER_DEBUG_EMIT
-            printf("Cover emit: True, block (Block: %s, Pattern: %s)\n",
-                   istr(cs->block_name), AGET(spc->block_include, i));
-#endif
+      for (int i = 0; i < data->spec->block_include.count; i++) {
+         if (ident_glob(ename, AGET(spc->block_include, i), -1))
             return true;
-         }
+      }
    }
 
    // Hierarchy
-   for (int i = 0; i < spc->hier_exclude.count; i++)
-      if (ident_glob(cs->hier, AGET(spc->hier_exclude, i), -1)) {
-#ifdef COVER_DEBUG_EMIT
-         printf("Cover emit: False, hierarchy (Hierarchy: %s, Pattern: %s)\n",
-                istr(cs->hier), AGET(spc->hier_exclude, i));
-#endif
+   for (int i = 0; i < spc->hier_exclude.count; i++) {
+      if (ident_glob(cs->hier, AGET(spc->hier_exclude, i), -1))
          return false;
-      }
+   }
 
-   for (int i = 0; i < spc->hier_include.count; i++)
-      if (ident_glob(cs->hier, AGET(spc->hier_include, i), -1)) {
-#ifdef COVER_DEBUG_EMIT
-         printf("Cover emit: True, hierarchy (Hierarchy: %s, Pattern: %s)\n",
-                istr(cs->hier), AGET(spc->hier_include, i));
-#endif
+   for (int i = 0; i < spc->hier_include.count; i++) {
+      if (ident_glob(cs->hier, AGET(spc->hier_include, i), -1))
          return true;
-      }
+   }
 
    return false;
 }
 
-cover_scope_t *cover_create_block(cover_data_t *data, ident_t name,
+cover_scope_t *cover_create_block(cover_data_t *data, ident_t qual,
                                   cover_scope_t *parent, tree_t inst,
-                                  tree_t unit)
+                                  tree_t unit, ident_t name)
 {
-   cover_block_t *b = xmalloc(sizeof(cover_block_t));
-   b->name = name;
+   if (data == NULL)
+      return NULL;
 
-   if (tree_kind(inst) == T_BLOCK) {
-      if (parent == NULL) {
-         assert(data->root_scope == NULL);
+   cover_block_t *b = xcalloc(sizeof(cover_block_t));
+   b->name = qual;
 
-         parent = data->root_scope = xcalloc(sizeof(cover_scope_t));
-         parent->name = parent->hier = lib_name(lib_work());
-      }
+   assert(hash_get(data->blocks, qual) == NULL);
+   hash_put(data->blocks, qual, b);
 
-      cover_scope_t *s = xcalloc(sizeof(cover_scope_t));
-      s->name       = tree_ident(inst);
-      s->parent     = parent;
-      s->loc        = *tree_loc(unit);
-      s->hier       = ident_prefix(s->parent->hier, s->name, '.');
-      s->emit       = cover_should_emit_scope(data, s, inst);
+   if (parent == NULL) {
+      assert(data->root_scope == NULL);
+
+      parent = data->root_scope = xcalloc(sizeof(cover_scope_t));
+      parent->name = parent->hier = lib_name(lib_work());
+   }
+
+   ident_t scope_name;
+   if (name != NULL)
+      scope_name = name;
+   else if (tree_kind(inst) == T_INERTIAL)   // Process without label
+      scope_name = ident_sprintf("_S%u", parent->stmt_label++);
+   else if (tree_has_ident(inst))
+      scope_name = tree_ident(inst);
+   else
+      scope_name = ident_sprintf("_S%u", parent->stmt_label++);
+
+   cover_scope_t *s = xcalloc(sizeof(cover_scope_t));
+   s->name    = scope_name;
+   s->parent  = parent;
+   s->block   = b;
+   s->sig_pos = parent->sig_pos;
+   s->loc     = *tree_loc(unit);
+   s->hier    = ident_prefix(parent->hier, scope_name, '.');
+   s->emit    = cover_should_emit_scope(data, s);
+
+   if (tree_kind(inst) == T_BLOCK && name == NULL) {
       s->block_name = ident_rfrom(tree_ident(unit), '.');
       s->type       = CSCOPE_INSTANCE;
-      s->sig_pos    = parent->sig_pos;
-
-      APUSH(parent->children, s);
-      b->self = s;
    }
    else
-      b->self = cover_create_scope(data, parent, inst, NULL);
+      s->block_name = parent->block_name;
+
+   APUSH(parent->children, s);
+   b->self = s;
 
    return b->self;
 }
@@ -1007,10 +1022,11 @@ cover_scope_t *cover_create_scope(cover_data_t *data, cover_scope_t *parent,
 
    s->name       = name;
    s->parent     = parent;
-   s->block_name = s->parent->block_name;
+   s->block      = parent->block;
+   s->block_name = parent->block_name;
    s->loc        = *tree_loc(t);
-   s->hier       = ident_prefix(s->parent->hier, name, '.');
-   s->emit       = cover_should_emit_scope(data, s, t);
+   s->hier       = ident_prefix(parent->hier, name, '.');
+   s->emit       = cover_should_emit_scope(data, s);
 
    if (s->sig_pos == 0)
       s->sig_pos = parent->sig_pos;
@@ -1033,7 +1049,6 @@ static void cover_read_header(fbuf_t *f, cover_data_t *data)
 
    data->mask        = fbuf_get_uint(f);
    data->array_limit = fbuf_get_uint(f);
-   data->next_tag    = fbuf_get_uint(f);
 }
 
 static void cover_read_one_item(fbuf_t *f, loc_rd_ctx_t *loc_rd,
@@ -1070,13 +1085,16 @@ static void cover_read_one_item(fbuf_t *f, loc_rd_ctx_t *loc_rd,
       item->func_name = ident_read(ident_ctx);
 }
 
-static cover_scope_t *cover_read_scope(fbuf_t *f, ident_rd_ctx_t ident_ctx,
-                                       loc_rd_ctx_t *loc_ctx)
+static cover_scope_t *cover_read_scope(cover_data_t *db, fbuf_t *f,
+                                       ident_rd_ctx_t ident_ctx,
+                                       loc_rd_ctx_t *loc_ctx,
+                                       cover_block_t *b)
 {
    cover_scope_t *s = xcalloc(sizeof(cover_scope_t));
-   s->type = fbuf_get_uint(f);
-   s->name = ident_read(ident_ctx);
-   s->hier = ident_read(ident_ctx);
+   s->type  = fbuf_get_uint(f);
+   s->name  = ident_read(ident_ctx);
+   s->hier  = ident_read(ident_ctx);
+   s->block = b;
 
    loc_read(&s->loc, loc_ctx);
 
@@ -1094,9 +1112,34 @@ static cover_scope_t *cover_read_scope(fbuf_t *f, ident_rd_ctx_t ident_ctx,
    for (;;) {
       const uint8_t ctrl = read_u8(f);
       switch (ctrl) {
+      case CTRL_PUSH_UNIT:
+         {
+            // FIXME: this check is required for merging
+            ident_t name = ident_read(ident_ctx);
+            cover_block_t *b = hash_get(db->blocks, name);
+            if (b == NULL) {
+               b = xcalloc(sizeof(cover_block_t));
+               b->name     = name;
+               b->next_tag = fbuf_get_uint(f);
+               b->self = cover_read_scope(db, f, ident_ctx, loc_ctx, b);
+
+               hash_put(db->blocks, b->name, b);
+
+               APUSH(s->children, b->self);
+            }
+            else {
+               (void)fbuf_get_uint(f);
+
+               cover_scope_t *child =
+                  cover_read_scope(db, f, ident_ctx, loc_ctx, b);
+               APUSH(s->children, child);
+            }
+         }
+         break;
       case CTRL_PUSH_SCOPE:
          {
-            cover_scope_t *child = cover_read_scope(f, ident_ctx, loc_ctx);
+            cover_scope_t *child =
+               cover_read_scope(db, f, ident_ctx, loc_ctx, b);
             APUSH(s->children, child);
          }
          break;
@@ -1113,6 +1156,7 @@ cover_data_t *cover_read_items(fbuf_t *f, uint32_t pre_mask)
    cover_data_t *data = xcalloc(sizeof(cover_data_t));
    cover_read_header(f, data);
    data->mask |= pre_mask;
+   data->blocks = hash_new(16);
 
    loc_rd_ctx_t *loc_rd = loc_read_begin(f);
    ident_rd_ctx_t ident_ctx = ident_read_begin(f);
@@ -1122,7 +1166,7 @@ cover_data_t *cover_read_items(fbuf_t *f, uint32_t pre_mask)
       const uint8_t ctrl = read_u8(f);
       switch (ctrl) {
       case CTRL_PUSH_SCOPE:
-         data->root_scope = cover_read_scope(f, ident_ctx, loc_rd);
+         data->root_scope = cover_read_scope(data, f, ident_ctx, loc_rd, NULL);
          break;
       case CTRL_END_OF_FILE:
          eof = true;
@@ -1214,7 +1258,8 @@ void cover_merge_items(fbuf_t *f, cover_data_t *data, merge_mode_t mode)
       switch (ctrl) {
       case CTRL_PUSH_SCOPE:
          {
-            cover_scope_t *new = cover_read_scope(f, ident_ctx, loc_rd);
+            cover_scope_t *new =
+               cover_read_scope(data, f, ident_ctx, loc_rd, NULL);
             cover_merge_scope(data->root_scope, new, mode);
          }
          break;
@@ -1230,12 +1275,31 @@ void cover_merge_items(fbuf_t *f, cover_data_t *data, merge_mode_t mode)
    loc_read_end(loc_rd);
 }
 
-unsigned cover_count_items(cover_data_t *data)
+int32_t *cover_get_counters(cover_data_t *db, ident_t name)
 {
-   if (data == NULL)
-      return 0;
-   else
-      return data->next_tag;
+   if (db == NULL)
+      return NULL;
+
+   cover_block_t *b = hash_get(db->blocks, name);
+   if (b == NULL || b->next_tag == 0)
+      return NULL;
+
+   if (b->data == NULL)
+      b->data = xcalloc_array(b->next_tag, sizeof(int32_t));
+
+   return b->data;
+}
+
+cover_scope_t *cover_get_scope(cover_data_t *db, ident_t name)
+{
+   if (db == NULL)
+      return NULL;
+
+   cover_block_t *b = hash_get(db->blocks, name);
+   if (b == NULL)
+      return NULL;
+
+   return b->self;
 }
 
 void cover_bmask_to_bin_list(uint32_t bmask, text_buf_t *tb)

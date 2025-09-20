@@ -9501,7 +9501,7 @@ static void lower_instantiated_package(lower_unit_t *lu, object_t *obj)
 
    lu->cscope = cover_create_block(lu->cover, lu->name,
                                    lu->parent->cscope,
-                                   decl, pack);
+                                   decl, pack, NULL);
 
    lower_dependencies(lu, body_of(pack) ?: pack);
 
@@ -9764,7 +9764,7 @@ static void lower_protected_body(lower_unit_t *lu, object_t *obj)
 
    lu->cscope = cover_create_block(lu->cover, lu->name,
                                    lu->parent->cscope,
-                                   body, body);
+                                   body, body, NULL);
 
    if (standard() >= STD_19) {
       // LCS-2016-032 requires dynamic 'PATH_NAME and 'INSTANCE_NAME for
@@ -10321,7 +10321,7 @@ static void lower_proc_body(lower_unit_t *lu, object_t *obj)
 
    lu->cscope = cover_create_block(lu->cover, lu->name,
                                    lu->parent->cscope,
-                                   body, body);
+                                   body, body, NULL);
 
    vcode_type_t vcontext = vtype_context(lu->parent->name);
    emit_param(vcontext, vcontext, ident_new("context"));
@@ -10356,7 +10356,7 @@ static void lower_func_body(lower_unit_t *lu, object_t *obj)
 
    lu->cscope = cover_create_block(lu->cover, lu->name,
                                    lu->parent->cscope,
-                                   body, body);
+                                   body, body, NULL);
 
    if (tree_kind(body) == T_FUNC_INST)
       lower_generics(lu, body, NULL);
@@ -10617,7 +10617,7 @@ void lower_process(lower_unit_t *parent, tree_t proc, driver_set_t *ds)
 
    lu->cscope = cover_create_block(lu->cover, lu->name,
                                    parent->cscope,
-                                   proc, proc);
+                                   proc, proc, NULL);
 
    if (tree_global_flags(proc) & TREE_GF_EXTERNAL_NAME)
       tree_visit_only(proc, lower_external_name_cache, lu, T_EXTERNAL_NAME);
@@ -11206,7 +11206,8 @@ static void lower_inertial_actual_process(lower_unit_t *lu, object_t *obj)
    vcode_select_block(main_bb);
 
    lu->cscope = cover_create_block(lu->cover, lu->name, lu->parent->cscope,
-                                   inertial, inertial);
+                                   inertial, inertial, NULL);
+
    vcode_reg_t zero_time_reg = emit_const(vtype_time(), 0);
    vcode_reg_t value_reg = lower_rvalue(lu, expr);
    vcode_reg_t nets_reg = emit_var_upref(1, var);
@@ -12503,17 +12504,17 @@ lower_unit_t *lower_instance(unit_registry_t *ur, lower_unit_t *parent,
 
    if (cover != NULL) {
       if (parent == NULL)
-         lu->cscope = cover_create_block(cover, name, NULL, block, unit);
+         lu->cscope = cover_create_block(cover, name, NULL, block, unit, NULL);
       else if (parent != NULL && parent->cover == NULL) {
          // Collapse this coverage scope with the block for the
          // component above
          assert(tree_subkind(tree_decl(parent->container, 0)) == T_COMPONENT);
          lu->cscope = cover_create_block(cover, name, parent->parent->cscope,
-                                         parent->container, unit);
+                                         parent->container, unit, NULL);
       }
       else
          lu->cscope = cover_create_block(cover, name, parent->cscope,
-                                         block, unit);
+                                         block, unit, NULL);
 
       cover_ignore_from_pragmas(cover, lu->cscope, unit);
    }

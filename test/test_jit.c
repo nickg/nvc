@@ -125,7 +125,7 @@ START_TEST(test_add1)
 
    parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
 
-   jit_t *j = jit_new(get_registry(), get_mir());
+   jit_t *j = jit_new(get_registry(), get_mir(), NULL);
 
    jit_handle_t fn1 = compile_for_test(j, "WORK.PACK.ADD1(I)I");
    ck_assert_int_eq(jit_call(j, fn1, NULL, 5).integer, 6);
@@ -146,7 +146,7 @@ START_TEST(test_fact)
 
    parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
 
-   jit_t *j = jit_new(get_registry(), get_mir());
+   jit_t *j = jit_new(get_registry(), get_mir(), NULL);
 
    jit_handle_t fn1 = compile_for_test(j, "WORK.PACK.FACT(I)I");
    ck_assert_int_eq(jit_call(j, fn1, NULL, 5).integer, 120);
@@ -166,7 +166,7 @@ START_TEST(test_sum)
 
    parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
 
-   jit_t *j = jit_new(get_registry(), get_mir());
+   jit_t *j = jit_new(get_registry(), get_mir(), NULL);
 
    int32_t data[] = { 1, 2, 3, 4, 5 };
 
@@ -217,7 +217,7 @@ START_TEST(test_context1)
 
    parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
 
-   jit_t *j = jit_new(get_registry(), get_mir());
+   jit_t *j = jit_new(get_registry(), get_mir(), NULL);
 
    jit_handle_t handle = jit_lazy_compile(j, ident_new("WORK.PACK"));
 
@@ -260,7 +260,7 @@ START_TEST(test_record1)
 
    parse_check_and_simplify(T_PACKAGE, T_PACK_BODY, T_PACKAGE, T_PACK_BODY);
 
-   jit_t *j = jit_new(get_registry(), get_mir());
+   jit_t *j = jit_new(get_registry(), get_mir(), NULL);
 
    jit_handle_t pack1_handle = jit_lazy_compile(j, ident_new("WORK.PACK1"));
    jit_handle_t pack2_handle = jit_lazy_compile(j, ident_new("WORK.PACK2"));
@@ -284,7 +284,7 @@ START_TEST(test_record2)
 
    parse_check_and_simplify(T_PACKAGE, T_PACK_BODY, T_PACKAGE, T_PACK_BODY);
 
-   jit_t *j = jit_new(get_registry(), get_mir());
+   jit_t *j = jit_new(get_registry(), get_mir(), NULL);
 
    jit_handle_t pack3_handle = jit_lazy_compile(j, ident_new("WORK.PACK3"));
    jit_handle_t pack4_handle = jit_lazy_compile(j, ident_new("WORK.PACK4"));
@@ -308,7 +308,7 @@ START_TEST(test_record3)
 
    parse_check_and_simplify(T_PACKAGE, T_PACK_BODY, T_PACKAGE, T_PACK_BODY);
 
-   jit_t *j = jit_new(get_registry(), get_mir());
+   jit_t *j = jit_new(get_registry(), get_mir(), NULL);
 
    jit_handle_t pack5_handle = jit_lazy_compile(j, ident_new("WORK.PACK5"));
    jit_handle_t pack6_handle = jit_lazy_compile(j, ident_new("WORK.PACK6"));
@@ -378,7 +378,7 @@ START_TEST(test_overflow)
 
    parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
 
-   jit_t *j = jit_new(get_registry(), get_mir());
+   jit_t *j = jit_new(get_registry(), get_mir(), NULL);
 
    jit_handle_t add = compile_for_test(j, "WORK.OVERFLOW.ADD(II)I");
    jit_handle_t sub = compile_for_test(j, "WORK.OVERFLOW.SUB(II)I");
@@ -428,7 +428,7 @@ START_TEST(test_record4)
 
    parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
 
-   jit_t *j = jit_new(get_registry(), get_mir());
+   jit_t *j = jit_new(get_registry(), get_mir(), NULL);
 
    jit_handle_t func1 = compile_for_test(j, "WORK.PACK5.FUNC1(I)I");
    jit_handle_t func2 = compile_for_test(j, "WORK.PACK5.FUNC2(I)I");
@@ -462,7 +462,7 @@ START_TEST(test_access1)
 
    parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
 
-   jit_t *j = jit_new(get_registry(), get_mir());
+   jit_t *j = jit_new(get_registry(), get_mir(), NULL);
 
    int32_t *p LOCAL = xmalloc_array(2, sizeof(int32_t));
    p[0] = 42;
@@ -506,7 +506,7 @@ START_TEST(test_array1)
 
    parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
 
-   jit_t *j = jit_new(get_registry(), get_mir());
+   jit_t *j = jit_new(get_registry(), get_mir(), NULL);
 
    int32_t a0[3] = {};
    int32_t a1[3] = { 1, 2, 3 };
@@ -562,7 +562,7 @@ START_TEST(test_relop1)
 
    parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
 
-   jit_t *j = jit_new(get_registry(), get_mir());
+   jit_t *j = jit_new(get_registry(), get_mir(), NULL);
 
 #define UINT8 "17WORK.RELOP1.UINT8"
    jit_handle_t cmpless =
@@ -597,7 +597,7 @@ START_TEST(test_proc1)
                             T_PACKAGE, T_PACK_BODY,
                             T_PACKAGE, T_PACK_BODY);
 
-   jit_t *j = jit_new(get_registry(), get_mir());
+   jit_t *j = jit_new(get_registry(), get_mir(), NULL);
 
    jit_handle_t add2 = compile_for_test(j, "WORK.PROC1_PACK2.ADD2(I)I");
 
@@ -623,7 +623,7 @@ START_TEST(test_unreachable)
 
    parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
 
-   jit_t *j = jit_new(get_registry(), get_mir());
+   jit_t *j = jit_new(get_registry(), get_mir(), NULL);
 
    jit_handle_t func = compile_for_test(j, "WORK.UNREACHABLE.FUNC(I)I");
 
@@ -652,7 +652,7 @@ START_TEST(test_arith1)
 
    parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
 
-   jit_t *j = jit_new(get_registry(), get_mir());
+   jit_t *j = jit_new(get_registry(), get_mir(), NULL);
 
    jit_scalar_t result;
 
@@ -737,7 +737,7 @@ START_TEST(test_assert1)
 
    parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
 
-   jit_t *j = jit_new(get_registry(), get_mir());
+   jit_t *j = jit_new(get_registry(), get_mir(), NULL);
 
    jit_scalar_t result;
    jit_handle_t fn1 = compile_for_test(j, "WORK.ASSERT1.DO_REPORT");
@@ -759,7 +759,7 @@ START_TEST(test_case1)
 
    parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
 
-   jit_t *j = jit_new(get_registry(), get_mir());
+   jit_t *j = jit_new(get_registry(), get_mir(), NULL);
 
    jit_handle_t test1 =
       compile_for_test(j, "WORK.CASE1.TEST1(12WORK.CASE1.T)I");
@@ -787,7 +787,7 @@ START_TEST(test_real1)
 
    parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
 
-   jit_t *j = jit_new(get_registry(), get_mir());
+   jit_t *j = jit_new(get_registry(), get_mir(), NULL);
 
    jit_handle_t approx = compile_for_test(j, "WORK.REAL1.APPROX(RRR)B");
    ck_assert_int_eq(jit_call(j, approx, NULL, 1.0, 1.0001, 0.001).integer, 1);
@@ -805,7 +805,7 @@ START_TEST(test_prot1)
 
    parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
 
-   jit_t *j = jit_new(get_registry(), get_mir());
+   jit_t *j = jit_new(get_registry(), get_mir(), NULL);
 
    jit_handle_t handle = compile_for_test(j, "WORK.PROT1");
    void *pkg = jit_link(j, handle);
@@ -824,7 +824,7 @@ END_TEST
 
 START_TEST(test_layout)
 {
-   jit_t *j = jit_new(NULL, NULL);
+   jit_t *j = jit_new(NULL, NULL, NULL);
    const jit_layout_t *l = NULL;
 
    l = layout_of(std_type(NULL, STD_INTEGER));
@@ -995,7 +995,7 @@ START_TEST(test_range1)
 
    parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
 
-   jit_t *j = jit_new(get_registry(), get_mir());
+   jit_t *j = jit_new(get_registry(), get_mir(), NULL);
 
    jit_scalar_t result;
 
@@ -1035,7 +1035,7 @@ START_TEST(test_trace1)
 
    parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
 
-   jit_t *j = jit_new(get_registry(), get_mir());
+   jit_t *j = jit_new(get_registry(), get_mir(), NULL);
 
    jit_scalar_t result;
 
@@ -1055,7 +1055,7 @@ START_TEST(test_issue496)
 
    parse_check_and_simplify(T_PACKAGE, T_PACKAGE);
 
-   jit_t *j = jit_new(get_registry(), get_mir());
+   jit_t *j = jit_new(get_registry(), get_mir(), NULL);
 
    jit_handle_t handle = compile_for_test(j, "WORK.ISSUE496");
    void *pkg = jit_link(j, handle);
@@ -1084,7 +1084,7 @@ START_TEST(test_value1)
 
    parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
 
-   jit_t *j = jit_new(get_registry(), get_mir());
+   jit_t *j = jit_new(get_registry(), get_mir(), NULL);
 
    jit_scalar_t result;
 
@@ -1116,7 +1116,7 @@ END_TEST
 
 START_TEST(test_assemble1)
 {
-   jit_t *j = jit_new(NULL, NULL);
+   jit_t *j = jit_new(NULL, NULL, NULL);
 
    const char *text1 =
       "RECV  R0, #0       \n"
@@ -1139,7 +1139,7 @@ END_TEST
 
 START_TEST(test_assemble2)
 {
-   jit_t *j = jit_new(NULL, NULL);
+   jit_t *j = jit_new(NULL, NULL, NULL);
 
    const char *text1 =
       "    RECV    R0, #0       \n"
@@ -1164,7 +1164,7 @@ END_TEST
 
 START_TEST(test_cfg1)
 {
-   jit_t *j = jit_new(NULL, NULL);
+   jit_t *j = jit_new(NULL, NULL, NULL);
 
    const char *text1 =
       "    RECV    R0, #0       \n"
@@ -1234,7 +1234,7 @@ END_TEST
 
 START_TEST(test_lvn1)
 {
-   jit_t *j = jit_new(NULL, NULL);
+   jit_t *j = jit_new(NULL, NULL, NULL);
 
    const char *text1 =
       "    MUL     R0, #2, #3    \n"
@@ -1308,7 +1308,7 @@ END_TEST
 
 START_TEST(test_lvn2)
 {
-   jit_t *j = jit_new(NULL, NULL);
+   jit_t *j = jit_new(NULL, NULL, NULL);
 
    const char *text1 =
       "    MOV     R0, #2        \n"
@@ -1335,7 +1335,7 @@ END_TEST
 
 START_TEST(test_lvn3)
 {
-   jit_t *j = jit_new(NULL, NULL);
+   jit_t *j = jit_new(NULL, NULL, NULL);
 
    const char *text1 =
       "    MOV     R0, #2          \n"
@@ -1368,7 +1368,7 @@ START_TEST(test_issue575)
 
    parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
 
-   jit_t *j = jit_new(get_registry(), get_mir());
+   jit_t *j = jit_new(get_registry(), get_mir(), NULL);
 
    struct {
       int32_t x;
@@ -1389,7 +1389,7 @@ END_TEST
 
 START_TEST(test_cfg2)
 {
-   jit_t *j = jit_new(NULL, NULL);
+   jit_t *j = jit_new(NULL, NULL, NULL);
 
    const char *text1 =
       "    RECV    R0, #0       \n"
@@ -1442,7 +1442,7 @@ END_TEST
 
 START_TEST(test_lvn4)
 {
-   jit_t *j = jit_new(NULL, NULL);
+   jit_t *j = jit_new(NULL, NULL, NULL);
 
    const char *text1 =
       "    MOV     R0, #5          \n"
@@ -1478,7 +1478,7 @@ END_TEST
 
 START_TEST(test_lvn5)
 {
-   jit_t *j = jit_new(NULL, NULL);
+   jit_t *j = jit_new(NULL, NULL, NULL);
 
    const char *text1 =
       "    JUMP    L1              \n"
@@ -1521,7 +1521,7 @@ END_TEST
 
 START_TEST(test_lvn6)
 {
-   jit_t *j = jit_new(NULL, NULL);
+   jit_t *j = jit_new(NULL, NULL, NULL);
 
    const char *text1 =
       "    MOV         R29, R28       \n"
@@ -1559,7 +1559,7 @@ END_TEST
 
 START_TEST(test_cprop1)
 {
-   jit_t *j = jit_new(NULL, NULL);
+   jit_t *j = jit_new(NULL, NULL, NULL);
 
    const char *text1 =
       "    MOV    R1, #0     \n"
@@ -1583,7 +1583,7 @@ END_TEST
 
 START_TEST(test_dce1)
 {
-   jit_t *j = jit_new(NULL, NULL);
+   jit_t *j = jit_new(NULL, NULL, NULL);
 
    const char *text1 =
       "    MOV    R1, #0     \n"
@@ -1605,7 +1605,7 @@ END_TEST
 
 START_TEST(test_nops1)
 {
-   jit_t *j = jit_new(NULL, NULL);
+   jit_t *j = jit_new(NULL, NULL, NULL);
 
    const char *text1 =
       "    ADD    R1, R1, #2   \n"
@@ -1647,7 +1647,7 @@ END_TEST
 
 START_TEST(test_issue608)
 {
-   jit_t *j = jit_new(NULL, NULL);
+   jit_t *j = jit_new(NULL, NULL, NULL);
 
    const char *text1 =
       "    RECV    R0, #0          \n"
@@ -1672,7 +1672,7 @@ END_TEST
 
 START_TEST(test_lvn7)
 {
-   jit_t *j = jit_new(NULL, NULL);
+   jit_t *j = jit_new(NULL, NULL, NULL);
 
    const char *text1 =
       "    MOV    R1, #8            \n"
@@ -1700,7 +1700,7 @@ END_TEST
 
 START_TEST(test_lvn8)
 {
-   jit_t *j = jit_new(NULL, NULL);
+   jit_t *j = jit_new(NULL, NULL, NULL);
 
    const char *text1 =
       "    MOV     R1, #8        \n"
@@ -1724,7 +1724,7 @@ END_TEST
 
 START_TEST(test_lvn9)
 {
-   jit_t *j = jit_new(NULL, NULL);
+   jit_t *j = jit_new(NULL, NULL, NULL);
 
    const char *text1 =
       "    MOV         R1, #32                        \n"
@@ -1788,7 +1788,7 @@ END_TEST
 
 START_TEST(test_cfg3)
 {
-   jit_t *j = jit_new(NULL, NULL);
+   jit_t *j = jit_new(NULL, NULL, NULL);
 
    const char *text1 =
       "    RECV    R0, #0       \n"
@@ -1835,7 +1835,7 @@ END_TEST
 
 START_TEST(test_dce2)
 {
-   jit_t *j = jit_new(NULL, NULL);
+   jit_t *j = jit_new(NULL, NULL, NULL);
 
    const char *text1 =
       "    CMP.EQ    R0, #1           \n"
@@ -1900,7 +1900,7 @@ END_TEST
 
 START_TEST(test_lvn10)
 {
-   jit_t *j = jit_new(NULL, NULL);
+   jit_t *j = jit_new(NULL, NULL, NULL);
 
    const char *text1 =
       "    RECV        R0, #0    \n"
@@ -1930,7 +1930,7 @@ END_TEST
 
 START_TEST(test_cprop2)
 {
-   jit_t *j = jit_new(NULL, NULL);
+   jit_t *j = jit_new(NULL, NULL, NULL);
 
    const char *text1 =
       "    MOV    R1, R0      \n"
@@ -1954,7 +1954,7 @@ END_TEST
 
 START_TEST(test_mem2reg1)
 {
-   jit_t *j = jit_new(NULL, NULL);
+   jit_t *j = jit_new(NULL, NULL, NULL);
 
    const char *text1 =
       "    $SALLOC   R0, #0, #4   \n"
@@ -1985,7 +1985,7 @@ END_TEST
 
 START_TEST(test_lscan1)
 {
-   jit_t *j = jit_new(NULL, NULL);
+   jit_t *j = jit_new(NULL, NULL, NULL);
 
    const char *text1 =
       "    MOV    R1, R0      \n"
@@ -2024,7 +2024,7 @@ START_TEST(test_trim1)
 
    parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
 
-   jit_t *j = jit_new(get_registry(), get_mir());
+   jit_t *j = jit_new(get_registry(), get_mir(), NULL);
 
    static const struct {
       const char *fn;
@@ -2072,7 +2072,7 @@ END_TEST
 
 START_TEST(test_lvn11)
 {
-   jit_t *j = jit_new(NULL, NULL);
+   jit_t *j = jit_new(NULL, NULL, NULL);
 
    const char *text1 =
       "    SHL         R0, #0, #1   \n"

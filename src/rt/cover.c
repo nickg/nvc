@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2013-2023  Nick Gasson
+//  Copyright (C) 2013-2025  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -17,16 +17,12 @@
 
 #include "util.h"
 #include "array.h"
-#include "common.h"
 #include "cov/cov-api.h"
 #include "cov/cov-data.h"
-#include "hash.h"
-#include "lib.h"
-#include "option.h"
+#include "ident.h"
 #include "rt/model.h"
 #include "rt/rt.h"
 #include "rt/structs.h"
-#include "type.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -130,7 +126,7 @@ static inline void cover_toggle_check_0_1_u_z(uint8_t old, uint8_t new,
 }
 
 __attribute__((always_inline))
-static inline void cover_toggle_generic(rt_signal_t *s, void *user,
+static inline void cover_toggle_generic(rt_signal_t *s, int32_t *counters,
                                         toggle_check_fn_t fn)
 {
    const void *cur = signal_value(s);
@@ -140,8 +136,6 @@ static inline void cover_toggle_generic(rt_signal_t *s, void *user,
    // Check only group of 8 bytes that do have change of signal value
    // Optimize for assumption that most bits don't change in large signals
    uint32_t s_size = s->shared.size;
-   rt_model_t *m = get_model();
-   const int32_t tag = (uintptr_t)user;
    uint32_t batches = ((s_size - 1) / sizeof(uint64_t)) + 1;
    for (int i = 0; i < batches; i++) {
       int batch_size = sizeof(uint64_t);
@@ -156,7 +150,7 @@ static inline void cover_toggle_generic(rt_signal_t *s, void *user,
 
       int32_t low = i * sizeof(uint64_t);
       int32_t high = low + batch_size;
-      int32_t *toggle_01 = get_cover_counter(m, tag, 2) + low * 2;
+      int32_t *toggle_01 = counters + low * 2;
       int32_t *toggle_10 = toggle_01 + 1;
       for (int j = low; j < high; j++) {
          uint8_t new = ((const uint8_t *)cur)[j];
@@ -228,10 +222,14 @@ void x_cover_setup_toggle_cb(sig_shared_t *ss, int32_t tag)
    if (data == NULL)
       return;
 
+   int32_t *counters = cover_get_counters(data, get_active_scope(m)->name);
+   if (counters == NULL)
+      return;
+
    cover_mask_t op_mask = data->mask;
 
    if (is_constant_input(s)) {
-      int32_t *toggle_01 = get_cover_counter(m, tag, 2 * s->shared.size);
+      int32_t *toggle_01 = counters + tag;
       int32_t *toggle_10 = toggle_01 + 1;
 
       // Each std_logic bit encoded as single byte. There are two run-time
@@ -259,7 +257,7 @@ void x_cover_setup_toggle_cb(sig_shared_t *ss, int32_t tag)
    else if (op_mask & COVER_MASK_TOGGLE_COUNT_FROM_TO_Z)
       fn = &cover_toggle_cb_0_1_z;
 
-   rt_watch_t *w = watch_new(m, fn, (void *)(uintptr_t)tag, VHDL_PROCESS, 1);
+   rt_watch_t *w = watch_new(m, fn, counters + tag, VHDL_PROCESS, 1);
    model_set_event_cb(m, s, w);
 }
 
@@ -269,7 +267,8 @@ void x_cover_setup_toggle_cb(sig_shared_t *ss, int32_t tag)
 
 #define READ_STATE(type) offset = *((type *)signal_value(s));
 
-static void cover_state_cb(uint64_t now, rt_signal_t *s, rt_watch_t *w, void *user)
+static void cover_state_cb(uint64_t now, rt_signal_t *s, rt_watch_t *w,
+                           void *user)
 {
    // I-th enum literal is encoded in i-th tag from first tag, that corresponds
    // to enum value.
@@ -277,10 +276,8 @@ static void cover_state_cb(uint64_t now, rt_signal_t *s, rt_watch_t *w, void *us
    int32_t offset = 0;
    FOR_ALL_SIZES(size, READ_STATE);
 
-   rt_model_t *m = get_model();
-   int32_t *mask = get_cover_counter(m, ((uintptr_t)user) + offset, 1);
-
-   increment_counter(mask);
+   int32_t *counters = user;
+   increment_counter(counters + offset);
 }
 
 void x_cover_setup_state_cb(sig_shared_t *ss, int64_t low, int32_t tag)
@@ -292,13 +289,15 @@ void x_cover_setup_state_cb(sig_shared_t *ss, int64_t low, int32_t tag)
    if (data == NULL)
       return;
 
-   int32_t *mask = get_cover_counter(m, tag, 1);
+   int32_t *counters = cover_get_counters(data, get_active_scope(m)->name);
+   if (counters == NULL)
+      return;
 
    // TYPE'left is a default value of enum type that does not
    // cause an event. First tag needs to be flagged as covered manually.
-   *mask = 1;
+   *(counters + tag) = 1;
 
-   rt_watch_t *w = watch_new(m, cover_state_cb, (void *)(uintptr_t)(tag - low),
+   rt_watch_t *w = watch_new(m, cover_state_cb, counters + tag - low,
                              VHDL_PROCESS, 1);
    model_set_event_cb(m, s, w);
 }
@@ -307,31 +306,11 @@ void x_cover_setup_state_cb(sig_shared_t *ss, int64_t low, int32_t tag)
 // Run-time API
 ///////////////////////////////////////////////////////////////////////////////
 
-static cover_scope_t *find_cover_scope(cover_data_t *data, rt_model_t *m,
-                                       rt_scope_t *inst)
-{
-   if (inst->parent == NULL)
-      return data->root_scope;
-
-   cover_scope_t *parent = find_cover_scope(data, m, inst->parent);
-   if (parent == NULL)
-      return NULL;
-
-   ident_t suffix = ident_rfrom(inst->name, '.');
-
-   for (int i = 0; i < parent->children.count; i++) {
-      if (parent->children.items[i]->name == suffix)
-         return parent->children.items[i];
-   }
-
-   tree_t hier = tree_decl(inst->parent->where, 0);
-   assert(tree_kind(hier) == T_HIER);
-
-   if (tree_kind(tree_ref(hier)) == T_COMPONENT)
-      return parent;   // Skip over implicit block for components
-
-   return NULL;
-}
+typedef struct {
+   ident_t        name;
+   cover_scope_t *scope;
+   int32_t       *counters;
+} user_scope_t;
 
 static void sanitise_name(text_buf_t *tb, const char *bytes, size_t len)
 {
@@ -347,7 +326,7 @@ static void sanitise_name(text_buf_t *tb, const char *bytes, size_t len)
 DLLEXPORT
 void _nvc_create_cover_scope(jit_scalar_t *args)
 {
-   cover_scope_t **ptr = args[2].pointer;
+   user_scope_t **ptr = args[2].pointer;
    const char *name_bytes = args[3].pointer;
    size_t name_len = ffi_array_length(args[5].integer);
 
@@ -367,7 +346,7 @@ void _nvc_create_cover_scope(jit_scalar_t *args)
    rt_scope_t *inst = get_active_scope(m);
    assert(inst->kind == SCOPE_INSTANCE);
 
-   cover_scope_t *parent = find_cover_scope(data, m, inst);
+   cover_scope_t *parent = cover_get_scope(data, inst->name);
    if (parent == NULL)
       return;
 
@@ -382,22 +361,29 @@ void _nvc_create_cover_scope(jit_scalar_t *args)
       }
    }
 
-   ident_t name = ident_new(tb_get(tb));
-   *ptr = cover_create_scope(data, parent, inst->where, name);
-   (*ptr)->block_name = name;
+   ident_t suffix = ident_new(tb_get(tb));
+   ident_t name = ident_prefix(inst->name, suffix, '.');
+
+   user_scope_t *us = jit_mspace_alloc(sizeof(user_scope_t));
+   us->counters = NULL;
+   us->name     = name;
+   us->scope    = cover_create_block(data, name, parent, inst->where,
+                                     inst->where, suffix);
+
+   *ptr = us;
 }
 
 DLLEXPORT
 void _nvc_set_cover_scope_name(jit_scalar_t *args)
 {
-   cover_scope_t *s = *(cover_scope_t **)args[2].pointer;
+   user_scope_t *us = *(user_scope_t **)args[2].pointer;
    const char *name_bytes = args[3].pointer;
    size_t name_len = ffi_array_length(args[5].integer);
 
    if (name_len == 0)
       jit_msg(NULL, DIAG_FATAL, "coverage scope name cannot be empty");
 
-   if (s == NULL)
+   if (us == NULL)
       return;
 
    LOCAL_TEXT_BUF tb = tb_new();
@@ -405,21 +391,21 @@ void _nvc_set_cover_scope_name(jit_scalar_t *args)
 
    ident_t name_id = ident_new(tb_get(tb));
 
-   if (s->items.count > 0)
+   if (us->scope->items.count > 0)
       jit_msg(NULL, DIAG_FATAL, "cannot change name of cover scope after "
               "items are created");
 
-   s->name = name_id;
-   s->block_name = name_id;
+   us->scope->name = name_id;
+   us->scope->block_name = name_id;
 
-   ident_t prefix = ident_runtil(s->hier,'.');
-   s->hier = ident_prefix(prefix, name_id, '.');
+   ident_t prefix = ident_runtil(us->scope->hier,'.');
+   us->scope->hier = ident_prefix(prefix, name_id, '.');
 }
 
 DLLEXPORT
 void _nvc_add_cover_item(jit_scalar_t *args)
 {
-   cover_scope_t *s = *(cover_scope_t **)args[2].pointer;
+   user_scope_t *us = *(user_scope_t **)args[2].pointer;
    int32_t *index_ptr = args[3].pointer;
    const char *name_bytes = args[4].pointer;
    size_t name_len = ffi_array_length(args[6].integer);
@@ -429,8 +415,10 @@ void _nvc_add_cover_item(jit_scalar_t *args)
    if (name_len == 0)
       jit_msg(NULL, DIAG_FATAL, "coverage item name cannot be empty");
 
-   if (s == NULL || !s->emit)
+   if (us == NULL || !us->scope->emit)
       return;
+
+   assert(us->counters == NULL);   // TODO: add test
 
    rt_model_t *m = get_model_or_null();
    if (m == NULL)
@@ -441,27 +429,28 @@ void _nvc_add_cover_item(jit_scalar_t *args)
       return;
 
    LOCAL_TEXT_BUF tb = tb_new();
-   tb_istr(tb, s->hier);
+   tb_istr(tb, us->scope->hier);
    tb_append(tb, '.');
    sanitise_name(tb, name_bytes, name_len);
 
    const size_t pfxlen = tb_len(tb);
-   for (int i = 0, dup = 0; i < s->items.count; i++) {
-      if (icmp(s->items.items[i].hier, tb_get(tb))) {
+   for (int i = 0, dup = 0; i < us->scope->items.count; i++) {
+      if (icmp(us->scope->items.items[i].hier, tb_get(tb))) {
          tb_trim(tb, pfxlen);
          tb_printf(tb, "#%d", ++dup);
       }
    }
 
-   cover_item_t *item = cover_add_items_for(data, s, NULL, COV_ITEM_FUNCTIONAL);
+   cover_item_t *item =
+      cover_add_items_for(data, us->scope, NULL, COV_ITEM_FUNCTIONAL);
    assert(item != NULL);   // Preconditions checked above
 
    item->hier = ident_new(tb_get(tb));
-   item->loc = s->loc;   // XXX: keeps report from crashing but location
-                         //      does not make sense here
+   item->loc = us->scope->loc;   // XXX: keeps report from crashing but location
+                                 //      does not make sense here
 
    // Name remembered at the time of cover point creation in its scope
-   item->func_name = s->block_name;
+   item->func_name = us->scope->block_name;
 
    item->source = COV_SRC_USER_COVER;
    item->atleast = args[7].integer;
@@ -480,19 +469,19 @@ void _nvc_add_cover_item(jit_scalar_t *args)
       item->ranges[i].max = *ptr++;
    }
 
-   *index_ptr = item - s->items.items;
+   *index_ptr = item - us->scope->items.items;
 
-   cover_item_t *first = AREF(s->items, 0);
-   first->consecutive = s->items.count;
+   cover_item_t *first = AREF(us->scope->items, 0);
+   first->consecutive = us->scope->items.count;
 }
 
 DLLEXPORT
 void _nvc_increment_cover_item(jit_scalar_t *args)
 {
-   cover_scope_t *s = *(cover_scope_t **)args[2].pointer;
+   user_scope_t *us = *(user_scope_t **)args[2].pointer;
    int32_t index = args[3].integer;
 
-   if (s == NULL || !s->emit)
+   if (us == NULL || !us->scope->emit)
       return;
 
    rt_model_t *m = get_model_or_null();
@@ -503,9 +492,11 @@ void _nvc_increment_cover_item(jit_scalar_t *args)
    if (data == NULL || !cover_enabled(data, COVER_MASK_FUNCTIONAL))
       return;
 
-   if (index < 0 || index >= s->items.count)
+   if (index < 0 || index >= us->scope->items.count)
       jit_msg(NULL, DIAG_FATAL, "cover item index %d out of range", index);
 
-   int32_t *counter = get_cover_counter(m, s->items.items[index].tag, 1);
-   increment_counter(counter);
+   if (us->counters == NULL)
+      us->counters = cover_get_counters(data, us->name);
+
+   increment_counter(us->counters + us->scope->items.items[index].tag);
 }

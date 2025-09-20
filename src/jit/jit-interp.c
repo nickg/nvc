@@ -178,7 +178,7 @@ static inline void *interp_get_pointer(jit_interp_t *state, jit_value_t value)
    case JIT_ADDR_ABS:
       return (void *)(intptr_t)value.int64;
    case JIT_ADDR_COVER:
-      return jit_get_cover_ptr(state->func->jit, value);
+      return jit_get_cover_ptr(state->func, value);
    default:
       CANNOT_HANDLE(value);
    }
@@ -214,7 +214,7 @@ static inline jit_scalar_t interp_get_scalar(jit_interp_t *state,
       return (jit_scalar_t){ .pointer = (void *)(intptr_t)value.int64 };
    case JIT_ADDR_COVER:
       return (jit_scalar_t){
-         .pointer = jit_get_cover_ptr(state->func->jit, value)
+         .pointer = jit_get_cover_ptr(state->func, value)
       };
    default:
       CANNOT_HANDLE(value);

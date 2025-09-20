@@ -444,7 +444,7 @@ START_TEST(test_process1)
 
    mir_context_t *mc = get_mir();
    unit_registry_t *ur = get_registry();
-   jit_t *j = jit_new(ur, mc);
+   jit_t *j = jit_new(ur, mc, NULL);
    rt_model_t *m = model_new(j, NULL);
 
    tree_t top = elab(tree_to_object(a), j, ur, mc, NULL, NULL, m);

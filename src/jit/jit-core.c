@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2022-2024  Nick Gasson
+//  Copyright (C) 2022-2025  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -18,6 +18,7 @@
 #include "util.h"
 #include "array.h"
 #include "common.h"
+#include "cov/cov-api.h"
 #include "debug.h"
 #include "diag.h"
 #include "hash.h"
@@ -39,7 +40,6 @@
 
 #include <assert.h>
 #include <ctype.h>
-#include <errno.h>
 #include <inttypes.h>
 #include <stdlib.h>
 #include <string.h>
@@ -48,8 +48,6 @@
 #define FUNC_HASH_SZ    1024
 #define FUNC_LIST_SZ    512
 #define COMPILE_TIMEOUT 10000
-
-typedef struct _jit_cover_page jit_cover_page_t;
 
 typedef struct _jit_tier {
    jit_tier_t    *next;
@@ -85,12 +83,6 @@ typedef struct {
    aot_reloc_t     relocs[0];
 } aot_descr_t;
 
-typedef struct _jit_cover_page {
-   jit_cover_page_t *next;
-   unsigned          ntags;
-   int32_t           tags[];
-} jit_cover_page_t;
-
 typedef struct _jit {
    chash_t          *index;
    mspace_t         *mspace;
@@ -104,12 +96,11 @@ typedef struct _jit {
    func_array_t     *funcs;
    unsigned          next_handle;
    nvc_lock_t        lock;
-   jit_cover_page_t *cover_pages;
-   int32_t          *cover_mem;
    jit_irq_fn_t      interrupt;
    void             *interrupt_ctx;
    unit_registry_t  *registry;
    mir_context_t    *mir;
+   cover_data_t     *cover;
 } jit_t;
 
 static void jit_transition(jit_t *j, jit_state_t from, jit_state_t to);
@@ -152,7 +143,7 @@ jit_thread_local_t *jit_thread_local(void)
    return *ptr;
 }
 
-jit_t *jit_new(unit_registry_t *ur, mir_context_t *mc)
+jit_t *jit_new(unit_registry_t *ur, mir_context_t *mc, cover_data_t *db)
 {
    jit_t *j = xcalloc(sizeof(jit_t));
    j->registry    = ur;
@@ -160,6 +151,7 @@ jit_t *jit_new(unit_registry_t *ur, mir_context_t *mc)
    j->mspace      = mspace_new(opt_get_size(OPT_HEAP_SIZE));
    j->exit_status = INT_MIN;
    j->mir         = mc;
+   j->cover       = db;
 
    j->funcs = xcalloc_flex(sizeof(func_array_t),
                            FUNC_LIST_SZ, sizeof(jit_func_t *));
@@ -202,11 +194,6 @@ void jit_free(jit_t *j)
    for (int i = 0; i < j->next_handle; i++)
       jit_free_func(j->funcs->items[i]);
    free(j->funcs);
-
-   for (jit_cover_page_t *p = j->cover_pages, *tmp; p; p = tmp) {
-      tmp = p->next;
-      free(p);
-   }
 
    for (jit_tier_t *it = j->tiers, *tmp; it; it = tmp) {
       tmp = it->next;
@@ -303,12 +290,14 @@ static jit_handle_t jit_lazy_compile_locked(jit_t *j, ident_t name)
    jit_install(j, f);
 
    if (descr != NULL) {
+      f->counters = cover_get_counters(f->jit->cover, f->name);
+
       for (aot_reloc_t *r = descr->relocs; r->kind != RELOC_NULL; r++) {
          const char *str = descr->strtab + r->off;
          if (r->kind == RELOC_COVER) {
             // TODO: get rid of the double indirection here by
             //       allocating coverage memory earlier
-            r->ptr = &(j->cover_mem);
+            r->ptr = &(f->counters);
          }
          else if (r->kind == RELOC_PROCESSED) {
             // Detect musl libc brokenness
@@ -430,8 +419,11 @@ void jit_fill_irbuf(jit_func_t *f)
    if (jit_fill_from_aot(f, f->jit->aotlib))
       goto done;
 
-   if (f->jit->pack != NULL && jit_pack_fill(f->jit->pack, f->jit, f))
+   if (f->jit->pack != NULL && jit_pack_fill(f->jit->pack, f->jit, f)) {
+      // TODO: this should happen before the store_release to f->state
+      f->counters = cover_get_counters(f->jit->cover, f->name);
       goto done;
+   }
 
    mir_unit_t *mu = mir_get_unit(f->jit->mir, f->name);
 
@@ -446,6 +438,8 @@ void jit_fill_irbuf(jit_func_t *f)
       store_release(&(f->state), JIT_FUNC_ERROR);
       jit_missing_unit(f);
    }
+
+   f->counters = cover_get_counters(f->jit->cover, f->name);
 
    jit_irgen(f, mu);
 
@@ -1412,43 +1406,12 @@ bool jit_will_abort(jit_ir_t *ir)
       return ir->op == J_TRAP;
 }
 
-int32_t *jit_get_cover_mem(jit_t *j, int mintags)
-{
-   if (j->cover_pages == NULL || mintags > j->cover_pages->ntags) {
-      const int roundup = MAX(16, next_power_of_2(mintags));
-      jit_cover_page_t *new = xcalloc_flex(sizeof(jit_cover_page_t),
-                                           roundup, sizeof(int32_t));
-      new->next  = j->cover_pages;
-      new->ntags = roundup;
-
-      j->cover_pages = new;
-      j->cover_mem = new->tags;
-   }
-
-   return j->cover_mem;
-}
-
-int32_t *jit_sync_cover_mem(jit_t *j, int mintags)
-{
-   int32_t *tags = jit_get_cover_mem(j, mintags);
-
-   for (jit_cover_page_t *p = j->cover_pages->next; p; p = p->next) {
-      assert(p->ntags < mintags);
-      for (int i = 0; i < p->ntags; i++) {
-         tags[i] += p->tags[i];
-         p->tags[i] = 0;
-      }
-   }
-
-   return tags;
-}
-
-int32_t *jit_get_cover_ptr(jit_t *j, jit_value_t addr)
+int32_t *jit_get_cover_ptr(jit_func_t *f, jit_value_t addr)
 {
    assert(addr.kind == JIT_ADDR_COVER);
-   int32_t *base = jit_get_cover_mem(j, addr.int64 + 1);
-   assert(base != NULL);
-   return base + addr.int64;
+   assert(f->counters != NULL);
+   assert(addr.int64 >= 0 && addr.int64 <= UINT_MAX);
+   return f->counters + addr.int64;
 }
 
 void jit_interrupt(jit_t *j, jit_irq_fn_t fn, void *ctx)

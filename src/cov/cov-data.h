@@ -64,16 +64,16 @@ typedef struct _cover_ef {
 } cover_ef_t;
 
 struct _cover_data {
-   int               next_tag;
-   cover_mask_t      mask;
-   int               array_limit;
-   int               array_depth;
-   int               report_item_limit;
-   int               threshold;
-   cover_rpt_buf_t  *rpt_buf;
-   cover_spec_t     *spec;
-   cover_ef_t       *ef;
-   cover_scope_t    *root_scope;
+   cover_mask_t     mask;
+   int              array_limit;
+   int              array_depth;
+   int              report_item_limit;
+   int              threshold;
+   cover_rpt_buf_t *rpt_buf;
+   cover_spec_t    *spec;
+   cover_ef_t      *ef;
+   cover_scope_t   *root_scope;
+   hash_t          *blocks;
 };
 
 typedef enum {
@@ -99,6 +99,7 @@ typedef struct _cover_scope {
    int               stmt_label;
    int               expression_label;
    cover_scope_t    *parent;
+   cover_block_t    *block;
    scope_array_t     children;
    cov_item_array_t  items;
    range_array_t     ignore_lines;
