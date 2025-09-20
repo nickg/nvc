@@ -441,6 +441,12 @@ static inline void cover_print_char(FILE *f, char c)
    }
 }
 
+static void cover_print_string(FILE *f, const char *s)
+{
+   while (*s != '\0')
+      cover_print_char(f, *s++);
+}
+
 static void cover_print_single_code_line(FILE *f, loc_t loc, cover_line_t *line)
 {
    assert(loc.line_delta == 0);
@@ -472,9 +478,9 @@ static void cover_print_lhs_rhs_arrows(FILE *f, cover_pair_t *pair)
    int digits = pair->item->loc.first_line;
    do {
       digits /= 10;
-      fprintf(f, "&nbsp");
+      fprintf(f, "&nbsp;");
    } while (digits > 0);
-   fprintf(f, "&nbsp");
+   fprintf(f, "&nbsp;");
 
    loc_t *loc_lhs = &(pair->item->loc_lhs);
    loc_t *loc_rhs = &(pair->item->loc_rhs);
@@ -497,11 +503,11 @@ static void cover_print_lhs_rhs_arrows(FILE *f, cover_pair_t *pair)
          fprintf(f, "S");
 
       else if (curr == lhs_beg)
-         fprintf(f, "<");
+         fprintf(f, "&lt;");
       else if (curr > lhs_beg && curr < lhs_end)
          fprintf(f, "-");
       else if (curr == (lhs_beg + loc_lhs->column_delta))
-         fprintf(f, ">");
+         fprintf(f, "&gt;");
 
       else if (curr == rhs_mid - 1)
          fprintf(f, "R");
@@ -511,14 +517,14 @@ static void cover_print_lhs_rhs_arrows(FILE *f, cover_pair_t *pair)
          fprintf(f, "S");
 
       else if (curr == rhs_beg)
-         fprintf(f, "<");
+         fprintf(f, "&lt;");
       else if (curr > rhs_beg && curr < rhs_end)
          fprintf(f, "-");
       else if (curr == (rhs_beg + loc_rhs->column_delta))
-         fprintf(f, ">");
+         fprintf(f, "&gt;");
 
       else
-         fprintf(f, "&nbsp");
+         fprintf(f, "&nbsp;");
 
       curr++;
    }
@@ -550,12 +556,11 @@ static void cover_print_item_title(FILE *f, cover_pair_t *pair)
    case COV_ITEM_STMT:
    case COV_ITEM_BRANCH:
    case COV_ITEM_FUNCTIONAL:
-   {
       fprintf(f, "%s:", text[pair->item->source]);
       break;
-   }
    case COV_ITEM_EXPRESSION:
-      fprintf(f, "%s expression", istr(pair->item->func_name));
+      cover_print_string(f, istr(pair->item->func_name));
+      fprintf(f, " expression");
       break;
    case COV_ITEM_STATE:
       fprintf(f, "\"%s\" FSM", istr(pair->item->func_name));
