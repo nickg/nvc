@@ -74,6 +74,7 @@ struct _cover_data {
    cover_ef_t      *ef;
    cover_scope_t   *root_scope;
    hash_t          *blocks;
+   mem_pool_t      *pool;
 };
 
 typedef struct {

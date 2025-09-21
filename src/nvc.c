@@ -2667,5 +2667,8 @@ int main(int argc, char **argv)
    if (state.mir != NULL)
       mir_context_free(state.mir);
 
+   if (state.cover != NULL)
+      cover_data_free(state.cover);
+
    return ret;
 }

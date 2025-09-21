@@ -887,8 +887,24 @@ cover_data_t *cover_data_init(cover_mask_t mask, int array_limit, int threshold)
    data->array_limit = array_limit;
    data->threshold = threshold;
    data->blocks = hash_new(16);
+   data->pool = pool_new();
 
    return data;
+}
+
+void cover_data_free(cover_data_t *db)
+{
+#ifdef DEBUG
+   size_t alloc, npages;
+   pool_stats(db->pool, &alloc, &npages);
+   if (npages > 0)
+      debugf("coverage database allocated %zu bytes in %zu pages",
+             alloc, npages);
+#endif
+
+   hash_free(db->blocks);
+   pool_free(db->pool);
+   free(db);
 }
 
 bool cover_enabled(cover_data_t *data, cover_mask_t mask)
@@ -938,7 +954,7 @@ cover_scope_t *cover_create_block(cover_data_t *data, ident_t qual,
    if (data == NULL)
       return NULL;
 
-   cover_block_t *b = xcalloc(sizeof(cover_block_t));
+   cover_block_t *b = pool_calloc(data->pool, sizeof(cover_block_t));
    b->name = qual;
 
    assert(hash_get(data->blocks, qual) == NULL);
@@ -961,7 +977,7 @@ cover_scope_t *cover_create_block(cover_data_t *data, ident_t qual,
    else
       scope_name = ident_sprintf("_S%u", parent->stmt_label++);
 
-   cover_scope_t *s = xcalloc(sizeof(cover_scope_t));
+   cover_scope_t *s = pool_calloc(data->pool, sizeof(cover_scope_t));
    s->name    = scope_name;
    s->parent  = parent;
    s->block   = b;
@@ -1016,7 +1032,7 @@ cover_scope_t *cover_create_scope(cover_data_t *data, cover_scope_t *parent,
    assert(parent != NULL);
    assert(data->root_scope != NULL);
 
-   cover_scope_t *s = xcalloc(sizeof(cover_scope_t));
+   cover_scope_t *s = pool_calloc(data->pool, sizeof(cover_scope_t));
 
    if (cover_is_branch(t)) {
       if (tree_kind(t) == T_ASSOC && tree_subkind(t) == A_OTHERS)
@@ -1110,7 +1126,7 @@ static cover_scope_t *cover_read_scope(cover_data_t *db, fbuf_t *f,
                                        loc_rd_ctx_t *loc_ctx,
                                        cover_block_t *b)
 {
-   cover_scope_t *s = xcalloc(sizeof(cover_scope_t));
+   cover_scope_t *s = pool_calloc(db->pool, sizeof(cover_scope_t));
    s->name  = ident_read(ident_ctx);
    s->hier  = ident_read(ident_ctx);
    s->block = b;
@@ -1177,6 +1193,7 @@ cover_data_t *cover_read_items(fbuf_t *f, uint32_t pre_mask)
    cover_read_header(f, data);
    data->mask |= pre_mask;
    data->blocks = hash_new(16);
+   data->pool = pool_new();
 
    loc_rd_ctx_t *loc_rd = loc_read_begin(f);
    ident_rd_ctx_t ident_ctx = ident_read_begin(f);
@@ -1305,7 +1322,7 @@ int32_t *cover_get_counters(cover_data_t *db, ident_t name)
       return NULL;
 
    if (b->data == NULL)
-      b->data = xcalloc_array(b->next_tag, sizeof(int32_t));
+      b->data = pool_calloc(db->pool, b->next_tag *sizeof(int32_t));
 
    return b->data;
 }

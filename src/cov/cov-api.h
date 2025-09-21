@@ -220,6 +220,7 @@ typedef enum {
 } merge_mode_t;
 
 cover_data_t *cover_data_init(cover_mask_t mask, int array_limit, int threshold);
+void cover_data_free(cover_data_t *db);
 bool cover_enabled(cover_data_t *data, cover_mask_t mask);
 
 void cover_dump_items(cover_data_t *data, fbuf_t *f, cover_dump_t dt,
