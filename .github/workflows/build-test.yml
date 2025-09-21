@@ -333,6 +333,8 @@ jobs:
         run: ./vhdl-projects/canola/test.sh
       - name: Test mixed_cic
         run: ./vhdl-projects/mixed_cic/test.sh
+      - name: Test axis2mm
+        run: ./vhdl-projects/axis2mm/test.sh
 
   vunit:
     name: VUnit
