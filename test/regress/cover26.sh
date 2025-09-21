@@ -7,7 +7,7 @@ nvc -a $TESTDIR/regress/cover26.vhd -e --cover cover26 -r
 
 # Report per-file
 # This used to crash before
-nvc --cover-report -o html cover26.ncdb 2>&1 | tee out.txt
+nvc --cover-report -o html cover26.ncdb 2>&1 | grep -v '^** Debug:' | tee out.txt
 
 # Adjust output to be work directory relative
 sed -i -e "s/[^ ]*regress\/data\//data\//g" out.txt

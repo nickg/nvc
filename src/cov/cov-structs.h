@@ -19,6 +19,11 @@
 #define _COV_STRUCTS_H
 
 #include "prim.h"
+#include "array.h"
+#include "cov/cov-api.h"
+#include "cov/cov-data.h"
+
+#define SHA_HEX_LEN (20 * 2 + 1)
 
 typedef enum {
    CBLOCK_NONE,
@@ -38,5 +43,50 @@ typedef struct _cover_block {
    cover_scope_t *self;
    int32_t       *data;
 } cover_block_t;
+
+typedef struct {
+   char   *text;
+   size_t  len;
+} rpt_line_t;
+
+typedef struct {
+   unsigned total[COV_ITEM_FUNCTIONAL + 1];
+   unsigned hit[COV_ITEM_FUNCTIONAL + 1];
+} rpt_stats_t;
+
+typedef struct {
+   const rpt_line_t *line;
+   cover_item_t     *item;
+} rpt_pair_t;
+
+typedef A(rpt_pair_t) pair_array_t;
+
+typedef struct {
+   pair_array_t hits;
+   pair_array_t miss;
+   pair_array_t excl;
+} rpt_chain_t;
+
+typedef struct {
+   rpt_chain_t chain[COV_ITEM_FUNCTIONAL + 1];
+} rpt_chain_group_t;
+
+typedef struct {
+   const char        *path;
+   char               path_hash[SHA_HEX_LEN];
+   rpt_stats_t        stats;
+   cov_item_array_t   items;
+   rpt_chain_group_t  chns;
+   rpt_line_t        *lines;
+   unsigned           n_lines;
+   bool               valid;
+} rpt_file_t;
+
+typedef struct {
+   char              name_hash[SHA_HEX_LEN];
+   rpt_stats_t       flat_stats;
+   rpt_stats_t       nested_stats;
+   rpt_chain_group_t chns;
+} rpt_hier_t;
 
 #endif   // _COV_STRUCTS_H

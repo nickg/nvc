@@ -6,4 +6,5 @@ lib_libnvc_a_SOURCES += \
 	src/cov/cov-report.c \
 	src/cov/cov-exclude.c \
 	src/cov/cov-structs.h \
-	src/cov/cov-priv.h
+	src/cov/cov-priv.h \
+	src/cov/cov-html.c

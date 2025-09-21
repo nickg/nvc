@@ -604,7 +604,7 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
       if (f == NULL)
          fatal_errno("failed to open coverage database: %s", meta.cover_file);
 
-      cover_dump_items(state->cover, f, COV_DUMP_ELAB, NULL);
+      cover_dump_items(state->cover, f, COV_DUMP_ELAB);
       fbuf_close(f, NULL);
 
       progress("dumping coverage data");
@@ -784,7 +784,7 @@ static void emit_coverage(const unit_meta_t *meta, jit_t *j, cover_data_t *db)
    if (f == NULL)
       fatal_errno("failed to open coverage database: %s", meta->cover_file);
 
-   cover_dump_items(db, f, COV_DUMP_RUNTIME, NULL);
+   cover_dump_items(db, f, COV_DUMP_RUNTIME);
 
    fbuf_close(f, NULL);
 }
@@ -1717,7 +1717,7 @@ static int coverage_cmd(int argc, char **argv, cmd_state_t *state)
    if (out_db) {
       progress("Saving merged coverage database to: %s", out_db);
       fbuf_t *f = fbuf_open(out_db, FBUF_OUT, FBUF_CS_NONE);
-      cover_dump_items(cover, f, COV_DUMP_PROCESSING, NULL);
+      cover_dump_items(cover, f, COV_DUMP_PROCESSING);
       fbuf_close(f, NULL);
    }
 
@@ -2090,7 +2090,7 @@ static int cover_merge_cmd(int argc, char **argv, cmd_state_t *state)
    progress("saving merged coverage database to %s", out_db);
 
    fbuf_t *f = fbuf_open(out_db, FBUF_OUT, FBUF_CS_NONE);
-   cover_dump_items(cover, f, COV_DUMP_PROCESSING, NULL);
+   cover_dump_items(cover, f, COV_DUMP_PROCESSING);
    fbuf_close(f, NULL);
 
    argc -= next_cmd - 1;

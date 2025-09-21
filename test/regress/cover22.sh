@@ -9,7 +9,7 @@ nvc --work=SECOND_LIB:work -a --psl $TESTDIR/regress/cover22.vhd \
     -e --cover=statement --cover-file=b.ncdb cover22_b -r
 
 # Using -c to check deprecated command still works
-nvc -c --report html a.ncdb b.ncdb 2>&1 | tee out.txt
+nvc -c --report html a.ncdb b.ncdb 2>&1 | grep -v '^** Debug:' | tee out.txt
 
 # Adjust output to be work directory relative
 sed -i -e "s/[^ ]*regress\/data\//data\//g" out.txt

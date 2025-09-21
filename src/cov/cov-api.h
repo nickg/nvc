@@ -223,8 +223,7 @@ cover_data_t *cover_data_init(cover_mask_t mask, int array_limit, int threshold)
 void cover_data_free(cover_data_t *db);
 bool cover_enabled(cover_data_t *data, cover_mask_t mask);
 
-void cover_dump_items(cover_data_t *data, fbuf_t *f, cover_dump_t dt,
-                      const int32_t *counts);
+void cover_dump_items(cover_data_t *data, fbuf_t *f, cover_dump_t dt);
 cover_data_t *cover_read_items(fbuf_t *f, uint32_t pre_mask);
 void cover_merge_items(fbuf_t *f, cover_data_t *data, merge_mode_t mode);
 
@@ -243,6 +242,9 @@ void cover_load_exclude_file(const char *path, cover_data_t *data);
 //
 // Report generation and export
 //
+
+cover_rpt_t *cover_report_new(cover_data_t *db);
+void cover_report_free(cover_rpt_t *rpt);
 
 void cover_report(const char *path, cover_data_t *data, int item_limit);
 void cover_export_cobertura(cover_data_t *data, FILE *f,

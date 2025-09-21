@@ -24,5 +24,13 @@
 
 block_kind_t cover_block_kind(cover_scope_t *s);
 bool cover_is_hier(cover_scope_t *s);
+bool cover_bin_unreachable(cover_data_t *data, const cover_item_t *item);
+
+const rpt_file_t *rpt_get_file(cover_rpt_t *rpt, cover_scope_t *s);
+const rpt_hier_t *rpt_get_hier(cover_rpt_t *rpt, cover_scope_t *s);
+unsigned rpt_get_skipped(cover_rpt_t *rpt);
+
+typedef void (*rpt_file_fn_t)(const rpt_file_t *, void *);
+int rpt_iter_files(cover_rpt_t *rpt, rpt_file_fn_t fn, void *ctx);
 
 #endif   // _COV_PRIV_H

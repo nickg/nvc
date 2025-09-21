@@ -763,7 +763,7 @@ void cover_merge_one_item(cover_item_t *item, int32_t data)
    }
 }
 
-static void cover_update_counts(cover_scope_t *s, const int32_t *counts)
+static void cover_update_counts(cover_scope_t *s)
 {
    if (s->block != NULL && s->block->data != NULL) {
       for (int i = 0; i < s->items.count; i++) {
@@ -773,7 +773,7 @@ static void cover_update_counts(cover_scope_t *s, const int32_t *counts)
    }
 
    for (int i = 0; i < s->children.count; i++)
-      cover_update_counts(s->children.items[i], counts);
+      cover_update_counts(s->children.items[i]);
 }
 
 static void cover_write_scope(cover_scope_t *s, fbuf_t *f,
@@ -854,11 +854,10 @@ static void cover_debug_dump(cover_scope_t *s, int indent)
 }
 LCOV_EXCL_STOP
 
-void cover_dump_items(cover_data_t *data, fbuf_t *f, cover_dump_t dt,
-                      const int32_t *counts)
+void cover_dump_items(cover_data_t *data, fbuf_t *f, cover_dump_t dt)
 {
    if (dt == COV_DUMP_RUNTIME)
-      cover_update_counts(data->root_scope, counts);
+      cover_update_counts(data->root_scope);
 
    if (opt_get_int(OPT_COVER_VERBOSE))
       cover_debug_dump(data->root_scope, 0);
@@ -1407,4 +1406,24 @@ bool cover_is_hier(cover_scope_t *s)
    default:
       return false;
    }
+}
+
+bool cover_bin_unreachable(cover_data_t *data, const cover_item_t *item)
+{
+   if ((data->mask & COVER_MASK_EXCLUDE_UNREACHABLE) == 0)
+      return false;
+
+   // Toggle items remember unreachability in run-time data. Must check
+   // item kind not to get false unreachability on statement items.
+   // Excludes both bins automatically!
+   if (item->kind == COV_ITEM_TOGGLE
+       && ((item->data & COV_FLAG_UNREACHABLE) != 0))
+      return true;
+
+   // Expression items remember unreachability as unreachable mask
+   if (item->kind == COV_ITEM_EXPRESSION
+       && ((item->flags & COV_FLAG_UNREACHABLE) != 0))
+      return true;
+
+   return false;
 }
