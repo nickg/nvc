@@ -37,7 +37,8 @@ bin_unit_test_SOURCES = \
 	test/test_dump.c \
 	test/test_driver.c \
 	test/test_vlog.c \
-	test/test_mir.c
+	test/test_mir.c \
+	test/test_cover.c
 
 if ARCH_X86_64
 bin_unit_test_SOURCES += test/test_native.c

@@ -122,6 +122,7 @@ int main(int argc, char **argv)
 #endif
    nfail += RUN_TESTS(driver);
    nfail += RUN_TESTS(mir);
+   nfail += RUN_TESTS(cover);
 
    return nfail == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 }
