@@ -101,6 +101,7 @@
 #define F_NOTBSD  (1 << 25)
 #define F_ARRAYS  (1 << 26)
 #define F_SEED    (1 << 27)
+#define F_PERFILE (1 << 28)
 
 typedef struct test test_t;
 typedef struct param param_t;
@@ -155,6 +156,7 @@ static char bin_dir[PATH_MAX];
 static bool is_tty = false;
 static bool force_jit = false;
 static bool force_precompile = false;
+static bool capture_xml = false;
 static bool capture_html = false;
 static bool diff_html = false;
 static bool check_html = false;
@@ -435,6 +437,8 @@ static bool parse_test_list(void)
             test->flags |= F_TCL;
          else if (strcmp(opt, "shuffle") == 0)
             test->flags |= F_SHUFFLE;
+         else if (strcmp(opt, "per-file") == 0)
+            test->flags |= F_PERFILE;
          else if (strcmp(opt, "no-collapse") == 0)
             test->flags |= F_NOCOLL;
          else if (strcmp(opt, "dump-arrays") == 0)
@@ -1101,14 +1105,21 @@ static bool run_test(test_t *test)
       else
          html_dir = strdup("./html");
 
+      char *xml_out;
+      if (capture_xml)
+         xml_out = xasprintf("%s/regress/gold/%s.xml", test_dir, test->name);
+      else
+         xml_out = strdup("export.xml");
+
       push_arg(&args, "%s/nvc%s", bin_dir, EXEEXT);
       push_arg(&args, "--cover-report");
       push_arg(&args, "--output=%s", html_dir);
+      if (test->flags & F_PERFILE)
+         push_arg(&args, "--per-file");
       push_arg(&args, "%s.ncdb", test->name);
       push_arg(&args, "--cover-export");
       push_arg(&args, "--relative=%s" DIR_SEP "regress", test_dir);
-      push_arg(&args, "--output=export.xml");
-      //push_arg(&args, "--out=%s/regress/gold/%s.xml", test_dir, test->name);
+      push_arg(&args, "--out=%s", xml_out);
       push_arg(&args, "--format=xml");
       push_arg(&args, "%s.ncdb", test->name);
 
@@ -1129,7 +1140,7 @@ static bool run_test(test_t *test)
 #endif
       push_arg(&args, "-u");
       push_arg(&args, "%s/regress/gold/%s.xml", test_dir, test->name);
-      push_arg(&args, "export.xml");
+      push_arg(&args, "%s", xml_out);
 
       if (run_cmd(outf, &args) != RUN_OK) {
          failed("XML mismatch");
@@ -1170,6 +1181,7 @@ static bool run_test(test_t *test)
       }
 
       free(html_dir);
+      free(xml_out);
       free(unit);
    }
 
@@ -1391,6 +1403,7 @@ int main(int argc, char **argv)
       { "capture-html", no_argument, 0, 'h' },
       { "diff-html",    no_argument, 0, 'H' },
       { "check-html",   no_argument, 0, 'C' },
+      { "capture-xml",  no_argument, 0, 'x' },
       { 0, 0, 0, 0 }
    };
 
@@ -1411,6 +1424,9 @@ int main(int argc, char **argv)
       case 'h':
          capture_html = true;
          make_dir("html");
+         break;
+      case 'x':
+         capture_xml = true;
          break;
       case 'H':
          diff_html = true;

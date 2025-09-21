@@ -1,0 +1,53 @@
+<?xml version="1.0"?>
+<scope name="WORK" file="cover24.vhd">
+  <scope name="COVER24" block_name="COVER24-TEST" line="4">
+    <scope name="A" line="6">
+    </scope>
+    <scope name="B" line="6">
+    </scope>
+    <scope name="C" line="6">
+    </scope>
+    <scope name="BOOL" line="7">
+    </scope>
+    <scope name="_P0" line="15">
+      <scope name="_S0">
+        <statement hier="WORK.COVER24._P0._S0" data="1"/>
+        <scope name="_B0">
+          <branch hier="WORK.COVER24._P0._S0._B0.BIN_TRUE" data="0"/>
+          <branch hier="WORK.COVER24._P0._S0._B0.BIN_FALSE" data="1"/>
+          <scope name="_S0">
+            <statement hier="WORK.COVER24._P0._S0._B0._S0" data="0"/>
+          </scope>
+        </scope>
+        <scope name="_B1" line="16">
+          <expression hier="WORK.COVER24._P0._S0._B1._E0.BIN_FALSE" data="0"/>
+          <expression hier="WORK.COVER24._P0._S0._B1._E1.BIN_TRUE" data="1"/>
+          <branch hier="WORK.COVER24._P0._S0._B1.BIN_TRUE" data="1"/>
+          <branch hier="WORK.COVER24._P0._S0._B1.BIN_FALSE" data="0"/>
+          <scope name="_S0">
+            <statement hier="WORK.COVER24._P0._S0._B1._S0" data="1"/>
+          </scope>
+        </scope>
+        <scope name="_B2">
+          <scope name="_S0" file="cover24.vhd" line="16">
+            <statement hier="WORK.COVER24._P0._S0._B2._S0" data="0"/>
+          </scope>
+        </scope>
+      </scope>
+    </scope>
+    <scope name="_P1" line="18">
+      <scope name="_S0" line="20">
+        <statement hier="WORK.COVER24._P1._S0" data="1"/>
+      </scope>
+      <scope name="_S1" line="21">
+        <statement hier="WORK.COVER24._P1._S1" data="1"/>
+      </scope>
+      <scope name="_S2" line="22">
+        <statement hier="WORK.COVER24._P1._S2" data="1"/>
+      </scope>
+      <scope name="_S3" line="23">
+        <statement hier="WORK.COVER24._P1._S3" data="1"/>
+      </scope>
+    </scope>
+  </scope>
+</scope>

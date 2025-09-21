@@ -1051,7 +1051,7 @@ psl9            fail,gold,2008
 psl10           fail,gold,2008
 issue988        normal,vhpi
 psl11           fail,gold,2008
-cover24         shell
+cover24         cover,per-file
 vlog12          verilog
 conv15          normal
 cover25         cover=functional
