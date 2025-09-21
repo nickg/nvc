@@ -914,12 +914,7 @@ static void cover_print_summary_table_row(FILE *f, cover_data_t *data, const rpt
    int avg_total = 0, avg_hit = 0;
    for (int i = 0; i <= COV_ITEM_FUNCTIONAL; i++) {
       avg_total += stats->total[i];
-
-      // XXX: this is a bug, preserve behaviour for now
-      if (i != COV_ITEM_FUNCTIONAL)
-         avg_hit += stats->hit[i];
-      else
-         avg_hit += stats->total[i];
+      avg_hit += stats->hit[i];
    }
 
    cover_print_percents_cell(f, avg_hit, avg_total);
