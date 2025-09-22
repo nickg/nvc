@@ -31,6 +31,16 @@ module binary2;
     #1;
     if (x !== -6) failed = 1;
 
+    x = 50;
+    #1;
+    x = x / 4;
+    #1;
+    if (x !== 12) failed = 1;
+
+    x %= 5;
+    #1;
+    if (x !== 2) failed = 1;
+
     $display("%s", failed ? "FAILED" : "PASSED");
   end
 

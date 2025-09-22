@@ -4082,6 +4082,14 @@ static void irgen_op_binary(jit_irgen_t *g, mir_value_t n)
       abits = j_mul(g, aleft, aright);
       xbits = irgen_arith_xbits(g, bleft, bright, mask);
       break;
+   case MIR_VEC_DIV:
+      abits = j_div(g, aleft, aright);
+      xbits = irgen_arith_xbits(g, bleft, bright, mask);
+      break;
+   case MIR_VEC_MOD:
+      abits = j_rem(g, aleft, aright);
+      xbits = irgen_arith_xbits(g, bleft, bright, mask);
+      break;
    case MIR_VEC_CASE_EQ:
       j_cmp(g, JIT_CC_EQ, aleft, aright);
       if (is_vec4) j_ccmp(g, JIT_CC_EQ, bleft, bright);
