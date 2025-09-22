@@ -28,6 +28,8 @@
 #include "scan.h"
 #include "tree.h"
 
+#include <limits.h>
+
 static cover_data_t *run_cover(void)
 {
    cover_data_t *db = cover_data_init(COVER_MASK_ALL, 0, 1);
@@ -73,7 +75,7 @@ START_TEST(test_perfile1)
    cover_dump_items(db, tmp, COV_DUMP_RUNTIME);
    fbuf_close(tmp, NULL);
 
-   cover_rpt_t *rpt = cover_report_new(db);
+   cover_rpt_t *rpt = cover_report_new(db, INT_MAX);
 
    cover_scope_t *u1 = cover_get_scope(db, ident_new("WORK.TOP.U1"));
    ck_assert_ptr_nonnull(u1);

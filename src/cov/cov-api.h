@@ -243,7 +243,7 @@ void cover_load_exclude_file(const char *path, cover_data_t *data);
 // Report generation and export
 //
 
-cover_rpt_t *cover_report_new(cover_data_t *db);
+cover_rpt_t *cover_report_new(cover_data_t *db, int item_limit);
 void cover_report_free(cover_rpt_t *rpt);
 
 void cover_report(const char *path, cover_data_t *data, int item_limit);

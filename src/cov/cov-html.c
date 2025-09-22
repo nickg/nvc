@@ -39,11 +39,6 @@ struct _cover_rpt_buf {
    cover_rpt_buf_t *prev;
 };
 
-typedef struct {
-   cover_data_t *data;
-   int           lvl;
-} cover_rpt_hier_ctx_t;
-
 typedef enum {
    PAIR_UNCOVERED    = 0,
    PAIR_EXCLUDED     = 1,
@@ -52,13 +47,15 @@ typedef enum {
 } cov_pair_kind_t;
 
 typedef struct {
-   cover_rpt_t *rpt;
-   const char  *outdir;
+   cover_rpt_t  *rpt;
+   cover_data_t *data;
+   const char   *outdir;
+   unsigned      item_limit;
 } html_gen_t;
 
 #define COV_RPT_TITLE "NVC code coverage report"
 
-static void cover_report_hier_children(html_gen_t *g, cover_rpt_hier_ctx_t *ctx,
+static void cover_report_hier_children(html_gen_t *g, int lvl,
                                        cover_scope_t *s, FILE *summf);
 static void cover_print_html_header(FILE *f);
 static inline void cover_print_char(FILE *f, char c);
@@ -1033,8 +1030,7 @@ static void cover_print_hier_nav_tree(FILE *f, cover_scope_t *s)
    fprintf(f, "</nav>\n\n");
 }
 
-static void cover_report_hier(html_gen_t *g, cover_rpt_hier_ctx_t *ctx,
-                              cover_scope_t *s)
+static void cover_report_hier(html_gen_t *g, int lvl, cover_scope_t *s)
 {
    const rpt_hier_t *h = rpt_get_hier(g->rpt, s);
 
@@ -1050,7 +1046,7 @@ static void cover_report_hier(html_gen_t *g, cover_rpt_hier_ctx_t *ctx,
    fprintf(f, "<h2 style=\"margin-left: " MARGIN_LEFT ";\">\n  Sub-instances:\n</h2>\n\n");
    cover_print_summary_table_header(f, "sub_inst_table", true);
 
-   cover_report_hier_children(g, ctx, s, f);
+   cover_report_hier_children(g, lvl, s, f);
 
    cover_print_table_footer(f);
 
@@ -1058,8 +1054,8 @@ static void cover_report_hier(html_gen_t *g, cover_rpt_hier_ctx_t *ctx,
    cover_print_summary_table_header(f, "cur_inst_table", true);
 
    ident_t rpt_name_id = ident_new(h->name_hash);
-   cover_print_summary_table_row(f, ctx->data, &(h->flat_stats), s->hier, rpt_name_id,
-                                 ctx->lvl, false, false);
+   cover_print_summary_table_row(f, g->data, &(h->flat_stats), s->hier,
+                                 rpt_name_id, lvl, false, false);
    cover_print_table_footer(f);
 
    fprintf(f, "<h2 style=\"margin-left: " MARGIN_LEFT ";\">\n  Details:\n</h2>\n\n");
@@ -1068,8 +1064,8 @@ static void cover_report_hier(html_gen_t *g, cover_rpt_hier_ctx_t *ctx,
    if (skipped)
       fprintf(f, "<h3 style=\"margin-left: " MARGIN_LEFT ";\">The limit of "
                  "printed items was reached (%d). Total %d items are not "
-                 "displayed.</h3>\n\n", ctx->data->report_item_limit, skipped);
-   cover_print_chns(f, ctx->data, &(h->chns));
+                 "displayed.</h3>\n\n", g->item_limit, skipped);
+   cover_print_chns(f, g->data, &(h->chns));
    cover_print_jscript_funcs(f);
 
    cover_print_timestamp(f);
@@ -1077,28 +1073,23 @@ static void cover_report_hier(html_gen_t *g, cover_rpt_hier_ctx_t *ctx,
    fclose(f);
 }
 
-static void cover_report_hier_children(html_gen_t *g, cover_rpt_hier_ctx_t *ctx,
+static void cover_report_hier_children(html_gen_t *g, int lvl,
                                        cover_scope_t *s, FILE *summf)
 {
    for (int i = 0; i < s->children.count; i++) {
       cover_scope_t *it = s->children.items[i];
       if (cover_is_hier(it)) {
-         // Collect coverage of sub-block
-         cover_rpt_hier_ctx_t sub_ctx = {};
-         sub_ctx.data = ctx->data;
-         sub_ctx.lvl = ctx->lvl + 2;
-
-         cover_report_hier(g, &sub_ctx, it);
+         cover_report_hier(g, lvl + 2, it);
 
          const rpt_hier_t *h = rpt_get_hier(g->rpt, it);
 
-         cover_print_summary_table_row(summf, ctx->data, &(h->nested_stats),
+         cover_print_summary_table_row(summf, g->data, &(h->nested_stats),
                                        ident_rfrom(it->hier, '.'),
                                        ident_new(h->name_hash),
-                                       sub_ctx.lvl, false, true);
+                                       lvl + 2, false, true);
       }
       else
-         cover_report_hier_children(g, ctx, it, summf);
+         cover_report_hier_children(g, lvl, it, summf);
    }
 }
 
@@ -1107,16 +1098,12 @@ static void cover_report_per_hier(html_gen_t *g, FILE *f, cover_data_t *data,
 {
    for (int i = 0; i < data->root_scope->children.count; i++) {
       cover_scope_t *child = AGET(data->root_scope->children, i);
-      cover_rpt_hier_ctx_t top_ctx = {
-         .data = data,
-      };
 
-      cover_report_hier(g, &top_ctx, child);
+      cover_report_hier(g, 0, child);
 
       const rpt_hier_t *h = rpt_get_hier(rpt, child);
       cover_print_summary_table_row(f, data, &(h->nested_stats), child->hier,
-                                    ident_new(h->name_hash), top_ctx.lvl,
-                                    true, true);
+                                    ident_new(h->name_hash), 0, true, true);
    }
 
    if (opt_get_int(OPT_VERBOSE)) {
@@ -1205,7 +1192,7 @@ static void cover_report_per_file(html_gen_t *g, FILE *top_f,
       if (skipped)
          fprintf(f, "<h3 style=\"margin-left: " MARGIN_LEFT ";\">The limit of "
                     "printed items was reached (%d). Total %d items are not "
-                    "displayed.</h3>\n\n", data->report_item_limit, skipped);
+                    "displayed.</h3>\n\n", g->item_limit, skipped);
       cover_print_chns(f, data, &(files[i]->chns));
       cover_print_jscript_funcs(f);
 
@@ -1256,13 +1243,13 @@ void cover_report(const char *path, cover_data_t *data, int item_limit)
    make_dir("%s/hier", path);
    make_dir("%s/source", path);
 
-   data->report_item_limit = item_limit;  // XXX: remove this
-
-   cover_rpt_t *rpt = cover_report_new(data);
+   cover_rpt_t *rpt = cover_report_new(data, item_limit);
 
    html_gen_t g = {
-      .rpt = rpt,
-      .outdir = path,
+      .data       = data,
+      .rpt        = rpt,
+      .outdir     = path,
+      .item_limit = item_limit,
    };
 
    rpt_iter_files(rpt, cover_file_page_cb, &g);

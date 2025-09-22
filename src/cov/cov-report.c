@@ -38,6 +38,7 @@ typedef struct _cover_rpt {
    shash_t      *files;
    hash_t       *hier;
    unsigned      skipped;
+   unsigned      item_limit;
 } cover_rpt_t;
 
 static void rpt_visit_children(cover_rpt_t *rpt, rpt_hier_t *h,
@@ -102,7 +103,7 @@ static int rpt_append_item_to_chain(cover_rpt_t *rpt,
       if (curr_item->data >= curr_item->atleast && curr_item->atleast > 0) {
          stats->hit[first_item->kind]++;
 
-         if (chn->hits.count > rpt->data->report_item_limit)
+         if (chn->hits.count > rpt->item_limit)
             rpt->skipped++;
          else {
             rpt_chain_append(&chn->hits, curr_item, hits_line);
@@ -113,7 +114,7 @@ static int rpt_append_item_to_chain(cover_rpt_t *rpt,
                 cover_bin_unreachable(rpt->data, curr_item)) {
          stats->hit[first_item->kind]++;
 
-         if (chn->excl.count > rpt->data->report_item_limit)
+         if (chn->excl.count > rpt->item_limit)
             rpt->skipped++;
          else {
             rpt_chain_append(&chn->excl, curr_item, excl_line);
@@ -121,7 +122,7 @@ static int rpt_append_item_to_chain(cover_rpt_t *rpt,
          }
       }
       else {
-         if (chn->miss.count > rpt->data->report_item_limit)
+         if (chn->miss.count > rpt->item_limit)
             rpt->skipped++;
          else {
             rpt_chain_append(&chn->miss, curr_item, miss_line);
@@ -334,13 +335,14 @@ int rpt_iter_files(cover_rpt_t *rpt, rpt_file_fn_t fn, void *ctx)
    return count;
 }
 
-cover_rpt_t *cover_report_new(cover_data_t *db)
+cover_rpt_t *cover_report_new(cover_data_t *db, int item_limit)
 {
    cover_rpt_t *rpt = xcalloc(sizeof(cover_rpt_t));
-   rpt->data  = db;
-   rpt->pool  = pool_new();
-   rpt->files = shash_new(32);
-   rpt->hier  = hash_new(32);
+   rpt->data       = db;
+   rpt->pool       = pool_new();
+   rpt->files      = shash_new(32);
+   rpt->hier       = hash_new(32);
+   rpt->item_limit = item_limit;
 
    for (int i = 0; i < db->root_scope->children.count; i++) {
       cover_scope_t *child = AGET(db->root_scope->children, i);

@@ -65,7 +65,6 @@ struct _cover_data {
    cover_mask_t     mask;
    int              array_limit;
    int              array_depth;
-   int              report_item_limit;
    int              threshold;
    cover_rpt_buf_t *rpt_buf;
    cover_spec_t    *spec;
