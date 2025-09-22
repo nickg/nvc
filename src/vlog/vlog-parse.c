@@ -6504,8 +6504,7 @@ static vlog_node_t p_package_declaration(void)
    if (optional(tCOLON)) {
       ident_t end_name = p_identifier();
       if (name != end_name)
-         error_at(&state.last_loc, "Trailing identifier '%s' "
-                  "must match the package name '%s'",
+         error_at(&state.last_loc, "'%s' does not match package name '%s'",
                   istr(end_name), istr(name));
    }
 
