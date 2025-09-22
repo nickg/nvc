@@ -2091,26 +2091,6 @@ void __array_resize_slow(void **ptr, uint32_t *limit, uint32_t count,
    }
 }
 
-char *search_path(const char *name)
-{
-   const char *path = getenv("PATH");
-   if (path == NULL)
-      return xstrdup(name);
-
-   char LOCAL *tmp = xstrdup(path);
-   for (char *p = strtok(tmp, ":"); p; p = strtok(NULL, ":")) {
-      char *full = xasprintf("%s"DIR_SEP"%s", p, name);
-
-      struct stat sb;
-      if (stat(full, &sb) == 0)
-         return full;
-
-      free(full);
-   }
-
-   return xstrdup(name);
-}
-
 bool get_exe_path(text_buf_t *tb)
 {
 #if defined __linux__

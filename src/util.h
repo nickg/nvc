@@ -388,7 +388,6 @@ void file_unlock(int fd);
 
 void *map_file(int fd, size_t size);
 void unmap_file(void *ptr, size_t size);
-char *search_path(const char *name);
 void get_libexec_dir(text_buf_t *tb);
 void get_lib_dir(text_buf_t *tb);
 void get_data_dir(text_buf_t *tb);
