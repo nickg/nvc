@@ -3781,7 +3781,7 @@ static void p_block_item_declaration(vlog_node_t parent)
    }
 }
 
-static void p_package_or_generate_item_declaration(vlog_node_t v)
+static void p_package_or_generate_item_declaration(vlog_node_t parent)
 {
    // net_declaration | data_declaration | task_declaration
    //   | function_declaration | checker_declaration | dpi_import_export
@@ -3806,7 +3806,7 @@ static void p_package_or_generate_item_declaration(vlog_node_t v)
    case tWAND:
    case tWOR:
    case tINTERCONNECT:
-      p_net_declaration(v);
+      p_net_declaration(parent);
       break;
    case tREG:
    case tSTRUCT:
@@ -3827,20 +3827,20 @@ static void p_package_or_generate_item_declaration(vlog_node_t v)
    case tSHORTINT:
    case tLONGINT:
    case tBYTE:
-      p_data_declaration(v);
+      p_data_declaration(parent);
       break;
    case tTASK:
-      vlog_add_decl(v, p_task_declaration());
+      vlog_add_decl(parent, p_task_declaration());
       break;
    case tFUNCTION:
-      vlog_add_decl(v, p_function_declaration());
+      vlog_add_decl(parent, p_function_declaration());
       break;
    case tLOCALPARAM:
-      p_local_parameter_declaration(v);
+      p_local_parameter_declaration(parent);
       consume(tSEMI);
       break;
    case tPARAMETER:
-      p_parameter_declaration(v);
+      p_parameter_declaration(parent);
       consume(tSEMI);
       break;
    default:

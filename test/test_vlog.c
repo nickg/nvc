@@ -1234,7 +1234,7 @@ START_TEST(test_package1)
    input_from_file(TESTDIR "/vlog/package1.sv");
 
    const error_t expect[] = {
-      {  3, "Trailing identifier 'different_name' must match the package name 'dummy_pkg'" },
+      {  3, "'different_name' does not match package name 'dummy_pkg'" },
       { -1, NULL }
    };
    expect_errors(expect);
