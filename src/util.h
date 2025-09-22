@@ -388,7 +388,6 @@ void file_unlock(int fd);
 
 void *map_file(int fd, size_t size);
 void unmap_file(void *ptr, size_t size);
-void make_dir(const char *path);
 char *search_path(const char *name);
 void get_libexec_dir(text_buf_t *tb);
 void get_lib_dir(text_buf_t *tb);
@@ -397,6 +396,11 @@ bool get_exe_path(text_buf_t *tb);
 void open_pipe(int *rfd, int *wfd);
 bool is_absolute_path(const char *path);
 void check_cpu_features(void);
+
+void make_dir(const char *fmt, ...)
+   __attribute__((format(printf, 1, 2)));
+FILE *create_file(const char *fmt, ...)
+   __attribute__((format(printf, 1, 2)));
 
 struct cpu_state;
 typedef void (*fault_fn_t)(int, void *, struct cpu_state *, void *);

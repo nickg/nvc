@@ -1920,8 +1920,13 @@ void unmap_file(void *ptr, size_t size)
 #endif
 }
 
-void make_dir(const char *path)
+void make_dir(const char *fmt, ...)
 {
+   va_list ap;
+   va_start(ap, fmt);
+   char *path LOCAL = xvasprintf(fmt, ap);
+   va_end(ap);
+
 #ifdef __MINGW32__
    if (!CreateDirectory(path, NULL) && (GetLastError() != ERROR_ALREADY_EXISTS))
       fatal_errno("mkdir: %s", path);
@@ -1929,6 +1934,20 @@ void make_dir(const char *path)
    if (mkdir(path, 0777) != 0 && errno != EEXIST)
       fatal_errno("mkdir: %s", path);
 #endif
+}
+
+FILE *create_file(const char *fmt, ...)
+{
+   va_list ap;
+   va_start(ap, fmt);
+   char *path LOCAL = xvasprintf(fmt, ap);
+   va_end(ap);
+
+   FILE *f = fopen(path, "w");
+   if (f == NULL)
+      fatal_errno("cannot create %s", path);
+
+   return f;
 }
 
 uint64_t get_timestamp_ns(void)

@@ -1734,10 +1734,7 @@ static int coverage_cmd(int argc, char **argv, cmd_state_t *state)
    if (export_file && cover) {
       progress("Exporting XML coverage report");
 
-      FILE *f = fopen(export_file, "w");
-      if (f == NULL)
-         fatal_errno("cannot open %s", export_file);
-
+      FILE *f = create_file("%s", export_file);
       cover_export_cobertura(cover, f, NULL);
       fclose(f);
    }
@@ -1945,8 +1942,8 @@ static int cover_export_cmd(int argc, char **argv, cmd_state_t *state)
    }
 
    FILE *file = stdout;
-   if (output != NULL && (file = fopen(output, "w")) == NULL)
-      fatal_errno("cannot create %s", output);
+   if (output != NULL)
+      file = create_file("%s", output);
 
    switch (format) {
    case COBERTURA:

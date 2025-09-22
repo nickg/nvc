@@ -549,7 +549,7 @@ lib_t lib_new(const char *spec)
          fatal("path %s already exists and is not a directory", path);
    }
 
-   make_dir(path);
+   make_dir("%s", path);
 
    int fd = open(lockf, O_CREAT | O_EXCL | O_RDWR, 0777);
    if (fd < 0) {
