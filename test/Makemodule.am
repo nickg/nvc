@@ -86,7 +86,8 @@ bin_lockbench_LDADD = \
 	lib/libgnulib.a \
 	$(libdw_LIBS) \
 	$(libffi_LIBS) \
-	$(libzstd_LIBS)
+	$(libzstd_LIBS) \
+	$(libdwarf_LIBS)
 
 bin_jitperf_SOURCES = test/jitperf.c
 
@@ -98,7 +99,8 @@ bin_jitperf_LDADD = \
 	$(libdw_LIBS) \
 	$(libffi_LIBS) \
 	$(capstone_LIBS) \
-	$(libzstd_LIBS)
+	$(libzstd_LIBS) \
+	$(libdwarf_LIBS)
 
 bin_jitperf_LDFLAGS = $(LDFLAGS) $(AM_LDFLAGS) $(EXPORT_LDFLAGS)
 
@@ -117,7 +119,8 @@ bin_workqbench_LDADD = \
 	$(libdw_LIBS) \
 	$(libffi_LIBS) \
 	$(check_LIBS) \
-	$(libzstd_LIBS)
+	$(libzstd_LIBS) \
+	$(libdwarf_LIBS)
 
 bin_mtstress_SOURCES = test/mtstress.c
 
@@ -131,7 +134,8 @@ bin_mtstress_LDADD = \
 	$(libdw_LIBS) \
 	$(libffi_LIBS) \
 	$(check_LIBS) \
-	$(libzstd_LIBS)
+	$(libzstd_LIBS) \
+	$(libdwarf_LIBS)
 
 vpi_dump_vpi_SOURCES = test/vpi-dump.c
 
