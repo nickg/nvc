@@ -649,7 +649,7 @@ START_TEST(test_enum1)
 
    vlog_check(m);
 
-   ck_assert_int_eq(vlog_decls(m), 7);
+   ck_assert_int_eq(vlog_decls(m), 8);
 
    fail_unless(vlog_parse() == NULL);
 

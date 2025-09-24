@@ -895,7 +895,45 @@ static vlog_node_t p_enum_base_type(void)
 
    BEGIN("enum base type");
 
-   return p_integer_atom_type();
+   switch (peek()) {
+   case tBYTE:
+   case tSHORTINT:
+   case tSVINT:
+   case tLONGINT:
+   case tINTEGER:
+   case tTIME:
+   {
+      vlog_node_t v = p_integer_atom_type();
+
+      if (scan(tSIGNED, tUNSIGNED))
+         p_signing();
+
+      return v;
+   }
+
+   case tBIT:
+   case tLOGIC:
+   case tREG:
+   {
+      vlog_node_t v = p_integer_vector_type();
+
+      if (scan(tSIGNED, tUNSIGNED))
+         p_signing();
+
+      if (scan(tLSQUARE))
+         p_packed_dimension();
+
+      return v;
+   }
+
+   default:
+      p_identifier();
+
+      if (scan(tLSQUARE))
+         p_packed_dimension();
+
+      return NULL;
+   }
 }
 
 static vlog_node_t p_data_type(void)
