@@ -6,4 +6,6 @@ module enum1;
   enum byte { e = 6, f } z;    // OK
   enum byte { g = f, h } zz;   // OK
   enum byte { i = zz, j } zzz; // Error
+  enum logic [3:0] { A = 4'b0000, B = 4'b0001} x; // OK
+
 endmodule // enum1
