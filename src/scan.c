@@ -80,7 +80,7 @@ extern int yylex(void);
 extern void reset_scanner(void);
 
 static bool pp_cond_analysis_expr(void);
-static void pp_defines_init();
+static void pp_defines_init(void);
 
 yylval_t yylval;
 loc_t yylloc;
@@ -379,7 +379,8 @@ const char *token_str(token_t tok)
          "unsigned", "disable", "class", "chandle", "export", "import",
          "endpackage", "extends", "this", "nettype", "ref", "super", "static",
          "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "<<=", ">>=", "<<<=",
-         ">>>=", "bufif0", "bufif1", "notif0", "notif1",
+         ">>>=", "bufif0", "bufif1", "notif0", "notif1", "`protect",
+         "begin_protected", "end_protected"
       };
 
       if (tok >= 200 && tok - 200 < ARRAY_LEN(token_strs))
@@ -696,6 +697,33 @@ static void pp_nvc_pop(void)
       diag_remove_hint_fn(macro_hint_cb);
 }
 
+static void pp_protect_block(void)
+{
+   if (!pp_expect(tBEGINPROT))
+      return;
+
+   diag_t *d = diag_new(DIAG_ERROR, &yylloc);
+   diag_printf(d, "`protect directives are not supported");
+   diag_hint(d, NULL, "encrypted IP can only be practicably implemented by "
+             "proprietary tools as the decryption key is shared between "
+             "the simulator and IP vendors");
+   diag_lrm(d, STD_08, "24.1");
+   diag_emit(d);
+
+   for (;;) {
+      token_t token = pp_yylex();
+      switch (token) {
+      case tEOF:
+         pp_error("unexpected end-of-file before $yellow$end_protected$$");
+         return;
+      case tPROTECT:
+         if (pp_yylex() == tENDPROT)
+            return;
+         break;
+      }
+   }
+}
+
 token_t processed_yylex(void)
 {
    assert(input_buf.lookahead == -1);
@@ -808,6 +836,10 @@ token_t processed_yylex(void)
 
       case tNVCPOP:
          pp_nvc_pop();
+         break;
+
+      case tPROTECT:
+         pp_protect_block();
          break;
 
       default:

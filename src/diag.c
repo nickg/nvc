@@ -472,6 +472,7 @@ static const struct {
    { "Interface object declarations", { [STD_08] = "6.5.2",
         [STD_93] = "4.3.2" } },
    { "Association lists", { [STD_08] = "6.5.7", [STD_93] = "4.3.2.2" } },
+   { "Protect tool directives", { [STD_08] = "24.1" } },
 };
 
 diag_t *diag_new(diag_level_t level, const loc_t *loc)

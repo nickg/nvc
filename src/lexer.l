@@ -149,7 +149,7 @@ SCALAR_ZERO     ('b0|'B0|1'b0|1'B0)
 SCALAR_ONE      ('b1|'B1|1'b1|1'B1)
 PAREN_STAR      "("{SPACE}*"*"{SPACE}*")"
 
-%x COMMENT C_COMMENT PSL VLOG UDP SDF SDF_EXPR CSTRING
+%x COMMENT C_COMMENT PSL VLOG UDP SDF SDF_EXPR CSTRING PROTECT
 
 ENTITY        ?i:entity
 IS            ?i:is
@@ -351,6 +351,7 @@ ABORT             ?i:abort
 ASYNC_ABORT       ?i:async_abort
 SYNC_ABORT        ?i:sync_abort
 BEFORE            ?i:before
+PROTECT           ?i:protect
 
 %%
 
@@ -492,6 +493,10 @@ BEFORE            ?i:before
 `{END}                   { TOKEN(tCONDEND); }
 `{ERROR}                 { TOKEN(tCONDERROR); }
 `{WARNING}               { TOKEN(tCONDWARN); }
+`{PROTECT}               { comment_caller = YY_START;
+                           BEGIN(PROTECT);
+                           TOKEN(tPROTECT);
+                         }
 
 <INITIAL,PSL>{AND}       { TOKEN(tAND); }
 <INITIAL,PSL>{OR}        { TOKEN(tOR); }
@@ -968,6 +973,10 @@ BEFORE            ?i:before
 
 <SDF,SDF_EXPR>{SDF_ID}  { yylval.str = xstrdup(yytext); TOKEN(tID); }
 
+<PROTECT>`{PROTECT}        { TOKEN(tPROTECT); }
+<PROTECT>"begin_protected" { TOKEN(tBEGINPROT); }
+<PROTECT>"end_protected"   { TOKEN(tENDPROT); BEGIN(comment_caller); }
+<PROTECT>.                 { }
 
 <INITIAL,PSL>{UTF8_MB}   { warn_utf8(yytext); REJECT; }
 

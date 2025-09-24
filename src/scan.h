@@ -537,5 +537,8 @@ void reset_sdf_parser(void);
 #define tBUFIF1        610
 #define tNOTIF0        611
 #define tNOTIF1        612
+#define tPROTECT       613
+#define tBEGINPROT     614
+#define tENDPROT       615
 
 #endif  // _SCAN_H
