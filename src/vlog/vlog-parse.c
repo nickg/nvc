@@ -902,29 +902,29 @@ static vlog_node_t p_enum_base_type(void)
    case tLONGINT:
    case tINTEGER:
    case tTIME:
-   {
-      vlog_node_t v = p_integer_atom_type();
+      {
+         vlog_node_t v = p_integer_atom_type();
 
-      if (scan(tSIGNED, tUNSIGNED))
-         p_signing();
+         if (scan(tSIGNED, tUNSIGNED))
+            p_signing();
 
-      return v;
-   }
+         return v;
+      }
 
    case tBIT:
    case tLOGIC:
    case tREG:
-   {
-      vlog_node_t v = p_integer_vector_type();
+      {
+         vlog_node_t v = p_integer_vector_type();
 
-      if (scan(tSIGNED, tUNSIGNED))
-         p_signing();
+         if (scan(tSIGNED, tUNSIGNED))
+            p_signing();
 
-      if (scan(tLSQUARE))
-         p_packed_dimension();
+         if (scan(tLSQUARE))
+            p_packed_dimension();
 
-      return v;
-   }
+         return v;
+      }
 
    default:
       p_identifier();
