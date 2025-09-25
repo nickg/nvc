@@ -152,6 +152,7 @@ typedef enum {
    V_OP_ASSIGN,
    V_STRUCT_REF,
    V_PACKAGE,
+   V_MIN_TYP_MAX,
 
    V_LAST_NODE_KIND
 } vlog_kind_t;

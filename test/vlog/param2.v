@@ -17,3 +17,7 @@ module mod2 #(p1);
   parameter p2 = 5;   // OK (really a localparam)
   parameter p3;   // Error
 endmodule
+
+module mod3;
+  localparam p_triple = (5:6:7);
+endmodule
