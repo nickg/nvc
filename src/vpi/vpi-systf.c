@@ -139,6 +139,9 @@ static void interpret_format(const char *fmt, vpiHandle it)
          case 'c':
             format_char(it, fwidth);
             break;
+         case '%':
+            fputc('%', stdout);
+            break;
          default:
             jit_msg(NULL, DIAG_WARN, "unknown format specifier '%c'", *p);
          }

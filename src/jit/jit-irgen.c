@@ -4027,6 +4027,8 @@ static void irgen_op_binary(jit_irgen_t *g, mir_value_t n)
       static const jit_vec_op_t map[] = {
          [MIR_VEC_ADD] = JIT_VEC_ADD,
          [MIR_VEC_MUL] = JIT_VEC_MUL,
+         [MIR_VEC_DIV] = JIT_VEC_DIV,
+         [MIR_VEC_MOD] = JIT_VEC_MOD,
          [MIR_VEC_SLL] = JIT_VEC_SHL,
          [MIR_VEC_SRL] = JIT_VEC_SHR,
          [MIR_VEC_CASE_EQ] = JIT_VEC_CASE_EQ,
@@ -4083,12 +4085,31 @@ static void irgen_op_binary(jit_irgen_t *g, mir_value_t n)
       xbits = irgen_arith_xbits(g, bleft, bright, mask);
       break;
    case MIR_VEC_DIV:
-      abits = j_div(g, aleft, aright);
-      xbits = irgen_arith_xbits(g, bleft, bright, mask);
-      break;
    case MIR_VEC_MOD:
-      abits = j_rem(g, aleft, aright);
-      xbits = irgen_arith_xbits(g, bleft, bright, mask);
+      {
+         irgen_label_t *l_skip = irgen_alloc_label(g);
+         jit_reg_t areg = irgen_alloc_reg(g), breg = irgen_alloc_reg(g);
+         j_mov(g, areg, mask);
+         j_mov(g, breg, mask);
+         j_cmp(g, JIT_CC_EQ, aright, jit_value_from_int64(0));
+         j_jump(g, JIT_CC_T, l_skip);
+
+         jit_value_t aresult;
+         if (op == MIR_VEC_DIV)
+            aresult = j_div(g, aleft, aright);
+         else
+            aresult = j_rem(g, aleft, aright);
+
+         jit_value_t bresult = irgen_arith_xbits(g, bleft, bright, mask);
+
+         j_mov(g, areg, aresult);
+         j_mov(g, breg, bresult);
+
+         irgen_bind_label(g, l_skip);
+
+         abits = jit_value_from_reg(areg);
+         xbits = jit_value_from_reg(breg);
+      }
       break;
    case MIR_VEC_CASE_EQ:
       j_cmp(g, JIT_CC_EQ, aleft, aright);

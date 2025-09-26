@@ -1204,3 +1204,4 @@ vlog26          verilog
 issue1294       mixed,2008
 rand2           verilog,seed=123
 cover29         shell
+binary3         verilog

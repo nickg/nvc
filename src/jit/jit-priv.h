@@ -210,6 +210,8 @@ typedef enum {
    JIT_VEC_INSERT,
    JIT_VEC_ADD,
    JIT_VEC_MUL,
+   JIT_VEC_DIV,
+   JIT_VEC_MOD,
    JIT_VEC_SHL,
    JIT_VEC_SHR,
    JIT_VEC_CASE_EQ,

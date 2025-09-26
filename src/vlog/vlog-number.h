@@ -83,6 +83,8 @@ number_t number_less_equal(number_t a, number_t b);
 void vec2_add(int size, uint64_t *a, const uint64_t *b);
 void vec2_sub(int size, uint64_t *a, const uint64_t *b);
 void vec2_mul(int size, uint64_t *a, const uint64_t *b);
+void vec2_div(int size, uint64_t *a, const uint64_t *b);
+void vec2_mod(int size, uint64_t *a, const uint64_t *b);
 void vec2_exp(int size, uint64_t *a, const uint64_t *b);
 void vec2_shl(int size, uint64_t *a, const uint64_t *b);
 void vec2_shr(int size, uint64_t *a, const uint64_t *b);
@@ -91,26 +93,22 @@ void vec2_inv(int size, uint64_t *a);
 int vec2_and1(int size, const uint64_t *a);
 int vec2_or1(int size, const uint64_t *a);
 
-vlog_logic_t vec2_sgt(const uint64_t *a, size_t asize,
-                      const uint64_t *b, size_t bsize);
-vlog_logic_t vec2_gt(const uint64_t *a, size_t asize,
-                     const uint64_t *b, size_t bsize);
-vlog_logic_t vec2_slt(const uint64_t *a, size_t asize,
-                      const uint64_t *b, size_t bsize);
-vlog_logic_t vec2_lt(const uint64_t *a, size_t asize,
-                     const uint64_t *b, size_t bsize);
-vlog_logic_t vec2_sge(const uint64_t *a, size_t asize,
-                      const uint64_t *b, size_t bsize);
-vlog_logic_t vec2_ge(const uint64_t *a, size_t asize,
-                     const uint64_t *b, size_t bsize);
-vlog_logic_t vec2_sle(const uint64_t *a, size_t asize,
-                      const uint64_t *b, size_t bsize);
-vlog_logic_t vec2_le(const uint64_t *a, size_t asize,
-                     const uint64_t *b, size_t bsize);
+int vec2_sgt(int size, const uint64_t *a, const uint64_t *b);
+int vec2_gt(int size, const uint64_t *a, const uint64_t *b);
+int vec2_slt(int size, const uint64_t *a, const uint64_t *b);
+int vec2_lt(int size, const uint64_t *a, const uint64_t *b);
+int vec2_sge(int size, const uint64_t *a, const uint64_t *b);
+int vec2_ge(int size, const uint64_t *a, const uint64_t *b);
+int vec2_sle(int size, const uint64_t *a, const uint64_t *b);
+int vec2_le(int size, const uint64_t *a, const uint64_t *b);
 
 void vec4_add(int size, uint64_t *a1, uint64_t *b1, const uint64_t *a2,
               const uint64_t *b2);
 void vec4_mul(int size, uint64_t *a1, uint64_t *b1, const uint64_t *a2,
+              const uint64_t *b2);
+void vec4_div(int size, uint64_t *a1, uint64_t *b1, const uint64_t *a2,
+              const uint64_t *b2);
+void vec4_mod(int size, uint64_t *a1, uint64_t *b1, const uint64_t *a2,
               const uint64_t *b2);
 void vec4_exp(int size, uint64_t *a1, uint64_t *b1, const uint64_t *a2,
               const uint64_t *b2);

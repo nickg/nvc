@@ -346,7 +346,8 @@ number_t number_new(const char *str, const loc_t *loc)
       const char *start = p;
       for (; *(p + 1); p++);
 
-      for (int bit = 0; p >= start; p--) {
+      int bit = 0;
+      for (; p >= start; p--) {
          switch (radix) {
          case RADIX_BIN:
             {
@@ -463,6 +464,23 @@ number_t number_new(const char *str, const loc_t *loc)
             should_not_reach_here();
          }
       }
+
+      for (; bit < width; bit++) {
+         switch (*start) {
+         case 'x':
+         case 'X':
+            bignum_set_abit(result, bit, 1);
+            bignum_set_bbit(result, bit, 1);
+            break;
+         case 'z':
+         case 'Z':
+            bignum_set_abit(result, bit, 0);
+            bignum_set_bbit(result, bit, 1);
+            break;
+         default:
+            break;
+         }
+      }
    }
 
    return number_intern(result);
@@ -510,6 +528,17 @@ number_t number_from_bool(bool value)
    return number_intern(result);
 }
 
+number_t number_from_logic(vlog_logic_t value)
+{
+   bignum_t *result;
+   bignum_scratch(1, false, 1, &result);
+
+   bignum_abits(result)[0] = value & 1;
+   bignum_bbits(result)[0] = value >> 1;
+
+   return number_intern(result);
+}
+
 void number_print(number_t val, text_buf_t *tb)
 {
    if (number_is_defined(val)) {
@@ -527,6 +556,20 @@ void number_print(number_t val, text_buf_t *tb)
    tb_printf(tb, "%u'b", number_width(val));
 
    static const char map[] = "01zx";
+
+   if (val.big->width > 0) {
+      const vlog_logic_t bit0 = number_bit(val, val.big->width - 1);
+      if (bit0 == LOGIC_X || bit0 == LOGIC_Z) {
+         bool all_undef = true;
+         for (int i = 0; all_undef && i < val.big->width - 1; i++)
+            all_undef &= number_bit(val, i) == bit0;
+
+         if (all_undef) {
+            tb_append(tb, map[bit0]);
+            return;
+         }
+      }
+   }
 
    bool leading = true;
    for (int i = val.big->width - 1; i >= 0; i--) {
@@ -757,86 +800,74 @@ number_t number_not(number_t a)
 
 number_t number_greater(number_t a, number_t b)
 {
-   bignum_t *result;
-   bignum_scratch(1, false, 1, &result);
+   bignum_t *left, *right;
+   bignum_for_binary(a, b, &left, &right);
 
    if (number_is_defined(a) && number_is_defined(b)) {
-      vlog_logic_t cmp;
+      int cmp;
       if (a.big->issigned && b.big->issigned)
-         cmp = vec2_sgt(a.big->words, a.big->width, b.big->words, b.big->width);
+         cmp = vec2_sgt(left->width, left->words, right->words);
       else
-         cmp = vec2_gt(a.big->words, a.big->width, b.big->words, b.big->width);
+         cmp = vec2_gt(left->width, left->words, right->words);
 
-      bignum_abits(result)[0] = (cmp == LOGIC_1);
-      bignum_bbits(result)[0] = 0;
+      return number_from_bool(cmp);
    }
    else
-      bignum_abits(result)[0] = bignum_bbits(result)[0] = 1;
-
-   return number_intern(result);
+      return number_from_logic(LOGIC_X);
 }
 
 number_t number_greater_equal(number_t a, number_t b)
 {
-   bignum_t *result;
-   bignum_scratch(1, false, 1, &result);
+   bignum_t *left, *right;
+   bignum_for_binary(a, b, &left, &right);
 
    if (number_is_defined(a) && number_is_defined(b)) {
-      vlog_logic_t cmp;
+      int cmp;
       if (a.big->issigned && b.big->issigned)
-         cmp = vec2_sge(a.big->words, a.big->width, b.big->words, b.big->width);
+         cmp = vec2_sge(left->width, left->words, right->words);
       else
-         cmp = vec2_ge(a.big->words, a.big->width, b.big->words, b.big->width);
+         cmp = vec2_ge(left->width, left->words, right->words);
 
-      bignum_abits(result)[0] = (cmp == LOGIC_1);
-      bignum_bbits(result)[0] = 0;
+      return number_from_bool(cmp);
    }
    else
-      bignum_abits(result)[0] = bignum_bbits(result)[0] = 1;
-
-   return number_intern(result);
+      return number_from_logic(LOGIC_X);
 }
 
 number_t number_less(number_t a, number_t b)
 {
-   bignum_t *result;
-   bignum_scratch(1, false, 1, &result);
+   bignum_t *left, *right;
+   bignum_for_binary(a, b, &left, &right);
 
    if (number_is_defined(a) && number_is_defined(b)) {
-      vlog_logic_t cmp;
+      int cmp;
       if (a.big->issigned && b.big->issigned)
-         cmp = vec2_slt(a.big->words, a.big->width, b.big->words, b.big->width);
+         cmp = vec2_slt(left->width, left->words, right->words);
       else
-         cmp = vec2_lt(a.big->words, a.big->width, b.big->words, b.big->width);
+         cmp = vec2_lt(left->width, left->words, right->words);
 
-      bignum_abits(result)[0] = (cmp == LOGIC_1);
-      bignum_bbits(result)[0] = 0;
+      return number_from_bool(cmp);
    }
    else
-      bignum_abits(result)[0] = bignum_bbits(result)[0] = 1;
-
-   return number_intern(result);
+      return number_from_logic(LOGIC_X);
 }
 
 number_t number_less_equal(number_t a, number_t b)
 {
-   bignum_t *result;
-   bignum_scratch(1, false, 1, &result);
+   bignum_t *left, *right;
+   bignum_for_binary(a, b, &left, &right);
 
    if (number_is_defined(a) && number_is_defined(b)) {
-      vlog_logic_t cmp;
+      int cmp;
       if (a.big->issigned && b.big->issigned)
-         cmp = vec2_sle(a.big->words, a.big->width, b.big->words, b.big->width);
+         cmp = vec2_sle(left->width, left->words, right->words);
       else
-         cmp = vec2_le(a.big->words, a.big->width, b.big->words, b.big->width);
+         cmp = vec2_le(left->width, left->words, right->words);
 
-      bignum_abits(result)[0] = (cmp == LOGIC_1);
-      bignum_bbits(result)[0] = 0;
+      return number_from_bool(cmp);
    }
    else
-      bignum_abits(result)[0] = bignum_bbits(result)[0] = 1;
-
-   return number_intern(result);
+      return number_from_logic(LOGIC_X);
 }
 
 static void vec2_mask(int size, uint64_t *a)
@@ -915,6 +946,59 @@ void vec2_mul(int size, uint64_t *a, const uint64_t *b)
 
       memcpy(a, tmp, n * sizeof(uint64_t));
       vec2_mask(size, a);
+   }
+}
+
+static void vec2_divmod(int size, uint64_t *q, uint64_t *r,
+                        const uint64_t *a, const uint64_t *b)
+{
+   uint64_t dividend[BIGNUM_WORDS(size)];
+   memcpy(dividend, a, sizeof(dividend));
+
+   uint64_t divisor[BIGNUM_WORDS(size)];
+   memcpy(divisor, b, sizeof(divisor));
+
+   uint64_t one[BIGNUM_WORDS(size)];
+   memset(one, 0, sizeof(one));
+   one[0] = 1;
+
+   memset(q, 0, BIGNUM_WORDS(size) * sizeof(uint64_t));
+   memset(r, 0, BIGNUM_WORDS(size) * sizeof(uint64_t));
+
+   for (int i = size - 1; i >= 0; i--) {
+      const int iword = i / 64;
+      const uint64_t ibit = UINT64_C(1) << (i % 64);
+
+      vec2_shl(size, r, one);
+      if (dividend[iword] & ibit)
+         r[0] |= 1;
+
+      if (!vec2_gt(size, divisor, r)) {
+         vec2_sub(size, r, divisor);
+         q[iword] |= ibit;
+      }
+   }
+}
+
+void vec2_div(int size, uint64_t *a, const uint64_t *b)
+{
+   if (size > 0 && size <= 64)
+      a[0] /= b[0];
+   else {
+      uint64_t q[BIGNUM_WORDS(size)], r[BIGNUM_WORDS(size)];
+      vec2_divmod(size, q, r, a, b);
+      memcpy(a, q, sizeof(q));
+   }
+}
+
+void vec2_mod(int size, uint64_t *a, const uint64_t *b)
+{
+   if (size > 0 && size <= 64)
+      a[0] %= b[0];
+   else {
+      uint64_t q[BIGNUM_WORDS(size)], r[BIGNUM_WORDS(size)];
+      vec2_divmod(size, q, r, a, b);
+      memcpy(a, r, sizeof(r));
    }
 }
 
@@ -1071,29 +1155,61 @@ int vec2_or1(int size, const uint64_t *a)
    return result;
 }
 
+int vec2_gt(int size, const uint64_t *a, const uint64_t *b)
+{
+   if (size <= 64)
+      return a[0] > b[0];
+   else {
+      for (int i = BIGNUM_WORDS(size) - 1; i >= 0; i--) {
+         if (a[i] > b[i])
+            return 1;
+         else if (a[i] < b[i])
+            return 0;
+      }
+
+      return 0;
+   }
+}
+
+int vec2_sgt(int size, const uint64_t *a, const uint64_t *b)
+{
+   if (size <= 64)
+      return (int64_t)a[0] > (int64_t)b[0];
+   else
+      should_not_reach_here();  // TODO
+}
+
 #define VEC2_CMP_OP(name, op)                                           \
-   vlog_logic_t vec2_##name(const uint64_t *a, size_t asize,            \
-                            const uint64_t *b, size_t bsize)            \
+   int vec2_##name(int size, const uint64_t *a, const uint64_t *b)      \
    {                                                                    \
-      if (asize <= 64 && bsize <= 64)                                   \
+      if (size <= 64)                                                   \
          return a[0] op b[0] ? LOGIC_1 : LOGIC_0;                       \
       else                                                              \
          should_not_reach_here();   /* TODO */                          \
    }                                                                    \
                                                                         \
-   vlog_logic_t vec2_s##name(const uint64_t *a, size_t asize,           \
-                             const uint64_t *b, size_t bsize)           \
+   int vec2_s##name(int size, const uint64_t *a, const uint64_t *b)     \
    {                                                                    \
-      if (asize <= 64 && bsize <= 64)                                   \
+      if (size <= 64)                                                   \
          return (int64_t)a[0] op (int64_t)b[0] ? LOGIC_1 : LOGIC_0;     \
       else                                                              \
          should_not_reach_here();   /* TODO */                          \
    }
 
 VEC2_CMP_OP(lt, <);
-VEC2_CMP_OP(gt, >);
 VEC2_CMP_OP(le, <=);
 VEC2_CMP_OP(ge, >=);
+
+static void vec4_make_undef(int size, uint64_t *a, uint64_t *b)
+{
+  for (int i = 0; i < BIGNUM_WORDS(size); i++) {
+      b[i] = a[i] = ~UINT64_C(0);
+      if ((i + 1) * 64 > size) {
+         a[i] >>= 64 - size % 64;
+         b[i] >>= 64 - size % 64;
+      }
+   }
+}
 
 static bool vec4_arith_defined(int size, uint64_t *a1, uint64_t *b1,
                                const uint64_t *a2, const uint64_t *b2)
@@ -1105,14 +1221,7 @@ static bool vec4_arith_defined(int size, uint64_t *a1, uint64_t *b1,
    if (is_defined)
       return true;
 
-   for (int i = 0; i < BIGNUM_WORDS(size); i++) {
-      b1[i] = a1[i] = ~UINT64_C(0);
-      if ((i + 1) * 64 > size) {
-         a1[i] >>= 64 - size % 64;
-         b1[i] >>= 64 - size % 64;
-      }
-   }
-
+   vec4_make_undef(size, a1, b1);
    return false;
 }
 
@@ -1128,6 +1237,28 @@ void vec4_mul(int size, uint64_t *a1, uint64_t *b1, const uint64_t *a2,
 {
    if (vec4_arith_defined(size, a1, b1, a2, b2))
       vec2_mul(size, a1, a2);
+}
+
+void vec4_div(int size, uint64_t *a1, uint64_t *b1, const uint64_t *a2,
+              const uint64_t *b2)
+{
+   if (vec4_arith_defined(size, a1, b1, a2, b2)) {
+      if (vec2_is_zero(size, a2))
+         vec4_make_undef(size, a1, b1);
+      else
+         vec2_div(size, a1, a2);
+   }
+}
+
+void vec4_mod(int size, uint64_t *a1, uint64_t *b1, const uint64_t *a2,
+              const uint64_t *b2)
+{
+   if (vec4_arith_defined(size, a1, b1, a2, b2)) {
+      if (vec2_is_zero(size, a2))
+         vec4_make_undef(size, a1, b1);
+      else
+         vec2_mod(size, a1, a2);
+   }
 }
 
 void vec4_exp(int size, uint64_t *a1, uint64_t *b1, const uint64_t *a2,
