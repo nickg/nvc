@@ -19,6 +19,8 @@
 - The `--precompile` elaboration option is deprecated and will be
   removed in the next release.  Please get in touch if you are still
   using this.
+- Passing scalar `out` arguments using the non-standard `VHPIDIRECT`
+  calling convention now works correctly (#1301).
 - Several other minor bugs were resolved (#1253, #1269, #1277, #1279,
   #1280, #1281).
 

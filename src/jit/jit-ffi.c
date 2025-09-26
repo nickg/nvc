@@ -341,9 +341,9 @@ static ffi_type *ghdl_ffi_result_type(type_t type)
    return &ffi_type_void;
 }
 
-static void ghdl_ffi_add_arg(ghdl_ffi_t *gffi, ffi_type **types, type_t type)
+static void ghdl_ffi_add_arg(ghdl_ffi_t *gffi, ffi_type **types, tree_t p)
 {
-   type_t base = type_base_recur(type);
+   type_t type = tree_type(p), base = type_base_recur(type);
    switch (type_kind(base)) {
    case T_INTEGER:
    case T_ENUM:
@@ -351,18 +351,24 @@ static void ghdl_ffi_add_arg(ghdl_ffi_t *gffi, ffi_type **types, type_t type)
       {
          gffi->args[gffi->nvhdl++] = GHDL_ARG_PASS;
 
-         switch (type_byte_width(base)) {
-         case 8: types[gffi->nforeign++] = &ffi_type_sint64; return;
-         case 4: types[gffi->nforeign++] = &ffi_type_sint32; return;
-         case 2: types[gffi->nforeign++] = &ffi_type_sint16; return;
-         case 1: types[gffi->nforeign++] = &ffi_type_sint8; return;
+         if (tree_subkind(p) == PORT_IN) {
+            switch (type_byte_width(base)) {
+            case 8: types[gffi->nforeign++] = &ffi_type_sint64; break;
+            case 4: types[gffi->nforeign++] = &ffi_type_sint32; break;
+            case 2: types[gffi->nforeign++] = &ffi_type_sint16; break;
+            case 1: types[gffi->nforeign++] = &ffi_type_sint8; break;
+            }
          }
+         else
+            types[gffi->nforeign++] = &ffi_type_pointer;
+
+         return;
       }
-      break;
    case T_REAL:
       gffi->args[gffi->nvhdl++] = GHDL_ARG_PASS;
       types[gffi->nforeign++] = &ffi_type_double;
       return;
+   case T_ACCESS:  // TOOD: deprecate this?
    case T_RECORD:
       gffi->args[gffi->nvhdl++] = GHDL_ARG_PASS;
       types[gffi->nforeign++] = &ffi_type_pointer;
@@ -430,12 +436,8 @@ static void *ffi_prepare_ghdl(tree_t decl, const char *symbol)
          jit_msg(tree_loc(p), DIAG_FATAL, "SIGNAL parameters are not "
                  "supported for VHPIDIRECT subprograms using the GHDL "
                  "calling convention");
-      else if (tree_subkind(p) != PORT_IN) {
-         types[gffi->nforeign++] = &ffi_type_pointer;
-         gffi->args[gffi->nvhdl++] = GHDL_ARG_PASS;
-      }
-      else
-         ghdl_ffi_add_arg(gffi, types, tree_type(p));
+
+      ghdl_ffi_add_arg(gffi, types, p);
    }
 
    assert(gffi->nvhdl <= 2 + nports * 3);
