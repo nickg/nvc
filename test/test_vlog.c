@@ -727,6 +727,24 @@ START_TEST(test_param2)
 
    vlog_check(m2);
 
+   vlog_node_t m3 = vlog_parse();
+   fail_if(m3 == NULL);
+   fail_unless(vlog_kind(m3) == V_MODULE);
+
+   vlog_node_t p3 = vlog_decl(m3, 0);
+   fail_unless(vlog_kind(p3) == V_LOCALPARAM);
+   vlog_node_t p3v = vlog_value(p3);
+   fail_unless(vlog_kind(p3v) == V_MIN_TYP_MAX);
+
+   vlog_node_t min = vlog_left(p3v);
+   fail_unless(number_integer(vlog_number(min)) == 5);
+
+   vlog_node_t typ = vlog_value(p3v);
+   fail_unless(number_integer(vlog_number(typ)) == 6);
+
+   vlog_node_t max = vlog_right(p3v);
+   fail_unless(number_integer(vlog_number(max)) == 7);
+
    fail_unless(vlog_parse() == NULL);
 
    check_expected_errors();
