@@ -1206,3 +1206,4 @@ rand2           verilog,seed=123
 cover29         shell
 binary3         verilog
 issue1301       normal,vhpi
+psl23           gold,psl,fail

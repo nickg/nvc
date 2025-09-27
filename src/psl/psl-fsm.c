@@ -531,6 +531,45 @@ static fsm_state_t *build_next(psl_fsm_t *fsm, fsm_state_t *state, psl_node_t p)
    return build_node(fsm, state, psl_value(p));
 }
 
+static fsm_state_t *build_next_e(psl_fsm_t *fsm, fsm_state_t *state, psl_node_t p)
+{
+   psl_node_t range = psl_delay(p);
+   psl_node_t guard = psl_value(p);
+   bool strong = (psl_flags(p) & PSL_F_STRONG) ? true : false;
+
+   psl_guard_t guard_n = not_guard(guard);
+   fsm_state_t *curr = state;
+
+   const int lo = get_number(psl_tree(psl_left(range)));
+   const int hi = get_number(psl_tree(psl_right(range)));
+
+   for (int i = 0; i < lo - 1; i++) {
+      fsm_state_t *new = add_state(fsm, p);
+      new->strong = strong;
+      add_edge(fsm, curr, new, EDGE_NEXT, NULL);
+      curr = new;
+   }
+
+   const int n_states = hi - lo + 1;
+   fsm_state_t *states[n_states];
+
+   for (int i = 0; i < n_states; i++) {
+      states[i] = add_state(fsm, p);
+      states[i]->strong = strong;
+   }
+
+   add_edge(fsm, curr, states[n_states - 1], EDGE_NEXT, guard);
+   add_edge(fsm, curr, states[0], EDGE_NEXT, guard_n);
+
+   for (int i = 0; i < n_states - 1; i++) {
+      add_edge(fsm, states[i], states[n_states - 1], EDGE_NEXT, guard);
+      if (i < n_states - 2)
+         add_edge(fsm, states[i], states[i + 1], EDGE_NEXT, guard_n);
+   }
+
+   return states[n_states - 1];
+}
+
 static fsm_state_t *build_eventually(psl_fsm_t *fsm, fsm_state_t *state,
                                      psl_node_t p)
 {
@@ -610,6 +649,8 @@ static fsm_state_t *build_node(psl_fsm_t *fsm, fsm_state_t *state, psl_node_t p)
       }
    case P_NEXT:
       return build_next(fsm, state, p);
+   case P_NEXT_E:
+      return build_next_e(fsm, state, p);
    case P_SERE:
       return build_sere(fsm, state, p);
    case P_REPEAT:

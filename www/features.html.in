@@ -692,7 +692,7 @@ table below.
   <tr>
     <td>6.2.1.4.2</td>
     <td>next_e</td>
-    <td class="feature-missing"></td>
+    <td class="feature-done">master</td>
   </tr>
   <tr>
     <td>6.2.1.4.3</td>

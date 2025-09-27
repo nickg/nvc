@@ -392,6 +392,7 @@ START_TEST(test_sem2)
       { 17, "PSL union operands must be the same type" },
       {  0, "have BIT and INTEGER" },
       { 18, "no visible declaration for XXXX" },
+      { 19, "left bound of PSL range (5) must be lower than right bound (3)"},
       { -1, NULL }
    };
    expect_errors(expect);
