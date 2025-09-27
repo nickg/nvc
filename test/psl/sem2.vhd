@@ -9,12 +9,13 @@ architecture test of sem1 is
     -- psl default clock is clk'event and clk = '1';    -- OK
 begin
 
-    -- psl assert always prev(x);    -- OK
-    -- psl assert rose(i);           -- Error
-    -- psl assert rose(x);           -- OK
-    -- psl assert ended({x;y});      -- OK
-    -- psl cover  prev(x, i);        -- Error
-    -- psl cover  {x union c};       -- Error
-    -- psl cover  {x union xxxx};    -- Error
+    -- psl assert always prev(x);           -- OK
+    -- psl assert rose(i);                  -- Error
+    -- psl assert rose(x);                  -- OK
+    -- psl assert ended({x;y});             -- OK
+    -- psl cover  prev(x, i);               -- Error
+    -- psl cover  {x union c};              -- Error
+    -- psl cover  {x union xxxx};           -- Error
+    -- psl assert (next_e[5 to 3] (y));     -- Error
 
 end architecture;
