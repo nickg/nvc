@@ -117,14 +117,12 @@ typedef struct _rt_model {
    ihash_t           *res_memo;
    rt_watch_t        *watches;
    deferq_t           procq;
-   deferq_t           delta_procq;
+   deferq_t           next_procq;
    deferq_t           driverq;
    deferq_t           delta_driverq;
    deferq_t           postponedq;
    deferq_t           implicitq;
    deferq_t           triggerq;
-   deferq_t           activeq;
-   deferq_t           next_activeq;
    deferq_t           inactiveq;
    deferq_t           next_inactiveq;
    deferq_t           nonblockq;
@@ -451,7 +449,7 @@ static void *static_alloc(rt_model_t *m, size_t size)
    return ptr;
 }
 
-static void mark_phase(rt_model_t *m, model_phase_t phase)
+static void run_callbacks(rt_model_t *m, model_phase_t phase)
 {
    rt_callback_t *list = m->phase_cbs[phase];
    m->phase_cbs[phase] = NULL;
@@ -636,12 +634,10 @@ void model_free(rt_model_t *m)
    }
 
    free(m->procq.tasks);
-   free(m->delta_procq.tasks);
+   free(m->next_procq.tasks);
    free(m->postponedq.tasks);
    free(m->implicitq.tasks);
    free(m->triggerq.tasks);
-   free(m->activeq.tasks);
-   free(m->next_activeq.tasks);
    free(m->inactiveq.tasks);
    free(m->next_inactiveq.tasks);
    free(m->nonblockq.tasks);
@@ -867,7 +863,7 @@ static void deltaq_insert_proc(rt_model_t *m, uint64_t delta, rt_proc_t *proc)
 {
    if (delta == 0) {
       set_pending(&proc->wakeable);
-      deferq_do(&m->delta_procq, async_run_process, proc);
+      deferq_do(&m->procq, async_run_process, proc);
       m->next_is_delta = true;
    }
    else {
@@ -927,7 +923,7 @@ static void reset_process(rt_model_t *m, rt_proc_t *proc)
 
    // Schedule the process to run immediately
    set_pending(&proc->wakeable);
-   deferq_do(&m->delta_procq, async_run_process, proc);
+   deferq_do(&m->procq, async_run_process, proc);
 }
 
 static void reset_property(rt_model_t *m, rt_prop_t *prop)
@@ -2356,9 +2352,9 @@ static void create_processes(rt_model_t *m, rt_scope_t *s)
                should_not_reach_here();
             }
 
-            p->wakeable.pending = false;
-            p->wakeable.delayed = false;
-            p->wakeable.region  = VLOG_ACTIVE;
+            p->wakeable.pending   = false;
+            p->wakeable.delayed   = false;
+            p->wakeable.postponed = false;
 
             APUSH(s->procs, p);
          }
@@ -2376,14 +2372,10 @@ static void create_processes(rt_model_t *m, rt_scope_t *s)
             p->scope     = s;
             p->privdata  = mptr_new(m->mspace, "process privdata");
 
-            p->wakeable.kind    = W_PROC;
-            p->wakeable.pending = false;
-            p->wakeable.delayed = false;
-
-            if (tree_flags(t) & TREE_F_POSTPONED)
-               p->wakeable.region = VHDL_POSTPONED;
-            else
-               p->wakeable.region = VHDL_PROCESS;
+            p->wakeable.kind      = W_PROC;
+            p->wakeable.pending   = false;
+            p->wakeable.delayed   = false;
+            p->wakeable.postponed = !!(tree_flags(t) & TREE_F_POSTPONED);
 
             APUSH(s->procs, p);
          }
@@ -2495,7 +2487,7 @@ void model_reset(rt_model_t *m)
 
    tlab_reset(thread->tlab);   // No allocations can be live past here
 
-   mark_phase(m, END_OF_INITIALISATION);
+   run_callbacks(m, END_OF_INITIALISATION);
 }
 
 static void update_property(rt_model_t *m, rt_prop_t *prop)
@@ -2924,16 +2916,11 @@ static void update_assignment(rt_model_t *m, rt_proc_t *proc)
 static void procq_do(rt_model_t *m, rt_wakeable_t *obj, defer_fn_t fn,
                      void *arg)
 {
-   switch (obj->region) {
-   case VHDL_PROCESS:
-      deferq_do(&m->procq, fn, arg);
-      break;
-   case VHDL_POSTPONED:
+   if (obj->postponed)
       deferq_do(&m->postponedq, fn, arg);
-      break;
-   case VLOG_ACTIVE:
-      deferq_do(&m->activeq, fn, arg);
-      break;
+   else {
+      deferq_do(&m->procq, fn, arg);
+      m->next_is_delta |= m->blocking_update;
    }
 
    set_pending(obj);
@@ -2948,8 +2935,7 @@ static void wakeup_one(rt_model_t *m, rt_wakeable_t *obj)
    case W_PROC:
       {
          rt_proc_t *proc = container_of(obj, rt_proc_t, wakeable);
-         TRACE("wakeup %sprocess %s",
-               obj->region == VHDL_POSTPONED ? "postponed " : "",
+         TRACE("wakeup %sprocess %s", obj->postponed ? "postponed " : "",
                istr(proc->name));
 
          if (proc->wakeable.delayed) {
@@ -2987,8 +2973,7 @@ static void wakeup_one(rt_model_t *m, rt_wakeable_t *obj)
       {
          rt_watch_t *w = container_of(obj, rt_watch_t, wakeable);
          TRACE("wakeup %svalue change callback %p %s",
-               obj->region == VHDL_POSTPONED ? "postponed " : "", w,
-               debug_symbol_name(w->fn));
+               obj->postponed ? "postponed " : "", w, debug_symbol_name(w->fn));
 
          assert(!w->wakeable.zombie);
          procq_do(m, obj, async_watch_callback, w);
@@ -3384,7 +3369,7 @@ static void reached_iteration_limit(rt_model_t *m)
 
    diag_printf(d, "limit of %d delta cycles reached", m->stop_delta);
 
-   deferq_scan(&m->delta_procq, iteration_limit_proc_cb, d);
+   deferq_scan(&m->procq, iteration_limit_proc_cb, d);
    deferq_scan(&m->delta_driverq, iteration_limit_driver_cb, d);
 
    diag_hint(d, NULL, "you can increase this limit with $bold$--stop-delta$$");
@@ -3441,13 +3426,12 @@ static void model_cycle(rt_model_t *m)
       deltaq_dump(m);
 #endif
 
-   swap_deferq(&m->procq, &m->delta_procq);
    swap_deferq(&m->driverq, &m->delta_driverq);
 
    if (m->iteration == 0)
-      mark_phase(m, NEXT_TIME_STEP);
+      run_callbacks(m, NEXT_TIME_STEP);
 
-   mark_phase(m, NEXT_CYCLE);
+   run_callbacks(m, NEXT_CYCLE);
 
    if (!is_delta_cycle) {
       for (;;) {
@@ -3517,34 +3501,29 @@ static void model_cycle(rt_model_t *m)
    m->trigger_epoch++;
    deferq_run(m, &m->triggerq);  // Sensitivity list filter
 
-   mark_phase(m, START_OF_PROCESSES);
+   run_callbacks(m, START_OF_PROCESSES);
 
    if (m->shuffle)
       deferq_shuffle(&m->procq);
 
    // Run all non-postponed processes and event callbacks
-   deferq_run(m, &m->procq);
+   swap_deferq(&m->next_procq, &m->procq);
+   deferq_run(m, &m->next_procq);
 
-   mark_phase(m, END_OF_PROCESSES);
+   run_callbacks(m, END_OF_PROCESSES);
 
    // Verilog scheduling regions
 
-   if (m->activeq.count > 0) {
-      TRACE("begin active region");
-      swap_deferq(&m->next_activeq, &m->activeq);
-      deferq_run(m, &m->next_activeq);
-   }
-
-   if (m->activeq.count > 0 || m->next_is_delta)
+   if (m->next_is_delta)
       goto next_delta;
 
-   if (m->inactiveq.count > 0) {
+   if (!m->next_is_delta && m->inactiveq.count > 0) {
       TRACE("begin inactive region");
       swap_deferq(&m->next_inactiveq, &m->inactiveq);
       deferq_run(m, &m->next_inactiveq);
    }
 
-   if (m->activeq.count > 0 || m->inactiveq.count > 0)
+   if (m->next_is_delta)
       goto next_delta;
 
    if (m->nonblockq.count > 0) {
@@ -3553,10 +3532,8 @@ static void model_cycle(rt_model_t *m)
    }
 
  next_delta:
-   m->next_is_delta |= m->activeq.count > 0 || m->inactiveq.count > 0;
-
    if (!m->next_is_delta)
-      mark_phase(m, LAST_KNOWN_DELTA_CYCLE);
+      run_callbacks(m, LAST_KNOWN_DELTA_CYCLE);
 
    if (!m->next_is_delta) {
       m->can_create_delta = false;
@@ -3564,7 +3541,7 @@ static void model_cycle(rt_model_t *m)
       // Run all postponed processes and event callbacks
       deferq_run(m, &m->postponedq);
 
-      mark_phase(m, END_TIME_STEP);
+      run_callbacks(m, END_TIME_STEP);
 
       m->can_create_delta = true;
    }
@@ -3619,12 +3596,12 @@ void model_run(rt_model_t *m, uint64_t stop_time)
    if (m->force_stop)
       return;   // Was error during intialisation
 
-   mark_phase(m, START_OF_SIMULATION);
+   run_callbacks(m, START_OF_SIMULATION);
 
    while (!should_stop_now(m, stop_time))
       model_cycle(m);
 
-   mark_phase(m, END_OF_SIMULATION);
+   run_callbacks(m, END_OF_SIMULATION);
 
    if (m->liveness)
       check_liveness_properties(m, m->root);
@@ -3642,7 +3619,7 @@ bool model_step(rt_model_t *m)
 
 static inline void check_postponed(int64_t after, rt_proc_t *proc)
 {
-   if (unlikely(proc->wakeable.region == VHDL_POSTPONED && after == 0))
+   if (unlikely(proc->wakeable.postponed && after == 0))
       fatal("postponed process %s cannot cause a delta cycle",
             istr(proc->name));
 }
@@ -3806,7 +3783,7 @@ void model_set_timeout_cb(rt_model_t *m, uint64_t when, rt_event_fn_t fn,
 }
 
 rt_watch_t *watch_new(rt_model_t *m, sig_event_fn_t fn, void *user,
-                      rt_region_t region, unsigned slots)
+                      watch_kind_t kind, unsigned slots)
 {
    rt_watch_t *w = xcalloc_flex(sizeof(rt_watch_t), slots,
                                 sizeof(rt_signal_t *));
@@ -3816,7 +3793,7 @@ rt_watch_t *watch_new(rt_model_t *m, sig_event_fn_t fn, void *user,
    w->num_slots = slots;
 
    w->wakeable.kind      = W_WATCH;
-   w->wakeable.region    = region;
+   w->wakeable.postponed = (kind == WATCH_POSTPONED);
    w->wakeable.pending   = false;
    w->wakeable.delayed   = false;
 
@@ -4232,6 +4209,7 @@ void x_sched_inactive(void)
 
    set_pending(&proc->wakeable);
    deferq_do(&m->inactiveq, async_run_process, proc);
+   m->next_is_delta = true;
 }
 
 void x_sched_waveform_s(sig_shared_t *ss, uint32_t offset, uint64_t scalar,
@@ -4312,16 +4290,17 @@ void x_transfer_signal(sig_shared_t *target_ss, uint32_t toffset,
    t->after  = after;
    t->reject = reject;
 
-   t->wakeable.kind    = W_TRANSFER;
-   t->wakeable.pending = false;
-   t->wakeable.delayed = false;
+   t->wakeable.kind      = W_TRANSFER;
+   t->wakeable.postponed = false;
+   t->wakeable.pending   = false;
+   t->wakeable.delayed   = false;
 
    for (rt_nexus_t *n = t->source; count > 0; n = n->chain) {
       sched_event(m, &(n->pending), &(t->wakeable));
 
       if (!t->wakeable.pending) {
          // Schedule initial update immediately
-         deferq_do(&m->delta_procq, async_transfer_signal, t);
+         deferq_do(&m->procq, async_transfer_signal, t);
          t->wakeable.pending = true;
       }
 
@@ -4846,7 +4825,7 @@ void x_deposit_signal(sig_shared_t *ss, uint32_t offset, int32_t count,
    TRACE("deposit signal %s+%d value=%s count=%d", istr(tree_ident(s->where)),
          offset, fmt_values(values, count * s->nexus.size), count);
 
-   assert(get_active_proc()->wakeable.region == VLOG_ACTIVE);
+   assert(!get_active_proc()->wakeable.postponed);
 
    rt_model_t *m = get_model();
    rt_nexus_t *n = split_nexus(m, s, offset, count);
@@ -4890,8 +4869,6 @@ void x_sched_deposit(sig_shared_t *ss, uint32_t offset, int32_t count,
    TRACE("schedule deposit %s+%d value=%s count=%d after=%s",
          istr(tree_ident(s->where)), offset,
          fmt_values(values, count * s->nexus.size), count, trace_time(after));
-
-   assert(get_active_proc()->wakeable.region == VLOG_ACTIVE);
 
    rt_model_t *m = get_model();
    rt_nexus_t *n = split_nexus(m, s, offset, count);
@@ -5035,9 +5012,10 @@ void x_process_init(jit_handle_t handle, tree_t where)
    p->scope     = s;
    p->privdata  = mptr_new(m->mspace, "process privdata");
 
-   p->wakeable.kind    = W_PROC;
-   p->wakeable.pending = false;
-   p->wakeable.delayed = false;
+   p->wakeable.kind      = W_PROC;
+   p->wakeable.pending   = false;
+   p->wakeable.postponed = false;
+   p->wakeable.delayed   = false;
 
    APUSH(s->procs, p);
 }

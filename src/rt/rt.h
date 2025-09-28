@@ -71,12 +71,6 @@ typedef enum {
    SCOPE_RECORD,
 } rt_scope_kind_t;
 
-typedef enum {
-   VHDL_PROCESS,
-   VHDL_POSTPONED,
-   VLOG_ACTIVE,
-} rt_region_t;
-
 typedef uint16_t delta_cycle_t;
 #define DELTA_CYCLE_MAX UINT16_MAX
 

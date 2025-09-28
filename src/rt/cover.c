@@ -257,7 +257,7 @@ void x_cover_setup_toggle_cb(sig_shared_t *ss, int32_t tag)
    else if (op_mask & COVER_MASK_TOGGLE_COUNT_FROM_TO_Z)
       fn = &cover_toggle_cb_0_1_z;
 
-   rt_watch_t *w = watch_new(m, fn, counters + tag, VHDL_PROCESS, 1);
+   rt_watch_t *w = watch_new(m, fn, counters + tag, WATCH_EVENT, 1);
    model_set_event_cb(m, s, w);
 }
 
@@ -298,7 +298,7 @@ void x_cover_setup_state_cb(sig_shared_t *ss, int64_t low, int32_t tag)
    *(counters + tag) = 1;
 
    rt_watch_t *w = watch_new(m, cover_state_cb, counters + tag - low,
-                             VHDL_PROCESS, 1);
+                             WATCH_EVENT, 1);
    model_set_event_cb(m, s, w);
 }
 

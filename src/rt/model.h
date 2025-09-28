@@ -22,6 +22,11 @@
 #include "rt/rt.h"
 
 typedef enum {
+   WATCH_EVENT,
+   WATCH_POSTPONED,
+} watch_kind_t;
+
+typedef enum {
    END_OF_INITIALISATION,
    START_OF_SIMULATION,
    START_OF_PROCESSES,
@@ -47,7 +52,7 @@ void model_interrupt(rt_model_t *m);
 int model_exit_status(rt_model_t *m);
 
 rt_watch_t *watch_new(rt_model_t *m, sig_event_fn_t fn, void *user,
-                      rt_region_t region, unsigned slots);
+                      watch_kind_t kind, unsigned slots);
 void watch_free(rt_model_t *m, rt_watch_t *w);
 
 void model_set_phase_cb(rt_model_t *m, model_phase_t phase, rt_event_fn_t fn,
