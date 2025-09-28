@@ -8,7 +8,7 @@ simulator.
 
 NVC supports almost all of VHDL-2008 with the exception of PSL, and it
 has been successfully used to simulate several real-world designs.
-Experimental support for VHDL-2019 is under development.
+Experimental support for Verilog and VHDL-2019 is under development.
 
 NVC has a particular emphasis on simulation performance and uses
 [LLVM](https://llvm.org/) to compile VHDL to native machine code.
