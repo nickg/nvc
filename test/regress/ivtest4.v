@@ -13,17 +13,19 @@ module ivtest4;
 	@(negedge cp)
 	  d <= ~d;
 
-	@(posedge cp)
-	  if (q !== 'bx && d === q)
+	@(posedge cp) begin
+	  #0;
+	  if ((q === 1 || q === 0)  && d !== q)
 	    begin
 	       $display("FAILED, d=%b, q=%b", d, q);
 	       #1 $finish;
 	    end
+       end
      end
 
    initial
      begin
-	#1 d = 1;
+	#1 d <= 1;
 	#22;
 	$display("PASSED");
 	$finish;

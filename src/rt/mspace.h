@@ -42,6 +42,13 @@ typedef struct _tlab {
       (t)->alloc = 0;                           \
    } while (0)
 
+#define tlab_mark(t) (t)->alloc                 \
+
+#define tlab_trim(t, mark) do {                 \
+      assert((t)->alloc >= (mark));             \
+      (t)->alloc = (mark);                      \
+   } while (0)
+
 mspace_t *mspace_new(size_t size);
 void mspace_destroy(mspace_t *m);
 void *mspace_alloc(mspace_t *m, size_t size);

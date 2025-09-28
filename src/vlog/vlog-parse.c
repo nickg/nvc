@@ -3016,7 +3016,7 @@ static vlog_node_t p_initial_construct(void)
    return v;
 }
 
-static vlog_node_t p_net_assignment(void)
+static vlog_node_t p_net_assignment(vlog_node_t delay)
 {
    // net_lvalue = expression
 
@@ -3027,6 +3027,7 @@ static vlog_node_t p_net_assignment(void)
    vlog_node_t v = vlog_new(V_ASSIGN);
    vlog_set_target(v, p_net_lvalue());
    vlog_set_ident(v, default_label("assign"));
+   vlog_set_delay(v, delay);
 
    vlog_symtab_set_implicit(symtab, V_NET_NONE);
 
@@ -3038,14 +3039,14 @@ static vlog_node_t p_net_assignment(void)
    return v;
 }
 
-static void p_list_of_net_assignments(vlog_node_t mod)
+static void p_list_of_net_assignments(vlog_node_t mod, vlog_node_t delay)
 {
    // net_assignment { , net_assignment }
 
    BEGIN("list of net assignments");
 
    do {
-      vlog_add_stmt(mod, p_net_assignment());
+      vlog_add_stmt(mod, p_net_assignment(delay));
    } while (optional(tCOMMA));
 }
 
@@ -3058,16 +3059,15 @@ static void p_continuous_assign(vlog_node_t mod)
 
    consume(tASSIGN);
 
+   vlog_node_t delay = NULL;
    if (peek() == tLPAREN) {
       p_drive_strength();
       if (peek() == tHASH)
          p_delay3();
-   } else {
-      if (peek() == tHASH)
-         p_delay_control();
-   }
+   } else if (peek() == tHASH)
+      delay = p_delay_control();
 
-   p_list_of_net_assignments(mod);
+   p_list_of_net_assignments(mod, delay);
 
    consume(tSEMI);
 }

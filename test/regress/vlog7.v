@@ -8,7 +8,6 @@ module vlog7;
   assign w2 = 0;
 
   initial begin
-    $display("%x %x %x", w1, w2, w3);
     #0;
     $display("%x %x %x", w1, w2, w3);
     $finish;

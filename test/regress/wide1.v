@@ -13,6 +13,7 @@ module wide1;
   alu #(100) u(x, y, add);
 
   initial begin
+    #0;  // TODO: remove this
     x = 1;
     y = 2;
     #1;

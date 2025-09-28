@@ -2544,6 +2544,17 @@ void mir_build_sched_waveform(mir_unit_t *mu, mir_value_t target,
    MIR_ASSERT(!mir_is_signal(mu, values), "values cannot be signal");
 }
 
+void mir_build_put_driver(mir_unit_t *mu, mir_value_t target,
+                          mir_value_t count, mir_value_t values)
+{
+   mir_build_3(mu, MIR_OP_PUT_DRIVER, MIR_NULL_TYPE, MIR_NULL_STAMP,
+               target, count, values);
+
+   MIR_ASSERT(mir_is_signal(mu, target), "target is not a signal");
+   MIR_ASSERT(mir_is_offset(mu, count), "count is not offset type");
+   MIR_ASSERT(!mir_is_signal(mu, values), "values cannot be signal");
+}
+
 void mir_build_deposit_signal(mir_unit_t *mu, mir_value_t target,
                               mir_value_t count, mir_value_t values)
 {

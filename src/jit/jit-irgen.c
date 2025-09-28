@@ -3494,6 +3494,24 @@ static void irgen_op_sched_deposit(jit_irgen_t *g, mir_value_t n)
    macro_exit(g, JIT_EXIT_SCHED_DEPOSIT);
 }
 
+static void irgen_op_put_driver(jit_irgen_t *g, mir_value_t n)
+{
+   jit_value_t shared = irgen_get_arg(g, n, 0);
+   jit_value_t offset = jit_value_from_reg(jit_value_as_reg(shared) + 1);
+   jit_value_t count  = irgen_get_arg(g, n, 1);
+   jit_value_t value  = irgen_get_arg(g, n, 2);
+
+   jit_value_t scalar = irgen_is_scalar(g, n, 2);
+
+   j_send(g, 0, shared);
+   j_send(g, 1, offset);
+   j_send(g, 2, count);
+   j_send(g, 3, value);
+   j_send(g, 4, scalar);
+
+   macro_exit(g, JIT_EXIT_PUT_DRIVER);
+}
+
 static void irgen_op_put_conversion(jit_irgen_t *g, mir_value_t n)
 {
    jit_value_t cf     = irgen_get_arg(g, n, 0);
@@ -4700,6 +4718,9 @@ static void irgen_block(jit_irgen_t *g, mir_block_t block)
          break;
       case MIR_OP_SCHED_DEPOSIT:
          irgen_op_sched_deposit(g, n);
+         break;
+      case MIR_OP_PUT_DRIVER:
+         irgen_op_put_driver(g, n);
          break;
       case MIR_OP_PUT_CONVERSION:
          irgen_op_put_conversion(g, n);

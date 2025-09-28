@@ -36,7 +36,7 @@ typedef A(rt_proc_t *) proc_list_t;
 typedef A(rt_alias_t *) alias_list_t;
 
 typedef enum {
-   W_PROC, W_WATCH, W_IMPLICIT, W_PROPERTY, W_TRANSFER, W_TRIGGER,
+   W_PROC, W_WATCH, W_IMPLICIT, W_PROPERTY, W_TRANSFER, W_TRIGGER, W_ASSIGN,
 } wakeable_kind_t;
 
 typedef uint32_t wakeup_gen_t;

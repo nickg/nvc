@@ -84,6 +84,8 @@ void x_deposit_signal(sig_shared_t *ss, uint32_t offset, int32_t count,
                       void *values);
 void x_sched_deposit(sig_shared_t *ss, uint32_t offset, int32_t count,
                      void *values, int64_t after);
+void x_put_driver(sig_shared_t *ss, uint32_t offset, int32_t count,
+                  void *values);
 void x_put_conversion(rt_conv_func_t *cf, sig_shared_t *ss, uint32_t offset,
                       int32_t count, void *values);
 void x_resolve_signal(sig_shared_t *ss, jit_handle_t handle, void *context,

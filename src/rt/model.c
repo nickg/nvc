@@ -34,6 +34,7 @@
 #include "thread.h"
 #include "tree.h"
 #include "type.h"
+#include "vlog/vlog-node.h"
 
 #include <assert.h>
 #include <inttypes.h>
@@ -110,6 +111,7 @@ typedef struct _rt_model {
    bool               can_create_delta;
    bool               next_is_delta;
    bool               force_stop;
+   bool               blocking_update;
    unsigned           n_signals;
    heap_t            *eventq_heap;
    ihash_t           *res_memo;
@@ -146,7 +148,6 @@ typedef struct _rt_model {
 #define WAVEFORM_CHUNK  256
 #define PENDING_MIN     4
 #define MAX_RANK        UINT8_MAX
-#define ITERATE_ACTIVE  0   // Matches Questa behaviour
 
 #define TRACE(...) do {                                 \
       if (unlikely(__trace_on))                         \
@@ -172,7 +173,7 @@ static void put_driving(rt_model_t *m, rt_nexus_t *n, const void *value);
 static void put_effective(rt_model_t *m, rt_nexus_t *n, const void *value);
 static void update_implicit_signal(rt_model_t *m, rt_implicit_t *imp);
 static bool run_trigger(rt_model_t *m, rt_trigger_t *t);
-static void wakeup_all(rt_model_t *m, void **pending, bool blocking);
+static void wakeup_all(rt_model_t *m, void **pending);
 static void reset_scope(rt_model_t *m, rt_scope_t *s);
 static void async_run_process(rt_model_t *m, void *arg);
 static void async_update_property(rt_model_t *m, void *arg);
@@ -524,7 +525,7 @@ rt_proc_t *get_active_proc(void)
    if (obj == NULL)
       return NULL;
 
-   assert(obj->kind == W_PROC);
+   assert(obj->kind == W_PROC || obj->kind == W_ASSIGN);
    return container_of(obj, rt_proc_t, wakeable);
 }
 
@@ -1794,13 +1795,15 @@ static void convert_driving(rt_conv_func_t *cf)
 
    model_thread_t *thread = model_thread(m);
 
+   const uint32_t mark = tlab_mark(thread->tlab);
+
    jit_scalar_t context = { .pointer = cf->driving.context };
    jit_scalar_t arg = { .pointer = cf }, result;
    if (!jit_fastcall(m->jit, cf->driving.handle, &result, context, arg,
                      thread->tlab))
       m->force_stop = true;
 
-   tlab_reset(thread->tlab);   // No allocations can be live past here
+   tlab_trim(thread->tlab, mark);
 }
 
 static void convert_effective(rt_conv_func_t *cf)
@@ -1819,13 +1822,15 @@ static void convert_effective(rt_conv_func_t *cf)
 
    model_thread_t *thread = model_thread(m);
 
+   const uint32_t mark = tlab_mark(thread->tlab);
+
    jit_scalar_t context = { .pointer = cf->effective.context };
    jit_scalar_t arg = { .pointer = cf }, result;
    if (!jit_fastcall(m->jit, cf->effective.handle, &result, context, arg,
                      thread->tlab))
       m->force_stop = true;
 
-   tlab_reset(thread->tlab);   // No allocations can be live past here
+   tlab_trim(thread->tlab, mark);
 }
 
 static void *source_value(rt_nexus_t *nexus, rt_source_t *src)
@@ -1874,6 +1879,8 @@ static void call_resolution(rt_model_t *m, rt_nexus_t *n, res_memo_t *r,
       model_thread_t *thread = model_thread(m);
       assert(thread->tlab != NULL);
 
+      const uint32_t mark = tlab_mark(thread->tlab);
+
       void *resolved = tlab_alloc(thread->tlab, n->width * n->size);
       char *p0 = source_value(n, s0);
 
@@ -1883,13 +1890,15 @@ static void call_resolution(rt_model_t *m, rt_nexus_t *n, res_memo_t *r,
       }
 
       put_driving(m, n, resolved);
-      tlab_reset(thread->tlab);   // No allocations can be live past here
+      tlab_trim(thread->tlab, mark);
    }
    else if ((r->flags & R_MEMO) && nonnull == 2) {
       // Resolution function has been memoised so do a table lookup
 
       model_thread_t *thread = model_thread(m);
       assert(thread->tlab != NULL);
+
+      const uint32_t mark = tlab_mark(thread->tlab);
 
       void *resolved = tlab_alloc(thread->tlab, n->width * n->size);
 
@@ -1903,7 +1912,7 @@ static void call_resolution(rt_model_t *m, rt_nexus_t *n, res_memo_t *r,
          ((int8_t *)resolved)[j] = r->tab2[(int)p0[j]][(int)p1[j]];
 
       put_driving(m, n, resolved);
-      tlab_reset(thread->tlab);   // No allocations can be live past here
+      tlab_trim(thread->tlab, mark);
    }
    else if (r->flags & R_COMPOSITE) {
       // Call resolution function of composite type
@@ -1920,6 +1929,8 @@ static void call_resolution(rt_model_t *m, rt_nexus_t *n, res_memo_t *r,
       model_thread_t *thread = model_thread(m);
       assert(thread->tlab != NULL);
 
+      const uint32_t mark = tlab_mark(thread->tlab);
+
       uint8_t *inputs = tlab_alloc(thread->tlab, nonnull * scope->size);
       copy_sub_signal_sources(scope, inputs, scope->size);
 
@@ -1931,11 +1942,13 @@ static void call_resolution(rt_model_t *m, rt_nexus_t *n, res_memo_t *r,
       else
          m->force_stop = true;
 
-      tlab_reset(thread->tlab);   // No allocations can be live past here
+      tlab_trim(thread->tlab, mark);
    }
    else {
       model_thread_t *thread = model_thread(m);
       assert(thread->tlab != NULL);
+
+      const uint32_t mark = tlab_mark(thread->tlab);
 
       void *resolved = tlab_alloc(thread->tlab, n->width * n->size);
 
@@ -1961,7 +1974,7 @@ static void call_resolution(rt_model_t *m, rt_nexus_t *n, res_memo_t *r,
       }
 
       put_driving(m, n, resolved);
-      tlab_reset(thread->tlab);   // No allocations can be live past here
+      tlab_trim(thread->tlab, mark);
    }
 }
 
@@ -2338,10 +2351,23 @@ static void create_processes(rt_model_t *m, rt_scope_t *s)
             p->scope     = s;
             p->privdata  = mptr_new(m->mspace, "process privdata");
 
-            p->wakeable.kind    = W_PROC;
-            p->wakeable.region  = VLOG_ACTIVE;
+            switch (vlog_kind(tree_vlog(p->where))) {
+            case V_ASSIGN:
+            case V_UDP_TABLE:
+            case V_GATE_INST:
+               p->wakeable.kind = W_ASSIGN;
+               break;
+            case V_INITIAL:
+            case V_ALWAYS:
+               p->wakeable.kind = W_PROC;
+               break;
+            default:
+               should_not_reach_here();
+            }
+
             p->wakeable.pending = false;
             p->wakeable.delayed = false;
+            p->wakeable.region  = VLOG_ACTIVE;
 
             APUSH(s->procs, p);
          }
@@ -2862,6 +2888,48 @@ static bool run_trigger(rt_model_t *m, rt_trigger_t *t)
    return t->result.integer != 0;
 }
 
+static void update_assignment(rt_model_t *m, rt_proc_t *proc)
+{
+   // This is a special case of run_process that handles continuous
+   // assignment updates as a result of procedural blocking assignments
+   assert(proc->wakeable.kind == W_ASSIGN);
+
+   model_thread_t *thread = model_thread(m);
+   assert(thread->tlab != NULL);
+
+   rt_wakeable_t *const old_obj = thread->active_obj;
+   rt_scope_t *const old_scope = thread->active_scope;
+
+   thread->active_obj = &(proc->wakeable);
+   thread->active_scope = proc->scope;
+
+   // Stateless processes have NULL privdata so pass a dummy pointer
+   // value in so it can be distinguished from a reset
+   jit_scalar_t state = {
+      .pointer = *mptr_get(proc->privdata) ?: (void *)-1
+   };
+
+   jit_scalar_t result;
+   jit_scalar_t context = {
+      .pointer = *mptr_get(proc->scope->privdata)
+   };
+
+   assert(proc->tlab == NULL);
+
+   const uint32_t mark = tlab_mark(thread->tlab);
+
+   if (!jit_fastcall(m->jit, proc->handle, &result, state, context,
+                     thread->tlab))
+      m->force_stop = true;
+
+   assert(result.pointer == NULL);
+
+   tlab_trim(thread->tlab, mark);
+
+   thread->active_obj = old_obj;
+   thread->active_scope = old_scope;
+}
+
 static void procq_do(rt_model_t *m, rt_wakeable_t *obj, defer_fn_t fn,
                      void *arg)
 {
@@ -2880,7 +2948,7 @@ static void procq_do(rt_model_t *m, rt_wakeable_t *obj, defer_fn_t fn,
    set_pending(obj);
 }
 
-static void wakeup_one(rt_model_t *m, rt_wakeable_t *obj, bool blocking)
+static void wakeup_one(rt_model_t *m, rt_wakeable_t *obj)
 {
    if (obj->pending)
       return;   // Already scheduled
@@ -2951,44 +3019,57 @@ static void wakeup_one(rt_model_t *m, rt_wakeable_t *obj, bool blocking)
          rt_trigger_t *t = container_of(obj, rt_trigger_t, wakeable);
          TRACE("wakeup trigger %p", t);
 
-         if (!blocking) {
+         if (!m->blocking_update) {
             deferq_do(&m->triggerq, async_run_trigger, t);
             set_pending(obj);
          }
          else if (run_trigger(m, t))
-            wakeup_all(m, &(t->pending), false);
+            wakeup_all(m, &(t->pending));
+      }
+      break;
+
+   case W_ASSIGN:
+      {
+         rt_proc_t *proc = container_of(obj, rt_proc_t, wakeable);
+         TRACE("wakeup continuous assignment %s", istr(proc->name));
+
+         assert(!proc->wakeable.delayed);
+
+         if (m->blocking_update)
+            update_assignment(m, proc);
+         else {
+            deferq_do(&m->implicitq, async_run_process, proc);
+            set_pending(obj);
+         }
       }
       break;
    }
 }
 
-static void wakeup_all(rt_model_t *m, void **pending, bool blocking)
+static void wakeup_all(rt_model_t *m, void **pending)
 {
    if (pointer_tag(*pending) == 1) {
       rt_wakeable_t *wake = untag_pointer(*pending, rt_wakeable_t);
-      wakeup_one(m, wake, blocking);
+      wakeup_one(m, wake);
    }
    else if (*pending != NULL) {
       rt_pending_t *p = untag_pointer(*pending, rt_pending_t);
       for (int i = 0; i < p->count; i++) {
          if (p->wake[i] != NULL)
-            wakeup_one(m, p->wake[i], blocking);
+            wakeup_one(m, p->wake[i]);
       }
    }
 }
 
 static void notify_event(rt_model_t *m, rt_nexus_t *n)
 {
-   // Must only be called once per cycle
-   assert(n->last_event != m->now || n->event_delta != m->iteration);
-
    n->last_event = m->now;
    n->event_delta = m->iteration;
 
    if (n->flags & NET_F_CACHE_EVENT)
       n->signal->shared.flags |= SIG_F_EVENT_FLAG;
 
-   wakeup_all(m, &(n->pending), false);
+   wakeup_all(m, &(n->pending));
 }
 
 static void put_effective(rt_model_t *m, rt_nexus_t *n, const void *value)
@@ -3217,7 +3298,7 @@ static void async_run_trigger(rt_model_t *m, void *arg)
    t->wakeable.pending = false;
 
    if (run_trigger(m, t))
-      wakeup_all(m, &(t->pending), false);
+      wakeup_all(m, &(t->pending));
 }
 
 static void update_implicit_signal(rt_model_t *m, rt_implicit_t *imp)
@@ -3360,6 +3441,8 @@ static void model_cycle(rt_model_t *m)
       m->iteration = 0;
    }
 
+   m->blocking_update = false;
+
    TRACE("begin cycle");
 
 #if TRACE_DELTAQ > 0
@@ -3428,8 +3511,12 @@ static void model_cycle(rt_model_t *m)
 
    sync_event_cache(m);
 
+   m->blocking_update = true;
+
    // Update implicit signals
    deferq_run(m, &m->implicitq);
+
+   assert(model_thread(m)->tlab->alloc == 0);
 
 #if TRACE_SIGNALS > 0
    if (__trace_on)
@@ -3450,34 +3537,31 @@ static void model_cycle(rt_model_t *m)
    mark_phase(m, END_OF_PROCESSES);
 
    // Verilog scheduling regions
-   do {
-      if (m->activeq.count > 0) {
-         TRACE("begin active region");
-         swap_deferq(&m->next_activeq, &m->activeq);
-         deferq_run(m, &m->next_activeq);
-      }
 
-      if (m->activeq.count > 0)
-         break;
+   if (m->activeq.count > 0) {
+      TRACE("begin active region");
+      swap_deferq(&m->next_activeq, &m->activeq);
+      deferq_run(m, &m->next_activeq);
+   }
 
-      if (m->inactiveq.count > 0 && !m->next_is_delta) {
-         TRACE("begin inactive region");
-         swap_deferq(&m->next_inactiveq, &m->inactiveq);
-         deferq_run(m, &m->next_inactiveq);
-      }
+   if (m->activeq.count > 0 || m->next_is_delta)
+      goto next_delta;
 
-      if (m->activeq.count > 0 || m->inactiveq.count > 0)
-         break;
+   if (m->inactiveq.count > 0) {
+      TRACE("begin inactive region");
+      swap_deferq(&m->next_inactiveq, &m->inactiveq);
+      deferq_run(m, &m->next_inactiveq);
+   }
 
-      if (m->nonblockq.count > 0) {
-         TRACE("begin non-blocking assignment region");
-         deferq_run(m, &m->nonblockq);
+   if (m->activeq.count > 0 || m->inactiveq.count > 0)
+      goto next_delta;
 
-         m->trigger_epoch++;
-         deferq_run(m, &m->triggerq);
-      }
-   } while (ITERATE_ACTIVE && m->activeq.count > 0);
+   if (m->nonblockq.count > 0) {
+      TRACE("begin non-blocking assignment region");
+      deferq_run(m, &m->nonblockq);
+   }
 
+ next_delta:
    m->next_is_delta |= m->activeq.count > 0 || m->inactiveq.count > 0;
 
    if (!m->next_is_delta)
@@ -4783,7 +4867,7 @@ void x_deposit_signal(sig_shared_t *ss, uint32_t offset, int32_t count,
 
          assert(!(n->flags & NET_F_CACHE_EVENT));
 
-         wakeup_all(m, &(n->pending), true);
+         wakeup_all(m, &(n->pending));
 
          for (rt_source_t *o = n->outputs; o; o = o->chain_output) {
             assert(o->tag == SOURCE_PORT);
@@ -4829,6 +4913,42 @@ void x_sched_deposit(sig_shared_t *ss, uint32_t offset, int32_t count,
       }
 
       src->pseudoqueued = 1;
+
+      vptr += n->size * n->width;
+   }
+}
+
+void x_put_driver(sig_shared_t *ss, uint32_t offset, int32_t count,
+                  void *values)
+{
+   rt_signal_t *s = container_of(ss, rt_signal_t, shared);
+
+   TRACE("put driver %s+%d value=%s count=%d", istr(tree_ident(s->where)),
+         offset, fmt_values(values, count * s->nexus.size), count);
+
+   rt_proc_t *proc = get_active_proc();
+   assert(proc->wakeable.kind == W_ASSIGN);
+
+   rt_model_t *m = get_model();
+   rt_nexus_t *n = split_nexus(m, s, offset, count);
+   const char *vptr = values;
+   for (; count > 0; n = n->chain) {
+      count -= n->width;
+      assert(count >= 0);
+
+      rt_source_t *d = find_driver(n, proc);
+      assert(d != NULL);
+
+      assert(d->u.driver.waveforms.next == NULL);
+      copy_value_ptr(n, &d->u.driver.waveforms.value, vptr);
+
+      calculate_driving_value(m, n);
+
+      for (rt_source_t *o = n->outputs; o; o = o->chain_output) {
+         assert(o->tag == SOURCE_PORT);
+         defer_driving_update(m, o->u.port.output);
+         m->next_is_delta = true;
+      }
 
       vptr += n->size * n->width;
    }

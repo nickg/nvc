@@ -89,7 +89,6 @@ void vlog_lower_udp(mir_unit_t *mu, object_t *obj)
 
    mir_type_t t_offset = mir_offset_type(mu);
    mir_type_t t_logic = mir_vec4_type(mu, 1, false);
-   mir_type_t t_time = mir_time_type(mu);
 
    mir_value_t result_var = mir_add_var(mu, t_logic, MIR_NULL_STAMP,
                                         ident_new("result"), MIR_VAR_TEMP);
@@ -122,7 +121,6 @@ void vlog_lower_udp(mir_unit_t *mu, object_t *obj)
 
    {
       mir_value_t one = mir_const(mu, t_offset, 1);
-      mir_value_t zero = mir_const(mu, t_time, 0);
       mir_value_t logic0 = mir_const_vec(mu, t_logic, 0, 0);
       mir_value_t logic1 = mir_const_vec(mu, t_logic, 1, 0);
       mir_value_t logicX = mir_const_vec(mu, t_logic, 1, 1);
@@ -303,7 +301,7 @@ void vlog_lower_udp(mir_unit_t *mu, object_t *obj)
 
       mir_value_t upref = mir_build_var_upref(mu, hops, out_var.id);
       mir_value_t out = mir_build_load(mu, upref);
-      mir_build_sched_waveform(mu, out, one, drive, zero, zero);
+      mir_build_put_driver(mu, out, one, drive);
 
       mir_build_wait(mu, start_bb);
    }

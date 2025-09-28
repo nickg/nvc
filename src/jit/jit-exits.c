@@ -630,6 +630,21 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
       }
       break;
 
+   case JIT_EXIT_PUT_DRIVER:
+      {
+         sig_shared_t *shared = args[0].pointer;
+         int32_t       offset = args[1].integer;
+         int32_t       count  = args[2].integer;
+         jit_scalar_t  value  = { .integer = args[3].integer };
+         bool          scalar = args[4].integer;
+
+         if (scalar)
+            x_put_driver(shared, offset, count, &value.integer);
+         else
+            x_put_driver(shared, offset, count, value.pointer);
+      }
+      break;
+
    case JIT_EXIT_PUT_CONVERSION:
       {
          rt_conv_func_t *cf     = args[0].pointer;

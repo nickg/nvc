@@ -176,6 +176,7 @@ const char *mir_op_string(mir_op_t op)
       [MIR_OP_EXTRACT] = "extract",
       [MIR_OP_SCHED_PROCESS] = "sched process",
       [MIR_OP_SCHED_DEPOSIT] = "sched deposit",
+      [MIR_OP_PUT_DRIVER] = "put driver",
    };
 
    return map[op];
@@ -1574,6 +1575,7 @@ void mir_annotate(mir_unit_t *mu, const mir_annotate_t *cb, void *ctx)
 
          case MIR_OP_FORCE:
          case MIR_OP_DEPOSIT_SIGNAL:
+         case MIR_OP_PUT_DRIVER:
             {
                printf("%s ", mir_op_string(n->op));
                mir_dump_arg(mu, result, 0, cb, ctx);
