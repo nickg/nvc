@@ -486,6 +486,10 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
       __nvc_sched_waveform(anchor, args, tlab);
       break;
 
+   case JIT_EXIT_SCHED_INACTIVE:
+      x_sched_inactive();
+      break;
+
    case JIT_EXIT_SCHED_EVENT:
       {
          sig_shared_t *shared  = args[0].pointer;

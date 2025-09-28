@@ -26,6 +26,7 @@
 #define WEAK __attribute__((weak))
 
 void x_sched_process(int64_t delay);
+void x_sched_inactive(void);
 void x_drive_signal(sig_shared_t *ss, uint32_t offset, int32_t count);
 sig_shared_t *x_init_signal(int64_t count, uint32_t size, jit_scalar_t value,
                             bool scalar, uint32_t flags, tree_t where,

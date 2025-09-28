@@ -863,20 +863,11 @@ static inline void set_pending(rt_wakeable_t *wake)
    wake->pending = true;
 }
 
-static deferq_t *zero_delay_region(rt_model_t *m, rt_proc_t *proc)
-{
-   switch (proc->wakeable.region) {
-   case VHDL_PROCESS: return &m->delta_procq;
-   case VLOG_ACTIVE:  return &m->inactiveq;
-   default: should_not_reach_here();
-   }
-}
-
 static void deltaq_insert_proc(rt_model_t *m, uint64_t delta, rt_proc_t *proc)
 {
    if (delta == 0) {
       set_pending(&proc->wakeable);
-      deferq_do(zero_delay_region(m, proc), async_run_process, proc);
+      deferq_do(&m->delta_procq, async_run_process, proc);
       m->next_is_delta = true;
    }
    else {
@@ -4230,6 +4221,17 @@ void x_sched_process(int64_t delay)
 
    check_delay(delay);
    deltaq_insert_proc(get_model(), delay, proc);
+}
+
+void x_sched_inactive(void)
+{
+   rt_proc_t *proc = get_active_proc();
+   rt_model_t *m = get_model();
+
+   TRACE("schedule process %s in inactive region", istr(proc->name));
+
+   set_pending(&proc->wakeable);
+   deferq_do(&m->inactiveq, async_run_process, proc);
 }
 
 void x_sched_waveform_s(sig_shared_t *ss, uint32_t offset, uint64_t scalar,

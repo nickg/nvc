@@ -1296,7 +1296,12 @@ static void vlog_lower_timing(vlog_gen_t *g, vlog_node_t v, bool is_static)
          mir_type_t t_time = mir_time_type(g->mu);
          mir_value_t delay = vlog_lower_rvalue(g, vlog_value(ctrl));
          mir_value_t cast = mir_build_cast(g->mu, t_time, delay);
-         mir_build_sched_process(g->mu, cast);
+
+         int64_t dconst;
+         if (mir_get_const(g->mu, cast, &dconst) && dconst == 0)
+            mir_build_sched_inactive(g->mu);
+         else
+            mir_build_sched_process(g->mu, cast);
 
          mir_block_t wait_bb = mir_add_block(g->mu);
          mir_build_wait(g->mu, wait_bb);

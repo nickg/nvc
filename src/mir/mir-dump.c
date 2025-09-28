@@ -175,6 +175,7 @@ const char *mir_op_string(mir_op_t op)
       [MIR_OP_TEST] = "test",
       [MIR_OP_EXTRACT] = "extract",
       [MIR_OP_SCHED_PROCESS] = "sched process",
+      [MIR_OP_SCHED_INACTIVE] = "sched inactive",
       [MIR_OP_SCHED_DEPOSIT] = "sched deposit",
       [MIR_OP_PUT_DRIVER] = "put driver",
    };
@@ -777,16 +778,6 @@ void mir_annotate(mir_unit_t *mu, const mir_annotate_t *cb, void *ctx)
                col += mir_dump_value(mu, n->args[0], cb, ctx);
                mir_dump_type(mu, col, n->type);
                mir_dump_stamp(mu, n->type, n->stamp);
-            }
-            break;
-
-         case MIR_OP_RETURN:
-            {
-               printf("%s", mir_op_string(n->op));
-               if (n->nargs > 0) {
-                  printf(" ");
-                  mir_dump_value(mu, n->args[0], cb, ctx);
-               }
             }
             break;
 
@@ -1601,6 +1592,8 @@ void mir_annotate(mir_unit_t *mu, const mir_annotate_t *cb, void *ctx)
 
          case MIR_OP_UNREACHABLE:
          case MIR_OP_POP_SCOPE:
+         case MIR_OP_SCHED_INACTIVE:
+         case MIR_OP_RETURN:
             {
                printf("%s", mir_op_string(n->op));
                if (n->nargs > 0) {

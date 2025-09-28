@@ -256,6 +256,7 @@ typedef enum {
    MIR_OP_TEST,
    MIR_OP_EXTRACT,
    MIR_OP_SCHED_PROCESS,
+   MIR_OP_SCHED_INACTIVE,
    MIR_OP_SCHED_DEPOSIT,
    MIR_OP_PUT_DRIVER,
 } mir_op_t;
@@ -731,6 +732,7 @@ mir_value_t mir_build_var_upref(mir_unit_t *mu, int hops, int nth);
 void mir_build_sched_event(mir_unit_t *mu, mir_value_t on, mir_value_t count);
 void mir_build_clear_event(mir_unit_t *mu, mir_value_t on, mir_value_t count);
 void mir_build_sched_process(mir_unit_t *mu, mir_value_t delay);
+void mir_build_sched_inactive(mir_unit_t *mu);
 
 // Reflection
 mir_value_t mir_build_reflect_value(mir_unit_t *mu, mir_value_t value,

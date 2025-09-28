@@ -2590,6 +2590,11 @@ static void irgen_op_sched_process(jit_irgen_t *g, mir_value_t n)
    macro_exit(g, JIT_EXIT_SCHED_PROCESS);
 }
 
+static void irgen_op_sched_inactive(jit_irgen_t *g, mir_value_t n)
+{
+   macro_exit(g, JIT_EXIT_SCHED_INACTIVE);
+}
+
 static void irgen_op_protected_init(jit_irgen_t *g, mir_value_t n)
 {
    jit_handle_t handle = irgen_get_handle(g, n, 0);
@@ -4562,6 +4567,9 @@ static void irgen_block(jit_irgen_t *g, mir_block_t block)
          break;
       case MIR_OP_SCHED_PROCESS:
          irgen_op_sched_process(g, n);
+         break;
+      case MIR_OP_SCHED_INACTIVE:
+         irgen_op_sched_inactive(g, n);
          break;
       case MIR_OP_COPY:
          irgen_op_copy(g, n);

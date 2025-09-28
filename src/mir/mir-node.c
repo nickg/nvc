@@ -3161,6 +3161,14 @@ void mir_build_sched_process(mir_unit_t *mu, mir_value_t delay)
               "sched process only allowed in process or procedure");
 }
 
+void mir_build_sched_inactive(mir_unit_t *mu)
+{
+   mir_build_0(mu, MIR_OP_SCHED_INACTIVE, MIR_NULL_TYPE, MIR_NULL_STAMP);
+
+   MIR_ASSERT(mu->kind == MIR_UNIT_PROCEDURE || mu->kind == MIR_UNIT_PROCESS,
+              "sched inactive only allowed in process or procedure");
+}
+
 mir_value_t mir_build_reflect_value(mir_unit_t *mu, mir_value_t value,
                                     mir_value_t context, mir_value_t locus,
                                     mir_value_t bounds)
