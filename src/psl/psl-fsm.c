@@ -543,6 +543,11 @@ static fsm_state_t *build_next_e(psl_fsm_t *fsm, fsm_state_t *state, psl_node_t 
    const int lo = get_number(psl_tree(psl_left(range)));
    const int hi = get_number(psl_tree(psl_right(range)));
 
+   if (lo > hi)
+      error_at(psl_loc(p), "left bound of PSL range (%d) must be "
+                           "lower than right bound (%d)",
+                           lo, hi);
+
    for (int i = 0; i < lo - 1; i++) {
       fsm_state_t *new = add_state(fsm, p);
       new->strong = strong;
@@ -551,7 +556,7 @@ static fsm_state_t *build_next_e(psl_fsm_t *fsm, fsm_state_t *state, psl_node_t 
    }
 
    const int n_states = hi - lo + 1;
-   fsm_state_t *states[n_states];
+   fsm_state_t LOCAL **states = xmalloc_array(n_states, sizeof(fsm_state_t*));
 
    for (int i = 0; i < n_states; i++) {
       states[i] = add_state(fsm, p);
