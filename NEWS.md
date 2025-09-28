@@ -1,4 +1,6 @@
 ## Unreleased changes
+
+## Version 1.18.0 - 2025-09-28
 - Scheduling of blocking and non-blocking assignments in mixed-language
   simulation now more accurately reflects Verilog semantics (#1227).
 - Aliases of component declarations are now allowed (#1276).
@@ -19,7 +21,7 @@
 - The `--precompile` elaboration option is deprecated and will be
   removed in the next release.  Please get in touch if you are still
   using this.
-- Passing scalar `out` arguments using the non-standard `VHPIDIRECT`
+- Passing array `out` arguments using the non-standard `VHPIDIRECT`
   calling convention now works correctly (#1301).
 - Several other minor bugs were resolved (#1253, #1269, #1277, #1279,
   #1280, #1281).

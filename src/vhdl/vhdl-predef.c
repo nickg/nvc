@@ -598,9 +598,6 @@ static void predef_edge_op(mir_unit_t *mu, tree_t decl)
 
 static void predef_array_cmp(mir_unit_t *mu, tree_t decl, mir_cmp_t pred)
 {
-   type_t type = tree_type(tree_port(decl, 0));
-   assert(tree_type(tree_port(decl, 1)) == type);
-
    mir_value_t lhs_array = mir_get_param(mu, 1);
    mir_value_t rhs_array = mir_get_param(mu, 2);
    mir_value_t lhs_data = mir_build_unwrap(mu, lhs_array);
@@ -613,11 +610,15 @@ static void predef_array_cmp(mir_unit_t *mu, tree_t decl, mir_cmp_t pred)
 
    assert(pred == MIR_CMP_LT || pred == MIR_CMP_LEQ);
 
+#ifdef DEBUG
+   type_t type = tree_type(tree_port(decl, 0));
+   assert(tree_type(tree_port(decl, 1)) == type);
+
    const type_info_t *ti = type_info(mu, type);
    const type_info_t *elem = type_info(mu, type_elem(type));
-
    assert(ti->ndims == 1);
    assert(elem->kind != T_ARRAY && elem->kind != T_RECORD);
+#endif
 
    mir_type_t t_offset = mir_offset_type(mu);
    mir_type_t t_bool = mir_bool_type(mu);

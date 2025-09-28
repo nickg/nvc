@@ -4383,12 +4383,12 @@ static void irgen_op_extract(jit_irgen_t *g, mir_value_t n)
    jit_value_t bitpos = j_sub(g, jit_value_from_int64(arg_size - size), pos);
    jit_value_t mask = irgen_vector_mask(size);
    jit_value_t ashift = j_shr(g, full, bitpos);
-   jit_value_t abits = g->map[n.id] = j_and(g, ashift, mask);
+   g->map[n.id] = j_and(g, ashift, mask);
 
    if (mir_is(g->mu, n, MIR_TYPE_VEC4)) {
       jit_reg_t bbits = irgen_alloc_reg(g);
-      assert(abits.kind == JIT_VALUE_REG);
-      assert(bbits == abits.reg + 1);
+      assert(g->map[n.id].kind == JIT_VALUE_REG);
+      assert(bbits == g->map[n.id].reg + 1);
 
       jit_value_t bfull = jit_value_from_reg(jit_value_as_reg(full) + 1);
 

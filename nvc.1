@@ -582,20 +582,6 @@ is 5000.
 Create source file code coverage report instead of hierarchy coverage report.
 .El
 .\" ------------------------------------------------------------
-.\" Make options
-.\" ------------------------------------------------------------
-.Ss Make options
-.Bl -tag -width Ds
-.\" --deps-only
-.It Fl \-deps-only
-Generate rules that only contain dependencies without actions.  These
-can be useful for inclusion in a hand written makefile.
-.\" --posix
-.It Fl \-posix
-The generated makefile will work with any POSIX compliant make.
-Otherwise the output may use extensions specific to GNU make.
-.El
-.\" ------------------------------------------------------------
 .\" Install options
 .\" ------------------------------------------------------------
 .Ss Install options
@@ -691,7 +677,6 @@ extension library, and a number of NVC-specific commands.  Use the
 command in the interactive environment
 .Ns ( Fl i Ns )
 to list these.
-.Pp
 .\" ------------------------------------------------------------
 .\" CODE COVERAGE
 .\" ------------------------------------------------------------

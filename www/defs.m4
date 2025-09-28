@@ -1,6 +1,6 @@
-define(__version, `1.17.2')dnl
-define(__release_date, `22nd August 2025')dnl
-define(__release_date_short, `2025-08-22')dnl
+define(__version, `1.18.0')dnl
+define(__release_date, `28th September 2025')dnl
+define(__release_date_short, `2025-09-28')dnl
 define(__release_notes, `news.html#version-'__version`---'__release_date_short)dnl
 define(__github_url, `https://github.com/nickg/nvc')dnl
 define(__download_base, `https://www.nickg.me.uk/files')dnl
