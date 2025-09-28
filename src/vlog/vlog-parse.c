@@ -1521,7 +1521,20 @@ static vlog_node_t p_mintypmax_expression(void)
 
    BEGIN("mintypmax expression");
 
-   return p_expression();
+   vlog_node_t e = p_expression();
+
+   if (optional(tCOLON)) {
+      vlog_node_t mtm = vlog_new(V_MIN_TYP_MAX);
+      vlog_set_left(mtm, e);
+      vlog_set_value(mtm, p_expression());
+
+      consume(tCOLON);
+      vlog_set_right(mtm, p_expression());
+
+      return mtm;
+   }
+
+   return e;
 }
 
 static vlog_node_t p_concatenation(vlog_node_t head)
