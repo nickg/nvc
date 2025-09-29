@@ -119,7 +119,7 @@ typedef struct _rt_model {
    deferq_t           procq;
    deferq_t           next_procq;
    deferq_t           driverq;
-   deferq_t           delta_driverq;
+   deferq_t           next_driverq;
    deferq_t           postponedq;
    deferq_t           implicitq;
    deferq_t           triggerq;
@@ -642,7 +642,7 @@ void model_free(rt_model_t *m)
    free(m->next_inactiveq.tasks);
    free(m->nonblockq.tasks);
    free(m->driverq.tasks);
-   free(m->delta_driverq.tasks);
+   free(m->next_driverq.tasks);
 
    for (rt_watch_t *it = m->watches, *tmp; it; it = tmp) {
       tmp = it->chain_all;
@@ -879,7 +879,7 @@ static void deltaq_insert_driver(rt_model_t *m, uint64_t delta,
                                  rt_source_t *source)
 {
    if (delta == 0) {
-      deferq_do(&m->delta_driverq, async_update_driver, source);
+      deferq_do(&m->driverq, async_update_driver, source);
       m->next_is_delta = true;
    }
    else {
@@ -890,7 +890,7 @@ static void deltaq_insert_driver(rt_model_t *m, uint64_t delta,
 
 static void deltaq_insert_pseudo_source(rt_model_t *m, rt_source_t *src)
 {
-   deferq_do(&m->delta_driverq, async_pseudo_source, src);
+   deferq_do(&m->driverq, async_pseudo_source, src);
    m->next_is_delta = true;
 }
 
@@ -1538,7 +1538,7 @@ static void clone_source(rt_model_t *m, rt_nexus_t *nexus,
          if ((nexus->flags & NET_F_FAST_DRIVER) && old->fastqueued) {
             rt_nexus_t *n0 = &(nexus->signal->nexus);
             if (!n0->sources.sigqueued)
-               deferq_do(&m->delta_driverq, async_fast_driver, new);
+               deferq_do(&m->driverq, async_fast_driver, new);
             new->fastqueued = 1;
          }
 
@@ -2673,13 +2673,13 @@ static void sched_driver(rt_model_t *m, rt_nexus_t *n, uint64_t after,
          return;
       }
       else if (signal->shared.flags & NET_F_FAST_DRIVER) {
-         deferq_do(&m->delta_driverq, async_fast_all_drivers, signal);
+         deferq_do(&m->driverq, async_fast_all_drivers, signal);
          m->next_is_delta = true;
          d0->sigqueued = 1;
          d->fastqueued = 1;
       }
       else {
-         deferq_do(&m->delta_driverq, async_fast_driver, d);
+         deferq_do(&m->driverq, async_fast_driver, d);
          m->next_is_delta = true;
          d->fastqueued = 1;
       }
@@ -3370,7 +3370,7 @@ static void reached_iteration_limit(rt_model_t *m)
    diag_printf(d, "limit of %d delta cycles reached", m->stop_delta);
 
    deferq_scan(&m->procq, iteration_limit_proc_cb, d);
-   deferq_scan(&m->delta_driverq, iteration_limit_driver_cb, d);
+   deferq_scan(&m->driverq, iteration_limit_driver_cb, d);
 
    diag_hint(d, NULL, "you can increase this limit with $bold$--stop-delta$$");
    diag_emit(d);
@@ -3426,8 +3426,6 @@ static void model_cycle(rt_model_t *m)
       deltaq_dump(m);
 #endif
 
-   swap_deferq(&m->driverq, &m->delta_driverq);
-
    if (m->iteration == 0)
       run_callbacks(m, NEXT_TIME_STEP);
 
@@ -3472,7 +3470,8 @@ static void model_cycle(rt_model_t *m)
       }
    }
 
-   deferq_run(m, &m->driverq);
+   swap_deferq(&m->next_driverq, &m->driverq);
+   deferq_run(m, &m->next_driverq);
 
    while (heap_size(m->driving_heap) > 0) {
       rt_nexus_t *n = heap_extract_min(m->driving_heap);
@@ -3517,7 +3516,7 @@ static void model_cycle(rt_model_t *m)
    if (m->next_is_delta)
       goto next_delta;
 
-   if (!m->next_is_delta && m->inactiveq.count > 0) {
+   if (m->inactiveq.count > 0) {
       TRACE("begin inactive region");
       swap_deferq(&m->next_inactiveq, &m->inactiveq);
       deferq_run(m, &m->next_inactiveq);
