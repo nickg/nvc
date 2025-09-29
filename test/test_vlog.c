@@ -1273,7 +1273,10 @@ START_TEST(test_class1)
 
    const error_t expect[] = {
       { 11, "'foo_t' does not match class name 'bar_t'" },
-      { 14, "'bob' does not match program name 'main'" },
+      { 19, "new class expression must have class type" },
+      { 23, "'bob' does not match program name 'main'" },
+      { 20, "invalid operands for binary expression" },
+      {  0, "have 'int' and 'class'" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -1281,6 +1284,8 @@ START_TEST(test_class1)
    vlog_node_t m = vlog_parse();
    fail_if(m == NULL);
    fail_unless(vlog_kind(m) == V_PROGRAM);
+
+   vlog_check(m);
 
    fail_unless(vlog_parse() == NULL);
 

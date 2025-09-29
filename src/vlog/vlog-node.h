@@ -155,6 +155,8 @@ typedef enum {
    V_MIN_TYP_MAX,
    V_PROGRAM,
    V_CLASS_DECL,
+   V_NULL,
+   V_CLASS_NEW,
 
    V_LAST_NODE_KIND
 } vlog_kind_t;
@@ -163,7 +165,6 @@ typedef enum {
    DT_LOGIC,
    DT_INTEGER,
    DT_REAL,
-   DT_STRUCT,
    DT_BYTE,
    DT_SHORTINT,
    DT_INT,

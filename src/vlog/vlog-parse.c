@@ -1621,9 +1621,18 @@ static vlog_node_t p_primary(void)
          else
             return p_concatenation(head);
       }
+   case tNULL:
+      {
+         consume(tNULL);
+
+         vlog_node_t v = vlog_new(V_NULL);
+         vlog_set_loc(v, CURRENT_LOC);
+         return v;
+      }
+
    default:
       one_of(tID, tSTRING, tNUMBER, tUNSNUM, tREAL, tSYSTASK, tLPAREN,
-             tLBRACE);
+             tLBRACE, tNULL);
       return p_select(error_marker());
    }
 }
@@ -1735,6 +1744,7 @@ static vlog_node_t p_nonbinary_expression(void)
    case tSYSTASK:
    case tLPAREN:
    case tLBRACE:
+   case tNULL:
       return p_primary();
    case tMINUS:
    case tPLUS:
@@ -1761,8 +1771,8 @@ static vlog_node_t p_nonbinary_expression(void)
       return p_inc_or_dec_expression(NULL);
    default:
       one_of(tID, tSTRING, tNUMBER, tUNSNUM, tREAL, tSYSTASK, tLPAREN,
-             tLBRACE, tMINUS, tTILDE, tBANG, tAMP, tBAR, tCARET, tTILDEAMP,
-             tTILDEBAR, tPLUSPLUS, tTILDECARET, tMINUSMINUS);
+             tLBRACE, tNULL, tMINUS, tTILDE, tBANG, tAMP, tBAR, tCARET,
+             tTILDEAMP, tTILDEBAR, tPLUSPLUS, tTILDECARET, tMINUSMINUS);
       return p_select(error_marker());
    }
 }
@@ -2099,6 +2109,32 @@ static vlog_node_t p_net_lvalue(void)
    }
 }
 
+static vlog_node_t p_class_new(vlog_node_t dt)
+{
+   // [ class_scope ] new [ ( list_of_arguments ) ]
+   //    | new expression
+
+   BEGIN("class new");
+
+   consume(tNEW);
+
+   if (dt == NULL || vlog_kind(dt) != V_CLASS_DECL) {
+      error_at(&state.last_loc, "new class expression must have class type");
+      dt = NULL;
+   }
+
+   vlog_node_t v = vlog_new(V_CLASS_NEW);
+   vlog_set_type(v, dt);
+
+   if (optional(tLPAREN)) {
+      p_list_of_arguments(v);
+      consume(tRPAREN);
+   }
+
+   vlog_set_loc(v, CURRENT_LOC);
+   return v;
+}
+
 static vlog_assign_t p_assignment_operator(void)
 {
    // = | += | -= | *= | /= | %= | &= | |= | ^= | <<= | >>= | <<<= | >>>=
@@ -2170,10 +2206,14 @@ static vlog_node_t p_blocking_assignment(vlog_node_t lhs)
    vlog_node_t v = vlog_new(V_BASSIGN);
    vlog_set_target(v, lhs);
 
-   if (scan(tHASH, tAT))
-      vlog_set_delay(v, p_delay_or_event_control());
+   if (peek() == tNEW)
+      vlog_set_value(v, p_class_new(vlog_get_type(lhs)));
+   else {
+      if (scan(tHASH, tAT))
+         vlog_set_delay(v, p_delay_or_event_control());
 
-   vlog_set_value(v, p_expression());
+      vlog_set_value(v, p_expression());
+   }
 
    vlog_set_loc(v, CURRENT_LOC);
    return v;

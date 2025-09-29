@@ -26,6 +26,17 @@
 #include <assert.h>
 #include <stdlib.h>
 
+typedef uint32_t type_mask_t;
+#define TM(x) (1 << (x))
+#define TM_ERROR  0
+#define TM_ANY    ~0
+#define TM_CLASS  TM(31)
+#define TM_STRUCT TM(30)
+#define TM_ENUM   TM(29)
+#define TM_INTEGRAL \
+   (TM(DT_LOGIC) | TM(DT_INTEGER) | TM(DT_BYTE) | TM(DT_SHORTINT) \
+    | TM(DT_INT) | TM(DT_LONGINT) | TM(DT_TIME) | TM(DT_BIT) | TM_ENUM)
+
 static void name_for_diag(diag_t *d, vlog_node_t v, const char *alt)
 {
    switch (vlog_kind(v)) {
@@ -56,6 +67,80 @@ static bool has_error(vlog_node_t v)
    case V_PORT_DECL:
    default:
       return false;
+   }
+}
+
+static type_mask_t intersect_type_mask(type_mask_t a, type_mask_t b)
+{
+   if (a & b)
+      return a & b;
+   else if ((a & TM_INTEGRAL) && (b & TM_INTEGRAL))
+      return (a & TM_INTEGRAL) | (b & TM_INTEGRAL);
+   else
+      return TM_ERROR;
+}
+
+static type_mask_t get_type_mask(vlog_node_t v)
+{
+   switch (vlog_kind(v)) {
+   case V_DATA_TYPE:
+      return TM(vlog_subkind(v));
+   case V_STRUCT_DECL:
+      return TM_STRUCT;
+   case V_CLASS_DECL:
+      return TM_CLASS;
+   case V_ENUM_DECL:
+      return TM_ENUM;
+   case V_REF:
+   case V_USER_FCALL:
+      if (vlog_has_ref(v))
+         return get_type_mask(vlog_ref(v));
+      else
+         return TM_ERROR;
+   case V_NUMBER:
+   case V_CONCAT:
+   case V_SYS_FCALL:
+      return TM_INTEGRAL;
+   case V_REAL:
+      return TM(DT_REAL);
+   case V_NULL:
+      return TM_CLASS;
+   case V_ENUM_NAME:
+      return TM_ENUM;
+   case V_PARAM_DECL:
+   case V_LOCALPARAM:
+   case V_GENVAR_DECL:
+   case V_VAR_DECL:
+   case V_NET_DECL:
+   case V_PORT_DECL:
+   case V_TF_PORT_DECL:
+   case V_TYPE_DECL:
+   case V_FUNC_DECL:
+      return get_type_mask(vlog_type(v));
+   case V_BIT_SELECT:
+   case V_PART_SELECT:
+   case V_UNARY:
+      return get_type_mask(vlog_value(v));
+   case V_BINARY:
+   case V_COND_EXPR:
+      return intersect_type_mask(get_type_mask(vlog_left(v)),
+                                 get_type_mask(vlog_right(v)));
+   default:
+      CANNOT_HANDLE(v);
+   }
+}
+
+static const char *type_mask_str(type_mask_t tm)
+{
+   switch (tm) {
+   case TM(DT_LOGIC): return "logic";
+   case TM(DT_BIT): return "bit";
+   case TM(DT_BYTE): return "byte";
+   case TM(DT_INT): return "int";
+   case TM(DT_SHORTINT): return "shortint";
+   case TM_CLASS: return "class";
+   case TM_ENUM: return "enum";
+   default: return (tm & TM_INTEGRAL) ? "integral" : "unknown";
    }
 }
 
@@ -460,6 +545,24 @@ static void vlog_check_hier_ref(vlog_node_t v)
                "instance");
 }
 
+static void vlog_check_binary(vlog_node_t v)
+{
+   const type_mask_t lmask = get_type_mask(vlog_left(v));
+   const type_mask_t rmask = get_type_mask(vlog_right(v));
+   const type_mask_t comb = intersect_type_mask(lmask, rmask);
+
+   type_mask_t allow = TM_ANY;
+
+   if (comb & allow)
+      return;
+
+   diag_t *d = diag_new(DIAG_ERROR, vlog_loc(v));
+   diag_printf(d, "invalid operands for binary expression");
+   diag_hint(d, vlog_loc(v), "have '%s' and '%s'", type_mask_str(lmask),
+             type_mask_str(rmask));
+   diag_emit(d);
+}
+
 static vlog_node_t vlog_check_cb(vlog_node_t v, void *ctx)
 {
    if (has_error(v))
@@ -523,6 +626,9 @@ static vlog_node_t vlog_check_cb(vlog_node_t v, void *ctx)
    case V_HIER_REF:
       vlog_check_hier_ref(v);
       break;
+   case V_BINARY:
+      vlog_check_binary(v);
+      break;
    case V_CASE_ITEM:
    case V_UDP_LEVEL:
    case V_UDP_EDGE:
@@ -568,7 +674,6 @@ static vlog_node_t vlog_check_cb(vlog_node_t v, void *ctx)
    case V_STRING:
    case V_REAL:
    case V_IF:
-   case V_BINARY:
    case V_UNARY:
    case V_REF:
    case V_COND:
@@ -586,6 +691,9 @@ static vlog_node_t vlog_check_cb(vlog_node_t v, void *ctx)
    case V_STRUCT_REF:
    case V_CLASS_DECL:
    case V_PROGRAM:
+   case V_NULL:
+   case V_CLASS_NEW:
+   case V_MIN_TYP_MAX:
       break;
    default:
       fatal_at(vlog_loc(v), "cannot check verilog node %s",

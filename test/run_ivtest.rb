@@ -82,7 +82,7 @@ def get_module_name(f, flags)
   if File.exist?(f) then
     File.readlines(f).reverse.each do |line|
       case line
-      when /^module\s+(\w+)/
+      when /^(?:module|program)\s+(\w+)/
         return $1
       when /^`include\s+"(.*)"/
         return get_module_name($1, flags) || next
