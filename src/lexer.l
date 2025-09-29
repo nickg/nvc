@@ -837,6 +837,9 @@ PROTECT           ?i:protect
 <VLOG>"static"           { return KEYWORD_2005(tSTATIC); }
 <VLOG>"with"             { return KEYWORD_2005(tWITH); }
 <VLOG>"return"           { return KEYWORD_2005(tRETURN); }
+<VLOG>"program"          { return KEYWORD_2005(tPROGRAM); }
+<VLOG>"endprogram"       { return KEYWORD_2005(tENDPROGRAM); }
+<VLOG>"endclass"         { return KEYWORD_2005(tENDCLASS); }
 
 <VLOG>"`unconnected_drive"   { return tUNCTDRIVE; }
 <VLOG>"`nounconnected_drive" { return tNOUNCTDRIVE; }

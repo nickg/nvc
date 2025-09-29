@@ -166,6 +166,8 @@ bool is_top_level(vlog_node_t v)
    case V_MODULE:
    case V_PRIMITIVE:
    case V_INST_BODY:
+   case V_PACKAGE:
+   case V_PROGRAM:
       return true;
    default:
       return false;
@@ -180,6 +182,7 @@ bool is_data_type(vlog_node_t v)
    case V_STRUCT_DECL:
    case V_UNION_DECL:
    case V_TYPE_DECL:
+   case V_CLASS_DECL:
       return true;
    default:
       return false;

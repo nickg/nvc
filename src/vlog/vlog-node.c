@@ -278,10 +278,16 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
    (I_VALUE | I_IDENT | I_REF),
 
    // V_PACKAGE
-   (I_DECLS | I_IDENT),
+   (I_DECLS | I_IDENT | I_IDENT2),
 
    // V_MIN_TYP_MAX
-   (I_LEFT | I_VALUE | I_RIGHT)
+   (I_LEFT | I_VALUE | I_RIGHT),
+
+   // V_PROGRAM
+   (I_IDENT | I_STMTS | I_DECLS | I_IDENT2),
+
+   // V_CLASS_DECL
+   (I_IDENT | I_DECLS),
 };
 
 static const char *kind_text_map[V_LAST_NODE_KIND] = {
@@ -306,7 +312,7 @@ static const char *kind_text_map[V_LAST_NODE_KIND] = {
    "V_VOID_CALL",     "V_GENVAR_DECL", "V_FOR_GENERATE",  "V_DEASSIGN",
    "V_FORCE",         "V_RELEASE",     "V_DISABLE",       "V_HIER_REF",
    "V_TF_PORT_DECL",  "V_RETURN",      "V_OP_ASSIGN",     "V_STRUCT_REF",
-   "V_PACKAGE",       "V_MIN_TYP_MAX"
+   "V_PACKAGE",       "V_MIN_TYP_MAX", "V_PROGRAM",       "V_CLASS_DECL",
 };
 
 static const change_allowed_t change_allowed[] = {
@@ -321,8 +327,8 @@ object_class_t vlog_object = {
    .tag            = OBJECT_TAG_VLOG,
    .last_kind      = V_LAST_NODE_KIND,
    .has_loc        = true,
-   .gc_roots       = { V_MODULE, V_PRIMITIVE },
-   .gc_num_roots   = 2
+   .gc_roots       = { V_MODULE, V_PRIMITIVE, V_PROGRAM, V_PACKAGE },
+   .gc_num_roots   = 4,
 };
 
 struct _vlog_node {

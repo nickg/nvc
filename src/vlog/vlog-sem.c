@@ -584,6 +584,8 @@ static vlog_node_t vlog_check_cb(vlog_node_t v, void *ctx)
    case V_WHILE:
    case V_DO_WHILE:
    case V_STRUCT_REF:
+   case V_CLASS_DECL:
+   case V_PROGRAM:
       break;
    default:
       fatal_at(vlog_loc(v), "cannot check verilog node %s",

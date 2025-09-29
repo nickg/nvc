@@ -3799,6 +3799,75 @@ static void p_local_parameter_declaration(vlog_node_t mod)
    p_list_of_param_assignments(mod, dt, V_LOCALPARAM);
 }
 
+static void p_class_property(vlog_node_t parent)
+{
+   // { property_qualifier } data_declaration
+   //   | const { class_item_qualifier } data_type const_identifier
+   //       [ = constant_expression ] ;
+
+   BEGIN("class property");
+
+   p_data_declaration(parent);
+}
+
+static void p_class_item(vlog_node_t parent)
+{
+   // { attribute_instance } class_property
+   //   | { attribute_instance } class_method
+   //   | { attribute_instance } class_constraint
+   //   | { attribute_instance } class_declaration
+   //   | { attribute_instance } covergroup_declaration
+   //   | local_parameter_declaration ;
+   //   | parameter_declaration | ;
+
+   BEGIN("class item");
+
+   optional_attributes();
+
+   switch (peek()) {
+   case tSEMI:
+      break;
+   default:
+      p_class_property(parent);
+      break;
+   }
+}
+
+static vlog_node_t p_class_declaration(void)
+{
+   // [ virtual ] class [ lifetime ] class_identifier [ parameter_port_list ]
+   //   [ extends class_type [ ( list_of_arguments ) ] ]
+   //   [ implements interface_class_type { , interface_class_type } ] ;
+   //   { class_item } endclass [ : class_identifier ]
+
+   BEGIN("class declaration");
+
+   vlog_node_t v = vlog_new(V_CLASS_DECL);
+
+   consume(tCLASS);
+
+   ident_t name = p_identifier();
+   vlog_set_ident(v, name);
+
+   consume(tSEMI);
+
+   while (not_at_token(tENDCLASS))
+      p_class_item(v);
+
+   consume(tENDCLASS);
+
+   if (optional(tCOLON)) {
+      ident_t end_name = p_identifier();
+      if (name != end_name)
+         error_at(&state.last_loc, "'%s' does not match class name '%s'",
+                  istr(end_name), istr(name));
+   }
+
+   vlog_set_loc(v, CURRENT_LOC);
+   vlog_symtab_put(symtab, v);
+   return v;
+}
+
 static void p_block_item_declaration(vlog_node_t parent)
 {
    // { attribute_instance } data_declaration
@@ -3894,12 +3963,15 @@ static void p_package_or_generate_item_declaration(vlog_node_t parent)
       p_parameter_declaration(parent);
       consume(tSEMI);
       break;
+   case tCLASS:
+      vlog_add_decl(parent, p_class_declaration());
+      break;
    default:
       one_of(tWIRE, tUWIRE, tSUPPLY0, tSUPPLY1, tTRI, tTRI0, tTRI1, tTRIAND,
              tTRIOR, tTRIREG, tWAND, tWOR, tINTERCONNECT, tREG, tSTRUCT, tUNION,
              tTYPEDEF, tENUM, tSVINT, tINTEGER, tSVREAL, tSHORTREAL, tREALTIME,
              tTIME, tEVENT, tID, tVAR, tLOGIC, tBIT, tSHORTINT, tLONGINT, tBYTE,
-             tTASK, tFUNCTION, tLOCALPARAM, tPARAMETER);
+             tTASK, tFUNCTION, tLOCALPARAM, tPARAMETER, tCLASS);
       drop_tokens_until(tSEMI);
       break;
    }
@@ -6539,8 +6611,14 @@ static vlog_node_t p_package_declaration(void)
       p_lifetime();
 
    vlog_node_t v = vlog_new(V_PACKAGE);
-   ident_t name = p_identifier();
-   vlog_set_ident(v, name);
+
+   ident_t id, ext;
+   p_external_identifier(&id, &ext);
+   vlog_set_ident2(v, id);
+
+   ident_t qual = ident_prefix(lib_name(lib_work()), ext, '.');
+   vlog_set_ident(v, qual);
+
    consume(tSEMI);
 
    while (scan(tWIRE, tUWIRE, tSUPPLY0, tSUPPLY1, tTRI, tTRI0, tTRI1, tTRIAND,
@@ -6553,12 +6631,95 @@ static vlog_node_t p_package_declaration(void)
    consume(tENDPACKAGE);
 
    if (optional(tCOLON)) {
-      ident_t end_name = p_identifier();
-      if (name != end_name)
+      ident_t name = p_identifier();
+      if (id != name)
          error_at(&state.last_loc, "'%s' does not match package name '%s'",
-                  istr(end_name), istr(name));
+                  istr(name), istr(id));
    }
 
+   vlog_set_loc(v, CURRENT_LOC);
+   return v;
+}
+
+static vlog_node_t p_program_nonansi_header(void)
+{
+   // { attribute_instance } program [ lifetime ] program_identifier
+   //    { package_import_declaration } [ parameter_port_list ] list_of_ports ;
+
+   BEGIN("program non-ANSI header");
+
+   optional_attributes();
+
+   vlog_node_t v = vlog_new(V_PROGRAM);
+
+   consume(tPROGRAM);
+
+   ident_t id, ext;
+   p_external_identifier(&id, &ext);
+   vlog_set_ident2(v, id);
+
+   ident_t qual = ident_prefix(lib_name(lib_work()), ext, '.');
+   vlog_set_ident(v, qual);
+
+   consume(tSEMI);
+
+   vlog_set_loc(v, CURRENT_LOC);
+   return v;
+}
+
+static void p_non_port_program_item(vlog_node_t parent)
+{
+   // { attribute_instance } continuous_assign
+   //   | { attribute_instance } module_or_generate_item_declaration
+   //   | { attribute_instance } initial_construct
+   //   | { attribute_instance } final_construct
+   //   | { attribute_instance } concurrent_assertion_item
+   //   | timeunits_declaration
+   //   | program_generate_item
+
+   BEGIN("non-port program item");
+
+   optional_attributes();
+
+   switch (peek()) {
+   case tINITIAL:
+      vlog_add_stmt(parent, p_initial_construct());
+      break;
+   default:
+      p_module_or_generate_item_declaration(parent);
+      break;
+   }
+}
+
+static vlog_node_t p_program_declaration(void)
+{
+   // program_nonansi_header [ timeunits_declaration ] { program_item }
+   //       endprogram [ : program_identifier ]
+   //   | program_ansi_header [ timeunits_declaration ]
+   //       { non_port_program_item }
+   //   | { attribute_instance } program program_identifier ( .* ) ;
+   //       [ timeunits_declaration ] { program_item } endprogram
+   //       [ : program_identifier ]
+   //   | extern program_nonansi_header
+   //   | extern program_ansi_header
+
+   BEGIN("program declaration");
+
+   vlog_node_t v = p_program_nonansi_header();
+
+   while (not_at_token(tENDPROGRAM))
+      p_non_port_program_item(v);
+
+   consume(tENDPROGRAM);
+
+   if (optional(tCOLON)) {
+      ident_t name = p_identifier();
+      if (name != vlog_ident2(v))
+         parse_error(&state.last_loc, "'%s' does not match program name '%s'",
+                     istr(name), istr(vlog_ident2(v)));
+   }
+
+   vlog_set_loc(v, CURRENT_LOC);
    return v;
 }
 
@@ -6581,8 +6742,10 @@ static vlog_node_t p_description(void)
       return p_udp_declaration();
    case tPACKAGE:
       return p_package_declaration();
+   case tPROGRAM:
+      return p_program_declaration();
    default:
-      expect(tPRIMITIVE, tMODULE, tPACKAGE);
+      expect(tPRIMITIVE, tMODULE, tPACKAGE, tPROGRAM);
       return NULL;
    }
 }
