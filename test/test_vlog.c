@@ -1272,10 +1272,30 @@ START_TEST(test_class1)
    input_from_file(TESTDIR "/vlog/class1.sv");
 
    const error_t expect[] = {
-      { 11, "'foo_t' does not match class name 'bar_t'" },
-      { 19, "new class expression must have class type" },
+      { 12, "'foo_t' does not match class name 'bar_t'" },
+      { 18, "new class expression must have class type" },
+      { 20, "class 'foo_t' has no field named 'c'" },
       { 23, "'bob' does not match program name 'main'" },
-      { 20, "invalid operands for binary expression" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   vlog_node_t m = vlog_parse();
+   fail_if(m == NULL);
+   fail_unless(vlog_kind(m) == V_PROGRAM);
+
+   fail_unless(vlog_parse() == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
+START_TEST(test_class2)
+{
+   input_from_file(TESTDIR "/vlog/class2.sv");
+
+   const error_t expect[] = {
+      { 14, "invalid operands for binary expression" },
       {  0, "have 'int' and 'class'" },
       { -1, NULL }
    };
@@ -1339,6 +1359,7 @@ Suite *get_vlog_tests(void)
    tcase_add_test(tc, test_href1);
    tcase_add_test(tc, test_package1);
    tcase_add_test(tc, test_class1);
+   tcase_add_test(tc, test_class2);
    suite_add_tcase(s, tc);
 
    return s;

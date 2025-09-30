@@ -150,7 +150,7 @@ typedef enum {
    V_TF_PORT_DECL,
    V_RETURN,
    V_OP_ASSIGN,
-   V_STRUCT_REF,
+   V_MEMBER_REF,
    V_PACKAGE,
    V_MIN_TYP_MAX,
    V_PROGRAM,

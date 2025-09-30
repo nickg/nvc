@@ -93,6 +93,7 @@ static type_mask_t get_type_mask(vlog_node_t v)
       return TM_ENUM;
    case V_REF:
    case V_USER_FCALL:
+   case V_MEMBER_REF:
       if (vlog_has_ref(v))
          return get_type_mask(vlog_ref(v));
       else
@@ -211,7 +212,7 @@ static void vlog_check_variable_lvalue(vlog_node_t v, vlog_node_t where)
       break;
    case V_BIT_SELECT:
    case V_PART_SELECT:
-   case V_STRUCT_REF:
+   case V_MEMBER_REF:
       vlog_check_variable_lvalue(vlog_value(v), v);
       break;
    case V_CONCAT:
@@ -688,7 +689,7 @@ static vlog_node_t vlog_check_cb(vlog_node_t v, void *ctx)
    case V_TF_PORT_DECL:
    case V_WHILE:
    case V_DO_WHILE:
-   case V_STRUCT_REF:
+   case V_MEMBER_REF:
    case V_CLASS_DECL:
    case V_PROGRAM:
    case V_NULL:

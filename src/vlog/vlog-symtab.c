@@ -172,14 +172,16 @@ void vlog_symtab_set_implicit(vlog_symtab_t *st, vlog_net_kind_t kind)
    st->implicit = kind;
 }
 
-static void lookup_struct_member(vlog_symtab_t *st, vlog_node_t v)
+static void lookup_member(vlog_symtab_t *st, vlog_node_t v)
 {
    vlog_node_t prefix = vlog_value(v), type = vlog_get_type(prefix);
    if (type == NULL) {  // Was earlier error
       assert(error_count() > 0);
       return;
    }
-   else if (vlog_kind(type) != V_STRUCT_DECL) {
+
+   const vlog_kind_t kind = vlog_kind(type);
+   if (kind != V_STRUCT_DECL && kind != V_CLASS_DECL) {
       diag_t *d = diag_new(DIAG_ERROR, vlog_loc(prefix));
       if (vlog_kind(prefix) == V_REF)
          diag_printf(d, "'%s'", istr(vlog_ident(prefix)));
@@ -202,7 +204,11 @@ static void lookup_struct_member(vlog_symtab_t *st, vlog_node_t v)
    }
 
    diag_t *d = diag_new(DIAG_ERROR, vlog_loc(v));
-   diag_printf(d, "struct has no field named '%s'", istr(id));
+   if (kind == V_STRUCT_DECL)
+      diag_printf(d, "struct ");
+   else
+      diag_printf(d, "class '%s' ", istr(vlog_ident(type)));
+   diag_printf(d, "has no field named '%s'", istr(id));
    diag_hint(d, vlog_loc(type), "struct declared here");
    diag_emit(d);
 }
@@ -215,8 +221,8 @@ void vlog_symtab_lookup(vlog_symtab_t *st, vlog_node_t v)
    assert(!loc_invalid_p(vlog_loc(v)));
 
    switch (vlog_kind(v)) {
-   case V_STRUCT_REF:
-      lookup_struct_member(st, v);
+   case V_MEMBER_REF:
+      lookup_member(st, v);
       return;
    default:
       break;

@@ -297,7 +297,7 @@ vlog_node_t vlog_get_type(vlog_node_t v)
    case V_TYPE_DECL:
       return vlog_type(v);
    case V_REF:
-   case V_STRUCT_REF:
+   case V_MEMBER_REF:
       if (vlog_has_ref(v))
          return vlog_get_type(vlog_ref(v));
       else

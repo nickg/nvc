@@ -1399,7 +1399,7 @@ static vlog_node_t p_select(ident_t id)
       vlog_symtab_lookup(symtab, prefix);
 
       while (optional(tDOT)) {
-         vlog_node_t ref = vlog_new(V_STRUCT_REF);
+         vlog_node_t ref = vlog_new(V_MEMBER_REF);
          vlog_set_ident(ref, p_identifier());
          vlog_set_value(ref, prefix);
          vlog_set_loc(ref, CURRENT_LOC);
@@ -3866,6 +3866,7 @@ static void p_class_item(vlog_node_t parent)
 
    switch (peek()) {
    case tSEMI:
+      consume(tSEMI);
       break;
    default:
       p_class_property(parent);
