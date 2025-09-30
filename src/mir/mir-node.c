@@ -3028,12 +3028,15 @@ mir_value_t mir_build_link_package(mir_unit_t *mu, ident_t name)
    return result;
 }
 
-mir_value_t mir_build_link_var(mir_unit_t *mu, ident_t unit,
-                               mir_value_t context, ident_t name,
-                               mir_type_t type)
+mir_value_t mir_build_link_var(mir_unit_t *mu, mir_value_t context,
+                               ident_t name, mir_type_t type)
 {
    mir_type_t pointer = mir_get_var_pointer(mu, type);
-   mir_value_t link = mir_add_linkage(mu, unit);
+   mir_type_t context_type = mir_get_type(mu, context);
+
+   ident_t unit_name = mir_type_data(mu, context_type)->u.context;
+
+   mir_value_t link = mir_add_linkage(mu, unit_name);
    mir_value_t var = mir_add_extvar(mu, name);
    mir_value_t result = mir_build_3(mu, MIR_OP_LINK_VAR, pointer,
                                     MIR_NULL_STAMP, link, context, var);

@@ -137,10 +137,9 @@ static void import_link_var(mir_unit_t *mu, mir_import_t *imp, int op)
 
    mir_value_t context = imp->map[vcode_get_arg(op, 0)];
    mir_type_t type = import_type(mu, imp, vtype);
-   ident_t unit_name = vtype_name(vcode_reg_type(vcode_get_arg(op, 0)));
    ident_t name = vcode_get_ident(op);
 
-   imp->map[result] = mir_build_link_var(mu, unit_name, context, name, type);
+   imp->map[result] = mir_build_link_var(mu, context, name, type);
 }
 
 static void import_return(mir_unit_t *mu, mir_import_t *imp, int op)

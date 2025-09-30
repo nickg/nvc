@@ -228,8 +228,8 @@ static vlog_lvalue_t vlog_lower_lvalue(vlog_gen_t *g, vlog_node_t v)
          ident_t unit_name =
             ident_prefix(mir_get_parent(g->mu), vlog_ident2(v), '.');
          mir_value_t context = mir_build_link_package(g->mu, unit_name);
-         mir_value_t ptr = mir_build_link_var(g->mu, unit_name, context,
-                                              vlog_ident(v), t_net_signal);
+         mir_value_t ptr = mir_build_link_var(g->mu, context, vlog_ident(v),
+                                              t_net_signal);
 
          mir_type_t t_bool = mir_bool_type(g->mu);
          mir_type_t t_offset = mir_offset_type(g->mu);
@@ -880,8 +880,8 @@ static mir_value_t vlog_lower_rvalue(vlog_gen_t *g, vlog_node_t v)
          ident_t unit_name =
             ident_prefix(mir_get_parent(g->mu), vlog_ident2(v), '.');
          mir_value_t context = mir_build_link_package(g->mu, unit_name);
-         mir_value_t ptr = mir_build_link_var(g->mu, unit_name, context,
-                                              vlog_ident(v), t_net_signal);
+         mir_value_t ptr = mir_build_link_var(g->mu, context, vlog_ident(v),
+                                              t_net_signal);
          mir_value_t nets = mir_build_load(g->mu, ptr);
 
          vlog_node_t decl = vlog_ref(v);
@@ -2476,8 +2476,7 @@ void vlog_lower_block(mir_context_t *mc, ident_t parent, tree_t b)
    mir_type_t t_resolution = mir_resolution_type(mu, t_net_value);
 
    ident_t var_name = ident_new("NVC.VERILOG.T_WIRE$resolution");
-   mir_value_t resfn =
-      mir_build_link_var(mu, pkg_name, pkg, var_name, t_resolution);
+   mir_value_t resfn = mir_build_link_var(mu, pkg, var_name, t_resolution);
 
    vlog_gen_t g = {
       .mu = mu,

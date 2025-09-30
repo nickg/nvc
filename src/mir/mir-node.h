@@ -717,9 +717,8 @@ void mir_build_add_trigger(mir_unit_t *mu, mir_value_t trigger);
 
 // Linking
 mir_value_t mir_build_link_package(mir_unit_t *mu, ident_t name);
-mir_value_t mir_build_link_var(mir_unit_t *mu, ident_t unit,
-                               mir_value_t context, ident_t name,
-                               mir_type_t type);
+mir_value_t mir_build_link_var(mir_unit_t *mu, mir_value_t context,
+                               ident_t name, mir_type_t type);
 void mir_build_bind_foreign(mir_unit_t *mu, mir_value_t spec,
                             mir_value_t length, mir_value_t locus);
 mir_value_t mir_build_bind_external(mir_unit_t *mu, mir_value_t locus,
