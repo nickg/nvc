@@ -138,6 +138,26 @@ static void psl_lower_cover(lower_unit_t *lu, psl_node_t p, cover_data_t *cover,
    emit_cover_stmt(item->tag);
 }
 
+static void psl_lower_assert(lower_unit_t *lu, vcode_reg_t taken_reg,
+                             vcode_reg_t locus, psl_node_t p)
+{
+   vcode_reg_t severity_reg = psl_assert_severity();
+
+   vcode_reg_t msg_reg = VCODE_INVALID_REG;
+   vcode_reg_t len_reg = VCODE_INVALID_REG;
+
+   if (psl_has_message(p)) {
+      tree_t t_msg = psl_message(p);
+      vcode_reg_t message_wrapped = lower_rvalue(lu, t_msg);
+      msg_reg = lower_array_data(message_wrapped);
+      len_reg = lower_array_len(lu, tree_type(t_msg), 0, message_wrapped);
+   }
+
+   emit_assert(taken_reg, msg_reg, len_reg,
+               severity_reg, locus, VCODE_INVALID_REG,
+               VCODE_INVALID_REG);
+}
+
 static void psl_enter_state(fsm_state_t *state)
 {
    vcode_reg_t strong_reg = VCODE_INVALID_REG;
@@ -176,12 +196,8 @@ static void psl_lower_state(lower_unit_t *lu, psl_fsm_t *fsm,
       if (fsm->kind == FSM_COVER)
          psl_lower_cover(lu, fsm->src, cover, cscope);
       else if (fsm->kind == FSM_NEVER) {
-         vcode_reg_t severity_reg = psl_assert_severity();
          vcode_reg_t locus = psl_debug_locus(fsm->src);
-
-         emit_assert(vfalse, VCODE_INVALID_REG, VCODE_INVALID_REG,
-                     severity_reg, locus, VCODE_INVALID_REG,
-                     VCODE_INVALID_REG);
+         psl_lower_assert(lu, vfalse, locus, fsm->src);
       }
 
       emit_return(VCODE_INVALID_REG);
@@ -219,12 +235,8 @@ static void psl_lower_state(lower_unit_t *lu, psl_fsm_t *fsm,
    }
 
    if (fsm->kind != FSM_COVER && fsm->kind != FSM_NEVER) {
-      vcode_reg_t severity_reg = psl_assert_severity();
       vcode_reg_t locus = psl_debug_locus(state->where);
-
-      emit_assert(taken_reg, VCODE_INVALID_REG, VCODE_INVALID_REG,
-                  severity_reg, locus, VCODE_INVALID_REG,
-                  VCODE_INVALID_REG);
+      psl_lower_assert(lu, taken_reg, locus, fsm->src);
    }
 
    emit_return(VCODE_INVALID_REG);
@@ -483,12 +495,11 @@ void psl_lower_directive(unit_registry_t *ur, lower_unit_t *parent,
    vcode_select_block(abort_bb);
 
    if (strong) {
-      vcode_reg_t severity_reg = psl_assert_severity();
       vcode_reg_t false_reg = emit_const(vtype_bool(), 0);
       vcode_reg_t locus = psl_debug_locus(fsm->src);
-      emit_assert(false_reg, VCODE_INVALID_REG, VCODE_INVALID_REG,
-                  severity_reg, locus, VCODE_INVALID_REG,
-                  VCODE_INVALID_REG);
+
+      psl_lower_assert(lu, false_reg, locus, fsm->src);
+
       emit_return(VCODE_INVALID_REG);
    }
    else

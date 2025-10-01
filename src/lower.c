@@ -403,7 +403,7 @@ static vcode_reg_t lower_range_dir(lower_unit_t *lu, tree_t r)
    return VCODE_INVALID_REG;
 }
 
-static vcode_reg_t lower_array_data(vcode_reg_t reg)
+vcode_reg_t lower_array_data(vcode_reg_t reg)
 {
    vcode_type_t type = vcode_reg_type(reg);
    switch (vtype_kind(type)) {
@@ -473,8 +473,7 @@ static vcode_reg_t lower_array_dir(lower_unit_t *lu, type_t type, int dim,
       return lower_range_dir(lu, range_of(type, dim));
 }
 
-static vcode_reg_t lower_array_len(lower_unit_t *lu, type_t type, int dim,
-                                   vcode_reg_t reg)
+vcode_reg_t lower_array_len(lower_unit_t *lu, type_t type, int dim, vcode_reg_t reg)
 {
    assert(type_is_array(type));
 
