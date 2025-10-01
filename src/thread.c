@@ -167,7 +167,7 @@ typedef struct {
    task_t    deque[THREADQ_SIZE];
    abp_age_t age;
    abp_idx_t bot;
-} __attribute__((aligned(64))) threadq_t;
+} threadq_t;
 
 typedef enum { IDLE, START } workq_state_t;
 

@@ -1,4 +1,5 @@
 ## Unreleased changes
+- Fixed a crash when compiling with AVX2 enabled (#1311).
 
 ## Version 1.18.0 - 2025-09-28
 - Scheduling of blocking and non-blocking assignments in mixed-language
