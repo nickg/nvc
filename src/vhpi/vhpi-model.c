@@ -157,11 +157,11 @@ typedef struct tag_typeDecl c_typeDecl;
 typedef struct tag_typeDecl {
    c_abstractDecl  decl;
    type_t          type;
-   c_typeDecl     *BaseType;   // XXX: should belong to subtype?
+   c_typeDecl     *BaseType;
    vhpiFormatT     format;
    const char     *map_str;
    vhpiIntT        numElems;
-   vhpiBooleanT    IsAnonymous;   // XXX: should belong to subtype?
+   vhpiBooleanT    IsAnonymous;
    vhpiBooleanT    IsComposite;
    vhpiBooleanT    IsScalar;
    vhpiBooleanT    IsUnconstrained;
@@ -4121,7 +4121,7 @@ static c_typeDecl *build_subTypeDecl(type_t type, tree_t where,
 
    hash_put(vhpi_context()->objcache, type, td);
 
-   td->typeDecl.BaseType = cached_typeDecl(type_base(type), NULL);
+   td->typeDecl.BaseType = cached_typeDecl(type_base_recur(type), NULL);
    td->typeDecl.IsAnonymous = is_anonymous_subtype(type);
    td->typeDecl.IsScalar = td->typeDecl.BaseType->IsScalar;
    td->typeDecl.IsComposite = td->typeDecl.BaseType->IsComposite;

@@ -21,5 +21,6 @@ architecture test of vhpi11 is
     signal s : t_rec(y(1 to 3));        -- See issue #866
     signal t : t_byte_array(1 to 3);
     signal u : t_int_array;
+    signal v : natural range 0 to 1;    -- See issue #1310
 begin
 end architecture;
