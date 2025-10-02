@@ -198,12 +198,17 @@ static void start_of_sim(const vhpiCbDataT *cb_data)
       vhpi_release_handle(range);
 
       fail_unless(vhpi_scan(it) == NULL);
-      vhpi_release_handle(it);
    }
 
    vhpi_release_handle(u_elem);
    vhpi_release_handle(u_base);
    vhpi_release_handle(u_sig);
+
+   vhpiHandleT v_sig = VHPI_CHECK(vhpi_handle_by_name("v", root));
+   vhpi_printf("v_sig handle %p", u_sig);
+
+   vhpiHandleT v_base = VHPI_CHECK(vhpi_handle(vhpiBaseType, v_sig));
+   fail_unless(vhpi_get(vhpiKindP, v_base) == vhpiIntTypeDeclK);
 
    vhpi_release_handle(handle_sos);
 }
