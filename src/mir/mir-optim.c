@@ -601,6 +601,7 @@ static void gvn_visit_block(mir_unit_t *mu, mir_block_t block,
       case MIR_OP_CONTEXT_UPREF:
       case MIR_OP_UNWRAP:
       case MIR_OP_INSERT:
+      case MIR_OP_NULL:
          gvn_generic(mu, node, block, opt);
          break;
       case MIR_OP_AND:
@@ -618,6 +619,7 @@ static void gvn_visit_block(mir_unit_t *mu, mir_block_t block,
          break;
       case MIR_OP_INIT_SIGNAL:
       case MIR_OP_PORT_CONVERSION:
+      case MIR_OP_PROTECTED_INIT:
          opt->gvn->nodevn[node.id] = gvn_new_value(node, opt->gvn);
          break;
       default:

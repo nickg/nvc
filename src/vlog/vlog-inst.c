@@ -79,6 +79,7 @@ static bool copy_instance_pred(vlog_node_t v, void *ctx)
       }
    case V_FUNC_DECL:
    case V_TASK_DECL:
+   case V_CLASS_DECL:
       return true;
    default:
       return false;
@@ -106,6 +107,7 @@ static void rename_tf_decls(vlog_node_t v, ident_t prefix)
       switch (vlog_kind(d)) {
       case V_FUNC_DECL:
       case V_TASK_DECL:
+      case V_CLASS_DECL:
          assert(!vlog_has_ident2(d));
          vlog_set_ident2(d, prefix);
          break;
@@ -129,9 +131,11 @@ vlog_node_t vlog_new_instance(vlog_node_t mod, vlog_node_t inst, ident_t prefix)
 
    hash_t *map = hash_new(16);
 
-   const int nports = vlog_ports(copy);
-   for (int i = 0; i < nports; i++)
-      vlog_add_port(v, vlog_port(copy, i));
+   if (vlog_kind(mod) != V_PROGRAM) {
+      const int nports = vlog_ports(copy);
+      for (int i = 0; i < nports; i++)
+         vlog_add_port(v, vlog_port(copy, i));
+   }
 
    int pidx = 0;
    const int ndecls = vlog_decls(copy);

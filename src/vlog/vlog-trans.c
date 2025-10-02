@@ -157,6 +157,8 @@ static type_t trans_type(trans_gen_t *g, vlog_node_t decl,
    case V_TYPE_DECL:
    case V_ENUM_DECL:
       return trans_type(g, vlog_type(decl), scalar_type, packed_type);
+   case V_CLASS_DECL:
+      return NULL;
    case V_DATA_TYPE:
       break;
    default:
@@ -310,6 +312,8 @@ static void trans_localparam(trans_gen_t *g, vlog_node_t v)
 static void trans_var_decl(trans_gen_t *g, vlog_node_t v)
 {
    type_t type = trans_var_type(g, v);
+   if (type == NULL)
+      return;
 
    tree_t t = tree_new(T_SIGNAL_DECL);
    tree_set_ident(t, vlog_ident(v));
@@ -381,6 +385,8 @@ void vlog_trans(vlog_node_t mod, tree_t out)
          break;
       case V_GENVAR_DECL:
       case V_TYPE_DECL:
+      case V_CLASS_DECL:
+      case V_STRUCT_DECL:
          break;
       default:
          CANNOT_HANDLE(d);
