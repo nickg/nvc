@@ -1969,6 +1969,7 @@ static void vlog_lower_sensitivity(vlog_gen_t *g, vlog_node_t v)
       break;
    case V_CONCAT:
    case V_USER_FCALL:
+   case V_SYS_FCALL:
       {
          const int nparams = vlog_params(v);
          for (int i = 0; i < nparams; i++)

@@ -3373,6 +3373,22 @@ static void p_net_declaration(vlog_node_t mod)
    consume(tSEMI);
 }
 
+static vlog_node_t p_unsized_dimension(void)
+{
+   // [ ]
+
+   BEGIN("unsized dimension");
+
+   consume(tLSQUARE);
+   consume(tRSQUARE);
+
+   vlog_node_t v = vlog_new(V_DIMENSION);
+   vlog_set_subkind(v, V_DIM_UNSIZED);
+   vlog_set_loc(v, CURRENT_LOC);
+
+   return v;
+}
+
 static vlog_node_t p_variable_dimension(void)
 {
    // unsized_dimension | unpacked_dimension | associative_dimension
@@ -3380,7 +3396,12 @@ static vlog_node_t p_variable_dimension(void)
 
    BEGIN("variable dimension");
 
-   return p_unpacked_dimension();
+   switch (peek_nth(2)) {
+   case tRSQUARE:
+      return p_unsized_dimension();
+   default:
+      return p_unpacked_dimension();
+   }
 }
 
 static vlog_node_t p_variable_decl_assignment(vlog_node_t datatype)

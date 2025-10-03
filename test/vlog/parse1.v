@@ -151,4 +151,5 @@ module parse1;
   end
   bufif0 (pull0,pull1) (x, y, z);
   always @(/* AUTOSENSE*/ *) x = y;
+  reg dyn[];
 endmodule // parse1

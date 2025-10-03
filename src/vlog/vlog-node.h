@@ -178,7 +178,8 @@ typedef enum {
 
 typedef enum {
    V_DIM_PACKED,
-   V_DIM_UNPACKED
+   V_DIM_UNPACKED,
+   V_DIM_UNSIZED,
 } vlog_dimension_kind_t;
 
 typedef enum {

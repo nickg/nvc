@@ -99,6 +99,7 @@ static type_mask_t get_type_mask(vlog_node_t v)
       else
          return TM_ERROR;
    case V_NUMBER:
+   case V_STRING:
    case V_CONCAT:
    case V_SYS_FCALL:
       return TM_INTEGRAL;
