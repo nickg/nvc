@@ -205,16 +205,16 @@ static void vlog_check_variable_lvalue(vlog_node_t v, vlog_node_t where)
    case V_ENUM_DECL:
    case V_UNION_DECL:
    case V_GENVAR_DECL:
-      break;
+      return;
    case V_REF:
       if (vlog_has_ref(v))
          vlog_check_variable_lvalue(vlog_ref(v), v);
-      break;
+      return;
    case V_BIT_SELECT:
    case V_PART_SELECT:
    case V_MEMBER_REF:
       vlog_check_variable_lvalue(vlog_value(v), v);
-      break;
+      return;
    case V_CONCAT:
       {
          const int nparams = vlog_params(v);
@@ -223,23 +223,26 @@ static void vlog_check_variable_lvalue(vlog_node_t v, vlog_node_t where)
             vlog_check_variable_lvalue(p, p);
          }
       }
+      return;
+   case V_TF_PORT_DECL:
+      if (vlog_subkind(v) != V_PORT_INPUT)
+         return;
       break;
    case V_PORT_DECL:
       if (vlog_has_ref(v)) {
          vlog_check_variable_lvalue(vlog_ref(v), where);
-         break;
-      }
-      // Fall-through
-   default:
-      {
-         diag_t *d = diag_new(DIAG_ERROR, vlog_loc(where));
-         name_for_diag(d, where, "target");
-         diag_suppress(d, has_error(where));
-         diag_printf(d, " cannot be assigned in a procedural block");
-         diag_emit(d);
+         return;
       }
       break;
+   default:
+      break;
    }
+
+   diag_t *d = diag_new(DIAG_ERROR, vlog_loc(where));
+   name_for_diag(d, where, "target");
+   diag_suppress(d, has_error(where));
+   diag_printf(d, " cannot be assigned in a procedural block");
+   diag_emit(d);
 }
 
 static void vlog_check_nbassign(vlog_node_t stmt)

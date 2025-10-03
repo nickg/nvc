@@ -29,7 +29,7 @@ module tfcall1;
   end
 
   task task1(input x, output y);
-    //y = x * 2;    // OK (TODO)
+    y = x * 2;    // OK
   endtask // task1
 
   initial main;    // OK
@@ -38,12 +38,18 @@ module tfcall1;
 
   task task2;
     return 5;    // Error
-  endtask // task2
+  endtask : task2
 
   initial return;   // Error
 
   function logic func1;
     return;  // Error
-  endfunction // func1
+  endfunction : func1
+
+  task task3;
+  endtask : bob  // Error
+
+  function func2;
+  endfunction : blah  // Error
 
 endmodule // tfcall1

@@ -765,7 +765,8 @@ pr541			normal			ivltests gold=pr541.gold
 pr542			normal			ivltests gold=pr542.gold
 pr544			normal			ivltests gold=pr544.gold
 pr547			normal			ivltests gold=pr547.gold
-pr556			normal			ivltests gold=pr556.gold
+# Has expected random number output
+#pr556			normal			ivltests gold=pr556.gold
 pr564			normal			ivltests
 pr569			normal			ivltests gold=pr569.gold
 pr572			normal			ivltests gold=pr572.gold

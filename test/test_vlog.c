@@ -994,6 +994,8 @@ START_TEST(test_tfcall1)
 
    const error_t expect[] = {
       { 43, "return statement can only be used in a subroutine" },
+      { 50, "'bob' does not match task name 'task3'" },
+      { 53, "'blah' does not match function name 'func2'" },
       { 40, "return statement in a task cannot have an expression" },
       { 46, "return statement in a non-void function must have an expression" },
       {  8, "expected 2 arguments for 'sum' but have 1" },
@@ -1126,13 +1128,16 @@ START_TEST(test_error1)
 
    const error_t expect[] = {
       {  2, "no data type declaration for 'foo'" },
+      {  6, "'error1' does not match module name 'error2'" },
       { -1, NULL }
    };
    expect_errors(expect);
 
-   vlog_node_t m = vlog_parse();
-   fail_if(m == NULL);
-   fail_unless(vlog_kind(m) == V_MODULE);
+   for (int i = 0; i < 2; i++) {
+      vlog_node_t m = vlog_parse();
+      fail_if(m == NULL);
+      fail_unless(vlog_kind(m) == V_MODULE);
+   }
 
    fail_unless(vlog_parse() == NULL);
 

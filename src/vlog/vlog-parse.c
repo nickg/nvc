@@ -3650,6 +3650,13 @@ static void p_task_body_declaration(vlog_node_t task)
 
    consume(tENDTASK);
 
+   if (optional(tCOLON)) {
+      ident_t name = p_identifier();
+      if (id != name)
+         error_at(&state.last_loc, "'%s' does not match task name '%s'",
+                  istr(name), istr(id));
+   }
+
    vlog_symtab_pop(symtab);
 }
 
@@ -3750,6 +3757,13 @@ static void p_function_body_declaration(vlog_node_t func)
    }
 
    consume(tENDFUNCTION);
+
+   if (optional(tCOLON)) {
+      ident_t name = p_identifier();
+      if (id != name)
+         error_at(&state.last_loc, "'%s' does not match function name '%s'",
+                  istr(name), istr(id));
+   }
 
    vlog_symtab_pop(symtab);
 }
@@ -6050,6 +6064,13 @@ static vlog_node_t p_module_declaration(void)
       p_module_item(mod);
 
    consume(tENDMODULE);
+
+   if (optional(tCOLON)) {
+      ident_t name = p_identifier();
+      if (id != name)
+         error_at(&state.last_loc, "'%s' does not match module name '%s'",
+                  istr(name), istr(id));
+   }
 
    vlog_symtab_pop(symtab);
    return mod;
