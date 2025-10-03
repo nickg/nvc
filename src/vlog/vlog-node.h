@@ -157,6 +157,9 @@ typedef enum {
    V_CLASS_DECL,
    V_NULL,
    V_CLASS_NEW,
+   V_CONSTRUCTOR,
+   V_SUPER_CALL,
+   V_IMPORT_DECL,
 
    V_LAST_NODE_KIND
 } vlog_kind_t;
@@ -174,6 +177,7 @@ typedef enum {
    DT_SHORTREAL,
    DT_REALTIME,
    DT_EVENT,
+   DT_STRING,
 } data_type_t;
 
 typedef enum {

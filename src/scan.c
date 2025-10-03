@@ -381,6 +381,7 @@ const char *token_str(token_t tok)
          "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "<<=", ">>=", "<<<=",
          ">>>=", "bufif0", "bufif1", "notif0", "notif1", "`protect",
          "begin_protected", "end_protected", "endprogram", "endclass",
+         "virtual", "::",
       };
 
       if (tok >= 200 && tok - 200 < ARRAY_LEN(token_strs))

@@ -1070,10 +1070,21 @@ static vlog_node_t p_data_type(void)
             return dt;
       }
 
+   case tSTRINGK:
+      {
+         consume(tSTRINGK);
+
+         vlog_node_t v = vlog_new(V_DATA_TYPE);
+         vlog_set_subkind(v, DT_STRING);
+         vlog_set_loc(v, &state.last_loc);
+
+         return v;
+      }
+
    default:
       one_of(tBIT, tLOGIC, tREG, tBYTE, tSHORTINT, tSVINT, tLONGINT, tINTEGER,
              tTIME, tSVREAL, tREALTIME, tSHORTREAL, tSTRUCT, tUNION, tENUM,
-             tEVENT, tID);
+             tEVENT, tID, tSTRINGK);
       return logic_type();
    }
 }
@@ -1126,6 +1137,7 @@ static vlog_node_t p_data_type_or_implicit(void)
    case tLONGINT:
    case tBYTE:
    case tEVENT:
+   case tSTRINGK:
       return p_data_type();
    default:
       return p_implicit_data_type();
@@ -1451,16 +1463,18 @@ static void p_list_of_arguments(vlog_node_t call)
 
    BEGIN("list of arguments");
 
-   if (peek() != tRPAREN)
-      do {
-         if (peek() == tCOMMA) {
-            vlog_node_t v = vlog_new(V_EMPTY);
-            vlog_set_loc(v, &state.last_loc);
-            vlog_add_param(call, v);
-         }
-         else
-            vlog_add_param(call, p_expression());
-      } while (optional(tCOMMA));
+   if (peek() == tRPAREN)
+      return;
+
+   do {
+      if (peek() == tCOMMA) {
+         vlog_node_t v = vlog_new(V_EMPTY);
+         vlog_set_loc(v, &state.last_loc);
+         vlog_add_param(call, v);
+      }
+      else
+         vlog_add_param(call, p_expression());
+   } while (optional(tCOMMA));
 }
 
 static vlog_node_t p_system_tf_call(vlog_kind_t kind)
@@ -3463,6 +3477,41 @@ static vlog_node_t p_type_declaration(void)
    return v;
 }
 
+static vlog_node_t p_package_import_item(void)
+{
+   // package_identifier :: identifier | package_identifier :: *
+
+   BEGIN("package import item");
+
+   vlog_node_t v = vlog_new(V_IMPORT_DECL);
+   vlog_set_ident(v, p_identifier());
+
+   consume(tSCOPE);
+
+   if (peek() == tID)
+      vlog_set_ident2(v, p_identifier());
+   else
+      one_of(tTIMES, tID);
+
+   vlog_set_loc(v, CURRENT_LOC);
+   return v;
+}
+
+static void p_package_import_declaration(vlog_node_t parent)
+{
+   // import package_import_item { , package_import_item } ;
+
+   BEGIN("package import declaration");
+
+   consume(tIMPORT);
+
+   do {
+      vlog_add_decl(parent, p_package_import_item());
+   } while (optional(tCOMMA));
+
+   consume(tSEMI);
+}
+
 static void p_data_declaration(vlog_node_t mod)
 {
    // [ const ] [ var ] [ lifetime ] data_type_or_implicit
@@ -3475,7 +3524,9 @@ static void p_data_declaration(vlog_node_t mod)
    case tTYPEDEF:
       vlog_add_decl(mod, p_type_declaration());
       break;
-
+   case tIMPORT:
+      p_package_import_declaration(mod);
+      break;
    default:
       {
          optional(tVAR);
@@ -3716,7 +3767,7 @@ static vlog_node_t p_function_data_type_or_implicit(void)
    BEGIN("function data type or implicit");
 
    if (scan(tREG, tSTRUCT, tUNION, tENUM, tSVINT, tINTEGER, tSVREAL,
-            tSHORTREAL, tREALTIME, tLOGIC, tBIT, tEVENT))
+            tSHORTREAL, tREALTIME, tLOGIC, tBIT, tEVENT, tVOID))
       return p_data_type_or_void();
    else
       return p_implicit_data_type();
@@ -3885,6 +3936,131 @@ static void p_class_property(vlog_node_t parent)
    p_data_declaration(parent);
 }
 
+static void p_class_constructor_arg(vlog_node_t parent)
+{
+   // tf_port_item | default
+
+   BEGIN("class constructor argument");
+
+   vlog_node_t v = p_tf_port_item();
+   vlog_symtab_put(symtab, v);
+   vlog_add_param(parent, v);
+}
+
+static void p_class_constructor_arg_list(vlog_node_t parent)
+{
+   // class_constructor_arg { , class_constructor_arg }
+
+   BEGIN("class constructor argument list");
+
+   do {
+      p_class_constructor_arg(parent);
+   } while (optional(tCOMMA));
+}
+
+static vlog_node_t p_class_constructor_declaration(void)
+{
+   // function [ class_scope ] new [ ( [ class_constructor_arg_list ] ) ] ;
+   //   { block_item_declaration }
+   //   [ super . new [ ( [ list_of_arguments | default ] ) ] ; ]
+   //   { function_statement_or_null }
+   //   endfunction [ : new]
+
+   BEGIN("class constructor declaration");
+
+   consume(tFUNCTION);
+   consume(tNEW);
+
+   vlog_node_t v = vlog_new(V_CONSTRUCTOR);
+   vlog_set_ident(v, ident_new("new"));
+
+   vlog_symtab_push(symtab, v);
+
+   if (optional(tLPAREN)) {
+      if (not_at_token(tRPAREN))
+         p_class_constructor_arg_list(v);
+
+      consume(tRPAREN);
+   }
+
+   consume(tSEMI);
+
+   skip_over_attributes();
+
+   while (scan(tREG, tSTRUCT, tUNION, tTYPEDEF, tENUM, tSVINT, tINTEGER,
+               tSVREAL, tSHORTREAL, tREALTIME, tBIT, tLOGIC, tSHORTINT)) {
+      p_block_item_declaration(v);
+      skip_over_attributes();
+   }
+
+   if (optional(tSUPER)) {
+      consume(tDOT);
+      consume(tNEW);
+
+      vlog_node_t call = vlog_new(V_SUPER_CALL);
+      vlog_set_loc(call, &state.last_loc);
+
+      if (optional(tLPAREN)) {
+         p_list_of_arguments(call);
+         consume(tRPAREN);
+      }
+
+      vlog_add_stmt(v, call);
+   }
+
+   while (not_at_token(tENDFUNCTION)) {
+      vlog_node_t s = p_statement_or_null();
+      if (s != NULL)
+         vlog_add_stmt(v, s);
+   }
+
+   consume(tENDFUNCTION);
+
+   if (optional(tCOLON))
+      consume(tNEW);
+
+   vlog_symtab_pop(symtab);
+
+   vlog_set_loc(v, CURRENT_LOC);
+   return v;
+}
+
+static void p_method_qualifier(void)
+{
+   // [ pure ] virtual | class_item_qualifier
+
+   BEGIN("method qualifier");
+
+   consume(tVIRTUAL);
+}
+
+static void p_class_method(vlog_node_t class)
+{
+   // { method_qualifier } task_declaration
+   //    | { method_qualifier } function_declaration
+   //    | pure virtual { class_item_qualifier } method_prototype ;
+   //    | extern { method_qualifier } method_prototype ;
+   //    | { method_qualifier } class_constructor_declaration
+   //    | extern { method_qualifier } class_constructor_prototype
+
+   BEGIN("class method");
+
+   if (scan(tVIRTUAL))
+      p_method_qualifier();
+
+   switch (peek()) {
+   case tFUNCTION:
+      if (peek_nth(2) == tNEW)
+         vlog_add_decl(class, p_class_constructor_declaration());
+      else
+         vlog_add_decl(class, p_function_declaration());
+      break;
+   default:
+      one_of(tFUNCTION);
+      break;
+   }
+}
+
 static void p_class_item(vlog_node_t parent)
 {
    // { attribute_instance } class_property
@@ -3903,10 +4079,25 @@ static void p_class_item(vlog_node_t parent)
    case tSEMI:
       consume(tSEMI);
       break;
+   case tFUNCTION:
+   case tTASK:
+   case tVIRTUAL:
+      p_class_method(parent);
+      break;
    default:
       p_class_property(parent);
       break;
    }
+}
+
+static void p_class_type(void)
+{
+   // ps_class_identifier [ parameter_value_assignment ]
+   //   { :: class_identifier [ parameter_value_assignment ] }
+
+   BEGIN("class type");
+
+   (void)p_identifier();
 }
 
 static vlog_node_t p_class_declaration(void)
@@ -3920,10 +4111,15 @@ static vlog_node_t p_class_declaration(void)
 
    vlog_node_t v = vlog_new(V_CLASS_DECL);
 
+   optional(tVIRTUAL);
+
    consume(tCLASS);
 
    ident_t name = p_identifier();
    vlog_set_ident(v, name);
+
+   if (optional(tEXTENDS))
+      p_class_type();
 
    consume(tSEMI);
 
@@ -4023,6 +4219,7 @@ static void p_package_or_generate_item_declaration(vlog_node_t parent)
    case tSHORTINT:
    case tLONGINT:
    case tBYTE:
+   case tIMPORT:
       p_data_declaration(parent);
       break;
    case tTASK:
@@ -4040,6 +4237,7 @@ static void p_package_or_generate_item_declaration(vlog_node_t parent)
       consume(tSEMI);
       break;
    case tCLASS:
+   case tVIRTUAL:
       vlog_add_decl(parent, p_class_declaration());
       break;
    default:
@@ -4047,7 +4245,8 @@ static void p_package_or_generate_item_declaration(vlog_node_t parent)
              tTRIOR, tTRIREG, tWAND, tWOR, tINTERCONNECT, tREG, tSTRUCT, tUNION,
              tTYPEDEF, tENUM, tSVINT, tINTEGER, tSVREAL, tSHORTREAL, tREALTIME,
              tTIME, tEVENT, tID, tVAR, tLOGIC, tBIT, tSHORTINT, tLONGINT, tBYTE,
-             tTASK, tFUNCTION, tLOCALPARAM, tPARAMETER, tCLASS);
+             tIMPORT, tTASK, tFUNCTION, tLOCALPARAM, tPARAMETER, tCLASS,
+             tVIRTUAL);
       drop_tokens_until(tSEMI);
       break;
    }
@@ -4383,6 +4582,7 @@ static void p_module_common_item(vlog_node_t mod)
    case tSHORTINT:
    case tLONGINT:
    case tBYTE:
+   case tIMPORT:
       p_module_or_generate_item_declaration(mod);
       break;
    case tASSIGN:
@@ -4400,7 +4600,8 @@ static void p_module_common_item(vlog_node_t mod)
              tWAND, tWOR, tINTERCONNECT, tREG, tSTRUCT, tUNION, tTYPEDEF, tENUM,
              tSVINT, tINTEGER, tSVREAL, tSHORTREAL, tREALTIME, tTIME, tTASK,
              tFUNCTION, tPARAMETER, tLOCALPARAM, tEVENT, tID, tGENVAR, tVAR,
-             tLOGIC, tBIT, tSHORTINT, tLONGINT, tBYTE, tASSIGN, tFOR, tIF);
+             tLOGIC, tBIT, tSHORTINT, tLONGINT, tBYTE, tIMPORT, tASSIGN, tFOR,
+             tIF);
       drop_tokens_until(tSEMI);
    }
 }
@@ -5684,6 +5885,7 @@ static void p_module_or_generate_item(vlog_node_t mod)
    case tSHORTINT:
    case tLONGINT:
    case tBYTE:
+   case tIMPORT:
       p_module_common_item(mod);
       break;
    case tPULLDOWN:
@@ -5718,8 +5920,8 @@ static void p_module_or_generate_item(vlog_node_t mod)
              tINITIAL, tTYPEDEF, tENUM, tSVINT, tINTEGER, tSVREAL, tSHORTREAL,
              tREALTIME, tTIME, tTASK, tFUNCTION, tLOCALPARAM, tPARAMETER, tIF,
              tFOR, tEVENT, tGENVAR, tVAR, tLOGIC, tBIT, tSHORTINT, tLONGINT,
-             tBYTE, tPULLDOWN, tPULLUP, tID, tAND, tNAND, tOR, tNOR, tXOR,
-             tXNOR, tNOT, tBUF, tBUFIF0, tBUFIF1, tNOTIF0, tNOTIF1);
+             tBYTE, tIMPORT, tPULLDOWN, tPULLUP, tID, tAND, tNAND, tOR, tNOR,
+             tXOR, tXNOR, tNOT, tBUF, tBUFIF0, tBUFIF1, tNOTIF0, tNOTIF1);
       drop_tokens_until(tSEMI);
    }
 }
@@ -5811,6 +6013,7 @@ static void p_non_port_module_item(vlog_node_t mod)
    case tSHORTINT:
    case tLONGINT:
    case tBYTE:
+   case tIMPORT:
       p_module_or_generate_item(mod);
       break;
    case tSPECIFY:
@@ -5827,8 +6030,8 @@ static void p_non_port_module_item(vlog_node_t mod)
              tXNOR, tNOT, tBUF, tBUFIF0, tBUFIF1, tNOTIF0, tNOTIF1, tTYPEDEF,
              tENUM, tSVINT, tINTEGER, tSVREAL, tSHORTREAL, tREALTIME, tTIME,
              tTASK, tFUNCTION, tLOCALPARAM, tPARAMETER, tEVENT, tIF, tFOR,
-             tGENVAR, tVAR, tLOGIC, tBIT, tSHORTINT, tLONGINT, tBYTE, tSPECIFY,
-             tGENERATE);
+             tGENVAR, tVAR, tLOGIC, tBIT, tSHORTINT, tLONGINT, tBYTE, tIMPORT,
+             tSPECIFY, tGENERATE);
       drop_tokens_until(tSEMI);
    }
 }
@@ -6075,6 +6278,9 @@ static vlog_node_t p_module_declaration(void)
    vlog_set_ident(mod, qual);
 
    vlog_symtab_push(symtab, mod);
+
+   while (peek() == tIMPORT)
+      p_package_import_declaration(mod);
 
    if (peek() == tLPAREN && peek_nth(2) == tID)
       p_module_nonansi_header(mod);
@@ -6708,7 +6914,8 @@ static vlog_node_t p_package_declaration(void)
                tTRIOR, tTRIREG, tWAND, tWOR, tINTERCONNECT, tREG, tSTRUCT,
                tUNION, tTYPEDEF, tENUM, tSVINT, tINTEGER, tSVREAL, tSHORTREAL,
                tREALTIME, tTIME, tEVENT, tID, tVAR, tLOGIC, tBIT, tSHORTINT,
-               tLONGINT, tBYTE, tTASK, tFUNCTION, tLOCALPARAM, tPARAMETER))
+               tLONGINT, tBYTE, tTASK, tFUNCTION, tLOCALPARAM, tPARAMETER,
+               tCLASS, tVIRTUAL))
       p_package_or_generate_item_declaration(v);
 
    consume(tENDPACKAGE);

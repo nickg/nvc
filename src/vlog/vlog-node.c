@@ -294,6 +294,15 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
 
    // V_CLASS_NEW
    (I_TYPE | I_PARAMS),
+
+   // V_CONSTRUCTOR
+   (I_IDENT | I_PARAMS | I_STMTS | I_DECLS),
+
+   // V_SUPER_CALL
+   (I_PARAMS),
+
+   // V_IMPORT_DECL
+   (I_IDENT | I_IDENT2),
 };
 
 static const char *kind_text_map[V_LAST_NODE_KIND] = {
@@ -319,7 +328,8 @@ static const char *kind_text_map[V_LAST_NODE_KIND] = {
    "V_FORCE",         "V_RELEASE",     "V_DISABLE",       "V_HIER_REF",
    "V_TF_PORT_DECL",  "V_RETURN",      "V_OP_ASSIGN",     "V_MEMBER_REF",
    "V_PACKAGE",       "V_MIN_TYP_MAX", "V_PROGRAM",       "V_CLASS_DECL",
-   "V_NULL",          "V_CLASS_NEW",
+   "V_NULL",          "V_CLASS_NEW",   "V_CONSTRUCTOR",   "V_SUPER_CALL",
+   "V_IMPORT_DECL",
 };
 
 static const change_allowed_t change_allowed[] = {

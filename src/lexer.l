@@ -744,6 +744,7 @@ PROTECT           ?i:protect
 <VLOG>">>>="             { return tASREQ; }
 <VLOG>"+=>"              { yyless(1); return tPLUS; }
 <VLOG>"-=>"              { yyless(1); return tMINUS; }
+<VLOG>"::"               { return tSCOPE; }
 <VLOG>"var"              { return KEYWORD_2005(tVAR); }
 <VLOG>"specify"          { return tSPECIFY; }
 <VLOG>"endspecify"       { return tENDSPECIFY; }
@@ -840,6 +841,7 @@ PROTECT           ?i:protect
 <VLOG>"program"          { return KEYWORD_2005(tPROGRAM); }
 <VLOG>"endprogram"       { return KEYWORD_2005(tENDPROGRAM); }
 <VLOG>"endclass"         { return KEYWORD_2005(tENDCLASS); }
+<VLOG>"virtual"          { return KEYWORD_2005(tVIRTUAL); }
 
 <VLOG>"`unconnected_drive"   { return tUNCTDRIVE; }
 <VLOG>"`nounconnected_drive" { return tNOUNCTDRIVE; }

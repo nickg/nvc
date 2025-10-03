@@ -699,6 +699,10 @@ static vlog_node_t vlog_check_cb(vlog_node_t v, void *ctx)
    case V_NULL:
    case V_CLASS_NEW:
    case V_MIN_TYP_MAX:
+   case V_CONSTRUCTOR:
+   case V_SUPER_CALL:
+   case V_PACKAGE:
+   case V_IMPORT_DECL:
       break;
    default:
       fatal_at(vlog_loc(v), "cannot check verilog node %s",
