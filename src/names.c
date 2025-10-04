@@ -2835,7 +2835,9 @@ static void begin_overload_resolution(overload_t *o)
          const int nports = tree_ports(d);
          for (int i = 0; i < nports; i++) {
             tree_t port = tree_port(d, i);
-            if (!tree_has_value(port))
+            if (tree_subkind(port) != PORT_IN)
+               nrequired++;
+            else if (!tree_has_value(port))
                nrequired++;
             else if (first_named < o->nactuals) {
                // Named optional arguments should not count against the
