@@ -544,9 +544,8 @@ static fsm_state_t *build_next_e(psl_fsm_t *fsm, fsm_state_t *state, psl_node_t 
    const int hi = get_number(psl_tree(psl_right(range)));
 
    if (lo > hi)
-      error_at(psl_loc(p), "left bound of PSL range (%d) must be "
-                           "lower than right bound (%d)",
-                           lo, hi);
+      fatal_at(psl_loc(p), "left bound of PSL range (%d) must be "
+               "lower than right bound (%d)", lo, hi);
 
    for (int i = 0; i < lo - 1; i++) {
       fsm_state_t *new = add_state(fsm, p);
