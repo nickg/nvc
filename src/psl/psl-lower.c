@@ -435,11 +435,11 @@ vcode_reg_t psl_lower_fcall(lower_unit_t *lu, psl_node_t p)
          for (int i = 0; i < n_ops; i++) {
             psl_node_t op = psl_operand(vs, i);
             if (psl_kind(op) == P_RANGE) {
-               int64_t lhs, rhs;
-               folded_int(psl_tree(psl_left(op)), &lhs);
-               folded_int(psl_tree(psl_right(op)), &rhs);
+               const int64_t lhs = assume_int(psl_tree(psl_left(op)));
+               const int64_t rhs = assume_int(psl_tree(psl_right(op)));
                candidates += rhs - lhs + 1;
-            } else
+            }
+            else
                candidates++;
          }
 
@@ -469,7 +469,8 @@ vcode_reg_t psl_lower_fcall(lower_unit_t *lu, psl_node_t p)
             psl_node_t op = psl_operand(vs, i);
 
             vcode_select_block(test_bb[i]);
-            vcode_block_t next_bb = (i < (n_ops - 1)) ? test_bb[i + 1] : exit_bb;
+            vcode_block_t next_bb =
+               (i < (n_ops - 1)) ? test_bb[i + 1] : exit_bb;
 
             vcode_reg_t vaccum = emit_const(vint, accum);
 
@@ -480,7 +481,8 @@ vcode_reg_t psl_lower_fcall(lower_unit_t *lu, psl_node_t p)
                int64_t r = rhs - lhs;
 
                vcode_reg_t ge = emit_cmp(VCODE_CMP_GEQ, rnd, vaccum);
-               vcode_reg_t le = emit_cmp(VCODE_CMP_LEQ, rnd, emit_const(vint, accum + r));
+               vcode_reg_t le =
+                  emit_cmp(VCODE_CMP_LEQ, rnd, emit_const(vint, accum + r));
                vcode_reg_t sel = emit_and(ge, le);
 
                emit_cond(sel, ret_bb[i], next_bb);
@@ -498,9 +500,8 @@ vcode_reg_t psl_lower_fcall(lower_unit_t *lu, psl_node_t p)
                emit_cond(sel, ret_bb[i], next_bb);
 
                vcode_select_block(ret_bb[i]);
-               int64_t val;
-               folded_int(psl_tree(op), &val);
-               emit_store(emit_const(vint, val), rvar);
+
+               emit_store(emit_const(vint, assume_int(psl_tree(op))), rvar);
                emit_jump(exit_bb);
 
                accum++;
