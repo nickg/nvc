@@ -469,7 +469,7 @@ START_TEST(test_aggregate)
       { 25, "discrete range has 4 elements but length of expression is 3" },
       { 29, "discrete range has 4 elements but length of expression is 3" },
       { 32, "value -1 outside of POSITIVE range 1 to 2147483647" },
-      { 35, "length of value 3 does not match length of target 4" },
+      { 35, "length of element 3 does not match expected length 4" },
       { -1, NULL }
    };
    expect_errors(expect);
