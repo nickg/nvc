@@ -149,8 +149,14 @@ static void psl_lower_assert(lower_unit_t *lu, vcode_reg_t taken_reg,
    if (psl_has_message(p)) {
       tree_t t_msg = psl_message(p);
       vcode_reg_t message_wrapped = lower_rvalue(lu, t_msg);
-      msg_reg = lower_array_data(message_wrapped);
-      len_reg = lower_array_len(lu, tree_type(t_msg), 0, message_wrapped);
+      if (vcode_reg_kind(message_wrapped) == VCODE_TYPE_UARRAY) {
+         msg_reg = emit_unwrap(message_wrapped);
+         len_reg = emit_uarray_len(message_wrapped, 0);
+      }
+      else {
+         msg_reg = message_wrapped;
+         len_reg = emit_const(vtype_offset(), type_width(tree_type(t_msg)));
+      }
    }
 
    emit_assert(taken_reg, msg_reg, len_reg,

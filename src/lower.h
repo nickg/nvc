@@ -60,9 +60,6 @@ vcode_reg_t lower_rvalue(lower_unit_t *lu, tree_t expr);
 vcode_type_t lower_type(type_t type);
 vcode_type_t lower_bounds(type_t type);
 
-vcode_reg_t lower_array_data(vcode_reg_t reg);
-vcode_reg_t lower_array_len(lower_unit_t *lu, type_t type, int dim, vcode_reg_t reg);
-
 lower_unit_t *lower_instance(unit_registry_t *ur, lower_unit_t *parent,
                              driver_set_t *ds, cover_data_t *cover,
                              tree_t block);
