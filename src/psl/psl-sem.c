@@ -24,6 +24,7 @@
 #include "type.h"
 
 #include <assert.h>
+#include <inttypes.h>
 
 static void psl_check_clocked(psl_node_t p, nametab_t *tab, bool toplevel);
 
@@ -261,6 +262,17 @@ static void psl_check_range(psl_node_t p, nametab_t *tab)
 
    psl_node_t high = psl_right(p);
    psl_check(high, tab);
+
+   int64_t low_i, high_i;
+
+   bool is_num = true;
+   is_num &= folded_int(psl_tree(low), &low_i);
+   is_num &= folded_int(psl_tree(high), &high_i);
+
+   if (is_num && (low_i > high_i))
+      error_at(psl_loc(p), "left bound of PSL range (%" PRIi64 ") must be "
+                           "lower than right bound (%" PRIi64 ")",
+                           low_i, high_i);
 }
 
 static void psl_check_property_inst(psl_node_t p)
@@ -355,8 +367,7 @@ static void psl_check_next(psl_node_t p, nametab_t *tab)
 
 static void psl_check_next_e(psl_node_t p, nametab_t *tab)
 {
-   if (psl_has_delay(p))
-      psl_check(psl_delay(p), tab);
+   psl_check(psl_delay(p), tab);
 
    psl_node_t value = psl_value(p);
    psl_check(value, tab);
