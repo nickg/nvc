@@ -1236,6 +1236,7 @@ START_TEST(test_href1)
    const error_t expect[] = {
       {  4, "prefix of hierarchical identifier is not an instance" },
       {  5, "no visible declaration for 'xx'" },
+      { 12, "no visible declaration for 'yy'" },
       { -1, NULL }
    };
    expect_errors(expect);

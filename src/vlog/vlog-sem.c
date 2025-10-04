@@ -703,6 +703,7 @@ static vlog_node_t vlog_check_cb(vlog_node_t v, void *ctx)
    case V_SUPER_CALL:
    case V_PACKAGE:
    case V_IMPORT_DECL:
+   case V_DEFPARAM:
       break;
    default:
       fatal_at(vlog_loc(v), "cannot check verilog node %s",

@@ -544,5 +544,6 @@ void reset_sdf_parser(void);
 #define tENDCLASS      617
 #define tVIRTUAL       618
 #define tSCOPE         619
+#define tDEFPARAM      620
 
 #endif  // _SCAN_H

@@ -8,4 +8,8 @@ module href1;
 
   assign w4 = u1.x;   // OK
 
+  defparam u1.p = 6;  // OK
+  defparam yy.x = 7;  // Error
+  defparam u1.p.q = 8; // OK
+
 endmodule // href1

@@ -842,6 +842,7 @@ PROTECT           ?i:protect
 <VLOG>"endprogram"       { return KEYWORD_2005(tENDPROGRAM); }
 <VLOG>"endclass"         { return KEYWORD_2005(tENDCLASS); }
 <VLOG>"virtual"          { return KEYWORD_2005(tVIRTUAL); }
+<VLOG>"defparam"         { return tDEFPARAM; }
 
 <VLOG>"`unconnected_drive"   { return tUNCTDRIVE; }
 <VLOG>"`nounconnected_drive" { return tNOUNCTDRIVE; }

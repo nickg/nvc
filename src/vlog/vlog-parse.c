@@ -1371,17 +1371,18 @@ static vlog_node_t p_hierarchical_identifier(ident_t id)
 
    EXTEND("hierarchical identifier");
 
+   if (id == NULL)
+      id = p_identifier();
+
    vlog_node_t v = vlog_new(V_HIER_REF);
+   vlog_set_ident(v, id);
 
    consume(tDOT);
 
-   ident_t prefix = NULL;
+   ident_t suffix = NULL;
    do {
-      prefix = ident_prefix(prefix, id, '.');
-      id = p_identifier();
-
-      vlog_set_ident(v, prefix);
-      vlog_set_ident2(v, id);
+      suffix = ident_prefix(suffix, p_identifier(), '.');
+      vlog_set_ident2(v, suffix);
    } while (optional(tDOT));
 
    vlog_set_loc(v, CURRENT_LOC);
@@ -5828,6 +5829,47 @@ static void p_module_or_udp_instantiation(vlog_node_t mod)
    vlog_add_stmt(mod, v);
 }
 
+static vlog_node_t p_defparam_assignment(void)
+{
+   // hierarchical_parameter_identifier = constant_mintypmax_expression
+
+   BEGIN("defparam assignment");
+
+   vlog_node_t v = vlog_new(V_DEFPARAM);
+   vlog_set_target(v, p_hierarchical_identifier(NULL));
+
+   consume(tEQ);
+
+   vlog_set_value(v, p_constant_mintypmax_expression());
+
+   vlog_set_loc(v, CURRENT_LOC);
+   return v;
+}
+
+static void p_list_of_defparam_assignments(vlog_node_t parent)
+{
+   // defparam_assignment { , defparam_assignment }
+
+   BEGIN("list of defparam assignments");
+
+   do {
+      vlog_add_stmt(parent, p_defparam_assignment());
+   } while (optional(tCOMMA));
+}
+
+static void p_parameter_override(vlog_node_t parent)
+{
+   // defparam list_of_defparam_assignments ;
+
+   BEGIN("parameter override");
+
+   consume(tDEFPARAM);
+
+   p_list_of_defparam_assignments(parent);
+
+   consume(tSEMI);
+}
+
 static void p_module_or_generate_item(vlog_node_t mod)
 {
    // { attribute_instance } parameter_override
@@ -5904,6 +5946,9 @@ static void p_module_or_generate_item(vlog_node_t mod)
    case tNOTIF1:
       p_gate_instantiation(mod);
       break;
+   case tDEFPARAM:
+      p_parameter_override(mod);
+      break;
    case tID:
       {
          vlog_node_t ref = peek_reference();
@@ -5914,14 +5959,15 @@ static void p_module_or_generate_item(vlog_node_t mod)
       }
       break;
    default:
-      one_of(tALWAYS, tALWAYSCOMB, tALWAYSFF, tALWAYSLATCH, tWIRE, tUWIRE,
+      expect(tALWAYS, tALWAYSCOMB, tALWAYSFF, tALWAYSLATCH, tWIRE, tUWIRE,
              tSUPPLY0, tSUPPLY1, tTRI,  tTRI0, tTRI1, tTRIAND, tTRIOR, tTRIREG,
              tWAND, tWOR, tINTERCONNECT, tREG, tSTRUCT, tUNION, tASSIGN,
              tINITIAL, tTYPEDEF, tENUM, tSVINT, tINTEGER, tSVREAL, tSHORTREAL,
              tREALTIME, tTIME, tTASK, tFUNCTION, tLOCALPARAM, tPARAMETER, tIF,
              tFOR, tEVENT, tGENVAR, tVAR, tLOGIC, tBIT, tSHORTINT, tLONGINT,
              tBYTE, tIMPORT, tPULLDOWN, tPULLUP, tID, tAND, tNAND, tOR, tNOR,
-             tXOR, tXNOR, tNOT, tBUF, tBUFIF0, tBUFIF1, tNOTIF0, tNOTIF1);
+             tXOR, tXNOR, tNOT, tBUF, tBUFIF0, tBUFIF1, tNOTIF0, tNOTIF1,
+             tDEFPARAM, tID);
       drop_tokens_until(tSEMI);
    }
 }
@@ -6014,6 +6060,7 @@ static void p_non_port_module_item(vlog_node_t mod)
    case tLONGINT:
    case tBYTE:
    case tIMPORT:
+   case tDEFPARAM:
       p_module_or_generate_item(mod);
       break;
    case tSPECIFY:
@@ -6031,7 +6078,7 @@ static void p_non_port_module_item(vlog_node_t mod)
              tENUM, tSVINT, tINTEGER, tSVREAL, tSHORTREAL, tREALTIME, tTIME,
              tTASK, tFUNCTION, tLOCALPARAM, tPARAMETER, tEVENT, tIF, tFOR,
              tGENVAR, tVAR, tLOGIC, tBIT, tSHORTINT, tLONGINT, tBYTE, tIMPORT,
-             tSPECIFY, tGENERATE);
+             tDEFPARAM, tSPECIFY, tGENERATE);
       drop_tokens_until(tSEMI);
    }
 }
