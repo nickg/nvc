@@ -6886,6 +6886,16 @@ static vlog_node_t p_udp_declaration(void)
    return udp;
 }
 
+static void p_package_item(vlog_node_t parent)
+{
+   // package_or_generate_item_declaration | anonymous_program
+   //   | package_export_declaration | timeunits_declaration
+
+   BEGIN("package item");
+
+   p_package_or_generate_item_declaration(parent);
+}
+
 static vlog_node_t p_package_declaration(void)
 {
    // { attribute_instance } package [ lifetime ] package_identifier ;
@@ -6910,13 +6920,10 @@ static vlog_node_t p_package_declaration(void)
 
    consume(tSEMI);
 
-   while (scan(tWIRE, tUWIRE, tSUPPLY0, tSUPPLY1, tTRI, tTRI0, tTRI1, tTRIAND,
-               tTRIOR, tTRIREG, tWAND, tWOR, tINTERCONNECT, tREG, tSTRUCT,
-               tUNION, tTYPEDEF, tENUM, tSVINT, tINTEGER, tSVREAL, tSHORTREAL,
-               tREALTIME, tTIME, tEVENT, tID, tVAR, tLOGIC, tBIT, tSHORTINT,
-               tLONGINT, tBYTE, tTASK, tFUNCTION, tLOCALPARAM, tPARAMETER,
-               tCLASS, tVIRTUAL))
-      p_package_or_generate_item_declaration(v);
+   while (not_at_token(tENDPACKAGE)) {
+      optional_attributes();
+      p_package_item(v);
+   }
 
    consume(tENDPACKAGE);
 
@@ -7034,8 +7041,16 @@ static vlog_node_t p_description(void)
       return p_package_declaration();
    case tPROGRAM:
       return p_program_declaration();
+   case tCLASS:
+   case tTYPEDEF:
+      {
+         vlog_node_t v = vlog_new(V_NAMESPACE);
+         p_package_item(v);
+         vlog_set_loc(v, CURRENT_LOC);
+         return v;
+      }
    default:
-      expect(tPRIMITIVE, tMODULE, tPACKAGE, tPROGRAM);
+      expect(tPRIMITIVE, tMODULE, tPACKAGE, tPROGRAM, tCLASS, tTYPEDEF);
       return NULL;
    }
 }
@@ -7193,6 +7208,24 @@ static vlog_node_t end_of_file(void)
    return NULL;
 }
 
+static vlog_node_t p_source_text(void)
+{
+   // [ timeunits_declaration ] { description }
+
+   BEGIN("source text");
+
+   for (;;) {
+      if (peek() == tEOF) {
+         discard_global_arena();
+         return end_of_file();
+      }
+
+      vlog_node_t v = p_description();
+      if (v == NULL || is_top_level(v))
+         return v;
+   }
+}
+
 vlog_node_t vlog_parse(void)
 {
    state.n_correct = RECOVER_THRESH;
@@ -7213,10 +7246,7 @@ vlog_node_t vlog_parse(void)
 
    make_new_arena();
 
-   if (peek() == tEOF)
-      return end_of_file();
-
-   return p_description();
+   return p_source_text();
 }
 
 void reset_verilog_parser(void)

@@ -160,6 +160,7 @@ typedef enum {
    V_CONSTRUCTOR,
    V_SUPER_CALL,
    V_IMPORT_DECL,
+   V_NAMESPACE,
 
    V_LAST_NODE_KIND
 } vlog_kind_t;

@@ -1355,3 +1355,18 @@ void make_new_arena(void)
    freeze_global_arena();
    global_arena = object_arena_new(object_arena_default_size(), standard());
 }
+
+void discard_global_arena(void)
+{
+   object_one_time_init();
+
+   if (global_arena != NULL) {
+      nvc_munmap(global_arena->base, global_arena->limit - global_arena->base);
+
+      assert(all_arenas.items[all_arenas.count - 1] == global_arena);
+      APOP(all_arenas);
+
+      free(global_arena);
+      global_arena = NULL;
+   }
+}

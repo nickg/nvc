@@ -271,5 +271,6 @@ object_t *object_from_locus(ident_t module, ptrdiff_t offset,
 
 void make_new_arena(void);
 void freeze_global_arena(void);
+void discard_global_arena(void);
 
 #endif   // _OBJECT_H
