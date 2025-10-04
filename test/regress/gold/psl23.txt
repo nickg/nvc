@@ -1,8 +1,8 @@
-2500ps+1: PSL assertion failed
-9500ps+1: PSL assertion failed
-9500ps+1: PSL assertion failed
-9500ps+1: PSL assertion failed
-10500ps+1: PSL assertion failed
-10500ps+1: PSL assertion failed
-10500ps+1: PSL assertion failed
-11500ps+0: PSL assertion failed
+2500ps+1: two
+9500ps+1: one
+9500ps+1: two
+9500ps+1: three
+10500ps+1: one
+10500ps+1: two
+10500ps+1: three
+11500ps+0: three
