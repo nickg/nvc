@@ -774,7 +774,7 @@ PROTECT           ?i:protect
 <VLOG>"integer"          { return tINTEGER; }
 <VLOG>"real"             { return tSVREAL; }
 <VLOG>"shortreal"        { return KEYWORD_2005(tSHORTREAL); }
-<VLOG>"realtime"         { return KEYWORD_2005(tREALTIME); }
+<VLOG>"realtime"         { return tREALTIME; }
 <VLOG>"time"             { return tTIME; }
 <VLOG>"typedef"          { return KEYWORD_2005(tTYPEDEF); }
 <VLOG>"bit"              { return KEYWORD_2005(tBIT); }

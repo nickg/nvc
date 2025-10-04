@@ -244,7 +244,6 @@ void vlog_symtab_lookup(vlog_symtab_t *st, vlog_node_t v)
 
       vlog_set_ref(v, decl);
 
-      assert(vlog_kind(st->top->container) == V_MODULE);
       vlog_add_decl(st->top->container, decl);
 
       fresh_symbol_for(st, name)->node = decl;

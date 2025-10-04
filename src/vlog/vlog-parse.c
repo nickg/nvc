@@ -479,6 +479,19 @@ static void declare_port(vlog_node_t mod, vlog_node_t port)
    }
 }
 
+static bool scan_block_item_declaration(void)
+{
+   return scan(tREG, tSTRUCT, tUNION, tTYPEDEF, tENUM, tSVINT, tINTEGER,
+               tSVREAL, tSHORTREAL, tREALTIME, tBIT, tLOGIC, tSHORTINT, tTIME);
+}
+
+static bool scan_tf_item_declaration(void)
+{
+   return scan(tREG, tSTRUCT, tUNION, tTYPEDEF, tENUM, tSVINT, tINTEGER,
+               tSVREAL, tSHORTREAL, tREALTIME, tBIT, tLOGIC, tSHORTINT, tTIME,
+               tINPUT, tOUTPUT);
+}
+
 static ident_t p_identifier(void)
 {
    if (consume(tID))
@@ -2313,8 +2326,7 @@ static vlog_node_t p_seq_block(ident_t id)
 
    skip_over_attributes();
 
-   while (scan(tREG, tSTRUCT, tUNION, tTYPEDEF, tENUM, tSVINT, tINTEGER,
-               tSVREAL, tSHORTREAL, tREALTIME, tBIT, tLOGIC, tSHORTINT)) {
+   while (scan_block_item_declaration()) {
       p_block_item_declaration(v);
       skip_over_attributes();
    }
@@ -2367,8 +2379,7 @@ static vlog_node_t p_par_block(ident_t id)
 
    skip_over_attributes();
 
-   while (scan(tREG, tSTRUCT, tUNION, tTYPEDEF, tENUM, tSVINT, tINTEGER,
-               tSVREAL, tSHORTREAL, tREALTIME, tBIT, tLOGIC, tSHORTINT)) {
+   while (scan_block_item_declaration()) {
       p_block_item_declaration(v);
       skip_over_attributes();
    }
@@ -3696,8 +3707,7 @@ static void p_task_body_declaration(vlog_node_t task)
 
       skip_over_attributes();
 
-      while (scan(tREG, tSTRUCT, tUNION, tTYPEDEF, tENUM, tSVINT, tINTEGER,
-                  tSVREAL, tSHORTREAL, tREALTIME, tBIT, tLOGIC, tSHORTINT)) {
+      while (scan_block_item_declaration()) {
          p_block_item_declaration(task);
          skip_over_attributes();
       }
@@ -3707,9 +3717,7 @@ static void p_task_body_declaration(vlog_node_t task)
 
       skip_over_attributes();
 
-      while (scan(tREG, tSTRUCT, tUNION, tTYPEDEF, tENUM, tSVINT, tINTEGER,
-                  tSVREAL, tSHORTREAL, tREALTIME, tBIT, tLOGIC, tSHORTINT,
-                  tINPUT, tOUTPUT)) {
+      while (scan_tf_item_declaration()) {
          p_tf_item_declaration(task);
          skip_over_attributes();
       }
@@ -3804,8 +3812,7 @@ static void p_function_body_declaration(vlog_node_t func)
 
       skip_over_attributes();
 
-      while (scan(tREG, tSTRUCT, tUNION, tTYPEDEF, tENUM, tSVINT, tINTEGER,
-                  tSVREAL, tSHORTREAL, tREALTIME, tBIT, tLOGIC, tSHORTINT)) {
+      while (scan_block_item_declaration()) {
          p_block_item_declaration(func);
          skip_over_attributes();
       }
@@ -3815,9 +3822,7 @@ static void p_function_body_declaration(vlog_node_t func)
 
       skip_over_attributes();
 
-      while (scan(tREG, tSTRUCT, tUNION, tTYPEDEF, tENUM, tSVINT, tINTEGER,
-                  tSVREAL, tSHORTREAL, tREALTIME, tBIT, tLOGIC, tSHORTINT,
-                  tINPUT, tOUTPUT)) {
+      while (scan_tf_item_declaration()) {
          p_tf_item_declaration(func);
          skip_over_attributes();
       }
@@ -3988,8 +3993,7 @@ static vlog_node_t p_class_constructor_declaration(void)
 
    skip_over_attributes();
 
-   while (scan(tREG, tSTRUCT, tUNION, tTYPEDEF, tENUM, tSVINT, tINTEGER,
-               tSVREAL, tSHORTREAL, tREALTIME, tBIT, tLOGIC, tSHORTINT)) {
+   while (scan_block_item_declaration()) {
       p_block_item_declaration(v);
       skip_over_attributes();
    }
@@ -4167,6 +4171,7 @@ static void p_block_item_declaration(vlog_node_t parent)
    case tBIT:
    case tLOGIC:
    case tSHORTINT:
+   case tTIME:
       p_data_declaration(parent);
       break;
    default:
@@ -6088,6 +6093,8 @@ static void p_module_item(vlog_node_t mod)
    // port_declaration ; | non_port_module_item
 
    BEGIN("module item");
+
+   skip_over_attributes();
 
    if (scan(tINOUT, tINPUT, tOUTPUT)) {
       p_port_declaration(mod);

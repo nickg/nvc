@@ -38,6 +38,7 @@ module parse1;
   task task1;
     input int x = 6;
     bit       y;
+    time      t1;
     @(x) y = 2;
   endtask // task1
   task task2(input int x, inout logic, output logic y);

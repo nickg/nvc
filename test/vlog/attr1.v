@@ -19,3 +19,7 @@ module mod1((* foo *) output o);
   endfunction // func
   initial x = func (* d *) (x); // OK
 endmodule // mod1
+
+module mod2(o);
+  (* xx *) output o;   // OK
+endmodule // mod2

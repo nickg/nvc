@@ -1031,11 +1031,13 @@ START_TEST(test_attr1)
    };
    expect_errors(expect);
 
-   vlog_node_t m1 = vlog_parse();
-   fail_if(m1 == NULL);
-   fail_unless(vlog_kind(m1) == V_MODULE);
+   for (int i = 0; i < 2; i++) {
+      vlog_node_t m = vlog_parse();
+      fail_if(m == NULL);
+      fail_unless(vlog_kind(m) == V_MODULE);
 
-   vlog_check(m1);
+      vlog_check(m);
+   }
 
    fail_unless(vlog_parse() == NULL);
 
