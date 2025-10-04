@@ -4,6 +4,7 @@
   constraints such as `natural range 0 to 1` now correctly returns the
   `vhpiIntTypeDeclK` base type instead of another `vhpiSubtypeDeclK`.
 - PSL `next_e` and `next_e!` operators are now supported.
+- PSL `nondet` built-in function is now supported.
 
 ## Version 1.18.0 - 2025-09-28
 - Scheduling of blocking and non-blocking assignments in mixed-language

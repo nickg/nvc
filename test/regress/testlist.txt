@@ -1210,5 +1210,6 @@ mixed7          mixed,2008
 vlog27          verilog,gold
 vlog28          verilog,gold
 ivtest19        verilog
+psl22           gold,psl,seed=1
 psl23           gold,psl,fail
 psl24           psl,gold,fail

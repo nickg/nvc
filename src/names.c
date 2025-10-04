@@ -5075,6 +5075,30 @@ static type_t solve_psl_fcall(nametab_t *tab, tree_t t)
          type = tree_type(psl_tree(arg));
       }
       break;
+   case PSL_BUILTIN_NONDET:
+      {
+         assert(psl_operands(p) == 1);
+         psl_node_t vs = psl_operand(p, 0);
+         if (psl_subkind(vs) == PSL_VALUE_SET_BOOLEAN)
+            type = std_type(NULL, STD_BOOLEAN);
+         else {
+            int n_ops = psl_operands(vs);
+            assert(n_ops > 0);
+
+            type = NULL;
+            for (int i = 0; i < n_ops; i++) {
+               psl_node_t item = psl_operand(vs, i);
+
+               if (psl_kind(item) == P_RANGE) {
+                  type = solve_types(tab, psl_tree(psl_left(item)), type);
+                  type = solve_types(tab, psl_tree(psl_right(item)), type);
+               }
+               else
+                  type = solve_types(tab, psl_tree(item), type);
+            }
+         }
+      }
+      break;
    default:
       should_not_reach_here();
    }

@@ -58,18 +58,33 @@ static vcode_reg_t psl_lower_boolean(lower_unit_t *lu, psl_node_t p)
       return test_reg;
 }
 
-vcode_reg_t psl_lower_union(lower_unit_t *lu, psl_node_t p)
+static vcode_reg_t lower_get_rand_bool(void)
 {
-   vcode_reg_t lhs = lower_rvalue(lu, psl_tree(psl_operand(p, 0)));
-   vcode_reg_t rhs = lower_rvalue(lu, psl_tree(psl_operand(p, 1)));
-
    ident_t func = ident_new("NVC.RANDOM.GET_RANDOM()B");
 
    vcode_reg_t context_reg = emit_link_package(ident_new("NVC.RANDOM"));
    vcode_reg_t args[] = { context_reg };
 
    vcode_type_t vbool = vtype_bool();
-   vcode_reg_t sel = emit_fcall(func, vbool, vbool, args, 1);
+   return emit_fcall(func, vbool, vbool, args, 1);
+}
+
+static vcode_reg_t lower_get_rand_int(void)
+{
+   ident_t func = ident_new("NVC.RANDOM.GET_RANDOM()19NVC.RANDOM.T_UINT32");
+
+   vcode_reg_t context_reg = emit_link_package(ident_new("NVC.RANDOM"));
+   vcode_reg_t args[] = { context_reg };
+
+   vcode_type_t vint = vtype_int(0, UINT32_MAX);
+   return emit_fcall(func, vint, vint, args, 1);
+}
+
+vcode_reg_t psl_lower_union(lower_unit_t *lu, psl_node_t p)
+{
+   vcode_reg_t lhs = lower_rvalue(lu, psl_tree(psl_operand(p, 0)));
+   vcode_reg_t rhs = lower_rvalue(lu, psl_tree(psl_operand(p, 1)));
+   vcode_reg_t sel = lower_get_rand_bool();
 
    return emit_select(sel, lhs, rhs);
 }
@@ -366,8 +381,6 @@ vcode_reg_t psl_lower_fcall(lower_unit_t *lu, psl_node_t p)
 {
    assert(psl_kind(p) == P_BUILTIN_FCALL);
 
-   tree_t expr = psl_tree(psl_operand(p, 0));
-
    switch (psl_subkind(p)) {
    case PSL_BUILTIN_PREV:
       {
@@ -379,11 +392,13 @@ vcode_reg_t psl_lower_fcall(lower_unit_t *lu, psl_node_t p)
             fatal_at(psl_loc(p), "sorry, no more than 512 cycles "
                      "are supported");
 
+         tree_t expr = psl_tree(psl_operand(p, 0));
          return psl_lower_prev_shift_reg(lu, expr, num);
       }
 
    case PSL_BUILTIN_ROSE:
       {
+         tree_t expr = psl_tree(psl_operand(p, 0));
          vcode_reg_t prev = psl_lower_prev_shift_reg(lu, expr, 1);
          vcode_reg_t prev_n = emit_not(prev);
          vcode_reg_t rhs = lower_rvalue(lu, expr);
@@ -392,6 +407,7 @@ vcode_reg_t psl_lower_fcall(lower_unit_t *lu, psl_node_t p)
 
    case PSL_BUILTIN_FELL:
       {
+         tree_t expr = psl_tree(psl_operand(p, 0));
          vcode_reg_t prev = psl_lower_prev_shift_reg(lu, expr, 1);
          vcode_reg_t expr_n = emit_not(lower_rvalue(lu, expr));
          return emit_and(prev, expr_n);
@@ -399,9 +415,102 @@ vcode_reg_t psl_lower_fcall(lower_unit_t *lu, psl_node_t p)
 
    case PSL_BUILTIN_STABLE:
       {
+         tree_t expr = psl_tree(psl_operand(p, 0));
          vcode_reg_t prev = psl_lower_prev_shift_reg(lu, expr, 1);
          vcode_reg_t rhs = lower_rvalue(lu, expr);
          return emit_cmp(VCODE_CMP_EQ, prev, rhs);
+      }
+
+   case PSL_BUILTIN_NONDET:
+      {
+         assert(psl_operands(p) == 1);
+         psl_node_t vs = psl_operand(p, 0);
+
+         if (psl_subkind(vs) == PSL_VALUE_SET_BOOLEAN)
+            return lower_get_rand_bool();
+
+         int64_t candidates = 0;
+         int n_ops = psl_operands(vs);
+
+         for (int i = 0; i < n_ops; i++) {
+            psl_node_t op = psl_operand(vs, i);
+            if (psl_kind(op) == P_RANGE) {
+               const int64_t lhs = assume_int(psl_tree(psl_left(op)));
+               const int64_t rhs = assume_int(psl_tree(psl_right(op)));
+               candidates += rhs - lhs + 1;
+            }
+            else
+               candidates++;
+         }
+
+         vcode_type_t vint = vtype_int(INT64_MIN, INT64_MAX);
+
+         vcode_reg_t rnd_raw = lower_get_rand_int();
+         vcode_reg_t rnd_64bit = emit_cast(vint, vint, rnd_raw);
+         vcode_reg_t mod = emit_const(vint, candidates);
+         vcode_reg_t rnd = emit_mod(rnd_64bit, mod);
+
+         vcode_block_t test_bb[n_ops];
+         vcode_block_t ret_bb[n_ops];
+         vcode_block_t exit_bb;
+
+         for (int i = 0; i < n_ops; i++) {
+            test_bb[i] = emit_block();
+            ret_bb[i] = emit_block();
+         }
+
+         exit_bb = emit_block();
+         emit_jump(test_bb[0]);
+
+         vcode_var_t rvar = emit_var(vint, vint, ident_new("RV"), VAR_TEMP);
+         int accum = 0;
+
+         for (int i = 0; i < n_ops; i++) {
+            psl_node_t op = psl_operand(vs, i);
+
+            vcode_select_block(test_bb[i]);
+            vcode_block_t next_bb =
+               (i < (n_ops - 1)) ? test_bb[i + 1] : exit_bb;
+
+            vcode_reg_t vaccum = emit_const(vint, accum);
+
+            if (psl_kind(op) == P_RANGE) {
+               int64_t lhs, rhs;
+               folded_int(psl_tree(psl_left(op)), &lhs);
+               folded_int(psl_tree(psl_right(op)), &rhs);
+               int64_t r = rhs - lhs;
+
+               vcode_reg_t ge = emit_cmp(VCODE_CMP_GEQ, rnd, vaccum);
+               vcode_reg_t le =
+                  emit_cmp(VCODE_CMP_LEQ, rnd, emit_const(vint, accum + r));
+               vcode_reg_t sel = emit_and(ge, le);
+
+               emit_cond(sel, ret_bb[i], next_bb);
+
+               vcode_select_block(ret_bb[i]);
+               vcode_reg_t low = emit_sub(rnd, vaccum);
+               vcode_reg_t rv = emit_add(low, emit_const(vint, lhs));
+               emit_store(rv, rvar);
+               emit_jump(exit_bb);
+
+               accum += rhs - lhs;
+            }
+            else {
+               vcode_reg_t sel = emit_cmp(VCODE_CMP_EQ, vaccum, rnd);
+               emit_cond(sel, ret_bb[i], next_bb);
+
+               vcode_select_block(ret_bb[i]);
+
+               emit_store(emit_const(vint, assume_int(psl_tree(op))), rvar);
+               emit_jump(exit_bb);
+
+               accum++;
+            }
+         }
+
+         // TODO: Handle arbitrary type conversion (e.g. all arguments of enum type)
+         vcode_select_block(exit_bb);
+         return emit_load(rvar);
       }
 
    default:
