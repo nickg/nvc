@@ -5,6 +5,7 @@
   `vhpiIntTypeDeclK` base type instead of another `vhpiSubtypeDeclK`.
 - PSL `next_e` and `next_e!` operators are now supported.
 - PSL `nondet` built-in function is now supported.
+- Fixed a crash when `release` is used with a record signal (#1313).
 
 ## Version 1.18.0 - 2025-09-28
 - Scheduling of blocking and non-blocking assignments in mixed-language
