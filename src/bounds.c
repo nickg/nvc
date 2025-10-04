@@ -417,6 +417,34 @@ static void bounds_check_array_slice(tree_t t)
    }
 }
 
+static void bounds_check_array_element(tree_t value, type_t type)
+{
+   assert(!type_is_unconstrained(type));
+
+   type_t value_type = tree_type(value);
+   if (type_is_unconstrained(value_type))
+      return;
+
+   const int ndims = dimension_of(type);
+   for (int i = 0; i < ndims; i++) {
+      int64_t target_w, value_w;
+      if (!folded_length(range_of(type, i), &target_w))
+         continue;
+      else if (!folded_length(range_of(value_type, i), &value_w))
+         continue;
+      else if (target_w != value_w) {
+         diag_t *d = diag_new(DIAG_ERROR, tree_loc(value));
+         diag_printf(d, "length of ");
+         if (i > 0)
+            diag_printf(d, "dimension %d of ", i + 1);
+         diag_printf(d, "element %"PRIi64" does not match expected length %"
+                     PRIi64, value_w, target_w);
+
+         diag_emit(d);
+      }
+   }
+}
+
 static void bounds_cover_choice(interval_t **isp, tree_t t, type_t type,
                                 int64_t low, int64_t high)
 {
@@ -602,6 +630,11 @@ static void bounds_check_aggregate(tree_t t)
    const int ndims = dimension_of(type);
    type_t elem = type_elem(type);
 
+   const bool check_scalar_elem = type_is_scalar(elem);
+   const bool check_array_elem =
+      !check_scalar_elem && ndims == 1 && type_is_array(elem)
+      && !type_is_unconstrained(elem);
+
    interval_t *covered = NULL;
    bool known_elem_count = true;
    int next_pos = 0;
@@ -618,10 +651,10 @@ static void bounds_check_aggregate(tree_t t)
          else if (!folded_length(range_of(value_type, 0), &count))
             known_elem_count = false;
       }
-      else if (type_is_scalar(elem))
+      else if (check_scalar_elem)
          bounds_check_scalar(value, elem, NULL);
-      else if (ndims == 1 && type_is_array(elem))
-         bounds_check_array(value, elem, NULL);
+      else if (check_array_elem)
+         bounds_check_array_element(value, elem);
 
       switch (akind) {
       case A_NAMED:
