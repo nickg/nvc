@@ -6269,6 +6269,21 @@ static void lower_force(lower_unit_t *lu, tree_t stmt)
       emit_force(nets, emit_const(vtype_offset(), 1), value_reg);
 }
 
+static void lower_release_field_cb(lower_unit_t *lu, tree_t field,
+                                   vcode_reg_t ptr, vcode_reg_t unused,
+                                   vcode_reg_t locus, void *ctx)
+{
+   type_t type = tree_type(field);
+   if (type_is_homogeneous(type)) {
+      vcode_reg_t nets_reg = emit_load_indirect(ptr);
+      vcode_reg_t count_reg = lower_type_width(lu, type, nets_reg);
+      emit_release(lower_array_data(nets_reg), count_reg);
+   }
+   else
+      lower_for_each_field(lu, type, ptr, VCODE_INVALID_REG,
+                           lower_release_field_cb, NULL);
+}
+
 static void lower_release(lower_unit_t *lu, tree_t stmt)
 {
    tree_t target = tree_target(stmt);
@@ -6280,9 +6295,9 @@ static void lower_release(lower_unit_t *lu, tree_t stmt)
       vcode_reg_t count_reg = lower_array_total_len(lu, type, nets);
       emit_release(lower_array_data(nets), count_reg);
    }
-   else if (type_is_record(type)) {
-      should_not_reach_here();
-   }
+   else if (type_is_record(type))
+      lower_for_each_field(lu, type, nets, VCODE_INVALID_REG,
+                           lower_release_field_cb, NULL);
    else
       emit_release(nets, emit_const(vtype_offset(), 1));
 }
