@@ -36,6 +36,7 @@ typedef uint32_t type_mask_t;
 #define TM_INTEGRAL \
    (TM(DT_LOGIC) | TM(DT_INTEGER) | TM(DT_BYTE) | TM(DT_SHORTINT) \
     | TM(DT_INT) | TM(DT_LONGINT) | TM(DT_TIME) | TM(DT_BIT) | TM_ENUM)
+#define TM_REAL (TM(DT_REAL) | TM(DT_SHORTREAL))
 
 static void name_for_diag(diag_t *d, vlog_node_t v, const char *alt)
 {
@@ -140,6 +141,8 @@ static const char *type_mask_str(type_mask_t tm)
    case TM(DT_BYTE): return "byte";
    case TM(DT_INT): return "int";
    case TM(DT_SHORTINT): return "shortint";
+   case TM(DT_REAL): return "real";
+   case TM(DT_TIME): return "time";
    case TM_CLASS: return "class";
    case TM_ENUM: return "enum";
    default: return (tm & TM_INTEGRAL) ? "integral" : "unknown";
@@ -552,13 +555,46 @@ static void vlog_check_hier_ref(vlog_node_t v)
 
 static void vlog_check_binary(vlog_node_t v)
 {
-   const type_mask_t lmask = get_type_mask(vlog_left(v));
-   const type_mask_t rmask = get_type_mask(vlog_right(v));
-   const type_mask_t comb = intersect_type_mask(lmask, rmask);
+   type_mask_t lmask = get_type_mask(vlog_left(v));
+   type_mask_t rmask = get_type_mask(vlog_right(v));
 
+   if ((lmask & TM_REAL) && (rmask & TM_INTEGRAL))
+      rmask |= TM_REAL;
+
+   if ((rmask & TM_REAL) && (lmask & TM_INTEGRAL))
+      lmask |= TM_REAL;
+
+   if ((lmask & TM_INTEGRAL) && (rmask & TM_INTEGRAL)) {
+      lmask |= TM_INTEGRAL;
+      rmask |= TM_INTEGRAL;
+   }
+
+   // See table 11-1 in 1800-2023 section 11.3 for allowed operand types
    type_mask_t allow = TM_ANY;
+   switch (vlog_subkind(v)) {
+   case V_BINARY_PLUS:
+   case V_BINARY_MINUS:
+   case V_BINARY_TIMES:
+   case V_BINARY_DIVIDE:
+   case V_BINARY_EXP:
+   case V_BINARY_LOG_OR:
+   case V_BINARY_LOG_AND:
+      allow = TM_INTEGRAL | TM_REAL;
+      break;
+   case V_BINARY_MOD:
+   case V_BINARY_OR:
+   case V_BINARY_AND:
+   case V_BINARY_XOR:
+   case V_BINARY_XNOR:
+      allow = TM_INTEGRAL;
+      break;
+   case V_BINARY_CASE_EQ:
+   case V_BINARY_CASE_NEQ:
+      allow = TM_ANY & ~TM_REAL;
+      break;
+   }
 
-   if (comb & allow)
+   if (lmask & rmask & allow)
       return;
 
    diag_t *d = diag_new(DIAG_ERROR, vlog_loc(v));

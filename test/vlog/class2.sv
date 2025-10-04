@@ -10,9 +10,10 @@ program main;
   int x;
 
   initial begin
-    if (obj == null); // OK
-    if (x == null);   // Error
-    if (obj.a == 5);  // OK
+    if (obj == null);  // OK
+    if (x == null);    // Error
+    if (obj.a == 5);   // OK
+    obj = obj + copy;  // Error
   end
 
 endprogram

@@ -1305,6 +1305,8 @@ START_TEST(test_class2)
    const error_t expect[] = {
       { 14, "invalid operands for binary expression" },
       {  0, "have 'int' and 'class'" },
+      { 16, "invalid operands for binary expression" },
+      {  0, "have 'class' and 'class'" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -1357,6 +1359,31 @@ START_TEST(test_namespace1)
 }
 END_TEST
 
+START_TEST(test_real1)
+{
+   input_from_file(TESTDIR "/vlog/real1.v");
+
+   const error_t expect[] = {
+      {  8, "invalid operands for binary expression" },
+      {  9, "invalid operands for binary expression" },
+      { 10, "invalid operands for binary expression" },
+      { 11, "invalid operands for binary expression" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   vlog_node_t m = vlog_parse();
+   fail_if(m == NULL);
+   fail_unless(vlog_kind(m) == V_MODULE);
+
+   vlog_check(m);
+
+   fail_unless(vlog_parse() == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_vlog_tests(void)
 {
    Suite *s = suite_create("vlog");
@@ -1406,6 +1433,7 @@ Suite *get_vlog_tests(void)
    tcase_add_test(tc, test_class2);
    tcase_add_test(tc, test_class3);
    tcase_add_test(tc, test_namespace1);
+   tcase_add_test(tc, test_real1);
    suite_add_tcase(s, tc);
 
    return s;
