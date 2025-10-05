@@ -5,4 +5,5 @@ module const1;
   wire [+p1:6]  w3; // OK
   wire [p1[0]:0] w4; // OK
   wire [7:-1] w5; // OK
+  wire [p1 > 3 ? 6 : p1+2:0] w6; // OK
 endmodule // const1

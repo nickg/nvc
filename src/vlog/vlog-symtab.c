@@ -144,25 +144,27 @@ void vlog_symtab_pop(vlog_symtab_t *st)
 {
    assert(st->top != NULL);
 
-   if (st->top->parent == NULL) {
-      for (int i = 0; i < st->top->deferred.count; i++) {
-         vlog_node_t v = st->top->deferred.items[i];
+   unsigned wptr = 0;
+   for (int i = 0; i < st->top->deferred.count; i++) {
+      vlog_node_t v = st->top->deferred.items[i];
+      const vlog_symbol_t *sym = symbol_for(st, vlog_ident(v));
+      if (sym != NULL)
+         vlog_set_ref(v, sym->node);
+      else
+         st->top->deferred.items[wptr++] = v;
+   }
+   ATRIM(st->top->deferred, wptr);
+
+   for (int i = 0; i < st->top->deferred.count; i++) {
+      vlog_node_t v = st->top->deferred.items[i];
+      if (st->top->parent == NULL || is_top_level(st->top->container)) {
          ident_t name = vlog_ident(v);
          error_at(vlog_loc(v), "no visible declaration for '%s'", istr(name));
          vlog_symtab_poison(st, name);
       }
+      else
+         APUSH(st->top->parent->deferred, v);
    }
-   else {
-      for (int i = 0; i < st->top->deferred.count; i++) {
-         vlog_node_t v = st->top->deferred.items[i];
-         const vlog_symbol_t *sym = symbol_for(st, vlog_ident(v));
-         if (sym != NULL)
-            vlog_set_ref(v, sym->node);
-         else
-            APUSH(st->top->parent->deferred, v);
-      }
-   }
-   ACLEAR(st->top->deferred);
 
    st->top = st->top->parent;
 }

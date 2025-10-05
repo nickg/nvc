@@ -1,14 +1,16 @@
-// Parse errors
-module tfcall1;
+// Semantic errors
+module tfcall2;
   function [7:0] sum;
     input [7:0] x, y;   // OK
     sum = x + y;   // OK
   endfunction // sum
 
   assign x1 = sum(1, 2);     // OK
+  assign x2 = sum(1);        // Error
+  assign x3 = sum(1, 2, 3);  // Error
 
   assign x4 = double(2);     // OK
-  assign x5 = not_here(1);   // Error
+  assign x6 = x4(6);         // Error
   assign x7 = no_args();     // OK
 
   function [3:0] double(input [3:0] x);
@@ -22,6 +24,7 @@ module tfcall1;
   reg x, y;
   initial begin
     task1(x, y);        // OK
+    no_args();          // Error
     void'(no_args());   // OK
   end
 
@@ -33,12 +36,12 @@ module tfcall1;
 
   task main; endtask
 
-  initial return;   // Error
+  task task2;
+    return 5;    // Error
+  endtask : task2
 
-  task task3;
-  endtask : bob  // Error
-
-  function func2;
-  endfunction : blah  // Error
+  function logic func1;
+    return;  // Error
+  endfunction : func1
 
 endmodule // tfcall1

@@ -29,6 +29,24 @@
 
 #include <inttypes.h>
 
+static vlog_node_t do_parse_only(vlog_kind_t kind)
+{
+   vlog_node_t v = vlog_parse();
+   ck_assert_ptr_nonnull(v);
+   ck_assert_msg(vlog_kind(v) == kind, "expected %s but have %s",
+                 vlog_kind_str(kind), vlog_kind_str(vlog_kind(v)));
+   return v;
+}
+
+static vlog_node_t do_parse_check(vlog_kind_t kind)
+{
+   const int base_errors = error_count();
+   vlog_node_t v = do_parse_only(kind);
+   ck_assert_int_eq(error_count(), base_errors);
+   vlog_check(v);
+   return v;
+}
+
 START_TEST(test_dff)
 {
    input_from_file(TESTDIR "/vlog/dff.v");
@@ -121,12 +139,36 @@ START_TEST(test_simple_sem)
 
    input_from_file(TESTDIR "/vlog/simple_sem.v");
 
-   for (int i = 0; i < 4; i++) {
+   for (int i = 0; i < 3; i++)
+      do_parse_only(V_MODULE);
+
+   do_parse_check(V_MODULE);
+
+   fail_unless(vlog_parse() == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
+START_TEST(test_ports1)
+{
+   input_from_file(TESTDIR "/vlog/ports1.v");
+
+   const error_t expect[] = {
+      {  4, "duplicate declaration of y" },
+      { 11, "no visible declaration for 'y'" },
+      { 19, "duplicate declaration of x" },
+      { 22, "duplicate declaration of y" },
+      { 41, "'o' does not appear in module port list" },
+      { 45, "'i1' does not appear in module port list" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   for (int i = 0; i < 7; i++) {
       vlog_node_t m = vlog_parse();
       fail_if(m == NULL);
       fail_unless(vlog_kind(m) == V_MODULE);
-
-      vlog_check(m);
    }
 
    fail_unless(vlog_parse() == NULL);
@@ -135,32 +177,20 @@ START_TEST(test_simple_sem)
 }
 END_TEST
 
-START_TEST(test_ports)
+START_TEST(test_ports2)
 {
+   input_from_file(TESTDIR "/vlog/ports2.v");
+
    const error_t expect[] = {
-      {  4, "duplicate declaration of y" },
-      { 11, "no visible declaration for 'y'" },
-      { 19, "duplicate declaration of x" },
-      { 22, "duplicate declaration of y" },
-      { 31, "'o3' cannot be assigned in a procedural block" },
-      { 43, "inconsistent dimensions for 'y'" },
-      { 44, "cannot reference net 'x' in constant expression" },
-      { 47, "missing port declaration for 'zz'" },
-      { 55, "'o' does not appear in module port list" },
-      { 59, "'i1' does not appear in module port list" },
+      {  5, "'o3' cannot be assigned in a procedural block" },
+      { 17, "inconsistent dimensions for 'y'" },
+      { 21, "missing port declaration for 'zz'" },
       { -1, NULL }
    };
    expect_errors(expect);
 
-   input_from_file(TESTDIR "/vlog/ports.v");
-
-   for (int i = 0; i < 10; i++) {
-      vlog_node_t m = vlog_parse();
-      fail_if(m == NULL);
-      fail_unless(vlog_kind(m) == V_MODULE);
-
-      vlog_check(m);
-   }
+   for (int i = 0; i < 5; i++)
+      do_parse_check(V_MODULE);
 
    fail_unless(vlog_parse() == NULL);
 
@@ -610,21 +640,33 @@ START_TEST(test_struct1)
    input_from_file(TESTDIR "/vlog/struct1.sv");
 
    const error_t expect[] = {
-      { 13, "duplicate declaration of a" },
-      { 18, "struct has no field named 'c'" },
-      { 19, "prefix is not a struct or class" },
-      { 20, "'t_pair' cannot be assigned in a procedural block" },
+      { 14, "duplicate declaration of a" },
+      { 19, "struct has no field named 'c'" },
+      { 20, "prefix is not a struct or class" },
       { -1, NULL }
    };
    expect_errors(expect);
 
-   vlog_node_t m = vlog_parse();
-   fail_if(m == NULL);
-   fail_unless(vlog_kind(m) == V_MODULE);
-
-   vlog_check(m);
-
+   vlog_node_t m = do_parse_only(V_MODULE);
    ck_assert_int_eq(vlog_decls(m), 3);
+
+   fail_unless(vlog_parse() == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
+START_TEST(test_struct2)
+{
+   input_from_file(TESTDIR "/vlog/struct2.sv");
+
+   const error_t expect[] = {
+      { 14, "'t_pair' cannot be assigned in a procedural block" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   do_parse_check(V_MODULE);
 
    fail_unless(vlog_parse() == NULL);
 
@@ -637,19 +679,31 @@ START_TEST(test_enum1)
    input_from_file(TESTDIR "/vlog/enum1.sv");
 
    const error_t expect[] = {
-      {  5, "'a' is not a data type" },
+      {  6, "'a' is not a data type" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   vlog_node_t m = do_parse_only(V_MODULE);
+   ck_assert_int_eq(vlog_decls(m), 8);
+
+   fail_unless(vlog_parse() == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
+START_TEST(test_enum2)
+{
+   input_from_file(TESTDIR "/vlog/enum2.sv");
+
+   const error_t expect[] = {
       {  8, "cannot reference variable 'zz' in constant expression" },
       { -1, NULL }
    };
    expect_errors(expect);
 
-   vlog_node_t m = vlog_parse();
-   fail_if(m == NULL);
-   fail_unless(vlog_kind(m) == V_MODULE);
-
-   vlog_check(m);
-
-   ck_assert_int_eq(vlog_decls(m), 8);
+   do_parse_check(V_MODULE);
 
    fail_unless(vlog_parse() == NULL);
 
@@ -661,12 +715,7 @@ START_TEST(test_union1)
 {
    input_from_file(TESTDIR "/vlog/union1.sv");
 
-   vlog_node_t m = vlog_parse();
-   fail_if(m == NULL);
-   fail_unless(vlog_kind(m) == V_MODULE);
-
-   vlog_check(m);
-
+   vlog_node_t m = do_parse_check(V_MODULE);
    ck_assert_int_eq(vlog_decls(m), 2);
 
    fail_unless(vlog_parse() == NULL);
@@ -822,8 +871,6 @@ START_TEST(test_pp4)
    fail_if(m == NULL);
    fail_unless(vlog_kind(m) == V_MODULE);
 
-   vlog_check(m);
-
    fail_unless(vlog_parse() == NULL);
 
    check_expected_errors();
@@ -842,12 +889,7 @@ START_TEST(test_casename)
    expect_errors(expect);
 
    for (int i = 0; i < 2; i++) {
-      vlog_node_t m = vlog_parse();
-      fail_if(m == NULL);
-      fail_unless(vlog_kind(m) == V_MODULE);
-
-      vlog_check(m);
-
+      vlog_node_t m = do_parse_check(V_MODULE);
       lib_put_vlog(lib_work(), m);
    }
 
@@ -869,11 +911,7 @@ START_TEST(test_const1)
    };
    expect_errors(expect);
 
-   vlog_node_t m = vlog_parse();
-   fail_if(m == NULL);
-   fail_unless(vlog_kind(m) == V_MODULE);
-
-   vlog_check(m);
+   do_parse_check(V_MODULE);
 
    fail_unless(vlog_parse() == NULL);
 
@@ -886,17 +924,30 @@ START_TEST(test_case1)
    input_from_file(TESTDIR "/vlog/case1.v");
 
    const error_t expect[] = {
-      { 10, "no visible declaration for 'aaa'" },
-      { 15, "multiple default statements within a single case statement" },
+      { 11, "no visible declaration for 'aaa'" },
       { -1, NULL }
    };
    expect_errors(expect);
 
-   vlog_node_t m = vlog_parse();
-   fail_if(m == NULL);
-   fail_unless(vlog_kind(m) == V_MODULE);
+   do_parse_only(V_MODULE);
 
-   vlog_check(m);
+   fail_unless(vlog_parse() == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
+START_TEST(test_case2)
+{
+   input_from_file(TESTDIR "/vlog/case2.v");
+
+   const error_t expect[] = {
+      { 13, "multiple default statements within a single case statement" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   do_parse_check(V_MODULE);
 
    fail_unless(vlog_parse() == NULL);
 
@@ -920,17 +971,8 @@ START_TEST(test_direct1)
    };
    expect_errors(expect);
 
-   vlog_node_t m1 = vlog_parse();
-   fail_if(m1 == NULL);
-   fail_unless(vlog_kind(m1) == V_MODULE);
-
-   vlog_check(m1);
-
-   vlog_node_t m2 = vlog_parse();
-   fail_if(m2 == NULL);
-   fail_unless(vlog_kind(m2) == V_MODULE);
-
-   vlog_check(m2);
+   for (int i = 0; i < 2; i++)
+      do_parse_only(V_MODULE);
 
    fail_unless(vlog_parse() == NULL);
 
@@ -976,10 +1018,7 @@ START_TEST(test_generate1)
    };
    expect_errors(expect);
 
-   vlog_node_t m1 = vlog_parse();
-   fail_if(m1 == NULL);
-   fail_unless(vlog_kind(m1) == V_MODULE);
-
+   vlog_node_t m1 = do_parse_only(V_MODULE);
    vlog_check(m1);
 
    fail_unless(vlog_parse() == NULL);
@@ -993,25 +1032,38 @@ START_TEST(test_tfcall1)
    input_from_file(TESTDIR "/vlog/tfcall1.sv");
 
    const error_t expect[] = {
-      { 43, "return statement can only be used in a subroutine" },
-      { 50, "'bob' does not match task name 'task3'" },
-      { 53, "'blah' does not match function name 'func2'" },
-      { 40, "return statement in a task cannot have an expression" },
-      { 46, "return statement in a non-void function must have an expression" },
-      {  8, "expected 2 arguments for 'sum' but have 1" },
-      {  9, "expected 2 arguments for 'sum' but have 3" },
-      { 13, "'x4' is not a function" },
-      { 27, "'no_args' is not a task" },
-      { 12, "no visible declaration for 'not_here'" },
+      { 36, "return statement can only be used in a subroutine" },
+      { 39, "'bob' does not match task name 'task3'" },
+      { 42, "'blah' does not match function name 'func2'" },
+      { 11, "no visible declaration for 'not_here'" },
       { -1, NULL }
    };
    expect_errors(expect);
 
-   vlog_node_t m1 = vlog_parse();
-   fail_if(m1 == NULL);
-   fail_unless(vlog_kind(m1) == V_MODULE);
+   do_parse_only(V_MODULE);
 
-   vlog_check(m1);
+   fail_unless(vlog_parse() == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
+START_TEST(test_tfcall2)
+{
+   input_from_file(TESTDIR "/vlog/tfcall2.sv");
+
+   const error_t expect[] = {
+      { 40, "return statement in a task cannot have an expression" },
+      { 44, "return statement in a non-void function must have an expression" },
+      {  9, "expected 2 arguments for 'sum' but have 1" },
+      { 10, "expected 2 arguments for 'sum' but have 3" },
+      { 13, "'x4' is not a function" },
+      { 27, "'no_args' is not a task" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   do_parse_check(V_MODULE);
 
    fail_unless(vlog_parse() == NULL);
 
@@ -1031,13 +1083,8 @@ START_TEST(test_attr1)
    };
    expect_errors(expect);
 
-   for (int i = 0; i < 2; i++) {
-      vlog_node_t m = vlog_parse();
-      fail_if(m == NULL);
-      fail_unless(vlog_kind(m) == V_MODULE);
-
-      vlog_check(m);
-   }
+   for (int i = 0; i < 2; i++)
+      do_parse_only(V_MODULE);
 
    fail_unless(vlog_parse() == NULL);
 
@@ -1060,11 +1107,7 @@ START_TEST(test_initial1)
    };
    expect_errors(expect);
 
-   vlog_node_t m1 = vlog_parse();
-   fail_if(m1 == NULL);
-   fail_unless(vlog_kind(m1) == V_MODULE);
-
-   vlog_check(m1);
+   do_parse_only(V_MODULE);
 
    fail_unless(vlog_parse() == NULL);
 
@@ -1086,10 +1129,7 @@ START_TEST(test_nets1)
    };
    expect_errors(expect);
 
-   vlog_node_t m1 = vlog_parse();
-   fail_if(m1 == NULL);
-   fail_unless(vlog_kind(m1) == V_MODULE);
-
+   vlog_node_t m1 = do_parse_only(V_MODULE);
    vlog_check(m1);
 
    fail_unless(vlog_parse() == NULL);
@@ -1112,11 +1152,8 @@ START_TEST(test_keywords)
    };
    expect_errors(expect);
 
-   for (int i = 0; i < 2; i++) {
-      vlog_node_t m = vlog_parse();
-      fail_if(m == NULL);
-      fail_unless(vlog_kind(m) == V_MODULE);
-   }
+   for (int i = 0; i < 2; i++)
+      do_parse_only(V_MODULE);
 
    fail_unless(vlog_parse() == NULL);
 
@@ -1135,11 +1172,8 @@ START_TEST(test_error1)
    };
    expect_errors(expect);
 
-   for (int i = 0; i < 2; i++) {
-      vlog_node_t m = vlog_parse();
-      fail_if(m == NULL);
-      fail_unless(vlog_kind(m) == V_MODULE);
-   }
+   for (int i = 0; i < 2; i++)
+      do_parse_only(V_MODULE);
 
    fail_unless(vlog_parse() == NULL);
 
@@ -1169,9 +1203,7 @@ START_TEST(test_integers1)
    };
    expect_errors(expect);
 
-   vlog_node_t m = vlog_parse();
-   fail_if(m == NULL);
-   fail_unless(vlog_kind(m) == V_MODULE);
+   do_parse_only(V_MODULE);
 
    fail_unless(vlog_parse() == NULL);
 
@@ -1221,9 +1253,7 @@ START_TEST(test_label1)
    };
    expect_errors(expect);
 
-   vlog_node_t m = vlog_parse();
-   fail_if(m == NULL);
-   fail_unless(vlog_kind(m) == V_MODULE);
+   do_parse_only(V_MODULE);
 
    fail_unless(vlog_parse() == NULL);
 
@@ -1236,18 +1266,31 @@ START_TEST(test_href1)
    input_from_file(TESTDIR "/vlog/href1.v");
 
    const error_t expect[] = {
-      {  4, "prefix of hierarchical identifier is not an instance" },
-      {  5, "no visible declaration for 'xx'" },
-      { 12, "no visible declaration for 'yy'" },
+      {  6, "no visible declaration for 'xx'" },
+      { 13, "no visible declaration for 'yy'" },
       { -1, NULL }
    };
    expect_errors(expect);
 
-   vlog_node_t m = vlog_parse();
-   fail_if(m == NULL);
-   fail_unless(vlog_kind(m) == V_MODULE);
+   do_parse_only(V_MODULE);
 
-   vlog_check(m);
+   fail_unless(vlog_parse() == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
+START_TEST(test_href2)
+{
+   input_from_file(TESTDIR "/vlog/href2.v");
+
+   const error_t expect[] = {
+      {  5, "prefix of hierarchical identifier is not an instance" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   do_parse_check(V_MODULE);
 
    fail_unless(vlog_parse() == NULL);
 
@@ -1265,9 +1308,7 @@ START_TEST(test_package1)
    };
    expect_errors(expect);
 
-   vlog_node_t m = vlog_parse();
-   fail_if(m == NULL);
-   fail_unless(vlog_kind(m) == V_PACKAGE);
+   do_parse_only(V_PACKAGE);
 
    fail_unless(vlog_parse() == NULL);
 
@@ -1288,9 +1329,7 @@ START_TEST(test_class1)
    };
    expect_errors(expect);
 
-   vlog_node_t m = vlog_parse();
-   fail_if(m == NULL);
-   fail_unless(vlog_kind(m) == V_PROGRAM);
+   do_parse_only(V_PROGRAM);
 
    fail_unless(vlog_parse() == NULL);
 
@@ -1311,11 +1350,7 @@ START_TEST(test_class2)
    };
    expect_errors(expect);
 
-   vlog_node_t m = vlog_parse();
-   fail_if(m == NULL);
-   fail_unless(vlog_kind(m) == V_PROGRAM);
-
-   vlog_check(m);
+   do_parse_check(V_PROGRAM);
 
    fail_unless(vlog_parse() == NULL);
 
@@ -1327,17 +1362,8 @@ START_TEST(test_class3)
 {
    input_from_file(TESTDIR "/vlog/class3.sv");
 
-   vlog_node_t p = vlog_parse();
-   fail_if(p == NULL);
-   fail_unless(vlog_kind(p) == V_PACKAGE);
-
-   vlog_check(p);
-
-   vlog_node_t m = vlog_parse();
-   fail_if(m == NULL);
-   fail_unless(vlog_kind(m) == V_MODULE);
-
-   vlog_check(m);
+   do_parse_check(V_PACKAGE);
+   do_parse_check(V_MODULE);
 
    fail_unless(vlog_parse() == NULL);
 
@@ -1349,9 +1375,7 @@ START_TEST(test_namespace1)
 {
    input_from_file(TESTDIR "/vlog/namespace1.sv");
 
-   vlog_node_t m = vlog_parse();
-   fail_if(m == NULL);
-   fail_unless(vlog_kind(m) == V_MODULE);
+   do_parse_only(V_MODULE);
 
    fail_unless(vlog_parse() == NULL);
 
@@ -1372,11 +1396,7 @@ START_TEST(test_real1)
    };
    expect_errors(expect);
 
-   vlog_node_t m = vlog_parse();
-   fail_if(m == NULL);
-   fail_unless(vlog_kind(m) == V_MODULE);
-
-   vlog_check(m);
+   do_parse_check(V_MODULE);
 
    fail_unless(vlog_parse() == NULL);
 
@@ -1391,7 +1411,8 @@ Suite *get_vlog_tests(void)
    TCase *tc = nvc_unit_test();
    tcase_add_test(tc, test_dff);
    tcase_add_test(tc, test_simple_sem);
-   tcase_add_test(tc, test_ports);
+   tcase_add_test(tc, test_ports1);
+   tcase_add_test(tc, test_ports2);
    tcase_add_test(tc, test_parse1);
    tcase_add_test(tc, test_number1);
    tcase_add_test(tc, test_number2);
@@ -1404,7 +1425,9 @@ Suite *get_vlog_tests(void)
    tcase_add_test(tc, test_udp1);
    tcase_add_test(tc, test_implicit1);
    tcase_add_test(tc, test_struct1);
+   tcase_add_test(tc, test_struct2);
    tcase_add_test(tc, test_enum1);
+   tcase_add_test(tc, test_enum2);
    tcase_add_test(tc, test_union1);
    tcase_add_test(tc, test_param1);
    tcase_add_test(tc, test_param2);
@@ -1414,10 +1437,12 @@ Suite *get_vlog_tests(void)
    tcase_add_test(tc, test_casename);
    tcase_add_test(tc, test_const1);
    tcase_add_test(tc, test_case1);
+   tcase_add_test(tc, test_case2);
    tcase_add_test(tc, test_direct1);
    tcase_add_test(tc, test_string1);
    tcase_add_test(tc, test_generate1);
    tcase_add_test(tc, test_tfcall1);
+   tcase_add_test(tc, test_tfcall2);
    tcase_add_test(tc, test_attr1);
    tcase_add_test(tc, test_initial1);
    tcase_add_test(tc, test_nets1);
@@ -1428,6 +1453,7 @@ Suite *get_vlog_tests(void)
    tcase_add_test(tc, test_pp6);
    tcase_add_test(tc, test_label1);
    tcase_add_test(tc, test_href1);
+   tcase_add_test(tc, test_href2);
    tcase_add_test(tc, test_package1);
    tcase_add_test(tc, test_class1);
    tcase_add_test(tc, test_class2);

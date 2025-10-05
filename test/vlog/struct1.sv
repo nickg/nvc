@@ -1,3 +1,4 @@
+// Parse errors
 module struct1;
   struct {
     int  a;
@@ -17,6 +18,5 @@ module struct1;
     s1.a = 5;      // OK
     s1.c = 7;      // Error
     s1.a.x = 2;    // Error
-    t_pair.x = 1;  // Error
   end
 endmodule // struct1

@@ -1,3 +1,4 @@
+// Parse errors
 module href1;
 
   assign w1 = u1.x;   // OK
