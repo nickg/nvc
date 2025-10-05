@@ -789,7 +789,13 @@ static type_mask_t vlog_check_sys_fcall(vlog_node_t v)
 {
    vlog_check_params(v);
 
-   return TM_INTEGRAL;
+   // See 1800-2023 section 11.2.1 for list of constant system functions
+   switch (is_well_known(vlog_ident(v))) {
+   case W_DLR_CLOG2:
+      return TM_INTEGRAL | TM_CONST;
+   default:
+      return TM_INTEGRAL;
+   }
 }
 
 static type_mask_t vlog_check_class_new(vlog_node_t v)
