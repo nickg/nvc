@@ -108,6 +108,17 @@ static int64_t get_number(tree_t t)
    return result;
 }
 
+static void get_range(psl_node_t range, int64_t *lo, int64_t *hi)
+{
+   *lo = get_number(psl_tree(psl_left(range)));
+   *hi = get_number(psl_tree(psl_right(range)));
+
+   if (lo > hi)
+      fatal_at(psl_loc(range), "left bound of PSL range (%"PRIi64") must be "
+               "lower than right bound (%"PRIi64")", *lo, *hi);
+}
+
+
 static psl_guard_t make_binop_guard(psl_fsm_t *fsm, binop_kind_t kind,
                                     psl_guard_t left, psl_guard_t right)
 {
@@ -531,21 +542,43 @@ static fsm_state_t *build_next(psl_fsm_t *fsm, fsm_state_t *state, psl_node_t p)
    return build_node(fsm, state, psl_value(p));
 }
 
+static fsm_state_t *build_next_a(psl_fsm_t *fsm, fsm_state_t *state, psl_node_t p)
+{
+   psl_node_t guard = psl_value(p);
+   if (psl_kind(guard) != P_HDL_EXPR)
+      fatal_at(psl_loc(p), "sorry, PSL next_a is supported only with expression");
+
+   bool strong = (psl_flags(p) & PSL_F_STRONG) ? true : false;
+   fsm_state_t *curr = state;
+
+   int64_t lo,hi = 0;
+   psl_node_t range = psl_delay(p);
+   get_range(range, &lo, &hi);
+
+   for (int i = 0; i < hi; i++) {
+      fsm_state_t *new = add_state(fsm, p);
+      new->strong = strong;
+      if (i < lo - 1)
+         add_edge(fsm, curr, new, EDGE_NEXT, NULL);
+      else
+         add_edge(fsm, curr, new, EDGE_NEXT, guard);
+      curr = new;
+   }
+
+   return curr;
+}
+
 static fsm_state_t *build_next_e(psl_fsm_t *fsm, fsm_state_t *state, psl_node_t p)
 {
-   psl_node_t range = psl_delay(p);
    psl_node_t guard = psl_value(p);
    bool strong = (psl_flags(p) & PSL_F_STRONG) ? true : false;
 
    psl_guard_t guard_n = not_guard(guard);
    fsm_state_t *curr = state;
 
-   const int lo = get_number(psl_tree(psl_left(range)));
-   const int hi = get_number(psl_tree(psl_right(range)));
-
-   if (lo > hi)
-      fatal_at(psl_loc(p), "left bound of PSL range (%d) must be "
-               "lower than right bound (%d)", lo, hi);
+   int64_t lo,hi = 0;
+   psl_node_t range = psl_delay(p);
+   get_range(range, &lo, &hi);
 
    for (int i = 0; i < lo - 1; i++) {
       fsm_state_t *new = add_state(fsm, p);
@@ -655,6 +688,8 @@ static fsm_state_t *build_node(psl_fsm_t *fsm, fsm_state_t *state, psl_node_t p)
       return build_next(fsm, state, p);
    case P_NEXT_E:
       return build_next_e(fsm, state, p);
+   case P_NEXT_A:
+      return build_next_a(fsm, state, p);
    case P_SERE:
       return build_sere(fsm, state, p);
    case P_REPEAT:
