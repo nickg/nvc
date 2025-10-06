@@ -96,7 +96,9 @@ static const char *type_mask_str(type_mask_t tm)
    case TM(DT_INT): return "int";
    case TM(DT_SHORTINT): return "shortint";
    case TM(DT_REAL): return "real";
+   case TM(DT_SHORTREAL): return "shortreal";
    case TM(DT_TIME): return "time";
+   case TM_REAL: return "real";
    case TM_CLASS: return "class";
    case TM_ENUM: return "enum";
    default: return (tm & TM_INTEGRAL) ? "integral" : "unknown";
@@ -659,11 +661,25 @@ static type_mask_t vlog_check_ref(vlog_node_t v)
    return get_type_mask(vlog_ref(v));
 }
 
+static type_mask_t vlog_check_index(vlog_node_t v)
+{
+   type_mask_t tmask = vlog_check_expr(vlog_value(v));
+   if (tmask == TM_ERROR)
+      return TM_ERROR;
+   else if (!(tmask & TM_INTEGRAL)) {
+      error_at(vlog_loc(v), "value of type '%s' cannot be indexed",
+               type_mask_str(tmask));
+      return TM_ERROR;
+   }
+
+   return tmask;
+}
+
 static type_mask_t vlog_check_bit_select(vlog_node_t v)
 {
    vlog_check_params(v);
 
-   return vlog_check_expr(vlog_value(v));
+   return vlog_check_index(v);
 }
 
 static type_mask_t vlog_check_part_select(vlog_node_t v)
@@ -676,7 +692,7 @@ static type_mask_t vlog_check_part_select(vlog_node_t v)
    vlog_node_t right = vlog_right(v);
    vlog_check_const_expr(right);
 
-   return vlog_check_expr(vlog_value(v));
+   return vlog_check_index(v);
 }
 
 static type_mask_t vlog_check_user_fcall(vlog_node_t v)
@@ -749,6 +765,10 @@ static type_mask_t vlog_check_binary(vlog_node_t v)
    case V_BINARY_AND:
    case V_BINARY_XOR:
    case V_BINARY_XNOR:
+   case V_BINARY_SHIFT_LL:
+   case V_BINARY_SHIFT_RL:
+   case V_BINARY_SHIFT_LA:
+   case V_BINARY_SHIFT_RA:
       allow = TM_INTEGRAL | TM_CONST;
       break;
    case V_BINARY_CASE_EQ:
@@ -772,7 +792,38 @@ static type_mask_t vlog_check_binary(vlog_node_t v)
 
 static type_mask_t vlog_check_unary(vlog_node_t v)
 {
-   return vlog_check_expr(vlog_value(v));
+   type_mask_t tmask = vlog_check_expr(vlog_value(v));
+
+   // See table 11-1 in 1800-2023 section 11.3 for allowed operand types
+   type_mask_t allow = TM_ANY, result = tmask;
+   switch (vlog_subkind(v)) {
+   case V_UNARY_BITNEG:
+   case V_UNARY_AND:
+   case V_UNARY_OR:
+   case V_UNARY_NAND:
+   case V_UNARY_NOR:
+   case V_UNARY_XOR:
+   case V_UNARY_XNOR:
+      allow = TM_INTEGRAL | TM_CONST;
+      break;
+   case V_UNARY_IDENTITY:
+   case V_UNARY_NEG:
+   case V_UNARY_NOT:
+      allow = TM_INTEGRAL | TM_REAL | TM_CONST;
+      break;
+   }
+
+   if (tmask == TM_ERROR)
+      return TM_ERROR;
+   else if (tmask & allow)
+      return result;
+
+   diag_t *d = diag_new(DIAG_ERROR, vlog_loc(v));
+   diag_printf(d, "invalid operands for unary expression");
+   diag_hint(d, vlog_loc(v), "have '%s'", type_mask_str(tmask));
+   diag_emit(d);
+
+   return TM_ERROR;
 }
 
 static type_mask_t vlog_check_cond_expr(vlog_node_t v)

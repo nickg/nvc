@@ -1392,6 +1392,9 @@ START_TEST(test_real1)
       {  9, "invalid operands for binary expression" },
       { 10, "invalid operands for binary expression" },
       { 11, "invalid operands for binary expression" },
+      {  0, "have 'real' and 'real'" },
+      { 13, "value of type 'real' cannot be indexed" },
+      { 14, "invalid operands for unary expression" },
       { -1, NULL }
    };
    expect_errors(expect);

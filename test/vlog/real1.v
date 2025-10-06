@@ -9,6 +9,10 @@ module real1;
     r1 = r1 & 5;         // Error
     r1 = r1 ^ r1;        // Error
     if (r1 === 0.0);     // Error
+    r1 = r1 > 2.0 ? r1 : 0;   // OK
+    r1[5] = 0;           // Error
+    r1 = ~r1;            // Error
+    r1 = +r1;            // OK
   end
 
 endmodule // real1
