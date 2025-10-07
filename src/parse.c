@@ -1869,22 +1869,29 @@ static type_t get_subtype_for(tree_t expr)
       for (int i = 0; i < nfields; i++) {
          tree_t f = type_field(type, i);
          type_t ft = tree_type(f);
-         if (type_is_unconstrained(ft)) {
-            tree_t rref = tree_new(T_RECORD_REF);
-            tree_set_ident(rref, tree_ident(f));
-            tree_set_loc(rref, loc);
-            tree_set_ref(rref, f);
-            tree_set_value(rref, expr);
+
+         if (!type_is_unconstrained(ft))
+            continue;
+
+         tree_t rref = tree_new(T_RECORD_REF);
+         tree_set_ident(rref, tree_ident(f));
+         tree_set_loc(rref, loc);
+         tree_set_ref(rref, f);
+         tree_set_value(rref, expr);
+
+         tree_t cons = type_constraint_for_field(type, f);
+         if (cons != NULL)
+            tree_set_type(rref, tree_type(cons));
+         else
             tree_set_type(rref, ft);
 
-            tree_t ec = tree_new(T_ELEM_CONSTRAINT);
-            tree_set_loc(ec, loc);
-            tree_set_ident(ec, tree_ident(f));
-            tree_set_ref(ec, f);
-            tree_set_type(ec, get_subtype_for(rref));
+         tree_t ec = tree_new(T_ELEM_CONSTRAINT);
+         tree_set_loc(ec, loc);
+         tree_set_ident(ec, tree_ident(f));
+         tree_set_ref(ec, f);
+         tree_set_type(ec, get_subtype_for(rref));
 
-            tree_add_range(c, ec);
-         }
+         tree_add_range(c, ec);
       }
    }
    else if (type_is_array(type)) {

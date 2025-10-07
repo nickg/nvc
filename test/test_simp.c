@@ -1919,6 +1919,29 @@ START_TEST(test_issue1239)
 }
 END_TEST
 
+START_TEST(test_issue1318)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/parse/issue1318.vhd");
+
+   tree_t a = parse_check_and_simplify(T_ENTITY, T_ARCH);
+   tree_t d = get_decl(a, "CONST_USING_BUS_ARRAY");
+
+   tree_t r = range_of(tree_type(d), 0);
+   fail_unless(tree_subkind(r) == RANGE_DOWNTO);
+
+   int64_t low, high;
+   fail_unless(folded_bounds(r, &low, &high));
+   fail_unless(low == 0);
+   fail_unless(high == 31);
+
+   fail_unless(parse() == NULL);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_simp_tests(void)
 {
    Suite *s = suite_create("simplify");
@@ -1993,6 +2016,7 @@ Suite *get_simp_tests(void)
    tcase_add_test(tc_core, test_genpack2);
    tcase_add_test(tc_core, test_issue1182);
    tcase_add_test(tc_core, test_issue1239);
+   tcase_add_test(tc_core, test_issue1318);
    suite_add_tcase(s, tc_core);
 
    return s;
