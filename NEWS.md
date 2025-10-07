@@ -4,7 +4,7 @@
   constraints such as `natural range 0 to 1` now correctly returns the
   `vhpiIntTypeDeclK` base type instead of another `vhpiSubtypeDeclK`.
 - Fixed a crash when `release` is used with a record signal (#1313).
-- Several other minor bugs were resolved (#1308).
+- Several other minor bugs were resolved (#1308, #1318).
 
 ## Version 1.18.0 - 2025-09-28
 - Scheduling of blocking and non-blocking assignments in mixed-language

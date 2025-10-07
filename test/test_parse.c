@@ -7367,6 +7367,24 @@ START_TEST(test_protect1)
 }
 END_TEST
 
+START_TEST(test_issue1318)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/parse/issue1318.vhd");
+
+   tree_t a = parse_and_check(T_ENTITY, T_ARCH);
+   tree_t d = get_decl(a, "CONST_USING_BUS_ARRAY");
+
+   type_t type = tree_type(d);
+   fail_if(type_is_unconstrained(type));
+
+   fail_unless(parse() == NULL);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_parse_tests(void)
 {
    Suite *s = suite_create("parse");
@@ -7554,6 +7572,7 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_issue1249);
    tcase_add_test(tc_core, test_issue1271);
    tcase_add_test(tc_core, test_protect1);
+   tcase_add_test(tc_core, test_issue1318);
    suite_add_tcase(s, tc_core);
 
    return s;
