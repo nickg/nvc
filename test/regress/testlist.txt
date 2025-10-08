@@ -1215,3 +1215,4 @@ psl23           gold,psl,fail
 psl24           psl,gold,fail
 issue1313       normal,2008
 string1         verilog
+issue1317       normal,2008

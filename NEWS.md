@@ -6,7 +6,7 @@
 - PSL `next_e` and `next_e!` operators are now supported.
 - PSL `nondet` built-in function is now supported.
 - Fixed a crash when `release` is used with a record signal (#1313).
-- Several other minor bugs were resolved (#1308, #1318).
+- Several other minor bugs were resolved (#1308, #1317, #1318).
 
 ## Version 1.18.0 - 2025-09-28
 - Scheduling of blocking and non-blocking assignments in mixed-language
