@@ -113,11 +113,10 @@ static void get_range(psl_node_t range, int64_t *lo, int64_t *hi)
    *lo = get_number(psl_tree(psl_left(range)));
    *hi = get_number(psl_tree(psl_right(range)));
 
-   if (lo > hi)
+   if (*lo > *hi)
       fatal_at(psl_loc(range), "left bound of PSL range (%"PRIi64") must be "
                "lower than right bound (%"PRIi64")", *lo, *hi);
 }
-
 
 static psl_guard_t make_binop_guard(psl_fsm_t *fsm, binop_kind_t kind,
                                     psl_guard_t left, psl_guard_t right)
