@@ -11715,15 +11715,17 @@ static vcode_reg_t lower_constrain_port(lower_unit_t *lu, tree_t port, int pos,
 
             type_t value_type = tree_type(tree_value(map));
 
-            vcode_reg_t value_reg;
-            if (type_is_array(ftype))
-               value_reg = lower_coerce_arrays(lu, value_type, ftype,
-                                               bounds_reg);
-            else
-               value_reg = bounds_reg;
-
             vcode_reg_t field_reg = emit_record_ref(rptr_reg, tree_pos(f));
-            emit_store_indirect(value_reg, field_reg);
+
+            if (type_is_array(ftype)) {
+               vcode_reg_t value_reg =
+                  lower_coerce_arrays(lu, value_type, ftype, bounds_reg);
+               emit_store_indirect(value_reg, field_reg);
+            }
+            else if (type_is_record(ftype))
+               emit_copy(field_reg, bounds_reg, VCODE_INVALID_REG);
+            else
+               should_not_reach_here();
          }
          break;
 
