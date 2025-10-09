@@ -431,6 +431,13 @@ static vlog_node_t logic_type(void)
    return v;
 }
 
+static vlog_node_t implicit_type(void)
+{
+   vlog_node_t v = vlog_new(V_DATA_TYPE);
+   vlog_set_subkind(v, DT_IMPLICIT);
+   return v;
+}
+
 static ident_t default_label(const char *prefix)
 {
    return ident_sprintf("%s#%d#%d", prefix, state.last_loc.first_line,
@@ -1109,7 +1116,7 @@ static vlog_node_t p_implicit_data_type(void)
    BEGIN("implicit data type");
 
    vlog_node_t v = vlog_new(V_DATA_TYPE);
-   vlog_set_subkind(v, DT_LOGIC);
+   vlog_set_subkind(v, DT_IMPLICIT);
 
    if (scan(tSIGNED, tUNSIGNED))
       p_signing();
@@ -1240,14 +1247,6 @@ static void p_list_of_variable_port_identifiers(vlog_node_t mod,
       vlog_add_decl(mod, v);
       vlog_symtab_put(symtab, v);
 
-      vlog_node_t reg = vlog_new(V_VAR_DECL);
-      vlog_set_loc(reg, vlog_loc(v));
-      vlog_set_ident(reg, id);
-      vlog_set_type(reg, datatype);
-
-      vlog_add_decl(mod, reg);
-      vlog_symtab_put(symtab, reg);
-
       declare_port(mod, v);
    } while (optional(tCOMMA));
 }
@@ -1335,29 +1334,21 @@ static void p_port_declaration(vlog_node_t mod)
    }
 }
 
-static vlog_node_t p_net_port_header(v_port_kind_t *dir, bool *isreg)
+static void p_net_port_header(v_port_kind_t *dir, vlog_node_t *dt)
 {
    // [ port_direction ] net_port_type
 
    BEGIN("net port header");
 
-   if (optional(tINPUT)) {
+   if (optional(tINPUT))
       *dir = V_PORT_INPUT;
-      *isreg = (peek() == tREG);
-   }
-   else if (optional(tINOUT)) {
+   else if (optional(tINOUT))
       *dir = V_PORT_INOUT;
-      *isreg = false;
-   }
-   else if (optional(tOUTPUT)) {
+   else if (optional(tOUTPUT))
       *dir = V_PORT_OUTPUT;
-      *isreg = (peek() == tREG);
-   }
 
    vlog_net_kind_t kind;
-   vlog_node_t dt;
-   p_net_port_type(&kind, &dt);
-   return dt;
+   p_net_port_type(&kind, dt);
 }
 
 static void p_part_select_range(vlog_node_t ps)
@@ -6105,7 +6096,7 @@ static void p_module_item(vlog_node_t mod)
 }
 
 static void p_ansi_port_declaration(vlog_node_t mod, v_port_kind_t *kind,
-                                    bool *isreg)
+                                    vlog_node_t *dt)
 {
    // [ net_port_header | interface_port_header ] port_identifier
    //     { unpacked_dimension } [ = constant_expression ]
@@ -6115,11 +6106,10 @@ static void p_ansi_port_declaration(vlog_node_t mod, v_port_kind_t *kind,
 
    BEGIN("ANSI port declaration");
 
-   vlog_node_t dt;
    if (peek() != tID)
-      dt = p_net_port_header(kind, isreg);
-   else
-      dt = logic_type();
+      p_net_port_header(kind, dt);
+   else if (*dt == NULL)
+      *dt = implicit_type();
 
    ident_t id, ext;
    p_external_identifier(&id, &ext);
@@ -6128,21 +6118,11 @@ static void p_ansi_port_declaration(vlog_node_t mod, v_port_kind_t *kind,
    vlog_set_subkind(v, *kind);
    vlog_set_ident(v, id);
    vlog_set_ident2(v, ext);
-   vlog_set_type(v, dt);
+   vlog_set_type(v, *dt);
    vlog_set_loc(v, &state.last_loc);
 
    vlog_add_decl(mod, v);
    vlog_symtab_put(symtab, v);
-
-   if (*isreg) {
-      vlog_node_t reg = vlog_new(V_VAR_DECL);
-      vlog_set_loc(reg, CURRENT_LOC);
-      vlog_set_ident(reg, id);
-      vlog_set_type(reg, dt);
-
-      vlog_add_decl(mod, reg);
-      vlog_symtab_put(symtab, reg);
-   }
 
    vlog_node_t ref = vlog_new(V_REF);
    vlog_set_loc(ref, CURRENT_LOC);
@@ -6163,10 +6143,10 @@ static void p_list_of_port_declarations(vlog_node_t mod)
 
    if (peek() != tRPAREN) {
       v_port_kind_t kind = V_PORT_INPUT;
-      bool isreg = false;
+      vlog_node_t dt = NULL;
       do {
          optional_attributes();
-         p_ansi_port_declaration(mod, &kind, &isreg);
+         p_ansi_port_declaration(mod, &kind, &dt);
       } while (optional(tCOMMA));
    }
 
@@ -6428,7 +6408,7 @@ static void p_list_of_udp_port_identifiers(vlog_node_t udp, v_port_kind_t kind)
       vlog_set_subkind(p, kind);
       vlog_set_ident(p, id);
       vlog_set_ident2(p, ext);
-      vlog_set_type(p, logic_type());
+      vlog_set_type(p, implicit_type());
       vlog_set_loc(p, &state.last_loc);
 
       vlog_add_decl(udp, p);
@@ -6451,29 +6431,21 @@ static void p_udp_output_declaration(vlog_node_t udp, bool *has_reg)
    ident_t id, ext;
    p_external_identifier(&id, &ext);
 
-   vlog_node_t logic = logic_type();
-
    vlog_node_t v = vlog_new(V_PORT_DECL);
    vlog_set_subkind(v, V_PORT_OUTPUT);
    vlog_set_ident(v, id);
    vlog_set_ident2(v, ext);
-   vlog_set_type(v, logic);
    vlog_set_loc(v, &state.last_loc);
+
+   if (isreg) {
+      vlog_set_type(v, logic_type());
+      *has_reg = true;
+   }
+   else
+      vlog_set_type(v, implicit_type());
 
    vlog_add_decl(udp, v);
    vlog_symtab_put(symtab, v);
-
-   if (isreg) {
-      vlog_node_t reg = vlog_new(V_VAR_DECL);
-      vlog_set_loc(reg, &state.last_loc);
-      vlog_set_ident(reg, id);
-      vlog_set_type(reg, logic);
-
-      vlog_add_decl(udp, reg);
-      vlog_symtab_put(symtab, reg);
-
-      *has_reg = true;
-   }
 }
 
 static void p_udp_input_declaration(vlog_node_t udp)

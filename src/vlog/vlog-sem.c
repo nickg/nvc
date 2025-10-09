@@ -37,7 +37,8 @@ typedef uint32_t type_mask_t;
 #define TM_ENUM   TM(27)
 #define TM_INTEGRAL \
    (TM(DT_LOGIC) | TM(DT_INTEGER) | TM(DT_BYTE) | TM(DT_SHORTINT) \
-    | TM(DT_INT) | TM(DT_LONGINT) | TM(DT_TIME) | TM(DT_BIT) | TM_ENUM)
+    | TM(DT_INT) | TM(DT_LONGINT) | TM(DT_TIME) | TM(DT_BIT) | TM_ENUM \
+    | TM(DT_IMPLICIT))
 #define TM_REAL (TM(DT_REAL) | TM(DT_SHORTREAL))
 
 static void vlog_check_decls(vlog_node_t v);
@@ -142,6 +143,8 @@ static void vlog_check_variable_lvalue(vlog_node_t v, vlog_node_t where)
          vlog_check_variable_lvalue(vlog_ref(v), where);
          return;
       }
+      else if (!is_implicit_data_type(vlog_type(v)))
+         return;
       break;
    default:
       break;
@@ -157,19 +160,22 @@ static void vlog_check_net_lvalue(vlog_node_t v, vlog_node_t where)
 {
    switch (vlog_kind(v)) {
    case V_NET_DECL:
-      break;
+      return;
    case V_PORT_DECL:
-      if (vlog_has_ref(v))
+      if (vlog_has_ref(v)) {
          vlog_check_net_lvalue(vlog_ref(v), where);
+         return;
+      }
+      else if (is_implicit_data_type(vlog_type(v)))
+         return;
       break;
    case V_REF:
-      if (vlog_has_ref(v))
-         vlog_check_net_lvalue(vlog_ref(v), v);
-      break;
+      vlog_check_net_lvalue(vlog_ref(v), v);
+      return;
    case V_BIT_SELECT:
    case V_PART_SELECT:
       vlog_check_net_lvalue(vlog_value(v), v);
-      break;
+      return;
    case V_CONCAT:
       {
          const int nparams = vlog_params(v);
@@ -178,16 +184,15 @@ static void vlog_check_net_lvalue(vlog_node_t v, vlog_node_t where)
             vlog_check_net_lvalue(p, p);
          }
       }
-      break;
+      return;
    default:
-      {
-         diag_t *d = diag_new(DIAG_ERROR, vlog_loc(where));
-         name_for_diag(d, where, "target");
-         diag_printf(d, " cannot be driven by continuous assignment");
-         diag_emit(d);
-      }
       break;
    }
+
+   diag_t *d = diag_new(DIAG_ERROR, vlog_loc(where));
+   name_for_diag(d, where, "target");
+   diag_printf(d, " cannot be driven by continuous assignment");
+   diag_emit(d);
 }
 
 static void vlog_check_decls(vlog_node_t v)
@@ -281,8 +286,19 @@ static void vlog_check_consistent(vlog_node_t a, vlog_node_t b)
 
 static void vlog_check_port_decl(vlog_node_t v)
 {
-   if (vlog_has_ref(v))
-      vlog_check_consistent(v, vlog_ref(v));
+   if (vlog_has_ref(v)) {
+      vlog_node_t ref = vlog_ref(v);
+      vlog_check_consistent(v, ref);
+
+      if (!is_implicit_data_type(vlog_type(v))) {
+         diag_t *d = diag_new(DIAG_ERROR, vlog_loc(ref));
+         diag_printf(d, "completely declared port '%s' cannot be declared "
+                     "again in a data type declaration", istr(vlog_ident(v)));
+         diag_hint(d, vlog_loc(v), "port declaration contains a data type");
+         diag_hint(d, vlog_loc(ref), "redeclared here");
+         diag_emit(d);
+      }
+   }
 
    if (vlog_has_value(v))
       vlog_check_expr(vlog_value(v));
@@ -343,6 +359,10 @@ static void vlog_check_union_decl(vlog_node_t v)
 
 static void vlog_check_tf_decl(vlog_node_t v)
 {
+   const int nports = vlog_ports(v);
+   for (int i = 0; i < nports; i++)
+      vlog_check(vlog_port(v, i));
+
    vlog_check_decls(v);
    vlog_check_stmts(v);
 }
@@ -986,6 +1006,7 @@ void vlog_check(vlog_node_t v)
       vlog_check_var_decl(v);
       break;
    case V_PORT_DECL:
+   case V_TF_PORT_DECL:
       vlog_check_port_decl(v);
       break;
    case V_PARAM_DECL:

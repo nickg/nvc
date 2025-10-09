@@ -56,7 +56,7 @@ START_TEST(test_dff)
    fail_unless(vlog_kind(m) == V_MODULE);
    fail_unless(vlog_stmts(m) == 1);
    fail_unless(vlog_ports(m) == 4);
-   fail_unless(vlog_decls(m) == 5);
+   fail_unless(vlog_decls(m) == 4);
 
    vlog_node_t p0 = vlog_port(m, 0);
    fail_unless(vlog_kind(p0) == V_REF);
@@ -87,10 +87,6 @@ START_TEST(test_dff)
    fail_unless(vlog_subkind(d3) == V_PORT_OUTPUT);
    fail_unless(vlog_ident(d3) == ident_new("q"));
    fail_unless(vlog_ident2(d3) == ident_new("Q"));
-
-   vlog_node_t d4 = vlog_decl(m, 4);
-   fail_unless(vlog_kind(d4) == V_VAR_DECL);
-   fail_unless(vlog_ident(d4) == ident_new("q"));
 
    vlog_node_t a = vlog_stmt(m, 0);
    fail_unless(vlog_kind(a) == V_ALWAYS);
@@ -218,7 +214,7 @@ START_TEST(test_parse1)
 
    vlog_node_t xdt = vlog_type(x);
    fail_unless(vlog_kind(xdt) == V_DATA_TYPE);
-   fail_unless(vlog_subkind(xdt) == DT_LOGIC);
+   fail_unless(vlog_subkind(xdt) == DT_IMPLICIT);
    fail_unless(vlog_ranges(xdt) == 1);
 
    vlog_node_t xd0 = vlog_range(xdt, 0);
@@ -1055,6 +1051,8 @@ START_TEST(test_tfcall2)
    const error_t expect[] = {
       { 40, "return statement in a task cannot have an expression" },
       { 44, "return statement in a non-void function must have an expression" },
+      { 53, "completely declared port 'z' cannot be declared again in a data "
+        "type declaration" },
       {  9, "expected 2 arguments for 'sum' but have 1" },
       { 10, "expected 2 arguments for 'sum' but have 3" },
       { 13, "'x4' is not a function" },

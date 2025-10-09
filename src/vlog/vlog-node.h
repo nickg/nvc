@@ -167,6 +167,7 @@ typedef enum {
 } vlog_kind_t;
 
 typedef enum {
+   DT_IMPLICIT,
    DT_LOGIC,
    DT_INTEGER,
    DT_REAL,

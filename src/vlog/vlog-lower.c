@@ -94,6 +94,7 @@ static const type_info_t *vlog_type_info(vlog_gen_t *g, vlog_node_t v)
 
    switch (vlog_subkind(v)) {
    case DT_LOGIC:
+   case DT_IMPLICIT:
       ti->size = vlog_size(v);
       ti->type = mir_vec4_type(g->mu, ti->size, false);
       break;

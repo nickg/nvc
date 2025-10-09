@@ -491,8 +491,7 @@ START_TEST(test_vlog1)
              "  input d;\n"
              "  input clk;\n"
              "  input rstb;\n"
-             "  output q;\n"
-             "  logic q;\n"
+             "  output logic q;\n"
              "  always @(posedge clk) q <= d;\n"
              "endmodule // dff\n\n");
    tb_rewind(tb);
@@ -503,11 +502,11 @@ START_TEST(test_vlog1)
    vlog_dump(m2, 0);
    diff_dump(tb_get(tb),
              "module mod2;\n"
-             "  wire logic [7:0] bus;\n"
-             "  wire logic w;\n"
+             "  wire /* implicit */ [7:0] bus;\n"
+             "  wire /* implicit */ w;\n"
              "  logic r;\n"
              "  integer i;\n"
-             "  parameter logic [7:0] p1 = 5;\n"
+             "  parameter /* implicit */ [7:0] p1 = 5;\n"
              "  localparam bit p2 = 0;\n"
              "  logic [7:0] array1 [127:0];\n"
              "  function func;\n"
@@ -569,9 +568,9 @@ START_TEST(test_vlog1)
    vlog_dump(m4, 0);
    diff_dump(tb_get(tb),
              "module mod3;\n"
-             "  wire logic x;\n"
-             "  wire logic y;\n"
-             "  wire logic z;\n"
+             "  wire /* implicit */ x;\n"
+             "  wire /* implicit */ y;\n"
+             "  wire /* implicit */ z;\n"
              "  real v1 = 1.5;\n"
              "  integer v2 = x ? 1 : 2;\n"
              "  wire logic zz;\n"

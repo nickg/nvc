@@ -166,6 +166,7 @@ static type_t trans_type(trans_gen_t *g, vlog_node_t decl,
    }
 
    switch (vlog_subkind(decl)) {
+   case DT_IMPLICIT:
    case DT_LOGIC:
    case DT_BIT:
       {

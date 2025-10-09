@@ -44,4 +44,13 @@ module tfcall2;
     return;  // Error
   endfunction : func1
 
+  task task3;
+    input x;
+    real  x;  // OK
+    logic y;
+    output y;  // OK
+    input logic [3:0] z;
+    logic [3:0]       z;  // Error
+  endtask // task4
+
 endmodule // tfcall1

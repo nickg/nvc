@@ -29,6 +29,7 @@ bool vlog_bounds(vlog_node_t v, int64_t *left, int64_t *right);
 unsigned vlog_size(vlog_node_t v);
 bool is_top_level(vlog_node_t v);
 bool is_data_type(vlog_node_t v);
+bool is_implicit_data_type(vlog_node_t v);
 vlog_node_t vlog_longest_static_prefix(vlog_node_t v);
 bool vlog_equal_node(vlog_node_t a, vlog_node_t b);
 uint32_t vlog_hash_node(vlog_node_t v);

@@ -189,6 +189,11 @@ bool is_data_type(vlog_node_t v)
    }
 }
 
+bool is_implicit_data_type(vlog_node_t v)
+{
+   return vlog_kind(v) == V_DATA_TYPE && vlog_subkind(v) == DT_IMPLICIT;
+}
+
 vlog_node_t vlog_longest_static_prefix(vlog_node_t v)
 {
    switch (vlog_kind(v)) {

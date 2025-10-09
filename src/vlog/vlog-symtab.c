@@ -277,24 +277,25 @@ void vlog_symtab_put(vlog_symtab_t *st, vlog_node_t v)
    if (sym->node == POISON_NODE)
       return;
 
-   if (sym->node != NULL && vlog_kind(v) == V_PORT_DECL) {
+   if (sym->node != NULL) {
       switch (vlog_kind(sym->node)) {
       case V_VAR_DECL:
       case V_NET_DECL:
-         if (!vlog_has_ref(v)) {
-            vlog_set_ref(v, sym->node);
-            sym->node = v;
-            return;
+         switch (vlog_kind(v)) {
+         case V_PORT_DECL:
+         case V_TF_PORT_DECL:
+            if (!vlog_has_ref(v)) {
+               vlog_set_ref(v, sym->node);
+               sym->node = v;
+               return;
+            }
+            break;
+         default:
+            break;
          }
          break;
-      default:
-         break;
-      }
-   }
-
-   if (sym->node != NULL) {
-      switch (vlog_kind(sym->node)) {
       case V_PORT_DECL:
+      case V_TF_PORT_DECL:
          if (!vlog_has_ref(sym->node)) {
             switch (vlog_kind(v)) {
             case V_VAR_DECL:

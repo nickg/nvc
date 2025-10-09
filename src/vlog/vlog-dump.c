@@ -22,6 +22,7 @@
 #include "vlog/vlog-node.h"
 #include "vlog/vlog-number.h"
 #include "vlog/vlog-phase.h"
+#include "vlog/vlog-util.h"
 
 #include <ctype.h>
 
@@ -68,6 +69,7 @@ static void vlog_dump_paren(vlog_node_t v, int indent)
       print_syntax("(");
       vlog_dump(v, indent);
       print_syntax(")");
+      break;
    }
 }
 
@@ -180,6 +182,12 @@ static void vlog_dump_port_decl(vlog_node_t v, int indent)
    case V_PORT_INPUT: print_syntax("#input"); break;
    case V_PORT_INOUT: print_syntax("#inout"); break;
    case V_PORT_OUTPUT: print_syntax("#output"); break;
+   }
+
+   vlog_node_t dt = vlog_type(v);
+   if (!is_implicit_data_type(dt)) {
+      print_syntax(" ");
+      vlog_dump(dt, 0);
    }
 
    print_syntax(" %s;\n", istr(vlog_ident(v)));
@@ -628,6 +636,7 @@ static void vlog_dump_part_select(vlog_node_t v, int indent)
 static void vlog_dump_data_type(vlog_node_t v, int indent)
 {
    switch (vlog_subkind(v)) {
+   case DT_IMPLICIT: print_syntax("/* implicit */"); break;
    case DT_LOGIC: print_syntax("#logic"); break;
    case DT_REAL: print_syntax("#real"); break;
    case DT_REALTIME: print_syntax("#realtime"); break;
