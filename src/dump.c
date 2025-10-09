@@ -429,6 +429,11 @@ static void dump_expr(tree_t t)
       dump_expr(tree_value(t));
       break;
 
+   case T_PSL_FCALL:
+   case T_PSL_UNION:
+      psl_dump(tree_psl(t));
+      break;
+
    default:
       cannot_dump(t, "expr");
    }
@@ -1726,6 +1731,8 @@ void vhdl_dump(tree_t t, int indent)
    case T_STRING:
    case T_PACKAGE_MAP:
    case T_TYPE_REF:
+   case T_PSL_FCALL:
+   case T_PSL_UNION:
       dump_expr(t);
       break;
    case T_INSTANCE:
