@@ -154,8 +154,6 @@ static test_t *test_list = NULL;
 static char test_dir[PATH_MAX];
 static char bin_dir[PATH_MAX];
 static bool is_tty = false;
-static bool force_jit = false;
-static bool force_precompile = false;
 static bool capture_xml = false;
 static bool capture_html = false;
 static bool diff_html = false;
@@ -973,11 +971,6 @@ static bool run_test(test_t *test)
          }
       }
 
-      if (force_jit)
-         push_arg(&args, "--jit");
-      else if (force_precompile)
-         push_arg(&args, "--precompile");
-
       if (test->flags & F_FAIL) {
          if (run_cmd(outf, &args) != RUN_OK) {
             failed(NULL);
@@ -1409,17 +1402,11 @@ int main(int argc, char **argv)
 
    bool print_stats= false;
    int c, index = 0;
-   const char *spec = ":sjp";
+   const char *spec = ":s";
    while ((c = getopt_long(argc, argv, spec, long_options, &index)) != -1) {
       switch (c) {
       case 's':
          print_stats = true;
-         break;
-      case 'j':
-         force_jit = true;
-         break;
-      case 'p':
-         force_precompile = true;
          break;
       case 'h':
          capture_html = true;

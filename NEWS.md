@@ -6,6 +6,9 @@
 - PSL `next_e` and `next_e!` operators are now supported.
 - PSL `nondet` built-in function is now supported.
 - Fixed a crash when `release` is used with a record signal (#1313).
+- The `--precompile` elaboration option which was deprecated in the last
+  release has been removed.  The related `--with-system-cc` configure
+  option has also been removed.
 - Several other minor bugs were resolved (#1308, #1317, #1318).
 
 ## Version 1.18.0 - 2025-09-28

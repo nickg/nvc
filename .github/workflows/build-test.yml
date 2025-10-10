@@ -50,24 +50,19 @@ jobs:
         run: ASAN_OPTIONS=detect_leaks=0 make -C build -j $(nproc) everything
       - name: Test
         run: ASAN_OPTIONS=detect_leaks=0 make -C build check
-      - name: Test in precompile mode
-        run: |
-          export ASAN_OPTIONS=detect_leaks=0
-          cd build
-          ./bin/run_regr -p -s
       - name: Test in synchronous JIT mode
         run: |
           export NVC_JIT_ASYNC=0
           export NVC_JIT_THRESHOLD=1
           export ASAN_OPTIONS=detect_leaks=0
           cd build
-          ./bin/run_regr -j -s
+          ./bin/run_regr -s
       - name: Test in interpreter mode
         run: |
           export NVC_JIT_THRESHOLD=0
           export ASAN_OPTIONS=detect_leaks=0
           cd build
-          ./bin/run_regr -j -s
+          ./bin/run_regr -s
 # ieee12 too slow
 #      - name: Test without intrinsics
 #        run: |
@@ -137,12 +132,7 @@ jobs:
           export NVC_JIT_THRESHOLD=1
           cd build
           rm -rf logs
-          ./bin/run_regr -j -s
-      - name: Test in precompile mode
-        run: |
-          cd build
-          rm -rf logs
-          ./bin/run_regr -p -s
+          ./bin/run_regr -s
       - name: Dist clean
         run: make -C build distclean
       - name: Configure for release
@@ -198,12 +188,7 @@ jobs:
           export NVC_JIT_THRESHOLD=1
           cd build
           rm -rf logs
-          ./bin/run_regr -j -s
-      - name: Test in precompile mode
-        run: |
-          cd build
-          rm -rf logs
-          ./bin/run_regr -p -s
+          ./bin/run_regr -s
       - name: Build MSYS2 package
         run: |
           cd contrib/msys2

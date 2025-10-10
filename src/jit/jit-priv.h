@@ -302,15 +302,6 @@ typedef enum {
    JIT_FUNC_ERROR,
 } func_state_t;
 
-typedef enum {
-   RELOC_NULL,
-   RELOC_HANDLE,
-   RELOC_FUNC,
-   RELOC_PRIVDATA,
-   RELOC_COVER,
-   RELOC_PROCESSED,
-} reloc_kind_t;
-
 typedef struct {
    ident_t  name;
    unsigned offset;

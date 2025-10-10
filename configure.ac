@@ -303,39 +303,6 @@ AM_CONDITIONAL([ARCH_X86_64],
                [test x$target_cpu = xx86_64 -o x$target_cpu = xamd64])
 AM_CONDITIONAL([ARCH_ARM64], [test x$target_cpu = xaarch64])
 
-# Prefer calling the linker directy to using CC
-linker_path=
-case $host_os in
-  linux*|openbsd*)
-    AC_PATH_TARGET_TOOL([linker_path], [ld])
-    ;;
-esac
-
-if test -n "$linker_path"; then
-   AC_DEFINE_UNQUOTED([LINKER_PATH], ["$linker_path"], [System linker])
-fi
-
-# CC may constain unwanted -std=... option.
-cc_bare=${CC%% *}
-
-AC_ARG_WITH([system-cc],
-            [AS_HELP_STRING([--with-system-cc=PATH],
-                            [Path to system compiler to be used for linking])],
-            [system_cc="$withval"],
-            [AC_PATH_PROG([system_cc], ["$cc_bare"])])
-
-if test x$system_cc != xno; then
-  AC_MSG_CHECKING([if $system_cc executable exists])
-  AS_IF([command -v $system_cc >/dev/null],
-        [AC_MSG_RESULT([yes])],
-        [AC_MSG_RESULT([no])
-         AC_MSG_ERROR([system C compiler $system_cc not found])])
-
-  AC_DEFINE_UNQUOTED([SYSTEM_CC], ["`$pathprog $system_cc`"], [System compiler])
-else
-  AC_DEFINE_UNQUOTED([BOOTSTRAP_CC], ["`$pathprog $cc_bare`"], [Bootstrap compiler])
-fi
-
 case $host_os in
   *cygwin*|msys*|mingw32*)
     implib_required=yes

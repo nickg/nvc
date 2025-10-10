@@ -1202,7 +1202,7 @@ void __nvc_vec4op(jit_vec_op_t op, jit_anchor_t *anchor, jit_scalar_t *args,
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// Entry points from AOT compiled code
+// Entry points from compiled code
 
 DLLEXPORT
 void _debug_out(intptr_t val, int32_t reg)

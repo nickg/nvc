@@ -20,7 +20,6 @@
 #include "eval.h"
 #include "ident.h"
 #include "jit/jit.h"
-#include "jit/jit-llvm.h"
 #include "lib.h"
 #include "lower.h"
 #include "mir/mir-unit.h"

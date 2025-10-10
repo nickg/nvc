@@ -61,28 +61,6 @@ typedef struct {
    jit_func_t *items[0];
 } func_array_t;
 
-typedef struct _aot_dll {
-   jit_dll_t  *dll;
-   jit_pack_t *pack;
-} aot_dll_t;
-
-typedef struct {
-   reloc_kind_t  kind;
-   union {
-      uintptr_t  off;
-      void      *ptr;
-   };
-} aot_reloc_t;
-
-// The code generator knows the layout of this struct
-typedef struct {
-   jit_entry_fn_t  entry;
-   const char     *strtab;
-   const uint8_t  *debug;
-   const uint8_t  *cpool;
-   aot_reloc_t     relocs[0];
-} aot_descr_t;
-
 typedef struct _jit {
    chash_t          *index;
    mspace_t         *mspace;
@@ -91,7 +69,6 @@ typedef struct _jit {
    bool              shutdown;
    int               exit_status;
    jit_tier_t       *tiers;
-   aot_dll_t        *aotlib;
    jit_pack_t       *pack;
    func_array_t     *funcs;
    unsigned          next_handle;
@@ -179,15 +156,6 @@ void jit_free(jit_t *j)
    store_release(&j->shutdown, true);
    async_barrier();
 
-   aot_dll_t *libs[] = { j->aotlib };
-   for (int i = 0; i < ARRAY_LEN(libs); i++) {
-      if (libs[i] != NULL) {
-         ffi_unload_dll(libs[i]->dll);
-         jit_pack_free(libs[i]->pack);
-         free(libs[i]);
-      }
-   }
-
    if (j->pack != NULL)
       jit_pack_free(j->pack);
 
@@ -257,29 +225,11 @@ static jit_handle_t jit_lazy_compile_locked(jit_t *j, ident_t name)
    if (f != NULL)
       return f->handle;
 
-   aot_descr_t *descr = NULL;
-   if (j->aotlib != NULL) {
-      LOCAL_TEXT_BUF tb = safe_symbol(name);
-      tb_cat(tb, ".descr");
-
-      aot_dll_t *try[] = { j->aotlib };
-      for (int i = 0; i < ARRAY_LEN(try); i++) {
-         if (try[i] == NULL)
-            continue;
-         else if ((descr = ffi_find_symbol(try[i]->dll, tb_get(tb)))) {
-            jit_pack_put(try[i]->pack, name, descr->cpool,
-                         descr->strtab, descr->debug);
-            break;
-         }
-      }
-   }
-
-   jit_entry_fn_t entry =
-      jit_bind_intrinsic(name) ?: (descr ? descr->entry : jit_interp);
+   jit_entry_fn_t entry = jit_bind_intrinsic(name) ?: jit_interp;
 
    f = xcalloc(sizeof(jit_func_t));
    f->name      = name;
-   f->state     = descr ? JIT_FUNC_COMPILING : JIT_FUNC_PLACEHOLDER;
+   f->state     = JIT_FUNC_PLACEHOLDER;
    f->jit       = j;
    f->handle    = j->next_handle++;
    f->next_tier = j->tiers;
@@ -288,54 +238,6 @@ static jit_handle_t jit_lazy_compile_locked(jit_t *j, ident_t name)
 
    // Install now to allow circular references in relocations
    jit_install(j, f);
-
-   if (descr != NULL) {
-      f->counters = cover_get_counters(f->jit->cover, f->name);
-
-      for (aot_reloc_t *r = descr->relocs; r->kind != RELOC_NULL; r++) {
-         const char *str = descr->strtab + r->off;
-         if (r->kind == RELOC_COVER) {
-            // TODO: get rid of the double indirection here by
-            //       allocating coverage memory earlier
-            r->ptr = &(f->counters);
-         }
-         else if (r->kind == RELOC_PROCESSED) {
-            // Detect musl libc brokenness
-            diag_t *d = diag_new(DIAG_FATAL, NULL);
-            diag_printf(d, "shared library containing %s was not properly "
-                        "unloaded", istr(f->name));
-            diag_hint(d, NULL, "this is probably because your libc does not "
-                      "implement dlclose(3) correctly");
-            diag_hint(d, NULL, "run the $bold$-e$$ and $bold$-r$$ steps in "
-                      "separate commands as a workaround");
-            diag_emit(d);
-            fatal_exit(1);
-         }
-         else {
-            jit_handle_t h = jit_lazy_compile_locked(j, ident_new(str));
-            if (h == JIT_HANDLE_INVALID)
-               fatal_trace("relocation against invalid function %s", str);
-
-            switch (r->kind) {
-            case RELOC_FUNC:
-               r->ptr = jit_get_func(j, h);
-               break;
-            case RELOC_HANDLE:
-               r->ptr = (void *)(uintptr_t)h;
-               break;
-            case RELOC_PRIVDATA:
-               r->ptr = jit_get_privdata_ptr(j, jit_get_func(j, h));
-               break;
-            default:
-               fatal_trace("unhandled relocation kind %d", r->kind);
-            }
-         }
-
-         r->kind = RELOC_PROCESSED;
-      }
-
-      store_release(&f->state, JIT_FUNC_READY);
-   }
 
    return f->handle;
 }
@@ -362,11 +264,6 @@ jit_func_t *jit_get_func(jit_t *j, jit_handle_t handle)
    jit_func_t *f = load_acquire(&(list->items[handle]));
    assert(f != NULL);
    return f;
-}
-
-static inline bool jit_fill_from_aot(jit_func_t *f, aot_dll_t *lib)
-{
-   return lib != NULL && jit_pack_fill(lib->pack, f->jit, f);
 }
 
 __attribute__((noreturn))
@@ -415,9 +312,6 @@ void jit_fill_irbuf(jit_func_t *f)
    const jit_state_t oldstate = jit_thread_local()->state;
    jit_transition(f->jit, oldstate, JIT_COMPILING);
 #endif
-
-   if (jit_fill_from_aot(f, f->jit->aotlib))
-      goto done;
 
    if (f->jit->pack != NULL && jit_pack_fill(f->jit->pack, f->jit, f)) {
       // TODO: this should happen before the store_release to f->state
@@ -893,52 +787,6 @@ tlab_t jit_null_tlab(jit_t *j)
 void jit_set_silent(jit_t *j, bool silent)
 {
    j->silent = silent;
-}
-
-static aot_dll_t *load_dll_internal(jit_t *j, const char *path)
-{
-   uint32_t abi_version = 0;
-
-   aot_dll_t *lib = xcalloc(sizeof(aot_dll_t));
-   lib->pack = jit_pack_new();
-   lib->dll  = ffi_load_dll(path);
-
-   uint32_t *p = ffi_find_symbol(lib->dll, "__nvc_abi_version");
-   if (p == NULL)
-      warnf("%s: cannot find symbol __nvc_abi_version", path);
-   else
-      abi_version = *p;
-
-   if (abi_version != RT_ABI_VERSION)
-      fatal("%s: ABI version %d does not match current version %d",
-            path, abi_version, RT_ABI_VERSION);
-
-   if (opt_get_int(OPT_JIT_LOG))
-      debugf("loaded AOT library from %s", path);
-
-   return lib;
-}
-
-void jit_load_dll(jit_t *j, ident_t name)
-{
-   lib_t lib = lib_require(ident_until(name, '.'));
-
-   LOCAL_TEXT_BUF tb = tb_new();
-   tb_printf(tb, "_%s", istr(name));
-   if (opt_get_int(OPT_NO_SAVE))
-      tb_printf(tb, ".%d", getpid());
-   tb_cat(tb, "." DLL_EXT);
-
-   char so_path[PATH_MAX];
-   lib_realpath(lib, tb_get(tb), so_path, sizeof(so_path));
-
-   if (access(so_path, F_OK) != 0)
-      return;
-
-   if (j->aotlib != NULL)
-      fatal_trace("AOT library already loaded");
-
-   j->aotlib = load_dll_internal(j, so_path);
 }
 
 void jit_load_pack(jit_t *j, FILE *f)

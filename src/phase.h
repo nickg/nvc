@@ -45,14 +45,8 @@ tree_t elab(object_t *top, jit_t *jit, unit_registry_t *ur, mir_context_t *mc,
 // Set the value of a top-level generic
 void elab_set_generic(const char *name, const char *value);
 
-typedef enum {
-   CGEN_NATIVE,
-   CGEN_JIT_PACK,
-} cgen_mode_t;
-
-// Generate LLVM bitcode for a design unit
-void cgen(tree_t top, unit_registry_t *ur, mir_context_t *mc, jit_t *jit,
-          cgen_mode_t mode);
+// Serialise JIT code to disk
+void cgen(tree_t top, unit_registry_t *ur, mir_context_t *mc, jit_t *jit);
 
 // Dump out a VHDL representation of the given unit
 void dump(tree_t top);

@@ -20,7 +20,6 @@
 #include "cov/cov-api.h"
 #include "diag.h"
 #include "ident.h"
-#include "jit/jit-llvm.h"
 #include "jit/jit.h"
 #include "lib.h"
 #include "lower.h"
@@ -57,12 +56,6 @@
 #define GIT_SHA_ONLY(x) x
 #else
 #define GIT_SHA_ONLY(x)
-#endif
-
-#if !defined HAVE_LLVM || !defined SYSTEM_CC
-#define DEFAULT_JIT true
-#else
-#define DEFAULT_JIT true
 #endif
 
 typedef struct {
@@ -454,13 +447,12 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
       { "verbose",         no_argument,       0, 'V' },
       { "no-save",         no_argument,       0, 'N' },
       { "jit",             no_argument,       0, 'j' },
-      { "precompile",      no_argument,       0, 'p' },   // DEPRECATED 1.18
       { "no-collapse",     no_argument,       0, 'C' },
       { "trace",           no_argument,       0, 't' },
       { 0, 0, 0, 0 }
    };
 
-   bool use_jit = DEFAULT_JIT, no_save = false;
+   bool no_save = false;
    unit_meta_t meta = {};
    cover_mask_t cover_mask = 0;
    const char *cover_spec_file = NULL, *sdf_args = NULL;
@@ -498,12 +490,7 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
          opt_set_int(OPT_NO_COLLAPSE, 1);
          break;
       case 'j':
-         use_jit = true;
-         break;
-      case 'p':
-         warnf("the $bold$--precompile$$ option is deprecated and will be "
-               "removed in a future release");
-         use_jit = false;
+         // No effect
          break;
       case 'g':
          parse_generic(optarg);
@@ -615,30 +602,18 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
 
    const char *elab_name = istr(tree_ident(top));
    char *pack_name LOCAL = xasprintf("_%s.pack", elab_name);
-   char *dll_name LOCAL = xasprintf("_%s." DLL_EXT, elab_name);
 
    // Delete any existing generated code to avoid accidentally loading
    // the wrong version later
    lib_delete(state->work, pack_name);
-   lib_delete(state->work, dll_name);
 
    if (!no_save) {
       lib_save(state->work);
       progress("saving library");
    }
 
-   if (!use_jit)
-      cgen(top, state->registry, state->mir, state->jit, CGEN_NATIVE);
-   else if (!no_save)
-      cgen(top, state->registry, state->mir, state->jit, CGEN_JIT_PACK);
-
-   if (!use_jit || state->cover != NULL) {
-      // Must discard current JIT state to load AOT library later
-      model_free(state->model);
-      jit_free(state->jit);
-      state->jit = NULL;
-      state->model = NULL;
-   }
+   if (!no_save)
+      cgen(top, state->registry, state->mir, state->jit);
 
    argc -= next_cmd - 1;
    argv += next_cmd - 1;
@@ -1000,10 +975,6 @@ static int run_cmd(int argc, char **argv, cmd_state_t *state)
 
    if (state->jit == NULL)
       state->jit = get_jit(state);
-
-#ifdef ENABLE_LLVM
-   jit_load_dll(state->jit, tree_ident(top));
-#endif
 
    load_jit_pack(state->jit, top);
 
@@ -1495,10 +1466,6 @@ static int do_cmd(int argc, char **argv, cmd_state_t *state)
       if (top == NULL)
          fatal("%s not elaborated", istr(state->top_level));
 
-#ifdef ENABLE_LLVM
-      jit_load_dll(state->jit, tree_ident(top));
-#endif
-
       load_jit_pack(state->jit, top);
 
       shell_reset(sh, top);
@@ -1572,10 +1539,6 @@ static int interact_cmd(int argc, char **argv, cmd_state_t *state)
       tree_t top = lib_get(state->work, ename);
       if (top == NULL)
          fatal("%s not elaborated", istr(state->top_level));
-
-#ifdef ENABLE_LLVM
-      jit_load_dll(state->jit, tree_ident(top));
-#endif
 
       load_jit_pack(state->jit, top);
 
