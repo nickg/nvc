@@ -12,5 +12,6 @@ module struct2;
   initial begin
     s1.a = 5;      // OK
     t_pair.x = 1;  // Error
+    s1 = 2;        // Error
   end
 endmodule // struct2

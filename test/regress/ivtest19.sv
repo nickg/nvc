@@ -15,16 +15,14 @@ program ivtest19;
 
    foo_t obj, copy;
 
-   foo_t foo_null;  // TODO: remove this
-
    initial begin
-      if (obj != foo_null) begin
+      if (obj != null) begin
 	 $display("FAILED -- objects must start out null.");
 	 $finish;
       end
 
       obj = new;
-      if (obj == foo_null) begin
+      if (obj == null) begin
 	 $display("FAILED -- After allocation, object is NOT null.");
 	 $finish;
       end
@@ -56,7 +54,7 @@ program ivtest19;
       end
 
       // Clear the copy pointer. obj still exists, though.
-      copy = foo_null;
+      copy = null;
       if (obj.a != 7 || obj.b != 8) begin
 	 $display("FAILED -- clear copy preserved link: obj.a=%0d, obj.b=%0d", obj.a, obj.b);
 	 $finish;
@@ -64,7 +62,7 @@ program ivtest19;
 
       // This is the last reference to the class, so it should cause
       // the object to be destroyed. How to test that?
-      obj = foo_null;
+      obj = null;
 
       $display("PASSED");
       $finish;

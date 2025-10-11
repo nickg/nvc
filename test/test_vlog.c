@@ -658,6 +658,7 @@ START_TEST(test_struct2)
 
    const error_t expect[] = {
       { 14, "'t_pair' cannot be assigned in a procedural block" },
+      { 15, "value of type 'integral' is not compatible with 'struct'" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -1340,10 +1341,13 @@ START_TEST(test_class2)
    input_from_file(TESTDIR "/vlog/class2.sv");
 
    const error_t expect[] = {
-      { 14, "invalid operands for binary expression" },
+      { 20, "invalid operands for binary expression" },
       {  0, "have 'int' and 'class'" },
-      { 16, "invalid operands for binary expression" },
+      { 22, "invalid operands for binary expression" },
       {  0, "have 'class' and 'class'" },
+      { 23, "value of type 'bar_t' is not compatible with 'foo_t'" },
+      { 24, "value of type 'integral' is not compatible with 'class'" },
+      { 25, "value of type 'bar_t' is not compatible with 'foo_t'" },
       { -1, NULL }
    };
    expect_errors(expect);

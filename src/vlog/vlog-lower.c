@@ -1173,6 +1173,11 @@ static mir_value_t vlog_lower_rvalue(vlog_gen_t *g, vlog_node_t v)
                                                vlog_ident(v), ti->type);
          return mir_build_load(g->mu, link);
       }
+   case V_NULL:
+      {
+         const type_info_t *ti = vlog_type_info(g, vlog_type(v));
+         return mir_build_null(g->mu, ti->type);
+      }
    default:
       CANNOT_HANDLE(v);
    }

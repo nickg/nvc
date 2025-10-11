@@ -40,6 +40,7 @@ typedef uint32_t type_mask_t;
     | TM(DT_INT) | TM(DT_LONGINT) | TM(DT_TIME) | TM(DT_BIT) | TM_ENUM \
     | TM(DT_IMPLICIT))
 #define TM_REAL (TM(DT_REAL) | TM(DT_SHORTREAL))
+#define TM_STRICT (TM_STRUCT | TM_CLASS)
 
 static void vlog_check_decls(vlog_node_t v);
 static void vlog_check_stmts(vlog_node_t v);
@@ -101,6 +102,7 @@ static const char *type_mask_str(type_mask_t tm)
    case TM(DT_TIME): return "time";
    case TM_REAL: return "real";
    case TM_CLASS: return "class";
+   case TM_STRUCT: return "struct";
    case TM_ENUM: return "enum";
    default: return (tm & TM_INTEGRAL) ? "integral" : "unknown";
    }
@@ -195,6 +197,33 @@ static void vlog_check_net_lvalue(vlog_node_t v, vlog_node_t where)
    diag_emit(d);
 }
 
+static void vlog_check_same_type(vlog_node_t left, type_mask_t lmask,
+                                 vlog_node_t right, type_mask_t rmask)
+{
+   if (lmask == TM_ERROR || rmask == TM_ERROR)
+      return;   // Suppress cascading errors
+   else if (((lmask | rmask) & TM_STRICT) == 0)
+      return;   // Convertible
+   else if (lmask & rmask) {
+      if (vlog_kind(left) == V_NULL)
+         vlog_set_type(left, vlog_get_type(right));
+      else if (vlog_kind(right) == V_NULL)
+         vlog_set_type(right, vlog_get_type(left));
+      else {
+         vlog_node_t ltype = vlog_get_type(left);
+         vlog_node_t rtype = vlog_get_type(right);
+
+         if (ltype != rtype)
+            error_at(vlog_loc(right), "value of type '%s' is not compatible "
+                     "with '%s'", istr(vlog_ident(rtype)),
+                     istr(vlog_ident(ltype)));
+      }
+   }
+   else
+      error_at(vlog_loc(right), "value of type '%s' is not compatible with "
+               "'%s'", type_mask_str(rmask), type_mask_str(lmask));
+}
+
 static void vlog_check_decls(vlog_node_t v)
 {
    const int ndecls = vlog_decls(v);
@@ -223,34 +252,43 @@ static void vlog_check_params(vlog_node_t v)
       vlog_check_expr(vlog_param(v, i));
 }
 
-static void vlog_check_nbassign(vlog_node_t stmt)
+static void vlog_check_nbassign(vlog_node_t v)
 {
-   vlog_node_t target = vlog_target(stmt);
-   vlog_check_expr(target);
+   vlog_node_t target = vlog_target(v);
+   type_mask_t lmask = vlog_check_expr(target);
 
    vlog_check_variable_lvalue(target, target);
 
-   vlog_check_expr(vlog_value(stmt));
+   vlog_node_t value = vlog_value(v);
+   type_mask_t rmask = vlog_check_expr(value);
+
+   vlog_check_same_type(target, lmask, value, rmask);
 }
 
-static void vlog_check_bassign(vlog_node_t stmt)
+static void vlog_check_bassign(vlog_node_t v)
 {
-   vlog_node_t target = vlog_target(stmt);
-   vlog_check_expr(target);
+   vlog_node_t target = vlog_target(v);
+   type_mask_t lmask = vlog_check_expr(target);
 
    vlog_check_variable_lvalue(target, target);
 
-   vlog_check_expr(vlog_value(stmt));
+   vlog_node_t value = vlog_value(v);
+   type_mask_t rmask = vlog_check_expr(value);
+
+   vlog_check_same_type(target, lmask, value, rmask);
 }
 
 static void vlog_check_assign(vlog_node_t v)
 {
    vlog_node_t target = vlog_target(v);
-   vlog_check_expr(target);
+   type_mask_t lmask = vlog_check_expr(target);
 
    vlog_check_net_lvalue(target, target);
 
-   vlog_check_expr(vlog_value(v));
+   vlog_node_t value = vlog_value(v);
+   type_mask_t rmask = vlog_check_expr(value);
+
+   vlog_check_same_type(target, lmask, value, rmask);
 }
 
 static void vlog_check_consistent(vlog_node_t a, vlog_node_t b)
@@ -754,8 +792,11 @@ static type_mask_t vlog_check_event(vlog_node_t v)
 
 static type_mask_t vlog_check_binary(vlog_node_t v)
 {
-   type_mask_t lmask = vlog_check_expr(vlog_left(v));
-   type_mask_t rmask = vlog_check_expr(vlog_right(v));
+   vlog_node_t left = vlog_left(v);
+   vlog_node_t right = vlog_right(v);
+
+   type_mask_t lmask = vlog_check_expr(left);
+   type_mask_t rmask = vlog_check_expr(right);
 
    if ((lmask & TM_REAL) && (rmask & TM_INTEGRAL))
       rmask |= TM_REAL;
@@ -798,8 +839,10 @@ static type_mask_t vlog_check_binary(vlog_node_t v)
       break;
    }
 
-   if (lmask & rmask & allow)
+   if (lmask & rmask & allow) {
+      vlog_check_same_type(left, lmask, right, rmask);
       return result;
+   }
 
    diag_t *d = diag_new(DIAG_ERROR, vlog_loc(v));
    diag_printf(d, "invalid operands for binary expression");

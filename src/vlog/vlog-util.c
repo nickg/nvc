@@ -300,6 +300,7 @@ vlog_node_t vlog_get_type(vlog_node_t v)
    case V_VAR_DECL:
    case V_NET_DECL:
    case V_TYPE_DECL:
+   case V_CLASS_NEW:
       return vlog_type(v);
    case V_REF:
    case V_MEMBER_REF:
@@ -310,6 +311,11 @@ vlog_node_t vlog_get_type(vlog_node_t v)
    case V_HIER_REF:
    case V_MOD_INST:
       return NULL;
+   case V_NULL:
+      if (vlog_has_type(v))
+         return vlog_type(v);
+      else
+         return NULL;
    default:
       CANNOT_HANDLE(v);
    }

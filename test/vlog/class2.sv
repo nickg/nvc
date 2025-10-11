@@ -7,13 +7,22 @@ program main;
 
   foo_t obj, copy;   // OK
 
-  int x;
+  class bar_t;
+    real x;    // OK
+  endclass // bar_t
+
+  int x;   // OK
+
+  bar_t bar;   // OK
 
   initial begin
     if (obj == null);  // OK
     if (x == null);    // Error
     if (obj.a == 5);   // OK
     obj = obj + copy;  // Error
+    obj = bar;         // Error
+    obj = 5;           // Error
+    if (obj == bar);   // Error
   end
 
 endprogram

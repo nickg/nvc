@@ -4119,8 +4119,12 @@ static vlog_node_t p_class_declaration(void)
 
    consume(tSEMI);
 
+   vlog_symtab_push(symtab, v);
+
    while (not_at_token(tENDCLASS))
       p_class_item(v);
+
+   vlog_symtab_pop(symtab);
 
    consume(tENDCLASS);
 
