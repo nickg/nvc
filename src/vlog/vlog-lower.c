@@ -775,9 +775,13 @@ static mir_value_t vlog_lower_resolved(vlog_gen_t *g, vlog_node_t v)
          int hops;
          mir_value_t param = mir_search_object(g->mu, v, &hops);
          assert(!mir_is_null(param));
-         assert(param.tag == MIR_TAG_PARAM);
          assert(hops == 0);
-         return param;
+
+         switch (param.tag) {
+         case MIR_TAG_PARAM: return param;
+         case MIR_TAG_VAR: return mir_build_load(g->mu, param);
+         default: should_not_reach_here();
+         }
       }
    case V_ENUM_NAME:
       return vlog_lower_rvalue(g, vlog_value(v));
@@ -1767,6 +1771,30 @@ static void vlog_lower_return(vlog_gen_t *g, vlog_node_t v)
    mir_build_return(g->mu, result);
 }
 
+static void vlog_lower_user_tcall(vlog_gen_t *g, vlog_node_t v)
+{
+   vlog_node_t decl = vlog_ref(v);
+   ident_t func = ident_prefix(vlog_ident2(decl), vlog_ident(decl), '.');
+
+   const int nparams = vlog_params(v);
+   mir_value_t *args LOCAL =
+      xmalloc_array(nparams + 1, sizeof(mir_value_t));
+
+   args[0] = mir_build_context_upref(g->mu, 1);  // XXX
+   for (int i = 0; i < nparams; i++) {
+      mir_value_t value = vlog_lower_rvalue(g, vlog_param(v, i));
+      vlog_node_t dt = vlog_type(vlog_port(decl, i));
+      const type_info_t *ti = vlog_type_info(g, dt);
+      args[i + 1] = mir_build_cast(g->mu, ti->type, value);
+   }
+
+   mir_block_t resume_bb = mir_add_block(g->mu);
+   mir_build_pcall(g->mu, func, resume_bb, args, nparams + 1);
+
+   mir_set_cursor(g->mu, resume_bb, MIR_APPEND);
+   mir_build_resume(g->mu, func);
+}
+
 static void vlog_lower_stmts(vlog_gen_t *g, vlog_node_t v)
 {
    const int nstmts = vlog_stmts(v);
@@ -1817,6 +1845,9 @@ static void vlog_lower_stmts(vlog_gen_t *g, vlog_node_t v)
       case V_RETURN:
          vlog_lower_return(g, s);
          return;
+      case V_USER_TCALL:
+         vlog_lower_user_tcall(g, s);
+         break;
       default:
          CANNOT_HANDLE(s);
       }
@@ -2364,6 +2395,39 @@ static void vlog_lower_func_decl(mir_unit_t *mu, object_t *obj)
       mir_build_return(mu, mir_build_load(mu, result));
 }
 
+static void vlog_lower_task_decl(mir_unit_t *mu, object_t *obj)
+{
+   vlog_node_t v = vlog_from_object(obj);
+   assert(vlog_kind(v) == V_TASK_DECL);
+
+   vlog_gen_t g = {
+      .mu = mu,
+   };
+
+   mir_type_t t_context = mir_context_type(mu, mir_get_parent(mu));
+   mir_add_param(mu, t_context, MIR_NULL_STAMP, ident_new("context"));
+
+   const int nports = vlog_ports(v);
+   for (int i = 0; i < nports; i++) {
+      vlog_node_t port = vlog_port(v, i);
+      const type_info_t *pti = vlog_type_info(&g, vlog_type(port));
+      ident_t name = vlog_ident(port);
+
+      mir_value_t param = mir_add_param(mu, pti->type, pti->stamp, name);
+
+      mir_value_t local = mir_add_var(mu, pti->type, pti->stamp, name, 0);
+      mir_put_object(mu, port, local);
+
+      mir_build_store(mu, local, param);
+   }
+
+   vlog_lower_locals(&g, v);
+   vlog_lower_stmts(&g, v);
+
+   if (!mir_block_finished(mu, MIR_NULL_BLOCK))
+      mir_build_return(mu, MIR_NULL_VALUE);
+}
+
 static void vlog_lower_class_decl(mir_unit_t *mu, object_t *obj)
 {
    vlog_node_t v = vlog_from_object(obj);
@@ -2620,6 +2684,10 @@ void vlog_lower_block(mir_context_t *mc, ident_t parent, tree_t b)
       case V_FUNC_DECL:
          mir_defer(mc, ident_prefix(vlog_ident2(d), vlog_ident(d), '.'), qual,
                    MIR_UNIT_FUNCTION, vlog_lower_func_decl, vlog_to_object(d));
+         break;
+      case V_TASK_DECL:
+         mir_defer(mc, ident_prefix(vlog_ident2(d), vlog_ident(d), '.'), qual,
+                   MIR_UNIT_PROCEDURE, vlog_lower_task_decl, vlog_to_object(d));
          break;
       case V_CLASS_DECL:
          mir_defer(mc, ident_prefix(vlog_ident2(d), vlog_ident(d), '.'), qual,
