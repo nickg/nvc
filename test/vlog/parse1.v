@@ -153,4 +153,5 @@ module parse1;
   bufif0 (pull0,pull1) (x, y, z);
   always @(/* AUTOSENSE*/ *) x = y;
   reg dyn[];
+  string str1;
 endmodule // parse1

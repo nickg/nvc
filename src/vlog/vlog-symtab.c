@@ -147,9 +147,9 @@ void vlog_symtab_pop(vlog_symtab_t *st)
    unsigned wptr = 0;
    for (int i = 0; i < st->top->deferred.count; i++) {
       vlog_node_t v = st->top->deferred.items[i];
-      const vlog_symbol_t *sym = symbol_for(st, vlog_ident(v));
-      if (sym != NULL)
-         vlog_set_ref(v, sym->node);
+      vlog_node_t d = vlog_symtab_query(st, vlog_ident(v));
+      if (d != NULL)
+         vlog_set_ref(v, d);
       else
          st->top->deferred.items[wptr++] = v;
    }
