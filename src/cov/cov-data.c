@@ -1123,12 +1123,14 @@ static void cover_read_one_item(fbuf_t *f, loc_rd_ctx_t *loc_rd,
 static cover_scope_t *cover_read_scope(cover_data_t *db, fbuf_t *f,
                                        ident_rd_ctx_t ident_ctx,
                                        loc_rd_ctx_t *loc_ctx,
-                                       cover_block_t *b)
+                                       cover_block_t *b,
+                                       cover_scope_t *parent)
 {
    cover_scope_t *s = pool_calloc(db->pool, sizeof(cover_scope_t));
-   s->name  = ident_read(ident_ctx);
-   s->hier  = ident_read(ident_ctx);
-   s->block = b;
+   s->name   = ident_read(ident_ctx);
+   s->hier   = ident_read(ident_ctx);
+   s->block  = b;
+   s->parent = parent;
 
    loc_read(&s->loc, loc_ctx);
 
@@ -1154,7 +1156,7 @@ static cover_scope_t *cover_read_scope(cover_data_t *db, fbuf_t *f,
                b->block_name = ident_read(ident_ctx);
                b->kind = fbuf_get_uint(f);
                b->next_tag = fbuf_get_uint(f);
-               b->self = cover_read_scope(db, f, ident_ctx, loc_ctx, b);
+               b->self = cover_read_scope(db, f, ident_ctx, loc_ctx, b, s);
 
                hash_put(db->blocks, b->name, b);
 
@@ -1166,7 +1168,7 @@ static cover_scope_t *cover_read_scope(cover_data_t *db, fbuf_t *f,
                (void)fbuf_get_uint(f);
 
                cover_scope_t *child =
-                  cover_read_scope(db, f, ident_ctx, loc_ctx, b);
+                  cover_read_scope(db, f, ident_ctx, loc_ctx, b, s);
                APUSH(s->children, child);
             }
          }
@@ -1174,7 +1176,7 @@ static cover_scope_t *cover_read_scope(cover_data_t *db, fbuf_t *f,
       case CTRL_PUSH_SCOPE:
          {
             cover_scope_t *child =
-               cover_read_scope(db, f, ident_ctx, loc_ctx, b);
+               cover_read_scope(db, f, ident_ctx, loc_ctx, b, s);
             APUSH(s->children, child);
          }
          break;
@@ -1202,7 +1204,8 @@ cover_data_t *cover_read_items(fbuf_t *f, uint32_t pre_mask)
       const uint8_t ctrl = read_u8(f);
       switch (ctrl) {
       case CTRL_PUSH_SCOPE:
-         data->root_scope = cover_read_scope(data, f, ident_ctx, loc_rd, NULL);
+         data->root_scope =
+            cover_read_scope(data, f, ident_ctx, loc_rd, NULL, NULL);
          break;
       case CTRL_END_OF_FILE:
          eof = true;
@@ -1295,7 +1298,7 @@ void cover_merge_items(fbuf_t *f, cover_data_t *data, merge_mode_t mode)
       case CTRL_PUSH_SCOPE:
          {
             cover_scope_t *new =
-               cover_read_scope(data, f, ident_ctx, loc_rd, NULL);
+               cover_read_scope(data, f, ident_ctx, loc_rd, NULL, NULL);
             cover_merge_scope(data->root_scope, new, mode);
          }
          break;

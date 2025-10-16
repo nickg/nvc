@@ -22,7 +22,6 @@
 #include "cov/cov-structs.h"
 #include "ident.h"
 #include "option.h"
-#include "thirdparty/sha1.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -67,9 +66,10 @@ static inline void cover_print_char(FILE *f, char c);
 static void cover_print_html_header(FILE *f)
 {
    fprintf(f, "<!DOCTYPE html>\n"
-              "<html lang=\"en\">\n"
-              "  <head>\n"
-              "  <title>");
+           "<html lang=\"en\">\n"
+           "<head>\n"
+           "  <meta charset=\"utf-8\">\n"
+           "  <title>");
 
    fprintf(f, COV_RPT_TITLE "\n");
 
@@ -106,7 +106,7 @@ static void cover_print_html_header(FILE *f)
               "      overflow: auto; \n"
               "      padding: 10px;\n"
               "      margin-top: 100px;\n"
-              "     }\n"
+              "   }\n"
               "   table {\n"
               "     table-layout: fixed;"
               "   }\n"
@@ -114,6 +114,26 @@ static void cover_print_html_header(FILE *f)
               "     border: 2px solid black;\n"
               "     border-collapse: collapse;\n"
               "     word-wrap: break-word;\n"
+              "   }\n"
+              "   nav details details {\n"
+              "     margin-left: 1rem;\n"
+              "   }\n"
+              "   nav details > a {\n"
+              "     padding-left: 1.9rem;\n"
+              "     display: block;\n"
+              "   }\n"
+              "   nav summary {\n"
+              "     display: inline-flex;\n"
+              "     cursor: pointer;\n"
+              "     align-items: center;\n"
+              "   }\n"
+              "   nav summary::before {\n"
+              "     content: '▶';\n"
+              "     font-size: 0.7em;\n"
+              "     margin-right: 0.4em;\n"
+              "   }\n"
+              "   nav details[open] > summary::before {\n"
+              "     transform: rotate(90deg);\n"
               "   }\n"
               "   .tabcontent {\n"
               "     display: none;\n"
@@ -168,6 +188,7 @@ static void cover_print_html_header(FILE *f)
               "   .percent80 { background-color: #ff9900; }\n"
               "   .percent0 { background-color: #ff0000; }\n"
               "   .percentna { background-color: #aaaaaa; }\n"
+              "   .nav-sel { font-weight: bold; }\n"
               "  </style>\n"
               "</head>\n"
               "<body>\n\n");
@@ -994,39 +1015,55 @@ static void cover_print_summary_table_row(FILE *f, cover_data_t *data, const rpt
    }
 }
 
-static void cover_print_hier_nav_tree(FILE *f, cover_scope_t *s)
+static void cover_print_nav_hier_node(html_gen_t *g, FILE *f, cover_scope_t *s,
+                                      cover_scope_t *sel)
 {
-   fprintf(f, "<nav>\n"
-               "<b>Hierarchy:</b><br>\n");
-   int offset = 0;
+   const char *link = rpt_get_hier(g->rpt, s)->name_hash;
 
-   ident_t full_hier = s->hier;
-   ident_t curr_id;
-   ident_t curr_hier = NULL;
+   bool open = false;
+   for (cover_scope_t *it = sel; !open && it != NULL; it = it->parent)
+      open |= (it == s);
 
-   do {
-      curr_id = ident_walk_selected(&full_hier);
-      curr_hier = ident_prefix(curr_hier, curr_id, '.');
+   bool leaf = true;
+   for (int i = 0; leaf && i < s->children.count; i++)
+      leaf &= !cover_is_hier(s->children.items[i]);
 
-      SHA1_CTX ctx;
-      unsigned char buf[SHA1_LEN];
-      char hex[2 * SHA1_LEN + 1];
+   if (!leaf) {
+      fprintf(f, "<details%s>\n", open ? " open" : "");
+      fprintf(f, "<summary>");
+   }
 
-      SHA1Init(&ctx);
-      SHA1Update(&ctx, (const char unsigned*)istr(curr_hier),
-                 ident_len(curr_hier));
-      SHA1Final(buf, &ctx);
+   fprintf(f, "<a href=\"%s.html\"", link);
+   if (s == sel)
+      fprintf(f, " class=\"nav-sel\"");
+   fprintf(f, ">%s</a>\n", istr(s->name));
 
-      for (int i = 0; i < SHA1_LEN; i++)
-         snprintf(hex + i * 2, 3, "%02x", buf[i]);
+   if (!leaf) {
+      fprintf(f, "</summary>\n");
 
-      const char *link = (offset == 0) ? "../index" : hex;
-      if (curr_id)
-         fprintf(f, "<p style=\"margin-left: %dpx\"><a href=%s.html>%s</a></p>\n",
-                     offset * 10, link, istr(curr_id));
-      offset++;
-   } while (curr_id != NULL);
+      for (int i = 0; i < s->children.count; i++) {
+         cover_scope_t *c = s->children.items[i];
+         if (cover_is_hier(c))
+            cover_print_nav_hier_node(g, f, c, sel);
+      }
 
+      fprintf(f, "</details>\n");
+   }
+}
+
+static void cover_print_hier_nav_tree(html_gen_t *g, FILE *f, cover_scope_t *s)
+{
+   fprintf(f, "<nav>\n<b>Hierarchy:</b><br>\n");
+   fprintf(f, "<details open>\n");
+   fprintf(f, "<summary><a href=\"../index.html\">%s</a></summary>\n",
+           istr(g->data->root_scope->name));
+
+   for (int i = 0; i < g->data->root_scope->children.count; i++) {
+      cover_scope_t *c = g->data->root_scope->children.items[i];
+      cover_print_nav_hier_node(g, f, c, s);
+   }
+
+   fprintf(f, "</details>\n");
    fprintf(f, "</nav>\n\n");
 }
 
@@ -1037,7 +1074,7 @@ static void cover_report_hier(html_gen_t *g, int lvl, cover_scope_t *s)
    FILE *f = create_file("%s/hier/%s.html", g->outdir, h->name_hash);
 
    cover_print_html_header(f);
-   cover_print_hier_nav_tree(f, s);
+   cover_print_hier_nav_tree(g, f, s);
    cover_print_inst_name(f, s);
 
    const rpt_file_t *src = rpt_get_file(g->rpt, s);
