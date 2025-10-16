@@ -1024,10 +1024,7 @@ static void cover_print_nav_hier_node(html_gen_t *g, FILE *f, cover_scope_t *s,
    for (cover_scope_t *it = sel; !open && it != NULL; it = it->parent)
       open |= (it == s);
 
-   bool leaf = true;
-   for (int i = 0; leaf && i < s->children.count; i++)
-      leaf &= !cover_is_hier(s->children.items[i]);
-
+   const bool leaf = cover_is_leaf(s);
    if (!leaf) {
       fprintf(f, "<details%s>\n", open ? " open" : "");
       fprintf(f, "<summary>");
@@ -1080,12 +1077,14 @@ static void cover_report_hier(html_gen_t *g, int lvl, cover_scope_t *s)
    const rpt_file_t *src = rpt_get_file(g->rpt, s);
    cover_print_file_name(f, src);
 
-   fprintf(f, "<h2 style=\"margin-left: " MARGIN_LEFT ";\">\n  Sub-instances:\n</h2>\n\n");
-   cover_print_summary_table_header(f, "sub_inst_table", true);
+   if (!cover_is_leaf(s)) {
+      fprintf(f, "<h2 style=\"margin-left: " MARGIN_LEFT ";\">\n  Sub-instances:\n</h2>\n\n");
+      cover_print_summary_table_header(f, "sub_inst_table", true);
 
-   cover_report_hier_children(g, lvl, s, f);
+      cover_report_hier_children(g, lvl, s, f);
 
-   cover_print_table_footer(f);
+      cover_print_table_footer(f);
+   }
 
    fprintf(f, "<h2 style=\"margin-left: " MARGIN_LEFT ";\">\n  Current Instance:\n</h2>\n\n");
    cover_print_summary_table_header(f, "cur_inst_table", true);

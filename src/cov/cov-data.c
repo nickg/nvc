@@ -1411,6 +1411,16 @@ bool cover_is_hier(cover_scope_t *s)
    }
 }
 
+bool cover_is_leaf(cover_scope_t *s)
+{
+   for (int i = 0; i < s->children.count; i++) {
+      if (cover_is_hier(s->children.items[i]))
+         return false;
+   }
+
+   return true;
+}
+
 bool cover_bin_unreachable(cover_data_t *data, const cover_item_t *item)
 {
    if ((data->mask & COVER_MASK_EXCLUDE_UNREACHABLE) == 0)

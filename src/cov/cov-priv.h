@@ -24,6 +24,7 @@
 
 block_kind_t cover_block_kind(cover_scope_t *s);
 bool cover_is_hier(cover_scope_t *s);
+bool cover_is_leaf(cover_scope_t *s);
 bool cover_bin_unreachable(cover_data_t *data, const cover_item_t *item);
 
 const rpt_file_t *rpt_get_file(cover_rpt_t *rpt, cover_scope_t *s);
