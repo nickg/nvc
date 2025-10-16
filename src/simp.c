@@ -167,14 +167,14 @@ static tree_t simp_concat(tree_t t)
       if (tree_kind((p0_enum = tree_ref(p0))) != T_ENUM_LIT)
          is_string = false;
    }
-   else if (p0_kind != T_STRING)
+   else if (p0_kind != T_STRING || !type_eq(type, tree_type(p0)))
       is_string = false;
 
    if (p1_kind == T_REF) {
       if (tree_kind((p1_enum = tree_ref(p1))) != T_ENUM_LIT)
          is_string = false;
    }
-   else if (p1_kind != T_STRING)
+   else if (p1_kind != T_STRING || !type_eq(type, tree_type(p0)))
       is_string = false;
 
    if (is_string) {
