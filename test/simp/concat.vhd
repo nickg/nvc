@@ -1,3 +1,11 @@
+package types is
+    type string_vector is array (natural range <>) of string;
+end package;
+
+-------------------------------------------------------------------------------
+
+use work.types.all;
+
 package concat is
     constant c1 : bit_vector := "1" & "00";
     constant c2 : string := "xy" & "z";
@@ -11,4 +19,6 @@ package concat is
     constant c9 : integer_vector := 1 & c8;  -- (A_POS, A_CONCAT)
     constant c10 : integer_vector := c5 & c6;  -- (A_CONCAT, A_CONCAT)
     constant c11 : integer_vector := 1 & 2 & 3 & 4;  -- (A_POS, A_POS, A_POS, A_POS)
+
+    constant c12 : string_vector := "a" & "b";  -- (A_POS, A_POS), issue #1323
 end package;

@@ -1336,7 +1336,7 @@ START_TEST(test_concat)
 
    input_from_file(TESTDIR "/simp/concat.vhd");
 
-   tree_t p = parse_check_and_simplify(T_PACKAGE);
+   tree_t p = parse_check_and_simplify(T_PACKAGE, T_PACKAGE);
 
    static const char *strings[] = {
       "100", "xyz", "10", "foo"
@@ -1358,7 +1358,7 @@ START_TEST(test_concat)
       }
    }
 
-   static const assoc_kind_t concat[][5] = {
+   static const assoc_kind_t concat[][6] = {
       { A_POS, A_POS, -1 },
       { A_POS, A_POS, A_POS, -1 },
       { A_CONCAT, A_POS, -1 },
@@ -1366,6 +1366,7 @@ START_TEST(test_concat)
       { A_POS, A_CONCAT, -1 },
       { A_CONCAT, A_CONCAT, -1 },
       { A_POS, A_POS, A_POS, A_POS, -1 },
+      { A_POS, A_POS, -1 },
     };
 
    for (int i = 0; i < ARRAY_LEN(concat); i++) {

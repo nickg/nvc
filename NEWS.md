@@ -9,7 +9,7 @@
 - The `--precompile` elaboration option which was deprecated in the last
   release has been removed.  The related `--with-system-cc` configure
   option has also been removed.
-- Several other minor bugs were resolved (#1308, #1317, #1318).
+- Several other minor bugs were resolved (#1308, #1317, #1318, #1323).
 
 ## Version 1.18.0 - 2025-09-28
 - Scheduling of blocking and non-blocking assignments in mixed-language
