@@ -41,4 +41,7 @@ begin
     -- non-finished assertions.
     -- psl three: assert always (a -> next_e![2 to 4] (b='1')) report "three";
 
+    -- Shall
+    -- psl four: assert always (a -> next_a[7 to 9] (b='1')) report "four";
+
 end architecture;

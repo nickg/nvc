@@ -687,7 +687,7 @@ table below.
   <tr>
     <td>6.2.1.4.1</td>
     <td>next_a</td>
-    <td class="feature-missing"></td>
+    <td class="feature-partial">master</td>
   </tr>
   <tr>
     <td>6.2.1.4.2</td>

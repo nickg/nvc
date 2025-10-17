@@ -5,6 +5,7 @@
   `vhpiIntTypeDeclK` base type instead of another `vhpiSubtypeDeclK`.
 - PSL `next_e` and `next_e!` operators are now supported.
 - PSL `nondet` built-in function is now supported.
+- PSL `next_a` is now supported with simple expressions.
 - Fixed a crash when `release` is used with a record signal (#1313).
 - The `--precompile` elaboration option which was deprecated in the last
   release has been removed.  The related `--with-system-cc` configure
