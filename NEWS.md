@@ -1,14 +1,16 @@
 ## Unreleased changes
+- PSL `next_e` and `next_e!` operators are now supported.
+- PSL `nondet` built-in function is now supported.
+- The `--precompile` elaboration option which was deprecated in the last
+  release has been removed.  The related `--with-system-cc` configure
+  option has also been removed.
+
+## Version 1.18.1 - 2025-10-18
 - Fixed a crash when compiling with AVX2 enabled (#1311).
 - Calling `vhpi_get(vhpiBaseType, ..)` on a subtype with additional
   constraints such as `natural range 0 to 1` now correctly returns the
   `vhpiIntTypeDeclK` base type instead of another `vhpiSubtypeDeclK`.
-- PSL `next_e` and `next_e!` operators are now supported.
-- PSL `nondet` built-in function is now supported.
 - Fixed a crash when `release` is used with a record signal (#1313).
-- The `--precompile` elaboration option which was deprecated in the last
-  release has been removed.  The related `--with-system-cc` configure
-  option has also been removed.
 - Several other minor bugs were resolved (#1308, #1317, #1318, #1323).
 
 ## Version 1.18.0 - 2025-09-28
