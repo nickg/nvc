@@ -648,6 +648,9 @@ static void vlog_dump_data_type(vlog_node_t v, int indent)
    default: should_not_reach_here();
    }
 
+   if (vlog_flags(v) & VLOG_F_SIGNED)
+      print_syntax(" #signed");
+
    vlog_dump_dimensions(v, indent);
 }
 

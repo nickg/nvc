@@ -41,7 +41,7 @@ module ivtest11;
 
       // The >= should do a signed comparison here.
       if ($signed(a) >= 0) begin
-	 $display("FAILED -- $signed(%b) > 0", a);
+	 $display("FAILED -- $signed(%b) >= 0", a);
 	 $finish;
       end
 

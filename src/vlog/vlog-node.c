@@ -122,7 +122,7 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
    (I_PARAMS),
 
    // V_DATA_TYPE
-   (I_SUBKIND | I_RANGES),
+   (I_SUBKIND | I_RANGES | I_FLAGS),
 
    // V_TYPE_DECL
    (I_IDENT | I_TYPE),
@@ -698,6 +698,16 @@ int64_t vlog_ival(vlog_node_t v)
 void vlog_set_ival(vlog_node_t v, int64_t i)
 {
    lookup_item(&vlog_object, v, I_IVAL)->ival = i;
+}
+
+vlog_flags_t vlog_flags(vlog_node_t t)
+{
+   return lookup_item(&vlog_object, t, I_FLAGS)->ival;
+}
+
+void vlog_set_flags(vlog_node_t v, vlog_flags_t mask)
+{
+   lookup_item(&vlog_object, v, I_FLAGS)->ival |= mask;
 }
 
 void vlog_visit(vlog_node_t v, vlog_visit_fn_t fn, void *context)

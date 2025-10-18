@@ -18,7 +18,7 @@ LibPath = "#{BuildDir}/lib/std:#{BuildDir}/lib/ieee"
 IvtestDir = Pathname.new(ARGV[0]).realpath
 GitRev = IO::popen("git rev-parse --short HEAD").read.chomp
 Tool = ENV['NVC'] || 'nvc'
-ExpectFails = 1453
+ExpectFails = 1406
 
 ENV['NVC_COLORS'] = 'always'
 

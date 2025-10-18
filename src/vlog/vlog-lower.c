@@ -92,15 +92,17 @@ static const type_info_t *vlog_type_info(vlog_gen_t *g, vlog_node_t v)
       CANNOT_HANDLE(v);
    }
 
+   const bool issigned = !!(vlog_flags(v) & VLOG_F_SIGNED);
+
    switch (vlog_subkind(v)) {
    case DT_LOGIC:
    case DT_IMPLICIT:
       ti->size = vlog_size(v);
-      ti->type = mir_vec4_type(g->mu, ti->size, false);
+      ti->type = mir_vec4_type(g->mu, ti->size, issigned);
       break;
    case DT_BIT:
       ti->size = vlog_size(v);
-      ti->type = mir_vec2_type(g->mu, ti->size, false);
+      ti->type = mir_vec2_type(g->mu, ti->size, issigned);
       break;
    case DT_INTEGER:
       ti->size = 32;
@@ -521,7 +523,7 @@ static mir_value_t vlog_lower_vector_binary(vlog_gen_t *g, vlog_binary_t binop,
    const int rsize = mir_get_size(g->mu, rtype);
 
    const bool is_signed =
-      mir_get_signed(g->mu, ltype) || mir_get_signed(g->mu, rtype);
+      mir_get_signed(g->mu, ltype) && mir_get_signed(g->mu, rtype);
 
    mir_type_t type;
    if (lclass == MIR_TYPE_VEC4 || rclass == MIR_TYPE_VEC4)
@@ -968,17 +970,18 @@ static mir_value_t vlog_lower_rvalue(vlog_gen_t *g, vlog_node_t v)
       {
          number_t num = vlog_number(v);
          const int width = number_width(num);
+         const bool issigned = number_signed(num);
 
          const uint64_t *abits, *bbits;
          number_get(num, &abits, &bbits);
 
-         mir_type_t t_low = mir_vec4_type(g->mu, MIN(width, 64), false);
+         mir_type_t t_low = mir_vec4_type(g->mu, MIN(width, 64), issigned);
          mir_value_t low = mir_const_vec(g->mu, t_low, abits[0], bbits[0]);
 
          if (width <= 64)
             return low;
 
-         mir_type_t t_full = mir_vec4_type(g->mu, width, false);
+         mir_type_t t_full = mir_vec4_type(g->mu, width, issigned);
          mir_value_t full = mir_build_cast(g->mu, t_full, low);
 
          mir_type_t t_offset = mir_offset_type(g->mu);
@@ -991,7 +994,7 @@ static mir_value_t vlog_lower_rvalue(vlog_gen_t *g, vlog_node_t v)
 
             const int part_size = MIN(width - i, 64);
 
-            mir_type_t t_part = mir_vec4_type(g->mu, part_size, false);
+            mir_type_t t_part = mir_vec4_type(g->mu, part_size, issigned);
             mir_value_t part = mir_const_vec(g->mu, t_part, aword, bword);
 
             mir_value_t pos = mir_const(g->mu, t_offset, width - i - part_size);

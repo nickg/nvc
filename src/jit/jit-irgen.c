@@ -2288,7 +2288,7 @@ static void irgen_op_cast(jit_irgen_t *g, mir_value_t n)
                bbits = j_load(g, JIT_SZ_64, bbits);
          }
 
-         if (result_signed && arg_signed && arg_size < 64) {
+         if ((result_signed || arg_signed) && arg_size < 64) {
             abits = irgen_sign_extend(g, abits, arg_size);
             abits = j_and(g, abits, irgen_vector_mask(result_size));
 

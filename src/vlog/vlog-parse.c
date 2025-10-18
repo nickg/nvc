@@ -898,13 +898,16 @@ static vlog_node_t p_struct_union(void)
    }
 }
 
-static void p_signing(void)
+static vlog_flags_t p_signing(void)
 {
    // signed | unsigned
 
    BEGIN("signing");
 
-   one_of(tSIGNED, tUNSIGNED);
+   switch (one_of(tSIGNED, tUNSIGNED)) {
+   case tSIGNED: return VLOG_F_SIGNED;
+   default: return 0;
+   }
 }
 
 static vlog_node_t p_enum_base_type(void)
@@ -926,7 +929,7 @@ static vlog_node_t p_enum_base_type(void)
          vlog_node_t v = p_integer_atom_type();
 
          if (scan(tSIGNED, tUNSIGNED))
-            p_signing();
+            vlog_set_flags(v, p_signing());
 
          return v;
       }
@@ -938,7 +941,7 @@ static vlog_node_t p_enum_base_type(void)
          vlog_node_t v = p_integer_vector_type();
 
          if (scan(tSIGNED, tUNSIGNED))
-            p_signing();
+            vlog_set_flags(v, p_signing());
 
          if (scan(tLSQUARE))
             p_packed_dimension();
@@ -980,7 +983,7 @@ static vlog_node_t p_data_type(void)
          vlog_node_t v = p_integer_vector_type();
 
          if (scan(tSIGNED, tUNSIGNED))
-            p_signing();
+            vlog_set_flags(v, p_signing());
 
          while (peek() == tLSQUARE)
             vlog_add_range(v, p_packed_dimension());
@@ -998,7 +1001,7 @@ static vlog_node_t p_data_type(void)
          vlog_node_t v = p_integer_atom_type();
 
          if (scan(tSIGNED, tUNSIGNED))
-            p_signing();
+            vlog_set_flags(v, p_signing());
 
          return v;
       }
@@ -1119,7 +1122,7 @@ static vlog_node_t p_implicit_data_type(void)
    vlog_set_subkind(v, DT_IMPLICIT);
 
    if (scan(tSIGNED, tUNSIGNED))
-      p_signing();
+      vlog_set_flags(v, p_signing());
 
    while (peek() == tLSQUARE)
       vlog_add_range(v, p_packed_dimension());

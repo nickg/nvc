@@ -1062,32 +1062,66 @@ void __nvc_vec4op(jit_vec_op_t op, jit_anchor_t *anchor, jit_scalar_t *args,
       }
       break;
    case JIT_VEC_ZEXT:
+   case JIT_VEC_SEXT:
       {
          void *ptr = jit_mspace_alloc(nwords * 2 * sizeof(uint64_t));
          uint64_t *aresult = ptr, *bresult = aresult + nwords;
 
-         if (op == JIT_VEC_ZEXT) {
-            const int arg_size = args[2].integer;
-            if (arg_size <= 64) {
-               aresult[0] = args[0].integer;
-               bresult[0] = args[1].integer;
+         const int arg_size = args[2].integer;
+         const uint64_t msb_mask =
+            arg_size % 64 != 0 ? UINT64_C(1) << ((arg_size % 64) - 1) : 0;
+         const bool sext = op == JIT_VEC_SEXT;
 
-               for (int i = 1; i < nwords; i++)
-                  aresult[i] = bresult[i] = 0;
+         if (arg_size <= 64) {
+            const uint64_t aext =
+               sext && (args[0].integer & msb_mask) ? ~UINT64_C(0) : 0;
+            const uint64_t bext =
+               sext && (args[1].integer & msb_mask) ? ~UINT64_C(0) : 0;
+
+            aresult[0] = args[0].integer;
+            bresult[0] = args[1].integer;
+
+            if (arg_size < 64) {
+               aresult[0] |= aext << arg_size;
+               bresult[0] |= bext << arg_size;
             }
-            else {
-               const uint64_t *asrc = args[0].pointer;
-               const uint64_t *bsrc = args[1].pointer;
 
-               for (int i = 0; i < nwords; i++) {
-                  if (i < (arg_size + 63) / 64) {
-                     aresult[i] = asrc[i];
-                     bresult[i] = bsrc[i];
-                  }
-                  else
-                     aresult[i] = bresult[i] = 0;
+            for (int i = 1; i < nwords; i++) {
+               aresult[i] = aext;
+               bresult[i] = bext;
+            }
+         }
+         else {
+            const uint64_t *asrc = args[0].pointer;
+            const uint64_t *bsrc = args[1].pointer;
+
+            const uint64_t aext =
+               sext && (asrc[arg_size / 64] & msb_mask) ? ~UINT64_C(0) : 0;
+            const uint64_t bext =
+               sext && (bsrc[arg_size / 64] & msb_mask) ? ~UINT64_C(0) : 0;
+
+            const int full_words = arg_size / 64;
+            const int partial_index = (arg_size % 64) != 0 ? full_words : -1;
+
+            for (int i = 0; i < nwords; i++) {
+               if (i < full_words) {
+                  aresult[i] = asrc[i];
+                  bresult[i] = bsrc[i];
+               } else if (i == partial_index) {
+                  const int shift = arg_size - i * 64;
+                  aresult[i] = asrc[i] | (aext << shift);
+                  bresult[i] = bsrc[i] | (bext << shift);
+               } else {
+                  aresult[i] = aext;
+                  bresult[i] = bext;
                }
             }
+         }
+
+         if (size % 64 != 0) {
+            const uint64_t mask = ~UINT64_C(0) >> (64 - size % 64);
+            aresult[nwords - 1] &= mask;
+            bresult[nwords - 1] &= mask;
          }
 
          args[0].pointer = aresult;
