@@ -55,7 +55,13 @@
 #define realpath(N, R) _fullpath((R), (N), _MAX_PATH)
 #else
 #include <sys/wait.h>
+#include <glob.h>
 #endif
+
+#ifdef __linux__
+#include <sys/personality.h>
+#endif
+
 #include "config.h"
 
 #define WHITESPACE " \t\r\n"
@@ -158,6 +164,8 @@ static bool capture_xml = false;
 static bool capture_html = false;
 static bool diff_html = false;
 static bool check_html = false;
+static bool capture_llvm = false;
+static bool diff_llvm = false;
 
 #ifdef __MINGW32__
 static char *strndup(const char *s, size_t n)
@@ -608,6 +616,13 @@ static run_status_t run_cmd(FILE *log, arglist_t **args)
       int nullfd = open("/dev/null", O_WRONLY);
       if (nullfd != -1)
          dup2(nullfd, STDIN_FILENO);
+
+#ifdef __linux__
+      if ((capture_llvm || diff_llvm) && personality(ADDR_NO_RANDOMIZE) == -1) {
+         fprintf(stderr, "Failed to disable ASLR: %s\n", strerror(errno));
+         _exit(EXIT_FAILURE);
+      }
+#endif
 
       char **argv = calloc((*args)->count + 1, sizeof(char *));
       arglist_t *it = *args;
@@ -1205,6 +1220,59 @@ static bool run_test(test_t *test)
       }
    }
 
+#ifndef __MINGW32__
+   if ((capture_llvm || diff_llvm) && !(test->flags & (F_SHELL | F_TCL))) {
+      glob_t globbuf = {};
+      if (glob("*.ll", GLOB_DOOFFS, NULL, &globbuf) != 0) {
+         failed("failed to glob LLVM output");
+         result = false;
+         goto out_close;
+      }
+
+      push_arg(&args, "/bin/mv");
+
+      for (int i = 0; i < globbuf.gl_pathc; i++)
+         push_arg(&args, "%s", globbuf.gl_pathv[i]);
+
+      char *llvm_dir = xasprintf("%s/llvm/%s", cwd, test->name);
+
+      if (diff_llvm) {
+         make_dir("llvm");
+         push_arg(&args, "llvm");
+      }
+      else
+         push_arg(&args, "%s", llvm_dir);
+
+      if (!dir_exists(llvm_dir) && !make_dir(llvm_dir)) {
+         failed("create LLVM output dir");
+         result = false;
+         goto out_close;
+      }
+      else if (run_cmd(outf, &args) != RUN_OK) {
+         failed("move LLVM output");
+         result = false;
+         goto out_print;
+      }
+
+      if (diff_llvm) {
+         push_arg(&args, DIFF_PATH);
+         push_arg(&args, "-u");
+         push_arg(&args, "--color=always");
+
+         push_arg(&args, "%s", llvm_dir);
+         push_arg(&args, "llvm");
+
+         if (run_cmd(outf, &args) != RUN_OK) {
+            failed("LLVM output differs");
+            result = false;
+            goto out_print;
+         }
+      }
+
+      free(llvm_dir);
+   }
+#endif
+
    if (test->flags & F_GTKW) {
       push_arg(&args, "%s", DIFF_PATH);
 #if defined __MINGW32__ || defined __CYGWIN__
@@ -1397,6 +1465,8 @@ int main(int argc, char **argv)
       { "diff-html",    no_argument, 0, 'H' },
       { "check-html",   no_argument, 0, 'C' },
       { "capture-xml",  no_argument, 0, 'x' },
+      { "capture-llvm", no_argument, 0, 'l' },
+      { "diff-llvm",    no_argument, 0, 'L' },
       { 0, 0, 0, 0 }
    };
 
@@ -1421,6 +1491,13 @@ int main(int argc, char **argv)
       case 'C':
          check_html = true;
          break;
+      case 'l':
+         capture_llvm = true;
+         make_dir("llvm");
+         break;
+      case 'L':
+         diff_llvm = true;
+         break;
       case '?':
          if (optopt == 0)
             fprintf(stderr, "Invalid option %s\n", argv[optind - 1]);
@@ -1441,6 +1518,12 @@ int main(int argc, char **argv)
    setenv("PATH", newpath, 1);
    setenv("TESTDIR", test_dir, 1);
 #endif
+
+   if (capture_llvm || diff_llvm) {
+      setenv("NVC_LLVM_VERBOSE", "1", 1);
+      setenv("NVC_JIT_THRESHOLD", "1", 1);
+      setenv("NVC_JIT_ASYNC", "0", 1);
+   }
 
    free(newpath);
 

@@ -961,6 +961,7 @@ static tree_t elab_parse_generic_string(tree_t generic, const char *str)
       tree_set_type(result, type);
       tree_set_ival(result, value.integer);
       tree_set_loc(result, tree_loc(generic));
+      tree_set_ident(result, tree_ident(type_unit(type, 0)));
 
       return result;
    }

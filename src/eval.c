@@ -80,6 +80,7 @@ static tree_t eval_value_to_tree(jit_scalar_t value, type_t type,
       tree = tree_new(T_LITERAL);
       tree_set_subkind(tree, L_PHYSICAL);
       tree_set_ival(tree, value.integer);
+      tree_set_ident(tree, tree_ident(type_unit(type_base_recur(type), 0)));
    }
    else
       fatal_trace("cannot convert 0x%"PRIx64" to %s", value.integer,

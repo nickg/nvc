@@ -426,9 +426,16 @@ static void llvm_dump_module(LLVMModuleRef module, const char *tag)
    LOCAL_TEXT_BUF tb = tb_new();
    tb_printf(tb, "%s.%s.ll", module_name, tag);
 
+#ifdef NAME_MAX
+   if (tb_len(tb) > NAME_MAX)
+      tb_trim(tb, NAME_MAX);
+#endif
+
+   tb_replace(tb, '/', '_');
+
    char *error;
    if (LLVMPrintModuleToFile(module, tb_get(tb), &error))
-      fatal("Failed to write LLVM IR file: %s", error);
+      fatal("Failed to write LLVM IR file: %s: %s", tb_get(tb), error);
 
    debugf("wrote LLVM IR for %s to %s", module_name, tb_get(tb));
 }
