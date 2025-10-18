@@ -11,7 +11,7 @@ module rand2;
     $display("%x", accum);
 
     // Assumes --seed=123
-    if (accum != 32'h6d74f02c)
+    if (accum != 32'h363f9f6b)
       $display("FAILED");
     else
       $display("PASSED");

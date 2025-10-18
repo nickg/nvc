@@ -18,8 +18,10 @@
 #include "util.h"
 #include "diag.h"
 #include "jit/jit.h"
+#include "option.h"
 #include "rt/model.h"
-#include "rt/random.h"
+#include "svrand.h"
+#include "thread.h"
 #include "vpi/vpi-priv.h"
 
 #include <assert.h>
@@ -249,15 +251,42 @@ static PLI_INT32 time_tf(PLI_BYTE8 *userdata)
 
 static PLI_INT32 random_tf(PLI_BYTE8 *userdata)
 {
-   s_vpi_value result = {
-      .format = vpiIntVal,
-      .value = { .integer = get_random() },
-   };
+   static __thread int32_t i_seed;
+   INIT_ONCE(i_seed = opt_get_int(OPT_RANDOM_SEED));
+
+   int32_t a_seed = i_seed;
 
    vpiHandle call = vpi_handle(vpiSysTfCall, NULL);
    assert(call != NULL);
 
+   vpiHandle argv = vpi_iterate(vpiArgument, call), seed = NULL;
+   if (argv != NULL) {
+      seed = vpi_scan(argv);
+      vpi_release_handle(argv);
+
+      s_vpi_value val = { .format = vpiIntVal };
+      vpi_get_value(seed, &val);
+
+      a_seed = val.value.integer;
+   }
+
+   s_vpi_value result = {
+      .format = vpiIntVal,
+      .value = { .integer = rtl_dist_uniform(&a_seed, INT32_MIN, INT32_MAX) },
+   };
+
    vpi_put_value(call, &result, NULL, 0);
+
+   if (seed != NULL) {
+      s_vpi_value next_seed = {
+         .format = vpiIntVal,
+         .value = { .integer = a_seed },
+      };
+      vpi_put_value(seed, &next_seed, NULL, 0);
+      vpi_release_handle(seed);
+   }
+   else
+      i_seed = a_seed;
 
    vpi_release_handle(call);
    return 0;

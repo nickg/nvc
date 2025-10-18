@@ -67,11 +67,7 @@ EXTRA_bin_nvc_DEPENDENCIES = src/symbols.txt
 
 bin_nvc_LDADD = \
 	lib/libnvc.a \
-	lib/libfst.a \
-	lib/libfastlz.a \
-	lib/libcpustate.a \
-	lib/libgnulib.a \
-	lib/libsha1.a \
+	lib/libthirdparty.a \
 	$(zlib_LIBS) \
 	$(libdw_LIBS) \
 	$(libdwarf_LIBS) \

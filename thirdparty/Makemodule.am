@@ -1,39 +1,37 @@
 noinst_LIBRARIES += \
-	lib/libfst.a \
-	lib/libfastlz.a \
-	lib/libcpustate.a \
-	lib/libgnulib.a \
-	lib/libsha1.a
+	lib/libthirdparty.a
 
-lib_libfst_a_SOURCES = thirdparty/fstapi.c thirdparty/lz4.c thirdparty/fstapi.h \
-	thirdparty/lz4.h
-
-lib_libfastlz_a_SOURCES = thirdparty/fastlz.c thirdparty/fastlz.h
-
-lib_libcpustate_a_SOURCES = thirdparty/cpustate.c thirdparty/cpustate.h
-
-lib_libsha1_a_SOURCES = thirdparty/sha1.c thirdparty/sha1.h
-
-lib_libgnulib_a_SOURCES =
+lib_libthirdparty_a_SOURCES = \
+	thirdparty/fstapi.c \
+	thirdparty/lz4.c \
+	thirdparty/fstapi.h \
+	thirdparty/lz4.h \
+	thirdparty/fastlz.c \
+	thirdparty/fastlz.h \
+	thirdparty/cpustate.c \
+	thirdparty/cpustate.h \
+	thirdparty/sha1.c \
+	thirdparty/sha1.h \
+	thirdparty/svrand.c
 
 if GNULIB_MEMMEM
-lib_libgnulib_a_SOURCES += thirdparty/memmem.c thirdparty/str-two-way.h
+lib_libthirdparty_a_SOURCES += thirdparty/memmem.c thirdparty/str-two-way.h
 endif
 
 if GNULIB_STRCASESTR
-lib_libgnulib_a_SOURCES += thirdparty/strcasestr.c thirdparty/str-two-way.h
+lib_libthirdparty_a_SOURCES += thirdparty/strcasestr.c thirdparty/str-two-way.h
 endif
 
 if GNULIB_GETLINE
-lib_libgnulib_a_SOURCES += thirdparty/getline.c thirdparty/getdelim.c
+lib_libthirdparty_a_SOURCES += thirdparty/getline.c thirdparty/getdelim.c
 endif
 
 if GNULIB_STRCHRNUL
-lib_libgnulib_a_SOURCES += thirdparty/strchrnul.c thirdparty/rawmemchr.c
+lib_libthirdparty_a_SOURCES += thirdparty/strchrnul.c thirdparty/rawmemchr.c
 endif
 
 if GNULIB_STRNDUP
-lib_libgnulib_a_SOURCES += thirdparty/strndup.c
+lib_libthirdparty_a_SOURCES += thirdparty/strndup.c
 endif
 
 EXTRA_PROGRAMS += bin/sha1test

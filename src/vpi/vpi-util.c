@@ -111,14 +111,14 @@ void vpi_clear_error(void)
 }
 
 void vpi_format_number(int size, const uint64_t *abits, const uint64_t *bbits,
-                       PLI_INT32 format, text_buf_t *tb)
+                       s_vpi_value *val, text_buf_t *tb)
 {
    const int nwords = (size + 63) / 64;
    bool is_defined = true;
    for (int i = 0; i < nwords; i++)
       is_defined &= (bbits[i] == 0);
 
-   switch (format) {
+   switch (val->format) {
    case vpiBinStrVal:
       for (int i = size - 1; i >= 0; i--) {
          const vlog_logic_t bit =
@@ -127,6 +127,7 @@ void vpi_format_number(int size, const uint64_t *abits, const uint64_t *bbits,
          static const char map[] = "01zx";
          tb_append(tb, map[bit]);
       }
+      val->value.str = (PLI_BYTE8 *)tb_get(tb);
       break;
 
    case vpiDecStrVal:
@@ -135,6 +136,7 @@ void vpi_format_number(int size, const uint64_t *abits, const uint64_t *bbits,
          tb_printf(tb, "%"PRIi64, abits[0]);
       else
          tb_cat(tb, "x");
+      val->value.str = (PLI_BYTE8 *)tb_get(tb);
       break;
 
    case vpiHexStrVal:
@@ -147,6 +149,7 @@ void vpi_format_number(int size, const uint64_t *abits, const uint64_t *bbits,
          for (int i = 0; i < (size + 3) / 4; i++)
             tb_append(tb, 'x');
       }
+      val->value.str = (PLI_BYTE8 *)tb_get(tb);
       break;
 
    case vpiStringVal:
@@ -154,10 +157,15 @@ void vpi_format_number(int size, const uint64_t *abits, const uint64_t *bbits,
          for (int i = (size - 7) & ~7; i >= 0; i -= 8)
             tb_append(tb, abits[i / 64] >> (i % 64));
       }
+      val->value.str = (PLI_BYTE8 *)tb_get(tb);
+      break;
+
+   case vpiIntVal:
+      val->value.integer = abits[0];
       break;
 
    default:
-      vpi_error(vpiError, NULL, "unsupported number format %d", format);
+      vpi_error(vpiError, NULL, "unsupported number format %d", val->format);
       break;
    }
 }

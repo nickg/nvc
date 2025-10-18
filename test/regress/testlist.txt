@@ -1218,3 +1218,4 @@ issue1317       normal,2008
 tfcall5         verilog
 signed2         verilog
 wide2           verilog
+rand3           verilog

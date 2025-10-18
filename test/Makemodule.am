@@ -54,10 +54,7 @@ endif
 
 bin_unit_test_LDADD = \
 	lib/libnvc.a \
-	lib/libfastlz.a \
-	lib/libcpustate.a \
-	lib/libgnulib.a \
-	lib/libsha1.a \
+	lib/libthirdparty.a \
 	$(check_LIBS) \
 	$(libdw_LIBS) \
 	$(libffi_LIBS) \
@@ -75,15 +72,13 @@ bin_run_regr_SOURCES = test/run_regr.c
 
 bin_fstdump_SOURCES = test/fstdump.c
 
-bin_fstdump_LDADD = lib/libfst.a lib/libfastlz.a $(zlib_LIBS)
+bin_fstdump_LDADD = lib/libthirdparty.a $(zlib_LIBS)
 
 bin_lockbench_SOURCES = test/lockbench.c
 
 bin_lockbench_LDADD = \
 	lib/libnvc.a \
-	lib/libfastlz.a \
-	lib/libcpustate.a \
-	lib/libgnulib.a \
+	lib/libthirdparty.a \
 	$(libdw_LIBS) \
 	$(libffi_LIBS) \
 	$(libzstd_LIBS) \
@@ -93,9 +88,7 @@ bin_jitperf_SOURCES = test/jitperf.c
 
 bin_jitperf_LDADD = \
 	lib/libnvc.a \
-	lib/libfastlz.a \
-	lib/libcpustate.a \
-	lib/libgnulib.a \
+	lib/libthirdparty.a \
 	$(libdw_LIBS) \
 	$(libffi_LIBS) \
 	$(capstone_LIBS) \
@@ -113,9 +106,7 @@ bin_workqbench_SOURCES = test/workqbench.c
 
 bin_workqbench_LDADD = \
 	lib/libnvc.a \
-	lib/libfastlz.a \
-	lib/libcpustate.a \
-	lib/libgnulib.a \
+	lib/libthirdparty.a \
 	$(libdw_LIBS) \
 	$(libffi_LIBS) \
 	$(check_LIBS) \
@@ -128,9 +119,7 @@ bin_mtstress_LDFLAGS = $(LDFLAGS) $(AM_LDFLAGS) $(EXPORT_LDFLAGS)
 
 bin_mtstress_LDADD = \
 	lib/libnvc.a \
-	lib/libfastlz.a \
-	lib/libcpustate.a \
-	lib/libgnulib.a \
+	lib/libthirdparty.a \
 	$(libdw_LIBS) \
 	$(libffi_LIBS) \
 	$(check_LIBS) \

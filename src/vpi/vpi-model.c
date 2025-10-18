@@ -526,7 +526,7 @@ static void build_net(vlog_node_t v, c_abstractScope *scope)
 
 static void build_reg(vlog_node_t v, c_abstractScope *scope)
 {
-   c_reg *reg = new_object(sizeof(c_reg), vpiNet);
+   c_reg *reg = new_object(sizeof(c_reg), vpiReg);
    init_abstractDecl(&(reg->decl), v, scope);
 
    vpi_list_add(&scope->decls.list, &(reg->decl.object));
@@ -706,6 +706,14 @@ static c_abstractScope *cached_scope(tree_t block, rt_scope_t *s)
    }
 
    return as;
+}
+
+static rt_model_t *vpi_get_model(vpi_context_t *c)
+{
+   if (c->model != NULL)
+      return c->model;
+
+   return get_model();
 }
 
 static jit_t *vpi_get_jit(vpi_context_t *c)
@@ -966,10 +974,8 @@ void vpi_get_value(vpiHandle handle, p_vpi_value value_p)
             const uint64_t *abits, *bbits;
             number_get(n, &abits, &bbits);
 
-            vpi_format_number(number_width(n), abits, bbits, value_p->format,
+            vpi_format_number(number_width(n), abits, bbits, value_p,
                               c->valuestr);
-
-            value_p->value.str = (PLI_BYTE8 *)tb_get(c->valuestr);
             return;
          }
       }
@@ -983,9 +989,7 @@ void vpi_get_value(vpiHandle handle, p_vpi_value value_p)
       uint64_t abits[1] = { c->args[op->argslot + 1].integer };
       uint64_t bbits[1] = { c->args[op->argslot + 2].integer };
 
-      vpi_format_number(size, abits, bbits, value_p->format, c->valuestr);
-
-      value_p->value.str = (PLI_BYTE8 *)tb_get(c->valuestr);
+      vpi_format_number(size, abits, bbits, value_p, c->valuestr);
       return;
    }
 
@@ -1010,9 +1014,7 @@ void vpi_get_value(vpiHandle handle, p_vpi_value value_p)
          bbits[pos / 64] |= (uint64_t)((vals[i] >> 1) & 1) << (pos % 64);
       }
 
-      vpi_format_number(width, abits, bbits, value_p->format, c->valuestr);
-
-      value_p->value.str = (PLI_BYTE8 *)tb_get(c->valuestr);
+      vpi_format_number(width, abits, bbits, value_p, c->valuestr);
       return;
    }
 
@@ -1057,6 +1059,30 @@ vpiHandle vpi_put_value(vpiHandle handle, p_vpi_value value_p,
             return NULL;
          }
       }
+   }
+
+   c_reg *reg = is_reg(obj);
+   if (reg != NULL) {
+      sig_shared_t **ss = vpi_get_ptr(&reg->decl);
+      rt_signal_t *s = container_of(*ss, rt_signal_t, shared);
+
+      const int width = signal_width(s);
+      uint8_t *unpacked LOCAL = xcalloc_array(width, sizeof(uint8_t));
+
+      switch (value_p->format) {
+      case vpiIntVal:
+         for (int i = 0; i < width && i < 32; i++)
+            unpacked[width - 1 - i] = !!(value_p->value.integer & (1 << i));
+         break;
+
+      default:
+         vpi_error(vpiError, &(obj->loc), "unsupported format %d",
+                   value_p->format);
+         return NULL;
+      }
+
+      deposit_signal(vpi_get_model(c), s, unpacked, 0, width);
+      return NULL;
    }
 
    vpi_error(vpiError, &(obj->loc), "cannot change value of %s",
