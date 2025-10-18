@@ -1,4 +1,6 @@
 ## Unreleased changes
+
+## Version 1.18.1 - 2025-10-18
 - Fixed a crash when compiling with AVX2 enabled (#1311).
 - Calling `vhpi_get(vhpiBaseType, ..)` on a subtype with additional
   constraints such as `natural range 0 to 1` now correctly returns the
