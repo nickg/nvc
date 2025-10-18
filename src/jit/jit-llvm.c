@@ -1590,13 +1590,17 @@ static void cgen_op_shl(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
    LLVMValueRef arg1 = cgen_get_value(obj, cgb, ir->arg1);
    LLVMValueRef arg2 = cgen_get_value(obj, cgb, ir->arg2);
 
-   LLVMValueRef inrange = LLVMBuildICmp(obj->builder, LLVMIntULT, arg2,
-                                        llvm_int64(obj, 64), "");
    LLVMValueRef shift = LLVMBuildShl(obj->builder, arg1, arg2,
                                      cgen_reg_name(ir->result));
 
-   cgb->outregs[ir->result] = LLVMBuildSelect(obj->builder, inrange, shift,
-                                              llvm_int64(obj, 0), "");
+   if (ir->arg2.kind == JIT_VALUE_INT64 && (uint64_t)ir->arg2.int64 < 64)
+      cgb->outregs[ir->result] = shift;
+   else {
+      LLVMValueRef inrange = LLVMBuildICmp(obj->builder, LLVMIntULT, arg2,
+                                           llvm_int64(obj, 64), "");
+      cgb->outregs[ir->result] = LLVMBuildSelect(obj->builder, inrange, shift,
+                                                 llvm_int64(obj, 0), "");
+   }
 }
 
 static void cgen_op_shr(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
@@ -1604,13 +1608,17 @@ static void cgen_op_shr(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
    LLVMValueRef arg1 = cgen_get_value(obj, cgb, ir->arg1);
    LLVMValueRef arg2 = cgen_get_value(obj, cgb, ir->arg2);
 
-   LLVMValueRef inrange = LLVMBuildICmp(obj->builder, LLVMIntULT, arg2,
-                                        llvm_int64(obj, 64), "");
    LLVMValueRef shift = LLVMBuildLShr(obj->builder, arg1, arg2,
                                       cgen_reg_name(ir->result));
 
-   cgb->outregs[ir->result] = LLVMBuildSelect(obj->builder, inrange, shift,
-                                              llvm_int64(obj, 0), "");
+   if (ir->arg2.kind == JIT_VALUE_INT64 && (uint64_t)ir->arg2.int64 < 64)
+      cgb->outregs[ir->result] = shift;
+   else {
+      LLVMValueRef inrange = LLVMBuildICmp(obj->builder, LLVMIntULT, arg2,
+                                           llvm_int64(obj, 64), "");
+      cgb->outregs[ir->result] = LLVMBuildSelect(obj->builder, inrange, shift,
+                                                 llvm_int64(obj, 0), "");
+   }
 }
 
 static void cgen_op_asr(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
@@ -1618,13 +1626,17 @@ static void cgen_op_asr(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
    LLVMValueRef arg1 = cgen_get_value(obj, cgb, ir->arg1);
    LLVMValueRef arg2 = cgen_get_value(obj, cgb, ir->arg2);
 
-   LLVMValueRef inrange = LLVMBuildICmp(obj->builder, LLVMIntULT, arg2,
-                                        llvm_int64(obj, 64), "");
    LLVMValueRef shift = LLVMBuildAShr(obj->builder, arg1, arg2,
                                       cgen_reg_name(ir->result));
 
-   cgb->outregs[ir->result] = LLVMBuildSelect(obj->builder, inrange, shift,
-                                              llvm_int64(obj, 0), "");
+   if (ir->arg2.kind == JIT_VALUE_INT64 && (uint64_t)ir->arg2.int64 < 64)
+      cgb->outregs[ir->result] = shift;
+   else {
+      LLVMValueRef inrange = LLVMBuildICmp(obj->builder, LLVMIntULT, arg2,
+                                           llvm_int64(obj, 64), "");
+      cgb->outregs[ir->result] = LLVMBuildSelect(obj->builder, inrange, shift,
+                                                 llvm_int64(obj, 0), "");
+   }
 }
 
 static void cgen_op_fadd(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
