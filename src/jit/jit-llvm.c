@@ -2764,18 +2764,27 @@ static void cgen_function(llvm_obj_t *obj, cgen_func_t *func)
       if (i == cgb->source->first) {
          LLVMPositionBuilderAtEnd(obj->builder, cgb->bbref);
 
-         cgen_block_t *dom = NULL;
-         if (cgb->source->in.count == 1)
-            dom = &(func->blocks[jit_get_edge(&cgb->source->in, 0)]);
+         int ndom = 0;
+         cgen_block_t *dom[4];
+         if (cgb->source->in.count <= ARRAY_LEN(dom)) {
+            ndom = cgb->source->in.count;
+            for (int j = 0; j < ndom; j++) {
+               dom[j] = &(func->blocks[jit_get_edge(&cgb->source->in, j)]);
+               if (dom[j] >= cgb) {
+                  ndom = 0;   // Not processed this block
+                  break;
+               }
+            }
+         }
 
          cgb->inflags = zero_flag;
 
          if (mask_test(&cgb->source->livein, func->source->nregs)) {
-             if (dom != NULL && dom < cgb) {
+             if (ndom == 1) {
                 // Skip generating a phi instruction if there is just
                 // one dominating block
-                assert(dom->outflags != NULL);
-                cgb->inflags = dom->outflags;
+                assert(dom[0]->outflags != NULL);
+                cgb->inflags = dom[0]->outflags;
              }
              else if (cgb->source->in.count > 0) {
                 LLVMTypeRef int1_type = obj->types[LLVM_INT1];
@@ -2787,9 +2796,20 @@ static void cgen_function(llvm_obj_t *obj, cgen_func_t *func)
 
          for (int j = 0; j < func->source->nregs; j++) {
             if (mask_test(&cgb->source->livein, j)) {
-               if (dom != NULL && dom < cgb) {
-                  assert(dom->outregs[j] != NULL);
-                  cgb->inregs[j] = cgb->outregs[j] = dom->outregs[j];
+               LLVMValueRef dom_in = NULL;
+               for (int k = 0; k < ndom; k++) {
+                  assert(dom[k]->outregs[j] != NULL);
+                  if (dom_in == NULL)
+                     dom_in = dom[k]->outregs[j];
+                  else if (dom[k]->outregs[j] != dom_in) {
+                     // Need a phi
+                     dom_in = NULL;
+                     break;
+                  }
+               }
+
+               if (dom_in != NULL) {
+                  cgb->inregs[j] = cgb->outregs[j] = dom_in;
                   continue;
                }
 
