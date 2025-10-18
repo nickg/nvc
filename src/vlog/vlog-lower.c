@@ -1445,17 +1445,26 @@ static void vlog_lower_timing(vlog_gen_t *g, vlog_node_t v, bool is_static)
 static mir_value_t vlog_lower_default_value(vlog_gen_t *g,
                                             const type_info_t *ti)
 {
-   assert(ti->size < 64);  // TODO
-
    switch (mir_get_class(g->mu, ti->type)) {
    case MIR_TYPE_VEC2:
-      return mir_const_vec(g->mu, ti->type, 0, 0);
+      if (ti->size <= 64)
+         return mir_const_vec(g->mu, ti->type, 0, 0);
+      else {
+         mir_type_t t_bit = mir_vec2_type(g->mu, 1, false);
+         mir_value_t zero = mir_const_vec(g->mu, t_bit, 0, 0);
+         return mir_build_cast(g->mu, ti->type, zero);
+      }
    case MIR_TYPE_VEC4:
-      {
+      if (ti->size <= 64) {
          uint64_t mask = ~UINT64_C(0);
          if (ti->size < 64) mask >>= 64 - ti->size;
 
          return mir_const_vec(g->mu, ti->type, mask, mask);
+      }
+      else {
+         mir_type_t t_logic = mir_vec4_type(g->mu, 1, false);
+         mir_value_t x = mir_const_vec(g->mu, t_logic, 1, 1);
+         return mir_build_cast(g->mu, ti->type, x);
       }
    default:
       should_not_reach_here();
