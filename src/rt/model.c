@@ -3702,8 +3702,52 @@ void deposit_signal(rt_model_t *m, rt_signal_t *s, const void *values,
 {
    RT_LOCK(s->lock);
 
-   TRACE("deposit signal %s+%d to %s", istr(tree_ident(s->where)),
-         offset, fmt_values(values, count));
+   TRACE("deposit signal %s+%d value=%s count=%zd", istr(tree_ident(s->where)),
+         offset, fmt_values(values, count * s->nexus.size), count);
+
+   assert(!get_active_proc()->wakeable.postponed);
+
+   rt_nexus_t *n = split_nexus(m, s, offset, count);
+   const char *vptr = values;
+   for (; count > 0; n = n->chain) {
+      count -= n->width;
+      assert(count >= 0);
+
+      unsigned char *eff = nexus_effective(n);
+      unsigned char *last = nexus_last_value(n);
+
+      const size_t valuesz = n->size * n->width;
+
+      if (!cmp_bytes(eff, vptr, valuesz)) {
+         copy2(last, eff, vptr, valuesz);
+         m->trigger_epoch++;
+
+         n->last_event = m->now;
+         n->event_delta = m->iteration;
+
+         assert(!(n->flags & NET_F_CACHE_EVENT));
+
+         wakeup_all(m, &(n->pending));
+
+         for (rt_source_t *o = n->outputs; o; o = o->chain_output) {
+            assert(o->tag == SOURCE_PORT);
+            defer_driving_update(m, o->u.port.output);
+            m->next_is_delta = true;
+         }
+      }
+
+      vptr += valuesz;
+   }
+}
+
+void sched_deposit(rt_model_t *m, rt_signal_t *s, const void *values,
+                   int offset, size_t count, int64_t after, bool nonblock)
+{
+   RT_LOCK(s->lock);
+
+   TRACE("schedule deposit %s+%d value=%s count=%zd after=%s",
+         istr(tree_ident(s->where)), offset,
+         fmt_values(values, count * s->nexus.size), count, trace_time(after));
 
    assert(m->can_create_delta);
 
@@ -3718,8 +3762,18 @@ void deposit_signal(rt_model_t *m, rt_signal_t *s, const void *values,
       src->disconnected = 0;
 
       if (!src->pseudoqueued) {
-         deltaq_insert_pseudo_source(m, src);
-         src->pseudoqueued = 1;
+         if (after == 0) {
+            if (nonblock)
+               deferq_do(&m->nonblockq, async_pseudo_source, src);
+            else
+               deltaq_insert_pseudo_source(m, src);
+         }
+         else if (after > 0) {
+            void *e = tag_pointer(src, EVENT_PSEUDO);
+            heap_insert(m->eventq_heap, m->now + after, e);
+         }
+
+         src->pseudoqueued = 1;  // TODO: should be after == 0 branch
       }
 
       vptr += n->width * n->size;
@@ -4820,80 +4874,18 @@ void x_deposit_signal(sig_shared_t *ss, uint32_t offset, int32_t count,
                       void *values)
 {
    rt_signal_t *s = container_of(ss, rt_signal_t, shared);
-
-   TRACE("deposit signal %s+%d value=%s count=%d", istr(tree_ident(s->where)),
-         offset, fmt_values(values, count * s->nexus.size), count);
-
-   assert(!get_active_proc()->wakeable.postponed);
-
    rt_model_t *m = get_model();
-   rt_nexus_t *n = split_nexus(m, s, offset, count);
-   const char *vptr = values;
-   for (; count > 0; n = n->chain) {
-      count -= n->width;
-      assert(count >= 0);
 
-      unsigned char *eff = nexus_effective(n);
-      unsigned char *last = nexus_last_value(n);
-
-      const size_t valuesz = n->size * n->width;
-
-      if (!cmp_bytes(eff, vptr, valuesz)) {
-         copy2(last, eff, vptr, valuesz);
-         m->trigger_epoch++;
-
-         n->last_event = m->now;
-         n->event_delta = m->iteration;
-
-         assert(!(n->flags & NET_F_CACHE_EVENT));
-
-         wakeup_all(m, &(n->pending));
-
-         for (rt_source_t *o = n->outputs; o; o = o->chain_output) {
-            assert(o->tag == SOURCE_PORT);
-            defer_driving_update(m, o->u.port.output);
-            m->next_is_delta = true;
-         }
-      }
-
-      vptr += valuesz;
-   }
+   deposit_signal(m, s, values, offset, count);
 }
 
 void x_sched_deposit(sig_shared_t *ss, uint32_t offset, int32_t count,
                      void *values, int64_t after)
 {
    rt_signal_t *s = container_of(ss, rt_signal_t, shared);
-
-   TRACE("schedule deposit %s+%d value=%s count=%d after=%s",
-         istr(tree_ident(s->where)), offset,
-         fmt_values(values, count * s->nexus.size), count, trace_time(after));
-
    rt_model_t *m = get_model();
-   rt_nexus_t *n = split_nexus(m, s, offset, count);
-   const char *vptr = values;
-   for (; count > 0; n = n->chain) {
-      count -= n->width;
-      assert(count >= 0);
 
-      rt_source_t *src = get_pseudo_source(m, n, SOURCE_DEPOSIT);
-      copy_value_ptr(n, &(src->u.pseudo.value), vptr);
-      src->disconnected = 0;
-
-      if (src->pseudoqueued)
-         return;
-
-      if (after == 0)
-         deferq_do(&m->nonblockq, async_pseudo_source, src);
-      else if (after > 0) {
-         void *e = tag_pointer(src, EVENT_PSEUDO);
-         heap_insert(m->eventq_heap, m->now + after, e);
-      }
-
-      src->pseudoqueued = 1;
-
-      vptr += n->size * n->width;
-   }
+   sched_deposit(m, s, values, offset, count, after, true);
 }
 
 void x_put_driver(sig_shared_t *ss, uint32_t offset, int32_t count,

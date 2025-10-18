@@ -91,6 +91,8 @@ void force_signal(rt_model_t *m, rt_signal_t *s, const void *values,
 void release_signal(rt_model_t *m, rt_signal_t *s, int offset, size_t count);
 void deposit_signal(rt_model_t *m, rt_signal_t *s, const void *values,
                     int offset, size_t count);
+void sched_deposit(rt_model_t *m, rt_signal_t *s, const void *values,
+                   int offset, size_t count, int64_t after, bool nonblock);
 rt_watch_t *find_watch(rt_nexus_t *n, sig_event_fn_t fn);
 void get_forcing_value(rt_signal_t *s, uint8_t *value);
 

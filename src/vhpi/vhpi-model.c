@@ -3639,7 +3639,7 @@ int vhpi_put_value(vhpiHandleT handle,
          force_signal(model, signal, ptr, offset, num_elems);
          return 0;
       case vhpiDepositPropagate:
-         deposit_signal(model, signal, ptr, offset, num_elems);
+         sched_deposit(model, signal, ptr, offset, num_elems, 0, false);
          return 0;
       case vhpiRelease:
          release_signal(model, signal, offset, signal_width(signal));
