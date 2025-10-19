@@ -1220,3 +1220,4 @@ signed2         verilog
 wide2           verilog
 rand3           verilog
 display1        verilog,gold
+ivtest20        verilog

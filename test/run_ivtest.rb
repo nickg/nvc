@@ -29,7 +29,7 @@ def run_cmd(c, expfail, gold)
     output = nil
     begin
       Timeout::timeout(5) do
-        output = oe.read
+        output = oe.read.force_encoding("ISO-8859-1")
       end
     rescue Timeout::Error
       Process.kill("KILL", t.pid)

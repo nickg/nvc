@@ -738,8 +738,13 @@ static mir_value_t vlog_lower_sys_tfcall(vlog_gen_t *g, vlog_node_t v)
    mir_value_t locus = mir_build_locus(g->mu, vlog_to_object(v));
 
    mir_type_t type = MIR_NULL_TYPE;
-   if (vlog_kind(v) == V_SYS_FCALL)
-      type = mir_vec2_type(g->mu, 64, false);  // XXX: hack for $time
+   if (vlog_kind(v) == V_SYS_FCALL) {
+      // XXX: this should call into VPI
+      if (icmp(vlog_ident(v), "$random"))
+         type = mir_vec2_type(g->mu, 32, false);
+      else
+         type = mir_vec2_type(g->mu, 64, false);
+   }
 
    return mir_build_syscall(g->mu, vlog_ident(v), type, MIR_NULL_STAMP,
                             locus, args, actual);
