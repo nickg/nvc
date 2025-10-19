@@ -5991,8 +5991,25 @@ static void p_generate_region(vlog_node_t mod)
 
    consume(tGENERATE);
 
-   while (not_at_token(tENDGENERATE))
-      p_generate_item(mod);
+   if (optional(tBEGIN)) {
+      // This is non-standard but seen in some legacy code
+      consume(tCOLON);
+
+      vlog_node_t b = vlog_new(V_BLOCK);
+      vlog_set_ident(b, p_identifier());
+
+      while (not_at_token(tEND))
+         p_generate_item(b);
+
+      consume(tEND);
+
+      vlog_set_loc(b, CURRENT_LOC);
+      vlog_add_stmt(mod, b);
+   }
+   else {
+      while (not_at_token(tENDGENERATE))
+         p_generate_item(mod);
+   }
 
    consume(tENDGENERATE);
 }

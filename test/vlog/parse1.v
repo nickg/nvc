@@ -154,4 +154,7 @@ module parse1;
   always @(/* AUTOSENSE*/ *) x = y;
   reg dyn[];
   string str1;
+  generate begin : genblk
+  end
+  endgenerate
 endmodule // parse1
