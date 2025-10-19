@@ -480,6 +480,7 @@ static void vlog_dump_unary(vlog_node_t v)
    switch (vlog_subkind(v)) {
    case V_UNARY_NOT: print_syntax("!"); break;
    case V_UNARY_BITNEG: print_syntax("~~"); break;
+   case V_UNARY_NEG: print_syntax("-"); break;
    }
 
    vlog_dump_paren(vlog_value(v), 0);

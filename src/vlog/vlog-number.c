@@ -187,7 +187,7 @@ static bignum_t *bignum_for_unary(number_t in)
    bignum_scratch(in.big->width, in.big->issigned, 1, &big);
 
    const int nwords = BIGNUM_WORDS(in.big->width);
-   memcpy(big->words, in.big->words, nwords * 2);
+   memcpy(big->words, in.big->words, nwords * 2 * sizeof(uint64_t));
 
    return big;
 }

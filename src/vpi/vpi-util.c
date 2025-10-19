@@ -132,8 +132,12 @@ void vpi_format_number(int size, const uint64_t *abits, const uint64_t *bbits,
 
    case vpiDecStrVal:
       assert(size <= 64);  // TODO
-      if (is_defined)
-         tb_printf(tb, "%"PRIi64, abits[0]);
+      if (is_defined) {
+         int64_t sext = abits[0];
+         if (size > 1 && size < 64 && (sext & (UINT64_C(1) << (size - 1))))
+            sext |= ~UINT64_C(0) << size;
+         tb_printf(tb, "%"PRIi64, sext);
+      }
       else
          tb_cat(tb, "x");
       val->value.str = (PLI_BYTE8 *)tb_get(tb);
