@@ -64,4 +64,12 @@ const char *vpi_property_str(PLI_INT32 property)
    }
 }
 
+const char *vpi_op_type_str(PLI_INT32 subtype)
+{
+   switch (subtype) {
+   case vpiNullOp: return "vpiNullOp";
+   default: return vpi_fallback_str(subtype);
+   }
+}
+
 // LCOV_EXCL_STOP //////////////////////////////////////////////////////////////

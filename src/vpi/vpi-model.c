@@ -394,6 +394,10 @@ static const char *handle_pp(vpiHandle handle)
    else {
       c_vpiObject *obj = slot->obj;
       tb_cat(tb, vpi_type_str(obj->type));
+
+      c_operation *op = is_operation(obj);
+      if (op != NULL)
+         tb_printf(tb, " OpType=%s", vpi_op_type_str(op->subtype));
    }
 
    tb_append(tb, '}');
@@ -483,7 +487,7 @@ static void init_tfCall(c_tfCall *call, vlog_node_t v, c_abstractScope *scope)
       vpi_list_add(&(call->args), obj);
 
       c_operation *op = is_operation(obj);
-      if (op != NULL) {
+      if (op != NULL && op->subtype != vpiNullOp) {
          op->argslot = argslot;
          argslot += 3;
       }
@@ -877,6 +881,7 @@ vpiHandle vpi_scan(vpiHandle iterator)
    if (it->pos < it->list->count)
       return user_handle_for(it->list->items[it->pos++]);
 
+   drop_handle(vpi_context(), iterator);
    return NULL;
 }
 
@@ -912,12 +917,17 @@ PLI_INT32 vpi_get(PLI_INT32 property, vpiHandle object)
       switch (property) {
       case vpiSize:
          {
+            if (op->subtype == vpiNullOp)
+               return 0;
+
             vpi_context_t *c = vpi_context();
             if (c->args != NULL)
                return c->args[op->argslot].integer;
 
             goto missing_property;
          }
+      case vpiOpType:
+         return op->subtype;
       }
    }
 
@@ -982,7 +992,7 @@ void vpi_get_value(vpiHandle handle, p_vpi_value value_p)
    }
 
    c_operation *op = is_operation(obj);
-   if (op != NULL && c->args != NULL) {
+   if (op != NULL && c->args != NULL && op->subtype != vpiNullOp) {
       int size = c->args[op->argslot].integer;
       assert(size <= 64);
 

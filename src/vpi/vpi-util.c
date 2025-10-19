@@ -169,3 +169,11 @@ void vpi_format_number(int size, const uint64_t *abits, const uint64_t *bbits,
       break;
    }
 }
+
+PLI_INT32 vpi_chk_error(p_vpi_error_info error_info_p)
+{
+   if (error_info_p != NULL)
+      *error_info_p = last_error;
+
+   return last_error.level;
+}

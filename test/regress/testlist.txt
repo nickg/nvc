@@ -1219,3 +1219,4 @@ tfcall5         verilog
 signed2         verilog
 wide2           verilog
 rand3           verilog
+display1        verilog,gold

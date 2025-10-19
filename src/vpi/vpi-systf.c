@@ -66,13 +66,15 @@ static void format_number(vpiHandle it, char radix, int fwidth)
          s_vpi_value argval = { .format = vpiDecStrVal };
          vpi_get_value(arg, &argval);
 
-         const int nbits = vpi_get(vpiSize, arg);
-         const int dmax = calc_dec_size(nbits, false);
+         if (!vpi_chk_error(NULL)) {
+            const int nbits = vpi_get(vpiSize, arg);
+            const int dmax = calc_dec_size(nbits, false);
 
-         if (dmax > strlen(argval.value.str))
-            printf("%*s", dmax, argval.value.str);
-         else
-            fputs(argval.value.str, stdout);
+            if (dmax > strlen(argval.value.str))
+               printf("%*s", dmax, argval.value.str);
+            else
+               fputs(argval.value.str, stdout);
+         }
       }
       break;
    case 'x':
@@ -81,7 +83,8 @@ static void format_number(vpiHandle it, char radix, int fwidth)
          s_vpi_value argval = { .format = vpiHexStrVal };
          vpi_get_value(arg, &argval);
 
-         fputs(argval.value.str, stdout);
+         if (!vpi_chk_error(NULL))
+            fputs(argval.value.str, stdout);
       }
       break;
    case 'b':
@@ -89,7 +92,8 @@ static void format_number(vpiHandle it, char radix, int fwidth)
          s_vpi_value argval = { .format = vpiBinStrVal };
          vpi_get_value(arg, &argval);
 
-         fputs(argval.value.str, stdout);
+         if (!vpi_chk_error(NULL))
+            fputs(argval.value.str, stdout);
       }
       break;
    }
@@ -106,6 +110,8 @@ static void format_char(vpiHandle it, int fwidth)
    s_vpi_value argval = { .format = vpiDecStrVal };
    vpi_get_value(arg, &argval);
 
+   s_vpi_error_info ei;
+   vpi_chk_error(&ei);
    const char ch = atoi(argval.value.str);
    fputc(ch, stdout);
 
@@ -183,10 +189,30 @@ static void verilog_printf(void)
       arg = vpi_scan(it);
    }
 
-   // TODO: iterate remaining arguments
+   while (arg != NULL) {
+      const bool is_null = vpi_get(vpiType, arg) == vpiOperation
+         && vpi_get(vpiOpType, arg) == vpiNullOp;
+
+      if (is_null)
+         fputc(' ', stdout);
+      else {
+         s_vpi_value argval = { .format = vpiDecStrVal };
+         vpi_get_value(arg, &argval);
+
+         const int nbits = vpi_get(vpiSize, arg);
+         const int dmax = calc_dec_size(nbits, false);
+
+         if (dmax > strlen(argval.value.str))
+            printf("%*s", dmax, argval.value.str);
+         else
+            fputs(argval.value.str, stdout);
+      }
+
+      vpi_release_handle(arg);
+      arg = vpi_scan(it);
+   }
 
  release_handles:
-   vpi_release_handle(it);
    vpi_release_handle(call);
 }
 

@@ -33,6 +33,7 @@
 const char *vpi_type_str(PLI_INT32 type);
 const char *vpi_method_str(PLI_INT32 type);
 const char *vpi_property_str(PLI_INT32 property);
+const char *vpi_op_type_str(PLI_INT32 subtype);
 
 __attribute__((format(printf, 3, 4)))
 void vpi_error(PLI_INT32 sev, const loc_t *loc, const char *fmt, ...);
