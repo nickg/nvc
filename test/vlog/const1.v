@@ -7,4 +7,5 @@ module const1;
   wire [7:-1] w5; // OK
   wire [p1 > 3 ? 6 : p1+2:0] w6; // OK
   reg [$clog2(p1)/2:0] r1; // OK
+  localparam p2 = p1 & 3;  // OK
 endmodule // const1

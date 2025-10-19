@@ -343,6 +343,15 @@ static vlog_node_t simp_binary(vlog_node_t v)
    case V_BINARY_LOG_OR:
       result = number_from_bool(number_truthy(nleft) || number_truthy(nright));
       break;
+   case V_BINARY_AND:
+      result = number_and2(nleft, nright);
+      break;
+   case V_BINARY_OR:
+      result = number_or2(nleft, nright);
+      break;
+   case V_BINARY_XOR:
+      result = number_xor2(nleft, nright);
+      break;
    default:
       return v;
    }

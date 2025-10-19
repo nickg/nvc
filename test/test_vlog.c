@@ -1409,6 +1409,35 @@ START_TEST(test_real1)
 }
 END_TEST
 
+START_TEST(test_simp1)
+{
+   input_from_file(TESTDIR "/vlog/simp1.v");
+
+   vlog_node_t m = do_parse_check(V_MODULE);
+   vlog_simp(m);
+
+   const int64_t expect[] = { 5, 1, 7, 1, 2 };
+
+   ck_assert_int_eq(ARRAY_LEN(expect), vlog_decls(m));
+
+   for (int i = 0; i < ARRAY_LEN(expect); i++) {
+      vlog_node_t d = vlog_decl(m, i), value = vlog_value(d);
+      if (vlog_kind(value) == V_NUMBER) {
+         number_t n = vlog_number(value);
+         if (number_integer(n) == expect[i])
+            continue;
+      }
+
+      vlog_dump(d, 0);
+      ck_abort_msg("expected constant %"PRIi64, expect[i]);
+   }
+
+   fail_unless(vlog_parse() == NULL);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_vlog_tests(void)
 {
    Suite *s = suite_create("vlog");
@@ -1465,6 +1494,7 @@ Suite *get_vlog_tests(void)
    tcase_add_test(tc, test_class3);
    tcase_add_test(tc, test_namespace1);
    tcase_add_test(tc, test_real1);
+   tcase_add_test(tc, test_simp1);
    suite_add_tcase(s, tc);
 
    return s;

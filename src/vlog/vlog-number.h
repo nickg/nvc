@@ -71,6 +71,9 @@ number_t number_sub(number_t a, number_t b);
 number_t number_mul(number_t a, number_t b);
 number_t number_div(number_t a, number_t b);
 number_t number_exp(number_t a, number_t b);
+number_t number_and2(number_t a, number_t b);
+number_t number_or2(number_t a, number_t b);
+number_t number_xor2(number_t a, number_t b);
 number_t number_shl(number_t a, number_t b);
 number_t number_negate(number_t a);
 number_t number_logical_equal(number_t a, number_t b);
@@ -92,6 +95,9 @@ void vec2_neg(int size, uint64_t *a);
 void vec2_inv(int size, uint64_t *a);
 int vec2_and1(int size, const uint64_t *a);
 int vec2_or1(int size, const uint64_t *a);
+void vec2_and2(int size, uint64_t *a, const uint64_t *b);
+void vec2_or2(int size, uint64_t *a, const uint64_t *b);
+void vec2_xor2(int size, uint64_t *a, const uint64_t *b);
 
 int vec2_sgt(int size, const uint64_t *a, const uint64_t *b);
 int vec2_gt(int size, const uint64_t *a, const uint64_t *b);
@@ -117,5 +123,11 @@ void vec4_shl(int size, uint64_t *a1, uint64_t *b1, const uint64_t *a2,
 void vec4_shr(int size, uint64_t *a1, uint64_t *b1, const uint64_t *a2,
               const uint64_t *b2);
 void vec4_inv(int size, uint64_t *a, uint64_t *b);
+void vec4_and2(int size, uint64_t *a1, uint64_t *b1, const uint64_t *a2,
+               const uint64_t *b2);
+void vec4_or2(int size, uint64_t *a1, uint64_t *b1, const uint64_t *a2,
+              const uint64_t *b2);
+void vec4_xor2(int size, uint64_t *a1, uint64_t *b1, const uint64_t *a2,
+               const uint64_t *b2);
 
 #endif  // _VLOG_NUMBER_H

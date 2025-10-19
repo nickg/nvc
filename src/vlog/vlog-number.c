@@ -752,6 +752,39 @@ number_t number_exp(number_t a, number_t b)
    return number_intern(left);
 }
 
+number_t number_and2(number_t a, number_t b)
+{
+   bignum_t *left, *right;
+   bignum_for_binary(a, b, &left, &right);
+
+   vec4_and2(left->width, bignum_abits(left), bignum_bbits(left),
+             bignum_abits(right), bignum_bbits(right));
+
+   return number_intern(left);
+}
+
+number_t number_or2(number_t a, number_t b)
+{
+   bignum_t *left, *right;
+   bignum_for_binary(a, b, &left, &right);
+
+   vec4_or2(left->width, bignum_abits(left), bignum_bbits(left),
+            bignum_abits(right), bignum_bbits(right));
+
+   return number_intern(left);
+}
+
+number_t number_xor2(number_t a, number_t b)
+{
+   bignum_t *left, *right;
+   bignum_for_binary(a, b, &left, &right);
+
+   vec4_xor2(left->width, bignum_abits(left), bignum_bbits(left),
+             bignum_abits(right), bignum_bbits(right));
+
+   return number_intern(left);
+}
+
 number_t number_shl(number_t a, number_t b)
 {
    bignum_t *left, *right;
@@ -1155,6 +1188,24 @@ int vec2_or1(int size, const uint64_t *a)
    return result;
 }
 
+void vec2_and2(int size, uint64_t *a, const uint64_t *b)
+{
+   for (int i = 0; i < BIGNUM_WORDS(size); i++)
+      a[i] &= b[i];
+}
+
+void vec2_or2(int size, uint64_t *a, const uint64_t *b)
+{
+   for (int i = 0; i < BIGNUM_WORDS(size); i++)
+      a[i] |= b[i];
+}
+
+void vec2_xor2(int size, uint64_t *a, const uint64_t *b)
+{
+   for (int i = 0; i < BIGNUM_WORDS(size); i++)
+      a[i] ^= b[i];
+}
+
 int vec2_gt(int size, const uint64_t *a, const uint64_t *b)
 {
    if (size <= 64)
@@ -1285,4 +1336,25 @@ void vec4_shr(int size, uint64_t *a1, uint64_t *b1, const uint64_t *a2,
 void vec4_inv(int size, uint64_t *a, uint64_t *b)
 {
    vec2_inv(size, a);
+}
+
+void vec4_and2(int size, uint64_t *a1, uint64_t *b1, const uint64_t *a2,
+               const uint64_t *b2)
+{
+   vec2_and2(size, a1, a2);
+   vec2_or2(size, b1, b2);
+}
+
+void vec4_or2(int size, uint64_t *a1, uint64_t *b1, const uint64_t *a2,
+              const uint64_t *b2)
+{
+   vec2_or2(size, a1, a2);
+   vec2_or2(size, b1, b2);
+}
+
+void vec4_xor2(int size, uint64_t *a1, uint64_t *b1, const uint64_t *a2,
+               const uint64_t *b2)
+{
+   vec2_xor2(size, a1, a2);
+   vec2_or2(size, b1, b2);
 }
