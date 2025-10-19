@@ -153,9 +153,9 @@ typedef struct _cgen_func  cgen_func_t;
 typedef struct _cgen_block cgen_block_t;
 
 #define DEBUG_METADATA_VERSION 3
-#define CLOSED_WORLD           1
 #define ARGCACHE_SIZE          6
 #define ENABLE_DWARF           0
+#define INLINE_LIMIT           25
 
 #if defined __APPLE__ && defined ARCH_ARM64
 #define JIT_CODE_MODEL LLVMCodeModelSmall
@@ -185,6 +185,7 @@ typedef struct _llvm_obj {
    LLVMValueRef          fns[LLVM_LAST_FN];
    LLVMTypeRef           fntypes[LLVM_LAST_FN];
    LLVMValueRef          strtab;
+   unsigned              opt_hint;
 } llvm_obj_t;
 
 typedef struct _cgen_block {
@@ -1079,6 +1080,8 @@ static void llvm_native_setup(void)
 ////////////////////////////////////////////////////////////////////////////////
 // JIT IR to LLVM lowering
 
+static void cgen_function(llvm_obj_t *obj, cgen_func_t *func);
+
 static const char *cgen_reg_name(jit_reg_t reg)
 {
 #ifdef DEBUG
@@ -1339,6 +1342,41 @@ static void cgen_debug_loc(llvm_obj_t *obj, cgen_func_t *func, const loc_t *loc)
 #endif
 }
 #endif
+
+static LLVMValueRef cgen_maybe_inline(llvm_obj_t *obj, jit_func_t *callee)
+{
+   if (load_acquire(&callee->state) != JIT_FUNC_READY)
+      return NULL;
+
+   if (callee->nirs > INLINE_LIMIT)
+      return NULL;
+
+   LOCAL_TEXT_BUF tb = tb_new();
+   tb_istr(tb, callee->name);
+   tb_cat(tb, "!inline");
+
+   LLVMValueRef exist = LLVMGetNamedFunction(obj->module, tb_get(tb));
+   if (exist != NULL)
+      return exist;
+
+   cgen_func_t func = {
+      .name   = tb_claim(tb),
+      .source = callee,
+   };
+
+   LLVMBasicBlockRef old_bb = LLVMGetInsertBlock(obj->builder);
+   LLVMClearInsertionPosition(obj->builder);
+
+   cgen_function(obj, &func);
+
+   LLVMSetLinkage(func.llvmfn, LLVMInternalLinkage);
+
+   LLVMPositionBuilderAtEnd(obj->builder, old_bb);
+
+   free(func.name);
+   obj->opt_hint++;
+   return func.llvmfn;
+}
 
 static void cgen_op_recv(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
 {
@@ -1850,16 +1888,18 @@ static void cgen_op_call(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
 
    LLVMValueRef fptr = llvm_ptr(obj, callee);
 
-   // Must have acquire semantics to synchronise with installing new code
-   LLVMValueRef entry =
-      LLVMBuildLoad2(obj->builder, obj->types[LLVM_PTR], fptr, "entry");
-   LLVMSetAlignment(entry, sizeof(void *));
-   LLVMSetOrdering(entry, LLVMAtomicOrderingAcquire);
+   LLVMValueRef entry = cgen_maybe_inline(obj, callee);
+   if (entry == NULL) {
+      // Must have acquire semantics to synchronise with installing new code
+      entry = LLVMBuildLoad2(obj->builder, obj->types[LLVM_PTR], fptr, "entry");
+      LLVMSetAlignment(entry, sizeof(void *));
+      LLVMSetOrdering(entry, LLVMAtomicOrderingAcquire);
 
 #ifndef LLVM_HAS_OPAQUE_POINTERS
-   LLVMTypeRef ptr_type = LLVMPointerType(obj->types[LLVM_ENTRY_FN], 0);
-   entry = LLVMBuildPointerCast(obj->builder, entry, ptr_type, "");
+      LLVMTypeRef ptr_type = LLVMPointerType(obj->types[LLVM_ENTRY_FN], 0);
+      entry = LLVMBuildPointerCast(obj->builder, entry, ptr_type, "");
 #endif
+   }
 
    LLVMValueRef args[] = {
       fptr,
@@ -3258,7 +3298,7 @@ static void jit_llvm_cgen(jit_t *j, jit_handle_t handle, void *context)
 
    llvm_dump_module(obj.module, "initial");
    llvm_verify_module(obj.module);
-   llvm_optimise(obj.module, obj.target, LLVM_O0);
+   llvm_optimise(obj.module, obj.target, obj.opt_hint > 0 ? LLVM_O1 : LLVM_O0);
    llvm_dump_module(obj.module, "final");
 
    if (jit_is_shutdown(f->jit))

@@ -298,6 +298,8 @@ code_cache_t *code_cache_new(void)
    shash_put(s, "memcpy", &memcpy);
    shash_put(s, "memset", &memset);
    shash_put(s, "pow", &pow);
+   shash_put(s, "ldexp", &ldexp);
+   shash_put(s, "exp2", &exp2);
 
 #if defined __APPLE__ && defined ARCH_ARM64
    shash_put(s, "bzero", &bzero);
