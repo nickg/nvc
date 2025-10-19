@@ -1494,11 +1494,24 @@ static void elab_verilog_block(vlog_node_t v, const elab_ctx_t *ctx)
    elab_pop_scope(&new_ctx);
 }
 
-static void *elab_verilog_for_generate_cb(jit_scalar_t *args, void *ctx)
+static void *elab_verilog_for_generate_test_cb(jit_scalar_t *args, void *ctx)
 {
    const uint64_t abits = args[0].integer;
    const uint64_t bbits = args[1].integer;
    return (void *)(uintptr_t)(abits == 1 && bbits == 0);
+}
+
+static void *elab_verilog_for_generate_index_cb(jit_scalar_t *args, void *ctx)
+{
+   const uint64_t abits = args[0].integer;
+   const uint64_t bbits = args[1].integer;
+
+   (void)bbits;   // TODO: check not X/Z
+
+   int32_t *index = ctx;
+   *index = abits;
+
+   return NULL;
 }
 
 static void elab_verilog_for_generate(vlog_node_t v, const elab_ctx_t *ctx)
@@ -1514,16 +1527,20 @@ static void elab_verilog_for_generate(vlog_node_t v, const elab_ctx_t *ctx)
    vlog_node_t genvar = vlog_ref(vlog_target(vlog_stmt(vlog_left(v), 0)));
    assert(vlog_kind(genvar) == V_GENVAR_DECL);
 
+   vlog_node_t ref = vlog_new(V_REF);
+   vlog_set_ref(ref, genvar);
+   vlog_set_loc(ref, vlog_loc(genvar));
+
+   mir_unit_t *get_var = vlog_lower_thunk(ctx->mir, ctx->dotted, ref);
+
    vlog_node_t s0 = vlog_stmt(v, 0);
    assert(vlog_kind(s0) == V_BLOCK);
 
-   jit_handle_t handle = jit_compile(ctx->jit, ctx->dotted);
-   uint64_t *val = jit_get_frame_var(ctx->jit, handle, vlog_ident(genvar));
-
    while (jit_call_thunk2(ctx->jit, test, context,
-                          elab_verilog_for_generate_cb, NULL)) {
-      const int32_t index = (int32_t)val[0];
-      // TODO: check not X/Z
+                          elab_verilog_for_generate_test_cb, NULL)) {
+      int32_t index;
+      jit_call_thunk2(ctx->jit, get_var, context,
+                      elab_verilog_for_generate_index_cb, &index);
 
       vlog_node_t copy = vlog_generate_instance(s0, genvar, index, ctx->dotted);
 
@@ -1532,6 +1549,7 @@ static void elab_verilog_for_generate(vlog_node_t v, const elab_ctx_t *ctx)
       jit_call_thunk2(ctx->jit, step, context, NULL, NULL);
    }
 
+   mir_unit_free(get_var);
    mir_unit_free(init);
    mir_unit_free(test);
    mir_unit_free(step);
