@@ -28,6 +28,7 @@
 #include "rt/structs.h"
 #include "vlog/vlog-node.h"
 #include "vlog/vlog-number.h"
+#include "vlog/vlog-util.h"
 #include "vpi/vpi-macros.h"
 #include "vpi/vpi-model.h"
 #include "vpi/vpi-priv.h"
@@ -1008,26 +1009,43 @@ void vpi_get_value(vpiHandle handle, p_vpi_value value_p)
       sig_shared_t **ss = vpi_get_ptr(decl);
       rt_signal_t *s = container_of(*ss, rt_signal_t, shared);
 
-      const int width = signal_width(s);
-      const int nwords = (width + 63) / 64;
-      uint64_t *mem LOCAL = xmalloc_array(nwords * 2, sizeof(uint64_t));
-      uint64_t *abits = mem, *bbits = mem + nwords;
+      vlog_node_t type = vlog_get_type(decl->where);
+      if (type == NULL || vlog_kind(type) != V_DATA_TYPE)
+         goto fail;
 
-      for (int i = 0; i < nwords * 2; i++)
-         mem[i] = 0;
+      switch (value_p->format) {
+      case vpiRealVal:
+         if (vlog_subkind(type) != DT_REAL)
+            goto fail;
 
-      const uint8_t *vals = signal_value(s);
+         value_p->format = unaligned_load(signal_value(s), double);
+         return;
 
-      for (int i = 0; i < width; i++) {
-         const int pos = width - 1 - i;
-         abits[pos / 64] |= (uint64_t)(vals[i] & 1) << (pos % 64);
-         bbits[pos / 64] |= (uint64_t)((vals[i] >> 1) & 1) << (pos % 64);
+      default:
+         {
+            const int width = signal_width(s);
+            const int nwords = (width + 63) / 64;
+            uint64_t *mem LOCAL = xmalloc_array(nwords * 2, sizeof(uint64_t));
+            uint64_t *abits = mem, *bbits = mem + nwords;
+
+            for (int i = 0; i < nwords * 2; i++)
+               mem[i] = 0;
+
+            const uint8_t *vals = signal_value(s);
+
+            for (int i = 0; i < width; i++) {
+               const int pos = width - 1 - i;
+               abits[pos / 64] |= (uint64_t)(vals[i] & 1) << (pos % 64);
+               bbits[pos / 64] |= (uint64_t)((vals[i] >> 1) & 1) << (pos % 64);
+            }
+
+            vpi_format_number(width, abits, bbits, value_p, c->valuestr);
+            return;
+         }
       }
-
-      vpi_format_number(width, abits, bbits, value_p, c->valuestr);
-      return;
    }
 
+ fail:
    vpi_error(vpiError, &(obj->loc), "cannot evaluate %s", handle_pp(handle));
 }
 

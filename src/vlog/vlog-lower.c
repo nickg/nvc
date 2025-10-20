@@ -31,6 +31,7 @@
 
 #include <assert.h>
 #include <inttypes.h>
+#include <float.h>
 #include <string.h>
 #include <stdlib.h>
 
@@ -38,6 +39,9 @@ typedef struct {
    mir_type_t  type;
    mir_stamp_t stamp;
    unsigned    size;
+   mir_type_t  signal;
+   mir_type_t  unpacked;
+   unsigned    elemsz;
 } type_info_t;
 
 typedef struct {
@@ -73,9 +77,11 @@ static const type_info_t *vlog_type_info(vlog_gen_t *g, vlog_node_t v)
       return ti;
 
    ti = mir_malloc(g->mu, sizeof(type_info_t));
-   ti->stamp = MIR_NULL_STAMP;
-   ti->type  = MIR_NULL_TYPE;
-   ti->size  = 0;
+   ti->stamp  = MIR_NULL_STAMP;
+   ti->type   = MIR_NULL_TYPE;
+   ti->signal = MIR_NULL_TYPE;
+   ti->size   = 0;
+   ti->elemsz = 0;
 
    mir_put_priv(g->mu, v, ti);
 
@@ -91,6 +97,24 @@ static const type_info_t *vlog_type_info(vlog_gen_t *g, vlog_node_t v)
    default:
       CANNOT_HANDLE(v);
    }
+
+   switch (vlog_subkind(v)) {
+   case DT_REAL:
+      ti->size   = 1;
+      ti->type   = ti->unpacked = mir_real_type(g->mu, -DBL_MAX, DBL_MAX);
+      ti->signal = mir_signal_type(g->mu, ti->type);
+      ti->elemsz = sizeof(double);
+      return ti;
+   default:
+      break;   // Vector type
+   }
+
+   mir_type_t t_unpacked_logic = mir_int_type(g->mu, 0, 3);
+   mir_type_t t_logic_signal = mir_signal_type(g->mu, t_unpacked_logic);
+
+   ti->unpacked = t_unpacked_logic;
+   ti->signal   = t_logic_signal;
+   ti->elemsz   = 1;
 
    const bool issigned = !!(vlog_flags(v) & VLOG_F_SIGNED);
 
@@ -397,18 +421,24 @@ static void vlog_assign_variable(vlog_gen_t *g, vlog_node_t target,
    }
 
    if (mir_is_signal(g->mu, lvalues[0].nets)) {
-      mir_value_t tmp = MIR_NULL_VALUE;
-      if (targetsz > 1) {
-         mir_type_t t_elem = mir_logic_type(g->mu);
-         mir_type_t t_array = mir_carray_type(g->mu, targetsz, t_elem);
-         tmp = vlog_get_temp(g, t_array);
+      mir_value_t unpacked;
+      if (mir_is_vector(g->mu, value)) {
+         mir_value_t tmp = MIR_NULL_VALUE;
+         if (targetsz > 1) {
+            mir_type_t t_elem = mir_logic_type(g->mu);
+            mir_type_t t_array = mir_carray_type(g->mu, targetsz, t_elem);
+            tmp = vlog_get_temp(g, t_array);
+         }
+
+         mir_type_t t_vec = mir_vec4_type(g->mu, targetsz, false);
+
+         mir_value_t resize = mir_build_cast(g->mu, t_vec, value);
+         unpacked = mir_build_unpack(g->mu, resize, 0, tmp);
       }
+      else
+         unpacked = value;
 
-      mir_type_t t_vec = mir_vec4_type(g->mu, targetsz, false);
       mir_type_t t_offset = mir_offset_type(g->mu);
-
-      mir_value_t resize = mir_build_cast(g->mu, t_vec, value);
-      mir_value_t unpacked = mir_build_unpack(g->mu, resize, 0, tmp);
 
       for (int i = 0, offset = 0; i < nlvalues;
            offset += lvalues[i].size, i++) {
@@ -611,6 +641,8 @@ static mir_value_t vlog_lower_binary(vlog_gen_t *g, vlog_node_t v)
    if (mir_is_vector(g->mu, left))
       result = vlog_lower_vector_binary(g, binop, left, right);
    else {
+      mir_type_t type = mir_get_type(g->mu, left);
+
       switch (binop) {
       case V_BINARY_LOG_EQ:
       case V_BINARY_CASE_EQ:
@@ -619,6 +651,12 @@ static mir_value_t vlog_lower_binary(vlog_gen_t *g, vlog_node_t v)
       case V_BINARY_LOG_NEQ:
       case V_BINARY_CASE_NEQ:
          result = mir_build_cmp(g->mu, MIR_CMP_NEQ, left, right);
+         break;
+      case V_BINARY_TIMES:
+         result = mir_build_mul(g->mu, type, left, right);
+         break;
+      case V_BINARY_PLUS:
+         result = mir_build_add(g->mu, type, left, right);
          break;
       default:
          CANNOT_HANDLE(v);
@@ -647,25 +685,36 @@ static mir_value_t vlog_lower_operator_assignment(vlog_gen_t *g, vlog_node_t v)
       mir_type_t type = mir_get_type(g->mu, cur);
       mir_value_t cast = mir_build_cast(g->mu, type, value);
 
-      mir_vec_op_t op;
-      switch (kind) {
-      case V_ASSIGN_PLUS:     op = MIR_VEC_ADD; break;
-      case V_ASSIGN_MINUS:    op = MIR_VEC_SUB; break;
-      case V_ASSIGN_TIMES:    op = MIR_VEC_MUL; break;
-      case V_ASSIGN_DIVIDE:   op = MIR_VEC_DIV; break;
-      case V_ASSIGN_MOD:      op = MIR_VEC_MOD; break;
-      case V_ASSIGN_AND:      op = MIR_VEC_BIT_AND; break;
-      case V_ASSIGN_OR:       op = MIR_VEC_BIT_OR; break;
-      case V_ASSIGN_XOR:      op = MIR_VEC_BIT_XOR; break;
-      case V_ASSIGN_SHIFT_LL: op = MIR_VEC_SLL; break;
-      case V_ASSIGN_SHIFT_RL: op = MIR_VEC_SRL; break;
-      case V_ASSIGN_SHIFT_LA: op = MIR_VEC_SLA; break;
-      case V_ASSIGN_SHIFT_RA: op = MIR_VEC_SRA; break;
-      default:
-         CANNOT_HANDLE(v);
+      if (mir_get_class(g->mu, type) == MIR_TYPE_REAL) {
+         switch (kind) {
+         case V_ASSIGN_PLUS:
+            value = mir_build_add(g->mu,type, cur, cast);
+            break;
+         default:
+            CANNOT_HANDLE(v);
+         }
       }
+      else {
+         mir_vec_op_t op;
+         switch (kind) {
+         case V_ASSIGN_PLUS:     op = MIR_VEC_ADD; break;
+         case V_ASSIGN_MINUS:    op = MIR_VEC_SUB; break;
+         case V_ASSIGN_TIMES:    op = MIR_VEC_MUL; break;
+         case V_ASSIGN_DIVIDE:   op = MIR_VEC_DIV; break;
+         case V_ASSIGN_MOD:      op = MIR_VEC_MOD; break;
+         case V_ASSIGN_AND:      op = MIR_VEC_BIT_AND; break;
+         case V_ASSIGN_OR:       op = MIR_VEC_BIT_OR; break;
+         case V_ASSIGN_XOR:      op = MIR_VEC_BIT_XOR; break;
+         case V_ASSIGN_SHIFT_LL: op = MIR_VEC_SLL; break;
+         case V_ASSIGN_SHIFT_RL: op = MIR_VEC_SRL; break;
+         case V_ASSIGN_SHIFT_LA: op = MIR_VEC_SLA; break;
+         case V_ASSIGN_SHIFT_RA: op = MIR_VEC_SRA; break;
+         default:
+            CANNOT_HANDLE(v);
+         }
 
-      value = mir_build_binary(g->mu, op, type, cur, cast);
+         value = mir_build_binary(g->mu, op, type, cur, cast);
+      }
    }
 
    vlog_assign_variable(g, target, value);
@@ -943,6 +992,8 @@ static mir_value_t vlog_lower_rvalue(vlog_gen_t *g, vlog_node_t v)
             return mir_build_pack(g->mu, ti->type, data);
          case MIR_TYPE_CONTEXT:
             return data;
+         case MIR_TYPE_REAL:
+            return mir_build_load(g->mu, data);
          default:
             CANNOT_HANDLE(v);
          }
@@ -2297,8 +2348,6 @@ static void vlog_lower_var_decl(vlog_gen_t *g, vlog_node_t v, tree_t wrap)
       return;
    }
 
-   mir_type_t t_logic = mir_int_type(g->mu, 0, 3);
-   mir_type_t t_logic_signal = mir_signal_type(g->mu, t_logic);
    mir_type_t t_offset = mir_offset_type(g->mu);
 
    const int total_size = ti->size * vlog_size(v);
@@ -2318,19 +2367,21 @@ static void vlog_lower_var_decl(vlog_gen_t *g, vlog_node_t v, tree_t wrap)
       mir_value_t cast = mir_build_cast(g->mu, ti->type, packed);
       value = mir_build_unpack(g->mu, cast, 0, tmp);
    }
+   else if (mir_get_class(g->mu, ti->unpacked) == MIR_TYPE_REAL)
+      value = mir_const_real(g->mu, ti->unpacked, 0.0);
    else
-      value = mir_const(g->mu, t_logic, LOGIC_X);
+      value = mir_const(g->mu, ti->unpacked, LOGIC_X);
 
    mir_value_t count = mir_const(g->mu, t_offset, total_size);
-   mir_value_t size = mir_const(g->mu, t_offset, 1);
+   mir_value_t size = mir_const(g->mu, t_offset, ti->elemsz);
    mir_value_t flags = mir_const(g->mu, t_offset, 0);
    mir_value_t locus = mir_build_locus(g->mu, tree_to_object(wrap));
 
-   mir_value_t signal = mir_build_init_signal(g->mu, t_logic, count, size,
+   mir_value_t signal = mir_build_init_signal(g->mu, ti->unpacked, count, size,
                                               value, flags, locus,
                                               MIR_NULL_VALUE);
 
-   mir_value_t var = mir_add_var(g->mu, t_logic_signal, MIR_NULL_STAMP,
+   mir_value_t var = mir_add_var(g->mu, ti->signal, MIR_NULL_STAMP,
                                  vlog_ident(v), MIR_VAR_SIGNAL);
    mir_build_store(g->mu, var, signal);
 

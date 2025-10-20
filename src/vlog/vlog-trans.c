@@ -229,6 +229,9 @@ static type_t trans_type(trans_gen_t *g, vlog_node_t decl,
    case DT_LONGINT:
       return trans_sized_type(decl, packed_type, 64);
 
+   case DT_REAL:
+      return std_type(NULL, STD_REAL);
+
    default:
       CANNOT_HANDLE(decl);
    }
