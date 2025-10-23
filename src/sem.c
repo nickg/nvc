@@ -1910,42 +1910,48 @@ static bool sem_compare_interfaces(tree_t decl, tree_t body, int nth,
    if (dkind == bkind) {
      // This only covers a few simple cases
      switch (dkind) {
-     case T_LITERAL: {
-       const literal_kind_t dsub = tree_subkind(ddef);
-       const literal_kind_t bsub = tree_subkind(bdef);
-       if (dsub == bsub) {
-         switch (dsub) {
-         case L_INT:
-           if (tree_ival(ddef) == tree_ival(bdef))
-             return true;
-           break;
-         case L_REAL:
-           if (tree_dval(ddef) == tree_dval(bdef))
-             return true;
-           break;
-         default:
-           return true;
-         }
-       }
-     } break;
+     case T_LITERAL:
+        {
+           const literal_kind_t dsub = tree_subkind(ddef);
+           const literal_kind_t bsub = tree_subkind(bdef);
+           if (dsub == bsub) {
+              switch (dsub) {
+              case L_INT:
+                 if (tree_ival(ddef) == tree_ival(bdef))
+                    return true;
+                 break;
+              case L_REAL:
+                 if (tree_dval(ddef) == tree_dval(bdef))
+                    return true;
+                 break;
+              default:
+                 return true;
+              }
+           }
+        }
+        break;
 
      case T_REF:
      case T_FCALL:
-       if (!tree_has_ref(bdef) || !tree_has_ref(ddef))
-         return true; // Was parse error, ignore it
+        {
+           if (!tree_has_ref(bdef) || !tree_has_ref(ddef))
+              return true; // Was parse error, ignore it
 
-       tree_t bref = tree_ref(bdef);
-       tree_t dref = tree_ref(ddef);
+           tree_t bref = tree_ref(bdef);
+           tree_t dref = tree_ref(ddef);
 
-       if (bref == dref)
-         return true;
+           if (bref == dref)
+              return true;
 
-       // Work around mismatch introduced by folding
-       const tree_kind_t brefkind = tree_kind(bref);
-       if (brefkind == T_CONST_DECL || brefkind == T_GENERIC_DECL)
-         return true;
-
-       break;
+           // Work around mismatch introduced by folding
+           const tree_kind_t brefkind = tree_kind(bref);
+           if (brefkind == T_CONST_DECL || brefkind == T_GENERIC_DECL)
+              return true;
+           else if (bkind == T_FCALL && brefkind == T_FUNC_BODY
+                    && type_eq(tree_type(bref), tree_type(dref)))
+              return true;
+        }
+        break;
 
      default:
        return true;

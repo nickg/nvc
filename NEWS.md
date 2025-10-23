@@ -1,4 +1,5 @@
 ## Unreleased changes
+- Several other minor bugs were resolved (#1239).
 
 ## Version 1.18.1 - 2025-10-18
 - Fixed a crash when compiling with AVX2 enabled (#1311).
