@@ -41,4 +41,9 @@ module tfcall1;
   function func2;
   endfunction : blah  // Error
 
+  typedef logic [15:0] word;
+
+  function word func3;  // OK
+  endfunction
+
 endmodule // tfcall1

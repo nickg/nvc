@@ -3769,12 +3769,36 @@ static vlog_node_t p_function_data_type_or_implicit(void)
 
    BEGIN("function data type or implicit");
 
-   if (scan(tREG, tSTRUCT, tUNION, tENUM, tSVINT, tINTEGER, tSVREAL,
-            tSHORTREAL, tREALTIME, tLOGIC, tBIT, tSHORTINT, tSTRINGK, tEVENT,
-            tVOID))
+   switch (peek()) {
+   case tREG:
+   case tSTRUCT:
+   case tUNION:
+   case tENUM:
+   case tSVINT:
+   case tINTEGER:
+   case tSVREAL:
+   case tSHORTREAL:
+   case tREALTIME:
+   case tLOGIC:
+   case tBIT:
+   case tSHORTINT:
+   case tSTRINGK:
+   case tEVENT:
+   case tVOID:
       return p_data_type_or_void();
-   else
+   case tID:
+      {
+         vlog_node_t dt = peek_reference();
+         if (dt != NULL && is_data_type(dt)) {
+            consume(tID);
+            return dt;
+         }
+         else
+            return p_implicit_data_type();
+      }
+   default:
       return p_implicit_data_type();
+   }
 }
 
 static void p_function_body_declaration(vlog_node_t func)
