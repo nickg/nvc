@@ -61,6 +61,7 @@ static void vlog_dump_paren(vlog_node_t v, int indent)
    case V_REF:
    case V_BIT_SELECT:
    case V_NUMBER:
+   case V_STRING:
    case V_USER_FCALL:
    case V_SYS_FCALL:
       vlog_dump(v, indent);

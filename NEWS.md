@@ -4,7 +4,7 @@
 - The `--precompile` elaboration option which was deprecated in the last
   release has been removed.  The related `--with-system-cc` configure
   option has also been removed.
-- Several other minor bugs were resolved (#1239).
+- Several other minor bugs were resolved (#1239, #1237).
 
 ## Version 1.18.1 - 2025-10-18
 - Fixed a crash when compiling with AVX2 enabled (#1311).

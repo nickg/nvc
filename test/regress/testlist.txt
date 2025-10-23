@@ -1222,3 +1222,4 @@ rand3           verilog
 display1        verilog,gold
 ivtest20        verilog
 real8           verilog
+issue1327       verilog
