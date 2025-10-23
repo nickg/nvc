@@ -37,6 +37,7 @@
 typedef struct {
    tree_t  out;
    hash_t *map;
+   tree_t  chars[256];
 } trans_gen_t;
 
 static tree_t trans_expr(trans_gen_t *g, vlog_node_t v)
@@ -57,6 +58,26 @@ static tree_t trans_expr(trans_gen_t *g, vlog_node_t v)
             tree_set_ival(lit, 0);
 
          return lit;
+      }
+   case V_STRING:
+      {
+         number_t n = vlog_number(v);
+         type_t std_string = std_type(NULL, STD_STRING);
+         type_t std_char = type_elem(std_string);
+
+         tree_t str = tree_new(T_STRING);
+         tree_set_type(str, std_string);
+
+         const int width = number_width(n);
+         for (int i = 0; i < width / 8; i++) {
+            const int byte = number_byte(n, width/8 - i - 1);
+            if (g->chars[byte] == NULL)
+               g->chars[byte] = make_ref(type_enum_literal(std_char, byte));
+
+            tree_add_char(str, g->chars[byte]);
+         }
+
+         return str;
       }
    case V_REF:
       {
