@@ -12572,11 +12572,13 @@ lower_unit_t *lower_instance(unit_registry_t *ur, lower_unit_t *parent,
    tree_t unit = tree_ref(hier), primary = NULL;
    if (is_design_unit(unit))
       primary = primary_unit_of(unit);
+   else if (tree_kind(unit) == T_COMPONENT) {
+      primary = unit;
 
-   // Do not create coverage scopes for the implicit block from a
-   // component instantiation
-   if (cover != NULL && tree_kind(unit) == T_COMPONENT)
+      // Do not create coverage scopes for the implicit block from a
+      // component instantiation
       cover = NULL;
+   }
 
    lower_unit_t *lu = lower_unit_new(ur, parent, vu, cover, block);
    unit_registry_put(ur, lu);

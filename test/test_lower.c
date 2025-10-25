@@ -3869,12 +3869,10 @@ START_TEST(test_instance1)
          { VCODE_OP_CONST_ARRAY, .length = 5 },
          { VCODE_OP_ADDRESS_OF },
          { VCODE_OP_CONST, .value = 1 },
-         { VCODE_OP_CONST, .value = 1 },
          { VCODE_OP_CONST, .value = 5 },
          { VCODE_OP_DEBUG_LOCUS },
          { VCODE_OP_CONST, .value = 0 },
          { VCODE_OP_INIT_SIGNAL },
-         { VCODE_OP_WRAP },
          { VCODE_OP_STORE, .name = "X" },
          { VCODE_OP_MAP_CONST },
          { VCODE_OP_RETURN }
@@ -3891,21 +3889,12 @@ START_TEST(test_instance1)
 
       EXPECT_BB(0) = {
          { VCODE_OP_PACKAGE_INIT, .name = "STD.STANDARD" },
-         { VCODE_OP_VAR_UPREF, .hops = 1, .name = "WIDTH" },
-         { VCODE_OP_LOAD_INDIRECT },
+         { VCODE_OP_CONST, .value = 5 },
          { VCODE_OP_STORE, .name = "WIDTH" },
          { VCODE_OP_VAR_UPREF, .hops = 1, .name = "X" },
          { VCODE_OP_LOAD_INDIRECT },
-         { VCODE_OP_CONST, .value = 1 },
-         { VCODE_OP_CONST, .value = 0 },
-         { VCODE_OP_DEBUG_LOCUS },
-         { VCODE_OP_RANGE_LENGTH },
-         { VCODE_OP_UARRAY_LEN },
-         { VCODE_OP_LENGTH_CHECK },
-         { VCODE_OP_UNWRAP },
          { VCODE_OP_DEBUG_LOCUS },
          { VCODE_OP_ALIAS_SIGNAL },
-         { VCODE_OP_WRAP },
          { VCODE_OP_STORE, .name = "X" },
          { VCODE_OP_RETURN }
       };
@@ -6848,6 +6837,46 @@ START_TEST(test_issue1280)
 }
 END_TEST
 
+START_TEST(test_comp1)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/lower/comp1.vhd");
+
+   run_elab();
+
+   vcode_unit_t vu = find_unit("WORK.COMP1.U");
+   vcode_select_unit(vu);
+
+   EXPECT_BB(0) = {
+      { VCODE_OP_PACKAGE_INIT, .name = "WORK.PACK" },
+      { VCODE_OP_PACKAGE_INIT, .name = "STD.STANDARD" },
+      { VCODE_OP_CONST, .value = 8 },
+      { VCODE_OP_STORE, .name = "WIDTH1" },
+      { VCODE_OP_CONST, .value = 9 },
+      { VCODE_OP_STORE, .name = "WIDTH2" },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_CONST, .value = 9 },
+      { VCODE_OP_ALLOC },
+      { VCODE_OP_MEMSET },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_DEBUG_LOCUS },
+      { VCODE_OP_INIT_SIGNAL },
+      { VCODE_OP_WRAP },
+      { VCODE_OP_STORE, .name = "X" },
+      { VCODE_OP_MAP_CONST },
+      { VCODE_OP_RETURN },
+   };
+
+   CHECK_BB(0);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_lower_tests(void)
 {
    Suite *s = suite_create("lower");
@@ -7005,6 +7034,7 @@ Suite *get_lower_tests(void)
    tcase_add_test(tc, test_issue1208);
    tcase_add_test(tc, test_issue1234);
    tcase_add_test(tc, test_issue1280);
+   tcase_add_test(tc, test_comp1);
    suite_add_tcase(s, tc);
 
    return s;

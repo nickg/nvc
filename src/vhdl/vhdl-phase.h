@@ -20,6 +20,8 @@
 
 #include "prim.h"
 
-tree_t vhdl_generate_instance(tree_t t, ident_t prefix, ident_t ndotted);
+tree_t vhdl_generate_instance(tree_t t, ident_t prefix, ident_t dotted);
+tree_t vhdl_component_instance(tree_t comp, tree_t inst, tree_t spec,
+                               ident_t dotted);
 
 #endif  // _VHDL_PHASE_H

@@ -773,14 +773,12 @@ START_TEST(test_comp2)
    fail_unless(tree_genmaps(sub2) == 2);
 
    tree_t sub2_x = tree_value(tree_genmap(sub2, 0));
-   fail_unless(tree_kind(sub2_x) == T_REF);
-   // XXX: used to be folded
-   //   fail_unless(tree_ival(sub2_x) == 7);
+   fail_unless(tree_kind(sub2_x) == T_LITERAL);
+   fail_unless(tree_ival(sub2_x) == 7);
 
    tree_t sub2_y = tree_value(tree_genmap(sub2, 1));
    fail_unless(tree_kind(sub2_y) == T_REF);
-   // XXX: used to be folded
-   //   fail_unless(tree_ident(sub2_y) == ident_new("FALSE"));
+   fail_unless(tree_ident(sub2_y) == ident_new("FALSE"));
 
    fail_if_errors();
 }
@@ -928,9 +926,8 @@ START_TEST(test_issue442)
    fail_unless(tree_genmaps(sample) == 2);
 
    tree_t m1 = tree_value(tree_genmap(sample, 1));
-   fail_unless(tree_kind(m1) == T_REF);
-   // XXX: used to be folded
-   //   fail_unless(tree_ival(m1) == 4);
+   fail_unless(tree_kind(m1) == T_LITERAL);
+   fail_unless(tree_ival(m1) == 4);
 
    fail_if_errors();
 }
