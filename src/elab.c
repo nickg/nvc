@@ -1861,60 +1861,65 @@ static void elab_architecture(tree_t bind, tree_t arch, tree_t config,
    elab_pop_scope(&new_ctx);
 }
 
-static tree_t elab_find_spec(tree_t inst, const elab_ctx_t *ctx)
+static vlog_node_t elab_bind_component(tree_t inst, const elab_ctx_t *ctx)
 {
    if (tree_has_spec(inst))
-      return tree_spec(inst);
-   else if (ctx->config == NULL)
       return NULL;
 
-   assert(tree_kind(ctx->config) == T_BLOCK_CONFIG);
-
    tree_t spec = NULL;
-   const int ndecls = tree_decls(ctx->config);
-   for (int i = 0; i < ndecls; i++) {
-      tree_t d = tree_decl(ctx->config, i);
-      if (tree_kind(d) != T_SPEC)
-         continue;
-      else if (tree_ident2(d) != tree_ident2(inst))
-         continue;
 
-      bool apply = false;
-      if (tree_has_ident(d)) {
-         ident_t match = tree_ident(d);
-         apply = (match == tree_ident(inst) || match == well_known(W_ALL));
+   if (ctx->config != NULL) {
+      assert(tree_kind(ctx->config) == T_BLOCK_CONFIG);
+
+      const int ndecls = tree_decls(ctx->config);
+      for (int i = 0; i < ndecls; i++) {
+         tree_t d = tree_decl(ctx->config, i);
+         if (tree_kind(d) != T_SPEC)
+            continue;
+         else if (tree_ident2(d) != tree_ident2(inst))
+            continue;
+
+         bool apply = false;
+         if (tree_has_ident(d)) {
+            ident_t match = tree_ident(d);
+            apply = (match == tree_ident(inst) || match == well_known(W_ALL));
+         }
+         else if (spec == NULL)
+            apply = true;
+
+         if (apply) spec = d;
       }
-      else if (spec == NULL)
-         apply = true;
-
-      if (apply) spec = d;
    }
 
-   return spec;
-}
-
-static void elab_component(tree_t inst, tree_t comp, const elab_ctx_t *ctx)
-{
-   tree_t spec = elab_find_spec(inst, ctx);
    if (spec == NULL) {
       tree_t bind = elab_default_binding(inst, ctx);
       if (bind == NULL) {
          ident_t prefix = lib_name(ctx->library);
-         ident_t qual = ident_prefix(prefix, tree_ident(comp), '.');
+         ident_t qual = ident_prefix(prefix, tree_ident2(inst), '.');
 
          object_t *obj = lib_get_generic(ctx->library, qual, NULL);
 
          vlog_node_t mod = vlog_from_object(obj);
-         if (mod != NULL) {
-            elab_mixed_instance(inst, comp, mod, ctx);
-            return;
-         }
+         if (mod != NULL)
+            return mod;
       }
 
       spec = tree_new(T_SPEC);
       tree_set_loc(spec, tree_loc(inst));
       tree_set_ident(spec, tree_ident(inst));
       tree_set_value(spec, bind);
+   }
+
+   tree_set_spec(inst, spec);
+   return NULL;
+}
+
+static void elab_component(tree_t inst, tree_t comp, const elab_ctx_t *ctx)
+{
+   vlog_node_t mod = elab_bind_component(inst, ctx);
+   if (mod != NULL) {
+      elab_mixed_instance(inst, comp, mod, ctx);
+      return;
    }
 
    ident_t ndotted = ident_prefix(ctx->dotted, tree_ident(inst), '.');
@@ -1925,7 +1930,7 @@ static void elab_component(tree_t inst, tree_t comp, const elab_ctx_t *ctx)
    };
    elab_inherit_context(&new_ctx, ctx);
 
-   tree_t src = vhdl_component_instance(comp, inst, spec, ndotted);
+   tree_t src = vhdl_component_instance(comp, inst, ndotted);
    elab_fold_generics(src, &new_ctx);
 
    tree_t b = tree_new(T_BLOCK);

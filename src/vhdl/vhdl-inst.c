@@ -101,11 +101,12 @@ tree_t vhdl_generate_instance(tree_t t, ident_t prefix, ident_t dotted)
    return roots[0];
 }
 
-tree_t vhdl_component_instance(tree_t comp, tree_t inst, tree_t spec,
-                               ident_t dotted)
+tree_t vhdl_component_instance(tree_t comp, tree_t inst, ident_t dotted)
 {
    assert(tree_kind(comp) == T_COMPONENT);
    assert(tree_kind(inst) == T_INSTANCE);
+
+   tree_t spec = tree_spec(inst);
    assert(tree_kind(spec) == T_SPEC);
 
    tree_t roots[] = { comp, spec };
