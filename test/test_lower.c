@@ -3891,17 +3891,21 @@ START_TEST(test_instance1)
 
       EXPECT_BB(0) = {
          { VCODE_OP_PACKAGE_INIT, .name = "STD.STANDARD" },
-         { VCODE_OP_CONST, .value = 5 },
+         { VCODE_OP_VAR_UPREF, .hops = 1, .name = "WIDTH" },
+         { VCODE_OP_LOAD_INDIRECT },
          { VCODE_OP_STORE, .name = "WIDTH" },
          { VCODE_OP_VAR_UPREF, .hops = 1, .name = "X" },
          { VCODE_OP_LOAD_INDIRECT },
+         { VCODE_OP_CONST, .value = 1 },
+         { VCODE_OP_CONST, .value = 0 },
          { VCODE_OP_DEBUG_LOCUS },
-         { VCODE_OP_CONST, .value = 5 },
+         { VCODE_OP_RANGE_LENGTH },
          { VCODE_OP_UARRAY_LEN },
          { VCODE_OP_LENGTH_CHECK },
          { VCODE_OP_UNWRAP },
          { VCODE_OP_DEBUG_LOCUS },
          { VCODE_OP_ALIAS_SIGNAL },
+         { VCODE_OP_WRAP },
          { VCODE_OP_STORE, .name = "X" },
          { VCODE_OP_RETURN }
       };
@@ -6503,7 +6507,9 @@ START_TEST(test_issue1155)
 
    EXPECT_BB(0) = {
       { VCODE_OP_PACKAGE_INIT, .name = "STD.STANDARD" },
-      { VCODE_OP_CONST, .value = 8 },
+      { VCODE_OP_VAR_UPREF, .name = "P", .hops = 1 },
+      { VCODE_OP_RECORD_REF, .field = 0 },
+      { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_STORE, .name = "IN_LANES" },
       { VCODE_OP_CONST, .value = 16 },
       { VCODE_OP_STORE, .name = "IN_WIDTH" },
@@ -6512,8 +6518,12 @@ START_TEST(test_issue1155)
       { VCODE_OP_VAR_UPREF, .name = "VALID", .hops = 1 },
       { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_DEBUG_LOCUS },
-      { VCODE_OP_CONST, .value = 8 },
+      { VCODE_OP_TRAP_SUB },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_DEBUG_LOCUS },
+      { VCODE_OP_RANGE_LENGTH },
       { VCODE_OP_UARRAY_LEN },
       { VCODE_OP_LENGTH_CHECK },
       { VCODE_OP_INDEX, .name = "DATAIN" },

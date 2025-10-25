@@ -1041,46 +1041,9 @@ static void elab_generics(tree_t entity, tree_t bind, elab_ctx_t *ctx)
          continue;
       }
 
-      tree_t value = tree_value(map);
-
-      switch (tree_kind(value)) {
-      case T_REF:
-         if (tree_kind(tree_ref(value)) == T_ENUM_LIT)
-            break;
-         else if (tree_class(g) == C_PACKAGE)
-            break;
-         // Fall-through
-      case T_ARRAY_REF:
-      case T_RECORD_REF:
-      case T_FCALL:
-         if (type_is_scalar(tree_type(value))) {
-            void *context = NULL;
-            if (ctx->parent->scope->kind != SCOPE_ROOT)
-               context = *mptr_get(ctx->parent->scope->privdata);
-
-            tree_t folded = eval_try_fold(ctx->jit, value,
-                                          ctx->registry,
-                                          ctx->parent->lowered,
-                                          context);
-
-            if (folded != value) {
-               tree_t m = tree_new(T_PARAM);
-               tree_set_loc(m, tree_loc(map));
-               tree_set_subkind(m, P_POS);
-               tree_set_pos(m, tree_pos(map));
-               tree_set_value(m, (value = folded));
-
-               map = m;
-            }
-         }
-         break;
-
-      default:
-         break;
-      }
-
       tree_add_genmap(ctx->out, map);
 
+      tree_t value = tree_value(map);
       if (is_literal(value)) {
          // These values can be safely substituted for all references to
          // the generic name

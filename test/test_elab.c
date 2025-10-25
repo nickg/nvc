@@ -773,12 +773,14 @@ START_TEST(test_comp2)
    fail_unless(tree_genmaps(sub2) == 2);
 
    tree_t sub2_x = tree_value(tree_genmap(sub2, 0));
-   fail_unless(tree_kind(sub2_x) == T_LITERAL);
-   fail_unless(tree_ival(sub2_x) == 7);
+   fail_unless(tree_kind(sub2_x) == T_REF);
+   // XXX: used to be folded
+   //   fail_unless(tree_ival(sub2_x) == 7);
 
    tree_t sub2_y = tree_value(tree_genmap(sub2, 1));
    fail_unless(tree_kind(sub2_y) == T_REF);
-   fail_unless(tree_ident(sub2_y) == ident_new("FALSE"));
+   // XXX: used to be folded
+   //   fail_unless(tree_ident(sub2_y) == ident_new("FALSE"));
 
    fail_if_errors();
 }
@@ -926,8 +928,9 @@ START_TEST(test_issue442)
    fail_unless(tree_genmaps(sample) == 2);
 
    tree_t m1 = tree_value(tree_genmap(sample, 1));
-   fail_unless(tree_kind(m1) == T_LITERAL);
-   fail_unless(tree_ival(m1) == 4);
+   fail_unless(tree_kind(m1) == T_REF);
+   // XXX: used to be folded
+   //   fail_unless(tree_ival(m1) == 4);
 
    fail_if_errors();
 }
@@ -1351,8 +1354,9 @@ START_TEST(test_generic1)
    fail_unless(tree_kind(p1s0) == T_SIGNAL_ASSIGN);
 
    tree_t one = tree_value(tree_waveform(p1s0, 0));
-   fail_unless(tree_kind(one) == T_LITERAL);
-   fail_unless(tree_ival(one) == 1);
+   fail_unless(tree_kind(one) == T_REF);
+   // XXX: used to be folded
+   //   fail_unless(tree_ival(one) == 1);
 
    tree_t p2s0 = tree_stmt(tree_stmt(u, 1), 0);
    fail_unless(tree_kind(p2s0) == T_ASSERT);
@@ -1385,16 +1389,18 @@ START_TEST(test_generic2)
    fail_unless(tree_kind(p1s0) == T_SIGNAL_ASSIGN);
 
    tree_t two = tree_value(tree_waveform(p1s0, 0));
-   fail_unless(tree_kind(two) == T_LITERAL);
-   fail_unless(tree_ival(two) == 2);
+   fail_unless(tree_kind(two) == T_REF);
+   // XXX: used to be folded
+   //   fail_unless(tree_ival(two) == 2);
 
    tree_t p2s0 = tree_stmt(tree_stmt(u, 1), 0);
    fail_unless(tree_kind(p2s0) == T_ASSERT);
 
    tree_t value = tree_value(p2s0);
    fail_unless(tree_kind(value) == T_REF);
-   fail_unless(tree_ident(value) == ident_new("FALSE"));
-   fail_unless(tree_kind(tree_ref(value)) == T_ENUM_LIT);
+   // XXX: used to be folded
+   //   fail_unless(tree_ident(value) == ident_new("FALSE"));
+   //   fail_unless(tree_kind(tree_ref(value)) == T_ENUM_LIT);
 
    fail_if_errors();
 }
@@ -1403,11 +1409,6 @@ END_TEST
 START_TEST(test_issue669)
 {
    input_from_file(TESTDIR "/elab/issue669.vhd");
-
-   const error_t expect[] = {
-      { -1, NULL }
-   };
-   expect_errors(expect);
 
    tree_t e = run_elab();
    fail_if(e == NULL);
