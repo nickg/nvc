@@ -61,8 +61,7 @@ vcode_type_t lower_type(type_t type);
 vcode_type_t lower_bounds(type_t type);
 
 lower_unit_t *lower_instance(unit_registry_t *ur, lower_unit_t *parent,
-                             driver_set_t *ds, cover_data_t *cover,
-                             tree_t block);
+                             cover_data_t *cover, tree_t block);
 void lower_process(lower_unit_t *parent, tree_t proc, driver_set_t *ds);
 vcode_unit_t lower_global_thunk(unit_registry_t *registry, tree_t t);
 vcode_unit_t lower_thunk_in_context(unit_registry_t *registry, tree_t t,

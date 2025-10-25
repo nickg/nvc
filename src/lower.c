@@ -11430,9 +11430,9 @@ static void lower_port_map(lower_unit_t *lu, tree_t block, tree_t map,
    }
 }
 
-static void lower_direct_mapped_port(lower_unit_t *lu, driver_set_t *ds,
-                                     tree_t block, tree_t map, hset_t *direct,
-                                     hset_t **poison, vcode_reg_t src_reg)
+static void lower_direct_mapped_port(lower_unit_t *lu, tree_t block, tree_t map,
+                                     hset_t *direct, hset_t **poison,
+                                     vcode_reg_t src_reg)
 {
    tree_t port = NULL;
    int field = -1;
@@ -11805,7 +11805,7 @@ static vcode_reg_t lower_open_port_map(lower_unit_t *lu, tree_t block, tree_t p)
       return VCODE_INVALID_REG;
 }
 
-static void lower_ports(lower_unit_t *lu, driver_set_t *ds, tree_t block)
+static void lower_ports(lower_unit_t *lu, tree_t block)
 {
    const int nports = tree_ports(block);
    const int nparams = tree_params(block);
@@ -11842,7 +11842,7 @@ static void lower_ports(lower_unit_t *lu, driver_set_t *ds, tree_t block)
       // Filter out "direct mapped" inputs which can be aliased to
       // signals in the scope above
       for (int i = 0; i < nparams; i++)
-         lower_direct_mapped_port(lu, ds, block, tree_param(block, i), direct,
+         lower_direct_mapped_port(lu, block, tree_param(block, i), direct,
                                   &poison, map_regs[i]);
    }
 
@@ -12490,8 +12490,7 @@ vcode_unit_t lower_thunk_in_context(unit_registry_t *registry, tree_t t,
 }
 
 lower_unit_t *lower_instance(unit_registry_t *ur, lower_unit_t *parent,
-                             driver_set_t *ds, cover_data_t *cover,
-                             tree_t block)
+                             cover_data_t *cover, tree_t block)
 {
    assert(tree_kind(block) == T_BLOCK);
 
@@ -12551,7 +12550,7 @@ lower_unit_t *lower_instance(unit_registry_t *ur, lower_unit_t *parent,
 
    lower_dependencies(lu, block);
    lower_generics(lu, block, primary);
-   lower_ports(lu, ds, block);
+   lower_ports(lu, block);
    lower_decls(lu, block);
 
    emit_return(VCODE_INVALID_REG);
