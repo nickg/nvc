@@ -4054,6 +4054,7 @@ static void irgen_op_binary(jit_irgen_t *g, mir_value_t n)
          [MIR_VEC_MOD] = JIT_VEC_MOD,
          [MIR_VEC_SLL] = JIT_VEC_SHL,
          [MIR_VEC_SRL] = JIT_VEC_SHR,
+         [MIR_VEC_SRA] = JIT_VEC_ASR,
          [MIR_VEC_CASE_EQ] = JIT_VEC_CASE_EQ,
          [MIR_VEC_CASE_NEQ] = JIT_VEC_CASE_NEQ,
       };
@@ -4169,7 +4170,6 @@ static void irgen_op_binary(jit_irgen_t *g, mir_value_t n)
       xbits = irgen_arith_xbits(g, bleft, bright, mask);
       break;
    case MIR_VEC_SLL:
-   case MIR_VEC_SLA:
       abits = j_shl(g, aleft, aright);
       xbits = irgen_arith_xbits(g, bleft, bright, mask);
       break;
@@ -4178,8 +4178,8 @@ static void irgen_op_binary(jit_irgen_t *g, mir_value_t n)
       xbits = irgen_arith_xbits(g, bleft, bright, mask);
       break;
    case MIR_VEC_SRA:
-      if (issigned)
-         aleft = irgen_sign_extend(g, aleft, size);
+      assert(issigned);
+      aleft = irgen_sign_extend(g, aleft, size);
       abits = j_asr(g, aleft, aright);
       xbits = irgen_arith_xbits(g, bleft, bright, mask);
       break;

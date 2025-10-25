@@ -1149,12 +1149,61 @@ void vec2_shr(int size, uint64_t *a, const uint64_t *b)
    vec2_mask(size, a);
 }
 
+void vec2_asr(int size, uint64_t *a, const uint64_t *b)
+{
+   const int n = BIGNUM_WORDS(size);
+   if (n == 0)
+      return;
+
+   const uint64_t k = get_shift_amount(size, b);
+   if (k == 0) {
+      vec2_mask(size, a);
+      return;
+   }
+
+   const bool negative = (a[n - 1] >> ((size - 1) % 64)) & 1;
+   const int64_t fill = negative ? ~UINT64_C(0) : 0;
+
+   const int64_t total_bits = size;
+   if (k >= total_bits) {
+      for (int i = 0; i < n; i++)
+         a[i] = fill;
+      vec2_mask(size, a);
+      return;
+   }
+
+   const int s = k / 64;
+   const int r = k % 64;
+
+   if (s) {
+      for (int i = 0; i < n; i++)
+         a[i] = (i + s < n) ? a[i + s] : fill;
+   }
+
+   if (r) {
+      uint64_t carry = fill << (size % 64) >> r;
+      for (int i = n - 1; i >= 0; --i) {
+         const uint64_t cur = a[i];
+         a[i] = (cur >> r) | carry;
+         carry = cur << (64 - r);
+      }
+   }
+
+   vec2_mask(size, a);
+}
+
 void vec2_neg(int size, uint64_t *a)
 {
    if (size <= 64)
       a[0] = -a[0];
-   else
-      should_not_reach_here();   // TODO
+   else {
+      uint64_t carry = 1;
+      for (int i = 0; i < BIGNUM_WORDS(size); i++) {
+         a[i] = ~a[i] + carry;
+         if (carry && a[i] != 0)
+            carry = 0;
+      }
+   }
 
    vec2_mask(size, a);
 }
@@ -1251,6 +1300,44 @@ VEC2_CMP_OP(lt, <);
 VEC2_CMP_OP(le, <=);
 VEC2_CMP_OP(ge, >=);
 
+void vec2_itoa(int size, const uint64_t *a, text_buf_t *tb)
+{
+   if (size <= 64) {
+      int64_t sext = a[0];
+      if (size > 1 && size < 64 && (sext & (UINT64_C(1) << (size - 1))))
+         sext |= ~UINT64_C(0) << size;
+
+      tb_printf(tb, "%"PRIi64, sext);
+   }
+   else {
+      const int n = BIGNUM_WORDS(size);
+      const bool negative = (a[n - 1] >> ((size - 1) % 64)) & 1;
+      const int maxdigits = ((size * 1233) >> 12) + 1;
+
+      if (negative)
+         tb_append(tb, '-');
+
+      uint64_t tmp[n], ten[n], r[n];
+      memcpy(tmp, a, n * sizeof(uint64_t));
+      memset(ten, '\0', n * sizeof(uint64_t));
+      ten[0] = 10;
+
+      if (negative)
+         vec2_neg(size, tmp);
+
+      char buf[maxdigits];
+      int ndigits = 0;
+      while (!vec2_is_zero(size, tmp)) {
+         vec2_divmod(size, tmp, r, tmp, ten);
+         buf[ndigits++] = '0' + r[0];
+      }
+      assert(ndigits <= maxdigits);
+
+      for (; ndigits > 0; ndigits--)
+         tb_append(tb, buf[ndigits - 1]);
+   }
+}
+
 static void vec4_make_undef(int size, uint64_t *a, uint64_t *b)
 {
   for (int i = 0; i < BIGNUM_WORDS(size); i++) {
@@ -1331,6 +1418,13 @@ void vec4_shr(int size, uint64_t *a1, uint64_t *b1, const uint64_t *a2,
 {
    vec2_shr(size, a1, a2);
    vec2_shr(size, b1, b2);
+}
+
+void vec4_asr(int size, uint64_t *a1, uint64_t *b1, const uint64_t *a2,
+              const uint64_t *b2)
+{
+   if (vec4_arith_defined(size, a1, b1, a2, b2))
+      vec2_asr(size, a1, a2);
 }
 
 void vec4_inv(int size, uint64_t *a, uint64_t *b)

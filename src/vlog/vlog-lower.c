@@ -586,10 +586,10 @@ static mir_value_t vlog_lower_vector_binary(vlog_gen_t *g, vlog_binary_t binop,
    case V_BINARY_TIMES:    mop = MIR_VEC_MUL; break;
    case V_BINARY_DIVIDE:   mop = MIR_VEC_DIV; break;
    case V_BINARY_MOD:      mop = MIR_VEC_MOD; break;
-   case V_BINARY_SHIFT_LL: mop = MIR_VEC_SLL; break;
+   case V_BINARY_SHIFT_LL:
+   case V_BINARY_SHIFT_LA: mop = MIR_VEC_SLL; break;
    case V_BINARY_SHIFT_RL: mop = MIR_VEC_SRL; break;
-   case V_BINARY_SHIFT_RA: mop = MIR_VEC_SRA; break;
-   case V_BINARY_SHIFT_LA: mop = MIR_VEC_SLA; break;
+   case V_BINARY_SHIFT_RA: mop = is_signed ? MIR_VEC_SRA : MIR_VEC_SRL; break;
    default: should_not_reach_here();
    }
 
@@ -705,9 +705,9 @@ static mir_value_t vlog_lower_operator_assignment(vlog_gen_t *g, vlog_node_t v)
          case V_ASSIGN_AND:      op = MIR_VEC_BIT_AND; break;
          case V_ASSIGN_OR:       op = MIR_VEC_BIT_OR; break;
          case V_ASSIGN_XOR:      op = MIR_VEC_BIT_XOR; break;
-         case V_ASSIGN_SHIFT_LL: op = MIR_VEC_SLL; break;
+         case V_ASSIGN_SHIFT_LL:
+         case V_ASSIGN_SHIFT_LA: op = MIR_VEC_SLL; break;
          case V_ASSIGN_SHIFT_RL: op = MIR_VEC_SRL; break;
-         case V_ASSIGN_SHIFT_LA: op = MIR_VEC_SLA; break;
          case V_ASSIGN_SHIFT_RA: op = MIR_VEC_SRA; break;
          default:
             CANNOT_HANDLE(v);

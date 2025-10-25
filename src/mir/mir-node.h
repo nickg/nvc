@@ -342,7 +342,6 @@ typedef enum {
    MIR_VEC_MOD,
    MIR_VEC_SLL,
    MIR_VEC_SRL,
-   MIR_VEC_SLA,
    MIR_VEC_SRA,
 } mir_vec_op_t;
 

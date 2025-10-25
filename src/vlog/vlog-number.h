@@ -108,6 +108,8 @@ int vec2_ge(int size, const uint64_t *a, const uint64_t *b);
 int vec2_sle(int size, const uint64_t *a, const uint64_t *b);
 int vec2_le(int size, const uint64_t *a, const uint64_t *b);
 
+void vec2_itoa(int size, const uint64_t *a, text_buf_t *tb);
+
 void vec4_add(int size, uint64_t *a1, uint64_t *b1, const uint64_t *a2,
               const uint64_t *b2);
 void vec4_mul(int size, uint64_t *a1, uint64_t *b1, const uint64_t *a2,
@@ -121,6 +123,8 @@ void vec4_exp(int size, uint64_t *a1, uint64_t *b1, const uint64_t *a2,
 void vec4_shl(int size, uint64_t *a1, uint64_t *b1, const uint64_t *a2,
               const uint64_t *b2);
 void vec4_shr(int size, uint64_t *a1, uint64_t *b1, const uint64_t *a2,
+              const uint64_t *b2);
+void vec4_asr(int size, uint64_t *a1, uint64_t *b1, const uint64_t *a2,
               const uint64_t *b2);
 void vec4_inv(int size, uint64_t *a, uint64_t *b);
 void vec4_and2(int size, uint64_t *a1, uint64_t *b1, const uint64_t *a2,

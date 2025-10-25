@@ -1219,6 +1219,9 @@ void __nvc_vec4op(jit_vec_op_t op, jit_anchor_t *anchor, jit_scalar_t *args,
          case JIT_VEC_SHR:
             vec4_shr(size, aresult, bresult, a2, b2);
             break;
+         case JIT_VEC_ASR:
+            vec4_asr(size, aresult, bresult, a2, b2);
+            break;
          case JIT_VEC_NOT:
             vec4_inv(size, aresult, bresult);
             break;

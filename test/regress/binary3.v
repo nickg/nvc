@@ -31,7 +31,7 @@ module binary3();
     b = 0;
     b_w = 0;
     #1;
-    if (div !== 'hx || mod !== 'hx /*|| div_w !== 'hx || mod_w !== 'hx*/)
+    if (div !== 'hx || mod !== 'hx || div_w !== 'hx || mod_w !== 'hx)
       failed = 1;
 
     if (failed) begin

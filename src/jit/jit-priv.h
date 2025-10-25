@@ -216,6 +216,7 @@ typedef enum {
    JIT_VEC_MOD,
    JIT_VEC_SHL,
    JIT_VEC_SHR,
+   JIT_VEC_ASR,
    JIT_VEC_CASE_EQ,
    JIT_VEC_CASE_NEQ,
    JIT_VEC_NOT,

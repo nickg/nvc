@@ -1223,3 +1223,5 @@ display1        verilog,gold
 ivtest20        verilog
 real8           verilog
 issue1327       verilog
+wide3           verilog
+binary4         verilog
