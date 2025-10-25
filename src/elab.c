@@ -94,16 +94,13 @@ typedef struct _generic_list {
 } generic_list_t;
 
 typedef struct {
-   tree_t           wrap;
-   vlog_node_t      module;
-   ghash_t         *instances;
+   ghash_t *instances;
 } mod_cache_t;
 
 typedef struct {
-   mod_cache_t *module;
-   vlog_node_t  body;
-   tree_t       block;
-   tree_t       wrap;
+   vlog_node_t body;
+   tree_t      block;
+   tree_t      wrap;
 } elab_instance_t;
 
 static void elab_block(tree_t t, const elab_ctx_t *ctx);
@@ -278,13 +275,7 @@ static mod_cache_t *elab_cached_module(vlog_node_t mod, const elab_ctx_t *ctx)
       return mc;
 
    mc = xcalloc(sizeof(mod_cache_t));
-   mc->module    = mod;
    mc->instances = ghash_new(4, elab_hash_inst, elab_cmp_inst);
-
-   mc->wrap = tree_new(T_VERILOG);
-   tree_set_loc(mc->wrap, vlog_loc(mod));
-   tree_set_ident(mc->wrap, vlog_ident(mod));
-   tree_set_vlog(mc->wrap, mod);
 
    hash_put(ctx->modcache, mod, mc);
    return mc;
@@ -298,13 +289,11 @@ static elab_instance_t *elab_new_instance(vlog_node_t mod, vlog_node_t inst,
    mod_cache_t *mc = elab_cached_module(mod, ctx);
 
    elab_instance_t *ei = ghash_get(mc->instances, inst);
-   if (ei != NULL) {
+   if (ei != NULL)
       return ei;
-   }
 
    ei = xcalloc(sizeof(elab_instance_t));
-   ei->module = mc;
-   ei->body   = vlog_new_instance(mod, inst, ctx->dotted);
+   ei->body = vlog_new_instance(mod, inst, ctx->dotted);
 
    ei->wrap = tree_new(T_VERILOG);
    tree_set_loc(ei->wrap, vlog_loc(mod));
