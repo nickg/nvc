@@ -448,6 +448,8 @@ START_TEST(test_func)
       { 345, "logical operator must have two operands" },
       { 346, "unary operator must have one operand" },
       { 348, "binary operator must have two operands" },
+      //{ 359, "default value of parameter X in subprogram body FUNC10" },
+      { 366, "default value of parameter X in subprogram body FUNC11" },
       { -1, NULL }
    };
    expect_errors(expect);

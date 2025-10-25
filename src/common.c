@@ -2709,19 +2709,50 @@ bool same_tree(tree_t a, tree_t b)
          return same_tree(tree_left(ra), tree_left(rb))
             && same_tree(tree_right(ra), tree_right(rb));
       }
-
    case T_RECORD_REF:
       return ident_casecmp(tree_ident(a), tree_ident(b))
          && same_tree(tree_value(a), tree_value(b));
-
    case T_LITERAL:
       {
-         const literal_kind_t alkind = tree_subkind(a);
-         if (alkind != tree_subkind(b) || alkind != L_INT)
+         const literal_kind_t lkind = tree_subkind(a);
+         if (lkind != tree_subkind(b))
             return false;
-         else
+
+         switch (lkind) {
+         case L_PHYSICAL:
+            {
+               ident_t aid = tree_has_ident(a) ? tree_ident(a) : NULL;
+               ident_t bid = tree_has_ident(b) ? tree_ident(b) : NULL;
+               if (aid == bid)
+                  return tree_ival(a) == tree_ival(b);
+               else
+                  return false;
+            }
+         case L_INT:
             return tree_ival(a) == tree_ival(b);
+         case L_REAL:
+            return tree_dval(a) == tree_dval(b);
+         case L_NULL:
+            return true;
+         default:
+            return false;
+         }
       }
+   case T_STRING:
+      {
+         const int nchars = tree_chars(a);
+         if (tree_chars(b) != nchars)
+            return false;
+
+         for (int i = 0; i < nchars; i++) {
+            if (!same_tree(tree_char(a, i), tree_char(b, i)))
+               return false;
+         }
+
+         return true;
+      }
+   case T_OPEN:
+      return true;
    default:
       return false;
    }

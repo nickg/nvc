@@ -347,4 +347,25 @@ package body func3 is
     function "+" (x : integer) return bit;  -- OK
     function "/" (a, b, c : integer) return integer;  -- Error
 
+    function func9 (x : time := 1 ns) return integer;
+
+    function func9 (x : time := 1 ns) return integer is  -- OK
+    begin
+        return 1;
+    end function;
+
+    -- function func10 (x : time := 1 ns) return integer;  TODO
+
+    -- function func10 (x : time := 1 hr) return integer is  -- Error
+    -- begin
+    --     return 1;
+    -- end function;
+
+    function func11 (x : string := "hello") return integer;
+
+    function func11 (x : string := "world") return integer is  -- Error
+    begin
+        return 1;
+    end function;
+
 end package body;

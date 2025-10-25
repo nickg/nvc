@@ -1898,64 +1898,53 @@ static bool sem_compare_interfaces(tree_t decl, tree_t body, int nth,
    tree_t ddef = tree_has_value(dport) ? tree_value(dport) : NULL;
 
    if (bdef == NULL && ddef == NULL)
-     return true;
+      return true;
 
    const tree_kind_t bkind = bdef ? tree_kind(bdef) : T_LAST_TREE_KIND;
    const tree_kind_t dkind = ddef ? tree_kind(ddef) : T_LAST_TREE_KIND;
 
    // Work around some mismatches caused by folding
    if (bdef != NULL && ddef != NULL && bkind != dkind)
-     return true;
+      return true;
 
    if (dkind == bkind) {
-     // This only covers a few simple cases
-     switch (dkind) {
-     case T_LITERAL:
-        {
-           const literal_kind_t dsub = tree_subkind(ddef);
-           const literal_kind_t bsub = tree_subkind(bdef);
-           if (dsub == bsub) {
-              switch (dsub) {
-              case L_INT:
-                 if (tree_ival(ddef) == tree_ival(bdef))
-                    return true;
-                 break;
-              case L_REAL:
-                 if (tree_dval(ddef) == tree_dval(bdef))
-                    return true;
-                 break;
-              default:
-                 return true;
-              }
-           }
-        }
-        break;
+      // This only covers a few simple cases
+      switch (dkind) {
+      case T_LITERAL:
+         if (tree_subkind(bdef) == L_PHYSICAL
+             && tree_subkind(ddef) == L_PHYSICAL)
+            return true;   // TODO: bug with folding physical literals
+         // Fall-through
+      case T_STRING:
+         if (same_tree(bdef, ddef))
+            return true;
+         break;
 
-     case T_REF:
-     case T_FCALL:
-        {
-           if (!tree_has_ref(bdef) || !tree_has_ref(ddef))
-              return true; // Was parse error, ignore it
+      case T_REF:
+      case T_FCALL:
+         {
+            if (!tree_has_ref(bdef) || !tree_has_ref(ddef))
+               return true; // Was parse error, ignore it
 
-           tree_t bref = tree_ref(bdef);
-           tree_t dref = tree_ref(ddef);
+            tree_t bref = tree_ref(bdef);
+            tree_t dref = tree_ref(ddef);
 
-           if (bref == dref)
-              return true;
+            if (bref == dref)
+               return true;
 
-           // Work around mismatch introduced by folding
-           const tree_kind_t brefkind = tree_kind(bref);
-           if (brefkind == T_CONST_DECL || brefkind == T_GENERIC_DECL)
-              return true;
-           else if (bkind == T_FCALL && brefkind == T_FUNC_BODY
-                    && type_eq(tree_type(bref), tree_type(dref)))
-              return true;
-        }
-        break;
+            // Work around mismatch introduced by folding
+            const tree_kind_t brefkind = tree_kind(bref);
+            if (brefkind == T_CONST_DECL || brefkind == T_GENERIC_DECL)
+               return true;
+            else if (bkind == T_FCALL && brefkind == T_FUNC_BODY
+                     && type_eq(tree_type(bref), tree_type(dref)))
+               return true;
+         }
+         break;
 
-     default:
-       return true;
-     }
+      default:
+         return true;
+      }
    }
 
    diag_t *d = diag_new(DIAG_ERROR, tree_loc(bport));
