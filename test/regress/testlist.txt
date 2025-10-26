@@ -1212,3 +1212,4 @@ vlog28          verilog,gold
 issue1313       normal,2008
 issue1317       normal,2008
 issue1332       normal
+issue1334       normal,2008

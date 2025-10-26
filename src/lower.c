@@ -8017,6 +8017,9 @@ static void lower_sub_signals(lower_unit_t *lu, type_t type, type_t var_type,
                fbounds_reg = emit_load_indirect(fbounds_reg);
          }
 
+         if (is_anonymous_subtype(ft) && type_has_resolution(ft))
+            lower_resolution_var(lu, f, ft);
+
          vcode_reg_t ptr_reg = emit_record_ref(sig_ptr, i);
 
          lower_sub_signals(lu, et, ft, ft, f, fview, VCODE_INVALID_VAR, ptr_reg,
