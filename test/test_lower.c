@@ -967,7 +967,7 @@ START_TEST(test_arrayop1)
    CHECK_BB(0);
 
    EXPECT_BB(1) = {
-      { VCODE_OP_LINK_PACKAGE, .name = "STD.STANDARD" },
+      { VCODE_OP_NULL },
       { VCODE_OP_INDEX, .name = "X" },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_CONST, .value = 3 },
@@ -1001,7 +1001,7 @@ START_TEST(test_array1)
    vcode_select_unit(v0);
 
    EXPECT_BB(1) = {
-      { VCODE_OP_LINK_PACKAGE, .name = "STD.STANDARD" },
+      { VCODE_OP_NULL },
       { VCODE_OP_CONTEXT_UPREF, .hops = 1 },
       { VCODE_OP_FCALL, .func = "WORK.ARRAY1.FUNC()Q" },
       { VCODE_OP_CONST, .value = 1 },
@@ -1224,7 +1224,7 @@ START_TEST(test_assign3)
       { VCODE_OP_INDEX, .name = "Y" },
       { VCODE_OP_CONST, .value = 8 },
       { VCODE_OP_COPY },
-      { VCODE_OP_LINK_PACKAGE, .name = "STD.STANDARD" },
+      { VCODE_OP_NULL },
       { VCODE_OP_CONST, .value = 7 },
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CONST, .value = 1 },
@@ -1283,7 +1283,7 @@ START_TEST(test_record1)
       { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
       { VCODE_OP_DEBUG_LOCUS },
       { VCODE_OP_ASSERT },
-      { VCODE_OP_CONTEXT_UPREF, .hops = 1 },
+      { VCODE_OP_NULL },
       { VCODE_OP_FCALL, .func = "*WORK.RECORD1-TEST.\"=\"(" },
       { VCODE_OP_DEBUG_LOCUS },
       { VCODE_OP_ASSERT },
@@ -2170,7 +2170,7 @@ START_TEST(test_issue124)
    EXPECT_BB(0) = {
       { VCODE_OP_LINK_PACKAGE, .name = "WORK.PACK" },
       { VCODE_OP_FCALL, .func = "WORK.PACK.TO_INTEGER(18WORK.PACK.UNSIGNED)I" },
-      { VCODE_OP_LINK_PACKAGE, .name = "STD.STANDARD" },
+      { VCODE_OP_NULL },
       { VCODE_OP_FCALL, .func = "STD.STANDARD.INTEGER$image" },
       { VCODE_OP_RETURN }
    };
@@ -2189,7 +2189,7 @@ START_TEST(test_issue135)
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {
-      { VCODE_OP_LINK_PACKAGE, .name = "STD.STANDARD" },
+      { VCODE_OP_NULL },
       { VCODE_OP_FCALL, .func = "STD.STANDARD.INTEGER$image" },
       { VCODE_OP_FCALL, .func = "STD.STANDARD.TIME$image" },
       { VCODE_OP_UARRAY_LEN },
@@ -3060,7 +3060,7 @@ START_TEST(test_issue338b)
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {
-      { VCODE_OP_LINK_PACKAGE, .name = "STD.STANDARD" },
+      { VCODE_OP_NULL },
       { VCODE_OP_CONST_ARRAY, .length = 0 },
       { VCODE_OP_ADDRESS_OF },
       { VCODE_OP_CONST, .value = 1 },
@@ -3103,7 +3103,7 @@ START_TEST(test_hintbug)
       { VCODE_OP_LENGTH_CHECK },
       { VCODE_OP_UNWRAP },
       { VCODE_OP_COPY },
-      { VCODE_OP_LINK_PACKAGE, .name = "STD.STANDARD" },
+      { VCODE_OP_NULL },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CONST, .value = 1 },
@@ -4019,7 +4019,7 @@ START_TEST(test_closefile)
       { VCODE_OP_INDEX, .name = "F" },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_FILE_OPEN },
-      { VCODE_OP_CONTEXT_UPREF, .hops = 0 },
+      { VCODE_OP_NULL },
       { VCODE_OP_FCALL, .func = "WORK.FILEPACK.TEST.FILE_CLOSE("
         "23WORK.FILEPACK.TEST.TEXT)$predef" },
       { VCODE_OP_RETURN },
@@ -4913,12 +4913,11 @@ START_TEST(test_genpack1)
    vcode_select_unit(vu);
 
    EXPECT_BB(1) = {
-      { VCODE_OP_LINK_PACKAGE, .name = "STD.STANDARD" },
+      { VCODE_OP_NULL },
       { VCODE_OP_VAR_UPREF, .hops = 1, .name = "S" },
       { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_RESOLVED },
       { VCODE_OP_LOAD_INDIRECT },
-      { VCODE_OP_LINK_PACKAGE, .name = "WORK.P5" },
       { VCODE_OP_FCALL, .func = "WORK.P5.T$image" },
       { VCODE_OP_CONST, .value = 97 },
       { VCODE_OP_CONST_ARRAY, .length = 1 },
@@ -6832,7 +6831,7 @@ START_TEST(test_issue1280)
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_VAR_UPREF, .hops = 1, .name = "MY_SIG" },
       { VCODE_OP_LOAD_INDIRECT },
-      { VCODE_OP_CONTEXT_UPREF, .hops = 1 },
+      { VCODE_OP_NULL },
       { VCODE_OP_FCALL, .func = "WORK.TEST-RTL.T_REAL_RECORD_ARRAY$resolved" },
       { VCODE_OP_VAR_UPREF, .hops = 1, .name = "MY_SIG$delayed_2_NS" },
       { VCODE_OP_LOAD_INDIRECT },

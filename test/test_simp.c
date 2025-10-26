@@ -1071,7 +1071,7 @@ START_TEST(test_order1)
    tree_t p = parse_check_and_simplify(T_PACKAGE, T_PACKAGE);
 
    tree_t x = get_decl(p, "X");
-   fail_unless(tree_kind(tree_value(x)) == T_FCALL);
+   fail_unless(folded_b(tree_value(x), false));
 
    check_expected_errors();
 }
@@ -1886,15 +1886,10 @@ START_TEST(test_issue1182)
    tree_t a = parse_check_and_simplify(T_PACKAGE, T_PACKAGE, T_ENTITY, T_ARCH);
 
    tree_t p_proc = tree_stmt(a, 0);
-   fail_unless(tree_stmts(p_proc) == 4);
+   fail_unless(tree_stmts(p_proc) == 2);
 
    tree_t a0 = tree_stmt(p_proc, 0);
-   fail_unless(tree_kind(a0) == T_ASSERT);
-   fail_unless(tree_kind(tree_value(a0)) == T_FCALL);  // Could be folded
-
-   tree_t a2 = tree_stmt(p_proc, 2);
-   fail_unless(tree_kind(a2) == T_ASSERT);
-   fail_unless(tree_kind(tree_value(a2)) == T_FCALL);  // Could be folded
+   fail_unless(tree_kind(a0) == T_SIGNAL_ASSIGN);
 
    fail_if_errors();
 }
