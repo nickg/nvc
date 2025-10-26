@@ -10,6 +10,9 @@
   _std_to_string_real_digits;
   _std_to_string_real_format;
   _std_to_string_time;
+  _pollyfil_to_hstring_bit_vec;
+  _polyfill_to_ostring_bit_vec;
+  _polyfill_to_string_real_format;
 
   # Exported from src/rt/stdenv.c
   _std_env_add_trec_real;

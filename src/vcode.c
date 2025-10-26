@@ -3386,9 +3386,6 @@ vcode_reg_t emit_fcall(ident_t func, vcode_type_t type, vcode_type_t bounds,
       VCODE_ASSERT(args[i] != VCODE_INVALID_REG,
                    "invalid argument to function");
 
-   VCODE_ASSERT(nargs > 0 && vcode_reg_kind(args[0]) == VCODE_TYPE_CONTEXT,
-                "first argument to VHDL function must be context pointer");
-
    if (type == VCODE_INVALID_TYPE)
       return (o->result = VCODE_INVALID_REG);
    else {

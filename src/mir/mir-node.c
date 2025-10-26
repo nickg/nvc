@@ -2984,10 +2984,6 @@ mir_value_t mir_build_function_trigger(mir_unit_t *mu, ident_t name,
       mir_set_arg(mu, n, i + 1, args[i]);
 
    MIR_ASSERT(nargs >= 1, "function trigger requires at least one argument");
-   MIR_ASSERT(mir_is(mu, args[0], MIR_TYPE_CONTEXT),
-              "first argument must be context");
-   MIR_ASSERT(nargs == 1 || mir_is_signal(mu, args[1]),
-              "second argument must be signal if present");
 
    return (mir_value_t){ .tag = MIR_TAG_NODE, .id = mir_node_id(mu, n) };
 }

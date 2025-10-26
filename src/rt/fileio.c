@@ -181,7 +181,7 @@ bool file_logical_name(file_handle_t fh, const char **name)
 DLLEXPORT
 void __nvc_file_close(jit_scalar_t *args)
 {
-   file_handle_t *handle = args[2].pointer;
+   file_handle_t *handle = args[1].pointer;
    drop_handle(*handle);
    *handle = 0;
 }
@@ -189,7 +189,7 @@ void __nvc_file_close(jit_scalar_t *args)
 DLLEXPORT
 void __nvc_endfile(jit_scalar_t *args)
 {
-   file_handle_t *handle = args[1].pointer;
+   file_handle_t *handle = args[0].pointer;
 
    file_slot_t *slot = decode_handle(*handle);
    if (slot == NULL)
@@ -207,7 +207,7 @@ void __nvc_endfile(jit_scalar_t *args)
 DLLEXPORT
 void __nvc_flush(jit_scalar_t *args)
 {
-   file_handle_t *handle = args[2].pointer;
+   file_handle_t *handle = args[1].pointer;
 
    file_slot_t *slot = decode_handle(*handle);
    if (slot == NULL)
@@ -219,7 +219,7 @@ void __nvc_flush(jit_scalar_t *args)
 DLLEXPORT
 void __nvc_rewind(jit_scalar_t *args)
 {
-   file_handle_t *handle = args[2].pointer;
+   file_handle_t *handle = args[1].pointer;
 
    file_slot_t *slot = decode_handle(*handle);
    if (slot == NULL)
@@ -231,9 +231,9 @@ void __nvc_rewind(jit_scalar_t *args)
 DLLEXPORT
 void __nvc_seek(jit_scalar_t *args)
 {
-   file_handle_t *handle = args[2].pointer;
-   off_t offset = args[3].integer;
-   int8_t origin = args[4].integer;
+   file_handle_t *handle = args[1].pointer;
+   off_t offset = args[2].integer;
+   int8_t origin = args[3].integer;
 
    file_slot_t *slot = decode_handle(*handle);
    if (slot == NULL)
@@ -249,9 +249,9 @@ void __nvc_seek(jit_scalar_t *args)
 DLLEXPORT
 void __nvc_truncate(jit_scalar_t *args)
 {
-   file_handle_t *handle = args[2].pointer;
-   int64_t size = args[3].integer;
-   int8_t origin = args[4].integer;
+   file_handle_t *handle = args[1].pointer;
+   int64_t size = args[2].integer;
+   int8_t origin = args[3].integer;
 
    file_slot_t *slot = decode_handle(*handle);
    if (slot == NULL)
@@ -305,7 +305,7 @@ void __nvc_truncate(jit_scalar_t *args)
 DLLEXPORT
 void __nvc_file_state(jit_scalar_t *args)
 {
-   file_handle_t *handle = args[1].pointer;
+   file_handle_t *handle = args[0].pointer;
 
    file_slot_t *slot = decode_handle(*handle);
    args[0].integer = (slot == NULL ? STATE_CLOSED : STATE_OPEN);
@@ -314,7 +314,7 @@ void __nvc_file_state(jit_scalar_t *args)
 DLLEXPORT
 void __nvc_file_mode(jit_scalar_t *args)
 {
-   file_handle_t *handle = args[1].pointer;
+   file_handle_t *handle = args[0].pointer;
 
    file_slot_t *slot = decode_handle(*handle);
    if (slot == NULL)
@@ -326,8 +326,8 @@ void __nvc_file_mode(jit_scalar_t *args)
 DLLEXPORT
 void __nvc_file_position(jit_scalar_t *args)
 {
-   file_handle_t *handle = args[1].pointer;
-   int8_t origin = args[2].integer;
+   file_handle_t *handle = args[0].pointer;
+   int8_t origin = args[1].integer;
 
    file_slot_t *slot = decode_handle(*handle);
    if (slot == NULL)
@@ -358,7 +358,7 @@ void __nvc_file_position(jit_scalar_t *args)
 DLLEXPORT
 void __nvc_file_size(jit_scalar_t *args)
 {
-   file_handle_t *handle = args[1].pointer;
+   file_handle_t *handle = args[0].pointer;
 
    file_slot_t *slot = decode_handle(*handle);
    if (slot->file == NULL)
@@ -376,7 +376,7 @@ void __nvc_file_size(jit_scalar_t *args)
 DLLEXPORT
 void __nvc_file_canseek(jit_scalar_t *args)
 {
-   file_handle_t *handle = args[1].pointer;
+   file_handle_t *handle = args[0].pointer;
 
    file_slot_t *slot = decode_handle(*handle);
    if (slot->file == NULL)

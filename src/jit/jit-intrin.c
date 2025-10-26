@@ -1718,10 +1718,10 @@ __attribute__((target("sse4.1")))
 static void byte_vector_equal_sse41(jit_func_t *func, jit_anchor_t *anchor,
                                     jit_scalar_t *args, tlab_t *tlab)
 {
-   const int lsize = ffi_array_length(args[3].integer);
-   const int rsize = ffi_array_length(args[6].integer);
-   uint8_t *left = args[1].pointer;
-   uint8_t *right = args[4].pointer;
+   const int lsize = ffi_array_length(args[2].integer);
+   const int rsize = ffi_array_length(args[5].integer);
+   uint8_t *left = args[0].pointer;
+   uint8_t *right = args[3].pointer;
 
    args[0].integer = 0;
 
@@ -1757,10 +1757,10 @@ static void byte_vector_equal_sse41(jit_func_t *func, jit_anchor_t *anchor,
 static void byte_vector_equal_neon(jit_func_t *func, jit_anchor_t *anchor,
                                    jit_scalar_t *args, tlab_t *tlab)
 {
-   const int lsize = ffi_array_length(args[3].integer);
-   const int rsize = ffi_array_length(args[6].integer);
-   uint8_t *left = args[1].pointer;
-   uint8_t *right = args[4].pointer;
+   const int lsize = ffi_array_length(args[2].integer);
+   const int rsize = ffi_array_length(args[5].integer);
+   uint8_t *left = args[0].pointer;
+   uint8_t *right = args[3].pointer;
 
    args[0].integer = 0;
 
@@ -1796,10 +1796,10 @@ static void byte_vector_equal_neon(jit_func_t *func, jit_anchor_t *anchor,
 static void byte_vector_equal(jit_func_t *func, jit_anchor_t *anchor,
                               jit_scalar_t *args, tlab_t *tlab)
 {
-   const int lsize = ffi_array_length(args[3].integer);
-   const int rsize = ffi_array_length(args[6].integer);
-   uint8_t *left = args[1].pointer;
-   uint8_t *right = args[4].pointer;
+   const int lsize = ffi_array_length(args[2].integer);
+   const int rsize = ffi_array_length(args[5].integer);
+   uint8_t *left = args[0].pointer;
+   uint8_t *right = args[3].pointer;
 
    args[0].integer = (lsize == rsize) && (memcmp(left, right, lsize) == 0);
 }

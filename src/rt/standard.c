@@ -17,7 +17,6 @@
 
 #include "util.h"
 #include "jit/jit.h"
-#include "jit/jit-exits.h"
 #include "jit/jit-ffi.h"
 #include "rt/model.h"
 #include "rt/mspace.h"
@@ -29,10 +28,11 @@
 #include <string.h>
 #include <float.h>
 
-static void bit_vec_to_string(jit_scalar_t *args, tlab_t *tlab, int log_base)
+static void bit_vec_to_string(jit_scalar_t *args, tlab_t *tlab, int log_base,
+                              int first_arg)
 {
-   const uint8_t *vec_ptr = args[1].pointer;
-   int64_t vec_len = ffi_array_length(args[3].integer);
+   const uint8_t *vec_ptr = args[first_arg].pointer;
+   int64_t vec_len = ffi_array_length(args[first_arg + 2].integer);
 
    const size_t result_len = (vec_len + log_base - 1) / log_base;
    const int left_pad = (log_base - (vec_len % log_base)) % log_base;
@@ -56,6 +56,40 @@ static void bit_vec_to_string(jit_scalar_t *args, tlab_t *tlab, int log_base)
    args[2].integer = result_len;
 }
 
+static void to_string_real_format(jit_scalar_t *args, tlab_t *tlab,
+                                  int first_arg)
+{
+   double value = args[first_arg].real;
+   const void *fmt_ptr = args[first_arg + 1].pointer;
+   size_t fmt_length = ffi_array_length(args[first_arg + 3].integer);
+
+   char *fmt_cstr LOCAL = null_terminate(fmt_ptr, fmt_length);
+
+   if (fmt_cstr[0] != '%')
+      jit_msg(NULL, DIAG_FATAL, "conversion specification must "
+              "start with '%%'");
+
+   for (const char *p = fmt_cstr + 1; *p; p++) {
+      switch (*p) {
+      case 'e': case 'E': case 'f': case 'F': case 'g': case 'G':
+      case 'a': case 'A':
+         continue;
+      case '0'...'9':
+         continue;
+      case '.': case '-':
+         continue;
+      default:
+         jit_msg(NULL, DIAG_FATAL, "illegal character '%c' in format \"%s\"",
+                 *p, fmt_cstr + 1);
+      }
+   }
+
+   char buf[64];
+   checked_sprintf(buf, sizeof(buf), fmt_cstr, value);
+
+   ffi_return_string(buf, args, tlab);
+}
+
 DLLEXPORT
 void _std_standard_now(jit_scalar_t *args)
 {
@@ -66,8 +100,8 @@ void _std_standard_now(jit_scalar_t *args)
 DLLEXPORT
 void _std_to_string_time(jit_scalar_t *args, tlab_t *tlab)
 {
-   int64_t value = args[1].integer;
-   int64_t unit = args[2].integer;
+   int64_t value = args[0].integer;
+   int64_t unit = args[1].integer;
 
    const char *unit_str = "";
    switch (unit) {
@@ -98,8 +132,8 @@ void _std_to_string_time(jit_scalar_t *args, tlab_t *tlab)
 DLLEXPORT
 void _std_to_string_real_digits(jit_scalar_t *args, tlab_t *tlab)
 {
-   double value = args[1].real;
-   int32_t digits = args[2].integer;
+   double value = args[0].real;
+   int32_t digits = args[1].integer;
 
    char buf[32];
    if (digits == 0)
@@ -113,47 +147,19 @@ void _std_to_string_real_digits(jit_scalar_t *args, tlab_t *tlab)
 DLLEXPORT
 void _std_to_string_real_format(jit_scalar_t *args, tlab_t *tlab)
 {
-   double value = args[1].real;
-   const void *fmt_ptr = args[2].pointer;
-   size_t fmt_length = ffi_array_length(args[4].integer);
-
-   char *fmt_cstr LOCAL = null_terminate(fmt_ptr, fmt_length);
-
-   if (fmt_cstr[0] != '%')
-      jit_msg(NULL, DIAG_FATAL, "conversion specification must "
-              "start with '%%'");
-
-   for (const char *p = fmt_cstr + 1; *p; p++) {
-      switch (*p) {
-      case 'e': case 'E': case 'f': case 'F': case 'g': case 'G':
-      case 'a': case 'A':
-         continue;
-      case '0'...'9':
-         continue;
-      case '.': case '-':
-         continue;
-      default:
-         jit_msg(NULL, DIAG_FATAL, "illegal character '%c' in format \"%s\"",
-                 *p, fmt_cstr + 1);
-      }
-   }
-
-   char buf[64];
-   checked_sprintf(buf, sizeof(buf), fmt_cstr, value);
-
-   ffi_return_string(buf, args, tlab);
+   to_string_real_format(args, tlab, 0);
 }
 
 DLLEXPORT
 void _std_to_hstring_bit_vec(jit_scalar_t *args, tlab_t *tlab)
 {
-   bit_vec_to_string(args, tlab, 4);
+   bit_vec_to_string(args, tlab, 4, 0);
 }
 
 DLLEXPORT
 void _std_to_ostring_bit_vec(jit_scalar_t *args, tlab_t *tlab)
 {
-   bit_vec_to_string(args, tlab, 3);
+   bit_vec_to_string(args, tlab, 3, 0);
 }
 
 DLLEXPORT
@@ -166,6 +172,24 @@ void _std_to_string_real(jit_scalar_t *args, tlab_t *tlab)
    args[0].pointer = buf;
    args[1].integer = 1;
    args[2].integer = len;
+}
+
+DLLEXPORT
+void _polyfill_to_string_real_format(jit_scalar_t *args, tlab_t *tlab)
+{
+   to_string_real_format(args, tlab, 1);
+}
+
+DLLEXPORT
+void _polyfill_to_hstring_bit_vec(jit_scalar_t *args, tlab_t *tlab)
+{
+   bit_vec_to_string(args, tlab, 4, 1);
+}
+
+DLLEXPORT
+void _polyfill_to_ostring_bit_vec(jit_scalar_t *args, tlab_t *tlab)
+{
+   bit_vec_to_string(args, tlab, 3, 1);
 }
 
 void _std_standard_init(void)

@@ -162,7 +162,8 @@ static vcode_reg_t lower_attr_prefix(lower_unit_t *lu, tree_t prefix);
 static void lower_subprogram_ports(lower_unit_t *lu, tree_t body,
                                    bool params_as_vars);
 static vcode_type_t lower_func_result_type(type_t result);
-static vcode_reg_t lower_context_for_mangled(lower_unit_t *lu, ident_t unit_name);
+static vcode_reg_t lower_context_for_mangled(lower_unit_t *lu,
+                                             ident_t unit_name);
 static void lower_driver_field_cb(lower_unit_t *lu, tree_t field,
                                   vcode_reg_t ptr, vcode_reg_t unused,
                                   vcode_reg_t locus, void *__ctx);
@@ -1373,9 +1374,8 @@ static vcode_reg_t lower_last_value(lower_unit_t *lu, tree_t ref)
 
       vcode_type_t vrtype = lower_func_result_type(type);
 
-      vcode_reg_t context_reg = lower_context_for_mangled(lu, helper_func);
-      vcode_reg_t args[] = { context_reg, arg_reg };
-      return emit_fcall(helper_func, vrtype, vrtype, args, 2);
+      vcode_reg_t args[] = { arg_reg };
+      return emit_fcall(helper_func, vrtype, vrtype, args, ARRAY_LEN(args));
    }
 }
 
@@ -2398,15 +2398,10 @@ static vcode_reg_t lower_context_for_mangled(lower_unit_t *lu,
    }
 }
 
-static vcode_reg_t lower_null_call_context(void)
-{
-   return emit_null(vtype_context(ident_new("dummy")));
-}
-
 static vcode_reg_t lower_context_for_call(lower_unit_t *lu, tree_t decl)
 {
    if (tree_flags(decl) & TREE_F_PREDEFINED)
-      return lower_null_call_context();
+      return VCODE_INVALID_REG;
 
    return lower_context_for_mangled(lu, tree_ident2(decl));
 }
@@ -2427,8 +2422,11 @@ static vcode_reg_t lower_fcall(lower_unit_t *lu, tree_t fcall,
 
    if (tree_kind(fcall) == T_PROT_FCALL && tree_has_name(fcall))
       APUSH(args, lower_rvalue(lu, tree_name(fcall)));
-   else
-      APUSH(args, lower_context_for_call(lu, decl));
+   else {
+      vcode_reg_t context_reg = lower_context_for_call(lu, decl);
+      if (context_reg != VCODE_INVALID_REG)
+         APUSH(args, context_reg);
+   }
 
    for (int i = 0; i < nparams; i++) {
       vcode_reg_t arg_reg = lower_subprogram_arg(lu, fcall, i);
@@ -3151,8 +3149,8 @@ static vcode_reg_t lower_resolved(lower_unit_t *lu, type_t type,
 
       vcode_type_t vrtype = lower_func_result_type(type);
 
-      vcode_reg_t args[] = { lower_null_call_context(), arg_reg };
-      return emit_fcall(helper_func, vrtype, vrtype, args, 2);
+      vcode_reg_t args[] = { arg_reg };
+      return emit_fcall(helper_func, vrtype, vrtype, args, ARRAY_LEN(args));
    }
 }
 
@@ -4386,11 +4384,7 @@ static void lower_new_record(lower_unit_t *lu, type_t type,
       ident_t base_id = type_ident(type_base_recur(type));
       ident_t helper_func = ident_prefix(base_id, ident_new("new"), '$');
 
-      vcode_reg_t args[] = {
-         lower_null_call_context(),
-         dst_ptr,
-         src_ptr,
-      };
+      vcode_reg_t args[] = { dst_ptr, src_ptr };
       emit_fcall(helper_func, VCODE_INVALID_TYPE, VCODE_INVALID_TYPE,
                  args, ARRAY_LEN(args));
    }
@@ -4731,9 +4725,8 @@ static vcode_reg_t lower_driving_value(lower_unit_t *lu, tree_t name)
 
       vcode_type_t vrtype = lower_func_result_type(base);
 
-      vcode_reg_t context_reg = lower_null_call_context();
-      vcode_reg_t args[] = { context_reg, arg_reg };
-      return emit_fcall(helper_func, vrtype, vrtype, args, 2);
+      vcode_reg_t args[] = { arg_reg };
+      return emit_fcall(helper_func, vrtype, vrtype, args, ARRAY_LEN(args));
    }
 }
 
@@ -4942,9 +4935,8 @@ static vcode_reg_t lower_attr_ref(lower_unit_t *lu, tree_t expr)
                arg_reg = lower_wrap(lu, name_type, name_reg);
 
             vcode_type_t vtime = vtype_time();
-            vcode_reg_t context_reg = lower_null_call_context();
-            vcode_reg_t args[] = { context_reg, arg_reg };
-            return emit_fcall(helper_func, vtime, vtime, args, 2);
+            vcode_reg_t args[] = { arg_reg };
+            return emit_fcall(helper_func, vtime, vtime, args, ARRAY_LEN(args));
          }
       }
 
@@ -4992,11 +4984,8 @@ static vcode_reg_t lower_attr_ref(lower_unit_t *lu, tree_t expr)
 
          vcode_reg_t arg_reg = lower_attr_param(lu, value, base, C_CONSTANT);
 
-         vcode_reg_t args[] = {
-            lower_null_call_context(),
-            arg_reg,
-         };
-         return emit_fcall(func, strtype, strtype, args, 2);
+         vcode_reg_t args[] = { arg_reg };
+         return emit_fcall(func, strtype, strtype, args, ARRAY_LEN(args));
       }
 
    case ATTR_VALUE:
@@ -5015,12 +5004,10 @@ static vcode_reg_t lower_attr_ref(lower_unit_t *lu, tree_t expr)
 
          type_t base = type_base_recur(name_type);
          ident_t func = ident_prefix(type_ident(base), ident_new("value"), '$');
-         vcode_reg_t args[] = {
-            lower_null_call_context(),
-            value_reg
-         };
+         vcode_reg_t args[] = { value_reg };
          vcode_reg_t reg = emit_fcall(func, lower_type(base),
-                                      lower_bounds(base), args, 2);
+                                      lower_bounds(base), args,
+                                      ARRAY_LEN(args));
 
          if (type_is_scalar(name_type))
             lower_check_scalar_bounds(lu, reg, name_type, expr, NULL);
@@ -5812,12 +5799,7 @@ static void lower_copy_record(lower_unit_t *lu, type_t type,
       ident_t base_id = type_ident(type_base_recur(type));
       ident_t helper_func = ident_prefix(base_id, ident_new("copy"), '$');
 
-      vcode_reg_t args[] = {
-         lower_null_call_context(),
-         dst_ptr,
-         src_ptr,
-         locus
-      };
+      vcode_reg_t args[] = { dst_ptr, src_ptr, locus };
       emit_fcall(helper_func, VCODE_INVALID_TYPE, VCODE_INVALID_TYPE,
                  args, ARRAY_LEN(args));
    }
@@ -5846,12 +5828,7 @@ static void lower_copy_array(lower_unit_t *lu, type_t dst_type, type_t src_type,
       assert(vcode_reg_kind(dst_array) == VCODE_TYPE_UARRAY);
       assert(vcode_reg_kind(src_array) == VCODE_TYPE_UARRAY);
 
-      vcode_reg_t args[] = {
-         lower_null_call_context(),
-         dst_array,
-         src_array,
-         locus
-      };
+      vcode_reg_t args[] = { dst_array, src_array, locus };
       emit_fcall(helper_func, VCODE_INVALID_TYPE, VCODE_INVALID_TYPE,
                  args, ARRAY_LEN(args));
    }
@@ -6418,8 +6395,7 @@ static void lower_leave_subprogram(lower_unit_t *lu)
             ident_t func = ident_new(tb_get(tb));
 
             vcode_reg_t ptr_reg = lower_var_ref(lu, d, EXPR_LVALUE);
-            vcode_reg_t context_reg = lower_null_call_context();
-            vcode_reg_t args[] = { context_reg, ptr_reg };
+            vcode_reg_t args[] = { ptr_reg };
             emit_fcall(func, VCODE_INVALID_TYPE, VCODE_INVALID_TYPE,
                        args, ARRAY_LEN(args));
          }
@@ -6498,8 +6474,11 @@ static void lower_pcall(lower_unit_t *lu, tree_t pcall)
 
    if (tree_kind(pcall) == T_PROT_PCALL && tree_has_name(pcall))
       APUSH(args, lower_rvalue(lu, tree_name(pcall)));
-   else
-      APUSH(args, lower_context_for_call(lu, decl));
+   else {
+      vcode_reg_t context_reg = lower_context_for_call(lu, decl);
+      if (context_reg != VCODE_INVALID_REG)
+         APUSH(args, context_reg);
+   }
 
    const int arg0 = args.count;
    for (int i = 0; i < nparams; i++) {
@@ -7124,9 +7103,9 @@ static void lower_case_array(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
                if (vcode_reg_kind(name_reg) != VCODE_TYPE_UARRAY)
                   name_reg = lower_wrap(lu, tree_type(name), name_reg);
 
-               vcode_reg_t context_reg = lower_null_call_context();
-               vcode_reg_t args[] = { context_reg, name_reg, val_reg };
-               vcode_reg_t eq_reg = emit_fcall(cmp_func, vbool, vbool, args, 3);
+               vcode_reg_t args[] = { name_reg, val_reg };
+               vcode_reg_t eq_reg = emit_fcall(cmp_func, vbool, vbool, args,
+                                               ARRAY_LEN(args));
                emit_cond(eq_reg, hit_bb, chain_bb);
             }
 
@@ -7221,7 +7200,6 @@ static void lower_match_case(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
 
    ident_t func = ident_new(is_array ? "IEEE.STD_LOGIC_1164.\"?=\"(YY)U$predef"
                             : "IEEE.STD_LOGIC_1164.\"?=\"(UU)U$predef");
-   vcode_reg_t context_reg = lower_null_call_context();
 
    vcode_type_t vscalar = lower_type(scalar);
    vcode_reg_t true_reg = emit_const(vscalar, 3);  // STD_LOGIC'POS('1')
@@ -7299,11 +7277,7 @@ static void lower_match_case(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
             continue;
          }
 
-         vcode_reg_t args[] = {
-            context_reg,
-            value_reg,
-            test_reg,
-         };
+         vcode_reg_t args[] = { value_reg, test_reg };
          vcode_reg_t result_reg = emit_fcall(func, vscalar, vscalar,
                                              args, ARRAY_LEN(args));
          vcode_reg_t cmp_reg = emit_cmp(VCODE_CMP_EQ, result_reg, true_reg);
@@ -7695,9 +7669,16 @@ static void lower_resolution_wrapper(lower_unit_t *lu, object_t *obj)
    };
    vcode_reg_t wrap_reg = emit_wrap(data_reg, dims, 1);
 
+   vcode_reg_t args[2];
+   int nargs = 0;
+
    vcode_reg_t context_reg = lower_context_for_call(lu, rdecl);
-   vcode_reg_t args[] = { context_reg, wrap_reg };
-   vcode_reg_t call_reg = emit_fcall(rfunc, rtype, vbounds, args, 2);
+   if (context_reg != VCODE_INVALID_REG)
+      args[nargs++] = context_reg;
+
+   args[nargs++] = wrap_reg;
+
+   vcode_reg_t call_reg = emit_fcall(rfunc, rtype, vbounds, args, nargs);
    emit_return(call_reg);
 }
 
@@ -8659,9 +8640,9 @@ static void lower_enum_value_helper(lower_unit_t *lu, type_t type,
    ident_t func = predef_func_name(std_string, "=");
 
    vcode_type_t vbool = vtype_bool();
-   vcode_reg_t context_reg = lower_null_call_context();
-   vcode_reg_t str_cmp_args[] = { context_reg, str_reg, canon_reg };
-   vcode_reg_t eq_reg = emit_fcall(func, vbool, vbool, str_cmp_args, 3);
+   vcode_reg_t str_cmp_args[] = { str_reg, canon_reg };
+   vcode_reg_t eq_reg = emit_fcall(func, vbool, vbool, str_cmp_args,
+                                   ARRAY_LEN(str_cmp_args));
    emit_cond(eq_reg, match_bb, skip_bb);
 
    vcode_select_block(skip_bb);
@@ -8844,10 +8825,10 @@ static void lower_physical_value_helper(lower_unit_t *lu, type_t type,
    type_t std_string = std_type(NULL, STD_STRING);
    ident_t func = predef_func_name(std_string, "=");
 
-   vcode_reg_t std_reg = emit_link_package(well_known(W_STD_STANDARD));
    vcode_type_t vbool = vtype_bool();
-   vcode_reg_t str_cmp_args[] = { std_reg, str_reg, canon_reg };
-   vcode_reg_t eq_reg = emit_fcall(func, vbool, vbool, str_cmp_args, 3);
+   vcode_reg_t str_cmp_args[] = { str_reg, canon_reg };
+   vcode_reg_t eq_reg = emit_fcall(func, vbool, vbool, str_cmp_args,
+                                   ARRAY_LEN(str_cmp_args));
    emit_cond(eq_reg, match_bb, skip_bb);
 
    vcode_select_block(skip_bb);
@@ -8965,15 +8946,12 @@ static void lower_record_value_helper(lower_unit_t *lu, type_t type,
       type_t ftype = type_base_recur(tree_type(type_field(type, i)));
 
       ident_t func = ident_prefix(type_ident(ftype), ident_new("value"), '$');
-      vcode_reg_t args[] = {
-         lower_null_call_context(),
-         nd_reg,
-      };
-
+      vcode_reg_t args[] = { nd_reg };
       vcode_type_t fvtype = lower_func_result_type(ftype);
       vcode_type_t fvbounds = lower_bounds(ftype);
 
-      vcode_reg_t value_reg = emit_fcall(func, fvtype, fvbounds, args, 2);
+      vcode_reg_t value_reg = emit_fcall(func, fvtype, fvbounds, args,
+                                         ARRAY_LEN(args));
 
       vcode_reg_t vlen_reg = emit_uarray_len(nd_reg, 0);
       off_reg = emit_add(off_reg, vlen_reg);
@@ -9153,13 +9131,9 @@ static void lower_array_value_helper(lower_unit_t *lu, type_t type,
    vcode_reg_t nd_reg = emit_fcall(next_delim_fn, strtype, ctype, nd_args, 3);
 
    ident_t func = ident_prefix(type_ident(elem), ident_new("value"), '$');
-   vcode_reg_t args[] = {
-      lower_null_call_context(),
-      nd_reg,
-   };
-
+   vcode_reg_t args[] = { nd_reg };
    vcode_reg_t value_reg = emit_fcall(func, lower_func_result_type(elem),
-                                      vbounds, args, 2);
+                                      vbounds, args, ARRAY_LEN(args));
    vcode_reg_t ptr_reg = emit_array_ref(mem_reg, i_reg);
 
    if (type_is_record(elem))
@@ -9203,9 +9177,6 @@ static void lower_value_helper(lower_unit_t *lu, object_t *obj)
 
    vcode_set_result(lower_func_result_type(type));
 
-   vcode_type_t vcontext = vtype_context(lu->parent->name);
-   emit_param(vcontext, vcontext, ident_new("context"));
-
    vcode_type_t ctype = vtype_char();
    vcode_type_t strtype = vtype_uarray(1, ctype, ctype);
    vcode_reg_t preg = emit_param(strtype, strtype, ident_new("VAL"));
@@ -9245,9 +9216,6 @@ static void lower_resolved_record_fn(lower_unit_t *lu, object_t *obj,
    vcode_type_t vtype = lower_type(type);
    vcode_type_t vbounds = lower_bounds(type);
    vcode_type_t vatype = lower_param_type(type, C_SIGNAL, PORT_IN);
-
-   vcode_type_t vcontext = vtype_context(lu->parent->name);
-   emit_param(vcontext, vcontext, ident_new("context"));
 
    vcode_reg_t p_reg = emit_param(vatype, vbounds, ident_new("p"));
 
@@ -9316,9 +9284,8 @@ static void lower_last_time_field_cb(lower_unit_t *lu, tree_t field,
          arg_reg = lower_wrap(lu, ftype, field_ptr);
 
       vcode_type_t vtime = vtype_time();
-      vcode_reg_t context_reg = lower_null_call_context();
-      vcode_reg_t args[] = { context_reg, arg_reg };
-      last_reg = emit_fcall(helper_func, vtime, vtime, args, 2);
+      vcode_reg_t args[] = { arg_reg };
+      last_reg = emit_fcall(helper_func, vtime, vtime, args, ARRAY_LEN(args));
    }
 
    vcode_reg_t cur_reg = emit_load(params->var);
@@ -9340,9 +9307,6 @@ static void lower_last_time_fn(lower_unit_t *lu, object_t *obj,
    vcode_type_t vbounds = lower_bounds(type);
 
    vcode_set_result(vtime);
-
-   vcode_type_t vcontext = vtype_context(lu->parent->name);
-   emit_param(vcontext, vcontext, ident_new("context"));
 
    vcode_reg_t p_reg = emit_param(vatype, vbounds, ident_new("p"));
 
@@ -9377,8 +9341,6 @@ static void lower_copy_helper(lower_unit_t *lu, object_t *obj)
    vcode_type_t vdtype = lower_param_type(type, C_VARIABLE, PORT_OUT);
    vcode_type_t vstype = lower_param_type(type, C_VARIABLE, PORT_IN);
    vcode_type_t vlocus = vtype_debug_locus();
-   vcode_type_t vcontext = vtype_context(lu->parent->name);
-   emit_param(vcontext, vcontext, ident_new("context"));
 
    vcode_reg_t pdst_reg = emit_param(vdtype, vbounds, ident_new("dest"));
    vcode_reg_t psrc_reg = emit_param(vstype, vbounds, ident_new("src"));
@@ -9471,8 +9433,6 @@ static void lower_new_helper(lower_unit_t *lu, object_t *obj)
    vcode_type_t vbounds = lower_bounds(type);
    vcode_type_t vdtype = lower_param_type(type, C_VARIABLE, PORT_OUT);
    vcode_type_t vstype = lower_param_type(type, C_VARIABLE, PORT_IN);
-   vcode_type_t vcontext = vtype_context(lu->parent->name);
-   emit_param(vcontext, vcontext, ident_new("context"));
 
    vcode_reg_t pdst_reg = emit_param(vdtype, vbounds, ident_new("dest"));
    vcode_reg_t psrc_reg = emit_param(vstype, vbounds, ident_new("src"));
@@ -10048,11 +10008,10 @@ static void lower_predef_field_eq_cb(lower_unit_t *lu, tree_t field,
       ident_t func = predef_func_name(base, "=");
       vcode_type_t vbool = vtype_bool();
 
-      vcode_reg_t context_reg = lower_null_call_context();
       vcode_reg_t r0_array = lower_coerce_arrays(lu, ftype, base, r0);
       vcode_reg_t r1_array = lower_coerce_arrays(lu, ftype, base, r1);
 
-      vcode_reg_t args[] = { context_reg, r0_array, r1_array };
+      vcode_reg_t args[] = { r0_array, r1_array };
       vcode_reg_t cmp_reg = emit_fcall(func, vbool, vbool,
                                        args, ARRAY_LEN(args));
 
@@ -10077,7 +10036,7 @@ static void lower_predef_field_eq_cb(lower_unit_t *lu, tree_t field,
 
 static void lower_predef_record_eq(lower_unit_t *lu, tree_t decl)
 {
-   vcode_reg_t r0 = 1, r1 = 2;
+   vcode_reg_t r0 = 0, r1 = 1;
    type_t type = tree_type(tree_port(decl, 0));
 
    vcode_block_t fail_bb = emit_block();
@@ -10096,7 +10055,7 @@ static void lower_predef_to_string(lower_unit_t *lu, tree_t decl)
    // LRM 08 section 5.7 on string representations
 
    type_t arg_type = tree_type(tree_port(decl, 0));
-   vcode_reg_t context_reg = 0, r0 = 1;
+   vcode_reg_t r0 = 0;
 
    if (type_is_array(arg_type)) {
       type_t elem = type_elem(arg_type);
@@ -10111,8 +10070,8 @@ static void lower_predef_to_string(lower_unit_t *lu, tree_t decl)
    ident_t func = ident_prefix(type_ident(arg_type), ident_new("image"), '$');
    vcode_type_t ctype = vtype_char();
    vcode_type_t rtype = vtype_uarray(1, ctype, ctype);
-   vcode_reg_t args[] = { context_reg, r0 };
-   vcode_reg_t str_reg = emit_fcall(func, rtype, ctype, args, 2);
+   vcode_reg_t args[] = { r0 };
+   vcode_reg_t str_reg = emit_fcall(func, rtype, ctype, args, ARRAY_LEN(args));
 
    if (type_is_enum(arg_type)) {
       // If the result is a character literal return just the character
@@ -10153,7 +10112,7 @@ static void lower_predef_mixed_bit_vec_op(lower_unit_t *lu, tree_t decl,
 {
    // Mixed scalar/array bit vector operations
 
-   vcode_reg_t r0 = 1, r1 = 2;
+   vcode_reg_t r0 = 0, r1 = 1;
 
    type_t r0_type = tree_type(tree_port(decl, 0));
    type_t r1_type = tree_type(tree_port(decl, 1));
@@ -10247,11 +10206,13 @@ static void lower_predef_file_open3(lower_unit_t *lu, tree_t decl)
    vcode_type_t rtype = vcode_unit_result(lu->vunit);
    vcode_var_t status_var = emit_var(rtype, rtype, ident_new("status"), 0);
 
-   vcode_reg_t status_reg = emit_index(status_var, VCODE_INVALID_REG);
-   vcode_reg_t data_reg = emit_unwrap(2);
-   vcode_reg_t length_reg = emit_uarray_len(2, 0);
+   vcode_reg_t p0_reg = 0, p1_reg = 1, p2_reg = 2;
 
-   emit_file_open(1, data_reg, length_reg, 3, status_reg);
+   vcode_reg_t status_reg = emit_index(status_var, VCODE_INVALID_REG);
+   vcode_reg_t data_reg = emit_unwrap(p1_reg);
+   vcode_reg_t length_reg = emit_uarray_len(p1_reg, 0);
+
+   emit_file_open(p0_reg, data_reg, length_reg, p2_reg, status_reg);
    emit_return(emit_load(status_var));
 }
 
@@ -10266,9 +10227,6 @@ static void lower_predef(lower_unit_t *lu, object_t *obj)
    type_t type = tree_type(decl);
    if (type_has_result(type))
       vcode_set_result(lower_func_result_type(type_result(type)));
-
-   vcode_type_t vcontext = vtype_context(lu->parent->name);
-   emit_param(vcontext, vcontext, ident_new("context"));
 
    lower_subprogram_ports(lu, decl, false);
 
@@ -10575,12 +10533,16 @@ static vcode_reg_t lower_trigger(lower_unit_t *lu, tree_t fcall, tree_t proc)
    }
 
    vcode_reg_t *args LOCAL = xmalloc_array(nparams + 1, sizeof(vcode_reg_t));
-   args[0] = lower_context_for_call(lu, decl);
+   int nargs = 0;
+
+   vcode_reg_t context_reg = lower_context_for_call(lu, decl);
+   if (context_reg != VCODE_INVALID_REG)
+      args[nargs++] = context_reg;
 
    for (int i = 0; i < nparams; i++)
-      args[i + 1] = lower_subprogram_arg(lu, fcall, i);
+      args[nargs++] = lower_subprogram_arg(lu, fcall, i);
 
-   return emit_function_trigger(tree_ident2(decl), args, nparams + 1);
+   return emit_function_trigger(tree_ident2(decl), args, nargs);
 }
 
 static vcode_reg_t lower_process_trigger(lower_unit_t *lu, tree_t proc)
@@ -10876,9 +10838,17 @@ static void lower_converter_body(lower_unit_t *lu, tree_t dst, tree_t src,
       vcode_type_t vrtype = lower_func_result_type(conv_type);
       vcode_type_t vrbounds = lower_bounds(conv_type);
 
+      ident_t func = tree_ident2(fdecl);
+      vcode_reg_t args[2];
+      int nargs = 0;
+
       vcode_reg_t context_reg = lower_context_for_call(lu, fdecl);
-      vcode_reg_t args[] = { context_reg, arg_reg };
-      result_reg = emit_fcall(tree_ident2(fdecl), vrtype, vrbounds, args, 2);
+      if (context_reg != VCODE_INVALID_REG)
+         args[nargs++] = context_reg;
+
+      args[nargs++] = arg_reg;
+
+      result_reg = emit_fcall(func, vrtype, vrbounds, args, nargs);
 
       if (type_is_array(dst_type)) {
          vcode_reg_t locus = lower_debug_locus(conv);
@@ -11930,10 +11900,9 @@ static void lower_check_generic_constraint(lower_unit_t *lu, tree_t expect,
       }
 
       ident_t func = predef_func_name(type, "=");
-      vcode_reg_t context_reg = lower_null_call_context();
-      vcode_reg_t args[] = { context_reg, left_reg, right_reg };
+      vcode_reg_t args[] = { left_reg, right_reg };
       vcode_type_t vbool = vtype_bool();
-      test_reg = emit_fcall(func, vbool, vbool, args, 3);
+      test_reg = emit_fcall(func, vbool, vbool, args, ARRAY_LEN(args));
    }
 
    vcode_type_t vseverity = vtype_int(0, SEVERITY_FAILURE - 1);
@@ -12379,10 +12348,9 @@ vcode_unit_t lower_case_generate_thunk(lower_unit_t *parent, tree_t t)
                   if (vcode_reg_kind(name_reg) != VCODE_TYPE_UARRAY)
                      name_reg = lower_wrap(lu, tree_type(name), name_reg);
 
-                  vcode_reg_t context_reg = lower_null_call_context();
-                  vcode_reg_t args[] = { context_reg, name_reg, value_reg };
+                  vcode_reg_t args[] = { name_reg, value_reg };
                   vcode_reg_t eq_reg = emit_fcall(cmp_func, vbool, vbool,
-                                                  args, 3);
+                                                  args, ARRAY_LEN(args));
                   emit_cond(eq_reg, match_bb, skip_bb);
                }
                else {

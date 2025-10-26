@@ -34,10 +34,10 @@ package polyfill is
     function minimum (x, y : integer) return integer;
 
     attribute foreign of to_hstring [bit_vector return string] : function
-        is "INTERNAL _std_to_hstring_bit_vec";
+        is "INTERNAL _pollyfil_to_hstring_bit_vec";
     attribute foreign of to_ostring [bit_vector return string] : function
-        is "INTERNAL _std_to_ostring_bit_vec";
+        is "INTERNAL _polyfill_to_ostring_bit_vec";
     attribute foreign of to_string [real, string return string] : function
-        is "INTERNAL _std_to_string_real_format";
+        is "INTERNAL _polyfill_to_string_real_format";
 
 end package;

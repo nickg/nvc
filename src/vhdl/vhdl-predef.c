@@ -67,8 +67,8 @@ static void predef_bit_shift(mir_unit_t *mu, tree_t decl,
    mir_type_t t_offset = mir_offset_type(mu);
    mir_type_t t_bool = mir_bool_type(mu);
 
-   mir_value_t input = mir_get_param(mu, 1);
-   mir_value_t shift = mir_get_param(mu, 2);
+   mir_value_t input = mir_get_param(mu, 0);
+   mir_value_t shift = mir_get_param(mu, 1);
 
    mir_value_t data = mir_build_unwrap(mu, input);
    mir_value_t len  = mir_build_uarray_len(mu, input, 0);
@@ -250,8 +250,8 @@ static void predef_match_op(mir_unit_t *mu, tree_t decl, subprogram_kind_t kind)
    else
       is_bit = type_ident(type) == well_known(W_STD_BIT);
 
-   mir_value_t left = mir_get_param(mu, 1);
-   mir_value_t right = mir_get_param(mu, 2);
+   mir_value_t left = mir_get_param(mu, 0);
+   mir_value_t right = mir_get_param(mu, 1);
 
    mir_value_t result = MIR_NULL_VALUE;
    if (is_array) {
@@ -320,10 +320,9 @@ static void predef_match_op(mir_unit_t *mu, tree_t decl, subprogram_kind_t kind)
          tmp = mir_build_cmp(mu, cmp, left_src, right_src);
       else {
          ident_t func = ident_new( "IEEE.STD_LOGIC_1164.\"?=\"(UU)U$predef");
-         mir_value_t context =
-            mir_build_link_package(mu, well_known(W_IEEE_1164));
-         mir_value_t args[] = { context, left_src, right_src };
-         tmp = mir_build_fcall(mu, func, ti->type, ti->stamp, args, 3);
+         mir_value_t args[] = { left_src, right_src };
+         tmp = mir_build_fcall(mu, func, ti->type, ti->stamp, args,
+                               ARRAY_LEN(args));
       }
       mir_build_store(mu, mir_build_array_ref(mu, mem, i_val), tmp);
 
@@ -344,19 +343,21 @@ static void predef_match_op(mir_unit_t *mu, tree_t decl, subprogram_kind_t kind)
       };
       mir_value_t wrap = mir_build_wrap(mu, mem, dims, 1);
 
-      ident_t func, context_name;
       if (is_bit) {
-         func = ident_new("STD.STANDARD.\"and\"(Q)J$predef");
-         context_name = well_known(W_STD_STANDARD);
+         ident_t func = ident_new("STD.STANDARD.\"and\"(Q)J$predef");
+         mir_value_t args[] = { wrap };
+         result = mir_build_fcall(mu, func, ti->type, ti->stamp, args,
+                                  ARRAY_LEN(args));
       }
       else {
-         func = ident_new("IEEE.STD_LOGIC_1164.\"and\"(Y)U");
-         context_name = well_known(W_IEEE_1164);
-      }
+         ident_t func = ident_new("IEEE.STD_LOGIC_1164.\"and\"(Y)U");
+         ident_t context_name = well_known(W_IEEE_1164);
 
-      mir_value_t context = mir_build_link_package(mu, context_name);
-      mir_value_t args[] = { context, wrap };
-      result = mir_build_fcall(mu, func, ti->type, ti->stamp, args, 2);
+         mir_value_t context = mir_build_link_package(mu, context_name);
+         mir_value_t args[] = { context, wrap };
+         result = mir_build_fcall(mu, func, ti->type, ti->stamp, args,
+                                  ARRAY_LEN(args));
+      }
    }
    else if (is_bit)
       result = mir_build_cmp(mu, cmp, left, right);
@@ -364,21 +365,22 @@ static void predef_match_op(mir_unit_t *mu, tree_t decl, subprogram_kind_t kind)
       ident_t less_func = ident_new("IEEE.STD_LOGIC_1164.\"?<\"(UU)U$predef");
       ident_t eq_func = ident_new("IEEE.STD_LOGIC_1164.\"?=\"(UU)U$predef");
 
-      mir_value_t context = mir_build_link_package(mu, well_known(W_IEEE_1164));
-      mir_value_t args1[] = { context, left, right };
+      mir_value_t args1[] = { left, right };
 
       const type_info_t *ti = type_info(mu, type);
 
-      mir_value_t eq =
-         mir_build_fcall(mu, eq_func, ti->type, ti->stamp, args1, 3);
+      mir_value_t eq = mir_build_fcall(mu, eq_func, ti->type, ti->stamp,
+                                       args1, ARRAY_LEN(args1));
       mir_value_t less =
-         mir_build_fcall(mu, less_func, ti->type, ti->stamp, args1, 3);
+         mir_build_fcall(mu, less_func, ti->type, ti->stamp, args1, ARRAY_LEN(args1));
 
       ident_t or_func =
          ident_new("IEEE.STD_LOGIC_1164.\"or\"(UU)24IEEE.STD_LOGIC_1164.UX01");
 
+      mir_value_t context = mir_build_link_package(mu, well_known(W_IEEE_1164));
       mir_value_t args2[] = { context, eq, less };
-      result = mir_build_fcall(mu, or_func, ti->type, ti->stamp, args2, 3);
+      result = mir_build_fcall(mu, or_func, ti->type, ti->stamp, args2,
+                               ARRAY_LEN(args2));
    }
    else {
       static const std_ulogic_t match_eq_table[9][9] = {
@@ -479,9 +481,9 @@ static void predef_bit_vec_op(mir_unit_t *mu, tree_t decl,
 
    mir_type_t t_offset = mir_offset_type(mu);
 
-   mir_value_t left = mir_get_param(mu, 1), right = MIR_NULL_VALUE;
+   mir_value_t left = mir_get_param(mu, 0), right = MIR_NULL_VALUE;
    if (kind != S_ARRAY_NOT)
-      right = mir_get_param(mu, 2);
+      right = mir_get_param(mu, 1);
 
    mir_value_t left_len = mir_build_uarray_len(mu, left, 0);
    mir_value_t right_len = MIR_NULL_VALUE;
@@ -585,7 +587,7 @@ static void predef_edge_op(mir_unit_t *mu, tree_t decl)
 {
    mir_type_t t_offset = mir_offset_type(mu);
 
-   mir_value_t nets = mir_get_param(mu, 1);
+   mir_value_t nets = mir_get_param(mu, 0);
    mir_value_t count = mir_const(mu, t_offset, 1);
    mir_value_t value = mir_build_load(mu, mir_build_resolved(mu, nets));
 
@@ -598,8 +600,8 @@ static void predef_edge_op(mir_unit_t *mu, tree_t decl)
 
 static void predef_array_cmp(mir_unit_t *mu, tree_t decl, mir_cmp_t pred)
 {
-   mir_value_t lhs_array = mir_get_param(mu, 1);
-   mir_value_t rhs_array = mir_get_param(mu, 2);
+   mir_value_t lhs_array = mir_get_param(mu, 0);
+   mir_value_t rhs_array = mir_get_param(mu, 1);
    mir_value_t lhs_data = mir_build_unwrap(mu, lhs_array);
    mir_value_t rhs_data = mir_build_unwrap(mu, rhs_array);
 
@@ -698,8 +700,8 @@ static void predef_array_eq(mir_unit_t *mu, tree_t decl)
    type_t type = tree_type(tree_port(decl, 0));
    assert(tree_type(tree_port(decl, 1)) == type);
 
-   mir_value_t lhs_array = mir_get_param(mu, 1);
-   mir_value_t rhs_array = mir_get_param(mu, 2);
+   mir_value_t lhs_array = mir_get_param(mu, 0);
+   mir_value_t rhs_array = mir_get_param(mu, 1);
    mir_value_t lhs_data = mir_build_unwrap(mu, lhs_array);
    mir_value_t rhs_data = mir_build_unwrap(mu, rhs_array);
 
@@ -774,10 +776,7 @@ static void predef_array_eq(mir_unit_t *mu, tree_t decl)
    if (elem->kind == T_RECORD) {   // XXX: should recurse
       ident_t func = predef_func_name(elem->source, "=");
 
-      mir_type_t t_dummy = mir_context_type(mu, ident_new("dummy"));  // XXX
-      mir_value_t context = mir_build_null(mu, t_dummy);
-
-      mir_value_t args[] = { context, l_ptr, r_ptr };
+      mir_value_t args[] = { l_ptr, r_ptr };
       mir_value_t eq = mir_build_fcall(mu, func, t_bool, MIR_NULL_STAMP,
                                        args, ARRAY_LEN(args));
 
@@ -811,7 +810,7 @@ static void predef_min_max(mir_unit_t *mu, tree_t decl, mir_cmp_t cmp)
       const type_info_t *elem = type_info(mu, type_elem(type));
       assert(type_is_scalar(elem->source));
 
-      mir_value_t array = mir_get_param(mu, 1);
+      mir_value_t array = mir_get_param(mu, 0);
 
       mir_type_t t_offset = mir_offset_type(mu);
       mir_value_t i_var = mir_add_var(mu, t_offset, MIR_NULL_STAMP,
@@ -867,9 +866,8 @@ static void predef_min_max(mir_unit_t *mu, tree_t decl, mir_cmp_t cmp)
       mir_build_return(mu, mir_build_load(mu, result_var));
    }
    else {
-      mir_value_t context = mir_get_param(mu, 0);
-      mir_value_t lhs = mir_get_param(mu, 1);
-      mir_value_t rhs = mir_get_param(mu, 2);
+      mir_value_t lhs = mir_get_param(mu, 0);
+      mir_value_t rhs = mir_get_param(mu, 1);
 
       mir_value_t test;
       if (type_is_scalar(type))
@@ -877,9 +875,10 @@ static void predef_min_max(mir_unit_t *mu, tree_t decl, mir_cmp_t cmp)
       else {
          const char *op = cmp == MIR_CMP_GT ? ">" : "<";
          ident_t func = predef_func_name(type, op);
-         mir_value_t args[] = { context, lhs, rhs };
+         mir_value_t args[] = { lhs, rhs };
          mir_type_t t_bool = mir_bool_type(mu);
-         test = mir_build_fcall(mu, func, t_bool, MIR_NULL_STAMP, args, 3);
+         test = mir_build_fcall(mu, func, t_bool, MIR_NULL_STAMP, args,
+                                ARRAY_LEN(args));
       }
 
       mir_type_t t_result = mir_get_type(mu, lhs);
@@ -889,7 +888,7 @@ static void predef_min_max(mir_unit_t *mu, tree_t decl, mir_cmp_t cmp)
 
 static void predef_negate(mir_unit_t *mu, tree_t decl, const char *op)
 {
-   mir_value_t args[3];
+   mir_value_t args[2];
    for (int i = 0; i < ARRAY_LEN(args); i++)
       args[i] = mir_get_param(mu, i);
 
@@ -898,14 +897,15 @@ static void predef_negate(mir_unit_t *mu, tree_t decl, const char *op)
 
    mir_type_t t_bool = mir_bool_type(mu);
 
-   mir_value_t eq = mir_build_fcall(mu, func, t_bool, MIR_NULL_STAMP, args, 3);
+   mir_value_t eq = mir_build_fcall(mu, func, t_bool, MIR_NULL_STAMP,
+                                    args, ARRAY_LEN(args));
    mir_build_return(mu, mir_build_not(mu, eq));
 }
 
 static void predef_reduction_op(mir_unit_t *mu, tree_t decl,
                                 subprogram_kind_t kind)
 {
-   mir_value_t param = mir_get_param(mu, 1);
+   mir_value_t param = mir_get_param(mu, 0);
 
    mir_type_t t_bool = mir_bool_type(mu);
    mir_type_t t_offset = mir_offset_type(mu);
@@ -977,10 +977,6 @@ static void predef_reduction_op(mir_unit_t *mu, tree_t decl,
 void vhdl_lower_predef(mir_unit_t *mu, object_t *obj)
 {
    tree_t decl = tree_from_object(obj);
-
-   // XXX: should not have null parent
-   mir_type_t t_parent = mir_context_type(mu, ident_new("dummy"));
-   mir_add_param(mu, t_parent, MIR_NULL_STAMP, ident_new("context"));
 
    const int nports = tree_ports(decl);
    for (int i = 0; i < nports; i++) {
@@ -1140,7 +1136,7 @@ static void physical_image_helper(mir_unit_t *mu, type_t type, mir_value_t arg)
    mir_value_t text_util = mir_build_link_package(mu, well_known(W_TEXT_UTIL));
    mir_value_t conv_args[] = { text_util, cast };
    mir_value_t num_str = mir_build_fcall(mu, conv_fn, t_string, MIR_NULL_STAMP,
-                                         conv_args, 2);
+                                         conv_args, ARRAY_LEN(conv_args));
 
    mir_value_t num_len = mir_build_uarray_len(mu, num_str, 0);
 
@@ -1183,9 +1179,6 @@ static void record_image_helper(mir_unit_t *mu, type_t type, mir_value_t arg)
 
    mir_value_t sum = mir_const(mu, t_offset, nfields + 1);
 
-   mir_type_t t_dummy = mir_context_type(mu, ident_new("dummy"));
-   mir_value_t context = mir_build_null(mu, t_dummy);
-
    for (int i = 0; i < nfields; i++) {
       type_t ftype = type_base_recur(tree_type(type_field(type, i)));
       ident_t func = ident_prefix(type_ident(ftype), ident_new("image"), '$');
@@ -1195,8 +1188,9 @@ static void record_image_helper(mir_unit_t *mu, type_t type, mir_value_t arg)
       if (type_is_scalar(ftype) || mir_points_to(mu, field, MIR_TYPE_UARRAY))
          field = mir_build_load(mu, field);
 
-      mir_value_t args[] = { context, field };
-      regs[i] = mir_build_fcall(mu, func, t_string, MIR_NULL_STAMP, args, 2);
+      mir_value_t args[] = { field };
+      regs[i] = mir_build_fcall(mu, func, t_string, MIR_NULL_STAMP, args,
+                                ARRAY_LEN(args));
       lengths[i] = mir_build_uarray_len(mu, regs[i], 0);
 
       sum = mir_build_add(mu, t_offset, sum, lengths[i]);
@@ -1269,9 +1263,6 @@ static void array_image_helper(mir_unit_t *mu, type_t type, mir_value_t arg)
    type_t elem = type_base_recur(type_elem(type));
    ident_t func = ident_prefix(type_ident(elem), ident_new("image"), '$');
 
-   mir_type_t t_dummy = mir_context_type(mu, ident_new("dummy"));
-   mir_value_t context = mir_build_null(mu, t_dummy);
-
    mir_value_t null = mir_build_cmp(mu, MIR_CMP_EQ, length, zero);
    mir_build_cond(mu, null, alloc_bb, loop1_bb);
 
@@ -1285,9 +1276,9 @@ static void array_image_helper(mir_unit_t *mu, type_t type, mir_value_t arg)
       if (type_is_scalar(elem))
          elem_arg = mir_build_load(mu, elem_arg);
 
-      mir_value_t args[] = { context, elem_arg };
-      mir_value_t str =
-         mir_build_fcall(mu, func, t_string, MIR_NULL_STAMP, args, 2);
+      mir_value_t args[] = { elem_arg };
+      mir_value_t str = mir_build_fcall(mu, func, t_string, MIR_NULL_STAMP,
+                                        args, ARRAY_LEN(args));
 
       mir_value_t edata_ptr = mir_build_unwrap(mu, str);
       mir_value_t elen = mir_build_uarray_len(mu, str, 0);
@@ -1461,9 +1452,6 @@ void vhdl_lower_image_helper(mir_unit_t *mu, object_t *obj)
    assert(type_is_representable(type));
 
    mir_set_result(mu, mir_string_type(mu));
-
-   mir_type_t t_parent = mir_context_type(mu, mir_get_parent(mu));
-   mir_add_param(mu, t_parent, MIR_NULL_STAMP, ident_new("context"));
 
    const type_info_t *ti = type_info(mu, type);
    mir_type_t t_param = ti->kind == T_RECORD
