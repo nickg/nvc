@@ -2758,6 +2758,37 @@ bool same_tree(tree_t a, tree_t b)
    }
 }
 
+static range_kind_t get_range_direction(tree_t r)
+{
+   assert(tree_kind(r) == T_RANGE);
+
+   const range_kind_t dir = tree_subkind(r);
+   if (dir != RANGE_EXPR)
+      return dir;
+
+   // Handle ranges like X'RANGE where X has known direction
+
+   tree_t aref = tree_value(r);
+   assert(tree_kind(aref) == T_ATTR_REF);
+
+   const attr_kind_t kind = tree_subkind(aref);
+   assert(kind == ATTR_RANGE || kind == ATTR_REVERSE_RANGE);
+
+   type_t prefix_type = tree_type(tree_name(aref));
+   if (type_is_unconstrained(prefix_type))
+      return RANGE_EXPR;
+
+   tree_t prefix_r = range_of(prefix_type, 0);
+
+   const range_kind_t prefix_dir = get_range_direction(prefix_r);
+   if (prefix_dir != RANGE_TO && prefix_dir != RANGE_DOWNTO)
+      return prefix_dir;
+   else if (kind == ATTR_REVERSE_RANGE)
+      return prefix_dir == RANGE_TO ? RANGE_DOWNTO : RANGE_TO;
+   else
+      return prefix_dir;
+}
+
 bool calculate_aggregate_bounds(tree_t expr, range_kind_t *kind,
                                 int64_t *left, int64_t *right)
 {
@@ -2782,7 +2813,7 @@ bool calculate_aggregate_bounds(tree_t expr, range_kind_t *kind,
       dir = tree_subkind(index_r);
    else {
       base_r = range_of(type, 0);
-      dir = tree_subkind(base_r);
+      dir = get_range_direction(base_r);
    }
 
    const int nassocs = tree_assocs(expr);

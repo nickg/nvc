@@ -1225,3 +1225,4 @@ real8           verilog
 issue1327       verilog
 wide3           verilog
 binary4         verilog
+issue1332       normal
