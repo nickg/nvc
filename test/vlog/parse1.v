@@ -157,4 +157,5 @@ module parse1;
   generate begin : genblk
   end
   endgenerate
+  buf (weak0, weak1) g3(x, y);
 endmodule // parse1

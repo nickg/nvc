@@ -4765,7 +4765,8 @@ static vlog_node_t p_pull_gate_instance(vlog_gate_kind_t kind, vlog_node_t st)
    return v;
 }
 
-static vlog_node_t p_n_terminal_gate_instance(vlog_gate_kind_t kind)
+static vlog_node_t p_n_terminal_gate_instance(vlog_gate_kind_t kind,
+                                              vlog_node_t st)
 {
    // [ name_of_instance ] ( output_terminal , input_terminal
    //     { , input_terminal } )
@@ -4912,11 +4913,24 @@ static void p_gate_instantiation(vlog_node_t mod)
    case tXNOR:
    case tNOT:
    case tBUF:
-      if (peek() == tHASH)
-         p_delay2();
-      do {
-         vlog_add_stmt(mod, p_n_terminal_gate_instance(get_gate_kind(token)));
-      } while (optional(tCOMMA));
+      {
+         vlog_node_t st;
+         if (peek() == tLPAREN && peek_nth(2) != tID)
+            st = p_drive_strength();
+         else {
+            st = vlog_new(V_STRENGTH);
+            vlog_set_subkind(st, ST_STRONG);
+         }
+
+         const vlog_gate_kind_t kind = get_gate_kind(token);
+
+         if (peek() == tHASH)
+            p_delay2();
+
+         do {
+            vlog_add_stmt(mod, p_n_terminal_gate_instance(kind, st));
+         } while (optional(tCOMMA));
+      }
       break;
 
    case tBUFIF0:
