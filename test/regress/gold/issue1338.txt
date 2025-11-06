@@ -1,0 +1,4 @@
+0ms+0: Self-multiply value: XX
+0ms+1: Self-multiply value: 00
+20ns+2: Self-multiply value: 01
+30ns+2: Self-multiply value: 04
