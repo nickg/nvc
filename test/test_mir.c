@@ -347,6 +347,10 @@ START_TEST(test_arith1)
    mir_value_t mul2 = mir_build_mul(mu, t_int32, one, p1);
    ck_assert(mir_equals(mul2, p1));
 
+   mir_value_t mul3 = mir_build_trap_mul(mu, t_int32, p1, p1, locus1);
+   ck_assert_int_eq(mul3.tag, MIR_TAG_NODE);
+   ck_assert(!mir_get_const(mu, mul3, &cval));
+
    mir_unit_free(mu);
    mir_context_free(mc);
 }

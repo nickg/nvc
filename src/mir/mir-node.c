@@ -1295,7 +1295,7 @@ mir_value_t mir_build_trap_mul(mir_unit_t *mu, mir_type_t type,
                                mir_value_t left, mir_value_t right,
                                mir_value_t locus)
 {
-   return mir_build_sub_op(mu, MIR_OP_TRAP_MUL, type, left, right, locus);
+   return mir_build_mul_op(mu, MIR_OP_TRAP_MUL, type, left, right, locus);
 }
 
 mir_value_t mir_build_div(mir_unit_t *mu, mir_type_t type, mir_value_t left,
