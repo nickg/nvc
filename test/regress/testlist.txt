@@ -1227,4 +1227,3 @@ wide3           verilog
 binary4         verilog
 issue1332       normal
 issue1334       normal,2008
-issue1338       normal,2008,gold
