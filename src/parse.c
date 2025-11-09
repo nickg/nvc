@@ -4598,21 +4598,31 @@ static tree_t p_qualified_expression(tree_t prefix)
 
    EXTEND("qualified expression");
 
-   type_t type;
+   type_t type = NULL;
    if (prefix == NULL)
       type = p_type_mark();
    else {
-      tree_t decl = NULL;
-      if (tree_kind(prefix) == T_REF && tree_has_ref(prefix))
-         decl = aliased_type_decl(tree_ref(prefix));
-
-      if (decl != NULL)
-         type = tree_type(decl);
-      else {
-         parse_error(tree_loc(prefix), "expecting type mark while parsing "
-                     "qualified expression");
-         type = type_new(T_NONE);
+      switch (tree_kind(prefix)) {
+      case T_ATTR_REF:
+         if (is_type_attribute(tree_subkind(prefix)))
+            type = tree_type(prefix);
+         break;
+      case T_REF:
+         if (tree_has_ref(prefix)) {
+            tree_t decl = aliased_type_decl(tree_ref(prefix));
+            if (decl != NULL)
+               type = tree_type(decl);
+         }
+         break;
+      default:
+         break;
       }
+   }
+
+   if (type == NULL) {
+      parse_error(tree_loc(prefix), "expecting type mark while parsing "
+                  "qualified expression");
+      type = type_new(T_NONE);
    }
 
    tree_t qual = tree_new(T_QUALIFIED);
