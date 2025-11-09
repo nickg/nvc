@@ -2124,7 +2124,7 @@ static void usage(void)
       struct {
          const char *args;
          const char *usage;
-      } options[16];
+      } options[17];
    } groups[] = {
       { "Commands",
         {
@@ -2175,6 +2175,7 @@ static void usage(void)
            { "--vhpi-debug", "Report VHPI errors as diagnostic messages" },
            { "--vhpi-trace", "Trace VHPI calls and events" },
            { "--work=NAME", "Use NAME as the work library" },
+           { "-Werror", "Turn all warnings into errors." },
         }
       },
       { "Analysis options",
@@ -2509,7 +2510,7 @@ int main(int argc, char **argv)
       { "std",           required_argument, 0, 's' },
       { "messages",      required_argument, 0, 'I' },
       { "map",           required_argument, 0, 'p' },
-      { "ieee-warnings", required_argument, 0, 'W' },
+      { "ieee-warnings", required_argument, 0, 'R' },
       { "ignore-time",   no_argument,       0, 'i' },
       { "force-init",    no_argument,       0, 'f' }, // DEPRECATED 1.7
       { "stderr",        required_argument, 0, 'E' },
@@ -2517,6 +2518,7 @@ int main(int argc, char **argv)
       { "vhpi-debug",    no_argument,       0, 'D' },
       { "vhpi-trace",    no_argument,       0, 'T' },
       { "seed",          required_argument, 0, 'S' },
+      { "warn",          required_argument, 0, 'W' },
       { 0, 0, 0, 0 }
    };
 
@@ -2527,7 +2529,7 @@ int main(int argc, char **argv)
 
    const int next_cmd = scan_cmd(1, argc, argv);
    int c, index = 0;
-   const char *spec = ":hivL:M:P:G:H:";
+   const char *spec = ":hivL:M:P:G:H:W:";
    while ((c = getopt_long(next_cmd, argv, spec, long_options, &index)) != -1) {
       switch (c) {
       case 0:
@@ -2585,11 +2587,18 @@ int main(int argc, char **argv)
       case 'D':
          opt_set_int(OPT_PLI_DEBUG, 1);
          break;
-      case 'W':
+      case 'R':
          opt_set_int(OPT_IEEE_WARNINGS, parse_ieee_warnings(optarg));
          break;
       case 'S':
          opt_set_int(OPT_RANDOM_SEED, parse_int(optarg));
+         break;
+      case 'W':
+         if (!strcmp(optarg, "error"))
+            opt_set_int(OPT_WARN_IS_ERROR, 1);
+         else
+            errorf("invalid argument $bold$--W%s$$. Did you mean $bold$--Werror$$ ?",
+                   optarg);
          break;
       case '?':
          bad_option("global", argv);
