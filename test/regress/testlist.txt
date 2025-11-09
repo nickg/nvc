@@ -1242,3 +1242,4 @@ issue1366       normal,2019
 issue1336       verilog
 vlog29          mixed,2008
 ieee19          normal,2008
+cmdline19       shell

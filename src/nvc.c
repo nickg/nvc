@@ -147,6 +147,20 @@ static void parse_pp_define(char *optarg)
    }
 }
 
+static bool parse_warn_option(char *optarg)
+{
+   if (strcmp(optarg, "error") == 0)
+      return true;
+   else {
+      diag_t *d = diag_new(DIAG_FATAL, NULL);
+      diag_printf(d, "invalid warning option '%s'", optarg);
+      diag_hint(d, NULL, "valid options are: error");
+      diag_emit(d);
+
+      fatal_exit(EXIT_FAILURE);
+   }
+}
+
 static void do_file_list(const char *file, jit_t *jit, unit_registry_t *ur,
                          mir_context_t *mc)
 {
@@ -200,6 +214,19 @@ static void do_file_list(const char *file, jit_t *jit, unit_registry_t *ur,
    fclose(f);
 }
 
+static void werror_diag_cb(diag_t *d, void *ctx)
+{
+   diag_level_t level = diag_level(d, NULL);
+   if (level != DIAG_WARN)
+      return;
+
+   diag_hint(d, NULL, "this warning is treated as an error due to "
+             "$bold$-Werror$$");
+
+   level = DIAG_ERROR;
+   diag_level(d, &level);
+}
+
 static int analyse(int argc, char **argv, cmd_state_t *state)
 {
    static struct option long_options[] = {
@@ -217,14 +244,15 @@ static int analyse(int argc, char **argv, cmd_state_t *state)
       { "preserve-case",   no_argument,       0, 'p' },
       { "keywords",        required_argument, 0, 'k' },
       { "relative",        required_argument, 0, 'r' },
+      { "warn",            required_argument, 0, 'W' },
       { 0, 0, 0, 0 }
    };
 
    const int next_cmd = scan_cmd(2, argc, argv);
    int c, index = 0, error_limit = 20;
    const char *file_list = NULL;
-   const char *spec = ":D:f:I:";
-   bool no_save = false;
+   const char *spec = ":D:f:I:W:";
+   bool no_save = false, werror = false;
 
    while ((c = getopt_long(next_cmd, argv, spec, long_options, &index)) != -1) {
       switch (c) {
@@ -288,12 +316,18 @@ static int analyse(int argc, char **argv, cmd_state_t *state)
       case 'r':
          opt_set_str(OPT_RELATIVE_PATH, optarg);
          break;
+      case 'W':
+         werror = parse_warn_option(optarg);
+         break;
       default:
          should_not_reach_here();
       }
    }
 
    set_error_limit(error_limit);
+
+   if (werror)
+      diag_add_hint_fn(werror_diag_cb, NULL);
 
    if (state->mir == NULL)
       state->mir = mir_context_new();
@@ -314,6 +348,9 @@ static int analyse(int argc, char **argv, cmd_state_t *state)
       else
          analyse_file(argv[i], jit, state->registry, state->mir);
    }
+
+   if (werror)
+      diag_remove_hint_fn(werror_diag_cb);
 
    jit_free(jit);
    set_error_limit(0);
@@ -2216,6 +2253,7 @@ static void usage(void)
            { "--relaxed", "Disable certain pedantic rule checks" },
            { "--single-unit",
              "Treat all Verilog files as a single compilation unit" },
+           { "-Werror", "Treat all analysis warnings as errors" },
         }
       },
       { "Elaboration options",

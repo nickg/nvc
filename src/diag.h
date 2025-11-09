@@ -105,6 +105,7 @@ void diag_emit(diag_t *d);
 void diag_femit(diag_t *d, FILE *f);
 void diag_suppress(diag_t *d, bool suppress);
 void diag_clear(diag_t *d);
+diag_level_t diag_level(diag_t *d, const diag_level_t *new);
 unsigned diag_count(diag_level_t level);
 
 unsigned error_count(void);
