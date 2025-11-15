@@ -2228,7 +2228,7 @@ static void usage(void)
            { "--shuffle", "Run processes in random order" },
            { "--stats", "Print time and memory usage at end of run" },
            { "--stop-delta=N", "Stop after N delta cycles (default 10000)" },
-           { "--stop-after=T", "Stop after simulation time T (e.g. 5ns)" },
+           { "--stop-time=T", "Stop after simulation time T (e.g. 5ns)" },
            { "--trace", "Trace simulation events" },
            { "-w, --wave[=FILE]", "Write waveform dump to FILE" },
         }
