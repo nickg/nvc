@@ -479,11 +479,15 @@ diag_t *diag_new(diag_level_t level, const loc_t *loc)
 {
    diag_t *d = xcalloc(sizeof(diag_t));
    d->msg      = tb_new();
-   d->level    = level;
    d->color    = color_terminal() && consumer_fn == NULL;
    d->source   = loc != NULL && !loc_invalid_p(loc);
    d->suppress = false;
    d->prefix   = true;
+
+   if (level == DIAG_WARN && opt_get_int(OPT_WARN_IS_ERROR))
+      d->level = DIAG_ERROR;
+   else
+      d->level = level;
 
    if (!loc_invalid_p(loc)) {
       diag_hint_t hint = {
