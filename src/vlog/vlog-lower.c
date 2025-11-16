@@ -45,13 +45,12 @@ typedef struct {
 } type_info_t;
 
 typedef struct {
-   mir_value_t  nets;
-   mir_value_t  offset;
-   mir_value_t  in_range;
-   unsigned     size;
-} vlog_lvalue_t;
-
-STATIC_ASSERT(sizeof(vlog_lvalue_t) <= 16);
+   mir_value_t obj;
+   mir_value_t offset;
+   mir_value_t in_range;
+   mir_type_t  type;
+   unsigned    size;
+} vlog_select_t;
 
 typedef struct {
    mir_unit_t *mu;
@@ -219,45 +218,73 @@ static mir_value_t vlog_lower_part_select_off(vlog_gen_t *g, vlog_node_t r,
    return mir_build_sub(g->mu, t_offset, base, adj);
 }
 
-static vlog_lvalue_t vlog_lower_lvalue_ref(vlog_gen_t *g, vlog_node_t v)
-{
-   vlog_node_t decl = vlog_ref(v);
-   if (vlog_kind(decl) == V_PORT_DECL)
-      decl = vlog_ref(decl);
-
-   int hops;
-   mir_value_t var = mir_search_object(g->mu, decl, &hops);
-   assert(!mir_is_null(var));
-
-   mir_value_t ptr = var;
-   if (hops > 0)
-      ptr = mir_build_var_upref(g->mu, hops, var.id);
-
-   mir_value_t nets = ptr;
-   if (mir_points_to(g->mu, ptr, MIR_TYPE_SIGNAL))
-      nets = mir_build_load(g->mu, ptr);
-
-   const type_info_t *ti = vlog_type_info(g, vlog_type(decl));
-
-   mir_type_t t_bool = mir_bool_type(g->mu);
-   mir_type_t t_offset = mir_offset_type(g->mu);
-
-   vlog_lvalue_t result = {
-      .nets     = nets,
-      .size     = ti->size,
-      .offset   = mir_const(g->mu, t_offset, 0),
-      .in_range = mir_const(g->mu, t_bool, 1),
-   };
-   return result;
-}
-
-static vlog_lvalue_t vlog_lower_lvalue(vlog_gen_t *g, vlog_node_t v)
+static vlog_select_t vlog_lower_select(vlog_gen_t *g, vlog_node_t v)
 {
    PUSH_DEBUG_INFO(g->mu, v);
 
    switch (vlog_kind(v)) {
    case V_REF:
-      return vlog_lower_lvalue_ref(g, v);
+      {
+         mir_type_t t_bool = mir_bool_type(g->mu);
+         mir_type_t t_offset = mir_offset_type(g->mu);
+
+         vlog_node_t decl = vlog_ref(v);
+         switch (vlog_kind(decl)) {
+         case V_PORT_DECL:
+            decl = vlog_ref(decl);
+            break;
+         case V_LOCALPARAM:
+         case V_ENUM_NAME:
+            {
+               const type_info_t *ti = vlog_type_info(g, vlog_type(decl));
+
+               mir_value_t value = vlog_lower_rvalue(g, vlog_value(decl));
+               mir_value_t cast = value;
+
+               // XXX: hack around localparam incorrect type
+               mir_type_t type = ti->type;
+               if (vlog_kind(decl) != V_LOCALPARAM)
+                  cast = mir_build_cast(g->mu, ti->type, value);
+               else
+                  type = mir_get_type(g->mu, value);
+
+               vlog_select_t result = {
+                  .obj      = cast,
+                  .type     = type,
+                  .offset   = mir_const(g->mu, t_offset, 0),
+                  .in_range = mir_const(g->mu, t_bool, 1),
+                  .size     = ti->size,
+               };
+               return result;
+            }
+         default:
+            break;
+         }
+
+         int hops;
+         mir_value_t var = mir_search_object(g->mu, decl, &hops);
+         assert(!mir_is_null(var));
+
+         mir_value_t ptr = var;
+         if (hops > 0)
+            ptr = mir_build_var_upref(g->mu, hops, var.id);
+
+         mir_value_t nets = ptr;
+         if (mir_points_to(g->mu, ptr, MIR_TYPE_SIGNAL))
+            nets = mir_build_load(g->mu, ptr);
+
+         const type_info_t *ti = vlog_type_info(g, vlog_type(decl));
+
+         vlog_select_t result = {
+            .obj      = nets,
+            .type     = ti->type,
+            .offset   = mir_const(g->mu, t_offset, 0),
+            .in_range = mir_const(g->mu, t_bool, 1),
+            .size     = ti->size,
+         };
+         return result;
+      }
+
    case V_HIER_REF:
       {
          mir_type_t t_net_value = mir_int_type(g->mu, 0, 255);
@@ -276,11 +303,12 @@ static vlog_lvalue_t vlog_lower_lvalue(vlog_gen_t *g, vlog_node_t v)
          vlog_node_t decl = vlog_ref(v);
          const type_info_t *ti = vlog_type_info(g, vlog_type(decl));
 
-         vlog_lvalue_t result = {
-            .nets     = mir_build_load(g->mu, ptr),
-            .size     = ti->size,
+         vlog_select_t result = {
+            .obj      = mir_build_load(g->mu, ptr),
+            .type     = ti->type,
             .offset   = mir_const(g->mu, t_offset, 0),
             .in_range = mir_const(g->mu, t_bool, 1),
+            .size     = ti->size,
          };
          return result;
       }
@@ -289,7 +317,7 @@ static vlog_lvalue_t vlog_lower_lvalue(vlog_gen_t *g, vlog_node_t v)
          vlog_node_t prefix = vlog_value(v);
          assert(vlog_kind(prefix) == V_REF);
 
-         vlog_lvalue_t ref = vlog_lower_lvalue_ref(g, prefix);
+         vlog_select_t ref = vlog_lower_select(g, prefix);
 
          vlog_node_t decl = vlog_ref(prefix), dt = vlog_type(decl);
 
@@ -297,7 +325,7 @@ static vlog_lvalue_t vlog_lower_lvalue(vlog_gen_t *g, vlog_node_t v)
          const int nparams = vlog_params(v);
          assert(nparams <= vlog_ranges(dt) + nunpacked);
 
-         unsigned size = vlog_size(decl) * ref.size;
+         unsigned size = vlog_size(decl) * mir_get_size(g->mu, ref.type);
 
          mir_type_t t_offset = mir_offset_type(g->mu);
          mir_value_t zero = mir_const(g->mu, t_offset, 0), off = zero;
@@ -333,17 +361,18 @@ static vlog_lvalue_t vlog_lower_lvalue(vlog_gen_t *g, vlog_node_t v)
             off = mir_build_add(g->mu, t_offset, off, this_off);
          }
 
-         vlog_lvalue_t lvalue = {
-            .nets     = ref.nets,
+         vlog_select_t result = {
+            .obj      = ref.obj,
             .offset   = off,
-            .size     = size,
+            .type     = mir_vector_slice(g->mu, ref.type, size),
             .in_range = in_range,
+            .size     = size,
          };
-         return lvalue;
+         return result;
       }
    case V_PART_SELECT:
       {
-         vlog_lvalue_t prefix = vlog_lower_lvalue(g, vlog_value(v));
+         vlog_select_t prefix = vlog_lower_select(g, vlog_value(v));
 
          vlog_node_t dt = vlog_type(vlog_ref(vlog_value(v)));
          vlog_node_t dim = vlog_range(dt, 0);
@@ -352,32 +381,36 @@ static vlog_lvalue_t vlog_lower_lvalue(vlog_gen_t *g, vlog_node_t v)
 
          mir_type_t t_offset = mir_offset_type(g->mu);
 
-         vlog_lvalue_t lvalue = {
-            .nets     = prefix.nets,
+         const unsigned size = vlog_size(v);
+
+         vlog_select_t result = {
+            .obj      = prefix.obj,
             .offset   = mir_build_add(g->mu, t_offset, off, prefix.offset),
-            .size     = vlog_size(v),
+            .type     = mir_vector_slice(g->mu, prefix.type, size),
             .in_range = prefix.in_range,   // XXX
+            .size     = size,
          };
-         return lvalue;
+         return result;
       }
    case V_MEMBER_REF:
       {
-         vlog_lvalue_t prefix = vlog_lower_lvalue(g, vlog_value(v));
-         assert(mir_points_to(g->mu, prefix.nets, MIR_TYPE_CONTEXT));
+         vlog_select_t prefix = vlog_lower_select(g, vlog_value(v));
+         assert(mir_points_to(g->mu, prefix.obj, MIR_TYPE_CONTEXT));
 
          const type_info_t *ti = vlog_type_info(g, vlog_type(vlog_ref(v)));
 
-         mir_value_t context = mir_build_load(g->mu, prefix.nets);
+         mir_value_t context = mir_build_load(g->mu, prefix.obj);
          mir_value_t link = mir_build_link_var(g->mu, context,
                                                vlog_ident(v), ti->type);
 
-         vlog_lvalue_t lvalue = {
-            .nets     = link,
+         vlog_select_t result = {
+            .obj      = link,
             .offset   = MIR_NULL_VALUE,
-            .size     = 1,
+            .type     = ti->type,
             .in_range = prefix.in_range,
+            .size     = ti->size,
          };
-         return lvalue;
+         return result;
       }
    default:
       CANNOT_HANDLE(v);
@@ -388,17 +421,17 @@ static void vlog_assign_variable(vlog_gen_t *g, vlog_node_t target,
                                  mir_value_t value)
 {
    unsigned nlvalues = 1, targetsz = 0;
-   vlog_lvalue_t lvalue1, *lvalues = &lvalue1;
+   vlog_select_t lvalue1, *lvalues = &lvalue1;
    if (vlog_kind(target) == V_CONCAT) {
       const int nparams = nlvalues = vlog_params(target);
-      lvalues = xmalloc_array(nparams, sizeof(vlog_lvalue_t));
+      lvalues = xmalloc_array(nparams, sizeof(vlog_select_t));
       for (int i = 0; i < nparams; i++) {
-         lvalues[i] = vlog_lower_lvalue(g, vlog_param(target, i));
+         lvalues[i] = vlog_lower_select(g, vlog_param(target, i));
          targetsz += lvalues[i].size;
       }
    }
    else {
-      lvalue1 = vlog_lower_lvalue(g, target);
+      lvalue1 = vlog_lower_select(g, target);
       targetsz = lvalue1.size;
    }
 
@@ -420,7 +453,7 @@ static void vlog_assign_variable(vlog_gen_t *g, vlog_node_t target,
       mir_set_cursor(g->mu, guarded_bb, MIR_APPEND);
    }
 
-   if (mir_is_signal(g->mu, lvalues[0].nets)) {
+   if (mir_is_signal(g->mu, lvalues[0].obj)) {
       mir_value_t unpacked;
       if (mir_is_vector(g->mu, value)) {
          mir_value_t tmp = MIR_NULL_VALUE;
@@ -442,7 +475,7 @@ static void vlog_assign_variable(vlog_gen_t *g, vlog_node_t target,
 
       for (int i = 0, offset = 0; i < nlvalues;
            offset += lvalues[i].size, i++) {
-         mir_value_t nets = mir_build_array_ref(g->mu, lvalues[i].nets,
+         mir_value_t nets = mir_build_array_ref(g->mu, lvalues[i].obj,
                                                 lvalues[i].offset);
 
          mir_value_t count = mir_const(g->mu, t_offset, lvalues[i].size);
@@ -459,7 +492,7 @@ static void vlog_assign_variable(vlog_gen_t *g, vlog_node_t target,
    else {
       assert(nlvalues == 1);  // TODO
 
-      mir_type_t t_pointer = mir_get_type(g->mu, lvalues[0].nets);
+      mir_type_t t_pointer = mir_get_type(g->mu, lvalues[0].obj);
       mir_type_t t_vec = mir_get_pointer(g->mu, t_pointer);
 
       switch (vlog_kind(target)) {
@@ -467,18 +500,16 @@ static void vlog_assign_variable(vlog_gen_t *g, vlog_node_t target,
       case V_MEMBER_REF:
          {
             mir_value_t resize = mir_build_cast(g->mu, t_vec, value);
-            mir_build_store(g->mu, lvalues[0].nets, resize);
+            mir_build_store(g->mu, lvalues[0].obj, resize);
          }
          break;
       default:
          {
-            const bool issigned = mir_get_signed(g->mu, t_vec);
-            mir_type_t t_part = mir_vec4_type(g->mu, lvalues[0].size, issigned);
-            mir_value_t resize = mir_build_cast(g->mu, t_part, value);
-            mir_value_t cur = mir_build_load(g->mu, lvalues[0].nets);
+            mir_value_t resize = mir_build_cast(g->mu, lvalues[0].type, value);
+            mir_value_t cur = mir_build_load(g->mu, lvalues[0].obj);
             mir_value_t ins =
                mir_build_insert(g->mu, resize, cur, lvalues[0].offset);
-            mir_build_store(g->mu, lvalues[0].nets, ins);
+            mir_build_store(g->mu, lvalues[0].obj, ins);
          }
          break;
       }
@@ -799,148 +830,6 @@ static mir_value_t vlog_lower_sys_tfcall(vlog_gen_t *g, vlog_node_t v)
                             locus, args, actual);
 }
 
-static mir_value_t vlog_lower_resolved(vlog_gen_t *g, vlog_node_t v)
-{
-   switch (vlog_kind(v)) {
-   case V_PORT_DECL:
-   case V_REF:
-      return vlog_lower_resolved(g, vlog_ref(v));
-   case V_VAR_DECL:
-   case V_NET_DECL:
-   case V_FUNC_DECL:
-   case V_GENVAR_DECL:
-      {
-         int hops;
-         mir_value_t var = mir_search_object(g->mu, v, &hops), val;
-         assert(!mir_is_null(var));
-
-         if (hops == 0)
-            val = mir_build_load(g->mu, var);
-         else {
-            mir_value_t upref = mir_build_var_upref(g->mu, hops, var.id);
-            val = mir_build_load(g->mu, upref);
-         }
-
-         if (mir_is_signal(g->mu, val))
-            return mir_build_resolved(g->mu, val);
-         else
-            return val;
-      }
-   case V_TF_PORT_DECL:
-      {
-         int hops;
-         mir_value_t param = mir_search_object(g->mu, v, &hops);
-         assert(!mir_is_null(param));
-         assert(hops == 0);
-
-         switch (param.tag) {
-         case MIR_TAG_PARAM: return param;
-         case MIR_TAG_VAR: return mir_build_load(g->mu, param);
-         default: should_not_reach_here();
-         }
-      }
-   case V_ENUM_NAME:
-      return vlog_lower_rvalue(g, vlog_value(v));
-   default:
-      CANNOT_HANDLE(v);
-   }
-}
-
-static mir_value_t vlog_lower_bit_select(vlog_gen_t *g, vlog_node_t v)
-{
-   vlog_node_t value = vlog_value(v);
-   assert(vlog_kind(value) == V_REF);
-
-   mir_value_t data = vlog_lower_resolved(g, value);
-
-   vlog_node_t decl = vlog_ref(value), dt = vlog_type(decl);
-
-   const int nunpacked = vlog_ranges(decl);
-   const int nparams = vlog_params(v);
-   assert(nparams <= vlog_ranges(dt) + nunpacked);
-
-   unsigned size = vlog_size(decl) * vlog_size(dt);
-
-   mir_type_t t_offset = mir_offset_type(g->mu);
-   mir_value_t zero = mir_const(g->mu, t_offset, 0), off = zero;
-   mir_value_t in_range = mir_const(g->mu, mir_bool_type(g->mu), 1);
-
-   for (int i = 0; i < nparams; i++) {
-      vlog_node_t dim;
-      if (i < nunpacked)
-         dim = vlog_range(decl, i);
-      else
-         dim = vlog_range(dt, i - nunpacked);
-
-      const unsigned dim_size = vlog_size(dim);
-      assert(size % dim_size == 0);
-      size /= dim_size;
-
-      mir_value_t this_off = vlog_lower_array_off(g, dim, vlog_param(v, i));
-
-      mir_value_t count = mir_const(g->mu, t_offset, dim_size);
-
-      mir_value_t cmp_low = mir_build_cmp(g->mu, MIR_CMP_GEQ, this_off, zero);
-      mir_value_t cmp_high = mir_build_cmp(g->mu, MIR_CMP_LT, this_off, count);
-      mir_value_t this_in_range = mir_build_and(g->mu, cmp_low, cmp_high);
-
-      if (size != 1) {
-         mir_value_t scale = mir_const(g->mu, t_offset, size);
-         this_off = mir_build_mul(g->mu, t_offset, this_off, scale);
-      }
-
-      in_range = mir_build_and(g->mu, in_range, this_in_range);
-      off = mir_build_add(g->mu, t_offset, off, this_off);
-   }
-
-   mir_type_t type = mir_vec4_type(g->mu, size, false);
-
-   mir_block_t merge_bb = MIR_NULL_BLOCK;
-   mir_value_t tmp;
-   int64_t in_range_const;
-   if (mir_get_const(g->mu, in_range, &in_range_const)) {
-      if (!in_range_const)
-         return mir_const_vec(g->mu, type, 1, 1);
-   }
-   else {
-      // TODO: use a phi node here
-      tmp = mir_add_var(g->mu, type, MIR_NULL_STAMP,
-                        ident_uniq("tmp"), MIR_VAR_TEMP);
-      mir_build_store(g->mu, tmp, mir_const_vec(g->mu, type, 1, 1));
-
-      mir_block_t guarded_bb = mir_add_block(g->mu);
-      merge_bb = mir_add_block(g->mu);
-
-      mir_build_cond(g->mu, in_range, guarded_bb, merge_bb);
-
-      mir_set_cursor(g->mu, guarded_bb, MIR_APPEND);
-   }
-
-   mir_value_t packed;
-   if (mir_is_vector(g->mu, data))
-      packed = mir_build_extract(g->mu, type, data, off);
-   else {
-      mir_value_t ptr = mir_build_array_ref(g->mu, data, off);
-      if (size == 1) {
-         mir_value_t bit = mir_build_load(g->mu, ptr);
-         packed = mir_build_pack(g->mu, type, bit);
-      }
-      else
-         packed = mir_build_pack(g->mu, type, ptr);
-   }
-
-   if (mir_is_null(merge_bb))
-      return packed;
-   else {
-      mir_build_store(g->mu, tmp, packed);
-      mir_build_jump(g->mu, merge_bb);
-
-      mir_set_cursor(g->mu, merge_bb, MIR_APPEND);
-
-      return mir_build_load(g->mu, tmp);
-   }
-}
-
 static mir_value_t vlog_lower_sys_fcall(vlog_gen_t *g, vlog_node_t v)
 {
    switch (is_well_known(vlog_ident(v))) {
@@ -967,37 +856,90 @@ static mir_value_t vlog_lower_sys_fcall(vlog_gen_t *g, vlog_node_t v)
    }
 }
 
+static mir_value_t vlog_lower_rvalue_select(vlog_gen_t *g, vlog_node_t v)
+{
+   vlog_select_t select = vlog_lower_select(g, v);
+
+   mir_block_t merge_bb = MIR_NULL_BLOCK;
+   mir_value_t tmp;
+   int64_t in_range_const = 1;
+   if (!mir_get_const(g->mu, select.in_range, &in_range_const)) {
+      // TODO: use a phi node here
+      tmp = mir_add_var(g->mu, select.type, MIR_NULL_STAMP,
+                        ident_uniq("tmp"), MIR_VAR_TEMP);
+      mir_build_store(g->mu, tmp, mir_const_vec(g->mu, select.type, 1, 1));
+
+      mir_block_t guarded_bb = mir_add_block(g->mu);
+      merge_bb = mir_add_block(g->mu);
+
+      mir_build_cond(g->mu, select.in_range, guarded_bb, merge_bb);
+
+      mir_set_cursor(g->mu, guarded_bb, MIR_APPEND);
+   }
+
+   mir_value_t result;
+   if (!in_range_const)
+      result = mir_const_vec(g->mu, select.type, 1, 1);
+   else if (mir_is_signal(g->mu, select.obj)) {
+      mir_value_t data = mir_build_resolved(g->mu, select.obj);
+      mir_value_t ptr = mir_build_array_ref(g->mu, data, select.offset);
+
+      switch (mir_get_class(g->mu, select.type)) {
+      case MIR_TYPE_VEC2:
+      case MIR_TYPE_VEC4:
+         if (mir_get_size(g->mu, select.type) == 1) {
+            mir_value_t val = mir_build_load(g->mu, ptr);
+            result = mir_build_pack(g->mu, select.type, val);
+         }
+         else
+            result = mir_build_pack(g->mu, select.type, ptr);
+         break;
+      case MIR_TYPE_REAL:
+         result = mir_build_load(g->mu, ptr);
+         break;
+      default:
+         should_not_reach_here();
+      }
+   }
+   else {
+      mir_value_t data = select.obj;
+      if (mir_is(g->mu, data, MIR_TYPE_POINTER))
+         data = mir_build_load(g->mu, data);
+
+      switch (mir_get_class(g->mu, select.type)) {
+      case MIR_TYPE_VEC2:
+      case MIR_TYPE_VEC4:
+         result = mir_build_extract(g->mu, select.type, data, select.offset);
+         break;
+      case MIR_TYPE_CONTEXT:
+         result = data;
+         break;
+      default:
+         should_not_reach_here();
+      }
+   }
+
+   if (mir_is_null(merge_bb))
+      return result;
+   else {
+      mir_build_store(g->mu, tmp, result);
+      mir_build_jump(g->mu, merge_bb);
+
+      mir_set_cursor(g->mu, merge_bb, MIR_APPEND);
+
+      return mir_build_load(g->mu, tmp);
+   }
+}
+
 static mir_value_t vlog_lower_rvalue(vlog_gen_t *g, vlog_node_t v)
 {
    PUSH_DEBUG_INFO(g->mu, v);
 
    switch (vlog_kind(v)) {
    case V_REF:
-      {
-         vlog_node_t decl = vlog_ref(v);
-         if (vlog_kind(decl) == V_LOCALPARAM)
-            return vlog_lower_rvalue(g, vlog_value(decl));
-
-         mir_value_t data = vlog_lower_resolved(g, decl);
-         if (mir_is_vector(g->mu, data))
-            return data;
-
-         const type_info_t *ti = vlog_type_info(g, vlog_type(decl));
-
-         switch (mir_get_class(g->mu, ti->type)) {
-         case MIR_TYPE_VEC2:
-         case MIR_TYPE_VEC4:
-            if (ti->size == 1)
-               data = mir_build_load(g->mu, data);
-            return mir_build_pack(g->mu, ti->type, data);
-         case MIR_TYPE_CONTEXT:
-            return data;
-         case MIR_TYPE_REAL:
-            return mir_build_load(g->mu, data);
-         default:
-            CANNOT_HANDLE(v);
-         }
-      }
+   case V_BIT_SELECT:
+   case V_PART_SELECT:
+      return vlog_lower_rvalue_select(g, v);
    case V_HIER_REF:
       {
          mir_type_t t_net_value = mir_int_type(g->mu, 0, 255);
@@ -1065,26 +1007,6 @@ static mir_value_t vlog_lower_rvalue(vlog_gen_t *g, vlog_node_t v)
       return vlog_lower_unary(g, v);
    case V_SYS_FCALL:
       return vlog_lower_sys_fcall(g, v);
-   case V_BIT_SELECT:
-      return vlog_lower_bit_select(g, v);
-   case V_PART_SELECT:
-      {
-         mir_value_t base = vlog_lower_resolved(g, vlog_value(v));
-
-         vlog_node_t dt = vlog_type(vlog_ref(vlog_value(v)));
-         vlog_node_t dim = vlog_range(dt, 0);
-
-         mir_value_t off = vlog_lower_part_select_off(g, dim, v);
-
-         mir_type_t t_vec = mir_vec4_type(g->mu, vlog_size(v), false);
-
-         if (mir_is_vector(g->mu, base))
-            return mir_build_extract(g->mu, t_vec, base, off);
-         else {
-            mir_value_t ptr = mir_build_array_ref(g->mu, base, off);
-            return mir_build_pack(g->mu, t_vec, ptr);
-         }
-      }
    case V_CONCAT:
       {
          int size = 0, repeat = 1;
@@ -1323,10 +1245,10 @@ static mir_value_t vlog_lower_trigger(vlog_gen_t *g, vlog_node_t v)
             {
                mir_type_t t_offset = mir_offset_type(g->mu);
 
-               vlog_lvalue_t lvalue = vlog_lower_lvalue(g, v);
+               vlog_select_t lvalue = vlog_lower_select(g, v);
                mir_value_t count = mir_const(g->mu, t_offset, lvalue.size);
 
-               return mir_build_level_trigger(g->mu, lvalue.nets, count);
+               return mir_build_level_trigger(g->mu, lvalue.obj, count);
             }
          case V_PARAM_DECL:
          case V_LOCALPARAM:
@@ -1344,13 +1266,13 @@ static mir_value_t vlog_lower_trigger(vlog_gen_t *g, vlog_node_t v)
          if (prefix == v) {
             mir_type_t t_offset = mir_offset_type(g->mu);
 
-            vlog_lvalue_t lvalue = vlog_lower_lvalue(g, v);
+            vlog_select_t lvalue = vlog_lower_select(g, v);
 
             mir_value_t count = mir_const(g->mu, t_offset, lvalue.size);
 
             // XXX: check in range
             mir_value_t nets =
-               mir_build_array_ref(g->mu, lvalue.nets, lvalue.offset);
+               mir_build_array_ref(g->mu, lvalue.obj, lvalue.offset);
 
             trigger = mir_build_level_trigger(g->mu, nets, count);
          }
@@ -1377,7 +1299,7 @@ static mir_value_t vlog_lower_trigger(vlog_gen_t *g, vlog_node_t v)
          if (kind == V_EVENT_LEVEL)
             return vlog_lower_trigger(g, vlog_value(v));
          else {
-            vlog_lvalue_t lvalue = vlog_lower_lvalue(g, vlog_value(v));
+            vlog_select_t lvalue = vlog_lower_select(g, vlog_value(v));
 
             ident_t func;
             switch (kind) {
@@ -1396,7 +1318,7 @@ static mir_value_t vlog_lower_trigger(vlog_gen_t *g, vlog_node_t v)
             }
 
             mir_value_t context = mir_build_context_upref(g->mu, 0);
-            mir_value_t args[] = { context, lvalue.nets };
+            mir_value_t args[] = { context, lvalue.obj };
             return mir_build_function_trigger(g->mu, func, args, 2);
          }
       }
@@ -1549,10 +1471,10 @@ static void vlog_lower_non_blocking_assignment(vlog_gen_t *g, vlog_node_t v)
 {
    vlog_node_t target = vlog_target(v);
 
-   vlog_lvalue_t lvalue = vlog_lower_lvalue(g, target);
+   vlog_select_t lvalue = vlog_lower_select(g, target);
 
    // XXX: check in range
-   mir_value_t nets = mir_build_array_ref(g->mu, lvalue.nets, lvalue.offset);
+   mir_value_t nets = mir_build_array_ref(g->mu, lvalue.obj, lvalue.offset);
 
    mir_value_t value = vlog_lower_rvalue(g, vlog_value(v));
    assert(mir_is_vector(g->mu, value));
@@ -1934,10 +1856,10 @@ static void vlog_lower_driver(vlog_gen_t *g, vlog_node_t v)
 
       vlog_node_t prefix = vlog_longest_static_prefix(v);
 
-      vlog_lvalue_t target = vlog_lower_lvalue(g, prefix);
+      vlog_select_t target = vlog_lower_select(g, prefix);
 
       // XXX: check in range
-      mir_value_t nets = mir_build_array_ref(g->mu, target.nets, target.offset);
+      mir_value_t nets = mir_build_array_ref(g->mu, target.obj, target.offset);
 
       int total_size = target.size;
       if (vlog_kind(prefix) == V_REF)
@@ -2015,10 +1937,10 @@ static void vlog_lower_sensitivity(vlog_gen_t *g, vlog_node_t v)
             {
                mir_type_t t_offset = mir_offset_type(g->mu);
 
-               vlog_lvalue_t lvalue = vlog_lower_lvalue(g, v);
+               vlog_select_t lvalue = vlog_lower_select(g, v);
                mir_value_t count = mir_const(g->mu, t_offset, lvalue.size);
 
-               mir_build_sched_event(g->mu, lvalue.nets, count);
+               mir_build_sched_event(g->mu, lvalue.obj, count);
             }
             break;
          case V_PARAM_DECL:
@@ -2036,13 +1958,13 @@ static void vlog_lower_sensitivity(vlog_gen_t *g, vlog_node_t v)
          if (prefix == v) {
             mir_type_t t_offset = mir_offset_type(g->mu);
 
-            vlog_lvalue_t lvalue = vlog_lower_lvalue(g, v);
+            vlog_select_t lvalue = vlog_lower_select(g, v);
 
             mir_value_t count = mir_const(g->mu, t_offset, lvalue.size);
 
             // XXX: check in range
             mir_value_t nets =
-               mir_build_array_ref(g->mu, lvalue.nets, lvalue.offset);
+               mir_build_array_ref(g->mu, lvalue.obj, lvalue.offset);
 
             mir_build_sched_event(g->mu, nets, count);
          }
@@ -2102,17 +2024,17 @@ static void vlog_lower_continuous_assign(vlog_gen_t *g, vlog_node_t v)
    vlog_node_t target = vlog_target(v);
 
    unsigned nlvalues = 1, targetsz = 0;
-   vlog_lvalue_t lvalue1, *lvalues = &lvalue1;
+   vlog_select_t lvalue1, *lvalues = &lvalue1;
    if (vlog_kind(target) == V_CONCAT) {
       const int nparams = nlvalues = vlog_params(target);
-      lvalues = xmalloc_array(nparams, sizeof(vlog_lvalue_t));
+      lvalues = xmalloc_array(nparams, sizeof(vlog_select_t));
       for (int i = 0; i < nparams; i++) {
-         lvalues[i] = vlog_lower_lvalue(g, vlog_param(target, i));
+         lvalues[i] = vlog_lower_select(g, vlog_param(target, i));
          targetsz += lvalues[i].size;
       }
    }
    else {
-      lvalue1 = vlog_lower_lvalue(g, target);
+      lvalue1 = vlog_lower_select(g, target);
       targetsz = lvalue1.size;
    }
 
@@ -2135,7 +2057,7 @@ static void vlog_lower_continuous_assign(vlog_gen_t *g, vlog_node_t v)
 
    for (int i = 0, offset = 0; i < nlvalues; offset += lvalues[i].size, i++) {
       // XXX: check in range
-      mir_value_t nets = mir_build_array_ref(g->mu, lvalues[i].nets,
+      mir_value_t nets = mir_build_array_ref(g->mu, lvalues[i].obj,
                                              lvalues[i].offset);
 
       mir_value_t count = mir_const(g->mu, t_offset, lvalues[i].size);
@@ -2256,11 +2178,11 @@ static void vlog_lower_gate_inst(vlog_gen_t *g, vlog_node_t v)
    mir_value_t reject = mir_const(g->mu, t_time, 0);
    mir_value_t after = mir_const(g->mu, t_time, 0);
 
-   vlog_lvalue_t lvalue = vlog_lower_lvalue(g, vlog_target(v));
+   vlog_select_t lvalue = vlog_lower_select(g, vlog_target(v));
    mir_value_t count = mir_const(g->mu, t_offset, lvalue.size);
 
    // XXX: check in range
-   mir_value_t nets = mir_build_array_ref(g->mu, lvalue.nets, lvalue.offset);
+   mir_value_t nets = mir_build_array_ref(g->mu, lvalue.obj, lvalue.offset);
 
    mir_build_sched_waveform(g->mu, nets, count, unpacked, reject, after);
    mir_build_wait(g->mu, start_bb);
