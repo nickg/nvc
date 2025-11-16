@@ -375,6 +375,7 @@ mir_type_t mir_file_type(mir_unit_t *mu, mir_type_t base);
 mir_type_t mir_vec2_type(mir_unit_t *mu, int size, bool issigned);
 mir_type_t mir_vec4_type(mir_unit_t *mu, int size, bool issigned);
 
+mir_type_t mir_vector_slice(mir_unit_t *mu, mir_type_t base, int size);
 mir_type_t mir_get_base(mir_unit_t *mu, mir_type_t type);
 mir_type_t mir_get_elem(mir_unit_t *mu, mir_type_t type);
 mir_type_t mir_get_pointer(mir_unit_t *mu, mir_type_t type);

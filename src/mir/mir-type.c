@@ -759,6 +759,22 @@ mir_type_t mir_vec4_type(mir_unit_t *mu, int size, bool issigned)
    return mir_build_type(mu, &td);
 }
 
+mir_type_t mir_vector_slice(mir_unit_t *mu, mir_type_t base, int size)
+{
+   assert(size >= 0);
+
+   const type_data_t *td = mir_type_data(mu, base);
+   assert(td->class == MIR_TYPE_VEC2 || td->class == MIR_TYPE_VEC4);
+   assert(size <= td->u.vec.size);
+
+   const type_data_t new = {
+      .class = td->class,
+      .u = { .vec = { .size = size, .issigned = td->u.vec.issigned } }
+   };
+
+   return mir_build_type(mu, &new);
+}
+
 mir_type_t mir_get_base(mir_unit_t *mu, mir_type_t type)
 {
    const type_data_t *td = mir_type_data(mu, type);
