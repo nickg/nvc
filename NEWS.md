@@ -7,7 +7,7 @@
 - Fixed a mis-optimisation which would cause the result of `x * x` to be
   zero (#1338, from @Blebowski).
 - Several other minor bugs were resolved (#1239, #1237, #1332, #1334,
-  #1335, #1347).
+  #1335, #1347, #1348).
 
 ## Version 1.18.1 - 2025-10-18
 - Fixed a crash when compiling with AVX2 enabled (#1311).

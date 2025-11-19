@@ -828,7 +828,7 @@ void mir_annotate(mir_unit_t *mu, const mir_annotate_t *cb, void *ctx)
                col += mir_dump_value(mu, result, cb, ctx);
                col += printf(" := %s ", mir_op_string(n->op));
                if (n->nargs > 0) {
-                  col += printf(" count ");
+                  col += printf("count ");
                   col += mir_dump_value(mu, n->args[0], cb, ctx);
                }
                mir_dump_type(mu, col, n->type);
