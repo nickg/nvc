@@ -916,11 +916,34 @@ static bool simp_match_case_choice(tree_t alt, int64_t ival)
    return false;
 }
 
-static tree_t simp_case(tree_t t)
+static tree_t simp_case(tree_t t, simp_ctx_t *ctx)
 {
    const int nstmts = tree_stmts(t);
    if (nstmts == 0)
       return NULL;    // All choices are unreachable
+
+   for (int i = 0; i < nstmts; i++) {
+      tree_t alt = tree_stmt(t, i);
+      const int nassocs = tree_assocs(alt);
+      for (int j = 0; j < nassocs; j++) {
+         tree_t a = tree_assoc(alt, j);
+         if (tree_subkind(a) == A_NAMED) {
+            tree_t n = tree_name(a);
+            switch (tree_kind(n)) {
+            case T_LITERAL:
+            case T_STRING:
+            case T_REF:
+               break;
+            default:
+               if (eval_possible(n, ctx->registry, ctx->mir)) {
+                  n = eval_try_fold(ctx->jit, n, ctx->registry, NULL, NULL);
+                  tree_set_name(a, n);
+               }
+               break;
+            }
+         }
+      }
+   }
 
    int64_t ival;
    if (!folded_int(tree_value(t), &ival))
@@ -1729,7 +1752,7 @@ static tree_t simp_tree_local(tree_t t, void *_ctx)
    case T_IF:
       return simp_if(t);
    case T_CASE:
-      return simp_case(t);
+      return simp_case(t, ctx);
    case T_CASE_GENERATE:
       return simp_case_generate(t);
    case T_WHILE:
@@ -1830,7 +1853,7 @@ static tree_t simp_tree_global(tree_t t, void *_ctx)
    case T_IF:
       return simp_if(t);
    case T_CASE:
-      return simp_case(t);
+      return simp_case(t, ctx);
    case T_CASE_GENERATE:
       return simp_case_generate(t);
    case T_WHILE:
