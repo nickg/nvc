@@ -2492,12 +2492,14 @@ static vcode_reg_t lower_string_literal(tree_t lit, bool nest)
    vcode_reg_t *tmp LOCAL = lower_string_literal_chars(lit, &nchars);
 
    type_t type = tree_type(lit);
+   assert(type_is_array(type));
+
    vcode_type_t elem = lower_type(type_elem(type));
    vcode_type_t array_type = vtype_carray(nchars, elem, elem);
 
    vcode_reg_t array_reg = emit_const_array(array_type, tmp, nchars);
 
-   if (type_is_array(type) && !type_const_bounds(type)) {
+   if (!type_const_bounds(type)) {
       vcode_dim_t dim0 = {
          .left  = emit_const(vtype_offset(), 1),
          .right = emit_const(vtype_offset(), nchars),
@@ -9485,9 +9487,10 @@ static void lower_new_helper(lower_unit_t *lu, object_t *obj)
          vcode_reg_t count_reg = lower_array_total_len(lu, ftype, src_reg);
          vcode_reg_t dst_reg = dst_ptr;
 
+         type_t elem = type_elem_recur(ftype);
+
          if (have_uarray_ptr(dst_reg)) {
-            type_t scalar_elem = type_elem_recur(ftype);
-            vcode_type_t vtype = lower_type(scalar_elem);
+            vcode_type_t vtype = lower_type(elem);
             vcode_reg_t mem_reg = emit_new(vtype, count_reg);
             vcode_reg_t all_reg = emit_all(mem_reg);
             vcode_reg_t wrap_reg = lower_rewrap(all_reg, src_reg);
@@ -9498,7 +9501,41 @@ static void lower_new_helper(lower_unit_t *lu, object_t *obj)
 
          vcode_reg_t src_data = lower_array_data(src_reg);
          vcode_reg_t dst_data = lower_array_data(dst_reg);
-         emit_copy(dst_data, src_data, count_reg);
+
+         if (type_is_record(elem)) {
+            // Need a loop to initialise each sub-record
+            vcode_type_t voffset = vtype_offset();
+            vcode_var_t i_var = lower_temp_var(lu, "i", voffset, voffset);
+            emit_store(emit_const(voffset, 0), i_var);
+
+            vcode_block_t cmp_bb  = emit_block();
+            vcode_block_t body_bb = emit_block();
+            vcode_block_t exit_bb = emit_block();
+
+            emit_jump(cmp_bb);
+
+            vcode_select_block(cmp_bb);
+
+            vcode_reg_t i_reg  = emit_load(i_var);
+            vcode_reg_t eq_reg = emit_cmp(VCODE_CMP_EQ, i_reg, count_reg);
+            emit_cond(eq_reg, exit_bb, body_bb);
+
+            vcode_select_block(body_bb);
+
+            vcode_reg_t src_ptr = emit_array_ref(src_data, i_reg);
+            vcode_reg_t dst_ptr = emit_array_ref(dst_data, i_reg);
+
+            lower_new_record(lu, elem, dst_ptr, src_ptr);
+
+            emit_store(emit_add(i_reg, emit_const(voffset, 1)), i_var);
+
+            emit_jump(cmp_bb);
+
+            vcode_select_block(exit_bb);
+            lower_release_temp(lu, i_var);
+         }
+         else
+            emit_copy(dst_data, src_data, count_reg);
       }
       else if (type_is_record(ftype))
          lower_new_record(lu, ftype, dst_ptr, src_ptr);
