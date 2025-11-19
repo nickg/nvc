@@ -472,6 +472,7 @@ EXTRA_DIST += \
 	test/parse/issue1271.vhd \
 	test/parse/issue1308.vhd \
 	test/parse/issue1318.vhd \
+	test/parse/issue1335.vhd \
 	test/parse/issue205.vhd \
 	test/parse/issue222.vhd \
 	test/parse/issue360.vhd \
@@ -1484,6 +1485,9 @@ EXTRA_DIST += \
 	test/regress/issue1301.vhd \
 	test/regress/issue1313.vhd \
 	test/regress/issue1317.vhd \
+	test/regress/issue1332.vhd \
+	test/regress/issue1334.vhd \
+	test/regress/issue1348.vhd \
 	test/regress/issue13.vhd \
 	test/regress/issue141.vhd \
 	test/regress/issue143.vhd \
@@ -2258,6 +2262,7 @@ EXTRA_DIST += \
 	test/sem/issue1290.vhd \
 	test/sem/issue130.vhd \
 	test/sem/issue131.vhd \
+	test/sem/issue1329.vhd \
 	test/sem/issue132.vhd \
 	test/sem/issue133.vhd \
 	test/sem/issue140.vhd \
@@ -2404,6 +2409,7 @@ EXTRA_DIST += \
 	test/simp/ieee1.vhd \
 	test/simp/issue1182.vhd \
 	test/simp/issue1239.vhd \
+	test/simp/issue1347.vhd \
 	test/simp/issue155.vhd \
 	test/simp/issue194.vhd \
 	test/simp/issue212.vhd \

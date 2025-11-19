@@ -1,4 +1,6 @@
 ## Unreleased changes
+
+## Version 1.18.2 - 2025-11-19
 - Fixed a mis-optimisation which would cause the result of `x * x` to be
   zero (#1338, from @Blebowski).
 - Several other minor bugs were resolved (#1239, #1332, #1334, #1335,
