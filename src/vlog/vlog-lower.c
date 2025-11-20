@@ -314,29 +314,20 @@ static vlog_select_t vlog_lower_select(vlog_gen_t *g, vlog_node_t v)
       }
    case V_BIT_SELECT:
       {
-         vlog_node_t prefix = vlog_value(v);
-         assert(vlog_kind(prefix) == V_REF);
+         vlog_node_t value = vlog_value(v);
+         assert(vlog_kind(value) == V_REF);
 
-         vlog_select_t ref = vlog_lower_select(g, prefix);
+         vlog_select_t prefix = vlog_lower_select(g, value);
 
-         vlog_node_t decl = vlog_ref(prefix), dt = vlog_type(decl);
-
-         const int nunpacked = vlog_ranges(decl);
-         const int nparams = vlog_params(v);
-         assert(nparams <= vlog_ranges(dt) + nunpacked);
-
-         unsigned size = vlog_size(decl) * mir_get_size(g->mu, ref.type);
+         unsigned size = vlog_size(value) * mir_get_size(g->mu, prefix.type);
 
          mir_type_t t_offset = mir_offset_type(g->mu);
          mir_value_t zero = mir_const(g->mu, t_offset, 0), off = zero;
-         mir_value_t in_range = ref.in_range;
+         mir_value_t in_range = prefix.in_range;
 
+         const int nparams = vlog_params(v);
          for (int i = 0; i < nparams; i++) {
-            vlog_node_t dim;
-            if (i < nunpacked)
-               dim = vlog_range(decl, i);
-            else
-               dim = vlog_range(dt, i - nunpacked);
+            vlog_node_t dim = vlog_get_dim(value, i);
 
             const unsigned dim_size = vlog_size(dim);
             assert(size % dim_size == 0);
@@ -362,9 +353,9 @@ static vlog_select_t vlog_lower_select(vlog_gen_t *g, vlog_node_t v)
          }
 
          vlog_select_t result = {
-            .obj      = ref.obj,
+            .obj      = prefix.obj,
             .offset   = off,
-            .type     = mir_vector_slice(g->mu, ref.type, size),
+            .type     = mir_vector_slice(g->mu, prefix.type, size),
             .in_range = in_range,
             .size     = size,
          };
@@ -372,10 +363,10 @@ static vlog_select_t vlog_lower_select(vlog_gen_t *g, vlog_node_t v)
       }
    case V_PART_SELECT:
       {
-         vlog_select_t prefix = vlog_lower_select(g, vlog_value(v));
+         vlog_node_t value = vlog_value(v);
+         vlog_select_t prefix = vlog_lower_select(g, value);
 
-         vlog_node_t dt = vlog_type(vlog_ref(vlog_value(v)));
-         vlog_node_t dim = vlog_range(dt, 0);
+         vlog_node_t dim = vlog_get_dim(value, 0);
 
          mir_value_t off = vlog_lower_part_select_off(g, dim, v);
 
@@ -383,11 +374,20 @@ static vlog_select_t vlog_lower_select(vlog_gen_t *g, vlog_node_t v)
 
          const unsigned size = vlog_size(v);
 
+         mir_value_t zero = mir_const(g->mu, t_offset, 0);
+         mir_value_t count = mir_const(g->mu, t_offset, size);
+         mir_value_t cmp_low = mir_build_cmp(g->mu, MIR_CMP_GEQ, off, zero);
+         mir_value_t high = mir_build_add(g->mu, t_offset, off, count);
+         mir_value_t prefix_high = mir_const(g->mu, t_offset, prefix.size);
+         mir_value_t cmp_high =
+            mir_build_cmp(g->mu, MIR_CMP_LEQ, high, prefix_high);
+         mir_value_t this_in_range = mir_build_and(g->mu, cmp_low, cmp_high);
+
          vlog_select_t result = {
             .obj      = prefix.obj,
             .offset   = mir_build_add(g->mu, t_offset, off, prefix.offset),
             .type     = mir_vector_slice(g->mu, prefix.type, size),
-            .in_range = prefix.in_range,   // XXX
+            .in_range = this_in_range,
             .size     = size,
          };
          return result;
@@ -879,7 +879,7 @@ static mir_value_t vlog_lower_rvalue_select(vlog_gen_t *g, vlog_node_t v)
 
    mir_value_t result;
    if (!in_range_const)
-      result = mir_const_vec(g->mu, select.type, 1, 1);
+      result = mir_const_vec(g->mu, select.type, ~UINT64_C(0), ~UINT64_C(0));
    else if (mir_is_signal(g->mu, select.obj)) {
       mir_value_t data = mir_build_resolved(g->mu, select.obj);
       mir_value_t ptr = mir_build_array_ref(g->mu, data, select.offset);

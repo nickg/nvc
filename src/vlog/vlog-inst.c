@@ -57,6 +57,12 @@ static vlog_node_t bind_parameter(vlog_node_t decl, int nth, vlog_node_t inst)
       return NULL;
    }
 
+   if (vlog_kind(value) == V_REF) {
+      vlog_node_t decl = vlog_ref(value);
+      if (vlog_kind(decl) == V_LOCALPARAM)
+         value = vlog_value(decl);
+   }
+
    vlog_node_t local = vlog_new(V_LOCALPARAM);
    vlog_set_loc(local, vlog_loc(decl));
    vlog_set_ident(local, vlog_ident(decl));

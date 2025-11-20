@@ -41,6 +41,8 @@ const char *vpi_type_str(PLI_INT32 type)
    case vpiPort: return "vpiPort";
    case vpiNet: return "vpiNet";
    case vpiReg: return "vpiReg";
+   case vpiGenScope: return "vpiGenScope";
+   case vpiParameter: return "vpiParameter";
    default: return vpi_fallback_str(type);
    }
 }

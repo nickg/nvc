@@ -271,20 +271,22 @@ static vlog_node_t simp_always(vlog_node_t v)
    }
 }
 
-static vlog_node_t simp_ref(vlog_node_t v)
+static bool get_number(vlog_node_t v, number_t *n)
 {
-   vlog_node_t decl = vlog_ref(v);
-   switch (vlog_kind(decl)) {
-   case V_LOCALPARAM:
+   switch (vlog_kind(v)) {
+   case V_NUMBER:
+      *n = vlog_number(v);
+      return true;
+   case V_REF:
       {
-         vlog_node_t value = vlog_value(decl);
-         if (vlog_kind(value) == V_NUMBER)
-            return value;
+         vlog_node_t decl = vlog_ref(v);
+         if (vlog_kind(decl) == V_LOCALPARAM)
+            return get_number(vlog_value(decl), n);
          else
-            return v;
+            return false;
       }
    default:
-      return v;
+      return false;
    }
 }
 
@@ -293,11 +295,9 @@ static vlog_node_t simp_binary(vlog_node_t v)
    vlog_node_t left = vlog_left(v);
    vlog_node_t right = vlog_right(v);
 
-   if (vlog_kind(left) != V_NUMBER || vlog_kind(right) != V_NUMBER)
+   number_t nleft, nright;
+   if (!get_number(left, &nleft) || !get_number(right, &nright))
       return v;
-
-   number_t nleft = vlog_number(left);
-   number_t nright = vlog_number(right);
 
    number_t result;
    switch (vlog_subkind(v)) {
@@ -364,12 +364,9 @@ static vlog_node_t simp_binary(vlog_node_t v)
 
 static vlog_node_t simp_unary(vlog_node_t v)
 {
-   vlog_node_t value = vlog_value(v);
-
-   if (vlog_kind(value) != V_NUMBER)
+   number_t n;
+   if (!get_number(vlog_value(v), &n))
       return v;
-
-   number_t n = vlog_number(value);
 
    number_t result;
    switch (vlog_subkind(v)) {
@@ -398,10 +395,10 @@ static vlog_node_t simp_if_generate(vlog_node_t v)
    for (int i = 0; i < nconds; i++) {
       vlog_node_t c = vlog_cond(v, i);
       if (vlog_has_value(c)) {
-         vlog_node_t value = vlog_value(c);
-         if (vlog_kind(value) != V_NUMBER)
+         number_t n;
+         if (!get_number(vlog_value(c), &n))
             return v;
-         else if (!number_truthy(vlog_number(value)))
+         else if (!number_truthy(n))
             continue;
       }
 
@@ -416,15 +413,12 @@ static vlog_node_t simp_sys_fcall(vlog_node_t v)
    switch (is_well_known(vlog_ident(v))) {
    case W_DLR_CLOG2:
       {
-         vlog_node_t arg = vlog_param(v, 0);
-         if (vlog_kind(arg) == V_NUMBER) {
-            number_t n = vlog_number(arg);
-            if (number_is_defined(n)) {
-               vlog_node_t new = vlog_new(V_NUMBER);
-               vlog_set_loc(new, vlog_loc(v));
-               vlog_set_number(new, number_from_int(ilog2(number_integer(n))));
-               return new;
-            }
+         number_t n;
+         if (get_number(vlog_param(v, 0), &n) && number_is_defined(n)) {
+            vlog_node_t new = vlog_new(V_NUMBER);
+            vlog_set_loc(new, vlog_loc(v));
+            vlog_set_number(new, number_from_int(ilog2(number_integer(n))));
+            return new;
          }
 
          return v;
@@ -508,8 +502,6 @@ static vlog_node_t vlog_simp_cb(vlog_node_t v, void *context)
       return simp_binary(v);
    case V_UNARY:
       return simp_unary(v);
-   case V_REF:
-      return simp_ref(v);
    case V_IF_GENERATE:
       return simp_if_generate(v);
    case V_SYS_FCALL:

@@ -1228,3 +1228,4 @@ binary4         verilog
 issue1332       normal
 issue1334       normal,2008
 issue1348       normal
+select8         verilog

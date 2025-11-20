@@ -155,6 +155,8 @@ unsigned vlog_size(vlog_node_t v)
          else
             return left - right + 1;
       }
+   case V_REF:
+      return vlog_size(vlog_ref(v));
    default:
       CANNOT_HANDLE(v);
    }
@@ -316,6 +318,36 @@ vlog_node_t vlog_get_type(vlog_node_t v)
          return vlog_type(v);
       else
          return NULL;
+   default:
+      CANNOT_HANDLE(v);
+   }
+}
+
+vlog_node_t vlog_get_dim(vlog_node_t v, int n)
+{
+   switch (vlog_kind(v)) {
+   case V_REF:
+      {
+         vlog_node_t decl = vlog_ref(v), dt = vlog_type(decl);
+
+         switch (vlog_kind(decl)) {
+         case V_NET_DECL:
+         case V_VAR_DECL:
+            {
+               const int nunpacked = vlog_ranges(decl);
+               assert(n <= vlog_ranges(dt) + nunpacked);
+
+               if (n < nunpacked)
+                  return vlog_range(decl, n);
+               else
+                  return vlog_range(dt, n - nunpacked);
+            }
+         default:
+            return vlog_range(dt, n);
+         }
+      }
+   case V_BIT_SELECT:
+      return vlog_get_dim(vlog_value(v), vlog_params(v) + n);
    default:
       CANNOT_HANDLE(v);
    }

@@ -167,6 +167,13 @@ typedef struct {
 
 DEF_CLASS(reg, vpiReg, decl.object);
 
+typedef struct {
+   c_abstractDecl  decl;
+   c_constant     *value;
+} c_parameter;
+
+DEF_CLASS(parameter, vpiParameter, decl.object);
+
 #define HANDLE_BITS      (sizeof(vpiHandle) * 8)
 #define HANDLE_MAX_INDEX ((UINT64_C(1) << (HANDLE_BITS / 2)) - 1)
 
@@ -359,6 +366,7 @@ static c_abstractDecl *is_abstractDecl(c_vpiObject *obj)
    switch (obj->type) {
    case vpiReg:
    case vpiNet:
+   case vpiParameter:
       return container_of(obj, c_abstractDecl, object);
    default:
       return NULL;
@@ -369,7 +377,20 @@ static c_abstractScope *is_abstractScope(c_vpiObject *obj)
 {
    switch (obj->type) {
    case vpiModule:
+   case vpiGenScope:
       return container_of(obj, c_abstractScope, object);
+   default:
+      return NULL;
+   }
+}
+
+static c_constant *is_constantOrParam(c_vpiObject *obj)
+{
+   switch (obj->type) {
+   case vpiConstant:
+      return container_of(obj, c_constant, expr.object);
+   case vpiParameter:
+      return container_of(obj, c_parameter, decl.object)->value;
    default:
       return NULL;
    }
@@ -645,6 +666,15 @@ static c_sysFuncCall *build_sysFuncCall(vlog_node_t where, c_callback *callback,
    return call;
 }
 
+static void build_parameter(vlog_node_t v, c_abstractScope *scope)
+{
+   c_parameter *param = new_object(sizeof(c_parameter), vpiParameter);
+   init_abstractDecl(&(param->decl), v, scope);
+   param->value = build_constant(vlog_value(v));
+
+   vpi_list_add(&scope->decls.list, &(param->decl.object));
+}
+
 static bool init_iterator(c_iterator *it, PLI_INT32 type, c_vpiObject *obj)
 {
    c_tfCall *call = is_tfCall(obj);
@@ -767,6 +797,9 @@ static void vpi_lazy_decls(c_vpiObject *obj)
          break;
       case V_VAR_DECL:
          build_reg(v, s);
+         break;
+      case V_LOCALPARAM:
+         build_parameter(v, s);
          break;
       default:
          break;
@@ -901,7 +934,7 @@ PLI_INT32 vpi_get(PLI_INT32 property, vpiHandle object)
    if (property == vpiType)
       return obj->type;
 
-   c_constant *con = is_constant(obj);
+   c_constant *con = is_constantOrParam(obj);
    if (con != NULL) {
       switch (property) {
       case vpiConstType:
@@ -964,7 +997,7 @@ void vpi_get_value(vpiHandle handle, p_vpi_value value_p)
    vpi_context_t *c = vpi_context();
    tb_rewind(c->valuestr);
 
-   c_constant *con = is_constant(obj);
+   c_constant *con = is_constantOrParam(obj);
    if (con != NULL) {
       switch (con->subtype) {
       case vpiStringConst:
