@@ -239,18 +239,11 @@ static vlog_select_t vlog_lower_select(vlog_gen_t *g, vlog_node_t v)
                const type_info_t *ti = vlog_type_info(g, vlog_type(decl));
 
                mir_value_t value = vlog_lower_rvalue(g, vlog_value(decl));
-               mir_value_t cast = value;
-
-               // XXX: hack around localparam incorrect type
-               mir_type_t type = ti->type;
-               if (vlog_kind(decl) != V_LOCALPARAM)
-                  cast = mir_build_cast(g->mu, ti->type, value);
-               else
-                  type = mir_get_type(g->mu, value);
+               mir_value_t cast = mir_build_cast(g->mu, ti->type, value);
 
                vlog_select_t result = {
                   .obj      = cast,
-                  .type     = type,
+                  .type     = ti->type,
                   .offset   = mir_const(g->mu, t_offset, 0),
                   .in_range = mir_const(g->mu, t_bool, 1),
                   .size     = ti->size,
