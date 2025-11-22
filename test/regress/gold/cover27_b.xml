@@ -2,52 +2,124 @@
 <scope name="WORK" /cover27.vhd">
   <scope name="COVER27" block_name="COVER27-TEST" line="10">
     <scope name="G_IF_GEN_1" block_name="G_IF_GEN_1" line="17">
-      <scope name="_P0" line="20">
+      <scope name="P2" line="20">
         <scope name="_S0">
-          <statement hier="WORK.COVER27.G_IF_GEN_1._P0._S0" data="1"/>
+          <statement hier="WORK.COVER27.G_IF_GEN_1.P2._S0" data="1"/>
         </scope>
       </scope>
     </scope>
     <scope name="T_FOR_GEN(0)" block_name="T_FOR_GEN" line="23">
-      <scope name="_P0" line="24">
+      <scope name="P3" line="24">
         <scope name="_S0">
-          <scope name="_S0">
-            <statement hier="WORK.COVER27.T_FOR_GEN(0)._P0._S0._S0" data="2"/>
+          <statement hier="WORK.COVER27.T_FOR_GEN(0).P3._S0" data="2"/>
+          <scope name="_B0">
+            <scope name="_S0">
+              <statement hier="WORK.COVER27.T_FOR_GEN(0).P3._S0._B0._S0" data="2"/>
+            </scope>
+          </scope>
+          <scope name="_B1" line="25">
+            <scope name="_S0">
+              <statement hier="WORK.COVER27.T_FOR_GEN(0).P3._S0._B1._S0" data="0"/>
+            </scope>
+          </scope>
+          <scope name="_B2" line="26">
+            <scope name="_S0">
+              <statement hier="WORK.COVER27.T_FOR_GEN(0).P3._S0._B2._S0" data="0"/>
+            </scope>
+          </scope>
+          <scope name="_B3">
+            <scope name="_S0" /cover27.vhd" line="27">
+              <statement hier="WORK.COVER27.T_FOR_GEN(0).P3._S0._B3._S0" data="0"/>
+            </scope>
           </scope>
         </scope>
       </scope>
     </scope>
     <scope name="T_FOR_GEN(1)" block_name="T_FOR_GEN" line="23">
-      <scope name="_P0" line="24">
+      <scope name="P3" line="24">
         <scope name="_S0">
-          <scope name="_S0" line="25">
-            <statement hier="WORK.COVER27.T_FOR_GEN(1)._P0._S0._S0" data="2"/>
+          <statement hier="WORK.COVER27.T_FOR_GEN(1).P3._S0" data="2"/>
+          <scope name="_B0">
+            <scope name="_S0">
+              <statement hier="WORK.COVER27.T_FOR_GEN(1).P3._S0._B0._S0" data="0"/>
+            </scope>
+          </scope>
+          <scope name="_B1" line="25">
+            <scope name="_S0">
+              <statement hier="WORK.COVER27.T_FOR_GEN(1).P3._S0._B1._S0" data="2"/>
+            </scope>
+          </scope>
+          <scope name="_B2" line="26">
+            <scope name="_S0">
+              <statement hier="WORK.COVER27.T_FOR_GEN(1).P3._S0._B2._S0" data="0"/>
+            </scope>
+          </scope>
+          <scope name="_B3">
+            <scope name="_S0" /cover27.vhd" line="27">
+              <statement hier="WORK.COVER27.T_FOR_GEN(1).P3._S0._B3._S0" data="0"/>
+            </scope>
           </scope>
         </scope>
       </scope>
     </scope>
     <scope name="T_FOR_GEN(2)" block_name="T_FOR_GEN" line="23">
-      <scope name="_P0" line="24">
+      <scope name="P3" line="24">
         <scope name="_S0">
-          <scope name="_S0" line="26">
-            <statement hier="WORK.COVER27.T_FOR_GEN(2)._P0._S0._S0" data="2"/>
+          <statement hier="WORK.COVER27.T_FOR_GEN(2).P3._S0" data="2"/>
+          <scope name="_B0">
+            <scope name="_S0">
+              <statement hier="WORK.COVER27.T_FOR_GEN(2).P3._S0._B0._S0" data="0"/>
+            </scope>
+          </scope>
+          <scope name="_B1" line="25">
+            <scope name="_S0">
+              <statement hier="WORK.COVER27.T_FOR_GEN(2).P3._S0._B1._S0" data="0"/>
+            </scope>
+          </scope>
+          <scope name="_B2" line="26">
+            <scope name="_S0">
+              <statement hier="WORK.COVER27.T_FOR_GEN(2).P3._S0._B2._S0" data="2"/>
+            </scope>
+          </scope>
+          <scope name="_B3">
+            <scope name="_S0" /cover27.vhd" line="27">
+              <statement hier="WORK.COVER27.T_FOR_GEN(2).P3._S0._B3._S0" data="0"/>
+            </scope>
           </scope>
         </scope>
       </scope>
     </scope>
     <scope name="T_FOR_GEN(3)" block_name="T_FOR_GEN" line="23">
-      <scope name="_P0" line="24">
+      <scope name="P3" line="24">
         <scope name="_S0">
-          <scope name="_S0" line="27">
-            <statement hier="WORK.COVER27.T_FOR_GEN(3)._P0._S0._S0" data="2"/>
+          <statement hier="WORK.COVER27.T_FOR_GEN(3).P3._S0" data="2"/>
+          <scope name="_B0">
+            <scope name="_S0">
+              <statement hier="WORK.COVER27.T_FOR_GEN(3).P3._S0._B0._S0" data="0"/>
+            </scope>
+          </scope>
+          <scope name="_B1" line="25">
+            <scope name="_S0">
+              <statement hier="WORK.COVER27.T_FOR_GEN(3).P3._S0._B1._S0" data="0"/>
+            </scope>
+          </scope>
+          <scope name="_B2" line="26">
+            <scope name="_S0">
+              <statement hier="WORK.COVER27.T_FOR_GEN(3).P3._S0._B2._S0" data="0"/>
+            </scope>
+          </scope>
+          <scope name="_B3">
+            <scope name="_S0" /cover27.vhd" line="27">
+              <statement hier="WORK.COVER27.T_FOR_GEN(3).P3._S0._B3._S0" data="2"/>
+            </scope>
           </scope>
         </scope>
       </scope>
     </scope>
     <scope name="G_CASE_1" block_name="G_CASE_1" line="32">
-      <scope name="_P0">
+      <scope name="P5">
         <scope name="_S0">
-          <statement hier="WORK.COVER27.G_CASE_1._P0._S0" data="1"/>
+          <statement hier="WORK.COVER27.G_CASE_1.P5._S0" data="1"/>
         </scope>
       </scope>
     </scope>

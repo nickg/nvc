@@ -2115,6 +2115,27 @@ START_TEST(test_mixed2)
 }
 END_TEST
 
+START_TEST(test_clone2)
+{
+   input_from_file(TESTDIR "/elab/clone2.vhd");
+
+   tree_t e = run_elab();
+   fail_if(e == NULL);
+
+   tree_t g1_1 = tree_stmt(tree_stmt(e, 0), 2);
+   fail_unless(tree_kind(g1_1) == T_BLOCK);
+   fail_unless(tree_ident(g1_1) == ident_new("G1(1)"));
+
+   tree_t g1_2 = tree_stmt(tree_stmt(e, 0), 3);
+   fail_unless(tree_kind(g1_2) == T_BLOCK);
+   fail_unless(tree_ident(g1_2) == ident_new("G1(2)"));
+
+   fail_unless(tree_stmt(g1_1, 0) == tree_stmt(g1_2, 0));
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_elab_tests(void)
 {
    Suite *s = suite_create("elab");
@@ -2226,6 +2247,7 @@ Suite *get_elab_tests(void)
    tcase_add_test(tc, test_issue1204);
    tcase_add_test(tc, test_clone1);
    tcase_add_test(tc, test_mixed2);
+   tcase_add_test(tc, test_clone2);
    suite_add_tcase(s, tc);
 
    return s;

@@ -2109,13 +2109,12 @@ static void elab_for_generate(tree_t t, const elab_ctx_t *ctx)
    tree_t g = tree_decl(t, 0);
    assert(tree_kind(g) == T_GENERIC_DECL);
 
-   ident_t prefix = ident_prefix(ctx->dotted, tree_ident(t), '.');
+   driver_set_t *ds = find_drivers(t);
+   tree_t config = elab_block_config(t, ctx);
 
    for (int64_t i = low; i <= high; i++) {
       ident_t id = ident_sprintf("%s(%"PRIi64")", istr(tree_ident(t)), i);
       ident_t ndotted = ident_prefix(ctx->dotted, id, '.');
-
-      tree_t copy = vhdl_generate_instance(t, prefix, ndotted);
 
       tree_t b = tree_new(T_BLOCK);
       tree_set_ident(b, id);
@@ -2132,31 +2131,36 @@ static void elab_for_generate(tree_t t, const elab_ctx_t *ctx)
       tree_add_genmap(b, map);
 
       elab_ctx_t new_ctx = {
-         .out       = b,
-         .dotted    = ndotted,
-         .generics  = hash_new(16),
-         .config    = elab_block_config(t, ctx),
+         .out     = b,
+         .dotted  = ndotted,
+         .config  = config,
+         .drivers = ds,
       };
       elab_inherit_context(&new_ctx, ctx);
 
       elab_push_scope(t, &new_ctx);
-      hash_put(new_ctx.generics, g, tree_value(map));
 
-      simplify_global(copy, new_ctx.generics, new_ctx.jit, new_ctx.registry,
-                      new_ctx.mir);
-
-      new_ctx.drivers = find_drivers(copy);
-
-      if (error_count() == 0)
-         elab_decls(copy, &new_ctx);
-
-      if (error_count() == 0) {
-         elab_lower(b, &new_ctx);
-         elab_stmts(copy, &new_ctx);
+      if (low == high) {
+         // Fold loop parameter if there is only a single instance
+         hash_t *h = hash_new(8);
+         hash_put(h, g, tree_value(map));
+         simplify_global(t, h, ctx->jit, ctx->registry, ctx->mir);
+         hash_free(h);
       }
 
+      if (elab_new_errors(&new_ctx) == 0)
+         elab_decls(t, &new_ctx);
+
+      if (elab_new_errors(&new_ctx) == 0) {
+         elab_lower(b, &new_ctx);
+         elab_stmts(t, &new_ctx);
+      }
+
+      new_ctx.drivers = NULL;
       elab_pop_scope(&new_ctx);
    }
+
+   free_drivers(ds);
 }
 
 static bool elab_generate_test(tree_t value, const elab_ctx_t *ctx)

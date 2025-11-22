@@ -273,8 +273,12 @@ static const char *trace_nexus(rt_nexus_t *n)
 
    tb_istr(tb, tree_ident(n->signal->where));
 
-   if (n->width * n->size < n->signal->shared.size)
-      tb_printf(tb, "[%d:%d]", n->offset, n->offset + n->width - 1);
+   if (n->width * n->size < n->signal->shared.size) {
+      tb_printf(tb, "[%d", n->offset);
+      if (n->width > 1)
+         tb_printf(tb, ":%d", n->offset + n->width - 1);
+      tb_append(tb, ']');
+   }
 
    return tb_get(tb);
 }

@@ -5,7 +5,7 @@ architecture test of issue821 is
     signal x : integer;
 begin
 
-    g: for i in 1 to 2 generate
+    g: for i in 1 to 1 generate
     begin
         p: process is
         begin
