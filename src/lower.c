@@ -164,6 +164,7 @@ static void lower_subprogram_ports(lower_unit_t *lu, tree_t body,
 static vcode_type_t lower_func_result_type(type_t result);
 static vcode_reg_t lower_context_for_mangled(lower_unit_t *lu,
                                              ident_t unit_name);
+static vcode_reg_t lower_context_for_call(lower_unit_t *lu, tree_t decl);
 static void lower_driver_field_cb(lower_unit_t *lu, tree_t field,
                                   vcode_reg_t ptr, vcode_reg_t unused,
                                   vcode_reg_t locus, void *__ctx);
@@ -1249,7 +1250,7 @@ static vcode_reg_t lower_subprogram_arg(lower_unit_t *lu, tree_t fcall,
             }
             // Fall-through
          default:
-            context_reg = lower_context_for_mangled(lu, func);
+            context_reg = lower_context_for_call(lu, decl);
             break;
          }
 
@@ -2403,7 +2404,20 @@ static vcode_reg_t lower_context_for_call(lower_unit_t *lu, tree_t decl)
    if (tree_flags(decl) & TREE_F_PREDEFINED)
       return VCODE_INVALID_REG;
 
-   return lower_context_for_mangled(lu, tree_ident2(decl));
+   int hops;
+   vcode_reg_t obj = lower_search_vcode_obj(decl, lu, &hops);
+   if (obj == VCODE_INVALID_REG)
+      return lower_context_for_mangled(lu, tree_ident2(decl));
+   else if (obj & INSTANCE_BIT) {
+      // This variable is declared in an instantiated package
+      vcode_var_t pkg_var = obj & ~INSTANCE_BIT;
+      if (hops == 0)
+         return emit_load(pkg_var);
+      else
+         return emit_load_indirect(emit_var_upref(hops, pkg_var));
+   }
+   else
+      return emit_context_upref(hops);
 }
 
 static vcode_reg_t lower_fcall(lower_unit_t *lu, tree_t fcall,
@@ -9875,6 +9889,8 @@ static void lower_decls(lower_unit_t *lu, tree_t scope)
                unit_registry_defer(lu->registry, mangled, lu,
                                    emit_function, lower_func_body,
                                    lu->cover, tree_to_object(d));
+
+            lower_put_vcode_obj(d, 0, lu);   // Dummy value
          }
          break;
       case T_PROC_INST:
@@ -9889,15 +9905,18 @@ static void lower_decls(lower_unit_t *lu, tree_t scope)
             ident_t mangled = tree_ident2(d);
 
             if (!unit_registry_query(lu->registry, mangled))
-               unit_registry_defer(lu->registry, tree_ident2(d),
-                                   lu, emitfn, lower_proc_body, lu->cover,
+               unit_registry_defer(lu->registry, mangled, lu,
+                                   emitfn, lower_proc_body, lu->cover,
                                    tree_to_object(d));
+
+            lower_put_vcode_obj(d, 0, lu);   // Dummy value
          }
          break;
       case T_PROT_BODY:
          unit_registry_defer(lu->registry, type_ident(tree_type(d)),
                              lu, emit_protected, lower_protected_body,
                              lu->cover, tree_to_object(d));
+         lower_put_vcode_obj(d, 0, lu);   // Dummy value
          break;
       case T_FUNC_DECL:
       case T_PROC_DECL:
@@ -9922,6 +9941,7 @@ static void lower_decls(lower_unit_t *lu, tree_t scope)
                                      lu->cover, tree_to_object(p));
               }
 
+              lower_put_vcode_obj(d, 0, lu);   // Dummy value
               continue;
            }
            else if (is_open_coded_builtin(kind))
