@@ -1195,7 +1195,7 @@ static vcode_reg_t lower_signal_array_aggregate(lower_unit_t *lu, tree_t expr)
 }
 
 static vcode_reg_t lower_subprogram_arg(lower_unit_t *lu, tree_t fcall,
-                                        unsigned nth)
+                                        unsigned nth, vcode_reg_t context_reg)
 {
    if (nth >= tree_params(fcall))
       return VCODE_INVALID_REG;
@@ -1238,21 +1238,6 @@ static vcode_reg_t lower_subprogram_arg(lower_unit_t *lu, tree_t fcall,
 
          vcode_type_t vtype = lower_func_result_type(port_type);
          vcode_type_t vbounds = lower_bounds(port_type);
-
-         vcode_reg_t context_reg;
-         switch (tree_kind(fcall)) {
-         case T_PROT_FCALL:
-         case T_PROT_PCALL:
-            if (tree_has_name(fcall)) {
-               // XXX: evaluates prefix twice
-               context_reg = lower_rvalue(lu, tree_name(fcall));
-               break;
-            }
-            // Fall-through
-         default:
-            context_reg = lower_context_for_call(lu, decl);
-            break;
-         }
 
          vcode_reg_t args[] = { context_reg };
          reg = emit_fcall(func, vtype, vbounds, args, 1);
@@ -1984,33 +1969,39 @@ static void lower_release_temp(lower_unit_t *lu, vcode_var_t tmp)
 static vcode_reg_t lower_short_circuit(lower_unit_t *lu, tree_t fcall,
                                        subprogram_kind_t builtin)
 {
-   vcode_reg_t r0 = lower_subprogram_arg(lu, fcall, 0);
+   vcode_reg_t r0 = lower_subprogram_arg(lu, fcall, 0, VCODE_INVALID_REG);
    int64_t value;
    if (vcode_reg_const(r0, &value)) {
-      vcode_reg_t result = VCODE_INVALID_REG;
       switch (builtin) {
       case S_SCALAR_AND:
-         result = value ? lower_subprogram_arg(lu, fcall, 1) : r0;
-         break;
+         if (value)
+            return lower_subprogram_arg(lu, fcall, 1, VCODE_INVALID_REG);
+         else
+            return r0;
       case S_SCALAR_OR:
-         result = value ? r0 : lower_subprogram_arg(lu, fcall, 1);
-         break;
+         if (value)
+            return r0;
+         else
+            return lower_subprogram_arg(lu, fcall, 1, VCODE_INVALID_REG);
       case S_SCALAR_NOR:
-         result = emit_not(value ? r0 : lower_subprogram_arg(lu, fcall, 1));
-         break;
+         if (value)
+            return emit_not(r0);
+         else
+            return emit_not(lower_subprogram_arg(lu, fcall, 1,
+                                                 VCODE_INVALID_REG));
       case S_SCALAR_NAND:
-         result = emit_not(value ? lower_subprogram_arg(lu, fcall, 1) : r0);
-         break;
+         if (value)
+            return emit_not(lower_subprogram_arg(lu, fcall, 1,
+                                                 VCODE_INVALID_REG));
+         else
+            return emit_not(r0);
       default:
-         fatal_trace("unhandled subprogram kind %d in lower_short_circuit",
-                      builtin);
+         should_not_reach_here();
       }
-
-      return result;
    }
 
    if (lower_side_effect_free(tree_value(tree_param(fcall, 1)))) {
-      vcode_reg_t r1 = lower_subprogram_arg(lu, fcall, 1);
+      vcode_reg_t r1 = lower_subprogram_arg(lu, fcall, 1, VCODE_INVALID_REG);
       switch (builtin) {
       case S_SCALAR_AND:
          return lower_logical(lu, fcall, emit_and(r0, r1), r0, r1, builtin, 0);
@@ -2021,8 +2012,7 @@ static vcode_reg_t lower_short_circuit(lower_unit_t *lu, tree_t fcall,
       case S_SCALAR_NAND:
          return lower_logical(lu, fcall, emit_nand(r0, r1), r0, r1, builtin, 0);
       default:
-         fatal_trace("unhandled subprogram kind %d in lower_short_circuit",
-                      builtin);
+         should_not_reach_here();
       }
    }
 
@@ -2043,7 +2033,7 @@ static vcode_reg_t lower_short_circuit(lower_unit_t *lu, tree_t fcall,
       emit_cond(r0, after_bb, arg1_bb);
 
    vcode_select_block(arg1_bb);
-   vcode_reg_t r1 = lower_subprogram_arg(lu, fcall, 1);
+   vcode_reg_t r1 = lower_subprogram_arg(lu, fcall, 1, VCODE_INVALID_REG);
 
    switch (builtin) {
    case S_SCALAR_AND:
@@ -2059,8 +2049,7 @@ static vcode_reg_t lower_short_circuit(lower_unit_t *lu, tree_t fcall,
       emit_store(emit_nand(r0, r1), tmp_var);
       break;
    default:
-      fatal_trace("unhandled subprogram kind %d in lower_short_circuit",
-                      builtin);
+      should_not_reach_here();
    }
 
    // Automaticaly flag non-executed bins as un-reachable if configured
@@ -2112,8 +2101,8 @@ static vcode_reg_t lower_builtin(lower_unit_t *lu, tree_t fcall,
        builtin == S_SCALAR_NOR || builtin == S_SCALAR_NAND)
       return lower_short_circuit(lu, fcall, builtin);
 
-   vcode_reg_t r0 = lower_subprogram_arg(lu, fcall, 0);
-   vcode_reg_t r1 = lower_subprogram_arg(lu, fcall, 1);
+   vcode_reg_t r0 = lower_subprogram_arg(lu, fcall, 0, VCODE_INVALID_REG);
+   vcode_reg_t r1 = lower_subprogram_arg(lu, fcall, 1, VCODE_INVALID_REG);
 
    if (out_r0 != NULL) *out_r0 = r0;
    if (out_r1 != NULL) *out_r1 = r1;
@@ -2176,17 +2165,20 @@ static vcode_reg_t lower_builtin(lower_unit_t *lu, tree_t fcall,
       {
          vcode_reg_t name   = lower_array_data(r1);
          vcode_reg_t length = lower_array_len(lu, r1_type, 0, r1);
-         vcode_reg_t kind   = lower_subprogram_arg(lu, fcall, 2);
+         vcode_reg_t kind   = lower_subprogram_arg(lu, fcall, 2,
+                                                   VCODE_INVALID_REG);
          emit_file_open(r0, name, length, kind, VCODE_INVALID_REG);
          return VCODE_INVALID_REG;
       }
    case S_FILE_OPEN2:
       {
          type_t arg_type = lower_arg_type(fcall, 2);
-         vcode_reg_t r2     = lower_subprogram_arg(lu, fcall, 2);
+         vcode_reg_t r2     = lower_subprogram_arg(lu, fcall, 2,
+                                                   VCODE_INVALID_REG);
          vcode_reg_t name   = lower_array_data(r2);
          vcode_reg_t length = lower_array_len(lu, arg_type, 0, r2);
-         vcode_reg_t kind   = lower_subprogram_arg(lu, fcall, 3);
+         vcode_reg_t kind   = lower_subprogram_arg(lu, fcall, 3,
+                                                   VCODE_INVALID_REG);
          emit_file_open(r1, name, length, kind, r0);
          return VCODE_INVALID_REG;
       }
@@ -2209,7 +2201,8 @@ static vcode_reg_t lower_builtin(lower_unit_t *lu, tree_t fcall,
 
          vcode_reg_t outlen = VCODE_INVALID_REG;
          if (tree_params(fcall) == 3)
-            outlen = lower_subprogram_arg(lu, fcall, 2);
+            outlen = lower_subprogram_arg(lu, fcall, 2,
+                                          VCODE_INVALID_REG);
 
          vcode_reg_t data_reg = lower_array_data(r1);
          emit_file_read(r0, data_reg, inlen, outlen);
@@ -2434,16 +2427,17 @@ static vcode_reg_t lower_fcall(lower_unit_t *lu, tree_t fcall,
 
    ident_t name = tree_ident2(decl);
 
+   vcode_reg_t context_reg;
    if (tree_kind(fcall) == T_PROT_FCALL && tree_has_name(fcall))
-      APUSH(args, lower_rvalue(lu, tree_name(fcall)));
-   else {
-      vcode_reg_t context_reg = lower_context_for_call(lu, decl);
-      if (context_reg != VCODE_INVALID_REG)
-         APUSH(args, context_reg);
-   }
+      context_reg = lower_rvalue(lu, tree_name(fcall));
+   else
+      context_reg = lower_context_for_call(lu, decl);
+
+   if (context_reg != VCODE_INVALID_REG)
+      APUSH(args, context_reg);
 
    for (int i = 0; i < nparams; i++) {
-      vcode_reg_t arg_reg = lower_subprogram_arg(lu, fcall, i);
+      vcode_reg_t arg_reg = lower_subprogram_arg(lu, fcall, i, context_reg);
       APUSH(args, arg_reg);
    }
 
@@ -6488,17 +6482,18 @@ static void lower_pcall(lower_unit_t *lu, tree_t pcall)
 
    ident_t func = tree_ident2(decl);
 
+   vcode_reg_t context_reg;
    if (tree_kind(pcall) == T_PROT_PCALL && tree_has_name(pcall))
-      APUSH(args, lower_rvalue(lu, tree_name(pcall)));
-   else {
-      vcode_reg_t context_reg = lower_context_for_call(lu, decl);
-      if (context_reg != VCODE_INVALID_REG)
-         APUSH(args, context_reg);
-   }
+      context_reg = lower_rvalue(lu, tree_name(pcall));
+   else
+      context_reg = lower_context_for_call(lu, decl);
+
+   if (context_reg != VCODE_INVALID_REG)
+      APUSH(args, context_reg);
 
    const int arg0 = args.count;
    for (int i = 0; i < nparams; i++) {
-      vcode_reg_t arg_reg = lower_subprogram_arg(lu, pcall, i);
+      vcode_reg_t arg_reg = lower_subprogram_arg(lu, pcall, i, context_reg);
       if (!use_fcall)
          vcode_heap_allocate(arg_reg);
 
@@ -10600,7 +10595,7 @@ static vcode_reg_t lower_trigger(lower_unit_t *lu, tree_t fcall, tree_t proc)
       args[nargs++] = context_reg;
 
    for (int i = 0; i < nparams; i++)
-      args[nargs++] = lower_subprogram_arg(lu, fcall, i);
+      args[nargs++] = lower_subprogram_arg(lu, fcall, i, context_reg);
 
    return emit_function_trigger(tree_ident2(decl), args, nargs);
 }
