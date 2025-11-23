@@ -6339,7 +6339,6 @@ START_TEST(test_issue972)
    vcode_select_unit(vu);
 
    EXPECT_BB(0) = {
-      { VCODE_OP_PACKAGE_INIT, .name = "STD.STANDARD" },
       { VCODE_OP_INDEX, .name = "R" },
       { VCODE_OP_CONST, .value = 5 },
       { VCODE_OP_CONST_RECORD },

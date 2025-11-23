@@ -2609,6 +2609,19 @@ static vcode_reg_t lower_get_type_bounds(lower_unit_t *lu, type_t type)
          vcode_reg_t ptr_reg = emit_link_var(context, id, lower_type(type));
          return emit_load_indirect(ptr_reg);
       }
+      else if (var & INSTANCE_BIT) {
+         // Type declared in an instantiated package
+         vcode_var_t pkg_var = var & ~INSTANCE_BIT;
+         vcode_reg_t pkg_reg;
+         if (hops == 0)
+            pkg_reg = emit_load(pkg_var);
+         else
+            pkg_reg = emit_load_indirect(emit_var_upref(hops, pkg_var));
+
+         vcode_reg_t ptr_reg = emit_link_var(pkg_reg, type_ident(type),
+                                             lower_type(type));
+         return emit_load_indirect(ptr_reg);
+      }
       else if (hops == 0)
          return emit_load(var);
       else {
@@ -9765,8 +9778,13 @@ static void lower_decl(lower_unit_t *lu, tree_t decl)
             lower_put_vcode_obj(tree_generic(decl, i), var | INSTANCE_BIT, lu);
 
          const int ndecls = tree_decls(tree_ref(decl));
-         for (int i = 0; i < ndecls; i++)
-            lower_put_vcode_obj(tree_decl(decl, i), var | INSTANCE_BIT, lu);
+         for (int i = 0; i < ndecls; i++) {
+            tree_t d = tree_decl(decl, i);
+            if (is_type_decl(d))
+               lower_put_vcode_obj(tree_type(d), var | INSTANCE_BIT, lu);
+            else
+               lower_put_vcode_obj(d, var | INSTANCE_BIT, lu);
+         }
       }
       break;
 

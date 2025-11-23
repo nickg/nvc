@@ -56,7 +56,6 @@ typedef struct _object_arena {
    vhdl_standard_t std;
    uint32_t        checksum;
    generation_t    copygen;
-   bool            copyflag;
    bool            frozen;
    bool            obsolete;
 } object_arena_t;
@@ -1037,7 +1036,7 @@ static bool object_copy_mark(object_t *object, object_copy_ctx_t *ctx)
       return false;
 
    object_arena_t *arena = __object_arena(object);
-   if (arena->copygen != ctx->generation || !arena->copyflag)
+   if (arena->copygen != ctx->generation)
       return false;
 
    if (ctx->copy_map == NULL)
@@ -1091,31 +1090,10 @@ static object_t *object_copy_map(object_t *object, object_copy_ctx_t *ctx)
    return map ?: object;
 }
 
-static bool object_copy_root_closure(object_arena_t *a, object_copy_ctx_t *ctx)
-{
-   bool include = false;
-
-   if (a->copygen == ctx->generation)
-      return a->copyflag;
-
-   for (int i = 0; i < ctx->nroots; i++)
-      include |= (__object_arena(ctx->roots[i]) == a);
-
-   for (int i = 0; i < a->deps.count; i++)
-      include |= object_copy_root_closure(a->deps.items[i], ctx);
-
-   a->copygen  = ctx->generation;
-   a->copyflag = include;
-
-   return include;
-}
-
 void object_copy(object_copy_ctx_t *ctx)
 {
-   for (int i = 0; i < ctx->nroots; i++) {
-      object_arena_t *a = __object_arena(ctx->roots[i]);
-      object_copy_root_closure(a, ctx);
-   }
+   for (int i = 0; i < ctx->nroots; i++)
+      __object_arena(ctx->roots[i])->copygen = ctx->generation;
 
    for (int i = 0; i < ctx->nroots; i++)
       (void)object_copy_mark(ctx->roots[i], ctx);

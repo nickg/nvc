@@ -2106,11 +2106,13 @@ static void elab_for_generate(tree_t t, const elab_ctx_t *ctx)
    int64_t low, high;
    elab_generate_range(tree_range(t, 0), &low, &high, ctx);
 
-   tree_t g = tree_decl(t, 0);
-   assert(tree_kind(g) == T_GENERIC_DECL);
-
    driver_set_t *ds = find_drivers(t);
    tree_t config = elab_block_config(t, ctx);
+
+   ident_t prefix = ident_prefix(ctx->dotted, tree_ident(t), '.');
+
+   // Clone body and fold loop parameter if there is only a single instance
+   const bool clone = low == high;
 
    for (int64_t i = low; i <= high; i++) {
       ident_t id = ident_sprintf("%s(%"PRIi64")", istr(tree_ident(t)), i);
@@ -2121,6 +2123,11 @@ static void elab_for_generate(tree_t t, const elab_ctx_t *ctx)
       tree_set_loc(b, tree_loc(t));
 
       tree_add_stmt(ctx->out, b);
+
+      tree_t body = clone ? vhdl_generate_instance(t, prefix, ndotted) : t;
+
+      tree_t g = tree_decl(body, 0);
+      assert(tree_kind(g) == T_GENERIC_DECL);
 
       tree_t map = tree_new(T_PARAM);
       tree_set_subkind(map, P_POS);
@@ -2134,29 +2141,28 @@ static void elab_for_generate(tree_t t, const elab_ctx_t *ctx)
          .out     = b,
          .dotted  = ndotted,
          .config  = config,
-         .drivers = ds,
+         .drivers = clone ? find_drivers(body) : ds,
       };
       elab_inherit_context(&new_ctx, ctx);
 
       elab_push_scope(t, &new_ctx);
 
-      if (low == high) {
-         // Fold loop parameter if there is only a single instance
+      if (clone) {
          hash_t *h = hash_new(8);
          hash_put(h, g, tree_value(map));
-         simplify_global(t, h, ctx->jit, ctx->registry, ctx->mir);
+         simplify_global(body, h, ctx->jit, ctx->registry, ctx->mir);
          hash_free(h);
       }
 
       if (elab_new_errors(&new_ctx) == 0)
-         elab_decls(t, &new_ctx);
+         elab_decls(body, &new_ctx);
 
       if (elab_new_errors(&new_ctx) == 0) {
          elab_lower(b, &new_ctx);
-         elab_stmts(t, &new_ctx);
+         elab_stmts(body, &new_ctx);
       }
 
-      new_ctx.drivers = NULL;
+      if (!clone) new_ctx.drivers = NULL;
       elab_pop_scope(&new_ctx);
    }
 

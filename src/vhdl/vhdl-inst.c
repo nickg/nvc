@@ -48,7 +48,7 @@ static bool elab_copy_genvar_cb(tree_t t, void *_ctx)
    }
 }
 
-tree_t vhdl_generate_instance(tree_t t, ident_t prefix, ident_t ndotted)
+tree_t vhdl_generate_instance(tree_t t, ident_t prefix, ident_t dotted)
 {
    assert(tree_kind(t) == T_FOR_GENERATE);
 
@@ -61,9 +61,9 @@ tree_t vhdl_generate_instance(tree_t t, ident_t prefix, ident_t ndotted)
    };
 
    ident_t prefixes[] = { prefix };
-   tree_t roots[] = { t };
-   copy_with_renaming(roots, 1, elab_copy_genvar_cb, NULL, &pred_ctx,
-                      ndotted, prefixes, ARRAY_LEN(prefixes));
+   tree_t roots[] = { t, g };
+   copy_with_renaming(roots, ARRAY_LEN(roots), elab_copy_genvar_cb, NULL,
+                      &pred_ctx, dotted, prefixes, ARRAY_LEN(prefixes));
 
    return roots[0];
 }

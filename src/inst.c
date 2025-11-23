@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2023  Nick Gasson
+//  Copyright (C) 2023-2025  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -35,7 +35,7 @@ typedef struct {
    type_list_t copied_types;
 } copy_ctx_t;
 
-static void collect_decls(tree_t t, hset_t **decls, tree_list_t *roots);
+static void collect_decls(tree_t t, hset_t *decls, tree_list_t *roots);
 
 static void tree_copy_cb(tree_t t, void *__ctx)
 {
@@ -150,10 +150,10 @@ static bool instantiate_should_copy_tree(tree_t t, void *__ctx)
       if ((tree_flags(t) & TREE_F_GLOBALLY_STATIC)
           && type_is_scalar(tree_type(t)))
          return true;
-      else if (tree_has_ref(t) && tree_kind(tree_ref(t)) == T_GENERIC_DECL)
-         return true;   // Call to generic subprogram
-      else
-         return false;
+      // Fall-through
+   case T_PCALL:
+      // Call to generic subprogram
+      return tree_has_ref(t) && tree_kind(tree_ref(t)) == T_GENERIC_DECL;
    case T_PACKAGE:
    case T_PACK_BODY:
       return true;
@@ -167,20 +167,19 @@ static bool instantiate_should_copy_tree(tree_t t, void *__ctx)
       return true;
    case T_CONST_DECL:
    case T_VAR_DECL:
-   case T_GENERIC_DECL:
    case T_SIGNAL_DECL:
-      // Make a unique copy of all public declarations in the package
-      return decls != NULL && hset_contains(decls, t);
+   case T_GENERIC_DECL:
+      return hset_contains(decls, t);
    case T_REF:
-      return tree_has_ref(t) && tree_kind(tree_ref(t)) == T_GENERIC_DECL;
+      return tree_has_ref(t) && hset_contains(decls, tree_ref(t));
    default:
       return false;
    }
 }
 
-static void collect_generic_types(hset_t **decls, type_t type)
+static void collect_generic_types(hset_t *decls, type_t type)
 {
-   hset_insert(*decls, type);
+   hset_insert(decls, type);
 
    // Also collect any anonymous generic types
    switch (type_subkind(type)) {
@@ -204,17 +203,11 @@ static void collect_generic_types(hset_t **decls, type_t type)
    }
 }
 
-static void collect_generics(tree_t t, hset_t **decls, tree_list_t *roots)
+static void collect_generics(tree_t t, hset_t *decls, tree_list_t *roots)
 {
    const int ngenerics = tree_generics(t);
    for (int i = 0; i < ngenerics; i++) {
       tree_t g = tree_generic(t, i);
-
-      const class_t class = tree_class(g);
-      if (class == C_CONSTANT)
-         continue;
-      else if (*decls == NULL)
-         *decls = hset_new(64);
 
       // If the uninstantiated unit has any package generics then we
       // need to copy those too in order to fix up the types
@@ -234,40 +227,21 @@ static void collect_generics(tree_t t, hset_t **decls, tree_list_t *roots)
       case C_TYPE:
          collect_generic_types(decls, tree_type(g));
          break;
+      case C_CONSTANT:
+         hset_insert(decls, g);
+         break;
       default:
          break;
       }
    }
 }
 
-static void collect_decls(tree_t t, hset_t **decls, tree_list_t *roots)
+static void collect_decls(tree_t t, hset_t *decls, tree_list_t *roots)
 {
-   if (*decls == NULL)
-      *decls = hset_new(64);
-
-   switch (tree_kind(t)) {
-   case T_PACKAGE:
-   case T_FUNC_BODY:
-   case T_FUNC_DECL:
-   case T_PROC_BODY:
-   case T_PROC_DECL:
-      {
-         // Must make a unique copy of all package generics
-         const int ngenerics = tree_generics(t);
-         for (int i = 0; i < ngenerics; i++) {
-            tree_t g = tree_generic(t, i);
-            hset_insert(*decls, g);
-         }
-      }
-      break;
-   default:
-      break;
-   }
-
    const int ndecls = tree_decls(t);
    for (int i = 0 ; i < ndecls; i++) {
       tree_t d = tree_decl(t, i);
-      hset_insert(*decls, d);
+      hset_insert(decls, d);
 
       switch (tree_kind(d)) {
       case T_PACKAGE:
@@ -278,11 +252,11 @@ static void collect_decls(tree_t t, hset_t **decls, tree_list_t *roots)
          collect_decls(d, decls, roots);
          break;
       case T_TYPE_DECL:
-         hset_insert(*decls, type_base_recur(tree_type(d)));
+         hset_insert(decls, type_base_recur(tree_type(d)));
          break;
       case T_PROT_DECL:
       case T_PROT_BODY:
-         hset_insert(*decls, tree_type(d));
+         hset_insert(decls, tree_type(d));
          collect_decls(d, decls, roots);
          break;
       default:
@@ -294,29 +268,30 @@ static void collect_decls(tree_t t, hset_t **decls, tree_list_t *roots)
 void new_instance(tree_t *roots, int nroots, ident_t dotted,
                   const ident_t *prefixes, int nprefix)
 {
+   hset_t *decls = hset_new(64);
    tree_list_t troots = AINIT;
+
    for (int i = 0; i < nroots; i++)
       APUSH(troots, roots[i]);
 
-   hset_t *decls = NULL;
    for (int i = 0; i < nroots; i++) {
       switch (tree_kind(roots[i])) {
       case T_ENTITY:
       case T_FUNC_DECL:
       case T_PROC_DECL:
       case T_COMPONENT:
-         collect_generics(roots[i], &decls, &troots);
+         collect_generics(roots[i], decls, &troots);
          break;
       case T_PACKAGE:
       case T_FUNC_BODY:
       case T_PROC_BODY:
       case T_FUNC_INST:
       case T_PROC_INST:
-         collect_generics(roots[i], &decls, &troots);
-         collect_decls(roots[i], &decls, &troots);
+         collect_generics(roots[i], decls, &troots);
+         collect_decls(roots[i], decls, &troots);
          break;
       case T_PACK_BODY:
-         collect_decls(roots[i], &decls, &troots);
+         collect_decls(roots[i], decls, &troots);
          break;
       default:
          break;
@@ -330,10 +305,9 @@ void new_instance(tree_t *roots, int nroots, ident_t dotted,
 
    for (int i = 0; i < nroots; i++)
       roots[i] = troots.items[i];
-   ACLEAR(troots);
 
-   if (decls != NULL)
-      hset_free(decls);
+   ACLEAR(troots);
+   hset_free(decls);
 }
 
 static type_t rewrite_generic_types_cb(type_t type, void *__ctx)
