@@ -2115,20 +2115,54 @@ END_TEST
 
 START_TEST(test_clone2)
 {
+   set_standard(STD_19);
+
    input_from_file(TESTDIR "/elab/clone2.vhd");
 
    tree_t e = run_elab();
    fail_if(e == NULL);
 
-   tree_t g1_1 = tree_stmt(tree_stmt(e, 0), 2);
+   tree_t top = tree_stmt(e, 0);
+
+   tree_t u1 = tree_stmt(top, 0);
+   fail_unless(tree_kind(u1) == T_BLOCK);
+   fail_unless(tree_ident(u1) == ident_new("U1"));
+
+   tree_t u2 = tree_stmt(top, 1);
+   fail_unless(tree_kind(u2) == T_BLOCK);
+   fail_unless(tree_ident(u2) == ident_new("U2"));
+
+   fail_unless(tree_port(u1, 0) == tree_port(u2, 0));
+
+   tree_t g1_1 = tree_stmt(top, 2);
    fail_unless(tree_kind(g1_1) == T_BLOCK);
    fail_unless(tree_ident(g1_1) == ident_new("G1(1)"));
 
-   tree_t g1_2 = tree_stmt(tree_stmt(e, 0), 3);
+   tree_t g1_2 = tree_stmt(top, 3);
    fail_unless(tree_kind(g1_2) == T_BLOCK);
    fail_unless(tree_ident(g1_2) == ident_new("G1(2)"));
 
    fail_unless(tree_stmt(g1_1, 0) == tree_stmt(g1_2, 0));
+
+   tree_t u3 = tree_stmt(top, 5);
+   fail_unless(tree_kind(u3) == T_BLOCK);
+   fail_unless(tree_ident(u3) == ident_new("U3"));
+
+   tree_t u4 = tree_stmt(top, 6);
+   fail_unless(tree_kind(u4) == T_BLOCK);
+   fail_unless(tree_ident(u4) == ident_new("U4"));
+
+   fail_unless(tree_port(u3, 0) == tree_port(u4, 0));
+
+   tree_t u5 = tree_stmt(top, 7);
+   fail_unless(tree_kind(u5) == T_BLOCK);
+   fail_unless(tree_ident(u5) == ident_new("U5"));
+
+   tree_t u6 = tree_stmt(top, 8);
+   fail_unless(tree_kind(u6) == T_BLOCK);
+   fail_unless(tree_ident(u6) == ident_new("U6"));
+
+   fail_if(tree_port(u5, 0) == tree_port(u6, 0));
 
    fail_if_errors();
 }

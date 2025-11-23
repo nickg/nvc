@@ -231,53 +231,269 @@ static void elab_subprogram_prefix(tree_t arch, elab_ctx_t *ctx)
    ctx->prefix[1] = tree_ident(tree_primary(arch));
 }
 
-static uint32_t elab_hash_inst(const void *key)
+static uint32_t elab_hash_vhdl_generic(tree_t g, tree_t value)
 {
-   vlog_node_t v = (void *)key;
-   assert(vlog_kind(v) == V_INST_LIST);
+   uint32_t h = ident_hash(tree_ident(g));
 
-   uint32_t h = ident_hash(vlog_ident(v));
-
-   const int nparams = vlog_params(v);
-   for (int i = 0; i < nparams; i++)
-      h ^= vlog_hash_node(vlog_param(v, i));
+   switch (tree_class(g)) {
+   case C_TYPE:
+      h ^= (uintptr_t)tree_type(value);
+      break;
+   case C_FUNCTION:
+   case C_PROCEDURE:
+   case C_PACKAGE:
+      h ^= (uintptr_t)tree_ref(value);
+      break;
+   case C_CONSTANT:
+      // Only literal values are folded so instances with different
+      // non-literal generic maps can be reused
+      switch (tree_kind(value)) {
+      case T_REF:
+         {
+            tree_t decl = tree_ref(value);
+            if (tree_kind(decl) == T_ENUM_LIT)
+               h ^= knuth_hash(tree_pos(decl));
+         }
+         break;
+      case T_LITERAL:
+         switch (tree_subkind(value)) {
+         case L_PHYSICAL:
+            h ^= ident_hash(tree_ident(value));
+            // Fall-through
+         case L_INT:
+            h ^= mix_bits_64(tree_ival(value));
+            break;
+         case L_REAL:
+            h ^= mix_bits_64(FLOAT_BITS(tree_dval(value)));
+            break;
+         default:
+            should_not_reach_here();
+         }
+         break;
+      default:
+         break;
+      }
+      break;
+   default:
+      should_not_reach_here();
+   }
 
    return h;
 }
 
-static bool elab_cmp_inst(const void *a, const void *b)
+static uint32_t elab_hash_vhdl_inst(tree_t t)
 {
-   vlog_node_t va = (vlog_node_t)a, vb = (vlog_node_t)b;
-   assert(vlog_kind(va) == V_INST_LIST);
-   assert(vlog_kind(vb) == V_INST_LIST);
+   uint32_t h = 0;
 
-   if (vlog_ident(va) != vlog_ident(vb))
-      return false;
+   switch (tree_kind(t)) {
+   case T_SPEC:
+      {
+         if (tree_has_value(t)) {
+            tree_t bind = tree_value(t);
+            h ^= elab_hash_vhdl_inst(bind);
 
-   const int nparams = vlog_params(va);
-   if (vlog_params(vb) != nparams)
-      return false;
+            // Mapping of component to entity ports is significant
+            const int nparams = tree_params(bind);
+            for (int i = 0; i < nparams; i++) {
+               tree_t m = tree_param(bind, i);
+               if (tree_subkind(m) == P_POS) {
+                  tree_t value = tree_value(m);
+                  if (tree_kind(value) == T_REF)
+                     h ^= (uintptr_t)tree_ref(value);
+                  else
+                     h ^= (uintptr_t)value;
+               }
+               else
+                  h ^= (uintptr_t)m;   // Ignore for now
+            }
+         }
 
-   for (int i = 0; i < nparams; i++) {
-      if (!vlog_equal_node(vlog_param(va, i), vlog_param(vb, i)))
-         return false;
+         if (tree_decls(t) > 0)
+            h ^= (uintptr_t)t;   // Ignore for now
+      }
+      break;
+   case T_INSTANCE:
+      h ^= elab_hash_vhdl_inst(tree_spec(t));
+      // Fall-through
+   case T_BINDING:
+      {
+         tree_t unit = tree_ref(t), ent = primary_unit_of(unit);
+         h ^= mix_bits_64((uintptr_t)unit);
+
+         const int ngenmaps = tree_genmaps(t);
+         for (int i = 0; i < ngenmaps; i++) {
+            tree_t m = tree_genmap(t, i);
+            assert(tree_subkind(m) == P_POS);
+
+            h ^= elab_hash_vhdl_generic(tree_generic(ent, i), tree_value(m));
+         }
+      }
+      break;
+   default:
+      should_not_reach_here();
    }
 
-   return true;
+   return h;
 }
 
-static mod_cache_t *elab_cached_module(vlog_node_t mod, const elab_ctx_t *ctx)
+static uint32_t elab_hash_inst(const void *key)
 {
-   assert(is_top_level(mod));
+   tree_t t = tree_from_object((object_t *)key);
+   if (t != NULL)
+      return elab_hash_vhdl_inst(t);
 
-   mod_cache_t *mc = hash_get(ctx->modcache, mod);
+   vlog_node_t v = vlog_from_object((object_t *)key);
+   if (v != NULL) {
+      assert(vlog_kind(v) == V_INST_LIST);
+
+      uint32_t h = ident_hash(vlog_ident(v));
+
+      const int nparams = vlog_params(v);
+      for (int i = 0; i < nparams; i++)
+         h ^= vlog_hash_node(vlog_param(v, i));
+
+      return h;
+   }
+
+   should_not_reach_here();
+}
+
+static bool elab_cmp_vhdl_generic(tree_t g, tree_t a, tree_t b)
+{
+   switch (tree_class(g)) {
+   case C_CONSTANT:
+      return (!is_literal(a) && !is_literal(b)) || same_tree(a, b);
+   case C_TYPE:
+      return type_strict_eq(tree_type(a), tree_type(b));
+   case C_FUNCTION:
+   case C_PROCEDURE:
+   case C_PACKAGE:
+      return tree_ref(a) == tree_ref(b);
+   default:
+      should_not_reach_here();
+   }
+}
+
+static bool elab_cmp_vhdl_inst(tree_t a, tree_t b)
+{
+   const tree_kind_t kind = tree_kind(a);
+   if (kind != tree_kind(b))
+      return false;
+
+   switch (kind) {
+   case T_SPEC:
+      {
+         tree_t a_bind = tree_has_value(a) ? tree_value(a) : NULL;
+         tree_t b_bind = tree_has_value(b) ? tree_value(b) : NULL;
+
+         if (a_bind != NULL && b_bind != NULL) {
+            if (!elab_cmp_vhdl_inst(a_bind, b_bind))
+               return false;
+
+            const int nparams = tree_params(a_bind);
+            if (tree_params(b_bind) != nparams)
+               return false;
+
+            for (int i = 0; i < nparams; i++) {
+               tree_t ma = tree_param(a_bind, i);
+               tree_t mb = tree_param(b_bind, i);
+
+               if (tree_subkind(ma) != P_POS || tree_subkind(mb) != P_POS)
+                  return false;
+
+               tree_t a_value = tree_value(ma);
+               tree_t b_value = tree_value(mb);
+
+               if (tree_kind(a_value) != T_REF || tree_kind(b_value) != T_REF)
+                  return false;
+               else if (tree_ref(a_value) != tree_ref(b_value))
+                  return false;
+            }
+         }
+         else if (a_bind != NULL || b_bind != NULL)
+            return false;
+
+         if (tree_decls(a) > 0 || tree_decls(b) > 0)
+            return false;
+
+         return true;
+      }
+   case T_INSTANCE:
+      if (!elab_cmp_vhdl_inst(tree_spec(a), tree_spec(b)))
+         return false;
+      // Fall-through
+   case T_BINDING:
+      {
+         tree_t unit = tree_ref(a), ent = primary_unit_of(unit);
+         if (tree_ref(b) != unit)
+            return false;
+
+         const int ngenmaps = tree_genmaps(a);
+         if (tree_genmaps(b) != ngenmaps)
+            return false;
+
+         for (int i = 0; i < ngenmaps; i++) {
+            tree_t ma = tree_genmap(a, i);
+            tree_t mb = tree_genmap(b, i);
+
+            assert(tree_subkind(ma) == P_POS);
+            assert(tree_subkind(mb) == P_POS);
+
+            tree_t a = tree_value(ma);
+            tree_t b = tree_value(mb);
+
+            if (!elab_cmp_vhdl_generic(tree_generic(ent, i), a, b))
+               return false;
+         }
+
+         return true;
+      }
+   default:
+      should_not_reach_here();
+   }
+}
+
+static bool elab_cmp_inst(const void *a, const void *b)
+{
+   tree_t ta = tree_from_object((object_t *)a);
+   tree_t tb = tree_from_object((object_t *)b);
+   if (ta != NULL && tb != NULL)
+      return elab_cmp_vhdl_inst(ta, tb);
+
+   vlog_node_t va = vlog_from_object((object_t *)a);
+   vlog_node_t vb = vlog_from_object((object_t *)b);
+   if (va != NULL && vb != NULL) {
+      assert(vlog_kind(va) == V_INST_LIST);
+      assert(vlog_kind(vb) == V_INST_LIST);
+
+      if (vlog_ident(va) != vlog_ident(vb))
+         return false;
+
+      const int nparams = vlog_params(va);
+      if (vlog_params(vb) != nparams)
+         return false;
+
+      for (int i = 0; i < nparams; i++) {
+         if (!vlog_equal_node(vlog_param(va, i), vlog_param(vb, i)))
+            return false;
+      }
+
+      return true;
+   }
+
+   return false;
+}
+
+static mod_cache_t *elab_cached_module(object_t *obj, const elab_ctx_t *ctx)
+{
+   mod_cache_t *mc = hash_get(ctx->modcache, obj);
    if (mc != NULL)
       return mc;
 
    mc = xcalloc(sizeof(mod_cache_t));
    mc->instances = ghash_new(4, elab_hash_inst, elab_cmp_inst);
 
-   hash_put(ctx->modcache, mod, mc);
+   hash_put(ctx->modcache, obj, mc);
    return mc;
 }
 
@@ -286,7 +502,7 @@ static elab_instance_t *elab_new_instance(vlog_node_t mod, vlog_node_t inst,
 {
    assert(is_top_level(mod));
 
-   mod_cache_t *mc = elab_cached_module(mod, ctx);
+   mod_cache_t *mc = elab_cached_module(vlog_to_object(mod), ctx);
 
    elab_instance_t *ei = ghash_get(mc->instances, inst);
    if (ei != NULL)
@@ -1930,8 +2146,17 @@ static void elab_component(tree_t inst, tree_t comp, const elab_ctx_t *ctx)
    };
    elab_inherit_context(&new_ctx, ctx);
 
-   tree_t src = vhdl_component_instance(comp, inst, ndotted);
-   elab_fold_generics(src, &new_ctx);
+   mod_cache_t *mc = elab_cached_module(tree_to_object(comp), &new_ctx);
+
+   elab_instance_t *ei = ghash_get(mc->instances, inst);
+   if (ei == NULL) {
+      ei = xcalloc(sizeof(elab_instance_t));
+      ei->block = vhdl_component_instance(comp, inst, ctx->dotted);
+
+      elab_fold_generics(ei->block, ctx);
+
+      ghash_put(mc->instances, inst, ei);
+   }
 
    tree_t b = tree_new(T_BLOCK);
    tree_set_ident(b, tree_ident(inst));
@@ -1941,16 +2166,16 @@ static void elab_component(tree_t inst, tree_t comp, const elab_ctx_t *ctx)
    new_ctx.out = b;
 
    elab_push_scope(comp, &new_ctx);
-   elab_generics(src, src, &new_ctx);
-   elab_ports(src, inst, &new_ctx);
+   elab_generics(ei->block, inst, &new_ctx);
+   elab_ports(ei->block, inst, &new_ctx);
 
    if (error_count() == 0) {
-      new_ctx.drivers = find_drivers(src);
+      new_ctx.drivers = find_drivers(ei->block);
       elab_lower(b, &new_ctx);
    }
 
    if (elab_new_errors(&new_ctx) == 0)
-      elab_stmts(src, &new_ctx);
+      elab_stmts(ei->block, &new_ctx);
 
    elab_pop_scope(&new_ctx);
 }
