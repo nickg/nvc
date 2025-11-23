@@ -723,7 +723,8 @@ void mir_build_bind_foreign(mir_unit_t *mu, mir_value_t spec,
                             mir_value_t length, mir_value_t locus);
 mir_value_t mir_build_bind_external(mir_unit_t *mu, mir_value_t locus,
                                     ident_t scope, mir_type_t type,
-                                    mir_stamp_t stamp);
+                                    mir_stamp_t stamp, const mir_value_t *args,
+                                    int nargs);
 mir_value_t mir_build_context_upref(mir_unit_t *mu, int hops);
 mir_value_t mir_build_var_upref(mir_unit_t *mu, int hops, int nth);
 

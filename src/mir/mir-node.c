@@ -3063,17 +3063,24 @@ void mir_build_bind_foreign(mir_unit_t *mu, mir_value_t spec,
 
 mir_value_t mir_build_bind_external(mir_unit_t *mu, mir_value_t locus,
                                     ident_t scope, mir_type_t type,
-                                    mir_stamp_t stamp)
+                                    mir_stamp_t stamp, const mir_value_t *args,
+                                    int nargs)
 {
    mir_type_t pointer = mir_get_var_pointer(mu, type);
    mir_value_t link = mir_add_linkage(mu, scope);
-   mir_value_t result = mir_build_2(mu, MIR_OP_BIND_EXTERNAL, pointer, stamp,
-                                    locus, link);
+
+   node_data_t *n = mir_add_node(mu, MIR_OP_BIND_EXTERNAL, pointer, stamp,
+                                 nargs + 2);
+   mir_set_arg(mu, n, 0, locus);
+   mir_set_arg(mu, n, 1, link);
+
+   for (int i = 0; i < nargs; i++)
+      mir_set_arg(mu, n, i + 2, args[i]);
 
    MIR_ASSERT(mir_is(mu, locus, MIR_TYPE_LOCUS),
               "bind external argument must be locus");
 
-   return result;
+   return (mir_value_t){ .tag = MIR_TAG_NODE, .id = mir_node_id(mu, n) };
 }
 
 mir_value_t mir_build_context_upref(mir_unit_t *mu, int hops)

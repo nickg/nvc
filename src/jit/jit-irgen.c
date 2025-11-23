@@ -3939,6 +3939,11 @@ static void irgen_op_bind_external(jit_irgen_t *g, mir_value_t n)
 
    j_send(g, 0, locus);
    j_send(g, 1, jit_value_from_handle(handle));
+
+   const int nargs = mir_count_args(g->mu, n);
+   for (int i = 2; i < nargs; i++)
+      j_send(g, i, irgen_get_arg(g, n, i));
+
    macro_exit(g, JIT_EXIT_BIND_EXTERNAL);
 
    g->map[n.id] = j_recv(g, 0);

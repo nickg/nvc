@@ -945,8 +945,13 @@ static void import_bind_external(mir_unit_t *mu, mir_import_t *imp, int op)
    vcode_type_t vtype = vtype_pointed(vcode_reg_type(result));
    mir_type_t type = import_type(mu, imp, vtype);
 
+   const int nargs = vcode_count_args(op) - 1;
+   mir_value_t *args LOCAL = xmalloc_array(nargs, sizeof(mir_value_t));
+   for (int i = 0; i < nargs; i++)
+      args[i] = imp->map[vcode_get_arg(op, i + 1)];
+
    imp->map[result] = mir_build_bind_external(mu, locus, scope, type,
-                                              MIR_NULL_STAMP);
+                                              MIR_NULL_STAMP, args, nargs);
 }
 
 static void import_unreachable(mir_unit_t *mu, mir_import_t *imp, int op)

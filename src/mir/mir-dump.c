@@ -1635,12 +1635,20 @@ void mir_annotate(mir_unit_t *mu, const mir_annotate_t *cb, void *ctx)
             {
                col += mir_dump_value(mu, result, cb, ctx);
                col += printf(" := %s ", mir_op_string(n->op));
-               col += mir_dump_value(mu, n->args[0], cb, ctx);
+               col += mir_dump_arg(mu, result, 0, cb, ctx);
                col += printf(" scope ");
-               col += mir_dump_value(mu, n->args[1], cb, ctx);
+               col += mir_dump_arg(mu, result, 1, cb, ctx);
+               if (n->nargs > 2) {
+                  col += printf(" args ");
+                  for (int i = 2; i < n->nargs; i++) {
+                     if (i > 2) col += printf(", ");
+                     col += mir_dump_arg(mu, result, i, cb, ctx);
+                  }
+               }
                mir_dump_type(mu, col, n->type);
                mir_dump_stamp(mu, n->type, n->stamp);
             }
+            break;
 
          case MIR_OP_COVER_STMT:
          case MIR_OP_COVER_BRANCH:

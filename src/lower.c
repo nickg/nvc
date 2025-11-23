@@ -3094,8 +3094,20 @@ static vcode_reg_t lower_external_name(lower_unit_t *lu, tree_t ref)
 
    vcode_select_block(bind_bb);
 
+   SCOPED_A(vcode_reg_t) args = AINIT;
+   const int nparts = tree_parts(ref);
+   for (int i = 0; i < nparts; i++) {
+      tree_t p = tree_part(ref, i);
+      if (tree_subkind(p) == PE_GENERATE) {
+         vcode_reg_t arg = lower_rvalue(lu, tree_value(p));
+         APUSH(args, arg);
+         emit_comment("arg r%d", arg);
+      }
+   }
+
    vcode_reg_t locus = lower_debug_locus(ref);
-   vcode_reg_t ext_reg = emit_bind_external(locus, scope, vtype, vbounds);
+   vcode_reg_t ext_reg = emit_bind_external(locus, scope, vtype, vbounds,
+                                            args.items, args.count);
 
    // The external name subtype indication does not have to exactly
    // match the subtype of the referenced object

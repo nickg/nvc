@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2024  Nick Gasson
+//  Copyright (C) 2024-2025  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -84,13 +84,14 @@ static bool is_implicit_block(tree_t block)
    return tree_subkind(hier) == T_COMPONENT;
 }
 
-void x_bind_external(tree_t name, jit_handle_t scope, jit_scalar_t *result)
+void x_bind_external(tree_t name, jit_handle_t scope, jit_scalar_t *args)
 {
    assert(tree_kind(name) == T_EXTERNAL_NAME);
 
    jit_t *j = jit_for_thread();
    tree_t where = tree_from_object(jit_get_object(j, scope)), next = NULL;
    ident_t path = jit_get_name(j, scope);
+   int next_arg = 2;
 
    const int nparts = tree_parts(name);
    for (int i = 0; i < nparts; i++, where = next, next = NULL) {
@@ -133,7 +134,7 @@ void x_bind_external(tree_t name, jit_handle_t scope, jit_scalar_t *result)
          {
             LOCAL_TEXT_BUF tb = tb_new();
             tb_istr(tb, tree_ident(pe));
-            tb_printf(tb, "(%"PRIi64")", assume_int(tree_value(pe)));
+            tb_printf(tb, "(%"PRIi64")", args[next_arg++].integer);
 
             id = ident_new(tb_get(tb));
          }
@@ -269,8 +270,8 @@ void x_bind_external(tree_t name, jit_handle_t scope, jit_scalar_t *result)
          slots[pos++].integer = dir == RANGE_TO ? length : ~length;
       }
 
-      result[0].pointer = slots;
+      args[0].pointer = slots;
    }
    else
-      result[0].pointer = ptr;
+      args[0].pointer = ptr;
 }
