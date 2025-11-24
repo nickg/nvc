@@ -1198,13 +1198,11 @@ static tree_t elab_find_generic_override(tree_t g, const elab_ctx_t *ctx)
    if (generic_override == NULL)
       return NULL;
 
-   ident_t qual = tree_ident(g);
-   for (const elab_ctx_t *e = ctx; e->inst; e = e->parent)
-      qual = ident_prefix(tree_ident(e->inst), qual, '.');
+   ident_t name = tree_ident(g);
 
    generic_list_t **it, *tmp;
    for (it = &generic_override;
-        *it && (*it)->name != qual;
+        *it && (*it)->name != name;
         it = &((*it)->next))
       ;
 
@@ -1218,6 +1216,65 @@ static tree_t elab_find_generic_override(tree_t g, const elab_ctx_t *ctx)
    free(tmp);
 
    return value;
+}
+
+static tree_t elab_override_instance_generics(tree_t t, const elab_ctx_t *ctx)
+{
+   if (generic_override == NULL)
+      return t;
+
+   ident_t prefix = tree_ident(t);
+   for (const elab_ctx_t *e = ctx; e->inst; e = e->parent)
+      prefix = ident_prefix(tree_ident(e->inst), prefix, '.');
+
+   tree_t unit = tree_ref(t), entity = primary_unit_of(unit);
+
+   const int ngenerics = tree_generics(entity);
+   const int ngenmaps = tree_genmaps(t);
+   assert(ngenerics == ngenmaps);
+
+   tree_t new = tree_new(T_INSTANCE);
+   tree_set_loc(new, tree_loc(t));
+   tree_set_ref(new, unit);
+   tree_set_class(new, tree_class(t));
+   tree_set_ident(new, tree_ident(t));
+   tree_set_ident2(new, tree_ident2(t));
+
+   for (int i = 0; i < ngenerics; i++) {
+      tree_t g = tree_generic(entity, i);
+      tree_t m = tree_genmap(t, i);
+      assert(tree_subkind(m) == P_POS);
+      assert(tree_pos(m) == i);
+
+      ident_t qual = ident_prefix(prefix, tree_ident(g), '.');
+
+      generic_list_t **it, *tmp;
+      for (it = &generic_override;
+           *it && (*it)->name != qual;
+           it = &((*it)->next))
+         ;
+
+      if (*it == NULL)
+         tree_add_genmap(new, m);
+      else {
+         tree_t m2 = tree_new(T_PARAM);
+         tree_set_subkind(m2, P_POS);
+         tree_set_pos(m2, i);
+         tree_set_value(m2, elab_parse_generic_string(g, (*it)->value));
+
+         tree_add_genmap(new, m2);
+
+         *it = (tmp = (*it))->next;
+         free(tmp->value);
+         free(tmp);
+      }
+   }
+
+   const int nparams = tree_params(t);
+   for (int i = 0; i < nparams; i++)
+      tree_add_param(new, tree_param(t, i));
+
+   return new;
 }
 
 static void elab_generics(tree_t entity, tree_t bind, elab_ctx_t *ctx)
@@ -1241,14 +1298,6 @@ static void elab_generics(tree_t entity, tree_t bind, elab_ctx_t *ctx)
          tree_set_subkind(map, P_POS);
          tree_set_pos(map, i);
          tree_set_value(map, tree_value(g));
-      }
-
-      tree_t override = elab_find_generic_override(g, ctx);
-      if (override != NULL) {
-         map = tree_new(T_PARAM);
-         tree_set_subkind(map, P_POS);
-         tree_set_pos(map, i);
-         tree_set_value(map, override);
       }
 
       if (map == NULL) {
@@ -2209,21 +2258,23 @@ static void elab_instance(tree_t t, const elab_ctx_t *ctx)
       return;
    }
 
+   tree_t new = elab_override_instance_generics(t, ctx);
+
    tree_t ref = tree_ref(t);
    switch (tree_kind(ref)) {
    case T_ENTITY:
       {
-         tree_t arch = elab_pick_arch(tree_loc(t), ref, ctx);
-         elab_architecture(t, arch, NULL, ctx);
+         tree_t arch = elab_pick_arch(tree_loc(new), ref, ctx);
+         elab_architecture(new, arch, NULL, ctx);
       }
       break;
 
    case T_ARCH:
-      elab_architecture(t, ref, NULL, ctx);
+      elab_architecture(new, ref, NULL, ctx);
       break;
 
    case T_COMPONENT:
-      elab_component(t, ref, ctx);
+      elab_component(new, ref, ctx);
       break;
 
    case T_CONFIGURATION:
@@ -2232,7 +2283,7 @@ static void elab_instance(tree_t t, const elab_ctx_t *ctx)
          assert(tree_kind(config) == T_BLOCK_CONFIG);
 
          tree_t arch = tree_ref(config);
-         elab_architecture(t, arch, config, ctx);
+         elab_architecture(new, arch, config, ctx);
       }
       break;
 
