@@ -4,7 +4,7 @@
 - The `--precompile` elaboration option which was deprecated in the last
   release has been removed.  The related `--with-system-cc` configure
   option has also been removed.
-- Several other minor bugs were resolved (#1237).
+- Several other minor bugs were resolved (#1237, #1351).
 
 ## Version 1.18.2 - 2025-11-19
 - Fixed a mis-optimisation which would cause the result of `x * x` to be

@@ -1286,8 +1286,9 @@ static void lower_signal_flag_field_cb(lower_unit_t *lu, tree_t field,
 
       vcode_reg_t flag;
       if (type_is_array(ftype)) {
-         vcode_reg_t nets_reg = emit_load_indirect(field_ptr);
-         vcode_reg_t len_reg = lower_array_total_len(lu, ftype, nets_reg);
+         vcode_reg_t array_reg = emit_load_indirect(field_ptr);
+         vcode_reg_t nets_reg = lower_array_data(array_reg);
+         vcode_reg_t len_reg = lower_array_total_len(lu, ftype, array_reg);
          flag = (*args->fn)(nets_reg, len_reg);
       }
       else {
