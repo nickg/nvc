@@ -12,10 +12,10 @@ module real8;
       pass = 0;
     end
 
-    r1 = r1 * 2.0;
+    r1 = -r1 * 2.0;
     #1;
-    if (r1 != 3.0) begin
-      $display("%f != 3.0", r1);
+    if (+r1 != -3.0) begin
+      $display("%f != -3.0", r1);
       pass = 0;
     end
 

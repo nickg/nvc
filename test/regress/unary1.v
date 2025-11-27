@@ -6,7 +6,7 @@ module unary1;
     #1;  // TODO: shouldn't be necessary?
     r1 = ~&(x);
     r2 = ~|(x);
-    r3 = ^(x);
+    r3 = ^(+x);
     $display("%b %b %b", r1, r2, r3);
     if (r1 !== 1 || r2 !== 0) begin
       $display("FAILED");
