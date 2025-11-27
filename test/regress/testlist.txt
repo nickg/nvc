@@ -1230,3 +1230,4 @@ issue1334       normal,2008
 issue1348       normal
 select8         verilog
 issue1351       normal,2008
+ivtest21        verilog

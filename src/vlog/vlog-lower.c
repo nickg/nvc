@@ -1163,12 +1163,24 @@ static mir_value_t vlog_lower_rvalue(vlog_gen_t *g, vlog_node_t v)
 
 static mir_value_t vlog_lower_time(vlog_gen_t *g, vlog_node_t v)
 {
-   assert(vlog_kind(v) == V_NUMBER);
-
    mir_type_t t_time = mir_time_type(g->mu);
-   number_t num = vlog_number(v);
 
-   return mir_const(g->mu, t_time, number_integer(num));
+   if (vlog_kind(v) == V_NUMBER) {
+      number_t num = vlog_number(v);
+      return mir_const(g->mu, t_time, number_integer(num));
+   }
+   else {
+      mir_value_t value = vlog_lower_rvalue(g, v);
+      mir_type_t type = mir_get_type(g->mu, value);
+      if (mir_get_class(g->mu, type) == MIR_TYPE_VEC4) {
+         // TODO: how to handle X here
+         const int size = mir_get_size(g->mu, type);
+         mir_type_t t_vec2 = mir_vec2_type(g->mu, size, true);
+         value = mir_build_cast(g->mu, t_vec2, value);
+      }
+
+      return mir_build_cast(g->mu, t_time, value);
+   }
 }
 
 static mir_value_t vlog_or_triggers(vlog_gen_t *g, int n, ...)
