@@ -158,4 +158,6 @@ module parse1;
   end
   endgenerate
   buf (weak0, weak1) g3(x, y);
+  tranif1 (x, y, z);
+  rtran (x, y);
 endmodule // parse1

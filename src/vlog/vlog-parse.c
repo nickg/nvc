@@ -447,19 +447,25 @@ static ident_t default_label(const char *prefix)
 static vlog_gate_kind_t get_gate_kind(token_t tok)
 {
    switch (tok) {
-   case tAND:    return V_GATE_AND;
-   case tNAND:   return V_GATE_NAND;
-   case tOR:     return V_GATE_OR;
-   case tNOR:    return V_GATE_NOR;
-   case tXOR:    return V_GATE_XOR;
-   case tXNOR:   return V_GATE_XNOR;
-   case tNOT:    return V_GATE_NOT;
-   case tNOTIF0: return V_GATE_NOTIF0;
-   case tNOTIF1: return V_GATE_NOTIF1;
-   case tBUF:    return V_GATE_BUF;
-   case tBUFIF0: return V_GATE_BUFIF0;
-   case tBUFIF1: return V_GATE_BUFIF1;
-   default:      should_not_reach_here();
+   case tAND:      return V_GATE_AND;
+   case tNAND:     return V_GATE_NAND;
+   case tOR:       return V_GATE_OR;
+   case tNOR:      return V_GATE_NOR;
+   case tXOR:      return V_GATE_XOR;
+   case tXNOR:     return V_GATE_XNOR;
+   case tNOT:      return V_GATE_NOT;
+   case tNOTIF0:   return V_GATE_NOTIF0;
+   case tNOTIF1:   return V_GATE_NOTIF1;
+   case tBUF:      return V_GATE_BUF;
+   case tBUFIF0:   return V_GATE_BUFIF0;
+   case tBUFIF1:   return V_GATE_BUFIF1;
+   case tTRAN:     return V_GATE_TRAN;
+   case tTRANIF0:  return V_GATE_TRANIF0;
+   case tTRANIF1:  return V_GATE_TRANIF1;
+   case tRTRAN:    return V_GATE_RTRAN;
+   case tRTRANIF0: return V_GATE_RTRANIF0;
+   case tRTRANIF1: return V_GATE_RTRANIF1;
+   default:        should_not_reach_here();
    }
 }
 
@@ -4844,6 +4850,81 @@ static vlog_node_t p_enable_gate_instance(vlog_gate_kind_t kind)
    return v;
 }
 
+static vlog_node_t p_pass_switch_instance(vlog_gate_kind_t kind)
+{
+   // [ name_of_instance ] ( inout_terminal , inout_terminal )
+
+   BEGIN("pass switch instance");
+
+   vlog_node_t v = vlog_new(V_GATE_INST);
+   vlog_set_subkind(v, kind);
+
+   if (peek() == tID) {
+      vlog_set_ident(v, p_identifier());
+      vlog_set_loc(v, &state.last_loc);
+      vlog_symtab_put(symtab, v);
+   }
+   else
+      vlog_set_ident(v, default_label("gate"));
+
+   consume(tLPAREN);
+
+   vlog_symtab_set_implicit(symtab, implicit_kind);
+
+   vlog_set_target(v, p_net_lvalue());
+
+   consume(tCOMMA);
+
+   vlog_add_param(v, p_net_lvalue());
+
+   vlog_symtab_set_implicit(symtab, V_NET_NONE);
+
+   consume(tRPAREN);
+
+   vlog_set_loc(v, CURRENT_LOC);
+   return v;
+}
+
+static vlog_node_t p_pass_enable_switch_instance(vlog_gate_kind_t kind)
+{
+   // [ name_of_instance ] ( inout_terminal , inout_terminal ,
+   //     enable_terminal )
+
+   BEGIN("pass enable switch instance");
+
+   vlog_node_t v = vlog_new(V_GATE_INST);
+   vlog_set_subkind(v, kind);
+
+   if (peek() == tID) {
+      vlog_set_ident(v, p_identifier());
+      vlog_set_loc(v, &state.last_loc);
+      vlog_symtab_put(symtab, v);
+   }
+   else
+      vlog_set_ident(v, default_label("gate"));
+
+   consume(tLPAREN);
+
+   vlog_symtab_set_implicit(symtab, implicit_kind);
+
+   vlog_set_target(v, p_net_lvalue());
+
+   consume(tCOMMA);
+
+   vlog_add_param(v, p_net_lvalue());
+
+   consume(tCOMMA);
+
+   vlog_add_param(v, p_expression());
+
+   vlog_symtab_set_implicit(symtab, V_NET_NONE);
+
+   consume(tRPAREN);
+
+   vlog_set_loc(v, CURRENT_LOC);
+   return v;
+}
+
 static void p_gate_instantiation(vlog_node_t mod)
 {
    // cmos_switchtype [ delay3 ] cmos_switch_instance
@@ -4868,7 +4949,8 @@ static void p_gate_instantiation(vlog_node_t mod)
 
    token_t token = one_of(tPULLDOWN, tPULLUP, tAND, tNAND, tOR, tNOR,
                           tXOR, tXNOR, tNOT, tBUF, tBUFIF0, tBUFIF1,
-                          tNOTIF0, tNOTIF1);
+                          tNOTIF0, tNOTIF1, tTRAN, tRTRAN, tTRANIF0, tTRANIF1,
+                          tRTRANIF0, tRTRANIF1);
 
    switch (token) {
    case tPULLDOWN:
@@ -4949,8 +5031,37 @@ static void p_gate_instantiation(vlog_node_t mod)
          if (peek() == tHASH)
             p_delay3();
 
+         const vlog_gate_kind_t kind = get_gate_kind(token);
+
          do {
-            vlog_add_stmt(mod, p_enable_gate_instance(get_gate_kind(token)));
+            vlog_add_stmt(mod, p_enable_gate_instance(kind));
+         } while (optional(tCOMMA));
+      }
+      break;
+
+   case tTRAN:
+   case tRTRAN:
+      {
+         const vlog_gate_kind_t kind = get_gate_kind(token);
+
+         do {
+            vlog_add_stmt(mod, p_pass_switch_instance(kind));
+         } while (optional(tCOMMA));
+      }
+      break;
+
+   case tTRANIF0:
+   case tTRANIF1:
+   case tRTRANIF0:
+   case tRTRANIF1:
+      {
+         if (peek() == tHASH)
+            p_delay2();
+
+         const vlog_gate_kind_t kind = get_gate_kind(token);
+
+         do {
+            vlog_add_stmt(mod, p_pass_enable_switch_instance(kind));
          } while (optional(tCOMMA));
       }
       break;
@@ -5989,6 +6100,12 @@ static void p_module_or_generate_item(vlog_node_t mod)
    case tBUFIF1:
    case tNOTIF0:
    case tNOTIF1:
+   case tTRAN:
+   case tTRANIF0:
+   case tTRANIF1:
+   case tRTRAN:
+   case tRTRANIF0:
+   case tRTRANIF1:
       p_gate_instantiation(mod);
       break;
    case tDEFPARAM:
@@ -6099,6 +6216,12 @@ static void p_non_port_module_item(vlog_node_t mod)
    case tBUFIF1:
    case tNOTIF0:
    case tNOTIF1:
+   case tTRAN:
+   case tTRANIF0:
+   case tTRANIF1:
+   case tRTRAN:
+   case tRTRANIF0:
+   case tRTRANIF1:
    case tTYPEDEF:
    case tENUM:
    case tSVINT:

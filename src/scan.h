@@ -545,5 +545,11 @@ void reset_sdf_parser(void);
 #define tVIRTUAL       618
 #define tSCOPE         619
 #define tDEFPARAM      620
+#define tTRAN          621
+#define tTRANIF0       622
+#define tTRANIF1       623
+#define tRTRAN         624
+#define tRTRANIF0      625
+#define tRTRANIF1      626
 
 #endif  // _SCAN_H

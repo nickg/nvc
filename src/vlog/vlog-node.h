@@ -272,6 +272,12 @@ typedef enum {
    V_GATE_BUF,
    V_GATE_BUFIF0,
    V_GATE_BUFIF1,
+   V_GATE_TRAN,
+   V_GATE_TRANIF0,
+   V_GATE_TRANIF1,
+   V_GATE_RTRAN,
+   V_GATE_RTRANIF0,
+   V_GATE_RTRANIF1,
 } vlog_gate_kind_t;
 
 typedef enum {

@@ -764,6 +764,12 @@ PROTECT           ?i:protect
 <VLOG>"bufif1"           { return tBUFIF1; }
 <VLOG>"notif0"           { return tNOTIF0; }
 <VLOG>"notif1"           { return tNOTIF1; }
+<VLOG>"tran"             { return tTRAN; }
+<VLOG>"tranif0"          { return tTRANIF0; }
+<VLOG>"tranif1"          { return tTRANIF1; }
+<VLOG>"rtran"            { return tTRAN; }
+<VLOG>"rtranif0"         { return tTRANIF0; }
+<VLOG>"rtranif1"         { return tTRANIF1; }
 <VLOG>"struct"           { return KEYWORD_2005(tSTRUCT); }
 <VLOG>"packed"           { return KEYWORD_2005(tPACKED); }
 <VLOG>"void"             { return KEYWORD_2005(tVOID); }
