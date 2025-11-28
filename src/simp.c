@@ -916,6 +916,21 @@ static bool simp_match_case_choice(tree_t alt, int64_t ival)
    return false;
 }
 
+static tree_t simp_case_choice(tree_t t, simp_ctx_t *ctx)
+{
+   switch (tree_kind(t)) {
+   case T_LITERAL:
+   case T_STRING:
+   case T_REF:
+      return t;
+   default:
+      if (eval_possible(t, ctx->registry, ctx->mir))
+         return eval_try_fold(ctx->jit, t, ctx->registry, NULL, NULL);
+      else
+         return t;
+   }
+}
+
 static tree_t simp_case(tree_t t, simp_ctx_t *ctx)
 {
    const int nstmts = tree_stmts(t);
@@ -927,20 +942,30 @@ static tree_t simp_case(tree_t t, simp_ctx_t *ctx)
       const int nassocs = tree_assocs(alt);
       for (int j = 0; j < nassocs; j++) {
          tree_t a = tree_assoc(alt, j);
-         if (tree_subkind(a) == A_NAMED) {
-            tree_t n = tree_name(a);
-            switch (tree_kind(n)) {
-            case T_LITERAL:
-            case T_STRING:
-            case T_REF:
-               break;
-            default:
-               if (eval_possible(n, ctx->registry, ctx->mir)) {
-                  n = eval_try_fold(ctx->jit, n, ctx->registry, NULL, NULL);
-                  tree_set_name(a, n);
-               }
-               break;
+         switch (tree_subkind(a)) {
+         case A_NAMED:
+            {
+               tree_t n = tree_name(a);
+               tree_t f = simp_case_choice(n, ctx);
+               if (n != f)
+                  tree_set_name(a, f);
             }
+            break;
+
+         case A_RANGE:
+            {
+               assert(tree_ranges(a) == 1);
+               tree_t range = tree_range(a, 0);
+               tree_t l = tree_left(range);
+               tree_t lf = simp_case_choice(l, ctx);
+               if (l != lf)
+                  tree_set_left(range, lf);
+               tree_t r = tree_right(range);
+               tree_t rf = simp_case_choice(r, ctx);
+               if (r != rf)
+                  tree_set_right(range, rf);
+            }
+            break;
          }
       }
    }
