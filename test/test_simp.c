@@ -1955,6 +1955,27 @@ START_TEST(test_issue1347)
 }
 END_TEST
 
+START_TEST(test_issue1353)
+{
+   set_standard(STD_08);
+   input_from_file(TESTDIR "/simp/issue1353.vhd");
+
+   tree_t a = parse_check_and_simplify(T_ENTITY, T_ARCH);
+
+   tree_t c = tree_stmt(tree_stmt(a, 0), 0);
+   fail_unless(folded_i(tree_name(tree_choice(tree_stmt(c, 0), 0)), 0));
+   fail_unless(folded_i(tree_name(tree_choice(tree_stmt(c, 0), 1)), 1));
+   tree_t r1 = tree_range(tree_choice(tree_stmt(c, 1), 0), 0);
+   fail_unless(folded_i(tree_left(r1), 2));
+   fail_unless(folded_i(tree_right(r1), 3));
+   tree_t r2 = tree_range(tree_choice(tree_stmt(c, 2), 0), 0);
+   fail_unless(folded_i(tree_left(r2), 4));
+   fail_unless(folded_i(tree_right(r2), 5));
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_simp_tests(void)
 {
    Suite *s = suite_create("simplify");
@@ -2031,6 +2052,7 @@ Suite *get_simp_tests(void)
    tcase_add_test(tc_core, test_issue1239);
    tcase_add_test(tc_core, test_issue1318);
    tcase_add_test(tc_core, test_issue1347);
+   tcase_add_test(tc_core, test_issue1353);
    suite_add_tcase(s, tc_core);
 
    return s;
