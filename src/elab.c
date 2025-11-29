@@ -58,9 +58,7 @@ typedef struct _elab_ctx {
    object_t         *root;
    tree_t            inst;
    ident_t           dotted;
-   ident_t           prefix[2];
    lib_t             library;
-   hash_t           *generics;
    jit_t            *jit;
    unit_registry_t  *registry;
    mir_context_t    *mir;
@@ -93,7 +91,10 @@ typedef struct _generic_list {
 } generic_list_t;
 
 typedef struct {
-   ghash_t *instances;
+   object_t *object;
+   ghash_t  *instances;
+   unsigned  count;
+   unsigned  unique;
 } mod_cache_t;
 
 typedef struct {
@@ -181,55 +182,6 @@ static tree_t elab_pick_arch(const loc_t *loc, tree_t entity,
    return lib_get(lib, params.chosen);
 }
 
-static tree_t elab_copy(tree_t t, const elab_ctx_t *ctx)
-{
-   tree_list_t roots = AINIT;
-   switch (tree_kind(t)) {
-   case T_ARCH:
-      APUSH(roots, tree_primary(t));
-      APUSH(roots, t);    // Architecture must be processed last
-      break;
-   case T_BLOCK_CONFIG:
-      {
-         tree_t arch = tree_ref(t);
-         assert(tree_kind(arch) == T_ARCH);
-
-         APUSH(roots, tree_primary(arch));
-         APUSH(roots, arch);
-         APUSH(roots, t);
-      }
-      break;
-   default:
-      fatal_trace("unexpected %s in elab_copy", tree_kind_str(tree_kind(t)));
-   }
-
-   tree_global_flags_t gflags = 0;
-   for (int i = 0; i < roots.count; i++)
-      gflags |= tree_global_flags(roots.items[i]);
-
-   new_instance(roots.items, roots.count, ctx->dotted, ctx->prefix,
-                ARRAY_LEN(ctx->prefix));
-
-   tree_t copy = roots.items[roots.count - 1];
-   ACLEAR(roots);
-
-   tree_set_global_flags(copy, gflags);
-   return copy;
-}
-
-static void elab_subprogram_prefix(tree_t arch, elab_ctx_t *ctx)
-{
-   // Get the prefix of unit that will need to be rewritten in
-   // subprogram names
-
-   assert(tree_kind(arch) == T_ARCH);
-
-   // The order is important here because the architecture name is
-   // prefixed with the entity
-   ctx->prefix[0] = tree_ident(arch);
-   ctx->prefix[1] = tree_ident(tree_primary(arch));
-}
-
 static uint32_t elab_hash_vhdl_generic(tree_t g, tree_t value)
 {
    uint32_t h = ident_hash(tree_ident(g));
@@ -312,7 +264,8 @@ static uint32_t elab_hash_vhdl_inst(tree_t t)
       }
       break;
    case T_INSTANCE:
-      h ^= elab_hash_vhdl_inst(tree_spec(t));
+      if (tree_has_spec(t))
+         h ^= elab_hash_vhdl_inst(tree_spec(t));
       // Fall-through
    case T_BINDING:
       {
@@ -418,8 +371,17 @@ static bool elab_cmp_vhdl_inst(tree_t a, tree_t b)
          return true;
       }
    case T_INSTANCE:
-      if (!elab_cmp_vhdl_inst(tree_spec(a), tree_spec(b)))
-         return false;
+      {
+         tree_t a_spec = tree_has_spec(a) ? tree_spec(a) : NULL;
+         tree_t b_spec = tree_has_spec(b) ? tree_spec(b) : NULL;
+
+         if (a_spec != NULL && b_spec != NULL) {
+            if (!elab_cmp_vhdl_inst(tree_spec(a), tree_spec(b)))
+               return false;
+         }
+         else if (a_spec != NULL || b_spec != NULL)
+            return false;
+      }
       // Fall-through
    case T_BINDING:
       {
@@ -490,6 +452,7 @@ static mod_cache_t *elab_cached_module(object_t *obj, const elab_ctx_t *ctx)
       return mc;
 
    mc = xcalloc(sizeof(mod_cache_t));
+   mc->object    = obj;
    mc->instances = ghash_new(4, elab_hash_inst, elab_cmp_inst);
 
    hash_put(ctx->modcache, obj, mc);
@@ -502,6 +465,7 @@ static elab_instance_t *elab_new_instance(vlog_node_t mod, vlog_node_t inst,
    assert(is_top_level(mod));
 
    mod_cache_t *mc = elab_cached_module(vlog_to_object(mod), ctx);
+   mc->count++;
 
    elab_instance_t *ei = ghash_get(mc->instances, inst);
    if (ei != NULL)
@@ -522,6 +486,8 @@ static elab_instance_t *elab_new_instance(vlog_node_t mod, vlog_node_t inst,
    vlog_trans(ei->body, ei->block);
 
    ghash_put(mc->instances, inst, ei);
+   mc->unique++;
+
    return ei;
 }
 
@@ -1229,8 +1195,7 @@ static tree_t elab_override_instance_generics(tree_t t, const elab_ctx_t *ctx)
    tree_t unit = tree_ref(t), entity = primary_unit_of(unit);
 
    const int ngenerics = tree_generics(entity);
-   const int ngenmaps = tree_genmaps(t);
-   assert(ngenerics == ngenmaps);
+   assert(tree_genmaps(t) == ngenerics);
 
    tree_t new = tree_new(T_INSTANCE);
    tree_set_loc(new, tree_loc(t));
@@ -1306,15 +1271,6 @@ static void elab_generics(tree_t entity, tree_t bind, elab_ctx_t *ctx)
       }
 
       tree_add_genmap(ctx->out, map);
-
-      tree_t value = tree_value(map);
-      if (is_literal(value)) {
-         // These values can be safely substituted for all references to
-         // the generic name
-         if (ctx->generics == NULL)
-            ctx->generics = hash_new(ngenerics * 2);
-         hash_put(ctx->generics, g, value);
-      }
    }
 }
 
@@ -1441,12 +1397,8 @@ static void elab_fold_generics(tree_t b, const elab_ctx_t *ctx)
    const int ngenerics = tree_generics(b);
    assert(tree_genmaps(b) == ngenerics);
 
-   if (ngenerics == 0)
-      return;
+   hash_t *map = NULL, *fixup = NULL;
 
-   hash_t *map = hash_new(ngenerics * 2);
-
-   bool need_fixup = false;
    for (int i = 0; i < ngenerics; i++) {
       tree_t g = tree_generic(b, i);
 
@@ -1455,7 +1407,13 @@ static void elab_fold_generics(tree_t b, const elab_ctx_t *ctx)
 
       tree_t value = tree_value(m);
 
-      switch (tree_class(g)) {
+      const class_t class = tree_class(g);
+      if (fixup == NULL && class != C_CONSTANT)
+         fixup = hash_new(ngenerics * 2);
+      else if (map == NULL && class == C_CONSTANT)
+         map = hash_new(ngenerics * 2);
+
+      switch (class) {
       case C_CONSTANT:
          if (is_literal(value)) {
             // These values can be safely substituted for all references
@@ -1465,8 +1423,7 @@ static void elab_fold_generics(tree_t b, const elab_ctx_t *ctx)
          break;
 
       case C_TYPE:
-         elab_map_generic_type(tree_type(g), tree_type(value), map);
-         need_fixup = true;
+         elab_map_generic_type(tree_type(g), tree_type(value), fixup);
          break;
 
       case C_PACKAGE:
@@ -1480,10 +1437,10 @@ static void elab_fold_generics(tree_t b, const elab_ctx_t *ctx)
                tree_t ad = tree_decl(actual, i);
                assert(tree_kind(gd) == tree_kind(ad));
 
-               hash_put(map, gd, ad);
+               hash_put(fixup, gd, ad);
 
                if (is_type_decl(gd))
-                  hash_put(map, tree_type(gd), tree_type(ad));
+                  hash_put(fixup, tree_type(gd), tree_type(ad));
             }
 
             const int ngenerics = tree_generics(formal);
@@ -1500,29 +1457,27 @@ static void elab_fold_generics(tree_t b, const elab_ctx_t *ctx)
                      tree_t ref = tree_value(tree_genmap(actual, i));
                      assert(tree_kind(ref) == T_REF);
 
-                     hash_put(map, fg, tree_ref(ref));
+                     hash_put(fixup, fg, tree_ref(ref));
                   }
                   break;
                case C_TYPE:
-                  hash_put(map, tree_type(fg), tree_type(ag));
+                  hash_put(fixup, tree_type(fg), tree_type(ag));
                   break;
                case C_PACKAGE:
                   // TODO: this should be processed recursively
                default:
-                  hash_put(map, fg, ag);
+                  hash_put(fixup, fg, ag);
                   break;
                }
             }
 
-            hash_put(map, g, actual);
-            need_fixup = true;
+            hash_put(fixup, g, actual);
          }
          break;
 
       case C_FUNCTION:
       case C_PROCEDURE:
-         hash_put(map, g, tree_ref(value));
-         need_fixup = true;
+         hash_put(fixup, g, tree_ref(value));
          break;
 
       default:
@@ -1530,12 +1485,13 @@ static void elab_fold_generics(tree_t b, const elab_ctx_t *ctx)
       }
    }
 
-   if (need_fixup)
-      instance_fixup(b, map);
+   if (fixup != NULL)
+      instance_fixup(b, fixup);
 
    simplify_global(b, map, ctx->jit, ctx->registry, ctx->mir);
 
    hash_free(map);
+   hash_free(fixup);
 }
 
 static void elab_context(tree_t t)
@@ -1956,11 +1912,12 @@ static vlog_node_t elab_mixed_generics(tree_t comp, vlog_node_t mod,
       ident_t name = vlog_ident(d);
 
       tree_t cg = NULL;
+      int cpos = -1;
       for (int j = 0; j < vhdl_ngenerics; j++) {
          tree_t gj = tree_generic(comp, j);
          if (ident_casecmp(tree_ident(gj), name)) {
             cg = gj;
-            mask_set(&have, j);
+            mask_set(&have, (cpos = j));
             break;
          }
       }
@@ -1986,7 +1943,7 @@ static vlog_node_t elab_mixed_generics(tree_t comp, vlog_node_t mod,
          return NULL;
       }
 
-      tree_t value = hash_get(ctx->generics, cg);
+      tree_t value = find_generic_map(ctx->out, cpos, cg);
       if (value == NULL)
          fatal_at(tree_loc(ctx->out), "cannot get value of generic %s",
                   istr(tree_ident(cg)));
@@ -2116,74 +2073,110 @@ static void elab_bind_components(tree_t block, tree_t config)
    }
 }
 
-static void elab_architecture(tree_t bind, tree_t arch, tree_t config,
-                              const elab_ctx_t *ctx)
+static void elab_architecture(tree_t inst, tree_t arch, const elab_ctx_t *ctx)
 {
-   tree_t inst = NULL;
-   ident_t label;
-   switch (tree_kind(bind)) {
-   case T_BINDING:
-      label = ident_rfrom(tree_ident(tree_primary(arch)), '.');
-      break;
-   case T_INSTANCE:
-      label = tree_ident(bind);
-      inst = bind;
-      break;
-   default:
-      fatal_trace("unexpected binding kind %s in elab_architecture",
-                  tree_kind_str(tree_kind(bind)));
-   }
-
+   ident_t label = tree_ident(inst);
    ident_t ndotted = ident_prefix(ctx->dotted, label, '.');
 
    elab_ctx_t new_ctx = {
       .dotted = ndotted,
-      .inst   = inst,
+      .inst   = ctx->parent != NULL ? inst : NULL,
    };
    elab_inherit_context(&new_ctx, ctx);
 
    tree_t b = tree_new(T_BLOCK);
    tree_set_ident(b, label);
-   tree_set_loc(b, tree_loc(bind));
+   tree_set_loc(b, tree_loc(inst));
 
    tree_add_stmt(ctx->out, b);
    new_ctx.out = b;
 
    new_ctx.library = lib_require(ident_until(tree_ident(arch), '.'));
 
-   elab_subprogram_prefix(arch, &new_ctx);
+   mod_cache_t *mc = elab_cached_module(tree_to_object(arch), &new_ctx);
+   mc->count++;
 
-   tree_t arch_copy;
-   if (config != NULL) {
-      assert(tree_ref(config) == arch);
-      tree_t config_copy = elab_copy(config, &new_ctx);
-      arch_copy = tree_ref(config_copy);
+   elab_instance_t *ei = ghash_get(mc->instances, inst);
+   if (ei == NULL) {
+      ei = xcalloc(sizeof(elab_instance_t));
+      ei->block = vhdl_architecture_instance(arch, inst, new_ctx.dotted);
 
-      elab_bind_components(arch_copy, config_copy);
+      elab_fold_generics(ei->block, &new_ctx);
+
+      elab_context(arch);
+      elab_context(tree_primary(arch));
+
+      ghash_put(mc->instances, inst, ei);
+      mc->unique++;
    }
-   else
-      arch_copy = elab_copy(arch, &new_ctx);
-
-   tree_t entity = tree_primary(arch_copy);
 
    elab_push_scope(arch, &new_ctx);
-   elab_context(entity);
-   elab_context(arch_copy);
-   elab_generics(entity, bind, &new_ctx);
-   elab_instance_fixup(arch_copy, &new_ctx);
-   simplify_global(arch_copy, new_ctx.generics, ctx->jit, ctx->registry,
-                   ctx->mir);
-   elab_ports(entity, bind, &new_ctx);
-   elab_decls(entity, &new_ctx);
-
-   if (error_count() == 0)
-      elab_decls(arch_copy, &new_ctx);
+   elab_generics(ei->block, inst, &new_ctx);
+   elab_ports(ei->block, inst, &new_ctx);
+   elab_decls(ei->block, &new_ctx);
 
    if (error_count() == 0) {
-      new_ctx.drivers = find_drivers(arch_copy);
+      new_ctx.drivers = find_drivers(ei->block);
       elab_lower(b, &new_ctx);
-      elab_stmts(entity, &new_ctx);
-      elab_stmts(arch_copy, &new_ctx);
+      elab_stmts(ei->block, &new_ctx);
+   }
+
+   elab_pop_scope(&new_ctx);
+}
+
+static void elab_configuration(tree_t inst, tree_t unit, const elab_ctx_t *ctx)
+{
+   ident_t label = tree_ident(inst);
+   ident_t ndotted = ident_prefix(ctx->dotted, label, '.');
+
+   elab_ctx_t new_ctx = {
+      .dotted = ndotted,
+      .inst   = ctx->parent != NULL ? inst : NULL,
+   };
+   elab_inherit_context(&new_ctx, ctx);
+
+   tree_t b = tree_new(T_BLOCK);
+   tree_set_ident(b, label);
+   tree_set_loc(b, tree_loc(inst));
+
+   tree_add_stmt(ctx->out, b);
+   new_ctx.out = b;
+
+   new_ctx.library = lib_require(ident_until(tree_ident(unit), '.'));
+
+   tree_t config = tree_decl(unit, 0);
+   assert(tree_kind(config) == T_BLOCK_CONFIG);
+
+   tree_t arch = tree_ref(config);
+   assert(tree_kind(arch) == T_ARCH);
+
+   mod_cache_t *mc = elab_cached_module(tree_to_object(unit), &new_ctx);
+   mc->count++;
+
+   elab_instance_t *ei = ghash_get(mc->instances, inst);
+   if (ei == NULL) {
+      ei = xcalloc(sizeof(elab_instance_t));
+      ei->block = vhdl_config_instance(config, inst, new_ctx.dotted);
+
+      elab_bind_components(ei->block, ei->block);
+      elab_fold_generics(ei->block, &new_ctx);
+
+      elab_context(arch);
+      elab_context(tree_primary(arch));
+
+      ghash_put(mc->instances, inst, ei);
+      mc->unique++;
+   }
+
+   elab_push_scope(arch, &new_ctx);
+   elab_generics(ei->block, inst, &new_ctx);
+   elab_ports(ei->block, inst, &new_ctx);
+   elab_decls(ei->block, &new_ctx);
+
+   if (error_count() == 0) {
+      new_ctx.drivers = find_drivers(ei->block);
+      elab_lower(b, &new_ctx);
+      elab_stmts(ei->block, &new_ctx);
    }
 
    elab_pop_scope(&new_ctx);
@@ -2223,6 +2216,7 @@ static void elab_component(tree_t inst, tree_t comp, const elab_ctx_t *ctx)
    elab_inherit_context(&new_ctx, ctx);
 
    mod_cache_t *mc = elab_cached_module(tree_to_object(comp), &new_ctx);
+   mc->count++;
 
    elab_instance_t *ei = ghash_get(mc->instances, inst);
    if (ei == NULL) {
@@ -2232,6 +2226,7 @@ static void elab_component(tree_t inst, tree_t comp, const elab_ctx_t *ctx)
       elab_fold_generics(ei->block, ctx);
 
       ghash_put(mc->instances, inst, ei);
+      mc->unique++;
    }
 
    tree_t b = tree_new(T_BLOCK);
@@ -2273,31 +2268,20 @@ static void elab_instance(tree_t t, const elab_ctx_t *ctx)
    case T_ENTITY:
       {
          tree_t arch = elab_pick_arch(tree_loc(new), ref, ctx);
-         elab_architecture(new, arch, NULL, ctx);
+         elab_architecture(new, arch, ctx);
       }
       break;
-
    case T_ARCH:
-      elab_architecture(new, ref, NULL, ctx);
+      elab_architecture(new, ref, ctx);
       break;
-
    case T_COMPONENT:
       elab_component(new, ref, ctx);
       break;
-
    case T_CONFIGURATION:
-      {
-         tree_t config = tree_decl(ref, 0);
-         assert(tree_kind(config) == T_BLOCK_CONFIG);
-
-         tree_t arch = tree_ref(config);
-         elab_architecture(new, arch, config, ctx);
-      }
+      elab_configuration(new, ref, ctx);
       break;
-
    default:
-      fatal_trace("unexpected tree kind %s in elab_instance",
-                  tree_kind_str(tree_kind(ref)));
+      should_not_reach_here();
    }
 }
 
@@ -2356,9 +2340,6 @@ static void elab_push_scope(tree_t t, elab_ctx_t *ctx)
 
 static void elab_pop_scope(elab_ctx_t *ctx)
 {
-   if (ctx->generics != NULL)
-      hash_free(ctx->generics);
-
    if (ctx->drivers != NULL)
       free_drivers(ctx->drivers);
 
@@ -2650,11 +2631,11 @@ static void elab_block(tree_t t, const elab_ctx_t *ctx)
 
 static tree_t elab_top_level_binding(tree_t arch, const elab_ctx_t *ctx)
 {
-   tree_t bind = tree_new(T_BINDING);
-   tree_set_ident(bind, tree_ident(arch));
-   tree_set_loc(bind, tree_loc(arch));
-   tree_set_ref(bind, arch);
-   tree_set_class(bind, C_ENTITY);
+   tree_t inst = tree_new(T_INSTANCE);
+   tree_set_ident(inst, ident_rfrom(tree_ident(tree_primary(arch)), '.'));
+   tree_set_loc(inst, tree_loc(arch));
+   tree_set_ref(inst, arch);
+   tree_set_class(inst, C_ARCHITECTURE);
 
    tree_t entity = tree_primary(arch);
    const int ngenerics = tree_generics(entity);
@@ -2686,7 +2667,7 @@ static tree_t elab_top_level_binding(tree_t arch, const elab_ctx_t *ctx)
       tree_set_pos(map, i);
       tree_set_value(map, value);
 
-      tree_add_genmap(bind, map);
+      tree_add_genmap(inst, map);
    }
 
    const int nports = tree_ports(entity);
@@ -2713,10 +2694,10 @@ static tree_t elab_top_level_binding(tree_t arch, const elab_ctx_t *ctx)
          tree_set_value(m, open);
       }
 
-      tree_add_param(bind, m);
+      tree_add_param(inst, m);
    }
 
-   return bind;
+   return inst;
 }
 
 void elab_set_generic(const char *name, const char *value)
@@ -2743,27 +2724,33 @@ static void elab_vhdl_root_cb(void *arg)
    tree_t vhdl = tree_from_object(ctx->root);
    assert(vhdl != NULL);
 
-   tree_t arch, config = NULL;
+   tree_t arch = vhdl;
    switch (tree_kind(vhdl)) {
    case T_ENTITY:
       arch = elab_pick_arch(&ctx->root->loc, vhdl, ctx);
-      break;
+      // Fall-through
    case T_ARCH:
-      arch = vhdl;
+      {
+         tree_t bind = elab_top_level_binding(arch, ctx);
+
+         if (error_count() == 0)
+            elab_architecture(bind, arch, ctx);
+      }
       break;
    case T_CONFIGURATION:
-      config = tree_decl(vhdl, 0);
-      assert(tree_kind(config) == T_BLOCK_CONFIG);
-      arch = tree_ref(config);
+      {
+         tree_t config = tree_decl(vhdl, 0);
+         assert(tree_kind(config) == T_BLOCK_CONFIG);
+
+         tree_t inst = elab_top_level_binding(tree_ref(config), ctx);
+
+         if (error_count() == 0)
+            elab_configuration(inst, vhdl, ctx);
+      }
       break;
    default:
       fatal("%s is not a suitable top-level unit", istr(tree_ident(vhdl)));
    }
-
-   tree_t bind = elab_top_level_binding(arch, ctx);
-
-   if (error_count() == 0)
-      elab_architecture(bind, arch, config, ctx);
 }
 
 static void elab_verilog_root_cb(void *arg)
@@ -2784,6 +2771,54 @@ static void elab_verilog_root_cb(void *arg)
 
    elab_instance_t *ei = elab_new_instance(vlog, list, ctx);
    elab_verilog_module(NULL, label, ei, ctx);
+}
+
+static int elab_compar_modcache(const void *a, const void *b)
+{
+   const mod_cache_t *mc_a = a, *mc_b = b;
+
+   if (mc_b->count < mc_a->count)
+      return -1;
+   else if (mc_b->count > mc_a->count)
+      return 1;
+   else
+      return 0;
+}
+
+static void elab_print_stats(const elab_ctx_t *ctx)
+{
+   const unsigned count = hash_members(ctx->modcache);
+   mod_cache_t *sorted LOCAL = xmalloc_array(count, sizeof(mod_cache_t));
+
+   int pos = 0;
+   const void *key;
+   mod_cache_t *mc;
+   for (hash_iter_t it = HASH_BEGIN;
+        hash_iter(ctx->modcache, &it, &key, (void *)&mc); )
+      sorted[pos++] = *mc;
+   assert(pos == count);
+
+   qsort(sorted, count, sizeof(mod_cache_t), elab_compar_modcache);
+
+   color_printf("\n$bold$%-50s %10s %10s$$\n", "Design Unit", "Instances",
+                "Unique");
+
+   for (int i = 0; i < count; i++) {
+      ident_t name = NULL;
+
+      tree_t vhdl = tree_from_object(sorted[i].object);
+      if (vhdl != NULL)
+         name = tree_ident(vhdl);
+
+      vlog_node_t vlog = vlog_from_object(sorted[i].object);
+      if (vlog != NULL)
+         name = vlog_ident(vlog);
+
+      printf("%-50s %10d %10d\n", istr(name), sorted[i].count,
+             sorted[i].unique);
+   }
+
+   printf("\n");
 }
 
 tree_t elab(object_t *top, jit_t *jit, unit_registry_t *ur, mir_context_t *mc,
@@ -2829,6 +2864,9 @@ tree_t elab(object_t *top, jit_t *jit, unit_registry_t *ur, mir_context_t *mc,
       call_with_model(m, elab_vhdl_root_cb, &ctx);
    else
       call_with_model(m, elab_verilog_root_cb, &ctx);
+
+   if (opt_get_int(OPT_ELAB_STATS))
+      elab_print_stats(&ctx);
 
    const void *key;
    void *value;

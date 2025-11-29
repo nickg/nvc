@@ -448,6 +448,7 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
       { "no-save",         no_argument,       0, 'N' },
       { "jit",             no_argument,       0, 'j' },
       { "no-collapse",     no_argument,       0, 'C' },
+      { "stats",           no_argument,       0, 'S' },
       { "trace",           no_argument,       0, 't' },
       { 0, 0, 0, 0 }
    };
@@ -506,6 +507,9 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
          break;
       case 't':
          opt_set_int(OPT_RT_TRACE, 1);
+         break;
+      case 'S':
+         opt_set_int(OPT_ELAB_STATS, 1);
          break;
       case 0:
          // Set a flag
@@ -2211,6 +2215,7 @@ static void usage(void)
            { "-O0, -O1, -O2, -O3", "Set optimisation level (default is -O2)" },
            { "--no-collapse", "Do not collapse multiple signals into one" },
            { "--no-save", "Do not save the elaborated design to disk" },
+           { "--stats", "Print statistics about instantiated design units" },
            { "-V, --verbose", "Print resource usage at each step" },
         }
       },

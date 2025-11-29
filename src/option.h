@@ -76,6 +76,7 @@ typedef enum {
    OPT_GVN_VERBOSE,
    OPT_DCE_VERBOSE,
    OPT_RANDOM_SEED,
+   OPT_ELAB_STATS,
 
    OPT_LAST_NAME
 } opt_name_t;

@@ -62,7 +62,7 @@ static void map_generics(tree_t out, tree_t entity, tree_t bind)
    }
 }
 
-static bool elab_copy_genvar_cb(tree_t t, void *_ctx)
+static bool copy_genvar_cb(tree_t t, void *_ctx)
 {
    const generate_pred_ctx_t *ctx = _ctx;
    switch (tree_kind(t)) {
@@ -81,6 +81,27 @@ static bool elab_copy_genvar_cb(tree_t t, void *_ctx)
    }
 }
 
+static void copy_ports(tree_t to, tree_t from)
+{
+   const int nports = tree_ports(from);
+   for (int i = 0; i < nports; i++)
+      tree_add_port(to, tree_port(from, i));
+}
+
+static void copy_decls(tree_t to, tree_t from)
+{
+   const int ndecls = tree_decls(from);
+   for (int i = 0; i < ndecls; i++)
+      tree_add_decl(to, tree_decl(from, i));
+}
+
+static void copy_stmts(tree_t to, tree_t from)
+{
+   const int nstmts = tree_stmts(from);
+   for (int i = 0; i < nstmts; i++)
+      tree_add_stmt(to, tree_stmt(from, i));
+}
+
 tree_t vhdl_generate_instance(tree_t t, ident_t prefix, ident_t dotted)
 {
    assert(tree_kind(t) == T_FOR_GENERATE);
@@ -95,7 +116,7 @@ tree_t vhdl_generate_instance(tree_t t, ident_t prefix, ident_t dotted)
 
    ident_t prefixes[] = { prefix };
    tree_t roots[] = { t, g };
-   copy_with_renaming(roots, ARRAY_LEN(roots), elab_copy_genvar_cb, NULL,
+   copy_with_renaming(roots, ARRAY_LEN(roots), copy_genvar_cb, NULL,
                       &pred_ctx, dotted, prefixes, ARRAY_LEN(prefixes));
 
    return roots[0];
@@ -119,9 +140,7 @@ tree_t vhdl_component_instance(tree_t comp, tree_t inst, ident_t dotted)
 
    map_generics(b, comp_copy, inst);
 
-   const int nports = tree_ports(comp_copy);
-   for (int i = 0; i < nports; i++)
-      tree_add_port(b, tree_port(comp_copy, i));
+   copy_ports(b, comp_copy);
 
    if (!tree_has_value(spec_copy))
       return b;
@@ -165,5 +184,76 @@ tree_t vhdl_component_instance(tree_t comp, tree_t inst, ident_t dotted)
 
    tree_add_stmt(b, sub);
 
+   return b;
+}
+
+tree_t vhdl_architecture_instance(tree_t arch, tree_t bind, ident_t dotted)
+{
+   assert(tree_kind(arch) == T_ARCH);
+
+   // Architecture must be processed last
+   tree_t roots[] = { tree_primary(arch), arch };
+
+   tree_global_flags_t gflags = 0;
+   for (int i = 0; i < ARRAY_LEN(roots); i++)
+      gflags |= tree_global_flags(roots[i]);
+
+   // The order is important here because the architecture name is
+   // prefixed with the entity
+   ident_t prefix[] = { tree_ident(arch), tree_ident(tree_primary(arch)) };
+
+   new_instance(roots, ARRAY_LEN(roots), dotted, prefix, ARRAY_LEN(prefix));
+
+   tree_t b = tree_new(T_BLOCK);
+   tree_set_ident(b, dotted);
+
+   tree_t ent_copy = roots[0], arch_copy = roots[1];
+
+   map_generics(b, ent_copy, bind);
+
+   copy_ports(b, ent_copy);
+   copy_decls(b, ent_copy);
+   copy_decls(b, arch_copy);
+   copy_stmts(b, ent_copy);
+   copy_stmts(b, arch_copy);
+
+   tree_set_global_flags(b, gflags);
+   return b;
+}
+
+tree_t vhdl_config_instance(tree_t conf, tree_t bind, ident_t dotted)
+{
+   assert(tree_kind(conf) == T_BLOCK_CONFIG);
+
+   tree_t arch = tree_ref(conf);
+   assert(tree_kind(arch) == T_ARCH);
+
+   tree_t roots[] = { tree_primary(arch), arch, conf };
+
+   tree_global_flags_t gflags = 0;
+   for (int i = 0; i < ARRAY_LEN(roots); i++)
+      gflags |= tree_global_flags(roots[i]);
+
+   // The order is important here because the architecture name is
+   // prefixed with the entity
+   ident_t prefix[] = { tree_ident(arch), tree_ident(tree_primary(arch)) };
+
+   new_instance(roots, ARRAY_LEN(roots), dotted, prefix, ARRAY_LEN(prefix));
+
+   tree_t b = tree_new(T_BLOCK);
+   tree_set_ident(b, dotted);
+
+   tree_t ent_copy = roots[0], arch_copy = roots[1], conf_copy = roots[2];
+
+   map_generics(b, ent_copy, bind);
+
+   copy_ports(b, ent_copy);
+   copy_decls(b, ent_copy);
+   copy_decls(b, conf_copy);
+   copy_decls(b, arch_copy);
+   copy_stmts(b, ent_copy);
+   copy_stmts(b, arch_copy);
+
+   tree_set_global_flags(b, gflags);
    return b;
 }

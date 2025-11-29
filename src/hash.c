@@ -40,6 +40,8 @@ static inline int hash_slot(unsigned size, const void *key)
 
 hash_t *hash_new(int size)
 {
+   assert(size > 0);
+
    hash_t *h = xmalloc(sizeof(hash_t));
    h->size    = next_power_of_2(size);
    h->members = 0;

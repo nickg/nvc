@@ -28,7 +28,7 @@ architecture test of clone2 is
         port ( p : out bit_vector(x - 1 downto 0) );
     end component;
 
-    signal s1, s2, s3 : bit_vector(1 to 5);
+    signal s1, s2, s3, s6, s7 : bit_vector(1 to 5);
     signal s4 : bit_vector(3 downto 0);
     signal s5 : bit_vector(7 downto 0);
 
@@ -62,5 +62,13 @@ begin
     u6: component sub3
         generic map ( 8, 4 )
         port map ( s5 );
+
+    u7: entity work.sub1_ent
+        generic map ( 5, 1.2 )
+        port map ( s6 );
+
+    u8: entity work.sub1_ent           -- Clone of u7
+        generic map ( 5, 1.2 )
+        port map ( s7 );
 
 end architecture;

@@ -156,7 +156,7 @@ START_TEST(test_copy1)
 
    tree_t func1 = get_decl(sub1_i, "DOUBLE");
    tree_t func2 = get_decl(sub2_i, "DOUBLE");
-   fail_if(func1 == func2);   // Should copy functions
+   fail_unless(func1 == func2);   // Should not copy functions
 
    tree_t var1 = get_decl(sub1_i, "GLOBAL");
    tree_t var2 = get_decl(sub2_i, "GLOBAL");
@@ -2163,6 +2163,16 @@ START_TEST(test_clone2)
    fail_unless(tree_ident(u6) == ident_new("U6"));
 
    fail_if(tree_port(u5, 0) == tree_port(u6, 0));
+
+   tree_t u7 = tree_stmt(top, 9);
+   fail_unless(tree_kind(u7) == T_BLOCK);
+   fail_unless(tree_ident(u7) == ident_new("U7"));
+
+   tree_t u8 = tree_stmt(top, 10);
+   fail_unless(tree_kind(u8) == T_BLOCK);
+   fail_unless(tree_ident(u8) == ident_new("U8"));
+
+   fail_if(tree_port(u5, 0) == tree_port(u8, 0));
 
    fail_if_errors();
 }

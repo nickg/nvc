@@ -22,5 +22,7 @@
 
 tree_t vhdl_generate_instance(tree_t t, ident_t prefix, ident_t dotted);
 tree_t vhdl_component_instance(tree_t comp, tree_t inst, ident_t dotted);
+tree_t vhdl_architecture_instance(tree_t arch, tree_t inst, ident_t dotted);
+tree_t vhdl_config_instance(tree_t conf, tree_t bind, ident_t dotted);
 
 #endif  // _VHDL_PHASE_H
