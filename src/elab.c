@@ -58,6 +58,7 @@ typedef struct _elab_ctx {
    object_t         *root;
    tree_t            inst;
    ident_t           dotted;
+   ident_t           cloned;
    lib_t             library;
    jit_t            *jit;
    unit_registry_t  *registry;
@@ -1561,6 +1562,15 @@ static void elab_lower(tree_t b, elab_ctx_t *ctx)
       ctx->lowered = lower_instance(ctx->registry, ctx->parent->lowered,
                                     ctx->cover, b);
 
+#ifdef DEBUG
+   if (ctx->cloned != NULL) {
+      // Cloned blocks must have identical layout
+      mir_unit_t *new = mir_get_unit(ctx->mir, ctx->dotted);
+      mir_unit_t *orig = mir_get_unit(ctx->mir, ctx->cloned);
+      mir_compare_layout(new, orig);
+   }
+#endif
+
    if (ctx->inst != NULL)
       diag_add_hint_fn(elab_hint_fn, ctx->inst);
 
@@ -2119,6 +2129,8 @@ static void elab_architecture(tree_t inst, tree_t arch, const elab_ctx_t *ctx)
       ghash_put(mc->instances, inst, ei);
       mc->unique++;
    }
+   else if (new_ctx.cover == NULL)   // TODO: remove restriction
+      new_ctx.cloned = tree_ident(ei->block);
 
    elab_push_scope(arch, &new_ctx);
    elab_generics(ei->block, inst, &new_ctx);
@@ -2177,6 +2189,8 @@ static void elab_configuration(tree_t inst, tree_t unit, const elab_ctx_t *ctx)
       ghash_put(mc->instances, inst, ei);
       mc->unique++;
    }
+   else if (new_ctx.cover == NULL)   // TODO: remove restriction
+      new_ctx.cloned = tree_ident(ei->block);
 
    elab_push_scope(arch, &new_ctx);
    elab_generics(ei->block, inst, &new_ctx);
@@ -2231,13 +2245,15 @@ static void elab_component(tree_t inst, tree_t comp, const elab_ctx_t *ctx)
    elab_instance_t *ei = ghash_get(mc->instances, inst);
    if (ei == NULL) {
       ei = pool_calloc(ctx->pool, sizeof(elab_instance_t));
-      ei->block = vhdl_component_instance(comp, inst, ctx->dotted);
+      ei->block = vhdl_component_instance(comp, inst, ndotted);
 
       elab_fold_generics(ei->block, ctx);
 
       ghash_put(mc->instances, inst, ei);
       mc->unique++;
    }
+   else
+      new_ctx.cloned = tree_ident(ei->block);
 
    tree_t b = tree_new(T_BLOCK);
    tree_set_ident(b, tree_ident(inst));
@@ -2343,7 +2359,7 @@ static void elab_push_scope(tree_t t, elab_ctx_t *ctx)
    tree_set_ref(h, t);
 
    tree_set_ident(h, ctx->dotted);
-   tree_set_ident2(h, ctx->dotted);
+   tree_set_ident2(h, ctx->cloned ?: ctx->dotted);
 
    tree_add_decl(ctx->out, h);
 }
@@ -2409,15 +2425,12 @@ static void elab_for_generate(tree_t t, const elab_ctx_t *ctx)
    int64_t low, high;
    elab_generate_range(tree_range(t, 0), &low, &high, ctx);
 
+   ident_t label = tree_ident(t), first = NULL;
+
    driver_set_t *ds = find_drivers(t);
 
-   ident_t prefix = ident_prefix(ctx->dotted, tree_ident(t), '.');
-
-   // Clone body and fold loop parameter if there is only a single instance
-   const bool clone = low == high;
-
    for (int64_t i = low; i <= high; i++) {
-      ident_t id = ident_sprintf("%s(%"PRIi64")", istr(tree_ident(t)), i);
+      ident_t id = ident_sprintf("%s(%"PRIi64")", istr(label), i);
       ident_t ndotted = ident_prefix(ctx->dotted, id, '.');
 
       tree_t b = tree_new(T_BLOCK);
@@ -2426,9 +2439,7 @@ static void elab_for_generate(tree_t t, const elab_ctx_t *ctx)
 
       tree_add_stmt(ctx->out, b);
 
-      tree_t body = clone ? vhdl_generate_instance(t, prefix, ndotted) : t;
-
-      tree_t g = tree_decl(body, 0);
+      tree_t g = tree_decl(t, 0);
       assert(tree_kind(g) == T_GENERIC_DECL);
 
       tree_t map = tree_new(T_PARAM);
@@ -2442,28 +2453,27 @@ static void elab_for_generate(tree_t t, const elab_ctx_t *ctx)
       elab_ctx_t new_ctx = {
          .out     = b,
          .dotted  = ndotted,
-         .drivers = clone ? find_drivers(body) : ds,
+         .drivers = ds,
       };
       elab_inherit_context(&new_ctx, ctx);
 
+      // TODO: remove ctx->cover != NULL restriction
+      if (i == low || ctx->cover != NULL)
+         first = ndotted;
+      else
+         new_ctx.cloned = first;
+
       elab_push_scope(t, &new_ctx);
 
-      if (clone) {
-         hash_t *h = hash_new(8);
-         hash_put(h, g, tree_value(map));
-         simplify_global(body, h, ctx->jit, ctx->registry, ctx->mir);
-         hash_free(h);
-      }
-
       if (elab_new_errors(&new_ctx) == 0)
-         elab_decls(body, &new_ctx);
+         elab_decls(t, &new_ctx);
 
       if (elab_new_errors(&new_ctx) == 0) {
          elab_lower(b, &new_ctx);
-         elab_stmts(body, &new_ctx);
+         elab_stmts(t, &new_ctx);
       }
 
-      if (!clone) new_ctx.drivers = NULL;
+      new_ctx.drivers = NULL;
       elab_pop_scope(&new_ctx);
    }
 
@@ -2560,7 +2570,7 @@ static void elab_case_generate(tree_t t, const elab_ctx_t *ctx)
 
 static void elab_process(tree_t t, const elab_ctx_t *ctx)
 {
-   if (error_count() == 0)
+   if (error_count() == 0 && ctx->cloned == NULL)
       lower_process(ctx->lowered, t, elab_driver_set(ctx));
 
    tree_add_stmt(ctx->out, t);

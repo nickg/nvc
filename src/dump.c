@@ -987,7 +987,14 @@ static void dump_decl(tree_t t, int indent)
          case T_FOR_GENERATE: kind = "For generate"; break;
          case T_BLOCK: kind = "Block"; break;
          }
-         print_syntax("-- %s %s\n", kind, istr(tree_ident2(t)));
+
+         ident_t dotted = tree_ident(t);
+         ident_t symbol = tree_ident2(t);
+
+         print_syntax("-- %s %s", kind, istr(dotted));
+         if (dotted != symbol)
+            print_syntax(" (clone of %s)", istr(symbol));
+         print_syntax("\n");
       }
       return;
 

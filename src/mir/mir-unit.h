@@ -76,6 +76,10 @@ void mir_put_priv(mir_unit_t *mu, const void *obj, void *value);
 
 void *mir_malloc(mir_unit_t *mu, size_t size);
 
+#ifdef DEBUG
+void mir_compare_layout(mir_unit_t *a, mir_unit_t *b);
+#endif
+
 typedef enum {
    MIR_PASS_GVN = (1 << 0),
    MIR_PASS_DCE = (1 << 1),

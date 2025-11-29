@@ -62,45 +62,6 @@ static void map_generics(tree_t out, tree_t entity, tree_t bind)
    }
 }
 
-static bool copy_genvar_cb(tree_t t, void *_ctx)
-{
-   const generate_pred_ctx_t *ctx = _ctx;
-   switch (tree_kind(t)) {
-   case T_REF:
-      return tree_ref(t) == ctx->genvar;
-   case T_FUNC_DECL:
-   case T_PROC_DECL:
-      if (tree_flags(t) & TREE_F_PREDEFINED)
-         return false;
-      // Fall-through
-   case T_FUNC_BODY:
-   case T_PROC_BODY:
-      return ident_starts_with(tree_ident2(t), ctx->prefix);
-   default:
-      return false;
-   }
-}
-
-tree_t vhdl_generate_instance(tree_t t, ident_t prefix, ident_t dotted)
-{
-   assert(tree_kind(t) == T_FOR_GENERATE);
-
-   tree_t g = tree_decl(t, 0);
-   assert(tree_kind(g) == T_GENERIC_DECL);
-
-   generate_pred_ctx_t pred_ctx = {
-      .genvar = g,
-      .prefix = prefix,
-   };
-
-   ident_t prefixes[] = { prefix };
-   tree_t roots[] = { t, g };
-   copy_with_renaming(roots, ARRAY_LEN(roots), copy_genvar_cb, NULL,
-                      &pred_ctx, dotted, prefixes, ARRAY_LEN(prefixes));
-
-   return roots[0];
-}
-
 tree_t vhdl_component_instance(tree_t comp, tree_t inst, ident_t dotted)
 {
    assert(tree_kind(comp) == T_COMPONENT);

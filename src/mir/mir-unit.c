@@ -405,3 +405,23 @@ ident_t mir_get_linkage(mir_unit_t *mu, unsigned nth)
 {
    return AGET(mu->linkage, nth);
 }
+
+#ifdef DEBUG
+void mir_compare_layout(mir_unit_t *a, mir_unit_t *b)
+{
+   if (a->vars.count != b->vars.count)
+      goto differ;
+
+   for (int i = 0; i < a->vars.count; i++) {
+      if (!mir_equals(a->vars.items[i].type, b->vars.items[i].type))
+         goto differ;
+   }
+
+   return;
+
+ differ:
+   mir_dump(a);
+   mir_dump(b);
+   fatal_trace("%s and %s have differing layout", istr(a->name), istr(b->name));
+}
+#endif

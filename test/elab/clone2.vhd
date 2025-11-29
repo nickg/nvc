@@ -5,6 +5,7 @@ end entity;
 
 architecture test of sub1_ent is
 begin
+    proc: p <= (others => '1');
 end architecture;
 
 -------------------------------------------------------------------------------
@@ -63,12 +64,7 @@ begin
         generic map ( 8, 4 )
         port map ( s5 );
 
-    u7: entity work.sub1_ent
+    u7: entity work.sub1_ent           -- Clone of u7.sub1_ent
         generic map ( 5, 1.2 )
         port map ( s6 );
-
-    u8: entity work.sub1_ent           -- Clone of u7
-        generic map ( 5, 1.2 )
-        port map ( s7 );
-
 end architecture;

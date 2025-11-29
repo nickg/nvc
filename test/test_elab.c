@@ -21,6 +21,7 @@
 #include "diag.h"
 #include "jit/jit.h"
 #include "lib.h"
+#include "mir/mir-unit.h"
 #include "option.h"
 #include "phase.h"
 #include "rt/model.h"
@@ -2122,6 +2123,8 @@ START_TEST(test_clone2)
    tree_t e = run_elab();
    fail_if(e == NULL);
 
+   mir_context_t *mc = get_mir();
+
    tree_t top = tree_stmt(e, 0);
 
    tree_t u1 = tree_stmt(top, 0);
@@ -2143,6 +2146,11 @@ START_TEST(test_clone2)
    fail_unless(tree_ident(g1_2) == ident_new("G1(2)"));
 
    fail_unless(tree_stmt(g1_1, 0) == tree_stmt(g1_2, 0));
+
+   ident_t g1psym1 = ident_new("WORK.CLONE2.G1(1).P");
+   ident_t g1psym2 = ident_new("WORK.CLONE2.G1(2).P");
+   ck_assert_ptr_nonnull(mir_get_unit(mc, g1psym1));
+   ck_assert_ptr_null(mir_get_unit(mc, g1psym2));
 
    tree_t u3 = tree_stmt(top, 5);
    fail_unless(tree_kind(u3) == T_BLOCK);
@@ -2168,11 +2176,17 @@ START_TEST(test_clone2)
    fail_unless(tree_kind(u7) == T_BLOCK);
    fail_unless(tree_ident(u7) == ident_new("U7"));
 
-   tree_t u8 = tree_stmt(top, 10);
-   fail_unless(tree_kind(u8) == T_BLOCK);
-   fail_unless(tree_ident(u8) == ident_new("U8"));
+   tree_t u7h = tree_decl(u7, 0);
+   fail_unless(tree_kind(u7h) == T_HIER);
+   fail_unless(tree_ident(u7h) == ident_new("WORK.CLONE2.U7"));
+   fail_unless(tree_ident2(u7h) == ident_new("WORK.CLONE2.U1.SUB1_ENT"));
 
-   fail_if(tree_port(u5, 0) == tree_port(u8, 0));
+   ident_t u7psym1 = ident_new("WORK.CLONE2.U1.SUB1_ENT.PROC");
+   ident_t u7psym2 = ident_new("WORK.CLONE2.U7.PROC");
+   ck_assert_ptr_nonnull(mir_get_unit(mc, u7psym1));
+   ck_assert_ptr_null(mir_get_unit(mc, u7psym2));
+
+   fail_if(tree_port(u5, 0) == tree_port(u1, 0));
 
    fail_if_errors();
 }

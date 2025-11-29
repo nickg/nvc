@@ -9,7 +9,7 @@ begin
     begin
         p: process is
         begin
-            if i > 1 then
+            if false then
                 x <= 1;
             elsif x < 100 then
                 x <= 2;

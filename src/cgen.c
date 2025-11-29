@@ -66,13 +66,16 @@ static void cgen_find_dependencies(mir_context_t *mc, unit_registry_t *ur,
    }
 }
 
-static void cgen_walk_hier(unit_list_t *units, hset_t *seen, tree_t block,
-                           ident_t prefix)
+static void cgen_walk_hier(unit_list_t *units, hset_t *seen, tree_t block)
 {
    assert(tree_kind(block) == T_BLOCK);
 
-   ident_t unit_name = ident_prefix(prefix, tree_ident(block), '.');
+   tree_t hier = tree_decl(block, 0);
+   assert(tree_kind(hier) == T_HIER);
+
+   ident_t unit_name = tree_ident(hier), prefix = tree_ident2(hier);
    APUSH(*units, unit_name);
+   assert(!hset_contains(seen, unit_name));
    hset_insert(seen, unit_name);
 
    const int nstmts = tree_stmts(block);
@@ -80,21 +83,17 @@ static void cgen_walk_hier(unit_list_t *units, hset_t *seen, tree_t block,
       tree_t s = tree_stmt(block, i);
       switch (tree_kind(s)) {
       case T_BLOCK:
-         cgen_walk_hier(units, seen, s, unit_name);
+         cgen_walk_hier(units, seen, s);
          break;
       case T_PROCESS:
       case T_PSL_DIRECT:
-         {
-            ident_t proc_name = ident_prefix(unit_name, tree_ident(s), '.');
-            APUSH(*units, proc_name);
-            hset_insert(seen, proc_name);
-         }
-         break;
       case T_VERILOG:
          {
-            ident_t sym = ident_prefix(unit_name, tree_ident(s), '.');
-            APUSH(*units, sym);
-            hset_insert(seen, sym);
+            ident_t sym = ident_prefix(prefix, tree_ident(s), '.');
+            if (!hset_contains(seen, sym)) {
+               APUSH(*units, sym);
+               hset_insert(seen, sym);
+            }
          }
          break;
       default:
@@ -121,12 +120,10 @@ void cgen(tree_t top, unit_registry_t *ur, mir_context_t *mc, jit_t *jit)
 {
    assert(tree_kind(top) == T_ELAB);
 
-   ident_t work_name = lib_name(lib_work());
-
    hset_t *seen = hset_new(16);
    unit_list_t units = AINIT;
 
-   cgen_walk_hier(&units, seen, tree_stmt(top, 0), work_name);
+   cgen_walk_hier(&units, seen, tree_stmt(top, 0));
 
    for (int i = 0; i < units.count; i++)
       cgen_find_dependencies(mc, ur, &units, seen, units.items[i]);
