@@ -69,6 +69,7 @@ typedef struct _elab_ctx {
    hash_t           *modcache;
    rt_model_t       *model;
    rt_scope_t       *scope;
+   mem_pool_t       *pool;
    unsigned          depth;
    unsigned          errors;
 } elab_ctx_t;
@@ -451,7 +452,7 @@ static mod_cache_t *elab_cached_module(object_t *obj, const elab_ctx_t *ctx)
    if (mc != NULL)
       return mc;
 
-   mc = xcalloc(sizeof(mod_cache_t));
+   mc = pool_calloc(ctx->pool, sizeof(mod_cache_t));
    mc->object    = obj;
    mc->instances = ghash_new(4, elab_hash_inst, elab_cmp_inst);
 
@@ -471,7 +472,7 @@ static elab_instance_t *elab_new_instance(vlog_node_t mod, vlog_node_t inst,
    if (ei != NULL)
       return ei;
 
-   ei = xcalloc(sizeof(elab_instance_t));
+   ei = pool_calloc(ctx->pool, sizeof(elab_instance_t));
    ei->body = vlog_new_instance(mod, inst, ctx->dotted);
 
    ei->wrap = tree_new(T_VERILOG);
@@ -1523,6 +1524,7 @@ static void elab_inherit_context(elab_ctx_t *ctx, const elab_ctx_t *parent)
    ctx->depth    = parent->depth + 1;
    ctx->model    = parent->model;
    ctx->errors   = error_count();
+   ctx->pool     = parent->pool;
 }
 
 static bool elab_new_errors(const elab_ctx_t *ctx)
@@ -2098,7 +2100,7 @@ static void elab_architecture(tree_t inst, tree_t arch, const elab_ctx_t *ctx)
 
    elab_instance_t *ei = ghash_get(mc->instances, inst);
    if (ei == NULL) {
-      ei = xcalloc(sizeof(elab_instance_t));
+      ei = pool_calloc(ctx->pool, sizeof(elab_instance_t));
       ei->block = vhdl_architecture_instance(arch, inst, new_ctx.dotted);
 
       elab_fold_generics(ei->block, &new_ctx);
@@ -2155,7 +2157,7 @@ static void elab_configuration(tree_t inst, tree_t unit, const elab_ctx_t *ctx)
 
    elab_instance_t *ei = ghash_get(mc->instances, inst);
    if (ei == NULL) {
-      ei = xcalloc(sizeof(elab_instance_t));
+      ei = pool_calloc(ctx->pool, sizeof(elab_instance_t));
       ei->block = vhdl_config_instance(config, inst, new_ctx.dotted);
 
       elab_bind_components(ei->block, ei->block);
@@ -2220,7 +2222,7 @@ static void elab_component(tree_t inst, tree_t comp, const elab_ctx_t *ctx)
 
    elab_instance_t *ei = ghash_get(mc->instances, inst);
    if (ei == NULL) {
-      ei = xcalloc(sizeof(elab_instance_t));
+      ei = pool_calloc(ctx->pool, sizeof(elab_instance_t));
       ei->block = vhdl_component_instance(comp, inst, ctx->dotted);
 
       elab_fold_generics(ei->block, ctx);
@@ -2858,6 +2860,7 @@ tree_t elab(object_t *top, jit_t *jit, unit_registry_t *ur, mir_context_t *mc,
       .dotted    = lib_name(work),
       .model     = m,
       .scope     = create_scope(m, e, NULL),
+      .pool      = pool_new(),
    };
 
    if (vhdl != NULL)
@@ -2872,9 +2875,10 @@ tree_t elab(object_t *top, jit_t *jit, unit_registry_t *ur, mir_context_t *mc,
    void *value;
    for (hash_iter_t it = HASH_BEGIN;
         hash_iter(ctx.modcache, &it, &key, &value); )
-      free(value);
+      ghash_free(((mod_cache_t *)value)->instances);
 
    hash_free(ctx.modcache);
+   pool_free(ctx.pool);
 
    if (error_count() > 0)
       return NULL;
