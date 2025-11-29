@@ -57,7 +57,6 @@ typedef struct _elab_ctx {
    tree_t            out;
    object_t         *root;
    tree_t            inst;
-   tree_t            config;
    ident_t           dotted;
    ident_t           prefix[2];
    lib_t             library;
@@ -2055,6 +2054,68 @@ static void elab_mixed_instance(tree_t inst, tree_t comp, vlog_node_t mod,
    elab_pop_scope(&new_ctx);
 }
 
+static void elab_bind_components(tree_t block, tree_t config)
+{
+   const int nstmts = tree_stmts(block);
+   for (int i = 0; i < nstmts; i++) {
+      tree_t s = tree_stmt(block, i);
+      switch (tree_kind(s)) {
+      case T_INSTANCE:
+         {
+            if (tree_class(s) != C_COMPONENT || tree_has_spec(s))
+               break;
+
+            tree_t spec = NULL;
+            const int ndecls = tree_decls(config);
+            for (int j = 0; j < ndecls; j++) {
+               tree_t d = tree_decl(config, j);
+               if (tree_kind(d) != T_SPEC)
+                  continue;
+               else if (tree_ident2(d) != tree_ident2(s))
+                  continue;
+
+               bool apply = false;
+               if (tree_has_ident(d)) {
+                  ident_t match = tree_ident(d);
+                  if (match == tree_ident(s) || match == well_known(W_ALL))
+                     apply = true;
+               }
+               else if (spec == NULL)
+                  apply = true;
+
+               if (apply) spec = d;
+            }
+
+            tree_set_spec(s, spec);
+         }
+         break;
+
+      case T_FOR_GENERATE:
+      case T_IF_GENERATE:
+      case T_BLOCK:
+         {
+            const int ndecls = tree_decls(config);
+            for (int j = 0; j < ndecls; j++) {
+               tree_t d = tree_decl(config, j);
+               if (tree_kind(d) != T_BLOCK_CONFIG)
+                  continue;
+               else if (tree_ident(d) == tree_ident(s)) {
+                  if (tree_kind(s) == T_IF_GENERATE)
+                     elab_bind_components(tree_cond(s, 0), d);
+                  else
+                     elab_bind_components(s, d);
+                  break;
+               }
+            }
+         }
+         break;
+
+      default:
+         break;
+      }
+   }
+}
+
 static void elab_architecture(tree_t bind, tree_t arch, tree_t config,
                               const elab_ctx_t *ctx)
 {
@@ -2095,8 +2156,10 @@ static void elab_architecture(tree_t bind, tree_t arch, tree_t config,
    tree_t arch_copy;
    if (config != NULL) {
       assert(tree_ref(config) == arch);
-      new_ctx.config = elab_copy(config, &new_ctx);
-      arch_copy = tree_ref(new_ctx.config);
+      tree_t config_copy = elab_copy(config, &new_ctx);
+      arch_copy = tree_ref(config_copy);
+
+      elab_bind_components(arch_copy, config_copy);
    }
    else
       arch_copy = elab_copy(arch, &new_ctx);
@@ -2126,37 +2189,9 @@ static void elab_architecture(tree_t bind, tree_t arch, tree_t config,
    elab_pop_scope(&new_ctx);
 }
 
-static vlog_node_t elab_bind_component(tree_t inst, const elab_ctx_t *ctx)
+static void elab_component(tree_t inst, tree_t comp, const elab_ctx_t *ctx)
 {
-   if (tree_has_spec(inst))
-      return NULL;
-
-   tree_t spec = NULL;
-
-   if (ctx->config != NULL) {
-      assert(tree_kind(ctx->config) == T_BLOCK_CONFIG);
-
-      const int ndecls = tree_decls(ctx->config);
-      for (int i = 0; i < ndecls; i++) {
-         tree_t d = tree_decl(ctx->config, i);
-         if (tree_kind(d) != T_SPEC)
-            continue;
-         else if (tree_ident2(d) != tree_ident2(inst))
-            continue;
-
-         bool apply = false;
-         if (tree_has_ident(d)) {
-            ident_t match = tree_ident(d);
-            apply = (match == tree_ident(inst) || match == well_known(W_ALL));
-         }
-         else if (spec == NULL)
-            apply = true;
-
-         if (apply) spec = d;
-      }
-   }
-
-   if (spec == NULL) {
+   if (!tree_has_spec(inst)) {
       tree_t bind = elab_default_binding(inst, ctx);
       if (bind == NULL) {
          ident_t prefix = lib_name(ctx->library);
@@ -2165,26 +2200,18 @@ static vlog_node_t elab_bind_component(tree_t inst, const elab_ctx_t *ctx)
          object_t *obj = lib_get_generic(ctx->library, qual, NULL);
 
          vlog_node_t mod = vlog_from_object(obj);
-         if (mod != NULL)
-            return mod;
+         if (mod != NULL) {
+            elab_mixed_instance(inst, comp, mod, ctx);
+            return;
+         }
       }
 
-      spec = tree_new(T_SPEC);
+      tree_t spec = tree_new(T_SPEC);
       tree_set_loc(spec, tree_loc(inst));
       tree_set_ident(spec, tree_ident(inst));
       tree_set_value(spec, bind);
-   }
 
-   tree_set_spec(inst, spec);
-   return NULL;
-}
-
-static void elab_component(tree_t inst, tree_t comp, const elab_ctx_t *ctx)
-{
-   vlog_node_t mod = elab_bind_component(inst, ctx);
-   if (mod != NULL) {
-      elab_mixed_instance(inst, comp, mod, ctx);
-      return;
+      tree_set_spec(inst, spec);
    }
 
    ident_t ndotted = ident_prefix(ctx->dotted, tree_ident(inst), '.');
@@ -2227,25 +2254,6 @@ static void elab_component(tree_t inst, tree_t comp, const elab_ctx_t *ctx)
       elab_stmts(ei->block, &new_ctx);
 
    elab_pop_scope(&new_ctx);
-}
-
-static tree_t elab_block_config(tree_t block, const elab_ctx_t *ctx)
-{
-   if (ctx->config == NULL)
-      return NULL;
-
-   ident_t label = tree_ident(block);
-
-   const int ndecls = tree_decls(ctx->config);
-   for (int i = 0; i < ndecls; i++) {
-      tree_t d = tree_decl(ctx->config, i);
-      if (tree_kind(d) != T_BLOCK_CONFIG)
-         continue;
-      else if (tree_ident(d) == label)
-         return d;
-   }
-
-   return NULL;
 }
 
 static void elab_instance(tree_t t, const elab_ctx_t *ctx)
@@ -2411,7 +2419,6 @@ static void elab_for_generate(tree_t t, const elab_ctx_t *ctx)
    elab_generate_range(tree_range(t, 0), &low, &high, ctx);
 
    driver_set_t *ds = find_drivers(t);
-   tree_t config = elab_block_config(t, ctx);
 
    ident_t prefix = ident_prefix(ctx->dotted, tree_ident(t), '.');
 
@@ -2444,7 +2451,6 @@ static void elab_for_generate(tree_t t, const elab_ctx_t *ctx)
       elab_ctx_t new_ctx = {
          .out     = b,
          .dotted  = ndotted,
-         .config  = config,
          .drivers = clone ? find_drivers(body) : ds,
       };
       elab_inherit_context(&new_ctx, ctx);
@@ -2506,7 +2512,6 @@ static void elab_if_generate(tree_t t, const elab_ctx_t *ctx)
          elab_ctx_t new_ctx = {
             .out    = b,
             .dotted = ndotted,
-            .config = elab_block_config(cond, ctx),
          };
          elab_inherit_context(&new_ctx, ctx);
 
@@ -2627,7 +2632,6 @@ static void elab_block(tree_t t, const elab_ctx_t *ctx)
    elab_ctx_t new_ctx = {
       .out    = b,
       .dotted = ndotted,
-      .config = elab_block_config(t, ctx),
    };
    elab_inherit_context(&new_ctx, ctx);
 
