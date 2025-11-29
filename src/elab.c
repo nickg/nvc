@@ -67,6 +67,7 @@ typedef struct _elab_ctx {
    sdf_file_t       *sdf;
    driver_set_t     *drivers;
    hash_t           *modcache;
+   hash_t           *mracache;
    rt_model_t       *model;
    rt_scope_t       *scope;
    mem_pool_t       *pool;
@@ -161,11 +162,15 @@ static void elab_find_arch_cb(lib_t lib, ident_t name, int kind, void *context)
    }
 }
 
-static tree_t elab_pick_arch(const loc_t *loc, tree_t entity,
+static tree_t elab_pick_arch(tree_t entity, const loc_t *loc,
                              const elab_ctx_t *ctx)
 {
    // When an explicit architecture name is not given select the most
    // recently analysed architecture of this entity
+
+   tree_t cached = hash_get(ctx->mracache, entity);
+   if (cached != NULL)
+      return cached;
 
    ident_t name = tree_ident(entity);
    lib_t lib = elab_find_lib(name, ctx);
@@ -180,7 +185,9 @@ static tree_t elab_pick_arch(const loc_t *loc, tree_t entity,
    if (params.chosen == NULL)
       fatal_at(loc, "no suitable architecture for %s", istr(search_name));
 
-   return lib_get(lib, params.chosen);
+   tree_t arch = lib_get(lib, params.chosen);
+   hash_put(ctx->mracache, entity, arch);
+   return arch;
 }
 
 static uint32_t elab_hash_vhdl_generic(tree_t g, tree_t value)
@@ -742,7 +749,7 @@ static tree_t elab_default_binding(tree_t inst, const elab_ctx_t *ctx)
       return NULL;
    }
 
-   tree_t arch = elab_pick_arch(tree_loc(comp), entity, ctx);
+   tree_t arch = elab_pick_arch(entity, tree_loc(comp), ctx);
 
    // Check entity is compatible with component declaration
 
@@ -1521,6 +1528,7 @@ static void elab_inherit_context(elab_ctx_t *ctx, const elab_ctx_t *parent)
    ctx->sdf      = parent->sdf;
    ctx->inst     = ctx->inst ?: parent->inst;
    ctx->modcache = parent->modcache;
+   ctx->mracache = parent->mracache;
    ctx->depth    = parent->depth + 1;
    ctx->model    = parent->model;
    ctx->errors   = error_count();
@@ -2269,7 +2277,7 @@ static void elab_instance(tree_t t, const elab_ctx_t *ctx)
    switch (tree_kind(ref)) {
    case T_ENTITY:
       {
-         tree_t arch = elab_pick_arch(tree_loc(new), ref, ctx);
+         tree_t arch = elab_pick_arch(ref, tree_loc(new), ctx);
          elab_architecture(new, arch, ctx);
       }
       break;
@@ -2729,7 +2737,7 @@ static void elab_vhdl_root_cb(void *arg)
    tree_t arch = vhdl;
    switch (tree_kind(vhdl)) {
    case T_ENTITY:
-      arch = elab_pick_arch(&ctx->root->loc, vhdl, ctx);
+      arch = elab_pick_arch(vhdl, &ctx->root->loc, ctx);
       // Fall-through
    case T_ARCH:
       {
@@ -2857,6 +2865,7 @@ tree_t elab(object_t *top, jit_t *jit, unit_registry_t *ur, mir_context_t *mc,
       .registry  = ur,
       .mir       = mc,
       .modcache  = hash_new(16),
+      .mracache  = hash_new(16),
       .dotted    = lib_name(work),
       .model     = m,
       .scope     = create_scope(m, e, NULL),
@@ -2878,6 +2887,7 @@ tree_t elab(object_t *top, jit_t *jit, unit_registry_t *ur, mir_context_t *mc,
       ghash_free(((mod_cache_t *)value)->instances);
 
    hash_free(ctx.modcache);
+   hash_free(ctx.mracache);
    pool_free(ctx.pool);
 
    if (error_count() > 0)
