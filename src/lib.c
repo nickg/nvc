@@ -290,7 +290,7 @@ static lib_index_t *lib_find_in_index(lib_t lib, ident_t name)
    return it;
 }
 
-static void lib_obsolete_cb(ident_t name, void *ctx)
+static void lib_obsolete_cb(object_t *obj, void *ctx)
 {
    lib_unit_t *lu = ctx;
 
@@ -304,6 +304,7 @@ static void lib_obsolete_cb(ident_t name, void *ctx)
 
    diag_printf(d, "%s depends on an obsolete version of ", istr(lu->name));
 
+   ident_t name = object_ident(obj);
    if (lu->name == name) {
       diag_printf(d, "a design unit with the same name");
       diag_hint(d, NULL, "this is a caused by a circular dependency on the "
@@ -906,13 +907,6 @@ static lib_unit_t *lib_read_unit(lib_t lib, ident_t id)
 static lib_unit_t *lib_get_aux(lib_t lib, ident_t ident)
 {
    assert(lib != NULL);
-
-   // Handle aliased library names and names without the library
-   ident_t uname = ident, lname = ident_walk_selected(&uname);
-   if (uname == NULL)
-      ident = ident_prefix(lib->name, lname, '.');
-   else if (lname != lib->name)
-      ident = ident_prefix(lib->name, uname, '.');
 
    lib_unit_t *lu = ghash_get(lib->lookup, ident);
    if (lu != NULL)

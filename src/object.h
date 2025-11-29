@@ -236,6 +236,7 @@ object_t *object_rewrite(object_t *object, object_rewrite_ctx_t *ctx);
 unsigned object_next_generation(void);
 void object_copy(object_copy_ctx_t *ctx);
 object_arena_t *object_arena(object_t *object);
+ident_t object_ident(object_t *object);
 size_t object_arena_default_size(void);
 object_t *arena_root(object_arena_t *arena);
 void arena_set_checksum(object_arena_t *arena, uint32_t checksum);
@@ -261,7 +262,7 @@ void __object_write_barrier(object_t *lhs, object_t *rhs);
 object_arena_t *object_arena_new(size_t size, unsigned std);
 void object_arena_freeze(object_arena_t *arena);
 
-typedef void (*arena_deps_fn_t)(ident_t, void *);
+typedef void (*arena_deps_fn_t)(object_t *, void *);
 void arena_walk_deps(object_arena_t *arena, arena_deps_fn_t fn, void *context);
 void arena_walk_obsolete_deps(object_arena_t *arena, arena_deps_fn_t fn,
                               void *context);

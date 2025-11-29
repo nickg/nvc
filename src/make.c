@@ -202,22 +202,16 @@ static char *make_elab_name(tree_t t)
    return name;
 }
 
-static void make_add_inputs_cb(ident_t name, void *__ctx)
+static void make_add_inputs_cb(tree_t unit, void *ctx)
 {
-   rule_t *r = __ctx;
-
-   tree_t unit = lib_get_qualified(name);
-   if (unit != NULL)
-      make_rule_add_input(r, make_product(unit, MAKE_TREE));
+   rule_t *r = ctx;
+   make_rule_add_input(r, make_product(unit, MAKE_TREE));
 }
 
-static void make_dep_rules_cb(ident_t name, void *__ctx)
+static void make_dep_rules_cb(tree_t unit, void *ctx)
 {
-   rule_t **rules = __ctx;
-
-   tree_t unit = lib_get_qualified(name);
-   if (unit != NULL)
-      make_rule(unit, rules);
+   rule_t **rules = ctx;
+   make_rule(unit, rules);
 }
 
 static void make_rule(tree_t t, rule_t **rules)
@@ -278,7 +272,7 @@ static void make_rule(tree_t t, rule_t **rules)
       for (int i = 0; i < nctx; i++) {
          tree_t d = tree_context(t, i);
          if (tree_kind(d) == T_USE)
-            make_add_inputs_cb(tree_ident(d), r);
+            make_add_inputs_cb(d, r);
       }
 
    }

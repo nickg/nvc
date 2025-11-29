@@ -481,6 +481,11 @@ object_class_t tree_object = {
    .gc_num_roots   = 9
 };
 
+typedef struct {
+   tree_deps_fn_t fn;
+   void          *context;
+} tree_deps_args_t;
+
 #ifdef DEBUG
 static tree_kind_t expr_kinds[] = {
    T_FCALL,     T_LITERAL,       T_REF,        T_QUALIFIED,
@@ -1408,9 +1413,18 @@ tree_t tree_container(tree_t t)
    return container_of(o, struct _tree, object);
 }
 
+static void tree_deps_cb(object_t *obj, void *ctx)
+{
+   tree_deps_args_t *args = ctx;
+   tree_t t = tree_from_object(obj);
+   if (t != NULL)
+      (*args->fn)(t, args->context);
+}
+
 void tree_walk_deps(tree_t t, tree_deps_fn_t fn, void *ctx)
 {
-   arena_walk_deps(object_arena(&(t->object)), fn, ctx);
+   tree_deps_args_t args = { fn, ctx };
+   arena_walk_deps(object_arena(&(t->object)), tree_deps_cb, &args);
 }
 
 object_t *tree_to_object(tree_t t)

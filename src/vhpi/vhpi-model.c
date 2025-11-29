@@ -4947,19 +4947,16 @@ static void vhpi_lazy_decls(c_vhpiObject *obj)
    }
 }
 
-static void vhpi_build_deps_cb(ident_t name, void *ctx)
+static void vhpi_build_deps_cb(tree_t unit, void *ctx)
 {
    hset_t *visited = ctx;
 
-   if (hset_contains(visited, name))
+   if (hset_contains(visited, unit))
       return;
 
-   hset_insert(visited, name);
+   hset_insert(visited, unit);
 
-   tree_t unit = lib_get_qualified(name);
-   if (unit == NULL)
-      return;
-   else if (tree_kind(unit) == T_PACKAGE) {
+   if (tree_kind(unit) == T_PACKAGE) {
       c_designUnit *pack = cached_designUnit(unit);
       assert(pack->region.object.kind == vhpiPackDeclK);
 

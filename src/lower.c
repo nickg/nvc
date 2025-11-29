@@ -12165,15 +12165,10 @@ static void lower_generics(lower_unit_t *lu, tree_t block, tree_t primary)
    }
 }
 
-static void lower_deps_cb(ident_t unit_name, void *__ctx)
+static void lower_deps_cb(tree_t unit, void *ctx)
 {
-   lower_unit_t *lu = __ctx;
-
-   object_t *obj = lib_load_handler(unit_name);
-
-   tree_t unit = tree_from_object(obj);
-   if (unit == NULL)
-      return;
+   lower_unit_t *lu = ctx;
+   ident_t unit_name = tree_ident(unit);
 
    const tree_kind_t kind = tree_kind(unit);
    if (kind != T_ENTITY && unit_name == lu->name)

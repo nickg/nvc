@@ -1112,9 +1112,10 @@ static void merge_scopes(scope_t *to, scope_t *from)
 static symbol_t *lazy_lib_cb(scope_t *s, ident_t name, void *context)
 {
    lib_t lib = context;
+   ident_t qual = ident_prefix(lib_name(lib), name, '.');
 
    bool error;
-   tree_t unit = lib_get_allow_error(lib, name, &error);
+   tree_t unit = lib_get_allow_error(lib, qual, &error);
    if (unit == NULL || error)
       return NULL;
 

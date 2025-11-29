@@ -118,15 +118,9 @@ static inline object_arena_t *__object_arena(object_t *object)
 static ident_t object_arena_name(object_arena_t *arena)
 {
    if (arena->alloc > arena->base) {
-      object_t *root = arena_root(arena);
-
-      const object_class_t *class = classes[root->tag];
-      const imask_t has = class->has_map[root->kind];
-
-      if (has & I_IDENT) {
-         const int n = __builtin_popcountll(has & (I_IDENT - 1));
-         return root->items[n].ident;
-      }
+      ident_t name = object_ident(arena_root(arena));
+      if (name != NULL)
+         return name;
    }
 
    return ident_new("???");
@@ -216,6 +210,19 @@ void arena_set_obsolete(object_arena_t *arena, bool obsolete)
 object_arena_t *object_arena(object_t *object)
 {
    return __object_arena(object);
+}
+
+ident_t object_ident(object_t *object)
+{
+   const object_class_t *class = classes[object->tag];
+   const imask_t has = class->has_map[object->kind];
+
+   if (has & I_IDENT) {
+      const int n = __builtin_popcountll(has & (I_IDENT - 1));
+      return object->items[n].ident;
+   }
+
+   return NULL;
 }
 
 void __object_write_barrier(object_t *lhs, object_t *rhs)
@@ -1250,7 +1257,7 @@ void object_arena_freeze(object_arena_t *arena)
 void arena_walk_deps(object_arena_t *arena, arena_deps_fn_t fn, void *context)
 {
    for (unsigned i = 0; i < arena->deps.count; i++)
-      (*fn)(object_arena_name(arena->deps.items[i]), context);
+      (*fn)(arena_root(arena->deps.items[i]), context);
 }
 
 void arena_walk_obsolete_deps(object_arena_t *arena, arena_deps_fn_t fn,
@@ -1258,7 +1265,7 @@ void arena_walk_obsolete_deps(object_arena_t *arena, arena_deps_fn_t fn,
 {
    for (unsigned i = 0; i < arena->deps.count; i++) {
       if (arena->deps.items[i]->obsolete)
-         (*fn)(object_arena_name(arena->deps.items[i]), context);
+         (*fn)(arena_root(arena->deps.items[i]), context);
    }
 }
 

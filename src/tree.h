@@ -632,7 +632,7 @@ void tree_copy(tree_t *roots, unsigned nroots,
                void *callback_context);
 
 typedef tree_t (*tree_load_fn_t)(ident_t);
-typedef void (*tree_deps_fn_t)(ident_t, void *);
+typedef void (*tree_deps_fn_t)(tree_t, void *);
 
 object_arena_t *tree_arena(tree_t t);
 tree_t tree_container(tree_t t);
