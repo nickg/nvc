@@ -277,6 +277,26 @@ void obj_array_add(obj_array_t **a, object_t *o)
    (*a)->items[(*a)->count++] = o;
 }
 
+void obj_array_copy(obj_array_t **dst, const obj_array_t *src)
+{
+   if (src == NULL)
+      return;
+
+   if (*dst == NULL) {
+      *dst = xmalloc_flex(sizeof(obj_array_t), src->count, sizeof(object_t *));
+      (*dst)->count = 0;
+      (*dst)->limit = src->count;
+   }
+   else if ((*dst)->count + src->count > (*dst)->limit) {
+      (*dst)->limit = (*dst)->count + src->count;
+      *dst = xrealloc_flex(*dst, sizeof(obj_array_t),
+                           (*dst)->limit, sizeof(object_t *));
+   }
+
+   for (int i = 0; i < src->count; i++)
+      (*dst)->items[(*dst)->count++] = src->items[i];
+}
+
 void obj_array_free(obj_array_t **a)
 {
    free(*a);

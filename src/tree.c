@@ -538,6 +538,19 @@ static inline void tree_array_add(item_t *item, tree_t t)
    obj_array_add(&(item->obj_array), &(t->object));
 }
 
+static inline void tree_copy_array(tree_t t, tree_t from, imask_t mask)
+{
+   item_t *dst = lookup_item(&tree_object, t, mask);
+   const item_t *src = lookup_item(&tree_object, from, mask);
+   if (src->obj_array == NULL)
+      return;
+
+   obj_array_copy(&(dst->obj_array), src->obj_array);
+
+   for (int i = 0; i < src->obj_array->count; i++)
+      object_write_barrier(&(t->object), src->obj_array->items[i]);
+}
+
 tree_t tree_new(tree_kind_t kind)
 {
    object_t *o = object_new(NULL, &tree_object, kind);
@@ -622,6 +635,11 @@ void tree_add_port(tree_t t, tree_t d)
    object_write_barrier(&(t->object), &(d->object));
 }
 
+void tree_copy_ports(tree_t t, tree_t from)
+{
+   tree_copy_array(t, from, I_PORTS);
+}
+
 unsigned tree_subkind(tree_t t)
 {
    item_t *item = lookup_item(&tree_object, t, I_SUBKIND);
@@ -650,6 +668,11 @@ void tree_add_generic(tree_t t, tree_t d)
    assert(d->object.kind == T_GENERIC_DECL);
    tree_array_add(lookup_item(&tree_object, t, I_GENERICS), d);
    object_write_barrier(&(t->object), &(d->object));
+}
+
+void tree_copy_generics(tree_t t, tree_t from)
+{
+   tree_copy_array(t, from, I_GENERICS);
 }
 
 type_t tree_type(tree_t t)
@@ -894,6 +917,11 @@ void tree_add_decl(tree_t t, tree_t d)
    object_write_barrier(&(t->object), &(d->object));
 }
 
+void tree_copy_decls(tree_t t, tree_t from)
+{
+   tree_copy_array(t, from, I_DECLS);
+}
+
 unsigned tree_stmts(tree_t t)
 {
    item_t *item = lookup_item(&tree_object, t, I_STMTS);
@@ -911,6 +939,11 @@ void tree_add_stmt(tree_t t, tree_t s)
    assert(s != NULL);
    tree_array_add(lookup_item(&tree_object, t, I_STMTS), s);
    object_write_barrier(&(t->object), &(s->object));
+}
+
+void tree_copy_stmts(tree_t t, tree_t from)
+{
+   tree_copy_array(t, from, I_STMTS);
 }
 
 unsigned tree_waveforms(tree_t t)

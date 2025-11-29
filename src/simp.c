@@ -778,12 +778,8 @@ static tree_t simp_process(tree_t t)
       tree_set_loc(p, tree_loc(t));
       tree_set_flag(p, tree_flags(t));
 
-      const int ndecls = tree_decls(t);
-      for (int i = 0; i < ndecls; i++)
-         tree_add_decl(p, tree_decl(t, i));
-
-      for (int i = 0; i < nstmts; i++)
-         tree_add_stmt(p, tree_stmt(t, i));
+      tree_copy_decls(p, t);
+      tree_copy_stmts(p, t);
 
       tree_t w = tree_new(T_WAIT);
       tree_set_ident(w, tree_ident(p));
@@ -972,9 +968,7 @@ static tree_t simp_case(tree_t t, simp_ctx_t *ctx)
       if (tree_has_ident(t))
          tree_set_ident(seq, tree_ident(t));
 
-      const int nstmts = tree_stmts(alt);
-      for (int i = 0; i < nstmts; i++)
-         tree_add_stmt(seq, tree_stmt(alt, i));
+      tree_copy_stmts(seq, alt);
 
       simp_make_dummy_drivers(seq, &drivers);
       return seq;
@@ -1010,13 +1004,8 @@ static tree_t simp_case_generate(tree_t t)
       else if (tree_has_ident(t))
          tree_set_ident(seq, tree_ident(t));
 
-      const int ndecls = tree_decls(alt);
-      for (int i = 0; i < ndecls; i++)
-         tree_add_decl(seq, tree_decl(alt, i));
-
-      const int nstmts = tree_stmts(alt);
-      for (int i = 0; i < nstmts; i++)
-         tree_add_stmt(seq, tree_stmt(alt, i));
+      tree_copy_decls(seq, alt);
+      tree_copy_stmts(seq, alt);
 
       return seq;
    }
@@ -1072,10 +1061,7 @@ static tree_t simp_if(tree_t t)
          if (new != NULL && tree_conds(new) > 0) {
             tree_t c2 = tree_new(T_COND_STMT);
             tree_set_loc(c2, tree_loc(c));
-
-            const int nstmts = tree_stmts(c);
-            for (int i = 0; i < nstmts; i++)
-               tree_add_stmt(c2, tree_stmt(c, i));
+            tree_copy_stmts(c2, c);
 
             tree_add_cond(new, c2);
             break;
@@ -1088,9 +1074,7 @@ static tree_t simp_if(tree_t t)
             if (tree_has_ident(t))
                tree_set_ident(b, tree_ident(t));
 
-            const int nstmts = tree_stmts(c);
-            for (int i = 0; i < nstmts; i++)
-               tree_add_stmt(b, tree_stmt(c, i));
+            tree_copy_stmts(b, c);
 
             simp_make_dummy_drivers(b, &drivers);
             return b;
@@ -1262,10 +1246,7 @@ static tree_t simp_select(tree_t t)
    tree_t c = tree_new(kind);
    tree_set_loc(c, tree_loc(t));
    tree_set_value(c, tree_value(t));
-
-   const int nstmts = tree_stmts(t);
-   for (int i = 0; i < nstmts; i++)
-      tree_add_stmt(c, tree_stmt(t, i));
+   tree_copy_stmts(c, t);
 
    if (tree_has_guard(t)) {
       tree_t s0 = tree_stmt(tree_stmt(t, 0), 0);
@@ -1348,13 +1329,8 @@ static tree_t simp_if_generate(tree_t t)
             else if (tree_has_ident(t))
                tree_set_ident(b, tree_ident(t));
 
-            const int ndecls = tree_decls(c);
-            for (int i = 0; i < ndecls; i++)
-               tree_add_decl(b, tree_decl(c, i));
-
-            const int nstmts = tree_stmts(c);
-            for (int i = 0; i < nstmts; i++)
-               tree_add_stmt(b, tree_stmt(c, i));
+            tree_copy_decls(b, c);
+            tree_copy_stmts(b, c);
 
             return b;
          }

@@ -142,6 +142,7 @@ typedef struct {
       })
 
 void obj_array_add(obj_array_t **a, object_t *o);
+void obj_array_copy(obj_array_t **dst, const obj_array_t *src);
 
 typedef union {
    ident_t       ident;

@@ -1748,22 +1748,12 @@ static void instantiate_subprogram(tree_t new, tree_t decl, tree_t body)
    tree_set_flag(new, tree_flags(decl));
    tree_set_global_flags(new, tree_global_flags(decl));
 
-   const int ngenerics = tree_generics(src);
-   for (int i = 0; i < ngenerics; i++)
-      tree_add_generic(new, tree_generic(src, i));
-
-   const int nports = tree_ports(src);
-   for (int i = 0; i < nports; i++)
-      tree_add_port(new, tree_port(src, i));
+   tree_copy_generics(new, src);
+   tree_copy_ports(new, src);
 
    if (body != NULL) {
-      const int ndecls = tree_decls(body_copy);
-      for (int i = 0; i < ndecls; i++)
-         tree_add_decl(new, tree_decl(body_copy, i));
-
-      const int nstmts = tree_stmts(body_copy);
-      for (int i = 0; i < nstmts; i++)
-         tree_add_stmt(new, tree_stmt(body_copy, i));
+      tree_copy_decls(new, body_copy);
+      tree_copy_stmts(new, body_copy);
 
       tree_set_flag(new, tree_flags(body));
       tree_set_global_flags(new, tree_global_flags(body));
@@ -1790,9 +1780,7 @@ static void instantiate_package(tree_t new, tree_t pack, tree_t body)
 
    tree_t pack_copy = roots[0], body_copy = roots[1];
 
-   const int ngenerics = tree_generics(pack_copy);
-   for (int i = 0; i < ngenerics; i++)
-      tree_add_generic(new, tree_generic(pack_copy, i));
+   tree_copy_generics(new, pack_copy);
 
    const int ndecls = tree_decls(pack_copy);
    for (int i = 0; i < ndecls; i++) {

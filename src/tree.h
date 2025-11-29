@@ -459,6 +459,7 @@ bool tree_has_ident2(tree_t t);
 unsigned tree_ports(tree_t t);
 tree_t tree_port(tree_t t, unsigned n);
 void tree_add_port(tree_t t, tree_t d);
+void tree_copy_ports(tree_t t, tree_t from);
 
 tree_t tree_file_mode(tree_t t);
 void tree_set_file_mode(tree_t t, tree_t m);
@@ -466,6 +467,7 @@ void tree_set_file_mode(tree_t t, tree_t m);
 unsigned tree_generics(tree_t t);
 tree_t tree_generic(tree_t t, unsigned n);
 void tree_add_generic(tree_t t, tree_t d);
+void tree_copy_generics(tree_t t, tree_t from);
 
 unsigned tree_genmaps(tree_t t);
 tree_t tree_genmap(tree_t t, unsigned n);
@@ -497,10 +499,12 @@ void tree_add_waveform(tree_t t, tree_t w);
 unsigned tree_decls(tree_t t);
 tree_t tree_decl(tree_t t, unsigned n);
 void tree_add_decl(tree_t t, tree_t d);
+void tree_copy_decls(tree_t t, tree_t from);
 
 unsigned tree_stmts(tree_t t);
 tree_t tree_stmt(tree_t t, unsigned n);
-void tree_add_stmt(tree_t t, tree_t d);
+void tree_add_stmt(tree_t t, tree_t s);
+void tree_copy_stmts(tree_t t, tree_t from);
 
 unsigned tree_conds(tree_t t);
 tree_t tree_cond(tree_t t, unsigned n);
