@@ -2396,48 +2396,55 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
 }
 LCOV_EXCL_STOP
 
+static inline bool vtype_eq_internal(const vtype_t *at, const vtype_t *bt)
+{
+   if (at->kind != bt->kind)
+      return false;
+
+   switch (at->kind) {
+   case VCODE_TYPE_INT:
+      return (at->low == bt->low) && (at->high == bt->high);
+   case VCODE_TYPE_REAL:
+      return (at->rlow == bt->rlow) && (at->rhigh == bt->rhigh);
+   case VCODE_TYPE_CARRAY:
+      return at->size == bt->size && vtype_eq(at->elem, bt->elem);
+   case VCODE_TYPE_UARRAY:
+      return at->dims == bt->dims && vtype_eq(at->elem, bt->elem);
+   case VCODE_TYPE_POINTER:
+   case VCODE_TYPE_ACCESS:
+      return vtype_eq(at->pointed, bt->pointed);
+   case VCODE_TYPE_OFFSET:
+   case VCODE_TYPE_OPAQUE:
+   case VCODE_TYPE_DEBUG_LOCUS:
+   case VCODE_TYPE_TRIGGER:
+   case VCODE_TYPE_CONVERSION:
+      return true;
+   case VCODE_TYPE_RESOLUTION:
+   case VCODE_TYPE_CLOSURE:
+   case VCODE_TYPE_SIGNAL:
+   case VCODE_TYPE_FILE:
+      return vtype_eq(at->base, bt->base);
+   case VCODE_TYPE_RECORD:
+   case VCODE_TYPE_CONTEXT:
+      return at->name == bt->name;
+   default:
+      should_not_reach_here();
+   }
+}
+
 bool vtype_eq(vcode_type_t a, vcode_type_t b)
 {
    assert(active_unit != NULL);
 
    if (a == b)
       return true;
+   else if (MASK_CONTEXT(a) == MASK_CONTEXT(b))
+      return false;   // Guaranteed by vtype_new
    else {
       const vtype_t *at = vcode_type_data(a);
       const vtype_t *bt = vcode_type_data(b);
 
-      if (at->kind != bt->kind)
-         return false;
-
-      switch (at->kind) {
-      case VCODE_TYPE_INT:
-         return (at->low == bt->low) && (at->high == bt->high);
-      case VCODE_TYPE_REAL:
-         return (at->rlow == bt->rlow) && (at->rhigh == bt->rhigh);
-      case VCODE_TYPE_CARRAY:
-         return at->size == bt->size && vtype_eq(at->elem, bt->elem);
-      case VCODE_TYPE_UARRAY:
-         return at->dims == bt->dims && vtype_eq(at->elem, bt->elem);
-      case VCODE_TYPE_POINTER:
-      case VCODE_TYPE_ACCESS:
-         return vtype_eq(at->pointed, bt->pointed);
-      case VCODE_TYPE_OFFSET:
-      case VCODE_TYPE_OPAQUE:
-      case VCODE_TYPE_DEBUG_LOCUS:
-      case VCODE_TYPE_TRIGGER:
-      case VCODE_TYPE_CONVERSION:
-         return true;
-      case VCODE_TYPE_RESOLUTION:
-      case VCODE_TYPE_CLOSURE:
-      case VCODE_TYPE_SIGNAL:
-      case VCODE_TYPE_FILE:
-         return vtype_eq(at->base, bt->base);
-      case VCODE_TYPE_RECORD:
-      case VCODE_TYPE_CONTEXT:
-         return at->name == bt->name;
-      }
-
-      return false;
+      return vtype_eq_internal(at, bt);
    }
 }
 
@@ -2448,18 +2455,17 @@ void vcode_dump(void)
 
 static vcode_type_t vtype_new(vtype_t *new)
 {
-   int index = active_unit->types.count - 1;
-   vcode_type_t type = MAKE_HANDLE(active_unit->depth, index);
+   const int index = active_unit->types.count - 1;
 
    for (int i = 0; i < index; i++) {
-      vcode_type_t this = MAKE_HANDLE(active_unit->depth, i);
-      if (vtype_eq(this, type)) {
+      const vtype_t *cmp = vtype_array_nth_ptr(&(active_unit->types), i);
+      if (vtype_eq_internal(new, cmp)) {
          active_unit->types.count--;
-         return this;
+         return MAKE_HANDLE(active_unit->depth, i);
       }
    }
 
-   return type;
+   return MAKE_HANDLE(active_unit->depth, index);
 }
 
 vcode_type_t vtype_int(int64_t low, int64_t high)
