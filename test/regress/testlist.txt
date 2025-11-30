@@ -1232,3 +1232,4 @@ select8         verilog
 issue1351       normal,2008
 ivtest21        verilog
 libdir5         shell
+elab41          normal,2008

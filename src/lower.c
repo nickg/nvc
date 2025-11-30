@@ -11261,22 +11261,32 @@ static void lower_inertial_actual_process(lower_unit_t *lu, object_t *obj)
    vcode_block_t main_bb = emit_block();
    assert(main_bb == 1);
 
-   int hops;
-   vcode_var_t var = lower_search_vcode_obj(inertial, lu, &hops);
-   assert(var != VCODE_INVALID_VAR);
+   vcode_reg_t init_reg = lower_lvalue(lu, target);
+
+   vcode_type_t signal_type = lower_signal_type(type);
+   vcode_type_t vbounds = lower_bounds(type);
+   ident_t name = ident_new("port");
+   vcode_var_t var = emit_var(signal_type, vbounds, name, VAR_SIGNAL);
+
+   if (type_is_record(type)) {
+      vcode_reg_t locus = lower_debug_locus(target);
+      vcode_reg_t ptr_reg = emit_index(var, VCODE_INVALID_REG);
+      lower_copy_record(lu, type, ptr_reg, init_reg, locus);
+   }
+   else
+      emit_store(init_reg, var);
 
    if (tree_global_flags(inertial) & TREE_GF_EXTERNAL_NAME)
       tree_visit_only(inertial, lower_external_name_cache, lu, T_EXTERNAL_NAME);
 
    if (type_is_homogeneous(type)) {
-      vcode_reg_t nets_reg = emit_load_indirect(emit_var_upref(1, var));
-      vcode_reg_t count_reg = lower_type_width(lu, type, nets_reg);
-      vcode_reg_t data_reg = lower_array_data(nets_reg);
+      vcode_reg_t count_reg = lower_type_width(lu, type, init_reg);
+      vcode_reg_t data_reg = lower_array_data(init_reg);
 
       emit_drive_signal(data_reg, count_reg);
    }
    else {
-      vcode_reg_t ptr_reg = emit_var_upref(1, var);
+      vcode_reg_t ptr_reg = emit_index(var, VCODE_INVALID_REG);
       lower_for_each_field(lu, type, ptr_reg, VCODE_INVALID_REG,
                            lower_driver_field_cb, NULL);
    }
@@ -11292,10 +11302,12 @@ static void lower_inertial_actual_process(lower_unit_t *lu, object_t *obj)
 
    vcode_reg_t zero_time_reg = emit_const(vtype_time(), 0);
    vcode_reg_t value_reg = lower_rvalue(lu, expr);
-   vcode_reg_t nets_reg = emit_var_upref(1, var);
 
-   if (!type_is_record(type))
-      nets_reg = emit_load_indirect(nets_reg);
+   vcode_reg_t nets_reg;
+   if (type_is_record(type))
+      nets_reg = emit_index(var, VCODE_INVALID_REG);
+   else
+      nets_reg = emit_load(var);
 
    target_part_t parts[] = {
       { .kind = PART_ALL,
@@ -11325,21 +11337,6 @@ static void lower_inertial_actual(lower_unit_t *parent, tree_t dst,
       name = ident_sprintf("%s_actual", istr(tree_ident(dst)));
    else
       name = ident_uniq("%s_actual.part", istr(tree_ident(name_to_ref(dst))));
-
-   type_t type = tree_type(dst);
-
-   vcode_type_t signal_type = lower_signal_type(type);
-   vcode_type_t vbounds = lower_bounds(type);
-   vcode_var_t var = emit_var(signal_type, vbounds, name, VAR_SIGNAL);
-   lower_put_vcode_obj(actual, var, parent);
-
-   if (type_is_record(type)) {
-      vcode_reg_t locus = lower_debug_locus(dst);
-      vcode_reg_t ptr_reg = emit_index(var, VCODE_INVALID_REG);
-      lower_copy_record(parent, type, ptr_reg, port_reg, locus);
-   }
-   else
-      emit_store(port_reg, var);
 
    ident_t pname = ident_prefix(parent->name, name, '.');
 
