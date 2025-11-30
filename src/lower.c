@@ -12167,20 +12167,20 @@ static void lower_generics(lower_unit_t *lu, tree_t block, tree_t primary)
 
 static void lower_deps_cb(tree_t unit, void *ctx)
 {
+   const tree_kind_t kind = tree_kind(unit);
+   if (kind != T_PACKAGE && kind != T_PACK_INST)
+      return;
+
    lower_unit_t *lu = ctx;
    ident_t unit_name = tree_ident(unit);
 
-   const tree_kind_t kind = tree_kind(unit);
-   if (kind != T_ENTITY && unit_name == lu->name)
+   if (unit_name == lu->name)
       return;   // Package body depends on package
 
    if (kind == T_PACKAGE && standard() >= STD_08) {
       if (is_uninstantiated_package(unit))
          return;   // No code generated for uninstantiated packages
    }
-
-   if (kind != T_PACKAGE && kind != T_PACK_INST)
-      return;
 
    vcode_reg_t reg = emit_package_init(unit_name, VCODE_INVALID_REG);
    lower_put_vcode_obj(unit_name, reg, lu);
@@ -12211,15 +12211,7 @@ static void lower_dependencies(lower_unit_t *lu, tree_t unit)
       }
       break;
    case T_BLOCK:
-      {
-         tree_t hier = tree_decl(unit, 0);
-         assert(tree_kind(hier) == T_HIER);
-
-         tree_t src = tree_ref(hier);
-         if (is_design_unit(src))
-            lower_dependencies(lu, src);
-      }
-      break;
+      should_not_reach_here();
    default:
       break;
    }
@@ -12609,7 +12601,9 @@ lower_unit_t *lower_instance(unit_registry_t *ur, lower_unit_t *parent,
    if (gflags & TREE_GF_EXTERNAL_NAME)
       tree_visit_only(block, lower_external_name_cache, lu, T_EXTERNAL_NAME);
 
-   lower_dependencies(lu, block);
+   if (is_design_unit(unit))
+      lower_dependencies(lu, unit);
+
    lower_generics(lu, block, primary);
    lower_ports(lu, block);
    lower_decls(lu, block);

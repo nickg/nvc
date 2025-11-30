@@ -3837,8 +3837,8 @@ START_TEST(test_issue426)
    vcode_select_unit(vu);
 
    EXPECT_BB(0) = {
-      { VCODE_OP_PACKAGE_INIT, .name = "WORK.CORE" },
       { VCODE_OP_PACKAGE_INIT, .name = "STD.STANDARD" },
+      { VCODE_OP_PACKAGE_INIT, .name = "WORK.CORE" },
       { VCODE_OP_INDEX, .name = "EXP_STATUS" },
       { VCODE_OP_VAR_UPREF, .hops = 1, .name = "EXP_STATUS" },
       { VCODE_OP_COPY },
@@ -3862,7 +3862,6 @@ START_TEST(test_instance1)
       fail_unless(vcode_unit_kind(vu) == VCODE_UNIT_INSTANCE);
 
       EXPECT_BB(0) = {
-         { VCODE_OP_PACKAGE_INIT, .name = "STD.STANDARD" },
          { VCODE_OP_CONST, .value = 5 },
          { VCODE_OP_STORE, .name = "WIDTH" },
          { VCODE_OP_CONST, .value = 0 },
@@ -4664,8 +4663,8 @@ START_TEST(test_directmap2)
    vcode_select_unit(vu);
 
    EXPECT_BB(0) = {
-      { VCODE_OP_PACKAGE_INIT, .name = "WORK.DIRECTMAP2_PACK" },
       { VCODE_OP_PACKAGE_INIT, .name = "STD.STANDARD" },
+      { VCODE_OP_PACKAGE_INIT, .name = "WORK.DIRECTMAP2_PACK" },
       { VCODE_OP_VAR_UPREF, .hops = 1, .name = "P" },
       { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_VAR_UPREF, .hops = 1, .name = "Q" },
@@ -5990,7 +5989,6 @@ START_TEST(test_directmap5)
    vcode_select_unit(vu);
 
    EXPECT_BB(0) = {
-      { VCODE_OP_PACKAGE_INIT, .name = "STD.STANDARD" },
       { VCODE_OP_VAR_UPREF, .hops = 1, .name = "S" },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_CONTEXT_UPREF, .hops = 1 },
@@ -6021,11 +6019,10 @@ START_TEST(test_issue837)
    vcode_select_unit(vu);
 
    EXPECT_BB(0) = {
-      { VCODE_OP_PACKAGE_INIT, .name = "STD.STANDARD" },
-      { VCODE_OP_PACKAGE_INIT, .name = "WORK.PACK" },
       { VCODE_OP_VAR_UPREF, .hops = 1, .name = "X" },
       { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_LINK_PACKAGE, .name = "WORK.PACK" },
       { VCODE_OP_VAR_UPREF, .hops = 1, .name = "STR" },
       { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_FCALL, .func = "WORK.PACK.EXPENSIVE(S)I" },
@@ -6268,8 +6265,8 @@ START_TEST(test_issue859)
    vcode_select_unit(vu);
 
    EXPECT_BB(0) = {
-      { VCODE_OP_PACKAGE_INIT, .name = "WORK.MODEL_PKG" },
       { VCODE_OP_PACKAGE_INIT, .name = "STD.STANDARD" },
+      { VCODE_OP_PACKAGE_INIT, .name = "WORK.MODEL_PKG" },
       { VCODE_OP_VAR_UPREF, .hops = 1, .name = "AXILITE_IF_2" },
       { VCODE_OP_RECORD_REF, .field = 3 },
       { VCODE_OP_RECORD_REF, .field = 0 },
@@ -6495,7 +6492,6 @@ START_TEST(test_issue1155)
    vcode_select_unit(vu);
 
    EXPECT_BB(0) = {
-      { VCODE_OP_PACKAGE_INIT, .name = "STD.STANDARD" },
       { VCODE_OP_VAR_UPREF, .name = "P", .hops = 1 },
       { VCODE_OP_RECORD_REF, .field = 0 },
       { VCODE_OP_LOAD_INDIRECT },
@@ -6757,8 +6753,8 @@ START_TEST(test_issue1234)
    vcode_select_unit(vu);
 
    EXPECT_BB(0) = {
-      { VCODE_OP_PACKAGE_INIT, .name = "WORK.PKG" },
       { VCODE_OP_PACKAGE_INIT, .name = "STD.STANDARD" },
+      { VCODE_OP_PACKAGE_INIT, .name = "WORK.PKG" },
       { VCODE_OP_INDEX, .name = "PARAMS" },
       { VCODE_OP_VAR_UPREF, .hops = 1, .name = "PARAMS" },
       { VCODE_OP_COPY },
@@ -6849,8 +6845,6 @@ START_TEST(test_comp1)
    vcode_select_unit(vu);
 
    EXPECT_BB(0) = {
-      { VCODE_OP_PACKAGE_INIT, .name = "WORK.PACK" },
-      { VCODE_OP_PACKAGE_INIT, .name = "STD.STANDARD" },
       { VCODE_OP_CONST, .value = 8 },
       { VCODE_OP_STORE, .name = "WIDTH1" },
       { VCODE_OP_CONST, .value = 9 },
