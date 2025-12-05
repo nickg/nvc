@@ -30,7 +30,6 @@ typedef enum {
 
 vhdl_severity_t set_exit_severity(vhdl_severity_t severity);
 void set_status_severity(vhdl_severity_t severity);
-void set_stderr_severity(vhdl_severity_t severity);
 
 int64_t get_vhdl_assert_count(vhdl_severity_t severity);
 void clear_vhdl_assert(void);

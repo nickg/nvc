@@ -492,11 +492,6 @@ vhdl_severity_t set_exit_severity(vhdl_severity_t severity)
    return old;
 }
 
-void set_stderr_severity(vhdl_severity_t severity)
-{
-   opt_set_int(OPT_STDERR_LEVEL, get_diag_severity(severity));
-}
-
 void set_status_severity(vhdl_severity_t severity)
 {
    status_severity = severity;

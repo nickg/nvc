@@ -688,6 +688,17 @@ static void parse_exit_severity(const char *str)
    set_status_severity(s);
 }
 
+static void parse_stderr_severity(const char *str)
+{
+   diag_level_t level;
+   if (strcasecmp(str, "none") == 0)
+      level = DIAG_FATAL + 1;  // No messages to stderr
+   else
+      level = get_diag_severity(parse_severity(optarg));
+
+   opt_set_int(OPT_STDERR_LEVEL, level);
+}
+
 static int parse_stop_delta(const char *str)
 {
    const int ival = parse_int(str);
@@ -2173,7 +2184,7 @@ static void usage(void)
              "Diagnostic message style, compact is less verbose" },
            { "--seed=N", "Seed for random number generation" },
            { "--std={1993,..,2019}", "VHDL standard revision to use" },
-           { "--stderr={note,warning,error,failure}",
+           { "--stderr={note,warning,error,failure,none}",
              "Print messages of this severity level or higher to stderr" },
            { "-v, --version", "Display version and copyright information" },
            { "--vhpi-debug", "Report VHPI errors as diagnostic messages" },
@@ -2578,7 +2589,7 @@ int main(int argc, char **argv)
          opt_set_size(OPT_HEAP_SIZE, parse_size(optarg));
          break;
       case 'E':
-         set_stderr_severity(parse_severity(optarg));
+         parse_stderr_severity(optarg);
          break;
       case 'l':
          state.plugins = optarg;
