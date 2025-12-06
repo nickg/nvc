@@ -905,34 +905,11 @@ static bool simp_match_case_choice(tree_t alt, int64_t ival)
    return false;
 }
 
-static tree_t simp_case(tree_t t, simp_ctx_t *ctx)
+static tree_t simp_case(tree_t t)
 {
    const int nstmts = tree_stmts(t);
    if (nstmts == 0)
       return NULL;    // All choices are unreachable
-
-   for (int i = 0; i < nstmts; i++) {
-      tree_t alt = tree_stmt(t, i);
-      const int nchoices = tree_choices(alt);
-      for (int j = 0; j < nchoices; j++) {
-         tree_t a = tree_choice(alt, j);
-         if (tree_has_name(a)) {
-            tree_t n = tree_name(a);
-            switch (tree_kind(n)) {
-            case T_LITERAL:
-            case T_STRING:
-            case T_REF:
-               break;
-            default:
-               if (eval_possible(n, ctx->registry, ctx->mir)) {
-                  n = eval_try_fold(ctx->jit, n, ctx->registry, NULL, NULL);
-                  tree_set_name(a, n);
-               }
-               break;
-            }
-         }
-      }
-   }
 
    int64_t ival;
    if (!folded_int(tree_value(t), &ival))
@@ -968,6 +945,42 @@ static tree_t simp_case(tree_t t, simp_ctx_t *ctx)
    }
 
    return NULL;  // No choices can be executed
+}
+
+static tree_t simp_static_expr(tree_t t, simp_ctx_t *ctx)
+{
+   switch (tree_kind(t)) {
+   case T_LITERAL:
+   case T_STRING:
+   case T_REF:
+      return t;
+   default:
+      if (eval_possible(t, ctx->registry, ctx->mir))
+         return eval_try_fold(ctx->jit, t, ctx->registry, NULL, NULL);
+      else
+         return t;
+   }
+}
+
+static tree_t simp_choice(tree_t t, simp_ctx_t *ctx)
+{
+   // Choice names should be static expressions (except in aggregates
+   // with a single element)
+
+   if (tree_has_name(t)) {
+      tree_t n = tree_name(t);
+      tree_set_name(t, simp_static_expr(n, ctx));
+   }
+   else if (tree_ranges(t) > 0) {
+      assert(tree_ranges(t) == 1);
+      tree_t range = tree_range(t, 0);
+      tree_t l = tree_left(range);
+      tree_set_left(range, simp_static_expr(l, ctx));
+      tree_t r = tree_right(range);
+      tree_set_right(range, simp_static_expr(r, ctx));
+   }
+
+   return t;
 }
 
 static tree_t simp_case_generate(tree_t t)
@@ -1721,7 +1734,9 @@ static tree_t simp_tree_local(tree_t t, void *_ctx)
    case T_IF:
       return simp_if(t);
    case T_CASE:
-      return simp_case(t, ctx);
+      return simp_case(t);
+   case T_CHOICE:
+      return simp_choice(t, ctx);
    case T_CASE_GENERATE:
       return simp_case_generate(t);
    case T_WHILE:
@@ -1822,7 +1837,7 @@ static tree_t simp_tree_global(tree_t t, void *_ctx)
    case T_IF:
       return simp_if(t);
    case T_CASE:
-      return simp_case(t, ctx);
+      return simp_case(t);
    case T_CASE_GENERATE:
       return simp_case_generate(t);
    case T_WHILE:

@@ -6,7 +6,7 @@
   option has also been removed.
 - The `--stderr=none` option now prevents any diagnostic messages being
   printed to `stderr`, including those at `failure` severity (#1357).
-- Several other minor bugs were resolved (#1237, #1351).
+- Several other minor bugs were resolved (#1237, #1351, #1353).
 
 ## Version 1.18.2 - 2025-11-19
 - Fixed a mis-optimisation which would cause the result of `x * x` to be
