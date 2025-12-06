@@ -610,8 +610,8 @@ START_TEST(test_seq)
    s = tree_stmt(p, 0);
    fail_unless(tree_kind(s) == T_CASE);
    fail_unless(tree_stmts(s) == 4);
-   fail_unless(tree_subkind(tree_assoc(tree_stmt(s, 0), 0)) == A_NAMED);
-   fail_unless(tree_subkind(tree_assoc(tree_stmt(s, 3), 0)) == A_OTHERS);
+   fail_unless(tree_has_name(tree_choice(tree_stmt(s, 0), 0)));
+   fail_if(tree_has_name(tree_choice(tree_stmt(s, 3), 0)));
    b = tree_stmt(s, 0);
    fail_unless(tree_kind(b) == T_ALTERNATIVE);
    fail_unless(tree_stmts(b) == 1);
@@ -644,7 +644,7 @@ START_TEST(test_seq)
    s = tree_stmt(p, 0);
    fail_unless(tree_kind(s) == T_CASE);
    fail_unless(tree_stmts(s) == 1);
-   fail_unless(tree_subkind(tree_assoc(tree_stmt(s, 0), 0)) == A_NAMED);
+   fail_unless(tree_has_name(tree_choice(tree_stmt(s, 0), 0)));
 
    // Process with all-sensitivity
 
@@ -1795,7 +1795,7 @@ START_TEST(test_conc)
    fail_unless(tree_kind(s) == T_SELECT);
    fail_unless(tree_stmts(s) == 3);
    fail_unless(tree_kind(tree_stmt(s, 0)) == T_ALTERNATIVE);
-   fail_unless(tree_assocs(tree_stmt(s, 0)) == 1);
+   fail_unless(tree_choices(tree_stmt(s, 0)) == 1);
 
    s = tree_stmt(a, 3);
    fail_unless(tree_kind(s) == T_CONCURRENT);

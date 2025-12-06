@@ -328,7 +328,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_VALUE | I_STMTS),
 
    // T_ALTERNATIVE
-   (I_IDENT | I_ASSOCS | I_STMTS | I_DECLS),
+   (I_IDENT | I_CHOICES | I_STMTS | I_DECLS),
 
    // T_PSL_DECL
    (I_IDENT | I_FOREIGN),
@@ -385,7 +385,10 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_FOREIGN | I_TYPE),
 
    // T_PSL_UNION
-   (I_FOREIGN | I_TYPE)
+   (I_FOREIGN | I_TYPE),
+
+   // T_CHOICE
+   (I_NAME | I_RANGES),
 };
 
 static const char *kind_text_map[T_LAST_TREE_KIND] = {
@@ -428,7 +431,7 @@ static const char *kind_text_map[T_LAST_TREE_KIND] = {
    "T_MATCH_SELECT",    "T_PROT_DECL",       "T_DUMMY_DRIVER",
    "T_GUARD",           "T_INERTIAL",        "T_ELEM_RESOLUTION",
    "T_LOOP",            "T_REPORT",          "T_PSL_DIRECT",
-   "T_PSL_FCALL",       "T_PSL_UNION",
+   "T_PSL_FCALL",       "T_PSL_UNION",       "T_CHOICE",
 };
 
 static const change_allowed_t change_allowed[] = {
@@ -1134,6 +1137,25 @@ void tree_add_assoc(tree_t t, tree_t a)
    assert(a->object.kind == T_ASSOC);
    tree_array_add(lookup_item(&tree_object, t, I_ASSOCS), a);
    object_write_barrier(&(t->object), &(a->object));
+}
+
+unsigned tree_choices(tree_t t)
+{
+   item_t *item = lookup_item(&tree_object, t, I_CHOICES);
+   return obj_array_count(item->obj_array);
+}
+
+tree_t tree_choice(tree_t t, unsigned n)
+{
+   item_t *item = lookup_item(&tree_object, t, I_CHOICES);
+   return tree_array_nth(item, n);
+}
+
+void tree_add_choice(tree_t t, tree_t c)
+{
+   assert(c->object.kind == T_CHOICE);
+   tree_array_add(lookup_item(&tree_object, t, I_CHOICES), c);
+   object_write_barrier(&(t->object), &(c->object));
 }
 
 tree_t tree_severity(tree_t t)

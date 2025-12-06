@@ -75,7 +75,7 @@ static inline unsigned get_next_tag(cover_block_t *b)
 
 static bool cover_is_branch(tree_t branch)
 {
-   return tree_kind(branch) == T_ASSOC || tree_kind(branch) == T_COND_STMT;
+   return tree_kind(branch) == T_CHOICE || tree_kind(branch) == T_COND_STMT;
 }
 
 static cover_src_t get_cover_source(cover_item_kind_t kind, object_t *obj)
@@ -109,7 +109,7 @@ static cover_src_t get_cover_source(cover_item_kind_t kind, object_t *obj)
          case T_COND_STMT:
          case T_COND_ASSIGN:
             return COV_SRC_IF_CONDITION;
-         case T_ASSOC:
+         case T_CHOICE:
             return COV_SRC_CASE_CHOICE;
          case T_WHILE:
          case T_EXIT:
@@ -145,7 +145,7 @@ const loc_t get_cover_loc(cover_item_kind_t kind, object_t *obj)
    if (t != NULL) {
       // Refer location of test condition instead of branch statement to
       // get accurate test condition location in the coverage report
-      if (kind == COV_ITEM_BRANCH && tree_kind(t) != T_ASSOC)
+      if (kind == COV_ITEM_BRANCH && tree_kind(t) != T_CHOICE)
          return *tree_loc(tree_value(t));
    }
 
@@ -393,7 +393,7 @@ static int32_t cover_add_branch_items_for(cover_data_t *data, cover_scope_t *cs,
    int first_item_index = -1;
 
    // Case choice
-   if (tree_kind(b) == T_ASSOC)
+   if (tree_kind(b) == T_CHOICE)
       first_item_index = cover_add_item(data, cs, obj, NULL, COV_ITEM_BRANCH,
                                         COV_FLAG_CHOICE, 1);
 
@@ -1034,7 +1034,7 @@ cover_scope_t *cover_create_scope(cover_data_t *data, cover_scope_t *parent,
    cover_scope_t *s = pool_calloc(data->pool, sizeof(cover_scope_t));
 
    if (cover_is_branch(t)) {
-      if (tree_kind(t) == T_ASSOC && tree_subkind(t) == A_OTHERS)
+      if (tree_kind(t) == T_CHOICE && !tree_has_name(t))
          name = ident_new("_B_OTHERS");
       else
          name = ident_sprintf("_B%u", parent->branch_label++);

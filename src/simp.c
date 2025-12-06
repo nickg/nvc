@@ -883,30 +883,23 @@ static void simp_make_dummy_drivers(tree_t container, tree_list_t *list)
 
 static bool simp_match_case_choice(tree_t alt, int64_t ival)
 {
-   const int nassocs = tree_assocs(alt);
-   for (int j = 0; j < nassocs; j++) {
-      tree_t a = tree_assoc(alt, j);
-      switch (tree_subkind(a)) {
-      case A_NAMED:
-         {
-            int64_t aval;
-            if (folded_int(tree_name(a), &aval) && ival == aval)
-               return true;
-         }
-         break;
-
-      case A_RANGE:
-         {
-            int64_t low, high;
-            if (!folded_bounds(tree_range(a, 0), &low, &high))
-               continue;
-            else if (ival >= low && ival <= high)
-               return true;
-         }
-
-      case A_OTHERS:
-         return true;
+   const int nchoices = tree_choices(alt);
+   for (int j = 0; j < nchoices; j++) {
+      tree_t a = tree_choice(alt, j);
+      if (tree_has_name(a)) {
+         int64_t aval;
+         if (folded_int(tree_name(a), &aval) && ival == aval)
+            return true;
       }
+      else if (tree_ranges(a) > 0) {
+         int64_t low, high;
+         if (!folded_bounds(tree_range(a, 0), &low, &high))
+            continue;
+         else if (ival >= low && ival <= high)
+            return true;
+      }
+      else
+         return true;
    }
 
    return false;
@@ -920,10 +913,10 @@ static tree_t simp_case(tree_t t, simp_ctx_t *ctx)
 
    for (int i = 0; i < nstmts; i++) {
       tree_t alt = tree_stmt(t, i);
-      const int nassocs = tree_assocs(alt);
-      for (int j = 0; j < nassocs; j++) {
-         tree_t a = tree_assoc(alt, j);
-         if (tree_subkind(a) == A_NAMED) {
+      const int nchoices = tree_choices(alt);
+      for (int j = 0; j < nchoices; j++) {
+         tree_t a = tree_choice(alt, j);
+         if (tree_has_name(a)) {
             tree_t n = tree_name(a);
             switch (tree_kind(n)) {
             case T_LITERAL:

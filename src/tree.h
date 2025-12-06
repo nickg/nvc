@@ -394,6 +394,7 @@ typedef enum tree_kind {
    T_PSL_DIRECT,
    T_PSL_FCALL,
    T_PSL_UNION,
+   T_CHOICE,
 
    T_LAST_TREE_KIND
 } tree_kind_t;
@@ -536,6 +537,10 @@ void tree_add_pragma(tree_t t, tree_t p);
 unsigned tree_assocs(tree_t t);
 tree_t tree_assoc(tree_t t, unsigned n);
 void tree_add_assoc(tree_t t, tree_t a);
+
+unsigned tree_choices(tree_t t);
+tree_t tree_choice(tree_t t, unsigned n);
+void tree_add_choice(tree_t t, tree_t c);
 
 tree_t tree_severity(tree_t t);
 bool tree_has_severity(tree_t t);

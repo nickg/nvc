@@ -4427,11 +4427,13 @@ static tree_t p_literal(void)
    }
 }
 
-static void p_choice(tree_t parent, tree_t head, type_t constraint)
+static void p_agg_choice(tree_t parent, tree_t head, type_t constraint)
 {
    // simple_expression | discrete_range | simple_name | others
 
    BEGIN("choice");
+
+   // TODO: replace with p_choice
 
    tree_t t = tree_new(T_ASSOC);
 
@@ -4470,16 +4472,70 @@ static void p_choice(tree_t parent, tree_t head, type_t constraint)
    tree_add_assoc(parent, t);
 }
 
+static void p_agg_choices(tree_t parent, tree_t head, type_t constraint)
+{
+   // choices ::= choice { | choice }
+
+   BEGIN("choices");
+
+   // TODO: replace with p_choice
+
+   p_agg_choice(parent, head, constraint);
+
+   while (optional(tBAR))
+      p_agg_choice(parent, NULL, constraint);
+}
+
+static tree_t p_choice(tree_t head, type_t constraint)
+{
+   // simple_expression | discrete_range | simple_name | others
+
+   BEGIN("choice");
+
+   tree_t t = tree_new(T_CHOICE);
+
+   if (head == NULL && optional(tOTHERS)) {
+      tree_set_loc(t, CURRENT_LOC);
+      return t;
+   }
+
+   tree_t name = head ?: p_expression();
+   const tree_kind_t name_kind = tree_kind(name);
+
+   bool is_range = false;
+
+   if (scan(tDOWNTO, tTO, tRANGE, tREVRANGE))
+      is_range = true;
+   else if (constraint != NULL && name_kind == T_REF && tree_has_ref(name))
+      is_range = is_type_decl(tree_ref(name));
+   else if (name_kind == T_ATTR_REF) {
+      const attr_kind_t attr = tree_subkind(name);
+      is_range = attr == ATTR_RANGE || attr == ATTR_REVERSE_RANGE;
+   }
+
+   tree_t choice = NULL;
+   if (is_range)
+      tree_add_range(t, (choice = p_discrete_range(name)));
+   else
+      tree_set_name(t, (choice = name));
+
+   if (constraint != NULL)
+      solve_types(nametab, choice, constraint);
+
+   tree_set_loc(t, CURRENT_LOC);
+   return t;
+}
+
 static void p_choices(tree_t parent, tree_t head, type_t constraint)
 {
    // choices ::= choice { | choice }
 
    BEGIN("choices");
 
-   p_choice(parent, head, constraint);
-
-   while (optional(tBAR))
-      p_choice(parent, NULL, constraint);
+   do {
+      tree_add_choice(parent, p_choice(head, constraint));
+      head = NULL;
+   } while (optional(tBAR));
 }
 
 static void p_element_association(tree_t agg, tree_t head)
@@ -4494,7 +4550,7 @@ static void p_element_association(tree_t agg, tree_t head)
    const int nstart = tree_assocs(agg);
 
    if (scan(tBAR, tASSOC, tTO, tDOWNTO, tOTHERS)) {
-      p_choices(agg, head, NULL);
+      p_agg_choices(agg, head, NULL);
 
       consume(tASSOC);
 

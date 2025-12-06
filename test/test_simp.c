@@ -1631,7 +1631,7 @@ START_TEST(test_casearray1)
    fail_unless(tree_kind(s0) == T_CASE);
 
    for (int i = 0; i < 4; i++) {
-      tree_t n0 = tree_name(tree_assoc(tree_stmt(s0, i), 0));
+      tree_t n0 = tree_name(tree_choice(tree_stmt(s0, i), 0));
       fail_unless(tree_kind(n0) == T_STRING);
       fail_unless(tree_chars(n0) == 8);
    }
@@ -1946,10 +1946,10 @@ START_TEST(test_issue1347)
    tree_t a = parse_check_and_simplify(T_ENTITY, T_ARCH);
 
    tree_t c = tree_stmt(tree_stmt(a, 0), 0);
-   fail_unless(folded_i(tree_name(tree_assoc(tree_stmt(c, 0), 0)), 0));
-   fail_unless(folded_i(tree_name(tree_assoc(tree_stmt(c, 1), 0)), 42));
-   fail_unless(folded_i(tree_name(tree_assoc(tree_stmt(c, 2), 0)), 3));
-   fail_unless(folded_i(tree_name(tree_assoc(tree_stmt(c, 2), 1)), -1024));
+   fail_unless(folded_i(tree_name(tree_choice(tree_stmt(c, 0), 0)), 0));
+   fail_unless(folded_i(tree_name(tree_choice(tree_stmt(c, 1), 0)), 42));
+   fail_unless(folded_i(tree_name(tree_choice(tree_stmt(c, 2), 0)), 3));
+   fail_unless(folded_i(tree_name(tree_choice(tree_stmt(c, 2), 1)), -1024));
 
    fail_if_errors();
 }

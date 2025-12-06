@@ -1054,52 +1054,45 @@ static void bounds_check_scalar_case(tree_t t, type_t type, bool matching)
    for (int i = 0; i < nstmts; i++) {
       tree_t alt = tree_stmt(t, i);
 
-      const int nassocs = tree_assocs(alt);
-      for (int j = 0; j < nassocs; j++) {
-         tree_t a = tree_assoc(alt, j);
+      const int nchoices = tree_choices(alt);
+      for (int j = 0; j < nchoices; j++) {
+         tree_t a = tree_choice(alt, j);
 
          int64_t low = INT64_MIN, high = INT64_MAX;
-         switch (tree_subkind(a)) {
-         case A_OTHERS:
+         if (tree_has_name(a)) {
+            int64_t pos;
+            tree_t name = tree_name(a);
+            if (!bounds_check_index(name, type, tdir, "case choice",
+                                    tlow, thigh))
+               have_others = true;
+            else if (matching && folded_int(name, &pos) && pos == 8)
+               have_others = true;    // Has a '-' choice
+            else
+               low = high = assume_int(tree_name(a));
+         }
+         else if (tree_ranges(a) > 0) {
+            tree_t r = tree_range(a, 0);
+            const range_kind_t dir = tree_subkind(r);
+
+            if (dir == RANGE_EXPR)
+               fatal_at(tree_loc(r), "locally static range not folded");
+
+            tree_t left = tree_left(r);
+            tree_t right = tree_right(r);
+
+            if (!bounds_check_index(left, type, dir, "case choice",
+                                    tlow, thigh))
+               have_others = true;
+            if (!bounds_check_index(right, type, dir, "case choice",
+                                    tlow, thigh))
+               have_others = true;
+
+            low = assume_int(dir == RANGE_TO ? left : right);
+            high = assume_int(dir == RANGE_TO ? right : left);
+         }
+         else {
             have_others = true;
             continue;
-
-         case A_NAMED:
-            {
-               int64_t pos;
-               tree_t name = tree_name(a);
-               if (!bounds_check_index(name, type, tdir, "case choice",
-                                       tlow, thigh))
-                  have_others = true;
-               else if (matching && folded_int(name, &pos) && pos == 8)
-                  have_others = true;    // Has a '-' choice
-               else
-                  low = high = assume_int(tree_name(a));
-            }
-            break;
-
-         case A_RANGE:
-            {
-               tree_t r = tree_range(a, 0);
-               const range_kind_t dir = tree_subkind(r);
-
-               if (dir == RANGE_EXPR)
-                  fatal_at(tree_loc(r), "locally static range not folded");
-
-               tree_t left = tree_left(r);
-               tree_t right = tree_right(r);
-
-               if (!bounds_check_index(left, type, dir, "case choice",
-                                       tlow, thigh))
-                  have_others = true;
-               if (!bounds_check_index(right, type, dir, "case choice",
-                                       tlow, thigh))
-                  have_others = true;
-
-               low = assume_int(dir == RANGE_TO ? left : right);
-               high = assume_int(dir == RANGE_TO ? right : left);
-            }
-            break;
          }
 
          if (!have_others)
@@ -1150,31 +1143,32 @@ static void bounds_check_array_case(tree_t t, type_t type, bool matching)
    if (known_length && !ipow_safe(elemsz, length, &expect))
       expect = INT64_MAX;   // Overflow
 
-   int nchoices = 0;
+   int total_choices = 0;
    const int nstmts = tree_stmts(t);
    for (int i = 0; i < nstmts; i++)
-      nchoices += tree_assocs(tree_stmt(t, i));
+      total_choices += tree_choices(tree_stmt(t, i));
 
    int64_t have = 0;
-   int64_t *hashes LOCAL = xmalloc_array(nchoices, sizeof(int64_t));
-   tree_t *choices LOCAL = xmalloc_array(nchoices, sizeof(tree_t));
+   int64_t *hashes LOCAL = xmalloc_array(total_choices, sizeof(int64_t));
+   tree_t *choices LOCAL = xmalloc_array(total_choices, sizeof(tree_t));
    int hptr = 0;
 
    for (int i = 0; i < nstmts; i++) {
       tree_t alt = tree_stmt(t, i);
 
-      const int nassocs = tree_assocs(alt);
-      for (int j = 0; j < nassocs; j++, hptr++) {
-         tree_t a = tree_assoc(alt, j);
+      const int nchoices = tree_choices(alt);
+      for (int j = 0; j < nchoices; j++, hptr++) {
+         tree_t a = tree_choice(alt, j);
          hashes[hptr] = INT64_MAX;
          choices[hptr] = NULL;
 
-         if (tree_subkind(a) == A_OTHERS) {
+         assert(tree_ranges(a) == 0);
+
+         if (!tree_has_name(a)) {
             have = expect;
             continue;
          }
 
-         assert(tree_subkind(a) == A_NAMED);
          tree_t name = choices[hptr] = tree_name(a);
 
          int64_t covered = 1, pos;

@@ -1081,24 +1081,24 @@ static void dump_alternative(tree_t t, int indent)
 {
    tab(indent);
    print_syntax("#when ");
+
    if (tree_has_ident(t))
       print_syntax("%s: ", istr(tree_ident(t)));
-   for (unsigned i = 0; i < tree_assocs(t); i++) {
-      if (i > 0) print_syntax("| ");
-      tree_t a = tree_assoc(t, i);
-      switch (tree_subkind(a)) {
-      case A_NAMED:
+
+   const int nchoices = tree_choices(t);
+   for (int i = 0; i < nchoices; i++) {
+      if (i > 0) print_syntax(" | ");
+      tree_t a = tree_choice(t, i);
+      if (tree_has_name(a))
          dump_expr(tree_name(a));
-         break;
-      case A_OTHERS:
-         print_syntax("#others");
-         break;
-      case A_RANGE:
+      else if (tree_ranges(a) > 0)
          dump_range(tree_range(a, 0));
-         break;
-      }
+      else
+         print_syntax("#others");
    }
+
    print_syntax(" =>\n");
+
    if (tree_decls(t) > 0) {
       dump_decls(t, indent + 4);
       tab(indent + 2);

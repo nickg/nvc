@@ -5,6 +5,7 @@ architecture test of vhdl2 is
     signal s1 : bit_vector(1 to 6) := (1 => '1', others => '0');
     type t1 is array (natural range <>) of bit;
     subtype t2 is t1(1 to 99);
+    signal s2 : integer;
 
     function f1 (x, y : integer) return bit;
 
@@ -57,5 +58,13 @@ begin
     begin
         assert r > 0.0;
     end generate;
+
+    p2: process (s2) is
+    begin
+        case s2 is
+            when 0 => null;
+            when 2 to 4 | others => null;
+        end case;
+    end process;
 
 end architecture;

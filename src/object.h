@@ -71,7 +71,7 @@ typedef uint64_t imask_t;
 #define I_BASE       ONE_HOT(34)
 #define I_ELEM       ONE_HOT(35)
 #define I_DESIGNATED ONE_HOT(36)
-// Unused            ONE_HOT(37)
+#define I_CHOICES    ONE_HOT(37)
 #define I_RESOLUTION ONE_HOT(38)
 #define I_RESULT     ONE_HOT(39)
 #define I_UNITS      ONE_HOT(40)

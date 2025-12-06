@@ -6000,67 +6000,58 @@ static bool sem_check_case(tree_t t, nametab_t *tab)
    for (int i = 0; i < nstmts; i++) {
       tree_t alt = tree_stmt(t, i);
 
-      const int nassocs = tree_assocs(alt);
-      for (int j = 0; j < nassocs; j++) {
-         tree_t a = tree_assoc(alt, j);
-         switch (tree_subkind(a)) {
-         case A_OTHERS:
-            if (j != nassocs - 1 || i != nstmts - 1) {
-               diag_t *d = diag_new(DIAG_ERROR, tree_loc(a));
-               diag_printf(d, "others choice must appear last");
-               diag_hint(d, tree_loc(a), "others choice");
+      const int nchoices = tree_choices(alt);
+      for (int j = 0; j < nchoices; j++) {
+         tree_t a = tree_choice(alt, j);
+         if (tree_has_name(a)) {
+            tree_t name = tree_name(a);
+            if (!sem_check(name, tab))
+               return false;
 
-               tree_t more = j + 1 < nassocs
-                  ? tree_assoc(alt, j + 1) : tree_assoc(tree_stmt(t, i + 1), 0);
-               diag_hint(d, tree_loc(more), "further choices follow this");
+            if (!sem_check_type(name, type, tab))
+               sem_error(name, "case choice must have type %s but found %s",
+                         type_pp(type), type_pp(tree_type(name)));
+            else if (!(*static_fn)(name))
+               sem_error(name, "case choice must be %s static", static_str);
+         }
+         else if (tree_ranges(a) > 0) {
+            tree_t r = tree_range(a, 0);
+            if (!sem_check_discrete_range(r, type, tab))
+               return false;
 
-               diag_emit(d);
+            switch (tree_subkind(r)) {
+            case RANGE_TO:
+            case RANGE_DOWNTO:
+               if (!(*static_fn)(tree_left(r)))
+                  sem_error(tree_left(r), "left index of case choice "
+                            "range is not %s static", static_str);
+               else if (!(*static_fn)(tree_right(r)))
+                  sem_error(tree_right(r), "right index of case choice "
+                            "range is not %s static", static_str);
+               break;
+
+            case RANGE_EXPR:
+               if (!(*static_fn)(tree_value(r)))
+                  sem_error(tree_value(r), "range expression is not %s "
+                            "static", static_str);
+               break;
+
+            default:
                return false;
             }
-            break;
+         }
+         else if (j != nchoices - 1 || i != nstmts - 1) {
+            diag_t *d = diag_new(DIAG_ERROR, tree_loc(a));
+            diag_printf(d, "others choice must appear last");
+            diag_hint(d, tree_loc(a), "others choice");
 
-         case A_NAMED:
-            {
-               tree_t name = tree_name(a);
-               if (!sem_check(name, tab))
-                  return false;
+            tree_t more = j + 1 < nchoices
+               ? tree_choice(alt, j + 1)
+               : tree_choice(tree_stmt(t, i + 1), 0);
+            diag_hint(d, tree_loc(more), "further choices follow this");
 
-               if (!sem_check_type(name, type, tab))
-                  sem_error(name, "case choice must have type %s but found %s",
-                            type_pp(type), type_pp(tree_type(name)));
-               else if (!(*static_fn)(name))
-                  sem_error(name, "case choice must be %s static", static_str);
-            }
-            break;
-
-         case A_RANGE:
-            {
-               tree_t r = tree_range(a, 0);
-               if (!sem_check_discrete_range(r, type, tab))
-                  return false;
-
-               switch (tree_subkind(r)) {
-               case RANGE_TO:
-               case RANGE_DOWNTO:
-                  if (!(*static_fn)(tree_left(r)))
-                     sem_error(tree_left(r), "left index of case choice "
-                               "range is not %s static", static_str);
-                  else if (!(*static_fn)(tree_right(r)))
-                     sem_error(tree_right(r), "right index of case choice "
-                               "range is not %s static", static_str);
-                  break;
-
-               case RANGE_EXPR:
-                  if (!(*static_fn)(tree_value(r)))
-                     sem_error(tree_value(r), "range expression is not %s "
-                               "static", static_str);
-                  break;
-
-               default:
-                  return false;
-               }
-            }
-            break;
+            diag_emit(d);
+            return false;
          }
       }
    }

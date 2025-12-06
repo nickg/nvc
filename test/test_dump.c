@@ -184,6 +184,16 @@ START_TEST(test_vhdl2)
         "begin\n"
         "  assert \">\"(R, 0.000000);\n"
         "end generate;\n" },
+      { "P2",
+        "P2: process (S2) is\n"
+        "begin\n"
+        "  case S2 is\n"
+        "    when 0 =>\n"
+        "      null;\n"
+        "    when 2 to 4 | others =>\n"
+        "      null;\n"
+        "  end case;\n"
+        "end process;\n" },
    };
 
    const int nstmts = tree_stmts(a);

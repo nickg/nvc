@@ -6816,18 +6816,18 @@ static void lower_case_scalar(lower_unit_t *lu, tree_t stmt,
 
    vcode_reg_t value_reg = lower_rvalue(lu, tree_value(stmt));
 
-   int nchoices = 0;
+   int total_choices = 0;
    for (int i = 0; i < nstmts; i++) {
       tree_t alt = tree_stmt(stmt, i);
 
-      const int nassocs = tree_assocs(alt);
-      nchoices += nassocs;
+      const int nchoices = tree_choices(alt);
+      total_choices += nchoices;
 
-      for (int j = 0; j < nassocs; j++) {
-         tree_t a = tree_assoc(alt, j);
+      for (int j = 0; j < nchoices; j++) {
+         tree_t a = tree_choice(alt, j);
 
          // Pre-filter range choices in case the number of elements is large
-         if (tree_subkind(a) == A_RANGE) {
+         if (tree_ranges(a) > 0) {
             tree_t r = tree_range(a, 0);
             vcode_reg_t left_reg = lower_range_left(lu, r);
             vcode_reg_t right_reg = lower_range_right(lu, r);
@@ -6864,20 +6864,19 @@ static void lower_case_scalar(lower_unit_t *lu, tree_t stmt,
 
    vcode_block_t start_bb = vcode_active_block();
 
-   vcode_reg_t *cases LOCAL = xcalloc_array(nchoices, sizeof(vcode_reg_t));
-   vcode_block_t *blocks LOCAL = xcalloc_array(nchoices, sizeof(vcode_block_t));
+   vcode_reg_t *cases LOCAL = xcalloc_array(total_choices, sizeof(vcode_reg_t));
+   vcode_block_t *blocks LOCAL =
+      xcalloc_array(total_choices, sizeof(vcode_block_t));
 
    int cptr = 0;
    for (int i = 0; i < nstmts; i++) {
       tree_t alt = tree_stmt(stmt, i);
       vcode_block_t hit_bb = VCODE_INVALID_BLOCK;
 
-      const int nassocs = tree_assocs(alt);
-      for (int j = 0; j < nassocs; j++) {
-         tree_t a = tree_assoc(alt, j);
-         const assoc_kind_t kind = tree_subkind(a);
-
-         if (kind == A_RANGE)
+      const int nchoices = tree_choices(alt);
+      for (int j = 0; j < nchoices; j++) {
+         tree_t a = tree_choice(alt, j);
+         if (tree_ranges(a) > 0)
             continue;    // Handled separately above
 
          PUSH_COVER_SCOPE(lu, a);
@@ -6887,19 +6886,10 @@ static void lower_case_scalar(lower_unit_t *lu, tree_t stmt,
 
          // Must track each branch cover item separately
          vcode_block_t cover_bb = hit_bb;
-         if (want_coverage && nassocs > 1)
+         if (want_coverage && nchoices > 1)
             cover_bb = emit_block();
 
-         if (kind == A_OTHERS) {
-            assert(def_bb == VCODE_INVALID_BLOCK);
-            if (want_coverage) {
-               def_bb = cover_bb;
-               lower_branch_coverage(lu, a, cover_bb, VCODE_INVALID_BLOCK);
-            }
-            else
-               def_bb = hit_bb;
-         }
-         else {
+         if (tree_has_name(a)) {
             vcode_select_block(start_bb);
             cases[cptr] = lower_rvalue(lu, tree_name(a));
 
@@ -6911,6 +6901,15 @@ static void lower_case_scalar(lower_unit_t *lu, tree_t stmt,
                blocks[cptr] = hit_bb;
 
             cptr++;
+         }
+         else {
+            assert(def_bb == VCODE_INVALID_BLOCK);
+            if (want_coverage) {
+               def_bb = cover_bb;
+               lower_branch_coverage(lu, a, cover_bb, VCODE_INVALID_BLOCK);
+            }
+            else
+               def_bb = hit_bb;
          }
 
          if (cover_bb != hit_bb) {
@@ -6930,7 +6929,7 @@ static void lower_case_scalar(lower_unit_t *lu, tree_t stmt,
          emit_jump(exit_bb);
    }
 
-   assert(cptr <= nchoices);
+   assert(cptr <= total_choices);
 
    if (def_bb == VCODE_INVALID_BLOCK)
       def_bb = exit_bb;
@@ -6959,8 +6958,8 @@ static void lower_case_array(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
    vcode_reg_t length_reg = lower_array_len(lu, type, 0, val_reg);
 
    vcode_reg_t c0_length_reg, c0_reg = VCODE_INVALID_REG;
-   tree_t a0 = tree_assoc(tree_stmt(stmt, 0), 0);
-   if (tree_subkind(a0) == A_NAMED) {
+   tree_t a0 = tree_choice(tree_stmt(stmt, 0), 0);
+   if (tree_has_name(a0)) {
       tree_t c0 = tree_name(a0);
       type_t c0_type = tree_type(c0);
 
@@ -6972,8 +6971,10 @@ static void lower_case_array(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
          c0_length_reg = lower_array_len(lu, c0_type, 0, c0_reg);
       }
    }
-   else
+   else {
+      assert(tree_ranges(a0) == 0);
       c0_length_reg = length_reg;   // Only others choice
+   }
 
    int64_t length = INT64_MAX;
    if (type_is_unconstrained(type)
@@ -7069,14 +7070,15 @@ static void lower_case_array(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
       lower_release_temp(lu, enc_var);
    }
 
-   int nchoices = 0;
+   int total_choices = 0;
    const int nstmts = tree_stmts(stmt);
    for (int i = 0; i < nstmts; i++)
-      nchoices += tree_assocs(tree_stmt(stmt, i));
+      total_choices += tree_choices(tree_stmt(stmt, i));
 
-   vcode_reg_t *cases LOCAL = xcalloc_array(nchoices, sizeof(vcode_reg_t));
-   vcode_block_t *blocks LOCAL = xcalloc_array(nchoices, sizeof(vcode_block_t));
-   int64_t *encoding LOCAL = xcalloc_array(nchoices, sizeof(int64_t));
+   vcode_reg_t *cases LOCAL = xcalloc_array(total_choices, sizeof(vcode_reg_t));
+   vcode_block_t *blocks LOCAL =
+      xcalloc_array(total_choices, sizeof(vcode_block_t));
+   int64_t *encoding LOCAL = xcalloc_array(total_choices, sizeof(int64_t));
 
    ident_t cmp_func = NULL;
    vcode_type_t vbool = vtype_bool();
@@ -7091,24 +7093,16 @@ static void lower_case_array(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
    for (int i = 0; i < nstmts; i++) {
       tree_t alt = tree_stmt(stmt, i);
 
-      const int nassocs = tree_assocs(alt);
-      for (int j = 0; j < nassocs; j++) {
-         tree_t a = tree_assoc(alt, j);
-         const assoc_kind_t kind = tree_subkind(a);
-         assert(kind != A_RANGE);
+      const int nchoices = tree_choices(alt);
+      for (int j = 0; j < nchoices; j++) {
+         tree_t a = tree_choice(alt, j);
+         assert(tree_ranges(a) == 0);
 
          hit_bb = emit_block();
 
          PUSH_COVER_SCOPE(lu, a);
 
-         if (kind == A_OTHERS) {
-            assert(def_bb == VCODE_INVALID_BLOCK);
-            def_bb = hit_bb;
-
-             if (cover_enabled(lu->cover, COVER_MASK_BRANCH))
-                lower_branch_coverage(lu, a, hit_bb, VCODE_INVALID_BLOCK);
-         }
-         else {
+         if (tree_has_name(a)) {
             tree_t name = tree_name(a);
             const int exact_bits = exact_map ? nbits : 0;
             int64_t enc = encode_case_choice(name, length, exact_bits);
@@ -7159,6 +7153,13 @@ static void lower_case_array(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
                cptr++;
             }
          }
+         else {
+            assert(def_bb == VCODE_INVALID_BLOCK);
+            def_bb = hit_bb;
+
+             if (cover_enabled(lu->cover, COVER_MASK_BRANCH))
+                lower_branch_coverage(lu, a, hit_bb, VCODE_INVALID_BLOCK);
+         }
 
          vcode_select_block(hit_bb);
 
@@ -7169,7 +7170,7 @@ static void lower_case_array(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
       }
    }
 
-   assert(cptr <= nchoices);
+   assert(cptr <= total_choices);
 
    if (def_bb == VCODE_INVALID_BLOCK)
       def_bb = exit_bb;
@@ -7248,68 +7249,60 @@ static void lower_match_case(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
       vcode_block_t hit_bb = emit_block();
       vcode_block_t skip_bb = VCODE_INVALID_BLOCK;
 
-      const int nassocs = tree_assocs(alt);
-      for (int j = 0; j < nassocs; j++) {
+      const int nchoices = tree_choices(alt);
+      for (int j = 0; j < nchoices; j++) {
          vcode_block_t loop_bb = VCODE_INVALID_BLOCK;
          vcode_reg_t test_reg = VCODE_INVALID_REG;
          vcode_var_t tmp_var = VCODE_INVALID_VAR;
 
-         tree_t a = tree_assoc(alt, j);
-         switch (tree_subkind(a)) {
-         case A_NAMED:
-            {
-               tree_t name = tree_name(a);
-               test_reg = lower_rvalue(lu, name);
+         tree_t a = tree_choice(alt, j);
+         if (tree_has_name(a)) {
+            tree_t name = tree_name(a);
+            test_reg = lower_rvalue(lu, name);
 
-               if (is_array && vcode_reg_kind(test_reg) != VCODE_TYPE_UARRAY)
-                  test_reg = lower_wrap(lu, tree_type(name), test_reg);
+            if (is_array && vcode_reg_kind(test_reg) != VCODE_TYPE_UARRAY)
+               test_reg = lower_wrap(lu, tree_type(name), test_reg);
 
-               skip_bb = emit_block();
-            }
-            break;
+            skip_bb = emit_block();
+         }
+         else if (tree_ranges(a) > 0) {
+            tree_t r = tree_range(a, 0);
+            vcode_reg_t left_reg  = lower_range_left(lu, r);
+            vcode_reg_t right_reg = lower_range_right(lu, r);
+            vcode_reg_t dir_reg   = lower_range_dir(lu, r);
 
-         case A_RANGE:
-            {
-               tree_t r = tree_range(a, 0);
-               vcode_reg_t left_reg  = lower_range_left(lu, r);
-               vcode_reg_t right_reg = lower_range_right(lu, r);
-               vcode_reg_t dir_reg   = lower_range_dir(lu, r);
+            if (tmp_var == VCODE_INVALID_VAR)
+               tmp_var = lower_temp_var(lu, "i", vscalar, vscalar);
 
-               if (tmp_var == VCODE_INVALID_VAR)
-                  tmp_var = lower_temp_var(lu, "i", vscalar, vscalar);
+            emit_store(left_reg, tmp_var);
 
-               emit_store(left_reg, tmp_var);
+            vcode_reg_t null_reg =
+               emit_range_null(left_reg, right_reg, dir_reg);
 
-               vcode_reg_t null_reg  =
-                  emit_range_null(left_reg, right_reg, dir_reg);
+            vcode_block_t body_bb = emit_block();
+            loop_bb = emit_block();
+            skip_bb = emit_block();
 
-               vcode_block_t body_bb = emit_block();
-               loop_bb = emit_block();
-               skip_bb = emit_block();
+            emit_cond(null_reg, skip_bb, body_bb);
 
-               emit_cond(null_reg, skip_bb, body_bb);
+            vcode_select_block(body_bb);
 
-               vcode_select_block(body_bb);
+            test_reg = emit_load(tmp_var);
 
-               test_reg = emit_load(tmp_var);
+            vcode_select_block(loop_bb);
 
-               vcode_select_block(loop_bb);
+            vcode_reg_t step_down = emit_const(vscalar, -1);
+            vcode_reg_t step_up   = emit_const(vscalar, 1);
+            vcode_reg_t step_reg  = emit_select(dir_reg, step_down, step_up);
+            vcode_reg_t next_reg  = emit_add(test_reg, step_reg);
+            emit_store(next_reg, tmp_var);
 
-               vcode_reg_t step_down = emit_const(vscalar, -1);
-               vcode_reg_t step_up   = emit_const(vscalar, 1);
-               vcode_reg_t step_reg  = emit_select(dir_reg, step_down, step_up);
-               vcode_reg_t next_reg  = emit_add(test_reg, step_reg);
-               emit_store(next_reg, tmp_var);
+            vcode_reg_t done_reg = emit_cmp(VCODE_CMP_EQ, test_reg, right_reg);
+            emit_cond(done_reg, skip_bb, body_bb);
 
-               vcode_reg_t done_reg =
-                  emit_cmp(VCODE_CMP_EQ, test_reg, right_reg);
-               emit_cond(done_reg, skip_bb, body_bb);
-
-               vcode_select_block(body_bb);
-            }
-            break;
-
-         case A_OTHERS:
+            vcode_select_block(body_bb);
+         }
+         else {
             emit_jump(hit_bb);
             continue;
          }
@@ -12403,47 +12396,39 @@ vcode_unit_t lower_case_generate_thunk(lower_unit_t *parent, tree_t t)
    for (int i = 0; i < nstmts; i++) {
       tree_t alt = tree_stmt(t, i);
 
-      const int nassocs = tree_assocs(alt);
-      for (int j = 0; j < nassocs; j++) {
-         tree_t a = tree_assoc(alt, j);
-         switch (tree_subkind(a)) {
-         case A_NAMED:
-            {
-               tree_t name = tree_name(a);
-               vcode_reg_t name_reg = lower_rvalue(lu, name);
-               vcode_block_t match_bb = emit_block();
-               vcode_block_t skip_bb = emit_block();
+      const int nchoice = tree_choices(alt);
+      for (int j = 0; j < nchoice; j++) {
+         tree_t a = tree_choice(alt, j);
+         if (tree_has_name(a)) {
+            tree_t name = tree_name(a);
+            vcode_reg_t name_reg = lower_rvalue(lu, name);
+            vcode_block_t match_bb = emit_block();
+            vcode_block_t skip_bb = emit_block();
 
-               if (cmp_func != NULL) {
-                  if (vcode_reg_kind(name_reg) != VCODE_TYPE_UARRAY)
-                     name_reg = lower_wrap(lu, tree_type(name), name_reg);
+            if (cmp_func != NULL) {
+               if (vcode_reg_kind(name_reg) != VCODE_TYPE_UARRAY)
+                  name_reg = lower_wrap(lu, tree_type(name), name_reg);
 
-                  vcode_reg_t args[] = { name_reg, value_reg };
-                  vcode_reg_t eq_reg = emit_fcall(cmp_func, vbool, vbool,
-                                                  args, ARRAY_LEN(args));
-                  emit_cond(eq_reg, match_bb, skip_bb);
-               }
-               else {
-                  vcode_reg_t eq_reg =
-                     emit_cmp(VCODE_CMP_EQ, name_reg, value_reg);
-                  emit_cond(eq_reg, match_bb, skip_bb);
-               }
-
-               vcode_select_block(match_bb);
-               emit_return(emit_const(vint, i));
-
-               vcode_select_block(skip_bb);
+               vcode_reg_t args[] = { name_reg, value_reg };
+               vcode_reg_t eq_reg = emit_fcall(cmp_func, vbool, vbool,
+                                               args, ARRAY_LEN(args));
+               emit_cond(eq_reg, match_bb, skip_bb);
             }
-            break;
+            else {
+               vcode_reg_t eq_reg = emit_cmp(VCODE_CMP_EQ, name_reg, value_reg);
+               emit_cond(eq_reg, match_bb, skip_bb);
+            }
 
-         case A_OTHERS:
+            vcode_select_block(match_bb);
             emit_return(emit_const(vint, i));
-            break;
 
-         default:
+            vcode_select_block(skip_bb);
+         }
+         else if (tree_ranges(a) > 0)
             fatal_at(tree_loc(a), "sorry, this form of choice is not "
                      "yet supported");
-         }
+         else
+            emit_return(emit_const(vint, i));
       }
    }
 
