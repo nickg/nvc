@@ -22,7 +22,8 @@
                     Source="$PREFIX\bin\nvc.exe"
                     />
               <Environment Id="Environment" Name="PATH" Action="set"
-                           Part="last" System="no" Value="[BIN]" />
+                           Part="last" System="no" Value="[BIN]"
+                           Permanent="no" />
             </Component>
           </Directory>
           <Directory Id="INCLUDE" Name="include">
