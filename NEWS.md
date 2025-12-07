@@ -6,6 +6,8 @@
   option has also been removed.
 - The `--stderr=none` option now prevents any diagnostic messages being
   printed to `stderr`, including those at `failure` severity (#1357).
+- The VITAL and Synopsys packages are now compiled into the `ieee`
+  library for VHDL-2019 (#1360).
 - Several other minor bugs were resolved (#1237, #1351, #1353).
 
 ## Version 1.18.2 - 2025-11-19

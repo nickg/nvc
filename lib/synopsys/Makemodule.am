@@ -2,6 +2,7 @@
 # traditionally compiled into the IEEE library
 synopsys_ieeedir = $(pkglibdir)/ieee
 synopsys_ieee_08dir = $(pkglibdir)/ieee.08
+synopsys_ieee_19dir = $(pkglibdir)/ieee.19
 synopsys_ieee_DATA = \
 	lib/ieee/IEEE.STD_LOGIC_ARITH \
 	lib/ieee/IEEE.STD_LOGIC_ARITH-body \
@@ -22,12 +23,21 @@ synopsys_ieee_08_DATA = \
 	lib/ieee.08/IEEE.STD_LOGIC_UNSIGNED-body \
 	lib/ieee.08/IEEE.STD_LOGIC_MISC \
 	lib/ieee.08/IEEE.STD_LOGIC_MISC-body
+synopsys_ieee_19_DATA = \
+	lib/ieee.19/IEEE.STD_LOGIC_ARITH \
+	lib/ieee.19/IEEE.STD_LOGIC_ARITH-body \
+	lib/ieee.19/IEEE.STD_LOGIC_SIGNED \
+	lib/ieee.19/IEEE.STD_LOGIC_SIGNED-body \
+	lib/ieee.19/IEEE.STD_LOGIC_UNSIGNED \
+	lib/ieee.19/IEEE.STD_LOGIC_UNSIGNED-body \
+	lib/ieee.19/IEEE.STD_LOGIC_MISC \
+	lib/ieee.19/IEEE.STD_LOGIC_MISC-body
 
 EXTRA_DIST += lib/synopsys/std_logic_arith.vhd lib/synopsys/std_logic_misc.vhd \
 	lib/synopsys/std_logic_misc.vhd lib/synopsys/std_logic_signed.vhd \
 	lib/synopsys/std_logic_unsigned.vhd lib/synopsys/std_logic_textio.vhd
 
-BOOTSTRAPLIBS += $(synopsys_ieee_DATA) $(synopsys_ieee_08_DATA)
+BOOTSTRAPLIBS += $(synopsys_ieee_DATA) $(synopsys_ieee_08_DATA) $(synopsys_ieee_19_DATA)
 
 lib/ieee/IEEE.STD_LOGIC_ARITH: $(srcdir)/lib/synopsys/std_logic_arith.vhd @ifGNUmake@ | $(DRIVER)
 	$(nvc) --std=1993 -L lib/ --work=lib/ieee -a $(srcdir)/lib/synopsys/std_logic_arith.vhd
@@ -55,3 +65,15 @@ lib/ieee.08/IEEE.STD_LOGIC_SIGNED: $(srcdir)/lib/synopsys/std_logic_signed.vhd @
 
 lib/ieee.08/IEEE.STD_LOGIC_MISC: $(srcdir)/lib/synopsys/std_logic_misc.vhd @ifGNUmake@ | $(DRIVER)
 	$(nvc) --std=2008 -L lib/ --work=lib/ieee.08 -a $(srcdir)/lib/synopsys/std_logic_misc.vhd
+
+lib/ieee.19/IEEE.STD_LOGIC_ARITH: $(srcdir)/lib/synopsys/std_logic_arith.vhd @ifGNUmake@ | $(DRIVER)
+	$(nvc) --std=2019 -L lib/ --work=lib/ieee.19 -a $(srcdir)/lib/synopsys/std_logic_arith.vhd
+
+lib/ieee.19/IEEE.STD_LOGIC_UNSIGNED: $(srcdir)/lib/synopsys/std_logic_unsigned.vhd @ifGNUmake@ | $(DRIVER)
+	$(nvc) --std=2019 -L lib/ --work=lib/ieee.19 -a $(srcdir)/lib/synopsys/std_logic_unsigned.vhd
+
+lib/ieee.19/IEEE.STD_LOGIC_SIGNED: $(srcdir)/lib/synopsys/std_logic_signed.vhd @ifGNUmake@ | $(DRIVER)
+	$(nvc) --std=2019 -L lib/ --work=lib/ieee.19 -a $(srcdir)/lib/synopsys/std_logic_signed.vhd
+
+lib/ieee.19/IEEE.STD_LOGIC_MISC: $(srcdir)/lib/synopsys/std_logic_misc.vhd @ifGNUmake@ | $(DRIVER)
+	$(nvc) --std=2019 -L lib/ --work=lib/ieee.19 -a $(srcdir)/lib/synopsys/std_logic_misc.vhd

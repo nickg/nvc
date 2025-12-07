@@ -1,5 +1,6 @@
 vitaldir = $(pkglibdir)/ieee
 vital_08dir = $(pkglibdir)/ieee.08
+vital_19dir = $(pkglibdir)/ieee.19
 
 if ENABLE_VITAL
 vital_DATA = \
@@ -16,6 +17,13 @@ vital_08_DATA = \
 	lib/ieee.08/IEEE.VITAL_PRIMITIVES-body \
 	lib/ieee.08/IEEE.VITAL_MEMORY \
 	lib/ieee.08/IEEE.VITAL_MEMORY-body
+vital_19_DATA = \
+	lib/ieee.19/IEEE.VITAL_TIMING \
+	lib/ieee.19/IEEE.VITAL_TIMING-body \
+	lib/ieee.19/IEEE.VITAL_PRIMITIVES \
+	lib/ieee.19/IEEE.VITAL_PRIMITIVES-body \
+	lib/ieee.19/IEEE.VITAL_MEMORY \
+	lib/ieee.19/IEEE.VITAL_MEMORY-body
 endif  # ENABLE_VITAL
 
 EXTRA_DIST += \
@@ -27,7 +35,7 @@ EXTRA_DIST += \
 	lib/vital/prmtvs_p.vhdl
 
 if ENABLE_VITAL
-BOOTSTRAPLIBS += $(vital_DATA) $(vital_08_DATA)
+BOOTSTRAPLIBS += $(vital_DATA) $(vital_08_DATA) $(vital_19_DATA)
 endif
 
 lib/ieee/IEEE.VITAL_TIMING: $(srcdir)/lib/vital/timing_p.vhdl @ifGNUmake@ | $(DRIVER)
@@ -65,3 +73,21 @@ lib/ieee.08/IEEE.VITAL_MEMORY: $(srcdir)/lib/vital/memory_p.vhdl @ifGNUmake@ | $
 
 lib/ieee.08/IEEE.VITAL_MEMORY-body: $(srcdir)/lib/vital/memory_b.vhdl @ifGNUmake@ | $(DRIVER)
 	$(nvc) --std=2008 -L lib/ --work=lib/ieee.08 -a $(srcdir)/lib/vital/memory_b.vhdl
+
+lib/ieee.19/IEEE.VITAL_TIMING: $(srcdir)/lib/vital/timing_p.vhdl @ifGNUmake@ | $(DRIVER)
+	$(nvc) --std=2019 -L lib/ --work=lib/ieee.19 -a $(srcdir)/lib/vital/timing_p.vhdl
+
+lib/ieee.19/IEEE.VITAL_TIMING-body: $(srcdir)/lib/vital/timing_b.vhdl @ifGNUmake@ | $(DRIVER)
+	$(nvc) --std=2019 -L lib/ --work=lib/ieee.19 -a $(srcdir)/lib/vital/timing_b.vhdl
+
+lib/ieee.19/IEEE.VITAL_PRIMITIVES: $(srcdir)/lib/vital/prmtvs_p.vhdl @ifGNUmake@ | $(DRIVER)
+	$(nvc) --std=2019 -L lib/ --work=lib/ieee.19 -a $(srcdir)/lib/vital/prmtvs_p.vhdl
+
+lib/ieee.19/IEEE.VITAL_PRIMITIVES-body: $(srcdir)/lib/vital/prmtvs_b.vhdl @ifGNUmake@ | $(DRIVER)
+	$(nvc) --std=2019 -L lib/ --work=lib/ieee.19 -a $(srcdir)/lib/vital/prmtvs_b.vhdl
+
+lib/ieee.19/IEEE.VITAL_MEMORY: $(srcdir)/lib/vital/memory_p.vhdl @ifGNUmake@ | $(DRIVER)
+	$(nvc) --std=2019 -L lib/ --work=lib/ieee.19 -a $(srcdir)/lib/vital/memory_p.vhdl
+
+lib/ieee.19/IEEE.VITAL_MEMORY-body: $(srcdir)/lib/vital/memory_b.vhdl @ifGNUmake@ | $(DRIVER)
+	$(nvc) --std=2019 -L lib/ --work=lib/ieee.19 -a $(srcdir)/lib/vital/memory_b.vhdl
