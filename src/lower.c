@@ -135,7 +135,7 @@ static void lower_check_array_sizes(lower_unit_t *lu, type_t ltype,
                                     vcode_reg_t rval, vcode_reg_t locus);
 static vcode_type_t lower_alias_type(tree_t alias);
 static void lower_predef(lower_unit_t *lu, object_t *obj);
-static void lower_generics(lower_unit_t *lu, tree_t block, tree_t primary);
+static void lower_generics(lower_unit_t *lu, tree_t inst, tree_t src);
 static vcode_reg_t lower_default_value(lower_unit_t *lu, type_t type,
                                        vcode_reg_t hint_reg);
 static vcode_reg_t lower_array_total_len(lower_unit_t *lu, type_t type,
@@ -9898,8 +9898,14 @@ static void lower_decls(lower_unit_t *lu, tree_t scope)
       tree_t d = tree_decl(scope, i);
       switch (tree_kind(d)) {
       case T_FUNC_INST:
-         if (!is_body(tree_ref(d)))
-            break;   // Deferred instantiation in package body
+         {
+            tree_t src = tree_ref(d);
+            if (!is_body(src))
+               break;   // Deferred instantiation in package body
+
+            // May need to access generics in outer scope
+            lower_generics(lu, d, src);
+         }
          // Fall-through
       case T_FUNC_BODY:
          {
@@ -9913,8 +9919,14 @@ static void lower_decls(lower_unit_t *lu, tree_t scope)
          }
          break;
       case T_PROC_INST:
-         if (!is_body(tree_ref(d)))
-            break;   // Deferred instantiation in package body
+         {
+            tree_t src = tree_ref(d);
+            if (!is_body(src))
+               break;   // Deferred instantiation in package body
+
+            // May need to access generics in outer scope
+            lower_generics(lu, d, src);
+         }
          // Fall-through
       case T_PROC_BODY:
          {
@@ -10392,9 +10404,6 @@ static void lower_proc_body(lower_unit_t *lu, object_t *obj)
    vcode_type_t vcontext = vtype_context(lu->parent->name);
    emit_param(vcontext, vcontext, ident_new("context"));
 
-   if (tree_kind(body) == T_PROC_INST)
-      lower_generics(lu, body, NULL);
-
    const bool never_waits = vcode_unit_kind(lu->vunit) == VCODE_UNIT_FUNCTION;
    const bool has_subprograms = lower_has_subprograms(body);
    lower_subprogram_ports(lu, body, has_subprograms || !never_waits);
@@ -10423,9 +10432,6 @@ static void lower_func_body(lower_unit_t *lu, object_t *obj)
    lu->cscope = cover_create_block(lu->cover, lu->name,
                                    lu->parent->cscope,
                                    body, body, NULL);
-
-   if (tree_kind(body) == T_FUNC_INST)
-      lower_generics(lu, body, NULL);
 
    const bool has_subprograms = lower_has_subprograms(body);
    lower_subprogram_ports(lu, body, has_subprograms);
@@ -12066,14 +12072,20 @@ static void lower_pack_inst_generics(lower_unit_t *lu, tree_t inst, tree_t map)
    }
 }
 
-static void lower_generics(lower_unit_t *lu, tree_t block, tree_t primary)
+static void lower_generics(lower_unit_t *lu, tree_t inst, tree_t src)
 {
-   const int ngenerics = tree_generics(block);
-   assert(ngenerics == tree_genmaps(block));
+   const int ngenerics = tree_generics(inst);
+   assert(ngenerics == tree_genmaps(inst));
+
+   // Subprogram generics are created in the parent scope so add a
+   // unique prefix to the name
+   ident_t prefix = NULL;
+   if (is_subprogram(inst))
+      prefix = tree_ident2(inst);
 
    for (int i = 0; i < ngenerics; i++) {
-      tree_t g = tree_generic(block, i);
-      tree_t m = tree_genmap(block, i);
+      tree_t g = tree_generic(inst, i);
+      tree_t m = tree_genmap(inst, i);
       assert(tree_subkind(m) == P_POS);
 
       const class_t class = tree_class(g);
@@ -12093,10 +12105,11 @@ static void lower_generics(lower_unit_t *lu, tree_t block, tree_t primary)
          continue;   // Skip type generics, etc.
 
       type_t type = tree_type(g);
+      ident_t name = ident_prefix(prefix, tree_ident(g), '.');
 
       vcode_type_t vtype = lower_type(type);
       vcode_type_t vbounds = lower_bounds(type);
-      vcode_var_t var = emit_var(vtype, vbounds, tree_ident(g), VAR_CONST);
+      vcode_var_t var = emit_var(vtype, vbounds, name, VAR_CONST);
 
       vcode_reg_t mem_reg = VCODE_INVALID_REG, count_reg = VCODE_INVALID_REG;
 
@@ -12144,11 +12157,11 @@ static void lower_generics(lower_unit_t *lu, tree_t block, tree_t primary)
 
       lower_put_vcode_obj(g, var, lu);
 
-      if (primary != NULL) {
+      if (src != NULL) {
          // The generic object in the instance may have been copied in
          // which case we also need to associate the variable with the
-         // original generic in the primary unit
-         tree_t g2 = tree_generic(primary, i);
+         // original generic in the source unit
+         tree_t g2 = tree_generic(src, i);
          assert(ident_casecmp(tree_ident(g2), tree_ident(g)));
          if (g2 != g) lower_put_vcode_obj(g2, var, lu);
       }

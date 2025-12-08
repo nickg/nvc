@@ -6871,6 +6871,88 @@ START_TEST(test_comp1)
 }
 END_TEST
 
+START_TEST(test_issue1350)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/lower/issue1350.vhd");
+
+   run_elab();
+
+   {
+      vcode_unit_t vu = find_unit("WORK.ENT");
+      vcode_select_unit(vu);
+
+      EXPECT_BB(0) = {
+         { VCODE_OP_PACKAGE_INIT, .name = "STD.STANDARD" },
+         { VCODE_OP_PACKAGE_INIT, .name = "WORK.PKG" },
+         { VCODE_OP_CONST, .value = 2 },
+         { VCODE_OP_STORE, .name = "NN" },
+         { VCODE_OP_STORE, .name = "WORK.ENT.PROC(Q).N" },
+         { VCODE_OP_CONTEXT_UPREF, .hops = 0 },
+         { VCODE_OP_FCALL, .func = "WORK.ENT.FUNC()I" },
+         { VCODE_OP_CONST, .value = 1 },
+         { VCODE_OP_CONST, .value = INT32_MAX },
+         { VCODE_OP_CONST, .value = 0 },
+         { VCODE_OP_DEBUG_LOCUS },
+         { VCODE_OP_DEBUG_LOCUS },
+         { VCODE_OP_RANGE_CHECK },
+         { VCODE_OP_STORE, .name = "WORK.ENT.PROC(Q).Q" },
+         { VCODE_OP_LOAD, .name = "WORK.ENT.PROC(Q).N" },
+         { VCODE_OP_STORE, .name = "WORK.ENT.PROC(Q).R" },
+         { VCODE_OP_RETURN },
+      };
+
+      CHECK_BB(0);
+   }
+
+   {
+      vcode_unit_t vu = find_unit("WORK.ENT.PROC(Q)");
+      vcode_select_unit(vu);
+
+      EXPECT_BB(0) = {
+         { VCODE_OP_VAR_UPREF, .name = "WORK.ENT.PROC(Q).N", .hops = 1 },
+         { VCODE_OP_LOAD_INDIRECT },
+         { VCODE_OP_CONST, .value = 1 },
+         { VCODE_OP_SUB },
+         { VCODE_OP_CONST, .value = 0 },
+         { VCODE_OP_JUMP, .target = 1 },
+      };
+
+      CHECK_BB(0);
+   }
+
+   {
+      vcode_unit_t vu = find_unit("WORK.ENT.CALL");
+      vcode_select_unit(vu);
+
+      EXPECT_BB(1) = {
+         { VCODE_OP_CONTEXT_UPREF, .hops = 1 },
+         { VCODE_OP_CONST, .value = 0 },
+         { VCODE_OP_CONST_ARRAY, .length = 2 },
+         { VCODE_OP_ADDRESS_OF },
+         { VCODE_OP_DEBUG_LOCUS },
+         { VCODE_OP_VAR_UPREF, .name = "WORK.ENT.PROC(Q).N", .hops = 1 },
+         { VCODE_OP_LOAD_INDIRECT },
+         { VCODE_OP_CONST, .value = 1 },
+         { VCODE_OP_SUB },
+         { VCODE_OP_CONST, .value = 0 },
+         { VCODE_OP_CONST, .value = 1 },
+         { VCODE_OP_RANGE_LENGTH },
+         { VCODE_OP_CONST, .value = 2 },
+         { VCODE_OP_LENGTH_CHECK },
+         { VCODE_OP_WRAP },
+         { VCODE_OP_FCALL, .func = "WORK.ENT.PROC(Q)" },
+         { VCODE_OP_WAIT, .target = 2 },
+      };
+
+      CHECK_BB(1);
+   }
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_lower_tests(void)
 {
    Suite *s = suite_create("lower");
@@ -7029,6 +7111,7 @@ Suite *get_lower_tests(void)
    tcase_add_test(tc, test_issue1234);
    tcase_add_test(tc, test_issue1280);
    tcase_add_test(tc, test_comp1);
+   tcase_add_test(tc, test_issue1350);
    suite_add_tcase(s, tc);
 
    return s;
