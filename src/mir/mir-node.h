@@ -343,6 +343,7 @@ typedef enum {
    MIR_VEC_SLL,
    MIR_VEC_SRL,
    MIR_VEC_SRA,
+   MIR_VEC_EXP,
 } mir_vec_op_t;
 
 #define MIR_APPEND UINT_MAX

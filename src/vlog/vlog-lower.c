@@ -627,7 +627,8 @@ static mir_value_t vlog_lower_vector_binary(vlog_gen_t *g, vlog_binary_t binop,
    case V_BINARY_SHIFT_LA: mop = MIR_VEC_SLL; break;
    case V_BINARY_SHIFT_RL: mop = MIR_VEC_SRL; break;
    case V_BINARY_SHIFT_RA: mop = is_signed ? MIR_VEC_SRA : MIR_VEC_SRL; break;
-   default: should_not_reach_here();
+   case V_BINARY_EXP:      mop = MIR_VEC_EXP; break;
+   default:  should_not_reach_here();
    }
 
    mir_value_t result = mir_build_binary(g->mu, mop, type, lcast, rcast);

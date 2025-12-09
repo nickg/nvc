@@ -4051,7 +4051,7 @@ static void irgen_op_binary(jit_irgen_t *g, mir_value_t n)
 
    const mir_vec_op_t op = irgen_get_enum(g, n, 0);
 
-   if (size > 64) {
+   if (size > 64 || op == MIR_VEC_EXP) {
       static const jit_vec_op_t map[] = {
          [MIR_VEC_ADD] = JIT_VEC_ADD,
          [MIR_VEC_MUL] = JIT_VEC_MUL,
@@ -4062,6 +4062,9 @@ static void irgen_op_binary(jit_irgen_t *g, mir_value_t n)
          [MIR_VEC_SRA] = JIT_VEC_ASR,
          [MIR_VEC_CASE_EQ] = JIT_VEC_CASE_EQ,
          [MIR_VEC_CASE_NEQ] = JIT_VEC_CASE_NEQ,
+         [MIR_VEC_EXP] = JIT_VEC_EXP,
+         [MIR_VEC_LOG_EQ] = JIT_VEC_LOG_EQ,
+         [MIR_VEC_LOG_NEQ] = JIT_VEC_LOG_NEQ,
       };
       assert(op < ARRAY_LEN(map) && map[op] != 0);
 
