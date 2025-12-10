@@ -5,7 +5,7 @@ nvc_verbose_ = $(nvc_verbose_@AM_DEFAULT_V@)
 nvc_verbose_0 = @echo "  NVC     " $@;
 
 deps_pp = sed \
-	-e 's|'`echo $(top_srcdir) | sed 's/\./\\\./g'`'|$$(top_srcdir)|g' \
+	-e 's|\(lib/[^ ]*.vhd\)|$$(top_srcdir)/\1|g' \
 	-e 's|$(abs_top_builddir)/||g'
 
 DRIVER = bin/nvc$(EXEEXT)

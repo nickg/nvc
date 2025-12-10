@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2024  Nick Gasson
+//  Copyright (C) 2011-2025  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -394,6 +394,7 @@ void get_data_dir(text_buf_t *tb);
 bool get_exe_path(text_buf_t *tb);
 void open_pipe(int *rfd, int *wfd);
 bool is_absolute_path(const char *path);
+void get_relative_path(text_buf_t *tb, const char *from, const char *to);
 void check_cpu_features(void);
 
 void make_dir(const char *fmt, ...)

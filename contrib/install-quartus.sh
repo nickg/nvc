@@ -5,9 +5,6 @@
 
 . $(dirname $BASH_SOURCE)/functions.sh
 
-GLOBAL_OPTS="-M 128m"
-A_OPTS="--relaxed"
-
 if [ -n "$MSYSTEM" ]; then
   QUARTUS_ROOTDIR=$(cygpath -u $QUARTUS_ROOTDIR)
 fi
@@ -22,7 +19,12 @@ directory.  For example:
 
 EOF
   exit 1
-elif [ -d "$QUARTUS_ROOTDIR/eda/sim_lib" ]; then
+fi
+
+GLOBAL_OPTS="-M 128m"
+A_OPTS="--relaxed --relative=$QUARTUS_ROOTDIR"
+
+if [ -d "$QUARTUS_ROOTDIR/eda/sim_lib" ]; then
   src=$QUARTUS_ROOTDIR/eda/sim_lib
 
   echo "Using Quartus installation in $QUARTUS_ROOTDIR"

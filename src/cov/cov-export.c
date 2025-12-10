@@ -27,20 +27,6 @@
 #include <string.h>
 #include <time.h>
 
-static const char *get_relative_path(const char *path, const char *relative)
-{
-   if (relative != NULL && is_absolute_path(path)) {
-      const size_t rlen = strlen(relative);
-      if (strncmp(relative, path, rlen) == 0) {
-         path += rlen;
-         while (path[0] == DIR_SEP[0] || path[0] == '/')
-            path++;
-      }
-   }
-
-   return path;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 // Cobertura XML export
 
@@ -54,7 +40,7 @@ typedef struct {
 } cobertura_line_t;
 
 typedef struct _cobertura_class {
-   const char        *file;
+   char              *file;
    ident_t            name;
    cobertura_class_t *next;
    unsigned           nlines;
@@ -65,7 +51,7 @@ typedef struct _cobertura_class {
 typedef struct {
    hash_t            *class_map;
    cobertura_class_t *classes;
-   char              *relative;
+   const char        *relative;
 } cobertura_report_t;
 
 static cobertura_class_t *cobertura_get_class(cobertura_report_t *report,
@@ -73,9 +59,12 @@ static cobertura_class_t *cobertura_get_class(cobertura_report_t *report,
 {
    cobertura_class_t *c = hash_get(report->class_map, name);
    if (c == NULL) {
+      text_buf_t *tb = tb_new();
+      get_relative_path(tb, report->relative, loc_file_str(loc));
+
       c = xcalloc(sizeof(cobertura_class_t));
       c->name = name;
-      c->file = get_relative_path(loc_file_str(loc), report->relative);
+      c->file = tb_claim(tb);
       c->next = report->classes;
 
       report->classes = c;
@@ -208,7 +197,7 @@ void cover_export_cobertura(cover_data_t *data, FILE *f, const char *relative)
 {
    cobertura_report_t report = {
       .class_map = hash_new(64),
-      .relative = relative ? realpath(relative, NULL) : NULL,
+      .relative = relative,
    };
 
    cobertura_export_scope(&report, NULL, data->root_scope);
@@ -237,9 +226,9 @@ void cover_export_cobertura(cover_data_t *data, FILE *f, const char *relative)
            "line-rate=\"%f\" branch-rate=\"%f\" complexity=\"0.0\" "
            "lines-valid=\"%d\" lines-covered=\"%d\" "
            "branches-valid=\"%d\" branches-covered=\"%d\" "
-           "timestamp=\"%lu\">\n",
+           "timestamp=\"%llu\">\n",
            version, line_rate, branch_rate, nlines, hitlines, nbranches,
-           hitbranches, timestamp);
+           hitbranches, (long long)timestamp);
    fprintf(f, "<sources>\n");
    fprintf(f, "<source>.</source>\n");
    fprintf(f, "</sources>\n");
@@ -260,10 +249,10 @@ void cover_export_cobertura(cover_data_t *data, FILE *f, const char *relative)
    for (cobertura_class_t *it = report.classes, *tmp; it; it = tmp) {
       tmp = it->next;
       free(it->lines);
+      free(it->file);
       free(it);
    }
 
-   free(report.relative);
    hash_free(report.class_map);
 }
 
@@ -279,8 +268,9 @@ static void dump_scope_xml(cover_scope_t *s, int indent, const loc_t *loc,
       fprintf(f, " block_name=\"%s\"", istr(s->block->block_name));
 
    if (s->loc.file_ref != FILE_INVALID && s->loc.file_ref != loc->file_ref) {
-      const char *path = get_relative_path(loc_file_str(&s->loc), relative);
-      fprintf(f, " file=\"%s\"", path);
+      LOCAL_TEXT_BUF tb = tb_new();
+      get_relative_path(tb, relative, loc_file_str(&s->loc));
+      fprintf(f, " file=\"%s\"", tb_get(tb));
    }
 
    if (s->loc.first_line != LINE_INVALID && s->loc.first_line > 0

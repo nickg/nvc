@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2024  Nick Gasson
+//  Copyright (C) 2011-2025  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -22,6 +22,7 @@
 #include <fileapi.h>
 #include <psapi.h>
 #include <io.h>
+#include <shlwapi.h>
 #endif
 
 #include "util.h"
@@ -2185,6 +2186,70 @@ bool is_absolute_path(const char *path)
 #endif
 
    return false;
+}
+
+void get_relative_path(text_buf_t *tb, const char *from, const char *to)
+{
+#ifdef __MINGW32__
+    char abs_from[MAX_PATH], abs_to[MAX_PATH];
+    if (from == NULL || !_fullpath(abs_from, from, MAX_PATH))
+       goto fallback;
+    if (!_fullpath(abs_to, to, MAX_PATH))
+       goto fallback;
+
+    char buffer[MAX_PATH];
+    if (!PathRelativePathToA(buffer, abs_from, FILE_ATTRIBUTE_DIRECTORY,
+                             abs_to, 0))
+       goto fallback;
+
+    if (strncmp(buffer, ".\\", 2) == 0)
+       tb_cat(tb, buffer + 2);   // Strip leading .\ prefix
+    else
+       tb_cat(tb, buffer);
+#else
+   char abs_from[PATH_MAX], abs_to[PATH_MAX];
+   if (from == NULL || realpath(from, abs_from) == NULL)
+      goto fallback;
+   else if (realpath(to, abs_to) == NULL)
+      goto fallback;
+
+   A(char *) from_parts = AINIT;
+   A(char *) to_parts = AINIT;
+
+   for (char *tok = strtok(abs_from, "/"); tok; tok = strtok(NULL, "/"))
+      APUSH(from_parts, tok);
+
+   for (char *tok = strtok(abs_to, "/"); tok; tok = strtok(NULL, "/"))
+      APUSH(to_parts, tok);
+
+   int common = 0;
+   while (common < from_parts.count && common < to_parts.count
+          && strcmp(from_parts.items[common], to_parts.items[common]) == 0)
+      common++;
+
+   for (int i = common; i < from_parts.count; i++) {
+      tb_cat(tb, "..");
+      if (i + 1 < from_parts.count || to_parts.count > common)
+         tb_cat(tb, "/");
+   }
+
+   for (int i = common; i < to_parts.count; i++) {
+      tb_cat(tb, to_parts.items[i]);
+      if (i + 1 < to_parts.count)
+         tb_cat(tb, "/");
+   }
+
+   ACLEAR(from_parts);
+   ACLEAR(to_parts);
+#endif
+
+   if (tb_len(tb) == 0)
+      goto fallback;
+
+   return;
+
+ fallback:
+   tb_cat(tb, to);
 }
 
 void progress(const char *fmt, ...)

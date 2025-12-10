@@ -77,6 +77,7 @@ typedef enum {
    OPT_DCE_VERBOSE,
    OPT_RANDOM_SEED,
    OPT_ELAB_STATS,
+   OPT_RELATIVE_PATH,
 
    OPT_LAST_NAME
 } opt_name_t;

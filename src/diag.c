@@ -132,17 +132,30 @@ file_ref_t loc_file_ref(const char *name, const char *linebuf)
          return loc_files.items[i].ref;
    }
 
-   // Strip any consecutive '/' characters
-   char *name_buf = xstrdup(name), *p = name_buf;
-   for (char *s = name_buf; *s != '\0'; s++) {
-      if (*s != '/' || *(s + 1) != '/')
-         *p++ = *s;
+   text_buf_t *tb = tb_new();
+
+   const char *relative = opt_get_str(OPT_RELATIVE_PATH);
+   if (relative != NULL)
+      get_relative_path(tb, relative, name);
+   else {
+      // Strip any consecutive '/' characters
+      for (const char *s = name; *s != '\0'; s++) {
+         if (*s != '/' || *(s + 1) != '/')
+            tb_append(tb, *s);
+      }
    }
-   *p = '\0';
+
+   // TODO: use a hash table
+   for (unsigned i = 0; i < loc_files.count; i++) {
+      if (strcmp(loc_files.items[i].name_str, tb_get(tb)) == 0) {
+         tb_free(tb);
+         return loc_files.items[i].ref;
+      }
+   }
 
    loc_file_t new = {
       .linebuf  = linebuf,
-      .name_str = name_buf,
+      .name_str = tb_claim(tb),
       .ref      = loc_files.count
    };
 

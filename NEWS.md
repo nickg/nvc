@@ -8,6 +8,9 @@
   printed to `stderr`, including those at `failure` severity (#1357).
 - The VITAL and Synopsys packages are now compiled into the `ieee`
   library for VHDL-2019 (#1360).
+- The new `--relative=DIR` analysis option saves all file names relative
+  to `DIR`.  This can be useful to ensure reproducibility of binary
+  libraries (#1359).
 - Several other minor bugs were resolved (#1237, #1350, #1351, #1353).
 
 ## Version 1.18.2 - 2025-11-19

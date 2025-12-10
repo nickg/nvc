@@ -304,6 +304,28 @@ lead to incorrect behaviour.
 .\" --psl
 .It Fl \-psl
 Enable parsing of PSL directives in comments.
+.\" --relative
+.It Fl \-relative Ns = Ns Ar dir
+By default
+.Nm
+saves the literal file path given to the
+.Fl a
+command in the binary representation of the design unit in the working
+library.  This can be undesirable when distributing libraries in binary
+form since the same file analysed from two different paths will produce
+different outputs.  The
+.Fl \-relative
+flag forces all paths to be stored relative to
+.Ar dir .
+For example the following stores
+.Ql foo/bar.vhd
+instead of
+.Ql ../prefix/foo/bar.vhd
+in the binary representation:
+.Bd -literal -offset indent
+nvc -a --relative=../prefix ../prefix/foo/bar.vhd
+.Ed
+.Pp
 .\" --relaxed
 .It Fl \-relaxed
 Disable certain pedantic LRM conformance checks or rules that were
@@ -524,10 +546,9 @@ Write output to
 If this option is not specified the standard output stream is used.
 .\" --relative
 .It Fl \-relative Ns Op = Ns Ar path
-Strip
+Report file names relative to
 .Ar path
-or the current working directory from the front of any absolute path
-names in the output.
+or the current working directory.
 .El
 .\" ------------------------------------------------------------
 .\" Coverage merge options

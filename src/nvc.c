@@ -215,6 +215,7 @@ static int analyse(int argc, char **argv, cmd_state_t *state)
       { "single-unit",     no_argument,       0, 'u' },
       { "preserve-case",   no_argument,       0, 'p' },
       { "keywords",        required_argument, 0, 'k' },
+      { "relative",        required_argument, 0, 'r' },
       { 0, 0, 0, 0 }
    };
 
@@ -282,6 +283,9 @@ static int analyse(int argc, char **argv, cmd_state_t *state)
             else
                fatal("'%s' is not a valid Verilog version", optarg);
          }
+         break;
+      case 'r':
+         opt_set_str(OPT_RELATIVE_PATH, optarg);
          break;
       default:
          should_not_reach_here();
@@ -2207,6 +2211,7 @@ static void usage(void)
            { "--preserve-case",
              "Preserve the original case of VHDL identifiers" },
            { "--psl", "Enable parsing of PSL directives in comments" },
+           { "--relative=DIR", "Store paths relative to DIR" },
            { "--relaxed", "Disable certain pedantic rule checks" },
            { "--single-unit",
              "Treat all Verilog files as a single compilation unit" },
@@ -2284,7 +2289,7 @@ static void usage(void)
         {
            { "--format=FMT", "File format (must be 'cobertura')" },
            { "-o, --output=FILE", "Output file name" },
-           { "--relative=PATH", "Strip PATH from prefix of absolute paths" },
+           { "--relative=PATH", "Report file names relative to PATH" },
         }
       },
       { "Install options",

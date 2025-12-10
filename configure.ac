@@ -144,7 +144,7 @@ AX_PROG_FLEX([], [AC_MSG_ERROR([Flex not found])])
 
 case $host_os in
   *cygwin*|msys*|mingw32*)
-    LIBS="$LIBS -ldbghelp -lwsock32"   # For StackTrace64 and sockets
+    LIBS="$LIBS -ldbghelp -lwsock32 -lshlwapi" # For StackTrace64 and sockets
     DIR_SEP=\\\\
     pathprog="cygpath -m"
     AC_CHECK_PROG([CANDLE], [candle], [yes])   # For WiX installer

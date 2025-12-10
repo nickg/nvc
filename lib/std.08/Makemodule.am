@@ -22,22 +22,22 @@ lib/std.08/_NVC_LIB: lib/std.08/STD.STANDARD
 lib/std.08/_index: lib/std.08/STD.STANDARD
 
 lib/std.08/STD.STANDARD: $(srcdir)/lib/std.08/standard.vhd @ifGNUmake@ | $(DRIVER)
-	$(nvc) --std=2008 --work=lib/std.08 -a --bootstrap $(srcdir)/lib/std.08/standard.vhd
+	$(nvc) --std=2008 --work=lib/std.08 -a --relative=$(srcdir) --bootstrap $(srcdir)/lib/std.08/standard.vhd
 
 lib/std.08/STD.STANDARD-body: $(srcdir)/lib/std/standard-body.vhd @ifGNUmake@ | $(DRIVER)
-	$(nvc) --std=2008 --work=lib/std.08 -a $(srcdir)/lib/std/standard-body.vhd
+	$(nvc) --std=2008 --work=lib/std.08 -a --relative=$(srcdir) $(srcdir)/lib/std/standard-body.vhd
 
 lib/std.08/STD.TEXTIO: $(srcdir)/lib/std.08/textio.vhd @ifGNUmake@ | $(DRIVER)
-	$(nvc) --std=2008 -L lib/ --work=lib/std.08 -a $(srcdir)/lib/std.08/textio.vhd
+	$(nvc) --std=2008 -L lib/ --work=lib/std.08 -a --relative=$(srcdir) $(srcdir)/lib/std.08/textio.vhd
 
 lib/std.08/STD.TEXTIO-body: $(srcdir)/lib/std/textio-body.vhd @ifGNUmake@ | $(DRIVER)
-	$(nvc) --std=2008 -L lib/ --work=lib/std.08 -a $(srcdir)/lib/std/textio-body.vhd
+	$(nvc) --std=2008 -L lib/ --work=lib/std.08 -a --relative=$(srcdir) $(srcdir)/lib/std/textio-body.vhd
 
 lib/std.08/STD.ENV: $(srcdir)/lib/std.08/env.vhd @ifGNUmake@ | $(DRIVER)
-	$(nvc) --std=2008 -L lib/ --work=lib/std.08 -a $(srcdir)/lib/std.08/env.vhd
+	$(nvc) --std=2008 -L lib/ --work=lib/std.08 -a --relative=$(srcdir) $(srcdir)/lib/std.08/env.vhd
 
 lib/std.08/STD.ENV-body: $(srcdir)/lib/std.08/env-body.vhd @ifGNUmake@ | $(DRIVER)
-	$(nvc) --std=2008 -L lib/ --work=lib/std.08 -a $(srcdir)/lib/std.08/env-body.vhd
+	$(nvc) --std=2008 -L lib/ --work=lib/std.08 -a --relative=$(srcdir) $(srcdir)/lib/std.08/env-body.vhd
 
 gen-deps-std-08:
 	$(nvc) --std=2008 -L lib/ --work=lib/std.08 --print-deps | \
