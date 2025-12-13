@@ -2141,7 +2141,11 @@ tree_t change_ref(tree_t name, tree_t new)
 {
    switch (tree_kind(name)) {
    case T_REF:
-      return make_ref(new);
+      {
+         tree_t ref = make_ref(new);
+         tree_set_loc(ref, tree_loc(name));
+         return ref;
+      }
 
    case T_ARRAY_REF:
       {

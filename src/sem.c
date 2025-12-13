@@ -4841,7 +4841,7 @@ static bool sem_check_port_actual(formal_map_t *formals, int nformals,
          tree_t w = tree_new(T_INERTIAL);
          tree_set_loc(w, tree_loc(value));
          tree_set_value(w, value);
-         tree_set_target(w, name ?: make_ref(decl));
+         tree_set_type(w, tree_type(value));
 
          tree_set_value(param, w);
       }
@@ -4872,8 +4872,6 @@ static bool sem_check_port_actual(formal_map_t *formals, int nformals,
                 "a static signal name or OPEN",
                 istr(tree_ident(decl)), port_mode_str(tree_subkind(decl)));
    }
-   else if (kind == T_INERTIAL)
-      tree_set_target(value, name ?: make_ref(decl));
 
    // Check connections between ports
    if (ref != NULL && tree_has_ref(ref)) {
