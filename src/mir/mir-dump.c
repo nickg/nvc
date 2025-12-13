@@ -772,6 +772,7 @@ void mir_annotate(mir_unit_t *mu, const mir_annotate_t *cb, void *ctx)
 
          case MIR_OP_NOT:
          case MIR_OP_ALLOC:
+         case MIR_OP_INSTANCE_NAME:
             {
                col += mir_dump_value(mu, result, cb, ctx);
                col += printf(" := %s ", mir_op_string(n->op));
@@ -850,6 +851,8 @@ void mir_annotate(mir_unit_t *mu, const mir_annotate_t *cb, void *ctx)
          case MIR_OP_JUMP:
          case MIR_OP_ADD_TRIGGER:
          case MIR_OP_DEBUG_OUT:
+         case MIR_OP_CONSUME:
+         case MIR_OP_RESUME:
             {
                printf("%s ", mir_op_string(n->op));
                mir_dump_value(mu, n->args[0], cb, ctx);
@@ -947,15 +950,6 @@ void mir_annotate(mir_unit_t *mu, const mir_annotate_t *cb, void *ctx)
                }
                mir_dump_type(mu, col, n->type);
                mir_dump_stamp(mu, n->type, n->stamp);
-            }
-            break;
-
-         case MIR_OP_CONSUME:
-         case MIR_OP_RESUME:
-         case MIR_OP_INSTANCE_NAME:
-            {
-               printf("%s ", mir_op_string(n->op));
-               mir_dump_value(mu, n->args[0], cb, ctx);
             }
             break;
 

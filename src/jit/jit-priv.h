@@ -236,7 +236,7 @@ typedef struct {
 } jit_vpos_t;
 
 typedef struct {
-   jit_value_kind_t kind : 8;
+   jit_value_kind_t kind;
    int32_t          disp;
    union {
       jit_reg_t    reg;
