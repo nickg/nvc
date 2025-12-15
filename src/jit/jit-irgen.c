@@ -1214,8 +1214,10 @@ static void irgen_op_null(jit_irgen_t *g, mir_value_t n)
 static void irgen_op_const(jit_irgen_t *g, mir_value_t n)
 {
    int64_t cval;
-   if (mir_get_const(g->mu, n, &cval))
+   if (mir_get_const(g->mu, n, &cval)) {
+      assert(g->map[n.id].kind == JIT_VALUE_INVALID);
       g->map[n.id] = jit_value_from_int64(cval);
+   }
    else
       should_not_reach_here();
 }
@@ -1223,8 +1225,10 @@ static void irgen_op_const(jit_irgen_t *g, mir_value_t n)
 static void irgen_op_const_real(jit_irgen_t *g, mir_value_t n)
 {
    double val;
-   if (mir_get_const_real(g->mu, n, &val))
+   if (mir_get_const_real(g->mu, n, &val)) {
+      assert(g->map[n.id].kind == JIT_VALUE_INVALID);
       g->map[n.id] = jit_value_from_double(val);
+   }
    else
       should_not_reach_here();
 }
@@ -1306,6 +1310,8 @@ static void irgen_op_const_array(jit_irgen_t *g, mir_value_t n)
    const int align = irgen_align_of(g, elem);
    const int count = mir_get_size(g->mu, type);
 
+   assert(g->map[n.id].kind == JIT_VALUE_INVALID);
+
    if (count > 0) {
       const size_t offset = irgen_append_cpool(g, elemsz * count, align);
 
@@ -1337,6 +1343,7 @@ static void irgen_op_const_rep(jit_irgen_t *g, mir_value_t n)
    for (int i = 0; i < count; i++, p += elemsz)
       irgen_copy_const(g, p, value, elemsz);
 
+   assert(g->map[n.id].kind == JIT_VALUE_INVALID);
    g->map[n.id] = irgen_dedup_cpool(g);
 }
 
@@ -1366,13 +1373,18 @@ static void irgen_op_const_record(jit_irgen_t *g, mir_value_t n)
    }
    assert(g->func->cpool + offset + sz - p < sizeof(double));
 
+   assert(g->map[n.id].kind == JIT_VALUE_INVALID);
    g->map[n.id] = jit_value_from_cpool_addr(offset);
 }
 
 static void irgen_op_address_of(jit_irgen_t *g, mir_value_t n)
 {
-   jit_value_t arg = irgen_get_arg(g, n, 0);
-   irgen_lea(g, g->map[n.id], arg);
+   jit_value_t addr = irgen_get_arg(g, n, 0);
+   assert(addr.kind == JIT_ADDR_CPOOL || addr.kind == JIT_ADDR_ABS);
+
+   // No-op
+   assert(g->map[n.id].kind == JIT_VALUE_INVALID);
+   g->map[n.id] = addr;
 }
 
 static void irgen_op_copy(jit_irgen_t *g, mir_value_t n)
@@ -4489,13 +4501,11 @@ static void irgen_block(jit_irgen_t *g, mir_block_t block)
       case MIR_OP_CONST_REP:
       case MIR_OP_NULL:
       case MIR_OP_LOCUS:
+      case MIR_OP_ADDRESS_OF:
          assert(g->map[n.id].kind != JIT_VALUE_INVALID);
          break;
       case MIR_OP_CONST_VEC:
          irgen_op_const_vec(g, n);
-         break;
-      case MIR_OP_ADDRESS_OF:
-         irgen_op_address_of(g, n);
          break;
       case MIR_OP_TRAP_ADD:
          irgen_op_trap_add(g, n);
@@ -5310,6 +5320,9 @@ static void irgen_preallocate(jit_irgen_t *g, mir_block_t block)
       case MIR_OP_LOCUS:
          irgen_op_locus(g, n);
          break;
+      case MIR_OP_ADDRESS_OF:
+         irgen_op_address_of(g, n);
+         break;
       default:
          {
             mir_type_t type = mir_get_type(g->mu, n);
@@ -5337,7 +5350,7 @@ void jit_irgen(jit_func_t *f, mir_unit_t *mu)
 
    jit_irgen_t *g = xcalloc(sizeof(jit_irgen_t));
    g->func = f;
-   g->map  = xmalloc_array(num_nodes, sizeof(jit_value_t));
+   g->map  = xcalloc_array(num_nodes, sizeof(jit_value_t));
    g->mu   = mu;
 
    const int nblocks = mir_count_blocks(g->mu);
