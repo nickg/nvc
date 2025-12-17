@@ -133,7 +133,7 @@ file_ref_t loc_file_ref(const char *name, const char *linebuf)
          return loc_files.items[i].ref;
    }
 
-   text_buf_t *tb = tb_new();
+   LOCAL_TEXT_BUF tb = tb_new();
 
    const char *relative = opt_get_str(OPT_RELATIVE_PATH);
    if (relative != NULL)

@@ -141,7 +141,7 @@ static vcode_reg_t lower_default_value(lower_unit_t *lu, type_t type,
 static vcode_reg_t lower_array_total_len(lower_unit_t *lu, type_t type,
                                          vcode_reg_t reg);
 static vcode_var_t lower_temp_var(lower_unit_t *lu, const char *prefix,
-                                  vcode_type_t vtype, vcode_type_t vbounds);
+                                  vcode_type_t vtype);
 static void lower_release_temp(lower_unit_t *lu, vcode_var_t tmp);
 static vcode_reg_t lower_resolved(lower_unit_t *lu, type_t type,
                                   vcode_reg_t reg);
@@ -331,7 +331,7 @@ static vcode_reg_t lower_range_left(lower_unit_t *lu, tree_t r)
 
    type_t type = tree_type(r);
    vcode_type_t vtype = lower_type(type);
-   vcode_type_t vbounds = lower_bounds(type);
+   vcode_stamp_t vbounds = lower_bounds(type);
 
    vcode_reg_t left_reg;
    if (tree_subkind(r) == RANGE_EXPR) {
@@ -355,7 +355,7 @@ static vcode_reg_t lower_range_right(lower_unit_t *lu, tree_t r)
 
    type_t type = tree_type(r);
    vcode_type_t vtype = lower_type(type);
-   vcode_type_t vbounds = lower_bounds(type);
+   vcode_stamp_t vbounds = lower_bounds(type);
 
    vcode_reg_t right_reg;
    if (tree_subkind(r) == RANGE_EXPR) {
@@ -605,13 +605,12 @@ static vcode_type_t lower_array_type(type_t type)
 {
    type_t elem = type_elem_recur(type);
 
-   vcode_type_t elem_type   = lower_type(elem);
-   vcode_type_t elem_bounds = lower_bounds(elem);
+   vcode_type_t elem_type = lower_type(elem);
 
    if (type_const_bounds(type))
-      return vtype_carray(lower_array_const_size(type), elem_type, elem_bounds);
+      return vtype_carray(lower_array_const_size(type), elem_type);
    else
-      return vtype_uarray(dims_for_type(type), elem_type, elem_bounds);
+      return vtype_uarray(dims_for_type(type), elem_type);
 }
 
 vcode_type_t lower_type(type_t type)
@@ -693,27 +692,27 @@ vcode_type_t lower_type(type_t type)
    }
 }
 
-vcode_type_t lower_bounds(type_t type)
+vcode_stamp_t lower_bounds(type_t type)
 {
    if (type_kind(type) == T_SUBTYPE) {
       if (type_is_integer(type) || type_is_enum(type)) {
          tree_t r = range_of(type, 0);
          int64_t low, high;
          if (folded_bounds(r, &low, &high))
-            return vtype_int(low, high);
+            return vstamp_int(low, high);
       }
       else if (type_is_real(type)) {
          tree_t r = range_of(type, 0);
          double low, high;
          if (folded_bounds_real(r, &low, &high))
-            return vtype_real(low, high);
+            return vstamp_real(low, high);
       }
    }
 
    if (type_is_array(type))
       return lower_bounds(type_elem(type));
 
-   return lower_type(type);
+   return VCODE_INVALID_STAMP;
 }
 
 static vcode_type_t lower_signal_type(type_t type)
@@ -724,14 +723,14 @@ static vcode_type_t lower_signal_type(type_t type)
          if (type_const_bounds(type))
             return base;
          else
-            return vtype_uarray(dims_for_type(type), base, base);
+            return vtype_uarray(dims_for_type(type), base);
       }
       else {
          vcode_type_t base = lower_signal_type(type_elem_recur(type));
          if (type_const_bounds(type))
-            return vtype_carray(lower_array_const_size(type), base, base);
+            return vtype_carray(lower_array_const_size(type), base);
          else
-            return vtype_uarray(dims_for_type(type), base, base);
+            return vtype_uarray(dims_for_type(type), base);
       }
    }
    else if (type_is_record(type)) {
@@ -865,7 +864,7 @@ static void lower_for_each_field_2(lower_unit_t *lu, type_t type1, type_t type2,
          lower_check_array_sizes(lu, type1, type2, rec1_ptr, rec2_ptr, locus);
 
       vcode_type_t voffset = vtype_offset();
-      vcode_var_t i_var = lower_temp_var(lu, "i", voffset, voffset);
+      vcode_var_t i_var = lower_temp_var(lu, "i", voffset);
       emit_store(emit_const(voffset, 0), i_var);
 
       vcode_reg_t count1_reg = lower_array_total_len(lu, type1, rec1_ptr);
@@ -968,7 +967,7 @@ static void lower_get_scalar_type_bounds(lower_unit_t *lu, type_t type,
          // Type or subtype declared in package
          ident_t id = type_ident(type);
          vcode_reg_t context = emit_link_package(ident_runtil(id, '.'));
-         vcode_type_t vuarray = vtype_uarray(1, vtype, vbounds);
+         vcode_type_t vuarray = vtype_uarray(1, vtype);
          vcode_reg_t ptr_reg = emit_link_var(context, id, vuarray);
          wrap_reg = emit_load_indirect(ptr_reg);
       }
@@ -1023,9 +1022,11 @@ static void lower_check_scalar_bounds(lower_unit_t *lu, vcode_reg_t value,
 
    int64_t low, high;
    if (folded_bounds(r, &low, &high) && low <= high) {
-      vcode_type_t vbounds = vcode_reg_bounds(value);
-      if (vtype_low(vbounds) >= low && vtype_high(vbounds) <= high)
-         return;   // Avoid generating debug locus
+      int64_t vlow, vhigh;
+      if (vcode_reg_bounds(value, &vlow, &vhigh)) {
+         if (vlow >= low && vhigh <= high)
+            return;   // Avoid generating debug locus
+      }
    }
 
    vcode_reg_t left_reg, right_reg, dir_reg;
@@ -1152,7 +1153,7 @@ static vcode_reg_t lower_signal_record_aggregate(lower_unit_t *lu, tree_t expr)
       assert(vals[i] != VCODE_INVALID_REG);
 
    vcode_type_t vtype = lower_signal_type(type);
-   vcode_var_t tmp_var = lower_temp_var(lu, "signalagg", vtype, vtype);
+   vcode_var_t tmp_var = lower_temp_var(lu, "signalagg", vtype);
    vcode_reg_t mem_reg = emit_index(tmp_var, VCODE_INVALID_REG);
 
    for (int i = 0; i < nfields; i++) {
@@ -1237,7 +1238,7 @@ static vcode_reg_t lower_subprogram_arg(lower_unit_t *lu, tree_t fcall,
                                       istr(tree_ident(port)));
 
          vcode_type_t vtype = lower_func_result_type(port_type);
-         vcode_type_t vbounds = lower_bounds(port_type);
+         vcode_stamp_t vbounds = lower_bounds(port_type);
 
          vcode_reg_t args[] = { context_reg };
          reg = emit_fcall(func, vtype, vbounds, args, 1);
@@ -1312,7 +1313,7 @@ static vcode_reg_t lower_signal_flag(lower_unit_t *lu, tree_t ref,
    type_t type = tree_type(ref);
    if (!type_is_homogeneous(type)) {
       vcode_type_t vbool = vtype_bool();
-      vcode_var_t tmp_var = lower_temp_var(lu, "flag", vbool, vbool);
+      vcode_var_t tmp_var = lower_temp_var(lu, "flag", vbool);
       emit_store(emit_const(vbool, 0), tmp_var);
 
       struct {
@@ -1362,7 +1363,8 @@ static vcode_reg_t lower_last_value(lower_unit_t *lu, tree_t ref)
       vcode_type_t vrtype = lower_func_result_type(type);
 
       vcode_reg_t args[] = { arg_reg };
-      return emit_fcall(helper_func, vrtype, vrtype, args, ARRAY_LEN(args));
+      return emit_fcall(helper_func, vrtype, VCODE_INVALID_STAMP, args,
+                        ARRAY_LEN(args));
    }
 }
 
@@ -1383,7 +1385,7 @@ static vcode_reg_t lower_wrap_string(const char *str)
    for (int j = 0; j < len; j++)
       chars[j] = emit_const(ctype, str[j]);
 
-   vcode_type_t str_type = vtype_carray(len, ctype, ctype);
+   vcode_type_t str_type = vtype_carray(len, ctype);
    vcode_reg_t data = emit_const_array(str_type, chars, len);
 
    vcode_dim_t dim0 = {
@@ -1592,13 +1594,13 @@ static vcode_reg_t lower_name_attr(lower_unit_t *lu, tree_t decl,
    for (int j = 0; j < suffix_len; j++)
       chars[j] = emit_const(ctype, tb_get(tb)[j]);
 
-   vcode_type_t str_type = vtype_carray(suffix_len, ctype, ctype);
+   vcode_type_t str_type = vtype_carray(suffix_len, ctype);
    vcode_reg_t suffix_reg = emit_const_array(str_type, chars, suffix_len);
 
    vcode_reg_t prefix_len_reg = emit_uarray_len(array_reg, 0);
    vcode_reg_t suffix_len_reg = emit_const(voffset, suffix_len);
    vcode_reg_t total_len_reg = emit_add(prefix_len_reg, suffix_len_reg);
-   vcode_reg_t mem_reg = emit_alloc(ctype, ctype, total_len_reg);
+   vcode_reg_t mem_reg = emit_alloc(ctype, VCODE_INVALID_STAMP, total_len_reg);
    vcode_reg_t suffix_ptr_reg = emit_array_ref(mem_reg, prefix_len_reg);
 
    emit_copy(mem_reg, emit_unwrap(array_reg), prefix_len_reg);
@@ -1934,19 +1936,19 @@ static bool lower_side_effect_free(tree_t expr)
 }
 
 static vcode_var_t lower_temp_var(lower_unit_t *lu, const char *prefix,
-                                  vcode_type_t vtype, vcode_type_t vbounds)
+                                  vcode_type_t vtype)
 {
    vcode_var_t tmp = VCODE_INVALID_VAR;
    unsigned pos = 0;
    for (; pos < lu->free_temps.count; pos++) {
       tmp = lu->free_temps.items[pos];
-      if (vtype_eq(vcode_var_type(tmp), vtype)
-          && vtype_eq(vcode_var_bounds(tmp), vbounds))
+      if (vtype_eq(vcode_var_type(tmp), vtype))
          break;
    }
 
    if (pos == lu->free_temps.count)
-      return emit_var(vtype, vbounds, ident_uniq("%s", prefix), VAR_TEMP);
+      return emit_var(vtype, VCODE_INVALID_STAMP,
+                      ident_uniq("%s", prefix), VAR_TEMP);
 
    emit_comment("Reusing temp var %s", istr(vcode_var_name(tmp)));
 
@@ -2017,7 +2019,7 @@ static vcode_reg_t lower_short_circuit(lower_unit_t *lu, tree_t fcall,
    vcode_block_t after_bb = emit_block();
 
    vcode_type_t vbool = vtype_bool();
-   vcode_var_t tmp_var = lower_temp_var(lu, "shortcircuit", vbool, vbool);
+   vcode_var_t tmp_var = lower_temp_var(lu, "shortcircuit", vbool);
 
    if (builtin == S_SCALAR_NOR || builtin == S_SCALAR_NAND)
       emit_store(emit_not(r0), tmp_var);
@@ -2122,7 +2124,7 @@ static vcode_reg_t lower_std_ulogic_op(lower_unit_t *lu, tree_t fcall,
 
    vcode_reg_t result_reg = r0;
    if (table != NULL) {
-      vcode_type_t vtype = vtype_carray(81, vlogic, vlogic);
+      vcode_type_t vtype = vtype_carray(81, vlogic);
       vcode_reg_t table_ptr = emit_link_var(context, ident_new(table), vtype);
       vcode_reg_t args[] = { r0, r1 };
       vcode_reg_t ptr = emit_table_ref(table_ptr, stride, args, 2);
@@ -2130,7 +2132,7 @@ static vcode_reg_t lower_std_ulogic_op(lower_unit_t *lu, tree_t fcall,
    }
 
    if (invert) {
-      vcode_type_t vtype = vtype_carray(9, vlogic, vlogic);
+      vcode_type_t vtype = vtype_carray(9, vlogic);
       vcode_reg_t table_ptr =
          emit_link_var(context, ident_new("NOT_TABLE"), vtype);
       vcode_reg_t args[] = { result_reg };
@@ -2265,35 +2267,36 @@ static vcode_reg_t lower_builtin(lower_unit_t *lu, tree_t fcall,
       {
          vcode_type_t vreal = vtype_real(-DBL_MAX, DBL_MAX);
          vcode_type_t rtype = lower_type(tree_type(fcall));
-         return emit_cast(rtype, rtype,
-                          emit_mul(r0, emit_cast(vreal, vreal, r1)));
+         vcode_reg_t cast_reg = emit_cast(vreal, VCODE_INVALID_STAMP, r1);
+         return emit_cast(rtype, VCODE_INVALID_STAMP, emit_mul(r0, cast_reg));
       }
    case S_MUL_PR:
    case S_MUL_IR:
       {
          vcode_type_t vreal = vtype_real(-DBL_MAX, DBL_MAX);
          vcode_type_t rtype = lower_type(tree_type(fcall));
-         return emit_cast(rtype, rtype,
-                          emit_mul(emit_cast(vreal, vreal, r0), r1));
+         vcode_reg_t cast_reg = emit_cast(vreal, VCODE_INVALID_STAMP, r0);
+         return emit_cast(rtype, VCODE_INVALID_STAMP, emit_mul(cast_reg, r1));
       }
    case S_MUL_IP:
       {
          vcode_type_t rtype = lower_type(tree_type(fcall));
-         vcode_reg_t cast_reg = emit_cast(rtype, rtype, r0);
+         vcode_reg_t cast_reg = emit_cast(rtype, VCODE_INVALID_STAMP, r0);
          return emit_mul(cast_reg, r1);
       }
    case S_MUL_PI:
       {
          vcode_type_t rtype = lower_type(tree_type(fcall));
-         vcode_reg_t cast_reg = emit_cast(rtype, rtype, r1);
+         vcode_reg_t cast_reg = emit_cast(rtype, VCODE_INVALID_STAMP, r1);
          return emit_mul(r0, cast_reg);
       }
    case S_DIV_PR:
       {
          vcode_type_t vreal = vtype_real(-DBL_MAX, DBL_MAX);
          vcode_type_t rtype = lower_type(tree_type(fcall));
-         return emit_cast(rtype, rtype,
-                          emit_div(emit_cast(vreal, vreal, r0), r1));
+         vcode_reg_t cast_reg = emit_cast(vreal, VCODE_INVALID_STAMP, r0);
+         vcode_reg_t div = emit_div(cast_reg, r1);
+         return emit_cast(rtype, rtype, div);
       }
    case S_DIV_RI:
       {
@@ -2301,8 +2304,8 @@ static vcode_reg_t lower_builtin(lower_unit_t *lu, tree_t fcall,
          vcode_type_t rtype = lower_type(tree_type(fcall));
          vcode_reg_t locus = lower_debug_locus(fcall);
          emit_zero_check(r1, locus);
-         return emit_cast(rtype, rtype,
-                          emit_div(r0, emit_cast(vreal, vreal, r1)));
+         vcode_reg_t cast_reg = emit_cast(vreal, VCODE_INVALID_STAMP, r1);
+         return emit_cast(rtype, VCODE_INVALID_STAMP, emit_div(r0, cast_reg));
       }
    case S_DIV_PP:
       {
@@ -2310,14 +2313,14 @@ static vcode_reg_t lower_builtin(lower_unit_t *lu, tree_t fcall,
          emit_zero_check(r1, locus);
          vcode_reg_t div_reg = emit_div(r0, r1);
          vcode_type_t rtype = lower_type(tree_type(fcall));
-         return emit_cast(rtype, rtype, div_reg);
+         return emit_cast(rtype, VCODE_INVALID_STAMP, div_reg);
       }
    case S_DIV_PI:
       {
          vcode_reg_t locus = lower_debug_locus(fcall);
          emit_zero_check(r1, locus);
          vcode_type_t rtype = lower_type(tree_type(fcall));
-         vcode_reg_t cast_reg = emit_cast(rtype, rtype, r1);
+         vcode_reg_t cast_reg = emit_cast(rtype, VCODE_INVALID_STAMP, r1);
          return emit_div(r0, cast_reg);
       }
    case S_IEEE_AND:
@@ -2438,7 +2441,7 @@ static vcode_reg_t lower_context_for_mangled(lower_unit_t *lu,
          return emit_package_init(context_name, VCODE_INVALID_REG);
       else {
          vcode_type_t vcontext = vtype_context(context_name);
-         return emit_undefined(vcontext, vcontext);
+         return emit_undefined(vcontext, VCODE_INVALID_STAMP);
       }
    }
    else {
@@ -2502,7 +2505,7 @@ static vcode_reg_t lower_fcall(lower_unit_t *lu, tree_t fcall,
 
    type_t result = tree_type(fcall);
    vcode_type_t rtype = lower_func_result_type(result);
-   vcode_type_t rbounds = lower_bounds(result);
+   vcode_stamp_t rbounds = lower_bounds(result);
 
    return emit_fcall(name, rtype, rbounds, args.items, args.count);
 }
@@ -2568,7 +2571,7 @@ static vcode_reg_t lower_string_literal(tree_t lit, bool nest)
    assert(type_is_array(type));
 
    vcode_type_t elem = lower_type(type_elem(type));
-   vcode_type_t array_type = vtype_carray(nchars, elem, elem);
+   vcode_type_t array_type = vtype_carray(nchars, elem);
 
    vcode_reg_t array_reg = emit_const_array(array_type, tmp, nchars);
 
@@ -2762,7 +2765,7 @@ static vcode_reg_t lower_link_var(lower_unit_t *lu, tree_t decl)
          context = emit_package_init(container_name, VCODE_INVALID_REG);
       else {
          vcode_type_t vcontext = vtype_context(container_name);
-         context = emit_undefined(vcontext, vcontext);
+         context = emit_undefined(vcontext, VCODE_INVALID_STAMP);
       }
    }
    else if (is_package(container)) {
@@ -3238,7 +3241,8 @@ static vcode_reg_t lower_resolved(lower_unit_t *lu, type_t type,
       vcode_type_t vrtype = lower_func_result_type(type);
 
       vcode_reg_t args[] = { arg_reg };
-      return emit_fcall(helper_func, vrtype, vrtype, args, ARRAY_LEN(args));
+      return emit_fcall(helper_func, vrtype, VCODE_INVALID_STAMP, args,
+                        ARRAY_LEN(args));
    }
 }
 
@@ -3279,7 +3283,7 @@ static vcode_reg_t lower_array_off(lower_unit_t *lu, vcode_reg_t off,
       }
    }
 
-   return emit_cast(vtype_offset(), VCODE_INVALID_TYPE, zeroed);
+   return emit_cast(vtype_offset(), VCODE_INVALID_STAMP, zeroed);
 }
 
 static vcode_reg_t lower_array_ref(lower_unit_t *lu, tree_t ref, expr_ctx_t ctx)
@@ -3637,7 +3641,7 @@ static vcode_reg_t lower_record_aggregate(lower_unit_t *lu, tree_t expr,
       vcode_type_t vtype = lower_type(type);
       vcode_reg_t mem_reg = hint;
       if (mem_reg == VCODE_INVALID_REG) {
-         vcode_var_t tmp_var = lower_temp_var(lu, "record", vtype, vtype);
+         vcode_var_t tmp_var = lower_temp_var(lu, "record", vtype);
          mem_reg = emit_index(tmp_var, VCODE_INVALID_REG);
       }
 
@@ -3807,7 +3811,8 @@ static vcode_reg_t lower_aggregate_bounds(lower_unit_t *lu, tree_t expr,
       if (length_reg != VCODE_INVALID_REG) {
          vcode_type_t vindex = lower_type(index_type);
          vcode_reg_t delta_reg = emit_sub(length_reg, emit_const(voffset, 1));
-         vcode_reg_t cast_reg = emit_cast(vindex, vindex, delta_reg);
+         vcode_reg_t cast_reg =
+            emit_cast(vindex, VCODE_INVALID_STAMP, delta_reg);
 
          vcode_reg_t index_right_reg;
          lower_get_scalar_type_bounds(lu, index_type, &left_reg,
@@ -3973,8 +3978,7 @@ static vcode_reg_t lower_array_aggregate(lower_unit_t *lu, tree_t expr,
       // The array has non-constant bounds but the elements are all
       // constants so just create a constant array and wrap it
       vcode_type_t velem = lower_type(elem_type);
-      vcode_type_t vbounds = lower_bounds(elem_type);
-      vcode_type_t vtype = vtype_carray(nassocs, velem, vbounds);
+      vcode_type_t vtype = vtype_carray(nassocs, velem);
 
       vcode_reg_t array_reg = emit_const_array(vtype, value_regs, nassocs);
       vcode_reg_t mem_reg = emit_address_of(array_reg);
@@ -3995,7 +3999,7 @@ static vcode_reg_t lower_array_aggregate(lower_unit_t *lu, tree_t expr,
    bool known_not_null = false;
    if (vcode_reg_const(null_reg, &null_const)) {
       if (null_const) {
-         vcode_type_t vtype = vtype_carray(0, velem, vbounds);
+         vcode_type_t vtype = vtype_carray(0, velem);
          vcode_reg_t mem_reg =
             emit_address_of(emit_const_array(vtype, NULL, 0));
 
@@ -4085,7 +4089,7 @@ static vcode_reg_t lower_array_aggregate(lower_unit_t *lu, tree_t expr,
          vcode_block_t loop_bb = emit_block();
          vcode_block_t exit_bb = emit_block();
 
-         vcode_var_t i_var = lower_temp_var(lu, "i", voffset, voffset);
+         vcode_var_t i_var = lower_temp_var(lu, "i", voffset);
          emit_store(emit_const(voffset, 0), i_var);
 
          // TODO: this is a hack to work around the lack of a block
@@ -4181,7 +4185,8 @@ static vcode_reg_t lower_array_aggregate(lower_unit_t *lu, tree_t expr,
                vcode_reg_t locus = lower_debug_locus(a);
                vcode_reg_t hint = lower_debug_locus(index_r);
 
-               vcode_reg_t off_cast_reg = emit_cast(vindex, vindex, off_reg);
+               vcode_reg_t off_cast_reg =
+                  emit_cast(vindex, VCODE_INVALID_STAMP, off_reg);
                vcode_reg_t index_reg = emit_add(low_reg, off_cast_reg);
 
                emit_index_check(index_reg, left_reg, right_reg,
@@ -4199,7 +4204,8 @@ static vcode_reg_t lower_array_aggregate(lower_unit_t *lu, tree_t expr,
                vcode_reg_t locus = lower_debug_locus(a);
                vcode_reg_t hint = lower_debug_locus(index_r);
 
-               vcode_reg_t off_cast_reg = emit_cast(vindex, vindex, off_reg);
+               vcode_reg_t off_cast_reg =
+                  emit_cast(vindex, VCODE_INVALID_STAMP, off_reg);
                vcode_reg_t index_reg = emit_add(low_reg, off_cast_reg);
 
                if (i == 0)
@@ -4207,8 +4213,9 @@ static vcode_reg_t lower_array_aggregate(lower_unit_t *lu, tree_t expr,
                                    dir_reg, locus, hint);
                else if (i == last_pos) {
                   vcode_reg_t one_reg = emit_const(vindex, 1);
-                  vcode_reg_t next_index_reg =
-                     emit_sub(emit_cast(vindex, vindex, count_reg), one_reg);
+                  vcode_reg_t cast_reg =
+                     emit_cast(vindex, VCODE_INVALID_STAMP, count_reg);
+                  vcode_reg_t next_index_reg = emit_sub(cast_reg, one_reg);
                   vcode_reg_t high_index_reg =
                      emit_add(index_reg, next_index_reg);
 
@@ -4250,10 +4257,7 @@ static vcode_reg_t lower_array_aggregate(lower_unit_t *lu, tree_t expr,
             emit_index_check(r_right_reg, left_reg, right_reg, dir_reg,
                              locus, locus);
 
-            vcode_type_t vtype   = lower_type(rtype);
-            vcode_type_t vbounds = lower_bounds(rtype);
-
-            tmp_var = lower_temp_var(lu, "i", vtype, vbounds);
+            tmp_var = lower_temp_var(lu, "i", lower_type(rtype));
             emit_store(r_left_reg, tmp_var);
 
             vcode_reg_t null_reg =
@@ -4473,7 +4477,7 @@ static void lower_new_record(lower_unit_t *lu, type_t type,
       ident_t helper_func = ident_prefix(base_id, ident_new("new"), '$');
 
       vcode_reg_t args[] = { dst_ptr, src_ptr };
-      emit_fcall(helper_func, VCODE_INVALID_TYPE, VCODE_INVALID_TYPE,
+      emit_fcall(helper_func, VCODE_INVALID_TYPE, VCODE_INVALID_STAMP,
                  args, ARRAY_LEN(args));
    }
 }
@@ -4592,7 +4596,7 @@ static vcode_reg_t lower_incomplete_access(vcode_reg_t in_reg, type_t type)
 
    if (have_incomplete ^ have_opaque) {
       vcode_type_t ptr_type = vtype_access(lower_type(type));
-      return emit_cast(ptr_type, ptr_type, in_reg);
+      return emit_cast(ptr_type, VCODE_INVALID_STAMP, in_reg);
    }
 
    return in_reg;
@@ -4676,15 +4680,14 @@ static vcode_reg_t lower_conversion(lower_unit_t *lu, vcode_reg_t value_reg,
 
    if (from_k == T_REAL && to_k == T_INTEGER) {
       vcode_type_t vtype = lower_type(to);
-      vcode_type_t vbounds = vtype_int(INT64_MIN, INT64_MAX);
+      vcode_type_t vbounds = vstamp_int(INT64_MIN, INT64_MAX);
       vcode_reg_t cast = emit_cast(vtype, vbounds, value_reg);
       lower_check_scalar_bounds(lu, cast, to, where, NULL);
       return cast;
    }
    else if (from_k == T_INTEGER && to_k == T_REAL) {
       vcode_type_t vtype = lower_type(to);
-      vcode_type_t vbounds = vtype_real((double)INT64_MIN, (double)INT64_MAX);
-      return emit_cast(vtype, vbounds, value_reg);
+      return emit_cast(vtype, VCODE_INVALID_STAMP, value_reg);
    }
    else if (from_k == T_ARRAY && to_k == T_ARRAY) {
       type_t from_e = type_elem_recur(from);
@@ -4705,7 +4708,7 @@ static vcode_reg_t lower_conversion(lower_unit_t *lu, vcode_reg_t value_reg,
          vcode_reg_t zero_reg = emit_const(voffset, 0);
          vcode_reg_t data_reg = lower_array_data(value_reg);
 
-         vcode_var_t i_var = lower_temp_var(lu, "i", voffset, voffset);
+         vcode_var_t i_var = lower_temp_var(lu, "i", voffset);
          emit_store(zero_reg, i_var);
 
          vcode_block_t body_bb = emit_block();
@@ -4758,7 +4761,7 @@ static vcode_reg_t lower_conversion(lower_unit_t *lu, vcode_reg_t value_reg,
    }
    else if (from_k == T_RECORD && to_k == T_RECORD) {
       vcode_type_t vtype_to = lower_type(to);
-      vcode_var_t tmp_var = lower_temp_var(lu, "conv", vtype_to, vtype_to);
+      vcode_var_t tmp_var = lower_temp_var(lu, "conv", vtype_to);
       vcode_reg_t ptr_reg = emit_index(tmp_var, VCODE_INVALID_REG);
       lower_convert_record(lu, value_reg, where, from, to, ptr_reg);
       return ptr_reg;
@@ -4814,7 +4817,8 @@ static vcode_reg_t lower_driving_value(lower_unit_t *lu, tree_t name)
       vcode_type_t vrtype = lower_func_result_type(base);
 
       vcode_reg_t args[] = { arg_reg };
-      return emit_fcall(helper_func, vrtype, vrtype, args, ARRAY_LEN(args));
+      return emit_fcall(helper_func, vrtype, VCODE_INVALID_STAMP, args,
+                        ARRAY_LEN(args));
    }
 }
 
@@ -4968,7 +4972,7 @@ static vcode_reg_t lower_attr_ref(lower_unit_t *lu, tree_t expr)
          vcode_reg_t len_reg =
             lower_array_len(lu, tree_type(name), dim, name_reg);
          return emit_cast(lower_type(tree_type(expr)),
-                          VCODE_INVALID_TYPE, len_reg);
+                          VCODE_INVALID_STAMP, len_reg);
       }
 
    case ATTR_ELEMENT:
@@ -5024,7 +5028,8 @@ static vcode_reg_t lower_attr_ref(lower_unit_t *lu, tree_t expr)
 
             vcode_type_t vtime = vtype_time();
             vcode_reg_t args[] = { arg_reg };
-            return emit_fcall(helper_func, vtime, vtime, args, ARRAY_LEN(args));
+            return emit_fcall(helper_func, vtime, VCODE_INVALID_STAMP,
+                              args, ARRAY_LEN(args));
          }
       }
 
@@ -5047,8 +5052,8 @@ static vcode_reg_t lower_attr_ref(lower_unit_t *lu, tree_t expr)
    case ATTR_PATH_NAME:
       if (lu->mode == LOWER_THUNK) {
          vcode_type_t vchar = vtype_char();
-         vcode_type_t vstring = vtype_uarray(1, vchar, vchar);
-         return emit_undefined(vstring, vchar);
+         vcode_type_t vstring = vtype_uarray(1, vchar);
+         return emit_undefined(vstring, VCODE_INVALID_STAMP);
       }
       else
          return lower_name_attr(lu, tree_ref(name), predef);
@@ -5068,12 +5073,13 @@ static vcode_reg_t lower_attr_ref(lower_unit_t *lu, tree_t expr)
          type_t base = type_base_recur(type);
          ident_t func = ident_prefix(type_ident(base), ident_new("image"), '$');
          vcode_type_t ctype = vtype_char();
-         vcode_type_t strtype = vtype_uarray(1, ctype, ctype);
+         vcode_type_t strtype = vtype_uarray(1, ctype);
 
          vcode_reg_t arg_reg = lower_attr_param(lu, value, base, C_CONSTANT);
 
          vcode_reg_t args[] = { arg_reg };
-         return emit_fcall(func, strtype, strtype, args, ARRAY_LEN(args));
+         return emit_fcall(func, strtype, VCODE_INVALID_STAMP, args,
+                           ARRAY_LEN(args));
       }
 
    case ATTR_VALUE:
@@ -5194,8 +5200,7 @@ static vcode_reg_t lower_cond_value(lower_unit_t *lu, tree_t expr)
    // TODO: vcode really needs phi nodes...
    type_t type = tree_type(expr);
    vcode_type_t vtype = lower_type(type);
-   vcode_type_t vbounds = lower_bounds(type);
-   vcode_var_t temp_var = lower_temp_var(lu, "cond", vtype, vbounds);
+   vcode_var_t temp_var = lower_temp_var(lu, "cond", vtype);
 
    const int nconds = tree_conds(expr);
    for (int i = 0; i < nconds; i++) {
@@ -5385,7 +5390,7 @@ static vcode_reg_t lower_default_value(lower_unit_t *lu, type_t type,
       else {
          // Loop to initialise the array
          vcode_type_t voffset = vtype_offset();
-         vcode_var_t i_var = lower_temp_var(lu, "i", voffset, voffset);
+         vcode_var_t i_var = lower_temp_var(lu, "i", voffset);
          emit_store(emit_const(voffset, 0), i_var);
 
          vcode_block_t body_bb = emit_block();
@@ -5429,7 +5434,7 @@ static vcode_reg_t lower_default_value(lower_unit_t *lu, type_t type,
 
       vcode_reg_t mem_reg = hint_reg;
       if (hint_reg == VCODE_INVALID_REG) {
-         vcode_var_t tmp_var = lower_temp_var(lu, "def", vtype, vtype);
+         vcode_var_t tmp_var = lower_temp_var(lu, "def", vtype);
          mem_reg = emit_index(tmp_var, VCODE_INVALID_REG);
       }
 
@@ -5660,7 +5665,7 @@ static vcode_reg_t lower_call_now(void)
    vcode_type_t rtype = vtype_time();
    vcode_reg_t context_reg = emit_link_package(well_known(W_STD_STANDARD));
    vcode_reg_t args[1] = { context_reg };
-   return emit_fcall(func, rtype, rtype, args, ARRAY_LEN(args));
+   return emit_fcall(func, rtype, VCODE_INVALID_STAMP, args, ARRAY_LEN(args));
 }
 
 static void lower_wait(lower_unit_t *lu, tree_t wait)
@@ -5693,7 +5698,7 @@ static void lower_wait(lower_unit_t *lu, tree_t wait)
       remain = vcode_find_var(remain_i);
       if (remain == VCODE_INVALID_VAR) {
          vcode_type_t time = vtype_time();
-         remain = emit_var(time, time, remain_i, 0);
+         remain = emit_var(time, VCODE_INVALID_STAMP, remain_i, 0);
       }
 
       vcode_reg_t now_reg = lower_call_now();
@@ -5888,7 +5893,7 @@ static void lower_copy_record(lower_unit_t *lu, type_t type,
       ident_t helper_func = ident_prefix(base_id, ident_new("copy"), '$');
 
       vcode_reg_t args[] = { dst_ptr, src_ptr, locus };
-      emit_fcall(helper_func, VCODE_INVALID_TYPE, VCODE_INVALID_TYPE,
+      emit_fcall(helper_func, VCODE_INVALID_TYPE, VCODE_INVALID_STAMP,
                  args, ARRAY_LEN(args));
    }
 }
@@ -5917,7 +5922,7 @@ static void lower_copy_array(lower_unit_t *lu, type_t dst_type, type_t src_type,
       assert(vcode_reg_kind(src_array) == VCODE_TYPE_UARRAY);
 
       vcode_reg_t args[] = { dst_array, src_array, locus };
-      emit_fcall(helper_func, VCODE_INVALID_TYPE, VCODE_INVALID_TYPE,
+      emit_fcall(helper_func, VCODE_INVALID_TYPE, VCODE_INVALID_STAMP,
                  args, ARRAY_LEN(args));
    }
 }
@@ -6265,8 +6270,7 @@ static void lower_signal_assign(lower_unit_t *lu, tree_t stmt)
                type_t ptype = tree_type(ptr->target);
 
                vcode_type_t vtype = lower_type(ptype);
-               vcode_type_t vbounds = lower_bounds(ptype);
-               tmp_var = lower_temp_var(lu, "tmp", vtype, vbounds);
+               tmp_var = lower_temp_var(lu, "tmp", vtype);
 
                vcode_reg_t hint_reg  = emit_index(tmp_var, VCODE_INVALID_REG);
                rhs = lower_aggregate(lu, wvalue, hint_reg);
@@ -6580,7 +6584,7 @@ static void lower_pcall(lower_unit_t *lu, tree_t pcall)
    }
 
    if (use_fcall)
-      emit_fcall(func, VCODE_INVALID_TYPE, VCODE_INVALID_TYPE,
+      emit_fcall(func, VCODE_INVALID_TYPE, VCODE_INVALID_STAMP,
                  args.items, args.count);
    else {
       vcode_block_t resume_bb = emit_block();
@@ -6665,7 +6669,7 @@ static void lower_for(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
    tree_t idecl = tree_decl(stmt, 0);
 
    vcode_type_t vtype  = lower_type(tree_type(idecl));
-   vcode_type_t bounds = vtype;
+   vcode_stamp_t bounds = VCODE_INVALID_STAMP;
 
    vcode_reg_t step_down = emit_const(vtype, -1);
    vcode_reg_t step_up   = emit_const(vtype, 1);
@@ -6676,10 +6680,10 @@ static void lower_for(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
    const bool is_wait_free = lower_is_wait_free(lu, stmt);
    vcode_var_t right_var = VCODE_INVALID_VAR, step_var = VCODE_INVALID_VAR;
    if (!is_wait_free) {
-      right_var = lower_temp_var(lu, "right", vtype, vtype);
+      right_var = lower_temp_var(lu, "right", vtype);
       emit_store(right_reg, right_var);
 
-      step_var = lower_temp_var(lu, "step", vtype, vtype);
+      step_var = lower_temp_var(lu, "step", vtype);
       emit_store(step_reg, step_var);
    }
 
@@ -6687,13 +6691,13 @@ static void lower_for(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
    const bool l_is_const = vcode_reg_const(left_reg, &lconst);
    const bool r_is_const = vcode_reg_const(right_reg, &rconst);
    if (l_is_const && r_is_const)
-      bounds = vtype_int(MIN(lconst, rconst), MAX(lconst, rconst));
+      bounds = vstamp_int(MIN(lconst, rconst), MAX(lconst, rconst));
    else if ((l_is_const || r_is_const) && vcode_reg_const(dir_reg, &dconst)) {
       if (dconst == RANGE_TO)
-         bounds = vtype_int(l_is_const ? lconst : vtype_low(vtype),
+         bounds = vstamp_int(l_is_const ? lconst : vtype_low(vtype),
                             r_is_const ? rconst : vtype_high(vtype));
       else
-         bounds = vtype_int(r_is_const ? rconst : vtype_low(vtype),
+         bounds = vstamp_int(r_is_const ? rconst : vtype_low(vtype),
                             l_is_const ? lconst : vtype_high(vtype));
    }
 
@@ -7075,15 +7079,16 @@ static void lower_case_array(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
          vcode_reg_t ptr_reg = emit_array_ref(data_ptr, i_reg);
          vcode_reg_t byte_reg = emit_load_indirect(ptr_reg);
          enc_reg = emit_mul(enc_reg, emit_const(enc_type, 1 << nbits));
-         enc_reg = emit_add(enc_reg, emit_cast(enc_type, enc_type, byte_reg));
+         enc_reg = emit_add(enc_reg, emit_cast(enc_type, VCODE_INVALID_STAMP,
+                                               byte_reg));
       }
    }
    else {
       enc_type = vint64;
-      vcode_var_t enc_var = lower_temp_var(lu, "enc", enc_type, enc_type);
+      vcode_var_t enc_var = lower_temp_var(lu, "enc", enc_type);
       emit_store(emit_const(enc_type, 0), enc_var);
 
-      vcode_var_t i_var = lower_temp_var(lu, "i", voffset, voffset);
+      vcode_var_t i_var = lower_temp_var(lu, "i", voffset);
       emit_store(emit_const(voffset, 0), i_var);
 
       vcode_block_t body_bb = emit_block();
@@ -7102,7 +7107,8 @@ static void lower_case_array(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
          tmp_reg = emit_mul(tmp_reg, emit_const(enc_type, 1 << nbits));
       else
          tmp_reg = emit_mul(tmp_reg, emit_const(enc_type, 0x27d4eb2d));
-      tmp_reg = emit_add(tmp_reg, emit_cast(enc_type, enc_type, byte_reg));
+      tmp_reg = emit_add(tmp_reg, emit_cast(enc_type, VCODE_INVALID_STAMP,
+                                            byte_reg));
       emit_store(tmp_reg, enc_var);
 
       vcode_reg_t i_next = emit_add(i_reg, emit_const(voffset, 1));
@@ -7188,7 +7194,8 @@ static void lower_case_array(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
                   name_reg = lower_wrap(lu, tree_type(name), name_reg);
 
                vcode_reg_t args[] = { name_reg, val_reg };
-               vcode_reg_t eq_reg = emit_fcall(cmp_func, vbool, vbool, args,
+               vcode_reg_t eq_reg = emit_fcall(cmp_func, vbool,
+                                               VCODE_INVALID_STAMP, args,
                                                ARRAY_LEN(args));
                emit_cond(eq_reg, hit_bb, chain_bb);
             }
@@ -7325,7 +7332,7 @@ static void lower_match_case(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
             vcode_reg_t dir_reg   = lower_range_dir(lu, r);
 
             if (tmp_var == VCODE_INVALID_VAR)
-               tmp_var = lower_temp_var(lu, "i", vscalar, vscalar);
+               tmp_var = lower_temp_var(lu, "i", vscalar);
 
             emit_store(left_reg, tmp_var);
 
@@ -7361,7 +7368,7 @@ static void lower_match_case(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
          }
 
          vcode_reg_t args[] = { value_reg, test_reg };
-         vcode_reg_t result_reg = emit_fcall(func, vscalar, vscalar,
+         vcode_reg_t result_reg = emit_fcall(func, vscalar, VCODE_INVALID_STAMP,
                                              args, ARRAY_LEN(args));
          vcode_reg_t cmp_reg = emit_cmp(VCODE_CMP_EQ, result_reg, true_reg);
 
@@ -7724,7 +7731,7 @@ static void lower_resolution_wrapper(lower_unit_t *lu, object_t *obj)
    tree_t r = range_of(type_index(uarray_param, 0), 0);
 
    vcode_type_t velem = lower_type(type_elem_recur(elem));
-   vcode_reg_t vbounds = lower_bounds(elem);
+   vcode_stamp_t vbounds = lower_bounds(elem);
    vcode_type_t rtype = lower_func_result_type(type);
    vcode_type_t atype = vtype_pointer(velem);
    vcode_type_t vuint32 = vtype_int(0, UINT32_MAX);
@@ -7733,14 +7740,15 @@ static void lower_resolution_wrapper(lower_unit_t *lu, object_t *obj)
    vcode_set_result(rtype);
 
    vcode_type_t vcontext = vtype_context(lu->parent->name);
-   emit_param(vcontext, vcontext, ident_new("context"));
+   emit_param(vcontext, VCODE_INVALID_STAMP, ident_new("context"));
 
    vcode_reg_t data_reg = emit_param(atype, vbounds, ident_new("p"));
-   vcode_reg_t count_reg = emit_param(vuint32, vuint32, ident_new("count"));
+   vcode_reg_t count_reg = emit_param(vuint32, VCODE_INVALID_STAMP,
+                                      ident_new("count"));
 
    vcode_reg_t left_reg = emit_const(voffset, assume_int(tree_left(r)));
    vcode_reg_t one_reg = emit_const(voffset, 1);
-   vcode_reg_t cast_reg = emit_cast(voffset, voffset, count_reg);
+   vcode_reg_t cast_reg = emit_cast(voffset, VCODE_INVALID_STAMP, count_reg);
    vcode_reg_t right_reg = emit_sub(emit_add(left_reg, cast_reg), one_reg);
 
    vcode_dim_t dims[] = {
@@ -7811,7 +7819,8 @@ static void lower_resolution_var(lower_unit_t *lu, tree_t decl, type_t type)
       emit_resolution_wrapper(rtype, closure_reg, nlits_reg);
 
    vcode_type_t vresolution = vcode_reg_type(wrapper_reg);
-   vcode_var_t var = emit_var(vresolution, vresolution, name, VAR_CONST);
+   vcode_var_t var = emit_var(vresolution, VCODE_INVALID_STAMP,
+                              name, VAR_CONST);
    emit_store(wrapper_reg, var);
 
    lower_put_vcode_obj(type, var, lu);
@@ -7986,7 +7995,7 @@ static void lower_sub_signals(lower_unit_t *lu, type_t type, type_t var_type,
       }
 
       vcode_type_t voffset = vtype_offset();
-      vcode_var_t i_var = lower_temp_var(lu, "i", voffset, voffset);
+      vcode_var_t i_var = lower_temp_var(lu, "i", voffset);
       emit_store(emit_const(voffset, 0), i_var);
 
       emit_array_scope(locus, lower_type(type));
@@ -8277,9 +8286,9 @@ static void lower_implicit_transaction(lower_unit_t *lu, object_t *obj)
    vcode_set_result(vtype);
 
    vcode_type_t vcontext = vtype_context(lu->parent->name);
-   emit_param(vcontext, vcontext, ident_new("context"));
+   emit_param(vcontext, VCODE_INVALID_STAMP, ident_new("context"));
 
-   vcode_reg_t preg = emit_param(vtype, vtype, ident_new("p"));
+   vcode_reg_t preg = emit_param(vtype, VCODE_INVALID_STAMP, ident_new("p"));
    emit_return(emit_not(preg));
 }
 
@@ -8292,7 +8301,7 @@ static void lower_implicit_stable(lower_unit_t *lu, object_t *obj)
    vcode_set_result(vtype);
 
    vcode_type_t vcontext = vtype_context(lu->parent->name);
-   emit_param(vcontext, vcontext, ident_new("context"));
+   emit_param(vcontext, VCODE_INVALID_STAMP, ident_new("context"));
 
    tree_t w = tree_value(decl);
    assert(tree_kind(w) == T_WAVEFORM);
@@ -8315,7 +8324,7 @@ static void lower_implicit_guard(lower_unit_t *lu, object_t *obj)
    vcode_set_result(vtype);
 
    vcode_type_t vcontext = vtype_context(lu->parent->name);
-   emit_param(vcontext, vcontext, ident_new("context"));
+   emit_param(vcontext, VCODE_INVALID_STAMP, ident_new("context"));
 
    tree_t expr = tree_value(decl);
 
@@ -8332,7 +8341,7 @@ static void lower_implicit_decl(lower_unit_t *parent, tree_t decl)
 
    vcode_type_t signal_type = lower_signal_type(type);
    vcode_type_t vtype = lower_type(type);
-   vcode_type_t vbounds = lower_bounds(type);
+   vcode_stamp_t vbounds = lower_bounds(type);
    vcode_var_t var = emit_var(signal_type, vbounds, name, VAR_SIGNAL);
    lower_put_vcode_obj(decl, var, parent);
 
@@ -8468,7 +8477,8 @@ static void lower_file_decl(lower_unit_t *lu, tree_t decl)
 {
    type_t type = tree_type(decl);
    vcode_type_t vtype = lower_type(type);
-   vcode_var_t var = emit_var(vtype, vtype, tree_ident(decl), 0);
+   vcode_stamp_t vbounds = lower_bounds(type);
+   vcode_var_t var = emit_var(vtype, vbounds, tree_ident(decl), 0);
    lower_put_vcode_obj(decl, var, lu);
 
    emit_store(emit_null(vtype), var);
@@ -8511,8 +8521,7 @@ static vcode_type_t lower_alias_type(tree_t alias)
          return VCODE_INVALID_TYPE;
       }
 
-      vcode_type_t vbounds = lower_bounds(type);
-      return vtype_uarray(dims_for_type(type), velem, vbounds);
+      return vtype_uarray(dims_for_type(type), velem);
    }
    else
       return VCODE_INVALID_TYPE;
@@ -8576,7 +8585,7 @@ static void lower_character_array_image_helper(lower_unit_t *lu, type_t type,
       map[i] = emit_const(ctype, ident_char(id, 1));
    }
 
-   vcode_type_t map_vtype = vtype_carray(nlits, ctype, ctype);
+   vcode_type_t map_vtype = vtype_carray(nlits, ctype);
    vcode_reg_t map_reg = emit_const_array(map_vtype, map, nlits);
 
    vcode_reg_t zero_reg = emit_const(voffset, 0);
@@ -8587,9 +8596,9 @@ static void lower_character_array_image_helper(lower_unit_t *lu, type_t type,
    vcode_reg_t data_reg = lower_array_data(preg);
    vcode_reg_t total_reg = quote ? emit_add(length_reg, two_reg) : length_reg;
 
-   vcode_reg_t mem_reg = emit_alloc(ctype, ctype, total_reg);
+   vcode_reg_t mem_reg = emit_alloc(ctype, VCODE_INVALID_STAMP, total_reg);
 
-   vcode_var_t i_var = lower_temp_var(lu, "i", voffset, voffset);
+   vcode_var_t i_var = lower_temp_var(lu, "i", voffset);
    emit_store(zero_reg, i_var);
 
    if (quote) {
@@ -8609,7 +8618,7 @@ static void lower_character_array_image_helper(lower_unit_t *lu, type_t type,
    vcode_reg_t i_reg    = emit_load(i_var);
    vcode_reg_t sptr_reg = emit_array_ref(data_reg, i_reg);
    vcode_reg_t src_reg  = emit_load_indirect(sptr_reg);
-   vcode_reg_t off_reg  = emit_cast(voffset, voffset, src_reg);
+   vcode_reg_t off_reg  = emit_cast(voffset, VCODE_INVALID_STAMP, src_reg);
    vcode_reg_t lptr_reg = emit_array_ref(emit_address_of(map_reg), off_reg);
    vcode_reg_t doff_reg = quote ? emit_add(i_reg, one_reg) : i_reg;
    vcode_reg_t dptr_reg = emit_array_ref(mem_reg, doff_reg);
@@ -8650,12 +8659,12 @@ static void lower_enum_value_helper(lower_unit_t *lu, type_t type,
 
    vcode_type_t voffset = vtype_offset();
    vcode_type_t vchar = vtype_char();
-   vcode_type_t vstring = vtype_uarray(1, vchar, vchar);
+   vcode_type_t vstring = vtype_uarray(1, vchar);
 
    ident_t canon_fn = ident_new("NVC.TEXT_UTIL.CANON_VALUE(S)S");
    vcode_reg_t text_util_reg = emit_link_package(well_known(W_TEXT_UTIL));
    vcode_reg_t canon_args[] = { text_util_reg, preg };
-   vcode_reg_t canon_reg = emit_fcall(canon_fn, vstring, vchar,
+   vcode_reg_t canon_reg = emit_fcall(canon_fn, vstring, VCODE_INVALID_STAMP,
                                       canon_args, ARRAY_LEN(canon_args));
    vcode_reg_t canon_len_reg  = emit_uarray_len(canon_reg, 0);
 
@@ -8667,7 +8676,7 @@ static void lower_enum_value_helper(lower_unit_t *lu, type_t type,
       stride = MAX(stride, len);
    }
 
-   vcode_type_t len_array_type = vtype_carray(nlits, voffset, voffset);
+   vcode_type_t len_array_type = vtype_carray(nlits, voffset);
    vcode_reg_t len_array_reg =
       emit_const_array(len_array_type, len_regs, nlits);
    vcode_reg_t len_array_ptr = emit_address_of(len_array_reg);
@@ -8683,12 +8692,12 @@ static void lower_enum_value_helper(lower_unit_t *lu, type_t type,
          char_regs[(i * stride) + pos] = emit_const(vchar, 0);
    }
 
-   vcode_type_t char_array_type = vtype_carray(nchars, vchar, vchar);
+   vcode_type_t char_array_type = vtype_carray(nchars, vchar);
    vcode_reg_t char_array_reg =
       emit_const_array(char_array_type, char_regs, nchars);
    vcode_reg_t char_array_ptr = emit_address_of(char_array_reg);
 
-   vcode_var_t i_var = lower_temp_var(lu, "i", voffset, voffset);
+   vcode_var_t i_var = lower_temp_var(lu, "i", voffset);
    emit_store(emit_const(voffset, 0), i_var);
 
    vcode_block_t head_bb = emit_block();
@@ -8727,8 +8736,8 @@ static void lower_enum_value_helper(lower_unit_t *lu, type_t type,
 
    vcode_type_t vbool = vtype_bool();
    vcode_reg_t str_cmp_args[] = { str_reg, canon_reg };
-   vcode_reg_t eq_reg = emit_fcall(func, vbool, vbool, str_cmp_args,
-                                   ARRAY_LEN(str_cmp_args));
+   vcode_reg_t eq_reg = emit_fcall(func, vbool, VCODE_INVALID_STAMP,
+                                   str_cmp_args, ARRAY_LEN(str_cmp_args));
    emit_cond(eq_reg, match_bb, skip_bb);
 
    vcode_select_block(skip_bb);
@@ -8751,7 +8760,7 @@ static void lower_enum_value_helper(lower_unit_t *lu, type_t type,
    vcode_reg_t const_str_len = emit_uarray_len(const_str_reg, 0);
    vcode_reg_t extra_len = emit_add(const_str_len, emit_const(voffset, 1));
    vcode_reg_t msg_len = emit_add(arg_len_reg, extra_len);
-   vcode_reg_t mem_reg = emit_alloc(vchar, vchar, msg_len);
+   vcode_reg_t mem_reg = emit_alloc(vchar, VCODE_INVALID_STAMP, msg_len);
 
    emit_store_indirect(emit_const(vchar, '\"'), mem_reg);
 
@@ -8783,15 +8792,15 @@ static void lower_physical_value_helper(lower_unit_t *lu, type_t type,
    vcode_type_t voffset = vtype_offset();
    vcode_type_t vchar = vtype_char();
    vcode_type_t vint64 = vtype_int(INT64_MIN, INT64_MAX);
-   vcode_type_t vstring = vtype_uarray(1, vchar, vchar);
+   vcode_type_t vstring = vtype_uarray(1, vchar);
 
    vcode_type_t vstdint = (standard() < STD_19)
       ? vtype_int(INT32_MIN, INT32_MAX) : vtype_int(INT64_MIN, INT64_MAX);
 
-   vcode_var_t used_var = lower_temp_var(lu, "used", vstdint, vstdint);
+   vcode_var_t used_var = lower_temp_var(lu, "used", vstdint);
    vcode_reg_t used_ptr = emit_index(used_var, VCODE_INVALID_REG);
 
-   vcode_var_t int_var = lower_temp_var(lu, "int", vint64, vint64);
+   vcode_var_t int_var = lower_temp_var(lu, "int", vint64);
    vcode_reg_t int_ptr = emit_index(int_var, VCODE_INVALID_REG);
 
    ident_t conv_fn =
@@ -8803,11 +8812,12 @@ static void lower_physical_value_helper(lower_unit_t *lu, type_t type,
       int_ptr,
       used_ptr,
    };
-   emit_fcall(conv_fn, VCODE_INVALID_TYPE, VCODE_INVALID_TYPE,
+   emit_fcall(conv_fn, VCODE_INVALID_TYPE, VCODE_INVALID_STAMP,
               conv_args, ARRAY_LEN(conv_args));
 
    vcode_reg_t int_reg = emit_load(int_var);
-   vcode_reg_t used_reg = emit_cast(voffset, voffset, emit_load(used_var));
+   vcode_reg_t used_reg =
+      emit_cast(voffset, VCODE_INVALID_STAMP, emit_load(used_var));
 
    vcode_reg_t tail_ptr = emit_array_ref(arg_data_reg, used_reg);
    vcode_reg_t tail_len = emit_sub(arg_len_reg, used_reg);
@@ -8828,7 +8838,7 @@ static void lower_physical_value_helper(lower_unit_t *lu, type_t type,
       text_util_reg,
       tail_reg,
    };
-   vcode_reg_t canon_reg = emit_fcall(canon_fn, vstring, vchar,
+   vcode_reg_t canon_reg = emit_fcall(canon_fn, vstring, VCODE_INVALID_STAMP,
                                       canon_args, ARRAY_LEN(canon_args));
    vcode_reg_t canon_len_reg = emit_uarray_len(canon_reg, 0);
 
@@ -8845,15 +8855,15 @@ static void lower_physical_value_helper(lower_unit_t *lu, type_t type,
       stride = MAX(stride, len);
 
       vcode_reg_t value_reg = lower_rvalue(lu, tree_value(unit));
-      mul_regs[i] = emit_cast(vint64, vint64, value_reg);
+      mul_regs[i] = emit_cast(vint64, VCODE_INVALID_STAMP, value_reg);
    }
 
-   vcode_type_t len_array_type = vtype_carray(nunits, voffset, voffset);
+   vcode_type_t len_array_type = vtype_carray(nunits, voffset);
    vcode_reg_t len_array_reg =
       emit_const_array(len_array_type, len_regs, nunits);
    vcode_reg_t len_array_ptr = emit_address_of(len_array_reg);
 
-   vcode_type_t mul_array_type = vtype_carray(nunits, vint64, vint64);
+   vcode_type_t mul_array_type = vtype_carray(nunits, vint64);
    vcode_reg_t mul_array_reg =
       emit_const_array(mul_array_type, mul_regs, nunits);
    vcode_reg_t mul_array_ptr = emit_address_of(mul_array_reg);
@@ -8869,12 +8879,12 @@ static void lower_physical_value_helper(lower_unit_t *lu, type_t type,
          char_regs[(i * stride) + pos] = emit_const(vchar, 0);
    }
 
-   vcode_type_t char_array_type = vtype_carray(nchars, vchar, vchar);
+   vcode_type_t char_array_type = vtype_carray(nchars, vchar);
    vcode_reg_t char_array_reg =
       emit_const_array(char_array_type, char_regs, nchars);
    vcode_reg_t char_array_ptr = emit_address_of(char_array_reg);
 
-   vcode_var_t i_var = lower_temp_var(lu, "i", voffset, voffset);
+   vcode_var_t i_var = lower_temp_var(lu, "i", voffset);
    emit_store(emit_const(voffset, 0), i_var);
 
    vcode_block_t head_bb = emit_block();
@@ -8913,8 +8923,8 @@ static void lower_physical_value_helper(lower_unit_t *lu, type_t type,
 
    vcode_type_t vbool = vtype_bool();
    vcode_reg_t str_cmp_args[] = { str_reg, canon_reg };
-   vcode_reg_t eq_reg = emit_fcall(func, vbool, vbool, str_cmp_args,
-                                   ARRAY_LEN(str_cmp_args));
+   vcode_reg_t eq_reg = emit_fcall(func, vbool, VCODE_INVALID_STAMP,
+                                   str_cmp_args, ARRAY_LEN(str_cmp_args));
    emit_cond(eq_reg, match_bb, skip_bb);
 
    vcode_select_block(skip_bb);
@@ -8936,7 +8946,7 @@ static void lower_physical_value_helper(lower_unit_t *lu, type_t type,
    vcode_reg_t const_str_len = emit_uarray_len(const_str_reg, 0);
    vcode_reg_t extra_len = emit_add(const_str_len, emit_const(voffset, 1));
    vcode_reg_t msg_len = emit_add(tail_len, extra_len);
-   vcode_reg_t mem_reg = emit_alloc(vchar, vchar, msg_len);
+   vcode_reg_t mem_reg = emit_alloc(vchar, VCODE_INVALID_STAMP, msg_len);
 
    emit_store_indirect(emit_const(vchar, '\"'), mem_reg);
 
@@ -8975,7 +8985,7 @@ static void lower_numeric_value_helper(lower_unit_t *lu, type_t type,
 
       vcode_type_t vreal = vtype_real(-DBL_MAX, DBL_MAX);
 
-      result_reg = emit_fcall(conv_fn, vreal, vreal,
+      result_reg = emit_fcall(conv_fn, vreal, VCODE_INVALID_STAMP,
                               conv_args, ARRAY_LEN(conv_args));
    }
    else {
@@ -8987,7 +8997,7 @@ static void lower_numeric_value_helper(lower_unit_t *lu, type_t type,
 
       vcode_type_t vint64 = vtype_int(INT64_MIN, INT64_MAX);
 
-      result_reg = emit_fcall(conv_fn, vint64, vint64,
+      result_reg = emit_fcall(conv_fn, vint64, VCODE_INVALID_STAMP,
                               conv_args, ARRAY_LEN(conv_args));
    }
 
@@ -9003,14 +9013,14 @@ static void lower_record_value_helper(lower_unit_t *lu, type_t type,
 {
    vcode_type_t voffset = vtype_offset();
    vcode_type_t ctype = vtype_char();
-   vcode_type_t strtype = vtype_uarray(1, ctype, ctype);
+   vcode_type_t strtype = vtype_uarray(1, ctype);
    vcode_type_t vtype = lower_type(type);
    vcode_type_t vnat = vtype_int(0, INT64_MAX);
 
    vcode_reg_t locus = lower_debug_locus(decl);
 
-   vcode_var_t result_var =
-      emit_var(vtype, vtype, ident_new("result"), VAR_HEAP);
+   vcode_var_t result_var = emit_var(vtype, VCODE_INVALID_STAMP,
+                                     ident_new("result"), VAR_HEAP);
 
    ident_t find_open_fn = ident_new("NVC.TEXT_UTIL.FIND_OPEN(S)N");
    ident_t find_close_fn = ident_new("NVC.TEXT_UTIL.FIND_CLOSE(SN)");
@@ -9018,16 +9028,17 @@ static void lower_record_value_helper(lower_unit_t *lu, type_t type,
    vcode_reg_t text_util_reg = emit_link_package(well_known(W_TEXT_UTIL));
 
    vcode_reg_t open_args[] = { text_util_reg, preg };
-   vcode_reg_t open_reg = emit_fcall(find_open_fn, vnat, vnat, open_args, 2);
+   vcode_reg_t open_reg = emit_fcall(find_open_fn, vnat, VCODE_INVALID_STAMP,
+                                     open_args, 2);
 
-   vcode_reg_t off_reg = emit_cast(voffset, voffset, open_reg);
+   vcode_reg_t off_reg = emit_cast(voffset, VCODE_INVALID_STAMP, open_reg);
    vcode_reg_t ptr_reg = emit_index(result_var, VCODE_INVALID_REG);
 
    const int nfields = type_fields(type);
    for (int i = 0; i < nfields; i++) {
       vcode_reg_t nd_args[] = { text_util_reg, preg, off_reg };
-      vcode_reg_t nd_reg = emit_fcall(next_delim_fn, strtype, ctype,
-                                      nd_args, 3);
+      vcode_reg_t nd_reg = emit_fcall(next_delim_fn, strtype,
+                                      VCODE_INVALID_STAMP, nd_args, 3);
 
       type_t ftype = type_base_recur(tree_type(type_field(type, i)));
 
@@ -9056,7 +9067,7 @@ static void lower_record_value_helper(lower_unit_t *lu, type_t type,
    }
 
    vcode_reg_t close_args[] = { text_util_reg, preg, off_reg };
-   emit_fcall(find_close_fn, VCODE_INVALID_TYPE, VCODE_INVALID_TYPE,
+   emit_fcall(find_close_fn, VCODE_INVALID_TYPE, VCODE_INVALID_STAMP,
               close_args, ARRAY_LEN(close_args));
 
    emit_return(ptr_reg);
@@ -9067,7 +9078,7 @@ static void lower_array_value_helper(lower_unit_t *lu, type_t type,
 {
    vcode_type_t voffset = vtype_offset();
    vcode_type_t ctype = vtype_char();
-   vcode_type_t strtype = vtype_uarray(1, ctype, ctype);
+   vcode_type_t strtype = vtype_uarray(1, ctype);
    vcode_type_t vnat = vtype_int(0, INT64_MAX);
 
    vcode_reg_t locus = lower_debug_locus(decl);
@@ -9075,7 +9086,7 @@ static void lower_array_value_helper(lower_unit_t *lu, type_t type,
    vcode_reg_t zero_reg = emit_const(voffset, 0);
    vcode_reg_t one_reg = emit_const(voffset, 1);
 
-   vcode_var_t i_var = lower_temp_var(lu, "i", voffset, voffset);
+   vcode_var_t i_var = lower_temp_var(lu, "i", voffset);
    emit_store(zero_reg, i_var);
 
    ident_t next_delim_fn = ident_new("NVC.TEXT_UTIL.NEXT_DELIMITER(SN)S");
@@ -9097,24 +9108,27 @@ static void lower_array_value_helper(lower_unit_t *lu, type_t type,
       vcode_block_t exit_bb = emit_block();
       vcode_block_t paren_bb = emit_block();
 
-      vcode_var_t first_var = emit_var(vnat, vnat, ident_new("first"), 0);
-      vcode_var_t last_var = emit_var(vnat, vnat, ident_new("last"), 0);
+      vcode_stamp_t vstamp = VCODE_INVALID_STAMP;
+      vcode_var_t first_var = emit_var(vnat, vstamp, ident_new("first"), 0);
+      vcode_var_t last_var = emit_var(vnat, vstamp, ident_new("last"), 0);
 
       vcode_reg_t first_ptr = emit_index(first_var, VCODE_INVALID_REG);
       vcode_reg_t last_ptr = emit_index(last_var, VCODE_INVALID_REG);
 
       vcode_reg_t trim_args[] = { text_util_reg, preg, first_ptr, last_ptr };
-      emit_fcall(trim_ws_fn, VCODE_INVALID_TYPE, VCODE_INVALID_TYPE,
+      emit_fcall(trim_ws_fn, VCODE_INVALID_TYPE, VCODE_INVALID_STAMP,
                  trim_args, ARRAY_LEN(trim_args));
 
-      vcode_reg_t first_reg = emit_cast(voffset, voffset, emit_load(first_var));
-      vcode_reg_t last_reg = emit_cast(voffset, voffset, emit_load(last_var));
+      vcode_reg_t first_reg =
+         emit_cast(voffset, VCODE_INVALID_STAMP, emit_load(first_var));
+      vcode_reg_t last_reg =
+         emit_cast(voffset, VCODE_INVALID_STAMP, emit_load(last_var));
 
       vcode_reg_t count_reg = emit_add(emit_sub(last_reg, first_reg), one_reg);
       vcode_reg_t mem_reg = emit_alloc(velem, vbounds, count_reg);
 
-      vcode_var_t pos_var = lower_temp_var(lu, "pos", voffset, voffset);
-      emit_store(emit_cast(voffset, voffset, first_reg), pos_var);
+      vcode_var_t pos_var = lower_temp_var(lu, "pos", voffset);
+      emit_store(emit_cast(voffset, VCODE_INVALID_STAMP, first_reg), pos_var);
 
       const int nlits = type_enum_literals(elem);
       vcode_reg_t entry_vtype = vtype_int(0, nlits);
@@ -9127,7 +9141,7 @@ static void lower_array_value_helper(lower_unit_t *lu, type_t type,
             map[(uint8_t)ident_char(id, 1)] = emit_const(entry_vtype, i);
       }
 
-      vcode_type_t map_vtype = vtype_carray(256, entry_vtype, entry_vtype);
+      vcode_type_t map_vtype = vtype_carray(256, entry_vtype);
       vcode_reg_t map_array_reg = emit_const_array(map_vtype, map, 256);
       vcode_reg_t map_reg = emit_address_of(map_array_reg);
 
@@ -9143,7 +9157,7 @@ static void lower_array_value_helper(lower_unit_t *lu, type_t type,
       vcode_reg_t sptr_reg = emit_array_ref(data_reg, pos_reg);
       vcode_reg_t dptr_reg = emit_array_ref(mem_reg, i_reg);
       vcode_reg_t char_reg = emit_load_indirect(sptr_reg);
-      vcode_reg_t cast_reg = emit_cast(voffset, ctype, char_reg);
+      vcode_reg_t cast_reg = emit_cast(voffset, VCODE_INVALID_STAMP, char_reg);
       vcode_reg_t mptr_reg = emit_array_ref(map_reg, cast_reg);
       vcode_reg_t entry_reg = emit_load_indirect(mptr_reg);
 
@@ -9152,7 +9166,7 @@ static void lower_array_value_helper(lower_unit_t *lu, type_t type,
 
       vcode_select_block(good_bb);
 
-      vcode_reg_t good_reg = emit_cast(velem, velem, entry_reg);
+      vcode_reg_t good_reg = emit_cast(velem, VCODE_INVALID_STAMP, entry_reg);
       emit_store_indirect(good_reg, dptr_reg);
 
       vcode_reg_t next_pos_reg = emit_add(pos_reg, one_reg);
@@ -9167,7 +9181,7 @@ static void lower_array_value_helper(lower_unit_t *lu, type_t type,
       vcode_select_block(bad_bb);
 
       vcode_reg_t bad_char_args[] = { text_util_reg, preg, char_reg };
-      emit_fcall(bad_char_fn, VCODE_INVALID_TYPE, VCODE_INVALID_TYPE,
+      emit_fcall(bad_char_fn, VCODE_INVALID_TYPE, VCODE_INVALID_STAMP,
                  bad_char_args, ARRAY_LEN(bad_char_args));
 
       emit_unreachable(locus);
@@ -9193,17 +9207,20 @@ static void lower_array_value_helper(lower_unit_t *lu, type_t type,
    vcode_block_t exit_bb = emit_block();
 
    vcode_reg_t count_args[] = { text_util_reg, preg };
-   vcode_reg_t count_result_reg = emit_fcall(count_delim_fn, vnat, vnat,
+   vcode_reg_t count_result_reg = emit_fcall(count_delim_fn, vnat,
+                                             VCODE_INVALID_STAMP,
                                              count_args, 2);
-   vcode_reg_t count_reg = emit_cast(voffset, voffset, count_result_reg);
+   vcode_reg_t count_reg =
+      emit_cast(voffset, VCODE_INVALID_STAMP, count_result_reg);
 
    vcode_reg_t mem_reg = emit_alloc(velem, vbounds, count_reg);
 
    vcode_reg_t open_args[] = { text_util_reg, preg };
-   vcode_reg_t open_reg = emit_fcall(find_open_fn, vnat, vnat, open_args, 2);
+   vcode_reg_t open_reg = emit_fcall(find_open_fn, vnat, VCODE_INVALID_STAMP,
+                                     open_args, 2);
 
-   vcode_var_t pos_var = lower_temp_var(lu, "pos", voffset, voffset);
-   emit_store(emit_cast(voffset, voffset, open_reg), pos_var);
+   vcode_var_t pos_var = lower_temp_var(lu, "pos", voffset);
+   emit_store(emit_cast(voffset, VCODE_INVALID_STAMP, open_reg), pos_var);
 
    vcode_reg_t null_reg = emit_cmp(VCODE_CMP_EQ, count_reg, zero_reg);
    emit_cond(null_reg, exit_bb, body_bb);
@@ -9214,7 +9231,8 @@ static void lower_array_value_helper(lower_unit_t *lu, type_t type,
    vcode_reg_t pos_reg = emit_load(pos_var);
 
    vcode_reg_t nd_args[] = { text_util_reg, preg, pos_reg };
-   vcode_reg_t nd_reg = emit_fcall(next_delim_fn, strtype, ctype, nd_args, 3);
+   vcode_reg_t nd_reg = emit_fcall(next_delim_fn, strtype, VCODE_INVALID_STAMP,
+                                   nd_args, 3);
 
    ident_t func = ident_prefix(type_ident(elem), ident_new("value"), '$');
    vcode_reg_t args[] = { nd_reg };
@@ -9240,7 +9258,7 @@ static void lower_array_value_helper(lower_unit_t *lu, type_t type,
    vcode_select_block(exit_bb);
 
    vcode_reg_t close_args[] = { text_util_reg, preg, emit_load(pos_var) };
-   emit_fcall(find_close_fn, VCODE_INVALID_TYPE, VCODE_INVALID_TYPE,
+   emit_fcall(find_close_fn, VCODE_INVALID_TYPE, VCODE_INVALID_STAMP,
               close_args, ARRAY_LEN(close_args));
 
    vcode_dim_t dims[] = {
@@ -9264,8 +9282,9 @@ static void lower_value_helper(lower_unit_t *lu, object_t *obj)
    vcode_set_result(lower_func_result_type(type));
 
    vcode_type_t ctype = vtype_char();
-   vcode_type_t strtype = vtype_uarray(1, ctype, ctype);
-   vcode_reg_t preg = emit_param(strtype, strtype, ident_new("VAL"));
+   vcode_stamp_t vstamp = vstamp_char();
+   vcode_type_t strtype = vtype_uarray(1, ctype);
+   vcode_reg_t preg = emit_param(strtype, vstamp, ident_new("VAL"));
 
    switch (type_kind(type)) {
    case T_ENUM:
@@ -9303,7 +9322,7 @@ static void lower_resolved_record_fn(lower_unit_t *lu, object_t *obj,
    vcode_type_t vbounds = lower_bounds(type);
    vcode_type_t vatype = lower_param_type(type, C_SIGNAL, PORT_IN);
 
-   vcode_reg_t p_reg = emit_param(vatype, vbounds, ident_new("p"));
+   vcode_reg_t p_reg = emit_param(vatype, VCODE_INVALID_STAMP, ident_new("p"));
 
    vcode_var_t var = emit_var(vtype, vbounds, ident_new("result"), 0);
 
@@ -9371,7 +9390,8 @@ static void lower_last_time_field_cb(lower_unit_t *lu, tree_t field,
 
       vcode_type_t vtime = vtype_time();
       vcode_reg_t args[] = { arg_reg };
-      last_reg = emit_fcall(helper_func, vtime, vtime, args, ARRAY_LEN(args));
+      last_reg = emit_fcall(helper_func, vtime, VCODE_INVALID_STAMP, args,
+                            ARRAY_LEN(args));
    }
 
    vcode_reg_t cur_reg = emit_load(params->var);
@@ -9390,13 +9410,14 @@ static void lower_last_time_fn(lower_unit_t *lu, object_t *obj,
 
    vcode_type_t vtime = vtype_time();
    vcode_type_t vatype = lower_param_type(type, C_SIGNAL, PORT_IN);
-   vcode_type_t vbounds = lower_bounds(type);
+   vcode_stamp_t vbounds = lower_bounds(type);
 
    vcode_set_result(vtime);
 
    vcode_reg_t p_reg = emit_param(vatype, vbounds, ident_new("p"));
 
-   vcode_var_t var = emit_var(vtime, vtime, ident_new("result"), 0);
+   vcode_var_t var = emit_var(vtime, VCODE_INVALID_STAMP,
+                              ident_new("result"), 0);
    emit_store(emit_const(vtime, TIME_HIGH), var);
 
    last_time_params_t params = { fn, suffix, var };
@@ -9423,14 +9444,15 @@ static void lower_copy_helper(lower_unit_t *lu, object_t *obj)
    type_t type = tree_type(decl);
    assert(!lower_trivially_copyable(type));
 
-   vcode_type_t vbounds = lower_bounds(type);
+   vcode_stamp_t vbounds = lower_bounds(type);
    vcode_type_t vdtype = lower_param_type(type, C_VARIABLE, PORT_OUT);
    vcode_type_t vstype = lower_param_type(type, C_VARIABLE, PORT_IN);
    vcode_type_t vlocus = vtype_debug_locus();
 
    vcode_reg_t pdst_reg = emit_param(vdtype, vbounds, ident_new("dest"));
    vcode_reg_t psrc_reg = emit_param(vstype, vbounds, ident_new("src"));
-   vcode_reg_t plocus = emit_param(vlocus, vlocus, ident_new("locus"));
+   vcode_reg_t plocus = emit_param(vlocus, VCODE_INVALID_STAMP,
+                                   ident_new("locus"));
 
    if (type_is_record(type)) {
       const int nfields = type_fields(type);
@@ -9477,7 +9499,7 @@ static void lower_copy_helper(lower_unit_t *lu, object_t *obj)
 
       vcode_type_t voffset = vtype_offset();
 
-      vcode_var_t i_var = lower_temp_var(lu, "i", voffset, voffset);
+      vcode_var_t i_var = lower_temp_var(lu, "i", voffset);
       vcode_reg_t zero_reg = emit_const(voffset, 0);
       emit_store(zero_reg, i_var);
 
@@ -9516,7 +9538,7 @@ static void lower_new_helper(lower_unit_t *lu, object_t *obj)
    type_t type = tree_type(decl);
    assert(type_is_record(type) && !type_const_bounds(type));
 
-   vcode_type_t vbounds = lower_bounds(type);
+   vcode_stamp_t vbounds = lower_bounds(type);
    vcode_type_t vdtype = lower_param_type(type, C_VARIABLE, PORT_OUT);
    vcode_type_t vstype = lower_param_type(type, C_VARIABLE, PORT_IN);
 
@@ -9560,7 +9582,7 @@ static void lower_new_helper(lower_unit_t *lu, object_t *obj)
          if (type_is_record(elem)) {
             // Need a loop to initialise each sub-record
             vcode_type_t voffset = vtype_offset();
-            vcode_var_t i_var = lower_temp_var(lu, "i", voffset, voffset);
+            vcode_var_t i_var = lower_temp_var(lu, "i", voffset);
             emit_store(emit_const(voffset, 0), i_var);
 
             vcode_block_t cmp_bb  = emit_block();
@@ -9643,7 +9665,7 @@ static void lower_type_bounds_var(lower_unit_t *lu, type_t type)
       vcode_type_t velem = lower_type(type);
       vcode_type_t vbounds = lower_bounds(type);
 
-      vcode_type_t vtype = vtype_uarray(1, velem, vbounds);
+      vcode_type_t vtype = vtype_uarray(1, velem);
 
       vcode_var_t var = emit_var(vtype, vbounds, type_ident(type), VAR_CONST);
 
@@ -9666,7 +9688,8 @@ static void lower_type_bounds_var(lower_unit_t *lu, type_t type)
       vcode_type_t vtype = lower_type(type);
       assert(vtype_kind(vtype) == VCODE_TYPE_RECORD);
 
-      vcode_var_t var = emit_var(vtype, vtype, type_ident(type), VAR_CONST);
+      vcode_var_t var = emit_var(vtype, VCODE_INVALID_STAMP,
+                                 type_ident(type), VAR_CONST);
 
       vcode_reg_t ptr_reg = emit_index(var, VCODE_INVALID_REG);
       vcode_reg_t value_reg = lower_default_value(lu, type, ptr_reg);
@@ -9694,7 +9717,7 @@ static void lower_foreign_stub(lower_unit_t *lu, object_t *obj)
       vcode_set_result(lower_func_result_type(type_result(type)));
 
    vcode_type_t vcontext = vtype_context(lu->parent->name);
-   emit_param(vcontext, vcontext, ident_new("context"));
+   emit_param(vcontext, VCODE_INVALID_STAMP, ident_new("context"));
 
    lower_subprogram_ports(lu, sub, false);
 
@@ -9824,7 +9847,7 @@ static void lower_decl(lower_unit_t *lu, tree_t decl)
                              lower_instantiated_package, lu->cover, obj);
 
          vcode_type_t vcontext = vtype_context(name);
-         vcode_var_t var = emit_var(vcontext, vcontext, name, 0);
+         vcode_var_t var = emit_var(vcontext, VCODE_INVALID_STAMP, name, 0);
          lower_put_vcode_obj(decl, var, lu);
 
          vcode_reg_t pkg_reg = emit_package_init(name, emit_context_upref(0));
@@ -9888,20 +9911,21 @@ static void lower_protected_body(lower_unit_t *lu, object_t *obj)
       ident_t inst_i = well_known(W_INSTANCE_NAME);
 
       vcode_type_t vchar = vtype_char();
-      vcode_type_t vstring = vtype_uarray(1, vchar, vchar);
-      vcode_reg_t path_reg = emit_param(vstring, vchar, path_i);
-      vcode_reg_t inst_reg = emit_param(vstring, vchar, inst_i);
+      vcode_stamp_t vstamp = vstamp_char();
+      vcode_type_t vstring = vtype_uarray(1, vchar);
+      vcode_reg_t path_reg = emit_param(vstring, vstamp, path_i);
+      vcode_reg_t inst_reg = emit_param(vstring, vstamp, inst_i);
 
       const tree_global_flags_t gflags = tree_global_flags(body);
 
       if (gflags & TREE_GF_INSTANCE_NAME) {
-         vcode_var_t path_var = emit_var(vstring, vchar, path_i, VAR_CONST);
+         vcode_var_t path_var = emit_var(vstring, vstamp, path_i, VAR_CONST);
          lower_put_vcode_obj(path_i, path_var, lu);
          emit_store(path_reg, path_var);
       }
 
       if (gflags & TREE_GF_PATH_NAME) {
-         vcode_var_t inst_var = emit_var(vstring, vchar, inst_i, VAR_CONST);
+         vcode_var_t inst_var = emit_var(vstring, vstamp, inst_i, VAR_CONST);
          lower_put_vcode_obj(inst_i, inst_var, lu);
          emit_store(inst_reg, inst_var);
       }
@@ -9924,7 +9948,7 @@ static void lower_subprogram_default(lower_unit_t *lu, object_t *obj)
    vcode_set_result(lower_func_result_type(port_type));
 
    vcode_type_t vcontext = vtype_context(lu->parent->name);
-   emit_param(vcontext, vcontext, ident_new("context"));
+   emit_param(vcontext, VCODE_INVALID_STAMP, ident_new("context"));
 
    vcode_reg_t result_reg = lower_rvalue(lu, value);
 
@@ -10120,7 +10144,7 @@ static void lower_subprogram_ports(lower_unit_t *lu, tree_t body,
       const port_mode_t mode = tree_subkind(p);
 
       vcode_type_t vtype = lower_param_type(type, class, mode);
-      vcode_type_t vbounds = lower_bounds(type);
+      vcode_stamp_t vbounds = lower_bounds(type);
 
       vcode_reg_t preg = emit_param(vtype, vbounds, tree_ident(p));
       if (params_as_vars) {
@@ -10156,7 +10180,7 @@ static void lower_predef_field_eq_cb(lower_unit_t *lu, tree_t field,
       vcode_reg_t r1_array = lower_coerce_arrays(lu, ftype, base, r1);
 
       vcode_reg_t args[] = { r0_array, r1_array };
-      vcode_reg_t cmp_reg = emit_fcall(func, vbool, vbool,
+      vcode_reg_t cmp_reg = emit_fcall(func, vbool, VCODE_INVALID_STAMP,
                                        args, ARRAY_LEN(args));
 
       vcode_block_t next_bb = emit_block();
@@ -10213,9 +10237,10 @@ static void lower_predef_to_string(lower_unit_t *lu, tree_t decl)
 
    ident_t func = ident_prefix(type_ident(arg_type), ident_new("image"), '$');
    vcode_type_t ctype = vtype_char();
-   vcode_type_t rtype = vtype_uarray(1, ctype, ctype);
+   vcode_type_t rtype = vtype_uarray(1, ctype);
    vcode_reg_t args[] = { r0 };
-   vcode_reg_t str_reg = emit_fcall(func, rtype, ctype, args, ARRAY_LEN(args));
+   vcode_reg_t str_reg = emit_fcall(func, rtype, VCODE_INVALID_STAMP, args,
+                                    ARRAY_LEN(args));
 
    if (type_is_enum(arg_type)) {
       // If the result is a character literal return just the character
@@ -10263,7 +10288,7 @@ static void lower_predef_mixed_bit_vec_op(lower_unit_t *lu, tree_t decl,
 
    vcode_type_t voffset = vtype_offset();
 
-   vcode_var_t i_var = lower_temp_var(lu, "i", voffset, voffset);
+   vcode_var_t i_var = lower_temp_var(lu, "i", voffset);
    emit_store(emit_const(vtype_offset(), 0), i_var);
 
    const bool r0_is_array = type_is_array(r0_type);
@@ -10278,7 +10303,7 @@ static void lower_predef_mixed_bit_vec_op(lower_unit_t *lu, tree_t decl,
    vcode_reg_t dir_reg   = lower_array_dir(lu, array_type, 0, array_reg);
    vcode_reg_t null_reg  = emit_range_null(left_reg, right_reg, dir_reg);
 
-   vcode_reg_t mem_reg = emit_alloc(vtype_bool(), vtype_bool(), len_reg);
+   vcode_reg_t mem_reg = emit_alloc(vtype_bool(), VCODE_INVALID_STAMP, len_reg);
 
    vcode_block_t body_bb = emit_block();
    vcode_block_t exit_bb = emit_block();
@@ -10328,7 +10353,7 @@ static void lower_foreign_predef(lower_unit_t *lu, tree_t decl, const char *fn)
    const size_t nchars = fnlen + sizeof(prefix) - 1;
    vcode_reg_t *chars LOCAL = xmalloc_array(nchars, sizeof(vcode_reg_t));
    vcode_type_t ctype = vtype_char();
-   vcode_type_t stype = vtype_carray(nchars, ctype, ctype);
+   vcode_type_t stype = vtype_carray(nchars, ctype);
 
    int pos = 0;
    for (int i = 0; i < sizeof(prefix) - 1; i++)
@@ -10348,7 +10373,8 @@ static void lower_foreign_predef(lower_unit_t *lu, tree_t decl, const char *fn)
 static void lower_predef_file_open3(lower_unit_t *lu, tree_t decl)
 {
    vcode_type_t rtype = vcode_unit_result(lu->vunit);
-   vcode_var_t status_var = emit_var(rtype, rtype, ident_new("status"), 0);
+   vcode_var_t status_var = emit_var(rtype, VCODE_INVALID_STAMP,
+                                     ident_new("status"), 0);
 
    vcode_reg_t p0_reg = 0, p1_reg = 1, p2_reg = 2;
 
@@ -10455,7 +10481,7 @@ static void lower_proc_body(lower_unit_t *lu, object_t *obj)
                                    body, body, NULL);
 
    vcode_type_t vcontext = vtype_context(lu->parent->name);
-   emit_param(vcontext, vcontext, ident_new("context"));
+   emit_param(vcontext, VCODE_INVALID_STAMP, ident_new("context"));
 
    const bool never_waits = vcode_unit_kind(lu->vunit) == VCODE_UNIT_FUNCTION;
    const bool has_subprograms = lower_has_subprograms(body);
@@ -10480,7 +10506,7 @@ static void lower_func_body(lower_unit_t *lu, object_t *obj)
    vcode_set_result(lower_func_result_type(result));
 
    vcode_type_t vcontext = vtype_context(lu->parent->name);
-   emit_param(vcontext, vcontext, ident_new("context"));
+   emit_param(vcontext, VCODE_INVALID_STAMP, ident_new("context"));
 
    lu->cscope = cover_create_block(lu->cover, lu->name,
                                    lu->parent->cscope,
@@ -10493,7 +10519,7 @@ static void lower_func_body(lower_unit_t *lu, object_t *obj)
       // Extra hidden parameter for result bounds
       vcode_type_t vresult = lower_param_type(result, C_CONSTANT, PORT_IN);
       vcode_reg_t bounds_reg =
-         emit_param(vresult, vresult, ident_new("result"));
+         emit_param(vresult, VCODE_INVALID_STAMP, ident_new("result"));
 
       lower_put_vcode_obj(body, bounds_reg, lu);
    }
@@ -10945,10 +10971,10 @@ static void lower_converter_body(lower_unit_t *lu, tree_t dst, tree_t src,
    vcode_set_result(voffset);
 
    vcode_type_t vcontext = vtype_context(lu->parent->name);
-   emit_param(vcontext, vcontext, ident_new("context"));
+   emit_param(vcontext, VCODE_INVALID_STAMP, ident_new("context"));
 
    vcode_type_t vconv = vtype_conversion();
-   vcode_reg_t cf_reg = emit_param(vconv, vconv, ident_new("cf"));
+   vcode_reg_t cf_reg = emit_param(vconv, VCODE_INVALID_STAMP, ident_new("cf"));
 
    vcode_reg_t target_reg;
    if (tree_kind(dst) == T_PORT_DECL)
@@ -11333,7 +11359,7 @@ static void lower_inertial_actual_process(lower_unit_t *lu, object_t *obj)
    type_t port_type = tree_type(target), expr_type = tree_type(expr);
 
    vcode_type_t signal_type = lower_signal_type(port_type);
-   vcode_type_t vbounds = lower_bounds(port_type);
+   vcode_stamp_t vbounds = lower_bounds(port_type);
    ident_t name = ident_new("port");
    vcode_var_t var = emit_var(signal_type, vbounds, name, VAR_SIGNAL);
 
@@ -11618,7 +11644,8 @@ static void lower_direct_mapped_port(lower_unit_t *lu, tree_t block, tree_t map,
       // Variable ports are always directly aliased to the actual
       // variable in the parent scope
       vcode_type_t vtype = lower_type(tree_type(port));
-      vcode_var_t var = emit_var(vtype, vtype, tree_ident(port), 0);
+      vcode_var_t var = emit_var(vtype, VCODE_INVALID_STAMP,
+                                 tree_ident(port), 0);
       lower_put_vcode_obj(port, var, lu);
 
       vcode_reg_t src_reg = lower_rvalue(lu, value);
@@ -11767,7 +11794,7 @@ static vcode_reg_t lower_constrain_port(lower_unit_t *lu, tree_t port, int pos,
    if (type_is_record(port_type)) {
       vcode_type_t vtype = lower_signal_type(port_type);
       ident_t name = ident_prefix(tree_ident(port), ident_new("cons"), '$');
-      vcode_var_t rec_var = emit_var(vtype, vtype, name, 0);
+      vcode_var_t rec_var = emit_var(vtype, VCODE_INVALID_STAMP, name, 0);
       rptr_reg = emit_index(rec_var, VCODE_INVALID_REG);
    }
    else {
@@ -11992,7 +12019,8 @@ static void lower_ports(lower_unit_t *lu, tree_t block, tree_t src)
       type_t type = tree_type(port);
 
       vcode_type_t vtype = lower_signal_type(type);
-      port_vars[i] = emit_var(vtype, vtype, tree_ident(port), VAR_SIGNAL);
+      vcode_stamp_t vstamp = VCODE_INVALID_STAMP;
+      port_vars[i] = emit_var(vtype, vstamp, tree_ident(port), VAR_SIGNAL);
       lower_put_vcode_obj(port, port_vars[i], lu);
    }
 
@@ -12079,7 +12107,8 @@ static void lower_check_generic_constraint(lower_unit_t *lu, tree_t expect,
       ident_t func = predef_func_name(type, "=");
       vcode_reg_t args[] = { left_reg, right_reg };
       vcode_type_t vbool = vtype_bool();
-      test_reg = emit_fcall(func, vbool, vbool, args, ARRAY_LEN(args));
+      test_reg = emit_fcall(func, vbool, VCODE_INVALID_STAMP, args,
+                            ARRAY_LEN(args));
    }
 
    vcode_type_t vseverity = vtype_int(0, SEVERITY_FAILURE - 1);
@@ -12108,7 +12137,7 @@ static void lower_pack_inst_generics(lower_unit_t *lu, tree_t inst, tree_t map)
 
       type_t type = tree_type(g);
       vcode_type_t vtype = lower_type(type);
-      vcode_type_t vbounds = lower_bounds(type);
+      vcode_stamp_t vbounds = lower_bounds(type);
 
       ident_t name = tree_ident(g);
       vcode_var_t var = emit_var(vtype, vbounds, name, VAR_CONST);
@@ -12203,7 +12232,7 @@ static void lower_generics(lower_unit_t *lu, tree_t inst, tree_t src)
       ident_t name = ident_prefix(prefix, tree_ident(g), '.');
 
       vcode_type_t vtype = lower_type(type);
-      vcode_type_t vbounds = lower_bounds(type);
+      vcode_stamp_t vbounds = lower_bounds(type);
       vcode_var_t var = emit_var(vtype, vbounds, name, VAR_CONST);
 
       vcode_reg_t mem_reg = VCODE_INVALID_REG, count_reg = VCODE_INVALID_REG;
@@ -12335,9 +12364,10 @@ static void lower_cache_instance_name(lower_unit_t *lu, attr_kind_t which)
    ident_t name =
       well_known(which == ATTR_INSTANCE_NAME ? W_INSTANCE_NAME : W_PATH_NAME);
 
-   vcode_type_t vchar = vtype_char();
-   vcode_type_t vstring = vtype_uarray(1, vchar, vchar);
-   vcode_var_t var = emit_var(vstring, vchar, name, VAR_CONST);
+   vcode_stamp_t vchar = vtype_char();
+   vcode_stamp_t vstamp = vstamp_char();
+   vcode_type_t vstring = vtype_uarray(1, vchar);
+   vcode_var_t var = emit_var(vstring, vstamp, name, VAR_CONST);
 
    switch (tree_kind(lu->container)) {
    case T_BLOCK:
@@ -12485,7 +12515,7 @@ vcode_unit_t lower_case_generate_thunk(lower_unit_t *parent, tree_t t)
 
    if (parent != NULL) {
       vcode_type_t vcontext = vtype_context(parent->name);
-      emit_param(vcontext, vcontext, ident_new("context"));
+      emit_param(vcontext, VCODE_INVALID_STAMP, ident_new("context"));
    }
 
    tree_t value = tree_value(t);
@@ -12518,7 +12548,8 @@ vcode_unit_t lower_case_generate_thunk(lower_unit_t *parent, tree_t t)
                   name_reg = lower_wrap(lu, tree_type(name), name_reg);
 
                vcode_reg_t args[] = { name_reg, value_reg };
-               vcode_reg_t eq_reg = emit_fcall(cmp_func, vbool, vbool,
+               vcode_reg_t eq_reg = emit_fcall(cmp_func, vbool,
+                                               VCODE_INVALID_STAMP,
                                                args, ARRAY_LEN(args));
                emit_cond(eq_reg, match_bb, skip_bb);
             }
@@ -12572,7 +12603,7 @@ static void lower_thunk_body(lower_unit_t *lu, tree_t t)
    vcode_reg_t result_reg = lower_rvalue(lu, t);
 
    if (type_is_scalar(tree_type(t)))
-      emit_return(emit_cast(vtype, vtype, result_reg));
+      emit_return(emit_cast(vtype, VCODE_INVALID_STAMP, result_reg));
    else if (type_is_array(to_type))
       emit_return(lower_coerce_arrays(lu, from_type, to_type, result_reg));
    else
@@ -12614,7 +12645,7 @@ vcode_unit_t lower_thunk_in_context(unit_registry_t *registry, tree_t t,
    lower_unit_t *lu = lower_unit_new(registry, parent, thunk, NULL, container);
 
    vcode_type_t vcontext = vtype_context(parent->name);
-   emit_param(vcontext, vcontext, ident_new("context"));
+   emit_param(vcontext, VCODE_INVALID_STAMP, ident_new("context"));
 
    lower_thunk_body(lu, t);
 

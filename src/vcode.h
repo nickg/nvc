@@ -24,6 +24,7 @@
 #include "rt/rt.h"
 
 typedef int32_t vcode_type_t;
+typedef int32_t vcode_stamp_t;
 typedef int32_t vcode_block_t;
 typedef int32_t vcode_var_t;
 typedef int32_t vcode_reg_t;
@@ -169,7 +170,6 @@ typedef enum {
    VCODE_OP_BIND_EXTERNAL,
    VCODE_OP_ARRAY_SCOPE,
    VCODE_OP_RECORD_SCOPE,
-   VCODE_OP_SYSCALL,
    VCODE_OP_PUT_CONVERSION,
    VCODE_OP_DIR_CHECK,
    VCODE_OP_SCHED_PROCESS,
@@ -241,6 +241,7 @@ typedef enum {
 #define VCODE_INVALID_BLOCK  -1
 #define VCODE_INVALID_VAR    -1
 #define VCODE_INVALID_TYPE   -1
+#define VCODE_INVALID_STAMP  -1
 
 typedef int (*vcode_dump_fn_t)(int, void *);
 typedef void (*vcode_dep_fn_t)(ident_t, void *);
@@ -248,8 +249,8 @@ typedef void (*vcode_dep_fn_t)(ident_t, void *);
 vcode_type_t vtype_int(int64_t low, int64_t high);
 vcode_type_t vtype_dynamic(vcode_reg_t low, vcode_reg_t high);
 vcode_type_t vtype_bool(void);
-vcode_type_t vtype_carray(int size, vcode_type_t elem, vcode_type_t bounds);
-vcode_type_t vtype_uarray(int ndim, vcode_type_t elem, vcode_type_t bounds);
+vcode_type_t vtype_carray(int size, vcode_type_t elem);
+vcode_type_t vtype_uarray(int ndim, vcode_type_t elem);
 vcode_type_t vtype_pointer(vcode_type_t to);
 vcode_type_t vtype_access(vcode_type_t to);
 vcode_type_t vtype_signal(vcode_type_t base);
@@ -278,7 +279,6 @@ int64_t vtype_low(vcode_type_t type);
 int64_t vtype_high(vcode_type_t type);
 vcode_type_t vtype_elem(vcode_type_t type);
 vcode_type_t vtype_pointed(vcode_type_t type);
-vcode_type_t vtype_bounds(vcode_type_t type);
 unsigned vtype_dims(vcode_type_t type);
 unsigned vtype_size(vcode_type_t type);
 int vtype_fields(vcode_type_t type);
@@ -289,6 +289,10 @@ vcode_type_t vtype_real(double low, double high);
 vtype_repr_t vtype_repr(vcode_type_t type);
 int vtype_repr_bits(vtype_repr_t repr);
 bool vtype_repr_signed(vtype_repr_t repr);
+
+vcode_stamp_t vstamp_int(int64_t low, int64_t high);
+vcode_stamp_t vstamp_real(double low, double high);
+vcode_stamp_t vstamp_char(void);
 
 vcode_unit_t vcode_unit_next(vcode_unit_t unit);
 vcode_unit_t vcode_unit_child(vcode_unit_t unit);
@@ -328,8 +332,9 @@ vcode_reg_t vcode_param_reg(int param);
 int vcode_count_regs(void);
 vcode_type_t vcode_reg_type(vcode_reg_t reg);
 vtype_kind_t vcode_reg_kind(vcode_reg_t reg);
-vcode_type_t vcode_reg_bounds(vcode_reg_t reg);
+vcode_stamp_t vcode_reg_stamp(vcode_reg_t reg);
 bool vcode_reg_const(vcode_reg_t reg, int64_t *value);
+bool vcode_reg_bounds(vcode_reg_t reg, int64_t *low, int64_t *high);
 void vcode_heap_allocate(vcode_reg_t reg);
 
 int vcode_count_ops(void);
@@ -356,7 +361,6 @@ int vcode_count_vars(void);
 vcode_var_t vcode_find_var(ident_t name);
 ident_t vcode_var_name(vcode_var_t var);
 vcode_type_t vcode_var_type(vcode_var_t var);
-vcode_type_t vcode_var_bounds(vcode_var_t var);
 vcode_var_flags_t vcode_var_flags(vcode_var_t var);
 
 vcode_unit_t emit_function(ident_t name, object_t *obj, vcode_unit_t context);
@@ -368,11 +372,11 @@ vcode_unit_t emit_protected(ident_t name, object_t *obj, vcode_unit_t context);
 vcode_unit_t emit_property(ident_t name, object_t *obj, vcode_unit_t context);
 vcode_unit_t emit_thunk(ident_t name, object_t *obj, vcode_unit_t context);
 vcode_block_t emit_block(void);
-vcode_var_t emit_var(vcode_type_t type, vcode_type_t bounds, ident_t name,
+vcode_var_t emit_var(vcode_type_t type, vcode_stamp_t stamp, ident_t name,
                      vcode_var_flags_t flags);
-vcode_reg_t emit_alloc(vcode_type_t type, vcode_type_t bounds,
+vcode_reg_t emit_alloc(vcode_type_t type, vcode_stamp_t stamp,
                        vcode_reg_t count);
-vcode_reg_t emit_param(vcode_type_t type, vcode_type_t bounds, ident_t name);
+vcode_reg_t emit_param(vcode_type_t type, vcode_stamp_t stamp, ident_t name);
 vcode_reg_t emit_const(vcode_type_t type, int64_t value);
 vcode_reg_t emit_const_array(vcode_type_t type, vcode_reg_t *values, int num);
 vcode_reg_t emit_const_rep(vcode_type_t type, vcode_reg_t value, int rep);
@@ -396,12 +400,10 @@ void emit_assert(vcode_reg_t value, vcode_reg_t message, vcode_reg_t length,
 void emit_report(vcode_reg_t message, vcode_reg_t length, vcode_reg_t severity,
                  vcode_reg_t locus);
 vcode_reg_t emit_cmp(vcode_cmp_t cmp, vcode_reg_t lhs, vcode_reg_t rhs);
-vcode_reg_t emit_fcall(ident_t func, vcode_type_t type, vcode_type_t bounds,
+vcode_reg_t emit_fcall(ident_t func, vcode_type_t type, vcode_stamp_t stamp,
                        const vcode_reg_t *args, int nargs);
 void emit_pcall(ident_t func, const vcode_reg_t *args, int nargs,
                 vcode_block_t resume_bb);
-vcode_reg_t emit_syscall(ident_t func, vcode_type_t type, vcode_type_t bounds,
-                         vcode_reg_t locus, const vcode_reg_t *args, int nargs);
 void emit_wait(vcode_block_t target);
 void emit_jump(vcode_block_t target);
 vcode_reg_t emit_load(vcode_var_t var);
@@ -493,7 +495,7 @@ void emit_cover_branch(uint32_t tag);
 void emit_cover_toggle(vcode_reg_t signal, uint32_t tag);
 void emit_cover_state(vcode_reg_t signal, vcode_reg_t low, uint32_t tag);
 void emit_cover_expr(uint32_t tag);
-vcode_reg_t emit_undefined(vcode_type_t type, vcode_type_t bounds);
+vcode_reg_t emit_undefined(vcode_type_t type, vcode_stamp_t stamp);
 void emit_debug_info(const loc_t *loc);
 vcode_reg_t emit_range_null(vcode_reg_t left, vcode_reg_t right,
                             vcode_reg_t dir);
@@ -540,7 +542,7 @@ void emit_convert_out(vcode_reg_t conv, vcode_reg_t nets, vcode_reg_t count);
 void emit_bind_foreign(vcode_reg_t spec, vcode_reg_t length, vcode_reg_t locus);
 vcode_reg_t emit_instance_name(vcode_reg_t kind);
 vcode_reg_t emit_bind_external(vcode_reg_t locus, ident_t scope,
-                               vcode_type_t type, vcode_type_t bounds,
+                               vcode_type_t type, vcode_stamp_t bounds,
                                const vcode_reg_t *args, int nargs);
 void emit_put_conversion(vcode_reg_t cf, vcode_reg_t target, vcode_reg_t count,
                          vcode_reg_t values);

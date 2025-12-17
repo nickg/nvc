@@ -23,6 +23,7 @@
 
 typedef int32_t vcode_reg_t;
 typedef int32_t vcode_type_t;
+typedef int32_t vcode_stamp_t;
 
 typedef void (*lower_fn_t)(lower_unit_t *, object_t *);
 typedef vcode_unit_t (*emit_fn_t)(ident_t, object_t *, vcode_unit_t);
@@ -58,7 +59,7 @@ vcode_reg_t lower_lvalue(lower_unit_t *lu, tree_t expr);
 vcode_reg_t lower_rvalue(lower_unit_t *lu, tree_t expr);
 
 vcode_type_t lower_type(type_t type);
-vcode_type_t lower_bounds(type_t type);
+vcode_stamp_t lower_bounds(type_t type);
 
 lower_unit_t *lower_instance(unit_registry_t *ur, lower_unit_t *parent,
                              cover_data_t *cover, tree_t block);

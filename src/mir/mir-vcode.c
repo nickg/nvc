@@ -1312,31 +1312,6 @@ static void import_enter_state(mir_unit_t *mu, mir_import_t *imp, int op)
    mir_build_enter_state(mu, state, strong);
 }
 
-static void import_syscall(mir_unit_t *mu, mir_import_t *imp, int op)
-{
-   mir_value_t locus = imp->map[vcode_get_arg(op, 0)];
-   ident_t func = vcode_get_func(op);
-
-   mir_type_t type = MIR_NULL_TYPE;
-   vcode_type_t vtype = vcode_get_type(op);
-   if (vtype != VCODE_INVALID_TYPE)
-      type = import_type(mu, imp, vtype);
-
-   const int nargs = vcode_count_args(op) - 1;
-   mir_value_t *args LOCAL = xmalloc_array(nargs, sizeof(mir_value_t));
-   for (int i = 0; i < nargs; i++)
-      args[i] = imp->map[vcode_get_arg(op, i + 1)];
-
-   vcode_reg_t result = vcode_get_result(op);
-   if (result == VCODE_INVALID_REG)
-      mir_build_syscall(mu, func, type, MIR_NULL_STAMP, locus, args, nargs);
-   else {
-      mir_type_t type = import_type(mu, imp, vcode_reg_type(result));
-      imp->map[result] =  mir_build_syscall(mu, func, type, MIR_NULL_STAMP,
-                                            locus, args, nargs);
-   }
-}
-
 static void import_reflect_value(mir_unit_t *mu, mir_import_t *imp, int op)
 {
    mir_value_t value = imp->map[vcode_get_arg(op, 0)];
@@ -1770,9 +1745,6 @@ static void import_block(mir_unit_t *mu, mir_import_t *imp)
          break;
       case VCODE_OP_ENTER_STATE:
          import_enter_state(mu, imp, i);
-         break;
-      case VCODE_OP_SYSCALL:
-         import_syscall(mu, imp, i);
          break;
       case VCODE_OP_REFLECT_SUBTYPE:
          import_reflect_subtype(mu, imp, i);

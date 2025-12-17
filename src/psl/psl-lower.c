@@ -66,7 +66,7 @@ static vcode_reg_t lower_get_rand_bool(void)
    vcode_reg_t args[] = { context_reg };
 
    vcode_type_t vbool = vtype_bool();
-   return emit_fcall(func, vbool, vbool, args, 1);
+   return emit_fcall(func, vbool, VCODE_INVALID_STAMP, args, 1);
 }
 
 static vcode_reg_t lower_get_rand_int(void)
@@ -77,7 +77,7 @@ static vcode_reg_t lower_get_rand_int(void)
    vcode_reg_t args[] = { context_reg };
 
    vcode_type_t vint = vtype_int(0, UINT32_MAX);
-   return emit_fcall(func, vint, vint, args, 1);
+   return emit_fcall(func, vint, VCODE_INVALID_STAMP, args, 1);
 }
 
 vcode_reg_t psl_lower_union(lower_unit_t *lu, psl_node_t p)
@@ -302,7 +302,7 @@ static vcode_reg_t psl_lower_async_abort(unit_registry_t *ur,
    vcode_set_result(vtype_bool());
 
    vcode_type_t vcontext = vtype_context(prefix);
-   emit_param(vcontext, vcontext, ident_new("context"));
+   emit_param(vcontext, VCODE_INVALID_STAMP, ident_new("context"));
 
    lower_unit_t *lu = lower_unit_new(ur, parent, vu, NULL, NULL);
    unit_registry_put(ur, lu);
@@ -446,7 +446,7 @@ vcode_reg_t psl_lower_fcall(lower_unit_t *lu, psl_node_t p)
          vcode_type_t vint = vtype_int(INT64_MIN, INT64_MAX);
 
          vcode_reg_t rnd_raw = lower_get_rand_int();
-         vcode_reg_t rnd_64bit = emit_cast(vint, vint, rnd_raw);
+         vcode_reg_t rnd_64bit = emit_cast(vint, VCODE_INVALID_STAMP, rnd_raw);
          vcode_reg_t mod = emit_const(vint, candidates);
          vcode_reg_t rnd = emit_mod(rnd_64bit, mod);
 
@@ -462,7 +462,8 @@ vcode_reg_t psl_lower_fcall(lower_unit_t *lu, psl_node_t p)
          exit_bb = emit_block();
          emit_jump(test_bb[0]);
 
-         vcode_var_t rvar = emit_var(vint, vint, ident_new("RV"), VAR_TEMP);
+         vcode_var_t rvar = emit_var(vint, VCODE_INVALID_STAMP,
+                                     ident_new("RV"), VAR_TEMP);
          int accum = 0;
 
          for (int i = 0; i < n_ops; i++) {
@@ -540,10 +541,11 @@ void psl_lower_directive(unit_registry_t *ur, lower_unit_t *parent,
    unit_registry_put(ur, lu);
 
    vcode_type_t vcontext = vtype_context(prefix);
-   emit_param(vcontext, vcontext, ident_new("context"));
+   emit_param(vcontext, VCODE_INVALID_STAMP, ident_new("context"));
 
    vcode_type_t vint32 = vtype_int(INT32_MIN, INT32_MAX);
-   vcode_reg_t state_reg = emit_param(vint32, vint32, ident_new("state"));
+   vcode_stamp_t vstamp = vstamp_int(0, INT32_MAX);
+   vcode_reg_t state_reg = emit_param(vint32, vstamp, ident_new("state"));
 
    vcode_block_t case_bb = emit_block();
    vcode_block_t abort_bb = emit_block();
@@ -647,7 +649,7 @@ static void psl_lower_clock_func(lower_unit_t *lu, object_t *obj)
    ident_t prefix = vcode_unit_name(context);
 
    vcode_type_t vcontext = vtype_context(prefix);
-   emit_param(vcontext, vcontext, ident_new("context"));
+   emit_param(vcontext, VCODE_INVALID_STAMP, ident_new("context"));
 
    vcode_set_result(vtype_bool());
 
@@ -667,7 +669,7 @@ static void psl_lower_clock_decl(unit_registry_t *ur, lower_unit_t *parent,
                        NULL, psl_to_object(p));
 
    vcode_type_t vtrigger = vtype_trigger();
-   vcode_var_t var = emit_var(vtrigger, vtrigger, label, 0);
+   vcode_var_t var = emit_var(vtrigger, VCODE_INVALID_STAMP, label, 0);
 
    vcode_reg_t context_reg = emit_context_upref(0);
    vcode_reg_t args[] = { context_reg };

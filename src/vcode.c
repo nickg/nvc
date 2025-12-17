@@ -42,7 +42,7 @@ DECLARE_AND_DEFINE_ARRAY(vcode_type);
     || x == VCODE_OP_CONST || x == VCODE_OP_CAST                        \
     || x == VCODE_OP_CONST_RECORD                                       \
     || x == VCODE_OP_BIND_EXTERNAL || x == VCODE_OP_ARRAY_SCOPE         \
-    || x == VCODE_OP_RECORD_SCOPE || x == VCODE_OP_SYSCALL)
+    || x == VCODE_OP_RECORD_SCOPE)
 #define OP_HAS_ADDRESS(x)                                               \
    (x == VCODE_OP_LOAD || x == VCODE_OP_STORE || x == VCODE_OP_INDEX    \
     || x == VCODE_OP_VAR_UPREF)
@@ -50,7 +50,7 @@ DECLARE_AND_DEFINE_ARRAY(vcode_type);
    (x == VCODE_OP_FCALL || x == VCODE_OP_PCALL || x == VCODE_OP_RESUME  \
     || x == VCODE_OP_CLOSURE || x == VCODE_OP_PROTECTED_INIT            \
     || x == VCODE_OP_PACKAGE_INIT || x == VCODE_OP_PROCESS_INIT \
-    || x == VCODE_OP_FUNCTION_TRIGGER || x == VCODE_OP_SYSCALL)
+    || x == VCODE_OP_FUNCTION_TRIGGER)
 #define OP_HAS_IDENT(x)                                                 \
    (x == VCODE_OP_LINK_VAR || x == VCODE_OP_LINK_PACKAGE                \
     || x == VCODE_OP_DEBUG_LOCUS || x == VCODE_OP_BIND_EXTERNAL)
@@ -113,7 +113,7 @@ typedef struct {
 
 typedef struct {
    vcode_type_t type;
-   vcode_type_t bounds;
+   vcode_type_t stamp;
 } reg_t;
 
 typedef struct {
@@ -132,7 +132,6 @@ typedef struct {
          unsigned      dims;
          unsigned      size;
          vcode_type_t  elem;
-         vcode_type_t  bounds;
       };
       vcode_type_t pointed;
       vcode_type_t base;
@@ -143,18 +142,37 @@ typedef struct {
    };
 } vtype_t;
 
+typedef enum {
+   VCODE_STAMP_INT,
+   VCODE_STAMP_REAL,
+} vstamp_kind_t;
+
+typedef struct {
+   vstamp_kind_t kind;
+   union {
+      struct {
+         int64_t low;
+         int64_t high;
+      } intg;
+      struct {
+         double low;
+         double high;
+      } real;
+   } u;
+} vstamp_t;
+
 typedef struct {
    vcode_type_t      type;
-   vcode_type_t      bounds;
+   vcode_type_t      stamp;
    ident_t           name;
    vcode_var_flags_t flags;
 } var_t;
 
 typedef struct {
-   vcode_type_t type;
-   vcode_type_t bounds;
-   ident_t      name;
-   vcode_reg_t  reg;
+   vcode_type_t  type;
+   vcode_stamp_t stamp;
+   ident_t       name;
+   vcode_reg_t   reg;
 } param_t;
 
 DECLARE_AND_DEFINE_ARRAY(param);
@@ -162,6 +180,7 @@ DECLARE_AND_DEFINE_ARRAY(var);
 DECLARE_AND_DEFINE_ARRAY(reg);
 DECLARE_AND_DEFINE_ARRAY(block);
 DECLARE_AND_DEFINE_ARRAY(vtype);
+DECLARE_AND_DEFINE_ARRAY(vstamp);
 
 typedef enum {
    UNIT_UNDEFINED     = (1 << 1),
@@ -175,6 +194,7 @@ struct _vcode_unit {
    block_array_t  blocks;
    reg_array_t    regs;
    vtype_array_t  types;
+   vstamp_array_t stamps;
    var_array_t    vars;
    param_array_t  params;
    unsigned       depth;
@@ -250,7 +270,7 @@ static vcode_reg_t vcode_add_reg(vcode_type_t type)
    reg_t *r = reg_array_alloc(&(active_unit->regs));
    memset(r, '\0', sizeof(reg_t));
    r->type   = type;
-   r->bounds = type;
+   r->stamp  = VCODE_INVALID_STAMP;
 
    return reg;
 }
@@ -350,6 +370,22 @@ static vtype_t *vcode_type_data(vcode_type_t type)
       unit = unit->context;
 
    return vtype_array_nth_ptr(&(unit->types), MASK_INDEX(type));
+}
+
+static vstamp_t *vcode_stamp_data(vcode_stamp_t stamp)
+{
+   if (stamp == VCODE_INVALID_STAMP)
+      return NULL;
+
+   assert(active_unit != NULL);
+   vcode_unit_t unit = active_unit;
+
+   int depth = MASK_CONTEXT(stamp);
+   assert(depth <= unit->depth);
+   while (depth != unit->depth)
+      unit = unit->context;
+
+   return vstamp_array_nth_ptr(&(unit->stamps), MASK_INDEX(stamp));
 }
 
 static var_t *vcode_var_data(vcode_var_t var)
@@ -574,6 +610,7 @@ void vcode_unit_unref(vcode_unit_t unit)
    }
    free(unit->types.items);
 
+   free(unit->stamps.items);
    free(unit->regs.items);
    free(unit->vars.items);
    free(unit->params.items);
@@ -606,31 +643,75 @@ vtype_kind_t vcode_reg_kind(vcode_reg_t reg)
    return vtype_kind(vcode_reg_type(reg));
 }
 
-vcode_type_t vcode_reg_bounds(vcode_reg_t reg)
+vcode_stamp_t vcode_reg_stamp(vcode_reg_t reg)
 {
-   return vcode_reg_data(reg)->bounds;
+   return vcode_reg_data(reg)->stamp;
 }
 
 bool vcode_reg_const(vcode_reg_t reg, int64_t *value)
 {
    reg_t *r = vcode_reg_data(reg);
 
-   vtype_kind_t kind = vtype_kind(r->type);
-   if (kind != VCODE_TYPE_INT && kind != VCODE_TYPE_OFFSET)
+   if (r->stamp == VCODE_INVALID_STAMP)
       return false;
 
-   vtype_t *bounds = vcode_type_data(r->bounds);
+   const vstamp_t *s = vcode_stamp_data(r->stamp);
 
-   VCODE_ASSERT(
-      bounds->kind == VCODE_TYPE_INT || bounds->kind == VCODE_TYPE_OFFSET,
-      "integer register r%d has non-integer bounds", reg);
+   if (s->kind != VCODE_STAMP_INT)
+      return false;
 
-   if (bounds->low == bounds->high) {
-      if (value) *value = bounds->low;
+   if (s->u.intg.low == s->u.intg.high) {
+      if (value) *value = s->u.intg.low;
       return true;
    }
    else
       return false;
+}
+
+bool vcode_reg_bounds(vcode_reg_t reg, int64_t *low, int64_t *high)
+{
+   reg_t *r = vcode_reg_data(reg);
+   if (r->stamp == VCODE_INVALID_STAMP) {
+      vtype_t *t = vcode_type_data(r->type);
+      if (t->kind == VCODE_TYPE_INT || t->kind == VCODE_TYPE_OFFSET) {
+         *low = t->low;
+         *high = t->high;
+         return true;
+      }
+   }
+   else {
+      vstamp_t *s = vcode_stamp_data(r->stamp);
+      if (s->kind == VCODE_STAMP_INT) {
+         *low = s->u.intg.low;
+         *high = s->u.intg.high;
+         return true;
+      }
+   }
+
+   return false;
+}
+
+bool vcode_reg_bounds_real(vcode_reg_t reg, double *low, double *high)
+{
+   reg_t *r = vcode_reg_data(reg);
+   if (r->stamp == VCODE_INVALID_STAMP) {
+      vtype_t *t = vcode_type_data(r->type);
+      if (t->kind == VCODE_TYPE_REAL) {
+         *low = t->rlow;
+         *high = t->rhigh;
+         return true;
+      }
+   }
+   else {
+      vstamp_t *s = vcode_stamp_data(r->stamp);
+      if (s->kind == VCODE_STAMP_REAL) {
+         *low = s->u.real.low;
+         *high = s->u.real.high;
+         return true;
+      }
+   }
+
+   return false;
 }
 
 void vcode_opt(void)
@@ -789,11 +870,6 @@ ident_t vcode_var_name(vcode_var_t var)
 vcode_type_t vcode_var_type(vcode_var_t var)
 {
    return vcode_var_data(var)->type;
-}
-
-vcode_type_t vcode_var_bounds(vcode_var_t var)
-{
-   return vcode_var_data(var)->bounds;
 }
 
 vcode_var_flags_t vcode_var_flags(vcode_var_t var)
@@ -973,7 +1049,7 @@ const char *vcode_op_string(vcode_op_t op)
       "function trigger", "add trigger", "transfer signal",
       "port conversion", "convert in", "convert out", "bind foreign",
       "or trigger", "cmp trigger", "instance name",
-      "map implicit", "bind external", "array scope", "record scope", "syscall",
+      "map implicit", "bind external", "array scope", "record scope",
       "put conversion", "dir check", "sched process", "table ref",
    };
    if ((unsigned)op >= ARRAY_LEN(strs))
@@ -1033,10 +1109,6 @@ static int vcode_dump_one_type(vcode_type_t type)
       {
          col += printf("[%u] : ", vt->size);
          col += vcode_dump_one_type(vt->elem);
-         if (!vtype_eq(vt->elem, vt->bounds)) {
-            col += printf(" => ");
-            col += vcode_dump_one_type(vt->bounds);
-         }
       }
       break;
 
@@ -1047,10 +1119,6 @@ static int vcode_dump_one_type(vcode_type_t type)
             col += printf("%s*", i > 0 ? ", " : "");
          col += printf("] : ");
          col += vcode_dump_one_type(vt->elem);
-         if (!vtype_eq(vt->elem, vt->bounds)) {
-            col += printf(" => ");
-            col += vcode_dump_one_type(vt->bounds);
-         }
       }
       break;
 
@@ -1138,13 +1206,37 @@ static void vcode_dump_comment(int col)
    nvc_printf("$cyan$// ");
 }
 
-static void vcode_dump_type(int col, vcode_type_t type, vcode_type_t bounds)
+static void vcode_dump_type(int col, vcode_type_t type, vcode_stamp_t stamp)
 {
    vcode_dump_comment(col);
    vcode_dump_one_type(type);
-   if (!vtype_eq(type, bounds)) {
-      printf(" => ");
-      vcode_dump_one_type(bounds);
+
+   if (stamp == VCODE_INVALID_STAMP)
+      return;
+
+   printf(" => ");
+
+   const vstamp_t *s = vcode_stamp_data(stamp);
+   switch (s->kind) {
+   case VCODE_STAMP_INT:
+      if (s->u.intg.low != s->u.intg.high) {
+         vcode_pretty_print_int(s->u.intg.low);
+         printf("..");
+         vcode_pretty_print_int(s->u.intg.high);
+      }
+      else
+         vcode_pretty_print_int(s->u.intg.low);
+      break;
+
+   case VCODE_STAMP_REAL:
+      if (s->u.real.low != s->u.real.high)
+         printf("%g..%g", s->u.real.low, s->u.real.high);
+      else
+         printf("%g", s->u.real.low);
+      break;
+
+   default:
+      should_not_reach_here();
    }
 }
 
@@ -1152,7 +1244,7 @@ static void vcode_dump_result_type(int col, const op_t *op)
 {
    if (op->result != VCODE_INVALID_REG) {
       reg_t *r = vcode_reg_data(op->result);
-      vcode_dump_type(col, r->type, r->bounds);
+      vcode_dump_type(col, r->type, r->stamp);
    }
 }
 
@@ -1197,6 +1289,7 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
    printf("Blocks     %d\n", vu->blocks.count);
    printf("Registers  %d\n", vu->regs.count);
    printf("Types      %d\n", vu->types.count);
+   printf("Stamps     %d\n", vu->stamps.count);
 
    for (int i = 0; i < vu->types.count; i++) {
       const vtype_t *t = &(vu->types.items[i]);
@@ -1220,7 +1313,7 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
       const var_t *v = &(vu->vars.items[i]);
       int col = printf("  ");
       col += nvc_printf("$magenta$%s$$", istr(v->name));
-      vcode_dump_type(col, v->type, v->bounds);
+      vcode_dump_type(col, v->type, v->stamp);
       if (v->flags & VAR_SIGNAL)
          col += printf(", signal");
       if (v->flags & VAR_HEAP)
@@ -1252,7 +1345,7 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
          while (col < 8)
             col += printf(" ");
          col += nvc_printf("$magenta$%s$$", istr(p->name));
-         vcode_dump_type(col, p->type, p->bounds);
+         vcode_dump_type(col, p->type, p->stamp);
          nvc_printf("$$\n");
       }
    }
@@ -1334,26 +1427,6 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
             }
             break;
 
-         case VCODE_OP_SYSCALL:
-            {
-               if (op->result != VCODE_INVALID_REG) {
-                  col += vcode_dump_reg(op->result);
-                  col += printf(" := ");
-               }
-               col += nvc_printf("%s $magenta$%s$$ ",
-                                   vcode_op_string(op->kind),
-                                   istr(op->func));
-               for (int i = 1; i < op->args.count; i++) {
-                  if (i > 1) col += printf(", ");
-                  col += vcode_dump_reg(op->args.items[i]);
-               }
-               if (op->args.count > 1) col += printf(" ");
-               col += nvc_printf("locus ");
-               col += vcode_dump_reg(op->args.items[0]);
-               vcode_dump_result_type(col, op);
-            }
-            break;
-
          case VCODE_OP_MAP_CONST:
          case VCODE_OP_MAP_SIGNAL:
          case VCODE_OP_MAP_IMPLICIT:
@@ -1406,7 +1479,7 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
             {
                col += printf("%s locus ", vcode_op_string(op->kind));
                col += vcode_dump_reg(op->args.items[0]);
-               vcode_dump_type(col, op->type, op->type);
+               vcode_dump_type(col, op->type, VCODE_INVALID_STAMP);
             }
             break;
 
@@ -2525,7 +2598,7 @@ vcode_type_t vtype_bool(void)
    return vtype_int(0, 1);
 }
 
-vcode_type_t vtype_carray(int size, vcode_type_t elem, vcode_type_t bounds)
+vcode_type_t vtype_carray(int size, vcode_type_t elem)
 {
    assert(active_unit != NULL);
 
@@ -2537,7 +2610,6 @@ vcode_type_t vtype_carray(int size, vcode_type_t elem, vcode_type_t bounds)
    memset(n, '\0', sizeof(vtype_t));
    n->kind   = VCODE_TYPE_CARRAY;
    n->elem   = elem;
-   n->bounds = bounds;
    n->size   = MAX(size, 0);
 
    return vtype_new(n);
@@ -2584,7 +2656,7 @@ vcode_type_t vtype_named_record(ident_t name, const vcode_type_t *field_types,
    return handle;
 }
 
-vcode_type_t vtype_uarray(int ndim, vcode_type_t elem, vcode_type_t bounds)
+vcode_type_t vtype_uarray(int ndim, vcode_type_t elem)
 {
    assert(active_unit != NULL);
 
@@ -2596,10 +2668,9 @@ vcode_type_t vtype_uarray(int ndim, vcode_type_t elem, vcode_type_t bounds)
 
    vtype_t *n = vtype_array_alloc(&(active_unit->types));
    memset(n, '\0', sizeof(vtype_t));
-   n->kind   = VCODE_TYPE_UARRAY;
-   n->elem   = elem;
-   n->bounds = bounds;
-   n->dims   = ndim;
+   n->kind = VCODE_TYPE_UARRAY;
+   n->elem = elem;
+   n->dims = ndim;
 
    return vtype_new(n);
 }
@@ -2791,13 +2862,6 @@ vcode_type_t vtype_base(vcode_type_t type)
    return vt->base;
 }
 
-vcode_type_t vtype_bounds(vcode_type_t type)
-{
-   vtype_t *vt = vcode_type_data(type);
-   assert(vt->kind == VCODE_TYPE_CARRAY || vt->kind == VCODE_TYPE_UARRAY);
-   return vt->bounds;
-}
-
 unsigned vtype_dims(vcode_type_t type)
 {
    vtype_t *vt = vcode_type_data(type);
@@ -2974,6 +3038,45 @@ static bool vtype_clamp_to_repr(vtype_repr_t repr, int64_t *low, int64_t *high)
       *high = MIN(clamp_high, *high);
       return false;
    }
+}
+
+static vcode_stamp_t vstamp_new(const vstamp_t *s)
+{
+   assert(active_unit != NULL);
+
+   for (int i = 0; i < active_unit->stamps.count; i++) {
+      vstamp_t *cmp = &(active_unit->stamps.items[i]);
+      if (cmp->kind == s->kind && memcmp(&cmp->u, &s->u, sizeof(s->u)) == 0)
+         return MAKE_HANDLE(active_unit->depth, i);
+   }
+
+   vstamp_t *new = vstamp_array_alloc(&(active_unit->stamps));
+   *new = *s;
+
+   return MAKE_HANDLE(active_unit->depth, active_unit->stamps.count - 1);
+}
+
+vcode_stamp_t vstamp_int(int64_t low, int64_t high)
+{
+   const vstamp_t s = {
+      .kind = VCODE_STAMP_INT,
+      .u = { .intg = { .low = low, .high = high } },
+   };
+   return vstamp_new(&s);
+}
+
+vcode_stamp_t vstamp_real(double low, double high)
+{
+   const vstamp_t s = {
+      .kind = VCODE_STAMP_REAL,
+      .u = { .real = { .low = low, .high = high } },
+   };
+   return vstamp_new(&s);
+}
+
+vcode_stamp_t vstamp_char(void)
+{
+   return vstamp_int(0, 255);
 }
 
 int vcode_count_params(void)
@@ -3413,7 +3516,7 @@ vcode_reg_t emit_cmp(vcode_cmp_t cmp, vcode_reg_t lhs, vcode_reg_t rhs)
    return op->result;
 }
 
-vcode_reg_t emit_fcall(ident_t func, vcode_type_t type, vcode_type_t bounds,
+vcode_reg_t emit_fcall(ident_t func, vcode_type_t type, vcode_stamp_t stamp,
                        const vcode_reg_t *args, int nargs)
 {
    op_t *o = vcode_add_op(VCODE_OP_FCALL);
@@ -3432,7 +3535,7 @@ vcode_reg_t emit_fcall(ident_t func, vcode_type_t type, vcode_type_t bounds,
       o->result = vcode_add_reg(type);
 
       reg_t *rr = vcode_reg_data(o->result);
-      rr->bounds = bounds;
+      rr->stamp = stamp;
 
       return o->result;
    }
@@ -3456,35 +3559,7 @@ void emit_pcall(ident_t func, const vcode_reg_t *args, int nargs,
                 "first argument to VHDL procedure must be context pointer");
 }
 
-vcode_reg_t emit_syscall(ident_t func, vcode_type_t type, vcode_type_t bounds,
-                         vcode_reg_t locus, const vcode_reg_t *args, int nargs)
-{
-   op_t *o = vcode_add_op(VCODE_OP_SYSCALL);
-   o->func = func;
-   o->type = type;
-   vcode_add_arg(o, locus);
-   for (int i = 0; i < nargs; i++)
-      vcode_add_arg(o, args[i]);
-
-   VCODE_ASSERT(vcode_reg_kind(locus) == VCODE_TYPE_DEBUG_LOCUS,
-                "locus argument to syscall must be a debug locus");
-
-   for (int i = 0; i < nargs; i++)
-      VCODE_ASSERT(args[i] != VCODE_INVALID_REG, "invalid argument to syscall");
-
-   if (type == VCODE_INVALID_TYPE)
-      return (o->result = VCODE_INVALID_REG);
-   else {
-      o->result = vcode_add_reg(type);
-
-      reg_t *rr = vcode_reg_data(o->result);
-      rr->bounds = bounds;
-
-      return o->result;
-   }
-}
-
-vcode_reg_t emit_alloc(vcode_type_t type, vcode_type_t bounds,
+vcode_reg_t emit_alloc(vcode_type_t type, vcode_stamp_t stamp,
                        vcode_reg_t count)
 {
    op_t *op = vcode_add_op(VCODE_OP_ALLOC);
@@ -3499,7 +3574,7 @@ vcode_reg_t emit_alloc(vcode_type_t type, vcode_type_t bounds,
                 "alloca must have valid count argument");
 
    reg_t *r = vcode_reg_data(op->result);
-   r->bounds = bounds;
+   r->stamp = stamp;
 
    return op->result;
 }
@@ -3522,7 +3597,7 @@ vcode_reg_t emit_const(vcode_type_t type, int64_t value)
                 "constant must have integer or offset type");
 
    reg_t *r = vcode_reg_data(op->result);
-   r->bounds = vtype_int(value, value);
+   r->stamp = vstamp_int(value, value);
 
    return op->result;
 }
@@ -3540,7 +3615,7 @@ vcode_reg_t emit_const_real(vcode_type_t type, double value)
    op->result = vcode_add_reg(op->type);
 
    reg_t *r = vcode_reg_data(op->result);
-   r->bounds = vtype_real(value, value);
+   r->stamp = vstamp_real(value, value);
 
    return op->result;
 }
@@ -3585,9 +3660,6 @@ vcode_reg_t emit_const_array(vcode_type_t type, vcode_reg_t *values, int num)
    }
 #endif
 
-   reg_t *r = vcode_reg_data(op->result);
-   r->bounds = vtype_elem(type);
-
    return op->result;
 }
 
@@ -3612,7 +3684,7 @@ vcode_reg_t emit_const_rep(vcode_type_t type, vcode_reg_t value, int rep)
    op->result = vcode_add_reg(type);
 
    reg_t *r = vcode_reg_data(op->result);
-   r->bounds = vtype_bounds(type);
+   r->stamp = vcode_reg_data(value)->stamp;
 
    return op->result;
 }
@@ -3665,21 +3737,22 @@ vcode_reg_t emit_address_of(vcode_reg_t value)
    op_t *op = vcode_add_op(VCODE_OP_ADDRESS_OF);
    vcode_add_arg(op, value);
 
-   vcode_type_t type = vcode_reg_type(value);
-   VCODE_ASSERT(vtype_is_composite(type),
+   vcode_type_t vtype = vcode_reg_type(value);
+
+   VCODE_ASSERT(vtype_is_composite(vtype),
                 "address of argument must be record or array");
 
-   if (vtype_kind(type) == VCODE_TYPE_CARRAY) {
-      vcode_type_t elem = vtype_elem(type);
+   if (vtype_kind(vtype) == VCODE_TYPE_CARRAY) {
+      vcode_type_t elem = vtype_elem(vtype);
       op->result = vcode_add_reg(vtype_pointer(elem));
 
       reg_t *rr = vcode_reg_data(op->result);
-      rr->bounds = elem;
+      rr->stamp = vcode_reg_stamp(value);
 
       return op->result;
    }
    else
-      return (op->result = vcode_add_reg(vtype_pointer(type)));
+      return (op->result = vcode_add_reg(vtype_pointer(vtype)));
 }
 
 void emit_wait(vcode_block_t target)
@@ -3696,7 +3769,7 @@ void emit_jump(vcode_block_t target)
    VCODE_ASSERT(target != VCODE_INVALID_BLOCK, "invalid jump target");
 }
 
-vcode_var_t emit_var(vcode_type_t type, vcode_type_t bounds, ident_t name,
+vcode_var_t emit_var(vcode_type_t type, vcode_stamp_t stamp, ident_t name,
                      vcode_var_flags_t flags)
 {
    assert(active_unit != NULL);
@@ -3704,27 +3777,31 @@ vcode_var_t emit_var(vcode_type_t type, vcode_type_t bounds, ident_t name,
    vcode_var_t var = active_unit->vars.count;
    var_t *v = var_array_alloc(&(active_unit->vars));
    memset(v, '\0', sizeof(var_t));
-   v->type     = type;
-   v->bounds   = bounds;
-   v->name     = name;
-   v->flags    = flags;
+   v->type  = type;
+   v->stamp = stamp;
+   v->name  = name;
+   v->flags = flags;
+
+   assert(stamp == VCODE_INVALID_STAMP || vcode_stamp_data(stamp));
 
    return var;
 }
 
-vcode_reg_t emit_param(vcode_type_t type, vcode_type_t bounds, ident_t name)
+vcode_reg_t emit_param(vcode_type_t type, vcode_stamp_t stamp, ident_t name)
 {
    assert(active_unit != NULL);
 
    param_t *p = param_array_alloc(&(active_unit->params));
    memset(p, '\0', sizeof(param_t));
-   p->type   = type;
-   p->bounds = bounds;
-   p->name   = name;
-   p->reg    = vcode_add_reg(type);
+   p->type  = type;
+   p->stamp = stamp;
+   p->name  = name;
+   p->reg   = vcode_add_reg(type);
 
    reg_t *rr = vcode_reg_data(p->reg);
-   rr->bounds = bounds;
+   rr->stamp = stamp;
+
+   assert(stamp == VCODE_INVALID_STAMP || vcode_stamp_data(stamp));
 
    return p->reg;
 }
@@ -3781,7 +3858,7 @@ vcode_reg_t emit_load(vcode_var_t var)
    VCODE_ASSERT(vtype_is_scalar(v->type), "cannot load non-scalar type");
 
    reg_t *r = vcode_reg_data(op->result);
-   r->bounds = v->bounds;
+   r->stamp = v->stamp;
 
    return op->result;
 }
@@ -3816,7 +3893,7 @@ vcode_reg_t emit_load_indirect(vcode_reg_t reg)
 
    VCODE_ASSERT(vtype_is_scalar(deref), "cannot load non-scalar type");
 
-   vcode_reg_data(op->result)->bounds = vcode_reg_data(reg)->bounds;
+   vcode_reg_data(op->result)->stamp = vcode_reg_data(reg)->stamp;
 
    return op->result;
 }
@@ -3907,48 +3984,48 @@ static vcode_reg_t emit_mul_op(vcode_op_t op, vcode_reg_t lhs, vcode_reg_t rhs,
    else if ((r_is_const && rconst == 0) || (l_is_const && lconst == 0))
       return emit_const(vcode_reg_type(lhs), 0);
 
-   reg_t *lhs_r = vcode_reg_data(lhs);
-   reg_t *rhs_r = vcode_reg_data(rhs);
+   vcode_stamp_t vstamp = VCODE_INVALID_STAMP;
 
-   vtype_t *bl = vcode_type_data(lhs_r->bounds);
-   vtype_t *br = vcode_type_data(rhs_r->bounds);
+   double rl_low, rl_high, rr_low, rr_high;
+   int64_t l_low, l_high, r_low, r_high;
 
-   vcode_type_t vbounds;
-   if (vcode_reg_kind(lhs) == VCODE_TYPE_REAL) {
-      const double ll = bl->rlow * br->rlow;
-      const double lh = bl->rlow * br->rhigh;
-      const double hl = bl->rhigh * br->rlow;
-      const double hh = bl->rhigh * br->rhigh;
-
-      double min = MIN(MIN(ll, lh), MIN(hl, hh));
-      double max = MAX(MAX(ll, lh), MAX(hl, hh));
-
-      vbounds = vtype_real(min, max);
-   }
-   else {
-      const int64_t ll = smul64(bl->low, br->low);
-      const int64_t lh = smul64(bl->low, br->high);
-      const int64_t hl = smul64(bl->high, br->low);
-      const int64_t hh = smul64(bl->high, br->high);
+   if (vcode_reg_bounds(lhs, &l_low, &l_high)
+       && vcode_reg_bounds(rhs, &r_low, &r_high)) {
+      const int64_t ll = smul64(l_low, r_low);
+      const int64_t lh = smul64(l_low, r_high);
+      const int64_t hl = smul64(l_high, r_low);
+      const int64_t hh = smul64(l_high, r_high);
 
       int64_t min = MIN(MIN(ll, lh), MIN(hl, hh));
       int64_t max = MAX(MAX(ll, lh), MAX(hl, hh));
 
       if (min > INT64_MIN && max < INT64_MAX) {
-         vtype_repr_t repr = vtype_repr(lhs_r->type);
+         vtype_repr_t repr = vtype_repr(vcode_reg_data(lhs)->type);
          if (op == VCODE_OP_TRAP_MUL && vtype_clamp_to_repr(repr, &min, &max)) {
             op = VCODE_OP_MUL;   // Cannot overflow
             locus = VCODE_INVALID_REG;
          }
       }
 
-      vbounds = vtype_int(min, max);
+      vstamp = vstamp_int(min, max);
+   }
+   else if (vcode_reg_bounds_real(lhs, &rl_low, &rl_high)
+            && vcode_reg_bounds_real(rhs, &rr_low, &rr_high)) {
+      const double ll = rl_low * rr_low;
+      const double lh = rl_low * rr_high;
+      const double hl = rl_high * rr_low;
+      const double hh = rl_high * rr_high;
+
+      double min = MIN(MIN(ll, lh), MIN(hl, hh));
+      double max = MAX(MAX(ll, lh), MAX(hl, hh));
+
+      vstamp = vstamp_real(min, max);
    }
 
    vcode_reg_t reg = emit_arith(op, lhs, rhs, locus);
 
-   if (vbounds != VCODE_INVALID_TYPE)
-      vcode_reg_data(reg)->bounds = vbounds;
+   if (vstamp != VCODE_INVALID_TYPE)
+      vcode_reg_data(reg)->stamp = vstamp;
 
    return reg;
 }
@@ -3980,15 +4057,16 @@ vcode_reg_t emit_div(vcode_reg_t lhs, vcode_reg_t rhs)
 
    vcode_reg_t reg = emit_arith(VCODE_OP_DIV, lhs, rhs, VCODE_INVALID_REG);
 
-   vtype_t *bl = vcode_type_data(vcode_reg_data(lhs)->bounds);
-
-   if (bl->kind == VCODE_TYPE_INT && r_is_const && rconst != 0) {
-      reg_t *rr = vcode_reg_data(reg);
-      rr->bounds = vtype_int(bl->low / rconst, bl->high / rconst);
+   int64_t l_low, l_high;
+   if (vcode_reg_bounds(lhs, &l_low, &l_high)) {
+      if (r_is_const && rconst != 0) {
+         reg_t *rr = vcode_reg_data(reg);
+         rr->stamp = vstamp_int(l_low / rconst, l_high / rconst);
+      }
    }
-   else if (bl->kind == VCODE_TYPE_REAL) {
+   else {
       reg_t *rr = vcode_reg_data(reg);
-      rr->bounds = vtype_real(-INFINITY, INFINITY);
+      rr->stamp = vstamp_real(-INFINITY, INFINITY);
    }
 
    return reg;
@@ -4024,16 +4102,15 @@ vcode_reg_t emit_mod(vcode_reg_t lhs, vcode_reg_t rhs)
        && lconst > 0 && rconst > 0)
       return emit_const(vcode_reg_type(lhs), lconst % rconst);
 
-   vtype_t *bl = vcode_type_data(vcode_reg_data(lhs)->bounds);
-   vtype_t *br = vcode_type_data(vcode_reg_data(rhs)->bounds);
-
-   if (bl->low >= 0 && br->low >= 0) {
+   int64_t l_low, l_high, r_low, r_high;
+   if (vcode_reg_bounds(lhs, &l_low, &l_high) && l_low >= 0
+       && vcode_reg_bounds(rhs, &r_low, &r_high) && r_low >= 0) {
       // If both arguments are non-negative then rem is equivalent and
       // cheaper to compute
       vcode_reg_t reg = emit_arith(VCODE_OP_REM, lhs, rhs, VCODE_INVALID_REG);
 
       reg_t *rr = vcode_reg_data(reg);
-      rr->bounds = vtype_int(0, MAX(0, br->high - 1));
+      rr->stamp = vstamp_int(0, MAX(0, r_high - 1));
 
       return reg;
    }
@@ -4050,12 +4127,11 @@ vcode_reg_t emit_rem(vcode_reg_t lhs, vcode_reg_t rhs)
 
    vcode_reg_t reg = emit_arith(VCODE_OP_REM, lhs, rhs, VCODE_INVALID_REG);
 
-   vtype_t *bl = vcode_type_data(vcode_reg_data(lhs)->bounds);
-   vtype_t *br = vcode_type_data(vcode_reg_data(rhs)->bounds);
-
-   if (bl->low >= 0 && br->low >= 0) {
+   int64_t l_low, l_high, r_low, r_high;
+   if (vcode_reg_bounds(lhs, &l_low, &l_high) && l_low >= 0
+       && vcode_reg_bounds(rhs, &r_low, &r_high) && r_low >= 0) {
       reg_t *rr = vcode_reg_data(reg);
-      rr->bounds = vtype_int(0, br->high - 1);
+      rr->stamp = vstamp_int(0, r_high - 1);
    }
 
    return reg;
@@ -4074,32 +4150,29 @@ static vcode_reg_t emit_add_op(vcode_op_t op, vcode_reg_t lhs, vcode_reg_t rhs,
    else if (l_is_const && lconst == 0)
       return rhs;
 
-   vcode_type_t vbounds = VCODE_INVALID_TYPE;
-   if (vcode_reg_kind(lhs) != VCODE_TYPE_REAL) {
-      reg_t *lhs_r = vcode_reg_data(lhs);
-      reg_t *rhs_r = vcode_reg_data(rhs);
+   int64_t l_low, l_high, r_low, r_high;
+   vcode_stamp_t vstamp = VCODE_INVALID_STAMP;
+   if (vcode_reg_bounds(lhs, &l_low, &l_high)
+       && vcode_reg_bounds(rhs, &r_low, &r_high))  {
 
-      vtype_t *bl = vcode_type_data(lhs_r->bounds);
-      vtype_t *br = vcode_type_data(rhs_r->bounds);
-
-      int64_t rbl = sadd64(bl->low, br->low);
-      int64_t rbh = sadd64(bl->high, br->high);
+      int64_t rbl = sadd64(l_low, r_low);
+      int64_t rbh = sadd64(l_high, r_high);
 
       if (rbl > INT64_MIN && rbh < INT64_MAX) {
-         vtype_repr_t repr = vtype_repr(lhs_r->type);
+         vtype_repr_t repr = vtype_repr(vcode_reg_data(lhs)->type);
          if (op == VCODE_OP_TRAP_ADD && vtype_clamp_to_repr(repr, &rbl, &rbh)) {
             op = VCODE_OP_ADD;   // Cannot overflow
             locus = VCODE_INVALID_REG;
          }
       }
 
-      vbounds = vtype_int(rbl, rbh);
+      vstamp = vstamp_int(rbl, rbh);
    }
 
    vcode_reg_t reg = emit_arith(op, lhs, rhs, locus);
 
-   if (vbounds != VCODE_INVALID_TYPE)
-      vcode_reg_data(reg)->bounds = vbounds;
+   if (vstamp != VCODE_INVALID_STAMP)
+      vcode_reg_data(reg)->stamp = vstamp;
 
    return reg;
 }
@@ -4132,32 +4205,29 @@ static vcode_reg_t emit_sub_op(vcode_op_t op, vcode_reg_t lhs, vcode_reg_t rhs,
    else if (l_is_const && lconst == 0)
       return emit_neg(rhs);
 
-   vcode_type_t vbounds = VCODE_INVALID_TYPE;
-   if (vcode_reg_kind(lhs) != VCODE_TYPE_REAL) {
-      reg_t *lhs_r = vcode_reg_data(lhs);
-      reg_t *rhs_r = vcode_reg_data(rhs);
+   int64_t l_low, l_high, r_low, r_high;
+   vcode_stamp_t vstamp = VCODE_INVALID_STAMP;
+   if (vcode_reg_bounds(lhs, &l_low, &l_high)
+       && vcode_reg_bounds(rhs, &r_low, &r_high))  {
 
-      vtype_t *bl = vcode_type_data(lhs_r->bounds);
-      vtype_t *br = vcode_type_data(rhs_r->bounds);
-
-      int64_t rbl = ssub64(bl->low, br->high);
-      int64_t rbh = ssub64(bl->high, br->low);
+      int64_t rbl = ssub64(l_low, r_high);
+      int64_t rbh = ssub64(l_high, r_low);
 
       if (rbl > INT64_MIN && rbh < INT64_MAX) {
-         vtype_repr_t repr = vtype_repr(lhs_r->type);
+         vtype_repr_t repr = vtype_repr(vcode_reg_data(lhs)->type);
          if (op == VCODE_OP_TRAP_SUB && vtype_clamp_to_repr(repr, &rbl, &rbh)) {
             op = VCODE_OP_SUB;   // Cannot overflow
             locus = VCODE_INVALID_REG;
          }
       }
 
-      vbounds = vtype_int(rbl, rbh);
+      vstamp = vstamp_int(rbl, rbh);
    }
 
    vcode_reg_t reg = emit_arith(op, lhs, rhs, locus);
 
-   if (vbounds != VCODE_INVALID_TYPE)
-      vcode_reg_data(reg)->bounds = vbounds;
+   if (vstamp != VCODE_INVALID_TYPE)
+      vcode_reg_data(reg)->stamp = vstamp;
 
    return reg;
 }
@@ -4183,7 +4253,7 @@ static void vcode_calculate_var_index_type(op_t *op, var_t *var)
    case VCODE_TYPE_CARRAY:
       op->type = vtype_pointer(vtype_elem(var->type));
       op->result = vcode_add_reg(op->type);
-      vcode_reg_data(op->result)->bounds = vtype_bounds(var->type);
+      vcode_reg_data(op->result)->stamp = var->stamp;
       break;
 
    case VCODE_TYPE_RECORD:
@@ -4204,7 +4274,7 @@ static void vcode_calculate_var_index_type(op_t *op, var_t *var)
    case VCODE_TYPE_RESOLUTION:
       op->type = vtype_pointer(var->type);
       op->result = vcode_add_reg(op->type);
-      vcode_reg_data(op->result)->bounds = var->bounds;
+      vcode_reg_data(op->result)->stamp = var->stamp;
       break;
 
    default:
@@ -4239,7 +4309,7 @@ vcode_reg_t emit_index(vcode_var_t var, vcode_reg_t offset)
    return op->result;
 }
 
-vcode_reg_t emit_cast(vcode_type_t type, vcode_type_t bounds, vcode_reg_t reg)
+vcode_reg_t emit_cast(vcode_type_t type, vcode_stamp_t stamp, vcode_reg_t reg)
 {
    if (vtype_eq(vcode_reg_type(reg), type))
       return reg;
@@ -4280,21 +4350,25 @@ vcode_reg_t emit_cast(vcode_type_t type, vcode_type_t bounds, vcode_reg_t reg)
       vtype_t *vt = vcode_type_data(type);
       int64_t low = vt->low, high = vt->high;
 
-      vtype_t *rt = vcode_type_data(vcode_reg_bounds(reg));
-      low = MAX(low, rt->low);
-      high = MIN(high, rt->high);
+      vstamp_t *rt = vcode_stamp_data(vcode_reg_data(reg)->stamp);
+      if (rt != NULL) {
+         VCODE_ASSERT(rt->kind == VCODE_STAMP_INT, "must be integer stamp");
+         low = MAX(low, rt->u.intg.low);
+         high = MIN(high, rt->u.intg.high);
+      }
 
-      if (bounds != VCODE_INVALID_REG) {
-         vtype_t *bt = vcode_type_data(bounds);
-         low = MAX(low, bt->low);
-         high = MIN(high, bt->high);
+      vstamp_t *bt = vcode_stamp_data(stamp);
+      if (bt != NULL) {
+         VCODE_ASSERT(bt->kind == VCODE_STAMP_INT, "must be integer stamp");
+         low = MAX(low, bt->u.intg.low);
+         high = MIN(high, bt->u.intg.high);
       }
 
       reg_t *rr = vcode_reg_data(op->result);
-      rr->bounds = vtype_int(low, high);
+      rr->stamp = vstamp_int(low, high);
    }
-   else if (bounds != VCODE_INVALID_REG)
-      vcode_reg_data(op->result)->bounds = bounds;
+   else if (stamp != VCODE_INVALID_STAMP)
+      vcode_reg_data(op->result)->stamp = stamp;
 
    for (size_t i = 0; i < ARRAY_LEN(allowed); i++) {
       if (from == allowed[i][0] && to == allowed[i][1])
@@ -4429,7 +4503,9 @@ vcode_reg_t emit_trap_neg(vcode_reg_t lhs, vcode_reg_t locus)
    int64_t lconst;
    if (vcode_reg_const(lhs, &lconst) && lconst >= 0)
       return emit_const(vcode_reg_type(lhs), -lconst);
-   else if (vcode_type_data(vcode_reg_data(lhs)->bounds)->low >= 0)
+
+   vstamp_t *s = vcode_stamp_data(vcode_reg_data(lhs)->stamp);
+   if (s != NULL && s->kind == VCODE_STAMP_INT && s->u.intg.low >= 0)
       return emit_neg(lhs);   // Cannot overflow
 
    op_t *op = vcode_add_op(VCODE_OP_TRAP_NEG);
@@ -4654,8 +4730,10 @@ vcode_reg_t emit_wrap(vcode_reg_t data, const vcode_dim_t *dims, int ndims)
    vcode_type_t elem = (ptrkind == VCODE_TYPE_POINTER)
       ? vtype_pointed(ptr_type) : ptr_type;
 
-   op->result = vcode_add_reg(
-      vtype_uarray(ndims, elem, vcode_reg_bounds(data)));
+   op->result = vcode_add_reg(vtype_uarray(ndims, elem));
+
+   reg_t *rr = vcode_reg_data(op->result);
+   rr->stamp = vcode_reg_data(data)->stamp;
 
    return op->result;
 }
@@ -4741,7 +4819,7 @@ vcode_reg_t emit_uarray_len(vcode_reg_t array, unsigned dim)
    op->result = vcode_add_reg(vtype_offset());
 
    reg_t *rr = vcode_reg_data(op->result);
-   rr->bounds = vtype_int(0, INT64_MAX);
+   rr->stamp = vstamp_int(0, INT64_MAX);
 
    return op->result;
 }
@@ -4770,7 +4848,7 @@ vcode_reg_t emit_unwrap(vcode_reg_t array)
    op->result = vcode_add_reg(rtype);
 
    reg_t *rr = vcode_reg_data(op->result);
-   rr->bounds = elem;
+   rr->stamp = vcode_reg_data(array)->stamp;
 
    return op->result;
 }
@@ -4785,18 +4863,18 @@ vcode_reg_t emit_range_null(vcode_reg_t left, vcode_reg_t right,
          return other->result;
    }
 
-   int64_t dir_const;
-   if (vcode_reg_const(dir, &dir_const)) {
-      vtype_t *lbounds = vcode_type_data(vcode_reg_bounds(left));
-      vtype_t *rbounds = vcode_type_data(vcode_reg_bounds(right));
+   int64_t dir_const, l_low, l_high, r_low, r_high;
+   if (vcode_reg_const(dir, &dir_const)
+       && vcode_reg_bounds(left, &l_low, &l_high)
+       && vcode_reg_bounds(right, &r_low, &r_high)) {
 
-      if (dir_const == RANGE_TO && lbounds->low > rbounds->high)
+      if (dir_const == RANGE_TO && l_low > r_high)
          return emit_const(vtype_bool(), 1);
-      else if (dir_const == RANGE_TO && lbounds->high <= rbounds->low)
+      else if (dir_const == RANGE_TO && l_high <= r_low)
          return emit_const(vtype_bool(), 0);
-      else if (dir_const == RANGE_DOWNTO && rbounds->low > lbounds->high)
+      else if (dir_const == RANGE_DOWNTO && r_low > l_high)
          return emit_const(vtype_bool(), 1);
-      else if (dir_const == RANGE_DOWNTO && rbounds->high <= lbounds->low)
+      else if (dir_const == RANGE_DOWNTO && r_high <= l_low)
          return emit_const(vtype_bool(), 0);
       else if (dir_const == RANGE_TO)
          return emit_cmp(VCODE_CMP_GT, left, right);
@@ -4876,7 +4954,7 @@ vcode_reg_t emit_range_length(vcode_reg_t left, vcode_reg_t right,
    op->result = vcode_add_reg(vtype_offset());
 
    reg_t *rr = vcode_reg_data(op->result);
-   rr->bounds = vtype_int(0, INT64_MAX);
+   rr->stamp = vstamp_int(0, INT64_MAX);
 
    return op->result;
 }
@@ -5228,21 +5306,15 @@ vcode_reg_t emit_record_ref(vcode_reg_t record, unsigned field)
    VCODE_ASSERT(field < rtype->fields.count, "invalid field %d", field);
 
    vcode_type_t field_type  = rtype->fields.items[field];
-   vcode_type_t bounds_type = field_type;
    vcode_type_t result_type = field_type;
 
    const vtype_kind_t fkind = vtype_kind(field_type);
    if (fkind == VCODE_TYPE_CARRAY)
-      result_type = bounds_type = vtype_elem(field_type);
-   else if (fkind == VCODE_TYPE_UARRAY) {
-      bounds_type = vtype_elem(field_type);
+      result_type = vtype_elem(field_type);
+   else if (fkind == VCODE_TYPE_UARRAY)
       result_type = field_type;
-   }
 
    op->result = vcode_add_reg(vtype_pointer(result_type));
-
-   reg_t *rr = vcode_reg_data(op->result);
-   rr->bounds = bounds_type;
 
    return op->result;
 }
@@ -5269,7 +5341,7 @@ vcode_reg_t emit_array_ref(vcode_reg_t array, vcode_reg_t offset)
    op->result = vcode_add_reg(rtype);
 
    reg_t *rr = vcode_reg_data(op->result);
-   rr->bounds = vcode_reg_bounds(array);
+   rr->stamp = vcode_reg_data(array)->stamp;
 
    return op->result;
 }
@@ -5311,7 +5383,7 @@ vcode_reg_t emit_table_ref(vcode_reg_t array, vcode_reg_t stride,
    op->result = vcode_add_reg(rtype);
 
    reg_t *rr = vcode_reg_data(op->result);
-   rr->bounds = vcode_reg_bounds(array);
+   rr->stamp = vcode_reg_stamp(array);
 
    return op->result;
 }
@@ -5602,7 +5674,7 @@ vcode_reg_t emit_all(vcode_reg_t reg)
    op->result = vcode_add_reg(vtype_pointer(pointed));
 
    reg_t *rr = vcode_reg_data(op->result);
-   rr->bounds = pointed;
+   rr->stamp = vcode_reg_data(reg)->stamp;
 
    VCODE_ASSERT(vtype_kind(pointed) != VCODE_TYPE_OPAQUE,
                 "cannot dereference opaque type");
@@ -5640,7 +5712,7 @@ static vcode_reg_t emit_signal_data_op(vcode_op_t kind, vcode_reg_t sig)
    op->result = vcode_add_reg(vtype_pointer(rtype));
 
    reg_t *rr = vcode_reg_data(op->result);
-   rr->bounds = rtype;
+   rr->stamp = vcode_reg_data(sig)->stamp;
 
    return op->result;
 }
@@ -5731,9 +5803,6 @@ vcode_reg_t emit_driving_value(vcode_reg_t signal, vcode_reg_t len)
    vcode_type_t base_type = vtype_base(signal_type);
    op->result = vcode_add_reg(vtype_pointer(base_type));
 
-   reg_t *rr = vcode_reg_data(op->result);
-   rr->bounds = base_type;
-
    return op->result;
 }
 
@@ -5805,38 +5874,51 @@ static bool vcode_can_elide_bounds(vcode_reg_t reg, vcode_reg_t left,
                                    vcode_reg_t right, vcode_reg_t dir)
 {
    int64_t dconst;
-   if (vcode_reg_const(dir, &dconst)) {
-      int64_t lconst, rconst;
-      if (vcode_reg_const(left, &lconst) && vcode_reg_const(right, &rconst)) {
-         const bool is_null = (dconst == RANGE_TO && lconst > rconst)
-            || (dconst == RANGE_DOWNTO && rconst > lconst);
+   if (!vcode_reg_const(dir, &dconst))
+      return false;
 
-         vtype_t *bounds = vcode_type_data(vcode_reg_bounds(reg));
+   int64_t lconst, rconst;
+   if (vcode_reg_const(left, &lconst) && vcode_reg_const(right, &rconst)) {
+      const bool is_null = (dconst == RANGE_TO && lconst > rconst)
+         || (dconst == RANGE_DOWNTO && rconst > lconst);
 
+      int64_t low, high;
+      if (vcode_reg_bounds(reg, &low, &high)) {
          const bool ok_static =
-            (dconst == RANGE_TO
-             && bounds->low >= lconst && bounds->high <= rconst)
-            || (dconst == RANGE_DOWNTO
-                && bounds->low >= rconst && bounds->high <= lconst)
+            (dconst == RANGE_TO && low >= lconst && high <= rconst)
+            || (dconst == RANGE_DOWNTO && low >= rconst && high <= lconst)
             || (!is_null && (reg == left || reg == right));
 
          return ok_static;
       }
-      else if (vcode_reg_kind(reg) == VCODE_TYPE_REAL) {
-         vtype_t *lbounds = vcode_type_data(vcode_reg_bounds(left));
-         vtype_t *rbounds = vcode_type_data(vcode_reg_bounds(right));
+   }
+   else if (vcode_reg_kind(reg) == VCODE_TYPE_REAL) {
+      vstamp_t *lbounds = vcode_stamp_data(vcode_reg_data(left)->stamp);
+      vstamp_t *rbounds = vcode_stamp_data(vcode_reg_data(right)->stamp);
 
-         assert(lbounds->kind == VCODE_TYPE_REAL);
-         assert(rbounds->kind == VCODE_TYPE_REAL);
+      assert(lbounds->kind == VCODE_STAMP_REAL);
+      assert(rbounds->kind == VCODE_STAMP_REAL);
 
-         vtype_t *bounds = vcode_type_data(vcode_reg_bounds(reg));
-         assert(bounds->kind == VCODE_TYPE_REAL);
+      double low, high;
 
-         if (isfinite(bounds->rlow) && lbounds->rlow == -DBL_MAX
-             && isfinite(bounds->rhigh) && rbounds->rhigh == DBL_MAX) {
-            // Covers the complete double range so can never overflow
-            return true;
-         }
+      reg_t *rr = vcode_reg_data(reg);
+      vstamp_t *bounds = vcode_stamp_data(rr->stamp);
+      if (bounds != NULL) {
+         assert(bounds->kind == VCODE_STAMP_REAL);
+         low = bounds->u.real.low;
+         high = bounds->u.real.high;
+      }
+      else {
+         vtype_t *type = vcode_type_data(rr->type);
+         assert(type->kind == VCODE_TYPE_REAL);
+         low = type->rlow;
+         high = type->rhigh;
+      }
+
+      if (isfinite(low) && lbounds->u.real.low == -DBL_MAX
+          && isfinite(high) && rbounds->u.real.high == DBL_MAX) {
+         // Covers the complete double range so can never overflow
+         return true;
       }
    }
 
@@ -5994,13 +6076,13 @@ void emit_unreachable(vcode_reg_t locus)
       vcode_add_arg(op, locus);
 }
 
-vcode_reg_t emit_undefined(vcode_type_t type, vcode_type_t bounds)
+vcode_reg_t emit_undefined(vcode_type_t type, vcode_stamp_t stamp)
 {
    active_unit->flags |= UNIT_UNDEFINED;
 
    op_t *op = vcode_add_op(VCODE_OP_UNDEFINED);
    op->result = vcode_add_reg(type);
-   vcode_reg_data(op->result)->bounds = bounds;
+   vcode_reg_data(op->result)->stamp = stamp;
 
    return op->result;
 }
@@ -6025,14 +6107,10 @@ vcode_reg_t emit_link_var(vcode_reg_t context, ident_t name, vcode_type_t type)
    VCODE_ASSERT(vcode_reg_kind(context) == VCODE_TYPE_CONTEXT,
                 "first argument to link var must be context");
 
-   if (vtype_kind(type) == VCODE_TYPE_CARRAY) {
+   if (vtype_kind(type) == VCODE_TYPE_CARRAY)
       op->result = vcode_add_reg(vtype_pointer(vtype_elem(type)));
-      vcode_reg_data(op->result)->bounds = vtype_bounds(type);
-   }
-   else {
+   else
       op->result = vcode_add_reg(vtype_pointer(type));
-      vcode_reg_data(op->result)->bounds = type;
-   }
 
    return op->result;
 }
@@ -6174,7 +6252,7 @@ vcode_reg_t emit_port_conversion(vcode_reg_t driving, vcode_reg_t effective)
 }
 
 vcode_reg_t emit_bind_external(vcode_reg_t locus, ident_t scope,
-                               vcode_type_t type, vcode_type_t bounds,
+                               vcode_type_t type, vcode_stamp_t stamp,
                                const vcode_reg_t *args, int nargs)
 {
    op_t *op = vcode_add_op(VCODE_OP_BIND_EXTERNAL);
@@ -6188,7 +6266,7 @@ vcode_reg_t emit_bind_external(vcode_reg_t locus, ident_t scope,
                 "bind external argument must be locus");
 
    op->result = vcode_add_reg(vtype_pointer(type));
-   vcode_reg_data(op->result)->bounds = bounds;
+   vcode_reg_data(op->result)->stamp = stamp;
    return op->result;
 }
 
@@ -6267,7 +6345,7 @@ vcode_reg_t emit_instance_name(vcode_reg_t kind)
                 "kind argument to instance name must be offset");
 
    vcode_type_t vchar = vtype_char();
-   return (op->result = vcode_add_reg(vtype_uarray(1, vchar, vchar)));
+   return (op->result = vcode_add_reg(vtype_uarray(1, vchar)));
 }
 
 void vcode_walk_dependencies(vcode_unit_t vu, vcode_dep_fn_t fn, void *ctx)
