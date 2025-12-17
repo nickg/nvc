@@ -3911,10 +3911,12 @@ static vcode_reg_t emit_mul_op(vcode_op_t op, vcode_reg_t lhs, vcode_reg_t rhs,
       int64_t min = MIN(MIN(ll, lh), MIN(hl, hh));
       int64_t max = MAX(MAX(ll, lh), MAX(hl, hh));
 
-      vtype_repr_t repr = vtype_repr(lhs_r->type);
-      if (op == VCODE_OP_TRAP_MUL && vtype_clamp_to_repr(repr, &min, &max)) {
-         op = VCODE_OP_MUL;   // Cannot overflow
-         locus = VCODE_INVALID_REG;
+      if (min > INT64_MIN && max < INT64_MAX) {
+         vtype_repr_t repr = vtype_repr(lhs_r->type);
+         if (op == VCODE_OP_TRAP_MUL && vtype_clamp_to_repr(repr, &min, &max)) {
+            op = VCODE_OP_MUL;   // Cannot overflow
+            locus = VCODE_INVALID_REG;
+         }
       }
 
       vbounds = vtype_int(min, max);
@@ -4060,10 +4062,12 @@ static vcode_reg_t emit_add_op(vcode_op_t op, vcode_reg_t lhs, vcode_reg_t rhs,
       int64_t rbl = sadd64(bl->low, br->low);
       int64_t rbh = sadd64(bl->high, br->high);
 
-      vtype_repr_t repr = vtype_repr(lhs_r->type);
-      if (op == VCODE_OP_TRAP_ADD && vtype_clamp_to_repr(repr, &rbl, &rbh)) {
-         op = VCODE_OP_ADD;   // Cannot overflow
-         locus = VCODE_INVALID_REG;
+      if (rbl > INT64_MIN && rbh < INT64_MAX) {
+         vtype_repr_t repr = vtype_repr(lhs_r->type);
+         if (op == VCODE_OP_TRAP_ADD && vtype_clamp_to_repr(repr, &rbl, &rbh)) {
+            op = VCODE_OP_ADD;   // Cannot overflow
+            locus = VCODE_INVALID_REG;
+         }
       }
 
       vbounds = vtype_int(rbl, rbh);
@@ -4116,10 +4120,12 @@ static vcode_reg_t emit_sub_op(vcode_op_t op, vcode_reg_t lhs, vcode_reg_t rhs,
       int64_t rbl = ssub64(bl->low, br->high);
       int64_t rbh = ssub64(bl->high, br->low);
 
-      vtype_repr_t repr = vtype_repr(lhs_r->type);
-      if (op == VCODE_OP_TRAP_SUB && vtype_clamp_to_repr(repr, &rbl, &rbh)) {
-         op = VCODE_OP_SUB;   // Cannot overflow
-         locus = VCODE_INVALID_REG;
+      if (rbl > INT64_MIN && rbh < INT64_MAX) {
+         vtype_repr_t repr = vtype_repr(lhs_r->type);
+         if (op == VCODE_OP_TRAP_SUB && vtype_clamp_to_repr(repr, &rbl, &rbh)) {
+            op = VCODE_OP_SUB;   // Cannot overflow
+            locus = VCODE_INVALID_REG;
+         }
       }
 
       vbounds = vtype_int(rbl, rbh);

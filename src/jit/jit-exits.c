@@ -544,8 +544,8 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
 
    case JIT_EXIT_OVERFLOW:
       {
-         int32_t lhs   = args[0].integer;
-         int32_t rhs   = args[1].integer;
+         int64_t lhs   = args[0].integer;
+         int64_t rhs   = args[1].integer;
          tree_t  where = args[2].pointer;
 
          x_overflow(lhs, rhs, where);

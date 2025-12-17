@@ -1237,3 +1237,4 @@ cmdline18       shell
 wide4           verilog
 issue1359       shell
 issue1361       normal,2008
+arith6          fail,gold,2019

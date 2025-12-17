@@ -3,7 +3,7 @@ end entity;
 
 architecture test of issue856 is
     type t_point is record
-        x, y : integer;
+        x, y : natural;
     end record;
 
     type t_point_array is array (natural range <>) of t_point;
