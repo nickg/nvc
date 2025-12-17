@@ -2239,6 +2239,7 @@ void mir_build_unreachable(mir_unit_t *mu, mir_value_t locus)
    MIR_ASSERT(mir_is_null(locus) || mir_is(mu, locus, MIR_TYPE_LOCUS),
               "locus argument to unreachable must be debug locus");
 }
+
 static void mir_build_bounds_op(mir_unit_t *mu, mir_op_t op, mir_value_t value,
                                 mir_value_t left, mir_value_t right,
                                 mir_value_t dir, mir_value_t locus,
@@ -2248,6 +2249,13 @@ static void mir_build_bounds_op(mir_unit_t *mu, mir_op_t op, mir_value_t value,
 
    mir_build_6(mu, op, MIR_NULL_TYPE, MIR_NULL_STAMP, value, left, right,
                dir, locus, hint);
+
+   MIR_ASSERT(mir_is_numeric(mu, value), "value must be numeric");
+   MIR_ASSERT(mir_is_numeric(mu, left), "left bound must be numeric");
+   MIR_ASSERT(mir_is_numeric(mu, right), "right bound must be numeric");
+   MIR_ASSERT(mir_check_type(mu, dir, mir_bool_type(mu)),
+              "direction must be a bool");
+   MIR_ASSERT(mir_is(mu, locus, MIR_TYPE_LOCUS), "locus must be a debug locus");
 }
 
 void mir_build_range_check(mir_unit_t *mu, mir_value_t value, mir_value_t left,

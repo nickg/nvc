@@ -2854,6 +2854,13 @@ bool vtype_is_scalar(vcode_type_t type)
       || kind == VCODE_TYPE_RESOLUTION;
 }
 
+bool vtype_is_numeric(vcode_type_t type)
+{
+   const vtype_kind_t kind = vtype_kind(type);
+   return kind == VCODE_TYPE_INT || kind == VCODE_TYPE_OFFSET
+      || kind == VCODE_TYPE_REAL;
+}
+
 bool vtype_is_composite(vcode_type_t type)
 {
    const vtype_kind_t kind = vtype_kind(type);
@@ -5789,6 +5796,8 @@ static void emit_bounds_check(vcode_op_t kind, vcode_reg_t reg,
    vcode_add_arg(op, locus);
    vcode_add_arg(op, hint);
 
+   VCODE_ASSERT(vtype_is_numeric(vcode_reg_type(reg)),
+                "argument to bounds check must be numeric");
    VCODE_ASSERT(vcode_reg_kind(locus) == VCODE_TYPE_DEBUG_LOCUS,
                 "locus argument to bounds check must be a debug locus");
    VCODE_ASSERT(vcode_reg_kind(hint) == VCODE_TYPE_DEBUG_LOCUS,

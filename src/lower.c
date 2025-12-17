@@ -6100,9 +6100,6 @@ static void lower_signal_assign_target(lower_unit_t *lu, target_part_t **ptr,
       if (p->kind == PART_ELEM || p->kind == PART_SLICE)
          src_reg = lower_array_data(src_reg);
 
-      if (type_is_scalar(type))
-         lower_check_scalar_bounds(lu, src_reg, type, where, p->target);
-
       if (!type_is_homogeneous(type)) {
          vcode_reg_t args[2] = { reject, after };
          vcode_reg_t locus = lower_debug_locus(where);
@@ -6110,15 +6107,19 @@ static void lower_signal_assign_target(lower_unit_t *lu, target_part_t **ptr,
                                 lower_signal_target_field_cb, &args);
       }
       else if (type_is_array(type)) {
-         vcode_reg_t resolved_reg = lower_resolved(lu, type, src_reg);
-         vcode_reg_t data_reg = lower_array_data(resolved_reg);
+         vcode_reg_t data_reg = lower_array_data(src_reg);
          vcode_reg_t count_reg = lower_array_total_len(lu, type, p->reg);
          vcode_reg_t nets_raw = lower_array_data(p->reg);
 
          emit_sched_waveform(nets_raw, count_reg, data_reg, reject, after);
       }
       else {
-         vcode_reg_t data_reg = lower_resolved(lu, type, src_reg);
+         vcode_reg_t data_reg = src_reg;
+         if (vcode_reg_kind(src_reg) == VCODE_TYPE_POINTER)
+            data_reg = emit_load_indirect(src_reg);
+
+         lower_check_scalar_bounds(lu, data_reg, type, where, p->target);
+
          emit_sched_waveform(p->reg, emit_const(vtype_offset(), 1),
                              data_reg, reject, after);
       }

@@ -6953,6 +6953,45 @@ START_TEST(test_issue1350)
 }
 END_TEST
 
+START_TEST(test_bounds3)
+{
+   input_from_file(TESTDIR "/lower/bounds3.vhd");
+
+   run_elab();
+
+   vcode_unit_t vu = find_unit("WORK.BOUNDS3.P1");
+   vcode_select_unit(vu);
+
+   EXPECT_BB(1) = {
+      { VCODE_OP_VAR_UPREF, .name = "A", .hops = 1 },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_VAR_UPREF, .name = "B", .hops = 1 },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_CONST, .value = 2 },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_INDEX, .name = "R1" },
+      { VCODE_OP_RECORD_REF, .field = 0 },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_DEBUG_LOCUS },
+      { VCODE_OP_DEBUG_LOCUS },
+      { VCODE_OP_RANGE_CHECK },
+      { VCODE_OP_SCHED_WAVEFORM },
+      { VCODE_OP_RECORD_REF, .field = 1 },
+      { VCODE_OP_DEBUG_LOCUS },
+      { VCODE_OP_CONST, .value = 3 },
+      { VCODE_OP_LENGTH_CHECK },
+      { VCODE_OP_SCHED_WAVEFORM },
+      { VCODE_OP_WAIT, .target = 2 },
+   };
+
+   CHECK_BB(1);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_lower_tests(void)
 {
    Suite *s = suite_create("lower");
@@ -7112,6 +7151,7 @@ Suite *get_lower_tests(void)
    tcase_add_test(tc, test_issue1280);
    tcase_add_test(tc, test_comp1);
    tcase_add_test(tc, test_issue1350);
+   tcase_add_test(tc, test_bounds3);
    suite_add_tcase(s, tc);
 
    return s;
