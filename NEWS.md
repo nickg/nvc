@@ -11,7 +11,8 @@
 - The new `--relative=DIR` analysis option saves all file names relative
   to `DIR`.  This can be useful to ensure reproducibility of binary
   libraries (#1359).
-- Several other minor bugs were resolved (#1237, #1350, #1351, #1353).
+- Several other minor bugs were resolved (#1237, #1350, #1351, #1353,
+  #1366).
 
 ## Version 1.18.2 - 2025-11-19
 - Fixed a mis-optimisation which would cause the result of `x * x` to be

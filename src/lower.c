@@ -11708,14 +11708,19 @@ static vcode_reg_t lower_constrain_port(lower_unit_t *lu, tree_t port, int pos,
                                         tree_t block, vcode_reg_t *map_regs)
 {
    vcode_reg_t left_reg = VCODE_INVALID_REG, right_reg = VCODE_INVALID_REG;
-   type_t port_type = tree_type(port);
+   type_t port_type = tree_type(port), elem = NULL;
 
+   bool nested_array = false;
    vcode_reg_t rptr_reg = VCODE_INVALID_VAR;
    if (type_is_record(port_type)) {
       vcode_type_t vtype = lower_signal_type(port_type);
       ident_t name = ident_prefix(tree_ident(port), ident_new("cons"), '$');
       vcode_var_t rec_var = emit_var(vtype, vtype, name, 0);
       rptr_reg = emit_index(rec_var, VCODE_INVALID_REG);
+   }
+   else {
+      elem = type_elem(port_type);
+      nested_array = type_is_array(elem);
    }
 
    vcode_reg_t elem_reg = VCODE_INVALID_REG;
@@ -11769,9 +11774,10 @@ static vcode_reg_t lower_constrain_port(lower_unit_t *lu, tree_t port, int pos,
       else
          bounds_reg = map_regs[i];
 
+      type_t value_type = tree_type(value);
+
       if (name == NULL || tree_kind(name) == T_REF) {
-         type_t value_type = tree_type(value);
-         if (type_is_array(port_type))
+         if (type_is_array(value_type))
             return lower_coerce_arrays(lu, value_type, port_type, bounds_reg);
          else
             return bounds_reg;
@@ -11797,9 +11803,10 @@ static vcode_reg_t lower_constrain_port(lower_unit_t *lu, tree_t port, int pos,
                right_reg = emit_select(above_reg, value_reg, right_reg);
             }
 
-            if (elem_reg == VCODE_INVALID_REG)
-               elem_reg = lower_coerce_arrays(lu, tree_type(value),
-                                              type_elem(port_type), bounds_reg);
+            if (nested_array && elem_reg == VCODE_INVALID_REG)
+               elem_reg = lower_coerce_arrays(lu, value_type, elem, bounds_reg);
+            else if (elem_reg == VCODE_INVALID_REG)
+               elem_reg = bounds_reg;
          }
          break;
 
@@ -11811,8 +11818,6 @@ static vcode_reg_t lower_constrain_port(lower_unit_t *lu, tree_t port, int pos,
             type_t ftype = tree_type(f);
             if (!type_is_unconstrained(ftype))
                continue;
-
-            type_t value_type = tree_type(tree_value(map));
 
             vcode_reg_t field_reg = emit_record_ref(rptr_reg, tree_pos(f));
 
@@ -11846,30 +11851,32 @@ static vcode_reg_t lower_constrain_port(lower_unit_t *lu, tree_t port, int pos,
       assert(left_reg != VCODE_INVALID_REG);
       assert(elem_reg != VCODE_INVALID_REG);
 
-      type_t elem = type_elem_recur(port_type);
-      vcode_type_t velem = lower_type(elem);
-
       vcode_reg_t dir_reg = emit_const(vtype_bool(), RANGE_TO);
-      vcode_reg_t null_reg = emit_null(vtype_pointer(velem));
-
       vcode_dim_t dim0 = { left_reg, right_reg, dir_reg };
 
-      if (vcode_reg_kind(elem_reg) == VCODE_TYPE_UARRAY) {
-         const int ndims = vtype_dims(vcode_reg_type(elem_reg));
-         vcode_dim_t *dims LOCAL =
-            xmalloc_array(ndims + 1, sizeof(vcode_dim_t));
+      if (nested_array) {
+         const int ndims = dims_for_type(port_type);
+         assert(ndims >= 1);
+
+         vcode_dim_t *dims LOCAL = xmalloc_array(ndims, sizeof(vcode_dim_t));
          dims[0] = dim0;
-         for (int i = 0; i < ndims; i++) {
-            dims[i + 1].left  = emit_uarray_left(elem_reg, i);
-            dims[i + 1].right = emit_uarray_right(elem_reg, i);
-            dims[i + 1].dir   = emit_uarray_dir(elem_reg, i);
+         for (int i = 1; i < ndims; i++) {
+            dims[i].left  = lower_array_left(lu, elem, i - 1, elem_reg);
+            dims[i].right = lower_array_right(lu, elem, i - 1, elem_reg);
+            dims[i].dir   = lower_array_dir(lu, elem, i - 1, elem_reg);
          }
 
-         return emit_wrap(null_reg, dims, ndims + 1);
+         vcode_reg_t data_reg = lower_array_data(elem_reg);
+         return emit_wrap(data_reg, dims, ndims);
+      }
+      else if (vcode_reg_kind(elem_reg) == VCODE_TYPE_POINTER) {
+         vcode_dim_t dims[] = { dim0 };
+         return emit_wrap(elem_reg, dims, 1);
       }
       else {
          vcode_dim_t dims[] = { dim0 };
-         return emit_wrap(null_reg, dims, 1);
+         vcode_type_t vpointer = vtype_pointer(vcode_reg_type(elem_reg));
+         return emit_wrap(emit_null(vpointer), dims, 1);
       }
    }
 }
