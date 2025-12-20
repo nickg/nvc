@@ -2259,12 +2259,12 @@ static attr_kind_t parse_predefined_attr(ident_t ident)
    INIT_ONCE({
          for (int i = 0; i < ARRAY_LEN(predef); i++) {
             predef[i].ident = ident_new(predef[i].str);
-            predef[i].hash  = ident_casehash(predef[i].ident);
+            predef[i].hash  = ident_hash(predef[i].ident);
          }
       });
 
    const vhdl_standard_t std = standard();
-   const uint32_t hash = ident_casehash(ident);
+   const uint32_t hash = ident_hash(ident);
 
    for (int i = 0; i < ARRAY_LEN(predef) && predef[i].std <= std; i++) {
       if (predef[i].hash == hash && ident_casecmp(predef[i].ident, ident))

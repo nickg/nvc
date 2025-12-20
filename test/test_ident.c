@@ -1,3 +1,4 @@
+// -*- coding: latin-1; -*-
 //
 //  Copyright (C) 2011-2025  Nick Gasson
 //
@@ -406,6 +407,9 @@ START_TEST(test_casecmp)
       { "123456789123456789abcD", "123456789123456789abcd", true },
       { "123456789123456789abcD", "123456789123456789abcdx", false },
       { "123456789123456789abcD", "123456789123456789abbd", false },
+      { "café", "CAFÉ", true },
+      { "smørrebrød", "SMØRREBRØD", true },
+      { "Blåbær", "BLÅBÆR", true },
    };
 
    for (int i = 0; i < ARRAY_LEN(cases); i++) {
@@ -416,7 +420,7 @@ START_TEST(test_casecmp)
       ck_assert_msg(cmp == cases[i].result,
                     "%s %c= %s failed", cases[i].a,
                     cases[i].result ? '=' : '!', cases[i].b);
-      ck_assert((ident_casehash(a) == ident_casehash(b)) == cases[i].result);
+      ck_assert((ident_hash(a) == ident_hash(b)) == cases[i].result);
    }
 }
 END_TEST

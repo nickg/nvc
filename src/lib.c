@@ -195,7 +195,7 @@ static void lib_read_index(lib_t lib)
 
 static uint32_t lib_name_hash(const void *key)
 {
-   return ident_casehash((ident_t)key);
+   return ident_hash((ident_t)key);
 }
 
 static bool lib_name_cmp(const void *a, const void *b)
