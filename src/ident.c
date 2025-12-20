@@ -33,7 +33,7 @@
 #include <x86intrin.h>
 #endif
 
-#define HASH_INIT 5381;
+#define HASH_INIT UINT32_C(2166136261)
 typedef uint32_t hash_state_t;
 
 #define INITIAL_SIZE  1024
@@ -113,16 +113,26 @@ static const unsigned char canon_table[256] = {
 
 static inline int hash_update(hash_state_t *state, const char *key, int nchars)
 {
-   // DJB2 hash function from here:
-   //   http://www.cse.yorku.ca/~oz/hash.html
-
    hash_state_t hash = *state;
    const char *p = key;
-   for (; p < key + nchars && *p; p++)
-      hash = ((hash << 5) + hash) + canon_table[(unsigned char)*p];
+
+   // FNV-1a
+   for (; p < key + nchars && *p; p++) {
+      hash ^= canon_table[(unsigned char)*p];
+      hash *= UINT32_C(16777619);
+   }
 
    *state = hash;
    return p - key;
+}
+
+static inline void hash_mix(hash_state_t *state)
+{
+   hash_state_t hash = *state;
+   hash ^= hash >> 16;
+   hash *= 0x85ebca6b;
+   hash ^= hash >> 13;
+   *state = hash;
 }
 
 static ident_t ident_alloc(size_t len, hash_state_t hash)
@@ -241,7 +251,7 @@ static void grow_table(ident_tab_t *cur)
 
 static ident_t ident_from_bytes(const char *str, hash_state_t hash, size_t len)
 {
-   hash = mix_bits_32(hash);
+   hash_mix(&hash);
 
    for (;;) {
       ident_tab_t *cur = get_table();
@@ -280,7 +290,7 @@ static ident_t ident_from_byte_vec(hash_state_t hash, bool uniq, int nparts,
                                    const char *str_vec[nparts],
                                    const size_t len_vec[nparts])
 {
-   hash = mix_bits_32(hash);
+   hash_mix(&hash);
 
    size_t len = 0;
    for (int i = 0; i < nparts; i++)
