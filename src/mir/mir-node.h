@@ -311,6 +311,7 @@ typedef enum {
 
 typedef enum {
    MIR_MEM_NONE,
+   MIR_MEM_NULL,
    MIR_MEM_CONST,
    MIR_MEM_STACK,
    MIR_MEM_LOCAL,

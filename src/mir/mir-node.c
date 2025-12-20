@@ -617,9 +617,10 @@ mir_mem_t mir_get_mem(mir_unit_t *mu, mir_value_t value)
       return MIR_MEM_TOP;
 
    const stamp_data_t *sd = mir_stamp_data(mu, stamp);
-   assert(sd->kind == MIR_STAMP_POINTER);
+   if (sd->kind == MIR_STAMP_POINTER)
+      return sd->u.pointer.memory;
 
-   return sd->u.pointer.memory;
+   return MIR_MEM_NONE;
 }
 
 ident_t mir_get_name(mir_unit_t *mu, mir_value_t value)
@@ -1686,6 +1687,8 @@ mir_value_t mir_build_load(mir_unit_t *mu, mir_value_t value)
    MIR_ASSERT(mir_get_class(mu, type) == MIR_TYPE_POINTER,
               "argument to load is not a pointer or variable");
    MIR_ASSERT(mir_is_scalar(mu, result), "cannot load non-scalar type");
+   MIR_ASSERT(mir_get_mem(mu, value) != MIR_MEM_NULL,
+              "null pointer dereference");
 
    return result;
 }
@@ -1750,7 +1753,8 @@ mir_value_t mir_build_alloc(mir_unit_t *mu, mir_type_t type, mir_stamp_t stamp,
 
 mir_value_t mir_build_null(mir_unit_t *mu, mir_type_t type)
 {
-   mir_value_t result = mir_build_0(mu, MIR_OP_NULL, type, MIR_NULL_STAMP);
+   mir_stamp_t stamp = mir_pointer_stamp(mu, MIR_MEM_NULL, MIR_NULL_STAMP);
+   mir_value_t result = mir_build_0(mu, MIR_OP_NULL, type, stamp);
 
 #ifdef DEBUG
    const mir_class_t class = mir_get_class(mu, type);
@@ -1840,13 +1844,18 @@ mir_value_t mir_build_record_ref(mir_unit_t *mu, mir_value_t record,
 {
    mir_type_t pointer = mir_get_type(mu, record);
 
+   mir_mem_t mem = mir_get_mem(mu, record);
+   mir_stamp_t stamp = MIR_NULL_STAMP;
+   if (mem != MIR_MEM_TOP)
+      stamp = mir_pointer_stamp(mu, mem, MIR_NULL_STAMP);
+
    const type_data_t *td = mir_type_data(mu, mir_get_elem(mu, pointer));
 
    mir_type_t type = MIR_NULL_TYPE;
    if (td->class == MIR_TYPE_RECORD && field < td->u.record.count)
       type = td->u.record.fields[field + td->u.record.count];
 
-   mir_value_t result = mir_build_2(mu, MIR_OP_RECORD_REF, type, MIR_NULL_STAMP,
+   mir_value_t result = mir_build_2(mu, MIR_OP_RECORD_REF, type, stamp,
                                     record, mir_enum(field));
 
    MIR_ASSERT(mir_get_class(mu, pointer) == MIR_TYPE_POINTER,
