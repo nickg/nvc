@@ -59,10 +59,10 @@ struct ident_wr_ctx {
 
 struct _ident {
    hash_state_t hash;
-   uint32_t     __pad;
+   uint32_t     length;
    uint32_t     write_index;
    uint16_t     write_gen;
-   uint16_t     length;
+   uint16_t     key;
    char         bytes[0];
 };
 
@@ -143,6 +143,7 @@ static ident_t ident_alloc(size_t len, hash_state_t hash)
    id->write_gen   = 0;
    id->write_index = 0;
    id->hash        = hash;
+   id->key         = UINT16_MAX;
 
    return id;
 }
@@ -357,6 +358,19 @@ ident_t ident_new_n(const char *str, size_t len)
    hash_update(&hash, str, len);
 
    return ident_from_bytes(str, hash, len);
+}
+
+ident_t ident_intern(uint16_t key, const char *str)
+{
+   ident_t i = ident_new(str);
+   assert(i->key == UINT16_MAX);
+   i->key = key;
+   return i;
+}
+
+uint16_t ident_key(ident_t i)
+{
+   return i->key;
 }
 
 const char *istr(ident_t ident)

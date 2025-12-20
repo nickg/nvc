@@ -74,6 +74,9 @@ uint32_t ident_hash(ident_t i);
 
 bool ident_casecmp(ident_t a, ident_t b);
 
+ident_t ident_intern(uint16_t key, const char *str);
+uint16_t ident_key(ident_t i);
+
 // Convert an indentifier to lower case
 ident_t ident_downcase(ident_t i);
 
