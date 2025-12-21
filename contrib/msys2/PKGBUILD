@@ -52,8 +52,7 @@ build() {
     --target="${MINGW_CHOST}" \
     --enable-static \
     --enable-shared \
-    --program-prefix= \
-    --with-system-cc=cc
+    --program-prefix=
 
   make
 }
