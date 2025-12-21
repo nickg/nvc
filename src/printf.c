@@ -19,6 +19,7 @@
 #include "ident.h"
 #include "printf.h"
 #include "thread.h"
+#include "type.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -132,6 +133,22 @@ static int format_ident_toupper(ostream_t *os, printf_state_t *state,
    return nchars;
 }
 
+static int format_type(ostream_t *os, printf_state_t *state, printf_arg_t *arg)
+{
+   type_t type = arg->value.p;
+
+   // Print a fully qualified name if there is another type in the
+   // argument list with the same simple name
+
+   for (int i = 0; i < state->nargs; i++) {
+      const printf_arg_t *other = &(state->args[i]);
+      if (other != arg && other->fn == format_type)
+         return ostream_puts(os, type_pp2(type, other->value.p));
+   }
+
+   return ostream_puts(os, type_pp(type));
+}
+
 static int delegate(ostream_t *os, printf_state_t *s, printf_arg_t *arg, ...)
 {
    char spec[32];
@@ -165,6 +182,7 @@ static fmt_fn_t get_pointer_formatter(char ch)
    switch (ch) {
    case 'i': return format_ident;
    case 'I': return format_ident_toupper;
+   case 'T': return format_type;
    default: return NULL;
    }
 }

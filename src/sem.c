@@ -102,8 +102,8 @@ static bool sem_check_resolution(type_t type, tree_t res)
    type_t ftype = tree_type(fdecl);
 
    if (type_kind(ftype) != T_SIGNATURE || !type_has_result(ftype))
-      sem_error(res, "resolution function name %s is not a function",
-                istr(tree_ident(res)));
+      sem_error(res, "resolution function name %pI is not a function",
+                tree_ident(res));
 
    // Must take a single parameter of array of base type
 
@@ -117,14 +117,13 @@ static bool sem_check_resolution(type_t type, tree_t res)
 
    if (!type_eq(type_elem(param), type))
       sem_error(res, "parameter of resolution function must be "
-                "an array of %s but found %s", type_pp(type),
-                type_pp(type_elem(param)));
+                "an array of %pT but found %pT", type, type_elem(param));
 
    // Return type must be the resolved type
 
    if (!type_eq(type_result(ftype), type))
-      sem_error(res, "result of resolution function must be %s but have %s",
-                type_pp(type), type_pp(type_result(ftype)));
+      sem_error(res, "result of resolution function must be %pT but have %pT",
+                type, type_result(ftype));
 
    return true;
 }
@@ -148,14 +147,15 @@ static bool sem_check_range(tree_t r, type_t expect, nametab_t *tab)
 
          const attr_kind_t kind = tree_subkind(expr);
          if (kind != ATTR_RANGE && kind != ATTR_REVERSE_RANGE)
-            sem_error(expr, "cannot use attribute %s as range", istr(tree_ident(expr)));
+            sem_error(expr, "cannot use attribute %pI as range",
+                      tree_ident(expr));
 
          if (!sem_check_attr_ref(expr, true, tab))
             return false;
 
          if (expect && !sem_check_type(expr, expect, tab))
-            sem_error(expr, "expected type of range bound to be %s but is %s",
-                      type_pp(expect), type_pp(type));
+            sem_error(expr, "expected type of range bound to be %pT but is %pT",
+                      expect, type);
       }
       break;
 
@@ -172,13 +172,12 @@ static bool sem_check_range(tree_t r, type_t expect, nametab_t *tab)
 
          if (expect != NULL) {
             if (!sem_check_same_type(left, right))
-               sem_error(right, "type mismatch in range: left is %s,"
-                         " right is %s", type_pp(tree_type(left)),
-                         type_pp(tree_type(right)));
+               sem_error(right, "type mismatch in range: left is %pT,"
+                         " right is %pT", tree_type(left), tree_type(right));
 
             if (!sem_check_type(left, expect, tab))
-               sem_error(r, "expected type of range bounds to be %s but"
-                         " have %s", type_pp(expect), type_pp(tree_type(left)));
+               sem_error(r, "expected type of range bounds to be %pT but"
+                         " have %pT", expect, tree_type(left));
 
             // This cannot fail because we know left and right have the
             // same type and left is equal to expect, but we still need
@@ -204,7 +203,7 @@ static bool sem_check_discrete_range(tree_t r, type_t expect, nametab_t *tab)
       return false;
 
    if (!type_is_discrete(type))
-      sem_error(r, "type of range bounds %s is not discrete", type_pp(type));
+      sem_error(r, "type of range bounds %pT is not discrete", type);
 
    // See LRM 93 section 3.2.1.1: universal integer bound must be a
    // numeric literal or attribute. Later LRMs relax the wording here.
@@ -239,20 +238,20 @@ static bool sem_check_constraint(tree_t constraint, type_t base, nametab_t *tab)
    case C_RANGE:
       if (!type_is_scalar(base))
          sem_error(constraint, "range constraint cannot be used with "
-                   "non-scalar type %s", type_pp(base));
+                   "non-scalar type %pT", base);
       break;
 
    case C_INDEX:
       if (!type_is_array(base))
          sem_error(constraint, "index constraint cannot be used with "
-                   "non-array type %s", type_pp(base));
+                   "non-array type %pT", base);
       break;
 
    case C_RECORD:
       {
          if (!type_is_record(base))
             sem_error(constraint, "record element constraint cannot be used "
-                      "with non-record type %s", type_pp(base));
+                      "with non-record type %pT", base);
 
          // Range list is overloaded to hold record element constraints
          const int nelem = tree_ranges(constraint);
@@ -268,8 +267,8 @@ static bool sem_check_constraint(tree_t constraint, type_t base, nametab_t *tab)
 
             type_t ftype = tree_type(decl);
             if (!type_is_unconstrained(ftype))
-               sem_error(constraint, "field %s in record element constraint is "
-                         "already constrained", istr(tree_ident(decl)));
+               sem_error(constraint, "field %pI in record element constraint "
+                         "is already constrained", tree_ident(decl));
 
             type_t sub = tree_type(ei);
             if (!sem_check_subtype(decl, sub, tab))
@@ -281,7 +280,7 @@ static bool sem_check_constraint(tree_t constraint, type_t base, nametab_t *tab)
                tree_t ej = tree_range(constraint, j);
                if (tree_pos(tree_ref(ej)) == tree_pos(fi))
                   sem_error(ei, "duplicate record element constraint for "
-                            "field %s", istr(tree_ident(fi)));
+                            "field %pI", tree_ident(fi));
             }
          }
 
@@ -293,7 +292,7 @@ static bool sem_check_constraint(tree_t constraint, type_t base, nametab_t *tab)
    if (type_is_array(base)) {
       if (type_kind(base) == T_SUBTYPE && !type_is_unconstrained(base))
          sem_error(constraint, "cannot change constraints of constrained "
-                   "array type %s", type_pp(base));
+                   "array type %pT", base);
    }
    else if (type_is_record(base) && standard() < STD_08)
       sem_error(constraint, "record subtype may not have constraints "
@@ -303,8 +302,8 @@ static bool sem_check_constraint(tree_t constraint, type_t base, nametab_t *tab)
    const int ndims = tree_ranges(constraint);
 
    if (ndims != ndims_base)
-      sem_error(constraint, "expected %d constraints for type %s but found %d",
-                ndims_base, type_pp(base), ndims);
+      sem_error(constraint, "expected %d constraints for type %pT but found %d",
+                ndims_base, base, ndims);
 
    for (int i = 0; i < ndims; i++) {
       tree_t r = tree_range(constraint, i);
@@ -358,8 +357,7 @@ static bool sem_check_subtype_helper(tree_t decl, type_t type, nametab_t *tab)
             tree_t econs = type_constraint(b);
             if (tree_subkind(econs) == C_INDEX) {
                diag_t *d = diag_new(DIAG_ERROR, tree_loc(cons));
-               diag_printf(d, "duplicate index constraint for type %s",
-                           type_pp(base));
+               diag_printf(d, "duplicate index constraint for type %pT", base);
                diag_hint(d, tree_loc(econs), "already constrained here");
                diag_emit(d);
                return false;
@@ -600,19 +598,19 @@ static bool sem_check_type_decl(tree_t t, nametab_t *tab)
 
          if (standard() < STD_08 && type_is_unconstrained(elem_type)) {
             diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
-            diag_printf(d, "array %s cannot have unconstrained element type",
-                        istr(tree_ident(t)));
+            diag_printf(d, "array %pI cannot have unconstrained element type",
+                        tree_ident(t));
             diag_hint(d, NULL, "this would be allowed with $bold$--std=2008$$");
             diag_emit(d);
             return false;
          }
 
          if (type_is_file(elem_type))
-            sem_error(t, "array %s cannot have element of file type",
-                      istr(tree_ident(t)));
+            sem_error(t, "array %pI cannot have element of file type",
+                      tree_ident(t));
          else if (type_is_protected(elem_type))
-            sem_error(t, "array %s cannot have element of protected type",
-                      istr(tree_ident(t)));
+            sem_error(t, "array %pI cannot have element of protected type",
+                      tree_ident(t));
          else if (!sem_check_incomplete(t, elem_type))
             return false;
 
@@ -622,8 +620,7 @@ static bool sem_check_type_decl(tree_t t, nametab_t *tab)
             if (type_is_none(index_type))
                return false;
             else if (!type_is_discrete(index_type))
-               sem_error(t, "index type %s is not discrete",
-                         type_pp(index_type));
+               sem_error(t, "index type %pT is not discrete", index_type);
          }
 
          return true;
@@ -650,8 +647,8 @@ static bool sem_check_type_decl(tree_t t, nametab_t *tab)
                          "unit declaration must be an integer literal");
 
             if (i > 0 && !sem_check_type(value, type, tab))
-               sem_error(value, "secondary unit %s must have type %s",
-                         istr(tree_ident(u)), type_pp(type));
+               sem_error(value, "secondary unit %pI must have type %pT",
+                         tree_ident(u), type);
          }
       }
 
@@ -673,24 +670,23 @@ static bool sem_check_type_decl(tree_t t, nametab_t *tab)
                tree_t left = tree_left(r), right = tree_right(r);
                if (!type_is_integer(tree_type(left)))
                   sem_error(left, "type of left bound must be of some integer "
-                            "type but have %s", type_pp(tree_type(left)));
+                            "type but have %pT", tree_type(left));
                else if (!type_is_integer(tree_type(right)))
                   sem_error(right, "type of right bound must be of some "
-                            "integer type but have %s",
-                            type_pp(tree_type(right)));
+                            "integer type but have %pT", tree_type(right));
             }
             break;
 
          case RANGE_EXPR:
             if (!type_is_integer(tree_type(r)))
                sem_error(r, "type of range bounds must be of some integer "
-                         "type but have %s", type_pp(tree_type(r)));
+                         "type but have %pT", tree_type(r));
             break;
          }
 
          if (!sem_locally_static(r))
-            sem_error(r, "range constraint of type %s must be locally static",
-                      type_pp(type));
+            sem_error(r, "range constraint of type %pT must be locally static",
+                      type);
 
          tree_set_type(r, type);
          return true;
@@ -713,12 +709,12 @@ static bool sem_check_type_decl(tree_t t, nametab_t *tab)
                tree_t left = tree_left(r), right = tree_right(r);
                if (!type_is_real(tree_type(left)))
                   sem_error(left, "type of left bound must be of some "
-                            "floating-point type but have %s",
-                            type_pp(tree_type(left)));
+                            "floating-point type but have %pT",
+                            tree_type(left));
                else if (!type_is_real(tree_type(right)))
                   sem_error(right, "type of right bound must be of some "
-                            "floating-point type but have %s",
-                            type_pp(tree_type(right)));
+                            "floating-point type but have %pT",
+                            tree_type(right));
             }
             break;
 
@@ -728,8 +724,8 @@ static bool sem_check_type_decl(tree_t t, nametab_t *tab)
          }
 
          if (!sem_locally_static(r))
-            sem_error(r, "range constraint of type %s must be locally static",
-                      type_pp(type));
+            sem_error(r, "range constraint of type %pT must be locally static",
+                      type);
 
          tree_set_type(r, type);
          return true;
@@ -750,7 +746,7 @@ static bool sem_check_type_decl(tree_t t, nametab_t *tab)
                tree_t fj = type_field(type, j);
                if (ident_casecmp(f_name, tree_ident(fj))) {
                   diag_t *d = diag_new(DIAG_ERROR, tree_loc(f));
-                  diag_printf(d, "duplicate field name %s", istr(f_name));
+                  diag_printf(d, "duplicate field name %pI", f_name);
                   diag_hint(d, tree_loc(fj), "previously declared here");
                   diag_hint(d, tree_loc(f), "declared again here");
                   diag_emit(d);
@@ -859,7 +855,7 @@ static bool sem_check_incomplete(tree_t t, type_t type)
 {
    if (type_is_incomplete(type)) {
       diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
-      diag_printf(d, "invalid use of incomplete type %s", type_pp(type));
+      diag_printf(d, "invalid use of incomplete type %pT", type);
       diag_hint(d, NULL, "prior to the end of the corresponding full type "
                 "declaration, an incomplete type may only be used as the "
                 "designated type of an access type declaration");
@@ -934,9 +930,8 @@ static bool sem_check_const_decl(tree_t t, nametab_t *tab)
          return false;
 
       if (!sem_check_type(value, type, tab))
-         sem_error(value, "type of initial value %s does not match type "
-                   "of declaration %s", type_pp2(tree_type(value), type),
-                   type_pp2(type, tree_type(value)));
+         sem_error(value, "type of initial value %pT does not match type "
+                   "of declaration %pT", tree_type(value), type);
 
       if (fwd == NULL && type_is_unconstrained(type))
          tree_set_type(t, (type = merge_constraints(type, tree_type(value))));
@@ -959,13 +954,11 @@ static bool sem_check_const_decl(tree_t t, nametab_t *tab)
 
    if (fwd != NULL && !type_strict_eq(tree_type(fwd), type)) {
       diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
-      diag_printf(d, "expected type %s for deferred constant %s but "
-                  "found %s", type_pp2(tree_type(fwd), type),
-                  istr(tree_ident(t)), type_pp2(type, tree_type(fwd)));
-      diag_hint(d, tree_loc(fwd), "originally declared with type %s",
-                type_pp2(tree_type(fwd), type));
-      diag_hint(d, tree_loc(t), "type here is %s",
-                type_pp2(type, tree_type(fwd)));
+      diag_printf(d, "expected type %pT for deferred constant %pI but "
+                  "found %pT", tree_type(fwd), tree_ident(t), type);
+      diag_hint(d, tree_loc(fwd), "originally declared with type %pT",
+                tree_type(fwd));
+      diag_hint(d, tree_loc(t), "type here is %pT", type);
       diag_emit(d);
       return false;
    }
@@ -987,17 +980,16 @@ static bool sem_check_signal_decl(tree_t t, nametab_t *tab)
    if (is_unconstrained) {
       if (standard() < STD_19) {
          diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
-         diag_printf(d, "declaration of signal %s cannot have unconstrained "
-                     "type %s", istr(tree_ident(t)), type_pp(type));
+         diag_printf(d, "declaration of signal %pI cannot have unconstrained "
+                     "type %pT", tree_ident(t), type);
          sem_unconstrained_decl_hint(d, type);
          diag_emit(d);
          return false;
       }
       else if (!tree_has_value(t)) {
          diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
-         diag_printf(d, "declaration of signal %s without an initial value "
-                     "cannot have unconstrained type %s",
-                     istr(tree_ident(t)), type_pp(type));
+         diag_printf(d, "declaration of signal %pI without an initial value "
+                     "cannot have unconstrained type %pT", tree_ident(t), type);
          sem_unconstrained_decl_hint(d, type);
          diag_emit(d);
          return false;
@@ -1018,9 +1010,8 @@ static bool sem_check_signal_decl(tree_t t, nametab_t *tab)
          return false;
 
       if (!sem_check_type(value, type, tab))
-         sem_error(value, "type of initial value %s does not match type "
-                   "of declaration %s", type_pp2(tree_type(value), type),
-                   type_pp2(type, tree_type(value)));
+         sem_error(value, "type of initial value %pT does not match type "
+                   "of declaration %pT", tree_type(value), type);
 
       if (is_unconstrained)  // Infer constraints from intial value
          tree_set_type(t, merge_constraints(type, tree_type(value)));
@@ -1043,17 +1034,16 @@ static bool sem_check_var_decl(tree_t t, nametab_t *tab)
    if (is_unconstrained) {
       if (standard() < STD_19) {
          diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
-         diag_printf(d, "declaration of variable %s cannot have unconstrained "
-                     "type %s", istr(tree_ident(t)), type_pp(type));
+         diag_printf(d, "declaration of variable %pI cannot have unconstrained "
+                     "type %pT", tree_ident(t), type);
          sem_unconstrained_decl_hint(d, type);
          diag_emit(d);
          return false;
       }
       else if (!tree_has_value(t)) {
          diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
-         diag_printf(d, "declaration of variable %s without an initial value "
-                     "cannot have unconstrained type %s", istr(tree_ident(t)),
-                     type_pp(type));
+         diag_printf(d, "declaration of variable %pI without an initial value "
+                     "cannot have unconstrained type %pT", tree_ident(t), type);
          sem_unconstrained_decl_hint(d, type);
          diag_emit(d);
          return false;
@@ -1072,9 +1062,8 @@ static bool sem_check_var_decl(tree_t t, nametab_t *tab)
          return false;
 
       if (!sem_check_type(value, type, tab))
-         sem_error(value, "type of initial value %s does not match type "
-                   "of declaration %s", type_pp2(tree_type(value), type),
-                   type_pp2(type, tree_type(value)));
+         sem_error(value, "type of initial value %pT does not match type "
+                   "of declaration %pT", tree_type(value), type);
 
       if (is_unconstrained)  // Infer constraints from intial value
          tree_set_type(t, merge_constraints(type, tree_type(value)));
@@ -1085,8 +1074,8 @@ static bool sem_check_var_decl(tree_t t, nametab_t *tab)
       if ((tree_flags(t) & TREE_F_SHARED) && !type_is_protected(type)) {
          diag_t *d = pedantic_diag(tree_loc(t));
          if (d != NULL) {
-            diag_printf(d, "shared variable %s must have protected type",
-                        istr(tree_ident(t)));
+            diag_printf(d, "shared variable %pI must have protected type",
+                        tree_ident(t));
             diag_emit(d);
          }
       }
@@ -1097,10 +1086,9 @@ static bool sem_check_var_decl(tree_t t, nametab_t *tab)
       tree_t pt = get_local_decl(tab, NULL, typeid, 0);
       if (pt != NULL && tree_kind(pt) == T_PROT_DECL) {
          diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
-         diag_printf(d, "cannot declare instance of protected type %s "
-                     "before its body has been elaborated", type_pp(type));
-         diag_hint(d, tree_loc(pt), "%s declared here",
-                   type_pp(type));
+         diag_printf(d, "cannot declare instance of protected type %pT "
+                     "before its body has been elaborated", type);
+         diag_hint(d, tree_loc(pt), "%pT declared here", type);
          diag_lrm(d, STD_08, "14.4.2");
          diag_emit(d);
          return false;
@@ -1525,9 +1513,8 @@ static bool sem_check_alias(tree_t t, nametab_t *tab)
       }
 
       if (!sem_check_type(value, type, tab))
-         sem_error(t, "type of aliased object %s does not match expected "
-                   "type %s", type_pp2(tree_type(value), type),
-                   type_pp2(type, tree_type(value)));
+         sem_error(t, "type of aliased object %pT does not match expected "
+                   "type %pT", tree_type(value), type);
 
       if (opt_get_int(OPT_RELAXED) && type_is_unconstrained(type)) {
          // If the type of the aliased object is unconstrained then
@@ -2436,9 +2423,8 @@ static bool sem_check_var_assign(tree_t t, nametab_t *tab)
    if (!sem_check_same_type(value, target)) {
       type_t target_type = tree_type(target);
       type_t value_type  = tree_type(value);
-      sem_error(t, "type of value %s does not match type of target %s",
-                type_pp2(value_type, target_type),
-                type_pp2(target_type, value_type));
+      sem_error(t, "type of value %pT does not match type of target %pT",
+                value_type, target_type);
    }
 
    return true;
@@ -2463,9 +2449,8 @@ static bool sem_check_waveforms(tree_t t, tree_t target, nametab_t *tab)
             return false;
 
          if (!sem_check_type(value, expect, tab))
-            sem_error(t, "type of value %s does not match type of target %s",
-                      type_pp2(tree_type(value), expect),
-                      type_pp2(expect, tree_type(value)));
+            sem_error(t, "type of value %pT does not match type of target %pT",
+                      tree_type(value), expect);
       }
       else {
          tree_t decl = sem_check_lvalue(target);
@@ -2480,8 +2465,8 @@ static bool sem_check_waveforms(tree_t t, tree_t target, nametab_t *tab)
             return false;
 
          if (!sem_check_type(delay, std_time, tab))
-            sem_error(delay, "type of delay must be %s but have %s",
-                      type_pp(std_time), type_pp(tree_type(delay)));
+            sem_error(delay, "type of delay must be %pT but have %pT",
+                      std_time, tree_type(delay));
       }
    }
 
@@ -2956,8 +2941,7 @@ static bool sem_check_closely_related(type_t from, type_t to, tree_t where)
       if (reason != NULL)
          diag_hint(d, loc, "%s", reason);
       else
-         diag_hint(d, loc, "%s and %s are not closely related",
-                   type_pp2(from, to), type_pp2(to, from));
+         diag_hint(d, loc, "%pT and %pT are not closely related", from, to);
       diag_lrm(d, STD_93, "7.3.5");
       diag_emit(d);
 
@@ -3059,8 +3043,8 @@ static bool sem_check_call_args(tree_t t, tree_t decl, nametab_t *tab)
                       "parameters");
          else if ((index = tree_pos(param)) >= nports) {
             diag_t *d = diag_new(DIAG_ERROR, tree_loc(param));
-            diag_printf(d, "too many positional parameters for subprogram %s",
-                        type_pp(tree_type(decl)));
+            diag_printf(d, "too many positional parameters for subprogram %pT",
+                        tree_type(decl));
             diag_hint(d, tree_loc(param), "%s positional parameter",
                       ordinal_str(index + 1));
             diag_hint(d, tree_loc(decl), "%s %s has %d formal parameter%s",
@@ -3127,8 +3111,8 @@ static bool sem_check_call_args(tree_t t, tree_t decl, nametab_t *tab)
 
             if (index == -1) {
                diag_t *d = diag_new(DIAG_ERROR, tree_loc(param));
-               diag_printf(d, "subprogram %s has no parameter named %s",
-                           type_pp(tree_type(decl)), istr(id));
+               diag_printf(d, "subprogram %pT has no parameter named %pI",
+                           tree_type(decl), id);
                diag_hint(d, tree_loc(decl), "subprogram defined here");
                diag_emit(d);
                return false;
@@ -3154,8 +3138,8 @@ static bool sem_check_call_args(tree_t t, tree_t decl, nametab_t *tab)
       port_mode_t mode = tree_subkind(port);
 
       if (map[index] != NULL && (!partial || tree_kind(map[index]) == T_REF))
-         sem_error(param, "formal parameter %s already has an associated "
-                   "actual", istr(tree_ident(port)));
+         sem_error(param, "formal parameter %pI already has an associated "
+                   "actual", tree_ident(port));
 
       map[index] = param;
 
@@ -3164,10 +3148,8 @@ static bool sem_check_call_args(tree_t t, tree_t decl, nametab_t *tab)
          return false;
 
       if (!sem_check_type(value, port_type, tab))
-         sem_error(value, "type of actual %s does not match formal %s type %s",
-                   type_pp2(tree_type(value), port_type),
-                   istr(tree_ident(port)),
-                   type_pp2(port_type, tree_type(value)));
+         sem_error(value, "type of actual %pT does not match formal %pI "
+                   "type %pT", tree_type(value), tree_ident(port), port_type);
 
       // LRM 08 sections 4.2.2.2 and 4.2.2.3
       if (class == C_VARIABLE || class == C_SIGNAL) {
@@ -3219,10 +3201,10 @@ static bool sem_check_call_args(tree_t t, tree_t decl, nametab_t *tab)
                   // call within a procedure not contained within a process
                   // then the target must be a formal parameter
                   diag_t *d = diag_new(DIAG_ERROR, tree_loc(value));
-                  diag_printf(d, "signal %s is not a formal parameter and "
-                              "subprogram %s is not contained within a process "
-                              "statement", istr(tree_ident(decl)),
-                              type_pp(tree_type(sub)));
+                  diag_printf(d, "signal %pI is not a formal parameter and "
+                              "subprogram %pT is not contained within a "
+                              "process statement", tree_ident(decl),
+                              tree_type(sub));
                   diag_lrm(d, STD_08, "10.5.2.2");
                   diag_emit(d);
                   return false;
@@ -3277,9 +3259,9 @@ static bool sem_check_call_args(tree_t t, tree_t decl, nametab_t *tab)
          else {
             const port_mode_t mode = tree_subkind(port);
             if (mode == PORT_ARRAY_VIEW || mode == PORT_RECORD_VIEW)
-               sem_error(t, "missing actual for formal parameter %s with "
-                         "mode view indication %s", istr(tree_ident(port)),
-                         type_pp(tree_type(tree_value(port))));
+               sem_error(t, "missing actual for formal parameter %pI with "
+                         "mode view indication %pT", tree_ident(port),
+                         tree_type(tree_value(port)));
          }
       }
    }
@@ -3306,8 +3288,8 @@ static bool sem_check_fcall(tree_t t, nametab_t *tab)
       if (tree_kind(sub) == T_FUNC_BODY && !(tree_flags(sub) & TREE_F_IMPURE)) {
          diag_t *d = pedantic_diag(tree_loc(t));
          if (d != NULL) {
-            diag_printf(d, "pure function %s cannot call impure function %s",
-                        istr(tree_ident(sub)), istr(tree_ident(decl)));
+            diag_printf(d, "pure function %pI cannot call impure function %pI",
+                        tree_ident(sub), tree_ident(decl));
             diag_emit(d);
          }
       }
@@ -3318,10 +3300,9 @@ static bool sem_check_fcall(tree_t t, nametab_t *tab)
    else if (tree_kind(decl) == T_FUNC_DECL && !(flags & TREE_F_PREDEFINED)
             && is_same_region(tab, decl) && opt_get_int(OPT_MISSING_BODY)) {
       diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
-      diag_printf(d, "subprogram %s called before its body has been "
-                  "elaborated", type_pp(tree_type(decl)));
-      diag_hint(d, tree_loc(decl), "%s declared here",
-                type_pp(tree_type(decl)));
+      diag_printf(d, "subprogram %pT called before its body has been "
+                  "elaborated", tree_type(decl));
+      diag_hint(d, tree_loc(decl), "%pT declared here", tree_type(decl));
       diag_lrm(d, STD_08, "14.4.2");
       diag_emit(d);
       return false;
@@ -3354,8 +3335,8 @@ static bool sem_check_pcall(tree_t t, nametab_t *tab)
    case C_PROCEDURE:
       break;
    case C_FUNCTION:
-      sem_error(t, "function %s cannot be called as a procedure",
-                type_pp(tree_type(decl)));
+      sem_error(t, "function %pT cannot be called as a procedure",
+                tree_type(decl));
    default:
       // All other errors should be caught at parsing stage
       assert(error_count() > 0);
@@ -3390,24 +3371,23 @@ static bool sem_check_pcall(tree_t t, nametab_t *tab)
       const bool in_pure_func = in_func && !(tree_flags(sub) & TREE_F_IMPURE);
 
       if (has_wait && in_func)
-         sem_error(t, "function %s cannot call procedure %s which contains "
-                   "a wait statement", istr(tree_ident(sub)),
-                   istr(tree_ident(decl)));
+         sem_error(t, "function %pI cannot call procedure %pI which contains "
+                   "a wait statement", tree_ident(sub), tree_ident(decl));
       else if ((flags & TREE_F_IMPURE_FILE) && in_pure_func) {
          diag_t *d = pedantic_diag(tree_loc(t));
          if (d != NULL) {
-            diag_printf(d, "pure function %s cannot call procedure %s which "
-                        "references a file object", istr(tree_ident(sub)),
-                        istr(tree_ident(decl)));
+            diag_printf(d, "pure function %pI cannot call procedure %pI which "
+                        "references a file object", tree_ident(sub),
+                        tree_ident(decl));
             diag_emit(d);
          }
       }
       else if ((flags & TREE_F_IMPURE_SHARED) && in_pure_func) {
          diag_t *d = pedantic_diag(tree_loc(t));
          if (d != NULL) {
-            diag_printf(d, "pure function %s cannot call procedure %s which "
-                        "references a shared variable", istr(tree_ident(sub)),
-                        istr(tree_ident(decl)));
+            diag_printf(d, "pure function %pI cannot call procedure %pI which "
+                        "references a shared variable", tree_ident(sub),
+                        tree_ident(decl));
             diag_emit(d);
          }
       }
@@ -3433,8 +3413,8 @@ static bool sem_check_wait(tree_t t, nametab_t *tab)
          return false;
 
       if (!sem_check_type(delay, std_time, tab))
-         sem_error(delay, "type of delay must be %s but have %s",
-                   type_pp(std_time), type_pp(tree_type(delay)));
+         sem_error(delay, "type of delay must be %pT but have %pT",
+                   std_time, tree_type(delay));
    }
 
    if (tree_has_value(t)) {
@@ -3445,8 +3425,8 @@ static bool sem_check_wait(tree_t t, nametab_t *tab)
          return false;
 
       if (!sem_check_type(value, std_bool, tab))
-         sem_error(value, "type of condition must be BOOLEAN but have %s",
-                   type_pp(tree_type(value)));
+         sem_error(value, "type of condition must be BOOLEAN but have %pT",
+                   tree_type(value));
    }
 
    if (find_enclosing(tab, S_PROTECTED))
@@ -3484,8 +3464,8 @@ static bool sem_check_assert(tree_t t, nametab_t *tab)
 
    type_t std_bool = std_type(NULL, STD_BOOLEAN);
    if (!sem_check_type(value, std_bool, tab))
-      sem_error(value, "type of assertion expression must be %s but "
-                "is %s", type_pp(std_bool), type_pp(tree_type(value)));
+      sem_error(value, "type of assertion expression must be %pT but "
+                "is %pT", std_bool, tree_type(value));
 
    if (tree_has_message(t)) {
       tree_t message = tree_message(t);
@@ -3494,8 +3474,8 @@ static bool sem_check_assert(tree_t t, nametab_t *tab)
 
       type_t std_string = std_type(NULL, STD_STRING);
       if (!sem_check_type(message, std_string, tab))
-         sem_error(message, "type of message be %s but is %s",
-                   type_pp(std_string), type_pp(tree_type(message)));
+         sem_error(message, "type of message be %pT but is %pT",
+                   std_string, tree_type(message));
    }
 
    if (tree_has_severity(t)) {
@@ -3505,8 +3485,8 @@ static bool sem_check_assert(tree_t t, nametab_t *tab)
 
       type_t std_severity = std_type(NULL, STD_SEVERITY_LEVEL);
       if (!sem_check_type(severity, std_severity, tab))
-         sem_error(severity, "type of severity must be %s but is %s",
-                   type_pp(std_severity), type_pp(tree_type(severity)));
+         sem_error(severity, "type of severity must be %pT but is %pT",
+                   std_severity, tree_type(severity));
    }
 
    return true;
@@ -3810,11 +3790,9 @@ static bool sem_check_record_aggregate(tree_t t, nametab_t *tab)
             return false;
 
          if (!sem_check_type(value, field_type, tab))
-            sem_error(value, "type of value %s does not match type %s"
-                      " of field %s",
-                      type_pp2(tree_type(value), field_type),
-                      type_pp2(field_type, tree_type(value)),
-                      istr(tree_ident(field)));
+            sem_error(value, "type of value %pT does not match type %pT"
+                      " of field %pI", tree_type(value), field_type,
+                      tree_ident(field));
 
          mask_set(&have, j);
          nmatched++;
@@ -3827,8 +3805,7 @@ static bool sem_check_record_aggregate(tree_t t, nametab_t *tab)
    for (int i = 0; i < nfields; i++) {
       if (!mask_test(&have, i)) {
          tree_t field = type_field(base_type, i);
-         sem_error(t, "field %s does not have a value",
-                   istr(tree_ident(field)));
+         sem_error(t, "field %pI does not have a value", tree_ident(field));
       }
    }
 
@@ -4754,15 +4731,14 @@ static bool sem_check_port_actual(formal_map_t *formals, int nformals,
 
    if (!sem_check_type(expr, type, tab)) {
       diag_t *d = diag_new(DIAG_ERROR, tree_loc(value));
-      diag_printf(d, "type of actual %s does not match type %s of formal "
-                  "port %s", type_pp2(value_type, type),
-                  type_pp2(type, value_type), istr(tree_ident(decl)));
+      diag_printf(d, "type of actual %pT does not match type %pT of formal "
+                  "port %pI", value_type, type, tree_ident(decl));
 
       if (type_is_generic(type)) {
          hash_t *map = get_generic_map(tab);
          if (map != NULL && (atype = hash_get(map, type)))
-            diag_hint(d, NULL, "generic type %s is mapped to %s",
-                      type_pp(type), type_pp(atype));
+            diag_hint(d, NULL, "generic type %pT is mapped to %pT",
+                      type, atype);
       }
 
       diag_emit(d);
@@ -4773,12 +4749,12 @@ static bool sem_check_port_actual(formal_map_t *formals, int nformals,
 
    if (kind == T_OPEN) {
       if ((mode == PORT_IN) && !tree_has_value(decl))
-         sem_error(value, "unconnected port %s with mode IN must have a "
-                   "default value", istr(tree_ident(decl)));
+         sem_error(value, "unconnected port %pI with mode IN must have a "
+                   "default value", tree_ident(decl));
 
       if ((mode != PORT_IN) && type_is_unconstrained(tree_type(decl)))
-         sem_error(value, "port %s of unconstrained type %s cannot "
-                   "be unconnected", istr(tree_ident(decl)), type_pp(type));
+         sem_error(value, "port %pI of unconstrained type %pT cannot "
+                   "be unconnected", tree_ident(decl), type);
    }
 
    // Check for type conversions and conversion functions
@@ -4794,19 +4770,19 @@ static bool sem_check_port_actual(formal_map_t *formals, int nformals,
       if (type_is_unconstrained(value_type) && type_is_unconstrained(type)) {
          diag_t *d = diag_new(DIAG_ERROR, tree_loc(value));
          diag_printf(d, "result of conversion for unconstrained formal "
-                     "%s must be a constrained array type",
-                     istr(tree_ident(decl)));
+                     "%pI must be a constrained array type",
+                     tree_ident(decl));
          diag_lrm(d, STD_93, "3.2.1.1");
          diag_emit(d);
          return false;
       }
 
       if (mode == PORT_OUT)
-         sem_error(value, "conversion not allowed for formal %s with "
-                   "mode OUT", istr(tree_ident(decl)));
+         sem_error(value, "conversion not allowed for formal %pI with "
+                   "mode OUT", tree_ident(decl));
       else if (mode == PORT_INOUT && out_conv == NULL)
-         sem_error(value, "INOUT port %s has output conversion but no "
-                   "corresponding input conversion", istr(tree_ident(decl)));
+         sem_error(value, "INOUT port %pI has output conversion but no "
+                   "corresponding input conversion", tree_ident(decl));
    }
    else
       actual = value;    // No conversion
@@ -4831,8 +4807,8 @@ static bool sem_check_port_actual(formal_map_t *formals, int nformals,
              && !sem_static_subtype(value_type, sem_globally_static)) {
             diag_t *d = diag_new(DIAG_ERROR, tree_loc(value));
             diag_printf(d, "expression associated with unconstrained formal "
-                        "port %s must have a globally static subtype",
-                        istr(tree_ident(decl)));
+                        "port %pI must have a globally static subtype",
+                        tree_ident(decl));
             diag_lrm(d, STD_08, "6.5.6.3");
             diag_emit(d);
             return false;
@@ -4846,16 +4822,16 @@ static bool sem_check_port_actual(formal_map_t *formals, int nformals,
          tree_set_value(param, w);
       }
       else if (!is_static)
-         sem_error(value, "actual associated with port %s of mode IN must be "
+         sem_error(value, "actual associated with port %pI of mode IN must be "
                    "a globally static expression or static signal name",
-                   istr(tree_ident(decl)));
+                   tree_ident(decl));
    }
    else if (mode == PORT_INOUT && tree_class(decl) == C_VARIABLE) {
       // VHDL-2019 additions for shared variable ports
       if (ref == NULL || class_of(ref) != C_VARIABLE)
-         sem_error(value, "actual associated with formal variable port %s "
+         sem_error(value, "actual associated with formal variable port %pI "
                    "must either be a shared variable or a formal variable port "
-                   "of another design entity", istr(tree_ident(decl)));
+                   "of another design entity", tree_ident(decl));
    }
    else if (mode == PORT_ARRAY_VIEW || mode == PORT_RECORD_VIEW) {
       if (!sem_static_signal_name(actual))
@@ -4868,9 +4844,9 @@ static bool sem_check_port_actual(formal_map_t *formals, int nformals,
    }
    else if (mode != PORT_IN && tree_kind(actual) != T_OPEN
             && !sem_static_signal_name(actual)) {
-      sem_error(value, "actual associated with port %s of mode %s must be "
+      sem_error(value, "actual associated with port %pI of mode %s must be "
                 "a static signal name or OPEN",
-                istr(tree_ident(decl)), port_mode_str(tree_subkind(decl)));
+                tree_ident(decl), port_mode_str(tree_subkind(decl)));
    }
 
    // Check connections between ports
@@ -4914,14 +4890,14 @@ static bool sem_check_port_actual(formal_map_t *formals, int nformals,
 
          if (!ok) {
             diag_t *d = diag_new(DIAG_ERROR, tree_loc(value));
-            diag_printf(d, "port %s with mode %s cannot be associated "
-                        "with formal port %s with mode %s",
-                        istr(tree_ident(odecl)), port_mode_str(omode),
-                        istr(tree_ident(decl)), port_mode_str(mode));
-            diag_hint(d, tree_loc(decl), "formal port %s declared here",
-                      istr(tree_ident(decl)));
-            diag_hint(d, tree_loc(odecl), "port %s declared here",
-                      istr(tree_ident(odecl)));
+            diag_printf(d, "port %pI with mode %s cannot be associated "
+                        "with formal port %pI with mode %s",
+                        tree_ident(odecl), port_mode_str(omode),
+                        tree_ident(decl), port_mode_str(mode));
+            diag_hint(d, tree_loc(decl), "formal port %pI declared here",
+                      tree_ident(decl));
+            diag_hint(d, tree_loc(odecl), "port %pI declared here",
+                      tree_ident(odecl));
             diag_emit(d);
             return false;
          }
@@ -4989,22 +4965,19 @@ static bool sem_check_port_map(tree_t t, tree_t unit, nametab_t *tab)
          port_mode_t mode = tree_subkind(formals[i].decl);
 
          if (mode == PORT_IN && !tree_has_value(formals[i].decl)) {
-            error_at(tree_loc(t), "missing actual for port %s of "
+            error_at(tree_loc(t), "missing actual for port %pI of "
                      "mode IN without a default expression",
-                     istr(tree_ident(formals[i].decl)));
+                     tree_ident(formals[i].decl));
          }
          else if (mode == PORT_ARRAY_VIEW || mode == PORT_RECORD_VIEW)
-            error_at(tree_loc(t), "missing actual for port %s with "
-                     "mode view indication %s",
-                     istr(tree_ident(formals[i].decl)),
-                     type_pp(tree_type(tree_value(formals[i].decl))));
+            error_at(tree_loc(t), "missing actual for port %pI with "
+                     "mode view indication %pT", tree_ident(formals[i].decl),
+                     tree_type(tree_value(formals[i].decl)));
 
          type_t ftype = tree_type(formals[i].decl);
-         if (mode != PORT_IN && type_is_unconstrained(ftype)) {
-            error_at(tree_loc(t), "missing actual for port %s with "
-                     "unconstrained array type",
-                     istr(tree_ident(formals[i].decl)));
-         }
+         if (mode != PORT_IN && type_is_unconstrained(ftype))
+            error_at(tree_loc(t), "missing actual for port %pI with "
+                     "unconstrained array type", tree_ident(formals[i].decl));
       }
    }
 
@@ -6521,15 +6494,14 @@ static bool sem_check_spec(tree_t t, nametab_t *tab)
             type_t etype = tree_type(match);
             if (!type_eq(ctype, etype)) {
                diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
-               diag_printf(d, "generic %s in component %s has type %s which "
-                           "is incompatible with type %s in entity %s",
-                           istr(tree_ident(cg)), istr(tree_ident(comp)),
-                           type_pp2(ctype, etype), type_pp2(etype, ctype),
-                           istr(tree_ident(entity)));
-               diag_hint(d, tree_loc(cg), "declaration of generic %s in "
-                         "component", istr(tree_ident(cg)));
-               diag_hint(d, tree_loc(match), "declaration of generic %s in "
-                         "entity", istr(tree_ident(match)));
+               diag_printf(d, "generic %pI in component %pI has type %pT which "
+                           "is incompatible with type %pT in entity %pI",
+                           tree_ident(cg), tree_ident(comp), ctype, etype,
+                           tree_ident(entity));
+               diag_hint(d, tree_loc(cg), "declaration of generic %pI in "
+                         "component", tree_ident(cg));
+               diag_hint(d, tree_loc(match), "declaration of generic %pI in "
+                         "entity", tree_ident(match));
                diag_emit(d);
 
                ok = false;
@@ -6560,12 +6532,11 @@ static bool sem_check_spec(tree_t t, nametab_t *tab)
          tree_t eg = tree_generic(entity, i);
          if (!mask_test(&have, i) && !tree_has_value(eg)) {
             diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
-            diag_printf(d, "generic %s in entity %s without a default value "
-                        "has no corresponding generic in component %s",
-                        istr(tree_ident(eg)),  istr(tree_ident(entity)),
-                        istr(tree_ident(comp)));
-            diag_hint(d, tree_loc(eg), "generic %s declared here",
-                      istr(tree_ident(eg)));
+            diag_printf(d, "generic %pI in entity %pI without a default value "
+                        "has no corresponding generic in component %pI",
+                        tree_ident(eg), tree_ident(entity), tree_ident(comp));
+            diag_hint(d, tree_loc(eg), "generic %pI declared here",
+                      tree_ident(eg));
             diag_emit(d);
 
             ok = false;
@@ -6615,15 +6586,14 @@ static bool sem_check_spec(tree_t t, nametab_t *tab)
          type_t etype = tree_type(match);
          if (!type_eq(ctype, etype)) {
             diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
-            diag_printf(d, "port %s in component %s has type %s which is "
-                        "incompatible with type %s in entity %s",
-                        istr(tree_ident(cp)), istr(tree_ident(comp)),
-                        type_pp2(ctype, etype), type_pp2(etype, ctype),
-                        istr(tree_ident(entity)));
-            diag_hint(d, tree_loc(cp), "declaration of port %s in component",
-                      istr(tree_ident(cp)));
-            diag_hint(d, tree_loc(match), "declaration of port %s in entity",
-                      istr(tree_ident(match)));
+            diag_printf(d, "port %pI in component %pI has type %pT which is "
+                        "incompatible with type %pT in entity %pI",
+                        tree_ident(cp), tree_ident(comp), ctype, etype,
+                        tree_ident(entity));
+            diag_hint(d, tree_loc(cp), "declaration of port %pI in component",
+                      tree_ident(cp));
+            diag_hint(d, tree_loc(match), "declaration of port %pI in entity",
+                      tree_ident(match));
             diag_emit(d);
 
             ok = false;
@@ -6723,9 +6693,8 @@ static bool sem_check_implicit_signal(tree_t t, nametab_t *tab)
    switch (tree_subkind(t)) {
    case IMPLICIT_GUARD:
       if (!sem_check_type(value, type, tab))
-         sem_error(value, "guard expression must have type %s but "
-                   "found %s", type_pp2(type, tree_type(value)),
-                   type_pp2(tree_type(value), type));
+         sem_error(value, "guard expression must have type %pT but "
+                   "found %pT", type, tree_type(value));
       break;
    }
 
@@ -6766,21 +6735,19 @@ static bool sem_check_disconnect(tree_t t, nametab_t *tab)
 
    tree_t decl = tree_ref(t);
    if (class_of(decl) != C_SIGNAL || !is_guarded_signal(decl))
-      sem_error(t, "signal name %s in disconnection specification must denote "
-                "a guarded signal", istr(tree_ident(t)));
+      sem_error(t, "signal name %pI in disconnection specification must denote "
+                "a guarded signal", tree_ident(t));
 
    type_t type = tree_type(t);
    if (!type_eq(tree_type(decl), type))
-      sem_error(t, "type of declared signal %s does not match type %s in "
-                "disconnection specification", type_pp(tree_type(decl)),
-                type_pp(type));
+      sem_error(t, "type of declared signal %pT does not match type %pT in "
+                "disconnection specification", tree_type(decl), type);
 
    tree_t delay = tree_delay(t);
    type_t std_time = std_type(NULL, STD_TIME);
    if (!sem_check_type(delay, std_time, tab))
       sem_error(delay, "time expression in disconnection specification must "
-                "have type %s but found %s", type_pp(std_time),
-                type_pp(tree_type(delay)));
+                "have type %pT but found %pT", std_time, tree_type(delay));
 
    if (!sem_globally_static(delay))
       sem_error(delay, "time expression in disconnection specificiation "
@@ -6806,9 +6773,9 @@ static bool sem_check_conv_func(tree_t t, nametab_t *tab)
    tree_t formal = tree_port(decl, 0);
    type_t ftype = tree_type(formal);
    if (!sem_check_type(value, ftype, tab))
-      sem_error(value, "type of conversion function actual %s does not match "
-                "formal %s type %s", type_pp2(tree_type(value), ftype),
-                istr(tree_ident(formal)), type_pp2(ftype, tree_type(value)));
+      sem_error(value, "type of conversion function actual %pT does not match "
+                "formal %pI type %pT", tree_type(value), tree_ident(formal),
+                ftype);
 
    return true;
 }
@@ -6858,7 +6825,7 @@ static bool sem_check_external_name(tree_t t, nametab_t *tab)
 
       if (is_pure_func)
          sem_error(t, "cannot reference external name with class %s in pure "
-                   "function %s", class_str(class), istr(tree_ident(sub)));
+                   "function %pI", class_str(class), tree_ident(sub));
    }
 
    // Cannot do any more checking until elaboration
@@ -6973,9 +6940,8 @@ static bool sem_check_force(tree_t t, nametab_t *tab)
    type_t expect = tree_type(target);
 
    if (!sem_check_type(value, expect, tab))
-      sem_error(t, "type of force expression %s does not match type of "
-                "target %s", type_pp2(tree_type(value), expect),
-                type_pp2(expect, tree_type(value)));
+      sem_error(t, "type of force expression %pT does not match type of "
+                "target %pT", tree_type(value), expect);
 
    return true;
 }
@@ -7044,8 +7010,8 @@ static bool sem_check_view_decl(tree_t t, nametab_t *tab)
 
       const int pos = tree_pos(f);
       if (mask_test(&have, pos))
-         sem_error(e, "duplicate mode view element definition for field %s",
-                   istr(tree_ident(e)));
+         sem_error(e, "duplicate mode view element definition for field %pI",
+                   tree_ident(e));
 
       mask_set(&have, pos);
 
@@ -7065,22 +7031,20 @@ static bool sem_check_view_decl(tree_t t, nametab_t *tab)
 
             if (type_kind(view_type) != T_VIEW)
                sem_error(name, "name in element mode view indication of field "
-                         "%s does not denote a mode view", istr(tree_ident(f)));
+                         "%pI does not denote a mode view", tree_ident(f));
 
             type_t elem_type = type;
             if (tree_subkind(e) == PORT_ARRAY_VIEW) {
                if (!type_is_array(type))
-                  sem_error(e, "field %s with array mode view indication has "
-                            "non-array type %s", istr(tree_ident(f)),
-                            type_pp(type));
+                  sem_error(e, "field %pI with array mode view indication has "
+                            "non-array type %pT", tree_ident(f), type);
 
                elem_type = type_elem(type);
             }
 
             if (!type_eq(elem_type, type_designated(view_type)))
-               sem_error(e, "field %s subtype %s is not compatible with mode "
-                         "view %s", istr(tree_ident(f)), type_pp(elem_type),
-                         type_pp(view_type));
+               sem_error(e, "field %pI subtype %pT is not compatible with mode "
+                         "view %pT", tree_ident(f), elem_type, view_type);
          }
          break;
       }
@@ -7119,8 +7083,8 @@ static bool sem_check_cond_value(tree_t t, nametab_t *tab)
             return false;
 
          if (!sem_check_type(value, std_bool, tab))
-            sem_error(value, "type of condition must be %s but have %s",
-                      type_pp(std_bool), type_pp(tree_type(value)));
+            sem_error(value, "type of condition must be %pT but have %pT",
+                      std_bool, tree_type(value));
       }
       else
          assert(i == nconds - 1);
@@ -7132,8 +7096,7 @@ static bool sem_check_cond_value(tree_t t, nametab_t *tab)
 
          if (!sem_check_type(result, type, tab))
             sem_error(result, "expected type of conditional expression to be "
-                      "%s but is %s", type_pp(type),
-                      type_pp(tree_type(result)));
+                      "%pT but is %pT", type, tree_type(result));
       }
    }
 
