@@ -22,6 +22,7 @@
 #include "mir/mir-node.h"
 #include "mir/mir-unit.h"
 #include "object.h"
+#include "printf.h"
 #include "psl/psl-node.h"
 #include "vlog/vlog-node.h"
 
@@ -278,14 +279,14 @@ static void jit_do_dump(jit_dump_t *d, jit_func_t *f)
 
    for (int i = 0; i < f->nirs; i++) {
       if (i == d->label)
-         color_printf("$!red$");
+         nvc_printf("$!red$");
       if (f->irbuf[i].target) {
          jit_dump_label(d, i);
          printf(":");
       }
       jit_dump_ir(d, &(f->irbuf[i]));
       if (i == d->label)
-         color_printf("$$");
+         nvc_printf("$$");
    }
 
    ihash_free(d->labels);
@@ -347,14 +348,14 @@ static void jit_interleaved_cb(mir_unit_t *mu, mir_block_t b, mir_value_t n,
             break;
       }
       else {
-         color_printf("$#42$");
+         nvc_printf("$#42$");
          if (ir->target || d->lpend >= 0) {
             jit_dump_label(d, d->lpend < 0 ? d->next_ir : d->lpend);
             printf(":");
             d->lpend = -1;
          }
          jit_dump_ir(d, ir);
-         color_printf("$$");
+         nvc_printf("$$");
       }
    }
 }

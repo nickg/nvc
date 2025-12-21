@@ -212,16 +212,6 @@ char *xvasprintf(const char *fmt, va_list ap) RETURNS_NONNULL;
 char *xasprintf(const char *fmt, ...)
    __attribute__((format(printf, 1, 2))) RETURNS_NONNULL;
 
-int color_printf(const char *fmt, ...)
-   __attribute__((format(printf, 1, 2)));
-int color_fprintf(FILE *file, const char *fmt, ...)
-   __attribute__((format(printf, 2, 3)));
-int color_vprintf(const char *fmt, va_list ap);
-char *color_vasprintf(const char *fmt, va_list ap);
-char *color_asprintf(const char *fmt, ...)
-   __attribute__((format(printf, 1, 2)));
-char *strip_color(const char *fmt, va_list ap);
-
 void print_centred(const char *text);
 
 void errorf(const char *fmt, ...)
@@ -329,6 +319,7 @@ void tb_downcase(text_buf_t *tb);
 void tb_upcase(text_buf_t *tb);
 void tb_replace(text_buf_t *tb, char old, char rep);
 void tb_strftime(text_buf_t *tb, const char *fmt, time_t time);
+void tb_ostream_write(const char *buf, size_t len, void *ctx);
 
 #define LOCAL __attribute__((cleanup(_local_free)))
 

@@ -22,6 +22,7 @@
 #include "hash.h"
 #include "lib.h"
 #include "object.h"
+#include "printf.h"
 #include "tree.h"
 #include "vcode.h"
 
@@ -985,9 +986,9 @@ LCOV_EXCL_START
 static int vcode_dump_reg(vcode_reg_t reg)
 {
    if (reg == VCODE_INVALID_REG)
-      return color_printf("$red$invalid$$");
+      return nvc_printf("$red$invalid$$");
    else
-      return color_printf("$green$r%d$$", reg);
+      return nvc_printf("$green$r%d$$", reg);
 }
 
 static int vcode_pretty_print_int(int64_t n)
@@ -1134,7 +1135,7 @@ static void vcode_dump_tab(int col, int to_col)
 static void vcode_dump_comment(int col)
 {
    vcode_dump_tab(col, 40);
-   color_printf("$cyan$// ");
+   nvc_printf("$cyan$// ");
 }
 
 static void vcode_dump_type(int col, vcode_type_t type, vcode_type_t bounds)
@@ -1162,10 +1163,10 @@ static int vcode_dump_var(vcode_var_t var, int hops)
       owner = owner->context;
 
    if (owner == NULL || var >= owner->vars.count)
-      return color_printf("$red$invalid$$");
+      return nvc_printf("$red$invalid$$");
    else {
       var_t *v = var_array_nth_ptr(&(owner->vars), var);
-      return color_printf("$magenta$%s$$", istr(v->name));
+      return nvc_printf("$magenta$%s$$", istr(v->name));
    }
 }
 
@@ -1178,8 +1179,8 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
 
    printf("\n");
    if (vu->name != NULL)
-      color_printf("Name       $cyan$%s$$\n", istr(vu->name));
-   color_printf("Kind       $cyan$");
+      nvc_printf("Name       $cyan$%s$$\n", istr(vu->name));
+   nvc_printf("Kind       $cyan$");
    switch (vu->kind) {
    case VCODE_UNIT_PROCESS:   printf("process"); break;
    case VCODE_UNIT_FUNCTION:  printf("function"); break;
@@ -1190,9 +1191,9 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
    case VCODE_UNIT_PROTECTED: printf("protected"); break;
    case VCODE_UNIT_PROPERTY:  printf("property"); break;
    }
-   color_printf("$$\n");
+   nvc_printf("$$\n");
    if (vu->context != NULL)
-      color_printf("Context    $cyan$%s$$\n", istr(vu->context->name));
+      nvc_printf("Context    $cyan$%s$$\n", istr(vu->context->name));
    printf("Blocks     %d\n", vu->blocks.count);
    printf("Registers  %d\n", vu->regs.count);
    printf("Types      %d\n", vu->types.count);
@@ -1201,15 +1202,15 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
       const vtype_t *t = &(vu->types.items[i]);
       if (t->kind == VCODE_TYPE_RECORD) {
          int col = 0;
-         col += color_printf("  $magenta$%s$$", istr(t->name));
+         col += nvc_printf("  $magenta$%s$$", istr(t->name));
          vcode_dump_tab(col, 40);
-         color_printf("$cyan${");
+         nvc_printf("$cyan${");
          for (unsigned i = 0; i < t->fields.count; i++) {
             if (i > 0)
                printf(", ");
             vcode_dump_one_type(t->fields.items[i]);
          }
-         color_printf("}$$\n");
+         nvc_printf("}$$\n");
       }
    }
 
@@ -1218,7 +1219,7 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
    for (int i = 0; i < vu->vars.count; i++) {
       const var_t *v = &(vu->vars.items[i]);
       int col = printf("  ");
-      col += color_printf("$magenta$%s$$", istr(v->name));
+      col += nvc_printf("$magenta$%s$$", istr(v->name));
       vcode_dump_type(col, v->type, v->bounds);
       if (v->flags & VAR_SIGNAL)
          col += printf(", signal");
@@ -1228,13 +1229,13 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
          col += printf(", constant");
       if (v->flags & VAR_TEMP)
          col += printf(", temp");
-      color_printf("$$\n");
+      nvc_printf("$$\n");
    }
 
    if (vu->result != VCODE_INVALID_TYPE) {
-      color_printf("Result     $cyan$");
+      nvc_printf("Result     $cyan$");
       vcode_dump_one_type(vu->result);
-      color_printf("$$\n");
+      nvc_printf("$$\n");
    }
 
    if (vu->kind == VCODE_UNIT_FUNCTION
@@ -1250,9 +1251,9 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
          col += vcode_dump_reg(p->reg);
          while (col < 8)
             col += printf(" ");
-         col += color_printf("$magenta$%s$$", istr(p->name));
+         col += nvc_printf("$magenta$%s$$", istr(p->name));
          vcode_dump_type(col, p->type, p->bounds);
-         color_printf("$$\n");
+         nvc_printf("$$\n");
       }
    }
 
@@ -1263,7 +1264,7 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
       for (int j = 0; j < b->ops.count; j++) {
          int col = 0;
          if (j == 0)
-            col += color_printf("  $yellow$%2d:$$ ", i);
+            col += nvc_printf("  $yellow$%2d:$$ ", i);
          else
             col += printf("      ");
 
@@ -1321,9 +1322,9 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
                   col += vcode_dump_reg(op->result);
                   col += printf(" := ");
                }
-               col += color_printf("%s $magenta$%s$$ ",
-                                   vcode_op_string(op->kind),
-                                   istr(op->func));
+               col += nvc_printf("%s $magenta$%s$$ ",
+                                 vcode_op_string(op->kind),
+                                 istr(op->func));
                for (int i = 0; i < op->args.count; i++) {
                   if (i > 0)
                      col += printf(", ");
@@ -1339,7 +1340,7 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
                   col += vcode_dump_reg(op->result);
                   col += printf(" := ");
                }
-               col += color_printf("%s $magenta$%s$$ ",
+               col += nvc_printf("%s $magenta$%s$$ ",
                                    vcode_op_string(op->kind),
                                    istr(op->func));
                for (int i = 1; i < op->args.count; i++) {
@@ -1347,7 +1348,7 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
                   col += vcode_dump_reg(op->args.items[i]);
                }
                if (op->args.count > 1) col += printf(" ");
-               col += color_printf("locus ");
+               col += nvc_printf("locus ");
                col += vcode_dump_reg(op->args.items[0]);
                vcode_dump_result_type(col, op);
             }
@@ -1456,7 +1457,7 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
          case VCODE_OP_RESOLUTION_WRAPPER:
             {
                col += vcode_dump_reg(op->result);
-               col += color_printf(" := %s ", vcode_op_string(op->kind));
+               col += nvc_printf(" := %s ", vcode_op_string(op->kind));
                col += vcode_dump_reg(op->args.items[0]);
                col += printf(" nlits ");
                col += vcode_dump_reg(op->args.items[1]);
@@ -1468,8 +1469,8 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
          case VCODE_OP_PROTECTED_INIT:
             {
                col += vcode_dump_reg(op->result);
-               col += color_printf(" := %s $magenta$%s$$ context ",
-                                   vcode_op_string(op->kind), istr(op->func));
+               col += nvc_printf(" := %s $magenta$%s$$ context ",
+                                 vcode_op_string(op->kind), istr(op->func));
                col += vcode_dump_reg(op->args.items[0]);
                if (op->args.count >= 3) {
                   col += printf(" path " );
@@ -1484,7 +1485,7 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
          case VCODE_OP_PACKAGE_INIT:
             {
                col += vcode_dump_reg(op->result);
-               col += color_printf(" := %s $magenta$%s$$",
+               col += nvc_printf(" := %s $magenta$%s$$",
                                    vcode_op_string(op->kind), istr(op->func));
                if (op->args.count > 0) {
                   col += printf(" context " );
@@ -1496,7 +1497,7 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
 
          case VCODE_OP_PROCESS_INIT:
             {
-               color_printf("%s $magenta$%s$$ locus ",
+               nvc_printf("%s $magenta$%s$$ locus ",
                             vcode_op_string(op->kind), istr(op->func));
                vcode_dump_reg(op->args.items[0]);
             }
@@ -1511,21 +1512,21 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
 
          case VCODE_OP_WAIT:
             {
-               color_printf("%s $yellow$%d$$", vcode_op_string(op->kind),
+               nvc_printf("%s $yellow$%d$$", vcode_op_string(op->kind),
                             op->targets.items[0]);
             }
             break;
 
          case VCODE_OP_SCHED_PROCESS:
             {
-               color_printf("%s after ", vcode_op_string(op->kind));
+               nvc_printf("%s after ", vcode_op_string(op->kind));
                vcode_dump_reg(op->args.items[0]);
             }
             break;
 
          case VCODE_OP_JUMP:
             {
-               color_printf("%s $yellow$%d$$", vcode_op_string(op->kind),
+               nvc_printf("%s $yellow$%d$$", vcode_op_string(op->kind),
                             op->targets.items[0]);
             }
             break;
@@ -1534,7 +1535,7 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
             {
                printf("%s ", vcode_op_string(op->kind));
                vcode_dump_reg(op->args.items[0]);
-               color_printf(" then $yellow$%d$$ else $yellow$%d$$",
+               nvc_printf(" then $yellow$%d$$ else $yellow$%d$$",
                             op->targets.items[0], op->targets.items[1]);
             }
             break;
@@ -1587,7 +1588,7 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
          case VCODE_OP_LOAD_INDIRECT:
             {
                col += vcode_dump_reg(op->result);
-               col += color_printf(" := %s ", vcode_op_string(op->kind));
+               col += nvc_printf(" := %s ", vcode_op_string(op->kind));
                col += vcode_dump_reg(op->args.items[0]);
                vcode_dump_result_type(col, op);
             }
@@ -1693,7 +1694,7 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
 
          case VCODE_OP_COMMENT:
             {
-               color_printf("$cyan$// %s$$ ", op->comment);
+               nvc_printf("$cyan$// %s$$ ", op->comment);
             }
             break;
 
@@ -1932,20 +1933,20 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
 
          case VCODE_OP_PCALL:
             {
-               color_printf("%s $magenta$%s$$", vcode_op_string(op->kind),
-                            istr(op->func));
+               nvc_printf("%s $magenta$%s$$", vcode_op_string(op->kind),
+                          istr(op->func));
                for (int i = 0; i < op->args.count; i++) {
                   printf("%s", i > 0 ? ", " : " ");
                   vcode_dump_reg(op->args.items[i]);
                }
                if (op->targets.count > 0)
-                  color_printf(" resume $yellow$%d$$", op->targets.items[0]);
+                  nvc_printf(" resume $yellow$%d$$", op->targets.items[0]);
             }
             break;
 
          case VCODE_OP_RESUME:
             {
-               color_printf("%s $magenta$%s$$", vcode_op_string(op->kind),
+               nvc_printf("%s $magenta$%s$$", vcode_op_string(op->kind),
                             istr(op->func));
             }
             break;
@@ -1964,11 +1965,11 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
             {
                printf("%s ", vcode_op_string(op->kind));
                vcode_dump_reg(op->args.items[0]);
-               color_printf(" default $yellow$%d$$", op->targets.items[0]);
+               nvc_printf(" default $yellow$%d$$", op->targets.items[0]);
                for (int i = 1; i < op->args.count; i++) {
                   printf(" [");
                   vcode_dump_reg(op->args.items[i]);
-                  color_printf(" $yellow$%d$$]", op->targets.items[i]);
+                  nvc_printf(" $yellow$%d$$]", op->targets.items[i]);
                }
             }
             break;
@@ -2186,8 +2187,8 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
          case VCODE_OP_LINK_PACKAGE:
             {
                col += vcode_dump_reg(op->result);
-               col += color_printf(" := %s $magenta$%s$$",
-                                   vcode_op_string(op->kind), istr(op->ident));
+               col += nvc_printf(" := %s $magenta$%s$$",
+                                 vcode_op_string(op->kind), istr(op->ident));
                if (op->args.count > 0) {
                   col += printf(" locus ");
                   col += vcode_dump_reg(op->args.items[0]);
@@ -2199,9 +2200,9 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
          case VCODE_OP_LINK_VAR:
             {
                col += vcode_dump_reg(op->result);
-               col += color_printf(" := %s ", vcode_op_string(op->kind));
+               col += nvc_printf(" := %s ", vcode_op_string(op->kind));
                col += vcode_dump_reg(op->args.items[0]);
-               col += color_printf(" $magenta$%s$$", istr(op->ident));
+               col += nvc_printf(" $magenta$%s$$", istr(op->ident));
                vcode_dump_result_type(col, op);
             }
             break;
@@ -2219,14 +2220,13 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
          case VCODE_OP_DEBUG_LOCUS:
             {
                col += vcode_dump_reg(op->result);
-               col += color_printf(" := %s $magenta$",
-                                   vcode_op_string(op->kind));
+               col += nvc_printf(" := %s $magenta$", vcode_op_string(op->kind));
 
                tree_t t = tree_from_object(op->object);
                if (t != NULL)
                   col += printf("%s@", tree_kind_str(tree_kind(t)));
 
-               col += color_printf("%p$$", op->object);
+               col += nvc_printf("%p$$", op->object);
                vcode_dump_result_type(col, op);
             }
             break;
@@ -2277,8 +2277,8 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
          case VCODE_OP_FUNCTION_TRIGGER:
             {
                col += vcode_dump_reg(op->result);
-               col += color_printf(" := %s $magenta$%s$$ ",
-                                   vcode_op_string(op->kind), istr(op->func));
+               col += nvc_printf(" := %s $magenta$%s$$ ",
+                                 vcode_op_string(op->kind), istr(op->func));
                for (int i = 0; i < op->args.count; i++) {
                   if (i > 0) col += printf(", ");
                   col += vcode_dump_reg(op->args.items[i]);
@@ -2291,7 +2291,7 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
          case VCODE_OP_CMP_TRIGGER:
             {
                col += vcode_dump_reg(op->result);
-               col += color_printf(" := %s ", vcode_op_string(op->kind));
+               col += nvc_printf(" := %s ", vcode_op_string(op->kind));
                col += vcode_dump_reg(op->args.items[0]);
                if (op->kind == VCODE_OP_OR_TRIGGER)
                   col += printf(" || ");
@@ -2311,7 +2311,7 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
 
          case VCODE_OP_PUT_CONVERSION:
             {
-               color_printf("%s ", vcode_op_string(op->kind));
+               nvc_printf("%s ", vcode_op_string(op->kind));
                vcode_dump_reg(op->args.items[0]);
                printf(" signal ");
                vcode_dump_reg(op->args.items[1]);
@@ -2325,7 +2325,7 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
          case VCODE_OP_PORT_CONVERSION:
             {
                col += vcode_dump_reg(op->result);
-               col += color_printf(" := %s ", vcode_op_string(op->kind));
+               col += nvc_printf(" := %s ", vcode_op_string(op->kind));
                col += vcode_dump_reg(op->args.items[0]);
                if (op->args.count > 1) {
                   col += printf(" effective ");
@@ -2338,7 +2338,7 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
          case VCODE_OP_CONVERT_IN:
          case VCODE_OP_CONVERT_OUT:
             {
-               color_printf("%s ", vcode_op_string(op->kind));
+               nvc_printf("%s ", vcode_op_string(op->kind));
                vcode_dump_reg(op->args.items[0]);
                printf(" signal ");
                vcode_dump_reg(op->args.items[1]);
@@ -2349,7 +2349,7 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
 
          case VCODE_OP_BIND_FOREIGN:
             {
-               color_printf("%s ", vcode_op_string(op->kind));
+               nvc_printf("%s ", vcode_op_string(op->kind));
                vcode_dump_reg(op->args.items[0]);
                printf(" length ");
                vcode_dump_reg(op->args.items[1]);
@@ -2364,9 +2364,9 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
          case VCODE_OP_BIND_EXTERNAL:
             {
                col += vcode_dump_reg(op->result);
-               col += color_printf(" := %s ", vcode_op_string(op->kind));
+               col += nvc_printf(" := %s ", vcode_op_string(op->kind));
                col += vcode_dump_reg(op->args.items[0]);
-               col += color_printf(" scope $magenta$%s$$ ", istr(op->ident));
+               col += nvc_printf(" scope $magenta$%s$$ ", istr(op->ident));
                for (int i = 1; i < op->args.count; i++) {
                   if (i > 1) col += printf(", ");
                   col += vcode_dump_reg(op->args.items[i]);
@@ -2377,16 +2377,16 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
          }
 
          if (j == mark_op && i == old_block)
-            color_printf("\t $red$<----$$");
+            nvc_printf("\t $red$<----$$");
 
-         color_printf("$$\n");
+         nvc_printf("$$\n");
 
          if (callback != NULL)
             (*callback)(j, arg);
       }
 
       if (b->ops.count == 0)
-         color_printf("  $yellow$%2d:$$ $red$Empty basic block$$\n", i);
+         nvc_printf("  $yellow$%2d:$$ $red$Empty basic block$$\n", i);
    }
 
    printf("\n");

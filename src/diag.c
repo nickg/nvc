@@ -20,6 +20,7 @@
 #include "diag.h"
 #include "fbuf.h"
 #include "option.h"
+#include "printf.h"
 #include "thread.h"
 
 #include <ctype.h>
@@ -529,17 +530,8 @@ void diag_clear(diag_t *d)
 
 void diag_vprintf(diag_t *d, const char *fmt, va_list ap)
 {
-   if (strchr(fmt, '$') != 0) {
-      char *buf LOCAL;
-      if (d->color)
-         buf = color_vasprintf(fmt, ap);
-      else
-         buf = strip_color(fmt, ap);
-
-      tb_cat(d->msg, buf);
-   }
-   else
-      tb_vprintf(d->msg, fmt, ap);
+   ostream_t os = { tb_ostream_write, d->msg, CHARSET_ISO88591, d->color };
+   nvc_vfprintf(&os, fmt, ap);
 }
 
 void diag_printf(diag_t *d, const char *fmt, ...)
@@ -562,22 +554,17 @@ text_buf_t *diag_text_buf(diag_t *d)
 
 void diag_vhint(diag_t *d, const loc_t *loc, const char *fmt, va_list ap)
 {
-   char *text;
-   if (strchr(fmt, '$') != 0) {
-      if (d->color)
-         text = color_vasprintf(fmt, ap);
-      else
-         text = strip_color(fmt, ap);
-   }
-   else
-      text = xvasprintf(fmt, ap);
+   LOCAL_TEXT_BUF tb = tb_new();
+
+   ostream_t os = { tb_ostream_write, tb, CHARSET_ISO88591, d->color };
+   nvc_vfprintf(&os, fmt, ap);
 
    if (!loc_invalid_p(loc)) {
       for (int i = 0; i < d->hints.count; i++) {
          diag_hint_t *hint = &(d->hints.items[i]);
          if (loc_eq(loc, &(hint->loc))) {
             free(hint->text);
-            hint->text = text;
+            hint->text = tb_claim(tb);
             return;
          }
       }
@@ -587,7 +574,7 @@ void diag_vhint(diag_t *d, const loc_t *loc, const char *fmt, va_list ap)
 
    diag_hint_t h = {
       .loc      = loc ? *loc : LOC_INVALID,
-      .text     = text,
+      .text     = tb_claim(tb),
       .priority = -(d->hints.count),
       .kind     = HINT_NOTE,
    };
@@ -609,28 +596,23 @@ void diag_trace(diag_t *d, const loc_t *loc, const char *fmt, ...)
    va_list ap;
    va_start(ap, fmt);
 
-   char *text;
-   if (strchr(fmt, '$') != 0) {
-      if (d->color)
-         text = color_vasprintf(fmt, ap);
-      else
-         text = strip_color(fmt, ap);
-   }
-   else
-      text = xvasprintf(fmt, ap);
+   LOCAL_TEXT_BUF tb = tb_new();
+
+   ostream_t os = { tb_ostream_write, tb, CHARSET_ISO88591, d->color };
+   nvc_vfprintf(&os, fmt, ap);
 
    va_end(ap);
 
    diag_hint_t h = {
       .loc      = loc ? *loc : LOC_INVALID,
-      .text     = text,
+      .text     = tb_claim(tb),
       .priority = d->hints.count,
    };
    APUSH(d->trace, h);
 
    if (loc != NULL && d->hints.count == 0) {
       diag_hint_t hint = {
-         .loc   = *loc
+         .loc = *loc
       };
       APUSH(d->hints, hint);
    }
@@ -670,56 +652,57 @@ void diag_lrm(diag_t *d, vhdl_standard_t std, const char *section)
    APUSH(d->hints, h);
 }
 
-static void diag_putc_utf8(unsigned char ch, FILE *f)
+static void diag_putc_utf8(unsigned char ch, ostream_t *os)
 {
    if (ch >= 128 && utf8_terminal()) {
       // Convert ISO-8859-1 internal encoding to UTF-8
-      fputc(0xc2 + (ch > 0xbf), f);
-      fputc((ch & 0x3f) + 0x80, f);
+      ostream_putc(os, 0xc2 + (ch > 0xbf));
+      ostream_putc(os, (ch & 0x3f) + 0x80);
    }
    else if ((ch < 0x20 || ch == 0x7f)
             && ch != '\r' && ch != '\n' && ch != '\t' && ch != '\e') {
       if (utf8_terminal()) {
          // On unicode terminals emit the corresponding control picture
          // code point otherwise silently drop it
-         fputc(0xe2, f);
-         fputc(0x90, f);
+         ostream_putc(os, 0xe2);
+         ostream_putc(os, 0x90);
          if (ch == 0x7f)  // DEL
-            fputc(0xa1, f);
+            ostream_putc(os, 0xa1);
          else
-            fputc(0x80 + ch, f);
+            ostream_putc(os, 0x80 + ch);
       }
    }
    else
-      fputc(ch, f);
+      ostream_putc(os, ch);
 }
 
-static void diag_print_utf8(const char *str, size_t len, FILE *f)
+static void diag_print_utf8(const char *str, size_t len, ostream_t *os)
 {
    const unsigned char *ustr = (const unsigned char *)str;
 
    bool have_non_utf8 = false;
    for (const unsigned char *p = ustr; p < ustr + len; p++) {
       if (have_non_utf8)
-         diag_putc_utf8(*p, f);
+         diag_putc_utf8(*p, os);
       else if (*p == '\033')
          continue;  // Do not replace ANSI escapes
       else if (*p >= 128 || *p < 0x20 || *p == 0x7f) {
-         fwrite(str, 1, p - ustr, f);
-         diag_putc_utf8(*p, f);
+         ostream_write(os, str, p - ustr);
+         diag_putc_utf8(*p, os);
          have_non_utf8 = true;
       }
    }
 
    if (!have_non_utf8)
-      fwrite(str, 1, len, f);
+      ostream_write(os, str, len);
 }
 
-static void diag_wrap_lines(const char *str, size_t len, int left, FILE *f)
+static void diag_wrap_lines(const char *str, size_t len, int left,
+                            ostream_t *os)
 {
    const int right = terminal_width();
    if (right == 0 || left + len < right) {
-      diag_print_utf8(str, len, f);
+      diag_print_utf8(str, len, os);
       return;
    }
 
@@ -732,13 +715,13 @@ static void diag_wrap_lines(const char *str, size_t len, int left, FILE *f)
             escape = 0;
       }
       else if (col + 1 >= right && p - begin + 1 < right - left) {
-         fprintf(f, "\n%*s", left, "");
+         nvc_fprintf(os, "\n%*s", left, "");
          col = left + p - begin;
       }
       else if (isspace_iso88591(*p)) {
-         diag_print_utf8(begin, p - begin + 1, f);
+         diag_print_utf8(begin, p - begin + 1, os);
          if (*p == '\n') {
-            fprintf(f, "%*s", left, "");
+            nvc_fprintf(os, "%*s", left, "");
             col = left;
          }
          else
@@ -750,7 +733,7 @@ static void diag_wrap_lines(const char *str, size_t len, int left, FILE *f)
    }
 
    if (begin < p)
-      diag_print_utf8(begin, p - begin, f);
+      diag_print_utf8(begin, p - begin, os);
 }
 
 static int diag_compar(const void *_a, const void *_b)
@@ -761,19 +744,19 @@ static int diag_compar(const void *_a, const void *_b)
    return a->loc.first_line - b->loc.first_line;
 }
 
-static void diag_emit_loc(const loc_t *loc, FILE *f)
+static void diag_emit_loc(const loc_t *loc, ostream_t *os)
 {
    const char *file = loc_file_str(loc);
    const char *abspath = loc_abs_path(loc);
 
    if (abspath != file)
-      color_fprintf(f, "$link:file://%s#%u\07%s:%u$",
-                    abspath, loc->first_line, file, loc->first_line);
+      nvc_fprintf(os, "$link:file://%s#%u\07%s:%u$",
+                  abspath, loc->first_line, file, loc->first_line);
    else
-      fprintf(f, "%s:%u", file, loc->first_line);
+      nvc_fprintf(os, "%s:%u", file, loc->first_line);
 }
 
-static void diag_emit_hints(diag_t *d, FILE *f)
+static void diag_emit_hints(diag_t *d, ostream_t *os)
 {
    int fwidth = 0;
    const char *linebuf = NULL;
@@ -822,16 +805,16 @@ static void diag_emit_hints(diag_t *d, FILE *f)
    if (!d->source)
       goto other_files;
 
-   color_fprintf(f, "%*s$blue$  > $$", fwidth, "");
-   diag_emit_loc(&loc0, f);
+   nvc_fprintf(os, "%*s$blue$  > $$", fwidth, "");
+   diag_emit_loc(&loc0, os);
 
    if (linebuf == NULL) {
-      color_fprintf(f, "\n");
+      ostream_puts(os, "\n");
       d->source = false;   // Cannot get original source code
       goto other_files;
    }
 
-   color_fprintf(f, "\n%*s " GUTTER_STYLE " |$$\n", fwidth, "");
+   nvc_fprintf(os, "\n%*s " GUTTER_STYLE " |$$\n", fwidth, "");
    need_gap = true;
 
    const char *p = linebuf;
@@ -846,7 +829,7 @@ static void diag_emit_hints(diag_t *d, FILE *f)
 
       if (hint->loc.first_line > i + 2) {
          // Skip some lines
-         color_fprintf(f, " " GUTTER_STYLE "...$$\n");
+         nvc_fprintf(os, " " GUTTER_STYLE "...$$\n");
          for (; i < hint->loc.first_line; i++) {
             if ((p = strchr(p, '\n')) == NULL)
                return;
@@ -854,7 +837,7 @@ static void diag_emit_hints(diag_t *d, FILE *f)
          }
       }
 
-      color_fprintf(f, " " GUTTER_STYLE "%*.u |$$ $cyan$", fwidth, i);
+      nvc_fprintf(os, " " GUTTER_STYLE "%*.u |$$ $cyan$", fwidth, i);
 
       int first_col = hint->loc.first_column;
       for (int col = 0, n = 0; *p != '\0' && *p != '\n'; p++, n++) {
@@ -864,24 +847,23 @@ static void diag_emit_hints(diag_t *d, FILE *f)
             continue;
          else if (*p == '\t') {
             do {
-               fputc(' ', f);
-               col++;
+               col += ostream_putc(os, ' ');
             } while (col % 8 != 0);
          }
          else if (isprint_iso88591(*p)) {
-            diag_putc_utf8(*p, f);
+            diag_putc_utf8(*p, os);
             col++;
          }
       }
 
-      color_fprintf(f, "$$\n");
+      nvc_fprintf(os, "$$\n");
       p++;   // Skip newline
 
       if (hint->loc.first_line == i) {
-         color_fprintf(f, "%*s " GUTTER_STYLE " |$$ ", fwidth, "");
+         nvc_fprintf(os, "%*s " GUTTER_STYLE " |$$ ", fwidth, "");
 
-         color_fprintf(f, CARET_STYLE "$green$");
-         color_fprintf(f, "%*s", first_col, "");
+         nvc_fprintf(os, CARET_STYLE "$green$");
+         nvc_fprintf(os, "%*s", first_col, "");
 
          int ncarets = 1;
          if (hint->loc.line_delta == 0
@@ -890,7 +872,7 @@ static void diag_emit_hints(diag_t *d, FILE *f)
 
          const int hintcol = fwidth + hint->loc.first_column + ncarets + 4;
 
-         while (ncarets--) fputc('^', f);
+         while (ncarets--) ostream_putc(os, '^');
 
          const char *text = hint->text;
          if (text == NULL && same_file > 1 && hint->priority == 0
@@ -899,13 +881,13 @@ static void diag_emit_hints(diag_t *d, FILE *f)
 
          if (text != NULL) {
             if (hintcol + strlen(text) >= MAX(terminal_width(), 80))
-               color_fprintf(f, "$$\n%*s " GUTTER_STYLE " |$$%*s", fwidth, "",
-                             hint->loc.first_column, "");
+               nvc_fprintf(os, "$$\n%*s " GUTTER_STYLE " |$$%*s", fwidth, "",
+                           hint->loc.first_column, "");
 
-            color_fprintf(f, "$$$green$ %s$$\n", text);
+            nvc_fprintf(os, "$$$green$ %s$$\n", text);
          }
          else
-            color_fprintf(f, "$$\n");
+            nvc_fprintf(os, "$$\n");
 
          // Only support one hint per line
          for (; h < d->hints.count
@@ -923,33 +905,33 @@ static void diag_emit_hints(diag_t *d, FILE *f)
          continue;
 
       if (need_gap) {
-         color_fprintf(f, "%*s " GUTTER_STYLE " |$$\n", fwidth, "");
+         nvc_fprintf(os, "%*s " GUTTER_STYLE " |$$\n", fwidth, "");
          need_gap = false;
       }
 
-      int col = color_fprintf(f, "%*s", fwidth, "");
+      int col = nvc_fprintf(os, "%*s", fwidth, "");
 
       if (linebuf != NULL)
-         col += color_fprintf(f, " " GUTTER_STYLE " = $$");
+         col += nvc_fprintf(os, " " GUTTER_STYLE " = $$");
 
       if (col == 0)
-         col += color_fprintf(f, NOTE_PREFIX);
+         col += nvc_fprintf(os, NOTE_PREFIX);
       else
-         col += color_fprintf(f, HINT_STYLE "%s:$$ ",
-                              hint->kind == HINT_HELP ? "Help" : "Note");
+         col += nvc_fprintf(os, HINT_STYLE "%s:$$ ",
+                            hint->kind == HINT_HELP ? "Help" : "Note");
 
-      diag_wrap_lines(hint->text, strlen(hint->text), col, f);
-      fputc('\n', f);
+      diag_wrap_lines(hint->text, strlen(hint->text), col, os);
+      ostream_putc(os, '\n');
 
       if (!loc_invalid_p(&(hint->loc))) {
-         color_fprintf(f, "%*s      $blue$>$$ ", fwidth, "");
-         diag_emit_loc(&(hint->loc), f);
-         fputc('\n', f);
+         nvc_fprintf(os, "%*s      $blue$>$$ ", fwidth, "");
+         diag_emit_loc(&(hint->loc), os);
+         ostream_putc(os, '\n');
       }
    }
 }
 
-static void diag_emit_trace(diag_t *d, FILE *f)
+static void diag_emit_trace(diag_t *d, ostream_t *os)
 {
    // Do not show a stack trace if it just repeats the initial location
    if (d->trace.count == 1 && d->hints.count > 0 && d->source) {
@@ -969,39 +951,39 @@ static void diag_emit_trace(diag_t *d, FILE *f)
 
    for (int i = 0; i < d->trace.count; i++) {
       diag_hint_t *hint = &(d->trace.items[i]);
-      fprintf(f, "   " TRACE_STYLE "%s", hint->text);
+      nvc_fprintf(os, "   " TRACE_STYLE "%s", hint->text);
 
       if (!loc_invalid_p(&(hint->loc))) {
-         color_fprintf(f, " at ");
-         diag_emit_loc(&(hint->loc), f);
+         ostream_puts(os, " at ");
+         diag_emit_loc(&(hint->loc), os);
       }
 
-      fputc('\n', f);
+      ostream_putc(os, '\n');
    }
 }
 
-static void diag_format_compact(diag_t *d, FILE *f)
+static void diag_format_compact(diag_t *d, ostream_t *os)
 {
    if (d->hints.count > 0) {
       loc_t *loc = &(d->hints.items[0].loc);
       if (!loc_invalid_p(loc)) {
          loc_file_t *file_data = loc_file_data(loc);
-         fprintf(f, "%s:%d:%d: ", file_data->name_str, loc->first_line,
-                 loc->first_column + 1);
+         nvc_fprintf(os, "%s:%d:%d: ", file_data->name_str, loc->first_line,
+                     loc->first_column + 1);
       }
    }
 
    switch (d->level) {
-   case DIAG_DEBUG:   fprintf(f, "debug: "); break;
-   case DIAG_NOTE:    fprintf(f, "note: "); break;
-   case DIAG_WARN:    fprintf(f, "warning: "); break;
-   case DIAG_ERROR:   fprintf(f, "error: "); break;
-   case DIAG_FAILURE: fprintf(f, "failure: "); break;
-   case DIAG_FATAL:   fprintf(f, "fatal: "); break;
+   case DIAG_DEBUG:   nvc_fprintf(os, "debug: "); break;
+   case DIAG_NOTE:    nvc_fprintf(os, "note: "); break;
+   case DIAG_WARN:    nvc_fprintf(os, "warning: "); break;
+   case DIAG_ERROR:   nvc_fprintf(os, "error: "); break;
+   case DIAG_FAILURE: nvc_fprintf(os, "failure: "); break;
+   case DIAG_FATAL:   nvc_fprintf(os, "fatal: "); break;
    }
 
-   diag_print_utf8(tb_get(d->msg), tb_len(d->msg), f);
-   fputc('\n', f);
+   diag_print_utf8(tb_get(d->msg), tb_len(d->msg), os);
+   ostream_putc(os, '\n');
 }
 
 static inline bool diag_has_message(diag_t *d)
@@ -1009,37 +991,35 @@ static inline bool diag_has_message(diag_t *d)
    return tb_len(d->msg) > 0;
 }
 
-static void diag_format_full(diag_t *d, FILE *f)
+static void diag_format_full(diag_t *d, ostream_t *os)
 {
    if (diag_has_message(d)) {
       int col = 0;
       if (d->prefix) {
          switch (d->level) {
-         case DIAG_DEBUG:   col = color_fprintf(f, DEBUG_PREFIX); break;
-         case DIAG_NOTE:    col = color_fprintf(f, NOTE_PREFIX); break;
-         case DIAG_WARN:    col = color_fprintf(f, WARNING_PREFIX); break;
-         case DIAG_ERROR:   col = color_fprintf(f, ERROR_PREFIX); break;
-         case DIAG_FAILURE: col = color_fprintf(f, FAILURE_PREFIX); break;
-         case DIAG_FATAL:   col = color_fprintf(f, FATAL_PREFIX); break;
+         case DIAG_DEBUG:   col = nvc_fprintf(os, DEBUG_PREFIX); break;
+         case DIAG_NOTE:    col = nvc_fprintf(os, NOTE_PREFIX); break;
+         case DIAG_WARN:    col = nvc_fprintf(os, WARNING_PREFIX); break;
+         case DIAG_ERROR:   col = nvc_fprintf(os, ERROR_PREFIX); break;
+         case DIAG_FAILURE: col = nvc_fprintf(os, FAILURE_PREFIX); break;
+         case DIAG_FATAL:   col = nvc_fprintf(os, FATAL_PREFIX); break;
          }
       }
 
-      diag_wrap_lines(tb_get(d->msg), tb_len(d->msg), col, f);
-      fputc('\n', f);
+      diag_wrap_lines(tb_get(d->msg), tb_len(d->msg), col, os);
+      ostream_putc(os, '\n');
    }
 
    if (d->hints.count > 0)
-      diag_emit_hints(d, f);
+      diag_emit_hints(d, os);
 
    if (d->trace.count > 0)
-      diag_emit_trace(d, f);
+      diag_emit_trace(d, os);
 
 #if TRAILING_BLANK
    if (d->trace.count > 0 || d->hints.count > 0)
-      fputc('\n', f);
+      ostream_putc(os, '\n');
 #endif
-
-   fflush(f);
 }
 
 void diag_femit(diag_t *d, FILE *f)
@@ -1061,10 +1041,19 @@ void diag_femit(diag_t *d, FILE *f)
 
       SCOPED_LOCK(diag_lock);
 
+      ostream_t os = {
+         stdio_ostream_write,
+         f,
+         utf8_terminal() ? CHARSET_UTF8 : CHARSET_ISO88591,
+         color_terminal(),
+      };
+
       if (get_message_style() == MESSAGE_COMPACT)
-         diag_format_compact(d, f);
+         diag_format_compact(d, &os);
       else
-         diag_format_full(d, f);
+         diag_format_full(d, &os);
+
+      fflush(f);
    }
 
    const unsigned count = relaxed_add(&n_diags[d->level], 1);
@@ -1212,13 +1201,12 @@ void fmt_loc(FILE *f, const loc_t *loc)
 
 void wrapped_vprintf(const char *fmt, va_list ap)
 {
-   char *text LOCAL = NULL;
-   if (strchr(fmt, '$') != 0)
-      text = color_vasprintf(fmt, ap);
-   else
-      text = xvasprintf(fmt, ap);
+   LOCAL_TEXT_BUF tb = tb_new();
 
-   diag_wrap_lines(text, strlen(text), 0, stdout);
+   ostream_t os = { tb_ostream_write, tb, CHARSET_ISO88591, color_terminal() };
+   nvc_vfprintf(&os, fmt, ap);
+
+   diag_wrap_lines(tb_get(tb), tb_len(tb), 0, nvc_stdout());
 }
 
 void wrapped_printf(const char *fmt, ...)

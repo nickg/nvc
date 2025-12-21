@@ -24,6 +24,7 @@
 #include "lower.h"
 #include "option.h"
 #include "phase.h"
+#include "printf.h"
 #include "scan.h"
 #include "thread.h"
 #include "type.h"
@@ -2507,14 +2508,14 @@ void print_syntax(const char *fmt, ...)
          if (*p == '\n' || *p == '\r') {
             comment = false;
             last_was_newline = true;
-            tb_printf(tb, "$$\n");
+            tb_cat(tb, "$$\n");
          }
          else if (*p != '~' && *p != '#') {
             tb_append(tb, *p);
             last_was_newline = false;
          }
          if (p > fmt && *p == '/' && *(p - 1) == '*') {
-            tb_printf(tb, "$$");
+            tb_cat(tb, "$$");
             comment = false;
             last_was_newline = false;
          }
@@ -2526,25 +2527,27 @@ void print_syntax(const char *fmt, ...)
          }
       }
       else if (*p == '#' && *(p + 1) != '#') {
-         tb_printf(tb, "$bold$$cyan$");
+         tb_cat(tb, "$bold$$cyan$");
          last_was_newline = false;
          highlighting = true;
       }
       else if (*p == '~' && *(p + 1) != '~') {
-         tb_printf(tb, "$yellow$");
+         tb_cat(tb, "$yellow$");
          last_was_newline = false;
          highlighting = true;
       }
       else if ((*p == '-' && *(p + 1) == '-')
                || (*p == '/' && *(p + 1) == '/')
                || (*p == '/' && *(p + 1) == '*')) {
-         tb_printf(tb, "$red$%c", *p);
+         tb_cat(tb, "$red$");
+         tb_append(tb, *p);
          last_was_newline = false;
          comment = true;
       }
       else if (!isalnum_iso88591(*p) && *p != '_'
                && *p != '%' && highlighting) {
-         tb_printf(tb, "$$%c", *p);
+         tb_cat(tb, "$$");
+         tb_append(tb, *p);
          last_was_newline = false;
          highlighting = false;
       }
@@ -2561,11 +2564,11 @@ void print_syntax(const char *fmt, ...)
    va_start(ap, fmt);
 
    if (syntax_buf != NULL) {
-      char *stripped LOCAL = strip_color(tb_get(tb), ap);
-      tb_cat(syntax_buf, stripped);
+      ostream_t os = { tb_ostream_write, syntax_buf, CHARSET_ISO88591, false };
+      nvc_vfprintf(&os, tb_get(tb), ap);
    }
    else
-      color_vprintf(tb_get(tb), ap);
+      nvc_vprintf(tb_get(tb), ap);
 
    va_end(ap);
 }

@@ -26,6 +26,7 @@
 #include "mir/mir-unit.h"
 #include "option.h"
 #include "phase.h"
+#include "printf.h"
 #include "rt/assert.h"
 #include "rt/model.h"
 #include "rt/mspace.h"
@@ -2130,8 +2131,8 @@ static int preprocess_cmd(int argc, char **argv, cmd_state_t *state)
 
 static void usage(void)
 {
-   color_printf("$!cyan$Usage:$$ $bold$%s [OPTION]... "
-                "COMMAND [OPTION]...$$\n\n",  PACKAGE);
+   nvc_printf("$!cyan$Usage:$$ $bold$%s [OPTION]... "
+              "COMMAND [OPTION]...$$\n\n",  PACKAGE);
 
    wrapped_printf("Global options are placed before COMMAND, and "
                   "command-specific options are placed afterwards. "
@@ -2302,7 +2303,7 @@ static void usage(void)
    const int right = MAX(60, terminal_width());
 
    for (int i = 0; i < ARRAY_LEN(groups); i++) {
-      color_printf("$bold$$cyan$%s:$$\n", groups[i].group);
+      nvc_printf("$bold$$cyan$%s:$$\n", groups[i].group);
 
       for (int j = 0; j < ARRAY_LEN(groups[i].options); j++) {
          const char *args  = groups[i].options[j].args;
@@ -2313,9 +2314,9 @@ static void usage(void)
 
          int col = 0;
          if (args[0] == '-' && args[1] == '-' && i > 0)
-            col += color_printf("     $bold$%s$$ ", args);
+            col += nvc_printf("     $bold$%s$$ ", args);
          else
-            col += color_printf(" $bold$%s$$ ", args);
+            col += nvc_printf(" $bold$%s$$ ", args);
 
          const int indent = i == 0 ? 30 : 20;
          if (col > indent)
@@ -2351,13 +2352,13 @@ static void usage(void)
 
    LOCAL_TEXT_BUF tb = tb_new();
    lib_print_search_paths(tb);
-   color_printf("$!cyan$Library search paths:$$%s\n\n", tb_get(tb));
+   nvc_printf("$!cyan$Library search paths:$$%s\n\n", tb_get(tb));
 
    wrapped_printf("The full manual can be read with $bold$man 1 %s$$ and "
                   "contains detailed explanations of the commands and options "
                   "above as well as examples.\n", PACKAGE_NAME);
-   color_printf("\nReport bugs at $link:%s\07%s$\n", PACKAGE_BUGREPORT,
-                PACKAGE_BUGREPORT);
+   nvc_printf("\nReport bugs at $link:%s\07%s$\n", PACKAGE_BUGREPORT,
+              PACKAGE_BUGREPORT);
 }
 
 static vhdl_standard_t parse_standard(const char *str)

@@ -22,6 +22,7 @@
 #include "mir/mir-priv.h"
 #include "mir/mir-structs.h"
 #include "option.h"
+#include "printf.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -777,7 +778,7 @@ static int begin_block_cb(mir_unit_t *mu, mir_block_t block, int col, void *ctx)
       return 0;
 
    const cfg_block_t *cb = &(opt->cfg[block.id]);
-   color_printf("$cyan$//");
+   nvc_printf("$cyan$//");
 
    if (cb->entry) printf(" entry");
 
@@ -806,7 +807,7 @@ static int begin_block_cb(mir_unit_t *mu, mir_block_t block, int col, void *ctx)
    if (cb->returns) printf(" returns");
    if (cb->aborts) printf(" aborts");
 
-   color_printf("$$\n%*.s", col, "");
+   nvc_printf("$$\n%*.s", col, "");
 
    return 0;
 }
@@ -816,7 +817,7 @@ static int value_cb(mir_unit_t *mu, mir_value_t value, void *ctx)
    const mir_optim_t *opt = ctx;
 
    if (opt->gvn != NULL && gvn_tracked(value)) {
-      int col = color_printf("$!black$(");
+      int col = nvc_printf("$!black$(");
 
       if (value.tag == MIR_TAG_NODE) {
          const node_data_t *n = mir_node_data(mu, value);
@@ -828,11 +829,11 @@ static int value_cb(mir_unit_t *mu, mir_value_t value, void *ctx)
       else
          col += printf("%u", gvn_get_value(value, opt->gvn));
 
-      col += color_printf(")$$");
+      col += nvc_printf(")$$");
       return col;
    }
    else if (opt->dce != NULL && value.tag == MIR_TAG_NODE)
-      return color_printf("$!black$(%u)$$", opt->dce->uses[value.id]);
+      return nvc_printf("$!black$(%u)$$", opt->dce->uses[value.id]);
    else
       return 0;
 }

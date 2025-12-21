@@ -29,6 +29,7 @@
 #include "object.h"
 #include "option.h"
 #include "phase.h"
+#include "printf.h"
 #include "psl/psl-phase.h"
 #include "rt/model.h"
 #include "rt/structs.h"
@@ -2820,8 +2821,8 @@ static void elab_print_stats(const elab_ctx_t *ctx)
 
    qsort(sorted, count, sizeof(mod_cache_t), elab_compar_modcache);
 
-   color_printf("\n$bold$%-50s %10s %10s$$\n", "Design Unit", "Instances",
-                "Unique");
+   nvc_printf("\n$bold$%-50s %10s %10s$$\n", "Design Unit", "Instances",
+              "Unique");
 
    for (int i = 0; i < count; i++) {
       ident_t name = NULL;

@@ -21,10 +21,12 @@
 #include "ident.h"
 #include "mask.h"
 #include "option.h"
+#include "printf.h"
 #include "rt/copy.h"
 #include "rt/heap.h"
 #include "thread.h"
 #include "util.h"
+#include "stdint.h"
 
 #include <assert.h>
 #include <check.h>
@@ -33,6 +35,7 @@
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
+#include <inttypes.h>
 
 #define VOIDP(x) ((void *)(uintptr_t)(x))
 
@@ -389,34 +392,6 @@ START_TEST(test_heap_delete)
 }
 END_TEST
 
-START_TEST(test_color_printf)
-{
-   setenv("NVC_COLORS", "always", 1);
-   term_init();
-
-   char *LOCAL str1 = color_asprintf("$red$hello$$");
-   ck_assert_str_eq(str1, "\033[31mhello\033[0m");
-
-   char *LOCAL str2 = color_asprintf("$#42$world$$");
-   ck_assert_str_eq(str2, "\033[38;5;42mworld\033[0m");
-
-   char *LOCAL str3 = color_asprintf("$!blue$bold$$ normal");
-   ck_assert_str_eq(str3, "\033[1;34mbold\033[0m normal");
-
-   char *LOCAL str4 = color_asprintf("a $bad$ color");
-   ck_assert_str_eq(str4, "a $bad$ color");
-
-   char *LOCAL str5 = color_asprintf("$!wrong$ end");
-   ck_assert_str_eq(str5, "$!wrong$ end");
-
-   char *LOCAL str6 = color_asprintf("$missing");
-   ck_assert_str_eq(str6, "$missing");
-
-   char *LOCAL str7 = color_asprintf("$<$$red$override$$$>$");
-   ck_assert_str_eq(str7, "override");
-}
-END_TEST
-
 START_TEST(test_strip)
 {
    LOCAL_TEXT_BUF tb = tb_new();
@@ -424,6 +399,69 @@ START_TEST(test_strip)
    tb_strip(tb);
 
    ck_assert_str_eq(tb_get(tb), " hello world");
+}
+END_TEST
+
+__attribute__((format(printf, 2, 3)))
+static void do_printf(const char *expect, const char *fmt, ...)
+{
+   LOCAL_TEXT_BUF tb = tb_new();
+   ostream_t os = { tb_ostream_write, tb, CHARSET_ISO88591, true };
+
+   va_list ap;
+   va_start(ap, fmt);
+
+   nvc_vfprintf(&os, fmt, ap);
+
+   if (strcmp(tb_get(tb), expect) != 0)
+      ck_abort_msg("nvc_printf(\"%s\", ...): \"%s\" != \"%s\"",
+                   fmt, tb_get(tb), expect);
+
+   va_end(ap);
+}
+
+START_TEST(test_printf1)
+{
+   uint64_t u64 = UINT64_C(2147483647) + 1;
+   uint64_t i64 = INT64_C(-2147483647-1) - 1;
+   int var = 1;
+   ident_t id = ident_new("ident");
+   char var_addr[32];
+   size_t sz = 123;
+   snprintf(var_addr, sizeof(var_addr), "%p", &var);
+
+   do_printf("hello, world", "hello, world");
+   do_printf("hello, world", "hello, %s", "world");
+   do_printf("one 42 two", "one %d two", 42);
+   do_printf("char 'X'", "char '%c'", 'X');
+   do_printf(var_addr, "%p", &var);
+   do_printf("u64 = 2147483648", "u64 = %"PRIu64, u64);
+   do_printf("i64 = -2147483649", "i64 = %"PRIi64, i64);
+   do_printf("42        ", "%-10d", 42);
+   do_printf(var_addr, "0x%"PRIxPTR, (uintptr_t)&var);
+   do_printf("    ", "%*.s", 4, "");
+   do_printf("  42", "%*.u", 4, 42);
+   do_printf("          2147483648", "%*."PRIu64, 20, u64);
+   do_printf("   1", "%*.f", 4, 1.2523);
+   do_printf(" xx", "%3s", "xx");
+   do_printf("ident", "%pi", id);
+   do_printf("IDENT", "%pI", id);
+   do_printf("3.142", "%1.3f", M_PI);
+   do_printf("3.142e+00", "%1.3e", M_PI);
+   do_printf("3.14", "%1.3g", M_PI);
+   do_printf("3.14", "%1.3g", M_PI);
+   do_printf("sz=123", "sz=%zd", sz);
+   do_printf("+99%", "%+d%%", 99);
+   do_printf("\033[31mhello\033[0m", "$red$hello$$");
+   do_printf("\033[38;5;42mworld\033[0m", "$#42$world$$");
+   do_printf("\033[1;34mbold\033[0m normal", "$!blue$bold$$ normal");
+   do_printf("a $bad$ color", "a $bad$ color");
+   do_printf("$!wrong$ end", "$!wrong$ end");
+   do_printf("$missing", "$missing");
+   do_printf("\033]8;;foo\07bar\033]8;;\07", "$link:foo\07bar$");
+   do_printf("\033]8;;foo\07bar\033]8;;\07", "$link:%s\07%s$", "foo", "bar");
+   do_printf("                                                       "
+             "              1 hello", "%70d %s", 1, "hello");
 }
 END_TEST
 
@@ -908,9 +946,12 @@ Suite *get_misc_tests(void)
    suite_add_tcase(s, tc_heap);
 
    TCase *tc_util = tcase_create("util");
-   tcase_add_test(tc_util, test_color_printf);
    tcase_add_test(tc_util, test_strip);
    suite_add_tcase(s, tc_util);
+
+   TCase *tc_printf = tcase_create("printf");
+   tcase_add_test(tc_util, test_printf1);
+   suite_add_tcase(s, tc_printf);
 
    TCase *tc_mask = tcase_create("mask");
    tcase_add_loop_test(tc_mask, test_mask, 0, ARRAY_LEN(mask_size));

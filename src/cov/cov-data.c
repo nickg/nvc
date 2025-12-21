@@ -26,6 +26,7 @@
 #include "lib.h"
 #include "object.h"
 #include "option.h"
+#include "printf.h"
 #include "tree.h"
 #include "psl/psl-node.h"
 #include "type.h"
@@ -835,10 +836,10 @@ static void cover_write_scope(cover_scope_t *s, fbuf_t *f,
 LCOV_EXCL_START
 static void cover_debug_dump(cover_scope_t *s, int indent)
 {
-   color_printf("%*s$!blue$%s$$", indent, "", istr(s->name));
+   nvc_printf("%*s$!blue$%s$$", indent, "", istr(s->name));
    if (cover_is_hier(s))
       printf(" : %s", istr(s->block->block_name));
-   color_printf("\n");
+   nvc_printf("\n");
 
    for (int i = 0; i < s->items.count; i++) {
       cover_item_t *item = &(s->items.items[i]);

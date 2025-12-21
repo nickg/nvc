@@ -159,7 +159,7 @@ void vlog_symtab_pop(vlog_symtab_t *st)
       vlog_node_t v = st->top->deferred.items[i];
       if (st->top->parent == NULL || is_top_level(st->top->container)) {
          ident_t name = vlog_ident(v);
-         error_at(vlog_loc(v), "no visible declaration for '%s'", istr(name));
+         error_at(vlog_loc(v), "no visible declaration for '%pi'", name);
          vlog_symtab_poison(st, name);
       }
       else
@@ -186,7 +186,7 @@ static void lookup_member(vlog_symtab_t *st, vlog_node_t v)
    if (kind != V_STRUCT_DECL && kind != V_CLASS_DECL) {
       diag_t *d = diag_new(DIAG_ERROR, vlog_loc(prefix));
       if (vlog_kind(prefix) == V_REF)
-         diag_printf(d, "'%s'", istr(vlog_ident(prefix)));
+         diag_printf(d, "'%pi'", vlog_ident(prefix));
       else
          diag_printf(d, "prefix");
       diag_printf(d, " is not a struct or class");
@@ -209,8 +209,8 @@ static void lookup_member(vlog_symtab_t *st, vlog_node_t v)
    if (kind == V_STRUCT_DECL)
       diag_printf(d, "struct ");
    else
-      diag_printf(d, "class '%s' ", istr(vlog_ident(type)));
-   diag_printf(d, "has no field named '%s'", istr(id));
+      diag_printf(d, "class '%pi' ", vlog_ident(type));
+   diag_printf(d, "has no field named '%pi'", id);
    diag_hint(d, vlog_loc(type), "struct declared here");
    diag_emit(d);
 }
@@ -259,7 +259,7 @@ void vlog_symtab_lookup(vlog_symtab_t *st, vlog_node_t v)
          APUSH(st->top->deferred, v);
          break;
       default:
-         error_at(vlog_loc(v), "no visible declaration for '%s'", istr(name));
+         error_at(vlog_loc(v), "no visible declaration for '%pi'", name);
          vlog_symtab_poison(st, name);
       }
    }
@@ -311,9 +311,9 @@ void vlog_symtab_put(vlog_symtab_t *st, vlog_node_t v)
       }
 
       diag_t *d = diag_new(DIAG_ERROR, vlog_loc(v));
-      diag_printf(d, "duplicate declaration of %s", istr(name));
-      diag_hint(d, vlog_loc(sym->node), "%s was previously declared here",
-                istr(name));
+      diag_printf(d, "duplicate declaration of '%pi'", name);
+      diag_hint(d, vlog_loc(sym->node), "'%pi' was previously declared here",
+                name);
       diag_hint(d, vlog_loc(v), "duplicate declaration");
       diag_suppress(d, name == well_known(W_ERROR) || st->top->suppress);
       diag_emit(d);

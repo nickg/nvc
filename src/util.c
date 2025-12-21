@@ -31,6 +31,7 @@
 #include "debug.h"
 #include "diag.h"
 #include "option.h"
+#include "printf.h"
 #include "thread.h"
 
 #include <stdlib.h>
@@ -91,25 +92,6 @@
 #include <sys/ucontext.h>
 #endif
 
-#define N_TRACE_DEPTH   16
-#define ERROR_SZ        1024
-#define PAGINATE_RIGHT  72
-#define TRACE_MAX_LINE  256
-
-#define ANSI_RESET      0
-#define ANSI_BOLD       1
-#define ANSI_FG_BLACK   30
-#define ANSI_FG_RED     31
-#define ANSI_FG_GREEN   32
-#define ANSI_FG_YELLOW  33
-#define ANSI_FG_BLUE    34
-#define ANSI_FG_MAGENTA 35
-#define ANSI_FG_CYAN    36
-#define ANSI_FG_WHITE   37
-
-#define MAX_FMT_BUFS    32
-#define MAX_PRINTF_BUFS 8
-
 #define HUGE_PAGE_SIZE  0x200000
 
 #define POOL_MIN_ALIGN  sizeof(double)
@@ -124,18 +106,10 @@
 #define POOL_REDZONE 0
 #endif
 
-typedef void (*print_fn_t)(const char *fmt, ...);
-
-static char *ansi_vasprintf(const char *fmt, va_list ap, bool force_plain);
 static void show_bug_report(void);
 
 typedef struct _fault_handler fault_handler_t;
 typedef struct _pool_page pool_page_t;
-
-struct color_escape {
-   const char *name;
-   int         value;
-};
 
 struct text_buf {
    char  *buf;
@@ -162,7 +136,6 @@ typedef struct _mem_pool {
 } mem_pool_t;
 
 static bool             want_color = false;
-static bool             want_links = false;
 static bool             want_utf8 = false;
 static message_style_t  message_style = MESSAGE_FULL;
 static sig_atomic_t     crashing = SIG_ATOMIC_MAX;
@@ -175,19 +148,6 @@ static UINT win32_codepage = 0;
 #endif
 
 static void (*ctrl_c_fn)(void *) = NULL;
-
-static const struct color_escape escapes[] = {
-   { "",        ANSI_RESET },
-   { "bold",    ANSI_BOLD },
-   { "black",   ANSI_FG_BLACK },
-   { "red",     ANSI_FG_RED },
-   { "green",   ANSI_FG_GREEN },
-   { "yellow",  ANSI_FG_YELLOW },
-   { "blue",    ANSI_FG_BLUE },
-   { "magenta", ANSI_FG_MAGENTA },
-   { "cyan",    ANSI_FG_CYAN },
-   { "white",   ANSI_FG_WHITE },
-};
 
 void *xmalloc(size_t size)
 {
@@ -334,169 +294,6 @@ void debugf(const char *fmt, ...)
    diag_vprintf(d, fmt, ap);
    va_end(ap);
    diag_emit(d);
-}
-
-static char *ansi_vasprintf(const char *fmt, va_list ap, bool force_plain)
-{
-   // Replace color strings like "$red$foo$$bar" with ANSI escaped
-   // strings like "\033[31mfoo\033[0mbar"
-
-   static int override = 0;
-
-   if (strchr(fmt, '$') == NULL)
-      return xvasprintf(fmt, ap);
-
-   LOCAL_TEXT_BUF tb = tb_new();
-   const char *escape_start = NULL;
-
-   while (*fmt != '\0') {
-      if (*fmt == '$') {
-         if (escape_start == NULL)
-            escape_start = fmt;
-         else {
-            const char *e = escape_start + 1;
-            size_t len = fmt - e;
-
-            bool bold;
-            if ((bold = (*e == '!')))
-               ++e, --len;
-
-            bool bright;
-            if ((bright = (*e == '+')))
-               ++e, --len;
-
-            if ((*e == '<' || *e == '>') && *(e + 1) == '$') {
-               override += *e == '<' ? -1 : 1;
-               escape_start = NULL;
-            }
-            else if (strncmp(e, "link:", 5) == 0) {
-               if (want_links && !force_plain) {
-                  tb_cat(tb, "\033]8;;");
-                  tb_catn(tb, e + 5, len - 5);
-                  tb_cat(tb, "\033]8;;\07");
-               }
-               else {
-                  const char *bel = strchr(e, '\07');
-                  if (bel && bel < e + len)
-                     tb_catn(tb, bel + 1, e + len - bel - 1);
-               }
-               escape_start = NULL;
-            }
-            else if (want_color && !force_plain && override >= 0) {
-               bool found = false;
-
-               if (*e == '#') {
-                  char *eptr;
-                  int code = strtoul(e + 1, &eptr, 10);
-                  if (eptr == e + len) {
-                     if (bold)
-                        tb_printf(tb, "\033[1;38;5;%dm", code);
-                     else
-                        tb_printf(tb, "\033[38;5;%dm", code);
-                     found = true;
-                  }
-               }
-               else if (strncmp(e, "link:", 5) == 0) {
-                  tb_cat(tb, "\033]8;;");
-                  tb_catn(tb, e + 5, len - 5);
-                  tb_cat(tb, "\033]8;;\07");
-                  found = true;
-               }
-
-               for (int i = 0; !found && i < ARRAY_LEN(escapes); i++) {
-                  if (strncmp(e, escapes[i].name, len) == 0) {
-                     int code = escapes[i].value + (bright ? 60 : 0);
-                     if (bold)
-                        tb_printf(tb, "\033[1;%dm", code);
-                     else
-                        tb_printf(tb, "\033[%dm", code);
-                     found = true;
-                     break;
-                  }
-               }
-
-               if (!found) {
-                  tb_catn(tb, escape_start, len + 1 + bold);
-                  escape_start = fmt;
-               }
-               else
-                  escape_start = NULL;
-            }
-            else
-               escape_start = NULL;
-         }
-      }
-      else if (escape_start == NULL)
-         tb_append(tb, *fmt);
-
-      ++fmt;
-   }
-
-   if (escape_start != NULL)
-      tb_cat(tb, escape_start);
-
-   return xvasprintf(tb_get(tb), ap);
-}
-
-static int color_vfprintf(FILE *f, const char *fmt, va_list ap)
-{
-   char *strp LOCAL = ansi_vasprintf(fmt, ap, false);
-
-   bool escape = false;
-   int len = 0;
-   for (const char *p = strp; *p != '\0'; p++) {
-      if (*p == '\033')
-         escape = true;
-      if (escape)
-         escape = (*p != 'm');
-      else
-         len += 1;
-   }
-
-   fputs(strp, f);
-   return len;
-}
-
-char *color_vasprintf(const char *fmt, va_list ap)
-{
-   return ansi_vasprintf(fmt, ap, false);
-}
-
-char *strip_color(const char *fmt, va_list ap)
-{
-   return ansi_vasprintf(fmt, ap, true);
-}
-
-int color_fprintf(FILE *f, const char *fmt, ...)
-{
-   va_list ap;
-   va_start(ap, fmt);
-   const int len = color_vfprintf(f, fmt, ap);
-   va_end(ap);
-   return len;
-}
-
-int color_printf(const char *fmt, ...)
-{
-   va_list ap;
-   va_start(ap, fmt);
-   int rc = color_vprintf(fmt, ap);
-   va_end(ap);
-   return rc;
-}
-
-int color_vprintf(const char *fmt, va_list ap)
-{
-   return color_vfprintf(stdout, fmt, ap);
-}
-
-char *color_asprintf(const char *fmt, ...)
-{
-   va_list ap;
-   va_start(ap, fmt);
-   char *str = ansi_vasprintf(fmt, ap, false);
-   va_end(ap);
-   return str;
 }
 
 bool color_terminal(void)
@@ -660,18 +457,20 @@ static void trace_one_frame(uintptr_t pc, const char *module,
                             unsigned lineno, unsigned colno,
                             ptrdiff_t disp, frame_kind_t kind)
 {
-   color_fprintf(stderr, "[$green$%p$$] ", (void *)pc);
+   ostream_t *os = nvc_stderr();
+
+   nvc_fprintf(os, "[$green$%p$$] ", (void *)pc);
    if (kind == FRAME_LIB)
-      color_fprintf(stderr, "($red$%s$$) ", module);
+      nvc_fprintf(os, "($red$%s$$) ", module);
    if (srcfile != NULL)
-      color_fprintf(stderr, "%s:%d ", srcfile, lineno);
+      nvc_fprintf(os, "%s:%d ", srcfile, lineno);
    if (symbol != NULL) {
-      color_fprintf(stderr, "$yellow$%s$$", symbol);
+      nvc_fprintf(os, "$yellow$%s$$", symbol);
       if (srcfile == NULL && disp != 0)
-         color_fprintf(stderr, "$yellow$+0x%"PRIxPTR"$$", disp);
+         nvc_fprintf(os, "$yellow$+0x%"PRIxPTR"$$", disp);
    }
    if (kind == FRAME_VHDL)
-      color_fprintf(stderr, " $magenta$[VHDL]$$");
+      nvc_fprintf(os, " $magenta$[VHDL]$$");
    fprintf(stderr, "\n");
 
 #ifndef __MINGW32__
@@ -691,9 +490,9 @@ static void trace_one_frame(uintptr_t pc, const char *module,
                line[len - 1] = '\0';
 
             if (i == lineno - 1)
-               color_fprintf(stderr, "$cyan$$bold$-->$$ $cyan$%s$$\n", line);
+               nvc_fprintf(os, "$cyan$$bold$-->$$ $cyan$%s$$\n", line);
             else
-               color_fprintf(stderr, "    $cyan$%s$$\n", line);
+               nvc_fprintf(os, "    $cyan$%s$$\n", line);
          }
          fclose(f);
       }
@@ -722,8 +521,8 @@ void show_stacktrace(void)
    debug_free(di);
 
 #if defined __linux__ && !defined HAVE_LIBDW && !defined HAVE_LIBDWARF
-   color_fprintf(stderr, "\n$cyan$Hint: you can get better stack traces by "
-                 "installing the libdw-dev package and reconfiguring$$\n");
+   nvc_fprintf(nvc_stderr(), "\n$cyan$Hint: you can get better stack traces by "
+               "installing the libdw-dev package and reconfiguring$$\n");
 #endif
 
    fflush(stderr);
@@ -733,9 +532,9 @@ static void show_bug_report(void)
 {
 #ifndef DEBUG
    extern const char version_string[];
-   color_fprintf(stderr, "\n$!red$%s ["TARGET_SYSTEM"]\n\n"
-                 "Please report this bug at "PACKAGE_BUGREPORT"$$\n\n",
-                 version_string);
+   nvc_fprintf(nvc_stderr(), "\n$!red$%s ["TARGET_SYSTEM"]\n\n"
+               "Please report this bug at "PACKAGE_BUGREPORT"$$\n\n",
+               version_string);
    fflush(stderr);
 #endif
 }
@@ -787,8 +586,9 @@ static LONG win32_exception_handler(EXCEPTION_POINTERS *ExceptionInfo)
    if (code == EXCEPTION_ACCESS_VIOLATION)
       addr = (PVOID)ExceptionInfo->ExceptionRecord->ExceptionInformation[1];
 
-   color_fprintf(stderr, "\n$red$$bold$*** Caught exception %x (%s)",
-                 (int)code, exception_name(code));
+   fprintf(stderr, "\n%s*** Caught exception %x (%s)",
+           want_color ? "\033[31m\033[1m" : "",
+           (int)code, exception_name(code));
 
    switch (code) {
    case EXCEPTION_ACCESS_VIOLATION:
@@ -797,7 +597,7 @@ static LONG win32_exception_handler(EXCEPTION_POINTERS *ExceptionInfo)
       break;
    }
 
-   color_fprintf(stderr, " ***$$\n\n");
+   fprintf(stderr, " ***%s\n\n", want_color ? "\033[0m" : "");
    fflush(stderr);
 
 #ifdef __WIN64
@@ -1071,13 +871,6 @@ void term_init(void)
          term_width = ws.ws_col;
 #endif
    }
-#endif
-
-#ifndef __MINGW32__
-   // Only print link escape codes if this is really a terminal
-   want_links = want_color && is_tty;
-#else
-   want_links = false;    // Winpty doesn't recognise these
 #endif
 
 #ifndef __MINGW32__
@@ -1415,8 +1208,10 @@ text_buf_t *tb_new(void)
 
 void tb_free(text_buf_t *tb)
 {
-   free(tb->buf);
-   free(tb);
+   if (tb != NULL) {
+      free(tb->buf);
+      free(tb);
+   }
 }
 
 void _tb_cleanup(text_buf_t **tb)
@@ -1427,24 +1222,8 @@ void _tb_cleanup(text_buf_t **tb)
 
 void tb_vprintf(text_buf_t *tb, const char *fmt, va_list ap)
 {
-   int nchars, avail;
-   for (;;) {
-      va_list aq;
-      va_copy(aq, ap);
-
-      avail  = tb->alloc - tb->len;
-      nchars = vsnprintf(tb->buf + tb->len, avail, fmt, aq);
-
-      va_end(aq);
-
-      if (nchars + 1 < avail)
-         break;
-
-      tb->alloc *= 2;
-      tb->buf = xrealloc(tb->buf, tb->alloc);
-   }
-
-   tb->len += nchars;
+   ostream_t os = { tb_ostream_write, tb, CHARSET_ISO88591, false };
+   nvc_vfprintf(&os, fmt, ap);
 }
 
 void tb_printf(text_buf_t *tb, const char *fmt, ...)
@@ -1598,6 +1377,12 @@ void tb_strftime(text_buf_t *tb, const char *fmt, time_t time)
    char *p = tb_reserve(tb, max);
    if (strftime(p, max, fmt + 1, &tm) == 0)
       fatal_trace("time format buffer too small");
+}
+
+void tb_ostream_write(const char *buf, size_t len, void *ctx)
+{
+   text_buf_t *tb = ctx;
+   tb_catn(tb, buf, len);
 }
 
 void _local_free(void *ptr)

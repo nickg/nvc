@@ -20,8 +20,9 @@
 #include "common.h"
 #include "diag.h"
 #include "jit/jit-exits.h"
-#include "jit/jit-priv.h"
 #include "jit/jit-ffi.h"
+#include "jit/jit-priv.h"
+#include "printf.h"
 #include "rt/mspace.h"
 #include "tree.h"
 #include "type.h"
@@ -88,7 +89,7 @@ static void interp_dump_reg(jit_interp_t *state, int64_t ival)
       void *base;
       if ((base = mspace_find(state->mspace, (void *)(intptr_t)ival, &size))) {
          if (size == 0)
-            color_printf("$!red$ ==> bad mspace object$$\n");
+            nvc_printf("$!red$ ==> bad mspace object$$\n");
          else {
             printf(" ==> %zu byte mspace object\n", size);
             jit_hexdump(base, size, 8, (void *)(intptr_t)ival, "\t\t\t");

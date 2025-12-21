@@ -20,6 +20,7 @@
 #include "hash.h"
 #include "jit/jit-layout.h"
 #include "option.h"
+#include "printf.h"
 #include "thread.h"
 #include "type.h"
 
@@ -53,8 +54,8 @@ static int count_sub_elements(type_t type)
 
 static void print_layout(type_t type, const jit_layout_t *l, bool signal)
 {
-   color_printf("$blue$%s%s\n  size:%d align:%d\n",
-                type_pp(type), signal ? "$" : "", l->size, l->align);
+   nvc_printf("$blue$%s%s\n  size:%d align:%d\n",
+              type_pp(type), signal ? "$" : "", l->size, l->align);
 
    for (int i = 0; i < l->nparts; i++) {
       static const char *map[] = { "data", "bounds", "offset", "external" };
@@ -63,7 +64,7 @@ static void print_layout(type_t type, const jit_layout_t *l, bool signal)
              l->parts[i].align, l->parts[i].repeat);
    }
 
-   color_printf("$$\n");
+   nvc_printf("$$\n");
 }
 
 const jit_layout_t *layout_of(type_t type)

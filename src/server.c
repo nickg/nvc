@@ -21,6 +21,7 @@
 #include "jit/jit.h"
 #include "option.h"
 #include "phase.h"
+#include "printf.h"
 #include "rt/shell.h"
 #include "server.h"
 #include "sha1.h"
@@ -474,14 +475,14 @@ static void server_log(log_level_t level, const char *fmt, ...)
    va_start(ap, fmt);
 
    switch (level) {
-   case LOG_DEBUG: color_printf("$#8$D: "); break;
+   case LOG_DEBUG: nvc_printf("$#8$D: "); break;
    case LOG_INFO: printf("I: "); break;
-   case LOG_WARN: color_printf("$yellow$W: "); break;
-   case LOG_ERROR: color_printf("$red$E: "); break;
+   case LOG_WARN: nvc_printf("$yellow$W: "); break;
+   case LOG_ERROR: nvc_printf("$red$E: "); break;
    }
 
    vprintf(fmt, ap);
-   color_printf("$$\n");
+   nvc_printf("$$\n");
    fflush(stdout);
 
    va_end(ap);
