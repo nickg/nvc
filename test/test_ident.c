@@ -1,4 +1,3 @@
-// -*- coding: latin-1; -*-
 //
 //  Copyright (C) 2011-2025  Nick Gasson
 //
@@ -407,9 +406,9 @@ START_TEST(test_casecmp)
       { "123456789123456789abcD", "123456789123456789abcd", true },
       { "123456789123456789abcD", "123456789123456789abcdx", false },
       { "123456789123456789abcD", "123456789123456789abbd", false },
-      { "café", "CAFÉ", true },
-      { "smørrebrød", "SMØRREBRØD", true },
-      { "Blåbær", "BLÅBÆR", true },
+      { "caf\xe9", "CAF\xc9", true },
+      { "sm\xf8rrebr\370d", "SM\xd8RREBR\330D", true },
+      { "Bl\345b\346r", "BL\305B\306R", true },
    };
 
    for (int i = 0; i < ARRAY_LEN(cases); i++) {
