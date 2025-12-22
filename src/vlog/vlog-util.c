@@ -201,7 +201,13 @@ vlog_node_t vlog_longest_static_prefix(vlog_node_t v)
    switch (vlog_kind(v)) {
    case V_REF:
    case V_HIER_REF:
-      return v;
+      switch (vlog_kind(vlog_ref(v))) {
+      case V_PARAM_DECL:
+      case V_LOCALPARAM:
+         return NULL;
+      default:
+         return v;
+      }
    case V_BIT_SELECT:
       {
          vlog_node_t value = vlog_value(v);
@@ -231,6 +237,8 @@ vlog_node_t vlog_longest_static_prefix(vlog_node_t v)
 
          return v;
       }
+   case V_NUMBER:
+      return NULL;
    default:
       fatal_at(vlog_loc(v), "cannot calculate longest static prefix");
    }

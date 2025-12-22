@@ -637,23 +637,29 @@ static void vlog_dump_part_select(vlog_node_t v, int indent)
 
 static void vlog_dump_data_type(vlog_node_t v, int indent)
 {
+   bool atom = false;
    switch (vlog_subkind(v)) {
    case DT_IMPLICIT: print_syntax("/* implicit */"); break;
    case DT_LOGIC: print_syntax("#logic"); break;
    case DT_REAL: print_syntax("#real"); break;
    case DT_REALTIME: print_syntax("#realtime"); break;
    case DT_SHORTREAL: print_syntax("#shortreal"); break;
-   case DT_INTEGER: print_syntax("#integer"); break;
+   case DT_INTEGER: print_syntax("#integer"); atom = true; break;
    case DT_BIT: print_syntax("#bit"); break;
-   case DT_INT: print_syntax("#int"); break;
-   case DT_BYTE: print_syntax("#byte"); break;
+   case DT_INT: print_syntax("#int"); atom = true; break;
+   case DT_BYTE: print_syntax("#byte"); atom = true; break;
+   case DT_SHORTINT: print_syntax("#shortint"); atom = true; break;
+   case DT_LONGINT: print_syntax("#longint"); atom = true; break;
    default: should_not_reach_here();
    }
 
-   if (vlog_flags(v) & VLOG_F_SIGNED)
+   if (atom && !(vlog_flags(v) & VLOG_F_SIGNED))
+      print_syntax(" #unsigned");
+   if (!atom && (vlog_flags(v) & VLOG_F_SIGNED))
       print_syntax(" #signed");
 
-   vlog_dump_dimensions(v, indent);
+   if (!atom)
+      vlog_dump_dimensions(v, indent);
 }
 
 static void vlog_dump_do_while(vlog_node_t v, int indent)

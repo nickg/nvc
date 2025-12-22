@@ -440,14 +440,6 @@ static vlog_node_t simp_cond_expr(vlog_node_t v)
 
 static vlog_node_t simp_enum_decl(vlog_node_t v)
 {
-   if (!vlog_has_type(v)) {
-      vlog_node_t dt = vlog_new(V_DATA_TYPE);
-      vlog_set_subkind(dt, DT_INT);
-      vlog_set_loc(dt, vlog_loc(v));
-
-      vlog_set_type(v, dt);
-   }
-
    vlog_node_t last = NULL;
    const int ndecls = vlog_decls(v);
    for (int i = 0; i < ndecls; i++) {
@@ -497,38 +489,32 @@ static vlog_node_t simp_localparam(vlog_node_t v)
    vlog_node_t dt = vlog_new(V_DATA_TYPE);
    vlog_set_loc(dt, vlog_loc(v));
 
+   int width = 32;
    vlog_node_t value = vlog_value(v);
-   switch (vlog_kind(value)) {
-   case V_NUMBER:
-   case V_STRING:
-      {
-         number_t n = vlog_number(value);
-         const int width = number_width(n);
-         if (width <= 32)
-            vlog_set_subkind(dt, DT_INTEGER);
-         else {
-            vlog_set_subkind(dt, DT_LOGIC);
+   const vlog_kind_t kind = vlog_kind(value);
+   if (kind == V_NUMBER || kind == V_STRING)
+      width = number_width(vlog_number(value));
 
-            vlog_node_t left = vlog_new(V_NUMBER);
-            vlog_set_number(left, number_from_int(width - 1));
-
-            vlog_node_t right = vlog_new(V_NUMBER);
-            vlog_set_number(right, number_from_int(0));
-
-            vlog_node_t r = vlog_new(V_DIMENSION);
-            vlog_set_subkind(r, V_DIM_PACKED);
-            vlog_set_left(r, left);
-            vlog_set_right(r, right);
-
-            vlog_add_range(dt, r);
-         }
-      }
-      break;
-
-   default:
+   if (width <= 32) {
       vlog_set_subkind(dt, DT_INTEGER);
-      break;
+      vlog_set_flags(dt, VLOG_F_SIGNED);
+      width = 32;
    }
+   else
+      vlog_set_subkind(dt, DT_LOGIC);
+
+   vlog_node_t left = vlog_new(V_NUMBER);
+   vlog_set_number(left, number_from_int(width - 1));
+
+   vlog_node_t right = vlog_new(V_NUMBER);
+   vlog_set_number(right, number_from_int(0));
+
+   vlog_node_t r = vlog_new(V_DIMENSION);
+   vlog_set_subkind(r, V_DIM_PACKED);
+   vlog_set_left(r, left);
+   vlog_set_right(r, right);
+
+   vlog_add_range(dt, r);
 
    vlog_set_type(v, dt);
    return v;

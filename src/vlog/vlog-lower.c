@@ -120,32 +120,17 @@ static const type_info_t *vlog_type_info(vlog_gen_t *g, vlog_node_t v)
    switch (vlog_subkind(v)) {
    case DT_LOGIC:
    case DT_IMPLICIT:
+   case DT_INTEGER:
       ti->size = vlog_size(v);
       ti->type = mir_vec4_type(g->mu, ti->size, issigned);
       break;
    case DT_BIT:
+   case DT_INT:
+   case DT_SHORTINT:
+   case DT_LONGINT:
+   case DT_BYTE:
       ti->size = vlog_size(v);
       ti->type = mir_vec2_type(g->mu, ti->size, issigned);
-      break;
-   case DT_INTEGER:
-      ti->size = 32;
-      ti->type = mir_vec4_type(g->mu, ti->size, true);
-      break;
-   case DT_INT:
-      ti->size = 32;
-      ti->type = mir_vec2_type(g->mu, ti->size, true);
-      break;
-   case DT_SHORTINT:
-      ti->size = 16;
-      ti->type = mir_vec2_type(g->mu, ti->size, true);
-      break;
-   case DT_LONGINT:
-      ti->size = 64;
-      ti->type = mir_vec2_type(g->mu, ti->size, true);
-      break;
-   case DT_BYTE:
-      ti->size = 8;
-      ti->type = mir_vec2_type(g->mu, ti->size, true);
       break;
    default:
       CANNOT_HANDLE(v);
@@ -1987,7 +1972,7 @@ static void vlog_lower_sensitivity(vlog_gen_t *g, vlog_node_t v)
 
             mir_build_sched_event(g->mu, nets, count);
          }
-         else
+         else if (prefix != NULL)
             vlog_lower_sensitivity(g, prefix);
 
          if (kind == V_BIT_SELECT) {

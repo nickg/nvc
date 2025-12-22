@@ -68,6 +68,7 @@ static vlog_kind_t      param_kind;
 static vlog_net_kind_t  implicit_kind;
 static vlog_symtab_t   *symtab;
 static vlog_node_t      last_attr;
+static vlog_node_t      atom_types[DT_BIT + 1];
 
 extern loc_t yylloc;
 
@@ -435,6 +436,42 @@ static vlog_node_t implicit_type(void)
 {
    vlog_node_t v = vlog_new(V_DATA_TYPE);
    vlog_set_subkind(v, DT_IMPLICIT);
+   return v;
+}
+
+static vlog_node_t make_integer_atom_type(data_type_t dt)
+{
+   if (atom_types[dt] == NULL) {
+      int width;
+      switch (dt) {
+      case DT_BYTE:     width = 8; break;
+      case DT_SHORTINT: width = 16; break;
+      case DT_INT:      width = 32; break;
+      case DT_LONGINT:  width = 64; break;
+      case DT_INTEGER:  width = 32; break;
+      case DT_TIME:     width = 64; break;
+      default: should_not_reach_here();
+      }
+
+      vlog_node_t left = vlog_new(V_NUMBER);
+      vlog_set_number(left, number_from_int(width - 1));
+
+      vlog_node_t right = vlog_new(V_NUMBER);
+      vlog_set_number(right, number_from_int(0));
+
+      vlog_node_t r = vlog_new(V_DIMENSION);
+      vlog_set_subkind(r, V_DIM_PACKED);
+      vlog_set_left(r, left);
+      vlog_set_right(r, right);
+
+      atom_types[dt] = r;
+   }
+
+   vlog_node_t v = vlog_new(V_DATA_TYPE);
+   vlog_set_subkind(v, dt);
+   vlog_add_range(v, atom_types[dt]);
+
+   vlog_set_loc(v, &state.last_loc);
    return v;
 }
 
@@ -841,10 +878,7 @@ static vlog_node_t p_integer_atom_type(void)
    case tTIME:     dt = DT_TIME; break;
    }
 
-   vlog_node_t v = vlog_new(V_DATA_TYPE);
-   vlog_set_subkind(v, dt);
-   vlog_set_loc(v, &state.last_loc);
-   return v;
+   return make_integer_atom_type(dt);
 }
 
 static vlog_node_t p_integer_vector_type(void)
@@ -936,6 +970,8 @@ static vlog_node_t p_enum_base_type(void)
 
          if (scan(tSIGNED, tUNSIGNED))
             vlog_set_flags(v, p_signing());
+         else
+            vlog_set_flags(v, VLOG_F_SIGNED);
 
          return v;
       }
@@ -1008,6 +1044,8 @@ static vlog_node_t p_data_type(void)
 
          if (scan(tSIGNED, tUNSIGNED))
             vlog_set_flags(v, p_signing());
+         else
+            vlog_set_flags(v, VLOG_F_SIGNED);
 
          return v;
       }
@@ -1051,6 +1089,12 @@ static vlog_node_t p_data_type(void)
 
          if (peek() != tLBRACE)
             vlog_set_type(v, p_enum_base_type());
+         else {
+            vlog_node_t dt = make_integer_atom_type(DT_INT);
+            vlog_set_flags(dt, VLOG_F_SIGNED);
+
+            vlog_set_type(v, dt);
+         }
 
          consume(tLBRACE);
 
@@ -4314,9 +4358,8 @@ static void p_genvar_declaration(vlog_node_t mod)
 
    consume(tGENVAR);
 
-   vlog_node_t dt = vlog_new(V_DATA_TYPE);
-   vlog_set_subkind(dt, DT_INTEGER);
-   vlog_set_loc(dt, &state.last_loc);
+   vlog_node_t dt = make_integer_atom_type(DT_INTEGER);
+   vlog_set_flags(dt, VLOG_F_SIGNED);
 
    p_list_of_genvar_identifiers(mod, dt);
 
@@ -7446,6 +7489,9 @@ vlog_node_t vlog_parse(void)
 {
    state.n_correct = RECOVER_THRESH;
    param_kind = V_PARAM_DECL;
+
+   for (int i = 0; i < ARRAY_LEN(atom_types); i++)
+      atom_types[i] = NULL;
 
    scan_as_verilog();
 
