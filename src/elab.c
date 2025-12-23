@@ -1588,7 +1588,7 @@ static void elab_verilog_module(tree_t bind, ident_t label,
    ident_t ndotted = ident_prefix(ctx->dotted, label, '.');
 
    elab_ctx_t new_ctx = {
-      .dotted    = ndotted,
+      .dotted = ndotted,
    };
    elab_inherit_context(&new_ctx, ctx);
 
