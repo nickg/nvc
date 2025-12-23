@@ -1240,3 +1240,4 @@ issue1361       normal,2008
 arith6          fail,gold,2019
 issue1366       normal,2019
 issue1336       verilog
+vlog29          mixed,2008
