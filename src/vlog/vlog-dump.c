@@ -92,8 +92,10 @@ static void vlog_dump_module(vlog_node_t v, int indent)
    print_syntax(";\n");
 
    const int ndecls = vlog_decls(v);
-   for (int i = 0; i < ndecls; i++)
+   for (int i = 0; i < ndecls; i++) {
+      tab(indent + 2);
       vlog_dump(vlog_decl(v, i), indent + 2);
+   }
 
    const int nstmts = vlog_stmts(v);
    for (int i = 0; i < nstmts; i++)
@@ -120,8 +122,10 @@ static void vlog_dump_primitive(vlog_node_t v, int indent)
    print_syntax(";\n");
 
    const int ndecls = vlog_decls(v);
-   for (int i = 0; i < ndecls; i++)
+   for (int i = 0; i < ndecls; i++) {
+      tab(indent + 2);
       vlog_dump(vlog_decl(v, i), indent + 2);
+   }
 
    const int nstmts = vlog_stmts(v);
    for (int i = 0; i < nstmts; i++)
@@ -176,7 +180,6 @@ static void vlog_dump_udp_table(vlog_node_t v, int indent)
 
 static void vlog_dump_port_decl(vlog_node_t v, int indent)
 {
-   tab(indent);
    vlog_dump_address(v);
 
    switch (vlog_subkind(v)) {
@@ -210,7 +213,6 @@ static void vlog_dump_dimensions(vlog_node_t v, int indent)
 
 static void vlog_dump_net_decl(vlog_node_t v, int indent)
 {
-   tab(indent);
    vlog_dump_address(v);
 
    switch (vlog_subkind(v)) {
@@ -225,7 +227,6 @@ static void vlog_dump_net_decl(vlog_node_t v, int indent)
 
 static void vlog_dump_var_decl(vlog_node_t v, int indent)
 {
-   tab(indent);
    vlog_dump_address(v);
 
    vlog_dump(vlog_type(v), indent);
@@ -269,8 +270,10 @@ static void vlog_dump_block(vlog_node_t v, int indent)
    print_syntax("#begin\n");
 
    const int ndecls = vlog_decls(v);
-   for (int i = 0; i < ndecls; i++)
+   for (int i = 0; i < ndecls; i++) {
+      tab(indent + 2);
       vlog_dump(vlog_decl(v, i), indent + 2);
+   }
 
    const int nstmts = vlog_stmts(v);
    for (int i = 0; i < nstmts; i++) {
@@ -807,7 +810,6 @@ static void vlog_dump_concat(vlog_node_t v, int indent)
 
 static void vlog_dump_param_decl(vlog_node_t v, int indent)
 {
-   tab(indent);
    vlog_dump_address(v);
 
    switch (vlog_kind(v)) {
@@ -850,7 +852,6 @@ static void vlog_dump_hier_ref(vlog_node_t v, int indent)
 
 static void vlog_dump_task_decl(vlog_node_t v, int indent)
 {
-   tab(indent);
    print_syntax("#task %s(", istr(vlog_ident(v)));
 
    print_syntax(");\n");
@@ -868,7 +869,6 @@ static void vlog_dump_task_decl(vlog_node_t v, int indent)
 
 static void vlog_dump_func_decl(vlog_node_t v, int indent)
 {
-   tab(indent);
    print_syntax("#function %s;", istr(vlog_ident(v)));
 
    if (vlog_has_ident2(v))
@@ -877,12 +877,16 @@ static void vlog_dump_func_decl(vlog_node_t v, int indent)
    print_syntax("\n");
 
    const int nports = vlog_ports(v);
-   for (int i = 0; i < nports; i++)
+   for (int i = 0; i < nports; i++) {
+      tab(indent + 2);
       vlog_dump(vlog_port(v, i), indent + 2);
+   }
 
    const int ndecls = vlog_decls(v);
-   for (int i = 0; i < ndecls; i++)
+   for (int i = 0; i < ndecls; i++) {
+      tab(indent + 2);
       vlog_dump(vlog_decl(v, i), indent + 2);
+   }
 
    const int nstmts = vlog_stmts(v);
    for (int i = 0; i < nstmts; i++) {
