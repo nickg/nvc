@@ -32,7 +32,7 @@
 #include <math.h>
 
 #define MARGIN_LEFT "20%%"
-#define SIDEBAR_WIDTH "15%%"
+#define SIDEBAR_WIDTH "17%%"
 
 struct _cover_rpt_buf {
    text_buf_t      *tb;
@@ -107,6 +107,7 @@ static void cover_print_html_header(FILE *f)
               "      overflow: auto; \n"
               "      padding: 10px;\n"
               "      margin-top: 100px;\n"
+              "      border: 2px solid black;\n"
               "   }\n"
               "   table {\n"
               "     table-layout: fixed;"
@@ -192,11 +193,11 @@ static void cover_print_html_header(FILE *f)
               "   .nav-sel { font-weight: bold; }\n"
               "  </style>\n"
               "</head>\n"
-              "<body>\n\n");
+              "<body style=\"font-family: verdana\"\n\n");
 
-   fprintf(f, "<header>");
+   fprintf(f, "<header><h1 style=\"text-align: center;\">");
    fprintf(f, COV_RPT_TITLE "\n");
-   fprintf(f, "</header>\n\n");
+   fprintf(f, "</h1></header>\n\n");
 }
 
 static void cover_print_file_name(FILE *f, const rpt_file_t *src)
