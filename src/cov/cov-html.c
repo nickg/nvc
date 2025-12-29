@@ -29,6 +29,7 @@
 #include <time.h>
 #include <libgen.h>
 #include <inttypes.h>
+#include <math.h>
 
 #define MARGIN_LEFT "20%%"
 #define SIDEBAR_WIDTH "15%%"
@@ -216,7 +217,7 @@ static void cover_print_inst_name(FILE *f, cover_scope_t *s)
 static void cover_print_percents_cell(FILE *f, unsigned hit, unsigned total)
 {
    if (total > 0) {
-      float perc = ((float) hit / (float) total) * 100;
+      float perc = (floor(((float) hit / (float) total) * 1000)) / 10;
       const char *class = "percent0";
       if (hit == total)
          class = "percent100";
