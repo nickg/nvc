@@ -552,13 +552,20 @@ static int32_t cover_add_expression_or_items(cover_data_t *data,
    return first_item_index;
 }
 
-static int32_t cover_add_builtin_expression_items(cover_data_t *data,
-                                                  cover_scope_t *cs,
-                                                  object_t *obj,
-                                                  subprogram_kind_t builtin)
+static int32_t cover_add_expression_items(cover_data_t *data,
+                                          cover_scope_t *cs,
+                                          object_t *obj)
 {
-   // Handle expression result True or False
-   switch (builtin) {
+   tree_t tree = tree_from_object(obj);
+   if (tree_kind(tree) == T_PROT_FCALL)
+      return -1;
+
+   assert(tree_kind(tree) == T_FCALL);
+
+   tree_t decl = tree_ref(tree);
+   const subprogram_kind_t kind = tree_subkind(decl);
+
+   switch (kind) {
    case S_SCALAR_EQ:
    case S_SCALAR_NEQ:
    case S_SCALAR_LT:
@@ -566,15 +573,14 @@ static int32_t cover_add_builtin_expression_items(cover_data_t *data,
    case S_SCALAR_LE:
    case S_SCALAR_GE:
    case S_SCALAR_NOT:
-   {
-      int first_item_index = cover_add_item(data, cs, obj, NULL,
-                                            COV_ITEM_EXPRESSION,
-                                            COV_FLAG_FALSE, 2);
-      cover_add_item(data, cs, obj, NULL, COV_ITEM_EXPRESSION,
-                     COV_FLAG_TRUE, 1);
-
-      return first_item_index;
-   }
+      {
+         int32_t first_item_index = cover_add_item(data, cs, obj, NULL,
+                                                   COV_ITEM_EXPRESSION,
+                                                   COV_FLAG_FALSE, 2);
+         cover_add_item(data, cs, obj, NULL, COV_ITEM_EXPRESSION,
+                        COV_FLAG_TRUE, 1);
+         return first_item_index;
+      }
 
    case S_SCALAR_XOR:
    case S_SCALAR_XNOR:
@@ -588,56 +594,29 @@ static int32_t cover_add_builtin_expression_items(cover_data_t *data,
    case S_SCALAR_NAND:
       return cover_add_expression_and_items(data, cs, obj, 0);
 
-   default:
-      fatal_trace("unhandled subprogram kind %d in cover_add_builtin_expression_items",
-                  builtin);
-   }
-
-   return -1;
-}
-
-static int32_t cover_add_logic_expression_items(cover_data_t *data,
-                                                cover_scope_t *cs,
-                                                object_t *obj)
-{
-   tree_t fcall = tree_from_object(obj);
-   tree_t decl = tree_ref(fcall);
-
-   if (tree_kind(decl) != T_FUNC_DECL)
-      return -1;
-
-   tree_t container = tree_container(decl);
-   if (is_well_known(tree_ident(container)) != W_IEEE_1164)
-      return -1;
-
-   // Only binary expressions
-   if (tree_params(fcall) != 2)
-      return -1;
-
-   // Skip arrays -> Matches behavior of VCS and Modelsim
-   if (type_is_array(type_param(tree_type(decl), 0)) ||
-       type_is_array(type_param(tree_type(decl), 1)))
-      return -1;
-
-   ident_t full_name = tree_ident2(decl);
-
-   // Emit items for each of AND, NAND, OR, NOR, XOR, XNOR
-   if (ident_starts_with(full_name, well_known(W_IEEE_1164_AND)) ||
-       ident_starts_with(full_name, well_known(W_IEEE_1164_NAND)))
+   case S_IEEE_AND:
+   case S_IEEE_NAND:
       return cover_add_expression_and_items(data, cs, obj,
                                             COV_FLAG_EXPR_STD_LOGIC);
 
-   if (ident_starts_with(full_name, well_known(W_IEEE_1164_OR)) ||
-       ident_starts_with(full_name, well_known(W_IEEE_1164_NOR)))
+   case S_IEEE_OR:
+   case S_IEEE_NOR:
       return cover_add_expression_or_items(data, cs, obj,
                                            COV_FLAG_EXPR_STD_LOGIC);
 
-   if (ident_starts_with(full_name, well_known(W_IEEE_1164_XOR)) ||
-       ident_starts_with(full_name, well_known(W_IEEE_1164_XNOR)))
+   case S_IEEE_XOR:
+   case S_IEEE_XNOR:
       return cover_add_expression_xor_items(data, cs, obj,
                                             COV_FLAG_EXPR_STD_LOGIC);
 
-   return -1;
+   case S_IEEE_MISC:
+   case S_IEEE_NOT:
+   case S_USER:
+      return -1;
+
+   default:
+      should_not_reach_here();
+   }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -701,26 +680,10 @@ cover_item_t *cover_add_items_for(cover_data_t *data, cover_scope_t *cs,
             cover_add_toggle_items(data, cs, type, obj, NULL, ndims);
       }
       break;
+
    case COV_ITEM_EXPRESSION:
-   {
-      tree_t tree = tree_from_object(obj);
-      if (tree_kind(tree) == T_PROT_FCALL)
-         break;
-
-      assert(tree_kind(tree) == T_FCALL);
-
-      // Choose if to emit for built-in or "std_logic"
-      tree_t decl = tree_ref(tree);
-      const subprogram_kind_t kind = tree_subkind(decl);
-
-      if (is_open_coded_builtin(kind))
-         first_item_index =
-            cover_add_builtin_expression_items(data, cs, obj, kind);
-      else
-         first_item_index = cover_add_logic_expression_items(data, cs, obj);
-
+      first_item_index = cover_add_expression_items(data, cs, obj);
       break;
-   }
 
    default:
       fatal("unsupported type of code coverage: %d at 'cover_add_items_for' !", kind);

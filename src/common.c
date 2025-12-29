@@ -1479,6 +1479,13 @@ bool is_open_coded_builtin(subprogram_kind_t kind)
    case S_FILE_READ:
    case S_FILE_WRITE:
    case S_DEALLOCATE:
+   case S_IEEE_AND:
+   case S_IEEE_OR:
+   case S_IEEE_XOR:
+   case S_IEEE_NAND:
+   case S_IEEE_NOR:
+   case S_IEEE_XNOR:
+   case S_IEEE_NOT:
       return true;
    default:
       return false;

@@ -1838,7 +1838,7 @@ static vcode_reg_t lower_logical(lower_unit_t *lu, tree_t fcall,
 }
 
 static void lower_logic_expr_coverage(lower_unit_t *lu, tree_t fcall,
-                                      vcode_reg_t *args)
+                                      vcode_reg_t lhs, vcode_reg_t rhs)
 {
    cover_scope_t *cscope = lower_get_cover_scope(lu);
    cover_item_t *first = cover_add_items_for(lu->cover, cscope,
@@ -1847,9 +1847,6 @@ static void lower_logic_expr_coverage(lower_unit_t *lu, tree_t fcall,
 
    if (first == NULL)
       return;
-
-   vcode_reg_t lhs = args[1];
-   vcode_reg_t rhs = args[2];
 
    // Corresponds to how std_ulogic enum is translated
    vcode_type_t vc_logic = vcode_reg_type(lhs);
@@ -1892,7 +1889,6 @@ static void lower_logic_expr_coverage(lower_unit_t *lu, tree_t fcall,
       current++;
    }
 }
-
 
 static bool lower_side_effect_free(tree_t expr)
 {
@@ -2094,6 +2090,58 @@ static vcode_reg_t lower_comparison(lower_unit_t *lu, tree_t fcall,
    return lower_logical(lu, fcall, result, r0, r1, builtin, 0);
 }
 
+static vcode_reg_t lower_std_ulogic_op(lower_unit_t *lu, tree_t fcall,
+                                       subprogram_kind_t builtin,
+                                       vcode_reg_t r0, vcode_reg_t r1)
+{
+   if (cover_enabled(lu->cover, COVER_MASK_EXPRESSION))
+      lower_logic_expr_coverage(lu, fcall, r0, r1);
+
+   const char *table = NULL;
+   bool invert = false;
+   switch (builtin) {
+   case S_IEEE_NAND: invert = true;
+   case S_IEEE_AND:  table = "AND_TABLE"; break;
+   case S_IEEE_NOR:  invert = true;
+   case S_IEEE_OR:   table = "OR_TABLE"; break;
+   case S_IEEE_XNOR: invert = true;
+   case S_IEEE_XOR:  table = "XOR_TABLE"; break;
+   case S_IEEE_NOT:  invert = true; break;
+   default:          should_not_reach_here();
+   }
+
+   vcode_reg_t context;
+   if (lu->mode == LOWER_THUNK)
+      context = emit_package_init(well_known(W_IEEE_1164), VCODE_INVALID_REG);
+   else
+      context = emit_link_package(well_known(W_IEEE_1164));
+
+   vcode_type_t voffset = vtype_offset();
+   vcode_type_t vlogic = vtype_int(0, 8);
+
+   vcode_reg_t result_reg = r0;
+   if (table != NULL) {
+      vcode_type_t vtype = vtype_carray(81, vlogic, vlogic);
+      vcode_reg_t table_ptr = emit_link_var(context, ident_new(table), vtype);
+      vcode_reg_t r0_cast = emit_cast(voffset, voffset, r0);
+      vcode_reg_t index = emit_add(emit_mul(r0_cast, emit_const(voffset, 9)),
+                                   emit_cast(voffset, voffset, r1));
+      vcode_reg_t ptr = emit_array_ref(table_ptr, index);
+      result_reg = emit_load_indirect(ptr);
+   }
+
+   if (invert) {
+      vcode_type_t vtype = vtype_carray(9, vlogic, vlogic);
+      vcode_reg_t table_ptr =
+         emit_link_var(context, ident_new("NOT_TABLE"), vtype);
+      vcode_reg_t index = emit_cast(voffset, voffset, result_reg);
+      vcode_reg_t ptr = emit_array_ref(table_ptr, index);
+      result_reg = emit_load_indirect(ptr);
+   }
+
+   return result_reg;
+}
+
 static vcode_reg_t lower_builtin(lower_unit_t *lu, tree_t fcall,
                                  subprogram_kind_t builtin,
                                  vcode_reg_t *out_r0, vcode_reg_t *out_r1)
@@ -2273,6 +2321,14 @@ static vcode_reg_t lower_builtin(lower_unit_t *lu, tree_t fcall,
          vcode_reg_t cast_reg = emit_cast(rtype, rtype, r1);
          return emit_div(r0, cast_reg);
       }
+   case S_IEEE_AND:
+   case S_IEEE_OR:
+   case S_IEEE_XOR:
+   case S_IEEE_NAND:
+   case S_IEEE_NOR:
+   case S_IEEE_XNOR:
+   case S_IEEE_NOT:
+      return lower_std_ulogic_op(lu, fcall, builtin, r0, r1);
    default:
       fatal_at(tree_loc(fcall), "cannot lower builtin %d", builtin);
    }
@@ -2448,9 +2504,6 @@ static vcode_reg_t lower_fcall(lower_unit_t *lu, tree_t fcall,
    type_t result = tree_type(fcall);
    vcode_type_t rtype = lower_func_result_type(result);
    vcode_type_t rbounds = lower_bounds(result);
-
-   if (cover_enabled(lu->cover, COVER_MASK_EXPRESSION))
-      lower_logic_expr_coverage(lu, fcall, args.items);
 
    return emit_fcall(name, rtype, rbounds, args.items, args.count);
 }
@@ -9976,7 +10029,7 @@ static void lower_decls(lower_unit_t *lu, tree_t scope)
               lower_put_vcode_obj(d, 0, lu);   // Dummy value
               continue;
            }
-           else if (is_open_coded_builtin(kind))
+           else if (is_open_coded_builtin(kind) || kind == S_IEEE_MISC)
               continue;
 
            switch (kind) {
@@ -10593,7 +10646,7 @@ static vcode_reg_t lower_trigger(lower_unit_t *lu, tree_t fcall, tree_t proc)
 
       return lower_trigger(lu, other, proc);
    }
-   else if (kind != S_USER && kind != S_FALLING_EDGE && kind != S_RISING_EDGE)
+   else if (is_open_coded_builtin(kind))
       return VCODE_INVALID_REG;
    else if (tree_flags(decl) & TREE_F_IMPURE)
       return VCODE_INVALID_REG;

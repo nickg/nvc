@@ -864,16 +864,6 @@ static void declare_unary(tree_t container, ident_t name, type_t operand,
    tree_add_decl(container, d);
 }
 
-static bool is_bit_or_std_ulogic(type_t type)
-{
-   if (!type_is_enum(type))
-      return false;
-
-   ident_t name = type_ident(type);
-
-   return name == well_known(W_STD_BIT) || name == well_known(W_IEEE_ULOGIC);
-}
-
 static void declare_predefined_ops(tree_t container, type_t t)
 {
    // Prefined operators are defined in LRM 93 section 7.2
@@ -948,6 +938,21 @@ static void declare_predefined_ops(tree_t container, type_t t)
             if (scalar_elem) {
                declare_unary(container, min_i, t, elem, S_MINIMUM);
                declare_unary(container, max_i, t, elem, S_MAXIMUM);
+            }
+         }
+
+         if (standard() >= STD_08 && type_is_enum(elem)) {
+            // Matching relational operator on arrays of BIT of STD_ULOGIC
+            switch (is_well_known(type_ident(elem))) {
+            case W_IEEE_ULOGIC:
+            case W_IEEE_LOGIC:
+            case W_STD_BIT:
+               declare_binary(container, ident_new("\"?=\""),
+                              t, t, elem, S_MATCH_EQ);
+               declare_binary(container, ident_new("\"?/=\""),
+                              t, t, elem, S_MATCH_NEQ);
+            default:
+               break;
             }
          }
       }
@@ -1070,52 +1075,7 @@ static void declare_predefined_ops(tree_t container, type_t t)
                     std_type(NULL, STD_STRING), S_TO_STRING);
    }
 
-   // Universal integers and reals have some additional overloaded
-   // operators that are not valid for regular integer and real types
-   // See LRM 93 section 7.5
-
-   if (bootstrapping && kind == T_REAL
-       && t == std_type(std, STD_UNIVERSAL_REAL)) {
-      type_t uint = std_type(std, STD_UNIVERSAL_INTEGER);
-
-      declare_binary(container, mult, t, uint, t, S_MUL_RI);
-      declare_binary(container, mult, uint, t, t, S_MUL_IR);
-      declare_binary(container, div, t, uint, t, S_DIV_RI);
-   }
-
-   // Matching comparison for BIT and STD_ULOGIC
-
-   if (standard() >= STD_08) {
-      if (kind == T_ARRAY) {
-         type_t elem = type_elem(t);
-         if (is_bit_or_std_ulogic(elem)) {
-            declare_binary(container, ident_new("\"?=\""),
-                           t, t, elem, S_MATCH_EQ);
-            declare_binary(container, ident_new("\"?/=\""),
-                           t, t, elem, S_MATCH_NEQ);
-         }
-      }
-      else if (is_bit_or_std_ulogic(t)) {
-         declare_binary(container, ident_new("\"?=\""), t, t, t, S_MATCH_EQ);
-         declare_binary(container, ident_new("\"?/=\""), t, t, t, S_MATCH_NEQ);
-         declare_binary(container, ident_new("\"?<\""), t, t, t, S_MATCH_LT);
-         declare_binary(container, ident_new("\"?<=\""), t, t, t, S_MATCH_LE);
-         declare_binary(container, ident_new("\"?>\""), t, t, t, S_MATCH_GT);
-         declare_binary(container, ident_new("\"?>=\""), t, t, t, S_MATCH_GE);
-      }
-   }
-
    // Logical operators
-
-   if (bootstrapping && (t == std_bool || t == std_type(std, STD_BIT))) {
-      declare_binary(container, ident_new("\"and\""), t, t, t, S_SCALAR_AND);
-      declare_binary(container, ident_new("\"or\""), t, t, t, S_SCALAR_OR);
-      declare_binary(container, ident_new("\"xor\""), t, t, t, S_SCALAR_XOR);
-      declare_binary(container, ident_new("\"nand\""), t, t, t, S_SCALAR_NAND);
-      declare_binary(container, ident_new("\"nor\""), t, t, t, S_SCALAR_NOR);
-      declare_binary(container, ident_new("\"xnor\""), t, t, t, S_SCALAR_XNOR);
-      declare_unary(container, ident_new("\"not\""), t, t, S_SCALAR_NOT);
-   }
 
    bool vec_logical = false;
    if (kind == T_ARRAY && dimension_of(t) == 1) {
@@ -1358,28 +1318,6 @@ static void declare_predefined_ops(tree_t container, type_t t)
    default:
       break;
    }
-
-   if (bootstrapping && standard() >= STD_08) {
-      // Special predefined operators only declared in STANDARD
-      type_t std_bit = NULL;
-      if (t == std_bool || t == (std_bit = std_type(NULL, STD_BIT))) {
-         tree_t d1 = builtin_fn(ident_new("RISING_EDGE"), std_bool,
-                                S_RISING_EDGE, "S", t, NULL);
-         mangle_func(nametab, d1);
-         tree_set_class(tree_port(d1, 0), C_SIGNAL);
-         tree_add_decl(container, d1);
-
-         tree_t d2 = builtin_fn(ident_new("FALLING_EDGE"), std_bool,
-                                S_FALLING_EDGE, "S", t, NULL);
-         mangle_func(nametab, d2);
-         tree_set_class(tree_port(d2, 0), C_SIGNAL);
-         tree_add_decl(container, d2);
-
-         if (t == std_bit)
-            declare_unary(container, well_known(W_OP_CCONV), t,
-                          std_bool, S_IDENTITY);
-      }
-   }
 }
 
 static void declare_alias(tree_t container, tree_t to, ident_t name)
@@ -1404,6 +1342,8 @@ static void declare_additional_standard_operators(tree_t unit)
    type_t std_ureal = std_type(unit, STD_UNIVERSAL_REAL);
    type_t std_int   = std_type(unit, STD_INTEGER);
    type_t std_real  = std_type(unit, STD_REAL);
+   type_t std_bit   = std_type(unit, STD_BIT);
+   type_t std_bool  = std_type(unit, STD_BOOLEAN);
 
    ident_t exp_i = well_known(W_OP_EXPONENT);
 
@@ -1411,6 +1351,32 @@ static void declare_additional_standard_operators(tree_t unit)
    declare_binary(unit, exp_i, std_ureal, std_int, std_ureal, S_EXP);
    declare_binary(unit, exp_i, std_int, std_int, std_int, S_EXP);
    declare_binary(unit, exp_i, std_real, std_int, std_real, S_EXP);
+
+   // Logical operators on BIT and BOOLEAN
+
+   const type_t logic_types[] = { std_bit, std_bool };
+
+   for (int i = 0; i < ARRAY_LEN(logic_types); i++) {
+      type_t t = logic_types[i];
+      declare_binary(unit, ident_new("\"and\""), t, t, t, S_SCALAR_AND);
+      declare_binary(unit, ident_new("\"or\""), t, t, t, S_SCALAR_OR);
+      declare_binary(unit, ident_new("\"xor\""), t, t, t, S_SCALAR_XOR);
+      declare_binary(unit, ident_new("\"nand\""), t, t, t, S_SCALAR_NAND);
+      declare_binary(unit, ident_new("\"nor\""), t, t, t, S_SCALAR_NOR);
+      declare_binary(unit, ident_new("\"xnor\""), t, t, t, S_SCALAR_XNOR);
+      declare_unary(unit, ident_new("\"not\""), t, t, S_SCALAR_NOT);
+   }
+
+   // Universal integers and reals have some additional overloaded
+   // operators that are not valid for regular integer and real types
+   // See LRM 93 section 7.5
+
+   declare_binary(unit, ident_new("\"*\""), std_ureal, std_uint,
+                  std_ureal, S_MUL_RI);
+   declare_binary(unit, ident_new("\"*\""), std_uint, std_ureal,
+                  std_ureal, S_MUL_IR);
+   declare_binary(unit, ident_new("\"/\""), std_ureal, std_uint,
+                  std_ureal, S_DIV_RI);
 
    if (standard() < STD_08)
       return;
@@ -1474,6 +1440,115 @@ static void declare_additional_standard_operators(tree_t unit)
    assert(d6 != NULL);
    declare_alias(unit, d6, ident_new("TO_BSTRING"));
    declare_alias(unit, d6, ident_new("TO_BINARY_STRING"));
+
+   // Matching relational operators declared on BIT
+
+   declare_binary(unit, ident_new("\"?=\""), std_bit, std_bit,
+                  std_bit, S_MATCH_EQ);
+   declare_binary(unit, ident_new("\"?/=\""), std_bit, std_bit,
+                  std_bit, S_MATCH_NEQ);
+   declare_binary(unit, ident_new("\"?<\""), std_bit, std_bit,
+                  std_bit, S_MATCH_LT);
+   declare_binary(unit, ident_new("\"?<=\""), std_bit, std_bit,
+                  std_bit, S_MATCH_LE);
+   declare_binary(unit, ident_new("\"?>\""), std_bit, std_bit,
+                  std_bit, S_MATCH_GT);
+   declare_binary(unit, ident_new("\"?>=\""), std_bit, std_bit,
+                  std_bit, S_MATCH_GE);
+
+   // RISING_EDGE and FALLING_EDGE declared on BIT and BOOLEAN
+
+   for (int i = 0; i < ARRAY_LEN(logic_types); i++) {
+      tree_t d1 = builtin_fn(ident_new("RISING_EDGE"), std_bool,
+                             S_RISING_EDGE, "S", logic_types[i], NULL);
+      mangle_func(nametab, d1);
+      tree_set_class(tree_port(d1, 0), C_SIGNAL);
+      tree_add_decl(unit, d1);
+
+      tree_t d2 = builtin_fn(ident_new("FALLING_EDGE"), std_bool,
+                             S_FALLING_EDGE, "S", logic_types[i], NULL);
+      mangle_func(nametab, d2);
+      tree_set_class(tree_port(d2, 0), C_SIGNAL);
+      tree_add_decl(unit, d2);
+   }
+
+   // Condition conversion ?? operator on BIT
+
+   declare_unary(unit, well_known(W_OP_CCONV), std_bit, std_bool, S_IDENTITY);
+}
+
+static void declare_additional_ieee_operators(tree_t unit)
+{
+   if (standard() < STD_08)
+      return;
+
+   // Matching relational operators declared on STD_ULOGIC
+
+   tree_t ulogic = get_local_decl(nametab, unit, ident_new("STD_ULOGIC"), 0);
+   assert(ulogic != NULL);
+
+   type_t t = tree_type(ulogic);
+
+   declare_binary(unit, ident_new("\"?=\""), t, t, t, S_MATCH_EQ);
+   declare_binary(unit, ident_new("\"?/=\""), t, t, t, S_MATCH_NEQ);
+   declare_binary(unit, ident_new("\"?<\""), t, t, t, S_MATCH_LT);
+   declare_binary(unit, ident_new("\"?<=\""), t, t, t, S_MATCH_LE);
+   declare_binary(unit, ident_new("\"?>\""), t, t, t, S_MATCH_GT);
+   declare_binary(unit, ident_new("\"?>=\""), t, t, t, S_MATCH_GE);
+}
+
+static void declare_ieee_intrinsics(tree_t unit)
+{
+   static const struct {
+      const char *name;
+      subprogram_kind_t kind;
+   } ops[] = {
+      { "\"and\"",  S_IEEE_AND },
+      { "\"or\"",   S_IEEE_OR },
+      { "\"xor\"",  S_IEEE_XOR },
+      { "\"nand\"", S_IEEE_NAND },
+      { "\"nor\"",  S_IEEE_NOR },
+      { "\"xnor\"", S_IEEE_XNOR },
+      { "\"not\"",  S_IEEE_NOT },
+   };
+
+   for (int i = 0; i < ARRAY_LEN(ops); i++) {
+      tree_t sub = get_local_decl(nametab, unit, ident_new(ops[i].name), 0);
+      assert(sub != NULL);
+      assert(tree_kind(sub) == T_FUNC_DECL);
+
+      tree_set_subkind(sub, ops[i].kind);
+   }
+}
+
+static void apply_package_fixups(tree_t pack)
+{
+   switch (is_well_known(tree_ident(pack))) {
+   case W_STD_STANDARD:
+      declare_additional_standard_operators(pack);
+      break;
+   case W_IEEE_1164:
+      declare_additional_ieee_operators(pack);
+      declare_ieee_intrinsics(pack);
+      // Fall-through
+   case W_NUMERIC_STD:
+   case W_NUMERIC_BIT:
+   case W_NUMERIC_BIT_UNSIGNED:
+   case W_NUMERIC_STD_UNSIGNED:
+      if (standard() >= STD_08) {
+         // In VHDL-2008 and above all operations in certain IEEE
+         // packages are locally static
+         const int ndecls = tree_decls(pack);
+         for (int i = 0; i < ndecls; i++) {
+            tree_t d = tree_decl(pack, i);
+            if (is_subprogram(d) && tree_subkind(d) == S_USER)
+               tree_set_subkind(d, S_IEEE_MISC);
+         }
+      }
+      break;
+   default:
+      break;
+   }
 }
 
 static void unary_op(tree_t expr, tree_t (*arg_fn)(tree_t))
@@ -9026,9 +9101,6 @@ static tree_t p_package_declaration(tree_t unit)
 
    p_package_declarative_part(pack);
 
-   if (bootstrapping)
-      declare_additional_standard_operators(pack);
-
    pop_scope(nametab);
 
    consume(tEND);
@@ -9038,6 +9110,8 @@ static tree_t p_package_declaration(tree_t unit)
 
    tree_set_ident(pack, qual);
    tree_set_loc(pack, CURRENT_LOC);
+
+   apply_package_fixups(pack);
 
    sem_check(pack, nametab);
 
