@@ -8,6 +8,7 @@
 ** Note:      expression:    N.A.
 ** Note:      FSM state:     N.A.
 ** Note:      functional:    N.A.
+** Note:      average:       100.0 % (4/4)
 ** Note: code coverage results for: SECOND_LIB.COVER22_B
 ** Note:      statement:     100.0 % (4/4)
 ** Note:      branch:        N.A.
@@ -15,3 +16,4 @@
 ** Note:      expression:    N.A.
 ** Note:      FSM state:     N.A.
 ** Note:      functional:    N.A.
+** Note:      average:       100.0 % (4/4)

@@ -944,6 +944,7 @@ static void cover_print_summary_table_row(FILE *f, cover_data_t *data, const rpt
    float perc_expr = 0.0f;
    float perc_state = 0.0f;
    float perc_functional = 0.0f;
+   float perc_average = 0.0f;
 
    if (stats->total[COV_ITEM_STMT] > 0)
       perc_stmt = 100.0 * ((float)stats->hit[COV_ITEM_STMT]) / stats->total[COV_ITEM_STMT];
@@ -957,6 +958,9 @@ static void cover_print_summary_table_row(FILE *f, cover_data_t *data, const rpt
       perc_state = 100.0 * ((float)stats->hit[COV_ITEM_STATE]) / stats->total[COV_ITEM_STATE];
    if (stats->total[COV_ITEM_FUNCTIONAL] > 0)
       perc_functional = 100.0 * ((float)stats->hit[COV_ITEM_FUNCTIONAL]) / stats->total[COV_ITEM_FUNCTIONAL];
+
+   if (avg_total > 0)
+      perc_average = 100.0 * ((float)avg_hit) / avg_total;
 
    if (top) {
       notef("code coverage results for: %s", istr(entry_name));
@@ -996,6 +1000,8 @@ static void cover_print_summary_table_row(FILE *f, cover_data_t *data, const rpt
                stats->hit[COV_ITEM_FUNCTIONAL], stats->total[COV_ITEM_FUNCTIONAL]);
       else
          notef("     functional:    N.A.");
+
+      notef("     average:       %.1f %% (%d/%d)", perc_average, avg_hit, avg_total);
    }
    else if (opt_get_int(OPT_VERBOSE) && print_out) {
 
@@ -1005,14 +1011,16 @@ static void cover_print_summary_table_row(FILE *f, cover_data_t *data, const rpt
       data->rpt_buf = new;
 
       tb_printf(new->tb,
-         "%*s %-*s %10.1f %% (%d/%d)  %10.1f %% (%d/%d) %10.1f %% (%d/%d) "
-         "%10.1f %% (%d/%d) %10.1f %% (%d/%d)",
+         "%*s %-*s %10.1f %% (%6d / %6d)  %10.1f %% (%6d / %6d) %10.1f %% (%6d / %6d) "
+         "%10.1f %% (%6d / %6d) %10.1f %% (%6d / %6d) %10.1f %% (%6d / %6d) %10.1f %% (%6d / %6d)",
          lvl, "", 50-lvl, istr(ident_rfrom(entry_name, '.')),
          perc_stmt, stats->hit[COV_ITEM_STMT], stats->total[COV_ITEM_STMT],
          perc_branch, stats->hit[COV_ITEM_BRANCH], stats->total[COV_ITEM_BRANCH],
          perc_toggle, stats->hit[COV_ITEM_TOGGLE], stats->total[COV_ITEM_TOGGLE],
          perc_expr, stats->hit[COV_ITEM_EXPRESSION], stats->total[COV_ITEM_EXPRESSION],
-         perc_state, stats->hit[COV_ITEM_STATE], stats->total[COV_ITEM_STATE]);
+         perc_state, stats->hit[COV_ITEM_STATE], stats->total[COV_ITEM_STATE],
+         perc_functional, stats->hit[COV_ITEM_FUNCTIONAL], stats->total[COV_ITEM_FUNCTIONAL],
+         perc_average, avg_hit, avg_total);
    }
 }
 
@@ -1145,8 +1153,8 @@ static void cover_report_per_hier(html_gen_t *g, FILE *f, cover_data_t *data,
 
    if (opt_get_int(OPT_VERBOSE)) {
       notef("Coverage for sub-hierarchies:");
-      printf("%-55s %-20s %-20s %-20s %-20s %-20s\n",
-             "Hierarchy", "Statement", "Branch", "Toggle", "Expression", "FSM state");
+      printf("%-65s %-30s %-30s %-30s %-30s %-30s %-30s %-30s\n",
+             "Hierarchy", "Statement", "Branch", "Toggle", "Expression", "FSM state", "Functional", "Average");
       cover_rpt_buf_t *buf = data->rpt_buf;
       while (buf) {
          printf("%s\n", tb_get(buf->tb));

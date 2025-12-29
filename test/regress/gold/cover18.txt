@@ -38,3 +38,4 @@
 ** Note:      expression:    N.A.
 ** Note:      FSM state:     6.5 % (18/278)
 ** Note:      functional:    N.A.
+** Note:      average:       6.5 % (18/278)
