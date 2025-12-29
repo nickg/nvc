@@ -1839,6 +1839,33 @@ mir_value_t mir_build_array_ref(mir_unit_t *mu, mir_value_t array,
    return result;
 }
 
+mir_value_t mir_build_table_ref(mir_unit_t *mu, mir_value_t array,
+                                mir_value_t stride, const mir_value_t *args,
+                                int nargs)
+{
+   mir_type_t type = mir_get_type(mu, array);
+   mir_stamp_t stamp = mir_get_stamp(mu, array);
+
+   node_data_t *n = mir_add_node(mu, MIR_OP_TABLE_REF, type, stamp, nargs + 2);
+
+   mir_set_arg(mu, n, 0, array);
+   mir_set_arg(mu, n, 1, stride);
+
+   for (int i = 0; i < nargs; i++)
+      mir_set_arg(mu, n, i + 2, args[i]);
+
+   MIR_ASSERT(mir_is(mu, array, MIR_TYPE_POINTER),
+              "argument to table ref must be pointer");
+   MIR_ASSERT(mir_is_offset(mu, stride),
+              "stride argument to table ref must be offset");
+
+   for (int i = 0; i < nargs; i++)
+      MIR_ASSERT(mir_is_integral(mu, args[i]),
+                 "table ref indices must be integral");
+
+   return (mir_value_t){ .tag = MIR_TAG_NODE, .id = mir_node_id(mu, n) };
+}
+
 mir_value_t mir_build_record_ref(mir_unit_t *mu, mir_value_t record,
                                  unsigned field)
 {

@@ -2118,15 +2118,14 @@ static vcode_reg_t lower_std_ulogic_op(lower_unit_t *lu, tree_t fcall,
 
    vcode_type_t voffset = vtype_offset();
    vcode_type_t vlogic = vtype_int(0, 8);
+   vcode_reg_t stride = emit_const(voffset, 9);
 
    vcode_reg_t result_reg = r0;
    if (table != NULL) {
       vcode_type_t vtype = vtype_carray(81, vlogic, vlogic);
       vcode_reg_t table_ptr = emit_link_var(context, ident_new(table), vtype);
-      vcode_reg_t r0_cast = emit_cast(voffset, voffset, r0);
-      vcode_reg_t index = emit_add(emit_mul(r0_cast, emit_const(voffset, 9)),
-                                   emit_cast(voffset, voffset, r1));
-      vcode_reg_t ptr = emit_array_ref(table_ptr, index);
+      vcode_reg_t args[] = { r0, r1 };
+      vcode_reg_t ptr = emit_table_ref(table_ptr, stride, args, 2);
       result_reg = emit_load_indirect(ptr);
    }
 
@@ -2134,8 +2133,8 @@ static vcode_reg_t lower_std_ulogic_op(lower_unit_t *lu, tree_t fcall,
       vcode_type_t vtype = vtype_carray(9, vlogic, vlogic);
       vcode_reg_t table_ptr =
          emit_link_var(context, ident_new("NOT_TABLE"), vtype);
-      vcode_reg_t index = emit_cast(voffset, voffset, result_reg);
-      vcode_reg_t ptr = emit_array_ref(table_ptr, index);
+      vcode_reg_t args[] = { result_reg };
+      vcode_reg_t ptr = emit_table_ref(table_ptr, stride, args, 1);
       result_reg = emit_load_indirect(ptr);
    }
 

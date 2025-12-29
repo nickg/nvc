@@ -259,6 +259,7 @@ typedef enum {
    MIR_OP_SCHED_INACTIVE,
    MIR_OP_SCHED_DEPOSIT,
    MIR_OP_PUT_DRIVER,
+   MIR_OP_TABLE_REF,
 } mir_op_t;
 
 typedef enum {
@@ -555,6 +556,9 @@ mir_value_t mir_build_all(mir_unit_t *mu, mir_value_t access);
 mir_value_t mir_build_address_of(mir_unit_t *mu, mir_value_t array);
 mir_value_t mir_build_array_ref(mir_unit_t *mu, mir_value_t array,
                                 mir_value_t offset);
+mir_value_t mir_build_table_ref(mir_unit_t *mu, mir_value_t array,
+                                mir_value_t stride, const mir_value_t *args,
+                                int nargs);
 mir_value_t mir_build_record_ref(mir_unit_t *mu, mir_value_t record,
                                  unsigned field);
 

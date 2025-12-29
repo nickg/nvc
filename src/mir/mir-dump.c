@@ -90,6 +90,7 @@ const char *mir_op_string(mir_op_t op)
       [MIR_OP_CONST_RECORD] = "const record",
       [MIR_OP_CONST_VEC] = "const vec",
       [MIR_OP_ARRAY_REF] = "array ref",
+      [MIR_OP_TABLE_REF] = "table ref",
       [MIR_OP_RECORD_REF] = "record ref",
       [MIR_OP_ADDRESS_OF] = "address of",
       [MIR_OP_VAR_UPREF] = "var upref",
@@ -1252,6 +1253,24 @@ void mir_annotate(mir_unit_t *mu, const mir_annotate_t *cb, void *ctx)
                col += mir_dump_value(mu, n->args[0], cb, ctx);
                col += printf(" offset ");
                col += mir_dump_value(mu, n->args[1], cb, ctx);
+               mir_dump_type(mu, col, n->type);
+               mir_dump_stamp(mu, n->type, n->stamp);
+            }
+            break;
+
+         case MIR_OP_TABLE_REF:
+            {
+               col += mir_dump_value(mu, result, cb, ctx);
+               col += printf(" := %s ", mir_op_string(n->op));
+               col += mir_dump_value(mu, n->args[0], cb, ctx);
+               col += printf(" stride ");
+               col += mir_dump_value(mu, n->args[1], cb, ctx);
+               col += printf(" [");
+               for (int i = 2; i < n->nargs; i++) {
+                  if (i > 2) col += printf(", ");
+                  col += mir_dump_arg(mu, result, i, cb, ctx);
+               }
+               col += printf("]");
                mir_dump_type(mu, col, n->type);
                mir_dump_stamp(mu, n->type, n->stamp);
             }

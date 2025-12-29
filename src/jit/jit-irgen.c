@@ -2169,6 +2169,31 @@ static void irgen_op_array_ref(jit_irgen_t *g, mir_value_t n)
    }
 }
 
+static void irgen_op_table_ref(jit_irgen_t *g, mir_value_t n)
+{
+   jit_value_t array = irgen_get_arg(g, n, 0);
+   jit_value_t stride = irgen_get_arg(g, n, 1);
+
+   mir_type_t elem = mir_get_elem(g->mu, mir_get_type(g->mu, n));
+   const int scale = irgen_size_bytes(g, elem);
+
+   jit_value_t offset = irgen_alloc_temp(g);
+   j_mov(g, offset, jit_value_from_int64(0));
+
+   const int nargs = mir_count_args(g->mu, n);
+   for (int i = 2; i < nargs; i++) {
+      jit_value_t idx = irgen_get_arg(g, n, i);
+      j_mul(g, offset, offset, stride);
+      j_add(g, offset, offset, idx);
+   }
+
+   j_mul(g, offset, offset, jit_value_from_int64(scale));
+
+   jit_value_t result = g->map[n.id];
+   irgen_lea(g, result, array);
+   j_add(g, result, result, offset);
+}
+
 static void irgen_op_record_ref(jit_irgen_t *g, mir_value_t n)
 {
    mir_value_t arg0 = mir_get_arg(g->mu, n, 0);
@@ -4611,6 +4636,9 @@ static void irgen_block(jit_irgen_t *g, mir_block_t block)
          break;
       case MIR_OP_ARRAY_REF:
          irgen_op_array_ref(g, n);
+         break;
+      case MIR_OP_TABLE_REF:
+         irgen_op_table_ref(g, n);
          break;
       case MIR_OP_CONTEXT_UPREF:
          irgen_op_context_upref(g, n);

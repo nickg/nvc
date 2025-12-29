@@ -974,7 +974,7 @@ const char *vcode_op_string(vcode_op_t op)
       "port conversion", "convert in", "convert out", "bind foreign",
       "or trigger", "cmp trigger", "instance name",
       "map implicit", "bind external", "array scope", "record scope", "syscall",
-      "put conversion", "dir check", "sched process",
+      "put conversion", "dir check", "sched process", "table ref",
    };
    if ((unsigned)op >= ARRAY_LEN(strs))
       return "???";
@@ -1905,6 +1905,23 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
                col += vcode_dump_reg(op->args.items[0]);
                col += printf(" offset ");
                col += vcode_dump_reg(op->args.items[1]);
+               vcode_dump_result_type(col, op);
+            }
+            break;
+
+         case VCODE_OP_TABLE_REF:
+            {
+               col += vcode_dump_reg(op->result);
+               col += printf(" := %s ", vcode_op_string(op->kind));
+               col += vcode_dump_reg(op->args.items[0]);
+               col += printf(" stride ");
+               col += vcode_dump_reg(op->args.items[1]);
+               col += printf(" [");
+               for (int i = 2; i < op->args.count; i++) {
+                  if (i > 2) col += printf(", ");
+                  col += vcode_dump_reg(op->args.items[i]);
+               }
+               col += printf("]");
                vcode_dump_result_type(col, op);
             }
             break;
@@ -2859,6 +2876,12 @@ bool vtype_is_numeric(vcode_type_t type)
    const vtype_kind_t kind = vtype_kind(type);
    return kind == VCODE_TYPE_INT || kind == VCODE_TYPE_OFFSET
       || kind == VCODE_TYPE_REAL;
+}
+
+bool vtype_is_integral(vcode_type_t type)
+{
+   const vtype_kind_t kind = vtype_kind(type);
+   return kind == VCODE_TYPE_INT || kind == VCODE_TYPE_OFFSET;
 }
 
 bool vtype_is_composite(vcode_type_t type)
@@ -5242,6 +5265,48 @@ vcode_reg_t emit_array_ref(vcode_reg_t array, vcode_reg_t offset)
                 "argument to array ref must be a pointer or signal");
    VCODE_ASSERT(vcode_reg_kind(offset) == VCODE_TYPE_OFFSET,
                 "array ref offset argument must have offset type");
+
+   op->result = vcode_add_reg(rtype);
+
+   reg_t *rr = vcode_reg_data(op->result);
+   rr->bounds = vcode_reg_bounds(array);
+
+   return op->result;
+}
+
+vcode_reg_t emit_table_ref(vcode_reg_t array, vcode_reg_t stride,
+                           const vcode_reg_t *args, int nargs)
+{
+   VCODE_FOR_EACH_MATCHING_OP(other, VCODE_OP_TABLE_REF) {
+      if (other->args.items[0] != array || other->args.items[1] != stride)
+         continue;
+      else if (other->args.count != nargs + 2)
+         continue;
+
+      bool match = true;
+      for (int i = 0; i < nargs; i++)
+         match &= (other->args.items[i + 2] == args[i]);
+
+      if (match)
+         return other->result;
+   }
+
+   op_t *op = vcode_add_op(VCODE_OP_TABLE_REF);
+   vcode_add_arg(op, array);
+   vcode_add_arg(op, stride);
+   for (int i = 0; i < nargs; i++)
+      vcode_add_arg(op, args[i]);
+
+   vcode_type_t rtype = vcode_reg_type(array);
+   VCODE_ASSERT(vtype_kind(rtype) == VCODE_TYPE_POINTER
+                && vtype_kind(vtype_pointed(rtype)) != VCODE_TYPE_UARRAY,
+                "argument to table ref must be a pointer or signal");
+   VCODE_ASSERT(vcode_reg_kind(stride) == VCODE_TYPE_OFFSET,
+                "table ref stride argument must have offset type");
+
+   for (int i = 0; i < nargs; i++)
+      VCODE_ASSERT(vtype_is_integral(vcode_reg_type(args[i])),
+                   "table ref indices must be integral");
 
    op->result = vcode_add_reg(rtype);
 

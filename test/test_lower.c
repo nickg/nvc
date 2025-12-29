@@ -222,6 +222,7 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
       case VCODE_OP_LOAD_INDIRECT:
       case VCODE_OP_STORE_INDIRECT:
       case VCODE_OP_ARRAY_REF:
+      case VCODE_OP_TABLE_REF:
       case VCODE_OP_ADDRESS_OF:
       case VCODE_OP_SCHED_WAVEFORM:
       case VCODE_OP_SELECT:
@@ -6992,6 +6993,75 @@ START_TEST(test_bounds3)
 }
 END_TEST
 
+START_TEST(test_issue1259)
+{
+   input_from_file(TESTDIR "/lower/issue1259.vhd");
+
+   run_elab();
+
+   vcode_unit_t vu = find_unit("WORK.ISSUE1259.FUNC(YY)Y");
+   vcode_select_unit(vu);
+
+   EXPECT_BB(0) = {
+      { VCODE_OP_CONST, .value = 2 },
+      { VCODE_OP_INDEX, .name = "RES" },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_MEMSET },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_ARRAY_REF },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_ARRAY_REF },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_LINK_PACKAGE, .name = "IEEE.STD_LOGIC_1164" },
+      { VCODE_OP_CONST, .value = 9 },
+      { VCODE_OP_LINK_VAR, .name = "AND_TABLE" },
+      { VCODE_OP_TABLE_REF },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_ARRAY_REF },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_TABLE_REF },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_LINK_VAR, .name = "XOR_TABLE" },
+      { VCODE_OP_TABLE_REF },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_ARRAY_REF },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_TABLE_REF },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_TABLE_REF },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_ARRAY_REF },
+      { VCODE_OP_STORE_INDIRECT },
+      { VCODE_OP_LOAD_INDIRECT },  // TODO: redundant
+      { VCODE_OP_LOAD_INDIRECT },  // TODO: redundant
+      { VCODE_OP_TABLE_REF },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_TABLE_REF },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_TABLE_REF },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_TABLE_REF },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_TABLE_REF },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_ARRAY_REF },
+      { VCODE_OP_STORE_INDIRECT },
+      { VCODE_OP_WRAP },
+      { VCODE_OP_RETURN },
+   };
+
+   CHECK_BB(0);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_lower_tests(void)
 {
    Suite *s = suite_create("lower");
@@ -7152,6 +7222,7 @@ Suite *get_lower_tests(void)
    tcase_add_test(tc, test_comp1);
    tcase_add_test(tc, test_issue1350);
    tcase_add_test(tc, test_bounds3);
+   tcase_add_test(tc, test_issue1259);
    suite_add_tcase(s, tc);
 
    return s;
