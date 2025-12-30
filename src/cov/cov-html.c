@@ -33,6 +33,21 @@
 
 #define MARGIN_LEFT "20%%"
 #define SIDEBAR_WIDTH "17%%"
+#define TABLE_HEADER_HEIGHT "40px"
+#define TABLE_WIDTH "76%%"
+
+#define TABLE_ROW_COLOR "#e8e8e8"
+#define TABLE_HEADER_COLOR "#bbbbbb"
+#define BACKGROUND_COLOR "#f0f0e0ff"
+#define UNCOVERED_COLOR "#ffcccc"
+#define EXCLUDED_COLOR "#d6eaf8"
+#define COVERED_COLOR "#ccffcc"
+
+#define COV_100_COLOR "#00cc00"
+#define COV_90_COLOR "#e6e600"
+#define COV_80_COLOR "#ff9900"
+#define COV_0_COLOR "#ff0000"
+#define COV_NA_COLOR "#cccccc"
 
 struct _cover_rpt_buf {
    text_buf_t      *tb;
@@ -76,14 +91,19 @@ static void cover_print_html_header(FILE *f)
 
    fprintf(f, "</title>\n"
               "  <style>\n"
+              "   body {\n"
+              "      background-color: " BACKGROUND_COLOR ";\n"
+              "   }\n"
               "   header {\n"
               "      padding: 30px;\n"
               "      text-align: center;\n"
-              "      font-size: 35px;\n"
+              "      font-size: 40px;\n"
+              "   }\n"
+              "   h1 {\n"
+              "      text-align: center;\n"
               "   }\n"
               "   h2 {\n"
               "      word-wrap: break-word;\n"
-              "      width:75%%\n"
               "   }\n"
               "   h3 {\n"
               "      word-wrap: break-word;\n"
@@ -102,11 +122,11 @@ static void cover_print_html_header(FILE *f)
               "   }\n"
               "   nav {\n"
               "      float: left;\n"
-              "      background-color: #ccc;\n"
+              "      background-color: " TABLE_ROW_COLOR ";\n"
               "      width: " SIDEBAR_WIDTH ";\n"
               "      overflow: auto; \n"
               "      padding: 10px;\n"
-              "      margin-top: 100px;\n"
+              "      margin-top: -2px;\n"
               "      border: 2px solid black;\n"
               "   }\n"
               "   table {\n"
@@ -146,36 +166,22 @@ static void cover_print_html_header(FILE *f)
               "   }\n"
               "   .tab {\n"
               "     overflow: hidden;\n"
-              "     border: none;\n"
+              "     border: 2px solid;\n"
               "     margin-left: " MARGIN_LEFT ";\n"
               "     margin-top: 10px;\n"
-              "   }\n"
-              "   .tab button.active {\n"
-              "     background-color: #ccc;\n"
-              "   }\n"
-              "   .tab button:hover {\n"
-              "     background-color: #ddd;\n"
-              "   }\n"
-              "   .tab button {\n"
-              "     background-color: inherit;\n"
-              "     float: left;\n"
-              "     margin-left: 20px;\n"
-              "     border: 2px solid black;\n"
-              "     cursor: pointer;\n"
-              "     padding: 14px 16px;\n"
-              "     font-size: 17px;\n"
               "   }\n"
               "   .cbg:hover {\n"
               "     background-color: #dddddd;\n"
               "   }\n"
               "   .cbg {\n"
-              "     background-color: #bbbbbb;\n"
+              "     background-color: " TABLE_HEADER_COLOR ";\n"
+              "     text-align: center;\n"
               "   }\n"
               "   .cbt {\n"
               "     margin-top: 8px;\n"
               "   }\n"
               "   .cbt th {\n"
-              "     background-color: #bbbbbb;\n"
+              "     background-color: " TABLE_HEADER_COLOR ";\n"
               "     text-align: center;\n"
               "    }\n"
               "   .cbt td, .cbt th {\n"
@@ -185,11 +191,11 @@ static void cover_print_html_header(FILE *f)
               "   .cbt td + td, .cbt th + th { width:150px; }\n"
               "   .cbt td + td + td, .cbt th + th + th { width:150px; }\n"
               "   .cbt td + td + td + td, .cbt th + th + th + th { width:150px; }\n"
-              "   .percent100 { background-color: #00cc00; }\n"
-              "   .percent90 { background-color: #e6e600; }\n"
-              "   .percent80 { background-color: #ff9900; }\n"
-              "   .percent0 { background-color: #ff0000; }\n"
-              "   .percentna { background-color: #aaaaaa; }\n"
+              "   .percent100 { background-color: " COV_100_COLOR "; }\n"
+              "   .percent90 { background-color: " COV_90_COLOR "; }\n"
+              "   .percent80 { background-color: " COV_80_COLOR "; }\n"
+              "   .percent0 { background-color: " COV_0_COLOR "; }\n"
+              "   .percentna { background-color: " COV_NA_COLOR "; }\n"
               "   .nav-sel { font-weight: bold; }\n"
               "  </style>\n"
               "</head>\n"
@@ -202,7 +208,7 @@ static void cover_print_html_header(FILE *f)
 
 static void cover_print_file_name(FILE *f, const rpt_file_t *src)
 {
-   fprintf(f, "<h2 style=\"margin-left: " MARGIN_LEFT ";\">\n");
+   fprintf(f, "<h2 style=\"margin-left: " MARGIN_LEFT "; width: " TABLE_WIDTH ";\">\n");
    fprintf(f, "   File:&nbsp; <a href=\"../source/%s.html\">%s</a>\n",
            src ? src->path_hash : "", src ? src->path : "");
    fprintf(f, "</h2>\n\n");
@@ -210,7 +216,7 @@ static void cover_print_file_name(FILE *f, const rpt_file_t *src)
 
 static void cover_print_inst_name(FILE *f, cover_scope_t *s)
 {
-   fprintf(f, "<h2 style=\"margin-left: " MARGIN_LEFT ";\">\n");
+   fprintf(f, "<h2 style=\"margin-left: " MARGIN_LEFT "; width: " TABLE_WIDTH ";\">\n");
    fprintf(f, "   Instance:&nbsp;%s\n", istr(s->hier));
    fprintf(f, "</h2>\n\n");
 }
@@ -237,13 +243,11 @@ static void cover_print_percents_cell(FILE *f, unsigned hit, unsigned total)
 }
 
 static void cover_print_summary_table_header(FILE *f, const char *table_id,
-                                             bool is_instance)
+                                             const char *first_col_str)
 {
-   const char *first_col_str = (is_instance) ? "Instance" : "File";
-
-   fprintf(f, "<table id=\"%s\" style=\"width:75%%;margin-left:" MARGIN_LEFT ";margin-right:auto;\"> \n"
-              "  <tr style=\"height:40px\">\n"
-              "    <th class=\"cbg\" onclick=\"sortTable(0, &quot;%s&quot;)\" style=\"width:30%%\">%s</th>\n"
+   fprintf(f, "<table id=\"%s\" style=\"width: " TABLE_WIDTH ";margin-left:" MARGIN_LEFT ";margin-right:auto;\"> \n"
+              "  <tr style=\"height:" TABLE_HEADER_HEIGHT "\">\n"
+              "    <th class=\"cbg\" onclick=\"sortTable(0, &quot;%s&quot;)\"  style=\"width:30%%\">%s</th>\n"
               "    <th class=\"cbg\" onclick=\"sortTable(1, &quot;%s&quot;)\"  style=\"width:8%%\">Statement</th>\n"
               "    <th class=\"cbg\" onclick=\"sortTable(2, &quot;%s&quot;)\"  style=\"width:8%%\">Branch</th>\n"
               "    <th class=\"cbg\" onclick=\"sortTable(3, &quot;%s&quot;)\"  style=\"width:8%%\">Toggle</th>\n"
@@ -787,8 +791,8 @@ static void cover_print_chain(FILE *f, cover_data_t *data, const rpt_chain_t *ch
    else if (kind == COV_ITEM_FUNCTIONAL)
       fprintf(f, "Functional");
 
-   fprintf(f, "\" class=\"tabcontent\" style=\"width:68.5%%;margin-left:" MARGIN_LEFT "; "
-                          "margin-right:auto; margin-top:10px; border: 2px solid black;\">\n");
+   fprintf(f, "\" class=\"tabcontent\" style=\"width:" TABLE_WIDTH ";margin-left:" MARGIN_LEFT "; "
+                          "margin-right:auto; margin-top:-2px; border: 2px solid black;\">\n");
 
    for (cov_pair_kind_t pkind = PAIR_UNCOVERED; pkind < PAIR_LAST; pkind++) {
       int n;
@@ -813,15 +817,19 @@ static void cover_print_chain(FILE *f, cover_data_t *data, const rpt_chain_t *ch
          n = chn->hits.count;
       }
 
-      fprintf(f, "  <section style=\"background-color:");
+      fprintf(f, "  <section style=\"padding-left:10px; padding-top: 10px; "
+                                     "padding-bottom: 10px; padding-right:10px;"
+                                     "background-color:");
       if (pkind == PAIR_UNCOVERED)
-         fprintf(f, "#ffcccc;\">\n");
+         fprintf(f, UNCOVERED_COLOR ";\">\n");
       else if (pkind == PAIR_EXCLUDED)
-         fprintf(f, "#d6eaf8;\">\n");
+         fprintf(f, EXCLUDED_COLOR ";\">\n");
       else
-         fprintf(f, "#ccffcc;\">\n");
+         fprintf(f, COVERED_COLOR ";\">\n");
 
-      fprintf(f, " <h2>");
+
+      fprintf(f, " <h2 style=\"margin-top: 0px; margin-bottom: 0px\">");
+
       if (pkind == PAIR_UNCOVERED)
          fprintf(f, "Uncovered ");
       else if (pkind == PAIR_EXCLUDED)
@@ -855,14 +863,18 @@ static void cover_print_chain(FILE *f, cover_data_t *data, const rpt_chain_t *ch
 
 static void cover_print_chns(FILE *f, cover_data_t *data, const rpt_chain_group_t *chns)
 {
-   fprintf(f, "<div class=\"tab\">"
-              "   <button class=\"tablinks\" onclick=\"selectCoverage(event, 'Statement')\" id=\"defaultOpen\">Statement</button>\n"
-              "   <button class=\"tablinks\" style=\"margin-left:10px;\" onclick=\"selectCoverage(event, 'Branch')\">Branch</button>\n"
-              "   <button class=\"tablinks\" style=\"margin-left:10px;\" onclick=\"selectCoverage(event, 'Toggle')\">Toggle</button>\n"
-              "   <button class=\"tablinks\" style=\"margin-left:10px;\" onclick=\"selectCoverage(event, 'Expression')\">Expression</button>\n"
-              "   <button class=\"tablinks\" style=\"margin-left:10px;\" onclick=\"selectCoverage(event, 'FSM_state')\">FSM state</button>\n"
-              "   <button class=\"tablinks\" style=\"margin-left:10px;\" onclick=\"selectCoverage(event, 'Functional')\">Functional</button>\n"
-              "</div>\n\n");
+   fprintf(f,
+              "<table style=\"width:" TABLE_WIDTH ";margin-left:" MARGIN_LEFT ";margin-right:auto;\"> \n"
+              "   <tr style=\"height:" TABLE_HEADER_HEIGHT "\">\n"
+              "      <th class=\"cbg\" onclick=\"selectCoverage(event, 'Statement')\" id=\"defaultOpen\">Statement</th>\n"
+              "      <th class=\"cbg\" onclick=\"selectCoverage(event, 'Branch')\">Branch</th>\n"
+              "      <th class=\"cbg\" onclick=\"selectCoverage(event, 'Toggle')\">Toggle</th>\n"
+              "      <th class=\"cbg\" onclick=\"selectCoverage(event, 'Expression')\">Expression</th>\n"
+              "      <th class=\"cbg\" onclick=\"selectCoverage(event, 'FSM_state')\">FSM state</th>\n"
+              "      <th class=\"cbg\" onclick=\"selectCoverage(event, 'Functional')\">Functional</th>\n"
+              "   </tr>\n"
+              "</table>\n\n"
+            );
 
    for (int i = 0; i < ARRAY_LEN(chns->chain); i++)
       cover_print_chain(f, data, &(chns->chain[i]), i);
@@ -923,7 +935,8 @@ static void cover_print_summary_table_row(FILE *f, cover_data_t *data, const rpt
                                           bool top, bool print_out)
 {
    fprintf(f, "  <tr>\n"
-              "    <td><a href=\"%s%s.html\">%s</a></td>\n",
+              "    <td style=\"background-color:" TABLE_ROW_COLOR "\">\n"
+              "<a href=\"%s%s.html\">%s</a></td>\n",
               top ? "hier/" : "", istr(entry_link), istr(entry_name));
 
    for (int i = 0; i <= COV_ITEM_FUNCTIONAL; i++)
@@ -1060,7 +1073,9 @@ static void cover_print_nav_hier_node(html_gen_t *g, FILE *f, cover_scope_t *s,
 
 static void cover_print_hier_nav_tree(html_gen_t *g, FILE *f, cover_scope_t *s)
 {
-   fprintf(f, "<nav>\n<b>Hierarchy:</b><br>\n");
+   fprintf(f, "<h2 style=\"float: left; margin-top: 50px; \">Hierarchy</h2>\n");
+
+   fprintf(f, "<nav style=\"clear: left\">\n");
    fprintf(f, "<details open>\n");
    fprintf(f, "<summary><a href=\"../index.html\">%s</a></summary>\n",
            istr(g->data->root_scope->name));
@@ -1088,16 +1103,16 @@ static void cover_report_hier(html_gen_t *g, int lvl, cover_scope_t *s)
    cover_print_file_name(f, src);
 
    if (!cover_is_leaf(s)) {
-      fprintf(f, "<h2 style=\"margin-left: " MARGIN_LEFT ";\">\n  Sub-instances:\n</h2>\n\n");
-      cover_print_summary_table_header(f, "sub_inst_table", true);
+      cover_print_summary_table_header(f, "sub_inst_table", "Nested Instances");
 
       cover_report_hier_children(g, lvl, s, f);
 
       cover_print_table_footer(f);
    }
 
-   fprintf(f, "<h2 style=\"margin-left: " MARGIN_LEFT ";\">\n  Current Instance:\n</h2>\n\n");
-   cover_print_summary_table_header(f, "cur_inst_table", true);
+   fprintf(f, "<br>");
+
+   cover_print_summary_table_header(f, "cur_inst_table", "Current Instance");
 
    ident_t rpt_name_id = ident_new(h->name_hash);
    cover_print_summary_table_row(f, g->data, &(h->flat_stats), s->hier,
@@ -1110,7 +1125,7 @@ static void cover_report_hier(html_gen_t *g, int lvl, cover_scope_t *s)
    if (skipped)
       fprintf(f, "<h3 style=\"margin-left: " MARGIN_LEFT ";\">The limit of "
                  "printed items was reached (%d). Total %d items are not "
-                 "displayed.</h3>\n\n", g->item_limit, skipped);
+                 "displayed.</h3><br>\n\n", g->item_limit, skipped);
    cover_print_chns(f, g->data, &(h->chns));
    cover_print_jscript_funcs(f);
 
@@ -1176,9 +1191,10 @@ static void cover_report_per_hier(html_gen_t *g, FILE *f, cover_data_t *data,
 static void cover_print_file_nav_tree(FILE *f, int n_files,
                                       const rpt_file_t *files[n_files])
 {
-   fprintf(f, "<nav>\n");
-   fprintf(f, "<b><a href=../index.html>Back to summary</a></p></b>\n");
-   fprintf(f, "<b>Coverage report for file:</b><br>\n");
+   fprintf(f, "<h2 style=\"float: left; margin-bottom: 0px; margin-top: 0px;\"><a href=../index.html>Back to summary</a></h2>\n");
+   fprintf(f, "<h2 style=\"float: left; clear: left;\">Coverage report for file:</h2>\n");
+
+   fprintf(f, "<nav style=\"clear: left\">\n");
 
    for (int i = 0; i < n_files; i++) {
       char *tmp LOCAL = xstrdup((char *)files[i]->path);
@@ -1227,7 +1243,7 @@ static void cover_report_per_file(html_gen_t *g, FILE *top_f,
       cover_print_file_name(f, files[i]);
 
       fprintf(f, "<h2 style=\"margin-left: " MARGIN_LEFT ";\">\n  Current File:\n</h2>\n\n");
-      cover_print_summary_table_header(f, "cur_file_table", true);
+      cover_print_summary_table_header(f, "cur_file_table", "File");
       cover_print_summary_table_row(f, data, &(files[i]->stats), base_name_id,
                                     base_name_id, 0, false, false);
       cover_print_table_footer(f);
@@ -1332,11 +1348,11 @@ void cover_report(const char *path, cover_data_t *data, int item_limit)
    cover_print_html_header(f);
 
    if (data->mask & COVER_MASK_PER_FILE_REPORT) {
-      cover_print_summary_table_header(f, "file_table", false);
+      cover_print_summary_table_header(f, "file_table", "File");
       cover_report_per_file(&g, f, data, rpt);
    }
    else {
-      cover_print_summary_table_header(f, "inst_table", true);
+      cover_print_summary_table_header(f, "inst_table", "Current Instance");
       cover_report_per_hier(&g, f, data, rpt);
    }
 
