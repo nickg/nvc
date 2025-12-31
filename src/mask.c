@@ -163,7 +163,7 @@ bool mask_test_range(bit_mask_t *m, size_t start, size_t count)
    return false;
 }
 
-size_t mask_popcount(bit_mask_t *m)
+size_t mask_popcount(const bit_mask_t *m)
 {
    if (m->size > 64) {
       size_t sum = 0;

@@ -1931,11 +1931,12 @@ static void irgen_op_load(jit_irgen_t *g, mir_value_t n)
 
 static void irgen_op_store(jit_irgen_t *g, mir_value_t n)
 {
+   mir_value_t arg0 = mir_get_arg(g->mu, n, 0);
    mir_value_t arg1 = mir_get_arg(g->mu, n, 1);
 
-   jit_value_t addr = irgen_get_arg(g, n, 0);
+   jit_value_t addr = irgen_get_value(g, arg0);
    jit_value_t value = irgen_get_value(g, arg1);
-   mir_type_t type = mir_get_type(g->mu, n);
+   mir_type_t type = mir_get_pointer(g->mu, mir_get_type(g->mu, arg0));
 
    switch (mir_get_class(g->mu, type)) {
    case MIR_TYPE_OFFSET:

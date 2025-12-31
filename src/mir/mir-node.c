@@ -1664,10 +1664,12 @@ mir_value_t mir_build_test(mir_unit_t *mu, mir_value_t vec)
 
 void mir_build_store(mir_unit_t *mu, mir_value_t dest, mir_value_t src)
 {
+   mir_build_2(mu, MIR_OP_STORE, MIR_NULL_TYPE, MIR_NULL_STAMP, dest, src);
+
+#ifdef DEBUG
    mir_type_t type = mir_get_type(mu, dest);
    mir_type_t pointed = mir_get_pointer(mu, type);
-
-   mir_build_2(mu, MIR_OP_STORE, pointed, MIR_NULL_STAMP, dest, src);
+#endif
 
    MIR_ASSERT(mir_get_class(mu, type) == MIR_TYPE_POINTER,
               "store destination is not a pointer or variable");

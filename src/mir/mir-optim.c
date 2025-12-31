@@ -47,11 +47,9 @@ typedef struct {
    cfg_edge_list_t in;
    cfg_edge_list_t out;
    bit_mask_t      dom;
-#if 0
    bit_mask_t      livein;
    bit_mask_t      varkill;
    bit_mask_t      liveout;
-#endif
 } cfg_block_t;
 
 typedef uint32_t valnum_t;
@@ -77,14 +75,8 @@ typedef struct {
 } gvn_state_t;
 
 typedef struct {
-   bit_mask_t visited;
-   uint8_t    uses[];
-} dce_state_t;
-
-typedef struct {
    cfg_block_t *cfg;
    gvn_state_t *gvn;
-   dce_state_t *dce;
 } mir_optim_t;
 
 static void mir_dump_optim(mir_unit_t *mu, mir_optim_t *an);
@@ -139,7 +131,9 @@ static cfg_block_t *mir_get_cfg(mir_unit_t *mu)
 
    for (int i = 0; i < mu->blocks.count; i++) {
       const block_data_t *bd = &(mu->blocks.items[i]);
+
       mir_block_t this = { .tag = MIR_TAG_BLOCK, .id = i };
+      cfg[i].block = this;
 
       DEBUG_ONLY(mir_set_cursor(mu, this, MIR_APPEND));
       MIR_ASSERT(bd->num_nodes > 0, "empty basic block");
@@ -157,11 +151,14 @@ static cfg_block_t *mir_get_cfg(mir_unit_t *mu)
          cfg[i].returns = true;
          break;
       default:
-         assert(last->nargs <= MIR_INLINE_ARGS);
-         for (int j = 0; j < last->nargs; j++) {
-            if (last->args[j].tag == MIR_TAG_BLOCK)
-               cfg_add_edge(cfg, this, mir_cast_block(last->args[j]));
+         {
+            const mir_value_t *args = mir_get_args(mu, last);
+            for (int j = 0; j < last->nargs; j++) {
+               if (args[j].tag == MIR_TAG_BLOCK)
+                  cfg_add_edge(cfg, this, mir_cast_block(args[j]));
+            }
          }
+         break;
       }
    }
 
@@ -176,6 +173,9 @@ static void mir_free_cfg(mir_unit_t *mu, cfg_block_t *cfg)
       if (cb->out.max > CFG_EMBED_EDGES) free(cb->out.u.external);
 
       mask_free(&cb->dom);
+      mask_free(&cb->livein);
+      mask_free(&cb->varkill);
+      mask_free(&cb->liveout);
    }
 
    free(cfg);
@@ -227,12 +227,11 @@ static void mir_dominator_tree(mir_unit_t *mu, cfg_block_t *cfg)
 ////////////////////////////////////////////////////////////////////////////////
 // Liveness analysis
 
-#if 0
 static void mir_do_liveness(mir_unit_t *mu, mir_optim_t *opt)
 {
    // Algorithm from "Engineering a Compiler" chapter 8.6
 
-   for (int i = 0; i < mu->num_blocks; i++) {
+   for (int i = 0; i < mu->blocks.count; i++) {
       cfg_block_t *cb = &(opt->cfg[i]);
       mask_init(&cb->livein, mu->num_nodes);
       mask_init(&cb->varkill, mu->num_nodes);
@@ -240,13 +239,13 @@ static void mir_do_liveness(mir_unit_t *mu, mir_optim_t *opt)
 
       const block_data_t *bd = mir_block_data(mu, cb->block);
       for (int j = 0; j < bd->num_nodes; j++) {
-         mir_value_t node = { .tag = MIR_TAG_NODE, .id = bd->nodes[i] };
+         mir_value_t node = { .tag = MIR_TAG_NODE, .id = bd->nodes[j] };
          const node_data_t *n = mir_node_data(mu, node);
 
+         mask_set(&cb->varkill, node.id);
+
          if (n->op == MIR_OP_CONST || n->op == MIR_OP_CONST_REAL)
-            continue;
-         else if (mir_is_null(n->type))
-            continue;   // Produces no value
+            continue;   // Arguments have special encoding
 
          const mir_value_t *args = mir_get_args(mu, n);
          for (int k = 0; k < n->nargs; k++) {
@@ -254,8 +253,6 @@ static void mir_do_liveness(mir_unit_t *mu, mir_optim_t *opt)
             if (arg.tag == MIR_TAG_NODE && !mask_test(&cb->varkill, arg.id))
                mask_set(&cb->livein, arg.id);
          }
-
-         mask_set(&cb->varkill, node.id);
       }
    }
 
@@ -267,7 +264,7 @@ static void mir_do_liveness(mir_unit_t *mu, mir_optim_t *opt)
    do {
       changed = false;
 
-      for (int i = mu->num_blocks - 1; i >= 0; i--) {
+      for (int i = mu->blocks.count - 1; i >= 0; i--) {
          cfg_block_t *cb = &(opt->cfg[i]);
          mask_clearall(&new);
 
@@ -287,7 +284,7 @@ static void mir_do_liveness(mir_unit_t *mu, mir_optim_t *opt)
    } while (changed);
 
    // Replaced "upward exposed variables" set with live-in
-   for (int i = 0; i < mu->num_blocks; i++) {
+   for (int i = 0; i < mu->blocks.count; i++) {
       cfg_block_t *cb = &(opt->cfg[i]);
       mask_copy(&tmp, &cb->liveout);
       mask_subtract(&tmp, &cb->varkill);
@@ -297,7 +294,6 @@ static void mir_do_liveness(mir_unit_t *mu, mir_optim_t *opt)
    mask_free(&new);
    mask_free(&tmp);
 }
-#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 // Global value numbering
@@ -684,70 +680,25 @@ static void mir_do_gvn(mir_unit_t *mu, mir_optim_t *opt)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// Simple dead code elimination by counting uses
-
-static void dce_visit_block(mir_unit_t *mu, mir_block_t block, mir_optim_t *opt)
-{
-   if (mask_test(&opt->dce->visited, block.id))
-      return;
-
-   mask_set(&opt->dce->visited, block.id);
-
-   const block_data_t *bd = mir_block_data(mu, block);
-   for (int i = 0; i < bd->num_nodes; i++) {
-      mir_value_t node = { .tag = MIR_TAG_NODE, .id = bd->nodes[i] };
-      node_data_t *n = mir_node_data(mu, node);
-      const mir_value_t *args = mir_get_args(mu, n);
-
-      for (int j = 0; j < n->nargs; j++) {
-         mir_value_t arg = args[j];
-         if (arg.tag == MIR_TAG_NODE)
-            opt->dce->uses[arg.id] = saturate_add(opt->dce->uses[arg.id], 1);
-      }
-
-      if (mir_is_null(n->type) || n->op == MIR_OP_STORE)
-         opt->dce->uses[node.id] = 1;   // Does not produce value
-   }
-
-   cfg_block_t *cb = &(opt->cfg[block.id]);
-   for (int i = 0; i < cb->out.count; i++)
-      dce_visit_block(mu, cfg_get_edge(&cb->out, i), opt);
-}
+// Dead code elimination using liveness information
 
 static void mir_do_dce(mir_unit_t *mu, mir_optim_t *opt)
 {
-   opt->dce = xcalloc_flex(sizeof(dce_state_t), mu->num_nodes, sizeof(uint8_t));
-   mask_init(&opt->dce->visited, mu->num_nodes);
-
-   for (int i = 0; i < mu->blocks.count; i++) {
-      if (opt->cfg[i].entry) {
-         mir_block_t this = { .tag = MIR_TAG_BLOCK, .id = i };
-         dce_visit_block(mu, this, opt);
-      }
-   }
-
-   if (opt_get_verbose(OPT_DCE_VERBOSE, istr(mu->name)))
-      mir_dump_optim(mu, opt);
+   bit_mask_t live;
+   mask_init(&live, mu->num_nodes);
 
    for (int i = mu->blocks.count - 1; i >= 0; i--) {
       mir_block_t this = { .tag = MIR_TAG_BLOCK, .id = i };
       const block_data_t *bd = mir_block_data(mu, this);
 
+      mask_copy(&live, &(opt->cfg[i].liveout));
+
       for (int j = bd->num_nodes - 1; j >= 0; j--) {
          mir_value_t node = { .tag = MIR_TAG_NODE, .id = bd->nodes[j] };
-         if (opt->dce->uses[node.id] == 0) {
-            const node_data_t *nd = mir_node_data(mu, node);
-            const mir_value_t *args = mir_get_args(mu, nd);
-            for (int k = 0; k < nd->nargs; k++) {
-               if (args[k].tag == MIR_TAG_NODE) {
-                  const uint8_t uses = opt->dce->uses[args[k].id];
-                  assert(uses > 0);
-                  if (uses < UINT8_MAX)
-                     opt->dce->uses[args[k].id] = uses - 1;
-               }
-            }
+         node_data_t *n = mir_node_data(mu, node);
 
-            DEBUG_ONLY(const mir_op_t op = nd->op);
+         if (!mir_is_null(n->type) && !mask_test(&live, node.id)) {
+            DEBUG_ONLY(const mir_op_t op = n->op);
 
             mir_set_cursor(mu, this, j);
             mir_delete(mu);
@@ -755,20 +706,42 @@ static void mir_do_dce(mir_unit_t *mu, mir_optim_t *opt)
             DEBUG_ONLY(mir_comment(mu, "Dead %s definition of %%%u",
                                    mir_op_string(op), node.id));
          }
+
+         mask_clear(&live, node.id);
+
+         const mir_value_t *args = mir_get_args(mu, n);
+
+         for (int k = 0; k < n->nargs; k++) {
+            mir_value_t arg = args[k];
+            if (arg.tag == MIR_TAG_NODE)
+               mask_set(&live, arg.id);
+         }
       }
    }
 
+   if (opt_get_verbose(OPT_DCE_VERBOSE, istr(mu->name)))
+      mir_dump_optim(mu, opt);
+
    mir_compact(mu);
 
-   mask_free(&opt->dce->visited);
-   free(opt->dce);
-   opt->dce = NULL;
+   mask_free(&live);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // Debugging
 
 // LCOV_EXCL_START /////////////////////////////////////////////////////////////
+
+static void dump_node_set(const bit_mask_t *mask, const char *tag)
+{
+   if (mask_popcount(mask) == 0)
+      return;
+
+   printf(" %s:{", tag);
+   for (size_t bit = -1, nth = 0; mask_iter(mask, &bit); nth++)
+      printf("%s%%%zd", nth++ > 0 ? "," : "", bit);
+   printf("}");
+}
 
 static int begin_block_cb(mir_unit_t *mu, mir_block_t block, int col, void *ctx)
 {
@@ -804,6 +777,11 @@ static int begin_block_cb(mir_unit_t *mu, mir_block_t block, int col, void *ctx)
          printf("%s%zd", nth > 0 ? "," : "", bit);
    }
 
+   if (cb->livein.size > 0) {
+      dump_node_set(&cb->livein, "livein");
+      dump_node_set(&cb->liveout, "liveout");
+   }
+
    if (cb->returns) printf(" returns");
    if (cb->aborts) printf(" aborts");
 
@@ -832,8 +810,6 @@ static int value_cb(mir_unit_t *mu, mir_value_t value, void *ctx)
       col += nvc_printf(")$$");
       return col;
    }
-   else if (opt->dce != NULL && value.tag == MIR_TAG_NODE)
-      return nvc_printf("$!black$(%u)$$", opt->dce->uses[value.id]);
    else
       return 0;
 }
@@ -857,15 +833,21 @@ void mir_optimise(mir_unit_t *mu, mir_pass_t passes)
 {
    mir_optim_t opt = {};
 
-   const mir_pass_t need_cfg = MIR_PASS_GVN | MIR_PASS_DCE;
+   const mir_pass_t need_dom = MIR_PASS_GVN;
+   const mir_pass_t need_liveness = MIR_PASS_DCE;
+   const mir_pass_t need_cfg = need_dom | need_liveness;
 
-   if (passes & need_cfg) {
+   if (passes & need_cfg)
       opt.cfg = mir_get_cfg(mu);
+
+   if (passes & need_dom)
       mir_dominator_tree(mu, opt.cfg);
-   }
 
    if (passes & MIR_PASS_GVN)
       mir_do_gvn(mu, &opt);
+
+   if (passes & need_liveness)
+      mir_do_liveness(mu, &opt);
 
    if (passes & MIR_PASS_DCE)
       mir_do_dce(mu, &opt);
