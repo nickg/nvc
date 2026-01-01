@@ -1164,6 +1164,39 @@ START_TEST(test_check1)
 }
 END_TEST
 
+START_TEST(test_cfg1)
+{
+   mir_unit_t *mu = mir_unit_new(get_mir(), ident_new("cfg1"), NULL,
+                                 MIR_UNIT_FUNCTION, NULL);
+
+   mir_build_return(mu, MIR_NULL_VALUE);
+
+   mir_block_t b2 = mir_add_block(mu);
+   mir_block_t b3 = mir_add_block(mu);
+
+   mir_set_cursor(mu, b2, MIR_APPEND);
+
+   mir_type_t t_offset = mir_offset_type(mu);
+
+   mir_build_debug_out(mu, mir_const(mu, t_offset, 42));
+   mir_build_jump(mu, b3);
+
+   mir_set_cursor(mu, b3, MIR_APPEND);
+
+   mir_build_debug_out(mu, mir_const(mu, t_offset, 111));
+   mir_build_jump(mu, b2);
+
+   mir_optimise(mu, MIR_PASS_CFG);
+
+   for (int i = 1; i <= 2; i++) {
+      static const mir_match_t bb[] = {
+         { MIR_OP_UNREACHABLE },
+      };
+      mir_match(mu, i, bb);
+   }
+}
+END_TEST
+
 Suite *get_mir_tests(void)
 {
    Suite *s = suite_create("mir");
@@ -1191,6 +1224,7 @@ Suite *get_mir_tests(void)
    tcase_add_test(tc, test_vec1);
    tcase_add_test(tc, test_vec2);
    tcase_add_test(tc, test_check1);
+   tcase_add_test(tc, test_cfg1);
    suite_add_tcase(s, tc);
 
    return s;

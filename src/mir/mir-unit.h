@@ -83,9 +83,10 @@ void mir_compare_layout(mir_unit_t *a, mir_unit_t *b);
 typedef enum {
    MIR_PASS_GVN = (1 << 0),
    MIR_PASS_DCE = (1 << 1),
+   MIR_PASS_CFG = (1 << 2),
 } mir_pass_t;
 
-#define MIR_PASS_O0 0
+#define MIR_PASS_O0 (MIR_PASS_CFG)
 #define MIR_PASS_O1 (MIR_PASS_GVN | MIR_PASS_DCE)
 #define MIR_PASS_O2 (MIR_PASS_GVN | MIR_PASS_DCE)
 

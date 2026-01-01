@@ -121,45 +121,68 @@ static mir_block_t cfg_get_edge(const cfg_edge_list_t *list, int nth)
       return list->u.external[nth];
 }
 
-static cfg_block_t *mir_get_cfg(mir_unit_t *mu)
+static void cfg_walk_block(mir_unit_t *mu, mir_block_t block, cfg_block_t *cfg,
+                           bit_mask_t *visited)
 {
-   cfg_block_t *cfg = xcalloc_array(mu->blocks.count, sizeof(cfg_block_t));
-   cfg[0].entry = true;
+   if (mask_test_and_set(visited, block.id))
+      return;
 
-   if (mir_get_kind(mu) == MIR_UNIT_PROCESS && mu->blocks.count > 1)
-      cfg[1].entry = true;
+   DEBUG_ONLY(mir_set_cursor(mu, block, MIR_APPEND));
 
-   for (int i = 0; i < mu->blocks.count; i++) {
-      const block_data_t *bd = &(mu->blocks.items[i]);
+   cfg[block.id].block = block;
 
-      mir_block_t this = { .tag = MIR_TAG_BLOCK, .id = i };
-      cfg[i].block = this;
+   const block_data_t *bd = &(mu->blocks.items[block.id]);
+   MIR_ASSERT(bd->num_nodes > 0, "empty basic block");
 
-      DEBUG_ONLY(mir_set_cursor(mu, this, MIR_APPEND));
-      MIR_ASSERT(bd->num_nodes > 0, "empty basic block");
+   const node_data_t *last = &(mu->nodes[bd->nodes[bd->num_nodes - 1]]);
+   MIR_ASSERT(mir_is_terminator(last->op),
+              "last operation in block is not terminator");
 
-      const node_data_t *last = &(mu->nodes[bd->nodes[bd->num_nodes - 1]]);
-      MIR_ASSERT(mir_is_terminator(last->op),
-                 "last operation in block is not terminator");
-
-      switch (last->op) {
-      case MIR_OP_WAIT:
-         assert(last->args[0].tag == MIR_TAG_BLOCK);
-         cfg[last->args[0].id].entry = true;
-         // Fall-through
-      case MIR_OP_RETURN:
-         cfg[i].returns = true;
-         break;
-      default:
-         {
-            const mir_value_t *args = mir_get_args(mu, last);
-            for (int j = 0; j < last->nargs; j++) {
-               if (args[j].tag == MIR_TAG_BLOCK)
-                  cfg_add_edge(cfg, this, mir_cast_block(args[j]));
+   switch (last->op) {
+   case MIR_OP_WAIT:
+      assert(last->args[0].tag == MIR_TAG_BLOCK);
+      cfg[last->args[0].id].entry = true;
+      cfg_walk_block(mu, mir_cast_block(last->args[0]), cfg, visited);
+      // Fall-through
+   case MIR_OP_RETURN:
+      cfg[block.id].returns = true;
+      break;
+   default:
+      {
+         const mir_value_t *args = mir_get_args(mu, last);
+         for (int j = 0; j < last->nargs; j++) {
+            if (args[j].tag == MIR_TAG_BLOCK) {
+               mir_block_t target = mir_cast_block(args[j]);
+               cfg_add_edge(cfg, block, target);
+               cfg_walk_block(mu, target, cfg, visited);
             }
          }
-         break;
       }
+      break;
+   }
+}
+
+static cfg_block_t *mir_get_cfg(mir_unit_t *mu)
+{
+   LOCAL_BIT_MASK visited;
+   mask_init(&visited, mu->blocks.count);
+
+   cfg_block_t *cfg = xcalloc_array(mu->blocks.count, sizeof(cfg_block_t));
+   for (int i = 0; i < mu->blocks.count; i++) {
+      mir_block_t this = { .tag = MIR_TAG_BLOCK, .id = i };
+      cfg[i].block = this;
+   }
+
+
+   cfg[0].entry = true;
+   cfg_walk_block(mu, cfg[0].block, cfg, &visited);
+
+   const bool multi_entry =
+      mu->kind == MIR_UNIT_PROCESS || mu->kind == MIR_UNIT_PROPERTY;
+
+   if (multi_entry && mu->blocks.count > 1) {
+      cfg[1].entry = true;
+      cfg_walk_block(mu, cfg[1].block, cfg, &visited);
    }
 
    return cfg;
@@ -728,6 +751,28 @@ static void mir_do_dce(mir_unit_t *mu, mir_optim_t *opt)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// Control flow graph cleanup
+
+static void mir_do_cfg_cleanup(mir_unit_t *mu, mir_optim_t *opt)
+{
+   for (int i = 0; i < mu->blocks.count; i++) {
+      if (!opt->cfg[i].entry && opt->cfg[i].in.count == 0) {
+         block_data_t *bd = &(mu->blocks.items[i]);
+
+         // TODO: could delete the block instead
+         mir_set_cursor(mu, opt->cfg[i].block, 0);
+         mir_delete(mu);
+         mir_build_unreachable(mu, MIR_NULL_VALUE);
+
+         bd->num_nodes = 1;
+      }
+   }
+
+   if (opt_get_verbose(OPT_CFG_VERBOSE, istr(mu->name)))
+      mir_dump_optim(mu, opt);
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // Debugging
 
 // LCOV_EXCL_START /////////////////////////////////////////////////////////////
@@ -835,10 +880,13 @@ void mir_optimise(mir_unit_t *mu, mir_pass_t passes)
 
    const mir_pass_t need_dom = MIR_PASS_GVN;
    const mir_pass_t need_liveness = MIR_PASS_DCE;
-   const mir_pass_t need_cfg = need_dom | need_liveness;
+   const mir_pass_t need_cfg = need_dom | need_liveness | MIR_PASS_CFG;
 
    if (passes & need_cfg)
       opt.cfg = mir_get_cfg(mu);
+
+   if (passes & MIR_PASS_CFG)
+      mir_do_cfg_cleanup(mu, &opt);
 
    if (passes & need_dom)
       mir_dominator_tree(mu, opt.cfg);

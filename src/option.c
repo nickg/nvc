@@ -180,6 +180,7 @@ void set_default_options(void)
    opt_set_int(OPT_PRESERVE_CASE, 0);
    opt_set_str(OPT_GVN_VERBOSE, getenv("NVC_GVN_VERBOSE"));
    opt_set_str(OPT_DCE_VERBOSE, getenv("NVC_DCE_VERBOSE"));
+   opt_set_str(OPT_CFG_VERBOSE, getenv("NVC_CFG_VERBOSE"));
    opt_set_int(OPT_RANDOM_SEED, get_timestamp_us());
    opt_set_int(OPT_ELAB_STATS, 0);
    opt_set_str(OPT_RELATIVE_PATH, NULL);
