@@ -2103,6 +2103,41 @@ START_TEST(test_lvn11)
 }
 END_TEST
 
+START_TEST(test_lvn12)
+{
+   jit_t *j = jit_new(NULL, NULL, NULL);
+
+   const char *text1 =
+      "    RECV        R2, #0       \n"
+      "    MOV         R0, R2       \n"
+      "    SEND        #0, R0       \n"
+      "    CALL        <FUNC>       \n"
+      "    RECV        R1, #0       \n"
+      "    REM         R0, R1, #2   \n"
+      "    CMP.EQ      R0, #0       \n"
+      "    CSET        R1           \n"
+      "    SEND        #0, R1       \n"   // Should not remove this
+      "    RECV        R1, #0       \n"
+      "    CSEL        R1, R2, R3   \n"
+      "    SEND        #0, R1       \n"   // Should not remove this
+      "    RET                      \n";
+
+   jit_handle_t h1 = jit_assemble(j, ident_new("myfunc1"), text1);
+
+   jit_func_t *f = jit_get_func(j, h1);
+   jit_do_lvn(f);
+
+   check_unary(f, 0, J_RECV, CONST(0));
+   check_nullary(f, 2, J_NOP);
+   check_unary(f, 4, J_RECV, CONST(0));
+   check_nullary(f, 7, J_CSET);
+   check_binary(f, 8, J_SEND, CONST(0), REG(1));
+   check_binary(f, 11, J_SEND, CONST(0), REG(1));
+
+   jit_free(j);
+}
+END_TEST
+
 Suite *get_jit_tests(void)
 {
    Suite *s = suite_create("jit");
@@ -2160,6 +2195,7 @@ Suite *get_jit_tests(void)
    tcase_add_test(tc, test_lscan1);
    tcase_add_test(tc, test_trim1);
    tcase_add_test(tc, test_lvn11);
+   tcase_add_test(tc, test_lvn12);
    suite_add_tcase(s, tc);
 
    return s;

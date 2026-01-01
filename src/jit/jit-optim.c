@@ -752,6 +752,8 @@ static void jit_lvn_csel(jit_ir_t *ir, lvn_state_t *state)
    const int fconst = state->regvn[state->func->nregs];
    if (fconst != VN_INVALID)
       lvn_convert_mov(ir, state, fconst ? ir->arg1 : ir->arg2);
+   else
+      state->regvn[ir->result] = VN_INVALID;
 }
 
 static void jit_lvn_cset(jit_ir_t *ir, lvn_state_t *state)
@@ -759,6 +761,8 @@ static void jit_lvn_cset(jit_ir_t *ir, lvn_state_t *state)
    const int fconst = state->regvn[state->func->nregs];
    if (fconst != VN_INVALID)
       lvn_convert_mov(ir, state, LVN_CONST(fconst));
+   else
+      state->regvn[ir->result] = VN_INVALID;
 }
 
 static void jit_lvn_jump(jit_ir_t *ir, lvn_state_t *state)
