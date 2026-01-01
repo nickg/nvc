@@ -738,35 +738,6 @@ static void macro_vec4op(jit_irgen_t *g, jit_vec_op_t op, int size)
 ////////////////////////////////////////////////////////////////////////////////
 // MIR to JIT IR lowering
 
-static int irgen_slots_for_type(jit_irgen_t *g, mir_type_t type)
-{
-   if (mir_is_null(type))
-      return 1;   // Untyped constants
-
-   switch (mir_get_class(g->mu, type)) {
-   case MIR_TYPE_UARRAY:
-      // Always passed around scalarised
-      if (mir_get_class(g->mu, mir_get_elem(g->mu, type)) == MIR_TYPE_SIGNAL)
-         return 2 + mir_get_dims(g->mu, type) * 2;
-      else
-         return 1 + mir_get_dims(g->mu, type) * 2;
-   case MIR_TYPE_SIGNAL:
-      // Signal pointer plus offset
-      return 2;
-   case MIR_TYPE_CLOSURE:
-      // Function pointer, context
-      return 2;
-   case MIR_TYPE_RESOLUTION:
-      // Closure slots plus nlits, and flags (this is silly)
-      return 4;
-   case MIR_TYPE_VEC4:
-      return 2;
-   default:
-      // Passed by pointer or fits in 64-bit register
-      return 1;
-   }
-}
-
 static int irgen_repr_bits(mir_repr_t repr)
 {
    switch (repr) {
@@ -1445,7 +1416,7 @@ static void irgen_send_args(jit_irgen_t *g, mir_value_t n, int first)
       if (arg.tag == MIR_TAG_LINKAGE || arg.tag == MIR_TAG_BLOCK)
          continue;   // Skip function name and resume block
 
-      int slots = irgen_slots_for_type(g, mir_get_type(g->mu, arg));
+      int slots = mir_get_slots(g->mu, mir_get_type(g->mu, arg));
 
       if (pslot + slots >= JIT_MAX_ARGS - 1) {
          // Large number of arguments spill to the heap
@@ -1453,7 +1424,7 @@ static void irgen_send_args(jit_irgen_t *g, mir_value_t n, int first)
             size_t size = slots * sizeof(jit_scalar_t);
             for (int j = i + 1; j < nargs; j++) {
                mir_type_t type = mir_get_type(g->mu, mir_get_arg(g->mu, n, j));
-               size += irgen_slots_for_type(g, type) * sizeof(jit_scalar_t);
+               size += mir_get_slots(g->mu, type) * sizeof(jit_scalar_t);
             }
 
             spill = irgen_alloc_temp(g);
@@ -1879,7 +1850,7 @@ static void irgen_op_load(jit_irgen_t *g, mir_value_t n)
 
    case MIR_TYPE_UARRAY:
       {
-         const int slots = irgen_slots_for_type(g, mir_get_elem(g->mu, type));
+         const int slots = mir_get_slots(g->mu, mir_get_elem(g->mu, type));
          for (int i = 0; i < slots; i++) {
             jit_value_t slot = irgen_get_slot(g, n, i);
             j_load(g, JIT_SZ_PTR, slot, addr);
@@ -1964,7 +1935,7 @@ static void irgen_op_store(jit_irgen_t *g, mir_value_t n)
 
    case MIR_TYPE_UARRAY:
       {
-         const int slots = irgen_slots_for_type(g, mir_get_elem(g->mu, type));
+         const int slots = mir_get_slots(g->mu, mir_get_elem(g->mu, type));
          for (int i = 0; i < slots; i++) {
             j_store(g, JIT_SZ_PTR, irgen_get_slot(g, arg1, i), addr);
             addr = jit_addr_from_value(addr, sizeof(void *));
@@ -2026,7 +1997,7 @@ static void irgen_op_wrap(jit_irgen_t *g, mir_value_t n)
    mir_type_t type = mir_get_type(g->mu, arg0);
 
    const int ndims = mir_count_args(g->mu, n) / 3;
-   const int slots = irgen_slots_for_type(g, type);
+   const int slots = mir_get_slots(g->mu, type);
 
    if (slots > 1) {
       j_mov(g, irgen_get_slot(g, n, 0), ptr);
@@ -2072,7 +2043,7 @@ static void irgen_op_uarray_right(jit_irgen_t *g, mir_value_t n)
    mir_type_t elem = mir_get_elem(g->mu, mir_get_type(g->mu, arg0));
 
    const int dim = irgen_get_const(g, n, 1);
-   const int slots = irgen_slots_for_type(g, elem);
+   const int slots = mir_get_slots(g->mu, elem);
 
    jit_value_t left   = irgen_get_slot(g, arg0, slots + dim*2);
    jit_value_t length = irgen_get_slot(g, arg0, slots + 1 + dim*2);
@@ -2092,7 +2063,7 @@ static void irgen_op_uarray_left(jit_irgen_t *g, mir_value_t n)
    mir_type_t elem = mir_get_elem(g->mu, mir_get_type(g->mu, arg0));
 
    const int dim = irgen_get_const(g, n, 1);
-   const int slots = irgen_slots_for_type(g, elem);
+   const int slots = mir_get_slots(g->mu, elem);
 
    j_mov(g, g->map[n.id], irgen_get_slot(g, arg0, slots + dim*2));
 }
@@ -2103,7 +2074,7 @@ static void irgen_op_uarray_dir(jit_irgen_t *g, mir_value_t n)
    mir_type_t elem = mir_get_elem(g->mu, mir_get_type(g->mu, arg0));
 
    const int dim = irgen_get_const(g, n, 1);
-   const int slots = irgen_slots_for_type(g, elem);
+   const int slots = mir_get_slots(g->mu, elem);
 
    jit_value_t length = irgen_get_slot(g, arg0, slots + 1 + dim*2);
    j_cmp(g, JIT_CC_LT, length, jit_value_from_int64(0));
@@ -2120,7 +2091,7 @@ static void irgen_op_uarray_len(jit_irgen_t *g, mir_value_t n)
    mir_type_t elem = mir_get_elem(g->mu, mir_get_type(g->mu, arg0));
 
    const int dim = irgen_get_const(g, n, 1);
-   const int slots = irgen_slots_for_type(g, elem);
+   const int slots = mir_get_slots(g->mu, elem);
 
    jit_value_t result = g->map[n.id];
    jit_value_t length = irgen_get_slot(g, arg0, slots + 1 + dim*2);
@@ -2134,7 +2105,7 @@ static void irgen_op_unwrap(jit_irgen_t *g, mir_value_t n)
 
    mir_type_t elem = mir_get_elem(g->mu, mir_get_type(g->mu, arg0));
 
-   const int slots = irgen_slots_for_type(g, elem);
+   const int slots = mir_get_slots(g->mu, elem);
    for (int i = 0; i < slots; i++)
       j_mov(g, irgen_get_slot(g, n, i), irgen_get_slot(g, arg0, i));
 }
@@ -2496,7 +2467,7 @@ static void irgen_op_select(jit_irgen_t *g, mir_value_t n)
 
    j_csel(g, irgen_get_slot(g, n, 0), iftrue, iffalse);
 
-   const int slots = irgen_slots_for_type(g, mir_get_type(g->mu, n));
+   const int slots = mir_get_slots(g->mu, mir_get_type(g->mu, n));
    for (int i = 1; i < slots; i++) {
       jit_value_t iftrue_i = irgen_get_arg_slot(g, n, 1, i);
       jit_value_t iffalse_i = irgen_get_arg_slot(g, n, 2, i);
@@ -2526,7 +2497,7 @@ static void irgen_op_fcall(jit_irgen_t *g, mir_value_t n)
    j_call(g, irgen_get_handle(g, n, 0));
 
    if (!mir_is_null(rtype)) {
-      const int slots = irgen_slots_for_type(g, rtype);
+      const int slots = mir_get_slots(g->mu, rtype);
       for (int i = 0; i < slots; i++)
          j_recv(g, irgen_get_slot(g, n, i), i);
 
@@ -2554,7 +2525,7 @@ static void irgen_op_syscall(jit_irgen_t *g, mir_value_t n)
 
    mir_type_t rtype = mir_get_type(g->mu, n);
    if (!mir_is_null(rtype)) {
-      const int slots = irgen_slots_for_type(g, rtype);
+      const int slots = mir_get_slots(g->mu, rtype);
       for (int i = 0; i < slots; i++)
          j_recv(g, irgen_get_slot(g, n, i), i);
    }
@@ -2674,7 +2645,7 @@ static void irgen_op_reflect_value(jit_irgen_t *g, mir_value_t n)
 
    if (mir_count_args(g->mu, n) > 3) {
       mir_value_t bounds = mir_get_arg(g->mu, n, 3);
-      const int slots = irgen_slots_for_type(g, mir_get_type(g->mu, bounds));
+      const int slots = mir_get_slots(g->mu, mir_get_type(g->mu, bounds));
       if (slots > 1) {
          for (int j = 0; j < slots; j++)
             j_send(g, j + 3, irgen_get_slot(g, bounds, j));
@@ -2700,7 +2671,7 @@ static void irgen_op_reflect_subtype(jit_irgen_t *g, mir_value_t n)
 
    if (mir_count_args(g->mu, n) > 2) {
       mir_value_t bounds = mir_get_arg(g->mu, n, 2);
-      const int slots = irgen_slots_for_type(g, mir_get_type(g->mu, bounds));
+      const int slots = mir_get_slots(g->mu, mir_get_type(g->mu, bounds));
       if (slots > 1) {
          for (int j = 0; j < slots; j++)
             j_send(g, j + 2, irgen_get_slot(g, bounds, j));
@@ -3835,7 +3806,7 @@ static void irgen_op_function_trigger(jit_irgen_t *g, mir_value_t n)
    int nslots = 0;
    for (int i = 1; i < nargs; i++) {
       mir_type_t type = mir_get_type(g->mu, mir_get_arg(g->mu, n, i));
-      nslots += irgen_slots_for_type(g, type);
+      nslots += mir_get_slots(g->mu, type);
    }
 
    j_send(g, 0, jit_value_from_handle(handle));
@@ -3973,7 +3944,7 @@ static void irgen_op_bind_foreign(jit_irgen_t *g, mir_value_t n)
    const int nparams = mir_count_params(g->mu);
    for (int i = 0; i < nparams; i++) {
       mir_value_t p = mir_get_param(g->mu, i);
-      const int slots = irgen_slots_for_type(g, mir_get_type(g->mu, p));
+      const int slots = mir_get_slots(g->mu, mir_get_type(g->mu, p));
       if (unlikely(pslot + slots >= JIT_MAX_ARGS))
          fatal("foreign subprogram %s requires more than the maximum supported "
                "%d arguments", istr(mir_get_name(g->mu, MIR_NULL_VALUE)),
@@ -3994,7 +3965,7 @@ static void irgen_op_instance_name(jit_irgen_t *g, mir_value_t n)
 
    macro_exit(g, JIT_EXIT_INSTANCE_NAME);
 
-   const int slots = irgen_slots_for_type(g, mir_get_type(g->mu, n));
+   const int slots = mir_get_slots(g->mu, mir_get_type(g->mu, n));
    for (int i = 0; i < slots; i++)
       j_recv(g, irgen_get_slot(g, n, i), i);
 }
@@ -5028,7 +4999,7 @@ static void irgen_params(jit_irgen_t *g, int first)
    for (int i = 0, pslot = first; i < nparams; i++) {
       mir_value_t p = mir_get_param(g->mu, i);
       mir_type_t type = mir_get_type(g->mu, p);
-      int slots = irgen_slots_for_type(g, type);
+      int slots = mir_get_slots(g->mu, type);
 
       g->params[p.id] = irgen_alloc_reg(g, slots);
 
@@ -5358,7 +5329,7 @@ static void irgen_preallocate(jit_irgen_t *g, mir_block_t block)
             if (mir_is_null(type))
                g->map[n.id].kind = JIT_VALUE_INVALID;
             else {
-               const int slots = irgen_slots_for_type(g, type);
+               const int slots = mir_get_slots(g->mu, type);
                g->map[n.id] = irgen_alloc_reg(g, slots);
             }
          }

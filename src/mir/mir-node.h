@@ -384,6 +384,7 @@ mir_type_t mir_get_elem(mir_unit_t *mu, mir_type_t type);
 mir_type_t mir_get_pointer(mir_unit_t *mu, mir_type_t type);
 unsigned mir_get_dims(mir_unit_t *mu, mir_type_t type);
 unsigned mir_get_size(mir_unit_t *mu, mir_type_t type);
+unsigned mir_get_slots(mir_unit_t *mu, mir_type_t type);
 bool mir_get_signed(mir_unit_t *mu, mir_type_t type);
 mir_class_t mir_get_class(mir_unit_t *mu, mir_type_t type);
 mir_repr_t mir_get_repr(mir_unit_t *mu, mir_type_t type);
