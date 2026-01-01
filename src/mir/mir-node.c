@@ -157,6 +157,11 @@ unsigned mir_count_params(mir_unit_t *mu)
    return mu->params.count;
 }
 
+unsigned mir_count_vregs(mir_unit_t *mu)
+{
+   return mu->num_vregs;
+}
+
 mir_op_t mir_get_op(mir_unit_t *mu, mir_value_t node)
 {
    switch (node.tag) {
@@ -267,6 +272,15 @@ bool mir_block_finished(mir_unit_t *mu, mir_block_t block)
    return mir_is_terminator(mu->nodes[bd->nodes[bd->num_nodes - 1]].op);
 }
 
+mir_vreg_t mir_get_vreg(mir_unit_t *mu, mir_value_t value)
+{
+   if (mu->vregs == NULL)
+      fatal_trace("%pi has not been optimised", mu->name);
+
+   assert(value.tag == MIR_TAG_NODE);
+   return mu->vregs[value.id];
+}
+
 static inline node_id_t mir_node_id(mir_unit_t *mu, node_data_t *n)
 {
    assert(n >= mu->nodes && n < mu->nodes + mu->num_nodes);
@@ -330,6 +344,8 @@ static node_data_t *mir_add_node(mir_unit_t *mu, mir_op_t op, mir_type_t type,
 
    if (nargs > MIR_INLINE_ARGS)
       n->spilloff = mir_spill_args(mu, nargs);
+
+   MIR_ASSERT(mu->vregs == NULL, "cannot add nodes after register allocation");
 
    return n;
 }

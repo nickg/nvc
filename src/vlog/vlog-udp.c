@@ -305,4 +305,6 @@ void vlog_lower_udp(mir_unit_t *mu, object_t *obj)
 
       mir_build_wait(mu, start_bb);
    }
+
+   mir_optimise(mu, MIR_PASS_O0);
 }

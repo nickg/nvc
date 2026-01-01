@@ -1065,6 +1065,8 @@ void vhdl_lower_predef(mir_unit_t *mu, object_t *obj)
    default:
       should_not_reach_here();
    }
+
+   mir_optimise(mu, MIR_PASS_O0);
 }
 
 static void enum_image_helper(mir_unit_t *mu, type_t type, mir_value_t arg)
@@ -1484,4 +1486,6 @@ void vhdl_lower_image_helper(mir_unit_t *mu, object_t *obj)
    default:
       fatal_trace("cannot lower image helper for type %s", type_pp(type));
    }
+
+   mir_optimise(mu, MIR_PASS_O0);
 }

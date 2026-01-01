@@ -5301,6 +5301,11 @@ static void irgen_preallocate(jit_irgen_t *g, mir_block_t block)
 {
    g->blocks[block.id] = irgen_alloc_label(g);
 
+   const int num_vregs = mir_count_vregs(g->mu);
+   jit_value_t *vregs LOCAL = xmalloc_array(num_vregs, sizeof(jit_value_t));
+   for (int i = 0; i < num_vregs; i++)
+      vregs[i].kind = JIT_VALUE_INVALID;
+
    const int nops = mir_count_nodes(g->mu, block);
    for (int i = 0; i < nops; i++) {
       DEBUG_ONLY(mir_set_cursor(g->mu, block, i));
@@ -5337,8 +5342,14 @@ static void irgen_preallocate(jit_irgen_t *g, mir_block_t block)
             if (mir_is_null(type))
                g->map[n.id].kind = JIT_VALUE_INVALID;
             else {
-               const int slots = mir_get_slots(g->mu, type);
-               g->map[n.id] = irgen_alloc_reg(g, slots);
+               mir_vreg_t vreg = mir_get_vreg(g->mu, n);
+               assert(vreg.first != MIR_VREG_MAX);
+               assert(vreg.width > 0);
+
+               if (vregs[vreg.first].kind == JIT_VALUE_INVALID)
+                  vregs[vreg.first] = irgen_alloc_reg(g, vreg.width);
+
+               g->map[n.id] = vregs[vreg.first];
             }
          }
          break;

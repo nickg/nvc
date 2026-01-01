@@ -1229,6 +1229,8 @@ static void vlog_lower_edge_fn(mir_unit_t *mu, int edge)
    mir_value_t level = mir_const_vec(mu, t_logic, edge, 0);
    mir_value_t cmp = mir_build_cmp(mu, MIR_CMP_EQ, rvalue, level);
    mir_build_return(mu, cmp);
+
+   mir_optimise(mu, MIR_PASS_O0);
 }
 
 static void vlog_lower_posedge_fn(mir_unit_t *mu, object_t *obj)
@@ -2450,6 +2452,8 @@ static void vlog_lower_class_decl(mir_unit_t *mu, object_t *obj)
 
    if (!mir_block_finished(mu, MIR_NULL_BLOCK))
       mir_build_return(mu, MIR_NULL_VALUE);
+
+   mir_optimise(mu, MIR_PASS_O0);
 }
 
 static mir_type_t vlog_lower_vhdl_type(mir_unit_t *mu, type_t type)
@@ -2538,6 +2542,8 @@ static void vlog_lower_converter(mir_unit_t *mu, tree_t cf, mir_value_t in,
    mir_build_put_conversion(mu, conv, out, count, result);
 
    mir_build_return(mu, mir_const(mu, t_offset, 0));
+
+   mir_optimise(mu, MIR_PASS_O0);
 }
 
 static void vlog_lower_convert_in(mir_unit_t *mu, object_t *obj)
@@ -2860,6 +2866,8 @@ mir_unit_t *vlog_lower_thunk(mir_context_t *mc, ident_t parent, vlog_node_t v)
          mir_build_return(mu, value);
       }
    }
+
+   mir_optimise(mu, MIR_PASS_O0);
 
    vlog_lower_cleanup(&g);
    return mu;

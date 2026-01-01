@@ -84,11 +84,12 @@ typedef enum {
    MIR_PASS_GVN = (1 << 0),
    MIR_PASS_DCE = (1 << 1),
    MIR_PASS_CFG = (1 << 2),
+   MIR_PASS_RA  = (1 << 3),
 } mir_pass_t;
 
-#define MIR_PASS_O0 (MIR_PASS_CFG)
-#define MIR_PASS_O1 (MIR_PASS_GVN | MIR_PASS_DCE)
-#define MIR_PASS_O2 (MIR_PASS_GVN | MIR_PASS_DCE)
+#define MIR_PASS_O0 (MIR_PASS_CFG | MIR_PASS_RA)
+#define MIR_PASS_O1 (MIR_PASS_O0 | MIR_PASS_GVN | MIR_PASS_DCE)
+#define MIR_PASS_O2 (MIR_PASS_O1)
 
 void mir_optimise(mir_unit_t *mu, mir_pass_t passes);
 

@@ -1860,5 +1860,6 @@ mir_unit_t *mir_import(mir_context_t *mc, vcode_unit_t vu)
    free(imp.map);
    free(imp.vars);
 
+   mir_optimise(mu, MIR_PASS_O0);
    return mu;
 }

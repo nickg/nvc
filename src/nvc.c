@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2025  Nick Gasson
+//  Copyright (C) 2011-2026  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -75,7 +75,7 @@ typedef struct {
 } cmd_state_t;
 
 const char copy_string[] =
-   "Copyright (C) 2011-2025  Nick Gasson\n"
+   "Copyright (C) 2011-2026  Nick Gasson\n"
    "This program comes with ABSOLUTELY NO WARRANTY. This is free software, "
    "and\nyou are welcome to redistribute it under certain conditions. See "
    "the GNU\nGeneral Public Licence for details.";

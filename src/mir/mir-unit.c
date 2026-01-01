@@ -70,6 +70,7 @@ static void mir_unit_free_memory(mir_unit_t *mu)
 
    hash_free(mu->objmap);
    hash_free(mu->privmap);
+   free(mu->vregs);
    free(mu->nodes);
    free(mu->argspill);
    free(mu);

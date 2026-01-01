@@ -107,6 +107,15 @@ STATIC_ASSERT(sizeof(mir_stamp_t) == 4);
          (mir_type_t){ .bits = (p).bits };      \
       })
 
+typedef struct {
+   uint16_t first;
+   uint16_t width;
+} mir_vreg_t;
+
+STATIC_ASSERT(sizeof(mir_vreg_t) == 4);
+
+#define MIR_VREG_MAX UINT16_MAX
+
 typedef enum {
    MIR_CMP_EQ,
    MIR_CMP_NEQ,
@@ -407,6 +416,7 @@ unsigned mir_count_nodes(mir_unit_t *mu, mir_block_t block);
 mir_value_t mir_get_node(mir_unit_t *mu, mir_block_t block, unsigned nth);
 unsigned mir_count_vars(mir_unit_t *mu);
 unsigned mir_count_params(mir_unit_t *mu);
+unsigned mir_count_vregs(mir_unit_t *mu);
 
 mir_op_t mir_get_op(mir_unit_t *mu, mir_value_t node);
 unsigned mir_count_args(mir_unit_t *mu, mir_value_t node);
@@ -433,6 +443,7 @@ mir_type_t mir_get_var_type(mir_unit_t *mu, mir_value_t value);
 void mir_set_input(mir_unit_t *mu, mir_value_t phi, unsigned nth,
                    mir_block_t block, mir_value_t value);
 bool mir_block_finished(mir_unit_t *mu, mir_block_t block);
+mir_vreg_t mir_get_vreg(mir_unit_t *mu, mir_value_t value);
 
 void mir_set_result(mir_unit_t *mu, mir_type_t type);
 mir_type_t mir_get_result(mir_unit_t *mu);

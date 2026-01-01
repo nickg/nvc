@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2024-2025  Nick Gasson
+//  Copyright (C) 2024-2026  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -16,6 +16,7 @@
 //
 
 #include "util.h"
+#include "array.h"
 #include "ident.h"
 #include "mask.h"
 #include "mir/mir-node.h"
@@ -75,8 +76,20 @@ typedef struct {
 } gvn_state_t;
 
 typedef struct {
+   mir_value_t value;
+   unsigned    first;
+   unsigned    last;
+} live_range_t;
+
+typedef struct {
+   unsigned     *block_start;
+   live_range_t  lrg[];
+} ra_state_t;
+
+typedef struct {
    cfg_block_t *cfg;
    gvn_state_t *gvn;
+   ra_state_t  *ra;
 } mir_optim_t;
 
 static void mir_dump_optim(mir_unit_t *mu, mir_optim_t *an);
@@ -783,6 +796,230 @@ static void mir_do_cfg_cleanup(mir_unit_t *mu, mir_optim_t *opt)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// Virtual register allocation
+
+static void ra_grow_range(mir_value_t value, unsigned pos, ra_state_t *ra)
+{
+   assert(value.tag == MIR_TAG_NODE);
+
+   live_range_t *lrg = &(ra->lrg[value.id]);
+   assert(mir_is_null(lrg->value) || mir_equals(lrg->value, value));
+
+   lrg->value = value;
+   lrg->first = MIN(lrg->first, pos);
+   lrg->last = MAX(lrg->last, pos);
+}
+
+static void ra_build_lrg(mir_unit_t *mu, mir_optim_t *opt, mir_block_t block,
+                         bit_mask_t *visited)
+{
+   if (mask_test_and_set(visited, block.id))
+      return;
+
+   const cfg_block_t *cb = &(opt->cfg[block.id]);
+
+   const unsigned first = opt->ra->block_start[block.id];
+   assert(first != UINT_MAX);
+
+   for (size_t bit = -1; mask_iter(&cb->livein, &bit);) {
+      mir_value_t node = { .tag = MIR_TAG_NODE, .id = bit };
+      ra_grow_range(node, first, opt->ra);
+   }
+
+   const block_data_t *bd = mir_block_data(mu, block);
+
+   for (int i = 0; i < bd->num_nodes; i++) {
+      mir_value_t node = { .tag = MIR_TAG_NODE, .id = bd->nodes[i] };
+      node_data_t *n = mir_node_data(mu, node);
+
+      if (!mir_is_null(n->type))
+         ra_grow_range(node, first + i, opt->ra);
+
+      const mir_value_t *args = mir_get_args(mu, n);
+
+      for (int j = 0; j < n->nargs; j++) {
+         mir_value_t arg = args[j];
+         if (arg.tag == MIR_TAG_NODE)
+            ra_grow_range(arg, first + i, opt->ra);
+      }
+   }
+
+   for (size_t bit = -1; mask_iter(&cb->liveout, &bit); ) {
+      mir_value_t node = { .tag = MIR_TAG_NODE, .id = bit };
+      ra_grow_range(node, first + bd->num_nodes - 1, opt->ra);
+   }
+
+   for (int i = 0; i < cb->out.count; i++) {
+      mir_block_t next = cfg_get_edge(&(cb->out), i);
+      ra_build_lrg(mu, opt, next, visited);
+   }
+}
+
+static void ra_compute_postorder(mir_optim_t *opt, mir_block_t block,
+                                 bit_mask_t *visited, mir_block_t **tailp)
+{
+   if (mask_test_and_set(visited, block.id))
+      return;
+
+   const cfg_block_t *cb = &(opt->cfg[block.id]);
+
+   for (int i = 0; i < cb->out.count; i++) {
+      mir_block_t next = cfg_get_edge(&(cb->out), i);
+      ra_compute_postorder(opt, next, visited, tailp);
+   }
+
+   *(*tailp)++ = block;
+}
+
+static int live_range_cmp(const void *a, const void *b)
+{
+   const live_range_t *la = a;
+   const live_range_t *lb = b;
+
+   if (la->first < lb->first)
+      return -1;
+   else if (la->first > lb->first)
+      return 1;
+   else
+      return 0;
+}
+
+static inline void ra_shift_active(live_range_t **active, unsigned to,
+                                   unsigned from, unsigned count)
+{
+   if (to != from && count == 1)
+      active[to] = active[from];
+   else if (to != from && count > 1)
+      memmove(active + to, active + from, count * sizeof(live_range_t *));
+}
+
+static void mir_do_ra(mir_unit_t *mu, mir_optim_t *opt)
+{
+   opt->ra = xmalloc_flex(sizeof(ra_state_t), mu->num_nodes,
+                          sizeof(live_range_t));
+
+   const live_range_t null_lrg = { MIR_NULL_VALUE, UINT_MAX, 0 };
+   for (int i = 0; i < mu->num_nodes; i++)
+      opt->ra->lrg[i] = null_lrg;
+
+   bit_mask_t visited;
+   mask_init(&visited, mu->blocks.count);
+
+   mir_block_t *postorder LOCAL =
+      xmalloc_array(mu->blocks.count, sizeof(mir_block_t));
+   mir_block_t *tailp = postorder;
+
+   for (int i = 0; i < mu->blocks.count; i++) {
+      if (opt->cfg[i].entry) {
+         mir_block_t this = { .tag = MIR_TAG_BLOCK, .id = i };
+         assert(!mask_test(&visited, i));
+         ra_compute_postorder(opt, this, &visited, &tailp);
+      }
+   }
+   assert(tailp <= postorder + mu->blocks.count);
+
+   opt->ra->block_start = xmalloc_array(mu->blocks.count, sizeof(unsigned));
+   for (int i = 0; i < mu->blocks.count; i++)
+      opt->ra->block_start[i] = UINT_MAX;
+
+   // Number nodes in reverse post-order
+   for (int i = tailp - postorder - 1, index = 0; i >= 0; i--) {
+      mir_block_t this = postorder[i];
+      opt->ra->block_start[this.id] = index;
+      index += mir_block_data(mu, this)->num_nodes;
+   }
+
+   mask_clearall(&visited);
+
+   for (int i = 0; i < mu->blocks.count; i++) {
+      if (opt->cfg[i].entry) {
+         mir_block_t this = { .tag = MIR_TAG_BLOCK, .id = i };
+         assert(!mask_test(&visited, i));
+         ra_build_lrg(mu, opt, this, &visited);
+      }
+   }
+
+   mask_free(&visited);
+
+   qsort(opt->ra->lrg, mu->num_nodes, sizeof(live_range_t), live_range_cmp);
+
+   assert(mu->vregs == NULL);
+   mu->vregs = xmalloc_array(mu->num_nodes, sizeof(mir_vreg_t));
+
+   const mir_vreg_t null_vreg = { MIR_VREG_MAX, 0 };
+   for (int i = 0; i < mu->num_nodes; i++)
+      mu->vregs[i] = null_vreg;
+
+   live_range_t **active LOCAL =
+      xmalloc_array(mu->num_nodes, sizeof(live_range_t *));
+
+   SCOPED_A(mir_vreg_t) freeregs = AINIT;
+
+   // Linear scan algorithm modified to remove spilling
+   for (int i = 0, nactive = 0; i < mu->num_nodes; i++) {
+      // Expire old intervals
+      int expire = 0;
+      for (; expire < nactive; expire++) {
+         const live_range_t *next = active[expire];
+         if (next->last >= opt->ra->lrg[i].first)
+            break;
+         else {
+            assert(next->value.tag == MIR_TAG_NODE);
+            APUSH(freeregs, mu->vregs[next->value.id]);
+         }
+      }
+
+      ra_shift_active(active, 0, expire, nactive - expire);
+      nactive -= expire;
+
+      const live_range_t *this = &opt->ra->lrg[i];
+      if (mir_is_null(this->value))
+         continue;    // Does not produce value
+
+      assert(this->value.tag == MIR_TAG_NODE);
+
+      const int width = mir_get_slots(mu, mir_get_type(mu, this->value));
+
+      bool reused = false;
+      for (int j = freeregs.count - 1; j >= 0; j--) {
+         if (freeregs.items[j].width == width) {
+            mu->vregs[this->value.id] = freeregs.items[j];
+
+            if (freeregs.count > j + 1)
+               freeregs.items[j] = freeregs.items[freeregs.count - 1];
+            freeregs.count--;
+
+            reused = true;
+            break;
+         }
+      }
+
+      if (!reused) {
+         mir_vreg_t vreg = { mu->num_vregs++, width };
+         mu->vregs[this->value.id] = vreg;
+      }
+
+      // Add to active list, sorted by increasing end point
+      int pos = 0;
+      for (; pos < nactive && active[pos]->last <= opt->ra->lrg[i].last;
+           pos++)
+         assert(active[pos] != &opt->ra->lrg[i]);
+      assert(pos < mu->num_nodes);
+      if (pos < nactive)
+         ra_shift_active(active, pos + 1, pos, nactive - pos);
+      active[pos] = &opt->ra->lrg[i];
+      nactive++;
+   }
+
+   if (opt_get_verbose(OPT_RA_VERBOSE, istr(mu->name)))
+      mir_dump_optim(mu, opt);
+
+   free(opt->ra->block_start);
+   free(opt->ra);
+   opt->ra = NULL;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // Debugging
 
 // LCOV_EXCL_START /////////////////////////////////////////////////////////////
@@ -848,25 +1085,51 @@ static int begin_block_cb(mir_unit_t *mu, mir_block_t block, int col, void *ctx)
 static int value_cb(mir_unit_t *mu, mir_value_t value, void *ctx)
 {
    const mir_optim_t *opt = ctx;
+   int col = 0;
 
    if (opt->gvn != NULL && gvn_tracked(value)) {
-      int col = nvc_printf("$!black$(");
+      col += nvc_printf("$!black$(");
 
       if (value.tag == MIR_TAG_NODE) {
          const node_data_t *n = mir_node_data(mu, value);
          col += printf("%08x:", gvn_hash_node(mu, n, opt->gvn));
       }
 
-      if (opt->gvn->nodevn[value.id] == VN_INVALID)
+      valnum_t vn = gvn_get_value(value, opt->gvn);
+      if (vn == VN_INVALID)
          col += printf("-");
       else
-         col += printf("%u", gvn_get_value(value, opt->gvn));
+         col += printf("%u", vn);
 
       col += nvc_printf(")$$");
-      return col;
    }
-   else
-      return 0;
+
+   if (opt->ra != NULL && value.tag == MIR_TAG_NODE) {
+      const live_range_t *lrg = NULL;
+      for (int i = 0; i < mu->num_nodes; i++) {
+         if (mir_equals(opt->ra->lrg[i].value, value)) {
+            lrg = &(opt->ra->lrg[i]);
+            break;
+         }
+      }
+
+      col += nvc_printf("$!black$[");
+
+      if (lrg == NULL)
+         col += nvc_printf("?");
+      else
+         col += nvc_printf("%u..%u", lrg->first, lrg->last);
+
+      if (mu->vregs != NULL && mu->vregs[value.id].first != MIR_VREG_MAX) {
+         col += printf(" => V%d", mu->vregs[value.id].first);
+         if (mu->vregs[value.id].width != 1)
+            col += printf("(%d)", mu->vregs[value.id].width);
+      }
+
+      col += nvc_printf("]$$");
+   }
+
+   return col;
 }
 
 static void mir_dump_optim(mir_unit_t *mu, mir_optim_t *an)
@@ -889,7 +1152,7 @@ void mir_optimise(mir_unit_t *mu, mir_pass_t passes)
    mir_optim_t opt = {};
 
    const mir_pass_t need_dom = MIR_PASS_GVN;
-   const mir_pass_t need_liveness = MIR_PASS_DCE;
+   const mir_pass_t need_liveness = MIR_PASS_DCE | MIR_PASS_RA;
    const mir_pass_t need_cfg = need_dom | need_liveness | MIR_PASS_CFG;
 
    if (passes & need_cfg)
@@ -909,6 +1172,9 @@ void mir_optimise(mir_unit_t *mu, mir_pass_t passes)
 
    if (passes & MIR_PASS_DCE)
       mir_do_dce(mu, &opt);
+
+   if (passes & MIR_PASS_RA)
+      mir_do_ra(mu, &opt);
 
    if (passes & need_cfg)
       mir_free_cfg(mu, opt.cfg);
