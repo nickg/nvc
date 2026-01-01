@@ -690,6 +690,7 @@ static mir_value_t vlog_lower_binary(vlog_gen_t *g, vlog_node_t v)
       return result;
 
    mir_build_store(g->mu, var, result);
+   mir_build_jump(g->mu, skip_bb);
 
    mir_set_cursor(g->mu, skip_bb, MIR_APPEND);
 
@@ -818,8 +819,10 @@ static mir_value_t vlog_lower_sys_tfcall(vlog_gen_t *g, vlog_node_t v)
          type = mir_vec2_type(g->mu, 64, false);
    }
 
-   return mir_build_syscall(g->mu, vlog_ident(v), type, MIR_NULL_STAMP,
-                            locus, args, actual);
+   mir_value_t result = mir_build_syscall(g->mu, vlog_ident(v), type,
+                                          MIR_NULL_STAMP, locus, args, actual);
+   mir_build_consume(g->mu, result);
+   return result;
 }
 
 static mir_value_t vlog_lower_sys_fcall(vlog_gen_t *g, vlog_node_t v)
@@ -1124,8 +1127,11 @@ static mir_value_t vlog_lower_rvalue(vlog_gen_t *g, vlog_node_t v)
          }
 
          const type_info_t *ti = vlog_type_info(g, vlog_type(decl));
-         return mir_build_fcall(g->mu, func, ti->type, MIR_NULL_STAMP,
-                                args, nparams + 1);
+         mir_value_t result = mir_build_fcall(g->mu, func, ti->type,
+                                              MIR_NULL_STAMP, args,
+                                              nparams + 1);
+         mir_build_consume(g->mu, result);
+         return result;
       }
    case V_REAL:
       {
@@ -2224,6 +2230,8 @@ void vlog_lower_deferred(mir_unit_t *mu, object_t *obj)
       CANNOT_HANDLE(v);
    }
 
+   mir_optimise(mu, MIR_PASS_O1);
+
    vlog_lower_cleanup(&g);
 }
 
@@ -2387,6 +2395,8 @@ static void vlog_lower_func_decl(mir_unit_t *mu, object_t *obj)
 
    if (!mir_block_finished(mu, MIR_NULL_BLOCK))
       mir_build_return(mu, mir_build_load(mu, result));
+
+   mir_optimise(mu, MIR_PASS_O1);
 }
 
 static void vlog_lower_task_decl(mir_unit_t *mu, object_t *obj)
@@ -2420,6 +2430,8 @@ static void vlog_lower_task_decl(mir_unit_t *mu, object_t *obj)
 
    if (!mir_block_finished(mu, MIR_NULL_BLOCK))
       mir_build_return(mu, MIR_NULL_VALUE);
+
+   mir_optimise(mu, MIR_PASS_O1);
 }
 
 static void vlog_lower_class_decl(mir_unit_t *mu, object_t *obj)

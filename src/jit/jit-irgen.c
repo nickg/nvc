@@ -4482,7 +4482,7 @@ static void irgen_block(jit_irgen_t *g, mir_block_t block)
       mir_value_t n = mir_get_node(g->mu, block, i);
 
       const mir_op_t op = mir_get_op(g->mu, n);
-      if (op == MIR_OP_COMMENT)
+      if (op == MIR_OP_COMMENT || op == MIR_OP_CONSUME)
          continue;
 
 #ifdef DEBUG
