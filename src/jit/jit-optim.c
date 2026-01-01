@@ -286,6 +286,7 @@ typedef unsigned valnum_t;
 typedef struct {
    jit_ir_t *ir;
    valnum_t  vn;
+   int       tuple[3];
 } lvn_tab_t;
 
 typedef struct {
@@ -463,38 +464,36 @@ static void jit_lvn_generic(jit_ir_t *ir, lvn_state_t *state, valnum_t vn)
          tab->ir = ir;
          tab->vn = state->regvn[ir->result] =
             (vn == VN_INVALID ? lvn_new_value(state) : vn);
-         break;
+         memcpy(tab->tuple, tuple, sizeof(tuple));
+         return;
       }
       else if (tab->vn != state->regvn[tab->ir->result]) {
          // Stale entry may be reused if we do not find matching value
          stale = idx;
          continue;
       }
-      else {
-         int cmp[3];
-         lvn_get_tuple(tab->ir, state, cmp);
+      else if (memcmp(tuple, tab->tuple, sizeof(tuple)) == 0) {
+         assert(tab->ir->result != JIT_REG_INVALID);
 
-         if (cmp[0] == tuple[0] && cmp[1] == tuple[1] && cmp[2] == tuple[2]) {
-            assert(tab->ir->result != JIT_REG_INVALID);
+         ir->op   = J_MOV;
+         ir->size = JIT_SZ_UNSPEC;
+         ir->cc   = JIT_CC_NONE;
 
-            ir->op   = J_MOV;
-            ir->size = JIT_SZ_UNSPEC;
-            ir->cc   = JIT_CC_NONE;
+         // Propagate constants where possible
+         int64_t cval;
+         if (lvn_get_const(state->regvn[tab->ir->result], state, &cval))
+            ir->arg1 = LVN_CONST(cval);
+         else
+            ir->arg1 = LVN_REG(tab->ir->result);
 
-            // Propagate constants where possible
-            int64_t cval;
-            if (lvn_get_const(state->regvn[tab->ir->result], state, &cval))
-               ir->arg1 = LVN_CONST(cval);
-            else
-               ir->arg1 = LVN_REG(tab->ir->result);
+         ir->arg2.kind = JIT_VALUE_INVALID;
 
-            ir->arg2.kind = JIT_VALUE_INVALID;
-
-            state->regvn[ir->result] = tab->vn;
-            break;
-         }
+         state->regvn[ir->result] = tab->vn;
+         return;
       }
    }
+
+   state->regvn[ir->result] = VN_INVALID;   // Reached iteration limit
 }
 
 static void jit_lvn_mul(jit_ir_t *ir, lvn_state_t *state)
