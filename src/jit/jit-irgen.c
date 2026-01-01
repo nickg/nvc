@@ -16,6 +16,7 @@
 //
 
 #include "util.h"
+#include "array.h"
 #include "diag.h"
 #include "ident.h"
 #include "jit/jit-ffi.h"
@@ -36,6 +37,8 @@
 
 typedef struct _irgen_label irgen_label_t;
 typedef struct _patch_list  patch_list_t;
+
+typedef A(jit_value_t) value_list_t;
 
 #define PATCH_CHUNK_SZ  4
 #define MAX_STACK_ALLOC 65536
@@ -59,6 +62,8 @@ typedef struct {
    jit_value_t    *vars;
    jit_value_t    *params;
    jit_reg_t       next_reg;
+   value_list_t    temps;
+   unsigned        next_temp;
    jit_value_t    *map;
    irgen_label_t  *labels;
    irgen_label_t **blocks;
@@ -204,7 +209,10 @@ static jit_value_t irgen_alloc_reg(jit_irgen_t *g, int slots)
 
 static jit_value_t irgen_alloc_temp(jit_irgen_t *g)
 {
-   return irgen_alloc_reg(g, 1);
+   if (g->next_temp == g->temps.count)
+      APUSH(g->temps, irgen_alloc_reg(g, 1));
+
+   return g->temps.items[g->next_temp++];
 }
 
 static irgen_label_t *irgen_alloc_label(jit_irgen_t *g)
@@ -4478,7 +4486,7 @@ static void irgen_block(jit_irgen_t *g, mir_block_t block)
    g->curblock = block;
 
    const int nops = mir_count_nodes(g->mu, block);
-   for (int i = 0; i < nops; i++) {
+   for (int i = 0; i < nops; i++, g->next_temp = 0) {
       mir_value_t n = mir_get_node(g->mu, block, i);
 
       const mir_op_t op = mir_get_op(g->mu, n);
@@ -5202,7 +5210,7 @@ static void irgen_property_entry(jit_irgen_t *g)
    if (g->stateless)
       irgen_locals(g);
 
-   jit_value_t state = irgen_alloc_temp(g);
+   jit_value_t state = irgen_alloc_reg(g, 1);
    j_recv(g, state, 0);
    j_cmp(g, JIT_CC_EQ, state, jit_null_ptr());
    j_jump(g, JIT_CC_F, g->blocks[1]);
@@ -5435,6 +5443,7 @@ void jit_irgen(jit_func_t *f, mir_unit_t *mu)
       diag_emit(d);
    }
 
+   ACLEAR(g->temps);
    free(g->blocks);
    free(g->map);
    free(g->vars);
