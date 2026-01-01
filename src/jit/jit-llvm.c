@@ -216,7 +216,6 @@ typedef struct _cgen_func {
    jit_cfg_t       *cfg;
    char            *name;
    loc_t            last_loc;
-   bit_mask_t       ptr_mask;
 } cgen_func_t;
 
 typedef enum {
@@ -1254,14 +1253,9 @@ static void cgen_pointer_result(llvm_obj_t *obj, cgen_block_t *cgb,
 {
    assert(llvm_is_ptr(value));
 
-   if (mask_test(&cgb->func->ptr_mask, ir->result)) {
-      DEBUG_ONLY(llvm_set_value_name(value, cgen_reg_name(ir->result)));
-      cgb->outregs[ir->result] = PTR(value);
-   }
-   else
-      cgb->outregs[ir->result] = LLVMBuildPtrToInt(obj->builder, value,
-                                                   obj->types[LLVM_INT64],
-                                                   cgen_reg_name(ir->result));
+   cgb->outregs[ir->result] = LLVMBuildPtrToInt(obj->builder, value,
+                                                obj->types[LLVM_INT64],
+                                                cgen_reg_name(ir->result));
 }
 
 static void cgen_sext_result(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir,
@@ -1394,8 +1388,7 @@ static void cgen_op_recv(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
                                   cgen_arg_name(nth));
    }
 
-   llvm_type_t type =
-      mask_test(&cgb->func->ptr_mask, ir->result) ? LLVM_PTR : LLVM_INT64;
+   llvm_type_t type = LLVM_INT64;
 
 #ifdef LLVM_HAS_OPAQUE_POINTERS
    LLVMValueRef cast = ptr;
@@ -1468,8 +1461,7 @@ static void cgen_op_load(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
 {
    LLVMValueRef ptr = cgen_coerce_value(obj, cgb, ir->arg1, LLVM_PTR);
 
-   llvm_type_t type = mask_test(&cgb->func->ptr_mask, ir->result)
-      ? LLVM_PTR : LLVM_INT8 + ir->size;
+   llvm_type_t type = LLVM_INT8 + ir->size;
 
 #ifndef LLVM_HAS_OPAQUE_POINTERS
    LLVMTypeRef ptr_type = LLVMPointerType(obj->types[type], 0);
@@ -1525,14 +1517,6 @@ static void cgen_op_add(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
          LLVMValueRef indexes[] = { arg2 };
          LLVMValueRef ptr = LLVMBuildGEP2(obj->builder, obj->types[LLVM_INT8],
                                           arg1, indexes, 1, "");
-         cgen_pointer_result(obj, cgb, ir, ptr);
-      }
-      else if (mask_test(&cgb->func->ptr_mask, ir->result)) {
-         LLVMValueRef base =
-            LLVMBuildIntToPtr(obj->builder, arg1, obj->types[LLVM_PTR], "");
-         LLVMValueRef indexes[] = { arg2 };
-         LLVMValueRef ptr = LLVMBuildGEP2(obj->builder, obj->types[LLVM_INT8],
-                                          base, indexes, 1, "");
          cgen_pointer_result(obj, cgb, ir, ptr);
       }
       else
@@ -2586,61 +2570,6 @@ static LLVMMetadataRef cgen_debug_file(llvm_obj_t *obj, const loc_t *loc)
 }
 #endif
 
-static void cgen_must_be_pointer(cgen_func_t *func, jit_value_t value)
-{
-   switch (value.kind) {
-   case JIT_VALUE_REG:
-   case JIT_ADDR_REG:
-      mask_set(&(func->ptr_mask), value.reg);
-      break;
-   default:
-      break;
-   }
-}
-
-static void cgen_pointer_mask(cgen_func_t *func)
-{
-   mask_init(&(func->ptr_mask), func->source->nregs);
-
-   for (int i = 0; i < func->source->nirs; i++) {
-      jit_ir_t *ir = &(func->source->irbuf[i]);
-
-      switch (ir->op) {
-      case J_LOAD:
-      case J_ULOAD:
-      case MACRO_BZERO:
-      case MACRO_SADD:
-         cgen_must_be_pointer(func, ir->arg1);
-         break;
-      case J_STORE:
-      case MACRO_PUTPRIV:
-         cgen_must_be_pointer(func, ir->arg2);
-         break;
-      case MACRO_COPY:
-      case MACRO_MOVE:
-         cgen_must_be_pointer(func, ir->arg1);
-         cgen_must_be_pointer(func, ir->arg2);
-         break;
-      case J_ADD:
-      case J_MOV:
-         // Propagate pointer argument to result
-         if (ir->arg1.kind == JIT_VALUE_REG
-             && mask_test(&(func->ptr_mask), ir->arg1.reg))
-            mask_set(&(func->ptr_mask), ir->result);
-         break;
-      case J_LEA:
-      case MACRO_GETPRIV:
-      case MACRO_LALLOC:
-      case MACRO_SALLOC:
-      case MACRO_GALLOC:
-         mask_set(&(func->ptr_mask), ir->result);
-         break;
-      default:
-         break;
-      }
-   }
-}
-
 static void cgen_cache_args(llvm_obj_t *obj, cgen_func_t *func)
 {
    // Attempt to limit the number of getelementptr instructions
@@ -2659,26 +2588,6 @@ static void cgen_cache_args(llvm_obj_t *obj, cgen_func_t *func)
    func->irpos = LLVMBuildStructGEP2(obj->builder,
                                      obj->types[LLVM_ANCHOR],
                                      func->anchor, 2, "irpos");
-}
-
-static void cgen_fix_liveout_types(llvm_obj_t *obj, cgen_block_t *cgb)
-{
-   for (int j = 0; j < cgb->func->source->nregs; j++) {
-      if (!mask_test(&cgb->source->liveout, j))
-         continue;
-
-      const bool want_ptr = mask_test(&cgb->func->ptr_mask, j);
-      if (want_ptr && !llvm_is_ptr(cgb->outregs[j])) {
-         LLVMValueRef last = LLVMGetBasicBlockTerminator(cgb->bbref);
-         if (last != NULL)
-            LLVMPositionBuilderBefore(obj->builder, last);
-
-         cgb->outregs[j] = LLVMBuildIntToPtr(obj->builder,
-                                             cgb->outregs[j],
-                                             obj->types[LLVM_PTR],
-                                             cgen_reg_name(j));
-      }
-   }
 }
 
 static void cgen_reexecute_guard(llvm_obj_t *obj, cgen_func_t *func,
@@ -2805,8 +2714,6 @@ static void cgen_function(llvm_obj_t *obj, cgen_func_t *func)
 
    entry_bb = LLVMGetInsertBlock(obj->builder);
 
-   cgen_pointer_mask(func);
-
    cgen_block_t *cgb = func->blocks;
 
    LLVMValueRef zero_flag = llvm_int1(obj, false);
@@ -2865,8 +2772,7 @@ static void cgen_function(llvm_obj_t *obj, cgen_func_t *func)
                   continue;
                }
 
-               llvm_type_t type =
-                  mask_test(&func->ptr_mask, j) ? LLVM_PTR : LLVM_INT64;
+               llvm_type_t type = LLVM_INT64;
                const char *name = cgen_reg_name(j);
                LLVMValueRef init = cgb->source->in.count == 0
                   ? LLVMConstNull(obj->types[type])
@@ -2883,8 +2789,6 @@ static void cgen_function(llvm_obj_t *obj, cgen_func_t *func)
       cgen_ir(obj, cgb, &(func->source->irbuf[i]));
 
       if (i == cgb->source->last) {
-         cgen_fix_liveout_types(obj, cgb);
-
          if (LLVMGetBasicBlockTerminator(cgb->bbref) == NULL) {
             if (cgb->source->aborts)
                LLVMBuildUnreachable(obj->builder);
@@ -2951,7 +2855,6 @@ static void cgen_function(llvm_obj_t *obj, cgen_func_t *func)
    LLVMBuildBr(obj->builder, func->blocks[0].bbref);
 
    jit_free_cfg(cfg);
-   mask_free(&(func->ptr_mask));
 
    free(func->blocks);
    func->blocks = NULL;
