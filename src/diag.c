@@ -528,6 +528,14 @@ void diag_clear(diag_t *d)
    tb_rewind(d->msg);
 }
 
+diag_level_t diag_level(diag_t *d, const diag_level_t *new)
+{
+   diag_level_t old = d->level;
+   if (new != NULL)
+      d->level = *new;
+   return old;
+}
+
 void diag_vprintf(diag_t *d, const char *fmt, va_list ap)
 {
    ostream_t os = { tb_ostream_write, d->msg, CHARSET_ISO88591, d->color };
