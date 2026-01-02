@@ -1460,21 +1460,17 @@ START_TEST(test_lower1)
          { MIR_OP_VAR_UPREF, ENUM(1) },
          { MIR_OP_LOAD },
          { MIR_OP_RESOLVED },
-         { MIR_OP_ARRAY_REF, NODE(_), CONST(0) },   // Redundant
          { MIR_OP_LOAD },
          { MIR_OP_PACK },
          { MIR_OP_VAR_UPREF, ENUM(1) },
          { MIR_OP_LOAD },
          { MIR_OP_RESOLVED },
-         { MIR_OP_ARRAY_REF, NODE(_), CONST(0) },   // Redundant
          { MIR_OP_LOAD },
          { MIR_OP_PACK },
          { MIR_OP_BINARY, ENUM(MIR_VEC_BIT_AND) },
          { MIR_OP_UNPACK },
-         { MIR_OP_ARRAY_REF, NODE(_), CONST(0) },   // Redundant
          { MIR_OP_PUT_DRIVER, NODE(_), CONST(1) },
          { MIR_OP_WAIT, BLOCK(1) },
-
       };
       mir_match(mu, 1, bb1);
    }

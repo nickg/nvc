@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2024-2025  Nick Gasson
+//  Copyright (C) 2024-2026  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -1843,6 +1843,10 @@ mir_value_t mir_build_address_of(mir_unit_t *mu, mir_value_t array)
 mir_value_t mir_build_array_ref(mir_unit_t *mu, mir_value_t array,
                                 mir_value_t offset)
 {
+   int64_t cval;
+   if (mir_get_const(mu, offset, &cval) && cval == 0)
+      return array;
+
    mir_type_t type = mir_get_type(mu, array);
    mir_stamp_t stamp = mir_get_stamp(mu, array);
 
