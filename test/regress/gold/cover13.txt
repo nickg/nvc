@@ -7,10 +7,11 @@
 ** Note:      expression:    N.A.
 ** Note:      FSM state:     N.A.
 ** Note:      functional:    N.A.
+** Note:      average:       86.7 % (13/15)
 ** Note: Coverage for sub-hierarchies:
-Hierarchy                                               Statement            Branch               Toggle               Expression           FSM state           
-   LEVEL_1_INST                                          100.0 % (4/4)         0.0 % (0/0)        0.0 % (0/0)        0.0 % (0/0)        0.0 % (0/0)
-     NOT_INTERESTING_ENTITY_INST                           0.0 % (0/0)         0.0 % (0/0)        0.0 % (0/0)        0.0 % (0/0)        0.0 % (0/0)
-     LEVEL_2_INST                                          0.0 % (0/0)         0.0 % (0/0)        0.0 % (0/0)        0.0 % (0/0)        0.0 % (0/0)
-   NOT_INTERESTING_ENTITY_INST                             0.0 % (0/0)         0.0 % (0/0)        0.0 % (0/0)        0.0 % (0/0)        0.0 % (0/0)
-   LEAF_ENTITY_INST                                      100.0 % (7/7)         0.0 % (0/0)       50.0 % (2/4)        0.0 % (0/0)        0.0 % (0/0)
+Hierarchy                                                         Statement                      Branch                         Toggle                         Expression                     FSM state                      Functional                     Average                       
+   LEVEL_1_INST                                          100.0 % (     4 /      4)         0.0 % (     0 /      0)        0.0 % (     0 /      0)        0.0 % (     0 /      0)        0.0 % (     0 /      0)        0.0 % (     0 /      0)      100.0 % (     4 /      4)
+     NOT_INTERESTING_ENTITY_INST                           0.0 % (     0 /      0)         0.0 % (     0 /      0)        0.0 % (     0 /      0)        0.0 % (     0 /      0)        0.0 % (     0 /      0)        0.0 % (     0 /      0)        0.0 % (     0 /      0)
+     LEVEL_2_INST                                          0.0 % (     0 /      0)         0.0 % (     0 /      0)        0.0 % (     0 /      0)        0.0 % (     0 /      0)        0.0 % (     0 /      0)        0.0 % (     0 /      0)        0.0 % (     0 /      0)
+   NOT_INTERESTING_ENTITY_INST                             0.0 % (     0 /      0)         0.0 % (     0 /      0)        0.0 % (     0 /      0)        0.0 % (     0 /      0)        0.0 % (     0 /      0)        0.0 % (     0 /      0)        0.0 % (     0 /      0)
+   LEAF_ENTITY_INST                                      100.0 % (     7 /      7)         0.0 % (     0 /      0)       50.0 % (     2 /      4)        0.0 % (     0 /      0)        0.0 % (     0 /      0)        0.0 % (     0 /      0)       81.8 % (     9 /     11)

@@ -39,7 +39,7 @@
 #define ANSI_FG_CYAN    36
 #define ANSI_FG_WHITE   37
 
-#define MAX_ARGS 20
+#define MAX_ARGS 25
 
 typedef struct _printf_state printf_state_t;
 typedef struct _printf_arg printf_arg_t;
