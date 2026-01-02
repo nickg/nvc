@@ -15,14 +15,16 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
+#include "test_util.h"
 #include "phase.h"
 #include "common.h"
 #include "ident.h"
 #include "lib.h"
 #include "object.h"
+#include "option.h"
 #include "prim.h"
 #include "scan.h"
-#include "test_util.h"
+#include "test_mir.h"
 #include "vlog/vlog-node.h"
 #include "vlog/vlog-number.h"
 #include "vlog/vlog-phase.h"
@@ -1440,6 +1442,47 @@ START_TEST(test_simp1)
 }
 END_TEST
 
+START_TEST(test_lower1)
+{
+   input_from_file(TESTDIR "/vlog/lower1.v");
+
+   run_elab();
+
+   mir_context_t *mc = get_mir();
+
+   {
+      mir_unit_t *mu = mir_get_unit(mc, ident_new("WORK.lower1.assign#3#9"));
+      ck_assert_ptr_nonnull(mu);
+
+      static const mir_match_t bb1[] = {
+         { MIR_OP_VAR_UPREF, ENUM(1) },
+         { MIR_OP_LOAD },
+         { MIR_OP_VAR_UPREF, ENUM(1) },
+         { MIR_OP_LOAD },
+         { MIR_OP_RESOLVED },
+         { MIR_OP_ARRAY_REF, NODE(_), CONST(0) },   // Redundant
+         { MIR_OP_LOAD },
+         { MIR_OP_PACK },
+         { MIR_OP_VAR_UPREF, ENUM(1) },
+         { MIR_OP_LOAD },
+         { MIR_OP_RESOLVED },
+         { MIR_OP_ARRAY_REF, NODE(_), CONST(0) },   // Redundant
+         { MIR_OP_LOAD },
+         { MIR_OP_PACK },
+         { MIR_OP_BINARY, ENUM(MIR_VEC_BIT_AND) },
+         { MIR_OP_UNPACK },
+         { MIR_OP_ARRAY_REF, NODE(_), CONST(0) },   // Redundant
+         { MIR_OP_PUT_DRIVER, NODE(_), CONST(1) },
+         { MIR_OP_WAIT, BLOCK(1) },
+
+      };
+      mir_match(mu, 1, bb1);
+   }
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_vlog_tests(void)
 {
    Suite *s = suite_create("vlog");
@@ -1497,6 +1540,7 @@ Suite *get_vlog_tests(void)
    tcase_add_test(tc, test_namespace1);
    tcase_add_test(tc, test_real1);
    tcase_add_test(tc, test_simp1);
+   tcase_add_test(tc, test_lower1);
    suite_add_tcase(s, tc);
 
    return s;
