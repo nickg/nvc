@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2025  Nick Gasson
+//  Copyright (C) 2011-2026  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -106,7 +106,8 @@ typedef struct {
 } elab_instance_t;
 
 static void elab_block(tree_t t, const elab_ctx_t *ctx);
-static void elab_stmts(tree_t t, const elab_ctx_t *ctx);
+static void elab_processes(tree_t t, const elab_ctx_t *ctx);
+static void elab_sub_blocks(tree_t t, const elab_ctx_t *ctx);
 static void elab_decls(tree_t t, const elab_ctx_t *ctx);
 static void elab_push_scope(tree_t t, elab_ctx_t *ctx);
 static void elab_pop_scope(elab_ctx_t *ctx);
@@ -2123,10 +2124,11 @@ static void elab_architecture(tree_t inst, tree_t arch, const elab_ctx_t *ctx)
    elab_generics(ei->block, inst, &new_ctx);
    elab_ports(ei->block, inst, &new_ctx);
    elab_decls(ei->block, &new_ctx);
+   elab_processes(ei->block, &new_ctx);
 
    if (error_count() == 0) {
       elab_lower(b, &new_ctx);
-      elab_stmts(ei->block, &new_ctx);
+      elab_sub_blocks(ei->block, &new_ctx);
    }
 
    elab_pop_scope(&new_ctx);
@@ -2182,10 +2184,11 @@ static void elab_configuration(tree_t inst, tree_t unit, const elab_ctx_t *ctx)
    elab_generics(ei->block, inst, &new_ctx);
    elab_ports(ei->block, inst, &new_ctx);
    elab_decls(ei->block, &new_ctx);
+   elab_processes(ei->block, &new_ctx);
 
    if (error_count() == 0) {
       elab_lower(b, &new_ctx);
-      elab_stmts(ei->block, &new_ctx);
+      elab_sub_blocks(ei->block, &new_ctx);
    }
 
    elab_pop_scope(&new_ctx);
@@ -2251,11 +2254,10 @@ static void elab_component(tree_t inst, tree_t comp, const elab_ctx_t *ctx)
    elab_generics(ei->block, inst, &new_ctx);
    elab_ports(ei->block, inst, &new_ctx);
 
-   if (error_count() == 0)
+   if (elab_new_errors(&new_ctx) == 0) {
       elab_lower(b, &new_ctx);
-
-   if (elab_new_errors(&new_ctx) == 0)
-      elab_stmts(ei->block, &new_ctx);
+      elab_sub_blocks(ei->block, &new_ctx);
+   }
 
    elab_pop_scope(&new_ctx);
 }
@@ -2442,12 +2444,14 @@ static void elab_for_generate(tree_t t, const elab_ctx_t *ctx)
 
       elab_push_scope(t, &new_ctx);
 
-      if (elab_new_errors(&new_ctx) == 0)
+      if (elab_new_errors(&new_ctx) == 0) {
          elab_decls(t, &new_ctx);
+         elab_processes(t, &new_ctx);
+      }
 
       if (elab_new_errors(&new_ctx) == 0) {
          elab_lower(b, &new_ctx);
-         elab_stmts(t, &new_ctx);
+         elab_sub_blocks(t, &new_ctx);
       }
 
       elab_pop_scope(&new_ctx);
@@ -2492,10 +2496,11 @@ static void elab_if_generate(tree_t t, const elab_ctx_t *ctx)
 
          elab_push_scope(t, &new_ctx);
          elab_decls(cond, &new_ctx);
+         elab_processes(cond, &new_ctx);
 
          if (error_count() == 0) {
             elab_lower(b, &new_ctx);
-            elab_stmts(cond, &new_ctx);
+            elab_sub_blocks(cond, &new_ctx);
          }
 
          elab_pop_scope(&new_ctx);
@@ -2529,32 +2534,34 @@ static void elab_case_generate(tree_t t, const elab_ctx_t *ctx)
 
    elab_push_scope(t, &new_ctx);
    elab_decls(chosen, &new_ctx);
+   elab_processes(chosen, &new_ctx);
 
    if (error_count() == 0) {
       elab_lower(b, &new_ctx);
-      elab_stmts(chosen, &new_ctx);
+      elab_sub_blocks(chosen, &new_ctx);
    }
 
    elab_pop_scope(&new_ctx);
 }
 
-static void elab_process(tree_t t, const elab_ctx_t *ctx)
+static void elab_processes(tree_t t, const elab_ctx_t *ctx)
 {
-   if (error_count() == 0 && ctx->cloned == NULL)
-      lower_process(ctx->lowered, t);
+   const int nstmts = tree_stmts(t);
+   for (int i = 0; i < nstmts; i++) {
+      tree_t s = tree_stmt(t, i);
 
-   tree_add_stmt(ctx->out, t);
+      switch (tree_kind(s)) {
+      case T_PROCESS:
+      case T_PSL_DIRECT:
+         tree_add_stmt(ctx->out, s);
+         break;
+      default:
+         break;
+      }
+   }
 }
 
-static void elab_psl(tree_t t, const elab_ctx_t *ctx)
-{
-   if (error_count() == 0)
-      psl_lower_directive(ctx->registry, ctx->lowered, ctx->cover, t);
-
-   tree_add_stmt(ctx->out, t);
-}
-
-static void elab_stmts(tree_t t, const elab_ctx_t *ctx)
+static void elab_sub_blocks(tree_t t, const elab_ctx_t *ctx)
 {
    const int nstmts = tree_stmts(t);
    for (int i = 0; i < nstmts; i++) {
@@ -2577,10 +2584,7 @@ static void elab_stmts(tree_t t, const elab_ctx_t *ctx)
          elab_case_generate(s, ctx);
          break;
       case T_PROCESS:
-         elab_process(s, ctx);
-         break;
       case T_PSL_DIRECT:
-         elab_psl(s, ctx);
          break;
       default:
          fatal_trace("unexpected statement %s", tree_kind_str(tree_kind(s)));
@@ -2610,10 +2614,11 @@ static void elab_block(tree_t t, const elab_ctx_t *ctx)
    elab_generics(t, t, &new_ctx);
    elab_ports(t, t, &new_ctx);
    elab_decls(t, &new_ctx);
+   elab_processes(t, &new_ctx);
 
    if (elab_new_errors(&new_ctx) == 0) {
       elab_lower(b, &new_ctx);
-      elab_stmts(t, &new_ctx);
+      elab_sub_blocks(t, &new_ctx);
    }
 
    elab_pop_scope(&new_ctx);

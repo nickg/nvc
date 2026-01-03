@@ -126,8 +126,7 @@ static vcode_reg_t psl_lower_guard(lower_unit_t *lu, psl_guard_t g)
    }
 }
 
-static void psl_lower_cover(lower_unit_t *lu, psl_node_t p, cover_data_t *cover,
-                            cover_scope_t *cscope)
+static void psl_lower_cover(lower_unit_t *lu, psl_node_t p)
 {
    if (psl_has_message(p)) {
       tree_t m = psl_message(p);
@@ -142,10 +141,11 @@ static void psl_lower_cover(lower_unit_t *lu, psl_node_t p, cover_data_t *cover,
       emit_report(msg_reg, count_reg, severity_reg, locus);
    }
 
-   if (!cover_enabled(cover, COVER_MASK_FUNCTIONAL))
+   if (!cover_enabled(lu->cover, COVER_MASK_FUNCTIONAL))
       return;
 
-   cover_item_t *item = cover_add_items_for(cover, cscope, psl_to_object(p),
+   cover_item_t *item = cover_add_items_for(lu->cover, lu->cscope,
+                                            psl_to_object(p),
                                             COV_ITEM_FUNCTIONAL);
    if (item == NULL)
       return;
@@ -190,8 +190,7 @@ static void psl_enter_state(fsm_state_t *state)
 }
 
 static void psl_lower_state(lower_unit_t *lu, psl_fsm_t *fsm,
-                            fsm_state_t *state, vcode_block_t *state_bb,
-                            cover_data_t *cover, cover_scope_t *cscope)
+                            fsm_state_t *state, vcode_block_t *state_bb)
 {
    emit_comment("Property state %d", state->id);
 
@@ -215,7 +214,7 @@ static void psl_lower_state(lower_unit_t *lu, psl_fsm_t *fsm,
       }
 
       if (fsm->kind == FSM_COVER)
-         psl_lower_cover(lu, fsm->src, cover, cscope);
+         psl_lower_cover(lu, fsm->src);
       else if (fsm->kind == FSM_NEVER) {
          vcode_reg_t locus = psl_debug_locus(fsm->src);
          psl_lower_assert(lu, vfalse, locus, fsm->src);
@@ -292,7 +291,7 @@ static vcode_reg_t psl_lower_async_abort(unit_registry_t *ur,
    vcode_state_t state;
    vcode_state_save(&state);
 
-   vcode_unit_t context = get_vcode(parent);
+   vcode_unit_t context = parent->vunit;
    vcode_select_unit(context);
 
    ident_t prefix = vcode_unit_name(context);
@@ -519,26 +518,24 @@ vcode_reg_t psl_lower_fcall(lower_unit_t *lu, psl_node_t p)
    }
 }
 
-void psl_lower_directive(unit_registry_t *ur, lower_unit_t *parent,
-                         cover_data_t *cover, tree_t wrapper)
+void psl_lower_directive(lower_unit_t *lu, object_t *obj)
 {
+   tree_t wrapper = tree_from_object(obj);
+   assert(tree_kind(wrapper) == T_PSL_DIRECT);
+
    psl_node_t p = tree_psl(wrapper);
    ident_t label = tree_ident(wrapper);
 
    psl_fsm_t *fsm = psl_fsm_new(p, label);
 
-   vcode_unit_t context = get_vcode(parent);
+   vcode_unit_t context = vcode_unit_context(lu->vunit);
 
    ident_t prefix = vcode_unit_name(context);
-   ident_t name = ident_prefix(prefix, label, '.');
+   ident_t name = vcode_unit_name(lu->vunit);
 
-   cover_scope_t *parent_cscope = lower_get_cover_scope(parent);
-   cover_scope_t *cscope = cover_create_block(cover, name, parent_cscope,
-                                              wrapper, wrapper, NULL);
-
-   vcode_unit_t vu = emit_property(name, psl_to_object(p), context);
-   lower_unit_t *lu = lower_unit_new(ur, parent, vu, NULL, NULL);
-   unit_registry_put(ur, lu);
+   cover_scope_t *parent_cscope = lower_get_cover_scope(lu->parent);
+   lu->cscope = cover_create_block(lu->cover, name, parent_cscope,
+                                   wrapper, wrapper, NULL);
 
    vcode_type_t vcontext = vtype_context(prefix);
    emit_param(vcontext, VCODE_INVALID_STAMP, ident_new("context"));
@@ -580,7 +577,7 @@ void psl_lower_directive(unit_registry_t *ur, lower_unit_t *parent,
       build_wait(psl_tree(async_abort), psl_wait_cb, lu);
 
       vcode_reg_t abort_reg =
-         psl_lower_async_abort(ur, parent, async_abort, name);
+         psl_lower_async_abort(lu->registry, lu->parent, async_abort, name);
       trigger_reg = emit_or_trigger(trigger_reg, abort_reg);
    }
 
@@ -605,7 +602,7 @@ void psl_lower_directive(unit_registry_t *ur, lower_unit_t *parent,
    bool strong = false;
    for (fsm_state_t *s = fsm->states; s; s = s->next) {
       vcode_select_block(state_bb[s->id]);
-      psl_lower_state(lu, fsm, s, state_bb, cover, cscope);
+      psl_lower_state(lu, fsm, s, state_bb);
       strong |= s->strong;
    }
 
@@ -635,8 +632,6 @@ void psl_lower_directive(unit_registry_t *ur, lower_unit_t *parent,
 
    emit_case(state_reg, abort_bb, state_ids, state_bb, fsm->next_id + 1);
 
-   unit_registry_finalise(ur, lu);
-
    psl_fsm_free(fsm);
 }
 
@@ -645,7 +640,7 @@ static void psl_lower_clock_func(lower_unit_t *lu, object_t *obj)
    psl_node_t p = psl_from_object(obj);
    assert(psl_kind(p) == P_CLOCK_DECL);
 
-   vcode_unit_t context = vcode_unit_context(get_vcode(lu));
+   vcode_unit_t context = vcode_unit_context(lu->vunit);
    ident_t prefix = vcode_unit_name(context);
 
    vcode_type_t vcontext = vtype_context(prefix);
@@ -660,7 +655,7 @@ static void psl_lower_clock_func(lower_unit_t *lu, object_t *obj)
 static void psl_lower_clock_decl(unit_registry_t *ur, lower_unit_t *parent,
                                  psl_node_t p, ident_t label)
 {
-   vcode_unit_t context = get_vcode(parent);
+   vcode_unit_t context = parent->vunit;
 
    ident_t prefix = vcode_unit_name(context);
    ident_t name = ident_prefix(prefix, label, '.');

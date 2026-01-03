@@ -19,14 +19,41 @@
 #define _LOWER_H
 
 #include "prim.h"
+#include "array.h"
 #include "mir/mir-unit.h"
 
 typedef int32_t vcode_reg_t;
+typedef int32_t vcode_var_t;
 typedef int32_t vcode_type_t;
 typedef int32_t vcode_stamp_t;
 
 typedef void (*lower_fn_t)(lower_unit_t *, object_t *);
 typedef vcode_unit_t (*emit_fn_t)(ident_t, object_t *, vcode_unit_t);
+
+typedef A(vcode_var_t) var_list_t;
+
+typedef struct _lazy_cscope lazy_cscope_t;
+
+typedef enum {
+   LOWER_NORMAL,
+   LOWER_THUNK
+} lower_mode_t;
+
+typedef struct _lower_unit {
+   unit_registry_t *registry;
+   hash_t          *objects;
+   lower_unit_t    *parent;
+   ident_t          name;
+   tree_t           container;
+   var_list_t       free_temps;
+   vcode_unit_t     vunit;
+   cover_data_t    *cover;
+   cover_scope_t   *cscope;
+   bool             finished;
+   lower_mode_t     mode;
+   unsigned         deferred;
+   lazy_cscope_t   *lazy_cscope;
+} lower_unit_t;
 
 unit_registry_t *unit_registry_new(mir_context_t *mc);
 void unit_registry_free(unit_registry_t *ur);
@@ -52,7 +79,6 @@ lower_unit_t *lower_unit_new(unit_registry_t *ur, lower_unit_t *parent,
 void lower_unit_free(lower_unit_t *lu);
 void lower_finished(lower_unit_t *lu);
 
-vcode_unit_t get_vcode(lower_unit_t *lu);
 cover_scope_t *lower_get_cover_scope(lower_unit_t *lu);
 
 vcode_reg_t lower_lvalue(lower_unit_t *lu, tree_t expr);
@@ -63,7 +89,6 @@ vcode_stamp_t lower_bounds(type_t type);
 
 lower_unit_t *lower_instance(unit_registry_t *ur, lower_unit_t *parent,
                              cover_data_t *cover, tree_t block);
-void lower_process(lower_unit_t *parent, tree_t proc);
 vcode_unit_t lower_global_thunk(unit_registry_t *registry, tree_t t);
 vcode_unit_t lower_thunk_in_context(unit_registry_t *registry, tree_t t,
                                     lower_unit_t *parent);

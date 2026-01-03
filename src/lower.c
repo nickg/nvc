@@ -66,31 +66,8 @@ typedef struct _lazy_cscope {
    tree_t         tree;
 } lazy_cscope_t;
 
-typedef enum {
-   LOWER_NORMAL,
-   LOWER_THUNK
-} lower_mode_t;
-
 #define INSTANCE_BIT  0x80000000
 #define PARAM_VAR_BIT 0x40000000
-
-typedef A(vcode_var_t) var_list_t;
-
-typedef struct _lower_unit {
-   unit_registry_t *registry;
-   hash_t          *objects;
-   lower_unit_t    *parent;
-   ident_t          name;
-   tree_t           container;
-   var_list_t       free_temps;
-   vcode_unit_t     vunit;
-   cover_data_t    *cover;
-   cover_scope_t   *cscope;
-   bool             finished;
-   lower_mode_t     mode;
-   unsigned         deferred;
-   lazy_cscope_t   *lazy_cscope;
-} lower_unit_t;
 
 typedef enum {
    PART_ALL,
@@ -1842,6 +1819,9 @@ static vcode_reg_t lower_logical(lower_unit_t *lu, tree_t fcall,
 static void lower_logic_expr_coverage(lower_unit_t *lu, tree_t fcall,
                                       vcode_reg_t lhs, vcode_reg_t rhs)
 {
+   if (vcode_unit_kind(lu->vunit) == VCODE_UNIT_PROPERTY)
+      return;
+
    cover_scope_t *cscope = lower_get_cover_scope(lu);
    cover_item_t *first = cover_add_items_for(lu->cover, cscope,
                                              tree_to_object(fcall),
@@ -10750,13 +10730,10 @@ static vcode_reg_t lower_process_trigger(lower_unit_t *lu, tree_t proc)
       return emit_or_trigger(branches[0], branches[1]);
 }
 
-void lower_process(lower_unit_t *parent, tree_t proc)
+static void lower_process(lower_unit_t *lu, object_t *obj)
 {
+   tree_t proc = tree_from_object(obj);
    assert(tree_kind(proc) == T_PROCESS);
-
-   ident_t label = tree_ident(proc);
-   ident_t name = ident_prefix(parent->name, label, '.');
-   vcode_unit_t vu = emit_process(name, tree_to_object(proc), parent->vunit);
 
    // The code generator assumes the first state starts at block number
    // one. Allocate it here in case lowering the declarations generates
@@ -10764,12 +10741,8 @@ void lower_process(lower_unit_t *parent, tree_t proc)
    vcode_block_t start_bb = emit_block();
    assert(start_bb == 1);
 
-   lower_unit_t *lu = lower_unit_new(parent->registry, parent, vu,
-                                     parent->cover, proc);
-   unit_registry_put(parent->registry, lu);
-
    lu->cscope = cover_create_block(lu->cover, lu->name,
-                                   parent->cscope,
+                                   lu->parent->cscope,
                                    proc, proc, NULL);
 
    if (tree_global_flags(proc) & TREE_GF_EXTERNAL_NAME)
@@ -10910,8 +10883,6 @@ void lower_process(lower_unit_t *parent, tree_t proc)
    if (!vcode_block_finished())
       emit_jump(start_bb);
 
-   lower_finished(lu);
-   unit_registry_finalise(parent->registry, lu);
    free_drivers(ds);
 }
 
@@ -12730,6 +12701,26 @@ lower_unit_t *lower_instance(unit_registry_t *ur, lower_unit_t *parent,
    lower_generics(lu, block, primary);
    lower_ports(lu, block, primary);
    lower_decls(lu, block);
+
+   ident_t sym_prefix = tree_ident2(hier);
+   const int nstmts = tree_stmts(block);
+   for (int i = 0; i < nstmts; i++) {
+      tree_t s = tree_stmt(block, i);
+      switch (tree_kind(s)) {
+      case T_PROCESS:
+         unit_registry_defer(ur, ident_prefix(sym_prefix, tree_ident(s), '.'),
+                             lu, emit_process, lower_process,
+                             cover, tree_to_object(s));
+         break;
+      case T_PSL_DIRECT:
+         unit_registry_defer(ur, ident_prefix(sym_prefix, tree_ident(s), '.'),
+                             lu, emit_property, psl_lower_directive,
+                             cover, tree_to_object(s));
+         break;
+      default:
+         should_not_reach_here();
+      }
+   }
 
    emit_return(VCODE_INVALID_REG);
 

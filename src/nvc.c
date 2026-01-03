@@ -632,17 +632,6 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
 
    progress("elaborating design");
 
-   if (state->cover != NULL) {
-      fbuf_t *f = fbuf_open(meta.cover_file, FBUF_OUT, FBUF_CS_NONE);
-      if (f == NULL)
-         fatal_errno("failed to open coverage database: %s", meta.cover_file);
-
-      cover_dump_items(state->cover, f, COV_DUMP_ELAB);
-      fbuf_close(f, NULL);
-
-      progress("dumping coverage data");
-   }
-
    if (error_count() > 0)
       return EXIT_FAILURE;
 
@@ -660,6 +649,17 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
 
    if (!no_save)
       cgen(top, state->registry, state->mir, state->jit);
+
+   if (state->cover != NULL) {
+      fbuf_t *f = fbuf_open(meta.cover_file, FBUF_OUT, FBUF_CS_NONE);
+      if (f == NULL)
+         fatal_errno("failed to open coverage database: %s", meta.cover_file);
+
+      cover_dump_items(state->cover, f, COV_DUMP_ELAB);
+      fbuf_close(f, NULL);
+
+      progress("dumping coverage data");
+   }
 
    argc -= next_cmd - 1;
    argv += next_cmd - 1;

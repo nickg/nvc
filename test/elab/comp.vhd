@@ -66,7 +66,7 @@ architecture test of foo is
     alias e1_a is e1;
 
     signal x : integer;
-    signal y : integer;
+    signal y1, y2, y3 : integer;
 begin
 
     e1_1: e1                            -- OK
@@ -74,20 +74,20 @@ begin
             g => 5 )
         port map (
             x => x,
-            y => y);
+            y => y1 );
 
     e2_1: e2                            -- Error
         generic map (
             g => 5 )
         port map (
-            y => y);
+            y => y2 );
 
     e3_1: e3                            -- Error
         generic map (
             g => 5 )
         port map (
             x => '1',
-            y => y);
+            y => y3 );
 
     e1_2: e1_a                          -- OK
         generic map (

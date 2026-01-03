@@ -2506,6 +2506,8 @@ START_TEST(test_issue203)
 
    run_elab();
 
+   (void)find_unit("WORK.ISSUE203.MAIN");
+
    vcode_unit_t v0 = find_unit("WORK.ISSUE203.MAIN.PROC");
    vcode_select_unit(v0);
 
@@ -6384,7 +6386,7 @@ START_TEST(test_issue1029)
 
    EXPECT_BB(1) = {
       { VCODE_OP_CONTEXT_UPREF, .hops = 1 },
-      { VCODE_OP_INDEX, .name = "S.ename" },
+      { VCODE_OP_INDEX, .name = "S.ename1" },
       { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_NULL },
       { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
@@ -6818,7 +6820,7 @@ START_TEST(test_issue1280)
       { VCODE_OP_VAR_UPREF, .hops = 1, .name = "MY_SIG$delayed_2_NS" },
       { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_CONST, .value = 0 },
-      { VCODE_OP_STORE, .name = "i2" },
+      { VCODE_OP_STORE, .name = "i1" },
       { VCODE_OP_UARRAY_LEN },
       { VCODE_OP_UNWRAP },
       { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
@@ -6840,7 +6842,7 @@ START_TEST(test_issue1280)
       { VCODE_OP_UARRAY_LEN },
       { VCODE_OP_LENGTH_CHECK },
       { VCODE_OP_CONST, .value = 0 },
-      { VCODE_OP_STORE, .name = "i2" },
+      { VCODE_OP_STORE, .name = "i1" },
       { VCODE_OP_UNWRAP },
       { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
       { VCODE_OP_COND, .target = 7, .target_else = 6 },

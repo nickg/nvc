@@ -21,6 +21,7 @@
 #include "diag.h"
 #include "jit/jit.h"
 #include "lib.h"
+#include "lower.h"
 #include "mir/mir-unit.h"
 #include "option.h"
 #include "phase.h"
@@ -818,8 +819,8 @@ START_TEST(test_tc3138)
    tree_t b0 = tree_stmt(e, 0);
    fail_unless(tree_ident(b0) == ident_new("C05S02B02X00P02N01I03138ENT"));
    fail_unless(tree_stmts(b0) == 2);
-   fail_unless(tree_kind(tree_stmt(b0, 0)) == T_BLOCK);
-   fail_unless(tree_kind(tree_stmt(b0, 1)) == T_PROCESS);
+   fail_unless(tree_kind(tree_stmt(b0, 0)) == T_PROCESS);
+   fail_unless(tree_kind(tree_stmt(b0, 1)) == T_BLOCK);
 
    fail_if_errors();
 }
@@ -858,7 +859,7 @@ START_TEST(test_tc846)
    fail_unless(tree_ident(b0) == ident_new("C01S03B01X00P08N01I00846ENT"));
    fail_unless(tree_stmts(b0) == 2);
 
-   tree_t a1 = tree_stmt(b0, 0);
+   tree_t a1 = tree_stmt(b0, 1);
    fail_unless(tree_ident(a1) == ident_new("A1"));
    fail_unless(tree_stmts(a1) == 1);
 
@@ -2124,6 +2125,7 @@ START_TEST(test_clone2)
    fail_if(e == NULL);
 
    mir_context_t *mc = get_mir();
+   unit_registry_t *ur = get_registry();
 
    tree_t top = tree_stmt(e, 0);
 
@@ -2149,6 +2151,8 @@ START_TEST(test_clone2)
 
    ident_t g1psym1 = ident_new("WORK.CLONE2.G1(1).P");
    ident_t g1psym2 = ident_new("WORK.CLONE2.G1(2).P");
+   (void)unit_registry_get(ur, g1psym1);
+   (void)unit_registry_get(ur, g1psym2);
    ck_assert_ptr_nonnull(mir_get_unit(mc, g1psym1));
    ck_assert_ptr_null(mir_get_unit(mc, g1psym2));
 
@@ -2183,6 +2187,8 @@ START_TEST(test_clone2)
 
    ident_t u7psym1 = ident_new("WORK.CLONE2.U1.SUB1_ENT.PROC");
    ident_t u7psym2 = ident_new("WORK.CLONE2.U7.PROC");
+   (void)unit_registry_get(ur, u7psym1);
+   (void)unit_registry_get(ur, u7psym2);
    ck_assert_ptr_nonnull(mir_get_unit(mc, u7psym1));
    ck_assert_ptr_null(mir_get_unit(mc, u7psym2));
 
