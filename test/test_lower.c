@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2014-2025  Nick Gasson
+//  Copyright (C) 2014-2026  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -25,6 +25,7 @@
 #include "phase.h"
 #include "rt/model.h"
 #include "scan.h"
+#include "test_mir.h"
 #include "vcode.h"
 
 #include <inttypes.h>
@@ -373,6 +374,23 @@ static vcode_unit_t find_unit(const char *name)
       fail("missing vcode unit for %s", name);
 
    return vu;
+}
+
+static mir_unit_t *find_unit2(const char *name)
+{
+   unit_registry_t *ur = get_registry();
+   mir_context_t *mc = get_mir();
+
+   ident_t id = ident_new(name);
+
+   vcode_unit_t vu = unit_registry_get(ur, id);
+   if (vu == NULL)
+      fail("missing vcode unit for %s", name);
+
+   mir_unit_t *mu = mir_get_unit(mc, ident_new("WORK.ISSUE1259.FUNC(YY)Y"));
+   ck_assert_ptr_nonnull(mu);
+
+   return mu;
 }
 
 START_TEST(test_wait1)
@@ -6999,64 +7017,52 @@ START_TEST(test_issue1259)
 
    run_elab();
 
-   vcode_unit_t vu = find_unit("WORK.ISSUE1259.FUNC(YY)Y");
-   vcode_select_unit(vu);
+   mir_unit_t *mu = find_unit2("WORK.ISSUE1259.FUNC(YY)Y");
 
-   EXPECT_BB(0) = {
-      { VCODE_OP_CONST, .value = 2 },
-      { VCODE_OP_INDEX, .name = "RES" },
-      { VCODE_OP_CONST, .value = 0 },
-      { VCODE_OP_MEMSET },
-      { VCODE_OP_CONST, .value = 0 },
-      { VCODE_OP_CONST, .value = 1 },
-      { VCODE_OP_CONST, .value = 1 },
-      { VCODE_OP_CONST, .value = 0 },
-      { VCODE_OP_CONST, .value = 1 },
-      { VCODE_OP_ARRAY_REF },
-      { VCODE_OP_LOAD_INDIRECT },
-      { VCODE_OP_ARRAY_REF },
-      { VCODE_OP_LOAD_INDIRECT },
-      { VCODE_OP_LINK_PACKAGE, .name = "IEEE.STD_LOGIC_1164" },
-      { VCODE_OP_CONST, .value = 9 },
-      { VCODE_OP_LINK_VAR, .name = "AND_TABLE" },
-      { VCODE_OP_TABLE_REF },
-      { VCODE_OP_LOAD_INDIRECT },
-      { VCODE_OP_ARRAY_REF },
-      { VCODE_OP_LOAD_INDIRECT },
-      { VCODE_OP_TABLE_REF },
-      { VCODE_OP_LOAD_INDIRECT },
-      { VCODE_OP_LINK_VAR, .name = "XOR_TABLE" },
-      { VCODE_OP_TABLE_REF },
-      { VCODE_OP_LOAD_INDIRECT },
-      { VCODE_OP_ARRAY_REF },
-      { VCODE_OP_LOAD_INDIRECT },
-      { VCODE_OP_TABLE_REF },
-      { VCODE_OP_LOAD_INDIRECT },
-      { VCODE_OP_TABLE_REF },
-      { VCODE_OP_LOAD_INDIRECT },
-      { VCODE_OP_ARRAY_REF },
-      { VCODE_OP_STORE_INDIRECT },
-      { VCODE_OP_LOAD_INDIRECT },  // TODO: redundant
-      { VCODE_OP_LOAD_INDIRECT },  // TODO: redundant
-      { VCODE_OP_TABLE_REF },
-      { VCODE_OP_LOAD_INDIRECT },
-      { VCODE_OP_LOAD_INDIRECT },
-      { VCODE_OP_LOAD_INDIRECT },
-      { VCODE_OP_TABLE_REF },
-      { VCODE_OP_LOAD_INDIRECT },
-      { VCODE_OP_TABLE_REF },
-      { VCODE_OP_LOAD_INDIRECT },
-      { VCODE_OP_TABLE_REF },
-      { VCODE_OP_LOAD_INDIRECT },
-      { VCODE_OP_TABLE_REF },
-      { VCODE_OP_LOAD_INDIRECT },
-      { VCODE_OP_ARRAY_REF },
-      { VCODE_OP_STORE_INDIRECT },
-      { VCODE_OP_WRAP },
-      { VCODE_OP_RETURN },
+   static const mir_match_t bb0[] = {
+      { MIR_OP_SET, VAR("RES"), CONST(0), CONST(2) },
+      { MIR_OP_LOAD, PARAM("A") },
+      { MIR_OP_ARRAY_REF, PARAM("B"), CONST(1) },
+      { MIR_OP_LOAD, NODE(2) },
+      { MIR_OP_LINK_PACKAGE, LINK("IEEE.STD_LOGIC_1164") },
+      { MIR_OP_LINK_VAR, LINK("IEEE.STD_LOGIC_1164"), NODE(_),
+        EXTVAR("AND_TABLE") },
+      { MIR_OP_TABLE_REF, NODE(_), CONST(9) },
+      { MIR_OP_LOAD, NODE(_) },
+      { MIR_OP_LOAD, PARAM("B") },
+      { MIR_OP_TABLE_REF, NODE(_), CONST(9) },
+      { MIR_OP_LOAD, NODE(_) },
+      { MIR_OP_LINK_VAR, LINK("IEEE.STD_LOGIC_1164"), NODE(_),
+        EXTVAR("XOR_TABLE") },
+      { MIR_OP_TABLE_REF, NODE(_), CONST(9) },
+      { MIR_OP_LOAD, NODE(_) },
+      { MIR_OP_ARRAY_REF, PARAM("A"), CONST(1) },
+      { MIR_OP_LOAD, NODE(14) },
+      { MIR_OP_TABLE_REF, NODE(_), CONST(9) },
+      { MIR_OP_LOAD, NODE(_) },
+      { MIR_OP_TABLE_REF, NODE(_), CONST(9) },
+      { MIR_OP_LOAD, NODE(_) },
+      { MIR_OP_ARRAY_REF, VAR("RES"), CONST(1) },
+      { MIR_OP_STORE, NODE(_) },
+      { MIR_OP_LOAD, PARAM("A") },  // TODO: redundant
+      { MIR_OP_LOAD, PARAM("B") },  // TODO: redundant
+      { MIR_OP_TABLE_REF, NODE(_), CONST(9) },
+      { MIR_OP_LOAD, NODE(_) },
+      { MIR_OP_LOAD, NODE(14) },    // TODO: redundant
+      { MIR_OP_LOAD, NODE(2) },     // TODO: redundant
+      { MIR_OP_TABLE_REF, NODE(_), CONST(9) },
+      { MIR_OP_LOAD, NODE(_) },
+      { MIR_OP_TABLE_REF, NODE(_), CONST(9) },
+      { MIR_OP_LOAD, NODE(_) },
+      { MIR_OP_TABLE_REF, NODE(_), CONST(9) },
+      { MIR_OP_LOAD, NODE(_) },
+      { MIR_OP_TABLE_REF, NODE(_), CONST(9) },
+      { MIR_OP_LOAD, NODE(_) },
+      { MIR_OP_STORE, VAR("RES") },
+      { MIR_OP_WRAP, VAR("RES"), CONST(1), CONST(0) },
+      { MIR_OP_RETURN },
    };
-
-   CHECK_BB(0);
+   mir_match(mu, 0, bb0);
 
    fail_if_errors();
 }

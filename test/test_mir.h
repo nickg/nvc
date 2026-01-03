@@ -42,6 +42,7 @@ STATIC_ASSERT(sizeof(mir_pattern_t) == 8);
 
 #define _ (UINT32_MAX + 1)
 #define VAR(name) ((mir_pattern_t){ .ptr = ("\x8" name) })
+#define EXTVAR(name) ((mir_pattern_t){ .ptr = ("\xb" name) })
 #define PARAM(name) ((mir_pattern_t){ .ptr = ("\x2" name) })
 #define LINK(name) ((mir_pattern_t){ .ptr = ("\xa" name) })
 #define NODE(n) ((mir_pattern_t){ .tag = MIR_TAG_NODE, .data = n })

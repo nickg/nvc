@@ -28,6 +28,7 @@ static const char *mir_tag_name(int tag)
    static const char *map[] = {
       [MIR_TAG_PARAM] = "parameter",
       [MIR_TAG_VAR] = "variable",
+      [MIR_TAG_EXTVAR] = "external variable",
       [MIR_TAG_LINKAGE] = "linkage",
       [MIR_TAG_BLOCK] = "block",
       [MIR_TAG_NODE] = "node",
@@ -70,7 +71,7 @@ static void mir_match_arg(mir_unit_t *mu, mir_value_t node,
       }
    }
    else if (tag == MIR_TAG_VAR || tag == MIR_TAG_PARAM
-            || tag == MIR_TAG_LINKAGE) {
+            || tag == MIR_TAG_LINKAGE || tag == MIR_TAG_EXTVAR) {
       ck_assert_ptr_nonnull(str);
 
       if (actual.tag != tag) {
