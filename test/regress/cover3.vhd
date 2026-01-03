@@ -142,4 +142,15 @@ begin
         wait;
     end process;
 
+    process
+        variable i : integer := 0;
+    begin
+        while i < 10 loop
+            i := i + 1;
+            next when i < 2;
+            exit when i > 8;
+        end loop;
+        wait;
+    end process;
+
 end architecture;

@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2025 Nick Gasson
+//  Copyright (C) 2025-2026 Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -23,5 +23,8 @@
 tree_t vhdl_component_instance(tree_t comp, tree_t inst, ident_t dotted);
 tree_t vhdl_architecture_instance(tree_t arch, tree_t inst, ident_t dotted);
 tree_t vhdl_config_instance(tree_t conf, tree_t bind, ident_t dotted);
+
+cover_scope_t *vhdl_cover_block(tree_t block, cover_data_t *db,
+                                cover_scope_t *parent);
 
 #endif  // _VHDL_PHASE_H

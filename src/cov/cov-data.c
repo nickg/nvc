@@ -372,15 +372,7 @@ static bool cover_skip_type_state(cover_data_t *data, type_t type)
    if (!type_is_enum(type))
       return true;
 
-   // Ignore enums from built-in libraries
-   ident_t full_name = type_ident(type);
-   if (ident_starts_with(full_name, well_known(W_STD)) ||
-       ident_starts_with(full_name, well_known(W_IEEE)) ||
-       ident_starts_with(full_name, well_known(W_NVC)) ||
-       ident_starts_with(full_name, well_known(W_VITAL)))
-      return true;
-
-   ident_t name = ident_rfrom(full_name, '.');
+   ident_t name = ident_rfrom(type_ident(type), '.');
    cover_spec_t *spc = data->spec;
 
    // Type should be recognized as FSM
@@ -397,10 +389,11 @@ static bool cover_skip_type_state(cover_data_t *data, type_t type)
 
    // Type should not be included
    if (spc) {
-      for (int i = 0; i < spc->fsm_type_exclude.count; i++)
+      for (int i = 0; i < spc->fsm_type_exclude.count; i++) {
          if (ident_glob(name, AGET(spc->fsm_type_exclude, i), -1))
             return true;
-     }
+      }
+   }
 
    return false;
 }
@@ -619,6 +612,33 @@ cover_item_t *cover_add_items_for(cover_data_t *data, cover_scope_t *cs,
    }
 }
 
+void cover_map_item(cover_scope_t *cs, object_t *obj, cover_item_t *item)
+{
+   cover_scope_t *inst = cs;
+   for (; inst != NULL && inst->kind != CSCOPE_INSTANCE; inst = inst->parent);
+   assert(inst != NULL);
+
+   if (inst->block->item_map == NULL)
+      inst->block->item_map = hash_new(128);
+
+   void *tagged = tag_pointer(obj, item->kind);
+   hash_put(inst->block->item_map, tagged, item);
+}
+
+cover_item_t *cover_lookup_item(cover_scope_t *cs, object_t *obj,
+                                cover_item_kind_t kind)
+{
+   cover_scope_t *inst = cs;
+   for (; inst != NULL && inst->kind != CSCOPE_INSTANCE; inst = inst->parent);
+   assert(inst != NULL);
+
+   if (inst->block->item_map == NULL)
+      return NULL;
+
+   void *tagged = tag_pointer(obj, kind);
+   return hash_get(inst->block->item_map, tagged);
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // Coverage data write/read to covdb, covdb merging and coverage scope handling
 ///////////////////////////////////////////////////////////////////////////////
@@ -734,10 +754,18 @@ static void cover_debug_dump(cover_scope_t *s, int indent)
    for (int i = 0; i < s->items.count; i++) {
       const cover_item_t *item = s->items.items[i];
 
-      char *path LOCAL = xstrdup(loc_file_str(&item->loc));
-      printf("%*s%d: %s %s %s:%d => %x\n", indent + 2, "", item->tag,
-             cover_item_kind_str(item->kind), istr(item->hier),
-             basename(path), item->loc.first_line, item->data);
+      if (loc_invalid_p(&item->loc))
+         printf("%*s%d: %s %s <invalid> => %x\n", indent + 2, "", item->tag,
+                cover_item_kind_str(item->kind), istr(item->hier), item->data);
+      else {
+         const char *path = loc_file_str(&item->loc), *basename;
+         if ((basename = strrchr(path, '/')))
+            path = basename + 1;
+
+         printf("%*s%d: %s %s %s:%d => %x\n", indent + 2, "", item->tag,
+                cover_item_kind_str(item->kind), istr(item->hier),
+                path, item->loc.first_line, item->data);
+      }
    }
 
    for (int i = 0; i < s->children.count; i++)

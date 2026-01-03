@@ -2588,7 +2588,7 @@ START_TEST(test_choice1)
    CHECK_BB(3);
 
    EXPECT_BB(4) = {
-      { VCODE_OP_COVER_BRANCH, .tag = 0 },
+      { VCODE_OP_COVER_BRANCH, .tag = 5 },
       { VCODE_OP_CONST, .value = -1 },
       { VCODE_OP_STORE, .name = "X" },
       { VCODE_OP_JUMP, .target = 2 }
@@ -2605,14 +2605,14 @@ START_TEST(test_choice1)
    CHECK_BB(5);
 
    EXPECT_BB(6) = {
-      { VCODE_OP_COVER_BRANCH, .tag = 1 },
+      { VCODE_OP_COVER_BRANCH, .tag = 0 },
       { VCODE_OP_JUMP, .target = 5 }
    };
 
    CHECK_BB(6);
 
    EXPECT_BB(7) = {
-      { VCODE_OP_COVER_BRANCH, .tag = 2 },
+      { VCODE_OP_COVER_BRANCH, .tag = 1 },
       { VCODE_OP_JUMP, .target = 5 }
    };
 
@@ -2627,7 +2627,7 @@ START_TEST(test_choice1)
    CHECK_BB(8);
 
    EXPECT_BB(9) = {
-      { VCODE_OP_COVER_BRANCH, .tag = 3 },
+      { VCODE_OP_COVER_BRANCH, .tag = 2 },
       { VCODE_OP_JUMP, .target = 8 }
    };
 

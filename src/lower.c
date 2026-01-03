@@ -35,6 +35,7 @@
 #include "vcode.h"
 #include "vhdl/vhdl-lower.h"
 #include "vhdl/vhdl-util.h"
+#include "vhdl/vhdl-phase.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -50,7 +51,6 @@ typedef enum {
 } expr_ctx_t;
 
 typedef struct _loop_stack loop_stack_t;
-typedef struct _lazy_cscope lazy_cscope_t;
 
 struct _loop_stack {
    loop_stack_t  *up;
@@ -58,13 +58,6 @@ struct _loop_stack {
    vcode_block_t  test_bb;
    vcode_block_t  exit_bb;
 };
-
-typedef struct _lazy_cscope {
-   lazy_cscope_t *parent;
-   lower_unit_t  *owner;
-   cover_scope_t *cscope;
-   tree_t         tree;
-} lazy_cscope_t;
 
 #define INSTANCE_BIT  0x80000000
 #define PARAM_VAR_BIT 0x40000000
@@ -156,22 +149,6 @@ typedef vcode_reg_t (*arith_fn_t)(vcode_reg_t, vcode_reg_t);
    __attribute__((cleanup(emit_debug_info), unused))    \
    const loc_t _old_loc = *vcode_last_loc();            \
    emit_debug_info(tree_loc((t)));                      \
-
-#define PUSH_COVER_SCOPE(lu, t)                         \
-   __attribute__((cleanup(_lower_pop_cover_scope)))     \
-   lazy_cscope_t __lcs = {                              \
-      .parent = (lu)->lazy_cscope,                      \
-      .owner = (lu),                                    \
-      .tree = (t)                                       \
-   };                                                   \
-   (lu)->lazy_cscope = &__lcs;
-
-__attribute__((always_inline))
-static inline void _lower_pop_cover_scope(lazy_cscope_t *lcs)
-{
-   assert(lcs->owner->lazy_cscope == lcs);
-   lcs->owner->lazy_cscope = lcs->parent;
-}
 
 static bool lower_is_const(tree_t t)
 {
@@ -1625,16 +1602,25 @@ static vcode_reg_t lower_arith(tree_t fcall, subprogram_kind_t kind,
    }
 }
 
+static cover_item_t *lower_get_cover_item(lower_unit_t *lu, tree_t t,
+                                          cover_item_kind_t kind)
+{
+   assert(lu->cover != NULL);
+
+   for (lower_unit_t *it = lu; it != NULL; it = it->parent) {
+      if (it->cscope != NULL)
+         return cover_lookup_item(it->cscope, tree_to_object(t), kind);
+   }
+
+   return NULL;
+}
+
 static void lower_branch_coverage(lower_unit_t *lu, tree_t b,
                                   vcode_block_t true_bb, vcode_block_t false_bb)
 {
    assert(cover_enabled(lu->cover, COVER_MASK_BRANCH));
 
-   object_t *obj = tree_to_object(b);
-
-   cover_scope_t *cs = lower_get_cover_scope(lu);
-   cover_item_t *item = cover_add_items_for(lu->cover, cs, obj,
-                                            COV_ITEM_BRANCH);
+   cover_item_t *item = lower_get_cover_item(lu, b, COV_ITEM_BRANCH);
    if (item == NULL)
       return;
 
@@ -1653,10 +1639,7 @@ static void lower_stmt_coverage(lower_unit_t *lu, tree_t stmt)
    if (!cover_enabled(lu->cover, COVER_MASK_STMT))
       return;
 
-   cover_scope_t *cs = lower_get_cover_scope(lu);
-   cover_item_t *item = cover_add_items_for(lu->cover, cs,
-                                            tree_to_object(stmt),
-                                            COV_ITEM_STMT);
+   cover_item_t *item = lower_get_cover_item(lu, stmt, COV_ITEM_STMT);
    if (item != NULL)
       emit_cover_stmt(item->tag);
 }
@@ -1666,16 +1649,16 @@ static void lower_toggle_coverage_cb(lower_unit_t *lu, tree_t field,
                                      vcode_reg_t unused, vcode_reg_t locus,
                                      void *ctx)
 {
+   cover_scope_t *parent = ctx;
    type_t ftype = tree_type(field);
 
-   PUSH_COVER_SCOPE(lu, field);
+   cover_scope_t *cs = cover_create_scope(lu->cover, parent, field, NULL);
 
    if (!type_is_homogeneous(ftype))
       lower_for_each_field(lu, ftype, field_ptr, locus,
-                           lower_toggle_coverage_cb, NULL);
+                           lower_toggle_coverage_cb, cs);
    else {
-      cover_scope_t *cscope = lower_get_cover_scope(lu);
-      cover_item_t *first = cover_add_items_for(lu->cover, cscope,
+      cover_item_t *first = cover_add_items_for(lu->cover, cs,
                                                 tree_to_object(field),
                                                 COV_ITEM_TOGGLE);
       if (first != NULL) {
@@ -1685,30 +1668,27 @@ static void lower_toggle_coverage_cb(lower_unit_t *lu, tree_t field,
    }
 }
 
-static void lower_toggle_coverage(lower_unit_t *lu, tree_t decl)
+static void lower_toggle_coverage(lower_unit_t *lu, tree_t decl,
+                                  vcode_var_t var)
 {
    assert(cover_enabled(lu->cover, COVER_MASK_TOGGLE));
 
-   int hops = 0;
-   vcode_var_t var = lower_search_vcode_obj(decl, lu, &hops);
-   assert(var != VCODE_INVALID_VAR);
-   assert(hops == 0);
-
    type_t type = tree_type(decl);
    if (!type_is_homogeneous(type)) {
+      // TODO: ideally this would be in vhdl-cover.c
+      cover_scope_t *cs = cover_create_scope(lu->cover, lu->cscope, decl, NULL);
+
       vcode_reg_t rec_ptr = emit_index(var, VCODE_INVALID_REG);
       lower_for_each_field(lu, type, rec_ptr, VCODE_INVALID_REG,
-                           lower_toggle_coverage_cb, NULL);
+                           lower_toggle_coverage_cb, cs);
    }
    else {
-      cover_scope_t *cscope = lower_get_cover_scope(lu);
-      cover_item_t *first = cover_add_items_for(lu->cover, cscope,
-                                                tree_to_object(decl),
-                                                COV_ITEM_TOGGLE);
-      if (first != NULL) {
-         vcode_reg_t nets_reg = emit_load(var);
-         emit_cover_toggle(nets_reg, first->tag);
-      }
+      cover_item_t *item = lower_get_cover_item(lu, decl, COV_ITEM_TOGGLE);
+      if (item == NULL)
+         return;
+
+      vcode_reg_t nets_reg = emit_load(var);
+      emit_cover_toggle(nets_reg, item->tag);
    }
 }
 
@@ -1716,26 +1696,23 @@ static void lower_state_coverage(lower_unit_t *lu, tree_t decl)
 {
    assert(cover_enabled(lu->cover, COVER_MASK_STATE));
 
-   cover_scope_t *cscope = lower_get_cover_scope(lu);
+   cover_item_t *item = lower_get_cover_item(lu, decl, COV_ITEM_STATE);
+   if (item == NULL)
+      return;
 
    int hops = 0;
    vcode_var_t var = lower_search_vcode_obj(decl, lu, &hops);
    assert(var != VCODE_INVALID_VAR);
 
-   cover_item_t *item = cover_add_items_for(lu->cover, cscope,
-                                            tree_to_object(decl),
-                                            COV_ITEM_STATE);
-   if (item) {
-      vcode_reg_t nets_reg = emit_load(var);
+   vcode_reg_t nets_reg = emit_load(var);
 
-      // If a type is sub-type, then lower bound may be non-zero.
-      // Then value of lower bound will correspond to first coverage
-      // tag.  Need to remember the lower bound, so that run-time can
-      // subtract lower bound to get correct index of coverage data.
-      vcode_reg_t low_reg = emit_const(vtype_int(INT64_MIN, INT64_MAX),
-                                       item->metadata);
-      emit_cover_state(nets_reg, low_reg, item->tag);
-   }
+   // If a type is sub-type, then lower bound may be non-zero.
+   // Then value of lower bound will correspond to first coverage
+   // tag.  Need to remember the lower bound, so that run-time can
+   // subtract lower bound to get correct index of coverage data.
+   vcode_reg_t low_reg = emit_const(vtype_int(INT64_MIN, INT64_MAX),
+                                    item->metadata);
+   emit_cover_state(nets_reg, low_reg, item->tag);
 }
 
 static vcode_reg_t lower_logical(lower_unit_t *lu, tree_t fcall,
@@ -1746,10 +1723,7 @@ static vcode_reg_t lower_logical(lower_unit_t *lu, tree_t fcall,
    if (!cover_enabled(lu->cover, COVER_MASK_EXPRESSION))
       return result;
 
-   cover_scope_t *cscope = lower_get_cover_scope(lu);
-   cover_item_t *first = cover_add_items_for(lu->cover, cscope,
-                                             tree_to_object(fcall),
-                                             COV_ITEM_EXPRESSION);
+   cover_item_t *first = lower_get_cover_item(lu, fcall, COV_ITEM_EXPRESSION);
    if (first == NULL)
       return result;
 
@@ -1822,11 +1796,7 @@ static void lower_logic_expr_coverage(lower_unit_t *lu, tree_t fcall,
    if (vcode_unit_kind(lu->vunit) == VCODE_UNIT_PROPERTY)
       return;
 
-   cover_scope_t *cscope = lower_get_cover_scope(lu);
-   cover_item_t *first = cover_add_items_for(lu->cover, cscope,
-                                             tree_to_object(fcall),
-                                             COV_ITEM_EXPRESSION);
-
+   cover_item_t *first = lower_get_cover_item(lu, fcall, COV_ITEM_EXPRESSION);
    if (first == NULL)
       return;
 
@@ -6384,7 +6354,6 @@ static void lower_if(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
    for (int i = 0; i < nconds; i++) {
       tree_t c = tree_cond(stmt, i);
       vcode_block_t next_bb = VCODE_INVALID_BLOCK;
-      PUSH_COVER_SCOPE(lu, c);
 
       if (tree_has_value(c)) {
          vcode_reg_t test = lower_rvalue(lu, tree_value(c));
@@ -6882,10 +6851,8 @@ static void lower_case_scalar(lower_unit_t *lu, tree_t stmt,
 
             emit_cond(hit_reg, hit_bb, skip_bb);
 
-            if (want_coverage) {
-               PUSH_COVER_SCOPE(lu, a);
+            if (want_coverage)
                lower_branch_coverage(lu, a, hit_bb, VCODE_INVALID_BLOCK);
-            }
 
             vcode_select_block(hit_bb);
 
@@ -6915,8 +6882,6 @@ static void lower_case_scalar(lower_unit_t *lu, tree_t stmt,
          tree_t a = tree_choice(alt, j);
          if (tree_ranges(a) > 0)
             continue;    // Handled separately above
-
-         PUSH_COVER_SCOPE(lu, a);
 
          if (hit_bb == VCODE_INVALID_BLOCK)
             hit_bb = emit_block();
@@ -7138,8 +7103,6 @@ static void lower_case_array(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
          assert(tree_ranges(a) == 0);
 
          hit_bb = emit_block();
-
-         PUSH_COVER_SCOPE(lu, a);
 
          if (tree_has_name(a)) {
             tree_t name = tree_name(a);
@@ -7396,7 +7359,6 @@ static void lower_stmt(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
       return;   // Unreachable
 
    PUSH_DEBUG_INFO(stmt);
-   PUSH_COVER_SCOPE(lu, stmt);
 
    switch (tree_kind(stmt)) {
    case T_ASSERT:
@@ -8135,10 +8097,8 @@ static void lower_signal_decl(lower_unit_t *lu, tree_t decl)
                      VCODE_INVALID_REG, init_reg, VCODE_INVALID_REG,
                      VCODE_INVALID_REG, flags, bounds_reg);
 
-   PUSH_COVER_SCOPE(lu, decl);
-
    if (cover_enabled(lu->cover, COVER_MASK_TOGGLE))
-      lower_toggle_coverage(lu, decl);
+      lower_toggle_coverage(lu, decl, var);
 
    if (cover_enabled(lu->cover, COVER_MASK_STATE))
       lower_state_coverage(lu, decl);
@@ -9533,10 +9493,6 @@ static void lower_instantiated_package(lower_unit_t *lu, object_t *obj)
    tree_t pack = tree_ref(decl);
    assert(is_uninstantiated_package(pack));
 
-   lu->cscope = cover_create_block(lu->cover, lu->name,
-                                   lu->parent->cscope,
-                                   decl, pack, NULL);
-
    lower_dependencies(lu, body_of(pack) ?: pack);
 
    lower_generics(lu, decl, NULL);
@@ -9801,10 +9757,6 @@ static void lower_protected_body(lower_unit_t *lu, object_t *obj)
 {
    tree_t body = tree_from_object(obj);
    assert(tree_kind(body) == T_PROT_BODY);
-
-   lu->cscope = cover_create_block(lu->cover, lu->name,
-                                   lu->parent->cscope,
-                                   body, body, NULL);
 
    if (standard() >= STD_19) {
       // LCS-2016-032 requires dynamic 'PATH_NAME and 'INSTANCE_NAME for
@@ -10246,10 +10198,6 @@ static void lower_proc_body(lower_unit_t *lu, object_t *obj)
    tree_t body = tree_from_object(obj);
    assert(!is_uninstantiated_subprogram(body));
 
-   lu->cscope = cover_create_block(lu->cover, lu->name,
-                                   lu->parent->cscope,
-                                   body, body, NULL);
-
    vcode_type_t vcontext = vtype_context(lu->parent->name);
    emit_param(vcontext, VCODE_INVALID_STAMP, ident_new("context"));
 
@@ -10277,10 +10225,6 @@ static void lower_func_body(lower_unit_t *lu, object_t *obj)
 
    vcode_type_t vcontext = vtype_context(lu->parent->name);
    emit_param(vcontext, VCODE_INVALID_STAMP, ident_new("context"));
-
-   lu->cscope = cover_create_block(lu->cover, lu->name,
-                                   lu->parent->cscope,
-                                   body, body, NULL);
 
    const bool has_subprograms = lower_has_subprograms(body);
    lower_subprogram_ports(lu, body, has_subprograms);
@@ -10531,10 +10475,6 @@ static void lower_process(lower_unit_t *lu, object_t *obj)
    vcode_block_t start_bb = emit_block();
    assert(start_bb == 1);
 
-   lu->cscope = cover_create_block(lu->cover, lu->name,
-                                   lu->parent->cscope,
-                                   proc, proc, NULL);
-
    if (tree_global_flags(proc) & TREE_GF_EXTERNAL_NAME)
       tree_visit_only(proc, lower_external_name_cache, lu, T_EXTERNAL_NAME);
 
@@ -10626,7 +10566,6 @@ static void lower_process(lower_unit_t *lu, object_t *obj)
       const int nconds = tree_conds(s0);
       if (nconds == 1) {
          tree_t c = tree_cond(s0, 0);
-         PUSH_COVER_SCOPE(lu, c);
          lower_sequence(lu, c, NULL);
       }
       else {
@@ -10642,7 +10581,6 @@ static void lower_process(lower_unit_t *lu, object_t *obj)
          {
             vcode_select_block(btrue);
 
-            PUSH_COVER_SCOPE(lu, c0);
             lower_sequence(lu, c0, NULL);
 
             if (!vcode_block_finished())
@@ -10652,7 +10590,6 @@ static void lower_process(lower_unit_t *lu, object_t *obj)
          {
             vcode_select_block(bfalse);
 
-            PUSH_COVER_SCOPE(lu, c1);
             lower_sequence(lu, c1, NULL);
 
             if (!vcode_block_finished())
@@ -11154,9 +11091,6 @@ static void lower_inertial_actual_process(lower_unit_t *lu, object_t *obj)
    emit_return(VCODE_INVALID_REG);
 
    vcode_select_block(main_bb);
-
-   lu->cscope = cover_create_block(lu->cover, lu->name, lu->parent->cscope,
-                                   inertial, inertial, NULL);
 
    vcode_reg_t zero_time_reg = emit_const(vtype_time(), 0);
    vcode_reg_t value_reg = lower_rvalue(lu, expr);
@@ -11809,6 +11743,9 @@ static void lower_ports(lower_unit_t *lu, tree_t block, tree_t src)
          lower_port_signal(lu, port, port_vars[i], bounds_reg);
       else if (poison != NULL && hset_contains(poison, port))
          lower_port_signal(lu, port, port_vars[i], bounds_reg);
+
+      if (cover_enabled(lu->cover, COVER_MASK_TOGGLE))
+         lower_toggle_coverage(lu, port, port_vars[i]);
    }
 
    for (int i = 0; i < nparams; i++) {
@@ -11819,14 +11756,6 @@ static void lower_ports(lower_unit_t *lu, tree_t block, tree_t src)
          tree_t port = tree_ref(name_to_ref(tree_name(map)));
          if (hset_contains(poison, port))
             lower_port_map(lu, block, map, map_regs[i]);
-      }
-   }
-
-   if (cover_enabled(lu->cover, COVER_MASK_TOGGLE)) {
-      for (int i = 0; i < nports; i++) {
-         tree_t p = tree_port(block, i);
-         PUSH_COVER_SCOPE(lu, p);
-         lower_toggle_coverage(lu, p);
       }
    }
 
@@ -12456,20 +12385,17 @@ lower_unit_t *lower_instance(unit_registry_t *ur, lower_unit_t *parent,
    unit_registry_put(ur, lu);
 
    if (cover != NULL) {
-      if (parent == NULL)
-         lu->cscope = cover_create_block(cover, name, NULL, block, unit, NULL);
-      else if (parent != NULL && parent->cover == NULL) {
+      if (parent != NULL && parent->cscope == NULL) {
          // Collapse this coverage scope with the block for the
          // component above
          assert(tree_subkind(tree_decl(parent->container, 0)) == T_COMPONENT);
-         lu->cscope = cover_create_block(cover, name, parent->parent->cscope,
-                                         parent->container, unit, NULL);
+         lu->cscope = vhdl_cover_block(parent->container, cover,
+                                       parent->parent->cscope);
       }
+      else if (parent != NULL)
+         lu->cscope = vhdl_cover_block(block, cover, parent->cscope);
       else
-         lu->cscope = cover_create_block(cover, name, parent->cscope,
-                                         block, unit, NULL);
-
-      cover_ignore_from_pragmas(cover, lu->cscope, unit);
+         lu->cscope = vhdl_cover_block(block, cover, NULL);
    }
 
    tree_global_flags_t gflags = tree_global_flags(unit);
@@ -12550,28 +12476,6 @@ void lower_unit_free(lower_unit_t *lu)
 vcode_unit_t get_vcode(lower_unit_t *lu)
 {
    return lu->vunit;
-}
-
-static cover_scope_t *lower_emit_cover_scopes(lower_unit_t *lu,
-                                              lazy_cscope_t *lcs)
-{
-   if (lcs == NULL)
-      return lu->cscope;
-   else if (lcs->cscope != NULL)
-      return lcs->cscope;
-   else {
-      cover_scope_t *parent = lower_emit_cover_scopes(lu, lcs->parent);
-      return (lcs->cscope = cover_create_scope(lu->cover, parent,
-                                               lcs->tree, NULL));
-   }
-}
-
-cover_scope_t *lower_get_cover_scope(lower_unit_t *lu)
-{
-   if (lu->cover == NULL)
-      return NULL;
-   else
-      return lower_emit_cover_scopes(lu, lu->lazy_cscope);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
