@@ -735,7 +735,7 @@ vests49         normal
 signal30        normal
 psl1            fail,psl,gold
 elab36          normal
-cover13         cover,shell
+cover13         cover
 gentype5        normal,2008
 issue620        normal,2008
 issue643        normal,2008
@@ -888,7 +888,7 @@ conv10          fail,gold,2008
 psl5            fail,gold,psl
 psl6            fail,gold,psl
 cover18         cover,shell
-cover19         cover,shell
+cover19         cover=fsm-state+fsm-no-default-enums
 gentype6        normal,2008
 mixed1          mixed
 ename5          fail,gold,2008

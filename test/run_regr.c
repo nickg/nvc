@@ -973,6 +973,10 @@ static bool run_test(test_t *test)
             push_arg(&args, "--cover=%s", test->cover);
          else
             push_arg(&args, "--cover");
+
+         if (file_exists("%s/regress/data/%s.spec", test_dir, test->name))
+            push_arg(&args, "--cover-spec=%s/regress/data/%s.spec",
+                     test_dir, test->name);
       }
 
       for (param_t *p = test->params; p != NULL; p = p->next) {
