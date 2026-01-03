@@ -19,7 +19,6 @@
 #include "array.h"
 #include "common.h"
 #include "diag.h"
-#include "driver.h"
 #include "eval.h"
 #include "hash.h"
 #include "inst.h"
@@ -67,7 +66,6 @@ typedef struct _elab_ctx {
    lower_unit_t     *lowered;
    cover_data_t     *cover;
    sdf_file_t       *sdf;
-   driver_set_t     *drivers;
    hash_t           *modcache;
    hash_t           *mracache;
    rt_model_t       *model;
@@ -1542,16 +1540,6 @@ static bool elab_new_errors(const elab_ctx_t *ctx)
    return error_count() - ctx->errors;
 }
 
-static driver_set_t *elab_driver_set(const elab_ctx_t *ctx)
-{
-   if (ctx->drivers != NULL)
-      return ctx->drivers;
-   else if (ctx->parent != NULL)
-      return elab_driver_set(ctx->parent);
-   else
-      return NULL;
-}
-
 static void elab_lower(tree_t b, elab_ctx_t *ctx)
 {
    tree_t hier = tree_decl(b, 0);
@@ -1607,10 +1595,8 @@ static void elab_verilog_module(tree_t bind, ident_t label,
    if (elab_new_errors(&new_ctx) == 0)
       elab_decls(ei->block, &new_ctx);
 
-   if (elab_new_errors(&new_ctx) == 0) {
-      new_ctx.drivers = find_drivers(ei->block);
+   if (elab_new_errors(&new_ctx) == 0)
       elab_lower(b, &new_ctx);
-   }
 
    if (elab_new_errors(&new_ctx) == 0)
       elab_verilog_stmts(ei->body, &new_ctx);
@@ -2139,7 +2125,6 @@ static void elab_architecture(tree_t inst, tree_t arch, const elab_ctx_t *ctx)
    elab_decls(ei->block, &new_ctx);
 
    if (error_count() == 0) {
-      new_ctx.drivers = find_drivers(ei->block);
       elab_lower(b, &new_ctx);
       elab_stmts(ei->block, &new_ctx);
    }
@@ -2199,7 +2184,6 @@ static void elab_configuration(tree_t inst, tree_t unit, const elab_ctx_t *ctx)
    elab_decls(ei->block, &new_ctx);
 
    if (error_count() == 0) {
-      new_ctx.drivers = find_drivers(ei->block);
       elab_lower(b, &new_ctx);
       elab_stmts(ei->block, &new_ctx);
    }
@@ -2267,10 +2251,8 @@ static void elab_component(tree_t inst, tree_t comp, const elab_ctx_t *ctx)
    elab_generics(ei->block, inst, &new_ctx);
    elab_ports(ei->block, inst, &new_ctx);
 
-   if (error_count() == 0) {
-      new_ctx.drivers = find_drivers(ei->block);
+   if (error_count() == 0)
       elab_lower(b, &new_ctx);
-   }
 
    if (elab_new_errors(&new_ctx) == 0)
       elab_stmts(ei->block, &new_ctx);
@@ -2367,9 +2349,6 @@ static void elab_push_scope(tree_t t, elab_ctx_t *ctx)
 
 static void elab_pop_scope(elab_ctx_t *ctx)
 {
-   if (ctx->drivers != NULL)
-      free_drivers(ctx->drivers);
-
    if (ctx->lowered != NULL)
       unit_registry_finalise(ctx->registry, ctx->lowered);
 }
@@ -2428,8 +2407,6 @@ static void elab_for_generate(tree_t t, const elab_ctx_t *ctx)
 
    ident_t label = tree_ident(t), first = NULL;
 
-   driver_set_t *ds = find_drivers(t);
-
    for (int64_t i = low; i <= high; i++) {
       ident_t id = ident_sprintf("%s(%"PRIi64")", istr(label), i);
       ident_t ndotted = ident_prefix(ctx->dotted, id, '.');
@@ -2454,7 +2431,6 @@ static void elab_for_generate(tree_t t, const elab_ctx_t *ctx)
       elab_ctx_t new_ctx = {
          .out     = b,
          .dotted  = ndotted,
-         .drivers = ds,
       };
       elab_inherit_context(&new_ctx, ctx);
 
@@ -2474,11 +2450,8 @@ static void elab_for_generate(tree_t t, const elab_ctx_t *ctx)
          elab_stmts(t, &new_ctx);
       }
 
-      new_ctx.drivers = NULL;
       elab_pop_scope(&new_ctx);
    }
-
-   free_drivers(ds);
 }
 
 static bool elab_generate_test(tree_t value, const elab_ctx_t *ctx)
@@ -2520,8 +2493,6 @@ static void elab_if_generate(tree_t t, const elab_ctx_t *ctx)
          elab_push_scope(t, &new_ctx);
          elab_decls(cond, &new_ctx);
 
-         new_ctx.drivers = find_drivers(cond);
-
          if (error_count() == 0) {
             elab_lower(b, &new_ctx);
             elab_stmts(cond, &new_ctx);
@@ -2559,8 +2530,6 @@ static void elab_case_generate(tree_t t, const elab_ctx_t *ctx)
    elab_push_scope(t, &new_ctx);
    elab_decls(chosen, &new_ctx);
 
-   new_ctx.drivers = find_drivers(chosen);
-
    if (error_count() == 0) {
       elab_lower(b, &new_ctx);
       elab_stmts(chosen, &new_ctx);
@@ -2572,7 +2541,7 @@ static void elab_case_generate(tree_t t, const elab_ctx_t *ctx)
 static void elab_process(tree_t t, const elab_ctx_t *ctx)
 {
    if (error_count() == 0 && ctx->cloned == NULL)
-      lower_process(ctx->lowered, t, elab_driver_set(ctx));
+      lower_process(ctx->lowered, t);
 
    tree_add_stmt(ctx->out, t);
 }

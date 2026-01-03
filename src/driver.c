@@ -215,6 +215,16 @@ static void visit_instance(driver_set_t *ds, tree_t inst, bool tentative)
    visit_port_map(ds, unit, inst, tentative);
 }
 
+static void visit_process(driver_set_t *ds, tree_t proc, bool tentative)
+{
+   proc_params_t params = {
+      .ds = ds,
+      .proc = proc,
+      .tentative = tentative,
+   };
+   tree_visit(proc, driver_proc_cb, &params);
+}
+
 static void visit_block(driver_set_t *ds, tree_t b, bool tentative)
 {
    const int nstmts = tree_stmts(b);
@@ -222,14 +232,7 @@ static void visit_block(driver_set_t *ds, tree_t b, bool tentative)
       tree_t s = tree_stmt(b, i);
       switch (tree_kind(s)) {
       case T_PROCESS:
-         {
-            proc_params_t params = {
-               .ds = ds,
-               .proc = s,
-               .tentative = tentative,
-            };
-            tree_visit(s, driver_proc_cb, &params);
-         }
+         visit_process(ds, s, tentative);
          break;
       case T_BLOCK:
          visit_port_map(ds, s, s, tentative);
@@ -280,6 +283,9 @@ driver_set_t *find_drivers(tree_t where)
       break;
    case T_BINDING:
       visit_port_map(ds, primary_unit_of(tree_ref(where)), where, false);
+      break;
+   case T_PROCESS:
+      visit_process(ds, where, false);
       break;
    default:
       fatal_trace("cannot find drivers in %s", tree_kind_str(tree_kind(where)));

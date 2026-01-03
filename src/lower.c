@@ -10750,7 +10750,7 @@ static vcode_reg_t lower_process_trigger(lower_unit_t *lu, tree_t proc)
       return emit_or_trigger(branches[0], branches[1]);
 }
 
-void lower_process(lower_unit_t *parent, tree_t proc, driver_set_t *ds)
+void lower_process(lower_unit_t *parent, tree_t proc)
 {
    assert(tree_kind(proc) == T_PROCESS);
 
@@ -10777,6 +10777,7 @@ void lower_process(lower_unit_t *parent, tree_t proc, driver_set_t *ds)
 
    lower_decls(lu, proc);
 
+   driver_set_t *ds = find_drivers(proc);
    driver_info_t *di = get_drivers(ds, proc);
    for (; di; di = di->chain_proc) {
       assert(!di->tentative);
@@ -10911,6 +10912,7 @@ void lower_process(lower_unit_t *parent, tree_t proc, driver_set_t *ds)
 
    lower_finished(lu);
    unit_registry_finalise(parent->registry, lu);
+   free_drivers(ds);
 }
 
 static bool lower_is_signal_ref(tree_t expr)
