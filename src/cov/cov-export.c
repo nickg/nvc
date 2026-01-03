@@ -105,8 +105,8 @@ static void cobertura_export_scope(cobertura_report_t *report,
                                    cobertura_class_t *class,
                                    cover_scope_t *s)
 {
-   if (cover_is_hier(s))
-      class = cobertura_get_class(report, s->block->block_name, &s->loc);
+   if (s->block_name != NULL)
+      class = cobertura_get_class(report, s->block_name, &s->loc);
 
    for (int i = 0; i < s->items.count; i++) {
       cover_item_t *t = &(s->items.items[i]);
@@ -264,8 +264,8 @@ static void dump_scope_xml(cover_scope_t *s, int indent, const loc_t *loc,
 {
    fprintf(f, "%*s<scope name=\"%s\"", indent, "", istr(s->name));
 
-   if (cover_is_hier(s))
-      fprintf(f, " block_name=\"%s\"", istr(s->block->block_name));
+   if (s->block_name != NULL)
+      fprintf(f, " block_name=\"%s\"", istr(s->block_name));
 
    if (s->loc.file_ref != FILE_INVALID && s->loc.file_ref != loc->file_ref) {
       LOCAL_TEXT_BUF tb = tb_new();

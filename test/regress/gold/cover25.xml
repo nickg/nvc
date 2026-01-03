@@ -4,14 +4,14 @@
     <scope name="SUB1_I" block_name="SUB-TEST" line="8">
       <scope name="P1" line="11">
       </scope>
-      <scope name="sub_scope" line="42">
+      <scope name="sub_scope" block_name="SUB1_I" line="42">
         <functional hier="WORK.COVER25.SUB1_I.sub_scope.item" data="10"/>
       </scope>
     </scope>
     <scope name="SUB2_I" block_name="SUB-TEST" line="8">
       <scope name="P1" line="11">
       </scope>
-      <scope name="sub_scope" line="39">
+      <scope name="sub_scope" block_name="SUB" line="39">
         <functional hier="WORK.COVER25.SUB2_I.sub_scope.item" data="5"/>
       </scope>
     </scope>
@@ -19,11 +19,11 @@
     </scope>
     <scope name="P3" line="61">
     </scope>
-    <scope name="top_scope">
+    <scope name="top_scope" block_name="COVER25">
       <functional hier="WORK.COVER25.top_scope.item1" data="1"/>
       <functional hier="WORK.COVER25.top_scope.item2" data="2"/>
     </scope>
-    <scope name="top_scope#1">
+    <scope name="top_scope#1" block_name="COVER25">
       <functional hier="WORK.COVER25.top_scope#1.dup" data="0"/>
       <functional hier="WORK.COVER25.top_scope#1.dup#1" data="0"/>
       <functional hier="WORK.COVER25.top_scope#1.dup#2" data="0"/>

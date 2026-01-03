@@ -82,10 +82,22 @@ typedef A(line_range_t) range_array_t;
 typedef A(cover_item_t) cov_item_array_t;
 typedef A(cover_scope_t *) scope_array_t;
 
+typedef enum {
+   CSCOPE_NONE,
+   CSCOPE_INSTANCE,
+   CSCOPE_SUBPROG,
+   CSCOPE_PACKAGE,
+   CSCOPE_PROCESS,
+   CSCOPE_USER,
+   CSCOPE_PROPERTY,
+} cscope_kind_t;
+
 typedef struct _cover_scope {
    ident_t           name;
    ident_t           hier;
+   ident_t           block_name;
    loc_t             loc;
+   cscope_kind_t     kind;
    int               branch_label;
    int               stmt_label;
    int               expression_label;

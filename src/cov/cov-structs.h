@@ -25,20 +25,8 @@
 
 #define SHA_HEX_LEN (20 * 2 + 1)
 
-typedef enum {
-   CBLOCK_NONE,
-   CBLOCK_INSTANCE,
-   CBLOCK_SUBPROG,
-   CBLOCK_PACKAGE,
-   CBLOCK_PROCESS,
-   CBLOCK_USER,
-   CBLOCK_PROPERTY,
-} block_kind_t;
-
 typedef struct _cover_block {
    ident_t        name;
-   ident_t        block_name;
-   block_kind_t   kind;
    unsigned       next_tag;
    cover_scope_t *self;
    int32_t       *data;

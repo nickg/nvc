@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2013-2025  Nick Gasson
+//  Copyright (C) 2013-2026  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -65,7 +65,7 @@ static const struct {
 };
 
 #define COVER_FILE_MAGIC   0x6e636462   // ASCII "ncdb"
-#define COVER_FILE_VERSION 4
+#define COVER_FILE_VERSION 5
 
 static inline unsigned get_next_tag(cover_block_t *b)
 {
@@ -600,7 +600,7 @@ cover_item_t *cover_add_items_for(cover_data_t *data, cover_scope_t *cs,
    // statements, blocks, etc.
    for (cover_scope_t *ignore_scope = cs; ignore_scope->parent;
         ignore_scope = ignore_scope->parent) {
-      if (cover_block_kind(ignore_scope) == CBLOCK_NONE)
+      if (ignore_scope->block_name == NULL)
          continue;
       else if (ignore_scope->loc.file_ref != loc.file_ref)
          break;
@@ -704,8 +704,6 @@ static void cover_write_scope(cover_scope_t *s, fbuf_t *f,
       write_u8(CTRL_PUSH_UNIT, f);
 
       ident_write(s->block->name, ident_ctx);
-      ident_write(s->block->block_name, ident_ctx);
-      fbuf_put_uint(f, s->block->kind);
       fbuf_put_uint(f, s->block->next_tag);
    }
    else
@@ -713,6 +711,8 @@ static void cover_write_scope(cover_scope_t *s, fbuf_t *f,
 
    ident_write(s->name, ident_ctx);
    ident_write(s->hier, ident_ctx);
+   ident_write(s->block_name, ident_ctx);
+   fbuf_put_uint(f, s->kind);
    loc_write(&s->loc, loc_ctx);
 
    fbuf_put_uint(f, s->items.count);
@@ -757,8 +757,8 @@ LCOV_EXCL_START
 static void cover_debug_dump(cover_scope_t *s, int indent)
 {
    nvc_printf("%*s$!blue$%s$$", indent, "", istr(s->name));
-   if (cover_is_hier(s))
-      printf(" : %s", istr(s->block->block_name));
+   if (s->block_name != NULL)
+      printf(" : %s", istr(s->block_name));
    nvc_printf("\n");
 
    for (int i = 0; i < s->items.count; i++) {
@@ -838,19 +838,20 @@ static bool cover_should_emit_scope(cover_data_t *data, cover_scope_t *cs)
    if (spc == NULL)
       return true;
 
-   // Block (entity, package instance or block) name
-   if (cs->block->block_name != NULL) {
-      ident_t ename = ident_until(cs->block->block_name, '-');
+   cover_scope_t *blk = cs;
+   for (; blk != NULL && blk->block_name == NULL; blk = blk->parent);
+   assert(blk != NULL);
 
-      for (int i = 0; i < spc->block_exclude.count; i++) {
-         if (ident_glob(ename, AGET(spc->block_exclude, i), -1))
-            return false;
-      }
+   ident_t ename = ident_until(blk->block_name, '-');
 
-      for (int i = 0; i < data->spec->block_include.count; i++) {
-         if (ident_glob(ename, AGET(spc->block_include, i), -1))
-            return true;
-      }
+   for (int i = 0; i < spc->block_exclude.count; i++) {
+      if (ident_glob(ename, AGET(spc->block_exclude, i), -1))
+         return false;
+   }
+
+   for (int i = 0; i < data->spec->block_include.count; i++) {
+      if (ident_glob(ename, AGET(spc->block_include, i), -1))
+         return true;
    }
 
    // Hierarchy
@@ -897,41 +898,42 @@ cover_scope_t *cover_create_block(cover_data_t *data, ident_t qual,
    else
       scope_name = ident_sprintf("_S%u", parent->stmt_label++);
 
+   ident_t block_name = NULL;
+   if (is_design_unit(unit) || is_concurrent_block(unit))
+      block_name = ident_rfrom(tree_ident(unit), '.');
+
    cover_scope_t *s = pool_calloc(data->pool, sizeof(cover_scope_t));
-   s->name    = scope_name;
-   s->parent  = parent;
-   s->block   = b;
-   s->sig_pos = parent->sig_pos;
-   s->loc     = *tree_loc(unit);
-   s->hier    = ident_prefix(parent->hier, scope_name, '.');
-   s->emit    = cover_should_emit_scope(data, s);
+   s->name       = scope_name;
+   s->parent     = parent;
+   s->block      = b;
+   s->sig_pos    = parent->sig_pos;
+   s->loc        = *tree_loc(unit);
+   s->hier       = ident_prefix(parent->hier, scope_name, '.');
+   s->block_name = block_name;
+   s->emit       = cover_should_emit_scope(data, s);
 
    switch (tree_kind(inst)) {
    case T_BLOCK:
-      if (name == NULL) {
-         b->kind = CBLOCK_INSTANCE;
-         b->block_name = ident_rfrom(tree_ident(unit), '.');
-      }
+      if (name == NULL)
+         s->kind = CSCOPE_INSTANCE;
       else
-         b->kind = CBLOCK_USER;   // XXX
+         s->kind = CSCOPE_USER;   // XXX
       break;
    case T_PROCESS:
    case T_INERTIAL:
-      b->kind = CBLOCK_PROCESS;
-      b->block_name = parent->block->block_name;
+      s->kind = CSCOPE_PROCESS;
       break;
    case T_PROC_BODY:
    case T_FUNC_BODY:
-      b->kind = CBLOCK_SUBPROG;
+      s->kind = CSCOPE_SUBPROG;
       break;
    case T_PSL_DIRECT:
-      b->kind = CBLOCK_PROPERTY;
+      s->kind = CSCOPE_PROPERTY;
       break;
    case T_PACK_INST:
    case T_PACKAGE:
    case T_PACK_BODY:
-      b->kind = CBLOCK_PACKAGE;
-      b->block_name = tree_ident(unit);
+      s->kind = CSCOPE_PACKAGE;
       break;
    default:
       should_not_reach_here();
@@ -951,6 +953,7 @@ cover_scope_t *cover_create_scope(cover_data_t *data, cover_scope_t *parent,
 
    assert(parent != NULL);
    assert(data->root_scope != NULL);
+   assert(!is_design_unit(t));
 
    cover_scope_t *s = pool_calloc(data->pool, sizeof(cover_scope_t));
 
@@ -983,6 +986,7 @@ cover_scope_t *cover_create_scope(cover_data_t *data, cover_scope_t *parent,
    s->loc    = *tree_loc(t);
    s->hier   = ident_prefix(parent->hier, name, '.');
    s->emit   = cover_should_emit_scope(data, s);
+   s->kind   = CSCOPE_NONE;
 
    if (s->sig_pos == 0)
       s->sig_pos = parent->sig_pos;
@@ -1048,10 +1052,12 @@ static cover_scope_t *cover_read_scope(cover_data_t *db, fbuf_t *f,
                                        cover_scope_t *parent)
 {
    cover_scope_t *s = pool_calloc(db->pool, sizeof(cover_scope_t));
-   s->name   = ident_read(ident_ctx);
-   s->hier   = ident_read(ident_ctx);
-   s->block  = b;
-   s->parent = parent;
+   s->name       = ident_read(ident_ctx);
+   s->hier       = ident_read(ident_ctx);
+   s->block_name = ident_read(ident_ctx);
+   s->kind       = fbuf_get_uint(f);
+   s->block      = b;
+   s->parent     = parent;
 
    loc_read(&s->loc, loc_ctx);
 
@@ -1074,8 +1080,6 @@ static cover_scope_t *cover_read_scope(cover_data_t *db, fbuf_t *f,
             if (b == NULL) {
                b = xcalloc(sizeof(cover_block_t));
                b->name = name;
-               b->block_name = ident_read(ident_ctx);
-               b->kind = fbuf_get_uint(f);
                b->next_tag = fbuf_get_uint(f);
                b->self = cover_read_scope(db, f, ident_ctx, loc_ctx, b, s);
 
@@ -1084,8 +1088,6 @@ static cover_scope_t *cover_read_scope(cover_data_t *db, fbuf_t *f,
                APUSH(s->children, b->self);
             }
             else {
-               (void)ident_read(ident_ctx);
-               (void)fbuf_get_uint(f);
                (void)fbuf_get_uint(f);
 
                cover_scope_t *child =
@@ -1245,7 +1247,7 @@ int32_t *cover_get_counters(cover_data_t *db, ident_t name)
       return NULL;
 
    if (b->data == NULL)
-      b->data = pool_calloc(db->pool, b->next_tag *sizeof(int32_t));
+      b->data = pool_calloc(db->pool, b->next_tag * sizeof(int32_t));
 
    return b->data;
 }
@@ -1310,22 +1312,11 @@ const char *cover_item_kind_str(cover_item_kind_t kind)
    return item_kind_str[kind];
 }
 
-block_kind_t cover_block_kind(cover_scope_t *s)
-{
-   if (s->block == NULL)
-      return CBLOCK_NONE;  // Dummy root scope
-   else if (s->block->self == s)
-      return s->block->kind;
-   else
-      return CBLOCK_NONE;
-}
-
 bool cover_is_hier(cover_scope_t *s)
 {
-   switch (cover_block_kind(s)) {
-   case CBLOCK_INSTANCE:
-   case CBLOCK_PACKAGE:
-      assert(s->block->block_name != NULL);
+   switch (s->kind) {
+   case CSCOPE_INSTANCE:
+   case CSCOPE_PACKAGE:
       return true;
    default:
       return false;

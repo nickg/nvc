@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2013-2025  Nick Gasson
+//  Copyright (C) 2013-2026  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -22,7 +22,6 @@
 #include "cov/cov-api.h"
 #include "cov/cov-structs.h"
 
-block_kind_t cover_block_kind(cover_scope_t *s);
 bool cover_is_hier(cover_scope_t *s);
 bool cover_is_leaf(cover_scope_t *s);
 bool cover_bin_unreachable(cover_data_t *data, const cover_item_t *item);
