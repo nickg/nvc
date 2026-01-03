@@ -5,6 +5,20 @@
     </scope>
     <scope name="B" line="129">
     </scope>
+    <scope name="_P0" line="147">
+      <scope name="_S0" line="149">
+      </scope>
+      <scope name="_S1" line="150">
+      </scope>
+      <scope name="_S2" line="151">
+      </scope>
+      <scope name="_S3" line="152">
+      </scope>
+      <scope name="_S4" line="153">
+      </scope>
+      <scope name="_S5" line="155">
+      </scope>
+    </scope>
     <scope name="LEAF_ENTITY_INST" block_name="LEAF_ENTITY-TEST" line="15">
       <scope name="A" line="10">
         <toggle hier="WORK.COVER13.LEAF_ENTITY_INST.A.BIN_0_TO_1" data="0"/>
@@ -51,6 +65,20 @@
       </scope>
     </scope>
     <scope name="LEVEL_1_INST" block_name="LEVEL_1-TEST" line="93">
+      <scope name="_P0" line="105">
+        <scope name="_S0" line="107">
+          <statement hier="WORK.COVER13.LEVEL_1_INST._P0._S0" data="1"/>
+        </scope>
+        <scope name="_S1" line="108">
+          <statement hier="WORK.COVER13.LEVEL_1_INST._P0._S1" data="1"/>
+        </scope>
+        <scope name="_S2" line="109">
+          <statement hier="WORK.COVER13.LEVEL_1_INST._P0._S2" data="1"/>
+        </scope>
+        <scope name="_S3" line="110">
+          <statement hier="WORK.COVER13.LEVEL_1_INST._P0._S3" data="1"/>
+        </scope>
+      </scope>
       <scope name="LEVEL_2_INST" block_name="LEVEL_2-TEST" line="68">
         <scope name="_P0" line="72">
           <scope name="_S0" line="74">
@@ -72,34 +100,6 @@
           <scope name="_S0">
           </scope>
         </scope>
-      </scope>
-      <scope name="_P0" line="105">
-        <scope name="_S0" line="107">
-          <statement hier="WORK.COVER13.LEVEL_1_INST._P0._S0" data="1"/>
-        </scope>
-        <scope name="_S1" line="108">
-          <statement hier="WORK.COVER13.LEVEL_1_INST._P0._S1" data="1"/>
-        </scope>
-        <scope name="_S2" line="109">
-          <statement hier="WORK.COVER13.LEVEL_1_INST._P0._S2" data="1"/>
-        </scope>
-        <scope name="_S3" line="110">
-          <statement hier="WORK.COVER13.LEVEL_1_INST._P0._S3" data="1"/>
-        </scope>
-      </scope>
-    </scope>
-    <scope name="_P0" line="147">
-      <scope name="_S0" line="149">
-      </scope>
-      <scope name="_S1" line="150">
-      </scope>
-      <scope name="_S2" line="151">
-      </scope>
-      <scope name="_S3" line="152">
-      </scope>
-      <scope name="_S4" line="153">
-      </scope>
-      <scope name="_S5" line="155">
       </scope>
     </scope>
   </scope>

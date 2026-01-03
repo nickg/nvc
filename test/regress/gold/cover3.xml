@@ -178,5 +178,19 @@
     </scope>
     <scope name="_P8" line="136">
     </scope>
+    <scope name="_P9" line="145">
+      <scope name="_L0" line="148">
+        <branch hier="WORK.COVER3._P9._L0.BIN_TRUE" data="9"/>
+        <branch hier="WORK.COVER3._P9._L0.BIN_FALSE" data="1"/>
+        <scope name="_S0" line="150">
+          <branch hier="WORK.COVER3._P9._L0._S0.BIN_TRUE" data="1"/>
+          <branch hier="WORK.COVER3._P9._L0._S0.BIN_FALSE" data="8"/>
+        </scope>
+        <scope name="_S1" line="151">
+          <branch hier="WORK.COVER3._P9._L0._S1.BIN_TRUE" data="1"/>
+          <branch hier="WORK.COVER3._P9._L0._S1.BIN_FALSE" data="7"/>
+        </scope>
+      </scope>
+    </scope>
   </scope>
 </scope>

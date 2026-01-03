@@ -73,6 +73,91 @@
     |
  54 | exclude WORK.COVER9.Y.*
     | ^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding expression: 'WORK.COVER9.P0._S0._E0.BIN_0_0'
+    > data/cover9_ef1.txt:32
+    |
+ 32 | exclude WORK.COVER9.P0._S0._E0.BIN_0_0
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding expression: 'WORK.COVER9.P0._S0._E0.BIN_0_1'
+    > data/cover9_ef1.txt:33
+    |
+ 33 | exclude WORK.cover9.P0._S0._E0.BIN_0_1
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding expression: 'WORK.COVER9.P0._S0._E0.BIN_1_0'
+    > data/cover9_ef1.txt:34
+    |
+ 34 | exclude WORK.COVER9.P0._S0._E0.BIN_1_0
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding expression: 'WORK.COVER9.P0._S0._E0.BIN_1_1'
+    > data/cover9_ef1.txt:35
+    |
+ 35 | exclude WORK.COVER9.P0._S0._E0.BIN_1_1
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding expression: 'WORK.COVER9.AND_GATE._S0._B0._E0.BIN_TRUE'
+    > data/cover9_ef1.txt:39
+    |
+ 39 | exclude WORK.COVER9.AND_GATE._S0._B0._E0.BIN_TRUE
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding expression: 'WORK.COVER9.AND_GATE._S0._B0._E1.BIN_TRUE'
+    > data/cover9_ef1.txt:40
+    |
+ 40 | exclude WORK.COVER9.AND_GATE._S0._B0._E1.BIN_TRUE
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding expression: 'WORK.COVER9.AND_GATE._S0._B0._E2.BIN_0_1'
+    > data/cover9_ef1.txt:37
+    |
+ 37 | exclude WORK.COVER9.AND_GATE._S0._B0._E2.*
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding expression: 'WORK.COVER9.AND_GATE._S0._B0._E2.BIN_1_0'
+    > data/cover9_ef1.txt:37
+    |
+ 37 | exclude WORK.COVER9.AND_GATE._S0._B0._E2.*
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding expression: 'WORK.COVER9.AND_GATE._S0._B0._E2.BIN_1_1'
+    > data/cover9_ef1.txt:37
+    |
+ 37 | exclude WORK.COVER9.AND_GATE._S0._B0._E2.*
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding branch: 'WORK.COVER9.AND_GATE._S0._B0.BIN_TRUE'
+    > data/cover9_ef1.txt:20
+    |
+ 20 | exclude WORK.COVER9.AND_GATE._S0._B0.BIN_TRUE
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding statement: 'WORK.COVER9.AND_GATE._S0._B0.A'
+    > data/cover9_ef1.txt:10
+    |
+ 10 | exclude WORK.COVER9.AND_GATE._S0._B0.A
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding branch: 'WORK.COVER9.P1.CASE_STMT._B3.BIN_CHOICE'
+    > data/cover9_ef1.txt:23
+    |
+ 23 | exclude WORK.COVER9.P1.CASE_STMT._B3.BIN_CHOICE
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding statement: 'WORK.COVER9.P1.CASE_STMT.RPT4'
+    > data/cover9_ef1.txt:11
+    |
+ 11 | exclude WORK.COVER9.P1.CASE_STMT.RPT4
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding branch: 'WORK.COVER9.P1.CASE_STMT._B4.BIN_CHOICE'
+    > data/cover9_ef1.txt:26
+    |
+ 26 | exclude WORK.COVER9.P1.case_stmt._B4.*
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding statement: 'WORK.COVER9.P1.CASE_STMT.RPT5'
+    > data/cover9_ef1.txt:12
+    |
+ 12 | exclude WORK.COVER9.p1.CASE_STMT.RPT5
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding branch: 'WORK.COVER9.P1.CASE_STMT._B_OTHERS.BIN_CHOICE'
+    > data/cover9_ef1.txt:27
+    |
+ 27 | exclude WORK.COVER9.P1.CASE_STMT._B_OTHERS.*
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding statement: 'WORK.COVER9.P1.CASE_STMT.RPT6'
+    > data/cover9_ef1.txt:13
+    |
+ 13 | exclude WORK.COVER9.P1.CASE_STMT.RPT6
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 ** Note: excluding toggle: 'WORK.COVER9.SUB_BLOCK_INST.A.BIN_0_TO_1'
    > data/cover9_ef1.txt:5
    |
@@ -213,91 +298,6 @@
    |
  5 | exclude WORK.COVER9.SUB_BLOCK_INST.*
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-** Note: excluding expression: 'WORK.COVER9.P0._S0._E0.BIN_0_0'
-    > data/cover9_ef1.txt:32
-    |
- 32 | exclude WORK.COVER9.P0._S0._E0.BIN_0_0
-    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-** Note: excluding expression: 'WORK.COVER9.P0._S0._E0.BIN_0_1'
-    > data/cover9_ef1.txt:33
-    |
- 33 | exclude WORK.cover9.P0._S0._E0.BIN_0_1
-    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-** Note: excluding expression: 'WORK.COVER9.P0._S0._E0.BIN_1_0'
-    > data/cover9_ef1.txt:34
-    |
- 34 | exclude WORK.COVER9.P0._S0._E0.BIN_1_0
-    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-** Note: excluding expression: 'WORK.COVER9.P0._S0._E0.BIN_1_1'
-    > data/cover9_ef1.txt:35
-    |
- 35 | exclude WORK.COVER9.P0._S0._E0.BIN_1_1
-    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-** Note: excluding expression: 'WORK.COVER9.AND_GATE._S0._B0._E0.BIN_TRUE'
-    > data/cover9_ef1.txt:39
-    |
- 39 | exclude WORK.COVER9.AND_GATE._S0._B0._E0.BIN_TRUE
-    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-** Note: excluding expression: 'WORK.COVER9.AND_GATE._S0._B0._E1.BIN_TRUE'
-    > data/cover9_ef1.txt:40
-    |
- 40 | exclude WORK.COVER9.AND_GATE._S0._B0._E1.BIN_TRUE
-    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-** Note: excluding expression: 'WORK.COVER9.AND_GATE._S0._B0._E2.BIN_0_1'
-    > data/cover9_ef1.txt:37
-    |
- 37 | exclude WORK.COVER9.AND_GATE._S0._B0._E2.*
-    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-** Note: excluding expression: 'WORK.COVER9.AND_GATE._S0._B0._E2.BIN_1_0'
-    > data/cover9_ef1.txt:37
-    |
- 37 | exclude WORK.COVER9.AND_GATE._S0._B0._E2.*
-    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-** Note: excluding expression: 'WORK.COVER9.AND_GATE._S0._B0._E2.BIN_1_1'
-    > data/cover9_ef1.txt:37
-    |
- 37 | exclude WORK.COVER9.AND_GATE._S0._B0._E2.*
-    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-** Note: excluding branch: 'WORK.COVER9.AND_GATE._S0._B0.BIN_TRUE'
-    > data/cover9_ef1.txt:20
-    |
- 20 | exclude WORK.COVER9.AND_GATE._S0._B0.BIN_TRUE
-    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-** Note: excluding statement: 'WORK.COVER9.AND_GATE._S0._B0.A'
-    > data/cover9_ef1.txt:10
-    |
- 10 | exclude WORK.COVER9.AND_GATE._S0._B0.A
-    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-** Note: excluding branch: 'WORK.COVER9.P1.CASE_STMT._B3.BIN_CHOICE'
-    > data/cover9_ef1.txt:23
-    |
- 23 | exclude WORK.COVER9.P1.CASE_STMT._B3.BIN_CHOICE
-    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-** Note: excluding statement: 'WORK.COVER9.P1.CASE_STMT.RPT4'
-    > data/cover9_ef1.txt:11
-    |
- 11 | exclude WORK.COVER9.P1.CASE_STMT.RPT4
-    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-** Note: excluding branch: 'WORK.COVER9.P1.CASE_STMT._B4.BIN_CHOICE'
-    > data/cover9_ef1.txt:26
-    |
- 26 | exclude WORK.COVER9.P1.case_stmt._B4.*
-    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-** Note: excluding statement: 'WORK.COVER9.P1.CASE_STMT.RPT5'
-    > data/cover9_ef1.txt:12
-    |
- 12 | exclude WORK.COVER9.p1.CASE_STMT.RPT5
-    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-** Note: excluding branch: 'WORK.COVER9.P1.CASE_STMT._B_OTHERS.BIN_CHOICE'
-    > data/cover9_ef1.txt:27
-    |
- 27 | exclude WORK.COVER9.P1.CASE_STMT._B_OTHERS.*
-    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-** Note: excluding statement: 'WORK.COVER9.P1.CASE_STMT.RPT6'
-    > data/cover9_ef1.txt:13
-    |
- 13 | exclude WORK.COVER9.P1.CASE_STMT.RPT6
-    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 ** Note: Code coverage report folder: html.
 ** Note: Code coverage report contains: covered, uncovered, excluded coverage details.
 ** Note: code coverage results for: WORK.COVER9

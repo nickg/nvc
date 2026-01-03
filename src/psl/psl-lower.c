@@ -533,8 +533,7 @@ void psl_lower_directive(lower_unit_t *lu, object_t *obj)
    ident_t prefix = vcode_unit_name(context);
    ident_t name = vcode_unit_name(lu->vunit);
 
-   cover_scope_t *parent_cscope = lower_get_cover_scope(lu->parent);
-   lu->cscope = cover_create_block(lu->cover, name, parent_cscope,
+   lu->cscope = cover_create_block(lu->cover, name, lu->parent->cscope,
                                    wrapper, wrapper, NULL);
 
    vcode_type_t vcontext = vtype_context(prefix);

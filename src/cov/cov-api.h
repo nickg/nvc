@@ -265,4 +265,8 @@ cover_scope_t *cover_create_scope(cover_data_t *data, cover_scope_t *parent,
 cover_item_t *cover_add_items_for(cover_data_t *data, cover_scope_t *cscope,
                                   object_t *obj, cover_item_kind_t kind);
 
+void cover_map_item(cover_scope_t *cs, object_t *obj, cover_item_t *item);
+cover_item_t *cover_lookup_item(cover_scope_t *cs, object_t *obj,
+                                cover_item_kind_t kind);
+
 #endif   // _COV_API_H

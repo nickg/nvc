@@ -32,8 +32,6 @@ typedef vcode_unit_t (*emit_fn_t)(ident_t, object_t *, vcode_unit_t);
 
 typedef A(vcode_var_t) var_list_t;
 
-typedef struct _lazy_cscope lazy_cscope_t;
-
 typedef enum {
    LOWER_NORMAL,
    LOWER_THUNK
@@ -52,7 +50,6 @@ typedef struct _lower_unit {
    bool             finished;
    lower_mode_t     mode;
    unsigned         deferred;
-   lazy_cscope_t   *lazy_cscope;
 } lower_unit_t;
 
 unit_registry_t *unit_registry_new(mir_context_t *mc);
@@ -78,8 +75,6 @@ lower_unit_t *lower_unit_new(unit_registry_t *ur, lower_unit_t *parent,
                              tree_t container);
 void lower_unit_free(lower_unit_t *lu);
 void lower_finished(lower_unit_t *lu);
-
-cover_scope_t *lower_get_cover_scope(lower_unit_t *lu);
 
 vcode_reg_t lower_lvalue(lower_unit_t *lu, tree_t expr);
 vcode_reg_t lower_rvalue(lower_unit_t *lu, tree_t expr);
