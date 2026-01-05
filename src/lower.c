@@ -8550,84 +8550,6 @@ static void lower_alias_decl(lower_unit_t *lu, tree_t decl)
       emit_store(value_reg, var);
 }
 
-static void lower_character_array_image_helper(lower_unit_t *lu, type_t type,
-                                               vcode_reg_t preg, bool quote)
-{
-   type_t elem = type_base_recur(type_elem(type));
-   vcode_type_t ctype = vtype_char();
-   vcode_type_t voffset = vtype_offset();
-
-   const int nlits = type_enum_literals(elem);
-   vcode_reg_t *map LOCAL = xmalloc_array(nlits, sizeof(vcode_reg_t));
-   for (int i = 0; i < nlits; i++) {
-      const ident_t id = tree_ident(type_enum_literal(elem, i));
-      assert(ident_char(id, 0) == '\'');
-      map[i] = emit_const(ctype, ident_char(id, 1));
-   }
-
-   vcode_type_t map_vtype = vtype_carray(nlits, ctype);
-   vcode_reg_t map_reg = emit_const_array(map_vtype, map, nlits);
-
-   vcode_reg_t zero_reg = emit_const(voffset, 0);
-   vcode_reg_t one_reg = emit_const(voffset, 1);
-   vcode_reg_t two_reg = emit_const(voffset, 2);
-
-   vcode_reg_t length_reg = lower_array_len(lu, type, 0, preg);
-   vcode_reg_t data_reg = lower_array_data(preg);
-   vcode_reg_t total_reg = quote ? emit_add(length_reg, two_reg) : length_reg;
-
-   vcode_reg_t mem_reg = emit_alloc(ctype, VCODE_INVALID_STAMP, total_reg);
-
-   vcode_var_t i_var = lower_temp_var(lu, "i", voffset);
-   emit_store(zero_reg, i_var);
-
-   if (quote) {
-      vcode_reg_t lquote_reg = emit_array_ref(mem_reg, zero_reg);
-      emit_store_indirect(emit_const(ctype, '"'), lquote_reg);
-   }
-
-   vcode_reg_t null_reg = emit_cmp(VCODE_CMP_EQ, length_reg, zero_reg);
-
-   vcode_block_t body_bb = emit_block();
-   vcode_block_t exit_bb = emit_block();
-
-   emit_cond(null_reg, exit_bb, body_bb);
-
-   vcode_select_block(body_bb);
-
-   vcode_reg_t i_reg    = emit_load(i_var);
-   vcode_reg_t sptr_reg = emit_array_ref(data_reg, i_reg);
-   vcode_reg_t src_reg  = emit_load_indirect(sptr_reg);
-   vcode_reg_t off_reg  = emit_cast(voffset, VCODE_INVALID_STAMP, src_reg);
-   vcode_reg_t lptr_reg = emit_array_ref(emit_address_of(map_reg), off_reg);
-   vcode_reg_t doff_reg = quote ? emit_add(i_reg, one_reg) : i_reg;
-   vcode_reg_t dptr_reg = emit_array_ref(mem_reg, doff_reg);
-
-   emit_store_indirect(emit_load_indirect(lptr_reg), dptr_reg);
-
-   vcode_reg_t next_reg = emit_add(i_reg, one_reg);
-   vcode_reg_t cmp_reg  = emit_cmp(VCODE_CMP_EQ, next_reg, length_reg);
-   emit_store(next_reg, i_var);
-   emit_cond(cmp_reg, exit_bb, body_bb);
-
-   vcode_select_block(exit_bb);
-
-   if (quote) {
-      vcode_reg_t right_reg = emit_add(length_reg, one_reg);
-      vcode_reg_t rquote_reg = emit_array_ref(mem_reg, right_reg);
-      emit_store_indirect(emit_const(ctype, '"'), rquote_reg);
-   }
-
-   vcode_dim_t dims[] = {
-      {
-         .left  = emit_const(voffset, 1),
-         .right = total_reg,
-         .dir   = emit_const(vtype_bool(), RANGE_TO)
-      }
-   };
-   emit_return(emit_wrap(mem_reg, dims, 1));
-}
-
 static void lower_enum_value_helper(lower_unit_t *lu, type_t type,
                                     tree_t decl, vcode_reg_t preg)
 {
@@ -10072,6 +9994,13 @@ static void lower_decls(lower_unit_t *lu, tree_t scope)
            case S_REDUCE_NOR:
            case S_REDUCE_XOR:
            case S_REDUCE_XNOR:
+           case S_MIXED_AND:
+           case S_MIXED_OR:
+           case S_MIXED_XOR:
+           case S_MIXED_XNOR:
+           case S_MIXED_NAND:
+           case S_MIXED_NOR:
+           case S_TO_STRING:
               unit_registry_defer2(lu->registry, tree_ident2(d),
                                    NULL, MIR_UNIT_FUNCTION, vhdl_lower_predef,
                                    tree_to_object(d));
@@ -10198,134 +10127,6 @@ static void lower_predef_record_eq(lower_unit_t *lu, tree_t decl)
    emit_return(emit_const(vtype_bool(), 0));
 }
 
-static void lower_predef_to_string(lower_unit_t *lu, tree_t decl)
-{
-   // LRM 08 section 5.7 on string representations
-
-   type_t arg_type = tree_type(tree_port(decl, 0));
-   vcode_reg_t r0 = 0;
-
-   if (type_is_array(arg_type)) {
-      type_t elem = type_elem(arg_type);
-      if (type_is_enum(elem) && all_character_literals(elem)) {
-         lower_character_array_image_helper(lu, arg_type, r0, false);
-         return;
-      }
-   }
-
-   assert(type_is_representable(arg_type));
-
-   ident_t func = ident_prefix(type_ident(arg_type), ident_new("image"), '$');
-   vcode_type_t ctype = vtype_char();
-   vcode_type_t rtype = vtype_uarray(1, ctype);
-   vcode_reg_t args[] = { r0 };
-   vcode_reg_t str_reg = emit_fcall(func, rtype, VCODE_INVALID_STAMP, args,
-                                    ARRAY_LEN(args));
-
-   if (type_is_enum(arg_type)) {
-      // If the result is a character literal return just the character
-      // without the quotes
-      vcode_reg_t quote_reg = emit_const(ctype, '\'');
-      vcode_reg_t data_reg  = lower_array_data(str_reg);
-      vcode_reg_t char0_reg = emit_load_indirect(data_reg);
-      vcode_reg_t is_quote  = emit_cmp(VCODE_CMP_EQ, char0_reg, quote_reg);
-
-      vcode_block_t char_bb  = emit_block();
-      vcode_block_t other_bb = emit_block();
-
-      emit_cond(is_quote, char_bb, other_bb);
-
-      vcode_select_block(char_bb);
-
-      vcode_reg_t one_reg   = emit_const(vtype_offset(), 1);
-      vcode_reg_t char1_ptr = emit_array_ref(data_reg, one_reg);
-      vcode_reg_t left_reg  = emit_uarray_left(str_reg, 0);
-      vcode_reg_t dir_reg   = emit_uarray_dir(str_reg, 0);
-
-      vcode_dim_t dims[] = {
-         { .left  = left_reg,
-           .right = left_reg,
-           .dir   = dir_reg
-         }
-      };
-      emit_return(emit_wrap(char1_ptr, dims, 1));
-
-      vcode_select_block(other_bb);
-   }
-
-   emit_return(str_reg);
-}
-
-static void lower_predef_mixed_bit_vec_op(lower_unit_t *lu, tree_t decl,
-                                          subprogram_kind_t kind)
-{
-   // Mixed scalar/array bit vector operations
-
-   vcode_reg_t r0 = 0, r1 = 1;
-
-   type_t r0_type = tree_type(tree_port(decl, 0));
-   type_t r1_type = tree_type(tree_port(decl, 1));
-
-   vcode_type_t voffset = vtype_offset();
-
-   vcode_var_t i_var = lower_temp_var(lu, "i", voffset);
-   emit_store(emit_const(vtype_offset(), 0), i_var);
-
-   const bool r0_is_array = type_is_array(r0_type);
-
-   type_t array_type = r0_is_array ? r0_type : r1_type;
-   vcode_reg_t array_reg = r0_is_array ? r0 : r1;
-
-   vcode_reg_t len_reg   = lower_array_len(lu, array_type, 0, array_reg);
-   vcode_reg_t data_reg  = lower_array_data(array_reg);
-   vcode_reg_t left_reg  = lower_array_left(lu, array_type, 0, array_reg);
-   vcode_reg_t right_reg = lower_array_right(lu, array_type, 0, array_reg);
-   vcode_reg_t dir_reg   = lower_array_dir(lu, array_type, 0, array_reg);
-   vcode_reg_t null_reg  = emit_range_null(left_reg, right_reg, dir_reg);
-
-   vcode_reg_t mem_reg = emit_alloc(vtype_bool(), VCODE_INVALID_STAMP, len_reg);
-
-   vcode_block_t body_bb = emit_block();
-   vcode_block_t exit_bb = emit_block();
-
-   emit_cond(null_reg, exit_bb, body_bb);
-
-   vcode_select_block(body_bb);
-
-   vcode_reg_t i_reg = emit_load(i_var);
-   vcode_reg_t l_reg = emit_load_indirect(emit_array_ref(data_reg, i_reg));
-   vcode_reg_t r_reg = r0_is_array ? r1 : r0;
-
-   vcode_reg_t result_reg = VCODE_INVALID_REG;
-   switch (kind) {
-   case S_MIXED_AND:  result_reg = emit_and(l_reg, r_reg);  break;
-   case S_MIXED_OR:   result_reg = emit_or(l_reg, r_reg);   break;
-   case S_MIXED_NAND: result_reg = emit_nand(l_reg, r_reg); break;
-   case S_MIXED_NOR:  result_reg = emit_nor(l_reg, r_reg);  break;
-   case S_MIXED_XOR:  result_reg = emit_xor(l_reg, r_reg);  break;
-   case S_MIXED_XNOR: result_reg = emit_xnor(l_reg, r_reg); break;
-   default: break;
-   }
-
-   emit_store_indirect(result_reg, emit_array_ref(mem_reg, i_reg));
-
-   vcode_reg_t next_reg = emit_add(i_reg, emit_const(voffset, 1));
-   vcode_reg_t cmp_reg  = emit_cmp(VCODE_CMP_EQ, next_reg, len_reg);
-   emit_store(next_reg, i_var);
-   emit_cond(cmp_reg, exit_bb, body_bb);
-
-   vcode_select_block(exit_bb);
-
-   vcode_dim_t dims[1] = {
-      {
-         .left  = left_reg,
-         .right = right_reg,
-         .dir   = dir_reg
-      }
-   };
-   emit_return(emit_wrap(mem_reg, dims, 1));
-}
-
 static void lower_foreign_predef(lower_unit_t *lu, tree_t decl, const char *fn)
 {
    static const char prefix[] = "INTERNAL ";
@@ -10384,9 +10185,6 @@ static void lower_predef(lower_unit_t *lu, object_t *obj)
    case S_RECORD_EQ:
       lower_predef_record_eq(lu, decl);
       break;
-   case S_TO_STRING:
-      lower_predef_to_string(lu, decl);
-      break;
    case S_TO_STRING_TIME:
       lower_foreign_predef(lu, decl, "_std_to_string_time");
       break;
@@ -10401,14 +10199,6 @@ static void lower_predef(lower_unit_t *lu, object_t *obj)
       break;
    case S_TO_OSTRING_BITVEC:
       lower_foreign_predef(lu, decl, "_std_to_ostring_bit_vec");
-      break;
-   case S_MIXED_AND:
-   case S_MIXED_OR:
-   case S_MIXED_XOR:
-   case S_MIXED_XNOR:
-   case S_MIXED_NAND:
-   case S_MIXED_NOR:
-      lower_predef_mixed_bit_vec_op(lu, decl, kind);
       break;
    case S_FILE_FLUSH:
       lower_foreign_predef(lu, decl, "__nvc_flush");
