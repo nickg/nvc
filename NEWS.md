@@ -15,7 +15,7 @@
   now be compiled (#1259).
 - Added `-Werror` analysis option to escalate warnings into errors.
 - Several other minor bugs were resolved (#1237, #1350, #1351, #1353,
-  #1366).
+  #1366, #1372).
 
 ## Version 1.18.2 - 2025-11-19
 - Fixed a mis-optimisation which would cause the result of `x * x` to be

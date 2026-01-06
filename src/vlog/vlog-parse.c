@@ -5712,23 +5712,54 @@ static vlog_node_t p_system_timing_check(void)
    }
 }
 
-static vlog_node_t p_specparam_assignment(void)
+static vlog_node_t p_pulse_control_specparam(void)
 {
-   // specparam_identifier = constant_mintypmax_expression
-   //    | pulse_control_specparam
+   // PATHPULSE$ = (reject_limit_value [, error_limit_value])
+   //   | PATHPULSE$specify_input_terminal_descriptor
+   //       $specify_output_terminal_descriptor =
+   //       (reject_limit_value [, error_limit_value])
 
-   BEGIN("specparam assignment");
+   BEGIN("pulse control specparam");
 
    vlog_node_t v = vlog_new(V_SPECPARAM);
-   vlog_set_ident(v, p_identifier());
+
+   consume(tPATHPULSE);
 
    consume(tEQ);
+   consume(tLPAREN);
 
    vlog_set_value(v, p_constant_mintypmax_expression());
 
+   if (optional(tCOMMA))
+      (void)p_constant_mintypmax_expression();
+
+   consume(tRPAREN);
+
    vlog_set_loc(v, CURRENT_LOC);
-   vlog_symtab_put(symtab, v);
    return v;
+}
+
+static vlog_node_t p_specparam_assignment(void)
+{
+   // specparam_identifier = constant_mintypmax_expression
+   //   | pulse_control_specparam
+
+   BEGIN("specparam assignment");
+
+   if (peek() == tPATHPULSE)
+      return p_pulse_control_specparam();
+   else {
+      vlog_node_t v = vlog_new(V_SPECPARAM);
+      vlog_set_ident(v, p_identifier());
+
+      consume(tEQ);
+
+      vlog_set_value(v, p_constant_mintypmax_expression());
+
+      vlog_set_loc(v, CURRENT_LOC);
+      vlog_symtab_put(symtab, v);
+      return v;
+   }
 }
 
 static void p_list_of_specparam_assignments(vlog_node_t parent)

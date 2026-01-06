@@ -849,6 +849,9 @@ PROTECT           ?i:protect
 <VLOG>"endclass"         { return KEYWORD_2005(tENDCLASS); }
 <VLOG>"virtual"          { return KEYWORD_2005(tVIRTUAL); }
 <VLOG>"defparam"         { return tDEFPARAM; }
+<VLOG>"PATHPULSE$"       { return tPATHPULSE; }
+
+<VLOG>"PATHPULSE$"{VLOG_ID}"$"{VLOG_ID} { return tPATHPULSE; }
 
 <VLOG>"`unconnected_drive"   { return tUNCTDRIVE; }
 <VLOG>"`nounconnected_drive" { return tNOUNCTDRIVE; }
