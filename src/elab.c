@@ -1885,8 +1885,8 @@ static void elab_verilog_stmts(vlog_node_t v, const elab_ctx_t *ctx)
          elab_verilog_for_generate(s, ctx);
          break;
       case V_SPECIFY:
-         warn_at(vlog_loc(s), "specify blocks are not currently supported and "
-                 "will be ignored");
+         INIT_ONCE(warn_at(vlog_loc(v), "specify blocks are not currently "
+                           "supported and will be ignored"));
          break;
       default:
          fatal_at(vlog_loc(s), "sorry, this Verilog statement is not "
