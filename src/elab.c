@@ -1613,35 +1613,44 @@ static void elab_verilog_ports(vlog_node_t inst, elab_instance_t *ei,
    const int nports = vlog_ports(ei->body);
    const int nparams = vlog_params(inst);
 
-   if (nports != nparams) {
-      error_at(vlog_loc(inst), "expected %d port connections for module %s "
-               "but found %d", nports, istr(vlog_ident2(ei->body)), nparams);
+   if (nparams > nports) {
+      error_at(vlog_loc(inst), "expected at most %d port connections for "
+               "module %s but found %d", nports, istr(vlog_ident2(ei->body)),
+               nparams);
       return;
    }
 
    ident_t block_name = vlog_ident(inst);
 
    for (int i = 0; i < nports; i++) {
-      vlog_node_t port = vlog_ref(vlog_port(ei->body, i));
+      vlog_node_t port = vlog_ref(vlog_port(ei->body, i)), conn = NULL;
       ident_t port_name = vlog_ident(port);
 
-      vlog_node_t conn = vlog_param(inst, i);
-      assert(vlog_kind(conn) == V_PORT_CONN);
+      if (i < nparams) {
+         conn = vlog_param(inst, i);
+         assert(vlog_kind(conn) == V_PORT_CONN);
 
-      if (vlog_has_ident(conn) && vlog_ident(conn) != port_name) {
-         bool found = false;
-         for (int j = 0; j < nparams && !found; j++) {
-            if (vlog_ident((conn = vlog_param(inst, j))) == port_name)
-               found = true;
-         }
+         if (vlog_has_ident(conn) && vlog_ident(conn) != port_name)
+            conn = NULL;
+      }
 
-         if (!found) {
-            diag_t *d = diag_new(DIAG_ERROR, vlog_loc(inst));
-            diag_printf(d, "missing port connection for '%s'", istr(port_name));
-            diag_hint(d, vlog_loc(port), "'%s' declared here", istr(port_name));
-            diag_emit(d);
-            continue;
+      if (conn == NULL) {
+         for (int j = 0; j < nparams; j++) {
+            vlog_node_t cj = vlog_param(inst, j);
+            if (vlog_has_ident(cj) && vlog_ident(cj) == port_name) {
+               conn = cj;
+               break;
+            }
          }
+      }
+
+      if (conn == NULL) {
+         diag_t *d = diag_new(DIAG_WARN, vlog_loc(inst));
+         diag_printf(d, "missing port connection for '%pi'", port_name);
+         diag_hint(d, vlog_loc(port), "'%pi' declared here", port_name);
+         diag_hint(d, vlog_loc(inst), "instance '%pi'", vlog_ident(inst));
+         diag_emit(d);
+         continue;
       }
 
       const loc_t *loc = vlog_loc(conn);
@@ -1885,7 +1894,7 @@ static void elab_verilog_stmts(vlog_node_t v, const elab_ctx_t *ctx)
          elab_verilog_for_generate(s, ctx);
          break;
       case V_SPECIFY:
-         INIT_ONCE(warn_at(vlog_loc(v), "specify blocks are not currently "
+         INIT_ONCE(warn_at(vlog_loc(s), "specify blocks are not currently "
                            "supported and will be ignored"));
          break;
       default:

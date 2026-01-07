@@ -1747,7 +1747,7 @@ START_TEST(test_vlog1)
    const error_t expect[] = {
       { 12, "name of Verilog module sub1 in library unit WORK.SUB1 does "
         "not match name SUB1 in module instance u2" },
-      { 13, "expected 2 port connections for module sub1 but found 1" },
+      { 13, "missing port connection for 'y'" },
       { 14, "module bad not found in library WORK" },
       { 15, "missing value for parameter p" },
       { 16, "module sub1 has 1 parameter but 2 values given" },
@@ -2198,6 +2198,30 @@ START_TEST(test_clone2)
 }
 END_TEST
 
+START_TEST(test_issue1333)
+{
+   input_from_file(TESTDIR "/elab/issue1333.v");
+
+   const error_t expect[] = {
+      { 11, "specify blocks are not currently supported and will be ignored" },
+      { 20, "missing port connection for 'Y'" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t e = run_elab();
+   fail_if(e == NULL);   // Warning only
+
+   tree_t b0 = tree_stmt(e, 0);
+   ck_assert_int_eq(tree_decls(b0), 2);
+   ck_assert_int_eq(tree_stmts(b0), 2);
+   ck_assert(tree_kind(tree_stmt(b0, 0)) == T_BLOCK);
+   ck_assert(tree_kind(tree_stmt(b0, 1)) == T_VERILOG);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_elab_tests(void)
 {
    Suite *s = suite_create("elab");
@@ -2310,6 +2334,7 @@ Suite *get_elab_tests(void)
    tcase_add_test(tc, test_clone1);
    tcase_add_test(tc, test_mixed2);
    tcase_add_test(tc, test_clone2);
+   tcase_add_test(tc, test_issue1333);
    suite_add_tcase(s, tc);
 
    return s;
