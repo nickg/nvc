@@ -181,7 +181,7 @@ DEF_CLASS(regArray, vpiRegArray, decl.object);
 
 typedef struct {
    c_abstractDecl  decl;
-   c_constant     *value;
+   c_vpiObject    *value;
 } c_parameter;
 
 DEF_CLASS(parameter, vpiParameter, decl.object);
@@ -404,7 +404,10 @@ static c_constant *is_constantOrParam(c_vpiObject *obj)
    case vpiConstant:
       return container_of(obj, c_constant, expr.object);
    case vpiParameter:
-      return container_of(obj, c_parameter, decl.object)->value;
+      {
+         c_vpiObject *value = container_of(obj, c_parameter, decl.object)->value;
+         return is_constantOrParam(value);
+      }
    default:
       return NULL;
    }
@@ -702,7 +705,7 @@ static void build_parameter(vlog_node_t v, c_abstractScope *scope)
 {
    c_parameter *param = new_object(sizeof(c_parameter), vpiParameter);
    init_abstractDecl(&(param->decl), v, scope);
-   param->value = build_constant(vlog_value(v));
+   param->value = build_expr(vlog_value(v), scope);
 
    vpi_list_add(&scope->decls.list, &(param->decl.object));
 }
