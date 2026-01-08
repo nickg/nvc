@@ -1752,6 +1752,7 @@ START_TEST(test_vlog1)
       { 15, "missing value for parameter p" },
       { 16, "module sub1 has 1 parameter but 2 values given" },
       { 17, "missing port connection for 'x'" },
+      { 17, "port 'foo' not found in sub1" },
       { 18, "'z' cannot be driven by continuous assignment from port 'y'" },
       { 19, "expression cannot be driven by continuous assignment from "
         "port 'y'" },

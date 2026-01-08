@@ -1622,6 +1622,9 @@ static void elab_verilog_ports(vlog_node_t inst, elab_instance_t *ei,
 
    ident_t block_name = vlog_ident(inst);
 
+   LOCAL_BIT_MASK used;
+   mask_init(&used, nparams);
+
    for (int i = 0; i < nports; i++) {
       vlog_node_t port = vlog_ref(vlog_port(ei->body, i)), conn = NULL;
       ident_t port_name = vlog_ident(port);
@@ -1632,6 +1635,8 @@ static void elab_verilog_ports(vlog_node_t inst, elab_instance_t *ei,
 
          if (vlog_has_ident(conn) && vlog_ident(conn) != port_name)
             conn = NULL;
+         else
+            mask_set(&used, i);
       }
 
       if (conn == NULL) {
@@ -1639,6 +1644,7 @@ static void elab_verilog_ports(vlog_node_t inst, elab_instance_t *ei,
             vlog_node_t cj = vlog_param(inst, j);
             if (vlog_has_ident(cj) && vlog_ident(cj) == port_name) {
                conn = cj;
+               mask_set(&used, j);
                break;
             }
          }
@@ -1652,6 +1658,8 @@ static void elab_verilog_ports(vlog_node_t inst, elab_instance_t *ei,
          diag_emit(d);
          continue;
       }
+      else if (!vlog_has_value(conn))
+         continue;
 
       const loc_t *loc = vlog_loc(conn);
       ident_t name = ident_uniq("#assign#%s.%s", istr(block_name),
@@ -1702,6 +1710,19 @@ static void elab_verilog_ports(vlog_node_t inst, elab_instance_t *ei,
 
       mir_defer(ctx->mir, sym, ctx->dotted, MIR_UNIT_PROCESS,
                 vlog_lower_deferred, vlog_to_object(assign));
+   }
+
+   if (mask_popcount(&used) == nparams)
+      return;
+
+   for (int i = 0; i < nparams; i++) {
+      if (!mask_test(&used, i)) {
+         vlog_node_t conn = vlog_param(inst, i);
+         assert(vlog_has_ident(conn));
+
+         error_at(vlog_loc(conn), "port '%pi' not found in %pi",
+                  vlog_ident(conn), vlog_ident2(ei->body));
+      }
    }
 }
 
