@@ -1243,3 +1243,5 @@ issue1336       verilog
 vlog29          mixed,2008
 ieee19          normal,2008
 cmdline19       shell
+mixed8          mixed
+vlog30          verilog

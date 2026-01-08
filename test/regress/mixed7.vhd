@@ -27,19 +27,20 @@ begin
         wait until falling_edge(clk);
         din <= X"ab";
         wait until rising_edge(clk);
-        assert dout = X"00" report to_hstring(dout);
+        assert dout = X"UU" report to_hstring(dout);
         din <= X"cd";
         wait until rising_edge(clk);
         assert dout = X"ab" report to_hstring(dout);
-        -- din <= X"ef";
-        -- wait until rising_edge(clk);
-        -- assert dout = X"cd" report to_hstring(dout);
-        -- wait for 0 ns;
-        -- wait for 0 ns;
-        -- wait for 0 ns;
-        -- wait for 0 ns;
-        -- assert dout = X"ef";
-
+        din <= X"ef";
+        wait until rising_edge(clk);
+        assert dout = X"cd" report to_hstring(dout);
+        wait for 0 ns;
+        wait for 0 ns;
+        wait for 0 ns;
+        wait for 0 ns;
+        assert dout = X"cd" report to_hstring(dout);
+        wait for 1 fs;
+        assert dout = X"ef" report to_hstring(dout);
 
         std.env.finish;
     end process;

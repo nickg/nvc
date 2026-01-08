@@ -1527,9 +1527,14 @@ mir_value_t mir_build_cmp(mir_unit_t *mu, mir_cmp_t cmp, mir_value_t left,
    mir_value_t result = mir_build_3(mu, MIR_OP_CMP, t_bool,
                                     stamp, mir_enum(cmp), left, right);
 
-   MIR_ASSERT(mir_same_type(mu, mir_get_type(mu, left),
-                            mir_get_type(mu, right)),
+#ifdef DEBUG
+   mir_type_t type = mir_get_type(mu, left);
+   MIR_ASSERT(mir_same_type(mu, type, mir_get_type(mu, right)),
               "arguments to cmp are not the same type");
+   MIR_ASSERT(mir_is_scalar(mu, left), "cmp arguments must be scalar");
+   MIR_ASSERT(mir_get_slots(mu, type) == 1,
+              "can only compare single slot types");
+#endif
 
    return result;
 }
