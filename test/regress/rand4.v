@@ -1,4 +1,6 @@
 module rand4;
+  reg [39:0] wide;
+
   initial begin
     $display($random, $random, $random);
 
@@ -9,7 +11,12 @@ module rand4;
       $display("FAILED (2)");
     else if ($random != -862267751)
       $display("FAILED (3)");
-    else
-      $display("PASSED");
+    else begin
+      wide = $random;
+      if (wide === 40'hff8ab67c15)
+        $display("PASSED");
+      else
+        $display("FAILED (4) %x", wide);
+    end
   end
 endmodule // rand4

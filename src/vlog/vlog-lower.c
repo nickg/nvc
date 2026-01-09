@@ -820,7 +820,7 @@ static mir_value_t vlog_lower_sys_tfcall(vlog_gen_t *g, vlog_node_t v)
    if (vlog_kind(v) == V_SYS_FCALL) {
       // XXX: this should call into VPI
       if (icmp(vlog_ident(v), "$random"))
-         type = mir_vec2_type(g->mu, 32, false);
+         type = mir_vec2_type(g->mu, 32, true);
       else
          type = mir_vec2_type(g->mu, 64, false);
    }
