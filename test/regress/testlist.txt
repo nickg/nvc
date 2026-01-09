@@ -1245,3 +1245,4 @@ ieee19          normal,2008
 cmdline19       shell
 mixed8          mixed
 vlog30          verilog
+rand4           verilog,seed=123

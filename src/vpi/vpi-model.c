@@ -1239,7 +1239,8 @@ vpiHandle vpi_put_value(vpiHandle handle, p_vpi_value value_p,
          {
             assert(value_p->format == vpiIntVal);
 
-            c->args[0].integer = value_p->value.integer;
+            // TODO: mask should be based on result size
+            c->args[0].integer = value_p->value.integer & 0xffffffff;
             c->args[1].integer = 0;
 
             return NULL;

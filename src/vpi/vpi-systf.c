@@ -338,16 +338,17 @@ static PLI_INT32 random_tf(PLI_BYTE8 *userdata)
    vpiHandle call = vpi_handle(vpiSysTfCall, NULL);
    assert(call != NULL);
 
-   vpiHandle argv = vpi_iterate(vpiArgument, call), seed = NULL;
-   if (argv != NULL) {
-      seed = vpi_scan(argv);
-      vpi_release_handle(argv);
+   vpiHandle argv = vpi_iterate(vpiArgument, call);
 
+   vpiHandle seed = vpi_scan(argv);
+   if (seed != NULL) {
       s_vpi_value val = { .format = vpiIntVal };
       vpi_get_value(seed, &val);
 
       a_seed = val.value.integer;
    }
+
+   vpi_release_handle(argv);
 
    s_vpi_value result = {
       .format = vpiIntVal,
