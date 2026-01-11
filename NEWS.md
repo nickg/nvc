@@ -14,6 +14,7 @@
 - Very large subprograms containing tens of thousands of operations can
   now be compiled (#1259).
 - Added `-Werror` analysis option to escalate warnings into errors.
+- Expression coverage reporting for multi-line expressions is improved.
 - Several other minor bugs were resolved (#1237, #1350, #1351, #1353,
   #1366, #1372, #1333).
 
