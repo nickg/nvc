@@ -7408,6 +7408,24 @@ START_TEST(test_issue1335)
 }
 END_TEST
 
+START_TEST(test_fuzzing)
+{
+   set_standard(STD_08);
+   input_from_file(TESTDIR "/parse/fuzzing.vhd");
+
+   const error_t expect[] = {
+      {  3, "no visible declaration for T_WORD" },
+      {  4, "no visible declaration for FOO" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_PACKAGE);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_parse_tests(void)
 {
    Suite *s = suite_create("parse");
@@ -7597,6 +7615,7 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_protect1);
    tcase_add_test(tc_core, test_issue1318);
    tcase_add_test(tc_core, test_issue1335);
+   tcase_add_test(tc_core, test_fuzzing);
    suite_add_tcase(s, tc_core);
 
    return s;
