@@ -12,3 +12,17 @@ package body implicit is
     end procedure;
 
 end package body;
+
+--------------------------------------------------------------------------------
+
+entity e is begin end entity;
+
+architecture a of e is
+    signal s : integer;
+begin
+    process is begin
+        assert s'delayed(undefined) = 5;  -- Error
+        assert s'delayed(undefined) = 5;  -- Error (suppressed)
+        wait;
+    end process;
+end architecture;
