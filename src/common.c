@@ -2780,6 +2780,8 @@ static range_kind_t get_range_direction(tree_t r)
    assert(kind == ATTR_RANGE || kind == ATTR_REVERSE_RANGE);
 
    type_t prefix_type = tree_type(tree_name(aref));
+   if (type_is_none(prefix_type))
+      return RANGE_ERROR;
    if (type_is_unconstrained(prefix_type))
       return RANGE_EXPR;
 
@@ -2801,6 +2803,9 @@ bool calculate_aggregate_bounds(tree_t expr, range_kind_t *kind,
    // rules in LRM 93 7.3.2.2
 
    type_t type = tree_type(expr);
+   if (type_is_none(type))
+      return false;
+
    type_t index_type = index_type_of(type, 0);
    if (index_type == NULL || type_is_none(index_type))
       return false;
