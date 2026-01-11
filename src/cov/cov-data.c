@@ -40,7 +40,6 @@
 #include <inttypes.h>
 
 //#define COVER_DEBUG_EMIT
-//#define COVER_DEBUG_SCOPE
 //#define COVER_DEBUG_MERGE
 
 typedef enum {
@@ -244,21 +243,6 @@ static bool cover_is_toggle_first(tree_t decl)
    return kind == T_SIGNAL_DECL || kind == T_PORT_DECL;
 }
 
-static bool cover_skip_array_toggle(cover_data_t *data, int a_size)
-{
-   assert (data);
-
-   // Array is equal to or than configured limit
-   if (data->array_limit != 0 && a_size >= data->array_limit)
-      return true;
-
-   // Array is multi-dimensional or nested
-   if ((!cover_enabled(data, COVER_MASK_TOGGLE_INCLUDE_MEMS)) && data->array_depth > 0)
-      return true;
-
-   return false;
-}
-
 static int32_t cover_add_toggle_items_one_bit(cover_data_t *data,
                                               cover_scope_t *cs,
                                               object_t *obj,
@@ -276,75 +260,24 @@ static int32_t cover_add_toggle_items_one_bit(cover_data_t *data,
    return first_item_index;
 }
 
-static int32_t cover_add_toggle_items(cover_data_t *data, cover_scope_t *cs,
-                                      type_t type, object_t *obj,
-                                      ident_t prefix, int curr_dim)
+static int32_t cover_array_toggle_items(cover_data_t *data, cover_scope_t *cs,
+                                        type_t type, object_t *obj,
+                                        ident_t prefix, int curr_dim,
+                                        cover_flags_t flags)
 {
-   assert (data != NULL);
-
-   type_t root = type;
-
-   // Gets well known type for scalar and vectorized version of
-   // standard types (std_[u]logic[_vector], signed, unsigned)
-   while (type_base_kind(root) == T_ARRAY)
-      root = type_elem(root);
-   root = type_base_recur(root);
-
-   well_known_t known = is_well_known(type_ident(root));
-   if (known != W_IEEE_ULOGIC && known != W_IEEE_ULOGIC_VECTOR)
-      return -1;
-
-   unsigned int flags = 0;
-   if (tree_kind(tree_from_object(obj)) == T_SIGNAL_DECL)
-      flags |= COV_FLAG_TOGGLE_SIGNAL;
-   else
-      flags |= COV_FLAG_TOGGLE_PORT;
-
-   if (type_is_scalar(type))
-      return cover_add_toggle_items_one_bit(data, cs, obj, NULL, flags);
-   else if (type_is_unconstrained(type))
-      return -1;   // Not yet supported
-
    int t_dims = dimension_of(type);
    tree_t r = range_of(type, t_dims - curr_dim);
-   int64_t low, high;
 
-   if (!folded_bounds(r, &low, &high))
-      return -1;
-
-   if (high < low)
-      return -1;
-
-   if (cover_skip_array_toggle(data, high - low + 1))
-      return -1;
-
-   int64_t first, last, i;
    int32_t first_item_index = -1;
-   int inc;
 
-   data->array_depth++;
-#ifdef COVER_DEBUG_SCOPE
-   printf("Added dimension: %d\n", data->array_depth);
-#endif
+   const int64_t left = assume_int(tree_left(r));
+   const int64_t right = assume_int(tree_right(r));
+   const int inc = tree_subkind(r) == RANGE_TO ? +1 : -1;
 
-   switch (tree_subkind(r)) {
-   case RANGE_DOWNTO:
-      i = high;
-      first = high;
-      last = low;
-      inc = -1;
-      break;
-   case RANGE_TO:
-      i = low;
-      first = low;
-      last = high;
-      inc = +1;
-      break;
-   default:
-      fatal_trace("invalid subkind for range: %d", tree_subkind(r));
-   }
+   type_t elem = type_elem(type);
+   const bool memory = type_is_array(elem);
 
-   while (1) {
+   for (int64_t i = left; i != right + inc; i += inc) {
       char arr_index[16];
       int32_t tmp = -1;
       checked_sprintf(arr_index, sizeof(arr_index), "(%"PRIi64")", i);
@@ -354,33 +287,63 @@ static int32_t cover_add_toggle_items(cover_data_t *data, cover_scope_t *cs,
       // On lowest dimension walk through elements, if elements
       // are arrays, then start new (nested) recursion.
       if (curr_dim == 1) {
-         type_t e_type = type_elem(type);
-         if (type_is_array(e_type))
-            tmp = cover_add_toggle_items(data, cs, e_type, obj, arr_suffix,
-                                         dimension_of(e_type));
+         if (memory)
+            tmp = cover_array_toggle_items(data, cs, elem, obj, arr_suffix,
+                                           dimension_of(elem), flags);
          else
             tmp = cover_add_toggle_items_one_bit(data, cs, obj,
                                                  arr_suffix, flags);
       }
       else   // Recurse to lower dimension
-         tmp = cover_add_toggle_items(data, cs, type, obj, arr_suffix,
-                                      curr_dim - 1);
+         tmp = cover_array_toggle_items(data, cs, type, obj, arr_suffix,
+                                        curr_dim - 1, flags);
 
-      if (i == first)
+      if (i == left)
          first_item_index = tmp;
-      if (i == last)
-         break;
-
-      i += inc;
    }
 
-   assert(data->array_depth > 0);
-   data->array_depth--;
-#ifdef COVER_DEBUG_SCOPE
-   printf("Subtracted dimension: %d\n", data->array_depth);
-#endif
-
    return first_item_index;
+}
+
+static int32_t cover_add_toggle_items(cover_data_t *data, cover_scope_t *cs,
+                                      object_t *obj)
+{
+   assert(data != NULL);
+
+   type_t type = tree_type(tree_from_object(obj));
+   type_t root = type_base_recur(type_elem_recur(type));
+
+   well_known_t known = is_well_known(type_ident(root));
+   if (known != W_IEEE_ULOGIC && known != W_IEEE_ULOGIC_VECTOR)
+      return -1;
+
+   cover_flags_t flags = 0;
+   if (tree_kind(tree_from_object(obj)) == T_SIGNAL_DECL)
+      flags |= COV_FLAG_TOGGLE_SIGNAL;
+   else
+      flags |= COV_FLAG_TOGGLE_PORT;
+
+   if (type_is_scalar(type))
+      return cover_add_toggle_items_one_bit(data, cs, obj, NULL, flags);
+   else if (!type_const_bounds(type))
+      return -1;   // Not yet supported
+
+   const unsigned total = type_width(type);
+   if (total == 0)
+      return -1;
+
+   if (data->array_limit != 0 && total >= data->array_limit)
+      return -1;
+
+   type_t elem = type_elem(type);
+
+   // TODO: perhaps make memory coverage a different coverage type
+   const bool memory = type_is_array(elem);
+   if (!cover_enabled(data, COVER_MASK_TOGGLE_INCLUDE_MEMS) && memory)
+      return -1;
+
+   const int ndims = dimension_of(type);
+   return cover_array_toggle_items(data, cs, type, obj, NULL, ndims, flags);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -672,13 +635,7 @@ cover_item_t *cover_add_items_for(cover_data_t *data, cover_scope_t *cs,
       break;
 
    case COV_ITEM_TOGGLE:
-      {
-         tree_t tree = tree_from_object(obj);
-         type_t type = tree_type(tree);
-         const int ndims = dimension_of(type);
-         first_item_index =
-            cover_add_toggle_items(data, cs, type, obj, NULL, ndims);
-      }
+      first_item_index = cover_add_toggle_items(data, cs, obj);
       break;
 
    case COV_ITEM_EXPRESSION:
