@@ -7,6 +7,7 @@
 ** Note:      expression:    N.A.
 ** Note:      FSM state:     N.A.
 ** Note:      functional:    N.A.
+** Note:      average:       16.7 % (2/12)
 ** Note: Code coverage report folder: html.
 ** Note: Code coverage report contains: covered, uncovered, excluded coverage details.
 ** Note: code coverage results for: WORK.COVER6
@@ -16,6 +17,7 @@
 ** Note:      expression:    N.A.
 ** Note:      FSM state:     N.A.
 ** Note:      functional:    N.A.
+** Note:      average:       33.3 % (4/12)
 ** Note: Code coverage report folder: html.
 ** Note: Code coverage report contains: covered, uncovered, excluded coverage details.
 ** Note: code coverage results for: WORK.COVER6
@@ -25,3 +27,4 @@
 ** Note:      expression:    N.A.
 ** Note:      FSM state:     N.A.
 ** Note:      functional:    N.A.
+** Note:      average:       50.0 % (6/12)
