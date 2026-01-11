@@ -3566,9 +3566,20 @@ END_TEST
 START_TEST(test_implicit)
 {
    opt_set_int(OPT_MISSING_BODY, 1);
-   input_from_file(TESTDIR "/parse/names.vhd");
+   input_from_file(TESTDIR "/parse/implicit.vhd");
 
-   fail_if_errors();
+   const error_t expect[] = {
+      {  3, "missing body for function \">=\" [UNSIGNED, UNSIGNED return BOOLEAN]" },
+      {  0, "\">=\" [UNSIGNED, UNSIGNED return BOOLEAN] declared here" },
+      {  0, "body not found in WORK.IMPLICIT-body" },
+      { 24, "no visible declaration for UNDEFINED" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_PACKAGE, T_PACK_BODY, T_ENTITY, T_ARCH);
+
+   check_expected_errors();
 }
 END_TEST
 

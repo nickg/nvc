@@ -2681,7 +2681,7 @@ bool same_tree(tree_t a, tree_t b)
 
    switch (akind) {
    case T_REF:
-      return tree_ref(a) == tree_ref(b);
+      return tree_has_ref(a) && tree_has_ref(b) && tree_ref(a) == tree_ref(b);
    case T_ARRAY_REF:
       {
          if (!same_tree(tree_value(a), tree_value(b)))
