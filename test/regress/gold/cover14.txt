@@ -1,12 +1,12 @@
-** Note: excluding expression: 'WORK.COVER14._P0._S0._E6.BIN_1_1'
+** Note: excluding expression: 'WORK.COVER14._P0._S0._E2.BIN_1_1'
    > data/cover14_ef1.txt:1
    |
- 1 | exclude WORK.COVER14._P0._S0._E6.BIN_1_1
+ 1 | exclude WORK.COVER14._P0._S0._E2.BIN_1_1
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-** Note: excluding expression: 'WORK.COVER14._P1._S0._E5.BIN_0_1'
+** Note: excluding expression: 'WORK.COVER14._P1._S0._E2.BIN_0_1'
    > data/cover14_ef1.txt:2
    |
- 2 | exclude WORK.COVER14._P1._S0._E5.BIN_0_1
+ 2 | exclude WORK.COVER14._P1._S0._E2.BIN_0_1
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 ** Note: Code coverage report folder: html.
 ** Note: Code coverage report contains: covered, uncovered, excluded coverage details.

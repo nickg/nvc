@@ -109,20 +109,20 @@ static void cobertura_export_scope(cobertura_report_t *report,
       class = cobertura_get_class(report, s->block_name, &s->loc);
 
    for (int i = 0; i < s->items.count; i++) {
-      cover_item_t *t = &(s->items.items[i]);
-      switch (t->kind) {
+      const cover_item_t *item = s->items.items[i];
+      switch (item->kind) {
       case COV_ITEM_STMT:
          {
-            cobertura_line_t *l = cobertura_get_line(class, &(t->loc));
-            l->hits += t->data;
+            cobertura_line_t *l = cobertura_get_line(class, &(item->loc));
+            l->hits += item->data;
          }
          break;
       case COV_ITEM_BRANCH:
          {
-            cobertura_line_t *l = cobertura_get_line(class, &(t->loc));
+            cobertura_line_t *l = cobertura_get_line(class, &(item->loc));
             l->branch = true;
-            if (t->data > 0)
-               l->bflags |= t->flags;
+            if (item->data > 0)
+               l->bflags |= item->flags;
          }
          break;
       default:
@@ -280,7 +280,7 @@ static void dump_scope_xml(cover_scope_t *s, int indent, const loc_t *loc,
    fprintf(f, ">\n");
 
    for (int i = 0; i < s->items.count; i++) {
-      cover_item_t *item = &(s->items.items[i]);
+      const cover_item_t *item = s->items.items[i];
       switch (item->kind) {
       case COV_ITEM_STMT:
          fprintf(f, "%*s<statement hier=\"%s\" data=\"%d\"/>\n", indent + 2, "",

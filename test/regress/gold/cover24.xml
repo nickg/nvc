@@ -21,7 +21,7 @@
         </scope>
         <scope name="_B1" line="16">
           <expression hier="WORK.COVER24._P0._S0._B1._E0.BIN_FALSE" data="0"/>
-          <expression hier="WORK.COVER24._P0._S0._B1._E1.BIN_TRUE" data="1"/>
+          <expression hier="WORK.COVER24._P0._S0._B1._E0.BIN_TRUE" data="1"/>
           <branch hier="WORK.COVER24._P0._S0._B1.BIN_TRUE" data="1"/>
           <branch hier="WORK.COVER24._P0._S0._B1.BIN_FALSE" data="0"/>
           <scope name="_S0">

@@ -79,7 +79,7 @@ typedef struct {
 } line_range_t;
 
 typedef A(line_range_t) range_array_t;
-typedef A(cover_item_t) cov_item_array_t;
+typedef A(cover_item_t *) cov_item_array_t;
 typedef A(cover_scope_t *) scope_array_t;
 
 typedef enum {

@@ -73,8 +73,8 @@
       <scope name="_S8" line="22">
         <statement hier="WORK.COVER16._P0._S8" data="1"/>
         <expression hier="WORK.COVER16._P0._S8._E0.BIN_0_1" data="0"/>
-        <expression hier="WORK.COVER16._P0._S8._E1.BIN_1_0" data="1"/>
-        <expression hier="WORK.COVER16._P0._S8._E2.BIN_1_1" data="0"/>
+        <expression hier="WORK.COVER16._P0._S8._E0.BIN_1_0" data="1"/>
+        <expression hier="WORK.COVER16._P0._S8._E0.BIN_1_1" data="0"/>
       </scope>
       <scope name="_S9" line="23">
         <statement hier="WORK.COVER16._P0._S9" data="1"/>

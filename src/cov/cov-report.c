@@ -42,7 +42,7 @@ typedef struct _cover_rpt {
 } cover_rpt_t;
 
 static void rpt_visit_children(cover_rpt_t *rpt, rpt_hier_t *h,
-                               cover_scope_t *s);
+                               const cover_scope_t *s);
 
 static void get_hex_hash(const char *str, char out[SHA_HEX_LEN])
 {
@@ -134,15 +134,16 @@ static int rpt_append_item_to_chain(cover_rpt_t *rpt,
    return n_steps;
 }
 
-static void rpt_merge_file_items(rpt_file_t *f, cover_scope_t *s)
+static void rpt_merge_file_items(cover_rpt_t *rpt, rpt_file_t *f,
+                                 const cover_scope_t *s)
 {
    // TODO: This has O(n^2). May be issue for large designs ?
    for (int i = 0; i < s->items.count; i++) {
-      cover_item_t *scope_item = AREF(s->items, i);
+      cover_item_t *scope_item = AGET(s->items, i);
       bool found = false;
 
       for (int j = 0; j < f->items.count; j++) {
-         cover_item_t *file_item = AREF(f->items, j);
+         cover_item_t *file_item = AGET(f->items, j);
 
          // We must take into account:
          //    - kind   - different kind items can be at the same loc
@@ -159,12 +160,16 @@ static void rpt_merge_file_items(rpt_file_t *f, cover_scope_t *s)
          }
       }
 
-      if (!found)
-         APUSH(f->items, *scope_item);
+      if (!found) {
+         cover_item_t *copy = pool_malloc(rpt->pool, sizeof(cover_item_t));
+         *copy = *scope_item;
+         copy->consecutive = 1;
+         APUSH(f->items, copy);
+      }
    }
 }
 
-static rpt_file_t *rpt_visit_file(cover_rpt_t *rpt, cover_scope_t *s)
+static rpt_file_t *rpt_visit_file(cover_rpt_t *rpt, const cover_scope_t *s)
 {
    if (loc_invalid_p(&(s->loc)))
       return NULL;
@@ -172,7 +177,7 @@ static rpt_file_t *rpt_visit_file(cover_rpt_t *rpt, cover_scope_t *s)
    const char *path = loc_file_str(&(s->loc));
    rpt_file_t *f = shash_get(rpt->files, path);
    if (f != NULL) {
-      rpt_merge_file_items(f, s);
+      rpt_merge_file_items(rpt, f, s);
       return f->valid ? f : NULL;
    }
 
@@ -229,7 +234,7 @@ static rpt_file_t *rpt_visit_file(cover_rpt_t *rpt, cover_scope_t *s)
    return f;
 }
 
-static rpt_hier_t *rpt_visit_hier(cover_rpt_t *rpt, cover_scope_t *s)
+static rpt_hier_t *rpt_visit_hier(cover_rpt_t *rpt, const cover_scope_t *s)
 {
    rpt_hier_t *h = pool_calloc(rpt->pool, sizeof(rpt_hier_t));
    get_hex_hash(istr(s->hier), h->name_hash);
@@ -252,7 +257,7 @@ static void rpt_visit_sub_scope(cover_rpt_t *rpt, rpt_hier_t *h,
    rpt_file_t *f_src = rpt_visit_file(rpt, s);
    if (f_src != NULL) {
       for (int i = 0; i < s->items.count;) {
-         cover_item_t *item = &(s->items.items[i]);
+         cover_item_t *item = s->items.items[i];
          assert(item->loc.file_ref == s->loc.file_ref);
 
          const rpt_line_t *line = rpt_get_line(f_src, &item->loc);
@@ -266,7 +271,7 @@ static void rpt_visit_sub_scope(cover_rpt_t *rpt, rpt_hier_t *h,
 }
 
 static void rpt_visit_children(cover_rpt_t *rpt, rpt_hier_t *h,
-                               cover_scope_t *s)
+                               const cover_scope_t *s)
 {
    for (int i = 0; i < s->children.count; i++) {
       cover_scope_t *it = s->children.items[i];
@@ -282,7 +287,7 @@ static void rpt_visit_children(cover_rpt_t *rpt, rpt_hier_t *h,
 static void rpt_gen_file_chains(cover_rpt_t *rpt, rpt_file_t *f)
 {
    for (int i = 0; i < f->items.count;) {
-      cover_item_t *item = &(f->items.items[i]);
+      cover_item_t *item = f->items.items[i];
 
       const rpt_line_t *line = rpt_get_line(f, &item->loc);
       if (line != NULL)

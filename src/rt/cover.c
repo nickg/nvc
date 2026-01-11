@@ -434,7 +434,7 @@ void _nvc_add_cover_item(jit_scalar_t *args)
 
    const size_t pfxlen = tb_len(tb);
    for (int i = 0, dup = 0; i < us->scope->items.count; i++) {
-      if (icmp(us->scope->items.items[i].hier, tb_get(tb))) {
+      if (icmp(us->scope->items.items[i]->hier, tb_get(tb))) {
          tb_trim(tb, pfxlen);
          tb_printf(tb, "#%d", ++dup);
       }
@@ -468,9 +468,9 @@ void _nvc_add_cover_item(jit_scalar_t *args)
       item->ranges[i].max = *ptr++;
    }
 
-   *index_ptr = item - us->scope->items.items;
+   *index_ptr = item->tag;
 
-   cover_item_t *first = AREF(us->scope->items, 0);
+   cover_item_t *first = AGET(us->scope->items, 0);
    first->consecutive = us->scope->items.count;
 }
 
@@ -497,5 +497,5 @@ void _nvc_increment_cover_item(jit_scalar_t *args)
    if (us->counters == NULL)
       us->counters = cover_get_counters(data, us->name);
 
-   increment_counter(us->counters + us->scope->items.items[index].tag);
+   increment_counter(us->counters + us->scope->items.items[index]->tag);
 }

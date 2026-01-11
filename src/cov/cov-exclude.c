@@ -45,7 +45,7 @@ static void to_upper_str(char *str)
 static void cover_exclude_scope(cover_data_t *data, cover_scope_t *s)
 {
    for (int i = 0; i < s->items.count; i++) {
-      cover_item_t *item = AREF(s->items, i);
+      cover_item_t *item = AGET(s->items, i);
       ident_t hier = item->hier;
       const char *kind_str = cover_item_kind_str(item->kind);
 
@@ -194,10 +194,10 @@ static void cover_fold_scopes(cover_scope_t *tgt_scope, cover_scope_t *src_scope
 
    // Process items
    for (int i = 0; i < src_scope->items.count; i++) {
-      cover_item_t *src = AREF(src_scope->items, i);
+      cover_item_t *src = AGET(src_scope->items, i);
 
       for (int j = 0; j < tgt_scope->items.count; j++) {
-         cover_item_t *tgt = AREF(tgt_scope->items, j);
+         cover_item_t *tgt = AGET(tgt_scope->items, j);
          ident_t tgt_suffix_hier = NULL;
          ident_t src_suffix_hier = NULL;
 

@@ -4,133 +4,133 @@
     <scope name="GATE_OR_1" line="60">
       <scope name="_S0" line="61">
         <expression hier="WORK.COVER7.GATE_OR_1._S0._E0.BIN_0_0" data="2"/>
-        <expression hier="WORK.COVER7.GATE_OR_1._S0._E1.BIN_0_1" data="0"/>
-        <expression hier="WORK.COVER7.GATE_OR_1._S0._E2.BIN_1_0" data="1"/>
+        <expression hier="WORK.COVER7.GATE_OR_1._S0._E0.BIN_0_1" data="0"/>
+        <expression hier="WORK.COVER7.GATE_OR_1._S0._E0.BIN_1_0" data="1"/>
       </scope>
     </scope>
     <scope name="GATE_NOR_1" line="62">
       <scope name="_S0" line="63">
         <expression hier="WORK.COVER7.GATE_NOR_1._S0._E0.BIN_0_0" data="2"/>
-        <expression hier="WORK.COVER7.GATE_NOR_1._S0._E1.BIN_0_1" data="0"/>
-        <expression hier="WORK.COVER7.GATE_NOR_1._S0._E2.BIN_1_0" data="1"/>
+        <expression hier="WORK.COVER7.GATE_NOR_1._S0._E0.BIN_0_1" data="0"/>
+        <expression hier="WORK.COVER7.GATE_NOR_1._S0._E0.BIN_1_0" data="1"/>
       </scope>
     </scope>
     <scope name="GATE_OR_2" line="65">
       <scope name="_S0" line="66">
         <expression hier="WORK.COVER7.GATE_OR_2._S0._E0.BIN_0_0" data="2"/>
-        <expression hier="WORK.COVER7.GATE_OR_2._S0._E1.BIN_0_1" data="1"/>
-        <expression hier="WORK.COVER7.GATE_OR_2._S0._E2.BIN_1_0" data="0"/>
+        <expression hier="WORK.COVER7.GATE_OR_2._S0._E0.BIN_0_1" data="1"/>
+        <expression hier="WORK.COVER7.GATE_OR_2._S0._E0.BIN_1_0" data="0"/>
       </scope>
     </scope>
     <scope name="GATE_NOR_2" line="67">
       <scope name="_S0" line="68">
         <expression hier="WORK.COVER7.GATE_NOR_2._S0._E0.BIN_0_0" data="2"/>
-        <expression hier="WORK.COVER7.GATE_NOR_2._S0._E1.BIN_0_1" data="1"/>
-        <expression hier="WORK.COVER7.GATE_NOR_2._S0._E2.BIN_1_0" data="0"/>
+        <expression hier="WORK.COVER7.GATE_NOR_2._S0._E0.BIN_0_1" data="1"/>
+        <expression hier="WORK.COVER7.GATE_NOR_2._S0._E0.BIN_1_0" data="0"/>
       </scope>
     </scope>
     <scope name="GATE_OR_3" line="70">
       <scope name="_S0" line="71">
         <expression hier="WORK.COVER7.GATE_OR_3._S0._E0.BIN_0_0" data="2"/>
-        <expression hier="WORK.COVER7.GATE_OR_3._S0._E1.BIN_0_1" data="1"/>
-        <expression hier="WORK.COVER7.GATE_OR_3._S0._E2.BIN_1_0" data="1"/>
+        <expression hier="WORK.COVER7.GATE_OR_3._S0._E0.BIN_0_1" data="1"/>
+        <expression hier="WORK.COVER7.GATE_OR_3._S0._E0.BIN_1_0" data="1"/>
       </scope>
     </scope>
     <scope name="GATE_NOR_3" line="72">
       <scope name="_S0" line="73">
         <expression hier="WORK.COVER7.GATE_NOR_3._S0._E0.BIN_0_0" data="2"/>
-        <expression hier="WORK.COVER7.GATE_NOR_3._S0._E1.BIN_0_1" data="1"/>
-        <expression hier="WORK.COVER7.GATE_NOR_3._S0._E2.BIN_1_0" data="1"/>
+        <expression hier="WORK.COVER7.GATE_NOR_3._S0._E0.BIN_0_1" data="1"/>
+        <expression hier="WORK.COVER7.GATE_NOR_3._S0._E0.BIN_1_0" data="1"/>
       </scope>
     </scope>
     <scope name="GATE_AND_1" line="76">
       <scope name="_S0" line="77">
         <expression hier="WORK.COVER7.GATE_AND_1._S0._E0.BIN_0_1" data="0"/>
-        <expression hier="WORK.COVER7.GATE_AND_1._S0._E1.BIN_1_0" data="1"/>
-        <expression hier="WORK.COVER7.GATE_AND_1._S0._E2.BIN_1_1" data="0"/>
+        <expression hier="WORK.COVER7.GATE_AND_1._S0._E0.BIN_1_0" data="1"/>
+        <expression hier="WORK.COVER7.GATE_AND_1._S0._E0.BIN_1_1" data="0"/>
       </scope>
     </scope>
     <scope name="GATE_NAND_1" line="78">
       <scope name="_S0" line="79">
         <expression hier="WORK.COVER7.GATE_NAND_1._S0._E0.BIN_0_1" data="0"/>
-        <expression hier="WORK.COVER7.GATE_NAND_1._S0._E1.BIN_1_0" data="1"/>
-        <expression hier="WORK.COVER7.GATE_NAND_1._S0._E2.BIN_1_1" data="0"/>
+        <expression hier="WORK.COVER7.GATE_NAND_1._S0._E0.BIN_1_0" data="1"/>
+        <expression hier="WORK.COVER7.GATE_NAND_1._S0._E0.BIN_1_1" data="0"/>
       </scope>
     </scope>
     <scope name="GATE_AND_2" line="81">
       <scope name="_S0" line="82">
         <expression hier="WORK.COVER7.GATE_AND_2._S0._E0.BIN_0_1" data="0"/>
-        <expression hier="WORK.COVER7.GATE_AND_2._S0._E1.BIN_1_0" data="1"/>
-        <expression hier="WORK.COVER7.GATE_AND_2._S0._E2.BIN_1_1" data="1"/>
+        <expression hier="WORK.COVER7.GATE_AND_2._S0._E0.BIN_1_0" data="1"/>
+        <expression hier="WORK.COVER7.GATE_AND_2._S0._E0.BIN_1_1" data="1"/>
       </scope>
     </scope>
     <scope name="GATE_NAND_2" line="83">
       <scope name="_S0" line="84">
         <expression hier="WORK.COVER7.GATE_NAND_2._S0._E0.BIN_0_1" data="0"/>
-        <expression hier="WORK.COVER7.GATE_NAND_2._S0._E1.BIN_1_0" data="1"/>
-        <expression hier="WORK.COVER7.GATE_NAND_2._S0._E2.BIN_1_1" data="1"/>
+        <expression hier="WORK.COVER7.GATE_NAND_2._S0._E0.BIN_1_0" data="1"/>
+        <expression hier="WORK.COVER7.GATE_NAND_2._S0._E0.BIN_1_1" data="1"/>
       </scope>
     </scope>
     <scope name="GATE_AND_3" line="86">
       <scope name="_S0" line="87">
         <expression hier="WORK.COVER7.GATE_AND_3._S0._E0.BIN_0_1" data="2"/>
-        <expression hier="WORK.COVER7.GATE_AND_3._S0._E1.BIN_1_0" data="0"/>
-        <expression hier="WORK.COVER7.GATE_AND_3._S0._E2.BIN_1_1" data="1"/>
+        <expression hier="WORK.COVER7.GATE_AND_3._S0._E0.BIN_1_0" data="0"/>
+        <expression hier="WORK.COVER7.GATE_AND_3._S0._E0.BIN_1_1" data="1"/>
       </scope>
     </scope>
     <scope name="GATE_NAND_3" line="88">
       <scope name="_S0" line="89">
         <expression hier="WORK.COVER7.GATE_NAND_3._S0._E0.BIN_0_1" data="2"/>
-        <expression hier="WORK.COVER7.GATE_NAND_3._S0._E1.BIN_1_0" data="0"/>
-        <expression hier="WORK.COVER7.GATE_NAND_3._S0._E2.BIN_1_1" data="1"/>
+        <expression hier="WORK.COVER7.GATE_NAND_3._S0._E0.BIN_1_0" data="0"/>
+        <expression hier="WORK.COVER7.GATE_NAND_3._S0._E0.BIN_1_1" data="1"/>
       </scope>
     </scope>
     <scope name="GATE_XOR_1" line="92">
       <scope name="_S0" line="93">
         <expression hier="WORK.COVER7.GATE_XOR_1._S0._E0.BIN_0_0" data="2"/>
-        <expression hier="WORK.COVER7.GATE_XOR_1._S0._E1.BIN_0_1" data="0"/>
-        <expression hier="WORK.COVER7.GATE_XOR_1._S0._E2.BIN_1_0" data="1"/>
-        <expression hier="WORK.COVER7.GATE_XOR_1._S0._E3.BIN_1_1" data="0"/>
+        <expression hier="WORK.COVER7.GATE_XOR_1._S0._E0.BIN_0_1" data="0"/>
+        <expression hier="WORK.COVER7.GATE_XOR_1._S0._E0.BIN_1_0" data="1"/>
+        <expression hier="WORK.COVER7.GATE_XOR_1._S0._E0.BIN_1_1" data="0"/>
       </scope>
     </scope>
     <scope name="GATE_XNOR_1" line="94">
       <scope name="_S0" line="95">
         <expression hier="WORK.COVER7.GATE_XNOR_1._S0._E0.BIN_0_0" data="2"/>
-        <expression hier="WORK.COVER7.GATE_XNOR_1._S0._E1.BIN_0_1" data="0"/>
-        <expression hier="WORK.COVER7.GATE_XNOR_1._S0._E2.BIN_1_0" data="1"/>
-        <expression hier="WORK.COVER7.GATE_XNOR_1._S0._E3.BIN_1_1" data="0"/>
+        <expression hier="WORK.COVER7.GATE_XNOR_1._S0._E0.BIN_0_1" data="0"/>
+        <expression hier="WORK.COVER7.GATE_XNOR_1._S0._E0.BIN_1_0" data="1"/>
+        <expression hier="WORK.COVER7.GATE_XNOR_1._S0._E0.BIN_1_1" data="0"/>
       </scope>
     </scope>
     <scope name="GATE_XOR_2" line="97">
       <scope name="_S0" line="98">
         <expression hier="WORK.COVER7.GATE_XOR_2._S0._E0.BIN_0_0" data="2"/>
-        <expression hier="WORK.COVER7.GATE_XOR_2._S0._E1.BIN_0_1" data="1"/>
-        <expression hier="WORK.COVER7.GATE_XOR_2._S0._E2.BIN_1_0" data="0"/>
-        <expression hier="WORK.COVER7.GATE_XOR_2._S0._E3.BIN_1_1" data="0"/>
+        <expression hier="WORK.COVER7.GATE_XOR_2._S0._E0.BIN_0_1" data="1"/>
+        <expression hier="WORK.COVER7.GATE_XOR_2._S0._E0.BIN_1_0" data="0"/>
+        <expression hier="WORK.COVER7.GATE_XOR_2._S0._E0.BIN_1_1" data="0"/>
       </scope>
     </scope>
     <scope name="GATE_XNOR_2" line="99">
       <scope name="_S0" line="100">
         <expression hier="WORK.COVER7.GATE_XNOR_2._S0._E0.BIN_0_0" data="2"/>
-        <expression hier="WORK.COVER7.GATE_XNOR_2._S0._E1.BIN_0_1" data="1"/>
-        <expression hier="WORK.COVER7.GATE_XNOR_2._S0._E2.BIN_1_0" data="0"/>
-        <expression hier="WORK.COVER7.GATE_XNOR_2._S0._E3.BIN_1_1" data="0"/>
+        <expression hier="WORK.COVER7.GATE_XNOR_2._S0._E0.BIN_0_1" data="1"/>
+        <expression hier="WORK.COVER7.GATE_XNOR_2._S0._E0.BIN_1_0" data="0"/>
+        <expression hier="WORK.COVER7.GATE_XNOR_2._S0._E0.BIN_1_1" data="0"/>
       </scope>
     </scope>
     <scope name="GATE_XOR_3" line="102">
       <scope name="_S0" line="103">
         <expression hier="WORK.COVER7.GATE_XOR_3._S0._E0.BIN_0_0" data="2"/>
-        <expression hier="WORK.COVER7.GATE_XOR_3._S0._E1.BIN_0_1" data="1"/>
-        <expression hier="WORK.COVER7.GATE_XOR_3._S0._E2.BIN_1_0" data="1"/>
-        <expression hier="WORK.COVER7.GATE_XOR_3._S0._E3.BIN_1_1" data="1"/>
+        <expression hier="WORK.COVER7.GATE_XOR_3._S0._E0.BIN_0_1" data="1"/>
+        <expression hier="WORK.COVER7.GATE_XOR_3._S0._E0.BIN_1_0" data="1"/>
+        <expression hier="WORK.COVER7.GATE_XOR_3._S0._E0.BIN_1_1" data="1"/>
       </scope>
     </scope>
     <scope name="GATE_XNOR_3" line="104">
       <scope name="_S0" line="105">
         <expression hier="WORK.COVER7.GATE_XNOR_3._S0._E0.BIN_0_0" data="2"/>
-        <expression hier="WORK.COVER7.GATE_XNOR_3._S0._E1.BIN_0_1" data="1"/>
-        <expression hier="WORK.COVER7.GATE_XNOR_3._S0._E2.BIN_1_0" data="1"/>
-        <expression hier="WORK.COVER7.GATE_XNOR_3._S0._E3.BIN_1_1" data="1"/>
+        <expression hier="WORK.COVER7.GATE_XNOR_3._S0._E0.BIN_0_1" data="1"/>
+        <expression hier="WORK.COVER7.GATE_XNOR_3._S0._E0.BIN_1_0" data="1"/>
+        <expression hier="WORK.COVER7.GATE_XNOR_3._S0._E0.BIN_1_1" data="1"/>
       </scope>
     </scope>
     <scope name="TEST_CTRL_PROC" line="107">

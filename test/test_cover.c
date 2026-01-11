@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2025  Nick Gasson
+//  Copyright (C) 2025-2026  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -61,6 +61,11 @@ static cover_data_t *run_cover(void)
    model_free(m);
    jit_free(j);
 
+   // TODO: shouldn't need to do this to sync counters
+   fbuf_t *tmp = fbuf_open("/dev/null", FBUF_OUT, FBUF_CS_NONE);
+   cover_dump_items(db, tmp, COV_DUMP_RUNTIME);
+   fbuf_close(tmp, NULL);
+
    return db;
 }
 
@@ -69,11 +74,6 @@ START_TEST(test_perfile1)
    input_from_file(TESTDIR "/cover/perfile1.vhd");
 
    cover_data_t *db = run_cover();
-
-   // TODO: shouldn't need to do this to sync counters
-   fbuf_t *tmp = fbuf_open("/tmp/perfile1.ncdb", FBUF_OUT, FBUF_CS_NONE);
-   cover_dump_items(db, tmp, COV_DUMP_RUNTIME);
-   fbuf_close(tmp, NULL);
 
    cover_rpt_t *rpt = cover_report_new(db, INT_MAX);
 
@@ -97,12 +97,52 @@ START_TEST(test_perfile1)
 }
 END_TEST
 
+START_TEST(test_toggle1)
+{
+   input_from_file(TESTDIR "/cover/toggle1.vhd");
+
+   elab_set_generic("G_VAL", "1");
+
+   cover_data_t *db = run_cover();
+
+   cover_scope_t *u1 = cover_get_scope(db, ident_new("WORK.TOGGLE1"));
+   ck_assert_ptr_nonnull(u1);
+
+   cover_scope_t *vect = u1->children.items[0];
+   ck_assert_str_eq(istr(vect->name), "VECT");
+   ck_assert_int_eq(vect->items.count, 32);
+
+   cover_item_t *vect15 = vect->items.items[0];
+   ck_assert_int_eq(vect15->consecutive, 2);
+   ck_assert_ptr_eq(vect->items.items[1], vect15 + 1);
+   ck_assert(vect15[0].flags & COV_FLAG_TOGGLE_TO_1);
+   ck_assert(vect15[1].flags & COV_FLAG_TOGGLE_TO_0);
+   ck_assert_int_eq(vect15[0].data, 0);
+   ck_assert_int_eq(vect15[1].data, 0);
+
+   cover_rpt_t *rpt = cover_report_new(db, INT_MAX);
+
+   ck_assert_int_eq(vect15[0].data, 0);   // Should not change
+   ck_assert_int_eq(vect15[1].data, 0);
+
+   const rpt_hier_t *u1_h = rpt_get_hier(rpt, u1);
+   ck_assert_int_eq(u1_h->flat_stats.total[COV_ITEM_TOGGLE], 32);
+   ck_assert_int_eq(u1_h->flat_stats.hit[COV_ITEM_TOGGLE], 1);
+
+   cover_report_free(rpt);
+   cover_data_free(db);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_cover_tests(void)
 {
    Suite *s = suite_create("cover");
 
    TCase *tc = nvc_unit_test();
    tcase_add_test(tc, test_perfile1);
+   tcase_add_test(tc, test_toggle1);
    suite_add_tcase(s, tc);
 
    return s;
