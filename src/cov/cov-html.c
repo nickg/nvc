@@ -199,7 +199,7 @@ static void cover_print_html_header(FILE *f)
               "   .nav-sel { font-weight: bold; }\n"
               "  </style>\n"
               "</head>\n"
-              "<body style=\"font-family: verdana\"\n\n");
+              "<body style=\"font-family: verdana\">\n\n");
 
    fprintf(f, "<header><h1 style=\"text-align: center;\">");
    fprintf(f, COV_RPT_TITLE "\n");
