@@ -3,3 +3,9 @@ package test_pkg is
   subtype  t_word_array  is t_slv_array(open)(t_word'range);
   constant C_NULL_DATA : t_word_array(0 to -1) := (others => (foo => '0'));
 end package;
+
+--------------------------------------------------------------------------------
+
+PACKAGE pkg IS
+  CONSTANT c : INTEGER := 16#_.FF#E0;  -- Error
+END PACKAGE;
