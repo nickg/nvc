@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2013-2025  Nick Gasson
+//  Copyright (C) 2013-2026  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -20,6 +20,7 @@
 #include "cov/cov-data.h"
 #include "cov/cov-priv.h"
 #include "cov/cov-structs.h"
+#include "cov/cov-style.h"
 #include "ident.h"
 #include "option.h"
 
@@ -31,23 +32,12 @@
 #include <inttypes.h>
 #include <math.h>
 
-#define MARGIN_LEFT "20%%"
-#define SIDEBAR_WIDTH "17%%"
 #define TABLE_HEADER_HEIGHT "40px"
 #define TABLE_WIDTH "76%%"
 
-#define TABLE_ROW_COLOR "#e8e8e8"
-#define TABLE_HEADER_COLOR "#bbbbbb"
-#define BACKGROUND_COLOR "#f0f0e0ff"
 #define UNCOVERED_COLOR "#ffcccc"
 #define EXCLUDED_COLOR "#d6eaf8"
 #define COVERED_COLOR "#ccffcc"
-
-#define COV_100_COLOR "#00cc00"
-#define COV_90_COLOR "#e6e600"
-#define COV_80_COLOR "#ff9900"
-#define COV_0_COLOR "#ff0000"
-#define COV_NA_COLOR "#cccccc"
 
 struct _cover_rpt_buf {
    text_buf_t      *tb;
@@ -87,116 +77,14 @@ static void cover_print_html_header(FILE *f)
            "  <meta charset=\"utf-8\">\n"
            "  <title>");
 
-   fprintf(f, COV_RPT_TITLE "\n");
+   fprintf(f, COV_RPT_TITLE);
 
    fprintf(f, "</title>\n"
-              "  <style>\n"
-              "   body {\n"
-              "      background-color: " BACKGROUND_COLOR ";\n"
-              "   }\n"
-              "   header {\n"
-              "      padding: 30px;\n"
-              "      text-align: center;\n"
-              "      font-size: 40px;\n"
-              "   }\n"
-              "   h1 {\n"
-              "      text-align: center;\n"
-              "   }\n"
-              "   h2 {\n"
-              "      word-wrap: break-word;\n"
-              "   }\n"
-              "   h3 {\n"
-              "      word-wrap: break-word;\n"
-              "      margin-bottom: 0px;\n"
-              "   }\n"
-              "   hr {\n"
-              "      border:none;\n"
-              "      height: 2px;\n"
-              "      background: black;\n"
-              "   }\n"
-              "   footer{\n"
-              "      display: table;\n"
-              "      text-align: center;\n"
-              "      margin-left: auto;\n"
-              "      margin-right: auto;\n"
-              "   }\n"
-              "   nav {\n"
-              "      float: left;\n"
-              "      background-color: " TABLE_ROW_COLOR ";\n"
-              "      width: " SIDEBAR_WIDTH ";\n"
-              "      overflow: auto; \n"
-              "      padding: 10px;\n"
-              "      margin-top: -2px;\n"
-              "      border: 2px solid black;\n"
-              "   }\n"
-              "   table {\n"
-              "     table-layout: fixed;"
-              "   }\n"
-              "   table, th, td {\n"
-              "     border: 2px solid black;\n"
-              "     border-collapse: collapse;\n"
-              "     word-wrap: break-word;\n"
-              "   }\n"
-              "   nav details details {\n"
-              "     margin-left: 1rem;\n"
-              "   }\n"
-              "   nav details > a {\n"
-              "     padding-left: 1.9rem;\n"
-              "     display: block;\n"
-              "   }\n"
-              "   nav summary {\n"
-              "     display: inline-flex;\n"
-              "     cursor: pointer;\n"
-              "     align-items: center;\n"
-              "   }\n"
-              "   nav summary::before {\n"
-              "     content: '▶';\n"
-              "     font-size: 0.7em;\n"
-              "     margin-right: 0.4em;\n"
-              "   }\n"
-              "   nav details[open] > summary::before {\n"
-              "     transform: rotate(90deg);\n"
-              "   }\n"
-              "   .tabcontent {\n"
-              "     display: none;\n"
-              "     padding: 0px 0px;\n"
-              "     border: 2px solid #ccc;\n"
-              "     border-top: none;\n"
-              "     word-wrap: break-word;\n"
-              "   }\n"
-              "   .tab {\n"
-              "     overflow: hidden;\n"
-              "     border: 2px solid;\n"
-              "     margin-left: " MARGIN_LEFT ";\n"
-              "     margin-top: 10px;\n"
-              "   }\n"
-              "   .cbg:hover {\n"
-              "     background-color: #dddddd;\n"
-              "   }\n"
-              "   .cbg {\n"
-              "     background-color: " TABLE_HEADER_COLOR ";\n"
-              "     text-align: center;\n"
-              "   }\n"
-              "   .cbt {\n"
-              "     margin-top: 8px;\n"
-              "   }\n"
-              "   .cbt th {\n"
-              "     background-color: " TABLE_HEADER_COLOR ";\n"
-              "     text-align: center;\n"
-              "    }\n"
-              "   .cbt td, .cbt th {\n"
-              "     width:50px;\n"
-              "     text-align: center;\n"
-              "    }\n"
-              "   .cbt td + td, .cbt th + th { width:150px; }\n"
-              "   .cbt td + td + td, .cbt th + th + th { width:150px; }\n"
-              "   .cbt td + td + td + td, .cbt th + th + th + th { width:150px; }\n"
-              "   .percent100 { background-color: " COV_100_COLOR "; }\n"
-              "   .percent90 { background-color: " COV_90_COLOR "; }\n"
-              "   .percent80 { background-color: " COV_80_COLOR "; }\n"
-              "   .percent0 { background-color: " COV_0_COLOR "; }\n"
-              "   .percentna { background-color: " COV_NA_COLOR "; }\n"
-              "   .nav-sel { font-weight: bold; }\n"
+           "  <style>\n");
+
+   fputs(cov_style, f);
+
+   fprintf(f,
               "  </style>\n"
               "</head>\n"
               "<body style=\"font-family: verdana\">\n\n");
@@ -208,7 +96,7 @@ static void cover_print_html_header(FILE *f)
 
 static void cover_print_file_name(FILE *f, const rpt_file_t *src)
 {
-   fprintf(f, "<h2 style=\"margin-left: " MARGIN_LEFT "; width: " TABLE_WIDTH ";\">\n");
+   fprintf(f, "<h2 style=\"margin-left: var(--margin-left); width: " TABLE_WIDTH ";\">\n");
    fprintf(f, "   File:&nbsp; <a href=\"../source/%s.html\">%s</a>\n",
            src ? src->path_hash : "", src ? src->path : "");
    fprintf(f, "</h2>\n\n");
@@ -216,7 +104,7 @@ static void cover_print_file_name(FILE *f, const rpt_file_t *src)
 
 static void cover_print_inst_name(FILE *f, cover_scope_t *s)
 {
-   fprintf(f, "<h2 style=\"margin-left: " MARGIN_LEFT "; width: " TABLE_WIDTH ";\">\n");
+   fprintf(f, "<h2 style=\"margin-left: var(--margin-left); width: " TABLE_WIDTH ";\">\n");
    fprintf(f, "   Instance:&nbsp;%s\n", istr(s->hier));
    fprintf(f, "</h2>\n\n");
 }
@@ -245,7 +133,7 @@ static void cover_print_percents_cell(FILE *f, unsigned hit, unsigned total)
 static void cover_print_summary_table_header(FILE *f, const char *table_id,
                                              const char *first_col_str)
 {
-   fprintf(f, "<table id=\"%s\" style=\"width: " TABLE_WIDTH ";margin-left:" MARGIN_LEFT ";margin-right:auto;\"> \n"
+   fprintf(f, "<table id=\"%s\" style=\"width: " TABLE_WIDTH ";margin-left:var(--margin-left);margin-right:auto;\"> \n"
               "  <tr style=\"height:" TABLE_HEADER_HEIGHT "\">\n"
               "    <th class=\"cbg\" onclick=\"sortTable(0, &quot;%s&quot;)\"  style=\"width:30%%\">%s</th>\n"
               "    <th class=\"cbg\" onclick=\"sortTable(1, &quot;%s&quot;)\"  style=\"width:8%%\">Statement</th>\n"
@@ -791,7 +679,7 @@ static void cover_print_chain(FILE *f, cover_data_t *data, const rpt_chain_t *ch
    else if (kind == COV_ITEM_FUNCTIONAL)
       fprintf(f, "Functional");
 
-   fprintf(f, "\" class=\"tabcontent\" style=\"width:" TABLE_WIDTH ";margin-left:" MARGIN_LEFT "; "
+   fprintf(f, "\" class=\"tabcontent\" style=\"width:" TABLE_WIDTH ";margin-left:var(--margin-left); "
                           "margin-right:auto; margin-top:-2px; border: 2px solid black;\">\n");
 
    for (cov_pair_kind_t pkind = PAIR_UNCOVERED; pkind < PAIR_LAST; pkind++) {
@@ -864,7 +752,7 @@ static void cover_print_chain(FILE *f, cover_data_t *data, const rpt_chain_t *ch
 static void cover_print_chns(FILE *f, cover_data_t *data, const rpt_chain_group_t *chns)
 {
    fprintf(f,
-              "<table style=\"width:" TABLE_WIDTH ";margin-left:" MARGIN_LEFT ";margin-right:auto;\"> \n"
+              "<table style=\"width:" TABLE_WIDTH ";margin-left:var(--margin-left);margin-right:auto;\"> \n"
               "   <tr style=\"height:" TABLE_HEADER_HEIGHT "\">\n"
               "      <th class=\"cbg\" onclick=\"selectCoverage(event, 'Statement')\" id=\"defaultOpen\">Statement</th>\n"
               "      <th class=\"cbg\" onclick=\"selectCoverage(event, 'Branch')\">Branch</th>\n"
@@ -935,7 +823,7 @@ static void cover_print_summary_table_row(FILE *f, cover_data_t *data, const rpt
                                           bool top, bool print_out)
 {
    fprintf(f, "  <tr>\n"
-              "    <td style=\"background-color:" TABLE_ROW_COLOR "\">\n"
+              "    <td style=\"background-color:var(--table-row-color)\">\n"
               "<a href=\"%s%s.html\">%s</a></td>\n",
               top ? "hier/" : "", istr(entry_link), istr(entry_name));
 
@@ -1119,11 +1007,11 @@ static void cover_report_hier(html_gen_t *g, int lvl, cover_scope_t *s)
                                  rpt_name_id, lvl, false, false);
    cover_print_table_footer(f);
 
-   fprintf(f, "<h2 style=\"margin-left: " MARGIN_LEFT ";\">\n  Details:\n</h2>\n\n");
+   fprintf(f, "<h2 style=\"margin-left: var(--margin-left);\">\n  Details:\n</h2>\n\n");
 
    const int skipped = rpt_get_skipped(g->rpt);
    if (skipped)
-      fprintf(f, "<h3 style=\"margin-left: " MARGIN_LEFT ";\">The limit of "
+      fprintf(f, "<h3 style=\"margin-left: var(--margin-left);\">The limit of "
                  "printed items was reached (%d). Total %d items are not "
                  "displayed.</h3><br>\n\n", g->item_limit, skipped);
    cover_print_chns(f, g->data, &(h->chns));
@@ -1242,17 +1130,17 @@ static void cover_report_per_file(html_gen_t *g, FILE *top_f,
       cover_print_file_nav_tree(f, n_files, files);
       cover_print_file_name(f, files[i]);
 
-      fprintf(f, "<h2 style=\"margin-left: " MARGIN_LEFT ";\">\n  Current File:\n</h2>\n\n");
+      fprintf(f, "<h2 style=\"margin-left: var(--margin-left);\">\n  Current File:\n</h2>\n\n");
       cover_print_summary_table_header(f, "cur_file_table", "File");
       cover_print_summary_table_row(f, data, &(files[i]->stats), base_name_id,
                                     base_name_id, 0, false, false);
       cover_print_table_footer(f);
 
-      fprintf(f, "<h2 style=\"margin-left: " MARGIN_LEFT ";\">\n  Details:\n</h2>\n\n");
+      fprintf(f, "<h2 style=\"margin-left: var(--margin-left);\">\n  Details:\n</h2>\n\n");
 
       const int skipped = rpt_get_skipped(rpt);
       if (skipped)
-         fprintf(f, "<h3 style=\"margin-left: " MARGIN_LEFT ";\">The limit of "
+         fprintf(f, "<h3 style=\"margin-left: var(--margin-left);\">The limit of "
                     "printed items was reached (%d). Total %d items are not "
                     "displayed.</h3>\n\n", g->item_limit, skipped);
       cover_print_chns(f, data, &(files[i]->chns));

@@ -8,3 +8,24 @@ lib_libnvc_a_SOURCES += \
 	src/cov/cov-structs.h \
 	src/cov/cov-priv.h \
 	src/cov/cov-html.c
+
+CLEANFILES += src/cov/cov-style.h
+BUILT_SOURCES += src/cov/cov-style.h
+
+nodist_EXTRA_lib_libnvc_a_SOURCES = src/cov/cov-style.h
+
+src/cov/cov-style.h: src/cov/cov-style.css
+	$(AM_V_at)$(MKDIR_P) src/cov
+	$(AM_V_GEN)echo 'static const char cov_style[] =' > $@
+	$(AM_V_at)sed \
+	  -e 's/\\/\\\\/g' \
+	  -e 's/"/\\"/g' \
+	  -e 's/$$/\\n"/' \
+	  -e 's/^/"/' \
+	  $< >> $@
+	$(AM_V_at)echo ';' >> $@
+
+# TODO: consider using raw strings when more widely available
+#	echo 'static const char cov_style[] = R"(' > $@
+#	cat $< >> $@
+#	echo ')";' >> $@
