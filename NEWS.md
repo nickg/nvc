@@ -14,6 +14,9 @@
 - Very large subprograms containing tens of thousands of operations can
   now be compiled (#1259).
 - Added `-Werror` analysis option to escalate warnings into errors.
+- Code coverage report style was improved.
+- Average coverage numbers are now printed on command line when processing
+  coverage.
 - Several other minor bugs were resolved (#1237, #1350, #1351, #1353,
   #1366, #1372, #1333).
 

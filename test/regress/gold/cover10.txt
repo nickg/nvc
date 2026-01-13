@@ -17,6 +17,7 @@
 ** Note:      expression:    N.A.
 ** Note:      FSM state:     N.A.
 ** Note:      functional:    N.A.
+** Note:      average:       85.7 % (12/14)
 ** Note: excluding toggle: 'WORK.COVER10.SIGNAL_WHICH_IS_EXCLUDED.BIN_0_TO_1'
    > data/cover10_ef1.txt:2
    |
@@ -36,6 +37,7 @@
 ** Note:      expression:    N.A.
 ** Note:      FSM state:     N.A.
 ** Note:      functional:    N.A.
+** Note:      average:       85.7 % (12/14)
 ** Note: excluding toggle: 'WORK.COVER10.SIGNAL_WHICH_IS_EXCLUDED.BIN_0_TO_1'
    > data/cover10_ef1.txt:2
    |
@@ -55,3 +57,4 @@
 ** Note:      expression:    N.A.
 ** Note:      FSM state:     N.A.
 ** Note:      functional:    N.A.
+** Note:      average:       85.7 % (12/14)

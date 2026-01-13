@@ -307,6 +307,7 @@
 ** Note:      expression:    100.0 % (22/22)
 ** Note:      FSM state:     N.A.
 ** Note:      functional:    N.A.
+** Note:      average:       92.6 % (88/95)
 ** Error: invalid command: exducles
    > data/cover9_ef2.txt:5
    |
@@ -326,6 +327,7 @@
 ** Note:      expression:    40.9 % (9/22)
 ** Note:      FSM state:     N.A.
 ** Note:      functional:    N.A.
+** Note:      average:       43.2 % (41/95)
 ** Warning: excluded hierarchy does not match any coverage item: 'WORK.COVER9.P0._S0._E0.WTF_BIN'
    > data/cover9_ef3.txt:3
    |
@@ -340,6 +342,7 @@
 ** Note:      expression:    40.9 % (9/22)
 ** Note:      FSM state:     N.A.
 ** Note:      functional:    N.A.
+** Note:      average:       43.2 % (41/95)
 ** Error: exclude hierarchy missing
    > data/cover9_ef5.txt:3
    |
@@ -354,3 +357,4 @@
 ** Note:      expression:    40.9 % (9/22)
 ** Note:      FSM state:     N.A.
 ** Note:      functional:    N.A.
+** Note:      average:       43.2 % (41/95)
