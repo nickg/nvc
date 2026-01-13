@@ -99,8 +99,8 @@ jobs:
     strategy:
       matrix:
         include:
-          - { os: macos-15-intel, arch: x86_64 }
-          - { os: macos-14, arch: arm64 }
+          - { os: macos-15-intel, arch: x86_64, llvm: llvm@17 }
+          - { os: macos-14, arch: arm64, llvm: llvm }
     name: Mac OS (${{ matrix.arch }})
     runs-on: ${{ matrix.os }}
     steps:
@@ -114,13 +114,13 @@ jobs:
       - name: Work around pkg-config issue
         run: brew uninstall --ignore-dependencies --force pkg-config@0.29.2
       - name: Install dependencies
-        run: brew install llvm check automake libffi pkg-config zstd
+        run: brew install ${{ matrix.llvm }} check automake libffi pkg-config zstd
       - name: Generate configure script
         run: ./autogen.sh
       - name: Configure
         run: |
           mkdir build && cd build
-          ../configure --with-llvm=$(brew --prefix llvm)/bin/llvm-config \
+          ../configure --with-llvm=$(brew --prefix ${{ matrix.llvm }})/bin/llvm-config \
                --enable-debug --disable-lto
       - name: Build
         run: make -C build -j $(sysctl -n hw.logicalcpu)
@@ -138,7 +138,7 @@ jobs:
       - name: Configure for release
         run: |
           cd build
-          ../configure --with-llvm=$(brew --prefix llvm)/bin/llvm-config \
+          ../configure --with-llvm=$(brew --prefix ${{ matrix.llvm }})/bin/llvm-config \
                --disable-debug
       - name: Build release
         run: make -C build -j $(sysctl -n hw.logicalcpu)
