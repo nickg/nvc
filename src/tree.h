@@ -208,6 +208,14 @@ typedef enum {
    S_TO_STRING_REAL_FORMAT,
    S_TO_HSTRING_BITVEC,
    S_TO_OSTRING_BITVEC,
+   S_IEEE_MISC,
+   S_IEEE_AND,
+   S_IEEE_OR,
+   S_IEEE_XOR,
+   S_IEEE_NAND,
+   S_IEEE_NOR,
+   S_IEEE_XNOR,
+   S_IEEE_NOT,
 } subprogram_kind_t;
 
 typedef enum {

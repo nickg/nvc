@@ -338,7 +338,9 @@ END_TEST
 static void force1_stdout_handler(const char *buf, size_t nchars, void *user)
 {
    static const char *expect[] = {
-      "force /x '1'\n", "force /y 42\n", "force /z \"110\"\n"
+      "force ", "/x", " ", "'1'", "\n",
+      "force ", "/y", " ", "42", "\n",
+      "force ", "/z", " ", "\"110\"", "\n"
    };
 
    int *state = user;
@@ -398,7 +400,7 @@ START_TEST(test_force1)
 
    shell_eval(sh, "force", &result);
    ck_assert_str_eq(result, "");
-   ck_assert_int_eq(state, 3);
+   ck_assert_int_eq(state, 15);
 
    shell_eval(sh, "run 1 ns", &result);
    ck_assert_str_eq(result, "");

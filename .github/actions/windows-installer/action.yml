@@ -35,9 +35,9 @@ runs:
         export PATH=$PATH:/c/Program\ Files\ \(x86\)/WiX\ Toolset\ v3.14/bin
         mkdir build
         cd build
+        export CFLAGS='-O2 -g -gcodeview' LDFLAGS='-fuse-ld=lld -g -Wl,--pdb='
         bash ../configure --enable-static-llvm --enable-tcl \
-          --enable-gui CFLAGS="-O2" --prefix=`pwd`/installdir \
-          --without-system-cc
+          --enable-gui CFLAGS="-O2" --prefix=`pwd`/installdir
     - name: Build
       shell: msys2 {0}
       working-directory: ./build

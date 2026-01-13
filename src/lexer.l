@@ -130,7 +130,7 @@ HEX             [0-9a-fA-FzZxX_]+
 BASED_HASH      {INTEGER}[#]{HEX}(\.{HEX})?[#]{EXPONENT}?
 BASED_COLON     {INTEGER}[:]{HEX}(\.{HEX})?[:]{EXPONENT}?
 BASED           {BASED_HASH}|{BASED_COLON}
-SPACE           [ \t\r]+
+SPACE           [ \t\r]
 PRAGMA          --[ \t]*
 SYNTH_OFF       {PRAGMA}(?i:synthesis)[ \t]+(?i:translate_off).*
 SYNTH_ON        {PRAGMA}(?i:synthesis)[ \t]+(?i:translate_on).*
@@ -849,6 +849,9 @@ PROTECT           ?i:protect
 <VLOG>"endclass"         { return KEYWORD_2005(tENDCLASS); }
 <VLOG>"virtual"          { return KEYWORD_2005(tVIRTUAL); }
 <VLOG>"defparam"         { return tDEFPARAM; }
+<VLOG>"PATHPULSE$"       { return tPATHPULSE; }
+
+<VLOG>"PATHPULSE$"{VLOG_ID}"$"{VLOG_ID} { return tPATHPULSE; }
 
 <VLOG>"`unconnected_drive"   { return tUNCTDRIVE; }
 <VLOG>"`nounconnected_drive" { return tNOUNCTDRIVE; }

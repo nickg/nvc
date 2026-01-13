@@ -219,9 +219,12 @@ typedef enum {
    JIT_VEC_ASR,
    JIT_VEC_CASE_EQ,
    JIT_VEC_CASE_NEQ,
+   JIT_VEC_LOG_EQ,
+   JIT_VEC_LOG_NEQ,
    JIT_VEC_NOT,
    JIT_VEC_AND1,
    JIT_VEC_OR1,
+   JIT_VEC_EXP,
 } jit_vec_op_t;
 
 typedef uint32_t jit_label_t;
@@ -233,7 +236,7 @@ typedef struct {
 } jit_vpos_t;
 
 typedef struct {
-   jit_value_kind_t kind : 8;
+   jit_value_kind_t kind;
    int32_t          disp;
    union {
       jit_reg_t    reg;

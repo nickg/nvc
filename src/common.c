@@ -24,6 +24,7 @@
 #include "lower.h"
 #include "option.h"
 #include "phase.h"
+#include "printf.h"
 #include "scan.h"
 #include "thread.h"
 #include "type.h"
@@ -1094,115 +1095,113 @@ ident_t well_known(well_known_t id)
 
 well_known_t is_well_known(ident_t ident)
 {
-   well_known_t pos = 0;
-   for (; pos < NUM_WELL_KNOWN; pos++) {
-      if (id_cache[pos] == ident)
-         break;
-   }
-
-   return pos;
+   return ident_key(ident);
 }
 
 void intern_strings(void)
 {
-   id_cache[W_STD_STANDARD]    = ident_new("STD.STANDARD");
-   id_cache[W_ALL]             = ident_new("all");
-   id_cache[W_STD_BIT]         = ident_new("STD.STANDARD.BIT");
-   id_cache[W_STD_BOOL]        = ident_new("STD.STANDARD.BOOLEAN");
-   id_cache[W_STD_CHAR]        = ident_new("STD.STANDARD.CHARACTER");
-   id_cache[W_STD_NATURAL]     = ident_new("STD.STANDARD.NATURAL");
-   id_cache[W_STD_POSITIVE]    = ident_new("STD.STANDARD.POSITIVE");
-   id_cache[W_STD_INTEGER]     = ident_new("STD.STANDARD.INTEGER");
-   id_cache[W_STD_STRING]      = ident_new("STD.STANDARD.STRING");
-   id_cache[W_STD_REAL]        = ident_new("STD.STANDARD.REAL");
-   id_cache[W_STD_TIME]        = ident_new("STD.STANDARD.TIME");
-   id_cache[W_STD_BIT_VECTOR]  = ident_new("STD.STANDARD.BIT_VECTOR");
-   id_cache[W_IEEE_SIGNED]     = ident_new("IEEE.NUMERIC_STD.SIGNED");
-   id_cache[W_IEEE_UNSIGNED]   = ident_new("IEEE.NUMERIC_STD.UNSIGNED");
-   id_cache[W_IEEE_LOGIC]      = ident_new("IEEE.STD_LOGIC_1164.STD_LOGIC");
-   id_cache[W_IEEE_ULOGIC]     = ident_new("IEEE.STD_LOGIC_1164.STD_ULOGIC");
-   id_cache[W_IEEE_1164_AND]   = ident_new("IEEE.STD_LOGIC_1164.\"and\"");
-   id_cache[W_IEEE_1164_NAND]  = ident_new("IEEE.STD_LOGIC_1164.\"nand\"");
-   id_cache[W_IEEE_1164_OR]    = ident_new("IEEE.STD_LOGIC_1164.\"or\"");
-   id_cache[W_IEEE_1164_NOR]   = ident_new("IEEE.STD_LOGIC_1164.\"nor\"");
-   id_cache[W_IEEE_1164_XOR]   = ident_new("IEEE.STD_LOGIC_1164.\"xor\"");
-   id_cache[W_IEEE_1164_XNOR]  = ident_new("IEEE.STD_LOGIC_1164.\"xnor\"");
-   id_cache[W_FOREIGN]         = ident_new("FOREIGN");
-   id_cache[W_WORK]            = ident_new("WORK");
-   id_cache[W_STD]             = ident_new("STD");
-   id_cache[W_THUNK]           = ident_new("thunk");
-   id_cache[W_BODY]            = ident_new("body");
-   id_cache[W_CARET]           = ident_new("^");
-   id_cache[W_IEEE]            = ident_new("IEEE");
-   id_cache[W_IEEE_1164]       = ident_new("IEEE.STD_LOGIC_1164");
-   id_cache[W_ERROR]           = ident_new("$error");
-   id_cache[W_ELAB]            = ident_new("elab");
-   id_cache[W_NUMERIC_STD]     = ident_new("IEEE.NUMERIC_STD");
-   id_cache[W_NUMERIC_BIT]     = ident_new("IEEE.NUMERIC_BIT");
-   id_cache[W_NVC]             = ident_new("NVC");
-   id_cache[W_DEFAULT_CLOCK]   = ident_new("default clock");
-   id_cache[W_STD_REFLECTION]  = ident_new("STD.REFLECTION");
-   id_cache[W_NEVER_WAITS]     = ident_new("NEVER_WAITS");
-   id_cache[W_NVC_VERILOG]     = ident_new("NVC.VERILOG");
-   id_cache[W_NVC_PSL_SUPPORT] = ident_new("NVC.PSL_SUPPORT");
-   id_cache[W_INSTANCE_NAME]   = ident_new("instance_name");
-   id_cache[W_PATH_NAME]       = ident_new("path_name");
-   id_cache[W_VITAL]           = ident_new("VITAL");
-   id_cache[W_RESOLUTION]      = ident_new("resolution");
-   id_cache[W_TEXT_UTIL]       = ident_new("NVC.TEXT_UTIL");
-   id_cache[W_VERILOG_LOGIC]   = ident_new("NVC.VERILOG.T_LOGIC");
-   id_cache[W_DLR_SIGNED]      = ident_new("$signed");
-   id_cache[W_DLR_CLOG2]       = ident_new("$clog2");
+   static const char *tab[] = {
+      [W_STD_STANDARD]   = "STD.STANDARD",
+      [W_ALL]            = "all",
+      [W_STD_BIT]        = "STD.STANDARD.BIT",
+      [W_STD_BOOL]       = "STD.STANDARD.BOOLEAN",
+      [W_STD_CHAR]       = "STD.STANDARD.CHARACTER",
+      [W_STD_NATURAL]    = "STD.STANDARD.NATURAL",
+      [W_STD_POSITIVE]   = "STD.STANDARD.POSITIVE",
+      [W_STD_INTEGER]    = "STD.STANDARD.INTEGER",
+      [W_STD_STRING]     = "STD.STANDARD.STRING",
+      [W_STD_REAL]       = "STD.STANDARD.REAL",
+      [W_STD_TIME]       = "STD.STANDARD.TIME",
+      [W_STD_BIT_VECTOR] = "STD.STANDARD.BIT_VECTOR",
 
-   id_cache[W_IEEE_LOGIC_VECTOR] =
-      ident_new("IEEE.STD_LOGIC_1164.STD_LOGIC_VECTOR");
-   id_cache[W_IEEE_ULOGIC_VECTOR] =
-      ident_new("IEEE.STD_LOGIC_1164.STD_ULOGIC_VECTOR");
-   id_cache[W_IEEE_1164_RISING_EDGE] =
-      ident_new("IEEE.STD_LOGIC_1164.RISING_EDGE(sU)B");
-   id_cache[W_IEEE_1164_FALLING_EDGE] =
-      ident_new("IEEE.STD_LOGIC_1164.FALLING_EDGE(sU)B");
+      [W_IEEE_SIGNED]   = "IEEE.NUMERIC_STD.SIGNED",
+      [W_IEEE_UNSIGNED] = "IEEE.NUMERIC_STD.UNSIGNED",
+      [W_IEEE_LOGIC]    = "IEEE.STD_LOGIC_1164.STD_LOGIC",
+      [W_IEEE_ULOGIC]   = "IEEE.STD_LOGIC_1164.STD_ULOGIC",
 
-   id_cache[W_NUMERIC_STD_UNSIGNED] = ident_new("IEEE.NUMERIC_STD_UNSIGNED");
-   id_cache[W_NUMERIC_BIT_UNSIGNED] = ident_new("IEEE.NUMERIC_BIT_UNSIGNED");
-   id_cache[W_VERILOG_NET_VALUE]    = ident_new("NVC.VERILOG.T_NET_VALUE");
-   id_cache[W_VERILOG_WIRE_ARRAY]   = ident_new("NVC.VERILOG.T_WIRE_ARRAY");
+      [W_IEEE_1164_AND]  = "IEEE.STD_LOGIC_1164.\"and\"",
+      [W_IEEE_1164_NAND] = "IEEE.STD_LOGIC_1164.\"nand\"",
+      [W_IEEE_1164_OR]   = "IEEE.STD_LOGIC_1164.\"or\"",
+      [W_IEEE_1164_NOR]  = "IEEE.STD_LOGIC_1164.\"nor\"",
+      [W_IEEE_1164_XOR]  = "IEEE.STD_LOGIC_1164.\"xor\"",
+      [W_IEEE_1164_XNOR] = "IEEE.STD_LOGIC_1164.\"xnor\"",
 
-   id_cache[W_OP_CCONV]               = ident_new("\"??\"");
-   id_cache[W_OP_AND]                 = ident_new("\"and\"");
-   id_cache[W_OP_OR]                  = ident_new("\"or\"");
-   id_cache[W_OP_NAND]                = ident_new("\"nand\"");
-   id_cache[W_OP_NOR]                 = ident_new("\"nor\"");
-   id_cache[W_OP_XOR]                 = ident_new("\"xor\"");
-   id_cache[W_OP_XNOR]                = ident_new("\"xnor\"");
-   id_cache[W_OP_EQUAL]               = ident_new("\"=\"");
-   id_cache[W_OP_NOT_EQUAL]           = ident_new("\"/=\"");
-   id_cache[W_OP_LESS_THAN]           = ident_new("\"<\"");
-   id_cache[W_OP_LESS_EQUAL]          = ident_new("\"<=\"");
-   id_cache[W_OP_GREATER_THAN]        = ident_new("\">\"");
-   id_cache[W_OP_GREATER_EQUAL]       = ident_new("\">=\"");
-   id_cache[W_OP_MATCH_EQUAL]         = ident_new("\"?=\"");
-   id_cache[W_OP_MATCH_NOT_EQUAL]     = ident_new("\"?/=\"");
-   id_cache[W_OP_MATCH_LESS_THAN]     = ident_new("\"?<\"");
-   id_cache[W_OP_MATCH_LESS_EQUAL]    = ident_new("\"?<=\"");
-   id_cache[W_OP_MATCH_GREATER_THAN]  = ident_new("\"?>\"");
-   id_cache[W_OP_MATCH_GREATER_EQUAL] = ident_new("\"?>=\"");
-   id_cache[W_OP_SLL]                 = ident_new("\"sll\"");
-   id_cache[W_OP_SRL]                 = ident_new("\"srl\"");
-   id_cache[W_OP_SLA]                 = ident_new("\"sla\"");
-   id_cache[W_OP_SRA]                 = ident_new("\"sra\"");
-   id_cache[W_OP_ROL]                 = ident_new("\"rol\"");
-   id_cache[W_OP_ROR]                 = ident_new("\"ror\"");
-   id_cache[W_OP_ADD]                 = ident_new("\"+\"");
-   id_cache[W_OP_MINUS]               = ident_new("\"-\"");
-   id_cache[W_OP_CONCAT]              = ident_new("\"&\"");
-   id_cache[W_OP_TIMES]               = ident_new("\"*\"");
-   id_cache[W_OP_DIVIDE]              = ident_new("\"/\"");
-   id_cache[W_OP_MOD]                 = ident_new("\"mod\"");
-   id_cache[W_OP_REM]                 = ident_new("\"rem\"");
-   id_cache[W_OP_EXPONENT]            = ident_new("\"**\"");
-   id_cache[W_OP_ABS]                 = ident_new("\"abs\"");
-   id_cache[W_OP_NOT]                 = ident_new("\"not\"");
+      [W_FOREIGN]         = "FOREIGN",
+      [W_WORK]            = "WORK",
+      [W_STD]             = "STD",
+      [W_THUNK]           = "thunk",
+      [W_BODY]            = "body",
+      [W_CARET]           = "^",
+      [W_IEEE]            = "IEEE",
+      [W_IEEE_1164]       = "IEEE.STD_LOGIC_1164",
+      [W_ERROR]           = "$error",
+      [W_ELAB]            = "elab",
+      [W_NUMERIC_STD]     = "IEEE.NUMERIC_STD",
+      [W_NUMERIC_BIT]     = "IEEE.NUMERIC_BIT",
+      [W_NVC]             = "NVC",
+      [W_DEFAULT_CLOCK]   = "default clock",
+      [W_STD_REFLECTION]  = "STD.REFLECTION",
+      [W_NEVER_WAITS]     = "NEVER_WAITS",
+      [W_NVC_VERILOG]     = "NVC.VERILOG",
+      [W_NVC_PSL_SUPPORT] = "NVC.PSL_SUPPORT",
+      [W_INSTANCE_NAME]   = "instance_name",
+      [W_PATH_NAME]       = "path_name",
+      [W_VITAL]           = "VITAL",
+      [W_RESOLUTION]      = "resolution",
+      [W_TEXT_UTIL]       = "NVC.TEXT_UTIL",
+      [W_VERILOG_LOGIC]   = "NVC.VERILOG.T_LOGIC",
+      [W_DLR_SIGNED]      = "$signed",
+      [W_DLR_CLOG2]       = "$clog2",
+
+      [W_IEEE_LOGIC_VECTOR]      = "IEEE.STD_LOGIC_1164.STD_LOGIC_VECTOR",
+      [W_IEEE_ULOGIC_VECTOR]     = "IEEE.STD_LOGIC_1164.STD_ULOGIC_VECTOR",
+      [W_IEEE_1164_RISING_EDGE]  = "IEEE.STD_LOGIC_1164.RISING_EDGE(sU)B",
+      [W_IEEE_1164_FALLING_EDGE] = "IEEE.STD_LOGIC_1164.FALLING_EDGE(sU)B",
+
+      [W_NUMERIC_STD_UNSIGNED] = "IEEE.NUMERIC_STD_UNSIGNED",
+      [W_NUMERIC_BIT_UNSIGNED] = "IEEE.NUMERIC_BIT_UNSIGNED",
+      [W_VERILOG_NET_VALUE]    = "NVC.VERILOG.T_NET_VALUE",
+      [W_VERILOG_WIRE_ARRAY]   = "NVC.VERILOG.T_WIRE_ARRAY",
+
+      [W_OP_CCONV]               = "\"??\"",
+      [W_OP_AND]                 = "\"and\"",
+      [W_OP_OR]                  = "\"or\"",
+      [W_OP_NAND]                = "\"nand\"",
+      [W_OP_NOR]                 = "\"nor\"",
+      [W_OP_XOR]                 = "\"xor\"",
+      [W_OP_XNOR]                = "\"xnor\"",
+      [W_OP_EQUAL]               = "\"=\"",
+      [W_OP_NOT_EQUAL]           = "\"/=\"",
+      [W_OP_LESS_THAN]           = "\"<\"",
+      [W_OP_LESS_EQUAL]          = "\"<=\"",
+      [W_OP_GREATER_THAN]        = "\">\"",
+      [W_OP_GREATER_EQUAL]       = "\">=\"",
+      [W_OP_MATCH_EQUAL]         = "\"?=\"",
+      [W_OP_MATCH_NOT_EQUAL]     = "\"?/=\"",
+      [W_OP_MATCH_LESS_THAN]     = "\"?<\"",
+      [W_OP_MATCH_LESS_EQUAL]    = "\"?<=\"",
+      [W_OP_MATCH_GREATER_THAN]  = "\"?>\"",
+      [W_OP_MATCH_GREATER_EQUAL] = "\"?>=\"",
+      [W_OP_SLL]                 = "\"sll\"",
+      [W_OP_SRL]                 = "\"srl\"",
+      [W_OP_SLA]                 = "\"sla\"",
+      [W_OP_SRA]                 = "\"sra\"",
+      [W_OP_ROL]                 = "\"rol\"",
+      [W_OP_ROR]                 = "\"ror\"",
+      [W_OP_ADD]                 = "\"+\"",
+      [W_OP_MINUS]               = "\"-\"",
+      [W_OP_CONCAT]              = "\"&\"",
+      [W_OP_TIMES]               = "\"*\"",
+      [W_OP_DIVIDE]              = "\"/\"",
+      [W_OP_MOD]                 = "\"mod\"",
+      [W_OP_REM]                 = "\"rem\"",
+      [W_OP_EXPONENT]            = "\"**\"",
+      [W_OP_ABS]                 = "\"abs\"",
+      [W_OP_NOT]                 = "\"not\"",
+   };
+
+   for (int i = 0; i < ARRAY_LEN(tab); i++)
+      id_cache[i] = ident_intern(i, tab[i]);
 }
 
 bool is_uninstantiated_package(tree_t pack)
@@ -1480,6 +1479,13 @@ bool is_open_coded_builtin(subprogram_kind_t kind)
    case S_FILE_READ:
    case S_FILE_WRITE:
    case S_DEALLOCATE:
+   case S_IEEE_AND:
+   case S_IEEE_OR:
+   case S_IEEE_XOR:
+   case S_IEEE_NAND:
+   case S_IEEE_NOR:
+   case S_IEEE_XNOR:
+   case S_IEEE_NOT:
       return true;
    default:
       return false;
@@ -2141,7 +2147,11 @@ tree_t change_ref(tree_t name, tree_t new)
 {
    switch (tree_kind(name)) {
    case T_REF:
-      return make_ref(new);
+      {
+         tree_t ref = make_ref(new);
+         tree_set_loc(ref, tree_loc(name));
+         return ref;
+      }
 
    case T_ARRAY_REF:
       {
@@ -2505,14 +2515,14 @@ void print_syntax(const char *fmt, ...)
          if (*p == '\n' || *p == '\r') {
             comment = false;
             last_was_newline = true;
-            tb_printf(tb, "$$\n");
+            tb_cat(tb, "$$\n");
          }
          else if (*p != '~' && *p != '#') {
             tb_append(tb, *p);
             last_was_newline = false;
          }
          if (p > fmt && *p == '/' && *(p - 1) == '*') {
-            tb_printf(tb, "$$");
+            tb_cat(tb, "$$");
             comment = false;
             last_was_newline = false;
          }
@@ -2524,25 +2534,27 @@ void print_syntax(const char *fmt, ...)
          }
       }
       else if (*p == '#' && *(p + 1) != '#') {
-         tb_printf(tb, "$bold$$cyan$");
+         tb_cat(tb, "$bold$$cyan$");
          last_was_newline = false;
          highlighting = true;
       }
       else if (*p == '~' && *(p + 1) != '~') {
-         tb_printf(tb, "$yellow$");
+         tb_cat(tb, "$yellow$");
          last_was_newline = false;
          highlighting = true;
       }
       else if ((*p == '-' && *(p + 1) == '-')
                || (*p == '/' && *(p + 1) == '/')
                || (*p == '/' && *(p + 1) == '*')) {
-         tb_printf(tb, "$red$%c", *p);
+         tb_cat(tb, "$red$");
+         tb_append(tb, *p);
          last_was_newline = false;
          comment = true;
       }
       else if (!isalnum_iso88591(*p) && *p != '_'
                && *p != '%' && highlighting) {
-         tb_printf(tb, "$$%c", *p);
+         tb_cat(tb, "$$");
+         tb_append(tb, *p);
          last_was_newline = false;
          highlighting = false;
       }
@@ -2559,11 +2571,11 @@ void print_syntax(const char *fmt, ...)
    va_start(ap, fmt);
 
    if (syntax_buf != NULL) {
-      char *stripped LOCAL = strip_color(tb_get(tb), ap);
-      tb_cat(syntax_buf, stripped);
+      ostream_t os = { tb_ostream_write, syntax_buf, CHARSET_ISO88591, false };
+      nvc_vfprintf(&os, tb_get(tb), ap);
    }
    else
-      color_vprintf(tb_get(tb), ap);
+      nvc_vprintf(tb_get(tb), ap);
 
    va_end(ap);
 }
@@ -2652,17 +2664,10 @@ bool all_character_literals(type_t type)
 
 bool is_operator_symbol(ident_t ident)
 {
-   const int len = ident_len(ident);
-   if (len < 3)
-      return false;
-   else if (ident_char(ident, 0) != '"')
-      return false;
-   else if (ident_char(ident, len - 1) != '"')
-      return false;
-
    const well_known_t wk = is_well_known(ident);
-
-   if (standard() < STD_08)
+   if (wk >= NUM_WELL_KNOWN)
+      return false;
+   else if (standard() < STD_08)
       return wk >= W_OP_AND && wk <= W_OP_NOT;
    else
       return wk >= W_OP_AND && wk <= W_OP_MATCH_GREATER_EQUAL;
@@ -2676,7 +2681,7 @@ bool same_tree(tree_t a, tree_t b)
 
    switch (akind) {
    case T_REF:
-      return tree_ref(a) == tree_ref(b);
+      return tree_has_ref(a) && tree_has_ref(b) && tree_ref(a) == tree_ref(b);
    case T_ARRAY_REF:
       {
          if (!same_tree(tree_value(a), tree_value(b)))
@@ -2775,6 +2780,8 @@ static range_kind_t get_range_direction(tree_t r)
    assert(kind == ATTR_RANGE || kind == ATTR_REVERSE_RANGE);
 
    type_t prefix_type = tree_type(tree_name(aref));
+   if (type_is_none(prefix_type))
+      return RANGE_ERROR;
    if (type_is_unconstrained(prefix_type))
       return RANGE_EXPR;
 
@@ -2796,6 +2803,9 @@ bool calculate_aggregate_bounds(tree_t expr, range_kind_t *kind,
    // rules in LRM 93 7.3.2.2
 
    type_t type = tree_type(expr);
+   if (type_is_none(type))
+      return false;
+
    type_t index_type = index_type_of(type, 0);
    if (index_type == NULL || type_is_none(index_type))
       return false;

@@ -861,6 +861,36 @@ unsigned mir_get_size(mir_unit_t *mu, mir_type_t type)
    }
 }
 
+unsigned mir_get_slots(mir_unit_t *mu, mir_type_t type)
+{
+   if (mir_is_null(type))
+      return 1;   // Untyped constants
+
+   const type_data_t *td = mir_type_data(mu, type);
+   switch (td->class) {
+   case MIR_TYPE_UARRAY:
+      // Always passed around scalarised
+      if (mir_get_class(mu, td->u.uarray.elem) == MIR_TYPE_SIGNAL)
+         return 2 + td->u.uarray.dims * 2;
+      else
+         return 1 + td->u.uarray.dims * 2;
+   case MIR_TYPE_SIGNAL:
+      // Signal pointer plus offset
+      return 2;
+   case MIR_TYPE_CLOSURE:
+      // Function pointer, context
+      return 2;
+   case MIR_TYPE_RESOLUTION:
+      // Closure slots plus nlits, and flags (this is silly)
+      return 4;
+   case MIR_TYPE_VEC4:
+      return 2;
+   default:
+      // Passed by pointer or fits in 64-bit register
+      return 1;
+   }
+}
+
 bool mir_get_signed(mir_unit_t *mu, mir_type_t type)
 {
    const type_data_t *td = mir_type_data(mu, type);

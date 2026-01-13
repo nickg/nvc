@@ -17,7 +17,6 @@
 
 #include "util.h"
 #include "diag.h"
-#include "eval.h"
 #include "ident.h"
 #include "jit/jit.h"
 #include "lib.h"
@@ -26,6 +25,7 @@
 #include "object.h"
 #include "option.h"
 #include "phase.h"
+#include "printf.h"
 #include "rt/mspace.h"
 #include "rt/rt.h"
 #include "scan.h"
@@ -60,7 +60,7 @@ static void print_result(double ops_sec, double usec_op)
 static void run_benchmark(tree_t pack, tree_t proc, unit_registry_t *ur,
                           mir_context_t *mc)
 {
-   color_printf("$!magenta$## %s$$\n\n", istr(tree_ident(proc)));
+   nvc_printf("$!magenta$## %s$$\n\n", istr(tree_ident(proc)));
 
    ident_t name = tree_ident2(proc);
 
@@ -111,9 +111,9 @@ static void run_benchmark(tree_t pack, tree_t proc, unit_registry_t *ur,
 
    tlab_release(tlab);
 
-   color_printf("\n$!green$--> ");
+   nvc_printf("\n$!green$--> ");
    print_result(mean(ops_sec + 1, ITERATIONS), mean(usec_op + 1, ITERATIONS));
-   color_printf("$$\n");
+   nvc_printf("$$\n");
 
    jit_free(j);
 }
@@ -247,7 +247,7 @@ int main(int argc, char **argv)
    jit_t *jit = jit_new(ur, mc, NULL);
 
    for (int i = optind; i < argc; i++) {
-      color_printf("$!cyan$--\n-- %s\n--$$\n\n", argv[i]);
+      nvc_printf("$!cyan$--\n-- %s\n--$$\n\n", argv[i]);
 
       input_from_file(argv[i]);
 

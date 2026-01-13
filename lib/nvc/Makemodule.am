@@ -40,46 +40,46 @@ lib/nvc/_NVC_LIB:
 lib/nvc/_index:
 
 lib/nvc/NVC.SIM_PKG: $(srcdir)/lib/nvc/sim_pkg.vhd @ifGNUmake@ | $(DRIVER)
-	$(nvc) --std=1993 -L lib/ --work=lib/nvc -a $(srcdir)/lib/nvc/sim_pkg.vhd
+	$(nvc) --std=1993 -L lib/ --work=lib/nvc -a --relative=$(srcdir) $(srcdir)/lib/nvc/sim_pkg.vhd
 
 lib/nvc/NVC.SIM_PKG-body: $(srcdir)/lib/nvc/sim_pkg-body.vhd @ifGNUmake@ | $(DRIVER)
-	$(nvc) --std=1993 -L lib/ --work=lib/nvc -a $(srcdir)/lib/nvc/sim_pkg-body.vhd
+	$(nvc) --std=1993 -L lib/ --work=lib/nvc -a --relative=$(srcdir) $(srcdir)/lib/nvc/sim_pkg-body.vhd
 
 lib/nvc/NVC.POLYFILL: $(srcdir)/lib/nvc/polyfill.vhd @ifGNUmake@ | $(DRIVER)
-	$(nvc) --std=1993 -L lib/ --work=lib/nvc -a $(srcdir)/lib/nvc/polyfill.vhd
+	$(nvc) --std=1993 -L lib/ --work=lib/nvc -a --relative=$(srcdir) $(srcdir)/lib/nvc/polyfill.vhd
 
 lib/nvc/NVC.POLYFILL-body: $(srcdir)/lib/nvc/polyfill-body.vhd @ifGNUmake@ | $(DRIVER)
-	$(nvc) --std=1993 -L lib/ --work=lib/nvc -a $(srcdir)/lib/nvc/polyfill-body.vhd
+	$(nvc) --std=1993 -L lib/ --work=lib/nvc -a --relative=$(srcdir) $(srcdir)/lib/nvc/polyfill-body.vhd
 
 lib/nvc/NVC.TEXT_UTIL: $(srcdir)/lib/nvc/text_util.vhd @ifGNUmake@ | $(DRIVER)
-	$(nvc) --std=1993 -L lib/ --work=lib/nvc -a $(srcdir)/lib/nvc/text_util.vhd
+	$(nvc) --std=1993 -L lib/ --work=lib/nvc -a --relative=$(srcdir) $(srcdir)/lib/nvc/text_util.vhd
 
 lib/nvc/NVC.TEXT_UTIL-body: $(srcdir)/lib/nvc/text_util-body.vhd @ifGNUmake@ | $(DRIVER)
-	$(nvc) --std=1993 -L lib/ --work=lib/nvc -a $(srcdir)/lib/nvc/text_util-body.vhd
+	$(nvc) --std=1993 -L lib/ --work=lib/nvc -a --relative=$(srcdir) $(srcdir)/lib/nvc/text_util-body.vhd
 
 lib/nvc/NVC.PSL_SUPPORT: $(srcdir)/lib/nvc/psl_support.vhd @ifGNUmake@ | $(DRIVER)
-	$(nvc) --std=1993 -L lib/ --work=lib/nvc -a $(srcdir)/lib/nvc/psl_support.vhd
+	$(nvc) --std=1993 -L lib/ --work=lib/nvc -a --relative=$(srcdir) $(srcdir)/lib/nvc/psl_support.vhd
 
 lib/nvc/NVC.PSL_SUPPORT-body: $(srcdir)/lib/nvc/psl_support-body.vhd @ifGNUmake@ | $(DRIVER)
-	$(nvc) --std=1993 -L lib/ --work=lib/nvc -a $(srcdir)/lib/nvc/psl_support-body.vhd
+	$(nvc) --std=1993 -L lib/ --work=lib/nvc -a --relative=$(srcdir) $(srcdir)/lib/nvc/psl_support-body.vhd
 
 lib/nvc/NVC.VERILOG: $(srcdir)/lib/nvc/verilog.vhd @ifGNUmake@ | $(DRIVER)
-	$(nvc) --std=1993 -L lib/ --work=lib/nvc -a $(srcdir)/lib/nvc/verilog.vhd
+	$(nvc) --std=1993 -L lib/ --work=lib/nvc -a --relative=$(srcdir) $(srcdir)/lib/nvc/verilog.vhd
 
 lib/nvc/NVC.VERILOG-body: $(srcdir)/lib/nvc/verilog-body.vhd @ifGNUmake@ | $(DRIVER)
-	$(nvc) --std=1993 -L lib/ --work=lib/nvc -a $(srcdir)/lib/nvc/verilog-body.vhd
+	$(nvc) --std=1993 -L lib/ --work=lib/nvc -a --relative=$(srcdir) $(srcdir)/lib/nvc/verilog-body.vhd
 
 lib/nvc/NVC.COVER_PKG: $(srcdir)/lib/nvc/cover_pkg.vhd @ifGNUmake@ | $(DRIVER)
-	$(nvc) --std=1993 -L lib/ --work=lib/nvc -a $(srcdir)/lib/nvc/cover_pkg.vhd
+	$(nvc) --std=1993 -L lib/ --work=lib/nvc -a --relative=$(srcdir) $(srcdir)/lib/nvc/cover_pkg.vhd
 
 lib/nvc/NVC.COVER_PKG-body: $(srcdir)/lib/nvc/cover_pkg-body.vhd @ifGNUmake@ | $(DRIVER)
-	$(nvc) --std=1993 -L lib/ --work=lib/nvc -a $(srcdir)/lib/nvc/cover_pkg-body.vhd
+	$(nvc) --std=1993 -L lib/ --work=lib/nvc -a --relative=$(srcdir) $(srcdir)/lib/nvc/cover_pkg-body.vhd
 
 lib/nvc/NVC.RANDOM: $(srcdir)/lib/nvc/random.vhd @ifGNUmake@ | $(DRIVER)
-	$(nvc) --std=1993 -L lib/ --work=lib/nvc -a $(srcdir)/lib/nvc/random.vhd
+	$(nvc) --std=1993 -L lib/ --work=lib/nvc -a --relative=$(srcdir) $(srcdir)/lib/nvc/random.vhd
 
 lib/nvc/NVC.RANDOM-body: $(srcdir)/lib/nvc/random-body.vhd @ifGNUmake@ | $(DRIVER)
-	$(nvc) --std=1993 -L lib/ --work=lib/nvc -a $(srcdir)/lib/nvc/random-body.vhd
+	$(nvc) --std=1993 -L lib/ --work=lib/nvc -a --relative=$(srcdir) $(srcdir)/lib/nvc/random-body.vhd
 
 gen-deps-nvc:
 	$(nvc) --std=1993 -L lib/ --work=lib/nvc --print-deps | \

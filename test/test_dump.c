@@ -21,6 +21,7 @@
 #include "ident.h"
 #include "option.h"
 #include "phase.h"
+#include "printf.h"
 #include "psl/psl-node.h"
 #include "psl/psl-phase.h"
 #include "scan.h"
@@ -43,8 +44,8 @@ static void diff_dump(const char *have, const char *expect)
       const int len2 = nl2 - expect;
 
       if (len1 != len2 || strncmp(have, expect, len1) != 0) {
-         color_printf("$red$- %.*s$$\n", len2, expect);
-         color_printf("$green$+ %.*s$$\n", len1, have);
+         nvc_printf("$red$- %.*s$$\n", len2, expect);
+         nvc_printf("$green$+ %.*s$$\n", len1, have);
          ck_abort_msg("found difference in dump");
       }
       else if (*nl1 == '\0' || *nl2 == '\0')

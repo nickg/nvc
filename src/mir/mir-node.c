@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2024-2025  Nick Gasson
+//  Copyright (C) 2024-2026  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -157,6 +157,11 @@ unsigned mir_count_params(mir_unit_t *mu)
    return mu->params.count;
 }
 
+unsigned mir_count_vregs(mir_unit_t *mu)
+{
+   return mu->num_vregs;
+}
+
 mir_op_t mir_get_op(mir_unit_t *mu, mir_value_t node)
 {
    switch (node.tag) {
@@ -267,6 +272,15 @@ bool mir_block_finished(mir_unit_t *mu, mir_block_t block)
    return mir_is_terminator(mu->nodes[bd->nodes[bd->num_nodes - 1]].op);
 }
 
+mir_vreg_t mir_get_vreg(mir_unit_t *mu, mir_value_t value)
+{
+   if (mu->vregs == NULL)
+      fatal_trace("%pi has not been optimised", mu->name);
+
+   assert(value.tag == MIR_TAG_NODE);
+   return mu->vregs[value.id];
+}
+
 static inline node_id_t mir_node_id(mir_unit_t *mu, node_data_t *n)
 {
    assert(n >= mu->nodes && n < mu->nodes + mu->num_nodes);
@@ -330,6 +344,8 @@ static node_data_t *mir_add_node(mir_unit_t *mu, mir_op_t op, mir_type_t type,
 
    if (nargs > MIR_INLINE_ARGS)
       n->spilloff = mir_spill_args(mu, nargs);
+
+   MIR_ASSERT(mu->vregs == NULL, "cannot add nodes after register allocation");
 
    return n;
 }
@@ -617,9 +633,10 @@ mir_mem_t mir_get_mem(mir_unit_t *mu, mir_value_t value)
       return MIR_MEM_TOP;
 
    const stamp_data_t *sd = mir_stamp_data(mu, stamp);
-   assert(sd->kind == MIR_STAMP_POINTER);
+   if (sd->kind == MIR_STAMP_POINTER)
+      return sd->u.pointer.memory;
 
-   return sd->u.pointer.memory;
+   return MIR_MEM_NONE;
 }
 
 ident_t mir_get_name(mir_unit_t *mu, mir_value_t value)
@@ -1510,9 +1527,14 @@ mir_value_t mir_build_cmp(mir_unit_t *mu, mir_cmp_t cmp, mir_value_t left,
    mir_value_t result = mir_build_3(mu, MIR_OP_CMP, t_bool,
                                     stamp, mir_enum(cmp), left, right);
 
-   MIR_ASSERT(mir_same_type(mu, mir_get_type(mu, left),
-                            mir_get_type(mu, right)),
+#ifdef DEBUG
+   mir_type_t type = mir_get_type(mu, left);
+   MIR_ASSERT(mir_same_type(mu, type, mir_get_type(mu, right)),
               "arguments to cmp are not the same type");
+   MIR_ASSERT(mir_is_scalar(mu, left), "cmp arguments must be scalar");
+   MIR_ASSERT(mir_get_slots(mu, type) == 1,
+              "can only compare single slot types");
+#endif
 
    return result;
 }
@@ -1663,10 +1685,12 @@ mir_value_t mir_build_test(mir_unit_t *mu, mir_value_t vec)
 
 void mir_build_store(mir_unit_t *mu, mir_value_t dest, mir_value_t src)
 {
+   mir_build_2(mu, MIR_OP_STORE, MIR_NULL_TYPE, MIR_NULL_STAMP, dest, src);
+
+#ifdef DEBUG
    mir_type_t type = mir_get_type(mu, dest);
    mir_type_t pointed = mir_get_pointer(mu, type);
-
-   mir_build_2(mu, MIR_OP_STORE, pointed, MIR_NULL_STAMP, dest, src);
+#endif
 
    MIR_ASSERT(mir_get_class(mu, type) == MIR_TYPE_POINTER,
               "store destination is not a pointer or variable");
@@ -1686,6 +1710,8 @@ mir_value_t mir_build_load(mir_unit_t *mu, mir_value_t value)
    MIR_ASSERT(mir_get_class(mu, type) == MIR_TYPE_POINTER,
               "argument to load is not a pointer or variable");
    MIR_ASSERT(mir_is_scalar(mu, result), "cannot load non-scalar type");
+   MIR_ASSERT(mir_get_mem(mu, value) != MIR_MEM_NULL,
+              "null pointer dereference");
 
    return result;
 }
@@ -1750,7 +1776,8 @@ mir_value_t mir_build_alloc(mir_unit_t *mu, mir_type_t type, mir_stamp_t stamp,
 
 mir_value_t mir_build_null(mir_unit_t *mu, mir_type_t type)
 {
-   mir_value_t result = mir_build_0(mu, MIR_OP_NULL, type, MIR_NULL_STAMP);
+   mir_stamp_t stamp = mir_pointer_stamp(mu, MIR_MEM_NULL, MIR_NULL_STAMP);
+   mir_value_t result = mir_build_0(mu, MIR_OP_NULL, type, stamp);
 
 #ifdef DEBUG
    const mir_class_t class = mir_get_class(mu, type);
@@ -1821,6 +1848,10 @@ mir_value_t mir_build_address_of(mir_unit_t *mu, mir_value_t array)
 mir_value_t mir_build_array_ref(mir_unit_t *mu, mir_value_t array,
                                 mir_value_t offset)
 {
+   int64_t cval;
+   if (mir_get_const(mu, offset, &cval) && cval == 0)
+      return array;
+
    mir_type_t type = mir_get_type(mu, array);
    mir_stamp_t stamp = mir_get_stamp(mu, array);
 
@@ -1835,10 +1866,42 @@ mir_value_t mir_build_array_ref(mir_unit_t *mu, mir_value_t array,
    return result;
 }
 
+mir_value_t mir_build_table_ref(mir_unit_t *mu, mir_value_t array,
+                                mir_value_t stride, const mir_value_t *args,
+                                int nargs)
+{
+   mir_type_t type = mir_get_type(mu, array);
+   mir_stamp_t stamp = mir_get_stamp(mu, array);
+
+   node_data_t *n = mir_add_node(mu, MIR_OP_TABLE_REF, type, stamp, nargs + 2);
+
+   mir_set_arg(mu, n, 0, array);
+   mir_set_arg(mu, n, 1, stride);
+
+   for (int i = 0; i < nargs; i++)
+      mir_set_arg(mu, n, i + 2, args[i]);
+
+   MIR_ASSERT(mir_is(mu, array, MIR_TYPE_POINTER),
+              "argument to table ref must be pointer");
+   MIR_ASSERT(mir_is_offset(mu, stride),
+              "stride argument to table ref must be offset");
+
+   for (int i = 0; i < nargs; i++)
+      MIR_ASSERT(mir_is_integral(mu, args[i]),
+                 "table ref indices must be integral");
+
+   return (mir_value_t){ .tag = MIR_TAG_NODE, .id = mir_node_id(mu, n) };
+}
+
 mir_value_t mir_build_record_ref(mir_unit_t *mu, mir_value_t record,
                                  unsigned field)
 {
    mir_type_t pointer = mir_get_type(mu, record);
+
+   mir_mem_t mem = mir_get_mem(mu, record);
+   mir_stamp_t stamp = MIR_NULL_STAMP;
+   if (mem != MIR_MEM_TOP)
+      stamp = mir_pointer_stamp(mu, mem, MIR_NULL_STAMP);
 
    const type_data_t *td = mir_type_data(mu, mir_get_elem(mu, pointer));
 
@@ -1846,7 +1909,7 @@ mir_value_t mir_build_record_ref(mir_unit_t *mu, mir_value_t record,
    if (td->class == MIR_TYPE_RECORD && field < td->u.record.count)
       type = td->u.record.fields[field + td->u.record.count];
 
-   mir_value_t result = mir_build_2(mu, MIR_OP_RECORD_REF, type, MIR_NULL_STAMP,
+   mir_value_t result = mir_build_2(mu, MIR_OP_RECORD_REF, type, stamp,
                                     record, mir_enum(field));
 
    MIR_ASSERT(mir_get_class(mu, pointer) == MIR_TYPE_POINTER,
@@ -2239,6 +2302,7 @@ void mir_build_unreachable(mir_unit_t *mu, mir_value_t locus)
    MIR_ASSERT(mir_is_null(locus) || mir_is(mu, locus, MIR_TYPE_LOCUS),
               "locus argument to unreachable must be debug locus");
 }
+
 static void mir_build_bounds_op(mir_unit_t *mu, mir_op_t op, mir_value_t value,
                                 mir_value_t left, mir_value_t right,
                                 mir_value_t dir, mir_value_t locus,
@@ -2248,6 +2312,13 @@ static void mir_build_bounds_op(mir_unit_t *mu, mir_op_t op, mir_value_t value,
 
    mir_build_6(mu, op, MIR_NULL_TYPE, MIR_NULL_STAMP, value, left, right,
                dir, locus, hint);
+
+   MIR_ASSERT(mir_is_numeric(mu, value), "value must be numeric");
+   MIR_ASSERT(mir_is_numeric(mu, left), "left bound must be numeric");
+   MIR_ASSERT(mir_is_numeric(mu, right), "right bound must be numeric");
+   MIR_ASSERT(mir_check_type(mu, dir, mir_bool_type(mu)),
+              "direction must be a bool");
+   MIR_ASSERT(mir_is(mu, locus, MIR_TYPE_LOCUS), "locus must be a debug locus");
 }
 
 void mir_build_range_check(mir_unit_t *mu, mir_value_t value, mir_value_t left,

@@ -17,4 +17,5 @@ module vlog1;
   sub1 #(1) u7 (.foo(x), .y(y)); // Error
   sub1 #(1) u8 (1, z);    // Error
   sub1 #(1) u9 (1, 2);    // Error
+  sub1 #(1) u10 (.x(), .y()); // OK
 endmodule // vlog1

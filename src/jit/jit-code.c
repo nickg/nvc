@@ -22,6 +22,7 @@
 #include "ident.h"
 #include "jit/jit-priv.h"
 #include "option.h"
+#include "printf.h"
 #include "thread.h"
 
 #include <assert.h>
@@ -588,9 +589,9 @@ void code_blob_finalise(code_blob_t *blob, jit_entry_fn_t *entry)
    freespan->base = aligned;
 
    if (opt_get_verbose(OPT_ASM_VERBOSE, istr(span->name))) {
-      color_printf("\n$bold$$blue$");
+      nvc_printf("\n$bold$$blue$");
       code_disassemble(span, 0, NULL);
-      color_printf("$$\n");
+      nvc_printf("$$\n");
    }
 
    __builtin___clear_cache((char *)span->base, (char *)blob->wptr);
@@ -833,9 +834,10 @@ static void arm64_patch_page_base_rel21(uint32_t *patch, void *ptr)
    const intptr_t dst_page = (intptr_t)ptr & ~UINT64_C(0xfff);
    const intptr_t src_page = (intptr_t)patch & ~UINT64_C(0xfff);
    const intptr_t upper21 = (dst_page - src_page) >> 12;
-   assert((upper21 & ~UINT64_C(0x1fffff)) == 0);
-   *(uint32_t *)patch |= (upper21 & 3) << 29;
-   *(uint32_t *)patch |= ((upper21 >> 2) & 0x7ffff) << 5;
+   assert(upper21 >= -(1 << 20) && upper21 < (1 << 20));
+   *patch &= ~((0x3 << 29) | (0x7ffff << 5));
+   *patch |= (upper21 & 3) << 29;
+   *patch |= ((upper21 >> 2) & 0x7ffff) << 5;
 }
 #endif
 

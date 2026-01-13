@@ -22,6 +22,7 @@
 #include "hash.h"
 #include "lib.h"
 #include "object.h"
+#include "printf.h"
 #include "tree.h"
 #include "vcode.h"
 
@@ -41,7 +42,7 @@ DECLARE_AND_DEFINE_ARRAY(vcode_type);
     || x == VCODE_OP_CONST || x == VCODE_OP_CAST                        \
     || x == VCODE_OP_CONST_RECORD                                       \
     || x == VCODE_OP_BIND_EXTERNAL || x == VCODE_OP_ARRAY_SCOPE         \
-    || x == VCODE_OP_RECORD_SCOPE || x == VCODE_OP_SYSCALL)
+    || x == VCODE_OP_RECORD_SCOPE)
 #define OP_HAS_ADDRESS(x)                                               \
    (x == VCODE_OP_LOAD || x == VCODE_OP_STORE || x == VCODE_OP_INDEX    \
     || x == VCODE_OP_VAR_UPREF)
@@ -49,7 +50,7 @@ DECLARE_AND_DEFINE_ARRAY(vcode_type);
    (x == VCODE_OP_FCALL || x == VCODE_OP_PCALL || x == VCODE_OP_RESUME  \
     || x == VCODE_OP_CLOSURE || x == VCODE_OP_PROTECTED_INIT            \
     || x == VCODE_OP_PACKAGE_INIT || x == VCODE_OP_PROCESS_INIT \
-    || x == VCODE_OP_FUNCTION_TRIGGER || x == VCODE_OP_SYSCALL)
+    || x == VCODE_OP_FUNCTION_TRIGGER)
 #define OP_HAS_IDENT(x)                                                 \
    (x == VCODE_OP_LINK_VAR || x == VCODE_OP_LINK_PACKAGE                \
     || x == VCODE_OP_DEBUG_LOCUS || x == VCODE_OP_BIND_EXTERNAL)
@@ -112,7 +113,7 @@ typedef struct {
 
 typedef struct {
    vcode_type_t type;
-   vcode_type_t bounds;
+   vcode_type_t stamp;
 } reg_t;
 
 typedef struct {
@@ -131,7 +132,6 @@ typedef struct {
          unsigned      dims;
          unsigned      size;
          vcode_type_t  elem;
-         vcode_type_t  bounds;
       };
       vcode_type_t pointed;
       vcode_type_t base;
@@ -142,18 +142,37 @@ typedef struct {
    };
 } vtype_t;
 
+typedef enum {
+   VCODE_STAMP_INT,
+   VCODE_STAMP_REAL,
+} vstamp_kind_t;
+
+typedef struct {
+   vstamp_kind_t kind;
+   union {
+      struct {
+         int64_t low;
+         int64_t high;
+      } intg;
+      struct {
+         double low;
+         double high;
+      } real;
+   } u;
+} vstamp_t;
+
 typedef struct {
    vcode_type_t      type;
-   vcode_type_t      bounds;
+   vcode_type_t      stamp;
    ident_t           name;
    vcode_var_flags_t flags;
 } var_t;
 
 typedef struct {
-   vcode_type_t type;
-   vcode_type_t bounds;
-   ident_t      name;
-   vcode_reg_t  reg;
+   vcode_type_t  type;
+   vcode_stamp_t stamp;
+   ident_t       name;
+   vcode_reg_t   reg;
 } param_t;
 
 DECLARE_AND_DEFINE_ARRAY(param);
@@ -161,6 +180,7 @@ DECLARE_AND_DEFINE_ARRAY(var);
 DECLARE_AND_DEFINE_ARRAY(reg);
 DECLARE_AND_DEFINE_ARRAY(block);
 DECLARE_AND_DEFINE_ARRAY(vtype);
+DECLARE_AND_DEFINE_ARRAY(vstamp);
 
 typedef enum {
    UNIT_UNDEFINED     = (1 << 1),
@@ -174,6 +194,7 @@ struct _vcode_unit {
    block_array_t  blocks;
    reg_array_t    regs;
    vtype_array_t  types;
+   vstamp_array_t stamps;
    var_array_t    vars;
    param_array_t  params;
    unsigned       depth;
@@ -241,7 +262,7 @@ static inline int64_t smul64(int64_t a, int64_t b)
    return result;
 }
 
-static vcode_reg_t vcode_add_reg(vcode_type_t type)
+static vcode_reg_t vcode_add_reg(vcode_type_t type, vcode_stamp_t stamp)
 {
    assert(active_unit != NULL);
 
@@ -249,7 +270,7 @@ static vcode_reg_t vcode_add_reg(vcode_type_t type)
    reg_t *r = reg_array_alloc(&(active_unit->regs));
    memset(r, '\0', sizeof(reg_t));
    r->type   = type;
-   r->bounds = type;
+   r->stamp  = stamp;
 
    return reg;
 }
@@ -349,6 +370,22 @@ static vtype_t *vcode_type_data(vcode_type_t type)
       unit = unit->context;
 
    return vtype_array_nth_ptr(&(unit->types), MASK_INDEX(type));
+}
+
+static vstamp_t *vcode_stamp_data(vcode_stamp_t stamp)
+{
+   if (stamp == VCODE_INVALID_STAMP)
+      return NULL;
+
+   assert(active_unit != NULL);
+   vcode_unit_t unit = active_unit;
+
+   int depth = MASK_CONTEXT(stamp);
+   assert(depth <= unit->depth);
+   while (depth != unit->depth)
+      unit = unit->context;
+
+   return vstamp_array_nth_ptr(&(unit->stamps), MASK_INDEX(stamp));
 }
 
 static var_t *vcode_var_data(vcode_var_t var)
@@ -573,6 +610,7 @@ void vcode_unit_unref(vcode_unit_t unit)
    }
    free(unit->types.items);
 
+   free(unit->stamps.items);
    free(unit->regs.items);
    free(unit->vars.items);
    free(unit->params.items);
@@ -605,31 +643,75 @@ vtype_kind_t vcode_reg_kind(vcode_reg_t reg)
    return vtype_kind(vcode_reg_type(reg));
 }
 
-vcode_type_t vcode_reg_bounds(vcode_reg_t reg)
+vcode_stamp_t vcode_reg_stamp(vcode_reg_t reg)
 {
-   return vcode_reg_data(reg)->bounds;
+   return vcode_reg_data(reg)->stamp;
 }
 
 bool vcode_reg_const(vcode_reg_t reg, int64_t *value)
 {
    reg_t *r = vcode_reg_data(reg);
 
-   vtype_kind_t kind = vtype_kind(r->type);
-   if (kind != VCODE_TYPE_INT && kind != VCODE_TYPE_OFFSET)
+   if (r->stamp == VCODE_INVALID_STAMP)
       return false;
 
-   vtype_t *bounds = vcode_type_data(r->bounds);
+   const vstamp_t *s = vcode_stamp_data(r->stamp);
 
-   VCODE_ASSERT(
-      bounds->kind == VCODE_TYPE_INT || bounds->kind == VCODE_TYPE_OFFSET,
-      "integer register r%d has non-integer bounds", reg);
+   if (s->kind != VCODE_STAMP_INT)
+      return false;
 
-   if (bounds->low == bounds->high) {
-      if (value) *value = bounds->low;
+   if (s->u.intg.low == s->u.intg.high) {
+      if (value) *value = s->u.intg.low;
       return true;
    }
    else
       return false;
+}
+
+bool vcode_reg_bounds(vcode_reg_t reg, int64_t *low, int64_t *high)
+{
+   reg_t *r = vcode_reg_data(reg);
+   if (r->stamp == VCODE_INVALID_STAMP) {
+      vtype_t *t = vcode_type_data(r->type);
+      if (t->kind == VCODE_TYPE_INT || t->kind == VCODE_TYPE_OFFSET) {
+         *low = t->low;
+         *high = t->high;
+         return true;
+      }
+   }
+   else {
+      vstamp_t *s = vcode_stamp_data(r->stamp);
+      if (s->kind == VCODE_STAMP_INT) {
+         *low = s->u.intg.low;
+         *high = s->u.intg.high;
+         return true;
+      }
+   }
+
+   return false;
+}
+
+bool vcode_reg_bounds_real(vcode_reg_t reg, double *low, double *high)
+{
+   reg_t *r = vcode_reg_data(reg);
+   if (r->stamp == VCODE_INVALID_STAMP) {
+      vtype_t *t = vcode_type_data(r->type);
+      if (t->kind == VCODE_TYPE_REAL) {
+         *low = t->rlow;
+         *high = t->rhigh;
+         return true;
+      }
+   }
+   else {
+      vstamp_t *s = vcode_stamp_data(r->stamp);
+      if (s->kind == VCODE_STAMP_REAL) {
+         *low = s->u.real.low;
+         *high = s->u.real.high;
+         return true;
+      }
+   }
+
+   return false;
 }
 
 void vcode_opt(void)
@@ -788,11 +870,6 @@ ident_t vcode_var_name(vcode_var_t var)
 vcode_type_t vcode_var_type(vcode_var_t var)
 {
    return vcode_var_data(var)->type;
-}
-
-vcode_type_t vcode_var_bounds(vcode_var_t var)
-{
-   return vcode_var_data(var)->bounds;
 }
 
 vcode_var_flags_t vcode_var_flags(vcode_var_t var)
@@ -972,8 +1049,8 @@ const char *vcode_op_string(vcode_op_t op)
       "function trigger", "add trigger", "transfer signal",
       "port conversion", "convert in", "convert out", "bind foreign",
       "or trigger", "cmp trigger", "instance name",
-      "map implicit", "bind external", "array scope", "record scope", "syscall",
-      "put conversion", "dir check", "sched process",
+      "map implicit", "bind external", "array scope", "record scope",
+      "put conversion", "dir check", "sched process", "table ref",
    };
    if ((unsigned)op >= ARRAY_LEN(strs))
       return "???";
@@ -985,9 +1062,9 @@ LCOV_EXCL_START
 static int vcode_dump_reg(vcode_reg_t reg)
 {
    if (reg == VCODE_INVALID_REG)
-      return color_printf("$red$invalid$$");
+      return nvc_printf("$red$invalid$$");
    else
-      return color_printf("$green$r%d$$", reg);
+      return nvc_printf("$green$r%d$$", reg);
 }
 
 static int vcode_pretty_print_int(int64_t n)
@@ -1032,10 +1109,6 @@ static int vcode_dump_one_type(vcode_type_t type)
       {
          col += printf("[%u] : ", vt->size);
          col += vcode_dump_one_type(vt->elem);
-         if (!vtype_eq(vt->elem, vt->bounds)) {
-            col += printf(" => ");
-            col += vcode_dump_one_type(vt->bounds);
-         }
       }
       break;
 
@@ -1046,10 +1119,6 @@ static int vcode_dump_one_type(vcode_type_t type)
             col += printf("%s*", i > 0 ? ", " : "");
          col += printf("] : ");
          col += vcode_dump_one_type(vt->elem);
-         if (!vtype_eq(vt->elem, vt->bounds)) {
-            col += printf(" => ");
-            col += vcode_dump_one_type(vt->bounds);
-         }
       }
       break;
 
@@ -1134,16 +1203,40 @@ static void vcode_dump_tab(int col, int to_col)
 static void vcode_dump_comment(int col)
 {
    vcode_dump_tab(col, 40);
-   color_printf("$cyan$// ");
+   nvc_printf("$cyan$// ");
 }
 
-static void vcode_dump_type(int col, vcode_type_t type, vcode_type_t bounds)
+static void vcode_dump_type(int col, vcode_type_t type, vcode_stamp_t stamp)
 {
    vcode_dump_comment(col);
    vcode_dump_one_type(type);
-   if (!vtype_eq(type, bounds)) {
-      printf(" => ");
-      vcode_dump_one_type(bounds);
+
+   if (stamp == VCODE_INVALID_STAMP)
+      return;
+
+   printf(" => ");
+
+   const vstamp_t *s = vcode_stamp_data(stamp);
+   switch (s->kind) {
+   case VCODE_STAMP_INT:
+      if (s->u.intg.low != s->u.intg.high) {
+         vcode_pretty_print_int(s->u.intg.low);
+         printf("..");
+         vcode_pretty_print_int(s->u.intg.high);
+      }
+      else
+         vcode_pretty_print_int(s->u.intg.low);
+      break;
+
+   case VCODE_STAMP_REAL:
+      if (s->u.real.low != s->u.real.high)
+         printf("%g..%g", s->u.real.low, s->u.real.high);
+      else
+         printf("%g", s->u.real.low);
+      break;
+
+   default:
+      should_not_reach_here();
    }
 }
 
@@ -1151,7 +1244,7 @@ static void vcode_dump_result_type(int col, const op_t *op)
 {
    if (op->result != VCODE_INVALID_REG) {
       reg_t *r = vcode_reg_data(op->result);
-      vcode_dump_type(col, r->type, r->bounds);
+      vcode_dump_type(col, r->type, r->stamp);
    }
 }
 
@@ -1162,10 +1255,10 @@ static int vcode_dump_var(vcode_var_t var, int hops)
       owner = owner->context;
 
    if (owner == NULL || var >= owner->vars.count)
-      return color_printf("$red$invalid$$");
+      return nvc_printf("$red$invalid$$");
    else {
       var_t *v = var_array_nth_ptr(&(owner->vars), var);
-      return color_printf("$magenta$%s$$", istr(v->name));
+      return nvc_printf("$magenta$%s$$", istr(v->name));
    }
 }
 
@@ -1178,8 +1271,8 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
 
    printf("\n");
    if (vu->name != NULL)
-      color_printf("Name       $cyan$%s$$\n", istr(vu->name));
-   color_printf("Kind       $cyan$");
+      nvc_printf("Name       $cyan$%s$$\n", istr(vu->name));
+   nvc_printf("Kind       $cyan$");
    switch (vu->kind) {
    case VCODE_UNIT_PROCESS:   printf("process"); break;
    case VCODE_UNIT_FUNCTION:  printf("function"); break;
@@ -1190,26 +1283,27 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
    case VCODE_UNIT_PROTECTED: printf("protected"); break;
    case VCODE_UNIT_PROPERTY:  printf("property"); break;
    }
-   color_printf("$$\n");
+   nvc_printf("$$\n");
    if (vu->context != NULL)
-      color_printf("Context    $cyan$%s$$\n", istr(vu->context->name));
+      nvc_printf("Context    $cyan$%s$$\n", istr(vu->context->name));
    printf("Blocks     %d\n", vu->blocks.count);
    printf("Registers  %d\n", vu->regs.count);
    printf("Types      %d\n", vu->types.count);
+   printf("Stamps     %d\n", vu->stamps.count);
 
    for (int i = 0; i < vu->types.count; i++) {
       const vtype_t *t = &(vu->types.items[i]);
       if (t->kind == VCODE_TYPE_RECORD) {
          int col = 0;
-         col += color_printf("  $magenta$%s$$", istr(t->name));
+         col += nvc_printf("  $magenta$%s$$", istr(t->name));
          vcode_dump_tab(col, 40);
-         color_printf("$cyan${");
+         nvc_printf("$cyan${");
          for (unsigned i = 0; i < t->fields.count; i++) {
             if (i > 0)
                printf(", ");
             vcode_dump_one_type(t->fields.items[i]);
          }
-         color_printf("}$$\n");
+         nvc_printf("}$$\n");
       }
    }
 
@@ -1218,8 +1312,8 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
    for (int i = 0; i < vu->vars.count; i++) {
       const var_t *v = &(vu->vars.items[i]);
       int col = printf("  ");
-      col += color_printf("$magenta$%s$$", istr(v->name));
-      vcode_dump_type(col, v->type, v->bounds);
+      col += nvc_printf("$magenta$%s$$", istr(v->name));
+      vcode_dump_type(col, v->type, v->stamp);
       if (v->flags & VAR_SIGNAL)
          col += printf(", signal");
       if (v->flags & VAR_HEAP)
@@ -1228,13 +1322,13 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
          col += printf(", constant");
       if (v->flags & VAR_TEMP)
          col += printf(", temp");
-      color_printf("$$\n");
+      nvc_printf("$$\n");
    }
 
    if (vu->result != VCODE_INVALID_TYPE) {
-      color_printf("Result     $cyan$");
+      nvc_printf("Result     $cyan$");
       vcode_dump_one_type(vu->result);
-      color_printf("$$\n");
+      nvc_printf("$$\n");
    }
 
    if (vu->kind == VCODE_UNIT_FUNCTION
@@ -1250,9 +1344,9 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
          col += vcode_dump_reg(p->reg);
          while (col < 8)
             col += printf(" ");
-         col += color_printf("$magenta$%s$$", istr(p->name));
-         vcode_dump_type(col, p->type, p->bounds);
-         color_printf("$$\n");
+         col += nvc_printf("$magenta$%s$$", istr(p->name));
+         vcode_dump_type(col, p->type, p->stamp);
+         nvc_printf("$$\n");
       }
    }
 
@@ -1263,7 +1357,7 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
       for (int j = 0; j < b->ops.count; j++) {
          int col = 0;
          if (j == 0)
-            col += color_printf("  $yellow$%2d:$$ ", i);
+            col += nvc_printf("  $yellow$%2d:$$ ", i);
          else
             col += printf("      ");
 
@@ -1321,34 +1415,14 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
                   col += vcode_dump_reg(op->result);
                   col += printf(" := ");
                }
-               col += color_printf("%s $magenta$%s$$ ",
-                                   vcode_op_string(op->kind),
-                                   istr(op->func));
+               col += nvc_printf("%s $magenta$%s$$ ",
+                                 vcode_op_string(op->kind),
+                                 istr(op->func));
                for (int i = 0; i < op->args.count; i++) {
                   if (i > 0)
                      col += printf(", ");
                   col += vcode_dump_reg(op->args.items[i]);
                }
-               vcode_dump_result_type(col, op);
-            }
-            break;
-
-         case VCODE_OP_SYSCALL:
-            {
-               if (op->result != VCODE_INVALID_REG) {
-                  col += vcode_dump_reg(op->result);
-                  col += printf(" := ");
-               }
-               col += color_printf("%s $magenta$%s$$ ",
-                                   vcode_op_string(op->kind),
-                                   istr(op->func));
-               for (int i = 1; i < op->args.count; i++) {
-                  if (i > 1) col += printf(", ");
-                  col += vcode_dump_reg(op->args.items[i]);
-               }
-               if (op->args.count > 1) col += printf(" ");
-               col += color_printf("locus ");
-               col += vcode_dump_reg(op->args.items[0]);
                vcode_dump_result_type(col, op);
             }
             break;
@@ -1405,7 +1479,7 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
             {
                col += printf("%s locus ", vcode_op_string(op->kind));
                col += vcode_dump_reg(op->args.items[0]);
-               vcode_dump_type(col, op->type, op->type);
+               vcode_dump_type(col, op->type, VCODE_INVALID_STAMP);
             }
             break;
 
@@ -1456,7 +1530,7 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
          case VCODE_OP_RESOLUTION_WRAPPER:
             {
                col += vcode_dump_reg(op->result);
-               col += color_printf(" := %s ", vcode_op_string(op->kind));
+               col += nvc_printf(" := %s ", vcode_op_string(op->kind));
                col += vcode_dump_reg(op->args.items[0]);
                col += printf(" nlits ");
                col += vcode_dump_reg(op->args.items[1]);
@@ -1468,8 +1542,8 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
          case VCODE_OP_PROTECTED_INIT:
             {
                col += vcode_dump_reg(op->result);
-               col += color_printf(" := %s $magenta$%s$$ context ",
-                                   vcode_op_string(op->kind), istr(op->func));
+               col += nvc_printf(" := %s $magenta$%s$$ context ",
+                                 vcode_op_string(op->kind), istr(op->func));
                col += vcode_dump_reg(op->args.items[0]);
                if (op->args.count >= 3) {
                   col += printf(" path " );
@@ -1484,7 +1558,7 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
          case VCODE_OP_PACKAGE_INIT:
             {
                col += vcode_dump_reg(op->result);
-               col += color_printf(" := %s $magenta$%s$$",
+               col += nvc_printf(" := %s $magenta$%s$$",
                                    vcode_op_string(op->kind), istr(op->func));
                if (op->args.count > 0) {
                   col += printf(" context " );
@@ -1496,7 +1570,7 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
 
          case VCODE_OP_PROCESS_INIT:
             {
-               color_printf("%s $magenta$%s$$ locus ",
+               nvc_printf("%s $magenta$%s$$ locus ",
                             vcode_op_string(op->kind), istr(op->func));
                vcode_dump_reg(op->args.items[0]);
             }
@@ -1511,21 +1585,21 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
 
          case VCODE_OP_WAIT:
             {
-               color_printf("%s $yellow$%d$$", vcode_op_string(op->kind),
+               nvc_printf("%s $yellow$%d$$", vcode_op_string(op->kind),
                             op->targets.items[0]);
             }
             break;
 
          case VCODE_OP_SCHED_PROCESS:
             {
-               color_printf("%s after ", vcode_op_string(op->kind));
+               nvc_printf("%s after ", vcode_op_string(op->kind));
                vcode_dump_reg(op->args.items[0]);
             }
             break;
 
          case VCODE_OP_JUMP:
             {
-               color_printf("%s $yellow$%d$$", vcode_op_string(op->kind),
+               nvc_printf("%s $yellow$%d$$", vcode_op_string(op->kind),
                             op->targets.items[0]);
             }
             break;
@@ -1534,7 +1608,7 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
             {
                printf("%s ", vcode_op_string(op->kind));
                vcode_dump_reg(op->args.items[0]);
-               color_printf(" then $yellow$%d$$ else $yellow$%d$$",
+               nvc_printf(" then $yellow$%d$$ else $yellow$%d$$",
                             op->targets.items[0], op->targets.items[1]);
             }
             break;
@@ -1587,7 +1661,7 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
          case VCODE_OP_LOAD_INDIRECT:
             {
                col += vcode_dump_reg(op->result);
-               col += color_printf(" := %s ", vcode_op_string(op->kind));
+               col += nvc_printf(" := %s ", vcode_op_string(op->kind));
                col += vcode_dump_reg(op->args.items[0]);
                vcode_dump_result_type(col, op);
             }
@@ -1693,7 +1767,7 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
 
          case VCODE_OP_COMMENT:
             {
-               color_printf("$cyan$// %s$$ ", op->comment);
+               nvc_printf("$cyan$// %s$$ ", op->comment);
             }
             break;
 
@@ -1908,6 +1982,23 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
             }
             break;
 
+         case VCODE_OP_TABLE_REF:
+            {
+               col += vcode_dump_reg(op->result);
+               col += printf(" := %s ", vcode_op_string(op->kind));
+               col += vcode_dump_reg(op->args.items[0]);
+               col += printf(" stride ");
+               col += vcode_dump_reg(op->args.items[1]);
+               col += printf(" [");
+               for (int i = 2; i < op->args.count; i++) {
+                  if (i > 2) col += printf(", ");
+                  col += vcode_dump_reg(op->args.items[i]);
+               }
+               col += printf("]");
+               vcode_dump_result_type(col, op);
+            }
+            break;
+
          case VCODE_OP_COPY:
             {
                vcode_dump_reg(op->args.items[0]);
@@ -1932,20 +2023,20 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
 
          case VCODE_OP_PCALL:
             {
-               color_printf("%s $magenta$%s$$", vcode_op_string(op->kind),
-                            istr(op->func));
+               nvc_printf("%s $magenta$%s$$", vcode_op_string(op->kind),
+                          istr(op->func));
                for (int i = 0; i < op->args.count; i++) {
                   printf("%s", i > 0 ? ", " : " ");
                   vcode_dump_reg(op->args.items[i]);
                }
                if (op->targets.count > 0)
-                  color_printf(" resume $yellow$%d$$", op->targets.items[0]);
+                  nvc_printf(" resume $yellow$%d$$", op->targets.items[0]);
             }
             break;
 
          case VCODE_OP_RESUME:
             {
-               color_printf("%s $magenta$%s$$", vcode_op_string(op->kind),
+               nvc_printf("%s $magenta$%s$$", vcode_op_string(op->kind),
                             istr(op->func));
             }
             break;
@@ -1964,11 +2055,11 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
             {
                printf("%s ", vcode_op_string(op->kind));
                vcode_dump_reg(op->args.items[0]);
-               color_printf(" default $yellow$%d$$", op->targets.items[0]);
+               nvc_printf(" default $yellow$%d$$", op->targets.items[0]);
                for (int i = 1; i < op->args.count; i++) {
                   printf(" [");
                   vcode_dump_reg(op->args.items[i]);
-                  color_printf(" $yellow$%d$$]", op->targets.items[i]);
+                  nvc_printf(" $yellow$%d$$]", op->targets.items[i]);
                }
             }
             break;
@@ -2186,8 +2277,8 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
          case VCODE_OP_LINK_PACKAGE:
             {
                col += vcode_dump_reg(op->result);
-               col += color_printf(" := %s $magenta$%s$$",
-                                   vcode_op_string(op->kind), istr(op->ident));
+               col += nvc_printf(" := %s $magenta$%s$$",
+                                 vcode_op_string(op->kind), istr(op->ident));
                if (op->args.count > 0) {
                   col += printf(" locus ");
                   col += vcode_dump_reg(op->args.items[0]);
@@ -2199,9 +2290,9 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
          case VCODE_OP_LINK_VAR:
             {
                col += vcode_dump_reg(op->result);
-               col += color_printf(" := %s ", vcode_op_string(op->kind));
+               col += nvc_printf(" := %s ", vcode_op_string(op->kind));
                col += vcode_dump_reg(op->args.items[0]);
-               col += color_printf(" $magenta$%s$$", istr(op->ident));
+               col += nvc_printf(" $magenta$%s$$", istr(op->ident));
                vcode_dump_result_type(col, op);
             }
             break;
@@ -2219,14 +2310,13 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
          case VCODE_OP_DEBUG_LOCUS:
             {
                col += vcode_dump_reg(op->result);
-               col += color_printf(" := %s $magenta$",
-                                   vcode_op_string(op->kind));
+               col += nvc_printf(" := %s $magenta$", vcode_op_string(op->kind));
 
                tree_t t = tree_from_object(op->object);
                if (t != NULL)
                   col += printf("%s@", tree_kind_str(tree_kind(t)));
 
-               col += color_printf("%p$$", op->object);
+               col += nvc_printf("%p$$", op->object);
                vcode_dump_result_type(col, op);
             }
             break;
@@ -2277,8 +2367,8 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
          case VCODE_OP_FUNCTION_TRIGGER:
             {
                col += vcode_dump_reg(op->result);
-               col += color_printf(" := %s $magenta$%s$$ ",
-                                   vcode_op_string(op->kind), istr(op->func));
+               col += nvc_printf(" := %s $magenta$%s$$ ",
+                                 vcode_op_string(op->kind), istr(op->func));
                for (int i = 0; i < op->args.count; i++) {
                   if (i > 0) col += printf(", ");
                   col += vcode_dump_reg(op->args.items[i]);
@@ -2291,7 +2381,7 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
          case VCODE_OP_CMP_TRIGGER:
             {
                col += vcode_dump_reg(op->result);
-               col += color_printf(" := %s ", vcode_op_string(op->kind));
+               col += nvc_printf(" := %s ", vcode_op_string(op->kind));
                col += vcode_dump_reg(op->args.items[0]);
                if (op->kind == VCODE_OP_OR_TRIGGER)
                   col += printf(" || ");
@@ -2311,7 +2401,7 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
 
          case VCODE_OP_PUT_CONVERSION:
             {
-               color_printf("%s ", vcode_op_string(op->kind));
+               nvc_printf("%s ", vcode_op_string(op->kind));
                vcode_dump_reg(op->args.items[0]);
                printf(" signal ");
                vcode_dump_reg(op->args.items[1]);
@@ -2325,7 +2415,7 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
          case VCODE_OP_PORT_CONVERSION:
             {
                col += vcode_dump_reg(op->result);
-               col += color_printf(" := %s ", vcode_op_string(op->kind));
+               col += nvc_printf(" := %s ", vcode_op_string(op->kind));
                col += vcode_dump_reg(op->args.items[0]);
                if (op->args.count > 1) {
                   col += printf(" effective ");
@@ -2338,7 +2428,7 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
          case VCODE_OP_CONVERT_IN:
          case VCODE_OP_CONVERT_OUT:
             {
-               color_printf("%s ", vcode_op_string(op->kind));
+               nvc_printf("%s ", vcode_op_string(op->kind));
                vcode_dump_reg(op->args.items[0]);
                printf(" signal ");
                vcode_dump_reg(op->args.items[1]);
@@ -2349,7 +2439,7 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
 
          case VCODE_OP_BIND_FOREIGN:
             {
-               color_printf("%s ", vcode_op_string(op->kind));
+               nvc_printf("%s ", vcode_op_string(op->kind));
                vcode_dump_reg(op->args.items[0]);
                printf(" length ");
                vcode_dump_reg(op->args.items[1]);
@@ -2364,9 +2454,9 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
          case VCODE_OP_BIND_EXTERNAL:
             {
                col += vcode_dump_reg(op->result);
-               col += color_printf(" := %s ", vcode_op_string(op->kind));
+               col += nvc_printf(" := %s ", vcode_op_string(op->kind));
                col += vcode_dump_reg(op->args.items[0]);
-               col += color_printf(" scope $magenta$%s$$ ", istr(op->ident));
+               col += nvc_printf(" scope $magenta$%s$$ ", istr(op->ident));
                for (int i = 1; i < op->args.count; i++) {
                   if (i > 1) col += printf(", ");
                   col += vcode_dump_reg(op->args.items[i]);
@@ -2377,16 +2467,16 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
          }
 
          if (j == mark_op && i == old_block)
-            color_printf("\t $red$<----$$");
+            nvc_printf("\t $red$<----$$");
 
-         color_printf("$$\n");
+         nvc_printf("$$\n");
 
          if (callback != NULL)
             (*callback)(j, arg);
       }
 
       if (b->ops.count == 0)
-         color_printf("  $yellow$%2d:$$ $red$Empty basic block$$\n", i);
+         nvc_printf("  $yellow$%2d:$$ $red$Empty basic block$$\n", i);
    }
 
    printf("\n");
@@ -2508,7 +2598,7 @@ vcode_type_t vtype_bool(void)
    return vtype_int(0, 1);
 }
 
-vcode_type_t vtype_carray(int size, vcode_type_t elem, vcode_type_t bounds)
+vcode_type_t vtype_carray(int size, vcode_type_t elem)
 {
    assert(active_unit != NULL);
 
@@ -2520,7 +2610,6 @@ vcode_type_t vtype_carray(int size, vcode_type_t elem, vcode_type_t bounds)
    memset(n, '\0', sizeof(vtype_t));
    n->kind   = VCODE_TYPE_CARRAY;
    n->elem   = elem;
-   n->bounds = bounds;
    n->size   = MAX(size, 0);
 
    return vtype_new(n);
@@ -2567,7 +2656,7 @@ vcode_type_t vtype_named_record(ident_t name, const vcode_type_t *field_types,
    return handle;
 }
 
-vcode_type_t vtype_uarray(int ndim, vcode_type_t elem, vcode_type_t bounds)
+vcode_type_t vtype_uarray(int ndim, vcode_type_t elem)
 {
    assert(active_unit != NULL);
 
@@ -2579,10 +2668,9 @@ vcode_type_t vtype_uarray(int ndim, vcode_type_t elem, vcode_type_t bounds)
 
    vtype_t *n = vtype_array_alloc(&(active_unit->types));
    memset(n, '\0', sizeof(vtype_t));
-   n->kind   = VCODE_TYPE_UARRAY;
-   n->elem   = elem;
-   n->bounds = bounds;
-   n->dims   = ndim;
+   n->kind = VCODE_TYPE_UARRAY;
+   n->elem = elem;
+   n->dims = ndim;
 
    return vtype_new(n);
 }
@@ -2774,13 +2862,6 @@ vcode_type_t vtype_base(vcode_type_t type)
    return vt->base;
 }
 
-vcode_type_t vtype_bounds(vcode_type_t type)
-{
-   vtype_t *vt = vcode_type_data(type);
-   assert(vt->kind == VCODE_TYPE_CARRAY || vt->kind == VCODE_TYPE_UARRAY);
-   return vt->bounds;
-}
-
 unsigned vtype_dims(vcode_type_t type)
 {
    vtype_t *vt = vcode_type_data(type);
@@ -2852,6 +2933,19 @@ bool vtype_is_scalar(vcode_type_t type)
       || kind == VCODE_TYPE_REAL || kind == VCODE_TYPE_SIGNAL
       || kind == VCODE_TYPE_CONTEXT || kind == VCODE_TYPE_TRIGGER
       || kind == VCODE_TYPE_RESOLUTION;
+}
+
+bool vtype_is_numeric(vcode_type_t type)
+{
+   const vtype_kind_t kind = vtype_kind(type);
+   return kind == VCODE_TYPE_INT || kind == VCODE_TYPE_OFFSET
+      || kind == VCODE_TYPE_REAL;
+}
+
+bool vtype_is_integral(vcode_type_t type)
+{
+   const vtype_kind_t kind = vtype_kind(type);
+   return kind == VCODE_TYPE_INT || kind == VCODE_TYPE_OFFSET;
 }
 
 bool vtype_is_composite(vcode_type_t type)
@@ -2944,6 +3038,45 @@ static bool vtype_clamp_to_repr(vtype_repr_t repr, int64_t *low, int64_t *high)
       *high = MIN(clamp_high, *high);
       return false;
    }
+}
+
+static vcode_stamp_t vstamp_new(const vstamp_t *s)
+{
+   assert(active_unit != NULL);
+
+   for (int i = 0; i < active_unit->stamps.count; i++) {
+      vstamp_t *cmp = &(active_unit->stamps.items[i]);
+      if (cmp->kind == s->kind && memcmp(&cmp->u, &s->u, sizeof(s->u)) == 0)
+         return MAKE_HANDLE(active_unit->depth, i);
+   }
+
+   vstamp_t *new = vstamp_array_alloc(&(active_unit->stamps));
+   *new = *s;
+
+   return MAKE_HANDLE(active_unit->depth, active_unit->stamps.count - 1);
+}
+
+vcode_stamp_t vstamp_int(int64_t low, int64_t high)
+{
+   const vstamp_t s = {
+      .kind = VCODE_STAMP_INT,
+      .u = { .intg = { .low = low, .high = high } },
+   };
+   return vstamp_new(&s);
+}
+
+vcode_stamp_t vstamp_real(double low, double high)
+{
+   const vstamp_t s = {
+      .kind = VCODE_STAMP_REAL,
+      .u = { .real = { .low = low, .high = high } },
+   };
+   return vstamp_new(&s);
+}
+
+vcode_stamp_t vstamp_char(void)
+{
+   return vstamp_int(0, 255);
 }
 
 int vcode_count_params(void)
@@ -3375,7 +3508,7 @@ vcode_reg_t emit_cmp(vcode_cmp_t cmp, vcode_reg_t lhs, vcode_reg_t rhs)
    vcode_add_arg(op, lhs);
    vcode_add_arg(op, rhs);
    op->cmp    = cmp;
-   op->result = vcode_add_reg(vtype_bool());
+   op->result = vcode_add_reg(vtype_bool(), VCODE_INVALID_STAMP);
 
    VCODE_ASSERT(vtype_eq(vcode_reg_type(lhs), vcode_reg_type(rhs)),
                 "arguments to cmp are not the same type");
@@ -3383,7 +3516,7 @@ vcode_reg_t emit_cmp(vcode_cmp_t cmp, vcode_reg_t lhs, vcode_reg_t rhs)
    return op->result;
 }
 
-vcode_reg_t emit_fcall(ident_t func, vcode_type_t type, vcode_type_t bounds,
+vcode_reg_t emit_fcall(ident_t func, vcode_type_t type, vcode_stamp_t stamp,
                        const vcode_reg_t *args, int nargs)
 {
    op_t *o = vcode_add_op(VCODE_OP_FCALL);
@@ -3398,14 +3531,8 @@ vcode_reg_t emit_fcall(ident_t func, vcode_type_t type, vcode_type_t bounds,
 
    if (type == VCODE_INVALID_TYPE)
       return (o->result = VCODE_INVALID_REG);
-   else {
-      o->result = vcode_add_reg(type);
-
-      reg_t *rr = vcode_reg_data(o->result);
-      rr->bounds = bounds;
-
-      return o->result;
-   }
+   else
+      return (o->result = vcode_add_reg(type, stamp));
 }
 
 void emit_pcall(ident_t func, const vcode_reg_t *args, int nargs,
@@ -3426,40 +3553,11 @@ void emit_pcall(ident_t func, const vcode_reg_t *args, int nargs,
                 "first argument to VHDL procedure must be context pointer");
 }
 
-vcode_reg_t emit_syscall(ident_t func, vcode_type_t type, vcode_type_t bounds,
-                         vcode_reg_t locus, const vcode_reg_t *args, int nargs)
-{
-   op_t *o = vcode_add_op(VCODE_OP_SYSCALL);
-   o->func = func;
-   o->type = type;
-   vcode_add_arg(o, locus);
-   for (int i = 0; i < nargs; i++)
-      vcode_add_arg(o, args[i]);
-
-   VCODE_ASSERT(vcode_reg_kind(locus) == VCODE_TYPE_DEBUG_LOCUS,
-                "locus argument to syscall must be a debug locus");
-
-   for (int i = 0; i < nargs; i++)
-      VCODE_ASSERT(args[i] != VCODE_INVALID_REG, "invalid argument to syscall");
-
-   if (type == VCODE_INVALID_TYPE)
-      return (o->result = VCODE_INVALID_REG);
-   else {
-      o->result = vcode_add_reg(type);
-
-      reg_t *rr = vcode_reg_data(o->result);
-      rr->bounds = bounds;
-
-      return o->result;
-   }
-}
-
-vcode_reg_t emit_alloc(vcode_type_t type, vcode_type_t bounds,
+vcode_reg_t emit_alloc(vcode_type_t type, vcode_stamp_t stamp,
                        vcode_reg_t count)
 {
    op_t *op = vcode_add_op(VCODE_OP_ALLOC);
-   op->type    = type;
-   op->result  = vcode_add_reg(vtype_pointer(type));
+   op->type = type;
    vcode_add_arg(op, count);
 
    const vtype_kind_t tkind = vtype_kind(type);
@@ -3468,10 +3566,7 @@ vcode_reg_t emit_alloc(vcode_type_t type, vcode_type_t bounds,
    VCODE_ASSERT(count != VCODE_INVALID_REG,
                 "alloca must have valid count argument");
 
-   reg_t *r = vcode_reg_data(op->result);
-   r->bounds = bounds;
-
-   return op->result;
+   return (op->result = vcode_add_reg(vtype_pointer(type), stamp));
 }
 
 vcode_reg_t emit_const(vcode_type_t type, int64_t value)
@@ -3485,14 +3580,11 @@ vcode_reg_t emit_const(vcode_type_t type, int64_t value)
    op_t *op = vcode_add_op(VCODE_OP_CONST);
    op->value  = value;
    op->type   = type;
-   op->result = vcode_add_reg(type);
+   op->result = vcode_add_reg(type, vstamp_int(value, value));
 
    vtype_kind_t type_kind = vtype_kind(type);
    VCODE_ASSERT(type_kind == VCODE_TYPE_INT || type_kind == VCODE_TYPE_OFFSET,
                 "constant must have integer or offset type");
-
-   reg_t *r = vcode_reg_data(op->result);
-   r->bounds = vtype_int(value, value);
 
    return op->result;
 }
@@ -3507,10 +3599,7 @@ vcode_reg_t emit_const_real(vcode_type_t type, double value)
    op_t *op = vcode_add_op(VCODE_OP_CONST_REAL);
    op->real   = value;
    op->type   = type;
-   op->result = vcode_add_reg(op->type);
-
-   reg_t *r = vcode_reg_data(op->result);
-   r->bounds = vtype_real(value, value);
+   op->result = vcode_add_reg(op->type, vstamp_real(value, value));
 
    return op->result;
 }
@@ -3536,7 +3625,7 @@ vcode_reg_t emit_const_array(vcode_type_t type, vcode_reg_t *values, int num)
    }
 
    op_t *op = vcode_add_op(VCODE_OP_CONST_ARRAY);
-   op->result = vcode_add_reg(type);
+   op->result = vcode_add_reg(type, VCODE_INVALID_STAMP);
 
    for (int i = 0; i < num; i++)
       vcode_add_arg(op, values[i]);
@@ -3554,9 +3643,6 @@ vcode_reg_t emit_const_array(vcode_type_t type, vcode_reg_t *values, int num)
       vcode_assert_const(values[i], "array");
    }
 #endif
-
-   reg_t *r = vcode_reg_data(op->result);
-   r->bounds = vtype_elem(type);
 
    return op->result;
 }
@@ -3579,12 +3665,7 @@ vcode_reg_t emit_const_rep(vcode_type_t type, vcode_reg_t value, int rep)
 
    DEBUG_ONLY(vcode_assert_const(value, "repeat"));
 
-   op->result = vcode_add_reg(type);
-
-   reg_t *r = vcode_reg_data(op->result);
-   r->bounds = vtype_bounds(type);
-
-   return op->result;
+   return (op->result = vcode_add_reg(type, vcode_reg_data(value)->stamp));
 }
 
 vcode_reg_t emit_const_record(vcode_type_t type, vcode_reg_t *values, int num)
@@ -3603,7 +3684,7 @@ vcode_reg_t emit_const_record(vcode_type_t type, vcode_reg_t *values, int num)
 
    op_t *op = vcode_add_op(VCODE_OP_CONST_RECORD);
    op->type   = type;
-   op->result = vcode_add_reg(type);
+   op->result = vcode_add_reg(type, VCODE_INVALID_STAMP);
 
    for (int i = 0; i < num; i++)
       vcode_add_arg(op, values[i]);
@@ -3635,21 +3716,20 @@ vcode_reg_t emit_address_of(vcode_reg_t value)
    op_t *op = vcode_add_op(VCODE_OP_ADDRESS_OF);
    vcode_add_arg(op, value);
 
-   vcode_type_t type = vcode_reg_type(value);
-   VCODE_ASSERT(vtype_is_composite(type),
+   vcode_type_t vtype = vcode_reg_type(value);
+
+   VCODE_ASSERT(vtype_is_composite(vtype),
                 "address of argument must be record or array");
 
-   if (vtype_kind(type) == VCODE_TYPE_CARRAY) {
-      vcode_type_t elem = vtype_elem(type);
-      op->result = vcode_add_reg(vtype_pointer(elem));
-
-      reg_t *rr = vcode_reg_data(op->result);
-      rr->bounds = elem;
-
-      return op->result;
+   if (vtype_kind(vtype) == VCODE_TYPE_CARRAY) {
+      vcode_type_t elem = vtype_elem(vtype);
+      vcode_stamp_t stamp = vcode_reg_stamp(value);
+      return (op->result = vcode_add_reg(vtype_pointer(elem), stamp));
    }
-   else
-      return (op->result = vcode_add_reg(vtype_pointer(type)));
+   else {
+      vcode_stamp_t stamp = VCODE_INVALID_STAMP;
+      return (op->result = vcode_add_reg(vtype_pointer(vtype), stamp));
+   }
 }
 
 void emit_wait(vcode_block_t target)
@@ -3666,7 +3746,7 @@ void emit_jump(vcode_block_t target)
    VCODE_ASSERT(target != VCODE_INVALID_BLOCK, "invalid jump target");
 }
 
-vcode_var_t emit_var(vcode_type_t type, vcode_type_t bounds, ident_t name,
+vcode_var_t emit_var(vcode_type_t type, vcode_stamp_t stamp, ident_t name,
                      vcode_var_flags_t flags)
 {
    assert(active_unit != NULL);
@@ -3674,27 +3754,28 @@ vcode_var_t emit_var(vcode_type_t type, vcode_type_t bounds, ident_t name,
    vcode_var_t var = active_unit->vars.count;
    var_t *v = var_array_alloc(&(active_unit->vars));
    memset(v, '\0', sizeof(var_t));
-   v->type     = type;
-   v->bounds   = bounds;
-   v->name     = name;
-   v->flags    = flags;
+   v->type  = type;
+   v->stamp = stamp;
+   v->name  = name;
+   v->flags = flags;
+
+   assert(stamp == VCODE_INVALID_STAMP || vcode_stamp_data(stamp));
 
    return var;
 }
 
-vcode_reg_t emit_param(vcode_type_t type, vcode_type_t bounds, ident_t name)
+vcode_reg_t emit_param(vcode_type_t type, vcode_stamp_t stamp, ident_t name)
 {
    assert(active_unit != NULL);
 
    param_t *p = param_array_alloc(&(active_unit->params));
    memset(p, '\0', sizeof(param_t));
-   p->type   = type;
-   p->bounds = bounds;
-   p->name   = name;
-   p->reg    = vcode_add_reg(type);
+   p->type  = type;
+   p->stamp = stamp;
+   p->name  = name;
+   p->reg   = vcode_add_reg(type, stamp);
 
-   reg_t *rr = vcode_reg_data(p->reg);
-   rr->bounds = bounds;
+   assert(stamp == VCODE_INVALID_STAMP || vcode_stamp_data(stamp));
 
    return p->reg;
 }
@@ -3746,12 +3827,9 @@ vcode_reg_t emit_load(vcode_var_t var)
 
    op_t *op = vcode_add_op(VCODE_OP_LOAD);
    op->address = var;
-   op->result  = vcode_add_reg(v->type);
+   op->result  = vcode_add_reg(v->type, v->stamp);
 
    VCODE_ASSERT(vtype_is_scalar(v->type), "cannot load non-scalar type");
-
-   reg_t *r = vcode_reg_data(op->result);
-   r->bounds = v->bounds;
 
    return op->result;
 }
@@ -3782,11 +3860,9 @@ vcode_reg_t emit_load_indirect(vcode_reg_t reg)
                 "load indirect with non-pointer argument");
 
    vcode_type_t deref = vtype_pointed(rtype);
-   op->result = vcode_add_reg(deref);
+   op->result = vcode_add_reg(deref, vcode_reg_stamp(reg));
 
    VCODE_ASSERT(vtype_is_scalar(deref), "cannot load non-scalar type");
-
-   vcode_reg_data(op->result)->bounds = vcode_reg_data(reg)->bounds;
 
    return op->result;
 }
@@ -3851,7 +3927,7 @@ static vcode_reg_t emit_arith(vcode_op_t kind, vcode_reg_t lhs, vcode_reg_t rhs,
    if (locus != VCODE_INVALID_REG)
       vcode_add_arg(op, locus);
 
-   op->result = vcode_add_reg(vcode_reg_type(lhs));
+   op->result = vcode_add_reg(vcode_reg_type(lhs), VCODE_INVALID_STAMP);
 
    vcode_type_t lhs_type = vcode_reg_type(lhs);
    vcode_type_t rhs_type = vcode_reg_type(rhs);
@@ -3877,46 +3953,48 @@ static vcode_reg_t emit_mul_op(vcode_op_t op, vcode_reg_t lhs, vcode_reg_t rhs,
    else if ((r_is_const && rconst == 0) || (l_is_const && lconst == 0))
       return emit_const(vcode_reg_type(lhs), 0);
 
-   reg_t *lhs_r = vcode_reg_data(lhs);
-   reg_t *rhs_r = vcode_reg_data(rhs);
+   vcode_stamp_t vstamp = VCODE_INVALID_STAMP;
 
-   vtype_t *bl = vcode_type_data(lhs_r->bounds);
-   vtype_t *br = vcode_type_data(rhs_r->bounds);
+   double rl_low, rl_high, rr_low, rr_high;
+   int64_t l_low, l_high, r_low, r_high;
 
-   vcode_type_t vbounds;
-   if (vcode_reg_kind(lhs) == VCODE_TYPE_REAL) {
-      const double ll = bl->rlow * br->rlow;
-      const double lh = bl->rlow * br->rhigh;
-      const double hl = bl->rhigh * br->rlow;
-      const double hh = bl->rhigh * br->rhigh;
-
-      double min = MIN(MIN(ll, lh), MIN(hl, hh));
-      double max = MAX(MAX(ll, lh), MAX(hl, hh));
-
-      vbounds = vtype_real(min, max);
-   }
-   else {
-      const int64_t ll = smul64(bl->low, br->low);
-      const int64_t lh = smul64(bl->low, br->high);
-      const int64_t hl = smul64(bl->high, br->low);
-      const int64_t hh = smul64(bl->high, br->high);
+   if (vcode_reg_bounds(lhs, &l_low, &l_high)
+       && vcode_reg_bounds(rhs, &r_low, &r_high)) {
+      const int64_t ll = smul64(l_low, r_low);
+      const int64_t lh = smul64(l_low, r_high);
+      const int64_t hl = smul64(l_high, r_low);
+      const int64_t hh = smul64(l_high, r_high);
 
       int64_t min = MIN(MIN(ll, lh), MIN(hl, hh));
       int64_t max = MAX(MAX(ll, lh), MAX(hl, hh));
 
-      vtype_repr_t repr = vtype_repr(lhs_r->type);
-      if (op == VCODE_OP_TRAP_MUL && vtype_clamp_to_repr(repr, &min, &max)) {
-         op = VCODE_OP_MUL;   // Cannot overflow
-         locus = VCODE_INVALID_REG;
+      if (min > INT64_MIN && max < INT64_MAX) {
+         vtype_repr_t repr = vtype_repr(vcode_reg_data(lhs)->type);
+         if (op == VCODE_OP_TRAP_MUL && vtype_clamp_to_repr(repr, &min, &max)) {
+            op = VCODE_OP_MUL;   // Cannot overflow
+            locus = VCODE_INVALID_REG;
+         }
       }
 
-      vbounds = vtype_int(min, max);
+      vstamp = vstamp_int(min, max);
+   }
+   else if (vcode_reg_bounds_real(lhs, &rl_low, &rl_high)
+            && vcode_reg_bounds_real(rhs, &rr_low, &rr_high)) {
+      const double ll = rl_low * rr_low;
+      const double lh = rl_low * rr_high;
+      const double hl = rl_high * rr_low;
+      const double hh = rl_high * rr_high;
+
+      double min = MIN(MIN(ll, lh), MIN(hl, hh));
+      double max = MAX(MAX(ll, lh), MAX(hl, hh));
+
+      vstamp = vstamp_real(min, max);
    }
 
    vcode_reg_t reg = emit_arith(op, lhs, rhs, locus);
 
-   if (vbounds != VCODE_INVALID_TYPE)
-      vcode_reg_data(reg)->bounds = vbounds;
+   if (vstamp != VCODE_INVALID_TYPE)
+      vcode_reg_data(reg)->stamp = vstamp;
 
    return reg;
 }
@@ -3948,15 +4026,16 @@ vcode_reg_t emit_div(vcode_reg_t lhs, vcode_reg_t rhs)
 
    vcode_reg_t reg = emit_arith(VCODE_OP_DIV, lhs, rhs, VCODE_INVALID_REG);
 
-   vtype_t *bl = vcode_type_data(vcode_reg_data(lhs)->bounds);
-
-   if (bl->kind == VCODE_TYPE_INT && r_is_const && rconst != 0) {
-      reg_t *rr = vcode_reg_data(reg);
-      rr->bounds = vtype_int(bl->low / rconst, bl->high / rconst);
+   int64_t l_low, l_high;
+   if (vcode_reg_bounds(lhs, &l_low, &l_high)) {
+      if (r_is_const && rconst != 0) {
+         reg_t *rr = vcode_reg_data(reg);
+         rr->stamp = vstamp_int(l_low / rconst, l_high / rconst);
+      }
    }
-   else if (bl->kind == VCODE_TYPE_REAL) {
+   else {
       reg_t *rr = vcode_reg_data(reg);
-      rr->bounds = vtype_real(-INFINITY, INFINITY);
+      rr->stamp = vstamp_real(-INFINITY, INFINITY);
    }
 
    return reg;
@@ -3992,16 +4071,15 @@ vcode_reg_t emit_mod(vcode_reg_t lhs, vcode_reg_t rhs)
        && lconst > 0 && rconst > 0)
       return emit_const(vcode_reg_type(lhs), lconst % rconst);
 
-   vtype_t *bl = vcode_type_data(vcode_reg_data(lhs)->bounds);
-   vtype_t *br = vcode_type_data(vcode_reg_data(rhs)->bounds);
-
-   if (bl->low >= 0 && br->low >= 0) {
+   int64_t l_low, l_high, r_low, r_high;
+   if (vcode_reg_bounds(lhs, &l_low, &l_high) && l_low >= 0
+       && vcode_reg_bounds(rhs, &r_low, &r_high) && r_low >= 0) {
       // If both arguments are non-negative then rem is equivalent and
       // cheaper to compute
       vcode_reg_t reg = emit_arith(VCODE_OP_REM, lhs, rhs, VCODE_INVALID_REG);
 
       reg_t *rr = vcode_reg_data(reg);
-      rr->bounds = vtype_int(0, MAX(0, br->high - 1));
+      rr->stamp = vstamp_int(0, MAX(0, r_high - 1));
 
       return reg;
    }
@@ -4018,12 +4096,11 @@ vcode_reg_t emit_rem(vcode_reg_t lhs, vcode_reg_t rhs)
 
    vcode_reg_t reg = emit_arith(VCODE_OP_REM, lhs, rhs, VCODE_INVALID_REG);
 
-   vtype_t *bl = vcode_type_data(vcode_reg_data(lhs)->bounds);
-   vtype_t *br = vcode_type_data(vcode_reg_data(rhs)->bounds);
-
-   if (bl->low >= 0 && br->low >= 0) {
+   int64_t l_low, l_high, r_low, r_high;
+   if (vcode_reg_bounds(lhs, &l_low, &l_high) && l_low >= 0
+       && vcode_reg_bounds(rhs, &r_low, &r_high) && r_low >= 0) {
       reg_t *rr = vcode_reg_data(reg);
-      rr->bounds = vtype_int(0, br->high - 1);
+      rr->stamp = vstamp_int(0, r_high - 1);
    }
 
    return reg;
@@ -4042,30 +4119,29 @@ static vcode_reg_t emit_add_op(vcode_op_t op, vcode_reg_t lhs, vcode_reg_t rhs,
    else if (l_is_const && lconst == 0)
       return rhs;
 
-   vcode_type_t vbounds = VCODE_INVALID_TYPE;
-   if (vcode_reg_kind(lhs) != VCODE_TYPE_REAL) {
-      reg_t *lhs_r = vcode_reg_data(lhs);
-      reg_t *rhs_r = vcode_reg_data(rhs);
+   int64_t l_low, l_high, r_low, r_high;
+   vcode_stamp_t vstamp = VCODE_INVALID_STAMP;
+   if (vcode_reg_bounds(lhs, &l_low, &l_high)
+       && vcode_reg_bounds(rhs, &r_low, &r_high))  {
 
-      vtype_t *bl = vcode_type_data(lhs_r->bounds);
-      vtype_t *br = vcode_type_data(rhs_r->bounds);
+      int64_t rbl = sadd64(l_low, r_low);
+      int64_t rbh = sadd64(l_high, r_high);
 
-      int64_t rbl = sadd64(bl->low, br->low);
-      int64_t rbh = sadd64(bl->high, br->high);
-
-      vtype_repr_t repr = vtype_repr(lhs_r->type);
-      if (op == VCODE_OP_TRAP_ADD && vtype_clamp_to_repr(repr, &rbl, &rbh)) {
-         op = VCODE_OP_ADD;   // Cannot overflow
-         locus = VCODE_INVALID_REG;
+      if (rbl > INT64_MIN && rbh < INT64_MAX) {
+         vtype_repr_t repr = vtype_repr(vcode_reg_data(lhs)->type);
+         if (op == VCODE_OP_TRAP_ADD && vtype_clamp_to_repr(repr, &rbl, &rbh)) {
+            op = VCODE_OP_ADD;   // Cannot overflow
+            locus = VCODE_INVALID_REG;
+         }
       }
 
-      vbounds = vtype_int(rbl, rbh);
+      vstamp = vstamp_int(rbl, rbh);
    }
 
    vcode_reg_t reg = emit_arith(op, lhs, rhs, locus);
 
-   if (vbounds != VCODE_INVALID_TYPE)
-      vcode_reg_data(reg)->bounds = vbounds;
+   if (vstamp != VCODE_INVALID_STAMP)
+      vcode_reg_data(reg)->stamp = vstamp;
 
    return reg;
 }
@@ -4098,30 +4174,29 @@ static vcode_reg_t emit_sub_op(vcode_op_t op, vcode_reg_t lhs, vcode_reg_t rhs,
    else if (l_is_const && lconst == 0)
       return emit_neg(rhs);
 
-   vcode_type_t vbounds = VCODE_INVALID_TYPE;
-   if (vcode_reg_kind(lhs) != VCODE_TYPE_REAL) {
-      reg_t *lhs_r = vcode_reg_data(lhs);
-      reg_t *rhs_r = vcode_reg_data(rhs);
+   int64_t l_low, l_high, r_low, r_high;
+   vcode_stamp_t vstamp = VCODE_INVALID_STAMP;
+   if (vcode_reg_bounds(lhs, &l_low, &l_high)
+       && vcode_reg_bounds(rhs, &r_low, &r_high))  {
 
-      vtype_t *bl = vcode_type_data(lhs_r->bounds);
-      vtype_t *br = vcode_type_data(rhs_r->bounds);
+      int64_t rbl = ssub64(l_low, r_high);
+      int64_t rbh = ssub64(l_high, r_low);
 
-      int64_t rbl = ssub64(bl->low, br->high);
-      int64_t rbh = ssub64(bl->high, br->low);
-
-      vtype_repr_t repr = vtype_repr(lhs_r->type);
-      if (op == VCODE_OP_TRAP_SUB && vtype_clamp_to_repr(repr, &rbl, &rbh)) {
-         op = VCODE_OP_SUB;   // Cannot overflow
-         locus = VCODE_INVALID_REG;
+      if (rbl > INT64_MIN && rbh < INT64_MAX) {
+         vtype_repr_t repr = vtype_repr(vcode_reg_data(lhs)->type);
+         if (op == VCODE_OP_TRAP_SUB && vtype_clamp_to_repr(repr, &rbl, &rbh)) {
+            op = VCODE_OP_SUB;   // Cannot overflow
+            locus = VCODE_INVALID_REG;
+         }
       }
 
-      vbounds = vtype_int(rbl, rbh);
+      vstamp = vstamp_int(rbl, rbh);
    }
 
    vcode_reg_t reg = emit_arith(op, lhs, rhs, locus);
 
-   if (vbounds != VCODE_INVALID_TYPE)
-      vcode_reg_data(reg)->bounds = vbounds;
+   if (vstamp != VCODE_INVALID_TYPE)
+      vcode_reg_data(reg)->stamp = vstamp;
 
    return reg;
 }
@@ -4146,13 +4221,12 @@ static void vcode_calculate_var_index_type(op_t *op, var_t *var)
    switch (vtype_kind(var->type)) {
    case VCODE_TYPE_CARRAY:
       op->type = vtype_pointer(vtype_elem(var->type));
-      op->result = vcode_add_reg(op->type);
-      vcode_reg_data(op->result)->bounds = vtype_bounds(var->type);
+      op->result = vcode_add_reg(op->type, var->stamp);
       break;
 
    case VCODE_TYPE_RECORD:
       op->type = vtype_pointer(var->type);
-      op->result = vcode_add_reg(op->type);
+      op->result = vcode_add_reg(op->type, VCODE_INVALID_STAMP);
       break;
 
    case VCODE_TYPE_INT:
@@ -4167,8 +4241,7 @@ static void vcode_calculate_var_index_type(op_t *op, var_t *var)
    case VCODE_TYPE_TRIGGER:
    case VCODE_TYPE_RESOLUTION:
       op->type = vtype_pointer(var->type);
-      op->result = vcode_add_reg(op->type);
-      vcode_reg_data(op->result)->bounds = var->bounds;
+      op->result = vcode_add_reg(op->type, var->stamp);
       break;
 
    default:
@@ -4203,7 +4276,7 @@ vcode_reg_t emit_index(vcode_var_t var, vcode_reg_t offset)
    return op->result;
 }
 
-vcode_reg_t emit_cast(vcode_type_t type, vcode_type_t bounds, vcode_reg_t reg)
+vcode_reg_t emit_cast(vcode_type_t type, vcode_stamp_t stamp, vcode_reg_t reg)
 {
    if (vtype_eq(vcode_reg_type(reg), type))
       return reg;
@@ -4227,8 +4300,7 @@ vcode_reg_t emit_cast(vcode_type_t type, vcode_type_t bounds, vcode_reg_t reg)
 
    op_t *op = vcode_add_op(VCODE_OP_CAST);
    vcode_add_arg(op, reg);
-   op->type   = type;
-   op->result = vcode_add_reg(type);
+   op->type  = type;
 
    static const vcode_type_t allowed[][2] = {
       { VCODE_TYPE_INT,    VCODE_TYPE_OFFSET  },
@@ -4244,21 +4316,24 @@ vcode_reg_t emit_cast(vcode_type_t type, vcode_type_t bounds, vcode_reg_t reg)
       vtype_t *vt = vcode_type_data(type);
       int64_t low = vt->low, high = vt->high;
 
-      vtype_t *rt = vcode_type_data(vcode_reg_bounds(reg));
-      low = MAX(low, rt->low);
-      high = MIN(high, rt->high);
-
-      if (bounds != VCODE_INVALID_REG) {
-         vtype_t *bt = vcode_type_data(bounds);
-         low = MAX(low, bt->low);
-         high = MIN(high, bt->high);
+      vstamp_t *rt = vcode_stamp_data(vcode_reg_data(reg)->stamp);
+      if (rt != NULL) {
+         VCODE_ASSERT(rt->kind == VCODE_STAMP_INT, "must be integer stamp");
+         low = MAX(low, rt->u.intg.low);
+         high = MIN(high, rt->u.intg.high);
       }
 
-      reg_t *rr = vcode_reg_data(op->result);
-      rr->bounds = vtype_int(low, high);
+      vstamp_t *bt = vcode_stamp_data(stamp);
+      if (bt != NULL) {
+         VCODE_ASSERT(bt->kind == VCODE_STAMP_INT, "must be integer stamp");
+         low = MAX(low, bt->u.intg.low);
+         high = MIN(high, bt->u.intg.high);
+      }
+
+      stamp = vstamp_int(low, high);
    }
-   else if (bounds != VCODE_INVALID_REG)
-      vcode_reg_data(op->result)->bounds = bounds;
+
+   op->result = vcode_add_reg(type, stamp);
 
    for (size_t i = 0; i < ARRAY_LEN(allowed); i++) {
       if (from == allowed[i][0] && to == allowed[i][1])
@@ -4383,7 +4458,7 @@ vcode_reg_t emit_neg(vcode_reg_t lhs)
 
    op_t *op = vcode_add_op(VCODE_OP_NEG);
    vcode_add_arg(op, lhs);
-   op->result = vcode_add_reg(vcode_reg_type(lhs));
+   op->result = vcode_add_reg(vcode_reg_type(lhs), VCODE_INVALID_STAMP);
 
    return op->result;
 }
@@ -4393,7 +4468,11 @@ vcode_reg_t emit_trap_neg(vcode_reg_t lhs, vcode_reg_t locus)
    int64_t lconst;
    if (vcode_reg_const(lhs, &lconst) && lconst >= 0)
       return emit_const(vcode_reg_type(lhs), -lconst);
-   else if (vcode_type_data(vcode_reg_data(lhs)->bounds)->low >= 0)
+
+   reg_t *lhs_r = vcode_reg_data(lhs);
+
+   vstamp_t *s = vcode_stamp_data(lhs_r->stamp);
+   if (s != NULL && s->kind == VCODE_STAMP_INT && s->u.intg.low >= 0)
       return emit_neg(lhs);   // Cannot overflow
 
    op_t *op = vcode_add_op(VCODE_OP_TRAP_NEG);
@@ -4402,10 +4481,10 @@ vcode_reg_t emit_trap_neg(vcode_reg_t lhs, vcode_reg_t locus)
 
    VCODE_ASSERT(vcode_reg_kind(locus) == VCODE_TYPE_DEBUG_LOCUS,
                 "locus argument to trap neg must be a debug locus");
-   VCODE_ASSERT(vcode_reg_kind(lhs) == VCODE_TYPE_INT,
+   VCODE_ASSERT(vtype_kind(lhs_r->type) == VCODE_TYPE_INT,
                 "trapping neg may only be used with integer types");
 
-   return (op->result = vcode_add_reg(vcode_reg_type(lhs)));
+   return (op->result = vcode_add_reg(lhs_r->type, VCODE_INVALID_STAMP));
 }
 
 vcode_reg_t emit_abs(vcode_reg_t lhs)
@@ -4416,7 +4495,7 @@ vcode_reg_t emit_abs(vcode_reg_t lhs)
 
    op_t *op = vcode_add_op(VCODE_OP_ABS);
    vcode_add_arg(op, lhs);
-   op->result = vcode_add_reg(vcode_reg_type(lhs));
+   op->result = vcode_add_reg(vcode_reg_type(lhs), VCODE_INVALID_STAMP);
 
    return op->result;
 }
@@ -4457,7 +4536,7 @@ vcode_reg_t emit_select(vcode_reg_t test, vcode_reg_t rtrue,
    vcode_add_arg(op, test);
    vcode_add_arg(op, rtrue);
    vcode_add_arg(op, rfalse);
-   op->result = vcode_add_reg(vcode_reg_type(rtrue));
+   op->result = vcode_add_reg(vcode_reg_type(rtrue), VCODE_INVALID_STAMP);
 
    VCODE_ASSERT(vtype_eq(vcode_reg_type(test), vtype_bool()),
                 "select test must have bool type");
@@ -4573,7 +4652,7 @@ vcode_reg_t emit_not(vcode_reg_t arg)
    VCODE_ASSERT(vtype_eq(vcode_reg_type(arg), vtbool),
                 "argument to not is not boolean");
 
-   return (op->result = vcode_add_reg(vtbool));
+   return (op->result = vcode_add_reg(vtbool, VCODE_INVALID_STAMP));
 }
 
 vcode_reg_t emit_wrap(vcode_reg_t data, const vcode_dim_t *dims, int ndims)
@@ -4618,8 +4697,7 @@ vcode_reg_t emit_wrap(vcode_reg_t data, const vcode_dim_t *dims, int ndims)
    vcode_type_t elem = (ptrkind == VCODE_TYPE_POINTER)
       ? vtype_pointed(ptr_type) : ptr_type;
 
-   op->result = vcode_add_reg(
-      vtype_uarray(ndims, elem, vcode_reg_bounds(data)));
+   op->result = vcode_add_reg(vtype_uarray(ndims, elem), vcode_reg_stamp(data));
 
    return op->result;
 }
@@ -4652,7 +4730,7 @@ static vcode_reg_t emit_uarray_op(vcode_op_t o, vcode_type_t rtype,
    if (rtype == VCODE_INVALID_TYPE)
       rtype = vtype_offset();
 
-   return (op->result = vcode_add_reg(rtype));
+   return (op->result = vcode_add_reg(rtype, VCODE_INVALID_STAMP));
 }
 
 vcode_reg_t emit_uarray_left(vcode_reg_t array, unsigned dim)
@@ -4702,10 +4780,7 @@ vcode_reg_t emit_uarray_len(vcode_reg_t array, unsigned dim)
    vtype_t *vt = vcode_type_data(atype);
    VCODE_ASSERT(dim < vt->dims, "invalid dimension %d", dim);
 
-   op->result = vcode_add_reg(vtype_offset());
-
-   reg_t *rr = vcode_reg_data(op->result);
-   rr->bounds = vtype_int(0, INT64_MAX);
+   op->result = vcode_add_reg(vtype_offset(), vstamp_int(0, INT64_MAX));
 
    return op->result;
 }
@@ -4731,12 +4806,7 @@ vcode_reg_t emit_unwrap(vcode_reg_t array)
    vcode_type_t rtype = (vtype_kind(elem) == VCODE_TYPE_SIGNAL)
       ? elem : vtype_pointer(elem);
 
-   op->result = vcode_add_reg(rtype);
-
-   reg_t *rr = vcode_reg_data(op->result);
-   rr->bounds = elem;
-
-   return op->result;
+   return (op->result = vcode_add_reg(rtype, vcode_reg_stamp(array)));
 }
 
 vcode_reg_t emit_range_null(vcode_reg_t left, vcode_reg_t right,
@@ -4749,18 +4819,18 @@ vcode_reg_t emit_range_null(vcode_reg_t left, vcode_reg_t right,
          return other->result;
    }
 
-   int64_t dir_const;
-   if (vcode_reg_const(dir, &dir_const)) {
-      vtype_t *lbounds = vcode_type_data(vcode_reg_bounds(left));
-      vtype_t *rbounds = vcode_type_data(vcode_reg_bounds(right));
+   int64_t dir_const, l_low, l_high, r_low, r_high;
+   if (vcode_reg_const(dir, &dir_const)
+       && vcode_reg_bounds(left, &l_low, &l_high)
+       && vcode_reg_bounds(right, &r_low, &r_high)) {
 
-      if (dir_const == RANGE_TO && lbounds->low > rbounds->high)
+      if (dir_const == RANGE_TO && l_low > r_high)
          return emit_const(vtype_bool(), 1);
-      else if (dir_const == RANGE_TO && lbounds->high <= rbounds->low)
+      else if (dir_const == RANGE_TO && l_high <= r_low)
          return emit_const(vtype_bool(), 0);
-      else if (dir_const == RANGE_DOWNTO && rbounds->low > lbounds->high)
+      else if (dir_const == RANGE_DOWNTO && r_low > l_high)
          return emit_const(vtype_bool(), 1);
-      else if (dir_const == RANGE_DOWNTO && rbounds->high <= lbounds->low)
+      else if (dir_const == RANGE_DOWNTO && r_high <= l_low)
          return emit_const(vtype_bool(), 0);
       else if (dir_const == RANGE_TO)
          return emit_cmp(VCODE_CMP_GT, left, right);
@@ -4778,7 +4848,7 @@ vcode_reg_t emit_range_null(vcode_reg_t left, vcode_reg_t right,
    VCODE_ASSERT(vcode_reg_kind(dir) == VCODE_TYPE_INT,
                 "dir argument to range length is not int");
 
-   return (op->result = vcode_add_reg(vtype_bool()));
+   return (op->result = vcode_add_reg(vtype_bool(), VCODE_INVALID_STAMP));
 }
 
 vcode_reg_t emit_range_length(vcode_reg_t left, vcode_reg_t right,
@@ -4837,10 +4907,7 @@ vcode_reg_t emit_range_length(vcode_reg_t left, vcode_reg_t right,
    VCODE_ASSERT(vcode_reg_kind(dir) == VCODE_TYPE_INT,
                 "dir argument to range length is not int");
 
-   op->result = vcode_add_reg(vtype_offset());
-
-   reg_t *rr = vcode_reg_data(op->result);
-   rr->bounds = vtype_int(0, INT64_MAX);
+   op->result = vcode_add_reg(vtype_offset(), vstamp_int(0, INT64_MAX));
 
    return op->result;
 }
@@ -4896,7 +4963,8 @@ vcode_reg_t emit_init_signal(vcode_type_t type, vcode_reg_t count,
                 || vcode_reg_kind(offset) == VCODE_TYPE_POINTER,
                 "init signal offset argument must have pointer type");
 
-   return (op->result = vcode_add_reg(vtype_signal(type)));
+   vcode_type_t stype = vtype_signal(type);
+   return (op->result = vcode_add_reg(stype, VCODE_INVALID_STAMP));
 }
 
 void emit_resolve_signal(vcode_reg_t signal, vcode_reg_t resolution)
@@ -4939,7 +5007,8 @@ vcode_reg_t emit_implicit_signal(vcode_type_t type, vcode_reg_t count,
    VCODE_ASSERT(vcode_reg_kind(delay) == VCODE_TYPE_INT,
                 "delay argument to implicit signal must be time");
 
-   return (op->result = vcode_add_reg(vtype_signal(type)));
+   vcode_type_t stype = vtype_signal(type);
+   return (op->result = vcode_add_reg(stype, VCODE_INVALID_REG));
 }
 
 void emit_map_signal(vcode_reg_t src, vcode_reg_t dst, vcode_reg_t count)
@@ -5036,7 +5105,8 @@ vcode_reg_t emit_resolution_wrapper(vcode_type_t type, vcode_reg_t closure,
    vcode_add_arg(op, closure);
    vcode_add_arg(op, nlits);
 
-   return (op->result = vcode_add_reg(vtype_resolution(type)));
+   return (op->result = vcode_add_reg(vtype_resolution(type),
+                                      VCODE_INVALID_STAMP));
 }
 
 vcode_reg_t emit_closure(ident_t func, vcode_reg_t context, vcode_type_t rtype)
@@ -5053,7 +5123,8 @@ vcode_reg_t emit_closure(ident_t func, vcode_reg_t context, vcode_type_t rtype)
    VCODE_ASSERT(vcode_reg_kind(context) == VCODE_TYPE_CONTEXT,
                 "invalid closure context argument");
 
-   return (op->result = vcode_add_reg(vtype_closure(rtype)));
+   return (op->result = vcode_add_reg(vtype_closure(rtype),
+                                      VCODE_INVALID_STAMP));
 }
 
 vcode_reg_t emit_package_init(ident_t name, vcode_reg_t context)
@@ -5077,7 +5148,8 @@ vcode_reg_t emit_package_init(ident_t name, vcode_reg_t context)
                 "cannot use package init here");
    VCODE_ASSERT(name != active_unit->name, "cyclic package init");
 
-   return (op->result = vcode_add_reg(vtype_context(name)));
+   return (op->result = vcode_add_reg(vtype_context(name),
+                                      VCODE_INVALID_STAMP));
 }
 
 vcode_reg_t emit_protected_init(vcode_type_t type, vcode_reg_t context,
@@ -5102,7 +5174,7 @@ vcode_reg_t emit_protected_init(vcode_type_t type, vcode_reg_t context,
    VCODE_ASSERT(vcode_reg_kind(context) == VCODE_TYPE_CONTEXT,
                 "invalid protected init context argument");
 
-   return (op->result = vcode_add_reg(type));
+   return (op->result = vcode_add_reg(type, VCODE_INVALID_STAMP));
 }
 
 void emit_process_init(ident_t name, vcode_reg_t locus)
@@ -5142,7 +5214,8 @@ vcode_reg_t emit_context_upref(int hops)
       VCODE_ASSERT(vu, "hop count is greater than depth");
    }
 
-   return (op->result = vcode_add_reg(vtype_context(vu->name)));
+   return (op->result = vcode_add_reg(vtype_context(vu->name),
+                                      VCODE_INVALID_STAMP));
 }
 
 static vcode_reg_t emit_signal_flag(vcode_op_t opkind, vcode_reg_t nets,
@@ -5155,7 +5228,7 @@ static vcode_reg_t emit_signal_flag(vcode_op_t opkind, vcode_reg_t nets,
    VCODE_ASSERT(vcode_reg_kind(nets) == VCODE_TYPE_SIGNAL,
                 "argument to %s is not a signal", vcode_op_string(opkind));
 
-   return (op->result = vcode_add_reg(vtype_bool()));
+   return (op->result = vcode_add_reg(vtype_bool(), VCODE_INVALID_STAMP));
 }
 
 vcode_reg_t emit_event_flag(vcode_reg_t nets, vcode_reg_t len)
@@ -5192,21 +5265,15 @@ vcode_reg_t emit_record_ref(vcode_reg_t record, unsigned field)
    VCODE_ASSERT(field < rtype->fields.count, "invalid field %d", field);
 
    vcode_type_t field_type  = rtype->fields.items[field];
-   vcode_type_t bounds_type = field_type;
    vcode_type_t result_type = field_type;
 
    const vtype_kind_t fkind = vtype_kind(field_type);
    if (fkind == VCODE_TYPE_CARRAY)
-      result_type = bounds_type = vtype_elem(field_type);
-   else if (fkind == VCODE_TYPE_UARRAY) {
-      bounds_type = vtype_elem(field_type);
+      result_type = vtype_elem(field_type);
+   else if (fkind == VCODE_TYPE_UARRAY)
       result_type = field_type;
-   }
 
-   op->result = vcode_add_reg(vtype_pointer(result_type));
-
-   reg_t *rr = vcode_reg_data(op->result);
-   rr->bounds = bounds_type;
+   op->result = vcode_add_reg(vtype_pointer(result_type), VCODE_INVALID_STAMP);
 
    return op->result;
 }
@@ -5230,12 +5297,44 @@ vcode_reg_t emit_array_ref(vcode_reg_t array, vcode_reg_t offset)
    VCODE_ASSERT(vcode_reg_kind(offset) == VCODE_TYPE_OFFSET,
                 "array ref offset argument must have offset type");
 
-   op->result = vcode_add_reg(rtype);
+   return (op->result = vcode_add_reg(rtype, vcode_reg_stamp(array)));
+}
 
-   reg_t *rr = vcode_reg_data(op->result);
-   rr->bounds = vcode_reg_bounds(array);
+vcode_reg_t emit_table_ref(vcode_reg_t array, vcode_reg_t stride,
+                           const vcode_reg_t *args, int nargs)
+{
+   VCODE_FOR_EACH_MATCHING_OP(other, VCODE_OP_TABLE_REF) {
+      if (other->args.items[0] != array || other->args.items[1] != stride)
+         continue;
+      else if (other->args.count != nargs + 2)
+         continue;
 
-   return op->result;
+      bool match = true;
+      for (int i = 0; i < nargs; i++)
+         match &= (other->args.items[i + 2] == args[i]);
+
+      if (match)
+         return other->result;
+   }
+
+   op_t *op = vcode_add_op(VCODE_OP_TABLE_REF);
+   vcode_add_arg(op, array);
+   vcode_add_arg(op, stride);
+   for (int i = 0; i < nargs; i++)
+      vcode_add_arg(op, args[i]);
+
+   vcode_type_t rtype = vcode_reg_type(array);
+   VCODE_ASSERT(vtype_kind(rtype) == VCODE_TYPE_POINTER
+                && vtype_kind(vtype_pointed(rtype)) != VCODE_TYPE_UARRAY,
+                "argument to table ref must be a pointer or signal");
+   VCODE_ASSERT(vcode_reg_kind(stride) == VCODE_TYPE_OFFSET,
+                "table ref stride argument must have offset type");
+
+   for (int i = 0; i < nargs; i++)
+      VCODE_ASSERT(vtype_is_integral(vcode_reg_type(args[i])),
+                   "table ref indices must be integral");
+
+   return (op->result = vcode_add_reg(rtype, vcode_reg_stamp(array)));
 }
 
 void emit_copy(vcode_reg_t dest, vcode_reg_t src, vcode_reg_t count)
@@ -5445,7 +5544,7 @@ vcode_reg_t emit_null(vcode_type_t type)
    }
 
    op_t *op = vcode_add_op(VCODE_OP_NULL);
-   op->result = vcode_add_reg(type);
+   op->result = vcode_add_reg(type, VCODE_INVALID_STAMP);
 
    vtype_kind_t kind = vtype_kind(type);
    VCODE_ASSERT(kind == VCODE_TYPE_POINTER || kind == VCODE_TYPE_FILE
@@ -5461,7 +5560,7 @@ vcode_reg_t emit_new(vcode_type_t type, vcode_reg_t length)
    if (length != VCODE_INVALID_REG)
       vcode_add_arg(op, length);
 
-   op->result = vcode_add_reg(vtype_access(type));
+   op->result = vcode_add_reg(vtype_access(type), VCODE_INVALID_STAMP);
 
    vtype_kind_t kind = vtype_kind(type);
    VCODE_ASSERT(kind == VCODE_TYPE_INT || kind == VCODE_TYPE_RECORD
@@ -5521,10 +5620,7 @@ vcode_reg_t emit_all(vcode_reg_t reg)
                 "all argument must be an access");
 
    vcode_type_t pointed = vtype_pointed(vtype);
-   op->result = vcode_add_reg(vtype_pointer(pointed));
-
-   reg_t *rr = vcode_reg_data(op->result);
-   rr->bounds = pointed;
+   op->result = vcode_add_reg(vtype_pointer(pointed), vcode_reg_stamp(reg));
 
    VCODE_ASSERT(vtype_kind(pointed) != VCODE_TYPE_OPAQUE,
                 "cannot dereference opaque type");
@@ -5559,10 +5655,7 @@ static vcode_reg_t emit_signal_data_op(vcode_op_t kind, vcode_reg_t sig)
    VCODE_ASSERT(vtype_is_scalar(rtype),
                 "resolved signal base type must be scalar");
 
-   op->result = vcode_add_reg(vtype_pointer(rtype));
-
-   reg_t *rr = vcode_reg_data(op->result);
-   rr->bounds = rtype;
+   op->result = vcode_add_reg(vtype_pointer(rtype), vcode_reg_stamp(sig));
 
    return op->result;
 }
@@ -5590,7 +5683,7 @@ vcode_reg_t emit_last_event(vcode_reg_t signal, vcode_reg_t len)
                 || vcode_reg_kind(len) == VCODE_TYPE_OFFSET,
                 "length argument to last event must have offset type");
 
-   return (op->result = vcode_add_reg(vtype_time()));
+   return (op->result = vcode_add_reg(vtype_time(), VCODE_INVALID_STAMP));
 }
 
 vcode_reg_t emit_last_active(vcode_reg_t signal, vcode_reg_t len)
@@ -5606,7 +5699,7 @@ vcode_reg_t emit_last_active(vcode_reg_t signal, vcode_reg_t len)
                 || vcode_reg_kind(len) == VCODE_TYPE_OFFSET,
                 "length argument to last active must have offset type");
 
-   return (op->result = vcode_add_reg(vtype_time()));
+   return (op->result = vcode_add_reg(vtype_time(), VCODE_INVALID_STAMP));
 }
 
 void emit_alias_signal(vcode_reg_t signal, vcode_reg_t locus)
@@ -5632,7 +5725,7 @@ vcode_reg_t emit_driving_flag(vcode_reg_t signal, vcode_reg_t len)
    VCODE_ASSERT(vcode_reg_kind(len) == VCODE_TYPE_OFFSET,
                 "length argument to last active must have offset type");
 
-   return (op->result = vcode_add_reg(vtype_bool()));
+   return (op->result = vcode_add_reg(vtype_bool(), VCODE_INVALID_STAMP));
 }
 
 vcode_reg_t emit_driving_value(vcode_reg_t signal, vcode_reg_t len)
@@ -5651,10 +5744,7 @@ vcode_reg_t emit_driving_value(vcode_reg_t signal, vcode_reg_t len)
                 "length argument to last active must have offset type");
 
    vcode_type_t base_type = vtype_base(signal_type);
-   op->result = vcode_add_reg(vtype_pointer(base_type));
-
-   reg_t *rr = vcode_reg_data(op->result);
-   rr->bounds = base_type;
+   op->result = vcode_add_reg(vtype_pointer(base_type), VCODE_INVALID_STAMP);
 
    return op->result;
 }
@@ -5727,38 +5817,51 @@ static bool vcode_can_elide_bounds(vcode_reg_t reg, vcode_reg_t left,
                                    vcode_reg_t right, vcode_reg_t dir)
 {
    int64_t dconst;
-   if (vcode_reg_const(dir, &dconst)) {
-      int64_t lconst, rconst;
-      if (vcode_reg_const(left, &lconst) && vcode_reg_const(right, &rconst)) {
-         const bool is_null = (dconst == RANGE_TO && lconst > rconst)
-            || (dconst == RANGE_DOWNTO && rconst > lconst);
+   if (!vcode_reg_const(dir, &dconst))
+      return false;
 
-         vtype_t *bounds = vcode_type_data(vcode_reg_bounds(reg));
+   int64_t lconst, rconst;
+   if (vcode_reg_const(left, &lconst) && vcode_reg_const(right, &rconst)) {
+      const bool is_null = (dconst == RANGE_TO && lconst > rconst)
+         || (dconst == RANGE_DOWNTO && rconst > lconst);
 
+      int64_t low, high;
+      if (vcode_reg_bounds(reg, &low, &high)) {
          const bool ok_static =
-            (dconst == RANGE_TO
-             && bounds->low >= lconst && bounds->high <= rconst)
-            || (dconst == RANGE_DOWNTO
-                && bounds->low >= rconst && bounds->high <= lconst)
+            (dconst == RANGE_TO && low >= lconst && high <= rconst)
+            || (dconst == RANGE_DOWNTO && low >= rconst && high <= lconst)
             || (!is_null && (reg == left || reg == right));
 
          return ok_static;
       }
-      else if (vcode_reg_kind(reg) == VCODE_TYPE_REAL) {
-         vtype_t *lbounds = vcode_type_data(vcode_reg_bounds(left));
-         vtype_t *rbounds = vcode_type_data(vcode_reg_bounds(right));
+   }
+   else if (vcode_reg_kind(reg) == VCODE_TYPE_REAL) {
+      vstamp_t *lbounds = vcode_stamp_data(vcode_reg_data(left)->stamp);
+      vstamp_t *rbounds = vcode_stamp_data(vcode_reg_data(right)->stamp);
 
-         assert(lbounds->kind == VCODE_TYPE_REAL);
-         assert(rbounds->kind == VCODE_TYPE_REAL);
+      assert(lbounds->kind == VCODE_STAMP_REAL);
+      assert(rbounds->kind == VCODE_STAMP_REAL);
 
-         vtype_t *bounds = vcode_type_data(vcode_reg_bounds(reg));
-         assert(bounds->kind == VCODE_TYPE_REAL);
+      double low, high;
 
-         if (isfinite(bounds->rlow) && lbounds->rlow == -DBL_MAX
-             && isfinite(bounds->rhigh) && rbounds->rhigh == DBL_MAX) {
-            // Covers the complete double range so can never overflow
-            return true;
-         }
+      reg_t *rr = vcode_reg_data(reg);
+      vstamp_t *bounds = vcode_stamp_data(rr->stamp);
+      if (bounds != NULL) {
+         assert(bounds->kind == VCODE_STAMP_REAL);
+         low = bounds->u.real.low;
+         high = bounds->u.real.high;
+      }
+      else {
+         vtype_t *type = vcode_type_data(rr->type);
+         assert(type->kind == VCODE_TYPE_REAL);
+         low = type->rlow;
+         high = type->rhigh;
+      }
+
+      if (isfinite(low) && lbounds->u.real.low == -DBL_MAX
+          && isfinite(high) && rbounds->u.real.high == DBL_MAX) {
+         // Covers the complete double range so can never overflow
+         return true;
       }
    }
 
@@ -5789,6 +5892,8 @@ static void emit_bounds_check(vcode_op_t kind, vcode_reg_t reg,
    vcode_add_arg(op, locus);
    vcode_add_arg(op, hint);
 
+   VCODE_ASSERT(vtype_is_numeric(vcode_reg_type(reg)),
+                "argument to bounds check must be numeric");
    VCODE_ASSERT(vcode_reg_kind(locus) == VCODE_TYPE_DEBUG_LOCUS,
                 "locus argument to bounds check must be a debug locus");
    VCODE_ASSERT(vcode_reg_kind(hint) == VCODE_TYPE_DEBUG_LOCUS,
@@ -5864,8 +5969,9 @@ vcode_reg_t emit_debug_locus(object_t *obj)
 
    op_t *op = vcode_add_op(VCODE_OP_DEBUG_LOCUS);
    op->object = obj;
+   op->result = vcode_add_reg(vtype_debug_locus(), VCODE_INVALID_STAMP);
 
-   return (op->result = vcode_add_reg(vtype_debug_locus()));
+   return op->result;
 }
 
 void emit_debug_out(vcode_reg_t reg)
@@ -5914,13 +6020,12 @@ void emit_unreachable(vcode_reg_t locus)
       vcode_add_arg(op, locus);
 }
 
-vcode_reg_t emit_undefined(vcode_type_t type, vcode_type_t bounds)
+vcode_reg_t emit_undefined(vcode_type_t type, vcode_stamp_t stamp)
 {
    active_unit->flags |= UNIT_UNDEFINED;
 
    op_t *op = vcode_add_op(VCODE_OP_UNDEFINED);
-   op->result = vcode_add_reg(type);
-   vcode_reg_data(op->result)->bounds = bounds;
+   op->result = vcode_add_reg(type, stamp);
 
    return op->result;
 }
@@ -5945,14 +6050,12 @@ vcode_reg_t emit_link_var(vcode_reg_t context, ident_t name, vcode_type_t type)
    VCODE_ASSERT(vcode_reg_kind(context) == VCODE_TYPE_CONTEXT,
                 "first argument to link var must be context");
 
-   if (vtype_kind(type) == VCODE_TYPE_CARRAY) {
-      op->result = vcode_add_reg(vtype_pointer(vtype_elem(type)));
-      vcode_reg_data(op->result)->bounds = vtype_bounds(type);
-   }
-   else {
-      op->result = vcode_add_reg(vtype_pointer(type));
-      vcode_reg_data(op->result)->bounds = type;
-   }
+   vcode_stamp_t stamp = VCODE_INVALID_STAMP;
+
+   if (vtype_kind(type) == VCODE_TYPE_CARRAY)
+      op->result = vcode_add_reg(vtype_pointer(vtype_elem(type)), stamp);
+   else
+      op->result = vcode_add_reg(vtype_pointer(type), stamp);
 
    return op->result;
 }
@@ -5971,7 +6074,8 @@ vcode_reg_t emit_link_package(ident_t name)
 
    VCODE_ASSERT(name != active_unit->name, "cannot link the current unit");
 
-   return (op->result = vcode_add_reg(vtype_context(name)));
+   vcode_type_t type = vtype_context(name);
+   return (op->result = vcode_add_reg(type, VCODE_INVALID_STAMP));
 }
 
 void emit_enter_state(vcode_reg_t state, vcode_reg_t strong)
@@ -6008,7 +6112,8 @@ vcode_reg_t emit_reflect_value(vcode_reg_t value, vcode_reg_t context,
    VCODE_ASSERT(vcode_reg_kind(locus) == VCODE_TYPE_DEBUG_LOCUS,
                 "locus argument to reflect value must be a debug locus");
 
-   return (op->result = vcode_add_reg(vtype_access(vtype_opaque())));
+   vcode_type_t type = vtype_access(vtype_opaque());
+   return (op->result = vcode_add_reg(type, VCODE_INVALID_STAMP));
 }
 
 vcode_reg_t emit_reflect_subtype(vcode_reg_t context, vcode_reg_t locus,
@@ -6025,7 +6130,8 @@ vcode_reg_t emit_reflect_subtype(vcode_reg_t context, vcode_reg_t locus,
    VCODE_ASSERT(vcode_reg_kind(locus) == VCODE_TYPE_DEBUG_LOCUS,
                 "locus argument to reflect value must be a debug locus");
 
-   return (op->result = vcode_add_reg(vtype_access(vtype_opaque())));
+   vcode_type_t type = vtype_access(vtype_opaque());
+   return (op->result = vcode_add_reg(type, VCODE_INVALID_STAMP));
 }
 
 vcode_reg_t emit_function_trigger(ident_t func, const vcode_reg_t *args,
@@ -6037,7 +6143,7 @@ vcode_reg_t emit_function_trigger(ident_t func, const vcode_reg_t *args,
    for (int i = 0; i < nargs; i++)
       vcode_add_arg(op, args[i]);
 
-   return (op->result = vcode_add_reg(vtype_trigger()));
+   return (op->result = vcode_add_reg(vtype_trigger(), VCODE_INVALID_STAMP));
 }
 
 vcode_reg_t emit_or_trigger(vcode_reg_t left, vcode_reg_t right)
@@ -6051,7 +6157,7 @@ vcode_reg_t emit_or_trigger(vcode_reg_t left, vcode_reg_t right)
    VCODE_ASSERT(vcode_reg_kind(right) == VCODE_TYPE_TRIGGER,
                 "or trigger right argument must be trigger");
 
-   return (op->result = vcode_add_reg(vtype_trigger()));
+   return (op->result = vcode_add_reg(vtype_trigger(), VCODE_INVALID_STAMP));
 }
 
 vcode_reg_t emit_cmp_trigger(vcode_reg_t left, vcode_reg_t right)
@@ -6065,7 +6171,7 @@ vcode_reg_t emit_cmp_trigger(vcode_reg_t left, vcode_reg_t right)
    VCODE_ASSERT(vcode_reg_kind(right) == VCODE_TYPE_INT,
                 "cmp trigger right argument must be integer");
 
-   return (op->result = vcode_add_reg(vtype_trigger()));
+   return (op->result = vcode_add_reg(vtype_trigger(), VCODE_INVALID_STAMP));
 }
 
 void emit_add_trigger(vcode_reg_t trigger)
@@ -6090,11 +6196,11 @@ vcode_reg_t emit_port_conversion(vcode_reg_t driving, vcode_reg_t effective)
                 || vcode_reg_kind(effective) == VCODE_TYPE_CLOSURE,
                 "port conversion argument must be a closure");
 
-   return (op->result = vcode_add_reg(vtype_conversion()));
+   return (op->result = vcode_add_reg(vtype_conversion(), VCODE_INVALID_STAMP));
 }
 
 vcode_reg_t emit_bind_external(vcode_reg_t locus, ident_t scope,
-                               vcode_type_t type, vcode_type_t bounds,
+                               vcode_type_t type, vcode_stamp_t stamp,
                                const vcode_reg_t *args, int nargs)
 {
    op_t *op = vcode_add_op(VCODE_OP_BIND_EXTERNAL);
@@ -6107,8 +6213,8 @@ vcode_reg_t emit_bind_external(vcode_reg_t locus, ident_t scope,
    VCODE_ASSERT(vcode_reg_kind(locus) == VCODE_TYPE_DEBUG_LOCUS,
                 "bind external argument must be locus");
 
-   op->result = vcode_add_reg(vtype_pointer(type));
-   vcode_reg_data(op->result)->bounds = bounds;
+   op->result = vcode_add_reg(vtype_pointer(type), VCODE_INVALID_STAMP);
+   vcode_reg_data(op->result)->stamp = stamp;
    return op->result;
 }
 
@@ -6186,8 +6292,8 @@ vcode_reg_t emit_instance_name(vcode_reg_t kind)
    VCODE_ASSERT(vcode_reg_kind(kind) == VCODE_TYPE_OFFSET,
                 "kind argument to instance name must be offset");
 
-   vcode_type_t vchar = vtype_char();
-   return (op->result = vcode_add_reg(vtype_uarray(1, vchar, vchar)));
+   vcode_type_t type = vtype_uarray(1, vtype_char());
+   return (op->result = vcode_add_reg(type, VCODE_INVALID_STAMP));
 }
 
 void vcode_walk_dependencies(vcode_unit_t vu, vcode_dep_fn_t fn, void *ctx)

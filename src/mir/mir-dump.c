@@ -22,6 +22,7 @@
 #include "mir/mir-priv.h"
 #include "mir/mir-structs.h"
 #include "mir/mir-unit.h"
+#include "printf.h"
 #include "thread.h"
 #include "tree.h"
 #include "vlog/vlog-node.h"
@@ -89,6 +90,7 @@ const char *mir_op_string(mir_op_t op)
       [MIR_OP_CONST_RECORD] = "const record",
       [MIR_OP_CONST_VEC] = "const vec",
       [MIR_OP_ARRAY_REF] = "array ref",
+      [MIR_OP_TABLE_REF] = "table ref",
       [MIR_OP_RECORD_REF] = "record ref",
       [MIR_OP_ADDRESS_OF] = "address of",
       [MIR_OP_VAR_UPREF] = "var upref",
@@ -194,7 +196,7 @@ static void mir_dump_tab(int col, int to_col)
 static void mir_dump_comment(int col)
 {
    mir_dump_tab(col, 40);
-   color_printf("$cyan$// ");
+   nvc_printf("$cyan$// ");
 }
 
 static int mir_pretty_print_int(int64_t n)
@@ -217,37 +219,35 @@ static int mir_dump_value(mir_unit_t *mu, mir_value_t value,
    int col = 0;
    switch (value.tag) {
    case MIR_TAG_NULL:
-      col += color_printf("$red$null$$");
+      col += nvc_printf("$red$null$$");
       break;
    case MIR_TAG_PARAM:
-      col += color_printf("$magenta$%s$$",
-                          istr(mir_param_data(mu, value)->name));
+      col += nvc_printf("$magenta$%pi$$", mir_param_data(mu, value)->name);
       break;
    case MIR_TAG_VAR:
-      col += color_printf("$magenta$%s$$",
-                          istr(mir_var_data(mu, value)->name));
+      col += nvc_printf("$magenta$%pi$$", mir_var_data(mu, value)->name);
       break;
    case MIR_TAG_NODE:
-      col += color_printf("$green$%%%u$$", value.id);
+      col += nvc_printf("$green$%%%u$$", value.id);
       break;
    case MIR_TAG_BLOCK:
-      col += color_printf("$yellow$%u$$", value.id);
+      col += nvc_printf("$yellow$%u$$", value.id);
       break;
    case MIR_TAG_CONST:
       {
          int64_t intg = 0;
          mir_get_const(mu, value, &intg);
-         col += color_printf("$green$#%"PRIi64"$$", intg);
+         col += nvc_printf("$green$#%"PRIi64"$$", intg);
       }
       break;
    case MIR_TAG_LINKAGE:
-      col += color_printf("$magenta$%s$$", istr(mu->linkage.items[value.id]));
+      col += nvc_printf("$magenta$%pi$$", mu->linkage.items[value.id]);
       break;
    case MIR_TAG_ENUM:
-      col += color_printf("%u", value.id);
+      col += nvc_printf("%u", value.id);
       break;
    default:
-      col += color_printf("$red$invalid$$");
+      col += nvc_printf("$red$invalid$$");
       break;
    }
 
@@ -416,7 +416,7 @@ static void mir_dump_stamp(mir_unit_t *mu, mir_type_t type, mir_stamp_t stamp)
       case MIR_STAMP_POINTER:
          {
             static const char *map[] = {
-               "", "const", "stack", "local", "global", ""
+               "", "null", "const", "stack", "local", "global", ""
             };
             printf("%s", map[sd->u.pointer.memory]);
 
@@ -453,7 +453,7 @@ static int mir_dump_const_array(mir_unit_t *mu, mir_value_t value,
    int col = printf(" := const ");
 
    if (is_string) {
-      col += color_printf("$green$\"");
+      col += nvc_printf("$green$\"");
       for (int i = 0; i < n->nargs; i++) {
          mir_value_t elt = mir_get_arg(mu, value, i);
          int64_t cval;
@@ -462,7 +462,7 @@ static int mir_dump_const_array(mir_unit_t *mu, mir_value_t value,
          else
             should_not_reach_here();
       }
-      col += color_printf("\"$$");
+      col += nvc_printf("\"$$");
       return col;
    }
 
@@ -490,8 +490,8 @@ static int mir_dump_strength(mir_unit_t *mu, mir_value_t value)
    static const char *names[] = {
       "highz", "small", "medium", "weak", "large", "pull", "strong", "supply"
    };
-   return color_printf("$green$(%s1,%s0)$$", names[STRENGTH1(value.id)],
-                       names[STRENGTH0(value.id)]);
+   return nvc_printf("$green$(%s1,%s0)$$", names[STRENGTH1(value.id)],
+                     names[STRENGTH0(value.id)]);
 }
 
 static int mir_dump_vector_op(mir_unit_t *mu, mir_value_t value)
@@ -523,13 +523,14 @@ static int mir_dump_vector_op(mir_unit_t *mu, mir_value_t value)
    case MIR_VEC_SLL:      return printf(" << ");
    case MIR_VEC_SRL:      return printf(" >> ");
    case MIR_VEC_SRA:      return printf(" >>> ");
+   case MIR_VEC_EXP:      return printf(" ** ");
    default: return printf(" <%d> ", value.id);
    }
 }
 
 static int mir_dump_locus(object_t *obj)
 {
-   int col = color_printf("$magenta$");
+   int col = nvc_printf("$magenta$");
 
    tree_t t = tree_from_object(obj);
    if (t != NULL)
@@ -539,7 +540,7 @@ static int mir_dump_locus(object_t *obj)
    if (v != NULL)
       col += printf("%s@", vlog_kind_str(vlog_kind(v)));
 
-   col += color_printf("%p$$", obj);
+   col += nvc_printf("%p$$", obj);
    return col;
 }
 
@@ -584,14 +585,14 @@ static void mir_visit_records(mir_unit_t *mu, mir_type_t type, ihash_t **seen)
             break;
 
          int col = 0;
-         col += color_printf("  $magenta$%s$$", istr(td->u.record.name));
+         col += nvc_printf("  $magenta$%pi$$", td->u.record.name);
          mir_dump_tab(col, 40);
-         color_printf("$cyan${");
+         nvc_printf("$cyan${");
          for (int i = 0; i < td->u.record.count; i++) {
             if (i > 0) printf(", ");
             mir_dump_one_type(mu, td->u.record.fields[i]);
          }
-         color_printf("}$$\n");
+         nvc_printf("}$$\n");
 
          ihash_put(*seen, type.bits, (void *)-1);
       }
@@ -632,8 +633,8 @@ void mir_annotate(mir_unit_t *mu, const mir_annotate_t *cb, void *ctx)
 
    printf("\n");
    if (mu->name != NULL)
-      color_printf("Name       $cyan$%s$$\n", istr(mu->name));
-   color_printf("Kind       $cyan$");
+      nvc_printf("Name       $cyan$%pi\n", mu->name);
+   nvc_printf("Kind       $cyan$");
    switch (mu->kind) {
    case MIR_UNIT_PROCESS:     printf("process"); break;
    case MIR_UNIT_FUNCTION:    printf("function"); break;
@@ -644,9 +645,9 @@ void mir_annotate(mir_unit_t *mu, const mir_annotate_t *cb, void *ctx)
    case MIR_UNIT_PROPERTY:    printf("property"); break;
    case MIR_UNIT_PROTECTED:   printf("protected"); break;
    }
-   color_printf("$$\n");
+   nvc_printf("$$\n");
    if (mu->parent != NULL)
-      color_printf("Context    $cyan$%s$$\n", istr(mu->parent->name));
+      nvc_printf("Context    $cyan$%pi$$\n", mu->parent->name);
 
    mir_dump_records(mu);
 
@@ -656,21 +657,21 @@ void mir_annotate(mir_unit_t *mu, const mir_annotate_t *cb, void *ctx)
       for (int i = 0; i < mu->vars.count; i++) {
          const var_data_t *vd = &(mu->vars.items[i]);
          int col = printf("  ");
-         col += color_printf("$magenta$%s$$", istr(vd->name));
+         col += nvc_printf("$magenta$%pi", vd->name);
          mir_dump_type(mu, col, vd->type);
          mir_dump_stamp(mu, vd->type, vd->stamp);
          if (vd->flags & MIR_VAR_SIGNAL) printf(", signal");
          if (vd->flags & MIR_VAR_HEAP)   printf(", heap");
          if (vd->flags & MIR_VAR_CONST)  printf(", constant");
          if (vd->flags & MIR_VAR_TEMP)   printf(", temp");
-         color_printf("$$\n");
+         nvc_printf("$$\n");
       }
    }
 
    if (!mir_is_null(mu->result)) {
-      color_printf("Result     $cyan$");
+      nvc_printf("Result     $cyan$");
       mir_dump_one_type(mu, mu->result);
-      color_printf("$$\n");
+      nvc_printf("$$\n");
    }
 
    if (mu->params.count > 0) {
@@ -678,10 +679,10 @@ void mir_annotate(mir_unit_t *mu, const mir_annotate_t *cb, void *ctx)
 
       for (int i = 0; i < mu->params.count; i++) {
          const param_data_t *pd = &(mu->params.items[i]);
-         int col = color_printf("  $magenta$%s$$", istr(pd->name));
+         int col = nvc_printf("  $magenta$%pi$$", pd->name);
          mir_dump_type(mu, col, pd->type);
          mir_dump_stamp(mu, pd->type, pd->stamp);
-         color_printf("$$\n");
+         nvc_printf("$$\n");
       }
    }
 
@@ -689,7 +690,7 @@ void mir_annotate(mir_unit_t *mu, const mir_annotate_t *cb, void *ctx)
       printf("Linkage\n");
 
       for (int i = 0; i < mu->linkage.count; i++)
-         color_printf("  $magenta$%s$$\n", istr(mu->linkage.items[i]));
+         nvc_printf("  $magenta$%pi\n", mu->linkage.items[i]);
    }
 
    if (mu->blocks.count > 0)
@@ -700,7 +701,7 @@ void mir_annotate(mir_unit_t *mu, const mir_annotate_t *cb, void *ctx)
       for (int j = 0; j < b->num_nodes; j++) {
          int col = 0;
          if (j == 0) {
-            col += color_printf("  $yellow$%2d:$$ ", i);
+            col += nvc_printf("  $yellow$%2d:$$ ", i);
             if (cb->begin_block != NULL) {
                mir_block_t b = { .tag = MIR_TAG_BLOCK, .id = i };
                col += (*cb->begin_block)(mu, b, col, ctx);
@@ -771,6 +772,7 @@ void mir_annotate(mir_unit_t *mu, const mir_annotate_t *cb, void *ctx)
 
          case MIR_OP_NOT:
          case MIR_OP_ALLOC:
+         case MIR_OP_INSTANCE_NAME:
             {
                col += mir_dump_value(mu, result, cb, ctx);
                col += printf(" := %s ", mir_op_string(n->op));
@@ -849,6 +851,8 @@ void mir_annotate(mir_unit_t *mu, const mir_annotate_t *cb, void *ctx)
          case MIR_OP_JUMP:
          case MIR_OP_ADD_TRIGGER:
          case MIR_OP_DEBUG_OUT:
+         case MIR_OP_CONSUME:
+         case MIR_OP_RESUME:
             {
                printf("%s ", mir_op_string(n->op));
                mir_dump_value(mu, n->args[0], cb, ctx);
@@ -949,15 +953,6 @@ void mir_annotate(mir_unit_t *mu, const mir_annotate_t *cb, void *ctx)
             }
             break;
 
-         case MIR_OP_CONSUME:
-         case MIR_OP_RESUME:
-         case MIR_OP_INSTANCE_NAME:
-            {
-               printf("%s ", mir_op_string(n->op));
-               mir_dump_value(mu, n->args[0], cb, ctx);
-            }
-            break;
-
          case MIR_OP_FCALL:
          case MIR_OP_FUNCTION_TRIGGER:
             {
@@ -1003,7 +998,7 @@ void mir_annotate(mir_unit_t *mu, const mir_annotate_t *cb, void *ctx)
                   col += printf("%s ", i > 2 ? "," : "");
                   col += mir_dump_arg(mu, result, i, cb, ctx);
                }
-               col += color_printf(" locus ");
+               col += nvc_printf(" locus ");
                col += mir_dump_arg(mu, result, 1, cb, ctx);
                mir_dump_type(mu, col, n->type);
                mir_dump_stamp(mu, n->type, n->stamp);
@@ -1059,7 +1054,7 @@ void mir_annotate(mir_unit_t *mu, const mir_annotate_t *cb, void *ctx)
          case MIR_OP_LOCUS:
             {
                col += mir_dump_value(mu, result, cb, ctx);
-               col += color_printf(" := %s ", mir_op_string(n->op));
+               col += nvc_printf(" := %s ", mir_op_string(n->op));
                col += mir_dump_locus(n->locus);
                mir_dump_type(mu, col, n->type);
             }
@@ -1068,7 +1063,7 @@ void mir_annotate(mir_unit_t *mu, const mir_annotate_t *cb, void *ctx)
          case MIR_OP_INIT_SIGNAL:
             {
                col += mir_dump_value(mu, result, cb, ctx);
-               col += color_printf(" := %s count ", mir_op_string(n->op));
+               col += nvc_printf(" := %s count ", mir_op_string(n->op));
                col += mir_dump_arg(mu, result, 0, cb, ctx);
                col += printf(" size ");
                col += mir_dump_arg(mu, result, 1, cb, ctx);
@@ -1090,7 +1085,7 @@ void mir_annotate(mir_unit_t *mu, const mir_annotate_t *cb, void *ctx)
          case MIR_OP_IMPLICIT_SIGNAL:
             {
                col += mir_dump_value(mu, result, cb, ctx);
-               col += color_printf(" := %s count ", mir_op_string(n->op));
+               col += nvc_printf(" := %s count ", mir_op_string(n->op));
                col += mir_dump_arg(mu, result, 0, cb, ctx);
                col += printf(" size ");
                col += mir_dump_arg(mu, result, 1, cb, ctx);
@@ -1108,7 +1103,7 @@ void mir_annotate(mir_unit_t *mu, const mir_annotate_t *cb, void *ctx)
          case MIR_OP_PACKAGE_INIT:
             {
                col += mir_dump_value(mu, result, cb, ctx);
-               col += color_printf(" := %s ", mir_op_string(n->op));
+               col += nvc_printf(" := %s ", mir_op_string(n->op));
                col += mir_dump_value(mu, n->args[0], cb, ctx);
                if (n->nargs > 1) {
                   col += printf(" context ");
@@ -1227,7 +1222,7 @@ void mir_annotate(mir_unit_t *mu, const mir_annotate_t *cb, void *ctx)
                col += printf(" := %s ", mir_op_string(n->op));
                col += mir_dump_value(mu, n->args[1], cb, ctx);
                ident_t name = mir_get_name(mu, n->args[2]);
-               col += color_printf(" $magenta$%s$$", istr(name));
+               col += nvc_printf(" $magenta$%pi", name);
                mir_dump_type(mu, col, n->type);
                mir_dump_stamp(mu, n->type, n->stamp);
             }
@@ -1240,11 +1235,11 @@ void mir_annotate(mir_unit_t *mu, const mir_annotate_t *cb, void *ctx)
                col += mir_dump_value(mu, n->args[0], cb, ctx);
                ident_t link = mir_get_name(mu, n->args[1]);
                if (link == NULL)
-                  col += color_printf(", $red$invalid$$");
+                  col += nvc_printf(", $red$invalid$$");
                else {
                   mir_shape_t *s = mir_get_shape(mu->context, link);
                   ident_t name = s->slots[n->args[2].id].name;
-                  col += color_printf(", $magenta$%s$$", istr(name));
+                  col += nvc_printf(", $magenta$%pi$$", name);
                }
                mir_dump_type(mu, col, n->type);
                mir_dump_stamp(mu, n->type, n->stamp);
@@ -1258,6 +1253,24 @@ void mir_annotate(mir_unit_t *mu, const mir_annotate_t *cb, void *ctx)
                col += mir_dump_value(mu, n->args[0], cb, ctx);
                col += printf(" offset ");
                col += mir_dump_value(mu, n->args[1], cb, ctx);
+               mir_dump_type(mu, col, n->type);
+               mir_dump_stamp(mu, n->type, n->stamp);
+            }
+            break;
+
+         case MIR_OP_TABLE_REF:
+            {
+               col += mir_dump_value(mu, result, cb, ctx);
+               col += printf(" := %s ", mir_op_string(n->op));
+               col += mir_dump_value(mu, n->args[0], cb, ctx);
+               col += printf(" stride ");
+               col += mir_dump_value(mu, n->args[1], cb, ctx);
+               col += printf(" [");
+               for (int i = 2; i < n->nargs; i++) {
+                  if (i > 2) col += printf(", ");
+                  col += mir_dump_arg(mu, result, i, cb, ctx);
+               }
+               col += printf("]");
                mir_dump_type(mu, col, n->type);
                mir_dump_stamp(mu, n->type, n->stamp);
             }
@@ -1845,18 +1858,18 @@ void mir_annotate(mir_unit_t *mu, const mir_annotate_t *cb, void *ctx)
          case MIR_OP_COMMENT:
             {
                const char *str = tb_get(mu->comments) + n->args[0].id;
-               color_printf("$cyan$// %s$$ ", str);
+               nvc_printf("$cyan$// %s$$ ", str);
             }
             break;
 #endif
 
          case _MIR_DELETED_OP:
-            col += color_printf("$red$deleted$$");
+            col += nvc_printf("$red$deleted$$");
             break;
 
          default:
             {
-               col += color_printf("$red$0x%02x$$ ", n->op);
+               col += nvc_printf("$red$0x%02x$$ ", n->op);
                for (int k = 0; k < n->nargs; k++) {
                   if (k > 0) col += printf(", ");
                   mir_value_t arg = mir_get_arg(mu, result, k);
@@ -1874,9 +1887,9 @@ void mir_annotate(mir_unit_t *mu, const mir_annotate_t *cb, void *ctx)
                  || (mu->cursor.pos >= b->num_nodes && j == b->num_nodes - 1));
 
          if (mark)
-            color_printf("\t $red$<----$$");
+            nvc_printf("\t $red$<----$$");
 
-         color_printf("$$\n");
+         nvc_printf("$$\n");
 
          if (cb->end_node != NULL) {
             mir_block_t b = { .tag = MIR_TAG_BLOCK, .id = i };
@@ -1885,7 +1898,7 @@ void mir_annotate(mir_unit_t *mu, const mir_annotate_t *cb, void *ctx)
       }
 
       if (b->num_nodes == 0)
-         color_printf("  $yellow$%2d:$$ $red$Empty basic block$$\n", i);
+         nvc_printf("  $yellow$%2d:$$ $red$Empty basic block$$\n", i);
    }
 
    printf("\n");

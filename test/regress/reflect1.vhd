@@ -39,7 +39,7 @@ begin
         assert istm.to_subtype_mirror = stm;
         assert ivm.get_subtype_mirror = istm;
         assert istm.ascending;
-        assert istm.length = 0;         -- XXX: should be an error
+        --assert istm.length = 0;    -- Error
         assert istm.low.value = integer'left;
         assert istm.high.value = integer'right;
         assert istm.left = istm.low;

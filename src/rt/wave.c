@@ -29,6 +29,8 @@
 #include "rt/wave.h"
 #include "tree.h"
 #include "type.h"
+#include "vlog/vlog-node.h"
+#include "vlog/vlog-util.h"
 
 #include <assert.h>
 #include <unistd.h>
@@ -113,6 +115,7 @@ typedef struct _wave_dumper {
    uint64_t       last_time;
    jit_t         *jit;
    hash_t        *typecache;
+   fst_type_t    *datatypes[DT_STRING + 1];
    data_array_t   dumped;
 } wave_dumper_t;
 
@@ -257,15 +260,7 @@ static void fst_fmt_enum(rt_watch_t *w, fst_data_t *data)
 }
 #endif
 
-static void fst_fmt_net(rt_watch_t *w, fst_data_t *data)
-{
-   static const char map[] = "01zx";
-   const uint8_t *value = signal_value(data->signal);
-   fstWriterEmitValueChange(data->dumper->fst_ctx, data->handle[0],
-                            map + (value[0] & 3));
-}
-
-static void fst_fmt_net_array(rt_watch_t *w, fst_data_t *data)
+static void fst_fmt_verilog(rt_watch_t *w, fst_data_t *data)
 {
    static const char map[] = "01zx";
    const uint8_t *p = signal_value(data->signal);
@@ -342,13 +337,7 @@ static fst_type_t *fst_type_for(wave_dumper_t *wd, type_t type,
       break;
 
    case T_INTEGER:
-      if (is_well_known(type_ident(type)) == W_VERILOG_NET_VALUE) {
-         ft->vartype = FST_VT_VCD_WIRE;
-         ft->fn      = fst_fmt_net;
-         ft->size    = 1;
-         ft->sdt     = FST_SDT_NONE;
-      }
-      else {
+      {
          int64_t low, high;
          range_bounds(range_of(type, 0), &low, &high);
 
@@ -381,14 +370,6 @@ static fst_type_t *fst_type_for(wave_dumper_t *wd, type_t type,
             ft->vartype = FST_VT_SV_LOGIC;
             ft->fn      = fst_fmt_chars;
             ft->u.map   = "01";
-            ft->size    = 1;
-            break;
-
-         case W_VERILOG_LOGIC:
-            ft->sdt     = FST_SDT_NONE;
-            ft->vartype = FST_VT_SV_LOGIC;
-            ft->fn      = fst_fmt_chars;
-            ft->u.map   = "01zx";
             ft->size    = 1;
             break;
 
@@ -494,13 +475,6 @@ static fst_type_t *fst_type_for(wave_dumper_t *wd, type_t type,
             ft->sdt     = FST_SDT_VHDL_STRING;
             ft->vartype = FST_VT_GEN_STRING;
             ft->fn      = fst_fmt_chars;
-            ft->u.map   = NULL;
-            ft->size    = 1;
-            break;
-         case W_VERILOG_WIRE_ARRAY:
-            ft->sdt     = FST_SDT_NONE;
-            ft->vartype = FST_VT_VCD_WIRE;
-            ft->fn      = fst_fmt_net_array;
             ft->u.map   = NULL;
             ft->size    = 1;
             break;
@@ -654,7 +628,7 @@ static void fst_create_array_var(wave_dumper_t *wd, tree_t d, rt_signal_t *s,
    if (ft == NULL)
       return;
 
-   if (type_is_enum(elem) || ft->vartype == FST_VT_VCD_WIRE) {
+   if (type_is_enum(elem)) {
       data = xcalloc(sizeof(fst_data_t) + sizeof(fstHandle));
       data->type  = ft;
       data->size  = length * ft->size;
@@ -812,6 +786,27 @@ static void gtkw_print_scope_comment(gtkw_writer_t *gtkw, rt_scope_t *scope,
    gtkw->end_of_record = false;
 }
 
+static void gtkw_start_of_signal(gtkw_writer_t *gtkw)
+{
+   if (gtkw == NULL)
+      return;
+
+   if (gtkw->end_of_record) {
+      fputs("-\n", gtkw->file);  // Blank line after record
+      gtkw->end_of_record = false;
+   }
+
+   fprintf(gtkw->file, "[color] %d\n", gtkw->colour);
+}
+
+static void gtkw_end_of_signal(gtkw_writer_t *gtkw, const char *name)
+{
+   if (gtkw == NULL)
+      return;
+
+   fprintf(gtkw->file, "%s.%s\n", tb_get(gtkw->hier), name);
+}
+
 static void fst_create_record_var(wave_dumper_t *wd, tree_t d,
                                   rt_scope_t *scope, type_t type,
                                   const char *suffix, text_buf_t *tb)
@@ -906,21 +901,14 @@ static void fst_alias_var(wave_dumper_t *wd, tree_t d, rt_scope_t *scope,
 
    fst_create_handle(wd, data, tb_get(tb), FST_VD_INPUT, type, data->handle[0]);
 
-   if (wd->gtkw != NULL)
-      fprintf(wd->gtkw->file, "%s.%s\n", tb_get(wd->gtkw->hier), tb_get(tb));
+   gtkw_end_of_signal(wd->gtkw, tb_get(tb));
 }
 
 static void fst_process_signal(wave_dumper_t *wd, rt_scope_t *scope, tree_t d,
                                type_t type, text_buf_t *tb)
 {
    if (type_is_homogeneous(type)) {
-      if (wd->gtkw != NULL) {
-         if (wd->gtkw->end_of_record) {
-            fputs("-\n", wd->gtkw->file);  // Blank line after record
-            wd->gtkw->end_of_record = false;
-         }
-         fprintf(wd->gtkw->file, "[color] %d\n", wd->gtkw->colour);
-      }
+      gtkw_start_of_signal(wd->gtkw);
 
       rt_signal_t *s = find_signal(scope, d);
       if (s == NULL)
@@ -943,6 +931,124 @@ static void fst_process_signal(wave_dumper_t *wd, rt_scope_t *scope, tree_t d,
          fst_create_record_array_var(wd, d, sub, type, 0, 0,
                                      sub->children.count, "", tb);
    }
+}
+
+static fst_type_t *fst_get_data_type(wave_dumper_t *wd, data_type_t dt)
+{
+   if (wd->datatypes[dt] == (void *)-1)
+      return NULL;
+   else if (wd->datatypes[dt] != NULL)
+      return wd->datatypes[dt];
+
+   fst_type_t *ft = xcalloc(sizeof(fst_type_t));
+
+   switch (dt) {
+   case DT_LOGIC:
+   case DT_IMPLICIT:
+      ft->sdt     = FST_SDT_NONE;
+      ft->vartype = FST_VT_SV_LOGIC;
+      ft->fn      = fst_fmt_verilog;
+      ft->u.map   = "01zx";
+      ft->size    = 1;
+      break;
+   case DT_INTEGER:
+      ft->sdt     = FST_SDT_NONE;
+      ft->vartype = FST_VT_VCD_INTEGER;
+      ft->fn      = fst_fmt_verilog;
+      ft->u.map   = "01zx";
+      ft->size    = 1;
+      break;
+   default:
+      goto poison;
+   }
+
+   return (wd->datatypes[dt] = ft);
+
+ poison:
+   wd->datatypes[dt] = (void *)-1;
+   free(ft);
+   return NULL;
+}
+
+static void fst_process_verilog(wave_dumper_t *wd, rt_scope_t *scope,
+                                tree_t wrap, vlog_node_t v, text_buf_t *tb)
+{
+   gtkw_start_of_signal(wd->gtkw);
+
+   rt_signal_t *s = find_signal(scope, wrap);
+   if (s == NULL)
+      return;
+   else if (s->where != wrap)
+      return;  // Collapsed with another signal
+
+   vlog_node_t type = vlog_type(v);
+   if (vlog_kind(type) != V_DATA_TYPE)
+      return;  // Not supported
+
+   vlog_node_t d0 = NULL;
+   const int nranges = vlog_ranges(type);
+   if (nranges > 1)
+      return;
+   else if (nranges == 1) {
+      d0 = vlog_range(type, 0);
+      if (vlog_subkind(d0) == V_DIM_UNPACKED)
+         return;
+   }
+
+   const data_type_t dt = vlog_subkind(type);
+   fst_type_t *ft = fst_get_data_type(wd, dt);
+   if (ft == NULL)
+      return;
+
+   tb_rewind(tb);
+   tb_istr(tb, vlog_ident(v));
+
+   switch (dt) {
+   case DT_IMPLICIT:
+   case DT_LOGIC:
+   case DT_BIT:
+      if (d0 != NULL) {
+         int64_t left, right;
+         vlog_bounds(d0, &left, &right);
+
+         tb_printf(tb, "[%"PRIi64":%"PRIi64"]", left, right);
+      }
+      break;
+   default:
+      break;
+   }
+
+
+   fst_data_t *data = xcalloc(sizeof(fst_data_t) + sizeof(fstHandle));
+   data->type   = ft;
+   data->count  = 1;
+   data->size   = ft->size * vlog_size(type);
+   data->dumper = wd;
+
+   enum fstVarDir dir = FST_VD_IMPLICIT;
+
+   data->handle[0] = fstWriterCreateVar2(
+      wd->fst_ctx,
+      data->type->vartype,
+      dir,
+      data->size,
+      tb_get(tb),
+      0,
+      NULL,
+      FST_SVT_NONE,
+      data->type->sdt);
+
+   assert(find_watch(&(s->nexus), fst_event_cb) == NULL);
+
+   data->decl   = wrap;
+   data->signal = s;
+   data->watch  = watch_new(wd->model, fst_event_cb, data, WATCH_POSTPONED, 1);
+
+   model_set_event_cb(wd->model, data->signal, data->watch);
+
+   APUSH(wd->dumped, data);
+
+   gtkw_end_of_signal(wd->gtkw, tb_get(tb));
 }
 
 static void fst_enter_scope(wave_dumper_t *wd, tree_t unit, rt_scope_t *scope,
@@ -1028,9 +1134,23 @@ static void fst_walk_design(wave_dumper_t *wd, tree_t block)
    const int ndecls = tree_decls(block);
    for (int i = 0; i < ndecls; i++) {
       tree_t d = tree_decl(block, i);
-      if (tree_kind(d) == T_SIGNAL_DECL) {
+      switch (tree_kind(d)) {
+      case T_SIGNAL_DECL:
          if (wave_should_dump(scope, tree_ident(d)))
             fst_process_signal(wd, scope, d, tree_type(d), tb);
+         break;
+      case T_VERILOG:
+         {
+            vlog_node_t v = tree_vlog(d);
+            const vlog_kind_t kind = vlog_kind(v);
+            if (kind != V_NET_DECL && kind != V_VAR_DECL)
+               continue;
+            else if (wave_should_dump(scope, vlog_ident(v)))
+               fst_process_verilog(wd, scope, d, v, tb);
+         }
+         break;
+      default:
+         break;
       }
    }
 

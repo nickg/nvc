@@ -155,19 +155,19 @@ jobs:
           fetch-depth: 1
       - uses: msys2/setup-msys2@v2
         with:
+          msystem: clang64
           update: true
           install: >-
             base-devel
-            mingw-w64-x86_64-llvm
-            mingw-w64-x86_64-check
-            mingw-w64-x86_64-ncurses
-            mingw-w64-x86_64-libffi
-            mingw-w64-x86_64-pkgconf
-            mingw-w64-x86_64-gcc
-            mingw-w64-x86_64-tcl
-            mingw-w64-x86_64-tcllib
-            mingw-w64-x86_64-zstd
-            unzip
+            mingw-w64-clang-x86_64-llvm
+            mingw-w64-clang-x86_64-check
+            mingw-w64-clang-x86_64-ncurses
+            mingw-w64-clang-x86_64-libffi
+            mingw-w64-clang-x86_64-pkgconf
+            mingw-w64-clang-x86_64-gcc
+            mingw-w64-clang-x86_64-tcl
+            mingw-w64-clang-x86_64-tcllib
+            mingw-w64-clang-x86_64-zstd
             git
             autoconf
             automake-wrapper
@@ -177,6 +177,7 @@ jobs:
         run: |
           mkdir build
           cd build
+          export CFLAGS='-O1 -g -gcodeview' LDFLAGS='-fuse-ld=lld -g -Wl,--pdb='
           bash ../configure --enable-debug --disable-lto
       - name: Build
         run: make -C build -j $(nproc)

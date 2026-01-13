@@ -623,14 +623,6 @@ formal_kind_t scope_formal_kind(nametab_t *tab)
    return tab->top_scope->formal_kind;
 }
 
-static uint32_t hash_name(ident_t name)
-{
-   if (isalpha_iso88591(ident_char(name, 0)))
-      return ident_casehash(name);
-   else
-      return ident_hash(name);
-}
-
 static bool compare_name(ident_t a, ident_t b)
 {
    if (a == b)
@@ -643,7 +635,7 @@ static bool compare_name(ident_t a, ident_t b)
 
 static symbol_t *lookup_symbol(scope_t *s, ident_t name)
 {
-   const uint32_t hash = hash_name(name);
+   const uint32_t hash = ident_hash(name);
 
    for (int slot = hash & (s->tabsz - 1);; slot = (slot + 1) & (s->tabsz - 1)) {
       symbol_t *sym = s->symtab[slot];
@@ -741,7 +733,7 @@ static symbol_t *local_symbol_for(scope_t *s, ident_t name)
 {
    grow_symbol_table(s, s->tabcount + 1);
 
-   const uint32_t hash = hash_name(name);
+   const uint32_t hash = ident_hash(name);
 
    int slot = hash & (s->tabsz - 1);
    for (;; slot = (slot + 1) & (s->tabsz - 1)) {

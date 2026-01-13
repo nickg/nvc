@@ -367,7 +367,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_REF | I_SPEC | I_TYPE),
 
    // T_INERTIAL
-   (I_VALUE | I_TYPE | I_TARGET),
+   (I_VALUE | I_TYPE),
 
    // T_ELEM_RESOLUTION
    (I_ASSOCS),

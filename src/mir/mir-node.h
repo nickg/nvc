@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2024-2025  Nick Gasson
+//  Copyright (C) 2024-2026  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -106,6 +106,15 @@ STATIC_ASSERT(sizeof(mir_stamp_t) == 4);
          assert((p).tag == MIR_TAG_TYPE);       \
          (mir_type_t){ .bits = (p).bits };      \
       })
+
+typedef struct {
+   uint16_t first;
+   uint16_t width;
+} mir_vreg_t;
+
+STATIC_ASSERT(sizeof(mir_vreg_t) == 4);
+
+#define MIR_VREG_MAX UINT16_MAX
 
 typedef enum {
    MIR_CMP_EQ,
@@ -259,6 +268,7 @@ typedef enum {
    MIR_OP_SCHED_INACTIVE,
    MIR_OP_SCHED_DEPOSIT,
    MIR_OP_PUT_DRIVER,
+   MIR_OP_TABLE_REF,
 } mir_op_t;
 
 typedef enum {
@@ -311,6 +321,7 @@ typedef enum {
 
 typedef enum {
    MIR_MEM_NONE,
+   MIR_MEM_NULL,
    MIR_MEM_CONST,
    MIR_MEM_STACK,
    MIR_MEM_LOCAL,
@@ -343,6 +354,7 @@ typedef enum {
    MIR_VEC_SLL,
    MIR_VEC_SRL,
    MIR_VEC_SRA,
+   MIR_VEC_EXP,
 } mir_vec_op_t;
 
 #define MIR_APPEND UINT_MAX
@@ -381,6 +393,7 @@ mir_type_t mir_get_elem(mir_unit_t *mu, mir_type_t type);
 mir_type_t mir_get_pointer(mir_unit_t *mu, mir_type_t type);
 unsigned mir_get_dims(mir_unit_t *mu, mir_type_t type);
 unsigned mir_get_size(mir_unit_t *mu, mir_type_t type);
+unsigned mir_get_slots(mir_unit_t *mu, mir_type_t type);
 bool mir_get_signed(mir_unit_t *mu, mir_type_t type);
 mir_class_t mir_get_class(mir_unit_t *mu, mir_type_t type);
 mir_repr_t mir_get_repr(mir_unit_t *mu, mir_type_t type);
@@ -403,6 +416,7 @@ unsigned mir_count_nodes(mir_unit_t *mu, mir_block_t block);
 mir_value_t mir_get_node(mir_unit_t *mu, mir_block_t block, unsigned nth);
 unsigned mir_count_vars(mir_unit_t *mu);
 unsigned mir_count_params(mir_unit_t *mu);
+unsigned mir_count_vregs(mir_unit_t *mu);
 
 mir_op_t mir_get_op(mir_unit_t *mu, mir_value_t node);
 unsigned mir_count_args(mir_unit_t *mu, mir_value_t node);
@@ -429,6 +443,7 @@ mir_type_t mir_get_var_type(mir_unit_t *mu, mir_value_t value);
 void mir_set_input(mir_unit_t *mu, mir_value_t phi, unsigned nth,
                    mir_block_t block, mir_value_t value);
 bool mir_block_finished(mir_unit_t *mu, mir_block_t block);
+mir_vreg_t mir_get_vreg(mir_unit_t *mu, mir_value_t value);
 
 void mir_set_result(mir_unit_t *mu, mir_type_t type);
 mir_type_t mir_get_result(mir_unit_t *mu);
@@ -553,6 +568,9 @@ mir_value_t mir_build_all(mir_unit_t *mu, mir_value_t access);
 mir_value_t mir_build_address_of(mir_unit_t *mu, mir_value_t array);
 mir_value_t mir_build_array_ref(mir_unit_t *mu, mir_value_t array,
                                 mir_value_t offset);
+mir_value_t mir_build_table_ref(mir_unit_t *mu, mir_value_t array,
+                                mir_value_t stride, const mir_value_t *args,
+                                int nargs);
 mir_value_t mir_build_record_ref(mir_unit_t *mu, mir_value_t record,
                                  unsigned field);
 

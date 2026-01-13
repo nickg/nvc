@@ -260,6 +260,49 @@ static PLI_INT32 monitor_tf(PLI_BYTE8 *userdata)
    return 0;
 }
 
+static PLI_INT32 readmemh_tf(PLI_BYTE8 *userdata)
+{
+   vpiHandle callh = vpi_handle(vpiSysTfCall, 0);
+   vpiHandle argv = vpi_iterate(vpiArgument, callh);
+
+   vpiHandle file_arg = vpi_scan(argv);
+   vpiHandle mem_arg = vpi_scan(argv);
+
+   s_vpi_value file = { .format = vpiStringVal };
+   vpi_get_value(file_arg, &file);
+   vpi_release_handle(file_arg);
+
+   FILE *f = fopen(file.value.str, "r");
+   if (f == NULL)
+      jit_msg(NULL, DIAG_FATAL, "failed to open %s: %s",
+              file.value.str, last_os_error());
+
+   char *line LOCAL = NULL;
+   size_t line_len = 0, index = 0;
+   while (getline(&line, &line_len, f) != -1) {
+      char *savep = NULL;
+      char *tok = strtok_r(line, " \t\r\n", &savep);
+      if (tok == NULL)
+         continue;
+
+      vpiHandle elem = vpi_handle_by_index(mem_arg, index++);
+      if (elem == NULL)
+         break;
+
+      s_vpi_value val = { .format = vpiHexStrVal, .value.str = tok };
+      vpi_put_value(elem, &val, NULL, vpiNoDelay);
+
+      vpi_release_handle(elem);
+   }
+
+   fclose(f);
+
+   vpi_release_handle(mem_arg);
+   vpi_release_handle(argv);
+   vpi_release_handle(callh);
+   return 0;
+}
+
 static PLI_INT32 time_tf(PLI_BYTE8 *userdata)
 {
    rt_model_t *m = get_model();
@@ -295,16 +338,17 @@ static PLI_INT32 random_tf(PLI_BYTE8 *userdata)
    vpiHandle call = vpi_handle(vpiSysTfCall, NULL);
    assert(call != NULL);
 
-   vpiHandle argv = vpi_iterate(vpiArgument, call), seed = NULL;
-   if (argv != NULL) {
-      seed = vpi_scan(argv);
-      vpi_release_handle(argv);
+   vpiHandle argv = vpi_iterate(vpiArgument, call);
 
+   vpiHandle seed = vpi_scan(argv);
+   if (seed != NULL) {
       s_vpi_value val = { .format = vpiIntVal };
       vpi_get_value(seed, &val);
 
       a_seed = val.value.integer;
    }
+
+   vpi_release_handle(argv);
 
    s_vpi_value result = {
       .format = vpiIntVal,
@@ -353,6 +397,11 @@ static s_vpi_systf_data builtins[] = {
       .type   = vpiSysTask,
       .tfname = "$monitor",
       .calltf = monitor_tf
+   },
+   {
+      .type   = vpiSysTask,
+      .tfname = "$readmemh",
+      .calltf = readmemh_tf
    },
    {
       .type        = vpiSysFunc,

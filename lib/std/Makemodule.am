@@ -20,16 +20,16 @@ lib/std/_NVC_LIB:
 lib/std/_index:
 
 lib/std/STD.STANDARD: $(srcdir)/lib/std/standard.vhd @ifGNUmake@ | $(DRIVER)
-	$(nvc) --std=1993 --work=lib/std -a --bootstrap $(srcdir)/lib/std/standard.vhd
+	$(nvc) --std=1993 --work=lib/std -a --relative=$(srcdir) --bootstrap $(srcdir)/lib/std/standard.vhd
 
 lib/std/STD.STANDARD-body: $(srcdir)/lib/std/standard-body.vhd @ifGNUmake@ | $(DRIVER)
-	$(nvc) --std=1993 --work=lib/std -a $(srcdir)/lib/std/standard-body.vhd
+	$(nvc) --std=1993 --work=lib/std -a --relative=$(srcdir) $(srcdir)/lib/std/standard-body.vhd
 
 lib/std/STD.TEXTIO: $(srcdir)/lib/std/textio.vhd @ifGNUmake@ | $(DRIVER)
-	$(nvc) --std=1993 -L lib/ --work=lib/std -a $(srcdir)/lib/std/textio.vhd
+	$(nvc) --std=1993 -L lib/ --work=lib/std -a --relative=$(srcdir) $(srcdir)/lib/std/textio.vhd
 
 lib/std/STD.TEXTIO-body: $(srcdir)/lib/std/textio-body.vhd @ifGNUmake@ | $(DRIVER)
-	$(nvc) --std=1993 -L lib/ --work=lib/std -a $(srcdir)/lib/std/textio-body.vhd
+	$(nvc) --std=1993 -L lib/ --work=lib/std -a --relative=$(srcdir) $(srcdir)/lib/std/textio-body.vhd
 
 gen-deps-std:
 	$(nvc) --std=1993 -L lib/ --work=lib/std --print-deps | \

@@ -1,0 +1,1 @@
+1ns+0: result of -9223372036854775808 * 2 cannot be represented as INTEGER

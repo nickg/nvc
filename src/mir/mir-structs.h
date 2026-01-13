@@ -232,6 +232,8 @@ typedef struct _mir_unit {
    mir_value_t     *argspill;
    unsigned         num_argspill;
    unsigned         max_argspill;
+   unsigned         num_vregs;
+   mir_vreg_t      *vregs;
 #ifdef DEBUG
    text_buf_t      *comments;
 #endif

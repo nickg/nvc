@@ -42,4 +42,10 @@ module test1(a, b, c, d, e, f, clk, rst, r, s, t, u, v, w);
     (c -=> t) = t2;   // Parsing ambiguity
   endspecify
 
+  // Issue #1372
+  specify
+    specparam PATHPULSE$ = (0.001, 0.001);
+    specparam MacroType = "comb";
+  endspecify
+
 endmodule // test1

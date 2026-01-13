@@ -929,19 +929,21 @@ jit_handle_t jit_assemble(jit_t *j, ident_t name, const char *text)
    if (f != NULL)
       return f->handle;
 
-   SCOPED_LOCK(j->lock);
+   {
+      SCOPED_LOCK(j->lock);
 
-   f = xcalloc(sizeof(jit_func_t));
+      f = xcalloc(sizeof(jit_func_t));
 
-   f->name      = name;
-   f->state     = JIT_FUNC_READY;
-   f->jit       = j;
-   f->handle    = j->next_handle++;
-   f->next_tier = j->tiers;
-   f->hotness   = f->next_tier ? f->next_tier->threshold : 0;
-   f->entry     = jit_interp;
+      f->name      = name;
+      f->state     = JIT_FUNC_READY;
+      f->jit       = j;
+      f->handle    = j->next_handle++;
+      f->next_tier = j->tiers;
+      f->hotness   = f->next_tier ? f->next_tier->threshold : 0;
+      f->entry     = jit_interp;
 
-   jit_install(j, f);
+      jit_install(j, f);
+   }
 
    enum { LABEL, INS, CCSIZE, RESULT, ARG1, ARG2, NEWLINE, CP } state = LABEL;
 
@@ -1063,8 +1065,7 @@ jit_handle_t jit_assemble(jit_t *j, ident_t name, const char *text)
 
             int ipos = 0;
             for (; ipos < ARRAY_LEN(optab)
-                    && strcmp(optab[ipos].name, tok); ipos++)
-               ;
+                    && strcmp(optab[ipos].name, tok); ipos++);
 
             if (ipos == ARRAY_LEN(optab))
                fatal_trace("illegal instruction %s", tok);

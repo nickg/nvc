@@ -299,15 +299,24 @@ bool eval_possible(tree_t t, unit_registry_t *ur, mir_context_t *mc)
             return eval_not_possible(t, "non-static expression");
 
          tree_t decl = tree_ref(t);
+
          const subprogram_kind_t kind = tree_subkind(decl);
-         if (tree_flags(decl) & TREE_F_IMPURE)
-            return eval_not_possible(t, "call to impure function");
-         else if (kind != S_USER && !is_open_coded_builtin(kind)
-                  && unit_registry_get(ur, tree_ident2(decl)) == NULL
-                  && mir_get_unit(mc, tree_ident2(decl)) == NULL)
-            return eval_not_possible(t, "not yet lowered predef");
-         else if (kind == S_USER && !is_package(tree_container(decl)))
-            return eval_not_possible(t, "subprogram not in package");
+         switch (kind) {
+         case S_USER:
+            if (tree_flags(decl) & TREE_F_IMPURE)
+               return eval_not_possible(t, "call to impure function");
+            else if (!is_package(tree_container(decl)))
+               return eval_not_possible(t, "subprogram not in package");
+            break;
+         case S_IEEE_MISC:
+            break;
+         default:
+            if (!is_open_coded_builtin(kind)
+                && unit_registry_get(ur, tree_ident2(decl)) == NULL
+                && mir_get_unit(mc, tree_ident2(decl)) == NULL)
+               return eval_not_possible(t, "not yet lowered predef");
+            break;
+         }
 
          const int nparams = tree_params(t);
          for (int i = 0; i < nparams; i++) {

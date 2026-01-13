@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2025  Nick Gasson
+//  Copyright (C) 2011-2026  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -26,6 +26,7 @@
 #include "mir/mir-unit.h"
 #include "option.h"
 #include "phase.h"
+#include "printf.h"
 #include "rt/assert.h"
 #include "rt/model.h"
 #include "rt/mspace.h"
@@ -74,7 +75,7 @@ typedef struct {
 } cmd_state_t;
 
 const char copy_string[] =
-   "Copyright (C) 2011-2025  Nick Gasson\n"
+   "Copyright (C) 2011-2026  Nick Gasson\n"
    "This program comes with ABSOLUTELY NO WARRANTY. This is free software, "
    "and\nyou are welcome to redistribute it under certain conditions. See "
    "the GNU\nGeneral Public Licence for details.";
@@ -146,6 +147,20 @@ static void parse_pp_define(char *optarg)
    }
 }
 
+static bool parse_warn_option(char *optarg)
+{
+   if (strcmp(optarg, "error") == 0)
+      return true;
+   else {
+      diag_t *d = diag_new(DIAG_FATAL, NULL);
+      diag_printf(d, "invalid warning option '%s'", optarg);
+      diag_hint(d, NULL, "valid options are: error");
+      diag_emit(d);
+
+      fatal_exit(EXIT_FAILURE);
+   }
+}
+
 static void do_file_list(const char *file, jit_t *jit, unit_registry_t *ur,
                          mir_context_t *mc)
 {
@@ -199,6 +214,19 @@ static void do_file_list(const char *file, jit_t *jit, unit_registry_t *ur,
    fclose(f);
 }
 
+static void werror_diag_cb(diag_t *d, void *ctx)
+{
+   diag_level_t level = diag_level(d, NULL);
+   if (level != DIAG_WARN)
+      return;
+
+   diag_hint(d, NULL, "this warning is treated as an error due to "
+             "$bold$-Werror$$");
+
+   level = DIAG_ERROR;
+   diag_level(d, &level);
+}
+
 static int analyse(int argc, char **argv, cmd_state_t *state)
 {
    static struct option long_options[] = {
@@ -215,14 +243,16 @@ static int analyse(int argc, char **argv, cmd_state_t *state)
       { "single-unit",     no_argument,       0, 'u' },
       { "preserve-case",   no_argument,       0, 'p' },
       { "keywords",        required_argument, 0, 'k' },
+      { "relative",        required_argument, 0, 'r' },
+      { "warn",            required_argument, 0, 'W' },
       { 0, 0, 0, 0 }
    };
 
    const int next_cmd = scan_cmd(2, argc, argv);
    int c, index = 0, error_limit = 20;
    const char *file_list = NULL;
-   const char *spec = ":D:f:I:";
-   bool no_save = false;
+   const char *spec = ":D:f:I:W:";
+   bool no_save = false, werror = false;
 
    while ((c = getopt_long(next_cmd, argv, spec, long_options, &index)) != -1) {
       switch (c) {
@@ -283,12 +313,21 @@ static int analyse(int argc, char **argv, cmd_state_t *state)
                fatal("'%s' is not a valid Verilog version", optarg);
          }
          break;
+      case 'r':
+         opt_set_str(OPT_RELATIVE_PATH, optarg);
+         break;
+      case 'W':
+         werror = parse_warn_option(optarg);
+         break;
       default:
          should_not_reach_here();
       }
    }
 
    set_error_limit(error_limit);
+
+   if (werror)
+      diag_add_hint_fn(werror_diag_cb, NULL);
 
    if (state->mir == NULL)
       state->mir = mir_context_new();
@@ -309,6 +348,9 @@ static int analyse(int argc, char **argv, cmd_state_t *state)
       else
          analyse_file(argv[i], jit, state->registry, state->mir);
    }
+
+   if (werror)
+      diag_remove_hint_fn(werror_diag_cb);
 
    jit_free(jit);
    set_error_limit(0);
@@ -590,17 +632,6 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
 
    progress("elaborating design");
 
-   if (state->cover != NULL) {
-      fbuf_t *f = fbuf_open(meta.cover_file, FBUF_OUT, FBUF_CS_NONE);
-      if (f == NULL)
-         fatal_errno("failed to open coverage database: %s", meta.cover_file);
-
-      cover_dump_items(state->cover, f, COV_DUMP_ELAB);
-      fbuf_close(f, NULL);
-
-      progress("dumping coverage data");
-   }
-
    if (error_count() > 0)
       return EXIT_FAILURE;
 
@@ -618,6 +649,17 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
 
    if (!no_save)
       cgen(top, state->registry, state->mir, state->jit);
+
+   if (state->cover != NULL) {
+      fbuf_t *f = fbuf_open(meta.cover_file, FBUF_OUT, FBUF_CS_NONE);
+      if (f == NULL)
+         fatal_errno("failed to open coverage database: %s", meta.cover_file);
+
+      cover_dump_items(state->cover, f, COV_DUMP_ELAB);
+      fbuf_close(f, NULL);
+
+      progress("dumping coverage data");
+   }
 
    argc -= next_cmd - 1;
    argv += next_cmd - 1;
@@ -2126,8 +2168,8 @@ static int preprocess_cmd(int argc, char **argv, cmd_state_t *state)
 
 static void usage(void)
 {
-   color_printf("$!cyan$Usage:$$ $bold$%s [OPTION]... "
-                "COMMAND [OPTION]...$$\n\n",  PACKAGE);
+   nvc_printf("$!cyan$Usage:$$ $bold$%s [OPTION]... "
+              "COMMAND [OPTION]...$$\n\n",  PACKAGE);
 
    wrapped_printf("Global options are placed before COMMAND, and "
                   "command-specific options are placed afterwards. "
@@ -2207,9 +2249,11 @@ static void usage(void)
            { "--preserve-case",
              "Preserve the original case of VHDL identifiers" },
            { "--psl", "Enable parsing of PSL directives in comments" },
+           { "--relative=DIR", "Store paths relative to DIR" },
            { "--relaxed", "Disable certain pedantic rule checks" },
            { "--single-unit",
              "Treat all Verilog files as a single compilation unit" },
+           { "-Werror", "Treat all analysis warnings as errors" },
         }
       },
       { "Elaboration options",
@@ -2284,7 +2328,7 @@ static void usage(void)
         {
            { "--format=FMT", "File format (must be 'cobertura')" },
            { "-o, --output=FILE", "Output file name" },
-           { "--relative=PATH", "Strip PATH from prefix of absolute paths" },
+           { "--relative=PATH", "Report file names relative to PATH" },
         }
       },
       { "Install options",
@@ -2297,7 +2341,7 @@ static void usage(void)
    const int right = MAX(60, terminal_width());
 
    for (int i = 0; i < ARRAY_LEN(groups); i++) {
-      color_printf("$bold$$cyan$%s:$$\n", groups[i].group);
+      nvc_printf("$bold$$cyan$%s:$$\n", groups[i].group);
 
       for (int j = 0; j < ARRAY_LEN(groups[i].options); j++) {
          const char *args  = groups[i].options[j].args;
@@ -2308,9 +2352,9 @@ static void usage(void)
 
          int col = 0;
          if (args[0] == '-' && args[1] == '-' && i > 0)
-            col += color_printf("     $bold$%s$$ ", args);
+            col += nvc_printf("     $bold$%s$$ ", args);
          else
-            col += color_printf(" $bold$%s$$ ", args);
+            col += nvc_printf(" $bold$%s$$ ", args);
 
          const int indent = i == 0 ? 30 : 20;
          if (col > indent)
@@ -2346,13 +2390,13 @@ static void usage(void)
 
    LOCAL_TEXT_BUF tb = tb_new();
    lib_print_search_paths(tb);
-   color_printf("$!cyan$Library search paths:$$%s\n\n", tb_get(tb));
+   nvc_printf("$!cyan$Library search paths:$$%s\n\n", tb_get(tb));
 
    wrapped_printf("The full manual can be read with $bold$man 1 %s$$ and "
                   "contains detailed explanations of the commands and options "
                   "above as well as examples.\n", PACKAGE_NAME);
-   color_printf("\nReport bugs at $link:%s\07%s$\n", PACKAGE_BUGREPORT,
-                PACKAGE_BUGREPORT);
+   nvc_printf("\nReport bugs at $link:%s\07%s$\n", PACKAGE_BUGREPORT,
+              PACKAGE_BUGREPORT);
 }
 
 static vhdl_standard_t parse_standard(const char *str)

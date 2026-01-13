@@ -157,19 +157,31 @@ typedef struct {
 
 typedef struct {
    c_abstractDecl decl;
+   PLI_UINT32     size;
 } c_net;
 
 DEF_CLASS(net, vpiNet, decl.object);
 
 typedef struct {
    c_abstractDecl decl;
+   PLI_UINT32     size;
+   PLI_UINT32     offset;
 } c_reg;
 
 DEF_CLASS(reg, vpiReg, decl.object);
 
 typedef struct {
+   c_abstractDecl decl;
+   vpiLazyList    elems;
+   c_vpiObject   *left;
+   c_vpiObject   *right;
+} c_regArray;
+
+DEF_CLASS(regArray, vpiRegArray, decl.object);
+
+typedef struct {
    c_abstractDecl  decl;
-   c_constant     *value;
+   c_vpiObject    *value;
 } c_parameter;
 
 DEF_CLASS(parameter, vpiParameter, decl.object);
@@ -211,6 +223,7 @@ typedef struct _vpi_context {
 
 static c_vpiObject *build_expr(vlog_node_t v, c_abstractScope *scope);
 static void vpi_lazy_decls(c_vpiObject *obj);
+static void vpi_lazy_elems(c_vpiObject *obj);
 static c_refcounted *is_refcounted(c_vpiObject *obj);
 
 static vpi_context_t *global_context = NULL;   // TODO: thread local
@@ -365,6 +378,7 @@ static c_abstractDecl *is_abstractDecl(c_vpiObject *obj)
 {
    switch (obj->type) {
    case vpiReg:
+   case vpiRegArray:
    case vpiNet:
    case vpiParameter:
       return container_of(obj, c_abstractDecl, object);
@@ -390,7 +404,10 @@ static c_constant *is_constantOrParam(c_vpiObject *obj)
    case vpiConstant:
       return container_of(obj, c_constant, expr.object);
    case vpiParameter:
-      return container_of(obj, c_parameter, decl.object)->value;
+      {
+         c_vpiObject *value = container_of(obj, c_parameter, decl.object)->value;
+         return is_constantOrParam(value);
+      }
    default:
       return NULL;
    }
@@ -546,16 +563,34 @@ static void build_net(vlog_node_t v, c_abstractScope *scope)
 {
    c_net *net = new_object(sizeof(c_net), vpiNet);
    init_abstractDecl(&(net->decl), v, scope);
+   net->size = vlog_size(vlog_type(v));
 
    vpi_list_add(&scope->decls.list, &(net->decl.object));
 }
 
 static void build_reg(vlog_node_t v, c_abstractScope *scope)
 {
-   c_reg *reg = new_object(sizeof(c_reg), vpiReg);
-   init_abstractDecl(&(reg->decl), v, scope);
+   const int nranges = vlog_ranges(v);
+   if (nranges > 0) {
+      vlog_node_t d0 = vlog_range(v, 0);
+      assert(vlog_subkind(d0) == V_DIM_UNPACKED);
 
-   vpi_list_add(&scope->decls.list, &(reg->decl.object));
+      c_regArray *arr = new_object(sizeof(c_regArray), vpiRegArray);
+      init_abstractDecl(&(arr->decl), v, scope);
+      arr->elems.fn = vpi_lazy_elems;
+      arr->left = build_expr(vlog_left(d0), scope);
+      arr->right = build_expr(vlog_right(d0), scope);
+
+      vpi_list_add(&scope->decls.list, &(arr->decl.object));
+   }
+   else {
+      c_reg *reg = new_object(sizeof(c_reg), vpiReg);
+      init_abstractDecl(&(reg->decl), v, scope);
+      reg->size = vlog_size(vlog_type(v));
+      reg->offset = 0;
+
+      vpi_list_add(&scope->decls.list, &(reg->decl.object));
+   }
 }
 
 static c_constant *build_constant(vlog_node_t v)
@@ -670,7 +705,7 @@ static void build_parameter(vlog_node_t v, c_abstractScope *scope)
 {
    c_parameter *param = new_object(sizeof(c_parameter), vpiParameter);
    init_abstractDecl(&(param->decl), v, scope);
-   param->value = build_constant(vlog_value(v));
+   param->value = build_expr(vlog_value(v), scope);
 
    vpi_list_add(&scope->decls.list, &(param->decl.object));
 }
@@ -780,6 +815,27 @@ static void *vpi_get_ptr(c_abstractDecl *decl)
    return (decl->mptr = jit_get_frame_var(jit, decl->scope->handle, name));
 }
 
+static bool vpi_get_range(c_vpiObject *obj, int64_t *ileft, int64_t *iright)
+{
+   c_constant *left = NULL, *right = NULL;
+
+   c_regArray *arr = is_regArray(obj);
+   if (arr != NULL) {
+      left = is_constantOrParam(arr->left);
+      right = is_constantOrParam(arr->right);
+   }
+
+   if (right == NULL || left == NULL) {
+      vpi_error(vpiError, &(obj->loc), "object has unknown range");
+      return false;
+   }
+
+   *ileft = number_integer(vlog_number(left->expr.where));
+   *iright = number_integer(vlog_number(right->expr.where));
+
+   return true;
+}
+
 static void vpi_lazy_decls(c_vpiObject *obj)
 {
    c_abstractScope *s = is_abstractScope(obj);
@@ -804,6 +860,31 @@ static void vpi_lazy_decls(c_vpiObject *obj)
       default:
          break;
       }
+   }
+}
+
+static void vpi_lazy_elems(c_vpiObject *obj)
+{
+   c_regArray *arr = is_regArray(obj);
+   assert(arr != NULL);
+
+   int64_t left, right;
+   if (!vpi_get_range(obj, &left, &right))
+      return;
+
+   PLI_UINT32 count = left > right ? left - right + 1 : right - left + 1;
+
+   vpi_list_reserve(&arr->elems.list, count);
+
+   PLI_UINT32 size = vlog_size(vlog_type(arr->decl.where));
+
+   for (int64_t i = 0; i < count; i++) {
+      c_reg *reg = new_object(sizeof(c_reg), vpiReg);
+      init_abstractDecl(&(reg->decl), arr->decl.where, arr->decl.scope);
+      reg->size = size;
+      reg->offset = left > right ? (count - 1 - i) * size : i * size;
+
+      vpi_list_add(&arr->elems.list, &(reg->decl.object));
    }
 }
 
@@ -872,6 +953,46 @@ vpiHandle vpi_handle(PLI_INT32 type, vpiHandle refHandle)
       }
    }
 
+   return NULL;
+}
+
+DLLEXPORT
+vpiHandle vpi_handle_by_name(PLI_BYTE8 *name, vpiHandle scope)
+{
+   VPI_MISSING;
+}
+
+DLLEXPORT
+vpiHandle vpi_handle_by_index(vpiHandle handle, PLI_INT32 index)
+{
+   vpi_clear_error();
+
+   VPI_TRACE("handle=%s index=%d", handle_pp(handle), index);
+
+   c_vpiObject *obj = from_handle(handle);
+   if (obj == NULL)
+      return NULL;
+
+   int64_t left, right;
+   if (!vpi_get_range(obj, &left, &right))
+      return NULL;
+
+   const int64_t low = left < right ? left : right;
+   const int64_t high = left < right ? right : left;
+
+   if (index < low || index > high) {
+      vpi_error(vpiError, &(obj->loc), "index %d out of range", index);
+      return NULL;
+   }
+
+   c_regArray *arr = is_regArray(obj);
+   if (arr != NULL) {
+      vpiObjectList *elems = expand_lazy_list(&arr->decl.object, &arr->elems);
+      assert(index - low < elems->count);
+      return user_handle_for(elems->items[index - low]);
+   }
+
+   vpi_error(vpiError, &(obj->loc), "handle cannot be indexed");
    return NULL;
 }
 
@@ -965,15 +1086,19 @@ PLI_INT32 vpi_get(PLI_INT32 property, vpiHandle object)
       }
    }
 
-   c_abstractDecl *decl = is_abstractDecl(obj);
-   if (decl != NULL) {
+   c_reg *reg = is_reg(obj);
+   if (reg != NULL) {
       switch (property) {
       case vpiSize:
-         {
-            sig_shared_t **ss = vpi_get_ptr(decl);
-            rt_signal_t *s = container_of(*ss, rt_signal_t, shared);
-            return signal_width(s);
-         }
+         return reg->size;
+      }
+   }
+
+   c_net *net = is_net(obj);
+   if (net != NULL) {
+      switch (property) {
+      case vpiSize:
+         return net->size;
       }
    }
 
@@ -1114,7 +1239,8 @@ vpiHandle vpi_put_value(vpiHandle handle, p_vpi_value value_p,
          {
             assert(value_p->format == vpiIntVal);
 
-            c->args[0].integer = value_p->value.integer;
+            // TODO: mask should be based on result size
+            c->args[0].integer = value_p->value.integer & 0xffffffff;
             c->args[1].integer = 0;
 
             return NULL;
@@ -1127,13 +1253,30 @@ vpiHandle vpi_put_value(vpiHandle handle, p_vpi_value value_p,
       sig_shared_t **ss = vpi_get_ptr(&reg->decl);
       rt_signal_t *s = container_of(*ss, rt_signal_t, shared);
 
-      const int width = signal_width(s);
-      uint8_t *unpacked LOCAL = xcalloc_array(width, sizeof(uint8_t));
+      uint8_t *unpacked LOCAL = xcalloc_array(reg->size, sizeof(uint8_t));
 
       switch (value_p->format) {
       case vpiIntVal:
-         for (int i = 0; i < width && i < 32; i++)
-            unpacked[width - 1 - i] = !!(value_p->value.integer & (1 << i));
+         for (int i = 0; i < reg->size && i < 32; i++)
+            unpacked[reg->size - 1 - i] = !!(value_p->value.integer & (1 << i));
+         break;
+
+      case vpiHexStrVal:
+         for (int i = 0; i < reg->size && value_p->value.str[i]; i++) {
+            uint8_t nibble;
+            switch (value_p->value.str[i]) {
+            case '0'...'9': nibble = value_p->value.str[i] - '0'; break;
+            case 'a'...'f': nibble = 10 + value_p->value.str[i] - 'a'; break;
+            case 'A'...'F': nibble = 10 + value_p->value.str[i] - 'A'; break;
+            default:
+               vpi_error(vpiError, NULL, "invalid character %c in hex string",
+                         value_p->value.str[i]);
+               return NULL;
+            }
+
+            for (int j = i * 4; j < reg->size && j < i * 4 + 4; j++)
+               unpacked[j] = !!(nibble & (1 << (3 - j + i * 4)));
+         }
          break;
 
       default:
@@ -1142,7 +1285,7 @@ vpiHandle vpi_put_value(vpiHandle handle, p_vpi_value value_p,
          return NULL;
       }
 
-      deposit_signal(vpi_get_model(c), s, unpacked, 0, width);
+      deposit_signal(vpi_get_model(c), s, unpacked, reg->offset, reg->size);
       return NULL;
    }
 

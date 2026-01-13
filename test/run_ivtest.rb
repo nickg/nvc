@@ -18,18 +18,20 @@ LibPath = "#{BuildDir}/lib/std:#{BuildDir}/lib/ieee"
 IvtestDir = Pathname.new(ARGV[0]).realpath
 GitRev = IO::popen("git rev-parse --short HEAD").read.chomp
 Tool = ENV['NVC'] || 'nvc'
-ExpectFails = 1406
+ExpectFails = 1530
 
 ENV['NVC_COLORS'] = 'always'
 
 def run_cmd(c, expfail, gold)
-  Open3.popen2e(c) do |i, oe, t|
+  Open3.popen3(c) do |i, o, e, t|
     i.close
 
     output = nil
+    err = nil
     begin
       Timeout::timeout(5) do
-        output = oe.read.force_encoding("ISO-8859-1")
+        output = o.read.force_encoding("ISO-8859-1")
+        err = e.read.force_encoding("ISO-8859-1")
       end
     rescue Timeout::Error
       Process.kill("KILL", t.pid)
@@ -38,22 +40,23 @@ def run_cmd(c, expfail, gold)
 
     status = t.value
 
-    if output =~ /Caught signal/ or (c =~ /-r/ and output =~ /FAILED TEST/) then
+    if err =~ /Caught signal/ or (c =~ /-r/ and output =~ /FAILED TEST/) then
       puts
       puts c.magenta
       puts output
+      puts err
       return false
-    elsif status != 0 and output =~ /PASSED TEST/ then
-      return true   # Testing assertion failure
     elsif status != 0 and not expfail then
       puts
       puts c.magenta
       puts output
+      puts err
       return false
     elsif status == 0 and expfail then
       puts
       puts c.magenta
       puts output
+      puts err
       puts "expected failure!".magenta
       return false
     elsif gold then
@@ -68,6 +71,13 @@ def run_cmd(c, expfail, gold)
         puts output
         return false
       end
+    elsif status == 0 and !(output =~ /PASSED/) then
+      puts
+      puts c.magenta
+      puts output
+      puts err
+      puts "did not print PASSED or FAILED!".magenta
+      return false
     end
 
     return true

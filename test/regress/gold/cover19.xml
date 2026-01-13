@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<scope name="WORK" file="cover19.vhd">
+  <scope name="COVER19" block_name="COVER19-TEST" line="7">
+    <scope name="CURR_STATE" line="26">
+      <state hier="WORK.COVER19.CURR_STATE.BIN_STATE.ST_IDLE" data="1"/>
+      <state hier="WORK.COVER19.CURR_STATE.BIN_STATE.ST_ONE" data="0"/>
+      <state hier="WORK.COVER19.CURR_STATE.BIN_STATE.ST_TWO" data="1"/>
+      <state hier="WORK.COVER19.CURR_STATE.BIN_STATE.ST_THREE" data="0"/>
+      <state hier="WORK.COVER19.CURR_STATE.BIN_STATE.ST_WAITING" data="1"/>
+      <state hier="WORK.COVER19.CURR_STATE.BIN_STATE.ST_DONE" data="1"/>
+    </scope>
+    <scope name="STATE_REG" line="27">
+    </scope>
+    <scope name="SUB_FSM" line="28">
+      <state hier="WORK.COVER19.SUB_FSM.BIN_STATE.ST_TWO" data="1"/>
+      <state hier="WORK.COVER19.SUB_FSM.BIN_STATE.ST_THREE" data="0"/>
+      <state hier="WORK.COVER19.SUB_FSM.BIN_STATE.ST_WAITING" data="1"/>
+    </scope>
+    <scope name="_P0" line="32">
+    </scope>
+  </scope>
+</scope>

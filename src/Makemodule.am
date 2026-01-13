@@ -55,7 +55,9 @@ lib_libnvc_a_SOURCES = \
 	src/driver.c \
 	src/inst.h \
 	src/inst.c \
-	src/cgen.c
+	src/cgen.c \
+	src/printf.h \
+	src/printf.c
 
 if ENABLE_SERVER
 lib_libnvc_a_SOURCES += src/server.c src/server.h

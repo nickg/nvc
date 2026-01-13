@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2014-2025  Nick Gasson
+//  Copyright (C) 2014-2026  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -974,6 +974,157 @@ static void predef_reduction_op(mir_unit_t *mu, tree_t decl,
       mir_build_return(mu, loaded);
 }
 
+static void predef_mixed_bit_vec_op(mir_unit_t *mu, tree_t decl,
+                                    subprogram_kind_t kind)
+{
+   // Mixed scalar/array bit vector operations
+
+   mir_value_t r0 = mir_get_param(mu, 0), r1 = mir_get_param(mu, 1);
+
+   type_t r0_type = tree_type(tree_port(decl, 0));
+   const bool r0_is_array = type_is_array(r0_type);
+
+   mir_value_t array = r0_is_array ? r0 : r1;
+
+   mir_type_t t_offset = mir_offset_type(mu);
+   mir_type_t t_bool = mir_bool_type(mu);
+
+   mir_value_t i_var = mir_add_var(mu, t_offset, MIR_NULL_STAMP, ident_new("i"),
+                                   MIR_VAR_TEMP);
+   mir_build_store(mu, i_var, mir_const(mu, t_offset, 0));
+
+   mir_value_t len   = mir_build_uarray_len(mu, array, 0);
+   mir_value_t data  = mir_build_unwrap(mu, array);
+   mir_value_t left  = mir_build_uarray_left(mu, array, 0);
+   mir_value_t right = mir_build_uarray_right(mu, array, 0);
+   mir_value_t dir   = mir_build_uarray_dir(mu, array, 0);
+   mir_value_t null  = mir_build_range_null(mu, left, right, dir);
+
+   mir_value_t mem_reg = mir_build_alloc(mu, t_bool, MIR_NULL_STAMP, len);
+
+   mir_block_t body_bb = mir_add_block(mu);
+   mir_block_t exit_bb = mir_add_block(mu);
+
+   mir_build_cond(mu, null, exit_bb, body_bb);
+
+   mir_set_cursor(mu, body_bb, MIR_APPEND);
+
+   mir_value_t i_val = mir_build_load(mu, i_var);
+   mir_value_t l_ptr = mir_build_array_ref(mu, data, i_val);
+   mir_value_t l_val = mir_build_load(mu, l_ptr);
+   mir_value_t r_val = r0_is_array ? r1 : r0;
+
+   bool negate = false;
+   mir_value_t result = MIR_NULL_VALUE;
+   switch (kind) {
+   case S_MIXED_NAND: negate = true;
+   case S_MIXED_AND:  result = mir_build_and(mu, l_val, r_val); break;
+   case S_MIXED_NOR:  negate = true;
+   case S_MIXED_OR:   result = mir_build_or(mu, l_val, r_val); break;
+   case S_MIXED_XNOR: negate = true;
+   case S_MIXED_XOR:  result = mir_build_xor(mu, l_val, r_val); break;
+   default: should_not_reach_here();
+   }
+
+   if (negate)
+      result = mir_build_not(mu, result);
+
+   mir_build_store(mu, mir_build_array_ref(mu, mem_reg, i_val), result);
+
+   mir_value_t one  = mir_const(mu, t_offset, 1);
+   mir_value_t next = mir_build_add(mu, t_offset, i_val, one);
+   mir_value_t cmp  = mir_build_cmp(mu, MIR_CMP_EQ, next, len);
+   mir_build_store(mu, i_var, next);
+   mir_build_cond(mu, cmp, exit_bb, body_bb);
+
+   mir_set_cursor(mu, exit_bb, MIR_APPEND);
+
+   mir_dim_t dims[1] = {
+      {
+         .left  = left,
+         .right = right,
+         .dir   = dir
+      }
+   };
+   mir_build_return(mu, mir_build_wrap(mu, mem_reg, dims, 1));
+}
+
+static void predef_to_string(mir_unit_t *mu, tree_t decl)
+{
+   // LRM 08 section 5.7 on string representations
+
+   type_t arg_type = tree_type(tree_port(decl, 0));
+   mir_value_t r0 = mir_get_param(mu, 0);
+
+   mir_type_t t_char = mir_char_type(mu);
+   mir_type_t t_string = mir_string_type(mu);
+   mir_type_t t_offset = mir_offset_type(mu);
+
+   ident_t func = ident_prefix(type_ident(arg_type), ident_new("image"), '$');
+
+   mir_value_t args[] = { r0 };
+   mir_value_t str = mir_build_fcall(mu, func, t_string, MIR_NULL_STAMP,
+                                     args, ARRAY_LEN(args));
+
+   if (type_is_array(arg_type)) {
+      type_t elem = type_elem(arg_type);
+      if (type_is_enum(elem) && all_character_literals(elem)) {
+         // Remove the surrounding quotes
+         mir_value_t len = mir_build_uarray_len(mu, str, 0);
+         mir_value_t one = mir_const(mu, t_offset, 1);
+         mir_value_t two = mir_const(mu, t_offset, 2);
+         mir_value_t right = mir_build_sub(mu, t_offset, len, two);
+         mir_value_t dir = mir_build_uarray_dir(mu, str, 0);
+         mir_value_t data = mir_build_unwrap(mu, str);
+         mir_value_t data1 = mir_build_array_ref(mu, data, one);
+
+         mir_dim_t dims[] = {
+            { .left  = one,
+              .right = right,
+              .dir   = dir,
+            }
+         };
+         mir_build_return(mu, mir_build_wrap(mu, data1, dims, 1));
+         return;
+      }
+   }
+
+   assert(type_is_representable(arg_type));
+
+   if (type_is_enum(arg_type)) {
+      // If the result is a character literal return just the character
+      // without the quotes
+      mir_value_t quote = mir_const(mu, t_char, '\'');
+      mir_value_t data = mir_build_unwrap(mu, str);
+      mir_value_t char0 = mir_build_load(mu, data);
+      mir_value_t is_quote = mir_build_cmp(mu, MIR_CMP_EQ, char0, quote);
+
+      mir_block_t char_bb = mir_add_block(mu);
+      mir_block_t other_bb = mir_add_block(mu);
+
+      mir_build_cond(mu, is_quote, char_bb, other_bb);
+
+      mir_set_cursor(mu, char_bb, MIR_APPEND);
+
+      mir_value_t one = mir_const(mu, t_offset, 1);
+      mir_value_t char1_ptr = mir_build_array_ref(mu, data, one);
+      mir_value_t left = mir_build_uarray_left(mu, str, 0);
+      mir_value_t dir = mir_build_uarray_dir(mu, str, 0);
+
+      mir_dim_t dims[] = {
+         { .left  = left,
+           .right = left,
+           .dir   = dir,
+         }
+      };
+      mir_build_return(mu, mir_build_wrap(mu, char1_ptr, dims, 1));
+
+      mir_set_cursor(mu, other_bb, MIR_APPEND);
+   }
+
+   mir_build_return(mu, str);
+}
+
 void vhdl_lower_predef(mir_unit_t *mu, object_t *obj)
 {
    tree_t decl = tree_from_object(obj);
@@ -1062,9 +1213,22 @@ void vhdl_lower_predef(mir_unit_t *mu, object_t *obj)
    case S_REDUCE_XNOR:
       predef_reduction_op(mu, decl, kind);
       break;
+   case S_MIXED_AND:
+   case S_MIXED_OR:
+   case S_MIXED_XOR:
+   case S_MIXED_XNOR:
+   case S_MIXED_NAND:
+   case S_MIXED_NOR:
+      predef_mixed_bit_vec_op(mu, decl, kind);
+      break;
+   case S_TO_STRING:
+      predef_to_string(mu, decl);
+      break;
    default:
       should_not_reach_here();
    }
+
+   mir_optimise(mu, MIR_PASS_O0);
 }
 
 static void enum_image_helper(mir_unit_t *mu, type_t type, mir_value_t arg)
@@ -1484,4 +1648,6 @@ void vhdl_lower_image_helper(mir_unit_t *mu, object_t *obj)
    default:
       fatal_trace("cannot lower image helper for type %s", type_pp(type));
    }
+
+   mir_optimise(mu, MIR_PASS_O0);
 }

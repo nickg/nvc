@@ -20,6 +20,7 @@
 #include "hash.h"
 #include "ident.h"
 #include "phase.h"
+#include "printf.h"
 #include "psl/psl-phase.h"
 #include "tree.h"
 #include "type.h"
@@ -118,9 +119,9 @@ static void dump_type_hint(tree_t t)
 #if DUMP_TYPE_HINT
    static int nested = 0;
    if (++nested == 1 && tree_has_type(t)) {
-      color_printf("$red$$<$/*");
+      nvc_printf("$red$/*");
       dump_type(tree_type(t));
-      color_printf("$>$$red$*/$$");
+      nvc_printf("$red$*/$$");
    }
    --nested;
 #endif
@@ -1460,7 +1461,7 @@ static void dump_stmt(tree_t t, int indent)
    case T_SELECT:
       print_syntax(" <= ");
       if (tree_has_guard(t)) print_syntax("#guarded ");
-      color_printf("$red$/* TODO: T_SELECT */$$");
+      nvc_printf("$red$/* TODO: T_SELECT */$$");
       break;
 
    case T_CONCURRENT:

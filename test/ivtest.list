@@ -711,7 +711,8 @@ pow-ca			normal			ivltests
 pow-const		normal			ivltests
 pow-proc		normal			ivltests
 pow_ca_signed		normal			ivltests
-pow_ca_unsigned		normal			ivltests
+# Assumes arbitrary precision unsized integer operations
+#pow_ca_unsigned		normal			ivltests
 pow_reg_signed		normal			ivltests
 pow_reg_unsigned	normal			ivltests
 pow_signed		normal			ivltests

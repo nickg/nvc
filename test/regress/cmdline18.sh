@@ -18,6 +18,8 @@ EOF
 
 ! nvc --stderr=none -e test --no-save -r 2>stderr 1>stdout
 
+[ $? = 0 ]
+
 grep failure stdout
 [ -f stderr ]
 [ ! -s stderr ]

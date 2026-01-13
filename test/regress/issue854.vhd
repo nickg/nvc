@@ -3,11 +3,11 @@ end entity;
 
 architecture test of issue854 is
     type t_rec1 is record
-        f : integer;
+        f : natural;
     end record;
 
     type t_rec2 is record
-        a : integer;
+        a : natural;
         b : t_rec1;
     end record;
 

@@ -24,6 +24,7 @@
 #include "jit/jit.h"
 #include "lib.h"
 #include "option.h"
+#include "printf.h"
 #include "psl/psl-node.h"
 #include "rt/assert.h"
 #include "rt/copy.h"
@@ -215,15 +216,16 @@ static void __model_trace(rt_model_t *m, const char *fmt, ...)
    {
       SCOPED_LOCK(lock);
 
+      ostream_t *os = nvc_stderr();
       if (m->iteration < 0)
-         fprintf(stderr, "TRACE (init): ");
+         ostream_puts(os, "TRACE (init): ");
       else {
          char buf[64];
          fmt_time_r(buf, sizeof(buf), m->now, "");
-         fprintf(stderr, "TRACE %s+%d: ", buf, m->iteration);
+         nvc_fprintf(os, "TRACE %s+%d: ", buf, m->iteration);
       }
-      vfprintf(stderr, fmt, ap);
-      fprintf(stderr, "\n");
+      nvc_vfprintf(os, fmt, ap);
+      ostream_puts(os, "\n");
       fflush(stderr);
    }
 
@@ -1084,9 +1086,8 @@ static res_memo_t *memo_resolution_fn(rt_model_t *m, rt_signal_t *signal,
          memo->flags |= R_IDENT;
    }
 
-   TRACE("memoised resolution function %s for type %s",
-         istr(jit_get_name(m->jit, closure.handle)),
-         type_pp(tree_type(signal->where)));
+   TRACE("memoised resolution function %pi for type %pT",
+         jit_get_name(m->jit, closure.handle), tree_type(signal->where));
 
    jit_set_silent(m->jit, false);
    jit_reset_exit_status(m->jit);
@@ -1347,8 +1348,8 @@ static void build_index(rt_signal_t *signal)
    const int count =
       how < 0 ? (signal_w - how - 1) / -how : (signal_w >> shift) + 1;
 
-   TRACE("create index for signal %s how=%d count=%d",
-         istr(tree_ident(signal->where)), how, count);
+   TRACE("create index for signal %pi how=%d count=%d",
+         tree_ident(signal->where), how, count);
 
    rt_index_t *index = xcalloc_flex(sizeof(rt_index_t), count,
                                     sizeof(rt_nexus_t *));
@@ -1369,8 +1370,8 @@ static void update_index(rt_signal_t *s, rt_nexus_t *n)
    const unsigned offset = n->offset / n->size;
 
    if (!index_valid(s->index, offset)) {
-      TRACE("rebuild index for %s offset=%d how=%d",
-            istr(tree_ident(s->where)), offset, s->index->how);
+      TRACE("rebuild index for %pi offset=%d how=%d",
+            tree_ident(s->where), offset, s->index->how);
       build_index(s);
       assert(s->index->nexus[map_index(s->index, offset)] == n);
    }
@@ -1386,7 +1387,7 @@ static rt_nexus_t *lookup_index(rt_signal_t *s, int *offset)
    if (likely(offset == 0 || s->index == NULL))
       return &(s->nexus);
    else if (!index_valid(s->index, *offset)) {
-      TRACE("invalid index for %s offset=%d how=%d", istr(tree_ident(s->where)),
+      TRACE("invalid index for %pi offset=%d how=%d", tree_ident(s->where),
             *offset, s->index->how);
       free(s->index);
       s->index = NULL;
@@ -1781,8 +1782,8 @@ static void convert_driving(rt_conv_func_t *cf)
       cf->iteration = m->iteration;
    }
 
-   TRACE("call driving conversion function %s",
-         istr(jit_get_name(m->jit, cf->driving.handle)));
+   TRACE("call driving conversion function %pi",
+         jit_get_name(m->jit, cf->driving.handle));
 
    model_thread_t *thread = model_thread(m);
 
@@ -1808,8 +1809,8 @@ static void convert_effective(rt_conv_func_t *cf)
    cf->when = m->now;
    cf->iteration = m->iteration;
 
-   TRACE("call effective conversion function %s",
-         istr(jit_get_name(m->jit, cf->effective.handle)));
+   TRACE("call effective conversion function %pi",
+         jit_get_name(m->jit, cf->effective.handle));
 
    model_thread_t *thread = model_thread(m);
 
@@ -2496,7 +2497,7 @@ void model_reset(rt_model_t *m)
 
 static void update_property(rt_model_t *m, rt_prop_t *prop)
 {
-   TRACE("update property %s state %s", istr(prop->name),
+   TRACE("update property %pi state %s", prop->name,
          trace_states(&prop->state));
 
    rt_wakeable_t *obj = &(prop->wakeable);
@@ -2813,8 +2814,8 @@ static bool run_trigger(rt_model_t *m, rt_trigger_t *t)
                             &t->result, 1, &tlab))
             m->force_stop = true;
 
-         TRACE("run trigger %p %s ==> %"PRIi64, t,
-               istr(jit_get_name(m->jit, t->handle)), t->result.integer);
+         TRACE("run trigger %p %pi ==> %"PRIi64, t,
+               jit_get_name(m->jit, t->handle), t->result.integer);
       }
       break;
 
@@ -2864,7 +2865,7 @@ static bool run_trigger(rt_model_t *m, rt_trigger_t *t)
             assert(count >= 0);
          }
 
-         TRACE("level trigger %s+%d ==> %"PRIi64, istr(tree_ident(s->where)),
+         TRACE("level trigger %pi+%d ==> %"PRIi64, tree_ident(s->where),
                offset, t->result.integer);
       }
       break;

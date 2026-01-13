@@ -19,7 +19,7 @@
 #include "common.h"
 #include "diag.h"
 #include "diag.h"
-#include "eval.h"
+#include "ident.h"
 #include "jit/jit.h"
 #include "lib.h"
 #include "lower.h"
@@ -27,7 +27,9 @@
 #include "option.h"
 #include "phase.h"
 #include "rt/model.h"
-#include "vcode.h"
+#include "scan.h"
+#include "vlog/vlog-node.h"
+#include "vlog/vlog-phase.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -173,27 +175,53 @@ tree_t run_elab(void)
    unit_registry_t *ur = get_registry();
    jit_t *j = get_jit();
 
-   tree_t t, last_ent = NULL;
-   while ((t = parse())) {
-      fail_if(error_count() > 0);
+   object_t *top = NULL;
+   switch (source_kind()) {
+   case SOURCE_VHDL:
+      {
+         tree_t t;
+         while ((t = parse())) {
+            fail_if(error_count() > 0);
 
-      lib_put(lib_work(), t);
-      simplify_local(t, j, ur, mc);
-      bounds_check(t);
-      fail_if(error_count() > 0);
+            lib_put(lib_work(), t);
+            simplify_local(t, j, ur, mc);
+            bounds_check(t);
+            fail_if(error_count() > 0);
 
-      const tree_kind_t kind = tree_kind(t);
-      if (kind == T_ENTITY || kind == T_CONFIGURATION)
-         last_ent = t;
+            const tree_kind_t kind = tree_kind(t);
+            if (kind == T_ENTITY || kind == T_CONFIGURATION)
+               top = tree_to_object(t);
+         }
+      }
+      break;
+
+   case SOURCE_VERILOG:
+      {
+         vlog_node_t v;
+         while ((v = vlog_parse())) {
+            fail_if(error_count() > 0);
+
+            lib_put_vlog(lib_work(), v);
+            vlog_simp(v);
+            fail_if(error_count() > 0);
+
+            if (vlog_kind(v) == V_MODULE)
+               top = vlog_to_object(v);
+         }
+      }
+      break;
+
+   default:
+      ck_abort_msg("unsupported source kind");
    }
 
    rt_model_t *m = model_new(j, NULL);
 
-   tree_t top = elab(tree_to_object(last_ent), j, ur, mc, NULL, NULL, m);
+   tree_t e = elab(top, j, ur, mc, NULL, NULL, m);
 
    model_free(m);
 
-   return top;
+   return e;
 }
 
 tree_t _parse_and_check(const tree_kind_t *array, int num, bool simp)

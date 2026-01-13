@@ -63,12 +63,12 @@ architecture test of top is
             z : out p.t );
     end component;
 
-    signal xr, zr : real;
+    signal xr, zr1, zr2 : real;
 
     package real_adder is new work.adder generic map ( real );
 begin
 
-    u1: sub generic map ( real_adder ) port map ( xr, zr );
-    u2: sub2 generic map ( real_adder ) port map ( xr, zr );
+    u1: sub generic map ( real_adder ) port map ( xr, zr1 );
+    u2: sub2 generic map ( real_adder ) port map ( xr, zr2 );
 
 end architecture;

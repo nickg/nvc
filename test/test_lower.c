@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2014-2025  Nick Gasson
+//  Copyright (C) 2014-2026  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -25,6 +25,7 @@
 #include "phase.h"
 #include "rt/model.h"
 #include "scan.h"
+#include "test_mir.h"
 #include "vcode.h"
 
 #include <inttypes.h>
@@ -222,6 +223,7 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
       case VCODE_OP_LOAD_INDIRECT:
       case VCODE_OP_STORE_INDIRECT:
       case VCODE_OP_ARRAY_REF:
+      case VCODE_OP_TABLE_REF:
       case VCODE_OP_ADDRESS_OF:
       case VCODE_OP_SCHED_WAVEFORM:
       case VCODE_OP_SELECT:
@@ -372,6 +374,23 @@ static vcode_unit_t find_unit(const char *name)
       fail("missing vcode unit for %s", name);
 
    return vu;
+}
+
+static mir_unit_t *find_unit2(const char *name)
+{
+   unit_registry_t *ur = get_registry();
+   mir_context_t *mc = get_mir();
+
+   ident_t id = ident_new(name);
+
+   vcode_unit_t vu = unit_registry_get(ur, id);
+   if (vu == NULL)
+      fail("missing vcode unit for %s", name);
+
+   mir_unit_t *mu = mir_get_unit(mc, ident_new("WORK.ISSUE1259.FUNC(YY)Y"));
+   ck_assert_ptr_nonnull(mu);
+
+   return mu;
 }
 
 START_TEST(test_wait1)
@@ -2486,6 +2505,8 @@ START_TEST(test_issue203)
    input_from_file(TESTDIR "/lower/issue203.vhd");
 
    run_elab();
+
+   (void)find_unit("WORK.ISSUE203.MAIN");
 
    vcode_unit_t v0 = find_unit("WORK.ISSUE203.MAIN.PROC");
    vcode_select_unit(v0);
@@ -6365,7 +6386,7 @@ START_TEST(test_issue1029)
 
    EXPECT_BB(1) = {
       { VCODE_OP_CONTEXT_UPREF, .hops = 1 },
-      { VCODE_OP_INDEX, .name = "S.ename" },
+      { VCODE_OP_INDEX, .name = "S.ename1" },
       { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_NULL },
       { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
@@ -6799,7 +6820,7 @@ START_TEST(test_issue1280)
       { VCODE_OP_VAR_UPREF, .hops = 1, .name = "MY_SIG$delayed_2_NS" },
       { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_CONST, .value = 0 },
-      { VCODE_OP_STORE, .name = "i2" },
+      { VCODE_OP_STORE, .name = "i1" },
       { VCODE_OP_UARRAY_LEN },
       { VCODE_OP_UNWRAP },
       { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
@@ -6821,7 +6842,7 @@ START_TEST(test_issue1280)
       { VCODE_OP_UARRAY_LEN },
       { VCODE_OP_LENGTH_CHECK },
       { VCODE_OP_CONST, .value = 0 },
-      { VCODE_OP_STORE, .name = "i2" },
+      { VCODE_OP_STORE, .name = "i1" },
       { VCODE_OP_UNWRAP },
       { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
       { VCODE_OP_COND, .target = 7, .target_else = 6 },
@@ -6948,6 +6969,102 @@ START_TEST(test_issue1350)
 
       CHECK_BB(1);
    }
+
+   fail_if_errors();
+}
+END_TEST
+
+START_TEST(test_bounds3)
+{
+   input_from_file(TESTDIR "/lower/bounds3.vhd");
+
+   run_elab();
+
+   vcode_unit_t vu = find_unit("WORK.BOUNDS3.P1");
+   vcode_select_unit(vu);
+
+   EXPECT_BB(1) = {
+      { VCODE_OP_VAR_UPREF, .name = "A", .hops = 1 },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_VAR_UPREF, .name = "B", .hops = 1 },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_CONST, .value = 2 },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_INDEX, .name = "R1" },
+      { VCODE_OP_RECORD_REF, .field = 0 },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_DEBUG_LOCUS },
+      { VCODE_OP_DEBUG_LOCUS },
+      { VCODE_OP_RANGE_CHECK },
+      { VCODE_OP_SCHED_WAVEFORM },
+      { VCODE_OP_RECORD_REF, .field = 1 },
+      { VCODE_OP_DEBUG_LOCUS },
+      { VCODE_OP_CONST, .value = 3 },
+      { VCODE_OP_LENGTH_CHECK },
+      { VCODE_OP_SCHED_WAVEFORM },
+      { VCODE_OP_WAIT, .target = 2 },
+   };
+
+   CHECK_BB(1);
+
+   fail_if_errors();
+}
+END_TEST
+
+START_TEST(test_issue1259)
+{
+   input_from_file(TESTDIR "/lower/issue1259.vhd");
+
+   run_elab();
+
+   mir_unit_t *mu = find_unit2("WORK.ISSUE1259.FUNC(YY)Y");
+
+   static const mir_match_t bb0[] = {
+      { MIR_OP_SET, VAR("RES"), CONST(0), CONST(2) },
+      { MIR_OP_LOAD, PARAM("A") },
+      { MIR_OP_ARRAY_REF, PARAM("B"), CONST(1) },
+      { MIR_OP_LOAD, NODE(2) },
+      { MIR_OP_LINK_PACKAGE, LINK("IEEE.STD_LOGIC_1164") },
+      { MIR_OP_LINK_VAR, LINK("IEEE.STD_LOGIC_1164"), NODE(_),
+        EXTVAR("AND_TABLE") },
+      { MIR_OP_TABLE_REF, NODE(_), CONST(9) },
+      { MIR_OP_LOAD, NODE(_) },
+      { MIR_OP_LOAD, PARAM("B") },
+      { MIR_OP_TABLE_REF, NODE(_), CONST(9) },
+      { MIR_OP_LOAD, NODE(_) },
+      { MIR_OP_LINK_VAR, LINK("IEEE.STD_LOGIC_1164"), NODE(_),
+        EXTVAR("XOR_TABLE") },
+      { MIR_OP_TABLE_REF, NODE(_), CONST(9) },
+      { MIR_OP_LOAD, NODE(_) },
+      { MIR_OP_ARRAY_REF, PARAM("A"), CONST(1) },
+      { MIR_OP_LOAD, NODE(14) },
+      { MIR_OP_TABLE_REF, NODE(_), CONST(9) },
+      { MIR_OP_LOAD, NODE(_) },
+      { MIR_OP_TABLE_REF, NODE(_), CONST(9) },
+      { MIR_OP_LOAD, NODE(_) },
+      { MIR_OP_ARRAY_REF, VAR("RES"), CONST(1) },
+      { MIR_OP_STORE, NODE(_) },
+      { MIR_OP_LOAD, PARAM("A") },  // TODO: redundant
+      { MIR_OP_LOAD, PARAM("B") },  // TODO: redundant
+      { MIR_OP_TABLE_REF, NODE(_), CONST(9) },
+      { MIR_OP_LOAD, NODE(_) },
+      { MIR_OP_LOAD, NODE(14) },    // TODO: redundant
+      { MIR_OP_LOAD, NODE(2) },     // TODO: redundant
+      { MIR_OP_TABLE_REF, NODE(_), CONST(9) },
+      { MIR_OP_LOAD, NODE(_) },
+      { MIR_OP_TABLE_REF, NODE(_), CONST(9) },
+      { MIR_OP_LOAD, NODE(_) },
+      { MIR_OP_TABLE_REF, NODE(_), CONST(9) },
+      { MIR_OP_LOAD, NODE(_) },
+      { MIR_OP_TABLE_REF, NODE(_), CONST(9) },
+      { MIR_OP_LOAD, NODE(_) },
+      { MIR_OP_STORE, VAR("RES") },
+      { MIR_OP_WRAP, VAR("RES"), CONST(1), CONST(0) },
+      { MIR_OP_RETURN },
+   };
+   mir_match(mu, 0, bb0);
 
    fail_if_errors();
 }
@@ -7112,6 +7229,8 @@ Suite *get_lower_tests(void)
    tcase_add_test(tc, test_issue1280);
    tcase_add_test(tc, test_comp1);
    tcase_add_test(tc, test_issue1350);
+   tcase_add_test(tc, test_bounds3);
+   tcase_add_test(tc, test_issue1259);
    suite_add_tcase(s, tc);
 
    return s;

@@ -20,6 +20,7 @@
 #include "diag.h"
 #include "hash.h"
 #include "printer.h"
+#include "printf.h"
 #include "rt/assert.h"
 #include "rt/model.h"
 #include "rt/structs.h"
@@ -111,10 +112,14 @@ static int tcl_error(tcl_shell_t *sh, const char *fmt, ...)
 {
    va_list ap;
    va_start(ap, fmt);
-   char *buf LOCAL = color_vasprintf(fmt, ap);
+
+   LOCAL_TEXT_BUF tb = tb_new();
+   ostream_t os = { tb_ostream_write, tb, CHARSET_UTF8, color_terminal() };
+   nvc_vfprintf(&os, fmt, ap);
+
    va_end(ap);
 
-   Tcl_SetObjResult(sh->interp, Tcl_NewStringObj(buf, -1));
+   Tcl_SetObjResult(sh->interp, Tcl_NewStringObj(tb_get(tb), tb_len(tb)));
    return TCL_ERROR;
 }
 
@@ -142,8 +147,13 @@ static void shell_printf(tcl_shell_t *sh, const char *fmt, ...)
    va_start(ap, fmt);
 
    if (sh->handler.stdout_write != NULL) {
-      char *buf LOCAL = color_vasprintf(fmt, ap);
-      (*sh->handler.stdout_write)(buf, strlen(buf), sh->handler.context);
+      ostream_t os = {
+         sh->handler.stdout_write,
+         sh->handler.context,
+         CHARSET_ISO88591,
+         false
+      };
+      nvc_vfprintf(&os, fmt, ap);
    }
    else
       wrapped_vprintf(fmt, ap);
@@ -1294,7 +1304,7 @@ void shell_interact(tcl_shell_t *sh)
    while (!sh->quit && (line = (*sh->getline)(sh))) {
       const char *result = NULL;
       if (shell_eval(sh, line, &result) && *result != '\0')
-         color_printf("$+black$%s$$\n", result);
+         nvc_printf("$+black$%s$$\n", result);
 
       free(line);
    }

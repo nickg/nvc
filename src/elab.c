@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2025  Nick Gasson
+//  Copyright (C) 2011-2026  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -19,7 +19,6 @@
 #include "array.h"
 #include "common.h"
 #include "diag.h"
-#include "driver.h"
 #include "eval.h"
 #include "hash.h"
 #include "inst.h"
@@ -29,6 +28,7 @@
 #include "object.h"
 #include "option.h"
 #include "phase.h"
+#include "printf.h"
 #include "psl/psl-phase.h"
 #include "rt/model.h"
 #include "rt/structs.h"
@@ -66,7 +66,6 @@ typedef struct _elab_ctx {
    lower_unit_t     *lowered;
    cover_data_t     *cover;
    sdf_file_t       *sdf;
-   driver_set_t     *drivers;
    hash_t           *modcache;
    hash_t           *mracache;
    rt_model_t       *model;
@@ -107,7 +106,8 @@ typedef struct {
 } elab_instance_t;
 
 static void elab_block(tree_t t, const elab_ctx_t *ctx);
-static void elab_stmts(tree_t t, const elab_ctx_t *ctx);
+static void elab_processes(tree_t t, const elab_ctx_t *ctx);
+static void elab_sub_blocks(tree_t t, const elab_ctx_t *ctx);
 static void elab_decls(tree_t t, const elab_ctx_t *ctx);
 static void elab_push_scope(tree_t t, elab_ctx_t *ctx);
 static void elab_pop_scope(elab_ctx_t *ctx);
@@ -1541,16 +1541,6 @@ static bool elab_new_errors(const elab_ctx_t *ctx)
    return error_count() - ctx->errors;
 }
 
-static driver_set_t *elab_driver_set(const elab_ctx_t *ctx)
-{
-   if (ctx->drivers != NULL)
-      return ctx->drivers;
-   else if (ctx->parent != NULL)
-      return elab_driver_set(ctx->parent);
-   else
-      return NULL;
-}
-
 static void elab_lower(tree_t b, elab_ctx_t *ctx)
 {
    tree_t hier = tree_decl(b, 0);
@@ -1587,7 +1577,7 @@ static void elab_verilog_module(tree_t bind, ident_t label,
    ident_t ndotted = ident_prefix(ctx->dotted, label, '.');
 
    elab_ctx_t new_ctx = {
-      .dotted    = ndotted,
+      .dotted = ndotted,
    };
    elab_inherit_context(&new_ctx, ctx);
 
@@ -1606,10 +1596,8 @@ static void elab_verilog_module(tree_t bind, ident_t label,
    if (elab_new_errors(&new_ctx) == 0)
       elab_decls(ei->block, &new_ctx);
 
-   if (elab_new_errors(&new_ctx) == 0) {
-      new_ctx.drivers = find_drivers(ei->block);
+   if (elab_new_errors(&new_ctx) == 0)
       elab_lower(b, &new_ctx);
-   }
 
    if (elab_new_errors(&new_ctx) == 0)
       elab_verilog_stmts(ei->body, &new_ctx);
@@ -1625,36 +1613,53 @@ static void elab_verilog_ports(vlog_node_t inst, elab_instance_t *ei,
    const int nports = vlog_ports(ei->body);
    const int nparams = vlog_params(inst);
 
-   if (nports != nparams) {
-      error_at(vlog_loc(inst), "expected %d port connections for module %s "
-               "but found %d", nports, istr(vlog_ident2(ei->body)), nparams);
+   if (nparams > nports) {
+      error_at(vlog_loc(inst), "expected at most %d port connections for "
+               "module %s but found %d", nports, istr(vlog_ident2(ei->body)),
+               nparams);
       return;
    }
 
    ident_t block_name = vlog_ident(inst);
 
+   LOCAL_BIT_MASK used;
+   mask_init(&used, nparams);
+
    for (int i = 0; i < nports; i++) {
-      vlog_node_t port = vlog_ref(vlog_port(ei->body, i));
+      vlog_node_t port = vlog_ref(vlog_port(ei->body, i)), conn = NULL;
       ident_t port_name = vlog_ident(port);
 
-      vlog_node_t conn = vlog_param(inst, i);
-      assert(vlog_kind(conn) == V_PORT_CONN);
+      if (i < nparams) {
+         conn = vlog_param(inst, i);
+         assert(vlog_kind(conn) == V_PORT_CONN);
 
-      if (vlog_has_ident(conn) && vlog_ident(conn) != port_name) {
-         bool found = false;
-         for (int j = 0; j < nparams && !found; j++) {
-            if (vlog_ident((conn = vlog_param(inst, j))) == port_name)
-               found = true;
-         }
+         if (vlog_has_ident(conn) && vlog_ident(conn) != port_name)
+            conn = NULL;
+         else
+            mask_set(&used, i);
+      }
 
-         if (!found) {
-            diag_t *d = diag_new(DIAG_ERROR, vlog_loc(inst));
-            diag_printf(d, "missing port connection for '%s'", istr(port_name));
-            diag_hint(d, vlog_loc(port), "'%s' declared here", istr(port_name));
-            diag_emit(d);
-            continue;
+      if (conn == NULL) {
+         for (int j = 0; j < nparams; j++) {
+            vlog_node_t cj = vlog_param(inst, j);
+            if (vlog_has_ident(cj) && vlog_ident(cj) == port_name) {
+               conn = cj;
+               mask_set(&used, j);
+               break;
+            }
          }
       }
+
+      if (conn == NULL) {
+         diag_t *d = diag_new(DIAG_WARN, vlog_loc(inst));
+         diag_printf(d, "missing port connection for '%pi'", port_name);
+         diag_hint(d, vlog_loc(port), "'%pi' declared here", port_name);
+         diag_hint(d, vlog_loc(inst), "instance '%pi'", vlog_ident(inst));
+         diag_emit(d);
+         continue;
+      }
+      else if (!vlog_has_value(conn))
+         continue;
 
       const loc_t *loc = vlog_loc(conn);
       ident_t name = ident_uniq("#assign#%s.%s", istr(block_name),
@@ -1705,6 +1710,19 @@ static void elab_verilog_ports(vlog_node_t inst, elab_instance_t *ei,
 
       mir_defer(ctx->mir, sym, ctx->dotted, MIR_UNIT_PROCESS,
                 vlog_lower_deferred, vlog_to_object(assign));
+   }
+
+   if (mask_popcount(&used) == nparams)
+      return;
+
+   for (int i = 0; i < nparams; i++) {
+      if (!mask_test(&used, i)) {
+         vlog_node_t conn = vlog_param(inst, i);
+         assert(vlog_has_ident(conn));
+
+         error_at(vlog_loc(conn), "port '%pi' not found in %pi",
+                  vlog_ident(conn), vlog_ident2(ei->body));
+      }
    }
 }
 
@@ -1897,8 +1915,8 @@ static void elab_verilog_stmts(vlog_node_t v, const elab_ctx_t *ctx)
          elab_verilog_for_generate(s, ctx);
          break;
       case V_SPECIFY:
-         warn_at(vlog_loc(s), "specify blocks are not currently supported and "
-                 "will be ignored");
+         INIT_ONCE(warn_at(vlog_loc(s), "specify blocks are not currently "
+                           "supported and will be ignored"));
          break;
       default:
          fatal_at(vlog_loc(s), "sorry, this Verilog statement is not "
@@ -2136,11 +2154,11 @@ static void elab_architecture(tree_t inst, tree_t arch, const elab_ctx_t *ctx)
    elab_generics(ei->block, inst, &new_ctx);
    elab_ports(ei->block, inst, &new_ctx);
    elab_decls(ei->block, &new_ctx);
+   elab_processes(ei->block, &new_ctx);
 
    if (error_count() == 0) {
-      new_ctx.drivers = find_drivers(ei->block);
       elab_lower(b, &new_ctx);
-      elab_stmts(ei->block, &new_ctx);
+      elab_sub_blocks(ei->block, &new_ctx);
    }
 
    elab_pop_scope(&new_ctx);
@@ -2196,11 +2214,11 @@ static void elab_configuration(tree_t inst, tree_t unit, const elab_ctx_t *ctx)
    elab_generics(ei->block, inst, &new_ctx);
    elab_ports(ei->block, inst, &new_ctx);
    elab_decls(ei->block, &new_ctx);
+   elab_processes(ei->block, &new_ctx);
 
    if (error_count() == 0) {
-      new_ctx.drivers = find_drivers(ei->block);
       elab_lower(b, &new_ctx);
-      elab_stmts(ei->block, &new_ctx);
+      elab_sub_blocks(ei->block, &new_ctx);
    }
 
    elab_pop_scope(&new_ctx);
@@ -2266,13 +2284,10 @@ static void elab_component(tree_t inst, tree_t comp, const elab_ctx_t *ctx)
    elab_generics(ei->block, inst, &new_ctx);
    elab_ports(ei->block, inst, &new_ctx);
 
-   if (error_count() == 0) {
-      new_ctx.drivers = find_drivers(ei->block);
+   if (elab_new_errors(&new_ctx) == 0) {
       elab_lower(b, &new_ctx);
+      elab_sub_blocks(ei->block, &new_ctx);
    }
-
-   if (elab_new_errors(&new_ctx) == 0)
-      elab_stmts(ei->block, &new_ctx);
 
    elab_pop_scope(&new_ctx);
 }
@@ -2366,9 +2381,6 @@ static void elab_push_scope(tree_t t, elab_ctx_t *ctx)
 
 static void elab_pop_scope(elab_ctx_t *ctx)
 {
-   if (ctx->drivers != NULL)
-      free_drivers(ctx->drivers);
-
    if (ctx->lowered != NULL)
       unit_registry_finalise(ctx->registry, ctx->lowered);
 }
@@ -2427,8 +2439,6 @@ static void elab_for_generate(tree_t t, const elab_ctx_t *ctx)
 
    ident_t label = tree_ident(t), first = NULL;
 
-   driver_set_t *ds = find_drivers(t);
-
    for (int64_t i = low; i <= high; i++) {
       ident_t id = ident_sprintf("%s(%"PRIi64")", istr(label), i);
       ident_t ndotted = ident_prefix(ctx->dotted, id, '.');
@@ -2453,7 +2463,6 @@ static void elab_for_generate(tree_t t, const elab_ctx_t *ctx)
       elab_ctx_t new_ctx = {
          .out     = b,
          .dotted  = ndotted,
-         .drivers = ds,
       };
       elab_inherit_context(&new_ctx, ctx);
 
@@ -2465,19 +2474,18 @@ static void elab_for_generate(tree_t t, const elab_ctx_t *ctx)
 
       elab_push_scope(t, &new_ctx);
 
-      if (elab_new_errors(&new_ctx) == 0)
+      if (elab_new_errors(&new_ctx) == 0) {
          elab_decls(t, &new_ctx);
+         elab_processes(t, &new_ctx);
+      }
 
       if (elab_new_errors(&new_ctx) == 0) {
          elab_lower(b, &new_ctx);
-         elab_stmts(t, &new_ctx);
+         elab_sub_blocks(t, &new_ctx);
       }
 
-      new_ctx.drivers = NULL;
       elab_pop_scope(&new_ctx);
    }
-
-   free_drivers(ds);
 }
 
 static bool elab_generate_test(tree_t value, const elab_ctx_t *ctx)
@@ -2518,12 +2526,11 @@ static void elab_if_generate(tree_t t, const elab_ctx_t *ctx)
 
          elab_push_scope(t, &new_ctx);
          elab_decls(cond, &new_ctx);
-
-         new_ctx.drivers = find_drivers(cond);
+         elab_processes(cond, &new_ctx);
 
          if (error_count() == 0) {
             elab_lower(b, &new_ctx);
-            elab_stmts(cond, &new_ctx);
+            elab_sub_blocks(cond, &new_ctx);
          }
 
          elab_pop_scope(&new_ctx);
@@ -2557,34 +2564,34 @@ static void elab_case_generate(tree_t t, const elab_ctx_t *ctx)
 
    elab_push_scope(t, &new_ctx);
    elab_decls(chosen, &new_ctx);
-
-   new_ctx.drivers = find_drivers(chosen);
+   elab_processes(chosen, &new_ctx);
 
    if (error_count() == 0) {
       elab_lower(b, &new_ctx);
-      elab_stmts(chosen, &new_ctx);
+      elab_sub_blocks(chosen, &new_ctx);
    }
 
    elab_pop_scope(&new_ctx);
 }
 
-static void elab_process(tree_t t, const elab_ctx_t *ctx)
+static void elab_processes(tree_t t, const elab_ctx_t *ctx)
 {
-   if (error_count() == 0 && ctx->cloned == NULL)
-      lower_process(ctx->lowered, t, elab_driver_set(ctx));
+   const int nstmts = tree_stmts(t);
+   for (int i = 0; i < nstmts; i++) {
+      tree_t s = tree_stmt(t, i);
 
-   tree_add_stmt(ctx->out, t);
+      switch (tree_kind(s)) {
+      case T_PROCESS:
+      case T_PSL_DIRECT:
+         tree_add_stmt(ctx->out, s);
+         break;
+      default:
+         break;
+      }
+   }
 }
 
-static void elab_psl(tree_t t, const elab_ctx_t *ctx)
-{
-   if (error_count() == 0)
-      psl_lower_directive(ctx->registry, ctx->lowered, ctx->cover, t);
-
-   tree_add_stmt(ctx->out, t);
-}
-
-static void elab_stmts(tree_t t, const elab_ctx_t *ctx)
+static void elab_sub_blocks(tree_t t, const elab_ctx_t *ctx)
 {
    const int nstmts = tree_stmts(t);
    for (int i = 0; i < nstmts; i++) {
@@ -2607,10 +2614,7 @@ static void elab_stmts(tree_t t, const elab_ctx_t *ctx)
          elab_case_generate(s, ctx);
          break;
       case T_PROCESS:
-         elab_process(s, ctx);
-         break;
       case T_PSL_DIRECT:
-         elab_psl(s, ctx);
          break;
       default:
          fatal_trace("unexpected statement %s", tree_kind_str(tree_kind(s)));
@@ -2640,10 +2644,11 @@ static void elab_block(tree_t t, const elab_ctx_t *ctx)
    elab_generics(t, t, &new_ctx);
    elab_ports(t, t, &new_ctx);
    elab_decls(t, &new_ctx);
+   elab_processes(t, &new_ctx);
 
    if (elab_new_errors(&new_ctx) == 0) {
       elab_lower(b, &new_ctx);
-      elab_stmts(t, &new_ctx);
+      elab_sub_blocks(t, &new_ctx);
    }
 
    elab_pop_scope(&new_ctx);
@@ -2820,8 +2825,8 @@ static void elab_print_stats(const elab_ctx_t *ctx)
 
    qsort(sorted, count, sizeof(mod_cache_t), elab_compar_modcache);
 
-   color_printf("\n$bold$%-50s %10s %10s$$\n", "Design Unit", "Instances",
-                "Unique");
+   nvc_printf("\n$bold$%-50s %10s %10s$$\n", "Design Unit", "Instances",
+              "Unique");
 
    for (int i = 0; i < count; i++) {
       ident_t name = NULL;
