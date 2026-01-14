@@ -7416,11 +7416,15 @@ START_TEST(test_fuzzing)
    const error_t expect[] = {
       {  3, "no visible declaration for T_WORD" },
       {  4, "no visible declaration for FOO" },
+      { 10, "unexpected # while parsing constant declaration, expecting one of "
+            "**, when or ;" },
+      { 10, "a VHDL basic identifier must not start or end with an underscore, "
+            "or contain multiple consecutive underscores" },
       { -1, NULL }
    };
    expect_errors(expect);
 
-   parse_and_check(T_PACKAGE);
+   parse_and_check(T_PACKAGE, T_PACKAGE);
 
    check_expected_errors();
 }
