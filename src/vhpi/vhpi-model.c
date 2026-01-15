@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2014-2025  Nick Gasson
+//  Copyright (C) 2014-2026  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -31,7 +31,8 @@
 #include "tree.h"
 #include "type.h"
 #include "vhpi/vhpi-macros.h"
-#include "vhpi/vhpi-util.h"
+#include "vhpi/vhpi-model.h"
+#include "vhpi/vhpi-priv.h"
 
 #include <assert.h>
 #include <math.h>
@@ -77,6 +78,7 @@ DEF_CLASS(argv, vhpiArgvK, object);
 typedef struct {
    c_vhpiObject      object;
    vhpiObjectListT   argv;
+   vhpiCapabibilityT capabilities;
 } c_tool;
 
 DEF_CLASS(tool, vhpiToolK, object);
@@ -571,6 +573,7 @@ static void vhpi_lazy_enum_literals(c_vhpiObject *obj);
 static void vhpi_lazy_fields(c_vhpiObject *obj);
 static const char *handle_pp(vhpiHandleT handle);
 static c_refcounted *is_refcounted(c_vhpiObject *obj);
+static c_tool *build_tool(int argc, char **argv);
 
 static vhpi_context_t *global_context = NULL;   // TODO: thread local
 
@@ -2124,6 +2127,10 @@ vhpiHandleT vhpi_register_cb(vhpiCbDataT *cb_data_p, int32_t flags)
    case vhpiCbRepEndOfProcesses:
    case vhpiCbLastKnownDeltaCycle:
    case vhpiCbRepLastKnownDeltaCycle:
+   case vhpiCbStartOfAnalysis:
+   case vhpiCbEndOfAnalysis:
+   case vhpiCbStartOfTool:
+   case vhpiCbEndOfTool:
       {
          c_callback *cb = recyle_object(sizeof(c_callback), vhpiCallbackK);
          init_callback(cb, cb_data_p, flags);
@@ -2360,7 +2367,13 @@ vhpiHandleT vhpi_handle(vhpiOneToOneT type, vhpiHandleT referenceHandle)
          return user_handle_for(&root->designInstUnit.region.object);
       }
    case vhpiTool:
-      return user_handle_for(&(vhpi_context()->tool->object));
+      {
+         vhpi_context_t *c = vhpi_context();
+         if (c->tool == NULL)
+            c->tool = build_tool(0, NULL);
+
+         return user_handle_for(&(c->tool->object));
+      }
    default:
       break;
    }
@@ -2907,6 +2920,15 @@ vhpiIntT vhpi_get(vhpiIntPropertyT property, vhpiHandleT handle)
             goto missing_property;
 
          return g->GenerateIndex;
+      }
+
+   case vhpiCapabilitiesP:
+      {
+         c_tool *tool = is_tool(obj);
+         if (tool == NULL)
+            goto missing_property;
+
+         return tool->capabilities;
       }
 
    default:
@@ -4678,6 +4700,24 @@ static void build_packInst(tree_t inst, c_abstractRegion *region)
                     &(pi->designInstUnit.region.decls));
 }
 
+static c_tool *build_tool(int argc, char **argv)
+{
+   c_tool *tool = new_object(sizeof(c_tool), vhpiToolK);
+   tool->capabilities = vhpiProvidesPostAnalysis
+      | vhpiProvidesStaticAccess | vhpiProvidesHierarchy
+      | vhpiProvidesConnectivity | vhpiProvidesDynamicElab;
+
+   vhpi_list_reserve(&tool->argv, argc);
+
+   for (int i = 0; i < argc; i++) {
+      c_argv *arg = new_object(sizeof(c_argv), vhpiArgvK);
+      arg->StrVal = new_string(argv[i]);
+      vhpi_list_add(&tool->argv, &(arg->object));
+   }
+
+   return tool;
+}
+
 static void vhpi_lazy_selected_names(c_vhpiObject *obj)
 {
    c_typeDecl *type = NULL;
@@ -4975,9 +5015,19 @@ static void vhpi_build_deps_cb(tree_t unit, void *ctx)
    tree_walk_deps(unit, vhpi_build_deps_cb, visited);
 }
 
-static void vhpi_run_callbacks(int32_t reason, int32_t rep)
+void vhpi_run_callbacks(int32_t reason)
 {
    vhpi_context_t *c = vhpi_context();
+
+   int32_t rep = 0;
+   switch (reason) {
+   case vhpiCbEndOfProcesses:      rep = vhpiCbRepEndOfProcesses; break;
+   case vhpiCbLastKnownDeltaCycle: rep = vhpiCbRepLastKnownDeltaCycle; break;
+   case vhpiCbNextTimeStep:        rep = vhpiCbRepNextTimeStep; break;
+   case vhpiCbEndOfTimeStep:       rep = vhpiCbRepEndOfTimeStep; break;
+   case vhpiCbStartOfNextCycle:    rep = vhpiCbRepStartOfNextCycle; break;
+   }
+
 
    const int orig_count = c->callbacks.count;
    int wptr = 0;
@@ -5039,23 +5089,14 @@ static void vhpi_initialise_cb(rt_model_t *m, void *arg)
    region->stmts.fn = vhpi_lazy_stmts;
    region->decls.fn = vhpi_lazy_decls;
 
-   vhpi_run_callbacks(vhpiCbEndOfInitialization, 0);
+   vhpi_run_callbacks(vhpiCbEndOfInitialization);
 }
 
 static void vhpi_phase_cb(rt_model_t *m, void *arg)
 {
    const int32_t reason = (intptr_t)arg;
 
-   int32_t rep = 0;
-   switch (reason) {
-   case vhpiCbEndOfProcesses:      rep = vhpiCbRepEndOfProcesses; break;
-   case vhpiCbLastKnownDeltaCycle: rep = vhpiCbRepLastKnownDeltaCycle; break;
-   case vhpiCbNextTimeStep:        rep = vhpiCbRepNextTimeStep; break;
-   case vhpiCbEndOfTimeStep:       rep = vhpiCbRepEndOfTimeStep; break;
-   case vhpiCbStartOfNextCycle:    rep = vhpiCbRepStartOfNextCycle; break;
-   }
-
-   vhpi_run_callbacks(reason, rep);
+   vhpi_run_callbacks(reason);
 
    switch (reason) {
    case vhpiCbEndOfProcesses:
@@ -5081,7 +5122,7 @@ vhpi_context_t *vhpi_context_new(void)
 }
 
 void vhpi_context_initialise(vhpi_context_t *c, tree_t top, rt_model_t *model,
-                             jit_t *jit, int argc, char **argv)
+                             jit_t *jit)
 {
    assert(c->model == NULL);
    assert(c->top == NULL);
@@ -5090,15 +5131,6 @@ void vhpi_context_initialise(vhpi_context_t *c, tree_t top, rt_model_t *model,
    c->model = model;
    c->top   = top;
    c->jit   = jit;
-   c->tool  = new_object(sizeof(c_tool), vhpiToolK);
-
-   vhpi_list_reserve(&c->tool->argv, argc);
-
-   for (int i = 0; i < argc; i++) {
-      c_argv *arg = new_object(sizeof(c_argv), vhpiArgvK);
-      arg->StrVal = new_string(argv[i]);
-      vhpi_list_add(&c->tool->argv, &(arg->object));
-   }
 
    hset_t *visited = hset_new(64);
    tree_walk_deps(c->top, vhpi_build_deps_cb, visited);
@@ -5119,6 +5151,23 @@ void vhpi_context_initialise(vhpi_context_t *c, tree_t top, rt_model_t *model,
    for (size_t i = 0; i < ARRAY_LEN(reasons); i++)
       model_set_phase_cb(model, vhpi_get_phase(reasons[i]),
                           vhpi_phase_cb, (void *)(uintptr_t)reasons[i]);
+}
+
+void vhpi_set_plusargs(vhpi_context_t *c, int argc, char **argv)
+{
+   if (c->tool == NULL)
+      c->tool = build_tool(argc, argv);
+   else {
+      // TODO: deprecate plusargs after run option and make this an
+      // assertion failure
+      vhpi_list_reserve(&c->tool->argv, argc);
+
+      for (int i = 0; i < argc; i++) {
+         c_argv *arg = new_object(sizeof(c_argv), vhpiArgvK);
+         arg->StrVal = new_string(argv[i]);
+         vhpi_list_add(&c->tool->argv, &(arg->object));
+      }
+   }
 }
 
 static void vhpi_handles_diag(vhpi_context_t *c, diag_t *d, handle_kind_t kind)
@@ -5169,6 +5218,8 @@ static void vhpi_check_leaks(vhpi_context_t *c)
 
 void vhpi_context_free(vhpi_context_t *c)
 {
+   vhpi_run_callbacks(vhpiCbEndOfTool);
+
    for (int i = 0; i < c->foreignfs.count; i++) {
       c_foreignf *f = is_foreignf(c->foreignfs.items[i]);
       assert(f != NULL);

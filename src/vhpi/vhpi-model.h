@@ -15,12 +15,11 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-#ifndef _VHPI_UTIL_H
-#define _VHPI_UTIL_H
+#ifndef _VHPI_MODEL_H
+#define _VHPI_MODEL_H
 
 #include "prim.h"
 #include "jit/jit.h"
-#include "rt/model.h"
 
 #ifdef __MINGW32__
 #define PLI_DLLISPEC __declspec(dllexport)
@@ -32,36 +31,17 @@
 
 #include "vhpi/vhpi_user.h"
 
-__attribute__((format(printf, 2, 3)))
-void vhpi_trace(const char *func, const char *fmt, ...);
-
-__attribute__((format(printf, 3, 4)))
-void vhpi_error(vhpiSeverityT sev, const loc_t *loc, const char *fmt, ...);
-
 vhpi_context_t *vhpi_context_new(void);
 void vhpi_context_initialise(vhpi_context_t *c, tree_t top, rt_model_t *model,
-                             jit_t *jit, int argc, char **argv);
+                             jit_t *jit);
 void vhpi_context_free(vhpi_context_t *c);
+void vhpi_set_plusargs(vhpi_context_t *c, int argc, char **argv);
 
 void vhpi_load_plugins(const char *plugins);
-
-void vhpi_clear_error(void);
-model_phase_t vhpi_get_phase(int reason);
-vhpiFormatT vhpi_format_for_type(type_t type, const char **map_str);
-uint64_t vhpi_time_to_native(const vhpiTimeT *time);
-vhpiPhysT vhpi_phys_from_native(int64_t value);
+void vhpi_run_callbacks(int32_t reason);
 
 vhpiHandleT vhpi_bind_foreign(const char *obj_lib, const char *model,
                               tree_t where);
 void vhpi_call_foreign(vhpiHandleT handle, jit_scalar_t *args, tlab_t *tlab);
 
-const char *vhpi_cb_reason_str(int reason);
-const char *vhpi_one_to_many_str(vhpiOneToManyT kind);
-const char *vhpi_one_to_one_str(vhpiOneToOneT kind);
-const char *vhpi_class_str(vhpiClassKindT kind);
-const char *vhpi_property_str(int property);
-const char *vhpi_put_value_mode_str(vhpiPutValueModeT mode);
-const char *vhpi_state_str(vhpiStateT state);
-const char *vhpi_format_str(vhpiFormatT format);
-
-#endif  // _VHPI_UTIL_H
+#endif  // _VHPI_MODEL_H

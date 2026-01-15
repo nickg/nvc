@@ -16,7 +16,7 @@
 //
 
 #include "util.h"
-#include "vhpi/vhpi-util.h"
+#include "vhpi/vhpi-model.h"
 
 LCOV_EXCL_START
 

@@ -19,15 +19,6 @@
 #define _VPI_PRIV_H
 
 #include "prim.h"
-
-#ifdef __MINGW32__
-#define PLI_DLLISPEC __declspec(dllexport)
-#define PLI_DLLESPEC
-#else
-#define PLI_DLLISPEC
-#define PLI_DLLESPEC
-#endif
-
 #include "vpi/vpi_user.h"
 
 const char *vpi_type_str(PLI_INT32 type);

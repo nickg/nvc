@@ -23,7 +23,8 @@
 #include "rt/assert.h"
 #include "type.h"
 #include "vhpi/vhpi-macros.h"
-#include "vhpi/vhpi-util.h"
+#include "vhpi/vhpi-model.h"
+#include "vhpi/vhpi-priv.h"
 
 #include <assert.h>
 #include <inttypes.h>

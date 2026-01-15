@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2023-2024  Nick Gasson
+//  Copyright (C) 2023-2026  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -57,6 +57,7 @@ static const vhpi_test_t tests[] = {
    { "issue1240", issue1240_startup },
    { "vhpi16",    vhpi16_startup },
    { "issue1301", NULL },
+   { "vhpi17",    vhpi17_startup },
    { NULL,        NULL },
 };
 

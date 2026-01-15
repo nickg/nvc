@@ -24,9 +24,9 @@
 #include "option.h"
 #include "thread.h"
 #include "type.h"
-#include "vhpi/vhpi-util.h"
-#include "vpi/vpi-model.h"
+#include "vhpi/vhpi-model.h"
 #include "vlog/vlog-node.h"
+#include "vpi/vpi-model.h"
 
 #include <assert.h>
 #include <ctype.h>

@@ -36,7 +36,7 @@
 #include "scan.h"
 #include "server.h"
 #include "thread.h"
-#include "vhpi/vhpi-util.h"
+#include "vhpi/vhpi-model.h"
 #include "vlog/vlog-node.h"
 #include "vlog/vlog-phase.h"
 #include "vpi/vpi-model.h"
@@ -337,6 +337,9 @@ static int analyse(int argc, char **argv, cmd_state_t *state)
 
    jit_t *jit = jit_new(state->registry, state->mir, NULL);
 
+   if (state->vhpi != NULL)
+      vhpi_run_callbacks(vhpiCbStartOfAnalysis);
+
    if (file_list != NULL)
       do_file_list(file_list, jit, state->registry, state->mir);
    else if (optind == next_cmd)
@@ -348,6 +351,9 @@ static int analyse(int argc, char **argv, cmd_state_t *state)
       else
          analyse_file(argv[i], jit, state->registry, state->mir);
    }
+
+   if (state->vhpi != NULL)
+      vhpi_run_callbacks(vhpiCbEndOfAnalysis);
 
    if (werror)
       diag_remove_hint_fn(werror_diag_cb);
@@ -1046,9 +1052,11 @@ static int run_cmd(int argc, char **argv, cmd_state_t *state)
    if (state->vpi == NULL)
       state->vpi = vpi_context_new();
 
+   if (nplusargs > 0)
+      vhpi_set_plusargs(state->vhpi, nplusargs, plusargs);
+
    if (pli_plugins != NULL || state->plugins != NULL) {
-      vhpi_context_initialise(state->vhpi, top, state->model, state->jit,
-                              nplusargs, plusargs);
+      vhpi_context_initialise(state->vhpi, top, state->model, state->jit);
       vpi_context_initialise(state->vpi, top, state->model, state->jit,
                              nplusargs, plusargs);
    }
@@ -2668,10 +2676,25 @@ int main(int argc, char **argv)
    argc -= next_cmd - 1;
    argv += next_cmd - 1;
 
+   // Shuffle the arguments to put all the plusargs first
+   qsort(argv + optind, next_cmd - optind, sizeof(char *), plusarg_cmp);
+
+   int nplusargs = 0;
+   char **plusargs = argv + optind;
+   for (int i = optind; i < next_cmd; i++) {
+      if (argv[i][0] == '+')
+         nplusargs++, optind++;
+   }
+
    if (state.plugins != NULL) {
       state.vhpi = vhpi_context_new();
       vhpi_load_plugins(state.plugins);
+
+      if (nplusargs > 0)
+         vhpi_set_plusargs(state.vhpi, nplusargs, plusargs);
    }
+   else if (nplusargs > 0)
+      warnf("found plusargs on command line but no VHPI plugin was loaded");
 
    const int ret = process_command(argc, argv, &state);
 

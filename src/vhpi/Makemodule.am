@@ -4,6 +4,7 @@ lib_libnvc_a_SOURCES += \
 	src/vhpi/vhpi-model.c \
 	src/vhpi/vhpi-macros.h \
 	src/vhpi/vhpi-util.h \
-	src/vhpi/vhpi-util.c
+	src/vhpi/vhpi-util.c \
+	src/vhpi/vhpi-priv.h
 
 include_HEADERS += src/vhpi/vhpi_user.h
