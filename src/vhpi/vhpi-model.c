@@ -555,6 +555,7 @@ typedef struct _vhpi_context {
    vhpiHandleListT  callbacks;
    mem_pool_t      *pool;
    vhpiObjectListT  recycle;
+   vhpiPhaseT       phase;
 } vhpi_context_t;
 
 static c_typeDecl *cached_typeDecl(type_t type, c_vhpiObject *obj);
@@ -2131,6 +2132,8 @@ vhpiHandleT vhpi_register_cb(vhpiCbDataT *cb_data_p, int32_t flags)
    case vhpiCbEndOfAnalysis:
    case vhpiCbStartOfTool:
    case vhpiCbEndOfTool:
+   case vhpiCbStartOfElaboration:
+   case vhpiCbEndOfElaboration:
       {
          c_callback *cb = recyle_object(sizeof(c_callback), vhpiCallbackK);
          init_callback(cb, cb_data_p, flags);
@@ -2697,6 +2700,18 @@ vhpiIntT vhpi_get(vhpiIntPropertyT property, vhpiHandleT handle)
 
    VHPI_TRACE("property=%s handle=%s", vhpi_property_str(property),
               handle_pp(handle));
+
+   if (handle == NULL) {
+      switch (property) {
+      case vhpiPhaseP:
+         return vhpi_context()->phase;
+
+      default:
+         vhpi_error(vhpiFailure, NULL, "property %s cannot be used with NULL "
+                    "handle", vhpi_property_str(property));
+         return vhpiUndefined;
+      }
+   }
 
    c_vhpiObject *obj = from_handle(handle);
    if (obj == NULL)
@@ -5028,6 +5043,12 @@ void vhpi_run_callbacks(int32_t reason)
    case vhpiCbStartOfNextCycle:    rep = vhpiCbRepStartOfNextCycle; break;
    }
 
+   switch (reason) {
+   case vhpiCbStartOfAnalysis:    c->phase = vhpiAnalysisPhase; break;
+   case vhpiCbStartOfElaboration: c->phase = vhpiElaborationPhase; break;
+   case vhpiCbStartOfSimulation:  c->phase = vhpiSimulationPhase; break;
+   case vhpiCbEndOfTool:          c->phase = vhpiTerminationPhase; break;
+   }
 
    const int orig_count = c->callbacks.count;
    int wptr = 0;
@@ -5117,6 +5138,7 @@ vhpi_context_t *vhpi_context_new(void)
    vhpi_context_t *c = global_context = xcalloc(sizeof(vhpi_context_t));
    c->objcache = hash_new(128);
    c->pool     = pool_new();
+   c->phase    = vhpiRegistrationPhase;
 
    return c;
 }

@@ -628,6 +628,8 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
    if (state->vhpi == NULL)
       state->vhpi = vhpi_context_new();
 
+   vhpi_run_callbacks(vhpiCbStartOfElaboration);
+
    tree_t top = elab(obj, state->jit, state->registry, state->mir,
                      state->cover, NULL, state->model);
 
@@ -637,6 +639,8 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
    lib_put_meta(state->work, top, &meta);
 
    progress("elaborating design");
+
+   vhpi_run_callbacks(vhpiCbEndOfElaboration);
 
    if (error_count() > 0)
       return EXIT_FAILURE;
