@@ -73,6 +73,7 @@ include lib/synopsys/Makemodule.am
 include contrib/Makemodule.am
 include contrib/gui/Makemodule.am
 include contrib/msi/Makemodule.am
+include contrib/plugins/Makemodule.am
 
 clean-local: clean-libs
 	rm -f src/vlog/vlog-parse.c

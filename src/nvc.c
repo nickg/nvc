@@ -66,7 +66,7 @@ typedef struct {
    bool             user_set_std;
    vhpi_context_t  *vhpi;
    vpi_context_t   *vpi;
-   const char      *plugins;
+   const char      *user_plugins;
    rt_model_t      *model;
    cover_data_t    *cover;
    ident_t          top_level;
@@ -851,6 +851,50 @@ static void enable_ieee_warnings_cb(rt_model_t *m, void *ctx)
    *ptr = 0;
 }
 
+static bool load_builtin_plugin(cmd_state_t *cmd_state, int nplusargs, char **plusargs)
+{
+   char **siginit_args = NULL;
+   int n_siginit_args = 0;
+   bool seed_passed = false;
+
+   for (int i = 0; i < nplusargs; i++) {
+      if (strncmp(plusargs[i], "+siginit+", 9))
+         continue;
+
+      if (!strncmp(plusargs[i], "+siginit+seed+", 14))
+         seed_passed = true;
+
+      n_siginit_args++;
+      siginit_args = xrealloc_array(siginit_args, n_siginit_args, sizeof(char*));
+
+      siginit_args[n_siginit_args - 1] = xstrdup(plusargs[i]);
+   }
+
+   if (n_siginit_args > 0) {
+      if (!seed_passed) {
+         n_siginit_args++;
+         siginit_args = xrealloc_array(siginit_args, n_siginit_args, sizeof(char*));
+         siginit_args[n_siginit_args - 1] = xasprintf("+siginit+seed+%d", opt_get_int(OPT_RANDOM_SEED));
+      }
+
+      LOCAL_TEXT_BUF tb = tb_new();
+      get_lib_dir(tb);
+      tb_printf(tb, DIR_SEP "vhpi_plugin_siginit.so");
+
+      vhpi_set_plusargs(cmd_state->vhpi, n_siginit_args, siginit_args);
+      vhpi_load_plugins(tb_get(tb));
+
+      return true;
+   }
+
+   for (int i = 0; i < n_siginit_args; i++)
+      free(siginit_args[i]);
+   if (siginit_args)
+      free(siginit_args);
+
+   return false;
+}
+
 static int run_cmd(int argc, char **argv, cmd_state_t *state)
 {
    static struct option long_options[] = {
@@ -1056,15 +1100,20 @@ static int run_cmd(int argc, char **argv, cmd_state_t *state)
    if (state->vpi == NULL)
       state->vpi = vpi_context_new();
 
-   if (nplusargs > 0)
-      vhpi_set_plusargs(state->vhpi, nplusargs, plusargs);
-
-   if (pli_plugins != NULL || state->plugins != NULL) {
+   if (pli_plugins != NULL || state->user_plugins != NULL || nplusargs > 0) {
       vhpi_context_initialise(state->vhpi, top, state->model, state->jit);
       vpi_context_initialise(state->vpi, top, state->model, state->jit,
                              nplusargs, plusargs);
    }
-   else if (nplusargs > 0)
+
+   // TODO: plusargs append within current VHPI context.
+   //       should filter "+siginit+" so that it does not bubble to user defined plugins!
+   bool has_builtin_plugins = load_builtin_plugin(state, nplusargs, plusargs);
+
+   if (nplusargs > 0)
+      vhpi_set_plusargs(state->vhpi, nplusargs, plusargs);
+
+   if (!has_builtin_plugins && nplusargs > 0)
       warnf("found plusargs on command line but no VHPI plugin was loaded");
 
    if (pli_plugins != NULL)
@@ -2648,7 +2697,7 @@ int main(int argc, char **argv)
          parse_stderr_severity(optarg);
          break;
       case 'l':
-         state.plugins = optarg;
+         state.user_plugins = optarg;
          break;
       case 'T':
          opt_set_str(OPT_PLI_TRACE, "1");
@@ -2690,9 +2739,9 @@ int main(int argc, char **argv)
          nplusargs++, optind++;
    }
 
-   if (state.plugins != NULL) {
+   if (state.vhpi == NULL && state.user_plugins != NULL) {
       state.vhpi = vhpi_context_new();
-      vhpi_load_plugins(state.plugins);
+      vhpi_load_plugins(state.user_plugins);
 
       if (nplusargs > 0)
          vhpi_set_plusargs(state.vhpi, nplusargs, plusargs);
