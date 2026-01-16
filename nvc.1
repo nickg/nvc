@@ -46,7 +46,7 @@ is
 .It Fl e Ar unit
 Elaborate a previously analysed top level design unit.
 .\" -r
-.It Fl r Ar unit
+.It Fl r Bo Ar unit Bc
 Execute a previously elaborated top level design unit.
 .\" -i
 .It Fl i Bo Ar unit Bc
@@ -157,7 +157,7 @@ may be insufficient when elaborating a large design.  The
 .Ar size
 parameter takes an optional k, m, or g suffix to indicate kilobytes,
 megabytes, and gigabytes respectively.  For example
-.Fl M64m
+.Fl M\ 64m
 for 64 megabytes.
 .\" --map
 .It Fl \-map Ns = Ns Ar name Ns : Ns Ar path
@@ -184,9 +184,8 @@ Select the VHDL standard revision to use.  VHDL standard revisions are
 commonly referred to by the year they were published.  For example IEEE
 1076-1993 is known as VHDL-93.  Specify either the full year such as
 1993 or just the last two digits such as 93.  The accepted revisions are
-1993, 2000, 2002, 2008, 2019.  Note there is very limited supported
-VHDL-2019 at present and VHDL-87 is not supported.  The default standard
-revision is VHDL-2008.
+1993, 2000, 2002, 2008, and 2019.  The default standard revision is
+VHDL-2008.  VHDL-1987 is not supported.
 .\" --stderr
 .It Fl \-stderr Ns = Ns Ar level
 Print error messages with the given severity or higher to
@@ -338,7 +337,7 @@ Treat all Verilog source files given on the command line as a single
 compilation unit.  This means macros declared in one file are visible in
 all subsequent files.
 .\" -Werror
-.It Fl \-Werror
+.It Fl Werror
 Treat all analysis warnings as errors.
 .El
 .\" ------------------------------------------------------------
@@ -378,20 +377,6 @@ dotted path to the generic.  For example
 .Fl g\ INIT='1' ,
 and
 .Fl g\ UUT.STR="hello" .
-.\" --jit
-.It Fl j , Fl \-jit
-Normally
-.Nm
-compiles all code ahead-of-time during elaboration.
-The
-.Fl \-jit
-option defers native code generation until run-time where each function
-will be compiled separately on a background thread once it has been has
-been executed often enough in the interpreter to be deemed worthwhile.
-This dramatically reduces elaboration time at the cost of increased
-memory and CPU usage while the simulation is executing.  This option is
-beneficial for short-running simulations where the performance gain from
-ahead-of-time compilation is not so significant.
 .\" --no-collapse
 .It Fl \-no-collapse
 Do not collapse ports into a single signal.  Normally if a signal at one
