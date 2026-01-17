@@ -259,7 +259,7 @@ double _std_env_epoch(void)
 
    // Be careful to avoid loss of precision here
    double real = nanos / UINT64_C(1000000000);
-   real += 1.0e9 / (nanos % UINT64_C(1000000000));
+   real += (nanos % UINT64_C(1000000000)) / 1.0e9;
 
    return real;
 }

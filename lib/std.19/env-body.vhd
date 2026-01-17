@@ -210,7 +210,7 @@ package body env is
     begin
         buf(1 to 4) := zero_pad(trec.year, 4);
         buf(5) := '-';
-        buf(6 to 7) := zero_pad(trec.month, 2);
+        buf(6 to 7) := zero_pad(trec.month + 1, 2);
         buf(8) := '-';
         buf(9 to 10) := zero_pad(trec.day, 2);
         buf(11) := 'T';

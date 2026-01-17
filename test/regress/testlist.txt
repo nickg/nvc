@@ -1248,3 +1248,4 @@ vlog30          verilog
 rand4           verilog,seed=123
 vhpi17          vhpi
 issue1362       wave,dump-arrays
+issue1381       normal,2019

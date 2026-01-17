@@ -19,6 +19,9 @@
   coverage.
 - Expression coverage reporting for multi-line expressions is improved.
 - Fixed waveform dumping for arrays of enumerated types (#1362).
+- The fractional part of `std.env.epoch` is now correct and `to_string`
+  on `std.env.time_record` now displays months correctly according to
+  ISO 8601 (#1381).
 - Several other minor bugs were resolved (#1237, #1350, #1351, #1353,
   #1366, #1372, #1333).
 
