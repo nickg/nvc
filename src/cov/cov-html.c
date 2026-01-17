@@ -212,67 +212,6 @@ static void cover_print_single_code_line(FILE *f, loc_t loc,
    }
 }
 
-static void cover_print_lhs_rhs_arrows(FILE *f, rpt_pair_t *pair)
-{
-   int last = strlen(pair->line->text);
-   int curr = 0;
-
-   // Offset by line number width
-   int digits = pair->item->loc.first_line;
-   do {
-      digits /= 10;
-      fprintf(f, "&nbsp;");
-   } while (digits > 0);
-   fprintf(f, "&nbsp;");
-
-   loc_t *loc_lhs = &(pair->item->loc_lhs);
-   loc_t *loc_rhs = &(pair->item->loc_rhs);
-
-   int lhs_beg = loc_lhs->first_column;
-   int rhs_beg = loc_rhs->first_column;
-
-   int lhs_end = lhs_beg + loc_lhs->column_delta;
-   int rhs_end = rhs_beg + loc_rhs->column_delta;
-
-   int lhs_mid = (lhs_end + lhs_beg) / 2;
-   int rhs_mid = (rhs_end + rhs_beg) / 2;
-
-   while (curr < last) {
-      if (curr == lhs_mid - 1)
-         fprintf(f, "L");
-      else if (curr == lhs_mid)
-         fprintf(f, "H");
-      else if (curr == lhs_mid + 1)
-         fprintf(f, "S");
-
-      else if (curr == lhs_beg)
-         fprintf(f, "&lt;");
-      else if (curr > lhs_beg && curr < lhs_end)
-         fprintf(f, "-");
-      else if (curr == (lhs_beg + loc_lhs->column_delta))
-         fprintf(f, "&gt;");
-
-      else if (curr == rhs_mid - 1)
-         fprintf(f, "R");
-      else if (curr == rhs_mid)
-         fprintf(f, "H");
-      else if (curr == rhs_mid + 1)
-         fprintf(f, "S");
-
-      else if (curr == rhs_beg)
-         fprintf(f, "&lt;");
-      else if (curr > rhs_beg && curr < rhs_end)
-         fprintf(f, "-");
-      else if (curr == (rhs_beg + loc_rhs->column_delta))
-         fprintf(f, "&gt;");
-
-      else
-         fprintf(f, "&nbsp;");
-
-      curr++;
-   }
-}
-
 static void cover_print_item_title(FILE *f, rpt_pair_t *pair)
 {
    static const char *text[] = {
@@ -299,7 +238,7 @@ static void cover_print_item_title(FILE *f, rpt_pair_t *pair)
    case COV_ITEM_STMT:
    case COV_ITEM_BRANCH:
    case COV_ITEM_FUNCTIONAL:
-      fprintf(f, "%s:", text[pair->item->source]);
+      fprintf(f, "%s", text[pair->item->source]);
       break;
    case COV_ITEM_EXPRESSION:
       cover_print_string(f, istr(pair->item->func_name));
@@ -311,7 +250,141 @@ static void cover_print_item_title(FILE *f, rpt_pair_t *pair)
    default:
       break;
    }
+
+   const loc_t loc = pair->item->loc;
+   if (loc.line_delta == 0)
+      fprintf(f, " on line %d:", loc.first_line);
+   else
+      fprintf(f, " on lines %d to %d:", loc.first_line, loc.first_line + loc.line_delta);
+
    fprintf(f, "</h3>");
+}
+
+static void cover_print_expr(FILE *f, rpt_pair_t *pair)
+{
+   loc_t loc = pair->item->loc;
+
+   const rpt_line_t *curr_line = pair->line;
+   const rpt_line_t *last_line = pair->line + loc.line_delta;
+   bool was_space = false, is_expr = false;
+   int lhs_beg = 0, rhs_beg = 0, lhs_end = 0, rhs_end = 0;
+   int glob_pos = 0;
+   bool is_comment = false;
+
+   fprintf(f, "<code>");
+
+   while (curr_line <= last_line) {
+      int line_pos = 0;
+      int line_num = loc.first_line + (curr_line - pair->line);
+
+      while (line_pos < curr_line->len) {
+
+         if (curr_line == pair->line && line_pos == loc.first_column)
+            is_expr = true;
+
+         // Track start of LHS / RHS sub-expressions
+         if (pair->item->flags & COVER_FLAGS_LHS_RHS_BINS) {
+            loc_t *loc_lhs = &(pair->item->loc_lhs);
+            loc_t *loc_rhs = &(pair->item->loc_rhs);
+
+            if (loc_lhs->first_line == line_num && loc_lhs->first_column == line_pos)
+               lhs_beg = glob_pos;
+
+            if (loc_rhs->first_line == line_num && loc_rhs->first_column == line_pos)
+               rhs_beg = glob_pos;
+
+            if (loc_lhs->first_line + loc_lhs->line_delta == line_num &&
+                loc_lhs->first_column + loc_lhs->column_delta == line_pos)
+               lhs_end = glob_pos;
+
+            if (loc_rhs->first_line + loc_rhs->line_delta == line_num &&
+                loc_rhs->first_column + loc_rhs->column_delta == line_pos)
+               rhs_end = glob_pos;
+         }
+
+         char c = curr_line->text[line_pos];
+
+         // Filter comments
+         if (line_pos < curr_line->len - 1) {
+            char next_c = curr_line->text[line_pos + 1];
+            if (c == '-' && next_c == '-')
+               break;
+            if (c == '/' && next_c == '*')
+               is_comment = true;
+         }
+
+         // Multiple spaces reduced to single space
+         if (!is_comment) {
+            if (isspace_iso88591(c)) {
+               if (!was_space) {
+                  cover_print_char(f, ' ');
+                  glob_pos++;
+               }
+               was_space = true;
+            }
+            else if (is_expr) {
+               cover_print_char(f, c);
+               glob_pos++;
+               was_space = false;
+            }
+
+            if (curr_line == pair->line + loc.line_delta &&
+                line_pos == loc.first_column + loc.column_delta)
+               is_expr = false;
+         }
+
+         if (line_pos > 0 && curr_line->text[line_pos - 1] == '*' && c == '/')
+            is_comment = false;
+
+         line_pos++;
+      };
+      curr_line++;
+   }
+
+   if (pair->item->flags & COVER_FLAGS_LHS_RHS_BINS) {
+      fprintf(f, "<br>");
+
+      int lhs_mid = (lhs_end + lhs_beg) / 2;
+      int rhs_mid = (rhs_end + rhs_beg) / 2;
+
+      int curr = 0;
+      while (curr < glob_pos) {
+         if (curr == lhs_mid - 1)
+            fprintf(f, "L");
+         else if (curr == lhs_mid)
+            fprintf(f, "H");
+         else if (curr == lhs_mid + 1)
+            fprintf(f, "S");
+
+         else if (curr == lhs_beg)
+            fprintf(f, "&lt;");
+         else if (curr > lhs_beg && curr < lhs_end)
+            fprintf(f, "-");
+         else if (curr == lhs_end)
+            fprintf(f, "&gt;");
+
+         else if (curr == rhs_mid - 1)
+            fprintf(f, "R");
+         else if (curr == rhs_mid)
+            fprintf(f, "H");
+         else if (curr == rhs_mid + 1)
+            fprintf(f, "S");
+
+         else if (curr == rhs_beg)
+            fprintf(f, "&lt;");
+         else if (curr > rhs_beg && curr < rhs_end)
+            fprintf(f, "-");
+         else if (curr == rhs_end)
+            fprintf(f, "&gt;");
+
+         else
+            fprintf(f, "&nbsp;");
+
+         curr++;
+      }
+   }
+
+   fprintf(f, "</code>");
 }
 
 static void cover_print_code_loc(FILE *f, rpt_pair_t *pair)
@@ -323,12 +396,7 @@ static void cover_print_code_loc(FILE *f, rpt_pair_t *pair)
    if (loc.line_delta == 0) {
       fprintf(f, "<code>");
       fprintf(f, "%d:", loc.first_line);
-
       cover_print_single_code_line(f, loc, curr_line);
-      if (pair->item->flags & COVER_FLAGS_LHS_RHS_BINS) {
-         fprintf(f, "<br>");
-         cover_print_lhs_rhs_arrows(f, pair);
-      }
       fprintf(f, "</code>");
    }
    else {
@@ -602,7 +670,7 @@ static void cover_print_pairs(FILE *f, rpt_pair_t *first, cov_pair_kind_t pkind,
       case COV_ITEM_EXPRESSION:
       {
          cover_print_item_title(f, curr);
-         cover_print_code_loc(f, curr);
+         cover_print_expr(f, curr);
 
          if ((curr->item->flags & COV_FLAG_TRUE) || (curr->item->flags & COV_FLAG_FALSE)) {
             const char *title = "Evaluated to";
