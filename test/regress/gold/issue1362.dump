@@ -1,0 +1,8 @@
+#0 issue1362.states[1] one
+#0 issue1362.states[0] one
+#2000000 issue1362.states[0] two
+#2000000 issue1362.states[1] one
+#4000000 issue1362.states[1] two
+#4000000 issue1362.states[0] two
+#6000000 issue1362.states[0] three
+#6000000 issue1362.states[1] two

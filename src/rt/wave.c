@@ -246,17 +246,19 @@ static void fst_fmt_chars(rt_watch_t *w, fst_data_t *data)
 #if !USE_FST_ENUMS
 static void fst_fmt_enum(rt_watch_t *w, fst_data_t *data)
 {
-   uint64_t val;
-   signal_expand(data->signal, &val, 1);
+   uint64_t val[data->count];
+   signal_expand(data->signal, val, data->count);
 
-   fst_enum_t *e = &(data->type->u.literals);
-   assert(val < e->count);
+   for (int i = 0; i < data->count; i++) {
+      fst_enum_t *e = &(data->type->u.literals);
+      assert(val[i] < e->count);
 
-   const char *literal = e->strings + val * e->size;
-   fstWriterEmitVariableLengthValueChange(data->dumper->fst_ctx,
-                                          data->handle[0],
-                                          literal,
-                                          strnlen(literal, e->size));
+      const char *literal = e->strings + val[i] * e->size;
+      fstWriterEmitVariableLengthValueChange(data->dumper->fst_ctx,
+                                             data->handle[i],
+                                             literal,
+                                             strnlen(literal, e->size));
+   }
 }
 #endif
 
@@ -628,7 +630,7 @@ static void fst_create_array_var(wave_dumper_t *wd, tree_t d, rt_signal_t *s,
    if (ft == NULL)
       return;
 
-   if (type_is_enum(elem)) {
+   if (type_is_enum(elem) && ft->sdt != FST_SDT_NONE) {
       data = xcalloc(sizeof(fst_data_t) + sizeof(fstHandle));
       data->type  = ft;
       data->size  = length * ft->size;
@@ -675,7 +677,6 @@ static void fst_create_array_var(wave_dumper_t *wd, tree_t d, rt_signal_t *s,
       int pos = 0;
       fst_create_memory(wd, data, &pos, dims.items, dims.count, 0,
                         vd, type, tb);
-      fflush(stdout);
       assert(pos == length);
 
       fstWriterSetAttrEnd(wd->fst_ctx);
@@ -696,8 +697,7 @@ static void fst_create_array_var(wave_dumper_t *wd, tree_t d, rt_signal_t *s,
          tb_trim(tb, pfxlen);
          tb_printf(tb, "[%"PRIi64"]", dir == RANGE_TO ? left + i : left - i);
 
-         data->handle[i] =
-            fst_create_handle(wd, data, tb_get(tb), vd, elem, 0);
+         data->handle[i] = fst_create_handle(wd, data, tb_get(tb), vd, elem, 0);
       }
 
       fstWriterSetAttrEnd(wd->fst_ctx);

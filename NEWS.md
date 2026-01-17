@@ -18,6 +18,7 @@
 - Average coverage numbers are now printed on command line when processing
   coverage.
 - Expression coverage reporting for multi-line expressions is improved.
+- Fixed waveform dumping for arrays of enumerated types (#1362).
 - Several other minor bugs were resolved (#1237, #1350, #1351, #1353,
   #1366, #1372, #1333).
 
