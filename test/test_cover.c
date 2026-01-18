@@ -101,7 +101,7 @@ START_TEST(test_toggle1)
 {
    input_from_file(TESTDIR "/cover/toggle1.vhd");
 
-   elab_set_generic("G_VAL", "1");
+   elab_set_generic("G_VAL", "2");
 
    cover_data_t *db = run_cover();
 
@@ -127,7 +127,25 @@ START_TEST(test_toggle1)
 
    const rpt_hier_t *u1_h = rpt_get_hier(rpt, u1);
    ck_assert_int_eq(u1_h->flat_stats.total[COV_ITEM_TOGGLE], 32);
-   ck_assert_int_eq(u1_h->flat_stats.hit[COV_ITEM_TOGGLE], 1);
+   ck_assert_int_eq(u1_h->flat_stats.hit[COV_ITEM_TOGGLE], 2);
+
+   const table_array_t *hits = &(u1_h->detail.hits[COV_ITEM_TOGGLE]);
+   ck_assert_int_eq(hits->count, 2);
+
+   const rpt_table_t *hits_t0 = hits->items[0];
+   ck_assert_int_eq(hits_t0->count, 1);
+   ck_assert_int_eq(hits_t0->items[0]->data, 1);
+   ck_assert_str_eq(istr(hits_t0->items[0]->hier),
+                    "WORK.TOGGLE1.VECT(3).BIN_1_TO_0");
+
+   const table_array_t *miss = &(u1_h->detail.miss[COV_ITEM_TOGGLE]);
+   ck_assert_int_eq(miss->count, 16);
+
+   const rpt_table_t *miss_t0 = miss->items[0];
+   ck_assert_int_eq(miss_t0->count, 2);
+   ck_assert_int_eq(miss_t0->items[0]->data, 0);
+   ck_assert_str_eq(istr(miss_t0->items[0]->hier),
+                    "WORK.TOGGLE1.VECT(15).BIN_0_TO_1");
 
    cover_report_free(rpt);
    cover_data_free(db);
