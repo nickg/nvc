@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2013-2025  Nick Gasson
+//  Copyright (C) 2013-2026  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -73,65 +73,87 @@ static void rpt_merge_stats(rpt_stats_t *dst, const rpt_stats_t *src)
    }
 }
 
-static void rpt_chain_append(pair_array_t *array, cover_item_t *curr_item,
-                             const rpt_line_t *curr_line)
+static bool rpt_is_hit(const cover_item_t *item)
 {
-   rpt_pair_t pair = {curr_line, curr_item};
-   APUSH(*array, pair);
+   return item->data >= item->atleast && item->atleast > 0;
 }
 
-static int rpt_append_item_to_chain(cover_rpt_t *rpt,
-                                    rpt_stats_t *stats,
-                                    rpt_chain_group_t *group,
-                                    cover_item_t *first_item,
-                                    const rpt_line_t *line)
+static bool rpt_is_excluded(cover_rpt_t *rpt, const cover_item_t *item)
 {
-   rpt_chain_t *chn = &(group->chain[first_item->kind]);
+   if (item->flags & COV_FLAG_EXCLUDED)
+      return true;
 
-   // Line set to NULL means this is a consecutive bin of the previous item
-   const rpt_line_t *hits_line = line;
-   const rpt_line_t *miss_line = line;
-   const rpt_line_t *excl_line = line;
+   if (cover_bin_unreachable(rpt->data, item))
+      return true;
 
-   int n_steps = first_item->consecutive;
-   cover_item_t *last_item = first_item + n_steps - 1;
+   return false;
+}
 
-   for (cover_item_t *curr_item = first_item; curr_item <= last_item;
-        curr_item++) {
-      stats->total[first_item->kind]++;
+static rpt_table_t *rpt_table_new(cover_rpt_t *rpt, const rpt_line_t *line,
+                                  int count)
+{
+   if (count == 0)
+      return NULL;
 
-      if (curr_item->data >= curr_item->atleast && curr_item->atleast > 0) {
-         stats->hit[first_item->kind]++;
+   rpt_table_t *table = pool_malloc_flex(rpt->pool, sizeof(rpt_table_t), count,
+                                         sizeof(cover_item_t *));
+   table->line  = line;
+   table->count = count;
 
-         if (chn->hits.count > rpt->item_limit)
-            rpt->skipped++;
-         else {
-            rpt_chain_append(&chn->hits, curr_item, hits_line);
-            hits_line = NULL;
-         }
+   return table;
+}
+
+static void rpt_get_detail(cover_rpt_t *rpt, rpt_detail_t *detail,
+                           rpt_stats_t *stats, const cover_item_t *item,
+                           const rpt_line_t *line)
+{
+   int nhit = 0, nmiss = 0, nexcl = 0;
+
+   for (int i = 0; i < item->consecutive; i++) {
+      stats->total[item->kind]++;
+
+      if (rpt_is_hit(item + i)) {
+         stats->hit[item->kind]++;
+         nhit++;
       }
-      else if ((curr_item->flags & COV_FLAG_EXCLUDED) ||
-                cover_bin_unreachable(rpt->data, curr_item)) {
-         stats->hit[first_item->kind]++;
+      else if (rpt_is_excluded(rpt, item + i)) {
+         stats->hit[item->kind]++;
+         nexcl++;
+      }
+      else
+         nmiss++;
 
-         if (chn->excl.count > rpt->item_limit)
-            rpt->skipped++;
-         else {
-            rpt_chain_append(&chn->excl, curr_item, excl_line);
-            excl_line = NULL;
-         }
-      }
-      else {
-         if (chn->miss.count > rpt->item_limit)
-            rpt->skipped++;
-         else {
-            rpt_chain_append(&chn->miss, curr_item, miss_line);
-            miss_line = NULL;
-         }
-      }
+      assert(item[i].kind == item->kind);
    }
 
-   return n_steps;
+   if (detail->total > rpt->item_limit) {
+      rpt->skipped += item->consecutive;
+      return;
+   }
+
+   rpt_table_t *hit = rpt_table_new(rpt, line, nhit);
+   rpt_table_t *miss = rpt_table_new(rpt, line, nmiss);
+   rpt_table_t *excl = rpt_table_new(rpt, line, nexcl);
+
+   for (int i = 0, hpos = 0, mpos = 0, epos = 0; i < item->consecutive; i++) {
+      if (rpt_is_hit(item + i))
+         hit->items[hpos++] = item + i;
+      else if (rpt_is_excluded(rpt, item + i))
+         excl->items[epos++] = item + i;
+      else
+         miss->items[mpos++] = item + i;
+   }
+
+   if (hit != NULL)
+      APUSH(detail->hits[item->kind], hit);
+
+   if (miss != NULL)
+      APUSH(detail->miss[item->kind], miss);
+
+   if (excl != NULL)
+      APUSH(detail->excl[item->kind], excl);
+
+   detail->total += nhit + nmiss + nexcl;
 }
 
 static void rpt_merge_file_items(cover_rpt_t *rpt, rpt_file_t *f,
@@ -262,8 +284,9 @@ static void rpt_visit_sub_scope(cover_rpt_t *rpt, rpt_hier_t *h,
 
          const rpt_line_t *line = rpt_get_line(f_src, &item->loc);
          if (line != NULL)
-            i += rpt_append_item_to_chain(rpt, &h->flat_stats, &h->chns,
-                                          item, line);
+            rpt_get_detail(rpt, &h->detail, &h->flat_stats, item, line);
+
+         i += item->consecutive;
       }
    }
 
@@ -284,14 +307,16 @@ static void rpt_visit_children(cover_rpt_t *rpt, rpt_hier_t *h,
    }
 }
 
-static void rpt_gen_file_chains(cover_rpt_t *rpt, rpt_file_t *f)
+static void rpt_gen_file_details(cover_rpt_t *rpt, rpt_file_t *f)
 {
    for (int i = 0; i < f->items.count;) {
       cover_item_t *item = f->items.items[i];
 
       const rpt_line_t *line = rpt_get_line(f, &item->loc);
       if (line != NULL)
-         i += rpt_append_item_to_chain(rpt, &f->stats, &f->chns, item, line);
+         rpt_get_detail(rpt, &f->detail, &f->stats, item, line);
+
+      i += item->consecutive;
    }
 }
 
@@ -360,7 +385,7 @@ cover_rpt_t *cover_report_new(cover_data_t *db, int item_limit)
         shash_iter(rpt->files, &it, &key, &value); ) {
       rpt_file_t *f = value;
       if (f->valid)
-         rpt_gen_file_chains(rpt, value);
+         rpt_gen_file_details(rpt, value);
    }
 
    return rpt;

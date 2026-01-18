@@ -38,33 +38,31 @@ typedef struct {
 } rpt_line_t;
 
 typedef struct {
-   unsigned total[COV_ITEM_FUNCTIONAL + 1];
-   unsigned hit[COV_ITEM_FUNCTIONAL + 1];
+   unsigned total[NUM_COVER_KINDS];
+   unsigned hit[NUM_COVER_KINDS];
 } rpt_stats_t;
 
 typedef struct {
-   const rpt_line_t *line;
-   cover_item_t     *item;
-} rpt_pair_t;
+   const rpt_line_t   *line;
+   unsigned            count;
+   const cover_item_t *items[];
+} rpt_table_t;
 
-typedef A(rpt_pair_t) pair_array_t;
-
-typedef struct {
-   pair_array_t hits;
-   pair_array_t miss;
-   pair_array_t excl;
-} rpt_chain_t;
+typedef A(rpt_table_t *) table_array_t;
 
 typedef struct {
-   rpt_chain_t chain[COV_ITEM_FUNCTIONAL + 1];
-} rpt_chain_group_t;
+   table_array_t hits[NUM_COVER_KINDS];
+   table_array_t miss[NUM_COVER_KINDS];
+   table_array_t excl[NUM_COVER_KINDS];
+   unsigned      total;
+} rpt_detail_t;
 
 typedef struct {
    const char        *path;
    char               path_hash[SHA_HEX_LEN];
    rpt_stats_t        stats;
    cov_item_array_t   items;
-   rpt_chain_group_t  chns;
+   rpt_detail_t       detail;
    rpt_line_t        *lines;
    unsigned           n_lines;
    bool               valid;
@@ -74,7 +72,7 @@ typedef struct {
    char              name_hash[SHA_HEX_LEN];
    rpt_stats_t       flat_stats;
    rpt_stats_t       nested_stats;
-   rpt_chain_group_t chns;
+   rpt_detail_t      detail;
 } rpt_hier_t;
 
 #endif   // _COV_STRUCTS_H

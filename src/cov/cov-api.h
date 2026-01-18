@@ -69,6 +69,8 @@ typedef enum {
    COV_ITEM_FUNCTIONAL,
 } cover_item_kind_t;
 
+#define NUM_COVER_KINDS (COV_ITEM_FUNCTIONAL + 1)
+
 typedef enum {
    COV_SRC_IF_CONDITION,
    COV_SRC_CASE_CHOICE,
