@@ -2276,7 +2276,7 @@ static vcode_reg_t lower_builtin(lower_unit_t *lu, tree_t fcall,
          vcode_type_t rtype = lower_type(tree_type(fcall));
          vcode_reg_t cast_reg = emit_cast(vreal, VCODE_INVALID_STAMP, r0);
          vcode_reg_t div = emit_div(cast_reg, r1);
-         return emit_cast(rtype, rtype, div);
+         return emit_cast(rtype, VCODE_INVALID_STAMP, div);
       }
    case S_DIV_RI:
       {
