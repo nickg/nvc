@@ -115,7 +115,7 @@ static uint32_t hash_string(ctx_t *ctx, const char *str, size_t salt)
     size_t sz2 = strlen(str) + 11;
     char *b2 = malloc(sz2);
     memset(b2, 0, sz2);
-    sprintf(b2, "%010d%s", h1, str);
+    sprintf(b2, "%010u%s", h1, str);
 
     uint32_t h2 = fnv32_hash(b2, strlen(b2));
 
@@ -310,11 +310,13 @@ static void walk_instances(vhpiHandleT h, ctx_t *ctx)
 
     bool cached_collect = ctx->collect;
 
-    char *dash = strchr(ent_name, '-');
-    size_t ent_name_len = dash - ent_name;
-    if (ent_name_len == strlen(ctx->block) &&
-        !strncmp(ctx->block, ent_name, strlen(ctx->block)))
-        ctx->collect = true;
+    if (ent_name) {
+        char *dash = strchr(ent_name, '-');
+        size_t ent_name_len = dash - ent_name;
+        if (ent_name_len == strlen(ctx->block) &&
+            !strncmp(ctx->block, ent_name, strlen(ctx->block)))
+            ctx->collect = true;
+    }
 
     if (ctx->collect)
         init_signals(ctx, h);
