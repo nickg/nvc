@@ -3,6 +3,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdbool.h>
+#include <ctype.h>
 
 #include "vhpi_user.h"
 
@@ -21,11 +22,14 @@ typedef struct {
     int         warnings;
     int         inits;
     int         skips;
+    char       *block;
+    bool        collect;
 } ctx_t;
 
 ///////////////////////////////////////////////////////////////////////////////
-// VHPI wrappers
+// VHPI Interface, wrappers and helpers
 ///////////////////////////////////////////////////////////////////////////////
+
 static vhpiHandleT xvhpi_handle(ctx_t *ctx, vhpiOneToOneT type,
                                 vhpiHandleT referenceHandle)
 {
@@ -281,8 +285,7 @@ static void init_signal(vhpiHandleT sig, ctx_t *ctx)
     vhpi_release_handle(type_h);
 }
 
-
-static void walk_instances(vhpiHandleT h, ctx_t *ctx)
+static void init_signals(ctx_t *ctx, vhpiHandleT h)
 {
     vhpiHandleT itr_decls_h = vhpi_iterator(vhpiDecls, h);
     vhpiHandleT decl_h;
@@ -297,6 +300,24 @@ static void walk_instances(vhpiHandleT h, ctx_t *ctx)
         init_signal(decl_h, ctx);
         vhpi_release_handle(decl_h);
     }
+}
+
+static void walk_instances(vhpiHandleT h, ctx_t *ctx)
+{
+    vhpiHandleT ent_h = vhpi_handle(vhpiDesignUnit, h);
+    const char *ent_name = (const char *)vhpi_get_str(vhpiNameP, ent_h);
+    vhpi_release_handle(ent_h);
+
+    bool cached_collect = ctx->collect;
+
+    char *dash = strchr(ent_name, '-');
+    size_t ent_name_len = dash - ent_name;
+    if (ent_name_len == strlen(ctx->block) &&
+        !strncmp(ctx->block, ent_name, strlen(ctx->block)))
+        ctx->collect = true;
+
+    if (ctx->collect)
+        init_signals(ctx, h);
 
     vhpiHandleT itr_h = vhpi_iterator(vhpiInternalRegions, h);
     vhpiHandleT inst_h;
@@ -305,6 +326,9 @@ static void walk_instances(vhpiHandleT h, ctx_t *ctx)
         walk_instances(inst_h, ctx);
         vhpi_release_handle(inst_h);
     }
+
+    if (!cached_collect && ctx->collect)
+        ctx->collect = false;
 }
 
 static void print_stats(ctx_t *ctx)
@@ -341,6 +365,12 @@ static void vhpi_cb(const struct vhpiCbDataS *cb_data)
         break;
     }
 
+    if (ctx->block != NULL) {
+        vhpi_printf("   block to initialize:    %s", ctx->block);
+    }
+    else
+        vhpi_printf("   block to initialize:    whole design");
+
     vhpiHandleT root_h = xvhpi_handle(ctx, vhpiRootInst, NULL);
 
     if (root_h != NULL) {
@@ -359,7 +389,9 @@ static void register_callback(void)
         .errors     = 0,
         .warnings   = 0,
         .inits      = 0,
-        .skips      = 0
+        .skips      = 0,
+        .block      = 0,
+        .collect    = false
     };
 
     // Read plugin arguments - Should stay here
@@ -382,6 +414,12 @@ static void register_callback(void)
             // TODO: atoi works on signed int. But that should be OK since we have
             //       seed uint32_t and int is very likely 64 bit!
             ctx.seed = atoi(s + 14);
+        else if (!strncmp(s, "+siginit+block+", 15)) {
+            ctx.block = calloc(1, strlen(s) - 14);
+            strcpy(ctx.block, s + 15);
+            for (char *c = ctx.block; *c != 0; c++)
+                *c = toupper(*c);
+        }
         else {
             vhpi_assert(vhpiError, "Invalid argument: %s", s);
             ctx.errors++;
@@ -391,6 +429,9 @@ static void register_callback(void)
     }
 
     vhpi_release_handle(tool_h);
+
+    if (ctx.block)
+        ctx.collect = false;
 
     /* Start of simulation callback */
     static vhpiCbDataT cb = {};
