@@ -1,0 +1,31 @@
+<?xml version="1.0"?>
+<scope name="WORK" file="issue1386.vhd">
+  <scope name="ISSUE1386" block_name="ISSUE1386-TEST" line="27">
+    <scope name="S" line="34">
+    </scope>
+    <scope name="CHECK" line="39">
+      <scope name="_S0" line="41">
+        <statement hier="WORK.ISSUE1386.CHECK._S0" data="1"/>
+      </scope>
+      <scope name="_S1" line="42">
+        <statement hier="WORK.ISSUE1386.CHECK._S1" data="1"/>
+      </scope>
+      <scope name="_S2" line="43">
+        <statement hier="WORK.ISSUE1386.CHECK._S2" data="1"/>
+      </scope>
+    </scope>
+    <scope name="U" block_name="SUB-TEST" line="16">
+      <scope name="O" line="13">
+      </scope>
+      <scope name="IMPL" block_name="SUB_IMPL-TEST" line="5">
+        <scope name="O" line="2">
+        </scope>
+        <scope name="ASSIGN" line="7">
+          <scope name="_S0">
+            <statement hier="WORK.ISSUE1386.U.IMPL.ASSIGN._S0" data="1"/>
+          </scope>
+        </scope>
+      </scope>
+    </scope>
+  </scope>
+</scope>

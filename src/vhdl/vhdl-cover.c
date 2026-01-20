@@ -333,7 +333,7 @@ cover_scope_t *vhdl_cover_block(tree_t block, cover_data_t *db,
    tree_t hier = tree_decl(block, 0);
    assert(tree_kind(hier) == T_HIER);
 
-   const int nstmts = tree_stmts(block);
+   int nstmts = tree_stmts(block);
    tree_t unit = tree_ref(hier);
 
    cover_scope_t *cs;
@@ -353,6 +353,7 @@ cover_scope_t *vhdl_cover_block(tree_t block, cover_data_t *db,
          cs = cover_create_block(db, tree_ident(hier2), parent,
                                  block, unit, NULL);
          block = inst;
+         nstmts = tree_stmts(block);
          hier = hier2;
       }
       else
