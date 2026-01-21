@@ -221,32 +221,46 @@ static void print_signal_skip(ctx_t *ctx, const char *sig_name,
 // Design walkthrough
 ///////////////////////////////////////////////////////////////////////////////
 
-static void init_signal(vhpiHandleT sig, ctx_t *ctx)
+static void init_signal(ctx_t *ctx, vhpiHandleT sig_h)
 {
-    vhpiHandleT type_h = xvhpi_handle(ctx, vhpiType, sig);
+    vhpiHandleT type_h = xvhpi_handle(ctx, vhpiType, sig_h);
     if (type_h == NULL)
         return;
 
     vhpiIntT type_kind = xvhpi_get(ctx, vhpiKindP, type_h);
 
-    const char *sig_name = (const char *) vhpi_get_str(vhpiNameP, sig);
+    const char *sig_name = (const char *) vhpi_get_str(vhpiNameP, sig_h);
 
     // Skip if we are in hierarchy that should not be collected
     if (!ctx->collect) {
-        vhpi_release_handle(type_h);
         print_signal_skip(ctx, sig_name, SKIP_FILTERED);
         ctx->skips++;
+
+        vhpi_release_handle(type_h);
         return;
     }
 
     // Skip types that are not used in RTL designs
-    // TODO: Add support for records -> Walk sub-fields
-    if (type_kind == vhpiRecordTypeDeclK || type_kind == vhpiFileDeclK       ||
-        type_kind == vhpiPhysTypeDeclK   || type_kind == vhpiAccessTypeDeclK ||
-        type_kind == vhpiFloatTypeDeclK) {
-        vhpi_release_handle(type_h);
+    if (type_kind == vhpiFileDeclK       || type_kind == vhpiPhysTypeDeclK   ||
+        type_kind == vhpiAccessTypeDeclK || type_kind == vhpiFloatTypeDeclK) {
+
         print_signal_skip(ctx, sig_name, SKIP_INVALID_TYPE);
         ctx->skips++;
+
+        vhpi_release_handle(type_h);
+        return;
+    }
+
+    if (type_kind == vhpiRecordTypeDeclK) {
+        vhpiHandleT elem_it = vhpi_iterator(vhpiSelectedNames, sig_h);
+        vhpiHandleT elem_h;
+
+        while ((elem_h = vhpi_scan(elem_it)) != NULL) {
+            init_signal(ctx, elem_h);
+            vhpi_release_handle(elem_h);
+        }
+
+        vhpi_release_handle(type_h);
         return;
     }
 
@@ -279,7 +293,7 @@ static void init_signal(vhpiHandleT sig, ctx_t *ctx)
     }
 
     const char *b_type_name = (const char *) vhpi_get_str(vhpiFullNameP, b_type_h);
-    size_t n_elems = xvhpi_get(ctx, vhpiSizeP, sig);
+    size_t n_elems = xvhpi_get(ctx, vhpiSizeP, sig_h);
 
     switch (b_type_kind) {
     case vhpiEnumTypeDeclK:
@@ -309,7 +323,7 @@ static void init_signal(vhpiHandleT sig, ctx_t *ctx)
             }
 
             print_signal_init(ctx, sig_name, &v);
-            vhpi_put_value(sig, &v, vhpiDepositPropagate);
+            vhpi_put_value(sig_h, &v, vhpiDepositPropagate);
             free(v.value.smallenumvs);
         }
         else {
@@ -340,7 +354,7 @@ static void init_signal(vhpiHandleT sig, ctx_t *ctx)
             }
 
             print_signal_init(ctx, sig_name, &v);
-            vhpi_put_value(sig, &v, vhpiDepositPropagate);
+            vhpi_put_value(sig_h, &v, vhpiDepositPropagate);
             free(v.value.enumvs);
         }
         break;
@@ -372,7 +386,7 @@ static void init_signal(vhpiHandleT sig, ctx_t *ctx)
             }
 
             print_signal_init(ctx, sig_name, &v);
-            vhpi_put_value(sig, &v, vhpiDepositPropagate);
+            vhpi_put_value(sig_h, &v, vhpiDepositPropagate);
             free(v.value.intgs);
 
             break;
@@ -392,38 +406,48 @@ static void init_signal(vhpiHandleT sig, ctx_t *ctx)
     vhpi_release_handle(type_h);
 }
 
-static void init_signals(ctx_t *ctx, vhpiHandleT h)
+static void init_signals(ctx_t *ctx, vhpiHandleT inst_h)
 {
-    vhpiHandleT itr_decls_h = vhpi_iterator(vhpiDecls, h);
+    vhpiHandleT decls_it = vhpi_iterator(vhpiDecls, inst_h);
     vhpiHandleT decl_h;
 
-    while ((decl_h = vhpi_scan(itr_decls_h)) != NULL) {
+    while ((decl_h = vhpi_scan(decls_it)) != NULL) {
 
         if (xvhpi_get(ctx, vhpiKindP, decl_h) != vhpiSigDeclK) {
             vhpi_release_handle(decl_h);
             continue;
         }
 
-        init_signal(decl_h, ctx);
+        init_signal(ctx, decl_h);
         vhpi_release_handle(decl_h);
     }
 }
 
-static void walk_instances(ctx_t *ctx, vhpiHandleT h)
+static void hier_push(ctx_t *ctx, vhpiHandleT h)
 {
-    bool cached_collect = ctx->collect;
-
-    const char *inst_name = (const char *)vhpi_get_str(vhpiNameP, h);
-    size_t new_hier_len = strlen(inst_name) + strlen(ctx->hier) + 1;
+    const char *name = (const char *)vhpi_get_str(vhpiNameP, h);
+    size_t new_hier_len = strlen(name) + strlen(ctx->hier) + 1;
 
     while (new_hier_len > ctx->hier_len) {
         ctx->hier_len *= 2;
         ctx->hier = realloc(ctx->hier, ctx->hier_len);
     }
 
-    // TODO: don't put it here for top level ?
     strcat(ctx->hier, ":");
-    strcat(ctx->hier, inst_name);
+    strcat(ctx->hier, name);
+}
+
+static void hier_pop(ctx_t *ctx)
+{
+    char *col = strrchr(ctx->hier, ':');
+    *col = '\0';
+}
+
+static void walk_instances(ctx_t *ctx, vhpiHandleT h)
+{
+    bool cached_collect = ctx->collect;
+
+    hier_push(ctx, h);
 
     vhpiHandleT ent_h = vhpi_handle(vhpiDesignUnit, h);
     const char *ent_name = (const char *)vhpi_get_str(vhpiNameP, ent_h);
@@ -440,10 +464,10 @@ static void walk_instances(ctx_t *ctx, vhpiHandleT h)
 
     init_signals(ctx, h);
 
-    vhpiHandleT itr_h = vhpi_iterator(vhpiInternalRegions, h);
+    vhpiHandleT regions_it = vhpi_iterator(vhpiInternalRegions, h);
     vhpiHandleT inst_h;
 
-    while ((inst_h = vhpi_scan(itr_h)) != NULL) {
+    while ((inst_h = vhpi_scan(regions_it)) != NULL) {
         walk_instances(ctx, inst_h);
         vhpi_release_handle(inst_h);
     }
@@ -451,8 +475,7 @@ static void walk_instances(ctx_t *ctx, vhpiHandleT h)
     if (!cached_collect && ctx->collect)
         ctx->collect = false;
 
-    char *col = strrchr(ctx->hier, ':');
-    *col = '\0';
+    hier_pop(ctx);
 }
 
 static void print_stats(ctx_t *ctx)
