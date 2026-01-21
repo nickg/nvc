@@ -1,0 +1,75 @@
+<?xml version="1.0"?>
+<scope name="WORK" file="cover20.vhd">
+  <scope name="COVER20" block_name="COVER20-TEST" line="10">
+    <scope name="A" line="12">
+      <toggle hier="WORK.COVER20.A.BIN_0_TO_1" data="0"/>
+      <toggle hier="WORK.COVER20.A.BIN_1_TO_0" data="1"/>
+    </scope>
+    <scope name="B" line="13">
+      <toggle hier="WORK.COVER20.B.BIN_0_TO_1" data="0"/>
+      <toggle hier="WORK.COVER20.B.BIN_1_TO_0" data="1"/>
+    </scope>
+    <scope name="TGL" line="18">
+      <toggle hier="WORK.COVER20.TGL(0).BIN_0_TO_1" data="1"/>
+      <toggle hier="WORK.COVER20.TGL(0).BIN_1_TO_0" data="1"/>
+      <toggle hier="WORK.COVER20.TGL(1).BIN_0_TO_1" data="0"/>
+      <toggle hier="WORK.COVER20.TGL(1).BIN_1_TO_0" data="0"/>
+    </scope>
+    <scope name="GEN_ZERO" block_name="GEN_ZERO" line="22">
+      <scope name="_P0" line="24">
+        <scope name="_S0" line="26">
+          <statement hier="WORK.COVER20.GEN_ZERO._P0._S0" data="1"/>
+        </scope>
+        <scope name="_S1" line="27">
+          <statement hier="WORK.COVER20.GEN_ZERO._P0._S1" data="1"/>
+        </scope>
+        <scope name="_S2" line="28">
+          <statement hier="WORK.COVER20.GEN_ZERO._P0._S2" data="1"/>
+        </scope>
+        <scope name="_S3" line="29">
+          <statement hier="WORK.COVER20.GEN_ZERO._P0._S3" data="1"/>
+        </scope>
+        <scope name="_S4" line="31">
+          <statement hier="WORK.COVER20.GEN_ZERO._P0._S4" data="1"/>
+        </scope>
+        <scope name="_S5" line="32">
+          <statement hier="WORK.COVER20.GEN_ZERO._P0._S5" data="1"/>
+        </scope>
+        <scope name="_S6" line="33">
+          <statement hier="WORK.COVER20.GEN_ZERO._P0._S6" data="1"/>
+        </scope>
+        <scope name="_S7" line="34">
+          <statement hier="WORK.COVER20.GEN_ZERO._P0._S7" data="1"/>
+        </scope>
+        <scope name="_S8" line="35">
+          <statement hier="WORK.COVER20.GEN_ZERO._P0._S8" data="1"/>
+        </scope>
+        <scope name="_S9" line="36">
+          <statement hier="WORK.COVER20.GEN_ZERO._P0._S9" data="1"/>
+        </scope>
+        <scope name="_S10" line="38">
+          <statement hier="WORK.COVER20.GEN_ZERO._P0._S10" data="1"/>
+        </scope>
+      </scope>
+    </scope>
+    <scope name="GEN_ONE" block_name="GEN_ONE" line="44">
+      <scope name="_P0" line="46">
+        <scope name="_S0" line="48">
+          <statement hier="WORK.COVER20.GEN_ONE._P0._S0" data="1"/>
+        </scope>
+        <scope name="_S1" line="49">
+          <statement hier="WORK.COVER20.GEN_ONE._P0._S1" data="1"/>
+        </scope>
+        <scope name="_S2" line="50">
+          <statement hier="WORK.COVER20.GEN_ONE._P0._S2" data="1"/>
+        </scope>
+        <scope name="_S3" line="51">
+          <statement hier="WORK.COVER20.GEN_ONE._P0._S3" data="1"/>
+        </scope>
+        <scope name="_S4" line="52">
+          <statement hier="WORK.COVER20.GEN_ONE._P0._S4" data="1"/>
+        </scope>
+      </scope>
+    </scope>
+  </scope>
+</scope>

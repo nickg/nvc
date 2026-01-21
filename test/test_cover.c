@@ -22,6 +22,7 @@
 #include "ident.h"
 #include "jit/jit.h"
 #include "lib.h"
+#include "lower.h"
 #include "option.h"
 #include "phase.h"
 #include "rt/model.h"
@@ -30,36 +31,24 @@
 
 #include <limits.h>
 
-static cover_data_t *run_cover(void)
+static cover_data_t *run_cover(tree_t top)
 {
    cover_data_t *db = cover_data_init(COVER_MASK_ALL, 0, 1);
-   mir_context_t *mc = get_mir();
-   unit_registry_t *ur = get_registry();
+   mir_context_t *mc = mir_context_new();
+   unit_registry_t *ur = unit_registry_new(mc);
    jit_t *j = jit_new(ur, mc, db);
-
-   tree_t t, last_ent = NULL;
-   while ((t = parse())) {
-      fail_if(error_count() > 0);
-
-      lib_put(lib_work(), t);
-      simplify_local(t, j, ur, mc);
-      bounds_check(t);
-      fail_if(error_count() > 0);
-
-      const tree_kind_t kind = tree_kind(t);
-      if (kind == T_ENTITY || kind == T_CONFIGURATION)
-         last_ent = t;
-   }
 
    rt_model_t *m = model_new(j, db);
 
-   elab(tree_to_object(last_ent), j, ur, mc, db, NULL, m);
+   elab(tree_to_object(top), j, ur, mc, db, NULL, m);
 
    model_reset(m);
    model_run(m, UINT64_MAX);
 
    model_free(m);
    jit_free(j);
+   unit_registry_free(ur);
+   mir_context_free(mc);
 
    // TODO: shouldn't need to do this to sync counters
    fbuf_t *tmp = fbuf_open("/dev/null", FBUF_OUT, FBUF_CS_NONE);
@@ -73,7 +62,9 @@ START_TEST(test_perfile1)
 {
    input_from_file(TESTDIR "/cover/perfile1.vhd");
 
-   cover_data_t *db = run_cover();
+   tree_t top = parse_check_and_simplify(T_ENTITY, T_ARCH, T_ENTITY, T_ARCH);
+
+   cover_data_t *db = run_cover(top);
 
    cover_rpt_t *rpt = cover_report_new(db, INT_MAX);
 
@@ -103,7 +94,9 @@ START_TEST(test_toggle1)
 
    elab_set_generic("G_VAL", "2");
 
-   cover_data_t *db = run_cover();
+   tree_t top = parse_check_and_simplify(T_ENTITY, T_ARCH);
+
+   cover_data_t *db = run_cover(top);
 
    cover_scope_t *u1 = cover_get_scope(db, ident_new("WORK.TOGGLE1"));
    ck_assert_ptr_nonnull(u1);
@@ -154,6 +147,63 @@ START_TEST(test_toggle1)
 }
 END_TEST
 
+START_TEST(test_merge1)
+{
+   input_from_file(TESTDIR "/cover/merge1.vhd");
+
+   tree_t top = parse_check_and_simplify(T_ENTITY, T_ARCH);
+
+   elab_set_generic("G_VAL", "0");
+
+   cover_data_t *db1 = run_cover(top);
+
+   elab_set_generic("G_VAL", "1");
+
+   cover_data_t *db2 = run_cover(top);
+
+   cover_merge(db1, db2, MERGE_UNION);
+
+   // TODO: should be safe to call cover_data_free(db2) here
+
+   cover_scope_t *u1 = cover_get_scope(db1, ident_new("WORK.MERGE1"));
+   ck_assert_ptr_nonnull(u1);
+
+   cover_rpt_t *rpt = cover_report_new(db1, INT_MAX);
+
+   const rpt_hier_t *u1_h = rpt_get_hier(rpt, u1);
+   ck_assert_int_eq(u1_h->flat_stats.total[COV_ITEM_TOGGLE], 8);
+   ck_assert_int_eq(u1_h->flat_stats.hit[COV_ITEM_TOGGLE], 4);
+
+   const table_array_t *hits = &(u1_h->detail.hits[COV_ITEM_TOGGLE]);
+   ck_assert_int_eq(hits->count, 3);
+
+   const rpt_table_t *hits_t2 = hits->items[2];
+   ck_assert_int_eq(hits_t2->count, 2);
+   ck_assert_int_eq(hits_t2->items[0]->data, 1);
+   ck_assert_str_eq(istr(hits_t2->items[0]->hier),
+                    "WORK.MERGE1.TGL(0).BIN_0_TO_1");
+
+   const table_array_t *miss = &(u1_h->detail.miss[COV_ITEM_TOGGLE]);
+   ck_assert_int_eq(hits->count, 3);
+
+   const rpt_table_t *miss_t2 = miss->items[2];
+   ck_assert_int_eq(miss_t2->count, 2);
+   ck_assert_int_eq(miss_t2->items[0]->data, 0);
+   ck_assert_str_eq(istr(miss_t2->items[0]->hier),
+                    "WORK.MERGE1.TGL(1).BIN_0_TO_1");
+
+   cover_scope_t *gen1 = cover_get_scope(db1, ident_new("WORK.MERGE1.GEN_ONE"));
+   ck_assert_ptr_nonnull(gen1);
+
+   cover_report_free(rpt);
+
+   cover_data_free(db1);
+   cover_data_free(db2);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_cover_tests(void)
 {
    Suite *s = suite_create("cover");
@@ -161,6 +211,7 @@ Suite *get_cover_tests(void)
    TCase *tc = nvc_unit_test();
    tcase_add_test(tc, test_perfile1);
    tcase_add_test(tc, test_toggle1);
+   tcase_add_test(tc, test_merge1);
    suite_add_tcase(s, tc);
 
    return s;

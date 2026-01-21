@@ -1718,7 +1718,7 @@ static int coverage_cmd(int argc, char **argv, cmd_state_t *state)
       case ':':
          missing_argument("coverage", argv);
       default:
-         abort();
+         should_not_reach_here();
       }
    }
 
@@ -1727,7 +1727,7 @@ static int coverage_cmd(int argc, char **argv, cmd_state_t *state)
    if (optind == argc)
       fatal("no input coverage database FILE specified");
 
-   cover_data_t *cover = NULL;
+   cover_data_t *merged = NULL;
 
    // Rest of inputs are coverage input files
    for (int i = optind; i < argc; i++) {
@@ -1735,10 +1735,14 @@ static int coverage_cmd(int argc, char **argv, cmd_state_t *state)
 
       if (f != NULL) {
          progress("Loading input coverage database: %s", argv[i]);
+
+         cover_data_t *db = cover_read_items(f, rpt_mask);
          if (i == optind)
-            cover = cover_read_items(f, rpt_mask);
-         else
-            cover_merge_items(f, cover, MERGE_UNION);
+            merged = db;
+         else {
+            cover_merge(merged, db, MERGE_UNION);
+            // TODO: not safe to free db here
+         }
       }
       else
          fatal("Could not open coverage database: %s", argv[i]);
@@ -1749,25 +1753,25 @@ static int coverage_cmd(int argc, char **argv, cmd_state_t *state)
    if (out_db) {
       progress("Saving merged coverage database to: %s", out_db);
       fbuf_t *f = fbuf_open(out_db, FBUF_OUT, FBUF_CS_NONE);
-      cover_dump_items(cover, f, COV_DUMP_PROCESSING);
+      cover_dump_items(merged, f, COV_DUMP_PROCESSING);
       fbuf_close(f, NULL);
    }
 
-   if (exclude_file && cover) {
+   if (exclude_file && merged) {
       progress("Loading exclude file: %s", exclude_file);
-      cover_load_exclude_file(exclude_file, cover);
+      cover_load_exclude_file(exclude_file, merged);
    }
 
-   if (rpt_file && cover) {
+   if (rpt_file && merged) {
       progress("Generating code coverage report.");
-      cover_report(rpt_file, cover, item_limit);
+      cover_report(rpt_file, merged, item_limit);
    }
 
-   if (export_file && cover) {
+   if (export_file && merged) {
       progress("Exporting XML coverage report");
 
       FILE *f = create_file("%s", export_file);
-      cover_export_cobertura(cover, f, NULL);
+      cover_export_cobertura(merged, f, NULL);
       fclose(f);
    }
 
@@ -1852,7 +1856,7 @@ static cover_data_t *merge_coverage_files(int argc, int next_cmd, char **argv,
    if (optind == next_cmd)
       fatal("no input coverage database specified");
 
-   cover_data_t *cover = NULL;
+   cover_data_t *merged = NULL;
 
    for (int i = optind; i < next_cmd; i++) {
       fbuf_t *f = fbuf_open(argv[i], FBUF_IN, FBUF_CS_NONE);
@@ -1883,15 +1887,17 @@ static cover_data_t *merge_coverage_files(int argc, int next_cmd, char **argv,
 
       progress("loading input coverage database %s", argv[i]);
 
+      cover_data_t *db = cover_read_items(f, rpt_mask);
+
       if (i == optind)
-         cover = cover_read_items(f, rpt_mask);
+         merged = db;
       else
-         cover_merge_items(f, cover, mode);
+         cover_merge(merged, db, mode);
 
       fbuf_close(f, NULL);
    }
 
-   return cover;
+   return merged;
 }
 
 static int cover_export_cmd(int argc, char **argv, cmd_state_t *state)

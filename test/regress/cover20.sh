@@ -9,9 +9,8 @@ nvc -a $TESTDIR/regress/cover20.vhd \
 nvc -a $TESTDIR/regress/cover20.vhd \
     -e -gG_VAL=1 --cover=statement,toggle --cover-file=DB2.ncdb cover20 -r
 
-nvc --cover-report -o html DB1.ncdb DB2.ncdb 2>&1 | grep -v '^** Debug:' | tee out.txt
+nvc --cover-merge -o merged.ncdb DB1.ncdb DB2.ncdb
 
-# Adjust output to be work directory relative
-sed -i -e "s/[^ ]*regress\/data\//data\//g" out.txt
+nvc --cover-export --format=xml --relative=$TESTDIR/regress merged.ncdb -o out.xml
 
-diff -u $TESTDIR/regress/gold/cover20.txt out.txt
+diff -u $TESTDIR/regress/gold/cover20.xml out.xml

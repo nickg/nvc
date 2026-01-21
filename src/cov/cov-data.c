@@ -1143,8 +1143,8 @@ cover_data_t *cover_read_items(fbuf_t *f, uint32_t pre_mask)
    return data;
 }
 
-static void cover_merge_scope(cover_scope_t *old_s, cover_scope_t *new_s,
-                              merge_mode_t mode)
+static void cover_merge_scope(cover_data_t *db, cover_scope_t *old_s,
+                              cover_scope_t *new_s, merge_mode_t mode)
 {
    // Most merged cover scopes have equal items.
    // Start from equal item index in old and new scope instead of iterating
@@ -1192,47 +1192,27 @@ static void cover_merge_scope(cover_scope_t *old_s, cover_scope_t *new_s,
       for (int j = 0; j < old_s->children.count; j++) {
          cover_scope_t *old_c = old_s->children.items[j];
          if (new_c->name == old_c->name) {
-            cover_merge_scope(old_c, new_c, mode);
+            cover_merge_scope(db, old_c, new_c, mode);
             found = true;
             break;
          }
       }
 
-      if (!found && mode == MERGE_UNION)
+      if (!found && mode == MERGE_UNION) {
          APUSH(old_s->children, new_c);
+
+         if (new_c->block->self == new_c)
+            hash_put(db->blocks, new_c->block->name, new_c->block);
+      }
    }
 }
 
-void cover_merge_items(fbuf_t *f, cover_data_t *data, merge_mode_t mode)
+void cover_merge(cover_data_t *dst, const cover_data_t *src, merge_mode_t mode)
 {
-   assert (data != NULL);
+   cover_merge_scope(dst, dst->root_scope, src->root_scope, mode);
 
-   cover_read_header(f, data);
-
-   loc_rd_ctx_t *loc_rd = loc_read_begin(f);
-   ident_rd_ctx_t ident_ctx = ident_read_begin(f);
-
-   bool eof = false;
-   do {
-      const uint8_t ctrl = read_u8(f);
-      switch (ctrl) {
-      case CTRL_PUSH_SCOPE:
-         {
-            cover_scope_t *new =
-               cover_read_scope(data, f, ident_ctx, loc_rd, NULL, NULL);
-            cover_merge_scope(data->root_scope, new, mode);
-         }
-         break;
-      case CTRL_END_OF_FILE:
-         eof = true;
-         break;
-      default:
-         fatal_trace("invalid control word %x in cover db", ctrl);
-      }
-   } while (!eof);
-
-   ident_read_end(ident_ctx);
-   loc_read_end(loc_rd);
+   if (opt_get_int(OPT_COVER_VERBOSE))
+      cover_debug_dump(dst->root_scope, 0);
 }
 
 int32_t *cover_get_counters(cover_data_t *db, ident_t name)
