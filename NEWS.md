@@ -23,7 +23,7 @@
   on `std.env.time_record` now displays months correctly according to
   ISO 8601 (#1381).
 - Several other minor bugs were resolved (#1237, #1350, #1351, #1353,
-  #1366, #1372, #1333).
+  #1366, #1372, #1333, #1388).
 
 ## Version 1.18.2 - 2025-11-19
 - Fixed a mis-optimisation which would cause the result of `x * x` to be

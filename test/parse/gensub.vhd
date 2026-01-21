@@ -10,4 +10,5 @@ package body pack2 is
     begin
     end procedure;
     procedure addi is new adder generic map (t => integer);  -- OK
+    function addi_func is new adder generic map (t => integer);  -- Error
 end package body;

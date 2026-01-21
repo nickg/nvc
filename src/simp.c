@@ -588,6 +588,8 @@ static tree_t simp_attr_ref(tree_t t, simp_ctx_t *ctx)
             else if (dim_i < 1 || dim_i > dimension_of(type))
                break;
          }
+         else if (type_is_generic(type))
+            break;   // Cannot simplify until instantiated
 
          tree_t r = range_of(type, dim_i - 1);
 

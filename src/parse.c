@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2014-2024  Nick Gasson
+//  Copyright (C) 2014-2026  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -2121,7 +2121,8 @@ static type_t apply_index_attribute(tree_t aref)
 {
    assert(tree_subkind(aref) == ATTR_INDEX);
 
-   type_t type = get_type_or_null(tree_name(aref));
+   tree_t name = tree_name(aref);
+   type_t type = get_type_or_null(name);
 
    if (!type_is_array(type)) {
       parse_error(tree_loc(aref), "prefix of 'INDEX attribute must be an "
@@ -2153,7 +2154,37 @@ static type_t apply_index_attribute(tree_t aref)
       index = ival - 1;
    }
 
-   return index_type_of(type, index);
+   type_t base = index_type_of(type, index);
+
+   if (tree_kind(name) == T_REF && tree_has_ref(name)) {
+      tree_t decl = tree_ref(name);
+      if (aliased_type_decl(decl) != NULL)
+         return base;
+   }
+
+   tree_t rexpr = tree_new(T_ATTR_REF);
+   tree_set_loc(rexpr, tree_loc(aref));
+   tree_set_subkind(rexpr, ATTR_RANGE);
+   tree_set_ident(rexpr, ident_new("RANGE"));
+   tree_set_name(rexpr, name);
+   tree_set_type(rexpr, base);
+
+   tree_t r = tree_new(T_RANGE);
+   tree_set_loc(r, tree_loc(aref));
+   tree_set_subkind(r, RANGE_EXPR);
+   tree_set_value(r, rexpr);
+   tree_set_type(r, base);
+
+   tree_t c = tree_new(T_CONSTRAINT);
+   tree_set_loc(c, tree_loc(aref));
+   tree_set_subkind(c, C_RANGE);
+   tree_add_range(c, r);
+
+   type_t sub = type_new(T_SUBTYPE);
+   type_set_base(sub, base);
+   type_set_constraint(sub, c);
+
+   return sub;
 }
 
 static type_t apply_type_attribute(tree_t aref)
@@ -7452,13 +7483,21 @@ static tree_t p_subprogram_instantiation_declaration(void)
    tree_t decl = NULL;
    if (tree_kind(name) != T_REF)
       parse_error(CURRENT_LOC, "expecting uninstantiated subprogram name");
-   else {
+   else
       decl = resolve_uninstantiated_subprogram(nametab, tree_loc(name),
                                                tree_ident(name), constraint);
-   }
 
    if (decl != NULL) {
+      if (class_of(decl) != class_of(inst)) {
+         diag_t *d = diag_new(DIAG_ERROR, tree_loc(name));
+         diag_printf(d, "%pI is a %s not a %s", tree_ident(decl),
+                     class_str(class_of(decl)), class_str(class_of(inst)));
+         diag_hint(d, tree_loc(decl), "%pI declared here", tree_ident(decl));
+         diag_emit(d);
+      }
+
       tree_t body = find_generic_subprogram_body(inst, decl);
+
       instantiate_subprogram(inst, decl, body);
    }
    else {

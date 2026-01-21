@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2025  Nick Gasson
+//  Copyright (C) 2011-2026  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -7160,6 +7160,7 @@ START_TEST(test_gensub)
 
    const error_t expect[] = {
       {  2, "expecting uninstantiated subprogram name" },
+      { 13, "ADDER is a procedure not a function" },
       { -1, NULL }
    };
    expect_errors(expect);

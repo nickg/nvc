@@ -4918,9 +4918,15 @@ static vcode_reg_t lower_attr_ref(lower_unit_t *lu, tree_t expr)
    case ATTR_LENGTH:
       {
          const int dim = lower_get_attr_dimension(expr);
-         vcode_reg_t name_reg = lower_attr_prefix(lu, name);
-         vcode_reg_t len_reg =
-            lower_array_len(lu, tree_type(name), dim, name_reg);
+
+         vcode_reg_t name_reg = lower_attr_prefix(lu, name), len_reg;
+         if (name_reg == VCODE_INVALID_REG) {
+            vcode_reg_t bounds_reg = lower_get_type_bounds(lu, tree_type(name));
+            len_reg = emit_uarray_len(bounds_reg, dim);
+         }
+         else
+            len_reg = lower_array_len(lu, tree_type(name), dim, name_reg);
+
          return emit_cast(lower_type(tree_type(expr)),
                           VCODE_INVALID_STAMP, len_reg);
       }
