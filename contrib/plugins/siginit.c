@@ -15,15 +15,45 @@ typedef enum {
     CFG_RND,
 } cfg_t;
 
+typedef enum {
+    SKIP_FILTERED,
+    SKIP_INVALID_TYPE,
+} skip_kind_t;
+
 typedef struct {
+    // Randomizer configuration
     cfg_t       cfg;
+
+    // Randomization seed;
     uint32_t    seed;
-    int         errors;
-    int         warnings;
-    int         inits;
-    int         skips;
+
+    // Number of errors ocurred
+    size_t      errors;
+
+    // Number of warnings occured
+    size_t      warnings;
+
+    // Number of initialized signals
+    size_t      inits;
+
+    // Number of skippted signals
+    size_t      skips;
+
+    // Name of entity to initialize
     char       *block;
+
+    // Path where to write report
+    char       *rpt_path;
+
+    // Flag if current hierarchy shall be initialized
     bool        collect;
+
+    // Report descriptor
+    FILE       *rpt;
+
+    // Current hierarchy
+    char       *hier;
+    size_t      hier_len;
 } ctx_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -112,10 +142,10 @@ static uint32_t hash_string(ctx_t *ctx, const char *str, size_t salt)
 
     uint32_t h1 = oat_hash(b1, strlen(b1));
 
-    size_t sz2 = strlen(str) + 11;
+    size_t sz2 = strlen(ctx->hier) + strlen(str) + 12;
     char *b2 = malloc(sz2);
     memset(b2, 0, sz2);
-    sprintf(b2, "%010u%s", h1, str);
+    sprintf(b2, "%010u%s:%s", h1, ctx->hier, str);
 
     uint32_t h2 = fnv32_hash(b2, strlen(b2));
 
@@ -123,6 +153,68 @@ static uint32_t hash_string(ctx_t *ctx, const char *str, size_t salt)
     free(b2);
 
     return h2;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// Reporting
+///////////////////////////////////////////////////////////////////////////////
+
+static void print_signal_init(ctx_t *ctx, const char *sig_name, vhpiValueT *v)
+{
+    if (ctx->rpt == NULL)
+        return;
+
+    fprintf(ctx->rpt, "Initialized signal:\n");
+    fprintf(ctx->rpt, "    Hierarchy:  %s\n", ctx->hier);
+    fprintf(ctx->rpt, "    Name:       %s\n", sig_name);
+
+    switch (v->format) {
+    case vhpiSmallEnumVecVal:
+        if (v->bufSize == 1)
+            fprintf(ctx->rpt, "    Value:      '%c'\n",
+                    (v->value.smallenumvs[0] == vhpi1) ? '1' : '0');
+        else {
+            size_t sz = v->bufSize + 3;
+            char *buf = calloc(1, sz);
+
+            buf[0] = '"';
+
+            for (size_t i = 0; i < v->bufSize; i++)
+                buf[i + 1] = (v->value.smallenumvs[i] == vhpi1) ? '1' : '0';
+
+            buf[sz - 2] = '"';
+            buf[sz - 1] = '\0';
+
+            fprintf(ctx->rpt, "    Value:      %s\n", buf);
+            free(buf);
+        }
+        break;
+
+    case vhpiEnumVecVal:
+        break;
+
+    case vhpiIntVal:
+        break;
+
+    default:
+        break;
+    }
+
+    fprintf(ctx->rpt, "\n");
+}
+
+static void print_signal_skip(ctx_t *ctx, const char *sig_name,
+                              skip_kind_t skip_kind)
+{
+    if (ctx->rpt == NULL)
+        return;
+
+    fprintf(ctx->rpt, "Skipped signal:\n");
+    fprintf(ctx->rpt, "    Hierarchy:  %s\n", ctx->hier);
+    fprintf(ctx->rpt, "    Name:       %s\n", sig_name);
+    fprintf(ctx->rpt, "    Reason:     %s\n\n", (skip_kind == SKIP_FILTERED) ?
+                                              "+siginit+block+" :
+                                              "invalid type") ;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -137,11 +229,23 @@ static void init_signal(vhpiHandleT sig, ctx_t *ctx)
 
     vhpiIntT type_kind = xvhpi_get(ctx, vhpiKindP, type_h);
 
-    // TODO: Add support for records
+    const char *sig_name = (const char *) vhpi_get_str(vhpiNameP, sig);
+
+    // Skip if we are in hierarchy that should not be collected
+    if (!ctx->collect) {
+        vhpi_release_handle(type_h);
+        print_signal_skip(ctx, sig_name, SKIP_FILTERED);
+        ctx->skips++;
+        return;
+    }
+
+    // Skip types that are not used in RTL designs
+    // TODO: Add support for records -> Walk sub-fields
     if (type_kind == vhpiRecordTypeDeclK || type_kind == vhpiFileDeclK       ||
         type_kind == vhpiPhysTypeDeclK   || type_kind == vhpiAccessTypeDeclK ||
         type_kind == vhpiFloatTypeDeclK) {
         vhpi_release_handle(type_h);
+        print_signal_skip(ctx, sig_name, SKIP_INVALID_TYPE);
         ctx->skips++;
         return;
     }
@@ -175,7 +279,6 @@ static void init_signal(vhpiHandleT sig, ctx_t *ctx)
     }
 
     const char *b_type_name = (const char *) vhpi_get_str(vhpiFullNameP, b_type_h);
-    const char *sig_name = (const char *) vhpi_get_str(vhpiFullNameP, sig);
     size_t n_elems = xvhpi_get(ctx, vhpiSizeP, sig);
 
     switch (b_type_kind) {
@@ -205,6 +308,7 @@ static void init_signal(vhpiHandleT sig, ctx_t *ctx)
                 }
             }
 
+            print_signal_init(ctx, sig_name, &v);
             vhpi_put_value(sig, &v, vhpiDepositPropagate);
             free(v.value.smallenumvs);
         }
@@ -235,6 +339,7 @@ static void init_signal(vhpiHandleT sig, ctx_t *ctx)
                 }
             }
 
+            print_signal_init(ctx, sig_name, &v);
             vhpi_put_value(sig, &v, vhpiDepositPropagate);
             free(v.value.enumvs);
         }
@@ -266,6 +371,7 @@ static void init_signal(vhpiHandleT sig, ctx_t *ctx)
                 }
             }
 
+            print_signal_init(ctx, sig_name, &v);
             vhpi_put_value(sig, &v, vhpiDepositPropagate);
             free(v.value.intgs);
 
@@ -282,6 +388,7 @@ static void init_signal(vhpiHandleT sig, ctx_t *ctx)
         vhpi_release_handle(b_type_h);
     if (e_type_h != type_h)
         vhpi_release_handle(e_type_h);
+
     vhpi_release_handle(type_h);
 }
 
@@ -302,13 +409,24 @@ static void init_signals(ctx_t *ctx, vhpiHandleT h)
     }
 }
 
-static void walk_instances(vhpiHandleT h, ctx_t *ctx)
+static void walk_instances(ctx_t *ctx, vhpiHandleT h)
 {
+    bool cached_collect = ctx->collect;
+
+    const char *inst_name = (const char *)vhpi_get_str(vhpiNameP, h);
+    size_t new_hier_len = strlen(inst_name) + strlen(ctx->hier) + 1;
+
+    while (new_hier_len > ctx->hier_len) {
+        ctx->hier_len *= 2;
+        ctx->hier = realloc(ctx->hier, ctx->hier_len);
+    }
+
+    // TODO: don't put it here for top level ?
+    strcat(ctx->hier, ":");
+    strcat(ctx->hier, inst_name);
+
     vhpiHandleT ent_h = vhpi_handle(vhpiDesignUnit, h);
     const char *ent_name = (const char *)vhpi_get_str(vhpiNameP, ent_h);
-    vhpi_release_handle(ent_h);
-
-    bool cached_collect = ctx->collect;
 
     if (ent_name) {
         char *dash = strchr(ent_name, '-');
@@ -318,28 +436,32 @@ static void walk_instances(vhpiHandleT h, ctx_t *ctx)
             ctx->collect = true;
     }
 
-    if (ctx->collect)
-        init_signals(ctx, h);
+    vhpi_release_handle(ent_h);
+
+    init_signals(ctx, h);
 
     vhpiHandleT itr_h = vhpi_iterator(vhpiInternalRegions, h);
     vhpiHandleT inst_h;
 
     while ((inst_h = vhpi_scan(itr_h)) != NULL) {
-        walk_instances(inst_h, ctx);
+        walk_instances(ctx, inst_h);
         vhpi_release_handle(inst_h);
     }
 
     if (!cached_collect && ctx->collect)
         ctx->collect = false;
+
+    char *col = strrchr(ctx->hier, ':');
+    *col = '\0';
 }
 
 static void print_stats(ctx_t *ctx)
 {
-    vhpi_printf("initialization done:");
-    vhpi_printf("   initialized signals:    %d", ctx->inits);
-    vhpi_printf("   skipped signals:        %d", ctx->skips);
-    vhpi_printf("   errors ocurred:         %d", ctx->errors);
-    vhpi_printf("   warnings ocurred:       %d", ctx->warnings);
+    fprintf(ctx->rpt, "Initialization statistics:\n");
+    fprintf(ctx->rpt, "   initialized signals:    %lu\n", ctx->inits);
+    fprintf(ctx->rpt, "   skipped signals:        %lu\n", ctx->skips);
+    fprintf(ctx->rpt, "   errors ocurred:         %lu\n", ctx->errors);
+    fprintf(ctx->rpt, "   warnings ocurred:       %lu\n", ctx->warnings);
 }
 
 static void vhpi_cb(const struct vhpiCbDataS *cb_data)
@@ -356,7 +478,7 @@ static void vhpi_cb(const struct vhpiCbDataS *cb_data)
         break;
     case CFG_ONE:
         vhpi_printf("   enum types:             TYPE'right");
-        vhpi_printf("   Integer types:          TYPE'high");
+        vhpi_printf("   integer types:          TYPE'high");
         vhpi_printf("   std_logic types:        '1'");
         break;
     case CFG_RND:
@@ -373,14 +495,34 @@ static void vhpi_cb(const struct vhpiCbDataS *cb_data)
     else
         vhpi_printf("   block to initialize:    whole design");
 
+    if (ctx->rpt_path != NULL) {
+        ctx->rpt = fopen(ctx->rpt_path, "w");
+        if (!ctx->rpt) {
+            ctx->errors++;
+            vhpi_assert(vhpiError, "Failed to open +signit+report+ file: %s", ctx->rpt_path);
+        }
+    }
+
+    ctx->hier_len = 16;
+    ctx->hier = calloc(1, ctx->hier_len);
+
     vhpiHandleT root_h = xvhpi_handle(ctx, vhpiRootInst, NULL);
 
     if (root_h != NULL) {
-        walk_instances(root_h, ctx);
+        walk_instances(ctx, root_h);
         vhpi_release_handle(root_h);
     }
+    else
+        ctx->errors++;
 
-    print_stats(ctx);
+    vhpi_printf("initialization finished with %d errors.", ctx->errors);
+
+    if (ctx->rpt) {
+        print_stats(ctx);
+        fclose(ctx->rpt);
+    }
+
+    free(ctx->hier);
 }
 
 static void register_callback(void)
@@ -393,7 +535,11 @@ static void register_callback(void)
         .inits      = 0,
         .skips      = 0,
         .block      = 0,
-        .collect    = false
+        .collect    = false,
+        .rpt_path   = NULL,
+        .rpt        = NULL,
+        .hier       = NULL,
+        .hier_len   = 0,
     };
 
     // Read plugin arguments - Should stay here
@@ -421,6 +567,11 @@ static void register_callback(void)
             strcpy(ctx.block, s + 15);
             for (char *c = ctx.block; *c != 0; c++)
                 *c = toupper(*c);
+        }
+        else if (!strncmp(s, "+siginit+report+", 16)) {
+            size_t l = strlen(s + 16);
+            ctx.rpt_path = malloc(l + 1);
+            strcpy(ctx.rpt_path, s + 16);
         }
         else {
             vhpi_assert(vhpiError, "Invalid argument: %s", s);
