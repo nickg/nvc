@@ -4163,14 +4163,17 @@ static void irgen_op_binary(jit_irgen_t *g, mir_value_t n)
       break;
    case MIR_VEC_ADD:
       j_add(g, abits, aleft, aright);
+      j_and(g, abits, abits, mask);
       xbits = irgen_arith_xbits(g, bleft, bright, mask);
       break;
    case MIR_VEC_SUB:
       j_sub(g, abits, aleft, aright);
+      j_and(g, abits, abits, mask);
       xbits = irgen_arith_xbits(g, bleft, bright, mask);
       break;
    case MIR_VEC_MUL:
       j_mul(g, abits, aleft, aright);
+      j_and(g, abits, abits, mask);
       xbits = irgen_arith_xbits(g, bleft, bright, mask);
       break;
    case MIR_VEC_DIV:
@@ -4198,6 +4201,8 @@ static void irgen_op_binary(jit_irgen_t *g, mir_value_t n)
 
          abits = atmp;
          xbits = btmp;
+
+         j_and(g, abits, abits, mask);
       }
       break;
    case MIR_VEC_CASE_EQ:
@@ -4262,7 +4267,6 @@ static void irgen_op_binary(jit_irgen_t *g, mir_value_t n)
    }
 
    j_or(g, abits, abits, xbits);
-
    j_mov(g, irgen_get_slot(g, n, 0), abits);
 
    if (is_vec4)
