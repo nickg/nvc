@@ -101,20 +101,6 @@ static vhpiIntT xvhpi_get(ctx_t *ctx, vhpiIntPropertyT property, vhpiHandleT han
 // Signal randomization
 ///////////////////////////////////////////////////////////////////////////////
 
-static uint32_t fnv32_hash(const char *str, size_t len)
-{
-    unsigned char *s = (unsigned char *)str;
-    const uint32_t FNV_32_PRIME = 0x01000193;
-
-    uint32_t h = 0x811c9dc5;
-    while (len--) {
-        h ^= *s++;
-        h *= FNV_32_PRIME;
-    }
-
-    return h;
-}
-
 static uint32_t oat_hash(const char *s, size_t len)
 {
     unsigned char *p = (unsigned char*) s;
@@ -133,67 +119,55 @@ static uint32_t oat_hash(const char *s, size_t len)
     return h;
 }
 
-static uint32_t hash_string(ctx_t *ctx, const char *str, size_t salt)
+static int32_t hash_signal(ctx_t *ctx, vhpiHandleT sig_h)
 {
-    size_t sz1 = 32;
-    char *b1 = malloc(sz1);
-    memset(b1, 0, sz1);
-    sprintf(b1, "%010u%020lu", ctx->seed, salt);
+    const char *sig_name = (const char *) vhpi_get_str(vhpiNameP, sig_h);
 
-    uint32_t h1 = oat_hash(b1, strlen(b1));
+    size_t sz = strlen(ctx->hier) + strlen(sig_name) + 12;
+    char *b = malloc(sz);
+    memset(b, 0, sz);
+    sprintf(b, "%010u%s:%s", ctx->seed, ctx->hier, sig_name);
 
-    size_t sz2 = strlen(ctx->hier) + strlen(str) + 12;
-    char *b2 = malloc(sz2);
-    memset(b2, 0, sz2);
-    sprintf(b2, "%010u%s:%s", h1, ctx->hier, str);
+    uint32_t h2 = oat_hash(b, strlen(b));
+    free(b);
 
-    uint32_t h2 = fnv32_hash(b2, strlen(b2));
-
-    free(b1);
-    free(b2);
-
-    return h2;
+    return abs(h2);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 // Reporting
 ///////////////////////////////////////////////////////////////////////////////
 
-static void print_signal_init(ctx_t *ctx, const char *sig_name, vhpiValueT *v)
+static void print_signal_init(ctx_t *ctx, vhpiHandleT type_h, vhpiHandleT sig_h,
+                              vhpiValueT *v)
 {
     if (ctx->rpt == NULL)
         return;
+
+    const char *sig_name = (const char *) vhpi_get_str(vhpiNameP, sig_h);
 
     fprintf(ctx->rpt, "Initialized signal:\n");
     fprintf(ctx->rpt, "    Hierarchy:  %s\n", ctx->hier);
     fprintf(ctx->rpt, "    Name:       %s\n", sig_name);
 
     switch (v->format) {
-    case vhpiSmallEnumVecVal:
-        if (v->bufSize == 1)
-            fprintf(ctx->rpt, "    Value:      '%c'\n",
-                    (v->value.smallenumvs[0] == vhpi1) ? '1' : '0');
-        else {
-            size_t sz = v->bufSize + 3;
-            char *buf = calloc(1, sz);
+    case vhpiSmallEnumVal:
+        fprintf(ctx->rpt, "    Value:      '%c'\n",
+                (v->value.smallenumv == vhpi1) ? '1' : '0');
+        break;
 
-            buf[0] = '"';
-
-            for (size_t i = 0; i < v->bufSize; i++)
-                buf[i + 1] = (v->value.smallenumvs[i] == vhpi1) ? '1' : '0';
-
-            buf[sz - 2] = '"';
-            buf[sz - 1] = '\0';
-
-            fprintf(ctx->rpt, "    Value:      %s\n", buf);
-            free(buf);
+    case vhpiEnumVal:
+        {
+            vhpiHandleT lit_h = vhpi_handle_by_index(vhpiEnumLiterals, type_h,
+                                                    v->value.enumv);
+            fprintf(ctx->rpt, "    Value:      %s\n",
+                            vhpi_get_str(vhpiNameP, lit_h));
+            vhpi_release_handle(lit_h);
+            break;
         }
-        break;
-
-    case vhpiEnumVecVal:
-        break;
 
     case vhpiIntVal:
+        fprintf(ctx->rpt, "    Value:      %d\n", v->value.intg);
         break;
 
     default:
@@ -203,11 +177,12 @@ static void print_signal_init(ctx_t *ctx, const char *sig_name, vhpiValueT *v)
     fprintf(ctx->rpt, "\n");
 }
 
-static void print_signal_skip(ctx_t *ctx, const char *sig_name,
-                              skip_kind_t skip_kind)
+static void print_signal_skip(ctx_t *ctx, vhpiHandleT sig_h, skip_kind_t skip_kind)
 {
     if (ctx->rpt == NULL)
         return;
+
+    const char *sig_name = (const char *) vhpi_get_str(vhpiNameP, sig_h);
 
     fprintf(ctx->rpt, "Skipped signal:\n");
     fprintf(ctx->rpt, "    Hierarchy:  %s\n", ctx->hier);
@@ -218,7 +193,7 @@ static void print_signal_skip(ctx_t *ctx, const char *sig_name,
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-// Design walkthrough
+// Design traversal
 ///////////////////////////////////////////////////////////////////////////////
 
 static void init_signal(ctx_t *ctx, vhpiHandleT sig_h)
@@ -229,23 +204,36 @@ static void init_signal(ctx_t *ctx, vhpiHandleT sig_h)
 
     vhpiIntT type_kind = xvhpi_get(ctx, vhpiKindP, type_h);
 
-    const char *sig_name = (const char *) vhpi_get_str(vhpiNameP, sig_h);
-
     // Skip if we are in hierarchy that should not be collected
     if (!ctx->collect) {
-        print_signal_skip(ctx, sig_name, SKIP_FILTERED);
+        print_signal_skip(ctx, sig_h, SKIP_FILTERED);
         ctx->skips++;
 
         vhpi_release_handle(type_h);
         return;
     }
 
-    // Skip types that are not used in RTL designs
-    if (type_kind == vhpiFileDeclK       || type_kind == vhpiPhysTypeDeclK   ||
-        type_kind == vhpiAccessTypeDeclK || type_kind == vhpiFloatTypeDeclK) {
+    if (type_kind == vhpiArrayTypeDeclK) {
+        vhpiHandleT elem_it = vhpi_iterator(vhpiIndexedNames, sig_h);
+        vhpiHandleT elem_h;
 
-        print_signal_skip(ctx, sig_name, SKIP_INVALID_TYPE);
-        ctx->skips++;
+        // TODO: For large arrays processing bit-by-bit is sub-optimal!
+        //       Most of large arrays are `std_logic` type of arrays (memories).
+        //       It might be good to do a simple check here if the base_type
+        //       under all nested array types is not a "simple type" (non-record),
+        //       and in such case initialize everything by a single vhpi_call.
+        //       But ATM we prevent early optimization!
+        //       Significant portion of time is also taken by hashing in case of
+        //       random configuration!
+        //       The report file is also huge in such case!!
+        while ((elem_h = vhpi_scan(elem_it)) != NULL) {
+            // TODO: If we comment the following line, then gettting the NameP
+            //       in the recursion will give us weird names with (NULL) in
+            //       it, despite being called on the same handle in "print_init_signal"!
+            (void) vhpi_get_str(vhpiNameP, elem_h);
+            init_signal(ctx, elem_h);
+            vhpi_release_handle(elem_h);
+        }
 
         vhpi_release_handle(type_h);
         return;
@@ -256,6 +244,10 @@ static void init_signal(ctx_t *ctx, vhpiHandleT sig_h)
         vhpiHandleT elem_h;
 
         while ((elem_h = vhpi_scan(elem_it)) != NULL) {
+            // TODO: If we comment the following line, then gettting the NameP
+            //       in the recursion will give us weird names with (NULL) in
+            //       it, despite being called on the same handle in "print_init_signal"!
+            (void) vhpi_get_str(vhpiNameP, elem_h);
             init_signal(ctx, elem_h);
             vhpi_release_handle(elem_h);
         }
@@ -264,28 +256,14 @@ static void init_signal(ctx_t *ctx, vhpiHandleT sig_h)
         return;
     }
 
-    // Get array element
-    vhpiHandleT e_type_h = type_h;
-    vhpiIntT e_type_kind = xvhpi_get(ctx, vhpiKindP, e_type_h);
-
-    while (e_type_kind == vhpiArrayTypeDeclK) {
-        vhpiHandleT nh = xvhpi_handle(ctx, vhpiElemType, e_type_h);
-
-        if (e_type_h != type_h)
-            vhpi_release_handle(e_type_h);
-
-        e_type_h = nh;
-        e_type_kind = xvhpi_get(ctx, vhpiKindP, e_type_h);
-    }
-
-    // Get base type
-    vhpiHandleT b_type_h = e_type_h;
+    // Iterate to base type
+    vhpiHandleT b_type_h = type_h;
     vhpiIntT b_type_kind = xvhpi_get(ctx, vhpiKindP, b_type_h);
 
     while (b_type_kind == vhpiSubtypeDeclK) {
         vhpiHandleT nh = xvhpi_handle(ctx, vhpiBaseType, b_type_h);
 
-        if (b_type_h != e_type_h)
+        if (b_type_h != type_h)
             vhpi_release_handle(b_type_h);
 
         b_type_h = nh;
@@ -293,75 +271,70 @@ static void init_signal(ctx_t *ctx, vhpiHandleT sig_h)
     }
 
     const char *b_type_name = (const char *) vhpi_get_str(vhpiFullNameP, b_type_h);
-    size_t n_elems = xvhpi_get(ctx, vhpiSizeP, sig_h);
 
     switch (b_type_kind) {
     case vhpiEnumTypeDeclK:
-        if (!strcmp(b_type_name, STD_ULOGIC_TYPE)) {
-            vhpiValueT v;
-            v.format = vhpiSmallEnumVecVal;
-            v.bufSize = sizeof(vhpiSmallEnumT) * n_elems;
-            v.value.smallenumvs = malloc(v.bufSize);
+        {
+            if (!strcmp(b_type_name, STD_ULOGIC_TYPE)) {
+                vhpiValueT v;
+                v.format = vhpiSmallEnumVal;
+                v.bufSize = sizeof(vhpiSmallEnumT);
 
-            for (size_t i = 0; i < v.bufSize; i++) {
                 switch (ctx->cfg) {
                 case CFG_ZERO:
-                    v.value.smallenumvs[i] = vhpi0;
+                    v.value.smallenumv = vhpi0;
                     break;
                 case CFG_ONE:
-                    v.value.smallenumvs[i] = vhpi1;
+                    v.value.smallenumv = vhpi1;
                     break;
                 case CFG_RND:
-                    {
-                        vhpiSmallEnumT val = (hash_string(ctx, sig_name, i) % 2) ? vhpi0 : vhpi1;
-                        v.value.smallenumvs[i] = val;
-                        break;
-                    }
+                    v.value.smallenumv = (hash_signal(ctx, sig_h) % 2) ?
+                                            vhpi0 : vhpi1;
+                    break;
                 default:
-                    vhpi_assert(vhpiFailure, "Unhandled cfg kind %d in 'init_signal'", ctx->cfg);
+                    vhpi_assert(vhpiFailure,
+                                "Unhandled cfg kind %d in 'init_signal'",
+                                ctx->cfg);
                 }
+
+                print_signal_init(ctx, type_h, sig_h, &v);
+                vhpi_put_value(sig_h, &v, vhpiDepositPropagate);
             }
+            else {
+                vhpiHandleT enum_iter = vhpi_iterator(vhpiEnumLiterals, type_h);
+                vhpiHandleT lit_h;
 
-            print_signal_init(ctx, sig_name, &v);
-            vhpi_put_value(sig_h, &v, vhpiDepositPropagate);
-            free(v.value.smallenumvs);
-        }
-        else {
-            vhpiHandleT enum_iter = vhpi_iterator(vhpiEnumLiterals, e_type_h);
-            vhpiHandleT lit_h;
+                // TODO: If there are many signals with long enums
+                //       this may be ineffective!
+                int enum_lits = 0;
+                while ((lit_h = vhpi_scan(enum_iter)) != NULL) {
+                    enum_lits++;
+                    vhpi_release_handle(lit_h);
+                }
 
-            // TODO: If there are many signals with long enums this may be ineffective!
-            int enum_lits = 0;
-            while ((lit_h = vhpi_scan(enum_iter)) != NULL) {
-                enum_lits++;
-                vhpi_release_handle(lit_h);
-            }
+                vhpiValueT v;
+                v.format = vhpiEnumVal;
+                v.bufSize = sizeof(vhpiEnumT);
 
-            vhpiValueT v;
-            v.format = vhpiEnumVecVal;
-            v.bufSize = sizeof(vhpiEnumT) * n_elems;
-            v.value.enumvs = malloc(v.bufSize);
-
-            for (size_t i = 0; i < n_elems; i++) {
                 if (ctx->cfg == CFG_ZERO)
-                    v.value.enumvs[i] = 0;
+                    v.value.enumv = 0;
                 else if (ctx->cfg == CFG_ONE)
-                    v.value.enumvs[i] = enum_lits - 1;
+                    v.value.enumv = enum_lits - 1;
                 else if (ctx->cfg == CFG_RND) {
-                    vhpiEnumT val = hash_string(ctx, sig_name, i);
-                    v.value.enumvs[i] = (vhpiEnumT)(val % enum_lits);
+                    vhpiEnumT val = hash_signal(ctx, sig_h);
+                    v.value.enumv = (vhpiEnumT)(val % enum_lits);
                 }
-            }
 
-            print_signal_init(ctx, sig_name, &v);
-            vhpi_put_value(sig_h, &v, vhpiDepositPropagate);
-            free(v.value.enumvs);
+                print_signal_init(ctx, type_h, sig_h, &v);
+                vhpi_put_value(sig_h, &v, vhpiDepositPropagate);
+            }
+            ctx->inits++;
+            break;
         }
-        break;
 
     case vhpiIntTypeDeclK:
         {
-            vhpiHandleT constr_it = vhpi_iterator(vhpiConstraints, e_type_h);
+            vhpiHandleT constr_it = vhpi_iterator(vhpiConstraints, type_h);
             vhpiHandleT constr = vhpi_scan(constr_it);
 
             // TODO: Resolve this for 64-bit integer in VHDL 2019
@@ -370,38 +343,34 @@ static void init_signal(ctx_t *ctx, vhpiHandleT sig_h)
             int32_t max = xvhpi_get(ctx, vhpiRightBoundP, constr);
 
             vhpiValueT v;
-            v.format = vhpiIntVecVal;
-            v.bufSize = sizeof(vhpiIntT) * n_elems;
-            v.value.intgs = malloc(v.bufSize);
+            v.format = vhpiIntVal;
+            v.bufSize = sizeof(vhpiIntT);
 
-            for (size_t i = 0; i < n_elems; i++) {
-                if (ctx->cfg == CFG_ZERO)
-                    v.value.intgs[i] = min;
-                else if (ctx->cfg == CFG_ONE)
-                    v.value.intgs[i] = max;
-                else if (ctx->cfg == CFG_RND) {
-                    vhpiIntT val = hash_string(ctx, sig_name, i);
-                    v.value.intgs[i] = (vhpiIntT)(min + (val % (max - min + 1)));
-                }
+            if (ctx->cfg == CFG_ZERO)
+                v.value.intg = min;
+            else if (ctx->cfg == CFG_ONE)
+                v.value.intg = max;
+            else if (ctx->cfg == CFG_RND) {
+                vhpiIntT val = hash_signal(ctx, sig_h);
+                v.value.intg = (vhpiIntT)(min + (val % (max - min + 1)));
             }
 
-            print_signal_init(ctx, sig_name, &v);
+            print_signal_init(ctx, type_h, sig_h, &v);
             vhpi_put_value(sig_h, &v, vhpiDepositPropagate);
-            free(v.value.intgs);
+            ctx->inits++;
 
+            vhpi_release_handle(constr_it);
+            vhpi_release_handle(constr);
             break;
         }
 
     default:
-        vhpi_assert(vhpiFailure, "Unhandled type kind: %d in 'init_signal'", b_type_kind);
+        print_signal_skip(ctx, sig_h, SKIP_INVALID_TYPE);
+        ctx->skips++;
     }
 
-    ctx->inits++;
-
-    if (b_type_h != e_type_h)
+    if (b_type_h != type_h)
         vhpi_release_handle(b_type_h);
-    if (e_type_h != type_h)
-        vhpi_release_handle(e_type_h);
 
     vhpi_release_handle(type_h);
 }
@@ -425,7 +394,7 @@ static void init_signals(ctx_t *ctx, vhpiHandleT inst_h)
 
 static void hier_push(ctx_t *ctx, vhpiHandleT h)
 {
-    const char *name = (const char *)vhpi_get_str(vhpiNameP, h);
+    const char *name = (const char *) vhpi_get_str(vhpiNameP, h);
     size_t new_hier_len = strlen(name) + strlen(ctx->hier) + 1;
 
     while (new_hier_len > ctx->hier_len) {
@@ -450,9 +419,9 @@ static void walk_instances(ctx_t *ctx, vhpiHandleT h)
     hier_push(ctx, h);
 
     vhpiHandleT ent_h = vhpi_handle(vhpiDesignUnit, h);
-    const char *ent_name = (const char *)vhpi_get_str(vhpiNameP, ent_h);
+    const char *ent_name = (const char *) vhpi_get_str(vhpiNameP, ent_h);
 
-    if (ent_name) {
+    if (ctx->block != NULL && ent_name != NULL) {
         char *dash = strchr(ent_name, '-');
         size_t ent_name_len = dash - ent_name;
         if (ent_name_len == strlen(ctx->block) &&
@@ -526,7 +495,7 @@ static void vhpi_cb(const struct vhpiCbDataS *cb_data)
         }
     }
 
-    ctx->hier_len = 16;
+    ctx->hier_len = 32;
     ctx->hier = calloc(1, ctx->hier_len);
 
     vhpiHandleT root_h = xvhpi_handle(ctx, vhpiRootInst, NULL);
@@ -551,18 +520,18 @@ static void vhpi_cb(const struct vhpiCbDataS *cb_data)
 static void register_callback(void)
 {
     static ctx_t ctx = {
-        .cfg        = CFG_RND,
-        .seed       = 0,
-        .errors     = 0,
-        .warnings   = 0,
-        .inits      = 0,
-        .skips      = 0,
-        .block      = 0,
-        .collect    = false,
-        .rpt_path   = NULL,
-        .rpt        = NULL,
-        .hier       = NULL,
-        .hier_len   = 0,
+        .cfg            = CFG_RND,
+        .seed           = 0,
+        .errors         = 0,
+        .warnings       = 0,
+        .inits          = 0,
+        .skips          = 0,
+        .block          = 0,
+        .collect        = true,
+        .rpt_path       = NULL,
+        .rpt            = NULL,
+        .hier           = NULL,
+        .hier_len       = 0
     };
 
     // Read plugin arguments - Should stay here
@@ -570,7 +539,7 @@ static void register_callback(void)
     vhpiHandleT args_it = vhpi_iterator(vhpiArgvs, tool_h);
 
     for (vhpiHandleT arg = vhpi_scan(args_it); arg != NULL; arg = vhpi_scan(args_it)) {
-        const char *s = (const char *)vhpi_get_str(vhpiStrValP, arg);
+        const char *s = (const char *) vhpi_get_str(vhpiStrValP, arg);
 
         if (s == NULL)
             continue;
@@ -582,8 +551,6 @@ static void register_callback(void)
         else if (!strcmp(s, "+siginit+one"))
             ctx.cfg = CFG_ONE;
         else if (!strncmp(s, "+siginit+seed+", 14))
-            // TODO: atoi works on signed int. But that should be OK since we have
-            //       seed uint32_t and int is very likely 64 bit!
             ctx.seed = atoi(s + 14);
         else if (!strncmp(s, "+siginit+block+", 15)) {
             ctx.block = calloc(1, strlen(s) - 14);
