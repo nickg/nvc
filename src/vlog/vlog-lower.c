@@ -1069,14 +1069,9 @@ static mir_value_t vlog_lower_rvalue(vlog_gen_t *g, vlog_node_t v)
          mir_value_t inc =
             mir_build_binary(g->mu, MIR_VEC_ADD, type, prev, one);
 
-         // Must save/restore around blocking assignment
-         mir_value_t tmp = mir_add_var(g->mu, type, MIR_NULL_STAMP,
-                                       ident_uniq("prefix"), MIR_VAR_TEMP);
-         mir_build_store(g->mu, tmp, inc);
+         vlog_assign_variable(g, target, inc, NULL);
 
-         vlog_assign_variable(g, target, inc);
-
-         return mir_build_load(g->mu, tmp);
+         return inc;
       }
    case V_POSTFIX:
       {
