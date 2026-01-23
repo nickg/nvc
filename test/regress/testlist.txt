@@ -1251,3 +1251,4 @@ issue1362       wave,dump-arrays
 issue1381       normal,2019
 issue1386       cover
 issue1388       normal,gold,2019
+binary5         verilog

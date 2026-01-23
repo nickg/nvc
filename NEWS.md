@@ -22,6 +22,8 @@
 - The fractional part of `std.env.epoch` is now correct and `to_string`
   on `std.env.time_record` now displays months correctly according to
   ISO 8601 (#1381).
+- Verilog support has improved significantly, with the ZipCPU FFT core
+  now able to be simulated (#1336).
 - Several other minor bugs were resolved (#1237, #1350, #1351, #1353,
   #1366, #1372, #1333, #1388).
 

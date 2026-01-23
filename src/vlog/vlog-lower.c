@@ -70,6 +70,8 @@ typedef enum {
 
 static void vlog_lower_stmts(vlog_gen_t *g, vlog_node_t v);
 static mir_value_t vlog_lower_rvalue(vlog_gen_t *g, vlog_node_t v);
+static mir_value_t vlog_lower_with_context(vlog_gen_t *g, vlog_node_t v,
+                                           mir_type_t context);
 
 static const type_info_t *vlog_type_info(vlog_gen_t *g, vlog_node_t v)
 {
@@ -402,7 +404,7 @@ static vlog_select_t vlog_lower_select(vlog_gen_t *g, vlog_node_t v)
 }
 
 static void vlog_assign_variable(vlog_gen_t *g, vlog_node_t target,
-                                 mir_value_t value)
+                                 mir_value_t value, vlog_node_t rhs)
 {
    unsigned nlvalues = 1, targetsz = 0;
    vlog_select_t lvalue1, *lvalues = &lvalue1;
@@ -418,6 +420,11 @@ static void vlog_assign_variable(vlog_gen_t *g, vlog_node_t target,
       lvalue1 = vlog_lower_select(g, target);
       targetsz = lvalue1.size;
    }
+
+   mir_type_t t_vec = mir_vec4_type(g->mu, targetsz, false);
+
+   if (mir_is_null(value))
+      value = vlog_lower_with_context(g, rhs, t_vec);
 
    mir_block_t merge_bb = MIR_NULL_BLOCK;
 
@@ -446,8 +453,6 @@ static void vlog_assign_variable(vlog_gen_t *g, vlog_node_t target,
             mir_type_t t_array = mir_carray_type(g->mu, targetsz, t_elem);
             tmp = vlog_get_temp(g, t_array);
          }
-
-         mir_type_t t_vec = mir_vec4_type(g->mu, targetsz, false);
 
          mir_value_t resize = mir_build_cast(g->mu, t_vec, value);
          unpacked = mir_build_unpack(g->mu, resize, 0, tmp);
@@ -569,7 +574,8 @@ static bool vlog_has_side_effects(vlog_node_t v)
 }
 
 static mir_value_t vlog_lower_vector_binary(vlog_gen_t *g, vlog_binary_t binop,
-                                            mir_value_t left, mir_value_t right)
+                                            mir_value_t left, mir_value_t right,
+                                            mir_type_t context)
 {
    mir_type_t ltype = mir_get_type(g->mu, left);
    mir_type_t rtype = mir_get_type(g->mu, right);
@@ -583,11 +589,15 @@ static mir_value_t vlog_lower_vector_binary(vlog_gen_t *g, vlog_binary_t binop,
    const bool is_signed =
       mir_get_signed(g->mu, ltype) && mir_get_signed(g->mu, rtype);
 
+   int size = MAX(lsize, rsize);
+   if (!mir_is_null(context))
+      size = MAX(mir_get_size(g->mu, context), size);
+
    mir_type_t type;
    if (lclass == MIR_TYPE_VEC4 || rclass == MIR_TYPE_VEC4)
-      type = mir_vec4_type(g->mu, MAX(lsize, rsize), is_signed);
+      type = mir_vec4_type(g->mu, size, is_signed);
    else
-      type = mir_vec2_type(g->mu, MAX(lsize, rsize), is_signed);
+      type = mir_vec2_type(g->mu, size, is_signed);
 
    mir_value_t lcast = mir_build_cast(g->mu, type, left);
    mir_value_t rcast = mir_build_cast(g->mu, type, right);
@@ -631,7 +641,8 @@ static mir_value_t vlog_lower_vector_binary(vlog_gen_t *g, vlog_binary_t binop,
    return result;
 }
 
-static mir_value_t vlog_lower_binary(vlog_gen_t *g, vlog_node_t v)
+static mir_value_t vlog_lower_binary(vlog_gen_t *g, vlog_node_t v,
+                                     mir_type_t context)
 {
    mir_value_t left = vlog_lower_rvalue(g, vlog_left(v));
 
@@ -668,7 +679,7 @@ static mir_value_t vlog_lower_binary(vlog_gen_t *g, vlog_node_t v)
    mir_value_t right = vlog_lower_rvalue(g, rhs_expr), result;
 
    if (mir_is_vector(g->mu, left))
-      result = vlog_lower_vector_binary(g, binop, left, right);
+      result = vlog_lower_vector_binary(g, binop, left, right, context);
    else {
       mir_type_t type = mir_get_type(g->mu, left);
 
@@ -747,7 +758,7 @@ static mir_value_t vlog_lower_operator_assignment(vlog_gen_t *g, vlog_node_t v)
       }
    }
 
-   vlog_assign_variable(g, target, value);
+   vlog_assign_variable(g, target, value, NULL);
    return value;
 }
 
@@ -932,7 +943,8 @@ static mir_value_t vlog_lower_rvalue_select(vlog_gen_t *g, vlog_node_t v)
    }
 }
 
-static mir_value_t vlog_lower_rvalue(vlog_gen_t *g, vlog_node_t v)
+static mir_value_t vlog_lower_with_context(vlog_gen_t *g, vlog_node_t v,
+                                           mir_type_t context)
 {
    PUSH_DEBUG_INFO(g->mu, v);
 
@@ -1003,7 +1015,7 @@ static mir_value_t vlog_lower_rvalue(vlog_gen_t *g, vlog_node_t v)
          return full;
       }
    case V_BINARY:
-      return vlog_lower_binary(g, v);
+      return vlog_lower_binary(g, v, context);
    case V_UNARY:
       return vlog_lower_unary(g, v);
    case V_SYS_FCALL:
@@ -1083,7 +1095,7 @@ static mir_value_t vlog_lower_rvalue(vlog_gen_t *g, vlog_node_t v)
          mir_value_t inc =
             mir_build_binary(g->mu, MIR_VEC_ADD, type, prev, one);
 
-         vlog_assign_variable(g, target, inc);
+         vlog_assign_variable(g, target, inc, NULL);
 
          return inc;
       }
@@ -1165,6 +1177,11 @@ static mir_value_t vlog_lower_rvalue(vlog_gen_t *g, vlog_node_t v)
    default:
       CANNOT_HANDLE(v);
    }
+}
+
+static mir_value_t vlog_lower_rvalue(vlog_gen_t *g, vlog_node_t v)
+{
+   return vlog_lower_with_context(g, v, MIR_NULL_TYPE);
 }
 
 static mir_value_t vlog_lower_time(vlog_gen_t *g, vlog_node_t v)
@@ -1504,8 +1521,7 @@ static void vlog_lower_blocking_assignment(vlog_gen_t *g, vlog_node_t v)
       mir_set_cursor(g->mu, delay_bb, MIR_APPEND);
    }
 
-   mir_value_t value = vlog_lower_rvalue(g, vlog_value(v));
-   vlog_assign_variable(g, vlog_target(v), value);
+   vlog_assign_variable(g, vlog_target(v), MIR_NULL_VALUE, vlog_value(v));
 }
 
 static void vlog_lower_non_blocking_assignment(vlog_gen_t *g, vlog_node_t v)
@@ -1517,11 +1533,11 @@ static void vlog_lower_non_blocking_assignment(vlog_gen_t *g, vlog_node_t v)
    // XXX: check in range
    mir_value_t nets = mir_build_array_ref(g->mu, lvalue.obj, lvalue.offset);
 
-   mir_value_t value = vlog_lower_rvalue(g, vlog_value(v));
-   assert(mir_is_vector(g->mu, value));
-
    mir_type_t t_offset = mir_offset_type(g->mu);
    mir_type_t t_vec = mir_vec4_type(g->mu, lvalue.size, false);
+
+   mir_value_t value = vlog_lower_with_context(g, vlog_value(v), t_vec);
+   assert(mir_is_vector(g->mu, value));
 
    mir_value_t resize = mir_build_cast(g->mu, t_vec, value);
    mir_value_t count = mir_const(g->mu, t_offset, lvalue.size);
@@ -2075,10 +2091,11 @@ static void vlog_lower_continuous_assign(vlog_gen_t *g, vlog_node_t v)
       targetsz = lvalue1.size;
    }
 
-   mir_value_t value = vlog_lower_rvalue(g, vlog_value(v));
+   mir_type_t t_vec = mir_vec4_type(g->mu, targetsz, false);
+
+   mir_value_t value = vlog_lower_with_context(g, vlog_value(v), t_vec);
    assert(mir_is_vector(g->mu, value));
 
-   mir_type_t t_vec = mir_vec4_type(g->mu, targetsz, false);
    mir_value_t resize = mir_build_cast(g->mu, t_vec, value);
 
    mir_value_t tmp = MIR_NULL_VALUE;
