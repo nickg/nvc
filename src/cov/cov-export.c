@@ -110,23 +110,21 @@ static void cobertura_export_scope(cobertura_report_t *report,
 
    for (int i = 0; i < s->items.count; i++) {
       const cover_item_t *item = s->items.items[i];
-      switch (item->kind) {
-      case COV_ITEM_STMT:
-         {
-            cobertura_line_t *l = cobertura_get_line(class, &(item->loc));
-            l->hits += item->data;
-         }
-         break;
-      case COV_ITEM_BRANCH:
-         {
-            cobertura_line_t *l = cobertura_get_line(class, &(item->loc));
+      cobertura_line_t *l = cobertura_get_line(class, &(item->loc));
+
+      for (int j = 0; j < item->consecutive; j++) {
+         switch (item->kind) {
+         case COV_ITEM_STMT:
+            l->hits += item[j].data;
+            break;
+         case COV_ITEM_BRANCH:
             l->branch = true;
-            if (item->data > 0)
-               l->bflags |= item->flags;
+            if (item[j].data > 0)
+               l->bflags |= item[j].flags;
+            break;
+         default:
+            break;
          }
-         break;
-      default:
-         break;
       }
    }
 
@@ -259,7 +257,39 @@ void cover_export_cobertura(cover_data_t *data, FILE *f, const char *relative)
 ////////////////////////////////////////////////////////////////////////////////
 // XML dump format for debugging and testing
 
-static void dump_scope_xml(cover_scope_t *s, int indent, const loc_t *loc,
+static void dump_item_xml(const cover_item_t *item, int indent, FILE *f)
+{
+   for (int i = 0; i < item->consecutive; i++) {
+      switch (item->kind) {
+      case COV_ITEM_STMT:
+         fprintf(f, "%*s<statement hier=\"%s\" data=\"%d\"/>\n", indent + 2, "",
+                 istr(item[i].hier), item[i].data);
+         break;
+      case COV_ITEM_BRANCH:
+         fprintf(f, "%*s<branch hier=\"%s\" data=\"%d\"/>\n", indent + 2, "",
+                 istr(item[i].hier), item[i].data);
+         break;
+      case COV_ITEM_EXPRESSION:
+         fprintf(f, "%*s<expression hier=\"%s\" data=\"%d\"/>\n", indent + 2,
+                 "", istr(item[i].hier), item[i].data);
+         break;
+      case COV_ITEM_TOGGLE:
+         fprintf(f, "%*s<toggle hier=\"%s\" data=\"%d\"/>\n", indent + 2, "",
+                 istr(item[i].hier), item[i].data);
+         break;
+      case COV_ITEM_FUNCTIONAL:
+         fprintf(f, "%*s<functional hier=\"%s\" data=\"%d\"/>\n", indent + 2,
+                 "", istr(item[i].hier), item[i].data);
+         break;
+      case COV_ITEM_STATE:
+         fprintf(f, "%*s<state hier=\"%s\" data=\"%d\"/>\n", indent + 2,
+                 "", istr(item[i].hier), item[i].data);
+         break;
+      }
+   }
+}
+
+static void dump_scope_xml(const cover_scope_t *s, int indent, const loc_t *loc,
                            const char *relative, FILE *f)
 {
    fprintf(f, "%*s<scope name=\"%s\"", indent, "", istr(s->name));
@@ -279,35 +309,8 @@ static void dump_scope_xml(cover_scope_t *s, int indent, const loc_t *loc,
 
    fprintf(f, ">\n");
 
-   for (int i = 0; i < s->items.count; i++) {
-      const cover_item_t *item = s->items.items[i];
-      switch (item->kind) {
-      case COV_ITEM_STMT:
-         fprintf(f, "%*s<statement hier=\"%s\" data=\"%d\"/>\n", indent + 2, "",
-                 istr(item->hier), item->data);
-         break;
-      case COV_ITEM_BRANCH:
-         fprintf(f, "%*s<branch hier=\"%s\" data=\"%d\"/>\n", indent + 2, "",
-                 istr(item->hier), item->data);
-         break;
-      case COV_ITEM_EXPRESSION:
-         fprintf(f, "%*s<expression hier=\"%s\" data=\"%d\"/>\n", indent + 2,
-                 "", istr(item->hier), item->data);
-         break;
-      case COV_ITEM_TOGGLE:
-         fprintf(f, "%*s<toggle hier=\"%s\" data=\"%d\"/>\n", indent + 2, "",
-                 istr(item->hier), item->data);
-         break;
-      case COV_ITEM_FUNCTIONAL:
-         fprintf(f, "%*s<functional hier=\"%s\" data=\"%d\"/>\n", indent + 2,
-                 "", istr(item->hier), item->data);
-         break;
-      case COV_ITEM_STATE:
-         fprintf(f, "%*s<state hier=\"%s\" data=\"%d\"/>\n", indent + 2,
-                 "", istr(item->hier), item->data);
-         break;
-      }
-   }
+   for (int i = 0; i < s->items.count; i++)
+      dump_item_xml(s->items.items[i], indent, f);
 
    for (int i = 0; i < s->children.count; i++)
       dump_scope_xml(s->children.items[i], indent + 2, &s->loc, relative, f);

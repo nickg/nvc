@@ -24,6 +24,7 @@
 #include "hash.h"
 #include "ident.h"
 #include "lib.h"
+#include "mask.h"
 #include "object.h"
 #include "option.h"
 #include "printf.h"
@@ -62,7 +63,7 @@ static const struct {
 };
 
 #define COVER_FILE_MAGIC   0x6e636462   // ASCII "ncdb"
-#define COVER_FILE_VERSION 5
+#define COVER_FILE_VERSION 6
 
 static inline unsigned get_next_tag(cover_block_t *b)
 {
@@ -192,11 +193,9 @@ static cover_item_t *cover_add_item(cover_data_t *data, cover_scope_t *cs,
          .ranges        = NULL,
          .source        = src,
       };
-
-      // TODO: only push the first item?
-      APUSH(cs->items, &(new[i]));
    }
 
+   APUSH(cs->items, new);
    return new;
 }
 
@@ -257,9 +256,6 @@ static void cover_add_array_toggle_items(cover_data_t *data,
                pair[j].hier = ident_prefix(pair[j].hier,
                                            ident_new(suffix), '\0');
             }
-
-            pair[0].consecutive = 2;
-            pair[1].consecutive = 1;
          }
       }
       else   // Recurse to lower dimension
@@ -679,12 +675,51 @@ static void cover_update_counts(cover_scope_t *s)
    if (s->block != NULL && s->block->data != NULL) {
       for (int i = 0; i < s->items.count; i++) {
          cover_item_t *item = s->items.items[i];
-         cover_merge_one_item(item, s->block->data[item->tag]);
+         for (int j = 0; j < item->consecutive; j++)
+            cover_merge_one_item(item + j, s->block->data[item[j].tag]);
       }
    }
 
    for (int i = 0; i < s->children.count; i++)
       cover_update_counts(s->children.items[i]);
+}
+
+static void cover_write_items(const cover_item_t *item, fbuf_t *f,
+                              ident_wr_ctx_t ident_ctx, loc_wr_ctx_t *loc_ctx)
+{
+   fbuf_put_uint(f, item->consecutive);
+   fbuf_put_uint(f, item->kind);
+   fbuf_put_uint(f, item->source);
+
+   for (int i = 0; i < item->consecutive; i++) {
+      assert(item[i].kind == item->kind);
+      assert(item[i].consecutive == item->consecutive - i);
+      assert(item[i].source == item->source);
+
+      fbuf_put_uint(f, item[i].tag);
+      fbuf_put_uint(f, item[i].data);
+      fbuf_put_uint(f, item[i].flags);
+      fbuf_put_uint(f, item[i].atleast);
+      fbuf_put_uint(f, item[i].n_ranges);
+      fbuf_put_uint(f, item[i].metadata);
+
+      for (int j = 0; j < item[i].n_ranges; j++) {
+         fbuf_put_uint(f, item[i].ranges[j].min);
+         fbuf_put_uint(f, item[i].ranges[j].max);
+      }
+
+      loc_write(&(item[i].loc), loc_ctx);
+      if (item[i].flags & COVER_FLAGS_LHS_RHS_BINS) {
+         loc_write(&(item[i].loc_lhs), loc_ctx);
+         loc_write(&(item[i].loc_rhs), loc_ctx);
+      }
+
+      ident_write(item[i].hier, ident_ctx);
+      if (item[i].kind == COV_ITEM_EXPRESSION ||
+          item[i].kind == COV_ITEM_STATE ||
+          item[i].kind == COV_ITEM_FUNCTIONAL)
+         ident_write(item[i].func_name, ident_ctx);
+   }
 }
 
 static void cover_write_scope(cover_scope_t *s, fbuf_t *f,
@@ -706,36 +741,8 @@ static void cover_write_scope(cover_scope_t *s, fbuf_t *f,
    loc_write(&s->loc, loc_ctx);
 
    fbuf_put_uint(f, s->items.count);
-   for (int i = 0; i < s->items.count; i++) {
-      const cover_item_t *item = s->items.items[i];
-
-      fbuf_put_uint(f, item->kind);
-      fbuf_put_uint(f, item->tag);
-      fbuf_put_uint(f, item->data);
-      fbuf_put_uint(f, item->flags);
-      fbuf_put_uint(f, item->source);
-      fbuf_put_uint(f, item->consecutive);
-      fbuf_put_uint(f, item->atleast);
-      fbuf_put_uint(f, item->n_ranges);
-      fbuf_put_uint(f, item->metadata);
-
-      for (int i = 0; i < item->n_ranges; i++) {
-         fbuf_put_uint(f, item->ranges[i].min);
-         fbuf_put_uint(f, item->ranges[i].max);
-      }
-
-      loc_write(&(item->loc), loc_ctx);
-      if (item->flags & COVER_FLAGS_LHS_RHS_BINS) {
-         loc_write(&(item->loc_lhs), loc_ctx);
-         loc_write(&(item->loc_rhs), loc_ctx);
-      }
-
-      ident_write(item->hier, ident_ctx);
-      if (item->kind == COV_ITEM_EXPRESSION ||
-          item->kind == COV_ITEM_STATE ||
-          item->kind == COV_ITEM_FUNCTIONAL)
-         ident_write(item->func_name, ident_ctx);
-   }
+   for (int i = 0; i < s->items.count; i++)
+      cover_write_items(s->items.items[i], f, ident_ctx, loc_ctx);
 
    for (int i = 0; i < s->children.count; i++)
       cover_write_scope(s->children.items[i], f, ident_ctx, loc_ctx);
@@ -754,17 +761,20 @@ static void cover_debug_dump(cover_scope_t *s, int indent)
    for (int i = 0; i < s->items.count; i++) {
       const cover_item_t *item = s->items.items[i];
 
-      if (loc_invalid_p(&item->loc))
-         printf("%*s%d: %s %s <invalid> => %x\n", indent + 2, "", item->tag,
-                cover_item_kind_str(item->kind), istr(item->hier), item->data);
-      else {
-         const char *path = loc_file_str(&item->loc), *basename;
-         if ((basename = strrchr(path, '/')))
-            path = basename + 1;
+      for (int j = 0; j < item->consecutive; j++) {
+         if (loc_invalid_p(&item->loc))
+            printf("%*s%d: %s %s <invalid> => %x\n", indent + 2, "",
+                   item[j].tag, cover_item_kind_str(item[j].kind),
+                   istr(item[j].hier), item[j].data);
+         else {
+            const char *path = loc_file_str(&item[j].loc), *basename;
+            if ((basename = strrchr(path, '/')))
+               path = basename + 1;
 
-         printf("%*s%d: %s %s %s:%d => %x\n", indent + 2, "", item->tag,
-                cover_item_kind_str(item->kind), istr(item->hier),
-                path, item->loc.first_line, item->data);
+            printf("%*s%d: %s %s %s:%d => %x\n", indent + 2, "", item[j].tag,
+                   cover_item_kind_str(item[j].kind), istr(item[j].hier),
+                   path, item[j].loc.first_line, item[j].data);
+         }
       }
    }
 
@@ -773,24 +783,24 @@ static void cover_debug_dump(cover_scope_t *s, int indent)
 }
 LCOV_EXCL_STOP
 
-void cover_dump_items(cover_data_t *data, fbuf_t *f, cover_dump_t dt)
+void cover_write(cover_data_t *db, fbuf_t *f, cover_dump_t dt)
 {
    if (dt == COV_DUMP_RUNTIME)
-      cover_update_counts(data->root_scope);
+      cover_update_counts(db->root_scope);
 
    if (opt_get_int(OPT_COVER_VERBOSE))
-      cover_debug_dump(data->root_scope, 0);
+      cover_debug_dump(db->root_scope, 0);
 
    write_u32(COVER_FILE_MAGIC, f);
    fbuf_put_uint(f, COVER_FILE_VERSION);
 
-   fbuf_put_uint(f, data->mask);
-   fbuf_put_uint(f, data->array_limit);
+   fbuf_put_uint(f, db->mask);
+   fbuf_put_uint(f, db->array_limit);
 
    loc_wr_ctx_t *loc_wr = loc_write_begin(f);
    ident_wr_ctx_t ident_ctx = ident_write_begin(f);
 
-   cover_write_scope(data->root_scope, f, ident_ctx, loc_wr);
+   cover_write_scope(db->root_scope, f, ident_ctx, loc_wr);
 
    write_u8(CTRL_END_OF_FILE, f);
 
@@ -1009,38 +1019,51 @@ static void cover_read_header(fbuf_t *f, cover_data_t *data)
    data->array_limit = fbuf_get_uint(f);
 }
 
-static void cover_read_one_item(fbuf_t *f, loc_rd_ctx_t *loc_rd,
-                                ident_rd_ctx_t ident_ctx, cover_item_t *item)
+static cover_item_t *cover_read_item(cover_data_t *db, fbuf_t *f,
+                                     loc_rd_ctx_t *loc_rd,
+                                     ident_rd_ctx_t ident_ctx)
 {
-   item->kind        = fbuf_get_uint(f);
-   item->tag         = fbuf_get_uint(f);
-   item->data        = fbuf_get_uint(f);
-   item->flags       = fbuf_get_uint(f);
-   item->source      = fbuf_get_uint(f);
-   item->consecutive = fbuf_get_uint(f);
-   item->atleast     = fbuf_get_uint(f);
-   item->n_ranges    = fbuf_get_uint(f);
-   item->metadata    = fbuf_get_uint(f);
+   const int consecutive = fbuf_get_uint(f);
+   cover_item_t *item = pool_malloc_array(db->pool, consecutive,
+                                          sizeof(cover_item_t));
 
-   if (item->n_ranges > 0)
-      item->ranges = xcalloc_array(item->n_ranges, sizeof(cover_range_t));
+   const cover_item_kind_t kind = fbuf_get_uint(f);
+   const cover_src_t src = fbuf_get_uint(f);
 
-   for (int i = 0; i < item->n_ranges; i++) {
-      item->ranges[i].min = fbuf_get_uint(f);
-      item->ranges[i].max = fbuf_get_uint(f);
+   for (int i = 0; i < consecutive; i++) {
+      item[i].consecutive = consecutive - i;
+      item[i].kind        = kind;
+      item[i].source      = src;
+      item[i].tag         = fbuf_get_uint(f);
+      item[i].data        = fbuf_get_uint(f);
+      item[i].flags       = fbuf_get_uint(f);
+      item[i].atleast     = fbuf_get_uint(f);
+      item[i].n_ranges    = fbuf_get_uint(f);
+      item[i].metadata    = fbuf_get_uint(f);
+
+      if (item[i].n_ranges > 0)
+         item[i].ranges = pool_malloc_array(db->pool, item[i].n_ranges,
+                                            sizeof(cover_range_t));
+
+      for (int j = 0; j < item[i].n_ranges; j++) {
+         item[i].ranges[j].min = fbuf_get_uint(f);
+         item[i].ranges[j].max = fbuf_get_uint(f);
+      }
+
+      loc_read(&(item[i].loc), loc_rd);
+      if (item[i].flags & COVER_FLAGS_LHS_RHS_BINS) {
+         loc_read(&(item[i].loc_lhs), loc_rd);
+         loc_read(&(item[i].loc_rhs), loc_rd);
+      }
+
+      item[i].hier = ident_read(ident_ctx);
+      if (item[i].kind == COV_ITEM_EXPRESSION ||
+          item[i].kind == COV_ITEM_STATE ||
+          item[i].kind == COV_ITEM_FUNCTIONAL)
+         item[i].func_name = ident_read(ident_ctx);
    }
 
-   loc_read(&(item->loc), loc_rd);
-   if (item->flags & COVER_FLAGS_LHS_RHS_BINS) {
-      loc_read(&(item->loc_lhs), loc_rd);
-      loc_read(&(item->loc_rhs), loc_rd);
-   }
-
-   item->hier = ident_read(ident_ctx);
-   if (item->kind == COV_ITEM_EXPRESSION ||
-       item->kind == COV_ITEM_STATE ||
-       item->kind == COV_ITEM_FUNCTIONAL)
-      item->func_name = ident_read(ident_ctx);
+   return item;
 }
 
 static cover_scope_t *cover_read_scope(cover_data_t *db, fbuf_t *f,
@@ -1060,12 +1083,9 @@ static cover_scope_t *cover_read_scope(cover_data_t *db, fbuf_t *f,
    loc_read(&s->loc, loc_ctx);
 
    const int nitems = fbuf_get_uint(f);
-   cover_item_t *new =
-      pool_malloc_array(db->pool, sizeof(cover_item_t), nitems);
-
    for (int i = 0; i < nitems; i++) {
-      cover_read_one_item(f, loc_ctx, ident_ctx, &new[i]);
-      APUSH(s->items, &new[i]);
+      cover_item_t *item = cover_read_item(db, f, loc_ctx, ident_ctx);
+      APUSH(s->items, item);
    }
 
    for (;;) {
@@ -1110,13 +1130,13 @@ static cover_scope_t *cover_read_scope(cover_data_t *db, fbuf_t *f,
    }
 }
 
-cover_data_t *cover_read_items(fbuf_t *f, uint32_t pre_mask)
+cover_data_t *cover_read(fbuf_t *f, uint32_t pre_mask)
 {
-   cover_data_t *data = xcalloc(sizeof(cover_data_t));
-   cover_read_header(f, data);
-   data->mask |= pre_mask;
-   data->blocks = hash_new(16);
-   data->pool = pool_new();
+   cover_data_t *db = xcalloc(sizeof(cover_data_t));
+   cover_read_header(f, db);
+   db->mask |= pre_mask;
+   db->blocks = hash_new(16);
+   db->pool = pool_new();
 
    loc_rd_ctx_t *loc_rd = loc_read_begin(f);
    ident_rd_ctx_t ident_ctx = ident_read_begin(f);
@@ -1126,8 +1146,8 @@ cover_data_t *cover_read_items(fbuf_t *f, uint32_t pre_mask)
       const uint8_t ctrl = read_u8(f);
       switch (ctrl) {
       case CTRL_PUSH_SCOPE:
-         data->root_scope =
-            cover_read_scope(data, f, ident_ctx, loc_rd, NULL, NULL);
+         db->root_scope =
+            cover_read_scope(db, f, ident_ctx, loc_rd, NULL, NULL);
          break;
       case CTRL_END_OF_FILE:
          eof = true;
@@ -1140,57 +1160,99 @@ cover_data_t *cover_read_items(fbuf_t *f, uint32_t pre_mask)
    ident_read_end(ident_ctx);
    loc_read_end(loc_rd);
 
-   return data;
+   return db;
 }
 
-static void cover_merge_scope(cover_data_t *db, cover_scope_t *old_s,
-                              cover_scope_t *new_s, merge_mode_t mode)
+static bool cover_merge_items(cover_data_t *db, cover_item_t **pdst,
+                              const cover_item_t *src)
 {
-   // Most merged cover scopes have equal items.
-   // Start from equal item index in old and new scope instead of iterating
-   // for each items.
-   // If new scope has extra item in the middle (e.g. due to generic sized array)
-   // account for offset. Then there is no reiteration upon added items.
-   int n_added = 0;
-   for (int i = 0; i < new_s->items.count; i++) {
-      cover_item_t *new = AGET(new_s->items, i);
+   cover_item_t *dst = *pdst;
 
-      bool found = false;
-      int n_old_visits = 0;
-      int old_pos = i - n_added;
+   if (dst->kind != src->kind)
+      return false;
 
-      do {
-         if (n_old_visits == old_s->items.count)
-            break;
+   LOCAL_BIT_MASK missed;
+   mask_init(&missed, src->consecutive);
+   mask_setall(&missed);
 
-         cover_item_t *old = AGET(old_s->items, old_pos);
+   for (int i = 0; i < src->consecutive; i++) {
+      // Try the same index first assuming the scopes are identical
+      if (i < dst->consecutive && dst[i].flags == src[i].flags
+          && dst[i].hier == src[i].hier) {
+         cover_merge_one_item(dst + i, src[i].data);
+         mask_clear(&missed, i);
+         continue;
+      }
 
-         if ((new->hier == old->hier) && (new->flags == old->flags)) {
-            assert(new->kind == old->kind);
-            cover_merge_one_item(old, new->data);
-            found = true;
+      for (int j = 0; j < dst->consecutive; j++) {
+         if (i != j && dst[j].flags == src[i].flags
+             && dst[j].hier == src[i].hier) {
+            cover_merge_one_item(dst + j, src[i].data);
+            mask_clear(&missed, i);
             break;
          }
-
-         if (old_pos == old_s->items.count - 1)
-            old_pos = 0;
-         else
-            old_pos++;
-
-         n_old_visits++;
-      } while (true);
-
-      if (!found && mode == MERGE_UNION) {
-         APUSH(old_s->items, new);
-         n_added++;
       }
    }
 
-   for (int i = 0; i < new_s->children.count; i++) {
-      cover_scope_t *new_c = new_s->children.items[i];
+   const int nmissed = mask_popcount(&missed);
+
+   if (nmissed == 0)
+      return true;    // Merged all items
+   else if (nmissed == src->consecutive)
+      return false;   // Unrelated
+
+   // Append the unmerged items to the destination array
+
+   const int new_count = dst->consecutive + src->consecutive - nmissed;
+   cover_item_t *new = pool_malloc_array(db->pool, new_count,
+                                         sizeof(cover_item_t));
+
+   memcpy(new, dst, dst->consecutive * sizeof(cover_item_t));
+
+   cover_item_t *ptr = new + dst->consecutive;
+   for (size_t i = -1; mask_iter(&missed, &i);)
+      *ptr++ = src[i];
+   assert(ptr == new + new_count);
+
+   for (int i = 0; i < new_count; i++)
+      new[i].consecutive = new_count - i;
+
+   *pdst = new;
+   return true;
+}
+
+static void cover_merge_scope(cover_data_t *db, cover_scope_t *dst_s,
+                              const cover_scope_t *src_s, merge_mode_t mode)
+{
+   for (int i = 0; i < src_s->items.count; i++) {
+      const cover_item_t *src = AGET(src_s->items, i);
+
+      // Try the same index first assuming the scopes are identical
+      if (i < dst_s->items.count) {
+         cover_item_t **pdst = AREF(dst_s->items, i);
+         if (cover_merge_items(db, pdst, src))
+            continue;
+      }
+
+      bool merged = false;
+      for (int j = 0; j < dst_s->items.count; j++) {
+         if (j != i) {
+            cover_item_t **pdst = AREF(dst_s->items, i);
+            if ((merged = cover_merge_items(db, pdst, src)))
+               break;
+         }
+      }
+
+      if (!merged) {
+         // TOOD: if mode == MERGE_UNION add to dst_s->items?
+      }
+   }
+
+   for (int i = 0; i < src_s->children.count; i++) {
+      cover_scope_t *new_c = src_s->children.items[i];
       bool found = false;
-      for (int j = 0; j < old_s->children.count; j++) {
-         cover_scope_t *old_c = old_s->children.items[j];
+      for (int j = 0; j < dst_s->children.count; j++) {
+         cover_scope_t *old_c = dst_s->children.items[j];
          if (new_c->name == old_c->name) {
             cover_merge_scope(db, old_c, new_c, mode);
             found = true;
@@ -1199,7 +1261,7 @@ static void cover_merge_scope(cover_data_t *db, cover_scope_t *old_s,
       }
 
       if (!found && mode == MERGE_UNION) {
-         APUSH(old_s->children, new_c);
+         APUSH(dst_s->children, new_c);
 
          if (new_c->block->self == new_c)
             hash_put(db->blocks, new_c->block->name, new_c->block);

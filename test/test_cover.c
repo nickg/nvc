@@ -52,7 +52,7 @@ static cover_data_t *run_cover(tree_t top)
 
    // TODO: shouldn't need to do this to sync counters
    fbuf_t *tmp = fbuf_open("/dev/null", FBUF_OUT, FBUF_CS_NONE);
-   cover_dump_items(db, tmp, COV_DUMP_RUNTIME);
+   cover_write(db, tmp, COV_DUMP_RUNTIME);
    fbuf_close(tmp, NULL);
 
    return db;
@@ -103,11 +103,10 @@ START_TEST(test_toggle1)
 
    cover_scope_t *vect = u1->children.items[0];
    ck_assert_str_eq(istr(vect->name), "VECT");
-   ck_assert_int_eq(vect->items.count, 32);
+   ck_assert_int_eq(vect->items.count, 1);
 
    cover_item_t *vect15 = vect->items.items[0];
-   ck_assert_int_eq(vect15->consecutive, 2);
-   ck_assert_ptr_eq(vect->items.items[1], vect15 + 1);
+   ck_assert_int_eq(vect15->consecutive, 32);
    ck_assert(vect15[0].flags & COV_FLAG_TOGGLE_TO_1);
    ck_assert(vect15[1].flags & COV_FLAG_TOGGLE_TO_0);
    ck_assert_int_eq(vect15[0].data, 0);
@@ -123,19 +122,22 @@ START_TEST(test_toggle1)
    ck_assert_int_eq(u1_h->flat_stats.hit[COV_ITEM_TOGGLE], 2);
 
    const table_array_t *hits = &(u1_h->detail.hits[COV_ITEM_TOGGLE]);
-   ck_assert_int_eq(hits->count, 2);
+   ck_assert_int_eq(hits->count, 1);
 
    const rpt_table_t *hits_t0 = hits->items[0];
-   ck_assert_int_eq(hits_t0->count, 1);
+   ck_assert_int_eq(hits_t0->count, 2);
    ck_assert_int_eq(hits_t0->items[0]->data, 1);
    ck_assert_str_eq(istr(hits_t0->items[0]->hier),
                     "WORK.TOGGLE1.VECT(3).BIN_1_TO_0");
+   ck_assert_int_eq(hits_t0->items[1]->data, 1);
+   ck_assert_str_eq(istr(hits_t0->items[1]->hier),
+                    "WORK.TOGGLE1.VECT(1).BIN_1_TO_0");
 
    const table_array_t *miss = &(u1_h->detail.miss[COV_ITEM_TOGGLE]);
-   ck_assert_int_eq(miss->count, 16);
+   ck_assert_int_eq(miss->count, 1);
 
    const rpt_table_t *miss_t0 = miss->items[0];
-   ck_assert_int_eq(miss_t0->count, 2);
+   ck_assert_int_eq(miss_t0->count, 30);
    ck_assert_int_eq(miss_t0->items[0]->data, 0);
    ck_assert_str_eq(istr(miss_t0->items[0]->hier),
                     "WORK.TOGGLE1.VECT(15).BIN_0_TO_1");

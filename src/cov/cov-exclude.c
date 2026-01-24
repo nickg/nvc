@@ -42,33 +42,37 @@ static void to_upper_str(char *str)
 // Exclude file
 ///////////////////////////////////////////////////////////////////////////////
 
-static void cover_exclude_scope(cover_data_t *data, cover_scope_t *s)
+static void cover_exclude_items(cover_ef_t *ef, cover_item_t *item)
 {
-   for (int i = 0; i < s->items.count; i++) {
-      cover_item_t *item = AGET(s->items, i);
-      ident_t hier = item->hier;
-      const char *kind_str = cover_item_kind_str(item->kind);
+   for (int i = 0; i < item->consecutive; i++) {
+      ident_t hier = item[i].hier;
 
-      for (int j = 0; j < data->ef->n_excl_cmds; j++) {
-         cover_excl_cmd_t *excl = &(data->ef->excl[j]);
+      for (int j = 0; j < ef->n_excl_cmds; j++) {
+         cover_excl_cmd_t *excl = &(ef->excl[j]);
          const char *excl_hier = istr(excl->hier);
 
          if (ident_glob(hier, excl_hier, strlen(excl_hier))) {
             excl->found = true;
 
-            if (item->data >= item->atleast) {
+            const char *kind_str = cover_item_kind_str(item[i].kind);
+            if (item[i].data >= item[i].atleast) {
                warn_at(&excl->loc, "%s: '%s' is already covered, "
                                    "it will be reported as covered.",
                                    kind_str, istr(hier));
             }
             else {
                note_at(&excl->loc, "excluding %s: '%s'", kind_str, istr(hier));
-               item->flags |= COV_FLAG_EXCLUDED;
+               item[i].flags |= COV_FLAG_EXCLUDED;
             }
          }
-
       }
    }
+}
+
+static void cover_exclude_scope(cover_data_t *data, cover_scope_t *s)
+{
+   for (int i = 0; i < s->items.count; i++)
+      cover_exclude_items(data->ef, AGET(s->items, i));
 
    for (int i = 0; i < s->children.count; i++)
       cover_exclude_scope(data, s->children.items[i]);

@@ -225,8 +225,8 @@ cover_data_t *cover_data_init(cover_mask_t mask, int array_limit, int threshold)
 void cover_data_free(cover_data_t *db);
 bool cover_enabled(cover_data_t *data, cover_mask_t mask);
 
-void cover_dump_items(cover_data_t *data, fbuf_t *f, cover_dump_t dt);
-cover_data_t *cover_read_items(fbuf_t *f, uint32_t pre_mask);
+void cover_write(cover_data_t *db, fbuf_t *f, cover_dump_t dt);
+cover_data_t *cover_read(fbuf_t *f, uint32_t pre_mask);
 void cover_merge(cover_data_t *dst, const cover_data_t *src, merge_mode_t mode);
 
 int32_t *cover_get_counters(cover_data_t *db, ident_t name);

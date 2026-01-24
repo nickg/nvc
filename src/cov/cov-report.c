@@ -126,11 +126,6 @@ static void rpt_get_detail(cover_rpt_t *rpt, rpt_detail_t *detail,
       assert(item[i].kind == item->kind);
    }
 
-   if (detail->total > rpt->item_limit) {
-      rpt->skipped += item->consecutive;
-      return;
-   }
-
    rpt_table_t *hit = rpt_table_new(rpt, line, nhit);
    rpt_table_t *miss = rpt_table_new(rpt, line, nmiss);
    rpt_table_t *excl = rpt_table_new(rpt, line, nexcl);
@@ -144,14 +139,32 @@ static void rpt_get_detail(cover_rpt_t *rpt, rpt_detail_t *detail,
          miss->items[mpos++] = item + i;
    }
 
-   if (hit != NULL)
+   if (hit != NULL) {
       APUSH(detail->hits[item->kind], hit);
 
-   if (miss != NULL)
+      if (hit->count > rpt->item_limit) {
+         rpt->skipped += hit->count - rpt->item_limit;
+         hit->count = rpt->item_limit;
+      }
+   }
+
+   if (miss != NULL) {
       APUSH(detail->miss[item->kind], miss);
 
-   if (excl != NULL)
+      if (miss->count > rpt->item_limit) {
+         rpt->skipped += miss->count - rpt->item_limit;
+         miss->count = rpt->item_limit;
+      }
+   }
+
+   if (excl != NULL) {
       APUSH(detail->excl[item->kind], excl);
+
+      if (excl->count > rpt->item_limit) {
+         rpt->skipped += excl->count - rpt->item_limit;
+         excl->count = rpt->item_limit;
+      }
+   }
 
    detail->total += nhit + nmiss + nexcl;
 }
@@ -278,15 +291,13 @@ static void rpt_visit_sub_scope(cover_rpt_t *rpt, rpt_hier_t *h,
 {
    rpt_file_t *f_src = rpt_visit_file(rpt, s);
    if (f_src != NULL) {
-      for (int i = 0; i < s->items.count;) {
+      for (int i = 0; i < s->items.count; i++) {
          cover_item_t *item = s->items.items[i];
          assert(item->loc.file_ref == s->loc.file_ref);
 
          const rpt_line_t *line = rpt_get_line(f_src, &item->loc);
          if (line != NULL)
             rpt_get_detail(rpt, &h->detail, &h->flat_stats, item, line);
-
-         i += item->consecutive;
       }
    }
 
@@ -309,14 +320,12 @@ static void rpt_visit_children(cover_rpt_t *rpt, rpt_hier_t *h,
 
 static void rpt_gen_file_details(cover_rpt_t *rpt, rpt_file_t *f)
 {
-   for (int i = 0; i < f->items.count;) {
+   for (int i = 0; i < f->items.count; i++) {
       cover_item_t *item = f->items.items[i];
 
       const rpt_line_t *line = rpt_get_line(f, &item->loc);
       if (line != NULL)
          rpt_get_detail(rpt, &f->detail, &f->stats, item, line);
-
-      i += item->consecutive;
    }
 }
 

@@ -469,9 +469,6 @@ void _nvc_add_cover_item(jit_scalar_t *args)
    }
 
    *index_ptr = item->tag;
-
-   cover_item_t *first = AGET(us->scope->items, 0);
-   first->consecutive = us->scope->items.count;
 }
 
 DLLEXPORT

@@ -617,25 +617,67 @@ static void html_print_table(const rpt_table_t *table, cov_pair_kind_t pkind,
 
    case COV_ITEM_TOGGLE:
       {
-         if (table->items[0]->flags & COV_FLAG_TOGGLE_SIGNAL)
+         assert(table->count > 0);
+         const cover_item_t *item0 = table->items[0];
+
+         if (item0->flags & COV_FLAG_TOGGLE_SIGNAL)
             fprintf(f, "<h3>Signal:</h3>");
-         else if (table->items[0]->flags & COV_FLAG_TOGGLE_PORT)
+         else if (item0->flags & COV_FLAG_TOGGLE_PORT)
             fprintf(f, "<h3>Port:</h3>");
 
-         const char *sig_name = istr(ident_runtil(table->items[0]->hier, '.'));
-         sig_name += table->items[0]->metadata;
-         fprintf(f, "&nbsp;<code>%s</code>", sig_name);
+         const char *sig_name = istr(item0->hier) + item0->metadata;
 
-         const char *title[2] = {"From", "To"};
-         cover_print_bin_header(f, pkind, 2, title);
+         const char *bin_name = strrchr(sig_name, '.');
+         assert(bin_name != NULL);
 
-         for (int i = 0; i < table->count; i++) {
-            const char *v_01[2] = { "0", "1" };
-            const char *v_10[2] = { "1", "0" };
-            cover_print_bin(f, table->items[i], COV_FLAG_TOGGLE_TO_1,
-                            pkind, 2, v_01);
-            cover_print_bin(f, table->items[i], COV_FLAG_TOGGLE_TO_0,
-                            pkind, 2, v_10);
+         int name_len = 0;
+         while (sig_name[name_len] != '\0' && sig_name[name_len] != '.'
+                && sig_name[name_len] != '(')
+            name_len++;
+
+         fprintf(f, "&nbsp;<code>%.*s</code>", name_len, sig_name);
+
+         if (sig_name[name_len] == '.')
+            name_len++;
+
+         const bool is_composite = sig_name + name_len < bin_name;
+
+         if (is_composite) {
+            const char *title[3] = { "Element", "From", "To" };
+            cover_print_bin_header(f, pkind, 3, title);
+
+            LOCAL_TEXT_BUF tb = tb_new();
+
+            for (int i = 0; i < table->count; i++) {
+               const char *elem_name =
+                  istr(table->items[i]->hier) + item0->metadata + name_len;
+
+               const char *bin_name = strrchr(elem_name, '.');
+               assert(bin_name != NULL);
+
+               tb_rewind(tb);
+               tb_catn(tb, elem_name, bin_name - elem_name);
+
+               const char *v_01[3] = { tb_get(tb), "0", "1" };
+               const char *v_10[3] = { tb_get(tb), "1", "0" };
+               cover_print_bin(f, table->items[i], COV_FLAG_TOGGLE_TO_1,
+                               pkind, 3, v_01);
+               cover_print_bin(f, table->items[i], COV_FLAG_TOGGLE_TO_0,
+                               pkind, 3, v_10);
+            }
+         }
+         else {
+            const char *title[2] = { "From", "To" };
+            cover_print_bin_header(f, pkind, 2, title);
+
+            for (int i = 0; i < table->count; i++) {
+               const char *v_01[2] = { "0", "1" };
+               const char *v_10[2] = { "1", "0" };
+               cover_print_bin(f, table->items[i], COV_FLAG_TOGGLE_TO_1,
+                               pkind, 2, v_01);
+               cover_print_bin(f, table->items[i], COV_FLAG_TOGGLE_TO_0,
+                               pkind, 2, v_10);
+            }
          }
 
          fprintf(f, "</table>");

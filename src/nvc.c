@@ -665,7 +665,7 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
       if (f == NULL)
          fatal_errno("failed to open coverage database: %s", meta.cover_file);
 
-      cover_dump_items(state->cover, f, COV_DUMP_ELAB);
+      cover_write(state->cover, f, COV_DUMP_ELAB);
       fbuf_close(f, NULL);
 
       progress("dumping coverage data");
@@ -812,7 +812,7 @@ static cover_data_t *load_coverage(const unit_meta_t *meta)
    if (f == NULL)
       fatal_errno("failed to open coverage database: %s", meta->cover_file);
 
-   cover_data_t *db = cover_read_items(f, 0);
+   cover_data_t *db = cover_read(f, 0);
 
    fbuf_close(f, NULL);
    return db;
@@ -826,7 +826,7 @@ static void emit_coverage(const unit_meta_t *meta, jit_t *j, cover_data_t *db)
    if (f == NULL)
       fatal_errno("failed to open coverage database: %s", meta->cover_file);
 
-   cover_dump_items(db, f, COV_DUMP_RUNTIME);
+   cover_write(db, f, COV_DUMP_RUNTIME);
 
    fbuf_close(f, NULL);
 }
@@ -1736,7 +1736,7 @@ static int coverage_cmd(int argc, char **argv, cmd_state_t *state)
       if (f != NULL) {
          progress("Loading input coverage database: %s", argv[i]);
 
-         cover_data_t *db = cover_read_items(f, rpt_mask);
+         cover_data_t *db = cover_read(f, rpt_mask);
          if (i == optind)
             merged = db;
          else {
@@ -1753,7 +1753,7 @@ static int coverage_cmd(int argc, char **argv, cmd_state_t *state)
    if (out_db) {
       progress("Saving merged coverage database to: %s", out_db);
       fbuf_t *f = fbuf_open(out_db, FBUF_OUT, FBUF_CS_NONE);
-      cover_dump_items(merged, f, COV_DUMP_PROCESSING);
+      cover_write(merged, f, COV_DUMP_PROCESSING);
       fbuf_close(f, NULL);
    }
 
@@ -1887,7 +1887,7 @@ static cover_data_t *merge_coverage_files(int argc, int next_cmd, char **argv,
 
       progress("loading input coverage database %s", argv[i]);
 
-      cover_data_t *db = cover_read_items(f, rpt_mask);
+      cover_data_t *db = cover_read(f, rpt_mask);
 
       if (i == optind)
          merged = db;
@@ -1972,7 +1972,7 @@ static int cover_export_cmd(int argc, char **argv, cmd_state_t *state)
       if (f == NULL)
          fatal("no coverage database for %s", istr(state->top_level));
 
-      cover = cover_read_items(f, 0);
+      cover = cover_read(f, 0);
       fbuf_close(f, NULL);
 
       warnf("exporting the coverage database using the top-level unit name "
@@ -2125,7 +2125,7 @@ static int cover_merge_cmd(int argc, char **argv, cmd_state_t *state)
    progress("saving merged coverage database to %s", out_db);
 
    fbuf_t *f = fbuf_open(out_db, FBUF_OUT, FBUF_CS_NONE);
-   cover_dump_items(cover, f, COV_DUMP_PROCESSING);
+   cover_write(cover, f, COV_DUMP_PROCESSING);
    fbuf_close(f, NULL);
 
    argc -= next_cmd - 1;
