@@ -908,7 +908,10 @@ static jit_value_t irgen_vector_mask(int size)
    assert(size <= 64);
 
    uint64_t mask = ~UINT64_C(0);
-   if (size < 64) mask >>= 64 - size;
+   if (size == 0)
+      mask = 0;
+   else if (size < 64)
+      mask >>= 64 - size;
 
    return jit_value_from_int64(mask);
 }
@@ -1225,7 +1228,10 @@ static void irgen_op_const_vec(jit_irgen_t *g, mir_value_t n)
       aconst = (int64_t)(aconst << (64 - size)) >> (64 - size);
 
    uint64_t mask = ~UINT64_C(0);
-   if (size < 64) mask >>= 64 - size;
+   if (size == 0)
+      mask = 0;
+   else if (size < 64)
+      mask >>= 64 - size;
 
    aconst &= mask;
    bconst &= mask;

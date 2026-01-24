@@ -956,7 +956,9 @@ mir_value_t mir_const_vec(mir_unit_t *mu, mir_type_t type, uint64_t abits,
                           uint64_t bbits)
 {
    uint64_t mask = ~UINT64_C(0), size = mir_get_size(mu, type);
-   if (size < 64)
+   if (size == 0)
+      mask = 0;
+   else if (size < 64)
       mask >>= 64 - size;
 
    node_data_t *n = mir_add_node(mu, MIR_OP_CONST_VEC, type, MIR_NULL_STAMP, 0);

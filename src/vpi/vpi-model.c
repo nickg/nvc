@@ -1258,7 +1258,8 @@ vpiHandle vpi_put_value(vpiHandle handle, p_vpi_value value_p,
       switch (value_p->format) {
       case vpiIntVal:
          for (int i = 0; i < reg->size && i < 32; i++)
-            unpacked[reg->size - 1 - i] = !!(value_p->value.integer & (1 << i));
+            unpacked[reg->size - 1 - i] =
+               !!(value_p->value.integer & (1u << i));
          break;
 
       case vpiHexStrVal:

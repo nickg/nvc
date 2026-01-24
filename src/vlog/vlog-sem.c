@@ -27,9 +27,9 @@
 #include <stdlib.h>
 
 typedef uint32_t type_mask_t;
-#define TM(x) (1 << (x))
+#define TM(x) (1u << (x))
 #define TM_ERROR  0
-#define TM_ANY    ~0
+#define TM_ANY    ~0u
 #define TM_EMPTY  TM(31)
 #define TM_CONST  TM(30)
 #define TM_CLASS  TM(29)
