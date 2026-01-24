@@ -56,6 +56,7 @@
 #define MIN_TAKE        8
 #define PARKING_BAYS    64
 #define SUSPEND_TIMEOUT 1
+#define THREAD_NAME_LEN 16
 
 #if !defined __MINGW32__ && !defined __APPLE__
 #define POSIX_SUSPEND 1
@@ -213,12 +214,14 @@ typedef enum {
    WORKER_THREAD,
 } thread_kind_t;
 
+typedef char thread_name_t[THREAD_NAME_LEN];
+
 struct _nvc_thread {
    unsigned        id;
    thread_kind_t   kind;
    unsigned        spins;
    threadq_t       queue;
-   char           *name;
+   thread_name_t   name;
    thread_fn_t     fn;
    void           *arg;
    int             victim;
@@ -404,21 +407,24 @@ static void join_worker_threads(void)
 
    assert(atomic_load(&running_threads) == 1);
 
+   for (int i = 0; i < join_list.count; i++)
+      free(join_list.items[i]);
+
 #ifdef DEBUG
    for (int i = 0; i < PARKING_BAYS; i++)
       assert(parking_bays[i].parked == 0);
 #endif
 }
 
-static nvc_thread_t *thread_new(thread_fn_t fn, void *arg,
-                                thread_kind_t kind, char *name)
+static nvc_thread_t *thread_new(thread_fn_t fn, void *arg, thread_kind_t kind,
+                                const thread_name_t name)
 {
    nvc_thread_t *thread = xcalloc(sizeof(nvc_thread_t));
-   thread->name     = name;
    thread->fn       = fn;
    thread->arg      = arg;
    thread->kind     = kind;
    thread->rngstate = rand();
+   memcpy(thread->name, name, THREAD_NAME_LEN);
 
    atomic_store(&thread->queue.age.bits, 0);
    atomic_store(&thread->queue.bot, 0);
@@ -473,7 +479,8 @@ void thread_init(void)
 {
    assert(my_thread == NULL);
 
-   my_thread = thread_new(NULL, NULL, MAIN_THREAD, xstrdup("main thread"));
+   const thread_name_t name = "main thread";
+   my_thread = thread_new(NULL, NULL, MAIN_THREAD, name);
 
 #ifdef __MINGW32__
    my_thread->handle = GetCurrentThread();
@@ -611,7 +618,10 @@ nvc_thread_t *thread_create(thread_fn_t fn, void *arg, const char *fmt, ...)
 {
    va_list ap;
    va_start(ap, fmt);
-   char *name = xvasprintf(fmt, ap);
+
+   thread_name_t name;
+   checked_vsprintf(name, THREAD_NAME_LEN, fmt, ap);
+
    va_end(ap);
 
    // Avoid races with stop_world
@@ -1118,7 +1128,9 @@ static void create_workers(int needed)
 
    while (relaxed_load(&running_threads) < MIN(max_workers, needed)) {
       static int counter = 0;
-      char *name = xasprintf("worker thread %d", atomic_add(&counter, 1));
+      thread_name_t name;
+      checked_sprintf(name, THREAD_NAME_LEN, "worker thread %d",
+                      atomic_add(&counter, 1));
       SCOPED_LOCK(stop_lock);   // Avoid races with stop_world
       nvc_thread_t *thread =
          thread_new(worker_thread, NULL, WORKER_THREAD, name);

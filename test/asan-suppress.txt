@@ -1,0 +1,7 @@
+# export LSAN_OPTIONS=suppressions=asan-suppress.txt
+
+# Concurrent hash tables not safe to free
+leak:^grow_table$
+leak:^get_table$
+leak:^chash_new$
+leak:^chash_grow_table$

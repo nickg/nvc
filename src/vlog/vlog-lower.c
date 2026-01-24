@@ -2441,6 +2441,7 @@ static void vlog_lower_func_decl(mir_unit_t *mu, object_t *obj)
       mir_build_return(mu, mir_build_load(mu, result));
 
    mir_optimise(mu, MIR_PASS_O1);
+   vlog_lower_cleanup(&g);
 }
 
 static void vlog_lower_task_decl(mir_unit_t *mu, object_t *obj)
@@ -2476,6 +2477,7 @@ static void vlog_lower_task_decl(mir_unit_t *mu, object_t *obj)
       mir_build_return(mu, MIR_NULL_VALUE);
 
    mir_optimise(mu, MIR_PASS_O1);
+   vlog_lower_cleanup(&g);
 }
 
 static void vlog_lower_class_decl(mir_unit_t *mu, object_t *obj)
@@ -2496,6 +2498,7 @@ static void vlog_lower_class_decl(mir_unit_t *mu, object_t *obj)
       mir_build_return(mu, MIR_NULL_VALUE);
 
    mir_optimise(mu, MIR_PASS_O0);
+   vlog_lower_cleanup(&g);
 }
 
 static mir_type_t vlog_lower_vhdl_type(mir_unit_t *mu, type_t type)

@@ -1731,7 +1731,7 @@ static void elab_verilog_instance_list(vlog_node_t v, const elab_ctx_t *ctx)
    ident_t modname = vlog_ident(v);
    ident_t libname = lib_name(ctx->library);
 
-   text_buf_t *tb = tb_new();
+   LOCAL_TEXT_BUF tb = tb_new();
    tb_istr(tb, libname);
    tb_append(tb, '.');
    tb_istr(tb, modname);

@@ -647,6 +647,7 @@ void jit_write_pack(jit_t *j, const ident_t *units, size_t count, FILE *f)
       write_fully(bytes, cpool_nbytes, f);
 
       write_fully(buf, size, f);
+      free(buf);
 
       if (func->cpoolsz > 0)
          write_fully(func->cpool, func->cpoolsz, f);

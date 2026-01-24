@@ -1177,20 +1177,26 @@ void *map_jit_pages(size_t align, size_t sz)
    return ptr;
 }
 
-int checked_sprintf(char *buf, int len, const char *fmt, ...)
+int checked_vsprintf(char *buf, int len, const char *fmt, va_list ap)
 {
    assert(len > 0);
-
-   va_list ap;
-   va_start(ap, fmt);
 
    const int nbytes = vsnprintf(buf, len, fmt, ap);
    if (nbytes >= len)
       fatal_trace("checked_sprintf requires %d bytes but have %d",
                   nbytes + 1, len);
 
-   va_end(ap);
+   return nbytes;
+}
 
+int checked_sprintf(char *buf, int len, const char *fmt, ...)
+{
+   va_list ap;
+   va_start(ap, fmt);
+
+   const int nbytes = checked_vsprintf(buf, len, fmt, ap);
+
+   va_end(ap);
    return nbytes;
 }
 

@@ -66,6 +66,11 @@ static void mir_unit_free_memory(mir_unit_t *mu)
    ACLEAR(mu->linkage);
    ACLEAR(mu->extvars);
 
+   if (mu->shape != NULL) {
+      hash_free(mu->shape->objmap);
+      mu->shape->objmap = NULL;
+   }
+
    pool_free(mu->pool);
 
    hash_free(mu->objmap);
