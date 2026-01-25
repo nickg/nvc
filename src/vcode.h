@@ -174,6 +174,7 @@ typedef enum {
    VCODE_OP_DIR_CHECK,
    VCODE_OP_SCHED_PROCESS,
    VCODE_OP_TABLE_REF,
+   VCODE_OP_GET_COUNTERS,
 } vcode_op_t;
 
 typedef enum {
@@ -450,6 +451,7 @@ vcode_reg_t emit_init_signal(vcode_type_t type, vcode_reg_t count,
                              vcode_reg_t size, vcode_reg_t value,
                              vcode_reg_t flags, vcode_reg_t locus,
                              vcode_reg_t offset);
+vcode_reg_t emit_get_counters(ident_t block);
 void emit_resolve_signal(vcode_reg_t signal, vcode_reg_t resolution);
 vcode_reg_t emit_implicit_signal(vcode_type_t type, vcode_reg_t count,
                                  vcode_reg_t size, vcode_reg_t locus,
@@ -490,11 +492,11 @@ void emit_length_check(vcode_reg_t llen, vcode_reg_t rlen, vcode_reg_t locus,
 void emit_exponent_check(vcode_reg_t exp, vcode_reg_t locus);
 void emit_zero_check(vcode_reg_t denom, vcode_reg_t locus);
 void emit_debug_out(vcode_reg_t reg);
-void emit_cover_stmt(uint32_t tag);
-void emit_cover_branch(uint32_t tag);
+void emit_cover_stmt(vcode_reg_t counters, uint32_t tag);
+void emit_cover_branch(vcode_reg_t counters, uint32_t tag);
 void emit_cover_toggle(vcode_reg_t signal, uint32_t tag);
 void emit_cover_state(vcode_reg_t signal, vcode_reg_t low, uint32_t tag);
-void emit_cover_expr(uint32_t tag);
+void emit_cover_expr(vcode_reg_t counters, uint32_t tag);
 vcode_reg_t emit_undefined(vcode_type_t type, vcode_stamp_t stamp);
 void emit_debug_info(const loc_t *loc);
 vcode_reg_t emit_range_null(vcode_reg_t left, vcode_reg_t right,

@@ -1621,6 +1621,19 @@ static cover_item_t *lower_get_cover_item(lower_unit_t *lu, tree_t t,
    return NULL;
 }
 
+static vcode_reg_t lower_cover_counters(lower_unit_t *lu)
+{
+   int hops;
+   vcode_var_t var = lower_search_vcode_obj(well_known(W_COUNTERS), lu, &hops);
+   if (var == VCODE_INVALID_VAR)
+      fatal_trace("missing #counters variable in %pI", lu->name);
+
+   if (hops == 0)
+      return emit_load(var);
+   else
+      return emit_load_indirect(emit_var_upref(hops, var));
+}
+
 static void lower_branch_coverage(lower_unit_t *lu, tree_t b,
                                   vcode_block_t true_bb, vcode_block_t false_bb)
 {
@@ -1636,7 +1649,9 @@ static void lower_branch_coverage(lower_unit_t *lu, tree_t b,
       assert(blocks[i] != VCODE_INVALID_BLOCK);
 
       vcode_select_block(blocks[i]);
-      emit_cover_branch(item[i].tag);
+
+      vcode_reg_t counters = lower_cover_counters(lu);
+      emit_cover_branch(counters, item[i].tag);
    }
 }
 
@@ -1646,8 +1661,10 @@ static void lower_stmt_coverage(lower_unit_t *lu, tree_t stmt)
       return;
 
    cover_item_t *item = lower_get_cover_item(lu, stmt, COV_ITEM_STMT);
-   if (item != NULL)
-      emit_cover_stmt(item->tag);
+   if (item != NULL) {
+      vcode_reg_t counters = lower_cover_counters(lu);
+      emit_cover_stmt(counters, item->tag);
+   }
 }
 
 static void lower_toggle_coverage_cb(lower_unit_t *lu, tree_t field,
@@ -1761,6 +1778,8 @@ static vcode_reg_t lower_logical(lower_unit_t *lu, tree_t fcall,
       { COV_FLAG_11, lhs,   rhs   },
    };
 
+   vcode_reg_t counters = lower_cover_counters(lu);
+
    for (int i = 0; i < first->consecutive; i++) {
       vcode_block_t next_bb = emit_block();
       vcode_block_t match_bb = emit_block();
@@ -1774,7 +1793,7 @@ static vcode_reg_t lower_logical(lower_unit_t *lu, tree_t fcall,
          emit_cond(test, match_bb, next_bb);
 
          vcode_select_block(match_bb);
-         emit_cover_expr(current->tag);
+         emit_cover_expr(counters, current->tag);
          emit_jump(next_bb);
 
          vcode_select_block(next_bb);
@@ -1788,7 +1807,7 @@ static vcode_reg_t lower_logical(lower_unit_t *lu, tree_t fcall,
                emit_cond(test, match_bb, next_bb);
 
                vcode_select_block(match_bb);
-               emit_cover_expr(current->tag);
+               emit_cover_expr(counters, current->tag);
                emit_jump(next_bb);
 
                vcode_select_block(next_bb);
@@ -1829,6 +1848,8 @@ static void lower_logic_expr_coverage(lower_unit_t *lu, tree_t fcall,
       { COV_FLAG_11, log_1, log_1 },
    };
 
+   vcode_reg_t counters = lower_cover_counters(lu);
+
    cover_item_t *current = first;
    for (int i = 0; i < first->consecutive; i++) {
       vcode_block_t next_bb = emit_block();
@@ -1844,7 +1865,7 @@ static void lower_logic_expr_coverage(lower_unit_t *lu, tree_t fcall,
             emit_cond(test, match_bb, next_bb);
 
             vcode_select_block(match_bb);
-            emit_cover_expr(current->tag);
+            emit_cover_expr(counters, current->tag);
             emit_jump(next_bb);
 
             vcode_select_block(next_bb);
@@ -12415,6 +12436,17 @@ lower_unit_t *lower_instance(unit_registry_t *ur, lower_unit_t *parent,
          lu->cscope = vhdl_cover_block(block, cover, parent->cscope);
       else
          lu->cscope = vhdl_cover_block(block, cover, NULL);
+   }
+
+   if (lu->cscope != NULL) {
+      vcode_reg_t ptr = emit_get_counters(lu->name);
+
+      vcode_type_t vtype = vcode_reg_type(ptr);
+      ident_t name = well_known(W_COUNTERS);
+      vcode_var_t counters = emit_var(vtype, VCODE_INVALID_STAMP, name, 0);
+      emit_store(ptr, counters);
+
+      lower_put_vcode_obj(name, counters, lu);
    }
 
    tree_global_flags_t gflags = tree_global_flags(unit);

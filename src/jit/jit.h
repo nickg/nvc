@@ -52,7 +52,7 @@ typedef struct {
 
 typedef void (*jit_irq_fn_t)(jit_t *, void *);
 
-jit_t *jit_new(unit_registry_t *ur, mir_context_t *mc, cover_data_t *db);
+jit_t *jit_new(unit_registry_t *ur, mir_context_t *mc);
 void jit_free(jit_t *j);
 jit_handle_t jit_compile(jit_t *j, ident_t name);
 jit_handle_t jit_lazy_compile(jit_t *j, ident_t name);

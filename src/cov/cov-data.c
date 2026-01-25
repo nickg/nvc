@@ -706,15 +706,11 @@ cover_item_t *cover_add_items_for(cover_data_t *data, cover_scope_t *cs,
 
 void cover_map_item(cover_scope_t *cs, object_t *obj, cover_item_t *item)
 {
-   cover_scope_t *inst = cs;
-   for (; inst != NULL && inst->kind != CSCOPE_INSTANCE; inst = inst->parent);
-   assert(inst != NULL);
-
-   if (inst->block->item_map == NULL)
-      inst->block->item_map = hash_new(128);
+   if (cs->block->item_map == NULL)
+      cs->block->item_map = hash_new(128);
 
    void *tagged = tag_pointer(obj, item->kind);
-   hash_put(inst->block->item_map, tagged, item);
+   hash_put(cs->block->item_map, tagged, item);
 }
 
 cover_item_t *cover_lookup_item(cover_scope_t *cs, object_t *obj,
@@ -1189,26 +1185,17 @@ static cover_scope_t *cover_read_scope(cover_data_t *db, fbuf_t *f,
       switch (ctrl) {
       case CTRL_PUSH_UNIT:
          {
-            // FIXME: this check is required for merging
             ident_t name = ident_read(ident_ctx);
-            cover_block_t *b = hash_get(db->blocks, name);
-            if (b == NULL) {
-               b = xcalloc(sizeof(cover_block_t));
-               b->name = name;
-               b->next_tag = fbuf_get_uint(f);
-               b->self = cover_read_scope(db, f, ident_ctx, loc_ctx, b, s);
+            assert(hash_get(db->blocks, name) == NULL);
 
-               hash_put(db->blocks, b->name, b);
+            cover_block_t *b = pool_calloc(db->pool, sizeof(cover_block_t));
+            b->name = name;
+            b->next_tag = fbuf_get_uint(f);
+            b->self = cover_read_scope(db, f, ident_ctx, loc_ctx, b, s);
 
-               APUSH(s->children, b->self);
-            }
-            else {
-               (void)fbuf_get_uint(f);
+            hash_put(db->blocks, b->name, b);
 
-               cover_scope_t *child =
-                  cover_read_scope(db, f, ident_ctx, loc_ctx, b, s);
-               APUSH(s->children, child);
-            }
+            APUSH(s->children, b->self);
          }
          break;
       case CTRL_PUSH_SCOPE:

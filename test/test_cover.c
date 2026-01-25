@@ -36,7 +36,7 @@ static cover_data_t *run_cover(tree_t top)
    cover_data_t *db = cover_data_init(COVER_MASK_ALL, 0, 1);
    mir_context_t *mc = mir_context_new();
    unit_registry_t *ur = unit_registry_new(mc);
-   jit_t *j = jit_new(ur, mc, db);
+   jit_t *j = jit_new(ur, mc);
 
    rt_model_t *m = model_new(j, db);
 

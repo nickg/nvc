@@ -269,11 +269,9 @@ static void vhdl_cover_stmts(tree_t t, cover_data_t *db, lazy_cscope_t *parent)
 }
 
 static void vhdl_cover_subprogram(tree_t t, cover_data_t *db,
-                                  cover_scope_t *parent)
+                                  lazy_cscope_t *parent)
 {
-   cover_scope_t *cs = cover_create_block(db, tree_ident2(t), parent, t,
-                                          t, NULL);
-   lazy_cscope_t lcs = { NULL, cs, t };
+   lazy_cscope_t lcs = lazy_cover_scope(t, parent);
    vhdl_cover_stmts(t, db, &lcs);
 }
 
@@ -292,19 +290,18 @@ static void vhdl_cover_port_decl(tree_t t, cover_data_t *db,
    vhdl_cover_toggle(t, db, &lcs);
 }
 
-static void vhdl_cover_decls(tree_t t, cover_data_t *db, cover_scope_t *cs)
+static void vhdl_cover_decls(tree_t t, cover_data_t *db, lazy_cscope_t *parent)
 {
-   lazy_cscope_t lcs = { NULL, cs, t };
    const int ndecls = tree_decls(t);
    for (int i = 0; i < ndecls; i++) {
       tree_t d = tree_decl(t, i);
       switch (tree_kind(d)) {
       case T_FUNC_BODY:
       case T_PROC_BODY:
-         vhdl_cover_subprogram(d, db, cs);
+         vhdl_cover_subprogram(d, db, parent);
          break;
       case T_SIGNAL_DECL:
-         vhdl_cover_signal_decl(d, db, &lcs);
+         vhdl_cover_signal_decl(d, db, parent);
          break;
       default:
          break;
@@ -312,13 +309,12 @@ static void vhdl_cover_decls(tree_t t, cover_data_t *db, cover_scope_t *cs)
    }
 }
 
-static void vhdl_cover_process(tree_t proc, ident_t qual, cover_data_t *db,
-                               cover_scope_t *parent)
+static void vhdl_cover_process(tree_t t, ident_t qual, cover_data_t *db,
+                               lazy_cscope_t *parent)
 {
-   cover_scope_t *cs = cover_create_block(db, qual, parent, proc, proc, NULL);
-   lazy_cscope_t lcs = { NULL, cs, proc };
-   vhdl_cover_stmts(proc, db, &lcs);
-   vhdl_cover_decls(proc, db, cs);
+   lazy_cscope_t lcs = lazy_cover_scope(t, parent);
+   vhdl_cover_stmts(t, db, &lcs);
+   vhdl_cover_decls(t, db, &lcs);
 }
 
 cover_scope_t *vhdl_cover_block(tree_t block, cover_data_t *db,
@@ -373,7 +369,7 @@ cover_scope_t *vhdl_cover_block(tree_t block, cover_data_t *db,
          vhdl_cover_expr(tree_value(actual), db, &lcs);
    }
 
-   vhdl_cover_decls(block, db, cs);
+   vhdl_cover_decls(block, db, &lcs);
 
    ident_t sym_prefix = tree_ident2(hier);
 
@@ -383,7 +379,7 @@ cover_scope_t *vhdl_cover_block(tree_t block, cover_data_t *db,
       case T_PROCESS:
          {
             ident_t qual = ident_prefix(sym_prefix, tree_ident(s), '.');
-            vhdl_cover_process(s, qual, db, cs);
+            vhdl_cover_process(s, qual, db, &lcs);
          }
          break;
       default:

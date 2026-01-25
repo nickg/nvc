@@ -214,7 +214,6 @@ static void pack_value(pack_writer_t *pw, jit_t *j, jit_value_t value)
       pack_uint(pw, value.int64);
       break;
    case JIT_ADDR_ABS:
-   case JIT_ADDR_COVER:
       pack_uint(pw, value.int64);
       break;
    case JIT_VALUE_LABEL:
@@ -497,7 +496,6 @@ static jit_value_t unpack_value(pack_func_t *pf, jit_t *j)
       value.int64 = unpack_uint(pf);
       break;
    case JIT_ADDR_ABS:
-   case JIT_ADDR_COVER:
       value.int64 = unpack_uint(pf);
       break;
    case JIT_VALUE_LABEL:

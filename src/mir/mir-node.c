@@ -2833,22 +2833,31 @@ void mir_build_transfer_signal(mir_unit_t *mu, mir_value_t target,
    MIR_ASSERT(mir_is_signal(mu, source), "source is not a signal");
 }
 
-void mir_build_cover_stmt(mir_unit_t *mu, uint32_t tag)
+mir_value_t mir_build_get_counters(mir_unit_t *mu, ident_t block)
 {
-   mir_build_1(mu, MIR_OP_COVER_STMT, MIR_NULL_TYPE, MIR_NULL_STAMP,
-               mir_enum(tag));
+   mir_type_t t_int32 = mir_int_type(mu, INT32_MIN, INT32_MAX);
+   mir_type_t t_ptr = mir_pointer_type(mu, t_int32);
+
+   mir_value_t link = mir_add_linkage(mu, block);
+   return mir_build_1(mu, MIR_OP_GET_COUNTERS, t_ptr, MIR_NULL_STAMP, link);
 }
 
-void mir_build_cover_branch(mir_unit_t *mu, uint32_t tag)
+void mir_build_cover_stmt(mir_unit_t *mu, mir_value_t counters, uint32_t tag)
 {
-   mir_build_1(mu, MIR_OP_COVER_BRANCH, MIR_NULL_TYPE, MIR_NULL_STAMP,
-               mir_enum(tag));
+   mir_build_2(mu, MIR_OP_COVER_STMT, MIR_NULL_TYPE, MIR_NULL_STAMP,
+               counters, mir_enum(tag));
 }
 
-void mir_build_cover_expr(mir_unit_t *mu, uint32_t tag)
+void mir_build_cover_branch(mir_unit_t *mu, mir_value_t counters, uint32_t tag)
 {
-   mir_build_1(mu, MIR_OP_COVER_EXPR, MIR_NULL_TYPE, MIR_NULL_STAMP,
-               mir_enum(tag));
+   mir_build_2(mu, MIR_OP_COVER_BRANCH, MIR_NULL_TYPE, MIR_NULL_STAMP,
+               counters, mir_enum(tag));
+}
+
+void mir_build_cover_expr(mir_unit_t *mu, mir_value_t counters, uint32_t tag)
+{
+   mir_build_2(mu, MIR_OP_COVER_EXPR, MIR_NULL_TYPE, MIR_NULL_STAMP,
+               counters, mir_enum(tag));
 }
 
 void mir_build_cover_toggle(mir_unit_t *mu, mir_value_t signal, uint32_t tag)
@@ -2869,6 +2878,7 @@ void mir_build_cover_state(mir_unit_t *mu, mir_value_t signal, mir_value_t low,
    MIR_ASSERT(mir_is_signal(mu, signal),
               "argument to cover state must be signal");
 }
+
 mir_value_t mir_build_package_init(mir_unit_t *mu, ident_t name,
                                    mir_value_t context)
 {

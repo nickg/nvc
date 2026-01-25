@@ -83,7 +83,7 @@ START_TEST(test_cfold)
 
    unit_registry_t *ur = get_registry();
    mir_context_t *mc = get_mir();
-   jit_t *jit = jit_new(ur, mc, NULL);
+   jit_t *jit = jit_new(ur, mc);
    simplify_local(a, jit, ur, mc);
    jit_free(jit);
 
@@ -197,7 +197,7 @@ START_TEST(test_proc)
 
    mir_context_t *mc = get_mir();
    unit_registry_t *ur = get_registry();
-   jit_t *jit = jit_new(ur, mc, NULL);
+   jit_t *jit = jit_new(ur, mc);
    simplify_local(a, jit, ur, mc);
    jit_free(jit);
 
@@ -280,7 +280,7 @@ START_TEST(test_args)
 
    mir_context_t *mc = get_mir();
    unit_registry_t *ur = get_registry();
-   jit_t *jit = jit_new(ur, mc, NULL);
+   jit_t *jit = jit_new(ur, mc);
    simplify_local(a, jit, ur, mc);
    jit_free(jit);
 
@@ -332,7 +332,7 @@ START_TEST(test_ffold)
 
    mir_context_t *mc = get_mir();
    unit_registry_t *ur = get_registry();
-   jit_t *jit = jit_new(ur, mc, NULL);
+   jit_t *jit = jit_new(ur, mc);
    simplify_global(b, NULL, jit, ur, mc);
    jit_free(jit);
    fail_if_errors();
@@ -382,7 +382,7 @@ START_TEST(test_ffold2)
 
    mir_context_t *mc = get_mir();
    unit_registry_t *ur = get_registry();
-   jit_t *jit = jit_new(ur, mc, NULL);
+   jit_t *jit = jit_new(ur, mc);
    simplify_global(b, NULL, jit, ur, mc);
    jit_free(jit);
    fail_if_errors();
@@ -400,7 +400,7 @@ START_TEST(test_issue49)
 
    mir_context_t *mc = get_mir();
    unit_registry_t *ur = get_registry();
-   jit_t *jit = jit_new(ur, mc, NULL);
+   jit_t *jit = jit_new(ur, mc);
    simplify_local(a, jit, ur, mc);
    jit_free(jit);
 }
@@ -415,7 +415,7 @@ START_TEST(test_issue155)
 
    mir_context_t *mc = get_mir();
    unit_registry_t *ur = get_registry();
-   jit_t *jit = jit_new(ur, mc, NULL);
+   jit_t *jit = jit_new(ur, mc);
    simplify_global(p, NULL, jit, ur, mc);
    jit_free(jit);
 
@@ -457,7 +457,7 @@ START_TEST(test_context)
 
    mir_context_t *mc = get_mir();
    unit_registry_t *ur = get_registry();
-   jit_t *jit = jit_new(ur, mc, NULL);
+   jit_t *jit = jit_new(ur, mc);
    simplify_local(e, jit, ur, mc);
    jit_free(jit);
 

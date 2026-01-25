@@ -1006,6 +1006,13 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
       }
       break;
 
+   case JIT_EXIT_GET_COUNTERS:
+      {
+         jit_handle_t handle = args[0].integer;
+         args[0].pointer = x_get_counters(handle);
+      }
+      break;
+
    default:
       fatal_trace("unhandled exit %s", jit_exit_name(which));
    }

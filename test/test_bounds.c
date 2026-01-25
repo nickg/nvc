@@ -91,7 +91,7 @@ START_TEST(test_bounds)
 
    unit_registry_t *ur = get_registry();
    mir_context_t *mc = get_mir();
-   jit_t *jit = jit_new(ur, mc, NULL);
+   jit_t *jit = jit_new(ur, mc);
    simplify_local(a, jit, ur, mc);
    jit_free(jit);
    bounds_check(a);
@@ -138,7 +138,7 @@ START_TEST(test_bounds2)
 
    mir_context_t *mc = get_mir();
    unit_registry_t *ur = get_registry();
-   jit_t *jit = jit_new(ur, mc, NULL);
+   jit_t *jit = jit_new(ur, mc);
    simplify_local(a, jit, ur, mc);
    jit_free(jit);
    bounds_check(a);
@@ -180,7 +180,7 @@ START_TEST(test_case)
 
    mir_context_t *mc = get_mir();
    unit_registry_t *ur = get_registry();
-   jit_t *jit = jit_new(ur, mc, NULL);
+   jit_t *jit = jit_new(ur, mc);
    simplify_local(a, jit, ur, mc);
    bounds_check(a);
    jit_free(jit);
@@ -197,7 +197,7 @@ START_TEST(test_issue36)
 
    mir_context_t *mc = get_mir();
    unit_registry_t *ur = get_registry();
-   jit_t *jit = jit_new(ur, mc, NULL);
+   jit_t *jit = jit_new(ur, mc);
    simplify_local(e, jit, ur, mc);
    bounds_check(e);
    jit_free(jit);
@@ -222,7 +222,7 @@ START_TEST(test_issue54)
 
    mir_context_t *mc = get_mir();
    unit_registry_t *ur = get_registry();
-   jit_t *jit = jit_new(ur, mc, NULL);
+   jit_t *jit = jit_new(ur, mc);
    simplify_local(a, jit, ur, mc);
    bounds_check(a);
    jit_free(jit);
@@ -247,7 +247,7 @@ START_TEST(test_issue99)
 
    mir_context_t *mc = get_mir();
    unit_registry_t *ur = get_registry();
-   jit_t *jit = jit_new(ur, mc, NULL);
+   jit_t *jit = jit_new(ur, mc);
    simplify_local(a, jit, ur, mc);
    bounds_check(a);
 
@@ -271,7 +271,7 @@ START_TEST(test_issue150)
 
    mir_context_t *mc = get_mir();
    unit_registry_t *ur = get_registry();
-   jit_t *jit = jit_new(ur, mc, NULL);
+   jit_t *jit = jit_new(ur, mc);
    simplify_local(a, jit, ur, mc);
    bounds_check(a);
    jit_free(jit);
@@ -289,7 +289,7 @@ START_TEST(test_issue200)
 
    mir_context_t *mc = get_mir();
    unit_registry_t *ur = get_registry();
-   jit_t *jit = jit_new(ur, mc, NULL);
+   jit_t *jit = jit_new(ur, mc);
    simplify_local(a, jit, ur, mc);
    bounds_check(a);
    jit_free(jit);
@@ -313,7 +313,7 @@ START_TEST(test_issue208)
 
    mir_context_t *mc = get_mir();
    unit_registry_t *ur = get_registry();
-   jit_t *jit = jit_new(ur, mc, NULL);
+   jit_t *jit = jit_new(ur, mc);
    simplify_local(a, jit, ur, mc);
    bounds_check(a);
    jit_free(jit);
@@ -336,7 +336,7 @@ START_TEST(test_issue247)
 
    mir_context_t *mc = get_mir();
    unit_registry_t *ur = get_registry();
-   jit_t *jit = jit_new(ur, mc, NULL);
+   jit_t *jit = jit_new(ur, mc);
    simplify_local(a, jit, ur, mc);
    bounds_check(a);
    jit_free(jit);
@@ -362,7 +362,7 @@ START_TEST(test_issue251)
 
    mir_context_t *mc = get_mir();
    unit_registry_t *ur = get_registry();
-   jit_t *jit = jit_new(ur, mc, NULL);
+   jit_t *jit = jit_new(ur, mc);
    simplify_local(a, jit, ur, mc);
    bounds_check(a);
    jit_free(jit);
@@ -385,7 +385,7 @@ START_TEST(test_issue269)
 
    mir_context_t *mc = get_mir();
    unit_registry_t *ur = get_registry();
-   jit_t *jit = jit_new(ur, mc, NULL);
+   jit_t *jit = jit_new(ur, mc);
    simplify_local(a, jit, ur, mc);
    bounds_check(a);
    jit_free(jit);

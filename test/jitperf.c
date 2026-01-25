@@ -64,7 +64,7 @@ static void run_benchmark(tree_t pack, tree_t proc, unit_registry_t *ur,
 
    ident_t name = tree_ident2(proc);
 
-   jit_t *j = jit_new(ur, mc, NULL);
+   jit_t *j = jit_new(ur, mc);
 
 #if defined HAVE_LLVM && 1
    jit_register_llvm_plugin(j);
@@ -244,7 +244,7 @@ int main(int argc, char **argv)
 
    mir_context_t *mc = mir_context_new();
    unit_registry_t *ur = unit_registry_new(mc);
-   jit_t *jit = jit_new(ur, mc, NULL);
+   jit_t *jit = jit_new(ur, mc);
 
    for (int i = optind; i < argc; i++) {
       nvc_printf("$!cyan$--\n-- %s\n--$$\n\n", argv[i]);

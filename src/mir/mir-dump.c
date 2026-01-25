@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2024-2025  Nick Gasson
+//  Copyright (C) 2024-2026  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -180,6 +180,7 @@ const char *mir_op_string(mir_op_t op)
       [MIR_OP_SCHED_INACTIVE] = "sched inactive",
       [MIR_OP_SCHED_DEPOSIT] = "sched deposit",
       [MIR_OP_PUT_DRIVER] = "put driver",
+      [MIR_OP_GET_COUNTERS] = "get counters",
    };
 
    return map[op];
@@ -1669,6 +1670,8 @@ void mir_annotate(mir_unit_t *mu, const mir_annotate_t *cb, void *ctx)
             {
                printf("%s ", mir_op_string(n->op));
                mir_dump_value(mu, n->args[0], cb, ctx);
+               printf("+");
+               mir_dump_arg(mu, result, 1, cb, ctx);
             }
             break;
 
@@ -1849,6 +1852,16 @@ void mir_annotate(mir_unit_t *mu, const mir_annotate_t *cb, void *ctx)
                col += mir_dump_arg(mu, result, 0, cb, ctx);
                col += printf(" at ");
                col += mir_dump_arg(mu, result, 1, cb, ctx);
+               mir_dump_type(mu, col, n->type);
+               mir_dump_stamp(mu, n->type, n->stamp);
+            }
+            break;
+
+         case MIR_OP_GET_COUNTERS:
+            {
+               col += mir_dump_value(mu, result, cb, ctx);
+               col += printf(" := %s ", mir_op_string(n->op));
+               col += mir_dump_arg(mu, result, 0, cb, ctx);
                mir_dump_type(mu, col, n->type);
                mir_dump_stamp(mu, n->type, n->stamp);
             }

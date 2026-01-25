@@ -714,9 +714,6 @@ static void code_blob_print_value(text_buf_t *tb, jit_value_t value)
    case JIT_ADDR_ABS:
       tb_printf(tb, "[#%016"PRIx64"]", value.int64);
       break;
-   case JIT_ADDR_COVER:
-      tb_printf(tb, "@%"PRIi64, value.int64);
-      break;
    case JIT_VALUE_LABEL:
       tb_printf(tb, "%d", value.label);
       break;

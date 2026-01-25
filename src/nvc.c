@@ -335,7 +335,7 @@ static int analyse(int argc, char **argv, cmd_state_t *state)
    if (state->registry == NULL)
       state->registry = unit_registry_new(state->mir);
 
-   jit_t *jit = jit_new(state->registry, state->mir, NULL);
+   jit_t *jit = jit_new(state->registry, state->mir);
 
    if (state->vhpi != NULL)
       vhpi_run_callbacks(vhpiCbStartOfAnalysis);
@@ -773,7 +773,7 @@ static void ctrl_c_handler(void *arg)
 
 static jit_t *get_jit(cmd_state_t *state)
 {
-   jit_t *jit = jit_new(state->registry, state->mir, state->cover);
+   jit_t *jit = jit_new(state->registry, state->mir);
 
 #if defined HAVE_LLVM && 1
    jit_register_llvm_plugin(jit);

@@ -269,6 +269,7 @@ typedef enum {
    MIR_OP_SCHED_DEPOSIT,
    MIR_OP_PUT_DRIVER,
    MIR_OP_TABLE_REF,
+   MIR_OP_GET_COUNTERS,
 } mir_op_t;
 
 typedef enum {
@@ -695,9 +696,10 @@ void mir_build_transfer_signal(mir_unit_t *mu, mir_value_t target,
                                mir_value_t reject, mir_value_t after);
 
 // Coverage
-void mir_build_cover_stmt(mir_unit_t *mu, uint32_t tag);
-void mir_build_cover_branch(mir_unit_t *mu, uint32_t tag);
-void mir_build_cover_expr(mir_unit_t *mu, uint32_t tag);
+mir_value_t mir_build_get_counters(mir_unit_t *mu, ident_t block);
+void mir_build_cover_stmt(mir_unit_t *mu, mir_value_t counters, uint32_t tag);
+void mir_build_cover_branch(mir_unit_t *mu, mir_value_t counters, uint32_t tag);
+void mir_build_cover_expr(mir_unit_t *mu, mir_value_t counters, uint32_t tag);
 void mir_build_cover_toggle(mir_unit_t *mu, mir_value_t signal, uint32_t tag);
 void mir_build_cover_state(mir_unit_t *mu, mir_value_t signal, mir_value_t low,
                            uint32_t tag);

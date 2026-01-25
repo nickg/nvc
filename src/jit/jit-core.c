@@ -77,7 +77,6 @@ typedef struct _jit {
    void             *interrupt_ctx;
    unit_registry_t  *registry;
    mir_context_t    *mir;
-   cover_data_t     *cover;
 } jit_t;
 
 static void jit_transition(jit_t *j, jit_state_t from, jit_state_t to);
@@ -120,7 +119,7 @@ jit_thread_local_t *jit_thread_local(void)
    return *ptr;
 }
 
-jit_t *jit_new(unit_registry_t *ur, mir_context_t *mc, cover_data_t *db)
+jit_t *jit_new(unit_registry_t *ur, mir_context_t *mc)
 {
    jit_t *j = xcalloc(sizeof(jit_t));
    j->registry    = ur;
@@ -128,7 +127,6 @@ jit_t *jit_new(unit_registry_t *ur, mir_context_t *mc, cover_data_t *db)
    j->mspace      = mspace_new(opt_get_size(OPT_HEAP_SIZE));
    j->exit_status = INT_MIN;
    j->mir         = mc;
-   j->cover       = db;
 
    j->funcs = xcalloc_flex(sizeof(func_array_t),
                            FUNC_LIST_SZ, sizeof(jit_func_t *));
@@ -313,11 +311,8 @@ void jit_fill_irbuf(jit_func_t *f)
    jit_transition(f->jit, oldstate, JIT_COMPILING);
 #endif
 
-   if (f->jit->pack != NULL && jit_pack_fill(f->jit->pack, f->jit, f)) {
-      // TODO: this should happen before the store_release to f->state
-      f->counters = cover_get_counters(f->jit->cover, f->name);
+   if (f->jit->pack != NULL && jit_pack_fill(f->jit->pack, f->jit, f))
       goto done;
-   }
 
    mir_unit_t *mu = mir_get_unit(f->jit->mir, f->name);
 
@@ -332,8 +327,6 @@ void jit_fill_irbuf(jit_func_t *f)
       store_release(&(f->state), JIT_FUNC_ERROR);
       jit_missing_unit(f);
    }
-
-   f->counters = cover_get_counters(f->jit->cover, f->name);
 
    jit_irgen(f, mu);
 
@@ -1253,14 +1246,6 @@ bool jit_will_abort(jit_ir_t *ir)
    }
    else
       return ir->op == J_TRAP;
-}
-
-int32_t *jit_get_cover_ptr(jit_func_t *f, jit_value_t addr)
-{
-   assert(addr.kind == JIT_ADDR_COVER);
-   assert(f->counters != NULL);
-   assert(addr.int64 >= 0 && addr.int64 <= UINT_MAX);
-   return f->counters + addr.int64;
 }
 
 void jit_interrupt(jit_t *j, jit_irq_fn_t fn, void *ctx)

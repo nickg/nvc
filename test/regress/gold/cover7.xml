@@ -133,7 +133,5 @@
         <expression hier="WORK.COVER7.GATE_XNOR_3._S0._E0.BIN_1_1" data="1"/>
       </scope>
     </scope>
-    <scope name="TEST_CTRL_PROC" line="107">
-    </scope>
   </scope>
 </scope>

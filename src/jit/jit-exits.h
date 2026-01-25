@@ -115,5 +115,6 @@ void x_bind_external(tree_t where, jit_handle_t scope, jit_scalar_t *result);
 void x_instance_name(attr_kind_t kind, text_buf_t *tb);
 void x_enable_trigger(rt_trigger_t *trigger);
 void x_disable_trigger(rt_trigger_t *trigger);
+int32_t *x_get_counters(jit_handle_t handle);
 
 #endif  // _JIT_EXITS_H

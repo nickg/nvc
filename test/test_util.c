@@ -164,7 +164,7 @@ mir_context_t *get_mir(void)
 jit_t *get_jit(void)
 {
    if (jit == NULL)
-      jit = jit_new(get_registry(), get_mir(), NULL);
+      jit = jit_new(get_registry(), get_mir());
 
    return jit;
 }
@@ -249,7 +249,7 @@ tree_t _parse_and_check(const tree_kind_t *array, int num, bool simp)
          unit_registry_t *ur = get_registry();
          mir_context_t *mc = get_mir();
          if (jit == NULL)
-            jit = jit_new(ur, mc, NULL);
+            jit = jit_new(ur, mc);
          else
             unit_registry_purge(ur, tree_ident(last));
 

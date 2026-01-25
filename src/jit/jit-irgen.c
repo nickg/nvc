@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2022-2025  Nick Gasson
+//  Copyright (C) 2022-2026  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -159,14 +159,6 @@ static jit_value_t jit_addr_from_value(jit_value_t value, int32_t disp)
    default:
       fatal_trace("cannot convert value kind %d to address", value.kind);
    }
-}
-
-static jit_value_t jit_addr_from_cover_tag(uint32_t tag)
-{
-   return (jit_value_t){
-      .kind = JIT_ADDR_COVER,
-      .int64 = tag,
-   };
 }
 
 static jit_value_t jit_value_from_label(irgen_label_t *l)
@@ -3768,8 +3760,9 @@ static void irgen_op_driving_value(jit_irgen_t *g, mir_value_t n)
 
 static void irgen_op_cover_increment(jit_irgen_t *g, mir_value_t n)
 {
-   uint32_t tag = irgen_get_const(g, n, 0);
-   jit_value_t mem = jit_addr_from_cover_tag(tag);
+   jit_value_t counters = irgen_get_arg(g, n, 0);
+   uint32_t tag = irgen_get_const(g, n, 1);
+   jit_value_t mem = jit_addr_from_value(counters, tag * sizeof(int32_t));
 
    macro_sadd(g, JIT_SZ_32, mem, jit_value_from_int64(1));
 }
@@ -4488,6 +4481,15 @@ static void irgen_op_extract(jit_irgen_t *g, mir_value_t n)
    }
 }
 
+static void irgen_op_get_counters(jit_irgen_t *g, mir_value_t n)
+{
+   jit_value_t handle = jit_value_from_handle(g->func->handle);
+
+   j_send(g, 0, handle);
+   macro_exit(g, JIT_EXIT_GET_COUNTERS);
+   j_recv(g, g->map[n.id], 0);
+}
+
 static void irgen_block(jit_irgen_t *g, mir_block_t block)
 {
    irgen_bind_label(g, g->blocks[block.id]);
@@ -4907,6 +4909,9 @@ static void irgen_block(jit_irgen_t *g, mir_block_t block)
          break;
       case MIR_OP_TEST:
          irgen_op_test(g, n);
+         break;
+      case MIR_OP_GET_COUNTERS:
+         irgen_op_get_counters(g, n);
          break;
       default:
          DEBUG_ONLY(mir_dump(g->mu));

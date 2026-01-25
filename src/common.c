@@ -1152,6 +1152,7 @@ void intern_strings(void)
       [W_VERILOG_LOGIC]   = "NVC.VERILOG.T_LOGIC",
       [W_DLR_SIGNED]      = "$signed",
       [W_DLR_CLOG2]       = "$clog2",
+      [W_COUNTERS]        = "#counters",
 
       [W_IEEE_LOGIC_VECTOR]      = "IEEE.STD_LOGIC_1164.STD_LOGIC_VECTOR",
       [W_IEEE_ULOGIC_VECTOR]     = "IEEE.STD_LOGIC_1164.STD_ULOGIC_VECTOR",

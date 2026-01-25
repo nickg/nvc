@@ -9,8 +9,6 @@
         </scope>
       </scope>
     </scope>
-    <scope name="_P1" line="28">
-    </scope>
     <scope name="_P2" line="40">
       <scope name="L_IF_1" line="42">
         <scope name="_B0">
@@ -175,8 +173,6 @@
           <branch hier="WORK.COVER3._P7.L_CASE_4._B_OTHERS.BIN_CHOICE" data="0"/>
         </scope>
       </scope>
-    </scope>
-    <scope name="_P8" line="136">
     </scope>
     <scope name="_P9" line="145">
       <scope name="_L0" line="148">

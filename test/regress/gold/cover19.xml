@@ -16,7 +16,5 @@
       <state hier="WORK.COVER19.SUB_FSM.BIN_STATE.ST_THREE" data="0"/>
       <state hier="WORK.COVER19.SUB_FSM.BIN_STATE.ST_WAITING" data="1"/>
     </scope>
-    <scope name="_P0" line="32">
-    </scope>
   </scope>
 </scope>

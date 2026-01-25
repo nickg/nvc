@@ -97,7 +97,7 @@ const char *jit_exit_name(jit_exit_t exit)
       "OR_TRIGGER", "CMP_TRIGGER", "INSTANCE_NAME", "DEPOSIT_SIGNAL",
       "MAP_IMPLICIT", "BIND_EXTERNAL", "SYSCALL", "PUT_CONVERSION",
       "DIR_FAIL", "LEVEL_TRIGGER", "ENABLE_TRIGGER", "DISABLE_TRIGGER",
-      "SCHED_DEPOSIT", "PUT_DRIVER",
+      "SCHED_DEPOSIT", "PUT_DRIVER", "SCHED_INACTIVE", "GET_COUNTERS",
    };
    assert(exit < ARRAY_LEN(names));
    return names[exit];
@@ -145,8 +145,6 @@ static int jit_dump_value(jit_dump_t *d, jit_value_t value)
       }
    case JIT_ADDR_ABS:
       return printf("[#%016"PRIx64"]", value.int64);
-   case JIT_ADDR_COVER:
-      return printf("[$TAG:%"PRIi64"]", value.int64);
    case JIT_VALUE_LABEL:
       if (value.label == JIT_LABEL_INVALID)
          return printf("???");

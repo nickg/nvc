@@ -48,7 +48,7 @@ START_TEST(test_examine1)
 
    mir_context_t *mc = get_mir();
    unit_registry_t *ur = get_registry();
-   jit_t *j = jit_new(ur, mc, NULL);
+   jit_t *j = jit_new(ur, mc);
 
    input_from_file(TESTDIR "/shell/examine1.vhd");
 
@@ -194,7 +194,7 @@ START_TEST(test_wave1)
 {
    mir_context_t *mc = get_mir();
    unit_registry_t *ur = get_registry();
-   jit_t *j = jit_new(ur, mc, NULL);
+   jit_t *j = jit_new(ur, mc);
 
    tcl_shell_t *sh = shell_new(j);
 
@@ -365,7 +365,7 @@ START_TEST(test_force1)
 
    mir_context_t *mc = get_mir();
    unit_registry_t *ur = get_registry();
-   jit_t *j = jit_new(ur, mc, NULL);
+   jit_t *j = jit_new(ur, mc);
 
    tree_t arch = parse_check_and_simplify(T_ENTITY, T_ARCH);
 
@@ -469,7 +469,7 @@ START_TEST(test_describe1)
 
    mir_context_t *mc = get_mir();
    unit_registry_t *ur = get_registry();
-   jit_t *j = jit_new(ur, mc, NULL);
+   jit_t *j = jit_new(ur, mc);
 
    input_from_file(TESTDIR "/shell/describe1.vhd");
 

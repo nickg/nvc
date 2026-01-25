@@ -1185,8 +1185,6 @@ static LLVMValueRef cgen_get_value(llvm_obj_t *obj, cgen_block_t *cgb,
       return llvm_int32(obj, value.handle);
    case JIT_ADDR_ABS:
       return llvm_ptr(obj, (void *)(intptr_t)value.int64);
-   case JIT_ADDR_COVER:
-      return llvm_ptr(obj, jit_get_cover_ptr(cgb->func->source, value));
    case JIT_VALUE_LOCUS:
       return llvm_ptr(obj, value.locus);
    default:

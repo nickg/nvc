@@ -53,7 +53,8 @@ DECLARE_AND_DEFINE_ARRAY(vcode_type);
     || x == VCODE_OP_FUNCTION_TRIGGER)
 #define OP_HAS_IDENT(x)                                                 \
    (x == VCODE_OP_LINK_VAR || x == VCODE_OP_LINK_PACKAGE                \
-    || x == VCODE_OP_DEBUG_LOCUS || x == VCODE_OP_BIND_EXTERNAL)
+    || x == VCODE_OP_DEBUG_LOCUS || x == VCODE_OP_BIND_EXTERNAL         \
+    || x == VCODE_OP_GET_COUNTERS)
 #define OP_HAS_OBJECT(x)                                                 \
    (x == VCODE_OP_DEBUG_LOCUS)
 #define OP_HAS_REAL(x)                                                  \
@@ -1051,6 +1052,7 @@ const char *vcode_op_string(vcode_op_t op)
       "or trigger", "cmp trigger", "instance name",
       "map implicit", "bind external", "array scope", "record scope",
       "put conversion", "dir check", "sched process", "table ref",
+      "get counters",
    };
    if ((unsigned)op >= ARRAY_LEN(strs))
       return "???";
@@ -2240,15 +2242,19 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
          case VCODE_OP_COVER_BRANCH:
          case VCODE_OP_COVER_EXPR:
             {
-               printf("%s %u ", vcode_op_string(op->kind), op->tag);
+               printf("%s ", vcode_op_string(op->kind));
+               vcode_dump_reg(op->args.items[0]);
+               printf("+%u", op->tag);
             }
             break;
 
          case VCODE_OP_COVER_TOGGLE:
          case VCODE_OP_COVER_STATE:
             {
-               printf("%s %u ", vcode_op_string(op->kind), op->tag);
+               printf("%s ", vcode_op_string(op->kind));
                vcode_dump_reg(op->args.items[0]);
+               printf("+%u ", op->tag);
+               vcode_dump_reg(op->args.items[1]);
             }
             break;
 
@@ -2461,6 +2467,15 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
                   if (i > 1) col += printf(", ");
                   col += vcode_dump_reg(op->args.items[i]);
                }
+               vcode_dump_result_type(col, op);
+            }
+            break;
+
+         case VCODE_OP_GET_COUNTERS:
+            {
+               col += vcode_dump_reg(op->result);
+               col += nvc_printf(":= %s $magenta$%s$$",
+                                 vcode_op_string(op->kind), istr(op->ident));
                vcode_dump_result_type(col, op);
             }
             break;
@@ -5980,16 +5995,24 @@ void emit_debug_out(vcode_reg_t reg)
    vcode_add_arg(op, reg);
 }
 
-void emit_cover_stmt(uint32_t tag)
+void emit_cover_stmt(vcode_reg_t counters, uint32_t tag)
 {
    op_t *op = vcode_add_op(VCODE_OP_COVER_STMT);
+   vcode_add_arg(op, counters);
    op->tag = tag;
+
+   VCODE_ASSERT(vcode_reg_kind(counters) == VCODE_TYPE_POINTER,
+                "counters argument must be pointer");
 }
 
-void emit_cover_branch(uint32_t tag)
+void emit_cover_branch(vcode_reg_t counters, uint32_t tag)
 {
    op_t *op = vcode_add_op(VCODE_OP_COVER_BRANCH);
+   vcode_add_arg(op, counters);
    op->tag = tag;
+
+   VCODE_ASSERT(vcode_reg_kind(counters) == VCODE_TYPE_POINTER,
+                "counters argument must be pointer");
 }
 
 void emit_cover_toggle(vcode_reg_t signal, uint32_t tag)
@@ -6007,10 +6030,14 @@ void emit_cover_state(vcode_reg_t signal, vcode_reg_t low, uint32_t tag)
    op->tag = tag;
 }
 
-void emit_cover_expr(uint32_t tag)
+void emit_cover_expr(vcode_reg_t counters, uint32_t tag)
 {
    op_t *op = vcode_add_op(VCODE_OP_COVER_EXPR);
+   vcode_add_arg(op, counters);
    op->tag = tag;
+
+   VCODE_ASSERT(vcode_reg_kind(counters) == VCODE_TYPE_POINTER,
+                "counters argument must be pointer");
 }
 
 void emit_unreachable(vcode_reg_t locus)
@@ -6293,6 +6320,16 @@ vcode_reg_t emit_instance_name(vcode_reg_t kind)
                 "kind argument to instance name must be offset");
 
    vcode_type_t type = vtype_uarray(1, vtype_char());
+   return (op->result = vcode_add_reg(type, VCODE_INVALID_STAMP));
+}
+
+vcode_reg_t emit_get_counters(ident_t block)
+{
+   op_t *op = vcode_add_op(VCODE_OP_GET_COUNTERS);
+   op->ident = block;
+
+   vcode_type_t vint32 = vtype_int(INT32_MIN, INT32_MAX);
+   vcode_type_t type = vtype_pointer(vint32);
    return (op->result = vcode_add_reg(type, VCODE_INVALID_STAMP));
 }
 

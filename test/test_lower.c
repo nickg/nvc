@@ -387,7 +387,7 @@ static mir_unit_t *find_unit2(const char *name)
    if (vu == NULL)
       fail("missing vcode unit for %s", name);
 
-   mir_unit_t *mu = mir_get_unit(mc, ident_new("WORK.ISSUE1259.FUNC(YY)Y"));
+   mir_unit_t *mu = mir_get_unit(mc, id);
    ck_assert_ptr_nonnull(mu);
 
    return mu;
@@ -1986,7 +1986,7 @@ START_TEST(test_cover)
 
    unit_registry_t *ur = get_registry();
    mir_context_t *mc = get_mir();
-   jit_t *jit = jit_new(ur, mc, NULL);
+   jit_t *jit = jit_new(ur, mc);
    cover_data_t *data = cover_data_init(COVER_MASK_STMT | COVER_MASK_EXPRESSION
                                         | COVER_MASK_BRANCH, 0, 0);
    rt_model_t *m = model_new(jit, data);
@@ -1997,9 +1997,12 @@ START_TEST(test_cover)
    vcode_select_unit(v0);
 
    EXPECT_BB(1) = {
+      { VCODE_OP_VAR_UPREF, .hops = 1, .name = "#counters" },
+      { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_COVER_STMT, .tag = 0 },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_STORE, .name = "V" },
+      { VCODE_OP_LOAD_INDIRECT },   // TODO: redundant
       { VCODE_OP_COVER_STMT, .tag = 1 },
       { VCODE_OP_VAR_UPREF, .hops = 1, .name = "S" },
       { VCODE_OP_LOAD_INDIRECT },
@@ -2026,6 +2029,8 @@ START_TEST(test_cover)
       { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_CONST, .value = 10 },
       { VCODE_OP_CMP, .cmp = VCODE_CMP_GT },
+      { VCODE_OP_VAR_UPREF, .hops = 1, .name = "#counters" },
+      { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_NOT },
       { VCODE_OP_COND, .target = 7, .target_else = 6 }
    };
@@ -2056,6 +2061,8 @@ START_TEST(test_cover)
       { VCODE_OP_OR },
       { VCODE_OP_NOT },
       { VCODE_OP_NOT },
+      { VCODE_OP_VAR_UPREF, .hops = 1, .name = "#counters" },
+      { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_AND },
       { VCODE_OP_COND, .target = 11, .target_else = 10 }
 
@@ -2112,6 +2119,8 @@ START_TEST(test_cover)
    CHECK_BB(15);
 
    EXPECT_BB(16) = {
+      { VCODE_OP_VAR_UPREF, .hops = 1, .name = "#counters" },
+      { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_COVER_BRANCH, .tag = 9 },
       { VCODE_OP_COVER_STMT, .tag = 11 },
       { VCODE_OP_CONST, .value = 2 },
@@ -2128,6 +2137,8 @@ START_TEST(test_cover)
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_SCHED_WAVEFORM },
+      { VCODE_OP_VAR_UPREF, .hops = 1, .name = "#counters" },
+      { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_COVER_STMT, .tag = 12 },
       { VCODE_OP_WAIT, .target = 19 }
    };
@@ -2553,7 +2564,7 @@ START_TEST(test_choice1)
 
    unit_registry_t *ur = get_registry();
    mir_context_t *mc = get_mir();
-   jit_t *jit = jit_new(ur, mc, NULL);
+   jit_t *jit = jit_new(ur, mc);
    cover_data_t *data = cover_data_init(COVER_MASK_BRANCH, 0, 0);
    rt_model_t *m = model_new(jit, NULL);
    elab(tree_to_object(a), jit, ur, mc, data, NULL, m);
@@ -2588,6 +2599,8 @@ START_TEST(test_choice1)
    CHECK_BB(3);
 
    EXPECT_BB(4) = {
+      { VCODE_OP_VAR_UPREF, .hops = 1, .name = "#counters" },
+      { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_COVER_BRANCH, .tag = 5 },
       { VCODE_OP_CONST, .value = -1 },
       { VCODE_OP_STORE, .name = "X" },
@@ -2605,6 +2618,8 @@ START_TEST(test_choice1)
    CHECK_BB(5);
 
    EXPECT_BB(6) = {
+      { VCODE_OP_VAR_UPREF, .hops = 1, .name = "#counters" },
+      { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_COVER_BRANCH, .tag = 0 },
       { VCODE_OP_JUMP, .target = 5 }
    };
@@ -2612,6 +2627,8 @@ START_TEST(test_choice1)
    CHECK_BB(6);
 
    EXPECT_BB(7) = {
+      { VCODE_OP_VAR_UPREF, .hops = 1, .name = "#counters" },
+      { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_COVER_BRANCH, .tag = 1 },
       { VCODE_OP_JUMP, .target = 5 }
    };
@@ -2627,6 +2644,8 @@ START_TEST(test_choice1)
    CHECK_BB(8);
 
    EXPECT_BB(9) = {
+      { VCODE_OP_VAR_UPREF, .hops = 1, .name = "#counters" },
+      { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_COVER_BRANCH, .tag = 2 },
       { VCODE_OP_JUMP, .target = 8 }
    };
@@ -2634,6 +2653,8 @@ START_TEST(test_choice1)
    CHECK_BB(9);
 
    EXPECT_BB(12) = {
+      { VCODE_OP_VAR_UPREF, .hops = 1, .name = "#counters" },
+      { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_COVER_BRANCH, .tag = 6 },
       { VCODE_OP_CONST, .value = 5 },
       { VCODE_OP_STORE, .name = "X" },
@@ -5057,7 +5078,7 @@ START_TEST(test_issue582)
 
    mir_context_t *mc = get_mir();
    unit_registry_t *ur = unit_registry_new(mc);
-   jit_t *jit = jit_new(ur, mc, NULL);
+   jit_t *jit = jit_new(ur, mc);
    cover_data_t *data = cover_data_init(COVER_MASK_ALL, 0, 0);
    rt_model_t *m = model_new(jit, NULL);
 
@@ -6593,55 +6614,55 @@ START_TEST(test_issue1194)
 
    elab(tree_to_object(a), jit, get_registry(), get_mir(), data, NULL, m);
 
-   vcode_unit_t vu = find_unit("WORK.ISSUE1194.B.P_actual");
-   vcode_select_unit(vu);
+   mir_unit_t *mu = find_unit2("WORK.ISSUE1194.B.P_actual");
 
-   EXPECT_BB(1) = {
-      { VCODE_OP_CONST, .value = 0 },
-      { VCODE_OP_VAR_UPREF, .hops = 2, .name = "X" },
-      { VCODE_OP_LOAD_INDIRECT },
-      { VCODE_OP_RESOLVED },
-      { VCODE_OP_LOAD_INDIRECT },
-      { VCODE_OP_VAR_UPREF, .hops = 2, .name = "Y" },
-      { VCODE_OP_LOAD_INDIRECT },
-      { VCODE_OP_RESOLVED },
-      { VCODE_OP_LOAD_INDIRECT },
-      { VCODE_OP_OR },
-      { VCODE_OP_NOT },
-      { VCODE_OP_NOT },
-      { VCODE_OP_AND },
-      { VCODE_OP_COND, .target = 3, .target_else = 2 },
+   static const mir_match_t bb1[] = {
+      { MIR_OP_VAR_UPREF },   // TODO: X
+      { MIR_OP_LOAD },
+      { MIR_OP_RESOLVED },
+      { MIR_OP_LOAD },
+      { MIR_OP_VAR_UPREF },  // TODO: Y
+      { MIR_OP_LOAD },
+      { MIR_OP_RESOLVED },
+      { MIR_OP_LOAD },
+      { MIR_OP_OR },
+      { MIR_OP_NOT },
+      { MIR_OP_NOT },
+      { MIR_OP_VAR_UPREF },  // TODO: #counters
+      { MIR_OP_LOAD },
+      { MIR_OP_AND },
+      { MIR_OP_COND, NODE(_), BLOCK(3), BLOCK(2) },
+
    };
+   mir_match(mu, 1, bb1);
 
-   CHECK_BB(1);
+   static const mir_match_t bb2[] = {
+      { MIR_OP_AND },
+      { MIR_OP_COND, NODE(_), BLOCK(5), BLOCK(4) },
 
-   EXPECT_BB(2) = {
-      { VCODE_OP_AND },
-      { VCODE_OP_COND, .target = 5, .target_else = 4 },
    };
+   mir_match(mu, 2, bb2);
 
-   CHECK_BB(2);
+   static const mir_match_t bb3[] = {
+      { MIR_OP_COVER_EXPR, NODE(_), ENUM(0) },
+      { MIR_OP_JUMP, BLOCK(2) },
 
-   EXPECT_BB(3) = {
-      { VCODE_OP_COVER_EXPR, .tag = 0 },
-      { VCODE_OP_JUMP, .target = 2 },
    };
+   mir_match(mu, 3, bb3);
 
-   CHECK_BB(3);
+   static const mir_match_t bb4[] = {
+      { MIR_OP_AND },
+      { MIR_OP_COND, NODE(_), BLOCK(7), BLOCK(6) },
 
-   EXPECT_BB(4) = {
-      { VCODE_OP_AND },
-      { VCODE_OP_COND, .target = 7, .target_else = 6 },
    };
+   mir_match(mu, 4, bb4);
 
-   CHECK_BB(4);
+   static const mir_match_t bb5[] = {
+      { MIR_OP_COVER_EXPR, NODE(_), ENUM(1) },
+      { MIR_OP_JUMP, BLOCK(4) },
 
-   EXPECT_BB(5) = {
-      { VCODE_OP_COVER_EXPR, .tag = 1 },
-      { VCODE_OP_JUMP, .target = 4 },
    };
-
-   CHECK_BB(5);
+   mir_match(mu, 5, bb5);
 
    model_free(m);
 

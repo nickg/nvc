@@ -18,6 +18,7 @@
 #include "util.h"
 #include "array.h"
 #include "common.h"
+#include "cov/cov-api.h"
 #include "debug.h"
 #include "hash.h"
 #include "jit/jit-exits.h"
@@ -5192,4 +5193,12 @@ void x_instance_name(attr_kind_t kind, text_buf_t *tb)
    default:
       should_not_reach_here();
    }
+}
+
+int32_t *x_get_counters(jit_handle_t handle)
+{
+   rt_model_t *m = get_model();
+   ident_t name = jit_get_name(m->jit, handle);
+
+   return cover_get_counters(m->cover, name);
 }

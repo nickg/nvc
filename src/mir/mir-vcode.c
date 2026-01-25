@@ -1167,17 +1167,20 @@ static void import_process_init(mir_unit_t *mu, mir_import_t *imp, int op)
 
 static void import_cover_stmt(mir_unit_t *mu, mir_import_t *imp, int op)
 {
-   mir_build_cover_stmt(mu, vcode_get_tag(op));
+   mir_value_t counters = imp->map[vcode_get_arg(op, 0)];
+   mir_build_cover_stmt(mu, counters, vcode_get_tag(op));
 }
 
 static void import_cover_branch(mir_unit_t *mu, mir_import_t *imp, int op)
 {
-   mir_build_cover_branch(mu, vcode_get_tag(op));
+   mir_value_t counters = imp->map[vcode_get_arg(op, 0)];
+   mir_build_cover_branch(mu, counters, vcode_get_tag(op));
 }
 
 static void import_cover_expr(mir_unit_t *mu, mir_import_t *imp, int op)
 {
-   mir_build_cover_expr(mu, vcode_get_tag(op));
+   mir_value_t counters = imp->map[vcode_get_arg(op, 0)];
+   mir_build_cover_expr(mu, counters, vcode_get_tag(op));
 }
 
 static void import_cover_toggle(mir_unit_t *mu, mir_import_t *imp, int op)
@@ -1349,6 +1352,12 @@ static void import_sched_process(mir_unit_t *mu, mir_import_t *imp, int op)
 {
    mir_value_t delay = imp->map[vcode_get_arg(op, 0)];
    mir_build_sched_process(mu, delay);
+}
+
+static void import_get_counters(mir_unit_t *mu, mir_import_t *imp, int op)
+{
+   ident_t block = vcode_get_ident(op);
+   imp->map[vcode_get_result(op)] = mir_build_get_counters(mu, block);
 }
 
 static void import_block(mir_unit_t *mu, mir_import_t *imp)
@@ -1757,6 +1766,9 @@ static void import_block(mir_unit_t *mu, mir_import_t *imp)
          break;
       case VCODE_OP_SCHED_PROCESS:
          import_sched_process(mu, imp, i);
+         break;
+      case VCODE_OP_GET_COUNTERS:
+         import_get_counters(mu, imp, i);
          break;
       default:
          vcode_dump_with_mark(i, NULL, NULL);
