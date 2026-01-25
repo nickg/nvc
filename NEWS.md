@@ -24,6 +24,8 @@
   ISO 8601 (#1381).
 - Verilog support has improved significantly, with the ZipCPU FFT core
   now able to be simulated (#1336).
+- Elaboration of large netlists is now significantly faster (#1331,
+  #1341).
 - Several other minor bugs were resolved (#1237, #1350, #1351, #1353,
   #1366, #1372, #1333, #1388).
 

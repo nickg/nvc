@@ -2147,7 +2147,7 @@ static void elab_architecture(tree_t inst, tree_t arch, const elab_ctx_t *ctx)
       ghash_put(mc->instances, inst, ei);
       mc->unique++;
    }
-   else if (new_ctx.cover == NULL)   // TODO: remove restriction
+   else
       new_ctx.cloned = tree_ident(ei->block);
 
    elab_push_scope(arch, &new_ctx);
@@ -2207,7 +2207,7 @@ static void elab_configuration(tree_t inst, tree_t unit, const elab_ctx_t *ctx)
       ghash_put(mc->instances, inst, ei);
       mc->unique++;
    }
-   else if (new_ctx.cover == NULL)   // TODO: remove restriction
+   else
       new_ctx.cloned = tree_ident(ei->block);
 
    elab_push_scope(arch, &new_ctx);
@@ -2466,8 +2466,7 @@ static void elab_for_generate(tree_t t, const elab_ctx_t *ctx)
       };
       elab_inherit_context(&new_ctx, ctx);
 
-      // TODO: remove ctx->cover != NULL restriction
-      if (i == low || ctx->cover != NULL)
+      if (i == low)
          first = ndotted;
       else
          new_ctx.cloned = first;
