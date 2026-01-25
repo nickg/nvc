@@ -90,6 +90,12 @@ typedef struct {
    vcode_var_t    var;
 } last_time_params_t;
 
+typedef struct {
+   cover_item_t *next;
+   cover_item_t *last;
+   unsigned      field_idx;
+} field_toggle_params_t;
+
 static vcode_reg_t lower_expr(lower_unit_t *lu, tree_t expr, expr_ctx_t ctx);
 static void lower_stmt(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops);
 static void lower_func_body(lower_unit_t *lu, object_t *obj);
@@ -1649,21 +1655,25 @@ static void lower_toggle_coverage_cb(lower_unit_t *lu, tree_t field,
                                      vcode_reg_t unused, vcode_reg_t locus,
                                      void *ctx)
 {
-   cover_scope_t *parent = ctx;
+   field_toggle_params_t *params = ctx;
+
    type_t ftype = tree_type(field);
 
-   cover_scope_t *cs = cover_create_scope(lu->cover, parent, field, NULL);
-
-   if (!type_is_homogeneous(ftype))
+   if (params->next == params->last)
+      return;
+   else if (!type_is_homogeneous(ftype))
       lower_for_each_field(lu, ftype, field_ptr, locus,
-                           lower_toggle_coverage_cb, cs);
+                           lower_toggle_coverage_cb, ctx);
    else {
-      cover_item_t *first = cover_add_items_for(lu->cover, cs,
-                                                tree_to_object(field),
-                                                COV_ITEM_TOGGLE);
-      if (first != NULL) {
+      const unsigned fidx = params->field_idx++;
+      if (params->next->field_idx == fidx) {
          vcode_reg_t nets_reg = emit_load_indirect(field_ptr);
-         emit_cover_toggle(nets_reg, first->tag);
+         emit_cover_toggle(nets_reg, params->next->tag);
+
+         do {
+            params->next++;
+         } while (params->next < params->last
+                  && params->next->field_idx == fidx);
       }
    }
 }
@@ -1673,20 +1683,23 @@ static void lower_toggle_coverage(lower_unit_t *lu, tree_t decl,
 {
    assert(cover_enabled(lu->cover, COVER_MASK_TOGGLE));
 
+   cover_item_t *item = lower_get_cover_item(lu, decl, COV_ITEM_TOGGLE);
+   if (item == NULL)
+      return;
+
    type_t type = tree_type(decl);
    if (!type_is_homogeneous(type)) {
-      // TODO: ideally this would be in vhdl-cover.c
-      cover_scope_t *cs = cover_create_scope(lu->cover, lu->cscope, decl, NULL);
-
+      field_toggle_params_t params = {
+         .next = item,
+         .last = item + item->consecutive,
+         .field_idx = 0,
+      };
       vcode_reg_t rec_ptr = emit_index(var, VCODE_INVALID_REG);
       lower_for_each_field(lu, type, rec_ptr, VCODE_INVALID_REG,
-                           lower_toggle_coverage_cb, cs);
+                           lower_toggle_coverage_cb, &params);
+      assert(params.next == params.last);
    }
    else {
-      cover_item_t *item = lower_get_cover_item(lu, decl, COV_ITEM_TOGGLE);
-      if (item == NULL)
-         return;
-
       vcode_reg_t nets_reg = emit_load(var);
       emit_cover_toggle(nets_reg, item->tag);
    }

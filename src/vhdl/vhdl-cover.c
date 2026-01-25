@@ -144,10 +144,6 @@ static void vhdl_cover_toggle(tree_t t, cover_data_t *db,
    if (!cover_enabled(db, COVER_MASK_TOGGLE))
       return;
 
-   type_t type = tree_type(t);
-   if (type_is_record(type))
-      return;   // TODO: handled during lowering for now
-
    object_t *obj = tree_to_object(t);
    cover_scope_t *cs = get_cover_scope(db, parent);
    cover_item_t *item = cover_add_items_for(db, cs, obj, COV_ITEM_TOGGLE);

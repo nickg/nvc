@@ -209,6 +209,37 @@ static bool cover_is_toggle_first(tree_t decl)
    return kind == T_SIGNAL_DECL || kind == T_PORT_DECL;
 }
 
+static int cover_count_toggle_elems(cover_data_t *db, type_t type)
+{
+   if (type_is_record(type)) {
+      const int nfields = type_fields(type);
+      int sum = 0;
+      for (int i = 0; i < nfields; i++)
+         sum += cover_count_toggle_elems(db, tree_type(type_field(type, i)));
+
+      return sum;
+   }
+
+   type_t root = type_base_recur(type_elem_recur(type));
+   if (is_well_known(type_ident(root)) != W_IEEE_ULOGIC)
+      return 0;
+   else if (type_is_scalar(type))
+      return 1;
+   else if (!type_const_bounds(type))
+      return 0;   // Not yet supported
+
+   const int width = type_width(type);
+   if (db->array_limit != 0 && width >= db->array_limit)
+      return 0;
+
+   // TODO: perhaps make memory coverage a different coverage type
+   const bool memory = type_is_array(type_elem(type));
+   if (!cover_enabled(db, COVER_MASK_TOGGLE_INCLUDE_MEMS) && memory)
+      return 0;
+
+   return width;
+}
+
 static void cover_add_array_toggle_items(cover_data_t *data,
                                          cover_scope_t *cs,
                                          type_t type, object_t *obj,
@@ -264,24 +295,106 @@ static void cover_add_array_toggle_items(cover_data_t *data,
    }
 }
 
+static void cover_add_record_toggle_items(cover_data_t *db,
+                                          cover_scope_t *cs,
+                                          type_t type, object_t *obj,
+                                          const char *prefix,
+                                          cover_flags_t flags,
+                                          cover_item_t **itemp,
+                                          unsigned *field_idx)
+{
+   LOCAL_TEXT_BUF tb = tb_new();
+   tb_cat(tb, prefix);
+   tb_append(tb, '.');
+
+   const size_t base = tb_len(tb);
+
+   const int nfields = type_fields(type);
+   for (int i = 0; i < nfields; i++) {
+      tree_t f = type_field(type, i);
+      type_t ftype = tree_type(f);
+      object_t *fobj = tree_to_object(f);
+
+      tb_trim(tb, base);
+      tb_istr(tb, tree_ident(f));
+
+      if (type_is_record(ftype)) {
+         cover_add_record_toggle_items(db, cs, ftype, fobj,
+                                       tb_get(tb), flags, itemp, field_idx);
+         continue;
+      }
+
+      const unsigned fidx = (*field_idx)++;
+
+      // TODO: cache this
+      const int count = cover_count_toggle_elems(db, ftype);
+      if (count == 0)
+         continue;
+      else if (type_is_scalar(ftype)) {
+         assert(count == 1);
+
+         cover_item_t *pair = *itemp;
+         *itemp += 2;
+
+         pair[0].flags |= COV_FLAG_TOGGLE_TO_1;
+         pair[1].flags |= COV_FLAG_TOGGLE_TO_0;
+
+         for (int i = 0; i < 2; i++) {
+            char suffix[64];
+            checked_sprintf(suffix, sizeof(suffix), "%s.%s", tb_get(tb),
+                            cover_bmask_to_bin_str(pair[i].flags));
+            pair[i].hier = ident_prefix(pair[i].hier, ident_new(suffix), '\0');
+            pair[i].field_idx = fidx;
+         }
+      }
+      else if (type_is_array(ftype)) {
+         cover_item_t *set = *itemp;
+         const int ndims = dimension_of(ftype);
+         cover_add_array_toggle_items(db, cs, ftype, fobj, tb_get(tb), ndims,
+                                      flags, itemp);
+
+         for (int i = 0; i < count * 2; i++)
+            set[i].field_idx = fidx;
+      }
+      else
+         should_not_reach_here();
+   }
+}
+
 static cover_item_t *cover_add_toggle_items(cover_data_t *data,
                                             cover_scope_t *cs,
                                             object_t *obj)
 {
    assert(data != NULL);
 
-   type_t type = tree_type(tree_from_object(obj));
+   tree_t decl = tree_from_object(obj);
+   type_t type = tree_type(decl);
+
+   const int nelems = cover_count_toggle_elems(data, type);
+   if (nelems == 0)
+      return NULL;
+
+   cover_flags_t flags = 0;
+   if (tree_kind(decl) == T_SIGNAL_DECL)
+      flags |= COV_FLAG_TOGGLE_SIGNAL;
+   else
+      flags |= COV_FLAG_TOGGLE_PORT;
+
+   if (type_is_record(type)) {
+      cover_item_t *set = cover_add_item(data, cs, obj, COV_ITEM_TOGGLE,
+                                         flags, nelems * 2), *p = set;
+      unsigned field_idx = 0;
+      cover_add_record_toggle_items(data, cs, type, obj, "", flags, &p,
+                                    &field_idx);
+      assert(p == set + nelems * 2);
+      return set;
+   }
+
    type_t root = type_base_recur(type_elem_recur(type));
 
    well_known_t known = is_well_known(type_ident(root));
    if (known != W_IEEE_ULOGIC && known != W_IEEE_ULOGIC_VECTOR)
       return NULL;
-
-   cover_flags_t flags = 0;
-   if (tree_kind(tree_from_object(obj)) == T_SIGNAL_DECL)
-      flags |= COV_FLAG_TOGGLE_SIGNAL;
-   else
-      flags |= COV_FLAG_TOGGLE_PORT;
 
    if (type_is_scalar(type)) {
       cover_item_t *pair = cover_add_item(data, cs, obj, COV_ITEM_TOGGLE,
@@ -297,32 +410,15 @@ static cover_item_t *cover_add_toggle_items(cover_data_t *data,
 
       return pair;
    }
-   else if (!type_const_bounds(type))
-      return NULL;   // Not yet supported
+   else {
+      cover_item_t *set = cover_add_item(data, cs, obj, COV_ITEM_TOGGLE,
+                                         flags, nelems * 2), *p = set;
+      const int ndims = dimension_of(type);
+      cover_add_array_toggle_items(data, cs, type, obj, "", ndims, flags, &p);
+      assert(p == set + nelems * 2);
 
-   const unsigned total = type_width(type);
-   if (total == 0)
-      return NULL;
-
-   if (data->array_limit != 0 && total >= data->array_limit)
-      return NULL;
-
-   type_t elem = type_elem(type);
-
-   // TODO: perhaps make memory coverage a different coverage type
-   const bool memory = type_is_array(elem);
-   if (!cover_enabled(data, COVER_MASK_TOGGLE_INCLUDE_MEMS) && memory)
-      return NULL;
-
-   cover_item_t *set = cover_add_item(data, cs, obj, COV_ITEM_TOGGLE,
-                                      flags, total * 2);
-
-   cover_item_t *p = set;
-   const int ndims = dimension_of(type);
-   cover_add_array_toggle_items(data, cs, type, obj, "", ndims, flags, &p);
-   assert(p == set + total * 2);
-
-   return set;
+      return set;
+   }
 }
 
 ///////////////////////////////////////////////////////////////////////////////

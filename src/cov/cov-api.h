@@ -153,6 +153,8 @@ typedef struct _cover_item {
    // Ranges for functional coverage bins
    int               n_ranges;
    cover_range_t    *ranges;
+
+   unsigned          field_idx;
 } cover_item_t;
 
 typedef enum {

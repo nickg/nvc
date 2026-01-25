@@ -49,6 +49,9 @@
 #define ck_assert_mem_ne(x, y, l) ck_assert(memcmp((x), (y), (l)) != 0)
 #endif
 
+#define ck_assert_ident_eq(x, y) \
+   ck_assert_msg(icmp((x), (y)), "'%s' != '%s'", istr((x)), (y))
+
 #undef fail
 #define fail(...) ck_abort_msg(__VA_ARGS__)
 

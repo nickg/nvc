@@ -102,7 +102,7 @@ START_TEST(test_toggle1)
    ck_assert_ptr_nonnull(u1);
 
    cover_scope_t *vect = u1->children.items[0];
-   ck_assert_str_eq(istr(vect->name), "VECT");
+   ck_assert_ident_eq(vect->name, "VECT");
    ck_assert_int_eq(vect->items.count, 1);
 
    cover_item_t *vect15 = vect->items.items[0];
@@ -127,11 +127,11 @@ START_TEST(test_toggle1)
    const rpt_table_t *hits_t0 = hits->items[0];
    ck_assert_int_eq(hits_t0->count, 2);
    ck_assert_int_eq(hits_t0->items[0]->data, 1);
-   ck_assert_str_eq(istr(hits_t0->items[0]->hier),
-                    "WORK.TOGGLE1.VECT(3).BIN_1_TO_0");
+   ck_assert_ident_eq(hits_t0->items[0]->hier,
+                      "WORK.TOGGLE1.VECT(3).BIN_1_TO_0");
    ck_assert_int_eq(hits_t0->items[1]->data, 1);
-   ck_assert_str_eq(istr(hits_t0->items[1]->hier),
-                    "WORK.TOGGLE1.VECT(1).BIN_1_TO_0");
+   ck_assert_ident_eq(hits_t0->items[1]->hier,
+                      "WORK.TOGGLE1.VECT(1).BIN_1_TO_0");
 
    const table_array_t *miss = &(u1_h->detail.miss[COV_ITEM_TOGGLE]);
    ck_assert_int_eq(miss->count, 1);
@@ -139,8 +139,8 @@ START_TEST(test_toggle1)
    const rpt_table_t *miss_t0 = miss->items[0];
    ck_assert_int_eq(miss_t0->count, 30);
    ck_assert_int_eq(miss_t0->items[0]->data, 0);
-   ck_assert_str_eq(istr(miss_t0->items[0]->hier),
-                    "WORK.TOGGLE1.VECT(15).BIN_0_TO_1");
+   ck_assert_ident_eq(miss_t0->items[0]->hier,
+                      "WORK.TOGGLE1.VECT(15).BIN_0_TO_1");
 
    cover_report_free(rpt);
    cover_data_free(db);
@@ -182,8 +182,8 @@ START_TEST(test_merge1)
    const rpt_table_t *hits_t2 = hits->items[2];
    ck_assert_int_eq(hits_t2->count, 2);
    ck_assert_int_eq(hits_t2->items[0]->data, 1);
-   ck_assert_str_eq(istr(hits_t2->items[0]->hier),
-                    "WORK.MERGE1.TGL(0).BIN_0_TO_1");
+   ck_assert_ident_eq(hits_t2->items[0]->hier,
+                      "WORK.MERGE1.TGL(0).BIN_0_TO_1");
 
    const table_array_t *miss = &(u1_h->detail.miss[COV_ITEM_TOGGLE]);
    ck_assert_int_eq(hits->count, 3);
@@ -191,8 +191,8 @@ START_TEST(test_merge1)
    const rpt_table_t *miss_t2 = miss->items[2];
    ck_assert_int_eq(miss_t2->count, 2);
    ck_assert_int_eq(miss_t2->items[0]->data, 0);
-   ck_assert_str_eq(istr(miss_t2->items[0]->hier),
-                    "WORK.MERGE1.TGL(1).BIN_0_TO_1");
+   ck_assert_ident_eq(miss_t2->items[0]->hier,
+                      "WORK.MERGE1.TGL(1).BIN_0_TO_1");
 
    cover_scope_t *gen1 = cover_get_scope(db1, ident_new("WORK.MERGE1.GEN_ONE"));
    ck_assert_ptr_nonnull(gen1);
@@ -206,6 +206,63 @@ START_TEST(test_merge1)
 }
 END_TEST
 
+START_TEST(test_toggle2)
+{
+   input_from_file(TESTDIR "/cover/toggle2.vhd");
+
+   tree_t top = parse_check_and_simplify(T_ENTITY, T_ARCH);
+
+   cover_data_t *db = run_cover(top);
+
+   cover_scope_t *u1 = cover_get_scope(db, ident_new("WORK.TOGGLE2"));
+   ck_assert_ptr_nonnull(u1);
+
+   cover_scope_t *s1 = u1->children.items[0];
+   ck_assert_ident_eq(s1->name, "S1");
+   ck_assert_int_eq(s1->items.count, 1);
+
+   cover_item_t *s1_toggle = s1->items.items[0];
+   ck_assert_int_eq(s1_toggle->consecutive, 10);
+   ck_assert(s1_toggle[0].flags & COV_FLAG_TOGGLE_TO_1);
+   ck_assert(s1_toggle[1].flags & COV_FLAG_TOGGLE_TO_0);
+   ck_assert_int_eq(s1_toggle[0].data, 1);
+   ck_assert_int_eq(s1_toggle[1].data, 0);
+   ck_assert_ident_eq(s1_toggle[0].hier, "WORK.TOGGLE2.S1.A.BIN_0_TO_1");
+   ck_assert_ident_eq(s1_toggle[2].hier, "WORK.TOGGLE2.S1.C(3).BIN_0_TO_1");
+   ck_assert_int_eq(s1_toggle[2].data, 0);
+
+   cover_rpt_t *rpt = cover_report_new(db, INT_MAX);
+
+   const rpt_hier_t *u1_h = rpt_get_hier(rpt, u1);
+   ck_assert_int_eq(u1_h->flat_stats.total[COV_ITEM_TOGGLE], 10);
+   ck_assert_int_eq(u1_h->flat_stats.hit[COV_ITEM_TOGGLE], 4);
+
+   const table_array_t *hits = &(u1_h->detail.hits[COV_ITEM_TOGGLE]);
+   ck_assert_int_eq(hits->count, 1);
+
+   const rpt_table_t *hits_t0 = hits->items[0];
+   ck_assert_int_eq(hits_t0->count, 4);
+   ck_assert_int_eq(hits_t0->items[0]->data, 1);
+   ck_assert_ident_eq(hits_t0->items[0]->hier, "WORK.TOGGLE2.S1.A.BIN_0_TO_1");
+   ck_assert_int_eq(hits_t0->items[1]->data, 1);
+   ck_assert_ident_eq(hits_t0->items[1]->hier,
+                      "WORK.TOGGLE2.S1.C(2).BIN_0_TO_1");
+
+   const table_array_t *miss = &(u1_h->detail.miss[COV_ITEM_TOGGLE]);
+   ck_assert_int_eq(miss->count, 1);
+
+   const rpt_table_t *miss_t0 = miss->items[0];
+   ck_assert_int_eq(miss_t0->count, 6);
+   ck_assert_int_eq(miss_t0->items[0]->data, 0);
+   ck_assert_ident_eq(miss_t0->items[0]->hier, "WORK.TOGGLE2.S1.A.BIN_1_TO_0");
+
+   cover_report_free(rpt);
+   cover_data_free(db);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_cover_tests(void)
 {
    Suite *s = suite_create("cover");
@@ -214,6 +271,7 @@ Suite *get_cover_tests(void)
    tcase_add_test(tc, test_perfile1);
    tcase_add_test(tc, test_toggle1);
    tcase_add_test(tc, test_merge1);
+   tcase_add_test(tc, test_toggle2);
    suite_add_tcase(s, tc);
 
    return s;
