@@ -1343,14 +1343,37 @@ static void record_image_helper(mir_unit_t *mu, type_t type, mir_value_t arg)
 
    mir_value_t sum = mir_const(mu, t_offset, nfields + 1);
 
+   vhdl_gen_t g = { .mu = mu };
+
    for (int i = 0; i < nfields; i++) {
-      type_t ftype = type_base_recur(tree_type(type_field(type, i)));
-      ident_t func = ident_prefix(type_ident(ftype), ident_new("image"), '$');
+      type_t ftype = tree_type(type_field(type, i));
+      type_t base = type_base_recur(ftype);
+      ident_t func = ident_prefix(type_ident(base), ident_new("image"), '$');
 
       mir_value_t field = mir_build_record_ref(mu, arg, i);
 
-      if (type_is_scalar(ftype) || mir_points_to(mu, field, MIR_TYPE_UARRAY))
+      if (type_is_scalar(base) || mir_points_to(mu, field, MIR_TYPE_UARRAY))
          field = mir_build_load(mu, field);
+      else if (type_is_array(base)) {
+         assert(type_const_bounds(ftype));
+
+         const type_info_t *ti = type_info(mu, ftype);
+         mir_type_t t_bool = mir_bool_type(mu);
+         mir_dim_t dims[ti->udims];
+         int dptr = 0;
+         for (; dptr < ti->udims; ftype = type_elem(ftype)) {
+            const int ndims = dimension_of(ftype);
+            for (int i = 0; i < ndims; i++, dptr++) {
+               tree_t r = range_of(ftype, i);
+               dims[dptr].left  = vhdl_lower_rvalue(&g, tree_left(r));
+               dims[dptr].right = vhdl_lower_rvalue(&g, tree_right(r));
+               dims[dptr].dir   = mir_const(mu, t_bool, tree_subkind(r));
+            }
+         }
+         assert(dptr == ti->udims);
+
+         field = mir_build_wrap(mu, field, dims, ti->udims);
+      }
 
       mir_value_t args[] = { field };
       regs[i] = mir_build_fcall(mu, func, t_string, MIR_NULL_STAMP, args,

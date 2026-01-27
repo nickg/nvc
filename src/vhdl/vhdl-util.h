@@ -15,11 +15,16 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-#ifndef _VHDL_PRIV_H
-#define _VHDL_PRIV_H
+#ifndef _VHDL_UTIL_H
+#define _VHDL_UTIL_H
 
 #include "prim.h"
 
 ident_t predef_func_name(type_t type, const char *op);
 
-#endif  // _VHDL_PRIV_H
+#define CANNOT_HANDLE(t) do {                                           \
+      fatal_at(tree_loc(t), "cannot handle %s in %s" ,                  \
+               tree_kind_str(tree_kind(t)), __FUNCTION__);              \
+   } while (0)
+
+#endif  // _VHDL_UTIL_H

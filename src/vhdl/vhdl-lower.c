@@ -238,3 +238,32 @@ mir_value_t lower_total_elements(mir_unit_t *mu, const type_info_t *ti,
    return mir_build_mul(mu, t_offset, total, stride);
 }
 #endif
+
+static mir_value_t vhdl_lower_literal(vhdl_gen_t *g, tree_t t)
+{
+   const type_info_t *ti = type_info(g->mu, tree_type(t));
+
+   switch (tree_subkind(t)) {
+   case L_PHYSICAL:
+      assert(!tree_has_ref(t));
+      // Fall-through
+   case L_INT:
+      return mir_const(g->mu, ti->type, tree_ival(t));
+   case L_NULL:
+      return mir_build_null(g->mu, ti->type);
+   case L_REAL:
+      return mir_const_real(g->mu, ti->type, tree_dval(t));
+   default:
+      should_not_reach_here();
+   }
+}
+
+mir_value_t vhdl_lower_rvalue(vhdl_gen_t *g, tree_t t)
+{
+   switch (tree_kind(t)) {
+   case T_LITERAL:
+      return vhdl_lower_literal(g, t);
+   default:
+      CANNOT_HANDLE(t);
+   }
+}

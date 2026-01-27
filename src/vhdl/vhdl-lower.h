@@ -33,6 +33,10 @@ typedef struct {
    unsigned    udims;
 } type_info_t;
 
+typedef struct {
+   mir_unit_t *mu;
+} vhdl_gen_t;
+
 const type_info_t *type_info(mir_unit_t *mu, type_t type);
 
 void vhdl_lower_predef(mir_unit_t *mu, object_t *obj);
@@ -42,5 +46,7 @@ mir_value_t lower_array_length(mir_unit_t *mu, const type_info_t *ti,
                                mir_value_t array);
 mir_value_t lower_total_elements(mir_unit_t *mu, const type_info_t *ti,
                                  mir_value_t array);
+
+mir_value_t vhdl_lower_rvalue(vhdl_gen_t *g, tree_t t);
 
 #endif  // _VHDL_LOWER_H
