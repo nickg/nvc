@@ -3,7 +3,7 @@ proxy_PROGRAMS = lib/vhpi_plugin_siginit.so
 
 lib_vhpi_plugin_siginit_so_SOURCES = contrib/plugins/siginit.c
 
-lib_vhpi_plugin_siginit_so_CFLAGS  = $(SHLIB_CFLAGS) -I$(top_srcdir)/src/vhpi $(AM_CFLAGS)
+lib_vhpi_plugin_siginit_so_CFLAGS  = $(SHLIB_CFLAGS) -I$(top_srcdir)/src/vhpi $(AM_CFLAGS) -Wextra -Wpedantic
 lib_vhpi_plugin_siginit_so_LDFLAGS = $(SHLIB_LDFLAGS) $(AM_LDFLAGS)
 
 #lib_vhpi_plugin_siginit_sodir = $(libdir)/$(PACKAGE)

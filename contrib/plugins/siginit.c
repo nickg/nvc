@@ -131,7 +131,10 @@ static int32_t hash_signal(ctx_t *ctx, vhpiHandleT sig_h)
     uint32_t h2 = oat_hash(b, strlen(b));
     free(b);
 
-    return abs(h2);
+    // Clear highest bit to avoid negative numbers in signed int.
+    h2 &= ~(1 << 31);
+
+    return h2;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -577,7 +580,7 @@ static void register_callback(void)
         ctx.collect = false;
 
     /* Start of simulation callback */
-    static vhpiCbDataT cb = {};
+    static vhpiCbDataT cb = {0};
     cb.reason = vhpiCbStartOfSimulation;
     cb.cb_rtn = vhpi_cb;
     cb.user_data = (vhpiHandleT)&ctx;
