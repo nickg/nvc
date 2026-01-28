@@ -10173,7 +10173,7 @@ static void lower_predef(lower_unit_t *lu, object_t *obj)
 
    lower_subprogram_ports(lu, decl, false);
 
-   switch (tree_subkind(decl)) {
+   switch (kind) {
    case S_RECORD_EQ:
       lower_predef_record_eq(lu, decl);
       break;

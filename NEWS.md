@@ -26,6 +26,7 @@
   now able to be simulated (#1336).
 - Elaboration of large netlists is now significantly faster (#1331,
   #1341).
+- Updated to OSVVM 2025.06a and UVVM 2025.11.28 for `nvc --install`.
 - Several other minor bugs were resolved (#1237, #1350, #1351, #1353,
   #1366, #1372, #1333, #1388, #1393).
 
