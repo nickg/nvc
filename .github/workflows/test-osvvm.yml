@@ -23,54 +23,28 @@ jobs:
           ref: dev
           submodules: recursive
           fetch-depth: 1
-      - uses: msys2/setup-msys2@v2
-        with:
-          msystem: mingw64
-          update: true
-          install: >-
-            mingw-w64-x86_64-tcllib
-      # - name: Test OSVVM
-      #   shell: powershell
-      #   run: |
-      #     $Env:OSVVM_DIR = $(Resolve-Path -Path OsvvmLibraries)
-      #     echo $Env:OSVVM_DIR
-      #     $Env:OSVVM_MUST_BUILD = 1
-      #     Get-ChildItem -Path $Env:OSVVM_DIR -Recurse -Filter "VendorScripts_NVC.tcl" | ForEach-Object {
-      #       (Get-Content $_.FullName) -replace 'puts \$SimulateMessage', '' | Set-Content $_.FullName
-      #     }
-      #     nvc.exe --do .\test\test-osvvm.tcl
+      # - uses: msys2/setup-msys2@v2
+      #   with:
+      #     msystem: mingw64
+      #     update: true
+      #     install: >-
+      #       mingw-w64-x86_64-tcllib
       - name: Test OSVVM
-        shell: msys2 {0}
+        shell: powershell
         run: |
-          export PATH=/c/Program\ Files/NVC/bin:$PATH
-          export OSVVM_DIR=$(realpath OsvvmLibraries)
-          export OSVVM_MUST_BUILD=1
-          find $OSVVM_DIR -name VendorScripts_NVC.tcl -exec \
-            sed -i '/puts $SimulateMessage/d' \{} \;
-          tclsh ./test/test-osvvm.tcl
-      - name: Publish results
-        uses: dorny/test-reporter@v1
-        with:
-          name: OSVVM Regression Results
-          path: ./*.xml
-          reporter: java-junit
-          list-suites: all
-          list-tests: failed
-          fail-on-error: true
-          fail-on-empty: true
-      - name: Upload logs
-        uses: actions/upload-artifact@v4
-        if: failure()
-        with:
-          name: osvvm-logs
-          path: |
-            *.log
-            *.yml
-            *.html
-            *.xml
-            reports/*.html
-            reports/**/*.html
-            logs/**/*.*
-            reports/*.css
-            reports/osvvm.png
-          if-no-files-found: error
+          $Env:OSVVM_DIR = $(Resolve-Path -Path OsvvmLibraries)
+          echo $Env:OSVVM_DIR
+          $Env:OSVVM_MUST_BUILD = 1
+          Get-ChildItem -Path $Env:OSVVM_DIR -Recurse -Filter "VendorScripts_NVC.tcl" | ForEach-Object {
+            (Get-Content $_.FullName) -replace 'puts \$SimulateMessage', '' | Set-Content $_.FullName
+          }
+          nvc.exe --do .\test\test-osvvm.tcl
+      # - name: Test OSVVM
+      #   shell: msys2 {0}
+      #   run: |
+      #     export PATH=/c/Program\ Files/NVC/bin:$PATH
+      #     export OSVVM_DIR=$(realpath OsvvmLibraries)
+      #     export OSVVM_MUST_BUILD=1
+      #     find $OSVVM_DIR -name VendorScripts_NVC.tcl -exec \
+      #       sed -i '/puts $SimulateMessage/d' \{} \;
+      #     tclsh ./test/test-osvvm.tcl

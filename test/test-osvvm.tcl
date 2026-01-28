@@ -27,8 +27,8 @@ set ::osvvm::AnalyzeErrorStopCount 1
 set ::osvvm::SimulateErrorStopCount 1
 
 if {[info exists env(OSVVM_MUST_BUILD)]} {
-    build $OsvvmDir/OsvvmLibraries
+    include $OsvvmDir/OsvvmLibraries.pro
 }
 
-build $OsvvmDir/RunAllTests
-build $OsvvmDir/RunAllTestsVti
+include $OsvvmDir/RunAllTests.pro
+include $OsvvmDir/RunAllTestsVti.pro
