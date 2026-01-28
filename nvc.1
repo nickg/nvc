@@ -468,6 +468,14 @@ are included in or excluded from the waveform dump.  See section
 .Sx SELECTING SIGNALS
 for details on how to select particular signals.  These options can be
 given multiple times.
+.\" +siginit+
+.It Cm +siginit+ Ns Ar command \n
+Initialize design signals in non-LRM compliant way.
+See section.
+.Sx SIGNAL INITIALIZATION
+for available values of
+.Ar command
+
 .\" --shuffle
 .It Fl \-shuffle
 Run processes in random order.  The VHDL standard does not specify the
@@ -478,6 +486,7 @@ option can help to find and debug code that inadvertently depends on a
 particular process execution order.  This option should only be used
 during debug as it incurs a significant performance overhead as well as
 introducing potentially non-deterministic behaviour.
+
 .\" --stats
 .It Fl \-stats
 Print a summary of the time taken and memory used at the end of the run.
@@ -687,6 +696,87 @@ extension library, and a number of NVC-specific commands.  Use the
 command in the interactive environment
 .Ns ( Fl i Ns )
 to list these.
+.\" ------------------------------------------------------------
+.\" SIGNAL INITIALIZATION
+.\" ------------------------------------------------------------
+.Sh "SIGNAL INITIALIZATION"
+.Pp
+.Nm
+supports non-LRM compliant initialization of internal design
+signals. This is usefull to discover issues with non-reset
+flip-flops before going to gate-level simulations.
+When any of:
+.Ql +siginit+zero
+,
+.Ql +siginit+one
+or
+.Ql +siginit+rand
+argument is passed to
+.Ql -r
+command, NVC will initialize internal signals in the design
+at the start of simulation. If none of these options is present,
+NVC initializes the signals as specified in VHDL-LRM.
+The initialization value depends on the option used, and
+on type of the signal:
+
+
+.TS
+center allbox;
+l               l               l                   l.
+	              Enum	          Integer	            std_logic
+_
++siginit+zero	  TYPE'left	      TYPE'low	          '0'
++siginit+one	  TYPE'right	    TYPE'high	          '1'
++siginit+rand	  random between TYPE'left and TYPE'right	random between TYPE'low and TYPE'high	'0' or '1'
+.TE
+
+All elements of multidimensional arrays and record types
+are initialized providing they are of one of the types in
+the table above.
+Signals of other types such as physical types, file types
+or protected typesare not affected by
+.Ql +siginit+
+options. Shared variables are not initialized.
+
+When using
+.Ql +siginit+rand
+the random initialization value is reproducible by
+.Ql --seed
+global option. To override randomization seed for initialization, use
+.Ql +siginit+seed+<N>
+where
+.Ql N
+is at most 32-bit numeric value. The randomization of initial value
+depends on seed, signal name, and its hierarchical path. Changes
+of one signal therefore do not affect initialization value of other signals.
+
+To initialize signals only in part of the design, use
+.Ql +siginit+block+<entity_name>
+When passing
+.Ql +siginit+block+<entity_name>
+, the whole design hierarchy below instance of VHDL entity named
+.Ql <entity_name>
+is initialized. This can be used to initialize only DUT signals within testbench
+environment. The
+.Ql <entity_name>
+is matched case-insensitive.
+
+To get human readable report with details of initialized and skipped signals,
+use
+.Ql +siginit+report+<report_file>
+switch. The
+.Ql <report_file>
+file will be written with one entry per signal initialized (or skipped) including
+hierarchy, name, assigned value and a final statistics section
+(counts of initialized signals, skipped signals, warnings and errors).
+
+.Pp
+Examples:
+.Bd -literal -offset indent
+$ nvc -r tb +siginit+rand +siginit+seed+12345 +siginit+block+my_dut +siginit+report+siginit.txt
+$ nvc -r tb +siginit+zero
+.Ed
+
 .\" ------------------------------------------------------------
 .\" CODE COVERAGE
 .\" ------------------------------------------------------------
