@@ -1855,6 +1855,8 @@ static bool is_static(tree_t expr)
          case ATTR_RIGHT:
          case ATTR_LOW:
          case ATTR_HIGH:
+         case ATTR_RANGE:
+         case ATTR_REVERSE_RANGE:
             {
                tree_t ref = name_to_ref(tree_name(expr));
                if (ref == NULL)
@@ -1864,6 +1866,8 @@ static bool is_static(tree_t expr)
                case T_GENERIC_DECL:
                case T_PORT_DECL:
                case T_SIGNAL_DECL:
+               case T_SUBTYPE_DECL:
+               case T_TYPE_DECL:
                   return true;
                default:
                   return false;
@@ -1910,8 +1914,10 @@ tree_t longest_static_prefix(tree_t expr)
          assert(tree_ranges(expr) == 1);
 
          tree_t r = tree_range(expr, 0);
-         if (tree_subkind(r) == RANGE_EXPR)
-            return prefix;
+         if (tree_subkind(r) == RANGE_EXPR) {
+            if (!is_static(tree_value(r)))
+               return prefix;
+         }
          else if (!is_static(tree_left(r)) || !is_static(tree_right(r)))
             return prefix;
 
