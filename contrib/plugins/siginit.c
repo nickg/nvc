@@ -304,16 +304,7 @@ static void init_signal(ctx_t *ctx, vhpiHandleT sig_h)
                 vhpi_put_value(sig_h, &v, vhpiDepositPropagate);
             }
             else {
-                vhpiHandleT enum_iter = vhpi_iterator(vhpiEnumLiterals, type_h);
-                vhpiHandleT lit_h;
-
-                // TODO: If there are many signals with long enums
-                //       this may be ineffective!
-                int enum_lits = 0;
-                while ((lit_h = vhpi_scan(enum_iter)) != NULL) {
-                    enum_lits++;
-                    vhpi_release_handle(lit_h);
-                }
+                int enum_lits = vhpi_get(vhpiNumLiteralsP, type_h);
 
                 vhpiValueT v;
                 v.format = vhpiEnumVal;
