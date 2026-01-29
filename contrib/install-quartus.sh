@@ -62,15 +62,19 @@ $src/sgate_pack.vhd
 $src/sgate.vhd
 EOF
 
+    if [ -f "$src/max_atoms.vhd" ]; then
     analyse_list max$(std_suffix $STD) <<EOF
 $src/max_atoms.vhd
 $src/max_components.vhd
 EOF
+    fi
 
+    if [ -f "$src/maxii_atoms.vhd" ]; then
     analyse_list maxii$(std_suffix $STD) <<EOF
 $src/maxii_atoms.vhd
 $src/maxii_components.vhd
 EOF
+    fi
 
     if [ -f "$src/maxv_atoms.vhd" ]; then
       analyse_list maxv$(std_suffix $STD) <<EOF
@@ -86,12 +90,28 @@ $src/fiftyfivenm_components.vhd
 EOF
     fi
 
+    if [ -f "$src/fourteennm_atoms.vhd" ]; then
+    analyse_list fourteennm$(std_suffix $STD) <<EOF
+$src/fourteennm_atoms.vhd
+$src/fourteennm_components.vhd
+EOF
+    fi
+
+    if [ -f "$src/tennm_atoms.vhd" ]; then
+    analyse_list tennm$(std_suffix $STD) <<EOF
+$src/tennm_atoms.vhd
+$src/tennm_components.vhd
+EOF
+    fi
+
+    if [ -f "$src/cycloneiv_atoms.vhd" ]; then
     analyse_list cycloneiv$(std_suffix $STD) <<EOF
 $src/cycloneiv_atoms.vhd
 $src/cycloneiv_components.vhd
 $src/cycloneiv_hssi_components.vhd
 $src/cycloneiv_hssi_atoms.vhd
 EOF
+    fi
 
     if [ -f "$src/cycloneive_atoms.vhd" ]; then
       analyse_list cycloneiv$(std_suffix $STD) <<EOF
@@ -122,12 +142,14 @@ $src/cyclone10lp_components.vhd
 EOF
     fi
 
+    if [ -f "$src/arriaii_atoms.vhd" ]; then
     analyse_list arriaii$(std_suffix $STD) <<EOF
 $src/arriaii_atoms.vhd
 $src/arriaii_components.vhd
 $src/arriaii_hssi_components.vhd
 $src/arriaii_hssi_atoms.vhd
 EOF
+    fi
 
     # produces compilation error
     #  analyse_list arriaii_pcie_hip$(std_suffix $STD) <<EOF
