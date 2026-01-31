@@ -233,6 +233,7 @@ ID    [a-zA-Z_]([a-zA-Z0-9_$])*
 <INCLUDE2>.             { error_at(&yylloc, "only white space or a comment "
                                    "may appear on the same line as an "
                                    "`include directive");
+                          free(incname);
                           BEGIN(caller);
                         }
 
@@ -306,7 +307,6 @@ static void undefall_macro(void)
    shash_free(macros);
    macros = shash_new(64);
 }
-
 
 static int push_ifdef(bool cond, int state)
 {

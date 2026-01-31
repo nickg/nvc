@@ -35,8 +35,7 @@ static vlog_node_t do_parse_only(vlog_kind_t kind)
 {
    vlog_node_t v = vlog_parse();
    ck_assert_ptr_nonnull(v);
-   ck_assert_msg(vlog_kind(v) == kind, "expected %s but have %s",
-                 vlog_kind_str(kind), vlog_kind_str(vlog_kind(v)));
+   ck_assert_vlog_kind_eq(v, kind);
    return v;
 }
 

@@ -622,8 +622,9 @@ bool vlog_has_delay(vlog_node_t v)
 
 void vlog_set_delay(vlog_node_t v, vlog_node_t d)
 {
-   lookup_item(&vlog_object, v, I_DELAY)->object = &(d->object);
-   object_write_barrier(&(v->object), &(d->object));
+   object_t *d_obj = vlog_to_object(d);
+   lookup_item(&vlog_object, v, I_DELAY)->object = d_obj;
+   object_write_barrier(&(v->object), d_obj);
 }
 
 vlog_node_t vlog_type(vlog_node_t v)
@@ -640,8 +641,9 @@ bool vlog_has_type(vlog_node_t v)
 
 void vlog_set_type(vlog_node_t v, vlog_node_t t)
 {
-   lookup_item(&vlog_object, v, I_TYPE)->object = &(t->object);
-   object_write_barrier(&(v->object), &(t->object));
+   object_t *t_obj = vlog_to_object(t);
+   lookup_item(&vlog_object, v, I_TYPE)->object = t_obj;
+   object_write_barrier(&(v->object), t_obj);
 }
 
 number_t vlog_number(vlog_node_t v)
@@ -771,7 +773,7 @@ vlog_node_t vlog_copy(vlog_node_t v, vlog_copy_pred_t pred, void *ctx)
 
 object_t *vlog_to_object(vlog_node_t v)
 {
-   return &(v->object);
+   return v != NULL ? &(v->object) : NULL;
 }
 
 vlog_node_t vlog_from_object(object_t *obj)
