@@ -165,6 +165,7 @@ void vlog_symtab_pop(vlog_symtab_t *st)
       else
          APUSH(st->top->parent->deferred, v);
    }
+   ACLEAR(st->top->deferred);
 
    st->top = st->top->parent;
 }

@@ -1363,15 +1363,28 @@ void make_new_arena(void)
 
 void discard_global_arena(void)
 {
+   if (global_arena == NULL)
+      return;
+
    object_one_time_init();
 
-   if (global_arena != NULL) {
-      nvc_munmap(global_arena->base, global_arena->limit - global_arena->base);
+   for (void *p = global_arena->base; p != global_arena->alloc; ) {
+      assert(p < global_arena->alloc);
+      object_t *object = p;
 
-      assert(all_arenas.items[all_arenas.count - 1] == global_arena);
-      APOP(all_arenas);
+      gc_free_external(object);
 
-      free(global_arena);
-      global_arena = NULL;
+      const object_class_t *class = classes[object->tag];
+      const size_t size =
+         ALIGN_UP(class->object_size[object->kind], OBJECT_ALIGN);
+      p = (char *)p + size;
    }
+
+   nvc_munmap(global_arena->base, global_arena->limit - global_arena->base);
+
+   assert(all_arenas.items[all_arenas.count - 1] == global_arena);
+   APOP(all_arenas);
+
+   free(global_arena);
+   global_arena = NULL;
 }
