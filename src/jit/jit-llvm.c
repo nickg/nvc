@@ -155,7 +155,7 @@ typedef struct _cgen_block cgen_block_t;
 #define DEBUG_METADATA_VERSION 3
 #define ARGCACHE_SIZE          6
 #define ENABLE_DWARF           0
-#define INLINE_LIMIT           25
+#define INLINE_LIMIT           0
 
 #if defined __APPLE__ && defined ARCH_ARM64
 #define JIT_CODE_MODEL LLVMCodeModelSmall
