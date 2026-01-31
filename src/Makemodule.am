@@ -104,7 +104,7 @@ AM_V_bin_nvc_LINK = $(AM_V_CCLD)
 endif
 
 if ENABLE_GIT_SHA
-nodist_EXTRA_bin_nvc_SOURCES += gitsha.h
+nodist_EXTRA_bin_nvc_SOURCES += src/gitsha.h
 
 CLEANFILES += src/gitsha.h
 BUILT_SOURCES += src/gitsha.h
