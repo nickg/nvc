@@ -1,6 +1,8 @@
 ## Unreleased changes
-- PSL `next_e` and `next_e!` operators are now supported.
-- PSL `nondet` built-in function is now supported.
+
+## Version 1.19.0 - 2026-01-31
+- PSL `next_e` and `next_e!` operators and the `nondet` built-in
+  function are now supported.
 - The `--precompile` elaboration option which was deprecated in the last
   release has been removed.  The related `--with-system-cc` configure
   option has also been removed.
@@ -14,10 +16,9 @@
 - Very large subprograms containing tens of thousands of operations can
   now be compiled (#1259).
 - Added `-Werror` analysis option to escalate warnings into errors.
-- Code coverage report style was improved.
-- Average coverage numbers are now printed on command line when processing
-  coverage.
-- Expression coverage reporting for multi-line expressions is improved.
+- Code coverage report style was improved and average coverage numbers
+  are now printed after a run completes.
+- Expression coverage reporting for multi-line expressions was improved.
 - Fixed waveform dumping for arrays of enumerated types (#1362).
 - The fractional part of `std.env.epoch` is now correct and `to_string`
   on `std.env.time_record` now displays months correctly according to

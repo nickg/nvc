@@ -518,7 +518,7 @@ table below.
   <tr>
     <td>5.2.3.9</td>
     <td>nondet()</td>
-    <td class="feature-partial">master</td>
+    <td class="feature-partial">1.19</td>
   </tr>
   <tr>
     <td>5.2.3.10</td>
@@ -692,7 +692,7 @@ table below.
   <tr>
     <td>6.2.1.4.2</td>
     <td>next_e</td>
-    <td class="feature-done">master</td>
+    <td class="feature-done">1.19</td>
   </tr>
   <tr>
     <td>6.2.1.4.3</td>

@@ -37,6 +37,7 @@ bin_unit_test_SOURCES = \
 	test/test_dump.c \
 	test/test_driver.c \
 	test/test_vlog.c \
+	test/test_mir.h \
 	test/test_mir.c \
 	test/test_cover.c
 
@@ -171,7 +172,7 @@ update-test-dist:
 	  cd $(top_srcdir) ; \
 	  git ls-files -- 'test/*.vhd' 'test/*.txt' 'test/*.sh' 'test/*.dump' \
 	    'test/*.gtkw' 'test/*.tcl' 'test/*.v' 'test/*.sv' 'test/*.xml' \
-	    'test/*.sdf' 'test/*.vh' 'test/*.svh' \
+	    'test/*.sdf' 'test/*.vh' 'test/*.svh' 'test/*.spec' \
 	    | sort | sed -e 's/^/\t/' -e '$$ ! s/$$/ \\/' ; \
 	) > $(top_srcdir)/test/dist.mk
 

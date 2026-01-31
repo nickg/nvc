@@ -9,6 +9,8 @@ lib_libnvc_a_SOURCES += \
 	src/cov/cov-priv.h \
 	src/cov/cov-html.c
 
+EXTRA_DIST += src/cov/cov-style.css
+
 CLEANFILES += src/cov/cov-style.h
 BUILT_SOURCES += src/cov/cov-style.h
 

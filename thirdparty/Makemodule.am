@@ -12,6 +12,7 @@ lib_libthirdparty_a_SOURCES = \
 	thirdparty/cpustate.h \
 	thirdparty/sha1.c \
 	thirdparty/sha1.h \
+	thirdparty/svrand.h \
 	thirdparty/svrand.c
 
 if GNULIB_MEMMEM
