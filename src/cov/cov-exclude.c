@@ -598,6 +598,19 @@ bool cover_should_emit_fsm_type(cover_data_t *db, ident_t name)
    return true;
 }
 
+bool cover_compatible_spec(cover_data_t *db, const cover_scope_t *a,
+                           const cover_scope_t *b)
+{
+   if (db->spec == NULL)
+      return true;
+
+   excl_trie_t *et_a = excl_trie_for_scope(db->spec->hier_trie, a);
+   excl_trie_t *et_b = excl_trie_for_scope(db->spec->hier_trie, b);
+
+   // TODO: this is overly strict since two rules may have the same effect
+   return et_a == et_b;
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // Pragma handling
 ///////////////////////////////////////////////////////////////////////////////

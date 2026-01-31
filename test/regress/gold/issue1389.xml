@@ -1,0 +1,67 @@
+<?xml version="1.0"?>
+<scope name="WORK" file="issue1389.vhd">
+  <scope name="ISSUE1389" block_name="ISSUE1389-TEST" line="25">
+    <scope name="I" line="26">
+    </scope>
+    <scope name="O1" line="26">
+    </scope>
+    <scope name="O2" line="26">
+    </scope>
+    <scope name="_P0" line="35">
+      <scope name="_S0">
+      </scope>
+    </scope>
+    <scope name="U1" block_name="SUB-TEST" line="29">
+      <scope name="I" line="3">
+      </scope>
+      <scope name="O" line="4">
+      </scope>
+      <scope name="FUNC" line="8">
+        <scope name="_S0" line="10">
+          <statement hier="WORK.ISSUE1389.U1.FUNC._S0" data="2"/>
+          <scope name="_B0">
+            <expression hier="WORK.ISSUE1389.U1.FUNC._S0._B0._E0.BIN_FALSE" data="1"/>
+            <expression hier="WORK.ISSUE1389.U1.FUNC._S0._B0._E0.BIN_TRUE" data="1"/>
+            <branch hier="WORK.ISSUE1389.U1.FUNC._S0._B0.BIN_TRUE" data="1"/>
+            <branch hier="WORK.ISSUE1389.U1.FUNC._S0._B0.BIN_FALSE" data="1"/>
+            <scope name="_S0" line="11">
+              <statement hier="WORK.ISSUE1389.U1.FUNC._S0._B0._S0" data="1"/>
+            </scope>
+          </scope>
+          <scope name="_B1">
+            <scope name="_S0" line="13">
+              <statement hier="WORK.ISSUE1389.U1.FUNC._S0._B1._S0" data="1"/>
+            </scope>
+          </scope>
+        </scope>
+      </scope>
+      <scope name="_P0" line="17">
+        <scope name="_S0">
+          <statement hier="WORK.ISSUE1389.U1._P0._S0" data="2"/>
+        </scope>
+      </scope>
+    </scope>
+    <scope name="U2" block_name="SUB-TEST" line="32">
+      <scope name="I" line="3">
+      </scope>
+      <scope name="O" line="4">
+      </scope>
+      <scope name="FUNC" line="8">
+        <scope name="_S0" line="10">
+          <scope name="_B0">
+            <scope name="_S0" line="11">
+            </scope>
+          </scope>
+          <scope name="_B1">
+            <scope name="_S0" line="13">
+            </scope>
+          </scope>
+        </scope>
+      </scope>
+      <scope name="_P0" line="17">
+        <scope name="_S0">
+        </scope>
+      </scope>
+    </scope>
+  </scope>
+</scope>

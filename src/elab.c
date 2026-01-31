@@ -102,9 +102,10 @@ typedef struct {
 } mod_cache_t;
 
 typedef struct {
-   vlog_node_t body;
-   tree_t      block;
-   tree_t      wrap;
+   vlog_node_t    body;
+   tree_t         block;
+   tree_t         wrap;
+   cover_scope_t *cscope;
 } elab_instance_t;
 
 static void elab_block(tree_t t, const elab_ctx_t *ctx);
@@ -2138,6 +2139,16 @@ static void elab_cover_block(elab_ctx_t *ctx, tree_t unit)
                                     block, unit);
 }
 
+static bool elab_can_clone_instance(elab_instance_t *ei, const elab_ctx_t *ctx)
+{
+   if (ei == NULL)
+      return false;
+   else if (ei->cscope == NULL && ctx->cscope == NULL)
+      return true;
+
+   return cover_compatible_spec(ctx->cover, ei->cscope, ctx->cscope);
+}
+
 static void elab_architecture(tree_t inst, tree_t arch, const elab_ctx_t *ctx)
 {
    ident_t label = tree_ident(inst);
@@ -2164,9 +2175,12 @@ static void elab_architecture(tree_t inst, tree_t arch, const elab_ctx_t *ctx)
    mc->count++;
 
    elab_instance_t *ei = ghash_get(mc->instances, inst);
-   if (ei == NULL) {
+   if (elab_can_clone_instance(ei, &new_ctx))
+      new_ctx.cloned = tree_ident(ei->block);
+   else {
       ei = pool_calloc(ctx->pool, sizeof(elab_instance_t));
       ei->block = vhdl_architecture_instance(arch, inst, new_ctx.dotted);
+      ei->cscope = new_ctx.cscope;
 
       elab_fold_generics(ei->block, &new_ctx);
 
@@ -2176,8 +2190,6 @@ static void elab_architecture(tree_t inst, tree_t arch, const elab_ctx_t *ctx)
       ghash_put(mc->instances, inst, ei);
       mc->unique++;
    }
-   else
-      new_ctx.cloned = tree_ident(ei->block);
 
    elab_push_scope(arch, &new_ctx);
    elab_generics(ei->block, inst, &new_ctx);
@@ -2226,9 +2238,12 @@ static void elab_configuration(tree_t inst, tree_t unit, const elab_ctx_t *ctx)
    mc->count++;
 
    elab_instance_t *ei = ghash_get(mc->instances, inst);
-   if (ei == NULL) {
+   if (elab_can_clone_instance(ei, &new_ctx))
+      new_ctx.cloned = tree_ident(ei->block);
+   else {
       ei = pool_calloc(ctx->pool, sizeof(elab_instance_t));
       ei->block = vhdl_config_instance(config, inst, new_ctx.dotted);
+      ei->cscope = new_ctx.cscope;
 
       elab_bind_components(ei->block, ei->block);
       elab_fold_generics(ei->block, &new_ctx);
@@ -2239,8 +2254,6 @@ static void elab_configuration(tree_t inst, tree_t unit, const elab_ctx_t *ctx)
       ghash_put(mc->instances, inst, ei);
       mc->unique++;
    }
-   else
-      new_ctx.cloned = tree_ident(ei->block);
 
    elab_push_scope(arch, &new_ctx);
    elab_generics(ei->block, inst, &new_ctx);
@@ -2294,17 +2307,18 @@ static void elab_component(tree_t inst, tree_t comp, const elab_ctx_t *ctx)
    mc->count++;
 
    elab_instance_t *ei = ghash_get(mc->instances, inst);
-   if (ei == NULL) {
+   if (elab_can_clone_instance(ei, &new_ctx))
+      new_ctx.cloned = tree_ident(ei->block);
+   else {
       ei = pool_calloc(ctx->pool, sizeof(elab_instance_t));
       ei->block = vhdl_component_instance(comp, inst, ndotted);
+      ei->cscope = new_ctx.cscope;
 
       elab_fold_generics(ei->block, ctx);
 
       ghash_put(mc->instances, inst, ei);
       mc->unique++;
    }
-   else
-      new_ctx.cloned = tree_ident(ei->block);
 
    tree_t b = tree_new(T_BLOCK);
    tree_set_ident(b, tree_ident(inst));

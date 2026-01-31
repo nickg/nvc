@@ -269,6 +269,9 @@ cover_scope_t *cover_create_user_scope(cover_data_t *db, cover_scope_t *parent,
 cover_item_t *cover_add_items_for(cover_data_t *data, cover_scope_t *cscope,
                                   object_t *obj, cover_item_kind_t kind);
 
+bool cover_compatible_spec(cover_data_t *db, const cover_scope_t *a,
+                           const cover_scope_t *b);
+
 void cover_map_item(cover_scope_t *cs, object_t *obj, cover_item_t *item);
 cover_item_t *cover_lookup_item(cover_scope_t *cs, object_t *obj,
                                 cover_item_kind_t kind);

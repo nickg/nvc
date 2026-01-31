@@ -881,6 +881,9 @@ static void interp_sadd(jit_interp_t *state, jit_ir_t *ir)
    const void *ptr = interp_get_pointer(state, ir->arg1);
    const int64_t addend = interp_get_int(state, ir->arg2);
 
+   JIT_ASSERT(ptr != NULL);
+   JIT_ASSERT((intptr_t)ptr >= 4096);
+
 #define SADD(type) do {                                         \
       u##type cur = *(u##type *)ptr;                            \
       *(u##type *)ptr = saturate_add(cur, addend);              \
