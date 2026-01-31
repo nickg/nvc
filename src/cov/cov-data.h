@@ -27,17 +27,6 @@ typedef struct _cover_exclude_ctx   cover_exclude_ctx_t;
 typedef struct _cover_rpt_buf       cover_rpt_buf_t;
 typedef struct _cover_spec          cover_spec_t;
 
-typedef A(char*) char_array_t;
-
-struct _cover_spec {
-   char_array_t hier_include;
-   char_array_t hier_exclude;
-   char_array_t block_include;
-   char_array_t block_exclude;
-   char_array_t fsm_type_include;
-   char_array_t fsm_type_exclude;
-};
-
 typedef struct _cover_excl_cmd {
    ident_t              hier;
    loc_t                loc;

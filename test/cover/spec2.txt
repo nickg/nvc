@@ -1,0 +1,4 @@
+bogus          # Error
++              # Error
++hierarchy     # Error
++block something trailing garbage   # Error

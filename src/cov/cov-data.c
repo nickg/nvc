@@ -465,29 +465,7 @@ static bool cover_skip_type_state(cover_data_t *data, type_t type)
       return true;
 
    ident_t name = ident_rfrom(type_ident(type), '.');
-   cover_spec_t *spc = data->spec;
-
-   // Type should be recognized as FSM
-   if (spc) {
-      for (int i = 0; i < spc->fsm_type_include.count; i++) {
-         if (ident_glob(name, AGET(spc->fsm_type_include, i), -1))
-            return false;
-      }
-   }
-
-   // By default enums should not included
-   if (data->mask & COVER_MASK_FSM_NO_DEFAULT_ENUMS)
-      return true;
-
-   // Type should not be included
-   if (spc) {
-      for (int i = 0; i < spc->fsm_type_exclude.count; i++) {
-         if (ident_glob(name, AGET(spc->fsm_type_exclude, i), -1))
-            return true;
-      }
-   }
-
-   return false;
+   return !cover_should_emit_fsm_type(data, name);
 }
 
 static cover_item_t *cover_add_state_items_for(cover_data_t *data,
@@ -930,42 +908,6 @@ void cover_data_free(cover_data_t *db)
 bool cover_enabled(cover_data_t *data, cover_mask_t mask)
 {
    return data != NULL && (data->mask & mask);
-}
-
-static bool cover_should_emit_scope(cover_data_t *data, cover_scope_t *cs)
-{
-   cover_spec_t *spc = data->spec;
-   if (spc == NULL)
-      return true;
-
-   cover_scope_t *blk = cs;
-   for (; blk != NULL && blk->block_name == NULL; blk = blk->parent);
-   assert(blk != NULL);
-
-   ident_t ename = ident_until(blk->block_name, '-');
-
-   for (int i = 0; i < spc->block_exclude.count; i++) {
-      if (ident_glob(ename, AGET(spc->block_exclude, i), -1))
-         return false;
-   }
-
-   for (int i = 0; i < data->spec->block_include.count; i++) {
-      if (ident_glob(ename, AGET(spc->block_include, i), -1))
-         return true;
-   }
-
-   // Hierarchy
-   for (int i = 0; i < spc->hier_exclude.count; i++) {
-      if (ident_glob(cs->hier, AGET(spc->hier_exclude, i), -1))
-         return false;
-   }
-
-   for (int i = 0; i < spc->hier_include.count; i++) {
-      if (ident_glob(cs->hier, AGET(spc->hier_include, i), -1))
-         return true;
-   }
-
-   return false;
 }
 
 cover_scope_t *cover_create_block(cover_data_t *data, ident_t qual,

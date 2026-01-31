@@ -185,4 +185,5 @@ void set_default_options(void)
    opt_set_int(OPT_RANDOM_SEED, mix_bits_32(get_timestamp_us()));
    opt_set_int(OPT_ELAB_STATS, 0);
    opt_set_str(OPT_RELATIVE_PATH, NULL);
+   opt_set_int(OPT_EXCL_VERBOSE, get_int_env("NVC_EXCL_VERBOSE", 0));
 }

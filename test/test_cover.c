@@ -263,6 +263,37 @@ START_TEST(test_toggle2)
 }
 END_TEST
 
+START_TEST(test_spec1)
+{
+   cover_data_t *db = cover_data_init(COVER_MASK_ALL, 0, 0);
+   cover_load_spec_file(db, TESTDIR "/cover/spec1.txt");
+
+   // TODO: test query
+
+   cover_data_free(db);
+
+   fail_if_errors();
+}
+
+START_TEST(test_spec2)
+{
+   const error_t expect[] = {
+      {  1, "coverage specification command must start with '+' or '-" },
+      {  2, "invalid command" },
+      {  3, "hierarchy name missing" },
+      {  4, "unexpected 'trailing' after coverage specification command" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   cover_data_t *db = cover_data_init(COVER_MASK_ALL, 0, 0);
+   cover_load_spec_file(db, TESTDIR "/cover/spec2.txt");
+
+   cover_data_free(db);
+
+   check_expected_errors();
+}
+
 Suite *get_cover_tests(void)
 {
    Suite *s = suite_create("cover");
@@ -272,6 +303,8 @@ Suite *get_cover_tests(void)
    tcase_add_test(tc, test_toggle1);
    tcase_add_test(tc, test_merge1);
    tcase_add_test(tc, test_toggle2);
+   tcase_add_test(tc, test_spec1);
+   tcase_add_test(tc, test_spec2);
    suite_add_tcase(s, tc);
 
    return s;

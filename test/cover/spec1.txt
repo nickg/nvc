@@ -1,0 +1,6 @@
+# Comment
++block leaf_entity
+-block not_interesting_entity
+
++hierarchy WORK.COVER13.level_1_inst.* # Comment
+-hierarchy WORK.COVER13.level_1_inst.LEVEL_2_INST.*
