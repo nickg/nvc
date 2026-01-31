@@ -8,9 +8,9 @@ body {
 }
 
 header {
-    padding: 30px;
+    padding: 0.5em;
     text-align: center;
-    font-size: 40px;
+    font-size: 14pt;
 }
 
 h1 {
