@@ -24,7 +24,6 @@ tree_t vhdl_component_instance(tree_t comp, tree_t inst, ident_t dotted);
 tree_t vhdl_architecture_instance(tree_t arch, tree_t inst, ident_t dotted);
 tree_t vhdl_config_instance(tree_t conf, tree_t bind, ident_t dotted);
 
-cover_scope_t *vhdl_cover_block(tree_t block, cover_data_t *db,
-                                cover_scope_t *parent);
+void vhdl_cover_block(tree_t block, cover_data_t *db, cover_scope_t *cs);
 
 #endif  // _VHDL_PHASE_H

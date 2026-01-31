@@ -2184,7 +2184,7 @@ START_TEST(test_clone2)
    tree_t u7h = tree_decl(u7, 0);
    fail_unless(tree_kind(u7h) == T_HIER);
    fail_unless(tree_ident(u7h) == ident_new("WORK.CLONE2.U7"));
-   fail_unless(tree_ident2(u7h) == ident_new("WORK.CLONE2.U1.SUB1_ENT"));
+   ck_assert_ident_eq(tree_ident2(u7h), "WORK.CLONE2.U1.SUB1_ENT");
 
    ident_t u7psym1 = ident_new("WORK.CLONE2.U1.SUB1_ENT.PROC");
    ident_t u7psym2 = ident_new("WORK.CLONE2.U7.PROC");

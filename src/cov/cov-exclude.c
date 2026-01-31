@@ -560,7 +560,9 @@ bool cover_should_emit_scope(cover_data_t *db, cover_scope_t *cs)
 
    cover_scope_t *blk = cs;
    for (; blk != NULL && blk->block_name == NULL; blk = blk->parent);
-   assert(blk != NULL);
+
+   if (blk == NULL)
+      return true;
 
    ident_t ename = ident_until(blk->block_name, '-');
 

@@ -260,7 +260,8 @@ void cover_export_xml(cover_data_t *data, FILE *f, const char *relative);
 //
 
 cover_scope_t *cover_create_block(cover_data_t *db, ident_t qual,
-                                  cover_scope_t *parent, tree_t inst);
+                                  cover_scope_t *parent, tree_t inst,
+                                  tree_t unit);
 cover_scope_t *cover_create_scope(cover_data_t *db, cover_scope_t *parent,
                                   tree_t t);
 cover_scope_t *cover_create_user_scope(cover_data_t *db, cover_scope_t *parent,

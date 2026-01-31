@@ -18,6 +18,7 @@
 #include "util.h"
 #include "array.h"
 #include "common.h"
+#include "cov/cov-api.h"
 #include "diag.h"
 #include "eval.h"
 #include "hash.h"
@@ -71,6 +72,7 @@ typedef struct _elab_ctx {
    rt_model_t       *model;
    rt_scope_t       *scope;
    mem_pool_t       *pool;
+   cover_scope_t    *cscope;
    unsigned          depth;
    unsigned          errors;
 } elab_ctx_t;
@@ -1534,6 +1536,7 @@ static void elab_inherit_context(elab_ctx_t *ctx, const elab_ctx_t *parent)
    ctx->model    = parent->model;
    ctx->errors   = error_count();
    ctx->pool     = parent->pool;
+   ctx->cscope   = parent->cscope;
 }
 
 static bool elab_new_errors(const elab_ctx_t *ctx)
@@ -1550,7 +1553,7 @@ static void elab_lower(tree_t b, elab_ctx_t *ctx)
       vlog_lower_block(ctx->mir, ctx->parent->dotted, b);
    else
       ctx->lowered = lower_instance(ctx->registry, ctx->parent->lowered,
-                                    ctx->cover, b);
+                                    ctx->cover, ctx->cscope, b);
 
 #ifdef DEBUG
    if (ctx->cloned != NULL) {
@@ -2111,6 +2114,30 @@ static void elab_bind_components(tree_t block, tree_t config)
    }
 }
 
+static void elab_cover_block(elab_ctx_t *ctx, tree_t unit)
+{
+   if (ctx->cover == NULL)
+      return;
+
+   tree_t block = ctx->out;
+   cover_scope_t *parent = ctx->cscope;
+
+   if (ctx->parent != NULL && tree_decls(ctx->parent->out) > 0) {
+      tree_t hier = tree_decl(ctx->parent->out, 0);
+      assert(tree_kind(hier) == T_HIER);
+
+      if (tree_kind(tree_ref(hier)) == T_COMPONENT) {
+         // Collapse this coverage scope with the block for the
+         // component above
+         block = ctx->parent->out;
+         parent = ctx->parent->cscope;
+      }
+   }
+
+   ctx->cscope = cover_create_block(ctx->cover, ctx->dotted, parent,
+                                    block, unit);
+}
+
 static void elab_architecture(tree_t inst, tree_t arch, const elab_ctx_t *ctx)
 {
    ident_t label = tree_ident(inst);
@@ -2130,6 +2157,8 @@ static void elab_architecture(tree_t inst, tree_t arch, const elab_ctx_t *ctx)
    new_ctx.out = b;
 
    new_ctx.library = lib_require(ident_until(tree_ident(arch), '.'));
+
+   elab_cover_block(&new_ctx, arch);
 
    mod_cache_t *mc = elab_cached_module(tree_to_object(arch), &new_ctx);
    mc->count++;
@@ -2157,6 +2186,7 @@ static void elab_architecture(tree_t inst, tree_t arch, const elab_ctx_t *ctx)
    elab_processes(ei->block, &new_ctx);
 
    if (error_count() == 0) {
+      vhdl_cover_block(b, new_ctx.cover, new_ctx.cscope);
       elab_lower(b, &new_ctx);
       elab_sub_blocks(ei->block, &new_ctx);
    }
@@ -2190,6 +2220,8 @@ static void elab_configuration(tree_t inst, tree_t unit, const elab_ctx_t *ctx)
    tree_t arch = tree_ref(config);
    assert(tree_kind(arch) == T_ARCH);
 
+   elab_cover_block(&new_ctx, arch);
+
    mod_cache_t *mc = elab_cached_module(tree_to_object(unit), &new_ctx);
    mc->count++;
 
@@ -2217,6 +2249,7 @@ static void elab_configuration(tree_t inst, tree_t unit, const elab_ctx_t *ctx)
    elab_processes(ei->block, &new_ctx);
 
    if (error_count() == 0) {
+      vhdl_cover_block(b, new_ctx.cover, new_ctx.cscope);
       elab_lower(b, &new_ctx);
       elab_sub_blocks(ei->block, &new_ctx);
    }
@@ -2471,6 +2504,7 @@ static void elab_for_generate(tree_t t, const elab_ctx_t *ctx)
       else
          new_ctx.cloned = first;
 
+      elab_cover_block(&new_ctx, t);
       elab_push_scope(t, &new_ctx);
 
       if (elab_new_errors(&new_ctx) == 0) {
@@ -2479,6 +2513,7 @@ static void elab_for_generate(tree_t t, const elab_ctx_t *ctx)
       }
 
       if (elab_new_errors(&new_ctx) == 0) {
+         vhdl_cover_block(b, new_ctx.cover, new_ctx.cscope);
          elab_lower(b, &new_ctx);
          elab_sub_blocks(t, &new_ctx);
       }
@@ -2523,11 +2558,13 @@ static void elab_if_generate(tree_t t, const elab_ctx_t *ctx)
          };
          elab_inherit_context(&new_ctx, ctx);
 
+         elab_cover_block(&new_ctx, t);
          elab_push_scope(t, &new_ctx);
          elab_decls(cond, &new_ctx);
          elab_processes(cond, &new_ctx);
 
          if (error_count() == 0) {
+            vhdl_cover_block(b, new_ctx.cover, new_ctx.cscope);
             elab_lower(b, &new_ctx);
             elab_sub_blocks(cond, &new_ctx);
          }
@@ -2561,11 +2598,13 @@ static void elab_case_generate(tree_t t, const elab_ctx_t *ctx)
    };
    elab_inherit_context(&new_ctx, ctx);
 
+   elab_cover_block(&new_ctx, t);
    elab_push_scope(t, &new_ctx);
    elab_decls(chosen, &new_ctx);
    elab_processes(chosen, &new_ctx);
 
    if (error_count() == 0) {
+      vhdl_cover_block(b, new_ctx.cover, new_ctx.cscope);
       elab_lower(b, &new_ctx);
       elab_sub_blocks(chosen, &new_ctx);
    }
@@ -2639,6 +2678,7 @@ static void elab_block(tree_t t, const elab_ctx_t *ctx)
    };
    elab_inherit_context(&new_ctx, ctx);
 
+   elab_cover_block(&new_ctx, t);
    elab_push_scope(t, &new_ctx);
    elab_generics(t, t, &new_ctx);
    elab_ports(t, t, &new_ctx);
@@ -2646,6 +2686,7 @@ static void elab_block(tree_t t, const elab_ctx_t *ctx)
    elab_processes(t, &new_ctx);
 
    if (elab_new_errors(&new_ctx) == 0) {
+      vhdl_cover_block(b, new_ctx.cover, new_ctx.cscope);
       elab_lower(b, &new_ctx);
       elab_sub_blocks(t, &new_ctx);
    }

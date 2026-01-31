@@ -904,7 +904,8 @@ bool cover_enabled(cover_data_t *data, cover_mask_t mask)
 }
 
 cover_scope_t *cover_create_block(cover_data_t *db, ident_t qual,
-                                  cover_scope_t *parent, tree_t inst)
+                                  cover_scope_t *parent, tree_t inst,
+                                  tree_t unit)
 {
    if (db == NULL)
       return NULL;
@@ -924,6 +925,8 @@ cover_scope_t *cover_create_block(cover_data_t *db, ident_t qual,
 
    b->self = cover_create_scope(db, parent, inst);
    b->self->block = b;
+   b->self->block_name = ident_rfrom(tree_ident(unit), '.');
+   b->self->emit = cover_should_emit_scope(db, b->self);
 
    return b->self;
 }
@@ -946,28 +949,6 @@ cover_scope_t *cover_create_user_scope(cover_data_t *db, cover_scope_t *parent,
 
    APUSH(parent->children, s);
    return s;
-}
-
-static ident_t cover_block_name(tree_t t)
-{
-   switch (tree_kind(t)) {
-   case T_PACKAGE:
-   case T_PACK_INST:
-      return tree_ident(t);
-   case T_BLOCK:
-      {
-         tree_t hier = tree_decl(t, 0);
-         assert(tree_kind(hier) == T_HIER);
-
-         tree_t ref = tree_ref(hier);
-         if (tree_kind(ref) == T_COMPONENT && tree_stmts(t) > 0)
-            return cover_block_name(tree_stmt(t, 0));
-         else
-            return ident_rfrom(tree_ident(ref), '.');
-      }
-   default:
-      return NULL;
-   }
 }
 
 cover_scope_t *cover_create_scope(cover_data_t *db, cover_scope_t *parent,
@@ -1032,12 +1013,11 @@ cover_scope_t *cover_create_scope(cover_data_t *db, cover_scope_t *parent,
          s->name = ident_sprintf("_S%u", parent->stmt_label++);
    }
 
-   s->parent     = parent;
-   s->block      = parent->block;
-   s->block_name = cover_block_name(t);
-   s->loc        = *tree_loc(t);
-   s->hier       = ident_prefix(parent->hier, s->name, '.');
-   s->emit       = cover_should_emit_scope(db, s);
+   s->parent = parent;
+   s->block  = parent->block;
+   s->loc    = *tree_loc(t);
+   s->hier   = ident_prefix(parent->hier, s->name, '.');
+   s->emit   = cover_should_emit_scope(db, s);
 
    if (s->sig_pos == 0)
       s->sig_pos = parent->sig_pos;

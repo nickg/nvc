@@ -317,41 +317,18 @@ static void vhdl_cover_process(tree_t t, ident_t qual, cover_data_t *db,
    vhdl_cover_decls(t, db, &lcs);
 }
 
-cover_scope_t *vhdl_cover_block(tree_t block, cover_data_t *db,
-                                cover_scope_t *parent)
+void vhdl_cover_block(tree_t block, cover_data_t *db, cover_scope_t *cs)
 {
    assert(tree_kind(block) == T_BLOCK);
+
+   if (db == NULL || cs == NULL)
+      return;
 
    tree_t hier = tree_decl(block, 0);
    assert(tree_kind(hier) == T_HIER);
 
    int nstmts = tree_stmts(block);
    tree_t unit = tree_ref(hier);
-
-   cover_scope_t *cs;
-   if (tree_kind(unit) == T_COMPONENT) {
-      if (nstmts == 0)
-         return NULL;
-      else if (nstmts == 1) {
-         // Collapse this coverage scope with the block for the
-         // component above
-         tree_t inst = tree_stmt(block, 0);
-         assert(tree_kind(inst) == T_BLOCK);
-
-         tree_t hier2 = tree_decl(inst, 0);
-         assert(tree_kind(hier2) == T_HIER);
-
-         unit = tree_ref(hier2);
-         cs = cover_create_block(db, tree_ident(hier2), parent, block);
-         block = inst;
-         nstmts = tree_stmts(block);
-         hier = hier2;
-      }
-      else
-         should_not_reach_here();
-   }
-   else
-      cs = cover_create_block(db, tree_ident(hier), parent, block);
 
    cover_ignore_from_pragmas(db, cs, unit);
 
@@ -385,6 +362,4 @@ cover_scope_t *vhdl_cover_block(tree_t block, cover_data_t *db,
          break;
       }
    }
-
-   return cs;
 }

@@ -12394,7 +12394,8 @@ vcode_unit_t lower_thunk_in_context(unit_registry_t *registry, tree_t t,
 }
 
 lower_unit_t *lower_instance(unit_registry_t *ur, lower_unit_t *parent,
-                             cover_data_t *cover, tree_t block)
+                             cover_data_t *cover, cover_scope_t *cs,
+                             tree_t block)
 {
    assert(tree_kind(block) == T_BLOCK);
 
@@ -12413,30 +12414,13 @@ lower_unit_t *lower_instance(unit_registry_t *ur, lower_unit_t *parent,
    tree_t unit = tree_ref(hier), primary = NULL;
    if (is_design_unit(unit))
       primary = primary_unit_of(unit);
-   else if (tree_kind(unit) == T_COMPONENT) {
+   else if (tree_kind(unit) == T_COMPONENT)
       primary = unit;
-
-      // Do not create coverage scopes for the implicit block from a
-      // component instantiation
-      cover = NULL;
-   }
 
    lower_unit_t *lu = lower_unit_new(ur, parent, vu, cover, block);
    unit_registry_put(ur, lu);
 
-   if (cover != NULL) {
-      if (parent != NULL && parent->cscope == NULL) {
-         // Collapse this coverage scope with the block for the
-         // component above
-         assert(tree_subkind(tree_decl(parent->container, 0)) == T_COMPONENT);
-         lu->cscope = vhdl_cover_block(parent->container, cover,
-                                       parent->parent->cscope);
-      }
-      else if (parent != NULL)
-         lu->cscope = vhdl_cover_block(block, cover, parent->cscope);
-      else
-         lu->cscope = vhdl_cover_block(block, cover, NULL);
-   }
+   lu->cscope = cs;
 
    if (lu->cscope != NULL) {
       vcode_reg_t ptr = emit_get_counters(lu->name);
