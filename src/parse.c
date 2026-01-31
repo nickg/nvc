@@ -792,10 +792,16 @@ static tree_t add_port(tree_t d, const char *name, type_t type,
    tree_set_loc(port, tree_loc(d));
    tree_set_type(port, type);
    tree_set_subkind(port, mode);
+
    if (def != NULL)
       tree_set_value(port, def);
+
    if (type_is_file(type))
       tree_set_class(port, C_FILE);
+   else if (mode != PORT_IN)
+      tree_set_class(port, C_VARIABLE);
+   else
+      tree_set_class(port, C_CONSTANT);
 
    tree_add_port(d, port);
    type_add_param(ftype, type);

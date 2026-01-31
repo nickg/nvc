@@ -2418,6 +2418,8 @@ START_TEST(test_resolution)
       { 33, "resolution function name PROC is not a function" },
       { 37, "parameter of resolution function must be an array of MY_UTYPE" },
       { 41, "result of resolution function must be MY_UTYPE but have UREC" },
+      { 48, "resolution function parameter must have class constant" },
+      { 54, "parameter of resolution function must be a one dimensional " },
       { -1, NULL }
    };
    expect_errors(expect);

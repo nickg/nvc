@@ -43,4 +43,14 @@ package resolution is
     type my_utype_vector_vector is array (natural range <>) of my_utype_vector(1 to 3);
     subtype my_type_vector_vector is ((resolved)) my_utype_vector_vector;
 
+    function resolved_signal(signal sources : in my_utype_vector) return my_utype;
+
+    subtype my_type6 is resolved_signal my_type;  -- Error (issue #1395)
+
+    type my_utype_matrix is array (natural range <>, natural range <>) of my_utype;
+
+    function resolved_matrix(sources : in my_utype_matrix) return my_utype;
+
+    subtype my_type7 is resolved_matrix my_type;  -- Error
+
 end package;

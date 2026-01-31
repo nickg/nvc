@@ -67,7 +67,7 @@ static bool sem_check_incomplete(tree_t t, type_t type);
 
 static bool sem_check_resolution(type_t type, tree_t res)
 {
-   // Resolution functions are described in LRM 93 section 2.4
+   // Resolution functions are described in LRM 08 section 4.6
 
    if (tree_kind(res) == T_ELEM_RESOLUTION) {
       // VHDL-2008 element resolution
@@ -105,7 +105,8 @@ static bool sem_check_resolution(type_t type, tree_t res)
       sem_error(res, "resolution function name %pI is not a function",
                 tree_ident(res));
 
-   // Must take a single parameter of array of base type
+   // Must take a single parameter of class constant that is a one
+   // dimenstional array array of the base type
 
    if (type_params(ftype) != 1)
       sem_error(res, "resolution function must have a single argument");
@@ -118,6 +119,29 @@ static bool sem_check_resolution(type_t type, tree_t res)
    if (!type_eq(type_elem(param), type))
       sem_error(res, "parameter of resolution function must be "
                 "an array of %pT but found %pT", type, type_elem(param));
+
+   tree_t p = tree_port(fdecl, 0);
+
+   if (dimension_of(param) != 1) {
+      diag_t *d = diag_new(DIAG_ERROR, tree_loc(res));
+      diag_printf(d, "parameter of resolution function must be a one "
+                  "dimensional array");
+      diag_hint(d, tree_loc(p), "parameter %pI declarared with type %pT",
+                tree_ident(p), param);
+      diag_lrm(d, STD_93, "2.4");
+      diag_emit(d);
+      return false;
+   }
+
+   if (tree_class(p) != C_CONSTANT) {
+      diag_t *d = diag_new(DIAG_ERROR, tree_loc(res));
+      diag_printf(d, "resolution function parameter must have class constant");
+      diag_hint(d, tree_loc(p), "parameter %pI declarared with class %s",
+                tree_ident(p), class_str(tree_class(p)));
+      diag_lrm(d, STD_93, "2.4");
+      diag_emit(d);
+      return false;
+   }
 
    // Return type must be the resolved type
 
