@@ -536,7 +536,7 @@ void psl_lower_directive(lower_unit_t *lu, object_t *obj)
    ident_t name = vcode_unit_name(lu->vunit);
 
    lu->cscope = cover_create_block(lu->cover, name, lu->parent->cscope,
-                                   wrapper, wrapper, NULL);
+                                   wrapper);
 
    vcode_type_t vcontext = vtype_context(prefix);
    emit_param(vcontext, VCODE_INVALID_STAMP, ident_new("context"));

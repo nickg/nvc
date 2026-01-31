@@ -215,7 +215,7 @@
     </scope>
     <scope name="MY_IGNORED_SIGNAL" line="79">
     </scope>
-    <scope name="SUB_MODULE_INST" block_name="SUB_MODULE-TEST" line="12">
+    <scope name="SUB_MODULE_INST" block_name="SUB_MODULE-TEST" line="85">
       <scope name="A" line="6">
         <toggle hier="WORK.COVER2.SUB_MODULE_INST.A.BIN_0_TO_1" data="1"/>
         <toggle hier="WORK.COVER2.SUB_MODULE_INST.A.BIN_1_TO_0" data="1"/>
@@ -233,7 +233,7 @@
         <toggle hier="WORK.COVER2.SUB_MODULE_INST.RECORD_IN_SUBMODULE.ELEM.BIN_1_TO_0" data="0"/>
       </scope>
     </scope>
-    <scope name="SUB_MODULE_INST_2" block_name="SUB_MODULE-TEST" line="12">
+    <scope name="SUB_MODULE_INST_2" block_name="SUB_MODULE-TEST" line="93">
       <scope name="A" line="6">
         <toggle hier="WORK.COVER2.SUB_MODULE_INST_2.A.BIN_0_TO_1" data="1"/>
         <toggle hier="WORK.COVER2.SUB_MODULE_INST_2.A.BIN_1_TO_0" data="0"/>
@@ -251,7 +251,7 @@
         <toggle hier="WORK.COVER2.SUB_MODULE_INST_2.RECORD_IN_SUBMODULE.ELEM.BIN_1_TO_0" data="0"/>
       </scope>
     </scope>
-    <scope name="SUB_MODULE_INST_3" block_name="SUB_MODULE-TEST" line="12">
+    <scope name="SUB_MODULE_INST_3" block_name="SUB_MODULE-TEST" line="101">
       <scope name="A" line="6">
         <toggle hier="WORK.COVER2.SUB_MODULE_INST_3.A.BIN_0_TO_1" data="0"/>
         <toggle hier="WORK.COVER2.SUB_MODULE_INST_3.A.BIN_1_TO_0" data="1"/>

@@ -1,5 +1,5 @@
-Warning: omitting hierarchy WORK.TOP.UUT from the coverage report as the correpsonding source file could not be found
-> sub.vhd:5
+Warning: omitting hierarchy WORK.TOP.UUT.S from the coverage report as the correpsonding source file could not be found
+> sub.vhd:2
       statement:     100.0 % (1/1)
       branch:        N.A.
       toggle:        N.A.

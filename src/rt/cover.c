@@ -367,8 +367,8 @@ void _nvc_create_cover_scope(jit_scalar_t *args)
    user_scope_t *us = jit_mspace_alloc(sizeof(user_scope_t));
    us->counters = NULL;
    us->name     = name;
-   us->scope    = cover_create_block(data, name, parent, inst->where,
-                                     inst->where, suffix);
+   us->scope    = cover_create_user_scope(data, parent, *tree_loc(inst->where),
+                                          suffix);
 
    *ptr = us;
 }
@@ -468,7 +468,7 @@ void _nvc_add_cover_item(jit_scalar_t *args)
       item->ranges[i].max = *ptr++;
    }
 
-   *index_ptr = item->tag;
+   *index_ptr = us->scope->items.count - 1;
 }
 
 DLLEXPORT
@@ -494,5 +494,5 @@ void _nvc_increment_cover_item(jit_scalar_t *args)
    if (us->counters == NULL)
       us->counters = cover_get_counters(data, us->name);
 
-   increment_counter(us->counters + us->scope->items.items[index]->tag);
+   cover_merge_one_item(us->scope->items.items[index], 1);
 }

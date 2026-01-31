@@ -67,13 +67,12 @@ static const struct {
 
 static inline unsigned get_next_tag(cover_block_t *b)
 {
-   assert(b->data == NULL);
-   return b->next_tag++;
-}
-
-static bool cover_is_branch(tree_t branch)
-{
-   return tree_kind(branch) == T_CHOICE || tree_kind(branch) == T_COND_STMT;
+   if (b == NULL)
+      return UINT_MAX;
+   else {
+      assert(b->data == NULL);
+      return b->next_tag++;
+   }
 }
 
 static cover_src_t get_cover_source(cover_item_kind_t kind, object_t *obj)
@@ -202,12 +201,6 @@ static cover_item_t *cover_add_item(cover_data_t *data, cover_scope_t *cs,
 ///////////////////////////////////////////////////////////////////////////////
 // Toggle coverage item emit
 ///////////////////////////////////////////////////////////////////////////////
-
-static bool cover_is_toggle_first(tree_t decl)
-{
-   const tree_kind_t kind = tree_kind(decl);
-   return kind == T_SIGNAL_DECL || kind == T_PORT_DECL;
-}
 
 static int cover_count_toggle_elems(cover_data_t *db, type_t type)
 {
@@ -910,125 +903,141 @@ bool cover_enabled(cover_data_t *data, cover_mask_t mask)
    return data != NULL && (data->mask & mask);
 }
 
-cover_scope_t *cover_create_block(cover_data_t *data, ident_t qual,
-                                  cover_scope_t *parent, tree_t inst,
-                                  tree_t unit, ident_t name)
+cover_scope_t *cover_create_block(cover_data_t *db, ident_t qual,
+                                  cover_scope_t *parent, tree_t inst)
 {
-   if (data == NULL)
+   if (db == NULL)
       return NULL;
 
-   cover_block_t *b = pool_calloc(data->pool, sizeof(cover_block_t));
+   cover_block_t *b = pool_calloc(db->pool, sizeof(cover_block_t));
    b->name = qual;
 
-   assert(hash_get(data->blocks, qual) == NULL);
-   hash_put(data->blocks, qual, b);
+   assert(hash_get(db->blocks, qual) == NULL);
+   hash_put(db->blocks, qual, b);
 
    if (parent == NULL) {
-      assert(data->root_scope == NULL);
+      assert(db->root_scope == NULL);
 
-      parent = data->root_scope = xcalloc(sizeof(cover_scope_t));
+      parent = db->root_scope = xcalloc(sizeof(cover_scope_t));
       parent->name = parent->hier = lib_name(lib_work());
    }
 
-   ident_t scope_name;
-   if (name != NULL)
-      scope_name = name;
-   else if (tree_kind(inst) == T_INERTIAL)   // Process without label
-      scope_name = ident_sprintf("_S%u", parent->stmt_label++);
-   else if (tree_has_ident(inst))
-      scope_name = tree_ident(inst);
-   else
-      scope_name = ident_sprintf("_S%u", parent->stmt_label++);
+   b->self = cover_create_scope(db, parent, inst);
+   b->self->block = b;
 
-   ident_t block_name = NULL;
-   if (is_design_unit(unit) || is_concurrent_block(unit))
-      block_name = ident_rfrom(tree_ident(unit), '.');
+   return b->self;
+}
 
-   cover_scope_t *s = pool_calloc(data->pool, sizeof(cover_scope_t));
-   s->name       = scope_name;
-   s->parent     = parent;
-   s->block      = b;
-   s->sig_pos    = parent->sig_pos;
-   s->loc        = *tree_loc(unit);
-   s->hier       = ident_prefix(parent->hier, scope_name, '.');
-   s->block_name = block_name;
-   s->emit       = cover_should_emit_scope(data, s);
+cover_scope_t *cover_create_user_scope(cover_data_t *db, cover_scope_t *parent,
+                                       loc_t loc, ident_t name)
+{
+   if (db == NULL)
+      return NULL;
 
-   switch (tree_kind(inst)) {
+   assert(parent != NULL);
+
+   cover_scope_t *s = pool_calloc(db->pool, sizeof(cover_scope_t));
+   s->name   = name;
+   s->parent = parent;
+   s->loc    = loc;
+   s->hier   = ident_prefix(parent->hier, name, '.');
+   s->emit   = cover_should_emit_scope(db, s);
+   s->kind   = CSCOPE_USER;
+
+   APUSH(parent->children, s);
+   return s;
+}
+
+static ident_t cover_block_name(tree_t t)
+{
+   switch (tree_kind(t)) {
+   case T_PACKAGE:
+   case T_PACK_INST:
+      return tree_ident(t);
    case T_BLOCK:
-      if (name == NULL)
-         s->kind = CSCOPE_INSTANCE;
-      else
-         s->kind = CSCOPE_USER;   // XXX
+      {
+         tree_t hier = tree_decl(t, 0);
+         assert(tree_kind(hier) == T_HIER);
+
+         tree_t ref = tree_ref(hier);
+         if (tree_kind(ref) == T_COMPONENT && tree_stmts(t) > 0)
+            return cover_block_name(tree_stmt(t, 0));
+         else
+            return ident_rfrom(tree_ident(ref), '.');
+      }
+   default:
+      return NULL;
+   }
+}
+
+cover_scope_t *cover_create_scope(cover_data_t *db, cover_scope_t *parent,
+                                  tree_t t)
+{
+   if (db == NULL)
+      return NULL;
+
+   assert(parent != NULL);
+   assert(db->root_scope != NULL);
+   assert(!is_design_unit(t));
+
+   cover_scope_t *s = pool_calloc(db->pool, sizeof(cover_scope_t));
+
+   switch (tree_kind(t)) {
+   case T_BLOCK:
+      s->name = tree_ident(t);
+      s->kind = CSCOPE_INSTANCE;
       break;
    case T_PROCESS:
+      s->name = tree_ident(t);
+      s->kind = CSCOPE_PROCESS;
+      break;
    case T_INERTIAL:
+      // Process without label
+      s->name = ident_sprintf("_S%u", parent->stmt_label++);
       s->kind = CSCOPE_PROCESS;
       break;
    case T_PROC_BODY:
    case T_FUNC_BODY:
+      s->name = tree_ident(t);
       s->kind = CSCOPE_SUBPROG;
       break;
    case T_PSL_DIRECT:
+      s->name = tree_ident(t);
       s->kind = CSCOPE_PROPERTY;
       break;
    case T_PACK_INST:
    case T_PACKAGE:
    case T_PACK_BODY:
+      s->name = tree_ident(t);
       s->kind = CSCOPE_PACKAGE;
       break;
-   default:
-      should_not_reach_here();
-   }
-
-   APUSH(parent->children, s);
-   b->self = s;
-
-   return b->self;
-}
-
-cover_scope_t *cover_create_scope(cover_data_t *data, cover_scope_t *parent,
-                                  tree_t t, ident_t name)
-{
-   if (data == NULL)
-      return NULL;
-
-   assert(parent != NULL);
-   assert(data->root_scope != NULL);
-   assert(!is_design_unit(t));
-
-   cover_scope_t *s = pool_calloc(data->pool, sizeof(cover_scope_t));
-
-   if (cover_is_branch(t)) {
+   case T_CHOICE:
+   case T_COND_STMT:
       if (tree_kind(t) == T_CHOICE && !tree_has_name(t))
-         name = ident_new("_B_OTHERS");
+         s->name = ident_new("_B_OTHERS");
       else
-         name = ident_sprintf("_B%u", parent->branch_label++);
-   }
-   // For toggle coverage, remember the position where its name in
-   // the hierarchy starts.
-   else if (cover_is_toggle_first(t)) {
-      assert(tree_has_ident(t));
-      name = tree_ident(t);
+         s->name = ident_sprintf("_B%u", parent->branch_label++);
+      break;
+   case T_SIGNAL_DECL:
+   case T_PORT_DECL:
+      // For toggle coverage, remember the position where its name in
+      // the hierarchy starts.
+      s->name = tree_ident(t);
       s->sig_pos = ident_len(parent->hier) + 1;
+      break;
+   default:
+      if (tree_has_ident(t))
+         s->name = tree_ident(t);
+      else  // Consider everything else as statement
+         s->name = ident_sprintf("_S%u", parent->stmt_label++);
    }
-   else if (tree_kind(t) == T_INERTIAL)   // Process without label
-      name = ident_sprintf("_S%u", parent->stmt_label++);
-   else if (name == NULL && tree_has_ident(t))
-      name = tree_ident(t);
-   // Consider everything else as statement
-   // Expressions do not get scope pushed, so if scope for e.g.
-   // T_FCALL is pushed it will be concurent function call -> Label as statement
-   else if (name == NULL)
-      name = ident_sprintf("_S%u", parent->stmt_label++);
 
-   s->name   = name;
-   s->parent = parent;
-   s->block  = parent->block;
-   s->loc    = *tree_loc(t);
-   s->hier   = ident_prefix(parent->hier, name, '.');
-   s->emit   = cover_should_emit_scope(data, s);
-   s->kind   = CSCOPE_NONE;
+   s->parent     = parent;
+   s->block      = parent->block;
+   s->block_name = cover_block_name(t);
+   s->loc        = *tree_loc(t);
+   s->hier       = ident_prefix(parent->hier, s->name, '.');
+   s->emit       = cover_should_emit_scope(db, s);
 
    if (s->sig_pos == 0)
       s->sig_pos = parent->sig_pos;

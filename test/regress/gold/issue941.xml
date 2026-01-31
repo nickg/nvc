@@ -10,7 +10,7 @@
         <statement hier="WORK.ISSUE941._P0._S0" data="1"/>
       </scope>
     </scope>
-    <scope name="U1" block_name="SUB-TEST" line="6">
+    <scope name="U1" block_name="SUB-TEST" line="29">
       <scope name="X" line="2">
       </scope>
       <scope name="Y" line="3">

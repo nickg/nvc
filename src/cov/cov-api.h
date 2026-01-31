@@ -259,11 +259,12 @@ void cover_export_xml(cover_data_t *data, FILE *f, const char *relative);
 // Interface to code generator
 //
 
-cover_scope_t *cover_create_block(cover_data_t *data, ident_t qual,
-                                  cover_scope_t *parent, tree_t inst,
-                                  tree_t unit, ident_t name);
-cover_scope_t *cover_create_scope(cover_data_t *data, cover_scope_t *parent,
-                                  tree_t t, ident_t name);
+cover_scope_t *cover_create_block(cover_data_t *db, ident_t qual,
+                                  cover_scope_t *parent, tree_t inst);
+cover_scope_t *cover_create_scope(cover_data_t *db, cover_scope_t *parent,
+                                  tree_t t);
+cover_scope_t *cover_create_user_scope(cover_data_t *db, cover_scope_t *parent,
+                                       loc_t loc, ident_t name);
 cover_item_t *cover_add_items_for(cover_data_t *data, cover_scope_t *cscope,
                                   object_t *obj, cover_item_kind_t kind);
 

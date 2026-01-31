@@ -14,10 +14,10 @@
         <statement hier="WORK.ISSUE1386.CHECK._S2" data="1"/>
       </scope>
     </scope>
-    <scope name="U" block_name="SUB-TEST" line="16">
+    <scope name="U" block_name="SUB-TEST" line="37">
       <scope name="O" line="13">
       </scope>
-      <scope name="IMPL" block_name="SUB_IMPL-TEST" line="5">
+      <scope name="IMPL" block_name="SUB_IMPL-TEST" line="18">
         <scope name="O" line="2">
         </scope>
         <scope name="ASSIGN" line="7">

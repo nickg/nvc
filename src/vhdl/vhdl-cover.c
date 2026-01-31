@@ -40,7 +40,7 @@ static cover_scope_t *get_cover_scope(cover_data_t *db, lazy_cscope_t *lcs)
       return lcs->cscope;
    else {
       cover_scope_t *parent = get_cover_scope(db, lcs->parent);
-      return (lcs->cscope = cover_create_scope(db, parent, lcs->tree, NULL));
+      return (lcs->cscope = cover_create_scope(db, parent, lcs->tree));
    }
 }
 
@@ -342,8 +342,7 @@ cover_scope_t *vhdl_cover_block(tree_t block, cover_data_t *db,
          assert(tree_kind(hier2) == T_HIER);
 
          unit = tree_ref(hier2);
-         cs = cover_create_block(db, tree_ident(hier2), parent,
-                                 block, unit, NULL);
+         cs = cover_create_block(db, tree_ident(hier2), parent, block);
          block = inst;
          nstmts = tree_stmts(block);
          hier = hier2;
@@ -352,7 +351,7 @@ cover_scope_t *vhdl_cover_block(tree_t block, cover_data_t *db,
          should_not_reach_here();
    }
    else
-      cs = cover_create_block(db, tree_ident(hier), parent, block, unit, NULL);
+      cs = cover_create_block(db, tree_ident(hier), parent, block);
 
    cover_ignore_from_pragmas(db, cs, unit);
 
