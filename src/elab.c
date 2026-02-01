@@ -108,13 +108,14 @@ typedef struct {
    cover_scope_t *cscope;
 } elab_instance_t;
 
-static void elab_block(tree_t t, const elab_ctx_t *ctx);
-static void elab_processes(tree_t t, const elab_ctx_t *ctx);
-static void elab_sub_blocks(tree_t t, const elab_ctx_t *ctx);
+static void elab_vhdl_block(tree_t t, const elab_ctx_t *ctx);
+static void elab_vhdl_processes(tree_t t, const elab_ctx_t *ctx);
+static void elab_vhdl_sub_blocks(tree_t t, const elab_ctx_t *ctx);
+static void elab_verilog_sub_blocks(vlog_node_t v, const elab_ctx_t *ctx);
+static void elab_verilog_processes(vlog_node_t v, const elab_ctx_t *ctx);
 static void elab_decls(tree_t t, const elab_ctx_t *ctx);
 static void elab_push_scope(tree_t t, elab_ctx_t *ctx);
 static void elab_pop_scope(elab_ctx_t *ctx);
-static void elab_verilog_stmts(vlog_node_t v, const elab_ctx_t *ctx);
 
 static generic_list_t *generic_override = NULL;
 
@@ -469,38 +470,6 @@ static mod_cache_t *elab_cached_module(object_t *obj, const elab_ctx_t *ctx)
 
    hash_put(ctx->modcache, obj, mc);
    return mc;
-}
-
-static elab_instance_t *elab_new_instance(vlog_node_t mod, vlog_node_t inst,
-                                          const elab_ctx_t *ctx)
-{
-   assert(is_top_level(mod));
-
-   mod_cache_t *mc = elab_cached_module(vlog_to_object(mod), ctx);
-   mc->count++;
-
-   elab_instance_t *ei = ghash_get(mc->instances, inst);
-   if (ei != NULL)
-      return ei;
-
-   ei = pool_calloc(ctx->pool, sizeof(elab_instance_t));
-   ei->body = vlog_new_instance(mod, inst, ctx->dotted);
-
-   ei->wrap = tree_new(T_VERILOG);
-   tree_set_loc(ei->wrap, vlog_loc(mod));
-   tree_set_ident(ei->wrap, vlog_ident(mod));
-   tree_set_vlog(ei->wrap, ei->body);
-
-   ei->block = tree_new(T_BLOCK);
-   tree_set_loc(ei->block, vlog_loc(inst));
-   tree_set_ident(ei->block, vlog_ident(inst));
-
-   vlog_trans(ei->body, ei->block);
-
-   ghash_put(mc->instances, inst, ei);
-   mc->unique++;
-
-   return ei;
 }
 
 static bool elab_synth_binding_cb(lib_t lib, void *__ctx)
@@ -1574,9 +1543,19 @@ static void elab_lower(tree_t b, elab_ctx_t *ctx)
       diag_remove_hint_fn(elab_hint_fn);
 }
 
-static void elab_verilog_module(tree_t bind, ident_t label,
-                                const elab_instance_t *ei,
-                                const elab_ctx_t *ctx)
+static bool elab_can_clone_instance(elab_instance_t *ei, const elab_ctx_t *ctx)
+{
+   if (ei == NULL)
+      return false;
+   else if (ei->cscope == NULL && ctx->cscope == NULL)
+      return true;
+
+   return cover_compatible_spec(ctx->cover, ei->cscope, ctx->cscope);
+}
+
+static elab_instance_t *elab_verilog_module(tree_t comp, ident_t label,
+                                            vlog_node_t mod, vlog_node_t list,
+                                            const elab_ctx_t *ctx)
 {
    ident_t ndotted = ident_prefix(ctx->dotted, label, '.');
 
@@ -1592,21 +1571,52 @@ static void elab_verilog_module(tree_t bind, ident_t label,
    tree_add_stmt(ctx->out, b);
    new_ctx.out = b;
 
+   mod_cache_t *mc = elab_cached_module(vlog_to_object(mod), &new_ctx);
+   mc->count++;
+
+   elab_instance_t *ei = ghash_get(mc->instances, list);
+   if (elab_can_clone_instance(ei, &new_ctx))
+      new_ctx.cloned = tree_ident(ei->block);
+   else {
+      ei = pool_calloc(ctx->pool, sizeof(elab_instance_t));
+      ei->body = vlog_new_instance(mod, list, ctx->dotted);
+
+      ei->wrap = tree_new(T_VERILOG);
+      tree_set_loc(ei->wrap, vlog_loc(mod));
+      tree_set_ident(ei->wrap, vlog_ident(mod));
+      tree_set_vlog(ei->wrap, ei->body);
+
+      ei->block = tree_new(T_BLOCK);
+      tree_set_loc(ei->block, vlog_loc(list));
+      tree_set_ident(ei->block, ndotted);
+
+      vlog_trans(ei->body, ei->block);
+
+      ghash_put(mc->instances, list, ei);
+      mc->unique++;
+   }
+
    elab_push_scope(ei->wrap, &new_ctx);
 
-   if (bind != NULL)
-      elab_ports(ei->block, bind, &new_ctx);
+   if (comp != NULL) {
+      tree_t bind = elab_mixed_binding(comp, ei);
+      if (bind != NULL)
+         elab_ports(ei->block, bind, &new_ctx);
+   }
 
-   if (elab_new_errors(&new_ctx) == 0)
+   if (elab_new_errors(&new_ctx) == 0) {
       elab_decls(ei->block, &new_ctx);
+      elab_verilog_processes(ei->body, &new_ctx);
+   }
 
    if (elab_new_errors(&new_ctx) == 0)
       elab_lower(b, &new_ctx);
 
    if (elab_new_errors(&new_ctx) == 0)
-      elab_verilog_stmts(ei->body, &new_ctx);
+      elab_verilog_sub_blocks(ei->body, &new_ctx);
 
    elab_pop_scope(&new_ctx);
+   return ei;
 }
 
 static void elab_verilog_ports(vlog_node_t inst, elab_instance_t *ei,
@@ -1666,8 +1676,8 @@ static void elab_verilog_ports(vlog_node_t inst, elab_instance_t *ei,
          continue;
 
       const loc_t *loc = vlog_loc(conn);
-      ident_t name = ident_uniq("#assign#%s.%s", istr(block_name),
-                                istr(port_name));
+      ident_t name = ident_sprintf("#assign#%s.%s", istr(block_name),
+                                   istr(port_name));
 
       vlog_node_t ref = vlog_new(V_HIER_REF);
       vlog_set_ident(ref, port_name);
@@ -1767,14 +1777,13 @@ static void elab_verilog_instance_list(vlog_node_t v, const elab_ctx_t *ctx)
       return;
    }
 
-   elab_instance_t *ei = elab_new_instance(mod, v, ctx);
-
    const int nstmts = vlog_stmts(v);
    for (int i = 0; i < nstmts; i++) {
       vlog_node_t inst = vlog_stmt(v, i);
       assert(vlog_kind(inst) == V_MOD_INST);
 
-      elab_verilog_module(NULL, vlog_ident(inst), ei, ctx);
+      ident_t label = vlog_ident(inst);
+      elab_instance_t *ei = elab_verilog_module(NULL, label, mod, v, ctx);
       elab_verilog_ports(inst, ei, ctx);
    }
 }
@@ -1806,8 +1815,12 @@ static void elab_verilog_block(vlog_node_t v, const elab_ctx_t *ctx)
 
    vlog_trans(v, b);
 
+   elab_verilog_processes(v, &new_ctx);
+
    elab_lower(b, &new_ctx);
-   elab_verilog_stmts(v, &new_ctx);
+
+   if (elab_new_errors(&new_ctx) == 0)
+      elab_verilog_sub_blocks(v, &new_ctx);
 
    elab_pop_scope(&new_ctx);
 }
@@ -1873,7 +1886,41 @@ static void elab_verilog_for_generate(vlog_node_t v, const elab_ctx_t *ctx)
    mir_unit_free(step);
 }
 
-static void elab_verilog_stmts(vlog_node_t v, const elab_ctx_t *ctx)
+static void elab_verilog_processes(vlog_node_t v, const elab_ctx_t *ctx)
+{
+   const int nstmts = vlog_stmts(v);
+   for (int i = 0; i < nstmts; i++) {
+      vlog_node_t s = vlog_stmt(v, i);
+
+      switch (vlog_kind(s)) {
+      case V_INITIAL:
+      case V_ALWAYS:
+      case V_ASSIGN:
+      case V_UDP_TABLE:
+      case V_GATE_INST:
+         {
+            tree_t w = tree_new(T_VERILOG);
+            tree_set_ident(w, vlog_ident(s));
+            tree_set_loc(w, vlog_loc(s));
+            tree_set_vlog(w, s);
+
+            tree_add_stmt(ctx->out, w);
+         }
+         break;
+      case V_INST_LIST:
+      case V_BLOCK:
+      case V_IF_GENERATE:
+      case V_FOR_GENERATE:
+      case V_SPECIFY:
+         break;
+      default:
+         fatal_at(vlog_loc(s), "sorry, this Verilog statement is not "
+                  "currently supported");
+      }
+   }
+}
+
+static void elab_verilog_sub_blocks(vlog_node_t v, const elab_ctx_t *ctx)
 {
    const int nstmts = vlog_stmts(v);
    for (int i = 0; i < nstmts; i++) {
@@ -1883,30 +1930,6 @@ static void elab_verilog_stmts(vlog_node_t v, const elab_ctx_t *ctx)
       switch (kind) {
       case V_INST_LIST:
          elab_verilog_instance_list(s, ctx);
-         break;
-      case V_INITIAL:
-      case V_ALWAYS:
-      case V_ASSIGN:
-      case V_UDP_TABLE:
-      case V_GATE_INST:
-         {
-            ident_t name = vlog_ident(s);
-            ident_t sym = ident_prefix(ctx->dotted, name, '.');
-
-            tree_t w = tree_new(T_VERILOG);
-            tree_set_ident(w, name);
-            tree_set_loc(w, vlog_loc(s));
-            tree_set_vlog(w, s);
-
-            tree_add_stmt(ctx->out, w);
-
-            if (kind == V_UDP_TABLE)
-               mir_defer(ctx->mir, sym, ctx->dotted, MIR_UNIT_PROCESS,
-                         vlog_lower_udp, vlog_to_object(v));
-            else
-               mir_defer(ctx->mir, sym, ctx->dotted, MIR_UNIT_PROCESS,
-                         vlog_lower_deferred, vlog_to_object(s));
-         }
          break;
       case V_BLOCK:
          elab_verilog_block(s, ctx);
@@ -1923,8 +1946,7 @@ static void elab_verilog_stmts(vlog_node_t v, const elab_ctx_t *ctx)
                            "supported and will be ignored"));
          break;
       default:
-         fatal_at(vlog_loc(s), "sorry, this Verilog statement is not "
-                  "currently supported");
+         break;
       }
    }
 }
@@ -2042,13 +2064,8 @@ static void elab_mixed_instance(tree_t inst, tree_t comp, vlog_node_t mod,
       elab_lower(b, &new_ctx);
 
    vlog_node_t list = elab_mixed_generics(comp, mod, &new_ctx);
-   if (list != NULL) {
-      elab_instance_t *ei = elab_new_instance(mod, list, &new_ctx);
-
-      tree_t bind = elab_mixed_binding(comp, ei);
-      if (bind != NULL && elab_new_errors(&new_ctx) == 0)
-         elab_verilog_module(bind, vlog_ident2(mod), ei, &new_ctx);
-   }
+   if (list != NULL)
+      elab_verilog_module(comp, vlog_ident2(mod), mod, list, &new_ctx);
 
    elab_pop_scope(&new_ctx);
 }
@@ -2139,16 +2156,6 @@ static void elab_cover_block(elab_ctx_t *ctx, tree_t unit)
                                     block, unit);
 }
 
-static bool elab_can_clone_instance(elab_instance_t *ei, const elab_ctx_t *ctx)
-{
-   if (ei == NULL)
-      return false;
-   else if (ei->cscope == NULL && ctx->cscope == NULL)
-      return true;
-
-   return cover_compatible_spec(ctx->cover, ei->cscope, ctx->cscope);
-}
-
 static void elab_architecture(tree_t inst, tree_t arch, const elab_ctx_t *ctx)
 {
    ident_t label = tree_ident(inst);
@@ -2195,12 +2202,12 @@ static void elab_architecture(tree_t inst, tree_t arch, const elab_ctx_t *ctx)
    elab_generics(ei->block, inst, &new_ctx);
    elab_ports(ei->block, inst, &new_ctx);
    elab_decls(ei->block, &new_ctx);
-   elab_processes(ei->block, &new_ctx);
+   elab_vhdl_processes(ei->block, &new_ctx);
 
    if (error_count() == 0) {
       vhdl_cover_block(b, new_ctx.cover, new_ctx.cscope);
       elab_lower(b, &new_ctx);
-      elab_sub_blocks(ei->block, &new_ctx);
+      elab_vhdl_sub_blocks(ei->block, &new_ctx);
    }
 
    elab_pop_scope(&new_ctx);
@@ -2259,12 +2266,12 @@ static void elab_configuration(tree_t inst, tree_t unit, const elab_ctx_t *ctx)
    elab_generics(ei->block, inst, &new_ctx);
    elab_ports(ei->block, inst, &new_ctx);
    elab_decls(ei->block, &new_ctx);
-   elab_processes(ei->block, &new_ctx);
+   elab_vhdl_processes(ei->block, &new_ctx);
 
    if (error_count() == 0) {
       vhdl_cover_block(b, new_ctx.cover, new_ctx.cscope);
       elab_lower(b, &new_ctx);
-      elab_sub_blocks(ei->block, &new_ctx);
+      elab_vhdl_sub_blocks(ei->block, &new_ctx);
    }
 
    elab_pop_scope(&new_ctx);
@@ -2333,7 +2340,7 @@ static void elab_component(tree_t inst, tree_t comp, const elab_ctx_t *ctx)
 
    if (elab_new_errors(&new_ctx) == 0) {
       elab_lower(b, &new_ctx);
-      elab_sub_blocks(ei->block, &new_ctx);
+      elab_vhdl_sub_blocks(ei->block, &new_ctx);
    }
 
    elab_pop_scope(&new_ctx);
@@ -2523,13 +2530,13 @@ static void elab_for_generate(tree_t t, const elab_ctx_t *ctx)
 
       if (elab_new_errors(&new_ctx) == 0) {
          elab_decls(t, &new_ctx);
-         elab_processes(t, &new_ctx);
+         elab_vhdl_processes(t, &new_ctx);
       }
 
       if (elab_new_errors(&new_ctx) == 0) {
          vhdl_cover_block(b, new_ctx.cover, new_ctx.cscope);
          elab_lower(b, &new_ctx);
-         elab_sub_blocks(t, &new_ctx);
+         elab_vhdl_sub_blocks(t, &new_ctx);
       }
 
       elab_pop_scope(&new_ctx);
@@ -2575,12 +2582,12 @@ static void elab_if_generate(tree_t t, const elab_ctx_t *ctx)
          elab_cover_block(&new_ctx, t);
          elab_push_scope(t, &new_ctx);
          elab_decls(cond, &new_ctx);
-         elab_processes(cond, &new_ctx);
+         elab_vhdl_processes(cond, &new_ctx);
 
          if (error_count() == 0) {
             vhdl_cover_block(b, new_ctx.cover, new_ctx.cscope);
             elab_lower(b, &new_ctx);
-            elab_sub_blocks(cond, &new_ctx);
+            elab_vhdl_sub_blocks(cond, &new_ctx);
          }
 
          elab_pop_scope(&new_ctx);
@@ -2615,18 +2622,18 @@ static void elab_case_generate(tree_t t, const elab_ctx_t *ctx)
    elab_cover_block(&new_ctx, t);
    elab_push_scope(t, &new_ctx);
    elab_decls(chosen, &new_ctx);
-   elab_processes(chosen, &new_ctx);
+   elab_vhdl_processes(chosen, &new_ctx);
 
    if (error_count() == 0) {
       vhdl_cover_block(b, new_ctx.cover, new_ctx.cscope);
       elab_lower(b, &new_ctx);
-      elab_sub_blocks(chosen, &new_ctx);
+      elab_vhdl_sub_blocks(chosen, &new_ctx);
    }
 
    elab_pop_scope(&new_ctx);
 }
 
-static void elab_processes(tree_t t, const elab_ctx_t *ctx)
+static void elab_vhdl_processes(tree_t t, const elab_ctx_t *ctx)
 {
    const int nstmts = tree_stmts(t);
    for (int i = 0; i < nstmts; i++) {
@@ -2643,7 +2650,7 @@ static void elab_processes(tree_t t, const elab_ctx_t *ctx)
    }
 }
 
-static void elab_sub_blocks(tree_t t, const elab_ctx_t *ctx)
+static void elab_vhdl_sub_blocks(tree_t t, const elab_ctx_t *ctx)
 {
    const int nstmts = tree_stmts(t);
    for (int i = 0; i < nstmts; i++) {
@@ -2654,7 +2661,7 @@ static void elab_sub_blocks(tree_t t, const elab_ctx_t *ctx)
          elab_instance(s, ctx);
          break;
       case T_BLOCK:
-         elab_block(s, ctx);
+         elab_vhdl_block(s, ctx);
          break;
       case T_FOR_GENERATE:
          elab_for_generate(s, ctx);
@@ -2674,7 +2681,7 @@ static void elab_sub_blocks(tree_t t, const elab_ctx_t *ctx)
    }
 }
 
-static void elab_block(tree_t t, const elab_ctx_t *ctx)
+static void elab_vhdl_block(tree_t t, const elab_ctx_t *ctx)
 {
    ident_t id = tree_ident(t);
 
@@ -2697,12 +2704,12 @@ static void elab_block(tree_t t, const elab_ctx_t *ctx)
    elab_generics(t, t, &new_ctx);
    elab_ports(t, t, &new_ctx);
    elab_decls(t, &new_ctx);
-   elab_processes(t, &new_ctx);
+   elab_vhdl_processes(t, &new_ctx);
 
    if (elab_new_errors(&new_ctx) == 0) {
       vhdl_cover_block(b, new_ctx.cover, new_ctx.cscope);
       elab_lower(b, &new_ctx);
-      elab_sub_blocks(t, &new_ctx);
+      elab_vhdl_sub_blocks(t, &new_ctx);
    }
 
    elab_pop_scope(&new_ctx);
@@ -2848,8 +2855,7 @@ static void elab_verilog_root_cb(void *arg)
    vlog_set_ident(list, label);
    vlog_add_stmt(list, stmt);
 
-   elab_instance_t *ei = elab_new_instance(vlog, list, ctx);
-   elab_verilog_module(NULL, label, ei, ctx);
+   elab_verilog_module(NULL, label, vlog, list, ctx);
 }
 
 static int elab_compar_modcache(const void *a, const void *b)

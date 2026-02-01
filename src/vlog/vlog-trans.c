@@ -309,16 +309,17 @@ void vlog_trans(vlog_node_t mod, tree_t out)
       }
    }
 
-   if (vlog_kind(mod) != V_BLOCK) {
-      const int nports = vlog_ports(mod);
+   if (vlog_kind(mod) == V_BLOCK)
+      return;
 
-      for (int i = 0; i < nports; i++) {
-         vlog_node_t ref = vlog_port(mod, i);
-         assert(vlog_kind(ref) == V_REF);
+   const int nports = vlog_ports(mod);
 
-         vlog_node_t port = vlog_ref(ref);
-         assert(vlog_kind(port) == V_PORT_DECL);
-         trans_port_decl(&gen, port);
-      }
+   for (int i = 0; i < nports; i++) {
+      vlog_node_t ref = vlog_port(mod, i);
+      assert(vlog_kind(ref) == V_REF);
+
+      vlog_node_t port = vlog_ref(ref);
+      assert(vlog_kind(port) == V_PORT_DECL);
+      trans_port_decl(&gen, port);
    }
 }

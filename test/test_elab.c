@@ -2080,7 +2080,7 @@ START_TEST(test_clone1)
       tree_t h = tree_decl(u, 0);
       fail_unless(tree_kind(h) == T_HIER);
       fail_unless(tree_ident(h) == id);
-      // fail_unless(tree_ident2(h) == dotted0);  TODO
+      fail_unless(tree_ident2(h) == dotted0);
 
       for (int j = 1; j < ndecls; j++)
          ck_assert_ptr_eq(tree_decl(u0, j), tree_decl(u, j));
@@ -2089,6 +2089,16 @@ START_TEST(test_clone1)
       //for (int j = 0; j < nstmts; j++)
       //   ck_assert_ptr_eq(tree_stmt(u0, j), tree_stmt(u, j));
    }
+
+   unit_registry_t *ur = get_registry();
+   mir_context_t *mc = get_mir();
+
+   ident_t psym1 = ident_new("WORK.TOP.G(1).U.sub.assign#4#9");
+   ident_t psym2 = ident_new("WORK.TOP.G(2).U.sub.assign#4#9");
+   (void)unit_registry_get(ur, psym1);
+   (void)unit_registry_get(ur, psym2);
+   ck_assert_ptr_nonnull(mir_get_unit(mc, psym1));
+   ck_assert_ptr_null(mir_get_unit(mc, psym2));
 
    fail_if_errors();
 }

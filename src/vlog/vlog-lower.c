@@ -2669,7 +2669,7 @@ void vlog_lower_block(mir_context_t *mc, ident_t parent, tree_t b)
    assert(tree_kind(hier) == T_HIER);
 
    mir_shape_t *shape = mir_get_shape(mc, parent);
-   ident_t qual = tree_ident2(hier);
+   ident_t qual = tree_ident(hier);
    mir_unit_t *mu = mir_unit_new(mc, qual, tree_to_object(b),
                                  MIR_UNIT_INSTANCE, shape);
 
@@ -2885,6 +2885,38 @@ void vlog_lower_block(mir_context_t *mc, ident_t parent, tree_t b)
 
    mir_optimise(mu, MIR_PASS_O1);
    mir_put_unit(mc, mu);
+
+   ident_t sym_prefix = tree_ident2(hier);
+   const int nstmts = tree_stmts(b);
+   for (int i = 0; i < nstmts; i++) {
+      tree_t wrap = tree_stmt(b, i);
+      if (tree_kind(wrap) != T_VERILOG)
+         continue;
+
+      vlog_node_t s = tree_vlog(wrap);
+
+      switch (vlog_kind(s)) {
+      case V_INITIAL:
+      case V_ALWAYS:
+      case V_ASSIGN:
+      case V_GATE_INST:
+         {
+            ident_t sym = ident_prefix(sym_prefix, vlog_ident(s), '.');
+            mir_defer(mc, sym, sym_prefix, MIR_UNIT_PROCESS,
+                      vlog_lower_deferred, vlog_to_object(s));
+         }
+         break;
+      case V_UDP_TABLE:
+         {
+            ident_t sym = ident_prefix(sym_prefix, vlog_ident(s), '.');
+            mir_defer(mc, sym, sym_prefix, MIR_UNIT_PROCESS,
+                      vlog_lower_udp, vlog_to_object(body));
+         }
+         break;
+      default:
+         break;
+      }
+   }
 }
 
 mir_unit_t *vlog_lower_thunk(mir_context_t *mc, ident_t parent, vlog_node_t v)
