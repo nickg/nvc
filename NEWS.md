@@ -1,4 +1,5 @@
 ## Unreleased changes
+- Several other minor bugs were resolved (#1401).
 
 ## Version 1.19.0 - 2026-01-31
 - PSL `next_e` and `next_e!` operators and the `nondet` built-in

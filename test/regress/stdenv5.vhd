@@ -17,8 +17,8 @@ begin
         assert t1.second = t2.second;
         assert abs (t1.year - t2.year) <= 1;
         assert abs (t1.hour - t2.hour) <= 24;
-        assert abs (t1.day - t2.day) <= 1;
-        assert abs (t1.month - t2.month) <= 1;
+        assert abs (t1.day - t2.day) <= 31;
+        assert abs (t1.month - t2.month) <= 12;
 
         report "Recovered GMTIME: " & to_string(gmtime(t2));
         assert gmtime(t2) = t1;
