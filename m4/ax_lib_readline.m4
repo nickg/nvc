@@ -5,6 +5,7 @@
 # SYNOPSIS
 #
 #   AX_LIB_READLINE
+#   AX_LIB_READLINE([MIN-VERSION])
 #
 # DESCRIPTION
 #
@@ -14,6 +15,10 @@
 #   necessary include files and sets `HAVE_READLINE_H' or
 #   `HAVE_READLINE_READLINE_H' and `HAVE_READLINE_HISTORY_H' or
 #   'HAVE_HISTORY_H' if the corresponding include files exists.
+#
+#   If given, MIN-VERSION specifies the minimum acceptable version; if that
+#   version is not found, HAVE_LIBREADLINE and HAVE_READLINE_HISTORY will
+#   not be defined.
 #
 #   The libraries that may be readline compatible are `libedit',
 #   `libeditline' and `libreadline'. Sometimes we need to link a termcap
@@ -31,7 +36,6 @@
 #     #  else /* !defined(HAVE_READLINE_H) */
 #     extern char *readline ();
 #     #  endif /* !defined(HAVE_READLINE_H) */
-#     char *cmdline = NULL;
 #     #else /* !defined(HAVE_READLINE_READLINE_H) */
 #       /* no readline */
 #     #endif /* HAVE_LIBREADLINE */
@@ -51,6 +55,7 @@
 #
 # LICENSE
 #
+#   Copyright (c) 2025 Reuben Thomas <rrt@sc3d.org>
 #   Copyright (c) 2008 Ville Laurikari <vl@iki.fi>
 #
 #   Copying and distribution of this file, with or without modification, are
@@ -58,7 +63,7 @@
 #   and this notice are preserved. This file is offered as-is, without any
 #   warranty.
 
-#serial 8
+#serial 10
 
 AU_ALIAS([VL_LIB_READLINE], [AX_LIB_READLINE])
 AC_DEFUN([AX_LIB_READLINE], [
@@ -90,18 +95,54 @@ AC_DEFUN([AX_LIB_READLINE], [
 
   if test "$ax_cv_lib_readline" != "no"; then
     LIBS="$LIBS $ax_cv_lib_readline"
-    AC_DEFINE(HAVE_LIBREADLINE, 1,
-              [Define if you have a readline compatible library])
     AC_CHECK_HEADERS(readline.h readline/readline.h)
-    AC_CACHE_CHECK([whether readline supports history],
-                   ax_cv_lib_readline_history, [
-      ax_cv_lib_readline_history="no"
-      AC_LINK_IFELSE([AC_LANG_CALL([], [add_history])], [ax_cv_lib_readline_history="yes"])
-    ])
-    if test "$ax_cv_lib_readline_history" = "yes"; then
-      AC_DEFINE(HAVE_READLINE_HISTORY, 1,
-                [Define if your readline library has \`add_history'])
-      AC_CHECK_HEADERS(history.h readline/history.h)
+
+    m4_if([$1], [],
+      [ dnl No version given, so assume it is OK
+        ax_cv_lib_readline_version_ok=yes
+      ],
+      [ dnl Check against given version
+        AC_CACHE_CHECK([check readline is at least version $1],
+          ax_cv_lib_readline_version_ok, [
+            AC_RUN_IFELSE([
+              AC_LANG_SOURCE([[
+#include <stdio.h>
+
+#if defined(HAVE_READLINE_READLINE_H)
+#  include <readline/readline.h>
+#elif defined(HAVE_READLINE_H)
+#  include <readline.h>
+#endif
+
+int main(void) {
+    float min_version = $1;
+    int min_version_major = (int)min_version;
+    int min_version_minor = (int)(min_version * 100.0);
+    int min_version_hex = min_version_minor + (min_version_major * 256);
+    return !(RL_READLINE_VERSION >= min_version_hex);
+}
+              ]])
+            ], [ax_cv_lib_readline_version_ok=yes], [ax_cv_lib_readline_version_ok=no], [ax_cv_lib_readline_version_ok=no])
+        ])
+      ]
+    )
+
+    if test "$ax_cv_lib_readline_version_ok" = "yes"; then
+      AC_DEFINE(HAVE_LIBREADLINE, 1,
+              [Define if you have a readline compatible library])
+
+      AC_CACHE_CHECK([whether readline supports history],
+                     ax_cv_lib_readline_history, [
+        ax_cv_lib_readline_history="no"
+        AC_LINK_IFELSE([AC_LANG_CALL([], [add_history])], [ax_cv_lib_readline_history="yes"])
+      ])
+      if test "$ax_cv_lib_readline_history" = "yes"; then
+        AC_DEFINE(HAVE_READLINE_HISTORY, 1,
+                  [Define if your readline library has \`add_history'])
+        AC_CHECK_HEADERS(history.h readline/history.h)
+      fi
+    else
+      LIBS="$ORIG_LIBS"
     fi
   fi
 ])dnl
