@@ -1647,6 +1647,46 @@ static vlog_node_t p_multiple_concatenation(vlog_node_t head)
    return v;
 }
 
+static vlog_node_t p_package_identifier(void)
+{
+   // identifier
+
+   BEGIN("package identifier");
+
+   ident_t id = p_identifier();
+
+   lib_t work = lib_work();
+   ident_t qual = ident_prefix(lib_name(work), id, '.');
+   object_t *obj = lib_get_generic(lib_work(), qual, NULL);
+   vlog_node_t v = vlog_from_object(obj);
+   if (v == NULL || vlog_kind(v) != V_PACKAGE) {
+      parse_error(&state.last_loc, "no package named '%pi' in working "
+                  "library", id);
+      return NULL;
+   }
+
+   return v;
+}
+
+static vlog_node_t p_package_scope(void)
+{
+   // package_identifier :: | $unit ::
+
+   BEGIN("package scope");
+
+   switch (peek()) {
+   case tID:
+      {
+         vlog_node_t v = p_package_identifier();
+         consume(tSCOPE);
+         return v;
+      }
+   default:
+      one_of(tID);
+      return NULL;
+   }
+}
+
 static vlog_node_t p_primary(void)
 {
    // primary_literal | empty_queue
@@ -1666,6 +1706,8 @@ static vlog_node_t p_primary(void)
       case tLPAREN:
       case tATTRBEGIN:
          return p_subroutine_call(V_USER_FCALL);
+      case tSCOPE:
+         p_package_scope();
       default:
          return p_select(p_identifier());
       }
@@ -3539,17 +3581,20 @@ static vlog_node_t p_package_import_item(void)
 
    BEGIN("package import item");
 
+   vlog_node_t pack = p_package_identifier();
+
    vlog_node_t v = vlog_new(V_IMPORT_DECL);
-   vlog_set_ident(v, p_identifier());
+   vlog_set_ref(v, pack);
 
    consume(tSCOPE);
 
    if (peek() == tID)
-      vlog_set_ident2(v, p_identifier());
+      vlog_set_ident(v, p_identifier());
    else
       one_of(tTIMES, tID);
 
    vlog_set_loc(v, CURRENT_LOC);
+   vlog_symtab_import(symtab, v);
    return v;
 }
 
@@ -6457,7 +6502,7 @@ static void p_parameter_port_list(vlog_node_t mod)
    if (peek() != tRPAREN) {
       do {
          if (peek() == tID)
-            p_list_of_param_assignments(mod, NULL, V_PARAM_DECL);
+            p_list_of_param_assignments(mod, implicit_type(), V_PARAM_DECL);
          else
             p_parameter_port_declaration(mod);
       } while(optional(tCOMMA));
@@ -7196,6 +7241,8 @@ static vlog_node_t p_package_declaration(void)
 
    consume(tPACKAGE);
 
+   param_kind = V_LOCALPARAM;
+
    if (scan(tSTATIC, tAUTOMATIC))
       p_lifetime();
 
@@ -7210,10 +7257,14 @@ static vlog_node_t p_package_declaration(void)
 
    consume(tSEMI);
 
+   vlog_symtab_push(symtab, v);
+
    while (not_at_token(tENDPACKAGE)) {
       optional_attributes();
       p_package_item(v);
    }
+
+   vlog_symtab_pop(symtab);
 
    consume(tENDPACKAGE);
 
@@ -7333,6 +7384,7 @@ static vlog_node_t p_description(void)
       return p_program_declaration();
    case tCLASS:
    case tTYPEDEF:
+   case tIMPORT:
       {
          vlog_node_t v = vlog_new(V_NAMESPACE);
          p_package_item(v);
@@ -7340,7 +7392,8 @@ static vlog_node_t p_description(void)
          return v;
       }
    default:
-      expect(tPRIMITIVE, tMODULE, tPACKAGE, tPROGRAM, tCLASS, tTYPEDEF);
+      expect(tPRIMITIVE, tMODULE, tPACKAGE, tPROGRAM, tCLASS, tTYPEDEF,
+             tIMPORT);
       return NULL;
    }
 }

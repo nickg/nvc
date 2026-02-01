@@ -36,6 +36,7 @@ static vlog_node_t do_parse_only(vlog_kind_t kind)
    vlog_node_t v = vlog_parse();
    ck_assert_ptr_nonnull(v);
    ck_assert_vlog_kind_eq(v, kind);
+   lib_put_vlog(lib_work(), v);
    return v;
 }
 
@@ -1306,11 +1307,13 @@ START_TEST(test_package1)
 
    const error_t expect[] = {
       {  3, "'different_name' does not match package name 'dummy_pkg'" },
+      { 15, "no visible declaration for 'b'" },
       { -1, NULL }
    };
    expect_errors(expect);
 
-   do_parse_only(V_PACKAGE);
+   for (int i = 0; i < 4; i++)
+      do_parse_only(V_PACKAGE);
 
    fail_unless(vlog_parse() == NULL);
 

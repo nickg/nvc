@@ -31,6 +31,7 @@ void vlog_symtab_set_implicit(vlog_symtab_t *st, vlog_net_kind_t kind);
 void vlog_symtab_lookup(vlog_symtab_t *st, vlog_node_t v);
 void vlog_symtab_put(vlog_symtab_t *st, vlog_node_t v);
 void vlog_symtab_poison(vlog_symtab_t *st, ident_t name);
+void vlog_symtab_import(vlog_symtab_t *st, vlog_node_t v);
 
 void vlog_symtab_suppress(vlog_symtab_t *st);
 

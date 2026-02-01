@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2025  Nick Gasson
+//  Copyright (C) 2025-2026  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -275,7 +275,7 @@ void vlog_symtab_put(vlog_symtab_t *st, vlog_node_t v)
 
    assert(!loc_invalid_p(vlog_loc(v)));
 
-   if (sym->node == POISON_NODE)
+   if (sym->node == POISON_NODE || sym->node == v)
       return;
 
    if (sym->node != NULL) {
@@ -358,4 +358,26 @@ vlog_node_t vlog_symtab_subr(vlog_symtab_t *st)
    }
 
    return NULL;
+}
+
+void vlog_symtab_import(vlog_symtab_t *st, vlog_node_t v)
+{
+   assert(vlog_kind(v) == V_IMPORT_DECL);
+
+   if (!vlog_has_ref(v))
+      return;
+
+   ident_t match = NULL;
+   if (vlog_has_ident(v))
+      match = vlog_ident(v);
+
+   vlog_node_t pack = vlog_ref(v);
+   assert(vlog_kind(pack) == V_PACKAGE);
+
+   const int ndecls = vlog_decls(pack);
+   for (int i = 0; i < ndecls; i++) {
+      vlog_node_t d = vlog_decl(pack, i);
+      if (match == NULL || vlog_ident(d) == match)
+         vlog_symtab_put(st, d);
+   }
 }

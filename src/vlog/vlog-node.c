@@ -302,7 +302,7 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
    (I_PARAMS),
 
    // V_IMPORT_DECL
-   (I_IDENT | I_IDENT2),
+   (I_REF | I_IDENT),
 
    // V_NAMESPACE
    (I_DECLS),
@@ -446,8 +446,9 @@ bool vlog_has_ref(vlog_node_t v)
 
 void vlog_set_ref(vlog_node_t v, vlog_node_t d)
 {
-   lookup_item(&vlog_object, v, I_REF)->object = &(d->object);
-   object_write_barrier(&(v->object), &(d->object));
+   object_t *d_obj = vlog_to_object(d);
+   lookup_item(&vlog_object, v, I_REF)->object = d_obj;
+   object_write_barrier(&(v->object), d_obj);
 }
 
 unsigned vlog_stmts(vlog_node_t v)
