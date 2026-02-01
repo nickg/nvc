@@ -2747,6 +2747,7 @@ static void package_body_deferred_instantiation(tree_t pack, tree_t container)
          }
 
          instance_fixup(inst, gmap);
+         hash_free(gmap);
 
          tree_add_decl(container, inst);
       }
