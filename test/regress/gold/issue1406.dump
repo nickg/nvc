@@ -1,0 +1,8 @@
+#0 issue1406.bools[1] false
+#0 issue1406.bools[0] false
+#2000000 issue1406.bools[0] true
+#2000000 issue1406.bools[1] false
+#4000000 issue1406.bools[1] true
+#4000000 issue1406.bools[0] true
+#6000000 issue1406.bools[0] false
+#6000000 issue1406.bools[1] true
