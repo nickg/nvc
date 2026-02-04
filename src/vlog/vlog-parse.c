@@ -31,38 +31,6 @@
 #include <stdlib.h>
 #include <assert.h>
 
-#define RECOVER_THRESH 5
-#define TRACE_PARSE    0
-#define TRACE_RECOVERY 0
-#define TOKENQ_SIZE    8
-
-typedef struct {
-   token_t  token;
-   yylval_t lval;
-   loc_t    loc;
-} tokenq_t;
-
-typedef struct {
-   loc_t       start_loc;
-   loc_t       last_loc;
-   const char *hint_str;
-   int         n_correct;
-   tokenq_t    tokenq[TOKENQ_SIZE];
-   int         tokenq_head;
-   int         tokenq_tail;
-   yylval_t    last_lval;
-   token_t     opt_hist[8];
-   int         nopt_hist;
-#if TRACE_PARSE
-   int         depth;
-#endif
-} parse_state_t;
-
-typedef struct {
-   const char *old_hint;
-   loc_t       old_start_loc;
-} rule_state_t;
-
 static parse_state_t    state;
 static vlog_kind_t      param_kind;
 static vlog_net_kind_t  implicit_kind;
@@ -71,12 +39,6 @@ static vlog_node_t      last_attr;
 static vlog_node_t      atom_types[DT_BIT + 1];
 
 extern loc_t yylloc;
-
-#define scan(...) _scan(1, __VA_ARGS__, -1)
-#define expect(...) _expect(1, __VA_ARGS__, -1)
-#define one_of(...) _one_of(1, __VA_ARGS__, -1)
-#define not_at_token(...) ((peek() != tEOF) && !_scan(1, __VA_ARGS__, -1))
-#define peek() peek_nth(1)
 
 #define parse_error(loc, ...) do {              \
       if (state.n_correct >= RECOVER_THRESH)    \

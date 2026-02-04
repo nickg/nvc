@@ -43,12 +43,6 @@
 #include <float.h>
 #include <inttypes.h>
 
-typedef struct {
-   token_t  token;
-   yylval_t lval;
-   loc_t    loc;
-} tokenq_t;
-
 typedef bool (*look_fn_t)(token_t);
 
 typedef struct {
@@ -92,22 +86,11 @@ static tree_list_t    pragmas = AINIT;
 
 extern loc_t yylloc;
 
-#define scan(...) _scan(1, __VA_ARGS__, -1)
-#define expect(...) _expect(1, __VA_ARGS__, -1)
-#define one_of(...) _one_of(1, __VA_ARGS__, -1)
-#define not_at_token(...) ((peek() != tEOF) && !_scan(1, __VA_ARGS__, -1))
-#define peek() peek_nth(1)
-
 #define parse_error(loc, ...) do {            \
       if (n_correct >= RECOVER_THRESH) {      \
          error_at(loc, __VA_ARGS__);          \
       }                                       \
    } while (0)
-
-#define RECOVER_THRESH 5
-#define TRACE_PARSE    0
-#define WARN_LOOKAHEAD 0
-#define TRACE_RECOVERY 0
 
 #define STD(x, y) (standard() >= (STD_##x) ? y : -1)
 
