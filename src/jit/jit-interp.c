@@ -128,6 +128,16 @@ static void interp_dump(jit_interp_t *state)
       jit_hexdump(state->func->cpool, state->func->cpoolsz, 16, NULL, "\t");
    }
 
+   jit_thread_local_t *thread = jit_attach_thread(state->anchor);
+   jit_stack_trace_t *trace LOCAL = jit_stack_trace();
+
+   printf("\nCall stack:\n");
+
+   for (int i = 0; i < trace->count; i++)
+      printf("\t%s\n", istr(trace->frames[i].symbol));
+
+   thread->anchor = NULL;
+
    printf("\n");
    fflush(stdout);
 }
