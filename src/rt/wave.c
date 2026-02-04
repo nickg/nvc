@@ -630,7 +630,8 @@ static void fst_create_array_var(wave_dumper_t *wd, tree_t d, rt_signal_t *s,
    if (ft == NULL)
       return;
 
-   if (type_is_enum(elem) && ft->sdt != FST_SDT_NONE) {
+   if (type_is_enum(elem) && ft->fn == fst_fmt_chars) {
+      // Character-mapped enums like std_logic
       data = xcalloc(sizeof(fst_data_t) + sizeof(fstHandle));
       data->type  = ft;
       data->size  = length * ft->size;
