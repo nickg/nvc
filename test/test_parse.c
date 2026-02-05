@@ -7423,11 +7423,13 @@ START_TEST(test_fuzzing)
             "or contain multiple consecutive underscores" },
       { 16, "unexpected pure while parsing package declarative item, "
             "expecting one of function or procedure" },
+      { 25, "unexpected ) while parsing primary" },
+      { 25, "association choice must be a field name" },
       { -1, NULL }
    };
    expect_errors(expect);
 
-   parse_and_check(T_PACKAGE, T_PACKAGE, T_PACKAGE);
+   parse_and_check(T_PACKAGE, T_PACKAGE, T_PACKAGE, T_PACKAGE);
 
    check_expected_errors();
 }
