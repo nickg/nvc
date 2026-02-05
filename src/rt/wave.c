@@ -136,7 +136,7 @@ static bool should_dump_array(tree_t where, unsigned length)
    if (warned || limit > 0)
       return false;
 
-   notef("arrays of composite types such as %s are not not dumped by default, "
+   notef("arrays of composite types such as %s are not dumped by default, "
          "pass $bold$--dump-arrays$$ to include these in the waveform dump",
          type_pp(tree_type(where)));
 
