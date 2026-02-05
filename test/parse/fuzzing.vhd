@@ -9,3 +9,9 @@ end package;
 PACKAGE pkg IS
   CONSTANT c : INTEGER := 16#_.FF#E0;  -- Error
 END PACKAGE;
+
+--------------------------------------------------------------------------------
+
+package p is
+  pure bad1 is new gen_clock;
+end package;
