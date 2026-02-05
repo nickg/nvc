@@ -4563,7 +4563,8 @@ static type_t solve_record_aggregate(nametab_t *tab, tree_t agg, type_t type)
             type_t ntype = solve_types(tab, name, NULL);
             tab->top_scope = tmp;
 
-            if (!type_is_none(ntype) && tree_has_ref(name)) {
+            if (!type_is_none(ntype) && tree_kind(name) == T_REF
+                && tree_has_ref(name)) {
                tree_t field = tree_ref(name);
                type_set_add(tab, solve_field_subtype(type, field), field);
                if (tree_kind(field) == T_FIELD_DECL) {
