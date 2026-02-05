@@ -2683,9 +2683,6 @@ int main(int argc, char **argv)
    state.work = lib_new(work_name);
    lib_set_work(state.work);
 
-   argc -= next_cmd - 1;
-   argv += next_cmd - 1;
-
    // Shuffle the arguments to put all the plusargs first
    qsort(argv + optind, next_cmd - optind, sizeof(char *), plusarg_cmp);
 
@@ -2705,6 +2702,9 @@ int main(int argc, char **argv)
    }
    else if (nplusargs > 0)
       warnf("found plusargs on command line but no VHPI plugin was loaded");
+
+   argc -= next_cmd - 1;
+   argv += next_cmd - 1;
 
    const int ret = process_command(argc, argv, &state);
 

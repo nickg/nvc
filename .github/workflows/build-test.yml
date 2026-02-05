@@ -15,6 +15,7 @@ concurrency:
 jobs:
   build-ubuntu:
     strategy:
+      fail-fast: false
       matrix:
         include:
           - { os: 22.04, mode: debug }
