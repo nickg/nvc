@@ -2396,7 +2396,7 @@ static void create_processes(rt_model_t *m, rt_scope_t *s)
                continue;
 
             ident_t name = tree_ident(t);
-            ident_t sym = ident_prefix(s->name, name, '.');
+            ident_t sym = ident_prefix(sym_prefix, name, '.');
 
             rt_prop_t *p = xcalloc(sizeof(rt_prop_t));
             p->where    = tree_psl(t);
