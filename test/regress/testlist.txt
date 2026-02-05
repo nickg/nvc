@@ -1256,3 +1256,4 @@ issue1393       normal,gold,2019
 issue1396       normal
 issue1389       cover
 issue1406       wave,dump-arrays,2008
+issue1400       normal,psl
