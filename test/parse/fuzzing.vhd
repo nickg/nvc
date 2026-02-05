@@ -15,3 +15,12 @@ END PACKAGE;
 package p is
   pure bad1 is new gen_clock;
 end package;
+
+--------------------------------------------------------------------------------
+
+package pkg2 is
+  type storage_t is record
+    i : integer;
+  end record;
+  constant null_storage : storage_t := (integer'low!);
+end package;
