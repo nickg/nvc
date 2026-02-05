@@ -7421,11 +7421,13 @@ START_TEST(test_fuzzing)
             "**, when or ;" },
       { 10, "a VHDL basic identifier must not start or end with an underscore, "
             "or contain multiple consecutive underscores" },
+      { 16, "unexpected pure while parsing package declarative item, "
+            "expecting one of function or procedure" },
       { -1, NULL }
    };
    expect_errors(expect);
 
-   parse_and_check(T_PACKAGE, T_PACKAGE);
+   parse_and_check(T_PACKAGE, T_PACKAGE, T_PACKAGE);
 
    check_expected_errors();
 }

@@ -8991,8 +8991,10 @@ static void p_package_declarative_item(tree_t pack)
    case tPROCEDURE:
    case tIMPURE:
    case tPURE:
-      if (peek_nth(3) == tIS && peek_nth(4) == tNEW)
-         tree_add_decl(pack, p_subprogram_instantiation_declaration());
+      if (peek_nth(3) == tIS && peek_nth(4) == tNEW) {
+         tree_t decl = p_subprogram_instantiation_declaration();
+         if (decl != NULL) tree_add_decl(pack, decl);
+      }
       else {
          tree_t spec = p_subprogram_specification();
          if (peek() == tSEMI)
