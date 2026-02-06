@@ -2875,7 +2875,7 @@ static void p_library_clause(tree_t unit)
          lib_print_search_paths(tb);
 
          diag_t *d = diag_new(DIAG_ERROR, CURRENT_LOC);
-         diag_printf(d, "library %s not found", istr(it->ident));
+         diag_printf(d, "library %pI not found", it->ident);
          lib_search_paths_to_diag(d);
          diag_emit(d);
       }

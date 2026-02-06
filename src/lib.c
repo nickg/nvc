@@ -461,7 +461,7 @@ static text_buf_t *lib_file_path(lib_t lib, const char *name)
 
 static lib_t lib_loaded(ident_t name_i)
 {
-   if (name_i == well_known(W_WORK) && work != NULL)
+   if (ident_casecmp(name_i, well_known(W_WORK)) && work != NULL)
       return work;
 
    for (lib_list_t *it = loaded; it != NULL; it = it->next) {
