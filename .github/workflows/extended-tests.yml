@@ -1,0 +1,82 @@
+name: Long running external project tests
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '30 21 * * 6'
+
+jobs:
+  extended-tests:
+    name: Extended tests
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/nickg/nvc-ubuntu-builder:24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: actions/checkout@v4
+        with:
+          repository: nickg/vhdl-vendor-libs
+          path: vhdl-vendor-libs
+          fetch-depth: 1
+          token: ${{ secrets.VENDOR_LIBS_TOKEN }}
+      - uses: actions/checkout@v4
+        with:
+          repository: nickg/ndk-fpga
+          ref: makefile-hacks
+          path: ndk-fpga
+          fetch-depth: 1
+      - uses: actions/checkout@v4
+        with:
+          repository: Logic-Design-Services/CTU-CAN-FD
+          path: ctu-can-fd
+          submodules: recursive
+          fetch-depth: 1
+      - uses: actions/checkout@v4
+        with:
+          repository: VUnit/vunit
+          path: vunit
+          submodules: recursive
+          fetch-depth: 1
+      - uses: actions/checkout@v4
+        with:
+          repository: nickg/vhdl-projects
+          path: vhdl-projects
+          fetch-depth: 1
+      - name: Install additional dependencies
+        run: apt-get -y install cmake
+      - name: Generate configure script
+        run: |
+          git config --global --add safe.directory $GITHUB_WORKSPACE
+          ./autogen.sh
+      - name: Configure release
+        run: |
+          mkdir build && cd build
+          ../configure --with-llvm=/usr/bin/llvm-config
+      - name: Build
+        run: make -C build -j $(nproc)
+      - name: Install
+        run: make -C build install
+      - name: Build Vivado libs
+        run: |
+          export XILINX_VIVADO=$(realpath ./vhdl-vendor-libs/vivado)
+          nvc --install vivado
+      - name: Build XPM libs
+        run: |
+          nvc --install xpm_vhdl
+      - name: CESNET/ndk-fpga
+        run: |
+          cd ndk-fpga/apps/minimal/tests/cocotb
+          make TARGET=nvc
+      - name: Logic-Design-Services/CTU-CAN-FD
+        run: |
+          export CTU_TB_TOP_TARGET="tb_ctu_can_fd_rtl_vunit"
+          export VUNIT_SIMULATOR=nvc
+          export PYTHONPATH=$(realpath vunit)
+          cd ctu-can-fd/test/main_tb/iso-16845-compliance-tests
+          ./build.sh
+          cd ../..
+          ./run.py tb_rtl_small_asic_typ_feature ctu_can_fd_tb.tb_top_ctu_can_fd.tb_rtl_small_asic_typ_feature.device_id -v
+      - name: Verilog FFT
+        run: ./vhdl-projects/fft/verilog/test.sh
