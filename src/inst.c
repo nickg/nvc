@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2023-2025  Nick Gasson
+//  Copyright (C) 2023-2026  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -35,7 +35,7 @@ typedef struct {
    type_list_t copied_types;
 } copy_ctx_t;
 
-static void collect_decls(tree_t t, hset_t *decls, tree_list_t *roots);
+static void collect_decls(tree_t t, object_copy_ctx_t *ctx);
 
 static void tree_copy_cb(tree_t t, void *__ctx)
 {
@@ -53,18 +53,12 @@ static void type_copy_cb(type_t type, void *__ctx)
       APUSH(ctx->copied_types, type);
 }
 
-void copy_with_renaming(tree_t *roots, int nroots, tree_copy_pred_t tree_pred,
-                        type_copy_pred_t type_pred, void *context,
-                        ident_t dotted, const ident_t *prefixes, int nprefix)
+static void rename_mangled(copy_ctx_t *ctx, ident_t dotted,
+                           const ident_t *prefixes, int nprefix)
 {
-   copy_ctx_t copy_ctx = {};
-
-   tree_copy(roots, nroots, tree_pred, type_pred, context,
-             tree_copy_cb, type_copy_cb, &copy_ctx);
-
    // Change the name of any copied types to reflect the new hiearchy
-   for (int i = 0; i < copy_ctx.copied_types.count; i++) {
-      type_t type = copy_ctx.copied_types.items[i];
+   for (int i = 0; i < ctx->copied_types.count; i++) {
+      type_t type = ctx->copied_types.items[i];
       ident_t orig = type_ident(type);
       for (int j = 0; j < nprefix; j++) {
          if (ident_starts_with(orig, prefixes[j])) {
@@ -77,12 +71,12 @@ void copy_with_renaming(tree_t *roots, int nroots, tree_copy_pred_t tree_pred,
          }
       }
    }
-   ACLEAR(copy_ctx.copied_types);
+   ACLEAR(ctx->copied_types);
 
    // Change the mangled name of copied subprograms so that copies in
    // different instances do not collide
-   for (int i = 0; i < copy_ctx.copied_subs.count; i++) {
-      tree_t decl = copy_ctx.copied_subs.items[i];
+   for (int i = 0; i < ctx->copied_subs.count; i++) {
+      tree_t decl = ctx->copied_subs.items[i];
       if (tree_kind(decl) == T_GENERIC_DECL)
          continue;   // Does not yet have mangled name
       else if (is_open_coded_builtin(tree_subkind(decl)))
@@ -126,29 +120,17 @@ void copy_with_renaming(tree_t *roots, int nroots, tree_copy_pred_t tree_pred,
          }
       }
    }
-   ACLEAR(copy_ctx.copied_subs);
+   ACLEAR(ctx->copied_subs);
 }
 
-static bool instantiate_should_copy_type(type_t type, void *__ctx)
+static bool instantiate_should_copy_tree(tree_t t, void *ctx)
 {
-   hset_t *decls = __ctx;
-   if (decls == NULL || type_kind(type) == T_SUBTYPE)
-      return false;
-   else
-      return hset_contains(decls, type);
-}
-
-static bool instantiate_should_copy_tree(tree_t t, void *__ctx)
-{
-   hset_t *decls = __ctx;
-
    switch (tree_kind(t)) {
    case T_INSTANCE:
       return true;
    case T_FCALL:
       // Globally static expressions should be copied and folded
-      if ((tree_flags(t) & TREE_F_GLOBALLY_STATIC)
-          && type_is_scalar(tree_type(t)))
+      if (tree_frozen(t) && (tree_flags(t) & TREE_F_GLOBALLY_STATIC))
          return true;
       // Fall-through
    case T_PCALL:
@@ -165,19 +147,14 @@ static bool instantiate_should_copy_tree(tree_t t, void *__ctx)
    case T_FUNC_INST:
    case T_PROC_INST:
       return true;
-   case T_CONST_DECL:
-   case T_VAR_DECL:
-   case T_SIGNAL_DECL:
-   case T_GENERIC_DECL:
-      return hset_contains(decls, t);
    default:
       return false;
    }
 }
 
-static void collect_generic_types(hset_t *decls, type_t type)
+static void collect_generic_types(type_t type, object_copy_ctx_t *ctx)
 {
-   hset_insert(decls, type);
+   type_copy_mark(type, ctx);
 
    // Also collect any anonymous generic types
    switch (type_subkind(type)) {
@@ -185,13 +162,13 @@ static void collect_generic_types(hset_t *decls, type_t type)
       {
          type_t elem = type_elem(type);
          if (type_kind(elem) == T_GENERIC && !type_has_ident(elem))
-            collect_generic_types(decls, elem);
+            collect_generic_types(elem, ctx);
 
          const int nindex = type_indexes(type);
          for (int i = 0; i < nindex; i++) {
             type_t index = type_index(type, i);
             if (type_kind(index) == T_GENERIC && !type_has_ident(index))
-               collect_generic_types(decls, index);
+               collect_generic_types(index, ctx);
          }
       }
       break;
@@ -201,7 +178,7 @@ static void collect_generic_types(hset_t *decls, type_t type)
    }
 }
 
-static void collect_generics(tree_t t, hset_t *decls, tree_list_t *roots)
+static void collect_generics(tree_t t, object_copy_ctx_t *ctx)
 {
    const int ngenerics = tree_generics(t);
    for (int i = 0; i < ngenerics; i++) {
@@ -216,17 +193,16 @@ static void collect_generics(tree_t t, hset_t *decls, tree_list_t *roots)
             if (tree_has_ref(ref)) {
                tree_t pack = tree_ref(ref);
                assert(is_uninstantiated_package(pack));
-               collect_generics(pack, decls, roots);
-               collect_decls(pack, decls, roots);
-               APUSH(*roots, pack);
+               collect_generics(pack, ctx);
+               collect_decls(pack, ctx);
             }
          }
          break;
       case C_TYPE:
-         collect_generic_types(decls, tree_type(g));
+         collect_generic_types(tree_type(g), ctx);
          break;
       case C_CONSTANT:
-         hset_insert(decls, g);
+         tree_copy_mark(g, ctx);
          break;
       default:
          break;
@@ -234,28 +210,28 @@ static void collect_generics(tree_t t, hset_t *decls, tree_list_t *roots)
    }
 }
 
-static void collect_decls(tree_t t, hset_t *decls, tree_list_t *roots)
+static void collect_decls(tree_t t, object_copy_ctx_t *ctx)
 {
    const int ndecls = tree_decls(t);
    for (int i = 0 ; i < ndecls; i++) {
       tree_t d = tree_decl(t, i);
-      hset_insert(decls, d);
+      tree_copy_mark(d, ctx);
 
       switch (tree_kind(d)) {
       case T_PACKAGE:
-         collect_generics(d, decls, roots);
+         collect_generics(d, ctx);
          // Fall-through
       case T_PACK_BODY:
       case T_PACK_INST:
-         collect_decls(d, decls, roots);
+         collect_decls(d, ctx);
          break;
       case T_TYPE_DECL:
-         hset_insert(decls, type_base_recur(tree_type(d)));
+         type_copy_mark(type_base_recur(tree_type(d)), ctx);
          break;
       case T_PROT_DECL:
       case T_PROT_BODY:
-         hset_insert(decls, tree_type(d));
-         collect_decls(d, decls, roots);
+         type_copy_mark(tree_type(d), ctx);
+         collect_decls(d, ctx);
          break;
       default:
          break;
@@ -266,11 +242,12 @@ static void collect_decls(tree_t t, hset_t *decls, tree_list_t *roots)
 void new_instance(tree_t *roots, int nroots, ident_t dotted,
                   const ident_t *prefixes, int nprefix)
 {
-   hset_t *decls = hset_new(64);
-   tree_list_t troots = AINIT;
+   copy_ctx_t copy_ctx = {};
 
-   for (int i = 0; i < nroots; i++)
-      APUSH(troots, roots[i]);
+   object_copy_ctx_t *ctx = tree_copy_begin(roots, nroots,
+                                            instantiate_should_copy_tree, NULL,
+                                            NULL, tree_copy_cb, type_copy_cb,
+                                            &copy_ctx);
 
    for (int i = 0; i < nroots; i++) {
       switch (tree_kind(roots[i])) {
@@ -278,34 +255,27 @@ void new_instance(tree_t *roots, int nroots, ident_t dotted,
       case T_FUNC_DECL:
       case T_PROC_DECL:
       case T_COMPONENT:
-         collect_generics(roots[i], decls, &troots);
+         collect_generics(roots[i], ctx);
          break;
       case T_PACKAGE:
       case T_FUNC_BODY:
       case T_PROC_BODY:
       case T_FUNC_INST:
       case T_PROC_INST:
-         collect_generics(roots[i], decls, &troots);
-         collect_decls(roots[i], decls, &troots);
+         collect_generics(roots[i], ctx);
+         collect_decls(roots[i], ctx);
          break;
       case T_PACK_BODY:
-         collect_decls(roots[i], decls, &troots);
+         collect_decls(roots[i], ctx);
          break;
       default:
          break;
       }
    }
 
-   copy_with_renaming(troots.items, troots.count,
-                      instantiate_should_copy_tree,
-                      instantiate_should_copy_type,
-                      decls, dotted, prefixes, nprefix);
+   tree_copy_finish(roots, nroots, ctx);
 
-   for (int i = 0; i < nroots; i++)
-      roots[i] = troots.items[i];
-
-   ACLEAR(troots);
-   hset_free(decls);
+   rename_mangled(&copy_ctx, dotted, prefixes, nprefix);
 }
 
 static type_t rewrite_generic_types_cb(type_t type, void *__ctx)

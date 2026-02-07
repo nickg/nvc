@@ -611,10 +611,8 @@ START_TEST(test_issue344)
 
    tree_t top = run_elab();
 
-   // The assertions could be folded but aren't currently
    tree_t p0 = tree_stmt(tree_stmt(top, 0), 0);
-   fail_unless(tree_stmts(p0) == 6);
-   fail_unless(tree_kind(tree_value(tree_stmt(p0, 0))) == T_FCALL);
+   fail_unless(tree_stmts(p0) == 2);
 
    fail_if_errors();
 }

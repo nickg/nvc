@@ -636,13 +636,15 @@ typedef bool (*type_copy_pred_t)(type_t, void *);
 typedef void (*tree_copy_fn_t)(tree_t, void *);
 typedef void (*type_copy_fn_t)(type_t, void *);
 
-void tree_copy(tree_t *roots, unsigned nroots,
-               tree_copy_pred_t tree_pred,
-               type_copy_pred_t type_pred,
-               void *pred_context,
-               tree_copy_fn_t tree_callback,
-               type_copy_fn_t type_callback,
-               void *callback_context);
+object_copy_ctx_t *tree_copy_begin(tree_t *roots, unsigned nroots,
+                                   tree_copy_pred_t tree_pred,
+                                   type_copy_pred_t type_pred,
+                                   void *pred_context,
+                                   tree_copy_fn_t tree_callback,
+                                   type_copy_fn_t type_callback,
+                                   void *callback_context);
+void tree_copy_finish(tree_t *roots, unsigned nroots, object_copy_ctx_t *ctx);
+void tree_copy_mark(tree_t t, object_copy_ctx_t *ctx);
 
 typedef tree_t (*tree_load_fn_t)(ident_t);
 typedef void (*tree_deps_fn_t)(tree_t, void *);

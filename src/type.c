@@ -950,6 +950,11 @@ type_t type_elem_recur(type_t type)
    return type;
 }
 
+void type_copy_mark(type_t t, object_copy_ctx_t *ctx)
+{
+   object_copy_mark_root(&(t->object), ctx);
+}
+
 const char *type_kind_str(type_kind_t t)
 {
    assert(t < T_LAST_TYPE_KIND);

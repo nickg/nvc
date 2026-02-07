@@ -766,7 +766,8 @@ vlog_node_t vlog_copy(vlog_node_t v, vlog_copy_pred_t pred, void *ctx)
 
    copy->should_copy[OBJECT_TAG_VLOG] = (object_copy_pred_t)pred;
 
-   object_copy(copy);
+   object_copy_begin(copy);
+   object_copy_finish(copy);
 
    return container_of(copy->roots[0], struct _vlog_node, object);
 }

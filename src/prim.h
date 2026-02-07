@@ -68,6 +68,7 @@ typedef struct _mir_context mir_context_t;
 typedef struct _mir_unit mir_unit_t;
 typedef struct _mir_shape mir_shape_t;
 typedef struct _vlog_symtab vlog_symtab_t;
+typedef struct _object_copy_ctx object_copy_ctx_t;
 
 typedef struct _rt_model      rt_model_t;
 typedef struct _rt_watch      rt_watch_t;

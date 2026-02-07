@@ -1382,16 +1382,16 @@ tree_t tree_rewrite(tree_t t, tree_rewrite_pre_fn_t pre_fn,
    return container_of(result, struct _tree, object);
 }
 
-void tree_copy(tree_t *roots, unsigned nroots,
-               tree_copy_pred_t tree_pred,
-               type_copy_pred_t type_pred,
-               void *pred_context,
-               tree_copy_fn_t tree_callback,
-               type_copy_fn_t type_callback,
-               void *callback_context)
+object_copy_ctx_t *tree_copy_begin(tree_t *roots, unsigned nroots,
+                                   tree_copy_pred_t tree_pred,
+                                   type_copy_pred_t type_pred,
+                                   void *pred_context,
+                                   tree_copy_fn_t tree_callback,
+                                   type_copy_fn_t type_callback,
+                                   void *callback_context)
 {
-   object_copy_ctx_t *ctx LOCAL = xcalloc_flex(sizeof(object_copy_ctx_t),
-                                               nroots, sizeof(object_t *));
+   object_copy_ctx_t *ctx = xcalloc_flex(sizeof(object_copy_ctx_t),
+                                         nroots, sizeof(object_t *));
 
    ctx->generation       = object_next_generation();
    ctx->pred_context     = pred_context;
@@ -1407,10 +1407,24 @@ void tree_copy(tree_t *roots, unsigned nroots,
    ctx->callback[OBJECT_TAG_TREE] = (object_copy_fn_t)tree_callback;
    ctx->callback[OBJECT_TAG_TYPE] = (object_copy_fn_t)type_callback;
 
-   object_copy(ctx);
+   object_copy_begin(ctx);
+
+   return ctx;
+}
+
+void tree_copy_finish(tree_t *roots, unsigned nroots, object_copy_ctx_t *ctx)
+{
+   object_copy_finish(ctx);
 
    for (unsigned i = 0; i < nroots; i++)
       roots[i] = container_of(ctx->roots[i], struct _tree, object);
+
+   free(ctx);
+}
+
+void tree_copy_mark(tree_t t, object_copy_ctx_t *ctx)
+{
+   object_copy_mark_root(&(t->object), ctx);
 }
 
 const char *tree_kind_str(tree_kind_t t)

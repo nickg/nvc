@@ -6,6 +6,8 @@
   when using the `--preserve-case` analysis option (#1413).
 - Fixed a crash when a protected type is declared in an architecture
   that is instantiated multiple types (#1405, #1417).
+- Fixed an "invalid container kind T_ELAB" fatal error when elaborating
+  a component instantiation (#1404).
 - Several other minor bugs were resolved (#1401).
 
 ## Version 1.19.0 - 2026-01-31
