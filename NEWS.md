@@ -4,6 +4,8 @@
 - Fixed a crash when no command line arguments are given (#1410).
 - Fixed an issue where `library work` would incorrectly report an error
   when using the `--preserve-case` analysis option (#1413).
+- Fixed a crash when a protected type is declared in an architecture
+  that is instantiated multiple types (#1405, #1417).
 - Several other minor bugs were resolved (#1401).
 
 ## Version 1.19.0 - 2026-01-31
