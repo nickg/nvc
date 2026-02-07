@@ -1,4 +1,6 @@
 ## Unreleased changes
+
+## Version 1.19.1 - 2026-02-07
 - Fixed a fatal error when a design unit instantiated multiple times
   inside a generate statement contains a PSL assertion (#1400).
 - Fixed a crash when no command line arguments are given (#1410).

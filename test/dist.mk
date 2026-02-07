@@ -87,6 +87,7 @@ EXTRA_DIST += \
 	test/elab/clone1.v \
 	test/elab/clone1.vhd \
 	test/elab/clone2.vhd \
+	test/elab/clone3.vhd \
 	test/elab/comp2.vhd \
 	test/elab/comp3.vhd \
 	test/elab/comp4.vhd \
@@ -122,6 +123,7 @@ EXTRA_DIST += \
 	test/elab/issue1201.vhd \
 	test/elab/issue1204.vhd \
 	test/elab/issue1333.v \
+	test/elab/issue1404.vhd \
 	test/elab/issue153.vhd \
 	test/elab/issue157.vhd \
 	test/elab/issue159.vhd \
@@ -486,6 +488,7 @@ EXTRA_DIST += \
 	test/parse/issue1308.vhd \
 	test/parse/issue1318.vhd \
 	test/parse/issue1335.vhd \
+	test/parse/issue1413.vhd \
 	test/parse/issue205.vhd \
 	test/parse/issue222.vhd \
 	test/parse/issue360.vhd \
@@ -1268,6 +1271,7 @@ EXTRA_DIST += \
 	test/regress/gold/issue1388.txt \
 	test/regress/gold/issue1389.xml \
 	test/regress/gold/issue1393.txt \
+	test/regress/gold/issue1406.dump \
 	test/regress/gold/issue185.txt \
 	test/regress/gold/issue202.txt \
 	test/regress/gold/issue225.txt \
@@ -1531,6 +1535,10 @@ EXTRA_DIST += \
 	test/regress/issue1393.vhd \
 	test/regress/issue1396.vhd \
 	test/regress/issue13.vhd \
+	test/regress/issue1400.vhd \
+	test/regress/issue1405.vhd \
+	test/regress/issue1406.vhd \
+	test/regress/issue1410.sh \
 	test/regress/issue141.vhd \
 	test/regress/issue143.vhd \
 	test/regress/issue146.vhd \
