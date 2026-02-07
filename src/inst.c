@@ -170,8 +170,6 @@ static bool instantiate_should_copy_tree(tree_t t, void *__ctx)
    case T_SIGNAL_DECL:
    case T_GENERIC_DECL:
       return hset_contains(decls, t);
-   case T_REF:
-      return tree_has_ref(t) && hset_contains(decls, tree_ref(t));
    default:
       return false;
    }
