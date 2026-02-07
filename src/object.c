@@ -1066,17 +1066,19 @@ static bool object_copy_mark(object_t *object, object_copy_ctx_t *ctx)
    if (arena->copygen != ctx->generation)
       return false;
 
-   if (ctx->copy_map == NULL)
-      ctx->copy_map = hash_new(1024);
+   bool marked = false;
+   if (object_marked_p(object, ctx->generation)) {
+      object_t *map = hash_get(ctx->copy_map, object);
+      if (map == object)
+         marked = true;   // Marked as root
+      else
+         return map != NULL;
+   }
 
-   if (object_marked_p(object, ctx->generation))
-      return hash_get(ctx->copy_map, object) != NULL;
+   if (!marked && ctx->should_copy[object->tag] != NULL)
+      marked = (*ctx->should_copy[object->tag])(object, ctx->pred_context);
 
    const object_class_t *class = classes[object->tag];
-
-   bool marked = false;
-   if (ctx->should_copy[object->tag] != NULL)
-      marked = (*ctx->should_copy[object->tag])(object, ctx->pred_context);
 
    object_t *copy = NULL;
    if (marked) {
@@ -1108,6 +1110,16 @@ static bool object_copy_mark(object_t *object, object_copy_ctx_t *ctx)
    return marked;
 }
 
+void object_copy_mark_root(object_t *object, object_copy_ctx_t *ctx)
+{
+   object_arena_t *arena = __object_arena(object);
+
+   arena->copygen = ctx->generation;
+
+   if (!object_marked_p(object, ctx->generation))
+      hash_put(ctx->copy_map, object, object);
+}
+
 static object_t *object_copy_map(object_t *object, object_copy_ctx_t *ctx)
 {
    if (object == NULL)
@@ -1117,11 +1129,16 @@ static object_t *object_copy_map(object_t *object, object_copy_ctx_t *ctx)
    return map ?: object;
 }
 
-void object_copy(object_copy_ctx_t *ctx)
+void object_copy_begin(object_copy_ctx_t *ctx)
 {
+   ctx->copy_map = hash_new(1024);
+
    for (int i = 0; i < ctx->nroots; i++)
       __object_arena(ctx->roots[i])->copygen = ctx->generation;
+}
 
+void object_copy_finish(object_copy_ctx_t *ctx)
+{
    for (int i = 0; i < ctx->nroots; i++)
       (void)object_copy_mark(ctx->roots[i], ctx);
 
@@ -1132,6 +1149,7 @@ void object_copy(object_copy_ctx_t *ctx)
         hash_iter(ctx->copy_map, &it, &key, &value); ) {
       const object_t *object = key;
       object_t *copy = value;
+      assert(copy != object);
       ncopied++;
 
       copy->loc = object->loc;

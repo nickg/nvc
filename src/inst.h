@@ -25,8 +25,4 @@ void new_instance(tree_t *roots, int nroots, ident_t dotted,
                   const ident_t *prefixes, int nprefix);
 void instance_fixup(tree_t inst, hash_t *map);
 
-void copy_with_renaming(tree_t *roots, int nroots, tree_copy_pred_t tree_pred,
-                        type_copy_pred_t type_pred, void *context,
-                        ident_t dotted, const ident_t *prefixes, int nprefix);
-
 #endif   // _INST_H

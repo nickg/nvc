@@ -35,7 +35,7 @@ static vlog_node_t do_parse_only(vlog_kind_t kind)
 {
    vlog_node_t v = vlog_parse();
    ck_assert_ptr_nonnull(v);
-   ck_assert_vlog_kind_eq(v, kind);
+   ck_assert_vlog_kind(v, kind);
    lib_put_vlog(lib_work(), v);
    return v;
 }

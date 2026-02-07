@@ -145,7 +145,7 @@ static void dump_address(tree_t t)
 
    char *LOCAL fmt = xasprintf("$!#%d${%%p:%s}$$", color,
                                tree_kind_str(tree_kind(t)));
-   color_printf(fmt, t);
+   nvc_printf(fmt, t);
 #endif
 }
 
@@ -209,9 +209,9 @@ static void dump_expr(tree_t t)
       dump_params(t, tree_param, tree_params(t), NULL);
 #if DUMP_STATICNESS
       if (tree_flags(t) & TREE_F_LOCALLY_STATIC)
-         color_printf("$red$/* locally static */$$");
+         nvc_printf("$red$/* locally static */$$");
       else if (tree_flags(t) & TREE_F_GLOBALLY_STATIC)
-         color_printf("$red$/* globally static */$$");
+         nvc_printf("$red$/* globally static */$$");
 #endif
       break;
 
@@ -865,7 +865,10 @@ static void dump_decl(tree_t t, int indent)
          print_syntax(" : %s", istr(tree_ident(tree_ref(t))));
       print_syntax("\n");
       tab(indent + 2);
-      dump_binding(tree_value(t), indent + 2);
+      if (tree_has_value(t))
+         dump_binding(tree_value(t), indent + 2);
+      else
+         print_syntax("#use #open;\n");
       dump_decls(t, indent + 2);
       tab(indent);
       print_syntax("#end #for;\n");

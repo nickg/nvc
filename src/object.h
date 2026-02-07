@@ -170,7 +170,7 @@ STATIC_ASSERT(sizeof(object_t) == 16);
 typedef bool (*object_copy_pred_t)(object_t *, void *);
 typedef bool (*object_copy_fn_t)(object_t *, void *);
 
-typedef struct {
+typedef struct _object_copy_ctx {
    generation_t       generation;
    object_copy_pred_t should_copy[OBJECT_TAG_COUNT];
    object_copy_fn_t   callback[OBJECT_TAG_COUNT];
@@ -234,7 +234,9 @@ object_t *object_new(object_arena_t *arena,
 void object_visit(object_t *object, object_visit_ctx_t *ctx);
 object_t *object_rewrite(object_t *object, object_rewrite_ctx_t *ctx);
 unsigned object_next_generation(void);
-void object_copy(object_copy_ctx_t *ctx);
+void object_copy_begin(object_copy_ctx_t *ctx);
+void object_copy_finish(object_copy_ctx_t *ctx);
+void object_copy_mark_root(object_t *object, object_copy_ctx_t *ctx);
 object_arena_t *object_arena(object_t *object);
 ident_t object_ident(object_t *object);
 size_t object_arena_default_size(void);

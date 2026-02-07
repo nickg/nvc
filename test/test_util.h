@@ -52,10 +52,16 @@
 #define ck_assert_ident_eq(x, y) \
    ck_assert_msg(icmp((x), (y)), "'%s' != '%s'", istr((x)), (y))
 
-#define ck_assert_vlog_kind_eq(x, y) do {                               \
+#define ck_assert_vlog_kind(x, y) do {                                  \
       vlog_kind_t __kind = vlog_kind((x));                              \
       ck_assert_msg(__kind == (y), "%s != %s",                          \
                     vlog_kind_str(__kind), vlog_kind_str((y)));         \
+   } while (0)
+
+#define ck_assert_tree_kind(x, y) do {                                  \
+      tree_kind_t __kind = tree_kind((x));                              \
+      ck_assert_msg(__kind == (y), "%s != %s",                          \
+                    tree_kind_str(__kind), tree_kind_str((y)));         \
    } while (0)
 
 #undef fail

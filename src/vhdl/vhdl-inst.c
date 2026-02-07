@@ -85,14 +85,16 @@ tree_t vhdl_component_instance(tree_t comp, tree_t inst, ident_t dotted)
    if (!tree_has_value(spec_copy))
       return b;
 
-   tree_t bind = tree_value(spec_copy);
-
-   tree_t unit = tree_ref(bind);
+   // In a recursive instantiation spec_copy may point to a copy of the
+   // current architecture so always get the unit from the original spec
+   tree_t unit = tree_ref(tree_value(spec));
    tree_t primary = primary_unit_of(unit);
 
    tree_t sub = tree_new(T_INSTANCE);
    tree_set_loc(sub, tree_loc(spec));
    tree_set_ident(sub, ident_rfrom(tree_ident(primary), '.'));
+
+   tree_t bind = tree_value(spec_copy);
 
    const int ndecls = tree_decls(spec_copy);
    if (ndecls > 0) {
@@ -130,6 +132,7 @@ tree_t vhdl_component_instance(tree_t comp, tree_t inst, ident_t dotted)
 tree_t vhdl_architecture_instance(tree_t arch, tree_t bind, ident_t dotted)
 {
    assert(tree_kind(arch) == T_ARCH);
+   assert(tree_frozen(arch));
 
    // Architecture must be processed last
    tree_t roots[] = { tree_primary(arch), arch };

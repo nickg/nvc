@@ -431,9 +431,14 @@ START_TEST(test_issue305)
    tree_t top = run_elab();
    fail_if(top == NULL);
 
-   tree_t s = tree_decl(tree_stmt(top, 0), 2);
-   fail_unless(tree_kind(s) == T_SIGNAL_DECL);
-   fail_unless(icmp(tree_ident(s), "DATA_I"));
+   tree_t test_ng = tree_stmt(top, 0);
+
+   tree_t width = get_decl(test_ng, "WIDTH");
+   ck_assert_tree_kind(width, T_CONST_DECL);
+   ck_assert(tree_flags(width) & TREE_F_LOCALLY_STATIC);
+
+   tree_t s = get_decl(test_ng, "DATA_I");
+   ck_assert_tree_kind(s, T_SIGNAL_DECL);
 
    int64_t len;
    fail_unless(folded_length(range_of(tree_type(s), 0), &len));
@@ -2233,6 +2238,19 @@ START_TEST(test_issue1333)
 }
 END_TEST
 
+START_TEST(test_issue1404)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/elab/issue1404.vhd");
+
+   tree_t e = run_elab();
+   fail_if(e == NULL);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_elab_tests(void)
 {
    Suite *s = suite_create("elab");
@@ -2346,6 +2364,7 @@ Suite *get_elab_tests(void)
    tcase_add_test(tc, test_mixed2);
    tcase_add_test(tc, test_clone2);
    tcase_add_test(tc, test_issue1333);
+   tcase_add_test(tc, test_issue1404);
    suite_add_tcase(s, tc);
 
    return s;

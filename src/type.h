@@ -177,4 +177,6 @@ tree_t type_container(type_t t);
 object_t *type_to_object(type_t t);
 type_t type_from_object(object_t *obj);
 
+void type_copy_mark(type_t t, object_copy_ctx_t *ctx);
+
 #endif  // _TYPE_H
