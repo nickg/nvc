@@ -2318,6 +2318,11 @@ static void elab_component(tree_t inst, tree_t comp, const elab_ctx_t *ctx)
 
       ghash_put(mc->instances, inst, ei);
       mc->unique++;
+
+      // XXX: workaround for potentially different layouts
+      if (!tree_frozen(comp))
+         tree_set_global_flags(ctx->out, TREE_GF_INSTANCE_NAME
+                               | TREE_GF_PATH_NAME);
    }
 
    tree_t b = tree_new(T_BLOCK);
@@ -2483,6 +2488,11 @@ static void elab_for_generate(tree_t t, const elab_ctx_t *ctx)
 {
    int64_t low, high;
    elab_generate_range(tree_range(t, 0), &low, &high, ctx);
+
+   // XXX: workaround for potentially different layouts
+   if (low != high)
+      tree_set_global_flags(ctx->out, TREE_GF_INSTANCE_NAME
+                            | TREE_GF_PATH_NAME);
 
    ident_t label = tree_ident(t), first = NULL;
 
