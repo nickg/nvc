@@ -2391,7 +2391,7 @@ static vcode_reg_t lower_context_for_mangled(lower_unit_t *lu,
                return emit_context_upref(hops);
          }
 
-         if (lu->name == context_name)
+         if (it->name == context_name)
             return emit_context_upref(hops);
       }
    }
