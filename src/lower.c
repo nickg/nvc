@@ -2379,16 +2379,21 @@ static vcode_reg_t lower_context_for_mangled(lower_unit_t *lu,
    ident_t context_name;
    vcode_unit_t context = unit_registry_get_parent(lu->registry, unit_name);
    if (context != NULL) {
-      vcode_unit_t ancestor = lu->vunit;
-      int hops = 0;
-      for (; ancestor && ancestor != context;
-           hops++, ancestor = vcode_unit_context(ancestor))
-         ;
-
-      if (ancestor != NULL)
-         return emit_context_upref(hops);
-
       context_name = vcode_unit_name(context);
+
+      int hops = 0;
+      for (lower_unit_t *it = lu; it != NULL; it = it->parent, hops++) {
+         if (it->container != NULL && tree_kind(it->container) == T_BLOCK) {
+            tree_t hier = tree_decl(it->container, 0);
+            assert(tree_kind(hier) == T_HIER);
+
+            if (tree_ident2(hier) == context_name)
+               return emit_context_upref(hops);
+         }
+
+         if (lu->name == context_name)
+            return emit_context_upref(hops);
+      }
    }
    else
       context_name = get_call_context(unit_name);
@@ -12807,7 +12812,7 @@ vcode_unit_t unit_registry_get_parent(unit_registry_t *ur, ident_t name)
    case UNIT_GENERATED:
       {
          lower_unit_t *lu = untag_pointer(ptr, lower_unit_t);
-         return lu->parent->vunit;
+         return vcode_unit_context(lu->vunit);
       }
       break;
 

@@ -1258,3 +1258,4 @@ issue1389       cover
 issue1406       wave,dump-arrays,2008
 issue1400       normal,psl
 issue1410       shell
+issue1405       normal,2008
