@@ -1,11 +1,11 @@
 name: Build and test
 
 on:
-  push:
-    branches:
-      - '**'
-    tags-ignore:
-      - '**'
+#  push:
+#    branches:
+#      - '**'
+#    tags-ignore:
+#      - '**'
   pull_request:
 
 concurrency:
