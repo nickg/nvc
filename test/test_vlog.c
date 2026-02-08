@@ -552,15 +552,14 @@ START_TEST(test_pp2)
    input_from_file(TESTDIR "/vlog/pp2.v");
 
    const error_t expect[] = {
-      {  1, "`else outside of `ifdef" },
-      {  2, "`endif outside of `ifdef" },
-      {  3, "`elsif outside of `ifdef" },
-      {  3, "expected macro name after `elsif" },
-      {  4, "expected macro name after `ifdef" },
-      {  5, "expected macro name after `ifndef" },
-      {  7, "expected macro name after `elsif" },
-      {  9, "no corresponding `endif before end of file" },
-      {  6, "no corresponding `endif before end of file" },
+      {  1, "unexpected `else while parsing block of text" },
+      {  2, "unexpected `endif while parsing block of text" },
+      {  3, "unexpected `elsif while parsing block of text" },
+      {  4, "unexpected text while parsing ifdef condition" },
+      {  5, "unexpected text while parsing ifdef condition" },
+      {  7, "unexpected text while parsing ifdef condition" },
+      {  8, "unexpected error while parsing text macro name" },
+      { 12, "unexpected end of file while parsing conditional compilation" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -1224,6 +1223,7 @@ START_TEST(test_pp6)
       {  2, "macro 'bad' undefined" },
       {  4, "only white space or a comment may appear on the same "
          "line as an `include directive" },
+      {  4, "cannot find foo in the current working directory" },
       {  5, "cannot find not.here in the current working directory" },
       {  0, "searched include directory " TESTDIR "/vlog" },
       { -1, NULL }

@@ -382,7 +382,9 @@ const char *token_str(token_t tok)
          ">>>=", "bufif0", "bufif1", "notif0", "notif1", "`protect",
          "begin_protected", "end_protected", "endprogram", "endclass",
          "virtual", "::", "defparam", "tran", "tranif0", "tranif1", "rtran",
-         "rtranif0", "rtranif1",
+         "rtranif0", "rtranif1", "`define", "macro text", "macro usage",
+         "`ifdef", "`ifndef", "`endif", "text", "`include", "`undef",
+         "`undefall",
       };
 
       if (tok >= 200 && tok - 200 < ARRAY_LEN(token_strs))
@@ -398,6 +400,11 @@ void free_token(token_t tok, yylval_t *lval)
       free(lval->str);
 
    DEBUG_ONLY(lval->str = NULL);
+}
+
+ident_t error_marker(void)
+{
+   return well_known(W_ERROR);
 }
 
 static void pp_defines_init(void)

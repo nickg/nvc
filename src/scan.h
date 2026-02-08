@@ -27,6 +27,7 @@ typedef union {
    int64_t     i64;
    ident_t     ident;
    text_buf_t *text;
+   char        ch;
 } yylval_t;
 
 // Functions shared between VHDL and Verilog scanners
@@ -99,6 +100,7 @@ hdl_kind_t source_kind(void);
 token_t processed_yylex(void);
 const char *token_str(token_t tok);
 void free_token(token_t tok, yylval_t *lval);
+ident_t error_marker(void);
 
 typedef void (*pp_iter_t)(const char *, const char *, void *);
 
@@ -589,5 +591,15 @@ void reset_sdf_parser(void);
 #define tRTRAN         624
 #define tRTRANIF0      625
 #define tRTRANIF1      626
+#define tDEFINE        627
+#define tMACROTEXT     628
+#define tMACROUSAGE    629
+#define tIFDEF         630
+#define tIFNDEF        631
+#define tENDIF         632
+#define tTEXT          633
+#define tINCLUDE       634
+#define tUNDEF         635
+#define tUNDEFALL      636
 
 #endif  // _SCAN_H

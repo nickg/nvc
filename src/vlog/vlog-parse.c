@@ -375,11 +375,6 @@ static void optional_attributes(void)
    last_attr = NULL;
 }
 
-static ident_t error_marker(void)
-{
-   return well_known(W_ERROR);
-}
-
 static vlog_node_t dummy_expression(void)
 {
    vlog_node_t v = vlog_new(V_NUMBER);

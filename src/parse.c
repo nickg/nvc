@@ -478,11 +478,6 @@ static const loc_t *_diff_loc(const loc_t *start, const loc_t *end)
    return &result;
 }
 
-static ident_t error_marker(void)
-{
-   return well_known(W_ERROR);
-}
-
 static tree_t error_expr(void)
 {
    tree_t t = tree_new(T_REF);
