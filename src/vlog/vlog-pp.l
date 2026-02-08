@@ -51,9 +51,14 @@ struct _ifdef_stack {
    bool           cond;
 };
 
+typedef struct {
+   ident_t     name;
+   loc_t       loc;
+   text_buf_t *text;
+} macro_t;
+
 static int            caller = 0;
-static shash_t       *macros;
-static text_buf_t    *macro_text;
+static hash_t        *macros;
 static text_buf_t    *output;
 static ifdef_stack_t *ifdefs = NULL;
 static bool           emit_locs;
@@ -134,24 +139,21 @@ SPACE           [ \t\r]
 <MACRO_DEF>.            { return tERROR; }
 
 <MACRO_TEXT>\\          { continuation = true; }
-<MACRO_TEXT>[^\r\n]     { if (continuation) {
-                             tb_append(macro_text, '\\');
-                             continuation = false;
-                          }
-                          tb_cat(macro_text, vlogpp_text);
+<MACRO_TEXT>[^\r\n]     { continuation = false;
+                          yylval.ch = yytext[0];
+                          return tTEXT;
                         }
 <MACRO_TEXT>\n\r        |
 <MACRO_TEXT>\r\n        |
 <MACRO_TEXT>\n          |
-<MACRO_TEXT>\r          { if (continuation) {
-                             tb_append(macro_text, '\n');
-                             tb_append(output, '\n');
+<MACRO_TEXT>\r          { tb_append(output, '\n');
+                          if (continuation) {
                              continuation = false;
+                             yylval.ch = '\n';
+                             return tTEXT;
                           }
-                          else {
-                             tb_cat(output, vlogpp_text);
-                             return tMACROTEXT;
-                          }
+                          else
+                             return tMACROEND;
                         }
 
 <MACRO_PARAM>{SPACE}    { }
@@ -410,15 +412,36 @@ static void convert_line_ending(void)
    begin_token(vlogpp_text, vlogpp_leng);
 }
 
+static void free_macros(void)
+{
+   const void *key;
+   void *value;
+   for (hash_iter_t it = HASH_BEGIN; hash_iter(macros, &it, &key, &value); ) {
+      macro_t *m = value;
+      tb_free(m->text);
+      free(m);
+   }
+
+   hash_free(macros);
+   macros = NULL;
+}
+
 static void undefall_macro(void)
 {
-   shash_free(macros);
-   macros = shash_new(64);
+   free_macros();
+   macros = hash_new(64);
 }
 
 static void vlog_define_cb(const char *key, const char *value, void *ctx)
 {
-   shash_put(macros, key, (void *)value);
+   macro_t *m = xmalloc(sizeof(macro_t));
+   m->name = ident_new(key);
+   m->loc  = LOC_INVALID;
+   m->text = tb_new();
+
+   tb_cat(m->text, value);
+
+   hash_put(macros, m->name, m);
 }
 
 static ident_t p_identifier(void)
@@ -429,13 +452,19 @@ static ident_t p_identifier(void)
       return error_marker();
 }
 
-static ident_t p_text_macro_name(void)
+static macro_t *p_text_macro_name(void)
 {
    // text_macro_identifier [ ( list_of_formal_arguments ) ]
 
    PBEGIN("text macro name");
 
-   return p_identifier();
+   macro_t *m = xmalloc(sizeof(macro_t));
+   m->name = p_identifier();
+   m->loc  = state.last_loc;
+   m->text = tb_new();
+
+   hash_put(macros, m->name, m);
+   return m;
 }
 
 static void p_text_macro_definition(void)
@@ -448,19 +477,20 @@ static void p_text_macro_definition(void)
 
    BEGIN(MACRO_DEF);
 
-   ident_t id = p_text_macro_name();
+   macro_t *m = p_text_macro_name();
 
    BEGIN(MACRO_TEXT);
 
-   consume(tMACROTEXT);
+   bool space = true;
+   while (not_at_token(tMACROEND)) {
+      consume(tTEXT);
 
-   char *copy = xstrdup(tb_get(macro_text)), *p = copy;
+      space &= isspace_iso88591(state.last_lval.ch);
+      if (!space)
+         tb_append(m->text, state.last_lval.ch);
+   }
 
-   for (; isspace_iso88591(*p); p++);
-
-   shash_put(macros, istr(id), p);
-
-   tb_rewind(macro_text);
+   consume(tMACROEND);
 
    BEGIN(INITIAL);
 }
@@ -475,10 +505,17 @@ static void p_text_macro_usage(void)
 
    ident_t name = state.last_lval.ident;
 
-   const char *text = shash_get(macros, istr(name));
-   if (text == NULL) {
+   const macro_t *m = hash_get(macros, name);
+   if (m == NULL) {
       warn_at(&yylloc, "macro '%pi' undefined", name);
-      shash_put(macros, istr(name), "");
+
+      // Prevent further warnings for this macro name
+      macro_t *dummy = xmalloc(sizeof(macro_t));
+      dummy->name = name;
+      dummy->loc  = LOC_INVALID;
+      dummy->text = tb_new();
+
+      hash_put(macros, name, dummy);
       return;
    }
 
@@ -486,7 +523,7 @@ static void p_text_macro_usage(void)
       tb_printf(output, "\n`__nvc_push %pi,%d:%d,%d\n", name,
                 yylloc.first_line, yylloc.first_column, yylloc.column_delta);
 
-   push_buffer(text, strlen(text), FILE_INVALID);
+   push_buffer(tb_get(m->text), tb_len(m->text), FILE_INVALID);
    yypush_buffer_state(yy_create_buffer(NULL, YY_BUF_SIZE));
 
    while (not_at_token(tEOF))
@@ -514,7 +551,7 @@ static bool p_ifdef_condition(void)
    case tID:
       {
          ident_t id = p_identifier();
-         cond = shash_get(macros, istr(id)) != NULL;
+         cond = hash_get(macros, id) != NULL;
       }
       break;
    case tLPAREN:
@@ -673,7 +710,7 @@ static void p_undef_compiler_directive(void)
 
    BEGIN(INITIAL);
 
-   shash_delete(macros, istr(id));
+   hash_delete(macros, id);
 }
 
 static void p_block_of_text(void)
@@ -723,14 +760,11 @@ static void p_source_text(void)
 void vlog_preprocess(text_buf_t *tb, bool precise)
 {
    if (macros == NULL) {
-      macros = shash_new(64);
+      macros = hash_new(64);
       pp_defines_iter(vlog_define_cb, NULL);
    }
    else
       assert(opt_get_int(OPT_SINGLE_UNIT));
-
-   assert(macro_text == NULL);
-   macro_text = tb_new();
 
    assert(output == NULL);
    output = tb;
@@ -754,11 +788,6 @@ void vlog_preprocess(text_buf_t *tb, bool precise)
    assert(ifdefs == NULL);
    output = NULL;
 
-   if (!opt_get_int(OPT_SINGLE_UNIT)) {
-      shash_free(macros);
-      macros = NULL;
-   }
-
-   tb_free(macro_text);
-   macro_text = NULL;
+   if (!opt_get_int(OPT_SINGLE_UNIT))
+      free_macros();
 }

@@ -592,7 +592,7 @@ void reset_sdf_parser(void);
 #define tRTRANIF0      625
 #define tRTRANIF1      626
 #define tDEFINE        627
-#define tMACROTEXT     628
+#define tMACROEND      628
 #define tMACROUSAGE    629
 #define tIFDEF         630
 #define tIFNDEF        631

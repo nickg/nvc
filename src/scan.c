@@ -382,7 +382,7 @@ const char *token_str(token_t tok)
          ">>>=", "bufif0", "bufif1", "notif0", "notif1", "`protect",
          "begin_protected", "end_protected", "endprogram", "endclass",
          "virtual", "::", "defparam", "tran", "tranif0", "tranif1", "rtran",
-         "rtranif0", "rtranif1", "`define", "macro text", "macro usage",
+         "rtranif0", "rtranif1", "`define", "macro end", "macro usage",
          "`ifdef", "`ifndef", "`endif", "text", "`include", "`undef",
          "`undefall",
       };
