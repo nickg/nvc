@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2013-2024  Nick Gasson
+//  Copyright (C) 2013-2026  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -853,6 +853,9 @@ static void fst_create_record_array_var(wave_dumper_t *wd, tree_t d,
    range_kind_t dir;
    fst_get_array_range(wd, type, scope->parent, d, dim, &left, &right,
                        &dir, &length);
+
+   if (length == 0)
+      return;
 
    type_t elem = type_elem(type);
    const bool nested = type_is_array(elem);
