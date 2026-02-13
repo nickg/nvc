@@ -28,7 +28,7 @@ architecture arch of ent is
         return 42;
     end function;
 
-    constant nn : positive := 2;
+    constant nn : positive := 1 + 1;    -- Does not fold
     procedure proc is new gen_proc generic map (n => nn, q => func);
 begin
     call: proc("00");
