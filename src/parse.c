@@ -2696,7 +2696,6 @@ static void package_body_deferred_instantiation(tree_t pack, tree_t container)
 
          instantiate_subprogram(inst, ref, body);
 
-         hash_t *gmap = hash_new(16);
          const int ngenmaps = tree_genmaps(decl);
          for (int i = 0; i < ngenmaps; i++) {
             tree_t map = tree_genmap(decl, i);
@@ -2709,23 +2708,23 @@ static void package_body_deferred_instantiation(tree_t pack, tree_t container)
 
             switch (tree_class(g)) {
             case C_TYPE:
-               hash_put(gmap, tree_type(g), tree_type(value));
+               map_generic_type(nametab, tree_type(g), tree_type(value));
                break;
             case C_FUNCTION:
             case C_PROCEDURE:
-               hash_put(gmap, g, tree_ref(value));
+               map_generic_subprogram(nametab, g, tree_ref(value));
                break;
             case C_CONSTANT:
-               if (is_literal(value))
-                  hash_put(gmap, g, value);
+               map_generic_const(nametab, g, value);
                break;
             default:
                should_not_reach_here();
             }
          }
 
-         instance_fixup(inst, gmap);
-         hash_free(gmap);
+         hash_t *gmap = get_generic_map(nametab);
+         if (gmap != NULL)
+            instance_fixup(inst, gmap);
 
          tree_add_decl(container, inst);
       }

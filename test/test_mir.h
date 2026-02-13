@@ -26,8 +26,8 @@
 
 typedef union {
    struct {
-      uint64_t data : 60;
-      uint64_t tag : 4;
+      uint64_t data : 56;
+      uint64_t tag : 8;
    };
    struct {
       float    real;
@@ -40,6 +40,8 @@ typedef union {
 
 STATIC_ASSERT(sizeof(mir_pattern_t) == 8);
 
+#define MIR_TEST_TAG_ARGS 16
+
 #define _ (UINT32_MAX + 1)
 #define VAR(name) ((mir_pattern_t){ .ptr = ("\x8" name) })
 #define EXTVAR(name) ((mir_pattern_t){ .ptr = ("\xb" name) })
@@ -50,6 +52,8 @@ STATIC_ASSERT(sizeof(mir_pattern_t) == 8);
 #define CONST(n) ((mir_pattern_t){ .tag = MIR_TAG_CONST, .data = n })
 #define ENUM(n) ((mir_pattern_t){ .tag = MIR_TAG_ENUM, .data = n })
 #define REAL(f) ((mir_pattern_t){ .ones = ~0, .real = (float)(f) })
+#define INT64(i) ((mir_pattern_t){ .bits = (i) })
+#define ARGS(n) ((mir_pattern_t){ .tag = MIR_TEST_TAG_ARGS, .data = n })
 
 #define mir_match(mu, b, pat) _mir_match((mu), (b), (pat), ARRAY_LEN((pat)))
 

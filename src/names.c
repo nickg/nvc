@@ -538,7 +538,14 @@ void map_generic_const(nametab_t *tab, tree_t generic, tree_t actual)
 {
    if (tab->top_scope->container == NULL)
       return;
-   else if (!is_literal(actual))
+
+   if (tree_kind(actual) == T_REF && tree_has_ref(actual)) {
+      tree_t decl = tree_ref(actual);
+      if (tree_kind(decl) == T_CONST_DECL && tree_has_value(decl))
+         actual = tree_value(decl);
+   }
+
+   if (!is_literal(actual))
       return;
 
    if (tab->top_scope->gmap == NULL)

@@ -1,6 +1,7 @@
 ## Unreleased changes
 - Fixed a crash when dumping a waveform `--dump-arrays` and the design
   contains a null array of records (#1420).
+- Several other minor bugs were resolved (#1422).
 
 ## Version 1.19.1 - 2026-02-07
 - Fixed a fatal error when a design unit instantiated multiple times

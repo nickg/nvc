@@ -111,6 +111,14 @@ static void mir_match_arg(mir_unit_t *mu, mir_value_t node,
                       (unsigned)data, ordinal_str(nth + 1), actual.id);
       }
    }
+   else if (tag == MIR_TEST_TAG_ARGS) {
+      const int nargs = mir_count_args(mu, node);
+      if (nargs != arg->data) {
+         mir_dump(mu);
+         ck_abort_msg("expected %"PRIu64" arguments but have %d",
+                      arg->data, nargs);
+      }
+   }
    else {
       mir_dump(mu);
       ck_abort_msg("cannot check tag %d", tag);
@@ -155,6 +163,16 @@ void _mir_match(mir_unit_t *mu, int nth, const mir_match_t *mm, size_t length)
             mir_dump(mu);
             ck_abort_msg("expected constant real value %f but have %f",
                          e->arg0.real, dval);
+         }
+      }
+      else if (op == MIR_OP_CONST && e->arg0.bits != 0) {
+         int64_t ival;
+         ck_assert(mir_get_const(mu, node, &ival));
+
+         if (ival != e->arg0.bits) {
+            mir_dump(mu);
+            ck_abort_msg("expected constant integer value %"PRIi64
+                         " but have %"PRIi64, e->arg0.bits, ival);
          }
       }
       else {

@@ -6922,73 +6922,63 @@ START_TEST(test_issue1350)
    run_elab();
 
    {
-      vcode_unit_t vu = find_unit("WORK.ENT");
-      vcode_select_unit(vu);
+      mir_unit_t *mu = find_unit2("WORK.ENT");
 
-      EXPECT_BB(0) = {
-         { VCODE_OP_PACKAGE_INIT, .name = "STD.STANDARD" },
-         { VCODE_OP_PACKAGE_INIT, .name = "WORK.PKG" },
-         { VCODE_OP_CONST, .value = 2 },
-         { VCODE_OP_STORE, .name = "NN" },
-         { VCODE_OP_STORE, .name = "WORK.ENT.PROC(Q).N" },
-         { VCODE_OP_CONTEXT_UPREF, .hops = 0 },
-         { VCODE_OP_FCALL, .func = "WORK.ENT.FUNC()I" },
-         { VCODE_OP_CONST, .value = 1 },
-         { VCODE_OP_CONST, .value = INT32_MAX },
-         { VCODE_OP_CONST, .value = 0 },
-         { VCODE_OP_DEBUG_LOCUS },
-         { VCODE_OP_DEBUG_LOCUS },
-         { VCODE_OP_RANGE_CHECK },
-         { VCODE_OP_STORE, .name = "WORK.ENT.PROC(Q).Q" },
-         { VCODE_OP_LOAD, .name = "WORK.ENT.PROC(Q).N" },
-         { VCODE_OP_STORE, .name = "WORK.ENT.PROC(Q).R" },
-         { VCODE_OP_RETURN },
+      static const mir_match_t bb0[] = {
+         { MIR_OP_PACKAGE_INIT, LINK("STD.STANDARD") },
+         { MIR_OP_PACKAGE_INIT, LINK("WORK.PKG") },
+         { MIR_OP_STORE, VAR("NN"), CONST(2) },
+         { MIR_OP_STORE, VAR("WORK.ENT.PROC(Q).N") },
+         { MIR_OP_CONTEXT_UPREF, ENUM(0) },
+         { MIR_OP_FCALL, LINK("WORK.ENT.FUNC()I") },
+         { MIR_OP_CONST, INT64(INT32_MAX) },
+         { MIR_OP_LOCUS },
+         { MIR_OP_LOCUS },
+         { MIR_OP_RANGE_CHECK },
+         { MIR_OP_STORE, VAR("WORK.ENT.PROC(Q).Q"), NODE(_) },
+         { MIR_OP_LOAD, VAR("WORK.ENT.PROC(Q).N") },
+         { MIR_OP_STORE, VAR("WORK.ENT.PROC(Q).R"), NODE(_) },
+         { MIR_OP_RETURN },
       };
-
-      CHECK_BB(0);
+      mir_match(mu, 0, bb0);
    }
 
    {
-      vcode_unit_t vu = find_unit("WORK.ENT.PROC(Q)");
-      vcode_select_unit(vu);
+      mir_unit_t *mu = find_unit2("WORK.ENT.PROC(Q)");
 
-      EXPECT_BB(0) = {
-         { VCODE_OP_VAR_UPREF, .name = "WORK.ENT.PROC(Q).N", .hops = 1 },
-         { VCODE_OP_LOAD_INDIRECT },
-         { VCODE_OP_CONST, .value = 1 },
-         { VCODE_OP_SUB },
-         { VCODE_OP_CONST, .value = 0 },
-         { VCODE_OP_JUMP, .target = 1 },
+      static const mir_match_t bb0[] = {
+         { MIR_OP_VAR_UPREF, CONST(1) },
+         { MIR_OP_LOAD },
+         { MIR_OP_SUB, NODE(_), CONST(1) },
+         { MIR_OP_JUMP, BLOCK(1) },   // TODO: should merge with next block
       };
+      mir_match(mu, 0, bb0);
 
-      CHECK_BB(0);
+      static const mir_match_t bb1[] = {
+         { MIR_OP_STORE, VAR("I._L0"), NODE(_) },
+         { MIR_OP_JUMP, BLOCK(3) },
+      };
+      mir_match(mu, 1, bb1);
    }
 
    {
-      vcode_unit_t vu = find_unit("WORK.ENT.CALL");
-      vcode_select_unit(vu);
+      mir_unit_t *mu = find_unit2("WORK.ENT.CALL");
 
-      EXPECT_BB(1) = {
-         { VCODE_OP_CONTEXT_UPREF, .hops = 1 },
-         { VCODE_OP_CONST, .value = 0 },
-         { VCODE_OP_CONST_ARRAY, .length = 2 },
-         { VCODE_OP_ADDRESS_OF },
-         { VCODE_OP_DEBUG_LOCUS },
-         { VCODE_OP_VAR_UPREF, .name = "WORK.ENT.PROC(Q).N", .hops = 1 },
-         { VCODE_OP_LOAD_INDIRECT },
-         { VCODE_OP_CONST, .value = 1 },
-         { VCODE_OP_SUB },
-         { VCODE_OP_CONST, .value = 0 },
-         { VCODE_OP_CONST, .value = 1 },
-         { VCODE_OP_RANGE_LENGTH },
-         { VCODE_OP_CONST, .value = 2 },
-         { VCODE_OP_LENGTH_CHECK },
-         { VCODE_OP_WRAP },
-         { VCODE_OP_FCALL, .func = "WORK.ENT.PROC(Q)" },
-         { VCODE_OP_WAIT, .target = 2 },
+      static const mir_match_t bb1[] = {
+         { MIR_OP_CONTEXT_UPREF, ENUM(1) },
+         { MIR_OP_CONST_ARRAY, CONST(0), CONST(0) },
+         { MIR_OP_ADDRESS_OF },
+         { MIR_OP_LOCUS },
+         { MIR_OP_VAR_UPREF, ENUM(1) },
+         { MIR_OP_LOAD },
+         { MIR_OP_SUB, NODE(_), CONST(1) },
+         { MIR_OP_RANGE_LENGTH },
+         { MIR_OP_LENGTH_CHECK },
+         { MIR_OP_WRAP },
+         { MIR_OP_FCALL, LINK("WORK.ENT.PROC(Q)") },
+         { MIR_OP_WAIT, BLOCK(2) },
       };
-
-      CHECK_BB(1);
+      mir_match(mu, 1, bb1);
    }
 
    fail_if_errors();
@@ -7083,6 +7073,30 @@ START_TEST(test_issue1259)
       { MIR_OP_LOAD, NODE(_) },
       { MIR_OP_STORE, VAR("RES") },
       { MIR_OP_WRAP, VAR("RES"), CONST(1), CONST(0) },
+      { MIR_OP_RETURN },
+   };
+   mir_match(mu, 0, bb0);
+
+   fail_if_errors();
+}
+END_TEST
+
+START_TEST(test_issue1422)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/lower/issue1422.vhd");
+
+   run_elab();
+
+   mir_unit_t *mu = find_unit2("WORK.ISSUE1422");
+
+   static const mir_match_t bb0[] = {
+      { MIR_OP_PACKAGE_INIT, LINK("STD.STANDARD") },
+      { MIR_OP_PACKAGE_INIT, LINK("WORK.SETTINGS_PKG") },
+      { MIR_OP_LOCUS },
+      { MIR_OP_INIT_SIGNAL, CONST(16), CONST(1), CONST(0) },
+      { MIR_OP_STORE, VAR("S8") },
       { MIR_OP_RETURN },
    };
    mir_match(mu, 0, bb0);
@@ -7252,6 +7266,7 @@ Suite *get_lower_tests(void)
    tcase_add_test(tc, test_issue1350);
    tcase_add_test(tc, test_bounds3);
    tcase_add_test(tc, test_issue1259);
+   tcase_add_test(tc, test_issue1422);
    suite_add_tcase(s, tc);
 
    return s;
