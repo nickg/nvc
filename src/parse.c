@@ -755,8 +755,8 @@ static void set_delay_mechanism(tree_t t, tree_t reject)
          tree_set_reject(t, tree_delay(w));
    }
    else {
-      tree_set_reject(t, reject);
-      solve_types(nametab, reject, std_type(NULL, STD_TIME));
+      type_t std_time = std_type(NULL, STD_TIME);
+      tree_set_reject(t, solve_types(nametab, reject, std_time));
    }
 }
 
@@ -1563,12 +1563,12 @@ static tree_t implicit_dereference(tree_t t)
    return all;
 }
 
-static type_t prefix_type(tree_t prefix, type_t signature)
+static tree_t resolve_prefix(tree_t prefix, type_t signature)
 {
    if (scope_formal_kind(nametab) == F_SUBPROGRAM)
-      return NULL;
+      return prefix;
 
-   // Check we can acutally resolve the base reference at this point
+   // Check we can actually resolve the base reference at this point
    tree_t ref = prefix;
    tree_kind_t kind;
    while ((kind = tree_kind(ref)) != T_REF) {
@@ -1580,12 +1580,12 @@ static type_t prefix_type(tree_t prefix, type_t signature)
          ref = tree_value(ref);
          break;
       default:
-         return NULL;
+         return prefix;
       }
    }
 
    if (tree_has_ref(ref) && !class_has_type(class_of(tree_ref(ref))))
-      return NULL;
+      return prefix;
 
    return solve_types(nametab, prefix, signature);
 }
@@ -1676,11 +1676,9 @@ static tree_t could_be_slice_name(tree_t fcall)
    tree_set_value(r, aref);
    tree_set_loc(r, tree_loc(p0));
 
-   solve_types(nametab, r, NULL);
-
    tree_t slice = tree_new(T_ARRAY_SLICE);
    tree_set_value(slice, new);
-   tree_add_range(slice, r);
+   tree_add_range(slice, solve_types(nametab, r, NULL));
    tree_set_loc(slice, tree_loc(fcall));
 
    return slice;
@@ -1967,9 +1965,7 @@ static type_t get_subtype_for(tree_t expr)
          tree_set_value(r, rref);
          tree_set_loc(r, loc);
 
-         solve_types(nametab, r, NULL);
-
-         tree_add_range(c, r);
+         tree_add_range(c, solve_types(nametab, r, NULL));
       }
 
       type_set_elem(sub, get_element_subtype(expr));
@@ -2291,7 +2287,9 @@ static void implicit_signal_attribute(tree_t aref)
       if (delay != NULL)
          tree_set_delay(w, delay);
 
-      tree_set_type(imp, solve_types(nametab, aref, NULL));
+      solve_types(nametab, aref, NULL);
+
+      tree_set_type(imp, tree_type(aref));
       tree_set_value(imp, w);
    }
 
@@ -2575,8 +2573,9 @@ static void convert_universal_bounds(tree_t r)
 
 static type_t name_to_type_mark(tree_t name)
 {
-   type_t type = solve_types(nametab, name, NULL);
+   name = solve_types(nametab, name, NULL);
 
+   type_t type = tree_type(name);
    if (type_is_none(type))
       return type;
 
@@ -3076,8 +3075,7 @@ static tree_t p_range_constraint(type_t constraint)
    case tDOWNTO:
       {
          tree_t r = p_range(expr1);
-         solve_types(nametab, r, constraint);
-         tree_add_range(t, r);
+         tree_add_range(t, solve_types(nametab, r, constraint));
       }
       break;
    default:
@@ -3087,9 +3085,7 @@ static tree_t p_range_constraint(type_t constraint)
          tree_set_subkind(r, RANGE_EXPR);
          tree_set_value(r, expr1);
 
-         solve_types(nametab, r, constraint);
-
-         tree_add_range(t, r);
+         tree_add_range(t, solve_types(nametab, r, constraint));
       }
    }
 
@@ -3113,13 +3109,14 @@ static tree_t p_discrete_range(tree_t head)
 
    case tRANGE:
       {
-         type_t constraint = solve_types(nametab, expr1, NULL);
+         expr1 = solve_types(nametab, expr1, NULL);
 
          const bool is_type =
             tree_kind(expr1) == T_REF
             && tree_has_ref(expr1)
             && is_type_decl(tree_ref(expr1));
 
+         type_t constraint = tree_type(expr1);
          if (!is_type && !type_is_none(constraint)) {
             parse_error(tree_loc(expr1), "expected type mark while parsing "
                         "discrete range");
@@ -3129,15 +3126,16 @@ static tree_t p_discrete_range(tree_t head)
          consume(tRANGE);
 
          tree_t left = p_expression();
-         tree_t r = p_range(left);
-         solve_types(nametab, r, constraint);
+         tree_t r = solve_types(nametab, p_range(left), constraint);
          tree_set_type(r, constraint);
          return r;
       }
 
    default:
       {
-         type_t type = solve_types(nametab, expr1, NULL);
+         expr1 = solve_types(nametab, expr1, NULL);
+
+         type_t type = tree_type(expr1);
 
          if (tree_kind(expr1) == T_ATTR_REF)
             return p_range(expr1);   // Special attributes such as 'RANGE
@@ -3175,7 +3173,9 @@ static tree_t p_slice_name(tree_t prefix, tree_t head)
 
    EXTEND("slice name");
 
-   type_t type = prefix_type(prefix, NULL);
+   prefix = resolve_prefix(prefix, NULL);
+
+   type_t type = get_type_or_null(prefix);
 
    if (type != NULL && type_is_access(type)) {
       prefix = implicit_dereference(prefix);
@@ -3189,8 +3189,7 @@ static tree_t p_slice_name(tree_t prefix, tree_t head)
    if (type != NULL && type_is_array(type))
       index_type = index_type_of(type, 0);
 
-   tree_t r = p_discrete_range(head);
-   solve_types(nametab, r, index_type);
+   tree_t r = solve_types(nametab, p_discrete_range(head), index_type);
    convert_universal_bounds(r);
 
    tree_add_range(t, r);
@@ -3347,8 +3346,10 @@ static void p_association_element(tree_t map, int pos, tree_t unit,
          signature = NULL;
       }
 
-      if (class != C_PACKAGE && (kind == F_GENERIC_MAP || kind == F_PORT_MAP))
-         type = solve_types(nametab, name, signature);
+      if (class != C_PACKAGE && (kind == F_GENERIC_MAP || kind == F_PORT_MAP)) {
+         name = solve_types(nametab, name, signature);
+         type = tree_type(name);
+      }
 
       if (kind == F_PORT_MAP && tree_kind(name) == T_FCALL)
          name = fcall_to_conv_func(name);
@@ -3384,14 +3385,14 @@ static void p_association_element(tree_t map, int pos, tree_t unit,
    tree_t value = p_actual_part(class, kind);
 
    if (kind == F_PORT_MAP)
-      solve_types(nametab, value, type);
+      value = solve_types(nametab, value, type);
    else if (kind == F_GENERIC_MAP && class != C_PACKAGE) {
-      type_t value_type = solve_types(nametab, value, type);
+      value = solve_types(nametab, value, type);
 
       // Make the mapped type available immediately as it may be used in
       // later actuals
       if (class == C_TYPE && type != NULL)
-         map_generic_type(nametab, type, value_type);
+         map_generic_type(nametab, type, tree_type(value));
    }
 
    if (kind == F_PORT_MAP && tree_kind(value) == T_FCALL)
@@ -3560,7 +3561,9 @@ static tree_t p_attribute_name(tree_t prefix)
       id = error_marker();
    }
 
-   type_t type = prefix_type(prefix, signature);
+   prefix = resolve_prefix(prefix, signature);
+
+   type_t type = get_type_or_null(prefix);
 
    if (signature != NULL) {
       bool valid_signature = false;
@@ -3740,7 +3743,9 @@ static tree_t p_selected_name(tree_t prefix, name_mask_t *mask)
       return rref;
    }
 
-   type_t type = solve_types(nametab, prefix, NULL);
+   prefix = solve_types(nametab, prefix, NULL);
+
+   type_t type = tree_type(prefix);
 
    if (type_is_access(type)) {
       prefix = implicit_dereference(prefix);
@@ -3797,7 +3802,9 @@ static tree_t p_indexed_name(tree_t prefix, tree_t head)
 
    EXTEND("indexed name");
 
-   type_t type = prefix_type(prefix, NULL);
+   prefix = resolve_prefix(prefix, NULL);
+
+   type_t type = get_type_or_null(prefix);
 
    if (type != NULL && type_is_access(type)) {
       prefix = implicit_dereference(prefix);
@@ -3843,11 +3850,10 @@ static tree_t p_type_conversion(tree_t prefix)
    }
 
    tree_t value = p_expression();
-   solve_types(nametab, value, NULL);
 
    tree_t conv = tree_new(T_TYPE_CONV);
    tree_set_type(conv, type);
-   tree_set_value(conv, value);
+   tree_set_value(conv, solve_types(nametab, value, NULL));
 
    consume(tRPAREN);
 
@@ -3866,8 +3872,7 @@ static void p_partial_pathname(tree_t name)
       tree_set_ident(pe, p_identifier());
 
       if (optional(tLPAREN)) {
-         tree_t expr = p_expression();
-         solve_types(nametab, expr, NULL);
+         tree_t expr = solve_types(nametab, p_expression(), NULL);
 
          tree_set_subkind(pe, PE_GENERATE);
          tree_set_value(pe, expr);
@@ -4149,8 +4154,7 @@ static tree_t p_index_constraint(type_t base)
    tree_set_subkind(t, C_INDEX);
    do {
       type_t index_type = base ? index_type_of(base, n++) : NULL;
-      tree_t r = p_discrete_range(NULL);
-      solve_types(nametab, r, index_type);
+      tree_t r = solve_types(nametab, p_discrete_range(NULL), index_type);
       tree_add_range(t, r);
    } while (optional(tCOMMA));
 
@@ -4544,18 +4548,22 @@ static void p_agg_choice(tree_t parent, tree_t head, type_t constraint)
          is_range = attr == ATTR_RANGE || attr == ATTR_REVERSE_RANGE;
       }
 
-      tree_t choice = NULL;
       if (is_range) {
+         tree_t choice = p_discrete_range(name);
+         if (constraint != NULL)
+            choice = solve_types(nametab, choice, constraint);
+
          tree_set_subkind(t, A_RANGE);
-         tree_add_range(t, (choice = p_discrete_range(name)));
+         tree_add_range(t, choice);
       }
       else {
-         tree_set_subkind(t, A_NAMED);
-         tree_set_name(t, (choice = name));
-      }
+         tree_t choice = name;
+         if (constraint != NULL)
+            choice = solve_types(nametab, choice, constraint);
 
-      if (constraint != NULL)
-         solve_types(nametab, choice, constraint);
+         tree_set_subkind(t, A_NAMED);
+         tree_set_name(t, choice);
+      }
    }
 
    tree_set_loc(t, CURRENT_LOC);
@@ -4603,14 +4611,18 @@ static tree_t p_choice(tree_t head, type_t constraint)
       is_range = attr == ATTR_RANGE || attr == ATTR_REVERSE_RANGE;
    }
 
-   tree_t choice = NULL;
-   if (is_range)
-      tree_add_range(t, (choice = p_discrete_range(name)));
+   if (constraint != NULL) {
+      if (is_range) {
+         tree_t r = p_discrete_range(name);
+         tree_add_range(t, solve_types(nametab, r, constraint));
+      }
+      else
+         tree_set_name(t, solve_types(nametab, name, constraint));
+   }
+   else if (is_range)
+      tree_add_range(t, p_discrete_range(name));
    else
-      tree_set_name(t, (choice = name));
-
-   if (constraint != NULL)
-      solve_types(nametab, choice, constraint);
+      tree_set_name(t, name);
 
    tree_set_loc(t, CURRENT_LOC);
    return t;
@@ -4766,9 +4778,7 @@ static tree_t p_qualified_expression(tree_t prefix)
    consume(tTICK);
 
    tree_t value = p_aggregate_or_expression();
-
-   tree_set_value(qual, value);
-   solve_types(nametab, value, type);
+   tree_set_value(qual, solve_types(nametab, value, type));
 
    tree_set_loc(qual, CURRENT_LOC);
    return qual;
@@ -5269,10 +5279,8 @@ static void p_interface_constant_declaration(tree_t parent, tree_kind_t kind,
    type_t type = p_interface_type_indication(parent);
 
    tree_t init = NULL;
-   if (optional(tWALRUS)) {
-      init = p_expression();
-      solve_types(nametab, init, type);
-   }
+   if (optional(tWALRUS))
+      init = solve_types(nametab, p_expression(), type);
 
    for (ident_list_t *it = ids; it != NULL; it = it->next) {
       tree_t d = tree_new(kind);
@@ -5305,8 +5313,7 @@ static void p_array_mode_view_indication(type_t *type, tree_t *name)
    consume(tVIEW);
    consume(tLPAREN);
 
-   *name = p_name(0);
-   solve_types(nametab, *name, NULL);
+   *name = solve_types(nametab, p_name(0), NULL);
 
    consume(tRPAREN);
    consume(tOF);
@@ -5322,9 +5329,9 @@ static void p_record_mode_view_indication(type_t *type, tree_t *name)
 
    consume(tVIEW);
 
-   *name = p_name(0);
-   type_t name_type = solve_types(nametab, *name, NULL);
+   *name = solve_types(nametab, p_name(0), NULL);
 
+   type_t name_type = tree_type(*name);
    if (optional(tOF))
       *type = p_subtype_indication();
    else if (type_kind(name_type) != T_VIEW) {
@@ -5385,10 +5392,8 @@ static void p_interface_signal_declaration(tree_t parent, tree_kind_t kind,
       if (optional(tBUS))
          flags |= TREE_F_BUS;
 
-      if (optional(tWALRUS)) {
-         init = p_expression();
-         solve_types(nametab, init, type);
-      }
+      if (optional(tWALRUS))
+         init = solve_types(nametab, p_expression(), type);
    }
 
    for (ident_list_t *it = ids; it != NULL; it = it->next) {
@@ -5433,10 +5438,8 @@ static void p_interface_variable_declaration(tree_t parent, tree_kind_t kind)
    type_t type = p_interface_type_indication(parent);
 
    tree_t init = NULL;
-   if (optional(tWALRUS)) {
-      init = p_expression();
-      solve_types(nametab, init, type);
-   }
+   if (optional(tWALRUS))
+      init = solve_types(nametab, p_expression(), type);
 
    for (ident_list_t *it = ids; it != NULL; it = it->next) {
       tree_t d = tree_new(kind);
@@ -6349,8 +6352,7 @@ static void p_attribute_specification(tree_t parent)
 
    consume(tIS);
 
-   tree_t value = p_expression();
-   solve_types(nametab, value, type);
+   tree_t value = solve_types(nametab, p_expression(), type);
 
    consume(tSEMI);
 
@@ -6721,8 +6723,7 @@ static type_t p_constrained_array_definition(type_t base, tree_t head)
    mangle_type(nametab, sub);
 
    do {
-      tree_t r = p_discrete_range(head);
-      solve_types(nametab, r, NULL);
+      tree_t r = solve_types(nametab, p_discrete_range(head), NULL);
       convert_universal_bounds(r);
 
       tree_add_range(constraint, r);
@@ -7215,12 +7216,10 @@ static void p_constant_declaration(tree_t parent)
       tree_set_loc(t, &(it->loc));
 
       if (init != NULL) {
-         tree_set_value(t, init);
-
          if (standard() < STD_19 || type_is_unconstrained(type))
-            solve_types(nametab, init, type);
+            tree_set_value(t, solve_types(nametab, init, type));
          else
-            solve_known_subtype(nametab, init, t);
+            tree_set_value(t, solve_known_subtype(nametab, init, t));
       }
 
       tree_add_decl(parent, t);
@@ -7235,9 +7234,7 @@ static tree_t p_condition(void)
    BEGIN("condition");
 
    tree_t value = p_expression();
-   solve_condition(nametab, &value);
-
-   return value;
+   return solve_condition(nametab, value);
 }
 
 static tree_t p_assertion(void)
@@ -7253,14 +7250,14 @@ static tree_t p_assertion(void)
    tree_set_value(s, p_condition());
 
    if (optional(tREPORT)) {
-      tree_t message = p_expression();
-      solve_types(nametab, message, std_type(NULL, STD_STRING));
+      type_t std_string = std_type(NULL, STD_STRING);
+      tree_t message = solve_types(nametab, p_expression(), std_string);
       tree_set_message(s, message);
    }
 
    if (optional(tSEVERITY)) {
-      tree_t severity = p_expression();
-      solve_types(nametab, severity, std_type(NULL, STD_SEVERITY_LEVEL));
+      type_t std_severity = std_type(NULL, STD_SEVERITY_LEVEL);
+      tree_t severity = solve_types(nametab, p_expression(), std_severity);
       tree_set_severity(s, severity);
    }
 
@@ -7532,10 +7529,8 @@ static void p_variable_declaration(tree_t parent)
    type_t type = p_subtype_indication();
 
    tree_t init = NULL;
-   if (optional(tWALRUS)) {
-      init = p_conditional_expression();
-      solve_types(nametab, init, type);
-   }
+   if (optional(tWALRUS))
+      init = solve_types(nametab, p_conditional_expression(), type);
 
    consume(tSEMI);
 
@@ -7605,10 +7600,8 @@ static void p_signal_declaration(tree_t parent)
       tree_set_type(t, type);
       tree_set_flag(t, flags);
 
-      if (init != NULL) {
-         solve_known_subtype(nametab, init, t);
-         tree_set_value(t, init);
-      }
+      if (init != NULL)
+         tree_set_value(t, solve_known_subtype(nametab, init, t));
 
       tree_add_decl(parent, t);
 
@@ -7689,7 +7682,8 @@ static void p_alias_declaration(tree_t parent)
          type = type_new(T_NONE);
       }
       else if (value_kind != T_REF && value_kind != T_PROT_REF) {
-         if (!type_is_none((type = solve_types(nametab, value, NULL)))) {
+         value = solve_types(nametab, value, NULL);
+         if (!type_is_none((type = tree_type(value)))) {
             parse_error(tree_loc(value), "invalid name in subprogram alias");
             type = type_new(T_NONE);
          }
@@ -7791,8 +7785,8 @@ static void p_file_open_information(tree_t *mode, tree_t *name)
    BEGIN("file open information");
 
    if (optional(tOPEN)) {
-      *mode = p_expression();
-      solve_types(nametab, *mode, std_type(NULL, STD_FILE_OPEN_KIND));
+      type_t std_file_open_kind = std_type(NULL, STD_FILE_OPEN_KIND);
+      *mode = solve_types(nametab, p_expression(), std_file_open_kind);
    }
    else
       *mode = NULL;
@@ -7807,8 +7801,8 @@ static void p_file_open_information(tree_t *mode, tree_t *name)
          }
       }
 
-      *name = p_expression();
-      solve_types(nametab, *name, std_type(NULL, STD_STRING));
+      type_t std_string = std_type(NULL, STD_STRING);
+      *name = solve_types(nametab, p_expression(), std_string);
 
       if (*mode == NULL) {
          tree_t decl = get_local_decl(nametab, find_std(nametab), mode_name, 0);
@@ -7874,8 +7868,8 @@ static void p_disconnection_specification(tree_t container)
 
    consume(tAFTER);
 
-   tree_t delay = p_expression();
-   solve_types(nametab, delay, std_type(NULL, STD_TIME));
+   type_t std_time = std_type(NULL, STD_TIME);
+   tree_t delay = solve_types(nametab, p_expression(), std_time);
 
    consume(tSEMI);
 
@@ -8202,8 +8196,7 @@ static tree_t p_element_array_mode_view_indication(void)
    consume(tVIEW);
    consume(tLPAREN);
 
-   tree_t name = p_name(0);
-   solve_types(nametab, name, NULL);
+   tree_t name = solve_types(nametab, p_name(0), NULL);
 
    consume(tRPAREN);
 
@@ -8218,10 +8211,7 @@ static tree_t p_element_record_mode_view_indication(void)
 
    consume(tVIEW);
 
-   tree_t name = p_name(0);
-   solve_types(nametab, name, NULL);
-
-   return name;
+   return solve_types(nametab, p_name(0), NULL);
 }
 
 static port_mode_t p_element_mode_view_indication(tree_t *name)
@@ -8626,9 +8616,8 @@ static void p_sensitivity_list(tree_t proc)
    BEGIN("sensitivity list");
 
    do {
-      tree_t name = p_name(0);
+      tree_t name = solve_types(nametab, p_name(0), NULL);
       tree_add_trigger(proc, name);
-      solve_types(nametab, name, NULL);
    } while (optional(tCOMMA));
 }
 
@@ -9877,12 +9866,9 @@ static tree_t p_simple_variable_assignment(ident_t label, tree_t name)
 
    tree_t value = p_conditional_or_unaffected_expression(STD_08);
 
-   solve_target(nametab, target, value);
-   solve_known_subtype(nametab, value, target);
-
    tree_t t = tree_new(T_VAR_ASSIGN);
-   tree_set_target(t, target);
-   tree_set_value(t, value);
+   tree_set_target(t, (target = solve_target(nametab, target, value)));
+   tree_set_value(t, solve_known_subtype(nametab, value, target));
 
    consume(tSEMI);
 
@@ -9905,13 +9891,11 @@ static void p_selected_expressions(tree_t stmt, tree_t target)
       tree_t expr = p_expression();
 
       if (!tree_has_type(target))
-         solve_target(nametab, target, expr);
-
-      solve_known_subtype(nametab, expr, target);
+         target = solve_target(nametab, target, expr);
 
       tree_t a = tree_new(T_VAR_ASSIGN);
       tree_set_target(a, target);
-      tree_set_value(a, expr);
+      tree_set_value(a, solve_known_subtype(nametab, expr, target));
 
       sem_check(a, nametab);
 
@@ -9937,8 +9921,7 @@ static tree_t p_selected_variable_assignment(ident_t label)
 
    consume(tWITH);
 
-   tree_t value = p_expression();
-   solve_types(nametab, value, NULL);
+   tree_t value = solve_types(nametab, p_expression(), NULL);
 
    consume(tSELECT);
 
@@ -9997,20 +9980,19 @@ static tree_t p_waveform_element(tree_t target)
 
    if (!optional(tNULL)) {
       tree_t value = p_expression();
-      tree_set_value(w, value);
 
       if (!tree_has_type(target))
-         solve_target(nametab, target, value);
+         target = solve_target(nametab, target, value);
 
-      solve_known_subtype(nametab, value, target);
+      tree_set_value(w, solve_known_subtype(nametab, value, target));
    }
    else if (!tree_has_type(target))
       solve_types(nametab, target, NULL);
 
    if (optional(tAFTER)) {
-      tree_t delay = p_expression();
+      type_t std_time = std_type(NULL, STD_TIME);
+      tree_t delay = solve_types(nametab, p_expression(), std_time);
       tree_set_delay(w, delay);
-      solve_types(nametab, delay, std_type(NULL, STD_TIME));
    }
 
    tree_set_loc(w, CURRENT_LOC);
@@ -10091,21 +10073,19 @@ static tree_t p_simple_force_assignment(ident_t label, tree_t target)
    if (tree_kind(target) == T_AGGREGATE) {
       parse_error(CURRENT_LOC, "target of a simple force assignment may "
                   "not be an aggregate");
-      target_type = type_new(T_NONE);
+      tree_set_type(target, (target_type = type_new(T_NONE)));
    }
-   else
-      target_type = solve_types(nametab, target, NULL);
-
-   tree_set_type(target, target_type);
+   else {
+      target = solve_types(nametab, target, NULL);
+      target_type = tree_type(target);
+   }
 
    tree_t t = tree_new(T_FORCE);
    tree_set_target(t, target);
    tree_set_subkind(t, p_force_mode());
 
    tree_t expr = p_conditional_or_unaffected_expression(STD_08);
-   solve_types(nametab, expr, target_type);
-
-   tree_set_value(t, expr);
+   tree_set_value(t, solve_types(nametab, expr, target_type));
 
    consume(tSEMI);
 
@@ -10128,12 +10108,12 @@ static tree_t p_simple_release_assignment(ident_t label, tree_t target)
    if (tree_kind(target) == T_AGGREGATE) {
       parse_error(CURRENT_LOC, "target of a simple release assignment may "
                   "not be an aggregate");
-      target_type = type_new(T_NONE);
+      tree_set_type(target, (target_type = type_new(T_NONE)));
    }
-   else
-      target_type = solve_types(nametab, target, NULL);
-
-   tree_set_type(target, target_type);
+   else {
+      target = solve_types(nametab, target, NULL);
+      target_type = tree_type(target);
+   }
 
    tree_t t = tree_new(T_RELEASE);
    tree_set_target(t, target);
@@ -10161,7 +10141,6 @@ static tree_t p_signal_assignment_statement(ident_t label, tree_t name)
    case tRELEASE: return p_simple_release_assignment(label, target);
    default: break;
    }
-
 
    tree_t t = tree_new(T_SIGNAL_ASSIGN);
    tree_set_target(t, target);
@@ -10226,9 +10205,9 @@ static void p_timeout_clause(tree_t wait)
 
    consume(tFOR);
 
-   tree_t delay = p_expression();
+   type_t std_time = std_type(NULL, STD_TIME);
+   tree_t delay = solve_types(nametab, p_expression(), std_time);
    tree_set_delay(wait, delay);
-   solve_types(nametab, delay, std_type(NULL, STD_TIME));
 }
 
 static tree_t p_wait_statement(ident_t label)
@@ -10282,13 +10261,13 @@ static tree_t p_report_statement(ident_t label)
 
    consume(tREPORT);
 
-   tree_t m = p_expression();
+   type_t std_string = std_type(NULL, STD_STRING);
+   tree_t m = solve_types(nametab, p_expression(), std_string);
    tree_set_message(t, m);
-   solve_types(nametab, m, std_type(NULL, STD_STRING));
 
    if (optional(tSEVERITY)) {
-      tree_t s = p_expression();
-      solve_types(nametab, s, std_type(NULL, STD_SEVERITY_LEVEL));
+      type_t std_severity = std_type(NULL, STD_SEVERITY_LEVEL);
+      tree_t s = solve_types(nametab, p_expression(), std_severity);
       tree_set_severity(t, s);
    }
 
@@ -10376,8 +10355,7 @@ static void p_parameter_specification(tree_t loop, tree_kind_t pkind)
 
    consume(tIN);
 
-   tree_t r = p_discrete_range(NULL);
-   solve_types(nametab, r, NULL);
+   tree_t r = solve_types(nametab, p_discrete_range(NULL), NULL);
    convert_universal_bounds(r);
    tree_add_range(loop, r);
 
@@ -10490,8 +10468,7 @@ static tree_t p_return_statement(ident_t label)
          }
 
          tree_t value = p_conditional_or_unaffected_expression(STD_19);
-         solve_types(nametab, value, return_type);
-         tree_set_value(stmt, value);
+         tree_set_value(stmt, solve_types(nametab, value, return_type));
       }
    }
 
@@ -10599,7 +10576,8 @@ static tree_t p_procedure_call_statement(ident_t label, tree_t name)
 
    default:
       // Only print an error if name is a valid expression
-      if (!type_is_none(solve_types(nametab, name, NULL)))
+      solve_types(nametab, name, NULL);
+      if (!type_is_none(tree_type(name)))
          parse_error(CURRENT_LOC, "expected procedure name");
 
       call = tree_new(T_PCALL);
@@ -10658,7 +10636,8 @@ static tree_t p_procedure_call_statement(ident_t label, tree_t name)
 
    set_label_and_loc(call, label, CURRENT_LOC);
 
-   solve_types(nametab, call, NULL);
+   call = solve_types(nametab, call, NULL);
+
    sem_check(call, nametab);
    return call;
 }
@@ -10700,13 +10679,12 @@ static tree_t p_case_statement(ident_t label)
 
    tree_t t = tree_new(kind);
 
-   tree_t value = p_expression();
+   tree_t value = solve_types(nametab, p_expression(), NULL);
    tree_set_value(t, value);
-
-   type_t type = solve_types(nametab, value, NULL);
 
    consume(tIS);
 
+   type_t type = tree_type(value);
    do {
       tree_add_stmt(t, p_case_statement_alternative(type));
    } while (peek() == tWHEN);
@@ -11038,7 +11016,6 @@ static void p_conditional_waveforms(tree_t stmt, tree_t target, tree_t s0)
          tree_t when = p_condition();
          tree_set_value(c, when);
          tree_set_loc(c, tree_loc(when));
-         solve_types(nametab, when, std_type(NULL, STD_BOOLEAN));
 
          if (!optional(tELSE))
             break;
@@ -11125,8 +11102,7 @@ static tree_t p_selected_signal_assignment(void)
 
    consume(tWITH);
 
-   tree_t value = p_expression();
-   solve_types(nametab, value, NULL);
+   tree_t value = solve_types(nametab, p_expression(), NULL);
 
    consume(tSELECT);
 
@@ -11224,10 +11200,8 @@ static tree_t p_concurrent_procedure_call_statement(ident_t label, tree_t name)
 
    tree_set_loc(call, CURRENT_LOC);
 
-   solve_types(nametab, call, NULL);
-
    tree_t conc = tree_new(T_CONCURRENT);
-   tree_add_stmt(conc, call);
+   tree_add_stmt(conc, solve_types(nametab, call, NULL));
 
    if (postponed)
       tree_set_flag(conc, TREE_F_POSTPONED);
@@ -11338,9 +11312,8 @@ static tree_t p_block_statement(ident_t label)
       consume(tLPAREN);
 
       tree_t expr = p_expression();
-      solve_condition(nametab, &expr);
 
-      make_implicit_guard_signal(b, expr);
+      make_implicit_guard_signal(b, solve_condition(nametab, expr));
 
       consume(tRPAREN);
    }
@@ -11587,13 +11560,12 @@ static tree_t p_case_generate_statement(ident_t label)
    if (label != NULL)
       insert_name(nametab, g, NULL);
 
-   tree_t value = p_expression();
+   tree_t value = solve_types(nametab, p_expression(), NULL);
    tree_set_value(g, value);
-
-   type_t type = solve_types(nametab, value, NULL);
 
    consume(tGENERATE);
 
+   type_t type = tree_type(value);
    do {
       tree_add_stmt(g, p_case_generate_alternative(type));
    } while (peek() == tWHEN);
@@ -11826,8 +11798,8 @@ static psl_node_t p_psl_boolean(tree_t head)
 
 static psl_node_t p_psl_clock_expression(void)
 {
-   tree_t expr = p_expression();
-   solve_types(nametab, expr, std_type(NULL, STD_BOOLEAN));
+   type_t std_bool = std_type(NULL, STD_BOOLEAN);
+   tree_t expr = solve_types(nametab, p_expression(), std_bool);
 
    psl_node_t p = psl_new(P_CLOCK_DECL);
    psl_set_tree(p, expr);
@@ -12268,8 +12240,8 @@ static psl_node_t p_psl_clocked_sere(psl_node_t head)
 
    consume(tAT);
 
-   tree_t expr = p_expression();
-   solve_types(nametab, expr, std_type(NULL, STD_BOOLEAN));
+   type_t std_bool = std_type(NULL, STD_BOOLEAN);
+   tree_t expr = solve_types(nametab, p_expression(), std_bool);
 
    psl_node_t p = psl_new(P_CLOCKED);
    psl_set_value(p, head);
@@ -12918,8 +12890,8 @@ static psl_node_t p_psl_fl_property(void)
       {
          consume(tAT);
 
-         tree_t expr = p_expression();
-         solve_types(nametab, expr, std_type(NULL, STD_BOOLEAN));
+         type_t std_bool = std_type(NULL, STD_BOOLEAN);
+         tree_t expr = solve_types(nametab, p_expression(), std_bool);
 
          psl_node_t clk = psl_new(P_CLOCKED);
          psl_set_value(clk, p);
@@ -12938,9 +12910,9 @@ static void p_psl_report(psl_node_t p)
 {
    consume(tREPORT);
 
-   tree_t m = p_expression();
+   type_t std_string = std_type(NULL, STD_STRING);
+   tree_t m = solve_types(nametab, p_expression(), std_string);
    psl_set_message(p, m);
-   solve_types(nametab, m, std_type(NULL, STD_STRING));
 }
 
 static psl_node_t p_psl_property(void)
@@ -13047,10 +13019,9 @@ static psl_node_t p_psl_fairness(void)
    psl_set_flag(a, flags);
 
    tree_t e1 = p_expression();
-   solve_psl_condition(nametab, &e1);
 
    psl_node_t p1 = psl_new(P_HDL_EXPR);
-   psl_set_tree(p1, e1);
+   psl_set_tree(p1, solve_psl_condition(nametab, e1));
 
    psl_add_operand(a, p1);
 
@@ -13058,10 +13029,9 @@ static psl_node_t p_psl_fairness(void)
       consume(tCOMMA);
 
       tree_t e2 = p_expression();
-      solve_psl_condition(nametab, &e2);
 
       psl_node_t p2 = psl_new(P_HDL_EXPR);
-      psl_set_tree(p2, e2);
+      psl_set_tree(p2, solve_psl_condition(nametab, e2));
 
       psl_add_operand(a, p2);
    }
@@ -13343,21 +13313,20 @@ static tree_t p_psl_or_concurrent_assert(ident_t label)
    tree_t conc;
    if (psl_kind(p) == P_HDL_EXPR) {
       tree_t value = psl_tree(p);
-      solve_condition(nametab, &value);
 
       tree_t s = tree_new(T_ASSERT);
-      tree_set_value(s, value);
+      tree_set_value(s, solve_condition(nametab, value));
 
       if (optional(tREPORT)) {
          tree_t message = p_expression();
-         solve_types(nametab, message, std_type(NULL, STD_STRING));
-         tree_set_message(s, message);
+         type_t std_string = std_type(NULL, STD_STRING);
+         tree_set_message(s, solve_types(nametab, message, std_string));
       }
 
       if (optional(tSEVERITY)) {
          tree_t severity = p_expression();
-         solve_types(nametab, severity, std_type(NULL, STD_SEVERITY_LEVEL));
-         tree_set_severity(s, severity);
+         type_t std_severity = std_type(NULL, STD_SEVERITY_LEVEL);
+         tree_set_severity(s, solve_types(nametab, severity, std_severity));
       }
 
       consume(tSEMI);

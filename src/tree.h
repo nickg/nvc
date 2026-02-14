@@ -486,6 +486,7 @@ void tree_trim_genmaps(tree_t t, unsigned n);
 unsigned tree_params(tree_t t);
 tree_t tree_param(tree_t t, unsigned n);
 void tree_add_param(tree_t t, tree_t e);
+void tree_copy_params(tree_t t, tree_t from);
 
 int64_t tree_ival(tree_t t);
 void tree_set_ival(tree_t t, int64_t i);

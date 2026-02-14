@@ -225,6 +225,15 @@ ident_t object_ident(object_t *object)
    return NULL;
 }
 
+const char *object_kind_str(object_t *object)
+{
+   if (object == NULL)
+      return NULL;
+
+   const object_class_t *class = classes[object->tag];
+   return class->kind_text_map[object->kind];
+}
+
 void __object_write_barrier(object_t *lhs, object_t *rhs)
 {
    const uintptr_t lhs_mask = (uintptr_t)lhs & ~OBJECT_PAGE_MASK;
@@ -456,9 +465,9 @@ static void object_one_time_init(void)
          extern object_class_t psl_object;
          object_init(&psl_object);
 
-         // Increment this each time a incompatible change is made to
+         // Increment this each time an incompatible change is made to
          // the on-disk format not expressed in the object items table
-         const uint32_t format_fudge = 45;
+         const uint32_t format_fudge = 46;
 
          format_digest += format_fudge * UINT32_C(2654435761);
 
