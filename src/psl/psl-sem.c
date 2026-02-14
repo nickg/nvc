@@ -158,9 +158,9 @@ static void psl_check_eventually(psl_node_t p, nametab_t *tab)
 
 static void psl_check_boolean(psl_node_t p, nametab_t *tab)
 {
-   tree_t value = psl_tree(p);
+   tree_t value = solve_psl_condition(tab, psl_tree(p));
 
-   type_t type = solve_psl_condition(tab, &value);
+   type_t type = tree_type(value);
    if (type_is_none(type))
       return;
 
@@ -187,10 +187,11 @@ static void psl_check_boolean(psl_node_t p, nametab_t *tab)
 
 static void psl_check_number(psl_node_t p, nametab_t *tab)
 {
-   tree_t value = psl_tree(p);
    type_t std_int = std_type(NULL, STD_INTEGER);
+   tree_t value = solve_types(tab, psl_tree(p), std_int);
+   psl_set_tree(p, value);
 
-   type_t type = solve_types(tab, value, std_int);
+   type_t type = tree_type(value);
    if (type_is_none(type))
       return;   // Prevent cascading errors
 
@@ -208,11 +209,12 @@ static void psl_check_number(psl_node_t p, nametab_t *tab)
 
 static void psl_check_bit(psl_node_t p, nametab_t *tab)
 {
-   tree_t value = psl_tree(p);
    type_t std_bit = std_type(NULL, STD_BIT);
    type_t std_ulogic = ieee_type(IEEE_STD_ULOGIC);
+   tree_t value = solve_types(tab, psl_tree(p), std_ulogic);
+   psl_set_tree(p, value);
 
-   type_t type = solve_types(tab, value, std_ulogic);
+   type_t type = tree_type(value);
    if (type_is_none(type))
       return;   // Prevent cascading errors
 
@@ -226,8 +228,10 @@ static void psl_check_bit(psl_node_t p, nametab_t *tab)
 
 static void psl_check_any(psl_node_t p, nametab_t *tab)
 {
-   tree_t value = psl_tree(p);
-   type_t type = solve_types(tab, value, NULL);
+   tree_t value = solve_types(tab, psl_tree(p), NULL);
+   psl_set_tree(p, value);
+
+   type_t type = tree_type(value);
    if (type_is_none(type))
       return;   // Prevent cascading errors
 

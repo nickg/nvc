@@ -17,6 +17,7 @@
 
 #include "util.h"
 #include "ident.h"
+#include "object.h"
 #include "printf.h"
 #include "thread.h"
 #include "type.h"
@@ -104,7 +105,10 @@ int ostream_putc(ostream_t *os, char ch)
 
 int ostream_puts(ostream_t *os, const char *str)
 {
-   return ostream_write(os, str, strlen(str));
+   if (str == NULL)
+      return ostream_write(os, "(null)", 6);
+   else
+      return ostream_write(os, str, strlen(str));
 }
 
 static int format_ident(ostream_t *os, printf_state_t *state, printf_arg_t *arg)
@@ -149,6 +153,13 @@ static int format_type(ostream_t *os, printf_state_t *state, printf_arg_t *arg)
    return ostream_puts(os, type_pp(type));
 }
 
+static int format_object_kind(ostream_t *os, printf_state_t *state,
+                              printf_arg_t *arg)
+{
+   object_t *obj = arg->value.p;
+   return ostream_puts(os, object_kind_str(obj));
+}
+
 static int delegate(ostream_t *os, printf_state_t *s, printf_arg_t *arg, ...)
 {
    char spec[32];
@@ -183,6 +194,7 @@ static fmt_fn_t get_pointer_formatter(char ch)
    case 'i': return format_ident;
    case 'I': return format_ident_toupper;
    case 'T': return format_type;
+   case 'K': return format_object_kind;
    default: return NULL;
    }
 }

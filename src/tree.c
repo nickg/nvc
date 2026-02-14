@@ -435,11 +435,6 @@ static const char *kind_text_map[T_LAST_TREE_KIND] = {
 };
 
 static const change_allowed_t change_allowed[] = {
-   { T_REF,         T_FCALL         },
-   { T_REF,         T_PCALL         },
-   { T_ARRAY_REF,   T_FCALL         },
-   { T_FCALL,       T_ARRAY_REF     },
-   { T_PROT_FCALL,  T_ARRAY_REF     },
    { T_DESIGN_UNIT, T_ENTITY        },
    { T_DESIGN_UNIT, T_PACKAGE       },
    { T_DESIGN_UNIT, T_PACK_BODY     },
@@ -449,8 +444,6 @@ static const change_allowed_t change_allowed[] = {
    { T_DESIGN_UNIT, T_PACK_INST     },
    { T_FUNC_DECL,   T_FUNC_BODY     },
    { T_PROC_DECL,   T_PROC_BODY     },
-   { T_FCALL,       T_PROT_FCALL    },
-   { T_PCALL,       T_PROT_PCALL    },
    { -1,            -1              }
 };
 
@@ -719,6 +712,11 @@ void tree_add_param(tree_t t, tree_t e)
    assert(e->object.kind == T_PARAM);
    tree_array_add(lookup_item(&tree_object, t, I_PARAMS), e);
    object_write_barrier(&(t->object), &(e->object));
+}
+
+void tree_copy_params(tree_t t, tree_t from)
+{
+   tree_copy_array(t, from, I_PARAMS);
 }
 
 unsigned tree_genmaps(tree_t t)
