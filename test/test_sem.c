@@ -2117,7 +2117,6 @@ START_TEST(test_issue359a)
 
    const error_t expect[] = {
       { 15, "procedure HOST_WRITE not allowed in an expression" },
-      { 15, "target of signal assignment must be a signal name or aggregate" },
       { -1, NULL }
    };
    expect_errors(expect);

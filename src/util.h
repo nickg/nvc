@@ -41,6 +41,8 @@
 #define RETURNS_NONNULL
 #endif
 
+#define WARN_UNUSED __attribute__((warn_unused_result))
+
 #ifdef __GNUC__
 #define GCC_VERSION (__GNUC__ * 10000       \
                      + __GNUC_MINOR__ * 100 \

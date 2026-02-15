@@ -5575,6 +5575,9 @@ tree_t solve_known_subtype(nametab_t *tab, tree_t expr, tree_t target)
 
 tree_t solve_target(nametab_t *tab, tree_t target, tree_t value)
 {
+   if (tree_has_type(target))
+      return target;
+
    type_t value_type = NULL;
    if (tree_kind(target) == T_AGGREGATE) {
       type_set_t ts = { .pred = type_is_composite };
