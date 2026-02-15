@@ -3603,8 +3603,6 @@ static tree_t p_selected_name(tree_t prefix, name_mask_t *mask)
             return ref;
          }
       }
-      else if (kind == T_GENERIC_DECL && tree_class(decl) == C_PACKAGE)
-         return select_decl(tree_value(decl), suffix, mask);
       else if (is_container(decl)) {
          tree_t ref = select_decl(prefix, suffix, mask);
          if (!tree_has_ref(ref))
@@ -4317,13 +4315,13 @@ static type_t p_subtype_indication(void)
    }
 
    if (rname != NULL) {
+      type_t base = p_type_mark(NULL);
+
       type = type_new(T_SUBTYPE);
+      type_set_base(type, base);
       made_subtype = true;
 
-      type_set_resolution(type, rname);
-      type_set_base(type, p_type_mark(NULL));
-
-      resolve_resolution(nametab, rname, type);
+      type_set_resolution(type, resolve_resolution(nametab, rname, type));
    }
 
    if (type == NULL)

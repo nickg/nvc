@@ -7487,6 +7487,28 @@ START_TEST(test_osvvm8)
 }
 END_TEST
 
+START_TEST(test_names5)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/parse/names5.vhd");
+
+   const error_t expect[] = {
+      { 17, "name TT not found in package WORK.ADDER" },
+      {  0, "did you mean T?" },
+      { 18, "type mark does not denote a type or a subtype" },
+      {  0, "this is a function name" },
+      { 19, "invalid use of package WORK.ADDER" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_PACKAGE, T_ENTITY);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_parse_tests(void)
 {
    Suite *s = suite_create("parse");
@@ -7680,6 +7702,7 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_issue1413);
    tcase_add_test(tc_core, test_names4);
    tcase_add_test(tc_core, test_osvvm8);
+   tcase_add_test(tc_core, test_names5);
    suite_add_tcase(s, tc_core);
 
    return s;
