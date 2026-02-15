@@ -1806,6 +1806,25 @@ static bool can_call_no_args(tree_t t)
    }
 }
 
+static tree_t implicit_dereference(nametab_t *tab, tree_t t)
+{
+   type_t type = tree_type(t);
+   if (!type_is_access(type))
+      return t;
+
+   type_t access = type_designated(type);
+
+   if (type_kind(access) == T_INCOMPLETE)
+      access = resolve_type(tab, access);
+
+   tree_t all = tree_new(T_ALL);
+   tree_set_loc(all, tree_loc(t));
+   tree_set_value(all, t);
+   tree_set_type(all, access);
+
+   return all;
+}
+
 static tree_t try_resolve_name(nametab_t *tab, ident_t name)
 {
    const symbol_t *sym = iterate_symbol_for(tab, name);
@@ -2083,46 +2102,6 @@ tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
    return NULL;
 }
 
-static tree_t resolve_method_name(nametab_t *tab, tree_t ref, type_t constraint)
-{
-   assert(tree_kind(ref) == T_PROT_REF);
-   assert(constraint != NULL);
-
-   type_t ptype = tree_type(tree_value(ref));
-   assert(type_is_protected(ptype));
-
-   scope_t *scope = scope_for_type(tab, ptype);
-   const symbol_t *sym = symbol_for(scope, tree_ident(ref));
-
-   SCOPED_A(tree_t) matching = AINIT;
-   if (sym != NULL) {
-      for (int i = 0; i < sym->ndecls; i++) {
-         const decl_t *dd = get_decl(sym, i);
-         if (dd->visibility == HIDDEN)
-            continue;
-         else if (dd->mask & N_SUBPROGRAM) {
-            type_t signature = tree_type(dd->tree);
-            if (type_eq_map(constraint, signature, tab->top_scope->gmap))
-               APUSH(matching, dd->tree);
-         }
-      }
-   }
-
-   assert(matching.count <= 1);
-
-   if (matching.count == 1)
-      return matching.items[0];
-   else if (tab->top_scope->suppress)
-      return NULL;
-   else {
-      const char *signature = strchr(type_pp(constraint), '[');
-      error_at(tree_loc(ref), "no visible method %s in protected type %s "
-               "matches signature %s", istr(tree_ident(ref)), type_pp(ptype),
-               signature);
-      return NULL;
-   }
-}
-
 tree_t resolve_uninstantiated_subprogram(nametab_t *tab, const loc_t *loc,
                                          ident_t name, type_t constraint)
 {
@@ -2245,6 +2224,206 @@ tree_t resolve_field_name(nametab_t *tab, const loc_t *loc, ident_t name,
 
    tab->top_scope = tmp;
    return decl;
+}
+
+static tree_t resolve_record_ref_or_call(nametab_t *tab, tree_t t, bool pcall)
+{
+   assert(tree_kind(t) == T_RECORD_REF);
+
+   if (tree_has_type(t))
+      return NULL;
+
+   tree_t value = solve_types(tab, tree_value(t), NULL);
+   tree_t deref = implicit_dereference(tab, value);
+   tree_set_value(t, deref);
+
+   type_t prefix_type = tree_type(deref);
+   if (type_is_none(prefix_type)) {
+      tree_set_type(t, prefix_type);
+      return NULL;
+   }
+   else if (type_is_protected(prefix_type)) {
+      tree_t call = tree_new(pcall ? T_PROT_PCALL : T_PROT_FCALL);
+      tree_set_name(call, deref);
+      tree_set_loc(call, tree_loc(t));
+
+      if (pcall)
+         tree_set_ident2(call, tree_ident(t));
+      else
+         tree_set_ident(call, tree_ident(t));
+
+      return call;
+   }
+
+   return NULL;
+}
+
+static tree_t resolve_array_ref_or_call(nametab_t *tab, tree_t t)
+{
+   assert(tree_kind(t) == T_ARRAY_REF);
+
+   if (tree_has_type(t))
+      return NULL;
+
+   tree_t value = tree_value(t);
+   switch (tree_kind(value)) {
+   case T_RECORD_REF:
+      {
+         tree_t call = resolve_record_ref_or_call(tab, value, false);
+         if (call == NULL)
+            return NULL;
+
+         tree_copy_params(call, t);
+         return call;
+      }
+   default:
+      return NULL;
+   }
+}
+
+tree_t resolve_pcall(nametab_t *tab, tree_t name)
+{
+   switch (tree_kind(name)) {
+   case T_RECORD_REF:
+      return resolve_record_ref_or_call(tab, name, true);
+   case T_ARRAY_REF:
+      {
+         tree_t prefix = resolve_pcall(tab, tree_value(name));
+         if (prefix == NULL || tree_params(prefix) > 0)
+            return NULL;
+
+         tree_copy_params(prefix, name);
+         return prefix;
+      }
+   case T_REF:
+      {
+         tree_t call = tree_new(T_PCALL);
+         tree_set_ident2(call, tree_ident(name));
+         tree_set_loc(call, tree_loc(name));
+
+         return call;
+      }
+   case T_FCALL:
+      {
+         tree_t call = tree_new(T_PCALL);
+         tree_set_ident2(call, tree_ident(name));
+         tree_set_loc(call, tree_loc(name));
+         tree_copy_params(call, name);
+
+         return call;
+      }
+   case T_PROT_FCALL:
+      {
+         tree_t call = tree_new(T_PROT_PCALL);
+         tree_set_ident2(call, tree_ident(name));
+         tree_set_loc(call, tree_loc(name));
+         tree_set_name(call, tree_name(name));
+         tree_copy_params(call, name);
+
+         return call;
+      }
+   default:
+      return NULL;
+   }
+}
+
+tree_t resolve_signature(nametab_t *tab, tree_t name, type_t type)
+{
+   tree_t ref = NULL;
+   scope_t *s = NULL;
+   switch (tree_kind(name)) {
+   case T_RECORD_REF:
+      {
+         assert(!tree_has_type(name));
+
+         tree_t value = solve_types(tab, tree_value(name), NULL);
+         tree_t deref = implicit_dereference(tab, value);
+         tree_set_value(name, deref);
+
+         type_t prefix_type = tree_type(deref);
+         if (type_is_none(prefix_type)) {
+            tree_set_type(name, prefix_type);
+            return name;
+         }
+         else if (type_is_protected(prefix_type)) {
+            ref = tree_new(T_PROT_REF);
+            tree_set_value(ref, deref);
+            tree_set_ident(ref, tree_ident(name));
+            tree_set_loc(ref, tree_loc(name));
+
+            s = scope_for_type(tab, prefix_type);
+         }
+      }
+      break;
+   case T_REF:
+      ref = name;
+      break;
+   default:
+      break;
+   }
+
+   if (ref == NULL) {
+      error_at(tree_loc(name), "name with signature does not denote a "
+               "subprogram or enumeration literal");
+      tree_set_type(name, type_new(T_NONE));
+      return name;
+   }
+   else if (type_is_none(type)) {
+      tree_set_type(ref, type);
+      return ref;
+   }
+
+   const symbol_t *sym;
+   if (s == NULL)
+      sym = iterate_symbol_for(tab, tree_ident(ref));
+   else
+      sym = symbol_for(s, tree_ident(ref));
+
+   const bool allow_enum =
+      type_kind(type) == T_SIGNATURE
+      && type_params(type) == 0
+      && type_has_result(type);
+
+   SCOPED_A(tree_t) matching = AINIT;
+   if (sym != NULL) {
+      for (int i = 0; i < sym->ndecls; i++) {
+         const decl_t *dd = get_decl(sym, i);
+         if (dd->visibility == HIDDEN)
+            continue;
+         else if (dd->mask & N_SUBPROGRAM) {
+            type_t signature = tree_type(dd->tree);
+            if (type_eq_map(type, signature, tab->top_scope->gmap))
+               APUSH(matching, dd->tree);
+         }
+         else if (allow_enum && dd->kind == T_ENUM_LIT
+                  && type_eq(type_result(type), tree_type(dd->tree)))
+            APUSH(matching, dd->tree);
+      }
+   }
+
+   if (matching.count == 1) {
+      tree_set_ref(ref, matching.items[0]);
+      tree_set_type(ref, tree_type(matching.items[0]));
+      return ref;
+   }
+
+   tree_set_type(ref, type_new(T_NONE));
+
+   if (tab->top_scope->suppress)
+      return ref;
+
+   diag_t *d = diag_new(DIAG_ERROR, tree_loc(name));
+   if (tree_kind(ref) == T_PROT_REF)
+      diag_printf(d, "no method %pI in protected type %pT", tree_ident(ref),
+                  tree_type(tree_value(ref)));
+   else
+      diag_printf(d, "no visible subprogram%s %pI",
+                  allow_enum ? " or enumeration literal" : "", tree_ident(ref));
+
+   diag_printf(d, " matches signature %pT", type);
+   diag_emit(d);
+
+   return ref;
 }
 
 static tree_t resolve_ref(nametab_t *tab, tree_t ref)
@@ -3685,6 +3864,28 @@ static void solve_subprogram_params(nametab_t *tab, tree_t call, overload_t *o)
    for (int i = 0; i < nparams; i++) {
       tree_t p = tree_param(call, i);
       tree_t value = tree_value(p);
+
+      // Selected or indexed names may have been mis-parsed so fix them
+      // before proceeding
+      switch (tree_kind(value)) {
+      case T_ARRAY_REF:
+         {
+            tree_t call = resolve_array_ref_or_call(tab, value);
+            if (call != NULL)
+               tree_set_value(p, (value = call));
+         }
+         break;
+      case T_RECORD_REF:
+         {
+            tree_t call = resolve_record_ref_or_call(tab, value, false);
+            if (call != NULL)
+               tree_set_value(p, (value = call));
+         }
+         break;
+      default:
+         break;
+      }
+
       if (is_unambiguous(value)) {
          solve_one_param(tab, p, o, o->trial);
          mask_set(&pmask, i);
@@ -3868,13 +4069,20 @@ static tree_t try_solve_fcall(nametab_t *tab, tree_t t)
 
    const tree_kind_t kind = tree_kind(t);
 
+   tree_t prefix = NULL;
+   if (kind == T_PROT_FCALL) {
+      tree_t name = solve_types(tab, tree_name(t), NULL);
+      tree_t deref = implicit_dereference(tab, name);
+      tree_set_name(t, (prefix = deref));
+   }
+
    overload_t o = {
       .tree     = t,
       .state    = O_IDLE,
       .nametab  = tab,
       .trace    = false,
       .trial    = true,
-      .prefix   = kind == T_PROT_FCALL ? tree_name(t) : NULL,
+      .prefix   = prefix,
       .nactuals = tree_params(t),
       .name     = tree_ident(t),
    };
@@ -3901,12 +4109,19 @@ static tree_t solve_fcall(nametab_t *tab, tree_t t)
 
    const tree_kind_t kind = tree_kind(t);
 
+   tree_t prefix = NULL;
+   if (kind == T_PROT_FCALL) {
+      tree_t name = solve_types(tab, tree_name(t), NULL);
+      tree_t deref = implicit_dereference(tab, name);
+      tree_set_name(t, (prefix = deref));
+   }
+
    overload_t o = {
       .tree     = t,
       .state    = O_IDLE,
       .nametab  = tab,
       .trace    = false,
-      .prefix   = kind == T_PROT_FCALL ? tree_name(t) : NULL,
+      .prefix   = prefix,
       .nactuals = tree_params(t),
       .name     = tree_ident(t),
    };
@@ -3927,13 +4142,20 @@ static tree_t solve_pcall(nametab_t *tab, tree_t t)
 {
    const tree_kind_t kind = tree_kind(t);
 
+   tree_t prefix = NULL;
+   if (kind == T_PROT_PCALL) {
+      tree_t name = solve_types(tab, tree_name(t), NULL);
+      tree_t deref = implicit_dereference(tab, name);
+      tree_set_name(t, (prefix = deref));
+   }
+
    overload_t o = {
       .name     = tree_ident2(t),
       .tree     = t,
       .state    = O_IDLE,
       .nametab  = tab,
       .trace    = false,
-      .prefix   = kind == T_PROT_PCALL ? tree_name(t) : NULL,
+      .prefix   = prefix,
       .nactuals = tree_params(t)
    };
    begin_overload_resolution(&o);
@@ -4216,25 +4438,6 @@ static tree_t solve_ref(nametab_t *tab, tree_t ref)
    return ref;
 }
 
-static tree_t solve_prot_ref(nametab_t *tab, tree_t t)
-{
-   type_t constraint;
-   if (type_set_uniq(tab, &constraint) && type_is_subprogram(constraint)) {
-      // Reference to protected type subprogram with signature
-      tree_t decl = resolve_method_name(tab, t, constraint);
-      type_t type = decl ? tree_type(decl) : type_new(T_NONE);
-      tree_set_type(t, type);
-      tree_set_ref(t, decl);
-      return t;
-   }
-
-   error_at(tree_loc(t), "invalid use of name %s", istr(tree_ident(t)));
-
-   type_t type = type_new(T_NONE);
-   tree_set_type(t, type);
-   return t;
-}
-
 static type_t solve_field_subtype(type_t rtype, tree_t field)
 {
    type_t ftype = tree_type(field);
@@ -4258,21 +4461,39 @@ static tree_t solve_record_ref(nametab_t *tab, tree_t t)
       return t;
 
    tree_t value = solve_types(tab, tree_value(t), NULL);
-   tree_set_value(t, value);
+   tree_t deref = implicit_dereference(tab, value);
+   tree_set_value(t, deref);
 
-   type_t value_type = tree_type(value);
-   if (type_is_none(value_type)) {
-      tree_set_type(t, value_type);
+   type_t prefix_type = tree_type(deref);
+   if (type_is_none(prefix_type)) {
+      tree_set_type(t, prefix_type);
       return t;
    }
-   else if (!type_is_record(value_type)) {
-      error_at(tree_loc(t), "type %s is not a record", type_pp(value_type));
+   else if (type_is_protected(prefix_type)) {
+      tree_t fcall = tree_new(T_PROT_FCALL);
+      tree_set_name(fcall, deref);
+      tree_set_ident(fcall, tree_ident(t));
+      tree_set_loc(fcall, tree_loc(t));
+
+      return _solve_types(tab, fcall);
+   }
+   else if (!type_is_record(prefix_type)) {
+      diag_t *d = diag_new(DIAG_ERROR, tree_loc(deref));
+      if (tree_kind(deref) == T_REF)
+         diag_printf(d, "object %pI with type %pT cannot be the prefix of a "
+                     "selected name", tree_ident(deref), prefix_type);
+      else
+         diag_printf(d, "expression with type %pT cannot be the prefix of a "
+                     "selected name", prefix_type);
+      diag_lrm(d, STD_08, "8.3");
+      diag_emit(d);
+
       tree_set_type(t, type_new(T_NONE));
       return t;
    }
 
    ident_t name = tree_ident(t);
-   tree_t f = resolve_field_name(tab, tree_loc(t), name, value_type);
+   tree_t f = resolve_field_name(tab, tree_loc(t), name, prefix_type);
 
    if (f == NULL) {
       type_t type = type_new(T_NONE);
@@ -4280,7 +4501,7 @@ static tree_t solve_record_ref(nametab_t *tab, tree_t t)
       return t;
    }
    else {
-      type_t type = solve_field_subtype(value_type, f);
+      type_t type = solve_field_subtype(prefix_type, f);
       tree_set_ref(t, f);
       tree_set_type(t, type);
       return t;
@@ -4292,10 +4513,15 @@ static tree_t solve_array_ref(nametab_t *tab, tree_t t)
    if (tree_has_type(t))
       return t;
 
-   tree_t value = solve_types(tab, tree_value(t), NULL);
-   tree_set_value(t, value);
+   tree_t call = resolve_array_ref_or_call(tab, t);
+   if (call != NULL)
+      return _solve_types(tab, call);
 
-   type_t base_type = tree_type(value);
+   tree_t prefix = solve_types(tab, tree_value(t), NULL);
+   tree_t deref = implicit_dereference(tab, prefix);
+   tree_set_value(t, deref);
+
+   type_t base_type = tree_type(deref);
 
    const int nparams = tree_params(t);
    for (int i = 0; i < nparams; i++) {
@@ -4331,9 +4557,14 @@ static tree_t solve_array_slice(nametab_t *tab, tree_t t)
       return t;
 
    tree_t value = _solve_types(tab, tree_value(t));
-   tree_set_value(t, value);
+   tree_t deref = implicit_dereference(tab, value);
+   tree_set_value(t, deref);
+
+   type_t type = tree_type(deref);
+   type_t index_type = index_type_of(type, 0);
 
    tree_t r = tree_range(t, 0);
+   solve_types(tab, r, index_type);
 
    tree_t constraint = tree_new(T_CONSTRAINT);
    tree_set_subkind(constraint, C_INDEX);
@@ -4341,7 +4572,7 @@ static tree_t solve_array_slice(nametab_t *tab, tree_t t)
 
    type_t slice_type = type_new(T_SUBTYPE);
    type_set_constraint(slice_type, constraint);
-   type_set_base(slice_type, tree_type(value));
+   type_set_base(slice_type, type);
 
    tree_set_type(t, slice_type);
    return t;
@@ -4352,28 +4583,43 @@ static tree_t try_solve_attr_ref(nametab_t *tab, tree_t t)
    if (tree_has_type(t))
       return t;
 
-   tree_t prefix = tree_name(t);
-   type_t prefix_type = NULL;
-   if (tree_kind(prefix) == T_REF && !tree_has_type(prefix)) {
-      tree_t decl;
-      if (tree_has_ref(prefix))
-         decl = tree_ref(prefix);
-      else if ((decl = resolve_ref(tab, prefix)))
-         tree_set_ref(prefix, decl);
-
-      if (decl != NULL) {
-         if (class_has_type(class_of(decl)))
-            tree_set_type(prefix, (prefix_type = tree_type(decl)));
+   tree_t prefix;
+   switch (tree_subkind(t)) {
+   case ATTR_REFLECT:
+      {
+         // Does not dereference prefix
+         tree_t name = solve_types(tab, tree_name(t), NULL);
+         tree_set_name(t, (prefix = name));
       }
-   }
-   else {
-      tree_set_name(t, (prefix = solve_types(tab, prefix, NULL)));
-      prefix_type = tree_type(prefix);
+      break;
+   case ATTR_INSTANCE_NAME:
+   case ATTR_PATH_NAME:
+   case ATTR_SIMPLE_NAME:
+   case ATTR_USER:
+      {
+         tree_t name = tree_name(t);
+         if (tree_kind(name) == T_REF && !tree_has_type(name)) {
+            tree_t decl;
+            if (tree_has_ref(name))
+               decl = tree_ref(name);
+            else if ((decl = resolve_ref(tab, name)))
+               tree_set_ref(name, decl);
 
-      if (type_is_none(prefix_type)) {
-         tree_set_type(t, prefix_type);
-         return t;
+            if (decl != NULL && class_has_type(class_of(decl)))
+               tree_set_type(name, tree_type(decl));
+
+            prefix = name;
+            break;
+         }
       }
+      // Fall-through
+   default:
+      {
+         tree_t name = solve_types(tab, tree_name(t), NULL);
+         tree_t deref = implicit_dereference(tab, name);
+         tree_set_name(t, (prefix = deref));
+      }
+      break;
    }
 
    const int nparams = tree_params(t);
@@ -4389,7 +4635,7 @@ static tree_t try_solve_attr_ref(nametab_t *tab, tree_t t)
       case ATTR_POS:
       case ATTR_PRED:
       case ATTR_SUCC:
-         type_set_add(tab, prefix_type, NULL);
+         type_set_add(tab, tree_type(prefix), NULL);
          break;
       case ATTR_VALUE:
          type_set_add(tab, std_type(NULL, STD_STRING), NULL);
@@ -4403,7 +4649,8 @@ static tree_t try_solve_attr_ref(nametab_t *tab, tree_t t)
       type_set_pop(tab, &ts);
    }
 
-   type_t type = NULL;
+   type_t prefix_type = get_type_or_null(prefix), type = NULL;
+
    switch (tree_subkind(t)) {
    case ATTR_LENGTH:
       type = std_type(NULL, STD_INTEGER);
@@ -4414,7 +4661,7 @@ static tree_t try_solve_attr_ref(nametab_t *tab, tree_t t)
    case ATTR_LOW:
    case ATTR_HIGH:
    case ATTR_RANGE:
-   case ATTR_REVERSE_RANGE: {
+   case ATTR_REVERSE_RANGE:
       if (prefix_type == NULL) {
          error_at(tree_loc(t), "prefix does not have a range");
          type = type_new(T_NONE);
@@ -4437,7 +4684,7 @@ static tree_t try_solve_attr_ref(nametab_t *tab, tree_t t)
       }
       else
          type = prefix_type;
-   } break;
+      break;
 
    case ATTR_LAST_EVENT:
    case ATTR_LAST_ACTIVE:
@@ -4527,7 +4774,15 @@ static tree_t try_solve_attr_ref(nametab_t *tab, tree_t t)
 
    case ATTR_USER:
       {
-         if (tree_kind(prefix) == T_REF) {
+         if (tree_kind(prefix) != T_REF) {
+            error_at(tree_loc(prefix), "prefix of user defined attribute "
+                     "reference cannot denote a sub-element or slice of an "
+                     "object");
+            type = type_new(T_NONE);
+         }
+         else if (!tree_has_ref(prefix))
+            type = type_new(T_NONE);
+         else {
             tree_t decl = tree_ref(prefix);
             ident_t id = tree_ident(decl);
             ident_t attr = tree_ident(t);
@@ -4570,12 +4825,6 @@ static tree_t try_solve_attr_ref(nametab_t *tab, tree_t t)
                         istr(tree_ident(prefix)), istr(tree_ident(t)));
                type = type_new(T_NONE);
             }
-         }
-         else {
-            error_at(tree_loc(prefix), "prefix of user defined attribute "
-                     "reference cannot denote a sub-element or slice of an "
-                     "object");
-            type = type_new(T_NONE);
          }
       }
       break;
@@ -5284,8 +5533,6 @@ static tree_t _solve_types(nametab_t *tab, tree_t t)
       return t;
    case T_EXTERNAL_NAME:
       return solve_external_name(tab, t);
-   case T_PROT_REF:
-      return solve_prot_ref(tab, t);
    case T_COND_VALUE:
       return solve_cond_value(tab, t);
    case T_COND_EXPR:

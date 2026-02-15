@@ -159,20 +159,23 @@ begin
         end process;
     end block;
 
-    process is
-        variable x : bit_vector(1 to 3);
+    b3a: block is
     begin
-        case? x is                      -- OK
-            when "010" => null;
-            when others => null;
-        end case?;
-        case? x is
-            when others => null;
-        end case;                       -- Error
-        case x is
-            when others => null;
-        end case ?;                     -- Error
-    end process;
+        process is
+            variable x : bit_vector(1 to 3);
+        begin
+            case? x is                      -- OK
+                when "010" => null;
+                when others => null;
+            end case?;
+            case? x is
+                when others => null;
+            end case;                       -- Error
+            case x is
+                when others => null;
+            end case ?;                     -- Error
+        end process;
+    end block;
 
     b4: block is
         procedure foo (x : integer_vector; y : integer) is
@@ -226,7 +229,7 @@ begin
     else generate
     end generate;
 
-    g1: if true generate
+    g1a: if true generate
     end g1;                             -- Error
     else foo: generate
     end bar;                            -- Error

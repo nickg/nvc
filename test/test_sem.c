@@ -432,7 +432,7 @@ START_TEST(test_func)
       { 239, "class variable of subprogram body TEST25 parameter" },
       { 245, "class constant of subprogram body TEST26 parameter" },
       { 271, "cannot reference signal X in pure function NESTED" },
-      { 288, "no visible declaration for FNORK" },
+      { 288, "no visible subprogram declaration for FNORK" },
       { 293, "function CONSTPURE [INTEGER return INTEGER] cannot be called " },
       { 294, "procedure NOTDEF not allowed in an expression" },
       { 297, "no visible declaration for BAD_TYPE" },
@@ -687,7 +687,7 @@ START_TEST(test_procedure)
       { 162, "formal parameter ARG with type containing an access type " },
       { 167, "formal parameter ARG with type containing an access type " },
       { 172, "formal parameter ARG with type containing an access type " },
-      { 180, "expected procedure name" },
+      { 180, "no visible subprogram declaration for X" },
       { 183, "declaration may not include the reserved word BUS" },
       { 193, "signal parameter Y must be denoted by a static signal name" },
       { 201, "formal parameter X already has an associated actual" },
@@ -766,8 +766,8 @@ START_TEST(test_attr)
       { 146, "prefix of attribute LAST_EVENT must denote a signal" },
       { 158, "attribute RANGE with unconstrained array type BIT_VECTOR" },
       { 159, "object prefix of attribute RANGE must be an array" },
-      { 160, "prefix does not have a range" },
-      { 204, "prefix does not have LENGTH attribute" },
+      { 160, "invalid use of entity E" },
+      { 204, "invalid use of architecture A4" },
       { 212, "cannot use attribute IMAGE with non-scalar type INT2_" },
       { 222, "prefix of 'BASE attribute must be a type or subtype declara" },
       { 223, "BASE attribute is allowed only as the prefix of the name" },
@@ -849,7 +849,7 @@ START_TEST(test_record)
       { 167, "discrete range is only allowed in an array aggregate" },
       { 168, "discrete range is only allowed in an array aggregate" },
       { 172, "no visible declaration for FOO" },
-      { 182, "type INTEGER is not a record" },
+      { 182, "object X with type INTEGER cannot be the prefix of a selected" },
       { 186, "prefix does not have attribute LEFT" },
       { -1, NULL }
    };
@@ -1230,7 +1230,7 @@ START_TEST(test_protected)
       {  56, "variable Z with protected type may not have an initial value" },
       {  58, "function result subtype may not denote a protected type" },
       {  64, "parameter with protected type cannot have a default value" },
-      { 118, "invalid use of name COUNTER" },
+      { 118, "protected type SHAREDCOUNTER has no method named COUNTER" },
       { 119, "too many positional parameters for subprogram DECREMENT [INTEG" },
       { 124, "formal parameter X with protected type must have class VAR" },
       { 126, "pure function GET_VALUE cannot call impure function VALUE" },
@@ -2100,7 +2100,7 @@ START_TEST(test_issue359)
 
    const error_t expect[] = {
       {  8, "FOO already declared in this region" },
-      { 16, "cannot index non-array type INTEGER" },
+      { 16, "no visible subprogram declaration for FOO" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -2716,7 +2716,6 @@ START_TEST(test_record2008)
       { 110, "variable A1 cannot have unconstrained type REC1_ARRAY" },
       { 122, "declaration of variable R cannot have unconstrained type "
             "INTERLACED16BSIGNAL" },
-      { 127, "no visible declaration for NOT_AN_ARRAY" },
       { 127, "unexpected open while parsing primary, expecting one of" },
       { -1, NULL }
    };
@@ -3195,7 +3194,7 @@ START_TEST(test_lcs2016_18)
    input_from_file(TESTDIR "/sem/lcs2016_18.vhd");
 
    const error_t expect[] = {
-      {  7, "prefix of 'DESIGNATED_SUBTYPE attribute does not have a type" },
+      {  7, "invalid use of architecture TEST" },
       {  8, "prefix of 'DESIGNATED_SUBTYPE attribute must be an access "
          "or file type" },
       { 15, "type of initial value BOOLEAN does not match type of "
@@ -3206,7 +3205,7 @@ START_TEST(test_lcs2016_18)
       { 25, "'INDEX parameter for type INT_MAP must be between 1 and 2" },
       { 26, "prefix of 'INDEX attribute must be an array type" },
       { 29, "only integer literals are supported for 'INDEX parameter" },
-      { 38, "prefix of attribute IMAGE must be a type" },
+      { 38, "invalid use of label P3" },
       { 40, "prefix of attribute LENGTH must be an array or a discrete "
         "type but have type REAL" },
       { 41, "cannot use attribute IMAGE with non-representable type "
@@ -3248,8 +3247,7 @@ START_TEST(test_lcs2016_41)
    const error_t expect[] = {
       { 20, "value SUBTYPE_MIRROR does not match type of target INTEGER" },
       { 21, "value VALUE_MIRROR does not match type of target INTEGER" },
-      { 25, "prefix of attribute REFLECT is not a type mark or an object "
-        "with a type" },
+      { 25, "invalid use of label P1" },
       { 27, "prefix of 'REFLECT attribute must be a fully constrained " },
       { -1, NULL }
    };
@@ -3455,11 +3453,9 @@ START_TEST(test_alias2)
    input_from_file(TESTDIR "/sem/alias2.vhd");
 
    const error_t expect[] = {
-      { 39, "no visible method FOOBAR in protected type T_TEST matches "
-        "signature []" },
+      { 39, "no method FOOBAR in protected type T_TEST matches signature []" },
       { 40, "no visible declaration for XX" },
-      { 42, "invalid use of name INCREMENT" },
-      { 42, "aliased name is not static" },
+      { 42, "procedure INCREMENT not allowed in an expression" },
       { 58, "function GET_BITS with return identifier RV cannot be called "
         "in this context as the result subtype is not known" },
       { 59, "function GET_BITS with return identifier RV cannot be called" },
