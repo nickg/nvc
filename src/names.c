@@ -4396,8 +4396,10 @@ static tree_t solve_ref(nametab_t *tab, tree_t ref)
                       class_str(class_of(dd->tree)), istr(sym->name));
       }
 
-      diag_hint(d, tree_loc(decl), "name %s refers to this %s",
-                istr(sym->name), class_str(class));
+      if (!loc_invalid_p(tree_loc(decl)))
+         diag_hint(d, tree_loc(decl), "name %s refers to this %s",
+                   istr(sym->name), class_str(class));
+
       diag_suppress(d, tab->top_scope->suppress);
       diag_emit(d);
 
