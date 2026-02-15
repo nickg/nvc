@@ -7589,10 +7589,10 @@ static void p_alias_declaration(tree_t parent)
          nonobject_alias = true;
       }
       else
-         solve_types(nametab, value, NULL);
+         tree_set_value(t, (value = solve_types(nametab, value, NULL)));
    }
    else
-      solve_types(nametab, value, NULL);
+      tree_set_value(t, (value = solve_types(nametab, value, NULL)));
 
    if (value_kind == T_REF && tree_has_ref(value)) {
       tree_t decl = tree_ref(value);
@@ -9856,24 +9856,18 @@ static tree_t p_variable_assignment_statement(ident_t label, tree_t name)
       return p_simple_variable_assignment(label, name);
 }
 
-static tree_t p_waveform_element(tree_t target)
+static tree_t p_waveform_element(tree_t target, tree_t head)
 {
    // expression [ after expression ] | null [ after expression ]
 
-   BEGIN("waveform element");
+   BEGIN_WITH_HEAD("waveform element", head);
 
    tree_t w = tree_new(T_WAVEFORM);
 
-   if (!optional(tNULL)) {
-      tree_t value = p_expression();
-
-      if (!tree_has_type(target))
-         target = solve_target(nametab, target, value);
-
+   if (head != NULL || !optional(tNULL)) {
+      tree_t value = head ?: p_expression();
       tree_set_value(w, solve_known_subtype(nametab, value, target));
    }
-   else if (!tree_has_type(target))
-      solve_types(nametab, target, NULL);
 
    if (optional(tAFTER)) {
       type_t std_time = std_type(NULL, STD_TIME);
@@ -9882,23 +9876,21 @@ static tree_t p_waveform_element(tree_t target)
    }
 
    tree_set_loc(w, CURRENT_LOC);
-
    return w;
 }
 
-static void p_waveform(tree_t stmt, tree_t target)
+static void p_waveform(tree_t stmt, tree_t target, tree_t head)
 {
    // waveform_element { , waveform_element } | unaffected
 
-   BEGIN("waveform");
+   BEGIN_WITH_HEAD("waveform", head);
 
-   if (optional(tUNAFFECTED)) {
-      solve_types(nametab, target, NULL);
+   if (head == NULL && optional(tUNAFFECTED))
       return;
-   }
 
    do {
-      tree_add_waveform(stmt, p_waveform_element(target));
+      tree_add_waveform(stmt, p_waveform_element(target, head));
+      head = NULL;
    } while (optional(tCOMMA));
 
    tree_set_loc(stmt, CURRENT_LOC);
@@ -10028,12 +10020,20 @@ static tree_t p_signal_assignment_statement(ident_t label, tree_t name)
    default: break;
    }
 
+   tree_t reject = p_delay_mechanism();
+
+   tree_t expr = NULL;
+   if (not_at_token(tNULL, tUNAFFECTED)) {
+      expr = p_expression();
+      target = solve_target(nametab, target, expr);
+   }
+   else
+      target = solve_types(nametab, target, NULL);
+
    tree_t t = tree_new(T_SIGNAL_ASSIGN);
    tree_set_target(t, target);
 
-   tree_t reject = p_delay_mechanism();
-
-   p_waveform(t, target);
+   p_waveform(t, target, expr);
 
    if (peek() == tWHEN) {
       require_std(STD_08, "conditional signal assignment statements");
@@ -10873,9 +10873,20 @@ static void p_conditional_waveforms(tree_t stmt, tree_t target, tree_t s0)
 
       tree_t a = s0;
       if (a == NULL) {
+         tree_t expr = NULL;
+         if (not_at_token(tUNAFFECTED, tNULL)) {
+            expr = p_expression();
+            target = solve_target(nametab, target, expr);
+         }
+         else
+            target = solve_types(nametab, target, NULL);
+
          a = tree_new(T_SIGNAL_ASSIGN);
          tree_set_target(a, target);
-         p_waveform(a, target);
+
+         tree_set_target(stmt, target);
+
+         p_waveform(a, target, expr);
       }
       else {
          s0 = NULL;
@@ -10908,7 +10919,6 @@ static tree_t p_conditional_signal_assignment(tree_t name)
    tree_add_stmt(conc, stmt);
 
    tree_t target = p_target(name);
-   tree_set_target(stmt, target);
 
    consume(tLE);
 
@@ -10945,12 +10955,20 @@ static void p_selected_waveforms(tree_t stmt, tree_t target, tree_t reject)
    type_t with_type = tree_type(tree_value(stmt));
 
    do {
+      tree_t expr = NULL;
+      if (not_at_token(tNULL, tUNAFFECTED)) {
+         expr = p_expression();
+         target = solve_target(nametab, target, expr);
+      }
+      else
+         target = solve_types(nametab, target, NULL);
+
       tree_t a = tree_new(T_SIGNAL_ASSIGN);
       tree_set_target(a, target);
       if (reject != NULL)
          tree_set_reject(a, reject);
 
-      p_waveform(a, target);
+      p_waveform(a, target, expr);
 
       sem_check(a, nametab);
 
