@@ -136,7 +136,7 @@ static tree_t p_name(name_mask_t stop_mask);
 static tree_t p_block_configuration(tree_t of);
 static tree_t p_protected_type_body(ident_t id);
 static type_t p_signature(void);
-static type_t p_type_mark(void);
+static type_t p_type_mark(tree_t head);
 static tree_t p_function_call(ident_t id, tree_t prefix);
 static tree_t p_resolution_indication(void);
 static void p_conditional_waveforms(tree_t stmt, tree_t target, tree_t s0);
@@ -2536,36 +2536,6 @@ static void convert_universal_bounds(tree_t r)
    tree_set_right(r, rconv);
 }
 
-static type_t name_to_type_mark(tree_t name)
-{
-   name = solve_types(nametab, name, NULL);
-
-   type_t type = tree_type(name);
-   if (type_is_none(type))
-      return type;
-
-   const tree_kind_t namek = tree_kind(name);
-   if (namek == T_ATTR_REF)
-      return type;
-
-   tree_t decl = NULL;
-   if (namek == T_REF && tree_has_ref(name))
-      decl = aliased_type_decl(tree_ref(name));
-
-   if (decl == NULL) {
-      diag_t *d = diag_new(DIAG_ERROR, CURRENT_LOC);
-      const char *id = namek == T_REF ? istr(tree_ident(name)) : NULL;
-      diag_printf(d, "type mark%s%s does not denote a type or a subtype",
-                  id ? " " : "", id ?: "");
-      diag_hint(d, CURRENT_LOC, "%s is a %s name", id ?: "this",
-                class_str(class_of(name)));
-      diag_emit(d);
-      return type_new(T_NONE);
-   }
-
-   return tree_type(decl);
-}
-
 static void find_disconnect_specification(tree_t guard, tree_t target)
 {
    if (tree_kind(target) != T_REF)
@@ -4020,14 +3990,88 @@ static tree_t p_name(name_mask_t stop_mask)
    }
 }
 
-static type_t p_type_mark(void)
+static type_t p_type_mark(tree_t head)
 {
    // name
 
-   BEGIN("type mark");
+   BEGIN_WITH_HEAD("type mark", head);
 
-   tree_t name = p_name(N_TYPE);
-   return name_to_type_mark(name);
+   name_mask_t mask = 0;
+   tree_t prefix;
+   if (head == NULL) {
+      ident_t id = p_identifier();
+      tree_t decl = NULL;
+      mask = query_name(nametab, id, &decl);
+
+      prefix = tree_new(T_REF);
+      tree_set_ident(prefix, id);
+      tree_set_loc(prefix, &last_loc);
+      tree_set_ref(prefix, decl);
+   }
+   else
+      prefix = head;
+
+   for (;;) {
+      const token_t tok = peek();
+      if (tok == tDOT)
+         prefix = p_selected_name(prefix, &mask);
+      else if (tok == tTICK && peek_nth(2) != tLPAREN)
+         prefix = p_attribute_name(prefix);
+      else if (tok == tLPAREN) {
+         // We have to decide whether what follows is a constraint or
+         // part of an indexed name as in X(Y)'subtype: only choose the
+         // latter if current prefix cannot be interpreted as a type mark
+         prefix = solve_types(nametab, prefix, NULL);
+
+         type_t type = tree_type(prefix);
+         if (type_is_none(type))
+            return type;
+
+         if (tree_kind(prefix) == T_REF && tree_has_ref(prefix)) {
+            tree_t decl = aliased_type_decl(tree_ref(prefix));
+            if (decl != NULL)
+               return tree_type(decl);
+         }
+
+         consume(tLPAREN);
+
+         tree_t head = p_expression();
+
+         if (scan(tDOWNTO, tTO) || is_range_expr(head))
+            prefix = p_slice_name(prefix, head);
+         else
+            prefix = p_indexed_name(prefix, head);
+      }
+      else
+         break;
+   }
+
+   tree_t name = solve_types(nametab, prefix, NULL);
+
+   type_t type = tree_type(name);
+   if (type_is_none(type))
+      return type;
+
+   const tree_kind_t namek = tree_kind(name);
+   if (namek == T_ATTR_REF)
+      return type;
+
+   tree_t decl = NULL;
+   if (namek == T_REF && tree_has_ref(name))
+      decl = aliased_type_decl(tree_ref(name));
+
+   if (decl == NULL) {
+      diag_t *d = diag_new(DIAG_ERROR, CURRENT_LOC);
+      const char *id = namek == T_REF ? istr(tree_ident(name)) : NULL;
+      diag_printf(d, "type mark%s%s does not denote a type or a subtype",
+                  id ? " " : "", id ?: "");
+      diag_hint(d, CURRENT_LOC, "%s is a %s name", id ?: "this",
+                class_str(class_of(name)));
+      diag_emit(d);
+      return type_new(T_NONE);
+   }
+
+   return tree_type(decl);
 }
 
 static tree_t p_index_constraint(type_t base)
@@ -4253,11 +4297,23 @@ static type_t p_subtype_indication(void)
    if (peek() == tLPAREN)
       rname = p_resolution_indication();
    else {
-      tree_t name = p_name(N_TYPE);
+      // Handle ambiguity between resolution function name and type mark
+      ident_t id = p_identifier();
+      tree_t decl = NULL;
+      name_mask_t mask = query_name(nametab, id, &decl);
+
+      tree_t prefix = tree_new(T_REF);
+      tree_set_ident(prefix, id);
+      tree_set_loc(prefix, &last_loc);
+      tree_set_ref(prefix, decl);
+
+      while (peek() == tDOT)
+         prefix = p_selected_name(prefix, &mask);
+
       if (peek() == tID)
-         rname = name;
+         rname = prefix;
       else
-         type = name_to_type_mark(name);
+         type = p_type_mark(prefix);
    }
 
    if (rname != NULL) {
@@ -4265,13 +4321,13 @@ static type_t p_subtype_indication(void)
       made_subtype = true;
 
       type_set_resolution(type, rname);
-      type_set_base(type, p_type_mark());
+      type_set_base(type, p_type_mark(NULL));
 
       resolve_resolution(nametab, rname, type);
    }
 
    if (type == NULL)
-      type = p_type_mark();
+      type = p_type_mark(NULL);
 
    if (scan(tRANGE, tLPAREN)) {
       if (!made_subtype) {
@@ -4635,7 +4691,7 @@ static tree_t p_qualified_expression(tree_t prefix)
 
    type_t type = NULL;
    if (prefix == NULL)
-      type = p_type_mark();
+      type = p_type_mark(NULL);
    else {
       switch (tree_kind(prefix)) {
       case T_ATTR_REF:
@@ -5718,7 +5774,7 @@ static tree_t p_interface_function_specification(void)
    consume(tRETURN);
 
    if (peek_nth(2) != tOF)
-      type_set_result(type, p_type_mark());
+      type_set_result(type, p_type_mark(NULL));
    else {
       require_std(STD_19, "function knows return type");
       ident_t id = p_identifier();
@@ -5727,7 +5783,7 @@ static tree_t p_interface_function_specification(void)
 
       type_t sub = type_new(T_SUBTYPE);
       type_set_ident(sub, id);
-      type_set_base(sub, p_type_mark());
+      type_set_base(sub, p_type_mark(NULL));
 
       type_set_result(type, sub);
    }
@@ -6081,7 +6137,7 @@ static tree_t p_attribute_declaration(void)
    consume(tATTRIBUTE);
    tree_set_ident(t, p_identifier());
    consume(tCOLON);
-   tree_set_type(t, p_type_mark());
+   tree_set_type(t, p_type_mark(NULL));
    consume(tSEMI);
 
    tree_set_loc(t, CURRENT_LOC);
@@ -6489,7 +6545,7 @@ static type_t p_file_type_definition(ident_t id)
 
    type_t t = type_new(T_FILE);
    type_set_ident(t, id);
-   type_set_designated(t, p_type_mark());
+   type_set_designated(t, p_type_mark(NULL));
    mangle_type(nametab, t);
 
    return t;
@@ -6562,11 +6618,7 @@ static type_t p_index_subtype_definition(tree_t head)
 
    BEGIN_WITH_HEAD("index subtype definition", head);
 
-   type_t type;
-   if (head != NULL)
-      type = name_to_type_mark(head);
-   else
-      type = p_type_mark();
+   type_t type = p_type_mark(head);
 
    consume(tRANGE);
    consume(tBOX);
@@ -7282,7 +7334,7 @@ static tree_t p_subprogram_specification(void)
       consume(tRETURN);
 
       if (peek_nth(2) != tOF)
-         type_set_result(type, p_type_mark());
+         type_set_result(type, p_type_mark(NULL));
       else {
          require_std(STD_19, "function knows return type");
 
@@ -7290,7 +7342,7 @@ static tree_t p_subprogram_specification(void)
 
          consume(tOF);
 
-         type_t of = p_type_mark(), sub;
+         type_t of = p_type_mark(NULL), sub;
 
          if (type_is_unconstrained(of)) {
             tree_t rref = tree_new(T_REF);
@@ -7512,14 +7564,14 @@ static type_t p_signature(void)
    bool error = false;
    if (not_at_token(tRETURN, tRSQUARE)) {
       do {
-         type_t param = p_type_mark();
+         type_t param = p_type_mark(NULL);
          type_add_param(type, param);
          error = error || type_is_none(param);
       } while (optional(tCOMMA));
    }
 
    if (optional(tRETURN)) {
-      type_t ret = p_type_mark();
+      type_t ret = p_type_mark(NULL);
       type_set_result(type, ret);
       error = error || type_is_none(ret);
    }
@@ -7750,7 +7802,7 @@ static void p_disconnection_specification(tree_t container)
 
    consume(tCOLON);
 
-   type_t type = p_type_mark();
+   type_t type = p_type_mark(NULL);
 
    consume(tAFTER);
 
@@ -11969,7 +12021,7 @@ static type_t p_psl_subtype_indication(void)
    token_t third = peek_nth(3);
    if (peek() == tID && peek_nth(1) == tID &&
        (third == tSEMI || third == tCOMMA || third == tRPAREN))
-      return p_type_mark();
+      return p_type_mark(NULL);
    else
       return p_subtype_indication();
 }

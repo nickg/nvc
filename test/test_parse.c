@@ -3643,6 +3643,7 @@ START_TEST(test_vhdl2008)
       {   0, "did you mean F?" },
       {   0, "type T_REC has field F" },
       { 320, "no visible declaration for DATA_IN" },
+      { 320, "unexpected ) while parsing range, expecting" },
       { 321, "type of aggregate cannot be determined from the surrounding " },
       {   0, "context contains type BIT which is not a composite type" },
       {  -1, NULL }
@@ -6962,7 +6963,7 @@ START_TEST(test_issue1038)
       { 26, "unexpected next while parsing primary, expecting one of ??, (, "
             "integer, real, null, identifier, string, bit string or new" },
       { 41, "no visible subprogram declaration for NATURAL" },
-      { 49, "not a valid resolution function for type POSITIVE" },
+      { 49, "unexpected identifier while parsing subtype declaration" },
       { -1, NULL }
    };
    expect_errors(expect);

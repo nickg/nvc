@@ -908,7 +908,7 @@ START_TEST(test_access)
       {   5, "no visible declaration for FOO" },
       {  34, "type of null expression cannot be determined from the "
          "surrounding context" },
-      {  38, "unexpected integer while parsing name, expecting" },
+      {  38, "unexpected integer while parsing subtype indication, expecting" },
       {  39, "type mark I does not denote a type or a subtype" },
       {  41, "does not match type of target INT_PTR" },
       {  47, "type of value REC does not match type of" },
@@ -2411,7 +2411,8 @@ START_TEST(test_resolution)
 
    const error_t expect[] = {
       {  6, "no visible subprogram declaration for BIT_VECTOR" },
-      { 10, "not a valid resolution function for type MY_UTYPE" },
+      { 10, "type mark does not denote a type or a subtype" },
+      { 10, "unexpected identifier while parsing subtype declaration" },
       { 17, "non-record type MY_UTYPE_VECTOR may not have record element" },
       { 29, "non-composite type MY_UTYPE may not have element resolution" },
       { 33, "resolution function name PROC is not a function" },
@@ -2672,7 +2673,7 @@ START_TEST(test_gentype)
         "subprogram \"=\" for type T" },
       { 69, "positional generic actual is associated with implicit generic "
         "subprogram \"/=\" for type T" },
-      { 72, "unexpected integer while parsing name" },
+      { 72, "unexpected integer while parsing subtype indication" },
       { 72, "type of actual universal_integer does not match type T of " },
       { 81, "no visible subprogram MY_FUNC matches signature [T return T]" },
       { 80, "missing actual for generic type T" },
@@ -2715,6 +2716,7 @@ START_TEST(test_record2008)
       { 110, "variable A1 cannot have unconstrained type REC1_ARRAY" },
       { 122, "declaration of variable R cannot have unconstrained type "
             "INTERLACED16BSIGNAL" },
+      { 127, "no visible declaration for NOT_AN_ARRAY" },
       { 127, "unexpected open while parsing primary, expecting one of" },
       { -1, NULL }
    };
