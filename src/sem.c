@@ -1487,7 +1487,6 @@ static bool sem_check_alias(tree_t t, nametab_t *tab)
    if (type != NULL && type_is_subprogram(type)) {
       // Alias of subprogram or enumeration literal
       // Rules for matching signatures are in LRM 93 section 2.3.2
-      assert(tree_kind(value) == T_REF || tree_kind(value) == T_PROT_REF);
       return true;
    }
    else if (tree_flags(t) & TREE_F_NONOBJECT_ALIAS) {

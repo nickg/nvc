@@ -26,12 +26,14 @@
 #include "object.h"
 #include "option.h"
 #include "phase.h"
+#include "printf.h"
 #include "psl/psl-node.h"
 #include "psl/psl-phase.h"
 #include "scan.h"
 #include "thread.h"
 #include "tree.h"
 #include "type.h"
+#include "vhdl/vhdl-util.h"
 
 #include <string.h>
 #include <stdarg.h>
@@ -1551,45 +1553,6 @@ static void binary_op(tree_t expr, tree_t left, tree_t (*right_fn)(tree_t))
    add_param(expr, right, P_POS, NULL);
 }
 
-static tree_t implicit_dereference(tree_t t)
-{
-   type_t access = type_designated(tree_type(t));
-
-   tree_t all = tree_new(T_ALL);
-   tree_set_loc(all, tree_loc(t));
-   tree_set_value(all, t);
-   tree_set_type(all, access);
-
-   return all;
-}
-
-static tree_t resolve_prefix(tree_t prefix, type_t signature)
-{
-   if (scope_formal_kind(nametab) == F_SUBPROGRAM)
-      return prefix;
-
-   // Check we can actually resolve the base reference at this point
-   tree_t ref = prefix;
-   tree_kind_t kind;
-   while ((kind = tree_kind(ref)) != T_REF) {
-      switch (kind) {
-      case T_ARRAY_SLICE:
-      case T_ARRAY_REF:
-      case T_RECORD_REF:
-      case T_ALL:
-         ref = tree_value(ref);
-         break;
-      default:
-         return prefix;
-      }
-   }
-
-   if (tree_has_ref(ref) && !class_has_type(class_of(tree_ref(ref))))
-      return prefix;
-
-   return solve_types(nametab, prefix, signature);
-}
-
 static bool is_range_expr(tree_t t)
 {
    switch (tree_kind(t)) {
@@ -2064,6 +2027,8 @@ static type_t apply_designated_subtype_attribute(tree_t aref)
                   "does not have a type");
       return type_new(T_NONE);
    }
+   else if (type_is_none(type))
+      return type;
    else if (!type_is_file(type) && !type_is_access(type)) {
       parse_error(tree_loc(aref), "prefix of 'DESIGNATED_SUBTYPE attribute "
                   "must be an access or file type");
@@ -2769,6 +2734,29 @@ static psl_node_t with_default_clock(psl_node_t prop)
    return p;
 }
 
+static tree_t prefix_to_fcall(tree_t t)
+{
+   switch (tree_kind(t)) {
+   case T_REF:
+      {
+         tree_t fcall = tree_new(T_FCALL);
+         tree_set_ident(fcall, tree_ident(t));
+         tree_set_loc(fcall, tree_loc(t));
+         return fcall;
+      }
+   case T_RECORD_REF:
+      {
+         tree_t fcall = tree_new(T_PROT_FCALL);
+         tree_set_ident(fcall, tree_ident(t));
+         tree_set_name(fcall, tree_value(t));
+         tree_set_loc(fcall, tree_loc(t));
+         return fcall;
+      }
+   default:
+      CANNOT_HANDLE(t);
+   }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Parser rules
 
@@ -3173,26 +3161,12 @@ static tree_t p_slice_name(tree_t prefix, tree_t head)
 
    EXTEND("slice name");
 
-   prefix = resolve_prefix(prefix, NULL);
-
-   type_t type = get_type_or_null(prefix);
-
-   if (type != NULL && type_is_access(type)) {
-      prefix = implicit_dereference(prefix);
-      type   = tree_type(prefix);
-   }
-
    tree_t t = tree_new(T_ARRAY_SLICE);
    tree_set_value(t, prefix);
 
-   type_t index_type = NULL;
-   if (type != NULL && type_is_array(type))
-      index_type = index_type_of(type, 0);
-
-   tree_t r = solve_types(nametab, p_discrete_range(head), index_type);
-   convert_universal_bounds(r);
-
+   tree_t r = p_discrete_range(head);
    tree_add_range(t, r);
+
    consume(tRPAREN);
 
    tree_set_loc(t, CURRENT_LOC);
@@ -3526,9 +3500,10 @@ static tree_t p_attribute_name(tree_t prefix)
 
    EXTEND("attribute name");
 
-   type_t signature = NULL;
-   if (peek() == tLSQUARE)
-      signature = p_signature();
+   if (peek() == tLSQUARE) {
+      type_t signature = p_signature();
+      prefix = resolve_signature(nametab, prefix, signature);
+   }
 
    consume(tTICK);
 
@@ -3561,42 +3536,6 @@ static tree_t p_attribute_name(tree_t prefix)
       id = error_marker();
    }
 
-   prefix = resolve_prefix(prefix, signature);
-
-   type_t type = get_type_or_null(prefix);
-
-   if (signature != NULL) {
-      bool valid_signature = false;
-      if (type == NULL)
-         valid_signature = false;
-      else if (type_is_subprogram(type))
-         valid_signature = true;
-      else if (class_of(prefix) == C_LITERAL && type_is_enum(type))
-         valid_signature = true;
-      else if (type_is_none(type))
-         valid_signature = true;   // Prevent cascading errors
-
-      if (!valid_signature)
-         parse_error(CURRENT_LOC, "prefix of attribute name with signature "
-                     "does not denote a subprogram or enumeration literal");
-   }
-
-   if (type != NULL && type_kind(type) == T_INCOMPLETE) {
-      type = resolve_type(nametab, type);
-      tree_set_type(prefix, type);
-   }
-
-   const bool deref_prefix =
-      !is_type_attribute(kind) && kind != ATTR_REFLECT
-      && kind != ATTR_PATH_NAME && kind != ATTR_INSTANCE_NAME
-      && kind != ATTR_SIMPLE_NAME
-      && type != NULL && type_is_access(type);
-
-   if (deref_prefix) {
-      prefix = implicit_dereference(prefix);
-      type   = tree_type(prefix);
-   }
-
    tree_t t = tree_new(T_ATTR_REF);
    tree_set_name(t, prefix);
 
@@ -3610,8 +3549,10 @@ static tree_t p_attribute_name(tree_t prefix)
       tree_set_loc(t, CURRENT_LOC);
    }
 
-   if (is_type_attribute(kind))
+   if (is_type_attribute(kind)) {
+      tree_set_name(t, (prefix = solve_types(nametab, prefix, NULL)));
       tree_set_type(t, apply_type_attribute(t));
+   }
    else if (kind == ATTR_DELAYED || kind == ATTR_TRANSACTION
             || kind == ATTR_STABLE || kind == ATTR_QUIET)
       implicit_signal_attribute(t);
@@ -3637,10 +3578,6 @@ static tree_t p_selected_name(tree_t prefix, name_mask_t *mask)
          prefix = p_function_call(id, NULL);
          prefix_kind = T_FCALL;
       }
-   }
-   else if (prefix_kind == T_PROT_REF) {
-      prefix = p_function_call(tree_ident(prefix), tree_value(prefix));
-      prefix_kind = T_FCALL;
    }
 
    consume(tDOT);
@@ -3734,66 +3671,12 @@ static tree_t p_selected_name(tree_t prefix, name_mask_t *mask)
       }
    }
 
-   if (scope_formal_kind(nametab) == F_SUBPROGRAM) {
-      tree_t rref = tree_new(T_RECORD_REF);
-      tree_set_value(rref, prefix);
-      tree_set_ident(rref, suffix);
-      tree_set_loc(rref, CURRENT_LOC);
-      *mask |= N_OBJECT;
-      return rref;
-   }
-
-   prefix = solve_types(nametab, prefix, NULL);
-
-   type_t type = tree_type(prefix);
-
-   if (type_is_access(type)) {
-      prefix = implicit_dereference(prefix);
-      type   = tree_type(prefix);
-      prefix_kind = T_ALL;
-   }
-
-   if (type_kind(type) == T_INCOMPLETE) {
-      type = resolve_type(nametab, type);
-      tree_set_type(prefix, type);
-   }
-
-   if (type_is_record(type) || type_is_none(type)) {
-      tree_t rref = tree_new(T_RECORD_REF);
-      tree_set_value(rref, prefix);
-      tree_set_ident(rref, suffix);
-      tree_set_loc(rref, CURRENT_LOC);
-      *mask |= N_OBJECT;
-      return rref;
-   }
-   else if (type_is_protected(type)) {
-      tree_t pref = tree_new(T_PROT_REF);
-      tree_set_value(pref, prefix);
-      tree_set_ident(pref, suffix);
-      tree_set_loc(pref, CURRENT_LOC);
-      *mask |= N_SUBPROGRAM;
-      return pref;
-   }
-   else if (type_kind(type) == T_INCOMPLETE) {
-      parse_error(tree_loc(prefix), "object with incomplete type %s cannot be "
-                  "selected", type_pp(type));
-      *mask |= N_ERROR;
-      return prefix;
-   }
-   else if (prefix_kind == T_REF) {
-      parse_error(tree_loc(prefix), "object %s with type %s cannot be selected",
-                  istr(tree_ident(prefix)), type_pp(type));
-      tree_set_type(prefix, type_new(T_NONE));
-      *mask |= N_ERROR;
-      return prefix;
-   }
-   else {
-      parse_error(tree_loc(prefix), "object with type %s cannot be selected",
-                  type_pp(type));
-      tree_set_type(prefix, type_new(T_NONE));
-      *mask |= N_ERROR;
-      return prefix;
-   }
+   tree_t rref = tree_new(T_RECORD_REF);
+   tree_set_value(rref, prefix);
+   tree_set_ident(rref, suffix);
+   tree_set_loc(rref, CURRENT_LOC);
+   *mask |= N_OBJECT;
+   return rref;
 }
 
 static tree_t p_indexed_name(tree_t prefix, tree_t head)
@@ -3802,22 +3685,28 @@ static tree_t p_indexed_name(tree_t prefix, tree_t head)
 
    EXTEND("indexed name");
 
-   prefix = resolve_prefix(prefix, NULL);
-
-   type_t type = get_type_or_null(prefix);
-
-   if (type != NULL && type_is_access(type)) {
-      prefix = implicit_dereference(prefix);
-      type   = tree_type(prefix);
-   }
-
    tree_t t = tree_new(T_ARRAY_REF);
    tree_set_value(t, prefix);
 
    do {
       tree_t index = head ?: p_expression();
       head = NULL;
-      add_param(t, index, P_POS, NULL);
+
+      if (peek() == tASSOC) {
+         // This is actually a subprogram call
+         if (tree_kind(t) == T_ARRAY_REF) {
+            tree_t call = prefix_to_fcall(prefix);
+            tree_copy_params(call, t);
+
+            t = call;
+         }
+
+         consume(tASSOC);
+
+         add_param(t, p_expression(), P_NAMED, index);
+      }
+      else
+         add_param(t, index, P_POS, NULL);
    } while (optional(tCOMMA));
 
    consume(tRPAREN);
@@ -7681,17 +7570,14 @@ static void p_alias_declaration(tree_t parent)
                      "signature and a subtype indication");
          type = type_new(T_NONE);
       }
-      else if (value_kind != T_REF && value_kind != T_PROT_REF) {
-         value = solve_types(nametab, value, NULL);
-         if (!type_is_none((type = tree_type(value)))) {
+      else {
+         tree_t ref = resolve_signature(nametab, value, type);
+         if (ref == NULL) {
             parse_error(tree_loc(value), "invalid name in subprogram alias");
             type = type_new(T_NONE);
          }
-      }
-      else {
-         ident_t id = tree_ident(value);
-         type_set_ident(type, ident_rfrom(id, '.') ?: id);
-         solve_types(nametab, value, type);
+         else
+            tree_set_value(t, (value = ref));
       }
       tree_set_type(t, type);
    }
@@ -10560,25 +10446,11 @@ static tree_t p_procedure_call_statement(ident_t label, tree_t name)
 
    EXTEND("procedure call statement");
 
-   tree_t call = NULL;
-
-   switch (tree_kind(name)) {
-   case T_REF:
-      call = tree_new(T_PCALL);
-      tree_set_ident2(call, tree_ident(name));
-      break;
-
-   case T_PROT_REF:
-      call = tree_new(T_PROT_PCALL);
-      tree_set_ident2(call, tree_ident(name));
-      tree_set_name(call, tree_value(name));
-      break;
-
-   default:
+   tree_t call = resolve_pcall(nametab, name);
+   if (call == NULL) {
       // Only print an error if name is a valid expression
-      solve_types(nametab, name, NULL);
-      if (!type_is_none(tree_type(name)))
-         parse_error(CURRENT_LOC, "expected procedure name");
+      if (!type_is_none(tree_type(solve_types(nametab, name, NULL))))
+         parse_error(CURRENT_LOC, "invalid procedure call statement");
 
       call = tree_new(T_PCALL);
       tree_set_ident2(call, error_marker());
@@ -11176,20 +11048,13 @@ static tree_t p_concurrent_procedure_call_statement(ident_t label, tree_t name)
 
    const bool postponed = name == NULL && optional(tPOSTPONED);
 
-   tree_t call = NULL;
+   tree_t call;
    if (name == NULL) {
       call = tree_new(T_PCALL);
       tree_set_ident2(call, p_identifier());
    }
-   else if (tree_kind(name) == T_PROT_REF) {
-      call = tree_new(T_PROT_PCALL);
-      tree_set_ident2(call, tree_ident(name));
-      tree_set_name(call, tree_value(name));
-   }
-   else {
-      call = tree_new(T_PCALL);
-      tree_set_ident2(call, tree_ident(name));
-   }
+   else if ((call = resolve_pcall(nametab, name)) == NULL)
+      should_not_reach_here();
 
    if (optional(tLPAREN)) {
       p_actual_parameter_part(call);
@@ -13432,6 +13297,9 @@ static tree_t p_concurrent_statement(void)
                   }
                   // Fall-through
                case T_PROT_REF:
+               case T_RECORD_REF:
+               case T_FCALL:
+               case T_PROT_FCALL:
                   return p_concurrent_procedure_call_statement(label, name);
                default:
                   parse_error(CURRENT_LOC, "expected concurrent statement");

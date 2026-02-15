@@ -3442,7 +3442,6 @@ START_TEST(test_issue388)
    const error_t expect[] = {
       { 11, "unexpected => while parsing slice name, expecting one of" },
       { 12, "expected concurrent statement" },
-      { 14, "no visible declaration for CALL" },
       { 14, "expected concurrent statement" },
       { -1, NULL }
    };
@@ -3491,15 +3490,15 @@ START_TEST(test_names)
       {   0, "no implicit conversion was performed on the first argument" },
       { 106, "type of string literal cannot be determined from the" },
       {   0, "could be BIT_VECTOR or STRING" },
-      { 107, "expected procedure name" },
-      { 108, "no visible declaration for FOO" },
+      { 107, "no visible subprogram declaration for V" },
+      { 108, "no visible subprogram declaration for FOO" },
       { 222, "ambiguous use of name FOO" },
       { 233, "name X not found in \"+\"" },
       { 256, "no visible declaration for NOTHERE" },
       { 313, "no visible declaration for FNORK" },
       { 323, "no matching subprogram P26_1 [universal_integer" },
       { 332, "no matching operator \"and\" [BIT, BOOLEAN return BOOLEAN]" },
-      { 360, "object X with type INTEGER cannot be selected" },
+      { 360, "object X with type INTEGER cannot be the prefix of a selected" },
       { 362, "no visible declaration for FOO" },
       { 386, "expecting type mark while parsing qualified expression" },
       {  -1, NULL }
@@ -3628,22 +3627,23 @@ START_TEST(test_vhdl2008)
       { 121, "excess significant digits in bit string literal" },
       { 124, "invalid digit 'C' in decimal bit string" },
       { 127, "excess non-zero digits in decimal bit string literal" },
-      { 171, "unexpected ; while parsing case statement, expecting ?" },
-      { 181, "prefix of 'SUBTYPE attribute does not have a type" },
-      { 183, "prefix of 'ELEMENT attribute must be an array type" },
-      { 184, "prefix of 'ELEMENT attribute does not have a type" },
-      { 230, "unexpected trailing label for generate statement body without" },
-      { 232, "expected trailing generate statement body label to match FOO" },
-      { 249, "expected trailing case generate statement label to match G3" },
-      { 264, "signed bit string literal cannot be an empty string" },
-      { 282, "the reserved word INERTIAL can only be used in port map " },
-      { 290, "the reserved word INERTIAL can only be used in port map " },
-      { 295, "parameter interface list cannot contain type interface " },
-      { 307, "record type T_REC has no field named G" },
-      { 309, "record type T_REC has no field named H" },
+      { 173, "unexpected ; while parsing case statement, expecting ?" },
+      { 184, "invalid use of label B4" },
+      { 186, "prefix of 'ELEMENT attribute must be an array type" },
+      { 187, "invalid use of label B4" },
+      { 233, "unexpected trailing label for generate statement body without" },
+      { 235, "expected trailing generate statement body label to match FOO" },
+      { 252, "expected trailing case generate statement label to match G3" },
+      { 267, "signed bit string literal cannot be an empty string" },
+      { 285, "the reserved word INERTIAL can only be used in port map " },
+      { 293, "the reserved word INERTIAL can only be used in port map " },
+      { 298, "parameter interface list cannot contain type interface " },
+      { 310, "record type T_REC has no field named G" },
+      { 312, "record type T_REC has no field named H" },
       {   0, "did you mean F?" },
       {   0, "type T_REC has field F" },
-      { 318, "type of aggregate cannot be determined from the surrounding " },
+      { 320, "no visible declaration for DATA_IN" },
+      { 321, "type of aggregate cannot be determined from the surrounding " },
       {   0, "context contains type BIT which is not a composite type" },
       {  -1, NULL }
    };
@@ -4742,7 +4742,8 @@ START_TEST(test_error9)
    input_from_file(TESTDIR "/parse/error9.vhd");
 
    const error_t expect[] = {
-      { 13, "object with type STRING cannot be selected" },
+      { 13, "expression with type STRING cannot be the prefix of a "
+        "selected name" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -6396,8 +6397,7 @@ START_TEST(test_issue892)
    input_from_file(TESTDIR "/parse/issue892.vhd");
 
    const error_t expect[] = {
-      { 25, "prefix of attribute name with signature does not denote a "
-        "subprogram or enumeration literal" },
+      { 25, "no visible subprogram P matches signature [INTEGER return BIT]" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -7180,7 +7180,7 @@ START_TEST(test_aggregate2)
    input_from_file(TESTDIR "/parse/aggregate2.vhd");
 
    const error_t expect[] = {
-      {  4, "no visible declaration for DATA" },
+      {  4, "record type T_DATA_SEGMENT has no field named DATA" },
       {  4, "association choice must be a field name" },
       { 11, "no visible declaration for WORD" },
       { 11, "unexpected => while parsing signature" },
@@ -7424,6 +7424,7 @@ START_TEST(test_fuzzing)
       { 16, "unexpected pure while parsing package declarative item, "
             "expecting one of function or procedure" },
       { 25, "unexpected ) while parsing primary" },
+      { 25, "record type STORAGE_T has no field named INTEGER" },
       { 25, "association choice must be a field name" },
       { -1, NULL }
    };
