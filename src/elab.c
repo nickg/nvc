@@ -1148,7 +1148,7 @@ static tree_t elab_find_generic_override(tree_t g, const elab_ctx_t *ctx)
 
    generic_list_t **it, *tmp;
    for (it = &generic_override;
-        *it && (*it)->name != name;
+        *it && !ident_casecmp((*it)->name, name);
         it = &((*it)->next))
       ;
 
@@ -1195,7 +1195,7 @@ static tree_t elab_override_instance_generics(tree_t t, const elab_ctx_t *ctx)
 
       generic_list_t **it, *tmp;
       for (it = &generic_override;
-           *it && (*it)->name != qual;
+           *it && !ident_casecmp((*it)->name, qual);
            it = &((*it)->next))
          ;
 
@@ -2752,9 +2752,8 @@ static tree_t elab_top_level_binding(tree_t arch, const elab_ctx_t *ctx)
       if (value == NULL && tree_has_value(g))
          value = tree_value(g);
       else if (value == NULL) {
-         error_at(tree_loc(g), "generic %s of top-level entity must have "
-                  "default value or be specified using -gNAME=VALUE",
-                  istr(name));
+         error_at(tree_loc(g), "generic %pI of top-level entity must have "
+                  "default value or be specified using -gNAME=VALUE", name);
          continue;
       }
 
