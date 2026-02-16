@@ -2770,7 +2770,7 @@ vhpiIntT vhpi_get(vhpiIntPropertyT property, vhpiHandleT handle)
          return t->argv.count;
       }
 
-   case vhpiRandomSeed:
+   case vhpiRandomSeedP:
       {
          c_tool *t = is_tool(obj);
          if (t != NULL)

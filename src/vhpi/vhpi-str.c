@@ -139,7 +139,7 @@ const char *vhpi_property_str(int property)
    case DEPRECATED_vhpiSimTimeUnitP: return "DEPRECATED_vhpiSimTimeUnitP";
    case vhpiResolutionLimitP: return "vhpiResolutionLimitP";
    case vhpiTimeP: return "vhpiTimeP";
-   case vhpiRandomSeed: return "vhpiRandomSeed";
+   case vhpiRandomSeedP: return "vhpiRandomSeedP";
    default: return vhpi_fallback_str(property);
    }
 }

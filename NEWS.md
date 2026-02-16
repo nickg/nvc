@@ -3,7 +3,7 @@
   contains a null array of records (#1420).
 - The new `vhpi_ext_nvc.h` header contains definitions for proprietary
   VHPI extensions.
-- Added a `vhpiRandomSeed` property for `vhpiToolK` which returns the
+- Added a `vhpiRandomSeedP` property for `vhpiToolK` which returns the
   random seed for the simulation.
 - Fixed an error when setting generics on the command line with `-g`
   after analysing with `--preserve-case` (#1421).

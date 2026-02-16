@@ -26,6 +26,6 @@
    vhpiVerilogModuleK = 2001
 
 #define VHPIEXTEND_INT_PROPERTIES ,             \
-   vhpiRandomSeed = 1100
+   vhpiRandomSeedP = 1100
 
 #endif  // VHPI_EXT_NVC_H
