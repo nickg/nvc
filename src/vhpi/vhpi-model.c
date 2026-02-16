@@ -2770,6 +2770,15 @@ vhpiIntT vhpi_get(vhpiIntPropertyT property, vhpiHandleT handle)
          return t->argv.count;
       }
 
+   case vhpiRandomSeed:
+      {
+         c_tool *t = is_tool(obj);
+         if (t != NULL)
+            return opt_get_int(OPT_RANDOM_SEED);
+
+         goto missing_property;
+      }
+
    case vhpiNumDimensionsP:
       {
          c_arrayTypeDecl *a = is_arrayTypeDecl(obj);

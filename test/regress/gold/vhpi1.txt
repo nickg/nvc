@@ -2,6 +2,7 @@ loading VHPI plugin
 hello, world!
 tool is nvc
 tool version is
+seed is 123
 arg is +foo=bar
 root handle
 root name is VHPI1

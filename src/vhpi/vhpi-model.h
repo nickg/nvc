@@ -29,6 +29,7 @@
 #define PLI_DLLESPEC
 #endif
 
+#include "vhpi/vhpi_ext_nvc.h"
 #include "vhpi/vhpi_user.h"
 
 vhpi_context_t *vhpi_context_new(void);

@@ -7,4 +7,4 @@ lib_libnvc_a_SOURCES += \
 	src/vhpi/vhpi-util.c \
 	src/vhpi/vhpi-priv.h
 
-include_HEADERS += src/vhpi/vhpi_user.h
+include_HEADERS += src/vhpi/vhpi_user.h src/vhpi/vhpi_ext_nvc.h

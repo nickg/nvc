@@ -18,6 +18,7 @@
 #ifndef _VHPI_TEST_H
 #define _VHPI_TEST_H
 
+#include "vhpi_ext_nvc.h"
 #include "vhpi_user.h"
 
 #define fail_if(x)                                                      \

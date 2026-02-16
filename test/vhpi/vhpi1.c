@@ -380,6 +380,9 @@ static void end_of_init(const vhpiCbDataT *cb_data)
    vhpi_printf("tool is %s", vhpi_get_str(vhpiNameP, tool));
    vhpi_printf("tool version is %s", vhpi_get_str(vhpiToolVersionP, tool));
 
+   int seed = VHPI_CHECK(vhpi_get(vhpiRandomSeed, tool));
+   vhpi_printf("seed is %d", seed);
+
    fail_unless(cb_data->time == NULL);
    fail_unless(cb_data->value == NULL);
    fail_unless(cb_data->obj == NULL);

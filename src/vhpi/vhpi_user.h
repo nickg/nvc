@@ -344,11 +344,10 @@ typedef enum {
         vhpiSeqAssertStmtK = 1120,
         vhpiSeqProcCallStmtK = 1121,
         vhpiSeqSigAssignStmtK = 1122,
-        vhpiProtectedTypeInstK = 1123,
+        vhpiProtectedTypeInstK = 1123
 #ifdef VHPIEXTEND_CLASSES
         VHPIEXTEND_CLASSES
 #endif
-        vhpiVerilogModuleK = 2001,
         } vhpiClassKindT;
 
 /********* methods used to traverse 1 to 1 relationships **************/

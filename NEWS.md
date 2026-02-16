@@ -1,6 +1,10 @@
 ## Unreleased changes
 - Fixed a crash when dumping a waveform `--dump-arrays` and the design
   contains a null array of records (#1420).
+- The new `vhpi_ext_nvc.h` header contains definitions for proprietary
+  VHPI extensions.
+- Added a `vhpiRandomSeed` property for `vhpiToolK` which returns the
+  random seed for the simulation.
 - Several other minor bugs were resolved (#1422).
 
 ## Version 1.19.1 - 2026-02-07
