@@ -3264,11 +3264,19 @@ static tree_t finish_overload_resolution(overload_t *o)
    if (o->candidates.count > 1 && !o->error && !o->trial) {
       const loc_t *loc = tree_loc(o->tree);
       diag_t *d = diag_new(DIAG_ERROR, loc);
-      diag_printf(d, "ambiguous %s %s",
-                  ident_char(o->name, 0) == '"' ? "use of operator"
-                  : (tree_kind(o->tree) == T_FCALL ? "call to function"
-                     : "call to procedure"),
-                  istr(o->name));
+      diag_printf(d, "ambiguous ");
+      if (ident_char(o->name, 0) == '"')
+         diag_printf(d, "use of operator");
+      else {
+         switch (tree_kind(o->tree)) {
+         case T_FCALL: diag_printf(d, "call to function"); break;
+         case T_PCALL: diag_printf(d, "call to procedure"); break;
+         case T_PROT_FCALL:
+         case T_PROT_PCALL: diag_printf(d, "call to method"); break;
+         default: should_not_reach_here();
+         }
+      }
+      diag_printf(d, " %pI", o->name);
 
       int explicit = 0;
       for (unsigned i = 0; i < o->candidates.count; i++) {
