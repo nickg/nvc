@@ -1254,6 +1254,9 @@ static void p_list_of_variable_port_identifiers(vlog_node_t mod,
       vlog_set_type(v, datatype);
       vlog_set_loc(v, &state.last_loc);
 
+      if (optional(tEQ))
+         vlog_set_value(v, p_constant_expression());
+
       vlog_add_decl(mod, v);
       vlog_symtab_put(symtab, v);
 
@@ -6386,6 +6389,9 @@ static void p_ansi_port_declaration(vlog_node_t mod, v_port_kind_t *kind,
    vlog_set_ident2(v, ext);
    vlog_set_type(v, *dt);
    vlog_set_loc(v, &state.last_loc);
+
+   if (optional(tEQ))
+      vlog_set_value(v, p_constant_expression());
 
    vlog_add_decl(mod, v);
    vlog_symtab_put(symtab, v);

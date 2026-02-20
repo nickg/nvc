@@ -44,3 +44,6 @@ endmodule // ports9
 module ports10 (input wire i0);
   input i1;  // Error
 endmodule // ports10
+
+module ports11 (output reg x = 1);
+endmodule // ports11

@@ -84,21 +84,30 @@ static vlog_node_t simp_net_decl(vlog_node_t decl, vlog_node_t mod)
    return decl;
 }
 
-static vlog_node_t simp_port_decl(vlog_node_t decl, vlog_node_t mod)
+static vlog_node_t simp_port_decl(vlog_node_t v, vlog_node_t mod)
 {
-   if (vlog_has_ref(decl))
-      return decl;
+   if (vlog_has_ref(v))
+      return v;
 
-   vlog_node_t wire = vlog_new(V_NET_DECL);
-   vlog_set_subkind(wire, V_NET_WIRE);
-   vlog_set_loc(wire, vlog_loc(decl));
-   vlog_set_ident(wire, vlog_ident(decl));
-   vlog_set_type(wire, vlog_type(decl));
+   vlog_node_t dt = vlog_type(v), decl;
+   if (vlog_subkind(dt) == DT_IMPLICIT) {
+      decl = vlog_new(V_NET_DECL);
+      vlog_set_subkind(decl, V_NET_WIRE);
+   }
+   else
+      decl = vlog_new(V_VAR_DECL);
 
-   vlog_set_ref(decl, wire);
-   vlog_add_decl(mod, wire);
+   vlog_set_loc(decl, vlog_loc(v));
+   vlog_set_ident(decl, vlog_ident(v));
+   vlog_set_type(decl, vlog_type(v));
 
-   return decl;
+   if (vlog_has_value(v))
+      vlog_set_value(decl, vlog_value(v));
+
+   vlog_set_ref(v, decl);
+   vlog_add_decl(mod, decl);
+
+   return v;
 }
 
 static void build_sensitivity(vlog_node_t ctrl, vlog_node_t v, hset_t *set,
