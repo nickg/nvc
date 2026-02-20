@@ -12,6 +12,7 @@ concurrency:
 jobs:
   build-ubuntu:
     strategy:
+      fail-fast: false
       matrix:
         include:
           - { llvm: 13 }
@@ -21,6 +22,7 @@ jobs:
           - { llvm: 19 }
           - { llvm: 20 }
           - { llvm: 21 }
+          - { llvm: 22 }
     name: LLVM ${{ matrix.llvm }}
     runs-on: ubuntu-latest
     container:
@@ -31,9 +33,10 @@ jobs:
           fetch-depth: 1
       - name: Install LLVM
         run: |
-          wget https://apt.llvm.org/llvm.sh
+          apt-get -y install lsb-release software-properties-common gnupg
+          curl -L -o llvm.sh https://apt.llvm.org/llvm.sh
           chmod +x llvm.sh
-          sudo ./llvm.sh ${{ matrix.llvm }}
+          ./llvm.sh ${{ matrix.llvm }}
       - name: Generate configure script
         run: |
           git config --global --add safe.directory $GITHUB_WORKSPACE

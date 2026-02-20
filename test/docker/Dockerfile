@@ -7,7 +7,7 @@ RUN apt-get -y update && \
       libxml2-utils tcl tclsh tcllib automake flex llvm-dev check libdw-dev \
       libffi-dev libreadline-dev tcl8.6-dev libzstd-dev libxml2-utils \
       libjansson-dev build-essential dpkg-dev tcl-dev pkg-config debhelper \
-      curl wget sudo lsb-release software-properties-common gnupg && \
+      curl python3-tomli && \
     apt-get clean all
 
 ENV LC_ALL=C.UTF-8
