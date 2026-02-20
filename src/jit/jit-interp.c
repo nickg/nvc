@@ -453,19 +453,19 @@ static void interp_store(jit_interp_t *state, jit_ir_t *ir)
 
    switch (ir->size) {
    case JIT_SZ_8:
-      *(uint8_t *)arg2 = (uint8_t)arg1.integer;
+      unaligned_store(arg2, arg1.integer, uint8_t);
       break;
    case JIT_SZ_16:
-      *(uint16_t *)arg2 = (uint16_t)arg1.integer;
+      unaligned_store(arg2, arg1.integer, uint16_t);
       break;
    case JIT_SZ_32:
-      *(uint32_t *)arg2 = (uint32_t)arg1.integer;
+      unaligned_store(arg2, arg1.integer, uint32_t);
       break;
    case JIT_SZ_64:
-      *(uint64_t *)arg2 = arg1.integer;
+      unaligned_store(arg2, arg1.integer, uint64_t);
       break;
    case JIT_SZ_UNSPEC:
-      break;
+      should_not_reach_here();
    }
 }
 

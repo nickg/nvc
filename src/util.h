@@ -231,8 +231,8 @@ void fatal_errno(const char *fmt, ...)
 
 const char *last_os_error(void);
 
-#define likely(x) __builtin_expect(x, 1)
-#define unlikely(x) __builtin_expect(x, 0)
+#define likely(x) __builtin_expect((x), 1)
+#define unlikely(x) __builtin_expect((x), 0)
 
 #ifdef DEBUG
 void should_not_reach_here(void) __attribute__((noreturn, cold));
@@ -450,9 +450,16 @@ void pool_stats(mem_pool_t *mp, size_t *alloc, size_t *npages);
 
 #define unaligned_load(ptr, type) ({                                    \
          const void *__ptr = (ptr);                                     \
-         const struct { type value; }                                   \
+         const struct { type __value; }                                 \
             __attribute__((packed)) *__s = __ptr;                       \
-         __s->value;                                                    \
+         __s->__value;                                                  \
+      })
+
+#define unaligned_store(ptr, value, type) ({                            \
+         void *__ptr = (ptr);                                           \
+         struct { type __value; }                                       \
+            __attribute__((packed)) *__s = __ptr;                       \
+         __s->__value = (value);                                        \
       })
 
 #define TYPE_MAX(x)                             \
