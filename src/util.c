@@ -1938,6 +1938,11 @@ static void get_relative_prefix(text_buf_t *tb)
 
 void get_libexec_dir(text_buf_t *tb)
 {
+   const char *env_dir = getenv("NVC_LIBEXEC_DIR");
+   if (env_dir != NULL) {
+      tb_cat(tb, env_dir);
+      return;
+   }
 #if defined __MINGW32__
    get_relative_prefix(tb);
    tb_cat(tb, DIR_SEP "libexec" DIR_SEP "nvc");
@@ -1948,6 +1953,11 @@ void get_libexec_dir(text_buf_t *tb)
 
 void get_lib_dir(text_buf_t *tb)
 {
+   const char *env_dir = getenv("NVC_LIB_DIR");
+   if (env_dir != NULL) {
+      tb_cat(tb, env_dir);
+      return;
+   }
 #if defined __MINGW32__
    get_relative_prefix(tb);
    tb_cat(tb, DIR_SEP "lib" DIR_SEP "nvc");
@@ -1958,6 +1968,11 @@ void get_lib_dir(text_buf_t *tb)
 
 void get_data_dir(text_buf_t *tb)
 {
+   const char *env_dir = getenv("NVC_DATA_DIR");
+   if (env_dir != NULL) {
+      tb_cat(tb, env_dir);
+      return;
+   }
 #if defined __MINGW32__
    get_relative_prefix(tb);
    tb_cat(tb, DIR_SEP "share" DIR_SEP "nvc");
