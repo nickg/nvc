@@ -106,8 +106,8 @@ tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name);
 type_t resolve_type(nametab_t *tab, type_t incomplete);
 tree_t resolve_subprogram_name(nametab_t *tab, const loc_t *loc, ident_t name,
                                type_t constraint);
-tree_t resolve_uninstantiated_subprogram(nametab_t *tab, const loc_t *loc,
-                                         ident_t name, type_t constraint);
+tree_t resolve_uninstantiated_subprogram(nametab_t *tab, tree_t name,
+                                         type_t constraint);
 tree_t resolve_field_name(nametab_t *tab, const loc_t *loc, ident_t name,
                           type_t type);
 tree_t resolve_pcall(nametab_t *tab, tree_t name);

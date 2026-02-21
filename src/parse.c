@@ -3419,8 +3419,11 @@ static tree_t p_function_call(ident_t id, tree_t prefix)
       tree_t inst = tree_new(T_FUNC_INST);
       tree_set_ident(inst, ident_prefix(id, ident_uniq("inst"), '$'));
 
-      tree_t decl = resolve_uninstantiated_subprogram(nametab, CURRENT_LOC,
-                                                      id, NULL);
+      tree_t ref = tree_new(T_REF);
+      tree_set_ident(ref, id);
+      tree_set_loc(ref, CURRENT_LOC);
+
+      tree_t decl = resolve_uninstantiated_subprogram(nametab, ref, NULL);
       if (decl != NULL) {
          tree_t body = find_generic_subprogram_body(inst, decl);
          instantiate_subprogram(inst, decl, body);
@@ -7400,13 +7403,7 @@ static tree_t p_subprogram_instantiation_declaration(void)
    if (peek() == tLSQUARE)
       constraint = p_signature();
 
-   tree_t decl = NULL;
-   if (tree_kind(name) != T_REF)
-      parse_error(CURRENT_LOC, "expecting uninstantiated subprogram name");
-   else
-      decl = resolve_uninstantiated_subprogram(nametab, tree_loc(name),
-                                               tree_ident(name), constraint);
-
+   tree_t decl = resolve_uninstantiated_subprogram(nametab, name, constraint);
    if (decl != NULL) {
       if (class_of(decl) != class_of(inst)) {
          diag_t *d = diag_new(DIAG_ERROR, tree_loc(name));
@@ -10514,8 +10511,7 @@ static tree_t p_procedure_call_statement(ident_t label, tree_t name)
       tree_t inst = tree_new(T_PROC_INST);
       tree_set_ident(inst, ident_prefix(id, ident_uniq("inst"), '$'));
 
-      tree_t decl = resolve_uninstantiated_subprogram(nametab, CURRENT_LOC,
-                                                      id, NULL);
+      tree_t decl = resolve_uninstantiated_subprogram(nametab, name, NULL);
       if (decl != NULL) {
          tree_t body = find_generic_subprogram_body(inst, decl);
          instantiate_subprogram(inst, decl, body);
@@ -10793,7 +10789,7 @@ static tree_t p_instantiated_unit(tree_t name)
    //   | entity name [ ( identifier ) ]
    //   | configuration name
 
-   BEGIN("instantiated unit");
+   BEGIN_WITH_HEAD("instantiated unit", name);
 
    tree_t t = tree_new(T_INSTANCE);
 

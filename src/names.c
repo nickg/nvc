@@ -1850,6 +1850,18 @@ static tree_t get_ref(tree_t t)
    }
 }
 
+static type_t get_signature(nametab_t *tab)
+{
+   if (tab->top_type_set == NULL)
+      return NULL;
+
+   type_t constraint;
+   if (type_set_uniq(tab, &constraint) && type_is_subprogram(constraint))
+      return constraint;
+
+   return NULL;
+}
+
 static tree_t try_resolve_name(nametab_t *tab, ident_t name)
 {
    const symbol_t *sym = iterate_symbol_for(tab, name);
@@ -2127,75 +2139,6 @@ tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
    return NULL;
 }
 
-tree_t resolve_uninstantiated_subprogram(nametab_t *tab, const loc_t *loc,
-                                         ident_t name, type_t constraint)
-{
-   const symbol_t *sym = iterate_symbol_for(tab, name);
-
-   SCOPED_A(tree_t) m = AINIT;
-   if (sym != NULL) {
-      for (int i = 0; i < sym->ndecls; i++) {
-         const decl_t *dd = get_decl(sym, i);
-         if (dd->visibility == HIDDEN)
-            continue;
-         else if (dd->mask & N_SUBPROGRAM) {
-            if (constraint == NULL)
-               APUSH(m, dd->tree);
-            else {
-               type_t signature = tree_type(dd->tree);
-               if (type_eq_map(constraint, signature, tab->top_scope->gmap))
-                  APUSH(m, dd->tree);
-            }
-         }
-      }
-   }
-
-   if (m.count > 1) {
-      unsigned wptr = 0;
-      for (unsigned i = 0; i < m.count; i++) {
-         if (is_uninstantiated_subprogram(m.items[i]))
-            m.items[wptr++] = m.items[i];
-      }
-      ATRIM(m, wptr);
-   }
-
-   if (m.count == 1) {
-      if (is_uninstantiated_subprogram(m.items[0]))
-         return m.items[0];
-      else {
-         error_at(loc, "%s %s is not an uninstantiated subprogram",
-                  class_str(class_of(m.items[0])), istr(name));
-         return NULL;
-      }
-   }
-   else if (tab->top_scope->suppress)
-      return NULL;
-   else if (constraint != NULL) {
-      const char *signature = strchr(type_pp(constraint), '[');
-      error_at(loc, "no visible uninstantiated subprogram %s matches "
-               "signature %s", istr(name), signature);
-      return NULL;
-   }
-   else if (m.count == 0) {
-      error_at(loc,"no visible uninstantiated subprogram declaration for %s",
-               istr(name));
-      return NULL;
-   }
-   else {
-      diag_t *d = diag_new(DIAG_ERROR, loc);
-      diag_printf(d, "multiple visible uninstantiated subprograms with "
-                  "name %s", istr(name));
-      for (int i = 0; i < m.count; i++)
-         diag_hint(d, tree_loc(m.items[i]), "visible declaration of %s",
-                   type_pp(tree_type(m.items[i])));
-      diag_hint(d, loc, "use of name %s here", istr(name));
-      diag_hint(d, NULL, "use an explicit subprogram signature to select "
-                "a particular overload");
-      diag_emit(d);
-      return NULL;
-   }
-}
-
 tree_t resolve_subprogram_name(nametab_t *tab, const loc_t *loc, ident_t name,
                                type_t constraint)
 {
@@ -2256,12 +2199,10 @@ static tree_t resolve_ref(nametab_t *tab, tree_t t)
    const loc_t *loc = tree_loc(t);
    ident_t name = tree_ident(t);
 
-   if (tab->top_type_set != NULL) {
-      type_t constraint;
-      if (type_set_uniq(tab, &constraint) && type_is_subprogram(constraint)) {
-         // Reference to subprogram or enumeration literal with signature
-         return resolve_subprogram_name(tab, loc, name, constraint);
-      }
+   type_t signature = get_signature(tab);
+   if (signature != NULL) {
+      // Reference to subprogram or enumeration literal with signature
+      return resolve_subprogram_name(tab, loc, name, signature);
    }
 
    // Ordinary reference
@@ -2276,7 +2217,13 @@ static tree_t resolve_selected_name_prefix(nametab_t *tab, tree_t t)
          if (tree_has_type(t))
             return t;
 
+         type_set_t ts = {};
+         type_set_push(tab, &ts);
+
          tree_t decl = resolve_ref(tab, t);
+
+         type_set_pop(tab, &ts);
+
          if (decl == NULL) {
             tree_set_type(t, type_new(T_NONE));
             return t;
@@ -2317,16 +2264,25 @@ static tree_t resolve_record_ref_or_call(nametab_t *tab, tree_t t, bool pcall)
 
    tree_t decl = get_ref(prefix);
    if (decl != NULL && is_container(decl)) {
-      tree_t call = tree_new(pcall ? T_PCALL : T_FCALL);
-      tree_set_loc(call, tree_loc(t));
+      scope_t *s = private_scope_for(tab, decl);
 
-      ident_t qual = ident_prefix(tree_ident(prefix), tree_ident(t), '.');
-      if (pcall)
-         tree_set_ident2(call, qual);
+      const symbol_t *sym = symbol_for(s, tree_ident(t));
+      if (sym == NULL)
+         return NULL;
+      else if (sym->mask & N_SUBPROGRAM) {
+         tree_t call = tree_new(pcall ? T_PCALL : T_FCALL);
+         tree_set_loc(call, tree_loc(t));
+
+         ident_t qual = ident_prefix(tree_ident(prefix), tree_ident(t), '.');
+         if (pcall)
+            tree_set_ident2(call, qual);
+         else
+            tree_set_ident(call, qual);
+
+         return call;
+      }
       else
-         tree_set_ident(call, qual);
-
-      return call;
+         return NULL;
    }
 
    type_t prefix_type = tree_type(prefix);
@@ -2417,6 +2373,97 @@ tree_t resolve_pcall(nametab_t *tab, tree_t name)
    default:
       return NULL;
    }
+}
+
+tree_t resolve_uninstantiated_subprogram(nametab_t *tab, tree_t name,
+                                         type_t constraint)
+{
+   const symbol_t *sym = NULL;
+   switch (tree_kind(name)) {
+   case T_REF:
+      sym = iterate_symbol_for(tab, tree_ident(name));
+      break;
+   case T_RECORD_REF:
+      {
+         tree_t prefix = resolve_selected_name_prefix(tab, tree_value(name));
+         tree_set_value(name, prefix);
+
+         tree_t decl = get_ref(prefix);
+         if (decl != NULL && is_container(decl)) {
+            scope_t *s = private_scope_for(tab, decl);
+            sym = symbol_for(s, tree_ident(name));
+         }
+      }
+      break;
+   default:
+      error_at(tree_loc(name), "expecting uninstantiated subprogram name");
+      return NULL;
+   }
+
+   SCOPED_A(tree_t) m = AINIT;
+   if (sym != NULL) {
+      for (int i = 0; i < sym->ndecls; i++) {
+         const decl_t *dd = get_decl(sym, i);
+         if (dd->visibility == HIDDEN)
+            continue;
+         else if (dd->mask & N_SUBPROGRAM) {
+            if (constraint == NULL)
+               APUSH(m, dd->tree);
+            else {
+               type_t signature = tree_type(dd->tree);
+               if (type_eq_map(constraint, signature, tab->top_scope->gmap))
+                  APUSH(m, dd->tree);
+            }
+         }
+      }
+   }
+
+   if (m.count > 1) {
+      unsigned wptr = 0;
+      for (unsigned i = 0; i < m.count; i++) {
+         if (is_uninstantiated_subprogram(m.items[i]))
+            m.items[wptr++] = m.items[i];
+      }
+      ATRIM(m, wptr);
+   }
+
+   if (m.count == 1) {
+      if (is_uninstantiated_subprogram(m.items[0]))
+         return m.items[0];
+      else {
+         error_at(tree_loc(name), "%s %pI is not an uninstantiated subprogram",
+                  class_str(class_of(m.items[0])), sym->name);
+         return NULL;
+      }
+   }
+   else if (tab->top_scope->suppress)
+      return NULL;
+   else if (constraint != NULL) {
+      const char *signature = strchr(type_pp(constraint), '[');
+      error_at(tree_loc(name), "no visible uninstantiated subprogram %pI "
+               "matches signature %s", tree_ident(name), signature);
+      return NULL;
+   }
+   else if (m.count == 0) {
+      error_at(tree_loc(name), "no visible uninstantiated subprogram "
+               "declaration for %pI", tree_ident(name));
+      return NULL;
+   }
+   else {
+      diag_t *d = diag_new(DIAG_ERROR, tree_loc(name));
+      diag_printf(d, "multiple visible uninstantiated subprograms with "
+                  "name %pI", tree_ident(name));
+      for (int i = 0; i < m.count; i++)
+         diag_hint(d, tree_loc(m.items[i]), "visible declaration of %pT",
+                   tree_type(m.items[i]));
+      diag_hint(d, tree_loc(name), "use of name %pI here", tree_ident(name));
+      diag_hint(d, NULL, "use an explicit subprogram signature to select "
+                "a particular overload");
+      diag_emit(d);
+      return NULL;
+   }
+
+   return NULL;
 }
 
 tree_t resolve_signature(nametab_t *tab, tree_t name, type_t type)
@@ -4510,22 +4557,10 @@ static tree_t solve_ref(nametab_t *tab, tree_t ref)
       return ref;
    }
 
-   if (tree_kind(decl) == T_ALIAS) {
-      // An alias declaration for an enumeration literal may contain a
-      // signature so make sure it doesn't look like a subprogram
-      tree_t aliased = tree_value(decl);
-      if (!tree_has_type(decl) || class_of(aliased) == C_LITERAL)
-         type = tree_type(aliased);
-      else
-         type = tree_type(decl);
-   }
-   else
-      type = tree_type(decl);
+   type = get_alias_type(decl);
 
    if (type_is_subprogram(type)) {
-      type_t constraint;
-      const bool want_ref =
-         (type_set_uniq(tab, &constraint) && type_is_subprogram(constraint))
+      const bool want_ref = get_signature(tab) != NULL
          || tab->top_scope->formal_kind != F_NONE;
 
       if (can_call_no_args(decl) && !want_ref) {
@@ -4590,13 +4625,32 @@ static tree_t solve_record_ref(nametab_t *tab, tree_t t)
          if (dd->visibility == HIDDEN)
             continue;
          else if (dd->mask & N_SUBPROGRAM) {
-            ident_t qual = ident_prefix(tree_ident(decl), suffix, '.');
+            ident_t qual = ident_prefix(tree_ident(prefix), suffix, '.');
 
-            tree_t fcall = tree_new(T_FCALL);
-            tree_set_ident(fcall, qual);
-            tree_set_loc(fcall, tree_loc(t));
+            type_t signature = get_signature(tab);
+            if (signature != NULL) {
+               tree_t decl = resolve_subprogram_name(tab, tree_loc(t), qual,
+                                                     signature);
+               if (decl == NULL) {
+                  tree_set_type(t, type_new(T_NONE));
+                  return t;
+               }
+               else {
+                  tree_t ref = tree_new(T_REF);
+                  tree_set_ident(ref, qual);
+                  tree_set_ref(ref, decl);
+                  tree_set_type(ref, tree_type(decl));
 
-            return _solve_types(tab, fcall);
+                  return ref;
+               }
+            }
+            else {
+               tree_t fcall = tree_new(T_FCALL);
+               tree_set_ident(fcall, qual);
+               tree_set_loc(fcall, tree_loc(t));
+
+               return _solve_types(tab, fcall);
+            }
          }
          else if (is_container(dd->tree)) {
             error_at(tree_loc(t), "invalid use of %s %pI",
