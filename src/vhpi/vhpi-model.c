@@ -3358,6 +3358,13 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
       value_p->value.real = ((const double *)value)[offset];
       return 0;
 
+   case vhpiPhysVal:
+#define READ_ENUM(type) scalar = ((const type *)value)[offset]
+      FOR_ALL_SIZES(size, READ_ENUM);
+      value_p->numElems = num_elems;
+      value_p->value.phys = vhpi_phys_from_native(scalar);
+      return 0;
+
    case vhpiLogicVecVal:
       {
          const int max = value_p->bufSize / sizeof(vhpiEnumT);
@@ -3403,6 +3410,24 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
          } while (0)
 
          FOR_ALL_SIZES(size, READ_ENUMV);
+         return 0;
+      }
+
+   case vhpiPhysVecVal:
+      {
+         const int max = value_p->bufSize / sizeof(vhpiPhysT);
+         if (max < num_elems)
+            return num_elems * sizeof(vhpiPhysT);
+
+         value_p->numElems = num_elems;
+
+#define READ_PHYSV(type) do {                                           \
+            const type *p = ((const type *)value) + offset;             \
+            for (int i = 0; i < value_p->numElems; i++)                 \
+               value_p->value.physs[i] = vhpi_phys_from_native(*p++);   \
+         } while (0)
+
+         FOR_ALL_SIZES(size, READ_PHYSV);
          return 0;
       }
 

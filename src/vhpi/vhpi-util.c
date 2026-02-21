@@ -290,6 +290,9 @@ vhpiFormatT vhpi_format_for_type(type_t type, const char **map_str)
    case T_REAL:
       return vhpiRealVal;
 
+   case T_PHYSICAL:
+      return vhpiPhysVal;
+
    case T_ARRAY:
       {
          type_t elem = type_base_recur(type_elem(base));
@@ -320,6 +323,9 @@ vhpiFormatT vhpi_format_for_type(type_t type, const char **map_str)
 
          case T_INTEGER:
             return vhpiIntVecVal;
+
+         case T_PHYSICAL:
+            return vhpiPhysVecVal;
 
          default:
             break;

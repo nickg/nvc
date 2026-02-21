@@ -3,6 +3,7 @@
   contains a null array of records (#1420).
 - Fixed an error when setting generics on the command line with `-g`
   after analysing with `--preserve-case` (#1421).
+- Added support for reading physical types in `vhpi_get_value`.
 - Several other minor bugs were resolved (#1422).
 
 ## Version 1.19.1 - 2026-02-07
