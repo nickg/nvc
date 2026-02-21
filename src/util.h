@@ -427,13 +427,13 @@ void pool_stats(mem_pool_t *mp, size_t *alloc, size_t *npages);
 #define FOR_ALL_SIZES(size, macro) do {                 \
       switch (size) {                                   \
       case 1:                                           \
-         macro(uint8_t); break;                         \
+         macro(int8_t); break;                          \
       case 2:                                           \
-         macro(uint16_t); break;                        \
+         macro(int16_t); break;                         \
       case 4:                                           \
-         macro(uint32_t); break;                        \
+         macro(int32_t); break;                         \
       case 8:                                           \
-         macro(uint64_t); break;                        \
+         macro(int64_t); break;                         \
       }                                                 \
    } while (0)
 
