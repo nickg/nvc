@@ -3566,25 +3566,24 @@ int vhpi_put_value(vhpiHandleT handle,
 
    void *ext LOCAL = NULL, *ptr = NULL;
    union {
-      uint8_t  uint8_t_val;
-      uint16_t uint16_t_val;
-      uint32_t uint32_t_val;
-      uint64_t uint64_t_val;
+      uint8_t  int8_t_val;
+      uint16_t int16_t_val;
+      uint32_t int32_t_val;
       int64_t  int64_t_val;
       double   double_val;
-   } scalar = { .uint64_t_val = 0 };
+   } scalar = { .int64_t_val = 0 };
    int num_elems = 0;
 
    switch (value_p->format) {
    case vhpiLogicVal:
       num_elems = 1;
-      scalar.uint8_t_val = value_p->value.enumv;
+      scalar.int8_t_val = value_p->value.enumv;
       ptr = &scalar;
       break;
 
    case vhpiSmallEnumVal:
       num_elems = 1;
-      scalar.uint8_t_val = value_p->value.smallenumv;
+      scalar.int8_t_val = value_p->value.smallenumv;
       ptr = &scalar;
       break;
 
@@ -3601,7 +3600,7 @@ int vhpi_put_value(vhpiHandleT handle,
 
    case vhpiCharVal:
       num_elems = 1;
-      scalar.uint8_t_val = value_p->value.ch;
+      scalar.int8_t_val = value_p->value.ch;
       ptr = &scalar;
       break;
 
@@ -3721,7 +3720,7 @@ int vhpi_put_value(vhpiHandleT handle,
       case vhpiDeposit:
       case vhpiDepositPropagate:
          if (td->IsScalar && vpd == NULL) {
-            c->args[slot].integer = scalar.uint64_t_val;   // Function result
+            c->args[slot].integer = scalar.int64_t_val;   // Function result
             return 0;
          }
          else if (td->IsScalar) {

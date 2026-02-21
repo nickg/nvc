@@ -57,7 +57,7 @@ static void end_of_sim(const vhpiCbDataT *cb_data)
    check_phys_scalar(root, "s_time", INT64_C(100000000));
 
    const int64_t expect_freq[] = { 50000000, 100000000, 150000000 };
-   const int64_t expect_voltage[] = { 1500, 3300, 5000 };
+   const int64_t expect_voltage[] = { 1500, -3300, 5000 };
    const int64_t expect_time[] = { 10000000, 50000000, 100000000 };
 
    check_phys_array(root, "v_freq_arr", expect_freq, 3);

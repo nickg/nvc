@@ -4,12 +4,14 @@ end entity;
 use std.reflection.all;
 
 architecture test of reflect1 is
+    type short_int is range -100 to 100;
 begin
 
     p1: process is
         variable v1   : integer := 42;
         variable v2   : integer_vector(1 to 3) := (1, 2, 3);
         variable v3   : real := 1.234;
+        variable v4   : short_int := -5;
         variable vm   : value_mirror;
         variable ivm  : integer_value_mirror;
         variable avm  : array_value_mirror;
@@ -78,6 +80,11 @@ begin
         assert estm.right.pos = 1;
         assert character'reflect.to_enumeration.enumeration_literal(72).image = "'H'";
         assert estm.enumeration_literal("true").pos = 1;
+
+        vm := v4'reflect;
+        assert vm.get_value_class = CLASS_INTEGER;
+        ivm := vm.to_integer;
+        assert ivm.value = -5;
 
         wait;
     end process;

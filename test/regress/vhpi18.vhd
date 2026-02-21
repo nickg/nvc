@@ -10,7 +10,7 @@ architecture sim of vhpi18 is
     THz = 1000 GHz;
   end units;
 
-  type voltage_t is range 0 to 5000 units
+  type voltage_t is range -5000 to 5000 units
     mV;
     V = 1000 mV;
   end units;
@@ -31,7 +31,7 @@ begin
     s_voltage <= 3300 mV;
     s_time <= 100 ns;
     v_freq_arr <= (50 MHz, 100 MHz, 150 MHz);
-    v_voltage_arr <= (1500 mV, 3300 mV, 5000 mV);
+    v_voltage_arr <= (1500 mV, -3300 mV, 5000 mV);
     v_time_arr <= (10 ns, 50 ns, 100 ns);
     wait;
   end process;
