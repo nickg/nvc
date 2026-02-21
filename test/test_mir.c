@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2024-2025  Nick Gasson
+//  Copyright (C) 2024-2026  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -115,8 +115,8 @@ static void mir_match_arg(mir_unit_t *mu, mir_value_t node,
       const int nargs = mir_count_args(mu, node);
       if (nargs != arg->data) {
          mir_dump(mu);
-         ck_abort_msg("expected %"PRIu64" arguments but have %d",
-                      arg->data, nargs);
+         ck_abort_msg("expected %u arguments but have %d",
+                      (unsigned)arg->data, nargs);
       }
    }
    else {
