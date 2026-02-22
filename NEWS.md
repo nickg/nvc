@@ -4,6 +4,8 @@
 - Fixed an error when setting generics on the command line with `-g`
   after analysing with `--preserve-case` (#1421).
 - Added support for reading physical types in `vhpi_get_value`.
+- Fixed quoting issues which caused `nvc --install` to fail if the
+  installation directory contained spaces (#1419).
 - Several other minor bugs were resolved (#1422, #1424).
 
 ## Version 1.19.1 - 2026-02-07

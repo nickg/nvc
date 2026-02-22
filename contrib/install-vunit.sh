@@ -5,10 +5,12 @@
 # Arguments:
 #  $1 = VUnit tag (optional) e.g. v4.6.2
 
-. $(dirname $BASH_SOURCE)/functions.sh
+. "$(dirname "$BASH_SOURCE")/functions.sh"
 
 if [ -z "$1" ]; then
     tag="v4.6.2"
+else
+    tag="$1"
 fi
 
 git_wrapper https://github.com/VUnit/vunit $tag

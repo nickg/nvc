@@ -3,7 +3,7 @@
 # Called by "nvc --install ise".
 #
 
-. $(dirname $BASH_SOURCE)/functions.sh
+. "$(dirname "$BASH_SOURCE")/functions.sh"
 
 if [ -z "$XILINX" ]; then
   cat >&2 <<EOF
@@ -24,13 +24,13 @@ EOF
 fi
 
 if [ -n "$MSYSTEM" ]; then
-  XILINX=$(cygpath -u $XILINX)
+  XILINX="$(cygpath -u "$XILINX")"
 fi
 
 echo "Using ISE installation in $XILINX"
 echo
 
-src=$XILINX/vhdl/src
+src="$XILINX/vhdl/src"
 
 GLOBAL_OPTS="-M 64m"
 A_OPTS="--relaxed"
@@ -41,6 +41,6 @@ $src/unisims/unisim_VPKG.vhd
 $src/unisims/unisim_VCOMP.vhd
 EOF
 
-  cd $src/unisims/primitive
+  cd "$src/unisims/primitive"
   analyse_list unisim$(std_suffix $STD) vhdl_analyze_order
 done

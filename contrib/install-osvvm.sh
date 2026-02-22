@@ -3,7 +3,7 @@
 # Called by "nvc --install osvvm".
 #
 
-. $(dirname $BASH_SOURCE)/functions.sh
+. "$(dirname "$BASH_SOURCE")/functions.sh"
 
 if ! command -v tclsh &>/dev/null; then
   echo "Error: missing tclsh command from TCL package"
@@ -13,8 +13,8 @@ if ! command -v tclsh &>/dev/null; then
   exit 1
 fi
 
-git_wrapper https://github.com/osvvm/OsvvmLibraries 2025.06a
+git_wrapper "https://github.com/osvvm/OsvvmLibraries" "2025.06a"
 
-[ -d $NVC_INSTALL_DEST ] || mkdir -p $NVC_INSTALL_DEST
+[ -d "$NVC_INSTALL_DEST" ] || mkdir -p "$NVC_INSTALL_DEST"
 
-tclsh $SCRIPT_DIR/install-osvvm.tcl
+tclsh "$SCRIPT_DIR/install-osvvm.tcl"

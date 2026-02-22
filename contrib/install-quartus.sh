@@ -3,10 +3,10 @@
 # Called by "nvc --install quartus".
 #
 
-. $(dirname $BASH_SOURCE)/functions.sh
+. "$(dirname "$BASH_SOURCE")/functions.sh"
 
 if [ -n "$MSYSTEM" ]; then
-  QUARTUS_ROOTDIR=$(cygpath -u $QUARTUS_ROOTDIR)
+  QUARTUS_ROOTDIR="$(cygpath -u "$QUARTUS_ROOTDIR")"
 fi
 
 if [ -z "$QUARTUS_ROOTDIR" ]; then
@@ -25,7 +25,7 @@ GLOBAL_OPTS="-M 128m"
 A_OPTS="--relaxed --relative=$QUARTUS_ROOTDIR"
 
 if [ -d "$QUARTUS_ROOTDIR/eda/sim_lib" ]; then
-  src=$QUARTUS_ROOTDIR/eda/sim_lib
+  src="$QUARTUS_ROOTDIR/eda/sim_lib"
 
   echo "Using Quartus installation in $QUARTUS_ROOTDIR"
   echo
@@ -159,7 +159,7 @@ EOF
   done
 
 elif [ -d "$QUARTUS_ROOTDIR/questa_fse/intel/vhdl/src/altera" ]; then
-  src=$QUARTUS_ROOTDIR/questa_fse/intel/vhdl/src/
+  src="$QUARTUS_ROOTDIR/questa_fse/intel/vhdl/src/"
 
   echo "Using Quartus installation in $QUARTUS_ROOTDIR"
   echo

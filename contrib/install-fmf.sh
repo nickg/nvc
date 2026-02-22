@@ -3,7 +3,7 @@
 # Called by "nvc --install fmf".
 #
 
-. $(dirname $BASH_SOURCE)/functions.sh
+. "$(dirname "$BASH_SOURCE")/functions.sh"
 
 git_wrapper https://github.com/nickg/fmf-packages 20080525
 

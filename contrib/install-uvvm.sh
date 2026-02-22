@@ -5,10 +5,12 @@
 # Arguments:
 #  $1 = UVVM repository tag (optional) e.g. v2022.05.25
 
-. $(dirname $BASH_SOURCE)/functions.sh
+. "$(dirname "$BASH_SOURCE")/functions.sh"
 
 if [ -z "$1" ]; then
   branch="2025.11.28"
+else
+  branch="$1"
 fi
 
 git_wrapper https://github.com/UVVM/UVVM $branch
@@ -22,7 +24,7 @@ for component_name in $component_list; do
     echo "compiling: $component_name"
     echo "################################################################################"
     echo
-    cd $component_name/script
+    cd "$component_name/script"
         readarray -t compile_order < compile_order.txt
         first_line=(${compile_order[0]})
         library_name=${first_line[2]}
