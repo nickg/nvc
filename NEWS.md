@@ -1,10 +1,12 @@
 ## Unreleased changes
-- Fixed a crash when dumping a waveform `--dump-arrays` and the design
-  contains a null array of records (#1420).
 - The new `vhpi_ext_nvc.h` header contains definitions for proprietary
   VHPI extensions.
 - Added a `vhpiRandomSeedP` property for `vhpiToolK` which returns the
   random seed for the simulation.
+
+## Version 1.19.2 - 2026-02-22
+- Fixed a crash when dumping a waveform `--dump-arrays` and the design
+  contains a null array of records (#1420).
 - Fixed an error when setting generics on the command line with `-g`
   after analysing with `--preserve-case` (#1421).
 - Added support for reading physical types in `vhpi_get_value`.
