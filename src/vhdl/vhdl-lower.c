@@ -67,7 +67,7 @@ const type_info_t *type_info(mir_unit_t *mu, type_t type)
       return ti;
 
    ti = mir_malloc(mu, sizeof(type_info_t));
-   ti->source = type;
+   ti->tree   = type;
    ti->type   = MIR_NULL_TYPE;
    ti->stamp  = MIR_NULL_STAMP;
    ti->kind   = type_base_kind(type);
@@ -190,33 +190,71 @@ const type_info_t *type_info(mir_unit_t *mu, type_t type)
    return ti;
 }
 
-#if 0
-mir_value_t lower_array_stride(mir_unit_t *mu, const type_info_t *ti,
-                               mir_value_t array)
+mir_value_t vhdl_lower_wrap(vhdl_gen_t *g, const type_info_t *ti,
+                            mir_value_t data)
 {
-   mir_type_t t_offset = mir_offset_type(mu);
+   assert(mir_is(g->mu, data, MIR_TYPE_POINTER));
+   assert(ti->size < SIZE_MAX);
+   assert(type_const_bounds(ti->tree));
+
+   mir_type_t t_bool = mir_bool_type(g->mu);
+
+   if (ti->udims == 1) {
+      tree_t r = range_of(ti->tree, 0);
+
+      mir_dim_t dims[1];
+      dims[0].left  = vhdl_lower_rvalue(g, tree_left(r));
+      dims[0].right = vhdl_lower_rvalue(g, tree_right(r));
+      dims[0].dir   = mir_const(g->mu, t_bool, tree_subkind(r));
+
+      return mir_build_wrap(g->mu, data, dims, 1);
+   }
+   else {
+      mir_dim_t *dims LOCAL = xmalloc_array(ti->udims, sizeof(mir_dim_t));
+
+      for (int i = 0; i < ti->udims; i++) {
+         tree_t r = range_of(ti->tree, i);
+
+         dims[i].left = vhdl_lower_rvalue(g, tree_left(r));
+         dims[i].right = vhdl_lower_rvalue(g, tree_right(r));
+         dims[i].dir   = mir_const(g->mu, t_bool, tree_subkind(r));
+      }
+
+      return mir_build_wrap(g->mu, data, dims, ti->udims);
+   }
+
+   return data;
+}
+
+mir_value_t vhdl_lower_array_stride(vhdl_gen_t *g, const type_info_t *ti,
+                                    mir_value_t array)
+{
+   assert(ti->kind == T_ARRAY);
+
+   mir_type_t t_offset = mir_offset_type(g->mu);
 
    if (ti->stride < SIZE_MAX)
-      return mir_const(mu, t_offset, ti->stride);
+      return mir_const(g->mu, t_offset, ti->stride);
 
-   assert(mir_is(mu, array, MIR_TYPE_UARRAY));
+   assert(mir_is(g->mu, array, MIR_TYPE_UARRAY));
 
    int pos = ti->ndims;
-   mir_value_t stride = mir_const(mu, t_offset, 1);
+   mir_value_t stride = mir_const(g->mu, t_offset, 1);
 
-   for (const type_info_t *elem = type_info(mu, type_elem(ti->source));
-        elem->kind == T_ARRAY; elem = type_info(mu, type_elem(elem->source))) {
+   for (const type_info_t *elem = type_info(g->mu, type_elem(ti->tree));
+        elem->kind == T_ARRAY;
+        elem = type_info(g->mu, type_elem(elem->tree))) {
 
       if (elem->size < SIZE_MAX) {
-         mir_value_t size = mir_const(mu, t_offset, elem->size);
-         stride = mir_build_mul(mu, t_offset, stride, size);
+         mir_value_t size = mir_const(g->mu, t_offset, elem->size);
+         stride = mir_build_mul(g->mu, t_offset, stride, size);
          break;
       }
 
-      mir_value_t length = mir_build_uarray_len(mu, array, pos++);
+      mir_value_t length = mir_build_uarray_len(g->mu, array, pos++);
       for (int i = 1; i < elem->ndims; i++) {
-         mir_value_t dim_len = mir_build_uarray_len(mu, array, pos++);
-         length = mir_build_mul(mu, t_offset, dim_len, length);
+         mir_value_t dim_len = mir_build_uarray_len(g->mu, array, pos++);
+         length = mir_build_mul(g->mu, t_offset, dim_len, length);
       }
    }
 
@@ -224,6 +262,7 @@ mir_value_t lower_array_stride(mir_unit_t *mu, const type_info_t *ti,
    return stride;
 }
 
+#if 0
 mir_value_t lower_total_elements(mir_unit_t *mu, const type_info_t *ti,
                                  mir_value_t array)
 {

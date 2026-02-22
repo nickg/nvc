@@ -1262,4 +1262,4 @@ issue1405       normal,2008
 issue1420       wave,dump-arrays,2008
 vlog31          verilog
 vhpi18          vhpi,2008
-
+issue1424       normal,gold,2019
