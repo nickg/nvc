@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2025  Nick Gasson
+//  Copyright (C) 2025-2026  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -17,6 +17,7 @@
 
 #include "util.h"
 #include "ident.h"
+#include "mir/mir-node.h"
 #include "object.h"
 #include "printf.h"
 #include "thread.h"
@@ -160,6 +161,28 @@ static int format_object_kind(ostream_t *os, printf_state_t *state,
    return ostream_puts(os, object_kind_str(obj));
 }
 
+static int format_mir(ostream_t *os, printf_state_t *state, printf_arg_t *arg)
+{
+   mir_value_t *value = arg->value.p;
+   char buf[64];
+
+   switch (value->tag) {
+   case MIR_TAG_NODE:
+      checked_sprintf(buf, sizeof(buf), "%%%d", value->id);
+      break;
+   case MIR_TAG_CONST:
+      checked_sprintf(buf, sizeof(buf), "#%d",
+                      value->id - (1 << (_MIR_ID_BITS - 1)));
+      break;
+   default:
+      checked_sprintf(buf, sizeof(buf), "{tag:%d, id:%x}",
+                      value->tag, value->id);
+      break;
+   }
+
+   return ostream_puts(os, buf);
+}
+
 static int delegate(ostream_t *os, printf_state_t *s, printf_arg_t *arg, ...)
 {
    char spec[32];
@@ -195,6 +218,7 @@ static fmt_fn_t get_pointer_formatter(char ch)
    case 'I': return format_ident_toupper;
    case 'T': return format_type;
    case 'K': return format_object_kind;
+   case 'M': return format_mir;
    default: return NULL;
    }
 }

@@ -718,7 +718,7 @@ static void predef_array_eq(mir_unit_t *mu, tree_t decl)
 
    int pos = 0;
    for (const type_info_t *e = ti; e->kind == T_ARRAY;
-        pos += e->ndims, e = type_info(mu, type_elem(e->source))) {
+        pos += e->ndims, e = type_info(mu, type_elem(e->tree))) {
 
       if (e->size < SIZE_MAX && e->stride < SIZE_MAX) {
          mir_value_t size = mir_const(mu, t_offset, e->size * e->stride);
@@ -774,7 +774,7 @@ static void predef_array_eq(mir_unit_t *mu, tree_t decl)
    mir_value_t r_ptr = mir_build_array_ref(mu, rhs_data, ptr_inc);
 
    if (elem->kind == T_RECORD) {   // XXX: should recurse
-      ident_t func = predef_func_name(elem->source, "=");
+      ident_t func = predef_func_name(elem->tree, "=");
 
       mir_value_t args[] = { l_ptr, r_ptr };
       mir_value_t eq = mir_build_fcall(mu, func, t_bool, MIR_NULL_STAMP,
@@ -808,7 +808,7 @@ static void predef_min_max(mir_unit_t *mu, tree_t decl, mir_cmp_t cmp)
 
    if (type_is_array(type) && tree_ports(decl) == 1) {
       const type_info_t *elem = type_info(mu, type_elem(type));
-      assert(type_is_scalar(elem->source));
+      assert(type_is_scalar(elem->tree));
 
       mir_value_t array = mir_get_param(mu, 0);
 
@@ -821,7 +821,7 @@ static void predef_min_max(mir_unit_t *mu, tree_t decl, mir_cmp_t cmp)
       mir_value_t result_var =
          mir_add_var(mu, elem->type, elem->stamp, ident_new("result"), 0);
 
-      tree_t elem_r = range_of(elem->source, 0);
+      tree_t elem_r = range_of(elem->tree, 0);
       tree_t def = (cmp == MIR_CMP_GT && tree_subkind(elem_r) == RANGE_TO)
          || (cmp == MIR_CMP_LT && tree_subkind(elem_r) == RANGE_DOWNTO)
          ? tree_left(elem_r) : tree_right(elem_r);
@@ -1421,6 +1421,8 @@ static void record_image_helper(mir_unit_t *mu, type_t type, mir_value_t arg)
 
 static void array_image_helper(mir_unit_t *mu, type_t type, mir_value_t arg)
 {
+   vhdl_gen_t g = { .mu = mu };
+
    mir_type_t t_char = mir_char_type(mu);
    mir_type_t t_string = mir_string_type(mu);
    mir_type_t t_offset = mir_offset_type(mu);
@@ -1447,8 +1449,14 @@ static void array_image_helper(mir_unit_t *mu, type_t type, mir_value_t arg)
                                      ident_new("sum"), MIR_VAR_TEMP);
    mir_build_store(mu, sum_var, mir_build_add(mu, t_offset, length, one));
 
-   type_t elem = type_base_recur(type_elem(type));
+   const type_info_t *ti = type_info(mu, type);
+   const type_info_t *eti = type_info(mu, type_elem(type));
+
+   type_t elem = type_base_recur(eti->tree);
    ident_t func = ident_prefix(type_ident(elem), ident_new("image"), '$');
+
+   mir_value_t stride = vhdl_lower_array_stride(&g, ti, arg);
+   mir_comment(mu, "Array stride is %pM", &stride);
 
    mir_value_t null = mir_build_cmp(mu, MIR_CMP_EQ, length, zero);
    mir_build_cond(mu, null, alloc_bb, loop1_bb);
@@ -1459,9 +1467,12 @@ static void array_image_helper(mir_unit_t *mu, type_t type, mir_value_t arg)
       mir_value_t i_val = mir_build_load(mu, i_var);
       mir_value_t sum_val = mir_build_load(mu, sum_var);
 
-      mir_value_t elem_arg = mir_build_array_ref(mu, data_ptr, i_val);
+      mir_value_t off = mir_build_mul(mu, t_offset, i_val, stride);
+      mir_value_t elem_arg = mir_build_array_ref(mu, data_ptr, off);
       if (type_is_scalar(elem))
          elem_arg = mir_build_load(mu, elem_arg);
+      else if (mir_get_class(mu, eti->type) == MIR_TYPE_CARRAY)
+         elem_arg = vhdl_lower_wrap(&g, eti, elem_arg);
 
       mir_value_t args[] = { elem_arg };
       mir_value_t str = mir_build_fcall(mu, func, t_string, MIR_NULL_STAMP,
