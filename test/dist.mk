@@ -124,6 +124,7 @@ EXTRA_DIST += \
 	test/elab/issue1204.vhd \
 	test/elab/issue1333.v \
 	test/elab/issue1404.vhd \
+	test/elab/issue1421.vhd \
 	test/elab/issue153.vhd \
 	test/elab/issue157.vhd \
 	test/elab/issue159.vhd \
@@ -314,6 +315,7 @@ EXTRA_DIST += \
 	test/lower/issue1350.vhd \
 	test/lower/issue135.vhd \
 	test/lower/issue136.vhd \
+	test/lower/issue1422.vhd \
 	test/lower/issue149.vhd \
 	test/lower/issue158.vhd \
 	test/lower/issue164.vhd \
@@ -1272,6 +1274,8 @@ EXTRA_DIST += \
 	test/regress/gold/issue1389.xml \
 	test/regress/gold/issue1393.txt \
 	test/regress/gold/issue1406.dump \
+	test/regress/gold/issue1420.dump \
+	test/regress/gold/issue1424.txt \
 	test/regress/gold/issue185.txt \
 	test/regress/gold/issue202.txt \
 	test/regress/gold/issue225.txt \
@@ -1540,6 +1544,8 @@ EXTRA_DIST += \
 	test/regress/issue1406.vhd \
 	test/regress/issue1410.sh \
 	test/regress/issue141.vhd \
+	test/regress/issue1420.vhd \
+	test/regress/issue1424.vhd \
 	test/regress/issue143.vhd \
 	test/regress/issue146.vhd \
 	test/regress/issue148.vhd \
@@ -2146,6 +2152,7 @@ EXTRA_DIST += \
 	test/regress/vhpi15.vhd \
 	test/regress/vhpi16.vhd \
 	test/regress/vhpi17.vhd \
+	test/regress/vhpi18.vhd \
 	test/regress/vhpi1.vhd \
 	test/regress/vhpi2.vhd \
 	test/regress/vhpi3.vhd \

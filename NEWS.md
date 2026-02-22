@@ -1,4 +1,6 @@
 ## Unreleased changes
+
+## Version 1.19.2 - 2026-02-22
 - Fixed a crash when dumping a waveform `--dump-arrays` and the design
   contains a null array of records (#1420).
 - Fixed an error when setting generics on the command line with `-g`
