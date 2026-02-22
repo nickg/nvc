@@ -3,7 +3,7 @@
 # Called by "nvc --install vivado".
 #
 
-. $(dirname $BASH_SOURCE)/functions.sh
+. "$(dirname "$BASH_SOURCE")/functions.sh"
 
 if [ -z "$XILINX_VIVADO" ]; then
   cat >&2 <<EOF
@@ -24,13 +24,13 @@ EOF
 fi
 
 if [ -n "$MSYSTEM" ]; then
-  XILINX_VIVADO=$(cygpath -u $XILINX_VIVADO)
+  XILINX_VIVADO="$(cygpath -u "$XILINX_VIVADO")"
 fi
 
 echo "Using Vivado installation in $XILINX_VIVADO"
 echo
 
-src=$XILINX_VIVADO/data/vhdl/src
+src="$XILINX_VIVADO/data/vhdl/src"
 
 GLOBAL_OPTS="-M 64m"
 A_OPTS="--relaxed --relative=$XILINX_VIVADO"
@@ -41,15 +41,15 @@ $src/unisims/unisim_VPKG.vhd
 $src/unisims/unisim_retarget_VCOMP.vhd
 EOF
 
-  cd $src/unimacro
+  cd "$src/unimacro"
   analyse_list unimacro$(std_suffix $STD) vhdl_analyze_order
 
-  cd $src/unisims/primitive
+  cd "$src/unisims/primitive"
   analyse_list unisim$(std_suffix $STD) vhdl_analyze_order
 
-  cd $src/unisims/retarget
+  cd "$src/unisims/retarget"
   analyse_list unisim$(std_suffix $STD) vhdl_analyze_order
 
-  cd $src/unifast/primitive
+  cd "$src/unifast/primitive"
   analyse_list unifast$(std_suffix $STD) vhdl_analyze_order
 done

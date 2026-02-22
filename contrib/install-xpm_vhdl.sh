@@ -3,7 +3,7 @@
 # Called by "nvc --install xpm-vhdl".
 #
 
-. $(dirname $BASH_SOURCE)/functions.sh
+. "$(dirname "$BASH_SOURCE")/functions.sh"
 
 git_wrapper https://github.com/fransschreuder/xpm_vhdl.git master
 
