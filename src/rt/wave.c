@@ -711,7 +711,8 @@ static void fst_create_array_var(wave_dumper_t *wd, tree_t d, rt_signal_t *s,
    data->dumper = wd;
    data->watch  = watch_new(wd->model, fst_event_cb, data, WATCH_POSTPONED, 1);
 
-   model_set_event_cb(wd->model, data->signal, data->watch);
+   const int width = signal_width(data->signal);
+   model_set_event_cb(wd->model, data->signal, 0, width, data->watch);
 
    APUSH(wd->dumped, data);
 }
@@ -752,7 +753,8 @@ static void fst_create_scalar_var(wave_dumper_t *wd, tree_t d, rt_signal_t *s,
    data->signal = s;
    data->watch  = watch_new(wd->model, fst_event_cb, data, WATCH_POSTPONED, 1);
 
-   model_set_event_cb(wd->model, data->signal, data->watch);
+   const int width = signal_width(data->signal);
+   model_set_event_cb(wd->model, data->signal, 0, width, data->watch);
 
    APUSH(wd->dumped, data);
 
@@ -1048,7 +1050,8 @@ static void fst_process_verilog(wave_dumper_t *wd, rt_scope_t *scope,
    data->signal = s;
    data->watch  = watch_new(wd->model, fst_event_cb, data, WATCH_POSTPONED, 1);
 
-   model_set_event_cb(wd->model, data->signal, data->watch);
+   const int width = signal_width(data->signal);
+   model_set_event_cb(wd->model, data->signal, 0, width, data->watch);
 
    APUSH(wd->dumped, data);
 
