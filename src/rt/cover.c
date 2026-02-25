@@ -258,7 +258,7 @@ void x_cover_setup_toggle_cb(sig_shared_t *ss, int32_t tag)
       fn = &cover_toggle_cb_0_1_z;
 
    rt_watch_t *w = watch_new(m, fn, counters + tag, WATCH_EVENT, 1);
-   model_set_event_cb(m, s, w);
+   model_set_event_cb(m, s, 0, signal_width(s), w);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -299,7 +299,7 @@ void x_cover_setup_state_cb(sig_shared_t *ss, int64_t low, int32_t tag)
 
    rt_watch_t *w = watch_new(m, cover_state_cb, counters + tag - low,
                              WATCH_EVENT, 1);
-   model_set_event_cb(m, s, w);
+   model_set_event_cb(m, s, 0, signal_width(s), w);
 }
 
 ///////////////////////////////////////////////////////////////////////////////

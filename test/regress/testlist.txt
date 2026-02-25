@@ -1262,3 +1262,4 @@ issue1405       normal,2008
 issue1420       wave,dump-arrays,2008
 vhpi18          vhpi,2008
 issue1424       normal,gold,2019
+issue1428       vhpi,2008

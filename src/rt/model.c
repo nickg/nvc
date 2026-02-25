@@ -3887,16 +3887,24 @@ void watch_free(rt_model_t *m, rt_watch_t *w)
    should_not_reach_here();
 }
 
-rt_watch_t *model_set_event_cb(rt_model_t *m, rt_signal_t *s, rt_watch_t *w)
+rt_watch_t *model_set_event_cb(rt_model_t *m, rt_signal_t *s, int offset,
+                               int count, rt_watch_t *w)
 {
    assert(!w->wakeable.zombie);
    assert(w->next_slot < w->num_slots);
+   assert(offset >= 0);
+   assert(count >= 0);
+   assert(offset + count <= signal_width(s));
 
    w->signals[w->next_slot++] = s;
 
-   rt_nexus_t *n = &(s->nexus);
-   for (int i = 0; i < s->n_nexus; i++, n = n->chain)
+   rt_nexus_t *n = split_nexus(m, s, offset, count);
+   for (; count > 0; n = n->chain) {
+      count -= n->width;
+      assert(count >= 0);
+
       sched_event(m, &(n->pending), &(w->wakeable));
+   }
 
    return w;
 }

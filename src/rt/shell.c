@@ -253,7 +253,9 @@ static void watch_signal(shell_signal_t *ss)
 {
    ss->watch = watch_new(ss->owner->model, shell_event_cb, ss,
                          WATCH_POSTPONED, 1);
-   model_set_event_cb(ss->owner->model, ss->signal, ss->watch);
+
+   const int width = signal_width(ss->signal);
+   model_set_event_cb(ss->owner->model, ss->signal, 0, width, ss->watch);
 }
 
 static void recreate_objects(tcl_shell_t *sh, rt_scope_t *scope,

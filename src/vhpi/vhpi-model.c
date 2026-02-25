@@ -567,6 +567,8 @@ static void *vhpi_get_value_ptr(c_vhpiObject *obj);
 static vhpiClassKindT vhpi_get_prefix_kind(c_vhpiObject *obj);
 static vhpiStringT vhpi_get_case_name(c_vhpiObject *obj);
 static vhpiStringT vhpi_get_full_case_name(c_vhpiObject *obj);
+static vhpiStringT vhpi_get_name(c_vhpiObject *obj);
+static vhpiStringT vhpi_get_full_name(c_vhpiObject *obj);
 static void vhpi_lazy_decls(c_vhpiObject *obj);
 static void vhpi_lazy_selected_names(c_vhpiObject *obj);
 static void vhpi_lazy_indexed_names(c_vhpiObject *obj);
@@ -1258,8 +1260,8 @@ static void init_prefixedName(c_prefixedName *pn, c_typeDecl *Type,
 
    c_name *name = is_name(prefix);
    if (name != NULL) {
-      Name = new_stringf("%s%s", name->Name, suffix);
-      FullName = new_stringf("%s%s", name->FullName, suffix);
+      Name = new_stringf("%s%s", vhpi_get_name(prefix), suffix);
+      FullName = new_stringf("%s%s", vhpi_get_full_name(prefix), suffix);
    }
 
    c_objDecl *obj = is_objDecl(prefix);
@@ -1934,8 +1936,10 @@ static void vhpi_watch_scope(rt_model_t *m, rt_scope_t *s, rt_watch_t *w)
 {
    assert(is_signal_scope(s));
 
-   for (int i = 0; i < s->signals.count; i++)
-      model_set_event_cb(m, s->signals.items[i], w);
+   for (int i = 0; i < s->signals.count; i++) {
+      const int width = signal_width(s->signals.items[i]);
+      model_set_event_cb(m, s->signals.items[i], 0, width, w);
+   }
 
    for (int i = 0; i < s->children.count; i++)
       vhpi_watch_scope(m, s->children.items[i], w);
@@ -2195,19 +2199,36 @@ vhpiHandleT vhpi_register_cb(vhpiCbDataT *cb_data_p, int32_t flags)
 
          rt_signal_t *signal = NULL;
          rt_scope_t *scope = NULL;
+         int offset = 0, count = INT_MAX;
 
          c_prefixedName *pn;
          c_objDecl *decl;
-         if ((pn = is_prefixedName(obj))) {
-            if ((signal = vhpi_get_signal_prefixedName(pn)) == NULL)
-               return NULL;
-         }
-         else if ((decl = is_objDecl(obj))) {
+         if ((decl = is_objDecl(obj))) {
             if (decl->Type->homogeneous) {
                if ((signal = vhpi_get_signal_objDecl(decl)) == NULL)
                   return NULL;
             }
             else if ((scope = vhpi_get_scope_objDecl(decl)) == NULL)
+               return NULL;
+         }
+         else if ((pn = is_prefixedName(obj))) {
+            if (pn->name.expr.Type->homogeneous) {
+               if ((signal = vhpi_get_signal_prefixedName(pn)) == NULL)
+                  return NULL;
+
+               c_indexedName *in = is_indexedName(obj);
+               if (in != NULL && pn->name.expr.Type->IsUnconstrained) {
+                  vhpi_error(vhpiInternal, &(obj->loc), "value change "
+                             "callback not supported for indexed name "
+                             "with non-static subtype");
+                  return NULL;
+               }
+               else if (in != NULL) {
+                  offset = in->offset;
+                  count = pn->name.expr.Type->numElems;
+               }
+            }
+            else if ((scope = vhpi_get_scope_prefixedName(pn)) == NULL)
                return NULL;
          }
          else {
@@ -2231,8 +2252,10 @@ vhpiHandleT vhpi_register_cb(vhpiCbDataT *cb_data_p, int32_t flags)
          cb->watch = watch_new(m, vhpi_signal_event_cb, cb->handle,
                                WATCH_EVENT, slots);
 
-         if (signal != NULL)
-            cb->watch = model_set_event_cb(m, signal, cb->watch);
+         if (signal != NULL) {
+            count = MIN(count, signal_width(signal));
+            cb->watch = model_set_event_cb(m, signal, offset, count, cb->watch);
+         }
          else
             vhpi_watch_scope(m, scope, cb->watch);
 
