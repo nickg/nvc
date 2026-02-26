@@ -621,7 +621,7 @@ void cover_ignore_from_pragmas(cover_data_t *data, cover_scope_t *cs,
    if (!is_design_unit(unit))
       return;   // Generate block, etc.
 
-   range_array_t *excl = &(cs->ignore_lines);
+   ignore_array_t *excl = &(cs->ignore_lines);
    bool state = true;
    const int npragmas = tree_pragmas(unit);
    for (int i = 0; i < npragmas; i++) {
@@ -631,8 +631,13 @@ void cover_ignore_from_pragmas(cover_data_t *data, cover_scope_t *cs,
          continue;
 
       if (kind == PRAGMA_COVERAGE_OFF && state) {
-         line_range_t lr = { tree_loc(p)->first_line, INT_MAX };
-         APUSH(*excl, lr);
+         const loc_t *loc = tree_loc(p);
+         ignore_range_t ir = {
+            loc->file_ref,
+            loc->first_line,
+            INT_MAX
+         };
+         APUSH(*excl, ir);
          state = false;
       }
       else if (kind == PRAGMA_COVERAGE_ON && !state) {
