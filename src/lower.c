@@ -10325,8 +10325,12 @@ static void lower_driver_field_cb(lower_unit_t *lu, tree_t field,
                            lower_driver_field_cb, NULL);
 }
 
-static bool can_use_transfer_signal(tree_t proc, driver_set_t *ds)
+static bool can_use_transfer_signal(lower_unit_t *lu, tree_t proc,
+                                    driver_set_t *ds)
 {
+   if (lu->cover != NULL)
+      return false;
+
    driver_info_t *di = get_drivers(ds, proc);
    if (di == NULL || di->chain_proc != NULL)
       return false;
@@ -10542,7 +10546,7 @@ static void lower_process(lower_unit_t *lu, object_t *obj)
       }
    }
 
-   const bool transfer = can_use_transfer_signal(proc, ds);
+   const bool transfer = can_use_transfer_signal(lu, proc, ds);
    vcode_reg_t trigger_reg = VCODE_INVALID_REG;
 
    if (transfer) {

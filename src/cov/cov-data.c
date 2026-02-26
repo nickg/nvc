@@ -645,14 +645,11 @@ cover_item_t *cover_add_items_for(cover_data_t *data, cover_scope_t *cs,
    // statements, blocks, etc.
    for (cover_scope_t *ignore_scope = cs; ignore_scope->parent;
         ignore_scope = ignore_scope->parent) {
-      if (ignore_scope->block_name == NULL)
-         continue;
-      else if (ignore_scope->loc.file_ref != loc.file_ref)
-         break;
-
       for (int i = 0; i < ignore_scope->ignore_lines.count; i++) {
-         line_range_t *lr = &(ignore_scope->ignore_lines.items[i]);
-         if (loc.first_line > lr->start && loc.first_line <= lr->end)
+         ignore_range_t *ir = &(ignore_scope->ignore_lines.items[i]);
+         if (ir->file_ref != loc.file_ref)
+            continue;
+         else if (loc.first_line > ir->start && loc.first_line <= ir->end)
             return NULL;
       }
    }

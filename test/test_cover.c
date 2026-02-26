@@ -40,7 +40,9 @@ static cover_data_t *run_cover(tree_t top)
 
    rt_model_t *m = model_new(j, db);
 
-   elab(tree_to_object(top), j, ur, mc, db, NULL, m);
+   tree_t e = elab(tree_to_object(top), j, ur, mc, db, NULL, m);
+   ck_assert_ptr_nonnull(e);
+   ck_assert_int_eq(error_count(), 0);
 
    model_reset(m);
    model_run(m, UINT64_MAX);
@@ -294,6 +296,40 @@ START_TEST(test_spec2)
    check_expected_errors();
 }
 
+START_TEST(test_issue1431)
+{
+   input_from_file(TESTDIR "/cover/issue1431_sub.vhd");
+
+   parse_check_and_simplify(T_ENTITY, T_ARCH);
+
+   input_from_file(TESTDIR "/cover/issue1431.vhd");
+
+   tree_t top = parse_check_and_simplify(T_ENTITY, T_ARCH);
+
+   cover_data_t *db = run_cover(top);
+
+   cover_scope_t *cs = cover_get_scope(db, ident_new("WORK.ISSUE1431.UUT"));
+   ck_assert_ptr_nonnull(cs);
+   ck_assert_int_eq(cs->children.count, 4);
+
+   cover_scope_t *p = cs->children.items[2];
+   ck_assert_ident_eq(p->name, "P");
+   ck_assert_int_eq(p->children.count, 2);
+
+   cover_scope_t *s0 = p->children.items[0];
+   ck_assert_ident_eq(s0->name, "_S0");
+   ck_assert_int_eq(s0->items.count, 0);
+
+   cover_scope_t *transfer = cs->children.items[3];
+   ck_assert_ident_eq(transfer->name, "TRANSFER");
+   ck_assert_int_eq(transfer->children.count, 1);
+
+   ck_assert_int_eq(transfer->children.items[0]->items.items[0]->data, 2);
+
+   cover_data_free(db);
+}
+END_TEST
+
 Suite *get_cover_tests(void)
 {
    Suite *s = suite_create("cover");
@@ -305,6 +341,7 @@ Suite *get_cover_tests(void)
    tcase_add_test(tc, test_toggle2);
    tcase_add_test(tc, test_spec1);
    tcase_add_test(tc, test_spec2);
+   tcase_add_test(tc, test_issue1431);
    suite_add_tcase(s, tc);
 
    return s;
