@@ -520,3 +520,24 @@ void jit_do_syscall(vlog_node_t where, jit_anchor_t *caller, jit_scalar_t *args,
 
    vpi_call_foreign(handle, args, tlab);
 }
+
+void ffi_copy_closure(ffi_closure_t *dst, const ffi_closure_t *src)
+{
+   if (src == NULL) {
+      dst->handle = JIT_HANDLE_INVALID;
+      dst->nargs  = 0;
+   }
+   else {
+      dst->handle = src->handle;
+      dst->nargs  = src->nargs;
+      memcpy(dst->args, src->args, src->nargs * sizeof(jit_scalar_t));
+   }
+}
+
+size_t ffi_closure_size(const ffi_closure_t *c)
+{
+   if (c == NULL)
+      return 0;
+
+   return sizeof(ffi_closure_t) + (c->nargs - 1) * sizeof(jit_scalar_t);
+}

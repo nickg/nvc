@@ -388,17 +388,15 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
 
    case JIT_EXIT_IMPLICIT_SIGNAL:
       {
-         int32_t       count   = args[0].integer;
-         int32_t       size    = args[1].integer;
-         tree_t        where   = args[2].pointer;
-         int32_t       kind    = args[3].integer;
-         jit_handle_t  handle  = args[4].integer;
-         void         *context = args[5].pointer;
-         int64_t       delay   = args[6].integer;
+         int32_t        count   = args[0].integer;
+         int32_t        size    = args[1].integer;
+         tree_t         where   = args[2].pointer;
+         int32_t        kind    = args[3].integer;
+         ffi_closure_t *closure = args[4].pointer;
+         int64_t        delay   = args[5].integer;
 
-         ffi_closure_t closure = { handle, context };
          args[0].pointer = x_implicit_signal(count, size, where, kind,
-                                             &closure, delay);
+                                             closure, delay);
       }
       break;
 
@@ -406,12 +404,11 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
       {
          sig_shared_t *shared = args[0].pointer;
 
-         jit_handle_t  handle  = *(jit_handle_t *)(args[1].pointer + 0);
-         void         *context = *(void **)(args[1].pointer + 8);
-         int32_t       nlits   = *(int64_t *)(args[1].pointer + 16);
-         int32_t       flags   = *(int32_t *)(args[1].pointer + 24);
+         ffi_closure_t *closure = *(ffi_closure_t **)(args[1].pointer + 0);
+         int32_t        nlits   = *(int64_t *)(args[1].pointer + 8);
+         int32_t        flags   = *(int32_t *)(args[1].pointer + 16);
 
-         x_resolve_signal(shared, handle, context, nlits, flags);
+         x_resolve_signal(shared, closure, nlits, flags);
       }
       break;
 
@@ -935,14 +932,10 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
 
    case JIT_EXIT_PORT_CONVERSION:
       {
-         jit_handle_t  handle1  = args[0].integer;
-         void         *context1 = args[1].pointer;
-         jit_handle_t  handle2  = args[2].integer;
-         void         *context2 = args[3].pointer;
+         ffi_closure_t *driving   = args[0].pointer;
+         ffi_closure_t *effective = args[1].pointer;
 
-         ffi_closure_t driving = { handle1, context1 };
-         ffi_closure_t effective = { handle2, context2 };
-         args[0].pointer = x_port_conversion(&driving, &effective);
+         args[0].pointer = x_port_conversion(driving, effective);
       }
       break;
 

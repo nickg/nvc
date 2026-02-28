@@ -382,7 +382,7 @@ mir_type_t mir_context_type(mir_unit_t *mu, ident_t name);
 mir_type_t mir_opaque_type(mir_unit_t *mu);
 mir_type_t mir_record_type(mir_unit_t *mu, ident_t name,
                            const mir_type_t *fields, unsigned count);
-mir_type_t mir_closure_type(mir_unit_t *mu, mir_type_t atype, mir_type_t rtype);
+mir_type_t mir_closure_type(mir_unit_t *mu, mir_type_t rtype);
 mir_type_t mir_resolution_type(mir_unit_t *mu, mir_type_t base);
 mir_type_t mir_file_type(mir_unit_t *mu, mir_type_t base);
 mir_type_t mir_vec2_type(mir_unit_t *mu, int size, bool issigned);
@@ -773,8 +773,8 @@ void mir_build_report(mir_unit_t *mu, mir_value_t message, mir_value_t length,
 mir_value_t mir_build_instance_name(mir_unit_t *mu, mir_value_t kind);
 void mir_build_enter_state(mir_unit_t *mu, mir_value_t state,
                            mir_value_t strong);
-mir_value_t mir_build_closure(mir_unit_t *mu, ident_t func, mir_value_t context,
-                              mir_type_t atype, mir_type_t rtype);
+mir_value_t mir_build_closure(mir_unit_t *mu, ident_t func, mir_type_t rtype,
+                              const mir_value_t *args, unsigned nargs);
 mir_value_t mir_build_resolution_wrapper(mir_unit_t *mu, mir_type_t type,
                                          mir_value_t closure,
                                          mir_value_t nlits);

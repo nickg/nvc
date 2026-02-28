@@ -645,7 +645,7 @@ mir_type_t mir_record_type(mir_unit_t *mu, ident_t name,
    return mir_build_type(mu, &td);
 }
 
-mir_type_t mir_closure_type(mir_unit_t *mu, mir_type_t atype, mir_type_t rtype)
+mir_type_t mir_closure_type(mir_unit_t *mu, mir_type_t rtype)
 {
    const type_data_t td = {
       .class = MIR_TYPE_CLOSURE,
@@ -877,12 +877,9 @@ unsigned mir_get_slots(mir_unit_t *mu, mir_type_t type)
    case MIR_TYPE_SIGNAL:
       // Signal pointer plus offset
       return 2;
-   case MIR_TYPE_CLOSURE:
-      // Function pointer, context
-      return 2;
    case MIR_TYPE_RESOLUTION:
       // Closure slots plus nlits, and flags (this is silly)
-      return 4;
+      return 3;
    case MIR_TYPE_VEC4:
       return 2;
    default:

@@ -72,9 +72,8 @@ static mir_type_t import_type(mir_unit_t *mu, mir_import_t *imp,
       break;
    case VCODE_TYPE_CLOSURE:
       {
-         mir_type_t atype = mir_opaque_type(mu);
          mir_type_t rtype = import_type(mu, imp, vtype_base(vtype));
-         type = mir_closure_type(mu, atype, rtype);
+         type = mir_closure_type(mu, rtype);
       }
       break;
    case VCODE_TYPE_RECORD:
@@ -993,11 +992,11 @@ static void import_closure(mir_unit_t *mu, mir_import_t *imp, int op)
    mir_value_t context = imp->map[vcode_get_arg(op, 0)];
    ident_t func = vcode_get_func(op);
 
-   mir_type_t atype = MIR_NULL_TYPE;
    vcode_reg_t result = vcode_get_result(op);
    mir_type_t rtype = import_type(mu, imp, vtype_base(vcode_reg_type(result)));
 
-   imp->map[result] = mir_build_closure(mu, func, context, atype, rtype);
+   mir_value_t args[] = { context };
+   imp->map[result] = mir_build_closure(mu, func, rtype, args, 1);
 }
 
 static void import_resolution_wrapper(mir_unit_t *mu, mir_import_t *imp, int op)
