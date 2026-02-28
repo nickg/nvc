@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2025 Nick Gasson
+//  Copyright (C) 2025-2026 Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -123,11 +123,8 @@ static void rename_tf_decls(vlog_node_t v, ident_t prefix)
    }
 }
 
-vlog_node_t vlog_new_instance(vlog_node_t mod, vlog_node_t inst, ident_t prefix)
+vlog_node_t vlog_new_instance(vlog_node_t mod, vlog_node_t inst, ident_t id)
 {
-   ident_t suffix = vlog_ident(vlog_stmt(inst, 0));
-   ident_t id = ident_prefix(prefix, suffix, '.');
-
    vlog_node_t v = vlog_new(V_INST_BODY);
    vlog_set_ident(v, id);
    vlog_set_ident2(v, vlog_ident2(mod));

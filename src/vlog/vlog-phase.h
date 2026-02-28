@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2022-2025 Nick Gasson
+//  Copyright (C) 2022-2026 Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -30,8 +30,7 @@ void vlog_lower_deferred(mir_unit_t *mu, object_t *obj);
 void vlog_lower_udp(mir_unit_t *mu, object_t *obj);
 void vlog_lower_block(mir_context_t *mc, ident_t parent, tree_t b);
 mir_unit_t *vlog_lower_thunk(mir_context_t *mc, ident_t parent, vlog_node_t v);
-vlog_node_t vlog_new_instance(vlog_node_t mod, vlog_node_t inst,
-                              ident_t prefix);
+vlog_node_t vlog_new_instance(vlog_node_t mod, vlog_node_t inst, ident_t id);
 vlog_node_t vlog_generate_instance(vlog_node_t v, vlog_node_t genvar,
                                    int32_t value, ident_t prefix);
 

@@ -1578,8 +1578,10 @@ static elab_instance_t *elab_verilog_module(tree_t comp, ident_t label,
    if (elab_can_clone_instance(ei, &new_ctx))
       new_ctx.cloned = tree_ident(ei->block);
    else {
+      ident_t id = ident_sprintf("%s#%d", istr(vlog_ident(mod)), mc->unique);
+
       ei = pool_calloc(ctx->pool, sizeof(elab_instance_t));
-      ei->body = vlog_new_instance(mod, list, ctx->dotted);
+      ei->body = vlog_new_instance(mod, list, id);
 
       ei->wrap = tree_new(T_VERILOG);
       tree_set_loc(ei->wrap, vlog_loc(mod));
