@@ -455,7 +455,7 @@ static void *new_object(size_t size, PLI_INT32 type)
    return obj;
 }
 
-static void *recyle_object(size_t size, PLI_INT32 type)
+static void *recycle_object(size_t size, PLI_INT32 type)
 {
    vpi_context_t *c = vpi_context();
 
@@ -900,7 +900,7 @@ vpiHandle vpi_register_systf(p_vpi_systf_data systf_data_p)
 
    assert(systf_data_p->tfname[0] == '$');  // TODO: add test
 
-   c_callback *cb = recyle_object(sizeof(c_callback), vpiCallback);
+   c_callback *cb = recycle_object(sizeof(c_callback), vpiCallback);
    cb->systf = *systf_data_p;
    cb->name  = ident_new(systf_data_p->tfname);
 
@@ -1007,7 +1007,7 @@ vpiHandle vpi_iterate(PLI_INT32 type, vpiHandle refHandle)
    if (refHandle != NULL && (obj = from_handle(refHandle)) == NULL)
       return NULL;
 
-   c_iterator *it = recyle_object(sizeof(c_iterator), vpiIterator);
+   c_iterator *it = recycle_object(sizeof(c_iterator), vpiIterator);
    if (!init_iterator(it, type, obj)) {
       vpi_error(vpiError, obj ? &(obj->loc) : NULL,
                 "relation %s not supported for handle %s",
