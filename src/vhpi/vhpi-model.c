@@ -3323,7 +3323,7 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
    if (value_p->format == vhpiObjTypeVal)
       value_p->format = td->format;
    else if (value_p->format == vhpiBinStrVal && td->map_str != NULL)
-      value_p->format = vhpiBinStrVal;
+      ;
    else if (value_p->format != td->format
             && !vhpi_scalar_fits_format(value_p->format, size)) {
       vhpi_error(vhpiError, &(obj->loc), "invalid format %s for object %s: "
