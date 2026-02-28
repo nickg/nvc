@@ -634,7 +634,7 @@ void mir_annotate(mir_unit_t *mu, const mir_annotate_t *cb, void *ctx)
 
    printf("\n");
    if (mu->name != NULL)
-      nvc_printf("Name       $cyan$%pi\n", mu->name);
+      nvc_printf("Name       $cyan$%pi$$\n", mu->name);
    nvc_printf("Kind       $cyan$");
    switch (mu->kind) {
    case MIR_UNIT_PROCESS:     printf("process"); break;
@@ -691,7 +691,7 @@ void mir_annotate(mir_unit_t *mu, const mir_annotate_t *cb, void *ctx)
       printf("Linkage\n");
 
       for (int i = 0; i < mu->linkage.count; i++)
-         nvc_printf("  $magenta$%pi\n", mu->linkage.items[i]);
+         nvc_printf("  $magenta$%pi$$\n", mu->linkage.items[i]);
    }
 
    if (mu->blocks.count > 0)

@@ -1171,6 +1171,31 @@ START_TEST(test_cfg1)
 }
 END_TEST
 
+START_TEST(test_dce2)
+{
+   mir_context_t *mc = mir_context_new();
+
+   mir_unit_t *mu = mir_unit_new(mc, ident_new("dce2"), NULL,
+                                 MIR_UNIT_INSTANCE, NULL);
+
+   // These should not be optimised out even if the result is not used
+   mir_build_package_init(mu, ident_new("not_used"), MIR_NULL_VALUE);
+
+   mir_build_return(mu, MIR_NULL_VALUE);
+
+   mir_optimise(mu, MIR_PASS_DCE);
+
+   static const mir_match_t bb0[] = {
+      { MIR_OP_PACKAGE_INIT, LINK("not_used") },
+      { MIR_OP_RETURN },
+   };
+   mir_match(mu, 0, bb0);
+
+   mir_unit_free(mu);
+   mir_context_free(mc);
+}
+END_TEST
+
 Suite *get_mir_tests(void)
 {
    Suite *s = suite_create("mir");
@@ -1199,6 +1224,7 @@ Suite *get_mir_tests(void)
    tcase_add_test(tc, test_vec2);
    tcase_add_test(tc, test_check1);
    tcase_add_test(tc, test_cfg1);
+   tcase_add_test(tc, test_dce2);
    suite_add_tcase(s, tc);
 
    return s;

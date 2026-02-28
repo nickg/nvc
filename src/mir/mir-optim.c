@@ -743,7 +743,15 @@ static void mir_do_dce(mir_unit_t *mu, mir_optim_t *opt)
          mir_value_t node = { .tag = MIR_TAG_NODE, .id = bd->nodes[j] };
          node_data_t *n = mir_node_data(mu, node);
 
+         bool dead = false;
          if (!mir_is_null(n->type) && !mask_test(&live, node.id)) {
+            switch (n->op) {
+            case MIR_OP_PACKAGE_INIT: break;
+            default: dead = true; break;
+            }
+         }
+
+         if (dead) {
             DEBUG_ONLY(const mir_op_t op = n->op);
 
             mir_set_cursor(mu, this, j);
