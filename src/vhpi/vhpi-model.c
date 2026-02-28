@@ -1015,7 +1015,7 @@ static void *new_object(size_t size, vhpiClassKindT class)
    return obj;
 }
 
-static void *recyle_object(size_t size, vhpiClassKindT class)
+static void *recycle_object(size_t size, vhpiClassKindT class)
 {
    vhpi_context_t *c = vhpi_context();
 
@@ -2139,7 +2139,7 @@ vhpiHandleT vhpi_register_cb(vhpiCbDataT *cb_data_p, int32_t flags)
    case vhpiCbStartOfElaboration:
    case vhpiCbEndOfElaboration:
       {
-         c_callback *cb = recyle_object(sizeof(c_callback), vhpiCallbackK);
+         c_callback *cb = recycle_object(sizeof(c_callback), vhpiCallbackK);
          init_callback(cb, cb_data_p, flags);
 
          if (cb->data.obj != NULL) {
@@ -2176,7 +2176,7 @@ vhpiHandleT vhpi_register_cb(vhpiCbDataT *cb_data_p, int32_t flags)
             return NULL;
          }
 
-         c_callback *cb = recyle_object(sizeof(c_callback), vhpiCallbackK);
+         c_callback *cb = recycle_object(sizeof(c_callback), vhpiCallbackK);
          init_callback(cb, cb_data_p, flags);
 
          const uint64_t now = model_now(m, NULL);
@@ -2237,7 +2237,7 @@ vhpiHandleT vhpi_register_cb(vhpiCbDataT *cb_data_p, int32_t flags)
             return NULL;
          }
 
-         c_callback *cb = recyle_object(sizeof(c_callback), vhpiCallbackK);
+         c_callback *cb = recycle_object(sizeof(c_callback), vhpiCallbackK);
          init_callback(cb, cb_data_p, flags);
 
          // LRM 08 section 23.29: [..] if the obj member of the callback
@@ -2672,7 +2672,7 @@ vhpiHandleT vhpi_iterator(vhpiOneToManyT type, vhpiHandleT handle)
    if (handle != NULL && (obj = from_handle(handle)) == NULL)
       return NULL;
 
-   c_iterator *it = recyle_object(sizeof(c_iterator), vhpiIteratorK);
+   c_iterator *it = recycle_object(sizeof(c_iterator), vhpiIteratorK);
    if (!init_iterator(it, type, obj)) {
       vhpi_error(vhpiError, obj ? &(obj->loc) : NULL,
                  "relation %s not supported for handle %s",
