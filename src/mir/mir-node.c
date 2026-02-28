@@ -3378,19 +3378,18 @@ void mir_build_enter_state(mir_unit_t *mu, mir_value_t state,
                 "strong argument not is not boolean");
 }
 
-mir_value_t mir_build_closure(mir_unit_t *mu, ident_t func, mir_value_t context,
-                              mir_type_t atype, mir_type_t rtype)
+mir_value_t mir_build_closure(mir_unit_t *mu, ident_t func, mir_type_t rtype,
+                              const mir_value_t *args, unsigned nargs)
 {
-   mir_type_t ctype = mir_closure_type(mu, atype, rtype);
-   mir_value_t link = mir_add_linkage(mu, func);
+   mir_type_t ctype = mir_closure_type(mu, rtype);
 
-   mir_value_t result = mir_build_2(mu, MIR_OP_CLOSURE, ctype, MIR_NULL_STAMP,
-                                    link, context);
+   node_data_t *n = mir_add_node(mu, MIR_OP_CLOSURE, ctype, MIR_NULL_STAMP, nargs + 1);
+   mir_set_arg(mu, n, 0, mir_add_linkage(mu, func));
 
-   MIR_ASSERT(mir_is(mu, context, MIR_TYPE_CONTEXT),
-              "invalid closure context argument");
+   for (int i = 0; i < nargs; i++)
+      mir_set_arg(mu, n, i + 1, args[i]);
 
-   return result;
+   return (mir_value_t){ .tag = MIR_TAG_NODE, .id = mir_node_id(mu, n) };
 }
 
 mir_value_t mir_build_resolution_wrapper(mir_unit_t *mu, mir_type_t type,

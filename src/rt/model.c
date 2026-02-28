@@ -1031,18 +1031,20 @@ static void reset_scope(rt_model_t *m, rt_scope_t *s)
 }
 
 static res_memo_t *memo_resolution_fn(rt_model_t *m, rt_signal_t *signal,
-                                      ffi_closure_t closure, int32_t nlits,
+                                      ffi_closure_t *closure, int32_t nlits,
                                       res_flags_t flags)
 {
    // Optimise some common resolution functions by memoising them
 
-   res_memo_t *memo = ihash_get(m->res_memo, closure.handle);
+   res_memo_t *memo = ihash_get(m->res_memo, closure->handle);
    if (memo != NULL)
       return memo;
 
    memo = static_alloc(m, sizeof(res_memo_t));
-   memo->closure = closure;
-   memo->flags   = flags;
+   memo->flags = flags;
+
+   assert(closure->nargs == 1);
+   ffi_copy_closure(&memo->closure, closure);
 
    ihash_put(m->res_memo, memo->closure.handle, memo);
 
@@ -1060,7 +1062,7 @@ static res_memo_t *memo_resolution_fn(rt_model_t *m, rt_signal_t *signal,
          int8_t args[2] = { i, j };
          jit_scalar_t result;
          if (jit_try_call(m->jit, memo->closure.handle, &result,
-                          memo->closure.context, args, 2)) {
+                          memo->closure.args[0], args, 2)) {
             assert(result.integer < nlits && result.integer >= 0);
             memo->tab2[i][j] = result.integer;
          }
@@ -1075,7 +1077,7 @@ static res_memo_t *memo_resolution_fn(rt_model_t *m, rt_signal_t *signal,
       int8_t args[1] = { i };
       jit_scalar_t result;
       if (jit_try_call(m->jit, memo->closure.handle, &result,
-                       memo->closure.context, args, 1)) {
+                       memo->closure.args[0], args, 1)) {
          memo->tab1[i] = result.integer;
          identity = identity && (memo->tab1[i] == i);
       }
@@ -1088,7 +1090,7 @@ static res_memo_t *memo_resolution_fn(rt_model_t *m, rt_signal_t *signal,
    }
 
    TRACE("memoised resolution function %pi for type %pT",
-         jit_get_name(m->jit, closure.handle), tree_type(signal->where));
+         jit_get_name(m->jit, closure->handle), tree_type(signal->where));
 
    jit_set_silent(m->jit, false);
    jit_reset_exit_status(m->jit);
@@ -1774,7 +1776,7 @@ static void convert_driving(rt_conv_func_t *cf)
 {
    rt_model_t *m = get_model();
 
-   if (cf->effective.handle == JIT_HANDLE_INVALID) {
+   if (cf->effective == NULL) {
       // Ensure effective value is only updated once per cycle
       if (cf->when == m->now && cf->iteration == m->iteration)
          return;
@@ -1784,16 +1786,14 @@ static void convert_driving(rt_conv_func_t *cf)
    }
 
    TRACE("call driving conversion function %pi",
-         jit_get_name(m->jit, cf->driving.handle));
+         jit_get_name(m->jit, cf->driving->handle));
 
    model_thread_t *thread = model_thread(m);
 
    const uint32_t mark = tlab_mark(thread->tlab);
 
-   jit_scalar_t context = { .pointer = cf->driving.context };
-   jit_scalar_t arg = { .pointer = cf }, result;
-   if (!jit_fastcall(m->jit, cf->driving.handle, &result, context, arg,
-                     thread->tlab))
+   jit_scalar_t arg = { .pointer = cf }, null = {}, result;
+   if (!jit_call_closure(m->jit, cf->driving, &result, arg, null, thread->tlab))
       m->force_stop = true;
 
    tlab_trim(thread->tlab, mark);
@@ -1811,16 +1811,15 @@ static void convert_effective(rt_conv_func_t *cf)
    cf->iteration = m->iteration;
 
    TRACE("call effective conversion function %pi",
-         jit_get_name(m->jit, cf->effective.handle));
+         jit_get_name(m->jit, cf->effective->handle));
 
    model_thread_t *thread = model_thread(m);
 
    const uint32_t mark = tlab_mark(thread->tlab);
 
-   jit_scalar_t context = { .pointer = cf->effective.context };
-   jit_scalar_t arg = { .pointer = cf }, result;
-   if (!jit_fastcall(m->jit, cf->effective.handle, &result, context, arg,
-                     thread->tlab))
+   jit_scalar_t arg = { .pointer = cf }, null = {}, result;
+   if (!jit_call_closure(m->jit, cf->effective, &result, arg, null,
+                         thread->tlab))
       m->force_stop = true;
 
    tlab_trim(thread->tlab, mark);
@@ -1929,7 +1928,7 @@ static void call_resolution(rt_model_t *m, rt_nexus_t *n, res_memo_t *r,
 
       jit_scalar_t result;
       if (jit_try_call(m->jit, r->closure.handle, &result,
-                       r->closure.context, inputs, nonnull))
+                       r->closure.args[0], inputs, nonnull))
          put_driving(m, n, result.pointer + n->signal->offset
                      + n->offset - rscope->offset);
       else
@@ -1958,7 +1957,7 @@ static void call_resolution(rt_model_t *m, rt_nexus_t *n, res_memo_t *r,
             type *p = (type *)resolved;                                 \
             jit_scalar_t result;                                        \
             if (!jit_try_call(m->jit, r->closure.handle, &result,       \
-                              r->closure.context, vals, nonnull))       \
+                              r->closure.args[0], vals, nonnull))       \
                m->force_stop = true;                                    \
             p[j] = result.integer;                                      \
          } while (0)
@@ -3285,7 +3284,7 @@ static void update_implicit_signal(rt_model_t *m, rt_implicit_t *imp)
 
    jit_scalar_t result;
    if (!jit_try_call(m->jit, imp->closure.handle, &result,
-                     imp->closure.context, imp->signal.shared.data[0]))
+                     imp->closure.args[0], imp->signal.shared.data[0]))
       m->force_stop = true;
 
    thread->active_obj = NULL;
@@ -4811,9 +4810,11 @@ sig_shared_t *x_implicit_signal(uint32_t count, uint32_t size, tree_t where,
    rt_implicit_t *imp = static_alloc(m, sizeof(rt_implicit_t) + datasz);
    setup_signal(m, &(imp->signal), where, count, size, SIG_F_IMPLICIT, 0);
 
-   imp->closure = *closure;
    imp->delay = delay;
    imp->wakeable.kind = W_IMPLICIT;
+
+   assert(closure->nargs == 1);
+   ffi_copy_closure(&imp->closure, closure);
 
    deferq_do(&m->implicitq, async_update_implicit_signal, imp);
    set_pending(&(imp->wakeable));
@@ -4969,17 +4970,12 @@ void x_put_conversion(rt_conv_func_t *cf, sig_shared_t *ss, uint32_t offset,
    }
 }
 
-void x_resolve_signal(sig_shared_t *ss, jit_handle_t handle, void *context,
-                      int32_t nlits, int32_t flags)
+void x_resolve_signal(sig_shared_t *ss, ffi_closure_t *closure, int32_t nlits,
+                      int32_t flags)
 {
    rt_signal_t *s = container_of(ss, rt_signal_t, shared);
 
-   TRACE("resolve signal %s", istr(tree_ident(s->where)));
-
-   ffi_closure_t closure = {
-      .handle = handle,
-      .context = context
-   };
+   TRACE("resolve signal %pi", tree_ident(s->where));
 
    rt_model_t *m = get_model();
    s->resolution = memo_resolution_fn(m, s, closure, nlits, flags);
@@ -5105,30 +5101,39 @@ void *x_port_conversion(const ffi_closure_t *driving,
 {
    rt_model_t *m = get_model();
 
-   TRACE("port conversion %s context %p",
-         istr(jit_get_name(m->jit, driving->handle)), driving->context);
+   TRACE("port conversion %pi", jit_get_name(m->jit, driving->handle));
 
-   if (effective->handle != JIT_HANDLE_INVALID)
-      TRACE("effective value conversion %s context %p",
-            istr(jit_get_name(m->jit, effective->handle)), effective->context);
+   size_t total_bytes = sizeof(rt_conv_func_t);
+   total_bytes += ffi_closure_size(driving);
+   total_bytes += ffi_closure_size(effective);
 
-   const size_t tail_bytes = ALIGN_UP(sizeof(rt_conv_func_t), MEMBLOCK_ALIGN)
-      - sizeof(rt_conv_func_t);
+   const size_t tail_bytes =
+      ALIGN_UP(total_bytes + sizeof(conv_input_t), MEMBLOCK_ALIGN)
+      - total_bytes;
    const int tail_max_inputs = tail_bytes / sizeof(conv_input_t);
    assert(tail_max_inputs > 0);
 
-   const size_t total_bytes =
-      sizeof(rt_conv_func_t) + tail_max_inputs * sizeof(conv_input_t);
+   void *mem = static_alloc(m, total_bytes + tail_bytes);
 
-   rt_conv_func_t *cf = static_alloc(m, total_bytes);
-   cf->driving   = *driving;
-   cf->effective = *effective;
+   rt_conv_func_t *cf = mem;
    cf->ninputs   = 0;
    cf->maxinputs = tail_max_inputs;
    cf->outputs   = NULL;
    cf->inputs    = cf->tail;
    cf->when      = TIME_HIGH;
    cf->iteration = UINT_MAX;
+
+   mem += sizeof(rt_conv_func_t) + tail_max_inputs * sizeof(conv_input_t);
+
+   cf->driving = mem;
+   ffi_copy_closure(cf->driving, driving);
+
+   mem += ffi_closure_size(driving);
+
+   if (effective != NULL) {
+      cf->effective = mem;
+      ffi_copy_closure(cf->effective, effective);
+   }
 
    return cf;
 }

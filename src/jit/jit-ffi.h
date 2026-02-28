@@ -71,8 +71,9 @@ typedef struct _ffi_uarray {
 
 // The code generator knows the layout of this struct
 typedef struct _ffi_closure {
-   jit_handle_t  handle;
-   void         *context;
+   jit_handle_t handle;
+   uint32_t     nargs;
+   jit_scalar_t args[1];   // Flexible member
 } ffi_closure_t;
 
 ffi_spec_t ffi_spec_new(const ffi_type_t *types, size_t count);
@@ -88,5 +89,8 @@ typedef void (*ffi_internal_t)(jit_scalar_t *, tlab_t *);
 jit_dll_t *ffi_load_dll(const char *path);
 void ffi_unload_dll(jit_dll_t *dll);
 void *ffi_find_symbol(jit_dll_t *dll, const char *name);
+
+void ffi_copy_closure(ffi_closure_t *dst, const ffi_closure_t *src);
+size_t ffi_closure_size(const ffi_closure_t *c);
 
 #endif   // _JIT_FFI_H

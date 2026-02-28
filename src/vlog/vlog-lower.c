@@ -2505,41 +2505,57 @@ static mir_type_t vlog_lower_vhdl_type(mir_unit_t *mu, type_t type)
 {
    if (type_eq(type, ieee_type(IEEE_STD_ULOGIC)))
       return mir_int_type(mu, 0, 8);
-   else if (type_eq(type, ieee_type(IEEE_STD_ULOGIC_VECTOR)))
-      return mir_uarray_type(mu, 1, mir_int_type(mu, 0, 8));
    else if (type_eq(type, verilog_type(VERILOG_NET_VALUE)))
       return mir_int_type(mu, 0, 255);
    else if (type_eq(type, verilog_type(VERILOG_LOGIC)))
       return mir_int_type(mu, 0, 3);
-   else if (type_eq(type, verilog_type(VERILOG_WIRE_ARRAY))
-            || type_eq(type, verilog_type(VERILOG_NET_ARRAY)))
-      return mir_uarray_type(mu, 1, mir_int_type(mu, 0, 3));
 
    fatal_trace("cannot lower VHDL type %s", type_pp(type));
 }
 
-static void vlog_lower_converter(mir_unit_t *mu, tree_t cf, mir_value_t in,
-                                 mir_value_t out)
+static void vlog_lower_converter(mir_unit_t *mu, tree_t cf)
 {
+   mir_type_t t_context = mir_context_type(mu, mir_get_parent(mu));
+   mir_add_param(mu, t_context, MIR_NULL_STAMP, ident_new("context"));
+
+   type_t src_type = tree_type(tree_value(cf));
+   type_t src_elem = type_elem_recur(src_type);
+   mir_type_t t_src_elem = vlog_lower_vhdl_type(mu, src_elem);
+   mir_type_t t_src_elem_signal = mir_signal_type(mu, t_src_elem);
+
+   mir_type_t t_src_signal = t_src_elem_signal;
+   if (type_is_array(src_type))
+      t_src_signal = mir_uarray_type(mu, 1, t_src_elem_signal);
+
+   type_t dst_type = tree_type(cf);
+   type_t dst_elem = type_elem_recur(dst_type);
+   mir_type_t t_dst_elem = vlog_lower_vhdl_type(mu, dst_elem);
+   mir_type_t t_dst_elem_signal = mir_signal_type(mu, t_dst_elem);
+
+   mir_type_t t_dst_signal = t_dst_elem_signal, t_dst = t_dst_elem;
+   if (type_is_array(dst_type)) {
+      t_dst = mir_uarray_type(mu, 1, t_dst_elem);
+      t_dst_signal = mir_uarray_type(mu, 1, t_dst_elem_signal);
+   }
+
+   mir_value_t in = mir_add_param(mu, t_src_signal, MIR_NULL_STAMP,
+                                  ident_new("src"));
+   mir_value_t out = mir_add_param(mu, t_dst_signal, MIR_NULL_STAMP,
+                                   ident_new("dst"));
+
    tree_t decl = tree_ref(cf);
    assert(tree_kind(decl) == T_FUNC_DECL);
-
-   type_t rtype = type_result(tree_type(decl));
+   assert(type_eq(type_result(tree_type(decl)), tree_type(cf)));
 
    // Dummy return value to force function calling convention
    mir_type_t t_offset = mir_offset_type(mu);
    mir_set_result(mu, t_offset);
 
-   mir_type_t t_context = mir_context_type(mu, mir_get_parent(mu));
-   mir_add_param(mu, t_context, MIR_NULL_STAMP, ident_new("context"));
-
    mir_type_t t_conv = mir_conversion_type(mu);
    mir_value_t conv =
       mir_add_param(mu, t_conv, MIR_NULL_STAMP, ident_new("cf"));
 
-   mir_type_t t_out = vlog_lower_vhdl_type(mu, rtype);
-
-   ident_t func = tree_ident2(tree_ref(cf));
+   ident_t func = tree_ident2(decl);
 
    mir_value_t pkg = mir_build_link_package(mu, well_known(W_NVC_VERILOG));
 
@@ -2547,13 +2563,6 @@ static void vlog_lower_converter(mir_unit_t *mu, tree_t cf, mir_value_t in,
    if (mir_is(mu, in, MIR_TYPE_UARRAY)) {
       count = mir_build_uarray_len(mu, in, 0);
       in = mir_build_unwrap(mu, in);
-   }
-   else if (type_is_array(rtype)) {
-      int64_t length;
-      if (!folded_length(range_of(tree_type(tree_value(cf)), 0), &length))
-         should_not_reach_here();
-
-      count = mir_const(mu, t_offset, length);
    }
 
    mir_value_t resolved = mir_build_resolved(mu, in);
@@ -2575,7 +2584,7 @@ static void vlog_lower_converter(mir_unit_t *mu, tree_t cf, mir_value_t in,
 
    mir_value_t args[] = { pkg, arg };
 
-   mir_value_t result = mir_build_fcall(mu, func, t_out, MIR_NULL_STAMP,
+   mir_value_t result = mir_build_fcall(mu, func, t_dst, MIR_NULL_STAMP,
                                         args, ARRAY_LEN(args));
 
    if (mir_is(mu, result, MIR_TYPE_UARRAY))
@@ -2599,32 +2608,7 @@ static void vlog_lower_convert_in(mir_unit_t *mu, object_t *obj)
    tree_t cf = tree_value(map);
    assert(tree_kind(cf) == T_CONV_FUNC);
 
-   mir_context_t *mc = mir_get_context(mu);
-
-   ident_t parent1 = mir_get_parent(mu);
-   mir_shape_t *shape1 = mir_get_shape(mc, parent1);
-
-   ident_t parent2 = mir_get_shape_parent(shape1);
-   mir_shape_t *shape2 = mir_get_shape(mc, parent2);
-
-   tree_t arg = tree_value(cf);
-   assert(tree_kind(arg) == T_REF);
-
-   int nth = mir_find_slot(shape2, tree_ident(tree_ref(arg)));
-   assert(nth >= 0);
-
-   mir_value_t in_upref = mir_build_var_upref(mu, 2, nth);
-   mir_value_t in_nets = mir_build_load(mu, in_upref);
-
-   int hops;
-   mir_value_t var = mir_search_object(mu, map, &hops);
-   assert(!mir_is_null(var));
-   assert(hops == 1);
-
-   mir_value_t out_upref = mir_build_var_upref(mu, hops, var.id);
-   mir_value_t out_nets = mir_build_load(mu, out_upref);
-
-   vlog_lower_converter(mu, cf, in_nets, out_nets);
+   vlog_lower_converter(mu, cf);
 }
 
 static void vlog_lower_convert_out(mir_unit_t *mu, object_t *obj)
@@ -2635,32 +2619,7 @@ static void vlog_lower_convert_out(mir_unit_t *mu, object_t *obj)
    tree_t cf = tree_name(map);
    assert(tree_kind(cf) == T_CONV_FUNC);
 
-   mir_context_t *mc = mir_get_context(mu);
-
-   ident_t parent1 = mir_get_parent(mu);
-   mir_shape_t *shape1 = mir_get_shape(mc, parent1);
-
-   ident_t parent2 = mir_get_shape_parent(shape1);
-   mir_shape_t *shape2 = mir_get_shape(mc, parent2);
-
-   int hops;
-   mir_value_t var = mir_search_object(mu, map, &hops);
-   assert(!mir_is_null(var));
-   assert(hops == 1);
-
-   mir_value_t in_upref = mir_build_var_upref(mu, hops, var.id);
-   mir_value_t in_nets = mir_build_load(mu, in_upref);
-
-   tree_t dst = tree_value(map);
-   assert(tree_kind(dst) == T_REF);
-
-   int nth = mir_find_slot(shape2, tree_ident(tree_ref(dst)));
-   assert(nth >= 0);
-
-   mir_value_t out_upref = mir_build_var_upref(mu, 2, nth);
-   mir_value_t out_nets = mir_build_load(mu, out_upref);
-
-   vlog_lower_converter(mu, cf, in_nets, out_nets);
+   vlog_lower_converter(mu, cf);
 }
 
 void vlog_lower_block(mir_context_t *mc, ident_t parent, tree_t b)
@@ -2759,8 +2718,8 @@ void vlog_lower_block(mir_context_t *mc, ident_t parent, tree_t b)
    }
 
    mir_value_t self = mir_build_context_upref(mu, 0);
-   mir_type_t t_self = mir_context_type(mu, qual);
    mir_type_t t_offset = mir_offset_type(mu);
+   mir_type_t t_bool = mir_bool_type(mu);
 
    for (int i = 0; i < vlog_nports; i++) {
       vlog_node_t ref = vlog_port(body, i);
@@ -2782,75 +2741,94 @@ void vlog_lower_block(mir_context_t *mc, ident_t parent, tree_t b)
       mir_value_t count = mir_const(mu, t_offset, vlog_size(vlog_type(port)));
 
       tree_t map = tree_param(b, i);
-      tree_t value = tree_value(map);
+      tree_t value = tree_value(map), actual = value;
 
-      mir_value_t in_conv = MIR_NULL_VALUE;
-      if (tree_kind(value) == T_CONV_FUNC) {
-         mir_put_object(mu, map, var);
+      mir_value_t src = mir_build_load(mu, var), src_nets = src;
+      mir_value_t src_count = count;
 
-         ident_t func = ident_sprintf("%s.%s$verilog_convert_in",
-                                      istr(qual), istr(vlog_ident(port)));
-         mir_defer(mc, func, qual, MIR_UNIT_FUNCTION, vlog_lower_convert_in,
-                      tree_to_object(map));
+      if (tree_kind(value) == T_CONV_FUNC)
+         actual = tree_value(value);
 
-         mir_value_t closure =
-            mir_build_closure(mu, func, self, t_self, t_offset);
-         in_conv = mir_build_port_conversion(mu, closure, closure);
+      assert(tree_kind(actual) == T_REF);
 
-         value = tree_value(value);
-      }
-
-      assert(tree_kind(value) == T_REF);
-
-      tree_t vhdl_port = tree_ref(value);
+      tree_t vhdl_port = tree_ref(actual);
       assert(tree_kind(vhdl_port) == T_PORT_DECL);
 
       int nth = mir_find_slot(shape, tree_ident(vhdl_port));
       assert(nth >= 0);
 
       mir_value_t upref = mir_build_var_upref(mu, 1, nth);
-      mir_value_t dst_nets = mir_build_load(mu, upref);
+      mir_value_t dst = mir_build_load(mu, upref), dst_nets = dst;
 
       type_t vhdl_type = tree_type(vhdl_port);
       assert(dimension_of(vhdl_type) == 1);
 
       mir_value_t dst_count;
-      if (mir_is(mu, dst_nets, MIR_TYPE_UARRAY)) {
-         dst_count = mir_build_uarray_len(mu, dst_nets, 0);
-         dst_nets = mir_build_unwrap(mu, dst_nets);
+      if (mir_is(mu, dst, MIR_TYPE_UARRAY)) {
+         dst_count = mir_build_uarray_len(mu, dst, 0);
+         dst_nets = mir_build_unwrap(mu, dst);
       }
       else if (type_is_array(vhdl_type)) {
          int64_t cval;
-         if (folded_length(range_of(vhdl_type, 0), &cval))
-            dst_count = mir_const(mu, t_offset, cval);
-         else
+         if (!folded_length(range_of(vhdl_type, 0), &cval))
             should_not_reach_here();
+
+         dst_count = mir_const(mu, t_offset, cval);
+
+         mir_dim_t dims[] = {
+            { .left = mir_const(mu, t_offset, 1),
+              .right = dst_count,
+              .dir = mir_const(mu, t_bool, RANGE_TO)
+            },
+         };
+         dst = mir_build_wrap(mu, dst_nets, dims, 1);
       }
       else if (type_is_scalar(vhdl_type))
          dst_count = mir_const(mu, t_offset, 1);
       else
          should_not_reach_here();
 
+      type_t vlog_type = tree_type(tree_port(b, i));
+      assert(dimension_of(vlog_type) == 1);
+
+      if (type_is_array(vlog_type)) {
+         mir_dim_t dims[] = {
+            { .left = mir_const(mu, t_offset, 1),
+              .right = src_count,
+              .dir = mir_const(mu, t_bool, RANGE_TO)
+            },
+         };
+         src = mir_build_wrap(mu, src_nets, dims, 1);
+      }
+
+      mir_value_t in_conv = MIR_NULL_VALUE;
+      if (tree_kind(value) == T_CONV_FUNC) {
+         ident_t func = ident_sprintf("%s.%s$verilog_convert_in",
+                                      istr(qual), istr(vlog_ident(port)));
+         mir_defer(mc, func, qual, MIR_UNIT_FUNCTION, vlog_lower_convert_in,
+                      tree_to_object(map));
+
+         mir_value_t args[] = { self, dst, src };
+         mir_value_t closure = mir_build_closure(mu, func, t_offset,
+                                                 args, ARRAY_LEN(args));
+         in_conv = mir_build_port_conversion(mu, closure, closure);
+      }
+
       mir_value_t out_conv = MIR_NULL_VALUE;
       if (tree_subkind(map) == P_NAMED) {
          tree_t name = tree_name(map);
          if (tree_kind(name) == T_CONV_FUNC) {
-            mir_put_object(mu, map, var);
-
             ident_t func = ident_sprintf("%s.%s$verilog_convert_out",
                                          istr(qual), istr(vlog_ident(port)));
             mir_defer(mc, func, qual, MIR_UNIT_FUNCTION, vlog_lower_convert_out,
                       tree_to_object(map));
 
-            mir_value_t closure =
-               mir_build_closure(mu, func, self, t_self, t_offset);
+            mir_value_t args[] = { self, src, dst };
+            mir_value_t closure = mir_build_closure(mu, func, t_offset,
+                                                    args, ARRAY_LEN(args));
             out_conv = mir_build_port_conversion(mu, closure, closure);
          }
       }
-
-      mir_value_t src_nets = mir_build_load(mu, var);
-      mir_value_t src_count =
-         mir_const(mu, t_offset, vlog_size(vlog_type(port)));
 
       mir_value_t locus = mir_build_locus(mu, tree_to_object(map));
       mir_build_length_check(mu, src_count, dst_count, locus, MIR_NULL_VALUE);
@@ -2858,7 +2836,7 @@ void vlog_lower_block(mir_context_t *mc, ident_t parent, tree_t b)
       switch (vlog_subkind(port)) {
       case V_PORT_INPUT:
          if (mir_is_null(in_conv))
-            mir_build_map_signal(mu, dst_nets, src_nets, count);
+            mir_build_map_signal(mu, dst, src_nets, count);
          else {
             mir_build_convert_out(mu, in_conv, src_nets, count);
             mir_build_convert_in(mu, in_conv, dst_nets, count);

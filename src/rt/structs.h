@@ -132,8 +132,8 @@ typedef struct {
 } conv_input_t;
 
 typedef struct _rt_conv_func {
-   ffi_closure_t  driving;
-   ffi_closure_t  effective;
+   ffi_closure_t *driving;
+   ffi_closure_t *effective;
    unsigned       ninputs;
    unsigned       maxinputs;
    conv_input_t  *inputs;

@@ -867,7 +867,7 @@ static int irgen_size_bytes(jit_irgen_t *g, mir_type_t type)
       return sizeof(void *) + sizeof(int32_t);
 
    case MIR_TYPE_RESOLUTION:
-      return 2*sizeof(void *) + sizeof(int64_t) + sizeof(int32_t);
+      return sizeof(void *) + sizeof(int64_t) + sizeof(int32_t);
 
    case MIR_TYPE_VEC2:
       return sizeof(uint64_t);
@@ -1874,14 +1874,11 @@ static void irgen_op_load(jit_irgen_t *g, mir_value_t n)
 
    case MIR_TYPE_RESOLUTION:
       {
-         jit_value_t func    = irgen_get_slot(g, n, 0);
-         jit_value_t context = irgen_get_slot(g, n, 1);
-         jit_value_t nlits   = irgen_get_slot(g, n, 2);
-         jit_value_t flags   = irgen_get_slot(g, n, 3);
+         jit_value_t closure = irgen_get_slot(g, n, 0);
+         jit_value_t nlits   = irgen_get_slot(g, n, 1);
+         jit_value_t flags   = irgen_get_slot(g, n, 2);
 
-         j_load(g, JIT_SZ_PTR, func, addr);
-         addr = jit_addr_from_value(addr, sizeof(void *));
-         j_load(g, JIT_SZ_PTR, context, addr);
+         j_load(g, JIT_SZ_PTR, closure, addr);
          addr = jit_addr_from_value(addr, sizeof(void *));
          j_load(g, JIT_SZ_64, nlits, addr);
          addr = jit_addr_from_value(addr, sizeof(int64_t));
@@ -1962,13 +1959,11 @@ static void irgen_op_store(jit_irgen_t *g, mir_value_t n)
       break;
 
    case MIR_TYPE_RESOLUTION:
-      j_store(g, JIT_SZ_PTR, irgen_get_slot(g, arg1, 0), addr); // Function
+      j_store(g, JIT_SZ_PTR, irgen_get_slot(g, arg1, 0), addr); // Closure
       addr = jit_addr_from_value(addr, sizeof(void *));
-      j_store(g, JIT_SZ_PTR, irgen_get_slot(g, arg1, 1), addr); // Context
-      addr = jit_addr_from_value(addr, sizeof(void *));
-      j_store(g, JIT_SZ_64, irgen_get_slot(g, arg1, 2), addr);  // Literals
+      j_store(g, JIT_SZ_64, irgen_get_slot(g, arg1, 1), addr);  // Literals
       addr = jit_addr_from_value(addr, sizeof(int64_t));
-      j_store(g, JIT_SZ_32, irgen_get_slot(g, arg1, 3), addr);  // Flags
+      j_store(g, JIT_SZ_32, irgen_get_slot(g, arg1, 2), addr);  // Flags
       break;
 
    case MIR_TYPE_VEC2:
@@ -2979,25 +2974,47 @@ static void irgen_op_closure(jit_irgen_t *g, mir_value_t n)
 {
    jit_handle_t handle = irgen_get_handle(g, n, 0);
 
-   jit_value_t base = irgen_get_slot(g, n, 0);
-   j_mov(g, base, jit_value_from_handle(handle));
+   int total_slots = 0;
+   const int nargs = mir_count_args(g->mu, n);
+   for (int i = 1; i < nargs; i++) {
+      mir_value_t arg = mir_get_arg(g->mu, n, i);
+      total_slots += mir_get_slots(g->mu, mir_get_type(g->mu, arg));
+   }
 
-   jit_value_t context = irgen_get_slot(g, n, 1);
-   j_mov(g, context, irgen_get_arg(g, n, 1));
+   const size_t size = sizeof(ffi_closure_t)
+      + (total_slots - 1) * sizeof(jit_scalar_t);
+
+   jit_value_t ptr = irgen_get_slot(g, n, 0);
+   macro_lalloc(g, ptr, jit_value_from_int64(size));
+   g->used_tlab = true;
+
+   jit_value_t handle_ptr =
+      jit_addr_from_value(ptr, offsetof(ffi_closure_t, handle));
+   j_store(g, JIT_SZ_32, jit_value_from_handle(handle), handle_ptr);
+
+   jit_value_t nargs_ptr =
+      jit_addr_from_value(ptr, offsetof(ffi_closure_t, nargs));
+   j_store(g, JIT_SZ_32, jit_value_from_int64(total_slots), nargs_ptr);
+
+   for (int i = 1, pos = 0; i < nargs; i++) {
+      mir_value_t arg = mir_get_arg(g->mu, n, i);
+      const int slots = mir_get_slots(g->mu, mir_get_type(g->mu, arg));
+      for (int j = 0; j < slots; j++) {
+         jit_value_t slot_ptr =
+            jit_addr_from_value(ptr, offsetof(ffi_closure_t, args[pos++]));
+         j_store(g, JIT_SZ_64, irgen_get_slot(g, arg, j), slot_ptr);
+      }
+   }
 }
 
 static void irgen_op_resolution_wrapper(jit_irgen_t *g, mir_value_t n)
 {
-   mir_value_t arg = mir_get_arg(g->mu, n, 0);
-   jit_value_t closure = irgen_get_value(g, arg);
+   jit_value_t closure = irgen_get_arg(g, n, 0);
 
    jit_value_t base = irgen_get_slot(g, n, 0);
    j_mov(g, base, closure);
 
-   jit_value_t context = irgen_get_slot(g, n, 1);
-   j_mov(g, context, irgen_get_slot(g, arg, 1));
-
-   jit_value_t nlits = irgen_get_slot(g, n, 2);
+   jit_value_t nlits = irgen_get_slot(g, n, 1);
    j_mov(g, nlits, irgen_get_arg(g, n, 1));
 
    mir_type_t type = mir_get_base(g->mu, mir_get_type(g->mu, n));
@@ -3006,7 +3023,7 @@ static void irgen_op_resolution_wrapper(jit_irgen_t *g, mir_value_t n)
    if (mir_get_class(g->mu, type) == MIR_TYPE_POINTER)
       flagbits |= R_COMPOSITE;
 
-   jit_value_t flags = irgen_get_slot(g, n, 3);
+   jit_value_t flags = irgen_get_slot(g, n, 2);
    j_mov(g, flags, jit_value_from_int64(flagbits));
 }
 
@@ -3049,8 +3066,7 @@ static void irgen_op_implicit_signal(jit_irgen_t *g, mir_value_t n)
    jit_value_t size    = irgen_get_arg(g, n, 1);
    jit_value_t locus   = irgen_get_arg(g, n, 2);
    jit_value_t kind    = irgen_get_arg(g, n, 3);
-   jit_value_t closure = irgen_get_arg_slot(g, n, 4, 0);
-   jit_value_t context = irgen_get_arg_slot(g, n, 4, 1);
+   jit_value_t closure = irgen_get_arg(g, n, 4);
    jit_value_t delay   = irgen_get_arg(g, n, 5);
 
    j_send(g, 0, count);
@@ -3058,8 +3074,7 @@ static void irgen_op_implicit_signal(jit_irgen_t *g, mir_value_t n)
    j_send(g, 2, locus);
    j_send(g, 3, kind);
    j_send(g, 4, closure);
-   j_send(g, 5, context);
-   j_send(g, 6, delay);
+   j_send(g, 5, delay);
 
    macro_exit(g, JIT_EXIT_IMPLICIT_SIGNAL);
 
@@ -3878,23 +3893,16 @@ static void irgen_op_add_trigger(jit_irgen_t *g, mir_value_t n)
 
 static void irgen_op_port_conversion(jit_irgen_t *g, mir_value_t n)
 {
-   jit_value_t closure1 = irgen_get_arg_slot(g, n, 0, 0);
-   jit_value_t context1 = irgen_get_arg_slot(g, n, 0, 1);
+   jit_value_t closure1 = irgen_get_arg(g, n, 0);
 
-   jit_value_t closure2, context2;
-   if (mir_count_args(g->mu, n) > 1) {
-      closure2 = irgen_get_arg_slot(g, n, 1, 0);
-      context2 = irgen_get_arg_slot(g, n, 1, 1);
-   }
-   else {
-      closure2 = jit_value_from_handle(JIT_HANDLE_INVALID);
-      context2 = jit_value_from_int64(0);
-   }
+   jit_value_t closure2;
+   if (mir_count_args(g->mu, n) > 1)
+      closure2 = irgen_get_arg(g, n, 1);
+   else
+      closure2 = jit_null_ptr();
 
    j_send(g, 0, closure1);
-   j_send(g, 1, context1);
-   j_send(g, 2, closure2);
-   j_send(g, 3, context2);
+   j_send(g, 1, closure2);
    macro_exit(g, JIT_EXIT_PORT_CONVERSION);
 
    j_recv(g, g->map[n.id], 0);

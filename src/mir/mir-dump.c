@@ -956,6 +956,7 @@ void mir_annotate(mir_unit_t *mu, const mir_annotate_t *cb, void *ctx)
 
          case MIR_OP_FCALL:
          case MIR_OP_FUNCTION_TRIGGER:
+         case MIR_OP_CLOSURE:
             {
                if (!mir_is_null(n->type)) {
                   col += mir_dump_value(mu, result, cb, ctx);
@@ -1436,7 +1437,6 @@ void mir_annotate(mir_unit_t *mu, const mir_annotate_t *cb, void *ctx)
             }
             break;
 
-         case MIR_OP_CLOSURE:
          case MIR_OP_PROTECTED_INIT:
             {
                col += mir_dump_value(mu, result, cb, ctx);
