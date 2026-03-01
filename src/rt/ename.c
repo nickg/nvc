@@ -21,6 +21,7 @@
 #include "jit/jit.h"
 #include "jit/jit-exits.h"
 #include "lib.h"
+#include "printf.h"
 #include "rt/model.h"
 #include "rt/structs.h"
 #include "tree.h"
@@ -89,7 +90,8 @@ void x_bind_external(tree_t name, jit_handle_t scope, jit_scalar_t *args)
    assert(tree_kind(name) == T_EXTERNAL_NAME);
 
    jit_t *j = jit_for_thread();
-   tree_t where = tree_from_object(jit_get_object(j, scope)), next = NULL;
+   tree_t where = tree_from_object(jit_get_object(j, scope));
+   tree_t container = NULL, next = NULL;
    ident_t path = jit_get_name(j, scope);
    int next_arg = 2;
 
@@ -110,7 +112,7 @@ void x_bind_external(tree_t name, jit_handle_t scope, jit_scalar_t *args)
                top = root_scope(m)->where;
 
             if (tree_kind(top) != T_ELAB)
-               jit_msg(tree_loc(pe), DIAG_FATAL, "design hieararchy root has "
+               jit_msg(tree_loc(pe), DIAG_FATAL, "design hierarchy root has "
                        "not yet been elaborated");
 
             tree_t root = tree_stmt(top, 0);
@@ -194,6 +196,8 @@ void x_bind_external(tree_t name, jit_handle_t scope, jit_scalar_t *args)
          path = ident_prefix(path, tree_ident(where), '.');
       }
 
+      container = where;
+
       if ((next = select_name(where, id)) == NULL) {
          diag_t *d = diag_new(DIAG_ERROR, tree_loc(pe));
          diag_printf(d, "external name %s not found",
@@ -242,9 +246,20 @@ void x_bind_external(tree_t name, jit_handle_t scope, jit_scalar_t *args)
    }
 
    jit_handle_t handle = jit_compile(j, path);
-   (void)jit_link(j, handle);   // Package may not be loaded
 
-   void *ptr = jit_get_frame_var(j, handle, tree_ident(where));
+   void *ctx;
+   if (is_concurrent_block(container)) {
+      rt_scope_t *rts = find_scope(get_model(), container);
+      assert(rts != NULL);
+
+      if ((ctx = *mptr_get(rts->privdata)) == NULL)
+         jit_msg(tree_loc(name), DIAG_FATAL, "%pI has not yet been elaborated",
+                 tree_ident(container));
+   }
+   else
+      ctx = jit_link(j, handle);
+
+   void *ptr = jit_get_frame_var(j, handle, ctx, tree_ident(where));
 
    if (type_is_array(type) && type_const_bounds(type)) {
       const int ndims = dimension_of(type);

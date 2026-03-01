@@ -58,7 +58,7 @@ jit_handle_t jit_compile(jit_t *j, ident_t name);
 jit_handle_t jit_lazy_compile(jit_t *j, ident_t name);
 jit_handle_t jit_assemble(jit_t *j, ident_t name, const char *text);
 void *jit_link(jit_t *j, jit_handle_t handle);
-void *jit_get_frame_var(jit_t *j, jit_handle_t handle, ident_t name);
+void *jit_get_frame_var(jit_t *j, jit_handle_t handle, void *p, ident_t name);
 void jit_set_silent(jit_t *j, bool silent);
 mspace_t *jit_get_mspace(jit_t *j);
 void jit_load_pack(jit_t *j, FILE *f);

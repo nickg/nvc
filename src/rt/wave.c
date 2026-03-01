@@ -522,7 +522,8 @@ static void *fst_get_ptr(wave_dumper_t *wd, rt_scope_t *scope, tree_t where)
    else {
       assert(scope->kind == SCOPE_INSTANCE);
       jit_handle_t handle = jit_lazy_compile(wd->jit, scope->name);
-      return jit_get_frame_var(wd->jit, handle, tree_ident(where));
+      void *p = *mptr_get(scope->privdata);
+      return jit_get_frame_var(wd->jit, handle, p, tree_ident(where));
    }
 }
 

@@ -1,5 +1,6 @@
 package pack is
-    constant kk : integer := <<constant .ename3.k : integer>>;  -- OK (since 1.16)
+    -- Was OK between 1.16 and 1.20
+    constant kk : integer := <<constant .ename3.k : integer>>;  -- Error
 end package;
 
 -------------------------------------------------------------------------------

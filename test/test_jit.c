@@ -224,7 +224,7 @@ START_TEST(test_context1)
    void *ctx = jit_link(j, handle);
    fail_if(ctx == NULL);
 
-   int32_t *c1 = jit_get_frame_var(j, handle, ident_new("C1"));
+   int32_t *c1 = jit_get_frame_var(j, handle, ctx, ident_new("C1"));
    ck_assert_int_eq(*c1, 42);
 
    jit_handle_t fn1 = compile_for_test(j, "WORK.PACK.GET_ELT(N)I");
@@ -353,7 +353,7 @@ START_TEST(test_ieee_warnings)
    void *pkg = jit_link(j, handle);
    fail_if(pkg == NULL);
 
-   uint8_t *p = jit_get_frame_var(j, handle, ident_new("ENABLED"));
+   uint8_t *p = jit_get_frame_var(j, handle, pkg, ident_new("ENABLED"));
    ck_assert_int_eq(*p, 1);
 }
 END_TEST
@@ -1061,7 +1061,7 @@ START_TEST(test_issue496)
    void *pkg = jit_link(j, handle);
    fail_if(pkg == NULL);
 
-   char *c = jit_get_frame_var(j, handle, ident_new("C"));
+   char *c = jit_get_frame_var(j, handle, pkg, ident_new("C"));
    ck_assert_mem_eq(c, "one", 3);
 
    jit_free(j);

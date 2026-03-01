@@ -1791,10 +1791,16 @@ START_TEST(test_ename3)
 
    input_from_file(TESTDIR "/elab/ename3.vhd");
 
-   tree_t e = run_elab();
-   fail_if(e == NULL);
+   const error_t expect[] = {
+      {  3, "ENAME3 has not yet been elaborated" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
 
-   fail_if_errors();
+   tree_t e = run_elab();
+   fail_unless(e == NULL);
+
+   check_expected_errors();
 }
 END_TEST
 

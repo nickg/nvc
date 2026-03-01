@@ -839,9 +839,9 @@ static void enable_ieee_warnings_cb(rt_model_t *m, void *ctx)
    ident_t var_name = ident_new("IEEE_NO_WARNING");
 
    jit_handle_t handle = jit_lazy_compile(state->jit, pkg_name);
-   jit_link(state->jit, handle);
+   void *pkg = jit_link(state->jit, handle);
 
-   uint8_t *ptr = jit_get_frame_var(state->jit, handle, var_name);
+   uint8_t *ptr = jit_get_frame_var(state->jit, handle, pkg, var_name);
    assert(ptr != NULL);
    assert(*ptr == 1);
 

@@ -809,10 +809,15 @@ static void *vpi_get_ptr(c_abstractDecl *decl)
 
    ident_t name = vlog_ident(decl->where);
 
-   if (decl->scope->handle == JIT_HANDLE_INVALID)
+   void *ctx = NULL;
+   c_module *mod = is_module(&(decl->scope->object));
+   if (mod != NULL)
+      ctx = *mptr_get(mod->rtscope->privdata);
+
+   if (decl->scope->handle == JIT_HANDLE_INVALID || ctx == NULL)
       fatal_at(&(decl->object.loc), "cannot get pointer to %s", istr(name));
 
-   return (decl->mptr = jit_get_frame_var(jit, decl->scope->handle, name));
+   return (decl->mptr = jit_get_frame_var(jit, decl->scope->handle, ctx, name));
 }
 
 static bool vpi_get_range(c_vpiObject *obj, int64_t *ileft, int64_t *iright)

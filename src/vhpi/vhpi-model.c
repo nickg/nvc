@@ -1716,6 +1716,32 @@ static rt_scope_t *vhpi_get_scope_prefixedName(c_prefixedName *pn)
    return pn->scope;
 }
 
+static jit_handle_t vhpi_get_jit_handle_abstractRegion(c_abstractRegion *r)
+{
+   if (r->handle != JIT_HANDLE_INVALID)
+      return r->handle;
+
+   jit_t *j = vhpi_context()->jit;
+
+   c_packInst *pi = is_packInst(&(r->object));
+   if (pi != NULL) {
+      ident_t qual = tree_ident(r->tree);
+      if (pi->designInstUnit.region.UpperRegion != NULL) {
+         for (c_abstractRegion *it = pi->designInstUnit.region.UpperRegion;
+              it != NULL; it = it->UpperRegion)
+            qual = ident_prefix(tree_ident(it->tree), qual, '.');
+
+         qual = ident_prefix(lib_name(lib_work()), qual, '.');
+      }
+
+      return (r->handle = jit_lazy_compile(j, qual));
+   }
+   else {
+      rt_scope_t *scope = vhpi_get_scope_abstractRegion(r);
+      return (r->handle = jit_lazy_compile(j, scope->name));
+   }
+}
+
 static rt_signal_t *vhpi_get_signal_objDecl(c_objDecl *decl)
 {
    if (decl->signal != NULL)
@@ -1791,39 +1817,30 @@ static void *vhpi_get_var(c_abstractRegion *r, ident_t id)
 {
    jit_t *j = vhpi_context()->jit;
 
-   if (r->handle == JIT_HANDLE_INVALID) {
-      c_packInst *pi = is_packInst(&(r->object));
-      if (pi != NULL) {
-         ident_t qual = tree_ident(r->tree);
-         if (pi->designInstUnit.region.UpperRegion != NULL) {
-            for (c_abstractRegion *it = pi->designInstUnit.region.UpperRegion;
-                 it != NULL; it = it->UpperRegion)
-               qual = ident_prefix(tree_ident(it->tree), qual, '.');
+   jit_handle_t h = vhpi_get_jit_handle_abstractRegion(r);
 
-            qual = ident_prefix(lib_name(lib_work()), qual, '.');
-         }
-
-         r->handle = jit_lazy_compile(j, qual);
-
-         if (jit_link(j, r->handle) == NULL) {
-            vhpi_error(vhpiError, &(r->object.loc), "failed to link package");
-            return NULL;
-         }
+   c_packInst *pi = is_packInst(&(r->object));
+   if (pi != NULL) {
+      void *ctx = jit_link(j, h);
+      if (ctx == NULL) {
+         vhpi_error(vhpiError, &(r->object.loc), "failed to link package");
+         return NULL;
       }
-      else {
-         rt_scope_t *scope = vhpi_get_scope_abstractRegion(r);
 
-         if (*mptr_get(scope->privdata) == NULL) {
-            vhpi_error(vhpiError, &(r->object.loc),
-                       "%s has not been elaborated", r->FullName);
-            return NULL;
-         }
-
-         r->handle = jit_lazy_compile(j, scope->name);
-      }
+      return jit_get_frame_var(j, h, ctx, id);
    }
+   else {
+      rt_scope_t *scope = vhpi_get_scope_abstractRegion(r);
 
-   return jit_get_frame_var(j, r->handle, id);
+      void *ctx = *mptr_get(scope->privdata);
+      if (ctx == NULL) {
+         vhpi_error(vhpiError, &(r->object.loc),
+                    "%s has not been elaborated", r->FullName);
+         return NULL;
+      }
+
+      return jit_get_frame_var(j, h, ctx, id);
+   }
 }
 
 static const jit_layout_t *vhpi_get_layout(c_vhpiObject *obj)
