@@ -313,7 +313,6 @@ void vlog_trans(vlog_node_t mod, tree_t out)
       return;
 
    const int nports = vlog_ports(mod);
-
    for (int i = 0; i < nports; i++) {
       vlog_node_t ref = vlog_port(mod, i);
       assert(vlog_kind(ref) == V_REF);
@@ -321,5 +320,28 @@ void vlog_trans(vlog_node_t mod, tree_t out)
       vlog_node_t port = vlog_ref(ref);
       assert(vlog_kind(port) == V_PORT_DECL);
       trans_port_decl(&gen, port);
+   }
+
+   const int nstmts = vlog_stmts(mod);
+   for (int i = 0; i < nstmts; i++) {
+      vlog_node_t s = vlog_stmt(mod, i);
+      switch (vlog_kind(s)) {
+      case V_INITIAL:
+      case V_ALWAYS:
+      case V_ASSIGN:
+      case V_GATE_INST:
+      case V_UDP_TABLE:
+         {
+            tree_t wrap = tree_new(T_VERILOG);
+            tree_set_ident(wrap, vlog_ident(s));
+            tree_set_vlog(wrap, s);
+            tree_set_loc(wrap, vlog_loc(s));
+
+            tree_add_stmt(out, wrap);
+         }
+         break;
+      default:
+         break;
+      }
    }
 }

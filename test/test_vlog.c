@@ -1453,28 +1453,37 @@ START_TEST(test_lower1)
    mir_context_t *mc = get_mir();
 
    {
-      mir_unit_t *mu = mir_get_unit(mc, ident_new("WORK.lower1.assign#3#9"));
+      mir_unit_t *mu = mir_get_unit(mc, ident_new("WORK.LOWER1#0"));
       ck_assert_ptr_nonnull(mu);
 
-      static const mir_match_t bb1[] = {
-         { MIR_OP_VAR_UPREF, ENUM(1) },
-         { MIR_OP_LOAD },
-         { MIR_OP_VAR_UPREF, ENUM(1) },
-         { MIR_OP_LOAD },
-         { MIR_OP_RESOLVED },
-         { MIR_OP_LOAD },
-         { MIR_OP_PACK },
-         { MIR_OP_VAR_UPREF, ENUM(1) },
-         { MIR_OP_LOAD },
-         { MIR_OP_RESOLVED },
-         { MIR_OP_LOAD },
-         { MIR_OP_PACK },
-         { MIR_OP_BINARY, ENUM(MIR_VEC_BIT_AND) },
-         { MIR_OP_UNPACK },
-         { MIR_OP_PUT_DRIVER, NODE(_), CONST(1) },
-         { MIR_OP_WAIT, BLOCK(1) },
+      static const mir_match_t bb0[] = {
+         { MIR_OP_PACKAGE_INIT, LINK("NVC.VERILOG") },
+         { MIR_OP_LINK_VAR, LINK("NVC.VERILOG"), NODE(_),
+           EXTVAR("NVC.VERILOG.T_WIRE$resolution") },
+         { MIR_OP_LOCUS },
+         { MIR_OP_INIT_SIGNAL },
+         { MIR_OP_RESOLVE_SIGNAL },
+         { MIR_OP_STORE, VAR("x") },
+         { MIR_OP_LOCUS },
+         { MIR_OP_INIT_SIGNAL },
+         { MIR_OP_RESOLVE_SIGNAL },
+         { MIR_OP_STORE, VAR("y") },
+         { MIR_OP_LOCUS },
+         { MIR_OP_INIT_SIGNAL },
+         { MIR_OP_RESOLVE_SIGNAL },
+         { MIR_OP_STORE, VAR("z") },
+         { MIR_OP_CONTEXT_UPREF, ENUM(0) },
+         { MIR_OP_CLOSURE, LINK("WORK.LOWER1#0.assign#3#9") },
+         { MIR_OP_INIT_FUNCTOR },
+         { MIR_OP_LOAD, VAR("z") },
+         { MIR_OP_FUNCTOR_OUT },
+         { MIR_OP_LOAD, VAR("x") },
+         { MIR_OP_FUNCTOR_IN },
+         { MIR_OP_LOAD, VAR("y") },
+         { MIR_OP_FUNCTOR_IN },
+         { MIR_OP_RETURN },
       };
-      mir_match(mu, 1, bb1);
+      mir_match(mu, 0, bb0);
    }
 
    fail_if_errors();

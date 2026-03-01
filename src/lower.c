@@ -12742,7 +12742,11 @@ vcode_unit_t unit_registry_get(unit_registry_t *ur, ident_t ident)
       lib_t lib = lib_require(lname);
 
       ident_t unit_name = ident_prefix(lname, uname, '.');
-      tree_t unit = lib_get(lib, unit_name);
+      object_t *obj = lib_get_generic(lib, unit_name, NULL);
+      if (obj == NULL)
+         return NULL;
+
+      tree_t unit = tree_from_object(obj);
       if (unit == NULL || !is_package(unit))
          return NULL;
 

@@ -1130,6 +1130,7 @@ static ffi_type_t irgen_ffi_type(jit_irgen_t *g, mir_type_t type)
    case MIR_TYPE_ACCESS:
    case MIR_TYPE_LOCUS:
    case MIR_TYPE_CONVERSION:
+   case MIR_TYPE_FUNCTOR:
       return FFI_POINTER;
    case MIR_TYPE_FILE:
       return FFI_UINT32;
@@ -3596,6 +3597,26 @@ static void irgen_op_put_conversion(jit_irgen_t *g, mir_value_t n)
    macro_exit(g, JIT_EXIT_PUT_CONVERSION);
 }
 
+static void irgen_op_put_functor(jit_irgen_t *g, mir_value_t n)
+{
+   jit_value_t functor = irgen_get_arg(g, n, 0);
+   jit_value_t shared  = irgen_get_arg_slot(g, n, 1, 0);
+   jit_value_t offset  = irgen_get_arg_slot(g, n, 1, 1);
+   jit_value_t count   = irgen_get_arg(g, n, 2);
+   jit_value_t value   = irgen_get_arg(g, n, 3);
+
+   jit_value_t scalar = irgen_is_scalar(g, n, 3);
+
+   j_send(g, 0, functor);
+   j_send(g, 1, shared);
+   j_send(g, 2, offset);
+   j_send(g, 3, count);
+   j_send(g, 4, value);
+   j_send(g, 5, scalar);
+
+   macro_exit(g, JIT_EXIT_PUT_FUNCTOR);
+}
+
 static void irgen_op_sched_event(jit_irgen_t *g, mir_value_t n)
 {
    mir_value_t on = mir_get_arg(g->mu, n, 0);
@@ -3934,6 +3955,44 @@ static void irgen_op_convert_out(jit_irgen_t *g, mir_value_t n)
    j_send(g, 2, offset);
    j_send(g, 3, count);
    macro_exit(g, JIT_EXIT_CONVERT_OUT);
+}
+
+static void irgen_op_init_functor(jit_irgen_t *g, mir_value_t n)
+{
+   jit_value_t closure = irgen_get_arg(g, n, 0);
+
+   j_send(g, 0, closure);;
+   macro_exit(g, JIT_EXIT_INIT_FUNCTOR);
+
+   j_recv(g, g->map[n.id], 0);
+}
+
+static void irgen_op_functor_in(jit_irgen_t *g, mir_value_t n)
+{
+   jit_value_t functor = irgen_get_arg(g, n, 0);
+   jit_value_t shared  = irgen_get_arg_slot(g, n, 1, 0);
+   jit_value_t offset  = irgen_get_arg_slot(g, n, 1, 1);
+   jit_value_t count   = irgen_get_arg(g, n, 2);
+
+   j_send(g, 0, functor);
+   j_send(g, 1, shared);
+   j_send(g, 2, offset);
+   j_send(g, 3, count);
+   macro_exit(g, JIT_EXIT_FUNCTOR_IN);
+}
+
+static void irgen_op_functor_out(jit_irgen_t *g, mir_value_t n)
+{
+   jit_value_t functor = irgen_get_arg(g, n, 0);
+   jit_value_t shared  = irgen_get_arg_slot(g, n, 1, 0);
+   jit_value_t offset  = irgen_get_arg_slot(g, n, 1, 1);
+   jit_value_t count   = irgen_get_arg(g, n, 2);
+
+   j_send(g, 0, functor);
+   j_send(g, 1, shared);
+   j_send(g, 2, offset);
+   j_send(g, 3, count);
+   macro_exit(g, JIT_EXIT_FUNCTOR_OUT);
 }
 
 static void irgen_op_bind_foreign(jit_irgen_t *g, mir_value_t n)
@@ -4644,6 +4703,7 @@ static void irgen_block(jit_irgen_t *g, mir_block_t block)
          irgen_op_context_upref(g, n);
          break;
       case MIR_OP_FCALL:
+      case MIR_OP_INSTANCE_INIT:
          irgen_op_fcall(g, n);
          break;
       case MIR_OP_PCALL:
@@ -4823,6 +4883,9 @@ static void irgen_block(jit_irgen_t *g, mir_block_t block)
       case MIR_OP_PUT_CONVERSION:
          irgen_op_put_conversion(g, n);
          break;
+      case MIR_OP_PUT_FUNCTOR:
+         irgen_op_put_functor(g, n);
+         break;
       case MIR_OP_EVENT:
          irgen_op_event(g, n);
          break;
@@ -4887,6 +4950,15 @@ static void irgen_block(jit_irgen_t *g, mir_block_t block)
          break;
       case MIR_OP_CONVERT_OUT:
          irgen_op_convert_out(g, n);
+         break;
+      case MIR_OP_INIT_FUNCTOR:
+         irgen_op_init_functor(g, n);
+         break;
+      case MIR_OP_FUNCTOR_IN:
+         irgen_op_functor_in(g, n);
+         break;
+      case MIR_OP_FUNCTOR_OUT:
+         irgen_op_functor_out(g, n);
          break;
       case MIR_OP_BIND_FOREIGN:
          irgen_op_bind_foreign(g, n);
@@ -5178,25 +5250,13 @@ static void irgen_instance_entry(jit_irgen_t *g)
    const ffi_type_t types[] = { FFI_POINTER, FFI_POINTER };
    g->func->spec = ffi_spec_new(types, ARRAY_LEN(types));
 
-#ifdef DEBUG
-   // Instances should only be initialised once
-   irgen_label_t *cont = irgen_alloc_label(g);
-   jit_value_t priv = irgen_alloc_temp(g);
-   macro_getpriv(g, priv, g->func->handle);
-   j_cmp(g, JIT_CC_EQ, priv, jit_value_from_int64(0));
-   j_jump(g, JIT_CC_T, cont);
-   j_trap(g);
-   irgen_bind_label(g, cont);
-#endif
-
+   irgen_params(g, 1);
    irgen_locals(g);
 
    // Stash context pointer
    jit_value_t context = irgen_alloc_temp(g);
    j_recv(g, context, 0);
    j_store(g, JIT_SZ_PTR, context, jit_addr_from_value(g->statereg, 0));
-
-   macro_putpriv(g, g->func->handle, g->statereg);
 }
 
 static void irgen_process_entry(jit_irgen_t *g)

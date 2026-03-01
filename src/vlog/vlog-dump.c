@@ -950,6 +950,13 @@ static void vlog_dump_enum_name(vlog_node_t v)
    }
 }
 
+static void vlog_dump_port_map(vlog_node_t v)
+{
+   print_syntax("-- Connect ");
+   vlog_dump(vlog_value(v), 0);
+   print_syntax(" to %pi\n", vlog_ident(vlog_ref(v)));
+}
+
 void vlog_dump(vlog_node_t v, int indent)
 {
    switch (vlog_kind(v)) {
@@ -1129,6 +1136,9 @@ void vlog_dump(vlog_node_t v, int indent)
       break;
    case V_ENUM_NAME:
       vlog_dump_enum_name(v);
+      break;
+   case V_PORT_MAP:
+      vlog_dump_port_map(v);
       break;
    default:
       print_syntax("\n");

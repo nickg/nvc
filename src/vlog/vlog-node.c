@@ -309,6 +309,9 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
 
    // V_DEFPARAM
    (I_TARGET | I_VALUE),
+
+   // V_PORT_MAP
+   (I_REF | I_VALUE),
 };
 
 static const char *kind_text_map[V_LAST_NODE_KIND] = {
@@ -335,7 +338,7 @@ static const char *kind_text_map[V_LAST_NODE_KIND] = {
    "V_TF_PORT_DECL",  "V_RETURN",      "V_OP_ASSIGN",     "V_MEMBER_REF",
    "V_PACKAGE",       "V_MIN_TYP_MAX", "V_PROGRAM",       "V_CLASS_DECL",
    "V_NULL",          "V_CLASS_NEW",   "V_CONSTRUCTOR",   "V_SUPER_CALL",
-   "V_IMPORT_DECL",   "V_NAMESPACE",   "V_DEFPARAM",
+   "V_IMPORT_DECL",   "V_NAMESPACE",   "V_DEFPARAM",      "V_PORT_MAP",
 };
 
 static const change_allowed_t change_allowed[] = {

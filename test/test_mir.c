@@ -1179,14 +1179,16 @@ START_TEST(test_dce2)
                                  MIR_UNIT_INSTANCE, NULL);
 
    // These should not be optimised out even if the result is not used
-   mir_build_package_init(mu, ident_new("not_used"), MIR_NULL_VALUE);
+   mir_build_package_init(mu, ident_new("pack"), MIR_NULL_VALUE);
+   mir_build_instance_init(mu, ident_new("inst"), NULL, 0);
 
    mir_build_return(mu, MIR_NULL_VALUE);
 
    mir_optimise(mu, MIR_PASS_DCE);
 
    static const mir_match_t bb0[] = {
-      { MIR_OP_PACKAGE_INIT, LINK("not_used") },
+      { MIR_OP_PACKAGE_INIT, LINK("pack") },
+      { MIR_OP_INSTANCE_INIT, LINK("inst") },
       { MIR_OP_RETURN },
    };
    mir_match(mu, 0, bb0);

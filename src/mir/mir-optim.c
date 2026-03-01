@@ -661,7 +661,9 @@ static void gvn_visit_block(mir_unit_t *mu, mir_block_t block,
          break;
       case MIR_OP_INIT_SIGNAL:
       case MIR_OP_PORT_CONVERSION:
+      case MIR_OP_INIT_FUNCTOR:
       case MIR_OP_PROTECTED_INIT:
+      case MIR_OP_INSTANCE_INIT:
       case MIR_OP_FCALL:
       case MIR_OP_SYSCALL:
          opt->gvn->nodevn[node.id] = gvn_new_value(node, opt->gvn);
@@ -747,7 +749,8 @@ static void mir_do_dce(mir_unit_t *mu, mir_optim_t *opt)
          bool dead = false;
          if (!mir_is_null(n->type) && !mask_test(&live, node.id)) {
             switch (n->op) {
-            case MIR_OP_PACKAGE_INIT: break;
+            case MIR_OP_PACKAGE_INIT:
+            case MIR_OP_INSTANCE_INIT: break;
             default: dead = true; break;
             }
          }

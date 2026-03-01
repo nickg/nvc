@@ -2074,7 +2074,7 @@ START_TEST(test_clone1)
 
    ident_t dotted0 = ident_new("WORK.TOP.G(1).U.sub");
    fail_unless(tree_ident(h0) == dotted0);
-   fail_unless(tree_ident2(h0) == dotted0);
+   ck_assert_ident_eq(tree_ident2(h0), "WORK.SUB#0");
 
    const int ndecls = tree_decls(u0);
    const int nstmts = tree_stmts(u0);
@@ -2091,7 +2091,7 @@ START_TEST(test_clone1)
       tree_t h = tree_decl(u, 0);
       fail_unless(tree_kind(h) == T_HIER);
       fail_unless(tree_ident(h) == id);
-      fail_unless(tree_ident2(h) == dotted0);
+      ck_assert_ident_eq(tree_ident2(h), "WORK.SUB#0");
 
       for (int j = 1; j < ndecls; j++)
          ck_assert_ptr_eq(tree_decl(u0, j), tree_decl(u, j));
@@ -2100,16 +2100,6 @@ START_TEST(test_clone1)
       //for (int j = 0; j < nstmts; j++)
       //   ck_assert_ptr_eq(tree_stmt(u0, j), tree_stmt(u, j));
    }
-
-   unit_registry_t *ur = get_registry();
-   mir_context_t *mc = get_mir();
-
-   ident_t psym1 = ident_new("WORK.TOP.G(1).U.sub.assign#4#9");
-   ident_t psym2 = ident_new("WORK.TOP.G(2).U.sub.assign#4#9");
-   (void)unit_registry_get(ur, psym1);
-   (void)unit_registry_get(ur, psym2);
-   ck_assert_ptr_nonnull(mir_get_unit(mc, psym1));
-   ck_assert_ptr_null(mir_get_unit(mc, psym2));
 
    fail_if_errors();
 }
@@ -2225,8 +2215,8 @@ START_TEST(test_issue1333)
    input_from_file(TESTDIR "/elab/issue1333.v");
 
    const error_t expect[] = {
-      { 11, "specify blocks are not currently supported and will be ignored" },
       { 20, "missing port connection for 'Y'" },
+      { 11, "specify blocks are not currently supported and will be ignored" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -2236,9 +2226,8 @@ START_TEST(test_issue1333)
 
    tree_t b0 = tree_stmt(e, 0);
    ck_assert_int_eq(tree_decls(b0), 2);
-   ck_assert_int_eq(tree_stmts(b0), 2);
+   ck_assert_int_eq(tree_stmts(b0), 1);
    ck_assert(tree_kind(tree_stmt(b0, 0)) == T_BLOCK);
-   ck_assert(tree_kind(tree_stmt(b0, 1)) == T_VERILOG);
 
    check_expected_errors();
 }

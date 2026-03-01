@@ -1297,6 +1297,12 @@ static rt_source_t *add_source(rt_model_t *m, rt_nexus_t *n, source_kind_t kind)
       src->u.pseudo.nexus = n;
       src->u.pseudo.value = alloc_value(m, n);
       break;
+
+   case SOURCE_PAD:
+      src->u.pad.output  = n;
+      src->u.pad.value   = alloc_value(m, n);
+      src->u.pad.functor = NULL;
+      break;
    }
 
    return src;
@@ -1530,6 +1536,18 @@ static void clone_source(rt_model_t *m, rt_nexus_t *nexus,
       }
       break;
 
+   case SOURCE_PAD:
+      {
+         new->u.pad.functor = old->u.pad.functor;
+
+         split_value(nexus, &(new->u.pad.value), &(old->u.pad.value), offset);
+
+         rt_source_t **p = &(old->u.pad.functor->outputs);
+         for (; *p != NULL; p = &((*p)->chain_output));
+         *p = new;
+      }
+      break;
+
    case SOURCE_DRIVER:
       {
          new->u.driver.proc = old->u.driver.proc;
@@ -1636,33 +1654,43 @@ static rt_nexus_t *clone_nexus(rt_model_t *m, rt_nexus_t *old, int offset)
    }
 
    for (rt_source_t *old_o = old->outputs; old_o; old_o = old_o->chain_output) {
-      assert(old_o->tag == SOURCE_PORT || old_o->tag == SOURCE_IMPLICIT);
-
-      if (old_o->tag == SOURCE_PORT && old_o->u.port.conv_func != NULL) {
-         new->outputs = old_o;
-         add_conversion_input(m, old_o->u.port.conv_func, new);
-      }
-      else {
-         rt_nexus_t *out_n;
-         if (old_o->tag == SOURCE_IMPLICIT)
-            out_n = old_o->u.port.output;
-         else if (old_o->u.port.output->width == offset)
-            out_n = old_o->u.port.output->chain;   // Cycle breaking
-         else {
-            RT_LOCK(old_o->u.port.output->signal->lock);
-            out_n = clone_nexus(m, old_o->u.port.output, offset);
+      switch (old_o->tag) {
+      case SOURCE_PORT:
+      case SOURCE_IMPLICIT:
+         if (old_o->tag == SOURCE_PORT && old_o->u.port.conv_func != NULL) {
+            new->outputs = old_o;
+            add_conversion_input(m, old_o->u.port.conv_func, new);
          }
+         else {
+            rt_nexus_t *out_n;
+            if (old_o->tag == SOURCE_IMPLICIT)
+               out_n = old_o->u.port.output;
+            else if (old_o->u.port.output->width == offset)
+               out_n = old_o->u.port.output->chain;   // Cycle breaking
+            else {
+               RT_LOCK(old_o->u.port.output->signal->lock);
+               out_n = clone_nexus(m, old_o->u.port.output, offset);
+            }
 
-         for (rt_source_t *s = &(out_n->sources); s; s = s->chain_input) {
-            if (s->tag != old_o->tag)
-               continue;
-            else if (s->u.port.input == new || s->u.port.input == old) {
-               s->u.port.input = new;
-               s->chain_output = new->outputs;
-               new->outputs = s;
-               break;
+            for (rt_source_t *s = &(out_n->sources); s; s = s->chain_input) {
+               if (s->tag != old_o->tag)
+                  continue;
+               else if (s->u.port.input == new || s->u.port.input == old) {
+                  s->u.port.input = new;
+                  s->chain_output = new->outputs;
+                  new->outputs = s;
+                  break;
+               }
             }
          }
+         break;
+
+      case SOURCE_PAD:
+         new->outputs = old_o;
+         break;
+
+      default:
+         should_not_reach_here();
       }
    }
 
@@ -1825,6 +1853,28 @@ static void convert_effective(rt_conv_func_t *cf)
    tlab_trim(thread->tlab, mark);
 }
 
+static void call_functor(rt_functor_t *f)
+{
+   rt_model_t *m = get_model();
+
+   TRACE("call functor %pi", jit_get_name(m->jit, f->closure->handle));
+
+   model_thread_t *thread = model_thread(m);
+
+   rt_scope_t *old_scope = thread->active_scope;
+   thread->active_scope = f->scope;
+
+   const uint32_t mark = tlab_mark(thread->tlab);
+
+   jit_scalar_t arg = { .pointer = f }, null = {}, result;
+   if (!jit_call_closure(m->jit, f->closure, &result, arg, null, thread->tlab))
+      m->force_stop = true;
+
+   thread->active_scope = old_scope;
+
+   tlab_trim(thread->tlab, mark);
+}
+
 static void *source_value(rt_nexus_t *nexus, rt_source_t *src)
 {
    switch (src->tag) {
@@ -1853,6 +1903,10 @@ static void *source_value(rt_nexus_t *nexus, rt_source_t *src)
 
    case SOURCE_IMPLICIT:
       return NULL;
+
+   case SOURCE_PAD:
+      call_functor(src->u.pad.functor);
+      return value_ptr(nexus, &src->u.pad.value);
    }
 
    return NULL;
@@ -2154,6 +2208,9 @@ static void update_rank(rt_nexus_t *n, int min)
       case SOURCE_PORT:
          update_rank(o->u.port.output, min + 1);
          break;
+      case SOURCE_PAD:
+         update_rank(o->u.pad.output, min + 1);
+         break;
       default:
          should_not_reach_here();
       }
@@ -2331,6 +2388,11 @@ static void create_processes(rt_model_t *m, rt_scope_t *s)
       switch (tree_kind(t)) {
       case T_VERILOG:
          {
+            vlog_node_t v = tree_vlog(t);
+            const vlog_kind_t kind = vlog_kind(v);
+            if (kind == V_ASSIGN && !vlog_has_delay(v))
+               continue;  // Not a process
+
             ident_t name = tree_ident(t);
             ident_t sym = ident_prefix(sym_prefix, name, '.');
 
@@ -2341,14 +2403,14 @@ static void create_processes(rt_model_t *m, rt_scope_t *s)
             p->scope     = s;
             p->privdata  = mptr_new(m->mspace, "process privdata");
 
-            switch (vlog_kind(tree_vlog(p->where))) {
-            case V_ASSIGN:
+            switch (kind) {
             case V_UDP_TABLE:
             case V_GATE_INST:
                p->wakeable.kind = W_ASSIGN;
                break;
             case V_INITIAL:
             case V_ALWAYS:
+            case V_ASSIGN:
                p->wakeable.kind = W_PROC;
                break;
             default:
@@ -3121,6 +3183,24 @@ static void defer_driving_update(rt_model_t *m, rt_nexus_t *n)
    n->flags |= NET_F_PENDING;
 }
 
+static void update_blocking(rt_model_t *m, rt_nexus_t *n)
+{
+   for (rt_source_t *o = n->outputs; o; o = o->chain_output) {
+      switch (o->tag) {
+      case SOURCE_PORT:
+         defer_driving_update(m, o->u.port.output);
+         m->next_is_delta = true;
+         break;
+      case SOURCE_PAD:
+         calculate_driving_value(m, o->u.pad.output);
+         update_blocking(m, o->u.pad.output);
+         break;
+      default:
+         should_not_reach_here();
+      }
+   }
+}
+
 static void update_driving(rt_model_t *m, rt_nexus_t *n, bool safe)
 {
    if (n->n_sources == 1 || safe) {
@@ -3144,7 +3224,10 @@ static void update_driving(rt_model_t *m, rt_nexus_t *n, bool safe)
                   update_driving(m, o->u.port.output, false);
                break;
             case SOURCE_IMPLICIT:
-               update_driving(m, o->u.pseudo.nexus , false);
+               update_driving(m, o->u.pseudo.nexus, false);
+               break;
+            case SOURCE_PAD:
+               update_driving(m, o->u.pad.output, false);
                break;
             default:
                should_not_reach_here();
@@ -3724,15 +3807,12 @@ void deposit_signal(rt_model_t *m, rt_signal_t *s, const void *values,
          n->last_event = m->now;
          n->event_delta = m->iteration;
 
-         assert(!(n->flags & NET_F_CACHE_EVENT));
+         if (n->flags & NET_F_CACHE_EVENT)
+            n->signal->shared.flags |= SIG_F_EVENT_FLAG;
 
          wakeup_all(m, &(n->pending));
 
-         for (rt_source_t *o = n->outputs; o; o = o->chain_output) {
-            assert(o->tag == SOURCE_PORT);
-            defer_driving_update(m, o->u.port.output);
-            m->next_is_delta = true;
-         }
+         update_blocking(m, n);
       }
 
       vptr += valuesz;
@@ -4924,12 +5004,7 @@ void x_put_driver(sig_shared_t *ss, uint32_t offset, int32_t count,
       copy_value_ptr(n, &d->u.driver.waveforms.value, vptr);
 
       calculate_driving_value(m, n);
-
-      for (rt_source_t *o = n->outputs; o; o = o->chain_output) {
-         assert(o->tag == SOURCE_PORT);
-         defer_driving_update(m, o->u.port.output);
-         m->next_is_delta = true;
-      }
+      update_blocking(m, n);
 
       vptr += n->size * n->width;
    }
@@ -4965,6 +5040,33 @@ void x_put_conversion(rt_conv_func_t *cf, sig_shared_t *ss, uint32_t offset,
       }
 
       copy_value_ptr(n, result, values);
+
+      values += n->width * n->size;
+   }
+}
+
+void x_put_functor(rt_functor_t *f, sig_shared_t *ss, uint32_t offset,
+                   int32_t count, void *values)
+{
+   rt_signal_t *s = container_of(ss, rt_signal_t, shared);
+
+   TRACE("put functor %pi+%d value=%s count=%d", tree_ident(s->where),
+         offset, fmt_values(values, count * s->nexus.size), count);
+
+   rt_model_t *m = get_model();
+   rt_nexus_t *n = split_nexus(m, s, offset, count);
+   for (; count > 0; n = n->chain) {
+      count -= n->width;
+      assert(count >= 0);
+
+      rt_source_t *s = &(n->sources);
+      for (; s; s = s->chain_input) {
+         if (s->tag == SOURCE_PAD && s->u.pad.functor == f)
+            break;
+      }
+      assert(s != NULL);
+
+      copy_value_ptr(n, &(s->u.pad.value), values);
 
       values += n->width * n->size;
    }
@@ -5192,6 +5294,78 @@ void x_convert_out(void *ptr, sig_shared_t *ss, uint32_t offset, int32_t count)
 
       src->chain_output = cf->outputs;
       cf->outputs = src;
+   }
+}
+
+void *x_init_functor(const ffi_closure_t *closure)
+{
+   rt_model_t *m = get_model();
+
+   TRACE("init functor %pi", jit_get_name(m->jit, closure->handle));
+
+   const size_t alignsz = ALIGN_UP(sizeof(rt_functor_t), sizeof(void *));
+   void *mem = static_alloc(m, alignsz + ffi_closure_size(closure));
+
+   rt_functor_t *f = mem;
+   f->scope   = get_active_scope(m);
+   f->outputs = NULL;
+
+   f->closure = mem + alignsz;
+   ffi_copy_closure(f->closure, closure);
+
+   return f;
+}
+
+void x_functor_in(void *ptr, sig_shared_t *ss, uint32_t offset, int32_t count)
+{
+   rt_signal_t *s = container_of(ss, rt_signal_t, shared);
+
+   TRACE("functor in %p %s+%d count=%d", ptr, istr(tree_ident(s->where)),
+         offset, count);
+
+   rt_functor_t *f = ptr;
+   rt_model_t *m = get_model();
+
+   rt_nexus_t *n = split_nexus(m, s, offset, count);
+   for (; count > 0; n = n->chain) {
+      count -= n->width;
+      assert(count >= 0);
+
+      rt_source_t **p = &(n->outputs);
+      for (; *p != NULL && *p != f->outputs; p = &((*p)->chain_output));
+      *p = f->outputs;
+
+      f->rank = MAX(n->rank, f->rank);
+   }
+
+   for (rt_source_t *o = f->outputs; o; o = o->chain_output) {
+      assert(o->tag == SOURCE_PAD);
+      update_rank(o->u.pad.output, f->rank + 1);
+   }
+}
+
+void x_functor_out(void *ptr, sig_shared_t *ss, uint32_t offset, int32_t count)
+{
+   rt_signal_t *s = container_of(ss, rt_signal_t, shared);
+
+   TRACE("functor out %p %s+%d count=%d", ptr, istr(tree_ident(s->where)),
+         offset, count);
+
+   rt_functor_t *f = ptr;
+   rt_model_t *m = get_model();
+
+   rt_nexus_t *n = split_nexus(m, s, offset, count);
+   for (; count > 0; n = n->chain) {
+      count -= n->width;
+      assert(count >= 0);
+
+      rt_source_t *src = add_source(m, n, SOURCE_PAD);
+      src->u.pad.functor = f;
+
+      src->chain_output = f->outputs;
+      f->outputs = src;
+
+      update_rank(n, f->rank + 1);
    }
 }
 

@@ -118,6 +118,7 @@ typedef enum {
    SOURCE_FORCING,
    SOURCE_DEPOSIT,
    SOURCE_IMPLICIT,
+   SOURCE_PAD,
 } source_kind_t;
 
 typedef struct {
@@ -143,6 +144,13 @@ typedef struct _rt_conv_func {
    conv_input_t   tail[];
 } rt_conv_func_t;
 
+typedef struct _rt_functor {
+   ffi_closure_t *closure;
+   rt_scope_t    *scope;
+   rt_source_t   *outputs;
+   uint8_t        rank;
+} rt_functor_t;
+
 typedef struct {
    rt_nexus_t     *output;
    rt_nexus_t     *input;
@@ -154,6 +162,12 @@ typedef struct {
    rt_nexus_t *nexus;
    rt_value_t  value;
 } rt_pseudo_t;
+
+typedef struct {
+   rt_nexus_t   *output;
+   rt_functor_t *functor;
+   rt_value_t    value;
+} rt_pad_t;
 
 typedef struct _rt_source {
    rt_source_t    *chain_input;
@@ -168,6 +182,7 @@ typedef struct _rt_source {
       rt_port_t   port;
       rt_driver_t driver;
       rt_pseudo_t pseudo;
+      rt_pad_t    pad;
    } u;
 } rt_source_t;
 

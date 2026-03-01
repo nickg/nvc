@@ -29,6 +29,8 @@ void vlog_trans(vlog_node_t mod, tree_t out);
 void vlog_lower_deferred(mir_unit_t *mu, object_t *obj);
 void vlog_lower_udp(mir_unit_t *mu, object_t *obj);
 void vlog_lower_block(mir_context_t *mc, ident_t parent, tree_t b);
+void vlog_lower_instance(mir_context_t *mc, vlog_node_t body, ident_t parent,
+                         tree_t trans);
 mir_unit_t *vlog_lower_thunk(mir_context_t *mc, ident_t parent, vlog_node_t v);
 vlog_node_t vlog_new_instance(vlog_node_t mod, vlog_node_t inst, ident_t id);
 vlog_node_t vlog_generate_instance(vlog_node_t v, vlog_node_t genvar,

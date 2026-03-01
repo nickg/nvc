@@ -172,6 +172,7 @@ typedef struct {
    mir_type_t char_type;
    mir_type_t locus_type;
    mir_type_t conversion_type;
+   mir_type_t functor_type;
    mir_type_t trigger_type;
    mir_type_t self_type;
    mir_type_t string_type;

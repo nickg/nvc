@@ -162,6 +162,7 @@ typedef enum {
    V_IMPORT_DECL,
    V_NAMESPACE,
    V_DEFPARAM,
+   V_PORT_MAP,
 
    V_LAST_NODE_KIND
 } vlog_kind_t;

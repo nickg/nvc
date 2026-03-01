@@ -38,7 +38,6 @@ begin
 
         addr <= "00000";
         wait for 0 ns;
-        wait for 0 ns;                  -- TODO: Questa only needs one delta here
         assert dout = X"dead" report to_hstring(dout);
         addr <= "00001";
         wait for 0 ns;

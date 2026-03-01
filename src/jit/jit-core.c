@@ -465,10 +465,14 @@ static void jit_emit_trace(diag_t *d, const loc_t *loc, object_t *enclosing,
    if (v != NULL) {
       switch (vlog_kind(v)) {
       case V_INITIAL:
-         diag_trace(d, loc, "Initial procedure %s", istr(vlog_ident(v)));
+         diag_trace(d, loc, "Initial procedure %pi", vlog_ident(v));
          break;
       case V_ALWAYS:
-         diag_trace(d, loc, "Always procedure %s", istr(vlog_ident(v)));
+         diag_trace(d, loc, "Always procedure %pi", vlog_ident(v));
+         break;
+      case V_PORT_MAP:
+         diag_trace(d, loc, "Port connection for '%pi'",
+                    vlog_ident(vlog_ref(v)));
          break;
       default:
          diag_trace(d, loc, "%s", istr(vlog_ident(v)));

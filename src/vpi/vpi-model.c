@@ -803,8 +803,12 @@ static void *vpi_get_ptr(c_abstractDecl *decl)
 
    if (decl->scope->handle == JIT_HANDLE_INVALID) {
       c_module *mod = is_module(&(decl->scope->object));
-      if (mod != NULL)
-         decl->scope->handle = jit_lazy_compile(jit, mod->rtscope->name);
+      if (mod != NULL) {
+         tree_t hier = tree_decl(mod->rtscope->where, 0);
+         assert(tree_kind(hier) == T_HIER);
+
+         decl->scope->handle = jit_lazy_compile(jit, tree_ident2(hier));
+      }
    }
 
    ident_t name = vlog_ident(decl->where);

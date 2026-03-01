@@ -1267,3 +1267,4 @@ issue1428       vhpi,2008
 vhpi19          vhpi
 issue1433       shell
 reflect6        normal,2019
+vlog32          verilog

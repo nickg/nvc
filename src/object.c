@@ -1304,8 +1304,10 @@ void object_locus(object_t *object, ident_t *module, ptrdiff_t *offset)
    *module = object_arena_name(arena);
 
    const ptrdiff_t index = ((void *)object - arena->base) >> OBJECT_ALIGN_BITS;
-   if (arena->forward != NULL)
+   if (arena->forward != NULL) {
+      assert(arena->forward[index] != UINT32_MAX);   // Was GC'd
       *offset = arena->forward[index] >> OBJECT_ALIGN_BITS;
+   }
    else
       *offset = index;
 }

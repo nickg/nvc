@@ -662,6 +662,22 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
       }
       break;
 
+   case JIT_EXIT_PUT_FUNCTOR:
+      {
+         rt_functor_t *f      = args[0].pointer;
+         sig_shared_t *shared = args[1].pointer;
+         int32_t       offset = args[2].integer;
+         int32_t       count  = args[3].integer;
+         jit_scalar_t  value  = { .integer = args[4].integer };
+         bool          scalar = args[5].integer;
+
+         if (scalar)
+            x_put_functor(f, shared, offset, count, &value.integer);
+         else
+            x_put_functor(f, shared, offset, count, value.pointer);
+      }
+      break;
+
    case JIT_EXIT_PUSH_SCOPE:
       {
          tree_t          where = args[0].pointer;
@@ -960,6 +976,36 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
 
          if (conv != NULL)
             x_convert_out(conv, shared, offset, count);
+      }
+      break;
+
+   case JIT_EXIT_INIT_FUNCTOR:
+      {
+         ffi_closure_t *closure = args[0].pointer;
+
+         args[0].pointer = x_init_functor(closure);
+      }
+      break;
+
+   case JIT_EXIT_FUNCTOR_IN:
+      {
+         void         *functor = args[0].pointer;
+         sig_shared_t *shared  = args[1].pointer;
+         int32_t       offset  = args[2].integer;
+         int32_t       count   = args[3].integer;
+
+         x_functor_in(functor, shared, offset, count);
+      }
+      break;
+
+   case JIT_EXIT_FUNCTOR_OUT:
+      {
+         void         *functor = args[0].pointer;
+         sig_shared_t *shared  = args[1].pointer;
+         int32_t       offset  = args[2].integer;
+         int32_t       count   = args[3].integer;
+
+         x_functor_out(functor, shared, offset, count);
       }
       break;
 

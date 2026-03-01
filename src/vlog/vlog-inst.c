@@ -114,7 +114,6 @@ static void rename_tf_decls(vlog_node_t v, ident_t prefix)
       case V_FUNC_DECL:
       case V_TASK_DECL:
       case V_CLASS_DECL:
-         assert(!vlog_has_ident2(d));
          vlog_set_ident2(d, prefix);
          break;
       default:
@@ -127,17 +126,36 @@ vlog_node_t vlog_new_instance(vlog_node_t mod, vlog_node_t inst, ident_t id)
 {
    vlog_node_t v = vlog_new(V_INST_BODY);
    vlog_set_ident(v, id);
-   vlog_set_ident2(v, vlog_ident2(mod));
-   vlog_set_loc(v, vlog_loc(inst));
+   vlog_set_loc(v, vlog_loc(inst ?: mod));
+
+   switch (vlog_kind(mod)) {
+   case V_MODULE:
+   case V_PRIMITIVE:
+   case V_PROGRAM:
+      vlog_set_ident2(v, vlog_ident2(mod));
+      break;
+   case V_BLOCK:
+      vlog_set_ident2(v, vlog_ident(mod));
+      break;
+   default:
+      should_not_reach_here();
+   }
 
    vlog_node_t copy = vlog_copy(mod, copy_instance_pred, NULL);
 
    hash_t *map = hash_new(16);
 
-   if (vlog_kind(mod) != V_PROGRAM) {
-      const int nports = vlog_ports(copy);
-      for (int i = 0; i < nports; i++)
-         vlog_add_port(v, vlog_port(copy, i));
+   switch (vlog_kind(mod)) {
+   case V_MODULE:
+   case V_PRIMITIVE:
+      {
+         const int nports = vlog_ports(copy);
+         for (int i = 0; i < nports; i++)
+            vlog_add_port(v, vlog_port(copy, i));
+      }
+      break;
+   default:
+      break;
    }
 
    int pidx = 0;

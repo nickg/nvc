@@ -13,7 +13,7 @@ architecture test of mixed6 is
 begin
     u: component sub port map (x);
 
-    process is
+    check: process is
     begin
         wait for 1 fs;                  -- Iteration 0
         assert x = X"00";
@@ -45,7 +45,7 @@ begin
         wait;
     end process;
 
-    postponed process is
+    check_postponed: postponed process is
     begin
         wait for 1 fs;
         report "postponed";
@@ -53,7 +53,7 @@ begin
         wait;
     end process;
 
-    process (x) is
+    monitor: process (x) is
     begin
         report "x changed ==> " & to_string(x);
     end process;

@@ -56,13 +56,11 @@ begin
       wait for 1 ps;
       CLK <= '1';
       wait for 0 ps;
-      wait for 0 ps;                    -- TODO: Questa doesn't need this
       assert gclk_p = '1' severity failure;
       assert gclk_n = '1' severity failure;
       wait for 1 ps;
       CLK <= '0';
       wait for 0 ps;
-      wait for 0 ps;                    -- TODO: Questa doesn't need this
       assert gclk_p = '0' severity failure;
       assert gclk_n = '0' severity failure;
     wait;

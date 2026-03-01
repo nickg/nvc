@@ -98,6 +98,7 @@ const char *jit_exit_name(jit_exit_t exit)
       "MAP_IMPLICIT", "BIND_EXTERNAL", "SYSCALL", "PUT_CONVERSION",
       "DIR_FAIL", "LEVEL_TRIGGER", "ENABLE_TRIGGER", "DISABLE_TRIGGER",
       "SCHED_DEPOSIT", "PUT_DRIVER", "SCHED_INACTIVE", "GET_COUNTERS",
+      "INIT_FUNCTOR", "FUNCTOR_IN", "FUNCTOR_OUT", "PUT_FUNCTOR",
    };
    assert(exit < ARRAY_LEN(names));
    return names[exit];
