@@ -1974,6 +1974,18 @@ START_TEST(test_issue1353)
 }
 END_TEST
 
+START_TEST(test_issue1438)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/simp/issue1438.vhd");
+
+   parse_check_and_simplify(T_PACKAGE, T_ENTITY, T_ARCH);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_simp_tests(void)
 {
    Suite *s = suite_create("simplify");
@@ -2051,6 +2063,7 @@ Suite *get_simp_tests(void)
    tcase_add_test(tc_core, test_issue1318);
    tcase_add_test(tc_core, test_issue1347);
    tcase_add_test(tc_core, test_issue1353);
+   tcase_add_test(tc_core, test_issue1438);
    suite_add_tcase(s, tc_core);
 
    return s;

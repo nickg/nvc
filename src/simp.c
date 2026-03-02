@@ -1527,21 +1527,27 @@ static tree_t simp_range(tree_t t)
       dim = ival - 1;
    }
 
+   tree_t base_r = range_of(type, dim);
+
+   const range_kind_t base_kind = tree_subkind(base_r);
+   assert(base_kind == RANGE_TO || base_kind == RANGE_DOWNTO);
+
+   tree_t r = tree_new(T_RANGE);
+   tree_set_loc(r, tree_loc(t));
+   tree_set_type(r, tree_type(t));
+
    if (attr == ATTR_REVERSE_RANGE) {
-      tree_t base_r = range_of(type, dim);
-      const range_kind_t base_kind = tree_subkind(base_r);
-
-      tree_t rev = tree_new(T_RANGE);
-      tree_set_subkind(rev, base_kind ^ 1);
-      tree_set_loc(rev, tree_loc(t));
-      tree_set_type(rev, tree_type(t));
-      tree_set_left(rev, tree_right(base_r));
-      tree_set_right(rev, tree_left(base_r));
-
-      return rev;
+      tree_set_subkind(r, base_kind ^ 1);
+      tree_set_left(r, tree_right(base_r));
+      tree_set_right(r, tree_left(base_r));
    }
-   else
-      return range_of(type, dim);
+   else {
+      tree_set_subkind(r, base_kind);
+      tree_set_left(r, tree_left(base_r));
+      tree_set_right(r, tree_right(base_r));
+   }
+
+   return r;
 }
 
 static tree_t simp_sequence(tree_t t)

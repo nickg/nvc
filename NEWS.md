@@ -1,6 +1,6 @@
 ## Unreleased changes
 - VHPI value change callbacks for indexed names now work correctly (#1428).
-- Several other minor bugs were resolved (#1431).
+- Several other minor bugs were resolved (#1431, #1438).
 
 ## Version 1.19.2 - 2026-02-22
 - Fixed a crash when dumping a waveform `--dump-arrays` and the design
