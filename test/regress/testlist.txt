@@ -1264,3 +1264,4 @@ vlog31          verilog
 vhpi18          vhpi,2008
 issue1424       normal,gold,2019
 issue1428       vhpi,2008
+vhpi19          vhpi

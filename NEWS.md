@@ -4,6 +4,7 @@
 - Added a `vhpiRandomSeedP` property for `vhpiToolK` which returns the
   random seed for the simulation.
 - VHPI value change callbacks for indexed names now work correctly (#1428).
+- Added support for iterating physical unit declarations in VHPI (#1437).
 - Several other minor bugs were resolved (#1431, #1438).
 
 ## Version 1.19.2 - 2026-02-22

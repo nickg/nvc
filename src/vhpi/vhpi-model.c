@@ -205,6 +205,7 @@ DEF_CLASS(enumTypeDecl, vhpiEnumTypeDeclK, scalar.typeDecl.decl.object);
 typedef struct {
    c_scalarTypeDecl scalar;
    c_range         *constraint;
+   vhpiLazyListT    UnitDecls;
 } c_physTypeDecl;
 
 DEF_CLASS(physTypeDecl, vhpiPhysTypeDeclK, scalar.typeDecl.decl.object);
@@ -357,6 +358,14 @@ typedef struct {
 } c_enumLiteral;
 
 DEF_CLASS(enumLiteral, vhpiEnumLiteralK, decl.object);
+
+typedef struct {
+   c_abstractDecl  decl;
+   c_physTypeDecl *Type;
+   vhpiPhysT       PhysPosition;
+} c_unitDecl;
+
+DEF_CLASS(unitDecl, vhpiUnitDeclK, decl.object);
 
 typedef struct tag_expr {
    c_vhpiObject     object;
@@ -573,6 +582,7 @@ static void vhpi_lazy_decls(c_vhpiObject *obj);
 static void vhpi_lazy_selected_names(c_vhpiObject *obj);
 static void vhpi_lazy_indexed_names(c_vhpiObject *obj);
 static void vhpi_lazy_enum_literals(c_vhpiObject *obj);
+static void vhpi_lazy_unit_decls(c_vhpiObject *obj);
 static void vhpi_lazy_fields(c_vhpiObject *obj);
 static const char *handle_pp(vhpiHandleT handle);
 static c_refcounted *is_refcounted(c_vhpiObject *obj);
@@ -1220,6 +1230,16 @@ static void init_enumLiteral(c_enumLiteral *el, tree_t t, c_enumTypeDecl *Type)
    el->Position = tree_pos(t);
 }
 
+static void init_unitDecl(c_unitDecl *ud, tree_t t, c_physTypeDecl *Type)
+{
+   init_abstractDecl(&(ud->decl), t, NULL);
+   ud->Type = Type;
+
+   const int64_t value = assume_int(tree_value(t));
+   ud->PhysPosition.high = value >> 32;
+   ud->PhysPosition.low = value & 0xffffffff;
+}
+
 static void init_range(c_range *r, vhpiBooleanT IsUp, vhpiBooleanT IsNull,
                        vhpiBooleanT IsDiscrete)
 {
@@ -1487,11 +1507,16 @@ static bool init_iterator(c_iterator *it, vhpiOneToManyT type,
 
    c_physTypeDecl *ptd = is_physTypeDecl(obj);
    if (ptd != NULL) {
-      if (type == vhpiConstraints) {
+      switch (type) {
+      case vhpiConstraints:
          it->single = &(ptd->constraint->object);
          return true;
+      case vhpiUnitDecls:
+         it->list = expand_lazy_list(obj, &(ptd->UnitDecls));
+         return true;
+      default:
+         return false;
       }
-      return false;
    }
 
    c_intTypeDecl *itd = is_intTypeDecl(obj);
@@ -2099,7 +2124,7 @@ int vhpi_compare_handles(vhpiHandleT handle1, vhpiHandleT handle2)
    VHPI_TRACE("vhpi_compare_handles handle1=%p handle2=%p", handle1, handle2);
 
    if (handle1 == handle2)
-      return true;
+      return 1;
 
    vhpi_context_t *c = vhpi_context();
    handle_slot_t *slot1 = decode_handle(c, handle1);
@@ -2454,6 +2479,10 @@ vhpiHandleT vhpi_handle(vhpiOneToOneT type, vhpiHandleT referenceHandle)
          c_elemDecl *ed = is_elemDecl(obj);
          if (ed != NULL)
             return user_handle_for(&(ed->Type->decl.object));
+
+         c_unitDecl *ud = is_unitDecl(obj);
+         if (ud != NULL)
+            return user_handle_for(&(ud->Type->scalar.typeDecl.decl.object));
 
          c_expr *e = is_expr(obj);
          if (e != NULL)
@@ -3193,6 +3222,15 @@ vhpiPhysT vhpi_get_phys(vhpiPhysPropertyT property,
             return pr->PhysLeftBound;
          else
             return pr->PhysRightBound;
+      }
+
+   case vhpiPhysPositionP:
+      {
+         c_unitDecl *ud = cast_unitDecl(obj);
+         if (ud == NULL)
+            return invalid;
+
+         return ud->PhysPosition;
       }
 
    default:
@@ -4354,6 +4392,8 @@ static c_typeDecl *build_typeDecl(tree_t decl, c_abstractRegion *region)
          vhpi_list_add(&region->decls.list, tobj);
          hash_put(vhpi_context()->objcache, type, td);
 
+         td->UnitDecls.fn = vhpi_lazy_unit_decls;
+
          td->constraint = &(build_phys_range(range_of(type, 0))->range);
          return &(td->scalar.typeDecl);
       }
@@ -4927,6 +4967,22 @@ static void vhpi_lazy_enum_literals(c_vhpiObject *obj)
       c_enumLiteral *el = new_object(sizeof(c_enumLiteral), vhpiEnumLiteralK);
       init_enumLiteral(el, lit, td);
       vhpi_list_add(&td->EnumLiterals.list, &(el->decl.object));
+   }
+}
+
+static void vhpi_lazy_unit_decls(c_vhpiObject *obj)
+{
+   c_physTypeDecl *td = is_physTypeDecl(obj);
+   assert(td != NULL);
+
+   const int units = type_units(td->scalar.typeDecl.type);
+   vhpi_list_reserve(&td->UnitDecls.list, units);
+
+   for (int i = 0; i < units; i++) {
+      tree_t u = type_unit(td->scalar.typeDecl.type, i);
+      c_unitDecl *ud = new_object(sizeof(c_unitDecl), vhpiUnitDeclK);
+      init_unitDecl(ud, u, td);
+      vhpi_list_add(&td->UnitDecls.list, &(ud->decl.object));
    }
 }
 
