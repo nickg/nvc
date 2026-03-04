@@ -406,7 +406,9 @@ __attribute__((format(printf, 2, 3)))
 static void do_printf(const char *expect, const char *fmt, ...)
 {
    LOCAL_TEXT_BUF tb = tb_new();
-   ostream_t os = { tb_ostream_write, tb, CHARSET_ISO88591, true };
+   ostream_t os = {
+      tb_ostream_write, tb, CHARSET_ISO88591, OS_COLOR | OS_TERMINAL
+   };
 
    va_list ap;
    va_start(ap, fmt);

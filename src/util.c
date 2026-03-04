@@ -1228,7 +1228,7 @@ void _tb_cleanup(text_buf_t **tb)
 
 void tb_vprintf(text_buf_t *tb, const char *fmt, va_list ap)
 {
-   ostream_t os = { tb_ostream_write, tb, CHARSET_ISO88591, false };
+   ostream_t os = { tb_ostream_write, tb, CHARSET_ISO88591 };
    nvc_vfprintf(&os, fmt, ap);
 }
 
