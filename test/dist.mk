@@ -317,6 +317,7 @@ EXTRA_DIST += \
 	test/lower/issue136.vhd \
 	test/lower/issue1422.vhd \
 	test/lower/issue149.vhd \
+	test/lower/issue1425.vhd \
 	test/lower/issue158.vhd \
 	test/lower/issue164.vhd \
 	test/lower/issue167.vhd \
