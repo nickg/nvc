@@ -6183,6 +6183,23 @@ static void lower_signal_assign_target(lower_unit_t *lu, target_part_t **ptr,
    }
 }
 
+static void lower_disconnect_field_cb(lower_unit_t *lu, tree_t field,
+                                      vcode_reg_t ptr, vcode_reg_t unused,
+                                      vcode_reg_t locus, void *ctx)
+{
+   type_t type = tree_type(field);
+   vcode_reg_t *args = ctx;
+   if (type_is_homogeneous(type)) {
+      vcode_reg_t nets_reg = emit_load_indirect(ptr);
+      vcode_reg_t count_reg = lower_type_width(lu, type, nets_reg);
+      emit_disconnect(lower_array_data(nets_reg), count_reg, args[0], args[1]);
+   }
+   else {
+      lower_for_each_field(lu, type, ptr, VCODE_INVALID_REG,
+                           lower_disconnect_field_cb, ctx);
+   }
+}
+
 static void lower_disconnect_target(lower_unit_t *lu, target_part_t **ptr,
                                     vcode_reg_t reject, vcode_reg_t after)
 {
@@ -6198,11 +6215,10 @@ static void lower_disconnect_target(lower_unit_t *lu, target_part_t **ptr,
 
       type_t type = tree_type(p->target);
 
-      if (type_is_record(type)) {
-         // XXX: this seems wrong
-         const int width = type_width(type);
-         emit_disconnect(nets_reg, emit_const(vtype_offset(), width),
-                         reject, after);
+      if (!type_is_homogeneous(type)) {
+         vcode_reg_t args[2] = { reject, after };
+         lower_for_each_field(lu, type, p->reg, VCODE_INVALID_REG,
+                              lower_disconnect_field_cb, args);
       }
       else {
          vcode_reg_t count_reg = lower_type_width(lu, type, p->reg);
