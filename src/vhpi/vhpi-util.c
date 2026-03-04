@@ -291,7 +291,12 @@ vhpiFormatT vhpi_format_for_type(type_t type, const char **map_str)
       return vhpiRealVal;
 
    case T_PHYSICAL:
-      return vhpiPhysVal;
+      // Time is stored as a physical type internally,
+      // but vhpiTimeVal should be returned
+      if (is_well_known(type_ident(base)) == W_STD_TIME)
+         return vhpiTimeVal;
+      else
+         return vhpiPhysVal;
 
    case T_ARRAY:
       {
@@ -325,7 +330,12 @@ vhpiFormatT vhpi_format_for_type(type_t type, const char **map_str)
             return vhpiIntVecVal;
 
          case T_PHYSICAL:
-            return vhpiPhysVecVal;
+            // Time is stored as a physical type internally,
+            // but vhpiTimeVecVal should be returned
+            if (is_well_known(type_ident(elem)) == W_STD_TIME)
+               return vhpiTimeVecVal;
+            else
+               return vhpiPhysVecVal;
 
          default:
             break;
