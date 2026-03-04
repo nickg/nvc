@@ -2578,7 +2578,7 @@ void print_syntax(const char *fmt, ...)
    va_start(ap, fmt);
 
    if (syntax_buf != NULL) {
-      ostream_t os = { tb_ostream_write, syntax_buf, CHARSET_ISO88591, false };
+      ostream_t os = { tb_ostream_write, syntax_buf, CHARSET_ISO88591 };
       nvc_vfprintf(&os, tb_get(tb), ap);
    }
    else

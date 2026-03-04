@@ -29,11 +29,16 @@ typedef enum {
    CHARSET_UTF8,
 } charset_t;
 
+typedef enum {
+   OS_TERMINAL = (1 << 0),
+   OS_COLOR    = (1 << 1),
+} os_flags_t;
+
 typedef struct {
    write_fn_t  callback;
    void       *context;
    charset_t   charset;
-   bool        terminal;
+   os_flags_t  flags;
 } ostream_t;
 
 int nvc_vfprintf(ostream_t *os, const char *fmt, va_list ap);

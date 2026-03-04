@@ -102,7 +102,6 @@ void diag_trace(diag_t *d, const loc_t *loc, const char *fmt, ...)
 void diag_lrm(diag_t *d, vhdl_standard_t std, const char *section);
 void diag_show_source(diag_t *d, bool show);
 void diag_emit(diag_t *d);
-void diag_femit(diag_t *d, FILE *f);
 void diag_suppress(diag_t *d, bool suppress);
 void diag_clear(diag_t *d);
 diag_level_t diag_level(diag_t *d, const diag_level_t *new);
