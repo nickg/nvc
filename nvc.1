@@ -742,11 +742,7 @@ When using
 .Ql +siginit+rand
 the random initialization value is reproducible by
 .Ql --seed
-global option. To override randomization seed for initialization, use
-.Ql +siginit+seed+<N>
-where
-.Ql N
-is at most 32-bit numeric value. The randomization of initial value
+global option. The randomization of initial value
 depends on seed, signal name, and its hierarchical path. Changes
 of one signal therefore do not affect initialization value of other signals.
 
@@ -773,7 +769,7 @@ hierarchy, name, assigned value and a final statistics section
 .Pp
 Examples:
 .Bd -literal -offset indent
-$ nvc -r tb +siginit+rand +siginit+seed+12345 +siginit+block+my_dut +siginit+report+siginit.txt
+$ nvc -r tb +siginit+rand +siginit+block+my_dut +siginit+report+siginit.txt
 $ nvc -r tb +siginit+zero
 .Ed
 

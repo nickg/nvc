@@ -5,6 +5,7 @@
 #include <stdbool.h>
 #include <ctype.h>
 
+#include "vhpi_ext_nvc.h"
 #include "vhpi_user.h"
 
 #define STD_ULOGIC_TYPE "@IEEE:STD_LOGIC_1164:STD_ULOGIC"
@@ -230,7 +231,7 @@ static void init_signal(ctx_t *ctx, vhpiHandleT sig_h)
         //       random configuration!
         //       The report file is also huge in such case!!
         while ((elem_h = vhpi_scan(elem_it)) != NULL) {
-            // TODO: If we comment the following line, then gettting the NameP
+            // TODO: If we comment the following line, then getting the NameP
             //       in the recursion will give us weird names with (NULL) in
             //       it, despite being called on the same handle in "print_init_signal"!
             (void) vhpi_get_str(vhpiNameP, elem_h);
@@ -247,7 +248,7 @@ static void init_signal(ctx_t *ctx, vhpiHandleT sig_h)
         vhpiHandleT elem_h;
 
         while ((elem_h = vhpi_scan(elem_it)) != NULL) {
-            // TODO: If we comment the following line, then gettting the NameP
+            // TODO: If we comment the following line, then getting the NameP
             //       in the recursion will give us weird names with (NULL) in
             //       it, despite being called on the same handle in "print_init_signal"!
             (void) vhpi_get_str(vhpiNameP, elem_h);
@@ -544,8 +545,6 @@ static void register_callback(void)
             ctx.cfg = CFG_ZERO;
         else if (!strcmp(s, "+siginit+one"))
             ctx.cfg = CFG_ONE;
-        else if (!strncmp(s, "+siginit+seed+", 14))
-            ctx.seed = atoi(s + 14);
         else if (!strncmp(s, "+siginit+block+", 15)) {
             ctx.block = calloc(1, strlen(s) - 14);
             strcpy(ctx.block, s + 15);
@@ -564,6 +563,8 @@ static void register_callback(void)
 
         vhpi_release_handle(arg);
     }
+
+    ctx.seed = vhpi_get(vhpiRandomSeedP, tool_h);
 
     vhpi_release_handle(tool_h);
 

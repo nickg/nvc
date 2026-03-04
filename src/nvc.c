@@ -852,14 +852,10 @@ static bool load_builtin_plugin(cmd_state_t *cmd_state, int nplusargs, char **pl
 {
    char **siginit_args = NULL;
    int n_siginit_args = 0;
-   bool seed_passed = false;
 
    for (int i = 0; i < nplusargs; i++) {
       if (strncmp(plusargs[i], "+siginit+", 9))
          continue;
-
-      if (!strncmp(plusargs[i], "+siginit+seed+", 14))
-         seed_passed = true;
 
       n_siginit_args++;
       siginit_args = xrealloc_array(siginit_args, n_siginit_args, sizeof(char*));
@@ -868,11 +864,6 @@ static bool load_builtin_plugin(cmd_state_t *cmd_state, int nplusargs, char **pl
    }
 
    if (n_siginit_args > 0) {
-      if (!seed_passed) {
-         n_siginit_args++;
-         siginit_args = xrealloc_array(siginit_args, n_siginit_args, sizeof(char*));
-         siginit_args[n_siginit_args - 1] = xasprintf("+siginit+seed+%d", opt_get_int(OPT_RANDOM_SEED));
-      }
 
       LOCAL_TEXT_BUF tb = tb_new();
       get_lib_dir(tb);
