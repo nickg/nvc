@@ -114,7 +114,9 @@ static int tcl_error(tcl_shell_t *sh, const char *fmt, ...)
    va_start(ap, fmt);
 
    LOCAL_TEXT_BUF tb = tb_new();
-   ostream_t os = { tb_ostream_write, tb, CHARSET_UTF8, color_terminal() };
+   ostream_t os = { tb_ostream_write, tb, CHARSET_UTF8 };
+   if (color_terminal())
+      os.flags |= OS_COLOR;
    nvc_vfprintf(&os, fmt, ap);
 
    va_end(ap);
@@ -151,7 +153,6 @@ static void shell_printf(tcl_shell_t *sh, const char *fmt, ...)
          sh->handler.stdout_write,
          sh->handler.context,
          CHARSET_ISO88591,
-         false
       };
       nvc_vfprintf(&os, fmt, ap);
    }

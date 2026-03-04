@@ -250,7 +250,6 @@ static int ansi_escape(ostream_t *os, printf_state_t *state, const char **fmt)
          tb_ostream_write,
          tb,
          os->charset,
-         false,
       };
 
       printf_interpret(&aos, state, start + 1, end);
@@ -277,7 +276,7 @@ static int ansi_escape(ostream_t *os, printf_state_t *state, const char **fmt)
          else
             checked_sprintf(buf, sizeof(buf), "\033[38;5;%dm", code);
 
-         if (os->terminal)
+         if (os->flags & OS_COLOR)
             ostream_puts(os, buf);
 
          return 0;
@@ -288,7 +287,7 @@ static int ansi_escape(ostream_t *os, printf_state_t *state, const char **fmt)
       const char *bel = strchr(e, '\07');
 
 #ifndef __MINGW32__    // Winpty doesn't recognise these
-      if (os->terminal) {
+      if (os->flags & OS_TERMINAL) {
          ostream_puts(os, "\033]8;;");
          ostream_write(os, e + 5, len - 5);
          ostream_puts(os, "\033]8;;\07");
@@ -308,7 +307,7 @@ static int ansi_escape(ostream_t *os, printf_state_t *state, const char **fmt)
          else
             checked_sprintf(buf, sizeof(buf), "\033[%dm", code);
 
-         if (os->terminal)
+         if (os->flags & OS_COLOR)
             ostream_puts(os, buf);
 
          return 0;
@@ -529,15 +528,17 @@ static void init_terminal_ostream(ostream_t *os, FILE *f)
 {
    os->callback = stdio_ostream_write;
    os->context = f;
+   os->flags = 0;
 
    if (isatty(fileno(f))) {
       os->charset = utf8_terminal() ? CHARSET_UTF8 : CHARSET_ISO88591;
-      os->terminal = color_terminal();
+      os->flags |= OS_TERMINAL;
    }
-   else {
+   else
       os->charset = CHARSET_ISO88591;
-      os->terminal = false;
-   }
+
+   if (color_terminal())
+      os->flags |= OS_COLOR;
 }
 
 ostream_t *nvc_stdout(void)
@@ -557,7 +558,7 @@ ostream_t *nvc_stderr(void)
 char *color_asprintf(const char *fmt, ...)
 {
    LOCAL_TEXT_BUF tb = tb_new();
-   ostream_t os = { tb_ostream_write, tb, CHARSET_ISO88591, color_terminal() };
+   ostream_t os = { tb_ostream_write, tb, CHARSET_ISO88591, OS_COLOR };
 
    va_list ap;
    va_start(ap, fmt);

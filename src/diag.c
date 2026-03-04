@@ -88,7 +88,7 @@ struct _diag {
    diag_level_t  level;
    hint_list_t   hints;
    hint_list_t   trace;
-   bool          color;
+   ostream_t    *ostream;
    bool          source;
    bool          suppress;
    bool          prefix;
@@ -491,15 +491,24 @@ static const struct {
    { "Resolution functions", { [STD_93] = "2.4", [STD_08] = "4.6" } },
 };
 
+static void diag_set_ostream(diag_t *d)
+{
+   if (d->level >= opt_get_int(OPT_STDERR_LEVEL))
+      d->ostream = nvc_stderr();
+   else
+      d->ostream = nvc_stdout();
+}
+
 diag_t *diag_new(diag_level_t level, const loc_t *loc)
 {
    diag_t *d = xcalloc(sizeof(diag_t));
    d->msg      = tb_new();
    d->level    = level;
-   d->color    = color_terminal() && consumer_fn == NULL;
    d->source   = loc != NULL && !loc_invalid_p(loc);
    d->suppress = false;
    d->prefix   = true;
+
+   diag_set_ostream(d);
 
    if (!loc_invalid_p(loc)) {
       diag_hint_t hint = {
@@ -538,9 +547,23 @@ diag_level_t diag_level(diag_t *d, const diag_level_t *new)
    return old;
 }
 
+static ostream_t diag_ostream_for_text_buf(diag_t *d, text_buf_t *tb)
+{
+   ostream_t os = {
+      .callback = tb_ostream_write,
+      .context  = tb,
+      .charset  = CHARSET_ISO88591,
+   };
+
+   if (consumer_fn == NULL)
+      os.flags |= d->ostream->flags;
+
+   return os;
+}
+
 void diag_vprintf(diag_t *d, const char *fmt, va_list ap)
 {
-   ostream_t os = { tb_ostream_write, d->msg, CHARSET_ISO88591, d->color };
+   ostream_t os = diag_ostream_for_text_buf(d, d->msg);
    nvc_vfprintf(&os, fmt, ap);
 }
 
@@ -566,7 +589,7 @@ void diag_vhint(diag_t *d, const loc_t *loc, const char *fmt, va_list ap)
 {
    LOCAL_TEXT_BUF tb = tb_new();
 
-   ostream_t os = { tb_ostream_write, tb, CHARSET_ISO88591, d->color };
+   ostream_t os = diag_ostream_for_text_buf(d, tb);
    nvc_vfprintf(&os, fmt, ap);
 
    if (!loc_invalid_p(loc)) {
@@ -608,7 +631,7 @@ void diag_trace(diag_t *d, const loc_t *loc, const char *fmt, ...)
 
    LOCAL_TEXT_BUF tb = tb_new();
 
-   ostream_t os = { tb_ostream_write, tb, CHARSET_ISO88591, d->color };
+   ostream_t os = diag_ostream_for_text_buf(d, tb);
    nvc_vfprintf(&os, fmt, ap);
 
    va_end(ap);
@@ -1032,7 +1055,7 @@ static void diag_format_full(diag_t *d, ostream_t *os)
 #endif
 }
 
-void diag_femit(diag_t *d, FILE *f)
+void diag_emit(diag_t *d)
 {
    if (d->suppress)
       goto cleanup;
@@ -1044,26 +1067,19 @@ void diag_femit(diag_t *d, FILE *f)
    else {
       // The stderr and stdout streams are often redirected to the same
       // file so ensure that the output appears in a logical order
-      if (f == stdout)
-         fflush(stderr);
-      else if (f == stderr)
-         fflush(stdout);
+      fflush(stderr);
+      fflush(stdout);
+
+      diag_set_ostream(d);  // Level may have changed
 
       SCOPED_LOCK(diag_lock);
 
-      ostream_t os = {
-         stdio_ostream_write,
-         f,
-         utf8_terminal() ? CHARSET_UTF8 : CHARSET_ISO88591,
-         color_terminal(),
-      };
-
       if (get_message_style() == MESSAGE_COMPACT)
-         diag_format_compact(d, &os);
+         diag_format_compact(d, d->ostream);
       else
-         diag_format_full(d, &os);
+         diag_format_full(d, d->ostream);
 
-      fflush(f);
+      fflush(d->ostream->context);
    }
 
    const unsigned count = relaxed_add(&n_diags[d->level], 1);
@@ -1082,12 +1098,6 @@ void diag_femit(diag_t *d, FILE *f)
 
    tb_free(d->msg);
    free(d);
-}
-
-void diag_emit(diag_t *d)
-{
-   const diag_level_t stderr_level = opt_get_int(OPT_STDERR_LEVEL);
-   diag_femit(d, d->level >= stderr_level ? stderr : stdout);
 }
 
 void diag_show_source(diag_t *d, bool show)
@@ -1205,7 +1215,7 @@ void fmt_loc(FILE *f, const loc_t *loc)
    diag_t *d = diag_new(DIAG_DEBUG, loc);
    diag_consumer_t old = consumer_fn;
    consumer_fn = NULL;
-   diag_femit(d, f);
+   diag_emit(d);
    consumer_fn = old;
 }
 
@@ -1213,7 +1223,8 @@ void wrapped_vprintf(const char *fmt, va_list ap)
 {
    LOCAL_TEXT_BUF tb = tb_new();
 
-   ostream_t os = { tb_ostream_write, tb, CHARSET_ISO88591, color_terminal() };
+   ostream_t *stdout_os = nvc_stdout();
+   ostream_t os = { tb_ostream_write, tb, CHARSET_ISO88591, stdout_os->flags };
    nvc_vfprintf(&os, fmt, ap);
 
    diag_wrap_lines(tb_get(tb), tb_len(tb), 0, nvc_stdout());
