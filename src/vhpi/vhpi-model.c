@@ -3419,6 +3419,7 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
       value_p->value.real = ((const double *)value)[offset];
       return 0;
 
+   case vhpiTimeVal:
    case vhpiPhysVal:
 #define READ_ENUM(type) scalar = ((const type *)value)[offset]
       FOR_ALL_SIZES(size, READ_ENUM);
@@ -3474,6 +3475,7 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
          return 0;
       }
 
+   case vhpiTimeVecVal:
    case vhpiPhysVecVal:
       {
          const int max = value_p->bufSize / sizeof(vhpiPhysT);

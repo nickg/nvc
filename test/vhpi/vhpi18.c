@@ -8,6 +8,11 @@ static int64_t phys_to_i64(vhpiPhysT phys)
    return ((uint64_t)phys.high) << 32 | phys.low;
 }
 
+static int64_t time_to_i64(vhpiTimeT time)
+{
+   return ((uint64_t)time.high) << 32 | time.low;
+}
+
 static void check_phys_scalar(vhpiHandleT parent, const char *name,
                               int64_t expect)
 {
@@ -23,6 +28,21 @@ static void check_phys_scalar(vhpiHandleT parent, const char *name,
    vhpi_release_handle(sig);
 }
 
+static void check_time_scalar(vhpiHandleT parent, const char *name,
+                              int64_t expect)
+{
+   vhpiHandleT sig = VHPI_CHECK(vhpi_handle_by_name(name, parent));
+   vhpi_printf("%s handle %p", name, sig);
+
+   vhpiValueT val = { .format = vhpiObjTypeVal };
+   VHPI_CHECK(vhpi_get_value(sig, &val));
+   fail_unless(val.format == vhpiTimeVal);
+   fail_unless(time_to_i64(val.value.time) == expect);
+   fail_unless(val.numElems == 1);
+
+   vhpi_release_handle(sig);
+}
+
 static void check_phys_array(vhpiHandleT parent, const char *name,
                              const int64_t *expect, size_t len)
 {
@@ -30,7 +50,7 @@ static void check_phys_array(vhpiHandleT parent, const char *name,
    vhpi_printf("%s handle %p", name, sig);
 
    vhpiValueT val = {
-      .format = vhpiPhysVecVal,
+      .format = vhpiObjTypeVal,
       .bufSize = len * sizeof(vhpiPhysT),
    };
    val.value.physs = malloc(len * sizeof(vhpiPhysT));
@@ -46,6 +66,29 @@ static void check_phys_array(vhpiHandleT parent, const char *name,
    vhpi_release_handle(sig);
 }
 
+static void check_time_array(vhpiHandleT parent, const char *name,
+                             const int64_t *expect, size_t len)
+{
+   vhpiHandleT sig = VHPI_CHECK(vhpi_handle_by_name(name, parent));
+   vhpi_printf("%s handle %p", name, sig);
+
+   vhpiValueT val = {
+      .format = vhpiObjTypeVal,
+      .bufSize = len * sizeof(vhpiTimeT),
+   };
+   val.value.times = malloc(len * sizeof(vhpiTimeT));
+
+   VHPI_CHECK(vhpi_get_value(sig, &val));
+   fail_unless(val.format == vhpiTimeVecVal);
+   fail_unless(val.numElems == len);
+
+   for (size_t i = 0; i < len; i++)
+      fail_unless(time_to_i64(val.value.times[i]) == expect[i]);
+
+   free(val.value.times);
+   vhpi_release_handle(sig);
+}
+
 static void end_of_sim(const vhpiCbDataT *cb_data)
 {
    vhpiHandleT root = VHPI_CHECK(vhpi_handle(vhpiRootInst, NULL));
@@ -54,7 +97,7 @@ static void end_of_sim(const vhpiCbDataT *cb_data)
 
    check_phys_scalar(root, "s_freq", INT64_C(100000000000));
    check_phys_scalar(root, "s_voltage", INT64_C(3300));
-   check_phys_scalar(root, "s_time", INT64_C(100000000));
+   check_time_scalar(root, "s_time", INT64_C(100000000));
 
    const int64_t expect_freq[] = { 50000000, 100000000, 150000000 };
    const int64_t expect_voltage[] = { 1500, -3300, 5000 };
@@ -62,7 +105,7 @@ static void end_of_sim(const vhpiCbDataT *cb_data)
 
    check_phys_array(root, "v_freq_arr", expect_freq, 3);
    check_phys_array(root, "v_voltage_arr", expect_voltage, 3);
-   check_phys_array(root, "v_time_arr", expect_time, 3);
+   check_time_array(root, "v_time_arr", expect_time, 3);
 
    vhpi_release_handle(root);
 }
