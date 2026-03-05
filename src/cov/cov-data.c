@@ -255,15 +255,17 @@ static void cover_add_array_toggle_items(cover_data_t *data,
       cover_bmask_to_bin_str(COV_FLAG_TOGGLE_TO_0),
    };
 
+   LOCAL_TEXT_BUF tb = tb_new();
+
    for (int64_t i = left; i != right + inc; i += inc) {
-      char arr_index[64];
-      checked_sprintf(arr_index, sizeof(arr_index), "%s(%"PRIi64")", prefix, i);
+      tb_rewind(tb);
+      tb_printf(tb, "%s(%"PRIi64")", prefix, i);
 
       // On lowest dimension walk through elements, if elements
       // are arrays, then start new (nested) recursion.
       if (curr_dim == 1) {
          if (memory)
-            cover_add_array_toggle_items(data, cs, elem, obj, arr_index,
+            cover_add_array_toggle_items(data, cs, elem, obj, tb_get(tb),
                                          dimension_of(elem), flags, itemp);
          else {
             cover_item_t *pair = *itemp;
@@ -272,18 +274,13 @@ static void cover_add_array_toggle_items(cover_data_t *data,
             pair[0].flags |= COV_FLAG_TOGGLE_TO_1;
             pair[1].flags |= COV_FLAG_TOGGLE_TO_0;
 
-            for (int j = 0; j < 2; j++) {
-               char suffix[64];
-               checked_sprintf(suffix, sizeof(suffix), "%s.%s",
-                               arr_index, binstr[j]);
-
-               pair[j].hier = ident_prefix(pair[j].hier,
-                                           ident_new(suffix), '\0');
-            }
+            for (int j = 0; j < 2; j++)
+               pair[j].hier = ident_sprintf("%s%s.%s", istr(pair[j].hier),
+                                            tb_get(tb), binstr[j]);
          }
       }
       else   // Recurse to lower dimension
-         cover_add_array_toggle_items(data, cs, type, obj, arr_index,
+         cover_add_array_toggle_items(data, cs, type, obj, tb_get(tb),
                                       curr_dim - 1, flags, itemp);
    }
 }
