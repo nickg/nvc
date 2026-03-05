@@ -882,7 +882,7 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
          void   *context = args[0].pointer;
          tree_t  where   = args[1].pointer;
 
-         args[0].pointer = x_reflect_subtype(context, where, args + 3);
+         args[0].pointer = x_reflect_subtype(context, where, args + 2);
       }
       break;
 
