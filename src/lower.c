@@ -4854,8 +4854,12 @@ static vcode_reg_t lower_reflect_attr(lower_unit_t *lu, tree_t expr)
       value_reg = lower_attr_prefix(lu, name);
 
    type_t value_type = tree_type(name);
-   if (type_is_array(value_type))
-      bounds_reg = lower_wrap(lu, value_type, value_reg);
+   if (type_is_array(value_type)) {
+      if (is_value_mirror)
+         bounds_reg = lower_wrap(lu, value_type, value_reg);
+      else if (!type_is_unconstrained(value_type))
+         bounds_reg = lower_get_type_bounds(lu, value_type);
+   }
 
    vcode_reg_t locus = lower_debug_locus(name);
 
