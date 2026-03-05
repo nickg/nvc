@@ -330,6 +330,20 @@ START_TEST(test_issue1431)
 }
 END_TEST
 
+START_TEST(test_issue1442)
+{
+   input_from_file(TESTDIR "/cover/issue1442.vhd");
+
+   tree_t top = parse_check_and_simplify(T_ENTITY, T_ARCH);
+
+   // Crashed before due to memory leak, just being able to "run" with cover
+   // is sufficient checker
+   cover_data_t *db = run_cover(top);
+
+   cover_data_free(db);
+}
+END_TEST
+
 Suite *get_cover_tests(void)
 {
    Suite *s = suite_create("cover");
@@ -342,6 +356,7 @@ Suite *get_cover_tests(void)
    tcase_add_test(tc, test_spec1);
    tcase_add_test(tc, test_spec2);
    tcase_add_test(tc, test_issue1431);
+   tcase_add_test(tc, test_issue1442);
    suite_add_tcase(s, tc);
 
    return s;
