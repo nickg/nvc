@@ -1,9 +1,9 @@
 use std.reflection.all ;
 
-entity test is
+entity reflect is
 end entity ;
 
-architecture arch of test is
+architecture arch of reflect is
 
     type myint_t is range -5 to 5 ;
 
