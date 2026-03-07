@@ -63,6 +63,12 @@ struct _loop_stack {
 #define PARAM_VAR_BIT 0x40000000
 
 typedef enum {
+   EVENT_EVAL,
+   EVENT_SCHED,
+   EVENT_CLEAR,
+} event_mode_t;
+
+typedef enum {
    PART_ALL,
    PART_ELEM,
    PART_FIELD,
@@ -145,6 +151,7 @@ static void lower_driver_field_cb(lower_unit_t *lu, tree_t field,
                                   vcode_reg_t ptr, vcode_reg_t unused,
                                   vcode_reg_t locus, void *__ctx);
 static void lower_dependencies(lower_unit_t *lu, tree_t unit);
+static void lower_event_fn(lower_unit_t *lu, object_t *obj);
 
 typedef vcode_reg_t (*lower_signal_flag_fn_t)(vcode_reg_t, vcode_reg_t);
 typedef vcode_reg_t (*arith_fn_t)(vcode_reg_t, vcode_reg_t);
@@ -1185,6 +1192,20 @@ static vcode_reg_t lower_subprogram_arg(lower_unit_t *lu, tree_t fcall,
    }
    else if (class == C_SIGNAL || class == C_FILE || mode != PORT_IN)
       reg = lower_lvalue(lu, value);
+   else if (class == C_EVENT) {
+      reg = lower_lvalue(lu, value);
+
+      if (vcode_reg_kind(reg) != VCODE_TYPE_CLOSURE) {
+         // Construct a closure on the fly
+         ident_t func = ident_uniq("%s!", istr(tree_ident(port)));
+         unit_registry_defer(lu->registry, func, lu, emit_function,
+                             lower_event_fn, NULL, tree_to_object(value));
+
+         vcode_type_t vtype = lower_type(value_type);
+         vcode_reg_t context_reg = emit_context_upref(0);
+         reg = emit_closure(func, context_reg, vtype);
+      }
+   }
    else if (tree_kind(value) == T_OPEN) {
       tree_t def = tree_value(port);
       if (is_body(decl) || is_literal(def) || tree_kind(def) == T_STRING) {
@@ -1207,7 +1228,9 @@ static vcode_reg_t lower_subprogram_arg(lower_unit_t *lu, tree_t fcall,
    else
       reg = lower_rvalue(lu, value);
 
-   if (type_is_array(value_type)) {
+   if (class == C_FILE || class == C_EVENT)
+      return reg;
+   else if (type_is_array(value_type)) {
       if (!type_is_unconstrained(port_type)) {
          vcode_reg_t locus = lower_debug_locus(port);
          lower_check_array_sizes(lu, port_type, value_type,
@@ -1215,7 +1238,7 @@ static vcode_reg_t lower_subprogram_arg(lower_unit_t *lu, tree_t fcall,
       }
       return lower_coerce_arrays(lu, value_type, port_type, reg);
    }
-   else if (class == C_SIGNAL || class == C_FILE)
+   else if (class == C_SIGNAL)
       return reg;
    else if (mode == PORT_OUT || !type_is_scalar(port_type))
       return reg;
@@ -2368,6 +2391,9 @@ static vcode_type_t lower_param_type(type_t type, class_t class,
    case C_FILE:
       return vtype_pointer(lower_type(type));
 
+   case C_EVENT:
+      return vtype_closure(lower_type(type));
+
    default:
       fatal_trace("unhandled class %s in lower_param_type", class_str(class));
    }
@@ -3032,6 +3058,17 @@ static vcode_reg_t lower_alias_ref(lower_unit_t *lu, tree_t alias,
       return emit_load_indirect(emit_var_upref(hops, var));
 }
 
+static vcode_reg_t lower_event_ref(lower_unit_t *lu, tree_t event,
+                                   expr_ctx_t ctx)
+{
+   vcode_reg_t closure_reg = lower_var_ref(lu, event, EXPR_RVALUE);
+   if (ctx == EXPR_LVALUE)
+      return closure_reg;
+
+   vcode_reg_t mode_reg = emit_const(vtype_offset(), EVENT_EVAL);
+   return emit_ccall(closure_reg, &mode_reg, 1);
+}
+
 static bool lower_is_trivial_constant(tree_t decl)
 {
    if (!type_is_scalar(tree_type(decl)))
@@ -3087,6 +3124,9 @@ static vcode_reg_t lower_ref(lower_unit_t *lu, tree_t ref, expr_ctx_t ctx)
 
    case T_ALIAS:
       return lower_alias_ref(lu, decl, ctx);
+
+   case T_EVENT:
+      return lower_event_ref(lu, decl, ctx);
 
    case T_FUNC_BODY:
       // Used to implement the "function knows result size" feature
@@ -5631,7 +5671,11 @@ static void lower_sched_event(lower_unit_t *lu, tree_t on)
    vcode_reg_t nets_reg = lower_lvalue(lu, on);
    assert(nets_reg != VCODE_INVALID_REG);
 
-   if (!type_is_homogeneous(type))
+   if (vcode_reg_kind(nets_reg) == VCODE_TYPE_CLOSURE) {
+      vcode_reg_t mode_reg = emit_const(vtype_offset(), EVENT_SCHED);
+      emit_ccall(nets_reg, &mode_reg, 1);
+   }
+   else if (!type_is_homogeneous(type))
       lower_for_each_field(lu, type, nets_reg, VCODE_INVALID_REG,
                            lower_sched_event_field_cb, NULL);
    else {
@@ -5648,7 +5692,11 @@ static void lower_clear_event(lower_unit_t *lu, tree_t on)
    vcode_reg_t nets_reg = lower_lvalue(lu, on);
    assert(nets_reg != VCODE_INVALID_REG);
 
-   if (!type_is_homogeneous(type))
+   if (vcode_reg_kind(nets_reg) == VCODE_TYPE_CLOSURE) {
+      vcode_reg_t mode_reg = emit_const(vtype_offset(), EVENT_CLEAR);
+      emit_ccall(nets_reg, &mode_reg, 1);
+   }
+   else if (!type_is_homogeneous(type))
       lower_for_each_field(lu, type, nets_reg, VCODE_INVALID_REG,
                            lower_sched_event_field_cb, (void *)1);
    else {
@@ -9653,6 +9701,80 @@ static void lower_foreign_stub(lower_unit_t *lu, object_t *obj)
    emit_unreachable(VCODE_INVALID_REG);
 }
 
+static void lower_clear_event_cb(tree_t expr, void *ctx)
+{
+   lower_unit_t *lu = ctx;
+   lower_clear_event(lu, expr);
+}
+
+static void lower_event_fn(lower_unit_t *lu, object_t *obj)
+{
+   tree_t t = tree_from_object(obj);
+   tree_t expr = tree_kind(t) == T_EVENT ? tree_value(t) : t;
+
+   vcode_type_t vcontext = vtype_context(lu->parent->name);
+   emit_param(vcontext, VCODE_INVALID_STAMP, ident_new("context"));
+
+   vcode_type_t voffset = vtype_offset();
+   vcode_reg_t mode_reg = emit_param(voffset, VCODE_INVALID_STAMP,
+                                     ident_new("mode"));
+
+   vcode_type_t vtype = lower_type(tree_type(t));
+   vcode_set_result(vtype);
+
+   // Just so we have something to return
+   vcode_var_t dummy = emit_var(vtype, VCODE_INVALID_STAMP,
+                                ident_new("dummy"), 0);
+
+   vcode_block_t eval_bb = emit_block();
+   vcode_block_t sched_bb = emit_block();
+   vcode_block_t clear_bb = emit_block();
+
+   vcode_reg_t cases[] = {
+      emit_const(voffset, EVENT_SCHED),
+      emit_const(voffset, EVENT_CLEAR),
+   };
+   vcode_reg_t blocks[] = { sched_bb, clear_bb };
+
+   emit_case(mode_reg, eval_bb, cases, blocks, 2);
+
+   vcode_select_block(sched_bb);
+
+   build_wait(expr, lower_build_wait_cb, lu);
+
+   emit_return(emit_load(dummy));
+
+   vcode_select_block(clear_bb);
+
+   build_wait(expr, lower_clear_event_cb, lu);
+
+   emit_return(emit_load(dummy));
+
+   vcode_select_block(eval_bb);
+
+   vcode_reg_t result_reg = lower_rvalue(lu, expr);
+   emit_return(result_reg);
+}
+
+static void lower_event_decl(lower_unit_t *lu, tree_t decl)
+{
+   type_t type = tree_type(decl);
+   vcode_type_t vtype = lower_type(type);
+   vcode_type_t vclosure = vtype_closure(vtype);
+
+   ident_t name = tree_ident(decl);
+   vcode_var_t var = emit_var(vclosure, VCODE_INVALID_STAMP, name, 0);
+   lower_put_vcode_obj(decl, var, lu);
+
+   ident_t func = ident_prefix(lu->name, name, '!');
+   unit_registry_defer(lu->registry, func, lu, emit_function,
+                       lower_event_fn, NULL, tree_to_object(decl));
+
+   vcode_reg_t context_reg = emit_context_upref(0);
+   vcode_reg_t closure_reg = emit_closure(func, context_reg, vtype);
+   emit_store(closure_reg, var);
+}
+
 static void lower_decl(lower_unit_t *lu, tree_t decl)
 {
    PUSH_DEBUG_INFO(decl);
@@ -9677,6 +9799,10 @@ static void lower_decl(lower_unit_t *lu, tree_t decl)
 
    case T_ALIAS:
       lower_alias_decl(lu, decl);
+      break;
+
+   case T_EVENT:
+      lower_event_decl(lu, decl);
       break;
 
    case T_TYPE_DECL:
@@ -12256,6 +12382,13 @@ vcode_reg_t lower_rvalue(lower_unit_t *lu, tree_t expr)
             return lower_resolved(lu, tree_type(expr), reg);
          else
             return reg;
+      case VCODE_TYPE_CLOSURE:
+         {
+            assert(class_of(expr) == C_EVENT);
+
+            vcode_reg_t mode_reg = emit_const(vtype_offset(), EVENT_EVAL);
+            return emit_ccall(reg, &mode_reg, 1);
+         }
       default:
          return reg;
       }
