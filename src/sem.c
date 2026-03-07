@@ -2105,10 +2105,10 @@ static bool sem_check_sensitivity(tree_t t, nametab_t *tab)
       else if (!sem_check(r, tab) || !sem_check_readable(r))
          return false;
 
-      if (!sem_static_name(r, sem_globally_static))
-         sem_error(r, "name in sensitivity list is not a static signal name");
-
-      if (class_of(r) != C_SIGNAL) {
+      const class_t class = class_of(r);
+      if (class == C_EVENT)
+         continue;
+      else if (class != C_SIGNAL) {
          tree_t ref = name_to_ref(r);
          diag_t *d = diag_new(DIAG_ERROR, tree_loc(r));
          if (ref != NULL) {
@@ -2123,6 +2123,9 @@ static bool sem_check_sensitivity(tree_t t, nametab_t *tab)
          diag_emit(d);
          return false;
       }
+
+      if (!sem_static_name(r, sem_globally_static))
+         sem_error(r, "name in sensitivity list is not a static signal name");
    }
 
    return true;
@@ -3913,6 +3916,7 @@ static bool sem_check_ref(tree_t t, nametab_t *tab)
    case T_PROC_INST:
    case T_IMPLICIT_SIGNAL:
    case T_PARAM_DECL:
+   case T_EVENT:
       break;
 
    case T_CONST_DECL:
@@ -7138,6 +7142,31 @@ static bool sem_check_psl_union(tree_t t, nametab_t *tab)
    return true;
 }
 
+static bool sem_check_event(tree_t t, nametab_t *tab)
+{
+   type_t type = tree_type(t);
+
+   if (!sem_check_subtype(t, type, tab))
+      return false;
+   else if (type_is_none(type))
+      return false;
+   else if (!sem_check_incomplete(t, type))
+      return false;
+
+   if (!sem_no_access_file_or_protected(t, type, "events"))
+      return false;
+
+   tree_t value = tree_value(t);
+   if (!sem_check(value, tab))
+      return false;
+
+   if (!sem_check_type(value, type, tab))
+      sem_error(value, "type of expression %pT does not match type "
+                "of declaration %pT", tree_type(value), type);
+
+   return true;
+}
+
 bool sem_check(tree_t t, nametab_t *tab)
 {
    switch (tree_kind(t)) {
@@ -7322,6 +7351,8 @@ bool sem_check(tree_t t, nametab_t *tab)
       return sem_check_prot_decl(t, tab);
    case T_INERTIAL:
       return sem_check_inertial(t, tab);
+   case T_EVENT:
+      return sem_check_event(t, tab);
    default:
       sem_error(t, "cannot check %s", tree_kind_str(tree_kind(t)));
    }

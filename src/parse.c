@@ -5969,6 +5969,33 @@ static void p_interface_package_declaration(tree_t parent, tree_kind_t kind)
    insert_name(nametab, d, NULL);
 }
 
+static void p_interface_event_declaration(tree_t parent, tree_kind_t kind)
+{
+   // event identifier_list : subtype_indication
+
+   BEGIN("interface event declaration");
+
+   consume(tEVENT);
+
+   LOCAL_IDENT_LIST ids = p_identifier_list();
+
+   consume(tCOLON);
+
+   type_t type = p_subtype_indication();
+
+   for (ident_list_t *it = ids; it != NULL; it = it->next) {
+      tree_t d = tree_new(kind);
+      tree_set_ident(d, it->ident);
+      tree_set_loc(d, &(it->loc));
+      tree_set_subkind(d, PORT_IN);
+      tree_set_type(d, type);
+      tree_set_class(d, C_EVENT);
+
+      add_interface(parent, d, kind);
+      sem_check(d, nametab);
+   }
+}
+
 static void p_interface_declaration(tree_t parent, tree_kind_t kind,
                                     bool ordered)
 {
@@ -6019,9 +6046,14 @@ static void p_interface_declaration(tree_t parent, tree_kind_t kind,
          p_interface_constant_declaration(parent, kind, ordered);
       break;
 
+   case tEVENT:
+      p_interface_event_declaration(parent, kind);
+      break;
+
    default:
       expect(tCONSTANT, tSIGNAL, tVARIABLE, tFILE, tID, tTYPE,
-             STD(08, tFUNCTION), tPROCEDURE, tPURE, tIMPURE, tPACKAGE);
+             STD(08, tFUNCTION), tPROCEDURE, tPURE, tIMPURE, tPACKAGE,
+             STD(2X, tEVENT));
    }
 }
 
@@ -8252,6 +8284,43 @@ static tree_t p_mode_view_declaration(void)
    return view;
 }
 
+static void p_event_declaration(tree_t parent)
+{
+   // event identiifier_list : subtype_indication := expression ;
+
+   BEGIN("event declaration");
+
+   consume(tEVENT);
+
+   LOCAL_IDENT_LIST ids = p_identifier_list();
+
+   for (ident_list_t *it = ids; it != NULL; it = it->next)
+      hide_name(nametab, it->ident);
+
+   consume(tCOLON);
+
+   type_t type = p_subtype_indication();
+
+   consume(tWALRUS);
+
+   tree_t expr = solve_types(nametab, p_expression(), type);
+
+   consume(tSEMI);
+
+   for (ident_list_t *it = ids; it != NULL; it = it->next) {
+      tree_t t = tree_new(T_EVENT);
+      tree_set_ident(t, it->ident);
+      tree_set_type(t, type);
+      tree_set_value(t, expr);
+      tree_set_loc(t, &(it->loc));
+
+      tree_add_decl(parent, t);
+
+      insert_name(nametab, t, it->ident);
+      sem_check(t, nametab);
+   }
+}
+
 static void p_entity_declarative_item(tree_t entity)
 {
    // subprogram_declaration | subprogram_body | type_declaration
@@ -8622,9 +8691,14 @@ static void p_process_declarative_item(tree_t proc)
          tree_add_decl(proc, p_group_declaration());
       break;
 
+   case tEVENT:
+      p_event_declaration(proc);
+      break;
+
    default:
       expect(tVARIABLE, tTYPE, tSUBTYPE, tCONSTANT, tFUNCTION, tPROCEDURE,
-             tIMPURE, tPURE, tATTRIBUTE, tUSE, tALIAS, tFILE, tGROUP);
+             tIMPURE, tPURE, tATTRIBUTE, tUSE, tALIAS, tFILE, tGROUP,
+             STD(2X, tEVENT));
    }
 }
 
@@ -9763,10 +9837,15 @@ static void p_block_declarative_item(tree_t parent)
       tree_add_decl(parent, p_mode_view_declaration());
       break;
 
+   case tEVENT:
+      p_event_declaration(parent);
+      break;
+
    default:
       expect(tSIGNAL, tTYPE, tSUBTYPE, tFILE, tCONSTANT, tFUNCTION, tIMPURE,
              tPURE, tPROCEDURE, tALIAS, tATTRIBUTE, tFOR, tCOMPONENT, tUSE,
-             tSHARED, tDISCONNECT, tGROUP, STD(08, tPACKAGE), STD(19, tVIEW));
+             tSHARED, tDISCONNECT, tGROUP, STD(08, tPACKAGE), STD(19, tVIEW),
+             STD(2X, tEVENT));
    }
 }
 

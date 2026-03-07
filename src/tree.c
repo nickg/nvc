@@ -389,6 +389,9 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
 
    // T_CHOICE
    (I_NAME | I_RANGES),
+
+   // T_EVENT
+   (I_IDENT | I_TYPE | I_VALUE),
 };
 
 static const char *kind_text_map[T_LAST_TREE_KIND] = {
@@ -432,6 +435,7 @@ static const char *kind_text_map[T_LAST_TREE_KIND] = {
    "T_GUARD",           "T_INERTIAL",        "T_ELEM_RESOLUTION",
    "T_LOOP",            "T_REPORT",          "T_PSL_DIRECT",
    "T_PSL_FCALL",       "T_PSL_UNION",       "T_CHOICE",
+   "T_EVENT",
 };
 
 static const change_allowed_t change_allowed[] = {
@@ -501,7 +505,7 @@ static tree_kind_t decl_kinds[] = {
    T_GROUP_TEMPLATE, T_GROUP,          T_SUBTYPE_DECL,    T_PACKAGE,
    T_PACK_BODY,      T_PACK_INST,      T_GENERIC_DECL,    T_PARAM_DECL,
    T_PROC_INST,      T_FUNC_INST,      T_PSL_DECL,        T_VIEW_DECL,
-   T_PROT_DECL,      T_VERILOG,
+   T_PROT_DECL,      T_VERILOG,        T_EVENT,
 };
 
 static void tree_assert_kind(tree_t t, const tree_kind_t *list, size_t len,

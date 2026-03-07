@@ -295,6 +295,7 @@ NONDET_V      ?i:nondet_vector
 UNION         ?i:union
 INF           ?i:inf
 ENDPOINT      ?i:endpoint
+EVENT         ?i:event
 
 INTERCONNECT      ?i:interconnect
 DELAYFILE         ?i:delayfile
@@ -487,6 +488,11 @@ PROTECT           ?i:protect
 {COVER}                  { TOKEN_08(tCOVER); }
 {VIEW}                   { TOKEN_19(tVIEW); }
 {PRIVATE}                { TOKEN_19(tPRIVATE); }
+{EVENT}                  { if (standard() >= STD_2X)
+                              TOKEN_2X(tEVENT);
+                           else
+                              return parse_id(yytext);
+                         }
 
 `{IF}                    { TOKEN(tCONDIF); }
 `{ELSE}                  { TOKEN(tCONDELSE); }
