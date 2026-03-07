@@ -188,6 +188,7 @@ typedef enum {
    JIT_EXIT_FUNCTOR_IN,
    JIT_EXIT_FUNCTOR_OUT,
    JIT_EXIT_PUT_FUNCTOR,
+   JIT_EXIT_CCALL,
 } jit_exit_t;
 
 typedef uint16_t jit_reg_t;

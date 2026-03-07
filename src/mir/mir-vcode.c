@@ -168,6 +168,17 @@ static void import_fcall(mir_unit_t *mu, mir_import_t *imp, int op)
    }
 }
 
+static void import_ccall(mir_unit_t *mu, mir_import_t *imp, int op)
+{
+   const int nargs = vcode_count_args(op) - 1;
+   mir_value_t *args LOCAL = xmalloc_array(nargs, sizeof(mir_value_t));
+   for (int i = 0; i < nargs; i++)
+      args[i] = imp->map[vcode_get_arg(op, i + 1)];
+
+   mir_value_t closure = imp->map[vcode_get_arg(op, 0)];
+   imp->map[vcode_get_result(op)] = mir_build_ccall(mu, closure, args, nargs);
+}
+
 static void import_pcall(mir_unit_t *mu, mir_import_t *imp, int op)
 {
    const int nargs = vcode_count_args(op);
@@ -1382,6 +1393,9 @@ static void import_block(mir_unit_t *mu, mir_import_t *imp)
          break;
       case VCODE_OP_FCALL:
          import_fcall(mu, imp, i);
+         break;
+      case VCODE_OP_CCALL:
+         import_ccall(mu, imp, i);
          break;
       case VCODE_OP_PCALL:
          import_pcall(mu, imp, i);

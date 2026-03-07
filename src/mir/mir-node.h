@@ -274,6 +274,7 @@ typedef enum {
    MIR_OP_FUNCTOR_IN,
    MIR_OP_FUNCTOR_OUT,
    MIR_OP_PUT_FUNCTOR,
+   MIR_OP_CCALL,
 } mir_op_t;
 
 typedef enum {
@@ -611,6 +612,8 @@ void mir_build_consume(mir_unit_t *mu, mir_value_t value);
 mir_value_t mir_build_fcall(mir_unit_t *mu, ident_t name, mir_type_t type,
                             mir_stamp_t stamp, const mir_value_t *args,
                             unsigned nargs);
+mir_value_t mir_build_ccall(mir_unit_t *mu, mir_value_t closure,
+                            const mir_value_t *args, unsigned nargs);
 void mir_build_pcall(mir_unit_t *mu, ident_t name, mir_block_t resume,
                      const mir_value_t *args, unsigned nargs);
 void mir_build_resume(mir_unit_t *mu, ident_t name);

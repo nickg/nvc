@@ -175,6 +175,7 @@ typedef enum {
    VCODE_OP_SCHED_PROCESS,
    VCODE_OP_TABLE_REF,
    VCODE_OP_GET_COUNTERS,
+   VCODE_OP_CCALL,
 } vcode_op_t;
 
 typedef enum {
@@ -403,6 +404,7 @@ void emit_report(vcode_reg_t message, vcode_reg_t length, vcode_reg_t severity,
 vcode_reg_t emit_cmp(vcode_cmp_t cmp, vcode_reg_t lhs, vcode_reg_t rhs);
 vcode_reg_t emit_fcall(ident_t func, vcode_type_t type, vcode_stamp_t stamp,
                        const vcode_reg_t *args, int nargs);
+vcode_reg_t emit_ccall(vcode_reg_t closure, const vcode_reg_t *args, int nargs);
 void emit_pcall(ident_t func, const vcode_reg_t *args, int nargs,
                 vcode_block_t resume_bb);
 void emit_wait(vcode_block_t target);

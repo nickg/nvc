@@ -185,6 +185,7 @@ const char *mir_op_string(mir_op_t op)
       [MIR_OP_FUNCTOR_IN] = "functor in",
       [MIR_OP_FUNCTOR_OUT] = "functor out",
       [MIR_OP_PUT_FUNCTOR] = "put functor",
+      [MIR_OP_CCALL] = "ccall",
    };
 
    return map[op];
@@ -966,6 +967,7 @@ void mir_annotate(mir_unit_t *mu, const mir_annotate_t *cb, void *ctx)
          case MIR_OP_FUNCTION_TRIGGER:
          case MIR_OP_CLOSURE:
          case MIR_OP_INSTANCE_INIT:
+         case MIR_OP_CCALL:
             {
                if (!mir_is_null(n->type)) {
                   col += mir_dump_value(mu, result, cb, ctx);

@@ -1037,6 +1037,20 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
       }
       break;
 
+   case JIT_EXIT_CCALL:
+      {
+         ffi_closure_t *closure = args[0].pointer;
+
+         jit_func_t *f = jit_get_func(thread->jit, closure->handle);
+
+         for (int i = 0; i < closure->nargs; i++)
+            args[i] = closure->args[i];
+
+         jit_entry_fn_t entry = load_acquire(&f->entry);
+         (*entry)(f, anchor, args, tlab);
+      }
+      break;
+
    default:
       fatal_trace("unhandled exit %s", jit_exit_name(which));
    }
