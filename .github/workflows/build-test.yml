@@ -49,6 +49,8 @@ jobs:
                --enable-tcl
       - name: Build
         run: ASAN_OPTIONS=detect_leaks=0 make -C build -j $(nproc) everything
+      - name: Install
+        run: make -C build install
       - name: Test
         run: ASAN_OPTIONS=detect_leaks=0 make -C build check
       - name: Test in synchronous JIT mode
