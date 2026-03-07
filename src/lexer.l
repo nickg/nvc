@@ -76,6 +76,7 @@
 #define TOKEN_00(t) TOKEN_LRM(t, STD_00)
 #define TOKEN_08(t) TOKEN_LRM(t, STD_08)
 #define TOKEN_19(t) TOKEN_LRM(t, STD_19)
+#define TOKEN_2X(t) TOKEN_LRM(t, STD_2X)
 
 #define KEYWORD_2001(t) verilog_keyword(t, VLOG_1364_2001);
 #define KEYWORD_2005(t) verilog_keyword(t, VLOG_1800_2005);

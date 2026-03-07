@@ -98,7 +98,7 @@ static text_buf_t *lib_file_path(lib_t lib, const char *name);
 static const char *standard_suffix(vhdl_standard_t std)
 {
    static const char *ext[] = {
-      "87", "93", "00", "02", "08", "19"
+      "87", "93", "00", "02", "08", "19", "2x"
    };
 
    assert(std < ARRAY_LEN(ext));

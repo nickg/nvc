@@ -485,7 +485,7 @@ void set_default_standard(vhdl_standard_t s)
 const char *standard_text(vhdl_standard_t s)
 {
    static const char *text[] = {
-      "1987", "1993", "2000", "2002", "2008", "2019"
+      "1987", "1993", "2000", "2002", "2008", "2019", "202x"
    };
 
    if ((unsigned)s < ARRAY_LEN(text))
@@ -1288,7 +1288,7 @@ static tree_t cached_unit(tree_t hint, tree_t *cache, well_known_t lib_name,
 
 static tree_t cached_std(tree_t hint)
 {
-   static tree_t standard_cache[STD_19 + 1] = {};
+   static tree_t standard_cache[STD_2X + 1] = {};
    return cached_unit(hint, standard_cache, W_STD, W_STD_STANDARD);
 }
 
@@ -1360,7 +1360,7 @@ type_t ieee_type(ieee_type_t which)
          [IEEE_STD_LOGIC_VECTOR] = "STD_LOGIC_VECTOR",
       };
 
-      static tree_t ieee_cache[STD_19 + 1] = {};
+      static tree_t ieee_cache[STD_2X + 1] = {};
       tree_t unit = cached_unit(NULL, ieee_cache, W_IEEE, W_IEEE_1164);
 
       tree_t d = search_type_decls(unit, ident_new(names[which]));
@@ -1378,7 +1378,7 @@ type_t ieee_type(ieee_type_t which)
 
 static tree_t cached_verilog(void)
 {
-   static tree_t verilog_cache[STD_19 + 1] = {};
+   static tree_t verilog_cache[STD_2X + 1] = {};
    return cached_unit(NULL, verilog_cache, W_NVC, W_NVC_VERILOG);
 }
 
@@ -1422,7 +1422,7 @@ type_t reflection_type(reflect_type_t which)
          [REFLECT_SUBTYPE_MIRROR] = "SUBTYPE_MIRROR",
       };
 
-      static tree_t reflect_cache[STD_19 + 1] = {};
+      static tree_t reflect_cache[STD_2X + 1] = {};
       tree_t unit = cached_unit(NULL, reflect_cache, W_STD, W_STD_REFLECTION);
 
       tree_t d = search_type_decls(unit, ident_new(names[which]));
