@@ -185,6 +185,7 @@ typedef enum {
    JIT_EXIT_PUT_DRIVER,
    JIT_EXIT_SCHED_INACTIVE,
    JIT_EXIT_GET_COUNTERS,
+   JIT_EXIT_CCALL,
 } jit_exit_t;
 
 typedef uint16_t jit_reg_t;

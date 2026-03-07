@@ -423,6 +423,7 @@ void vcode_heap_allocate(vcode_reg_t reg)
    case VCODE_OP_ALLOC:
    case VCODE_OP_REFLECT_SUBTYPE:
    case VCODE_OP_REFLECT_VALUE:
+   case VCODE_OP_CLOSURE:
       // Always allocated in mspace
       break;
 
@@ -483,6 +484,7 @@ void vcode_heap_allocate(vcode_reg_t reg)
       break;
 
    case VCODE_OP_FCALL:
+   case VCODE_OP_CCALL:
       for (int i = 0; i < defn->args.count; i++) {
          const vtype_kind_t rkind = vcode_reg_kind(reg);
          if (rkind == VCODE_TYPE_POINTER || rkind == VCODE_TYPE_UARRAY) {
@@ -1052,7 +1054,7 @@ const char *vcode_op_string(vcode_op_t op)
       "or trigger", "cmp trigger", "instance name",
       "map implicit", "bind external", "array scope", "record scope",
       "put conversion", "dir check", "sched process", "table ref",
-      "get counters",
+      "get counters", "ccall",
    };
    if ((unsigned)op >= ARRAY_LEN(strs))
       return "???";
@@ -1420,6 +1422,19 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
                col += nvc_printf("%s $magenta$%s$$ ",
                                  vcode_op_string(op->kind),
                                  istr(op->func));
+               for (int i = 0; i < op->args.count; i++) {
+                  if (i > 0)
+                     col += printf(", ");
+                  col += vcode_dump_reg(op->args.items[i]);
+               }
+               vcode_dump_result_type(col, op);
+            }
+            break;
+
+         case VCODE_OP_CCALL:
+            {
+               col += vcode_dump_reg(op->result);
+               col += printf(" := %s ", vcode_op_string(op->kind));
                for (int i = 0; i < op->args.count; i++) {
                   if (i > 0)
                      col += printf(", ");
@@ -2947,7 +2962,7 @@ bool vtype_is_scalar(vcode_type_t type)
       || kind == VCODE_TYPE_FILE || kind == VCODE_TYPE_ACCESS
       || kind == VCODE_TYPE_REAL || kind == VCODE_TYPE_SIGNAL
       || kind == VCODE_TYPE_CONTEXT || kind == VCODE_TYPE_TRIGGER
-      || kind == VCODE_TYPE_RESOLUTION;
+      || kind == VCODE_TYPE_RESOLUTION || kind == VCODE_TYPE_CLOSURE;
 }
 
 bool vtype_is_numeric(vcode_type_t type)
@@ -3548,6 +3563,20 @@ vcode_reg_t emit_fcall(ident_t func, vcode_type_t type, vcode_stamp_t stamp,
       return (o->result = VCODE_INVALID_REG);
    else
       return (o->result = vcode_add_reg(type, stamp));
+}
+
+vcode_reg_t emit_ccall(vcode_reg_t closure, const vcode_reg_t *args, int nargs)
+{
+   op_t *op = vcode_add_op(VCODE_OP_CCALL);
+   vcode_add_arg(op, closure);
+   for (int i = 0; i < nargs; i++)
+      vcode_add_arg(op, args[i]);
+
+   vcode_type_t vtype = vcode_reg_type(closure);
+   VCODE_ASSERT(vtype_kind(vtype) == VCODE_TYPE_CLOSURE,
+                "argument to ccall is not closure");
+
+   return (op->result = vcode_add_reg(vtype_base(vtype), VCODE_INVALID_STAMP));
 }
 
 void emit_pcall(ident_t func, const vcode_reg_t *args, int nargs,
@@ -4255,6 +4284,7 @@ static void vcode_calculate_var_index_type(op_t *op, var_t *var)
    case VCODE_TYPE_OFFSET:
    case VCODE_TYPE_TRIGGER:
    case VCODE_TYPE_RESOLUTION:
+   case VCODE_TYPE_CLOSURE:
       op->type = vtype_pointer(var->type);
       op->result = vcode_add_reg(op->type, var->stamp);
       break;

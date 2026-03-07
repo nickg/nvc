@@ -779,6 +779,7 @@ bool mir_is_scalar(mir_unit_t *mu, mir_value_t value)
    case MIR_TYPE_SIGNAL:
    case MIR_TYPE_CONTEXT:
    case MIR_TYPE_RESOLUTION:
+   case MIR_TYPE_CLOSURE:
    case MIR_TYPE_FILE:
    case MIR_TYPE_TRIGGER:
    case MIR_TYPE_VEC2:
@@ -2244,6 +2245,25 @@ mir_value_t mir_build_fcall(mir_unit_t *mu, ident_t name, mir_type_t type,
       return MIR_NULL_VALUE;
    else
       return (mir_value_t){ .tag = MIR_TAG_NODE, .id = mir_node_id(mu, n) };
+}
+
+mir_value_t mir_build_ccall(mir_unit_t *mu, mir_value_t closure,
+                            const mir_value_t *args, unsigned nargs)
+{
+   mir_type_t type = mir_get_type(mu, closure);
+
+   node_data_t *n = mir_add_node(mu, MIR_OP_CCALL, mir_get_base(mu, type),
+                                 MIR_NULL_STAMP, nargs + 1);
+
+   mir_set_arg(mu, n, 0, closure);
+
+   for (int i = 0; i < nargs; i++)
+      mir_set_arg(mu, n, i + 1, args[i]);
+
+   MIR_ASSERT(mir_get_class(mu, type) == MIR_TYPE_CLOSURE,
+              "argument to ccall must be closure");
+
+   return (mir_value_t){ .tag = MIR_TAG_NODE, .id = mir_node_id(mu, n) };
 }
 
 void mir_build_pcall(mir_unit_t *mu, ident_t name, mir_block_t resume,

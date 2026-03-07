@@ -784,6 +784,8 @@ mir_type_t mir_get_base(mir_unit_t *mu, mir_type_t type)
    case MIR_TYPE_RESOLUTION:
    case MIR_TYPE_FILE:
       return td->u.base;
+   case MIR_TYPE_CLOSURE:
+      return td->u.closure.rtype;
    default:
       return MIR_NULL_TYPE;
    }

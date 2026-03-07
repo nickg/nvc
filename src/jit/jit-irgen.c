@@ -775,6 +775,7 @@ static int irgen_align_of(jit_irgen_t *g, mir_type_t type)
    case MIR_TYPE_CONTEXT:
    case MIR_TYPE_TRIGGER:
    case MIR_TYPE_RESOLUTION:
+   case MIR_TYPE_CLOSURE:
       return sizeof(void *);
    case MIR_TYPE_VEC4:
    case MIR_TYPE_VEC2:
@@ -801,6 +802,7 @@ static int irgen_size_bits(jit_irgen_t *g, mir_type_t type)
    case MIR_TYPE_ACCESS:
    case MIR_TYPE_CONTEXT:
    case MIR_TYPE_TRIGGER:
+   case MIR_TYPE_CLOSURE:
       return sizeof(void *) * 8;
    case MIR_TYPE_FILE:
       return sizeof(uint32_t) * 8;
@@ -858,6 +860,7 @@ static int irgen_size_bytes(jit_irgen_t *g, mir_type_t type)
    case MIR_TYPE_POINTER:
    case MIR_TYPE_CONTEXT:
    case MIR_TYPE_TRIGGER:
+   case MIR_TYPE_CLOSURE:
       return sizeof(void *);
 
    case MIR_TYPE_FILE:
@@ -1130,6 +1133,7 @@ static ffi_type_t irgen_ffi_type(jit_irgen_t *g, mir_type_t type)
    case MIR_TYPE_ACCESS:
    case MIR_TYPE_LOCUS:
    case MIR_TYPE_CONVERSION:
+   case MIR_TYPE_CLOSURE:
       return FFI_POINTER;
    case MIR_TYPE_FILE:
       return FFI_UINT32;
@@ -1836,6 +1840,7 @@ static void irgen_op_load(jit_irgen_t *g, mir_value_t n)
    case MIR_TYPE_POINTER:
    case MIR_TYPE_CONTEXT:
    case MIR_TYPE_TRIGGER:
+   case MIR_TYPE_CLOSURE:
       j_load(g, JIT_SZ_PTR, g->map[n.id], addr);
       break;
 
@@ -1923,6 +1928,7 @@ static void irgen_op_store(jit_irgen_t *g, mir_value_t n)
    case MIR_TYPE_CONTEXT:
    case MIR_TYPE_ACCESS:
    case MIR_TYPE_POINTER:
+   case MIR_TYPE_CLOSURE:
       if (jit_value_is_addr(value)) {
          jit_value_t tmp = irgen_alloc_temp(g);
          irgen_lea(g, tmp, value);   // Storing an address
@@ -2970,6 +2976,15 @@ static void irgen_op_all(jit_irgen_t *g, mir_value_t n)
    j_mov(g, g->map[n.id], arg);
 }
 
+static void irgen_op_ccall(jit_irgen_t *g, mir_value_t n)
+{
+   irgen_send_args(g, n, 0);
+
+   macro_exit(g, JIT_EXIT_CCALL);
+
+   j_recv(g, g->map[n.id], 0);
+}
+
 static void irgen_op_closure(jit_irgen_t *g, mir_value_t n)
 {
    jit_handle_t handle = irgen_get_handle(g, n, 0);
@@ -2985,7 +3000,7 @@ static void irgen_op_closure(jit_irgen_t *g, mir_value_t n)
       + (total_slots - 1) * sizeof(jit_scalar_t);
 
    jit_value_t ptr = irgen_get_slot(g, n, 0);
-   macro_lalloc(g, ptr, jit_value_from_int64(size));
+   macro_galloc(g, ptr, jit_value_from_int64(size));
    g->used_tlab = true;
 
    jit_value_t handle_ptr =
@@ -4714,6 +4729,9 @@ static void irgen_block(jit_irgen_t *g, mir_block_t block)
          break;
       case MIR_OP_LENGTH_CHECK:
          irgen_op_length_check(g, n);
+         break;
+      case MIR_OP_CCALL:
+         irgen_op_ccall(g, n);
          break;
       case MIR_OP_CLOSURE:
          irgen_op_closure(g, n);
