@@ -136,7 +136,8 @@ typedef enum {
    STD_00,
    STD_02,
    STD_08,
-   STD_19
+   STD_19,
+   STD_2X
 } vhdl_standard_t;
 
 vhdl_standard_t standard(void);

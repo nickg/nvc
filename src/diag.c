@@ -439,7 +439,7 @@ void loc_read(loc_t *loc, loc_rd_ctx_t *ctx)
 
 static const struct {
    const char *title;
-   const char *section[STD_19 + 1];
+   const char *section[STD_2X + 1];
 } lrm_sections[] = {
    { "Names", { [STD_08] = "8.1", [STD_93] = "6.1", [STD_19] = "8.1" } },
    { "Signal parameters", { [STD_08] = "4.2.2.3", [STD_93] = "2.1.1.2" } },

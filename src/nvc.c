@@ -2440,9 +2440,11 @@ static vhdl_standard_t parse_standard(const char *str)
          return STD_19;
       }
    }
+   else if (eptr != NULL && strcasecmp(eptr, "x") == 0 && year == 202)
+      return STD_2X;
 
    fatal("invalid standard revision: %s (allowed 1993, 2000, 2002, "
-         "2008, 2019)", str);
+         "2008, 2019, 202x)", str);
 }
 
 static message_style_t parse_message_style(const char *str)
