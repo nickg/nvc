@@ -633,6 +633,8 @@ class_t class_of(tree_t t)
       }
    case T_CONTEXT:
       return C_CONTEXT;
+   case T_EVENT:
+      return C_EVENT;
    default:
       fatal_trace("missing class_of for %s", tree_kind_str(tree_kind(t)));
    }
@@ -660,7 +662,7 @@ const char *class_str(class_t c)
       "default", "signal", "variable", "constant", "file", "entity",
       "component", "configuration", "architecture", "function", "package",
       "type", "subtype", "label", "procedure", "literal", "units", "library",
-      "context", "view",
+      "context", "view", "event",
    };
    assert(c < ARRAY_LEN(strs));
    return strs[c];
@@ -2266,8 +2268,14 @@ void build_wait(tree_t expr, build_wait_fn_t fn, void *ctx)
 
    switch (tree_kind(expr)) {
    case T_REF:
-      if (class_of(tree_ref(expr)) == C_SIGNAL)
+      switch (class_of(tree_ref(expr))) {
+      case C_SIGNAL:
+      case C_EVENT:
          (*fn)(expr, ctx);
+         break;
+      default:
+         break;
+      }
       break;
 
    case T_EXTERNAL_NAME:

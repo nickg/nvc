@@ -366,7 +366,7 @@ START_TEST(test_wait)
       { 51, "type of condition must be BOOLEAN" },
       { 53, "type of delay must be TIME" },
       { 66, "name in sensitivity list is not a static signal name" },
-      { 69, "name in sensitivity list is not a static signal name" },
+      { 69, "name in sensitivity list is not a signal" },
       { -1, NULL }
    };
    expect_errors(expect);

@@ -55,6 +55,7 @@ typedef enum {
    C_LIBRARY,
    C_CONTEXT,
    C_VIEW,
+   C_EVENT,
 } class_t;
 
 typedef enum param_kind {
@@ -403,6 +404,7 @@ typedef enum tree_kind {
    T_PSL_FCALL,
    T_PSL_UNION,
    T_CHOICE,
+   T_EVENT,
 
    T_LAST_TREE_KIND
 } tree_kind_t;
