@@ -2412,6 +2412,7 @@ static void elab_decls(tree_t t, const elab_ctx_t *ctx)
       case T_PSL_DECL:
       case T_ATTR_SPEC:
       case T_VERILOG:
+      case T_EVENT:
          tree_add_decl(ctx->out, d);
          break;
       case T_FUNC_DECL:
