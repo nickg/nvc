@@ -161,9 +161,9 @@ static int8_t errno_to_dir_delete_status(void)
 static char *find_dir_separator(const char *str)
 {
    // Forward slash is a valid separator even on Windows
-   char *fwd = strrchr(str, '/');
+   char *fwd = (char *)strrchr(str, '/');
    if (fwd == NULL && DIR_SEP[0] != '/')
-      return strrchr(str, DIR_SEP[0]);
+      return (char *)strrchr(str, DIR_SEP[0]);
    else
       return fwd;
 }
