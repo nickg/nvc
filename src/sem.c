@@ -4320,7 +4320,8 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range, nametab_t *tab)
 
    const bool prefix_can_be_range =
       predef == ATTR_LOW || predef == ATTR_HIGH || predef == ATTR_LEFT
-      || predef == ATTR_RIGHT || predef == ATTR_ASCENDING;
+      || predef == ATTR_RIGHT || predef == ATTR_ASCENDING
+      || predef == ATTR_VALUE;
 
    if (!sem_check_attr_prefix(name, prefix_can_be_range, tab, &named_type))
       return false;
@@ -4497,6 +4498,20 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range, nametab_t *tab)
       {
          const bool std_2019 = standard() >= STD_19;
 
+         // VHDL 2019: 'range'value returns a range record
+         if (predef == ATTR_VALUE && std_2019
+             && tree_kind(name) == T_ATTR_REF
+             && tree_subkind(name) == ATTR_RANGE) {
+            type_t range_type = tree_type(name);
+            if (range_type == NULL || type_is_none(range_type))
+               return false;
+            else if (!type_is_scalar(range_type))
+               sem_error(t, "prefix of 'RANGE'VALUE must be a range "
+                         "of a scalar type but have %s",
+                         type_pp(range_type));
+            return true;
+         }
+
          if (named_type == NULL && std_2019 && tree_params(t) == 0) {
             // LCS2016-18 allows attribute with object prefix
             named_type = get_type_or_null(name);
@@ -4562,6 +4577,7 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range, nametab_t *tab)
    case ATTR_ELEMENT:
    case ATTR_SUBTYPE:
    case ATTR_INDEX:
+   case ATTR_RECORD:
       sem_error(t, "%s attribute is only allowed in a type mark", istr(attr));
 
    case ATTR_CONVERSE:
