@@ -1268,3 +1268,5 @@ vhpi19          vhpi
 issue1433       shell
 reflect6        normal,2019
 vlog32          verilog
+vlog33          verilog
+vlog34          verilog,fail,gold

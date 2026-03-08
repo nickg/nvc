@@ -34,6 +34,7 @@ typedef A(rt_prop_t *) prop_list_t;
 typedef A(rt_signal_t *) signal_list_t;
 typedef A(rt_proc_t *) proc_list_t;
 typedef A(rt_alias_t *) alias_list_t;
+typedef A(rt_nexus_t *) nexus_list_t;
 
 typedef enum {
    W_PROC, W_WATCH, W_IMPLICIT, W_PROPERTY, W_TRANSFER, W_TRIGGER, W_ASSIGN,

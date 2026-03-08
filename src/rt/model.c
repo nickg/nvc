@@ -83,6 +83,7 @@ typedef struct {
    tlab_t        *tlab;
    rt_wakeable_t *active_obj;
    rt_scope_t    *active_scope;
+   nexus_list_t   blockingq;
 } __attribute__((aligned(64))) model_thread_t;
 
 typedef void (*defer_fn_t)(rt_model_t *, void *);
@@ -636,8 +637,10 @@ void model_free(rt_model_t *m)
 
    for (int i = 0; i < MAX_THREADS; i++) {
       model_thread_t *thread = m->threads[i];
-      if (thread != NULL)
+      if (thread != NULL) {
          tlab_release(thread->tlab);
+         ACLEAR(thread->blockingq);
+      }
    }
 
    free(m->procq.tasks);
@@ -2203,7 +2206,8 @@ static void update_rank(rt_nexus_t *n, int min)
       fatal_at(tree_loc(n->signal->where), "signal rank is greater "
                "than the maximum supported %d", MAX_RANK);
 
-   n->rank = min;
+   // Avoid infinite recursion if the net contains cycles
+   n->rank = MAX_RANK;
 
    for (rt_source_t *o = n->outputs; o; o = o->chain_output) {
       switch (o->tag) {
@@ -2217,6 +2221,8 @@ static void update_rank(rt_nexus_t *n, int min)
          should_not_reach_here();
       }
    }
+
+   n->rank = min;
 }
 
 cover_data_t *get_coverage(rt_model_t *m)
@@ -3185,22 +3191,55 @@ static void defer_driving_update(rt_model_t *m, rt_nexus_t *n)
    n->flags |= NET_F_PENDING;
 }
 
-static void update_blocking(rt_model_t *m, rt_nexus_t *n)
+static void update_blocking(rt_model_t *m, rt_nexus_t *root)
 {
-   for (rt_source_t *o = n->outputs; o; o = o->chain_output) {
-      switch (o->tag) {
-      case SOURCE_PORT:
-         defer_driving_update(m, o->u.port.output);
-         m->next_is_delta = true;
-         break;
-      case SOURCE_PAD:
-         call_functor(m, o->u.pad.functor);
-         calculate_driving_value(m, o->u.pad.output);
-         update_blocking(m, o->u.pad.output);
-         break;
-      default:
-         should_not_reach_here();
+   model_thread_t *thread = model_thread(m);
+   assert(thread->blockingq.count == 0);
+
+   APUSH(thread->blockingq, root);
+
+   for (int iters = 0; iters < m->stop_delta && thread->blockingq.count > 0;
+        iters++) {
+      rt_nexus_t *n = APOP(thread->blockingq);
+
+      for (rt_source_t *o = n->outputs; o; o = o->chain_output) {
+         switch (o->tag) {
+         case SOURCE_PORT:
+            defer_driving_update(m, o->u.port.output);
+            m->next_is_delta = true;
+            break;
+         case SOURCE_PAD:
+            call_functor(m, o->u.pad.functor);
+
+            // TODO: add an event epoch or similar
+            o->u.pad.output->event_delta = DELTA_CYCLE_MAX;
+
+            calculate_driving_value(m, o->u.pad.output);
+
+            if (n->event_delta == m->iteration && n->last_event == m->now)
+               APUSH(thread->blockingq, o->u.pad.output);
+
+            break;
+         default:
+            should_not_reach_here();
+         }
       }
+   }
+
+   if (unlikely(thread->blockingq.count > 0)) {
+      rt_signal_t *s0 = thread->blockingq.items[0]->signal;
+
+      diag_t *d = diag_new(DIAG_FATAL, tree_loc(s0->where));
+      diag_printf(d, "net containing ");
+      for (int i = 0; i < thread->blockingq.count; i++)
+         diag_printf(d, "%s'%pi'", i > 0 ? ", " : "",
+                     tree_ident(thread->blockingq.items[i]->signal->where));
+      diag_printf(d, " is still changing after %d iterations", m->stop_delta);
+      diag_hint(d, NULL, "you can increase this limit with "
+                "$bold$--stop-delta$$");
+      diag_emit(d);
+
+      jit_abort_with_status(EXIT_FAILURE);
    }
 }
 
@@ -3209,6 +3248,9 @@ static void update_driving(rt_model_t *m, rt_nexus_t *n, bool safe)
    if (n->n_sources == 1 || safe) {
       n->active_delta = m->iteration;
       n->flags &= ~NET_F_PENDING;
+
+      // TODO: add an event epoch or similar
+      n->event_delta = DELTA_CYCLE_MAX;
 
       calculate_driving_value(m, n);
 
