@@ -24,6 +24,7 @@ PACKAGE bitstring_error IS
   constant e2 : bit_vector := X"_1";    -- Error
   constant e3 : bit_vector := X"1_";    -- Error
   constant e4 : bit_vector := X"1__2";  -- Error
+  constant e5 : bit_vector := X"1\2";   -- Error
 
   constant e99 : bit_vector := x"1
                               23";  -- Error

@@ -2177,10 +2177,11 @@ START_TEST(test_bitstring)
       { 25, "a bit string literal may not start or end with an underscore" },
       { 26, "a bit string literal may not contain multiple consecutive "
         "underscores" },
-      { 28, "unterminated string literal" },
-      { 29, "unexpected integer while parsing constant declaration" },
-      { 28, "invalid character 'x' in string literal" },
+      { 27, "invalid digit '\\' in bit string" },
       { 29, "unterminated string literal" },
+      { 30, "unexpected integer while parsing constant declaration" },
+      { 29, "invalid character 'x' in string literal" },
+      { 30, "unterminated string literal" },
       { -1, NULL }
    };
    expect_errors(expect);

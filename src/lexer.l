@@ -1304,7 +1304,7 @@ static token_t string_end(void)
 static void string_append(const char *text)
 {
    const char *p = text;
-   if (*p == '\\') {
+   if (*p == '\\' && *(p + 1) != '\0') {
       switch (*++p) {
       case 'n': tb_append(yylval.text, '\n'); p++; break;
       case 't': tb_append(yylval.text, '\t'); p++; break;
