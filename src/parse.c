@@ -2771,16 +2771,14 @@ static ident_t p_operator_symbol(void)
 
    consume(tSTRING);
 
-   char *s = last_lval.str;
-   for (char *p = s; *p != '\0'; p++)
-      *p = tolower_iso88591(*p);
+   tb_downcase(last_lval.text);
 
-   ident_t id = ident_new(s);
+   ident_t id = ident_sprintf("\"%s\"", tb_get(last_lval.text));
 
    if (!is_operator_symbol(id))
-      parse_error(CURRENT_LOC, "%s is not an operator symbol", s);
+      parse_error(CURRENT_LOC, "%pi is not an operator symbol", id);
 
-   free(s);
+   tb_free(last_lval.text);
    return id;
 }
 
@@ -4415,7 +4413,7 @@ static tree_t p_string_literal(void)
    tree_t t = tree_new(T_STRING);
    tree_set_loc(t, CURRENT_LOC);
 
-   for (const char *p = last_lval.str + 1; *(p + 1) != '\0'; p++) {
+   for (const char *p = tb_get(last_lval.text); *p != '\0'; p++) {
       const char ch[] = { '\'', *p, '\'', '\0' };
       tree_t ref = tree_new(T_REF);
       tree_set_loc(ref, CURRENT_LOC);
@@ -4423,7 +4421,7 @@ static tree_t p_string_literal(void)
       tree_add_char(t, ref);
    }
 
-   free(last_lval.str);
+   tb_free(last_lval.text);
    return t;
 }
 

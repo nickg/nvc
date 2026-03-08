@@ -396,8 +396,10 @@ const char *token_str(token_t tok)
 
 void free_token(token_t tok, yylval_t *lval)
 {
-   if (tok == tSTRING || tok == tBITSTRING || tok == tUNSNUM)
+   if (tok == tBITSTRING || tok == tUNSNUM)
       free(lval->str);
+   else if (tok == tSTRING)
+      tb_free(lval->text);
 
    DEBUG_ONLY(lval->str = NULL);
 }
@@ -530,8 +532,7 @@ static bool pp_cond_analysis_relation(void)
             if (value == NULL)
                pp_error("undefined conditional analysis identifier %s", name);
             else {
-               char *cmp = yylval.str + 1;
-               cmp[strlen(cmp) - 1] = '\0';
+               const char *cmp = tb_get(yylval.text);
 
                switch (rel) {
                case tEQ:
@@ -559,7 +560,7 @@ static bool pp_cond_analysis_relation(void)
                }
             }
 
-            free(yylval.str);
+            tb_free(yylval.text);
          }
       }
       break;
@@ -822,11 +823,11 @@ token_t processed_yylex(void)
                   const diag_level_t level =
                      token == tCONDWARN ? DIAG_WARN : DIAG_ERROR;
                   diag_t *d = diag_new(level, &loc);
-                  diag_printf(d, "%s", yylval.str);
+                  diag_printf(d, "%s", tb_get(yylval.text));
                   diag_emit(d);
                }
 
-               free(yylval.str);
+               tb_free(yylval.text);
             }
          }
          break;

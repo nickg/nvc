@@ -82,8 +82,7 @@
 
 static int parse_id(char *str);
 static int parse_ex_id(char *str);
-static int parse_bit_string(const char *str);
-static int parse_string(const char *str);
+static int parse_bit_string(void);
 static int parse_decimal_literal(const char *str);
 static int parse_verilog_real(const char *str);
 static int parse_based_literal(const char *str);
@@ -91,15 +90,19 @@ static int resolve_ir1045(void);
 static void warn_lrm(vhdl_standard_t std, const char *fmt, ...);
 static void warn_utf8(const char *str);
 static bool begin_psl_comment(void);
-static int report_unterminated_string(const char *str);
+static int report_unterminated_string(void);
 static int report_bad_identifier(char *str);
 static int verilog_keyword(int token, vlog_version_t vers);
+static void string_begin(int state);
+static token_t string_end(void);
+static void string_append(const char *text);
 static void cstring_begin(void);
 static token_t cstring_end(void);
 static void cstring_append(const char *text);
 
 static int last_token = -1;
 static int comment_caller = 0;
+static int string_caller = 0;
 static bool in_psl_comment = false;
 static bool preserve_case = false;
 static loc_t start_loc = LOC_INVALID;
@@ -119,9 +122,8 @@ VLOG_ESCAPED    \\[\x21-\x7e]+
 /* TODO: According to spec, identifier could even start with number*/
 SDF_ID          ([a-zA-Z$_])([a-zA-Z$_0-9])*
 SYSTASK         \$[a-zA-Z_$]([a-zA-Z0-9_$])*
-STRING          (\"([^\"\n]|\"\")*\")|(\%([^\"\n\%]|\%\%)*\%)
-BADSTRING       (\"([^\"\n]|\"\")*)|(\%([^\"\n\%]|\%\%)*)
-BITSTRING       [0-9]*[usUS]?(?i:[boxd]\"[^\"\n]*\")|(?i:[boxd]\%[^\n\%]*\%)
+BITSTR          [0-9]*[usUS]?(?i:[boxd])"\""
+PBITSTR         [0-9]*[usUS]?(?i:[boxd])"%"
 CHAR            '.'
 INTEGER         [0-9][0-9_]*
 EXPONENT        [Ee][+-]?{INTEGER}
@@ -150,6 +152,7 @@ SCALAR_ONE      ('b1|'B1|1'b1|1'B1)
 PAREN_STAR      "("{SPACE}*"*"{SPACE}*")"
 
 %x COMMENT C_COMMENT PSL VLOG UDP SDF SDF_EXPR CSTRING PROTECT
+%x STRING PSTRING BITSTRING PBITSTRING
 
 ENTITY        ?i:entity
 IS            ?i:is
@@ -388,13 +391,45 @@ PROTECT           ?i:protect
 <C_COMMENT>\n            { /* Must match a single character */ }
 <C_COMMENT>.             { }
 
-<VLOG>"\""               { cstring_begin(); }
+<INITIAL,PSL>"\""        { string_begin(STRING); }
+<INITIAL,PSL>"%"         { string_begin(PSTRING); }
+
+<STRING>"\"\""           { string_append("\""); }
+<STRING>"\""             { return string_end(); }
+<STRING>"\n"             { return report_unterminated_string(); }
+<STRING>.                { string_append(yytext); }
+
+<PSTRING>"%%"            { string_append("%"); }
+<PSTRING>"%"             { return string_end(); }
+<PSTRING>"\n"            { return report_unterminated_string(); }
+<PSTRING>.               { string_append(yytext); }
+
+<VLOG,SDF>"\""           { cstring_begin(); }
 
 <CSTRING>"\\x"{HEX}      { cstring_append(yytext); }
 <CSTRING>"\\x"[0-7]+     { cstring_append(yytext); }
 <CSTRING>"\\".           { cstring_append(yytext); }
 <CSTRING>"\""            { return cstring_end(); }
 <CSTRING>.               { cstring_append(yytext); }
+
+<INITIAL,PSL>{BITSTR}    { string_begin(BITSTRING);
+                           string_append(yytext);
+                         }
+<INITIAL,PSL>{PBITSTR}   { string_begin(PBITSTRING);
+                           string_append(yytext);
+                         }
+
+<BITSTRING>"\"\""        { string_append("\""); }
+<BITSTRING>"\""          { string_append(yytext);
+                           return parse_bit_string(); }
+<BITSTRING>"\n"          { return report_unterminated_string(); }
+<BITSTRING>.             { string_append(yytext); }
+
+<PBITSTRING>"%%"         { string_append("\""); }
+<PBITSTRING>"%"          { string_append("\"");
+                           return parse_bit_string(); }
+<PBITSTRING>"\n"         { return report_unterminated_string(); }
+<PBITSTRING>.            { string_append(yytext); }
 
 <PSL>;                   { TOKEN(tSEMI); }
 <PSL>{PSL_CONT}          { /* Multi-line PSL comment */
@@ -866,9 +901,6 @@ PROTECT           ?i:protect
 
 <INITIAL,PSL>{DECIMAL}   { return parse_decimal_literal(yytext); }
 <INITIAL,PSL>{BASED}     { return parse_based_literal(yytext); }
-<INITIAL,PSL>{BITSTRING} { return parse_bit_string(yytext); }
-<INITIAL,PSL>{STRING}    { return parse_string(yytext); }
-<INITIAL,PSL>{BADSTRING} { return report_unterminated_string(yytext); }
 <INITIAL,PSL>{CHAR}      { if (resolve_ir1045()) {
                               yylval.ident = ident_new(yytext);
                               TOKEN(tID);
@@ -925,8 +957,6 @@ PROTECT           ?i:protect
 
 % /* TODO: Crosscheck SDF definition of decimal */
 <SDF,SDF_EXPR>{DECIMAL} { return parse_decimal_literal(yytext); }
-
-<SDF>"\""[^\n\"]*"\""   { return parse_string(yytext); }
 
 <SDF>{DELAYFILE}        { TOKEN(tDELAYFILE); }
 <SDF>{SDFVERSION}       { TOKEN(tSDFVERSION); }
@@ -1184,35 +1214,16 @@ static int parse_based_literal(const char *str)
    TOKEN(tok);
 }
 
-static int parse_string(const char *str)
-{
-   // Replaces all double '\"' by single '\"' or all double '%' by
-   // single '%'.  In the case when '\%' is used as string brackets, the
-   // enclosed senquence of characters should not contain quotation
-   // marks!
-
-   char *s = (yylval.str = xstrdup(str));
-
-   // Replacing double '\"' character by single '\"' or double '%'
-   // character by single '%'
-   // Begins after first character
-   s++;
-   char *p = s;
-   while (*p) {
-      if ((*p == *(yylval.str)) && (*(p+1) == *(yylval.str))) p++;
-      *s++ = *p++;
-   }
-   *s = *p;
-
-   TOKEN(tSTRING);
-}
-
-static int parse_bit_string(const char *str)
+static int parse_bit_string(void)
 {
    // Copy input, remove all '_' characters and replace all '\%'
    // characters by '\"'.
 
-   char *copy = (yylval.str = xstrdup(str));
+   string_end();
+
+   char *copy = tb_claim(yylval.text);
+   tb_free(yylval.text);
+   yylval.str = copy;
 
    bool error = false;
    for (char *src = copy, *dst = src; *src != '\0'; src++) {
@@ -1243,8 +1254,10 @@ static int parse_verilog_real(const char *str)
    return tREAL;
 }
 
-static int report_unterminated_string(const char *str)
+static int report_unterminated_string(void)
 {
+   const token_t tok = string_end();
+
    diag_t *d = diag_new(DIAG_ERROR, &yylloc);
    diag_printf(d, "unterminated string literal");
    diag_hint(d, NULL, "a string literal must fit on one line since it "
@@ -1253,7 +1266,7 @@ static int report_unterminated_string(const char *str)
    diag_lrm(d, STD_08, "15.7");
    diag_emit(d);
 
-   return parse_string(str);
+   return tok;
 }
 
 static int report_bad_identifier(char *str)
@@ -1267,8 +1280,79 @@ static int report_bad_identifier(char *str)
    return parse_id(str);
 }
 
+static void string_begin(int state)
+{
+   string_caller = YY_START;
+   BEGIN(state);
+   assert(loc_invalid_p(&start_loc));
+   start_loc = yylloc;
+   yylval.text = tb_new();
+}
+
+static token_t string_end(void)
+{
+   BEGIN(string_caller);
+   yylloc = get_loc(start_loc.first_line,
+                    start_loc.first_column,
+                    yylloc.first_line + yylloc.line_delta,
+                    yylloc.first_column + yylloc.column_delta,
+                    start_loc.file_ref);
+   start_loc = LOC_INVALID;
+   TOKEN(tSTRING);
+}
+
+static void string_append(const char *text)
+{
+   const char *p = text;
+   if (*p == '\\') {
+      switch (*++p) {
+      case 'n': tb_append(yylval.text, '\n'); p++; break;
+      case 't': tb_append(yylval.text, '\t'); p++; break;
+      case 'r': tb_append(yylval.text, '\r'); p++; break;
+      case 'v': tb_append(yylval.text, '\v'); p++; break;
+      case 'f': tb_append(yylval.text, '\f'); p++; break;
+      case 'a': tb_append(yylval.text, '\a'); p++; break;
+      case 'x':  // 1-2 hex digits
+         {
+            int num = 0;
+            while (*p) {
+               const char ch = *++p;
+               if (ch >= '0' && ch <= '9')
+                  num = num * 16 + (ch - '0');
+               else if (ch >= 'a' && ch <= 'f')
+                  num = num * 16 + (ch - 'a');
+               else if (ch >= 'A' && ch <= 'F')
+                  num = num * 16 + (ch - 'A');
+               else
+                  break;
+            }
+
+            tb_append(yylval.text, num);
+         }
+         break;
+      case '0'...'7':  // 1-3 octal digits
+         {
+            int num = *p - '0';
+            while (*p) {
+               const char ch = *++p;
+               if (ch >= '0' && ch <= '7')
+                  num = num * 8 + (ch - '0');
+               else
+                  break;
+            }
+
+            tb_append(yylval.text, num);
+         }
+         break;
+      }
+   }
+
+   tb_cat(yylval.text, p);
+}
+
 static void cstring_begin(void)
 {
+   string_caller = YY_START;
    BEGIN(CSTRING);
    assert(loc_invalid_p(&start_loc));
    start_loc = yylloc;
@@ -1277,7 +1361,7 @@ static void cstring_begin(void)
 
 static token_t cstring_end(void)
 {
-   BEGIN(VLOG);
+   BEGIN(string_caller);
    yylloc = get_loc(start_loc.first_line,
                     start_loc.first_column,
                     yylloc.first_line + yylloc.line_delta,
