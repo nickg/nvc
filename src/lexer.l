@@ -1303,51 +1303,7 @@ static token_t string_end(void)
 
 static void string_append(const char *text)
 {
-   const char *p = text;
-   if (*p == '\\' && *(p + 1) != '\0') {
-      switch (*++p) {
-      case 'n': tb_append(yylval.text, '\n'); p++; break;
-      case 't': tb_append(yylval.text, '\t'); p++; break;
-      case 'r': tb_append(yylval.text, '\r'); p++; break;
-      case 'v': tb_append(yylval.text, '\v'); p++; break;
-      case 'f': tb_append(yylval.text, '\f'); p++; break;
-      case 'a': tb_append(yylval.text, '\a'); p++; break;
-      case 'x':  // 1-2 hex digits
-         {
-            int num = 0;
-            while (*p) {
-               const char ch = *++p;
-               if (ch >= '0' && ch <= '9')
-                  num = num * 16 + (ch - '0');
-               else if (ch >= 'a' && ch <= 'f')
-                  num = num * 16 + (ch - 'a');
-               else if (ch >= 'A' && ch <= 'F')
-                  num = num * 16 + (ch - 'A');
-               else
-                  break;
-            }
-
-            tb_append(yylval.text, num);
-         }
-         break;
-      case '0'...'7':  // 1-3 octal digits
-         {
-            int num = *p - '0';
-            while (*p) {
-               const char ch = *++p;
-               if (ch >= '0' && ch <= '7')
-                  num = num * 8 + (ch - '0');
-               else
-                  break;
-            }
-
-            tb_append(yylval.text, num);
-         }
-         break;
-      }
-   }
-
-   tb_cat(yylval.text, p);
+   tb_cat(yylval.text, text);
 }
 
 static void cstring_begin(void)
