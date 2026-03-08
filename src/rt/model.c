@@ -1853,10 +1853,8 @@ static void convert_effective(rt_conv_func_t *cf)
    tlab_trim(thread->tlab, mark);
 }
 
-static void call_functor(rt_functor_t *f)
+static void call_functor(rt_model_t *m, rt_functor_t *f)
 {
-   rt_model_t *m = get_model();
-
    TRACE("call functor %pi", jit_get_name(m->jit, f->closure->handle));
 
    model_thread_t *thread = model_thread(m);
@@ -1905,7 +1903,6 @@ static void *source_value(rt_nexus_t *nexus, rt_source_t *src)
       return NULL;
 
    case SOURCE_PAD:
-      call_functor(src->u.pad.functor);
       return value_ptr(nexus, &src->u.pad.value);
    }
 
@@ -2181,6 +2178,11 @@ static void calculate_effective_value(rt_model_t *m, rt_nexus_t *n)
 
 static void calculate_initial_value(rt_model_t *m, rt_nexus_t *n)
 {
+   for (rt_source_t *s = &(n->sources); s; s = s->chain_input) {
+      if (s->tag == SOURCE_PAD)
+         call_functor(m, s->u.pad.functor);
+   }
+
    calculate_driving_value(m, n);
 
    if (n->flags & NET_F_EFFECTIVE) {
@@ -3192,6 +3194,7 @@ static void update_blocking(rt_model_t *m, rt_nexus_t *n)
          m->next_is_delta = true;
          break;
       case SOURCE_PAD:
+         call_functor(m, o->u.pad.functor);
          calculate_driving_value(m, o->u.pad.output);
          update_blocking(m, o->u.pad.output);
          break;
@@ -3227,6 +3230,7 @@ static void update_driving(rt_model_t *m, rt_nexus_t *n, bool safe)
                update_driving(m, o->u.pseudo.nexus, false);
                break;
             case SOURCE_PAD:
+               call_functor(m, o->u.pad.functor);
                update_driving(m, o->u.pad.output, false);
                break;
             default:
