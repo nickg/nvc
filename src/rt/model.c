@@ -2140,27 +2140,25 @@ static void calculate_initial_value(rt_model_t *m, rt_nexus_t *n)
    }
 }
 
-static int nexus_rank(rt_nexus_t *n)
+static void update_rank(rt_nexus_t *n, int min)
 {
-   if (n->rank > 0)
-      return n->rank;   // Already calculated
-   else if (n->n_sources > 0) {
-      int rank = 0;
-      for (rt_source_t *s = &(n->sources); s; s = s->chain_input) {
-         if (s->tag != SOURCE_PORT)
-            continue;
-         else if (s->u.port.conv_func != NULL) {
-            rt_conv_func_t *cf = s->u.port.conv_func;
-            for (int i = 0; i < cf->ninputs; i++)
-               rank = MAX(rank, nexus_rank(cf->inputs[i].nexus) + 1);
-         }
-         else
-            rank = MAX(rank, nexus_rank(s->u.port.input) + 1);
+   if (n->rank >= min)
+      return;
+   else if (min > MAX_RANK)
+      fatal_at(tree_loc(n->signal->where), "signal rank is greater "
+               "than the maximum supported %d", MAX_RANK);
+
+   n->rank = min;
+
+   for (rt_source_t *o = n->outputs; o; o = o->chain_output) {
+      switch (o->tag) {
+      case SOURCE_PORT:
+         update_rank(o->u.port.output, min + 1);
+         break;
+      default:
+         should_not_reach_here();
       }
-      return (n->rank = rank);
    }
-   else
-      return 0;
 }
 
 cover_data_t *get_coverage(rt_model_t *m)
@@ -2465,12 +2463,8 @@ void model_reset(rt_model_t *m)
          }
       }
 
-      const int rank = nexus_rank(n);
-      if (rank > MAX_RANK)
-         fatal_at(tree_loc(n->signal->where), "signal rank %d is greater "
-                  "than the maximum supported %d", rank, MAX_RANK);
-      else if (rank > 0 || n->n_sources > 1)
-         heap_insert(m->driving_heap, rank, n);
+      if (n->rank > 0 || n->n_sources > 1)
+         heap_insert(m->driving_heap, n->rank, n);
       else {
          calculate_initial_value(m, n);
          check_undriven_std_logic(n);
@@ -4600,6 +4594,8 @@ void x_map_signal(sig_shared_t *src_ss, uint32_t src_offset,
       port->chain_output = src_n->outputs;
       src_n->outputs = port;
 
+      update_rank(dst_n, src_n->rank + 1);
+
       count -= src_n->width;
       assert(count >= 0);
 
@@ -5147,16 +5143,24 @@ void x_convert_in(void *ptr, sig_shared_t *ss, uint32_t offset, int32_t count)
    rt_conv_func_t *cf = ptr;
    rt_model_t *m = get_model();
 
+   int rank = 0;
    rt_nexus_t *n = split_nexus(m, s, offset, count);
    for (; count > 0; n = n->chain) {
       count -= n->width;
       assert(count >= 0);
+
+      rank = MAX(rank, n->rank);
 
       add_conversion_input(m, cf, n);
 
       rt_source_t **p = &(n->outputs);
       for (; *p != NULL && *p != cf->outputs; p = &((*p)->chain_output));
       *p = cf->outputs;
+   }
+
+   for (rt_source_t *o = cf->outputs; o; o = o->chain_output) {
+      assert(o->tag == SOURCE_PORT);
+      update_rank(o->u.port.output, rank + 1);
    }
 }
 
