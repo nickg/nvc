@@ -4939,10 +4939,28 @@ static tree_t try_solve_attr_ref(nametab_t *tab, tree_t t)
    case ATTR_VAL:
    case ATTR_DELAYED:
    case ATTR_LAST_VALUE:
-   case ATTR_VALUE:
    case ATTR_DRIVING_VALUE:
    case ATTR_CONVERSE:
       type = prefix_type;
+      break;
+
+   case ATTR_VALUE:
+      if (tree_kind(prefix) == T_ATTR_REF
+          && tree_subkind(prefix) == ATTR_RANGE
+          && prefix_type != NULL
+          && !type_is_none(prefix_type)) {
+         ident_t cid = ident_runtil(
+            type_ident(type_base_recur(prefix_type)), '.');
+         tree_t container = lib_get_qualified(cid);
+         if (container == NULL)
+            container = find_enclosing(tab, S_DECLARATIVE_REGION);
+         if (container != NULL)
+            type = find_range_record_type(container, prefix_type);
+         if (type == NULL)
+            type = type_new(T_NONE);
+      }
+      else
+         type = prefix_type;
       break;
 
    case ATTR_PATH_NAME:
@@ -5001,6 +5019,10 @@ static tree_t try_solve_attr_ref(nametab_t *tab, tree_t t)
          else
             type = reflection_type(REFLECT_VALUE_MIRROR);
       }
+      break;
+
+   case ATTR_RECORD:
+      type = prefix_type;
       break;
 
    case ATTR_USER:

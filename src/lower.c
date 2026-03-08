@@ -5189,6 +5189,28 @@ static vcode_reg_t lower_attr_ref(lower_unit_t *lu, tree_t expr)
 
    case ATTR_VALUE:
       {
+         // VHDL 2019: 'range'value returns a range record
+         if (tree_kind(name) == T_ATTR_REF
+             && tree_subkind(name) == ATTR_RANGE) {
+            type_t range_type = tree_type(name);
+            tree_t r = range_of(range_type, 0);
+
+            vcode_reg_t left_reg = lower_range_left(lu, r);
+            vcode_reg_t right_reg = lower_range_right(lu, r);
+            vcode_reg_t dir_reg = lower_range_dir(lu, r);
+
+            type_t rec_type = tree_type(expr);
+            type_t dir_type = tree_type(type_field(rec_type, 2));
+            vcode_type_t vdir = lower_type(dir_type);
+            vcode_stamp_t vdir_bounds = lower_bounds(dir_type);
+            dir_reg = emit_cast(vdir, vdir_bounds, dir_reg);
+
+            vcode_reg_t vals[3] = { left_reg, right_reg, dir_reg };
+            vcode_reg_t rec_reg =
+               emit_const_record(lower_type(rec_type), vals, 3);
+            return emit_address_of(rec_reg);
+         }
+
          type_t name_type = tree_type(name);
          tree_t value = tree_value(tree_param(expr, 0));
          type_t value_type = tree_type(value);
