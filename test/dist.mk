@@ -49,6 +49,9 @@ EXTRA_DIST += \
 	test/charset/iso8859-1.vhd \
 	test/charset/strings.vhd \
 	test/charset/utf8.vhd \
+	test/cover/issue1431_sub.vhd \
+	test/cover/issue1431.vhd \
+	test/cover/issue1442.vhd \
 	test/cover/merge1.vhd \
 	test/cover/perfile1.vhd \
 	test/cover/spec1.txt \
@@ -316,8 +319,8 @@ EXTRA_DIST += \
 	test/lower/issue135.vhd \
 	test/lower/issue136.vhd \
 	test/lower/issue1422.vhd \
-	test/lower/issue149.vhd \
 	test/lower/issue1425.vhd \
+	test/lower/issue149.vhd \
 	test/lower/issue158.vhd \
 	test/lower/issue164.vhd \
 	test/lower/issue167.vhd \
@@ -1547,6 +1550,8 @@ EXTRA_DIST += \
 	test/regress/issue141.vhd \
 	test/regress/issue1420.vhd \
 	test/regress/issue1424.vhd \
+	test/regress/issue1428.vhd \
+	test/regress/issue1433.sh \
 	test/regress/issue143.vhd \
 	test/regress/issue146.vhd \
 	test/regress/issue148.vhd \
@@ -1993,6 +1998,7 @@ EXTRA_DIST += \
 	test/regress/reflect3.vhd \
 	test/regress/reflect4.vhd \
 	test/regress/reflect5.vhd \
+	test/regress/reflect6.vhd \
 	test/regress/select1.v \
 	test/regress/select2.v \
 	test/regress/select3.v \
@@ -2154,6 +2160,7 @@ EXTRA_DIST += \
 	test/regress/vhpi16.vhd \
 	test/regress/vhpi17.vhd \
 	test/regress/vhpi18.vhd \
+	test/regress/vhpi19.vhd \
 	test/regress/vhpi1.vhd \
 	test/regress/vhpi2.vhd \
 	test/regress/vhpi3.vhd \
@@ -2492,6 +2499,7 @@ EXTRA_DIST += \
 	test/simp/issue1239.vhd \
 	test/simp/issue1347.vhd \
 	test/simp/issue1353.vhd \
+	test/simp/issue1438.vhd \
 	test/simp/issue155.vhd \
 	test/simp/issue194.vhd \
 	test/simp/issue212.vhd \

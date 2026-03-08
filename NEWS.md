@@ -1,4 +1,6 @@
 ## Unreleased changes
+
+## Version 1.19.3 - 2026-03-08
 - VHPI value change callbacks for indexed names now work correctly (#1428).
 - Added support for iterating physical unit declarations in VHPI (#1437).
 - VHPI returns correct format for time and time_vector types (#1441).
