@@ -4,7 +4,7 @@
 - VHPI returns correct format for time and time_vector types (#1441).
 - Terminal hyperlink ANSI escape sequences are no longer emitted if
   `NVC_COLORS=always` is set but the output is not a terminal (#1433).
-- Several other minor bugs were resolved (#1431, #1438).
+- Several other minor bugs were resolved (#1431, #1438, #1446).
 
 ## Version 1.19.2 - 2026-02-22
 - Fixed a crash when dumping a waveform `--dump-arrays` and the design

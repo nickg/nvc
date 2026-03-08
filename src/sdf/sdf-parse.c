@@ -336,8 +336,8 @@ static ident_t p_qstring(void)
    // qstring identifier is stored including the surrounding
    // apostrophes.
    consume(tSTRING);
-   ident_t str = ident_new(state.last_lval.str);
-   free(state.last_lval.str);
+   ident_t str = ident_sprintf("\"%s\"", tb_get(state.last_lval.text));
+   tb_free(state.last_lval.text);
 
    return str;
 }

@@ -2178,7 +2178,8 @@ START_TEST(test_bitstring)
       { 26, "a bit string literal may not contain multiple consecutive "
         "underscores" },
       { 28, "unterminated string literal" },
-      { 28, "unexpected string while parsing constant declaration" },
+      { 29, "unexpected integer while parsing constant declaration" },
+      { 28, "invalid character 'x' in string literal" },
       { 29, "unterminated string literal" },
       { -1, NULL }
    };
@@ -3226,10 +3227,10 @@ START_TEST(test_cond1)
    input_from_file(TESTDIR "/parse/cond1.vhd");
 
    const error_t expect[] = {
-      { 10, "\"this is a warning\"" },
-      { 13, "\"Using nvc\"" },
-      { 21, "\"correct\"" },
-      { 25, "\"VHDL version is correct\"" },
+      { 10, "this is a warning" },
+      { 13, "Using nvc" },
+      { 21, "correct" },
+      { 25, "VHDL version is correct" },
       { 32, "undefined conditional analysis identifier FOO" },
       { 35, "unterminated conditional analysis block" },
       { 38, "unexpected end of file while parsing package declaration" },
@@ -5240,7 +5241,7 @@ START_TEST(test_issue604)
    set_standard(STD_19);
 
    const error_t expect[] = {
-      { 11, "\"Tool is NVC\"" },
+      { 11, "Tool is NVC" },
       { 18, "unexpected `elsif outside conditional analysis block" },
       { 19, "unexpected `end outside conditional analysis block" },
       { -1, NULL }
@@ -7452,6 +7453,38 @@ START_TEST(test_issue1413)
 }
 END_TEST
 
+START_TEST(test_issue1446)
+{
+   static const int bufsz = 20000;
+   char *buf LOCAL = xmalloc(bufsz);
+
+   buf[0] = '"';
+   memset(buf + 1, '0', bufsz - 2);
+   buf[bufsz - 1] = '"';
+
+   input_from_buffer(buf, bufsz, FILE_INVALID, SOURCE_VHDL);
+
+   extern yylval_t yylval;
+
+   token_t tok1 = processed_yylex();
+   ck_assert_int_eq(tok1, tSTRING);
+   ck_assert_int_eq(tb_len(yylval.text), bufsz - 2);
+   tb_free(yylval.text);
+
+   buf[0] = 'X';
+   buf[1] = '"';
+   memset(buf + 2, '0', bufsz - 2);
+   buf[bufsz - 1] = '"';
+
+   input_from_buffer(buf, bufsz, FILE_INVALID, SOURCE_VHDL);
+
+   token_t tok2 = processed_yylex();
+   ck_assert_int_eq(tok2, tBITSTRING);
+   ck_assert_int_eq(strlen(yylval.str), bufsz);
+   free(yylval.str);
+}
+END_TEST
+
 Suite *get_parse_tests(void)
 {
    Suite *s = suite_create("parse");
@@ -7643,6 +7676,7 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_issue1335);
    tcase_add_test(tc_core, test_fuzzing);
    tcase_add_test(tc_core, test_issue1413);
+   tcase_add_test(tc_core, test_issue1446);
    suite_add_tcase(s, tc_core);
 
    return s;
