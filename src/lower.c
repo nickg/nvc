@@ -1490,7 +1490,16 @@ static vcode_reg_t lower_name_attr(lower_unit_t *lu, tree_t decl,
    case T_GENERIC_DECL:
    case T_PARAM_DECL:
       {
-         int obj = lower_search_vcode_obj(decl, lu, &extra_hops);
+         tree_t target = decl;
+         while (tree_kind(target) == T_ALIAS) {
+            tree_t value = tree_value(target);
+            if (tree_kind(value) == T_REF && tree_has_ref(value))
+               target = tree_ref(value);
+            else
+               break;
+         }
+
+         int obj = lower_search_vcode_obj(target, lu, &extra_hops);
          if (obj != -1) {
             for (int i = 0; i < extra_hops; i++, scope = scope->parent);
 
