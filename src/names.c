@@ -4810,7 +4810,8 @@ static tree_t try_solve_attr_ref(nametab_t *tab, tree_t t)
             else if ((decl = resolve_ref(tab, name)))
                tree_set_ref(name, decl);
 
-            if (decl != NULL && class_has_type(class_of(decl)))
+            if (decl != NULL && class_has_type(class_of(decl))
+                && tree_has_type(decl))
                tree_set_type(name, tree_type(decl));
 
             prefix = name;
@@ -4989,10 +4990,19 @@ static tree_t try_solve_attr_ref(nametab_t *tab, tree_t t)
             type = type_new(T_NONE);
          else {
             tree_t decl = tree_ref(prefix);
-            ident_t id = tree_ident(decl);
             ident_t attr = tree_ident(t);
-            class_t class = class_of(decl);
             tree_t a = NULL;
+
+            while (tree_kind(decl) == T_ALIAS) {
+               tree_t value = tree_value(decl);
+               if (tree_kind(value) == T_REF && tree_has_ref(value))
+                  decl = tree_ref(value);
+               else
+                  break;
+            }
+
+            ident_t id = tree_ident(decl);
+            class_t class = class_of(decl);
 
             // Hack to strip off any WORK. prefix
             id = ident_rfrom(id, '.') ?: id;
