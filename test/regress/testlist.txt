@@ -1270,5 +1270,6 @@ reflect6        normal,2019
 vlog32          verilog
 vlog33          verilog
 vlog34          verilog,fail,gold
+vlog35          verilog,gold
 issue1427       normal,2008
 ivtest22        verilog
