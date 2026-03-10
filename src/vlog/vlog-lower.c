@@ -166,6 +166,19 @@ static mir_value_t vlog_get_temp(vlog_gen_t *g, mir_type_t type)
    return temp;
 }
 
+static mir_value_t vlog_lower_x(vlog_gen_t *g, mir_type_t type)
+{
+   assert(mir_get_class(g->mu, type) == MIR_TYPE_VEC4);
+
+   if (mir_get_size(g->mu, type) <= 64)
+      return mir_const_vec(g->mu, type, ~UINT64_C(0), ~UINT64_C(0));
+   else {
+      mir_type_t t_logic = mir_vec4_type(g->mu, 1, false);
+      mir_value_t x = mir_const_vec(g->mu, t_logic, 1, 1);
+      return mir_build_cast(g->mu, type, x);
+   }
+}
+
 static mir_value_t vlog_lower_array_off(vlog_gen_t *g, vlog_node_t r,
                                         vlog_node_t v)
 {
@@ -884,7 +897,7 @@ static mir_value_t vlog_lower_rvalue_select(vlog_gen_t *g, vlog_node_t v)
       // TODO: use a phi node here
       tmp = mir_add_var(g->mu, select.type, MIR_NULL_STAMP,
                         ident_uniq("tmp"), MIR_VAR_TEMP);
-      mir_build_store(g->mu, tmp, mir_const_vec(g->mu, select.type, 1, 1));
+      mir_build_store(g->mu, tmp, vlog_lower_x(g, select.type));
 
       mir_block_t guarded_bb = mir_add_block(g->mu);
       merge_bb = mir_add_block(g->mu);
@@ -896,7 +909,7 @@ static mir_value_t vlog_lower_rvalue_select(vlog_gen_t *g, vlog_node_t v)
 
    mir_value_t result;
    if (!in_range_const)
-      result = mir_const_vec(g->mu, select.type, ~UINT64_C(0), ~UINT64_C(0));
+      result = vlog_lower_x(g, select.type);
    else if (mir_is_signal(g->mu, select.obj)) {
       mir_value_t data = mir_build_resolved(g->mu, select.obj);
       mir_value_t ptr = mir_build_array_ref(g->mu, data, select.offset);
@@ -1496,17 +1509,7 @@ static mir_value_t vlog_lower_default_value(vlog_gen_t *g,
          return mir_build_cast(g->mu, ti->type, zero);
       }
    case MIR_TYPE_VEC4:
-      if (ti->size <= 64) {
-         uint64_t mask = ~UINT64_C(0);
-         if (ti->size < 64) mask >>= 64 - ti->size;
-
-         return mir_const_vec(g->mu, ti->type, mask, mask);
-      }
-      else {
-         mir_type_t t_logic = mir_vec4_type(g->mu, 1, false);
-         mir_value_t x = mir_const_vec(g->mu, t_logic, 1, 1);
-         return mir_build_cast(g->mu, ti->type, x);
-      }
+      return vlog_lower_x(g, ti->type);
    default:
       should_not_reach_here();
    }

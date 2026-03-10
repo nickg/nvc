@@ -40,7 +40,7 @@ def run_cmd(c, expfail, gold)
 
     status = t.value
 
-    if err =~ /Caught signal/ or (c =~ /-r/ and output =~ /FAILED TEST/) then
+    if err =~ /Caught signal/ or (c =~ /-r/ and output =~ /FAILED/i) then
       puts
       puts c.magenta
       puts output
@@ -71,12 +71,12 @@ def run_cmd(c, expfail, gold)
         puts output
         return false
       end
-    elsif status == 0 and !(output =~ /PASSED/) then
+    elsif status == 0 and !(output =~ /PASSED/i) then
       puts
       puts c.magenta
       puts output
       puts err
-      puts "did not print PASSED or FAILED!".magenta
+      puts "did not print PASSED!".magenta
       return false
     end
 

@@ -474,8 +474,11 @@ static void jit_emit_trace(diag_t *d, const loc_t *loc, object_t *enclosing,
          diag_trace(d, loc, "Port connection for '%pi'",
                     vlog_ident(vlog_ref(v)));
          break;
+      case V_INST_BODY:
+         diag_trace(d, loc, "Instance %pi", vlog_ident(v));
+         break;
       default:
-         diag_trace(d, loc, "%s", istr(vlog_ident(v)));
+         diag_trace(d, loc, "%pi", istr(vlog_ident(v)));
       }
    }
 }

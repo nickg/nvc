@@ -1185,7 +1185,7 @@ static mir_value_t mir_build_sub_op(mir_unit_t *mu, mir_op_t op,
    const bool rconst = mir_get_const(mu, right, &rval);
 
    if (lconst && lval == 0)
-      return right;
+      return mir_build_neg(mu, type, right);
    else if (rconst && rval == 0)
       return left;
    else if (lconst && rconst && !__builtin_sub_overflow(lval, rval, &cval))

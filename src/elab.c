@@ -1947,10 +1947,12 @@ static vlog_node_t elab_mixed_generics(tree_t comp, vlog_node_t mod,
 {
    vlog_node_t stmt = vlog_new(V_MOD_INST);
    vlog_set_ident(stmt, vlog_ident2(mod));
+   vlog_set_loc(stmt, tree_loc(comp));
 
    vlog_node_t list = vlog_new(V_INST_LIST);
    vlog_set_ident(list, vlog_ident2(mod));
    vlog_add_stmt(list, stmt);
+   vlog_set_loc(list, tree_loc(comp));
 
    const int vhdl_ngenerics = tree_generics(comp);
    const int vlog_ndecls = vlog_decls(mod);
@@ -2854,6 +2856,7 @@ static void elab_verilog_root_cb(void *arg)
    vlog_node_t list = vlog_new(V_INST_LIST);
    vlog_set_ident(list, label);
    vlog_add_stmt(list, stmt);
+   vlog_set_loc(list, vlog_loc(vlog));
 
    elab_verilog_module(NULL, label, vlog, list, stmt, ctx);
 }
