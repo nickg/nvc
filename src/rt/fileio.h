@@ -31,5 +31,6 @@ typedef uint32_t file_handle_t;
 
 bool file_mode(file_handle_t fh, file_mode_t *mode);
 bool file_logical_name(file_handle_t fh, const char **name);
+FILE *file_get_fp(file_handle_t fh);
 
 #endif  // _RT_FILEIO_H
