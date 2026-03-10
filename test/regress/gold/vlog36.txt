@@ -1,0 +1,3 @@
+dout= 42
+dout= 99
+$finish called
