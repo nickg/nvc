@@ -518,10 +518,44 @@ static inline void __spread_bits(void* vec, uint8_t packed)
    memcpy(vec, &swap, sizeof(swap));
 }
 
+static inline uint64_t __pack_to_u64(const uint8_t *arr, int size)
+{
+   uint64_t val = 0;
+   int i = 0;
+   for (; i + 8 <= size; i += 8)
+      val = (val << 8) | __pack_low_bits(arr + i);
+   for (; i < size; i++)
+      val = (val << 1) | (arr[i] & 1);
+   return val;
+}
+
+__attribute__((always_inline))
+static inline void __unpack_from_u64(uint64_t val,
+                                     uint8_t *result, int size)
+{
+   int pos = size;
+   while (pos >= 8) {
+      pos -= 8;
+      __spread_bits(result + pos, val & 0xff);
+      val >>= 8;
+   }
+   for (int i = pos - 1; i >= 0; i--) {
+      result[i] = (val & 1) | 0x02;
+      val >>= 1;
+   }
+}
+
 __attribute__((always_inline))
 static inline void __ieee_packed_add(const uint8_t *left, const uint8_t *right,
                                      int size, int carry, uint8_t *result)
 {
+   if (likely(size <= 64)) {
+      uint64_t lval = __pack_to_u64(left, size);
+      uint64_t rval = __pack_to_u64(right, size);
+      __unpack_from_u64(lval + rval + carry, result, size);
+      return;
+   }
+
    int pos = size - 8;
    for (; pos > 0; pos -= 8) {
       const unsigned lbyte = __pack_low_bits(left + pos);
@@ -781,13 +815,17 @@ static void ieee_mul_unsigned(jit_func_t *func, jit_anchor_t *anchor,
 
       if (left[0] == _X || right[0] == _X)
          memset(result, _X, size);
+      else if (size <= 64) {
+         uint64_t lval = __pack_to_u64(left, lsize);
+         uint64_t rval = __pack_to_u64(right, rsize);
+         __unpack_from_u64(lval * rval, result, size);
+      }
       else {
          memset(result, _0, size);
 
          uint8_t *adval = __resize_unsigned(tlab, right, rsize, size);
          for (int i = lsize - 1, shift = 0; i >= 0; i--, shift++) {
             if (left[i] == _1) {
-               // Delay left-shift until value needed
                memmove(adval, adval + shift, size - shift);
                memset(adval + size - shift, _0, shift);
                shift = 0;
@@ -829,6 +867,16 @@ static void ieee_mul_signed(jit_func_t *func, jit_anchor_t *anchor,
 
       if (left[0] == _X || right[0] == _X)
          memset(result, _X, size);
+      else if (size <= 64) {
+         uint64_t lval = __pack_to_u64(left, lsize);
+         uint64_t rval = __pack_to_u64(right, rsize);
+         if (lsize < 64 && (left[0] & 1))
+            lval |= ~UINT64_C(0) << lsize;
+         if (rsize < 64 && (right[0] & 1))
+            rval |= ~UINT64_C(0) << rsize;
+         __unpack_from_u64((int64_t)lval * (int64_t)rval,
+                           result, size);
+      }
       else {
          memset(result, _0, size);
 
