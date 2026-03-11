@@ -1272,3 +1272,5 @@ vlog33          verilog
 vlog34          verilog,fail,gold
 issue1427       normal,2008
 ivtest22        verilog
+textio9         normal
+textio10        normal

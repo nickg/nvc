@@ -158,6 +158,12 @@ static void drop_handle(file_handle_t handle)
    free_hint = slot - handles;
 }
 
+FILE *file_get_fp(file_handle_t fh)
+{
+   file_slot_t *slot = decode_handle(fh);
+   return slot ? slot->file : NULL;
+}
+
 bool file_mode(file_handle_t fh, file_mode_t *mode)
 {
    file_slot_t *slot = decode_handle(fh);
