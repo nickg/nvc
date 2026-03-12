@@ -826,6 +826,7 @@ static void ieee_mul_unsigned(jit_func_t *func, jit_anchor_t *anchor,
          uint8_t *adval = __resize_unsigned(tlab, right, rsize, size);
          for (int i = lsize - 1, shift = 0; i >= 0; i--, shift++) {
             if (left[i] == _1) {
+               // Delay left-shift until value needed
                memmove(adval, adval + shift, size - shift);
                memset(adval + size - shift, _0, shift);
                shift = 0;
