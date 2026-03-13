@@ -983,12 +983,30 @@ NVC can collect code coverage only on part of the simulated design.
 When coverage specification file is passed during elaboration time,
 NVC collects code coverage only as specified in this file. If
 the file is ommited, NVC collects code coverage on whole design.
+Packages are an exception: code coverage is never collected on
+packages by default and they must be explicitly opted in via a
+.Ql +package
+or
+.Ql +hierarchy
+directive in the coverage specification file.  Packages from the
+standard libraries
+.Pq Cm STD , Cm IEEE , Cm NVC
+are never instrumented even when a spec rule would otherwise match
+them.
 The format of commands in the coverage specification file is as follows:
 .Bd -literal -offset indent
 (+|-)block <ENTITY_NAME>
 (+|-)hierarchy <HIERARCHY>
+(+|-)package <PATTERN>
 (+|-)fsm-type <TYPE>
 .Ed
+.Pp
+The argument to
+.Ql package
+is a glob pattern matched against the package name (the last
+component of the package's qualified identifier).  Use
+.Ql *
+to match zero or more characters within a single name component.
 .Pp
 An example of coverage specification file is following:
 .Bd -literal -offset indent
@@ -1005,6 +1023,14 @@ An example of coverage specification file is following:
 
 # Example how to disable collecting code coverage on entity or block:
 -block clock_gate_model
+
+# Example how to enable collecting code coverage on every package
+# whose name ends with '_pkg' (packages are not collected by default):
++package *_PKG
+
+# Example how to exclude a package by name, overriding any +package
+# rule that would otherwise match it:
+-package LEGACY_PKG
 
 # Example how to force all signals of enum types named 'T_FSM_STATE'
 # to be recognized as FSM
@@ -1027,7 +1053,16 @@ disabled hierarchy / block (
 .Ql -
 ) has priority over enabled hierarchy / block (
 .Ql +
-).
+).  For packages, a
+.Ql \-package
+match overrides any
+.Ql +package
+or
+.Ql +hierarchy
+rule, and a
+.Ql \-hierarchy
+match overrides
+.Ql +package .
 .Ss Exclude file
 NVC can exclude any coverage bins when generating code coverage report.
 When a coverage bin is excluded, it is counted as "Covered" in the

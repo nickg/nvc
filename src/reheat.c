@@ -94,6 +94,8 @@ void reheat(tree_t top, unit_registry_t *ur, mir_context_t *mc,
 {
    assert(tree_kind(top) == T_ELAB);
 
+   unit_registry_set_cover(ur, cover);
+
    rt_scope_t *root = create_scope(m, top, NULL);
 
    reheat_ctx_t ctx = {

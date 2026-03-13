@@ -8037,7 +8037,7 @@ static void lower_resolution_var(lower_unit_t *lu, tree_t decl, type_t type)
    ident_t name = ident_prefix(prefix, well_known(W_RESOLUTION), '$');
 
    unit_registry_defer(lu->registry, name, lu, emit_function,
-                       lower_resolution_wrapper, NULL, type_to_object(type));
+                       lower_resolution_wrapper, type_to_object(type));
 
    vcode_type_t rtype = lower_func_result_type(type);
 
@@ -8638,7 +8638,7 @@ static void lower_implicit_decl(lower_unit_t *parent, tree_t decl)
          ident_t func = ident_prefix(qual, ident_new("guard"), '$');
 
          unit_registry_defer(parent->registry, func, parent, emit_process,
-                             lower_implicit_guard, NULL, tree_to_object(decl));
+                             lower_implicit_guard, tree_to_object(decl));
 
          vcode_reg_t vdummy = vtype_opaque();
          vcode_reg_t context_reg = emit_context_upref(0);
@@ -8662,7 +8662,7 @@ static void lower_implicit_decl(lower_unit_t *parent, tree_t decl)
          ident_t name = ident_prefix(parent->name, tree_ident(decl), '.');
 
          unit_registry_defer(parent->registry, name, parent, emit_process,
-                             lower_implicit_delayed, NULL, obj);
+                             lower_implicit_delayed, obj);
 
          vcode_reg_t vdummy = vtype_opaque();
          vcode_reg_t context_reg = emit_context_upref(0);
@@ -8685,7 +8685,7 @@ static void lower_implicit_decl(lower_unit_t *parent, tree_t decl)
          ident_t qual = ident_prefix(parent->name, name, '.');
 
          unit_registry_defer(parent->registry, qual, parent, emit_process,
-                             lower_implicit_transaction, NULL, obj);
+                             lower_implicit_transaction, obj);
 
          vcode_reg_t vdummy = vtype_opaque();
          vcode_reg_t context_reg = emit_context_upref(0);
@@ -8709,7 +8709,7 @@ static void lower_implicit_decl(lower_unit_t *parent, tree_t decl)
          ident_t qual = ident_prefix(parent->name, name, '.');
 
          unit_registry_defer(parent->registry, qual, parent, emit_process,
-                             lower_implicit_stable, NULL, obj);
+                             lower_implicit_stable, obj);
 
          vcode_reg_t vdummy = vtype_opaque();
          vcode_reg_t context_reg = emit_context_upref(0);
@@ -9958,41 +9958,41 @@ static void lower_decl(lower_unit_t *lu, tree_t decl, gen_stack_t *gs)
 
             ident_t value = ident_prefix(id, ident_new("value"), '$');
             unit_registry_defer(lu->registry, value, lu, emit_function,
-                                lower_value_helper, NULL, obj);
+                                lower_value_helper, obj);
          }
 
          if (!type_is_homogeneous(type) && can_be_signal(type)) {
             ident_t resolved = ident_prefix(id, ident_new("resolved"), '$');
             unit_registry_defer(lu->registry, resolved, lu, emit_function,
-                                lower_resolved_helper, NULL, obj);
+                                lower_resolved_helper, obj);
 
             ident_t last_value = ident_prefix(id, ident_new("last_value"), '$');
             unit_registry_defer(lu->registry, last_value, lu, emit_function,
-                                lower_last_value_helper, NULL, obj);
+                                lower_last_value_helper, obj);
 
             ident_t last_event = ident_sprintf("%s$last_event", istr(id));
             unit_registry_defer(lu->registry, last_event, lu, emit_function,
-                                lower_last_event_helper, NULL, obj);
+                                lower_last_event_helper, obj);
 
             ident_t last_active = ident_sprintf("%s$last_active", istr(id));
             unit_registry_defer(lu->registry, last_active, lu, emit_function,
-                                lower_last_active_helper, NULL, obj);
+                                lower_last_active_helper, obj);
 
             ident_t driving = ident_prefix(id, ident_new("driving"), '$');
             unit_registry_defer(lu->registry, driving, lu, emit_function,
-                                lower_driving_value_helper, NULL, obj);
+                                lower_driving_value_helper, obj);
          }
 
          if (!lower_trivially_copyable(type)) {
             ident_t copy = ident_prefix(id, ident_new("copy"), '$');
             unit_registry_defer(lu->registry, copy, lu, emit_function,
-                                lower_copy_helper, NULL, obj);
+                                lower_copy_helper, obj);
          }
 
          if (type_is_record(type) && !type_const_bounds(type)) {
             ident_t new = ident_prefix(id, ident_new("new"), '$');
             unit_registry_defer(lu->registry, new, lu, emit_function,
-                                lower_new_helper, NULL, obj);
+                                lower_new_helper, obj);
          }
       }
       break;
@@ -10030,7 +10030,7 @@ static void lower_decl(lower_unit_t *lu, tree_t decl, gen_stack_t *gs)
          object_t *obj = tree_to_object(decl);
 
          unit_registry_defer(lu->registry, name, lu, emit_package,
-                             lower_instantiated_package, lu->cover, obj);
+                             lower_instantiated_package, obj);
 
          vcode_type_t vcontext = vtype_context(name);
          vcode_var_t var = emit_var(vcontext, VCODE_INVALID_STAMP, name, 0);
@@ -10153,7 +10153,7 @@ static void lower_decls(lower_unit_t *lu, tree_t scope, gen_stack_t *gs)
          continue;
       else if (ident_casecmp(tree_ident(d), well_known(W_FOREIGN)))
          unit_registry_defer(lu->registry, tree_ident2(tree_ref(d)), lu,
-                             emit_function, lower_foreign_stub, NULL,
+                             emit_function, lower_foreign_stub,
                              tree_to_object(d));
    }
 
@@ -10176,7 +10176,7 @@ static void lower_decls(lower_unit_t *lu, tree_t scope, gen_stack_t *gs)
             if (!unit_registry_query(lu->registry, mangled))
                unit_registry_defer(lu->registry, mangled, lu,
                                    emit_function, lower_func_body,
-                                   lu->cover, tree_to_object(d));
+                                   tree_to_object(d));
 
             lower_put_vcode_obj(d, 0, lu);   // Dummy value
          }
@@ -10200,7 +10200,7 @@ static void lower_decls(lower_unit_t *lu, tree_t scope, gen_stack_t *gs)
 
             if (!unit_registry_query(lu->registry, mangled))
                unit_registry_defer(lu->registry, mangled, lu,
-                                   emitfn, lower_proc_body, lu->cover,
+                                   emitfn, lower_proc_body,
                                    tree_to_object(d));
 
             lower_put_vcode_obj(d, 0, lu);   // Dummy value
@@ -10209,7 +10209,7 @@ static void lower_decls(lower_unit_t *lu, tree_t scope, gen_stack_t *gs)
       case T_PROT_BODY:
          unit_registry_defer(lu->registry, type_ident(tree_type(d)),
                              lu, emit_protected, lower_protected_body,
-                             lu->cover, tree_to_object(d));
+                             tree_to_object(d));
          lower_put_vcode_obj(d, 0, lu);   // Dummy value
          break;
       case T_FUNC_DECL:
@@ -10232,7 +10232,7 @@ static void lower_decls(lower_unit_t *lu, tree_t scope, gen_stack_t *gs)
                                                   istr(tree_ident(p)));
                  unit_registry_defer(lu->registry, def_func, lu,
                                      emit_function, lower_subprogram_default,
-                                     lu->cover, tree_to_object(p));
+                                     tree_to_object(p));
               }
 
               lower_put_vcode_obj(d, 0, lu);   // Dummy value
@@ -10292,7 +10292,7 @@ static void lower_decls(lower_unit_t *lu, tree_t scope, gen_stack_t *gs)
            default:
               unit_registry_defer(lu->registry, tree_ident2(d),
                                   lu, emit_function, lower_predef,
-                                  lu->cover, tree_to_object(d));
+                                  tree_to_object(d));
            }
         }
         break;
@@ -11234,7 +11234,7 @@ static void lower_converter(lower_unit_t *parent, tree_t map,
    }
 
    unit_registry_defer(parent->registry, name, parent, emit_process,
-                       fn, NULL, tree_to_object(map));
+                       fn, tree_to_object(map));
 
    type_t src_arg_type, dst_arg_type;
    switch (tree_kind(conv)) {
@@ -11513,7 +11513,7 @@ static void lower_inertial_actual(lower_unit_t *parent, tree_t dst, tree_t map)
 
    ident_t qual = ident_prefix(parent->name, tree_ident(inertial), '.');
    unit_registry_defer(parent->registry, qual, parent, emit_process,
-                       lower_inertial_actual_process, parent->cover,
+                       lower_inertial_actual_process,
                        tree_to_object(map));
 
    vcode_reg_t vdummy = vtype_opaque();
@@ -12471,6 +12471,39 @@ static void lower_cache_instance_name(lower_unit_t *lu, attr_kind_t which)
    lower_put_vcode_obj(name, var, lu);
 }
 
+static void lower_cover_setup_package(lower_unit_t *lu, tree_t pack)
+{
+   if (lu->cover == NULL)
+      return;
+
+   cover_scope_t *root = cover_get_root_scope(lu->cover);
+   if (root == NULL)
+      return;
+
+   if (!cover_should_emit_package(lu->cover, pack))
+      return;
+
+   lu->cscope = cover_create_block(lu->cover, lu->name, root, pack, pack);
+
+   vhdl_cover_package(pack, lu->cover, lu->cscope);
+
+   tree_t body = NULL;
+   if (tree_kind(pack) == T_PACKAGE)
+      body = body_of(pack);
+
+   if (body != NULL)
+      vhdl_cover_package(body, lu->cover, lu->cscope);
+
+   vcode_reg_t ptr = emit_get_counters(lu->name);
+
+   vcode_type_t vtype = vcode_reg_type(ptr);
+   ident_t name = well_known(W_COUNTERS);
+   vcode_var_t counters = emit_var(vtype, VCODE_INVALID_STAMP, name, 0);
+   emit_store(ptr, counters);
+
+   lower_put_vcode_obj(name, counters, lu);
+}
+
 static void lower_pack_body(lower_unit_t *lu, object_t *obj)
 {
    tree_t body = tree_from_object(obj);
@@ -12495,6 +12528,8 @@ static void lower_pack_body(lower_unit_t *lu, object_t *obj)
       tree_visit_only(pack, lower_external_name_cache, lu, T_EXTERNAL_NAME);
       tree_visit_only(body, lower_external_name_cache, lu, T_EXTERNAL_NAME);
    }
+
+   lower_cover_setup_package(lu, pack);
 
    lower_dependencies(lu, body);
 
@@ -12529,6 +12564,8 @@ static void lower_package(lower_unit_t *lu, object_t *obj)
 
    if (gflags & TREE_GF_EXTERNAL_NAME)
       tree_visit_only(pack, lower_external_name_cache, lu, T_EXTERNAL_NAME);
+
+   lower_cover_setup_package(lu, pack);
 
    lower_dependencies(lu, pack);
 
@@ -12814,12 +12851,12 @@ lower_unit_t *lower_instance(unit_registry_t *ur, lower_unit_t *parent,
       case T_PROCESS:
          unit_registry_defer(ur, ident_prefix(sym_prefix, tree_ident(s), '.'),
                              lu, emit_process, lower_process,
-                             cover, tree_to_object(s));
+                             tree_to_object(s));
          break;
       case T_PSL_DIRECT:
          unit_registry_defer(ur, ident_prefix(sym_prefix, tree_ident(s), '.'),
                              lu, emit_property, psl_lower_directive,
-                             cover, tree_to_object(s));
+                             tree_to_object(s));
          break;
       case T_BLOCK:
          break;
@@ -12878,6 +12915,7 @@ typedef struct _unit_registry {
    hash_t        *map;
    hset_t        *visited;
    mir_context_t *mir;
+   cover_data_t  *cover;
 } unit_registry_t;
 
 typedef struct {
@@ -12885,7 +12923,6 @@ typedef struct {
    emit_fn_t     emit_fn;
    lower_fn_t    fn;
    object_t     *object;
-   cover_data_t *cover;
 } deferred_unit_t;
 
 unit_registry_t *unit_registry_new(mir_context_t *mc)
@@ -12895,6 +12932,11 @@ unit_registry_t *unit_registry_new(mir_context_t *mc)
    ur->mir = mc;
 
    return ur;
+}
+
+void unit_registry_set_cover(unit_registry_t *ur, cover_data_t *cover)
+{
+   ur->cover = cover;
 }
 
 void unit_registry_free(unit_registry_t *ur)
@@ -13051,11 +13093,11 @@ vcode_unit_t unit_registry_get(unit_registry_t *ur, ident_t ident)
             return NULL;
 
          unit_registry_defer(ur, unit_name, NULL, emit_package,
-                             lower_pack_body, NULL, tree_to_object(body));
+                             lower_pack_body, tree_to_object(body));
       }
       else
          unit_registry_defer(ur, unit_name, NULL, emit_package,
-                             lower_package, NULL, tree_to_object(unit));
+                             lower_package, tree_to_object(unit));
 
       if (unit_name != ident) {
          // We actually wanted a unit inside this package so need to
@@ -13079,7 +13121,7 @@ vcode_unit_t unit_registry_get(unit_registry_t *ur, ident_t ident)
          vcode_unit_t vu = (*du->emit_fn)(ident, du->object, context);
          tree_t container = tree_from_object(du->object);
          lower_unit_t *lu = lower_unit_new(ur, du->parent, vu,
-                                           du->cover, container);
+                                           ur->cover, container);
 
          hash_put(ur->map, ident, tag_pointer(lu, UNIT_GENERATED));
 
@@ -13146,8 +13188,7 @@ vcode_unit_t unit_registry_get_parent(unit_registry_t *ur, ident_t name)
 
 void unit_registry_defer(unit_registry_t *ur, ident_t ident,
                          lower_unit_t *parent, emit_fn_t emit_fn,
-                         lower_fn_t fn, cover_data_t *cover,
-                         object_t *object)
+                         lower_fn_t fn, object_t *object)
 {
    void *ptr = hash_get(ur->map, ident);
    if (ptr == NULL) {
@@ -13155,7 +13196,6 @@ void unit_registry_defer(unit_registry_t *ur, ident_t ident,
       du->emit_fn = emit_fn;
       du->fn      = fn;
       du->parent  = parent;
-      du->cover   = cover;
       du->object  = object;
 
       for (lower_unit_t *p = du->parent; p; p = p->parent)
@@ -13168,7 +13208,6 @@ void unit_registry_defer(unit_registry_t *ur, ident_t ident,
       deferred_unit_t *du = untag_pointer(ptr, deferred_unit_t);
       assert(du->emit_fn == emit_fn);
       assert(du->fn == fn);
-      assert(du->cover == cover);
       assert(du->object == object);
    }
 #endif
