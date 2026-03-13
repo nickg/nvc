@@ -53,6 +53,7 @@ typedef struct _lower_unit {
 } lower_unit_t;
 
 unit_registry_t *unit_registry_new(mir_context_t *mc);
+void unit_registry_set_cover(unit_registry_t *ur, cover_data_t *cover);
 void unit_registry_free(unit_registry_t *ur);
 vcode_unit_t unit_registry_get(unit_registry_t *ur, ident_t ident);
 void unit_registry_put(unit_registry_t *ur, lower_unit_t *lu);

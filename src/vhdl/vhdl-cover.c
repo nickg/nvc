@@ -363,3 +363,15 @@ void vhdl_cover_block(tree_t block, cover_data_t *db, cover_scope_t *cs)
       }
    }
 }
+
+void vhdl_cover_package(tree_t pack, cover_data_t *db, cover_scope_t *cs)
+{
+   if (db == NULL || cs == NULL)
+      return;
+
+   cover_ignore_from_pragmas(db, cs, pack);
+
+   lazy_cscope_t lcs = { NULL, cs, pack };
+
+   vhdl_cover_decls(pack, db, &lcs);
+}

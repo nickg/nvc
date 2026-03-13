@@ -12171,6 +12171,41 @@ static void lower_cache_instance_name(lower_unit_t *lu, attr_kind_t which)
    lower_put_vcode_obj(name, var, lu);
 }
 
+static void lower_cover_setup_package(lower_unit_t *lu, tree_t pack)
+{
+   if (lu->cover == NULL)
+      return;
+
+   cover_scope_t *root = cover_get_root_scope(lu->cover);
+   if (root == NULL)
+      return;
+
+   ident_t pack_lib = ident_until(tree_ident(pack), '.');
+   if (pack_lib == well_known(W_STD) || pack_lib == well_known(W_IEEE)
+       || pack_lib == well_known(W_NVC))
+      return;
+
+   lu->cscope = cover_create_block(lu->cover, lu->name, root, pack, pack);
+
+   vhdl_cover_package(pack, lu->cover, lu->cscope);
+
+   tree_t body = NULL;
+   if (tree_kind(pack) == T_PACKAGE)
+      body = body_of(pack);
+
+   if (body != NULL)
+      vhdl_cover_package(body, lu->cover, lu->cscope);
+
+   vcode_reg_t ptr = emit_get_counters(lu->name);
+
+   vcode_type_t vtype = vcode_reg_type(ptr);
+   ident_t name = well_known(W_COUNTERS);
+   vcode_var_t counters = emit_var(vtype, VCODE_INVALID_STAMP, name, 0);
+   emit_store(ptr, counters);
+
+   lower_put_vcode_obj(name, counters, lu);
+}
+
 static void lower_pack_body(lower_unit_t *lu, object_t *obj)
 {
    tree_t body = tree_from_object(obj);
@@ -12191,6 +12226,8 @@ static void lower_pack_body(lower_unit_t *lu, object_t *obj)
       tree_visit_only(pack, lower_external_name_cache, lu, T_EXTERNAL_NAME);
       tree_visit_only(body, lower_external_name_cache, lu, T_EXTERNAL_NAME);
    }
+
+   lower_cover_setup_package(lu, pack);
 
    lower_dependencies(lu, body);
 
@@ -12221,6 +12258,8 @@ static void lower_package(lower_unit_t *lu, object_t *obj)
 
    if (gflags & TREE_GF_EXTERNAL_NAME)
       tree_visit_only(pack, lower_external_name_cache, lu, T_EXTERNAL_NAME);
+
+   lower_cover_setup_package(lu, pack);
 
    lower_dependencies(lu, pack);
 
@@ -12569,6 +12608,7 @@ typedef struct _unit_registry {
    hash_t        *map;
    hset_t        *visited;
    mir_context_t *mir;
+   cover_data_t  *cover;
 } unit_registry_t;
 
 typedef struct {
@@ -12586,6 +12626,11 @@ unit_registry_t *unit_registry_new(mir_context_t *mc)
    ur->mir = mc;
 
    return ur;
+}
+
+void unit_registry_set_cover(unit_registry_t *ur, cover_data_t *cover)
+{
+   ur->cover = cover;
 }
 
 void unit_registry_free(unit_registry_t *ur)
@@ -12768,11 +12813,13 @@ vcode_unit_t unit_registry_get(unit_registry_t *ur, ident_t ident)
             return NULL;
 
          unit_registry_defer(ur, unit_name, NULL, emit_package,
-                             lower_pack_body, NULL, tree_to_object(body));
+                             lower_pack_body, ur->cover,
+                             tree_to_object(body));
       }
       else
          unit_registry_defer(ur, unit_name, NULL, emit_package,
-                             lower_package, NULL, tree_to_object(unit));
+                             lower_package, ur->cover,
+                             tree_to_object(unit));
 
       if (unit_name != ident) {
          // We actually wanted a unit inside this package so need to

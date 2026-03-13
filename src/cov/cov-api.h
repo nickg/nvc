@@ -259,6 +259,7 @@ void cover_export_xml(cover_data_t *data, FILE *f, const char *relative);
 // Interface to code generator
 //
 
+cover_scope_t *cover_get_root_scope(cover_data_t *db);
 cover_scope_t *cover_create_block(cover_data_t *db, ident_t qual,
                                   cover_scope_t *parent, tree_t inst,
                                   tree_t unit);
