@@ -565,6 +565,109 @@ static inline void __ieee_packed_add_scalar(const uint8_t *left,
    }
 }
 
+__attribute__((always_inline))
+static inline void __ieee_packed_add_shifted(uint8_t *left,
+                                             const uint8_t *right,
+                                             int size, int shift)
+{
+   assert(shift >= 0 && shift < size);
+
+   const int active = size - shift;
+   (*ieee_packed_add)(left, right + shift, active, 0, left);
+}
+
+__attribute__((always_inline))
+static inline void __shift_bits(const uint8_t *input, int size, int shift,
+                                uint8_t *result)
+{
+   assert(shift >= 0 && shift < size);
+
+   const int active = size - shift;
+   memcpy(result, input + shift, active);
+   memset(result + active, _0, shift);
+}
+
+__attribute__((always_inline))
+static inline void __mul_unsigned(const uint8_t *left, int lsize,
+                                  const uint8_t *right, int rsize,
+                                  tlab_t *tlab, uint8_t *result)
+{
+   const int size = lsize + rsize;
+   const uint8_t *adval = __resize_unsigned(tlab, right, rsize, size);
+
+   memset(result, _0, size);
+
+   int pos = lsize - 8;
+   for (; pos >= 0; pos -= 8) {
+      unsigned bits = __pack_low_bits(left + pos);
+      if (bits == 0)
+         continue;
+
+      const int base_shift = lsize - pos - 8;
+      while (bits != 0) {
+         const int shift = base_shift + __builtin_ctz(bits);
+         __ieee_packed_add_shifted(result, adval, size, shift);
+         bits &= bits - 1;
+      }
+   }
+
+   const int rem = pos + 8;
+   if (rem > 0) {
+      unsigned bits = __pack_low_bits(left) >> (8 - rem);
+      const int base_shift = lsize - rem;
+
+      while (bits != 0) {
+         const int shift = base_shift + __builtin_ctz(bits);
+         __ieee_packed_add_shifted(result, adval, size, shift);
+         bits &= bits - 1;
+      }
+   }
+}
+
+__attribute__((always_inline))
+static inline void __mul_signed(const uint8_t *left, int lsize,
+                                const uint8_t *right, int rsize,
+                                tlab_t *tlab, uint8_t *result)
+{
+   const int size = lsize + rsize;
+   const uint8_t *adval = __resize_signed(tlab, right, rsize, size);
+
+   memset(result, _0, size);
+
+   int pos = lsize - 8;
+   for (; pos > 0; pos -= 8) {
+      unsigned bits = __pack_low_bits(left + pos);
+      if (bits == 0)
+         continue;
+
+      const int base_shift = lsize - pos - 8;
+      while (bits != 0) {
+         const int shift = base_shift + __builtin_ctz(bits);
+         __ieee_packed_add_shifted(result, adval, size, shift);
+         bits &= bits - 1;
+      }
+   }
+
+   const int rem = pos + 7;
+   if (rem > 0) {
+      unsigned bits = __pack_low_bits(left + 1) >> (8 - rem);
+      const int base_shift = lsize - rem - 1;
+
+      while (bits != 0) {
+         const int shift = base_shift + __builtin_ctz(bits);
+         __ieee_packed_add_shifted(result, adval, size, shift);
+         bits &= bits - 1;
+      }
+   }
+
+   if (left[0] == _1) {
+      uint8_t *neg = __tlab_alloc(tlab, size, 8);
+      __shift_bits(adval, size, lsize - 1, neg);
+      __invert_bits(neg, size, neg);
+      (*ieee_packed_add)(result, neg, size, 1, result);
+   }
+}
+
 #ifdef HAVE_SSE41
 __attribute__((target("sse4.1"), always_inline))
 static inline __m128i __spread_bits_16_sse41_vec(uint16_t packed)
@@ -885,21 +988,8 @@ static void ieee_mul_unsigned(jit_func_t *func, jit_anchor_t *anchor,
 
       if (left[0] == _X || right[0] == _X)
          memset(result, _X, size);
-      else {
-         memset(result, _0, size);
-
-         uint8_t *adval = __resize_unsigned(tlab, right, rsize, size);
-         for (int i = lsize - 1, shift = 0; i >= 0; i--, shift++) {
-            if (left[i] == _1) {
-               // Delay left-shift until value needed
-               memmove(adval, adval + shift, size - shift);
-               memset(adval + size - shift, _0, shift);
-               shift = 0;
-
-               ieee_packed_add(result, adval, size, 0, result);
-            }
-         }
-      }
+      else
+         __mul_unsigned(left, lsize, right, rsize, tlab, result);
 
       __tlab_restore(tlab, mark);
 
@@ -933,24 +1023,8 @@ static void ieee_mul_signed(jit_func_t *func, jit_anchor_t *anchor,
 
       if (left[0] == _X || right[0] == _X)
          memset(result, _X, size);
-      else {
-         memset(result, _0, size);
-
-         uint8_t *adval = __resize_signed(tlab, right, rsize, size);
-         for (int i = lsize - 1, shift = 0; i >= 0; i--, shift++) {
-            if (left[i] == _1) {
-               // Delay left-shift until value needed
-               memmove(adval, adval + shift, size - shift);
-               memset(adval + size - shift, _0, shift);
-               shift = 0;
-
-               if (i == 0)
-                  __invert_bits(adval, size, adval);
-
-               (*ieee_packed_add)(result, adval, size, i == 0, result);
-            }
-         }
-      }
+      else
+         __mul_signed(left, lsize, right, rsize, tlab, result);
 
       __tlab_restore(tlab, mark);
 
@@ -1697,22 +1771,7 @@ static void synopsys_mul_unsigned(jit_func_t *func, jit_anchor_t *anchor,
       memset(pa, _X, length);
    else {
       const uint32_t mark = __tlab_mark(tlab);
-      uint8_t *ba = __tlab_alloc(tlab, length, 8);
-
-      memset(pa, _0, length);
-      memset(ba, _0, length - rsize);
-      memcpy(ba + length - rsize, right, rsize);
-
-      for (int i = lsize - 1, shift = 0; i >= 0; i--, shift++) {
-         if (left[i] == _1) {
-            // Delay left-shift until value needed
-            memmove(ba, ba + shift, length - shift);
-            memset(ba + length - shift, _0, shift);
-            shift = 0;
-
-            (*ieee_packed_add)(pa, ba, length, 0, pa);
-         }
-      }
+      __mul_unsigned(left, lsize, right, rsize, tlab, pa);
 
       __tlab_restore(tlab, mark);
    }
@@ -1743,25 +1802,7 @@ static void synopsys_mul_signed(jit_func_t *func, jit_anchor_t *anchor,
       memset(pa, _X, length);
    else {
       const uint32_t mark = __tlab_mark(tlab);
-      uint8_t *ba = __tlab_alloc(tlab, length, 8);
-
-      memset(pa, _0, length);
-      memset(ba, right[0], length - rsize);
-      memcpy(ba + length - rsize, right, rsize);
-
-      for (int i = lsize - 1, shift = 0; i >= 0; i--, shift++) {
-         if (left[i] == _1) {
-            // Delay left-shift until value needed
-            memmove(ba, ba + shift, length - shift);
-            memset(ba + length - shift, _0, shift);
-            shift = 0;
-
-            if (i == 0)
-               __invert_bits(ba, length, ba);
-
-            (*ieee_packed_add)(pa, ba, length, i == 0, pa);
-         }
-      }
+      __mul_signed(left, lsize, right, rsize, tlab, pa);
 
       __tlab_restore(tlab, mark);
    }
