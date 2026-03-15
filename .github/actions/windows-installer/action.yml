@@ -17,6 +17,7 @@ runs:
           mingw-w64-clang-x86_64-clang
           mingw-w64-clang-x86_64-nodejs
           mingw-w64-clang-x86_64-jansson
+          mingw-w64-clang-x86_64-readline
           unzip
           git
           autoconf

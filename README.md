@@ -140,7 +140,7 @@ environment should be used because it supports native Windows
 thread-local storage unlike the GCC-based environments.  The required
 dependencies can be installed with:
 
-    pacman -S base-devel mingw-w64-clang-x86_64-{llvm,ncurses,libffi,check,pkgconf,zstd,autotools,clang}
+    pacman -S base-devel mingw-w64-clang-x86_64-{llvm,ncurses,libffi,check,pkgconf,zstd,autotools,clang,readline}
 
 [GTKWave](http://gtkwave.sourceforge.net/) or [Surfer](https://surfer-project.org/)
 can be used to view simulation waveforms.  For GTKWave, version 3.3.79 or later is
