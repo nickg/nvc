@@ -22,6 +22,11 @@ package STANDARD is
 
     type BOOLEAN is (FALSE, TRUE);
 
+    type RANGE_DIRECTION is (
+        ASCENDING,
+        DESCENDING
+    );
+
     type BIT is ('0', '1');
 
     type CHARACTER is (
