@@ -138,7 +138,9 @@ struct test {
    char      *cover;
    char      *define;
    char      *export;
-   char      *plusarg;
+   char     **plusargs;
+   unsigned   nplusargs;
+   char      *subdir;
    unsigned   arrays;
    int        seed;
    double     duration;
@@ -346,10 +348,10 @@ static bool is_comment(const char *str)
    return str[0] == '#';
 }
 
-static bool parse_test_list(void)
+static bool parse_test_list(const char *subdir)
 {
-   char testlist[PATH_MAX + 22];
-   snprintf(testlist, sizeof(testlist), "%s/regress/testlist.txt", test_dir);
+   char testlist[PATH_MAX + 32];
+   snprintf(testlist, sizeof(testlist), "%s/%s/testlist.txt", test_dir, subdir);
 
    FILE *f = fopen(testlist, "r");
    if (f == NULL) {
@@ -359,7 +361,9 @@ static bool parse_test_list(void)
 
    bool result = false;
    int lineno = 0;
-   test_t *last = NULL;
+   test_t *last = test_list;
+   while (last != NULL && last->next != NULL)
+      last = last->next;
    while (lineno++, !feof(f)) {
       char line[256];
       if (fgets(line, sizeof(line), f) == NULL)
@@ -385,6 +389,7 @@ static bool parse_test_list(void)
 
       test_t *test = calloc(sizeof(test_t), 1);
       test->name = strdup(name);
+      test->subdir = strdup(subdir);
       test->olevel = 0;
 
       if (last == NULL)
@@ -545,8 +550,11 @@ static bool parse_test_list(void)
             test->flags |= F_EXPORT;
             test->export = strdup(value + 1);
          }
-         else if (opt[0] == '+')
-            test->plusarg = strdup(opt + 1);
+         else if (opt[0] == '+') {
+            test->plusargs = realloc(test->plusargs,
+                                     (test->nplusargs + 1) * sizeof(char *));
+            test->plusargs[test->nplusargs++] = strdup(opt + 1);
+         }
          else {
             fprintf(stderr, "Error on testlist line %d: invalid option %s in "
                  "test %s\n", lineno, opt, name);
@@ -934,8 +942,8 @@ static bool run_test(test_t *test)
       push_arg(&args, "-a");
 
       if (!(test->flags & F_VERILOG))
-         push_arg(&args, "%s" DIR_SEP "regress" DIR_SEP "%s.vhd",
-                  test_dir, test->name);
+         push_arg(&args, "%s" DIR_SEP "%s" DIR_SEP "%s.vhd",
+                  test_dir, test->subdir, test->name);
 
       if (test->flags & (F_MIXED | F_VERILOG)) {
          if (file_exists("%s/regress/%s.sv", test_dir, test->name))
@@ -1028,8 +1036,8 @@ static bool run_test(test_t *test)
       if (test->flags & F_SHUFFLE)
          push_arg(&args, "--shuffle");
 
-      if (test->plusarg != NULL)
-         push_arg(&args, "+%s", test->plusarg);
+      for (unsigned i = 0; i < test->nplusargs; i++)
+         push_arg(&args, "+%s", test->plusargs[i]);
 
       push_arg(&args, "%s", test->name);
    }
@@ -1295,8 +1303,8 @@ static bool run_test(test_t *test)
 
    if (test->flags & F_GOLD) {
       char goldname[PATH_MAX + 19];
-      snprintf(goldname, sizeof(goldname), "%s/regress/gold/%s.txt",
-               test_dir, test->name);
+      snprintf(goldname, sizeof(goldname), "%s/%s/gold/%s.txt",
+               test_dir, test->subdir, test->name);
 
       FILE *goldf = fopen(goldname, "r");
       if (goldf == NULL) {
@@ -1513,7 +1521,10 @@ int main(int argc, char **argv)
       }
    }
 
-   if (!parse_test_list())
+   if (!parse_test_list("regress"))
+      return EXIT_FAILURE;
+
+   if (!parse_test_list("plugins"))
       return EXIT_FAILURE;
 
    char *newpath = xasprintf("%s:%s", bin_dir, getenv("PATH"));
