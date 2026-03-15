@@ -29,14 +29,10 @@ START_TEST(test_basic1)
 {
    input_from_file(TESTDIR "/model/basic1.vhd");
 
-   tree_t top = run_elab();
+   rt_model_t *m = model_new(get_jit(), NULL);
+
+   tree_t top = run_elab_with_model(m);
    fail_if(top == NULL);
-
-   jit_t *j = get_jit();
-   jit_reset(j);
-
-   rt_model_t *m = model_new(j, NULL);
-   create_scope(m, top, NULL);
 
    tree_t b0 = tree_stmt(top, 0);
    tree_t x = tree_decl(b0, 1);
@@ -75,14 +71,10 @@ START_TEST(test_index1)
 {
    input_from_file(TESTDIR "/model/index1.vhd");
 
-   tree_t top = run_elab();
+   rt_model_t *m = model_new(get_jit(), NULL);
+
+   tree_t top = run_elab_with_model(m);
    fail_if(top == NULL);
-
-   jit_t *j = get_jit();
-   jit_reset(j);
-
-   rt_model_t *m = model_new(j, NULL);
-   create_scope(m, top, NULL);
 
    tree_t b0 = tree_stmt(top, 0);
    tree_t s1 = get_decl(b0, "S1");
@@ -127,14 +119,11 @@ START_TEST(test_alias1)
 {
    input_from_file(TESTDIR "/model/alias1.vhd");
 
-   tree_t top = run_elab();
+   rt_model_t *m = model_new(get_jit(), NULL);
+
+   tree_t top = run_elab_with_model(m);
    fail_if(top == NULL);
 
-   jit_t *j = get_jit();
-   jit_reset(j);
-
-   rt_model_t *m = model_new(j, NULL);
-   create_scope(m, top, NULL);
    model_reset(m);
 
    tree_t b0 = tree_stmt(top, 0);
@@ -154,14 +143,11 @@ START_TEST(test_fast1)
 {
    input_from_file(TESTDIR "/model/fast1.vhd");
 
-   tree_t top = run_elab();
+   rt_model_t *m = model_new(get_jit(), NULL);
+
+   tree_t top = run_elab_with_model(m);
    fail_if(top == NULL);
 
-   jit_t *j = get_jit();
-   jit_reset(j);
-
-   rt_model_t *m = model_new(j, NULL);
-   create_scope(m, top, NULL);
    model_reset(m);
 
    tree_t b0 = tree_stmt(top, 0);
@@ -205,14 +191,11 @@ START_TEST(test_stateless1)
 {
    input_from_file(TESTDIR "/model/stateless1.vhd");
 
-   tree_t top = run_elab();
+   rt_model_t *m = model_new(get_jit(), NULL);
+
+   tree_t top = run_elab_with_model(m);
    fail_if(top == NULL);
 
-   jit_t *j = get_jit();
-   jit_reset(j);
-
-   rt_model_t *m = model_new(j, NULL);
-   create_scope(m, top, NULL);
    model_reset(m);
 
    tree_t b0 = tree_stmt(top, 0);
@@ -241,14 +224,11 @@ START_TEST(test_pending1)
 {
    input_from_file(TESTDIR "/model/pending1.vhd");
 
-   tree_t top = run_elab();
+   rt_model_t *m = model_new(get_jit(), NULL);
+
+   tree_t top = run_elab_with_model(m);
    fail_if(top == NULL);
 
-   jit_t *j = get_jit();
-   jit_reset(j);
-
-   rt_model_t *m = model_new(j, NULL);
-   create_scope(m, top, NULL);
    model_reset(m);
 
    tree_t b0 = tree_stmt(top, 0);
@@ -293,14 +273,11 @@ START_TEST(test_fast2)
 {
    input_from_file(TESTDIR "/model/fast2.vhd");
 
-   tree_t top = run_elab();
+   rt_model_t *m = model_new(get_jit(), NULL);
+
+   tree_t top = run_elab_with_model(m);
    fail_if(top == NULL);
 
-   jit_t *j = get_jit();
-   jit_reset(j);
-
-   rt_model_t *m = model_new(j, NULL);
-   create_scope(m, top, NULL);
    model_reset(m);
 
    tree_t b0 = tree_stmt(top, 0);
@@ -379,14 +356,11 @@ START_TEST(test_event1)
 {
    input_from_file(TESTDIR "/model/event1.vhd");
 
-   tree_t top = run_elab();
+   rt_model_t *m = model_new(get_jit(), NULL);
+
+   tree_t top = run_elab_with_model(m);
    fail_if(top == NULL);
 
-   jit_t *j = get_jit();
-   jit_reset(j);
-
-   rt_model_t *m = model_new(j, NULL);
-   create_scope(m, top, NULL);
    model_reset(m);
 
    tree_t b0 = tree_stmt(top, 0);
@@ -492,14 +466,11 @@ START_TEST(test_split1)
 
    input_from_file(TESTDIR "/model/split1.vhd");
 
-   tree_t top = run_elab();
+   rt_model_t *m = model_new(get_jit(), NULL);
+
+   tree_t top = run_elab_with_model(m);
    fail_if(top == NULL);
 
-   jit_t *j = get_jit();
-   jit_reset(j);
-
-   rt_model_t *m = model_new(j, NULL);
-   create_scope(m, top, NULL);
    model_reset(m);
 
    tree_t b0 = tree_stmt(top, 0);

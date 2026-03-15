@@ -11,7 +11,6 @@ lib_libnvc_a_SOURCES += \
 	src/jit/jit-ffi.h \
 	src/jit/jit-ffi.c \
 	src/jit/jit-code.c \
-	src/jit/jit-pack.c \
 	src/jit/jit-layout.h \
 	src/jit/jit-layout.c \
 	src/jit/jit-intrin.c

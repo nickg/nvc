@@ -469,18 +469,6 @@ static void run_callbacks(rt_model_t *m, model_phase_t phase)
    }
 }
 
-static void restore_scopes(rt_model_t *m, tree_t block, rt_scope_t *parent)
-{
-   rt_scope_t *s = create_scope(m, block, parent);
-
-   const int nstmts = tree_stmts(block);
-   for (int i = 0; i < nstmts; i++) {
-      tree_t t = tree_stmt(block, i);
-      if (tree_kind(t) == T_BLOCK)
-         restore_scopes(m, t, s);
-   }
-}
-
 rt_model_t *model_new(jit_t *jit, cover_data_t *cover)
 {
    rt_model_t *m = xcalloc(sizeof(rt_model_t));
@@ -753,9 +741,6 @@ rt_scope_t *create_scope(rt_model_t *m, tree_t block, rt_scope_t *parent)
       m->root->where    = block;
       m->root->privdata = MPTR_INVALID;
       m->root->name     = lib_name(lib_work());
-
-      if (tree_stmts(block) > 0)
-         restore_scopes(m, tree_stmt(block, 0), m->root);
 
       return m->root;
    }

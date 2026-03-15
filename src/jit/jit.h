@@ -61,7 +61,6 @@ void *jit_link(jit_t *j, jit_handle_t handle);
 void *jit_get_frame_var(jit_t *j, jit_handle_t handle, void *p, ident_t name);
 void jit_set_silent(jit_t *j, bool silent);
 mspace_t *jit_get_mspace(jit_t *j);
-void jit_load_pack(jit_t *j, FILE *f);
 bool jit_exit_status(jit_t *j, int *status);
 void jit_reset_exit_status(jit_t *j);
 void jit_add_tier(jit_t *j, int threshold, const jit_plugin_t *plugin);
@@ -95,12 +94,6 @@ bool jit_call_closure(jit_t *j, ffi_closure_t *closure, jit_scalar_t *result,
                       jit_scalar_t p1, jit_scalar_t p2, tlab_t *tlab);
 
 tlab_t jit_null_tlab(jit_t *j);
-
-jit_pack_t *jit_pack_new(void);
-void jit_pack_free(jit_pack_t *jp);
-
-void jit_write_pack(jit_t *j, const ident_t *units, size_t count, FILE *f);
-jit_pack_t *jit_read_pack(FILE *f);
 
 __attribute__((format(printf, 3, 4)))
 void jit_msg(const loc_t *where, diag_level_t level, const char *fmt, ...);

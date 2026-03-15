@@ -91,6 +91,7 @@ unit_registry_t *get_registry(void);
 mir_context_t *get_mir(void);
 jit_t *get_jit(void);
 tree_t run_elab(void);
+tree_t run_elab_with_model(rt_model_t *m);
 tree_t _parse_and_check(const tree_kind_t *array, int num, bool simp);
 tree_t get_decl(tree_t container, const char *name) RETURNS_NONNULL;
 tree_t get_nth_decl(tree_t container, const char *name, int nth);

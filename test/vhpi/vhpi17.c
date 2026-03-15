@@ -43,7 +43,13 @@ static void end_of_elaboration(const vhpiCbDataT *cb_data)
 static void start_of_simulation(const vhpiCbDataT *cb_data)
 {
    vhpi_printf("start of simulation");
-   fail_unless(phase++ == 4);
+
+   if (phase == 0) {
+      vhpi_printf("reheat mode");
+      phase = 5;
+   }
+   else
+      fail_unless(phase++ == 4);
 
    vhpiPhaseT phase = VHPI_CHECK(vhpi_get(vhpiPhaseP, NULL));
    fail_unless(phase == vhpiSimulationPhase);
@@ -69,7 +75,7 @@ static void end_of_tool(const vhpiCbDataT *cb_data)
 
 static void exit_handler(void)
 {
-   fail_unless(phase == 7);
+   fail_unless(phase == 7 || phase == 4);
 }
 
 void vhpi17_startup(void)

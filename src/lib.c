@@ -850,8 +850,12 @@ static void lib_encode_file_name(ident_t id, text_buf_t *tb)
 static void lib_read_meta(fbuf_t *f, unit_meta_t *meta)
 {
    const size_t len = fbuf_get_uint(f);
-   meta->cover_file = xmalloc(len + 1);
-   read_raw(meta->cover_file, len + 1, f);
+   if (len > 0) {
+      meta->cover_file = xmalloc(len + 1);
+      read_raw(meta->cover_file, len + 1, f);
+   }
+
+   meta->no_collapse = fbuf_get_uint(f);
 }
 
 static lib_unit_t *lib_read_unit(lib_t lib, ident_t id)
@@ -1072,12 +1076,18 @@ static void lib_save_unit(lib_t lib, lib_unit_t *unit)
 
    object_write(unit->object, f, ident_ctx, loc_ctx);
 
-   if (unit->meta.cover_file != NULL) {
+   if (unit->meta.cover_file != NULL || unit->meta.no_collapse) {
       write_u8('M', f);
 
-      const size_t len = strlen(unit->meta.cover_file);
-      fbuf_put_uint(f, len);
-      write_raw(unit->meta.cover_file, len + 1, f);
+      if (unit->meta.cover_file != NULL) {
+         const size_t len = strlen(unit->meta.cover_file);
+         fbuf_put_uint(f, len);
+         write_raw(unit->meta.cover_file, len + 1, f);
+      }
+      else
+         fbuf_put_uint(f, 0);
+
+      fbuf_put_uint(f, unit->meta.no_collapse);
    }
 
    write_u8('\0', f);
@@ -1193,12 +1203,4 @@ void lib_realpath(lib_t lib, const char *name, char *buf, size_t buflen)
       checked_sprintf(buf, buflen, "%s" DIR_SEP "%s", lib->path, name);
    else
       checked_sprintf(buf, buflen, "%s", lib->path);
-}
-
-void lib_delete(lib_t lib, const char *name)
-{
-   assert(lib != NULL);
-   LOCAL_TEXT_BUF path = lib_file_path(lib, name);
-   if (remove(tb_get(path)) != 0 && errno != ENOENT)
-      fatal_errno("remove: %s", name);
 }

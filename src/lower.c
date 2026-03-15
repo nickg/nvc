@@ -12703,6 +12703,8 @@ lower_unit_t *lower_instance(unit_registry_t *ur, lower_unit_t *parent,
                              lu, emit_property, psl_lower_directive,
                              cover, tree_to_object(s));
          break;
+      case T_BLOCK:
+         break;
       default:
          should_not_reach_here();
       }
@@ -12741,11 +12743,6 @@ void lower_unit_free(lower_unit_t *lu)
    hash_free(lu->objects);
    ACLEAR(lu->free_temps);
    free(lu);
-}
-
-vcode_unit_t get_vcode(lower_unit_t *lu)
-{
-   return lu->vunit;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -12833,32 +12830,6 @@ void unit_registry_put(unit_registry_t *ur, lower_unit_t *lu)
 bool unit_registry_query(unit_registry_t *ur, ident_t ident)
 {
    return hash_get(ur->map, ident) != NULL;
-}
-
-void unit_registry_purge(unit_registry_t *ur, ident_t prefix)
-{
-   if (hash_get(ur->map, prefix) == NULL)
-      return;   // Fail fast if root not registered
-
-   const void *key;
-   void *value;
-   for (hash_iter_t it = HASH_BEGIN; hash_iter(ur->map, &it, &key, &value); ) {
-      if (ident_starts_with((ident_t)key, prefix)) {
-         switch (pointer_tag(value)) {
-         case UNIT_FINALISED:
-            // TODO: unref vcode unit?
-            hash_delete(ur->map, key);
-            break;
-
-         case UNIT_GENERATED:
-         case UNIT_DEFERRED:
-            fatal_trace("cannot purge this unit kind");
-
-         default:
-            fatal_trace("invalid tagged pointer %p", value);
-         }
-      }
-   }
 }
 
 static void walk_dependency_cb(ident_t name, void *ctx)

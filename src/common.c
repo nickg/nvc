@@ -2607,7 +2607,6 @@ void analyse_file(const char *file, jit_t *jit, unit_registry_t *ur,
          while (base_errors = error_count(), (unit = parse())) {
             if (error_count() == base_errors) {
                lib_put(work, unit);
-               unit_registry_purge(ur, tree_ident(unit));
 
                simplify_local(unit, jit, ur, mc);
                bounds_check(unit);

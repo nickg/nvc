@@ -169,7 +169,7 @@ jit_t *get_jit(void)
    return jit;
 }
 
-tree_t run_elab(void)
+tree_t run_elab_with_model(rt_model_t *m)
 {
    mir_context_t *mc = get_mir();
    unit_registry_t *ur = get_registry();
@@ -215,12 +215,14 @@ tree_t run_elab(void)
       ck_abort_msg("unsupported source kind");
    }
 
-   rt_model_t *m = model_new(j, NULL);
+   return elab(top, j, ur, mc, NULL, NULL, m);
+}
 
-   tree_t e = elab(top, j, ur, mc, NULL, NULL, m);
-
+tree_t run_elab(void)
+{
+   rt_model_t *m = model_new(get_jit(), NULL);
+   tree_t e = run_elab_with_model(m);
    model_free(m);
-
    return e;
 }
 
@@ -234,8 +236,8 @@ tree_t _parse_and_check(const tree_kind_t *array, int num, bool simp)
 
       last = parse();
       if (last == NULL) {
-        ck_abort_msg("expected %s but have NULL", tree_kind_str(array[i]));
-        continue;
+         ck_abort_msg("expected %s but have NULL", tree_kind_str(array[i]));
+         continue;
       }
 
       const tree_kind_t kind = tree_kind(last);
@@ -250,8 +252,6 @@ tree_t _parse_and_check(const tree_kind_t *array, int num, bool simp)
          mir_context_t *mc = get_mir();
          if (jit == NULL)
             jit = jit_new(ur, mc);
-         else
-            unit_registry_purge(ur, tree_ident(last));
 
          simplify_local(last, jit, ur, mc);
          bounds_check(last);

@@ -469,16 +469,6 @@ static int parse_optimise_level(const char *str)
    return level;
 }
 
-static void load_jit_pack(jit_t *jit, tree_t top)
-{
-   char *name LOCAL = xasprintf("_%s.pack", istr(tree_ident(top)));
-   FILE *f = lib_fopen(lib_work(), name, "rb");
-   if (f != NULL) {
-      jit_load_pack(jit, f);
-      fclose(f);
-   }
-}
-
 static int elaborate(int argc, char **argv, cmd_state_t *state)
 {
    static struct option long_options[] = {
@@ -533,6 +523,7 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
          break;
       case 'C':
          opt_set_int(OPT_NO_COLLAPSE, 1);
+         meta.no_collapse = true;
          break;
       case 'j':
          // No effect
@@ -641,20 +632,10 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
    if (error_count() > 0)
       return EXIT_FAILURE;
 
-   const char *elab_name = istr(tree_ident(top));
-   char *pack_name LOCAL = xasprintf("_%s.pack", elab_name);
-
-   // Delete any existing generated code to avoid accidentally loading
-   // the wrong version later
-   lib_delete(state->work, pack_name);
-
    if (!no_save) {
       lib_save(state->work);
       progress("saving library");
    }
-
-   if (!no_save)
-      cgen(top, state->registry, state->mir, state->jit);
 
    if (state->cover != NULL) {
       fbuf_t *f = fbuf_open(meta.cover_file, FBUF_OUT, FBUF_CS_NONE);
@@ -1001,6 +982,8 @@ static int run_cmd(int argc, char **argv, cmd_state_t *state)
    tree_t top = tree_from_object(obj);
    assert(top != NULL);
 
+   opt_set_int(OPT_NO_COLLAPSE, meta->no_collapse);
+
    wave_dumper_t *dumper = NULL;
    if (wave_fname != NULL) {
       const char *name_map[] = { "FST", "VCD" };
@@ -1039,11 +1022,9 @@ static int run_cmd(int argc, char **argv, cmd_state_t *state)
    if (state->jit == NULL)
       state->jit = get_jit(state);
 
-   load_jit_pack(state->jit, top);
-
    if (state->model == NULL) {
       state->model = model_new(state->jit, state->cover);
-      create_scope(state->model, top, NULL);
+      reheat(top, state->registry, state->mir, state->cover, state->model);
    }
 
    if (state->vhpi == NULL)
@@ -1529,13 +1510,11 @@ static int do_cmd(int argc, char **argv, cmd_state_t *state)
       top = lib_get(state->work, ename);
       if (top == NULL)
          fatal("%s not elaborated", istr(state->top_level));
-
-      load_jit_pack(state->jit, top);
    }
 
    if (top != NULL && state->model == NULL) {
       state->model = model_new(state->jit, NULL);
-      create_scope(state->model, top, NULL);
+      reheat(top, state->registry, state->mir, NULL, state->model);
    }
 
    tcl_shell_t *sh = shell_new(top, state->jit, state->model);
@@ -1610,13 +1589,11 @@ static int interact_cmd(int argc, char **argv, cmd_state_t *state)
       tree_t top = lib_get(state->work, ename);
       if (top == NULL)
          fatal("%s not elaborated", istr(state->top_level));
-
-      load_jit_pack(state->jit, top);
    }
 
    if (top != NULL && state->model == NULL) {
       state->model = model_new(state->jit, NULL);
-      create_scope(state->model, top, NULL);
+      reheat(top, state->registry, state->mir, NULL, state->model);
    }
 
    tcl_shell_t *sh = shell_new(top, state->jit, state->model);

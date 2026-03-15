@@ -166,6 +166,7 @@ static bool diff_html = false;
 static bool check_html = false;
 static bool capture_llvm = false;
 static bool diff_llvm = false;
+static bool reheat = false;
 
 #ifdef __MINGW32__
 static char *strndup(const char *s, size_t n)
@@ -990,7 +991,7 @@ static bool run_test(test_t *test)
          }
       }
 
-      if (test->flags & F_FAIL) {
+      if ((test->flags & F_FAIL) || reheat) {
          if (run_cmd(outf, &args) != RUN_OK) {
             failed(NULL);
             result = false;
@@ -1000,11 +1001,17 @@ static bool run_test(test_t *test)
          push_arg(&args, "%s/nvc%s", bin_dir, EXEEXT);
          push_std(test, &args);
 
+         if (test->flags & F_WORKLIB)
+            push_arg(&args, "--work=%s", test->work);
+
          if (test->heapsz != NULL)
             push_arg(&args, "-H%s", test->heapsz);
 
          if (test->flags & F_VHPI)
             push_arg(&args, "--load=%s/../lib/vhpi_test.so%s", bin_dir, EXEEXT);
+
+         if (test->flags & F_SEED)
+            push_arg(&args, "--seed=%u", test->seed);
       }
       else
          push_arg(&args, "--no-save");
@@ -1471,12 +1478,13 @@ int main(int argc, char **argv)
       { "capture-xml",  no_argument, 0, 'x' },
       { "capture-llvm", no_argument, 0, 'l' },
       { "diff-llvm",    no_argument, 0, 'L' },
+      { "reheat",       no_argument, 0, 'r' },
       { 0, 0, 0, 0 }
    };
 
    bool print_stats= false;
    int c, index = 0;
-   const char *spec = ":s";
+   const char *spec = ":sr";
    while ((c = getopt_long(argc, argv, spec, long_options, &index)) != -1) {
       switch (c) {
       case 's':
@@ -1501,6 +1509,9 @@ int main(int argc, char **argv)
          break;
       case 'L':
          diff_llvm = true;
+         break;
+      case 'r':
+         reheat = true;
          break;
       case '?':
          if (optopt == 0)

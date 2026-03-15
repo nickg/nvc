@@ -53,7 +53,6 @@ typedef struct _sig_shared sig_shared_t;
 typedef struct _ffi_uarray ffi_uarray_t;
 typedef struct _ffi_closure ffi_closure_t;
 typedef struct _wave_dumper wave_dumper_t;
-typedef struct _jit_pack jit_pack_t;
 typedef struct _lower_unit lower_unit_t;
 typedef struct _psl_node *psl_node_t;
 typedef struct _tcl_shell tcl_shell_t;

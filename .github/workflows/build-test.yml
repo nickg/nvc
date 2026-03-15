@@ -64,6 +64,11 @@ jobs:
           export ASAN_OPTIONS=detect_leaks=0
           cd build
           ./bin/run_regr -s
+      - name: Test in reheat mode
+        run: |
+          export ASAN_OPTIONS=detect_leaks=0
+          cd build
+          ./bin/run_regr -r -s
 # ieee12 too slow
 #      - name: Test without intrinsics
 #        run: |

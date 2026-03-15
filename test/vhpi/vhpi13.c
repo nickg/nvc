@@ -21,6 +21,7 @@
 #include <stdlib.h>
 
 static bool end_of_sim_called = false;
+static bool start_of_sim_called = false;
 static int num_next_time_step = 0;
 static vhpiHandleT never_call_handle_1 = NULL;
 static vhpiHandleT never_call_handle_2 = NULL;
@@ -42,6 +43,8 @@ static void start_of_sim(const vhpiCbDataT *cb_data)
 
    vhpi_disable_cb(never_call_handle_1);
    vhpi_disable_cb(never_call_handle_2);
+
+   start_of_sim_called = true;
 }
 
 static void end_of_sim(const vhpiCbDataT *cb_data)
@@ -64,7 +67,8 @@ static void never_call(const vhpiCbDataT *cb_data)
 
 static void check_end_of_sim_called(void)
 {
-   fail_unless(end_of_sim_called);
+   if (start_of_sim_called)
+      fail_unless(end_of_sim_called);
 }
 
 void vhpi13_startup(void)

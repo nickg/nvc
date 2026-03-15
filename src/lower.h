@@ -63,7 +63,6 @@ void unit_registry_defer(unit_registry_t *ur, ident_t ident,
 void unit_registry_defer2(unit_registry_t *ur, ident_t name,
                           lower_unit_t *parent, mir_unit_kind_t kind,
                           mir_lower_fn_t fn, object_t *object);
-void unit_registry_purge(unit_registry_t *ur, ident_t prefix);
 bool unit_registry_query(unit_registry_t *ur, ident_t ident);
 void unit_registry_finalise(unit_registry_t *ur, lower_unit_t *lu);
 void unit_registry_flush(unit_registry_t *ur, ident_t name);

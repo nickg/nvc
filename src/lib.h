@@ -27,6 +27,7 @@
 
 typedef struct {
    char *cover_file;
+   bool  no_collapse;
 } unit_meta_t;
 
 lib_t lib_find(ident_t name);
@@ -44,7 +45,6 @@ ident_t lib_name(lib_t lib);
 void lib_save(lib_t lib);
 void lib_add_search_path(const char *path);
 void lib_add_map(const char *name, const char *path);
-void lib_delete(lib_t lib, const char *name);
 void lib_print_search_paths(text_buf_t *tb);
 void lib_search_paths_to_diag(diag_t *d);
 

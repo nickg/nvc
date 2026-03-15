@@ -3337,7 +3337,7 @@ void vlog_lower_block(mir_context_t *mc, ident_t parent, tree_t b)
       xmalloc_array(vlog_nports + 1, sizeof(mir_value_t));
 
    if (mir_is_null(context))
-      args[0] = mir_build_null(mu, mir_context_type(mu, parent));
+      args[0] = mir_build_null(mu, mir_context_type(mu, qual));
    else
       args[0] = context;
 

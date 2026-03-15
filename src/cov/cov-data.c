@@ -753,6 +753,8 @@ static void cover_write_items(const cover_item_t *item, fbuf_t *f,
           item[i].kind == COV_ITEM_STATE ||
           item[i].kind == COV_ITEM_FUNCTIONAL)
          ident_write(item[i].func_name, ident_ctx);
+      else if (item[i].kind == COV_ITEM_TOGGLE)
+         fbuf_put_uint(f, item[i].field_idx);
    }
 }
 
@@ -1037,6 +1039,8 @@ static cover_item_t *cover_read_item(cover_data_t *db, fbuf_t *f,
           item[i].kind == COV_ITEM_STATE ||
           item[i].kind == COV_ITEM_FUNCTIONAL)
          item[i].func_name = ident_read(ident_ctx);
+      else if (item[i].kind == COV_ITEM_TOGGLE)
+         item[i].field_idx = fbuf_get_uint(f);
    }
 
    return item;

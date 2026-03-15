@@ -1055,7 +1055,6 @@ static size_t irgen_append_cpool(jit_irgen_t *g, size_t sz, int align)
       g->func->cpoolsz = MAX(128, MAX((g->func->cpoolsz * 3) / 2,
                                       g->cpoolptr + sz + align - 1));
       g->func->cpool = xrealloc(g->func->cpool, g->func->cpoolsz);
-      g->func->owns_cpool = true;
    }
 
    const size_t result = ALIGN_UP(g->cpoolptr, align);

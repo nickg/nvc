@@ -69,7 +69,6 @@ typedef struct _jit {
    bool              shutdown;
    int               exit_status;
    jit_tier_t       *tiers;
-   jit_pack_t       *pack;
    func_array_t     *funcs;
    unsigned          next_handle;
    nvc_lock_t        lock;
@@ -145,7 +144,7 @@ static void jit_free_func(jit_func_t *f)
    mptr_free(f->jit->mspace, &(f->privdata));
    free(f->irbuf);
    free(f->linktab);
-   if (f->owns_cpool) free(f->cpool);
+   free(f->cpool);
    free(f);
 }
 
@@ -153,9 +152,6 @@ void jit_free(jit_t *j)
 {
    store_release(&j->shutdown, true);
    async_barrier();
-
-   if (j->pack != NULL)
-      jit_pack_free(j->pack);
 
    for (int i = 0; i < j->next_handle; i++)
       jit_free_func(j->funcs->items[i]);
@@ -311,9 +307,6 @@ void jit_fill_irbuf(jit_func_t *f)
    jit_transition(f->jit, oldstate, JIT_COMPILING);
 #endif
 
-   if (f->jit->pack != NULL && jit_pack_fill(f->jit->pack, f->jit, f))
-      goto done;
-
    mir_unit_t *mu = mir_get_unit(f->jit->mir, f->name);
 
    if (mu == NULL && f->jit->registry != NULL) {
@@ -330,7 +323,6 @@ void jit_fill_irbuf(jit_func_t *f)
 
    jit_irgen(f, mu);
 
- done:
 #ifndef USE_EMUTLS
    jit_transition(f->jit, JIT_COMPILING, oldstate);
 #endif
@@ -802,12 +794,6 @@ tlab_t jit_null_tlab(jit_t *j)
 void jit_set_silent(jit_t *j, bool silent)
 {
    j->silent = silent;
-}
-
-void jit_load_pack(jit_t *j, FILE *f)
-{
-   assert(j->pack == NULL);
-   j->pack = jit_read_pack(f);
 }
 
 void jit_msg(const loc_t *where, diag_level_t level, const char *fmt, ...)

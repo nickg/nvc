@@ -328,7 +328,6 @@ typedef struct _jit_func {
    unsigned        nregs;
    unsigned        nvars;
    unsigned        cpoolsz;
-   bool            owns_cpool;
    jit_handle_t    handle;
    unsigned        hotness;
    jit_tier_t     *next_tier;
@@ -454,10 +453,6 @@ void code_blob_print_ir(code_blob_t *blob, jit_ir_t *ir);
 #define code_blob_printf(blob, fmt, ...)
 #define code_blob_print_ir(blob, ir)
 #endif
-
-bool jit_pack_fill(jit_pack_t *jp, jit_t *j, jit_func_t *f);
-void jit_pack_put(jit_pack_t *jp, ident_t name, const uint8_t *cpool,
-                  const char *strtab, const uint8_t *buf);
 
 pack_writer_t *pack_writer_new(void);
 void pack_writer_emit(pack_writer_t *pw, jit_t *j, jit_handle_t handle,
