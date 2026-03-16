@@ -597,35 +597,18 @@ package body env is
         return "";
     end function;
 
-    type read_severity_pt is protected
-        procedure set (level : severity_level);
-        impure function get return severity_level;
-    end protected;
-
-    type read_severity_pt is protected body
-        variable current : severity_level := error;
-
-        procedure set (level : severity_level) is
-        begin
-            current := level;
-        end procedure;
-
-        impure function get return severity_level is
-        begin
-            return current;
-        end function;
-    end protected body;
-
-    shared variable read_severity : read_severity_pt;
+    attribute foreign of SetVhdlReadSeverity [severity_level] :
+        procedure is "INTERNAL _std_env_set_vhdl_read_severity";
 
     procedure SetVhdlReadSeverity (Level : severity_level := failure) is
     begin
-        read_severity.set(level);
     end procedure;
+
+    attribute foreign of GetVhdlReadSeverity [return severity_level] :
+        function is "INTERNAL _std_env_get_vhdl_read_severity";
 
     impure function GetVhdlReadSeverity return severity_level is
     begin
-        return read_severity.get;
     end function;
 
     impure function PslAssertFailed return boolean is

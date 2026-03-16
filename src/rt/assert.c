@@ -77,6 +77,7 @@ static const struct {
 static format_part_t   *format[SEVERITY_FAILURE + 1];
 static vhdl_severity_t  exit_severity = SEVERITY_FAILURE;
 static vhdl_severity_t  status_severity = SEVERITY_ERROR;
+static vhdl_severity_t  read_severity = SEVERITY_ERROR;
 static unsigned         counts[SEVERITY_FAILURE + 1];
 static unsigned         enable_mask = ~0u;
 
@@ -523,6 +524,16 @@ bool get_vhdl_assert_enable(vhdl_severity_t severity)
 {
    assert(severity <= SEVERITY_FAILURE);
    return !!(enable_mask & (1 << severity));
+}
+
+void set_vhdl_read_severity(vhdl_severity_t severity)
+{
+   read_severity = severity;
+}
+
+vhdl_severity_t get_vhdl_read_severity(void)
+{
+   return read_severity;
 }
 
 int get_vhdl_assert_exit_status(void)

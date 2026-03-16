@@ -1274,3 +1274,5 @@ vlog35          verilog,gold
 issue1427       normal,2008
 ivtest22        verilog
 issue1453       normal,2008
+textio9         normal
+textio10        normal

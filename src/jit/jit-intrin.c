@@ -21,6 +21,7 @@
 #include "jit/jit.h"
 #include "option.h"
 #include "rt/assert.h"
+#include "rt/fileio.h"
 #include "thread.h"
 
 #include <assert.h>
@@ -2047,6 +2048,184 @@ static void std_textio_shrink(jit_func_t *func, jit_anchor_t *anchor,
    args[0].pointer = NULL;
 }
 
+static inline bool __is_whitespace(char c)
+{
+   return c == ' ' || c == '\r' || c == '\n' || c == '\t'
+      || c == (char)160;  // NBSP
+}
+
+static inline void __line_consume(ffi_uarray_t *line, int nchars)
+{
+   const int length = ffi_array_length(line->dims[0].length);
+   line->ptr += nchars;
+   line->dims[0].left = 1;
+   line->dims[0].length = length - nchars;
+}
+
+static void std_textio_read_integer_good(jit_func_t *func,
+                                         jit_anchor_t *anchor,
+                                         jit_scalar_t *args, tlab_t *tlab)
+{
+   ffi_uarray_t **line_ptr = args[2].pointer;
+   int32_t *value = args[3].pointer;
+   uint8_t *good = args[4].pointer;
+
+   ffi_uarray_t *line = *line_ptr;
+   if (line == NULL) {
+      *good = 0;
+      *value = 0;
+      args[0].pointer = NULL;
+      return;
+   }
+
+   const char *str = line->ptr;
+   int length = ffi_array_length(line->dims[0].length);
+
+   int skip = 0;
+   while (skip < length && __is_whitespace(str[skip]))
+      skip++;
+
+   if (skip > 0)
+      __line_consume(line, skip);
+
+   str = line->ptr;
+   length = ffi_array_length(line->dims[0].length);
+
+   int pos = 0;
+   bool is_negative = false;
+   if (pos < length) {
+      if (str[pos] == '-') {
+         is_negative = true;
+         pos++;
+      }
+      else if (str[pos] == '+')
+         pos++;
+   }
+
+   int digit_start = pos;
+   int64_t result = 0;
+   while (pos < length && str[pos] >= '0' && str[pos] <= '9') {
+      int digit = str[pos] - '0';
+      if (is_negative)
+         digit = -digit;
+      result = result * 10 + digit;
+      pos++;
+   }
+
+   if (pos == digit_start && digit_start > 0)
+      pos = 0;
+
+   *good = (pos > 0) ? 1 : 0;
+   *value = (int32_t)result;
+
+   if (pos > 0)
+      __line_consume(line, pos);
+
+   args[0].pointer = NULL;
+}
+
+static void std_textio_read_integer(jit_func_t *func, jit_anchor_t *anchor,
+                                    jit_scalar_t *args, tlab_t *tlab)
+{
+   uint8_t good;
+   jit_scalar_t saved = args[4];
+   args[4].pointer = &good;
+   std_textio_read_integer_good(func, anchor, args, tlab);
+   args[4] = saved;
+
+   if (!good) {
+      vhdl_severity_t sev = get_vhdl_read_severity();
+      diag_t *d = diag_new(get_diag_severity(sev), NULL);
+      diag_printf(d, "integer read failed");
+      emit_vhdl_diag(d, sev);
+   }
+}
+
+static void std_textio_read_char_good(jit_func_t *func,
+                                      jit_anchor_t *anchor,
+                                      jit_scalar_t *args, tlab_t *tlab)
+{
+   ffi_uarray_t **line_ptr = args[2].pointer;
+   uint8_t *value = args[3].pointer;
+   uint8_t *good = args[4].pointer;
+
+   ffi_uarray_t *line = *line_ptr;
+
+   if (line != NULL && ffi_array_length(line->dims[0].length) > 0) {
+      *value = ((const uint8_t *)line->ptr)[0];
+      __line_consume(line, 1);
+      *good = 1;
+   }
+   else {
+      *good = 0;
+   }
+
+   args[0].pointer = NULL;
+}
+
+static void std_textio_read_char(jit_func_t *func, jit_anchor_t *anchor,
+                                 jit_scalar_t *args, tlab_t *tlab)
+{
+   uint8_t good;
+   jit_scalar_t saved = args[4];
+   args[4].pointer = &good;
+   std_textio_read_char_good(func, anchor, args, tlab);
+   args[4] = saved;
+
+   if (!good) {
+      vhdl_severity_t sev = get_vhdl_read_severity();
+      diag_t *d = diag_new(get_diag_severity(sev), NULL);
+      diag_printf(d, "character read failed");
+      emit_vhdl_diag(d, sev);
+   }
+}
+
+static void std_textio_readline(jit_func_t *func, jit_anchor_t *anchor,
+                                jit_scalar_t *args, tlab_t *tlab)
+{
+   file_handle_t *fhp = (file_handle_t *)args[2].pointer;
+   FILE *fp = file_get_fp(*fhp);
+   if (fp == NULL)
+      jit_msg(NULL, DIAG_FATAL, "READLINE called on closed file");
+
+   ffi_uarray_t **line_ptr = (ffi_uarray_t **)args[3].pointer;
+
+   size_t len = 0, cap = 256;
+   char *tmpbuf = xmalloc(cap);
+
+   for (;;) {
+      if (fgets(tmpbuf + len, cap - len, fp) == NULL)
+         break;
+
+      size_t got = strlen(tmpbuf + len);
+      len += got;
+
+      if (len > 0 && tmpbuf[len - 1] == '\n') {
+         len--;
+         if (len > 0 && tmpbuf[len - 1] == '\r')
+            len--;
+         break;
+      }
+
+      cap *= 2;
+      tmpbuf = xrealloc(tmpbuf, cap);
+   }
+
+   ffi_uarray_t *new_line =
+      mspace_alloc(tlab->mspace, sizeof(ffi_uarray_t) + len);
+   char *str_data = (char *)new_line + sizeof(ffi_uarray_t);
+   if (len > 0)
+      memcpy(str_data, tmpbuf, len);
+   free(tmpbuf);
+
+   new_line->ptr = str_data;
+   new_line->dims[0].left = 1;
+   new_line->dims[0].length = (int64_t)len;
+
+   *line_ptr = new_line;
+   args[0].pointer = NULL;
+}
+
 #define UU "36IEEE.NUMERIC_STD.UNRESOLVED_UNSIGNED"
 #define U "25IEEE.NUMERIC_STD.UNSIGNED"
 #define US "34IEEE.NUMERIC_STD.UNRESOLVED_SIGNED"
@@ -2057,6 +2236,7 @@ static void std_textio_shrink(jit_func_t *func, jit_anchor_t *anchor,
 #define ST "STD.STANDARD."
 #define TI "STD.TEXTIO."
 #define LN "15STD.TEXTIO.LINE"
+#define TT "15STD.TEXTIO.TEXT"
 #define SA "IEEE.STD_LOGIC_ARITH."
 #define SU "IEEE.STD_LOGIC_UNSIGNED."
 #define SS "IEEE.STD_LOGIC_SIGNED."
@@ -2171,6 +2351,11 @@ static jit_intrinsic_t intrinsic_list[] = {
    { MR "EXP(R)R", ieee_math_exp },
    { TI "CONSUME(" LN "N)", std_textio_consume },
    { TI "SHRINK(" LN "N)", std_textio_shrink },
+   { TI "READLINE(" TT LN ")", std_textio_readline },
+   { TI "READ(" LN "IB)", std_textio_read_integer_good },
+   { TI "READ(" LN "I)", std_textio_read_integer },
+   { TI "READ(" LN "CB)", std_textio_read_char_good },
+   { TI "READ(" LN "C)", std_textio_read_char },
    { SA "\"+\"(" AU AU ")" AU, synopsys_plus_unsigned },
    { SA "\"+\"(" AU AU ")V", synopsys_plus_unsigned },
    { SU "\"+\"(VV)V", synopsys_plus_unsigned },
