@@ -5,3 +5,7 @@ module param1;
   localparam bit  p2 = 0;
   assign w2 = !p2; // OK
 endmodule // param1
+
+module param1_b #(parameter WIDTH = 8) (i);   // OK
+  input i;
+endmodule // param1_b

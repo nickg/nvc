@@ -877,7 +877,7 @@ static bool run_test(test_t *test)
       return false;
    }
 
-   FILE *outf = fopen(OUTFILE, "wb");
+   FILE *outf = fopen(OUTFILE, "w");
    if (outf == NULL) {
       failed("error creating %s/out log file: %s", dir, strerror(errno));
       result = false;

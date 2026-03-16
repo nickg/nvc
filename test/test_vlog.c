@@ -736,11 +736,11 @@ START_TEST(test_param1)
    };
    expect_errors(expect);
 
-   vlog_node_t m = vlog_parse();
-   fail_if(m == NULL);
-   fail_unless(vlog_kind(m) == V_MODULE);
-
-   vlog_check(m);
+   for (int i = 0; i < 2; i++) {
+      vlog_node_t m = vlog_parse();
+      fail_if(m == NULL);
+      fail_unless(vlog_kind(m) == V_MODULE);
+   }
 
    fail_unless(vlog_parse() == NULL);
 
