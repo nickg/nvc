@@ -691,6 +691,19 @@ void _std_env_get_vhdl_assert_enable(jit_scalar_t *args)
    args[0].integer = get_vhdl_assert_enable(severity_level);
 }
 
+DLLEXPORT
+void _std_env_set_vhdl_read_severity(jit_scalar_t *args)
+{
+   vhdl_severity_t level = args[2].integer;
+   set_vhdl_read_severity(level);
+}
+
+DLLEXPORT
+void _std_env_get_vhdl_read_severity(jit_scalar_t *args)
+{
+   args[0].integer = get_vhdl_read_severity();
+}
+
 void _std_env_init(void)
 {
    // Dummy function to force linking

@@ -2126,8 +2126,12 @@ static void std_textio_read_integer(jit_func_t *func, jit_anchor_t *anchor,
    std_textio_read_integer_good(func, anchor, args, tlab);
    args[4] = saved;
 
-   if (!good)
-      jit_msg(NULL, DIAG_FATAL, "integer read failed");
+   if (!good) {
+      vhdl_severity_t sev = get_vhdl_read_severity();
+      diag_t *d = diag_new(get_diag_severity(sev), NULL);
+      diag_printf(d, "integer read failed");
+      emit_vhdl_diag(d, sev);
+   }
 }
 
 static void std_textio_read_char_good(jit_func_t *func,
@@ -2162,8 +2166,12 @@ static void std_textio_read_char(jit_func_t *func, jit_anchor_t *anchor,
    std_textio_read_char_good(func, anchor, args, tlab);
    args[4] = saved;
 
-   if (!good)
-      jit_msg(NULL, DIAG_FATAL, "character read failed");
+   if (!good) {
+      vhdl_severity_t sev = get_vhdl_read_severity();
+      diag_t *d = diag_new(get_diag_severity(sev), NULL);
+      diag_printf(d, "character read failed");
+      emit_vhdl_diag(d, sev);
+   }
 }
 
 static void std_textio_readline(jit_func_t *func, jit_anchor_t *anchor,

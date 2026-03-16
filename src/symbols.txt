@@ -45,6 +45,8 @@
   _std_env_clear_vhdl_assert;
   _std_env_set_vhdl_assert_enable;
   _std_env_get_vhdl_assert_enable;
+  _std_env_set_vhdl_read_severity;
+  _std_env_get_vhdl_read_severity;
 
   # Exported from src/rt/assert.c
   _std_env_get_assert_format;
