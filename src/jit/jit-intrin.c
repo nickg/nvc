@@ -2071,6 +2071,13 @@ static void std_textio_read_integer_good(jit_func_t *func,
    uint8_t *good = args[4].pointer;
 
    ffi_uarray_t *line = *line_ptr;
+   if (line == NULL) {
+      *good = 0;
+      *value = 0;
+      args[0].pointer = NULL;
+      return;
+   }
+
    const char *str = line->ptr;
    int length = ffi_array_length(line->dims[0].length);
 
@@ -2143,9 +2150,8 @@ static void std_textio_read_char_good(jit_func_t *func,
    uint8_t *good = args[4].pointer;
 
    ffi_uarray_t *line = *line_ptr;
-   int length = ffi_array_length(line->dims[0].length);
 
-   if (line != NULL && length > 0) {
+   if (line != NULL && ffi_array_length(line->dims[0].length) > 0) {
       *value = ((const uint8_t *)line->ptr)[0];
       __line_consume(line, 1);
       *good = 1;
