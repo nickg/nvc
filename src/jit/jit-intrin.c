@@ -33,7 +33,7 @@
 #define HAVE_NEON
 #endif
 
-#ifdef HAVE_AVX2
+#if defined HAVE_AVX2 || defined HAVE_SSE41
 #include <x86intrin.h>
 #endif
 
@@ -195,7 +195,36 @@ static const uint8_t lane_iota[16] = {
    0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15
 };
 
+static const uint32_t spread_nibble[16] = {
+   0x02020202, 0x03020202, 0x02030202, 0x03030202,
+   0x02020302, 0x03020302, 0x02030302, 0x03030302,
+   0x02020203, 0x03020203, 0x02030203, 0x03030203,
+   0x02020303, 0x03020303, 0x02030303, 0x03030303,
+};
+
+__attribute__((aligned(16)))
+static const uint8_t reverse_lane[16] = {
+   15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0
+};
+
+#ifdef HAVE_SSE41
+__attribute__((aligned(16)))
+static const uint8_t spread_shuffle[16] = {
+   1, 1, 1, 1, 1, 1, 1, 1,
+   0, 0, 0, 0, 0, 0, 0, 0
+};
+
+__attribute__((aligned(16)))
+static const uint8_t spread_mask[16] = {
+   0x80, 0x40, 0x20, 0x10, 0x08, 0x04, 0x02, 0x01,
+   0x80, 0x40, 0x20, 0x10, 0x08, 0x04, 0x02, 0x01,
+};
 #endif
+
+#endif
+
+static void (*ieee_packed_add)(const uint8_t *, const uint8_t *,
+                               int, int, uint8_t *);
 
 __attribute__((always_inline))
 static inline void *__tlab_alloc(tlab_t *t, size_t size, size_t align)
@@ -204,7 +233,9 @@ static inline void *__tlab_alloc(tlab_t *t, size_t size, size_t align)
    assert((t->alloc & (sizeof(double) - 1)) == 0);
    assert(align % sizeof(double) == 0);
 
-   const size_t alignup = ALIGN_UP(size, sizeof(double));
+   // Always allocate at least 16 bytes as the ieee_packed_add routines
+   // will always write a full 128-bit vector
+   const size_t alignup = ALIGN_UP(size, 16);
    const size_t base = ALIGN_UP(t->alloc, align);
    if (likely(base + alignup <= t->limit)) {
       t->alloc = base + alignup;
@@ -505,23 +536,16 @@ static inline uint8_t __pack_low_bits(const void* vec)
 }
 
 __attribute__((always_inline))
-static inline void __spread_bits(void* vec, uint8_t packed)
+static inline void __spread_bits_8(void *vec, uint8_t packed)
 {
-   const uint64_t spread1 = packed * UINT64_C(0x0000040010004001);
-   const uint64_t mask1 = spread1 & UINT64_C(0x0001000100010001);
-
-   const uint64_t spread2 = packed * UINT64_C(0x0002000800200080);
-   const uint64_t mask2 = spread2 & UINT64_C(0x0100010001000100);
-
-   const uint64_t bits = mask1 | mask2 | UINT64_C(0x0202020202020202);
-   const uint64_t swap = __builtin_bswap64(bits);
-
-   memcpy(vec, &swap, sizeof(swap));
+   unaligned_store(vec + 0, spread_nibble[(packed >> 4) & 0xf], uint32_t);
+   unaligned_store(vec + 4, spread_nibble[(packed >> 0) & 0xf], uint32_t);
 }
 
 __attribute__((always_inline))
-static inline void __ieee_packed_add(const uint8_t *left, const uint8_t *right,
-                                     int size, int carry, uint8_t *result)
+static inline void __ieee_packed_add_scalar(const uint8_t *left,
+                                            const uint8_t *right, int size,
+                                            int carry, uint8_t *result)
 {
    int pos = size - 8;
    for (; pos > 0; pos -= 8) {
@@ -529,7 +553,7 @@ static inline void __ieee_packed_add(const uint8_t *left, const uint8_t *right,
       const unsigned rbyte = __pack_low_bits(right + pos);
       const unsigned sum = lbyte + rbyte + carry;
 
-      __spread_bits(result + pos, sum);
+      __spread_bits_8(result + pos, sum);
       carry = !!(sum & 0x100);
    }
 
@@ -543,6 +567,188 @@ static inline void __ieee_packed_add(const uint8_t *left, const uint8_t *right,
 }
 
 __attribute__((always_inline))
+static inline void __ieee_packed_add_shifted(uint8_t *left,
+                                             const uint8_t *right,
+                                             int size, int shift)
+{
+   assert(shift >= 0 && shift < size);
+
+   const int active = size - shift;
+   (*ieee_packed_add)(left, right + shift, active, 0, left);
+}
+
+__attribute__((always_inline))
+static inline void __shift_bits(const uint8_t *input, int size, int shift,
+                                uint8_t *result)
+{
+   assert(shift >= 0 && shift < size);
+
+   const int active = size - shift;
+   memcpy(result, input + shift, active);
+   memset(result + active, _0, shift);
+}
+
+__attribute__((always_inline))
+static inline void __mul_unsigned(const uint8_t *left, int lsize,
+                                  const uint8_t *right, int rsize,
+                                  tlab_t *tlab, uint8_t *result)
+{
+   const int size = lsize + rsize;
+   const uint8_t *adval = __resize_unsigned(tlab, right, rsize, size);
+
+   memset(result, _0, size);
+
+   int pos = lsize - 8;
+   for (; pos >= 0; pos -= 8) {
+      unsigned bits = __pack_low_bits(left + pos);
+      if (bits == 0)
+         continue;
+
+      const int base_shift = lsize - pos - 8;
+      while (bits != 0) {
+         const int shift = base_shift + __builtin_ctz(bits);
+         __ieee_packed_add_shifted(result, adval, size, shift);
+         bits &= bits - 1;
+      }
+   }
+
+   const int rem = pos + 8;
+   if (rem > 0) {
+      unsigned bits = __pack_low_bits(left) >> (8 - rem);
+      const int base_shift = lsize - rem;
+
+      while (bits != 0) {
+         const int shift = base_shift + __builtin_ctz(bits);
+         __ieee_packed_add_shifted(result, adval, size, shift);
+         bits &= bits - 1;
+      }
+   }
+}
+
+__attribute__((always_inline))
+static inline void __mul_signed(const uint8_t *left, int lsize,
+                                const uint8_t *right, int rsize,
+                                tlab_t *tlab, uint8_t *result)
+{
+   const int size = lsize + rsize;
+   const uint8_t *adval = __resize_signed(tlab, right, rsize, size);
+
+   memset(result, _0, size);
+
+   int pos = lsize - 8;
+   for (; pos > 0; pos -= 8) {
+      unsigned bits = __pack_low_bits(left + pos);
+      if (bits == 0)
+         continue;
+
+      const int base_shift = lsize - pos - 8;
+      while (bits != 0) {
+         const int shift = base_shift + __builtin_ctz(bits);
+         __ieee_packed_add_shifted(result, adval, size, shift);
+         bits &= bits - 1;
+      }
+   }
+
+   const int rem = pos + 7;
+   if (rem > 0) {
+      unsigned bits = __pack_low_bits(left + 1) >> (8 - rem);
+      const int base_shift = lsize - rem - 1;
+
+      while (bits != 0) {
+         const int shift = base_shift + __builtin_ctz(bits);
+         __ieee_packed_add_shifted(result, adval, size, shift);
+         bits &= bits - 1;
+      }
+   }
+
+   if (left[0] == _1) {
+      uint8_t *neg = __tlab_alloc(tlab, size, 8);
+      __shift_bits(adval, size, lsize - 1, neg);
+      __invert_bits(neg, size, neg);
+      (*ieee_packed_add)(result, neg, size, 1, result);
+   }
+}
+
+#ifdef HAVE_SSE41
+__attribute__((target("sse4.1"), always_inline))
+static inline __m128i __spread_bits_16_sse41_vec(uint16_t packed)
+{
+   const __m128i shuffle = _mm_load_si128((const __m128i *)spread_shuffle);
+   const __m128i mask = _mm_load_si128((const __m128i *)spread_mask);
+   const __m128i ones = _mm_set1_epi8(1);
+   const __m128i twos = _mm_set1_epi8(2);
+
+   __m128i bits = _mm_set1_epi16(packed);
+   bits = _mm_shuffle_epi8(bits, shuffle);
+   bits = _mm_and_si128(bits, mask);
+   bits = _mm_cmpeq_epi8(bits, mask);
+   bits = _mm_and_si128(bits, ones);
+   bits = _mm_or_si128(bits, twos);
+
+   return bits;
+}
+
+__attribute__((target("sse4.1"), always_inline))
+static inline void __ieee_packed_add_sse41(const uint8_t *left,
+                                           const uint8_t *right,
+                                           int size, int carry,
+                                           uint8_t *result)
+{
+   const __m128i reverse = _mm_load_si128((const __m128i *)reverse_lane);
+   const __m128i ones = _mm_set1_epi8(1);
+
+   const int prefix = size & 15;
+   for (int pos = size - 16; pos >= prefix; pos -= 16) {
+      __m128i lvec = _mm_loadu_si128((const __m128i *)(left + pos));
+      __m128i rvec = _mm_loadu_si128((const __m128i *)(right + pos));
+
+      lvec = _mm_shuffle_epi8(lvec, reverse);
+      rvec = _mm_shuffle_epi8(rvec, reverse);
+
+      lvec = _mm_and_si128(lvec, ones);
+      rvec = _mm_and_si128(rvec, ones);
+
+      lvec = _mm_slli_epi16(lvec, 7);
+      rvec = _mm_slli_epi16(rvec, 7);
+
+      const unsigned lbits = _mm_movemask_epi8(lvec);
+      const unsigned rbits = _mm_movemask_epi8(rvec);
+      const unsigned sum = lbits + rbits + carry;
+
+      __m128i spread = __spread_bits_16_sse41_vec(sum);
+      _mm_storeu_si128((__m128i *)(result + pos), spread);
+      carry = !!(sum & 0x10000);
+   }
+
+   if (prefix > 0) {
+      __m128i iota = _mm_load_si128((const __m128i *)lane_iota);
+      __m128i mask = _mm_cmplt_epi8(iota, _mm_set1_epi8(prefix));
+      __m128i lvec = _mm_loadu_si128((const __m128i *)left);
+      __m128i rvec = _mm_loadu_si128((const __m128i *)right);
+
+      lvec = _mm_shuffle_epi8(lvec, reverse);
+      rvec = _mm_shuffle_epi8(rvec, reverse);
+
+      lvec = _mm_and_si128(lvec, ones);
+      rvec = _mm_and_si128(rvec, ones);
+
+      lvec = _mm_slli_epi16(lvec, 7);
+      rvec = _mm_slli_epi16(rvec, 7);
+
+      const unsigned lbits = _mm_movemask_epi8(lvec) >> (16 - prefix);
+      const unsigned rbits = _mm_movemask_epi8(rvec) >> (16 - prefix);
+      const unsigned sum = lbits + rbits + carry;
+
+      __m128i tail = __spread_bits_16_sse41_vec(sum << (16 - prefix));
+      __m128i prev = _mm_loadu_si128((const __m128i *)result);
+      __m128i out = _mm_blendv_epi8(prev, tail, mask);
+
+      _mm_storeu_si128((__m128i *)result, out);
+   }
+}
+#endif
+
+__attribute__((always_inline))
 static inline uint8_t *__to_unsigned(jit_func_t *func, jit_anchor_t *anchor,
                                      tlab_t *tlab, int64_t arg, int size)
 {
@@ -551,7 +757,7 @@ static inline uint8_t *__to_unsigned(jit_func_t *func, jit_anchor_t *anchor,
 
    int last = 0;
    for (int pos = roundup - 8; pos >= 0; pos -= 8, arg >>= 8)
-      __spread_bits(result + pos, (last = (arg & 0xff)));
+      __spread_bits_8(result + pos, (last = (arg & 0xff)));
 
    const uint8_t spill_mask = ~((1 << (8 - roundup + size)) - 1);
    if (unlikely(arg != 0 || (last & spill_mask)))
@@ -560,6 +766,7 @@ static inline uint8_t *__to_unsigned(jit_func_t *func, jit_anchor_t *anchor,
    return result + roundup - size;
 }
 
+__attribute__((noinline))
 static void ieee_plus_unsigned(jit_func_t *func, jit_anchor_t *anchor,
                                jit_scalar_t *args, tlab_t *tlab)
 {
@@ -588,7 +795,7 @@ static void ieee_plus_unsigned(jit_func_t *func, jit_anchor_t *anchor,
          args[0].pointer = right;
       else {
          uint8_t *result = __tlab_alloc(tlab, size, 8);
-         __ieee_packed_add(left, right, size, 0, result);
+         (*ieee_packed_add)(left, right, size, 0, result);
          args[0].pointer = result;
       }
 
@@ -619,7 +826,7 @@ static void ieee_plus_unsigned_natural(jit_func_t *func, jit_anchor_t *anchor,
       if (left[0] == _X || right == 0)
          args[0].pointer = left;
       else {
-         __ieee_packed_add(left, result, size, 0, result);
+         (*ieee_packed_add)(left, result, size, 0, result);
          args[0].pointer = result;
       }
 
@@ -673,7 +880,7 @@ static void ieee_plus_signed(jit_func_t *func, jit_anchor_t *anchor,
          args[0].pointer = right;
       else {
          uint8_t *result = __tlab_alloc(tlab, size, 8);
-         __ieee_packed_add(left, right, size, 0, result);
+         (*ieee_packed_add)(left, right, size, 0, result);
          args[0].pointer = result;
       }
 
@@ -711,7 +918,7 @@ static void ieee_minus_unsigned(jit_func_t *func, jit_anchor_t *anchor,
       else {
          uint8_t *result = __tlab_alloc(tlab, size, 8);
          __invert_bits(right, size, result);
-         __ieee_packed_add(left, result, size, 1, result);
+         (*ieee_packed_add)(left, result, size, 1, result);
          args[0].pointer = result;
       }
 
@@ -749,7 +956,7 @@ static void ieee_minus_signed(jit_func_t *func, jit_anchor_t *anchor,
       else {
          uint8_t *result = __tlab_alloc(tlab, size, 8);
          __invert_bits(right, size, result);
-         __ieee_packed_add(left, result, size, 1, result);
+         (*ieee_packed_add)(left, result, size, 1, result);
          args[0].pointer = result;
       }
 
@@ -782,21 +989,8 @@ static void ieee_mul_unsigned(jit_func_t *func, jit_anchor_t *anchor,
 
       if (left[0] == _X || right[0] == _X)
          memset(result, _X, size);
-      else {
-         memset(result, _0, size);
-
-         uint8_t *adval = __resize_unsigned(tlab, right, rsize, size);
-         for (int i = lsize - 1, shift = 0; i >= 0; i--, shift++) {
-            if (left[i] == _1) {
-               // Delay left-shift until value needed
-               memmove(adval, adval + shift, size - shift);
-               memset(adval + size - shift, _0, shift);
-               shift = 0;
-
-               __ieee_packed_add(result, adval, size, 0, result);
-            }
-         }
-      }
+      else
+         __mul_unsigned(left, lsize, right, rsize, tlab, result);
 
       __tlab_restore(tlab, mark);
 
@@ -830,24 +1024,8 @@ static void ieee_mul_signed(jit_func_t *func, jit_anchor_t *anchor,
 
       if (left[0] == _X || right[0] == _X)
          memset(result, _X, size);
-      else {
-         memset(result, _0, size);
-
-         uint8_t *adval = __resize_signed(tlab, right, rsize, size);
-         for (int i = lsize - 1, shift = 0; i >= 0; i--, shift++) {
-            if (left[i] == _1) {
-               // Delay left-shift until value needed
-               memmove(adval, adval + shift, size - shift);
-               memset(adval + size - shift, _0, shift);
-               shift = 0;
-
-               if (i == 0)
-                  __invert_bits(adval, size, adval);
-
-               __ieee_packed_add(result, adval, size, i == 0, result);
-            }
-         }
-      }
+      else
+         __mul_signed(left, lsize, right, rsize, tlab, result);
 
       __tlab_restore(tlab, mark);
 
@@ -906,7 +1084,7 @@ static void ieee_divmod(jit_func_t *func, jit_anchor_t *anchor,
          for (; pos < topbit + 1 && slice[pos] == denom2[pos]; pos++);
 
          if (slice[pos] >= denom2[pos]) {
-            __ieee_packed_add(slice, denom3, topbit + 2, 1, slice);
+            (*ieee_packed_add)(slice, denom3, topbit + 2, 1, slice);
             quot[quot_size - 1 - j] = _1;
          }
       }
@@ -1361,7 +1539,7 @@ static void ieee_to_signed(jit_func_t *func, jit_anchor_t *anchor,
       const int roundup = (size + 7) & ~7;
       uint8_t *result = __tlab_alloc(tlab, roundup, 8), last = 0;
       for (int pos = roundup - 8; pos >= 0; pos -= 8, arg >>= 8)
-         __spread_bits(result + pos, (last = (arg & 0xff)));
+         __spread_bits_8(result + pos, (last = (arg & 0xff)));
 
       const uint8_t spill_mask = ~((1 << (8 - roundup + size)) - 1);
       if (unlikely((arg != 0 && arg != -1)
@@ -1485,7 +1663,7 @@ static void synopsys_plus_unsigned(jit_func_t *func, jit_anchor_t *anchor,
    if (unlikely(left[0] == _X || right[0] == _X))
       memset(result, _X, length);
    else
-      __ieee_packed_add(left, right, length, 0, result);
+      (*ieee_packed_add)(left, right, length, 0, result);
 
    args[0].pointer = result;
    args[1].integer = length - 1;
@@ -1512,7 +1690,7 @@ static void synopsys_plus_signed(jit_func_t *func, jit_anchor_t *anchor,
    if (unlikely(left[0] == _X || right[0] == _X))
       memset(result, _X, length);
    else
-      __ieee_packed_add(left, right, length, 0, result);
+      (*ieee_packed_add)(left, right, length, 0, result);
 
    args[0].pointer = result;
    args[1].integer = length - 1;
@@ -1565,7 +1743,7 @@ static void synopsys_minus_unsigned(jit_func_t *func, jit_anchor_t *anchor,
       memset(result, _X, length);
    else {
       __invert_bits(right, length, result);
-      __ieee_packed_add(left, result, length, 1, result);
+      (*ieee_packed_add)(left, result, length, 1, result);
    }
 
    args[0].pointer = result;
@@ -1594,22 +1772,7 @@ static void synopsys_mul_unsigned(jit_func_t *func, jit_anchor_t *anchor,
       memset(pa, _X, length);
    else {
       const uint32_t mark = __tlab_mark(tlab);
-      uint8_t *ba = __tlab_alloc(tlab, length, 8);
-
-      memset(pa, _0, length);
-      memset(ba, _0, length - rsize);
-      memcpy(ba + length - rsize, right, rsize);
-
-      for (int i = lsize - 1, shift = 0; i >= 0; i--, shift++) {
-         if (left[i] == _1) {
-            // Delay left-shift until value needed
-            memmove(ba, ba + shift, length - shift);
-            memset(ba + length - shift, _0, shift);
-            shift = 0;
-
-            __ieee_packed_add(pa, ba, length, 0, pa);
-         }
-      }
+      __mul_unsigned(left, lsize, right, rsize, tlab, pa);
 
       __tlab_restore(tlab, mark);
    }
@@ -1640,25 +1803,7 @@ static void synopsys_mul_signed(jit_func_t *func, jit_anchor_t *anchor,
       memset(pa, _X, length);
    else {
       const uint32_t mark = __tlab_mark(tlab);
-      uint8_t *ba = __tlab_alloc(tlab, length, 8);
-
-      memset(pa, _0, length);
-      memset(ba, right[0], length - rsize);
-      memcpy(ba + length - rsize, right, rsize);
-
-      for (int i = lsize - 1, shift = 0; i >= 0; i--, shift++) {
-         if (left[i] == _1) {
-            // Delay left-shift until value needed
-            memmove(ba, ba + shift, length - shift);
-            memset(ba + length - shift, _0, shift);
-            shift = 0;
-
-            if (i == 0)
-               __invert_bits(ba, length, ba);
-
-            __ieee_packed_add(pa, ba, length, i == 0, pa);
-         }
-      }
+      __mul_signed(left, lsize, right, rsize, tlab, pa);
 
       __tlab_restore(tlab, mark);
    }
@@ -2247,14 +2392,18 @@ jit_entry_fn_t jit_bind_intrinsic(ident_t name)
          const bool want_vector = !!opt_get_int(OPT_VECTOR_INTRINSICS);
 #endif
 
+         ieee_packed_add = __ieee_packed_add_scalar;
+
          cpu_feature_t mask = 0;
+#ifdef HAVE_SSE41
+         if (want_vector && __builtin_cpu_supports("sse4.1")) {
+            mask |= CPU_SSE41;
+            ieee_packed_add = __ieee_packed_add_sse41;
+         }
+#endif
 #if HAVE_AVX2
          if (want_vector && __builtin_cpu_supports("avx2"))
             mask |= CPU_AVX2;
-#endif
-#ifdef HAVE_SSE41
-         if (want_vector && __builtin_cpu_supports("sse4.1"))
-            mask |= CPU_SSE41;
 #endif
 #ifdef HAVE_NEON
          if (want_vector)

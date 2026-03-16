@@ -2900,21 +2900,10 @@ void vlog_lower_instance(mir_context_t *mc, vlog_node_t body, ident_t parent,
    const int vhdl_ndecls = tree_decls(trans);
    const int vlog_ndecls = vlog_decls(body);
 
-   for (int i = 0, pos = 0; i < vhdl_ndecls; i++) {
+   for (int i = 0; i < vhdl_ndecls; i++) {
       tree_t t = tree_decl(trans, i);
-      ident_t id = tree_ident(t);
-      for (; pos < vlog_ndecls; pos++) {
-         vlog_node_t v = vlog_decl(body, pos);
-         if (vlog_kind(v) == V_PORT_DECL)
-            continue;
-         else if (vlog_ident(v) == id) {
-            hash_put(map, v, t);
-            break;
-         }
-      }
-
-      if (pos == vlog_ndecls)
-         fatal_trace("missing VHDL signal for %s", istr(id));
+      if (tree_kind(t) == T_VERILOG)
+         hash_put(map, tree_vlog(t), t);
    }
 
    ident_t pkg_name = well_known(W_NVC_VERILOG);

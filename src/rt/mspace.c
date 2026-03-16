@@ -193,7 +193,7 @@ static void *mspace_try_alloc(mspace_t *m, size_t size)
          assert(base >= m->space);
          assert(base < m->space + m->maxsize);
 
-         ASAN_UNPOISON(base, size);
+         ASAN_UNPOISON(base, size + OVERRUN_MARGIN - 1);
 
          const ptrdiff_t line = (base - m->space) / LINE_SIZE;
          mask_set(&(m->headmask), line);

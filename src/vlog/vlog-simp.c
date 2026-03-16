@@ -214,6 +214,25 @@ static void build_sensitivity(vlog_node_t ctrl, vlog_node_t v, hset_t *set,
       build_sensitivity(ctrl, vlog_left(v), set, is_comb);
       build_sensitivity(ctrl, vlog_right(v), set, is_comb);
       break;
+   case V_FOR_LOOP:
+      {
+         build_sensitivity(ctrl, vlog_left(v), set, is_comb);
+         if (vlog_has_value(v))
+            build_sensitivity(ctrl, vlog_value(v), set, is_comb);
+         build_sensitivity(ctrl, vlog_right(v), set, is_comb);
+         const int nstmts = vlog_stmts(v);
+         for (int i = 0; i < nstmts; i++)
+            build_sensitivity(ctrl, vlog_stmt(v, i), set, is_comb);
+      }
+      break;
+   case V_FOR_INIT:
+   case V_FOR_STEP:
+      {
+         const int nstmts = vlog_stmts(v);
+         for (int i = 0; i < nstmts; i++)
+            build_sensitivity(ctrl, vlog_stmt(v, i), set, is_comb);
+      }
+      break;
    default:
       fatal_at(vlog_loc(v), "cannot handle %s in build_sensitivity",
                vlog_kind_str(vlog_kind(v)));

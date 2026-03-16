@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2022  Nick Gasson
+//  Copyright (C) 2022-2026  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -16,7 +16,9 @@
 //
 
 #include "util.h"
+#include "array.h"
 #include "diag.h"
+#include "gitsha.h"
 #include "ident.h"
 #include "jit/jit.h"
 #include "lib.h"
@@ -32,11 +34,23 @@
 #include "thread.h"
 
 #include <assert.h>
+#include <errno.h>
+#include <math.h>
 #include <getopt.h>
 #include <stdlib.h>
 #include <string.h>
 
 #define ITERATIONS 5
+#define BASELINE_FILE "baseline.txt"
+
+typedef struct {
+   ident_t  name;
+   char    *file;
+   double   ops_sec;
+   double   usec_op;
+} result_t;
+
+typedef A(result_t) result_array_t;
 
 const char copy_string[] = "";
 const char version_string[] = "";
@@ -57,8 +71,138 @@ static void print_result(double ops_sec, double usec_op)
       printf("%.1f ops/s; %.1f us/op\n", ops_sec, usec_op);
 }
 
-static void run_benchmark(tree_t pack, tree_t proc, unit_registry_t *ur,
-                          mir_context_t *mc)
+static const result_t *find_baseline_result(const result_array_t *results,
+                                            const result_t *ref)
+{
+   if (results == NULL)
+      return NULL;
+
+   for (int i = 0; i < results->count; i++) {
+      if (results->items[i].name == ref->name
+          && strcmp(results->items[i].file, ref->file) == 0)
+         return &(results->items[i]);
+   }
+
+   return NULL;
+}
+
+static bool load_baseline(result_array_t *results)
+{
+   FILE *f = fopen(BASELINE_FILE, "r");
+   if (f == NULL && errno == ENOENT)
+      return false;
+   else if (f == NULL)
+      fatal_errno("failed to open baseline file %s", BASELINE_FILE);
+
+   char *line = NULL;
+   size_t linesz = 0;
+   int line_no = 0;
+   while (getline(&line, &linesz, f) != -1) {
+      line_no++;
+
+      if (line[0] == '#' || line[0] == '\n' || line[0] == '\0')
+         continue;
+
+      char *saveptr = NULL;
+      char *name = strtok_r(line, " \t\r\n", &saveptr);
+      char *file = strtok_r(NULL, " \t\r\n", &saveptr);
+      char *ops = strtok_r(NULL, " \t\r\n", &saveptr);
+      char *usec = strtok_r(NULL, " \t\r\n", &saveptr);
+      if (name == NULL || file == NULL || ops == NULL || usec == NULL)
+         fatal("invalid baseline file %s at line %d", BASELINE_FILE, line_no);
+
+      char *endptr = NULL;
+      const double ops_sec = strtod(ops, &endptr);
+      if (endptr == NULL || *endptr != '\0')
+         fatal("invalid ops/s value in baseline file %s at line %d",
+               BASELINE_FILE, line_no);
+
+      endptr = NULL;
+      const double usec_op = strtod(usec, &endptr);
+      if (endptr == NULL || *endptr != '\0')
+         fatal("invalid us/op value in baseline file %s at line %d",
+               BASELINE_FILE, line_no);
+
+      result_t result = (result_t){
+         .name    = ident_new(name),
+         .file    = xstrdup(basename(file)),
+         .ops_sec = ops_sec,
+         .usec_op = usec_op,
+      };
+      APUSH(*results, result);
+   }
+
+   free(line);
+
+   fclose(f);
+   return true;
+}
+
+static void save_baseline(const result_array_t *results)
+{
+   FILE *f = fopen(BASELINE_FILE, "w");
+   if (f == NULL)
+      fatal_errno("failed to write baseline file %s", BASELINE_FILE);
+
+   fprintf(f, "# jitperf baseline %s\n", GIT_SHA);
+   for (int i = 0; i < results->count; i++) {
+      const result_t *r = &(results->items[i]);
+      fprintf(f, "%s %s %.1f %.1f\n", istr(r->name), r->file, r->ops_sec,
+              r->usec_op);
+   }
+
+   fclose(f);
+}
+
+static void print_delta(double current, double baseline, bool higher_is_better)
+{
+   const double delta = ((current - baseline) / baseline) * 100.0;
+   if (fabs(delta) < 1.0)
+      nvc_printf("$#236$%+5.1f%%$$", delta);
+   else {
+      const double cmp = higher_is_better ? delta : -delta;
+      if (cmp > 0.0)
+         nvc_printf("$green$%+5.1f%%$$", delta);
+      else
+         nvc_printf("$red$%+5.1f%%$$", delta);
+   }
+}
+
+static void print_summary(const result_array_t *results,
+                          const result_array_t *baseline)
+{
+   double max = 0.0;
+   int width = 0;
+   for (int i = 0; i < results->count; i++) {
+      width = MAX(width, ident_len(results->items[i].name));
+      max = MAX(max, results->items[i].usec_op);
+   }
+
+   const int scale = max < 10.0 ? 1000 : 1;
+   nvc_printf("$bold$%*s  %10s %6s %8s %6s$$\n",
+              width, "", "ops/s", "", scale == 1000 ? "ns/op" : "us/op", "");
+
+   for (int i = 0; i < results->count; i++) {
+      const result_t *r = &(results->items[i]);
+      const result_t *b = find_baseline_result(baseline, r);
+
+      nvc_printf("$bold$%-*s$$  %10.1f ", width, istr(r->name), r->ops_sec);
+      if (b != NULL)
+         print_delta(r->ops_sec, b->ops_sec, true);
+      else
+         printf("%6s", "");
+
+      printf(" %8.1f ", r->usec_op * scale);
+      if (b != NULL)
+         print_delta(r->usec_op, b->usec_op, false);
+      else
+         printf("%6s", "");
+      printf("\n");
+   }
+}
+
+static result_t run_benchmark(tree_t pack, tree_t proc, unit_registry_t *ur,
+                              mir_context_t *mc)
 {
    nvc_printf("$!magenta$## %s$$\n\n", istr(tree_ident(proc)));
 
@@ -111,15 +255,23 @@ static void run_benchmark(tree_t pack, tree_t proc, unit_registry_t *ur,
 
    tlab_release(tlab);
 
-   nvc_printf("\n$!green$--> ");
-   print_result(mean(ops_sec + 1, ITERATIONS), mean(usec_op + 1, ITERATIONS));
-   nvc_printf("$$\n");
-
    jit_free(j);
+
+   printf("\n");
+
+   const char *file = loc_file_str(tree_loc(proc));
+
+   return (result_t){
+      .name    = tree_ident(proc),
+      .file    = xstrdup(basename(file)),
+      .ops_sec = mean(ops_sec + 1, ITERATIONS),
+      .usec_op = mean(usec_op + 1, ITERATIONS),
+   };
 }
 
 static void find_benchmarks(tree_t pack, const char *filter,
-                            unit_registry_t *ur, mir_context_t *mc)
+                            unit_registry_t *ur, mir_context_t *mc,
+                            result_array_t *results)
 {
    ident_t test_i = ident_new("TEST_");
 
@@ -130,10 +282,22 @@ static void find_benchmarks(tree_t pack, const char *filter,
          continue;
 
       ident_t id = tree_ident(d);
-      if (ident_starts_with(id, test_i)
-          && (filter == NULL || strcasestr(istr(id), filter) != NULL))
-         run_benchmark(pack, d, ur, mc);
+      if (!ident_starts_with(id, test_i))
+         continue;
+      else if (filter != NULL && strcasestr(istr(id), filter) == NULL)
+         continue;
+
+      result_t r = run_benchmark(pack, d, ur, mc);
+      APUSH(*results, r);
    }
+}
+
+static void free_results(result_array_t *results)
+{
+   for (int i = 0; i < results->count; i++)
+      free(results->items[i].file);
+
+   ACLEAR(*results);
 }
 
 static vhdl_standard_t parse_standard(const char *str)
@@ -171,6 +335,7 @@ static void usage(void)
 {
    printf("Usage: jitperf [OPTION]... [FILE]...\n"
           "\n"
+          "     --baseline\t\t Save current results as baseline\n"
           " -f PATTERN\t\t Only run tests matching PATTERN\n"
           " -L PATH\t\tAdd PATH to library search paths\n"
           "\n");
@@ -199,6 +364,7 @@ int main(int argc, char **argv)
    _nvc_sim_pkg_init();
 
    static struct option long_options[] = {
+      { "baseline", no_argument, 0, 'b' },
       { "std", required_argument, 0, 's' },
       { 0, 0, 0, 0 }
    };
@@ -206,12 +372,17 @@ int main(int argc, char **argv)
    opterr = 0;
 
    const char *filter = NULL;
+   bool baseline_loaded = false;
+   bool write_baseline_file = false;
    int c, index = 0;
    const char *spec = "L:hf:i";
    while ((c = getopt_long(argc, argv, spec, long_options, &index)) != -1) {
       switch (c) {
       case 0:
          // Set a flag
+         break;
+      case 'b':
+         write_baseline_file = true;
          break;
       case 'L':
          lib_add_search_path(optarg);
@@ -246,6 +417,9 @@ int main(int argc, char **argv)
    unit_registry_t *ur = unit_registry_new(mc);
    jit_t *jit = jit_new(ur, mc);
 
+   result_array_t results = AINIT;
+   result_array_t baseline = AINIT;
+
    for (int i = optind; i < argc; i++) {
       nvc_printf("$!cyan$--\n-- %s\n--$$\n\n", argv[i]);
 
@@ -273,11 +447,20 @@ int main(int argc, char **argv)
 
       freeze_global_arena();
 
-      find_benchmarks(pack, filter, ur, mc);
+      find_benchmarks(pack, filter, ur, mc, &results);
    }
+
+   if (write_baseline_file)
+      save_baseline(&results);
+   else
+      baseline_loaded = load_baseline(&baseline);
+
+   print_summary(&results, baseline_loaded ? &baseline : NULL);
 
    jit_free(jit);
    unit_registry_free(ur);
+   free_results(&baseline);
+   free_results(&results);
 
    return 0;
 }

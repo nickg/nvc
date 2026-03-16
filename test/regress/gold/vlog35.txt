@@ -1,0 +1,4 @@
+a=1010 b=0110 result=1100
+a=1111 b=1111 result=0000
+a=0000 b=0000 result=0000
+3fs+0: $finish called

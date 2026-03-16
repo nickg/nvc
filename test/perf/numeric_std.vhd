@@ -1,11 +1,17 @@
 package numeric_std_perf is
     procedure test_to_unsigned;
-    procedure test_add_unsigned;
+    procedure test_add_unsigned_8;
+    procedure test_add_unsigned_16;
+    procedure test_add_unsigned_40;
+    procedure test_add_unsigned_99;
     procedure test_add_signed;
     procedure test_to_01;
     procedure test_resize;
     procedure test_to_signed;
-    procedure test_mul_unsigned;
+    procedure test_mul_unsigned_8;
+    procedure test_mul_unsigned_16;
+    procedure test_mul_unsigned_40;
+    procedure test_mul_unsigned_99;
     procedure test_mul_signed;
     procedure test_sub_unsigned;
     procedure test_sub_signed;
@@ -35,8 +41,7 @@ package body numeric_std_perf is
         end loop;
     end procedure;
 
-    procedure test_add_unsigned is
-        constant WIDTH : integer := 16;
+    procedure test_add_unsigned_generic generic (WIDTH : integer) is
         constant ITERS : integer := 500;
         variable accum : unsigned(WIDTH - 1 downto 0) := (others => '0');
         constant one   : unsigned(WIDTH - 1 downto 0) := to_unsigned(1, WIDTH);
@@ -45,6 +50,30 @@ package body numeric_std_perf is
             accum := accum + one;
         end loop;
         assert accum = to_unsigned(ITERS, WIDTH);
+    end procedure;
+
+    procedure test_add_unsigned_8 is
+        procedure impl is new test_add_unsigned_generic generic map (8);
+    begin
+        impl;
+    end procedure;
+
+    procedure test_add_unsigned_16 is
+        procedure impl is new test_add_unsigned_generic generic map (16);
+    begin
+        impl;
+    end procedure;
+
+    procedure test_add_unsigned_40 is
+        procedure impl is new test_add_unsigned_generic generic map (40);
+    begin
+        impl;
+    end procedure;
+
+    procedure test_add_unsigned_99 is
+        procedure impl is new test_add_unsigned_generic generic map (99);
+    begin
+        impl;
     end procedure;
 
     procedure test_add_signed is
@@ -98,8 +127,7 @@ package body numeric_std_perf is
         end loop;
     end procedure;
 
-    procedure test_mul_unsigned is
-        constant WIDTH : integer := 16;
+    procedure test_mul_unsigned_generic generic (WIDTH : integer) is
         constant ITERS : integer := 15;
         constant two   : unsigned(WIDTH - 1 downto 0) := to_unsigned(2, WIDTH);
         variable accum : unsigned(WIDTH - 1 downto 0) := to_unsigned(1, WIDTH);
@@ -108,6 +136,30 @@ package body numeric_std_perf is
             accum := resize(accum * two, WIDTH);
         end loop;
         assert accum = to_unsigned(2 ** ITERS, WIDTH);
+    end procedure;
+
+    procedure test_mul_unsigned_8 is
+        procedure impl is new test_mul_unsigned_generic generic map (8);
+    begin
+        impl;
+    end procedure;
+
+    procedure test_mul_unsigned_16 is
+        procedure impl is new test_mul_unsigned_generic generic map (16);
+    begin
+        impl;
+    end procedure;
+
+    procedure test_mul_unsigned_40 is
+        procedure impl is new test_mul_unsigned_generic generic map (40);
+    begin
+        impl;
+    end procedure;
+
+    procedure test_mul_unsigned_99 is
+        procedure impl is new test_mul_unsigned_generic generic map (99);
+    begin
+        impl;
     end procedure;
 
     procedure test_mul_signed is

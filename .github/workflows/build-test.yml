@@ -169,6 +169,7 @@ jobs:
             mingw-w64-clang-x86_64-tcl
             mingw-w64-clang-x86_64-tcllib
             mingw-w64-clang-x86_64-zstd
+            mingw-w64-clang-x86_64-readline
             git
             autoconf
             automake-wrapper

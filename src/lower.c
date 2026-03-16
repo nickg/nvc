@@ -6157,6 +6157,9 @@ static void lower_signal_assign_target(lower_unit_t *lu, target_part_t **ptr,
 
       type_t type = tree_type(p->target);
 
+      if (p->kind == PART_FIELD && have_uarray_ptr(src_reg))
+         src_reg = emit_load_indirect(src_reg);
+
       if (p->kind != PART_SLICE && type_is_array(type)) {
          vcode_reg_t locus = lower_debug_locus(p->target);
          lower_check_array_sizes(lu, type, src_type, p->reg, src_reg, locus);
