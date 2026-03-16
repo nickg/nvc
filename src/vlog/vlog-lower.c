@@ -179,6 +179,32 @@ static mir_value_t vlog_lower_x(vlog_gen_t *g, mir_type_t type)
    }
 }
 
+static mir_value_t vlog_lower_cast(vlog_gen_t *g, mir_type_t type,
+                                   mir_value_t value)
+{
+   const mir_type_t value_type = mir_get_type(g->mu, value);
+   const mir_class_t from = mir_get_class(g->mu, value_type);
+   const mir_class_t to = mir_get_class(g->mu, type);
+   const bool from_vec = from == MIR_TYPE_VEC4 || from == MIR_TYPE_VEC2;
+   const bool to_vec = to == MIR_TYPE_VEC4 || to == MIR_TYPE_VEC2;
+
+   if ((to == MIR_TYPE_REAL && from_vec) || (from == MIR_TYPE_REAL && to_vec)) {
+      mir_type_t t_int64 = mir_int_type(g->mu, INT64_MIN, INT64_MAX);
+      mir_value_t intg = vlog_lower_cast(g, t_int64, value);
+      return mir_build_cast(g->mu, type, intg);
+   }
+   else if (from == MIR_TYPE_VEC4 && to == MIR_TYPE_INT) {
+      // TODO: how to handle X here
+      const int size = mir_get_size(g->mu, value_type);
+      const bool issigned = mir_get_signed(g->mu, value_type);
+      mir_type_t t_vec2 = mir_vec2_type(g->mu, size, issigned);
+      mir_value_t vec2 = mir_build_cast(g->mu, t_vec2, value);
+      return mir_build_cast(g->mu, type, vec2);
+   }
+   else
+      return mir_build_cast(g->mu, type, value);
+}
+
 static mir_value_t vlog_lower_array_off(vlog_gen_t *g, vlog_node_t r,
                                         vlog_node_t v)
 {
@@ -942,6 +968,7 @@ static mir_value_t vlog_lower_rvalue_select(vlog_gen_t *g, vlog_node_t v)
          result = mir_build_extract(g->mu, select.type, data, select.offset);
          break;
       case MIR_TYPE_CONTEXT:
+      case MIR_TYPE_REAL:
          result = data;
          break;
       default:
@@ -1212,15 +1239,7 @@ static mir_value_t vlog_lower_time(vlog_gen_t *g, vlog_node_t v)
    }
    else {
       mir_value_t value = vlog_lower_rvalue(g, v);
-      mir_type_t type = mir_get_type(g->mu, value);
-      if (mir_get_class(g->mu, type) == MIR_TYPE_VEC4) {
-         // TODO: how to handle X here
-         const int size = mir_get_size(g->mu, type);
-         mir_type_t t_vec2 = mir_vec2_type(g->mu, size, true);
-         value = mir_build_cast(g->mu, t_vec2, value);
-      }
-
-      return mir_build_cast(g->mu, t_time, value);
+      return vlog_lower_cast(g, t_time, value);
    }
 }
 
@@ -1751,9 +1770,7 @@ static void vlog_lower_case(vlog_gen_t *g, vlog_node_t v)
    mir_comment(g->mu, "Begin case statement");
 
    mir_value_t value = vlog_lower_rvalue(g, vlog_value(v));
-   mir_type_t type = mir_get_type(g->mu, value);
-
-   // TODO: use a parallel case for small integer types
+   bool is_real = mir_is(g->mu, value, MIR_TYPE_REAL);
 
    const int nitems = vlog_stmts(v);
    mir_block_t *blocks LOCAL = xmalloc_array(nitems, sizeof(mir_block_t));
@@ -1761,21 +1778,86 @@ static void vlog_lower_case(vlog_gen_t *g, vlog_node_t v)
    const mir_vec_op_t op = vlog_subkind(v) == V_CASE_NORMAL
       ? MIR_VEC_CASE_EQ : MIR_VEC_CASEX_EQ;
 
+   int nexprs = 0;
    for (int i = 0; i < nitems; i++) {
       vlog_node_t item = vlog_stmt(v, i);
       assert(vlog_kind(item) == V_CASE_ITEM);
 
+      nexprs += vlog_params(item);
+   }
+
+   mir_value_t *exprs LOCAL = xmalloc_array(nexprs, sizeof(mir_value_t));
+
+   // See 1800-2023 section 12.5 for type rules
+
+   mir_type_t value_type = mir_get_type(g->mu, value);
+
+   bool is_signed = is_real ? false : mir_get_signed(g->mu, value_type);
+   int width = is_real ? 0 : mir_get_size(g->mu, value_type);
+
+   for (int i = 0, nexpr = 0; i < nitems; i++) {
+      vlog_node_t item = vlog_stmt(v, i);
+      assert(vlog_kind(item) == V_CASE_ITEM);
+
       blocks[i] = mir_add_block(g->mu);
+
+      const int nparams = vlog_params(item);
+      for (int j = 0; j < nparams; j++) {
+         mir_value_t expr = vlog_lower_rvalue(g, vlog_param(item, j));
+         exprs[nexpr++] = expr;
+
+         if (mir_is(g->mu, expr, MIR_TYPE_REAL))
+            is_real = true;
+         else {
+            mir_type_t expr_type = mir_get_type(g->mu, expr);
+            is_signed &= mir_get_signed(g->mu, expr_type);
+            width = MAX(width, mir_get_size(g->mu, expr_type));
+         }
+      }
+   }
+
+   mir_type_t type;
+   if (is_real)
+      type = mir_real_type(g->mu, -DBL_MAX, DBL_MAX);
+   else
+      type = mir_vec4_type(g->mu, width, is_signed);
+
+   if (!is_signed && !is_real && mir_get_signed(g->mu, value_type)) {
+      // No sign extension here
+      const int size = mir_get_size(g->mu, value_type);
+      mir_type_t us_type = mir_vec4_type(g->mu, size, false);
+      value = mir_build_cast(g->mu, us_type, value);
+   }
+
+   value = vlog_lower_cast(g, type, value);
+
+   for (int i = 0, nexpr = 0; i < nitems; i++) {
+      vlog_node_t item = vlog_stmt(v, i);
+      assert(vlog_kind(item) == V_CASE_ITEM);
 
       mir_block_t else_bb = mir_add_block(g->mu);
 
       mir_value_t comb = MIR_NULL_VALUE;
       const int nparams = vlog_params(item);
       for (int j = 0; j < nparams; j++) {
-         mir_value_t expr = vlog_lower_rvalue(g, vlog_param(item, j));
-         mir_value_t cast = mir_build_cast(g->mu, type, expr);
-         mir_value_t case_eq = mir_build_binary(g->mu, op, type, cast, value);
-         mir_value_t test = mir_build_test(g->mu, case_eq);
+         mir_value_t expr = exprs[nexpr++];
+         mir_type_t expr_type = mir_get_type(g->mu, expr);
+         if (!is_signed && !is_real && mir_is_vector(g->mu, expr)) {
+            // No sign extension here
+            const int size = mir_get_size(g->mu, expr_type);
+            mir_type_t us_type = mir_vec4_type(g->mu, size, false);
+            expr = mir_build_cast(g->mu, us_type, expr);
+         }
+
+         mir_value_t cast = vlog_lower_cast(g, type, expr);
+
+         mir_value_t test;
+         if (mir_is_vector(g->mu, cast)) {
+            mir_value_t eq = mir_build_binary(g->mu, op, type, cast, value);
+            test = mir_build_test(g->mu, eq);
+         }
+         else
+            test = mir_build_cmp(g->mu, MIR_CMP_EQ, cast, value);
 
          if (mir_is_null(comb))
             comb = test;

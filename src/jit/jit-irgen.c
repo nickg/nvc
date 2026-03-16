@@ -2280,17 +2280,28 @@ static void irgen_op_cast(jit_irgen_t *g, mir_value_t n)
    else if (result_kind == MIR_TYPE_VEC4 || result_kind == MIR_TYPE_VEC2) {
       mir_type_t arg_type = mir_get_type(g->mu, arg);
 
+      const mir_class_t arg_class = mir_get_class(g->mu, arg_type);
       jit_value_t abits = irgen_get_value(g, arg), bbits;
-      if (mir_get_class(g->mu, arg_type) == MIR_TYPE_VEC4)
+      if (arg_class == MIR_TYPE_VEC4)
          bbits = irgen_get_slot(g, arg, 1);
       else
          bbits = jit_value_from_int64(0);
 
-      const bool arg_signed = mir_get_signed(g->mu, arg_type);
       const bool result_signed = mir_get_signed(g->mu, result_type);
-
       const int result_size = mir_get_size(g->mu, result_type);
-      const int arg_size = mir_get_size(g->mu, arg_type);
+
+      bool arg_signed;
+      int arg_size;
+      if (arg_class == MIR_TYPE_INT) {
+         const mir_repr_t repr = mir_get_repr(g->mu, arg_type);
+         arg_signed = irgen_repr_signed(repr);
+         arg_size = irgen_repr_bits(repr);
+      }
+      else {
+         arg_signed = mir_get_signed(g->mu, arg_type);
+         arg_size = mir_get_size(g->mu, arg_type);
+      }
+
       if (result_size > 64) {
          j_send(g, 0, abits);
          j_send(g, 1, bbits);
@@ -2319,7 +2330,7 @@ static void irgen_op_cast(jit_irgen_t *g, mir_value_t n)
             }
          }
 
-         if ((result_signed || arg_signed) && arg_size < 64) {
+         if (arg_signed && arg_size < 64) {
             abits = irgen_sign_extend(g, abits, arg_size);
             j_and(g, abits, abits, irgen_vector_mask(result_size));
 
@@ -2342,8 +2353,15 @@ static void irgen_op_cast(jit_irgen_t *g, mir_value_t n)
       }
    }
    else if ((result_kind == MIR_TYPE_INT || result_kind == MIR_TYPE_OFFSET)
-            && mir_is_vector(g->mu, arg))
-      j_mov(g, g->map[n.id], irgen_get_value(g, arg));  // No-op (take A-bits)
+            && mir_is_vector(g->mu, arg)) {
+      jit_value_t abits = irgen_get_value(g, arg);
+      mir_type_t arg_type = mir_get_type(g->mu, arg);
+      if (mir_get_signed(g->mu, arg_type)) {
+         const int arg_size = mir_get_size(g->mu, arg_type);
+         abits = irgen_sign_extend(g, abits, arg_size);
+      }
+      j_mov(g, g->map[n.id], abits);
+   }
    else {
       mir_dump(g->mu);
       fatal_trace("unhandled cast");

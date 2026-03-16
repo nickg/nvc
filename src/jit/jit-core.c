@@ -478,7 +478,7 @@ static void jit_emit_trace(diag_t *d, const loc_t *loc, object_t *enclosing,
          diag_trace(d, loc, "Instance %pi", vlog_ident(v));
          break;
       default:
-         diag_trace(d, loc, "%pi", istr(vlog_ident(v)));
+         diag_trace(d, loc, "%pi", vlog_ident(v));
       }
    }
 }

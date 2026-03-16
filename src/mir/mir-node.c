@@ -1606,6 +1606,8 @@ mir_value_t mir_build_binary(mir_unit_t *mu, mir_vec_op_t op, mir_type_t type,
                                     mir_enum(op), left, right);
 
    MIR_ASSERT(mir_is_vector(mu, result), "binary operation must be vector");
+   MIR_ASSERT(mir_is_vector(mu, left), "left argument must be vector");
+   MIR_ASSERT(mir_is_vector(mu, right), "right argument must be vector");
    MIR_ASSERT(mir_check_type(mu, left, type), "left type does not match");
    MIR_ASSERT(mir_check_type(mu, right, type), "right type does not match");
 
@@ -1631,6 +1633,7 @@ mir_value_t mir_build_unary(mir_unit_t *mu, mir_vec_op_t op, mir_type_t type,
                                     mir_enum(op), arg);
 
    MIR_ASSERT(mir_is_vector(mu, result), "unary operation must be vector");
+   MIR_ASSERT(mir_is_vector(mu, arg), "argument must be vector");
    MIR_ASSERT(mir_check_type(mu, arg, type), "arg type does not match");
 
    return result;
@@ -3487,8 +3490,17 @@ mir_value_t mir_build_cast(mir_unit_t *mu, mir_type_t type, mir_value_t value)
       if (value.tag == MIR_TAG_NODE) {
          node_data_t *n = mir_node_data(mu, value);
          if (n->op == MIR_OP_CONST_VEC && mir_get_size(mu, type) <= 64) {
+            uint64_t abits = n->bits[0];
+            if (mir_get_signed(mu, n->type)) {
+               const int arg_size = mir_get_size(mu, n->type);
+               if (arg_size > 0 && arg_size < 64) {
+                  const int shift = 64 - arg_size;
+                  abits = ((int64_t)abits << shift) >> shift;
+               }
+            }
+
             const uint64_t bbits = (class == MIR_TYPE_VEC2 ? 0 : n->bits[1]);
-            return mir_const_vec(mu, type, n->bits[0], bbits);
+            return mir_const_vec(mu, type, abits, bbits);
          }
       }
    }
@@ -3496,6 +3508,16 @@ mir_value_t mir_build_cast(mir_unit_t *mu, mir_type_t type, mir_value_t value)
       node_data_t *n = mir_node_data(mu, value);
       if (n->op == MIR_OP_CONST_VEC) {
          MIR_ASSERT(n->bits[1] == 0, "X value in integral cast");
+
+         if (mir_get_signed(mu, n->type)) {
+            const int arg_size = mir_get_size(mu, n->type);
+            if (arg_size > 0 && arg_size < 64) {
+               const int shift = 64 - arg_size;
+               const int64_t sext = ((int64_t)n->bits[0] << shift) >> shift;
+               return mir_const(mu, type, sext);
+            }
+         }
+
          return mir_const(mu, type, n->bits[0]);
       }
    }
@@ -3519,6 +3541,8 @@ mir_value_t mir_build_cast(mir_unit_t *mu, mir_type_t type, mir_value_t value)
       { MIR_TYPE_VEC4,   MIR_TYPE_VEC4    },
       { MIR_TYPE_VEC2,   MIR_TYPE_INT     },
       { MIR_TYPE_VEC2,   MIR_TYPE_OFFSET  },
+      { MIR_TYPE_INT,    MIR_TYPE_VEC2    },
+      { MIR_TYPE_INT,    MIR_TYPE_VEC4    },
    };
 
    if (value.tag == MIR_TAG_CONST)
