@@ -11,4 +11,8 @@ module concat1;
   assign a3 = {5{x}};   // OK
   assign a4 = {z{x}};   // Error
 
+  parameter N = 4;
+  assign a5 = {{N}{x}};   // OK
+  assign a6 = {{N+1}{x}}; // OK
+
 endmodule // concat1

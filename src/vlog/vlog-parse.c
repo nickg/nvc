@@ -1598,6 +1598,12 @@ static vlog_node_t p_multiple_concatenation(vlog_node_t head)
 
    BEGIN_WITH_HEAD("multiple concatenation", head);
 
+   // Handle case like {{N+1}{1'b0}} where head was parsed as a
+   // single-element concatenation {N+1} instead of the expression N+1
+   if (vlog_kind(head) == V_CONCAT && !vlog_has_value(head)
+       && vlog_params(head) == 1)
+      head = vlog_param(head, 0);
+
    vlog_node_t v = p_concatenation(NULL);
    vlog_set_value(v, head);
 
