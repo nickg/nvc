@@ -1311,6 +1311,22 @@ static rt_source_t *add_source(rt_model_t *m, rt_nexus_t *n, source_kind_t kind)
    return src;
 }
 
+static void splice_outputs(rt_source_t **head, rt_source_t *outputs)
+{
+   if (outputs == NULL)
+      return;
+
+   for (; *head != NULL; head = &((*head)->chain_output)) {
+      for (rt_source_t *it = outputs; it != NULL; it = it->chain_output) {
+         if (it == *head)
+            return;
+      }
+   }
+
+   if (*head == NULL)
+      *head = outputs;
+}
+
 static inline int map_index(rt_index_t *index, unsigned offset)
 {
    if (likely(index->how >= 0))
@@ -5279,9 +5295,7 @@ void x_convert_in(void *ptr, sig_shared_t *ss, uint32_t offset, int32_t count)
 
       add_conversion_input(m, cf, n);
 
-      rt_source_t **p = &(n->outputs);
-      for (; *p != NULL && *p != cf->outputs; p = &((*p)->chain_output));
-      *p = cf->outputs;
+      splice_outputs(&(n->outputs), cf->outputs);
    }
 
    for (rt_source_t *o = cf->outputs; o; o = o->chain_output) {
@@ -5350,9 +5364,7 @@ void x_functor_in(void *ptr, sig_shared_t *ss, uint32_t offset, int32_t count)
       count -= n->width;
       assert(count >= 0);
 
-      rt_source_t **p = &(n->outputs);
-      for (; *p != NULL && *p != f->outputs; p = &((*p)->chain_output));
-      *p = f->outputs;
+      splice_outputs(&(n->outputs), f->outputs);
 
       f->rank = MAX(n->rank, f->rank);
    }
