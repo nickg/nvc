@@ -1319,6 +1319,9 @@ static void bounds_check_conv_array(tree_t value, type_t from, type_t to)
    else if (!to_constrained && from_constrained) {
       for (int i = 0; i < ndims; i++) {
          type_t index_type = index_type_of(to, i);
+         if (type_is_generic(index_type))
+            continue;
+
          tree_t r_to = range_of(index_type, i);
          tree_t r_from = range_of(from, i);
 
