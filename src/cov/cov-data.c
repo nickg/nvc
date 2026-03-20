@@ -682,7 +682,8 @@ cover_item_t *cover_lookup_item(cover_scope_t *cs, object_t *obj,
                                 cover_item_kind_t kind)
 {
    cover_scope_t *inst = cs;
-   for (; inst != NULL && inst->kind != CSCOPE_INSTANCE; inst = inst->parent);
+   for (; inst != NULL && inst->kind != CSCOPE_INSTANCE
+          && inst->kind != CSCOPE_PACKAGE; inst = inst->parent);
    assert(inst != NULL);
 
    if (inst->block->item_map == NULL)
@@ -897,6 +898,11 @@ bool cover_enabled(cover_data_t *data, cover_mask_t mask)
    return data != NULL && (data->mask & mask);
 }
 
+cover_scope_t *cover_get_root_scope(cover_data_t *db)
+{
+   return db != NULL ? db->root_scope : NULL;
+}
+
 cover_scope_t *cover_create_block(cover_data_t *db, ident_t qual,
                                   cover_scope_t *parent, tree_t inst,
                                   tree_t unit)
@@ -954,7 +960,8 @@ cover_scope_t *cover_create_scope(cover_data_t *db, cover_scope_t *parent,
 
    assert(parent != NULL);
    assert(db->root_scope != NULL);
-   assert(!is_design_unit(t));
+   assert(!is_design_unit(t) || tree_kind(t) == T_PACKAGE
+          || tree_kind(t) == T_PACK_BODY || tree_kind(t) == T_PACK_INST);
 
    cover_scope_t *s = pool_calloc(db->pool, sizeof(cover_scope_t));
 

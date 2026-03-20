@@ -619,6 +619,7 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
 
    state->mir = mir_context_new();
    state->registry = unit_registry_new(state->mir);
+   unit_registry_set_cover(state->registry, state->cover);
    state->jit = get_jit(state);
    state->model = model_new(state->jit, state->cover);
 
