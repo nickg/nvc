@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
-<scope name="WORK" file="issue941.vhd">
-  <scope name="ISSUE941" block_name="ISSUE941-TEST" line="16">
+<scope name="WORK">
+  <scope name="ISSUE941" block_name="ISSUE941-TEST" file="issue941.vhd" line="16">
     <scope name="A" line="24">
     </scope>
     <scope name="B" line="24">

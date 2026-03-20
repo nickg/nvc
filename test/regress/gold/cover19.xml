@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
-<scope name="WORK" file="cover19.vhd">
-  <scope name="COVER19" block_name="COVER19-TEST" line="7">
+<scope name="WORK">
+  <scope name="COVER19" block_name="COVER19-TEST" file="cover19.vhd" line="7">
     <scope name="CURR_STATE" line="26">
       <state hier="WORK.COVER19.CURR_STATE.BIN_STATE.ST_IDLE" data="1"/>
       <state hier="WORK.COVER19.CURR_STATE.BIN_STATE.ST_ONE" data="0"/>

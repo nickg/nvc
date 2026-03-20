@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
-<scope name="WORK" file="cover20.vhd">
-  <scope name="COVER20" block_name="COVER20-TEST" line="10">
+<scope name="WORK">
+  <scope name="COVER20" block_name="COVER20-TEST" file="cover20.vhd" line="10">
     <scope name="A" line="12">
       <toggle hier="WORK.COVER20.A.BIN_0_TO_1" data="0"/>
       <toggle hier="WORK.COVER20.A.BIN_1_TO_0" data="1"/>

@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
-<scope name="WORK" file="issue906.vhd">
-  <scope name="ISSUE906" block_name="ISSUE906-TEST" line="7">
+<scope name="WORK">
+  <scope name="ISSUE906" block_name="ISSUE906-TEST" file="issue906.vhd" line="7">
     <scope name="X" line="8">
       <toggle hier="WORK.ISSUE906.X(1).BIN_0_TO_1" data="0"/>
       <toggle hier="WORK.ISSUE906.X(1).BIN_1_TO_0" data="0"/>

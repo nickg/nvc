@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
-<scope name="WORK" file="cover4.vhd">
-  <scope name="COVER4" block_name="COVER4-TEST" line="9">
+<scope name="WORK">
+  <scope name="COVER4" block_name="COVER4-TEST" file="cover4.vhd" line="9">
     <scope name="_P0" line="18">
       <scope name="_S0" line="21">
         <scope name="_B0">

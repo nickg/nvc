@@ -913,7 +913,8 @@ cover_scope_t *cover_create_block(cover_data_t *db, ident_t qual,
    if (parent == NULL) {
       assert(db->root_scope == NULL);
 
-      parent = db->root_scope = xcalloc(sizeof(cover_scope_t));
+      parent = db->root_scope = pool_calloc(db->pool, sizeof(cover_scope_t));
+      parent->loc = LOC_INVALID;
       parent->name = parent->hier = lib_name(lib_work());
    }
 

@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
-<scope name="WORK" file="cover16.vhd">
-  <scope name="COVER16" block_name="COVER16-TEST" line="7">
+<scope name="WORK">
+  <scope name="COVER16" block_name="COVER16-TEST" file="cover16.vhd" line="7">
     <scope name="A" line="8">
       <toggle hier="WORK.COVER16.A.BIN_0_TO_1" data="0"/>
       <toggle hier="WORK.COVER16.A.BIN_1_TO_0" data="0"/>

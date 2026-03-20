@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
-<scope name="WORK" file="cover8.vhd">
-  <scope name="COVER8" block_name="COVER8-TEST" line="8">
+<scope name="WORK">
+  <scope name="COVER8" block_name="COVER8-TEST" file="cover8.vhd" line="8">
     <scope name="GATE_OR_1" line="117">
       <scope name="_S0" line="118">
         <expression hier="WORK.COVER8.GATE_OR_1._S0._E0.BIN_0_0" data="2"/>

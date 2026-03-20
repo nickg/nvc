@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
-<scope name="WORK" file="cover15.vhd">
-  <scope name="COVER15" block_name="COVER15-TEST" line="4">
+<scope name="WORK">
+  <scope name="COVER15" block_name="COVER15-TEST" file="cover15.vhd" line="4">
     <scope name="_P0" line="8">
       <scope name="_S0" line="18">
         <statement hier="WORK.COVER15._P0._S0" data="1"/>
