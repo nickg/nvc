@@ -3,7 +3,7 @@
   VHPI extensions.
 - Added a `vhpiRandomSeedP` property for `vhpiToolK` which returns the
   random seed for the simulation.
-- Several other minor bugs were resolved (#1453).
+- Several other minor bugs were resolved (#1453, #1460).
 
 ## Version 1.19.3 - 2026-03-08
 - VHPI value change callbacks for indexed names now work correctly (#1428).

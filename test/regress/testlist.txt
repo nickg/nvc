@@ -1276,3 +1276,4 @@ ivtest22        verilog
 issue1453       normal,2008
 ivtest23        verilog
 issue1459       verilog
+issue1460       normal,2019

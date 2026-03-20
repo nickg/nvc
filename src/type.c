@@ -983,7 +983,12 @@ unsigned type_width(type_t type)
 bool type_is_composite(type_t t)
 {
    const type_kind_t base = type_base_kind(t);
-   return base == T_ARRAY || base == T_RECORD;
+   if (base == T_GENERIC) {
+      const gtype_class_t class = type_subkind(type_base_recur(t));
+      return class == GTYPE_ARRAY;
+   }
+   else
+      return base == T_ARRAY || base == T_RECORD;
 }
 
 bool type_is_homogeneous(type_t t)
