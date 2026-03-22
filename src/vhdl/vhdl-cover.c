@@ -189,17 +189,17 @@ static void vhdl_cover_case(tree_t t, cover_data_t *db, lazy_cscope_t *parent)
    const int nstmts = tree_stmts(t);
    for (int i = 0; i < nstmts; i++) {
       tree_t alt = tree_stmt(t, i);
+      lazy_cscope_t lcs = lazy_cover_scope(alt, parent);
 
       if (cover_enabled(db, COVER_MASK_BRANCH)) {
          const int nchoices = tree_choices(alt);
          for (int j = 0; j < nchoices; j++) {
             tree_t c = tree_choice(alt, j);
-            lazy_cscope_t lcs = lazy_cover_scope(c, parent);
             vhdl_cover_branch(c, db, &lcs);
          }
       }
 
-      vhdl_cover_stmts(alt, db, parent);
+      vhdl_cover_stmts(alt, db, &lcs);
    }
 }
 

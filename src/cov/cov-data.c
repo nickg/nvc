@@ -987,12 +987,14 @@ cover_scope_t *cover_create_scope(cover_data_t *db, cover_scope_t *parent,
       s->name = tree_ident(t);
       s->kind = CSCOPE_PACKAGE;
       break;
-   case T_CHOICE:
-   case T_COND_STMT:
-      if (tree_kind(t) == T_CHOICE && !tree_has_name(t))
+   case T_ALTERNATIVE:
+      if (tree_choices(t) == 1 && !tree_has_name(tree_choice(t, 0)))
          s->name = ident_new("_B_OTHERS");
       else
          s->name = ident_sprintf("_B%u", parent->branch_label++);
+      break;
+   case T_COND_STMT:
+      s->name = ident_sprintf("_B%u", parent->branch_label++);
       break;
    case T_SIGNAL_DECL:
    case T_PORT_DECL:

@@ -66,14 +66,20 @@
         </scope>
         <scope name="CASE_COND_1" line="69">
           <statement hier="WORK.COVER1.TEST_PROC.LOOP1.CASE_COND_1" data="5"/>
-          <scope name="_S0" line="71">
-            <statement hier="WORK.COVER1.TEST_PROC.LOOP1.CASE_COND_1._S0" data="1"/>
+          <scope name="_B0" line="70">
+            <scope name="_S0" line="71">
+              <statement hier="WORK.COVER1.TEST_PROC.LOOP1.CASE_COND_1._B0._S0" data="1"/>
+            </scope>
           </scope>
-          <scope name="_S1" line="73">
-            <statement hier="WORK.COVER1.TEST_PROC.LOOP1.CASE_COND_1._S1" data="1"/>
+          <scope name="_B1" line="72">
+            <scope name="_S0" line="73">
+              <statement hier="WORK.COVER1.TEST_PROC.LOOP1.CASE_COND_1._B1._S0" data="1"/>
+            </scope>
           </scope>
-          <scope name="_S2" line="75">
-            <statement hier="WORK.COVER1.TEST_PROC.LOOP1.CASE_COND_1._S2" data="3"/>
+          <scope name="_B_OTHERS" line="74">
+            <scope name="_S0" line="75">
+              <statement hier="WORK.COVER1.TEST_PROC.LOOP1.CASE_COND_1._B_OTHERS._S0" data="3"/>
+            </scope>
           </scope>
         </scope>
       </scope>

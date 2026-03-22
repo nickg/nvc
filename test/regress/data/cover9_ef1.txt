@@ -8,9 +8,9 @@ exclude WORK.COVER9.SUB_BLOCK_INST.*
 # Test statement excluding
 ###############################################################################
 exclude WORK.COVER9.AND_GATE._S0._B0.A
-exclude WORK.COVER9.P1.CASE_STMT.RPT4
-exclude WORK.COVER9.p1.CASE_STMT.RPT5
-exclude WORK.COVER9.P1.CASE_STMT.RPT6
+exclude WORK.COVER9.P1.CASE_STMT._B3.RPT4
+exclude WORK.COVER9.p1.CASE_STMT._B4.RPT5
+exclude WORK.COVER9.P1.CASE_STMT._B_OTHERS.RPT6
 
 ###############################################################################
 # Test branch excluding

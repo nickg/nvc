@@ -133,31 +133,41 @@
     |
  23 | exclude WORK.COVER9.P1.CASE_STMT._B3.BIN_CHOICE
     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-** Note: excluding statement: 'WORK.COVER9.P1.CASE_STMT.RPT4'
+** Note: excluding statement: 'WORK.COVER9.P1.CASE_STMT._B3.RPT4'
     > data/cover9_ef1.txt:11
     |
- 11 | exclude WORK.COVER9.P1.CASE_STMT.RPT4
-    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 11 | exclude WORK.COVER9.P1.CASE_STMT._B3.RPT4
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 ** Note: excluding branch: 'WORK.COVER9.P1.CASE_STMT._B4.BIN_CHOICE'
     > data/cover9_ef1.txt:26
     |
  26 | exclude WORK.COVER9.P1.case_stmt._B4.*
     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-** Note: excluding statement: 'WORK.COVER9.P1.CASE_STMT.RPT5'
+** Note: excluding statement: 'WORK.COVER9.P1.CASE_STMT._B4.RPT5'
     > data/cover9_ef1.txt:12
     |
- 12 | exclude WORK.COVER9.p1.CASE_STMT.RPT5
-    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 12 | exclude WORK.COVER9.p1.CASE_STMT._B4.RPT5
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding statement: 'WORK.COVER9.P1.CASE_STMT._B4.RPT5'
+    > data/cover9_ef1.txt:26
+    |
+ 26 | exclude WORK.COVER9.P1.case_stmt._B4.*
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 ** Note: excluding branch: 'WORK.COVER9.P1.CASE_STMT._B_OTHERS.BIN_CHOICE'
     > data/cover9_ef1.txt:27
     |
  27 | exclude WORK.COVER9.P1.CASE_STMT._B_OTHERS.*
     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-** Note: excluding statement: 'WORK.COVER9.P1.CASE_STMT.RPT6'
+** Note: excluding statement: 'WORK.COVER9.P1.CASE_STMT._B_OTHERS.RPT6'
     > data/cover9_ef1.txt:13
     |
- 13 | exclude WORK.COVER9.P1.CASE_STMT.RPT6
-    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 13 | exclude WORK.COVER9.P1.CASE_STMT._B_OTHERS.RPT6
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding statement: 'WORK.COVER9.P1.CASE_STMT._B_OTHERS.RPT6'
+    > data/cover9_ef1.txt:27
+    |
+ 27 | exclude WORK.COVER9.P1.CASE_STMT._B_OTHERS.*
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 ** Note: excluding toggle: 'WORK.COVER9.SUB_BLOCK_INST.A.BIN_0_TO_1'
    > data/cover9_ef1.txt:5
    |
