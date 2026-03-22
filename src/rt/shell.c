@@ -185,22 +185,6 @@ static void shell_next_time_step(rt_model_t *m, void *user)
    model_set_phase_cb(sh->model, NEXT_TIME_STEP, shell_next_time_step, sh);
 }
 
-static void shell_create_model(tcl_shell_t *sh)
-{
-   assert(sh->model == NULL);
-
-   sh->model = model_new(sh->jit, NULL);
-   create_scope(sh->model, sh->top, NULL);
-
-   if (sh->handler.next_time_step != NULL)
-      model_set_phase_cb(sh->model, NEXT_TIME_STEP, shell_next_time_step, sh);
-
-   model_reset(sh->model);
-
-   if ((sh->root = find_scope(sh->model, tree_stmt(sh->top, 0))) == NULL)
-      fatal_trace("cannot find root scope");
-}
-
 static void shell_update_now(tcl_shell_t *sh)
 {
    sh->now_var = model_now(sh->model, &sh->deltas_var);
@@ -259,37 +243,6 @@ static void watch_signal(shell_signal_t *ss)
    model_set_event_cb(ss->owner->model, ss->signal, 0, width, ss->watch);
 }
 
-static void recreate_objects(tcl_shell_t *sh, rt_scope_t *scope,
-                             shell_signal_t **sptr, shell_region_t **rptr)
-{
-   shell_region_t *r = (*rptr)++;
-   assert(r->obj.name == ident_downcase(tree_ident(scope->where)));
-   r->scope = scope;
-
-   for (int i = 0; i < scope->signals.count; i++) {
-      shell_signal_t *ss = (*sptr)++;
-      ss->signal = scope->signals.items[i];
-      assert(ss->obj.name == ident_downcase(tree_ident(ss->signal->where)));
-
-      if (ss->watch != NULL)
-         watch_signal(ss);
-   }
-
-   for (int i = 0; i < scope->aliases.count; i++) {
-      rt_alias_t *a = scope->aliases.items[i];
-
-      shell_signal_t *ss = (*sptr)++;
-      assert(ss->obj.name == ident_downcase(tree_ident(a->where)));
-      ss->signal = a->signal;
-
-      if (ss->watch != NULL)
-         watch_signal(ss);
-   }
-
-   for (int i = 0; i < scope->children.count; i++)
-      recreate_objects(sh, scope->children.items[i], sptr, rptr);
-}
-
 const char *next_option(int *pos, int objc, Tcl_Obj *const objv[])
 {
    if (*pos >= objc)
@@ -332,33 +285,7 @@ static int shell_cmd_restart(ClientData cd, Tcl_Interp *interp,
                              int objc, Tcl_Obj *const objv[])
 {
    tcl_shell_t *sh = cd;
-
-   if (!shell_has_model(sh))
-      return TCL_ERROR;
-
-   model_free(sh->model);
-   sh->model = NULL;
-
-   jit_reset(sh->jit);
-
-   clear_vhdl_assert();
-   for (vhdl_severity_t s = SEVERITY_NOTE; s <= SEVERITY_FAILURE; s++)
-      set_vhdl_assert_enable(s, true);
-
-   shell_create_model(sh);
-
-   shell_signal_t *wptr = sh->signals;
-   shell_region_t *rptr = sh->regions;
-   recreate_objects(sh, sh->root, &wptr, &rptr);
-   assert(wptr == sh->signals + sh->nsignals);
-   assert(rptr == sh->regions + sh->nregions);
-
-   shell_update_now(sh);
-
-   if (sh->handler.restart_sim != NULL)
-      (*sh->handler.restart_sim)(sh->handler.context);
-
-   return TCL_OK;
+   return tcl_error(sh, "restart command is not currently supported");
 }
 
 static const char run_help[] =
@@ -1102,17 +1029,19 @@ static int compare_shell_cmd(const void *a, const void *b)
    return strcmp(((shell_cmd_t *)a)->name, ((shell_cmd_t *)b)->name);
 }
 
-tcl_shell_t *shell_new(jit_t *jit)
+tcl_shell_t *shell_new(tree_t top, jit_t *jit, rt_model_t *m)
 {
    tcl_shell_t *sh = xcalloc(sizeof(tcl_shell_t));
 #ifdef RL_VERSION_MAJOR
-   sh->prompt   = color_asprintf("\001$+cyan$\002%%\001$$\002 ");
+   sh->prompt  = color_asprintf("\001$+cyan$\002%%\001$$\002 ");
 #else
-   sh->prompt   = color_asprintf("$+cyan$%%$$ ");
+   sh->prompt  = color_asprintf("$+cyan$%%$$ ");
 #endif
-   sh->interp   = Tcl_CreateInterp();
-   sh->jit      = jit;
-   sh->printer  = printer_new();
+   sh->interp  = Tcl_CreateInterp();
+   sh->top     = top;
+   sh->jit     = jit;
+   sh->model   = m;
+   sh->printer = printer_new();
 
    if (isatty(fileno(stdin)))
       sh->getline = shell_completing_get_line;
@@ -1163,16 +1092,12 @@ tcl_shell_t *shell_new(jit_t *jit)
 
 void shell_free(tcl_shell_t *sh)
 {
-   if (sh->model != NULL) {
-      model_free(sh->model);
-      hash_free(sh->namemap);
-      free(sh->signals);
-      free(sh->regions);
-   }
-
+   hash_free(sh->namemap);
    printer_free(sh->printer);
    Tcl_DeleteInterp(sh->interp);
 
+   free(sh->signals);
+   free(sh->regions);
    free(sh->datadir);
    free(sh->prompt);
    free(sh->cmds);
@@ -1269,13 +1194,15 @@ static void recurse_objects(tcl_shell_t *sh, rt_scope_t *scope,
    }
 }
 
-void shell_reset(tcl_shell_t *sh, tree_t top)
+void shell_reset(tcl_shell_t *sh)
 {
-   jit_reset(sh->jit);
+   if (sh->handler.next_time_step != NULL)
+      model_set_phase_cb(sh->model, NEXT_TIME_STEP, shell_next_time_step, sh);
 
-   sh->top = top;
+   model_reset(sh->model);
 
-   shell_create_model(sh);
+   if ((sh->root = find_scope(sh->model, tree_stmt(sh->top, 0))) == NULL)
+      fatal_trace("cannot find root scope");
 
    sh->nsignals = sh->nregions = 0;
    count_objects(sh->root, &sh->nsignals, &sh->nregions);
@@ -1296,7 +1223,7 @@ void shell_reset(tcl_shell_t *sh, tree_t top)
    shell_update_now(sh);
 
    if (sh->handler.start_sim != NULL)
-      (*sh->handler.start_sim)(tree_ident(top), sh->handler.context);
+      (*sh->handler.start_sim)(tree_ident(sh->top), sh->handler.context);
 }
 
 void shell_interact(tcl_shell_t *sh)

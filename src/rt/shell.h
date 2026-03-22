@@ -36,12 +36,12 @@ typedef struct {
    void *context;
 } shell_handler_t;
 
-tcl_shell_t *shell_new(jit_t *jit);
+tcl_shell_t *shell_new(tree_t top, jit_t *jit, rt_model_t *m);
 void shell_free(tcl_shell_t *sh);
 bool shell_eval(tcl_shell_t *sh, const char *script, const char **result);
 bool shell_do(tcl_shell_t *sh, const char *file);
 void shell_interact(tcl_shell_t *sh);
-void shell_reset(tcl_shell_t *sh, tree_t top);
+void shell_reset(tcl_shell_t *sh);
 void shell_set_handler(tcl_shell_t *sh, const shell_handler_t *h);
 void shell_print_banner(tcl_shell_t *sh);
 

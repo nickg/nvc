@@ -15,13 +15,15 @@ run
 
 assert {expr [exa /x] == 2}
 
-restart
+# TODO: reimplement restart command
 
-puts [exa /x]
-assert {expr [exa /x] == -2147483648}
+# restart
 
-assert {expr $now == 0}
+# puts [exa /x]
+# assert {expr [exa /x] == -2147483648}
 
-run
+# assert {expr $now == 0}
 
-assert {expr [exa /x] == 2}
+# run
+
+# assert {expr [exa /x] == 2}

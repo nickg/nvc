@@ -1514,8 +1514,6 @@ static int do_cmd(int argc, char **argv, cmd_state_t *state)
       state->jit = get_jit(state);
 
 #ifdef ENABLE_TCL
-   tcl_shell_t *sh = shell_new(state->jit);
-
    if (optind < next_cmd && strpbrk(argv[optind], "./\\") == NULL) {
       ident_t unit_name = to_unit_name(argv[optind]);
       if (lib_get(state->work, unit_name) != NULL) {
@@ -1525,16 +1523,25 @@ static int do_cmd(int argc, char **argv, cmd_state_t *state)
       }
    }
 
+   tree_t top = NULL;
    if (state->top_level != NULL) {
       ident_t ename = ident_prefix(state->top_level, well_known(W_ELAB), '.');
-      tree_t top = lib_get(state->work, ename);
+      top = lib_get(state->work, ename);
       if (top == NULL)
          fatal("%s not elaborated", istr(state->top_level));
 
       load_jit_pack(state->jit, top);
-
-      shell_reset(sh, top);
    }
+
+   if (top != NULL && state->model == NULL) {
+      state->model = model_new(state->jit, NULL);
+      create_scope(state->model, top, NULL);
+   }
+
+   tcl_shell_t *sh = shell_new(top, state->jit, state->model);
+
+   if (top != NULL)
+      shell_reset(sh);
 
    if (optind == next_cmd)
       fatal("no script file specified");
@@ -1585,8 +1592,6 @@ static int interact_cmd(int argc, char **argv, cmd_state_t *state)
       state->jit = get_jit(state);
 
 #ifdef ENABLE_TCL
-   tcl_shell_t *sh = shell_new(state->jit);
-
    if (optind < next_cmd && strpbrk(argv[optind], "./\\") == NULL) {
       ident_t unit_name = to_unit_name(argv[optind]);
       if (lib_get(state->work, unit_name) != NULL) {
@@ -1599,6 +1604,7 @@ static int interact_cmd(int argc, char **argv, cmd_state_t *state)
    if (optind != next_cmd)
       fatal("unexpected argument \"%s\"", argv[optind]);
 
+   tree_t top = NULL;
    if (state->top_level != NULL) {
       ident_t ename = ident_prefix(state->top_level, well_known(W_ELAB), '.');
       tree_t top = lib_get(state->work, ename);
@@ -1606,9 +1612,16 @@ static int interact_cmd(int argc, char **argv, cmd_state_t *state)
          fatal("%s not elaborated", istr(state->top_level));
 
       load_jit_pack(state->jit, top);
-
-      shell_reset(sh, top);
    }
+
+   if (top != NULL && state->model == NULL) {
+      state->model = model_new(state->jit, NULL);
+      create_scope(state->model, top, NULL);
+   }
+
+   tcl_shell_t *sh = shell_new(top, state->jit, state->model);
+   if (top != NULL)
+      shell_reset(sh);
 
    shell_interact(sh);
 

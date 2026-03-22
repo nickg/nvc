@@ -27,7 +27,7 @@
 
 START_TEST(test_sanity)
 {
-   tcl_shell_t *sh = shell_new(NULL);
+   tcl_shell_t *sh = shell_new(NULL, NULL, NULL);
 
    const char *result = NULL;
    fail_unless(shell_eval(sh, "expr 1 + 2", &result));
@@ -59,8 +59,8 @@ START_TEST(test_examine1)
    tree_t top = elab(tree_to_object(arch), j, ur, mc, NULL, NULL, m);
    fail_if(top == NULL);
 
-   tcl_shell_t *sh = shell_new(j);
-   shell_reset(sh, top);
+   tcl_shell_t *sh = shell_new(top, j, m);
+   shell_reset(sh);
 
    const char *tests[][2] = {
       { "/x", "5" },
@@ -196,7 +196,17 @@ START_TEST(test_wave1)
    unit_registry_t *ur = get_registry();
    jit_t *j = jit_new(ur, mc);
 
-   tcl_shell_t *sh = shell_new(j);
+   input_from_file(TESTDIR "/shell/wave1.vhd");
+
+   tree_t arch = parse_check_and_simplify(T_ENTITY, T_ARCH, T_ENTITY, T_ARCH);
+
+   rt_model_t *m = model_new(j, NULL);
+
+   tree_t top = elab(tree_to_object(tree_primary(arch)), j, ur, mc,
+                     NULL, NULL, m);
+   fail_if(top == NULL);
+
+   tcl_shell_t *sh = shell_new(top, j, m);
 
    int state = 0;
    shell_handler_t handler = {
@@ -208,17 +218,7 @@ START_TEST(test_wave1)
    };
    shell_set_handler(sh, &handler);
 
-   input_from_file(TESTDIR "/shell/wave1.vhd");
-
-   tree_t arch = parse_check_and_simplify(T_ENTITY, T_ARCH, T_ENTITY, T_ARCH);
-
-   rt_model_t *m = model_new(j, NULL);
-
-   tree_t top = elab(tree_to_object(tree_primary(arch)), j, ur, mc,
-                     NULL, NULL, m);
-   fail_if(top == NULL);
-
-   shell_reset(sh, top);
+   shell_reset(sh);
 
    const char *result = NULL;
 
@@ -282,7 +282,7 @@ static void backchannel_handler(const char *buf, size_t nchars, void *ctx)
 
 START_TEST(test_redirect)
 {
-   tcl_shell_t *sh = shell_new(NULL);
+   tcl_shell_t *sh = shell_new(NULL, NULL, NULL);
 
    int state = 0;
    shell_handler_t handler = {
@@ -321,7 +321,7 @@ static void exit_handler(int status, void *ctx)
 
 START_TEST(test_exit)
 {
-   tcl_shell_t *sh = shell_new(NULL);
+   tcl_shell_t *sh = shell_new(NULL, NULL, NULL);
 
    shell_handler_t handler = {
       .exit = exit_handler
@@ -374,8 +374,8 @@ START_TEST(test_force1)
    tree_t top = elab(tree_to_object(arch), j, ur, mc, NULL, NULL, m);
    fail_if(top == NULL);
 
-   tcl_shell_t *sh = shell_new(j);
-   shell_reset(sh, top);
+   tcl_shell_t *sh = shell_new(top, j, m);
+   shell_reset(sh);
 
    int state = 0;
    shell_handler_t handler = {
@@ -440,7 +440,7 @@ static void echo_stdout_handler(const char *buf, size_t nchars, void *ctx)
 
 START_TEST(test_echo)
 {
-   tcl_shell_t *sh = shell_new(NULL);
+   tcl_shell_t *sh = shell_new(NULL, NULL, NULL);
 
    int state = 0;
    shell_handler_t handler = {
@@ -480,8 +480,8 @@ START_TEST(test_describe1)
    tree_t top = elab(tree_to_object(arch), j, ur, mc, NULL, NULL, m);
    fail_if(top == NULL);
 
-   tcl_shell_t *sh = shell_new(j);
-   shell_reset(sh, top);
+   tcl_shell_t *sh = shell_new(top, j, m);
+   shell_reset(sh);
 
    const char *result = NULL;
 
