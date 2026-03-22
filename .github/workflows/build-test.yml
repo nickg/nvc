@@ -79,6 +79,7 @@ jobs:
           rm -rf logs
           ASAN_OPTIONS=detect_leaks=0 ./bin/run_regr ieee
       - name: JIT benchmarks
+        if: ${{ matrix.mode == 'release' }}
         run: |
           export ASAN_OPTIONS=detect_leaks=0    # XXX: remove this
           ./build/bin/jitperf -L build/lib/ test/perf/simple.vhd -f add2
