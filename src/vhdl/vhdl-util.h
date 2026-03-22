@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2025  Nick Gasson
+//  Copyright (C) 2025-2026  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -19,12 +19,15 @@
 #define _VHDL_UTIL_H
 
 #include "prim.h"
-
-ident_t predef_func_name(type_t type, const char *op);
+#include "tree.h"
 
 #define CANNOT_HANDLE(t) do {                                           \
       fatal_at(tree_loc(t), "cannot handle %s in %s" ,                  \
                tree_kind_str(tree_kind(t)), __FUNCTION__);              \
    } while (0)
+
+ident_t predef_func_name(type_t type, const char *op);
+
+bool vhdl_is_short_circuit(subprogram_kind_t kind);
 
 #endif  // _VHDL_UTIL_H

@@ -35,3 +35,9 @@ ident_t predef_func_name(type_t type, const char *op)
 
    return ident_new(tb_get(tb));
 }
+
+bool vhdl_is_short_circuit(subprogram_kind_t kind)
+{
+   return kind == S_SCALAR_AND || kind == S_SCALAR_OR
+      || kind == S_SCALAR_NOR || kind == S_SCALAR_NAND;
+}
