@@ -4839,6 +4839,7 @@ static bool sem_check_port_actual(formal_map_t *formals, int nformals,
 
          tree_t w = tree_new(T_INERTIAL);
          tree_set_loc(w, tree_loc(value));
+         tree_set_ident(w, get_implicit_label(w, tab));
          tree_set_value(w, value);
          tree_set_type(w, tree_type(value));
 

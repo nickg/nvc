@@ -380,10 +380,8 @@ ident_t vhdl_scope_name(tree_t t, int nth)
    case T_PACK_BODY:
    case T_SIGNAL_DECL:
    case T_PORT_DECL:
-      return tree_ident(t);
    case T_INERTIAL:
-      // Process without label
-      return ident_sprintf("_S%u", nth);
+      return tree_ident(t);
    case T_ALTERNATIVE:
       if (tree_choices(t) == 1) {
          tree_t c0 = tree_choice(t, 0);

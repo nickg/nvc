@@ -3213,6 +3213,7 @@ static tree_t p_actual_part(class_t class, formal_kind_t kind)
 
       if (kind == F_PORT_MAP) {
          tree_t w = tree_new(T_INERTIAL);
+         tree_set_ident(w, get_implicit_label(w, nametab));
          tree_set_loc(w, CURRENT_LOC);
          tree_set_value(w, expr);
 

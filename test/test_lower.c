@@ -6614,7 +6614,7 @@ START_TEST(test_issue1194)
 
    elab(tree_to_object(a), jit, get_registry(), get_mir(), data, NULL, m);
 
-   mir_unit_t *mu = find_unit2("WORK.ISSUE1194.B.P_actual");
+   mir_unit_t *mu = find_unit2("WORK.ISSUE1194.B._I0");
 
    static const mir_match_t bb1[] = {
       { MIR_OP_VAR_UPREF },   // TODO: X

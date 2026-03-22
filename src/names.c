@@ -1571,39 +1571,28 @@ void continue_proc_labelling_from(tree_t t, nametab_t *tab)
 
 ident_t get_implicit_label(tree_t t, nametab_t *tab)
 {
-   int *cnt;
-   char c;
-   char buf[22];
-
    switch (tree_kind(t)) {
    case T_CONCURRENT:
    case T_PROCESS:
    case T_PSL_DIRECT:
-      cnt = &(tab->top_scope->lbl_cnts.proc);
-      c = 'P';
-      break;
-
+      return ident_sprintf("_P%d", tab->top_scope->lbl_cnts.proc++);
+   case T_INERTIAL:
+      return ident_sprintf("_I%d", tab->top_scope->lbl_cnts.proc++);
    case T_FOR:
    case T_WHILE:
    case T_LOOP:
-      cnt = NULL;
       for (scope_t *s = tab->top_scope; s != NULL; s = s->parent) {
          if (s->container == NULL)
             continue;
-         if (is_subprogram(s->container) || tree_kind(s->container) == T_PROCESS) {
-            cnt = &(s->lbl_cnts.loop);
-            break;
-         }
+         else if (is_subprogram(s->container)
+                  || tree_kind(s->container) == T_PROCESS)
+            return ident_sprintf("_L%d", tab->top_scope->lbl_cnts.loop++);
       }
-      c = 'L';
-      break;
+      should_not_reach_here();
 
    default:
       return NULL;
    }
-
-   checked_sprintf(buf, sizeof(buf), "_%c%d", c, (*cnt)++);
-   return ident_new(buf);
 }
 
 type_t resolve_type(nametab_t *tab, type_t incomplete)

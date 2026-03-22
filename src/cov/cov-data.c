@@ -963,10 +963,7 @@ cover_scope_t *cover_create_scope(cover_data_t *db, cover_scope_t *parent,
       s->kind = CSCOPE_INSTANCE;
       break;
    case T_PROCESS:
-      s->kind = CSCOPE_PROCESS;
-      break;
    case T_INERTIAL:
-      // Process without label
       s->kind = CSCOPE_PROCESS;
       break;
    case T_PROC_BODY:

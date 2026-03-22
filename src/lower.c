@@ -11312,24 +11312,15 @@ static void lower_inertial_actual(lower_unit_t *parent, tree_t dst, tree_t map)
 {
    assert(standard() >= STD_08);
 
-   ident_t name;
-   switch (tree_kind(dst)) {
-   case T_PORT_DECL:
-   case T_REF:
-      name = ident_sprintf("%s_actual", istr(tree_ident(dst)));
-      break;
-   default:
-      name = ident_uniq("%s_actual.part", istr(tree_ident(name_to_ref(dst))));
-      break;
-   }
+   tree_t inertial = tree_value(map);
+   assert(tree_kind(inertial) == T_INERTIAL);
 
-   ident_t pname = ident_prefix(parent->name, name, '.');
-
-   unit_registry_defer(parent->registry, pname, parent, emit_process,
+   ident_t qual = ident_prefix(parent->name, tree_ident(inertial), '.');
+   unit_registry_defer(parent->registry, qual, parent, emit_process,
                        lower_inertial_actual_process, parent->cover,
                        tree_to_object(map));
 
-   emit_process_init(pname, lower_debug_locus(tree_value(map)));
+   emit_process_init(qual, lower_debug_locus(inertial));
 }
 
 static tree_t lower_get_view(tree_t name, port_mode_t *mode, bool *converse)
