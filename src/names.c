@@ -3570,7 +3570,7 @@ static type_t overload_get_name_type(tree_t port, ident_t ident, tree_t name)
       {
          type_t ptype = tree_type(port);
          if (!type_is_array(ptype))
-            return false;
+            return NULL;
 
          return type_elem(ptype);
       }
@@ -3578,7 +3578,7 @@ static type_t overload_get_name_type(tree_t port, ident_t ident, tree_t name)
       {
          type_t ptype = tree_type(port);
          if (!type_is_array(ptype))
-            return false;
+            return NULL;
 
          return ptype;
       }
