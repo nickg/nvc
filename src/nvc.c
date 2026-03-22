@@ -34,7 +34,6 @@
 #include "rt/shell.h"
 #include "rt/wave.h"
 #include "scan.h"
-#include "server.h"
 #include "thread.h"
 #include "vhpi/vhpi-model.h"
 #include "vlog/vlog-node.h"
@@ -105,7 +104,7 @@ static int scan_cmd(int start, int argc, char **argv)
    const char *commands[] = {
       "-a", "-e", "-r", "-c", "--dump", "--make", "--syntax", "--list",
       "--init", "--install", "--print-deps", "--do", "-i",
-      "--cover-export", "--preprocess", "--gui", "--cover-merge",
+      "--cover-export", "--preprocess", "--cover-merge",
       "--cover-report",
    };
 
@@ -1775,75 +1774,6 @@ static int coverage_cmd(int argc, char **argv, cmd_state_t *state)
    return 0;
 }
 
-#ifdef ENABLE_GUI
-static int gui_cmd(int argc, char **argv, cmd_state_t *state)
-{
-   static struct option long_options[] = {
-      { "init",     required_argument, 0, 'i' },
-      { "port",     required_argument, 0, 'p' },
-      { "protocol", required_argument, 0, 'o' },
-      { 0, 0, 0, 0 }
-   };
-
-   const int next_cmd = scan_cmd(2, argc, argv);
-   server_kind_t kind = SERVER_HTTP;
-   int c, index = 0;
-   const char *spec = ":", *init_cmd = NULL;
-   while ((c = getopt_long(next_cmd, argv, spec, long_options, &index)) != -1) {
-      switch (c) {
-      case 0: break;  // Set a flag
-      case 'i': init_cmd = optarg; break;
-      case 'p':
-         {
-            const int port = parse_int(optarg);
-            if (port < 0 || port > UINT16_MAX)
-               fatal("invalid port number %d", port);
-
-            opt_set_int(OPT_SERVER_PORT, port);
-         }
-         break;
-      case 'o':
-         {
-            if (strcmp(optarg, "http") == 0)
-               kind = SERVER_HTTP;
-            else if (strcmp(optarg, "cxxrtl") == 0)
-               kind = SERVER_CXXRTL;
-            else
-               fatal("invalid protocol '%s', valid choices are "
-                     "'http' and 'cxxrtl'", optarg);
-         }
-         break;
-      case '?': bad_option("gui", argv);
-      case ':': missing_argument("gui", argv);
-      default: abort();
-      }
-   }
-
-   if (argc != optind)
-      fatal("$bold$--gui$$ command takes no positional arguments");
-
-   tree_t top = NULL;
-   if (state->top_level != NULL) {
-      ident_t ename = ident_prefix(state->top_level, well_known(W_ELAB), '.');
-      if ((top = lib_get(state->work, ename)) == NULL)
-         fatal("%s not elaborated", istr(state->top_level));
-   }
-
-   if (state->mir == NULL)
-      state->mir = mir_context_new();
-
-   if (state->jit == NULL)
-      state->jit = get_jit(state);
-
-   start_server(kind, state->jit, top, NULL, NULL, init_cmd);
-
-   argc -= next_cmd - 1;
-   argv += next_cmd - 1;
-
-   return argc > 1 ? process_command(argc, argv, state) : EXIT_SUCCESS;
-}
-#endif
-
 static cover_data_t *merge_coverage_files(int argc, int next_cmd, char **argv,
                                           cover_mask_t rpt_mask,
                                           merge_mode_t mode)
@@ -2214,9 +2144,6 @@ static void usage(void)
 #ifdef ENABLE_TCL
            { "--do [TOP] FILE...", "Evaluate TCL script" },
 #endif
-#ifdef ENABLE_GUI
-           { "--gui", "Launch browser-based GUI" },
-#endif
            { "--init", "Initialise work library directory" },
            { "--install PKG", "Install third-party packages" },
            { "--list", "Print all units in the library" },
@@ -2308,14 +2235,6 @@ static void usage(void)
            { "-w, --wave[=FILE]", "Write waveform dump to FILE" },
         }
       },
-#ifdef ENABLE_GUI
-      { "GUI options",
-        {
-           { "--init=CMDS", "Evaluate TCL commands on startup" },
-           { "--port=PORT", "Specify port for HTTP server" },
-        }
-      },
-#endif
       { "Coverage report options",
         {
            { "-o, --output=dir", "Output directory for HTML report" },
@@ -2509,9 +2428,6 @@ static int process_command(int argc, char **argv, cmd_state_t *state)
       { "cover-merge",  no_argument, 0, 'M' },
       { "cover-report", no_argument, 0, 'p' },
       { "preprocess",   no_argument, 0, 'R' },
-#ifdef ENABLE_GUI
-      { "gui",          no_argument, 0, 'g' },
-#endif
       { 0, 0, 0, 0 }
    };
 
@@ -2555,10 +2471,6 @@ static int process_command(int argc, char **argv, cmd_state_t *state)
       return cover_report_cmd(argc, argv, state);
    case 'R':
       return preprocess_cmd(argc, argv, state);
-#ifdef ENABLE_GUI
-   case 'g':
-      return gui_cmd(argc, argv, state);
-#endif
    default:
       fatal("missing command, try $bold$%s --help$$ for usage", PACKAGE);
       return EXIT_FAILURE;

@@ -15,9 +15,8 @@ runs:
           mingw-w64-clang-x86_64-tcl
           mingw-w64-clang-x86_64-zstd
           mingw-w64-clang-x86_64-clang
-          mingw-w64-clang-x86_64-nodejs
-          mingw-w64-clang-x86_64-jansson
           mingw-w64-clang-x86_64-readline
+          mingw-w64-clang-x86_64-python3
           unzip
           git
           autoconf
@@ -38,7 +37,7 @@ runs:
         cd build
         export CFLAGS='-O2 -g -gcodeview' LDFLAGS='-fuse-ld=lld -g -Wl,--pdb='
         bash ../configure --enable-static-llvm --enable-tcl \
-          --enable-gui CFLAGS="-O2" --prefix=`pwd`/installdir
+          CFLAGS="-O2" --prefix=`pwd`/installdir
     - name: Build
       shell: msys2 {0}
       working-directory: ./build

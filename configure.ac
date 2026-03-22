@@ -212,36 +212,10 @@ PKG_CHECK_MODULES([libffi], [libffi >= 3.0])
 
 PKG_CHECK_MODULES([libzstd], [libzstd >= 1.4])
 
-AC_ARG_ENABLE([gui],
-  [AS_HELP_STRING([--enable-gui], [Build browser-based GUI (WIP)])],
-  [enable_gui=$enableval],
-  [enable_gui=no])
-
-AS_IF([test x$enable_gui = xyes],
-      [AC_DEFINE_UNQUOTED([ENABLE_GUI], [1], [Browser-based GUI enabled])
-       AC_CHECK_PROGS([NPM], [npm])
-       AS_IF([test x$NPM = x], [AC_MSG_ERROR([please install NodeJS])])])
-
-AM_CONDITIONAL([ENABLE_GUI], [test x$enable_gui = xyes])
-
-AC_ARG_ENABLE([server],
-  [AS_HELP_STRING([--enable-server], [Build WebSocket interface])],
-  [enable_server=$enableval],
-  [enable_server=$enable_gui])
-
-AS_IF([test x$enable_server = xyes],
-      [AC_DEFINE_UNQUOTED([ENABLE_SERVER], [1], [WebSocket server enabled])
-       PKG_CHECK_MODULES([jansson], [jansson >= 2.0])])
-
-AM_CONDITIONAL([ENABLE_SERVER], [test x$enable_server = xyes])
-
-AS_IF([test x$enable_gui$enable_server = xyesno],
-      [AC_MSG_ERROR([GUI supports requires --enable-server])])
-
 AC_ARG_ENABLE([tcl],
   [AS_HELP_STRING([--enable-tcl], [Build TCL interface])],
   [enable_tcl=$enableval],
-  [enable_tcl=$enable_server])
+  [enable_tcl=no])
 
 AS_IF([test x$enable_tcl = xyes],
       [AC_DEFINE_UNQUOTED([ENABLE_TCL], [1], [TCL shell enabled])
@@ -260,9 +234,6 @@ AS_IF([test x$enable_tcl = xyes],
        fi])
 
 AM_CONDITIONAL([ENABLE_TCL], [test x$enable_tcl = xyes])
-
-AS_IF([test x$enable_server$enable_tcl = xyesno],
-      [AC_MSG_ERROR([WebSocket server requires --enable-tcl])])
 
 AC_CHECK_HEADER([unwind.h], [],
   [AC_MSG_ERROR([required header unwind.h not found (try installing libunwind)])])

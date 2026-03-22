@@ -117,9 +117,6 @@ int main(int argc, char **argv)
    nfail += RUN_TESTS(shell);
 #endif
    nfail += RUN_TESTS(dump);
-#ifdef ENABLE_SERVER
-   nfail += RUN_TESTS(server);
-#endif
    nfail += RUN_TESTS(driver);
    nfail += RUN_TESTS(mir);
    nfail += RUN_TESTS(cover);

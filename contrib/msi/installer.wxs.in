@@ -161,68 +161,6 @@
                 </Component>
               </Directory>
             </Directory>
-            <Directory Id="NVC_3" Name="nvc">
-              <Directory Id="GUI" Name="gui">
-                <Component Win64="yes" Id="GUILIB.TCL" DiskId="1"
-                           Guid="F390DA98-7028-46BE-AB38-0B66A08E7C04">
-                  <File Id="GUILIB.TCL" Name="guilib.tcl"
-                        Source="$PREFIX\share\nvc\gui\guilib.tcl"
-                        />
-                </Component>
-                <Component Win64="yes" Id="INDEX.HTML" DiskId="1"
-                           Guid="EE935F6F-D8FB-40E0-B24E-6AA5091CC5A4">
-                  <File Id="INDEX.HTML" Name="index.html"
-                        Source="$PREFIX\share\nvc\gui\index.html"
-                        />
-                </Component>
-                <Directory Id="ASSETS" Name="assets">
-                  <Component Win64="yes" Id="ALLPATHS.JS" DiskId="1"
-                             Guid="A7DDDCC3-8F22-4B73-B8E2-1DB25998ACB4">
-                    <File Id="ALLPATHS.JS" Name="allPaths.js"
-                          Source="$PREFIX\share\nvc\gui\assets\allPaths.js"
-                          />
-                  </Component>
-                  <Component Win64="yes" Id="ALLPATHSLOADER.JS" DiskId="1"
-                             Guid="D8644CD7-E5D5-4DA8-BD6F-F55FC192D464">
-                    <File Id="ALLPATHSLOADER.JS"
-                          Name="allPathsLoader.js"
-                          Source="$PREFIX\share\nvc\gui\assets\allPathsLoader.js"
-                          />
-                  </Component>
-                  <Component Win64="yes" Id="INDEX.CSS" DiskId="1"
-                             Guid="6E462FFE-9379-464E-AF00-AA396668DE19">
-                    <File Id="INDEX.CSS" Name="index.css"
-                          Source="$PREFIX\share\nvc\gui\assets\index.css"
-                          />
-                  </Component>
-                  <Component Win64="yes" Id="INDEX.JS" DiskId="1"
-                             Guid="D8E2A8C4-11B2-4549-9EBC-117CCF82EC8E">
-                    <File Id="INDEX.JS" Name="index.js"
-                          Source="$PREFIX\share\nvc\gui\assets\index.js"
-                          />
-                  </Component>
-                  <Component Win64="yes" Id="INDEX2.JS" DiskId="1"
-                             Guid="1556FFE3-7086-4202-B0CD-11875422F3E6">
-                    <File Id="INDEX2.JS" Name="index2.js"
-                          Source="$PREFIX\share\nvc\gui\assets\index2.js"
-                          />
-                  </Component>
-                  <Component Win64="yes" Id="INDEX3.JS" DiskId="1"
-                             Guid="7CF1768D-F94F-4F64-83CF-DC8BAE704305">
-                    <File Id="INDEX3.JS" Name="index3.js"
-                          Source="$PREFIX\share\nvc\gui\assets\index3.js"
-                          />
-                  </Component>
-                  <Component Win64="yes" Id="SPLITPATHSBYSIZELOADER.JS" DiskId="1"
-                             Guid="F7F9C19D-379D-40DF-B877-EA30B583F88D">
-                    <File Id="SPLITPATHSBYSIZELOADER.JS"
-                          Name="splitPathsBySizeLoader.js"
-                          Source="$PREFIX\share\nvc\gui\assets\splitPathsBySizeLoader.js"
-                          />
-                  </Component>
-                </Directory>
-              </Directory>
-            </Directory>
           </Directory>
         </Directory>
       </Directory>
@@ -245,15 +183,6 @@
       <ComponentRef Id="INSTALL_XPM_VHDL.SH" />
       <ComponentRef Id="NVC.BASH" />
       <ComponentRef Id="NVC.1" />
-      <ComponentRef Id="GUILIB.TCL" />
-      <ComponentRef Id="INDEX.HTML" />
-      <ComponentRef Id="ALLPATHS.JS" />
-      <ComponentRef Id="ALLPATHSLOADER.JS" />
-      <ComponentRef Id="INDEX.CSS" />
-      <ComponentRef Id="INDEX.JS" />
-      <ComponentRef Id="INDEX2.JS" />
-      <ComponentRef Id="INDEX3.JS" />
-      <ComponentRef Id="SPLITPATHSBYSIZELOADER.JS" />
       <ComponentGroupRef Id="LIBS" />
     </Feature>
     <UI />

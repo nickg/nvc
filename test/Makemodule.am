@@ -49,10 +49,6 @@ if ENABLE_TCL
 bin_unit_test_SOURCES += test/test_shell.c
 endif
 
-if ENABLE_SERVER
-bin_unit_test_SOURCES += test/test_server.c
-endif
-
 bin_unit_test_LDADD = \
 	lib/libnvc.a \
 	lib/libthirdparty.a \

@@ -59,10 +59,6 @@ lib_libnvc_a_SOURCES = \
 	src/printf.h \
 	src/printf.c
 
-if ENABLE_SERVER
-lib_libnvc_a_SOURCES += src/server.c src/server.h
-endif
-
 bin_nvc_SOURCES = src/nvc.c
 
 EXTRA_bin_nvc_DEPENDENCIES = src/symbols.txt

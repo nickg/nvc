@@ -48,11 +48,6 @@ www/*.html
 /compile_flags.txt
 .cache
 
-# Generated GUI files
-contrib/gui/node_modules
-contrib/gui/dist/
-contrib/gui/.vite
-
 # VI test suite also cannot be distributed
 test/vi_suite*
 
