@@ -777,7 +777,7 @@ bool type_is_unconstrained(type_t t)
             }
          }
 
-         assert(t->object.kind == T_ARRAY);
+         assert(t->object.kind == T_ARRAY || t->object.kind == T_GENERIC);
          return true;
       }
       else

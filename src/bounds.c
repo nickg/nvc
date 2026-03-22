@@ -603,8 +603,11 @@ static void bounds_check_aggregate(tree_t t)
 
    // Find the tightest bounds for the index
 
-   int64_t low, high, clow = 0, chigh = 0;
    type_t index_type = index_type_of(type, 0);
+   if (type_is_generic(index_type))
+      return;  // Cannot check yet
+
+   int64_t low, high, clow = 0, chigh = 0;
    range_kind_t dir;
 
    const bool unconstrained = type_is_unconstrained(type);

@@ -999,6 +999,32 @@ START_TEST(test_issue1460)
 }
 END_TEST
 
+START_TEST(test_gtype1)
+{
+   set_standard(STD_19);
+
+   input_from_file(TESTDIR "/bounds/gtype1.vhd");
+
+   const error_t expect[] = {
+      { 17, "value 25 outside of NULLINT range 40 to 25 for constant "
+        "NULL_LOW" },
+      { 18, "value 40 outside of NULLINT range 40 to 25 for constant "
+        "NULL_HIGH" },
+      // These next two are a bit dubious
+      { 32, "missing choices for elements 25 to 39 of NULLARRAY with "
+        "index type NULLINT range 25 to 40" },
+      { 33, "expected at most 0 positional associations in NULLARRAY "
+        "aggregate with index type NULLINT range 40 to 25" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_check_and_simplify(T_PACKAGE, T_PACK_BODY, T_ENTITY, T_ARCH);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_bounds_tests(void)
 {
    Suite *s = suite_create("bounds");
@@ -1050,6 +1076,7 @@ Suite *get_bounds_tests(void)
    tcase_add_test(tc_core, test_issue817);
    tcase_add_test(tc_core, test_map2);
    tcase_add_test(tc_core, test_issue1460);
+   tcase_add_test(tc_core, test_gtype1);
    suite_add_tcase(s, tc_core);
 
    return s;

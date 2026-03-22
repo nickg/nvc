@@ -2813,7 +2813,9 @@ bool calculate_aggregate_bounds(tree_t expr, range_kind_t *kind,
       return false;
 
    type_t index_type = index_type_of(type, 0);
-   if (index_type == NULL || type_is_none(index_type))
+   if (index_type == NULL)
+      return false;
+   else if (type_is_none(index_type) || type_is_generic(index_type))
       return false;
 
    tree_t index_r = range_of(index_type, 0), base_r = index_r;
