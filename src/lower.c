@@ -45,18 +45,23 @@
 #include <ctype.h>
 #include <float.h>
 
+typedef struct _gen_stack gen_stack_t;
+
 typedef enum {
    EXPR_LVALUE,
    EXPR_RVALUE,
 } expr_ctx_t;
 
-typedef struct _loop_stack loop_stack_t;
+typedef struct {
+   ident_t       name;
+   vcode_block_t test_bb;
+   vcode_block_t exit_bb;
+} loop_info_t;
 
-struct _loop_stack {
-   loop_stack_t  *up;
-   ident_t        name;
-   vcode_block_t  test_bb;
-   vcode_block_t  exit_bb;
+struct _gen_stack {
+   gen_stack_t   *up;
+   loop_info_t   *loop;
+   cover_scope_t *cscope;
 };
 
 #define INSTANCE_BIT  0x80000000
@@ -97,7 +102,7 @@ typedef struct {
 } field_toggle_params_t;
 
 static vcode_reg_t lower_expr(lower_unit_t *lu, tree_t expr, expr_ctx_t ctx);
-static void lower_stmt(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops);
+static void lower_stmt(lower_unit_t *lu, tree_t stmt, gen_stack_t *gs);
 static void lower_func_body(lower_unit_t *lu, object_t *obj);
 static void lower_proc_body(lower_unit_t *lu, object_t *obj);
 static vcode_reg_t lower_record_aggregate(lower_unit_t *lu, tree_t expr,
@@ -105,7 +110,7 @@ static vcode_reg_t lower_record_aggregate(lower_unit_t *lu, tree_t expr,
                                           vcode_reg_t hint);
 static vcode_reg_t lower_aggregate(lower_unit_t *lu, tree_t expr,
                                    vcode_reg_t hint);
-static void lower_decls(lower_unit_t *lu, tree_t scope);
+static void lower_decls(lower_unit_t *lu, tree_t scope, gen_stack_t *gs);
 static void lower_check_array_sizes(lower_unit_t *lu, type_t ltype,
                                     type_t rtype, vcode_reg_t lval,
                                     vcode_reg_t rval, vcode_reg_t locus);
@@ -1617,19 +1622,6 @@ static vcode_reg_t lower_arith(tree_t fcall, subprogram_kind_t kind,
    }
 }
 
-static cover_item_t *lower_get_cover_item(lower_unit_t *lu, tree_t t,
-                                          cover_item_kind_t kind)
-{
-   assert(lu->cover != NULL);
-
-   for (lower_unit_t *it = lu; it != NULL; it = it->parent) {
-      if (it->cscope != NULL)
-         return cover_lookup_item(it->cscope, tree_to_object(t), kind);
-   }
-
-   return NULL;
-}
-
 static vcode_reg_t lower_cover_counters(lower_unit_t *lu)
 {
    int hops;
@@ -1643,12 +1635,13 @@ static vcode_reg_t lower_cover_counters(lower_unit_t *lu)
       return emit_load_indirect(emit_var_upref(hops, var));
 }
 
-static void lower_branch_coverage(lower_unit_t *lu, tree_t b,
-                                  vcode_block_t true_bb, vcode_block_t false_bb)
+static void lower_branch_coverage(lower_unit_t *lu, tree_t b, int nth,
+                                  vcode_block_t true_bb, vcode_block_t false_bb,
+                                  gen_stack_t *gs)
 {
    assert(cover_enabled(lu->cover, COVER_MASK_BRANCH));
 
-   cover_item_t *item = lower_get_cover_item(lu, b, COV_ITEM_BRANCH);
+   cover_item_t *item = cover_get_item(gs->cscope, COV_ITEM_BRANCH, nth);
    if (item == NULL)
       return;
 
@@ -1664,12 +1657,14 @@ static void lower_branch_coverage(lower_unit_t *lu, tree_t b,
    }
 }
 
-static void lower_stmt_coverage(lower_unit_t *lu, tree_t stmt)
+static void lower_stmt_coverage(lower_unit_t *lu, tree_t stmt, gen_stack_t *gs)
 {
-   if (!cover_enabled(lu->cover, COVER_MASK_STMT))
+   if (gs->cscope == NULL)
+      return;
+   else if (!cover_enabled(lu->cover, COVER_MASK_STMT))
       return;
 
-   cover_item_t *item = lower_get_cover_item(lu, stmt, COV_ITEM_STMT);
+   cover_item_t *item = cover_get_item(gs->cscope, COV_ITEM_STMT, 0);
    if (item != NULL) {
       vcode_reg_t counters = lower_cover_counters(lu);
       emit_cover_stmt(counters, item->tag);
@@ -1705,11 +1700,11 @@ static void lower_toggle_coverage_cb(lower_unit_t *lu, tree_t field,
 }
 
 static void lower_toggle_coverage(lower_unit_t *lu, tree_t decl,
-                                  vcode_var_t var)
+                                  vcode_var_t var, gen_stack_t *gs)
 {
    assert(cover_enabled(lu->cover, COVER_MASK_TOGGLE));
 
-   cover_item_t *item = lower_get_cover_item(lu, decl, COV_ITEM_TOGGLE);
+   cover_item_t *item = cover_get_item(gs->cscope, COV_ITEM_TOGGLE, 0);
    if (item == NULL)
       return;
 
@@ -1731,11 +1726,11 @@ static void lower_toggle_coverage(lower_unit_t *lu, tree_t decl,
    }
 }
 
-static void lower_state_coverage(lower_unit_t *lu, tree_t decl)
+static void lower_state_coverage(lower_unit_t *lu, tree_t decl, gen_stack_t *gs)
 {
    assert(cover_enabled(lu->cover, COVER_MASK_STATE));
 
-   cover_item_t *item = lower_get_cover_item(lu, decl, COV_ITEM_STATE);
+   cover_item_t *item = cover_get_item(gs->cscope, COV_ITEM_STATE, 0);
    if (item == NULL)
       return;
 
@@ -2475,26 +2470,29 @@ static vcode_reg_t lower_expr_coverge(lower_unit_t *lu, cover_item_t *first,
    return result;
 }
 
-static vcode_reg_t lower_logical(lower_unit_t *lu, tree_t t)
+static vcode_reg_t lower_logical(lower_unit_t *lu, tree_t t, int *nth,
+                                 gen_stack_t *gs)
 {
    if (tree_kind(t) != T_FCALL)
       return lower_rvalue(lu, t);
    else if (!cover_enabled(lu->cover, COVER_MASK_EXPRESSION))
       return lower_rvalue(lu, t);
 
-   cover_item_t *first = lower_get_cover_item(lu, t, COV_ITEM_EXPRESSION);
-   if (first == NULL)
-      return lower_rvalue(lu, t);
-
    tree_t decl = tree_ref(t);
    const subprogram_kind_t kind = tree_subkind(decl);
-   assert(is_open_coded_builtin(kind));
+   if (!vhdl_is_logical(kind))
+      return lower_rvalue(lu, t);
+
+   cover_item_t *first = cover_get_item(gs->cscope, COV_ITEM_EXPRESSION,
+                                        (*nth)++);
+   if (first == NULL)
+      return lower_rvalue(lu, t);
 
    tree_t p0 = tree_value(tree_param(t, 0)), p1 = NULL;
    if (kind != S_SCALAR_NOT)
       p1 = tree_value(tree_param(t, 1));
 
-   vcode_reg_t r0 = lower_logical(lu, p0);
+   vcode_reg_t r0 = lower_logical(lu, p0, nth, gs);
 
    if (vhdl_is_short_circuit(kind) && !lower_side_effect_free(p1)) {
       vcode_block_t arg1_bb = emit_block();
@@ -2514,7 +2512,7 @@ static vcode_reg_t lower_logical(lower_unit_t *lu, tree_t t)
 
       vcode_select_block(arg1_bb);
 
-      vcode_reg_t r1 = lower_logical(lu, p1);
+      vcode_reg_t r1 = lower_logical(lu, p1, nth, gs);
 
       switch (kind) {
       case S_SCALAR_AND:
@@ -2555,7 +2553,7 @@ static vcode_reg_t lower_logical(lower_unit_t *lu, tree_t t)
    else {
       vcode_reg_t r1 = VCODE_INVALID_REG;
       if (p1 != NULL)
-         r1 = lower_logical(lu, p1);
+         r1 = lower_logical(lu, p1, nth, gs);
 
       switch (kind) {
       case S_SCALAR_EQ:
@@ -5596,9 +5594,9 @@ static vcode_reg_t lower_default_value(lower_unit_t *lu, type_t type,
                   type_pp(type));
 }
 
-static void lower_report(lower_unit_t *lu, tree_t stmt)
+static void lower_report(lower_unit_t *lu, tree_t stmt, gen_stack_t *gs)
 {
-   lower_stmt_coverage(lu, stmt);
+   lower_stmt_coverage(lu, stmt, gs);
 
    vcode_reg_t severity_reg = VCODE_INVALID_REG;
    if (tree_has_severity(stmt))
@@ -5639,9 +5637,9 @@ static bool lower_can_hint_assert(tree_t expr)
    }
 }
 
-static void lower_assert(lower_unit_t *lu, tree_t stmt)
+static void lower_assert(lower_unit_t *lu, tree_t stmt, gen_stack_t *gs)
 {
-   lower_stmt_coverage(lu, stmt);
+   lower_stmt_coverage(lu, stmt, gs);
 
    tree_t value = tree_value(stmt);
 
@@ -5767,7 +5765,7 @@ static vcode_reg_t lower_call_now(void)
    return emit_fcall(func, rtype, VCODE_INVALID_STAMP, args, ARRAY_LEN(args));
 }
 
-static void lower_wait(lower_unit_t *lu, tree_t wait)
+static void lower_wait(lower_unit_t *lu, tree_t wait, gen_stack_t *gs)
 {
    const bool is_static = !!(tree_flags(wait) & TREE_F_STATIC_WAIT);
    assert(!is_static || (!tree_has_delay(wait) && !tree_has_value(wait)));
@@ -5775,7 +5773,7 @@ static void lower_wait(lower_unit_t *lu, tree_t wait)
    const int ntriggers = tree_triggers(wait);
 
    if (!is_static) {
-      lower_stmt_coverage(lu, wait);
+      lower_stmt_coverage(lu, wait, gs);
 
       // The _sched_event for static waits is emitted in the reset block
       for (int i = 0; i < ntriggers; i++)
@@ -6091,13 +6089,41 @@ static void lower_var_assign_target(lower_unit_t *lu, target_part_t **ptr,
    }
 }
 
-static void lower_var_assign(lower_unit_t *lu, tree_t stmt)
+static gen_stack_t lower_push_loop(gen_stack_t *gs, loop_info_t *loop)
+{
+   gen_stack_t this = {
+      .loop   = loop,
+      .cscope = gs->cscope,
+      .up     = gs,
+   };
+   return this;
+}
+
+static gen_stack_t lower_push_cscope(gen_stack_t *gs, tree_t t, int nth)
+{
+   if (gs->cscope == NULL)
+      return *gs;
+
+   ident_t name = vhdl_scope_name(t, nth);
+   cover_scope_t *cs = cover_get_child(gs->cscope, name);
+   if (cs == NULL)
+      return *gs;
+
+   gen_stack_t this = {
+      .loop   = gs->loop,
+      .cscope = cs,
+      .up     = gs,
+   };
+   return this;
+}
+
+static void lower_var_assign(lower_unit_t *lu, tree_t stmt, gen_stack_t *gs)
 {
    tree_t value  = tree_value(stmt);
    tree_t target = tree_target(stmt);
    type_t type   = tree_type(target);
 
-   lower_stmt_coverage(lu, stmt);
+   lower_stmt_coverage(lu, stmt, gs);
 
    const bool is_var_decl =
       tree_kind(target) == T_REF && tree_kind(tree_ref(target)) == T_VAR_DECL;
@@ -6334,9 +6360,9 @@ static void lower_disconnect_target(lower_unit_t *lu, target_part_t **ptr,
    }
 }
 
-static void lower_signal_assign(lower_unit_t *lu, tree_t stmt)
+static void lower_signal_assign(lower_unit_t *lu, tree_t stmt, gen_stack_t *gs)
 {
-   lower_stmt_coverage(lu, stmt);
+   lower_stmt_coverage(lu, stmt, gs);
 
    tree_t target = tree_target(stmt);
 
@@ -6408,8 +6434,10 @@ static void lower_signal_assign(lower_unit_t *lu, tree_t stmt)
             }
          }
 
-         if (rhs == VCODE_INVALID_REG)
-            rhs = lower_logical(lu, wvalue);
+         if (rhs == VCODE_INVALID_REG) {
+            int nexpr = 0;
+            rhs = lower_logical(lu, wvalue, &nexpr, gs);
+         }
 
          if (ptr->kind != PART_ALL && type_is_array(wtype)) {
             vcode_reg_t rhs_len = lower_array_len(lu, wtype, 0, rhs);
@@ -6507,16 +6535,19 @@ static void lower_release(lower_unit_t *lu, tree_t stmt)
       emit_release(nets, emit_const(vtype_offset(), 1));
 }
 
-static void lower_sequence(lower_unit_t *lu, tree_t block, loop_stack_t *loops)
+static void lower_sequence(lower_unit_t *lu, tree_t block, gen_stack_t *gs)
 {
    const int nstmts = tree_stmts(block);
-   for (int i = 0; i < nstmts; i++)
-      lower_stmt(lu, tree_stmt(block, i), loops);
+   for (int i = 0; i < nstmts; i++) {
+      tree_t s = tree_stmt(block, i);
+      gen_stack_t this = lower_push_cscope(gs, s, i);
+      lower_stmt(lu, s, &this);
+   }
 }
 
-static void lower_if(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
+static void lower_if(lower_unit_t *lu, tree_t stmt, gen_stack_t *gs)
 {
-   lower_stmt_coverage(lu, stmt);
+   lower_stmt_coverage(lu, stmt, gs);
 
    vcode_block_t exit_bb = VCODE_INVALID_BLOCK;
    const bool want_coverage = cover_enabled(lu->cover, COVER_MASK_BRANCH);
@@ -6526,8 +6557,11 @@ static void lower_if(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
       tree_t c = tree_cond(stmt, i);
       vcode_block_t next_bb = VCODE_INVALID_BLOCK;
 
+      gen_stack_t this = lower_push_cscope(gs, c, i);
+
       if (tree_has_value(c)) {
-         vcode_reg_t test = lower_logical(lu, tree_value(c));
+         int nexpr = 0;
+         vcode_reg_t test = lower_logical(lu, tree_value(c), &nexpr, &this);
          vcode_block_t btrue = emit_block();
 
          if (i == nconds - 1 && !want_coverage) {
@@ -6541,12 +6575,12 @@ static void lower_if(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
          emit_cond(test, btrue, next_bb);
 
          if (want_coverage)
-            lower_branch_coverage(lu, c, btrue, next_bb);
+            lower_branch_coverage(lu, c, 0, btrue, next_bb, &this);
 
          vcode_select_block(btrue);
       }
 
-      lower_sequence(lu, c, loops);
+      lower_sequence(lu, c, &this);
 
       if (!vcode_block_finished()) {
          if (exit_bb == VCODE_INVALID_BLOCK)
@@ -6620,9 +6654,9 @@ static void lower_leave_subprogram(lower_unit_t *lu)
    }
 }
 
-static void lower_return(lower_unit_t *lu, tree_t stmt)
+static void lower_return(lower_unit_t *lu, tree_t stmt, gen_stack_t *gs)
 {
-   lower_stmt_coverage(lu, stmt);
+   lower_stmt_coverage(lu, stmt, gs);
 
    vcode_reg_t value_reg = VCODE_INVALID_REG;
    if (tree_has_value(stmt)) {
@@ -6645,9 +6679,9 @@ static void lower_return(lower_unit_t *lu, tree_t stmt)
    emit_return(value_reg);
 }
 
-static void lower_pcall(lower_unit_t *lu, tree_t pcall)
+static void lower_pcall(lower_unit_t *lu, tree_t pcall, gen_stack_t *gs)
 {
-   lower_stmt_coverage(lu, pcall);
+   lower_stmt_coverage(lu, pcall, gs);
 
    tree_t decl = tree_ref(pcall);
 
@@ -6764,9 +6798,9 @@ static bool lower_is_wait_free(lower_unit_t *lu, tree_t stmt)
    }
 }
 
-static void lower_for(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
+static void lower_for(lower_unit_t *lu, tree_t stmt, gen_stack_t *gs)
 {
-   lower_stmt_coverage(lu, stmt);
+   lower_stmt_coverage(lu, stmt, gs);
 
    tree_t r = tree_range(stmt, 0);
    vcode_reg_t left_reg  = lower_range_left(lu, r);
@@ -6841,20 +6875,20 @@ static void lower_for(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
    if (exit_bb == VCODE_INVALID_BLOCK)
       exit_bb = emit_block();
 
-   loop_stack_t this = {
-      .up      = loops,
+   loop_info_t loop = {
       .name    = tree_ident(stmt),
       .test_bb = VCODE_INVALID_BLOCK,
       .exit_bb = exit_bb
    };
 
+   gen_stack_t this = lower_push_loop(gs, &loop);
    lower_sequence(lu, stmt, &this);
 
-   if (this.test_bb != VCODE_INVALID_BLOCK) {
+   if (loop.test_bb != VCODE_INVALID_BLOCK) {
       // Loop body contained a "next" statement
       if (!vcode_block_finished())
-         emit_jump(this.test_bb);
-      vcode_select_block(this.test_bb);
+         emit_jump(loop.test_bb);
+      vcode_select_block(loop.test_bb);
    }
 
    vcode_reg_t rightn_reg = right_reg;
@@ -6884,9 +6918,9 @@ static void lower_for(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
    }
 }
 
-static void lower_while(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
+static void lower_while(lower_unit_t *lu, tree_t stmt, gen_stack_t *gs)
 {
-   lower_stmt_coverage(lu, stmt);
+   lower_stmt_coverage(lu, stmt, gs);
 
    vcode_block_t test_bb = emit_block();
    vcode_block_t body_bb = emit_block();
@@ -6901,17 +6935,17 @@ static void lower_while(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
    emit_cond(test, body_bb, exit_bb);
 
    if (cover_enabled(lu->cover, COVER_MASK_BRANCH))
-      lower_branch_coverage(lu, stmt, body_bb, exit_bb);
+      lower_branch_coverage(lu, stmt, 0, body_bb, exit_bb, gs);
 
    vcode_select_block(body_bb);
 
-   loop_stack_t this = {
-      .up      = loops,
+   loop_info_t loop = {
       .name    = tree_ident(stmt),
       .test_bb = test_bb,
       .exit_bb = exit_bb
    };
 
+   gen_stack_t this = lower_push_loop(gs, &loop);
    lower_sequence(lu, stmt, &this);
 
    if (!vcode_block_finished())
@@ -6920,9 +6954,9 @@ static void lower_while(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
    vcode_select_block(exit_bb);
 }
 
-static void lower_loop(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
+static void lower_loop(lower_unit_t *lu, tree_t stmt, gen_stack_t *gs)
 {
-   lower_stmt_coverage(lu, stmt);
+   lower_stmt_coverage(lu, stmt, gs);
 
    vcode_block_t body_bb = emit_block();
    vcode_block_t exit_bb = emit_block();
@@ -6931,13 +6965,13 @@ static void lower_loop(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
 
    vcode_select_block(body_bb);
 
-   loop_stack_t this = {
-      .up      = loops,
+   loop_info_t loop = {
       .name    = tree_ident(stmt),
       .test_bb = body_bb,
       .exit_bb = exit_bb
    };
 
+   gen_stack_t this = lower_push_loop(gs, &loop);
    lower_sequence(lu, stmt, &this);
 
    if (!vcode_block_finished())
@@ -6946,10 +6980,9 @@ static void lower_loop(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
    vcode_select_block(exit_bb);
 }
 
-static void lower_loop_control(lower_unit_t *lu, tree_t stmt,
-                               loop_stack_t *loops)
+static void lower_loop_control(lower_unit_t *lu, tree_t stmt, gen_stack_t *gs)
 {
-   lower_stmt_coverage(lu, stmt);
+   lower_stmt_coverage(lu, stmt, gs);
 
    vcode_block_t false_bb = emit_block();
 
@@ -6960,30 +6993,33 @@ static void lower_loop_control(lower_unit_t *lu, tree_t stmt,
       emit_cond(result, true_bb, false_bb);
 
       if (cover_enabled(lu->cover, COVER_MASK_BRANCH))
-         lower_branch_coverage(lu, stmt, true_bb, false_bb);
+         lower_branch_coverage(lu, stmt, 0, true_bb, false_bb, gs);
 
       vcode_select_block(true_bb);
    }
 
    ident_t label = tree_ident2(stmt);
-   loop_stack_t *it;
-   for (it = loops; it != NULL && it->name != label; it = it->up)
-      ;
+   gen_stack_t *it;
+   for (it = gs; it != NULL; it = it->up) {
+      if (it->loop == NULL)
+         continue;
+      else if (it->loop->name == label)
+         break;
+   }
    assert(it != NULL);
 
    if (tree_kind(stmt) == T_EXIT)
-      emit_jump(it->exit_bb);
+      emit_jump(it->loop->exit_bb);
    else {
-      if (it->test_bb == VCODE_INVALID_BLOCK)
-         it->test_bb = emit_block();
-      emit_jump(it->test_bb);
+      if (it->loop->test_bb == VCODE_INVALID_BLOCK)
+         it->loop->test_bb = emit_block();
+      emit_jump(it->loop->test_bb);
    }
 
    vcode_select_block(false_bb);
 }
 
-static void lower_case_scalar(lower_unit_t *lu, tree_t stmt,
-                              loop_stack_t *loops)
+static void lower_case_scalar(lower_unit_t *lu, tree_t stmt, gen_stack_t *gs)
 {
    const int nstmts = tree_stmts(stmt);
    const bool want_coverage = cover_enabled(lu->cover, COVER_MASK_BRANCH);
@@ -7022,12 +7058,15 @@ static void lower_case_scalar(lower_unit_t *lu, tree_t stmt,
 
             emit_cond(hit_reg, hit_bb, skip_bb);
 
+            gen_stack_t this = lower_push_cscope(gs, alt, i);
+
             if (want_coverage)
-               lower_branch_coverage(lu, a, hit_bb, VCODE_INVALID_BLOCK);
+               lower_branch_coverage(lu, a, j, hit_bb, VCODE_INVALID_BLOCK,
+                                     &this);
 
             vcode_select_block(hit_bb);
 
-            lower_sequence(lu, alt, loops);
+            lower_sequence(lu, alt, &this);
 
             if (!vcode_block_finished())
                emit_jump(exit_bb);
@@ -7047,6 +7086,8 @@ static void lower_case_scalar(lower_unit_t *lu, tree_t stmt,
    for (int i = 0; i < nstmts; i++) {
       tree_t alt = tree_stmt(stmt, i);
       vcode_block_t hit_bb = VCODE_INVALID_BLOCK;
+
+      gen_stack_t this = lower_push_cscope(gs, alt, i);
 
       const int nchoices = tree_choices(alt);
       for (int j = 0; j < nchoices; j++) {
@@ -7068,7 +7109,8 @@ static void lower_case_scalar(lower_unit_t *lu, tree_t stmt,
 
             if (want_coverage) {
                blocks[cptr] = cover_bb;
-               lower_branch_coverage(lu, a, cover_bb, VCODE_INVALID_BLOCK);
+               lower_branch_coverage(lu, a, j, cover_bb, VCODE_INVALID_BLOCK,
+                                     &this);
             }
             else
                blocks[cptr] = hit_bb;
@@ -7079,7 +7121,8 @@ static void lower_case_scalar(lower_unit_t *lu, tree_t stmt,
             assert(def_bb == VCODE_INVALID_BLOCK);
             if (want_coverage) {
                def_bb = cover_bb;
-               lower_branch_coverage(lu, a, cover_bb, VCODE_INVALID_BLOCK);
+               lower_branch_coverage(lu, a, j, cover_bb, VCODE_INVALID_BLOCK,
+                                     &this);
             }
             else
                def_bb = hit_bb;
@@ -7096,7 +7139,7 @@ static void lower_case_scalar(lower_unit_t *lu, tree_t stmt,
 
       vcode_select_block(hit_bb);
 
-      lower_sequence(lu, alt, loops);
+      lower_sequence(lu, alt, &this);
 
       if (!vcode_block_finished())
          emit_jump(exit_bb);
@@ -7113,7 +7156,7 @@ static void lower_case_scalar(lower_unit_t *lu, tree_t stmt,
    vcode_select_block(exit_bb);
 }
 
-static void lower_case_array(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
+static void lower_case_array(lower_unit_t *lu, tree_t stmt, gen_stack_t *gs)
 {
    vcode_type_t vint64 = vtype_int(INT64_MIN, INT64_MAX);
    vcode_type_t voffset = vtype_offset();
@@ -7268,6 +7311,8 @@ static void lower_case_array(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
    for (int i = 0; i < nstmts; i++) {
       tree_t alt = tree_stmt(stmt, i);
 
+      gen_stack_t this = lower_push_cscope(gs, alt, i);
+
       const int nchoices = tree_choices(alt);
       for (int j = 0; j < nchoices; j++) {
          tree_t a = tree_choice(alt, j);
@@ -7322,7 +7367,8 @@ static void lower_case_array(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
 
                // TODO: How to handle have_dup == true ?
                if (cover_enabled(lu->cover, COVER_MASK_BRANCH))
-                  lower_branch_coverage(lu, a, hit_bb, VCODE_INVALID_BLOCK);
+                  lower_branch_coverage(lu, a, j, hit_bb, VCODE_INVALID_BLOCK,
+                                        &this);
 
                cptr++;
             }
@@ -7332,12 +7378,13 @@ static void lower_case_array(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
             def_bb = hit_bb;
 
              if (cover_enabled(lu->cover, COVER_MASK_BRANCH))
-                lower_branch_coverage(lu, a, hit_bb, VCODE_INVALID_BLOCK);
+                lower_branch_coverage(lu, a, j, hit_bb, VCODE_INVALID_BLOCK,
+                                      &this);
          }
 
          vcode_select_block(hit_bb);
 
-         lower_sequence(lu, alt, loops);
+         lower_sequence(lu, alt, gs);
 
          if (!vcode_block_finished())
             emit_jump(exit_bb);
@@ -7379,17 +7426,17 @@ static void lower_case_array(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
    vcode_select_block(exit_bb);
 }
 
-static void lower_case(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
+static void lower_case(lower_unit_t *lu, tree_t stmt, gen_stack_t *gs)
 {
-   lower_stmt_coverage(lu, stmt);
+   lower_stmt_coverage(lu, stmt, gs);
 
    if (type_is_scalar(tree_type(tree_value(stmt))))
-      lower_case_scalar(lu, stmt, loops);
+      lower_case_scalar(lu, stmt, gs);
    else
-      lower_case_array(lu, stmt, loops);
+      lower_case_array(lu, stmt, gs);
 }
 
-static void lower_match_case(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
+static void lower_match_case(lower_unit_t *lu, tree_t stmt, gen_stack_t *loops)
 {
    vcode_block_t exit_bb = VCODE_INVALID_BLOCK;
 
@@ -7518,13 +7565,13 @@ static void lower_match_case(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
 }
 
 static void lower_sequential_block(lower_unit_t *lu, tree_t stmt,
-                                   loop_stack_t *loops)
+                                   gen_stack_t *gs)
 {
-   lower_decls(lu, stmt);
-   lower_sequence(lu, stmt, loops);
+   lower_decls(lu, stmt, gs);
+   lower_sequence(lu, stmt, gs);
 }
 
-static void lower_stmt(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
+static void lower_stmt(lower_unit_t *lu, tree_t stmt, gen_stack_t *gs)
 {
    if (vcode_block_finished())
       return;   // Unreachable
@@ -7533,19 +7580,19 @@ static void lower_stmt(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
 
    switch (tree_kind(stmt)) {
    case T_ASSERT:
-      lower_assert(lu, stmt);
+      lower_assert(lu, stmt, gs);
       break;
    case T_REPORT:
-      lower_report(lu, stmt);
+      lower_report(lu, stmt, gs);
       break;
    case T_WAIT:
-      lower_wait(lu, stmt);
+      lower_wait(lu, stmt, gs);
       break;
    case T_VAR_ASSIGN:
-      lower_var_assign(lu, stmt);
+      lower_var_assign(lu, stmt, gs);
       break;
    case T_SIGNAL_ASSIGN:
-      lower_signal_assign(lu, stmt);
+      lower_signal_assign(lu, stmt, gs);
       break;
    case T_FORCE:
       lower_force(lu, stmt);
@@ -7554,36 +7601,36 @@ static void lower_stmt(lower_unit_t *lu, tree_t stmt, loop_stack_t *loops)
       lower_release(lu, stmt);
       break;
    case T_IF:
-      lower_if(lu, stmt, loops);
+      lower_if(lu, stmt, gs);
       break;
    case T_RETURN:
-      lower_return(lu, stmt);
+      lower_return(lu, stmt, gs);
       break;
    case T_PCALL:
    case T_PROT_PCALL:
-      lower_pcall(lu, stmt);
+      lower_pcall(lu, stmt, gs);
       break;
    case T_WHILE:
-      lower_while(lu, stmt, loops);
+      lower_while(lu, stmt, gs);
       break;
    case T_LOOP:
-      lower_loop(lu, stmt, loops);
+      lower_loop(lu, stmt, gs);
       break;
    case T_FOR:
-      lower_for(lu, stmt, loops);
+      lower_for(lu, stmt, gs);
       break;
    case T_SEQUENCE:
-      lower_sequential_block(lu, stmt, loops);
+      lower_sequential_block(lu, stmt, gs);
       break;
    case T_EXIT:
    case T_NEXT:
-      lower_loop_control(lu, stmt, loops);
+      lower_loop_control(lu, stmt, gs);
       break;
    case T_CASE:
-      lower_case(lu, stmt, loops);
+      lower_case(lu, stmt, gs);
       break;
    case T_MATCH_CASE:
-      lower_match_case(lu, stmt, loops);
+      lower_match_case(lu, stmt, gs);
       break;
    case T_DUMMY_DRIVER:
       break;
@@ -8233,7 +8280,7 @@ static void lower_sub_signals(lower_unit_t *lu, type_t type, type_t var_type,
       fatal_trace("unhandled type %s in lower_sub_signals", type_pp(type));
 }
 
-static void lower_signal_decl(lower_unit_t *lu, tree_t decl)
+static void lower_signal_decl(lower_unit_t *lu, tree_t decl, gen_stack_t *gs)
 {
    type_t type = tree_type(decl);
    vcode_type_t vtype = lower_signal_type(type);
@@ -8268,11 +8315,15 @@ static void lower_signal_decl(lower_unit_t *lu, tree_t decl)
                      VCODE_INVALID_REG, init_reg, VCODE_INVALID_REG,
                      VCODE_INVALID_REG, flags, bounds_reg);
 
-   if (cover_enabled(lu->cover, COVER_MASK_TOGGLE))
-      lower_toggle_coverage(lu, decl, var);
+   if (cover_enabled(lu->cover, COVER_MASK_TOGGLE)) {
+      gen_stack_t this = lower_push_cscope(gs, decl, 0);
+      lower_toggle_coverage(lu, decl, var, &this);
+   }
 
-   if (cover_enabled(lu->cover, COVER_MASK_STATE))
-      lower_state_coverage(lu, decl);
+   if (cover_enabled(lu->cover, COVER_MASK_STATE)) {
+      gen_stack_t this = lower_push_cscope(gs, decl, 0);
+      lower_state_coverage(lu, decl, &this);
+   }
 }
 
 static void lower_build_wait_field_cb(lower_unit_t *lu, tree_t field,
@@ -9656,6 +9707,21 @@ static void lower_new_helper(lower_unit_t *lu, object_t *obj)
    emit_return(VCODE_INVALID_REG);
 }
 
+static cover_scope_t *lower_get_cscope(lower_unit_t *lu)
+{
+   if (lu == NULL)
+      return NULL;
+   else if (lu->cscope != NULL)
+      return lu->cscope;
+   else {
+      cover_scope_t *parent = lower_get_cscope(lu->parent);
+      if (parent == NULL)
+         return NULL;
+      else
+         return cover_get_child(parent, vhdl_scope_name(lu->container, 0));
+   }
+}
+
 static void lower_instantiated_package(lower_unit_t *lu, object_t *obj)
 {
    tree_t decl = tree_from_object(obj);
@@ -9664,10 +9730,14 @@ static void lower_instantiated_package(lower_unit_t *lu, object_t *obj)
    tree_t pack = tree_ref(decl);
    assert(is_uninstantiated_package(pack));
 
+   gen_stack_t gs = {
+      .cscope = lower_get_cscope(lu),
+   };
+
    lower_dependencies(lu, body_of(pack) ?: pack);
 
    lower_generics(lu, decl, NULL);
-   lower_decls(lu, decl);
+   lower_decls(lu, decl, &gs);
 
    emit_return(VCODE_INVALID_REG);
 }
@@ -9759,7 +9829,7 @@ static void lower_foreign_stub(lower_unit_t *lu, object_t *obj)
    emit_unreachable(VCODE_INVALID_REG);
 }
 
-static void lower_decl(lower_unit_t *lu, tree_t decl)
+static void lower_decl(lower_unit_t *lu, tree_t decl, gen_stack_t *gs)
 {
    PUSH_DEBUG_INFO(decl);
 
@@ -9770,7 +9840,7 @@ static void lower_decl(lower_unit_t *lu, tree_t decl)
       break;
 
    case T_SIGNAL_DECL:
-      lower_signal_decl(lu, decl);
+      lower_signal_decl(lu, decl, gs);
       break;
 
    case T_IMPLICIT_SIGNAL:
@@ -9929,6 +9999,10 @@ static void lower_protected_body(lower_unit_t *lu, object_t *obj)
    tree_t body = tree_from_object(obj);
    assert(tree_kind(body) == T_PROT_BODY);
 
+   gen_stack_t gs = {
+      .cscope = lower_get_cscope(lu),
+   };
+
    if (standard() >= STD_19) {
       // LCS-2016-032 requires dynamic 'PATH_NAME and 'INSTANCE_NAME for
       // protected type
@@ -9956,8 +10030,8 @@ static void lower_protected_body(lower_unit_t *lu, object_t *obj)
       }
    }
 
-   lower_decls(lu, tree_primary(body));
-   lower_decls(lu, body);
+   lower_decls(lu, tree_primary(body), &gs);
+   lower_decls(lu, body, &gs);
    emit_return(VCODE_INVALID_REG);
 }
 
@@ -9983,7 +10057,7 @@ static void lower_subprogram_default(lower_unit_t *lu, object_t *obj)
       emit_return(result_reg);
 }
 
-static void lower_decls(lower_unit_t *lu, tree_t scope)
+static void lower_decls(lower_unit_t *lu, tree_t scope, gen_stack_t *gs)
 {
    const int ndecls = tree_decls(scope);
    for (int i = 0; i < ndecls; i++) {
@@ -10136,7 +10210,7 @@ static void lower_decls(lower_unit_t *lu, tree_t scope)
         }
         break;
       default:
-         lower_decl(lu, d);
+         lower_decl(lu, d, gs);
          break;
       }
    }
@@ -10372,13 +10446,17 @@ static void lower_proc_body(lower_unit_t *lu, object_t *obj)
    vcode_type_t vcontext = vtype_context(lu->parent->name);
    emit_param(vcontext, VCODE_INVALID_STAMP, ident_new("context"));
 
+   gen_stack_t gs = {
+      .cscope = lower_get_cscope(lu),
+   };
+
    const bool never_waits = vcode_unit_kind(lu->vunit) == VCODE_UNIT_FUNCTION;
    const bool has_subprograms = lower_has_subprograms(body);
    lower_subprogram_ports(lu, body, has_subprograms || !never_waits);
 
-   lower_decls(lu, body);
+   lower_decls(lu, body, &gs);
 
-   lower_sequence(lu, body, NULL);
+   lower_sequence(lu, body, &gs);
 
    if (!vcode_block_finished()) {
       lower_leave_subprogram(lu);
@@ -10397,6 +10475,10 @@ static void lower_func_body(lower_unit_t *lu, object_t *obj)
    vcode_type_t vcontext = vtype_context(lu->parent->name);
    emit_param(vcontext, VCODE_INVALID_STAMP, ident_new("context"));
 
+   gen_stack_t gs = {
+      .cscope = lower_get_cscope(lu),
+   };
+
    const bool has_subprograms = lower_has_subprograms(body);
    lower_subprogram_ports(lu, body, has_subprograms);
 
@@ -10409,9 +10491,9 @@ static void lower_func_body(lower_unit_t *lu, object_t *obj)
       lower_put_vcode_obj(body, bounds_reg, lu);
    }
 
-   lower_decls(lu, body);
+   lower_decls(lu, body, &gs);
 
-   lower_sequence(lu, body, NULL);
+   lower_sequence(lu, body, &gs);
 
    if (!vcode_block_finished())
       emit_unreachable(lower_debug_locus(body));
@@ -10650,10 +10732,14 @@ static void lower_process(lower_unit_t *lu, object_t *obj)
    vcode_block_t start_bb = emit_block();
    assert(start_bb == 1);
 
+   gen_stack_t gs = {
+      .cscope = lower_get_cscope(lu),
+   };
+
    if (tree_global_flags(proc) & TREE_GF_EXTERNAL_NAME)
       tree_visit_only(proc, lower_external_name_cache, lu, T_EXTERNAL_NAME);
 
-   lower_decls(lu, proc);
+   lower_decls(lu, proc, &gs);
 
    driver_set_t *ds = find_drivers(proc);
    driver_info_t *di = get_drivers(ds, proc);
@@ -10736,12 +10822,12 @@ static void lower_process(lower_unit_t *lu, object_t *obj)
    else if (trigger_reg != VCODE_INVALID_REG) {
       tree_t s0 = tree_stmt(proc, 0);
       assert(tree_kind(s0) == T_IF);
-      lower_stmt_coverage(lu, s0);
+      lower_stmt_coverage(lu, s0, &gs);
 
       const int nconds = tree_conds(s0);
       if (nconds == 1) {
          tree_t c = tree_cond(s0, 0);
-         lower_sequence(lu, c, NULL);
+         lower_sequence(lu, c, &gs);
       }
       else {
          assert(nconds == 2);
@@ -10756,7 +10842,7 @@ static void lower_process(lower_unit_t *lu, object_t *obj)
          {
             vcode_select_block(btrue);
 
-            lower_sequence(lu, c0, NULL);
+            lower_sequence(lu, c0, &gs);
 
             if (!vcode_block_finished())
                emit_jump(bjoin);
@@ -10765,7 +10851,7 @@ static void lower_process(lower_unit_t *lu, object_t *obj)
          {
             vcode_select_block(bfalse);
 
-            lower_sequence(lu, c1, NULL);
+            lower_sequence(lu, c1, &gs);
 
             if (!vcode_block_finished())
                emit_jump(bjoin);
@@ -10777,10 +10863,10 @@ static void lower_process(lower_unit_t *lu, object_t *obj)
       tree_t s1 = tree_stmt(proc, 1);
       assert(tree_kind(s1) == T_WAIT);
 
-      lower_wait(lu, s1);
+      lower_wait(lu, s1, &gs);
    }
    else
-      lower_sequence(lu, proc, NULL);
+      lower_sequence(lu, proc, &gs);
 
    if (!vcode_block_finished())
       emit_jump(start_bb);
@@ -11211,6 +11297,12 @@ static void lower_inertial_actual_process(lower_unit_t *lu, object_t *obj)
 
    assert(tree_has_type(inertial));
 
+   lu->container = inertial;
+
+   gen_stack_t gs = {
+      .cscope = lower_get_cscope(lu),
+   };
+
    // Block number one must be the non-reset entry point
    vcode_block_t main_bb = emit_block();
    assert(main_bb == 1);
@@ -11268,7 +11360,9 @@ static void lower_inertial_actual_process(lower_unit_t *lu, object_t *obj)
    vcode_select_block(main_bb);
 
    vcode_reg_t zero_time_reg = emit_const(vtype_time(), 0);
-   vcode_reg_t value_reg = lower_logical(lu, expr);
+
+   int nexpr = 0;
+   vcode_reg_t value_reg = lower_logical(lu, expr, &nexpr, &gs);
 
    vcode_reg_t nets_reg;
    if (type_is_record(port_type))
@@ -11853,7 +11947,8 @@ static vcode_reg_t lower_open_port_map(lower_unit_t *lu, tree_t block, tree_t p)
       return VCODE_INVALID_REG;
 }
 
-static void lower_ports(lower_unit_t *lu, tree_t block, tree_t src)
+static void lower_ports(lower_unit_t *lu, tree_t block, tree_t src,
+                        gen_stack_t *gs)
 {
    const int nports = tree_ports(block);
    const int nparams = tree_params(block);
@@ -11910,8 +12005,10 @@ static void lower_ports(lower_unit_t *lu, tree_t block, tree_t src)
       else if (poison != NULL && hset_contains(poison, port))
          lower_port_signal(lu, port, port_vars[i], bounds_reg);
 
-      if (cover_enabled(lu->cover, COVER_MASK_TOGGLE))
-         lower_toggle_coverage(lu, port, port_vars[i]);
+      if (cover_enabled(lu->cover, COVER_MASK_TOGGLE)) {
+         gen_stack_t this = lower_push_cscope(gs, port, 0);
+         lower_toggle_coverage(lu, port, port_vars[i], &this);
+      }
    }
 
    for (int i = 0; i < nparams; i++) {
@@ -12263,6 +12360,10 @@ static void lower_pack_body(lower_unit_t *lu, object_t *obj)
    tree_t pack = tree_primary(body);
    assert(!is_uninstantiated_package(pack));
 
+   gen_stack_t gs = {
+      .cscope = lower_get_cscope(lu),
+   };
+
    tree_global_flags_t gflags = tree_global_flags(body);
    gflags |= tree_global_flags(pack);
 
@@ -12282,8 +12383,8 @@ static void lower_pack_body(lower_unit_t *lu, object_t *obj)
    const bool has_scope =
       lower_push_package_scope(pack) || lower_push_package_scope(body);
 
-   lower_decls(lu, pack);
-   lower_decls(lu, body);
+   lower_decls(lu, pack, &gs);
+   lower_decls(lu, body, &gs);
 
    if (has_scope)
       emit_pop_scope();
@@ -12295,6 +12396,10 @@ static void lower_package(lower_unit_t *lu, object_t *obj)
 {
    tree_t pack = tree_from_object(obj);
    assert(!is_uninstantiated_package(pack));
+
+   gen_stack_t gs = {
+      .cscope = lower_get_cscope(lu),
+   };
 
    const tree_global_flags_t gflags = tree_global_flags(pack);
 
@@ -12312,7 +12417,7 @@ static void lower_package(lower_unit_t *lu, object_t *obj)
    const bool has_scope = lower_push_package_scope(pack);
 
    lower_generics(lu, pack, NULL);
-   lower_decls(lu, pack);
+   lower_decls(lu, pack, &gs);
 
    if (has_scope)
       emit_pop_scope();
@@ -12548,6 +12653,10 @@ lower_unit_t *lower_instance(unit_registry_t *ur, lower_unit_t *parent,
 
    lu->cscope = cs;
 
+   gen_stack_t gs = {
+      .cscope = cs,
+   };
+
    if (lu->cscope != NULL) {
       vcode_reg_t ptr = emit_get_counters(lu->name);
 
@@ -12576,8 +12685,8 @@ lower_unit_t *lower_instance(unit_registry_t *ur, lower_unit_t *parent,
       lower_dependencies(lu, unit);
 
    lower_generics(lu, block, primary);
-   lower_ports(lu, block, primary);
-   lower_decls(lu, block);
+   lower_ports(lu, block, primary, &gs);
+   lower_decls(lu, block, &gs);
 
    ident_t sym_prefix = tree_ident2(hier);
    const int nstmts = tree_stmts(block);

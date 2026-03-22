@@ -22,6 +22,7 @@
 #include "type.h"
 #include "printf.h"
 #include "vhdl/vhdl-phase.h"
+#include "vhdl/vhdl-util.h"
 
 #include <assert.h>
 
@@ -60,9 +61,7 @@ static void vhdl_cover_branch(tree_t t, cover_data_t *db, lazy_cscope_t *parent)
 
    object_t *obj = tree_to_object(t);
    cover_scope_t *cs = get_cover_scope(db, parent);
-   cover_item_t *item = cover_add_items_for(db, cs, obj, COV_ITEM_BRANCH);
-   if (item != NULL)
-      cover_map_item(cs, obj, item);
+   cover_add_items_for(db, cs, obj, COV_ITEM_BRANCH);
 }
 
 static void vhdl_cover_stmt(tree_t t, cover_data_t *db, lazy_cscope_t *parent)
@@ -72,9 +71,7 @@ static void vhdl_cover_stmt(tree_t t, cover_data_t *db, lazy_cscope_t *parent)
 
    object_t *obj = tree_to_object(t);
    cover_scope_t *cs = get_cover_scope(db, parent);
-   cover_item_t *item = cover_add_items_for(db, cs, obj, COV_ITEM_STMT);
-   if (item != NULL)
-      cover_map_item(cs, obj, item);
+   cover_add_items_for(db, cs, obj, COV_ITEM_STMT);
 }
 
 static void vhdl_cover_expr(tree_t t, cover_data_t *db, lazy_cscope_t *parent)
@@ -83,37 +80,12 @@ static void vhdl_cover_expr(tree_t t, cover_data_t *db, lazy_cscope_t *parent)
       return;
    else if (tree_kind(t) != T_FCALL)
       return;
-
-   switch (tree_subkind(tree_ref(t))) {
-   case S_SCALAR_EQ:
-   case S_SCALAR_NEQ:
-   case S_SCALAR_LT:
-   case S_SCALAR_LE:
-   case S_SCALAR_GE:
-   case S_SCALAR_GT:
-   case S_SCALAR_OR:
-   case S_SCALAR_NOR:
-   case S_SCALAR_AND:
-   case S_SCALAR_NAND:
-   case S_SCALAR_XOR:
-   case S_SCALAR_XNOR:
-   case S_SCALAR_NOT:
-   case S_IEEE_OR:
-   case S_IEEE_NOR:
-   case S_IEEE_AND:
-   case S_IEEE_NAND:
-   case S_IEEE_XOR:
-   case S_IEEE_XNOR:
-      break;
-   default:
+   else if (!vhdl_is_logical(tree_subkind(tree_ref(t))))
       return;
-   }
 
    object_t *obj = tree_to_object(t);
    cover_scope_t *cs = get_cover_scope(db, parent);
-   cover_item_t *item = cover_add_items_for(db, cs, obj, COV_ITEM_EXPRESSION);
-   if (item != NULL)
-      cover_map_item(cs, obj, item);
+   cover_add_items_for(db, cs, obj, COV_ITEM_EXPRESSION);
 
    const int nparams = tree_params(t);
    for (int i = 0; i < nparams; i++)
@@ -136,9 +108,7 @@ static void vhdl_cover_states(tree_t t, cover_data_t *db,
 
    object_t *obj = tree_to_object(t);
    cover_scope_t *cs = get_cover_scope(db, parent);
-   cover_item_t *item = cover_add_items_for(db, cs, obj, COV_ITEM_STATE);
-   if (item != NULL)
-      cover_map_item(cs, obj, item);
+   cover_add_items_for(db, cs, obj, COV_ITEM_STATE);
 }
 
 static void vhdl_cover_toggle(tree_t t, cover_data_t *db,
@@ -149,9 +119,7 @@ static void vhdl_cover_toggle(tree_t t, cover_data_t *db,
 
    object_t *obj = tree_to_object(t);
    cover_scope_t *cs = get_cover_scope(db, parent);
-   cover_item_t *item = cover_add_items_for(db, cs, obj, COV_ITEM_TOGGLE);
-   if (item != NULL)
-      cover_map_item(cs, obj, item);
+   cover_add_items_for(db, cs, obj, COV_ITEM_TOGGLE);
 }
 
 static void vhdl_cover_if(tree_t t, cover_data_t *db, lazy_cscope_t *parent)
@@ -320,6 +288,13 @@ static void vhdl_cover_process(tree_t t, ident_t qual, cover_data_t *db,
    vhdl_cover_decls(t, db, &lcs);
 }
 
+static void vhdl_cover_inertial(tree_t t, ident_t qual, cover_data_t *db,
+                                lazy_cscope_t *parent)
+{
+   lazy_cscope_t lcs = lazy_cover_scope(t, parent, 0);
+   vhdl_cover_expr(tree_value(t), db, &lcs);
+}
+
 void vhdl_cover_block(tree_t block, cover_data_t *db, cover_scope_t *cs)
 {
    assert(tree_kind(block) == T_BLOCK);
@@ -341,16 +316,18 @@ void vhdl_cover_block(tree_t block, cover_data_t *db, cover_scope_t *cs)
    for (int i = 0; i < nports; i++)
       vhdl_cover_port_decl(tree_port(block, i), db, &lcs);
 
+   ident_t sym_prefix = tree_ident2(hier);
+
    const int nparams = tree_params(block);
    for (int i = 0; i < nparams; i++) {
       tree_t actual = tree_value(tree_param(block, i));
-      if (tree_kind(actual) == T_INERTIAL)
-         vhdl_cover_expr(tree_value(actual), db, &lcs);
+      if (tree_kind(actual) == T_INERTIAL) {
+         ident_t qual = ident_prefix(sym_prefix, tree_ident(actual), '.');
+         vhdl_cover_inertial(actual, qual, db, &lcs);
+      }
    }
 
    vhdl_cover_decls(block, db, &lcs);
-
-   ident_t sym_prefix = tree_ident2(hier);
 
    for (int i = 0; i < nstmts; i++) {
       tree_t s = tree_stmt(block, i);

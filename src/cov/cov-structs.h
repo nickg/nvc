@@ -29,7 +29,6 @@ typedef struct _cover_block {
    ident_t        name;
    unsigned       next_tag;
    cover_scope_t *self;
-   hash_t        *item_map;
    int32_t       *data;
 } cover_block_t;
 

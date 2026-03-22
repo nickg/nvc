@@ -669,29 +669,6 @@ cover_item_t *cover_add_items_for(cover_data_t *data, cover_scope_t *cs,
    }
 }
 
-void cover_map_item(cover_scope_t *cs, object_t *obj, cover_item_t *item)
-{
-   if (cs->block->item_map == NULL)
-      cs->block->item_map = hash_new(128);
-
-   void *tagged = tag_pointer(obj, item->kind);
-   hash_put(cs->block->item_map, tagged, item);
-}
-
-cover_item_t *cover_lookup_item(cover_scope_t *cs, object_t *obj,
-                                cover_item_kind_t kind)
-{
-   cover_scope_t *inst = cs;
-   for (; inst != NULL && inst->kind != CSCOPE_INSTANCE; inst = inst->parent);
-   assert(inst != NULL);
-
-   if (inst->block->item_map == NULL)
-      return NULL;
-
-   void *tagged = tag_pointer(obj, kind);
-   return hash_get(inst->block->item_map, tagged);
-}
-
 ///////////////////////////////////////////////////////////////////////////////
 // Coverage data write/read to covdb, covdb merging and coverage scope handling
 ///////////////////////////////////////////////////////////////////////////////
@@ -1292,6 +1269,32 @@ cover_scope_t *cover_get_scope(cover_data_t *db, ident_t name)
       return NULL;
 
    return b->self;
+}
+
+cover_scope_t *cover_get_child(cover_scope_t *s, ident_t name)
+{
+   if (s == NULL)
+      return NULL;
+
+   for (int i = 0; i < s->children.count; i++) {
+      if (s->children.items[i]->name == name)
+         return s->children.items[i];
+   }
+
+   return NULL;
+}
+
+cover_item_t *cover_get_item(cover_scope_t *s, cover_item_kind_t kind, int nth)
+{
+   if (s == NULL)
+      return NULL;
+
+   for (int i = 0; i < s->items.count; i++) {
+      if (s->items.items[i]->kind == kind && nth-- == 0)
+         return s->items.items[i];
+   }
+
+   return NULL;
 }
 
 void cover_bmask_to_bin_list(uint32_t bmask, text_buf_t *tb)

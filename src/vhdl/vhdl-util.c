@@ -41,3 +41,31 @@ bool vhdl_is_short_circuit(subprogram_kind_t kind)
    return kind == S_SCALAR_AND || kind == S_SCALAR_OR
       || kind == S_SCALAR_NOR || kind == S_SCALAR_NAND;
 }
+
+bool vhdl_is_logical(subprogram_kind_t kind)
+{
+   switch (kind) {
+   case S_SCALAR_EQ:
+   case S_SCALAR_NEQ:
+   case S_SCALAR_LT:
+   case S_SCALAR_LE:
+   case S_SCALAR_GE:
+   case S_SCALAR_GT:
+   case S_SCALAR_OR:
+   case S_SCALAR_NOR:
+   case S_SCALAR_AND:
+   case S_SCALAR_NAND:
+   case S_SCALAR_XOR:
+   case S_SCALAR_XNOR:
+   case S_SCALAR_NOT:
+   case S_IEEE_OR:
+   case S_IEEE_NOR:
+   case S_IEEE_AND:
+   case S_IEEE_NAND:
+   case S_IEEE_XOR:
+   case S_IEEE_XNOR:
+      return true;
+   default:
+      return false;
+   }
+}
