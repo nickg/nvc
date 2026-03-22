@@ -10,16 +10,16 @@
       <scope name="RPT2" line="15">
         <statement hier="WORK.COVER1.MY_GLOBAL_FUNCTION.RPT2" data="2"/>
       </scope>
-      <scope name="_S0" line="17">
-        <statement hier="WORK.COVER1.MY_GLOBAL_FUNCTION._S0" data="2"/>
+      <scope name="_S1" line="17">
+        <statement hier="WORK.COVER1.MY_GLOBAL_FUNCTION._S1" data="2"/>
         <scope name="_B0">
           <scope name="_S0" line="18">
-            <statement hier="WORK.COVER1.MY_GLOBAL_FUNCTION._S0._B0._S0" data="1"/>
+            <statement hier="WORK.COVER1.MY_GLOBAL_FUNCTION._S1._B0._S0" data="1"/>
           </scope>
         </scope>
         <scope name="_B1">
           <scope name="_S0" line="20">
-            <statement hier="WORK.COVER1.MY_GLOBAL_FUNCTION._S0._B1._S0" data="1"/>
+            <statement hier="WORK.COVER1.MY_GLOBAL_FUNCTION._S1._B1._S0" data="1"/>
           </scope>
         </scope>
       </scope>
@@ -83,8 +83,8 @@
           </scope>
         </scope>
       </scope>
-      <scope name="_S0" line="80">
-        <statement hier="WORK.COVER1.TEST_PROC._S0" data="1"/>
+      <scope name="_S1" line="80">
+        <statement hier="WORK.COVER1.TEST_PROC._S1" data="1"/>
       </scope>
       <scope name="WHILE_LOOP" line="81">
         <statement hier="WORK.COVER1.TEST_PROC.WHILE_LOOP" data="1"/>
@@ -129,26 +129,26 @@
       <scope name="PROC_CALL_GLOBAL" line="102">
         <statement hier="WORK.COVER1.TEST_PROC.PROC_CALL_GLOBAL" data="1"/>
       </scope>
-      <scope name="_S1" line="103">
-        <statement hier="WORK.COVER1.TEST_PROC._S1" data="1"/>
+      <scope name="_S9" line="103">
+        <statement hier="WORK.COVER1.TEST_PROC._S9" data="1"/>
       </scope>
-      <scope name="_S2" line="104">
-        <statement hier="WORK.COVER1.TEST_PROC._S2" data="1"/>
+      <scope name="_S10" line="104">
+        <statement hier="WORK.COVER1.TEST_PROC._S10" data="1"/>
       </scope>
       <scope name="PROC_CALL_LOCAL" line="105">
         <statement hier="WORK.COVER1.TEST_PROC.PROC_CALL_LOCAL" data="1"/>
       </scope>
-      <scope name="_S3" line="106">
-        <statement hier="WORK.COVER1.TEST_PROC._S3" data="1"/>
+      <scope name="_S12" line="106">
+        <statement hier="WORK.COVER1.TEST_PROC._S12" data="1"/>
       </scope>
-      <scope name="_S4" line="107">
-        <statement hier="WORK.COVER1.TEST_PROC._S4" data="1"/>
+      <scope name="_S13" line="107">
+        <statement hier="WORK.COVER1.TEST_PROC._S13" data="1"/>
       </scope>
-      <scope name="_S5" line="109">
-        <statement hier="WORK.COVER1.TEST_PROC._S5" data="1"/>
+      <scope name="_S14" line="109">
+        <statement hier="WORK.COVER1.TEST_PROC._S14" data="1"/>
       </scope>
-      <scope name="_S6" line="111">
-        <statement hier="WORK.COVER1.TEST_PROC._S6" data="1"/>
+      <scope name="_S15" line="111">
+        <statement hier="WORK.COVER1.TEST_PROC._S15" data="1"/>
       </scope>
       <scope name="MY_LOCAL_PROCEDURE" line="30">
         <scope name="RPT3" line="32">
@@ -159,16 +159,16 @@
         <scope name="RPT4" line="37">
           <statement hier="WORK.COVER1.TEST_PROC.MY_LOCAL_FUNCTION.RPT4" data="2"/>
         </scope>
-        <scope name="_S0" line="38">
-          <statement hier="WORK.COVER1.TEST_PROC.MY_LOCAL_FUNCTION._S0" data="2"/>
+        <scope name="_S1" line="38">
+          <statement hier="WORK.COVER1.TEST_PROC.MY_LOCAL_FUNCTION._S1" data="2"/>
           <scope name="_B0">
             <scope name="_S0" line="39">
-              <statement hier="WORK.COVER1.TEST_PROC.MY_LOCAL_FUNCTION._S0._B0._S0" data="1"/>
+              <statement hier="WORK.COVER1.TEST_PROC.MY_LOCAL_FUNCTION._S1._B0._S0" data="1"/>
             </scope>
           </scope>
           <scope name="_B1">
             <scope name="_S0" line="41">
-              <statement hier="WORK.COVER1.TEST_PROC.MY_LOCAL_FUNCTION._S0._B1._S0" data="1"/>
+              <statement hier="WORK.COVER1.TEST_PROC.MY_LOCAL_FUNCTION._S1._B1._S0" data="1"/>
             </scope>
           </scope>
         </scope>

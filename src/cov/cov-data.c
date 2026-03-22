@@ -918,7 +918,7 @@ cover_scope_t *cover_create_block(cover_data_t *db, ident_t qual,
       parent->name = parent->hier = lib_name(lib_work());
    }
 
-   b->self = cover_create_scope(db, parent, inst);
+   b->self = cover_create_scope(db, parent, inst, tree_ident(inst));
    b->self->block = b;
    b->self->block_name = ident_rfrom(tree_ident(unit), '.');
    b->self->emit = cover_should_emit_scope(db, b->self);
@@ -947,7 +947,7 @@ cover_scope_t *cover_create_user_scope(cover_data_t *db, cover_scope_t *parent,
 }
 
 cover_scope_t *cover_create_scope(cover_data_t *db, cover_scope_t *parent,
-                                  tree_t t)
+                                  tree_t t, ident_t name)
 {
    if (db == NULL)
       return NULL;
@@ -960,58 +960,40 @@ cover_scope_t *cover_create_scope(cover_data_t *db, cover_scope_t *parent,
 
    switch (tree_kind(t)) {
    case T_BLOCK:
-      s->name = tree_ident(t);
       s->kind = CSCOPE_INSTANCE;
       break;
    case T_PROCESS:
-      s->name = tree_ident(t);
       s->kind = CSCOPE_PROCESS;
       break;
    case T_INERTIAL:
       // Process without label
-      s->name = ident_sprintf("_S%u", parent->stmt_label++);
       s->kind = CSCOPE_PROCESS;
       break;
    case T_PROC_BODY:
    case T_FUNC_BODY:
-      s->name = tree_ident(t);
       s->kind = CSCOPE_SUBPROG;
       break;
    case T_PSL_DIRECT:
-      s->name = tree_ident(t);
       s->kind = CSCOPE_PROPERTY;
       break;
    case T_PACK_INST:
    case T_PACKAGE:
    case T_PACK_BODY:
-      s->name = tree_ident(t);
       s->kind = CSCOPE_PACKAGE;
-      break;
-   case T_ALTERNATIVE:
-      if (tree_choices(t) == 1 && !tree_has_name(tree_choice(t, 0)))
-         s->name = ident_new("_B_OTHERS");
-      else
-         s->name = ident_sprintf("_B%u", parent->branch_label++);
-      break;
-   case T_COND_STMT:
-      s->name = ident_sprintf("_B%u", parent->branch_label++);
       break;
    case T_SIGNAL_DECL:
    case T_PORT_DECL:
       // For toggle coverage, remember the position where its name in
       // the hierarchy starts.
-      s->name = tree_ident(t);
       s->sig_pos = ident_len(parent->hier) + 1;
       break;
    default:
-      if (tree_has_ident(t))
-         s->name = tree_ident(t);
-      else  // Consider everything else as statement
-         s->name = ident_sprintf("_S%u", parent->stmt_label++);
+      break;
    }
 
    s->parent = parent;
    s->block  = parent->block;
+   s->name   = name;
    s->loc    = *tree_loc(t);
    s->hier   = ident_prefix(parent->hier, s->name, '.');
    s->emit   = cover_should_emit_scope(db, s);

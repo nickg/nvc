@@ -2,10 +2,10 @@
 <scope name="WORK">
   <scope name="COVER3" block_name="COVER3-TEST" file="cover3.vhd" line="9">
     <scope name="_P0" line="17">
-      <scope name="_S0" line="20">
+      <scope name="_S1" line="20">
         <scope name="_B0">
-          <branch hier="WORK.COVER3._P0._S0._B0.BIN_TRUE" data="20"/>
-          <branch hier="WORK.COVER3._P0._S0._B0.BIN_FALSE" data="1"/>
+          <branch hier="WORK.COVER3._P0._S1._B0.BIN_TRUE" data="20"/>
+          <branch hier="WORK.COVER3._P0._S1._B0.BIN_FALSE" data="1"/>
         </scope>
       </scope>
     </scope>
@@ -64,21 +64,21 @@
           <branch hier="WORK.COVER3._P3.L_CASE_1._B_OTHERS.BIN_CHOICE" data="17"/>
         </scope>
       </scope>
-      <scope name="L_CASE_1" line="78">
+      <scope name="L_CASE_2" line="78">
         <scope name="_B0" line="79">
-          <branch hier="WORK.COVER3._P3.L_CASE_1._B0.BIN_CHOICE" data="0"/>
+          <branch hier="WORK.COVER3._P3.L_CASE_2._B0.BIN_CHOICE" data="0"/>
         </scope>
         <scope name="_B1" line="80">
-          <branch hier="WORK.COVER3._P3.L_CASE_1._B1.BIN_CHOICE" data="0"/>
+          <branch hier="WORK.COVER3._P3.L_CASE_2._B1.BIN_CHOICE" data="0"/>
         </scope>
         <scope name="_B2" line="81">
-          <branch hier="WORK.COVER3._P3.L_CASE_1._B2.BIN_CHOICE" data="1"/>
+          <branch hier="WORK.COVER3._P3.L_CASE_2._B2.BIN_CHOICE" data="1"/>
         </scope>
         <scope name="_B3" line="82">
-          <branch hier="WORK.COVER3._P3.L_CASE_1._B3.BIN_CHOICE" data="1"/>
+          <branch hier="WORK.COVER3._P3.L_CASE_2._B3.BIN_CHOICE" data="1"/>
         </scope>
         <scope name="_B_OTHERS" line="83">
-          <branch hier="WORK.COVER3._P3.L_CASE_1._B_OTHERS.BIN_CHOICE" data="19"/>
+          <branch hier="WORK.COVER3._P3.L_CASE_2._B_OTHERS.BIN_CHOICE" data="19"/>
         </scope>
       </scope>
     </scope>
@@ -102,10 +102,10 @@
       </scope>
     </scope>
     <scope name="_P5" line="102">
-      <scope name="_S0" line="105">
+      <scope name="_S1" line="105">
         <scope name="_B0">
-          <branch hier="WORK.COVER3._P5._S0._B0.BIN_TRUE" data="7"/>
-          <branch hier="WORK.COVER3._P5._S0._B0.BIN_FALSE" data="1"/>
+          <branch hier="WORK.COVER3._P5._S1._B0.BIN_TRUE" data="7"/>
+          <branch hier="WORK.COVER3._P5._S1._B0.BIN_FALSE" data="1"/>
         </scope>
       </scope>
     </scope>
@@ -160,13 +160,13 @@
       <scope name="_L0" line="148">
         <branch hier="WORK.COVER3._P9._L0.BIN_TRUE" data="9"/>
         <branch hier="WORK.COVER3._P9._L0.BIN_FALSE" data="1"/>
-        <scope name="_S0" line="150">
-          <branch hier="WORK.COVER3._P9._L0._S0.BIN_TRUE" data="1"/>
-          <branch hier="WORK.COVER3._P9._L0._S0.BIN_FALSE" data="8"/>
-        </scope>
-        <scope name="_S1" line="151">
+        <scope name="_S1" line="150">
           <branch hier="WORK.COVER3._P9._L0._S1.BIN_TRUE" data="1"/>
-          <branch hier="WORK.COVER3._P9._L0._S1.BIN_FALSE" data="7"/>
+          <branch hier="WORK.COVER3._P9._L0._S1.BIN_FALSE" data="8"/>
+        </scope>
+        <scope name="_S2" line="151">
+          <branch hier="WORK.COVER3._P9._L0._S2.BIN_TRUE" data="1"/>
+          <branch hier="WORK.COVER3._P9._L0._S2.BIN_FALSE" data="7"/>
         </scope>
       </scope>
     </scope>

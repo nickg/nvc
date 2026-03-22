@@ -263,7 +263,7 @@ cover_scope_t *cover_create_block(cover_data_t *db, ident_t qual,
                                   cover_scope_t *parent, tree_t inst,
                                   tree_t unit);
 cover_scope_t *cover_create_scope(cover_data_t *db, cover_scope_t *parent,
-                                  tree_t t);
+                                  tree_t t, ident_t name);
 cover_scope_t *cover_create_user_scope(cover_data_t *db, cover_scope_t *parent,
                                        loc_t loc, ident_t name);
 cover_item_t *cover_add_items_for(cover_data_t *data, cover_scope_t *cscope,

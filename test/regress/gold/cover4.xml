@@ -2,10 +2,10 @@
 <scope name="WORK">
   <scope name="COVER4" block_name="COVER4-TEST" file="cover4.vhd" line="9">
     <scope name="_P0" line="18">
-      <scope name="_S0" line="21">
+      <scope name="_S1" line="21">
         <scope name="_B0">
-          <branch hier="WORK.COVER4._P0._S0._B0.BIN_TRUE" data="20"/>
-          <branch hier="WORK.COVER4._P0._S0._B0.BIN_FALSE" data="1"/>
+          <branch hier="WORK.COVER4._P0._S1._B0.BIN_TRUE" data="20"/>
+          <branch hier="WORK.COVER4._P0._S1._B0.BIN_FALSE" data="1"/>
         </scope>
       </scope>
     </scope>

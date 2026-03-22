@@ -75,7 +75,7 @@ begin
         end case;
 
         -- Case with some explicit branches uncovered
-        l_case_1: case (cnt) is
+        l_case_2: case (cnt) is
         when 28 => assert (False);
         when 29 => assert (False);
         when 7  => report "CASE2: CNT = 7";

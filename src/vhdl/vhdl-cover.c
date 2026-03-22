@@ -20,6 +20,7 @@
 #include "ident.h"
 #include "tree.h"
 #include "type.h"
+#include "printf.h"
 #include "vhdl/vhdl-phase.h"
 
 #include <assert.h>
@@ -30,6 +31,7 @@ typedef struct _lazy_cscope {
    lazy_cscope_t *parent;
    cover_scope_t *cscope;
    tree_t         tree;
+   int            nth;
 } lazy_cscope_t;
 
 static void vhdl_cover_stmts(tree_t t, cover_data_t *db, lazy_cscope_t *parent);
@@ -40,13 +42,14 @@ static cover_scope_t *get_cover_scope(cover_data_t *db, lazy_cscope_t *lcs)
       return lcs->cscope;
    else {
       cover_scope_t *parent = get_cover_scope(db, lcs->parent);
-      return (lcs->cscope = cover_create_scope(db, parent, lcs->tree));
+      ident_t name = vhdl_scope_name(lcs->tree, lcs->nth);
+      return (lcs->cscope = cover_create_scope(db, parent, lcs->tree, name));
    }
 }
 
-static lazy_cscope_t lazy_cover_scope(tree_t t, lazy_cscope_t *parent)
+static lazy_cscope_t lazy_cover_scope(tree_t t, lazy_cscope_t *parent, int nth)
 {
-   lazy_cscope_t lcs = { parent, NULL, t };
+   lazy_cscope_t lcs = { parent, NULL, t, nth };
    return lcs;
 }
 
@@ -158,7 +161,7 @@ static void vhdl_cover_if(tree_t t, cover_data_t *db, lazy_cscope_t *parent)
    const int nconds = tree_conds(t);
    for (int i = 0; i < nconds; i++) {
       tree_t c = tree_cond(t, i);
-      lazy_cscope_t lcs = lazy_cover_scope(c, parent);
+      lazy_cscope_t lcs = lazy_cover_scope(c, parent, i);
 
       if (tree_has_value(c)) {
          vhdl_cover_expr(tree_value(c), db, &lcs);
@@ -189,7 +192,7 @@ static void vhdl_cover_case(tree_t t, cover_data_t *db, lazy_cscope_t *parent)
    const int nstmts = tree_stmts(t);
    for (int i = 0; i < nstmts; i++) {
       tree_t alt = tree_stmt(t, i);
-      lazy_cscope_t lcs = lazy_cover_scope(alt, parent);
+      lazy_cscope_t lcs = lazy_cover_scope(alt, parent, i);
 
       if (cover_enabled(db, COVER_MASK_BRANCH)) {
          const int nchoices = tree_choices(alt);
@@ -235,7 +238,7 @@ static void vhdl_cover_stmts(tree_t t, cover_data_t *db, lazy_cscope_t *parent)
    const int nstmts = tree_stmts(t);
    for (int i = 0; i < nstmts; i++) {
       tree_t s = tree_stmt(t, i);
-      lazy_cscope_t lcs = lazy_cover_scope(s, parent);
+      lazy_cscope_t lcs = lazy_cover_scope(s, parent, i);
 
       switch (tree_kind(s)) {
       case T_IF:
@@ -271,14 +274,14 @@ static void vhdl_cover_stmts(tree_t t, cover_data_t *db, lazy_cscope_t *parent)
 static void vhdl_cover_subprogram(tree_t t, cover_data_t *db,
                                   lazy_cscope_t *parent)
 {
-   lazy_cscope_t lcs = lazy_cover_scope(t, parent);
+   lazy_cscope_t lcs = lazy_cover_scope(t, parent, 0);
    vhdl_cover_stmts(t, db, &lcs);
 }
 
 static void vhdl_cover_signal_decl(tree_t t, cover_data_t *db,
                                    lazy_cscope_t *parent)
 {
-   lazy_cscope_t lcs = lazy_cover_scope(t, parent);
+   lazy_cscope_t lcs = lazy_cover_scope(t, parent, 0);
    vhdl_cover_toggle(t, db, &lcs);
    vhdl_cover_states(t, db, &lcs);
 }
@@ -286,7 +289,7 @@ static void vhdl_cover_signal_decl(tree_t t, cover_data_t *db,
 static void vhdl_cover_port_decl(tree_t t, cover_data_t *db,
                                  lazy_cscope_t *parent)
 {
-   lazy_cscope_t lcs = lazy_cover_scope(t, parent);
+   lazy_cscope_t lcs = lazy_cover_scope(t, parent, 0);
    vhdl_cover_toggle(t, db, &lcs);
 }
 
@@ -312,7 +315,7 @@ static void vhdl_cover_decls(tree_t t, cover_data_t *db, lazy_cscope_t *parent)
 static void vhdl_cover_process(tree_t t, ident_t qual, cover_data_t *db,
                                lazy_cscope_t *parent)
 {
-   lazy_cscope_t lcs = lazy_cover_scope(t, parent);
+   lazy_cscope_t lcs = lazy_cover_scope(t, parent, 0);
    vhdl_cover_stmts(t, db, &lcs);
    vhdl_cover_decls(t, db, &lcs);
 }
@@ -361,5 +364,40 @@ void vhdl_cover_block(tree_t block, cover_data_t *db, cover_scope_t *cs)
       default:
          break;
       }
+   }
+}
+
+ident_t vhdl_scope_name(tree_t t, int nth)
+{
+   switch (tree_kind(t)) {
+   case T_BLOCK:
+   case T_PROCESS:
+   case T_PROC_BODY:
+   case T_FUNC_BODY:
+   case T_PSL_DIRECT:
+   case T_PACK_INST:
+   case T_PACKAGE:
+   case T_PACK_BODY:
+   case T_SIGNAL_DECL:
+   case T_PORT_DECL:
+      return tree_ident(t);
+   case T_INERTIAL:
+      // Process without label
+      return ident_sprintf("_S%u", nth);
+   case T_ALTERNATIVE:
+      if (tree_choices(t) == 1) {
+         tree_t c0 = tree_choice(t, 0);
+         if (tree_ranges(c0) == 0 && !tree_has_name(c0))
+            return ident_new("_B_OTHERS");
+      }
+      return ident_sprintf("_B%u", nth);
+   case T_COND_STMT:
+      return ident_sprintf("_B%u", nth);
+   default:
+      // Consider everything else as statement
+      if (tree_has_ident(t))
+         return tree_ident(t);
+      else
+         return ident_sprintf("_S%u", nth);
    }
 }
