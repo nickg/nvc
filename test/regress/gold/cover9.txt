@@ -93,31 +93,31 @@
     |
  35 | exclude WORK.COVER9.P0._S0._E0.BIN_1_1
     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-** Note: excluding expression: 'WORK.COVER9.AND_GATE._S0._B0._E0.BIN_TRUE'
+** Note: excluding expression: 'WORK.COVER9.AND_GATE._S0._B0._E0.BIN_0_1'
+    > data/cover9_ef1.txt:37
+    |
+ 37 | exclude WORK.COVER9.AND_GATE._S0._B0._E0.*
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding expression: 'WORK.COVER9.AND_GATE._S0._B0._E0.BIN_1_0'
+    > data/cover9_ef1.txt:37
+    |
+ 37 | exclude WORK.COVER9.AND_GATE._S0._B0._E0.*
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding expression: 'WORK.COVER9.AND_GATE._S0._B0._E0.BIN_1_1'
+    > data/cover9_ef1.txt:37
+    |
+ 37 | exclude WORK.COVER9.AND_GATE._S0._B0._E0.*
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding expression: 'WORK.COVER9.AND_GATE._S0._B0._E1.BIN_TRUE'
     > data/cover9_ef1.txt:39
     |
- 39 | exclude WORK.COVER9.AND_GATE._S0._B0._E0.BIN_TRUE
+ 39 | exclude WORK.COVER9.AND_GATE._S0._B0._E1.BIN_TRUE
     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-** Note: excluding expression: 'WORK.COVER9.AND_GATE._S0._B0._E1.BIN_TRUE'
+** Note: excluding expression: 'WORK.COVER9.AND_GATE._S0._B0._E2.BIN_TRUE'
     > data/cover9_ef1.txt:40
     |
- 40 | exclude WORK.COVER9.AND_GATE._S0._B0._E1.BIN_TRUE
+ 40 | exclude WORK.COVER9.AND_GATE._S0._B0._E2.BIN_TRUE
     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-** Note: excluding expression: 'WORK.COVER9.AND_GATE._S0._B0._E2.BIN_0_1'
-    > data/cover9_ef1.txt:37
-    |
- 37 | exclude WORK.COVER9.AND_GATE._S0._B0._E2.*
-    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-** Note: excluding expression: 'WORK.COVER9.AND_GATE._S0._B0._E2.BIN_1_0'
-    > data/cover9_ef1.txt:37
-    |
- 37 | exclude WORK.COVER9.AND_GATE._S0._B0._E2.*
-    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-** Note: excluding expression: 'WORK.COVER9.AND_GATE._S0._B0._E2.BIN_1_1'
-    > data/cover9_ef1.txt:37
-    |
- 37 | exclude WORK.COVER9.AND_GATE._S0._B0._E2.*
-    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 ** Note: excluding branch: 'WORK.COVER9.AND_GATE._S0._B0.BIN_TRUE'
     > data/cover9_ef1.txt:20
     |
@@ -248,12 +248,17 @@
    |
  5 | exclude WORK.COVER9.SUB_BLOCK_INST.*
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-** Warning: expression: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0._B0._E0.BIN_FALSE' is already covered, it will be reported as covered.
+** Warning: expression: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0._B0._E0.BIN_0_1' is already covered, it will be reported as covered.
    > data/cover9_ef1.txt:5
    |
  5 | exclude WORK.COVER9.SUB_BLOCK_INST.*
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-** Warning: expression: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0._B0._E0.BIN_TRUE' is already covered, it will be reported as covered.
+** Warning: expression: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0._B0._E0.BIN_1_0' is already covered, it will be reported as covered.
+   > data/cover9_ef1.txt:5
+   |
+ 5 | exclude WORK.COVER9.SUB_BLOCK_INST.*
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+** Note: excluding expression: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0._B0._E0.BIN_1_1'
    > data/cover9_ef1.txt:5
    |
  5 | exclude WORK.COVER9.SUB_BLOCK_INST.*
@@ -268,17 +273,12 @@
    |
  5 | exclude WORK.COVER9.SUB_BLOCK_INST.*
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-** Warning: expression: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0._B0._E2.BIN_0_1' is already covered, it will be reported as covered.
+** Warning: expression: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0._B0._E2.BIN_FALSE' is already covered, it will be reported as covered.
    > data/cover9_ef1.txt:5
    |
  5 | exclude WORK.COVER9.SUB_BLOCK_INST.*
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-** Warning: expression: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0._B0._E2.BIN_1_0' is already covered, it will be reported as covered.
-   > data/cover9_ef1.txt:5
-   |
- 5 | exclude WORK.COVER9.SUB_BLOCK_INST.*
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-** Note: excluding expression: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0._B0._E2.BIN_1_1'
+** Warning: expression: 'WORK.COVER9.SUB_BLOCK_INST.AND_GATE._S0._B0._E2.BIN_TRUE' is already covered, it will be reported as covered.
    > data/cover9_ef1.txt:5
    |
  5 | exclude WORK.COVER9.SUB_BLOCK_INST.*

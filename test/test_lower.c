@@ -2016,7 +2016,7 @@ START_TEST(test_cover)
    CHECK_BB(1);
 
    EXPECT_BB(3) = {
-      { VCODE_OP_COVER_EXPR, .tag = 2 },
+      { VCODE_OP_COVER_EXPR, .tag = 5 },
       { VCODE_OP_JUMP, .target = 2 }
    };
 
@@ -2038,7 +2038,7 @@ START_TEST(test_cover)
    CHECK_BB(4);
 
    EXPECT_BB(5) = {
-      { VCODE_OP_COVER_EXPR, .tag = 3 },
+      { VCODE_OP_COVER_EXPR, .tag = 6 },
       { VCODE_OP_JUMP, .target = 4 }
    };
 
@@ -2051,7 +2051,7 @@ START_TEST(test_cover)
    CHECK_BB(6);
 
    EXPECT_BB(7) = {
-      { VCODE_OP_COVER_EXPR, .tag = 4 },
+      { VCODE_OP_COVER_EXPR, .tag = 7 },
       { VCODE_OP_JUMP, .target = 6 }
    };
 
@@ -2071,7 +2071,7 @@ START_TEST(test_cover)
    CHECK_BB(8);
 
    EXPECT_BB(9) = {
-      { VCODE_OP_COVER_EXPR, .tag = 5 },
+      { VCODE_OP_COVER_EXPR, .tag = 8 },
       { VCODE_OP_JUMP, .target = 8 }
    };
 
@@ -2085,7 +2085,7 @@ START_TEST(test_cover)
    CHECK_BB(10);
 
    EXPECT_BB(11) = {
-      { VCODE_OP_COVER_EXPR, .tag = 6 },
+      { VCODE_OP_COVER_EXPR, .tag = 2 },
       { VCODE_OP_JUMP, .target = 10 }
    };
 
@@ -2099,7 +2099,7 @@ START_TEST(test_cover)
    CHECK_BB(12);
 
    EXPECT_BB(13) = {
-      { VCODE_OP_COVER_EXPR, .tag = 7 },
+      { VCODE_OP_COVER_EXPR, .tag = 3 },
       { VCODE_OP_JUMP, .target = 12 }
    };
 
@@ -2112,7 +2112,7 @@ START_TEST(test_cover)
    CHECK_BB(14);
 
    EXPECT_BB(15) = {
-      { VCODE_OP_COVER_EXPR, .tag = 8 },
+      { VCODE_OP_COVER_EXPR, .tag = 4 },
       { VCODE_OP_JUMP, .target = 14 }
    };
 

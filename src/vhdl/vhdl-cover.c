@@ -109,15 +109,15 @@ static void vhdl_cover_expr(tree_t t, cover_data_t *db, lazy_cscope_t *parent)
       return;
    }
 
-   const int nparams = tree_params(t);
-   for (int i = 0; i < nparams; i++)
-      vhdl_cover_expr(tree_value(tree_param(t, i)), db, parent);
-
    object_t *obj = tree_to_object(t);
    cover_scope_t *cs = get_cover_scope(db, parent);
    cover_item_t *item = cover_add_items_for(db, cs, obj, COV_ITEM_EXPRESSION);
    if (item != NULL)
       cover_map_item(cs, obj, item);
+
+   const int nparams = tree_params(t);
+   for (int i = 0; i < nparams; i++)
+      vhdl_cover_expr(tree_value(tree_param(t, i)), db, parent);
 }
 
 static void vhdl_cover_states(tree_t t, cover_data_t *db,
