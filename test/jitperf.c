@@ -34,6 +34,7 @@
 #include "thread.h"
 
 #include <assert.h>
+#include <libgen.h>
 #include <errno.h>
 #include <math.h>
 #include <getopt.h>
@@ -263,7 +264,7 @@ static result_t run_benchmark(tree_t pack, tree_t proc, unit_registry_t *ur,
 
    return (result_t){
       .name    = tree_ident(proc),
-      .file    = xstrdup(basename(file)),
+      .file    = xstrdup(basename((char *)file)),
       .ops_sec = mean(ops_sec + 1, ITERATIONS),
       .usec_op = mean(usec_op + 1, ITERATIONS),
    };

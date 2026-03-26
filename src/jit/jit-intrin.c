@@ -201,12 +201,12 @@ static const uint32_t spread_nibble[16] = {
    0x02020303, 0x03020303, 0x02030303, 0x03030303,
 };
 
+#ifdef HAVE_SSE41
 __attribute__((aligned(16)))
 static const uint8_t reverse_lane[16] = {
    15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0
 };
 
-#ifdef HAVE_SSE41
 __attribute__((aligned(16)))
 static const uint8_t spread_shuffle[16] = {
    1, 1, 1, 1, 1, 1, 1, 1,
