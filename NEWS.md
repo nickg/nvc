@@ -3,6 +3,8 @@
   VHPI extensions.
 - Added a `vhpiRandomSeedP` property for `vhpiToolK` which returns the
   random seed for the simulation.
+- VHPI now returns the correct bounds for arrays-of-records where the
+  record has an unconstrained element (#1463).
 - Several other minor bugs were resolved (#1453, #1460).
 
 ## Version 1.19.3 - 2026-03-08

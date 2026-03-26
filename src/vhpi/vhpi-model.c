@@ -984,6 +984,11 @@ static void handle_pp_r(vhpiHandleT handle, text_buf_t *tb)
       if (r != NULL)
          tb_printf(tb, " IsNull=%d IsUp=%d IsUnconstrained=%d",
                    r->IsNull, r->IsUp, r->IsUnconstrained);
+
+      c_intRange *ir = is_intRange(obj);
+      if (ir != NULL)
+         tb_printf(tb, " LeftBound=%"PRIi64" RightBound=%"PRIi64,
+                   ir->LeftBound, ir->RightBound);
    }
 
    tb_append(tb, '}');
@@ -1311,13 +1316,13 @@ static void init_indexedName(c_indexedName *in, c_typeDecl *Type,
       assert(ir != NULL);
 
       int idx;
-      if (ir->LeftBound > ir->RightBound) {
-         idx = ir->LeftBound - indices[i];
-         BaseIndex *= ir->LeftBound - ir->RightBound + 1;
-      }
-      else {
+      if (ir->range.IsUp) {
          idx = indices[i] - ir->LeftBound;
          BaseIndex *= ir->RightBound - ir->LeftBound + 1;
+      }
+      else {
+         idx = ir->LeftBound - indices[i];
+         BaseIndex *= ir->LeftBound - ir->RightBound + 1;
       }
 
       BaseIndex += indices[i];
@@ -1859,6 +1864,10 @@ static const jit_layout_t *vhpi_get_layout(c_vhpiObject *obj)
    if (expr != NULL)
       type = expr->Type->type;
 
+   c_elemDecl *ed = is_elemDecl(obj);
+   if (ed != NULL)
+      type = ed->Type->type;
+
    if (type == NULL)
       return NULL;
 
@@ -1953,8 +1962,15 @@ static void vhpi_get_uarray(c_vhpiObject *obj, void **ptr, ffi_dim_t **dims)
       switch (vhpi_get_prefix_kind(obj)) {
       case vhpiSigDeclK:
       case vhpiPortDeclK:
-         // Signals have extra word for offset
-         *dims = base + 2*sizeof(int64_t);
+         {
+            c_abstractDecl *ad = is_abstractDecl(obj);
+            if (ad == NULL || type_is_homogeneous(ad->type)) {
+               // Non-record signals have extra word for offset
+               *dims = base + 2*sizeof(int64_t);
+            }
+            else
+               *dims = base + sizeof(int64_t);
+         }
          break;
       default:
          *dims = base + sizeof(int64_t);

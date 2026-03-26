@@ -1277,3 +1277,4 @@ issue1453       normal,2008
 ivtest23        verilog
 issue1459       verilog
 issue1460       normal,2019
+issue1463       vhpi,2008
