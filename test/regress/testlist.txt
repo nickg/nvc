@@ -1455,3 +1455,4 @@ issue1627       normal
 issue1625       verilog
 vlog47          verilog
 issue1629       tcl,2008
+issue1465       shell

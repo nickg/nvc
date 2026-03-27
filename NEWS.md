@@ -1,5 +1,8 @@
 ## Unreleased changes
 - Added basic support for System Verilog assignment pattern expressions.
+- Generics of an array type other than a character array can now be
+  overridden on the command line with an aggregate value, for example
+  `-gVALUES='(1, 2, 3)'` (#1465).
 
 ## Version 1.22.1 - 2026-08-01
 - Waveform dumping now dumps multiple top units instead of only the first

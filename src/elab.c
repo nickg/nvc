@@ -1068,14 +1068,152 @@ static void elab_ports(tree_t entity, tree_t bind, const elab_ctx_t *ctx)
    }
 }
 
-static tree_t elab_parse_generic_string(tree_t generic, const char *str)
+static const char *elab_skip_spaces(const char *s)
 {
-   type_t type = tree_type(generic);
+   while (isspace_iso88591(*s))
+      s++;
+   return s;
+}
+
+static char *elab_trim_string(const char *start, size_t len)
+{
+   while (len > 0 && isspace_iso88591(start[len - 1]))
+      len--;
+
+   while (len > 0 && isspace_iso88591(*start)) {
+      start++;
+      len--;
+   }
+
+   return xstrndup(start, len);
+}
+
+__attribute__((noreturn))
+static void elab_generic_parse_failed(tree_t generic, type_t type,
+                                      const char *str)
+{
+   fatal("failed to parse \"%s\" as type %s for generic %s",
+         str, type_pp(type), istr(tree_ident(generic)));
+}
+
+__attribute__((noreturn))
+static void elab_generic_cannot_override(tree_t generic, type_t type)
+{
+   fatal("cannot override generic %s of type %s", istr(tree_ident(generic)),
+         type_pp(type));
+}
+
+static void elab_check_generic_length(tree_t generic, type_t type, int count)
+{
+   // The bounds of an unconstrained generic are taken from the value but
+   // otherwise the number of elements must match exactly
+
+   int64_t length;
+   if (type_is_unconstrained(type))
+      return;
+   else if (!folded_length(range_of(type, 0), &length))
+      return;   // Checked later when the bounds are known
+   else if (length != count)
+      fatal("expected %"PRIi64" elements for generic %s of type %s but have %d",
+            length, istr(tree_ident(generic)), type_pp(type), count);
+}
+
+// Find the end of one aggregate element: the first comma or closing
+// parenthesis that is not nested within a sub-aggregate or a literal
+static const char *elab_scan_generic_element(const char *s)
+{
+   for (int depth = 0; *s != '\0'; s++) {
+      switch (*s) {
+      case '\'':
+      case '"':
+         {
+            const char quote = *s;
+            while (*++s != '\0' && *s != quote)
+               ;
+            if (*s == '\0')
+               return s;
+         }
+         break;
+      case '(':
+         depth++;
+         break;
+      case ')':
+         if (depth == 0)
+            return s;
+         depth--;
+         break;
+      case ',':
+         if (depth == 0)
+            return s;
+         break;
+      }
+   }
+
+   return s;
+}
+
+static tree_t elab_parse_generic_value(tree_t generic, type_t type,
+                                       const char *str);
+
+static tree_t elab_parse_generic_array(tree_t generic, type_t type,
+                                       const char *str)
+{
+   type_t elem = type_elem(type);
+
+   if (dimension_of(type) > 1 || type_is_unconstrained(elem))
+      elab_generic_cannot_override(generic, type);
+
+   const char *cursor = elab_skip_spaces(str);
+   if (*cursor != '(')
+      elab_generic_parse_failed(generic, type, str);
+   else
+      cursor++;
+
+   tree_t agg = tree_new(T_AGGREGATE);
+   tree_set_loc(agg, tree_loc(generic));
+   tree_set_type(agg, type);
+
+   for (int pos = 0; ; pos++) {
+      const char *end = elab_scan_generic_element(cursor);
+
+      char *value LOCAL = elab_trim_string(cursor, end - cursor);
+      if (*value == '\0')
+         elab_generic_parse_failed(generic, type, str);
+
+      tree_t assoc = tree_new(T_ASSOC);
+      tree_set_subkind(assoc, A_POS);
+      tree_set_pos(assoc, pos);
+      tree_set_loc(assoc, tree_loc(generic));
+      tree_set_value(assoc, elab_parse_generic_value(generic, elem, value));
+
+      tree_add_assoc(agg, assoc);
+
+      cursor = end;
+      if (*cursor != ',')
+         break;
+      else
+         cursor++;
+   }
+
+   if (*cursor != ')')
+      elab_generic_parse_failed(generic, type, str);
+   else if (*elab_skip_spaces(cursor + 1) != '\0')
+      elab_generic_parse_failed(generic, type, str);
+
+   elab_check_generic_length(generic, type, tree_assocs(agg));
+
+   return agg;
+}
+
+static tree_t elab_parse_generic_value(tree_t generic, type_t type,
+                                       const char *str)
+{
+   if (type_is_array(type) && !type_is_character_array(type))
+      return elab_parse_generic_array(generic, type, str);
 
    parsed_value_t value;
    if (!parse_value(type, str, &value))
-      fatal("failed to parse \"%s\" as type %s for generic %s",
-            str, type_pp(type), istr(tree_ident(generic)));
+      elab_generic_parse_failed(generic, type, str);
 
    if (type_is_enum(type)) {
       type_t base = type_base_recur(type);
@@ -1118,6 +1256,8 @@ static tree_t elab_parse_generic_string(tree_t generic, const char *str)
       return result;
    }
    else if (type_is_character_array(type)) {
+      elab_check_generic_length(generic, type, value.enums->count);
+
       tree_t t = tree_new(T_STRING);
       tree_set_loc(t, tree_loc(generic));
 
@@ -1135,9 +1275,13 @@ static tree_t elab_parse_generic_string(tree_t generic, const char *str)
       tree_set_type(t, subtype_for_string(t, type));
       return t;
    }
-   else
-      fatal("cannot override generic %s of type %s", istr(tree_ident(generic)),
-            type_pp(type));
+
+   elab_generic_cannot_override(generic, type);
+}
+
+static tree_t elab_parse_generic_string(tree_t generic, const char *str)
+{
+   return elab_parse_generic_value(generic, tree_type(generic), str);
 }
 
 static tree_t elab_find_generic_override(tree_t g, const elab_ctx_t *ctx)
