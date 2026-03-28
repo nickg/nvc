@@ -49,8 +49,7 @@ DECLARE_AND_DEFINE_ARRAY(vcode_type);
 #define OP_HAS_FUNC(x)                                                  \
    (x == VCODE_OP_FCALL || x == VCODE_OP_PCALL || x == VCODE_OP_RESUME  \
     || x == VCODE_OP_CLOSURE || x == VCODE_OP_PROTECTED_INIT            \
-    || x == VCODE_OP_PACKAGE_INIT || x == VCODE_OP_PROCESS_INIT \
-    || x == VCODE_OP_FUNCTION_TRIGGER)
+    || x == VCODE_OP_PACKAGE_INIT || x == VCODE_OP_FUNCTION_TRIGGER)
 #define OP_HAS_IDENT(x)                                                 \
    (x == VCODE_OP_LINK_VAR || x == VCODE_OP_LINK_PACKAGE                \
     || x == VCODE_OP_DEBUG_LOCUS || x == VCODE_OP_BIND_EXTERNAL         \
@@ -1572,9 +1571,10 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
 
          case VCODE_OP_PROCESS_INIT:
             {
-               nvc_printf("%s $magenta$%s$$ locus ",
-                            vcode_op_string(op->kind), istr(op->func));
+               printf("%s ", vcode_op_string(op->kind));
                vcode_dump_reg(op->args.items[0]);
+               printf(" locus ");
+               vcode_dump_reg(op->args.items[1]);
             }
             break;
 
@@ -5192,12 +5192,14 @@ vcode_reg_t emit_protected_init(vcode_type_t type, vcode_reg_t context,
    return (op->result = vcode_add_reg(type, VCODE_INVALID_STAMP));
 }
 
-void emit_process_init(ident_t name, vcode_reg_t locus)
+void emit_process_init(vcode_reg_t closure, vcode_reg_t locus)
 {
    op_t *op = vcode_add_op(VCODE_OP_PROCESS_INIT);
+   vcode_add_arg(op, closure);
    vcode_add_arg(op, locus);
-   op->func = name;
 
+   VCODE_ASSERT(vcode_reg_kind(closure) == VCODE_TYPE_CLOSURE,
+                "closure argument to process init must be a closure");
    VCODE_ASSERT(vcode_reg_kind(locus) == VCODE_TYPE_DEBUG_LOCUS,
                 "locus argument to process init must be a debug locus");
 }

@@ -721,7 +721,8 @@ void mir_build_cover_state(mir_unit_t *mu, mir_value_t signal, mir_value_t low,
 // Initialisation
 mir_value_t mir_build_package_init(mir_unit_t *mu, ident_t name,
                                    mir_value_t context);
-void mir_build_process_init(mir_unit_t *mu, ident_t name, mir_value_t locus);
+void mir_build_process_init(mir_unit_t *mu, mir_value_t closure,
+                            mir_value_t locus);
 mir_value_t mir_build_protected_init(mir_unit_t *mu, mir_type_t type,
                                      mir_value_t context, mir_value_t path_name,
                                      mir_value_t inst_name);

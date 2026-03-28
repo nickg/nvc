@@ -114,7 +114,8 @@ static uint32_t mir_hash_type(mir_unit_t *mu, const type_data_t *td)
       break;
 
    case MIR_TYPE_CLOSURE:
-      h ^= mir_type_data(mu, td->u.closure.rtype)->hash;
+      if (!mir_is_null(td->u.closure.rtype))
+         h ^= mir_type_data(mu, td->u.closure.rtype)->hash;
       break;
 
    case MIR_TYPE_RESOLUTION:

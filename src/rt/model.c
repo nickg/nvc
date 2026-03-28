@@ -5107,26 +5107,29 @@ void x_resolve_signal(sig_shared_t *ss, ffi_closure_t *closure, int32_t nlits,
    }
 }
 
-void x_process_init(jit_handle_t handle, tree_t where)
+void x_process_init(const ffi_closure_t *closure, tree_t where)
 {
    rt_model_t *m = get_model();
-   ident_t name = jit_get_name(m->jit, handle);
 
-   TRACE("init process %s", istr(name));
+   TRACE("init process %pi", jit_get_name(m->jit, closure->handle));
 
    rt_scope_t *s = model_thread(m)->active_scope;
    assert(s != NULL);
    assert(s->kind == SCOPE_INSTANCE);
 
+   LOCAL_TEXT_BUF tb = tb_new();
+   get_path_name(s, tb);
+
+   ident_t path = ident_new(tb_get(tb));
+
    rt_proc_t *p = xcalloc(sizeof(rt_proc_t));
    p->where     = where;
-   p->name      = name;
+   p->name      = ident_prefix(path, ident_downcase(tree_ident(where)), ':');
    p->scope     = s;
    p->privdata  = mptr_new(m->mspace, "process privdata");
 
-   p->closure.handle = handle;
-   p->closure.nargs  = 1;
-   p->closure.args[0].pointer = NULL;
+   assert(closure->nargs == 1);
+   ffi_copy_closure(&p->closure, closure);
 
    p->wakeable.kind      = W_PROC;
    p->wakeable.pending   = false;

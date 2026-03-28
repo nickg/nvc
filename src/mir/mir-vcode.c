@@ -1158,10 +1158,10 @@ static void import_exponent_check(mir_unit_t *mu, mir_import_t *imp, int op)
 
 static void import_process_init(mir_unit_t *mu, mir_import_t *imp, int op)
 {
-   ident_t name = vcode_get_func(op);
-   mir_value_t locus = imp->map[vcode_get_arg(op, 0)];
+   mir_value_t closure = imp->map[vcode_get_arg(op, 0)];
+   mir_value_t locus = imp->map[vcode_get_arg(op, 1)];
 
-   mir_build_process_init(mu, name, locus);
+   mir_build_process_init(mu, closure, locus);
 }
 
 static void import_cover_stmt(mir_unit_t *mu, mir_import_t *imp, int op)

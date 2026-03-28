@@ -2706,10 +2706,10 @@ static void irgen_op_reflect_subtype(jit_irgen_t *g, mir_value_t n)
 
 static void irgen_op_process_init(jit_irgen_t *g, mir_value_t n)
 {
-   jit_handle_t handle = irgen_get_handle(g, n, 0);
+   jit_value_t closure = irgen_get_arg(g, n, 0);
    jit_value_t locus = irgen_get_arg(g, n, 1);
 
-   j_send(g, 0, jit_value_from_handle(handle));
+   j_send(g, 0, closure);
    j_send(g, 1, locus);
    macro_exit(g, JIT_EXIT_PROCESS_INIT);
 }

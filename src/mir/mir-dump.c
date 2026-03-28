@@ -339,7 +339,8 @@ static void mir_dump_one_type(mir_unit_t *mu, mir_type_t type)
 
    case MIR_TYPE_CLOSURE:
       printf("C<");
-      mir_dump_one_type(mu, td->u.closure.rtype);
+      if (!mir_is_null(td->u.closure.rtype))
+         mir_dump_one_type(mu, td->u.closure.rtype);
       printf(">");
       break;
 

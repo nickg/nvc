@@ -2949,12 +2949,14 @@ mir_value_t mir_build_package_init(mir_unit_t *mu, ident_t name,
    return result;
 }
 
-void mir_build_process_init(mir_unit_t *mu, ident_t name, mir_value_t locus)
+void mir_build_process_init(mir_unit_t *mu, mir_value_t closure,
+                            mir_value_t locus)
 {
-   mir_value_t link = mir_add_linkage(mu, name);
    mir_build_2(mu, MIR_OP_PROCESS_INIT, MIR_NULL_TYPE, MIR_NULL_STAMP,
-               link, locus);
+               closure, locus);
 
+   MIR_ASSERT(mir_is(mu, closure, MIR_TYPE_CLOSURE),
+              "closure argument to process init must be a closure");
    MIR_ASSERT(mir_is(mu, locus, MIR_TYPE_LOCUS),
               "locus argument to process init must be a debug locus");
 }

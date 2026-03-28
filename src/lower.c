@@ -8543,7 +8543,11 @@ static void lower_implicit_decl(lower_unit_t *parent, tree_t decl)
          unit_registry_defer(parent->registry, name, parent, emit_process,
                              lower_implicit_delayed, NULL, obj);
 
-         emit_process_init(name, lower_debug_locus(decl));
+         vcode_reg_t vdummy = vtype_opaque();
+         vcode_reg_t context_reg = emit_context_upref(0);
+         vcode_reg_t closure_reg = emit_closure(name, context_reg, vdummy);
+
+         emit_process_init(closure_reg, lower_debug_locus(decl));
       }
       break;
 
@@ -11414,7 +11418,11 @@ static void lower_inertial_actual(lower_unit_t *parent, tree_t dst, tree_t map)
                        lower_inertial_actual_process, parent->cover,
                        tree_to_object(map));
 
-   emit_process_init(qual, lower_debug_locus(inertial));
+   vcode_reg_t vdummy = vtype_opaque();
+   vcode_reg_t context_reg = emit_context_upref(0);
+   vcode_reg_t closure_reg = emit_closure(qual, context_reg, vdummy);
+
+   emit_process_init(closure_reg, lower_debug_locus(inertial));
 }
 
 static tree_t lower_get_view(tree_t name, port_mode_t *mode, bool *converse)

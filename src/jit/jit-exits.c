@@ -839,10 +839,10 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
 
    case JIT_EXIT_PROCESS_INIT:
       {
-         jit_handle_t handle = args[0].integer;
-         tree_t       where  = args[1].pointer;
+         ffi_closure_t *closure = args[0].pointer;
+         tree_t         where   = args[1].pointer;
 
-         x_process_init(handle, where);
+         x_process_init(closure, where);
       }
       break;
 
