@@ -1051,7 +1051,7 @@ const char *vcode_op_string(vcode_op_t op)
       "or trigger", "cmp trigger", "instance name",
       "map implicit", "bind external", "array scope", "record scope",
       "put conversion", "dir check", "sched process", "table ref",
-      "get counters",
+      "get counters", "put driver", "deposit signal",
    };
    if ((unsigned)op >= ARRAY_LEN(strs))
       return "???";
@@ -1335,7 +1335,8 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
    if (vu->kind == VCODE_UNIT_FUNCTION
        || vu->kind == VCODE_UNIT_PROCEDURE
        || vu->kind == VCODE_UNIT_PROPERTY
-       || (vu->kind == VCODE_UNIT_PROTECTED && vu->params.count > 0)) {
+       || (vu->kind == VCODE_UNIT_PROTECTED && vu->params.count > 0)
+       || (vu->kind == VCODE_UNIT_PROCESS && vu->params.count > 0)) {
 
       printf("Parameters %d\n", vu->params.count);
 
@@ -1835,6 +1836,8 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
 
          case VCODE_OP_FORCE:
          case VCODE_OP_RELEASE:
+         case VCODE_OP_PUT_DRIVER:
+         case VCODE_OP_DEPOSIT_SIGNAL:
             {
                printf("%s ", vcode_op_string(op->kind));
                vcode_dump_reg(op->args.items[0]);
@@ -3100,7 +3103,8 @@ int vcode_count_params(void)
    assert(active_unit->kind == VCODE_UNIT_FUNCTION
           || active_unit->kind == VCODE_UNIT_PROCEDURE
           || active_unit->kind == VCODE_UNIT_PROPERTY
-          || active_unit->kind == VCODE_UNIT_PROTECTED);
+          || active_unit->kind == VCODE_UNIT_PROTECTED
+          || active_unit->kind == VCODE_UNIT_PROCESS);
 
    return active_unit->params.count;
 }
@@ -3111,7 +3115,8 @@ vcode_type_t vcode_param_type(int param)
    assert(active_unit->kind == VCODE_UNIT_FUNCTION
           || active_unit->kind == VCODE_UNIT_PROCEDURE
           || active_unit->kind == VCODE_UNIT_PROPERTY
-          || active_unit->kind == VCODE_UNIT_PROTECTED);
+          || active_unit->kind == VCODE_UNIT_PROTECTED
+          || active_unit->kind == VCODE_UNIT_PROCESS);
    assert(param < active_unit->params.count);
 
    return active_unit->params.items[param].type;
@@ -3123,7 +3128,8 @@ ident_t vcode_param_name(int param)
    assert(active_unit->kind == VCODE_UNIT_FUNCTION
           || active_unit->kind == VCODE_UNIT_PROCEDURE
           || active_unit->kind == VCODE_UNIT_PROPERTY
-          || active_unit->kind == VCODE_UNIT_PROTECTED);
+          || active_unit->kind == VCODE_UNIT_PROTECTED
+          || active_unit->kind == VCODE_UNIT_PROCESS);
    assert(param < active_unit->params.count);
 
    return active_unit->params.items[param].name;
@@ -3135,7 +3141,8 @@ vcode_reg_t vcode_param_reg(int param)
    assert(active_unit->kind == VCODE_UNIT_FUNCTION
           || active_unit->kind == VCODE_UNIT_PROCEDURE
           || active_unit->kind == VCODE_UNIT_PROPERTY
-          || active_unit->kind == VCODE_UNIT_PROTECTED);
+          || active_unit->kind == VCODE_UNIT_PROTECTED
+          || active_unit->kind == VCODE_UNIT_PROCESS);
    assert(param < active_unit->params.count);
 
    return active_unit->params.items[param].reg;
@@ -5124,19 +5131,25 @@ vcode_reg_t emit_resolution_wrapper(vcode_type_t type, vcode_reg_t closure,
                                       VCODE_INVALID_STAMP));
 }
 
-vcode_reg_t emit_closure(ident_t func, vcode_reg_t context, vcode_type_t rtype)
+vcode_reg_t emit_closure(ident_t func, vcode_type_t rtype,
+                         const vcode_reg_t *args, int nargs)
 {
    VCODE_FOR_EACH_MATCHING_OP(other, VCODE_OP_CLOSURE) {
-      if (other->func == func && other->args.items[0] == context)
+      if (other->func != func || other->args.count != nargs)
+         continue;
+
+      bool match = true;
+      for (int i = 0; i < nargs; i++)
+         match &= other->args.items[i] == args[i];
+
+      if (match)
          return other->result;
    }
 
    op_t *op = vcode_add_op(VCODE_OP_CLOSURE);
-   vcode_add_arg(op, context);
    op->func = func;
-
-   VCODE_ASSERT(vcode_reg_kind(context) == VCODE_TYPE_CONTEXT,
-                "invalid closure context argument");
+   for (int i = 0; i < nargs; i++)
+      vcode_add_arg(op, args[i]);
 
    return (op->result = vcode_add_reg(vtype_closure(rtype),
                                       VCODE_INVALID_STAMP));
@@ -6294,6 +6307,37 @@ void emit_convert_out(vcode_reg_t conv, vcode_reg_t nets, vcode_reg_t count)
                 "nets argument to convert must be a signal");
    VCODE_ASSERT(vcode_reg_kind(count) == VCODE_TYPE_OFFSET,
                 "count argument to convert must be offset");
+}
+
+void emit_put_driver(vcode_reg_t target, vcode_reg_t count, vcode_reg_t values)
+{
+   op_t *op = vcode_add_op(VCODE_OP_PUT_DRIVER);
+   vcode_add_arg(op, target);
+   vcode_add_arg(op, count);
+   vcode_add_arg(op, values);
+
+   VCODE_ASSERT(vcode_reg_kind(target) == VCODE_TYPE_SIGNAL,
+                "put driver target is not signal");
+   VCODE_ASSERT(vcode_reg_kind(count) == VCODE_TYPE_OFFSET,
+                "put driver count is not offset type");
+   VCODE_ASSERT(vcode_reg_kind(values) != VCODE_TYPE_SIGNAL,
+                "signal cannot be values argument for put driver");
+}
+
+void emit_deposit_signal(vcode_reg_t target, vcode_reg_t count,
+                         vcode_reg_t values)
+{
+   op_t *op = vcode_add_op(VCODE_OP_DEPOSIT_SIGNAL);
+   vcode_add_arg(op, target);
+   vcode_add_arg(op, count);
+   vcode_add_arg(op, values);
+
+   VCODE_ASSERT(vcode_reg_kind(target) == VCODE_TYPE_SIGNAL,
+                "deposit signal target is not signal");
+   VCODE_ASSERT(vcode_reg_kind(count) == VCODE_TYPE_OFFSET,
+                "deposit signal count is not offset type");
+   VCODE_ASSERT(vcode_reg_kind(values) != VCODE_TYPE_SIGNAL,
+                "signal cannot be values argument for deposit signal");
 }
 
 void emit_bind_foreign(vcode_reg_t spec, vcode_reg_t length, vcode_reg_t locus)

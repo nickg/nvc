@@ -129,6 +129,7 @@ typedef struct _rt_model {
    deferq_t           inactiveq;
    deferq_t           next_inactiveq;
    deferq_t           nonblockq;
+   deferq_t           reschedq;
    heap_t            *driving_heap;
    heap_t            *effective_heap;
    rt_callback_t     *phase_cbs[END_OF_SIMULATION + 1];
@@ -406,25 +407,41 @@ static void deferq_shuffle(deferq_t *dq)
    }
 }
 
+static void deferq_swap(deferq_t *a, deferq_t *b)
+{
+   deferq_t tmp = *a;
+   *a = *b;
+   *b = tmp;
+}
+
 static void deferq_run(rt_model_t *m, deferq_t *dq)
 {
-   const defer_task_t *tasks = dq->tasks;
-   const int count = dq->count;
+   assert(m->reschedq.count == 0);
 
-   int i = 0;
-   for (; i < count - 1; i++) {
-      // Prefetch ahead the next task argument to avoid cache misses
-      // when we execute it
-      prefetch_read(tasks[i + 1].arg);
-      (*tasks[i].fn)(m, tasks[i].arg);
+   while (dq->count > 0) {
+      const defer_task_t *tasks = dq->tasks;
+      const int count = dq->count;
+
+      int i = 0;
+      for (; i < count - 1; i++) {
+         // Prefetch ahead the next task argument to avoid cache misses
+         // when we execute it
+         prefetch_read(tasks[i + 1].arg);
+         (*tasks[i].fn)(m, tasks[i].arg);
+      }
+      for (; i < count; i++)
+         (*tasks[i].fn)(m, tasks[i].arg);
+
+      assert(dq->tasks == tasks);
+      assert(dq->count == count);
+
+      dq->count = 0;
+
+      if (m->reschedq.count == 0)
+         break;
+
+      deferq_swap(&m->reschedq, dq);
    }
-   for (; i < count; i++)
-      (*tasks[i].fn)(m, tasks[i].arg);
-
-   assert(dq->tasks == tasks);
-   assert(dq->count == count);
-
-   dq->count = 0;
 }
 
 static void *static_alloc(rt_model_t *m, size_t size)
@@ -639,6 +656,7 @@ void model_free(rt_model_t *m)
    free(m->inactiveq.tasks);
    free(m->next_inactiveq.tasks);
    free(m->nonblockq.tasks);
+   free(m->reschedq.tasks);
    free(m->driverq.tasks);
    free(m->next_driverq.tasks);
 
@@ -915,8 +933,9 @@ static void reset_process(rt_model_t *m, rt_proc_t *proc)
    thread->active_scope = NULL;
 
    // Schedule the process to run immediately
+   deferq_t *dq = proc->wakeable.reschedule ? &m->reschedq : &m->procq;
+   deferq_do(dq, async_run_process, proc);
    set_pending(&proc->wakeable);
-   deferq_do(&m->procq, async_run_process, proc);
 }
 
 static void reset_property(rt_model_t *m, rt_prop_t *prop)
@@ -1777,6 +1796,25 @@ static void setup_signal(rt_model_t *m, rt_signal_t *s, tree_t where,
    m->n_signals++;
 }
 
+static void setup_process(rt_proc_t *p, const char *path)
+{
+   switch (tree_kind(p->where)) {
+   case T_IMPLICIT_SIGNAL:
+   case T_INERTIAL:
+      {
+         const char *suffix = istr(ident_downcase(tree_ident(p->where)));
+         p->name = ident_sprintf("%s:%s", path, suffix);
+      }
+      break;
+   case T_PARAM:  // Conversion function
+      p->name = ident_uniq("%s:_conv", path);
+      p->wakeable.reschedule = true;
+      break;
+   default:
+      should_not_reach_here();
+   }
+}
+
 static void copy_sub_signal_sources(rt_scope_t *scope, void *buf, int stride)
 {
    assert(is_signal_scope(scope));
@@ -2558,6 +2596,10 @@ void model_reset(rt_model_t *m)
       calculate_effective_value(m, n);
    }
 
+   for (int i = 0; i < m->reschedq.count; i++)
+      (*m->reschedq.tasks[i].fn)(m, m->reschedq.tasks[i].arg);
+   m->reschedq.count = 0;
+
    tlab_reset(thread->tlab);   // No allocations can be live past here
 
    run_callbacks(m, END_OF_INITIALISATION);
@@ -2986,6 +3028,8 @@ static void procq_do(rt_model_t *m, rt_wakeable_t *obj, defer_fn_t fn,
 {
    if (obj->postponed)
       deferq_do(&m->postponedq, fn, arg);
+   else if (obj->reschedule)
+      deferq_do(&m->reschedq, fn, arg);
    else {
       deferq_do(&m->procq, fn, arg);
       m->next_is_delta |= m->blocking_update;
@@ -3003,8 +3047,8 @@ static void wakeup_one(rt_model_t *m, rt_wakeable_t *obj)
    case W_PROC:
       {
          rt_proc_t *proc = container_of(obj, rt_proc_t, wakeable);
-         TRACE("wakeup %sprocess %s", obj->postponed ? "postponed " : "",
-               istr(proc->name));
+         TRACE("%s %sprocess %s", obj->reschedule ? "reschedule" : "wakeup",
+               obj->postponed ? "postponed " : "", istr(proc->name));
 
          if (proc->wakeable.delayed) {
             // This process was already scheduled to run at a later
@@ -3124,6 +3168,8 @@ static void put_effective(rt_model_t *m, rt_nexus_t *n, const void *value)
    unsigned char *last = nexus_last_value(n);
 
    const size_t valuesz = n->size * n->width;
+
+   n->active_delta = m->iteration;
 
    if (!cmp_bytes(eff, value, valuesz)) {
       copy2(last, eff, value, valuesz);
@@ -3523,13 +3569,6 @@ static void sync_event_cache(rt_model_t *m)
    }
 }
 
-static void swap_deferq(deferq_t *a, deferq_t *b)
-{
-   deferq_t tmp = *a;
-   *a = *b;
-   *b = tmp;
-}
-
 static void model_cycle(rt_model_t *m)
 {
    // Simulation cycle is described in LRM 93 section 12.6.4
@@ -3597,18 +3636,24 @@ static void model_cycle(rt_model_t *m)
       }
    }
 
-   swap_deferq(&m->next_driverq, &m->driverq);
+   deferq_swap(&m->next_driverq, &m->driverq);
    deferq_run(m, &m->next_driverq);
 
-   while (heap_size(m->driving_heap) > 0) {
-      rt_nexus_t *n = heap_extract_min(m->driving_heap);
-      update_driving(m, n, true);
-   }
+   do {
+      for (int i = 0; i < m->reschedq.count; i++)
+         (*m->reschedq.tasks[i].fn)(m, m->reschedq.tasks[i].arg);
+      m->reschedq.count = 0;
 
-   while (heap_size(m->effective_heap) > 0) {
-      rt_nexus_t *n = heap_extract_min(m->effective_heap);
-      update_effective(m, n);
-   }
+      while (heap_size(m->driving_heap) > 0) {
+         rt_nexus_t *n = heap_extract_min(m->driving_heap);
+         update_driving(m, n, true);
+      }
+
+      while (heap_size(m->effective_heap) > 0) {
+         rt_nexus_t *n = heap_extract_min(m->effective_heap);
+         update_effective(m, n);
+      }
+   } while (m->reschedq.count > 0);
 
    sync_event_cache(m);
 
@@ -3633,7 +3678,7 @@ static void model_cycle(rt_model_t *m)
       deferq_shuffle(&m->procq);
 
    // Run all non-postponed processes and event callbacks
-   swap_deferq(&m->next_procq, &m->procq);
+   deferq_swap(&m->next_procq, &m->procq);
    deferq_run(m, &m->next_procq);
 
    run_callbacks(m, END_OF_PROCESSES);
@@ -3645,7 +3690,7 @@ static void model_cycle(rt_model_t *m)
 
    if (m->inactiveq.count > 0) {
       TRACE("begin inactive region");
-      swap_deferq(&m->next_inactiveq, &m->inactiveq);
+      deferq_swap(&m->next_inactiveq, &m->inactiveq);
       deferq_run(m, &m->next_inactiveq);
    }
 
@@ -5046,6 +5091,8 @@ void x_put_driver(sig_shared_t *ss, uint32_t offset, int32_t count,
       assert(d->u.driver.waveforms.next == NULL);
       copy_value_ptr(n, &d->u.driver.waveforms.value, vptr);
 
+      d->u.driver.waveforms.when = m->now;
+
       calculate_driving_value(m, n);
       update_blocking(m, n);
 
@@ -5149,21 +5196,21 @@ void x_process_init(const ffi_closure_t *closure, tree_t where)
    LOCAL_TEXT_BUF tb = tb_new();
    get_path_name(s, tb);
 
-   ident_t path = ident_new(tb_get(tb));
+   rt_proc_t *p = xcalloc_flex(sizeof(rt_proc_t), closure->nargs - 1,
+                               sizeof(jit_scalar_t));
 
-   rt_proc_t *p = xcalloc(sizeof(rt_proc_t));
-   p->where     = where;
-   p->name      = ident_prefix(path, ident_downcase(tree_ident(where)), ':');
-   p->scope     = s;
-   p->privdata  = mptr_new(m->mspace, "process privdata");
+   p->where    = where;
+   p->scope    = s;
+   p->privdata = mptr_new(m->mspace, "process privdata");
 
-   assert(closure->nargs == 1);
    ffi_copy_closure(&p->closure, closure);
 
    p->wakeable.kind      = W_PROC;
    p->wakeable.pending   = false;
    p->wakeable.postponed = false;
    p->wakeable.delayed   = false;
+
+   setup_process(p, tb_get(tb));
 
    APUSH(s->procs, p);
 }

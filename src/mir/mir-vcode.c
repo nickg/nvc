@@ -377,6 +377,24 @@ static void import_sched_waveform(mir_unit_t *mu, mir_import_t *imp, int op)
    mir_build_sched_waveform(mu, target, count, value, reject, after);
 }
 
+static void import_put_driver(mir_unit_t *mu, mir_import_t *imp, int op)
+{
+   mir_value_t target = imp->map[vcode_get_arg(op, 0)];
+   mir_value_t count  = imp->map[vcode_get_arg(op, 1)];
+   mir_value_t value  = imp->map[vcode_get_arg(op, 2)];
+
+   mir_build_put_driver(mu, target, count, value);
+}
+
+static void import_deposit_signal(mir_unit_t *mu, mir_import_t *imp, int op)
+{
+   mir_value_t target = imp->map[vcode_get_arg(op, 0)];
+   mir_value_t count  = imp->map[vcode_get_arg(op, 1)];
+   mir_value_t value  = imp->map[vcode_get_arg(op, 2)];
+
+   mir_build_deposit_signal(mu, target, count, value);
+}
+
 static void import_resolved(mir_unit_t *mu, mir_import_t *imp, int op)
 {
    mir_value_t nets = imp->map[vcode_get_arg(op, 0)];
@@ -989,14 +1007,17 @@ static void import_select(mir_unit_t *mu, mir_import_t *imp, int op)
 
 static void import_closure(mir_unit_t *mu, mir_import_t *imp, int op)
 {
-   mir_value_t context = imp->map[vcode_get_arg(op, 0)];
+   const int nargs = vcode_count_args(op);
+   mir_value_t *args LOCAL = xmalloc_array(nargs, sizeof(mir_value_t));
+   for (int i = 0; i < nargs; i++)
+      args[i] = imp->map[vcode_get_arg(op, i)];
+
    ident_t func = vcode_get_func(op);
 
    vcode_reg_t result = vcode_get_result(op);
    mir_type_t rtype = import_type(mu, imp, vtype_base(vcode_reg_type(result)));
 
-   mir_value_t args[] = { context };
-   imp->map[result] = mir_build_closure(mu, func, rtype, args, 1);
+   imp->map[result] = mir_build_closure(mu, func, rtype, args, nargs);
 }
 
 static void import_resolution_wrapper(mir_unit_t *mu, mir_import_t *imp, int op)
@@ -1437,6 +1458,12 @@ static void import_block(mir_unit_t *mu, mir_import_t *imp)
       case VCODE_OP_SCHED_WAVEFORM:
          import_sched_waveform(mu, imp, i);
          break;
+      case VCODE_OP_PUT_DRIVER:
+         import_put_driver(mu, imp, i);
+         break;
+      case VCODE_OP_DEPOSIT_SIGNAL:
+         import_deposit_signal(mu, imp, i);
+         break;
       case VCODE_OP_RESOLVED:
          import_resolved(mu, imp, i);
          break;
@@ -1833,6 +1860,7 @@ mir_unit_t *mir_import(mir_context_t *mc, vcode_unit_t vu)
    case MIR_UNIT_PROCEDURE:
    case MIR_UNIT_PROTECTED:
    case MIR_UNIT_PROPERTY:
+   case MIR_UNIT_PROCESS:
       {
          const int nparams = vcode_count_params();
          for (int i = 0; i < nparams; i++) {

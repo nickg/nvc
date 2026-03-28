@@ -175,6 +175,8 @@ typedef enum {
    VCODE_OP_SCHED_PROCESS,
    VCODE_OP_TABLE_REF,
    VCODE_OP_GET_COUNTERS,
+   VCODE_OP_PUT_DRIVER,
+   VCODE_OP_DEPOSIT_SIGNAL,
 } vcode_op_t;
 
 typedef enum {
@@ -514,7 +516,8 @@ void emit_transfer_signal(vcode_reg_t target, vcode_reg_t source,
                           vcode_reg_t after);
 vcode_reg_t emit_resolution_wrapper(vcode_type_t type, vcode_reg_t closure,
                                     vcode_reg_t nlits);
-vcode_reg_t emit_closure(ident_t func, vcode_reg_t context, vcode_type_t rtype);
+vcode_reg_t emit_closure(ident_t func, vcode_type_t rtype,
+                         const vcode_reg_t *args, int nargs);
 vcode_reg_t emit_protected_init(vcode_type_t type, vcode_reg_t context,
                                 vcode_reg_t path_name, vcode_reg_t inst_name);
 void emit_process_init(vcode_reg_t closure, vcode_reg_t locus);
@@ -547,6 +550,9 @@ vcode_reg_t emit_bind_external(vcode_reg_t locus, ident_t scope,
                                vcode_type_t type, vcode_stamp_t bounds,
                                const vcode_reg_t *args, int nargs);
 void emit_put_conversion(vcode_reg_t cf, vcode_reg_t target, vcode_reg_t count,
+                         vcode_reg_t values);
+void emit_put_driver(vcode_reg_t target, vcode_reg_t count, vcode_reg_t values);
+void emit_deposit_signal(vcode_reg_t target, vcode_reg_t count,
                          vcode_reg_t values);
 
 #endif  // _VCODE_H

@@ -28,6 +28,7 @@
 #include "object.h"
 #include "option.h"
 #include "phase.h"
+#include "printf.h"
 #include "psl/psl-phase.h"
 #include "rt/assert.h"
 #include "rt/rt.h"
@@ -86,8 +87,8 @@ typedef struct {
 
 typedef void (*lower_field_fn_t)(lower_unit_t *, tree_t, vcode_reg_t,
                                  vcode_reg_t, vcode_reg_t, void *);
-typedef void (*convert_emit_fn)(vcode_reg_t, vcode_reg_t, vcode_reg_t);
 typedef vcode_reg_t (*resolved_fn_t)(vcode_reg_t, vcode_reg_t);
+typedef void (*put_signal_fn_t)(vcode_reg_t, vcode_reg_t, vcode_reg_t);
 
 typedef struct {
    resolved_fn_t  fn;
@@ -7974,7 +7975,8 @@ static void lower_resolution_var(lower_unit_t *lu, tree_t decl, type_t type)
    vcode_type_t rtype = lower_func_result_type(type);
 
    vcode_reg_t context_reg = emit_context_upref(0);
-   vcode_reg_t closure_reg = emit_closure(name, context_reg, rtype);
+   vcode_reg_t args[1] = { context_reg };
+   vcode_reg_t closure_reg = emit_closure(name, rtype, args, 1);
    vcode_reg_t wrapper_reg =
       emit_resolution_wrapper(rtype, closure_reg, nlits_reg);
 
@@ -8519,7 +8521,8 @@ static void lower_implicit_decl(lower_unit_t *parent, tree_t decl)
          vcode_reg_t one_reg = emit_const(vtype_offset(), 1);
          vcode_reg_t locus = lower_debug_locus(decl);
          vcode_reg_t context_reg = lower_context_for_mangled(parent, func);
-         vcode_reg_t closure = emit_closure(func, context_reg, vtype);
+         vcode_reg_t args[1] = { context_reg };
+         vcode_reg_t closure = emit_closure(func, vtype, args, 1);
          vcode_reg_t delay_reg = emit_const(vtype_time(), TIME_HIGH);
          vcode_reg_t kind_reg = emit_const(vtype_offset(), IMPLICIT_GUARD);
          vcode_reg_t sig = emit_implicit_signal(vtype, one_reg, one_reg, locus,
@@ -8545,7 +8548,8 @@ static void lower_implicit_decl(lower_unit_t *parent, tree_t decl)
 
          vcode_reg_t vdummy = vtype_opaque();
          vcode_reg_t context_reg = emit_context_upref(0);
-         vcode_reg_t closure_reg = emit_closure(name, context_reg, vdummy);
+         vcode_reg_t args[1] = { context_reg };
+         vcode_reg_t closure_reg = emit_closure(name, vdummy, args, 1);
 
          emit_process_init(closure_reg, lower_debug_locus(decl));
       }
@@ -8567,7 +8571,8 @@ static void lower_implicit_decl(lower_unit_t *parent, tree_t decl)
          vcode_reg_t delay_reg = emit_const(vtype_time(), TIME_HIGH);
          vcode_reg_t kind_reg = emit_const(voffset, IMPLICIT_TRANSACTION);
          vcode_reg_t context_reg = lower_context_for_mangled(parent, qual);
-         vcode_reg_t closure = emit_closure(qual, context_reg, vtype);
+         vcode_reg_t args[1] = { context_reg };
+         vcode_reg_t closure = emit_closure(qual, vtype, args, 1);
 
          vcode_reg_t sig = emit_implicit_signal(vtype, one_reg, one_reg, locus,
                                                 kind_reg, closure, delay_reg);
@@ -8612,7 +8617,8 @@ static void lower_implicit_decl(lower_unit_t *parent, tree_t decl)
          vcode_reg_t one_reg = emit_const(vtype_offset(), 1);
          vcode_reg_t locus = lower_debug_locus(decl);
          vcode_reg_t context_reg = lower_context_for_mangled(parent, qual);
-         vcode_reg_t closure = emit_closure(qual, context_reg, vtype);
+         vcode_reg_t args[1] = { context_reg };
+         vcode_reg_t closure = emit_closure(qual, vtype, args, 1);
          vcode_reg_t kind_reg = emit_const(vtype_offset(), kind);
          vcode_reg_t sig = emit_implicit_signal(vtype, one_reg, one_reg, locus,
                                                 kind_reg, closure, delay_reg);
@@ -10897,130 +10903,142 @@ static bool lower_is_signal_ref(tree_t expr)
    }
 }
 
-static void lower_conv_field_cb(lower_unit_t *lu, tree_t field,
-                                vcode_reg_t target_ptr, vcode_reg_t result_ptr,
-                                vcode_reg_t locus, void *ctx)
+static void lower_put_signal_field_cb(lower_unit_t *lu, tree_t field,
+                                      vcode_reg_t ptr, vcode_reg_t value,
+                                      vcode_reg_t locus, void *ctx)
 {
-   type_t ftype = tree_type(field);
-
-   if (type_is_homogeneous(ftype)) {
-      vcode_reg_t nets_reg = emit_load_indirect(target_ptr);
-      vcode_reg_t count_reg, data_reg = result_ptr;
-      if (type_is_array(ftype)) {
-         count_reg = lower_array_total_len(lu, ftype, nets_reg);
-         data_reg = lower_array_data(result_ptr);
-         nets_reg = lower_array_data(nets_reg);
-      }
-      else {
-         count_reg = emit_const(vtype_offset(), 1);
-         nets_reg = emit_load_indirect(target_ptr);
-      }
-
-      vcode_reg_t cf_reg = (uintptr_t)ctx;
-      emit_put_conversion(cf_reg, nets_reg, count_reg, data_reg);
+   put_signal_fn_t fn = ctx;
+   type_t type = tree_type(field);
+   if (type_is_homogeneous(type)) {
+      vcode_reg_t nets_reg = emit_load_indirect(ptr);
+      vcode_reg_t count_reg = lower_type_width(lu, type, nets_reg);
+      (*fn)(lower_array_data(nets_reg), count_reg, value);
    }
    else
-      lower_for_each_field_2(lu, ftype, ftype, target_ptr, result_ptr, locus,
-                             lower_conv_field_cb, ctx);
+      lower_for_each_field_2(lu, type, type, ptr, value, locus,
+                             lower_put_signal_field_cb, ctx);
 }
 
-static void lower_converter_body(lower_unit_t *lu, tree_t dst, tree_t src,
-                                 tree_t conv, port_mode_t dir)
+static void lower_converter_body(lower_unit_t *lu, tree_t conv, bool has_driver,
+                                 put_signal_fn_t put_fn)
 {
-   type_t dst_type = tree_type(dst);
-   type_t src_type = tree_type(src);
-   type_t conv_type = tree_type(conv);
-
-   // Dummy return value to force function calling convention
-   vcode_type_t voffset = vtype_offset();
-   vcode_set_result(voffset);
-
-   vcode_type_t vcontext = vtype_context(lu->parent->name);
-   emit_param(vcontext, VCODE_INVALID_STAMP, ident_new("context"));
-
-   vcode_type_t vconv = vtype_conversion();
-   vcode_reg_t cf_reg = emit_param(vconv, VCODE_INVALID_STAMP, ident_new("cf"));
-
-   vcode_reg_t target_reg;
-   if (tree_kind(dst) == T_PORT_DECL)
-      target_reg = lower_port_ref(lu, dst);
-   else
-      target_reg = lower_lvalue(lu, dst);
-
-   vcode_reg_t in_reg;
-   if (dir == PORT_IN)
-      in_reg = lower_rvalue(lu, src);
-   else
-      in_reg = lower_driving_value(lu, src);
-
-   vcode_reg_t result_reg = in_reg;
-   if (tree_kind(conv) == T_TYPE_CONV)
-      result_reg = lower_conversion(lu, in_reg, conv, src_type, conv_type);
-   else {
-      tree_t fdecl = tree_ref(conv);
-
-      type_t p0_type = tree_type(tree_port(fdecl, 0));
-      vcode_reg_t arg_reg = in_reg;
-      if (type_is_array(p0_type))
-         arg_reg = lower_coerce_arrays(lu, src_type, p0_type, in_reg);
-
-      vcode_type_t vrtype = lower_func_result_type(conv_type);
-      vcode_type_t vrbounds = lower_bounds(conv_type);
-
-      ident_t func = tree_ident2(fdecl);
-      vcode_reg_t args[2];
-      int nargs = 0;
-
-      vcode_reg_t context_reg = lower_context_for_call(lu, fdecl);
-      if (context_reg != VCODE_INVALID_REG)
-         args[nargs++] = context_reg;
-
-      args[nargs++] = arg_reg;
-
-      result_reg = emit_fcall(func, vrtype, vrbounds, args, nargs);
-
-      if (type_is_array(dst_type)) {
-         vcode_reg_t locus = lower_debug_locus(conv);
-         lower_check_array_sizes(lu, dst_type, conv_type, target_reg,
-                                 result_reg, locus);
+   type_t src_type, dst_type;
+   switch (tree_kind(conv)) {
+   case T_CONV_FUNC:
+      {
+         type_t ftype = tree_type(tree_ref(conv));
+         src_type = type_param(ftype, 0);
+         dst_type = type_result(ftype);
       }
+      break;
+   case T_TYPE_CONV:
+      src_type = tree_type(tree_value(conv));
+      dst_type = tree_type(conv);
+      break;
+   default:
+      should_not_reach_here();
+   }
+
+   vcode_type_t vsrc = lower_param_type(src_type, C_SIGNAL, PORT_IN);
+   vcode_type_t vdst = lower_param_type(dst_type, C_SIGNAL, PORT_OUT);
+
+   ident_t src_name = ident_new("src");
+   ident_t dst_name = ident_new("dst");
+
+   vcode_reg_t src_reg = emit_param(vsrc, VCODE_INVALID_STAMP, src_name);
+   vcode_reg_t dst_reg = emit_param(vdst, VCODE_INVALID_STAMP, dst_name);
+
+   vcode_block_t start_bb = emit_block();
+   assert(start_bb == 1);
+
+   if (has_driver) {
+      if (type_is_homogeneous(dst_type)) {
+         vcode_reg_t count_reg = lower_type_width(lu, dst_type, dst_reg);
+         vcode_reg_t nets_reg = lower_array_data(dst_reg);
+
+         emit_drive_signal(nets_reg, count_reg);
+      }
+      else
+         lower_for_each_field(lu, dst_type, dst_reg, VCODE_INVALID_REG,
+                              lower_driver_field_cb, NULL);
+   }
+
+   if (!type_is_homogeneous(src_type))
+      lower_for_each_field(lu, src_type, src_reg, VCODE_INVALID_REG,
+                           lower_sched_event_field_cb, NULL);
+   else {
+      vcode_reg_t count_reg = lower_type_width(lu, src_type, src_reg);
+      vcode_reg_t data_reg = lower_array_data(src_reg);
+      emit_sched_event(data_reg, count_reg);
+   }
+
+   emit_return(VCODE_INVALID_REG);
+
+   vcode_select_block(start_bb);
+
+   vcode_reg_t in_reg = lower_resolved(lu, src_type, src_reg);
+   if (type_is_scalar(src_type) || have_uarray_ptr(in_reg))
+      in_reg = emit_load_indirect(in_reg);
+
+   vcode_reg_t result_reg;
+   switch (tree_kind(conv)) {
+   case T_CONV_FUNC:
+      {
+         tree_t fdecl = tree_ref(conv);
+
+         type_t p0_type = tree_type(tree_port(fdecl, 0));
+         vcode_reg_t arg_reg = in_reg;
+         if (type_is_array(p0_type))
+            arg_reg = lower_coerce_arrays(lu, src_type, p0_type, in_reg);
+
+         vcode_type_t vrtype = lower_func_result_type(dst_type);
+         vcode_type_t vrbounds = lower_bounds(dst_type);
+
+         ident_t func = tree_ident2(fdecl);
+         vcode_reg_t args[2];
+         int nargs = 0;
+
+         vcode_reg_t context_reg = lower_context_for_call(lu, fdecl);
+         if (context_reg != VCODE_INVALID_REG)
+            args[nargs++] = context_reg;
+
+         args[nargs++] = arg_reg;
+
+         result_reg = emit_fcall(func, vrtype, vrbounds, args, nargs);
+
+         if (type_is_array(dst_type)) {
+            vcode_reg_t locus = lower_debug_locus(conv);
+            lower_check_array_sizes(lu, dst_type, dst_type, dst_reg,
+                                    result_reg, locus);
+         }
+      }
+      break;
+   case T_TYPE_CONV:
+      result_reg = lower_conversion(lu, in_reg, conv, src_type, dst_type);
+      break;
+   default:
+      should_not_reach_here();
    }
 
    if (type_is_homogeneous(dst_type)) {
-      vcode_reg_t count_reg, data_reg = result_reg, nets_reg = target_reg;
+      vcode_reg_t count_reg, data_reg = result_reg, nets_reg = dst_reg;
       if (type_is_array(dst_type)) {
-         count_reg = lower_array_total_len(lu, dst_type, target_reg);
+         count_reg = lower_array_total_len(lu, dst_type, dst_reg);
          data_reg = lower_array_data(result_reg);
-         nets_reg = lower_array_data(target_reg);
+         nets_reg = lower_array_data(dst_reg);
       }
       else
-         count_reg = emit_const(voffset, 1);
+         count_reg = emit_const(vtype_offset(), 1);
 
-      emit_put_conversion(cf_reg, nets_reg, count_reg, data_reg);
+      (*put_fn)(nets_reg, count_reg, data_reg);
    }
    else {
       vcode_reg_t locus = lower_debug_locus(conv);
-      lower_for_each_field_2(lu, dst_type, conv_type, target_reg,
-                             result_reg, locus, lower_conv_field_cb,
-                             (void *)(uintptr_t)cf_reg);
+      lower_for_each_field_2(lu, dst_type, dst_type, dst_reg, result_reg, locus,
+                             lower_put_signal_field_cb, put_fn);
    }
 
-   emit_return(emit_const(voffset, 0));
-}
-
-static void lower_out_converter(lower_unit_t *lu, object_t *obj)
-{
-   tree_t map = tree_from_object(obj);
-   assert(tree_kind(map) == T_PARAM);
-
-   tree_t value = tree_value(map), conv = tree_name(map);
-   tree_t src = tree_value(conv), dst = value;
-
-   const tree_kind_t value_kind = tree_kind(value);
-   if (value_kind == T_CONV_FUNC || value_kind == T_TYPE_CONV)
-      dst = tree_value(value);
-
-   lower_converter_body(lu, dst, src, conv, PORT_OUT);
+   emit_wait(start_bb);
 }
 
 static void lower_in_converter(lower_unit_t *lu, object_t *obj)
@@ -11030,45 +11048,32 @@ static void lower_in_converter(lower_unit_t *lu, object_t *obj)
 
    tree_t conv = tree_value(map);
 
-   tree_t src = NULL;
-   const tree_kind_t value_kind = tree_kind(conv);
-   if (value_kind == T_CONV_FUNC || value_kind == T_TYPE_CONV) {
-      tree_t p0 = tree_value(conv);
-      assert(lower_is_signal_ref(p0));
-      src = p0;
-   }
-
-   tree_t dst;
-   switch (tree_subkind(map)) {
-   case P_POS:
-      dst = tree_port(lu->parent->container, tree_pos(map));
-      break;
-   case P_NAMED:
-      {
-         dst = tree_name(map);
-
-         const tree_kind_t kind = tree_kind(dst);
-         if (kind == T_CONV_FUNC || kind == T_TYPE_CONV)
-            dst = tree_value(dst);
-      }
-      break;
-   default:
-      should_not_reach_here();
-   }
-
-   // Dummy return value to force function calling convention
-   vcode_type_t voffset = vtype_offset();
-   vcode_set_result(voffset);
-
-   lower_converter_body(lu, dst, src, conv, PORT_IN);
+   lower_converter_body(lu, conv, true, emit_put_driver);
 }
 
-static vcode_reg_t lower_converter(lower_unit_t *parent, tree_t map,
-                                   port_mode_t dir)
+static void lower_out_converter(lower_unit_t *lu, object_t *obj)
 {
-   tree_t conv = dir == PORT_IN ? tree_value(map) : tree_name(map);
+   tree_t map = tree_from_object(obj);
+   assert(tree_kind(map) == T_PARAM);
 
-   // Detect some trivial cases and avoid generating a conversion function
+   tree_t conv = tree_name(map);
+
+   lower_converter_body(lu, conv, true, emit_put_driver);
+}
+
+static void lower_effective_converter(lower_unit_t *lu, object_t *obj)
+{
+   tree_t map = tree_from_object(obj);
+   assert(tree_kind(map) == T_PARAM);
+
+   tree_t conv = tree_value(map);
+
+   lower_converter_body(lu, conv, false, emit_deposit_signal);
+}
+
+static bool lower_is_trivial_conversion(tree_t conv)
+{
+   // Avoid generating a conversion process in some cases
    switch (tree_kind(conv)) {
    case T_TYPE_CONV:
       {
@@ -11077,13 +11082,41 @@ static vcode_reg_t lower_converter(lower_unit_t *parent, tree_t map,
 
          if (type_is_array(conv_type) && type_is_array(src_type)) {
             if (type_eq(type_elem(conv_type), type_elem(src_type)))
-               return VCODE_INVALID_REG;
+               return true;
          }
          else if (type_is_enum(conv_type) && type_is_enum(src_type))
-            return VCODE_INVALID_REG;
+            return true;
+
+         return false;
       }
-      break;
    case T_CONV_FUNC:
+      return false;
+   default:
+      should_not_reach_here();
+   }
+}
+
+static void lower_converter(lower_unit_t *parent, tree_t map,
+                            port_mode_t dir, vcode_reg_t src_reg,
+                            type_t src_type, vcode_reg_t dst_reg,
+                            type_t dst_type)
+{
+   tree_t conv = dir == PORT_IN ? tree_value(map) : tree_name(map);
+
+   const char *suffix;
+   lower_fn_t fn;
+   switch (dir) {
+   case PORT_IN:
+      fn = lower_in_converter;
+      suffix = "convert_in";
+      break;
+   case PORT_OUT:
+      fn = lower_out_converter;
+      suffix = "convert_out";
+      break;
+   case PORT_INOUT:
+      fn = lower_effective_converter;
+      suffix = "convert_effective";
       break;
    default:
       should_not_reach_here();
@@ -11094,9 +11127,8 @@ static vcode_reg_t lower_converter(lower_unit_t *parent, tree_t map,
    case P_POS:
       {
          tree_t port = tree_port(parent->container, tree_pos(map));
-         name = ident_sprintf("%s.%s.convert_%s", istr(parent->name),
-                              istr(tree_ident(port)),
-                              dir == PORT_IN ? "in" : "out");
+         name = ident_sprintf("%s.%s.%s", istr(parent->name),
+                              istr(tree_ident(port)), suffix);
       }
       break;
    case P_NAMED:
@@ -11108,28 +11140,51 @@ static vcode_reg_t lower_converter(lower_unit_t *parent, tree_t map,
             dst = tree_value(dst);
 
          if (tree_kind(dst) == T_REF)
-            name = ident_sprintf("%s.%s.convert_%s", istr(parent->name),
-                                 istr(tree_ident(dst)),
-                                 dir == PORT_IN ? "in" : "out");
+            name = ident_sprintf("%s.%s.%s", istr(parent->name),
+                                 istr(tree_ident(dst)), suffix);
          else
-            name = ident_uniq("%s.%s.convert_%s.part", istr(parent->name),
+            name = ident_uniq("%s.%s.%s.part", istr(parent->name),
                               istr(tree_ident(tree_ref(name_to_ref(dst)))),
-                              dir == PORT_IN ? "in" : "out");
+                              suffix);
       }
       break;
    default:
       should_not_reach_here();
    }
 
-   lower_fn_t lower_fn =
-      dir == PORT_IN ? lower_in_converter : lower_out_converter;
+   unit_registry_defer(parent->registry, name, parent, emit_process,
+                       fn, NULL, tree_to_object(map));
 
-   unit_registry_defer(parent->registry, name, parent, emit_function,
-                       lower_fn, NULL, tree_to_object(map));
+   type_t src_arg_type, dst_arg_type;
+   switch (tree_kind(conv)) {
+   case T_CONV_FUNC:
+      {
+         type_t ftype = tree_type(tree_ref(conv));
+         src_arg_type = type_param(ftype, 0);
+         dst_arg_type = type_result(ftype);
+      }
+      break;
+   case T_TYPE_CONV:
+      src_arg_type = tree_type(tree_value(conv));
+      dst_arg_type = tree_type(conv);
+      break;
+   default:
+      should_not_reach_here();
+   }
+
+   if (type_is_array(src_type))
+      src_reg = lower_coerce_arrays(parent, src_type, src_arg_type, src_reg);
+
+   if (type_is_array(dst_type))
+      dst_reg = lower_coerce_arrays(parent, dst_type, dst_arg_type, dst_reg);
 
    vcode_reg_t context_reg = emit_context_upref(0);
    vcode_reg_t vdummy = vtype_opaque();
-   return emit_closure(name, context_reg, vdummy);
+   vcode_reg_t args[] = { context_reg, src_reg, dst_reg };
+   vcode_reg_t closure_reg = emit_closure(name, vdummy, args, ARRAY_LEN(args));
+   vcode_reg_t locus = lower_debug_locus(map);
+
+   emit_process_init(closure_reg, locus);
 }
 
 static void lower_map_signal_field_cb(lower_unit_t *lu, tree_t field,
@@ -11247,44 +11302,6 @@ static void lower_map_signal(lower_unit_t *lu, vcode_reg_t src_reg,
          emit_map_signal(src_reg, dst_nets, count_reg);
       else
          emit_map_const(src_reg, dst_nets, count_reg);
-   }
-}
-
-static void lower_convert_signal_field_cb(lower_unit_t *lu, tree_t field,
-                                          vcode_reg_t src_ptr,
-                                          vcode_reg_t dst_ptr,
-                                          vcode_reg_t conv_func, void *ctx)
-{
-   type_t ftype = tree_type(field);
-   void (*emit_fn)(vcode_reg_t, vcode_reg_t, vcode_reg_t) = ctx;
-
-   if (type_is_homogeneous(ftype)) {
-      vcode_reg_t nets_reg = emit_load_indirect(src_ptr);
-      vcode_reg_t count_reg = lower_type_width(lu, ftype, nets_reg);
-      vcode_reg_t data_reg = lower_array_data(nets_reg);
-      (*emit_fn)(conv_func, data_reg, count_reg);
-   }
-   else
-      lower_for_each_field_2(lu, ftype, ftype, src_ptr, dst_ptr, conv_func,
-                             lower_convert_signal_field_cb, ctx);
-}
-
-static void lower_convert_signal(lower_unit_t *lu, vcode_reg_t src_reg,
-                                 type_t type, vcode_reg_t conv_func,
-                                 convert_emit_fn emit_fn)
-{
-   if (!type_is_homogeneous(type))
-      lower_for_each_field(lu, type, src_reg, conv_func,
-                           lower_convert_signal_field_cb, emit_fn);
-   else if (type_is_array(type)) {
-      vcode_reg_t count_reg = lower_array_total_len(lu, type, src_reg);
-      vcode_reg_t nets_reg = lower_array_data(src_reg);
-      (*emit_fn)(conv_func, nets_reg, count_reg);
-   }
-   else {
-      vcode_reg_t count_reg = emit_const(vtype_offset(), 1);
-      vcode_reg_t nets_reg = lower_array_data(src_reg);
-      (*emit_fn)(conv_func, nets_reg, count_reg);
    }
 }
 
@@ -11420,7 +11437,8 @@ static void lower_inertial_actual(lower_unit_t *parent, tree_t dst, tree_t map)
 
    vcode_reg_t vdummy = vtype_opaque();
    vcode_reg_t context_reg = emit_context_upref(0);
-   vcode_reg_t closure_reg = emit_closure(qual, context_reg, vdummy);
+   vcode_reg_t args[1] = { context_reg };
+   vcode_reg_t closure_reg = emit_closure(qual, vdummy, args, 1);
 
    emit_process_init(closure_reg, lower_debug_locus(inertial));
 }
@@ -11467,24 +11485,24 @@ static void lower_port_map(lower_unit_t *lu, tree_t block, tree_t map,
    vcode_reg_t port_reg = VCODE_INVALID_REG;
    tree_t view = NULL, name;
    bool converse = false;
-   vcode_reg_t out_conv = VCODE_INVALID_REG;
-   vcode_reg_t in_conv = VCODE_INVALID_REG;
    tree_t value = tree_value(map);
    port_mode_t mode = PORT_IN;
 
-   tree_t value_conv = NULL;
+   tree_t in_conv = NULL;
    const tree_kind_t value_kind = tree_kind(value);
    if (value_kind == T_CONV_FUNC || value_kind == T_TYPE_CONV) {
       assert(value_reg == VCODE_INVALID_REG);
+
       tree_t p0 = tree_value(value);
-      if (lower_is_signal_ref(p0)) {
-         value_conv = p0;
-         value_reg = lower_lvalue(lu, p0);
-      }
+      value_reg = lower_lvalue(lu, p0);
+
+      if (lower_is_trivial_conversion(value))
+         value = p0;
       else
-         value_reg = lower_rvalue(lu, value);
+         in_conv = value = p0;
    }
 
+   tree_t out_conv = NULL;
    switch (tree_subkind(map)) {
    case P_POS:
       {
@@ -11510,7 +11528,7 @@ static void lower_port_map(lower_unit_t *lu, tree_t block, tree_t map,
 
          const tree_kind_t kind = tree_kind(name);
          if (kind == T_CONV_FUNC || kind == T_TYPE_CONV) {
-            out_conv = lower_converter(lu, map, PORT_OUT);
+            out_conv = name;
             name = tree_value(name);
          }
 
@@ -11525,12 +11543,6 @@ static void lower_port_map(lower_unit_t *lu, tree_t block, tree_t map,
       break;
    default:
       should_not_reach_here();
-   }
-
-   if (value_conv != NULL) {
-      // Value has conversion function
-      in_conv = lower_converter(lu, map, PORT_IN);
-      value = value_conv;
    }
 
    if (tree_kind(value) == T_INERTIAL)
@@ -11550,20 +11562,23 @@ static void lower_port_map(lower_unit_t *lu, tree_t block, tree_t map,
 
       vcode_reg_t src_reg = mode == PORT_IN ? value_reg : port_reg;
       vcode_reg_t dst_reg = mode == PORT_IN ? port_reg : value_reg;
-      vcode_reg_t conv_func = mode == PORT_IN ? in_conv : out_conv;
 
       type_t src_type = mode == PORT_IN ? value_type : name_type;
       type_t dst_type = mode == PORT_IN ? name_type : value_type;
 
-      if (conv_func != VCODE_INVALID_REG) {
-         vcode_reg_t conv_reg = emit_port_conversion(conv_func, in_conv);
-         lower_convert_signal(lu, dst_reg, dst_type,
-                              conv_reg, emit_convert_out);
-         lower_convert_signal(lu, src_reg, src_type,
-                              conv_reg, emit_convert_in);
+      if (out_conv != NULL) {
+         lower_converter(lu, map, PORT_OUT, src_reg, src_type,
+                         dst_reg, dst_type);
+
+         if (in_conv != NULL)
+            lower_converter(lu, map, PORT_INOUT, dst_reg, dst_type,
+                            src_reg, src_type);
       }
-      else
+      else if (in_conv == NULL)
          lower_map_signal(lu, src_reg, dst_reg, src_type, dst_type, map);
+      else
+         lower_converter(lu, map, PORT_IN, src_reg, src_type, dst_reg,
+                         dst_type);
    }
    else {
       type_t value_type = tree_type(value);

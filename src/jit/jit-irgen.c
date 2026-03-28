@@ -960,6 +960,13 @@ static jit_value_t irgen_get_slot(jit_irgen_t *g, mir_value_t value, int slot)
    case MIR_TAG_PARAM:
       base = g->params[value.id];
       break;
+   case MIR_TAG_VAR:
+      {
+         assert(slot == 0);
+         jit_value_t tmp = irgen_alloc_temp(g);
+         j_lea(g, tmp, g->vars[value.id]);
+         return tmp;
+      }
    default:
       DEBUG_ONLY(mir_dump(g->mu));
       should_not_reach_here();
@@ -5159,12 +5166,23 @@ static void irgen_params(jit_irgen_t *g, int first)
    g->func->spec = ffi_spec_new(types, ntypes);
 }
 
+static int irgen_count_param_slots(jit_irgen_t *g)
+{
+   int nslots = 0;
+   const int nparams = mir_count_params(g->mu);
+   for (int i = 0; i < nparams; i++) {
+      mir_type_t ptype = mir_get_type(g->mu, mir_get_param(g->mu, i));
+      nslots += mir_get_slots(g->mu, ptype);
+   }
+   return nslots;
+}
+
 static void irgen_jump_table(jit_irgen_t *g)
 {
    const bool is_process = (mir_get_kind(g->mu) == MIR_UNIT_PROCESS);
 
    g->statereg = irgen_alloc_reg(g, 1);
-   j_recv(g, g->statereg, is_process ? 1 : 0);
+   j_recv(g, g->statereg, is_process ? irgen_count_param_slots(g) + 1 : 0);
 
    irgen_label_t *cont = irgen_alloc_label(g);
    j_cmp(g, JIT_CC_EQ, g->statereg, jit_value_from_int64(0));
@@ -5282,6 +5300,8 @@ static void irgen_process_entry(jit_irgen_t *g)
    const ffi_type_t types[] = { FFI_POINTER, FFI_POINTER, FFI_POINTER };
    g->func->spec = ffi_spec_new(types, ARRAY_LEN(types));
 
+   irgen_params(g, 1);
+
    if (!g->stateless)
       irgen_jump_table(g);
 
@@ -5292,7 +5312,7 @@ static void irgen_process_entry(jit_irgen_t *g)
       j_recv(g, g->contextarg, 0);
 
       jit_value_t state = irgen_alloc_temp(g);
-      j_recv(g, state, 1);
+      j_recv(g, state, irgen_count_param_slots(g) + 1);
       j_cmp(g, JIT_CC_EQ, state, jit_null_ptr());
       j_jump(g, JIT_CC_F, g->blocks[1]);
    }

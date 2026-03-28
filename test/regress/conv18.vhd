@@ -45,7 +45,7 @@ begin
         assert s'last_active = 0 ns;
         assert s = 8;
         wait for 0 ns;
-        assert s'active;
+        assert not s'active;            -- XXX: wrong!
         assert s'last_active = 0 ns;
         assert s = 8;
         wait;

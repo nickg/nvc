@@ -40,8 +40,6 @@ typedef enum {
    W_PROC, W_WATCH, W_IMPLICIT, W_PROPERTY, W_TRANSFER, W_TRIGGER, W_ASSIGN,
 } wakeable_kind_t;
 
-typedef uint32_t wakeup_gen_t;
-
 typedef enum {
    FUNC_TRIGGER, OR_TRIGGER, CMP_TRIGGER, LEVEL_TRIGGER
 } trigger_kind_t;
@@ -52,6 +50,7 @@ typedef struct {
    unsigned        postponed : 1;
    unsigned        delayed : 1;
    unsigned        zombie : 1;
+   unsigned        reschedule : 1;
    rt_trigger_t   *trigger;
 } rt_wakeable_t;
 
