@@ -179,6 +179,7 @@ const char *mir_op_string(mir_op_t op)
       [MIR_OP_SCHED_PROCESS] = "sched process",
       [MIR_OP_SCHED_INACTIVE] = "sched inactive",
       [MIR_OP_SCHED_DEPOSIT] = "sched deposit",
+      [MIR_OP_PUT_DRIVER] = "put driver",
       [MIR_OP_GET_COUNTERS] = "get counters",
       [MIR_OP_INSTANCE_INIT] = "instance init",
       [MIR_OP_INIT_FUNCTOR] = "init functor",
@@ -1593,6 +1594,7 @@ void mir_annotate(mir_unit_t *mu, const mir_annotate_t *cb, void *ctx)
 
          case MIR_OP_FORCE:
          case MIR_OP_DEPOSIT_SIGNAL:
+         case MIR_OP_PUT_DRIVER:
             {
                printf("%s ", mir_op_string(n->op));
                mir_dump_arg(mu, result, 0, cb, ctx);

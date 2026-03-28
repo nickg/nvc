@@ -5024,6 +5024,35 @@ void x_sched_deposit(sig_shared_t *ss, uint32_t offset, int32_t count,
    sched_deposit(m, s, values, offset, count, after, true);
 }
 
+void x_put_driver(sig_shared_t *ss, uint32_t offset, int32_t count,
+                  void *values)
+{
+   rt_signal_t *s = container_of(ss, rt_signal_t, shared);
+
+   TRACE("put driver %s+%d value=%s count=%d", istr(tree_ident(s->where)),
+         offset, fmt_values(values, count * s->nexus.size), count);
+
+   rt_proc_t *proc = get_active_proc();
+   rt_model_t *m = get_model();
+   rt_nexus_t *n = split_nexus(m, s, offset, count);
+   const char *vptr = values;
+   for (; count > 0; n = n->chain) {
+      count -= n->width;
+      assert(count >= 0);
+
+      rt_source_t *d = find_driver(n, proc);
+      assert(d != NULL);
+
+      assert(d->u.driver.waveforms.next == NULL);
+      copy_value_ptr(n, &d->u.driver.waveforms.value, vptr);
+
+      calculate_driving_value(m, n);
+      update_blocking(m, n);
+
+      vptr += n->size * n->width;
+   }
+}
+
 void x_put_conversion(rt_conv_func_t *cf, sig_shared_t *ss, uint32_t offset,
                       int32_t count, void *values)
 {

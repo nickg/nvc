@@ -267,6 +267,7 @@ typedef enum {
    MIR_OP_SCHED_PROCESS,
    MIR_OP_SCHED_INACTIVE,
    MIR_OP_SCHED_DEPOSIT,
+   MIR_OP_PUT_DRIVER,
    MIR_OP_TABLE_REF,
    MIR_OP_GET_COUNTERS,
    MIR_OP_INSTANCE_INIT,
@@ -679,6 +680,8 @@ void mir_build_drive_signal(mir_unit_t *mu, mir_value_t target,
 void mir_build_sched_waveform(mir_unit_t *mu, mir_value_t target,
                               mir_value_t count, mir_value_t values,
                               mir_value_t reject, mir_value_t after);
+void mir_build_put_driver(mir_unit_t *mu, mir_value_t target,
+                          mir_value_t count, mir_value_t values);
 void mir_build_deposit_signal(mir_unit_t *mu, mir_value_t target,
                               mir_value_t count, mir_value_t values);
 void mir_build_sched_deposit(mir_unit_t *mu, mir_value_t target,
