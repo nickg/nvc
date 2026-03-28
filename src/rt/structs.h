@@ -127,23 +127,6 @@ typedef struct {
    waveform_t  waveforms;
 } rt_driver_t;
 
-typedef struct {
-   rt_nexus_t *nexus;
-   rt_value_t  result;
-} conv_input_t;
-
-typedef struct _rt_conv_func {
-   ffi_closure_t *driving;
-   ffi_closure_t *effective;
-   unsigned       ninputs;
-   unsigned       maxinputs;
-   conv_input_t  *inputs;
-   rt_source_t   *outputs;
-   uint64_t       when;
-   unsigned       iteration;
-   conv_input_t   tail[];
-} rt_conv_func_t;
-
 typedef struct _rt_functor {
    ffi_closure_t *closure;
    rt_scope_t    *scope;
@@ -152,10 +135,8 @@ typedef struct _rt_functor {
 } rt_functor_t;
 
 typedef struct {
-   rt_nexus_t     *output;
-   rt_nexus_t     *input;
-   rt_conv_func_t *conv_func;
-   rt_value_t      conv_result;
+   rt_nexus_t *output;
+   rt_nexus_t *input;
 } rt_port_t;
 
 typedef struct {

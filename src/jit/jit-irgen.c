@@ -1135,7 +1135,6 @@ static ffi_type_t irgen_ffi_type(jit_irgen_t *g, mir_type_t type)
    case MIR_TYPE_CONTEXT:
    case MIR_TYPE_ACCESS:
    case MIR_TYPE_LOCUS:
-   case MIR_TYPE_CONVERSION:
    case MIR_TYPE_FUNCTOR:
       return FFI_POINTER;
    case MIR_TYPE_FILE:
@@ -3601,26 +3600,6 @@ static void irgen_op_put_driver(jit_irgen_t *g, mir_value_t n)
    macro_exit(g, JIT_EXIT_PUT_DRIVER);
 }
 
-static void irgen_op_put_conversion(jit_irgen_t *g, mir_value_t n)
-{
-   jit_value_t cf     = irgen_get_arg(g, n, 0);
-   jit_value_t shared = irgen_get_arg_slot(g, n, 1, 0);
-   jit_value_t offset = irgen_get_arg_slot(g, n, 1, 1);
-   jit_value_t count  = irgen_get_arg(g, n, 2);
-   jit_value_t value  = irgen_get_arg(g, n, 3);
-
-   jit_value_t scalar = irgen_is_scalar(g, n, 3);
-
-   j_send(g, 0, cf);
-   j_send(g, 1, shared);
-   j_send(g, 2, offset);
-   j_send(g, 3, count);
-   j_send(g, 4, value);
-   j_send(g, 5, scalar);
-
-   macro_exit(g, JIT_EXIT_PUT_CONVERSION);
-}
-
 static void irgen_op_put_functor(jit_irgen_t *g, mir_value_t n)
 {
    jit_value_t functor = irgen_get_arg(g, n, 0);
@@ -3934,51 +3913,6 @@ static void irgen_op_add_trigger(jit_irgen_t *g, mir_value_t n)
 
    j_send(g, 0, trigger);
    macro_exit(g, JIT_EXIT_ADD_TRIGGER);
-}
-
-static void irgen_op_port_conversion(jit_irgen_t *g, mir_value_t n)
-{
-   jit_value_t closure1 = irgen_get_arg(g, n, 0);
-
-   jit_value_t closure2;
-   if (mir_count_args(g->mu, n) > 1)
-      closure2 = irgen_get_arg(g, n, 1);
-   else
-      closure2 = jit_null_ptr();
-
-   j_send(g, 0, closure1);
-   j_send(g, 1, closure2);
-   macro_exit(g, JIT_EXIT_PORT_CONVERSION);
-
-   j_recv(g, g->map[n.id], 0);
-}
-
-static void irgen_op_convert_in(jit_irgen_t *g, mir_value_t n)
-{
-   jit_value_t conv   = irgen_get_arg(g, n, 0);
-   jit_value_t shared = irgen_get_arg_slot(g, n, 1, 0);
-   jit_value_t offset = irgen_get_arg_slot(g, n, 1, 1);
-   jit_value_t count  = irgen_get_arg(g, n, 2);
-
-   j_send(g, 0, conv);
-   j_send(g, 1, shared);
-   j_send(g, 2, offset);
-   j_send(g, 3, count);
-   macro_exit(g, JIT_EXIT_CONVERT_IN);
-}
-
-static void irgen_op_convert_out(jit_irgen_t *g, mir_value_t n)
-{
-   jit_value_t conv   = irgen_get_arg(g, n, 0);
-   jit_value_t shared = irgen_get_arg_slot(g, n, 1, 0);
-   jit_value_t offset = irgen_get_arg_slot(g, n, 1, 1);
-   jit_value_t count  = irgen_get_arg(g, n, 2);
-
-   j_send(g, 0, conv);
-   j_send(g, 1, shared);
-   j_send(g, 2, offset);
-   j_send(g, 3, count);
-   macro_exit(g, JIT_EXIT_CONVERT_OUT);
 }
 
 static void irgen_op_init_functor(jit_irgen_t *g, mir_value_t n)
@@ -4904,9 +4838,6 @@ static void irgen_block(jit_irgen_t *g, mir_block_t block)
       case MIR_OP_PUT_DRIVER:
          irgen_op_put_driver(g, n);
          break;
-      case MIR_OP_PUT_CONVERSION:
-         irgen_op_put_conversion(g, n);
-         break;
       case MIR_OP_PUT_FUNCTOR:
          irgen_op_put_functor(g, n);
          break;
@@ -4965,15 +4896,6 @@ static void irgen_block(jit_irgen_t *g, mir_block_t block)
          break;
       case MIR_OP_ADD_TRIGGER:
          irgen_op_add_trigger(g, n);
-         break;
-      case MIR_OP_PORT_CONVERSION:
-         irgen_op_port_conversion(g, n);
-         break;
-      case MIR_OP_CONVERT_IN:
-         irgen_op_convert_in(g, n);
-         break;
-      case MIR_OP_CONVERT_OUT:
-         irgen_op_convert_out(g, n);
          break;
       case MIR_OP_INIT_FUNCTOR:
          irgen_op_init_functor(g, n);

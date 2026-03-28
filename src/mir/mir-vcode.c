@@ -92,9 +92,6 @@ static mir_type_t import_type(mir_unit_t *mu, mir_import_t *imp,
    case VCODE_TYPE_FILE:
       type = mir_file_type(mu, import_type(mu, imp, vtype_base(vtype)));
       break;
-   case VCODE_TYPE_CONVERSION:
-      type = mir_conversion_type(mu);
-      break;
    case VCODE_TYPE_TRIGGER:
       type = mir_trigger_type(mu);
       break;
@@ -1091,36 +1088,6 @@ static void import_file_write(mir_unit_t *mu, mir_import_t *imp, int op)
    mir_build_file_write(mu, file, value, length);
 }
 
-static void import_port_conversion(mir_unit_t *mu, mir_import_t *imp, int op)
-{
-   mir_value_t driving = imp->map[vcode_get_arg(op, 0)];
-
-   mir_value_t effective = MIR_NULL_VALUE;
-   if (vcode_count_args(op) > 1)
-      effective = imp->map[vcode_get_arg(op, 1)];
-
-   vcode_reg_t result = vcode_get_result(op);
-   imp->map[result] = mir_build_port_conversion(mu, driving, effective);
-}
-
-static void import_convert_in(mir_unit_t *mu, mir_import_t *imp, int op)
-{
-   mir_value_t conv = imp->map[vcode_get_arg(op, 0)];
-   mir_value_t nets = imp->map[vcode_get_arg(op, 1)];
-   mir_value_t count = imp->map[vcode_get_arg(op, 2)];
-
-   mir_build_convert_in(mu, conv, nets, count);
-}
-
-static void import_convert_out(mir_unit_t *mu, mir_import_t *imp, int op)
-{
-   mir_value_t conv = imp->map[vcode_get_arg(op, 0)];
-   mir_value_t nets = imp->map[vcode_get_arg(op, 1)];
-   mir_value_t count = imp->map[vcode_get_arg(op, 2)];
-
-   mir_build_convert_out(mu, conv, nets, count);
-}
-
 static void import_driving_value(mir_unit_t *mu, mir_import_t *imp, int op)
 {
    mir_value_t signal = imp->map[vcode_get_arg(op, 0)];
@@ -1130,16 +1097,6 @@ static void import_driving_value(mir_unit_t *mu, mir_import_t *imp, int op)
       count = imp->map[vcode_get_arg(op, 1)];
 
    imp->map[vcode_get_result(op)] = mir_build_driving_value(mu, signal, count);
-}
-
-static void import_put_conversion(mir_unit_t *mu, mir_import_t *imp, int op)
-{
-   mir_value_t cf = imp->map[vcode_get_arg(op, 0)];
-   mir_value_t target = imp->map[vcode_get_arg(op, 1)];
-   mir_value_t count = imp->map[vcode_get_arg(op, 2)];
-   mir_value_t values = imp->map[vcode_get_arg(op, 3)];
-
-   mir_build_put_conversion(mu, cf, target, count, values);
 }
 
 static void import_force(mir_unit_t *mu, mir_import_t *imp, int op)
@@ -1692,20 +1649,8 @@ static void import_block(mir_unit_t *mu, mir_import_t *imp)
       case VCODE_OP_FILE_WRITE:
          import_file_write(mu, imp, i);
          break;
-      case VCODE_OP_PORT_CONVERSION:
-         import_port_conversion(mu, imp, i);
-         break;
-      case VCODE_OP_CONVERT_IN:
-         import_convert_in(mu, imp, i);
-         break;
-      case VCODE_OP_CONVERT_OUT:
-         import_convert_out(mu, imp, i);
-         break;
       case VCODE_OP_DRIVING_VALUE:
          import_driving_value(mu, imp, i);
-         break;
-      case VCODE_OP_PUT_CONVERSION:
-         import_put_conversion(mu, imp, i);
          break;
       case VCODE_OP_FORCE:
          import_force(mu, imp, i);

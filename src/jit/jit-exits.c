@@ -646,22 +646,6 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
       }
       break;
 
-   case JIT_EXIT_PUT_CONVERSION:
-      {
-         rt_conv_func_t *cf     = args[0].pointer;
-         sig_shared_t   *shared = args[1].pointer;
-         int32_t         offset = args[2].integer;
-         int32_t         count  = args[3].integer;
-         jit_scalar_t    value  = { .integer = args[4].integer };
-         bool            scalar = args[5].integer;
-
-         if (scalar)
-            x_put_conversion(cf, shared, offset, count, &value.integer);
-         else
-            x_put_conversion(cf, shared, offset, count, value.pointer);
-      }
-      break;
-
    case JIT_EXIT_PUT_FUNCTOR:
       {
          rt_functor_t *f      = args[0].pointer;
@@ -943,39 +927,6 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
 
          if (trigger != NULL)
             x_add_trigger(trigger);
-      }
-      break;
-
-   case JIT_EXIT_PORT_CONVERSION:
-      {
-         ffi_closure_t *driving   = args[0].pointer;
-         ffi_closure_t *effective = args[1].pointer;
-
-         args[0].pointer = x_port_conversion(driving, effective);
-      }
-      break;
-
-   case JIT_EXIT_CONVERT_IN:
-      {
-         void         *conv   = args[0].pointer;
-         sig_shared_t *shared = args[1].pointer;
-         int32_t       offset = args[2].integer;
-         int32_t       count  = args[3].integer;
-
-         if (conv != NULL)
-            x_convert_in(conv, shared, offset, count);
-      }
-      break;
-
-   case JIT_EXIT_CONVERT_OUT:
-      {
-         void         *conv   = args[0].pointer;
-         sig_shared_t *shared = args[1].pointer;
-         int32_t       offset = args[2].integer;
-         int32_t       count  = args[3].integer;
-
-         if (conv != NULL)
-            x_convert_out(conv, shared, offset, count);
       }
       break;
 

@@ -65,7 +65,6 @@ static uint32_t mir_hash_type(mir_unit_t *mu, const type_data_t *td)
    case _MIR_INVALID_TYPE:
    case MIR_TYPE_OFFSET:
    case MIR_TYPE_LOCUS:
-   case MIR_TYPE_CONVERSION:
    case MIR_TYPE_FUNCTOR:
    case MIR_TYPE_OPAQUE:
    case MIR_TYPE_TRIGGER:
@@ -144,7 +143,6 @@ static bool mir_compare_types(const type_data_t *a, const type_data_t *b)
    case MIR_TYPE_OFFSET:
    case MIR_TYPE_LOCUS:
    case MIR_TYPE_OPAQUE:
-   case MIR_TYPE_CONVERSION:
    case MIR_TYPE_FUNCTOR:
    case MIR_TYPE_TRIGGER:
       return true;
@@ -515,16 +513,6 @@ mir_type_t mir_locus_type(mir_unit_t *mu)
    }
 
    return mu->types.locus_type;
-}
-
-mir_type_t mir_conversion_type(mir_unit_t *mu)
-{
-   if (mir_is_null(mu->types.conversion_type)) {
-      const type_data_t td = { .class = MIR_TYPE_CONVERSION };
-      mu->types.conversion_type = mir_build_type(mu, &td);
-   }
-
-   return mu->types.conversion_type;
 }
 
 mir_type_t mir_functor_type(mir_unit_t *mu)

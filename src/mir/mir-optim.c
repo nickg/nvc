@@ -660,7 +660,6 @@ static void gvn_visit_block(mir_unit_t *mu, mir_block_t block,
          gvn_load(mu, node, block, opt);
          break;
       case MIR_OP_INIT_SIGNAL:
-      case MIR_OP_PORT_CONVERSION:
       case MIR_OP_INIT_FUNCTOR:
       case MIR_OP_PROTECTED_INIT:
       case MIR_OP_INSTANCE_INIT:

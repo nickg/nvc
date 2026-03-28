@@ -1046,12 +1046,11 @@ const char *vcode_op_string(vcode_op_t op)
       "trap add", "trap sub", "trap mul", "force", "release",
       "unreachable", "package init", "trap neg", "process init", "clear event",
       "trap exp", "enter state", "reflect value", "reflect subtype",
-      "function trigger", "add trigger", "transfer signal",
-      "port conversion", "convert in", "convert out", "bind foreign",
+      "function trigger", "add trigger", "transfer signal", "bind foreign",
       "or trigger", "cmp trigger", "instance name",
       "map implicit", "bind external", "array scope", "record scope",
-      "put conversion", "dir check", "sched process", "table ref",
-      "get counters", "put driver", "deposit signal",
+      "dir check", "sched process", "table ref", "get counters", "put driver",
+      "deposit signal",
    };
    if ((unsigned)op >= ARRAY_LEN(strs))
       return "???";
@@ -1181,10 +1180,6 @@ static int vcode_dump_one_type(vcode_type_t type)
 
    case VCODE_TYPE_TRIGGER:
       col += printf("T<>");
-      break;
-
-   case VCODE_TYPE_CONVERSION:
-      col += printf("X<>");
       break;
    }
 
@@ -2408,44 +2403,6 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
             }
             break;
 
-         case VCODE_OP_PUT_CONVERSION:
-            {
-               nvc_printf("%s ", vcode_op_string(op->kind));
-               vcode_dump_reg(op->args.items[0]);
-               printf(" signal ");
-               vcode_dump_reg(op->args.items[1]);
-               printf(" count ");
-               vcode_dump_reg(op->args.items[2]);
-               printf(" values ");
-               vcode_dump_reg(op->args.items[3]);
-            }
-            break;
-
-         case VCODE_OP_PORT_CONVERSION:
-            {
-               col += vcode_dump_reg(op->result);
-               col += nvc_printf(" := %s ", vcode_op_string(op->kind));
-               col += vcode_dump_reg(op->args.items[0]);
-               if (op->args.count > 1) {
-                  col += printf(" effective ");
-                  col += vcode_dump_reg(op->args.items[1]);
-               }
-               vcode_dump_result_type(col, op);
-            }
-            break;
-
-         case VCODE_OP_CONVERT_IN:
-         case VCODE_OP_CONVERT_OUT:
-            {
-               nvc_printf("%s ", vcode_op_string(op->kind));
-               vcode_dump_reg(op->args.items[0]);
-               printf(" signal ");
-               vcode_dump_reg(op->args.items[1]);
-               printf(" count ");
-               vcode_dump_reg(op->args.items[2]);
-            }
-            break;
-
          case VCODE_OP_BIND_FOREIGN:
             {
                nvc_printf("%s ", vcode_op_string(op->kind));
@@ -2525,7 +2482,6 @@ static inline bool vtype_eq_internal(const vtype_t *at, const vtype_t *bt)
    case VCODE_TYPE_OPAQUE:
    case VCODE_TYPE_DEBUG_LOCUS:
    case VCODE_TYPE_TRIGGER:
-   case VCODE_TYPE_CONVERSION:
       return true;
    case VCODE_TYPE_RESOLUTION:
    case VCODE_TYPE_CLOSURE:
@@ -2825,16 +2781,6 @@ vcode_type_t vtype_trigger(void)
 
    vtype_t *n = vtype_array_alloc(&(active_unit->types));
    n->kind = VCODE_TYPE_TRIGGER;
-
-   return vtype_new(n);
-}
-
-vcode_type_t vtype_conversion(void)
-{
-   assert(active_unit != NULL);
-
-   vtype_t *n = vtype_array_alloc(&(active_unit->types));
-   n->kind = VCODE_TYPE_CONVERSION;
 
    return vtype_new(n);
 }
@@ -6225,22 +6171,6 @@ void emit_add_trigger(vcode_reg_t trigger)
                 "add trigger argument must be trigger");
 }
 
-vcode_reg_t emit_port_conversion(vcode_reg_t driving, vcode_reg_t effective)
-{
-   op_t *op = vcode_add_op(VCODE_OP_PORT_CONVERSION);
-   vcode_add_arg(op, driving);
-   if (effective != VCODE_INVALID_REG && effective != driving)
-      vcode_add_arg(op, effective);
-
-   VCODE_ASSERT(vcode_reg_kind(driving) == VCODE_TYPE_CLOSURE,
-                "port conversion argument must be a closure");
-   VCODE_ASSERT(effective == VCODE_INVALID_REG
-                || vcode_reg_kind(effective) == VCODE_TYPE_CLOSURE,
-                "port conversion argument must be a closure");
-
-   return (op->result = vcode_add_reg(vtype_conversion(), VCODE_INVALID_STAMP));
-}
-
 vcode_reg_t emit_bind_external(vcode_reg_t locus, ident_t scope,
                                vcode_type_t type, vcode_stamp_t stamp,
                                const vcode_reg_t *args, int nargs)
@@ -6258,55 +6188,6 @@ vcode_reg_t emit_bind_external(vcode_reg_t locus, ident_t scope,
    op->result = vcode_add_reg(vtype_pointer(type), VCODE_INVALID_STAMP);
    vcode_reg_data(op->result)->stamp = stamp;
    return op->result;
-}
-
-void emit_put_conversion(vcode_reg_t cf, vcode_reg_t target, vcode_reg_t count,
-                         vcode_reg_t values)
-{
-   op_t *op = vcode_add_op(VCODE_OP_PUT_CONVERSION);
-   vcode_add_arg(op, cf);
-   vcode_add_arg(op, target);
-   vcode_add_arg(op, count);
-   vcode_add_arg(op, values);
-
-   VCODE_ASSERT(vcode_reg_kind(target) == VCODE_TYPE_SIGNAL,
-                "put conversion target is not signal");
-   VCODE_ASSERT(vcode_reg_kind(count) == VCODE_TYPE_OFFSET,
-                "put conversion net count is not offset type");
-   VCODE_ASSERT(vcode_reg_kind(values) != VCODE_TYPE_SIGNAL,
-                "signal cannot be values argument for put conversion");
-   VCODE_ASSERT(vcode_reg_kind(cf) == VCODE_TYPE_CONVERSION,
-                "cf argument to put conversion must be conversion function");
-}
-
-void emit_convert_in(vcode_reg_t conv, vcode_reg_t nets, vcode_reg_t count)
-{
-   op_t *op = vcode_add_op(VCODE_OP_CONVERT_IN);
-   vcode_add_arg(op, conv);
-   vcode_add_arg(op, nets);
-   vcode_add_arg(op, count);
-
-   VCODE_ASSERT(vcode_reg_kind(conv) == VCODE_TYPE_CONVERSION,
-                "conv argument to convert must be a port conversion");
-   VCODE_ASSERT(vcode_reg_kind(nets) == VCODE_TYPE_SIGNAL,
-                "nets argument to convert must be a signal");
-   VCODE_ASSERT(vcode_reg_kind(count) == VCODE_TYPE_OFFSET,
-                "count argument to convert must be offset");
-}
-
-void emit_convert_out(vcode_reg_t conv, vcode_reg_t nets, vcode_reg_t count)
-{
-   op_t *op = vcode_add_op(VCODE_OP_CONVERT_OUT);
-   vcode_add_arg(op, conv);
-   vcode_add_arg(op, nets);
-   vcode_add_arg(op, count);
-
-   VCODE_ASSERT(vcode_reg_kind(conv) == VCODE_TYPE_CONVERSION,
-                "conv argument to convert must be a port conversion");
-   VCODE_ASSERT(vcode_reg_kind(nets) == VCODE_TYPE_SIGNAL,
-                "nets argument to convert must be a signal");
-   VCODE_ASSERT(vcode_reg_kind(count) == VCODE_TYPE_OFFSET,
-                "count argument to convert must be offset");
 }
 
 void emit_put_driver(vcode_reg_t target, vcode_reg_t count, vcode_reg_t values)

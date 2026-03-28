@@ -222,10 +222,6 @@ typedef enum {
    MIR_OP_FILE_OPEN,
    MIR_OP_FILE_READ,
    MIR_OP_FILE_WRITE,
-   MIR_OP_PORT_CONVERSION,
-   MIR_OP_CONVERT_IN,
-   MIR_OP_CONVERT_OUT,
-   MIR_OP_PUT_CONVERSION,
    MIR_OP_LINK_VAR,
    MIR_OP_DRIVING_VALUE,
    MIR_OP_FORCE,
@@ -294,7 +290,6 @@ typedef enum {
    MIR_TYPE_ACCESS,
    MIR_TYPE_FILE,
    MIR_TYPE_TRIGGER,
-   MIR_TYPE_CONVERSION,
    MIR_TYPE_OPAQUE,
    MIR_TYPE_VEC2,
    MIR_TYPE_VEC4,
@@ -370,7 +365,6 @@ mir_type_t mir_int_type(mir_unit_t *mu, int64_t low, int64_t high);
 mir_type_t mir_real_type(mir_unit_t *mu, double low, double high);
 mir_type_t mir_offset_type(mir_unit_t *mu);
 mir_type_t mir_locus_type(mir_unit_t *mu);
-mir_type_t mir_conversion_type(mir_unit_t *mu);
 mir_type_t mir_functor_type(mir_unit_t *mu);
 mir_type_t mir_trigger_type(mir_unit_t *mu);
 mir_type_t mir_self_type(mir_unit_t *mu);
@@ -644,17 +638,6 @@ void mir_build_file_read(mir_unit_t *mu, mir_value_t file, mir_value_t ptr,
                          mir_value_t inlen, mir_value_t outlen);
 void mir_build_file_write(mir_unit_t *mu, mir_value_t file, mir_value_t value,
                           mir_value_t length);
-
-// Port conversion
-mir_value_t mir_build_port_conversion(mir_unit_t *mu, mir_value_t driving,
-                                      mir_value_t effective);
-void mir_build_convert_in(mir_unit_t *mu, mir_value_t conv, mir_value_t nets,
-                          mir_value_t count);
-void mir_build_convert_out(mir_unit_t *mu, mir_value_t conv, mir_value_t nets,
-                           mir_value_t count);
-void mir_build_put_conversion(mir_unit_t *mu, mir_value_t cf,
-                              mir_value_t target, mir_value_t count,
-                              mir_value_t values);
 
 // Functors
 mir_value_t mir_build_init_functor(mir_unit_t *mu, mir_value_t closure);

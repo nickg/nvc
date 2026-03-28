@@ -554,19 +554,6 @@ static void free_waveform(rt_model_t *m, waveform_t *w)
 
 static void cleanup_nexus(rt_model_t *m, rt_nexus_t *n)
 {
-   for (rt_source_t *s = &(n->sources); s; s = s->chain_input) {
-      if (s->tag != SOURCE_PORT)
-         continue;
-
-      rt_conv_func_t *cf = s->u.port.conv_func;
-      if (cf == NULL)
-         continue;
-      else if (cf->inputs != NULL && cf->inputs != cf->tail) {
-         free(cf->inputs);
-         s->u.port.conv_func->inputs = NULL;
-      }
-   }
-
    if (n->pending != NULL && pointer_tag(n->pending) == 0)
       free(n->pending);
 }
@@ -1287,9 +1274,8 @@ static rt_source_t *add_source(rt_model_t *m, rt_nexus_t *n, source_kind_t kind)
       break;
 
    case SOURCE_PORT:
-      src->u.port.conv_func = NULL;
-      src->u.port.input     = NULL;
-      src->u.port.output    = n;
+      src->u.port.input  = NULL;
+      src->u.port.output = n;
       break;
 
    case SOURCE_DEPOSIT:
@@ -1454,39 +1440,6 @@ static waveform_t *alloc_waveform(rt_model_t *m)
    }
 }
 
-static void add_conversion_input(rt_model_t *m, rt_conv_func_t *cf,
-                                 rt_nexus_t *in)
-{
-   if (cf->ninputs == cf->maxinputs) {
-      const size_t per_block = MEMBLOCK_ALIGN / sizeof(conv_input_t);
-      cf->maxinputs = ALIGN_UP(MAX(4, cf->maxinputs * 2), per_block);
-
-      if (cf->inputs == cf->tail) {
-         void *new = xmalloc_array(cf->maxinputs, sizeof(conv_input_t));
-         memcpy(new, cf->inputs, cf->ninputs * sizeof(conv_input_t));
-         cf->inputs = new;
-      }
-      else
-         cf->inputs = xrealloc_array(cf->inputs, cf->maxinputs,
-                                     sizeof(conv_input_t));
-   }
-
-   cf->inputs[cf->ninputs++] = (conv_input_t){
-      .nexus  = in,
-      .result = alloc_value(m, in),
-   };
-}
-
-static rt_value_t *find_conversion_input(rt_conv_func_t *cf, rt_nexus_t *n)
-{
-   for (int i = 0; i < cf->ninputs; i++) {
-      if (cf->inputs[i].nexus == n)
-         return &(cf->inputs[i].result);
-   }
-
-   return NULL;
-}
-
 static void split_value(rt_nexus_t *nexus, rt_value_t *v_new,
                         rt_value_t *v_old, int offset)
 {
@@ -1532,24 +1485,14 @@ static void clone_source(rt_model_t *m, rt_nexus_t *nexus,
       {
          new->u.port.input = old->u.port.input;
 
-         if (old->u.port.conv_func != NULL) {
-            new->u.port.conv_func = old->u.port.conv_func;
-            new->u.port.conv_result = alloc_value(m, nexus);
-
-            rt_source_t **p = &(old->u.port.conv_func->outputs);
-            for (; *p != NULL; p = &((*p)->chain_output));
-            *p = new;
-         }
+         if (old->u.port.input->width == offset)
+            new->u.port.input = old->u.port.input->chain;  // Cycle breaking
          else {
-            if (old->u.port.input->width == offset)
-               new->u.port.input = old->u.port.input->chain;  // Cycle breaking
-            else {
-               RT_LOCK(old->u.port.input->signal->lock);
-               rt_nexus_t *n = clone_nexus(m, old->u.port.input, offset);
-               new->u.port.input = n;
-            }
-            assert(new->u.port.input->width == nexus->width);
+            RT_LOCK(old->u.port.input->signal->lock);
+            rt_nexus_t *n = clone_nexus(m, old->u.port.input, offset);
+            new->u.port.input = n;
          }
+         assert(new->u.port.input->width == nexus->width);
       }
       break;
 
@@ -1674,11 +1617,7 @@ static rt_nexus_t *clone_nexus(rt_model_t *m, rt_nexus_t *old, int offset)
       switch (old_o->tag) {
       case SOURCE_PORT:
       case SOURCE_IMPLICIT:
-         if (old_o->tag == SOURCE_PORT && old_o->u.port.conv_func != NULL) {
-            new->outputs = old_o;
-            add_conversion_input(m, old_o->u.port.conv_func, new);
-         }
-         else {
+         {
             rt_nexus_t *out_n;
             if (old_o->tag == SOURCE_IMPLICIT)
                out_n = old_o->u.port.output;
@@ -1838,58 +1777,6 @@ static void copy_sub_signal_sources(rt_scope_t *scope, void *buf, int stride)
       copy_sub_signal_sources(scope->children.items[i], buf, stride);
 }
 
-static void convert_driving(rt_conv_func_t *cf)
-{
-   rt_model_t *m = get_model();
-
-   if (cf->effective == NULL) {
-      // Ensure effective value is only updated once per cycle
-      if (cf->when == m->now && cf->iteration == m->iteration)
-         return;
-
-      cf->when = m->now;
-      cf->iteration = m->iteration;
-   }
-
-   TRACE("call driving conversion function %pi",
-         jit_get_name(m->jit, cf->driving->handle));
-
-   model_thread_t *thread = model_thread(m);
-
-   const uint32_t mark = tlab_mark(thread->tlab);
-
-   jit_scalar_t arg = { .pointer = cf }, result;
-   if (!jit_call_closure(m->jit, cf->driving, &result, arg, thread->tlab))
-      m->force_stop = true;
-
-   tlab_trim(thread->tlab, mark);
-}
-
-static void convert_effective(rt_conv_func_t *cf)
-{
-   rt_model_t *m = get_model();
-
-   // Ensure effective value is only updated once per cycle
-   if (cf->when == m->now && cf->iteration == m->iteration)
-      return;
-
-   cf->when = m->now;
-   cf->iteration = m->iteration;
-
-   TRACE("call effective conversion function %pi",
-         jit_get_name(m->jit, cf->effective->handle));
-
-   model_thread_t *thread = model_thread(m);
-
-   const uint32_t mark = tlab_mark(thread->tlab);
-
-   jit_scalar_t arg = { .pointer = cf }, result;
-   if (!jit_call_closure(m->jit, cf->effective, &result, arg, thread->tlab))
-      m->force_stop = true;
-
-   tlab_trim(thread->tlab, mark);
-}
-
 static void call_functor(rt_model_t *m, rt_functor_t *f)
 {
    TRACE("call functor %pi", jit_get_name(m->jit, f->closure->handle));
@@ -1920,16 +1807,10 @@ static void *source_value(rt_nexus_t *nexus, rt_source_t *src)
          return value_ptr(nexus, &(src->u.driver.waveforms.value));
 
    case SOURCE_PORT:
-      if (likely(src->u.port.conv_func == NULL)) {
-         if (src->u.port.input->flags & NET_F_EFFECTIVE)
-            return nexus_driving(src->u.port.input);
-         else
-            return nexus_effective(src->u.port.input);
-      }
-      else {
-         convert_driving(src->u.port.conv_func);
-         return value_ptr(nexus, &src->u.port.conv_result);
-      }
+      if (src->u.port.input->flags & NET_F_EFFECTIVE)
+         return nexus_driving(src->u.port.input);
+      else
+         return nexus_effective(src->u.port.input);
 
    case SOURCE_FORCING:
    case SOURCE_DEPOSIT:
@@ -2156,16 +2037,10 @@ static void calculate_driving_value(rt_model_t *m, rt_nexus_t *n)
          // signal, then the driving value of S is the driving value of
          // the formal part of the association element that associates S
          // with that port
-         if (likely(s0->u.port.conv_func == NULL)) {
-            if (s0->u.port.input->flags & NET_F_EFFECTIVE)
-               put_driving(m, n, nexus_driving(s0->u.port.input));
-            else
-               put_driving(m, n, nexus_effective(s0->u.port.input));
-         }
-         else {
-            convert_driving(s0->u.port.conv_func);
-            put_driving(m, n, value_ptr(n, &(s0->u.port.conv_result)));
-         }
+         if (s0->u.port.input->flags & NET_F_EFFECTIVE)
+            put_driving(m, n, nexus_driving(s0->u.port.input));
+         else
+            put_driving(m, n, nexus_effective(s0->u.port.input));
          break;
 
       default:
@@ -2189,15 +2064,7 @@ static void calculate_effective_value(rt_model_t *m, rt_nexus_t *n)
    if (n->flags & NET_F_INOUT) {
       for (rt_source_t *s = n->outputs; s; s = s->chain_output) {
          if (s->tag == SOURCE_PORT) {
-            if (likely(s->u.port.conv_func == NULL))
-               put_effective(m, n, nexus_effective(s->u.port.output));
-            else {
-               rt_value_t *v = find_conversion_input(s->u.port.conv_func, n);
-               assert(v != NULL);
-
-               convert_effective(s->u.port.conv_func);
-               put_effective(m, n, value_ptr(n, v));
-            }
+            put_effective(m, n, nexus_effective(s->u.port.output));
             return;
          }
       }
@@ -2360,7 +2227,7 @@ static void check_undriven_std_logic(rt_nexus_t *n)
 
    rt_signal_t *undriven = NULL;
    for (rt_source_t *s = &(n->sources); s; s = s->chain_input) {
-      if (s->tag == SOURCE_PORT && s->u.port.conv_func == NULL) {
+      if (s->tag == SOURCE_PORT) {
          rt_nexus_t *input = s->u.port.input;
          if (input->n_sources == 0) {
             const unsigned char *init = nexus_effective(input), *p = init;
@@ -3197,13 +3064,6 @@ static void update_effective(rt_model_t *m, rt_nexus_t *n)
       for (rt_source_t *s = &(n->sources); s; s = s->chain_input) {
          if (s->tag != SOURCE_PORT)
             continue;
-         else if (s->u.port.conv_func != NULL) {
-            rt_conv_func_t *cf = s->u.port.conv_func;
-            for (int i = 0; i < cf->ninputs; i++) {
-               if (cf->inputs[i].nexus->flags & NET_F_INOUT)
-                  enqueue_effective(m, cf->inputs[i].nexus);
-            }
-         }
          else if (s->u.port.input->flags & NET_F_INOUT)
             enqueue_effective(m, s->u.port.input);
       }
@@ -3308,10 +3168,7 @@ static void update_driving(rt_model_t *m, rt_nexus_t *n, bool safe)
          for (rt_source_t *o = n->outputs; o; o = o->chain_output) {
             switch (o->tag) {
             case SOURCE_PORT:
-               if (o->u.port.conv_func != NULL)
-                  defer_driving_update(m, o->u.port.output);
-               else
-                  update_driving(m, o->u.port.output, false);
+               update_driving(m, o->u.port.output, false);
                break;
             case SOURCE_IMPLICIT:
                update_driving(m, o->u.pseudo.nexus, false);
@@ -4107,18 +3964,9 @@ static bool nexus_active(rt_model_t *m, rt_nexus_t *nexus)
    if (nexus->n_sources > 0) {
       for (rt_source_t *s = &(nexus->sources); s; s = s->chain_input) {
          if (s->tag == SOURCE_PORT) {
-            rt_conv_func_t *cf = s->u.port.conv_func;
-            if (cf == NULL) {
-               RT_LOCK(s->u.port.input->signal->lock);
-               if (nexus_active(m, s->u.port.input))
-                  return true;
-            }
-            else {
-               for (int i = 0; i < cf->ninputs; i++) {
-                  if (nexus_active(m, cf->inputs[i].nexus))
-                     return true;
-               }
-            }
+            RT_LOCK(s->u.port.input->signal->lock);
+            if (nexus_active(m, s->u.port.input))
+               return true;
          }
          else if (s->tag == SOURCE_DRIVER
                   && s->u.driver.waveforms.when == m->now) {
@@ -4140,17 +3988,8 @@ static uint64_t nexus_last_active(rt_model_t *m, rt_nexus_t *nexus)
    if (nexus->n_sources > 0) {
       for (rt_source_t *s = &(nexus->sources); s; s = s->chain_input) {
           if (s->tag == SOURCE_PORT) {
-            rt_conv_func_t *cf = s->u.port.conv_func;
-            if (cf == NULL) {
-               RT_LOCK(s->u.port.input->signal->lock);
-               last = MIN(last, nexus_last_active(m, s->u.port.input));
-            }
-            else {
-               for (int i = 0; i < cf->ninputs; i++) {
-                  RT_LOCK(cf->inputs[i]->signal->lock);
-                  last = MIN(last, nexus_last_active(m, cf->inputs[i].nexus));
-               }
-            }
+             RT_LOCK(s->u.port.input->signal->lock);
+             last = MIN(last, nexus_last_active(m, s->u.port.input));
          }
          else if (s->tag == SOURCE_DRIVER
                   && s->u.driver.waveforms.when <= m->now)
@@ -5100,41 +4939,6 @@ void x_put_driver(sig_shared_t *ss, uint32_t offset, int32_t count,
    }
 }
 
-void x_put_conversion(rt_conv_func_t *cf, sig_shared_t *ss, uint32_t offset,
-                      int32_t count, void *values)
-{
-   rt_signal_t *s = container_of(ss, rt_signal_t, shared);
-
-   TRACE("put conversion %s+%d value=%s count=%d", istr(tree_ident(s->where)),
-         offset, fmt_values(values, count * s->nexus.size), count);
-
-   rt_model_t *m = get_model();
-   rt_nexus_t *n = split_nexus(m, s, offset, count);
-   for (; count > 0; n = n->chain) {
-      count -= n->width;
-      assert(count >= 0);
-
-      rt_source_t *s = &(n->sources);
-      for (; s; s = s->chain_input) {
-         if (s->tag == SOURCE_PORT && s->u.port.conv_func == cf)
-            break;
-      }
-
-      rt_value_t *result;
-      if (s != NULL)
-         result = &(s->u.port.conv_result);
-      else {
-         assert(n->flags & NET_F_EFFECTIVE);
-         result = find_conversion_input(cf, n);
-         assert(result != NULL);
-      }
-
-      copy_value_ptr(n, result, values);
-
-      values += n->width * n->size;
-   }
-}
-
 void x_put_functor(rt_functor_t *f, sig_shared_t *ss, uint32_t offset,
                    int32_t count, void *values)
 {
@@ -5292,103 +5096,6 @@ void x_add_trigger(void *ptr)
    assert(obj->trigger == NULL);
 
    obj->trigger = ptr;
-}
-
-void *x_port_conversion(const ffi_closure_t *driving,
-                        const ffi_closure_t *effective)
-{
-   rt_model_t *m = get_model();
-
-   TRACE("port conversion %pi", jit_get_name(m->jit, driving->handle));
-
-   size_t total_bytes = sizeof(rt_conv_func_t);
-   total_bytes += ffi_closure_size(driving);
-   total_bytes += ffi_closure_size(effective);
-
-   const size_t tail_bytes =
-      ALIGN_UP(total_bytes + sizeof(conv_input_t), MEMBLOCK_ALIGN)
-      - total_bytes;
-   const int tail_max_inputs = tail_bytes / sizeof(conv_input_t);
-   assert(tail_max_inputs > 0);
-
-   void *mem = static_alloc(m, total_bytes + tail_bytes);
-
-   rt_conv_func_t *cf = mem;
-   cf->ninputs   = 0;
-   cf->maxinputs = tail_max_inputs;
-   cf->outputs   = NULL;
-   cf->inputs    = cf->tail;
-   cf->when      = TIME_HIGH;
-   cf->iteration = UINT_MAX;
-
-   mem += sizeof(rt_conv_func_t) + tail_max_inputs * sizeof(conv_input_t);
-
-   cf->driving = mem;
-   ffi_copy_closure(cf->driving, driving);
-
-   mem += ffi_closure_size(driving);
-
-   if (effective != NULL) {
-      cf->effective = mem;
-      ffi_copy_closure(cf->effective, effective);
-   }
-
-   return cf;
-}
-
-void x_convert_in(void *ptr, sig_shared_t *ss, uint32_t offset, int32_t count)
-{
-   rt_signal_t *s = container_of(ss, rt_signal_t, shared);
-
-   TRACE("convert in %p %s+%d count=%d", ptr, istr(tree_ident(s->where)),
-         offset, count);
-
-   rt_conv_func_t *cf = ptr;
-   rt_model_t *m = get_model();
-
-   int rank = 0;
-   rt_nexus_t *n = split_nexus(m, s, offset, count);
-   for (; count > 0; n = n->chain) {
-      count -= n->width;
-      assert(count >= 0);
-
-      rank = MAX(rank, n->rank);
-
-      add_conversion_input(m, cf, n);
-
-      splice_outputs(&(n->outputs), cf->outputs);
-   }
-
-   for (rt_source_t *o = cf->outputs; o; o = o->chain_output) {
-      assert(o->tag == SOURCE_PORT);
-      update_rank(o->u.port.output, rank + 1);
-   }
-}
-
-void x_convert_out(void *ptr, sig_shared_t *ss, uint32_t offset, int32_t count)
-{
-   rt_signal_t *s = container_of(ss, rt_signal_t, shared);
-
-   TRACE("convert out %p %s+%d count=%d", ptr, istr(tree_ident(s->where)),
-         offset, count);
-
-   rt_conv_func_t *cf = ptr;
-   rt_model_t *m = get_model();
-
-   assert(cf->ninputs == 0);    // Add outputs first
-
-   rt_nexus_t *n = split_nexus(m, s, offset, count);
-   for (; count > 0; n = n->chain) {
-      count -= n->width;
-      assert(count >= 0);
-
-      rt_source_t *src = add_source(m, n, SOURCE_PORT);
-      src->u.port.conv_func   = cf;
-      src->u.port.conv_result = alloc_value(m, n);
-
-      src->chain_output = cf->outputs;
-      cf->outputs = src;
-   }
 }
 
 void *x_init_functor(const ffi_closure_t *closure)

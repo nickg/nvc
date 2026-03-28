@@ -87,8 +87,6 @@ void x_sched_deposit(sig_shared_t *ss, uint32_t offset, int32_t count,
                      void *values, int64_t after);
 void x_put_driver(sig_shared_t *ss, uint32_t offset, int32_t count,
                   void *values);
-void x_put_conversion(rt_conv_func_t *cf, sig_shared_t *ss, uint32_t offset,
-                      int32_t count, void *values);
 void x_put_functor(rt_functor_t *f, sig_shared_t *ss, uint32_t offset,
                    int32_t count, void *values);
 void x_resolve_signal(sig_shared_t *ss, ffi_closure_t *closure, int32_t nlits,
@@ -109,10 +107,6 @@ rt_trigger_t *x_or_trigger(rt_trigger_t *left, rt_trigger_t *right);
 void *x_cmp_trigger(sig_shared_t *ss, uint32_t offset, int64_t right);
 void *x_level_trigger(sig_shared_t *ss, uint32_t offset, int32_t count);
 void x_add_trigger(void *ptr);
-void *x_port_conversion(const ffi_closure_t *driving,
-                        const ffi_closure_t *effective);
-void x_convert_in(void *ptr, sig_shared_t *ss, uint32_t offset, int32_t count);
-void x_convert_out(void *ptr, sig_shared_t *ss, uint32_t offset, int32_t count);
 void *x_init_functor(const ffi_closure_t *closure);
 void x_functor_in(void *ptr, sig_shared_t *ss, uint32_t offset, int32_t count);
 void x_functor_out(void *ptr, sig_shared_t *ss, uint32_t offset, int32_t count);

@@ -134,10 +134,6 @@ const char *mir_op_string(mir_op_t op)
       [MIR_OP_FILE_OPEN] = "file open",
       [MIR_OP_FILE_READ] = "file read",
       [MIR_OP_FILE_WRITE] = "file write",
-      [MIR_OP_PORT_CONVERSION] = "port conversion",
-      [MIR_OP_CONVERT_IN] = "convert in",
-      [MIR_OP_CONVERT_OUT] = "convert out",
-      [MIR_OP_PUT_CONVERSION] = "put conversion",
       [MIR_OP_LINK_VAR] = "link var",
       [MIR_OP_DRIVING_VALUE] = "driving value",
       [MIR_OP_FORCE] = "force",
@@ -355,10 +351,6 @@ static void mir_dump_one_type(mir_unit_t *mu, mir_type_t type)
       printf("F<");
       mir_dump_one_type(mu, td->u.base);
       printf(">");
-      break;
-
-   case MIR_TYPE_CONVERSION:
-      printf("X<>");
       break;
 
    case MIR_TYPE_TRIGGER:
@@ -1549,7 +1541,6 @@ void mir_annotate(mir_unit_t *mu, const mir_annotate_t *cb, void *ctx)
             }
             break;
 
-         case MIR_OP_PORT_CONVERSION:
          case MIR_OP_INIT_FUNCTOR:
             {
                col += mir_dump_value(mu, result, cb, ctx);
@@ -1564,8 +1555,6 @@ void mir_annotate(mir_unit_t *mu, const mir_annotate_t *cb, void *ctx)
             }
             break;
 
-         case MIR_OP_CONVERT_IN:
-         case MIR_OP_CONVERT_OUT:
          case MIR_OP_FUNCTOR_IN:
          case MIR_OP_FUNCTOR_OUT:
             {
@@ -1578,7 +1567,6 @@ void mir_annotate(mir_unit_t *mu, const mir_annotate_t *cb, void *ctx)
             }
             break;
 
-         case MIR_OP_PUT_CONVERSION:
          case MIR_OP_PUT_FUNCTOR:
             {
                printf("%s ", mir_op_string(n->op));

@@ -159,9 +159,6 @@ typedef enum {
    VCODE_OP_FUNCTION_TRIGGER,
    VCODE_OP_ADD_TRIGGER,
    VCODE_OP_TRANSFER_SIGNAL,
-   VCODE_OP_PORT_CONVERSION,
-   VCODE_OP_CONVERT_IN,
-   VCODE_OP_CONVERT_OUT,
    VCODE_OP_BIND_FOREIGN,
    VCODE_OP_OR_TRIGGER,
    VCODE_OP_CMP_TRIGGER,
@@ -170,7 +167,6 @@ typedef enum {
    VCODE_OP_BIND_EXTERNAL,
    VCODE_OP_ARRAY_SCOPE,
    VCODE_OP_RECORD_SCOPE,
-   VCODE_OP_PUT_CONVERSION,
    VCODE_OP_DIR_CHECK,
    VCODE_OP_SCHED_PROCESS,
    VCODE_OP_TABLE_REF,
@@ -196,7 +192,6 @@ typedef enum {
    VCODE_TYPE_CONTEXT,
    VCODE_TYPE_DEBUG_LOCUS,
    VCODE_TYPE_TRIGGER,
-   VCODE_TYPE_CONVERSION,
 } vtype_kind_t;
 
 typedef enum {
@@ -270,7 +265,6 @@ vcode_type_t vtype_closure(vcode_type_t result);
 vcode_type_t vtype_context(ident_t name);
 vcode_type_t vtype_debug_locus(void);
 vcode_type_t vtype_trigger(void);
-vcode_type_t vtype_conversion(void);
 bool vtype_eq(vcode_type_t a, vcode_type_t b);
 vtype_kind_t vtype_kind(vcode_type_t type);
 bool vtype_is_scalar(vcode_type_t type);
@@ -541,16 +535,11 @@ vcode_reg_t emit_function_trigger(ident_t func, const vcode_reg_t *args,
 vcode_reg_t emit_or_trigger(vcode_reg_t left, vcode_reg_t right);
 vcode_reg_t emit_cmp_trigger(vcode_reg_t left, vcode_reg_t right);
 void emit_add_trigger(vcode_reg_t trigger);
-vcode_reg_t emit_port_conversion(vcode_reg_t driving, vcode_reg_t effective);
-void emit_convert_in(vcode_reg_t conv, vcode_reg_t nets, vcode_reg_t count);
-void emit_convert_out(vcode_reg_t conv, vcode_reg_t nets, vcode_reg_t count);
 void emit_bind_foreign(vcode_reg_t spec, vcode_reg_t length, vcode_reg_t locus);
 vcode_reg_t emit_instance_name(vcode_reg_t kind);
 vcode_reg_t emit_bind_external(vcode_reg_t locus, ident_t scope,
                                vcode_type_t type, vcode_stamp_t bounds,
                                const vcode_reg_t *args, int nargs);
-void emit_put_conversion(vcode_reg_t cf, vcode_reg_t target, vcode_reg_t count,
-                         vcode_reg_t values);
 void emit_put_driver(vcode_reg_t target, vcode_reg_t count, vcode_reg_t values);
 void emit_deposit_signal(vcode_reg_t target, vcode_reg_t count,
                          vcode_reg_t values);
