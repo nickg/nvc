@@ -908,7 +908,7 @@ static void reset_process(rt_model_t *m, rt_proc_t *proc)
 
    tlab_t tlab = jit_null_tlab(m->jit);
 
-   if (jit_fastcall(m->jit, proc->handle, &result, state, context, &tlab))
+   if (jit_fastcall(m->jit, proc->handle, &result, context, state, &tlab))
       *mptr_get(proc->privdata) = result.pointer;
    else
       m->force_stop = true;
@@ -985,7 +985,7 @@ static void run_process(rt_model_t *m, rt_proc_t *proc)
       .pointer = *mptr_get(proc->scope->privdata)
    };
 
-   if (!jit_fastcall(m->jit, proc->handle, &result, state, context,
+   if (!jit_fastcall(m->jit, proc->handle, &result, context, state,
                      proc->tlab ?: thread->tlab))
       m->force_stop = true;
 
@@ -2975,7 +2975,7 @@ static void update_assignment(rt_model_t *m, rt_proc_t *proc)
 
    const uint32_t mark = tlab_mark(thread->tlab);
 
-   if (!jit_fastcall(m->jit, proc->handle, &result, state, context,
+   if (!jit_fastcall(m->jit, proc->handle, &result, context, state,
                      thread->tlab))
       m->force_stop = true;
 

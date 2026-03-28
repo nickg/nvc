@@ -5140,8 +5140,10 @@ static void irgen_params(jit_irgen_t *g, int first)
 
 static void irgen_jump_table(jit_irgen_t *g)
 {
+   const bool is_process = (mir_get_kind(g->mu) == MIR_UNIT_PROCESS);
+
    g->statereg = irgen_alloc_reg(g, 1);
-   j_recv(g, g->statereg, 0);
+   j_recv(g, g->statereg, is_process ? 1 : 0);
 
    irgen_label_t *cont = irgen_alloc_label(g);
    j_cmp(g, JIT_CC_EQ, g->statereg, jit_value_from_int64(0));
@@ -5151,7 +5153,6 @@ static void irgen_jump_table(jit_irgen_t *g)
    jit_value_t state = irgen_alloc_temp(g);
    j_load(g, JIT_SZ_32, state, state_ptr);
 
-   const bool is_process = (mir_get_kind(g->mu) == MIR_UNIT_PROCESS);
    const int nblocks = mir_count_blocks(g->mu);
 
    bit_mask_t have;
@@ -5267,17 +5268,17 @@ static void irgen_process_entry(jit_irgen_t *g)
 
    if (g->stateless) {
       g->contextarg = irgen_alloc_reg(g, 1);
-      j_recv(g, g->contextarg, 1);
+      j_recv(g, g->contextarg, 0);
 
       jit_value_t state = irgen_alloc_temp(g);
-      j_recv(g, state, 0);
+      j_recv(g, state, 1);
       j_cmp(g, JIT_CC_EQ, state, jit_null_ptr());
       j_jump(g, JIT_CC_F, g->blocks[1]);
    }
    else {
       // Stash context pointer
       jit_value_t context = irgen_alloc_temp(g);
-      j_recv(g, context, 1);
+      j_recv(g, context, 0);
       j_store(g, JIT_SZ_PTR, context, jit_addr_from_value(g->statereg, 0));
    }
 }
