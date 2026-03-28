@@ -91,7 +91,7 @@ bool jit_vfastcall(jit_t *j, jit_handle_t handle, const jit_scalar_t *inargs,
                    unsigned nargs, jit_scalar_t *results, unsigned nresults,
                    tlab_t *tlab);
 bool jit_call_closure(jit_t *j, ffi_closure_t *closure, jit_scalar_t *result,
-                      jit_scalar_t p1, jit_scalar_t p2, tlab_t *tlab);
+                      jit_scalar_t arg, tlab_t *tlab);
 
 tlab_t jit_null_tlab(jit_t *j);
 

@@ -712,15 +712,14 @@ bool jit_vfastcall(jit_t *j, jit_handle_t handle, const jit_scalar_t *inargs,
 }
 
 bool jit_call_closure(jit_t *j, ffi_closure_t *closure, jit_scalar_t *result,
-                      jit_scalar_t p1, jit_scalar_t p2, tlab_t *tlab)
+                      jit_scalar_t arg, tlab_t *tlab)
 {
    jit_func_t *f = jit_get_func(j, closure->handle);
 
    jit_scalar_t args[JIT_MAX_ARGS];
    assert(closure->nargs + 2 <= JIT_MAX_ARGS);
    memcpy(args, closure->args, closure->nargs * sizeof(jit_scalar_t));
-   args[closure->nargs + 0] = p1;
-   args[closure->nargs + 1] = p2;
+   args[closure->nargs] = arg;
 
    if (!jit_try_vcall(j, f, args, tlab))
       return false;

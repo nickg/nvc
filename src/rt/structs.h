@@ -71,10 +71,10 @@ typedef struct _rt_proc {
    rt_wakeable_t  wakeable;
    tree_t         where;
    ident_t        name;
-   jit_handle_t   handle;
    tlab_t        *tlab;
    rt_scope_t    *scope;
    mptr_t         privdata;
+   ffi_closure_t  closure;   // Has a flexible member
 } rt_proc_t;
 
 STATIC_ASSERT(sizeof(rt_proc_t) <= 128);

@@ -76,6 +76,8 @@ typedef struct _ffi_closure {
    jit_scalar_t args[1];   // Flexible member
 } ffi_closure_t;
 
+STATIC_ASSERT(sizeof(ffi_closure_t) <= 16);
+
 ffi_spec_t ffi_spec_new(const ffi_type_t *types, size_t count);
 
 ffi_uarray_t ffi_wrap(void *ptr, int64_t left, int64_t right);

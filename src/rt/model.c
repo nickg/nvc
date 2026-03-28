@@ -900,15 +900,13 @@ static void reset_process(rt_model_t *m, rt_proc_t *proc)
    thread->active_obj = &(proc->wakeable);
    thread->active_scope = proc->scope;
 
-   jit_scalar_t context = {
-      .pointer = *mptr_get(proc->scope->privdata)
-   };
-   jit_scalar_t state = { .pointer = NULL };
-   jit_scalar_t result;
+   proc->closure.args[0].pointer = *mptr_get(proc->scope->privdata);
+
+   jit_scalar_t state = { .pointer = NULL }, result;
 
    tlab_t tlab = jit_null_tlab(m->jit);
 
-   if (jit_fastcall(m->jit, proc->handle, &result, context, state, &tlab))
+   if (jit_call_closure(m->jit, &proc->closure, &result, state, &tlab))
       *mptr_get(proc->privdata) = result.pointer;
    else
       m->force_stop = true;
@@ -979,14 +977,10 @@ static void run_process(rt_model_t *m, rt_proc_t *proc)
    jit_scalar_t state = {
       .pointer = *mptr_get(proc->privdata) ?: (void *)-1
    };
-
    jit_scalar_t result;
-   jit_scalar_t context = {
-      .pointer = *mptr_get(proc->scope->privdata)
-   };
 
-   if (!jit_fastcall(m->jit, proc->handle, &result, context, state,
-                     proc->tlab ?: thread->tlab))
+   if (!jit_call_closure(m->jit, &proc->closure, &result, state,
+                         proc->tlab ?: thread->tlab))
       m->force_stop = true;
 
    if (proc->tlab != NULL && result.pointer == NULL) {
@@ -1826,8 +1820,8 @@ static void convert_driving(rt_conv_func_t *cf)
 
    const uint32_t mark = tlab_mark(thread->tlab);
 
-   jit_scalar_t arg = { .pointer = cf }, null = {}, result;
-   if (!jit_call_closure(m->jit, cf->driving, &result, arg, null, thread->tlab))
+   jit_scalar_t arg = { .pointer = cf }, result;
+   if (!jit_call_closure(m->jit, cf->driving, &result, arg, thread->tlab))
       m->force_stop = true;
 
    tlab_trim(thread->tlab, mark);
@@ -1851,9 +1845,8 @@ static void convert_effective(rt_conv_func_t *cf)
 
    const uint32_t mark = tlab_mark(thread->tlab);
 
-   jit_scalar_t arg = { .pointer = cf }, null = {}, result;
-   if (!jit_call_closure(m->jit, cf->effective, &result, arg, null,
-                         thread->tlab))
+   jit_scalar_t arg = { .pointer = cf }, result;
+   if (!jit_call_closure(m->jit, cf->effective, &result, arg, thread->tlab))
       m->force_stop = true;
 
    tlab_trim(thread->tlab, mark);
@@ -1870,8 +1863,8 @@ static void call_functor(rt_model_t *m, rt_functor_t *f)
 
    const uint32_t mark = tlab_mark(thread->tlab);
 
-   jit_scalar_t arg = { .pointer = f }, null = {}, result;
-   if (!jit_call_closure(m->jit, f->closure, &result, arg, null, thread->tlab))
+   jit_scalar_t arg = { .pointer = f }, result;
+   if (!jit_call_closure(m->jit, f->closure, &result, arg, thread->tlab))
       m->force_stop = true;
 
    thread->active_scope = old_scope;
@@ -2412,9 +2405,12 @@ static void create_processes(rt_model_t *m, rt_scope_t *s)
             rt_proc_t *p = xcalloc(sizeof(rt_proc_t));
             p->where     = t;
             p->name      = ident_prefix(path, ident_downcase(name), ':');
-            p->handle    = jit_lazy_compile(m->jit, sym);
             p->scope     = s;
             p->privdata  = mptr_new(m->mspace, "process privdata");
+
+            p->closure.handle = jit_lazy_compile(m->jit, sym);
+            p->closure.nargs = 1;
+            p->closure.args[0].pointer = NULL;
 
             switch (kind) {
             case V_UDP_TABLE:
@@ -2446,9 +2442,12 @@ static void create_processes(rt_model_t *m, rt_scope_t *s)
             rt_proc_t *p = xcalloc(sizeof(rt_proc_t));
             p->where     = t;
             p->name      = ident_prefix(path, ident_downcase(name), ':');
-            p->handle    = jit_lazy_compile(m->jit, sym);
             p->scope     = s;
             p->privdata  = mptr_new(m->mspace, "process privdata");
+
+            p->closure.handle = jit_lazy_compile(m->jit, sym);
+            p->closure.nargs = 1;
+            p->closure.args[0].pointer = NULL;
 
             p->wakeable.kind      = W_PROC;
             p->wakeable.pending   = false;
@@ -2966,17 +2965,12 @@ static void update_assignment(rt_model_t *m, rt_proc_t *proc)
       .pointer = *mptr_get(proc->privdata) ?: (void *)-1
    };
 
-   jit_scalar_t result;
-   jit_scalar_t context = {
-      .pointer = *mptr_get(proc->scope->privdata)
-   };
-
    assert(proc->tlab == NULL);
 
    const uint32_t mark = tlab_mark(thread->tlab);
 
-   if (!jit_fastcall(m->jit, proc->handle, &result, context, state,
-                     thread->tlab))
+   jit_scalar_t result;
+   if (!jit_call_closure(m->jit, &proc->closure, &result, state, thread->tlab))
       m->force_stop = true;
 
    assert(result.pointer == NULL);
@@ -5127,9 +5121,12 @@ void x_process_init(jit_handle_t handle, tree_t where)
    rt_proc_t *p = xcalloc(sizeof(rt_proc_t));
    p->where     = where;
    p->name      = name;
-   p->handle    = handle;
    p->scope     = s;
    p->privdata  = mptr_new(m->mspace, "process privdata");
+
+   p->closure.handle = handle;
+   p->closure.nargs  = 1;
+   p->closure.args[0].pointer = NULL;
 
    p->wakeable.kind      = W_PROC;
    p->wakeable.pending   = false;
