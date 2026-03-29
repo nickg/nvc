@@ -2630,16 +2630,11 @@ mir_value_t mir_build_driving_value(mir_unit_t *mu, mir_value_t signal,
    mir_type_t type = mir_get_pointer(mu, mir_get_type(mu, signal));
    mir_stamp_t stamp = mir_get_stamp(mu, signal);
 
-   mir_value_t result;
-   if (mir_is_null(count))
-      result = mir_build_1(mu, MIR_OP_DRIVING_VALUE, type, stamp, signal);
-   else
-      result = mir_build_2(mu, MIR_OP_DRIVING_VALUE, type, stamp,
-                           signal, count);
+   mir_value_t result = mir_build_2(mu, MIR_OP_DRIVING_VALUE, type, stamp,
+                                    signal, count);
 
    MIR_ASSERT(mir_is_signal(mu, signal), "argument must have signal type");
-   MIR_ASSERT(mir_is_null(count) || mir_is_offset(mu, count),
-              "count argument must have offset type");
+   MIR_ASSERT(mir_is_offset(mu, count), "count argument must have offset type");
 
    return result;
 }

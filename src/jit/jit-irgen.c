@@ -3760,12 +3760,7 @@ static void irgen_op_driving_value(jit_irgen_t *g, mir_value_t n)
 {
    jit_value_t shared = irgen_get_arg_slot(g, n, 0, 0);
    jit_value_t offset = irgen_get_arg_slot(g, n, 0, 1);
-
-   jit_value_t count;
-   if (mir_count_args(g->mu, n) > 1)
-      count = irgen_get_arg(g, n, 1);
-   else
-      count = jit_value_from_int64(1);
+   jit_value_t count  = irgen_get_arg(g, n, 1);
 
    j_send(g, 0, shared);
    j_send(g, 1, offset);

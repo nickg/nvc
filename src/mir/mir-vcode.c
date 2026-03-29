@@ -1091,10 +1091,7 @@ static void import_file_write(mir_unit_t *mu, mir_import_t *imp, int op)
 static void import_driving_value(mir_unit_t *mu, mir_import_t *imp, int op)
 {
    mir_value_t signal = imp->map[vcode_get_arg(op, 0)];
-
-   mir_value_t count = MIR_NULL_VALUE;
-   if (vcode_count_args(op) > 1)
-      count = imp->map[vcode_get_arg(op, 1)];
+   mir_value_t count = imp->map[vcode_get_arg(op, 1)];
 
    imp->map[vcode_get_result(op)] = mir_build_driving_value(mu, signal, count);
 }

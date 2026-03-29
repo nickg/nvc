@@ -5708,16 +5708,14 @@ vcode_reg_t emit_driving_value(vcode_reg_t signal, vcode_reg_t len)
 {
    op_t *op = vcode_add_op(VCODE_OP_DRIVING_VALUE);
    vcode_add_arg(op, signal);
-   if (len != VCODE_INVALID_REG)
-      vcode_add_arg(op, len);
+   vcode_add_arg(op, len);
 
    vcode_type_t signal_type = vcode_reg_type(signal);
 
    VCODE_ASSERT(vtype_kind(signal_type) == VCODE_TYPE_SIGNAL,
-                "signal argument to last active must have signal type");
-   VCODE_ASSERT(len == VCODE_INVALID_REG
-                || vcode_reg_kind(len) == VCODE_TYPE_OFFSET,
-                "length argument to last active must have offset type");
+                "signal argument to driving value must have signal type");
+   VCODE_ASSERT(vcode_reg_kind(len) == VCODE_TYPE_OFFSET,
+                "length argument to driving value must have offset type");
 
    vcode_type_t base_type = vtype_base(signal_type);
    op->result = vcode_add_reg(vtype_pointer(base_type), VCODE_INVALID_STAMP);

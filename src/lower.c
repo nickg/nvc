@@ -1076,7 +1076,8 @@ static void lower_resolved_field_cb(lower_unit_t *lu, tree_t field,
          }
       }
       else {
-         vcode_reg_t r_reg = (*fn)(sig_reg, VCODE_INVALID_REG);
+         vcode_reg_t count_reg = emit_const(vtype_offset(), 1);
+         vcode_reg_t r_reg = (*fn)(sig_reg, count_reg);
          emit_store_indirect(emit_load_indirect(r_reg), dst_ptr);
       }
    }
@@ -4887,7 +4888,8 @@ static vcode_reg_t lower_driving_value(lower_unit_t *lu, tree_t name)
             return ptr_reg;
       }
       else {
-         vcode_reg_t ptr_reg = emit_driving_value(name_reg, VCODE_INVALID_REG);
+         vcode_reg_t count_reg = emit_const(vtype_offset(), 1);
+         vcode_reg_t ptr_reg = emit_driving_value(name_reg, count_reg);
          return emit_load_indirect(ptr_reg);
       }
    }
