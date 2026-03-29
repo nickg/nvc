@@ -68,16 +68,10 @@ void x_map_signal(sig_shared_t *src_ss, uint32_t src_offset,
                   sig_shared_t *dst_ss, uint32_t dst_offset, uint32_t count);
 void x_map_const(sig_shared_t *ss, uint32_t offset,
                  const uint8_t *values, uint32_t count);
-void x_map_implicit(sig_shared_t *src_ss, uint32_t src_offset,
-                    sig_shared_t *dst_ss, uint32_t dst_offset,
-                    uint32_t count);
 void x_push_scope(tree_t where, int32_t size, rt_scope_kind_t kind);
 void x_pop_scope(void);
 bool x_driving(sig_shared_t *ss, uint32_t offset, int32_t count);
 void *x_driving_value(sig_shared_t *ss, uint32_t offset, int32_t count);
-sig_shared_t *x_implicit_signal(uint32_t count, uint32_t size, tree_t where,
-                                implicit_kind_t kind, ffi_closure_t *closure,
-                                int64_t delay);
 void x_disconnect(sig_shared_t *ss, uint32_t offset, int32_t count,
                   int64_t after, int64_t reject);
 void x_force(sig_shared_t *ss, uint32_t offset, int32_t count, void *values);

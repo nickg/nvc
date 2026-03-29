@@ -1277,4 +1277,5 @@ ivtest23        verilog
 issue1459       verilog
 issue1460       normal,2019
 issue1463       vhpi,2008
+implicit10      normal
 mixed9          mixed,2008

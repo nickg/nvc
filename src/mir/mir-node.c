@@ -2501,31 +2501,6 @@ mir_value_t mir_build_init_signal(mir_unit_t *mu, mir_type_t type,
    return result;
 }
 
-mir_value_t mir_build_implicit_signal(mir_unit_t *mu, mir_type_t type,
-                                      mir_value_t count, mir_value_t size,
-                                      mir_value_t locus, mir_value_t kind,
-                                      mir_value_t closure, mir_value_t delay)
-{
-   mir_type_t stype = mir_signal_type(mu, type);
-
-   mir_value_t result = mir_build_6(mu, MIR_OP_IMPLICIT_SIGNAL, stype,
-                                    MIR_NULL_STAMP, count, size, locus,
-                                    kind, closure, delay);
-
-   MIR_ASSERT(mir_is_offset(mu, count),
-              "count argument to implicit signal is not offset");
-   MIR_ASSERT(mir_is_offset(mu, kind),  // XXX: should be enum
-              "kind argument to implicit signal is not offset");
-   MIR_ASSERT(mir_is(mu, closure, MIR_TYPE_CLOSURE),
-              "closure argument to implicit signal is not a closure");
-   MIR_ASSERT(mir_is(mu, locus, MIR_TYPE_LOCUS),
-              "locus argument to implicit signal must be a debug locus");
-   MIR_ASSERT(mir_is_integral(mu, delay),
-              "delay argument to implicit signal must be time");
-
-   return result;
-}
-
 void mir_build_drive_signal(mir_unit_t *mu, mir_value_t target,
                             mir_value_t count)
 {
@@ -2952,20 +2927,6 @@ void mir_build_map_const(mir_unit_t *mu, mir_value_t src, mir_value_t dst,
               "dst argument to map const is not a signal");
    MIR_ASSERT(mir_is_offset(mu, count),
               "count argument to map const is not offset type");
-}
-
-void mir_build_map_implicit(mir_unit_t *mu, mir_value_t src, mir_value_t dst,
-                            mir_value_t count)
-{
-   mir_build_3(mu, MIR_OP_MAP_IMPLICIT, MIR_NULL_TYPE, MIR_NULL_STAMP,
-               src, dst, count);
-
-   MIR_ASSERT(mir_is_signal(mu, src),
-              "src argument to map implicit is not a signal");
-   MIR_ASSERT(mir_is_signal(mu, dst),
-              "dst argument to map implicit is not a signal");
-   MIR_ASSERT(mir_is_offset(mu, count),
-              "count argument type to map implicit is not offset");
 }
 
 mir_value_t mir_build_level_trigger(mir_unit_t *mu, mir_value_t signal,

@@ -339,22 +339,6 @@ static void import_init_signal(mir_unit_t *mu, mir_import_t *imp, int op)
                                             value, flags, locus, offset);
 }
 
-static void import_implicit_signal(mir_unit_t *mu, mir_import_t *imp, int op)
-{
-   mir_value_t count   = imp->map[vcode_get_arg(op, 0)];
-   mir_value_t size    = imp->map[vcode_get_arg(op, 1)];
-   mir_value_t locus   = imp->map[vcode_get_arg(op, 2)];
-   mir_value_t kind    = imp->map[vcode_get_arg(op, 3)];
-   mir_value_t closure = imp->map[vcode_get_arg(op, 4)];
-   mir_value_t delay   = imp->map[vcode_get_arg(op, 5)];
-
-   vcode_reg_t result = vcode_get_result(op);
-   mir_type_t type = import_type(mu, imp, vtype_base(vcode_reg_type(result)));
-
-   imp->map[result] = mir_build_implicit_signal(mu, type, count, size, locus,
-                                                kind, closure, delay);
-}
-
 static void import_drive_signal(mir_unit_t *mu, mir_import_t *imp, int op)
 {
    mir_value_t target = imp->map[vcode_get_arg(op, 0)];
@@ -949,15 +933,6 @@ static void import_map_const(mir_unit_t *mu, mir_import_t *imp, int op)
    mir_build_map_const(mu, src, dst, count);
 }
 
-static void import_map_implicit(mir_unit_t *mu, mir_import_t *imp, int op)
-{
-   mir_value_t src = imp->map[vcode_get_arg(op, 0)];
-   mir_value_t dst = imp->map[vcode_get_arg(op, 1)];
-   mir_value_t count = imp->map[vcode_get_arg(op, 2)];
-
-   mir_build_map_implicit(mu, src, dst, count);
-}
-
 static void import_bind_foreign(mir_unit_t *mu, mir_import_t *imp, int op)
 {
    mir_value_t spec = imp->map[vcode_get_arg(op, 0)];
@@ -1410,9 +1385,6 @@ static void import_block(mir_unit_t *mu, mir_import_t *imp)
       case VCODE_OP_INIT_SIGNAL:
          import_init_signal(mu, imp, i);
          break;
-      case VCODE_OP_IMPLICIT_SIGNAL:
-         import_implicit_signal(mu, imp, i);
-         break;
       case VCODE_OP_DRIVE_SIGNAL:
          import_drive_signal(mu, imp, i);
          break;
@@ -1616,9 +1588,6 @@ static void import_block(mir_unit_t *mu, mir_import_t *imp)
          break;
       case VCODE_OP_MAP_CONST:
          import_map_const(mu, imp, i);
-         break;
-      case VCODE_OP_MAP_IMPLICIT:
-         import_map_implicit(mu, imp, i);
          break;
       case VCODE_OP_CASE:
          import_case(mu, imp, i);

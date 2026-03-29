@@ -386,20 +386,6 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
       }
       break;
 
-   case JIT_EXIT_IMPLICIT_SIGNAL:
-      {
-         int32_t        count   = args[0].integer;
-         int32_t        size    = args[1].integer;
-         tree_t         where   = args[2].pointer;
-         int32_t        kind    = args[3].integer;
-         ffi_closure_t *closure = args[4].pointer;
-         int64_t        delay   = args[5].integer;
-
-         args[0].pointer = x_implicit_signal(count, size, where, kind,
-                                             closure, delay);
-      }
-      break;
-
    case JIT_EXIT_RESOLVE_SIGNAL:
       {
          sig_shared_t *shared = args[0].pointer;
@@ -460,18 +446,6 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
          const void *vptr = scalar ? &initval.integer : initval.pointer;
 
          x_map_const(dst_ss, dst_offset, vptr, dst_count);
-      }
-      break;
-
-   case JIT_EXIT_MAP_IMPLICIT:
-      {
-         sig_shared_t  *src_ss     = args[0].pointer;
-         uint32_t       src_offset = args[1].integer;
-         sig_shared_t  *dst_ss     = args[2].pointer;
-         uint32_t       dst_offset = args[3].integer;
-         uint32_t       count      = args[4].integer;
-
-         x_map_implicit(src_ss, src_offset, dst_ss, dst_offset, count);
       }
       break;
 

@@ -68,7 +68,6 @@ const char *mir_op_string(mir_op_t op)
       [MIR_OP_LAST_VALUE] = "last value",
       [MIR_OP_LOCUS] = "debug locus",
       [MIR_OP_INIT_SIGNAL] = "init signal",
-      [MIR_OP_IMPLICIT_SIGNAL] = "implicit signal",
       [MIR_OP_SELECT] = "select",
       [MIR_OP_REM] = "rem",
       [MIR_OP_WAIT] = "wait",
@@ -123,7 +122,6 @@ const char *mir_op_string(mir_op_t op)
       [MIR_OP_ALIAS_SIGNAL] = "alias signal",
       [MIR_OP_MAP_SIGNAL] = "map signal",
       [MIR_OP_MAP_CONST] = "map const",
-      [MIR_OP_MAP_IMPLICIT] = "map implicit",
       [MIR_OP_CASE] = "case",
       [MIR_OP_BIND_FOREIGN] = "bind foreign",
       [MIR_OP_BIND_EXTERNAL] = "bind external",
@@ -1080,24 +1078,6 @@ void mir_annotate(mir_unit_t *mu, const mir_annotate_t *cb, void *ctx)
             }
             break;
 
-         case MIR_OP_IMPLICIT_SIGNAL:
-            {
-               col += mir_dump_value(mu, result, cb, ctx);
-               col += nvc_printf(" := %s count ", mir_op_string(n->op));
-               col += mir_dump_arg(mu, result, 0, cb, ctx);
-               col += printf(" size ");
-               col += mir_dump_arg(mu, result, 1, cb, ctx);
-               col += printf(" locus ");
-               col += mir_dump_arg(mu, result, 2, cb, ctx);
-               col += printf(" kind ");
-               col += mir_dump_arg(mu, result, 3, cb, ctx);
-               col += printf(" closure ");
-               col += mir_dump_arg(mu, result, 4, cb, ctx);
-               mir_dump_type(mu, col, n->type);
-               mir_dump_stamp(mu, n->type, n->stamp);
-            }
-            break;
-
          case MIR_OP_PACKAGE_INIT:
             {
                col += mir_dump_value(mu, result, cb, ctx);
@@ -1423,7 +1403,6 @@ void mir_annotate(mir_unit_t *mu, const mir_annotate_t *cb, void *ctx)
 
          case MIR_OP_MAP_SIGNAL:
          case MIR_OP_MAP_CONST:
-         case MIR_OP_MAP_IMPLICIT:
             {
                printf("%s ", mir_op_string(n->op));
                mir_dump_arg(mu, result, 0, cb, ctx);

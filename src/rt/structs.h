@@ -36,7 +36,7 @@ typedef A(rt_proc_t *) proc_list_t;
 typedef A(rt_alias_t *) alias_list_t;
 
 typedef enum {
-   W_PROC, W_WATCH, W_IMPLICIT, W_PROPERTY, W_TRANSFER, W_TRIGGER,
+   W_PROC, W_WATCH, W_PROPERTY, W_TRANSFER, W_TRIGGER,
 } wakeable_kind_t;
 
 typedef enum {
@@ -116,7 +116,6 @@ typedef enum {
    SOURCE_PORT,
    SOURCE_FORCING,
    SOURCE_DEPOSIT,
-   SOURCE_IMPLICIT,
    SOURCE_ACTIVE,
 } source_kind_t;
 
@@ -207,13 +206,6 @@ typedef struct _rt_signal {
 } rt_signal_t;
 
 STATIC_ASSERT(sizeof(rt_signal_t) + 8 <= 192);
-
-typedef struct _rt_implicit {
-   rt_wakeable_t wakeable;
-   ffi_closure_t closure;
-   uint64_t      delay;
-   rt_signal_t   signal;   // Has a flexible member
-} rt_implicit_t;
 
 typedef struct {
    rt_wakeable_t  wakeable;

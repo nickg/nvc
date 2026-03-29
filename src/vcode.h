@@ -126,7 +126,6 @@ typedef enum {
    VCODE_OP_CONTEXT_UPREF,
    VCODE_OP_CONST_REP,
    VCODE_OP_PROTECTED_FREE,
-   VCODE_OP_IMPLICIT_SIGNAL,
    VCODE_OP_DISCONNECT,
    VCODE_OP_LINK_PACKAGE,
    VCODE_OP_INDEX_CHECK,
@@ -163,7 +162,6 @@ typedef enum {
    VCODE_OP_OR_TRIGGER,
    VCODE_OP_CMP_TRIGGER,
    VCODE_OP_INSTANCE_NAME,
-   VCODE_OP_MAP_IMPLICIT,
    VCODE_OP_BIND_EXTERNAL,
    VCODE_OP_ARRAY_SCOPE,
    VCODE_OP_RECORD_SCOPE,
@@ -450,10 +448,6 @@ vcode_reg_t emit_init_signal(vcode_type_t type, vcode_reg_t count,
                              vcode_reg_t offset);
 vcode_reg_t emit_get_counters(ident_t block);
 void emit_resolve_signal(vcode_reg_t signal, vcode_reg_t resolution);
-vcode_reg_t emit_implicit_signal(vcode_type_t type, vcode_reg_t count,
-                                 vcode_reg_t size, vcode_reg_t locus,
-                                 vcode_reg_t kind, vcode_reg_t closure,
-                                 vcode_reg_t delay);
 vcode_reg_t emit_resolved(vcode_reg_t sig, vcode_reg_t count);
 vcode_reg_t emit_last_value(vcode_reg_t sig, vcode_reg_t count);
 vcode_reg_t emit_event_flag(vcode_reg_t nets, vcode_reg_t len);
@@ -505,7 +499,6 @@ vcode_reg_t emit_link_var(vcode_reg_t context, ident_t name, vcode_type_t type);
 vcode_reg_t emit_link_package(ident_t name);
 void emit_map_signal(vcode_reg_t src, vcode_reg_t dst, vcode_reg_t count);
 void emit_map_const(vcode_reg_t src, vcode_reg_t dst, vcode_reg_t count);
-void emit_map_implicit(vcode_reg_t src, vcode_reg_t dst, vcode_reg_t count);
 void emit_drive_signal(vcode_reg_t target, vcode_reg_t count);
 void emit_transfer_signal(vcode_reg_t target, vcode_reg_t source,
                           vcode_reg_t count, vcode_reg_t reject,

@@ -5724,7 +5724,7 @@ static void lower_sched_event_field_cb(lower_unit_t *lu, tree_t field,
    }
 }
 
-static void lower_sched_event(lower_unit_t *lu, tree_t on)
+static void lower_sched_event(lower_unit_t *lu, tree_t on, event_fn_t fn)
 {
    type_t type = tree_type(on);
 
@@ -5733,11 +5733,11 @@ static void lower_sched_event(lower_unit_t *lu, tree_t on)
 
    if (!type_is_homogeneous(type))
       lower_for_each_field(lu, type, nets_reg, VCODE_INVALID_REG,
-                           lower_sched_event_field_cb, emit_sched_event);
+                           lower_sched_event_field_cb, fn);
    else {
       vcode_reg_t count_reg = lower_type_width(lu, type, nets_reg);
       vcode_reg_t data_reg = lower_array_data(nets_reg);
-      emit_sched_event(data_reg, count_reg);
+      (*fn)(data_reg, count_reg);
    }
 }
 
@@ -5779,7 +5779,7 @@ static void lower_wait(lower_unit_t *lu, tree_t wait, gen_stack_t *gs)
 
       // The _sched_event for static waits is emitted in the reset block
       for (int i = 0; i < ntriggers; i++)
-         lower_sched_event(lu, tree_trigger(wait, i));
+         lower_sched_event(lu, tree_trigger(wait, i), emit_sched_event);
    }
 
    const bool has_delay = tree_has_delay(wait);
@@ -5840,7 +5840,7 @@ static void lower_wait(lower_unit_t *lu, tree_t wait, gen_stack_t *gs)
       vcode_select_block(again_bb);
 
       for (int i = 0; i < ntriggers; i++)
-         lower_sched_event(lu, tree_trigger(wait, i));
+         lower_sched_event(lu, tree_trigger(wait, i), emit_sched_event);
 
       if (timeout_reg != VCODE_INVALID_REG)
          emit_sched_process(timeout_reg);
@@ -8363,25 +8363,6 @@ static void lower_build_wait_cb(tree_t expr, void *ctx)
                            lower_build_wait_field_cb, NULL);
 }
 
-static void lower_implicit_field_cb(lower_unit_t *lu, tree_t field,
-                                    vcode_reg_t ptr, vcode_reg_t value,
-                                    vcode_reg_t locus, void *ctx)
-{
-   vcode_reg_t sig_reg = (intptr_t)ctx;
-   type_t ftype = tree_type(field);
-
-   if (type_is_homogeneous(ftype)) {
-      vcode_reg_t nets_reg = emit_load_indirect(ptr);
-      vcode_reg_t count_reg = lower_type_width(lu, ftype, nets_reg);
-      vcode_reg_t data_reg = lower_array_data(nets_reg);
-
-      emit_map_implicit(data_reg, sig_reg, count_reg);
-   }
-   else
-      lower_for_each_field(lu, ftype, ptr, locus,
-                           lower_implicit_field_cb, ctx);
-}
-
 static void lower_implicit_delayed(lower_unit_t *lu, object_t *obj)
 {
    tree_t decl = tree_from_object(obj);
@@ -8447,14 +8428,33 @@ static void lower_implicit_transaction(lower_unit_t *lu, object_t *obj)
    tree_t decl = tree_from_object(obj);
    assert(tree_kind(decl) == T_IMPLICIT_SIGNAL);
 
-   vcode_type_t vtype = lower_type(tree_type(decl));
-   vcode_set_result(vtype);
+   vcode_block_t start_bb = emit_block();
+   assert(start_bb == 1);
 
-   vcode_type_t vcontext = vtype_context(lu->parent->name);
-   emit_param(vcontext, VCODE_INVALID_STAMP, ident_new("context"));
+   vcode_type_t voffset = vtype_offset();
 
-   vcode_reg_t preg = emit_param(vtype, VCODE_INVALID_STAMP, ident_new("p"));
-   emit_return(emit_not(preg));
+   {
+      vcode_reg_t nets_reg = lower_signal_ref(lu, decl);
+      vcode_reg_t count_reg = emit_const(voffset, 1);
+      emit_drive_signal(nets_reg, count_reg);
+
+      lower_sched_event(lu, tree_value(decl), emit_sched_active);
+
+      emit_return(VCODE_INVALID_REG);
+   }
+
+   vcode_select_block(start_bb);
+
+   {
+      vcode_reg_t nets_reg = lower_signal_ref(lu, decl);
+      vcode_reg_t resolved_reg = emit_resolved(nets_reg, VCODE_INVALID_REG);
+      vcode_reg_t cur_reg = emit_load_indirect(resolved_reg);
+      vcode_reg_t not_reg = emit_not(cur_reg);
+      vcode_reg_t count_reg = emit_const(voffset, 1);
+
+      emit_put_driver(nets_reg, count_reg, not_reg);
+      emit_wait(start_bb);
+   }
 }
 
 static void lower_implicit_stable(lower_unit_t *lu, object_t *obj)
@@ -8462,22 +8462,57 @@ static void lower_implicit_stable(lower_unit_t *lu, object_t *obj)
    tree_t decl = tree_from_object(obj);
    assert(tree_kind(decl) == T_IMPLICIT_SIGNAL);
 
-   vcode_type_t vtype = lower_type(tree_type(decl));
-   vcode_set_result(vtype);
-
-   vcode_type_t vcontext = vtype_context(lu->parent->name);
-   emit_param(vcontext, VCODE_INVALID_STAMP, ident_new("context"));
-
    tree_t w = tree_value(decl);
    assert(tree_kind(w) == T_WAVEFORM);
 
-   tree_t prefix = tree_value(w);
+   vcode_block_t start_bb = emit_block();
+   assert(start_bb == 1);
 
-   lower_signal_flag_fn_t fn = tree_subkind(decl) == IMPLICIT_STABLE
-      ? emit_event_flag : emit_active_flag;
-   vcode_reg_t flag_reg = lower_signal_flag(lu, prefix, fn);
+   vcode_block_t wait_bb = emit_block();
 
-   emit_return(emit_not(flag_reg));
+   vcode_type_t voffset = vtype_offset();
+
+   {
+      vcode_reg_t nets_reg = lower_signal_ref(lu, decl);
+      vcode_reg_t count_reg = emit_const(voffset, 1);
+      emit_drive_signal(nets_reg, count_reg);
+
+      event_fn_t fn = tree_subkind(decl) == IMPLICIT_STABLE
+         ? emit_sched_event : emit_sched_active;
+      lower_sched_event(lu, tree_value(w), fn);
+
+      emit_return(VCODE_INVALID_REG);
+   }
+
+   vcode_select_block(start_bb);
+
+   emit_wait(wait_bb);
+
+   vcode_select_block(wait_bb);
+
+   {
+      vcode_reg_t nets_reg = lower_signal_ref(lu, decl);
+      lower_signal_flag_fn_t fn = tree_subkind(decl) == IMPLICIT_STABLE
+         ? emit_event_flag : emit_active_flag;
+      vcode_reg_t flag_reg = lower_signal_flag(lu, tree_value(w), fn);
+
+      vcode_type_t vbool = vtype_bool();
+
+      vcode_reg_t count_reg = emit_const(voffset, 1);
+      vcode_reg_t true_reg = emit_const(vbool, 1);
+
+      emit_put_driver(nets_reg, count_reg, emit_not(flag_reg));
+
+      vcode_reg_t delay_reg;
+      if (tree_has_delay(w))
+         delay_reg = lower_rvalue(lu, tree_delay(w));
+      else
+         delay_reg = emit_const(vtype_time(), 0);
+
+      emit_sched_waveform(nets_reg, count_reg, true_reg, delay_reg, delay_reg);
+
+      emit_wait(wait_bb);
+   }
 }
 
 static void lower_implicit_guard(lower_unit_t *lu, object_t *obj)
@@ -8485,50 +8520,66 @@ static void lower_implicit_guard(lower_unit_t *lu, object_t *obj)
    tree_t decl = tree_from_object(obj);
    assert(tree_kind(decl) == T_IMPLICIT_SIGNAL);
 
-   vcode_type_t vtype = lower_type(tree_type(decl));
-   vcode_set_result(vtype);
-
-   vcode_type_t vcontext = vtype_context(lu->parent->name);
-   emit_param(vcontext, VCODE_INVALID_STAMP, ident_new("context"));
-
    tree_t expr = tree_value(decl);
 
-   build_wait(expr, lower_build_wait_cb, lu);
+   vcode_block_t start_bb = emit_block();
+   assert(start_bb == 1);
 
-   emit_return(lower_rvalue(lu, expr));
+   vcode_type_t voffset = vtype_offset();
+
+   {
+      vcode_reg_t nets_reg = lower_signal_ref(lu, decl);
+      vcode_reg_t count_reg = emit_const(voffset, 1);
+      emit_drive_signal(nets_reg, count_reg);
+
+      build_wait(expr, lower_build_wait_cb, lu);
+
+      emit_return(VCODE_INVALID_REG);
+   }
+
+   vcode_select_block(start_bb);
+
+   {
+      vcode_reg_t nets_reg = lower_signal_ref(lu, decl);
+      vcode_reg_t value_reg = lower_rvalue(lu, expr);
+      vcode_reg_t count_reg = emit_const(voffset, 1);
+
+      emit_put_driver(nets_reg, count_reg, value_reg);
+      emit_wait(start_bb);
+   }
 }
 
 static void lower_implicit_decl(lower_unit_t *parent, tree_t decl)
 {
    ident_t name = tree_ident(decl);
    type_t type = tree_type(decl);
-   const implicit_kind_t kind = tree_subkind(decl);
 
    vcode_type_t signal_type = lower_signal_type(type);
-   vcode_type_t vtype = lower_type(type);
    vcode_stamp_t vbounds = lower_bounds(type);
    vcode_var_t var = emit_var(signal_type, vbounds, name, VAR_SIGNAL);
    lower_put_vcode_obj(decl, var, parent);
 
-   switch (kind) {
+   switch (tree_subkind(decl)) {
    case IMPLICIT_GUARD:
       {
+         vcode_reg_t init_reg = emit_const(vtype_bool(), 0);
+
+         lower_sub_signals(parent, type, type, type, decl, NULL, var,
+                           VCODE_INVALID_REG, init_reg, VCODE_INVALID_REG,
+                           VCODE_INVALID_REG, 0, VCODE_INVALID_REG);
+
          ident_t qual = ident_prefix(parent->name, name, '.');
          ident_t func = ident_prefix(qual, ident_new("guard"), '$');
 
-         unit_registry_defer(parent->registry, func, parent, emit_function,
+         unit_registry_defer(parent->registry, func, parent, emit_process,
                              lower_implicit_guard, NULL, tree_to_object(decl));
 
-         vcode_reg_t one_reg = emit_const(vtype_offset(), 1);
-         vcode_reg_t locus = lower_debug_locus(decl);
-         vcode_reg_t context_reg = lower_context_for_mangled(parent, func);
+         vcode_reg_t vdummy = vtype_opaque();
+         vcode_reg_t context_reg = emit_context_upref(0);
          vcode_reg_t args[1] = { context_reg };
-         vcode_reg_t closure = emit_closure(func, vtype, args, 1);
-         vcode_reg_t delay_reg = emit_const(vtype_time(), TIME_HIGH);
-         vcode_reg_t kind_reg = emit_const(vtype_offset(), IMPLICIT_GUARD);
-         vcode_reg_t sig = emit_implicit_signal(vtype, one_reg, one_reg, locus,
-                                                kind_reg, closure, delay_reg);
-         emit_store(sig, var);
+         vcode_reg_t closure_reg = emit_closure(func, vdummy, args, 1);
+
+         emit_process_init(closure_reg, lower_debug_locus(decl));
       }
       break;
 
@@ -8558,89 +8609,48 @@ static void lower_implicit_decl(lower_unit_t *parent, tree_t decl)
 
    case IMPLICIT_TRANSACTION:
       {
+         vcode_reg_t init_reg = emit_const(vtype_bool(), 0);
+
+         lower_sub_signals(parent, type, type, type, decl, NULL, var,
+                           VCODE_INVALID_REG, init_reg, VCODE_INVALID_REG,
+                           VCODE_INVALID_REG, 0, VCODE_INVALID_REG);
+
          object_t *obj = tree_to_object(decl);
          ident_t qual = ident_prefix(parent->name, name, '.');
 
-         unit_registry_defer(parent->registry, qual, parent, emit_function,
+         unit_registry_defer(parent->registry, qual, parent, emit_process,
                              lower_implicit_transaction, NULL, obj);
 
-         vcode_reg_t locus = lower_debug_locus(decl);
-
-         vcode_type_t voffset = vtype_offset();
-         vcode_reg_t one_reg = emit_const(voffset, 1);
-
-         vcode_reg_t delay_reg = emit_const(vtype_time(), TIME_HIGH);
-         vcode_reg_t kind_reg = emit_const(voffset, IMPLICIT_TRANSACTION);
-         vcode_reg_t context_reg = lower_context_for_mangled(parent, qual);
+         vcode_reg_t vdummy = vtype_opaque();
+         vcode_reg_t context_reg = emit_context_upref(0);
          vcode_reg_t args[1] = { context_reg };
-         vcode_reg_t closure = emit_closure(qual, vtype, args, 1);
+         vcode_reg_t closure_reg = emit_closure(qual, vdummy, args, 1);
 
-         vcode_reg_t sig = emit_implicit_signal(vtype, one_reg, one_reg, locus,
-                                                kind_reg, closure, delay_reg);
-         emit_store(sig, var);
-
-         tree_t prefix = tree_value(decl);
-         type_t type = tree_type(prefix);
-
-         vcode_reg_t prefix_reg = lower_attr_prefix(parent, prefix);
-
-         if (type_is_homogeneous(type)) {
-            vcode_reg_t count_reg = lower_type_width(parent, type, prefix_reg);
-            vcode_reg_t nets_reg = lower_array_data(prefix_reg);
-
-            emit_map_implicit(nets_reg, sig, count_reg);
-         }
-         else
-            lower_for_each_field(parent, type, prefix_reg,
-                                 locus, lower_implicit_field_cb,
-                                 (void *)(intptr_t)sig);
+         emit_process_init(closure_reg, lower_debug_locus(decl));
       }
       break;
 
    case IMPLICIT_STABLE:
    case IMPLICIT_QUIET:
       {
-         ident_t qual = ident_prefix(parent->name, name, '.');
-         object_t *obj = tree_to_object(decl);
+         vcode_reg_t init_reg = emit_const(vtype_bool(), 1);
 
-         unit_registry_defer(parent->registry, qual, parent, emit_function,
+         lower_sub_signals(parent, type, type, type, decl, NULL, var,
+                           VCODE_INVALID_REG, init_reg, VCODE_INVALID_REG,
+                           VCODE_INVALID_REG, 0, VCODE_INVALID_REG);
+
+         object_t *obj = tree_to_object(decl);
+         ident_t qual = ident_prefix(parent->name, name, '.');
+
+         unit_registry_defer(parent->registry, qual, parent, emit_process,
                              lower_implicit_stable, NULL, obj);
 
-         tree_t w = tree_value(decl);
-         assert(tree_kind(w) == T_WAVEFORM);
-
-         vcode_reg_t delay_reg;
-         if (tree_has_delay(w))
-            delay_reg = lower_rvalue(parent, tree_delay(w));
-         else
-            delay_reg = emit_const(vtype_time(), 0);
-
-         vcode_reg_t one_reg = emit_const(vtype_offset(), 1);
-         vcode_reg_t locus = lower_debug_locus(decl);
-         vcode_reg_t context_reg = lower_context_for_mangled(parent, qual);
+         vcode_reg_t vdummy = vtype_opaque();
+         vcode_reg_t context_reg = emit_context_upref(0);
          vcode_reg_t args[1] = { context_reg };
-         vcode_reg_t closure = emit_closure(qual, vtype, args, 1);
-         vcode_reg_t kind_reg = emit_const(vtype_offset(), kind);
-         vcode_reg_t sig = emit_implicit_signal(vtype, one_reg, one_reg, locus,
-                                                kind_reg, closure, delay_reg);
-         emit_store(sig, var);
+         vcode_reg_t closure_reg = emit_closure(qual, vdummy, args, 1);
 
-         tree_t prefix = tree_value(w);
-
-         vcode_reg_t prefix_reg = lower_attr_prefix(parent, prefix);
-
-         type_t prefix_type = tree_type(prefix);
-         if (type_is_homogeneous(prefix_type)) {
-            vcode_reg_t count_reg =
-               lower_type_width(parent, prefix_type, prefix_reg);
-            vcode_reg_t nets_reg = lower_array_data(prefix_reg);
-
-            emit_map_implicit(nets_reg, sig, count_reg);
-         }
-         else
-            lower_for_each_field(parent, prefix_type, prefix_reg,
-                                 locus, lower_implicit_field_cb,
-                                 (void *)(intptr_t)sig);
+         emit_process_init(closure_reg, lower_debug_locus(decl));
       }
       break;
    }
@@ -10815,7 +10825,7 @@ static void lower_process(lower_unit_t *lu, object_t *obj)
 
          const int ntriggers = tree_triggers(wait);
          for (int i = 0; i < ntriggers; i++)
-            lower_sched_event(lu, tree_trigger(wait, i));
+            lower_sched_event(lu, tree_trigger(wait, i), emit_sched_event);
 
          trigger_reg = lower_process_trigger(lu, proc);
 

@@ -3083,31 +3083,6 @@ static void irgen_op_init_signal(jit_irgen_t *g, mir_value_t n)
    j_mov(g, offset, jit_value_from_int64(0));
 }
 
-static void irgen_op_implicit_signal(jit_irgen_t *g, mir_value_t n)
-{
-   jit_value_t count   = irgen_get_arg(g, n, 0);
-   jit_value_t size    = irgen_get_arg(g, n, 1);
-   jit_value_t locus   = irgen_get_arg(g, n, 2);
-   jit_value_t kind    = irgen_get_arg(g, n, 3);
-   jit_value_t closure = irgen_get_arg(g, n, 4);
-   jit_value_t delay   = irgen_get_arg(g, n, 5);
-
-   j_send(g, 0, count);
-   j_send(g, 1, size);
-   j_send(g, 2, locus);
-   j_send(g, 3, kind);
-   j_send(g, 4, closure);
-   j_send(g, 5, delay);
-
-   macro_exit(g, JIT_EXIT_IMPLICIT_SIGNAL);
-
-   jit_value_t shared = irgen_get_slot(g, n, 0);
-   jit_value_t offset = irgen_get_slot(g, n, 1);
-
-   j_recv(g, shared, 0);
-   j_mov(g, offset, jit_value_from_int64(0));
-}
-
 static void irgen_op_alias_signal(jit_irgen_t *g, mir_value_t n)
 {
    jit_value_t shared = irgen_get_arg(g, n, 0);
@@ -3152,23 +3127,6 @@ static void irgen_op_map_const(jit_irgen_t *g, mir_value_t n)
    j_send(g, 4, scalar);
 
    macro_exit(g, JIT_EXIT_MAP_CONST);
-}
-
-static void irgen_op_map_implicit(jit_irgen_t *g, mir_value_t n)
-{
-   jit_value_t src_ss  = irgen_get_arg_slot(g, n, 0, 0);
-   jit_value_t src_off = irgen_get_arg_slot(g, n, 0, 1);
-   jit_value_t dst_ss  = irgen_get_arg_slot(g, n, 1, 0);
-   jit_value_t dst_off = irgen_get_arg_slot(g, n, 1, 1);
-   jit_value_t count   = irgen_get_arg(g, n, 2);
-
-   j_send(g, 0, src_ss);
-   j_send(g, 1, src_off);
-   j_send(g, 2, dst_ss);
-   j_send(g, 3, dst_off);
-   j_send(g, 4, count);
-
-   macro_exit(g, JIT_EXIT_MAP_IMPLICIT);
 }
 
 static void irgen_op_resolve_signal(jit_irgen_t *g, mir_value_t n)
@@ -4691,9 +4649,6 @@ static void irgen_block(jit_irgen_t *g, mir_block_t block)
       case MIR_OP_INIT_SIGNAL:
          irgen_op_init_signal(g, n);
          break;
-      case MIR_OP_IMPLICIT_SIGNAL:
-         irgen_op_implicit_signal(g, n);
-         break;
       case MIR_OP_ALIAS_SIGNAL:
          irgen_op_alias_signal(g, n);
          break;
@@ -4702,9 +4657,6 @@ static void irgen_block(jit_irgen_t *g, mir_block_t block)
          break;
       case MIR_OP_MAP_CONST:
          irgen_op_map_const(g, n);
-         break;
-      case MIR_OP_MAP_IMPLICIT:
-         irgen_op_map_implicit(g, n);
          break;
       case MIR_OP_RESOLVE_SIGNAL:
          irgen_op_resolve_signal(g, n);

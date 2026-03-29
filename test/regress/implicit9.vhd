@@ -16,7 +16,7 @@ begin
     begin
         i1 <= 4;
         wait for 0 ns;
-        --assert i1'stable'active;
+        assert i1'stable'active;
         assert b1;
         assert b2;
         wait for 0 ns;
@@ -46,7 +46,7 @@ begin
 
         i1 <= 20;
         wait for 0 ns;
-        --assert i1'stable'active;
+        assert i1'stable'active;
         assert not i1'stable;
         wait for 0 ns;
         assert i1'stable'active;

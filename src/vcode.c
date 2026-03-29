@@ -1039,7 +1039,7 @@ const char *vcode_op_string(vcode_op_t op)
       "map signal", "drive signal", "link var", "resolution wrapper",
       "last active", "driving", "driving value", "address of", "closure",
       "protected init", "context upref", "const rep", "protected free",
-      "implicit signal", "disconnect", "link package",
+      "disconnect", "link package",
       "index check", "debug locus", "length check", "range check", "array ref",
       "range length", "exponent check", "zero check", "map const",
       "resolve signal", "package scope", "pop scope", "alias signal",
@@ -1048,7 +1048,7 @@ const char *vcode_op_string(vcode_op_t op)
       "trap exp", "enter state", "reflect value", "reflect subtype",
       "function trigger", "add trigger", "transfer signal", "bind foreign",
       "or trigger", "cmp trigger", "instance name",
-      "map implicit", "bind external", "array scope", "record scope",
+      "bind external", "array scope", "record scope",
       "dir check", "sched process", "table ref", "get counters", "put driver",
       "deposit signal", "sched active",
    };
@@ -1426,7 +1426,6 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
 
          case VCODE_OP_MAP_CONST:
          case VCODE_OP_MAP_SIGNAL:
-         case VCODE_OP_MAP_IMPLICIT:
             {
                printf("%s ", vcode_op_string(op->kind));
                vcode_dump_reg(op->args.items[0]);
@@ -1505,22 +1504,6 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
                   col += vcode_dump_reg(op->args.items[5]);
                }
                vcode_dump_result_type(col, op);
-            }
-            break;
-
-         case VCODE_OP_IMPLICIT_SIGNAL:
-            {
-               col += vcode_dump_reg(op->result);
-               col += printf(" := %s count ", vcode_op_string(op->kind));
-               col += vcode_dump_reg(op->args.items[0]);
-               col += printf(" size ");
-               col += vcode_dump_reg(op->args.items[1]);
-               col += printf(" locus ");
-               col += vcode_dump_reg(op->args.items[2]);
-               col += printf(" kind ");
-               col += vcode_dump_reg(op->args.items[3]);
-               col += printf(" closure ");
-               col += vcode_dump_reg(op->args.items[4]);
             }
             break;
 
@@ -4952,34 +4935,6 @@ void emit_resolve_signal(vcode_reg_t signal, vcode_reg_t resolution)
                 "resolution wrapper argument has wrong type");
 }
 
-vcode_reg_t emit_implicit_signal(vcode_type_t type, vcode_reg_t count,
-                                 vcode_reg_t size, vcode_reg_t locus,
-                                 vcode_reg_t kind, vcode_reg_t closure,
-                                 vcode_reg_t delay)
-{
-   op_t *op = vcode_add_op(VCODE_OP_IMPLICIT_SIGNAL);
-   vcode_add_arg(op, count);
-   vcode_add_arg(op, size);
-   vcode_add_arg(op, locus);
-   vcode_add_arg(op, kind);
-   vcode_add_arg(op, closure);
-   vcode_add_arg(op, delay);
-
-   VCODE_ASSERT(vcode_reg_kind(count) == VCODE_TYPE_OFFSET,
-                "count argument to implicit signal is not offset");
-   VCODE_ASSERT(vcode_reg_kind(kind) == VCODE_TYPE_OFFSET,
-                "kind argument to implicit signal is not offset");
-   VCODE_ASSERT(vcode_reg_kind(closure) == VCODE_TYPE_CLOSURE,
-                "closure argument to implicit signal is not a closure");
-   VCODE_ASSERT(vcode_reg_kind(locus) == VCODE_TYPE_DEBUG_LOCUS,
-                "locus argument to implicit signal must be a debug locus");
-   VCODE_ASSERT(vcode_reg_kind(delay) == VCODE_TYPE_INT,
-                "delay argument to implicit signal must be time");
-
-   vcode_type_t stype = vtype_signal(type);
-   return (op->result = vcode_add_reg(stype, VCODE_INVALID_REG));
-}
-
 void emit_map_signal(vcode_reg_t src, vcode_reg_t dst, vcode_reg_t count)
 {
    op_t *op = vcode_add_op(VCODE_OP_MAP_SIGNAL);
@@ -5006,21 +4961,6 @@ void emit_map_const(vcode_reg_t src, vcode_reg_t dst, vcode_reg_t count)
                 "dst argument to map const is not a signal");
    VCODE_ASSERT(vcode_reg_kind(count) == VCODE_TYPE_OFFSET,
                 "count argument type to map const is not offset");
-}
-
-void emit_map_implicit(vcode_reg_t src, vcode_reg_t dst, vcode_reg_t count)
-{
-   op_t *op = vcode_add_op(VCODE_OP_MAP_IMPLICIT);
-   vcode_add_arg(op, src);
-   vcode_add_arg(op, dst);
-   vcode_add_arg(op, count);
-
-   VCODE_ASSERT(vcode_reg_kind(src) == VCODE_TYPE_SIGNAL,
-                "src argument to map implicit is not a signal");
-   VCODE_ASSERT(vcode_reg_kind(dst) == VCODE_TYPE_SIGNAL,
-                "dst argument to map implicit is not a signal");
-   VCODE_ASSERT(vcode_reg_kind(count) == VCODE_TYPE_OFFSET,
-                "count argument type to map implicit is not offset");
 }
 
 void emit_drive_signal(vcode_reg_t target, vcode_reg_t count)

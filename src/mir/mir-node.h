@@ -158,7 +158,6 @@ typedef enum {
    MIR_OP_LAST_VALUE,
    MIR_OP_LOCUS,
    MIR_OP_INIT_SIGNAL,
-   MIR_OP_IMPLICIT_SIGNAL,
    MIR_OP_SELECT,
    MIR_OP_WAIT,
    MIR_OP_LINK_PACKAGE,
@@ -209,7 +208,6 @@ typedef enum {
    MIR_OP_ALIAS_SIGNAL,
    MIR_OP_MAP_SIGNAL,
    MIR_OP_MAP_CONST,
-   MIR_OP_MAP_IMPLICIT,
    MIR_OP_CASE,
    MIR_OP_BIND_FOREIGN,
    MIR_OP_BIND_EXTERNAL,
@@ -639,10 +637,6 @@ mir_value_t mir_build_init_signal(mir_unit_t *mu, mir_type_t type,
                                   mir_value_t count, mir_value_t size,
                                   mir_value_t value, mir_value_t flags,
                                   mir_value_t locus, mir_value_t offset);
-mir_value_t mir_build_implicit_signal(mir_unit_t *mu, mir_type_t type,
-                                      mir_value_t count, mir_value_t size,
-                                      mir_value_t locus, mir_value_t kind,
-                                      mir_value_t closure, mir_value_t delay);
 void mir_build_drive_signal(mir_unit_t *mu, mir_value_t target,
                             mir_value_t count);
 void mir_build_sched_waveform(mir_unit_t *mu, mir_value_t target,
@@ -709,8 +703,6 @@ void mir_build_map_signal(mir_unit_t *mu, mir_value_t src, mir_value_t dst,
                           mir_value_t count);
 void mir_build_map_const(mir_unit_t *mu, mir_value_t src, mir_value_t dst,
                          mir_value_t count);
-void mir_build_map_implicit(mir_unit_t *mu, mir_value_t src, mir_value_t dst,
-                            mir_value_t count);
 
 // Triggers
 mir_value_t mir_build_level_trigger(mir_unit_t *mu, mir_value_t signal,
