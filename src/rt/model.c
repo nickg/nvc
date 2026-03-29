@@ -2981,26 +2981,25 @@ static void update_driving(rt_model_t *m, rt_nexus_t *n, bool safe)
 
       calculate_driving_value(m, n);
 
-      // Update outputs if the effective value must be calculated
+      // Update output ports if the effective value must be calculated
       // separately or there was an event on this signal
-      const bool update_outputs = !!(n->flags & NET_F_EFFECTIVE)
+      const bool update_output_ports = !!(n->flags & NET_F_EFFECTIVE)
          || (n->event_delta == m->iteration && n->last_event == m->now);
 
-      if (update_outputs) {
-         for (rt_source_t *o = n->outputs; o; o = o->chain_output) {
-            switch (o->tag) {
-            case SOURCE_PORT:
+      for (rt_source_t *o = n->outputs; o; o = o->chain_output) {
+         switch (o->tag) {
+         case SOURCE_PORT:
+            if (update_output_ports)
                update_driving(m, o->u.port.output, false);
-               break;
-            case SOURCE_IMPLICIT:
-               update_driving(m, o->u.pseudo.nexus, false);
-               break;
-            case SOURCE_ACTIVE:
-               wakeup_one(m, o->u.wakeable);
-               break;
-            default:
-               should_not_reach_here();
-            }
+            break;
+         case SOURCE_IMPLICIT:
+            update_driving(m, o->u.pseudo.nexus, false);
+            break;
+         case SOURCE_ACTIVE:
+            wakeup_one(m, o->u.wakeable);
+            break;
+         default:
+            should_not_reach_here();
          }
       }
    }
