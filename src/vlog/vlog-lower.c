@@ -889,17 +889,21 @@ static mir_value_t vlog_lower_sys_tfcall(vlog_gen_t *g, vlog_node_t v)
 
 static mir_value_t vlog_lower_sys_fcall(vlog_gen_t *g, vlog_node_t v)
 {
-   switch (is_well_known(vlog_ident(v))) {
+   well_known_t wk = is_well_known(vlog_ident(v));
+   switch (wk) {
    case W_DLR_SIGNED:
+   case W_DLR_UNSIGNED:
       {
          mir_value_t arg = vlog_lower_rvalue(g, vlog_param(v, 0));
          mir_type_t arg_type = mir_get_type(g->mu, arg), type;
          switch (mir_get_class(g->mu, arg_type)) {
          case MIR_TYPE_VEC2:
-            type = mir_vec2_type(g->mu, mir_get_size(g->mu, arg_type), true);
+            type = mir_vec2_type(g->mu, mir_get_size(g->mu, arg_type),
+                                 wk == W_DLR_SIGNED);
             break;
          case MIR_TYPE_VEC4:
-            type = mir_vec4_type(g->mu, mir_get_size(g->mu, arg_type), true);
+            type = mir_vec4_type(g->mu, mir_get_size(g->mu, arg_type),
+                                 wk == W_DLR_SIGNED);
             break;
          default:
             type = arg_type;
