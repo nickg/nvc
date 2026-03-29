@@ -1474,13 +1474,8 @@ START_TEST(test_lower1)
          { MIR_OP_STORE, VAR("z") },
          { MIR_OP_CONTEXT_UPREF, ENUM(0) },
          { MIR_OP_CLOSURE, LINK("WORK.LOWER1#0.assign#3#9") },
-         { MIR_OP_INIT_FUNCTOR },
-         { MIR_OP_LOAD, VAR("z") },
-         { MIR_OP_FUNCTOR_OUT },
-         { MIR_OP_LOAD, VAR("x") },
-         { MIR_OP_FUNCTOR_IN },
-         { MIR_OP_LOAD, VAR("y") },
-         { MIR_OP_FUNCTOR_IN },
+         { MIR_OP_LOCUS },
+         { MIR_OP_PROCESS_INIT },
          { MIR_OP_RETURN },
       };
       mir_match(mu, 0, bb0);

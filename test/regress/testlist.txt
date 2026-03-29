@@ -1269,7 +1269,6 @@ issue1433       shell
 reflect6        normal,2019
 vlog32          verilog
 vlog33          verilog
-vlog34          verilog,fail,gold
 vlog35          verilog,gold
 issue1427       normal,2008
 ivtest22        verilog
@@ -1278,3 +1277,4 @@ ivtest23        verilog
 issue1459       verilog
 issue1460       normal,2019
 issue1463       vhpi,2008
+mixed9          mixed,2008

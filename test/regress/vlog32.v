@@ -18,6 +18,7 @@ module vlog32;
     i1 = 3'd1;
     #1;
     i1 = 3'd2;
+    #0;
     if (o1 === 3'd1 && o2 == 3'd3)
       $display("PASSED");
     else

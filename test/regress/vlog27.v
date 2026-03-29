@@ -10,6 +10,7 @@ module vlog27;
     y = 0;
     #1;
     x = 1;
+    #0;
     x = 0;
   end
 

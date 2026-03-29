@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2024  Nick Gasson
+//  Copyright (C) 2011-2026  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -1738,6 +1738,18 @@ static void setup_signal(rt_model_t *m, rt_signal_t *s, tree_t where,
 static void setup_process(rt_proc_t *p, const char *path)
 {
    switch (tree_kind(p->where)) {
+   case T_VERILOG:
+      {
+         vlog_node_t v = tree_vlog(p->where);
+         switch (vlog_kind(v)) {
+         case V_ASSIGN:
+            p->wakeable.reschedule = true;
+            break;
+         default:
+            should_not_reach_here();
+         }
+      }
+      break;
    case T_IMPLICIT_SIGNAL:
    case T_INERTIAL:
       {
@@ -2299,8 +2311,8 @@ static void create_processes(rt_model_t *m, rt_scope_t *s)
          {
             vlog_node_t v = tree_vlog(t);
             const vlog_kind_t kind = vlog_kind(v);
-            if (kind == V_ASSIGN && !vlog_has_delay(v))
-               continue;  // Not a process
+            if (kind == V_ASSIGN)
+               continue;  // Calls process init
             else if (kind == V_UDP_TABLE && vlog_subkind(v) == V_UDP_COMB)
                continue;  // Not a process
 
