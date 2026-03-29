@@ -1744,6 +1744,12 @@ static void setup_process(rt_proc_t *p, const char *path)
          switch (vlog_kind(v)) {
          case V_ASSIGN:
             p->wakeable.reschedule = true;
+            p->name = ident_sprintf("%s:%s", path, istr(tree_ident(p->where)));
+            break;
+         case V_UDP_TABLE:
+            // TODO: reschedule = (vlog_subkind(v) == V_UDP_COMB);
+            p->wakeable.reschedule = true;
+            p->name = ident_sprintf("%s:_udp", path);
             break;
          default:
             should_not_reach_here();
@@ -2313,8 +2319,8 @@ static void create_processes(rt_model_t *m, rt_scope_t *s)
             const vlog_kind_t kind = vlog_kind(v);
             if (kind == V_ASSIGN)
                continue;  // Calls process init
-            else if (kind == V_UDP_TABLE && vlog_subkind(v) == V_UDP_COMB)
-               continue;  // Not a process
+            else if (kind == V_UDP_TABLE)
+               continue;  // Calls process init
 
             ident_t name = tree_ident(t);
             ident_t sym = ident_prefix(sym_prefix, name, '.');

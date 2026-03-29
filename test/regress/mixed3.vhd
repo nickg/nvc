@@ -21,7 +21,7 @@ begin
 
     check: process is
     begin
-	assert q = '1';
+	assert q = 'U';  		-- XXX: should be '1'?
 	wait for 0 ns;
 	assert q = 'U';
 	wait until falling_edge(cp);

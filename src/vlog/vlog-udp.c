@@ -74,25 +74,16 @@ static mir_value_t vlog_udp_cmp(mir_unit_t *mu, mir_value_t left,
    }
 }
 
-static void vlog_lower_udp_functor(mir_unit_t *mu, object_t *obj)
+static void vlog_lower_comb_udp(mir_unit_t *mu, vlog_node_t udp)
 {
-   vlog_node_t udp = vlog_from_object(obj);
-   assert(vlog_kind(udp) == V_INST_BODY);
-
    vlog_node_t table = vlog_stmt(udp, 0);
    assert(vlog_kind(table) == V_UDP_TABLE);
 
-   mir_type_t t_context = mir_context_type(mu, mir_get_parent(mu));
-   mir_add_param(mu, t_context, MIR_NULL_STAMP, ident_new("context"));
-
-   mir_type_t t_functor = mir_functor_type(mu);
-   mir_value_t functor = mir_add_param(mu, t_functor, MIR_NULL_STAMP,
-                                       ident_new("functor"));
+   mir_block_t start_bb = mir_add_block(mu);
+   assert(start_bb.id == 1);
 
    mir_type_t t_offset = mir_offset_type(mu);
    mir_type_t t_logic = mir_vec4_type(mu, 1, false);
-
-   mir_set_result(mu, t_offset);   // Force function calling convention
 
    vlog_node_t out_decl = vlog_ref(vlog_port(udp, 0));
    assert(vlog_kind(out_decl) == V_PORT_DECL);
@@ -116,6 +107,31 @@ static void vlog_lower_udp_functor(mir_unit_t *mu, object_t *obj)
 
    mir_value_t result_var = mir_add_var(mu, t_logic, MIR_NULL_STAMP,
                                         ident_new("result"), MIR_VAR_TEMP);
+
+   {
+      const int nports = vlog_ports(udp);
+      for (int i = 0; i < nports; i++) {
+         vlog_node_t decl = vlog_ref(vlog_port(udp, i));
+         assert(vlog_kind(decl) == V_PORT_DECL);
+
+         int hops;
+         mir_value_t var = mir_search_object(mu, decl, &hops);
+         assert(!mir_is_null(var));
+
+         mir_value_t upref = mir_build_var_upref(mu, hops, var.id);
+         mir_value_t nets = mir_build_load(mu, upref);
+         mir_value_t count = mir_const(mu, t_offset, 1);
+
+         if (vlog_subkind(decl) == V_PORT_INPUT)
+            mir_build_sched_event(mu, nets, count);
+         else
+            mir_build_drive_signal(mu, nets, count);
+      }
+
+      mir_build_return(mu, MIR_NULL_VALUE);
+   }
+
+   mir_set_cursor(mu, start_bb, MIR_APPEND);
 
    mir_block_t wait_bb = mir_add_block(mu);
 
@@ -196,7 +212,7 @@ static void vlog_lower_udp_functor(mir_unit_t *mu, object_t *obj)
       case '-':
          // No change, skip assignment to output
          drive = MIR_NULL_VALUE;
-         mir_build_return(mu, mir_const(mu, t_offset, 0));
+         mir_build_wait(mu, start_bb);
          mir_set_cursor(mu, test_bb, MIR_APPEND);
          continue;
       default:
@@ -225,57 +241,14 @@ static void vlog_lower_udp_functor(mir_unit_t *mu, object_t *obj)
    mir_value_t upref = mir_build_var_upref(mu, hops, out_var.id);
    mir_value_t out = mir_build_load(mu, upref);
 
-   mir_build_put_functor(mu, functor, out, one, drive);
-   mir_build_return(mu, mir_const(mu, t_offset, 0));
+   mir_build_put_driver(mu, out, one, drive);
+   mir_build_wait(mu, start_bb);
 
    mir_optimise(mu, MIR_PASS_O1);
 }
 
-void vlog_lower_comb_udp(mir_context_t *mc, mir_unit_t *mu, vlog_node_t udp)
+static void vlog_lower_seq_udp(mir_unit_t *mu, vlog_node_t udp)
 {
-   assert(vlog_kind(udp) == V_INST_BODY);
-
-   vlog_node_t table = vlog_stmt(udp, 0);
-   assert(vlog_kind(table) == V_UDP_TABLE);
-
-   ident_t parent = mir_get_name(mu, MIR_NULL_VALUE);
-   ident_t func = ident_prefix(parent, vlog_ident(table), '.');
-   mir_defer(mc, func, parent, MIR_UNIT_FUNCTION, vlog_lower_udp_functor,
-             vlog_to_object(udp));
-
-   mir_type_t t_offset = mir_offset_type(mu);
-
-   mir_value_t context = mir_build_context_upref(mu, 0);
-   mir_value_t args[] = { context };
-   mir_value_t closure = mir_build_closure(mu, func, t_offset, args, 1);
-
-   mir_value_t functor = mir_build_init_functor(mu, closure);
-
-   const int nports = vlog_ports(udp);
-   for (int i = 0; i < nports; i++) {
-      vlog_node_t decl = vlog_ref(vlog_port(udp, i));
-      assert(vlog_kind(decl) == V_PORT_DECL);
-
-      int hops;
-      mir_value_t var = mir_search_object(mu, decl, &hops);
-      assert(!mir_is_null(var));
-      assert(hops == 0);
-
-      mir_value_t nets = mir_build_load(mu, var);
-      mir_value_t count = mir_const(mu, t_offset, 1);
-
-      if (vlog_subkind(decl) == V_PORT_INPUT)
-         mir_build_functor_in(mu, functor, nets, count);
-      else
-         mir_build_functor_out(mu, functor, nets, count);
-   }
-}
-
-void vlog_lower_seq_udp(mir_unit_t *mu, object_t *obj)
-{
-   vlog_node_t udp = vlog_from_object(obj);
-   assert(vlog_kind(udp) == V_INST_BODY);
-
    vlog_node_t table = vlog_stmt(udp, 0);
    assert(vlog_kind(table) == V_UDP_TABLE);
 
@@ -501,4 +474,18 @@ void vlog_lower_seq_udp(mir_unit_t *mu, object_t *obj)
    }
 
    mir_optimise(mu, MIR_PASS_O0);
+}
+
+void vlog_lower_udp(mir_unit_t *mu, object_t *obj)
+{
+   vlog_node_t body = vlog_from_object(obj);
+   assert(vlog_kind(body) == V_INST_BODY);
+
+   vlog_node_t table = vlog_stmt(body, 0);
+   assert(vlog_kind(table) == V_UDP_TABLE);
+
+   if (vlog_subkind(table) == V_UDP_SEQ)
+      vlog_lower_seq_udp(mu, body);
+   else
+      vlog_lower_comb_udp(mu, body);
 }

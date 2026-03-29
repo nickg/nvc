@@ -2996,13 +2996,19 @@ void vlog_lower_instance(mir_context_t *mc, vlog_node_t body, ident_t parent,
          }
          break;
       case V_UDP_TABLE:
-         if (vlog_subkind(s) == V_UDP_SEQ) {
+         {
             ident_t sym = ident_prefix(qual, vlog_ident(s), '.');
             mir_defer(mc, sym, qual, MIR_UNIT_PROCESS,
-                      vlog_lower_seq_udp, vlog_to_object(body));
+                      vlog_lower_udp, vlog_to_object(body));
+
+            mir_type_t t_offset = mir_offset_type(mu);
+            mir_value_t args[] = { self };
+            mir_value_t closure =
+               mir_build_closure(mu, sym, t_offset, args, 1);
+            mir_value_t locus = mir_build_locus(mu, tree_to_object(wrap));
+
+            mir_build_process_init(mu, closure, locus);
          }
-         else
-            vlog_lower_comb_udp(mc, mu, body);
          break;
       default:
          break;
