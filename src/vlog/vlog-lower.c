@@ -1454,7 +1454,38 @@ static mir_value_t vlog_lower_trigger(vlog_gen_t *g, vlog_node_t v)
    }
 }
 
-static void vlog_lower_timing(vlog_gen_t *g, vlog_node_t v, bool is_static)
+static mir_value_t vlog_lower_trigger_var(vlog_gen_t *g, vlog_node_t v)
+{
+   assert(vlog_kind(v) == V_EVENT_CONTROL);
+
+   int hops = 0;
+   mir_value_t var = mir_search_object(g->mu, v, &hops);
+   assert(mir_is_null(var) || hops == 0);
+
+   if (!mir_is_null(var))
+      return var;
+
+   mir_value_t trigger = MIR_NULL_VALUE;
+
+   const int nparams = vlog_params(v);
+   for (int i = 0; i < nparams; i++) {
+      mir_value_t p = vlog_lower_trigger(g, vlog_param(v, i));
+      trigger = vlog_or_triggers(g, 2, trigger, p);
+   }
+
+   if (mir_is_null(trigger))
+      return MIR_NULL_VALUE;
+
+   mir_type_t t_trigger = mir_trigger_type(g->mu);
+   var = mir_add_var(g->mu, t_trigger, MIR_NULL_STAMP,
+                     ident_uniq("trigger"), 0);
+   mir_build_store(g->mu, var, trigger);
+
+   mir_put_object(g->mu, v, var);
+   return var;
+}
+
+static void vlog_lower_timing(vlog_gen_t *g, vlog_node_t v)
 {
    vlog_node_t ctrl = vlog_value(v);
    switch (vlog_kind(ctrl)) {
@@ -1478,24 +1509,10 @@ static void vlog_lower_timing(vlog_gen_t *g, vlog_node_t v, bool is_static)
       break;
    case V_EVENT_CONTROL:
       {
-         const int nparams = vlog_params(ctrl);
-
-         mir_value_t trigger_var = MIR_NULL_VALUE;
-         if (!is_static) {
-            mir_value_t trigger = MIR_NULL_VALUE;
-            for (int i = 0; i < nparams; i++) {
-               mir_value_t p = vlog_lower_trigger(g, vlog_param(ctrl, i));
-               trigger = vlog_or_triggers(g, 2, trigger, p);
-            }
-
-            if (!mir_is_null(trigger)) {
-               mir_type_t t_trigger = mir_trigger_type(g->mu);
-               trigger_var = mir_add_var(g->mu, t_trigger, MIR_NULL_STAMP,
-                                         ident_uniq("trigger"), 0);
-               mir_build_store(g->mu, trigger_var, trigger);
-
-               mir_build_sched_event(g->mu, trigger, MIR_NULL_VALUE);
-            }
+         mir_value_t trigger_var = vlog_lower_trigger_var(g, ctrl);
+         if (!mir_is_null(trigger_var)) {
+            mir_value_t trigger = mir_build_load(g->mu, trigger_var);
+            mir_build_sched_event(g->mu, trigger, MIR_NULL_VALUE);
          }
 
          mir_block_t wait_bb = mir_add_block(g->mu);
@@ -1938,7 +1955,7 @@ static void vlog_lower_stmts(vlog_gen_t *g, vlog_node_t v)
 
       switch (vlog_kind(s)) {
       case V_TIMING:
-         vlog_lower_timing(g, s, false);
+         vlog_lower_timing(g, s);
          break;
       case V_BASSIGN:
          vlog_lower_blocking_assignment(g, s);
@@ -2019,34 +2036,20 @@ static void vlog_lower_always(vlog_gen_t *g, vlog_node_t v)
    mir_block_t start_bb = mir_add_block(g->mu);
    assert(start_bb.id == 1);
 
-   vlog_node_t timing = NULL, s0 = vlog_stmt(v, 0);
+   vlog_node_t s0 = vlog_stmt(v, 0);
    if (vlog_kind(s0) == V_TIMING) {
-      timing = s0;
-
-      vlog_node_t ctrl = vlog_value(timing);
-      if (vlog_kind(ctrl) == V_EVENT_CONTROL) {
-         mir_value_t trigger = MIR_NULL_VALUE;
-         const int nparams = vlog_params(ctrl);
-         for (int i = 0; i < nparams; i++) {
-            mir_value_t t = vlog_lower_trigger(g, vlog_param(ctrl, i));
-            trigger = vlog_or_triggers(g, 2, trigger, t);
-         }
-
-         if (!mir_is_null(trigger))
-            mir_build_sched_event(g->mu, trigger, MIR_NULL_VALUE);
-      }
-      else
-         timing = NULL;
+      // Cache the event control trigger once on reset to avoid
+      // regenerating it on each invocation
+      vlog_node_t ctrl = vlog_value(s0);
+      if (vlog_kind(ctrl) == V_EVENT_CONTROL)
+         vlog_lower_trigger_var(g, ctrl);
    }
 
    mir_build_return(g->mu, MIR_NULL_VALUE);
 
    mir_set_cursor(g->mu, start_bb, MIR_APPEND);
 
-   if (timing != NULL)
-      vlog_lower_timing(g, timing, true);
-   else
-      vlog_lower_stmts(g, v);
+   vlog_lower_stmts(g, v);
 
    if (!mir_block_finished(g->mu, MIR_NULL_BLOCK))
       mir_build_jump(g->mu, start_bb);

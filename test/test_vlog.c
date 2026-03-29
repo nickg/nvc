@@ -1472,13 +1472,58 @@ START_TEST(test_lower1)
          { MIR_OP_INIT_SIGNAL },
          { MIR_OP_RESOLVE_SIGNAL },
          { MIR_OP_STORE, VAR("z") },
+         { MIR_OP_LOCUS },
+         { MIR_OP_INIT_SIGNAL },
+         { MIR_OP_STORE, VAR("r") },
          { MIR_OP_CONTEXT_UPREF, ENUM(0) },
          { MIR_OP_CLOSURE, LINK("WORK.LOWER1#0.assign#3#9") },
+         { MIR_OP_LOCUS },
+         { MIR_OP_PROCESS_INIT },
+         { MIR_OP_CLOSURE, LINK("WORK.LOWER1#0.always#6#2") },
          { MIR_OP_LOCUS },
          { MIR_OP_PROCESS_INIT },
          { MIR_OP_RETURN },
       };
       mir_match(mu, 0, bb0);
+   }
+
+   {
+      mir_unit_t *mu = mir_get_unit(mc, ident_new("WORK.LOWER1#0.always#6#2"));
+      ck_assert_ptr_nonnull(mu);
+
+      static const mir_match_t bb0[] = {
+         { MIR_OP_VAR_UPREF },
+         { MIR_OP_LOAD },
+         { MIR_OP_LEVEL_TRIGGER },
+         { MIR_OP_STORE, VAR("trigger") },
+         { MIR_OP_RETURN },
+      };
+      mir_match(mu, 0, bb0);
+
+      static const mir_match_t bb1[] = {
+         { MIR_OP_LOAD, VAR("trigger") },
+         { MIR_OP_SCHED_EVENT },
+         { MIR_OP_WAIT, BLOCK(2) },
+      };
+      mir_match(mu, 1, bb1);
+
+      static const mir_match_t bb2[] = {
+         { MIR_OP_LOAD, VAR("trigger") },
+         { MIR_OP_CLEAR_EVENT },
+         { MIR_OP_VAR_UPREF },
+         { MIR_OP_LOAD },
+         { MIR_OP_VAR_UPREF },
+         { MIR_OP_LOAD },
+         { MIR_OP_RESOLVED },
+         { MIR_OP_LOAD },
+         { MIR_OP_PACK },
+         { MIR_OP_UNARY, ENUM(MIR_VEC_LOG_NOT) },
+         { MIR_OP_CAST },
+         { MIR_OP_UNPACK },
+         { MIR_OP_DEPOSIT_SIGNAL },
+         { MIR_OP_JUMP, BLOCK(1) },
+      };
+      mir_match(mu, 2, bb2);
    }
 
    fail_if_errors();
