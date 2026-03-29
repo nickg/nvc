@@ -1282,3 +1282,4 @@ mixed9          mixed,2008
 issue1466       verilog
 ivtest24        verilog
 signed3         verilog
+vlog36          verilog

@@ -548,6 +548,18 @@ static vlog_node_t simp_localparam(vlog_node_t v)
    return v;
 }
 
+static vlog_node_t simp_concat(vlog_node_t v)
+{
+   if (vlog_params(v) != 1 || vlog_has_value(v))
+      return v;
+
+   vlog_node_t p0 = vlog_param(v, 0);
+   if (vlog_kind(p0) == V_NUMBER)
+      return p0;
+
+   return v;
+}
+
 static vlog_node_t vlog_simp_cb(vlog_node_t v, void *context)
 {
    switch (vlog_kind(v)) {
@@ -573,6 +585,8 @@ static vlog_node_t vlog_simp_cb(vlog_node_t v, void *context)
       return simp_enum_decl(v);
    case V_LOCALPARAM:
       return simp_localparam(v);
+   case V_CONCAT:
+      return simp_concat(v);
    default:
       return v;
    }

@@ -777,11 +777,12 @@ static type_mask_t vlog_check_concat(vlog_node_t v)
       vlog_check_const_expr(repeat);
    }
 
+   type_mask_t mask = TM_ANY;
    const int nparams = vlog_params(v);
    for (int i = 0; i < nparams; i++)
-      vlog_check_expr(vlog_param(v, i));
+      mask &= vlog_check_expr(vlog_param(v, i));
 
-   return TM(DT_LOGIC);
+   return TM(DT_LOGIC) | mask;
 }
 
 static type_mask_t vlog_check_event(vlog_node_t v)
