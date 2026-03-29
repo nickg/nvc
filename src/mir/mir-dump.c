@@ -108,6 +108,7 @@ const char *mir_op_string(mir_op_t op)
       [MIR_OP_INDEX_CHECK] = "index check",
       [MIR_OP_SCHED_EVENT] = "sched event",
       [MIR_OP_CLEAR_EVENT] = "clear event",
+      [MIR_OP_SCHED_ACTIVE] = "sched active",
       [MIR_OP_ALLOC] = "alloc",
       [MIR_OP_RANGE_LENGTH] = "range length",
       [MIR_OP_RANGE_NULL] = "range null",
@@ -1385,6 +1386,7 @@ void mir_annotate(mir_unit_t *mu, const mir_annotate_t *cb, void *ctx)
 
          case MIR_OP_SCHED_EVENT:
          case MIR_OP_CLEAR_EVENT:
+         case MIR_OP_SCHED_ACTIVE:
             {
                printf("%s on ", mir_op_string(n->op));
                mir_dump_arg(mu, result, 0, cb, ctx);

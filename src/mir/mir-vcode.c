@@ -809,6 +809,13 @@ static void import_clear_event(mir_unit_t *mu, mir_import_t *imp, int op)
    mir_build_clear_event(mu, signal, count);
 }
 
+static void import_sched_active(mir_unit_t *mu, mir_import_t *imp, int op)
+{
+   mir_value_t signal = imp->map[vcode_get_arg(op, 0)];
+   mir_value_t count  = imp->map[vcode_get_arg(op, 1)];
+   mir_build_sched_active(mu, signal, count);
+}
+
 static void import_alloc(mir_unit_t *mu, mir_import_t *imp, int op)
 {
    mir_value_t count  = imp->map[vcode_get_arg(op, 0)];
@@ -1561,6 +1568,9 @@ static void import_block(mir_unit_t *mu, mir_import_t *imp)
          break;
       case VCODE_OP_CLEAR_EVENT:
          import_clear_event(mu, imp, i);
+         break;
+      case VCODE_OP_SCHED_ACTIVE:
+         import_sched_active(mu, imp, i);
          break;
       case VCODE_OP_ALLOC:
          import_alloc(mu, imp, i);

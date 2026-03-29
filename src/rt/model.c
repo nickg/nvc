@@ -1282,6 +1282,9 @@ static rt_source_t *add_source(rt_model_t *m, rt_nexus_t *n, source_kind_t kind)
       src->u.pseudo.nexus = n;
       src->u.pseudo.value = alloc_value(m, n);
       break;
+
+   case SOURCE_ACTIVE:
+      should_not_reach_here();
    }
 
    return src;
@@ -1522,6 +1525,7 @@ static void clone_source(rt_model_t *m, rt_nexus_t *nexus,
       break;
 
    case SOURCE_IMPLICIT:
+   case SOURCE_ACTIVE:
       break;
    }
 }
@@ -1602,6 +1606,17 @@ static rt_nexus_t *clone_nexus(rt_model_t *m, rt_nexus_t *old, int offset)
                   break;
                }
             }
+         }
+         break;
+
+      case SOURCE_ACTIVE:
+         {
+            rt_source_t *src = static_alloc(m, sizeof(rt_source_t));
+            src->tag          = SOURCE_ACTIVE;
+            src->chain_output = new->outputs;
+            src->u.wakeable   = old_o->u.wakeable;
+
+            new->outputs = src;
          }
          break;
 
@@ -1730,7 +1745,7 @@ static void setup_process(rt_proc_t *p, const char *path)
       }
       break;
    case T_PARAM:  // Conversion function
-      p->name = ident_uniq("%s:_conv", path);
+      p->name = jit_get_name(get_model()->jit, p->closure.handle);
       p->wakeable.reschedule = true;
       break;
    default:
@@ -1783,6 +1798,9 @@ static void *source_value(rt_nexus_t *nexus, rt_source_t *src)
 
    case SOURCE_IMPLICIT:
       return NULL;
+
+   case SOURCE_ACTIVE:
+      should_not_reach_here();
    }
 
    return NULL;
@@ -2977,6 +2995,9 @@ static void update_driving(rt_model_t *m, rt_nexus_t *n, bool safe)
             case SOURCE_IMPLICIT:
                update_driving(m, o->u.pseudo.nexus, false);
                break;
+            case SOURCE_ACTIVE:
+               wakeup_one(m, o->u.wakeable);
+               break;
             default:
                should_not_reach_here();
             }
@@ -3526,6 +3547,11 @@ void release_signal(rt_model_t *m, rt_signal_t *s, int offset, size_t count)
    }
 }
 
+static bool heap_delete_ptr_cb(uint64_t key, void *value, void *ctx)
+{
+   return value == ctx;
+}
+
 void deposit_signal(rt_model_t *m, rt_signal_t *s, const void *values,
                     int offset, size_t count)
 {
@@ -3558,12 +3584,12 @@ void deposit_signal(rt_model_t *m, rt_signal_t *s, const void *values,
             n->signal->shared.flags |= SIG_F_EVENT_FLAG;
 
          wakeup_all(m, &(n->pending));
+      }
 
-         for (rt_source_t *o = n->outputs; o; o = o->chain_output) {
-            assert(o->tag == SOURCE_PORT);
-            defer_driving_update(m, o->u.port.output);
-            m->next_is_delta = true;
-         }
+      if (n->flags & NET_F_PENDING) {
+         // Cancel any deferred effective value update
+         heap_delete(m->effective_heap, heap_delete_ptr_cb, n);
+         n->flags &= ~NET_F_PENDING;
       }
 
       vptr += valuesz;
@@ -4239,7 +4265,7 @@ void x_sched_event(sig_shared_t *ss, uint32_t offset, int32_t count)
    rt_signal_t *s = container_of(ss, rt_signal_t, shared);
    RT_LOCK(s->lock);
 
-   TRACE("_sched_event %s+%d count=%d", istr(tree_ident(s->where)),
+   TRACE("schedule event %s+%d count=%d", istr(tree_ident(s->where)),
          offset, count);
 
    rt_wakeable_t *obj = get_active_wakeable();
@@ -4267,6 +4293,32 @@ void x_clear_event(sig_shared_t *ss, uint32_t offset, int32_t count)
    rt_nexus_t *n = split_nexus(m, s, offset, count);
    for (; count > 0; n = n->chain) {
       clear_event(m, &(n->pending), &(proc->wakeable));
+
+      count -= n->width;
+      assert(count >= 0);
+   }
+}
+
+void x_sched_active(sig_shared_t *ss, uint32_t offset, int32_t count)
+{
+   rt_signal_t *s = container_of(ss, rt_signal_t, shared);
+   RT_LOCK(s->lock);
+
+   TRACE("schedule active %s+%d count=%d", istr(tree_ident(s->where)),
+         offset, count);
+
+   rt_wakeable_t *obj = get_active_wakeable();
+   rt_model_t *m = get_model();
+
+   rt_nexus_t *n = split_nexus(m, s, offset, count);
+   for (; count > 0; n = n->chain) {
+      // TODO: it would be better to use a separate pending list for this
+      rt_source_t *src = static_alloc(m, sizeof(rt_source_t));
+      src->tag          = SOURCE_ACTIVE;
+      src->chain_output = n->outputs;
+      src->u.wakeable   = obj;
+
+      n->outputs = src;
 
       count -= n->width;
       assert(count >= 0);
@@ -4578,7 +4630,7 @@ void *x_driving_value(sig_shared_t *ss, uint32_t offset, int32_t count)
    rt_nexus_t *n = split_nexus(m, s, offset, count);
 
    rt_proc_t *proc = get_active_proc();
-   if (proc == NULL) {   // Called in output conversion
+   if (proc->wakeable.reschedule) {   // Called in output conversion
       if (n->flags & NET_F_EFFECTIVE)
          return nexus_driving(n);
       else
@@ -4739,9 +4791,17 @@ void x_put_driver(sig_shared_t *ss, uint32_t offset, int32_t count,
       calculate_driving_value(m, n);
 
       for (rt_source_t *o = n->outputs; o; o = o->chain_output) {
-         assert(o->tag == SOURCE_PORT);
-         defer_driving_update(m, o->u.port.output);
-         m->next_is_delta = true;
+         switch (o->tag) {
+         case SOURCE_PORT:
+            defer_driving_update(m, o->u.port.output);
+            m->next_is_delta = true;
+            break;
+         case SOURCE_ACTIVE:
+            wakeup_one(m, o->u.wakeable);
+            break;
+         default:
+            should_not_reach_here();
+         }
       }
 
       vptr += n->size * n->width;

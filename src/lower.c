@@ -87,8 +87,10 @@ typedef struct {
 
 typedef void (*lower_field_fn_t)(lower_unit_t *, tree_t, vcode_reg_t,
                                  vcode_reg_t, vcode_reg_t, void *);
+typedef vcode_reg_t (*lower_value_fn_t)(lower_unit_t *, type_t, vcode_reg_t);
 typedef vcode_reg_t (*resolved_fn_t)(vcode_reg_t, vcode_reg_t);
 typedef void (*put_signal_fn_t)(vcode_reg_t, vcode_reg_t, vcode_reg_t);
+typedef void (*event_fn_t)(vcode_reg_t, vcode_reg_t);
 
 typedef struct {
    resolved_fn_t  fn;
@@ -4872,11 +4874,9 @@ static vcode_reg_t lower_type_conv(lower_unit_t *lu, tree_t expr)
    return lower_conversion(lu, value_reg, expr, from, to);
 }
 
-static vcode_reg_t lower_driving_value(lower_unit_t *lu, tree_t name)
+static vcode_reg_t lower_driving_value(lower_unit_t *lu, type_t name_type,
+                                       vcode_reg_t name_reg)
 {
-   vcode_reg_t name_reg = lower_lvalue(lu, name);
-
-   type_t name_type = tree_type(name);
    if (type_is_homogeneous(name_type)) {
       if (type_is_array(name_type)) {
          vcode_reg_t len_reg = lower_array_total_len(lu, name_type, name_reg);
@@ -4889,8 +4889,7 @@ static vcode_reg_t lower_driving_value(lower_unit_t *lu, tree_t name)
       }
       else {
          vcode_reg_t count_reg = emit_const(vtype_offset(), 1);
-         vcode_reg_t ptr_reg = emit_driving_value(name_reg, count_reg);
-         return emit_load_indirect(ptr_reg);
+         return emit_driving_value(name_reg, count_reg);
       }
    }
    else {
@@ -5134,7 +5133,10 @@ static vcode_reg_t lower_attr_ref(lower_unit_t *lu, tree_t expr)
       }
 
    case ATTR_DRIVING_VALUE:
-      return lower_driving_value(lu, name);
+      {
+         vcode_reg_t name_reg = lower_lvalue(lu, name);
+         return lower_driving_value(lu, tree_type(name), name_reg);
+      }
 
    case ATTR_EVENT:
       return lower_signal_flag(lu, name, emit_event_flag);
@@ -5708,6 +5710,7 @@ static void lower_sched_event_field_cb(lower_unit_t *lu, tree_t field,
                                        vcode_reg_t ptr, vcode_reg_t unused,
                                        vcode_reg_t locus, void *ctx)
 {
+   event_fn_t event_fn = ctx;
    type_t type = tree_type(field);
    if (!type_is_homogeneous(type))
       lower_for_each_field(lu, type, ptr, locus,
@@ -5717,11 +5720,7 @@ static void lower_sched_event_field_cb(lower_unit_t *lu, tree_t field,
       vcode_reg_t data_reg = lower_array_data(nets_reg);
       vcode_reg_t count_reg = lower_type_width(lu, type, nets_reg);
 
-      const bool clear = (uintptr_t)ctx;
-      if (clear)
-         emit_clear_event(data_reg, count_reg);
-      else
-         emit_sched_event(data_reg, count_reg);
+      (*event_fn)(data_reg, count_reg);
    }
 }
 
@@ -5734,7 +5733,7 @@ static void lower_sched_event(lower_unit_t *lu, tree_t on)
 
    if (!type_is_homogeneous(type))
       lower_for_each_field(lu, type, nets_reg, VCODE_INVALID_REG,
-                           lower_sched_event_field_cb, NULL);
+                           lower_sched_event_field_cb, emit_sched_event);
    else {
       vcode_reg_t count_reg = lower_type_width(lu, type, nets_reg);
       vcode_reg_t data_reg = lower_array_data(nets_reg);
@@ -5751,7 +5750,7 @@ static void lower_clear_event(lower_unit_t *lu, tree_t on)
 
    if (!type_is_homogeneous(type))
       lower_for_each_field(lu, type, nets_reg, VCODE_INVALID_REG,
-                           lower_sched_event_field_cb, (void *)1);
+                           lower_sched_event_field_cb, emit_clear_event);
    else {
       vcode_reg_t count_reg = lower_type_width(lu, type, nets_reg);
       vcode_reg_t data_reg = lower_array_data(nets_reg);
@@ -10922,7 +10921,8 @@ static void lower_put_signal_field_cb(lower_unit_t *lu, tree_t field,
 }
 
 static void lower_converter_body(lower_unit_t *lu, tree_t conv, bool has_driver,
-                                 put_signal_fn_t put_fn)
+                                 put_signal_fn_t put_fn, event_fn_t event_fn,
+                                 lower_value_fn_t value_fn)
 {
    type_t src_type, dst_type;
    switch (tree_kind(conv)) {
@@ -10967,18 +10967,18 @@ static void lower_converter_body(lower_unit_t *lu, tree_t conv, bool has_driver,
 
    if (!type_is_homogeneous(src_type))
       lower_for_each_field(lu, src_type, src_reg, VCODE_INVALID_REG,
-                           lower_sched_event_field_cb, NULL);
+                           lower_sched_event_field_cb, event_fn);
    else {
       vcode_reg_t count_reg = lower_type_width(lu, src_type, src_reg);
       vcode_reg_t data_reg = lower_array_data(src_reg);
-      emit_sched_event(data_reg, count_reg);
+      (*event_fn)(data_reg, count_reg);
    }
 
    emit_return(VCODE_INVALID_REG);
 
    vcode_select_block(start_bb);
 
-   vcode_reg_t in_reg = lower_resolved(lu, src_type, src_reg);
+   vcode_reg_t in_reg = (*value_fn)(lu, src_type, src_reg);
    if (type_is_scalar(src_type) || have_uarray_ptr(in_reg))
       in_reg = emit_load_indirect(in_reg);
 
@@ -11050,7 +11050,8 @@ static void lower_in_converter(lower_unit_t *lu, object_t *obj)
 
    tree_t conv = tree_value(map);
 
-   lower_converter_body(lu, conv, true, emit_put_driver);
+   lower_converter_body(lu, conv, true, emit_put_driver, emit_sched_active,
+                        lower_driving_value);
 }
 
 static void lower_out_converter(lower_unit_t *lu, object_t *obj)
@@ -11060,7 +11061,8 @@ static void lower_out_converter(lower_unit_t *lu, object_t *obj)
 
    tree_t conv = tree_name(map);
 
-   lower_converter_body(lu, conv, true, emit_put_driver);
+   lower_converter_body(lu, conv, true, emit_put_driver, emit_sched_active,
+                        lower_driving_value);
 }
 
 static void lower_effective_converter(lower_unit_t *lu, object_t *obj)
@@ -11070,7 +11072,8 @@ static void lower_effective_converter(lower_unit_t *lu, object_t *obj)
 
    tree_t conv = tree_value(map);
 
-   lower_converter_body(lu, conv, false, emit_deposit_signal);
+   lower_converter_body(lu, conv, false, emit_deposit_signal, emit_sched_event,
+                        lower_resolved);
 }
 
 static bool lower_is_trivial_conversion(tree_t conv)

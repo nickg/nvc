@@ -267,6 +267,7 @@ typedef enum {
    MIR_OP_TABLE_REF,
    MIR_OP_GET_COUNTERS,
    MIR_OP_INSTANCE_INIT,
+   MIR_OP_SCHED_ACTIVE,
 } mir_op_t;
 
 typedef enum {
@@ -738,6 +739,7 @@ mir_value_t mir_build_var_upref(mir_unit_t *mu, int hops, int nth);
 // Events
 void mir_build_sched_event(mir_unit_t *mu, mir_value_t on, mir_value_t count);
 void mir_build_clear_event(mir_unit_t *mu, mir_value_t on, mir_value_t count);
+void mir_build_sched_active(mir_unit_t *mu, mir_value_t on, mir_value_t count);
 void mir_build_sched_process(mir_unit_t *mu, mir_value_t delay);
 void mir_build_sched_inactive(mir_unit_t *mu);
 

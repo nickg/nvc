@@ -3641,6 +3641,19 @@ static void irgen_op_clear_event(jit_irgen_t *g, mir_value_t n)
    }
 }
 
+static void irgen_op_sched_active(jit_irgen_t *g, mir_value_t n)
+{
+   mir_value_t on = mir_get_arg(g->mu, n, 0);
+   jit_value_t shared = irgen_get_slot(g, on, 0);
+   jit_value_t offset = irgen_get_slot(g, on, 1);
+   jit_value_t count = irgen_get_arg(g, n, 1);
+
+   j_send(g, 0, shared);
+   j_send(g, 1, offset);
+   j_send(g, 2, count);
+   macro_exit(g, JIT_EXIT_SCHED_ACTIVE);
+}
+
 static void irgen_op_event(jit_irgen_t *g, mir_value_t n)
 {
    jit_value_t shared = irgen_get_arg_slot(g, n, 0, 0);
@@ -4785,6 +4798,9 @@ static void irgen_block(jit_irgen_t *g, mir_block_t block)
          break;
       case MIR_OP_CLEAR_EVENT:
          irgen_op_clear_event(g, n);
+         break;
+      case MIR_OP_SCHED_ACTIVE:
+         irgen_op_sched_active(g, n);
          break;
       case MIR_OP_DEBUG_OUT:
          irgen_op_debug_out(g, n);

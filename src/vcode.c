@@ -1050,7 +1050,7 @@ const char *vcode_op_string(vcode_op_t op)
       "or trigger", "cmp trigger", "instance name",
       "map implicit", "bind external", "array scope", "record scope",
       "dir check", "sched process", "table ref", "get counters", "put driver",
-      "deposit signal",
+      "deposit signal", "sched active",
    };
    if ((unsigned)op >= ARRAY_LEN(strs))
       return "???";
@@ -2013,6 +2013,7 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
 
          case VCODE_OP_SCHED_EVENT:
          case VCODE_OP_CLEAR_EVENT:
+         case VCODE_OP_SCHED_ACTIVE:
             {
                printf("%s on ", vcode_op_string(op->kind));
                vcode_dump_reg(op->args.items[0]);
@@ -5383,6 +5384,16 @@ void emit_clear_event(vcode_reg_t nets, vcode_reg_t n_elems)
 
    VCODE_ASSERT(vcode_reg_kind(nets) == VCODE_TYPE_SIGNAL,
                 "nets argument to clear event must be signal");
+}
+
+void emit_sched_active(vcode_reg_t nets, vcode_reg_t n_elems)
+{
+   op_t *op = vcode_add_op(VCODE_OP_SCHED_ACTIVE);
+   vcode_add_arg(op, nets);
+   vcode_add_arg(op, n_elems);
+
+   VCODE_ASSERT(vcode_reg_kind(nets) == VCODE_TYPE_SIGNAL,
+                "nets argument to sched active must be signal");
 }
 
 void emit_sched_process(vcode_reg_t delay)

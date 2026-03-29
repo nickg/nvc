@@ -497,6 +497,16 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
       }
       break;
 
+   case JIT_EXIT_SCHED_ACTIVE:
+      {
+         sig_shared_t *shared  = args[0].pointer;
+         int32_t       offset  = args[1].integer;
+         int32_t       count   = args[2].integer;
+
+         x_sched_active(shared, offset, count);
+      }
+      break;
+
    case JIT_EXIT_ENABLE_TRIGGER:
       {
          rt_trigger_t *trigger = args[0].pointer;

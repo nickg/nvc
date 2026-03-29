@@ -173,6 +173,7 @@ typedef enum {
    VCODE_OP_GET_COUNTERS,
    VCODE_OP_PUT_DRIVER,
    VCODE_OP_DEPOSIT_SIGNAL,
+   VCODE_OP_SCHED_ACTIVE,
 } vcode_op_t;
 
 typedef enum {
@@ -464,6 +465,7 @@ vcode_reg_t emit_table_ref(vcode_reg_t array, vcode_reg_t stride,
 void emit_copy(vcode_reg_t dest, vcode_reg_t src, vcode_reg_t count);
 void emit_sched_event(vcode_reg_t nets, vcode_reg_t n_elems);
 void emit_clear_event(vcode_reg_t nets, vcode_reg_t count);
+void emit_sched_active(vcode_reg_t nets, vcode_reg_t n_elems);
 void emit_sched_process(vcode_reg_t delay);
 void emit_resume(ident_t func);
 void emit_memset(vcode_reg_t ptr, vcode_reg_t value, vcode_reg_t len);

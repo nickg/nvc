@@ -117,6 +117,7 @@ typedef enum {
    SOURCE_FORCING,
    SOURCE_DEPOSIT,
    SOURCE_IMPLICIT,
+   SOURCE_ACTIVE,
 } source_kind_t;
 
 typedef struct {
@@ -145,9 +146,10 @@ typedef struct _rt_source {
    unsigned        pseudoqueued : 1;
    unsigned        was_active : 1;
    union {
-      rt_port_t   port;
-      rt_driver_t driver;
-      rt_pseudo_t pseudo;
+      rt_port_t      port;
+      rt_driver_t    driver;
+      rt_pseudo_t    pseudo;
+      rt_wakeable_t *wakeable;
    } u;
 } rt_source_t;
 
