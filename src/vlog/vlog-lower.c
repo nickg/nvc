@@ -2347,19 +2347,69 @@ static void vlog_lower_port_map(vlog_gen_t *g, vlog_node_t v)
    vlog_node_t port = vlog_ref(v);
    assert(vlog_kind(port) == V_PORT_DECL);
 
-   mir_type_t t_context = mir_context_type(g->mu, mir_get_parent(g->mu));
-   mir_add_param(g->mu, t_context, MIR_NULL_STAMP, ident_new("context"));
-
    const type_info_t *ti = vlog_type_info(g, vlog_type(vlog_ref(port)));
    mir_value_t signal = mir_add_param(g->mu, ti->signal, MIR_NULL_STAMP,
                                       vlog_ident(port));
 
-   mir_type_t t_functor = mir_functor_type(g->mu);
-   mir_value_t functor = mir_add_param(g->mu, t_functor, MIR_NULL_STAMP,
-                                       ident_new("functor"));
-
    mir_type_t t_offset = mir_offset_type(g->mu);
    mir_type_t t_bool = mir_bool_type(g->mu);
+
+   mir_block_t start_bb = mir_add_block(g->mu);
+   assert(start_bb.id == 1);
+
+   {
+      switch (vlog_subkind(port)) {
+      case V_PORT_INPUT:
+         {
+            vlog_lower_sensitivity(g, vlog_value(v), MIR_NULL_VALUE);
+
+            mir_value_t count = mir_const(g->mu, t_offset, ti->size);
+            mir_build_drive_signal(g->mu, signal, count);
+         }
+         break;
+      case V_PORT_OUTPUT:
+         {
+            vlog_node_t target = vlog_value(v);
+            unsigned nlvalues = 1;
+            vlog_select_t lvalue1, *lvalues = &lvalue1;
+            if (vlog_kind(target) == V_CONCAT) {
+               const int nparams = nlvalues = vlog_params(target);
+               lvalues = xmalloc_array(nparams, sizeof(vlog_select_t));
+               for (int i = 0; i < nparams; i++) {
+                  vlog_node_t p = vlog_param(target, i);
+                  vlog_node_t lsp = vlog_longest_static_prefix(p);
+                  lvalues[i] = vlog_lower_select(g, lsp);
+               }
+            }
+            else {
+               vlog_node_t lsp = vlog_longest_static_prefix(target);
+               lvalue1 = vlog_lower_select(g, lsp);
+            }
+
+            for (int i = 0; i < nlvalues; i++) {
+               // XXX: check in range
+               mir_value_t nets = mir_build_array_ref(g->mu, lvalues[i].obj,
+                                                      lvalues[i].offset);
+
+               mir_value_t count = mir_const(g->mu, t_offset, lvalues[i].size);
+               mir_build_drive_signal(g->mu, nets, count);
+            }
+
+            if (lvalues != &lvalue1)
+               free(lvalues);
+
+            mir_value_t count = mir_const(g->mu, t_offset, ti->size);
+            mir_build_sched_event(g->mu, signal, count);
+         }
+         break;
+      default:
+         should_not_reach_here();
+      }
+
+      mir_build_return(g->mu, MIR_NULL_VALUE);
+   }
+
+   mir_set_cursor(g->mu, start_bb, MIR_APPEND);
 
    unsigned nlvalues = 1, targetsz = 0;
    vlog_select_t lvalue1, *lvalues = &lvalue1;
@@ -2437,14 +2487,13 @@ static void vlog_lower_port_map(vlog_gen_t *g, vlog_node_t v)
          src = mir_build_array_ref(g->mu, unpacked, pos);
       }
 
-      mir_build_put_functor(g->mu, functor, nets, count, src);
+      mir_build_put_driver(g->mu, nets, count, src);
    }
 
    if (lvalues != &lvalue1)
       free(lvalues);
 
-   mir_set_result(g->mu, t_offset);   // Force function calling convention
-   mir_build_return(g->mu, mir_const(g->mu, t_offset, 0));
+   mir_build_wait(g->mu, start_bb);
 }
 
 static void vlog_lower_cleanup(vlog_gen_t *g)
@@ -3147,62 +3196,16 @@ void vlog_lower_block(mir_context_t *mc, ident_t parent, tree_t b)
       mir_value_t nets = mir_build_load(mu, var);
       mir_put_object(mu, port, nets);
 
-      mir_comment(mu, "Port assignment for %pi", vlog_ident(port));
-
-      ident_t func = ident_prefix(qual, vlog_ident(port), '@');
-      mir_defer(mc, func, parent, MIR_UNIT_FUNCTION,
+      ident_t sym = ident_prefix(qual, vlog_ident(port), '@');
+      mir_defer(mc, sym, parent, MIR_UNIT_PROCESS,
                 vlog_lower_deferred, vlog_to_object(v));
 
-      mir_type_t t_offset = mir_offset_type(mu);
       mir_value_t args[] = { context, nets };
-      mir_value_t closure = mir_build_closure(mu, func, t_offset,
+      mir_value_t closure = mir_build_closure(mu, sym, MIR_NULL_TYPE,
                                               args, ARRAY_LEN(args));
+      mir_value_t locus = mir_build_locus(mu, tree_to_object(t));
 
-      mir_value_t functor = mir_build_init_functor(mu, closure);
-
-      const type_info_t *ti = vlog_type_info(&g, vlog_type(d));
-      mir_value_t count = mir_const(mu, t_offset, ti->size);
-
-      switch (vlog_subkind(port)) {
-      case V_PORT_INPUT:
-         mir_build_functor_out(mu, functor, nets, count);
-         vlog_lower_sensitivity(&g, vlog_value(v), functor);
-         break;
-      case V_PORT_OUTPUT:
-         {
-            vlog_node_t target = vlog_value(v);
-            unsigned nlvalues = 1;
-            vlog_select_t lvalue1, *lvalues = &lvalue1;
-            if (vlog_kind(target) == V_CONCAT) {
-               const int nparams = nlvalues = vlog_params(target);
-               lvalues = xmalloc_array(nparams, sizeof(vlog_select_t));
-               for (int i = 0; i < nparams; i++) {
-                  vlog_node_t p = vlog_param(target, i);
-                  vlog_node_t lsp = vlog_longest_static_prefix(p);
-                  lvalues[i] = vlog_lower_select(&g, lsp);
-               }
-            }
-            else {
-               vlog_node_t lsp = vlog_longest_static_prefix(target);
-               lvalue1 = vlog_lower_select(&g, lsp);
-            }
-
-            for (int i = 0; i < nlvalues; i++) {
-               // XXX: check in range
-               mir_value_t nets = mir_build_array_ref(mu, lvalues[i].obj,
-                                                      lvalues[i].offset);
-
-               mir_value_t count = mir_const(mu, t_offset, lvalues[i].size);
-
-               mir_build_functor_out(mu, functor, nets, count);
-            }
-
-            mir_build_functor_in(mu, functor, nets, count);
-         }
-         break;
-      default:
-         should_not_reach_here();
-      }
+      mir_build_process_init(mu, closure, locus);
    }
 
    for (int i = 0; i < vlog_nports; i++) {

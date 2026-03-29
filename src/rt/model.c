@@ -905,7 +905,8 @@ static void reset_process(rt_model_t *m, rt_proc_t *proc)
    thread->active_obj = &(proc->wakeable);
    thread->active_scope = proc->scope;
 
-   proc->closure.args[0].pointer = *mptr_get(proc->scope->privdata);
+   if (proc->closure.args[0].pointer == NULL)
+      proc->closure.args[0].pointer = *mptr_get(proc->scope->privdata);
 
    jit_scalar_t state = { .pointer = NULL }, result;
 
@@ -1743,6 +1744,7 @@ static void setup_process(rt_proc_t *p, const char *path)
          vlog_node_t v = tree_vlog(p->where);
          switch (vlog_kind(v)) {
          case V_ASSIGN:
+         case V_PORT_MAP:
             p->wakeable.reschedule = true;
             p->name = ident_sprintf("%s:%s", path, istr(tree_ident(p->where)));
             break;
