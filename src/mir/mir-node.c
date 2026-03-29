@@ -2472,63 +2472,6 @@ void mir_build_file_write(mir_unit_t *mu, mir_value_t file, mir_value_t value,
               "file write first argument must have file pointer type");
 }
 
-mir_value_t mir_build_init_functor(mir_unit_t *mu, mir_value_t closure)
-{
-   mir_type_t type = mir_functor_type(mu);
-   mir_value_t result = mir_build_1(mu, MIR_OP_INIT_FUNCTOR, type,
-                                    MIR_NULL_STAMP, closure);
-
-   MIR_ASSERT(mir_is(mu, closure, MIR_TYPE_CLOSURE),
-              "init functor argument must be a closure");
-
-   return result;
-}
-
-void mir_build_functor_in(mir_unit_t *mu, mir_value_t functor,
-                          mir_value_t nets, mir_value_t count)
-{
-   mir_build_3(mu, MIR_OP_FUNCTOR_IN, MIR_NULL_TYPE, MIR_NULL_STAMP,
-               functor, nets, count);
-
-   MIR_ASSERT(mir_is(mu, functor, MIR_TYPE_FUNCTOR),
-              "argument to functor in must be a functor");
-   MIR_ASSERT(mir_is_signal(mu, nets),
-              "nets argument to functor in must be a signal");
-   MIR_ASSERT(mir_is_offset(mu, count),
-              "count argument to functor in must be offset");
-}
-
-void mir_build_functor_out(mir_unit_t *mu, mir_value_t functor,
-                           mir_value_t nets, mir_value_t count)
-{
-   mir_build_3(mu, MIR_OP_FUNCTOR_OUT, MIR_NULL_TYPE, MIR_NULL_STAMP,
-               functor, nets, count);
-
-   MIR_ASSERT(mir_is(mu, functor, MIR_TYPE_FUNCTOR),
-              "argument to functor out must be a functor");
-   MIR_ASSERT(mir_is_signal(mu, nets),
-              "nets argument to functor out must be a signal");
-   MIR_ASSERT(mir_is_offset(mu, count),
-              "count argument to functor out must be offset");
-}
-
-void mir_build_put_functor(mir_unit_t *mu, mir_value_t functor,
-                           mir_value_t target, mir_value_t count,
-                           mir_value_t values)
-{
-   mir_build_4(mu, MIR_OP_PUT_FUNCTOR, MIR_NULL_TYPE, MIR_NULL_STAMP,
-               functor, target, count, values);
-
-   MIR_ASSERT(mir_is_signal(mu, target),
-              "put functor target is not signal");
-   MIR_ASSERT(mir_is_offset(mu, count),
-              "put functor net count is not offset type");
-   MIR_ASSERT(!mir_is_signal(mu, values),
-              "signal cannot be values argument for put functor");
-   MIR_ASSERT(mir_is(mu, functor, MIR_TYPE_FUNCTOR),
-              "argument to put functor must be functor");
-}
-
 mir_value_t mir_build_init_signal(mir_unit_t *mu, mir_type_t type,
                                   mir_value_t count, mir_value_t size,
                                   mir_value_t value, mir_value_t flags,

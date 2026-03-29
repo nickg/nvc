@@ -267,10 +267,6 @@ typedef enum {
    MIR_OP_TABLE_REF,
    MIR_OP_GET_COUNTERS,
    MIR_OP_INSTANCE_INIT,
-   MIR_OP_INIT_FUNCTOR,
-   MIR_OP_FUNCTOR_IN,
-   MIR_OP_FUNCTOR_OUT,
-   MIR_OP_PUT_FUNCTOR,
 } mir_op_t;
 
 typedef enum {
@@ -293,7 +289,6 @@ typedef enum {
    MIR_TYPE_OPAQUE,
    MIR_TYPE_VEC2,
    MIR_TYPE_VEC4,
-   MIR_TYPE_FUNCTOR,
 } mir_class_t;
 
 typedef struct {
@@ -365,7 +360,6 @@ mir_type_t mir_int_type(mir_unit_t *mu, int64_t low, int64_t high);
 mir_type_t mir_real_type(mir_unit_t *mu, double low, double high);
 mir_type_t mir_offset_type(mir_unit_t *mu);
 mir_type_t mir_locus_type(mir_unit_t *mu);
-mir_type_t mir_functor_type(mir_unit_t *mu);
 mir_type_t mir_trigger_type(mir_unit_t *mu);
 mir_type_t mir_self_type(mir_unit_t *mu);
 mir_type_t mir_bool_type(mir_unit_t *mu);
@@ -638,16 +632,6 @@ void mir_build_file_read(mir_unit_t *mu, mir_value_t file, mir_value_t ptr,
                          mir_value_t inlen, mir_value_t outlen);
 void mir_build_file_write(mir_unit_t *mu, mir_value_t file, mir_value_t value,
                           mir_value_t length);
-
-// Functors
-mir_value_t mir_build_init_functor(mir_unit_t *mu, mir_value_t closure);
-void mir_build_functor_in(mir_unit_t *mu, mir_value_t functor,
-                          mir_value_t nets, mir_value_t count);
-void mir_build_functor_out(mir_unit_t *mu, mir_value_t functor,
-                           mir_value_t nets, mir_value_t count);
-void mir_build_put_functor(mir_unit_t *mu, mir_value_t functor,
-                           mir_value_t target, mir_value_t count,
-                           mir_value_t values);
 
 // Signals
 mir_value_t mir_build_init_signal(mir_unit_t *mu, mir_type_t type,

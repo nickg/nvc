@@ -178,10 +178,6 @@ const char *mir_op_string(mir_op_t op)
       [MIR_OP_PUT_DRIVER] = "put driver",
       [MIR_OP_GET_COUNTERS] = "get counters",
       [MIR_OP_INSTANCE_INIT] = "instance init",
-      [MIR_OP_INIT_FUNCTOR] = "init functor",
-      [MIR_OP_FUNCTOR_IN] = "functor in",
-      [MIR_OP_FUNCTOR_OUT] = "functor out",
-      [MIR_OP_PUT_FUNCTOR] = "put functor",
    };
 
    return map[op];
@@ -355,10 +351,6 @@ static void mir_dump_one_type(mir_unit_t *mu, mir_type_t type)
 
    case MIR_TYPE_TRIGGER:
       printf("T<>");
-      break;
-
-   case MIR_TYPE_FUNCTOR:
-      printf("N<>");
       break;
 
    case MIR_TYPE_OPAQUE:
@@ -1538,45 +1530,6 @@ void mir_annotate(mir_unit_t *mu, const mir_annotate_t *cb, void *ctx)
                   printf(" length ");
                   mir_dump_arg(mu, result, 2, cb, ctx);
                }
-            }
-            break;
-
-         case MIR_OP_INIT_FUNCTOR:
-            {
-               col += mir_dump_value(mu, result, cb, ctx);
-               col += printf(" := %s ", mir_op_string(n->op));
-               col += mir_dump_arg(mu, result, 0, cb, ctx);
-               if (n->nargs > 1) {
-                  col += printf(" effective ");
-                  col += mir_dump_arg(mu, result, 1, cb, ctx);
-               }
-               mir_dump_type(mu, col, n->type);
-               mir_dump_stamp(mu, n->type, n->stamp);
-            }
-            break;
-
-         case MIR_OP_FUNCTOR_IN:
-         case MIR_OP_FUNCTOR_OUT:
-            {
-               printf("%s ", mir_op_string(n->op));
-               mir_dump_arg(mu, result, 0, cb, ctx);
-               printf(" signal ");
-               mir_dump_arg(mu, result, 1, cb, ctx);
-               printf(" count ");
-               mir_dump_arg(mu, result, 2, cb, ctx);
-            }
-            break;
-
-         case MIR_OP_PUT_FUNCTOR:
-            {
-               printf("%s ", mir_op_string(n->op));
-               mir_dump_arg(mu, result, 0, cb, ctx);
-               printf(" signal ");
-               mir_dump_arg(mu, result, 1, cb, ctx);
-               printf(" count ");
-               mir_dump_arg(mu, result, 2, cb, ctx);
-               printf(" values ");
-               mir_dump_arg(mu, result, 3, cb, ctx);
             }
             break;
 

@@ -2066,8 +2066,7 @@ static void vlog_lower_initial(vlog_gen_t *g, vlog_node_t v)
       mir_build_return(g->mu, MIR_NULL_VALUE);
 }
 
-static void vlog_lower_sensitivity(vlog_gen_t *g, vlog_node_t v,
-                                   mir_value_t functor)
+static void vlog_lower_sensitivity(vlog_gen_t *g, vlog_node_t v)
 {
    const vlog_kind_t kind = vlog_kind(v);
    switch (kind) {
@@ -2083,11 +2082,7 @@ static void vlog_lower_sensitivity(vlog_gen_t *g, vlog_node_t v,
 
                vlog_select_t lvalue = vlog_lower_select(g, v);
                mir_value_t count = mir_const(g->mu, t_offset, lvalue.size);
-
-               if (mir_is_null(functor))
-                  mir_build_sched_event(g->mu, lvalue.obj, count);
-               else
-                  mir_build_functor_in(g->mu, functor, lvalue.obj, count);
+               mir_build_sched_event(g->mu, lvalue.obj, count);
             }
             break;
          case V_PARAM_DECL:
@@ -2113,36 +2108,33 @@ static void vlog_lower_sensitivity(vlog_gen_t *g, vlog_node_t v,
             mir_value_t nets =
                mir_build_array_ref(g->mu, lvalue.obj, lvalue.offset);
 
-            if (mir_is_null(functor))
-               mir_build_sched_event(g->mu, nets, count);
-            else
-               mir_build_functor_in(g->mu, functor, nets, count);
+            mir_build_sched_event(g->mu, nets, count);
          }
          else if (prefix != NULL)
-            vlog_lower_sensitivity(g, prefix, functor);
+            vlog_lower_sensitivity(g, prefix);
 
          if (kind == V_BIT_SELECT) {
             const int nparams = vlog_params(v);
             for (int i = 0; i < nparams; i++)
-               vlog_lower_sensitivity(g, vlog_param(v, i), functor);
+               vlog_lower_sensitivity(g, vlog_param(v, i));
          }
          else
-            vlog_lower_sensitivity(g, vlog_left(v), functor);
+            vlog_lower_sensitivity(g, vlog_left(v));
       }
       break;
    case V_NUMBER:
       break;
    case V_BINARY:
-      vlog_lower_sensitivity(g, vlog_left(v), functor);
-      vlog_lower_sensitivity(g, vlog_right(v), functor);
+      vlog_lower_sensitivity(g, vlog_left(v));
+      vlog_lower_sensitivity(g, vlog_right(v));
       break;
    case V_UNARY:
-      vlog_lower_sensitivity(g, vlog_value(v), functor);
+      vlog_lower_sensitivity(g, vlog_value(v));
       break;
    case V_COND_EXPR:
-      vlog_lower_sensitivity(g, vlog_value(v), functor);
-      vlog_lower_sensitivity(g, vlog_left(v), functor);
-      vlog_lower_sensitivity(g, vlog_right(v), functor);
+      vlog_lower_sensitivity(g, vlog_value(v));
+      vlog_lower_sensitivity(g, vlog_left(v));
+      vlog_lower_sensitivity(g, vlog_right(v));
       break;
    case V_CONCAT:
    case V_USER_FCALL:
@@ -2150,7 +2142,7 @@ static void vlog_lower_sensitivity(vlog_gen_t *g, vlog_node_t v,
       {
          const int nparams = vlog_params(v);
          for (int i = 0; i < nparams; i++)
-            vlog_lower_sensitivity(g, vlog_param(v, i), functor);
+            vlog_lower_sensitivity(g, vlog_param(v, i));
       }
       break;
    default:
@@ -2165,7 +2157,7 @@ static void vlog_lower_assign_process(vlog_gen_t *g, vlog_node_t v)
 
    vlog_lower_driver(g, vlog_target(v));
 
-   vlog_lower_sensitivity(g, vlog_value(v), MIR_NULL_VALUE);
+   vlog_lower_sensitivity(g, vlog_value(v));
 
    mir_build_return(g->mu, MIR_NULL_VALUE);
 
@@ -2257,7 +2249,7 @@ static void vlog_lower_gate_inst(vlog_gen_t *g, vlog_node_t v)
       if (vlog_kind(p) == V_STRENGTH)
          first_term = i + 1;
       else
-         vlog_lower_sensitivity(g, p, MIR_NULL_VALUE);
+         vlog_lower_sensitivity(g, p);
    }
 
    mir_build_return(g->mu, MIR_NULL_VALUE);
@@ -2361,7 +2353,7 @@ static void vlog_lower_port_map(vlog_gen_t *g, vlog_node_t v)
       switch (vlog_subkind(port)) {
       case V_PORT_INPUT:
          {
-            vlog_lower_sensitivity(g, vlog_value(v), MIR_NULL_VALUE);
+            vlog_lower_sensitivity(g, vlog_value(v));
 
             mir_value_t count = mir_const(g->mu, t_offset, ti->size);
             mir_build_drive_signal(g->mu, signal, count);

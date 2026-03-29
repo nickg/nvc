@@ -87,8 +87,6 @@ void x_sched_deposit(sig_shared_t *ss, uint32_t offset, int32_t count,
                      void *values, int64_t after);
 void x_put_driver(sig_shared_t *ss, uint32_t offset, int32_t count,
                   void *values);
-void x_put_functor(rt_functor_t *f, sig_shared_t *ss, uint32_t offset,
-                   int32_t count, void *values);
 void x_resolve_signal(sig_shared_t *ss, ffi_closure_t *closure, int32_t nlits,
                       int32_t flags);
 void x_unreachable(tree_t where);
@@ -107,9 +105,6 @@ rt_trigger_t *x_or_trigger(rt_trigger_t *left, rt_trigger_t *right);
 void *x_cmp_trigger(sig_shared_t *ss, uint32_t offset, int64_t right);
 void *x_level_trigger(sig_shared_t *ss, uint32_t offset, int32_t count);
 void x_add_trigger(void *ptr);
-void *x_init_functor(const ffi_closure_t *closure);
-void x_functor_in(void *ptr, sig_shared_t *ss, uint32_t offset, int32_t count);
-void x_functor_out(void *ptr, sig_shared_t *ss, uint32_t offset, int32_t count);
 void x_bind_external(tree_t where, jit_handle_t scope, jit_scalar_t *result);
 void x_instance_name(attr_kind_t kind, text_buf_t *tb);
 void x_enable_trigger(rt_trigger_t *trigger);
