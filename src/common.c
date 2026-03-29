@@ -1151,6 +1151,7 @@ void intern_strings(void)
       [W_TEXT_UTIL]       = "NVC.TEXT_UTIL",
       [W_VERILOG_LOGIC]   = "NVC.VERILOG.T_LOGIC",
       [W_DLR_SIGNED]      = "$signed",
+      [W_DLR_UNSIGNED]    = "$unsigned",
       [W_DLR_CLOG2]       = "$clog2",
       [W_COUNTERS]        = "#counters",
 
