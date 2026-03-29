@@ -1280,3 +1280,4 @@ issue1463       vhpi,2008
 implicit10      normal
 mixed9          mixed,2008
 issue1466       verilog
+ivtest24        verilog

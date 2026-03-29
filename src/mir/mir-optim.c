@@ -151,24 +151,24 @@ static void cfg_walk_block(mir_unit_t *mu, mir_block_t block, cfg_block_t *cfg,
    MIR_ASSERT(mir_is_terminator(last->op),
               "last operation in block is not terminator");
 
+   const mir_value_t *args = mir_get_args(mu, last);
+
    switch (last->op) {
    case MIR_OP_WAIT:
-      assert(last->args[0].tag == MIR_TAG_BLOCK);
-      cfg[last->args[0].id].entry = true;
-      cfg_walk_block(mu, mir_cast_block(last->args[0]), cfg, visited);
+   case MIR_OP_PCALL:
+      MIR_ASSERT(args[0].tag == MIR_TAG_BLOCK, "missing resume block");
+      cfg[args[0].id].entry = true;
+      cfg_walk_block(mu, mir_cast_block(args[0]), cfg, visited);
       // Fall-through
    case MIR_OP_RETURN:
       cfg[block.id].returns = true;
       break;
    default:
-      {
-         const mir_value_t *args = mir_get_args(mu, last);
-         for (int j = 0; j < last->nargs; j++) {
-            if (args[j].tag == MIR_TAG_BLOCK) {
-               mir_block_t target = mir_cast_block(args[j]);
-               cfg_add_edge(cfg, block, target);
-               cfg_walk_block(mu, target, cfg, visited);
-            }
+      for (int j = 0; j < last->nargs; j++) {
+         if (args[j].tag == MIR_TAG_BLOCK) {
+            mir_block_t target = mir_cast_block(args[j]);
+            cfg_add_edge(cfg, block, target);
+            cfg_walk_block(mu, target, cfg, visited);
          }
       }
       break;
