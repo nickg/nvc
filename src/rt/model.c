@@ -83,7 +83,6 @@ typedef struct {
    tlab_t        *tlab;
    rt_wakeable_t *active_obj;
    rt_scope_t    *active_scope;
-   nexus_list_t   blockingq;
 } __attribute__((aligned(64))) model_thread_t;
 
 typedef void (*defer_fn_t)(rt_model_t *, void *);
@@ -536,7 +535,7 @@ rt_proc_t *get_active_proc(void)
    if (obj == NULL)
       return NULL;
 
-   assert(obj->kind == W_PROC || obj->kind == W_ASSIGN);
+   assert(obj->kind == W_PROC);
    return container_of(obj, rt_proc_t, wakeable);
 }
 
@@ -629,10 +628,8 @@ void model_free(rt_model_t *m)
 
    for (int i = 0; i < MAX_THREADS; i++) {
       model_thread_t *thread = m->threads[i];
-      if (thread != NULL) {
+      if (thread != NULL)
          tlab_release(thread->tlab);
-         ACLEAR(thread->blockingq);
-      }
    }
 
    free(m->procq.tasks);
@@ -1707,6 +1704,7 @@ static void setup_process(rt_proc_t *p, const char *path)
          switch (vlog_kind(v)) {
          case V_ASSIGN:
          case V_PORT_MAP:
+         case V_GATE_INST:
             p->wakeable.reschedule = true;
             p->name = ident_sprintf("%s:%s", path, istr(tree_ident(p->where)));
             break;
@@ -1714,6 +1712,10 @@ static void setup_process(rt_proc_t *p, const char *path)
             // TODO: reschedule = (vlog_subkind(v) == V_UDP_COMB);
             p->wakeable.reschedule = true;
             p->name = ident_sprintf("%s:_udp", path);
+            break;
+         case V_ALWAYS:
+         case V_INITIAL:
+            p->name = ident_sprintf("%s:%s", path, istr(tree_ident(p->where)));
             break;
          default:
             should_not_reach_here();
@@ -2246,50 +2248,6 @@ static void create_processes(rt_model_t *m, rt_scope_t *s)
    for (int i = 0; i < nstmts; i++) {
       tree_t t = tree_stmt(s->where, i);
       switch (tree_kind(t)) {
-      case T_VERILOG:
-         {
-            vlog_node_t v = tree_vlog(t);
-            const vlog_kind_t kind = vlog_kind(v);
-            if (kind == V_ASSIGN)
-               continue;  // Calls process init
-            else if (kind == V_UDP_TABLE)
-               continue;  // Calls process init
-
-            ident_t name = tree_ident(t);
-            ident_t sym = ident_prefix(sym_prefix, name, '.');
-
-            rt_proc_t *p = xcalloc(sizeof(rt_proc_t));
-            p->where     = t;
-            p->name      = ident_prefix(path, ident_downcase(name), ':');
-            p->scope     = s;
-            p->privdata  = mptr_new(m->mspace, "process privdata");
-
-            p->closure.handle = jit_lazy_compile(m->jit, sym);
-            p->closure.nargs = 1;
-            p->closure.args[0].pointer = NULL;
-
-            switch (kind) {
-            case V_UDP_TABLE:
-            case V_GATE_INST:
-               p->wakeable.kind = W_ASSIGN;
-               break;
-            case V_INITIAL:
-            case V_ALWAYS:
-            case V_ASSIGN:
-               p->wakeable.kind = W_PROC;
-               break;
-            default:
-               should_not_reach_here();
-            }
-
-            p->wakeable.pending   = false;
-            p->wakeable.delayed   = false;
-            p->wakeable.postponed = false;
-
-            APUSH(s->procs, p);
-         }
-         break;
-
       case T_PROCESS:
          {
             ident_t name = tree_ident(t);
@@ -2804,43 +2762,6 @@ static bool run_trigger(rt_model_t *m, rt_trigger_t *t)
    return t->result.integer != 0;
 }
 
-static void update_assignment(rt_model_t *m, rt_proc_t *proc)
-{
-   // This is a special case of run_process that handles continuous
-   // assignment updates as a result of procedural blocking assignments
-   assert(proc->wakeable.kind == W_ASSIGN);
-
-   model_thread_t *thread = model_thread(m);
-   assert(thread->tlab != NULL);
-
-   rt_wakeable_t *const old_obj = thread->active_obj;
-   rt_scope_t *const old_scope = thread->active_scope;
-
-   thread->active_obj = &(proc->wakeable);
-   thread->active_scope = proc->scope;
-
-   // Stateless processes have NULL privdata so pass a dummy pointer
-   // value in so it can be distinguished from a reset
-   jit_scalar_t state = {
-      .pointer = *mptr_get(proc->privdata) ?: (void *)-1
-   };
-
-   assert(proc->tlab == NULL);
-
-   const uint32_t mark = tlab_mark(thread->tlab);
-
-   jit_scalar_t result;
-   if (!jit_call_closure(m->jit, &proc->closure, &result, state, thread->tlab))
-      m->force_stop = true;
-
-   assert(result.pointer == NULL);
-
-   tlab_trim(thread->tlab, mark);
-
-   thread->active_obj = old_obj;
-   thread->active_scope = old_scope;
-}
-
 static void procq_do(rt_model_t *m, rt_wakeable_t *obj, defer_fn_t fn,
                      void *arg)
 {
@@ -2931,22 +2852,6 @@ static void wakeup_one(rt_model_t *m, rt_wakeable_t *obj)
          }
          else if (run_trigger(m, t))
             wakeup_all(m, &(t->pending));
-      }
-      break;
-
-   case W_ASSIGN:
-      {
-         rt_proc_t *proc = container_of(obj, rt_proc_t, wakeable);
-         TRACE("wakeup continuous assignment %s", istr(proc->name));
-
-         assert(!proc->wakeable.delayed);
-
-         if (m->blocking_update)
-            update_assignment(m, proc);
-         else {
-            deferq_do(&m->implicitq, async_run_process, proc);
-            set_pending(obj);
-         }
       }
       break;
    }
@@ -3045,46 +2950,6 @@ static void defer_driving_update(rt_model_t *m, rt_nexus_t *n)
    TRACE("defer %s driving value update", trace_nexus(n));
    heap_insert(m->driving_heap, n->rank, n);
    n->flags |= NET_F_PENDING;
-}
-
-static void update_blocking(rt_model_t *m, rt_nexus_t *root)
-{
-   model_thread_t *thread = model_thread(m);
-   assert(thread->blockingq.count == 0);
-
-   APUSH(thread->blockingq, root);
-
-   for (int iters = 0; iters < m->stop_delta && thread->blockingq.count > 0;
-        iters++) {
-      rt_nexus_t *n = APOP(thread->blockingq);
-
-      for (rt_source_t *o = n->outputs; o; o = o->chain_output) {
-         switch (o->tag) {
-         case SOURCE_PORT:
-            defer_driving_update(m, o->u.port.output);
-            m->next_is_delta = true;
-            break;
-         default:
-            should_not_reach_here();
-         }
-      }
-   }
-
-   if (unlikely(thread->blockingq.count > 0)) {
-      rt_signal_t *s0 = thread->blockingq.items[0]->signal;
-
-      diag_t *d = diag_new(DIAG_FATAL, tree_loc(s0->where));
-      diag_printf(d, "net containing ");
-      for (int i = 0; i < thread->blockingq.count; i++)
-         diag_printf(d, "%s'%pi'", i > 0 ? ", " : "",
-                     tree_ident(thread->blockingq.items[i]->signal->where));
-      diag_printf(d, " is still changing after %d iterations", m->stop_delta);
-      diag_hint(d, NULL, "you can increase this limit with "
-                "$bold$--stop-delta$$");
-      diag_emit(d);
-
-      jit_abort_with_status(EXIT_FAILURE);
-   }
 }
 
 static void update_driving(rt_model_t *m, rt_nexus_t *n, bool safe)
@@ -3694,7 +3559,11 @@ void deposit_signal(rt_model_t *m, rt_signal_t *s, const void *values,
 
          wakeup_all(m, &(n->pending));
 
-         update_blocking(m, n);
+         for (rt_source_t *o = n->outputs; o; o = o->chain_output) {
+            assert(o->tag == SOURCE_PORT);
+            defer_driving_update(m, o->u.port.output);
+            m->next_is_delta = true;
+         }
       }
 
       vptr += valuesz;
@@ -4868,7 +4737,12 @@ void x_put_driver(sig_shared_t *ss, uint32_t offset, int32_t count,
       d->u.driver.waveforms.when = m->now;
 
       calculate_driving_value(m, n);
-      update_blocking(m, n);
+
+      for (rt_source_t *o = n->outputs; o; o = o->chain_output) {
+         assert(o->tag == SOURCE_PORT);
+         defer_driving_update(m, o->u.port.output);
+         m->next_is_delta = true;
+      }
 
       vptr += n->size * n->width;
    }

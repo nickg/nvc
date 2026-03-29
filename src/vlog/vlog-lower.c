@@ -74,6 +74,7 @@ static void vlog_lower_stmts(vlog_gen_t *g, vlog_node_t v);
 static mir_value_t vlog_lower_rvalue(vlog_gen_t *g, vlog_node_t v);
 static mir_value_t vlog_lower_with_context(vlog_gen_t *g, vlog_node_t v,
                                            mir_type_t context);
+static void vlog_lower_deferred(mir_unit_t *mu, object_t *obj);
 
 static const type_info_t *vlog_type_info(vlog_gen_t *g, vlog_node_t v)
 {
@@ -2239,7 +2240,6 @@ static void vlog_lower_gate_inst(vlog_gen_t *g, vlog_node_t v)
    vlog_lower_driver(g, vlog_target(v));
 
    mir_type_t t_offset = mir_offset_type(g->mu);
-   mir_type_t t_time = mir_time_type(g->mu);
    mir_type_t t_logic = mir_vec4_type(g->mu, 1, false);
 
    const int nparams = vlog_params(v);
@@ -2321,16 +2321,13 @@ static void vlog_lower_gate_inst(vlog_gen_t *g, vlog_node_t v)
    mir_value_t unpacked =
       mir_build_unpack(g->mu, value, strength, MIR_NULL_VALUE);
 
-   mir_value_t reject = mir_const(g->mu, t_time, 0);
-   mir_value_t after = mir_const(g->mu, t_time, 0);
-
    vlog_select_t lvalue = vlog_lower_select(g, vlog_target(v));
    mir_value_t count = mir_const(g->mu, t_offset, lvalue.size);
 
    // XXX: check in range
    mir_value_t nets = mir_build_array_ref(g->mu, lvalue.obj, lvalue.offset);
 
-   mir_build_sched_waveform(g->mu, nets, count, unpacked, reject, after);
+   mir_build_put_driver(g->mu, nets, count, unpacked);
    mir_build_wait(g->mu, start_bb);
 }
 
@@ -2494,7 +2491,7 @@ static void vlog_lower_cleanup(vlog_gen_t *g)
       ihash_free(g->temps);
 }
 
-void vlog_lower_deferred(mir_unit_t *mu, object_t *obj)
+static void vlog_lower_deferred(mir_unit_t *mu, object_t *obj)
 {
    vlog_node_t v = vlog_from_object(obj);
    assert(v != NULL);
@@ -3011,22 +3008,6 @@ void vlog_lower_instance(mir_context_t *mc, vlog_node_t body, ident_t parent,
 
       switch (vlog_kind(s)) {
       case V_ASSIGN:
-         {
-            ident_t parent = mir_get_name(mu, MIR_NULL_VALUE);
-            ident_t func = ident_prefix(parent, vlog_ident(s), '.');
-
-            mir_defer(mc, func, parent, MIR_UNIT_PROCESS,
-                      vlog_lower_deferred, vlog_to_object(s));
-
-            mir_type_t t_offset = mir_offset_type(mu);
-            mir_value_t args[] = { self };
-            mir_value_t closure =
-               mir_build_closure(mu, func, t_offset, args, 1);
-            mir_value_t locus = mir_build_locus(mu, tree_to_object(wrap));
-
-            mir_build_process_init(mu, closure, locus);
-         }
-         break;
       case V_INITIAL:
       case V_ALWAYS:
       case V_GATE_INST:
@@ -3034,6 +3015,14 @@ void vlog_lower_instance(mir_context_t *mc, vlog_node_t body, ident_t parent,
             ident_t sym = ident_prefix(qual, vlog_ident(s), '.');
             mir_defer(mc, sym, qual, MIR_UNIT_PROCESS,
                       vlog_lower_deferred, vlog_to_object(s));
+
+            mir_type_t t_offset = mir_offset_type(mu);
+            mir_value_t args[] = { self };
+            mir_value_t closure =
+               mir_build_closure(mu, sym, t_offset, args, 1);
+            mir_value_t locus = mir_build_locus(mu, tree_to_object(wrap));
+
+            mir_build_process_init(mu, closure, locus);
          }
          break;
       case V_UDP_TABLE:
