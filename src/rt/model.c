@@ -2527,6 +2527,17 @@ static inline bool insert_transaction(rt_model_t *m, rt_nexus_t *nexus,
    return already_scheduled;
 }
 
+static bool will_observe_active(rt_nexus_t *n, const void *value, waveform_t *w)
+{
+   if (!cmp_bytes(value, value_ptr(n, &w->value), n->width * n->size))
+      return true;
+
+   if (n->flags & NET_F_EFFECTIVE)
+      return true;
+
+   return false;
+}
+
 static void sched_driver(rt_model_t *m, rt_nexus_t *n, uint64_t after,
                          uint64_t reject, const void *value, rt_proc_t *proc)
 {
@@ -2547,8 +2558,7 @@ static void sched_driver(rt_model_t *m, rt_nexus_t *n, uint64_t after,
          assert(m->next_is_delta);
          d->fastqueued = 1;
       }
-      else if (n->outputs == NULL && cmp_bytes(value, value_ptr(n, &w->value),
-                                               n->width * n->size)) {
+      else if (!will_observe_active(n, value, w)) {
          m->next_is_delta = true;
          d->was_active = (n->active_delta == m->iteration);
          n->active_delta = m->iteration + 1;
@@ -4218,6 +4228,7 @@ void x_sched_active(sig_shared_t *ss, uint32_t offset, int32_t count)
       src->chain_output = n->outputs;
       src->u.wakeable   = obj;
 
+      n->flags |= NET_F_EFFECTIVE;
       n->outputs = src;
 
       count -= n->width;
