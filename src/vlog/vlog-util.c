@@ -135,6 +135,10 @@ unsigned vlog_size(vlog_node_t v)
 
          return size;
       }
+   case V_PARAM_DECL:
+      // TODO: this should have unpacked dimensions as above
+   case V_LOCALPARAM:
+      return 1;  // No unpacked dimensions
    case V_PART_SELECT:
       if (vlog_subkind(v) != V_RANGE_CONST) {
          int64_t width;

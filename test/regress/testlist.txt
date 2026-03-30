@@ -1283,3 +1283,4 @@ issue1466       verilog
 ivtest24        verilog
 signed3         verilog
 vlog36          verilog
+issue1469       verilog

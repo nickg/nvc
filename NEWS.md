@@ -6,7 +6,7 @@
 - VHPI now returns the correct bounds for arrays-of-records where the
   record has an unconstrained element (#1463).
 - Optimisations for elaborating large Verilog netlists (#1461).
-- Several other minor bugs were resolved (#1453, #1460, #1466).
+- Several other minor bugs were resolved (#1453, #1460, #1466, #1469).
 
 ## Version 1.19.3 - 2026-03-08
 - VHPI value change callbacks for indexed names now work correctly (#1428).
