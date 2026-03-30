@@ -1108,7 +1108,7 @@ static bool sem_check_var_decl(tree_t t, nametab_t *tab)
    if (type_is_protected(type)) {
       ident_t typeid = ident_rfrom(type_ident(type), '.');
       tree_t pt = get_local_decl(tab, NULL, typeid, 0);
-      if (pt != NULL && tree_kind(pt) == T_PROT_DECL) {
+      if (!relaxed_rules() && pt != NULL && tree_kind(pt) == T_PROT_DECL) {
          diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
          diag_printf(d, "cannot declare instance of protected type %pT "
                      "before its body has been elaborated", type);
