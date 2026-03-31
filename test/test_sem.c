@@ -4033,6 +4033,28 @@ START_TEST(test_issue1329)
 }
 END_TEST
 
+START_TEST(test_lcs2016_99)
+{
+   set_standard(STD_19);
+
+   input_from_file(TESTDIR "/sem/lcs2016_99.vhd");
+
+   const error_t expect[] = {
+      { 10, "no matching operator \"=\" [INTEGER_range_record, BOOLEAN " },
+      { 11, "range expression not allowed here" },
+      { 13, "no visible declaration for XXXX" },
+      { 20, "prefix of 'RANGE'VALUE must be a scalar type but have "
+        "BIT_VECTOR" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_ENTITY, T_ARCH);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_sem_tests(void)
 {
    Suite *s = suite_create("sem");
@@ -4222,6 +4244,7 @@ Suite *get_sem_tests(void)
    tcase_add_test(tc_core, test_issue1279);
    tcase_add_test(tc_core, test_issue1290);
    tcase_add_test(tc_core, test_issue1329);
+   tcase_add_test(tc_core, test_lcs2016_99);
    suite_add_tcase(s, tc_core);
 
    return s;

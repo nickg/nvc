@@ -4945,9 +4945,7 @@ static tree_t try_solve_attr_ref(nametab_t *tab, tree_t t)
       break;
 
    case ATTR_VALUE:
-      if (tree_kind(prefix) == T_ATTR_REF
-          && tree_subkind(prefix) == ATTR_RANGE
-          && prefix_type != NULL
+      if (vhdl_is_range_attr(prefix) && prefix_type != NULL
           && !type_is_none(prefix_type)) {
          ident_t cid = ident_runtil(
             type_ident(type_base_recur(prefix_type)), '.');

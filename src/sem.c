@@ -27,6 +27,7 @@
 #include "printf.h"
 #include "psl/psl-phase.h"
 #include "type.h"
+#include "vhdl/vhdl-util.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -4509,17 +4510,12 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range, nametab_t *tab)
       {
          const bool std_2019 = standard() >= STD_19;
 
-         // VHDL 2019: 'range'value returns a range record
-         if (predef == ATTR_VALUE && std_2019
-             && tree_kind(name) == T_ATTR_REF
-             && tree_subkind(name) == ATTR_RANGE) {
-            type_t range_type = tree_type(name);
-            if (range_type == NULL || type_is_none(range_type))
-               return false;
-            else if (!type_is_scalar(range_type))
-               sem_error(t, "prefix of 'RANGE'VALUE must be a range "
-                         "of a scalar type but have %s",
-                         type_pp(range_type));
+         // VHDL 2019: 'range'value returens a range record
+         if (predef == ATTR_VALUE && std_2019 && vhdl_is_range_attr(name)) {
+            type_t prefix_type = tree_type(tree_name(name));
+            if (!type_is_scalar(prefix_type))
+               sem_error(t, "prefix of '%pI'VALUE must be a scalar type "
+                         "but have %pT", tree_ident(name), prefix_type);
             return true;
          }
 

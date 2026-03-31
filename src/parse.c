@@ -1549,10 +1549,7 @@ static bool is_range_expr(tree_t t)
    case T_REF:
       return tree_has_ref(t) && aliased_type_decl(tree_ref(t));
    case T_ATTR_REF:
-      {
-         const attr_kind_t predef = tree_subkind(t);
-         return predef == ATTR_RANGE || predef == ATTR_REVERSE_RANGE;
-      }
+      return vhdl_is_range_attr(t);
    default:
       return false;
    }

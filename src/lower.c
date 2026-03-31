@@ -5190,8 +5190,7 @@ static vcode_reg_t lower_attr_ref(lower_unit_t *lu, tree_t expr)
    case ATTR_VALUE:
       {
          // VHDL 2019: 'range'value returns a range record
-         if (tree_kind(name) == T_ATTR_REF
-             && tree_subkind(name) == ATTR_RANGE) {
+         if (vhdl_is_range_attr(name)) {
             type_t range_type = tree_type(name);
             tree_t r = range_of(range_type, 0);
 

@@ -6,10 +6,10 @@ package p2 is
     subtype a is character range 'z' downto 'a' ;
 end package ;
 
-entity recordrange is
+entity range4 is
 end entity ;
 
-architecture arch of recordrange is
+architecture arch of range4 is
 
     type ranges_t is array(natural range <>) of integer'range'record ;
 

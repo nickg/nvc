@@ -1288,4 +1288,4 @@ issue1473       vhpi,mixed
 issue1394       fail,gold
 ieee20          fail,gold,2008
 vlog37          verilog
-recordrange     normal,2019
+range4          normal,2019
