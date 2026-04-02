@@ -446,6 +446,10 @@ typedef struct {
 } c_packDecl;
 
 typedef struct {
+   c_designUnit designUnit;
+} c_verilogModule;
+
+typedef struct {
    c_abstractRegion  region;
    c_designUnit     *DesignUnit;
 } c_designInstUnit;
@@ -1384,6 +1388,11 @@ static void init_entityDecl(c_entityDecl *e, tree_t t)
 static void init_packDecl(c_packDecl *p, tree_t t)
 {
    init_designUnit(&(p->designUnit), t);
+}
+
+static void init_verilogModule(c_verilogModule *mod, tree_t t)
+{
+   init_designUnit(&(mod->designUnit), t);
 }
 
 static vhpiObjectListT *expand_lazy_list(c_vhpiObject *obj, vhpiLazyListT *lazy)
@@ -4601,6 +4610,15 @@ static c_designUnit *build_designUnit(tree_t t)
          return &(pack->designUnit);
       }
 
+   case T_VERILOG:
+      {
+         c_verilogModule *mod =
+            new_object(sizeof(c_verilogModule), vhpiVerilogModuleK);
+         init_verilogModule(mod, t);
+
+         return &(mod->designUnit);
+      }
+
    default:
       fatal_trace("unsupported tree kind %s in build_designUnit",
                   tree_kind_str(tree_kind(t)));
@@ -4609,8 +4627,6 @@ static c_designUnit *build_designUnit(tree_t t)
 
 static c_designUnit *cached_designUnit(tree_t t)
 {
-   assert(is_design_unit(t));
-
    hash_t *cache = vhpi_context()->objcache;
    c_designUnit *du = hash_get(cache, t);
    if (du == NULL) {

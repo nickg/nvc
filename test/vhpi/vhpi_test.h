@@ -74,5 +74,6 @@ void issue1233_startup(void);
 void issue1240_startup(void);
 void issue1428_startup(void);
 void issue1463_startup(void);
+void issue1473_startup(void);
 
 #endif  // _VHPI_TEST_H
