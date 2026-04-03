@@ -12,7 +12,7 @@ end entity;
 
 architecture rtl of test1 is
 begin
-  g_test : if GC_TEST_TYPE = RTL generate
+  g_test : if GC_TEST_TYPE = RTL generate  -- Error
     p_proc : process
     begin
       wait;
@@ -28,6 +28,6 @@ end entity;
 architecture rtl of test is
   signal sig  : bit;
 begin
-  i_test1 : work.test1
-  generic map (GC_TEST_TYPE => RTL);
+  i_test1 : work.test1                  -- Error
+  generic map (GC_TEST_TYPE => RTL);    -- Error
 end architecture;

@@ -2863,6 +2863,12 @@ static void p_use_clause(tree_t unit, add_func_t addf)
       if (head == NULL)
          continue;
 
+      while (tree_kind(head) == T_ALIAS) {
+         tree_t value = tree_value(head);
+         if (tree_kind(value) == T_REF && tree_has_ref(value))
+            head = tree_ref(value);
+      }
+
       const tree_kind_t kind = tree_kind(head);
       if (kind == T_LIBRARY && !tree_has_ident2(head)) {
          // Library declaration had an error
@@ -2877,8 +2883,8 @@ static void p_use_clause(tree_t unit, add_func_t addf)
          insert_names_from_use(nametab, u);
       }
       else
-         parse_error(CURRENT_LOC, "%s is not a library or %spackage",
-                     istr(i1), standard() >= STD_08 ? "instantiated " : "");
+         parse_error(CURRENT_LOC, "%pI is not a library or %spackage",
+                     i1, standard() >= STD_08 ? "instantiated " : "");
    } while (optional(tCOMMA));
 
    consume(tSEMI);
@@ -3329,7 +3335,7 @@ static void p_association_element(tree_t map, int pos, tree_t unit,
 
    if (kind == F_PORT_MAP)
       value = solve_types(nametab, value, type);
-   else if (kind == F_GENERIC_MAP && class != C_PACKAGE) {
+   else if (kind == F_GENERIC_MAP) {
       value = solve_types(nametab, value, type);
 
       // Make the mapped type available immediately as it may be used in
@@ -4048,12 +4054,12 @@ static type_t p_type_mark(tree_t head)
 
    tree_t name = solve_types(nametab, prefix, NULL);
 
-   type_t type = tree_type(name);
-   if (type_is_none(type))
+   type_t type = get_type_or_null(name);
+   if (type != NULL && type_is_none(type))
       return type;
 
    const tree_kind_t namek = tree_kind(name);
-   if (namek == T_ATTR_REF)
+   if (namek == T_ATTR_REF && is_type_attribute(tree_subkind(name)))
       return type;
 
    tree_t decl = NULL;
@@ -4061,12 +4067,17 @@ static type_t p_type_mark(tree_t head)
       decl = aliased_type_decl(tree_ref(name));
 
    if (decl == NULL) {
+      const char *class = class_str(class_of(name));
       diag_t *d = diag_new(DIAG_ERROR, CURRENT_LOC);
-      const char *id = namek == T_REF ? istr(tree_ident(name)) : NULL;
-      diag_printf(d, "type mark%s%s does not denote a type or a subtype",
-                  id ? " " : "", id ?: "");
-      diag_hint(d, CURRENT_LOC, "%s is a %s name", id ?: "this",
-                class_str(class_of(name)));
+      if (namek == T_REF) {
+         diag_printf(d, "type mark %pI does not denote a type or a subtype",
+                     tree_ident(name));
+         diag_hint(d, CURRENT_LOC, "%pI is a %s name", tree_ident(name), class);
+      }
+      else {
+         diag_printf(d, "type mark does not denote a type or a subtype");
+         diag_hint(d, CURRENT_LOC, "this is a %s name", class);
+      }
       diag_emit(d);
       return type_new(T_NONE);
    }
@@ -7606,7 +7617,6 @@ static void p_alias_declaration(tree_t parent)
       drop_tokens_until(tRPAREN);
    }
 
-   const tree_kind_t value_kind = tree_kind(value);
    bool nonobject_alias = false, type_alias = false;
 
    if (peek() == tLSQUARE) {
@@ -7627,7 +7637,7 @@ static void p_alias_declaration(tree_t parent)
       }
       tree_set_type(t, type);
    }
-   else if (value_kind == T_REF && tree_has_ref(value)) {
+   else if (tree_kind(value) == T_REF && tree_has_ref(value)) {
       // A nonobject alias may be a design unit which does not have a type
       tree_t decl = tree_ref(value);
       if (is_design_unit(decl) || tree_kind(decl) == T_COMPONENT) {
@@ -7640,7 +7650,7 @@ static void p_alias_declaration(tree_t parent)
    else
       tree_set_value(t, (value = solve_types(nametab, value, NULL)));
 
-   if (value_kind == T_REF && tree_has_ref(value)) {
+   if (tree_kind(value) == T_REF && tree_has_ref(value)) {
       tree_t decl = tree_ref(value);
       if (is_type_decl(decl))
          type_alias = true;
@@ -10792,26 +10802,30 @@ static tree_t p_instantiated_unit(tree_t name)
 
    tree_t t = tree_new(T_INSTANCE);
 
-   switch (peek()) {
-   case tENTITY:
-      consume(tENTITY);
-      tree_set_class(t, C_ENTITY);
-      break;
+   if (name == NULL) {
+      switch (peek()) {
+      case tENTITY:
+         consume(tENTITY);
+         tree_set_class(t, C_ENTITY);
+         break;
+      case tCONFIGURATION:
+         consume(tCONFIGURATION);
+         tree_set_class(t, C_CONFIGURATION);
+         break;
+      case tCOMPONENT:
+         consume(tCOMPONENT);
+         // Fall-through
+      default:
+         tree_set_class(t, C_COMPONENT);
+      }
 
-   case tCONFIGURATION:
-      consume(tCONFIGURATION);
-      tree_set_class(t, C_CONFIGURATION);
-      break;
-
-   case tCOMPONENT:
-      consume(tCOMPONENT);
-      // Fall-through
-
-   default:
-      tree_set_class(t, C_COMPONENT);
+      tree_set_ident2(t, p_selected_identifier());
    }
+   else {
+      tree_set_class(t, C_COMPONENT);
 
-   if (name != NULL) {
+      name = solve_types(nametab, name, NULL);
+
       if (tree_kind(name) == T_REF) {
          tree_set_ident2(t, tree_ident(name));
          if (tree_has_ref(name))
@@ -10822,8 +10836,6 @@ static tree_t p_instantiated_unit(tree_t name)
          tree_set_ident2(t, error_marker());
       }
    }
-   else
-      tree_set_ident2(t, p_selected_identifier());
 
    if ((tree_class(t) == C_ENTITY) && optional(tLPAREN)) {
       tree_set_ident2(t, ident_prefix(tree_ident2(t), p_identifier(), '-'));

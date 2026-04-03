@@ -3630,9 +3630,9 @@ START_TEST(test_vhdl2008)
       { 124, "invalid digit 'C' in decimal bit string" },
       { 127, "excess non-zero digits in decimal bit string literal" },
       { 173, "unexpected ; while parsing case statement, expecting ?" },
-      { 184, "invalid use of label B4" },
+      { 184, "prefix of 'SUBTYPE attribute does not have a type" },
       { 186, "prefix of 'ELEMENT attribute must be an array type" },
-      { 187, "invalid use of label B4" },
+      { 187, "prefix of 'ELEMENT attribute does not have a type" },
       { 233, "unexpected trailing label for generate statement body without" },
       { 235, "expected trailing generate statement body label to match FOO" },
       { 252, "expected trailing case generate statement label to match G3" },
@@ -6965,6 +6965,7 @@ START_TEST(test_issue1038)
       { 26, "unexpected next while parsing primary, expecting one of ??, (, "
             "integer, real, null, identifier, string, bit string or new" },
       { 41, "no visible subprogram declaration for NATURAL" },
+      { 49, "type mark does not denote a type or a subtype" },
       { 49, "unexpected identifier while parsing subtype declaration" },
       { -1, NULL }
    };
@@ -7500,7 +7501,8 @@ START_TEST(test_names5)
       {  0, "did you mean T?" },
       { 18, "type mark does not denote a type or a subtype" },
       {  0, "this is a function name" },
-      { 19, "invalid use of package WORK.ADDER" },
+      { 19, "type mark P.NESTED does not denote a type or a subtype" },
+      {  0, "P.NESTED is a package name" },
       { -1, NULL }
    };
    expect_errors(expect);

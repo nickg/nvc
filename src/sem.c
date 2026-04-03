@@ -24,6 +24,7 @@
 #include "names.h"
 #include "option.h"
 #include "phase.h"
+#include "printf.h"
 #include "psl/psl-phase.h"
 #include "type.h"
 
@@ -539,14 +540,19 @@ static bool sem_check_readable(tree_t t)
 
 static bool sem_check_type(tree_t t, type_t expect, nametab_t *tab)
 {
-   type_t actual = tree_type(t);
+   type_t actual = get_type_or_null(t);
+   if (actual == NULL) {
+      error_at(tree_loc(t), "invalid use of %s %pI", class_str(class_of(t)),
+               tree_ident(t));
+      tree_set_type(t, type_new(T_NONE));
+      return true;   // Supress cascading errors
+   }
 
    if (type_eq_map(actual, expect, get_generic_map(tab)))
       return true;
 
-   // Supress cascading errors
    if (type_is_none(actual) || type_is_none(expect))
-      return true;
+      return true;   // Supress cascading errors
 
    return false;
 }
@@ -1548,8 +1554,8 @@ static bool sem_check_alias(tree_t t, nametab_t *tab)
             tree_set_type(t, obj_type);
       }
    }
-   else
-      type = tree_type(value);
+   else if ((type = get_type_or_null(value)) == NULL)
+      return true;
 
    if (standard() < STD_08 && type_is_array(type) && dimension_of(type) > 1) {
       diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
@@ -3913,6 +3919,8 @@ static bool sem_check_ref(tree_t t, nametab_t *tab)
    case T_PROC_INST:
    case T_IMPLICIT_SIGNAL:
    case T_PARAM_DECL:
+   case T_PACKAGE:
+   case T_PACK_INST:
       break;
 
    case T_CONST_DECL:
@@ -4365,17 +4373,16 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range, nametab_t *tab)
       {
          type_t type = get_type_or_null(name);
          if (type == NULL)
-            sem_error(name, "prefix does not have LENGTH attribute");
+            sem_error(name, "prefix of attribute 'LENGTH does not have a type");
          else if (type_is_none(type))
             return false;
          else if (!sem_check_incomplete(t, type))
             return false;
          else if (!type_is_array(type)
                   && !(standard() >= STD_19 && type_is_discrete(type)))
-            sem_error(name, "prefix of attribute LENGTH must be an array%s "
-                      "but have type %s",
-                      standard() >= STD_19 ? " or a discrete type" : "",
-                      type_pp(type));
+            sem_error(name, "prefix of attribute 'LENGTH must be an array%s "
+                      "but have type %pT",
+                      standard() >= STD_19 ? " or a discrete type" : "", type);
 
          if (!sem_check_dimension_attr(t, tab))
             return false;
@@ -4504,13 +4511,13 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range, nametab_t *tab)
          }
 
          if (named_type == NULL)
-            sem_error(t, "prefix of attribute %s must be a type", istr(attr));
+            sem_error(t, "prefix of attribute '%pI must be a type", attr);
          if (!std_2019 && !type_is_scalar(named_type))
-            sem_error(t, "cannot use attribute %s with non-scalar type %s",
-                      istr(attr), type_pp(named_type));
+            sem_error(t, "cannot use attribute '%pI with non-scalar type %pT",
+                      attr, named_type);
          else if (std_2019 && !type_is_representable(named_type))
-            sem_error(t, "cannot use attribute %s with non-representable "
-                      "type %s", istr(attr), type_pp(named_type));
+            sem_error(t, "cannot use attribute '%pI with non-representable "
+                      "type %pT", attr, named_type);
 
          type_t std_string = std_type(NULL, STD_STRING);
          type_t arg_type = predef == ATTR_IMAGE ? named_type : std_string;
@@ -4531,23 +4538,23 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range, nametab_t *tab)
             named_type = get_type_or_null(name);   // LCS2016-08 relaxation
 
          if (named_type == NULL)
-            sem_error(t, "prefix of attribute %s must be a type", istr(attr));
+            sem_error(t, "prefix of attribute '%pI must be a type", attr);
 
          type_t name_type = tree_type(name);
 
          if (!type_is_discrete(name_type) && !type_is_physical(name_type))
-            sem_error(t, "prefix of attribute %s must be a discrete or "
-                      "physical type", istr(attr));
+            sem_error(t, "prefix of attribute '%pI must be a discrete or "
+                      "physical type", attr);
 
          if (predef == ATTR_VAL) {
             // Parameter may be any integer type
             if (tree_params(t) != 1)
-               sem_error(t, "attribute VAL requires a parameter");
+               sem_error(t, "attribute 'VAL requires a parameter");
 
             type_t ptype = tree_type(tree_value(tree_param(t, 0)));
             if (!type_is_integer(ptype))
-               sem_error(t, "parameter of attribute VAL must have an integer "
-                         "type but found %s", type_pp(ptype));
+               sem_error(t, "parameter of attribute 'VAL must have an integer "
+                         "type but found %pT", ptype);
          }
          else if (!sem_check_attr_param(t, name_type, 1, 1, tab))
             return false;
@@ -4573,7 +4580,7 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range, nametab_t *tab)
 
    case ATTR_REFLECT:
       if (get_type_or_null(name) == NULL)
-         sem_error(t, "prefix of attribute REFLECT is not a type mark or "
+         sem_error(t, "prefix of 'REFLECT attribute is not a type mark or "
                    "an object with a type");
       else if (named_type != NULL && type_is_unconstrained(named_type))
          sem_error(t, "prefix of 'REFLECT attribute must be a fully "

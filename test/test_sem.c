@@ -766,16 +766,16 @@ START_TEST(test_attr)
       { 146, "prefix of attribute LAST_EVENT must denote a signal" },
       { 158, "attribute RANGE with unconstrained array type BIT_VECTOR" },
       { 159, "object prefix of attribute RANGE must be an array" },
-      { 160, "invalid use of entity E" },
-      { 204, "invalid use of architecture A4" },
-      { 212, "cannot use attribute IMAGE with non-scalar type INT2_" },
+      { 160, "prefix of 'RANGE attribute does not have a range" },
+      { 204, "prefix of attribute 'LENGTH does not have a type" },
+      { 212, "cannot use attribute 'IMAGE with non-scalar type INT2_" },
       { 222, "prefix of 'BASE attribute must be a type or subtype declara" },
       { 223, "BASE attribute is allowed only as the prefix of the name" },
       { 229, "no visible declaration for NOT_HERE" },
-      { 252, "parameter of attribute VAL must have an integer type but "
+      { 252, "parameter of attribute 'VAL must have an integer type but "
         "found universal_real" },
-      { 253, "attribute VAL requires a parameter" },
-      { 261, "cannot use attribute VALUE with non-scalar type BIT2D" },
+      { 253, "attribute 'VAL requires a parameter" },
+      { 261, "cannot use attribute 'VALUE with non-scalar type BIT2D" },
       { 267, "attribute HIGH cannot be used with scalar objects in VHDL-1993" },
       { 310, "expression must be a BOOLEAN literal" },
       { 312, "NEVER_WAITS attribute can only be applied to procedures" },
@@ -786,6 +786,7 @@ START_TEST(test_attr)
       { 329, "cannot read output port X" },
       { 330, "cannot read output port X" },
       { 331, "cannot read output port X" },
+      { 337, "type mark does not denote a type or a subtype" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -2642,6 +2643,7 @@ START_TEST(test_genpack)
       { 47, "design unit NOT_HERE not found in library WORK" },
       { 48, "missing actual for generic FRAC without a default expression" },
       { 77, "unit STD.STANDARD is not an uninstantiated package" },
+      { 82, "no visible declaration for NOT_HERE" },
       { 82, "actual for generic FIXED_PKG is not an instantiated package " },
       { 91, "expected an instance of package WORK.MYFIXED but have instance "
         "of WORK.MYFLOAT for generic FIXED_PKG" },
@@ -2681,7 +2683,8 @@ START_TEST(test_gentype)
       { 83, "no visible subprogram PROC1 matches signature [T]" },
       { 90, "ambiguous use of name MY_FUNC" },
       { 90, "universal_integer does not match type T of formal generic INIT" },
-      { 93, "invalid use of label U12" },
+      { 93, "type mark U12 does not denote a type or a subtype" },
+      {  0, "U12 is a label name" },
       { 93, "universal_integer does not match type T of formal generic INIT" },
       { 96, "invalid use of incomplete type INCOMPLETE" },
       { 96, "universal_integer does not match type T of formal generic INIT" },
@@ -3195,7 +3198,7 @@ START_TEST(test_lcs2016_18)
    input_from_file(TESTDIR "/sem/lcs2016_18.vhd");
 
    const error_t expect[] = {
-      {  7, "invalid use of architecture TEST" },
+      {  7, "prefix of 'DESIGNATED_SUBTYPE attribute does not have a type" },
       {  8, "prefix of 'DESIGNATED_SUBTYPE attribute must be an access "
          "or file type" },
       { 15, "type of initial value BOOLEAN does not match type of "
@@ -3206,10 +3209,10 @@ START_TEST(test_lcs2016_18)
       { 25, "'INDEX parameter for type INT_MAP must be between 1 and 2" },
       { 26, "prefix of 'INDEX attribute must be an array type" },
       { 29, "only integer literals are supported for 'INDEX parameter" },
-      { 38, "invalid use of label P3" },
-      { 40, "prefix of attribute LENGTH must be an array or a discrete "
+      { 38, "prefix of attribute 'IMAGE must be a type" },
+      { 40, "prefix of attribute 'LENGTH must be an array or a discrete "
         "type but have type REAL" },
-      { 41, "cannot use attribute IMAGE with non-representable type "
+      { 41, "cannot use attribute 'IMAGE with non-representable type "
         "FILE_OF_INT" },
       { -1, NULL }
    };
@@ -3248,7 +3251,8 @@ START_TEST(test_lcs2016_41)
    const error_t expect[] = {
       { 20, "value SUBTYPE_MIRROR does not match type of target INTEGER" },
       { 21, "value VALUE_MIRROR does not match type of target INTEGER" },
-      { 25, "invalid use of label P1" },
+      { 25, "prefix of 'REFLECT attribute is not a type mark or an object "
+        "with a type" },
       { 27, "prefix of 'REFLECT attribute must be a fully constrained " },
       { -1, NULL }
    };
@@ -3456,6 +3460,7 @@ START_TEST(test_alias2)
    const error_t expect[] = {
       { 39, "no method FOOBAR in protected type T_TEST matches signature []" },
       { 40, "no visible declaration for XX" },
+      { 40, "no visible subprogram INCREMENT matches signature []" },
       { 42, "procedure INCREMENT not allowed in an expression" },
       { 58, "function GET_BITS with return identifier RV cannot be called "
         "in this context as the result subtype is not known" },

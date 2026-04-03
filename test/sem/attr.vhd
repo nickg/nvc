@@ -332,6 +332,11 @@ begin
             assert x'driving;           -- OK
             assert x'driving_value = '1';  -- OK
         end process;
+
+        process is
+            variable e : x'stable;      -- Error
+        begin
+        end process;
     end block;
 
 end architecture;

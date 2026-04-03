@@ -58,11 +58,11 @@ begin
     h: entity work.foo
         port map ( a => open );
 
-    i: foo port map ( x );
+    i: foo port map ( x );              -- OK
 
-    j: work.p.c port map ( '1' );
+    j: work.p.c port map ( '1' );       -- OK
 
-    k: v(1) port map ( x );
+    k: v(1) port map ( x );             -- Error
 
     l: entity something;
 

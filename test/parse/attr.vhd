@@ -10,7 +10,6 @@ architecture a of e is
     attribute foo of t : type is 4;
     attribute foo of integer : type is 4;  -- Error
     attribute foo of a1 : label is 6;
-    attribute foo of e : label is 6;   -- Error
 begin
     a1: assert x'foo = 5;
     a2: assert a1'foo = 6;
