@@ -3445,8 +3445,8 @@ START_TEST(test_issue388)
 
    const error_t expect[] = {
       { 11, "unexpected => while parsing slice name, expecting one of" },
-      { 12, "expected concurrent statement" },
-      { 14, "expected concurrent statement" },
+      { 12, "invalid procedure call" },
+      { 14, "no visible subprogram declaration for CALL" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -3497,14 +3497,14 @@ START_TEST(test_names)
       { 107, "no visible subprogram declaration for V" },
       { 108, "no visible subprogram declaration for FOO" },
       { 222, "ambiguous use of name FOO" },
-      { 233, "name X not found in \"+\"" },
+      { 233, "name X not found in function \"+\"" },
       { 256, "no visible declaration for NOTHERE" },
       { 313, "no visible declaration for FNORK" },
       { 323, "no matching subprogram P26_1 [universal_integer" },
       { 332, "no matching operator \"and\" [BIT, BOOLEAN return BOOLEAN]" },
       { 360, "object X with type INTEGER cannot be the prefix of a selected" },
       { 362, "no visible declaration for FOO" },
-      { 386, "expecting type mark while parsing qualified expression" },
+      { 386, "type mark STD.STANDARD.TRUE does not denote a type or a " },
       {  -1, NULL }
    };
    expect_errors(expect);
@@ -4549,9 +4549,9 @@ START_TEST(test_error8)
    input_from_file(TESTDIR "/parse/error8.vhd");
 
    const error_t expect[] = {
+      { 33, "record type REC has no field named ID" },
       { 33, "expanded name cannot reference NEXT_ID in type PT outside of "
         "the construct itself" },
-      { 33, "record type REC has no field named ID" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -7087,7 +7087,9 @@ START_TEST(test_issue1091)
 
    const error_t expect[] = {
       { 10, "illegal formal designator" },
-      { 23, "invalid formal name WORK.SETUPHIGH" },
+      { 23, "no possible overload of INTERNALTIMINGCHECK has formal "
+        "WORK.SETUPHIGH" },
+      { 23, "invalid use of library WORK" },
       { -1, NULL }
    };
    expect_errors(expect);

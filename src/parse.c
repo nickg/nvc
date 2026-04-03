@@ -1557,17 +1557,12 @@ static bool is_range_expr(tree_t t)
 {
    switch (tree_kind(t)) {
    case T_REF:
-      if (tree_has_ref(t))
-         return aliased_type_decl(tree_ref(t)) != NULL;
-      else
-         return !!(query_name(nametab, tree_ident(t), NULL) & N_TYPE);
-
+      return tree_has_ref(t) && aliased_type_decl(tree_ref(t));
    case T_ATTR_REF:
       {
          const attr_kind_t predef = tree_subkind(t);
          return predef == ATTR_RANGE || predef == ATTR_REVERSE_RANGE;
       }
-
    default:
       return false;
    }
@@ -1577,27 +1572,6 @@ static tree_t ensure_labelled(tree_t t, ident_t label)
 {
    tree_set_ident(t, label ?: get_implicit_label(t, nametab));
    return t;
-}
-
-static tree_t select_decl(tree_t prefix, ident_t suffix, name_mask_t *mask)
-{
-   ident_t qual = ident_prefix(tree_ident(prefix), suffix, '.');
-
-   tree_t decl = NULL;
-   *mask = query_name(nametab, qual, &decl);
-
-   tree_t ref = tree_new(T_REF);
-   tree_set_ident(ref, qual);
-   tree_set_loc(ref, CURRENT_LOC);
-   tree_set_ref(ref, decl);
-
-   if (*mask == 0) {
-      parse_error(CURRENT_LOC, "name %s not found in %s", istr(suffix),
-                  istr(tree_ident(prefix)));
-      tree_set_type(ref, type_new(T_NONE));
-   }
-
-   return ref;
 }
 
 static tree_t could_be_slice_name(tree_t fcall)
@@ -2704,29 +2678,6 @@ static psl_node_t with_default_clock(psl_node_t prop)
    return p;
 }
 
-static tree_t prefix_to_fcall(tree_t t)
-{
-   switch (tree_kind(t)) {
-   case T_REF:
-      {
-         tree_t fcall = tree_new(T_FCALL);
-         tree_set_ident(fcall, tree_ident(t));
-         tree_set_loc(fcall, tree_loc(t));
-         return fcall;
-      }
-   case T_RECORD_REF:
-      {
-         tree_t fcall = tree_new(T_PROT_FCALL);
-         tree_set_ident(fcall, tree_ident(t));
-         tree_set_name(fcall, tree_value(t));
-         tree_set_loc(fcall, tree_loc(t));
-         return fcall;
-      }
-   default:
-      CANNOT_HANDLE(t);
-   }
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 // Parser rules
 
@@ -3544,20 +3495,6 @@ static tree_t p_selected_name(tree_t prefix, name_mask_t *mask)
 
    EXTEND("selected name");
 
-   // If the prefix is a reference to a function then convert it to a
-   // call unless it matches the name of the enclosing subprogram
-   tree_kind_t prefix_kind = tree_kind(prefix);
-   if ((*mask & N_FUNC) && prefix_kind == T_REF) {
-      ident_t id = tree_ident(prefix);
-      tree_t sub = find_enclosing(nametab, S_SUBPROGRAM);
-      if (sub != NULL && tree_ident(sub) == id)
-         tree_set_ref(prefix, sub);
-      else {
-         prefix = p_function_call(id, NULL);
-         prefix_kind = T_FCALL;
-      }
-   }
-
    consume(tDOT);
    *mask = 0;
 
@@ -3588,65 +3525,6 @@ static tree_t p_selected_name(tree_t prefix, name_mask_t *mask)
       return prefix;
    }
 
-   if (prefix_kind == T_REF && tree_has_ref(prefix)) {
-      tree_t decl = tree_ref(prefix);
-      const tree_kind_t kind = tree_kind(decl);
-      if (kind == T_LIBRARY) {
-         ident_t unit_name = ident_prefix(tree_ident(prefix), suffix, '.');
-         tree_t unit = resolve_name(nametab, CURRENT_LOC, unit_name);
-         if (unit == NULL) {
-            tree_t dummy = tree_new(T_REF);
-            tree_set_ident(dummy, unit_name);
-            tree_set_type(dummy, type_new(T_NONE));
-            *mask |= N_ERROR;
-            return dummy;
-         }
-         else {
-            assert(is_design_unit(unit));
-
-            tree_t ref = tree_new(T_REF);
-            tree_set_loc(ref, CURRENT_LOC);
-            tree_set_ident(ref, unit_name);
-            tree_set_ref(ref, unit);
-            return ref;
-         }
-      }
-      else if (is_container(decl)) {
-         tree_t ref = select_decl(prefix, suffix, mask);
-         if (!tree_has_ref(ref))
-            return ref;   // Was error
-
-         // LRM 08 section 8.3 rules for expanded names
-         tree_t du = find_enclosing(nametab, S_DESIGN_UNIT);
-         if (du == decl || (kind == T_ENTITY && primary_unit_of(du) == decl))
-            return ref;
-         else if (kind == T_PACKAGE && is_uninstantiated_package(decl))
-            parse_error(CURRENT_LOC, "cannot reference %s in uninstantiated "
-                        "package %s outside of the package itself",
-                        istr(suffix), istr(tree_ident(decl)));
-         else if (kind != T_PACKAGE && kind != T_PACK_INST
-                  && !is_enclosing(nametab, decl)) {
-            diag_t *d = diag_new(DIAG_ERROR, CURRENT_LOC);
-            diag_printf(d, "expanded name cannot reference %s in %s %s "
-                        "outside of the construct itself", istr(suffix),
-                        class_str(class_of(decl)), istr(tree_ident(decl)));
-            diag_lrm(d, STD_08, "8.3");
-            diag_emit(d);
-         }
-
-         return ref;
-      }
-      else if (is_type_decl(decl)) {
-         diag_t *d = pedantic_diag(tree_loc(prefix));
-         if (d != NULL) {
-            diag_printf(d, "type mark cannot be the prefix of a selected name");
-            diag_emit(d);
-         }
-
-         *mask |= N_TYPE;
-      }
-   }
-
    tree_t rref = tree_new(T_RECORD_REF);
    tree_set_value(rref, prefix);
    tree_set_ident(rref, suffix);
@@ -3670,15 +3548,7 @@ static tree_t p_indexed_name(tree_t prefix, tree_t head)
 
       if (peek() == tASSOC) {
          // This is actually a subprogram call
-         if (tree_kind(t) == T_ARRAY_REF) {
-            tree_t call = prefix_to_fcall(prefix);
-            tree_copy_params(call, t);
-
-            t = call;
-         }
-
          consume(tASSOC);
-
          add_param(t, p_expression(), P_NAMED, index);
       }
       else
@@ -4700,32 +4570,7 @@ static tree_t p_qualified_expression(tree_t prefix)
 
    EXTEND("qualified expression");
 
-   type_t type = NULL;
-   if (prefix == NULL)
-      type = p_type_mark(NULL);
-   else {
-      switch (tree_kind(prefix)) {
-      case T_ATTR_REF:
-         if (is_type_attribute(tree_subkind(prefix)))
-            type = tree_type(prefix);
-         break;
-      case T_REF:
-         if (tree_has_ref(prefix)) {
-            tree_t decl = aliased_type_decl(tree_ref(prefix));
-            if (decl != NULL)
-               type = tree_type(decl);
-         }
-         break;
-      default:
-         break;
-      }
-   }
-
-   if (type == NULL) {
-      parse_error(tree_loc(prefix), "expecting type mark while parsing "
-                  "qualified expression");
-      type = type_new(T_NONE);
-   }
+   type_t type = p_type_mark(prefix);
 
    tree_t qual = tree_new(T_QUALIFIED);
    tree_set_type(qual, type);
@@ -11128,8 +10973,12 @@ static tree_t p_concurrent_procedure_call_statement(ident_t label, tree_t name)
       call = tree_new(T_PCALL);
       tree_set_ident2(call, p_identifier());
    }
-   else if ((call = resolve_pcall(nametab, name)) == NULL)
-      should_not_reach_here();
+   else if ((call = resolve_pcall(nametab, name)) == NULL) {
+      parse_error(tree_loc(name), "invalid procedure call");
+      call = tree_new(T_PCALL);
+      drop_tokens_until(tSEMI);
+      return call;
+   }
 
    if (optional(tLPAREN)) {
       p_actual_parameter_part(call);
@@ -13373,6 +13222,8 @@ static tree_t p_concurrent_statement(void)
                   // Fall-through
                case T_PROT_REF:
                case T_RECORD_REF:
+               case T_ARRAY_REF:
+               case T_ARRAY_SLICE:
                case T_FCALL:
                case T_PROT_FCALL:
                   return p_concurrent_procedure_call_statement(label, name);

@@ -1894,6 +1894,26 @@ static tree_t get_container_ref(tree_t t)
    }
 }
 
+static tree_t get_library_ref(tree_t t)
+{
+   if (tree_kind(t) != T_REF || !tree_has_ref(t))
+      return NULL;
+
+   tree_t decl = tree_ref(t);
+   if (tree_kind(decl) == T_LIBRARY)
+      return decl;
+
+   return NULL;
+}
+
+static tree_t get_type_ref(tree_t t)
+{
+   if (tree_kind(t) != T_REF || !tree_has_ref(t))
+      return NULL;
+
+   return aliased_type_decl(tree_ref(t));
+}
+
 static type_t get_signature(nametab_t *tab)
 {
    if (tab->top_type_set == NULL)
@@ -1906,12 +1926,8 @@ static type_t get_signature(nametab_t *tab)
    return NULL;
 }
 
-static tree_t try_resolve_name(nametab_t *tab, ident_t name)
+static tree_t try_resolve_name(nametab_t *tab, const symbol_t *sym)
 {
-   const symbol_t *sym = iterate_symbol_for(tab, name);
-   if (sym == NULL)
-      return NULL;
-
    if (sym->ndecls == 1) {
       const decl_t *dd = get_decl(sym, 0);
       if (dd->visibility != HIDDEN)
@@ -1945,14 +1961,17 @@ static tree_t try_resolve_name(nametab_t *tab, ident_t name)
    SCOPED_A(tree_t) m = AINIT;
    for (int i = 0; i < sym->ndecls; i++) {
       const decl_t *dd = get_decl(sym, i);
-      if (dd->visibility == OVERLOAD || tab->top_type_set->members.count == 0)
+      if (dd->visibility != HIDDEN)
          APUSH(m, dd->tree);
    }
 
+   tree_t enclosing = NULL;
    if (m.count > 1 && subprograms > 0) {
       unsigned wptr = 0;
       for (int i = 0; i < m.count; i++) {
-         if (is_subprogram(m.items[i])) {
+         if (is_container(m.items[i]) && is_enclosing(tab, m.items[i]))
+            enclosing = m.items[i];
+         else if (is_subprogram(m.items[i])) {
             // Remove subprograms that cannot be called with zero
             // arguments
             if (!can_call_no_args(m.items[i]))
@@ -1969,6 +1988,11 @@ static tree_t try_resolve_name(nametab_t *tab, ident_t name)
       }
       ATRIM(m, wptr);
    }
+
+   const bool type_set_empty = tab->top_type_set->members.count == 0;
+
+   if (type_set_empty && enclosing != NULL)
+      return enclosing;
 
    if (m.count > 1) {
       // Remove any duplicates from aliases
@@ -1990,11 +2014,6 @@ static tree_t try_resolve_name(nametab_t *tab, ident_t name)
    if (m.count == 1)
       return m.items[0];
 
-   if (tab->top_type_set == NULL)
-      return NULL;
-
-   const bool type_set_empty = tab->top_type_set->members.count == 0;
-
    unsigned wptr = 0;
    for (unsigned i = 0; i < m.count; i++) {
       if (class_has_type(class_of(m.items[i]))) {
@@ -2015,10 +2034,6 @@ static tree_t try_resolve_name(nametab_t *tab, ident_t name)
 
 tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
 {
-   tree_t decl = try_resolve_name(tab, name);
-   if (decl != NULL)
-      return decl;
-
    const symbol_t *sym = iterate_symbol_for(tab, name);
    if (sym == NULL) {
       if (tab->top_scope->suppress) {
@@ -2107,6 +2122,10 @@ tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
 
       return NULL;
    }
+
+   tree_t decl = try_resolve_name(tab, sym);
+   if (decl != NULL)
+      return decl;
 
    int hidden = 0, overload = 0;
    for (int i = 0; i < sym->ndecls; i++) {
@@ -2253,49 +2272,6 @@ static tree_t resolve_ref(nametab_t *tab, tree_t t)
    return resolve_name(tab, loc, name);
 }
 
-static tree_t resolve_selected_name_prefix(nametab_t *tab, tree_t t)
-{
-   switch (tree_kind(t)) {
-   case T_REF:
-      {
-         if (tree_has_type(t))
-            return t;
-
-         type_set_t ts = {};
-         type_set_push(tab, &ts);
-
-         tree_t decl = resolve_ref(tab, t);
-
-         type_set_pop(tab, &ts);
-
-         if (decl == NULL) {
-            tree_set_type(t, type_new(T_NONE));
-            return t;
-         }
-         else if (is_container(decl) || tree_kind(decl) == T_LIBRARY) {
-            tree_set_ref(t, decl);
-            return t;
-         }
-         else if (tree_kind(decl) == T_GENERIC_DECL
-                  && tree_class(decl) == C_PACKAGE) {
-            tree_t pack = tree_ref(tree_value(decl));
-            assert(tree_kind(pack) == T_PACKAGE);
-
-            tree_set_ref(t, pack);
-            tree_set_ident(t, tree_ident(pack));
-            return t;
-         }
-         else {
-            tree_set_ref(t, decl);
-            tree_set_type(t, get_alias_type(decl));
-            return implicit_dereference(tab, t);
-         }
-      }
-   default:
-      return implicit_dereference(tab, solve_types(tab, t, NULL));
-   }
-}
-
 static tree_t resolve_record_ref_or_call(nametab_t *tab, tree_t t, bool pcall)
 {
    assert(tree_kind(t) == T_RECORD_REF);
@@ -2303,8 +2279,8 @@ static tree_t resolve_record_ref_or_call(nametab_t *tab, tree_t t, bool pcall)
    if (tree_has_type(t))
       return NULL;
 
-   tree_t prefix = resolve_selected_name_prefix(tab, tree_value(t));
-   tree_set_value(t, prefix);
+   tree_t prefix = solve_types(tab, tree_value(t), NULL);
+   tree_set_value(t, (prefix = implicit_dereference(tab, prefix)));
 
    tree_t decl = get_container_ref(prefix);
    if (decl != NULL) {
@@ -2373,6 +2349,152 @@ static tree_t resolve_array_ref_or_call(nametab_t *tab, tree_t t)
    }
 }
 
+static tree_t resolve_array_ref_or_type_conv(nametab_t *tab, tree_t t)
+{
+   assert(tree_kind(t) == T_ARRAY_REF);
+
+   if (tree_params(t) != 1)
+      return NULL;
+
+   tree_t decl = get_type_ref(tree_value(t));
+   if (decl == NULL)
+      return NULL;
+
+   tree_t conv = tree_new(T_TYPE_CONV);
+   tree_set_loc(conv, tree_loc(t));
+   tree_set_type(conv, tree_type(decl));
+   tree_set_value(conv, tree_value(tree_param(t, 0)));
+   return conv;
+}
+
+static tree_t resolve_selected_name(nametab_t *tab, tree_t t)
+{
+   assert(tree_kind(t) == T_RECORD_REF);
+
+   tree_t prefix = tree_value(t);
+   ident_t suffix = tree_ident(t);
+
+   tree_t decl = get_container_ref(prefix);
+   if (decl != NULL) {
+      scope_t *s = private_scope_for(tab, decl);
+
+      ident_t qual = ident_prefix(tree_ident(prefix), suffix, '.');
+
+      const symbol_t *sym = symbol_for(s, tree_ident(t));
+      if (sym == NULL) {
+         diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
+         diag_printf(d, "name %pI not found in %s %pI", suffix,
+                     class_str(class_of(decl)), tree_ident(decl));
+         hint_for_typo(s, d, suffix, N_OBJECT | N_SUBPROGRAM | N_TYPE);
+         diag_emit(d);
+
+         tree_t dummy = tree_new(T_REF);
+         tree_set_ident(dummy, qual);
+         tree_set_type(dummy, type_new(T_NONE));
+         return dummy;
+      }
+
+      // LRM 08 section 8.3 rules for expanded names
+      tree_t du = find_enclosing(tab, S_DESIGN_UNIT);
+      if (du != decl) {
+         switch (tree_kind(decl)) {
+         case T_PACKAGE:
+            if (tree_kind(tree_ref(prefix)) == T_GENERIC_DECL)
+               break;
+            else if (is_uninstantiated_package(decl))
+               error_at(tree_loc(t), "cannot reference %pI in uninstantiated "
+                        "package %pI outside of the package itself",
+                        suffix, tree_ident(decl));
+            break;
+         case T_PACK_INST:
+            break;
+         case T_ENTITY:
+            if (primary_unit_of(du) == decl)
+               break;
+            // Fall-through
+         default:
+            if (!is_enclosing(tab, decl)) {
+               diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
+               diag_printf(d, "expanded name cannot reference %pI in %s %pI "
+                           "outside of the construct itself", suffix,
+                           class_str(class_of(decl)), tree_ident(decl));
+               diag_lrm(d, STD_08, "8.3");
+               diag_emit(d);
+            }
+            break;
+         }
+      }
+
+      type_t signature = get_signature(tab);
+      if (signature != NULL) {
+         tree_t decl = resolve_subprogram_name(tab, tree_loc(t), qual,
+                                               signature);
+         if (decl == NULL) {
+            tree_set_type(t, type_new(T_NONE));
+            return t;
+         }
+         else {
+            tree_t ref = tree_new(T_REF);
+            tree_set_ident(ref, qual);
+            tree_set_ref(ref, decl);
+            tree_set_type(ref, tree_type(decl));
+
+            return ref;
+         }
+      }
+
+      tree_t sel = try_resolve_name(tab, sym);
+      if (sel == NULL)
+         should_not_reach_here();
+
+      if (is_subprogram(sel) && can_call_no_args(sel)) {
+         tree_t fcall = tree_new(T_FCALL);
+         tree_set_ident(fcall, qual);
+         tree_set_loc(fcall, tree_loc(t));
+
+         return _solve_types(tab, fcall);
+      }
+      else {
+         tree_t ref = tree_new(T_REF);
+         tree_set_ident(ref, qual);
+         tree_set_loc(ref, tree_loc(t));
+         tree_set_ref(ref, sel);
+         tree_set_type(ref, get_type_or_null(sel));
+
+         return ref;
+      }
+   }
+
+   tree_t lib = get_library_ref(prefix);
+   if (lib != NULL) {
+      ident_t unit_name = ident_prefix(tree_ident(prefix), suffix, '.');
+      tree_t unit = resolve_name(tab, tree_loc(t), unit_name);
+      if (unit == NULL) {
+         tree_set_type(t, type_new(T_NONE));
+         return t;
+      }
+      else {
+         assert(is_design_unit(unit));
+
+         tree_t ref = tree_new(T_REF);
+         tree_set_loc(ref, tree_loc(t));
+         tree_set_ident(ref, unit_name);
+         tree_set_ref(ref, unit);
+         return ref;
+      }
+   }
+
+   if (get_type_ref(prefix) != NULL) {
+      diag_t *d = pedantic_diag(tree_loc(prefix));
+      if (d != NULL) {
+         diag_printf(d, "type mark cannot be the prefix of a selected name");
+         diag_emit(d);
+      }
+   }
+
+   return NULL;
+}
+
 tree_t resolve_pcall(nametab_t *tab, tree_t name)
 {
    switch (tree_kind(name)) {
@@ -2429,7 +2551,7 @@ tree_t resolve_uninstantiated_subprogram(nametab_t *tab, tree_t name,
       break;
    case T_RECORD_REF:
       {
-         tree_t prefix = resolve_selected_name_prefix(tab, tree_value(name));
+         tree_t prefix = solve_types(tab, tree_value(name), NULL);
          tree_set_value(name, prefix);
 
          tree_t decl = get_container_ref(prefix);
@@ -3900,12 +4022,11 @@ static bool is_unambiguous(tree_t t)
 
    const tree_kind_t kind = tree_kind(t);
    return kind == T_QUALIFIED
-      || kind == T_ARRAY_REF
       || kind == T_ARRAY_SLICE
       || kind == T_TYPE_CONV
-      || kind == T_RECORD_REF
       || kind == T_ALL
       || kind == T_PSL_FCALL
+      || kind == T_RECORD_REF
       || (kind == T_REF && tree_has_ref(t));
 }
 
@@ -3969,27 +4090,6 @@ static void solve_subprogram_params(nametab_t *tab, tree_t call, overload_t *o)
       tree_t p = tree_param(call, i);
       tree_t value = tree_value(p);
 
-      // Selected or indexed names may have been mis-parsed so fix them
-      // before proceeding
-      switch (tree_kind(value)) {
-      case T_ARRAY_REF:
-         {
-            tree_t call = resolve_array_ref_or_call(tab, value);
-            if (call != NULL)
-               tree_set_value(p, (value = call));
-         }
-         break;
-      case T_RECORD_REF:
-         {
-            tree_t call = resolve_record_ref_or_call(tab, value, false);
-            if (call != NULL)
-               tree_set_value(p, (value = call));
-         }
-         break;
-      default:
-         break;
-      }
-
       if (is_unambiguous(value) && solve_one_param(tab, p, o, o->trial))
          mask_set(&pmask, i);
    }
@@ -4050,15 +4150,25 @@ static tree_t resolve_fcall_or_index(nametab_t *tab, tree_t fcall, tree_t decl)
    if (!can_call_no_args(decl))
       return fcall;
 
-   if (tree_params(fcall) != dimension_of(rtype))
+   const int nparams = tree_params(fcall);
+   if (nparams != dimension_of(rtype))
       return fcall;
 
    if (tab->top_type_set->members.count == 0)
       return fcall;    // Context cannot disambiguate
 
+   bool is_slice = false;
+   if (nparams == 1 && type_set_contains(tab, rtype)) {
+      // The expression F(X) where X is a type name and F is a function
+      // should be parsed as an array slice F(X'RANGE) where F is called
+      // with no arguments
+      tree_t p0 = tree_value(tree_param(fcall, 0));
+      is_slice = (get_type_ref(p0) != NULL);
+   }
+
    type_t etype = type_elem(rtype);
 
-   if (!type_set_contains(tab, etype))
+   if (!is_slice && !type_set_contains(tab, etype))
       return fcall;
 
    const tree_kind_t kind = tree_kind(fcall);
@@ -4072,12 +4182,36 @@ static tree_t resolve_fcall_or_index(nametab_t *tab, tree_t fcall, tree_t decl)
    if (kind == T_PROT_FCALL && tree_has_name(fcall))
       tree_set_name(new, tree_name(fcall));
 
-   tree_t aref = tree_new(T_ARRAY_REF);
-   tree_set_value(aref, new);
-   tree_set_type(aref, etype);
-   tree_copy_params(aref, fcall);
+   if (is_slice) {
+      tree_t p0 = tree_value(tree_param(fcall, 0));
 
-   return aref;
+      tree_t aref = tree_new(T_ATTR_REF);
+      tree_set_name(aref, p0);
+      tree_set_ident(aref, ident_new("RANGE"));
+      tree_set_loc(aref, tree_loc(p0));
+      tree_set_subkind(aref, ATTR_RANGE);
+
+      tree_t r = tree_new(T_RANGE);
+      tree_set_subkind(r, RANGE_EXPR);
+      tree_set_value(r, aref);
+      tree_set_loc(r, tree_loc(p0));
+
+      tree_t slice = tree_new(T_ARRAY_SLICE);
+      tree_set_value(slice, new);
+      tree_set_type(slice, rtype);
+      tree_add_range(slice, solve_types(tab, r, NULL));
+      tree_set_loc(slice, tree_loc(fcall));
+
+      return slice;
+   }
+   else {
+      tree_t aref = tree_new(T_ARRAY_REF);
+      tree_set_value(aref, new);
+      tree_set_type(aref, etype);
+      tree_copy_params(aref, fcall);
+
+      return aref;
+   }
 }
 
 static void nest_protected_call(tree_t call, tree_t pref)
@@ -4449,7 +4583,11 @@ static tree_t try_solve_ref(nametab_t *tab, tree_t t)
    if (tree_has_type(t))
       return t;
 
-   tree_t decl = try_resolve_name(tab, tree_ident(t));
+   const symbol_t *sym = iterate_symbol_for(tab, tree_ident(t));
+   if (sym == NULL)
+      return NULL;
+
+   tree_t decl = try_resolve_name(tab, sym);
    if (decl == NULL)
       return NULL;
 
@@ -4526,75 +4664,12 @@ static tree_t solve_record_ref(nametab_t *tab, tree_t t)
       return t;
 
    tree_t prefix = solve_types(tab, tree_value(t), NULL);
+   tree_set_value(t, (prefix = implicit_dereference(tab, prefix)));
    ident_t suffix = tree_ident(t);
 
-   tree_t decl = get_container_ref(prefix);
-   if (decl != NULL) {
-      scope_t *s = private_scope_for(tab, decl);
-
-      const symbol_t *sym = symbol_for(s, tree_ident(t));
-      if (sym == NULL) {
-         diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
-         diag_printf(d, "name %pI not found in %s %pI", suffix,
-                     class_str(class_of(decl)), tree_ident(decl));
-         hint_for_typo(s, d, suffix, N_OBJECT | N_SUBPROGRAM | N_TYPE);
-         diag_emit(d);
-
-         tree_set_type(t, type_new(T_NONE));
-         return t;
-      }
-
-      for (int i = 0; i < sym->ndecls; i++) {
-         const decl_t *dd = get_decl(sym, i);
-         if (dd->visibility == HIDDEN)
-            continue;
-         else if (dd->mask & N_SUBPROGRAM) {
-            ident_t qual = ident_prefix(tree_ident(prefix), suffix, '.');
-
-            type_t signature = get_signature(tab);
-            if (signature != NULL) {
-               tree_t decl = resolve_subprogram_name(tab, tree_loc(t), qual,
-                                                     signature);
-               if (decl == NULL) {
-                  tree_set_type(t, type_new(T_NONE));
-                  return t;
-               }
-               else {
-                  tree_t ref = tree_new(T_REF);
-                  tree_set_ident(ref, qual);
-                  tree_set_ref(ref, decl);
-                  tree_set_type(ref, tree_type(decl));
-
-                  return ref;
-               }
-            }
-            else {
-               tree_t fcall = tree_new(T_FCALL);
-               tree_set_ident(fcall, qual);
-               tree_set_loc(fcall, tree_loc(t));
-
-               return _solve_types(tab, fcall);
-            }
-         }
-         else {
-            ident_t qual = ident_prefix(tree_ident(prefix), suffix, '.');
-
-            tree_t ref = tree_new(T_REF);
-            tree_set_ident(ref, qual);
-            tree_set_ref(ref, dd->tree);
-            tree_set_loc(ref, tree_loc(dd->tree));
-
-            if (class_has_type(class_of(dd->tree)))
-               tree_set_type(ref, get_alias_type(dd->tree));
-
-            return ref;
-         }
-      }
-
-      should_not_reach_here();
-   }
-
-   tree_set_value(t, (prefix = implicit_dereference(tab, prefix)));
+   tree_t select = resolve_selected_name(tab, t);
+   if (select != NULL)
+      return select;
 
    type_t prefix_type = get_type_or_null(prefix);
    if (prefix_type == NULL) {
@@ -4656,6 +4731,18 @@ static tree_t solve_record_ref(nametab_t *tab, tree_t t)
    }
 }
 
+static tree_t try_solve_array_ref(nametab_t *tab, tree_t t)
+{
+   if (tree_has_type(t))
+      return t;
+
+   tree_t call = resolve_array_ref_or_call(tab, t);
+   if (call != NULL)
+      return try_solve_type(tab, call);
+
+   return _solve_types(tab, t);
+}
+
 static tree_t solve_array_ref(nametab_t *tab, tree_t t)
 {
    if (tree_has_type(t))
@@ -4668,6 +4755,10 @@ static tree_t solve_array_ref(nametab_t *tab, tree_t t)
    tree_t prefix = solve_types(tab, tree_value(t), NULL);
    tree_t deref = implicit_dereference(tab, prefix);
    tree_set_value(t, deref);
+
+   tree_t conv = resolve_array_ref_or_type_conv(tab, t);
+   if (conv != NULL)
+      return _solve_types(tab, conv);
 
    type_t base_type = tree_type(deref);
 
@@ -4905,8 +4996,7 @@ static tree_t try_solve_attr_ref(nametab_t *tab, tree_t t)
          bool prefix_is_type = false;
          switch (tree_kind(prefix)) {
          case T_REF:
-            if (tree_has_ref(prefix))
-               prefix_is_type = (aliased_type_decl(tree_ref(prefix)) != NULL);
+            prefix_is_type = (get_type_ref(prefix) != NULL);
             break;
          case T_ATTR_REF:
             prefix_is_type = is_type_attribute(tree_subkind(prefix));
@@ -5168,26 +5258,24 @@ static tree_t solve_array_aggregate(nametab_t *tab, tree_t t, type_t type)
             tree_t name = solve_types(tab, tree_name(a), index_type);
             tree_set_name(a, name);
 
-            if (tree_kind(name) == T_REF && tree_has_ref(name)) {
-               tree_t type_decl = aliased_type_decl(tree_ref(name));
-               if (type_decl != NULL) {
-                  // This should have been parsed as a range association
-                  tree_t tmp = tree_new(T_ATTR_REF);
-                  tree_set_name(tmp, name);
-                  tree_set_ident(tmp, ident_new("RANGE"));
-                  tree_set_loc(tmp, tree_loc(name));
-                  tree_set_subkind(tmp, ATTR_RANGE);
-                  tree_set_type(tmp, tree_type(name));
+            tree_t type_decl = get_type_ref(name);
+            if (type_decl != NULL) {
+               // This should have been parsed as a range association
+               tree_t tmp = tree_new(T_ATTR_REF);
+               tree_set_name(tmp, name);
+               tree_set_ident(tmp, ident_new("RANGE"));
+               tree_set_loc(tmp, tree_loc(name));
+               tree_set_subkind(tmp, ATTR_RANGE);
+               tree_set_type(tmp, tree_type(name));
 
-                  tree_t r = tree_new(T_RANGE);
-                  tree_set_subkind(r, RANGE_EXPR);
-                  tree_set_value(r, tmp);
-                  tree_set_loc(r, tree_loc(name));
-                  tree_set_type(r, tree_type(name));
+               tree_t r = tree_new(T_RANGE);
+               tree_set_subkind(r, RANGE_EXPR);
+               tree_set_value(r, tmp);
+               tree_set_loc(r, tree_loc(name));
+               tree_set_type(r, tree_type(name));
 
-                  tree_set_subkind(a, (kind = A_RANGE));
-                  tree_add_range(a, r);
-               }
+               tree_set_subkind(a, (kind = A_RANGE));
+               tree_add_range(a, r);
             }
 
             have_named = true;
@@ -5686,6 +5774,8 @@ static tree_t try_solve_type(nametab_t *tab, tree_t t)
       return try_solve_psl_union(tab, t);
    case T_NEW:
       return try_solve_new(tab, t);
+   case T_ARRAY_REF:
+      return try_solve_array_ref(tab, t);
    default:
       CANNOT_HANDLE(t);
    }

@@ -191,7 +191,7 @@ START_TEST(test_scope)
       { 211, "no visible declaration for PACK5" },
       { 236, "no visible declaration for FOO" },
       { 302, "declaration of I hides an earlier declaration with the same " },
-      { 306, "name X not found in L1" },
+      { 306, "name X not found in label L1" },
       { -1, NULL }
    };
    expect_errors(expect);
