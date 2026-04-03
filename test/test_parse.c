@@ -1968,8 +1968,10 @@ START_TEST(test_procedure)
 
    const error_t expect[] = {
       { 34, "unexpected procedure while parsing subprogram specification" },
-      { 41, "condition conversion is not supported in VHDL-1993" },
-      { 44, "unexpected end while parsing subprogram declarative item" },
+      { 41, "unexpected ( while parsing procedure call statement" },
+      { 41, "missing actual for formal parameter Y without default value" },
+      { 47, "condition conversion is not supported in VHDL-1993" },
+      { 50, "unexpected end while parsing subprogram declarative item" },
       { -1, NULL }
    };
    expect_errors(expect);

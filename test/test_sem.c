@@ -734,6 +734,8 @@ START_TEST(test_conv)
       { 35, "conversion only allowed between closely related types" },
       { 42, "conversion only allowed between closely related types" },
       { 43, "conversion only allowed between closely related types" },
+      { 44, "unexpected , while parsing type conversion" },
+      { 44, "conversion only allowed between closely related types" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -3460,7 +3462,6 @@ START_TEST(test_alias2)
    const error_t expect[] = {
       { 39, "no method FOOBAR in protected type T_TEST matches signature []" },
       { 40, "no visible declaration for XX" },
-      { 40, "no visible subprogram INCREMENT matches signature []" },
       { 42, "procedure INCREMENT not allowed in an expression" },
       { 58, "function GET_BITS with return identifier RV cannot be called "
         "in this context as the result subtype is not known" },

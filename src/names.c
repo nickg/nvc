@@ -1839,7 +1839,10 @@ static bool can_call_no_args(tree_t t)
             return false;
       }
    case T_PROT_REF:
-      return can_call_no_args(tree_ref(t));
+      if (tree_has_ref(t))
+         return can_call_no_args(tree_ref(t));
+      else
+         return false;
    default:
       return false;
    }
@@ -2505,105 +2508,6 @@ tree_t resolve_uninstantiated_subprogram(nametab_t *tab, tree_t name,
    }
 
    return NULL;
-}
-
-tree_t resolve_signature(nametab_t *tab, tree_t name, type_t type)
-{
-   tree_t ref = NULL;
-   scope_t *s = NULL;
-   switch (tree_kind(name)) {
-   case T_RECORD_REF:
-      {
-         assert(!tree_has_type(name));
-
-         tree_t value = solve_types(tab, tree_value(name), NULL);
-         tree_t deref = implicit_dereference(tab, value);
-         tree_set_value(name, deref);
-
-         type_t prefix_type = tree_type(deref);
-         if (type_is_none(prefix_type)) {
-            tree_set_type(name, prefix_type);
-            return name;
-         }
-         else if (type_is_protected(prefix_type)) {
-            ref = tree_new(T_PROT_REF);
-            tree_set_value(ref, deref);
-            tree_set_ident(ref, tree_ident(name));
-            tree_set_loc(ref, tree_loc(name));
-
-            s = scope_for_type(tab, prefix_type);
-         }
-      }
-      break;
-   case T_REF:
-      ref = name;
-      break;
-   default:
-      break;
-   }
-
-   if (ref == NULL) {
-      error_at(tree_loc(name), "name with signature does not denote a "
-               "subprogram or enumeration literal");
-      tree_set_type(name, type_new(T_NONE));
-      return name;
-   }
-   else if (type_is_none(type)) {
-      tree_set_type(ref, type);
-      return ref;
-   }
-
-   const symbol_t *sym;
-   if (s == NULL)
-      sym = iterate_symbol_for(tab, tree_ident(ref));
-   else
-      sym = symbol_for(s, tree_ident(ref));
-
-   const bool allow_enum =
-      type_kind(type) == T_SIGNATURE
-      && type_params(type) == 0
-      && type_has_result(type);
-
-   SCOPED_A(tree_t) matching = AINIT;
-   if (sym != NULL) {
-      for (int i = 0; i < sym->ndecls; i++) {
-         const decl_t *dd = get_decl(sym, i);
-         if (dd->visibility == HIDDEN)
-            continue;
-         else if (dd->mask & N_SUBPROGRAM) {
-            type_t signature = tree_type(dd->tree);
-            if (type_eq_map(type, signature, tab->top_scope->gmap))
-               APUSH(matching, dd->tree);
-         }
-         else if (allow_enum && dd->kind == T_ENUM_LIT
-                  && type_eq(type_result(type), tree_type(dd->tree)))
-            APUSH(matching, dd->tree);
-      }
-   }
-
-   if (matching.count == 1) {
-      tree_set_ref(ref, matching.items[0]);
-      tree_set_type(ref, tree_type(matching.items[0]));
-      return ref;
-   }
-
-   tree_set_type(ref, type_new(T_NONE));
-
-   if (tab->top_scope->suppress)
-      return ref;
-
-   diag_t *d = diag_new(DIAG_ERROR, tree_loc(name));
-   if (tree_kind(ref) == T_PROT_REF)
-      diag_printf(d, "no method %pI in protected type %pT", tree_ident(ref),
-                  tree_type(tree_value(ref)));
-   else
-      diag_printf(d, "no visible subprogram%s %pI",
-                  allow_enum ? " or enumeration literal" : "", tree_ident(ref));
-
-   diag_printf(d, " matches signature %pT", type);
-   diag_emit(d);
-
-   return ref;
 }
 
 tree_t resolve_resolution(nametab_t *tab, tree_t rname, type_t type)
@@ -4086,10 +3990,8 @@ static void solve_subprogram_params(nametab_t *tab, tree_t call, overload_t *o)
          break;
       }
 
-      if (is_unambiguous(value)) {
-         solve_one_param(tab, p, o, o->trial);
+      if (is_unambiguous(value) && solve_one_param(tab, p, o, o->trial))
          mask_set(&pmask, i);
-      }
    }
 
    // Attempt to solve remaining parameters but suppress errors
@@ -4712,7 +4614,8 @@ static tree_t solve_record_ref(nametab_t *tab, tree_t t)
          tree_set_value(ref, prefix);
          tree_set_ident(ref, tree_ident(t));
          tree_set_loc(ref, tree_loc(t));
-         return ref;
+
+         return _solve_types(tab, ref);
       }
       else {
          tree_t fcall = tree_new(T_PROT_FCALL);
@@ -5538,6 +5441,46 @@ static tree_t solve_inertial(nametab_t *tab, tree_t t)
    return t;
 }
 
+static tree_t solve_prot_ref(nametab_t *tab, tree_t t)
+{
+   type_t signature = get_signature(tab);
+   assert(signature != NULL);
+
+   type_t ptype = tree_type(tree_value(t));
+   assert(type_is_protected(ptype));
+
+   scope_t *s = scope_for_type(tab, ptype);
+   const symbol_t *sym = symbol_for(s, tree_ident(t));
+
+   SCOPED_A(tree_t) matching = AINIT;
+   if (sym != NULL) {
+      for (int i = 0; i < sym->ndecls; i++) {
+         const decl_t *dd = get_decl(sym, i);
+         if (dd->visibility == HIDDEN)
+            continue;
+         else if (dd->mask & N_SUBPROGRAM) {
+            type_t type = tree_type(dd->tree);
+            if (type_eq_map(type, signature, tab->top_scope->gmap))
+               APUSH(matching, dd->tree);
+         }
+      }
+   }
+
+   if (matching.count == 1) {
+      tree_set_ref(t, matching.items[0]);
+      tree_set_type(t, tree_type(matching.items[0]));
+      return t;
+   }
+
+   tree_set_type(t, type_new(T_NONE));
+
+   if (!tab->top_scope->suppress)
+      error_at(tree_loc(t), "no method %pI in protected type %pT matches "
+               "signature %pT", tree_ident(t), ptype, signature);
+
+   return t;
+}
+
 static void solve_pair(nametab_t *tab, tree_t *left, tree_t *right)
 {
    // Constrain left and right to have the same type
@@ -5795,6 +5738,8 @@ static tree_t _solve_types(nametab_t *tab, tree_t t)
       return solve_cond_expr(tab, t);
    case T_INERTIAL:
       return solve_inertial(tab, t);
+   case T_PROT_REF:
+      return solve_prot_ref(tab, t);
    case T_PSL_FCALL:
       return solve_psl_fcall(tab, t);
    case T_PSL_UNION:

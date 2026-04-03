@@ -41,6 +41,7 @@ begin
         x := integer(y(1));             -- OK
         y := a(s);                      -- Error
         y2 := a2(y);                    -- Error
+        t := time(1, 2);                -- Error
         wait;
     end process;
 

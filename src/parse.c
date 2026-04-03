@@ -3480,7 +3480,7 @@ static tree_t p_attribute_name(tree_t prefix)
 
    if (peek() == tLSQUARE) {
       type_t signature = p_signature();
-      prefix = resolve_signature(nametab, prefix, signature);
+      prefix = solve_types(nametab, prefix, signature);
    }
 
    consume(tTICK);
@@ -7627,7 +7627,7 @@ static void p_alias_declaration(tree_t parent)
          type = type_new(T_NONE);
       }
       else {
-         tree_t ref = resolve_signature(nametab, value, type);
+         tree_t ref = solve_types(nametab, value, type);
          if (ref == NULL) {
             parse_error(tree_loc(value), "invalid name in subprogram alias");
             type = type_new(T_NONE);

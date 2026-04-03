@@ -35,6 +35,12 @@ package body p is
     begin
     end procedure;
 
+    procedure bad1 is
+        variable x : integer;
+    begin
+        foo(1)(x);                      -- Error
+    end procedure;
+
     procedure testxxx is
         variable x : integer;
     begin
