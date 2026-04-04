@@ -62,7 +62,6 @@ void pop_scope(nametab_t *tab);
 void push_scope_for_formals(nametab_t *tab, formal_kind_t kind, tree_t unit);
 void scope_set_prefix(nametab_t *tab, ident_t prefix);
 ident_t scope_prefix(nametab_t *tab);
-formal_kind_t scope_formal_kind(nametab_t *tab);
 void scope_set_container(nametab_t *tab, tree_t container);
 void scope_set_subprogram(nametab_t *tab, tree_t subprog);
 tree_t find_enclosing(nametab_t *tab, scope_kind_t kind);

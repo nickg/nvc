@@ -628,11 +628,6 @@ bool is_enclosing(nametab_t *tab, tree_t container)
    return false;
 }
 
-formal_kind_t scope_formal_kind(nametab_t *tab)
-{
-   return tab->top_scope->formal_kind;
-}
-
 static bool compare_name(ident_t a, ident_t b)
 {
    if (a == b)
@@ -1811,12 +1806,12 @@ static type_t get_alias_type(tree_t t)
       // signature so make sure it doesn't look like a subprogram
       tree_t aliased = tree_value(t);
       if (!tree_has_type(t) || class_of(aliased) == C_LITERAL)
-         return tree_type(aliased);
+         return get_type_or_null(aliased);
       else
          return tree_type(t);
    }
    else
-      return tree_type(t);
+      return get_type_or_null(t);
 }
 
 static bool can_call_no_args(tree_t t)
@@ -2459,7 +2454,7 @@ static tree_t resolve_selected_name(nametab_t *tab, tree_t t)
          tree_set_ident(ref, qual);
          tree_set_loc(ref, tree_loc(t));
          tree_set_ref(ref, sel);
-         tree_set_type(ref, get_type_or_null(sel));
+         tree_set_type(ref, get_alias_type(sel));
 
          return ref;
       }
@@ -4618,25 +4613,22 @@ static tree_t solve_ref(nametab_t *tab, tree_t ref)
       return ref;
    }
 
-   if (class_has_type(class_of(decl))) {
-      type_t type = get_alias_type(decl);
+   type_t type = get_alias_type(decl);
 
-      if (type_is_subprogram(type)) {
-         const bool want_ref = get_signature(tab) != NULL
-            || tab->top_scope->formal_kind != F_NONE;
+   if (type != NULL && type_is_subprogram(type)) {
+      const bool want_ref = get_signature(tab) != NULL
+         || tab->top_scope->formal_kind != F_NONE;
 
-         if (can_call_no_args(decl) && !want_ref) {
-            tree_t fcall = tree_new(T_FCALL);
-            tree_set_loc(fcall, tree_loc(ref));
-            tree_set_ident(fcall, tree_ident(ref));
+      if (can_call_no_args(decl) && !want_ref) {
+         tree_t fcall = tree_new(T_FCALL);
+         tree_set_loc(fcall, tree_loc(ref));
+         tree_set_ident(fcall, tree_ident(ref));
 
-            return solve_fcall(tab, fcall);
-         }
+         return solve_fcall(tab, fcall);
       }
-
-      tree_set_type(ref, type);
    }
 
+   tree_set_type(ref, type);
    tree_set_ref(ref, decl);
    return ref;
 }
@@ -4665,7 +4657,6 @@ static tree_t solve_record_ref(nametab_t *tab, tree_t t)
 
    tree_t prefix = solve_types(tab, tree_value(t), NULL);
    tree_set_value(t, (prefix = implicit_dereference(tab, prefix)));
-   ident_t suffix = tree_ident(t);
 
    tree_t select = resolve_selected_name(tab, t);
    if (select != NULL)
@@ -4716,7 +4707,7 @@ static tree_t solve_record_ref(nametab_t *tab, tree_t t)
       return t;
    }
 
-   tree_t f = resolve_field_name(tab, tree_loc(t), suffix, prefix_type);
+   tree_t f = resolve_field_name(tab, tree_loc(t), tree_ident(t), prefix_type);
 
    if (f == NULL) {
       type_t type = type_new(T_NONE);
@@ -5576,7 +5567,7 @@ static void solve_pair(nametab_t *tab, tree_t *left, tree_t *right)
    type_t ltype = NULL;
    if (is_unambiguous(*left)) {
       *left = _solve_types(tab, *left);
-      ltype = tree_type(*left);
+      ltype = get_type_or_null(*left);
    }
    else {
       tree_t left_try = try_solve_type(tab, *left);
@@ -5589,7 +5580,7 @@ static void solve_pair(nametab_t *tab, tree_t *left, tree_t *right)
    type_t rtype = NULL;
    if (is_unambiguous(*right)) {
       *right = _solve_types(tab, *right);
-      rtype = tree_type(*right);
+      rtype = get_type_or_null(*right);
    }
    else {
       tree_t right_try = try_solve_type(tab, *right);
@@ -5639,11 +5630,20 @@ static tree_t solve_range(nametab_t *tab, tree_t r)
          tree_set_left(r, left);
          tree_set_right(r, right);
 
-         const bool has_context = tab->top_type_set->members.count > 0;
+         type_t ltype = get_type_or_null(left);
+         type_t rtype = get_type_or_null(right);
 
-         type_t type = tree_type(left);
-         type_t result = has_context ? type : type_base_recur(type);
-         tree_set_type(r, result);
+         if (ltype == NULL || rtype == NULL) {
+            error_at(tree_loc(ltype == NULL ? left : right),
+                     "range %s bound does not have a type",
+                     ltype == NULL ? "left" : "right");
+            tree_set_type(r, type_new(T_NONE));
+         }
+         else if (tab->top_type_set->members.count > 0)
+            tree_set_type(r, ltype);
+         else
+            tree_set_type(r, type_base_recur(ltype));
+
          return r;
       }
    default:
@@ -5866,11 +5866,8 @@ tree_t solve_known_subtype(nametab_t *tab, tree_t expr, tree_t target)
 
 tree_t solve_target(nametab_t *tab, tree_t target, tree_t value)
 {
-   if (tree_has_type(target))
-      return target;
-
    type_t value_type = NULL;
-   if (tree_kind(target) == T_AGGREGATE) {
+   if (tree_kind(target) == T_AGGREGATE && !tree_has_type(target)) {
       type_set_t ts = { .pred = type_is_composite };
       type_set_push(tab, &ts);
 

@@ -3832,7 +3832,7 @@ START_TEST(test_issue1020)
    input_from_file(TESTDIR "/sem/issue1020.vhd");
 
    const error_t expect[] = {
-      { 13, "invalid formal name V" },
+      { 13, "no possible overload of XYZZY has formal V" },
       { 13, "sorry, conversions are not yet supported here" },
       { -1, NULL }
    };

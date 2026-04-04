@@ -23,8 +23,8 @@ architecture test of gensub6 is
     procedure get_two is new get generic map (t => integer, n => 2);
     procedure get_two is new get generic map (t => real, n => 2.0);
 
-    procedure proc_one is new proc generic map (preal => get_one, get_one);
-    procedure proc_two is new proc generic map (preal => get_two, get_two);
+    procedure proc_one is new proc generic map (get_one, get_one);
+    procedure proc_two is new proc generic map (get_two, get_two);
 begin
 
     p1: process is

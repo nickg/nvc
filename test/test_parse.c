@@ -3639,8 +3639,8 @@ START_TEST(test_vhdl2008)
       { 235, "expected trailing generate statement body label to match FOO" },
       { 252, "expected trailing case generate statement label to match G3" },
       { 267, "signed bit string literal cannot be an empty string" },
-      { 285, "the reserved word INERTIAL can only be used in port map " },
       { 293, "the reserved word INERTIAL can only be used in port map " },
+      { 285, "the reserved word INERTIAL can only be used in port map " },
       { 298, "parameter interface list cannot contain type interface " },
       { 310, "record type T_REC has no field named G" },
       { 312, "record type T_REC has no field named H" },
@@ -6818,11 +6818,14 @@ START_TEST(test_lcs2016_i03)
    input_from_file(TESTDIR "/parse/lcs2016_i03.vhd");
 
    const error_t expect[] = {
+      { 27, "no visible subprogram or enumeration literal X matches" },
       { 27, "a signature is only allowed in a generic formal designator" },
       { 33, "no visible subprogram or enumeration literal F1 matches "
         "signature [return BOOLEAN]" },
+      { 31, "missing actual for generic F1 without a default expression" },
       { 39, "no visible subprogram or enumeration literal G matches "
         "signature [return INTEGER]" },
+      { 37, "missing actual for generic G without a default expression" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -7549,6 +7552,47 @@ START_TEST(test_issue1446)
 }
 END_TEST
 
+START_TEST(test_names6)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/parse/names6.vhd");
+
+   parse_and_check(T_PACKAGE, T_ENTITY, T_ARCH);
+
+   fail_if_errors();
+}
+END_TEST
+
+START_TEST(test_alias6)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/parse/alias6.vhd");
+
+   parse_and_check(T_PACKAGE, T_ENTITY, T_ARCH, T_ENTITY, T_ARCH);
+
+   fail_if_errors();
+}
+END_TEST
+
+START_TEST(test_tc1852)
+{
+   input_from_file(TESTDIR "/parse/tc1852.vhd");
+
+   const error_t expect[] = {
+      { 40, "range left bound does not have a type" },
+      { 40, "invalid use of label SIG" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_ENTITY, T_ARCH);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_parse_tests(void)
 {
    Suite *s = suite_create("parse");
@@ -7744,6 +7788,9 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_osvvm8);
    tcase_add_test(tc_core, test_names5);
    tcase_add_test(tc_core, test_issue1446);
+   tcase_add_test(tc_core, test_names6);
+   tcase_add_test(tc_core, test_alias6);
+   tcase_add_test(tc_core, test_tc1852);
    suite_add_tcase(s, tc_core);
 
    return s;

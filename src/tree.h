@@ -412,7 +412,7 @@ typedef enum {
    TREE_F_GLOBALLY_STATIC = (1 << 1),
    TREE_F_CONTINUATION    = (1 << 2),
    TREE_F_IMPURE          = (1 << 3),
-   TREE_F_CONVERSION      = (1 << 4),
+   // Unused              = (1 << 4),
    TREE_F_POSTPONED       = (1 << 5),
    TREE_F_SHARED          = (1 << 6),
    TREE_F_BUS             = (1 << 7),

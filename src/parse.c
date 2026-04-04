@@ -45,18 +45,6 @@
 #include <float.h>
 #include <inttypes.h>
 
-typedef bool (*look_fn_t)(token_t);
-
-typedef struct {
-   token_t   look[4];
-   token_t   stop[4];
-   token_t   abort;
-   token_t   nest_in;
-   token_t   nest_out;
-   look_fn_t lookfn;
-   int       depth;
-} look_params_t;
-
 typedef A(tree_t) tree_list_t;
 typedef A(type_t) type_list_t;
 
@@ -125,6 +113,7 @@ static void _push_state(const state_t *s);
 #define CURRENT_LOC _diff_loc(&start_loc, &last_loc)
 
 static tree_t p_expression(void);
+static tree_t p_expression_with_head(tree_t head);
 static tree_t p_sequential_statement(void);
 static tree_t p_concurrent_statement(void);
 static tree_t p_package_declaration(tree_t unit);
@@ -267,50 +256,6 @@ static token_t peek_nth(int n)
 
    const int pos = (tokenq_tail + n - 1) & (tokenq_sz - 1);
    return tokenq[pos].token;
-}
-
-static bool look_for(const look_params_t *params)
-{
-   bool found = false;
-   token_t tok = -1;
-   int n, nest = 0;
-   for (n = 1; ;) {
-      tok = peek_nth(n++);
-      if ((tok == tEOF) || (tok == params->abort))
-         goto stop_looking;
-      else if (tok == params->nest_in)
-         nest++;
-
-      if (nest == params->depth) {
-         for (int i = 0; i < ARRAY_LEN(params->look); i++) {
-            if (tok == params->look[i]) {
-               found = true;
-               goto stop_looking;
-            }
-         }
-
-         if (params->lookfn != NULL && (*params->lookfn)(tok)) {
-            found = true;
-            goto stop_looking;
-         }
-
-         for (int i = 0; i < ARRAY_LEN(params->stop); i++) {
-            if (tok == params->stop[i])
-               goto stop_looking;
-         }
-      }
-
-      if (tok == params->nest_out)
-         nest--;
-   }
- stop_looking:
-
-#if WARN_LOOKAHEAD > 0
-   if (n >= WARN_LOOKAHEAD)
-      warn_at(&(tokenq[tokenq_tail].loc), "look ahead depth %d", n);
-#endif
-
-   return found;
 }
 
 static void drop_token(void)
@@ -1702,10 +1647,10 @@ static tree_t fcall_to_conv_func(tree_t value)
 {
    assert(tree_kind(value) == T_FCALL);
 
-   if (!(tree_flags(value) & TREE_F_CONVERSION))
+   if (!tree_has_ref(value))
       return value;
 
-   if (!tree_has_ref(value))
+   if (tree_params(value) != 1)
       return value;
 
    tree_t decl = tree_ref(value);
@@ -3098,15 +3043,24 @@ static tree_t p_slice_name(tree_t prefix, tree_t head)
    return t;
 }
 
-static tree_t p_formal_part(type_t *signature)
+static tree_t p_formal_part(tree_t head, type_t *signature, formal_kind_t kind)
 {
    // formal_designator
    //   | name ( formal_designator )
    //   | type_mark ( formal_designator )
 
-   BEGIN("formal part");
+   BEGIN_WITH_HEAD("formal part", head);
 
-   tree_t name = p_name(0);
+   // 2019 allows signature for generic formal designator
+   if (tree_kind(head) == T_REF && peek() == tLSQUARE) {
+      require_std(STD_19, "signature in generic formal designator");
+      *signature = p_signature();
+      tree_set_loc(head, CURRENT_LOC);
+   }
+
+   tree_t name = head;
+   if (kind != F_SUBPROGRAM)
+      name = solve_types(nametab, name, *signature);
 
    switch (tree_kind(name)) {
    case T_RECORD_REF:
@@ -3116,17 +3070,9 @@ static tree_t p_formal_part(type_t *signature)
       break;
 
    case T_FCALL:
-      if (tree_params(name) == 1)
-         tree_set_flag(name, TREE_F_CONVERSION);
-      break;
+      return fcall_to_conv_func(name);
 
    case T_REF:
-      // 2019 allows signature for generic formal designator
-      if (peek() == tLSQUARE) {
-         require_std(STD_19, "signature in generic formal designator");
-         *signature = p_signature();
-         tree_set_loc(name, CURRENT_LOC);
-      }
       break;
 
    default:
@@ -3137,13 +3083,21 @@ static tree_t p_formal_part(type_t *signature)
    return name;
 }
 
-static tree_t p_actual_part(class_t class, formal_kind_t kind)
+static tree_t p_actual_designator(tree_t head)
 {
-   // actual_designator
-   //   | name ( actual_designator )
-   //   | type_mark ( actual_designator )
+   // [ inertial ] conditional_expression
+   //   | signal_name
+   //   | variable_name
+   //   | file_name
+   //   | subtype_indication
+   //   | subprogram_name
+   //   | instantiated_package_name
+   //   open
 
-   BEGIN("actual part");
+   BEGIN_WITH_HEAD("actual designator", head);
+
+   if (head != NULL)
+      return p_expression_with_head(head);
 
    if (optional(tOPEN)) {
       tree_t t = tree_new(T_OPEN);
@@ -3151,10 +3105,39 @@ static tree_t p_actual_part(class_t class, formal_kind_t kind)
       return t;
    }
 
-   if (class == C_FUNCTION || class == C_PROCEDURE || class == C_PACKAGE)
-      return p_name(N_SUBPROGRAM);
-   else if (class == C_TYPE) {
-      type_t type = p_subtype_indication();
+   if (optional(tINERTIAL)) {
+      require_std(STD_08, "inertial in actual designator");
+
+      tree_t expr = p_expression();
+
+      tree_t w = tree_new(T_INERTIAL);
+      tree_set_ident(w, get_implicit_label(w, nametab));
+      tree_set_loc(w, CURRENT_LOC);
+      tree_set_value(w, expr);
+
+      return w;
+   }
+
+   return p_expression();
+}
+
+static tree_t p_actual_part(class_t class, type_t constraint, tree_t head,
+                            formal_kind_t kind)
+{
+   // actual_designator
+   //   | function_name ( actual_designator )
+   //   | type_mark ( actual_designator )
+
+   BEGIN_WITH_HEAD("actual part", head);
+
+   const bool looking_at_name = scan(tID, tSTRING);
+
+   if (class == C_TYPE) {
+      type_t type;
+      if (head == NULL)
+         type = p_subtype_indication();
+      else
+         type = p_type_mark(head);
 
       tree_t ref = tree_new(T_TYPE_REF);
       tree_set_ident(ref, type_ident(type));
@@ -3162,49 +3145,25 @@ static tree_t p_actual_part(class_t class, formal_kind_t kind)
       tree_set_loc(ref, CURRENT_LOC);
       return ref;
    }
+   else if ((class == C_FUNCTION || class == C_PROCEDURE)
+            && head == NULL && looking_at_name)
+      head = p_name(N_SUBPROGRAM);
 
-   if (optional(tINERTIAL)) {
-      require_std(STD_08, "inertial in actual designator");
-
-      tree_t expr = p_expression();
-
-      if (kind == F_PORT_MAP) {
-         tree_t w = tree_new(T_INERTIAL);
-         tree_set_ident(w, get_implicit_label(w, nametab));
-         tree_set_loc(w, CURRENT_LOC);
-         tree_set_value(w, expr);
-
-         return w;
-      }
-      else {
-         parse_error(CURRENT_LOC, "the reserved word INERTIAL can only be "
-                     "used in port map association elements");
-         return expr;
-      }
-   }
-
-   // If the actual part takes either the second or third form above then the
-   // argument to the function call is the actual designator but only if the
-   // call is to a named function rather than an operator.
-   // This is important for identifying conversion functions later.
-   const token_t next = peek();
-   const bool had_name = (next == tID || next == tSTRING);
-
-   tree_t designator = p_expression();
+   tree_t actual = p_actual_designator(head);
+   if (kind != F_SUBPROGRAM)
+      actual = solve_types(nametab, actual, constraint);
 
    const bool could_be_conversion =
-      had_name
-      && tree_kind(designator) == T_FCALL
-      && tree_params(designator) == 1;
+      (head != NULL || looking_at_name) && tree_kind(actual) == T_FCALL;
 
    if (could_be_conversion)
-      tree_set_flag(designator, TREE_F_CONVERSION);
+      return fcall_to_conv_func(actual);
 
-   return designator;
+   return actual;
 }
 
-static void p_association_element(tree_t map, int pos, tree_t unit,
-                                  formal_kind_t kind)
+static tree_t p_association_element(tree_t unit, int pos, tree_t formal,
+                                    formal_kind_t kind)
 {
    // [ formal_part => ] actual_part
 
@@ -3212,109 +3171,100 @@ static void p_association_element(tree_t map, int pos, tree_t unit,
 
    tree_t p = tree_new(T_PARAM);
 
-   const look_params_t lookp = {
-      .look     = { tASSOC },
-      .stop     = { tCOMMA, tRPAREN },
-      .abort    = tSEMI,
-      .nest_in  = tLPAREN,
-      .nest_out = tRPAREN,
-      .depth    = 0
-   };
-
-   class_t class = C_DEFAULT;
+   bool named = false;
+   tree_t head = NULL;
    type_t type = NULL;
-   if (look_for(&lookp)) {
-      tree_set_subkind(p, P_NAMED);
+   class_t class = C_DEFAULT;
 
-      push_scope_for_formals(nametab, kind, unit);
+   const token_t tok1 = peek(), tok2 = peek_nth(2);
+   if (tok1 == tID || (tok1 == tSTRING && tok2 == tLPAREN) || tok2 == tASSOC) {
+      head = p_name(0);
 
-      type_t signature = NULL;
-      tree_t name = p_formal_part(&signature);
+      if (scan(tASSOC, tLSQUARE)) {
+         push_scope_for_formals(nametab, kind, unit);
 
-      tree_t ref = name_to_ref(name);
-      if (ref != NULL && tree_has_ref(ref)) {
-         tree_t decl = tree_ref(ref);
-         const tree_kind_t kind = tree_kind(decl);
-         if (kind == T_PORT_DECL || kind == T_PARAM_DECL
-             || kind == T_GENERIC_DECL)
-            class = tree_class(decl);
+         type_t signature = NULL;
+         tree_t name = p_formal_part(head, &signature, kind);
+         head = NULL;
+
+         if (signature != NULL && kind != F_GENERIC_MAP)
+            parse_error(tree_loc(name), "a signature is only allowed in a "
+                        "generic formal designator");
+
+         pop_scope(nametab);
+
+         consume(tASSOC);
+
+         tree_t ref = name_to_ref(name);
+         if (ref != NULL && tree_has_ref(ref)) {
+            formal = tree_ref(ref);
+            class = class_of(formal);
+         }
+
+         type = get_type_or_null(name);
+
+         tree_set_subkind(p, P_NAMED);
+         tree_set_name(p, name);
+
+         named = true;
       }
-
-      if (signature != NULL && kind != F_GENERIC_MAP) {
-         parse_error(tree_loc(name), "a signature is only allowed in a "
-                     "generic formal designator");
-         signature = NULL;
-      }
-
-      if (class != C_PACKAGE && (kind == F_GENERIC_MAP || kind == F_PORT_MAP)) {
-         name = solve_types(nametab, name, signature);
-         type = tree_type(name);
-      }
-
-      if (kind == F_PORT_MAP && tree_kind(name) == T_FCALL)
-         name = fcall_to_conv_func(name);
-
-      tree_set_name(p, name);
-
-      pop_scope(nametab);
-
-      consume(tASSOC);
    }
-   else {
+
+   if (!named) {
       tree_set_subkind(p, P_POS);
       tree_set_pos(p, pos);
 
-      tree_t formal = NULL;
-      switch (kind) {
-      case F_GENERIC_MAP:
-         if (unit != NULL && pos < tree_generics(unit))
-            formal = tree_generic(unit, pos);
-         break;
-      case F_PORT_MAP:
-         if (unit != NULL && pos < tree_ports(unit))
-            formal = tree_port(unit, pos);
-         break;
-      default:
-         break;
+      if (formal != NULL) {
+         class = tree_class(formal);
+         type = get_type_or_null(formal);
       }
-
-      if (formal != NULL && (class = tree_class(formal)) != C_PACKAGE)
-         type = tree_type(formal);
    }
 
-   tree_t value = p_actual_part(class, kind);
+   tree_t value = p_actual_part(class, type, head, kind);
 
-   if (kind == F_PORT_MAP)
-      value = solve_types(nametab, value, type);
-   else if (kind == F_GENERIC_MAP) {
-      value = solve_types(nametab, value, type);
-
-      // Make the mapped type available immediately as it may be used in
-      // later actuals
-      if (class == C_TYPE && type != NULL)
-         map_generic_type(nametab, type, tree_type(value));
-   }
-
-   if (kind == F_PORT_MAP && tree_kind(value) == T_FCALL)
-      value = fcall_to_conv_func(value);
+   // Make the mapped type available immediately as it may be used in
+   // later actuals
+   if (class == C_TYPE && type != NULL)
+      map_generic_type(nametab, type, tree_type(value));
 
    tree_set_value(p, value);
    tree_set_loc(p, CURRENT_LOC);
-
-   switch (kind) {
-   case F_GENERIC_MAP:
-      tree_add_genmap(map, p);
-      break;
-   case F_PORT_MAP:
-   case F_SUBPROGRAM:
-      tree_add_param(map, p);
-      break;
-   default:
-      fatal_trace("unexpected formal kind in p_association_element");
-   }
+   return p;
 }
 
-static void p_association_list(tree_t map, tree_t unit, formal_kind_t kind)
+static void p_port_association_list(tree_t map, tree_t unit)
+{
+   // association_element { , association_element }
+
+   BEGIN("association list");
+
+   const int nports = unit == NULL ? 0 : tree_ports(unit);
+
+   int pos = 0;
+   do {
+      tree_t p = pos < nports ? tree_port(unit, pos) : NULL;
+      tree_t elem = p_association_element(unit, pos++, p, F_PORT_MAP);
+      tree_add_param(map, elem);
+   } while (optional(tCOMMA));
+}
+
+static void p_generic_association_list(tree_t map, tree_t unit)
+{
+   // association_element { , association_element }
+
+   BEGIN("association list");
+
+   const int ngenerics = unit == NULL ? 0 : tree_generics(unit);
+
+   int pos = 0;
+   do {
+      tree_t g = pos < ngenerics ? tree_generic(unit, pos) : NULL;
+      tree_t elem = p_association_element(unit, pos++, g, F_GENERIC_MAP);
+      tree_add_genmap(map, elem);
+   } while (optional(tCOMMA));
+}
+
+static void p_parameter_association_list(tree_t call)
 {
    // association_element { , association_element }
 
@@ -3322,7 +3272,8 @@ static void p_association_list(tree_t map, tree_t unit, formal_kind_t kind)
 
    int pos = 0;
    do {
-      p_association_element(map, pos++, unit, kind);
+      tree_t elem = p_association_element(NULL, pos++, NULL, F_SUBPROGRAM);
+      tree_add_param(call, elem);
    } while (optional(tCOMMA));
 }
 
@@ -3332,7 +3283,7 @@ static void p_actual_parameter_part(tree_t call)
 
    BEGIN("actual parameter part");
 
-   p_association_list(call, call, F_SUBPROGRAM);
+   p_parameter_association_list(call);
 }
 
 static void p_parameter_map_aspect(tree_t call)
@@ -3348,7 +3299,7 @@ static void p_parameter_map_aspect(tree_t call)
 
    consume(tLPAREN);
 
-   p_association_list(call, call, F_SUBPROGRAM);
+   p_parameter_association_list(call);
 
    consume(tRPAREN);
 }
@@ -3588,7 +3539,7 @@ static tree_t p_type_conversion(tree_t prefix)
 
    tree_t conv = tree_new(T_TYPE_CONV);
    tree_set_type(conv, type);
-   tree_set_value(conv, solve_types(nametab, value, NULL));
+   tree_set_value(conv, value);
 
    consume(tRPAREN);
 
@@ -3825,11 +3776,6 @@ static tree_t p_name(name_mask_t stop_mask)
 
       if (mask & stop_mask)
          return prefix;
-
-      if (!(mask & N_FUNC) && scope_formal_kind(nametab) == F_SUBPROGRAM) {
-         // Assume that A in F(A(N) => ...) is a parameter name
-         mask |= N_OBJECT;
-      }
 
       const tree_kind_t prefix_kind = tree_kind(prefix);
 
@@ -5770,7 +5716,7 @@ static void p_interface_package_generic_map_aspect(tree_t map, tree_t pack)
 
    default:
       tree_set_subkind(map, PACKAGE_MAP_MATCHING);
-      p_association_list(map, pack, F_GENERIC_MAP);
+      p_generic_association_list(map, pack);
       break;
    }
 
@@ -8970,7 +8916,7 @@ static void p_port_map_aspect(tree_t inst, tree_t unit)
    consume(tMAP);
    consume(tLPAREN);
 
-   p_association_list(inst, unit, F_PORT_MAP);
+   p_port_association_list(inst, unit);
 
    consume(tRPAREN);
 }
@@ -8985,7 +8931,7 @@ static void p_generic_map_aspect(tree_t inst, tree_t unit)
    consume(tMAP);
    consume(tLPAREN);
 
-   p_association_list(inst, unit, F_GENERIC_MAP);
+   p_generic_association_list(inst, unit);
 
    consume(tRPAREN);
 }

@@ -3180,6 +3180,10 @@ static bool sem_check_call_args(tree_t t, tree_t decl, nametab_t *tab)
          sem_error(value, "type of actual %pT does not match formal %pI "
                    "type %pT", tree_type(value), tree_ident(port), port_type);
 
+      if (tree_kind(value) == T_INERTIAL)
+         sem_error(value, "the reserved word INERTIAL can only be "
+                   "used in port map association elements");
+
       // LRM 08 sections 4.2.2.2 and 4.2.2.3
       if (class == C_VARIABLE || class == C_SIGNAL) {
          tree_t decl = sem_check_lvalue(value);
@@ -5107,6 +5111,10 @@ static bool sem_check_generic_actual(formal_map_t *formals, int nformals,
                 "be associated with OPEN", istr(tree_ident(decl)));
    else if (is_open)
       return true;   // No further checking
+
+   if (tree_kind(value) == T_INERTIAL)
+      sem_error(value, "the reserved word INERTIAL can only be "
+                "used in port map association elements");
 
    switch (tree_class(decl)) {
    case C_TYPE:
