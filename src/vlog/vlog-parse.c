@@ -40,11 +40,6 @@ static vlog_node_t      atom_types[DT_BIT + 1];
 
 extern loc_t yylloc;
 
-#define parse_error(loc, ...) do {              \
-      if (state.n_correct >= RECOVER_THRESH)    \
-         error_at((loc), __VA_ARGS__);          \
-   } while (0)
-
 #if TRACE_PARSE
 static void _push_state(const rule_state_t *s);
 #else
@@ -62,8 +57,6 @@ static void _push_state(const rule_state_t *s);
    state.start_loc = (t) ? *vlog_loc(t) : LOC_INVALID;   \
 
 #define BEGIN(s)  BEGIN_WITH_HEAD(s, NULL)
-
-#define CURRENT_LOC _diff_loc(&state.start_loc, &state.last_loc)
 
 static vlog_node_t p_statement_or_null(void);
 static vlog_node_t p_expression(void);

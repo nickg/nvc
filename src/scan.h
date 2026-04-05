@@ -90,6 +90,13 @@ typedef struct {
 #define not_at_token(...) ((peek() != tEOF) && !_scan(1, __VA_ARGS__, -1))
 #define peek() peek_nth(1)
 
+#define CURRENT_LOC _diff_loc(&state.start_loc, &state.last_loc)
+
+#define parse_error(loc, ...) do {              \
+      if (state.n_correct >= RECOVER_THRESH)    \
+         error_at((loc), __VA_ARGS__);          \
+   } while (0)
+
 void input_from_file(const char *file);
 void input_from_buffer(const char *buf, size_t len, file_ref_t file_ref,
                        hdl_kind_t hdl);

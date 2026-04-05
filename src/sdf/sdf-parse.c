@@ -37,11 +37,6 @@ static sdf_file_t *sdf_file = NULL;
 
 static parse_state_t state;
 
-#define parse_error(loc, ...) do {              \
-      if (state.n_correct >= RECOVER_THRESH)    \
-         error_at((loc), __VA_ARGS__);          \
-   } while (0)
-
 #if TRACE_PARSE
 static void _push_state(const rule_state_t *s);
 #else
