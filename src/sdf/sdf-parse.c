@@ -18,6 +18,7 @@
 #include "util.h"
 #include "diag.h"
 #include "ident.h"
+#include "parse.h"
 #include "scan.h"
 #include "sdf/sdf-phase.h"
 #include "sdf/sdf-util.h"
@@ -37,205 +38,9 @@ static sdf_file_t *sdf_file = NULL;
 
 static parse_state_t state;
 
-#if TRACE_PARSE
-static void _push_state(const rule_state_t *s);
-#else
-#define _push_state(s)
-#endif
-
-#define EXTEND(s)                                                      \
-   __attribute__((cleanup(_pop_state), unused))                        \
-   const rule_state_t _state = { state.hint_str, state.start_loc };    \
-   state.hint_str = s;                                                 \
-   _push_state(&_state);
-
 #define BEGIN(s)                                         \
    EXTEND(s);                                            \
    state.start_loc = LOC_INVALID;                        \
-
-static inline void _pop_state(const rule_state_t *r)
-{
-#if TRACE_PARSE
-   printf("%*s<-- %s\n", state.depth--, "", state.hint_str);
-#endif
-
-   state.hint_str = r->old_hint;
-
-   if (r->old_start_loc.first_line != LINE_INVALID)
-      state.start_loc = r->old_start_loc;
-}
-
-#if TRACE_PARSE
-static inline void _push_state(const rule_state_t *r)
-{
-   printf("%*s--> %s\n", state.depth++, "", state.hint_str);
-}
-#endif
-
-static token_t peek_nth(int n)
-{
-   while (((state.tokenq_head - state.tokenq_tail) & (TOKENQ_SIZE - 1)) < n) {
-      const token_t token = processed_yylex();
-
-      int next = (state.tokenq_head + 1) & (TOKENQ_SIZE - 1);
-      assert(next != state.tokenq_tail);
-
-      extern yylval_t yylval;
-
-      state.tokenq[state.tokenq_head].token = token;
-      state.tokenq[state.tokenq_head].lval  = yylval;
-      state.tokenq[state.tokenq_head].loc   = yylloc;
-
-      state.tokenq_head = next;
-   }
-
-   const int pos = (state.tokenq_tail + n - 1) & (TOKENQ_SIZE - 1);
-   return state.tokenq[pos].token;
-}
-
-static void drop_token(void)
-{
-   assert(state.tokenq_head != state.tokenq_tail);
-
-   if (state.start_loc.first_line == LINE_INVALID)
-      state.start_loc = state.tokenq[state.tokenq_tail].loc;
-
-   state.last_lval = state.tokenq[state.tokenq_tail].lval;
-   state.last_loc  = state.tokenq[state.tokenq_tail].loc;
-
-   state.tokenq_tail = (state.tokenq_tail + 1) & (TOKENQ_SIZE - 1);
-
-   state.nopt_hist = 0;
-}
-
-static void _vexpect(va_list ap)
-{
-   if (state.n_correct >= RECOVER_THRESH) {
-      diag_t *d = diag_new(DIAG_ERROR, &(state.tokenq[state.tokenq_tail].loc));
-      diag_printf(d, "unexpected $yellow$%s$$ while parsing %s, expecting ",
-                  token_str(peek()), state.hint_str);
-
-      bool first = true;
-      for (int i = 0; i < state.nopt_hist; i++) {
-         diag_printf(d, "%s$yellow$%s$$", i == 0 ? "one of " : ", ",
-                     token_str(state.opt_hist[i]));
-         first = false;
-      }
-
-      int tok = va_arg(ap, int);
-      while (tok != -1) {
-         const int tmp = tok;
-         tok = va_arg(ap, int);
-
-         if (first && (tok != -1))
-            diag_printf(d, "one of ");
-         else if (!first)
-            diag_printf(d, (tok == -1) ? " or " : ", ");
-
-         diag_printf(d, "$yellow$%s$$", token_str(tmp));
-
-         first = false;
-      }
-
-      diag_hint(d, &(state.tokenq[state.tokenq_tail].loc),
-                "this token was unexpected");
-      diag_emit(d);
-   }
-
-   state.n_correct = 0;
-
-   drop_token();
-}
-
-static void _expect(int dummy, ...)
-{
-   va_list ap;
-   va_start(ap, dummy);
-   _vexpect(ap);
-   va_end(ap);
-}
-
-static bool consume(token_t tok)
-{
-   const token_t got = peek();
-   if (tok != got) {
-      expect(tok);
-      return false;
-   }
-   else {
-      state.n_correct++;
-      drop_token();
-      return true;
-   }
-}
-
-static bool optional(token_t tok)
-{
-   if (peek() == tok) {
-      consume(tok);
-      return true;
-   }
-   else {
-      if (state.nopt_hist < ARRAY_LEN(state.opt_hist))
-         state.opt_hist[state.nopt_hist++] = tok;
-      return false;
-   }
-}
-
-static bool _scan(int dummy, ...)
-{
-   va_list ap;
-   va_start(ap, dummy);
-
-   token_t p = peek();
-   bool found = false;
-
-   while (!found) {
-      const int tok = va_arg(ap, token_t);
-      if (tok == -1)
-         break;
-      else if (p == tok)
-         found = true;
-   }
-
-   va_end(ap);
-   return found;
-}
-
-static int _one_of(int dummy, ...)
-{
-   va_list ap;
-   va_start(ap, dummy);
-
-   token_t p = peek();
-   bool found = false;
-
-   while (!found) {
-      const int tok = va_arg(ap, token_t);
-      if (tok == -1)
-         break;
-      else if (p == tok)
-         found = true;
-   }
-
-   va_end(ap);
-
-   if (found) {
-      consume(p);
-      return p;
-   }
-   else {
-      va_start(ap, dummy);
-      _vexpect(ap);
-      va_end(ap);
-
-      return -1;
-   }
-}
-
-///////////////////////////////////////////////////////////////////////////////
-// VLOG copy-paste ends here!
-///////////////////////////////////////////////////////////////////////////////
 
 #define PARSE_MIN_DELAYS      (!!(sdf_file->min_max_spec & S_F_MIN_VALUES))
 #define PARSE_TYP_DELAYS      (!!(sdf_file->min_max_spec & S_F_TYP_VALUES))
@@ -2271,5 +2076,7 @@ sdf_file_t *sdf_parse(const char *file, sdf_flags_t min_max_spec)
 
 void reset_sdf_parser(void)
 {
+   state.n_correct = RECOVER_THRESH;
    state.tokenq_head = state.tokenq_tail = 0;
+   state.lex_fn = processed_yylex;
 }

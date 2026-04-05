@@ -57,7 +57,8 @@ lib_libnvc_a_SOURCES = \
 	src/inst.c \
 	src/printf.h \
 	src/printf.c \
-	src/reheat.c
+	src/reheat.c \
+	src/parse.h
 
 bin_nvc_SOURCES = src/nvc.c
 

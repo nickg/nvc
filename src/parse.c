@@ -25,6 +25,7 @@
 #include "names.h"
 #include "object.h"
 #include "option.h"
+#include "parse.h"
 #include "phase.h"
 #include "printf.h"
 #include "psl/psl-node.h"
@@ -69,18 +70,6 @@ extern loc_t yylloc;
 #define STD(x, y) (standard() >= (STD_##x) ? y : -1)
 
 typedef void (*add_func_t)(tree_t, tree_t);
-
-#if TRACE_PARSE
-static void _push_state(const rule_state_t *s);
-#else
-#define _push_state(s)
-#endif
-
-#define EXTEND(s)                                                      \
-   __attribute__((cleanup(_pop_state), unused))                        \
-   const rule_state_t _state = { state.hint_str, state.start_loc };    \
-   state.hint_str = s;                                                 \
-   _push_state(&_state);
 
 #define BEGIN_WITH_HEAD(s, t)                           \
    EXTEND(s);                                           \
@@ -133,26 +122,247 @@ static psl_node_t p_hdl_expression(tree_t head, psl_type_t type);
 static psl_node_t p_psl_builtin_function_call(void);
 static psl_node_t p_psl_union(tree_t head);
 
-static bool consume(token_t tok);
-static bool optional(token_t tok);
 static type_t get_element_subtype(tree_t expr);
 
-static void _pop_state(const rule_state_t *s)
+////////////////////////////////////////////////////////////////////////////////
+// Shared parser functions
+
+token_t parse_peek_nth(parse_state_t *state, int n)
 {
-#if TRACE_PARSE
-   printf("%*s<-- %s\n", state.depth--, "", hint_str);
+   while (((state->tokenq_head - state->tokenq_tail) & (TOKENQ_SIZE - 1)) < n) {
+      const token_t token = (*state->lex_fn)();
+
+      int next = (state->tokenq_head + 1) & (TOKENQ_SIZE - 1);
+      assert(next != state->tokenq_tail);
+
+      extern yylval_t yylval;
+      state->tokenq[state->tokenq_head] = (tokenq_t){ token, yylval, yylloc };
+      state->tokenq_head = next;
+   }
+
+   const int pos = (state->tokenq_tail + n - 1) & (TOKENQ_SIZE - 1);
+   return state->tokenq[pos].token;
+}
+
+void drop_token(parse_state_t *state)
+{
+   assert(state->tokenq_head != state->tokenq_tail);
+
+   if (state->start_loc.first_line == LINE_INVALID)
+      state->start_loc = state->tokenq[state->tokenq_tail].loc;
+
+   state->last_lval = state->tokenq[state->tokenq_tail].lval;
+   state->last_loc  = state->tokenq[state->tokenq_tail].loc;
+
+   state->tokenq_tail = (state->tokenq_tail + 1) & (TOKENQ_SIZE - 1);
+
+   state->nopt_hist = 0;
+}
+
+void drop_tokens_until(parse_state_t *state, token_t tok)
+{
+   token_t next = tEOF;
+   do {
+      free_token(tok, &state->last_lval);
+      next = parse_peek_nth(state, 1);
+      drop_token(state);
+   } while (tok != next && next != tEOF);
+
+#if TRACE_RECOVERY
+   if (parse_peek_nth(state, 1) != tEOF)
+      fmt_loc(stdout, &(state->tokenq[state->tokenq_tail].loc));
 #endif
-   state.hint_str = s->old_hint;
-   if (s->old_start_loc.first_line != LINE_INVALID)
-      state.start_loc = s->old_start_loc;
+}
+
+void parse_vexpect(parse_state_t *state, va_list ap)
+{
+   if (state->n_correct >= RECOVER_THRESH) {
+      tokenq_t tail = state->tokenq[state->tokenq_tail];
+      diag_t *d = diag_new(DIAG_ERROR, &(tail.loc));
+      diag_printf(d, "unexpected $yellow$%s$$ while parsing %s, expecting ",
+                  token_str(tail.token), state->hint_str);
+
+      bool first = true;
+      for (int i = 0; i < state->nopt_hist; i++) {
+         diag_printf(d, "%s$yellow$%s$$", i == 0 ? "one of " : ", ",
+                     token_str(state->opt_hist[i]));
+         first = false;
+      }
+
+      int tok = va_arg(ap, int);
+      while (tok != -1) {
+         const int tmp = tok;
+         tok = va_arg(ap, int);
+
+         if (first && (tok != -1))
+            diag_printf(d, "one of ");
+         else if (!first)
+            diag_printf(d, (tok == -1) ? " or " : ", ");
+
+         diag_printf(d, "$yellow$%s$$", token_str(tmp));
+
+         first = false;
+      }
+
+      diag_hint(d, &(state->tokenq[state->tokenq_tail].loc),
+                "this token was unexpected");
+      diag_emit(d);
+   }
+
+   state->n_correct = 0;
+
+   drop_token(state);
+
+   if (state->error_fn != NULL)
+      (*state->error_fn)();
+}
+
+void parse_expect(parse_state_t *state, ...)
+{
+   va_list ap;
+   va_start(ap, state);
+   parse_vexpect(state, ap);
+   va_end(ap);
+}
+
+bool parse_consume(parse_state_t *state, token_t tok)
+{
+   const token_t got = parse_peek_nth(state, 1);
+   if (tok != got) {
+      parse_expect(state, tok, -1);
+      return false;
+   }
+   else {
+      state->n_correct++;
+      drop_token(state);
+      return true;
+   }
+}
+
+bool parse_optional(parse_state_t *state, token_t tok)
+{
+   if (parse_peek_nth(state, 1) == tok) {
+      state->n_correct++;
+      drop_token(state);
+      return true;
+   }
+   else {
+      if (state->nopt_hist < ARRAY_LEN(state->opt_hist))
+         state->opt_hist[state->nopt_hist++] = tok;
+      return false;
+   }
+}
+
+bool parse_scan(parse_state_t *state, ...)
+{
+   va_list ap;
+   va_start(ap, state);
+
+   token_t p = parse_peek_nth(state, 1);
+   bool found = false;
+
+   while (!found) {
+      const int tok = va_arg(ap, token_t);
+      if (tok == -1)
+         break;
+      else if (p == tok)
+         found = true;
+   }
+
+   va_end(ap);
+   return found;
+}
+
+token_t parse_one_of(parse_state_t *state, ...)
+{
+   va_list ap;
+   va_start(ap, state);
+
+   token_t p = parse_peek_nth(state, 1);
+   bool found = false;
+
+   while (!found) {
+      const int tok = va_arg(ap, token_t);
+      if (tok == -1)
+         break;
+      else if (p == tok)
+         found = true;
+   }
+
+   va_end(ap);
+
+   if (found) {
+      state->n_correct++;
+      drop_token(state);
+      return p;
+   }
+   else {
+      va_start(ap, state);
+      parse_vexpect(state, ap);
+      va_end(ap);
+      return -1;
+   }
+}
+
+bool parse_not_at_token(parse_state_t *state, ...)
+{
+   va_list ap;
+   va_start(ap, state);
+
+   token_t p = parse_peek_nth(state, 1);
+   if (p == tEOF)
+      return false;
+
+   for (;;) {
+      const int tok = va_arg(ap, token_t);
+      if (tok == -1)
+         break;
+      else if (p == tok)
+         return false;
+   }
+
+   va_end(ap);
+   return true;
+}
+
+const loc_t *parse_current_loc(parse_state_t *state)
+{
+   const loc_t *start = &state->start_loc, *end = &state->last_loc;
+
+   static loc_t result;
+   result = get_loc(start->first_line,
+                    start->first_column,
+                    end->first_line + end->line_delta,
+                    end->first_column + end->column_delta,
+                    start->file_ref);
+   return &result;
 }
 
 #if TRACE_PARSE
-static void _push_state(const rule_state_t *s)
+static void parse_trace(parse_state_t *state, int depth, const char *arrow)
 {
-   printf("%*s--> %s\n", state.depth++, "", state.hint_str);
+   const int col = 100 + (depth % 132);
+   char buf[128];
+   checked_sprintf(buf, sizeof(buf), "$!#%d$%*s%s %s$$\n", col, depth, "",
+                   arrow, state->hint_str);
+   nvc_printf(buf, "");
+}
+
+void parse_trace_in(parse_state_t *state)
+{
+   parse_trace(state, state->depth, "-->");
+   state->depth++;
+}
+
+void parse_trace_out(parse_state_t *state)
+{
+   assert(state->depth > 0);
+   state->depth--;
+   parse_trace(state, state->depth, "<--");
 }
 #endif
+
+////////////////////////////////////////////////////////////////////////////////
 
 static void skip_pragma(pragma_kind_t kind)
 {
@@ -196,193 +406,9 @@ static token_t wrapped_yylex(void)
    }
 }
 
-static token_t peek_nth(int n)
+static void vhdl_parse_error_cb(void)
 {
-   while (((state.tokenq_head - state.tokenq_tail) & (TOKENQ_SIZE - 1)) < n) {
-      const token_t token = wrapped_yylex();
-
-      int next = (state.tokenq_head + 1) & (TOKENQ_SIZE - 1);
-      assert(next != state.tokenq_tail);
-
-      extern yylval_t yylval;
-
-      state.tokenq[state.tokenq_head].token = token;
-      state.tokenq[state.tokenq_head].lval  = yylval;
-      state.tokenq[state.tokenq_head].loc   = yylloc;
-
-      state.tokenq_head = next;
-   }
-
-   const int pos = (state.tokenq_tail + n - 1) & (TOKENQ_SIZE - 1);
-   return state.tokenq[pos].token;
-}
-
-static void drop_token(void)
-{
-   assert(state.tokenq_head != state.tokenq_tail);
-
-   if (state.start_loc.first_line == LINE_INVALID)
-      state.start_loc = state.tokenq[state.tokenq_tail].loc;
-
-   state.last_lval = state.tokenq[state.tokenq_tail].lval;
-   state.last_loc  = state.tokenq[state.tokenq_tail].loc;
-
-   state.tokenq_tail = (state.tokenq_tail + 1) & (TOKENQ_SIZE - 1);
-
-   state.nopt_hist = 0;
-}
-
-static void drop_tokens_until(token_t tok)
-{
-   token_t next = tEOF;
-   do {
-      free_token(tok, &state.last_lval);
-      next = peek();
-      drop_token();
-   } while ((tok != next) && (next != tEOF));
-
-#if TRACE_RECOVERY
-   if (peek() != tEOF)
-      fmt_loc(stdout, &(tokenq[tokenq_tail].loc));
-#endif
-}
-
-static void _vexpect(va_list ap)
-{
-   if (state.n_correct >= RECOVER_THRESH) {
-      diag_t *d = diag_new(DIAG_ERROR, &(state.tokenq[state.tokenq_tail].loc));
-      diag_printf(d, "unexpected $yellow$%s$$ while parsing %s, expecting ",
-                  token_str(peek()), state.hint_str);
-
-      bool first = true;
-      for (int i = 0; i < state.nopt_hist; i++) {
-         diag_printf(d, "%s$yellow$%s$$", i == 0 ? "one of " : ", ",
-                     token_str(state.opt_hist[i]));
-         first = false;
-      }
-
-      int tok = va_arg(ap, int);
-      while (tok != -1) {
-         const int tmp = tok;
-         tok = va_arg(ap, int);
-
-         if (first && (tok != -1))
-            diag_printf(d, "one of ");
-         else if (!first)
-            diag_printf(d, (tok == -1) ? " or " : ", ");
-
-         diag_printf(d, "$yellow$%s$$", token_str(tmp));
-
-         first = false;
-      }
-
-      diag_hint(d, &(state.tokenq[state.tokenq_tail].loc),
-                "this token was unexpected");
-      diag_emit(d);
-   }
-
-   state.n_correct = 0;
-
-   drop_token();
    suppress_errors(nametab);
-}
-
-static void _expect(int dummy, ...)
-{
-   va_list ap;
-   va_start(ap, dummy);
-   _vexpect(ap);
-   va_end(ap);
-}
-
-static bool consume(token_t tok)
-{
-   const token_t got = peek();
-   if (tok != got) {
-      expect(tok);
-      return false;
-   }
-   else {
-      state.n_correct++;
-      drop_token();
-      return true;
-   }
-}
-
-static bool optional(token_t tok)
-{
-   if (peek() == tok) {
-      consume(tok);
-      return true;
-   }
-   else {
-      if (state.nopt_hist < ARRAY_LEN(state.opt_hist))
-         state.opt_hist[state.nopt_hist++] = tok;
-      return false;
-   }
-}
-
-static bool _scan(int dummy, ...)
-{
-   va_list ap;
-   va_start(ap, dummy);
-
-   token_t p = peek();
-   bool found = false;
-
-   while (!found) {
-      const int tok = va_arg(ap, token_t);
-      if (tok == -1)
-         break;
-      else if (p == tok)
-         found = true;
-   }
-
-   va_end(ap);
-   return found;
-}
-
-static int _one_of(int dummy, ...)
-{
-   va_list ap;
-   va_start(ap, dummy);
-
-   token_t p = peek();
-   bool found = false;
-
-   while (!found) {
-      const int tok = va_arg(ap, token_t);
-      if (tok == -1)
-         break;
-      else if (p == tok)
-         found = true;
-   }
-
-   va_end(ap);
-
-   if (found) {
-      consume(p);
-      return p;
-   }
-   else {
-      va_start(ap, dummy);
-      _vexpect(ap);
-      va_end(ap);
-
-      return -1;
-   }
-}
-
-static const loc_t *_diff_loc(const loc_t *start, const loc_t *end)
-{
-   static loc_t result;
-
-   result = get_loc(start->first_line,
-                    start->first_column,
-                    end->first_line + end->line_delta,
-                    end->first_column + end->column_delta,
-                    start->file_ref);
-   return &result;
 }
 
 static tree_t error_expr(void)
@@ -4465,7 +4491,7 @@ static tree_t p_aggregate_or_expression(void)
 
    default:
       expect(tRPAREN, tASSOC, tCOMMA, tTO, tDOWNTO, tBAR);
-      drop_tokens_until(tRPAREN);
+      drop_tokens_until(&state, tRPAREN);
       return head;
    }
 }
@@ -7365,7 +7391,7 @@ static void p_alias_declaration(tree_t parent)
    if (peek() == tLPAREN) {
       parse_error(tree_loc(value), "name cannot be indexed or sliced");
       tree_set_type(t, type_new(T_NONE));
-      drop_tokens_until(tRPAREN);
+      drop_tokens_until(&state, tRPAREN);
    }
 
    bool nonobject_alias = false, type_alias = false;
@@ -7997,7 +8023,7 @@ static tree_t p_mode_view_declaration(void)
    else {
       parse_error(CURRENT_LOC, "subtype indication of a mode view declaration "
                   "must denote a record type");
-      drop_tokens_until(tEND);
+      drop_tokens_until(&state, tEND);
    }
 
    consume(tVIEW);
@@ -8955,7 +8981,7 @@ static tree_t p_binding_indication(tree_t comp)
          consume(tGENERIC);
          parse_error(CURRENT_LOC, "sorry, binding indication with generic map "
                      "aspect and OPEN entity aspect is not yet supported");
-         drop_tokens_until(tRPAREN);
+         drop_tokens_until(&state, tRPAREN);
       }
       else
          p_generic_map_aspect(bind, unit);
@@ -8966,7 +8992,7 @@ static tree_t p_binding_indication(tree_t comp)
          consume(tPORT);
          parse_error(CURRENT_LOC, "sorry, binding indication with port map "
                      "aspect and OPEN entity aspect is not yet supported");
-         drop_tokens_until(tRPAREN);
+         drop_tokens_until(&state, tRPAREN);
       }
       else
          p_port_map_aspect(bind, unit);
@@ -10262,7 +10288,7 @@ static tree_t p_procedure_call_statement(ident_t label, tree_t name)
       call = tree_new(T_PCALL);
       tree_set_ident2(call, error_marker());
       set_label_and_loc(call, label, CURRENT_LOC);
-      drop_tokens_until(tSEMI);
+      drop_tokens_until(&state, tSEMI);
       return call;
    }
 
@@ -10517,7 +10543,7 @@ static tree_t p_sequential_statement(void)
    default:
       expect(tWAIT, tID, tASSERT, tREPORT, tIF, tNULL, tRETURN, tCASE, tWHILE,
              tFOR, tLOOP, tEXIT, tNEXT, tWITH, tLTLT, tLPAREN, tBLOCK);
-      drop_tokens_until(tSEMI);
+      drop_tokens_until(&state, tSEMI);
       return tree_new(T_NULL);
    }
 
@@ -10538,7 +10564,7 @@ static tree_t p_sequential_statement(void)
 
    default:
       expect(tWALRUS, tLE, tSEMI);
-      drop_tokens_until(tSEMI);
+      drop_tokens_until(&state, tSEMI);
       return tree_new(T_NULL);
    }
 }
@@ -10882,7 +10908,7 @@ static tree_t p_concurrent_procedure_call_statement(ident_t label, tree_t name)
    else if ((call = resolve_pcall(nametab, name)) == NULL) {
       parse_error(tree_loc(name), "invalid procedure call");
       call = tree_new(T_PCALL);
-      drop_tokens_until(tSEMI);
+      drop_tokens_until(&state, tSEMI);
       return call;
    }
 
@@ -11294,7 +11320,7 @@ static tree_t p_generate_statement(ident_t label)
       return p_case_generate_statement(label);
    default:
       expect(tFOR, tIF, tCASE);
-      drop_tokens_until(tSEMI);
+      drop_tokens_until(&state, tSEMI);
       return ensure_labelled(tree_new(T_BLOCK), label);
    }
 }
@@ -13135,7 +13161,7 @@ static tree_t p_concurrent_statement(void)
                   return p_concurrent_procedure_call_statement(label, name);
                default:
                   parse_error(CURRENT_LOC, "expected concurrent statement");
-                  drop_tokens_until(tSEMI);
+                  drop_tokens_until(&state, tSEMI);
                   return ensure_labelled(tree_new(T_CONCURRENT), label);
                }
             }
@@ -13168,7 +13194,7 @@ static tree_t p_concurrent_statement(void)
       expect(tPROCESS, tPOSTPONED, tCOMPONENT, tENTITY, tCONFIGURATION,
              tWITH, tASSERT, tBLOCK, tIF, tFOR, tCASE, tLPAREN, tID,
              STD(08, tLTLT));
-      drop_tokens_until(tSEMI);
+      drop_tokens_until(&state, tSEMI);
       return ensure_labelled(tree_new(T_BLOCK), label);
    }
 }
@@ -13611,6 +13637,8 @@ void reset_vhdl_parser(void)
 {
    bootstrapping = opt_get_int(OPT_BOOTSTRAP);
 
+   state.n_correct = RECOVER_THRESH;
    state.tokenq_head = state.tokenq_tail = 0;
-   //   state.lex_fn = wrapped_yylex;
+   state.lex_fn = wrapped_yylex;
+   state.error_fn = vhdl_parse_error_cb;
 }
