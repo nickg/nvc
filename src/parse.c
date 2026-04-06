@@ -3165,9 +3165,18 @@ static tree_t p_association_element(tree_t unit, int pos, tree_t formal,
    tree_t head = NULL;
    type_t type = NULL;
    class_t class = C_DEFAULT;
+   if (formal != NULL) {
+      class = tree_class(formal);
+      type = get_type_or_null(formal);
+   }
 
    const token_t tok1 = peek(), tok2 = peek_nth(2);
-   if (tok1 == tID || (tok1 == tSTRING && tok2 == tLPAREN) || tok2 == tASSOC) {
+   const bool maybe_named =
+      (class != C_TYPE && tok1 == tID)
+      || (tok1 == tSTRING && tok2 == tLPAREN)
+      || tok2 == tASSOC;
+
+   if (maybe_named) {
       head = p_name(0);
 
       if (scan(tASSOC, tLSQUARE)) {
@@ -3190,6 +3199,10 @@ static tree_t p_association_element(tree_t unit, int pos, tree_t formal,
             formal = tree_ref(ref);
             class = class_of(formal);
          }
+         else {
+            formal = NULL;
+            class = C_DEFAULT;
+         }
 
          type = get_type_or_null(name);
 
@@ -3203,11 +3216,6 @@ static tree_t p_association_element(tree_t unit, int pos, tree_t formal,
    if (!named) {
       tree_set_subkind(p, P_POS);
       tree_set_pos(p, pos);
-
-      if (formal != NULL) {
-         class = tree_class(formal);
-         type = get_type_or_null(formal);
-      }
    }
 
    tree_t value = p_actual_part(class, type, head, kind);
