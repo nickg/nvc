@@ -8,6 +8,7 @@
 - Optimisations for elaborating large Verilog netlists (#1461).
 - Verilog modules in mixed language simulations are now present in VHPI
   using the vendor-specific `vhpiVerilogModuleK` class (#1473).
+- The Verilog preprocessor now supports macros with arguments (#1402).
 - Several other minor bugs were resolved (#1453, #1460, #1466, #1469).
 
 ## Version 1.19.3 - 2026-03-08

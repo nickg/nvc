@@ -1561,6 +1561,38 @@ START_TEST(test_pp7)
 }
 END_TEST
 
+START_TEST(test_pp8)
+{
+   input_from_file(TESTDIR "/vlog/pp8.v");
+
+   const error_t expect[] = {
+      {  7, "macro 'add' requires exactly 2 arguments" },
+      {  8, "macro 'baz' undefined" },
+      { 10, "macro 'foo' requires exactly 1 arguments" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   LOCAL_TEXT_BUF tb = tb_new();
+   vlog_preprocess(tb, false);
+
+   ck_assert_str_eq(
+      tb_get(tb),
+      "\n"
+      "((1) + (2))\n"
+      "hello\n"
+      "\n"
+      "assert(x == y);\n"
+      "(((1 + 2)) + (ident))\n"
+      "((1) + (y)) // Error\n"
+      "(4, 5, 6) // Warning\n"
+      "\n"
+      " // Error\n");
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_vlog_tests(void)
 {
    Suite *s = suite_create("vlog");
@@ -1620,6 +1652,7 @@ Suite *get_vlog_tests(void)
    tcase_add_test(tc, test_simp1);
    tcase_add_test(tc, test_lower1);
    tcase_add_test(tc, test_pp7);
+   tcase_add_test(tc, test_pp8);
    suite_add_tcase(s, tc);
 
    return s;

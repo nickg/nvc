@@ -16,6 +16,7 @@
 //
 
 #include "util.h"
+#include "array.h"
 #include "hash.h"
 #include "ident.h"
 #include "option.h"
@@ -39,10 +40,15 @@ struct _ifdef_stack {
    bool           cond;
 };
 
+typedef A(ident_t) arg_list_t;
+
 typedef struct {
    ident_t     name;
    loc_t       loc;
    text_buf_t *text;
+   arg_list_t  args;
+   bool        has_args;
+   bool        error;
 } macro_t;
 
 typedef enum {
@@ -55,6 +61,7 @@ static ifdef_stack_t *ifdefs = NULL;
 static bool           emit_locs;
 static pp_mode_t      mode;
 static parse_state_t  state;
+static hash_t        *macro_args = NULL;
 
 extern loc_t yylloc;
 extern yylval_t yylval;
@@ -70,6 +77,7 @@ static void free_macros(void)
    for (hash_iter_t it = HASH_BEGIN; hash_iter(macros, &it, &key, &value); ) {
       macro_t *m = value;
       tb_free(m->text);
+      ACLEAR(m->args);
       free(m);
    }
 
@@ -85,7 +93,7 @@ static void undefall_macro(void)
 
 static void vlog_define_cb(const char *key, const char *value, void *ctx)
 {
-   macro_t *m = xmalloc(sizeof(macro_t));
+   macro_t *m = xcalloc(sizeof(macro_t));
    m->name = ident_new(key);
    m->loc  = LOC_INVALID;
    m->text = tb_new();
@@ -381,6 +389,32 @@ static ident_t p_identifier(void)
       return error_marker();
 }
 
+static ident_t p_formal_argument(void)
+{
+   // simple_identifier [ = default_text ]
+
+   BEGIN("formal argument");
+
+   optional(tWHITESPACE);
+
+   ident_t name = p_identifier();
+
+   optional(tWHITESPACE);
+
+   return name;
+}
+
+static void p_list_of_formal_arguments(macro_t *m)
+{
+   // formal_argument { , formal_argument }
+
+   BEGIN("list of formal arguments");
+
+   do {
+      APUSH(m->args, p_formal_argument());
+   } while (optional(tCOMMA));
+}
+
 static macro_t *p_text_macro_name(void)
 {
    // text_macro_identifier [ ( list_of_formal_arguments ) ]
@@ -389,10 +423,16 @@ static macro_t *p_text_macro_name(void)
 
    optional(tWHITESPACE);
 
-   macro_t *m = xmalloc(sizeof(macro_t));
+   macro_t *m = xcalloc(sizeof(macro_t));
    m->name = p_identifier();
    m->loc  = state.last_loc;
    m->text = tb_new();
+
+   if (optional(tLPAREN)) {
+      m->has_args = true;
+      p_list_of_formal_arguments(m);
+      consume(tRPAREN);
+   }
 
    hash_put(macros, m->name, m);
    return m;
@@ -444,6 +484,69 @@ static void p_text_macro_definition(void)
    tb_append(output, '\n');
 }
 
+static void p_expression(text_buf_t *tb)
+{
+   BEGIN("expression");
+
+   // 1800-2023 section 22.5.1: Actual arguments and defaults shall not
+   // contain comma or right parenthesis characters outside matched
+   // pairs of left and right parentheses (), square brackets [], braces
+   // {}, double quotes " ", triple quotes """ """, or an escaped
+   // identifier.
+
+   switch (one_of(tTEXT, tLPAREN, tWHITESPACE, tID)) {
+   case tTEXT:
+   case tWHITESPACE:
+   case tID:
+      tb_catn(tb, state.last_lval.span.ptr, state.last_lval.span.len);
+      break;
+   case tLPAREN:
+      tb_append(tb, '(');
+      while (not_at_token(tRPAREN))
+         p_expression(tb);
+      consume(tRPAREN);
+      tb_append(tb, ')');
+      break;
+   }
+
+   if (optional(tWHITESPACE))
+      tb_catn(tb, state.last_lval.span.ptr, state.last_lval.span.len);
+}
+
+static void p_actual_argument(macro_t *m, int pos)
+{
+   // expression
+
+   BEGIN("actual argument");
+
+   optional(tWHITESPACE);
+
+   LOCAL_TEXT_BUF tb = tb_new();
+
+   p_expression(tb);
+
+   if (pos < m->args.count)
+      hash_put(macro_args, m->args.items[pos], tb_claim(tb));
+}
+
+static void p_list_of_actual_arguments(macro_t *m)
+{
+   // actual_argument { , actual_argument }
+
+   BEGIN("list of actual arguments");
+
+   int pos = 0;
+   do {
+      p_actual_argument(m, pos++);
+   } while (optional(tCOMMA));
+
+   if (pos != m->args.count && !m->error) {
+      error_at(&state.last_loc, "macro '%pi' requires exactly %d arguments",
+               m->name, m->args.count);
+      m->error = true;
+   }
+}
+
 static void p_text_macro_usage(void)
 {
    // `text_macro_identifier [ ( list_of_actual_arguments ) ]
@@ -466,18 +569,41 @@ static void p_text_macro_usage(void)
 
    ident_t name = ident_new_n(span.ptr + 1, span.len - 1);
 
-   const macro_t *m = hash_get(macros, name);
+   macro_t *m = hash_get(macros, name);
    if (m == NULL) {
       warn_at(&yylloc, "macro '%pi' undefined", name);
 
       // Prevent further warnings for this macro name
-      macro_t *dummy = xmalloc(sizeof(macro_t));
+      macro_t *dummy = xcalloc(sizeof(macro_t));
       dummy->name = name;
       dummy->loc  = LOC_INVALID;
       dummy->text = tb_new();
+      dummy->error = true;
 
-      hash_put(macros, name, dummy);
-      return;
+      hash_put(macros, name, (m = dummy));
+   }
+
+   hash_t *old_args = macro_args;
+
+   if (!m->has_args)
+      macro_args = NULL;
+   else {
+      // Do not use optional() here as we must not consume any more of
+      // the input buffer until after the macro is expanded if there are
+      // no arguments
+      scan_buf_t buf = get_input_buffer();
+      char peek;
+      if (scan_peek(buf, &peek) && peek == '(') {
+         consume(tLPAREN);
+         macro_args = hash_new(16);
+         p_list_of_actual_arguments(m);
+         consume(tRPAREN);
+      }
+      else {
+         error_at(&state.last_loc, "macro '%pi' requires arguments", m->name);
+         m->error = true;
+         macro_args = NULL;
+      }
    }
 
    if (emit_locs)
@@ -490,6 +616,17 @@ static void p_text_macro_usage(void)
       p_block_of_text();
 
    consume(tEOF);
+
+   if (macro_args != NULL) {
+      const void *key;
+      void *value;
+      for (hash_iter_t it = HASH_BEGIN;
+           hash_iter(macro_args, &it, &key, &value); )
+         free(value);
+      hash_free(macro_args);
+   }
+
+   macro_args = old_args;
 
    pop_buffer();
 
@@ -695,8 +832,18 @@ static void p_block_of_text(void)
       consume(tUNDEFALL);
       undefall_macro();
       break;
-   case tTEXT:
    case tID:
+      if (macro_args != NULL && (ifdefs == NULL || ifdefs->cond)) {
+         ident_t name = p_identifier();
+         const char *rep = hash_get(macro_args, name);
+         if (rep != NULL)
+            tb_cat(output, rep);
+         else
+            tb_catn(output, state.last_lval.span.ptr, state.last_lval.span.len);
+         break;
+      }
+      // Fall-through
+   case tTEXT:
    case tWHITESPACE:
    case tCOMMENT:
    case tSTRING:
@@ -748,6 +895,7 @@ void vlog_preprocess(text_buf_t *tb, bool precise)
    output = tb;
 
    assert(ifdefs == NULL);
+   assert(macro_args == NULL);
 
    emit_locs = precise;
    mode = PP_INITIAL;
@@ -759,6 +907,7 @@ void vlog_preprocess(text_buf_t *tb, bool precise)
    p_source_text();
 
    assert(ifdefs == NULL);
+   assert(macro_args == NULL);
    output = NULL;
 
    if (!opt_get_int(OPT_SINGLE_UNIT))
