@@ -2092,6 +2092,9 @@ static int preprocess_cmd(int argc, char **argv, cmd_state_t *state)
       tb_rewind(tb);
       vlog_preprocess(tb, false);
 
+      if (error_count() > 0)
+         return EXIT_FAILURE;
+
       fputs(tb_get(tb), stdout);
    }
 

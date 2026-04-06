@@ -262,6 +262,81 @@ hdl_kind_t source_kind(void)
    return src_kind;
 }
 
+scan_buf_t get_input_buffer(void)
+{
+   const ptrdiff_t navail =
+      (input_buf.file_start - input_buf.read_ptr) + input_buf.file_sz;
+   assert(navail >= 0);
+
+   return (scan_buf_t) {
+      .ptr = navail > 0 ? input_buf.read_ptr : NULL,
+      .cap = navail,
+      .len = 0,
+   };
+}
+
+bool scan_next(scan_buf_t *buf, char *ch)
+{
+   assert(buf->len <= buf->cap);
+   if (buf->len == buf->cap)
+      return false;
+   else {
+      *ch = buf->ptr[buf->len++];
+      return true;
+   }
+}
+
+bool scan_peek(scan_buf_t buf, char *ch)
+{
+   assert(buf.len <= buf.cap);
+   if (buf.len == buf.cap)
+      return false;
+   else {
+      *ch = buf.ptr[buf.len];
+      return true;
+   }
+}
+
+void scan_advance(scan_buf_t *buf)
+{
+   assert(buf->len <= buf->cap);
+   buf->len++;
+}
+
+void scan_next_line(void)
+{
+   input_buf.colno = 0;
+   input_buf.lineno += 1;
+}
+
+token_t make_token(token_t tok, scan_buf_t buf, yylval_t lval)
+{
+   assert(buf.len <= buf.cap);
+   assert(buf.len > 0);
+   assert(buf.ptr == input_buf.read_ptr);
+
+   if (macro_stack.count == 0 || input_buf.file_ref != FILE_INVALID) {
+      const int first_col = input_buf.colno;
+      input_buf.colno += buf.len;
+
+      const int last_col = first_col + buf.len - 1;
+
+      extern loc_t yylloc;
+      yylloc = get_loc(input_buf.lineno, first_col, input_buf.lineno,
+                       last_col, input_buf.file_ref);
+   }
+   else {
+      yylloc = LOC_INVALID;
+      for (int i = 0; i < macro_stack.count && loc_invalid_p(&yylloc); i++)
+         yylloc = macro_stack.items[i].expandloc;
+   }
+
+   input_buf.read_ptr += buf.len;
+
+   yylval = lval;
+   return tok;
+}
+
 int get_next_char(char *b, int max_buffer)
 {
    const ptrdiff_t navail =
@@ -384,7 +459,7 @@ const char *token_str(token_t tok)
          "virtual", "::", "defparam", "tran", "tranif0", "tranif1", "rtran",
          "rtranif0", "rtranif1", "`define", "macro end", "macro usage",
          "`ifdef", "`ifndef", "`endif", "text", "`include", "`undef",
-         "`undefall",
+         "`undefall", "white space", "newline", "\\", "comment",
       };
 
       if (tok >= 200 && tok - 200 < ARRAY_LEN(token_strs))

@@ -335,7 +335,11 @@ const loc_t *parse_current_loc(parse_state_t *state)
                     end->first_line + end->line_delta,
                     end->first_column + end->column_delta,
                     start->file_ref);
-   return &result;
+
+   if (result.first_line == LINE_INVALID)
+      return start;
+   else
+      return &result;
 }
 
 #if TRACE_PARSE

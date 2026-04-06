@@ -5,10 +5,10 @@
 `ifdef FOO   // Another comment
 pass
 `else
-fail
+fail: FOO is not defined
 `endif
 `ifndef BAZ
-fail
+fail: BAZ is defined
 `else
 pass
 `endif
@@ -16,7 +16,7 @@ pass
 `__LINE__
 `undefineall
 `ifdef FOO
-fail
+fail: FOO is still defined
 `elsif BAZ
-fail
+fail: BAZ is defined
 `endif

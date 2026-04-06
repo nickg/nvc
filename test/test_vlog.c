@@ -553,13 +553,13 @@ START_TEST(test_pp2)
 
    const error_t expect[] = {
       {  1, "unexpected `else while parsing block of text" },
-      {  2, "unexpected `endif while parsing block of text" },
-      {  3, "unexpected `elsif while parsing block of text" },
-      {  4, "unexpected text while parsing ifdef condition" },
-      {  5, "unexpected text while parsing ifdef condition" },
-      {  7, "unexpected text while parsing ifdef condition" },
-      {  8, "unexpected error while parsing text macro name" },
-      { 12, "unexpected end of file while parsing conditional compilation" },
+      {  3, "unexpected `endif while parsing block of text" },
+      {  5, "unexpected `elsif while parsing block of text" },
+      {  7, "unexpected comment while parsing ifdef condition" },
+      {  9, "unexpected comment while parsing ifdef condition" },
+      { 13, "unexpected comment while parsing ifdef condition" },
+      { 15, "unexpected text while parsing text macro name" },
+      { 21, "unexpected end of file while parsing conditional compilation" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -1238,8 +1238,7 @@ START_TEST(test_pp6)
       "one\n"
       "hello\n"
       "\n"
-      "two\n"
-      "23\n");
+      "two\n");
 
    check_expected_errors();
 }
@@ -1530,6 +1529,38 @@ START_TEST(test_lower1)
 }
 END_TEST
 
+START_TEST(test_pp7)
+{
+   input_from_file(TESTDIR "/vlog/pp7.v");
+
+   const error_t expect[] = {
+      { 12, "unterminated block comment" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   LOCAL_TEXT_BUF tb = tb_new();
+   vlog_preprocess(tb, false);
+
+   ck_assert_str_eq(
+      tb_get(tb),
+      "// This file has DOS line endings\n"
+      "1234\n"
+      "/* `endif */\n"
+      "/*/ a multi-line\n"
+      " comment\n"
+      "\n"
+      " `endif\n"
+      "*/\n"
+      "\n"
+      "\n"
+      " /*\n"
+      "  * untermintated\n");
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_vlog_tests(void)
 {
    Suite *s = suite_create("vlog");
@@ -1588,6 +1619,7 @@ Suite *get_vlog_tests(void)
    tcase_add_test(tc, test_real1);
    tcase_add_test(tc, test_simp1);
    tcase_add_test(tc, test_lower1);
+   tcase_add_test(tc, test_pp7);
    suite_add_tcase(s, tc);
 
    return s;

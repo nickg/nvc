@@ -21,6 +21,12 @@
 #include "prim.h"
 #include "diag.h"
 
+typedef struct {
+   const char *ptr;
+   unsigned    len;
+   unsigned    cap;
+} scan_buf_t;
+
 typedef union {
    double      real;
    char       *str;
@@ -28,6 +34,7 @@ typedef union {
    ident_t     ident;
    text_buf_t *text;
    char        ch;
+   scan_buf_t  span;
 } yylval_t;
 
 // Functions shared between VHDL and Verilog scanners
@@ -92,6 +99,13 @@ bool get_verilog_keywords(vlog_version_t *vers);
 
 void begin_token(char *tok, int length);
 int get_next_char(char *b, int max_buffer);
+
+scan_buf_t get_input_buffer(void);
+bool scan_next(scan_buf_t *buf, char *ch);
+bool scan_peek(scan_buf_t buf, char *ch);
+void scan_advance(scan_buf_t *buf);
+void scan_next_line(void);
+token_t make_token(token_t tok, scan_buf_t buf, yylval_t lval);
 
 void reset_vhdl_parser(void);
 void reset_verilog_parser(void);
@@ -564,5 +578,9 @@ void reset_sdf_parser(void);
 #define tINCLUDE       634
 #define tUNDEF         635
 #define tUNDEFALL      636
+#define tWHITESPACE    637
+#define tNEWLINE       638
+#define tCONTINUATION  639
+#define tCOMMENT       640
 
 #endif  // _SCAN_H

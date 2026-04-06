@@ -1,2 +1,3 @@
 PKGBUILD text eol=lf
 test/regress/vlog2.v -text
+test/vlog/pp7.v -text
