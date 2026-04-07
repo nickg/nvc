@@ -4234,7 +4234,9 @@ static vlog_node_t p_generate_block(void)
 
 static vlog_node_t p_if_generate_construct(void)
 {
-   // if ( constant_expression ) generate_block [ else generate_block ]
+   // if ( constant_expression ) generate_block
+   //   { else if ( constant_expression ) generate_block }
+   //   [ else generate_block ]
 
    BEGIN("if generate construct");
 
@@ -4253,13 +4255,99 @@ static vlog_node_t p_if_generate_construct(void)
 
    vlog_add_cond(v, c0);
 
-   if (optional(tELSE)) {
-      vlog_node_t c1 = vlog_new(V_COND);
-      vlog_set_loc(c1, &state.last_loc);
-      vlog_add_stmt(c1, p_generate_block());
+   while (optional(tELSE)) {
+      if (peek() == tIF) {
+         // else if ( constant_expression ) generate_block
+         consume(tIF);
+         consume(tLPAREN);
 
-      vlog_add_cond(v, c1);
+         vlog_node_t cn = vlog_new(V_COND);
+         vlog_set_value(cn, p_constant_expression());
+
+         consume(tRPAREN);
+
+         vlog_set_loc(cn, CURRENT_LOC);
+         vlog_add_stmt(cn, p_generate_block());
+
+         vlog_add_cond(v, cn);
+      }
+      else {
+         // else generate_block (no condition = default branch)
+         vlog_node_t ce = vlog_new(V_COND);
+         vlog_set_loc(ce, &state.last_loc);
+         vlog_add_stmt(ce, p_generate_block());
+
+         vlog_add_cond(v, ce);
+         break;
+      }
    }
+
+   vlog_set_loc(v, CURRENT_LOC);
+   return v;
+}
+
+static vlog_node_t p_case_generate_construct(void)
+{
+   // case ( constant_expression )
+   //   case_generate_item { case_generate_item } endcase
+   //
+   // Lowered to V_IF_GENERATE with equality comparisons so the existing
+   // simplifier and elaborator handle it without a new node kind.
+
+   BEGIN("case generate construct");
+
+   consume(tCASE);
+   consume(tLPAREN);
+
+   vlog_node_t selector = p_constant_expression();
+
+   consume(tRPAREN);
+
+   vlog_node_t v = vlog_new(V_IF_GENERATE);
+
+   while (not_at_token(tENDCASE)) {
+      vlog_node_t cn = vlog_new(V_COND);
+
+      if (optional(tDEFAULT)) {
+         // default branch: no condition (like else)
+         optional(tCOLON);
+      }
+      else {
+         // case_generate_item: constant_expression { , constant_expression }
+         //   : generate_block
+         // Build equality comparison: selector == label
+         // For multiple labels, OR them: (sel == l1) || (sel == l2)
+         vlog_node_t cond = NULL;
+         do {
+            vlog_node_t eq = vlog_new(V_BINARY);
+            vlog_set_subkind(eq, V_BINARY_LOG_EQ);
+            vlog_set_left(eq, selector);
+            vlog_set_right(eq, p_constant_expression());
+            vlog_set_loc(eq, CURRENT_LOC);
+
+            if (cond == NULL) {
+               cond = eq;
+            }
+            else {
+               vlog_node_t lor = vlog_new(V_BINARY);
+               vlog_set_subkind(lor, V_BINARY_LOG_OR);
+               vlog_set_left(lor, cond);
+               vlog_set_right(lor, eq);
+               vlog_set_loc(lor, CURRENT_LOC);
+               cond = lor;
+            }
+         } while (optional(tCOMMA));
+
+         consume(tCOLON);
+         vlog_set_value(cn, cond);
+      }
+
+      vlog_set_loc(cn, CURRENT_LOC);
+      vlog_add_stmt(cn, p_generate_block());
+      vlog_add_cond(v, cn);
+   }
+
+   consume(tENDCASE);
 
    vlog_set_loc(v, CURRENT_LOC);
    return v;
@@ -4274,6 +4362,8 @@ static vlog_node_t p_conditional_generate_construct(void)
    switch (peek()) {
    case tIF:
       return p_if_generate_construct();
+   case tCASE:
+      return p_case_generate_construct();
    default:
       should_not_reach_here();
    }
@@ -4455,6 +4545,7 @@ static void p_module_common_item(vlog_node_t mod)
       vlog_add_stmt(mod, p_loop_generate_construct());
       break;
    case tIF:
+   case tCASE:
       vlog_add_stmt(mod, p_conditional_generate_construct());
       break;
    default:
@@ -5930,6 +6021,7 @@ static void p_module_or_generate_item(vlog_node_t mod)
    case tLOCALPARAM:
    case tPARAMETER:
    case tIF:
+   case tCASE:
    case tFOR:
    case tEVENT:
    case tGENVAR:
