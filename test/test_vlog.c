@@ -1627,6 +1627,30 @@ START_TEST(test_generate2)
 }
 END_TEST
 
+START_TEST(test_pp9)
+{
+   input_from_file(TESTDIR "/vlog/pp9.v");
+
+   // Test that macro expansion inside tokens works correctly in
+   // precise mode (used during analysis).  32'd`MY_VAL should
+   // expand to 32'd42 without location tracking directives
+   // breaking the number literal.
+   LOCAL_TEXT_BUF tb = tb_new();
+   vlog_preprocess(tb, true);   // precise=true, as in -a
+
+   // Feed the preprocessed text back to the parser
+   file_ref_t file_ref = loc_file_ref(TESTDIR "/vlog/pp9.v", NULL);
+   input_from_buffer(tb_get(tb), tb_len(tb), file_ref, SOURCE_VERILOG);
+
+   set_default_keywords(VLOG_1800_2023);
+
+   vlog_node_t m = do_parse_check(V_MODULE);
+   fail_unless(vlog_stmts(m) > 0);
+
+   fail_unless(vlog_parse() == NULL);
+}
+END_TEST
+
 Suite *get_vlog_tests(void)
 {
    Suite *s = suite_create("vlog");
@@ -1689,6 +1713,7 @@ Suite *get_vlog_tests(void)
    tcase_add_test(tc, test_pp8);
    tcase_add_test(tc, test_const2);
    tcase_add_test(tc, test_generate2);
+   tcase_add_test(tc, test_pp9);
    suite_add_tcase(s, tc);
 
    return s;
