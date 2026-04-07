@@ -606,7 +606,16 @@ static void p_text_macro_usage(void)
       }
    }
 
-   if (emit_locs)
+   // Only emit location tracking when the macro starts at a token
+   // boundary.  If the last character output was not whitespace or a
+   // newline, the macro is expanding in the middle of a token (e.g.
+   // 32'd`MACRO) and inserting directives would break the token.
+   const size_t outlen = tb_len(output);
+   const char last = outlen > 0 ? tb_get(output)[outlen - 1] : '\0';
+   const bool at_boundary = last == '\0' || last == ' '
+      || last == '\t' || last == '\n';
+
+   if (emit_locs && at_boundary)
       tb_printf(output, "\n`__nvc_push %pi,%d:%d,%d\n", name,
                 yylloc.first_line, yylloc.first_column, yylloc.column_delta);
 
@@ -630,7 +639,7 @@ static void p_text_macro_usage(void)
 
    pop_buffer();
 
-   if (emit_locs)
+   if (emit_locs && at_boundary)
       tb_printf(output, "\n`__nvc_pop\n");
 }
 
