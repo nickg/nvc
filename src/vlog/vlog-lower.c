@@ -59,6 +59,8 @@ typedef struct {
    ihash_t       *temps;
 } vlog_gen_t;
 
+static void vlog_lower_locals(vlog_gen_t *g, vlog_node_t v);
+
 typedef enum {
    NOEDGE = 0x0,
    POSEDGE = 0x1,
@@ -1971,6 +1973,7 @@ static void vlog_lower_stmts(vlog_gen_t *g, vlog_node_t v)
          vlog_lower_operator_assignment(g, s);
          break;
       case V_BLOCK:
+         vlog_lower_locals(g, s);
          vlog_lower_stmts(g, s);
          break;
       case V_SYS_TCALL:

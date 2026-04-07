@@ -1285,3 +1285,4 @@ signed3         verilog
 vlog36          verilog
 issue1469       verilog
 issue1473       vhpi,mixed
+vlog37          verilog,gold
