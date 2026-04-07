@@ -1613,6 +1613,20 @@ START_TEST(test_const2)
 }
 END_TEST
 
+START_TEST(test_generate2)
+{
+   input_from_file(TESTDIR "/vlog/generate2.v");
+
+   set_default_keywords(VLOG_1800_2023);
+
+   // Should parse and check without errors: generate case and else-if
+   vlog_node_t m = do_parse_check(V_MODULE);
+   fail_unless(vlog_stmts(m) > 0);
+
+   fail_unless(vlog_parse() == NULL);
+}
+END_TEST
+
 Suite *get_vlog_tests(void)
 {
    Suite *s = suite_create("vlog");
@@ -1674,6 +1688,7 @@ Suite *get_vlog_tests(void)
    tcase_add_test(tc, test_pp7);
    tcase_add_test(tc, test_pp8);
    tcase_add_test(tc, test_const2);
+   tcase_add_test(tc, test_generate2);
    suite_add_tcase(s, tc);
 
    return s;
