@@ -1628,6 +1628,26 @@ START_TEST(test_pp9)
 }
 END_TEST
 
+START_TEST(test_const2)
+{
+   input_from_file(TESTDIR "/vlog/const2.v");
+
+   set_default_keywords(VLOG_1800_2023);
+
+   const error_t expect[] = {
+      { 37, "cannot reference net 'w1' in constant expression" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   do_parse_check(V_MODULE);
+
+   fail_unless(vlog_parse() == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_vlog_tests(void)
 {
    Suite *s = suite_create("vlog");
@@ -1690,6 +1710,7 @@ Suite *get_vlog_tests(void)
    tcase_add_test(tc, test_pp8);
    tcase_add_test(tc, test_generate2);
    tcase_add_test(tc, test_pp9);
+   tcase_add_test(tc, test_const2);
    suite_add_tcase(s, tc);
 
    return s;
