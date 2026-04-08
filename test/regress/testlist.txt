@@ -1286,3 +1286,4 @@ vlog36          verilog
 issue1469       verilog
 issue1473       vhpi,mixed
 issue1394       fail,gold
+ieee20          fail,gold,2008

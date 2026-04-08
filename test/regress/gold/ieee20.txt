@@ -1,0 +1,4 @@
+1ns+0: result of 2147483647 + 2147483647 cannot be represented as INTEGER
+Function TO_INTEGER [UNRESOLVED_UNSIGNED return NATURAL]
+Function TO_INTEGER [UNRESOLVED_SIGNED return INTEGER]
+Process :ieee20:check

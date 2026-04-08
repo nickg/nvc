@@ -21,6 +21,10 @@ package numeric_std_perf is
     procedure test_geq_unsigned;
     procedure test_div_unsigned;
     procedure test_big_div_unsigned;
+    procedure test_to_integer_unsigned_16;
+    procedure test_to_integer_unsigned_40;
+    procedure test_to_integer_unsigned_99;
+    procedure test_to_integer_signed;
 end package;
 
 library ieee;
@@ -283,4 +287,55 @@ package body numeric_std_perf is
         end loop;
         assert accum = to_unsigned(0, WIDTH);
     end procedure;
+
+    procedure test_to_integer_unsigned_generic generic (WIDTH : integer) is
+        constant ITERS : integer := 500;
+        variable accum : integer := 0;
+        variable num   : unsigned(WIDTH - 1 downto 0) := to_unsigned(100, WIDTH);
+    begin
+        for i in 1 to ITERS loop
+            accum := accum + to_integer(num);
+            if num(0) = '1' then
+                num(0) := '0';
+            else
+                num(0) := '1';
+            end if;
+        end loop;
+        assert accum = ITERS * 100 + ITERS / 2;
+    end procedure;
+
+    procedure test_to_integer_unsigned_16 is
+        procedure impl is new test_to_integer_unsigned_generic generic map (16);
+    begin
+        impl;
+    end procedure;
+
+    procedure test_to_integer_unsigned_40 is
+        procedure impl is new test_to_integer_unsigned_generic generic map (40);
+    begin
+        impl;
+    end procedure;
+
+    procedure test_to_integer_unsigned_99 is
+        procedure impl is new test_to_integer_unsigned_generic generic map (99);
+    begin
+        impl;
+    end procedure;
+
+    procedure test_to_integer_signed is
+        constant ITERS : integer := 500;
+        variable accum : integer := 0;
+        variable num   : signed(25 downto 0) := to_signed(-100, 26);
+    begin
+        for i in 1 to ITERS loop
+            accum := accum + to_integer(num);
+            if num(0) = '1' then
+                num(0) := '0';
+            else
+                num(0) := '1';
+            end if;
+        end loop;
+        assert accum = -ITERS * 100 + ITERS / 2;
+    end procedure;
+
 end package body;

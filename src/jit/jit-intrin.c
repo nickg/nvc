@@ -331,6 +331,17 @@ static void ieee_warn(jit_func_t *func, jit_anchor_t *caller,
    va_end(ap);
 }
 
+__attribute__((cold, noreturn, noinline))
+static void fail_in_interpreter(jit_func_t *func, jit_anchor_t *caller,
+                                jit_scalar_t *args, tlab_t *tlab)
+{
+   // Synopsys subprograms handle edge cases poorly: punt to the
+   // interpreter to generate the error message
+   func->entry = jit_interp;
+   jit_interp(func, caller, args, tlab);
+   fatal_trace("should not return here");
+}
+
 __attribute__((always_inline))
 static inline void __invert_bits(const uint8_t *input, int size,
                                  uint8_t *result)
@@ -1226,6 +1237,100 @@ static void ieee_leq_unsigned(jit_func_t *func, jit_anchor_t *anchor,
    args[0].integer = left <= right;
 }
 
+static void ieee_to_integer_unsigned(jit_func_t *func, jit_anchor_t *anchor,
+                                     jit_scalar_t *args, tlab_t *tlab)
+{
+   const int size = ffi_array_length(args[3].integer);
+   uint8_t *arg = args[1].pointer;
+
+   if (size < 1) {
+      ieee_warn(func, anchor, "NUMERIC_STD.TO_INTEGER: "
+                "null detected, returning 0");
+      args[0].integer = 0;
+      return;
+   }
+
+   const uint32_t mark = __tlab_mark(tlab);
+
+   arg = __to_01(tlab, arg, size, _X);
+
+   if (arg[0] == _X) {
+      ieee_warn(func, anchor, "NUMERIC_STD.TO_INTEGER: "
+                "metavalue detected, returning 0");
+      __tlab_restore(tlab, mark);
+      args[0].integer = 0;
+      return;
+   }
+
+   const uint64_t val = __pack_to_u64(arg, size);
+
+   if (size > 31) {
+      // Determine if the result overflows in which case we re-execute
+      // in the interpreter to generate the correct error
+
+      if (size > 63) {
+         for (int i = 0; i < size - 63; i++) {
+            if (arg[i] != _0)
+               fail_in_interpreter(func, anchor, args, tlab);
+         }
+      }
+
+      if ((val & UINT64_C(0xffffffff80000000)) && standard() < STD_19)
+         fail_in_interpreter(func, anchor, args, tlab);
+   }
+
+   args[0].integer = val;
+   __tlab_restore(tlab, mark);
+}
+
+static void ieee_to_integer_signed(jit_func_t *func, jit_anchor_t *anchor,
+                                   jit_scalar_t *args, tlab_t *tlab)
+{
+   const int size = ffi_array_length(args[3].integer);
+   uint8_t *arg = args[1].pointer;
+   const int intsize = standard() < STD_19 ? 32 : 64;
+
+   if (size < 1) {
+      ieee_warn(func, anchor, "NUMERIC_STD.TO_INTEGER: "
+                "null detected, returning 0");
+      args[0].integer = 0;
+      return;
+   }
+
+   const uint32_t mark = __tlab_mark(tlab);
+
+   arg = __to_01(tlab, arg, size, _X);
+
+   if (arg[0] == _X) {
+      ieee_warn(func, anchor, "NUMERIC_STD.TO_INTEGER: "
+                "metavalue detected, returning 0");
+      __tlab_restore(tlab, mark);
+      args[0].integer = 0;
+      return;
+   }
+
+   if (size > intsize) {
+      // Determine if the result overflows in which case we re-execute
+      // in the interpreter to generate the correct error
+      for (int i = 1; i <= size - intsize; i++) {
+         if (arg[i] != arg[0])
+            fail_in_interpreter(func, anchor, args, tlab);
+      }
+   }
+
+   int64_t result;
+   if (arg[0] == _0)
+      result = (int64_t)__pack_to_u64(arg, size);
+   else {
+      uint8_t *mag = __tlab_alloc(tlab, size, 16);
+      __invert_bits(arg, size, mag);
+      result = -(int64_t)__pack_to_u64(mag, size) - 1;
+   }
+
+   args[0].integer = result;
+   __tlab_restore(tlab, mark);
+}
+
 #ifdef HAVE_SSE41
 __attribute__((target("sse4.1")))
 static void ieee_and_vector_sse41(jit_func_t *func, jit_anchor_t *anchor,
@@ -1621,17 +1726,6 @@ static inline void __make_binary(jit_func_t *func, jit_anchor_t *anchor,
    }
 }
 
-__attribute__((cold, noreturn, noinline))
-static void __synopsys_failure(jit_func_t *func, jit_anchor_t *caller,
-                               jit_scalar_t *args, tlab_t *tlab)
-{
-   // Synopsys subprograms handle edge cases poorly: punt to the
-   // interpreter to generate the error message
-   func->entry = jit_interp;
-   jit_interp(func, caller, args, tlab);
-   fatal_trace("should not return here");
-}
-
 __attribute__((always_inline))
 static inline const uint8_t *__conv_unsigned(jit_func_t *func,
                                              jit_anchor_t *anchor,
@@ -1696,7 +1790,7 @@ static void synopsys_plus_unsigned(jit_func_t *func, jit_anchor_t *anchor,
    uint8_t *result = __tlab_alloc(tlab, length, 8);
 
    if (unlikely(length == 0))
-      __synopsys_failure(func, anchor, args, tlab);
+      fail_in_interpreter(func, anchor, args, tlab);
 
    left = __conv_unsigned(func, anchor, tlab, left, lsize, length);
    right = __conv_unsigned(func, anchor, tlab, right, rsize, length);
@@ -1723,7 +1817,7 @@ static void synopsys_plus_signed(jit_func_t *func, jit_anchor_t *anchor,
    uint8_t *result = __tlab_alloc(tlab, length, 8);
 
    if (unlikely(length == 0))
-      __synopsys_failure(func, anchor, args, tlab);
+      fail_in_interpreter(func, anchor, args, tlab);
 
    left = __conv_signed(func, anchor, tlab, left, lsize, length);
    right = __conv_signed(func, anchor, tlab, right, rsize, length);
@@ -1775,7 +1869,7 @@ static void synopsys_minus_unsigned(jit_func_t *func, jit_anchor_t *anchor,
    uint8_t *result = __tlab_alloc(tlab, length, 8);
 
    if (unlikely(length == 0))
-      __synopsys_failure(func, anchor, args, tlab);
+      fail_in_interpreter(func, anchor, args, tlab);
 
    left = __conv_unsigned(func, anchor, tlab, left, lsize, length);
    right = __conv_unsigned(func, anchor, tlab, right, rsize, length);
@@ -1801,7 +1895,7 @@ static void synopsys_mul_unsigned(jit_func_t *func, jit_anchor_t *anchor,
    const uint8_t *right = args[4].pointer;
 
    if (unlikely(lsize == 0 || rsize == 0))
-      __synopsys_failure(func, anchor, args, tlab);
+      fail_in_interpreter(func, anchor, args, tlab);
 
    left = __conv_unsigned(func, anchor, tlab, left, lsize, lsize);
    right = __conv_unsigned(func, anchor, tlab, right, rsize, rsize);
@@ -1832,7 +1926,7 @@ static void synopsys_mul_signed(jit_func_t *func, jit_anchor_t *anchor,
    const uint8_t *right = args[4].pointer;
 
    if (unlikely(lsize == 0 || rsize == 0))
-      __synopsys_failure(func, anchor, args, tlab);
+      fail_in_interpreter(func, anchor, args, tlab);
 
    left = __conv_signed(func, anchor, tlab, left, lsize, lsize);
    right = __conv_signed(func, anchor, tlab, right, rsize, rsize);
@@ -1865,7 +1959,7 @@ static void synopsys_eql_unsigned(jit_func_t *func, jit_anchor_t *anchor,
    const int length = MAX(lsize, rsize);
 
    if (unlikely(length == 0))
-      __synopsys_failure(func, anchor, args, tlab);
+      fail_in_interpreter(func, anchor, args, tlab);
 
    const uint32_t mark = __tlab_mark(tlab);
 
@@ -1888,7 +1982,7 @@ static void synopsys_eql_signed(jit_func_t *func, jit_anchor_t *anchor,
    const int length = MAX(lsize, rsize);
 
    if (unlikely(length == 0))
-      __synopsys_failure(func, anchor, args, tlab);
+      fail_in_interpreter(func, anchor, args, tlab);
 
    const uint32_t mark = __tlab_mark(tlab);
 
@@ -2132,6 +2226,10 @@ static jit_intrinsic_t intrinsic_list[] = {
    { NS "\">=\"(" UU UU ")B" , ieee_geq_unsigned },
    { NS "\"<=\"(" U U ")B", ieee_leq_unsigned },
    { NS "\"<=\"(" UU UU ")B" , ieee_leq_unsigned },
+   { NS "TO_INTEGER(" U ")N", ieee_to_integer_unsigned },
+   { NS "TO_INTEGER(" UU ")N", ieee_to_integer_unsigned },
+   { NS "TO_INTEGER(" S ")I", ieee_to_integer_signed },
+   { NS "TO_INTEGER(" US ")I", ieee_to_integer_signed },
 #ifdef HAVE_SSE41
    { SL "TO_X01(V)V", std_to_x01_sse41, CPU_SSE41 },
    { SL "TO_X01(Y)Y", std_to_x01_sse41, CPU_SSE41 },
