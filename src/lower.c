@@ -997,6 +997,9 @@ static void lower_check_scalar_bounds(lower_unit_t *lu, vcode_reg_t value,
       }
    }
 
+   if (type_kind(type) == T_SUBTYPE)
+      lower_check_scalar_bounds(lu, value, type_base(type), where, hint);
+
    vcode_reg_t left_reg, right_reg, dir_reg;
    lower_get_scalar_type_bounds(lu, type, &left_reg, &right_reg, &dir_reg);
 
