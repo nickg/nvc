@@ -541,6 +541,33 @@ static inline void __spread_bits_8(void *vec, uint8_t packed)
    unaligned_store(vec + 4, spread_nibble[(packed >> 0) & 0xf], uint32_t);
 }
 
+static inline uint64_t __pack_to_u64(const uint8_t *arr, int size)
+{
+   uint64_t val = 0;
+   int i = 0;
+   for (; i + 8 <= size; i += 8)
+      val = (val << 8) | __pack_low_bits(arr + i);
+   for (; i < size; i++)
+      val = (val << 1) | (arr[i] & 1);
+   return val;
+}
+
+__attribute__((always_inline))
+static inline void __unpack_from_u64(uint64_t val,
+                                     uint8_t *result, int size)
+{
+   int pos = size;
+   while (pos >= 8) {
+      pos -= 8;
+      __spread_bits_8(result + pos, val & 0xff);
+      val >>= 8;
+   }
+   for (int i = pos - 1; i >= 0; i--) {
+      result[i] = (val & 1) | 0x02;
+      val >>= 1;
+   }
+}
+
 __attribute__((always_inline))
 static inline void __ieee_packed_add_scalar(const uint8_t *left,
                                             const uint8_t *right, int size,
@@ -988,6 +1015,11 @@ static void ieee_mul_unsigned(jit_func_t *func, jit_anchor_t *anchor,
 
       if (left[0] == _X || right[0] == _X)
          memset(result, _X, size);
+      else if (size <= 64) {
+         uint64_t lval = __pack_to_u64(left, lsize);
+         uint64_t rval = __pack_to_u64(right, rsize);
+         __unpack_from_u64(lval * rval, result, size);
+      }
       else
          __mul_unsigned(left, lsize, right, rsize, tlab, result);
 
@@ -1023,6 +1055,16 @@ static void ieee_mul_signed(jit_func_t *func, jit_anchor_t *anchor,
 
       if (left[0] == _X || right[0] == _X)
          memset(result, _X, size);
+      else if (size <= 64) {
+         uint64_t lval = __pack_to_u64(left, lsize);
+         uint64_t rval = __pack_to_u64(right, rsize);
+         if (lsize < 64 && (left[0] & 1))
+            lval |= ~UINT64_C(0) << lsize;
+         if (rsize < 64 && (right[0] & 1))
+            rval |= ~UINT64_C(0) << rsize;
+         __unpack_from_u64((int64_t)lval * (int64_t)rval,
+                           result, size);
+      }
       else
          __mul_signed(left, lsize, right, rsize, tlab, result);
 
