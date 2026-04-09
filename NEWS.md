@@ -9,6 +9,9 @@
 - Verilog modules in mixed language simulations are now present in VHPI
   using the vendor-specific `vhpiVerilogModuleK` class (#1473).
 - The Verilog preprocessor now supports macros with arguments (#1402).
+- The `NVC_PLUGIN_PATH` environment variable can be used to specify a
+  list of directories to search when the argument to `--load` is not a
+  valid path.
 - Several other minor bugs were resolved (#1453, #1460, #1466, #1469,
   #1394).
 

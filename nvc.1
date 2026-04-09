@@ -142,6 +142,13 @@ Loads a VHPI plugin from the shared library
 See section
 .Sx VHPI
 for details on the VHPI implementation.
+If
+.Ar plugin
+is not a valid path the directories listed in
+.Ev NVC_PLUGIN_PATH
+will be searched for a shared library with
+.Ar plugin
+as the basename.
 .\" -L
 .It Fl L Ar path
 Add
@@ -1473,6 +1480,14 @@ Limit the number of worker threads
 can create.
 The default is either eight or the number of available CPUs, whichever
 is smaller.
+.It Ev NVC_PLUGIN_PATH
+List of directories to search for PLI plugins.  Separated by
+.Ql ";"
+on Windows and
+.Ql ":"
+on all other platforms.  This list is only searched when the argument to
+.Fl \-load
+is not a valid path and does not contain a directory separator.
 .El
 .\" .Sh FILES
 .\" .Sh EXIT STATUS

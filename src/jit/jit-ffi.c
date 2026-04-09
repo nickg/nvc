@@ -33,6 +33,7 @@
 #include <ffi.h>
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
 
 #ifdef __MINGW32__
 #define WIN32_LEAN_AND_MEAN
@@ -147,8 +148,62 @@ jit_dll_t *ffi_load_dll(const char *path)
       return ffi_load_exe();
 
    char *abs = realpath(path, NULL);
-   if (abs == NULL)
+   if (abs == NULL && errno == ENOENT && strchr(path, '/') == NULL) {
+      LOCAL_TEXT_BUF tb = tb_new();
+
+      const char *plugin_path = getenv("NVC_PLUGIN_PATH");
+      if (plugin_path != NULL) {
+         char *copy LOCAL = xstrdup(plugin_path), *saveptr;
+         char *elem = strtok_r(copy, PATH_SEP, &saveptr);
+         do {
+            tb_rewind(tb);
+            tb_cat(tb, elem);
+            tb_cat(tb, DIR_SEP);
+            tb_cat(tb, path);
+            tb_cat(tb, "." DLL_EXT);
+
+            abs = realpath(tb_get(tb), NULL);
+         } while (abs == NULL && (elem = strtok_r(NULL, PATH_SEP, &saveptr)));
+      }
+
+      if (abs == NULL) {
+         tb_rewind(tb);
+         get_lib_dir(tb);
+         tb_cat(tb, DIR_SEP);
+         tb_cat(tb, path);
+         tb_cat(tb, "." DLL_EXT);
+
+         abs = realpath(tb_get(tb), NULL);
+      }
+
+      if (abs == NULL) {
+         diag_t *d = diag_new(DIAG_FATAL, NULL);
+         diag_printf(d, "cannot find plugin '%s'", path);
+
+         if (plugin_path != NULL) {
+            char *copy LOCAL = xstrdup(plugin_path), *saveptr;
+            char *elem = strtok_r(copy, PATH_SEP, &saveptr);
+            do {
+               diag_hint(d, NULL, "searched user plugin directory %s", elem);
+            } while ((elem = strtok_r(NULL, PATH_SEP, &saveptr)));
+         }
+
+         tb_rewind(tb);
+         get_lib_dir(tb);
+         diag_hint(d, NULL, "searched built-in plugin directory %s",
+                   tb_get(tb));
+
+         diag_emit(d);
+
+         fatal_exit(EXIT_FAILURE);
+      }
+
+      notef("loading plugin %s", abs);
+   }
+   else if (abs == NULL)
       fatal_errno("%s", path);
+   else
+      notef("loading plugin %s", path);
 
    for (jit_dll_t *it = dlls; it; it = it->next) {
       if (strcmp(it->path, abs) == 0) {
@@ -156,9 +211,6 @@ jit_dll_t *ffi_load_dll(const char *path)
          return it;
       }
    }
-
-   if (opt_get_verbose(OPT_JIT_VERBOSE, NULL))
-      debugf("loading shared library %s", path);
 
 #ifdef __MINGW32__
    HMODULE handle = LoadLibrary(abs);

@@ -370,8 +370,6 @@ void vhpi_load_plugins(const char *plugins)
 
    char *tok = strtok(plugins_copy, ",");
    do {
-      notef("loading VHPI plugin %s", tok);
-
       jit_dll_t *dll = ffi_load_dll(tok);
 
       void (**startup_funcs)() = ffi_find_symbol(dll, "vhpi_startup_routines");

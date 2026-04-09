@@ -146,6 +146,7 @@ case $host_os in
   *cygwin*|msys*|mingw32*)
     LIBS="$LIBS -ldbghelp -lwsock32 -lshlwapi" # For StackTrace64 and sockets
     DIR_SEP=\\\\
+    PATH_SEP=\;
     pathprog="cygpath -m"
     AC_CHECK_PROG([CANDLE], [candle], [yes])   # For WiX installer
     NVC_CHECK_MSYS
@@ -156,6 +157,7 @@ case $host_os in
     ])
     AX_PTHREAD([], [AC_MSG_ERROR([pthread not found])])
     DIR_SEP=/
+    PATH_SEP=\:
     pathprog="echo"
     ;;
 esac
@@ -176,6 +178,7 @@ if test -n "$xmllint_path"; then
 fi
 
 AC_DEFINE_UNQUOTED([DIR_SEP], ["$DIR_SEP"], [Directory separator])
+AC_DEFINE_UNQUOTED([PATH_SEP], ["$PATH_SEP"], [Path separator])
 AC_DEFINE_UNQUOTED([EXEEXT], ["$EXEEXT"], [Executable file extension])
 
 AC_SEARCH_LIBS([pow], [m], [], [

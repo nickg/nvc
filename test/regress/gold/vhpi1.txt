@@ -1,4 +1,4 @@
-loading VHPI plugin
+loading plugin
 hello, world!
 tool is nvc
 tool version is

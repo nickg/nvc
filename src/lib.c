@@ -618,10 +618,10 @@ static void lib_default_search_paths(void)
       if (libpath_env) {
          env_copy = strdup(libpath_env);
 
-         char *path_tok = strtok(env_copy, ":");
+         char *path_tok = strtok(env_copy, PATH_SEP);
          do {
             push_path(path_tok);
-         } while ((path_tok = strtok(NULL, ":")));
+         } while ((path_tok = strtok(NULL, PATH_SEP)));
       }
    }
 #endif
