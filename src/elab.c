@@ -1835,6 +1835,32 @@ static void *elab_verilog_for_generate_index_cb(jit_scalar_t *args, void *ctx)
    return NULL;
 }
 
+static void elab_verilog_if_generate(vlog_node_t v, const elab_ctx_t *ctx)
+{
+   void *context = *mptr_get(ctx->scope->privdata);
+   const int nconds = vlog_conds(v);
+
+   for (int i = 0; i < nconds; i++) {
+      vlog_node_t c = vlog_cond(v, i);
+
+      if (vlog_has_value(c)) {
+         mir_unit_t *test = vlog_lower_thunk(ctx->mir, ctx->cloned,
+                                             vlog_value(c));
+         bool taken = jit_call_thunk2(ctx->jit, test, context,
+                                      elab_verilog_for_generate_test_cb,
+                                      NULL) != NULL;
+         mir_unit_free(test);
+
+         if (!taken)
+            continue;
+      }
+
+      // First true condition (or else branch): elaborate its contents
+      elab_verilog_sub_blocks(c, ctx);
+      return;
+   }
+}
+
 static void elab_verilog_for_generate(vlog_node_t v, const elab_ctx_t *ctx)
 {
    mir_unit_t *init = vlog_lower_thunk(ctx->mir, ctx->cloned, vlog_left(v));
@@ -1926,8 +1952,7 @@ static void elab_verilog_sub_blocks(vlog_node_t v, const elab_ctx_t *ctx)
          elab_verilog_block(s, ctx);
          break;
       case V_IF_GENERATE:
-         error_at(vlog_loc(s), "if-generate construct could not be "
-                  "evaluated at elaboration time");
+         elab_verilog_if_generate(s, ctx);
          break;
       case V_FOR_GENERATE:
          elab_verilog_for_generate(s, ctx);

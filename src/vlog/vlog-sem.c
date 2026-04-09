@@ -767,7 +767,23 @@ static type_mask_t vlog_check_user_fcall(vlog_node_t v)
 
    vlog_check_call_args(v, func);
 
-   return get_type_mask(func);
+   type_mask_t tmask = get_type_mask(func);
+
+   // Per IEEE 1800-2023 section 11.2.1, a user-defined function call is a
+   // constant expression when all its arguments are constant expressions.
+   // Check if every actual parameter is constant.
+   const int nparams = vlog_params(v);
+   bool all_const = nparams > 0;
+   for (int i = 0; i < nparams && all_const; i++) {
+      type_mask_t pmask = vlog_check_expr(vlog_param(v, i));
+      if (!(pmask & TM_CONST))
+         all_const = false;
+   }
+
+   if (all_const)
+      tmask |= TM_CONST;
+
+   return tmask;
 }
 
 static type_mask_t vlog_check_concat(vlog_node_t v)
