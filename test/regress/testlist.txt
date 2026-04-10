@@ -1305,6 +1305,11 @@ ivtest28        verilog
 ivtest29        verilog
 issue1505       vhpi,2008
 issue1512       cover=toggle,2008
+vlog41          fail,gold,verilog
+vlog42          fail,gold,verilog
+vlog43          fail,gold,verilog
+vlog44          fail,gold,verilog
+vlog45          gold,verilog
 vlog46          verilog
 vlog47          verilog
 vlog48          verilog

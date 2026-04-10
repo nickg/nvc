@@ -1,0 +1,3 @@
+PASSED
+fatal1: x=99
+$fatal called

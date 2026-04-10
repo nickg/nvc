@@ -68,11 +68,16 @@ static void format_number(vpiHandle it, char radix, int fwidth)
          vpi_get_value(arg, &argval);
 
          if (!vpi_chk_error(NULL)) {
-            const int nbits = vpi_get(vpiSize, arg);
-            const int dmax = calc_dec_size(nbits, false);
+            int width;
+            if (fwidth >= 0)
+               width = fwidth;
+            else {
+               const int nbits = vpi_get(vpiSize, arg);
+               width = calc_dec_size(nbits, false);
+            }
 
-            if (dmax > strlen(argval.value.str))
-               printf("%*s", dmax, argval.value.str);
+            if (width > strlen(argval.value.str))
+               printf("%*s", width, argval.value.str);
             else
                fputs(argval.value.str, stdout);
          }
@@ -139,9 +144,9 @@ static void interpret_format(const char *fmt, vpiHandle it)
 
          p++;   // Skip over '%'
 
-         int fwidth = 0;
+         int fwidth = -1;
          if (isdigit_iso88591(*p))
-            fwidth = strtol(p + 1, (char **)&p, 10);
+            fwidth = strtol(p, (char **)&p, 10);
 
          switch (*p) {
          case 's':
@@ -173,16 +178,10 @@ static void interpret_format(const char *fmt, vpiHandle it)
       fwrite(start, 1, p - start, stdout);
 }
 
-static void verilog_printf(void)
+static void verilog_format_args(vpiHandle it, vpiHandle arg)
 {
-   vpiHandle call = vpi_handle(vpiSysTfCall, NULL);
-   assert(call != NULL);
-
-   vpiHandle it = vpi_iterate(vpiArgument, call);
-   vpiHandle arg = vpi_scan(it);
-
    if (arg == NULL)
-      goto release_handles;
+      return;
 
    const bool has_format =
       vpi_get(vpiType, arg) == vpiConstant
@@ -222,8 +221,18 @@ static void verilog_printf(void)
       vpi_release_handle(arg);
       arg = vpi_scan(it);
    }
+}
 
- release_handles:
+static void verilog_printf(void)
+{
+   vpiHandle call = vpi_handle(vpiSysTfCall, NULL);
+   assert(call != NULL);
+
+   vpiHandle it = vpi_iterate(vpiArgument, call);
+   vpiHandle arg = vpi_scan(it);
+
+   verilog_format_args(it, arg);
+
    vpi_release_handle(call);
 }
 
@@ -246,8 +255,53 @@ static PLI_INT32 finish_tf(PLI_BYTE8 *userdata)
    jit_abort();
 }
 
+static PLI_INT32 info_tf(PLI_BYTE8 *userdata)
+{
+   verilog_printf();
+   printf("\n");
+   return 0;
+}
+
+static PLI_INT32 warning_tf(PLI_BYTE8 *userdata)
+{
+   verilog_printf();
+   printf("\n");
+   return 0;
+}
+
+static PLI_INT32 error_tf(PLI_BYTE8 *userdata)
+{
+   verilog_printf();
+   printf("\n");
+   return 0;
+}
+
 static PLI_INT32 fatal_tf(PLI_BYTE8 *userdata)
 {
+   vpiHandle call = vpi_handle(vpiSysTfCall, NULL);
+   assert(call != NULL);
+
+   vpiHandle it = vpi_iterate(vpiArgument, call);
+   vpiHandle arg = vpi_scan(it);
+
+   // First argument, if not a string constant, is the finish_number
+   if (arg != NULL) {
+      const bool is_string =
+         vpi_get(vpiType, arg) == vpiConstant
+         && vpi_get(vpiConstType, arg) == vpiStringConst;
+
+      if (!is_string) {
+         vpi_release_handle(arg);
+         arg = vpi_scan(it);
+      }
+
+      // Print remaining arguments (format string + args)
+      verilog_format_args(it, arg);
+      printf("\n");
+   }
+
+   vpi_release_handle(call);
+
    diag_t *d = diag_new(DIAG_FATAL, NULL);
    diag_printf(d, "$fatal called");
    diag_emit(d);
@@ -414,6 +468,21 @@ static s_vpi_systf_data builtins[] = {
       .type   = vpiSysTask,
       .tfname = "$finish",
       .calltf = finish_tf
+   },
+   {
+      .type   = vpiSysTask,
+      .tfname = "$info",
+      .calltf = info_tf
+   },
+   {
+      .type   = vpiSysTask,
+      .tfname = "$warning",
+      .calltf = warning_tf
+   },
+   {
+      .type   = vpiSysTask,
+      .tfname = "$error",
+      .calltf = error_tf
    },
    {
       .type   = vpiSysTask,
