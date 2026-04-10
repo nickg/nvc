@@ -1,0 +1,33 @@
+proxydir = $(libdir)/$(PACKAGE)
+
+if WINDOWS_BUILD
+lib/nvc/siginit.dll: contrib/plugins/siginit.c lib/libnvcimp.a
+	$(MKDIR_P) lib/nvc
+	$(CC) $(SHLIB_CFLAGS) -I$(top_srcdir)/src/vhpi $(AM_CFLAGS) -Wextra -Wpedantic \
+		$(SHLIB_LDFLAGS) $(AM_LDFLAGS) -o $@ $< lib/libnvcimp.a
+
+all-local: lib/nvc/siginit.dll
+
+nodist_proxy_DATA = lib/nvc/siginit.dll
+
+CLEANFILES += lib/nvc/siginit.dll contrib/plugins/siginit.o
+
+else
+if MACOS_BUILD
+proxy_PROGRAMS = lib/siginit.dylib
+lib_siginit_dylib_SOURCES = contrib/plugins/siginit.c
+lib_siginit_dylib_CFLAGS  = $(SHLIB_CFLAGS) -I$(top_srcdir)/src/vhpi $(AM_CFLAGS) -Wextra -Wpedantic
+lib_siginit_dylib_LDFLAGS = $(SHLIB_LDFLAGS) $(AM_LDFLAGS)
+
+CLEANFILES += lib/siginit.dylib contrib/plugins/siginit.o
+
+else
+proxy_PROGRAMS = lib/siginit.so
+lib_siginit_so_SOURCES = contrib/plugins/siginit.c
+lib_siginit_so_CFLAGS  = $(SHLIB_CFLAGS) -I$(top_srcdir)/src/vhpi $(AM_CFLAGS) -Wextra -Wpedantic
+lib_siginit_so_LDFLAGS = $(SHLIB_LDFLAGS) $(AM_LDFLAGS)
+
+CLEANFILES += lib/siginit.so contrib/plugins/siginit.o
+
+endif
+endif
