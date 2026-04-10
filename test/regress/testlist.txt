@@ -1288,3 +1288,8 @@ issue1473       vhpi,mixed
 issue1394       fail,gold
 ieee20          fail,gold,2008
 vlog37          verilog
+vlog40          gold,verilog
+vlog41          fail,gold,verilog
+vlog42          fail,gold,verilog
+vlog43          fail,gold,verilog
+vlog44          fail,gold,verilog

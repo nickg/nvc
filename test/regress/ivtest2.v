@@ -53,27 +53,27 @@ end
 always @(cat1)
   $write("time=%0t, cat1=%0h\n", $time, cat1);
 
-always @(cat2)  $write("time=%04d, cat2=%0h\n", $time, cat2);
+always @(cat2)  $write("time=%0t, cat2=%0h\n", $time, cat2);
 
-always @(cat3)  $write("time=%04d, cat3=%0h\n", $time, cat3);
+always @(cat3)  $write("time=%0t, cat3=%0h\n", $time, cat3);
 
-always @(cat4)  $write("time=%04d, cat4=%0h\n", $time, cat4);
+always @(cat4)  $write("time=%0t, cat4=%0h\n", $time, cat4);
 
-always @(foo1)  $write("time=%04d, foo1=%0h\n", $time, foo1);
+always @(foo1)  $write("time=%0t, foo1=%0h\n", $time, foo1);
 
-always @(foo2)  $write("time=%04d, foo2=%0h\n", $time, foo2);
+always @(foo2)  $write("time=%0t, foo2=%0h\n", $time, foo2);
 
-always @(foo3)  $write("time=%04d, foo3=%0h\n", $time, foo3);
+always @(foo3)  $write("time=%0t, foo3=%0h\n", $time, foo3);
 
-always @(foo4)  $write("time=%04d, foo4=%0h\n", $time, foo4);
+always @(foo4)  $write("time=%0t, foo4=%0h\n", $time, foo4);
 
-always @(bar1)  $write("time=%04d, bar1=%0h\n", $time, bar1);
+always @(bar1)  $write("time=%0t, bar1=%0h\n", $time, bar1);
 
-always @(bar2)  $write("time=%04d, bar2=%0h\n", $time, bar2);
+always @(bar2)  $write("time=%0t, bar2=%0h\n", $time, bar2);
 
-always @(bar3)  $write("time=%04d, bar3=%0h\n", $time, bar3);
+always @(bar3)  $write("time=%0t, bar3=%0h\n", $time, bar3);
 
-always @(bar4)  $write("time=%04d, bar4=%0h\n", $time, bar4);
+always @(bar4)  $write("time=%0t, bar4=%0h\n", $time, bar4);
 
 
 endmodule
