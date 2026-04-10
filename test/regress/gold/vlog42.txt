@@ -1,0 +1,2 @@
+PASSED
+$fatal called

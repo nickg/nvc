@@ -1,0 +1,12 @@
+info plain
+warning plain
+error plain
+x=42
+x=  42
+t=0
+hex=ab
+bin=10101011
+str=hello
+100%
+PASSED
+$finish called
