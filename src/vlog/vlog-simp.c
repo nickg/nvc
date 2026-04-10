@@ -303,6 +303,7 @@ static bool get_number(vlog_node_t v, number_t *n)
 {
    switch (vlog_kind(v)) {
    case V_NUMBER:
+   case V_STRING:
       *n = vlog_number(v);
       return true;
    case V_REF:
