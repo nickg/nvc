@@ -27,6 +27,7 @@
 #include "printf.h"
 #include "psl/psl-phase.h"
 #include "type.h"
+#include "vhdl/vhdl-util.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -4332,7 +4333,8 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range, nametab_t *tab)
 
    const bool prefix_can_be_range =
       predef == ATTR_LOW || predef == ATTR_HIGH || predef == ATTR_LEFT
-      || predef == ATTR_RIGHT || predef == ATTR_ASCENDING;
+      || predef == ATTR_RIGHT || predef == ATTR_ASCENDING
+      || predef == ATTR_VALUE;
 
    if (!sem_check_attr_prefix(name, prefix_can_be_range, tab, &named_type))
       return false;
@@ -4357,9 +4359,9 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range, nametab_t *tab)
 
          if (named_type != NULL) {
             // Range attribute of type
-            if (named_type != NULL && type_is_unconstrained(type))
-               sem_error(t, "cannot use attribute %s with unconstrained array "
-                         "type %s", istr(attr), type_pp(type));
+            if (type_is_unconstrained(type))
+               sem_error(t, "cannot use attribute '%pI with unconstrained "
+                         "array type %pT", attr, type);
          }
          else if (!type_is_array(type)) {
             diag_t *d = diag_new(DIAG_ERROR, tree_loc(name));
@@ -4508,6 +4510,10 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range, nametab_t *tab)
       {
          const bool std_2019 = standard() >= STD_19;
 
+         // VHDL 2019: 'range'value returens a range record
+         if (predef == ATTR_VALUE && std_2019 && vhdl_is_range_attr(name))
+            return true;
+
          if (named_type == NULL && std_2019 && tree_params(t) == 0) {
             // LCS2016-18 allows attribute with object prefix
             named_type = get_type_or_null(name);
@@ -4573,6 +4579,7 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range, nametab_t *tab)
    case ATTR_ELEMENT:
    case ATTR_SUBTYPE:
    case ATTR_INDEX:
+   case ATTR_RECORD:
       sem_error(t, "%s attribute is only allowed in a type mark", istr(attr));
 
    case ATTR_CONVERSE:

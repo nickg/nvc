@@ -766,7 +766,7 @@ START_TEST(test_attr)
       { 133, "cannot index non-array type INTEGER" },
       { 139, "class of object I is variable not signal" },
       { 146, "prefix of attribute LAST_EVENT must denote a signal" },
-      { 158, "attribute RANGE with unconstrained array type BIT_VECTOR" },
+      { 158, "attribute 'RANGE with unconstrained array type BIT_VECTOR" },
       { 159, "object prefix of attribute RANGE must be an array" },
       { 160, "prefix of 'RANGE attribute does not have a range" },
       { 204, "prefix of attribute 'LENGTH does not have a type" },
@@ -4033,6 +4033,27 @@ START_TEST(test_issue1329)
 }
 END_TEST
 
+START_TEST(test_lcs2016_99)
+{
+   set_standard(STD_19);
+
+   input_from_file(TESTDIR "/sem/lcs2016_99.vhd");
+
+   const error_t expect[] = {
+      { 10, "no matching operator \"=\" [INTEGER_range_record, BOOLEAN " },
+      { 11, "range expression not allowed here" },
+      { 13, "no visible declaration for XXXX" },
+      { 25, "type T_REC does not have a range record" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_ENTITY, T_ARCH);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_sem_tests(void)
 {
    Suite *s = suite_create("sem");
@@ -4222,6 +4243,7 @@ Suite *get_sem_tests(void)
    tcase_add_test(tc_core, test_issue1279);
    tcase_add_test(tc_core, test_issue1290);
    tcase_add_test(tc_core, test_issue1329);
+   tcase_add_test(tc_core, test_lcs2016_99);
    suite_add_tcase(s, tc_core);
 
    return s;

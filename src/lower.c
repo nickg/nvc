@@ -5189,6 +5189,43 @@ static vcode_reg_t lower_attr_ref(lower_unit_t *lu, tree_t expr)
 
    case ATTR_VALUE:
       {
+         // VHDL 2019: 'range'value returns a range record
+         if (vhdl_is_range_attr(name)) {
+            tree_t prefix = tree_name(name);
+            type_t type = tree_type(prefix);
+
+            const int dim = lower_get_attr_dimension(name);
+
+            vcode_reg_t left_reg, right_reg, dir_reg;
+            if (type_is_unconstrained(type)) {
+               vcode_reg_t array_reg = lower_attr_prefix(lu, prefix);
+               left_reg  = lower_array_left(lu, type, dim, array_reg);
+               right_reg = lower_array_right(lu, type, dim, array_reg);
+               dir_reg   = lower_array_dir(lu, type, dim, array_reg);
+            }
+            else {
+               tree_t r = range_of(type, dim);
+               left_reg = lower_range_left(lu, r);
+               right_reg = lower_range_right(lu, r);
+               dir_reg = lower_range_dir(lu, r);
+            }
+
+            vcode_type_t vrec = lower_type(tree_type(expr));
+            vcode_var_t tmp_var = lower_temp_var(lu, "range_rec", vrec);
+            vcode_reg_t ptr_reg = emit_index(tmp_var, VCODE_INVALID_REG);
+
+            vcode_reg_t left_ptr = emit_record_ref(ptr_reg, 0);
+            emit_store_indirect(left_reg, left_ptr);
+
+            vcode_reg_t right_ptr = emit_record_ref(ptr_reg, 1);
+            emit_store_indirect(right_reg, right_ptr);
+
+            vcode_reg_t dir_ptr = emit_record_ref(ptr_reg, 2);
+            emit_store_indirect(dir_reg, dir_ptr);
+
+            return ptr_reg;
+         }
+
          type_t name_type = tree_type(name);
          tree_t value = tree_value(tree_param(expr, 0));
          type_t value_type = tree_type(value);

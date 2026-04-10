@@ -69,3 +69,17 @@ bool vhdl_is_logical(subprogram_kind_t kind)
       return false;
    }
 }
+
+bool vhdl_is_range_attr(tree_t t)
+{
+   if (tree_kind(t) != T_ATTR_REF)
+      return false;
+
+   switch (tree_subkind(t)) {
+   case ATTR_RANGE:
+   case ATTR_REVERSE_RANGE:
+      return true;
+   default:
+      return false;
+   }
+}

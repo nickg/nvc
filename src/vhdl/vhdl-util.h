@@ -31,4 +31,6 @@ ident_t predef_func_name(type_t type, const char *op);
 bool vhdl_is_short_circuit(subprogram_kind_t kind);
 bool vhdl_is_logical(subprogram_kind_t kind);
 
+bool vhdl_is_range_attr(tree_t t);
+
 #endif  // _VHDL_UTIL_H

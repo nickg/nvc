@@ -1252,6 +1252,48 @@ static void declare_alias(tree_t container, tree_t to, ident_t name)
    tree_add_decl(container, alias);
 }
 
+static void declare_range_record_type(tree_t container, tree_t td)
+{
+   type_t type = tree_type(td);
+   type_t dir_type = std_type(NULL, STD_RANGE_DIRECTION);
+
+   ident_t name = ident_sprintf("%s_range_record", istr(tree_ident(td)));
+
+   type_t rec = type_new(T_RECORD);
+   type_set_ident(rec, name);
+   mangle_type(nametab, rec);
+
+   tree_t f_left = tree_new(T_FIELD_DECL);
+   tree_set_ident(f_left, ident_new("LEFT"));
+   tree_set_type(f_left, type);
+   tree_set_pos(f_left, 0);
+   type_add_field(rec, f_left);
+
+   tree_t f_right = tree_new(T_FIELD_DECL);
+   tree_set_ident(f_right, ident_new("RIGHT"));
+   tree_set_type(f_right, type);
+   tree_set_pos(f_right, 1);
+   type_add_field(rec, f_right);
+
+   tree_t f_dir = tree_new(T_FIELD_DECL);
+   tree_set_ident(f_dir, ident_new("DIRECTION"));
+   tree_set_type(f_dir, dir_type);
+   tree_set_pos(f_dir, 2);
+   type_add_field(rec, f_dir);
+
+   tree_t decl = tree_new(T_TYPE_DECL);
+   tree_set_ident(decl, name);
+   tree_set_type(decl, rec);
+   tree_set_loc(decl, tree_loc(container));
+
+   tree_add_decl(container, decl);
+   declare_predefined_ops(container, rec);
+
+   if (bootstrapping)
+      declare_unary(container, ident_new("TO_STRING"), rec,
+                    std_type(NULL, STD_STRING), S_TO_STRING);
+}
+
 static void declare_additional_standard_operators(tree_t unit)
 {
    assert(bootstrapping);
@@ -1396,6 +1438,18 @@ static void declare_additional_standard_operators(tree_t unit)
    // Condition conversion ?? operator on BIT
 
    declare_unary(unit, well_known(W_OP_CCONV), std_bit, std_bool, S_IDENTITY);
+
+   if (standard() >= STD_19) {
+      const int ndecls = tree_decls(unit);
+      for (int i = 0; i < ndecls; i++) {
+         tree_t d = tree_decl(unit, i);
+         if (tree_kind(d) == T_TYPE_DECL) {
+            type_t type = tree_type(d);
+            if (type_is_scalar(type))
+               declare_range_record_type(unit, d);
+         }
+      }
+   }
 }
 
 static void declare_additional_ieee_operators(tree_t unit)
@@ -1494,10 +1548,7 @@ static bool is_range_expr(tree_t t)
    case T_REF:
       return tree_has_ref(t) && aliased_type_decl(tree_ref(t));
    case T_ATTR_REF:
-      {
-         const attr_kind_t predef = tree_subkind(t);
-         return predef == ATTR_RANGE || predef == ATTR_REVERSE_RANGE;
-      }
+      return vhdl_is_range_attr(t);
    default:
       return false;
    }
@@ -2041,6 +2092,31 @@ static type_t apply_index_attribute(tree_t aref)
    return sub;
 }
 
+static type_t apply_record_attribute(tree_t aref)
+{
+   tree_t name = tree_name(aref);
+   if (tree_kind(name) != T_ATTR_REF || tree_subkind(name) != ATTR_RANGE) {
+      parse_error(tree_loc(aref), "prefix of RECORD attribute must be a range");
+      return type_new(T_NONE);
+   }
+
+   type_t prefix_type = get_type_or_null(tree_name(name));
+   if (prefix_type == NULL || type_is_none(prefix_type)) {
+      parse_error(tree_loc(aref), "prefix of RECORD attribute must be a range "
+                  "of a scalar type");
+      return type_new(T_NONE);
+   }
+
+   type_t rec = find_range_record_type(nametab, prefix_type);
+   if (rec == NULL) {
+      parse_error(tree_loc(aref), "type %pT does not have a range record",
+                  prefix_type);
+      return type_new(T_NONE);
+   }
+
+   return rec;
+}
+
 static type_t apply_type_attribute(tree_t aref)
 {
    switch (tree_subkind(aref)) {
@@ -2054,6 +2130,8 @@ static type_t apply_type_attribute(tree_t aref)
       return apply_designated_subtype_attribute(aref);
    case ATTR_INDEX:
       return apply_index_attribute(aref);
+   case ATTR_RECORD:
+      return apply_record_attribute(aref);
    default:
       parse_error(tree_loc(aref), "attribute name is not a valid type mark");
       return type_new(T_NONE);
@@ -3404,12 +3482,18 @@ static tree_t p_attribute_name(tree_t prefix)
       id = ident_new("SUBTYPE");
       kind = ATTR_SUBTYPE;
       break;
+   case tRECORD:
+      consume(tRECORD);
+      require_std(STD_19, "record attribute");
+      id = ident_new("RECORD");
+      kind = ATTR_RECORD;
+      break;
    case tID:
       id = p_identifier();
       kind = parse_predefined_attr(id);
       break;
    default:
-      one_of(tRANGE, tREVRANGE, tID, tSUBTYPE);
+      one_of(tRANGE, tREVRANGE, tID, tSUBTYPE, tRECORD);
       kind = ATTR_USER;
       id = error_marker();
    }
@@ -6760,6 +6844,9 @@ static void p_type_declaration(tree_t container)
 
       if (kind != T_INCOMPLETE)
          declare_predefined_ops(container, base);
+
+      if (standard() >= STD_19 && type_is_scalar(base) && !bootstrapping)
+         declare_range_record_type(container, t);
 
       if (kind == T_PHYSICAL) {
          const int nunits = type_units(type);
