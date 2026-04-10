@@ -809,13 +809,25 @@ number_t number_logical_equal(number_t a, number_t b)
    bignum_t *result;
    bignum_scratch(1, false, 1, &result);
 
-   assert(bignum_words(a.big) == 1);  // TODO
-   assert(bignum_words(b.big) == 1);  // TODO
+   const int nwords_a = bignum_words(a.big);
+   const int nwords_b = bignum_words(b.big);
+   const int nwords = MAX(nwords_a, nwords_b);
 
-   bignum_abits(result)[0] =
-      bignum_abits(a.big)[0] == bignum_abits(b.big)[0];
-   bignum_bbits(result)[0] =
-      bignum_bbits(a.big)[0] | bignum_bbits(b.big)[0];
+   bool equal = true;
+   bool has_xz = false;
+
+   for (int i = 0; i < nwords; i++) {
+      uint64_t av = (i < nwords_a) ? bignum_abits(a.big)[i] : 0;
+      uint64_t bv = (i < nwords_b) ? bignum_abits(b.big)[i] : 0;
+      uint64_t ax = (i < nwords_a) ? bignum_bbits(a.big)[i] : 0;
+      uint64_t bx = (i < nwords_b) ? bignum_bbits(b.big)[i] : 0;
+
+      if (av != bv) equal = false;
+      if (ax | bx) has_xz = true;
+   }
+
+   bignum_abits(result)[0] = equal ? 1 : 0;
+   bignum_bbits(result)[0] = has_xz ? 1 : 0;
 
    return number_intern(result);
 }
