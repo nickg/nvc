@@ -60,27 +60,6 @@ static vlog_node_t simp_net_decl(vlog_node_t decl, vlog_node_t mod)
       vlog_add_stmt(mod, g);
    }
 
-   if (vlog_has_value(decl)) {
-      vlog_node_t value = vlog_value(decl);
-      vlog_set_value(decl, NULL);
-
-      ident_t id = vlog_ident(decl);
-      const loc_t *loc = vlog_loc(decl);
-
-      vlog_node_t ref = vlog_new(V_REF);
-      vlog_set_ref(ref, decl);
-      vlog_set_ident(ref, id);
-      vlog_set_loc(ref, loc);
-
-      vlog_node_t a = vlog_new(V_ASSIGN);
-      vlog_set_target(a, ref);
-      vlog_set_value(a, value);
-      vlog_set_loc(a, loc);
-      vlog_set_ident(a, ident_uniq("__assign#%s", istr(id)));
-
-      vlog_add_stmt(mod, a);
-   }
-
    return decl;
 }
 
@@ -592,7 +571,44 @@ static vlog_node_t vlog_simp_cb(vlog_node_t v, void *context)
    }
 }
 
+static void expand_net_initialisers(vlog_node_t scope)
+{
+   const int nstmts = vlog_stmts(scope);
+   for (int i = 0; i < nstmts; i++) {
+      vlog_node_t s = vlog_stmt(scope, i);
+      if (vlog_kind(s) == V_BLOCK)
+         expand_net_initialisers(s);
+   }
+
+   const int ndecls = vlog_decls(scope);
+   for (int i = 0; i < ndecls; i++) {
+      vlog_node_t d = vlog_decl(scope, i);
+      if (vlog_kind(d) != V_NET_DECL || !vlog_has_value(d))
+         continue;
+
+      vlog_node_t value = vlog_value(d);
+      vlog_set_value(d, NULL);
+
+      ident_t id = vlog_ident(d);
+      const loc_t *loc = vlog_loc(d);
+
+      vlog_node_t ref = vlog_new(V_REF);
+      vlog_set_ref(ref, d);
+      vlog_set_ident(ref, id);
+      vlog_set_loc(ref, loc);
+
+      vlog_node_t a = vlog_new(V_ASSIGN);
+      vlog_set_target(a, ref);
+      vlog_set_value(a, value);
+      vlog_set_loc(a, loc);
+      vlog_set_ident(a, ident_uniq("__assign#%s", istr(id)));
+
+      vlog_add_stmt(scope, a);
+   }
+}
+
 void vlog_simp(vlog_node_t mod)
 {
    vlog_rewrite(mod, vlog_simp_cb, mod);
+   expand_net_initialisers(mod);
 }
