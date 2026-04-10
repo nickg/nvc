@@ -82,7 +82,6 @@ tree_t body_of(tree_t pack);
 tree_t find_generic_map(tree_t unit, int pos, tree_t g);
 bool relaxed_rules(void);
 bool is_type_attribute(attr_kind_t kind);
-type_t find_range_record_type(tree_t container, type_t scalar_type);
 type_t get_type_or_null(tree_t t);
 type_t subtype_for_string(tree_t str, type_t base);
 tree_t change_ref(tree_t name, tree_t new);

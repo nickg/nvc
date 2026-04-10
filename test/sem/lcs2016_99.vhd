@@ -16,8 +16,13 @@ begin
 
     process is
         variable v : bit_vector(1 to 3);
+        type t_rec is record
+            x : integer;
+        end record;
+        variable r : t_rec;
     begin
-        assert v'range'value = (0, 0, ascending);  -- Error
+        assert v'range'value = (0, 0, ascending);  -- OK
+        assert r'range'value = (0, 0, ascending);  -- Error
         wait;
     end process;
 

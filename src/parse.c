@@ -1252,27 +1252,26 @@ static void declare_alias(tree_t container, tree_t to, ident_t name)
    tree_add_decl(container, alias);
 }
 
-static void declare_range_record_type(tree_t container, type_t scalar_type)
+static void declare_range_record_type(tree_t container, tree_t td)
 {
-   type_t base = type_base_recur(scalar_type);
+   type_t type = tree_type(td);
    type_t dir_type = std_type(NULL, STD_RANGE_DIRECTION);
 
-   LOCAL_TEXT_BUF tb = tb_new();
-   tb_istr(tb, type_ident(base));
-   tb_cat(tb, "_range_record");
+   ident_t name = ident_sprintf("%s_range_record", istr(tree_ident(td)));
 
    type_t rec = type_new(T_RECORD);
-   type_set_ident(rec, ident_new(tb_get(tb)));
+   type_set_ident(rec, name);
+   mangle_type(nametab, rec);
 
    tree_t f_left = tree_new(T_FIELD_DECL);
    tree_set_ident(f_left, ident_new("LEFT"));
-   tree_set_type(f_left, base);
+   tree_set_type(f_left, type);
    tree_set_pos(f_left, 0);
    type_add_field(rec, f_left);
 
    tree_t f_right = tree_new(T_FIELD_DECL);
    tree_set_ident(f_right, ident_new("RIGHT"));
-   tree_set_type(f_right, base);
+   tree_set_type(f_right, type);
    tree_set_pos(f_right, 1);
    type_add_field(rec, f_right);
 
@@ -1283,7 +1282,7 @@ static void declare_range_record_type(tree_t container, type_t scalar_type)
    type_add_field(rec, f_dir);
 
    tree_t decl = tree_new(T_TYPE_DECL);
-   tree_set_ident(decl, type_ident(rec));
+   tree_set_ident(decl, name);
    tree_set_type(decl, rec);
    tree_set_loc(decl, tree_loc(container));
 
@@ -1447,7 +1446,7 @@ static void declare_additional_standard_operators(tree_t unit)
          if (tree_kind(d) == T_TYPE_DECL) {
             type_t type = tree_type(d);
             if (type_is_scalar(type))
-               declare_range_record_type(unit, type);
+               declare_range_record_type(unit, d);
          }
       }
    }
@@ -2093,6 +2092,31 @@ static type_t apply_index_attribute(tree_t aref)
    return sub;
 }
 
+static type_t apply_record_attribute(tree_t aref)
+{
+   tree_t name = tree_name(aref);
+   if (tree_kind(name) != T_ATTR_REF || tree_subkind(name) != ATTR_RANGE) {
+      parse_error(tree_loc(aref), "prefix of RECORD attribute must be a range");
+      return type_new(T_NONE);
+   }
+
+   type_t prefix_type = get_type_or_null(tree_name(name));
+   if (prefix_type == NULL || type_is_none(prefix_type)) {
+      parse_error(tree_loc(aref), "prefix of RECORD attribute must be a range "
+                  "of a scalar type");
+      return type_new(T_NONE);
+   }
+
+   type_t rec = find_range_record_type(nametab, prefix_type);
+   if (rec == NULL) {
+      parse_error(tree_loc(aref), "type %pT does not have a range record",
+                  prefix_type);
+      return type_new(T_NONE);
+   }
+
+   return rec;
+}
+
 static type_t apply_type_attribute(tree_t aref)
 {
    switch (tree_subkind(aref)) {
@@ -2107,33 +2131,7 @@ static type_t apply_type_attribute(tree_t aref)
    case ATTR_INDEX:
       return apply_index_attribute(aref);
    case ATTR_RECORD:
-      {
-         tree_t name = tree_name(aref);
-         if (tree_kind(name) != T_ATTR_REF
-             || tree_subkind(name) != ATTR_RANGE) {
-            parse_error(tree_loc(aref), "prefix of RECORD attribute "
-                        "must be a range");
-            return type_new(T_NONE);
-         }
-         type_t prefix_type = get_type_or_null(tree_name(name));
-         if (prefix_type == NULL || type_is_none(prefix_type)) {
-            parse_error(tree_loc(aref), "prefix of RECORD attribute "
-                        "must be a range of a scalar type");
-            return type_new(T_NONE);
-         }
-         ident_t container_id = ident_runtil(
-            type_ident(type_base_recur(prefix_type)), '.');
-         tree_t container = lib_get_qualified(container_id);
-         if (container == NULL)
-            container = find_enclosing(nametab, S_DECLARATIVE_REGION);
-         type_t rec = find_range_record_type(container, prefix_type);
-         if (rec == NULL) {
-            parse_error(tree_loc(aref), "no range record type declared "
-                        "for %s", type_pp(prefix_type));
-            return type_new(T_NONE);
-         }
-         return rec;
-      }
+      return apply_record_attribute(aref);
    default:
       parse_error(tree_loc(aref), "attribute name is not a valid type mark");
       return type_new(T_NONE);
@@ -6848,7 +6846,7 @@ static void p_type_declaration(tree_t container)
          declare_predefined_ops(container, base);
 
       if (standard() >= STD_19 && type_is_scalar(base) && !bootstrapping)
-         declare_range_record_type(container, base);
+         declare_range_record_type(container, t);
 
       if (kind == T_PHYSICAL) {
          const int nunits = type_units(type);

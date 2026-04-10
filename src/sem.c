@@ -4359,9 +4359,9 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range, nametab_t *tab)
 
          if (named_type != NULL) {
             // Range attribute of type
-            if (named_type != NULL && type_is_unconstrained(type))
-               sem_error(t, "cannot use attribute %s with unconstrained array "
-                         "type %s", istr(attr), type_pp(type));
+            if (type_is_unconstrained(type))
+               sem_error(t, "cannot use attribute '%pI with unconstrained "
+                         "array type %pT", attr, type);
          }
          else if (!type_is_array(type)) {
             diag_t *d = diag_new(DIAG_ERROR, tree_loc(name));
@@ -4511,13 +4511,8 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range, nametab_t *tab)
          const bool std_2019 = standard() >= STD_19;
 
          // VHDL 2019: 'range'value returens a range record
-         if (predef == ATTR_VALUE && std_2019 && vhdl_is_range_attr(name)) {
-            type_t prefix_type = tree_type(tree_name(name));
-            if (!type_is_scalar(prefix_type))
-               sem_error(t, "prefix of '%pI'VALUE must be a scalar type "
-                         "but have %pT", tree_ident(name), prefix_type);
+         if (predef == ATTR_VALUE && std_2019 && vhdl_is_range_attr(name))
             return true;
-         }
 
          if (named_type == NULL && std_2019 && tree_params(t) == 0) {
             // LCS2016-18 allows attribute with object prefix

@@ -42,6 +42,18 @@ architecture arch of range4 is
         return false ;
     end function ;
 
+    procedure test_non_const(l, r : integer) is
+        subtype t_sub is integer range l to r;
+        variable x : bit_vector(t_sub);
+    begin
+        assert x'range'value = (l, r, ascending) report to_string(x'range'value);
+    end procedure;
+
+    procedure test_unconstrained(x : bit_vector; l, r : integer) is
+    begin
+        assert x'range(1)'value = (l, r, ascending) report to_string(x'range'value);
+    end procedure;
+
     alias a1 is work.p1.a ;
 
     alias a1rr is a1'range'record ;
@@ -52,6 +64,7 @@ begin
 
     tb : process
         variable drv : d'range'record := d'range'value ;
+        variable bv : bit_vector(1 to 5);
     begin
         assert in_range(100, set) report "in_range check failed" severity failure;
         assert d'range'value = drv report "equality operator failed" severity failure;
@@ -61,6 +74,8 @@ begin
         assert ascending < descending report "< failed" severity failure ;
         assert ascending <= ascending report "<= failed" severity failure ;
         assert range_direction'range'value = (left => ascending, right => descending, direction => ascending) severity failure;
+        test_non_const(5, 6);
+        test_unconstrained(bv, 1, 5);
         std.env.stop ;
     end process ;
 
