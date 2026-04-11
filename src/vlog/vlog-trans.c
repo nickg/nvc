@@ -78,6 +78,14 @@ static tree_t trans_expr(trans_gen_t *g, vlog_node_t v)
 
          return str;
       }
+   case V_REF:
+      {
+         vlog_node_t d = vlog_ref(v);
+         if (vlog_kind(d) == V_LOCALPARAM)
+            return trans_expr(g, vlog_value(d));
+
+         return NULL;
+      }
    default:
       return NULL;
    }

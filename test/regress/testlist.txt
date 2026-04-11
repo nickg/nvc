@@ -1290,3 +1290,4 @@ ieee20          fail,gold,2008
 vlog37          verilog
 range4          normal,2019
 gensub7         normal,2008
+issue1476       wave,mixed
