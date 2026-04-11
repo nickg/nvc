@@ -340,5 +340,5 @@ void instance_fixup(tree_t inst, hash_t *map)
 
    tree_rewrite(inst, NULL, instance_fixup_cb, rewrite_generic_types_cb, map);
 
-   diag_remove_hint_fn(instance_hint_cb);
+   diag_remove_hint_fn(instance_hint_cb, inst);
 }

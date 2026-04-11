@@ -309,11 +309,14 @@ static void __model_entry(rt_model_t *m, rt_model_t **save)
 
 static void __model_exit(rt_model_t **save)
 {
+   rt_model_t *m = __model;
+   assert(m != NULL);
+
    __model = *save;
    *save = NULL;
 
    if (__model == NULL)
-      diag_remove_hint_fn(model_diag_cb);
+      diag_remove_hint_fn(model_diag_cb, m);
 }
 
 static char *fmt_values_r(const void *values, size_t len, char *buf, size_t max)

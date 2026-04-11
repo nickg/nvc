@@ -355,7 +355,7 @@ static int analyse(int argc, char **argv, cmd_state_t *state)
       vhpi_run_callbacks(vhpiCbEndOfAnalysis);
 
    if (werror)
-      diag_remove_hint_fn(werror_diag_cb);
+      diag_remove_hint_fn(werror_diag_cb, NULL);
 
    jit_free(jit);
    set_error_limit(0);

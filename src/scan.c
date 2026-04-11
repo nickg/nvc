@@ -779,7 +779,7 @@ static void pp_nvc_pop(void)
    free(top.include);
 
    if (macro_stack.count == 0)
-      diag_remove_hint_fn(macro_hint_cb);
+      diag_remove_hint_fn(macro_hint_cb, NULL);
 }
 
 static void pp_protect_block(void)
