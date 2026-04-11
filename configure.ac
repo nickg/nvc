@@ -149,6 +149,8 @@ case $host_os in
     PATH_SEP=\;
     pathprog="cygpath -m"
     AC_CHECK_PROG([CANDLE], [candle], [yes])   # For WiX installer
+    AX_CHECK_COMPILE_FLAG([-fms-extensions],
+                          [AX_APPEND_FLAG([-fms-extensions], [EXTRA_CFLAGS])])
     NVC_CHECK_MSYS
     ;;
   *)

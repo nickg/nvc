@@ -584,28 +584,14 @@ static void jit_transition(jit_thread_local_t *thread, jit_t *j,
 static bool jit_try_vcall(jit_t *j, jit_func_t *f, jit_scalar_t *args,
                           tlab_t *tlab)
 {
-   jit_thread_local_t *volatile thread = jit_thread_local();
-   volatile const jit_state_t oldstate = thread->state;
+   jit_thread_local_t *thread = jit_thread_local();
+   const jit_state_t oldstate = thread->state;
 
-   const int rc = jit_setjmp(thread->abort_env);
-   if (rc == 0) {
-      thread->jmp_buf_valid = 1;
-      jit_transition(thread, j, oldstate, JIT_RUNNING);
+   jit_transition(thread, j, oldstate, JIT_RUNNING);
+   bool ok = jit_trampoline(thread, f, args, tlab);
+   jit_transition(thread, j, JIT_RUNNING, oldstate);
 
-      jit_entry_fn_t entry = load_acquire(&f->entry);
-      (*entry)(f, NULL, args, tlab);
-
-      jit_transition(thread, j, JIT_RUNNING, oldstate);
-      thread->jmp_buf_valid = 0;
-      thread->anchor = NULL;
-      return true;
-   }
-   else {
-      jit_transition(thread, j, JIT_RUNNING, oldstate);
-      thread->jmp_buf_valid = 0;
-      thread->anchor = NULL;
-      return false;
-   }
+   return ok;
 }
 
 static void jit_unpack_args(jit_func_t *f, jit_scalar_t *args, va_list ap)
@@ -824,8 +810,8 @@ void jit_abort(void)
       fatal_exit(1);
       break;
    case JIT_RUNNING:
-      if (thread->jmp_buf_valid)
-         jit_longjmp(thread->abort_env, 1);
+      if (relaxed_load(&thread->jmp_buf) != NULL)
+         jit_unwind(thread);
       else {
          const int code = atomic_load(&thread->jit->exit_status);
          fatal_exit(code);
