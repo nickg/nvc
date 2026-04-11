@@ -12,6 +12,7 @@
 - The `NVC_PLUGIN_PATH` environment variable can be used to specify a
   list of directories to search when the argument to `--load` is not a
   valid path.
+- Added support for VHDL-2019 extended ranges.
 - Several other minor bugs were resolved (#1453, #1460, #1466, #1469,
   #1394).
 
