@@ -1587,7 +1587,14 @@ START_TEST(test_pp8)
       "((1) + (y)) // Error\n"
       "(4, 5, 6) // Warning\n"
       "\n"
-      " // Error\n");
+      " // Error\n"
+      "\n"
+      "'hAbCdEf10 * 'hAbCdEf10         // hex literal (no size)\n"
+      "12'b0100_0000_0000 * 12'b0100_0000_0000 // unsigned binary literal (with underscores)\n"
+      "12'd1024 * 12'd1024           // unsigned decimal literal\n"
+      "12'sh400 * 12'sh400           // signed hex literal\n"
+      "12'o2000 * 12'o2000           // unsigned octal literal\n"
+      );
 
    check_expected_errors();
 }

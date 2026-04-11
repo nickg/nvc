@@ -269,6 +269,14 @@ static token_t lex_text(scan_buf_t buf)
    while (scan_peek(buf, &ch)) {
       switch (ch) {
       case '0'...'9':
+      case 'A'...'F':
+      case 'a'...'f':
+      case 'h': case 'H':
+      case 'o': case 'O':
+      case 's': case 'S':
+      case 'x': case 'X':
+      case 'z': case 'Z': case '?':
+      case '\'': case '_':
       case '+': case '-': case '*':
          scan_advance(&buf);
          continue;
