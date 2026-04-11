@@ -91,8 +91,8 @@ static void rename_mangled(copy_ctx_t *ctx, ident_t dotted,
             tb_cat(tb, istr(dotted));
             tb_cat(tb, istr(prefix) + ident_len(prefixes[j]));
 
-            const tree_kind_t kind = tree_kind(decl);
-            const bool is_func = kind == T_FUNC_BODY || kind == T_FUNC_DECL;
+            type_t type = tree_type(decl);
+            const bool is_func = type_has_result(type);
             const int nports = tree_ports(decl);
             if (nports > 0 || is_func)
                tb_append(tb, '(');
