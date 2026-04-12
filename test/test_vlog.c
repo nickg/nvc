@@ -1655,6 +1655,28 @@ START_TEST(test_const2)
 }
 END_TEST
 
+START_TEST(test_pp10)
+{
+   input_from_file(TESTDIR "/vlog/pp10.v");
+
+   LOCAL_TEXT_BUF tb = tb_new();
+   vlog_preprocess(tb, false);
+
+   ck_assert_str_eq(
+      tb_get(tb),
+      "// Test `define with trailing // comment (IEEE 1364-2005 §19.3.1).\n"
+      "// The comment is NOT part of the macro text.\n"
+      "\n"
+      "\n"
+      "\n"
+      "\n"
+      "\n"
+      "10'b0011110110   42               \"hello\"         \n");
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_vlog_tests(void)
 {
    Suite *s = suite_create("vlog");
@@ -1718,6 +1740,7 @@ Suite *get_vlog_tests(void)
    tcase_add_test(tc, test_generate2);
    tcase_add_test(tc, test_pp9);
    tcase_add_test(tc, test_const2);
+   tcase_add_test(tc, test_pp10);
    suite_add_tcase(s, tc);
 
    return s;
