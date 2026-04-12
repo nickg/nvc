@@ -27,6 +27,7 @@
 #include "scan.h"
 #include "test_mir.h"
 #include "vcode.h"
+#include "vhdl/vhdl-lower.h"
 
 #include <inttypes.h>
 
@@ -7116,6 +7117,44 @@ START_TEST(test_issue1425)
    fail_if_errors();
 }
 
+START_TEST(test_types1)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/lower/types1.vhd");
+
+   tree_t p = parse_check_and_simplify(T_PACKAGE, T_PACKAGE);
+
+   ident_t name = tree_ident(p);
+   mir_defer(get_mir(), name, NULL, MIR_UNIT_PACKAGE,
+             vhdl_lower_deferred, tree_to_object(p));
+
+   mir_unit_t *mu = mir_get_unit(get_mir(), name);
+
+   static const mir_match_t bb0[] = {
+      // MY_INT1
+      { MIR_OP_FCALL, LINK("WORK.UTIL.EXPENSIVE()I") },
+      { MIR_OP_NULL },
+      { MIR_OP_WRAP, NODE(_), CONST(1), NODE(_) },
+      { MIR_OP_STORE, VAR("WORK.TYPES1.MY_INT1") },
+
+      // C1
+      { MIR_OP_LOAD, VAR("WORK.TYPES1.MY_INT1") },
+      { MIR_OP_UARRAY_LEFT, NODE(_), ENUM(0) },
+      { MIR_OP_UARRAY_RIGHT, NODE(_), ENUM(0) },
+      { MIR_OP_UARRAY_DIR, NODE(_), ENUM(0) },
+      { MIR_OP_LOCUS },
+      { MIR_OP_RANGE_CHECK, CONST(5) },
+      { MIR_OP_STORE, VAR("C1"), CONST(5) },
+
+      { MIR_OP_RETURN },
+   };
+   mir_match(mu, 0, bb0);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_lower_tests(void)
 {
    Suite *s = suite_create("lower");
@@ -7279,6 +7318,7 @@ Suite *get_lower_tests(void)
    tcase_add_test(tc, test_issue1259);
    tcase_add_test(tc, test_issue1422);
    tcase_add_test(tc, test_issue1425);
+   tcase_add_test(tc, test_types1);
    suite_add_tcase(s, tc);
 
    return s;

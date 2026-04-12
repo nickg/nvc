@@ -190,6 +190,31 @@ const type_info_t *type_info(mir_unit_t *mu, type_t type)
    return ti;
 }
 
+static mir_value_t get_bounds_var(vhdl_gen_t *g, const type_info_t *ti)
+{
+   assert(!is_anonymous_subtype(ti->tree));
+
+   int hops;
+   mir_value_t var = mir_search_object(g->mu, ti->tree, &hops);
+   assert(!mir_is_null(var));
+   assert(var.tag == MIR_TAG_VAR);
+   assert(hops == 0);
+
+   return mir_build_load(g->mu, var);
+}
+
+static void check_scalar_bounds(vhdl_gen_t *g, const type_info_t *ti,
+                                mir_value_t value, tree_t where)
+{
+   mir_value_t bounds = get_bounds_var(g, ti);
+   mir_value_t left = mir_build_uarray_left(g->mu, bounds, 0);
+   mir_value_t right = mir_build_uarray_right(g->mu, bounds, 0);
+   mir_value_t dir = mir_build_uarray_dir(g->mu, bounds, 0);
+   mir_value_t locus = mir_build_locus(g->mu, tree_to_object(where));
+
+   mir_build_range_check(g->mu, value, left, right, dir, locus, locus);
+}
+
 mir_value_t vhdl_lower_wrap(vhdl_gen_t *g, const type_info_t *ti,
                             mir_value_t data)
 {
@@ -297,12 +322,142 @@ static mir_value_t vhdl_lower_literal(vhdl_gen_t *g, tree_t t)
    }
 }
 
+static mir_value_t vhdl_lower_fcall(vhdl_gen_t *g, tree_t t)
+{
+   tree_t decl = tree_ref(t);
+   const type_info_t *ti = type_info(g->mu, type_result(tree_type(decl)));
+
+   return mir_build_fcall(g->mu, tree_ident2(decl), ti->type, ti->stamp,
+                          NULL, 0);
+}
+
 mir_value_t vhdl_lower_rvalue(vhdl_gen_t *g, tree_t t)
 {
    switch (tree_kind(t)) {
    case T_LITERAL:
       return vhdl_lower_literal(g, t);
+   case T_FCALL:
+      return vhdl_lower_fcall(g, t);
    default:
       CANNOT_HANDLE(t);
    }
+}
+
+static void vhdl_lower_const_decl(vhdl_gen_t *g, tree_t t)
+{
+   mir_comment(g->mu, "Constant declaration %pI", tree_ident(t));
+
+   const type_info_t *ti = type_info(g->mu, tree_type(t));
+
+   mir_value_t var = mir_add_var(g->mu, ti->type, ti->stamp,
+                                 tree_ident(t), MIR_VAR_CONST);
+
+   mir_value_t init = vhdl_lower_rvalue(g, tree_value(t));
+   if (type_is_scalar(ti->tree))
+      check_scalar_bounds(g, ti, init, t);
+
+   mir_build_store(g->mu, var, init);
+}
+
+static void vhdl_lower_subtype_decl(vhdl_gen_t *g, tree_t t)
+{
+   mir_comment(g->mu, "Subtype declaration %pI", tree_ident(t));
+
+   const type_info_t *ti = type_info(g->mu, tree_type(t));
+
+   if (type_is_scalar(ti->tree)) {
+      mir_type_t t_bounds = mir_uarray_type(g->mu, 1, ti->type);
+      mir_type_t t_bool = mir_bool_type(g->mu);
+      mir_type_t t_ptr = mir_pointer_type(g->mu, ti->type);
+
+      tree_t r = range_of(ti->tree, 0);
+      mir_value_t left = vhdl_lower_rvalue(g, tree_left(r));
+      mir_value_t right = vhdl_lower_rvalue(g, tree_right(r));
+      mir_value_t dir = mir_const(g->mu, t_bool, tree_subkind(r));
+
+      mir_dim_t dims[1] = {
+         { left, right, dir },
+      };
+
+      mir_value_t null = mir_build_null(g->mu, t_ptr);
+      mir_value_t bounds = mir_build_wrap(g->mu, null, dims, 1);
+
+      mir_value_t var = mir_add_var(g->mu, t_bounds, ti->stamp,
+                                    type_ident(ti->tree), MIR_VAR_CONST);
+      mir_build_store(g->mu, var, bounds);
+
+      mir_put_object(g->mu, ti->tree, var);
+   }
+   else
+      should_not_reach_here();
+}
+
+static void vhdl_lower_decls(vhdl_gen_t *g, tree_t t)
+{
+   const int ndecls = tree_decls(t);
+   for (int i = 0; i < ndecls; i++) {
+      tree_t d = tree_decl(t, i);
+      switch (tree_kind(d)) {
+      case T_FUNC_DECL:
+         break;
+      case T_SUBTYPE_DECL:
+         vhdl_lower_subtype_decl(g, d);
+         break;
+      case T_CONST_DECL:
+         vhdl_lower_const_decl(g, d);
+         break;
+      default:
+         CANNOT_HANDLE(d);
+      }
+   }
+}
+
+static void vhdl_lower_pack_body(vhdl_gen_t *g, tree_t t)
+{
+   tree_t pack = tree_primary(t);
+   assert(!is_uninstantiated_package(pack));
+
+   vhdl_lower_decls(g, pack);
+
+   mir_build_return(g->mu, MIR_NULL_VALUE);
+}
+
+static void vhdl_lower_package(vhdl_gen_t *g, tree_t t)
+{
+   assert(!is_uninstantiated_package(t));
+   assert(!package_needs_body(t));
+
+   vhdl_lower_decls(g, t);
+
+   mir_build_return(g->mu, MIR_NULL_VALUE);
+}
+
+static void vhdl_lower_cleanup(vhdl_gen_t *g)
+{
+
+}
+
+void vhdl_lower_deferred(mir_unit_t *mu, object_t *obj)
+{
+   tree_t t = tree_from_object(obj);
+   assert(t != NULL);
+
+   vhdl_gen_t g = {
+      .mu = mu,
+   };
+
+   switch (tree_kind(t)) {
+   case T_PACKAGE:
+      vhdl_lower_package(&g, t);
+      break;
+   case T_PACK_BODY:
+      vhdl_lower_pack_body(&g, t);
+      break;
+   default:
+      CANNOT_HANDLE(t);
+   }
+
+   mir_optimise(mu, MIR_PASS_O1);
+
+   vhdl_lower_cleanup(&g);
 }
