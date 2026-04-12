@@ -7139,10 +7139,6 @@ START_TEST(test_types1)
       { MIR_OP_STORE, VAR("WORK.TYPES1.MY_INT1") },
 
       // C1
-      { MIR_OP_LOAD, VAR("WORK.TYPES1.MY_INT1") },
-      { MIR_OP_UARRAY_LEFT, NODE(_), ENUM(0) },
-      { MIR_OP_UARRAY_RIGHT, NODE(_), ENUM(0) },
-      { MIR_OP_UARRAY_DIR, NODE(_), ENUM(0) },
       { MIR_OP_DEBUG_LOCUS },
       { MIR_OP_RANGE_CHECK, CONST(5) },
       { MIR_OP_STORE, VAR("C1"), CONST(5) },

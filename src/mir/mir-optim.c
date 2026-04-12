@@ -67,6 +67,7 @@ typedef struct {
 typedef struct {
    valnum_t    *nodevn;
    valnum_t    *paramvn;
+   valnum_t    *varvn;
    valnum_t     nextvn;
    valnum_t     maxvn;
    mir_value_t *canon;
@@ -353,11 +354,42 @@ static valnum_t gvn_get_value(mir_value_t value, gvn_state_t *gvn)
       return gvn->nodevn[value.id];
    case MIR_TAG_PARAM:
       return gvn->paramvn[value.id];
+   case MIR_TAG_VAR:
+      return gvn->varvn[value.id];
    case MIR_TAG_CONST:
       return VN_CONST + value.id;
    default:
       should_not_reach_here();
    }
+}
+
+static mir_value_t gvn_get_canon(mir_value_t value, gvn_state_t *gvn)
+{
+   assert(value.tag == MIR_TAG_NODE);
+
+   const valnum_t vn = gvn->nodevn[value.id];
+   assert(vn != VN_INVALID);
+
+   if (vn & VN_CONST)
+      return (mir_value_t){ .tag = MIR_TAG_CONST, .id = vn & ~VN_CONST };
+   else
+      return gvn->canon[vn];
+}
+
+static int64_t gvn_get_const(mir_unit_t *mu, mir_value_t n, int arg)
+{
+   mir_value_t value = mir_get_arg(mu, n, arg);
+
+   int64_t result;
+   if (mir_get_const(mu, value, &result))
+      return result;
+
+#ifdef DEBUG
+   mir_dump(mu);
+   fatal_trace("argument %d is not constant", arg);
+#else
+   should_not_reach_here();
+#endif
 }
 
 static uint32_t gvn_hash_node(mir_unit_t *mu, const node_data_t *n,
@@ -577,26 +609,97 @@ static void gvn_unpack(mir_unit_t *mu, mir_value_t node, mir_block_t block,
    gvn_generic(mu, node, block, opt);
 }
 
+static void gvn_store(mir_unit_t *mu, mir_value_t node, mir_block_t block,
+                      mir_optim_t *opt)
+{
+   mir_value_t dest = mir_get_arg(mu, node, 0);
+
+   if (dest.tag == MIR_TAG_VAR) {
+      mir_value_t src = mir_get_arg(mu, node, 1);
+      opt->gvn->varvn[dest.id] = gvn_get_value(src, opt->gvn);
+   }
+   else {
+      // May alias any variable
+      for (int i = 0; i < mu->vars.count; i++)
+         opt->gvn->varvn[i] = VN_INVALID;
+   }
+}
+
 static void gvn_load(mir_unit_t *mu, mir_value_t node, mir_block_t block,
                      mir_optim_t *opt)
 {
-   // TODO: check if stamp is const or pointer
+   mir_value_t ptr = mir_get_arg(mu, node, 0);
+   if (mir_get_mem(mu, ptr) == MIR_MEM_CONST)
+      gvn_generic(mu, node, block, opt);
+   else if (ptr.tag == MIR_TAG_VAR) {
+      const valnum_t vn = gvn_get_value(ptr, opt->gvn);
+      if (vn != VN_INVALID)
+         opt->gvn->nodevn[node.id] = vn;
+      else
+         opt->gvn->nodevn[node.id] = gvn_new_value(node, opt->gvn);
+   }
+   else
+      opt->gvn->nodevn[node.id] = gvn_new_value(node, opt->gvn);
+}
 
-   opt->gvn->nodevn[node.id] = gvn_new_value(node, opt->gvn);
+static void gvn_uarray_left(mir_unit_t *mu, mir_value_t node, mir_block_t block,
+                            mir_optim_t *opt)
+{
+   mir_value_t array = mir_get_arg(mu, node, 0);
+   mir_value_t def = gvn_get_canon(array, opt->gvn);
+   if (def.tag == MIR_TAG_NODE && mir_get_op(mu, def) == MIR_OP_WRAP) {
+      const int dim = gvn_get_const(mu, node, 1);
+      mir_value_t left = mir_get_arg(mu, def, 1 + dim*3);
+      opt->gvn->nodevn[node.id] = gvn_get_value(left, opt->gvn);
+      return;
+   }
+
+   gvn_generic(mu, node, block, opt);
+}
+
+static void gvn_uarray_right(mir_unit_t *mu, mir_value_t node, mir_block_t block,
+                            mir_optim_t *opt)
+{
+   mir_value_t array = mir_get_arg(mu, node, 0);
+   mir_value_t def = gvn_get_canon(array, opt->gvn);
+   if (def.tag == MIR_TAG_NODE && mir_get_op(mu, def) == MIR_OP_WRAP) {
+      const int dim = gvn_get_const(mu, node, 1);
+      mir_value_t left = mir_get_arg(mu, def, 1 + dim*3 + 1);
+      opt->gvn->nodevn[node.id] = gvn_get_value(left, opt->gvn);
+      return;
+   }
+
+   gvn_generic(mu, node, block, opt);
+}
+
+static void gvn_uarray_dir(mir_unit_t *mu, mir_value_t node, mir_block_t block,
+                           mir_optim_t *opt)
+{
+   mir_value_t array = mir_get_arg(mu, node, 0);
+   mir_value_t def = gvn_get_canon(array, opt->gvn);
+   if (def.tag == MIR_TAG_NODE && mir_get_op(mu, def) == MIR_OP_WRAP) {
+      const int dim = gvn_get_const(mu, node, 1);
+      mir_value_t left = mir_get_arg(mu, def, 1 + dim*3 + 2);
+      opt->gvn->nodevn[node.id] = gvn_get_value(left, opt->gvn);
+      return;
+   }
+
+   gvn_generic(mu, node, block, opt);
 }
 
 static void gvn_visit_block(mir_unit_t *mu, mir_block_t block,
                             mir_optim_t *opt)
 {
-   if (mask_test(&opt->gvn->visited, block.id))
+   if (mask_test_and_set(&opt->gvn->visited, block.id))
       return;
-
-   mask_set(&opt->gvn->visited, block.id);
 
    for (size_t id = -1; mask_iter(&opt->cfg[block.id].dom, &id);) {
       mir_block_t dom = { .tag = MIR_TAG_BLOCK, .id = id };
       gvn_visit_block(mu, dom, opt);
    }
+
+   for (int i = 0; i < mu->vars.count; i++)
+      opt->gvn->varvn[i] = VN_INVALID;
 
    const block_data_t *bd = mir_block_data(mu, block);
    for (int i = 0; i < bd->num_nodes; i++) {
@@ -644,10 +747,16 @@ static void gvn_visit_block(mir_unit_t *mu, mir_block_t block,
       case MIR_OP_EXTRACT:
       case MIR_OP_NEG:
       case MIR_OP_WRAP:
-      case MIR_OP_UARRAY_DIR:
-      case MIR_OP_UARRAY_LEFT:
-      case MIR_OP_UARRAY_RIGHT:
          gvn_generic(mu, node, block, opt);
+         break;
+      case MIR_OP_UARRAY_LEFT:
+         gvn_uarray_left(mu, node, block, opt);
+         break;
+      case MIR_OP_UARRAY_RIGHT:
+         gvn_uarray_right(mu, node, block, opt);
+         break;
+      case MIR_OP_UARRAY_DIR:
+         gvn_uarray_dir(mu, node, block, opt);
          break;
       case MIR_OP_AND:
       case MIR_OP_OR:
@@ -658,6 +767,9 @@ static void gvn_visit_block(mir_unit_t *mu, mir_block_t block,
          break;
       case MIR_OP_UNPACK:
          gvn_unpack(mu, node, block, opt);
+         break;
+      case MIR_OP_STORE:
+         gvn_store(mu, node, block, opt);
          break;
       case MIR_OP_LOAD:
          gvn_load(mu, node, block, opt);
@@ -678,14 +790,15 @@ static void gvn_visit_block(mir_unit_t *mu, mir_block_t block,
 static void mir_do_gvn(mir_unit_t *mu, mir_optim_t *opt)
 {
    const size_t tabsz = next_power_of_2(mu->num_nodes * 2);
-   valnum_t *vnmap = xmalloc_array(mu->num_nodes + mu->params.count,
-                                   sizeof(gvn_tab_t));
+   const size_t total_vns = mu->num_nodes + mu->params.count + mu->vars.count;
+   valnum_t *vnmap = xmalloc_array(total_vns, sizeof(gvn_tab_t));
 
    opt->gvn = xcalloc_flex(sizeof(gvn_state_t), tabsz, sizeof(gvn_tab_t));
    opt->gvn->tabsz   = tabsz;
    opt->gvn->nodevn  = vnmap;
    opt->gvn->paramvn = vnmap + mu->num_nodes;
-   opt->gvn->maxvn   = mu->num_nodes + mu->params.count;
+   opt->gvn->varvn   = vnmap + mu->num_nodes + mu->params.count;
+   opt->gvn->maxvn   = total_vns;
    opt->gvn->canon   = xcalloc_array(opt->gvn->maxvn, sizeof(mir_value_t));
 
    for (int i = 0; i < mu->num_nodes; i++)
@@ -695,6 +808,9 @@ static void mir_do_gvn(mir_unit_t *mu, mir_optim_t *opt)
       mir_value_t param = { .tag = MIR_TAG_PARAM, .id = i };
       opt->gvn->paramvn[i] = gvn_new_value(param, opt->gvn);
    }
+
+   for (int i = 0; i < mu->vars.count; i++)
+      opt->gvn->varvn[i] = VN_INVALID;
 
    mask_init(&opt->gvn->visited, mu->blocks.count);
 
@@ -713,8 +829,10 @@ static void mir_do_gvn(mir_unit_t *mu, mir_optim_t *opt)
                mir_dump_optim(mu, opt);
                fatal_trace("node %%%d has no value number", args[j].id);
             }
-            else if (!mir_equals(opt->gvn->canon[vn], args[j]))
-               mir_set_arg(mu, n, j, opt->gvn->canon[vn]);
+
+            mir_value_t canon = gvn_get_canon(args[j], opt->gvn);
+            if (!mir_equals(canon, args[j]))
+               mir_set_arg(mu, n, j, canon);
          }
       }
    }
