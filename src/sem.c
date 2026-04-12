@@ -5355,6 +5355,8 @@ static bool sem_check_generic_map(tree_t t, tree_t unit, nametab_t *tab)
             // have the symbol table
             map_generic_box(tab, t, formals[i].decl, i);
          }
+         else if (class == C_CONSTANT)
+            map_generic_const(tab, formals[i].decl, value);
       }
       else if (formals[i].state == MAP_MISSING) {
          diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
