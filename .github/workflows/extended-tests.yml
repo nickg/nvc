@@ -12,34 +12,34 @@ jobs:
     container:
       image: ghcr.io/nickg/nvc-ubuntu-builder:24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 1
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           repository: nickg/vhdl-vendor-libs
           path: vhdl-vendor-libs
           fetch-depth: 1
           token: ${{ secrets.VENDOR_LIBS_TOKEN }}
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           repository: nickg/ndk-fpga
           ref: makefile-hacks
           path: ndk-fpga
           fetch-depth: 1
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           repository: Logic-Design-Services/CTU-CAN-FD
           path: ctu-can-fd
           submodules: recursive
           fetch-depth: 1
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           repository: VUnit/vunit
           path: vunit
           submodules: recursive
           fetch-depth: 1
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           repository: nickg/vhdl-projects
           path: vhdl-projects
