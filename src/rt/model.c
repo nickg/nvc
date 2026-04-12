@@ -1713,6 +1713,7 @@ static void setup_process(rt_proc_t *p, const char *path)
          case V_ASSIGN:
          case V_PORT_MAP:
          case V_GATE_INST:
+         case V_NET_DECL:
             p->wakeable.reschedule = true;
             p->name = ident_sprintf("%s:%s", path, istr(tree_ident(p->where)));
             break;
