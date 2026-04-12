@@ -482,11 +482,15 @@ static void p_text_macro_definition(void)
          tb_append(m->text, '\n');
          tb_append(output, '\n');
          break;
+      case tCOMMENT:
+         consume(tok);
+         goto done;
       default:
          one_of(tTEXT, tWHITESPACE, tMACROUSAGE);
          break;
       }
    }
+ done:
 
    consume(tNEWLINE);
    tb_append(output, '\n');
