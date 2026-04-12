@@ -11870,8 +11870,10 @@ static vcode_reg_t lower_constrain_port(lower_unit_t *lu, tree_t port, int pos,
 
       tree_t value = tree_value(map);
 
-      vcode_reg_t bounds_reg;
-      if (map_regs[i] == VCODE_INVALID_REG) {
+      vcode_reg_t bounds_reg = VCODE_INVALID_REG;
+      if (map_regs[i] != VCODE_INVALID_REG)
+         bounds_reg = map_regs[i];
+      else if (tree_kind(value) != T_TYPE_CONV) {
          // Has conversion function or inertial expression
          if (tree_kind(value) == T_INERTIAL)
             value = tree_value(value);
@@ -11885,8 +11887,6 @@ static vcode_reg_t lower_constrain_port(lower_unit_t *lu, tree_t port, int pos,
          else
             bounds_reg = lower_get_type_bounds(lu, type);
       }
-      else
-         bounds_reg = map_regs[i];
 
       type_t value_type = tree_type(value);
 
@@ -11921,6 +11921,19 @@ static vcode_reg_t lower_constrain_port(lower_unit_t *lu, tree_t port, int pos,
                elem_reg = lower_coerce_arrays(lu, value_type, elem, bounds_reg);
             else if (elem_reg == VCODE_INVALID_REG)
                elem_reg = bounds_reg;
+         }
+         break;
+
+      case T_ARRAY_SLICE:
+         {
+            assert(left_reg == VCODE_INVALID_REG);
+            assert(right_reg == VCODE_INVALID_REG);
+
+            tree_t r = tree_range(name, 0);
+            left_reg = lower_range_left(lu, r);
+            right_reg = lower_range_right(lu, r);
+
+            elem_reg = emit_null(vtype_pointer(lower_type(elem)));
          }
          break;
 
