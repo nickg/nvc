@@ -27,7 +27,7 @@ jobs:
     container:
       image: ghcr.io/nickg/nvc-ubuntu-builder:${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 1
       - name: Generate configure script
@@ -111,7 +111,7 @@ jobs:
     name: Mac OS (${{ matrix.arch }})
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 1
       - name: Install dependencies
@@ -151,7 +151,7 @@ jobs:
       run:
         shell: msys2 {0}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 1
       - uses: msys2/setup-msys2@v2
@@ -211,7 +211,7 @@ jobs:
     container:
       image: ghcr.io/nickg/nvc-ubuntu-builder:22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 1
       - name: Get version
@@ -241,10 +241,10 @@ jobs:
     container:
       image: ghcr.io/nickg/nvc-ubuntu-builder:22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 1
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           repository: nickg/vests
           path: vests
@@ -263,10 +263,10 @@ jobs:
       image: ghcr.io/nickg/nvc-ubuntu-builder:22.04
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 1
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           repository: nickg/vhdl-projects
           path: vhdl-projects
@@ -331,17 +331,17 @@ jobs:
     container:
       image: ghcr.io/nickg/nvc-ubuntu-builder:22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 1
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           repository: VUnit/vunit
           ref: master
           path: vunit
           submodules: recursive
           fetch-depth: 1
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           repository: antonblanchard/microwatt
           ref: master
@@ -384,14 +384,14 @@ jobs:
     container:
       image: ghcr.io/nickg/nvc-ubuntu-builder:22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 1
       - name: Get OSVVM version
         run: |
           vers=$(awk '/git_wrapper/ { print $3; }' contrib/install-osvvm.sh)
           echo "OSVVM_VERSION=$vers" >> $GITHUB_ENV
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           repository: OSVVM/OsvvmLibraries
           path: OsvvmLibraries
@@ -417,10 +417,10 @@ jobs:
     container:
       image: ghcr.io/nickg/nvc-ubuntu-builder:22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 1
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           repository: cocotb/cocotb
           ref: v2.0.0
@@ -441,10 +441,10 @@ jobs:
     container:
       image: ghcr.io/nickg/nvc-ubuntu-builder:22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 1
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           repository: steveicarus/ivtest
           path: ivtest
@@ -459,7 +459,7 @@ jobs:
     name: Windows installer
     runs-on: windows-2022
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
       - name: Build MSI installer
