@@ -872,7 +872,7 @@ static mir_value_t vlog_lower_sys_tfcall(vlog_gen_t *g, vlog_node_t v)
       }
    }
 
-   mir_value_t locus = mir_build_locus(g->mu, vlog_to_object(v));
+   mir_value_t locus = mir_build_debug_locus(g->mu, vlog_to_object(v));
 
    mir_type_t type = MIR_NULL_TYPE;
    if (vlog_kind(v) == V_SYS_FCALL) {
@@ -2552,7 +2552,7 @@ static void vlog_lower_net_decl(vlog_gen_t *g, vlog_node_t v, tree_t wrap,
    mir_value_t count = mir_const(g->mu, t_offset, total_size);
    mir_value_t size = mir_const(g->mu, t_offset, 1);
    mir_value_t flags = mir_const(g->mu, t_offset, 0);
-   mir_value_t locus = mir_build_locus(g->mu, tree_to_object(wrap));
+   mir_value_t locus = mir_build_debug_locus(g->mu, tree_to_object(wrap));
 
    mir_value_t signal = mir_build_init_signal(g->mu, t_net_value, count, size,
                                               value, flags, locus,
@@ -2609,7 +2609,7 @@ static void vlog_lower_var_decl(vlog_gen_t *g, vlog_node_t v, tree_t wrap)
    mir_value_t count = mir_const(g->mu, t_offset, total_size);
    mir_value_t size = mir_const(g->mu, t_offset, ti->elemsz);
    mir_value_t flags = mir_const(g->mu, t_offset, 0);
-   mir_value_t locus = mir_build_locus(g->mu, tree_to_object(wrap));
+   mir_value_t locus = mir_build_debug_locus(g->mu, tree_to_object(wrap));
 
    mir_value_t signal = mir_build_init_signal(g->mu, ti->unpacked, count, size,
                                               value, flags, locus,
@@ -3030,7 +3030,7 @@ void vlog_lower_instance(mir_context_t *mc, vlog_node_t body, ident_t parent,
             mir_value_t args[] = { self };
             mir_value_t closure =
                mir_build_closure(mu, sym, t_offset, args, 1);
-            mir_value_t locus = mir_build_locus(mu, tree_to_object(wrap));
+            mir_value_t locus = mir_build_debug_locus(mu, tree_to_object(wrap));
 
             mir_build_process_init(mu, closure, locus);
          }
@@ -3045,7 +3045,7 @@ void vlog_lower_instance(mir_context_t *mc, vlog_node_t body, ident_t parent,
             mir_value_t args[] = { self };
             mir_value_t closure =
                mir_build_closure(mu, sym, t_offset, args, 1);
-            mir_value_t locus = mir_build_locus(mu, tree_to_object(wrap));
+            mir_value_t locus = mir_build_debug_locus(mu, tree_to_object(wrap));
 
             mir_build_process_init(mu, closure, locus);
          }
@@ -3194,7 +3194,7 @@ void vlog_lower_block(mir_context_t *mc, ident_t parent, tree_t b)
       mir_value_t args[] = { context, nets };
       mir_value_t closure = mir_build_closure(mu, sym, MIR_NULL_TYPE,
                                               args, ARRAY_LEN(args));
-      mir_value_t locus = mir_build_locus(mu, tree_to_object(t));
+      mir_value_t locus = mir_build_debug_locus(mu, tree_to_object(t));
 
       mir_build_process_init(mu, closure, locus);
    }
@@ -3371,7 +3371,7 @@ void vlog_lower_block(mir_context_t *mc, ident_t parent, tree_t b)
          mir_value_t args[] = { inst, dst, src };
          mir_value_t closure = mir_build_closure(mu, sym, t_offset,
                                                  args, ARRAY_LEN(args));
-         mir_value_t locus = mir_build_locus(mu, tree_to_object(map));
+         mir_value_t locus = mir_build_debug_locus(mu, tree_to_object(map));
          mir_build_process_init(mu, closure, locus);
       }
 
@@ -3386,12 +3386,12 @@ void vlog_lower_block(mir_context_t *mc, ident_t parent, tree_t b)
             mir_value_t args[] = { inst, src, dst };
             mir_value_t closure = mir_build_closure(mu, sym, t_offset,
                                                     args, ARRAY_LEN(args));
-            mir_value_t locus = mir_build_locus(mu, tree_to_object(map));
+            mir_value_t locus = mir_build_debug_locus(mu, tree_to_object(map));
             mir_build_process_init(mu, closure, locus);
          }
       }
 
-      mir_value_t locus = mir_build_locus(mu, tree_to_object(map));
+      mir_value_t locus = mir_build_debug_locus(mu, tree_to_object(map));
       mir_build_length_check(mu, src_count, dst_count, locus, MIR_NULL_VALUE);
    }
 

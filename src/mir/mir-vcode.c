@@ -245,7 +245,7 @@ static void import_cmp(mir_unit_t *mu, mir_import_t *imp, int op)
 static void import_debug_locus(mir_unit_t *mu, mir_import_t *imp, int op)
 {
    object_t *obj = vcode_get_object(op);
-   imp->map[vcode_get_result(op)] = mir_build_locus(mu, obj);
+   imp->map[vcode_get_result(op)] = mir_build_debug_locus(mu, obj);
 }
 
 static void import_assert(mir_unit_t *mu, mir_import_t *imp, int op)

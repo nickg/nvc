@@ -156,7 +156,7 @@ typedef enum {
    MIR_OP_NOT,
    MIR_OP_RESOLVED,
    MIR_OP_LAST_VALUE,
-   MIR_OP_LOCUS,
+   MIR_OP_DEBUG_LOCUS,
    MIR_OP_INIT_SIGNAL,
    MIR_OP_SELECT,
    MIR_OP_WAIT,
@@ -759,7 +759,7 @@ mir_value_t mir_build_closure(mir_unit_t *mu, ident_t func, mir_type_t rtype,
 mir_value_t mir_build_resolution_wrapper(mir_unit_t *mu, mir_type_t type,
                                          mir_value_t closure,
                                          mir_value_t nlits);
-mir_value_t mir_build_locus(mir_unit_t *mu, object_t *obj);
+mir_value_t mir_build_debug_locus(mir_unit_t *mu, object_t *obj);
 mir_value_t mir_build_cast(mir_unit_t *mu, mir_type_t type, mir_value_t value);
 void mir_build_debug_out(mir_unit_t *mu, mir_value_t value);
 

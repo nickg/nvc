@@ -210,7 +210,7 @@ static void check_scalar_bounds(vhdl_gen_t *g, const type_info_t *ti,
    mir_value_t left = mir_build_uarray_left(g->mu, bounds, 0);
    mir_value_t right = mir_build_uarray_right(g->mu, bounds, 0);
    mir_value_t dir = mir_build_uarray_dir(g->mu, bounds, 0);
-   mir_value_t locus = mir_build_locus(g->mu, tree_to_object(where));
+   mir_value_t locus = mir_build_debug_locus(g->mu, tree_to_object(where));
 
    mir_build_range_check(g->mu, value, left, right, dir, locus, locus);
 }

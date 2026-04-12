@@ -372,7 +372,7 @@ static uint32_t gvn_hash_node(mir_unit_t *mu, const node_data_t *n,
       return hash ^ mix_bits_64(FLOAT_BITS(n->dconst));
    else if (n->op == MIR_OP_CONST_VEC)
       return hash ^ mix_bits_64(n->bits[0]) ^ mix_bits_64(n->bits[1]);
-   else if (n->op == MIR_OP_LOCUS)
+   else if (n->op == MIR_OP_DEBUG_LOCUS)
       return hash ^ mix_bits_64(n->locus);
    else {
       const mir_value_t *args = mir_get_args(mu, n);
@@ -399,7 +399,7 @@ static bool gvn_compare(mir_unit_t *mu, const node_data_t *a,
       return a->dconst == b->dconst;
    else if (a->op == MIR_OP_CONST_VEC)
       return a->bits[0] == b->bits[0] && a->bits[1] == b->bits[1];
-   else if (a->op == MIR_OP_LOCUS)
+   else if (a->op == MIR_OP_DEBUG_LOCUS)
       return a->locus == b->locus;
 
    const mir_value_t *a_args = mir_get_args(mu, a);
@@ -619,7 +619,7 @@ static void gvn_visit_block(mir_unit_t *mu, mir_block_t block,
       case MIR_OP_LINK_PACKAGE:
       case MIR_OP_LINK_VAR:
       case MIR_OP_PACKAGE_INIT:
-      case MIR_OP_LOCUS:
+      case MIR_OP_DEBUG_LOCUS:
       case MIR_OP_UARRAY_LEN:
       case MIR_OP_RANGE_LENGTH:
       case MIR_OP_CAST:

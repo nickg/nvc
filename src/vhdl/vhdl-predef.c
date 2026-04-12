@@ -278,7 +278,7 @@ static void predef_match_op(mir_unit_t *mu, tree_t decl, subprogram_kind_t kind)
       mir_value_t msg_ptr = mir_build_address_of(mu, msg_buf);
       mir_value_t msg_len = mir_const(mu, t_offset, sizeof(msg) - 1);
 
-      mir_value_t locus = mir_build_locus(mu, tree_to_object(decl));
+      mir_value_t locus = mir_build_debug_locus(mu, tree_to_object(decl));
       mir_build_report(mu, msg_ptr, msg_len, failure, locus);
       mir_build_jump(mu, cont_bb);
 
@@ -438,7 +438,7 @@ static void predef_match_op(mir_unit_t *mu, tree_t decl, subprogram_kind_t kind)
 
          mir_type_t t_severity = mir_int_type(mu, 0, SEVERITY_FAILURE - 1);
          mir_value_t error = mir_const(mu, t_severity, SEVERITY_ERROR);
-         mir_value_t locus = mir_build_locus(mu, tree_to_object(decl));
+         mir_value_t locus = mir_build_debug_locus(mu, tree_to_object(decl));
 
          mir_build_assert(mu, and, msg_ptr, msg_len, error, locus,
                           MIR_NULL_VALUE, MIR_NULL_VALUE);
@@ -511,7 +511,7 @@ static void predef_bit_vec_op(mir_unit_t *mu, tree_t decl,
       mir_value_t msg_ptr = mir_build_address_of(mu, msg_array);
       mir_value_t msg_len = mir_const(mu, t_offset, sizeof(msg_str) - 1);
 
-      mir_value_t locus = mir_build_locus(mu, tree_to_object(decl));
+      mir_value_t locus = mir_build_debug_locus(mu, tree_to_object(decl));
       mir_build_report(mu, msg_ptr, msg_len, failure, locus);
 
       mir_build_return(mu, left);

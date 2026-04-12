@@ -66,7 +66,7 @@ const char *mir_op_string(mir_op_t op)
       [MIR_OP_NOT] = "not",
       [MIR_OP_RESOLVED] = "resolved",
       [MIR_OP_LAST_VALUE] = "last value",
-      [MIR_OP_LOCUS] = "debug locus",
+      [MIR_OP_DEBUG_LOCUS] = "debug locus",
       [MIR_OP_INIT_SIGNAL] = "init signal",
       [MIR_OP_SELECT] = "select",
       [MIR_OP_REM] = "rem",
@@ -1047,7 +1047,7 @@ void mir_annotate(mir_unit_t *mu, const mir_annotate_t *cb, void *ctx)
             }
             break;
 
-         case MIR_OP_LOCUS:
+         case MIR_OP_DEBUG_LOCUS:
             {
                col += mir_dump_value(mu, result, cb, ctx);
                col += nvc_printf(" := %s ", mir_op_string(n->op));
