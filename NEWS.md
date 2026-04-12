@@ -1,4 +1,6 @@
 ## Unreleased changes
+
+## Version 1.20.0 - 2026-04-12
 - The new `vhpi_ext_nvc.h` header contains definitions for proprietary
   VHPI extensions.
 - Added a `vhpiRandomSeedP` property for `vhpiToolK` which returns the

@@ -24,7 +24,7 @@ many of the new features, please consult the table below.
   </tr>
   <tr>
     <td>Subprogram generics</td>
-    <td class="feature-partial">1.7</td>
+    <td class="feature-done">1.7</td>
   </tr>
   <tr>
     <td>Generic types</td>
