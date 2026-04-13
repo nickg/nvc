@@ -1,4 +1,6 @@
 ## Unreleased changes
+- Fix a crash while evaluating matching relational operator with
+  constant arguments (#1495).
 
 ## Version 1.20.0 - 2026-04-12
 - The new `vhpi_ext_nvc.h` header contains definitions for proprietary

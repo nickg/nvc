@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2025  Nick Gasson
+//  Copyright (C) 2011-2026  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -1986,6 +1986,33 @@ START_TEST(test_issue1438)
 }
 END_TEST
 
+START_TEST(test_issue1495)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/simp/issue1495.vhd");
+
+   tree_t p = parse_check_and_simplify(T_PACKAGE);
+
+   tree_t c1 = tree_decl(p, 0);
+   ck_assert_ident_eq(tree_ident(tree_value(c1)), "'0'");
+
+   tree_t c2 = tree_decl(p, 1);
+   ck_assert_ident_eq(tree_ident(tree_value(c2)), "'1'");
+
+   tree_t c3 = tree_decl(p, 2);
+   ck_assert_ident_eq(tree_ident(tree_value(c3)), "'0'");
+
+   tree_t c4 = tree_decl(p, 3);
+   ck_assert_ident_eq(tree_ident(tree_value(c4)), "'1'");
+
+   tree_t c5 = tree_decl(p, 4);
+   ck_assert_ident_eq(tree_ident(tree_value(c5)), "'1'");
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_simp_tests(void)
 {
    Suite *s = suite_create("simplify");
@@ -2064,6 +2091,7 @@ Suite *get_simp_tests(void)
    tcase_add_test(tc_core, test_issue1347);
    tcase_add_test(tc_core, test_issue1353);
    tcase_add_test(tc_core, test_issue1438);
+   tcase_add_test(tc_core, test_issue1495);
    suite_add_tcase(s, tc_core);
 
    return s;
