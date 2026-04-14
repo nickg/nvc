@@ -3273,7 +3273,7 @@ static tree_t p_association_element(tree_t unit, int pos, tree_t formal,
          consume(tASSOC);
 
          tree_t ref = name_to_ref(name);
-         if (ref != NULL && tree_has_ref(ref)) {
+         if (kind != F_SUBPROGRAM && ref != NULL && tree_has_ref(ref)) {
             formal = tree_ref(ref);
             class = class_of(formal);
          }
