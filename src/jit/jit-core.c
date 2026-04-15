@@ -99,13 +99,7 @@ static void jit_oom_cb(mspace_t *m, size_t size)
 __attribute__((always_inline))
 static inline jit_thread_local_t **jit_thread_local_ptr(void)
 {
-#ifdef USE_EMUTLS
-   static jit_thread_local_t *local = NULL;
-   assert(thread_id() == 0);
-#else
    static __thread jit_thread_local_t *local = NULL;
-#endif
-
    return &local;
 }
 
@@ -315,11 +309,9 @@ void jit_fill_irbuf(jit_func_t *f)
 
    assert(f->irbuf == NULL);
 
-#ifndef USE_EMUTLS
    jit_thread_local_t *thread = jit_thread_local();
    const jit_state_t oldstate = thread->state;
    jit_transition(thread, f->jit, oldstate, JIT_COMPILING);
-#endif
 
    mir_unit_t *mu = mir_get_unit(f->jit->mir, f->name);
 
@@ -337,9 +329,7 @@ void jit_fill_irbuf(jit_func_t *f)
 
    jit_irgen(f, mu);
 
-#ifndef USE_EMUTLS
    jit_transition(thread, f->jit, JIT_COMPILING, oldstate);
-#endif
 }
 
 jit_handle_t jit_compile(jit_t *j, ident_t name)
@@ -506,11 +496,6 @@ jit_stack_trace_t *jit_stack_trace(void)
       frame->loc    = LOC_INVALID;
       frame->symbol = a->func->name;
       frame->object = NULL;
-
-#ifdef USE_EMUTLS
-      if (load_acquire(&a->func->state) == JIT_FUNC_COMPILING)
-         continue;   // Cannot use jit_transition in jit_fill_irbuf
-#endif
 
       jit_fill_irbuf(a->func);
 

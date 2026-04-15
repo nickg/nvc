@@ -2,6 +2,9 @@
 - Fix a crash while evaluating matching relational operator with
   constant arguments (#1495).
 - Fixed several regressions in coverage report generation (#1490, #1494).
+- Systems with emulated thread-local storage (in particular all MSYS2
+  environments except Clang x64 and Clang Arm) are no longer supported
+  due to performance issues.
 - Several other minor bugs were resolved (#1498).
 
 ## Version 1.20.0 - 2026-04-12

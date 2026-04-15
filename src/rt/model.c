@@ -158,11 +158,7 @@ typedef struct _rt_model {
    rt_model_t *__save __attribute__((unused, cleanup(__model_exit)));   \
    __model_entry(m, &__save);                                           \
 
-#if USE_EMUTLS
-static rt_model_t *__model = NULL;
-#else
 static __thread rt_model_t *__model = NULL;
-#endif
 
 static bool __trace_on = false;
 
@@ -513,9 +509,6 @@ rt_model_t *model_new(jit_t *jit, cover_data_t *cover)
 rt_model_t *get_model(void)
 {
    assert(__model != NULL);
-#ifdef USE_EMUTLS
-   assert(thread_id() == 0);
-#endif
    return __model;
 }
 
