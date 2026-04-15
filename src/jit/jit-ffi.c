@@ -33,7 +33,6 @@
 #include <ffi.h>
 #include <stdlib.h>
 #include <string.h>
-#include <errno.h>
 
 #ifdef __MINGW32__
 #define WIN32_LEAN_AND_MEAN
@@ -142,13 +141,24 @@ static jit_dll_t *ffi_load_exe(void)
    return (dlls = dll);
 }
 
+static char *ffi_get_absolute_path(const char *path)
+{
+   file_info_t info;
+   if (!get_file_info(path, &info))
+      return NULL;
+
+   char *abs = realpath(path, NULL);
+   assert(abs != NULL);
+   return abs;
+}
+
 jit_dll_t *ffi_load_dll(const char *path)
 {
    if (path == NULL)
       return ffi_load_exe();
 
-   char *abs = realpath(path, NULL);
-   if (abs == NULL && errno == ENOENT && strchr(path, '/') == NULL) {
+   char *abs = ffi_get_absolute_path(path);
+   if (abs == NULL && strchr(path, '/') == NULL) {
       LOCAL_TEXT_BUF tb = tb_new();
 
       const char *plugin_path = getenv("NVC_PLUGIN_PATH");
@@ -162,7 +172,7 @@ jit_dll_t *ffi_load_dll(const char *path)
             tb_cat(tb, path);
             tb_cat(tb, "." DLL_EXT);
 
-            abs = realpath(tb_get(tb), NULL);
+            abs = ffi_get_absolute_path(tb_get(tb));
          } while (abs == NULL && (elem = strtok_r(NULL, PATH_SEP, &saveptr)));
       }
 
@@ -173,7 +183,7 @@ jit_dll_t *ffi_load_dll(const char *path)
          tb_cat(tb, path);
          tb_cat(tb, "." DLL_EXT);
 
-         abs = realpath(tb_get(tb), NULL);
+         abs = ffi_get_absolute_path(tb_get(tb));
       }
 
       if (abs == NULL) {
