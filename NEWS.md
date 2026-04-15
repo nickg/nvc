@@ -1,7 +1,8 @@
 ## Unreleased changes
 - Fix a crash while evaluating matching relational operator with
   constant arguments (#1495).
-- Several other minor bugs were resolved (#1498, #1490).
+- Fixed several regressions in coverage report generation (#1490, #1494).
+- Several other minor bugs were resolved (#1498).
 
 ## Version 1.20.0 - 2026-04-12
 - The new `vhpi_ext_nvc.h` header contains definitions for proprietary

@@ -1294,3 +1294,4 @@ issue1476       wave,mixed
 issue1472       normal,2008
 issue1474       normal,2008
 vlog38          verilog
+issue1494       cover
