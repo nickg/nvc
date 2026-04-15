@@ -208,6 +208,54 @@ START_TEST(test_merge1)
 }
 END_TEST
 
+START_TEST(test_merge2)
+{
+   input_from_file(TESTDIR "/cover/merge2.vhd");
+
+   tree_t top = parse_check_and_simplify(T_ENTITY, T_ARCH);
+
+   elab_set_generic("G_VAL", "1");
+
+   cover_data_t *db1 = run_cover(top);
+
+   elab_set_generic("G_VAL", "2");
+
+   cover_data_t *db2 = run_cover(top);
+
+   cover_merge(db1, db2, MERGE_UNION);
+
+   cover_scope_t *u1 = cover_get_scope(db1, ident_new("WORK.MERGE2"));
+   ck_assert_ptr_nonnull(u1);
+
+   cover_rpt_t *rpt = cover_report_new(db1, INT_MAX);
+
+   const rpt_hier_t *u1_h = rpt_get_hier(rpt, u1);
+   ck_assert_int_eq(u1_h->flat_stats.total[COV_ITEM_TOGGLE], 6);
+   ck_assert_int_eq(u1_h->flat_stats.hit[COV_ITEM_TOGGLE], 4);
+
+   const table_array_t *hits = &(u1_h->detail.hits[COV_ITEM_TOGGLE]);
+   ck_assert_int_eq(hits->count, 1);
+
+   const rpt_table_t *hits_t0 = hits->items[0];
+   ck_assert_int_eq(hits_t0->count, 4);
+   ck_assert_ident_eq(hits_t0->items[0]->hier, "WORK.MERGE2.TGL(1).BIN_0_TO_1");
+
+   const table_array_t *miss = &(u1_h->detail.miss[COV_ITEM_TOGGLE]);
+   ck_assert_int_eq(miss->count, 1);
+
+   const rpt_table_t *miss_t0 = miss->items[0];
+   ck_assert_int_eq(miss_t0->count, 2);
+   ck_assert_int_eq(miss_t0->items[0]->data, 0);
+   ck_assert_ident_eq(miss_t0->items[0]->hier, "WORK.MERGE2.TGL(2).BIN_0_TO_1");
+
+   cover_report_free(rpt);
+   cover_data_free(db1);
+   cover_data_free(db2);
+
+   fail_if_errors();
+}
+END_TEST
+
 START_TEST(test_toggle2)
 {
    input_from_file(TESTDIR "/cover/toggle2.vhd");
@@ -352,6 +400,7 @@ Suite *get_cover_tests(void)
    tcase_add_test(tc, test_perfile1);
    tcase_add_test(tc, test_toggle1);
    tcase_add_test(tc, test_merge1);
+   tcase_add_test(tc, test_merge2);
    tcase_add_test(tc, test_toggle2);
    tcase_add_test(tc, test_spec1);
    tcase_add_test(tc, test_spec2);

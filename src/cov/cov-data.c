@@ -1174,7 +1174,7 @@ static bool cover_merge_items(cover_data_t *db, cover_item_t **pdst,
 
    // Append the unmerged items to the destination array
 
-   const int new_count = dst->consecutive + src->consecutive - nmissed;
+   const int new_count = dst->consecutive + nmissed;
    cover_item_t *new = pool_malloc_array(db->pool, new_count,
                                          sizeof(cover_item_t));
 
@@ -1208,7 +1208,7 @@ static void cover_merge_scope(cover_data_t *db, cover_scope_t *dst_s,
       bool merged = false;
       for (int j = 0; j < dst_s->items.count; j++) {
          if (j != i) {
-            cover_item_t **pdst = AREF(dst_s->items, i);
+            cover_item_t **pdst = AREF(dst_s->items, j);
             if ((merged = cover_merge_items(db, pdst, src)))
                break;
          }
