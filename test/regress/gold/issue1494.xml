@@ -1,0 +1,43 @@
+<?xml version="1.0"?>
+<scope name="WORK">
+  <scope name="ISSUE1494" block_name="ISSUE1494-TEST" file="issue1494.vhd" line="4">
+    <scope name="A" line="8">
+    </scope>
+    <scope name="B" line="9">
+    </scope>
+    <scope name="C" line="10">
+    </scope>
+    <scope name="_P0" line="13">
+      <scope name="_L0" line="15">
+        <statement hier="WORK.ISSUE1494._P0._L0" data="1"/>
+        <scope name="_S0" line="16">
+          <statement hier="WORK.ISSUE1494._P0._L0._S0" data="3"/>
+          <scope name="_B0" line="17">
+            <branch hier="WORK.ISSUE1494._P0._L0._S0._B0.BIN_CHOICE" data="1"/>
+            <scope name="_S0" line="18">
+              <statement hier="WORK.ISSUE1494._P0._L0._S0._B0._S0" data="1"/>
+            </scope>
+          </scope>
+          <scope name="_B1" line="19">
+            <branch hier="WORK.ISSUE1494._P0._L0._S0._B1.BIN_CHOICE" data="1"/>
+            <scope name="_S0" line="20">
+              <statement hier="WORK.ISSUE1494._P0._L0._S0._B1._S0" data="1"/>
+            </scope>
+          </scope>
+          <scope name="_B_OTHERS" line="21">
+            <branch hier="WORK.ISSUE1494._P0._L0._S0._B_OTHERS.BIN_CHOICE" data="1"/>
+            <scope name="_S0" line="22">
+              <statement hier="WORK.ISSUE1494._P0._L0._S0._B_OTHERS._S0" data="1"/>
+            </scope>
+          </scope>
+        </scope>
+        <scope name="_S1" line="25">
+          <statement hier="WORK.ISSUE1494._P0._L0._S1" data="3"/>
+        </scope>
+      </scope>
+      <scope name="_S1" line="28">
+        <statement hier="WORK.ISSUE1494._P0._S1" data="1"/>
+      </scope>
+    </scope>
+  </scope>
+</scope>

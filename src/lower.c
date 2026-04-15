@@ -7426,7 +7426,7 @@ static void lower_case_array(lower_unit_t *lu, tree_t stmt, gen_stack_t *gs)
 
          vcode_select_block(hit_bb);
 
-         lower_sequence(lu, alt, gs);
+         lower_sequence(lu, alt, &this);
 
          if (!vcode_block_finished())
             emit_jump(exit_bb);
