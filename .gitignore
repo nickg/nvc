@@ -56,3 +56,6 @@ test/vests/*
 
 # Examples has its own repository
 test/examples/*
+# pixi environments
+.pixi/*
+!.pixi/config.toml

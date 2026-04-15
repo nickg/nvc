@@ -52,10 +52,9 @@ typedef unsigned __int8 uint8_t;
 typedef signed __int64 int64_t;
 typedef signed __int32 int32_t;
 typedef signed __int8 int8_t;
-#elif defined(__MINGW32__) || defined(__APPLE__)
+#elif defined(__MINGW32__) || defined(__APPLE__) || defined(__EMSCRIPTEN__) \
+   || defined(__linux__)
 #include <stdint.h>
-#elif defined(__linux)
-#include <inttypes.h>
 #else
 #include <sys/types.h>
 #endif

@@ -194,13 +194,6 @@ static const uint8_t lane_iota[16] = {
    0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15
 };
 
-static const uint32_t spread_nibble[16] = {
-   0x02020202, 0x03020202, 0x02030202, 0x03030202,
-   0x02020302, 0x03020302, 0x02030302, 0x03030302,
-   0x02020203, 0x03020203, 0x02030203, 0x03030203,
-   0x02020303, 0x03020303, 0x02030303, 0x03030303,
-};
-
 #ifdef HAVE_SSE41
 __attribute__((aligned(16)))
 static const uint8_t reverse_lane[16] = {
@@ -221,6 +214,13 @@ static const uint8_t spread_mask[16] = {
 #endif
 
 #endif
+
+static const uint32_t spread_nibble[16] = {
+   0x02020202, 0x03020202, 0x02030202, 0x03030202,
+   0x02020302, 0x03020302, 0x02030302, 0x03030302,
+   0x02020203, 0x03020203, 0x02030203, 0x03030203,
+   0x02020303, 0x03020303, 0x02030303, 0x03030303,
+};
 
 static void (*ieee_packed_add)(const uint8_t *, const uint8_t *,
                                int, int, uint8_t *);

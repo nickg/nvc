@@ -1,3 +1,5 @@
 PKGBUILD text eol=lf
 test/regress/vlog2.v -text
 test/vlog/pp7.v -text
+# SCM syntax highlighting & preventing 3-way merges
+pixi.lock merge=binary linguist-language=YAML linguist-generated=true -diff

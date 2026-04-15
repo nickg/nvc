@@ -69,7 +69,10 @@
 #define ASAN_UNPOISON(addr, size)
 #endif
 
-#if defined __x86_64__
+#if defined __wasm32__ || defined __wasm__ || defined __EMSCRIPTEN__ \
+   || defined __EMSCRIPTEN_major__ || defined __wasm32
+#define ARCH_WASM32 1
+#elif defined __x86_64__
 #define ARCH_X86_64 1
 #elif defined __i386__
 #define ARCH_I386 1

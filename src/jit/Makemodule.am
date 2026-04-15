@@ -16,8 +16,12 @@ lib_libnvc_a_SOURCES += \
 	src/jit/jit-intrin.c \
 	src/jit/jit-tramp.c
 
+if ARCH_WASM32
+## wasm32 uses only architecture-neutral JIT sources from this directory.
+else
 if ARCH_X86_64
 lib_libnvc_a_SOURCES += src/jit/jit-x86.c
+endif
 endif
 
 if ENABLE_LLVM

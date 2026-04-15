@@ -37,7 +37,9 @@ AC_C_RESTRICT
 
 AC_CHECK_HEADERS([sys/ptrace.h sys/prctl.h])
 AC_CHECK_FUNCS([tcgetwinsize memmem strcasestr getline fseeko ftello])
-AC_CHECK_FUNCS([fpurge __fpurge strchrnul strndup gettid popen])
+AC_CHECK_FUNCS([__fpurge strchrnul strndup gettid popen])
+AS_IF([test "x$ac_cv_func___fpurge" != xyes],
+  [AC_CHECK_FUNCS([fpurge])])
 
 AC_CHECK_MEMBERS([struct stat.st_mtimespec.tv_nsec])
 AC_CHECK_MEMBERS([struct stat.st_mtim.tv_nsec])
@@ -275,9 +277,24 @@ AX_DEFINE_DIR([LIBEXECDIR], [libexecdir/nvc], [Location of internal programs])
 AX_DEFINE_DIR([DATADIR], [datadir/nvc], [Location of data files])
 AX_DEFINE_DIR([TESTDIR], [srcdir/test], [Location of testcases])
 
-AM_CONDITIONAL([ARCH_X86_64],
-               [test x$target_cpu = xx86_64 -o x$target_cpu = xamd64])
 AM_CONDITIONAL([ARCH_ARM64], [test x$target_cpu = xaarch64])
+
+AC_CACHE_CHECK([whether C compiler targets WebAssembly],
+          [ac_cv_cc_wasm32],
+          [AC_COMPILE_IFELSE(
+            [AC_LANG_PROGRAM([[
+#if !defined(__wasm32__) && !defined(__wasm__) && !defined(__EMSCRIPTEN__)
+# error not wasm32
+#endif
+            ]], [[]])],
+            [ac_cv_cc_wasm32=yes],
+            [ac_cv_cc_wasm32=no])])
+
+AM_CONDITIONAL([ARCH_WASM32], [test x$ac_cv_cc_wasm32 = xyes])
+
+AM_CONDITIONAL([ARCH_X86_64],
+          [test x$ac_cv_cc_wasm32 != xyes -a \
+           \( x$target_cpu = xx86_64 -o x$target_cpu = xamd64 \)])
 
 case $host_os in
   *cygwin*|msys*|mingw32*)

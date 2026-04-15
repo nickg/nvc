@@ -41,8 +41,12 @@ bin_unit_test_SOURCES = \
 	test/test_mir.c \
 	test/test_cover.c
 
+if ARCH_WASM32
+## wasm32 skips host-native x86 test sources.
+else
 if ARCH_X86_64
 bin_unit_test_SOURCES += test/test_native.c
+endif
 endif
 
 if ENABLE_TCL

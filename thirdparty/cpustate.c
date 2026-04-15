@@ -180,6 +180,11 @@ void fill_cpu_state(struct cpu_state *cpu, ucontext_t *uc)
    cpu->regs[13] = uc->uc_mcontext->__ss.__r13;
    cpu->regs[14] = uc->uc_mcontext->__ss.__r14;
    cpu->regs[15] = uc->uc_mcontext->__ss.__r15;
+#elif defined __EMSCRIPTEN__
+   /* wasm32 / Emscripten: the wasm runtime does not expose hardware
+      register state via ucontext_t; leave all fields zero as set by
+      the memset above. */
+   (void)uc;
 #else
 #error Please port fill_cpu_state to this OS/CPU combination
 #endif
