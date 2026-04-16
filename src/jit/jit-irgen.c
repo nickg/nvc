@@ -4045,6 +4045,8 @@ static void irgen_op_binary(jit_irgen_t *g, mir_value_t n)
          [MIR_VEC_SRA] = JIT_VEC_ASR,
          [MIR_VEC_CASE_EQ] = JIT_VEC_CASE_EQ,
          [MIR_VEC_CASE_NEQ] = JIT_VEC_CASE_NEQ,
+         [MIR_VEC_CASEX_EQ] = JIT_VEC_CASEX_EQ,
+         [MIR_VEC_CASEZ_EQ] = JIT_VEC_CASEZ_EQ,
          [MIR_VEC_EXP] = JIT_VEC_EXP,
          [MIR_VEC_LOG_EQ] = JIT_VEC_LOG_EQ,
          [MIR_VEC_LOG_NEQ] = JIT_VEC_LOG_NEQ,
@@ -4156,6 +4158,36 @@ static void irgen_op_binary(jit_irgen_t *g, mir_value_t n)
          jit_value_t rcmp = irgen_alloc_temp(g);
          j_or(g, rcmp, aright, mask);
          j_cmp(g, JIT_CC_EQ, lcmp, rcmp);
+         j_cset(g, abits);
+      }
+      break;
+   case MIR_VEC_CASEZ_EQ:
+      {
+         jit_value_t zleft = irgen_alloc_temp(g);
+         j_not(g, zleft, aleft);
+         j_and(g, zleft, zleft, bleft);
+
+         jit_value_t zright = irgen_alloc_temp(g);
+         j_not(g, zright, aright);
+         j_and(g, zright, zright, bright);
+
+         jit_value_t zmask = irgen_alloc_temp(g);
+         j_or(g, zmask, zleft, zright);
+
+         jit_value_t lcmpa = irgen_alloc_temp(g);
+         j_or(g, lcmpa, aleft, zmask);
+         jit_value_t rcmpa = irgen_alloc_temp(g);
+         j_or(g, rcmpa, aright, zmask);
+
+         jit_value_t nzmask = irgen_alloc_temp(g);
+         j_not(g, nzmask, zmask);
+         jit_value_t lcmpb = irgen_alloc_temp(g);
+         j_and(g, lcmpb, bleft, nzmask);
+         jit_value_t rcmpb = irgen_alloc_temp(g);
+         j_and(g, rcmpb, bright, nzmask);
+
+         j_cmp(g, JIT_CC_EQ, lcmpa, rcmpa);
+         j_ccmp(g, JIT_CC_EQ, lcmpb, rcmpb);
          j_cset(g, abits);
       }
       break;

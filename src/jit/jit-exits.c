@@ -959,6 +959,8 @@ void __nvc_vec4op(jit_vec_op_t op, jit_anchor_t *anchor, jit_scalar_t *args,
    switch (op) {
    case JIT_VEC_CASE_EQ:
    case JIT_VEC_CASE_NEQ:
+   case JIT_VEC_CASEX_EQ:
+   case JIT_VEC_CASEZ_EQ:
    case JIT_VEC_LOG_EQ:
    case JIT_VEC_LOG_NEQ:
    case JIT_VEC_AND1:
@@ -981,6 +983,30 @@ void __nvc_vec4op(jit_vec_op_t op, jit_anchor_t *anchor, jit_scalar_t *args,
          case JIT_VEC_CASE_NEQ:
             aresult = memcmp(aleft, aright, nwords * sizeof(uint64_t)) != 0
                || memcmp(bleft, bright, nwords * sizeof(uint64_t)) != 0;
+            bresult = 0;
+            break;
+         case JIT_VEC_CASEX_EQ:
+            aresult = 1;
+            for (int i = 0; i < nwords; i++) {
+               const uint64_t mask = bleft[i] | bright[i];
+               if ((aleft[i] | mask) != (aright[i] | mask)) {
+                  aresult = 0;
+                  break;
+               }
+            }
+            bresult = 0;
+            break;
+         case JIT_VEC_CASEZ_EQ:
+            aresult = 1;
+            for (int i = 0; i < nwords; i++) {
+               const uint64_t zmask =
+                  ((~aleft[i]) & bleft[i]) | ((~aright[i]) & bright[i]);
+               if (((aleft[i] | zmask) != (aright[i] | zmask))
+                   || ((bleft[i] & ~zmask) != (bright[i] & ~zmask))) {
+                  aresult = 0;
+                  break;
+               }
+            }
             bresult = 0;
             break;
          case JIT_VEC_LOG_EQ:

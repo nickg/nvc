@@ -1799,8 +1799,13 @@ static void vlog_lower_case(vlog_gen_t *g, vlog_node_t v)
    const int nitems = vlog_stmts(v);
    mir_block_t *blocks LOCAL = xmalloc_array(nitems, sizeof(mir_block_t));
 
-   const mir_vec_op_t op = vlog_subkind(v) == V_CASE_NORMAL
-      ? MIR_VEC_CASE_EQ : MIR_VEC_CASEX_EQ;
+   mir_vec_op_t op;
+   switch (vlog_subkind(v)) {
+   case V_CASE_NORMAL: op = MIR_VEC_CASE_EQ; break;
+   case V_CASE_X:      op = MIR_VEC_CASEX_EQ; break;
+   case V_CASE_Z:      op = MIR_VEC_CASEZ_EQ; break;
+   default:            should_not_reach_here();
+   }
 
    int nexprs = 0;
    for (int i = 0; i < nitems; i++) {

@@ -1296,3 +1296,5 @@ issue1474       normal,2008
 vlog38          verilog
 issue1494       cover
 vlog39          verilog
+ivtest25        verilog
+wide5           verilog
