@@ -71,7 +71,12 @@ bool vlog_get_const(vlog_node_t v, int64_t *value)
    case V_REF:
       return vlog_get_const(vlog_ref(v), value);
    case V_LOCALPARAM:
+   case V_PARAM_DECL:
       return vlog_get_const(vlog_value(v), value);
+   case V_CONCAT:
+      if (vlog_params(v) == 1 && !vlog_has_value(v))
+         return vlog_get_const(vlog_param(v, 0), value);
+      // Fall through
    default:
       fatal_at(vlog_loc(v), "expression is not constant");
    }
@@ -85,7 +90,12 @@ bool vlog_is_const(vlog_node_t v)
    case V_REF:
       return vlog_is_const(vlog_ref(v));
    case V_LOCALPARAM:
+   case V_PARAM_DECL:
       return vlog_is_const(vlog_value(v));
+   case V_CONCAT:
+      if (vlog_params(v) == 1 && !vlog_has_value(v))
+         return vlog_is_const(vlog_param(v, 0));
+      return false;
    default:
       return false;
    }
