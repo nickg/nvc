@@ -36,6 +36,9 @@ module test1(a, b, c, d, e, f, clk, rst, r, s, t, u, v, w);
     $recovery(rst, d, 0.5);
     $removal(rst, e, 0.2);
     $width(posedge clk, 10, 11);
+    $period(posedge clk, 20);
+    $period(negedge clk, 20,);
+    $period(edge clk, 20, notifier);
     $setuphold (posedge clk, negedge a, 0, 0, notifier,,, delayed_clk, delayed_d);
     $recrem (negedge rst, posedge clk, 0, 0, notifier,,,,);
     (c +=> t) = t2;   // Parsing ambiguity

@@ -857,6 +857,7 @@ PROTECT           ?i:protect
 <VLOG>"$setuphold"       { return tDLRSETUPHOLD; }
 <VLOG>"$recrem"          { return tDLRRECREM; }
 <VLOG>"$width"           { return tDLRWIDTH; }
+<VLOG>"$period"          { return tDLRPERIOD; }
 <VLOG>"event"            { return tEVENT; }
 <VLOG>"genvar"           { return KEYWORD_2001(tGENVAR); }
 <VLOG>"assert"           { return KEYWORD_2005(tASSERT); }

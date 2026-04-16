@@ -582,5 +582,6 @@ void reset_sdf_parser(void);
 #define tNEWLINE       638
 #define tCONTINUATION  639
 #define tCOMMENT       640
+#define tDLRPERIOD     641
 
 #endif  // _SCAN_H
