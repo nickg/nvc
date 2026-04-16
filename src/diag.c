@@ -1170,17 +1170,17 @@ void diag_add_hint_fn(diag_hint_fn_t fn, void *context)
    hint_recs[idx].context = context;
 }
 
-void diag_remove_hint_fn(diag_hint_fn_t fn)
+void diag_remove_hint_fn(diag_hint_fn_t fn, void *context)
 {
    for (int i = 0; i < MAX_HINT_RECS; i++) {
-      if (hint_recs[i].fn == fn) {
+      if (hint_recs[i].fn == fn && hint_recs[i].context == context) {
          hint_recs[i].fn = NULL;
          hint_recs[i].context = NULL;
          return;
       }
    }
 
-   fatal_trace("hint function %p not registered", fn);
+   fatal_trace("hint function %p (%p) not registered", fn, context);
 }
 
 unsigned diag_count(diag_level_t level)

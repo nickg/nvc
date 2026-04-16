@@ -1288,4 +1288,11 @@ issue1473       vhpi,mixed
 issue1394       fail,gold
 ieee20          fail,gold,2008
 vlog37          verilog
+range4          normal,2019
+gensub7         normal,2008
+issue1476       wave,mixed
+issue1472       normal,2008
+issue1474       normal,2008
+vlog38          verilog
+issue1494       cover
 vlog39          verilog

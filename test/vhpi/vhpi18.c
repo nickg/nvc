@@ -2,6 +2,7 @@
 
 #include <string.h>
 #include <stdlib.h>
+#include <stdint.h>
 
 static int64_t phys_to_i64(vhpiPhysT phys)
 {

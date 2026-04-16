@@ -41,6 +41,7 @@ const type_info_t *type_info(mir_unit_t *mu, type_t type);
 
 void vhdl_lower_predef(mir_unit_t *mu, object_t *obj);
 void vhdl_lower_image_helper(mir_unit_t *mu, object_t *obj);
+void vhdl_lower_deferred(mir_unit_t *mu, object_t *obj);
 
 mir_value_t vhdl_lower_array_stride(vhdl_gen_t *g, const type_info_t *ti,
                                     mir_value_t array);

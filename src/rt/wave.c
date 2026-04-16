@@ -27,6 +27,7 @@
 #include "rt/rt.h"
 #include "rt/structs.h"
 #include "rt/wave.h"
+#include "printf.h"
 #include "tree.h"
 #include "type.h"
 #include "vlog/vlog-node.h"
@@ -264,12 +265,11 @@ static void fst_fmt_enum(rt_watch_t *w, fst_data_t *data)
 
 static void fst_fmt_verilog(rt_watch_t *w, fst_data_t *data)
 {
-   static const char map[] = "01zx";
    const uint8_t *p = signal_value(data->signal);
    for (int i = 0; i < data->count; i++, p += data->size) {
       char buf[data->size];
       for (int j = 0; j < data->size; j++)
-         buf[j] = map[p[j] & 3];
+         buf[j] = data->type->u.map[p[j] & 3];
       fstWriterEmitValueChange(data->dumper->fst_ctx, data->handle[i], buf);
    }
 }
@@ -340,13 +340,27 @@ static fst_type_t *fst_type_for(wave_dumper_t *wd, type_t type,
 
    case T_INTEGER:
       {
-         int64_t low, high;
-         range_bounds(range_of(type, 0), &low, &high);
+         switch (is_well_known(type_ident(type))) {
+         case W_VERILOG_NET_VALUE:
+            ft->sdt     = FST_SDT_NONE;
+            ft->vartype = FST_VT_SV_LOGIC;
+            ft->fn      = fst_fmt_verilog;
+            ft->u.map   = "01zx";
+            ft->size    = 1;
+            break;
 
-         ft->vartype = FST_VT_VCD_INTEGER;
-         ft->fn      = fst_fmt_int;
-         ft->size    = bits_for_range(low, high);
-         ft->sdt     = FST_SDT_VHDL_INTEGER;
+         default:
+            {
+               int64_t low, high;
+               range_bounds(range_of(type, 0), &low, &high);
+
+               ft->vartype = FST_VT_VCD_INTEGER;
+               ft->fn      = fst_fmt_int;
+               ft->size    = bits_for_range(low, high);
+               ft->sdt     = FST_SDT_VHDL_INTEGER;
+            }
+            break;
+         }
       }
       break;
 
@@ -372,6 +386,14 @@ static fst_type_t *fst_type_for(wave_dumper_t *wd, type_t type,
             ft->vartype = FST_VT_SV_LOGIC;
             ft->fn      = fst_fmt_chars;
             ft->u.map   = "01";
+            ft->size    = 1;
+            break;
+
+         case W_VERILOG_LOGIC:
+            ft->sdt     = FST_SDT_NONE;
+            ft->vartype = FST_VT_SV_LOGIC;
+            ft->fn      = fst_fmt_verilog;
+            ft->u.map   = "01zx";
             ft->size    = 1;
             break;
 
@@ -631,7 +653,8 @@ static void fst_create_array_var(wave_dumper_t *wd, tree_t d, rt_signal_t *s,
    if (ft == NULL)
       return;
 
-   if (type_is_enum(elem) && ft->fn == fst_fmt_chars) {
+   if ((type_is_enum(elem) && ft->fn == fst_fmt_chars)
+       || ft->fn == fst_fmt_verilog) {
       // Character-mapped enums like std_logic
       data = xcalloc(sizeof(fst_data_t) + sizeof(fstHandle));
       data->type  = ft;

@@ -1,4 +1,4 @@
-AC_INIT([nvc], [1.20-devel],
+AC_INIT([nvc], [1.21-devel],
         [https://github.com/nickg/nvc/issues],
         [nvc],
         [https://www.nickg.me.uk/nvc/])
@@ -149,6 +149,8 @@ case $host_os in
     PATH_SEP=\;
     pathprog="cygpath -m"
     AC_CHECK_PROG([CANDLE], [candle], [yes])   # For WiX installer
+    AX_CHECK_COMPILE_FLAG([-fms-extensions],
+                          [AX_APPEND_FLAG([-fms-extensions], [EXTRA_CFLAGS])])
     NVC_CHECK_MSYS
     ;;
   *)
@@ -313,14 +315,10 @@ AC_SUBST(SHLIB_LDFLAGS)
 
 NVC_CHECK_EMUTLS
 if test "$nvc_cv_use_emutls" = "yes"; then
-  AC_MSG_WARN(m4_normalize(
+  AC_MSG_ERROR(m4_normalize(
                 [this system uses emulated thread-local storage which
-                 has a significant performance overhead]))
-  case $host_os in
-    msys*|mingw32*)
-      AC_MSG_NOTICE([try building in the MSYS2 Clang x64 environment instead])
-      ;;
-  esac
+                 has a significant performance overhead and is not supported
+                 (on MSYS2 use the Clang x64 environment instead)]))
 fi
 
 AC_ARG_ENABLE([vital],

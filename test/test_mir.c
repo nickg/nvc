@@ -309,7 +309,7 @@ START_TEST(test_arith1)
    mir_value_t neg1 = mir_build_neg(mu, t_int32, one);
    mir_assert_const_eq(mu, neg1, -1);
 
-   mir_value_t locus1 = mir_build_locus(mu, NULL);
+   mir_value_t locus1 = mir_build_debug_locus(mu, NULL);
    mir_value_t neg2 = mir_build_trap_neg(mu, t_int32, min32, locus1);
    ck_assert_int_eq(neg2.tag, MIR_TAG_NODE);
 
@@ -610,7 +610,7 @@ START_TEST(test_signal1)
 
    mir_value_t r1 = mir_build_resolved(mu, p1);
 
-   mir_value_t locus1 = mir_build_locus(mu, NULL);
+   mir_value_t locus1 = mir_build_debug_locus(mu, NULL);
    mir_value_t s1 = mir_build_init_signal(mu, t_int32,
                                           mir_const(mu, t_offset, 1),
                                           mir_const(mu, t_offset, 4),
@@ -636,7 +636,7 @@ START_TEST(test_signal1)
 
    static const mir_match_t bb0[] = {
       { MIR_OP_RESOLVED, PARAM("p1") },
-      { MIR_OP_LOCUS },
+      { MIR_OP_DEBUG_LOCUS },
       { MIR_OP_INIT_SIGNAL },
       { MIR_OP_JUMP, BLOCK(1) },
    };
@@ -1125,13 +1125,13 @@ START_TEST(test_check1)
 
    mir_type_t t_bool = mir_bool_type(mu);
    mir_value_t p1 = mir_add_param(mu, t_bool, MIR_NULL_STAMP, ident_new("p1"));
-   mir_value_t locus = mir_build_locus(mu, NULL);
+   mir_value_t locus = mir_build_debug_locus(mu, NULL);
 
    mir_build_dir_check(mu, p1, mir_const(mu, t_bool, RANGE_TO), locus);
    mir_build_dir_check(mu, p1, p1, locus);
 
    static const mir_match_t bb0[] = {
-      { MIR_OP_LOCUS },
+      { MIR_OP_DEBUG_LOCUS },
       { MIR_OP_DIR_CHECK, PARAM("p1"), CONST(0) },
    };
    mir_match(mu, 0, bb0);
@@ -1198,6 +1198,58 @@ START_TEST(test_dce2)
 }
 END_TEST
 
+START_TEST(test_gvn2)
+{
+   mir_context_t *mc = mir_context_new();
+
+   mir_unit_t *mu = mir_unit_new(mc, ident_new("gvn2"), NULL,
+                                 MIR_UNIT_FUNCTION, NULL);
+
+   mir_type_t t_bool = mir_bool_type(mu);
+   mir_type_t t_int32 = mir_int_type(mu, INT32_MIN, INT32_MAX);
+
+   mir_set_result(mu, t_int32);
+
+   mir_value_t cond = mir_add_param(mu, t_bool, MIR_NULL_STAMP,
+                                    ident_new("cond"));
+   mir_value_t p1 = mir_add_param(mu, t_int32, MIR_NULL_STAMP, ident_new("p1"));
+   mir_value_t p2 = mir_add_param(mu, t_int32, MIR_NULL_STAMP, ident_new("p2"));
+   mir_value_t x = mir_add_var(mu, t_int32, MIR_NULL_STAMP, ident_new("x"), 0);
+
+   mir_block_t b1 = mir_add_block(mu);
+   mir_block_t b2 = mir_add_block(mu);
+
+   mir_build_store(mu, x, p1);
+   mir_build_cond(mu, cond, b1, b2);
+
+   mir_set_cursor(mu, b1, MIR_APPEND);
+   mir_build_store(mu, x, p2);
+   mir_build_return(mu, mir_build_load(mu, x));
+
+   mir_set_cursor(mu, b2, MIR_APPEND);
+   mir_value_t load = mir_build_load(mu, x);
+   mir_build_return(mu, load);
+
+   mir_optimise(mu, MIR_PASS_GVN);
+
+   static const mir_match_t bb1[] = {
+      { MIR_OP_STORE, VAR("x"), PARAM("p2") },
+      { MIR_OP_LOAD, VAR("x") },
+      { MIR_OP_RETURN, PARAM("p2") },
+   };
+   mir_match(mu, 1, bb1);
+
+   static const mir_match_t bb2[] = {
+      { MIR_OP_LOAD, VAR("x") },
+      { MIR_OP_RETURN, NODE(_) },  // TODO: could return p2 directly
+   };
+   mir_match(mu, 2, bb2);
+
+   mir_unit_free(mu);
+   mir_context_free(mc);
+}
+END_TEST
+
 Suite *get_mir_tests(void)
 {
    Suite *s = suite_create("mir");
@@ -1227,6 +1279,7 @@ Suite *get_mir_tests(void)
    tcase_add_test(tc, test_check1);
    tcase_add_test(tc, test_cfg1);
    tcase_add_test(tc, test_dce2);
+   tcase_add_test(tc, test_gvn2);
    suite_add_tcase(s, tc);
 
    return s;

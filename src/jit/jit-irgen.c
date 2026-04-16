@@ -1987,7 +1987,7 @@ static void irgen_op_store(jit_irgen_t *g, mir_value_t n)
    }
 }
 
-static void irgen_op_locus(jit_irgen_t *g, mir_value_t n)
+static void irgen_op_debug_locus(jit_irgen_t *g, mir_value_t n)
 {
    g->map[n.id] = (jit_value_t){
       .kind  = JIT_VALUE_LOCUS,
@@ -4449,7 +4449,7 @@ static void irgen_block(jit_irgen_t *g, mir_block_t block)
       case MIR_OP_CONST_RECORD:
       case MIR_OP_CONST_REP:
       case MIR_OP_NULL:
-      case MIR_OP_LOCUS:
+      case MIR_OP_DEBUG_LOCUS:
       case MIR_OP_ADDRESS_OF:
          assert(g->map[n.id].kind != JIT_VALUE_INVALID);
          break;
@@ -5265,8 +5265,8 @@ static void irgen_preallocate(jit_irgen_t *g, mir_block_t block)
       case MIR_OP_NULL:
          irgen_op_null(g, n);
          break;
-      case MIR_OP_LOCUS:
-         irgen_op_locus(g, n);
+      case MIR_OP_DEBUG_LOCUS:
+         irgen_op_debug_locus(g, n);
          break;
       case MIR_OP_ADDRESS_OF:
          irgen_op_address_of(g, n);

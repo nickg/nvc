@@ -1459,27 +1459,27 @@ START_TEST(test_lower1)
          { MIR_OP_PACKAGE_INIT, LINK("NVC.VERILOG") },
          { MIR_OP_LINK_VAR, LINK("NVC.VERILOG"), NODE(_),
            EXTVAR("NVC.VERILOG.T_WIRE$resolution") },
-         { MIR_OP_LOCUS },
+         { MIR_OP_DEBUG_LOCUS },
          { MIR_OP_INIT_SIGNAL },
          { MIR_OP_RESOLVE_SIGNAL },
          { MIR_OP_STORE, VAR("x") },
-         { MIR_OP_LOCUS },
+         { MIR_OP_DEBUG_LOCUS },
          { MIR_OP_INIT_SIGNAL },
          { MIR_OP_RESOLVE_SIGNAL },
          { MIR_OP_STORE, VAR("y") },
-         { MIR_OP_LOCUS },
+         { MIR_OP_DEBUG_LOCUS },
          { MIR_OP_INIT_SIGNAL },
          { MIR_OP_RESOLVE_SIGNAL },
          { MIR_OP_STORE, VAR("z") },
-         { MIR_OP_LOCUS },
+         { MIR_OP_DEBUG_LOCUS },
          { MIR_OP_INIT_SIGNAL },
          { MIR_OP_STORE, VAR("r") },
          { MIR_OP_CONTEXT_UPREF, ENUM(0) },
          { MIR_OP_CLOSURE, LINK("WORK.LOWER1#0.assign#3#9") },
-         { MIR_OP_LOCUS },
+         { MIR_OP_DEBUG_LOCUS },
          { MIR_OP_PROCESS_INIT },
          { MIR_OP_CLOSURE, LINK("WORK.LOWER1#0.always#6#2") },
-         { MIR_OP_LOCUS },
+         { MIR_OP_DEBUG_LOCUS },
          { MIR_OP_PROCESS_INIT },
          { MIR_OP_RETURN },
       };
@@ -1587,7 +1587,14 @@ START_TEST(test_pp8)
       "((1) + (y)) // Error\n"
       "(4, 5, 6) // Warning\n"
       "\n"
-      " // Error\n");
+      " // Error\n"
+      "\n"
+      "'hAbCdEf10 * 'hAbCdEf10         // hex literal (no size)\n"
+      "12'b0100_0000_0000 * 12'b0100_0000_0000 // unsigned binary literal (with underscores)\n"
+      "12'd1024 * 12'd1024           // unsigned decimal literal\n"
+      "12'sh400 * 12'sh400           // signed hex literal\n"
+      "12'o2000 * 12'o2000           // unsigned octal literal\n"
+      );
 
    check_expected_errors();
 }
@@ -1645,6 +1652,28 @@ START_TEST(test_const2)
    fail_unless(vlog_parse() == NULL);
 
    check_expected_errors();
+}
+END_TEST
+
+START_TEST(test_pp10)
+{
+   input_from_file(TESTDIR "/vlog/pp10.v");
+
+   LOCAL_TEXT_BUF tb = tb_new();
+   vlog_preprocess(tb, false);
+
+   ck_assert_str_eq(
+      tb_get(tb),
+      "// Test `define with trailing // comment (IEEE 1364-2005 §19.3.1).\n"
+      "// The comment is NOT part of the macro text.\n"
+      "\n"
+      "\n"
+      "\n"
+      "\n"
+      "\n"
+      "10'b0011110110   42               \"hello\"         \n");
+
+   fail_if_errors();
 }
 END_TEST
 
@@ -1711,6 +1740,7 @@ Suite *get_vlog_tests(void)
    tcase_add_test(tc, test_generate2);
    tcase_add_test(tc, test_pp9);
    tcase_add_test(tc, test_const2);
+   tcase_add_test(tc, test_pp10);
    suite_add_tcase(s, tc);
 
    return s;

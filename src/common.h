@@ -164,6 +164,7 @@ typedef enum {
    STD_SEVERITY_LEVEL,
    STD_FILE_ORIGIN_KIND,
    STD_FILE_OPEN_STATE,
+   STD_RANGE_DIRECTION,
 } std_type_t;
 
 type_t std_type(tree_t std, std_type_t which);

@@ -25,9 +25,6 @@
 #include "rt/mspace.h"
 #include "thread.h"
 
-#include <setjmp.h>
-#include <signal.h>
-
 typedef enum {
    J_SEND,
    J_RECV,
@@ -341,22 +338,11 @@ typedef enum {
    JIT_COMPILING,
 } jit_state_t;
 
-#if defined HAVE___BUILTIN_SETJMP && !defined __clang__
-typedef void *jit_jmpbuf_t[5];
-#define jit_setjmp(buf) __builtin_setjmp((buf))
-#define jit_longjmp(buf, arg) __builtin_longjmp((buf), (arg))
-#else
-typedef sigjmp_buf jit_jmpbuf_t;
-#define jit_setjmp(buf) sigsetjmp((buf), 0)
-#define jit_longjmp(buf, arg) siglongjmp((buf), arg)
-#endif
-
 typedef struct {
-   jit_t                 *jit;
-   jit_state_t            state;
-   jit_jmpbuf_t           abort_env;
-   volatile sig_atomic_t  jmp_buf_valid;
-   jit_anchor_t          *anchor;
+   jit_t        *jit;
+   jit_state_t   state;
+   void         *jmp_buf;
+   jit_anchor_t *anchor;
 } jit_thread_local_t;
 
 typedef struct _code_cache code_cache_t;
@@ -372,8 +358,6 @@ typedef struct {
    uint8_t      *veneers;
    bool          overflow;
 } code_blob_t;
-
-typedef struct _pack_writer pack_writer_t;
 
 #define JIT_MAX_ARGS 64
 
@@ -398,6 +382,12 @@ jit_thread_local_t *jit_thread_local(void);
 void jit_fill_irbuf(jit_func_t *f);
 jit_entry_fn_t jit_bind_intrinsic(ident_t name);
 jit_thread_local_t *jit_attach_thread(jit_anchor_t *anchor);
+
+bool jit_trampoline(jit_thread_local_t *thread, jit_func_t *f,
+                    jit_scalar_t *args, tlab_t *tlab);
+
+__attribute__((noreturn))
+void jit_unwind(jit_thread_local_t *thread);
 
 jit_cfg_t *jit_get_cfg(jit_func_t *f);
 void jit_free_cfg(jit_cfg_t *cfg);
@@ -445,14 +435,6 @@ void code_blob_print_ir(code_blob_t *blob, jit_ir_t *ir);
 #define code_blob_printf(blob, fmt, ...)
 #define code_blob_print_ir(blob, ir)
 #endif
-
-pack_writer_t *pack_writer_new(void);
-void pack_writer_emit(pack_writer_t *pw, jit_t *j, jit_handle_t handle,
-                      uint8_t **buf, size_t *size);
-unsigned pack_writer_get_string(pack_writer_t *pw, const char *str);
-void pack_writer_string_table(pack_writer_t *pw, const char **tab,
-                              size_t *size);
-void pack_writer_free(pack_writer_t *pw);
 
 void jit_bind_foreign(jit_func_t *f, const uint8_t *spec, size_t length,
                       tree_t where);

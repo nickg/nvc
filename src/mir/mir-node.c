@@ -674,7 +674,7 @@ object_t *mir_get_locus(mir_unit_t *mu, mir_value_t value)
    case MIR_TAG_NODE:
       {
          node_data_t *n = mir_node_data(mu, value);
-         assert(n->op == MIR_OP_LOCUS);
+         assert(n->op == MIR_OP_DEBUG_LOCUS);
          return n->locus;
       }
       break;
@@ -3297,7 +3297,8 @@ mir_value_t mir_build_closure(mir_unit_t *mu, ident_t func, mir_type_t rtype,
 {
    mir_type_t ctype = mir_closure_type(mu, rtype);
 
-   node_data_t *n = mir_add_node(mu, MIR_OP_CLOSURE, ctype, MIR_NULL_STAMP, nargs + 1);
+   node_data_t *n = mir_add_node(mu, MIR_OP_CLOSURE, ctype, MIR_NULL_STAMP,
+                                 nargs + 1);
    mir_set_arg(mu, n, 0, mir_add_linkage(mu, func));
 
    for (int i = 0; i < nargs; i++)
@@ -3319,10 +3320,10 @@ mir_value_t mir_build_resolution_wrapper(mir_unit_t *mu, mir_type_t type,
    return result;
 }
 
-mir_value_t mir_build_locus(mir_unit_t *mu, object_t *obj)
+mir_value_t mir_build_debug_locus(mir_unit_t *mu, object_t *obj)
 {
-   node_data_t *n = mir_add_node(mu, MIR_OP_LOCUS, mir_locus_type(mu),
-                                  MIR_NULL_STAMP, 0);
+   node_data_t *n = mir_add_node(mu, MIR_OP_DEBUG_LOCUS, mir_locus_type(mu),
+                                 MIR_NULL_STAMP, 0);
    n->locus = obj;
 
    return (mir_value_t){ .tag = MIR_TAG_NODE, .id = mir_node_id(mu, n) };

@@ -10,7 +10,6 @@ lib_libnvc_a_SOURCES += \
 	src/rt/stdenv.c \
 	src/rt/standard.c \
 	src/rt/simpkg.c \
-	src/rt/standard.c \
 	src/rt/structs.h \
 	src/rt/model.h \
 	src/rt/model.c \

@@ -1308,7 +1308,7 @@ static tree_t search_type_decls(tree_t container, ident_t name)
 
 type_t std_type(tree_t std, std_type_t which)
 {
-   static type_t cache[STD_FILE_OPEN_STATE + 1] = {};
+   static type_t cache[STD_RANGE_DIRECTION + 1] = {};
    assert(which < ARRAY_LEN(cache));
 
    if (cache[which] == NULL) {
@@ -1328,6 +1328,7 @@ type_t std_type(tree_t std, std_type_t which)
          "SEVERITY_LEVEL",
          "FILE_ORIGIN_KIND",
          "FILE_OPEN_STATE",
+         "RANGE_DIRECTION",
       };
 
       tree_t d = search_type_decls(cached_std(std), ident_new(names[which]));
@@ -2003,6 +2004,7 @@ bool is_type_attribute(attr_kind_t kind)
    case ATTR_ELEMENT:
    case ATTR_DESIGNATED_SUBTYPE:
    case ATTR_INDEX:
+   case ATTR_RECORD:
       return true;
    default:
       return false;

@@ -158,11 +158,7 @@ typedef struct _rt_model {
    rt_model_t *__save __attribute__((unused, cleanup(__model_exit)));   \
    __model_entry(m, &__save);                                           \
 
-#if USE_EMUTLS
-static rt_model_t *__model = NULL;
-#else
 static __thread rt_model_t *__model = NULL;
-#endif
 
 static bool __trace_on = false;
 
@@ -309,11 +305,14 @@ static void __model_entry(rt_model_t *m, rt_model_t **save)
 
 static void __model_exit(rt_model_t **save)
 {
+   rt_model_t *m = __model;
+   assert(m != NULL);
+
    __model = *save;
    *save = NULL;
 
    if (__model == NULL)
-      diag_remove_hint_fn(model_diag_cb);
+      diag_remove_hint_fn(model_diag_cb, m);
 }
 
 static char *fmt_values_r(const void *values, size_t len, char *buf, size_t max)
@@ -510,9 +509,6 @@ rt_model_t *model_new(jit_t *jit, cover_data_t *cover)
 rt_model_t *get_model(void)
 {
    assert(__model != NULL);
-#ifdef USE_EMUTLS
-   assert(thread_id() == 0);
-#endif
    return __model;
 }
 
@@ -1710,6 +1706,7 @@ static void setup_process(rt_proc_t *p, const char *path)
          case V_ASSIGN:
          case V_PORT_MAP:
          case V_GATE_INST:
+         case V_NET_DECL:
             p->wakeable.reschedule = true;
             p->name = ident_sprintf("%s:%s", path, istr(tree_ident(p->where)));
             break;

@@ -269,6 +269,14 @@ static token_t lex_text(scan_buf_t buf)
    while (scan_peek(buf, &ch)) {
       switch (ch) {
       case '0'...'9':
+      case 'A'...'F':
+      case 'a'...'f':
+      case 'h': case 'H':
+      case 'o': case 'O':
+      case 's': case 'S':
+      case 'x': case 'X':
+      case 'z': case 'Z': case '?':
+      case '\'': case '_':
       case '+': case '-': case '*':
          scan_advance(&buf);
          continue;
@@ -474,11 +482,15 @@ static void p_text_macro_definition(void)
          tb_append(m->text, '\n');
          tb_append(output, '\n');
          break;
+      case tCOMMENT:
+         consume(tok);
+         goto done;
       default:
          one_of(tTEXT, tWHITESPACE, tMACROUSAGE);
          break;
       }
    }
+ done:
 
    consume(tNEWLINE);
    tb_append(output, '\n');

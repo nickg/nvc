@@ -115,6 +115,7 @@ name_mask_t query_name(nametab_t *tab, ident_t name, tree_t *p_decl);
 tree_t query_spec(nametab_t *tab, tree_t object);
 tree_t find_std(nametab_t *tab);
 tree_t find_forward_decl(nametab_t *tab, tree_t decl);
+type_t find_range_record_type(nametab_t *tab, type_t type);
 psl_node_t find_default_clock(nametab_t *tab);
 tree_t get_local_decl(nametab_t *tab, tree_t container, ident_t name, int nth);
 

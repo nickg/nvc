@@ -41,6 +41,58 @@ typedef enum {
    _D = 0x8
 } std_ulogic_t;
 
+static const std_ulogic_t and_table[9][9] = {
+   { _U, _U, _0, _U, _U, _U, _0, _U, _U },
+   { _U, _X, _0, _X, _X, _X, _0, _X, _X },
+   { _0, _0, _0, _0, _0, _0, _0, _0, _0 },
+   { _U, _X, _0, _1, _X, _X, _0, _1, _X },
+   { _U, _X, _0, _X, _X, _X, _0, _X, _X },
+   { _U, _X, _0, _X, _X, _X, _0, _X, _X },
+   { _0, _0, _0, _0, _0, _0, _0, _0, _0 },
+   { _U, _X, _0, _1, _X, _X, _0, _1, _X },
+   { _U, _X, _0, _X, _X, _X, _0, _X, _X }
+};
+
+static const std_ulogic_t or_table[9][9] = {
+   { _U, _U, _U, _1, _U, _U, _U, _1, _U },
+   { _U, _X, _X, _1, _X, _X, _X, _1, _X },
+   { _U, _X, _0, _1, _X, _X, _0, _1, _X },
+   { _1, _1, _1, _1, _1, _1, _1, _1, _1 },
+   { _U, _X, _X, _1, _X, _X, _X, _1, _X },
+   { _U, _X, _X, _1, _X, _X, _X, _1, _X },
+   { _U, _X, _0, _1, _X, _X, _0, _1, _X },
+   { _1, _1, _1, _1, _1, _1, _1, _1, _1 },
+   { _U, _X, _X, _1, _X, _X, _X, _1, _X }
+};
+
+static const std_ulogic_t not_table[9] = {
+   _U, _X, _1, _0, _X, _X, _1, _0, _X
+};
+
+static const std_ulogic_t match_eq_table[9][9] = {
+   { _U, _U, _U, _U, _U, _U, _U, _U, _1 },
+   { _U, _X, _X, _X, _X, _X, _X, _X, _1 },
+   { _U, _X, _1, _0, _X, _X, _1, _0, _1 },
+   { _U, _X, _0, _1, _X, _X, _0, _1, _1 },
+   { _U, _X, _X, _X, _X, _X, _X, _X, _1 },
+   { _U, _X, _X, _X, _X, _X, _X, _X, _1 },
+   { _U, _X, _1, _0, _X, _X, _1, _0, _1 },
+   { _U, _X, _0, _1, _X, _X, _0, _1, _1 },
+   { _1, _1, _1, _1, _1, _1, _1, _1, _1 }
+};
+
+static const std_ulogic_t match_lt_table[9][9] = {
+   { _U, _U, _U, _U, _U, _U, _U, _U, _X },
+   { _U, _X, _X, _X, _X, _X, _X, _X, _X },
+   { _U, _X, _0, _1, _X, _X, _0, _1, _X },
+   { _U, _X, _0, _0, _X, _X, _0, _0, _X },
+   { _U, _X, _X, _X, _X, _X, _X, _X, _X },
+   { _U, _X, _X, _X, _X, _X, _X, _X, _X },
+   { _U, _X, _0, _1, _X, _X, _0, _1, _X },
+   { _U, _X, _0, _0, _X, _X, _0, _0, _X },
+   { _X, _X, _X, _X, _X, _X, _X, _X, _X }
+};
+
 static mir_value_t wrap_string(mir_unit_t *mu, const char *str)
 {
    mir_value_t array = mir_const_string(mu, str);
@@ -216,6 +268,20 @@ static void predef_bit_shift(mir_unit_t *mu, tree_t decl,
    mir_build_return(mu, mir_build_wrap(mu, mem, dims, 1));
 }
 
+static mir_value_t std_ulogic_table(mir_unit_t *mu, const std_ulogic_t *table,
+                                    size_t count)
+{
+   mir_type_t t_std_ulogic = mir_int_type(mu, 0, 8);
+   mir_type_t t_array = mir_carray_type(mu, count, t_std_ulogic);
+
+   mir_value_t *elems LOCAL = xmalloc_array(count, sizeof(mir_value_t));
+   for (int i = 0; i < count; i++)
+      elems[i] = mir_const(mu, t_std_ulogic, table[i]);
+
+   mir_value_t array = mir_const_array(mu, t_array, elems, count);
+   return mir_build_address_of(mu, array);
+}
+
 static void predef_match_op(mir_unit_t *mu, tree_t decl, subprogram_kind_t kind)
 {
    type_t type = tree_type(tree_port(decl, 0));
@@ -278,18 +344,18 @@ static void predef_match_op(mir_unit_t *mu, tree_t decl, subprogram_kind_t kind)
       mir_value_t msg_ptr = mir_build_address_of(mu, msg_buf);
       mir_value_t msg_len = mir_const(mu, t_offset, sizeof(msg) - 1);
 
-      mir_value_t locus = mir_build_locus(mu, tree_to_object(decl));
+      mir_value_t locus = mir_build_debug_locus(mu, tree_to_object(decl));
       mir_build_report(mu, msg_ptr, msg_len, failure, locus);
       mir_build_jump(mu, cont_bb);
 
       mir_set_cursor(mu, cont_bb, MIR_APPEND);
 
       const type_info_t *ti = type_info(mu, type_elem(type));
-      mir_value_t mem = mir_build_alloc(mu, ti->type, ti->stamp, left_len);
 
       mir_value_t result_var = mir_add_var(mu, ti->type, ti->stamp,
                                            ident_new("result"), MIR_VAR_TEMP);
-      mir_build_store(mu, result_var, mir_const(mu, ti->type, 0));
+      mir_value_t init = mir_const(mu, ti->type, is_bit ? 1 : _1);
+      mir_build_store(mu, result_var, init);
 
       mir_value_t i_var = mir_add_var(mu, t_offset, MIR_NULL_STAMP,
                                       ident_new("i"), MIR_VAR_TEMP);
@@ -315,16 +381,24 @@ static void predef_match_op(mir_unit_t *mu, tree_t decl, subprogram_kind_t kind)
       mir_value_t left_src = mir_build_load(mu, left_ptr_i);
       mir_value_t right_src = mir_build_load(mu, right_ptr_i);
 
-      mir_value_t tmp;
-      if (is_bit)
-         tmp = mir_build_cmp(mu, cmp, left_src, right_src);
+      mir_value_t cur = mir_build_load(mu, result_var), tmp;
+      if (is_bit) {
+         mir_value_t elem = mir_build_cmp(mu, cmp, left_src, right_src);
+         tmp = mir_build_and(mu, cur, elem);
+      }
       else {
          ident_t func = ident_new( "IEEE.STD_LOGIC_1164.\"?=\"(UU)U$predef");
          mir_value_t args[] = { left_src, right_src };
-         tmp = mir_build_fcall(mu, func, ti->type, ti->stamp, args,
-                               ARRAY_LEN(args));
+         mir_value_t elem = mir_build_fcall(mu, func, ti->type, ti->stamp, args,
+                                            ARRAY_LEN(args));
+         mir_value_t table_ptr = std_ulogic_table(mu, &and_table[0][0], 9*9);
+         mir_value_t stride = mir_const(mu, t_offset, 9);
+         mir_value_t idx[] = { cur, elem };
+         mir_value_t ref = mir_build_table_ref(mu, table_ptr, stride, idx, 2);
+         tmp = mir_build_load(mu, ref);
       }
-      mir_build_store(mu, mir_build_array_ref(mu, mem, i_val), tmp);
+
+      mir_build_store(mu, result_var, tmp);
 
       mir_value_t one = mir_const(mu, t_offset, 1);
       mir_value_t next = mir_build_add(mu, t_offset, i_val, one);
@@ -334,30 +408,7 @@ static void predef_match_op(mir_unit_t *mu, tree_t decl, subprogram_kind_t kind)
 
       mir_set_cursor(mu, exit_bb, MIR_APPEND);
 
-      mir_dim_t dims[1] = {
-         {
-            .left  = mir_build_uarray_left(mu, left, 0),
-            .right = mir_build_uarray_right(mu, left, 0),
-            .dir   = mir_build_uarray_dir(mu, left, 0),
-         }
-      };
-      mir_value_t wrap = mir_build_wrap(mu, mem, dims, 1);
-
-      if (is_bit) {
-         ident_t func = ident_new("STD.STANDARD.\"and\"(Q)J$predef");
-         mir_value_t args[] = { wrap };
-         result = mir_build_fcall(mu, func, ti->type, ti->stamp, args,
-                                  ARRAY_LEN(args));
-      }
-      else {
-         ident_t func = ident_new("IEEE.STD_LOGIC_1164.\"and\"(Y)U");
-         ident_t context_name = well_known(W_IEEE_1164);
-
-         mir_value_t context = mir_build_link_package(mu, context_name);
-         mir_value_t args[] = { context, wrap };
-         result = mir_build_fcall(mu, func, ti->type, ti->stamp, args,
-                                  ARRAY_LEN(args));
-      }
+      result = mir_build_load(mu, result_var);
    }
    else if (is_bit)
       result = mir_build_cmp(mu, cmp, left, right);
@@ -365,62 +416,29 @@ static void predef_match_op(mir_unit_t *mu, tree_t decl, subprogram_kind_t kind)
       ident_t less_func = ident_new("IEEE.STD_LOGIC_1164.\"?<\"(UU)U$predef");
       ident_t eq_func = ident_new("IEEE.STD_LOGIC_1164.\"?=\"(UU)U$predef");
 
-      mir_value_t args1[] = { left, right };
+      mir_value_t args[] = { left, right };
 
       const type_info_t *ti = type_info(mu, type);
 
       mir_value_t eq = mir_build_fcall(mu, eq_func, ti->type, ti->stamp,
-                                       args1, ARRAY_LEN(args1));
-      mir_value_t less =
-         mir_build_fcall(mu, less_func, ti->type, ti->stamp, args1, ARRAY_LEN(args1));
+                                       args, ARRAY_LEN(args));
+      mir_value_t less = mir_build_fcall(mu, less_func, ti->type, ti->stamp,
+                                         args, ARRAY_LEN(args));
 
-      ident_t or_func =
-         ident_new("IEEE.STD_LOGIC_1164.\"or\"(UU)24IEEE.STD_LOGIC_1164.UX01");
+      mir_type_t t_offset = mir_offset_type(mu);
 
-      mir_value_t context = mir_build_link_package(mu, well_known(W_IEEE_1164));
-      mir_value_t args2[] = { context, eq, less };
-      result = mir_build_fcall(mu, or_func, ti->type, ti->stamp, args2,
-                               ARRAY_LEN(args2));
+      mir_value_t table_ptr = std_ulogic_table(mu, &or_table[0][0], 9*9);
+      mir_value_t stride = mir_const(mu, t_offset, 9);
+      mir_value_t idx[] = { eq, less };
+      mir_value_t ref = mir_build_table_ref(mu, table_ptr, stride, idx, 2);
+      result = mir_build_load(mu, ref);
    }
    else {
-      static const std_ulogic_t match_eq_table[9][9] = {
-         { _U, _U, _U, _U, _U, _U, _U, _U, _1 },
-         { _U, _X, _X, _X, _X, _X, _X, _X, _1 },
-         { _U, _X, _1, _0, _X, _X, _1, _0, _1 },
-         { _U, _X, _0, _1, _X, _X, _0, _1, _1 },
-         { _U, _X, _X, _X, _X, _X, _X, _X, _1 },
-         { _U, _X, _X, _X, _X, _X, _X, _X, _1 },
-         { _U, _X, _1, _0, _X, _X, _1, _0, _1 },
-         { _U, _X, _0, _1, _X, _X, _0, _1, _1 },
-         { _1, _1, _1, _1, _1, _1, _1, _1, _1 }
-      };
-
-      static const std_ulogic_t match_lt_table[9][9] = {
-         { _U, _U, _U, _U, _U, _U, _U, _U, _X },
-         { _U, _X, _X, _X, _X, _X, _X, _X, _X },
-         { _U, _X, _0, _1, _X, _X, _0, _1, _X },
-         { _U, _X, _0, _0, _X, _X, _0, _0, _X },
-         { _U, _X, _X, _X, _X, _X, _X, _X, _X },
-         { _U, _X, _X, _X, _X, _X, _X, _X, _X },
-         { _U, _X, _0, _1, _X, _X, _0, _1, _X },
-         { _U, _X, _0, _0, _X, _X, _0, _0, _X },
-         { _X, _X, _X, _X, _X, _X, _X, _X, _X }
-      };
-
       const std_ulogic_t (*table)[9] =
          cmp == MIR_CMP_LT ? match_lt_table : match_eq_table;
 
       const type_info_t *ti = type_info(mu, type);
-      mir_type_t t_table = mir_carray_type(mu, 9*9, ti->type);
-
-      mir_value_t elems[9 * 9];
-      for (int i = 0; i < 9; i++) {
-         for (int j = 0; j < 9; j++)
-            elems[i*9 + j] = mir_const(mu, ti->type, table[i][j]);
-      }
-
-      mir_value_t table_buf = mir_const_array(mu, t_table, elems, 9*9);
-      mir_value_t table_ptr = mir_build_address_of(mu, table_buf);
+      mir_value_t table_ptr = std_ulogic_table(mu, &table[0][0], 9*9);
 
       mir_type_t t_offset = mir_offset_type(mu);
 
@@ -438,7 +456,7 @@ static void predef_match_op(mir_unit_t *mu, tree_t decl, subprogram_kind_t kind)
 
          mir_type_t t_severity = mir_int_type(mu, 0, SEVERITY_FAILURE - 1);
          mir_value_t error = mir_const(mu, t_severity, SEVERITY_ERROR);
-         mir_value_t locus = mir_build_locus(mu, tree_to_object(decl));
+         mir_value_t locus = mir_build_debug_locus(mu, tree_to_object(decl));
 
          mir_build_assert(mu, and, msg_ptr, msg_len, error, locus,
                           MIR_NULL_VALUE, MIR_NULL_VALUE);
@@ -447,10 +465,8 @@ static void predef_match_op(mir_unit_t *mu, tree_t decl, subprogram_kind_t kind)
       mir_value_t l_off = mir_build_cast(mu, t_offset, left);
       mir_value_t r_off = mir_build_cast(mu, t_offset, right);
       mir_value_t nine = mir_const(mu, t_offset, 9);
-      mir_value_t index =
-         mir_build_add(mu, t_offset,
-                       mir_build_mul(mu, t_offset, l_off, nine), r_off);
-      mir_value_t ptr = mir_build_array_ref(mu, table_ptr, index);
+      mir_value_t idx[] = { l_off, r_off };
+      mir_value_t ptr = mir_build_table_ref(mu, table_ptr, nine, idx, 2);
 
       result = mir_build_load(mu, ptr);
    }
@@ -458,14 +474,13 @@ static void predef_match_op(mir_unit_t *mu, tree_t decl, subprogram_kind_t kind)
    if (invert && is_bit)
       mir_build_return(mu, mir_build_not(mu, result));
    else if (invert) {
-      const type_info_t *ti = type_info(mu, type_result(tree_type(decl)));
-      ident_t func = ident_new(
-         "IEEE.STD_LOGIC_1164.\"not\"(U)24IEEE.STD_LOGIC_1164.UX01");
-      mir_value_t context = mir_build_link_package(mu, well_known(W_IEEE_1164));
-      mir_value_t args[2] = { context, result };
-      mir_value_t call =
-         mir_build_fcall(mu, func, ti->type, ti->stamp, args, 2);
-      mir_build_return(mu, call);
+      mir_type_t t_offset = mir_offset_type(mu);
+
+      mir_value_t table_ptr = std_ulogic_table(mu, not_table, 9);
+      mir_value_t stride = mir_const(mu, t_offset, 9);
+      mir_value_t args[] = { result };
+      mir_value_t call = mir_build_table_ref(mu, table_ptr, stride, args, 1);
+      mir_build_return(mu, mir_build_load(mu, call));
    }
    else
       mir_build_return(mu, result);
@@ -511,7 +526,7 @@ static void predef_bit_vec_op(mir_unit_t *mu, tree_t decl,
       mir_value_t msg_ptr = mir_build_address_of(mu, msg_array);
       mir_value_t msg_len = mir_const(mu, t_offset, sizeof(msg_str) - 1);
 
-      mir_value_t locus = mir_build_locus(mu, tree_to_object(decl));
+      mir_value_t locus = mir_build_debug_locus(mu, tree_to_object(decl));
       mir_build_report(mu, msg_ptr, msg_len, failure, locus);
 
       mir_build_return(mu, left);

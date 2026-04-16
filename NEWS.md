@@ -1,4 +1,13 @@
 ## Unreleased changes
+- Fix a crash while evaluating matching relational operator with
+  constant arguments (#1495).
+- Fixed several regressions in coverage report generation (#1490, #1494).
+- Systems with emulated thread-local storage (in particular all MSYS2
+  environments except Clang x64 and Clang Arm) are no longer supported
+  due to performance issues.
+- Several other minor bugs were resolved (#1498).
+
+## Version 1.20.0 - 2026-04-12
 - The new `vhpi_ext_nvc.h` header contains definitions for proprietary
   VHPI extensions.
 - Added a `vhpiRandomSeedP` property for `vhpiToolK` which returns the
@@ -12,8 +21,9 @@
 - The `NVC_PLUGIN_PATH` environment variable can be used to specify a
   list of directories to search when the argument to `--load` is not a
   valid path.
+- Added support for VHDL-2019 extended ranges.
 - Several other minor bugs were resolved (#1453, #1460, #1466, #1469,
-  #1394).
+  #1394, #1476, #1472, #1474).
 
 ## Version 1.19.3 - 2026-03-08
 - VHPI value change callbacks for indexed names now work correctly (#1428).

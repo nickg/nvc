@@ -1383,6 +1383,26 @@ tree_t find_forward_decl(nametab_t *tab, tree_t decl)
    return NULL;
 }
 
+type_t find_range_record_type(nametab_t *tab, type_t type)
+{
+   type_t base = type_base_recur(type);
+   ident_t id = ident_sprintf("%s_range_record", istr(type_ident(base)));
+
+   const symbol_t *sym = iterate_symbol_for(tab, id);
+   if (sym == NULL)
+      return NULL;
+
+   if (sym != NULL) {
+      for (int i = 0; i < sym->ndecls; i++) {
+         const decl_t *dd = get_decl(sym, i);
+         if (dd->kind == T_TYPE_DECL)
+            return tree_type(dd->tree);
+      }
+   }
+
+   return NULL;
+}
+
 tree_t get_local_decl(nametab_t *tab, tree_t container, ident_t name, int nth)
 {
    scope_t *scope;
@@ -4939,10 +4959,24 @@ static tree_t try_solve_attr_ref(nametab_t *tab, tree_t t)
    case ATTR_VAL:
    case ATTR_DELAYED:
    case ATTR_LAST_VALUE:
-   case ATTR_VALUE:
    case ATTR_DRIVING_VALUE:
    case ATTR_CONVERSE:
+      assert(prefix_type != NULL);
       type = prefix_type;
+      break;
+
+   case ATTR_VALUE:
+      assert(prefix_type != NULL);
+      if (vhdl_is_range_attr(prefix) && !type_is_none(prefix_type)) {
+         type = find_range_record_type(tab, prefix_type);
+         if (type == NULL) {
+            error_at(tree_loc(t), "type %pT does not have a range record",
+                     prefix_type);
+            type = type_new(T_NONE);
+         }
+      }
+      else
+         type = prefix_type;
       break;
 
    case ATTR_PATH_NAME:
@@ -5001,6 +5035,10 @@ static tree_t try_solve_attr_ref(nametab_t *tab, tree_t t)
          else
             type = reflection_type(REFLECT_VALUE_MIRROR);
       }
+      break;
+
+   case ATTR_RECORD:
+      type = prefix_type;
       break;
 
    case ATTR_USER:

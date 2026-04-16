@@ -91,8 +91,8 @@ static void rename_mangled(copy_ctx_t *ctx, ident_t dotted,
             tb_cat(tb, istr(dotted));
             tb_cat(tb, istr(prefix) + ident_len(prefixes[j]));
 
-            const tree_kind_t kind = tree_kind(decl);
-            const bool is_func = kind == T_FUNC_BODY || kind == T_FUNC_DECL;
+            type_t type = tree_type(decl);
+            const bool is_func = type_has_result(type);
             const int nports = tree_ports(decl);
             if (nports > 0 || is_func)
                tb_append(tb, '(');
@@ -340,5 +340,5 @@ void instance_fixup(tree_t inst, hash_t *map)
 
    tree_rewrite(inst, NULL, instance_fixup_cb, rewrite_generic_types_cb, map);
 
-   diag_remove_hint_fn(instance_hint_cb);
+   diag_remove_hint_fn(instance_hint_cb, inst);
 }

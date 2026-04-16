@@ -32,6 +32,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <inttypes.h>
+#include <signal.h>
 
 #if defined __MINGW32__
 #include <winnt.h>

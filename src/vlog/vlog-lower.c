@@ -872,7 +872,7 @@ static mir_value_t vlog_lower_sys_tfcall(vlog_gen_t *g, vlog_node_t v)
       }
    }
 
-   mir_value_t locus = mir_build_locus(g->mu, vlog_to_object(v));
+   mir_value_t locus = mir_build_debug_locus(g->mu, vlog_to_object(v));
 
    mir_type_t type = MIR_NULL_TYPE;
    if (vlog_kind(v) == V_SYS_FCALL) {
@@ -2242,6 +2242,57 @@ static void vlog_lower_assign_process(vlog_gen_t *g, vlog_node_t v)
       free(lvalues);
 }
 
+static void vlog_lower_net_process(vlog_gen_t *g, vlog_node_t v)
+{
+   mir_block_t start_bb = mir_add_block(g->mu);
+   assert(start_bb.id == 1);
+
+   int hops;
+   mir_value_t var = mir_search_object(g->mu, v, &hops);
+   assert(!mir_is_null(var));
+   assert(hops > 0);
+
+   const type_info_t *ti = vlog_type_info(g, vlog_type(v));
+
+   mir_type_t t_offset = mir_offset_type(g->mu);
+
+   {
+      mir_value_t upref = mir_build_var_upref(g->mu, hops, var.id);
+      mir_value_t nets = mir_build_load(g->mu, upref);
+      mir_value_t count = mir_const(g->mu, t_offset, ti->size);
+      mir_build_drive_signal(g->mu, nets, count);
+
+      vlog_lower_sensitivity(g, vlog_value(v));
+
+      mir_build_return(g->mu, MIR_NULL_VALUE);
+   }
+
+   mir_set_cursor(g->mu, start_bb, MIR_APPEND);
+
+   {
+      mir_value_t value = vlog_lower_with_context(g, vlog_value(v), ti->type);
+      assert(mir_is_vector(g->mu, value));
+
+      mir_value_t resize = mir_build_cast(g->mu, ti->type, value);
+
+      mir_value_t tmp = MIR_NULL_VALUE;
+      if (ti->size != 1) {
+         mir_type_t t_elem = mir_logic_type(g->mu);
+         mir_type_t t_array = mir_carray_type(g->mu, ti->size, t_elem);
+         tmp = vlog_get_temp(g, t_array);
+      }
+
+      mir_value_t upref = mir_build_var_upref(g->mu, hops, var.id);
+      mir_value_t nets = mir_build_load(g->mu, upref);
+      mir_value_t count = mir_const(g->mu, t_offset, ti->size);
+
+      mir_value_t unpacked = mir_build_unpack(g->mu, resize, ST_STRONG, tmp);
+      mir_build_put_driver(g->mu, nets, count, unpacked);
+
+      mir_build_wait(g->mu, start_bb);
+   }
+}
+
 static void vlog_lower_gate_inst(vlog_gen_t *g, vlog_node_t v)
 {
    mir_block_t start_bb = mir_add_block(g->mu);
@@ -2520,6 +2571,9 @@ static void vlog_lower_deferred(mir_unit_t *mu, object_t *obj)
    case V_ASSIGN:
       vlog_lower_assign_process(&g, v);
       break;
+   case V_NET_DECL:
+      vlog_lower_net_process(&g, v);
+      break;
    case V_GATE_INST:
       vlog_lower_gate_inst(&g, v);
       break;
@@ -2543,7 +2597,6 @@ static void vlog_lower_net_decl(vlog_gen_t *g, vlog_node_t v, tree_t wrap,
    mir_type_t t_offset = mir_offset_type(g->mu);
 
    assert(wrap != NULL);
-   assert(!vlog_has_value(v));   // Should have been replaced with assign
 
    const type_info_t *ti = vlog_type_info(g, vlog_type(v));
    const int total_size = ti->size * vlog_size(v);
@@ -2552,7 +2605,7 @@ static void vlog_lower_net_decl(vlog_gen_t *g, vlog_node_t v, tree_t wrap,
    mir_value_t count = mir_const(g->mu, t_offset, total_size);
    mir_value_t size = mir_const(g->mu, t_offset, 1);
    mir_value_t flags = mir_const(g->mu, t_offset, 0);
-   mir_value_t locus = mir_build_locus(g->mu, tree_to_object(wrap));
+   mir_value_t locus = mir_build_debug_locus(g->mu, tree_to_object(wrap));
 
    mir_value_t signal = mir_build_init_signal(g->mu, t_net_value, count, size,
                                               value, flags, locus,
@@ -2565,6 +2618,21 @@ static void vlog_lower_net_decl(vlog_gen_t *g, vlog_node_t v, tree_t wrap,
    mir_build_store(g->mu, var, signal);
 
    mir_put_object(g->mu, v, var);
+
+   if (vlog_has_value(v)) {
+      ident_t parent = mir_get_name(g->mu, MIR_NULL_VALUE);
+      ident_t sym = ident_sprintf("%s.%s#assign", istr(parent),
+                                  istr(vlog_ident(v)));
+      mir_defer(g->mir, sym, parent, MIR_UNIT_PROCESS,
+                vlog_lower_deferred, vlog_to_object(v));
+
+      mir_value_t self = mir_build_context_upref(g->mu, 0);
+      mir_value_t args[] = { self };
+      mir_value_t closure = mir_build_closure(g->mu, sym, t_offset, args, 1);
+      mir_value_t locus = mir_build_debug_locus(g->mu, tree_to_object(wrap));
+
+      mir_build_process_init(g->mu, closure, locus);
+   }
 }
 
 static void vlog_lower_var_decl(vlog_gen_t *g, vlog_node_t v, tree_t wrap)
@@ -2609,7 +2677,7 @@ static void vlog_lower_var_decl(vlog_gen_t *g, vlog_node_t v, tree_t wrap)
    mir_value_t count = mir_const(g->mu, t_offset, total_size);
    mir_value_t size = mir_const(g->mu, t_offset, ti->elemsz);
    mir_value_t flags = mir_const(g->mu, t_offset, 0);
-   mir_value_t locus = mir_build_locus(g->mu, tree_to_object(wrap));
+   mir_value_t locus = mir_build_debug_locus(g->mu, tree_to_object(wrap));
 
    mir_value_t signal = mir_build_init_signal(g->mu, ti->unpacked, count, size,
                                               value, flags, locus,
@@ -3030,7 +3098,7 @@ void vlog_lower_instance(mir_context_t *mc, vlog_node_t body, ident_t parent,
             mir_value_t args[] = { self };
             mir_value_t closure =
                mir_build_closure(mu, sym, t_offset, args, 1);
-            mir_value_t locus = mir_build_locus(mu, tree_to_object(wrap));
+            mir_value_t locus = mir_build_debug_locus(mu, tree_to_object(wrap));
 
             mir_build_process_init(mu, closure, locus);
          }
@@ -3045,7 +3113,7 @@ void vlog_lower_instance(mir_context_t *mc, vlog_node_t body, ident_t parent,
             mir_value_t args[] = { self };
             mir_value_t closure =
                mir_build_closure(mu, sym, t_offset, args, 1);
-            mir_value_t locus = mir_build_locus(mu, tree_to_object(wrap));
+            mir_value_t locus = mir_build_debug_locus(mu, tree_to_object(wrap));
 
             mir_build_process_init(mu, closure, locus);
          }
@@ -3194,7 +3262,7 @@ void vlog_lower_block(mir_context_t *mc, ident_t parent, tree_t b)
       mir_value_t args[] = { context, nets };
       mir_value_t closure = mir_build_closure(mu, sym, MIR_NULL_TYPE,
                                               args, ARRAY_LEN(args));
-      mir_value_t locus = mir_build_locus(mu, tree_to_object(t));
+      mir_value_t locus = mir_build_debug_locus(mu, tree_to_object(t));
 
       mir_build_process_init(mu, closure, locus);
    }
@@ -3371,7 +3439,7 @@ void vlog_lower_block(mir_context_t *mc, ident_t parent, tree_t b)
          mir_value_t args[] = { inst, dst, src };
          mir_value_t closure = mir_build_closure(mu, sym, t_offset,
                                                  args, ARRAY_LEN(args));
-         mir_value_t locus = mir_build_locus(mu, tree_to_object(map));
+         mir_value_t locus = mir_build_debug_locus(mu, tree_to_object(map));
          mir_build_process_init(mu, closure, locus);
       }
 
@@ -3386,12 +3454,12 @@ void vlog_lower_block(mir_context_t *mc, ident_t parent, tree_t b)
             mir_value_t args[] = { inst, src, dst };
             mir_value_t closure = mir_build_closure(mu, sym, t_offset,
                                                     args, ARRAY_LEN(args));
-            mir_value_t locus = mir_build_locus(mu, tree_to_object(map));
+            mir_value_t locus = mir_build_debug_locus(mu, tree_to_object(map));
             mir_build_process_init(mu, closure, locus);
          }
       }
 
-      mir_value_t locus = mir_build_locus(mu, tree_to_object(map));
+      mir_value_t locus = mir_build_debug_locus(mu, tree_to_object(map));
       mir_build_length_check(mu, src_count, dst_count, locus, MIR_NULL_VALUE);
    }
 
