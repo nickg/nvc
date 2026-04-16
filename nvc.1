@@ -477,7 +477,7 @@ for details on how to select particular signals.  These options can be
 given multiple times.
 .\" +siginit+
 .It Cm +siginit+ Ns Ar command \n
-Options for initialization of design signals in non-LRM compliant way.
+Options for initialization of design signals in LRM non-compliant way.
 See section.
 .Sx SIGNAL INITIALIZATION
 for available values of
@@ -709,10 +709,10 @@ to list these.
 .Sh "SIGNAL INITIALIZATION"
 .Pp
 .Nm
-supports non-LRM compliant initialization of internal design
+supports LRM non-compliant initialization of internal design
 signals. This is usefull to discover issues with non-reset
 flip-flops before going to gate-level simulations.
-To activate non-LRM compliant signal initialization at start
+To activate LRM non-compliant signal initialization at start
 of simulation, pass
 .Ql --load=siginit
 option. The initialization value depends on the
@@ -726,16 +726,15 @@ l               l               l                   l.
 _
 +siginit+zero	  TYPE'left	      TYPE'low	          '0'
 +siginit+one	  TYPE'right	    TYPE'high	          '1'
-+siginit+rand	  random between TYPE'left and TYPE'right	random between TYPE'low and TYPE'high	'0' or '1'
++siginit+rand	  random between TYPE'left and TYPE'right	random between TYPE'low and TYPE'high	randomly chosen '0' or '1'
 .TE
 
 All elements of multidimensional arrays and record types
-are initialized providing they are of one of the types in
-the table above.
+of the above mentioned types are also initialized.
 Signals of other types such as physical types, file types
 or protected types are not affected by
-.Ql +siginit+
-options. Shared variables are not initialized.
+.Ql --load=siginit
+. Shared variables are not initialized.
 
 When using
 .Ql +siginit+rand
@@ -746,7 +745,7 @@ depends on seed, signal name, and its hierarchical path. Changes
 of one signal therefore do not affect initialization value of other signals.
 
 To initialize signals only in part of the design, use
-.Ql +siginit+block+<entity_name>
+.Ql +siginit+block+<entity_name> .
 When passing
 .Ql +siginit+block+<entity_name>
 , the whole design hierarchy below instance of VHDL entity named
@@ -758,8 +757,8 @@ is matched case-insensitive.
 
 To get human readable report with details of initialized and skipped signals,
 use
-.Ql +siginit+report+<report_file>
-switch. The
+.Ql +siginit+report+<report_file> .
+The
 .Ql <report_file>
 file will be written with one entry per signal initialized (or skipped) including
 hierarchy, name, assigned value and a final statistics section
@@ -768,8 +767,8 @@ hierarchy, name, assigned value and a final statistics section
 .Pp
 Examples:
 .Bd -literal -offset indent
-$ nvc -r tb +siginit+rand +siginit+block+my_dut +siginit+report+siginit.txt
-$ nvc -r tb +siginit+zero
+$ nvc -r tb --load=siginit +siginit+rand +siginit+block+my_dut +siginit+report+siginit.txt
+$ nvc -r tb --load=siginit +siginit+zero
 .Ed
 
 .\" ------------------------------------------------------------
