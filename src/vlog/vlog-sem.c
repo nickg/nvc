@@ -52,6 +52,7 @@ static void name_for_diag(diag_t *d, vlog_node_t v, const char *alt)
 {
    switch (vlog_kind(v)) {
    case V_REF:
+   case V_HIER_REF:
       diag_printf(d, "'%s'", istr(vlog_ident(v)));
       break;
    default:
@@ -122,6 +123,14 @@ static void vlog_check_variable_lvalue(vlog_node_t v, vlog_node_t where)
       if (vlog_has_ref(v))
          vlog_check_variable_lvalue(vlog_ref(v), v);
       return;
+   case V_HIER_REF:
+      // Hierarchical reference -- accept unconditionally as an
+      // lvalue; the elab-time resolver binds the final tail decl
+      // and diagnoses unresolved or wrong-kind references.  The
+      // sem-time I_REF (if any) holds the prefix head, not the
+      // assignable tail, so it is not safe to validate via recursion
+      // here.
+      return;
    case V_BIT_SELECT:
    case V_PART_SELECT:
    case V_MEMBER_REF:
@@ -173,6 +182,10 @@ static void vlog_check_net_lvalue(vlog_node_t v, vlog_node_t where)
       break;
    case V_REF:
       vlog_check_net_lvalue(vlog_ref(v), v);
+      return;
+   case V_HIER_REF:
+      // Hierarchical reference -- accept unconditionally; elab
+      // resolver binds the tail decl and diagnoses any errors.
       return;
    case V_BIT_SELECT:
    case V_PART_SELECT:
@@ -542,6 +555,15 @@ static void vlog_check_call_args(vlog_node_t v, vlog_node_t sub)
 
 static void vlog_check_user_tcall(vlog_node_t v)
 {
+   // Hier-ref task call (e.g. `u.sub.t();`): I_VALUE carries the hier
+   // path; I_REF may be null or bind to something that isn't a task.
+   // Defer the task-kind check to the elab-time resolver.
+   if (vlog_has_value(v) && vlog_kind(vlog_value(v)) == V_HIER_REF)
+      return;
+
+   if (!vlog_has_ref(v))
+      return;
+
    vlog_node_t func = vlog_ref(v);
    if (vlog_kind(func) != V_TASK_DECL) {
       diag_t *d = diag_new(DIAG_ERROR, vlog_loc(v));
@@ -699,12 +721,50 @@ static void vlog_check_wait(vlog_node_t v)
 
 static type_mask_t vlog_check_hier_ref(vlog_node_t v)
 {
-   vlog_node_t inst = vlog_ref(v);
-   if (vlog_kind(inst) != V_MOD_INST)
-      error_at(vlog_loc(v), "prefix of hierarchical identifier is not an "
-               "instance");
+   // At sem time I_REF holds the *prefix head* if it was visible in
+   // the lexical scope where the V_HIER_REF was parsed; the elab-time
+   // resolver later overwrites I_REF with the final tail decl.  We
+   // use the head to emit the "prefix is not an instance" diagnostic
+   // before elab.  If I_REF is not set, the head wasn't visible at
+   // parse time -- elab will resolve and diagnose.
+   // Hier-refs may target parameters which are valid in constant
+   // expressions (IEEE 1800 §11.2.1).  Include TM_CONST so that
+   // vlog_check_const_expr does not reject them before elaboration
+   // has a chance to resolve the path and evaluate the referent.
+   if (!vlog_has_ref(v))
+      return TM_INTEGRAL | TM_CONST;
 
-   return TM_INTEGRAL;
+   vlog_node_t ref = vlog_ref(v);
+   switch (vlog_kind(ref)) {
+   case V_MOD_INST:
+   case V_BLOCK:
+   case V_FORK:
+   case V_INST_BODY:
+   case V_MODULE:
+   case V_PROGRAM:
+   case V_IF_GENERATE:
+   case V_FOR_GENERATE:
+      // Plausible scope-carrier; elab-time resolver will walk the
+      // path and rebind I_REF to the final tail decl.
+      return TM_INTEGRAL | TM_CONST;
+   case V_PARAM_DECL:
+   case V_LOCALPARAM:
+   case V_GENVAR_DECL:
+   case V_VAR_DECL:
+   case V_NET_DECL:
+   case V_PORT_DECL:
+      // Resolver has already re-bound I_REF (or the head decl
+      // happens to be a value -- diagnose the latter).
+      // Distinguish via I_VALUE which the resolver sets to the
+      // target body when it succeeds.
+      if (vlog_has_value(v))
+         return get_type_mask(ref);
+      error_at(vlog_loc(v), "prefix of hierarchical identifier is "
+               "not an instance");
+      return TM_ERROR;
+   default:
+      return TM_INTEGRAL;
+   }
 }
 
 static type_mask_t vlog_check_member_ref(vlog_node_t v)
@@ -755,6 +815,9 @@ static type_mask_t vlog_check_part_select(vlog_node_t v)
 
 static type_mask_t vlog_check_user_fcall(vlog_node_t v)
 {
+   if (vlog_has_value(v) && vlog_kind(vlog_value(v)) == V_HIER_REF)
+      return TM_INTEGRAL;
+
    vlog_node_t func = vlog_ref(v);
    if (vlog_kind(func) != V_FUNC_DECL) {
       diag_t *d = diag_new(DIAG_ERROR, vlog_loc(v));
@@ -1199,6 +1262,29 @@ void vlog_check(vlog_node_t v)
       break;
    case V_WAIT:
       vlog_check_wait(v);
+      break;
+   case V_EVENT_TRIGGER:
+      // -> hier_event_identifier ; or ->> hier_event_identifier ;
+      // I_VALUE holds the V_HIER_REF when a multi-segment path was
+      // parsed; elab-time resolver will bind it.
+      if (vlog_has_value(v))
+         vlog_check_expr(vlog_value(v));
+      break;
+   case V_FORCE:
+      // force variable_lvalue = expression
+      vlog_check_expr(vlog_target(v));
+      vlog_check_expr(vlog_value(v));
+      break;
+   case V_RELEASE:
+      // release variable_lvalue
+      vlog_check_expr(vlog_target(v));
+      break;
+   case V_DISABLE:
+      // disable hierarchical_identifier ;
+      // I_VALUE holds the V_HIER_REF when a multi-segment path was
+      // parsed; elab-time resolver will bind and type-check it.
+      if (vlog_has_value(v))
+         vlog_check_expr(vlog_value(v));
       break;
    case V_SPECIFY:
    case V_IMPORT_DECL:

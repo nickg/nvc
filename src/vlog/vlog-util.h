@@ -36,6 +36,12 @@ uint32_t vlog_hash_node(vlog_node_t v);
 vlog_node_t vlog_get_type(vlog_node_t v);
 vlog_node_t vlog_get_dim(vlog_node_t v, int n);
 
+// Canonical hierarchical-scope name encoder.  All consumers of the
+// user-visible hierarchical name (lowering's link_package ident, VPI
+// vpiFullName, VCD writer, %m runtime, reheat serialiser) must go
+// through this helper rather than reading vlog_ident directly.
+ident_t vlog_canonical_scope_name(vlog_node_t body);
+
 #define CANNOT_HANDLE(v) do {                                           \
       fatal_at(vlog_loc(v), "cannot handle %s in %s" ,                  \
                vlog_kind_str(vlog_kind(v)), __FUNCTION__);              \

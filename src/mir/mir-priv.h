@@ -36,6 +36,7 @@ typedef enum {
    UNIT_DEFERRED = 1,
    UNIT_GENERATED = 2,
    UNIT_FREED = 3,
+   UNIT_ALIAS = 4,
 } unit_state_t;
 
 const type_data_t *mir_type_data(mir_unit_t *mu, mir_type_t type);

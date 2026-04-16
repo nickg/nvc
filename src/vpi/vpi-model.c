@@ -683,6 +683,7 @@ static c_vpiObject *build_expr(vlog_node_t v, c_abstractScope *scope)
    case V_COND_EXPR:
    case V_PART_SELECT:
    case V_BIT_SELECT:   // XXX: check this
+   case V_HIER_REF:
       return &(build_operation(v)->expr.object);
    default:
       fatal_trace("cannot build VPI expr for node kind %s",

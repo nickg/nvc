@@ -301,6 +301,14 @@ typedef enum {
    VLOG_F_SIGNED = (1 << 0),
 } vlog_flags_t;
 
+// Anchor kind for V_HIER_REF.  Stored in I_SUBKIND.  Determines where
+// the resolver begins walking before following the dotted segments.
+typedef enum {
+   V_HIER_RELATIVE = 0,     // `a.b.c` -- walk from current scope
+   V_HIER_ABS_ROOT,         // `$root.a.b` -- elaboration root
+   V_HIER_ABS_UNIT,         // `$unit::a` -- compilation-unit scope
+} vlog_hier_anchor_t;
+
 #define STRENGTH1(st) (((st) >> 5) & 7)
 #define STRENGTH0(st) (((st) >> 2) & 7)
 

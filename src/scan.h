@@ -583,5 +583,6 @@ void reset_sdf_parser(void);
 #define tCONTINUATION  639
 #define tCOMMENT       640
 #define tDLRPERIOD     641
+#define tNBTRIGGER     642
 
 #endif  // _SCAN_H

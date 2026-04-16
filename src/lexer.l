@@ -764,6 +764,7 @@ PROTECT           ?i:protect
 <VLOG>("~^"|"^~")        { return tTILDECARET; }
 <VLOG>"~&"               { return tTILDEAMP; }
 <VLOG>"~|"               { return tTILDEBAR; }
+<VLOG>"->>"              { return tNBTRIGGER; }
 <VLOG>"->"               { return tIFIMPL; }
 <VLOG>"+="               { return tPLUSEQ; }
 <VLOG>"-="               { return tMINUSEQ; }

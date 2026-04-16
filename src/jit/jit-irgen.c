@@ -5146,6 +5146,10 @@ static void irgen_instance_entry(jit_irgen_t *g)
    jit_value_t context = irgen_alloc_temp(g);
    j_recv(g, context, 0);
    j_store(g, JIT_SZ_PTR, context, jit_addr_from_value(g->statereg, 0));
+
+   // Store privdata so link_package can find this instance's context
+   // when a hierarchical reference targets signals in this scope.
+   macro_putpriv(g, g->func->handle, g->statereg);
 }
 
 static void irgen_process_entry(jit_irgen_t *g)

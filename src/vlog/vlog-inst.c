@@ -92,6 +92,11 @@ static bool copy_instance_pred(vlog_node_t v, void *ctx)
    case V_TASK_DECL:
    case V_CLASS_DECL:
       return true;
+   case V_HIER_REF:
+      // Each cloned instance gets its own holder so per-instance
+      // resolver state (I_REF / I_VALUE set by the elab-time
+      // resolver) does not cross-contaminate between clones.
+      return true;
    default:
       return false;
    }

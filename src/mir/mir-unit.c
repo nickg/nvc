@@ -93,6 +93,7 @@ static void mir_free_unit_cb(const void *key, void *value)
          hash_free(s->objmap);
       }
       break;
+   // UNIT_ALIAS: intentionally omitted — original entry owns the memory
    }
 }
 
@@ -322,12 +323,26 @@ mir_unit_t *mir_get_unit(mir_context_t *mc, ident_t name)
          return mir_lazy_build(mc, du);
       }
    case UNIT_GENERATED:
+   case UNIT_ALIAS:
       return untag_pointer(ptr, mir_unit_t);
    case UNIT_FREED:
       fatal_trace("unit %s has already been freed", istr(name));
    default:
       should_not_reach_here();
    }
+}
+
+void mir_alias_unit(mir_context_t *mc, ident_t alias, ident_t target)
+{
+   void *ptr = chash_get(mc->map, target);
+   if (ptr == NULL)
+      return;
+
+   // Strip the original tag and re-tag as UNIT_ALIAS so that
+   // mir_get_unit resolves it, but mir_free_unit_cb skips the free
+   // (the original entry owns the memory).
+   mir_unit_t *mu = untag_pointer(ptr, mir_unit_t);
+   chash_put(mc->map, alias, tag_pointer(mu, UNIT_ALIAS));
 }
 
 mir_shape_t *mir_get_shape(mir_context_t *mc, ident_t name)
@@ -344,6 +359,7 @@ mir_shape_t *mir_get_shape(mir_context_t *mc, ident_t name)
          return (mu->shape = mir_build_shape(mu));
       }
    case UNIT_GENERATED:
+   case UNIT_ALIAS:
       {
          mir_unit_t *mu = untag_pointer(ptr, mir_unit_t);
          if (mu->shape != NULL)

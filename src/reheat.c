@@ -18,10 +18,12 @@
 #include "util.h"
 #include "cov/cov-api.h"
 #include "hash.h"
+#include "ident.h"
 #include "lower.h"
 #include "phase.h"
 #include "rt/model.h"
 #include "tree.h"
+#include "vlog/vlog-node.h"
 #include "vlog/vlog-phase.h"
 #include "vhdl/vhdl-phase.h"
 
@@ -39,6 +41,7 @@ typedef struct _reheat_ctx {
    rt_scope_t         *scope;
    ident_t             dotted;
    ident_t             cloned;
+   ident_t             inst_alias;
    hset_t             *instances;
 } reheat_ctx_t;
 
@@ -66,12 +69,28 @@ static void reheat_block(tree_t b, const reheat_ctx_t *parent)
    if (tree_subkind(hier) == T_VERILOG) {
       vlog_node_t body = tree_vlog(tree_ref(hier));
 
+      // Compute the per-instance alias: parent_alias.label.
+      // Use inst_alias (per-clone) over cloned (per-module) so
+      // multi-clone children get distinct aliases.  Skip when alias
+      // equals the dotted path (mixed VHDL/Verilog wrapper case where
+      // the parent's cloned ident equals its dotted path).
+      ident_t inst_alias = NULL;
+      if (parent->cloned != NULL) {
+         ident_t parent_unit = parent->inst_alias
+            ?: parent->cloned;
+         ident_t label = tree_ident(b);
+         ident_t alias = ident_prefix(parent_unit, label, '.');
+         if (alias != vlog_ident(body) && alias != ctx.dotted)
+            inst_alias = alias;
+      }
+      ctx.inst_alias = inst_alias;
+
       if (!hset_contains(ctx.instances, body)) {
          vlog_lower_instance(ctx.mir, body, parent->cloned, b);
          hset_insert(ctx.instances, body);
       }
 
-      vlog_lower_block(ctx.mir, parent->cloned, b);
+      vlog_lower_block(ctx.mir, parent->inst_alias ?: parent->cloned, b);
    }
    else {
       cover_scope_t *cs = cover_get_scope(ctx.cover, ctx.dotted);

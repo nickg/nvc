@@ -70,6 +70,10 @@ bool vlog_get_const(vlog_node_t v, int64_t *value)
       }
    case V_REF:
       return vlog_get_const(vlog_ref(v), value);
+   case V_HIER_REF:
+      if (vlog_has_ref(v))
+         return vlog_get_const(vlog_ref(v), value);
+      return false;
    case V_LOCALPARAM:
    case V_PARAM_DECL:
       return vlog_get_const(vlog_value(v), value);
@@ -77,6 +81,24 @@ bool vlog_get_const(vlog_node_t v, int64_t *value)
       if (vlog_params(v) == 1 && !vlog_has_value(v))
          return vlog_get_const(vlog_param(v, 0), value);
       // Fall through
+   case V_BINARY:
+      {
+         int64_t left, right;
+         if (!vlog_get_const(vlog_left(v), &left))
+            return false;
+         if (!vlog_get_const(vlog_right(v), &right))
+            return false;
+         switch (vlog_subkind(v)) {
+         case V_BINARY_PLUS:    *value = left + right; return true;
+         case V_BINARY_MINUS:   *value = left - right; return true;
+         case V_BINARY_TIMES:   *value = left * right; return true;
+         case V_BINARY_DIVIDE:  *value = left / right; return true;
+         case V_BINARY_MOD:     *value = left % right; return true;
+         case V_BINARY_LOG_EQ:  *value = left == right; return true;
+         case V_BINARY_LOG_NEQ: *value = left != right; return true;
+         default: return false;
+         }
+      }
    default:
       fatal_at(vlog_loc(v), "expression is not constant");
    }
@@ -89,6 +111,10 @@ bool vlog_is_const(vlog_node_t v)
       return true;
    case V_REF:
       return vlog_is_const(vlog_ref(v));
+   case V_HIER_REF:
+      if (vlog_has_ref(v))
+         return vlog_is_const(vlog_ref(v));
+      return false;
    case V_LOCALPARAM:
    case V_PARAM_DECL:
       return vlog_is_const(vlog_value(v));
@@ -96,6 +122,8 @@ bool vlog_is_const(vlog_node_t v)
       if (vlog_params(v) == 1 && !vlog_has_value(v))
          return vlog_is_const(vlog_param(v, 0));
       return false;
+   case V_BINARY:
+      return vlog_is_const(vlog_left(v)) && vlog_is_const(vlog_right(v));
    default:
       return false;
    }
@@ -170,6 +198,7 @@ unsigned vlog_size(vlog_node_t v)
             return left - right + 1;
       }
    case V_REF:
+   case V_HIER_REF:
       return vlog_size(vlog_ref(v));
    default:
       CANNOT_HANDLE(v);
@@ -362,6 +391,7 @@ vlog_node_t vlog_get_dim(vlog_node_t v, int n)
 {
    switch (vlog_kind(v)) {
    case V_REF:
+   case V_HIER_REF:
       {
          vlog_node_t decl = vlog_ref(v), dt = vlog_type(decl);
 
@@ -386,4 +416,18 @@ vlog_node_t vlog_get_dim(vlog_node_t v, int n)
    default:
       CANNOT_HANDLE(v);
    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Canonical hierarchical-scope name encoder.
+
+ident_t vlog_canonical_scope_name(vlog_node_t body)
+{
+   // The body already stores its canonical unit name in I_IDENT.  The
+   // elaborator constructs this name with a `#N` suffix for cloned
+   // module bodies (see `elab_verilog_module`).  All MIR / VPI / VCD
+   // / %m consumers must route through this helper rather than reading
+   // `vlog_ident` directly so the convention is pinned.
+   assert(body != NULL);
+   return vlog_ident(body);
 }
