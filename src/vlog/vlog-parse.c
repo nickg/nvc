@@ -5503,6 +5503,33 @@ static vlog_node_t p_delayed_data_or_reference(void)
    return NULL;
 }
 
+static vlog_node_t p_period_timing_check(void)
+{
+   // $period ( controlled_reference_event , timing_check_limit
+   //   [ , [ notifier ] ] ) ;
+
+   BEGIN("period timing check");
+
+   consume(tDLRPERIOD);
+   consume(tLPAREN);
+
+   (void)p_controlled_timing_check_event();
+
+   consume(tCOMMA);
+
+   (void)p_expression();
+
+   if (optional(tCOMMA)) {
+      if (peek() == tID)
+         p_identifier();
+   }
+
+   consume(tRPAREN);
+   consume(tSEMI);
+
+   return NULL;
+}
+
 static vlog_node_t p_setuphold_or_recrem_timing_check(void)
 {
    // $setuphold ( reference_event , data_event , timing_check_limit ,
@@ -5578,6 +5605,8 @@ static vlog_node_t p_system_timing_check(void)
       return p_recovery_or_removal_timing_check();
    case tDLRWIDTH:
       return p_width_timing_check();
+   case tDLRPERIOD:
+      return p_period_timing_check();
    case tDLRSETUPHOLD:
    case tDLRRECREM:
       return p_setuphold_or_recrem_timing_check();
@@ -5686,12 +5715,13 @@ static void p_specify_item(vlog_node_t parent)
    case tDLRSETUPHOLD:
    case tDLRRECREM:
    case tDLRWIDTH:
+   case tDLRPERIOD:
       (void)p_system_timing_check();
       break;
    default:
       one_of(tSPECPARAM, tLPAREN, tIF, tIFNONE, tDLRSETUP, tDLRHOLD,
              tDLRRECOVERY, tDLRREMOVAL, tDLRSETUPHOLD, tDLRRECREM,
-             tDLRWIDTH);
+             tDLRWIDTH, tDLRPERIOD);
    }
 }
 
