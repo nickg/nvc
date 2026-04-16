@@ -1682,12 +1682,17 @@ static void vlog_lower_repeat(vlog_gen_t *g, vlog_node_t v)
 {
    mir_type_t t_offset = mir_offset_type(g->mu);
    mir_value_t i_var = mir_add_var(g->mu, t_offset, MIR_NULL_STAMP,
-                                   ident_new("i"), MIR_VAR_TEMP);
+                                   ident_uniq("i"), 0);
    mir_value_t zero = mir_const(g->mu, t_offset, 0);
    mir_build_store(g->mu, i_var, zero);
 
+   mir_value_t limit_var = mir_add_var(g->mu, t_offset, MIR_NULL_STAMP,
+                                       ident_uniq("limit"), MIR_VAR_CONST);
+
    mir_value_t rvalue = vlog_lower_rvalue(g, vlog_value(v));
    mir_value_t limit = vlog_lower_cast(g, t_offset, rvalue);
+   mir_build_store(g->mu, limit_var, limit);
+
    mir_value_t enter = mir_build_cmp(g->mu, MIR_CMP_LT, zero, limit);
 
    mir_block_t body_bb = mir_add_block(g->mu);
@@ -1704,7 +1709,8 @@ static void vlog_lower_repeat(vlog_gen_t *g, vlog_node_t v)
       mir_value_t next = mir_build_add(g->mu, t_offset, i_val, one);
       mir_build_store(g->mu, i_var, next);
 
-      mir_value_t done = mir_build_cmp(g->mu, MIR_CMP_LT, next, limit);
+      mir_value_t limit_load = mir_build_load(g->mu, limit_var);
+      mir_value_t done = mir_build_cmp(g->mu, MIR_CMP_LT, next, limit_load);
       mir_build_cond(g->mu, done, body_bb, cont_bb);
    }
 

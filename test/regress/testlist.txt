@@ -1299,3 +1299,4 @@ vlog39          verilog
 ivtest25        verilog
 wide5           verilog
 ivtest26        verilog
+vlog40          verilog
