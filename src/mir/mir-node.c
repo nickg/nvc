@@ -3390,6 +3390,7 @@ mir_value_t mir_build_cast(mir_unit_t *mu, mir_type_t type, mir_value_t value)
       { MIR_TYPE_INT,    MIR_TYPE_INT     },
       { MIR_TYPE_INT,    MIR_TYPE_REAL    },
       { MIR_TYPE_REAL,   MIR_TYPE_INT     },
+      { MIR_TYPE_REAL,   MIR_TYPE_OFFSET  },
       { MIR_TYPE_REAL,   MIR_TYPE_REAL    },
       { MIR_TYPE_ACCESS, MIR_TYPE_ACCESS  },
       { MIR_TYPE_VEC4,   MIR_TYPE_VEC2    },

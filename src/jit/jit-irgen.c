@@ -2263,7 +2263,8 @@ static void irgen_op_cast(jit_irgen_t *g, mir_value_t n)
 
    if (result_kind == MIR_TYPE_REAL && mir_is_integral(g->mu, arg))
       j_scvtf(g, g->map[n.id], irgen_get_value(g, arg));
-   else if (result_kind == MIR_TYPE_INT && mir_is(g->mu, arg, MIR_TYPE_REAL))
+   else if ((result_kind == MIR_TYPE_INT || result_kind == MIR_TYPE_OFFSET)
+            && mir_is(g->mu, arg, MIR_TYPE_REAL))
       j_fcvtns(g, g->map[n.id], irgen_get_value(g, arg));
    else if ((result_kind == MIR_TYPE_INT || result_kind == MIR_TYPE_OFFSET)
             && mir_is_integral(g->mu, arg)) {
