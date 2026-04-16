@@ -1295,3 +1295,4 @@ issue1472       normal,2008
 issue1474       normal,2008
 vlog38          verilog
 issue1494       cover
+vlog39          verilog
