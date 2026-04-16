@@ -663,6 +663,10 @@ static c_vpiObject *build_expr(vlog_node_t v, c_abstractScope *scope)
                return &(decl->object);
          }
 
+         // Task and function locals
+         if (vlog_kind(d) == V_VAR_DECL)
+            return &(build_operation(v)->expr.object);
+
          fatal_trace("cannot find declaration for %s", istr(vlog_ident(d)));
       }
    case V_BINARY:

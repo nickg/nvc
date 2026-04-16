@@ -196,7 +196,8 @@ static mir_value_t vlog_lower_cast(vlog_gen_t *g, mir_type_t type,
       mir_value_t intg = vlog_lower_cast(g, t_int64, value);
       return mir_build_cast(g->mu, type, intg);
    }
-   else if (from == MIR_TYPE_VEC4 && to == MIR_TYPE_INT) {
+   else if (from == MIR_TYPE_VEC4 && (to == MIR_TYPE_INT
+                                      || to == MIR_TYPE_OFFSET)) {
       // TODO: how to handle X here
       const int size = mir_get_size(g->mu, value_type);
       const bool issigned = mir_get_signed(g->mu, value_type);
@@ -1686,7 +1687,7 @@ static void vlog_lower_repeat(vlog_gen_t *g, vlog_node_t v)
    mir_build_store(g->mu, i_var, zero);
 
    mir_value_t rvalue = vlog_lower_rvalue(g, vlog_value(v));
-   mir_value_t limit = mir_build_cast(g->mu, t_offset, rvalue);
+   mir_value_t limit = vlog_lower_cast(g, t_offset, rvalue);
    mir_value_t enter = mir_build_cmp(g->mu, MIR_CMP_LT, zero, limit);
 
    mir_block_t body_bb = mir_add_block(g->mu);
