@@ -1301,3 +1301,4 @@ wide5           verilog
 ivtest26        verilog
 vlog40          verilog
 ivtest27        verilog
+ivtest28        verilog

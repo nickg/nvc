@@ -286,9 +286,20 @@ bool vlog_equal_node(vlog_node_t a, vlog_node_t b)
          return vlog_ref(a) == vlog_ref(b);
    case V_PARAM_ASSIGN:
       {
+         // TODO: should handle parameter assignment in different order
          ident_t ia = vlog_has_ident(a) ? vlog_ident(a) : NULL;
          ident_t ib = vlog_has_ident(b) ? vlog_ident(b) : NULL;
-         return ia == ib && vlog_equal_node(vlog_value(a), vlog_value(b));
+         if (ia != ib)
+            return false;
+
+         vlog_node_t va = vlog_has_value(a) ? vlog_value(a) : NULL;
+         vlog_node_t vb = vlog_has_value(b) ? vlog_value(b) : NULL;
+         if (va == NULL && vb == NULL)
+            return true;
+         else if (va == NULL || vb == NULL)
+            return false;
+         else
+            return vlog_equal_node(va, vb);
       }
    default:
       return false;
@@ -304,7 +315,9 @@ uint32_t vlog_hash_node(vlog_node_t v)
       return vlog_hash_node(vlog_ref(v));
    case V_PARAM_ASSIGN:
       {
-         uint32_t h = vlog_hash_node(vlog_value(v));
+         uint32_t h = 0;
+         if (vlog_has_value(v))
+            h ^= vlog_hash_node(vlog_value(v));
          if (vlog_has_ident(v))
             h ^= ident_hash(vlog_ident(v));
          return h;

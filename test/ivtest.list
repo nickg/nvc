@@ -244,7 +244,7 @@ br988			normal			ivltests
 br990			normal			ivltests
 br991a			normal			ivltests
 br999			normal			ivltests
-br1000			normal			ivltests
+#br1000			normal			ivltests   # non-standard
 br1001			normal			ivltests
 br1006			normal,-gspecify	ivltests
 br1007			normal,-Wselect-range	ivltests gold=br1007.gold

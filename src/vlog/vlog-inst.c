@@ -41,10 +41,15 @@ static vlog_node_t bind_parameter(vlog_node_t decl, int nth, vlog_node_t inst)
          ident_t id = vlog_ident(decl);
          for (int i = 0; i < nparams; i++) {
             p = vlog_param(inst, i);
-            if (vlog_has_ident(p) && vlog_ident(p) == id) {
+            if (!vlog_has_ident(p))
+               continue;
+            else if (vlog_ident(p) != id)
+               continue;
+
+            if (vlog_has_value(p))
                value = vlog_value(p);
-               break;
-            }
+
+            break;
          }
       }
    }
