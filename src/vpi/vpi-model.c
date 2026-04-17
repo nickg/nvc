@@ -608,6 +608,10 @@ static c_constant *build_constant(vlog_node_t v)
       con->subtype = vpiBinaryConst;
       con->size = number_width(vlog_number(v));
       break;
+   case V_REAL:
+      con->subtype = vpiRealConst;
+      con->size = 64;
+      break;
    default:
       should_not_reach_here();
    }
@@ -644,6 +648,7 @@ static c_vpiObject *build_expr(vlog_node_t v, c_abstractScope *scope)
    switch (vlog_kind(v)) {
    case V_STRING:
    case V_NUMBER:
+   case V_REAL:
       return &(build_constant(v)->expr.object);
    case V_REF:
       {
@@ -1160,18 +1165,29 @@ void vpi_get_value(vpiHandle handle, p_vpi_value value_p)
                               c->valuestr);
             return;
          }
+
+      case vpiRealConst:
+         value_p->format = vpiRealVal;
+         value_p->value.real = vlog_dval(con->expr.where);
+         return;
       }
    }
 
    c_operation *op = is_operation(obj);
    if (op != NULL && c->args != NULL && op->subtype != vpiNullOp) {
-      int size = c->args[op->argslot].integer;
-      assert(size <= 64);
+      const int64_t size = c->args[op->argslot].integer;
+      if (size < 0) {
+         value_p->format = vpiRealVal;
+         value_p->value.real = c->args[op->argslot + 1].real;
+      }
+      else {
+         assert(size <= 64);
 
-      uint64_t abits[1] = { c->args[op->argslot + 1].integer };
-      uint64_t bbits[1] = { c->args[op->argslot + 2].integer };
+         uint64_t abits[1] = { c->args[op->argslot + 1].integer };
+         uint64_t bbits[1] = { c->args[op->argslot + 2].integer };
 
-      vpi_format_number(size, abits, bbits, value_p, c->valuestr);
+         vpi_format_number(size, abits, bbits, value_p, c->valuestr);
+      }
       return;
    }
 
@@ -1256,6 +1272,14 @@ vpiHandle vpi_put_value(vpiHandle handle, p_vpi_value value_p,
             c->args[0].integer = value_p->value.integer & 0xffffffff;
             c->args[1].integer = 0;
 
+            return NULL;
+         }
+
+      case vpiRealFunc:
+         {
+            assert(value_p->format == vpiRealVal);
+
+            c->args[0].real = value_p->value.real;
             return NULL;
          }
       }
@@ -1494,4 +1518,23 @@ void vpi_call_foreign(vpiHandle handle, jit_scalar_t *args, tlab_t *tlab)
    if (call->callback->systf.type == vpiSysFunc && args[0].pointer == orig_p0)
       jit_msg(NULL, DIAG_FATAL, "system function %s did not return a value",
               call->callback->systf.tfname);
+}
+
+PLI_INT32 vpi_func_type(ident_t name)
+{
+   vpi_context_t *c = vpi_context();
+
+   for (int i = 0; i < c->systasks.count; i++) {
+      c_vpiObject *obj = from_handle(c->systasks.items[i]);
+      if (obj == NULL)
+         continue;
+
+      c_callback *cb = is_callback(obj);
+      assert(cb != NULL);
+
+      if (cb->name == name)
+         return cb->systf.sysfunctype;
+   }
+
+   return 0;
 }

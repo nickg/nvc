@@ -22,6 +22,7 @@
 #include "jit/jit.h"
 
 typedef unsigned int  PLI_UINT32;
+typedef int           PLI_INT32;
 typedef PLI_UINT32   *vpiHandle;
 
 vpi_context_t *vpi_context_new(void);
@@ -31,5 +32,6 @@ void vpi_context_free(vpi_context_t *c);
 
 vpiHandle vpi_bind_foreign(ident_t name, vlog_node_t where);
 void vpi_call_foreign(vpiHandle handle, jit_scalar_t *args, tlab_t *tlab);
+PLI_INT32 vpi_func_type(ident_t name);
 
 #endif  // _VPI_MODEL_H

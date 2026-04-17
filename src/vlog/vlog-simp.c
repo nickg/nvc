@@ -23,6 +23,8 @@
 #include "vlog/vlog-number.h"
 #include "vlog/vlog-phase.h"
 #include "vlog/vlog-util.h"
+#include "vpi/vpi-model.h"
+#include "vpi/vpi_user.h"
 
 #include <assert.h>
 #include <inttypes.h>
@@ -297,76 +299,124 @@ static bool get_number(vlog_node_t v, number_t *n)
    }
 }
 
+static bool get_real(vlog_node_t v, double *d)
+{
+   switch (vlog_kind(v)) {
+   case V_REAL:
+      *d = vlog_dval(v);
+      return true;
+   case V_REF:
+      {
+         vlog_node_t decl = vlog_ref(v);
+         if (vlog_kind(decl) == V_LOCALPARAM)
+            return get_real(vlog_value(decl), d);
+         else
+            return false;
+      }
+   default:
+      return false;
+   }
+}
+
 static vlog_node_t simp_binary(vlog_node_t v)
 {
    vlog_node_t left = vlog_left(v);
    vlog_node_t right = vlog_right(v);
 
-   number_t nleft, nright;
-   if (!get_number(left, &nleft) || !get_number(right, &nright))
-      return v;
+   double dleft, dright;
+   if (get_real(left, &dleft) && get_real(right, &dright)) {
+      double result;
+      switch (vlog_subkind(v)) {
+      case V_BINARY_PLUS:
+         result = dleft + dright;
+         break;
+      case V_BINARY_MINUS:
+         result = dleft - dright;
+         break;
+      case V_BINARY_TIMES:
+         result = dleft * dright;
+         break;
+      case V_BINARY_DIVIDE:
+         result = dleft / dright;
+         break;
+      default:
+         return v;
+      }
 
-   number_t result;
-   switch (vlog_subkind(v)) {
-   case V_BINARY_PLUS:
-      result = number_add(nleft, nright);
-      break;
-   case V_BINARY_MINUS:
-      result = number_sub(nleft, nright);
-      break;
-   case V_BINARY_TIMES:
-      result = number_mul(nleft, nright);
-      break;
-   case V_BINARY_DIVIDE:
-      result = number_div(nleft, nright);
-      break;
-   case V_BINARY_EXP:
-      result = number_exp(nleft, nright);
-      break;
-   case V_BINARY_SHIFT_LL:
-      result = number_shl(nleft, nright);
-      break;
-   case V_BINARY_LOG_EQ:
-      result = number_logical_equal(nleft, nright);
-      break;
-   case V_BINARY_LOG_NEQ:
-      result = number_not(number_logical_equal(nleft, nright));
-      break;
-   case V_BINARY_GT:
-      result = number_greater(nleft, nright);
-      break;
-   case V_BINARY_GEQ:
-      result = number_greater_equal(nleft, nright);
-      break;
-   case V_BINARY_LT:
-      result = number_less(nleft, nright);
-      break;
-   case V_BINARY_LEQ:
-      result = number_less_equal(nleft, nright);
-      break;
-   case V_BINARY_LOG_AND:
-      result = number_from_bool(number_truthy(nleft) && number_truthy(nright));
-      break;
-   case V_BINARY_LOG_OR:
-      result = number_from_bool(number_truthy(nleft) || number_truthy(nright));
-      break;
-   case V_BINARY_AND:
-      result = number_and2(nleft, nright);
-      break;
-   case V_BINARY_OR:
-      result = number_or2(nleft, nright);
-      break;
-   case V_BINARY_XOR:
-      result = number_xor2(nleft, nright);
-      break;
-   default:
-      return v;
+      vlog_node_t new = vlog_new(V_REAL);
+      vlog_set_loc(new, vlog_loc(v));
+      vlog_set_dval(new, result);
+      return new;
    }
 
-   vlog_node_t new = vlog_new(V_NUMBER);
-   vlog_set_loc(new, vlog_loc(v));
-   vlog_set_number(new, result);
-   return new;
+   number_t nleft, nright;
+   if (get_number(left, &nleft) && get_number(right, &nright)) {
+      number_t result;
+      switch (vlog_subkind(v)) {
+      case V_BINARY_PLUS:
+         result = number_add(nleft, nright);
+         break;
+      case V_BINARY_MINUS:
+         result = number_sub(nleft, nright);
+         break;
+      case V_BINARY_TIMES:
+         result = number_mul(nleft, nright);
+         break;
+      case V_BINARY_DIVIDE:
+         result = number_div(nleft, nright);
+         break;
+      case V_BINARY_EXP:
+         result = number_exp(nleft, nright);
+         break;
+      case V_BINARY_SHIFT_LL:
+         result = number_shl(nleft, nright);
+         break;
+      case V_BINARY_LOG_EQ:
+         result = number_logical_equal(nleft, nright);
+         break;
+      case V_BINARY_LOG_NEQ:
+         result = number_not(number_logical_equal(nleft, nright));
+         break;
+      case V_BINARY_GT:
+         result = number_greater(nleft, nright);
+         break;
+      case V_BINARY_GEQ:
+         result = number_greater_equal(nleft, nright);
+         break;
+      case V_BINARY_LT:
+         result = number_less(nleft, nright);
+         break;
+      case V_BINARY_LEQ:
+         result = number_less_equal(nleft, nright);
+         break;
+      case V_BINARY_LOG_AND:
+         result = number_from_bool(number_truthy(nleft)
+                                   && number_truthy(nright));
+         break;
+      case V_BINARY_LOG_OR:
+         result = number_from_bool(number_truthy(nleft)
+                                   || number_truthy(nright));
+         break;
+      case V_BINARY_AND:
+         result = number_and2(nleft, nright);
+         break;
+      case V_BINARY_OR:
+         result = number_or2(nleft, nright);
+         break;
+      case V_BINARY_XOR:
+         result = number_xor2(nleft, nright);
+         break;
+      default:
+         return v;
+      }
+
+      vlog_node_t new = vlog_new(V_NUMBER);
+      vlog_set_loc(new, vlog_loc(v));
+      vlog_set_number(new, result);
+      return new;
+   }
+
+   return v;
 }
 
 static vlog_node_t simp_unary(vlog_node_t v)
@@ -496,13 +546,34 @@ static vlog_node_t simp_localparam(vlog_node_t v)
    vlog_node_t dt = vlog_new(V_DATA_TYPE);
    vlog_set_loc(dt, vlog_loc(v));
 
-   int width = 32;
+   int width = 1;
    vlog_node_t value = vlog_value(v);
    const vlog_kind_t kind = vlog_kind(value);
    if (kind == V_NUMBER || kind == V_STRING)
       width = number_width(vlog_number(value));
 
-   if (width <= 32) {
+   if (kind == V_REAL)
+      vlog_set_subkind(dt, DT_REAL);
+   else if (kind == V_SYS_FCALL) {
+      switch (vpi_func_type(vlog_ident(value))) {
+      case vpiRealFunc:
+         vlog_set_subkind(dt, DT_REAL);
+         break;
+      case vpiTimeFunc:
+         vlog_set_subkind(dt, DT_TIME);
+         break;
+      default:
+         warn_at(vlog_loc(v), "result type of system function '%pi' is "
+                 "not known", vlog_ident(value));
+         // Fall-through
+      case vpiIntFunc:
+         vlog_set_subkind(dt, DT_INTEGER);
+         vlog_set_flags(dt, VLOG_F_SIGNED);
+         width = 32;
+         break;
+      }
+   }
+   else if (width <= 32) {
       vlog_set_subkind(dt, DT_INTEGER);
       vlog_set_flags(dt, VLOG_F_SIGNED);
       width = 32;
@@ -510,18 +581,20 @@ static vlog_node_t simp_localparam(vlog_node_t v)
    else
       vlog_set_subkind(dt, DT_LOGIC);
 
-   vlog_node_t left = vlog_new(V_NUMBER);
-   vlog_set_number(left, number_from_int(width - 1));
+   if (width != 1) {
+      vlog_node_t left = vlog_new(V_NUMBER);
+      vlog_set_number(left, number_from_int(width - 1));
 
-   vlog_node_t right = vlog_new(V_NUMBER);
-   vlog_set_number(right, number_from_int(0));
+      vlog_node_t right = vlog_new(V_NUMBER);
+      vlog_set_number(right, number_from_int(0));
 
-   vlog_node_t r = vlog_new(V_DIMENSION);
-   vlog_set_subkind(r, V_DIM_PACKED);
-   vlog_set_left(r, left);
-   vlog_set_right(r, right);
+      vlog_node_t r = vlog_new(V_DIMENSION);
+      vlog_set_subkind(r, V_DIM_PACKED);
+      vlog_set_left(r, left);
+      vlog_set_right(r, right);
 
-   vlog_add_range(dt, r);
+      vlog_add_range(dt, r);
+   }
 
    vlog_set_type(v, dt);
    return v;

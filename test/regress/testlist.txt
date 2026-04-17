@@ -1302,3 +1302,4 @@ ivtest26        verilog
 vlog40          verilog
 ivtest27        verilog
 ivtest28        verilog
+ivtest29        verilog

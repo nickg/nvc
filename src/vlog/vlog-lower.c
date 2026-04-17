@@ -29,6 +29,8 @@
 #include "vlog/vlog-number.h"
 #include "vlog/vlog-phase.h"
 #include "vlog/vlog-util.h"
+#include "vpi/vpi-model.h"
+#include "vpi/vpi_user.h"
 
 #include <assert.h>
 #include <inttypes.h>
@@ -209,6 +211,22 @@ static mir_value_t vlog_lower_cast(vlog_gen_t *g, mir_type_t type,
       return mir_build_cast(g->mu, type, value);
 }
 
+static mir_value_t vlog_lower_test(vlog_gen_t *g, mir_value_t value)
+{
+   if (mir_is_vector(g->mu, value))
+      return mir_build_test(g->mu, value);
+
+   mir_type_t type = mir_get_type(g->mu, value);
+   if (mir_equals(type, mir_bool_type(g->mu)))
+      return value;
+   else if (mir_get_class(g->mu, type) == MIR_TYPE_REAL) {
+      mir_value_t zero = mir_const_real(g->mu, type, 0.0);
+      return mir_build_not(g->mu, mir_build_cmp(g->mu, MIR_CMP_EQ, value, zero));
+   }
+   else
+      should_not_reach_here();
+}
+
 static mir_value_t vlog_lower_array_off(vlog_gen_t *g, vlog_node_t r,
                                         vlog_node_t v)
 {
@@ -277,7 +295,7 @@ static vlog_select_t vlog_lower_select(vlog_gen_t *g, vlog_node_t v)
                const type_info_t *ti = vlog_type_info(g, vlog_type(decl));
 
                mir_value_t value = vlog_lower_rvalue(g, vlog_value(decl));
-               mir_value_t cast = mir_build_cast(g->mu, ti->type, value);
+               mir_value_t cast = vlog_lower_cast(g, ti->type, value);
 
                vlog_select_t result = {
                   .obj      = cast,
@@ -596,7 +614,10 @@ static mir_value_t vlog_lower_unary(vlog_gen_t *g, vlog_node_t v)
    }
    else {
       switch (vlog_subkind(v)) {
-      case V_UNARY_NEG: return mir_build_neg(g->mu, type, input);
+      case V_UNARY_NEG:
+         return mir_build_neg(g->mu, type, input);
+      case V_UNARY_NOT:
+         return mir_build_not(g->mu, vlog_lower_test(g, input));
       default:
          CANNOT_HANDLE(v);
       }
@@ -715,7 +736,7 @@ static mir_value_t vlog_lower_binary(vlog_gen_t *g, vlog_node_t v,
                                       binop == V_BINARY_LOG_OR, 0);
       mir_build_store(g->mu, var, def);
 
-      mir_value_t test = mir_build_test(g->mu, left);
+      mir_value_t test = vlog_lower_test(g, left);
       if (binop == V_BINARY_LOG_OR)
          mir_build_cond(g->mu, test, skip_bb, guard_bb);
       else
@@ -743,8 +764,22 @@ static mir_value_t vlog_lower_binary(vlog_gen_t *g, vlog_node_t v,
       case V_BINARY_TIMES:
          result = mir_build_mul(g->mu, type, left, right);
          break;
+      case V_BINARY_LOG_AND:
+         result = mir_build_and(g->mu, vlog_lower_test(g, left),
+                                vlog_lower_test(g, right));
+         break;
+      case V_BINARY_LOG_OR:
+         result = mir_build_or(g->mu, vlog_lower_test(g, left),
+                               vlog_lower_test(g, right));
+         break;
+      case V_BINARY_DIVIDE:
+         result = mir_build_div(g->mu, type, left, right);
+         break;
       case V_BINARY_PLUS:
          result = mir_build_add(g->mu, type, left, right);
+         break;
+      case V_BINARY_MINUS:
+         result = mir_build_sub(g->mu, type, left, right);
          break;
       default:
          CANNOT_HANDLE(v);
@@ -845,7 +880,7 @@ static mir_value_t vlog_lower_sys_tfcall(vlog_gen_t *g, vlog_node_t v)
 {
    const int nparams = vlog_params(v);
    mir_value_t *args LOCAL =
-      xmalloc_array((nparams * 2) + 1, sizeof(mir_value_t));
+      xmalloc_array((nparams * 3) + 1, sizeof(mir_value_t));
    int actual = 0;
    mir_type_t t_offset = mir_offset_type(g->mu);
    for (int i = 0; i < nparams; i++) {
@@ -861,12 +896,16 @@ static mir_value_t vlog_lower_sys_tfcall(vlog_gen_t *g, vlog_node_t v)
          break;
       case MIR_TYPE_VEC2:
          {
-            // TODO: remove the cast
             const int size = mir_get_size(g->mu, type);
             mir_type_t t_vec4 = mir_vec4_type(g->mu, size, false);
             args[actual++] = mir_const(g->mu, t_offset, size);
             args[actual++] = mir_build_cast(g->mu, t_vec4, arg);
          }
+         break;
+      case MIR_TYPE_REAL:
+         args[actual++] = mir_const(g->mu, t_offset, -1);
+         args[actual++] = arg;
+         args[actual++] = mir_const(g->mu, t_offset, 0); // Padding
          break;
       default:
          should_not_reach_here();
@@ -877,11 +916,21 @@ static mir_value_t vlog_lower_sys_tfcall(vlog_gen_t *g, vlog_node_t v)
 
    mir_type_t type = MIR_NULL_TYPE;
    if (vlog_kind(v) == V_SYS_FCALL) {
-      // XXX: this should call into VPI
-      if (icmp(vlog_ident(v), "$random"))
-         type = mir_vec2_type(g->mu, 32, true);
-      else
+      switch (vpi_func_type(vlog_ident(v))) {
+      case vpiRealFunc:
+         type = mir_double_type(g->mu);
+         break;
+      case vpiTimeFunc:
          type = mir_vec2_type(g->mu, 64, false);
+         break;
+      default:
+         warn_at(vlog_loc(v), "result type of system function '%pi' is "
+                 "not known", vlog_ident(v));
+         // Fall-through
+      case vpiIntFunc:
+         type = mir_vec2_type(g->mu, 32, true);
+         break;
+      }
    }
 
    mir_value_t result = mir_build_syscall(g->mu, vlog_ident(v), type,
@@ -1159,7 +1208,7 @@ static mir_value_t vlog_lower_with_context(vlog_gen_t *g, vlog_node_t v,
          // TODO: do not evaluate both sides
 
          mir_value_t value = vlog_lower_rvalue(g, vlog_value(v));
-         mir_value_t cmp = mir_build_test(g->mu, value);
+         mir_value_t cmp = vlog_lower_test(g, value);
          mir_value_t left = vlog_lower_rvalue(g, vlog_left(v));
          mir_value_t right = vlog_lower_rvalue(g, vlog_right(v));
 
@@ -1629,9 +1678,8 @@ static void vlog_lower_if(vlog_gen_t *g, vlog_node_t v)
       mir_block_t next_bb = MIR_NULL_BLOCK;
 
       if (vlog_has_value(c)) {
-         mir_value_t value = vlog_lower_rvalue(g, vlog_value(c)), cmp = value;
-         if (mir_is_vector(g->mu, value))
-            cmp = mir_build_test(g->mu, value);
+         mir_value_t value = vlog_lower_rvalue(g, vlog_value(c));
+         mir_value_t cmp = vlog_lower_test(g, value);
 
          mir_block_t btrue = mir_add_block(g->mu);
 
@@ -1728,7 +1776,7 @@ static void vlog_lower_while(vlog_gen_t *g, vlog_node_t v)
    mir_set_cursor(g->mu, test_bb, MIR_APPEND);
 
    mir_value_t rvalue = vlog_lower_rvalue(g, vlog_value(v));
-   mir_value_t test = mir_build_test(g->mu, rvalue);
+   mir_value_t test = vlog_lower_test(g, rvalue);
    mir_build_cond(g->mu, test, body_bb, cont_bb);
 
    mir_set_cursor(g->mu, body_bb, MIR_APPEND);
@@ -1764,9 +1812,7 @@ static void vlog_lower_for_loop(vlog_gen_t *g, vlog_node_t v)
    mir_comment(g->mu, "For loop test");
 
    mir_value_t expr = vlog_lower_rvalue(g, vlog_value(v));
-   assert(mir_is_vector(g->mu, expr));
-
-   mir_value_t test = mir_build_test(g->mu, expr);
+   mir_value_t test = vlog_lower_test(g, expr);
    mir_build_cond(g->mu, test, body_bb, exit_bb);
 
    mir_set_cursor(g->mu, body_bb, MIR_APPEND);
@@ -2283,9 +2329,7 @@ static void vlog_lower_net_process(vlog_gen_t *g, vlog_node_t v)
 
    {
       mir_value_t value = vlog_lower_with_context(g, vlog_value(v), ti->type);
-      assert(mir_is_vector(g->mu, value));
-
-      mir_value_t resize = mir_build_cast(g->mu, ti->type, value);
+      mir_value_t resize = vlog_lower_cast(g, ti->type, value);
 
       mir_value_t tmp = MIR_NULL_VALUE;
       if (ti->size != 1) {

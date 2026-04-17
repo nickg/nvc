@@ -615,6 +615,9 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
    if (state->vhpi == NULL)
       state->vhpi = vhpi_context_new();
 
+   if (state->vpi == NULL)
+      state->vpi = vpi_context_new();
+
    vhpi_run_callbacks(vhpiCbStartOfElaboration);
 
    tree_t top = elab(obj, state->jit, state->registry, state->mir,
