@@ -58,7 +58,7 @@
 #define SUSPEND_TIMEOUT 1
 #define THREAD_NAME_LEN 16
 
-#if !defined __MINGW32__ && !defined __APPLE__
+#if !defined __MINGW32__ && !defined __APPLE__ && !defined __EMSCRIPTEN__
 #define POSIX_SUSPEND 1
 #define SIGSUSPEND    SIGRTMIN
 #define SIGRESUME     (SIGRTMIN + 1)
@@ -1374,6 +1374,9 @@ void stop_world(stop_world_fn_t callback, void *arg)
 #elif defined __SANITIZE_THREAD__
    // https://github.com/google/sanitizers/issues/1179
    fatal_trace("stop_world is not supported with tsan");
+#elif defined __EMSCRIPTEN__
+   if (atomic_load(&running_threads) > 1)
+      fatal_trace("stop_world is not supported on emscripten with multiple threads");
 #else
    assert(sem_trywait(&stop_sem) == -1 && errno == EAGAIN);
 
@@ -1437,6 +1440,8 @@ void start_world(void)
       if (kern_result != KERN_SUCCESS)
          fatal_trace("failed to resume thread %d (%d)", i, kern_result);
    }
+#elif defined __EMSCRIPTEN__
+   // No-op: stop_world only supports inspecting the current thread.
 #else
    assert(sem_trywait(&stop_sem) == -1 && errno == EAGAIN);
 

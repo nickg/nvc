@@ -287,11 +287,11 @@ void __nvc_truncate(jit_scalar_t *args)
          goto failed;
    }
 
-#if defined HAVE_FPURGE
+#if defined HAVE___FPURGE
+   __fpurge(slot->file);
+#elif defined HAVE_FPURGE
    if (fpurge(slot->file) != 0)
       goto failed;
-#elif defined HAVE___FPURGE
-   __fpurge(slot->file);
 #endif
 
 #endif  // !__MINGW32__

@@ -841,6 +841,11 @@ static void arm64_patch_page_base_rel21(uint32_t *patch, void *ptr)
 
 static void *code_emit_trampoline(code_blob_t *blob, void *dest)
 {
+#if defined ARCH_WASM32
+   // wasm32 does not execute bytes from writable code buffers.
+   // Calls are represented by function/table indices instead of absolute jumps.
+   return dest;
+#else
 #if defined ARCH_X86_64
    const uint8_t veneer[] = {
       0x48, 0xb8, __IMM64((uintptr_t)dest),  // MOVABS RAX, dest
@@ -867,11 +872,15 @@ static void *code_emit_trampoline(code_blob_t *blob, void *dest)
       code_blob_emit(blob, veneer, ARRAY_LEN(veneer));
       return addr;
    }
+#endif
 }
 
 #if !defined __MINGW32__ && !defined __APPLE__
 static void *code_emit_got(code_blob_t *blob, void *dest)
 {
+#if defined ARCH_WASM32
+   return dest;
+#else
    const uint8_t data[] = { __IMM64((uintptr_t)dest) };
 
    void *prev = memmem(blob->veneers, blob->veneers - blob->wptr,
@@ -885,6 +894,7 @@ static void *code_emit_got(code_blob_t *blob, void *dest)
       code_blob_emit(blob, data, ARRAY_LEN(data));
       return addr;
    }
+#endif
 }
 #endif
 
