@@ -165,6 +165,8 @@ typedef enum {
    X86_CMP_EQ = 0x04,
    X86_CMP_NE = 0x05,
    X86_CMP_BE = 0x06,
+   X86_CMP_P  = 0x0a,
+   X86_CMP_NP = 0x0b,
    X86_CMP_LE = 0x0e,
    X86_CMP_LT = 0x0c,
    X86_CMP_GE = 0x0d,
@@ -221,6 +223,7 @@ typedef enum {
 #define SETAE(dst) asm_setcc(blob, (dst), 0x3)
 #define SETB(dst) asm_setcc(blob, (dst), 0x2)
 #define SETBE(dst) asm_setcc(blob, (dst), 0x6)
+#define SETNP(dst) asm_setcc(blob, (dst), X86_CMP_NP)
 #define TEST(src1, src2, size) asm_test(blob, (src1), (src2), (size))
 #define CMP(src1, src2, size) asm_cmp(blob, (src1), (src2), (size))
 #define CALL(addr) asm_call(blob, (addr))
@@ -1817,11 +1820,23 @@ static void jit_x86_fcmp(code_blob_t *blob, jit_ir_t *ir,
    UCOMISD(__XMM0, __XMM1);
 
    switch (ir->cc) {
-   case JIT_CC_LT: SETB(FLAGS_REG); break;
-   case JIT_CC_LE: SETBE(FLAGS_REG); break;
+   case JIT_CC_LT:
+      SETB(FLAGS_REG);
+      SETNP(__EAX);
+      AND(FLAGS_REG, __EAX, __BYTE);
+      break;
+   case JIT_CC_LE:
+      SETBE(FLAGS_REG);
+      SETNP(__EAX);
+      AND(FLAGS_REG, __EAX, __BYTE);
+      break;
    case JIT_CC_GT: SETA(FLAGS_REG); break;
    case JIT_CC_GE: SETAE(FLAGS_REG); break;
-   case JIT_CC_EQ: SETZ(FLAGS_REG); break;
+   case JIT_CC_EQ:
+      SETZ(FLAGS_REG);
+      SETNP(__EAX);
+      AND(FLAGS_REG, __EAX, __BYTE);
+      break;
    case JIT_CC_NE: SETNZ(FLAGS_REG); break;
    default:
       fatal_trace("unhandled FCMP comparison code %d", ir->cc);

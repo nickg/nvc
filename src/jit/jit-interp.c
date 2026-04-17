@@ -558,14 +558,18 @@ static void interp_fcmp(jit_interp_t *state, jit_ir_t *ir)
    const double arg1 = interp_get_real(state, ir->arg1);
    const double arg2 = interp_get_real(state, ir->arg2);
 
-   switch (ir->cc) {
-   case JIT_CC_EQ: state->flags = (arg1 == arg2); break;
-   case JIT_CC_NE: state->flags = (arg1 != arg2); break;
-   case JIT_CC_LT: state->flags = (arg1 < arg2); break;
-   case JIT_CC_GT: state->flags = (arg1 > arg2); break;
-   case JIT_CC_LE: state->flags = (arg1 <= arg2); break;
-   case JIT_CC_GE: state->flags = (arg1 >= arg2); break;
-   default: state->flags = 0; break;
+   if (isnan(arg1) || isnan(arg2))
+      state->flags = 0;
+   else {
+      switch (ir->cc) {
+      case JIT_CC_EQ: state->flags = (arg1 == arg2); break;
+      case JIT_CC_NE: state->flags = (arg1 != arg2); break;
+      case JIT_CC_LT: state->flags = (arg1 < arg2); break;
+      case JIT_CC_GT: state->flags = (arg1 > arg2); break;
+      case JIT_CC_LE: state->flags = (arg1 <= arg2); break;
+      case JIT_CC_GE: state->flags = (arg1 >= arg2); break;
+      default: state->flags = 0; break;
+      }
    }
 }
 
@@ -574,14 +578,18 @@ static void interp_fccmp(jit_interp_t *state, jit_ir_t *ir)
    const double arg1 = interp_get_real(state, ir->arg1);
    const double arg2 = interp_get_real(state, ir->arg2);
 
-   switch (ir->cc) {
-   case JIT_CC_EQ: state->flags &= (arg1 == arg2); break;
-   case JIT_CC_NE: state->flags &= (arg1 != arg2); break;
-   case JIT_CC_LT: state->flags &= (arg1 < arg2); break;
-   case JIT_CC_GT: state->flags &= (arg1 > arg2); break;
-   case JIT_CC_LE: state->flags &= (arg1 <= arg2); break;
-   case JIT_CC_GE: state->flags &= (arg1 >= arg2); break;
-   default: state->flags = 0; break;
+   if (isnan(arg1) || isnan(arg2))
+      state->flags = 0;
+   else {
+      switch (ir->cc) {
+      case JIT_CC_EQ: state->flags &= (arg1 == arg2); break;
+      case JIT_CC_NE: state->flags &= (arg1 != arg2); break;
+      case JIT_CC_LT: state->flags &= (arg1 < arg2); break;
+      case JIT_CC_GT: state->flags &= (arg1 > arg2); break;
+      case JIT_CC_LE: state->flags &= (arg1 <= arg2); break;
+      case JIT_CC_GE: state->flags &= (arg1 >= arg2); break;
+      default: state->flags = 0; break;
+      }
    }
 }
 

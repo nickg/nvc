@@ -21,8 +21,9 @@
 #include "jit/jit.h"
 #include "option.h"
 
-#include <stdlib.h>
 #include <inttypes.h>
+#include <math.h>
+#include <stdlib.h>
 
 static jit_handle_t assemble(jit_t *j, const char *text, const char *name,
                              const char *ss)
@@ -1033,6 +1034,88 @@ START_TEST(test_ccmp)
 }
 END_TEST
 
+START_TEST(test_fcmp_nan)
+{
+   jit_t *j = get_native_jit();
+
+   const struct {
+      const char *text;
+      const char *name;
+   } cases[] = {
+      {
+         "    RECV     R0, #0          \n"
+         "    RECV     R1, #1          \n"
+         "    FCMP.EQ  R0, R1          \n"
+         "    CSET     R2              \n"
+         "    SEND     #0, R2          \n"
+         "    RET                      \n",
+         "native_fcmp_eq_nan",
+      },
+      {
+         "    RECV     R0, #0          \n"
+         "    RECV     R1, #1          \n"
+         "    FCMP.NE  R0, R1          \n"
+         "    CSET     R2              \n"
+         "    SEND     #0, R2          \n"
+         "    RET                      \n",
+         "native_fcmp_ne_nan",
+      },
+      {
+         "    RECV     R0, #0          \n"
+         "    RECV     R1, #1          \n"
+         "    FCMP.LT  R0, R1          \n"
+         "    CSET     R2              \n"
+         "    SEND     #0, R2          \n"
+         "    RET                      \n",
+         "native_fcmp_lt_nan",
+      },
+      {
+         "    RECV     R0, #0          \n"
+         "    RECV     R1, #1          \n"
+         "    FCMP.LE  R0, R1          \n"
+         "    CSET     R2              \n"
+         "    SEND     #0, R2          \n"
+         "    RET                      \n",
+         "native_fcmp_le_nan",
+      },
+      {
+         "    RECV     R0, #0          \n"
+         "    RECV     R1, #1          \n"
+         "    FCMP.GT  R0, R1          \n"
+         "    CSET     R2              \n"
+         "    SEND     #0, R2          \n"
+         "    RET                      \n",
+         "native_fcmp_gt_nan",
+      },
+      {
+         "    RECV     R0, #0          \n"
+         "    RECV     R1, #1          \n"
+         "    FCMP.GE  R0, R1          \n"
+         "    CSET     R2              \n"
+         "    SEND     #0, R2          \n"
+         "    RET                      \n",
+         "native_fcmp_ge_nan",
+      },
+   };
+
+   const double qnan = nan("");
+
+   // First iteration tests interpreter, second tests native
+   for (int iter = 0; iter < 2; iter++) {
+      for (int i = 0; i < ARRAY_LEN(cases); i++) {
+         jit_handle_t h = assemble(j, cases[i].text, cases[i].name, "ff");
+         const int64_t result = jit_call(j, h, qnan, 1.0).integer;
+
+         ck_assert_msg(result == 0,
+                       "%s should be false for unordered operands, got %"PRIi64,
+                       cases[i].name, result);
+      }
+   }
+
+   jit_free(j);
+}
+END_TEST
+
 START_TEST(test_memset)
 {
    jit_t *j = get_native_jit();
@@ -1261,6 +1344,7 @@ Suite *get_native_tests(void)
    tcase_add_test(tc, test_exp);
    tcase_add_test(tc, test_float);
    tcase_add_test(tc, test_ccmp);
+   tcase_add_test(tc, test_fcmp_nan);
    tcase_add_test(tc, test_memset);
    tcase_add_test(tc, test_move);
    tcase_add_test(tc, test_sub);
