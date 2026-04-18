@@ -1279,96 +1279,65 @@ static void elab_map_generic_type(type_t generic, type_t actual, hash_t *map)
    hash_put(map, generic, actual);
 }
 
-static void elab_instance_fixup(tree_t arch, const elab_ctx_t *ctx)
+static void elab_map_generic_package(tree_t generic, tree_t actual, hash_t *map)
 {
-   if (standard() < STD_08)
-      return;
+   tree_t formal = tree_ref(tree_value(generic));
 
-   hash_t *map = NULL;
+   const int ndecls = tree_decls(formal);
+   for (int i = 0; i < ndecls; i++) {
+      tree_t gd = tree_decl(formal, i);
+      tree_t ad = tree_decl(actual, i);
+      assert(tree_kind(gd) == tree_kind(ad));
 
-   const int ngenerics = tree_generics(ctx->out);
-   assert(tree_genmaps(ctx->out) == ngenerics);
+      hash_put(map, gd, ad);
 
+      if (is_type_decl(gd))
+         hash_put(map, tree_type(gd), tree_type(ad));
+   }
+
+   const int ngenerics = tree_generics(formal);
    for (int i = 0; i < ngenerics; i++) {
-      tree_t g = tree_generic(ctx->out, i);
+      tree_t fg = tree_generic(formal, i);
+      tree_t ag = tree_generic(actual, i);
 
-      const class_t class = tree_class(g);
-      if (class == C_CONSTANT)
-         continue;
-      else if (map == NULL)
-         map = hash_new(64);
+      tree_t m = tree_genmap(actual, i);
+      assert(tree_subkind(m) == P_POS);
 
-      tree_t value = tree_value(tree_genmap(ctx->out, i));
+      tree_t value = tree_value(m);
 
-      switch (class) {
-      case C_TYPE:
-         elab_map_generic_type(tree_type(g), tree_type(value), map);
-         break;
-
-      case C_PACKAGE:
-         {
-            tree_t formal = tree_ref(tree_value(g));
-            tree_t actual = tree_ref(value);
-
-            const int ndecls = tree_decls(formal);
-            for (int i = 0; i < ndecls; i++) {
-               tree_t gd = tree_decl(formal, i);
-               tree_t ad = tree_decl(actual, i);
-               assert(tree_kind(gd) == tree_kind(ad));
-
-               hash_put(map, gd, ad);
-
-               if (is_type_decl(gd))
-                  hash_put(map, tree_type(gd), tree_type(ad));
-            }
-
-            const int ngenerics = tree_generics(formal);
-            for (int i = 0; i < ngenerics; i++) {
-               tree_t fg = tree_generic(formal, i);
-               tree_t ag = tree_generic(actual, i);
-
-               switch (tree_class(fg)) {
-               case C_FUNCTION:
-               case C_PROCEDURE:
-                  {
-                     // Get the actual subprogram from the generic map
-                     assert(ngenerics == tree_genmaps(actual));
-                     tree_t ref = tree_value(tree_genmap(actual, i));
-                     assert(tree_kind(ref) == T_REF);
-
-                     hash_put(map, fg, tree_ref(ref));
-                  }
-                  break;
-               case C_TYPE:
-                  hash_put(map, tree_type(fg), tree_type(ag));
-                  break;
-               case C_PACKAGE:
-                  // TODO: this should be processed recursively
-               default:
-                  hash_put(map, fg, ag);
-                  break;
-               }
-            }
-
-            hash_put(map, g, actual);
-         }
-         break;
-
+      switch (tree_class(fg)) {
       case C_FUNCTION:
       case C_PROCEDURE:
-         hash_put(map, g, tree_ref(value));
+         // Get the actual subprogram from the generic map
+         assert(tree_kind(value) == T_REF);
+         hash_put(map, fg, tree_ref(value));
          break;
-
+      case C_TYPE:
+         elab_map_generic_type(tree_type(fg), tree_type(ag), map);
+         break;
+      case C_CONSTANT:
+         if (is_literal(value)) {
+            hash_put(map, fg, value);
+            hash_put(map, ag, value);
+         }
+         else if (tree_kind(value) == T_REF) {
+            tree_t ref = tree_ref(value);
+            hash_put(map, fg, ref);
+            hash_put(map, ag, ref);
+         }
+         else {
+            hash_put(map, fg, ag);
+         }
+         break;
+      case C_PACKAGE:
+         // TODO: this should be processed recursively
       default:
+         hash_put(map, fg, ag);
          break;
       }
    }
 
-   if (map == NULL)
-      return;
-
-   instance_fixup(arch, map);
-   hash_free(map);
+   hash_put(map, generic, actual);
 }
 
 static void elab_fold_generics(tree_t b, const elab_ctx_t *ctx)
@@ -1408,52 +1377,7 @@ static void elab_fold_generics(tree_t b, const elab_ctx_t *ctx)
          break;
 
       case C_PACKAGE:
-         {
-            tree_t formal = tree_ref(tree_value(g));
-            tree_t actual = tree_ref(value);
-
-            const int ndecls = tree_decls(formal);
-            for (int i = 0; i < ndecls; i++) {
-               tree_t gd = tree_decl(formal, i);
-               tree_t ad = tree_decl(actual, i);
-               assert(tree_kind(gd) == tree_kind(ad));
-
-               hash_put(fixup, gd, ad);
-
-               if (is_type_decl(gd))
-                  hash_put(fixup, tree_type(gd), tree_type(ad));
-            }
-
-            const int ngenerics = tree_generics(formal);
-            for (int i = 0; i < ngenerics; i++) {
-               tree_t fg = tree_generic(formal, i);
-               tree_t ag = tree_generic(actual, i);
-
-               switch (tree_class(fg)) {
-               case C_FUNCTION:
-               case C_PROCEDURE:
-                  {
-                     // Get the actual subprogram from the generic map
-                     assert(ngenerics == tree_genmaps(actual));
-                     tree_t ref = tree_value(tree_genmap(actual, i));
-                     assert(tree_kind(ref) == T_REF);
-
-                     hash_put(fixup, fg, tree_ref(ref));
-                  }
-                  break;
-               case C_TYPE:
-                  hash_put(fixup, tree_type(fg), tree_type(ag));
-                  break;
-               case C_PACKAGE:
-                  // TODO: this should be processed recursively
-               default:
-                  hash_put(fixup, fg, ag);
-                  break;
-               }
-            }
-
-            hash_put(fixup, g, actual);
-         }
+         elab_map_generic_package(g, tree_ref(value), fixup);
          break;
 
       case C_FUNCTION:
@@ -2075,7 +1999,6 @@ static void elab_mixed_instance(tree_t inst, tree_t comp, vlog_node_t mod,
 
    elab_push_scope(comp, &new_ctx);
    elab_generics(comp, inst, &new_ctx);
-   elab_instance_fixup(comp, &new_ctx);
    elab_ports(comp, inst, &new_ctx);
 
    if (elab_new_errors(&new_ctx) == 0)
