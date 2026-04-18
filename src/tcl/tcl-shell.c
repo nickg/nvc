@@ -19,12 +19,13 @@
 #include "common.h"
 #include "diag.h"
 #include "hash.h"
-#include "rt/printer.h"
 #include "printf.h"
 #include "rt/assert.h"
 #include "rt/model.h"
 #include "rt/structs.h"
+#include "tcl/tcl-priv.h"
 #include "tcl/tcl-shell.h"
+#include "tcl/tcl-structs.h"
 #include "tree.h"
 #include "type.h"
 
@@ -40,70 +41,7 @@
 #include <readline/readline.h>
 #include <readline/history.h>
 
-#undef DLLEXPORT
-#include <tcl.h>
-
 #define TIME_BUFSZ 32
-
-#if TCL_MAJOR_VERSION < 9
-typedef int Tcl_Size;
-#endif
-
-typedef struct {
-   const char     *name;
-   Tcl_ObjCmdProc *fn;
-   const char     *help;
-} shell_cmd_t;
-
-typedef enum {
-   SHELL_SIGNAL,
-   SHELL_REGION,
-} object_kind_t;
-
-typedef struct {
-   object_kind_t kind;
-   ident_t       name;
-   ident_t       path;
-} shell_object_t;
-
-typedef struct {
-   shell_object_t  obj;
-   rt_signal_t    *signal;
-   print_func_t   *printer;
-   rt_watch_t     *watch;
-   tcl_shell_t    *owner;
-} shell_signal_t;
-
-typedef struct {
-   shell_object_t  obj;
-   rt_scope_t     *scope;
-} shell_region_t;
-
-typedef char *(*get_line_fn_t)(tcl_shell_t *);
-
-typedef struct _tcl_shell {
-   char            *prompt;
-   Tcl_Interp      *interp;
-   shell_cmd_t     *cmds;
-   size_t           ncmds;
-   size_t           cmdalloc;
-   rt_model_t      *model;
-   tree_t           top;
-   rt_scope_t      *root;
-   shell_signal_t  *signals;
-   unsigned         nsignals;
-   shell_region_t  *regions;
-   unsigned         nregions;
-   hash_t          *namemap;
-   jit_t           *jit;
-   int64_t          now_var;
-   unsigned         deltas_var;
-   printer_t       *printer;
-   get_line_fn_t    getline;
-   shell_handler_t  handler;
-   bool             quit;
-   char            *datadir;
-} tcl_shell_t;
 
 static __thread tcl_shell_t *rl_shell = NULL;
 
@@ -196,8 +134,8 @@ static bool shell_get_printer(tcl_shell_t *sh, shell_signal_t *ss)
    return true;
 }
 
-static void shell_add_cmd(tcl_shell_t *sh, const char *name, Tcl_ObjCmdProc fn,
-                          const char *help)
+void shell_add_cmd(tcl_shell_t *sh, const char *name, Tcl_ObjCmdProc fn,
+                   const char *help)
 {
    shell_cmd_t cmd = { name, fn, help };
 
@@ -988,6 +926,8 @@ tcl_shell_t *shell_new(tree_t top, jit_t *jit, rt_model_t *m)
    shell_add_cmd(sh, "noforce", shell_cmd_noforce, noforce_help);
    shell_add_cmd(sh, "echo", shell_cmd_echo, echo_help);
    shell_add_cmd(sh, "describe", shell_cmd_describe, describe_help);
+
+   shell_add_vhpi_cmds(sh);
 
    qsort(sh->cmds, sh->ncmds, sizeof(shell_cmd_t), compare_shell_cmd);
 

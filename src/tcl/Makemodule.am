@@ -1,5 +1,8 @@
 if ENABLE_TCL
 lib_libnvc_a_SOURCES += \
 	src/tcl/tcl-shell.h \
-	src/tcl/tcl-shell.c
+	src/tcl/tcl-shell.c \
+	src/tcl/tcl-priv.h \
+	src/tcl/tcl-structs.h \
+	src/tcl/tcl-vhpi.c
 endif

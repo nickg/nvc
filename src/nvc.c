@@ -1497,6 +1497,12 @@ static int do_cmd(int argc, char **argv, cmd_state_t *state)
    if (state->jit == NULL)
       state->jit = get_jit(state);
 
+   if (state->vhpi == NULL)
+      state->vhpi = vhpi_context_new();
+
+   if (state->vpi == NULL)
+      state->vpi = vpi_context_new();
+
 #ifdef ENABLE_TCL
    if (optind < next_cmd && strpbrk(argv[optind], "./\\") == NULL) {
       ident_t unit_name = to_unit_name(argv[optind]);
@@ -1520,6 +1526,12 @@ static int do_cmd(int argc, char **argv, cmd_state_t *state)
       reheat(top, state->registry, state->mir, NULL, state->model);
    }
 
+   if (state->model != NULL) {
+      vhpi_context_initialise(state->vhpi, top, state->model, state->jit);
+      vpi_context_initialise(state->vpi, top, state->model, state->jit,
+                             0, NULL);
+   }
+
    tcl_shell_t *sh = shell_new(top, state->jit, state->model);
 
    if (top != NULL)
@@ -1539,6 +1551,12 @@ static int do_cmd(int argc, char **argv, cmd_state_t *state)
 #else
    fatal("compiled without TCL support");
 #endif
+
+   vhpi_context_free(state->vhpi);
+   state->vhpi = NULL;
+
+   vpi_context_free(state->vpi);
+   state->vpi = NULL;
 
    argc -= next_cmd - 1;
    argv += next_cmd - 1;
@@ -1573,6 +1591,12 @@ static int interact_cmd(int argc, char **argv, cmd_state_t *state)
    if (state->jit == NULL)
       state->jit = get_jit(state);
 
+   if (state->vhpi == NULL)
+      state->vhpi = vhpi_context_new();
+
+   if (state->vpi == NULL)
+      state->vpi = vpi_context_new();
+
 #ifdef ENABLE_TCL
    if (optind < next_cmd)
       set_top_level(argv, next_cmd, state);
@@ -1590,6 +1614,12 @@ static int interact_cmd(int argc, char **argv, cmd_state_t *state)
       reheat(top, state->registry, state->mir, NULL, state->model);
    }
 
+   if (state->model != NULL) {
+      vhpi_context_initialise(state->vhpi, top, state->model, state->jit);
+      vpi_context_initialise(state->vpi, top, state->model, state->jit,
+                             0, NULL);
+   }
+
    tcl_shell_t *sh = shell_new(top, state->jit, state->model);
    if (top != NULL)
       shell_reset(sh);
@@ -1600,6 +1630,12 @@ static int interact_cmd(int argc, char **argv, cmd_state_t *state)
 #else
    fatal("compiled without TCL support");
 #endif
+
+   vhpi_context_free(state->vhpi);
+   state->vhpi = NULL;
+
+   vpi_context_free(state->vpi);
+   state->vpi = NULL;
 
    argc -= next_cmd - 1;
    argv += next_cmd - 1;

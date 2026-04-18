@@ -2635,6 +2635,11 @@ vhpiHandleT vhpi_handle_by_name(const char *name, vhpiHandleT scope)
    if (scope == NULL) {
       vhpi_context_t *c = vhpi_context();
 
+      if (c->root == NULL) {
+         vhpi_error(vhpiError, NULL, "design has not been elaborated");
+         return NULL;
+      }
+
       if (vhpi_name_cmp(&c->root->designInstUnit.region.object, elem))
          where = &(c->root->designInstUnit.region.object);
       else {
@@ -3309,6 +3314,75 @@ static bool vhpi_scalar_fits_format(vhpiFormatT format, int size)
    }
 }
 
+static int vhpi_to_string(c_typeDecl *td, int64_t scalar, int num_elems,
+                          const void *ptr, uint32_t offset, vhpiValueT *value_p)
+{
+   switch (td->format) {
+   case vhpiSmallEnumVal:
+   case vhpiEnumVecVal:
+      {
+         c_enumTypeDecl *etd = is_enumTypeDecl(&td->decl.object);
+         assert(etd != NULL);
+
+         vhpiObjectListT *lits =
+            expand_lazy_list(&etd->scalar.typeDecl.decl.object,
+                             &etd->EnumLiterals);
+
+         if (scalar < 0 || scalar >= lits->count) {
+            vhpi_error(vhpiError, NULL, "enumeration value %"PRIi64
+                       " out of range", scalar);
+            return -1;
+         }
+
+         c_enumLiteral *lit = is_enumLiteral(lits->items[scalar]);
+         assert(lit != NULL);
+
+         ident_t name = tree_ident(lit->decl.tree);
+
+         const size_t len = ident_len(name) + 1;
+         if (len > value_p->bufSize)
+            return len;
+
+         memcpy(value_p->value.str, istr(name), len);
+         return 0;
+      }
+   case vhpiLogicVal:
+   case vhpiLogicVecVal:
+      {
+         if (value_p->bufSize < num_elems + 1)
+            return num_elems + 1;
+
+         value_p->numElems = num_elems;
+
+         const vhpiCharT *p = ptr + offset;
+         for (int i = 0; i < value_p->numElems; i++)
+            value_p->value.str[i] = td->map_str[*p++];
+
+         value_p->value.str[value_p->numElems] = '\0';
+         return 0;
+      }
+   case vhpiStrVal:
+      {
+         if (value_p->bufSize < num_elems + 1)
+            return num_elems + 1;
+
+         value_p->numElems = num_elems;
+
+         const vhpiCharT *p = ptr + offset;
+         for (int i = 0; i < value_p->numElems; i++)
+            value_p->value.str[i] = *p++;
+
+         value_p->value.str[value_p->numElems] = '\0';
+         return 0;
+      }
+
+   default:
+      vhpi_error(vhpiError, NULL, "cannot format %s as string",
+                 type_pp(td->type));
+      return -1;
+   }
+}
+
 DLLEXPORT
 int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
 {
@@ -3413,7 +3487,7 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
       value_p->format = td->format;
    else if (value_p->format == vhpiBinStrVal && td->map_str != NULL)
       ;
-   else if (value_p->format != td->format
+   else if (value_p->format != td->format && value_p->format != vhpiStrVal
             && !vhpi_scalar_fits_format(value_p->format, size)) {
       vhpi_error(vhpiError, &(obj->loc), "invalid format %s for object %s: "
                  "expecting %s", vhpi_format_str(value_p->format),
@@ -3554,8 +3628,10 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
          return 0;
       }
 
-   case vhpiBinStrVal:
    case vhpiStrVal:
+      return vhpi_to_string(td->BaseType ?: td, scalar, num_elems,
+                            value, offset, value_p);
+   case vhpiBinStrVal:
       {
          if (value_p->bufSize < num_elems + 1)
             return num_elems + 1;
@@ -3563,12 +3639,8 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
          value_p->numElems = num_elems;
 
          const vhpiCharT *p = value + offset;
-         for (int i = 0; i < value_p->numElems; i++) {
-            if (value_p->format == vhpiBinStrVal)
-               value_p->value.str[i] = td->map_str[*p++];
-            else
-               value_p->value.str[i] = *p++;
-         }
+         for (int i = 0; i < value_p->numElems; i++)
+            value_p->value.str[i] = td->map_str[*p++];
 
          value_p->value.str[value_p->numElems] = '\0';
          return 0;
@@ -3610,6 +3682,42 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
       vhpi_error(vhpiError, &(obj->loc), "unsupported format %s",
                  vhpi_format_str(value_p->format));
       return -1;
+   }
+}
+
+static void *vhpi_from_string(c_typeDecl *td, const vhpiValueT *value_p,
+                              int *num_elems)
+{
+   switch (td->format) {
+   case vhpiStrVal:
+      {
+         *num_elems = value_p->bufSize - 1;
+         vhpiCharT *mem = xmalloc(*num_elems);
+         for (int i = 0; i < *num_elems; i++)
+            mem[i] = value_p->value.str[i];
+         return mem;
+      }
+
+   case vhpiIntVal:
+   case vhpiLongIntVal:
+      {
+         *num_elems = 1;
+         vhpiLongIntT *mem = xmalloc(sizeof(vhpiLongIntT));
+         char *eptr = NULL;
+         *mem = strtoll((char *)value_p->value.str, &eptr, 0);
+         if (*eptr != '\0') {
+            vhpi_error(vhpiError, NULL, "invalid integer '%s'",
+                       value_p->value.str);
+            free(mem);
+            return NULL;
+         }
+         return mem;
+      }
+
+   default:
+      vhpi_error(vhpiError, NULL, "cannot parse %s as string",
+                 type_pp(td->type));
+      return NULL;
    }
 }
 
@@ -3769,10 +3877,8 @@ int vhpi_put_value(vhpiHandleT handle,
       }
 
    case vhpiStrVal:
-      num_elems = value_p->bufSize - 1;
-      ext = ptr = xmalloc(num_elems);
-      for (int i = 0; i < num_elems; i++)
-         ((vhpiCharT *)ext)[i] = value_p->value.str[i];
+      if ((ext = ptr = vhpi_from_string(td, value_p, &num_elems)) == NULL)
+         return 1;
       break;
 
    case vhpiRealVecVal:
