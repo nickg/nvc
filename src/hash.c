@@ -22,6 +22,8 @@
 #include <string.h>
 #include <assert.h>
 
+#define HASH_MIN_SIZE 4
+
 ////////////////////////////////////////////////////////////////////////////////
 // Hash table of pointers to pointers
 
@@ -43,7 +45,7 @@ hash_t *hash_new(int size)
    assert(size > 0);
 
    hash_t *h = xmalloc(sizeof(hash_t));
-   h->size    = next_power_of_2(size);
+   h->size    = MAX(HASH_MIN_SIZE, next_power_of_2(size));
    h->members = 0;
 
    char *mem = xcalloc(h->size * 2 * sizeof(void *));
@@ -194,7 +196,7 @@ static inline int shash_slot(shash_t *h, const char *key)
 shash_t *shash_new(int size)
 {
    shash_t *h = xmalloc(sizeof(shash_t));
-   h->size    = next_power_of_2(size);
+   h->size    = MAX(HASH_MIN_SIZE, next_power_of_2(size));
    h->members = 0;
 
    char *mem = xcalloc(h->size * 2 * sizeof(void *));
@@ -332,7 +334,7 @@ static inline int ihash_slot(ihash_t *h, uint64_t key)
 ihash_t *ihash_new(int size)
 {
    ihash_t *h = xmalloc(sizeof(ihash_t));
-   h->size    = next_power_of_2(size);
+   h->size    = MAX(HASH_MIN_SIZE, next_power_of_2(size));
    h->members = 0;
 
    const size_t bytes =
@@ -440,7 +442,7 @@ struct _hset {
 hset_t *hset_new(int size)
 {
    hset_t *h = xmalloc(sizeof(hset_t));
-   h->size    = next_power_of_2(size);
+   h->size    = MAX(HASH_MIN_SIZE, next_power_of_2(size));
    h->members = 0;
    h->keys    = xcalloc_array(h->size, sizeof(void *));
 
@@ -839,7 +841,7 @@ static inline uint32_t ghash_hash_fn(ghash_t *h, const void *key)
 ghash_t *ghash_new(int size, ghash_hash_fn_t hash_fn, ghash_cmp_fn_t cmp_fn)
 {
    ghash_t *h = xmalloc(sizeof(ghash_t));
-   h->size    = next_power_of_2(size);
+   h->size    = MAX(HASH_MIN_SIZE, next_power_of_2(size));
    h->members = 0;
    h->hash_fn = hash_fn;
    h->cmp_fn  = cmp_fn;
