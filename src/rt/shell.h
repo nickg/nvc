@@ -20,15 +20,12 @@
 
 #include "prim.h"
 
-typedef jit_t *(*jit_factory_t)(unit_registry_t *, mir_context_t *);
-
 typedef struct {
    void (*add_wave)(ident_t path, const char *enc, void *ctx);
    void (*signal_update)(ident_t path, uint64_t now, rt_signal_t *s,
                          const char *enc, void *ctx);
    void (*stdout_write)(const char *buf, size_t nchars, void *ctx);
    void (*stderr_write)(const char *buf, size_t nchars, void *ctx);
-   void (*backchannel_write)(const char *buf, size_t nchars, void *ctx);
    void (*start_sim)(ident_t top, void *ctx);
    void (*restart_sim)(void *ctx);
    void (*exit)(int status, void *ctx);

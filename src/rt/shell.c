@@ -1294,9 +1294,6 @@ static int shell_redirect_output(ClientData cd, const char *buf, int nchars,
    case 1:
       (*sh->handler.stderr_write)(buf, nchars, sh->handler.context);
       break;
-   case 2:
-      (*sh->handler.backchannel_write)(buf, nchars, sh->handler.context);
-      break;
    default:
       fatal_trace("invalid channel number %"PRIiPTR, pointer_tag(cd));
    }
@@ -1339,15 +1336,5 @@ void shell_set_handler(tcl_shell_t *sh, const shell_handler_t *h)
 
       Tcl_RegisterChannel(sh->interp, chan);
       Tcl_SetStdChannel(chan, TCL_STDERR);
-   }
-
-   if (h->backchannel_write != NULL) {
-      Tcl_Channel chan = Tcl_CreateChannel(&redirect_funcs, "backchannel",
-                                           tag_pointer(sh, 2), TCL_WRITABLE);
-      Tcl_SetChannelOption(NULL, chan, "-translation", "lf");
-      Tcl_SetChannelOption(NULL, chan, "-buffering", "full");
-      Tcl_SetChannelOption(NULL, chan, "-encoding", "utf-8");
-
-      Tcl_RegisterChannel(sh->interp, chan);
    }
 }

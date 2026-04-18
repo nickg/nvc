@@ -272,14 +272,6 @@ static void stderr_handler(const char *buf, size_t nchars, void *ctx)
    }
 }
 
-static void backchannel_handler(const char *buf, size_t nchars, void *ctx)
-{
-   int *state = ctx;
-   ck_assert_str_eq(buf, "{}\n");
-   ck_assert_int_eq(nchars, 3);
-   (*state)++;
-}
-
 START_TEST(test_redirect)
 {
    tcl_shell_t *sh = shell_new(NULL, NULL, NULL);
@@ -288,7 +280,6 @@ START_TEST(test_redirect)
    shell_handler_t handler = {
       .stdout_write = stdout_handler,
       .stderr_write = stderr_handler,
-      .backchannel_write = backchannel_handler,
       .context = &state,
    };
    shell_set_handler(sh, &handler);
@@ -303,12 +294,6 @@ START_TEST(test_redirect)
    ck_assert_str_eq(result, "");
 
    ck_assert_int_eq(state, 3);
-
-   fail_unless(shell_eval(sh, "puts backchannel \"{}\"; flush backchannel",
-                          &result));
-   ck_assert_str_eq(result, "");
-
-   ck_assert_int_eq(state, 4);
 
    shell_free(sh);
 }
