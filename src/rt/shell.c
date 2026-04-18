@@ -174,17 +174,6 @@ static bool shell_has_model(tcl_shell_t *sh)
    return true;
 }
 
-static void shell_next_time_step(rt_model_t *m, void *user)
-{
-   tcl_shell_t *sh = user;
-   assert(sh->handler.next_time_step != NULL);
-
-   uint64_t now = model_now(m, NULL);
-   (*sh->handler.next_time_step)(now, sh->handler.context);
-
-   model_set_phase_cb(sh->model, NEXT_TIME_STEP, shell_next_time_step, sh);
-}
-
 static void shell_update_now(tcl_shell_t *sh)
 {
    sh->now_var = model_now(sh->model, &sh->deltas_var);
@@ -220,27 +209,6 @@ static void shell_add_cmd(tcl_shell_t *sh, const char *name, Tcl_ObjCmdProc fn,
    sh->cmds[sh->ncmds++] = cmd;
 
    Tcl_CreateObjCommand(sh->interp, name, fn, sh, NULL);
-}
-
-static void shell_event_cb(uint64_t now, rt_signal_t *s, rt_watch_t *w,
-                           void *user)
-{
-   shell_signal_t *ss = user;
-   shell_handler_t *h = &(ss->owner->handler);
-
-   if (h->signal_update != NULL) {
-      const char *enc = print_signal(ss->printer, ss->signal, PRINT_F_ENCODE);
-      (*h->signal_update)(ss->obj.path, now, s, enc, h->context);
-   }
-}
-
-static void watch_signal(shell_signal_t *ss)
-{
-   ss->watch = watch_new(ss->owner->model, shell_event_cb, ss,
-                         WATCH_POSTPONED, 1);
-
-   const int width = signal_width(ss->signal);
-   model_set_event_cb(ss->owner->model, ss->signal, 0, width, ss->watch);
 }
 
 const char *next_option(int *pos, int objc, Tcl_Obj *const objv[])
@@ -716,69 +684,6 @@ static int shell_cmd_noforce(ClientData cd, Tcl_Interp *interp,
    return TCL_OK;
 }
 
-static const char add_help[] =
-   "Add signals and other objects to the display\n"
-   "\n"
-   "Syntax:\n"
-   "  add wave [options] <name>...\n"
-   "\n"
-   "Options:\n"
-   "  -r, -recursive\tInclude subregions in wildcard search.\n"
-   "\n"
-   "Examples:\n"
-   "  add wave /*\tAdd all signals to waveform\n";
-
-static int shell_cmd_add(ClientData cd, Tcl_Interp *interp,
-                         int objc, Tcl_Obj *const objv[])
-{
-   tcl_shell_t *sh = cd;
-   char **globs LOCAL = NULL;
-
-   if (objc < 3 || strcmp(Tcl_GetString(objv[1]), "wave") != 0)
-      goto usage;
-   else if (!shell_has_model(sh))
-      return TCL_ERROR;
-
-   int pos = 2;
-   for (const char *opt; (opt = next_option(&pos, objc, objv)); ) {
-      if (strcmp(opt, "-recursive") == 0 || strcmp(opt, "-r") == 0) {
-         // Always recursive for now...
-      }
-      else
-         goto usage;
-   }
-
-   const int nglobs = objc - pos;
-   globs = xmalloc_array(nglobs, sizeof(char *));
-   for (int i = 0; i < nglobs; i++)
-      globs[i] = Tcl_GetString(objv[pos++]);
-
-   for (int i = 0; i < sh->nsignals; i++) {
-      shell_signal_t *ss = &(sh->signals[i]);
-
-      bool match = false;
-      for (int j = 0; j < nglobs; j++)
-         match |= ident_glob(ss->obj.path, globs[j], -1);
-
-      if (!match || !shell_get_printer(sh, ss))
-         continue;
-
-      if (sh->handler.add_wave != NULL) {
-         const char *enc =
-            print_signal(ss->printer, ss->signal, PRINT_F_ENCODE);
-         (*sh->handler.add_wave)(ss->obj.path, enc, sh->handler.context);
-      }
-
-      if (ss->watch == NULL)
-         watch_signal(ss);
-   }
-
-   return TCL_OK;
-
- usage:
-   return syntax_error(sh, objv);
-}
-
 static const char quit_help[] =
    "Obsolete command which does nothing.\n";
 
@@ -1078,7 +983,6 @@ tcl_shell_t *shell_new(tree_t top, jit_t *jit, rt_model_t *m)
    shell_add_cmd(sh, "vsim", shell_cmd_elaborate, elaborate_help);
    shell_add_cmd(sh, "examine", shell_cmd_examine, examine_help);
    shell_add_cmd(sh, "exa", shell_cmd_examine, examine_help);
-   shell_add_cmd(sh, "add", shell_cmd_add, add_help);
    shell_add_cmd(sh, "quit", shell_cmd_quit, quit_help);
    shell_add_cmd(sh, "force", shell_cmd_force, force_help);
    shell_add_cmd(sh, "noforce", shell_cmd_noforce, noforce_help);
@@ -1196,9 +1100,6 @@ static void recurse_objects(tcl_shell_t *sh, rt_scope_t *scope,
 
 void shell_reset(tcl_shell_t *sh)
 {
-   if (sh->handler.next_time_step != NULL)
-      model_set_phase_cb(sh->model, NEXT_TIME_STEP, shell_next_time_step, sh);
-
    model_reset(sh->model);
 
    if ((sh->root = find_scope(sh->model, tree_stmt(sh->top, 0))) == NULL)
@@ -1221,9 +1122,6 @@ void shell_reset(tcl_shell_t *sh)
    tb_free(path);
 
    shell_update_now(sh);
-
-   if (sh->handler.start_sim != NULL)
-      (*sh->handler.start_sim)(tree_ident(sh->top), sh->handler.context);
 }
 
 void shell_interact(tcl_shell_t *sh)

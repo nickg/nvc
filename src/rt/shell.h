@@ -21,15 +21,9 @@
 #include "prim.h"
 
 typedef struct {
-   void (*add_wave)(ident_t path, const char *enc, void *ctx);
-   void (*signal_update)(ident_t path, uint64_t now, rt_signal_t *s,
-                         const char *enc, void *ctx);
    void (*stdout_write)(const char *buf, size_t nchars, void *ctx);
    void (*stderr_write)(const char *buf, size_t nchars, void *ctx);
-   void (*start_sim)(ident_t top, void *ctx);
-   void (*restart_sim)(void *ctx);
    void (*exit)(int status, void *ctx);
-   void (*next_time_step)(uint64_t now, void *ctx);
    void *context;
 } shell_handler_t;
 
