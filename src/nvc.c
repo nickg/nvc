@@ -1574,22 +1574,13 @@ static int interact_cmd(int argc, char **argv, cmd_state_t *state)
       state->jit = get_jit(state);
 
 #ifdef ENABLE_TCL
-   if (optind < next_cmd && strpbrk(argv[optind], "./\\") == NULL) {
-      ident_t unit_name = to_unit_name(argv[optind]);
-      if (lib_get(state->work, unit_name) != NULL) {
-         state->top_level_arg = xstrdup(argv[optind]);
-         state->top_level = unit_name;
-         optind++;
-      }
-   }
-
-   if (optind != next_cmd)
-      fatal("unexpected argument \"%s\"", argv[optind]);
+   if (optind < next_cmd)
+      set_top_level(argv, next_cmd, state);
 
    tree_t top = NULL;
    if (state->top_level != NULL) {
       ident_t ename = ident_prefix(state->top_level, well_known(W_ELAB), '.');
-      tree_t top = lib_get(state->work, ename);
+      top = lib_get(state->work, ename);
       if (top == NULL)
          fatal("%s not elaborated", istr(state->top_level));
    }
