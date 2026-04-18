@@ -52,6 +52,7 @@ include src/mir/Makemodule.am
 include src/psl/Makemodule.am
 include src/rt/Makemodule.am
 include src/sdf/Makemodule.am
+include src/tcl/Makemodule.am
 include src/vhdl/Makemodule.am
 include src/vhpi/Makemodule.am
 include src/vlog/Makemodule.am

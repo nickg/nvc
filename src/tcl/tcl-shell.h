@@ -15,8 +15,8 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-#ifndef _RT_SHELL_H
-#define _RT_SHELL_H
+#ifndef _TCL_SHELL_H
+#define _TCL_SHELL_H
 
 #include "prim.h"
 
@@ -36,4 +36,4 @@ void shell_reset(tcl_shell_t *sh);
 void shell_set_handler(tcl_shell_t *sh, const shell_handler_t *h);
 void shell_print_banner(tcl_shell_t *sh);
 
-#endif  // _RT_SHELL_H
+#endif  // _TCL_SHELL_H

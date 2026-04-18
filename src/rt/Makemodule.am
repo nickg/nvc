@@ -25,9 +25,3 @@ lib_libnvc_a_SOURCES += \
 	src/rt/copy.c \
 	src/rt/random.h \
 	src/rt/random.c
-
-if ENABLE_TCL
-lib_libnvc_a_SOURCES += \
-	src/rt/shell.h \
-	src/rt/shell.c
-endif

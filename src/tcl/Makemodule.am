@@ -1,0 +1,5 @@
+if ENABLE_TCL
+lib_libnvc_a_SOURCES += \
+	src/tcl/tcl-shell.h \
+	src/tcl/tcl-shell.c
+endif

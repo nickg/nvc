@@ -18,12 +18,10 @@
 #include "test_util.h"
 #include "ident.h"
 #include "jit/jit.h"
-#include "lower.h"
 #include "phase.h"
 #include "rt/model.h"
-#include "rt/shell.h"
-#include "rt/structs.h"
 #include "scan.h"
+#include "tcl/tcl-shell.h"
 
 START_TEST(test_sanity)
 {
