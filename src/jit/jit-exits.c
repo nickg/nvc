@@ -497,10 +497,11 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
 
    case JIT_EXIT_ALIAS_SIGNAL:
       {
-         sig_shared_t *ss    = args[0].pointer;
-         tree_t        where = args[1].pointer;
+         sig_shared_t *ss     = args[0].pointer;
+         uint32_t      offset = args[1].integer;
+         tree_t        where  = args[2].pointer;
 
-         x_alias_signal(ss, where);
+         x_alias_signal(ss, offset, where);
       }
       break;
 

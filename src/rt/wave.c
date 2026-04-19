@@ -940,7 +940,7 @@ static void fst_process_signal(wave_dumper_t *wd, rt_scope_t *scope, tree_t d,
    if (type_is_homogeneous(type)) {
       gtkw_start_of_signal(wd->gtkw);
 
-      rt_signal_t *s = find_signal(scope, d);
+      rt_signal_t *s = find_signal(scope, d, NULL);
       if (s == NULL)
          return;
       else if (s->where != d)
@@ -1005,7 +1005,7 @@ static void fst_process_verilog(wave_dumper_t *wd, rt_scope_t *scope,
 {
    gtkw_start_of_signal(wd->gtkw);
 
-   rt_signal_t *s = find_signal(scope, wrap);
+   rt_signal_t *s = find_signal(scope, wrap, NULL);
    if (s == NULL)
       return;
    else if (s->where != wrap)
