@@ -45,7 +45,7 @@ START_TEST(test_basic1)
 
    model_reset(m);
 
-   rt_signal_t *xs = find_signal(root, x);
+   rt_signal_t *xs = find_signal(root, x, NULL);
    fail_if(xs == NULL);
 
    ck_assert_int_eq(xs->n_nexus, 1);
@@ -55,7 +55,7 @@ START_TEST(test_basic1)
    const int32_t *xp = signal_value(xs);
    ck_assert_int_eq(*xp, 42);
 
-   rt_signal_t *ys = find_signal(root, y);
+   rt_signal_t *ys = find_signal(root, y, NULL);
    fail_if(ys == NULL);
 
    const int8_t *yp = signal_value(ys);
@@ -85,10 +85,10 @@ START_TEST(test_index1)
 
    model_reset(m);
 
-   rt_signal_t *ss1 = find_signal(root, s1);
+   rt_signal_t *ss1 = find_signal(root, s1, NULL);
    fail_if(ss1 == NULL);
 
-   rt_signal_t *ss2 = find_signal(root, s2);
+   rt_signal_t *ss2 = find_signal(root, s2, NULL);
    fail_if(ss2 == NULL);
 
    model_run(m, UINT64_MAX);
@@ -155,7 +155,7 @@ START_TEST(test_fast1)
    rt_scope_t *root = find_scope(m, b0);
    fail_if(root == NULL);
 
-   rt_signal_t *sx = find_signal(root, get_decl(b0, "X"));
+   rt_signal_t *sx = find_signal(root, get_decl(b0, "X"), NULL);
    fail_if(sx == NULL);
    fail_unless(sx->n_nexus == 1);
    fail_unless(sx->nexus.flags & NET_F_FAST_DRIVER);
@@ -245,7 +245,7 @@ START_TEST(test_pending1)
    ck_assert_ptr_nonnull(pstim);
    ck_assert_str_eq(istr(pstim->name), ":pending1:stim");
 
-   rt_signal_t *sx = find_signal(root, get_decl(b0, "X"));
+   rt_signal_t *sx = find_signal(root, get_decl(b0, "X"), NULL);
    fail_if(sx == NULL);
    fail_unless(sx->n_nexus == 1);
 
@@ -285,7 +285,7 @@ START_TEST(test_fast2)
    rt_scope_t *root = find_scope(m, b0);
    fail_if(root == NULL);
 
-   rt_signal_t *sx = find_signal(root, get_decl(b0, "X"));
+   rt_signal_t *sx = find_signal(root, get_decl(b0, "X"), NULL);
    fail_if(sx == NULL);
    ck_assert_int_eq(sx->n_nexus, 1);
    fail_unless(sx->nexus.flags & NET_F_FAST_DRIVER);
@@ -368,11 +368,11 @@ START_TEST(test_event1)
    rt_scope_t *root = find_scope(m, b0);
    fail_if(root == NULL);
 
-   rt_signal_t *ss = find_signal(root, get_decl(b0, "S"));
+   rt_signal_t *ss = find_signal(root, get_decl(b0, "S"), NULL);
    fail_if(ss == NULL);
    fail_if(ss->shared.flags & SIG_F_CACHE_EVENT);
 
-   rt_signal_t *st = find_signal(root, get_decl(b0, "T"));
+   rt_signal_t *st = find_signal(root, get_decl(b0, "T"), NULL);
    fail_if(st == NULL);
    fail_if(st->shared.flags & SIG_F_CACHE_EVENT);
 
@@ -478,7 +478,7 @@ START_TEST(test_split1)
    rt_scope_t *root = find_scope(m, b0);
    fail_if(root == NULL);
 
-   rt_signal_t *ss = find_signal(root, get_decl(b0, "S"));
+   rt_signal_t *ss = find_signal(root, get_decl(b0, "S"), NULL);
    fail_if(ss == NULL);
 
    ck_assert_int_eq(ss->n_nexus, 1);

@@ -1297,3 +1297,4 @@ vlog38          verilog
 issue1494       cover
 vlog39          verilog
 ivtest26        verilog
+issue1505       vhpi,2008

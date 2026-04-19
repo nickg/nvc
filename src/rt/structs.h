@@ -218,9 +218,9 @@ typedef struct {
 } rt_transfer_t;
 
 typedef struct _rt_alias {
-   rt_alias_t  *chain;
    tree_t       where;
    rt_signal_t *signal;
+   uint32_t     offset;
 } rt_alias_t;
 
 typedef enum {

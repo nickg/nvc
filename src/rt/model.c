@@ -674,16 +674,22 @@ bool is_signal_scope(rt_scope_t *s)
    return s->kind == SCOPE_RECORD || s->kind == SCOPE_ARRAY;
 }
 
-rt_signal_t *find_signal(rt_scope_t *scope, tree_t decl)
+rt_signal_t *find_signal(rt_scope_t *scope, tree_t decl, uint32_t *offset)
 {
    for (int i = 0; i < scope->signals.count; i++) {
-      if (scope->signals.items[i]->where == decl)
+      if (scope->signals.items[i]->where == decl) {
+         if (offset != NULL)
+            *offset = 0;
          return scope->signals.items[i];
+      }
    }
 
    for (int i = 0; i < scope->aliases.count; i++) {
-      if (scope->aliases.items[i]->where == decl)
+      if (scope->aliases.items[i]->where == decl) {
+         if (offset != NULL)
+            *offset = scope->aliases.items[i]->offset;
          return scope->aliases.items[i]->signal;
+      }
    }
 
    return NULL;
@@ -4273,17 +4279,18 @@ void x_enter_state(int32_t state, bool strong)
    prop->strong |= strong;
 }
 
-void x_alias_signal(sig_shared_t *ss, tree_t where)
+void x_alias_signal(sig_shared_t *ss, uint32_t offset, tree_t where)
 {
    rt_signal_t *s = container_of(ss, rt_signal_t, shared);
    RT_LOCK(s->lock);
 
-   TRACE("alias signal %s to %s", istr(tree_ident(s->where)),
+   TRACE("alias signal %s+%u to %s", istr(tree_ident(s->where)), offset,
          istr(tree_ident(where)));
 
    rt_alias_t *a = xcalloc(sizeof(rt_alias_t));
    a->where  = where;
    a->signal = s;
+   a->offset = offset;
 
    model_thread_t *thread = model_thread(get_model());
    APUSH(thread->active_scope->aliases, a);

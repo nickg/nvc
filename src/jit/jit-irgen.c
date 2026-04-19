@@ -3085,11 +3085,13 @@ static void irgen_op_init_signal(jit_irgen_t *g, mir_value_t n)
 
 static void irgen_op_alias_signal(jit_irgen_t *g, mir_value_t n)
 {
-   jit_value_t shared = irgen_get_arg(g, n, 0);
+   jit_value_t shared = irgen_get_arg_slot(g, n, 0, 0);
+   jit_value_t offset = irgen_get_arg_slot(g, n, 0, 1);
    jit_value_t locus  = irgen_get_arg(g, n, 1);
 
    j_send(g, 0, shared);
-   j_send(g, 1, locus);
+   j_send(g, 1, offset);
+   j_send(g, 2, locus);
 
    macro_exit(g, JIT_EXIT_ALIAS_SIGNAL);
 }

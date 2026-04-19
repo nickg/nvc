@@ -264,6 +264,7 @@ typedef struct {
    vhpiBooleanT     IsDynamic;
    rt_signal_t     *signal;
    rt_scope_t      *scope;
+   uint32_t         offset;
 } c_objDecl;
 
 typedef struct {
@@ -1765,7 +1766,7 @@ static rt_signal_t *vhpi_get_signal_objDecl(c_objDecl *decl)
    if (scope == NULL)
       return NULL;
 
-   rt_signal_t *signal = find_signal(scope, decl->decl.tree);
+   rt_signal_t *signal = find_signal(scope, decl->decl.tree, &decl->offset);
    if (signal == NULL) {
       vhpi_error(vhpiError, &(decl->decl.object.loc),
                  "cannot find signal object for %s",
@@ -1805,7 +1806,7 @@ static rt_signal_t *vhpi_get_signal_prefixedName(c_prefixedName *pn)
       c_selectedName *sn = is_selectedName(obj);
       assert(sn != NULL);
 
-      pn->signal = find_signal(scope, sn->Suffix->decl.tree);
+      pn->signal = find_signal(scope, sn->Suffix->decl.tree, NULL);
    }
 
    if (pn->signal == NULL)
@@ -2274,6 +2275,9 @@ vhpiHandleT vhpi_register_cb(vhpiCbDataT *cb_data_p, int32_t flags)
             if (decl->Type->homogeneous) {
                if ((signal = vhpi_get_signal_objDecl(decl)) == NULL)
                   return NULL;
+
+               offset = decl->offset;
+               count = decl->Type->numElems;
             }
             else if ((scope = vhpi_get_scope_objDecl(decl)) == NULL)
                return NULL;
@@ -3247,8 +3251,11 @@ vhpiPhysT vhpi_get_phys(vhpiPhysPropertyT property,
          if (signal == NULL)
             return invalid;
 
-         uint64_t value;
-         signal_expand(signal, &value, 1);
+         const uint8_t *valuep = signal_value(signal);
+         uint64_t value = 0;
+
+#define READ_PHYS(type) value = ((const type *)valuep)[decl->offset]
+         FOR_ALL_SIZES(signal_size(signal), READ_PHYS);
 
          return vhpi_phys_from_native(value);
       }
@@ -3358,8 +3365,10 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
          rt_signal_t *signal;
          if (pn != NULL)
             signal = vhpi_get_signal_prefixedName(pn);
-         else
+         else {
             signal = vhpi_get_signal_objDecl(decl);
+            offset = decl->offset;
+         }
 
          if (signal == NULL)
             return -1;
@@ -3650,6 +3659,7 @@ int vhpi_put_value(vhpiHandleT handle,
       case vhpiPortDeclK:
          if ((signal = vhpi_get_signal_objDecl(decl)) == NULL)
             return 1;
+         offset = decl->offset;
          break;
       default:
          break;
