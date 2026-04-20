@@ -185,7 +185,7 @@ static void psl_check_boolean(psl_node_t p, nametab_t *tab)
                "have type %s", type_pp(type));
 }
 
-static void psl_check_number(psl_node_t p, nametab_t *tab)
+static void psl_check_numeric(psl_node_t p, nametab_t *tab)
 {
    type_t std_int = std_type(NULL, STD_INTEGER);
    tree_t value = solve_types(tab, psl_tree(p), std_int);
@@ -203,7 +203,12 @@ static void psl_check_number(psl_node_t p, nametab_t *tab)
                "type %s", type_pp(type));
       return;
    }
+}
 
+static void psl_check_number(psl_node_t p, nametab_t *tab)
+{
+   psl_check_numeric(p, tab);
+   tree_t value = psl_tree(p);
    psl_check_static(value);
 }
 
@@ -226,7 +231,26 @@ static void psl_check_bit(psl_node_t p, nametab_t *tab)
                "type %s", type_pp(type));
 }
 
-static void psl_check_any(psl_node_t p, nametab_t *tab)
+static void psl_check_bitvector(psl_node_t p, nametab_t *tab)
+{
+   type_t std_bit_v = std_type(NULL, STD_BIT_VECTOR);
+   type_t std_ulogic_v = ieee_type(IEEE_STD_ULOGIC_VECTOR);
+   tree_t value = solve_types(tab, psl_tree(p), std_ulogic_v);
+   psl_set_tree(p, value);
+
+   type_t type = tree_type(value);
+   if (type_is_none(type))
+      return;   // Prevent cascading errors
+
+   if (!sem_check(value, tab))
+      return;
+
+   if (!type_eq(type, std_ulogic_v) && !type_eq(type, std_bit_v))
+      error_at(tree_loc(value), "expression must be a PSL BitVector but have "
+               "type %s", type_pp(type));
+}
+
+static void psl_check_any_hdltype_string(psl_node_t p, nametab_t *tab)
 {
    tree_t value = solve_types(tab, psl_tree(p), NULL);
    psl_set_tree(p, value);
@@ -246,13 +270,21 @@ static void psl_check_hdl_expr(psl_node_t p, nametab_t *tab)
       psl_check_boolean(p, tab);
       break;
    case PSL_TYPE_NUMERIC:
-      psl_check_number(p, tab);
+      psl_check_numeric(p, tab);
       break;
    case PSL_TYPE_BIT:
       psl_check_bit(p, tab);
       break;
+   case PSL_TYPE_NUMBER:
+      psl_check_number(p, tab);
+      break;
+   case PSL_TYPE_BITVECTOR:
+      psl_check_bitvector(p, tab);
+      break;
+   case PSL_TYPE_HDLTYPE:
    case PSL_TYPE_ANY:
-      psl_check_any(p, tab);
+   case PSL_TYPE_STRING:
+      psl_check_any_hdltype_string(p, tab);
       break;
    default:
       should_not_reach_here();
@@ -284,9 +316,23 @@ static void psl_check_property_inst(psl_node_t p)
 
 }
 
-static void psl_check_sequence_inst(psl_node_t p)
+static void psl_check_sequence_inst(psl_node_t p, nametab_t *tab)
 {
+   psl_node_t decl = psl_ref(p);
 
+   int inst_params = psl_operands(p);
+   int decl_params = psl_ports(decl);
+
+   if (inst_params != decl_params) {
+      diag_t *d = diag_new(DIAG_ERROR, psl_loc(p));
+      diag_printf(d, "PSL sequence instance has incorrect number of arguments");
+      diag_hint(d, psl_loc(decl), "sequence declaration has %d argument(s)", decl_params);
+      diag_hint(d, psl_loc(p), "sequence instance has %d argument(s)", inst_params);
+      diag_emit(d);
+   }
+
+   for (int i = 0; i < inst_params; i++)
+      psl_check(psl_operand(p, i), tab);
 }
 
 static void psl_check_sere(psl_node_t p, nametab_t *tab)
@@ -537,7 +583,7 @@ void psl_check(psl_node_t p, nametab_t *tab)
       psl_check_property_inst(p);
       break;
    case P_SEQUENCE_INST:
-      psl_check_sequence_inst(p);
+      psl_check_sequence_inst(p, tab);
       break;
    case P_NEVER:
       psl_check_never(p, tab);

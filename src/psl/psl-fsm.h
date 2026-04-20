@@ -47,6 +47,12 @@ typedef struct {
    psl_guard_t  right;
 } guard_binop_t;
 
+struct _psl_scope {
+   hash_t      *args;
+   psl_scope_t *parent;
+   psl_scope_t *prev;
+};
+
 typedef struct _fsm_edge {
    fsm_edge_t  *next;
    fsm_state_t *dest;
@@ -58,6 +64,7 @@ typedef struct _fsm_state {
    unsigned     id;
    fsm_state_t *next;
    fsm_edge_t  *edges;
+   psl_scope_t *scope;
    psl_node_t   where;
    psl_guard_t  guard;
    bool         initial;
@@ -75,6 +82,8 @@ typedef enum {
 typedef struct {
    fsm_state_t  *states;
    fsm_state_t **tail;
+   psl_scope_t  *curr_scope;
+   psl_scope_t  *last_scope;
    mem_pool_t   *pool;
    ident_t       label;
    psl_node_t    src;

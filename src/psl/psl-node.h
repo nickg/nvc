@@ -81,6 +81,9 @@ typedef enum {
    PSL_TYPE_SEQUENCE,
    PSL_TYPE_PROPERTY,
    PSL_TYPE_ANY,
+   PSL_TYPE_NUMBER,
+
+   PSL_TYPE_LAST
 } psl_type_t;
 
 typedef enum {
@@ -147,6 +150,7 @@ void psl_set_subkind(psl_node_t p, unsigned sub);
 
 psl_type_t psl_type(psl_node_t p);
 void psl_set_type(psl_node_t p, psl_type_t type);
+const char *psl_type_str(psl_type_t type);
 
 tree_t psl_tree(psl_node_t p);
 bool psl_has_tree(psl_node_t p);

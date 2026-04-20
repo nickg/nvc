@@ -1017,8 +1017,8 @@ static bool lower_have_signal(vcode_reg_t reg)
    return vtype_is_signal(vcode_reg_type(reg));
 }
 
-static vcode_reg_t lower_coerce_arrays(lower_unit_t *lu, type_t from, type_t to,
-                                       vcode_reg_t reg)
+vcode_reg_t lower_coerce_arrays(lower_unit_t *lu, type_t from, type_t to,
+                                vcode_reg_t reg)
 {
    vcode_type_t reg_vtype = vcode_reg_type(reg);
    const bool have_uarray = vtype_kind(reg_vtype) == VCODE_TYPE_UARRAY;
@@ -3168,6 +3168,9 @@ static vcode_reg_t lower_ref(lower_unit_t *lu, tree_t ref, expr_ctx_t ctx)
 
    case T_PARAM_DECL:
       return lower_param_ref(lu, decl);
+
+   case T_PSL_PARAM_DECL:
+      return psl_lower_param_ref(lu, decl);
 
    case T_GENERIC_DECL:
       return lower_generic_ref(lu, decl, ctx);
@@ -12813,6 +12816,7 @@ lower_unit_t *lower_unit_new(unit_registry_t *ur, lower_unit_t *parent,
 {
    lower_unit_t *new = xcalloc(sizeof(lower_unit_t));
    new->parent    = parent;
+   new->pscope    = (parent) ? parent->pscope : NULL;
    new->objects   = hash_new(128);
    new->container = container;
    new->vunit     = vunit;

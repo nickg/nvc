@@ -243,6 +243,49 @@ static void psl_dump_clocked(psl_node_t p)
    }
 }
 
+static void psl_dump_formal_parameter(tree_t port)
+{
+   print_syntax("%s %s", psl_type_str(tree_subkind(port)),
+                         istr(tree_ident(port)));
+}
+
+static void psl_dump_sequence_decl(psl_node_t p)
+{
+   print_syntax("sequence %s", istr(psl_ident(p)));
+
+   int ports = psl_ports(p);
+   if (ports > 0) {
+      print_syntax("(");
+      for (int i = 0; i < ports; i++) {
+         psl_dump_formal_parameter(psl_port(p, i));
+         if (i != ports - 1)
+            print_syntax(",");
+      }
+      print_syntax(")");
+   }
+
+   print_syntax(" is");
+
+   psl_dump(psl_value(p));
+}
+
+static void psl_dump_sequence_inst(psl_node_t p)
+{
+   psl_node_t decl = psl_ref(p);
+   print_syntax("%s", istr(psl_ident(decl)));
+
+   int ports = psl_operands(p);
+   if (ports) {
+      print_syntax("(");
+      for (int i = 0; i < ports; i++) {
+         psl_dump(psl_operand(p, i));
+         if (i != ports - 1)
+            print_syntax(",");
+      }
+      print_syntax(")");
+   }
+}
+
 void psl_dump(psl_node_t p)
 {
    switch (psl_kind(p)) {
@@ -308,6 +351,12 @@ void psl_dump(psl_node_t p)
       break;
    case P_CLOCKED:
       psl_dump_clocked(p);
+      break;
+   case P_SEQUENCE_DECL:
+      psl_dump_sequence_decl(p);
+      break;
+   case P_SEQUENCE_INST:
+      psl_dump_sequence_inst(p);
       break;
    default:
       print_syntax("\n");

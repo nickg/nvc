@@ -93,6 +93,8 @@ typedef struct _cover_scope cover_scope_t;
 typedef struct _cover_block cover_block_t;
 typedef struct _cover_rpt   cover_rpt_t;
 
+typedef struct _psl_scope   psl_scope_t;
+
 typedef struct loc_wr_ctx loc_wr_ctx_t;
 typedef struct loc_rd_ctx loc_rd_ctx_t;
 

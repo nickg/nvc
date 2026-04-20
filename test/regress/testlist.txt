@@ -1304,3 +1304,4 @@ ivtest27        verilog
 ivtest28        verilog
 ivtest29        verilog
 issue1505       vhpi,2008
+psl25           psl,2008,gold,fail

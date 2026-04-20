@@ -54,7 +54,7 @@ begin
     -- psl cover p1(a);            -- Error
 
     -- Paramterized SERE
-    -- psl cover {for i in {1 to 3}: && {seq_b(i)}};
+    -- psl cover {for i in {1 to 3}: && {seq_b(2)}};
 
     -- Garbage after PSL directive
     -- psl asfasfa;

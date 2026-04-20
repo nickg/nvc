@@ -104,6 +104,7 @@ START_TEST(test_sem1)
    const error_t expect[] = {
       { 12, "expression must be a PSL Boolean but have type INTEGER" },
       { 16, "expression must be a PSL Number but have type BIT" },
+      { 16, "expression must be static" },
       { 17, "expression must be static" },
       { 19, "expression must be a PSL Boolean but have type INTEGER" },
       { 20, "property is not in the simple subset as the left hand side of "
@@ -136,6 +137,7 @@ START_TEST(test_sem1)
       { 37, "operand of non-consecutive repetition operator must be Boolean" },
       { 38, "operand of goto repetition operator must be Boolean" },
       { 39, "expression must be a PSL Number but have type BIT" },
+      { 39, "expression must be static" },
       { 40, "no visible declaration for FOO" },
       { 40, "no visible declaration for Z" },
       { 41, "PSL endpoint declarations are not supported" },
@@ -185,7 +187,9 @@ START_TEST(test_parse4)
    input_from_file(TESTDIR "/psl/parse4.vhd");
 
    const error_t expect[] = {
+      { 20, "PSL sequence instance has incorrect number of arguments" },
       { 54, "P1 is not a PSL sequence" },
+      { 54, "PSL sequence instance has incorrect number of arguments" },
       { 60, "unexpected ; while parsing architecture statement part" },
       { -1, NULL }
    };

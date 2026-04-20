@@ -837,12 +837,12 @@ table below.
   <tr>
     <td>6.5.3</td>
     <td>Instantiation</td>
-    <td class="feature-missing"></td>
+    <td class="feature-partial">master</td>
   </tr>
   <tr>
     <td>6.5.3.1</td>
     <td>Sequence instantiation</td>
-    <td class="feature-missing"></td>
+    <td class="feature-partial">master</td>
   </tr>
   <tr>
     <td>6.5.3.2</td>

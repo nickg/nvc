@@ -5,6 +5,7 @@
 - Systems with emulated thread-local storage (in particular all MSYS2
   environments except Clang x64 and Clang Arm) are no longer supported
   due to performance issues.
+- PSL sequence instances are now supported.
 - Several other minor bugs were resolved (#1498, #1505).
 
 ## Version 1.20.0 - 2026-04-12
