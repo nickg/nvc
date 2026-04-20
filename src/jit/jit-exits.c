@@ -1105,6 +1105,66 @@ void __nvc_vec4op(jit_vec_op_t op, jit_anchor_t *anchor, jit_scalar_t *args,
          args[1].pointer = bresult;
       }
       break;
+   case JIT_VEC_EXTRACT:
+      {
+         assert(size > 64);
+
+         const uint64_t *afull = args[0].pointer;
+         const uint64_t *bfull = args[1].pointer;
+         const int pos         = args[2].integer;
+         const int ext_size    = args[3].integer;
+
+         const int bitpos = size - ext_size - pos;
+
+         if (ext_size <= 64) {
+            uint64_t aresult = 0, bresult = 0;
+            const uint64_t mask = ext_size == 64
+               ? ~UINT64_C(0) : (UINT64_C(1) << ext_size) - 1;
+
+            const int word = bitpos / 64;
+            const int bit  = bitpos % 64;
+
+            aresult = afull[word] >> bit;
+            bresult = bfull[word] >> bit;
+
+            if (bit + ext_size > 64 && word + 1 < nwords) {
+               aresult |= afull[word + 1] << (64 - bit);
+               bresult |= bfull[word + 1] << (64 - bit);
+            }
+
+            args[0].integer = aresult & mask;
+            args[1].integer = bresult & mask;
+         }
+         else {
+            const int rwords = (ext_size + 63) / 64;
+            void *ptr = jit_mspace_alloc(rwords * 2 * sizeof(uint64_t));
+            uint64_t *aresult = ptr, *bresult = aresult + rwords;
+
+            for (int i = 0; i < rwords; i++) {
+               const int bp = bitpos + i * 64;
+               const int word = bp / 64;
+               const int bit  = bp % 64;
+
+               aresult[i] = afull[word] >> bit;
+               bresult[i] = bfull[word] >> bit;
+
+               if (bit > 0 && word + 1 < nwords) {
+                  aresult[i] |= afull[word + 1] << (64 - bit);
+                  bresult[i] |= bfull[word + 1] << (64 - bit);
+               }
+            }
+
+            if (ext_size % 64 != 0) {
+               const uint64_t mask = (UINT64_C(1) << (ext_size % 64)) - 1;
+               aresult[rwords - 1] &= mask;
+               bresult[rwords - 1] &= mask;
+            }
+
+            args[0].pointer = aresult;
+            args[1].pointer = bresult;
+         }
+      }
+      break;
    case JIT_VEC_INSERT:
       {
          assert(size > 64);

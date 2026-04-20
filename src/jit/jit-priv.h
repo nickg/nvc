@@ -202,6 +202,7 @@ typedef enum {
    JIT_VEC_ZEXT,
    JIT_VEC_SEXT,
    JIT_VEC_INSERT,
+   JIT_VEC_EXTRACT,
    JIT_VEC_ADD,
    JIT_VEC_MUL,
    JIT_VEC_DIV,

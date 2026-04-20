@@ -1180,11 +1180,15 @@ void vpi_get_value(vpiHandle handle, p_vpi_value value_p)
          value_p->format = vpiRealVal;
          value_p->value.real = c->args[op->argslot + 1].real;
       }
-      else {
-         assert(size <= 64);
-
+      else if (size <= 64) {
          uint64_t abits[1] = { c->args[op->argslot + 1].integer };
          uint64_t bbits[1] = { c->args[op->argslot + 2].integer };
+
+         vpi_format_number(size, abits, bbits, value_p, c->valuestr);
+      }
+      else {
+         const uint64_t *abits = c->args[op->argslot + 1].pointer;
+         const uint64_t *bbits = c->args[op->argslot + 2].pointer;
 
          vpi_format_number(size, abits, bbits, value_p, c->valuestr);
       }
