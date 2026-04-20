@@ -41,12 +41,14 @@ struct _ifdef_stack {
 };
 
 typedef A(ident_t) arg_list_t;
+typedef A(text_buf_t *) def_list_t;
 
 typedef struct {
    ident_t     name;
    loc_t       loc;
    text_buf_t *text;
    arg_list_t  args;
+   def_list_t  defs;
    bool        has_args;
    bool        error;
 } macro_t;
@@ -77,7 +79,10 @@ static void free_macros(void)
    for (hash_iter_t it = HASH_BEGIN; hash_iter(macros, &it, &key, &value); ) {
       macro_t *m = value;
       tb_free(m->text);
+      for (int i = 0; i < m->defs.count; i++)
+         tb_free(AGET(m->defs, i));
       ACLEAR(m->args);
+      ACLEAR(m->defs);
       free(m);
    }
 
@@ -359,10 +364,20 @@ static token_t vlogpp_lex(void)
    case ' ':
    case '\t':
       return lex_whitespace(buf);
+   case '=':
+      return make_token(tEQ, buf, (yylval_t){ .ch = '=' });
    case '(':
       return make_token(tLPAREN, buf, (yylval_t){ .ch = '(' });
    case ')':
       return make_token(tRPAREN, buf, (yylval_t){ .ch = ')' });
+   case '{':
+      return make_token(tLBRACE, buf, (yylval_t){ .ch = '{' });
+   case '}':
+      return make_token(tRBRACE, buf, (yylval_t){ .ch = '}' });
+   case '[':
+      return make_token(tLSQUARE, buf, (yylval_t){ .ch = '[' });
+   case ']':
+      return make_token(tRSQUARE, buf, (yylval_t){ .ch = ']' });
    case ',':
       return make_token(tCOMMA, buf, (yylval_t){ .ch = ',' });
    case '/':
@@ -389,6 +404,61 @@ static token_t vlogpp_lex(void)
    }
 }
 
+static void p_expression(text_buf_t *tb, token_t end, bool stop_at_comma)
+{
+   BEGIN("expression");
+
+   // 1800-2023 section 22.5.1: Actual arguments and defaults shall not
+   // contain comma or right parenthesis characters outside matched
+   // pairs of left and right parentheses (), square brackets [], braces
+   // {}, double quotes " ", triple quotes """ """, or an escaped
+   // identifier.
+
+   while (not_at_token(end)) {
+      const token_t tok = peek();
+      switch (tok) {
+      case tTEXT:
+      case tWHITESPACE:
+      case tID:
+      case tSTRING:
+         consume(tok);
+         tb_catn(tb, state.last_lval.span.ptr, state.last_lval.span.len);
+         break;
+      case tLPAREN:
+         consume(tLPAREN);
+         tb_append(tb, '(');
+         p_expression(tb, tRPAREN, false);
+         consume(tRPAREN);
+         tb_append(tb, ')');
+         break;
+      case tLSQUARE:
+         consume(tLSQUARE);
+         tb_append(tb, '[');
+         p_expression(tb, tRSQUARE, false);
+         consume(tRSQUARE);
+         tb_append(tb, ']');
+         break;
+      case tLBRACE:
+         consume(tLBRACE);
+         tb_append(tb, '{');
+         p_expression(tb, tRBRACE, false);
+         consume(tRBRACE);
+         tb_append(tb, '}');
+         break;
+      case tCOMMA:
+         if (stop_at_comma)
+            return;
+         consume(tCOMMA);
+         tb_append(tb, ',');
+         break;
+      default:
+         one_of(tTEXT, tWHITESPACE, tID, tSTRING,
+               tLPAREN, tLBRACE, tLSQUARE);
+         return;
+      }
+   }
+}
+
 static ident_t p_identifier(void)
 {
    if (consume(tID))
@@ -397,7 +467,7 @@ static ident_t p_identifier(void)
       return error_marker();
 }
 
-static ident_t p_formal_argument(void)
+static void p_formal_argument(macro_t *m)
 {
    // simple_identifier [ = default_text ]
 
@@ -405,11 +475,16 @@ static ident_t p_formal_argument(void)
 
    optional(tWHITESPACE);
 
-   ident_t name = p_identifier();
+   APUSH(m->args, p_identifier());
 
    optional(tWHITESPACE);
 
-   return name;
+   text_buf_t *tb = tb_new();
+   if (optional(tEQ))
+      p_expression(tb, tRPAREN, true);
+
+   APUSH(m->defs, tb);
+
 }
 
 static void p_list_of_formal_arguments(macro_t *m)
@@ -419,7 +494,7 @@ static void p_list_of_formal_arguments(macro_t *m)
    BEGIN("list of formal arguments");
 
    do {
-      APUSH(m->args, p_formal_argument());
+      p_formal_argument(m);
    } while (optional(tCOMMA));
 }
 
@@ -472,6 +547,11 @@ static void p_text_macro_definition(void)
       case tNEWLINE:
       case tLPAREN:
       case tRPAREN:
+      case tLBRACE:
+      case tRBRACE:
+      case tLSQUARE:
+      case tRSQUARE:
+      case tEQ:
       case tCOMMA:
          consume(tok);
          tb_append(m->text, state.last_lval.ch);
@@ -496,35 +576,6 @@ static void p_text_macro_definition(void)
    tb_append(output, '\n');
 }
 
-static void p_expression(text_buf_t *tb)
-{
-   BEGIN("expression");
-
-   // 1800-2023 section 22.5.1: Actual arguments and defaults shall not
-   // contain comma or right parenthesis characters outside matched
-   // pairs of left and right parentheses (), square brackets [], braces
-   // {}, double quotes " ", triple quotes """ """, or an escaped
-   // identifier.
-
-   switch (one_of(tTEXT, tLPAREN, tWHITESPACE, tID)) {
-   case tTEXT:
-   case tWHITESPACE:
-   case tID:
-      tb_catn(tb, state.last_lval.span.ptr, state.last_lval.span.len);
-      break;
-   case tLPAREN:
-      tb_append(tb, '(');
-      while (not_at_token(tRPAREN))
-         p_expression(tb);
-      consume(tRPAREN);
-      tb_append(tb, ')');
-      break;
-   }
-
-   if (optional(tWHITESPACE))
-      tb_catn(tb, state.last_lval.span.ptr, state.last_lval.span.len);
-}
-
 static void p_actual_argument(macro_t *m, int pos)
 {
    // expression
@@ -535,10 +586,14 @@ static void p_actual_argument(macro_t *m, int pos)
 
    LOCAL_TEXT_BUF tb = tb_new();
 
-   p_expression(tb);
+   p_expression(tb, tRPAREN, true);
 
-   if (pos < m->args.count)
-      hash_put(macro_args, m->args.items[pos], tb_claim(tb));
+   if (pos < m->args.count) {
+      if (tb_is_empty(tb) && ! tb_is_empty(AGET(m->defs, pos)))
+         hash_put(macro_args, AGET(m->args, pos), xstrdup(tb_get(AGET(m->defs, pos))));
+      else
+         hash_put(macro_args, AGET(m->args, pos), tb_claim(tb));
+   }
 }
 
 static void p_list_of_actual_arguments(macro_t *m)
@@ -552,10 +607,23 @@ static void p_list_of_actual_arguments(macro_t *m)
       p_actual_argument(m, pos++);
    } while (optional(tCOMMA));
 
-   if (pos != m->args.count && !m->error) {
-      error_at(&state.last_loc, "macro '%pi' requires exactly %d arguments",
-               m->name, m->args.count);
+   if (pos > m->args.count && !m->error) {
+      error_at(&state.last_loc, "macro '%pi' requires exactly %d arguments, %d were given",
+               m->name, m->args.count, pos);
       m->error = true;
+   }
+   else if (pos != m->args.count) {
+      for (; pos < m->args.count; pos++) {
+         if (! tb_is_empty(AGET(m->defs, pos)))
+            hash_put(macro_args, AGET(m->args, pos), xstrdup(tb_get(AGET(m->defs, pos))));
+         else if (!m->error) {
+            error_at(&state.last_loc,
+                     "macro '%pi' is missing argument '%pi' with no default value",
+                     m->name, AGET(m->args, pos));
+            m->error = true;
+            break;
+         }
+      }
    }
 }
 
@@ -605,7 +673,10 @@ static void p_text_macro_usage(void)
       // no arguments
       scan_buf_t buf = get_input_buffer();
       char peek;
+      while (scan_peek(buf, &peek) && (peek == ' ' || peek == '\t'))
+         scan_advance(&buf);
       if (scan_peek(buf, &peek) && peek == '(') {
+         optional(tWHITESPACE);
          consume(tLPAREN);
          macro_args = hash_new(16);
          p_list_of_actual_arguments(m);
@@ -883,6 +954,11 @@ static void p_block_of_text(void)
       break;
    case tLPAREN:
    case tRPAREN:
+   case tLBRACE:
+   case tRBRACE:
+   case tLSQUARE:
+   case tRSQUARE:
+   case tEQ:
    case tCOMMA:
       consume(tok);
       if (ifdefs == NULL || ifdefs->cond)
