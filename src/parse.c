@@ -11430,7 +11430,7 @@ static psl_node_t p_psl_low_bound(tree_t head)
 
    BEGIN_WITH_HEAD("PSL Low Bound", head);
 
-   return p_hdl_expression(head, PSL_TYPE_NUMERIC);
+   return p_hdl_expression(head, PSL_TYPE_NUMBER);
 }
 
 static psl_node_t p_psl_high_bound(void)
@@ -11446,13 +11446,13 @@ static psl_node_t p_psl_high_bound(void)
       tree_set_ival(inf, INT32_MAX);
 
       psl_node_t p = psl_new(P_HDL_EXPR);
-      psl_set_type(p, PSL_TYPE_NUMERIC);
+      psl_set_type(p, PSL_TYPE_NUMBER);
       psl_set_tree(p, inf);
       psl_set_loc(p, CURRENT_LOC);
       return p;
    }
    else
-      return p_hdl_expression(NULL, PSL_TYPE_NUMERIC);
+      return p_hdl_expression(NULL, PSL_TYPE_NUMBER);
 }
 
 static psl_node_t p_psl_range(tree_t head)
@@ -11698,7 +11698,7 @@ static psl_node_t p_psl_builtin_function_call(void)
          psl_add_operand(p, p1);
 
          if (optional(tCOMMA)) {
-            psl_node_t p2 = p_hdl_expression(NULL, PSL_TYPE_NUMERIC);
+            psl_node_t p2 = p_hdl_expression(NULL, PSL_TYPE_NUMBER);
             psl_add_operand(p, p2);
 
             if (optional(tCOMMA))
@@ -11745,7 +11745,7 @@ static psl_node_t p_psl_builtin_function_call(void)
 
    case PSL_BUILTIN_NONDET_VECTOR:
       {
-         psl_node_t p1 = p_hdl_expression(NULL, PSL_TYPE_NUMERIC);
+         psl_node_t p1 = p_hdl_expression(NULL, PSL_TYPE_NUMBER);
          psl_add_operand(p, p1);
 
          consume(tCOMMA);
@@ -11859,7 +11859,7 @@ static psl_node_t p_psl_count(void)
    if (peek() == tTO)
       return p_psl_range(count);
    else
-      return p_hdl_expression(count, PSL_TYPE_NUMERIC);
+      return p_hdl_expression(count, PSL_TYPE_NUMBER);
 }
 
 static psl_node_t p_psl_proc_block(psl_node_t value)
@@ -12490,7 +12490,7 @@ static psl_node_t p_psl_fl_property(void)
             psl_set_flag(p, PSL_F_STRONG);
 
          if (optional(tLSQUARE)) {
-            psl_node_t count = p_hdl_expression(NULL, PSL_TYPE_NUMERIC);
+            psl_node_t count = p_hdl_expression(NULL, PSL_TYPE_NUMBER);
             psl_set_delay(p, count);
 
             consume(tRSQUARE);
@@ -12558,7 +12558,7 @@ static psl_node_t p_psl_fl_property(void)
          consume(tRPAREN);
 
          if (optional(tLSQUARE)) {
-            psl_node_t count = p_hdl_expression(NULL, PSL_TYPE_NUMERIC);
+            psl_node_t count = p_hdl_expression(NULL, PSL_TYPE_NUMBER);
             psl_set_delay(p, count);
 
             consume(tRSQUARE);

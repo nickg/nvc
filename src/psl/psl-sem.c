@@ -185,7 +185,7 @@ static void psl_check_boolean(psl_node_t p, nametab_t *tab)
                "have type %s", type_pp(type));
 }
 
-static void psl_check_number(psl_node_t p, nametab_t *tab)
+static void psl_check_numeric(psl_node_t p, nametab_t *tab)
 {
    type_t std_int = std_type(NULL, STD_INTEGER);
    tree_t value = solve_types(tab, psl_tree(p), std_int);
@@ -203,7 +203,12 @@ static void psl_check_number(psl_node_t p, nametab_t *tab)
                "type %s", type_pp(type));
       return;
    }
+}
 
+static void psl_check_number(psl_node_t p, nametab_t *tab)
+{
+   psl_check_numeric(p, tab);
+   tree_t value = psl_tree(p);
    psl_check_static(value);
 }
 
@@ -246,13 +251,16 @@ static void psl_check_hdl_expr(psl_node_t p, nametab_t *tab)
       psl_check_boolean(p, tab);
       break;
    case PSL_TYPE_NUMERIC:
-      psl_check_number(p, tab);
+      psl_check_numeric(p, tab);
       break;
    case PSL_TYPE_BIT:
       psl_check_bit(p, tab);
       break;
    case PSL_TYPE_ANY:
       psl_check_any(p, tab);
+      break;
+   case PSL_TYPE_NUMBER:
+      psl_check_number(p, tab);
       break;
    default:
       should_not_reach_here();

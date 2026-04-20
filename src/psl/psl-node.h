@@ -81,6 +81,7 @@ typedef enum {
    PSL_TYPE_SEQUENCE,
    PSL_TYPE_PROPERTY,
    PSL_TYPE_ANY,
+   PSL_TYPE_NUMBER,
 
    PSL_TYPE_LAST
 } psl_type_t;
