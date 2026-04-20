@@ -323,6 +323,7 @@ void tb_upcase(text_buf_t *tb);
 void tb_replace(text_buf_t *tb, char old, char rep);
 void tb_strftime(text_buf_t *tb, const char *fmt, time_t time);
 void tb_ostream_write(const char *buf, size_t len, void *ctx);
+bool tb_is_empty(text_buf_t *tb);
 
 #define LOCAL __attribute__((cleanup(_local_free)))
 

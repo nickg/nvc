@@ -1391,6 +1391,17 @@ void tb_ostream_write(const char *buf, size_t len, void *ctx)
    tb_catn(tb, buf, len);
 }
 
+bool tb_is_empty(text_buf_t *tb)
+{
+   bool empty = true;
+   for (int i = 0; i < tb->len; i++) {
+      empty &= isspace_iso88591(tb->buf[i]);
+      if (!empty)
+         break;
+   }
+   return empty;
+}
+
 void _local_free(void *ptr)
 {
    free(*(void **)ptr);
