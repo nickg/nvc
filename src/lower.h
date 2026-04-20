@@ -78,6 +78,8 @@ void lower_finished(lower_unit_t *lu);
 
 vcode_reg_t lower_lvalue(lower_unit_t *lu, tree_t expr);
 vcode_reg_t lower_rvalue(lower_unit_t *lu, tree_t expr);
+vcode_reg_t lower_coerce_arrays(lower_unit_t *lu, type_t from, type_t to,
+                                vcode_reg_t reg);
 
 vcode_type_t lower_type(type_t type);
 vcode_stamp_t lower_bounds(type_t type);

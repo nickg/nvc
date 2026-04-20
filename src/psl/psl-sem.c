@@ -231,7 +231,26 @@ static void psl_check_bit(psl_node_t p, nametab_t *tab)
                "type %s", type_pp(type));
 }
 
-static void psl_check_any(psl_node_t p, nametab_t *tab)
+static void psl_check_bitvector(psl_node_t p, nametab_t *tab)
+{
+   type_t std_bit_v = std_type(NULL, STD_BIT_VECTOR);
+   type_t std_ulogic_v = ieee_type(IEEE_STD_ULOGIC_VECTOR);
+   tree_t value = solve_types(tab, psl_tree(p), std_ulogic_v);
+   psl_set_tree(p, value);
+
+   type_t type = tree_type(value);
+   if (type_is_none(type))
+      return;   // Prevent cascading errors
+
+   if (!sem_check(value, tab))
+      return;
+
+   if (!type_eq(type, std_ulogic_v) && !type_eq(type, std_bit_v))
+      error_at(tree_loc(value), "expression must be a PSL BitVector but have "
+               "type %s", type_pp(type));
+}
+
+static void psl_check_any_hdltype_string(psl_node_t p, nametab_t *tab)
 {
    tree_t value = solve_types(tab, psl_tree(p), NULL);
    psl_set_tree(p, value);
@@ -256,11 +275,16 @@ static void psl_check_hdl_expr(psl_node_t p, nametab_t *tab)
    case PSL_TYPE_BIT:
       psl_check_bit(p, tab);
       break;
-   case PSL_TYPE_ANY:
-      psl_check_any(p, tab);
-      break;
    case PSL_TYPE_NUMBER:
       psl_check_number(p, tab);
+      break;
+   case PSL_TYPE_BITVECTOR:
+      psl_check_bitvector(p, tab);
+      break;
+   case PSL_TYPE_HDLTYPE:
+   case PSL_TYPE_ANY:
+   case PSL_TYPE_STRING:
+      psl_check_any_hdltype_string(p, tab);
       break;
    default:
       should_not_reach_here();

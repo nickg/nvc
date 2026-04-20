@@ -1017,8 +1017,8 @@ static bool lower_have_signal(vcode_reg_t reg)
    return vtype_is_signal(vcode_reg_type(reg));
 }
 
-static vcode_reg_t lower_coerce_arrays(lower_unit_t *lu, type_t from, type_t to,
-                                       vcode_reg_t reg)
+vcode_reg_t lower_coerce_arrays(lower_unit_t *lu, type_t from, type_t to,
+                                vcode_reg_t reg)
 {
    vcode_type_t reg_vtype = vcode_reg_type(reg);
    const bool have_uarray = vtype_kind(reg_vtype) == VCODE_TYPE_UARRAY;

@@ -113,7 +113,15 @@ vcode_reg_t psl_lower_param_ref(lower_unit_t *lu, tree_t p)
    }
 
    assert(actual != NULL);
-   return lower_rvalue(lu, actual);
+
+   type_t formal_type = tree_type(p);
+   type_t actual_type = tree_type(actual);
+   vcode_reg_t reg = lower_rvalue(lu, actual);
+
+   if (type_is_array(formal_type))
+      return lower_coerce_arrays(lu, actual_type, formal_type, reg);
+
+   return reg;
 }
 
 static vcode_reg_t psl_lower_guard(lower_unit_t *lu, psl_guard_t g)
