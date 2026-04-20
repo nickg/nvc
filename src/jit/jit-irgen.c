@@ -4166,12 +4166,14 @@ static void irgen_op_binary(jit_irgen_t *g, mir_value_t n)
       break;
    case MIR_VEC_CASEZ_EQ:
       {
+         jit_value_t ones = jit_value_from_int64(~UINT64_C(0));
+
          jit_value_t zleft = irgen_alloc_temp(g);
-         j_not(g, zleft, aleft);
+         j_xor(g, zleft, aleft, ones);
          j_and(g, zleft, zleft, bleft);
 
          jit_value_t zright = irgen_alloc_temp(g);
-         j_not(g, zright, aright);
+         j_xor(g, zright, aright, ones);
          j_and(g, zright, zright, bright);
 
          jit_value_t zmask = irgen_alloc_temp(g);
@@ -4183,7 +4185,7 @@ static void irgen_op_binary(jit_irgen_t *g, mir_value_t n)
          j_or(g, rcmpa, aright, zmask);
 
          jit_value_t nzmask = irgen_alloc_temp(g);
-         j_not(g, nzmask, zmask);
+         j_xor(g, nzmask, zmask, ones);
          jit_value_t lcmpb = irgen_alloc_temp(g);
          j_and(g, lcmpb, bleft, nzmask);
          jit_value_t rcmpb = irgen_alloc_temp(g);
@@ -4422,10 +4424,31 @@ static void irgen_op_extract(jit_irgen_t *g, mir_value_t n)
    jit_value_t pos = irgen_get_arg(g, n, 1);
 
    const int arg_size = mir_get_size(g->mu, mir_get_type(g->mu, arg0));
-   assert(arg_size <= 64);  // TODO
 
    mir_type_t type = mir_get_type(g->mu, n);
    const int size = mir_get_size(g->mu, type);
+
+   if (arg_size > 64) {
+      if (mir_is(g->mu, n, MIR_TYPE_VEC4)) {
+         jit_value_t bfull = irgen_get_slot(g, arg0, 1);
+
+         j_send(g, 0, full);
+         j_send(g, 1, bfull);
+         j_send(g, 2, pos);
+         j_send(g, 3, jit_value_from_int64(size));
+
+         macro_vec4op(g, JIT_VEC_EXTRACT, arg_size);
+
+         j_recv(g, irgen_get_slot(g, n, 0), 0);
+         j_recv(g, irgen_get_slot(g, n, 1), 1);
+      }
+      else {
+         // TODO: non-vec4 wide extract
+         assert(false);
+      }
+
+      return;
+   }
 
    jit_value_t bitpos = irgen_alloc_temp(g);
    j_sub(g, bitpos, jit_value_from_int64(arg_size - size), pos);
