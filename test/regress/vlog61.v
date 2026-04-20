@@ -5,6 +5,8 @@
 //   1. for-generate with genvar index: gen_loop[i].u.x
 //   2. if-generate with named block: gen_if.u.x
 //   3. Named block inside a generate construct: gen_named.inner.val
+//   4. Nested if-generate accessing module-level ports (upref through
+//      generate scopes) — regression for param-dependent port widths
 //
 // Exercises mid-path constant_bit_select in the hierarchical path.
 
@@ -16,6 +18,34 @@ endmodule
 
 module vlog61_named_leaf;
     reg [7:0] val = 8'hCC;
+endmodule
+
+// 4. Module with nested if-generate referencing module-level ports.
+//    Exercises var-upref through multiple generate scopes back to
+//    the enclosing module's port variables.
+module vlog61_mux #(
+    parameter SEL = 0,
+    parameter W   = 1
+)(
+    input  wire [W-1:0] a,
+    input  wire [W-1:0] b,
+    output wire [W-1:0] y
+);
+    wire [W-1:0] tmp;
+
+    if (SEL == 0) begin : gen_path_a
+        if (W == 1) begin : gen_narrow
+            assign tmp = a;
+        end
+        else begin : gen_wide
+            assign tmp = a;
+        end
+    end
+    else begin : gen_path_b
+        assign tmp = b;
+    end
+
+    assign y = tmp;
 endmodule
 
 module vlog61;
@@ -44,6 +74,13 @@ module vlog61;
             vlog61_named_leaf inner ();
         end
     endgenerate
+
+    // 4. Nested if-generate accessing module-level ports
+    reg mux_a, mux_b;
+    wire mux_y;
+    vlog61_mux #(.SEL(0), .W(1)) mux0 (
+        .a(mux_a), .b(mux_b), .y(mux_y)
+    );
 
     initial begin
         #1;
@@ -75,6 +112,20 @@ module vlog61;
         if (gen_named.inner.val !== 8'hCC) begin
             $display("FAILED: gen_named.inner.val=%h expected CC",
                      gen_named.inner.val);
+            $finish;
+        end
+
+        // Check nested if-generate with port access from generate body
+        mux_a = 1; mux_b = 0;
+        #1;
+        if (mux_y !== 1'b1) begin
+            $display("FAILED: mux_y=%b expected 1 (sel=0, a=1)", mux_y);
+            $finish;
+        end
+        mux_a = 0;
+        #1;
+        if (mux_y !== 1'b0) begin
+            $display("FAILED: mux_y=%b expected 0 (sel=0, a=0)", mux_y);
             $finish;
         end
 
