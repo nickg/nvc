@@ -1,0 +1,5 @@
+3500ps+1: seq_with_bit(s_bit) failed
+3500ps+1: seq_with_numeric(42) failed
+3500ps+1: seq_with_numeric(s_num) failed
+3500ps+1: seq_with_vector(s_vect) failed
+3500ps+1: seq_with_hdltype(s_enum) failed

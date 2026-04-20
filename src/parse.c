@@ -12041,12 +12041,12 @@ static void p_psl_actual_parameter(psl_node_t node, psl_type_t type)
    case PSL_TYPE_NUMERIC:
    case PSL_TYPE_STRING:
    case PSL_TYPE_HDLTYPE:
-   case PSL_TYPE_ANY:
       arg = p_hdl_expression(NULL, type);
       break;
    case PSL_TYPE_SEQUENCE:
       arg = p_psl_sequence();
       break;
+   case PSL_TYPE_ANY:
    case PSL_TYPE_PROPERTY:
       arg = p_psl_property();
       break;
@@ -12074,6 +12074,7 @@ static void p_psl_actual_parameter_list(psl_node_t p)
       tree_t param_decl = (n < decl_params) ? psl_port(decl, n) : NULL;
       psl_type_t type = (param_decl) ? tree_subkind(param_decl) : PSL_TYPE_ANY;
       p_psl_actual_parameter(p, type);
+      n++;
    } while (optional(tCOMMA));
 
 }
