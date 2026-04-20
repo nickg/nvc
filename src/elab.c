@@ -2423,7 +2423,7 @@ static void elab_verilog_block(vlog_node_t v, const elab_ctx_t *ctx)
    // vlog_lower_instance can register it (and reheat gets it for free).
    ident_t block_alias = NULL;
    if (ctx->vlog_body != NULL) {
-      ident_t parent_unit = ctx->cloned ?: ctx->dotted;
+      ident_t parent_unit = ctx->inst_alias ?: ctx->cloned ?: ctx->dotted;
       block_alias = ident_prefix(parent_unit, id, '.');
       ident_t target = vlog_ident(body);
       if (block_alias != target)
