@@ -6,7 +6,7 @@
   environments except Clang x64 and Clang Arm) are no longer supported
   due to performance issues.
 - PSL `next_a` is now supported with simple expressions.
-- Several other minor bugs were resolved (#1498, #1505, #1512).
+- Several other minor bugs were resolved (#1498, #1505, #1512, #1496).
 
 ## Version 1.20.0 - 2026-04-12
 - The new `vhpi_ext_nvc.h` header contains definitions for proprietary
