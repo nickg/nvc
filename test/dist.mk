@@ -55,6 +55,7 @@ EXTRA_DIST += \
 	test/cover/issue1431.vhd \
 	test/cover/issue1442.vhd \
 	test/cover/merge1.vhd \
+	test/cover/merge2.vhd \
 	test/cover/perfile1.vhd \
 	test/cover/spec1.txt \
 	test/cover/spec2.txt \
@@ -500,6 +501,7 @@ EXTRA_DIST += \
 	test/parse/issue1335.vhd \
 	test/parse/issue1413.vhd \
 	test/parse/issue1477.vhd \
+	test/parse/issue1498.vhd \
 	test/parse/issue205.vhd \
 	test/parse/issue222.vhd \
 	test/parse/issue360.vhd \
@@ -1294,6 +1296,8 @@ EXTRA_DIST += \
 	test/regress/gold/issue1420.dump \
 	test/regress/gold/issue1424.txt \
 	test/regress/gold/issue1476.dump \
+	test/regress/gold/issue1494.xml \
+	test/regress/gold/issue1512.xml \
 	test/regress/gold/issue185.txt \
 	test/regress/gold/issue202.txt \
 	test/regress/gold/issue225.txt \
@@ -1586,6 +1590,9 @@ EXTRA_DIST += \
 	test/regress/issue1476.v \
 	test/regress/issue1476.vhd \
 	test/regress/issue148.vhd \
+	test/regress/issue1494.vhd \
+	test/regress/issue1505.vhd \
+	test/regress/issue1512.vhd \
 	test/regress/issue152.vhd \
 	test/regress/issue153.vhd \
 	test/regress/issue163.vhd \
@@ -1855,6 +1862,7 @@ EXTRA_DIST += \
 	test/regress/ivtest22.v \
 	test/regress/ivtest23.v \
 	test/regress/ivtest24.v \
+	test/regress/ivtest26.v \
 	test/regress/ivtest2.v \
 	test/regress/ivtest3.v \
 	test/regress/ivtest4.v \
@@ -2248,6 +2256,7 @@ EXTRA_DIST += \
 	test/regress/vlog36.sv \
 	test/regress/vlog37.v \
 	test/regress/vlog38.v \
+	test/regress/vlog39.v \
 	test/regress/vlog3.v \
 	test/regress/vlog4.v \
 	test/regress/vlog5.v \
@@ -2546,6 +2555,7 @@ EXTRA_DIST += \
 	test/simp/issue1347.vhd \
 	test/simp/issue1353.vhd \
 	test/simp/issue1438.vhd \
+	test/simp/issue1495.vhd \
 	test/simp/issue155.vhd \
 	test/simp/issue194.vhd \
 	test/simp/issue212.vhd \

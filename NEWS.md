@@ -1,4 +1,6 @@
 ## Unreleased changes
+
+## Version 1.20.1 - 2026-04-22
 - Fix a crash while evaluating matching relational operator with
   constant arguments (#1495).
 - Fixed several regressions in coverage report generation (#1490, #1494).
