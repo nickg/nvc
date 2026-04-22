@@ -557,12 +557,14 @@ static fsm_state_t *build_next_a(psl_fsm_t *fsm, fsm_state_t *state, psl_node_t 
    for (int i = 0; i < hi; i++) {
       fsm_state_t *new = add_state(fsm, p);
       new->strong = strong;
-      if (i < lo - 1)
+      if (i < lo)
          add_edge(fsm, curr, new, EDGE_NEXT, NULL);
       else
          add_edge(fsm, curr, new, EDGE_NEXT, guard);
       curr = new;
    }
+
+   curr->guard = guard;
 
    return curr;
 }
