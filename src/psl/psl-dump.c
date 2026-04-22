@@ -243,6 +243,67 @@ static void psl_dump_clocked(psl_node_t p)
    }
 }
 
+static void psl_dump_value_set(psl_node_t p)
+{
+   print_syntax("{");
+
+   for (int i = 0; i < psl_operands(p); i++) {
+      psl_dump(psl_operand(p, i));
+      print_syntax(",");
+   }
+
+   print_syntax("}");
+}
+
+static void psl_dump_union(psl_node_t p)
+{
+   psl_dump(psl_operand(p, 0));
+
+   print_syntax(" union ");
+
+   psl_dump(psl_operand(p, 1));
+}
+
+static void psl_dump_builtin_fcall(psl_node_t p)
+{
+   switch (psl_subkind(p)) {
+   case PSL_BUILTIN_NEXT:
+      print_syntax("next");
+      break;
+   case PSL_BUILTIN_PREV:
+      print_syntax("prev");
+      break;
+   case PSL_BUILTIN_STABLE:
+      print_syntax("stable");
+      break;
+   case PSL_BUILTIN_ROSE:
+      print_syntax("rose");
+      break;
+   case PSL_BUILTIN_FELL:
+      print_syntax("fell");
+      break;
+   case PSL_BUILTIN_ENDED:
+      print_syntax("ended");
+      break;
+   case PSL_BUILTIN_NONDET:
+      print_syntax("nondet");
+      break;
+   case PSL_BUILTIN_NONDET_VECTOR:
+      print_syntax("nondet_vector");
+      break;
+   }
+
+   print_syntax("(");
+
+   for (int i = 0; i < psl_operands(p); i++) {
+      psl_dump(psl_operand(p, i));
+      print_syntax(",");
+   }
+
+   print_syntax(")");
+}
+
+
 void psl_dump(psl_node_t p)
 {
    switch (psl_kind(p)) {
@@ -308,6 +369,15 @@ void psl_dump(psl_node_t p)
       break;
    case P_CLOCKED:
       psl_dump_clocked(p);
+      break;
+   case P_BUILTIN_FCALL:
+      psl_dump_builtin_fcall(p);
+      break;
+   case P_VALUE_SET:
+      psl_dump_value_set(p);
+      break;
+   case P_UNION:
+      psl_dump_union(p);
       break;
    default:
       print_syntax("\n");
