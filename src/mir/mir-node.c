@@ -2767,10 +2767,11 @@ void mir_build_cover_expr(mir_unit_t *mu, mir_value_t counters, uint32_t tag)
                counters, mir_enum(tag));
 }
 
-void mir_build_cover_toggle(mir_unit_t *mu, mir_value_t signal, uint32_t tag)
+void mir_build_cover_toggle(mir_unit_t *mu, mir_value_t signal,
+                            mir_value_t count, uint32_t tag)
 {
-   mir_build_2(mu, MIR_OP_COVER_TOGGLE, MIR_NULL_TYPE, MIR_NULL_STAMP,
-               signal, mir_enum(tag));
+   mir_build_3(mu, MIR_OP_COVER_TOGGLE, MIR_NULL_TYPE, MIR_NULL_STAMP,
+               signal, count, mir_enum(tag));
 
    MIR_ASSERT(mir_is_signal(mu, signal),
               "argument to cover toggle must be signal");

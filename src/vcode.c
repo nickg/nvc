@@ -2226,17 +2226,27 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
             {
                printf("%s ", vcode_op_string(op->kind));
                vcode_dump_reg(op->args.items[0]);
-               printf("+%u", op->tag);
+               printf(" tag %u", op->tag);
             }
             break;
 
          case VCODE_OP_COVER_TOGGLE:
+            {
+               printf("%s ", vcode_op_string(op->kind));
+               vcode_dump_reg(op->args.items[0]);
+               printf(" count ");
+               vcode_dump_reg(op->args.items[1]);
+               printf(" tag %u", op->tag);
+            }
+            break;
+
          case VCODE_OP_COVER_STATE:
             {
                printf("%s ", vcode_op_string(op->kind));
                vcode_dump_reg(op->args.items[0]);
-               printf("+%u ", op->tag);
+               printf(" low ");
                vcode_dump_reg(op->args.items[1]);
+               printf(" tag %u", op->tag);
             }
             break;
 
@@ -5925,10 +5935,11 @@ void emit_cover_branch(vcode_reg_t counters, uint32_t tag)
                 "counters argument must be pointer");
 }
 
-void emit_cover_toggle(vcode_reg_t signal, uint32_t tag)
+void emit_cover_toggle(vcode_reg_t signal, vcode_reg_t count, uint32_t tag)
 {
    op_t *op = vcode_add_op(VCODE_OP_COVER_TOGGLE);
    vcode_add_arg(op, signal);
+   vcode_add_arg(op, count);
    op->tag = tag;
 }
 

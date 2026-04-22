@@ -789,9 +789,11 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
    case JIT_EXIT_COVER_TOGGLE:
       {
          sig_shared_t *shared = args[0].pointer;
-         int32_t       tag    = args[1].integer;
+         uint32_t      offset = args[1].integer;
+         int32_t       count  = args[2].integer;
+         int32_t       tag    = args[3].integer;
 
-         x_cover_setup_toggle_cb(shared, tag);
+         x_cover_setup_toggle_cb(shared, offset, count, tag);
       }
       break;
 

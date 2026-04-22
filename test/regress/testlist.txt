@@ -1298,3 +1298,4 @@ issue1494       cover
 vlog39          verilog
 ivtest26        verilog
 issue1505       vhpi,2008
+issue1512       cover=toggle,2008

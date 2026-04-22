@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2013-2025  Nick Gasson
+//  Copyright (C) 2013-2026  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -16,10 +16,10 @@
 //
 
 #include "util.h"
-#include "array.h"
 #include "cov/cov-api.h"
 #include "cov/cov-data.h"
 #include "ident.h"
+#include "jit/jit-exits.h"
 #include "rt/model.h"
 #include "rt/rt.h"
 #include "rt/structs.h"
@@ -28,6 +28,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include <limits.h>
+
+typedef struct {
+   int32_t   *counters;
+   int32_t    offset;
+   uint32_t   count;
+} rt_toggle_data_t;
 
 enum std_ulogic {
    _U  = 0x0,
@@ -126,17 +132,18 @@ static inline void cover_toggle_check_0_1_u_z(uint8_t old, uint8_t new,
 }
 
 __attribute__((always_inline))
-static inline void cover_toggle_generic(rt_signal_t *s, int32_t *counters,
+static inline void cover_toggle_generic(rt_signal_t *s, rt_toggle_data_t *td,
                                         toggle_check_fn_t fn)
 {
-   const void *cur = signal_value(s);
-   const void *last = signal_last_value(s);
+   assert(s->nexus.size == 1);
+
+   const void *cur = signal_value(s) + td->offset;
+   const void *last = signal_last_value(s) + td->offset;
 
    // Callback is optimized for performance
    // Check only group of 8 bytes that do have change of signal value
    // Optimize for assumption that most bits don't change in large signals
-   uint32_t s_size = s->shared.size;
-   uint32_t batches = ((s_size - 1) / sizeof(uint64_t)) + 1;
+   uint32_t batches = ((td->count - 1) / sizeof(uint64_t)) + 1;
    for (int i = 0; i < batches; i++) {
       int batch_size = sizeof(uint64_t);
       if (i < batches - 1) {
@@ -146,11 +153,11 @@ static inline void cover_toggle_generic(rt_signal_t *s, int32_t *counters,
             continue;
       }
       else
-         batch_size = ((s_size - 1) % sizeof(uint64_t)) + 1;
+         batch_size = ((td->count - 1) % sizeof(uint64_t)) + 1;
 
       int32_t low = i * sizeof(uint64_t);
       int32_t high = low + batch_size;
-      int32_t *toggle_01 = counters + low * 2;
+      int32_t *toggle_01 = td->counters + low * 2;
       int32_t *toggle_10 = toggle_01 + 1;
       for (int j = low; j < high; j++) {
          uint8_t new = ((const uint8_t *)cur)[j];
@@ -213,7 +220,8 @@ static bool is_constant_input(rt_signal_t *s)
    }
 }
 
-void x_cover_setup_toggle_cb(sig_shared_t *ss, int32_t tag)
+void x_cover_setup_toggle_cb(sig_shared_t *ss, uint32_t offset, int32_t count,
+                             int32_t tag)
 {
    rt_signal_t *s = container_of(ss, rt_signal_t, shared);
    rt_model_t *m = get_model();
@@ -234,7 +242,7 @@ void x_cover_setup_toggle_cb(sig_shared_t *ss, int32_t tag)
 
       // Each std_logic bit encoded as single byte. There are two run-time
       // counters for each std_logic bit
-      for (int i = 0; i < s->shared.size; i++) {
+      for (int i = 0; i < count; i++) {
          // Remember constant driver in run-time data.
          // Unreachable mask not available at run-time.
          *toggle_01 = COV_FLAG_UNREACHABLE;
@@ -257,8 +265,13 @@ void x_cover_setup_toggle_cb(sig_shared_t *ss, int32_t tag)
    else if (op_mask & COVER_MASK_TOGGLE_COUNT_FROM_TO_Z)
       fn = &cover_toggle_cb_0_1_z;
 
-   rt_watch_t *w = watch_new(m, fn, counters + tag, WATCH_EVENT, 1);
-   model_set_event_cb(m, s, 0, signal_width(s), w);
+   rt_toggle_data_t *td = xcalloc(sizeof(rt_toggle_data_t));
+   td->counters = counters + tag;
+   td->offset   = offset;
+   td->count    = count;
+
+   rt_watch_t *w = watch_new(m, fn, td, WATCH_EVENT, 1);
+   model_set_event_cb(m, s, offset, count, w);
 }
 
 ///////////////////////////////////////////////////////////////////////////////

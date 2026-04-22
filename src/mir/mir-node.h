@@ -679,7 +679,8 @@ mir_value_t mir_build_get_counters(mir_unit_t *mu, ident_t block);
 void mir_build_cover_stmt(mir_unit_t *mu, mir_value_t counters, uint32_t tag);
 void mir_build_cover_branch(mir_unit_t *mu, mir_value_t counters, uint32_t tag);
 void mir_build_cover_expr(mir_unit_t *mu, mir_value_t counters, uint32_t tag);
-void mir_build_cover_toggle(mir_unit_t *mu, mir_value_t signal, uint32_t tag);
+void mir_build_cover_toggle(mir_unit_t *mu, mir_value_t signal,
+                            mir_value_t count, uint32_t tag);
 void mir_build_cover_state(mir_unit_t *mu, mir_value_t signal, mir_value_t low,
                            uint32_t tag);
 

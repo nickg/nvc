@@ -3755,11 +3755,15 @@ static void irgen_op_cover_increment(jit_irgen_t *g, mir_value_t n)
 
 static void irgen_op_cover_toggle(jit_irgen_t *g, mir_value_t n)
 {
-   jit_value_t shared = irgen_get_arg(g, n, 0);
-   uint32_t tag = irgen_get_const(g, n, 1);
+   jit_value_t shared = irgen_get_arg_slot(g, n, 0, 0);
+   jit_value_t offset = irgen_get_arg_slot(g, n, 0, 1);
+   jit_value_t count  = irgen_get_arg(g, n, 1);
+   uint32_t tag = irgen_get_const(g, n, 2);
 
    j_send(g, 0, shared);
-   j_send(g, 1, jit_value_from_int64(tag));
+   j_send(g, 1, offset);
+   j_send(g, 2, count);
+   j_send(g, 3, jit_value_from_int64(tag));
    macro_exit(g, JIT_EXIT_COVER_TOGGLE);
 }
 

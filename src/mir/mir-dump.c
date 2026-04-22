@@ -1615,9 +1615,11 @@ void mir_annotate(mir_unit_t *mu, const mir_annotate_t *cb, void *ctx)
          case MIR_OP_COVER_TOGGLE:
             {
                printf("%s ", mir_op_string(n->op));
-               mir_dump_value(mu, n->args[1], cb, ctx);
+               mir_dump_value(mu, n->args[2], cb, ctx);
                printf(" signal ");
                mir_dump_value(mu, n->args[0], cb, ctx);
+               printf(" count ");
+               mir_dump_value(mu, n->args[1], cb, ctx);
             }
             break;
 

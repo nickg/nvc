@@ -85,7 +85,8 @@ void x_put_driver(sig_shared_t *ss, uint32_t offset, int32_t count,
 void x_resolve_signal(sig_shared_t *ss, ffi_closure_t *closure, int32_t nlits,
                       int32_t flags);
 void x_unreachable(tree_t where);
-void x_cover_setup_toggle_cb(sig_shared_t *ss, int32_t tag);
+void x_cover_setup_toggle_cb(sig_shared_t *ss, uint32_t offset, int32_t count,
+                             int32_t tag);
 void x_cover_setup_state_cb(sig_shared_t *ss, int64_t low, int32_t tag);
 void x_process_init(const ffi_closure_t *closure, tree_t where);
 void x_clear_event(sig_shared_t *ss, uint32_t offset, int32_t count);
