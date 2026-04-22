@@ -1,11 +1,13 @@
 ## Unreleased changes
-- Fix a crash while evaluating matching relational operator with
-  constant arguments (#1495).
-- Fixed several regressions in coverage report generation (#1490, #1494).
 - Systems with emulated thread-local storage (in particular all MSYS2
   environments except Clang x64 and Clang Arm) are no longer supported
   due to performance issues.
 - PSL `next_a` is now supported with simple expressions.
+
+## Version 1.20.1 - 2026-04-22
+- Fix a crash while evaluating matching relational operator with
+  constant arguments (#1495).
+- Fixed several regressions in coverage report generation (#1490, #1494).
 - Several other minor bugs were resolved (#1498, #1505, #1512, #1496).
 
 ## Version 1.20.0 - 2026-04-12
