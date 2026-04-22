@@ -1,0 +1,1005 @@
+<?xml version="1.0"?>
+<scope name="WORK">
+  <scope name="ISSUE1512" block_name="ISSUE1512-TB" file="issue1512.vhd" line="137">
+    <scope name="CLK" line="138">
+      <toggle hier="WORK.ISSUE1512.CLK.BIN_0_TO_1" data="40"/>
+      <toggle hier="WORK.ISSUE1512.CLK.BIN_1_TO_0" data="39"/>
+    </scope>
+    <scope name="RST" line="139">
+      <toggle hier="WORK.ISSUE1512.RST.BIN_0_TO_1" data="0"/>
+      <toggle hier="WORK.ISSUE1512.RST.BIN_1_TO_0" data="1"/>
+    </scope>
+    <scope name="IN_VALID" line="140">
+      <toggle hier="WORK.ISSUE1512.IN_VALID.BIN_0_TO_1" data="1"/>
+      <toggle hier="WORK.ISSUE1512.IN_VALID.BIN_1_TO_0" data="1"/>
+    </scope>
+    <scope name="IN_READY" line="141">
+      <toggle hier="WORK.ISSUE1512.IN_READY.BIN_0_TO_1" data="1"/>
+      <toggle hier="WORK.ISSUE1512.IN_READY.BIN_1_TO_0" data="1"/>
+    </scope>
+    <scope name="OUT_VALID" line="142">
+      <toggle hier="WORK.ISSUE1512.OUT_VALID.BIN_0_TO_1" data="1"/>
+      <toggle hier="WORK.ISSUE1512.OUT_VALID.BIN_1_TO_0" data="0"/>
+    </scope>
+    <scope name="OUT_READY" line="143">
+      <toggle hier="WORK.ISSUE1512.OUT_READY.BIN_0_TO_1" data="1"/>
+      <toggle hier="WORK.ISSUE1512.OUT_READY.BIN_1_TO_0" data="0"/>
+    </scope>
+    <scope name="IN_DATA" line="144">
+      <toggle hier="WORK.ISSUE1512.IN_DATA(3).BIN_0_TO_1" data="2"/>
+      <toggle hier="WORK.ISSUE1512.IN_DATA(3).BIN_1_TO_0" data="2"/>
+      <toggle hier="WORK.ISSUE1512.IN_DATA(2).BIN_0_TO_1" data="5"/>
+      <toggle hier="WORK.ISSUE1512.IN_DATA(2).BIN_1_TO_0" data="4"/>
+      <toggle hier="WORK.ISSUE1512.IN_DATA(1).BIN_0_TO_1" data="9"/>
+      <toggle hier="WORK.ISSUE1512.IN_DATA(1).BIN_1_TO_0" data="9"/>
+      <toggle hier="WORK.ISSUE1512.IN_DATA(0).BIN_0_TO_1" data="18"/>
+      <toggle hier="WORK.ISSUE1512.IN_DATA(0).BIN_1_TO_0" data="18"/>
+    </scope>
+    <scope name="OUT_DATA" line="145">
+      <toggle hier="WORK.ISSUE1512.OUT_DATA(3).BIN_0_TO_1" data="1"/>
+      <toggle hier="WORK.ISSUE1512.OUT_DATA(3).BIN_1_TO_0" data="0"/>
+      <toggle hier="WORK.ISSUE1512.OUT_DATA(2).BIN_0_TO_1" data="2"/>
+      <toggle hier="WORK.ISSUE1512.OUT_DATA(2).BIN_1_TO_0" data="1"/>
+      <toggle hier="WORK.ISSUE1512.OUT_DATA(1).BIN_0_TO_1" data="4"/>
+      <toggle hier="WORK.ISSUE1512.OUT_DATA(1).BIN_1_TO_0" data="3"/>
+      <toggle hier="WORK.ISSUE1512.OUT_DATA(0).BIN_0_TO_1" data="7"/>
+      <toggle hier="WORK.ISSUE1512.OUT_DATA(0).BIN_1_TO_0" data="7"/>
+    </scope>
+    <scope name="DUT" block_name="ISSUE1512_OUTER-RTL" line="150">
+      <scope name="CLK" line="86">
+        <toggle hier="WORK.ISSUE1512.DUT.CLK.BIN_0_TO_1" data="40"/>
+        <toggle hier="WORK.ISSUE1512.DUT.CLK.BIN_1_TO_0" data="39"/>
+      </scope>
+      <scope name="RST" line="87">
+        <toggle hier="WORK.ISSUE1512.DUT.RST.BIN_0_TO_1" data="0"/>
+        <toggle hier="WORK.ISSUE1512.DUT.RST.BIN_1_TO_0" data="1"/>
+      </scope>
+      <scope name="IN_VALID" line="88">
+        <toggle hier="WORK.ISSUE1512.DUT.IN_VALID.BIN_0_TO_1" data="1"/>
+        <toggle hier="WORK.ISSUE1512.DUT.IN_VALID.BIN_1_TO_0" data="1"/>
+      </scope>
+      <scope name="IN_READY" line="89">
+        <toggle hier="WORK.ISSUE1512.DUT.IN_READY.BIN_0_TO_1" data="1"/>
+        <toggle hier="WORK.ISSUE1512.DUT.IN_READY.BIN_1_TO_0" data="1"/>
+      </scope>
+      <scope name="IN_DATA" line="90">
+        <toggle hier="WORK.ISSUE1512.DUT.IN_DATA(3).BIN_0_TO_1" data="2"/>
+        <toggle hier="WORK.ISSUE1512.DUT.IN_DATA(3).BIN_1_TO_0" data="2"/>
+        <toggle hier="WORK.ISSUE1512.DUT.IN_DATA(2).BIN_0_TO_1" data="5"/>
+        <toggle hier="WORK.ISSUE1512.DUT.IN_DATA(2).BIN_1_TO_0" data="4"/>
+        <toggle hier="WORK.ISSUE1512.DUT.IN_DATA(1).BIN_0_TO_1" data="9"/>
+        <toggle hier="WORK.ISSUE1512.DUT.IN_DATA(1).BIN_1_TO_0" data="9"/>
+        <toggle hier="WORK.ISSUE1512.DUT.IN_DATA(0).BIN_0_TO_1" data="18"/>
+        <toggle hier="WORK.ISSUE1512.DUT.IN_DATA(0).BIN_1_TO_0" data="18"/>
+      </scope>
+      <scope name="OUT_VALID" line="91">
+        <toggle hier="WORK.ISSUE1512.DUT.OUT_VALID.BIN_0_TO_1" data="1"/>
+        <toggle hier="WORK.ISSUE1512.DUT.OUT_VALID.BIN_1_TO_0" data="0"/>
+      </scope>
+      <scope name="OUT_READY" line="92">
+        <toggle hier="WORK.ISSUE1512.DUT.OUT_READY.BIN_0_TO_1" data="1"/>
+        <toggle hier="WORK.ISSUE1512.DUT.OUT_READY.BIN_1_TO_0" data="0"/>
+      </scope>
+      <scope name="OUT_DATA" line="93">
+        <toggle hier="WORK.ISSUE1512.DUT.OUT_DATA(3).BIN_0_TO_1" data="1"/>
+        <toggle hier="WORK.ISSUE1512.DUT.OUT_DATA(3).BIN_1_TO_0" data="0"/>
+        <toggle hier="WORK.ISSUE1512.DUT.OUT_DATA(2).BIN_0_TO_1" data="2"/>
+        <toggle hier="WORK.ISSUE1512.DUT.OUT_DATA(2).BIN_1_TO_0" data="1"/>
+        <toggle hier="WORK.ISSUE1512.DUT.OUT_DATA(1).BIN_0_TO_1" data="4"/>
+        <toggle hier="WORK.ISSUE1512.DUT.OUT_DATA(1).BIN_1_TO_0" data="3"/>
+        <toggle hier="WORK.ISSUE1512.DUT.OUT_DATA(0).BIN_0_TO_1" data="7"/>
+        <toggle hier="WORK.ISSUE1512.DUT.OUT_DATA(0).BIN_1_TO_0" data="7"/>
+      </scope>
+      <scope name="DATA_S" line="100">
+      </scope>
+      <scope name="VALID_S" line="101">
+        <toggle hier="WORK.ISSUE1512.DUT.VALID_S(0).BIN_0_TO_1" data="10"/>
+        <toggle hier="WORK.ISSUE1512.DUT.VALID_S(0).BIN_1_TO_0" data="2"/>
+        <toggle hier="WORK.ISSUE1512.DUT.VALID_S(1).BIN_0_TO_1" data="10"/>
+        <toggle hier="WORK.ISSUE1512.DUT.VALID_S(1).BIN_1_TO_0" data="1"/>
+        <toggle hier="WORK.ISSUE1512.DUT.VALID_S(2).BIN_0_TO_1" data="10"/>
+        <toggle hier="WORK.ISSUE1512.DUT.VALID_S(2).BIN_1_TO_0" data="0"/>
+        <toggle hier="WORK.ISSUE1512.DUT.VALID_S(3).BIN_0_TO_1" data="9"/>
+        <toggle hier="WORK.ISSUE1512.DUT.VALID_S(3).BIN_1_TO_0" data="0"/>
+        <toggle hier="WORK.ISSUE1512.DUT.VALID_S(4).BIN_0_TO_1" data="8"/>
+        <toggle hier="WORK.ISSUE1512.DUT.VALID_S(4).BIN_1_TO_0" data="0"/>
+        <toggle hier="WORK.ISSUE1512.DUT.VALID_S(5).BIN_0_TO_1" data="7"/>
+        <toggle hier="WORK.ISSUE1512.DUT.VALID_S(5).BIN_1_TO_0" data="0"/>
+        <toggle hier="WORK.ISSUE1512.DUT.VALID_S(6).BIN_0_TO_1" data="6"/>
+        <toggle hier="WORK.ISSUE1512.DUT.VALID_S(6).BIN_1_TO_0" data="0"/>
+        <toggle hier="WORK.ISSUE1512.DUT.VALID_S(7).BIN_0_TO_1" data="5"/>
+        <toggle hier="WORK.ISSUE1512.DUT.VALID_S(7).BIN_1_TO_0" data="0"/>
+        <toggle hier="WORK.ISSUE1512.DUT.VALID_S(8).BIN_0_TO_1" data="4"/>
+        <toggle hier="WORK.ISSUE1512.DUT.VALID_S(8).BIN_1_TO_0" data="0"/>
+        <toggle hier="WORK.ISSUE1512.DUT.VALID_S(9).BIN_0_TO_1" data="3"/>
+        <toggle hier="WORK.ISSUE1512.DUT.VALID_S(9).BIN_1_TO_0" data="0"/>
+      </scope>
+      <scope name="READY_S" line="102">
+        <toggle hier="WORK.ISSUE1512.DUT.READY_S(0).BIN_0_TO_1" data="1"/>
+        <toggle hier="WORK.ISSUE1512.DUT.READY_S(0).BIN_1_TO_0" data="10"/>
+        <toggle hier="WORK.ISSUE1512.DUT.READY_S(1).BIN_0_TO_1" data="2"/>
+        <toggle hier="WORK.ISSUE1512.DUT.READY_S(1).BIN_1_TO_0" data="10"/>
+        <toggle hier="WORK.ISSUE1512.DUT.READY_S(2).BIN_0_TO_1" data="3"/>
+        <toggle hier="WORK.ISSUE1512.DUT.READY_S(2).BIN_1_TO_0" data="10"/>
+        <toggle hier="WORK.ISSUE1512.DUT.READY_S(3).BIN_0_TO_1" data="4"/>
+        <toggle hier="WORK.ISSUE1512.DUT.READY_S(3).BIN_1_TO_0" data="10"/>
+        <toggle hier="WORK.ISSUE1512.DUT.READY_S(4).BIN_0_TO_1" data="5"/>
+        <toggle hier="WORK.ISSUE1512.DUT.READY_S(4).BIN_1_TO_0" data="10"/>
+        <toggle hier="WORK.ISSUE1512.DUT.READY_S(5).BIN_0_TO_1" data="6"/>
+        <toggle hier="WORK.ISSUE1512.DUT.READY_S(5).BIN_1_TO_0" data="10"/>
+        <toggle hier="WORK.ISSUE1512.DUT.READY_S(6).BIN_0_TO_1" data="7"/>
+        <toggle hier="WORK.ISSUE1512.DUT.READY_S(6).BIN_1_TO_0" data="10"/>
+        <toggle hier="WORK.ISSUE1512.DUT.READY_S(7).BIN_0_TO_1" data="8"/>
+        <toggle hier="WORK.ISSUE1512.DUT.READY_S(7).BIN_1_TO_0" data="10"/>
+        <toggle hier="WORK.ISSUE1512.DUT.READY_S(8).BIN_0_TO_1" data="9"/>
+        <toggle hier="WORK.ISSUE1512.DUT.READY_S(8).BIN_1_TO_0" data="10"/>
+        <toggle hier="WORK.ISSUE1512.DUT.READY_S(9).BIN_0_TO_1" data="10"/>
+        <toggle hier="WORK.ISSUE1512.DUT.READY_S(9).BIN_1_TO_0" data="0"/>
+      </scope>
+      <scope name="G_STAGES(0)" block_name="G_STAGES" line="109">
+        <scope name="I_STG" block_name="ISSUE1512_INNER-RTL" line="110">
+          <scope name="CLK" line="6">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(0).I_STG.CLK.BIN_0_TO_1" data="40"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(0).I_STG.CLK.BIN_1_TO_0" data="39"/>
+          </scope>
+          <scope name="RST" line="7">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(0).I_STG.RST.BIN_0_TO_1" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(0).I_STG.RST.BIN_1_TO_0" data="1"/>
+          </scope>
+          <scope name="IN_VALID" line="8">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(0).I_STG.IN_VALID.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(0).I_STG.IN_VALID.BIN_1_TO_0" data="1"/>
+          </scope>
+          <scope name="IN_READY" line="9">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(0).I_STG.IN_READY.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(0).I_STG.IN_READY.BIN_1_TO_0" data="1"/>
+          </scope>
+          <scope name="IN_DATA" line="10">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(0).I_STG.IN_DATA(3).BIN_0_TO_1" data="2"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(0).I_STG.IN_DATA(3).BIN_1_TO_0" data="2"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(0).I_STG.IN_DATA(2).BIN_0_TO_1" data="5"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(0).I_STG.IN_DATA(2).BIN_1_TO_0" data="4"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(0).I_STG.IN_DATA(1).BIN_0_TO_1" data="9"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(0).I_STG.IN_DATA(1).BIN_1_TO_0" data="9"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(0).I_STG.IN_DATA(0).BIN_0_TO_1" data="18"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(0).I_STG.IN_DATA(0).BIN_1_TO_0" data="18"/>
+          </scope>
+          <scope name="OUT_VALID" line="11">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(0).I_STG.OUT_VALID.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(0).I_STG.OUT_VALID.BIN_1_TO_0" data="1"/>
+          </scope>
+          <scope name="OUT_READY" line="12">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(0).I_STG.OUT_READY.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(0).I_STG.OUT_READY.BIN_1_TO_0" data="1"/>
+          </scope>
+          <scope name="OUT_DATA" line="13">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(0).I_STG.OUT_DATA(3).BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(0).I_STG.OUT_DATA(3).BIN_1_TO_0" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(0).I_STG.OUT_DATA(2).BIN_0_TO_1" data="3"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(0).I_STG.OUT_DATA(2).BIN_1_TO_0" data="3"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(0).I_STG.OUT_DATA(1).BIN_0_TO_1" data="7"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(0).I_STG.OUT_DATA(1).BIN_1_TO_0" data="6"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(0).I_STG.OUT_DATA(0).BIN_0_TO_1" data="10"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(0).I_STG.OUT_DATA(0).BIN_1_TO_0" data="11"/>
+          </scope>
+          <scope name="R" line="26">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(0).I_STG.R.DATA_MAIN(3).BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(0).I_STG.R.DATA_MAIN(3).BIN_1_TO_0" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(0).I_STG.R.DATA_MAIN(2).BIN_0_TO_1" data="3"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(0).I_STG.R.DATA_MAIN(2).BIN_1_TO_0" data="3"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(0).I_STG.R.DATA_MAIN(1).BIN_0_TO_1" data="7"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(0).I_STG.R.DATA_MAIN(1).BIN_1_TO_0" data="6"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(0).I_STG.R.DATA_MAIN(0).BIN_0_TO_1" data="10"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(0).I_STG.R.DATA_MAIN(0).BIN_1_TO_0" data="11"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(0).I_STG.R.DATA_MAIN_VLD.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(0).I_STG.R.DATA_MAIN_VLD.BIN_1_TO_0" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(0).I_STG.R.DATA_SHAD(3).BIN_0_TO_1" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(0).I_STG.R.DATA_SHAD(3).BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(0).I_STG.R.DATA_SHAD(2).BIN_0_TO_1" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(0).I_STG.R.DATA_SHAD(2).BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(0).I_STG.R.DATA_SHAD(1).BIN_0_TO_1" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(0).I_STG.R.DATA_SHAD(1).BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(0).I_STG.R.DATA_SHAD(0).BIN_0_TO_1" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(0).I_STG.R.DATA_SHAD(0).BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(0).I_STG.R.DATA_SHAD_VLD.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(0).I_STG.R.DATA_SHAD_VLD.BIN_1_TO_0" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(0).I_STG.R.IN_READY_F.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(0).I_STG.R.IN_READY_F.BIN_1_TO_0" data="1"/>
+          </scope>
+          <scope name="R_NEXT" line="26">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(0).I_STG.R_NEXT.DATA_MAIN(3).BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(0).I_STG.R_NEXT.DATA_MAIN(3).BIN_1_TO_0" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(0).I_STG.R_NEXT.DATA_MAIN(2).BIN_0_TO_1" data="3"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(0).I_STG.R_NEXT.DATA_MAIN(2).BIN_1_TO_0" data="3"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(0).I_STG.R_NEXT.DATA_MAIN(1).BIN_0_TO_1" data="7"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(0).I_STG.R_NEXT.DATA_MAIN(1).BIN_1_TO_0" data="6"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(0).I_STG.R_NEXT.DATA_MAIN(0).BIN_0_TO_1" data="10"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(0).I_STG.R_NEXT.DATA_MAIN(0).BIN_1_TO_0" data="11"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(0).I_STG.R_NEXT.DATA_MAIN_VLD.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(0).I_STG.R_NEXT.DATA_MAIN_VLD.BIN_1_TO_0" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(0).I_STG.R_NEXT.DATA_SHAD(3).BIN_0_TO_1" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(0).I_STG.R_NEXT.DATA_SHAD(3).BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(0).I_STG.R_NEXT.DATA_SHAD(2).BIN_0_TO_1" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(0).I_STG.R_NEXT.DATA_SHAD(2).BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(0).I_STG.R_NEXT.DATA_SHAD(1).BIN_0_TO_1" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(0).I_STG.R_NEXT.DATA_SHAD(1).BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(0).I_STG.R_NEXT.DATA_SHAD(0).BIN_0_TO_1" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(0).I_STG.R_NEXT.DATA_SHAD(0).BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(0).I_STG.R_NEXT.DATA_SHAD_VLD.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(0).I_STG.R_NEXT.DATA_SHAD_VLD.BIN_1_TO_0" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(0).I_STG.R_NEXT.IN_READY_F.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(0).I_STG.R_NEXT.IN_READY_F.BIN_1_TO_0" data="1"/>
+          </scope>
+        </scope>
+      </scope>
+      <scope name="G_STAGES(1)" block_name="G_STAGES" line="109">
+        <scope name="I_STG" block_name="ISSUE1512_INNER-RTL" line="110">
+          <scope name="CLK" line="6">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(1).I_STG.CLK.BIN_0_TO_1" data="40"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(1).I_STG.CLK.BIN_1_TO_0" data="39"/>
+          </scope>
+          <scope name="RST" line="7">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(1).I_STG.RST.BIN_0_TO_1" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(1).I_STG.RST.BIN_1_TO_0" data="1"/>
+          </scope>
+          <scope name="IN_VALID" line="8">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(1).I_STG.IN_VALID.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(1).I_STG.IN_VALID.BIN_1_TO_0" data="1"/>
+          </scope>
+          <scope name="IN_READY" line="9">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(1).I_STG.IN_READY.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(1).I_STG.IN_READY.BIN_1_TO_0" data="1"/>
+          </scope>
+          <scope name="IN_DATA" line="10">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(1).I_STG.IN_DATA(3).BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(1).I_STG.IN_DATA(3).BIN_1_TO_0" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(1).I_STG.IN_DATA(2).BIN_0_TO_1" data="3"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(1).I_STG.IN_DATA(2).BIN_1_TO_0" data="3"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(1).I_STG.IN_DATA(1).BIN_0_TO_1" data="7"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(1).I_STG.IN_DATA(1).BIN_1_TO_0" data="6"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(1).I_STG.IN_DATA(0).BIN_0_TO_1" data="10"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(1).I_STG.IN_DATA(0).BIN_1_TO_0" data="11"/>
+          </scope>
+          <scope name="OUT_VALID" line="11">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(1).I_STG.OUT_VALID.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(1).I_STG.OUT_VALID.BIN_1_TO_0" data="0"/>
+          </scope>
+          <scope name="OUT_READY" line="12">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(1).I_STG.OUT_READY.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(1).I_STG.OUT_READY.BIN_1_TO_0" data="1"/>
+          </scope>
+          <scope name="OUT_DATA" line="13">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(1).I_STG.OUT_DATA(3).BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(1).I_STG.OUT_DATA(3).BIN_1_TO_0" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(1).I_STG.OUT_DATA(2).BIN_0_TO_1" data="3"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(1).I_STG.OUT_DATA(2).BIN_1_TO_0" data="2"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(1).I_STG.OUT_DATA(1).BIN_0_TO_1" data="6"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(1).I_STG.OUT_DATA(1).BIN_1_TO_0" data="6"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(1).I_STG.OUT_DATA(0).BIN_0_TO_1" data="10"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(1).I_STG.OUT_DATA(0).BIN_1_TO_0" data="11"/>
+          </scope>
+          <scope name="R" line="26">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(1).I_STG.R.DATA_MAIN(3).BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(1).I_STG.R.DATA_MAIN(3).BIN_1_TO_0" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(1).I_STG.R.DATA_MAIN(2).BIN_0_TO_1" data="3"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(1).I_STG.R.DATA_MAIN(2).BIN_1_TO_0" data="2"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(1).I_STG.R.DATA_MAIN(1).BIN_0_TO_1" data="6"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(1).I_STG.R.DATA_MAIN(1).BIN_1_TO_0" data="6"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(1).I_STG.R.DATA_MAIN(0).BIN_0_TO_1" data="10"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(1).I_STG.R.DATA_MAIN(0).BIN_1_TO_0" data="11"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(1).I_STG.R.DATA_MAIN_VLD.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(1).I_STG.R.DATA_MAIN_VLD.BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(1).I_STG.R.DATA_SHAD(3).BIN_0_TO_1" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(1).I_STG.R.DATA_SHAD(3).BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(1).I_STG.R.DATA_SHAD(2).BIN_0_TO_1" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(1).I_STG.R.DATA_SHAD(2).BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(1).I_STG.R.DATA_SHAD(1).BIN_0_TO_1" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(1).I_STG.R.DATA_SHAD(1).BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(1).I_STG.R.DATA_SHAD(0).BIN_0_TO_1" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(1).I_STG.R.DATA_SHAD(0).BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(1).I_STG.R.DATA_SHAD_VLD.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(1).I_STG.R.DATA_SHAD_VLD.BIN_1_TO_0" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(1).I_STG.R.IN_READY_F.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(1).I_STG.R.IN_READY_F.BIN_1_TO_0" data="1"/>
+          </scope>
+          <scope name="R_NEXT" line="26">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(1).I_STG.R_NEXT.DATA_MAIN(3).BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(1).I_STG.R_NEXT.DATA_MAIN(3).BIN_1_TO_0" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(1).I_STG.R_NEXT.DATA_MAIN(2).BIN_0_TO_1" data="3"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(1).I_STG.R_NEXT.DATA_MAIN(2).BIN_1_TO_0" data="3"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(1).I_STG.R_NEXT.DATA_MAIN(1).BIN_0_TO_1" data="6"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(1).I_STG.R_NEXT.DATA_MAIN(1).BIN_1_TO_0" data="6"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(1).I_STG.R_NEXT.DATA_MAIN(0).BIN_0_TO_1" data="10"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(1).I_STG.R_NEXT.DATA_MAIN(0).BIN_1_TO_0" data="11"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(1).I_STG.R_NEXT.DATA_MAIN_VLD.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(1).I_STG.R_NEXT.DATA_MAIN_VLD.BIN_1_TO_0" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(1).I_STG.R_NEXT.DATA_SHAD(3).BIN_0_TO_1" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(1).I_STG.R_NEXT.DATA_SHAD(3).BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(1).I_STG.R_NEXT.DATA_SHAD(2).BIN_0_TO_1" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(1).I_STG.R_NEXT.DATA_SHAD(2).BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(1).I_STG.R_NEXT.DATA_SHAD(1).BIN_0_TO_1" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(1).I_STG.R_NEXT.DATA_SHAD(1).BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(1).I_STG.R_NEXT.DATA_SHAD(0).BIN_0_TO_1" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(1).I_STG.R_NEXT.DATA_SHAD(0).BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(1).I_STG.R_NEXT.DATA_SHAD_VLD.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(1).I_STG.R_NEXT.DATA_SHAD_VLD.BIN_1_TO_0" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(1).I_STG.R_NEXT.IN_READY_F.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(1).I_STG.R_NEXT.IN_READY_F.BIN_1_TO_0" data="1"/>
+          </scope>
+        </scope>
+      </scope>
+      <scope name="G_STAGES(2)" block_name="G_STAGES" line="109">
+        <scope name="I_STG" block_name="ISSUE1512_INNER-RTL" line="110">
+          <scope name="CLK" line="6">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(2).I_STG.CLK.BIN_0_TO_1" data="40"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(2).I_STG.CLK.BIN_1_TO_0" data="39"/>
+          </scope>
+          <scope name="RST" line="7">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(2).I_STG.RST.BIN_0_TO_1" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(2).I_STG.RST.BIN_1_TO_0" data="1"/>
+          </scope>
+          <scope name="IN_VALID" line="8">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(2).I_STG.IN_VALID.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(2).I_STG.IN_VALID.BIN_1_TO_0" data="0"/>
+          </scope>
+          <scope name="IN_READY" line="9">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(2).I_STG.IN_READY.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(2).I_STG.IN_READY.BIN_1_TO_0" data="1"/>
+          </scope>
+          <scope name="IN_DATA" line="10">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(2).I_STG.IN_DATA(3).BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(2).I_STG.IN_DATA(3).BIN_1_TO_0" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(2).I_STG.IN_DATA(2).BIN_0_TO_1" data="3"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(2).I_STG.IN_DATA(2).BIN_1_TO_0" data="2"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(2).I_STG.IN_DATA(1).BIN_0_TO_1" data="6"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(2).I_STG.IN_DATA(1).BIN_1_TO_0" data="6"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(2).I_STG.IN_DATA(0).BIN_0_TO_1" data="10"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(2).I_STG.IN_DATA(0).BIN_1_TO_0" data="11"/>
+          </scope>
+          <scope name="OUT_VALID" line="11">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(2).I_STG.OUT_VALID.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(2).I_STG.OUT_VALID.BIN_1_TO_0" data="0"/>
+          </scope>
+          <scope name="OUT_READY" line="12">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(2).I_STG.OUT_READY.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(2).I_STG.OUT_READY.BIN_1_TO_0" data="1"/>
+          </scope>
+          <scope name="OUT_DATA" line="13">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(2).I_STG.OUT_DATA(3).BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(2).I_STG.OUT_DATA(3).BIN_1_TO_0" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(2).I_STG.OUT_DATA(2).BIN_0_TO_1" data="2"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(2).I_STG.OUT_DATA(2).BIN_1_TO_0" data="2"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(2).I_STG.OUT_DATA(1).BIN_0_TO_1" data="6"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(2).I_STG.OUT_DATA(1).BIN_1_TO_0" data="5"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(2).I_STG.OUT_DATA(0).BIN_0_TO_1" data="10"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(2).I_STG.OUT_DATA(0).BIN_1_TO_0" data="10"/>
+          </scope>
+          <scope name="R" line="26">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(2).I_STG.R.DATA_MAIN(3).BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(2).I_STG.R.DATA_MAIN(3).BIN_1_TO_0" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(2).I_STG.R.DATA_MAIN(2).BIN_0_TO_1" data="2"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(2).I_STG.R.DATA_MAIN(2).BIN_1_TO_0" data="2"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(2).I_STG.R.DATA_MAIN(1).BIN_0_TO_1" data="6"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(2).I_STG.R.DATA_MAIN(1).BIN_1_TO_0" data="5"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(2).I_STG.R.DATA_MAIN(0).BIN_0_TO_1" data="10"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(2).I_STG.R.DATA_MAIN(0).BIN_1_TO_0" data="10"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(2).I_STG.R.DATA_MAIN_VLD.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(2).I_STG.R.DATA_MAIN_VLD.BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(2).I_STG.R.DATA_SHAD(3).BIN_0_TO_1" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(2).I_STG.R.DATA_SHAD(3).BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(2).I_STG.R.DATA_SHAD(2).BIN_0_TO_1" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(2).I_STG.R.DATA_SHAD(2).BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(2).I_STG.R.DATA_SHAD(1).BIN_0_TO_1" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(2).I_STG.R.DATA_SHAD(1).BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(2).I_STG.R.DATA_SHAD(0).BIN_0_TO_1" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(2).I_STG.R.DATA_SHAD(0).BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(2).I_STG.R.DATA_SHAD_VLD.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(2).I_STG.R.DATA_SHAD_VLD.BIN_1_TO_0" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(2).I_STG.R.IN_READY_F.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(2).I_STG.R.IN_READY_F.BIN_1_TO_0" data="1"/>
+          </scope>
+          <scope name="R_NEXT" line="26">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(2).I_STG.R_NEXT.DATA_MAIN(3).BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(2).I_STG.R_NEXT.DATA_MAIN(3).BIN_1_TO_0" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(2).I_STG.R_NEXT.DATA_MAIN(2).BIN_0_TO_1" data="3"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(2).I_STG.R_NEXT.DATA_MAIN(2).BIN_1_TO_0" data="2"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(2).I_STG.R_NEXT.DATA_MAIN(1).BIN_0_TO_1" data="6"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(2).I_STG.R_NEXT.DATA_MAIN(1).BIN_1_TO_0" data="6"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(2).I_STG.R_NEXT.DATA_MAIN(0).BIN_0_TO_1" data="10"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(2).I_STG.R_NEXT.DATA_MAIN(0).BIN_1_TO_0" data="11"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(2).I_STG.R_NEXT.DATA_MAIN_VLD.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(2).I_STG.R_NEXT.DATA_MAIN_VLD.BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(2).I_STG.R_NEXT.DATA_SHAD(3).BIN_0_TO_1" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(2).I_STG.R_NEXT.DATA_SHAD(3).BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(2).I_STG.R_NEXT.DATA_SHAD(2).BIN_0_TO_1" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(2).I_STG.R_NEXT.DATA_SHAD(2).BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(2).I_STG.R_NEXT.DATA_SHAD(1).BIN_0_TO_1" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(2).I_STG.R_NEXT.DATA_SHAD(1).BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(2).I_STG.R_NEXT.DATA_SHAD(0).BIN_0_TO_1" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(2).I_STG.R_NEXT.DATA_SHAD(0).BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(2).I_STG.R_NEXT.DATA_SHAD_VLD.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(2).I_STG.R_NEXT.DATA_SHAD_VLD.BIN_1_TO_0" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(2).I_STG.R_NEXT.IN_READY_F.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(2).I_STG.R_NEXT.IN_READY_F.BIN_1_TO_0" data="1"/>
+          </scope>
+        </scope>
+      </scope>
+      <scope name="G_STAGES(3)" block_name="G_STAGES" line="109">
+        <scope name="I_STG" block_name="ISSUE1512_INNER-RTL" line="110">
+          <scope name="CLK" line="6">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(3).I_STG.CLK.BIN_0_TO_1" data="40"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(3).I_STG.CLK.BIN_1_TO_0" data="39"/>
+          </scope>
+          <scope name="RST" line="7">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(3).I_STG.RST.BIN_0_TO_1" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(3).I_STG.RST.BIN_1_TO_0" data="1"/>
+          </scope>
+          <scope name="IN_VALID" line="8">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(3).I_STG.IN_VALID.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(3).I_STG.IN_VALID.BIN_1_TO_0" data="0"/>
+          </scope>
+          <scope name="IN_READY" line="9">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(3).I_STG.IN_READY.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(3).I_STG.IN_READY.BIN_1_TO_0" data="1"/>
+          </scope>
+          <scope name="IN_DATA" line="10">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(3).I_STG.IN_DATA(3).BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(3).I_STG.IN_DATA(3).BIN_1_TO_0" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(3).I_STG.IN_DATA(2).BIN_0_TO_1" data="2"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(3).I_STG.IN_DATA(2).BIN_1_TO_0" data="2"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(3).I_STG.IN_DATA(1).BIN_0_TO_1" data="6"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(3).I_STG.IN_DATA(1).BIN_1_TO_0" data="5"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(3).I_STG.IN_DATA(0).BIN_0_TO_1" data="10"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(3).I_STG.IN_DATA(0).BIN_1_TO_0" data="10"/>
+          </scope>
+          <scope name="OUT_VALID" line="11">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(3).I_STG.OUT_VALID.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(3).I_STG.OUT_VALID.BIN_1_TO_0" data="0"/>
+          </scope>
+          <scope name="OUT_READY" line="12">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(3).I_STG.OUT_READY.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(3).I_STG.OUT_READY.BIN_1_TO_0" data="1"/>
+          </scope>
+          <scope name="OUT_DATA" line="13">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(3).I_STG.OUT_DATA(3).BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(3).I_STG.OUT_DATA(3).BIN_1_TO_0" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(3).I_STG.OUT_DATA(2).BIN_0_TO_1" data="2"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(3).I_STG.OUT_DATA(2).BIN_1_TO_0" data="2"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(3).I_STG.OUT_DATA(1).BIN_0_TO_1" data="6"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(3).I_STG.OUT_DATA(1).BIN_1_TO_0" data="5"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(3).I_STG.OUT_DATA(0).BIN_0_TO_1" data="9"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(3).I_STG.OUT_DATA(0).BIN_1_TO_0" data="10"/>
+          </scope>
+          <scope name="R" line="26">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(3).I_STG.R.DATA_MAIN(3).BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(3).I_STG.R.DATA_MAIN(3).BIN_1_TO_0" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(3).I_STG.R.DATA_MAIN(2).BIN_0_TO_1" data="2"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(3).I_STG.R.DATA_MAIN(2).BIN_1_TO_0" data="2"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(3).I_STG.R.DATA_MAIN(1).BIN_0_TO_1" data="6"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(3).I_STG.R.DATA_MAIN(1).BIN_1_TO_0" data="5"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(3).I_STG.R.DATA_MAIN(0).BIN_0_TO_1" data="9"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(3).I_STG.R.DATA_MAIN(0).BIN_1_TO_0" data="10"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(3).I_STG.R.DATA_MAIN_VLD.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(3).I_STG.R.DATA_MAIN_VLD.BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(3).I_STG.R.DATA_SHAD(3).BIN_0_TO_1" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(3).I_STG.R.DATA_SHAD(3).BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(3).I_STG.R.DATA_SHAD(2).BIN_0_TO_1" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(3).I_STG.R.DATA_SHAD(2).BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(3).I_STG.R.DATA_SHAD(1).BIN_0_TO_1" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(3).I_STG.R.DATA_SHAD(1).BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(3).I_STG.R.DATA_SHAD(0).BIN_0_TO_1" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(3).I_STG.R.DATA_SHAD(0).BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(3).I_STG.R.DATA_SHAD_VLD.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(3).I_STG.R.DATA_SHAD_VLD.BIN_1_TO_0" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(3).I_STG.R.IN_READY_F.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(3).I_STG.R.IN_READY_F.BIN_1_TO_0" data="1"/>
+          </scope>
+          <scope name="R_NEXT" line="26">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(3).I_STG.R_NEXT.DATA_MAIN(3).BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(3).I_STG.R_NEXT.DATA_MAIN(3).BIN_1_TO_0" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(3).I_STG.R_NEXT.DATA_MAIN(2).BIN_0_TO_1" data="2"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(3).I_STG.R_NEXT.DATA_MAIN(2).BIN_1_TO_0" data="2"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(3).I_STG.R_NEXT.DATA_MAIN(1).BIN_0_TO_1" data="6"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(3).I_STG.R_NEXT.DATA_MAIN(1).BIN_1_TO_0" data="5"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(3).I_STG.R_NEXT.DATA_MAIN(0).BIN_0_TO_1" data="10"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(3).I_STG.R_NEXT.DATA_MAIN(0).BIN_1_TO_0" data="10"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(3).I_STG.R_NEXT.DATA_MAIN_VLD.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(3).I_STG.R_NEXT.DATA_MAIN_VLD.BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(3).I_STG.R_NEXT.DATA_SHAD(3).BIN_0_TO_1" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(3).I_STG.R_NEXT.DATA_SHAD(3).BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(3).I_STG.R_NEXT.DATA_SHAD(2).BIN_0_TO_1" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(3).I_STG.R_NEXT.DATA_SHAD(2).BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(3).I_STG.R_NEXT.DATA_SHAD(1).BIN_0_TO_1" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(3).I_STG.R_NEXT.DATA_SHAD(1).BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(3).I_STG.R_NEXT.DATA_SHAD(0).BIN_0_TO_1" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(3).I_STG.R_NEXT.DATA_SHAD(0).BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(3).I_STG.R_NEXT.DATA_SHAD_VLD.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(3).I_STG.R_NEXT.DATA_SHAD_VLD.BIN_1_TO_0" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(3).I_STG.R_NEXT.IN_READY_F.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(3).I_STG.R_NEXT.IN_READY_F.BIN_1_TO_0" data="1"/>
+          </scope>
+        </scope>
+      </scope>
+      <scope name="G_STAGES(4)" block_name="G_STAGES" line="109">
+        <scope name="I_STG" block_name="ISSUE1512_INNER-RTL" line="110">
+          <scope name="CLK" line="6">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(4).I_STG.CLK.BIN_0_TO_1" data="40"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(4).I_STG.CLK.BIN_1_TO_0" data="39"/>
+          </scope>
+          <scope name="RST" line="7">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(4).I_STG.RST.BIN_0_TO_1" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(4).I_STG.RST.BIN_1_TO_0" data="1"/>
+          </scope>
+          <scope name="IN_VALID" line="8">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(4).I_STG.IN_VALID.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(4).I_STG.IN_VALID.BIN_1_TO_0" data="0"/>
+          </scope>
+          <scope name="IN_READY" line="9">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(4).I_STG.IN_READY.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(4).I_STG.IN_READY.BIN_1_TO_0" data="1"/>
+          </scope>
+          <scope name="IN_DATA" line="10">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(4).I_STG.IN_DATA(3).BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(4).I_STG.IN_DATA(3).BIN_1_TO_0" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(4).I_STG.IN_DATA(2).BIN_0_TO_1" data="2"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(4).I_STG.IN_DATA(2).BIN_1_TO_0" data="2"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(4).I_STG.IN_DATA(1).BIN_0_TO_1" data="6"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(4).I_STG.IN_DATA(1).BIN_1_TO_0" data="5"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(4).I_STG.IN_DATA(0).BIN_0_TO_1" data="9"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(4).I_STG.IN_DATA(0).BIN_1_TO_0" data="10"/>
+          </scope>
+          <scope name="OUT_VALID" line="11">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(4).I_STG.OUT_VALID.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(4).I_STG.OUT_VALID.BIN_1_TO_0" data="0"/>
+          </scope>
+          <scope name="OUT_READY" line="12">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(4).I_STG.OUT_READY.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(4).I_STG.OUT_READY.BIN_1_TO_0" data="1"/>
+          </scope>
+          <scope name="OUT_DATA" line="13">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(4).I_STG.OUT_DATA(3).BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(4).I_STG.OUT_DATA(3).BIN_1_TO_0" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(4).I_STG.OUT_DATA(2).BIN_0_TO_1" data="2"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(4).I_STG.OUT_DATA(2).BIN_1_TO_0" data="2"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(4).I_STG.OUT_DATA(1).BIN_0_TO_1" data="5"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(4).I_STG.OUT_DATA(1).BIN_1_TO_0" data="5"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(4).I_STG.OUT_DATA(0).BIN_0_TO_1" data="9"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(4).I_STG.OUT_DATA(0).BIN_1_TO_0" data="9"/>
+          </scope>
+          <scope name="R" line="26">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(4).I_STG.R.DATA_MAIN(3).BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(4).I_STG.R.DATA_MAIN(3).BIN_1_TO_0" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(4).I_STG.R.DATA_MAIN(2).BIN_0_TO_1" data="2"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(4).I_STG.R.DATA_MAIN(2).BIN_1_TO_0" data="2"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(4).I_STG.R.DATA_MAIN(1).BIN_0_TO_1" data="5"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(4).I_STG.R.DATA_MAIN(1).BIN_1_TO_0" data="5"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(4).I_STG.R.DATA_MAIN(0).BIN_0_TO_1" data="9"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(4).I_STG.R.DATA_MAIN(0).BIN_1_TO_0" data="9"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(4).I_STG.R.DATA_MAIN_VLD.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(4).I_STG.R.DATA_MAIN_VLD.BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(4).I_STG.R.DATA_SHAD(3).BIN_0_TO_1" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(4).I_STG.R.DATA_SHAD(3).BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(4).I_STG.R.DATA_SHAD(2).BIN_0_TO_1" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(4).I_STG.R.DATA_SHAD(2).BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(4).I_STG.R.DATA_SHAD(1).BIN_0_TO_1" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(4).I_STG.R.DATA_SHAD(1).BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(4).I_STG.R.DATA_SHAD(0).BIN_0_TO_1" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(4).I_STG.R.DATA_SHAD(0).BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(4).I_STG.R.DATA_SHAD_VLD.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(4).I_STG.R.DATA_SHAD_VLD.BIN_1_TO_0" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(4).I_STG.R.IN_READY_F.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(4).I_STG.R.IN_READY_F.BIN_1_TO_0" data="1"/>
+          </scope>
+          <scope name="R_NEXT" line="26">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(4).I_STG.R_NEXT.DATA_MAIN(3).BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(4).I_STG.R_NEXT.DATA_MAIN(3).BIN_1_TO_0" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(4).I_STG.R_NEXT.DATA_MAIN(2).BIN_0_TO_1" data="2"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(4).I_STG.R_NEXT.DATA_MAIN(2).BIN_1_TO_0" data="2"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(4).I_STG.R_NEXT.DATA_MAIN(1).BIN_0_TO_1" data="6"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(4).I_STG.R_NEXT.DATA_MAIN(1).BIN_1_TO_0" data="5"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(4).I_STG.R_NEXT.DATA_MAIN(0).BIN_0_TO_1" data="9"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(4).I_STG.R_NEXT.DATA_MAIN(0).BIN_1_TO_0" data="10"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(4).I_STG.R_NEXT.DATA_MAIN_VLD.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(4).I_STG.R_NEXT.DATA_MAIN_VLD.BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(4).I_STG.R_NEXT.DATA_SHAD(3).BIN_0_TO_1" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(4).I_STG.R_NEXT.DATA_SHAD(3).BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(4).I_STG.R_NEXT.DATA_SHAD(2).BIN_0_TO_1" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(4).I_STG.R_NEXT.DATA_SHAD(2).BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(4).I_STG.R_NEXT.DATA_SHAD(1).BIN_0_TO_1" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(4).I_STG.R_NEXT.DATA_SHAD(1).BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(4).I_STG.R_NEXT.DATA_SHAD(0).BIN_0_TO_1" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(4).I_STG.R_NEXT.DATA_SHAD(0).BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(4).I_STG.R_NEXT.DATA_SHAD_VLD.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(4).I_STG.R_NEXT.DATA_SHAD_VLD.BIN_1_TO_0" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(4).I_STG.R_NEXT.IN_READY_F.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(4).I_STG.R_NEXT.IN_READY_F.BIN_1_TO_0" data="1"/>
+          </scope>
+        </scope>
+      </scope>
+      <scope name="G_STAGES(5)" block_name="G_STAGES" line="109">
+        <scope name="I_STG" block_name="ISSUE1512_INNER-RTL" line="110">
+          <scope name="CLK" line="6">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(5).I_STG.CLK.BIN_0_TO_1" data="40"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(5).I_STG.CLK.BIN_1_TO_0" data="39"/>
+          </scope>
+          <scope name="RST" line="7">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(5).I_STG.RST.BIN_0_TO_1" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(5).I_STG.RST.BIN_1_TO_0" data="1"/>
+          </scope>
+          <scope name="IN_VALID" line="8">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(5).I_STG.IN_VALID.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(5).I_STG.IN_VALID.BIN_1_TO_0" data="0"/>
+          </scope>
+          <scope name="IN_READY" line="9">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(5).I_STG.IN_READY.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(5).I_STG.IN_READY.BIN_1_TO_0" data="1"/>
+          </scope>
+          <scope name="IN_DATA" line="10">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(5).I_STG.IN_DATA(3).BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(5).I_STG.IN_DATA(3).BIN_1_TO_0" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(5).I_STG.IN_DATA(2).BIN_0_TO_1" data="2"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(5).I_STG.IN_DATA(2).BIN_1_TO_0" data="2"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(5).I_STG.IN_DATA(1).BIN_0_TO_1" data="5"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(5).I_STG.IN_DATA(1).BIN_1_TO_0" data="5"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(5).I_STG.IN_DATA(0).BIN_0_TO_1" data="9"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(5).I_STG.IN_DATA(0).BIN_1_TO_0" data="9"/>
+          </scope>
+          <scope name="OUT_VALID" line="11">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(5).I_STG.OUT_VALID.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(5).I_STG.OUT_VALID.BIN_1_TO_0" data="0"/>
+          </scope>
+          <scope name="OUT_READY" line="12">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(5).I_STG.OUT_READY.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(5).I_STG.OUT_READY.BIN_1_TO_0" data="1"/>
+          </scope>
+          <scope name="OUT_DATA" line="13">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(5).I_STG.OUT_DATA(3).BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(5).I_STG.OUT_DATA(3).BIN_1_TO_0" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(5).I_STG.OUT_DATA(2).BIN_0_TO_1" data="2"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(5).I_STG.OUT_DATA(2).BIN_1_TO_0" data="2"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(5).I_STG.OUT_DATA(1).BIN_0_TO_1" data="5"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(5).I_STG.OUT_DATA(1).BIN_1_TO_0" data="4"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(5).I_STG.OUT_DATA(0).BIN_0_TO_1" data="8"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(5).I_STG.OUT_DATA(0).BIN_1_TO_0" data="9"/>
+          </scope>
+          <scope name="R" line="26">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(5).I_STG.R.DATA_MAIN(3).BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(5).I_STG.R.DATA_MAIN(3).BIN_1_TO_0" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(5).I_STG.R.DATA_MAIN(2).BIN_0_TO_1" data="2"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(5).I_STG.R.DATA_MAIN(2).BIN_1_TO_0" data="2"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(5).I_STG.R.DATA_MAIN(1).BIN_0_TO_1" data="5"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(5).I_STG.R.DATA_MAIN(1).BIN_1_TO_0" data="4"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(5).I_STG.R.DATA_MAIN(0).BIN_0_TO_1" data="8"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(5).I_STG.R.DATA_MAIN(0).BIN_1_TO_0" data="9"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(5).I_STG.R.DATA_MAIN_VLD.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(5).I_STG.R.DATA_MAIN_VLD.BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(5).I_STG.R.DATA_SHAD(3).BIN_0_TO_1" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(5).I_STG.R.DATA_SHAD(3).BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(5).I_STG.R.DATA_SHAD(2).BIN_0_TO_1" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(5).I_STG.R.DATA_SHAD(2).BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(5).I_STG.R.DATA_SHAD(1).BIN_0_TO_1" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(5).I_STG.R.DATA_SHAD(1).BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(5).I_STG.R.DATA_SHAD(0).BIN_0_TO_1" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(5).I_STG.R.DATA_SHAD(0).BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(5).I_STG.R.DATA_SHAD_VLD.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(5).I_STG.R.DATA_SHAD_VLD.BIN_1_TO_0" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(5).I_STG.R.IN_READY_F.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(5).I_STG.R.IN_READY_F.BIN_1_TO_0" data="1"/>
+          </scope>
+          <scope name="R_NEXT" line="26">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(5).I_STG.R_NEXT.DATA_MAIN(3).BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(5).I_STG.R_NEXT.DATA_MAIN(3).BIN_1_TO_0" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(5).I_STG.R_NEXT.DATA_MAIN(2).BIN_0_TO_1" data="2"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(5).I_STG.R_NEXT.DATA_MAIN(2).BIN_1_TO_0" data="2"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(5).I_STG.R_NEXT.DATA_MAIN(1).BIN_0_TO_1" data="5"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(5).I_STG.R_NEXT.DATA_MAIN(1).BIN_1_TO_0" data="5"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(5).I_STG.R_NEXT.DATA_MAIN(0).BIN_0_TO_1" data="9"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(5).I_STG.R_NEXT.DATA_MAIN(0).BIN_1_TO_0" data="9"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(5).I_STG.R_NEXT.DATA_MAIN_VLD.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(5).I_STG.R_NEXT.DATA_MAIN_VLD.BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(5).I_STG.R_NEXT.DATA_SHAD(3).BIN_0_TO_1" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(5).I_STG.R_NEXT.DATA_SHAD(3).BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(5).I_STG.R_NEXT.DATA_SHAD(2).BIN_0_TO_1" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(5).I_STG.R_NEXT.DATA_SHAD(2).BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(5).I_STG.R_NEXT.DATA_SHAD(1).BIN_0_TO_1" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(5).I_STG.R_NEXT.DATA_SHAD(1).BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(5).I_STG.R_NEXT.DATA_SHAD(0).BIN_0_TO_1" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(5).I_STG.R_NEXT.DATA_SHAD(0).BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(5).I_STG.R_NEXT.DATA_SHAD_VLD.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(5).I_STG.R_NEXT.DATA_SHAD_VLD.BIN_1_TO_0" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(5).I_STG.R_NEXT.IN_READY_F.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(5).I_STG.R_NEXT.IN_READY_F.BIN_1_TO_0" data="1"/>
+          </scope>
+        </scope>
+      </scope>
+      <scope name="G_STAGES(6)" block_name="G_STAGES" line="109">
+        <scope name="I_STG" block_name="ISSUE1512_INNER-RTL" line="110">
+          <scope name="CLK" line="6">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(6).I_STG.CLK.BIN_0_TO_1" data="40"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(6).I_STG.CLK.BIN_1_TO_0" data="39"/>
+          </scope>
+          <scope name="RST" line="7">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(6).I_STG.RST.BIN_0_TO_1" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(6).I_STG.RST.BIN_1_TO_0" data="1"/>
+          </scope>
+          <scope name="IN_VALID" line="8">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(6).I_STG.IN_VALID.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(6).I_STG.IN_VALID.BIN_1_TO_0" data="0"/>
+          </scope>
+          <scope name="IN_READY" line="9">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(6).I_STG.IN_READY.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(6).I_STG.IN_READY.BIN_1_TO_0" data="1"/>
+          </scope>
+          <scope name="IN_DATA" line="10">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(6).I_STG.IN_DATA(3).BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(6).I_STG.IN_DATA(3).BIN_1_TO_0" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(6).I_STG.IN_DATA(2).BIN_0_TO_1" data="2"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(6).I_STG.IN_DATA(2).BIN_1_TO_0" data="2"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(6).I_STG.IN_DATA(1).BIN_0_TO_1" data="5"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(6).I_STG.IN_DATA(1).BIN_1_TO_0" data="4"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(6).I_STG.IN_DATA(0).BIN_0_TO_1" data="8"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(6).I_STG.IN_DATA(0).BIN_1_TO_0" data="9"/>
+          </scope>
+          <scope name="OUT_VALID" line="11">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(6).I_STG.OUT_VALID.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(6).I_STG.OUT_VALID.BIN_1_TO_0" data="0"/>
+          </scope>
+          <scope name="OUT_READY" line="12">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(6).I_STG.OUT_READY.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(6).I_STG.OUT_READY.BIN_1_TO_0" data="1"/>
+          </scope>
+          <scope name="OUT_DATA" line="13">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(6).I_STG.OUT_DATA(3).BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(6).I_STG.OUT_DATA(3).BIN_1_TO_0" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(6).I_STG.OUT_DATA(2).BIN_0_TO_1" data="2"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(6).I_STG.OUT_DATA(2).BIN_1_TO_0" data="2"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(6).I_STG.OUT_DATA(1).BIN_0_TO_1" data="4"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(6).I_STG.OUT_DATA(1).BIN_1_TO_0" data="4"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(6).I_STG.OUT_DATA(0).BIN_0_TO_1" data="8"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(6).I_STG.OUT_DATA(0).BIN_1_TO_0" data="8"/>
+          </scope>
+          <scope name="R" line="26">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(6).I_STG.R.DATA_MAIN(3).BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(6).I_STG.R.DATA_MAIN(3).BIN_1_TO_0" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(6).I_STG.R.DATA_MAIN(2).BIN_0_TO_1" data="2"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(6).I_STG.R.DATA_MAIN(2).BIN_1_TO_0" data="2"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(6).I_STG.R.DATA_MAIN(1).BIN_0_TO_1" data="4"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(6).I_STG.R.DATA_MAIN(1).BIN_1_TO_0" data="4"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(6).I_STG.R.DATA_MAIN(0).BIN_0_TO_1" data="8"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(6).I_STG.R.DATA_MAIN(0).BIN_1_TO_0" data="8"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(6).I_STG.R.DATA_MAIN_VLD.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(6).I_STG.R.DATA_MAIN_VLD.BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(6).I_STG.R.DATA_SHAD(3).BIN_0_TO_1" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(6).I_STG.R.DATA_SHAD(3).BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(6).I_STG.R.DATA_SHAD(2).BIN_0_TO_1" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(6).I_STG.R.DATA_SHAD(2).BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(6).I_STG.R.DATA_SHAD(1).BIN_0_TO_1" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(6).I_STG.R.DATA_SHAD(1).BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(6).I_STG.R.DATA_SHAD(0).BIN_0_TO_1" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(6).I_STG.R.DATA_SHAD(0).BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(6).I_STG.R.DATA_SHAD_VLD.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(6).I_STG.R.DATA_SHAD_VLD.BIN_1_TO_0" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(6).I_STG.R.IN_READY_F.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(6).I_STG.R.IN_READY_F.BIN_1_TO_0" data="1"/>
+          </scope>
+          <scope name="R_NEXT" line="26">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(6).I_STG.R_NEXT.DATA_MAIN(3).BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(6).I_STG.R_NEXT.DATA_MAIN(3).BIN_1_TO_0" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(6).I_STG.R_NEXT.DATA_MAIN(2).BIN_0_TO_1" data="2"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(6).I_STG.R_NEXT.DATA_MAIN(2).BIN_1_TO_0" data="2"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(6).I_STG.R_NEXT.DATA_MAIN(1).BIN_0_TO_1" data="5"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(6).I_STG.R_NEXT.DATA_MAIN(1).BIN_1_TO_0" data="4"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(6).I_STG.R_NEXT.DATA_MAIN(0).BIN_0_TO_1" data="8"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(6).I_STG.R_NEXT.DATA_MAIN(0).BIN_1_TO_0" data="9"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(6).I_STG.R_NEXT.DATA_MAIN_VLD.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(6).I_STG.R_NEXT.DATA_MAIN_VLD.BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(6).I_STG.R_NEXT.DATA_SHAD(3).BIN_0_TO_1" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(6).I_STG.R_NEXT.DATA_SHAD(3).BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(6).I_STG.R_NEXT.DATA_SHAD(2).BIN_0_TO_1" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(6).I_STG.R_NEXT.DATA_SHAD(2).BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(6).I_STG.R_NEXT.DATA_SHAD(1).BIN_0_TO_1" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(6).I_STG.R_NEXT.DATA_SHAD(1).BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(6).I_STG.R_NEXT.DATA_SHAD(0).BIN_0_TO_1" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(6).I_STG.R_NEXT.DATA_SHAD(0).BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(6).I_STG.R_NEXT.DATA_SHAD_VLD.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(6).I_STG.R_NEXT.DATA_SHAD_VLD.BIN_1_TO_0" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(6).I_STG.R_NEXT.IN_READY_F.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(6).I_STG.R_NEXT.IN_READY_F.BIN_1_TO_0" data="1"/>
+          </scope>
+        </scope>
+      </scope>
+      <scope name="G_STAGES(7)" block_name="G_STAGES" line="109">
+        <scope name="I_STG" block_name="ISSUE1512_INNER-RTL" line="110">
+          <scope name="CLK" line="6">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(7).I_STG.CLK.BIN_0_TO_1" data="40"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(7).I_STG.CLK.BIN_1_TO_0" data="39"/>
+          </scope>
+          <scope name="RST" line="7">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(7).I_STG.RST.BIN_0_TO_1" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(7).I_STG.RST.BIN_1_TO_0" data="1"/>
+          </scope>
+          <scope name="IN_VALID" line="8">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(7).I_STG.IN_VALID.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(7).I_STG.IN_VALID.BIN_1_TO_0" data="0"/>
+          </scope>
+          <scope name="IN_READY" line="9">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(7).I_STG.IN_READY.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(7).I_STG.IN_READY.BIN_1_TO_0" data="1"/>
+          </scope>
+          <scope name="IN_DATA" line="10">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(7).I_STG.IN_DATA(3).BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(7).I_STG.IN_DATA(3).BIN_1_TO_0" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(7).I_STG.IN_DATA(2).BIN_0_TO_1" data="2"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(7).I_STG.IN_DATA(2).BIN_1_TO_0" data="2"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(7).I_STG.IN_DATA(1).BIN_0_TO_1" data="4"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(7).I_STG.IN_DATA(1).BIN_1_TO_0" data="4"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(7).I_STG.IN_DATA(0).BIN_0_TO_1" data="8"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(7).I_STG.IN_DATA(0).BIN_1_TO_0" data="8"/>
+          </scope>
+          <scope name="OUT_VALID" line="11">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(7).I_STG.OUT_VALID.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(7).I_STG.OUT_VALID.BIN_1_TO_0" data="0"/>
+          </scope>
+          <scope name="OUT_READY" line="12">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(7).I_STG.OUT_READY.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(7).I_STG.OUT_READY.BIN_1_TO_0" data="1"/>
+          </scope>
+          <scope name="OUT_DATA" line="13">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(7).I_STG.OUT_DATA(3).BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(7).I_STG.OUT_DATA(3).BIN_1_TO_0" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(7).I_STG.OUT_DATA(2).BIN_0_TO_1" data="2"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(7).I_STG.OUT_DATA(2).BIN_1_TO_0" data="2"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(7).I_STG.OUT_DATA(1).BIN_0_TO_1" data="4"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(7).I_STG.OUT_DATA(1).BIN_1_TO_0" data="4"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(7).I_STG.OUT_DATA(0).BIN_0_TO_1" data="7"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(7).I_STG.OUT_DATA(0).BIN_1_TO_0" data="8"/>
+          </scope>
+          <scope name="R" line="26">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(7).I_STG.R.DATA_MAIN(3).BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(7).I_STG.R.DATA_MAIN(3).BIN_1_TO_0" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(7).I_STG.R.DATA_MAIN(2).BIN_0_TO_1" data="2"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(7).I_STG.R.DATA_MAIN(2).BIN_1_TO_0" data="2"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(7).I_STG.R.DATA_MAIN(1).BIN_0_TO_1" data="4"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(7).I_STG.R.DATA_MAIN(1).BIN_1_TO_0" data="4"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(7).I_STG.R.DATA_MAIN(0).BIN_0_TO_1" data="7"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(7).I_STG.R.DATA_MAIN(0).BIN_1_TO_0" data="8"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(7).I_STG.R.DATA_MAIN_VLD.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(7).I_STG.R.DATA_MAIN_VLD.BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(7).I_STG.R.DATA_SHAD(3).BIN_0_TO_1" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(7).I_STG.R.DATA_SHAD(3).BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(7).I_STG.R.DATA_SHAD(2).BIN_0_TO_1" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(7).I_STG.R.DATA_SHAD(2).BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(7).I_STG.R.DATA_SHAD(1).BIN_0_TO_1" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(7).I_STG.R.DATA_SHAD(1).BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(7).I_STG.R.DATA_SHAD(0).BIN_0_TO_1" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(7).I_STG.R.DATA_SHAD(0).BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(7).I_STG.R.DATA_SHAD_VLD.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(7).I_STG.R.DATA_SHAD_VLD.BIN_1_TO_0" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(7).I_STG.R.IN_READY_F.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(7).I_STG.R.IN_READY_F.BIN_1_TO_0" data="1"/>
+          </scope>
+          <scope name="R_NEXT" line="26">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(7).I_STG.R_NEXT.DATA_MAIN(3).BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(7).I_STG.R_NEXT.DATA_MAIN(3).BIN_1_TO_0" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(7).I_STG.R_NEXT.DATA_MAIN(2).BIN_0_TO_1" data="2"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(7).I_STG.R_NEXT.DATA_MAIN(2).BIN_1_TO_0" data="2"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(7).I_STG.R_NEXT.DATA_MAIN(1).BIN_0_TO_1" data="4"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(7).I_STG.R_NEXT.DATA_MAIN(1).BIN_1_TO_0" data="4"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(7).I_STG.R_NEXT.DATA_MAIN(0).BIN_0_TO_1" data="8"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(7).I_STG.R_NEXT.DATA_MAIN(0).BIN_1_TO_0" data="8"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(7).I_STG.R_NEXT.DATA_MAIN_VLD.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(7).I_STG.R_NEXT.DATA_MAIN_VLD.BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(7).I_STG.R_NEXT.DATA_SHAD(3).BIN_0_TO_1" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(7).I_STG.R_NEXT.DATA_SHAD(3).BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(7).I_STG.R_NEXT.DATA_SHAD(2).BIN_0_TO_1" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(7).I_STG.R_NEXT.DATA_SHAD(2).BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(7).I_STG.R_NEXT.DATA_SHAD(1).BIN_0_TO_1" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(7).I_STG.R_NEXT.DATA_SHAD(1).BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(7).I_STG.R_NEXT.DATA_SHAD(0).BIN_0_TO_1" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(7).I_STG.R_NEXT.DATA_SHAD(0).BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(7).I_STG.R_NEXT.DATA_SHAD_VLD.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(7).I_STG.R_NEXT.DATA_SHAD_VLD.BIN_1_TO_0" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(7).I_STG.R_NEXT.IN_READY_F.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(7).I_STG.R_NEXT.IN_READY_F.BIN_1_TO_0" data="1"/>
+          </scope>
+        </scope>
+      </scope>
+      <scope name="G_STAGES(8)" block_name="G_STAGES" line="109">
+        <scope name="I_STG" block_name="ISSUE1512_INNER-RTL" line="110">
+          <scope name="CLK" line="6">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(8).I_STG.CLK.BIN_0_TO_1" data="40"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(8).I_STG.CLK.BIN_1_TO_0" data="39"/>
+          </scope>
+          <scope name="RST" line="7">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(8).I_STG.RST.BIN_0_TO_1" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(8).I_STG.RST.BIN_1_TO_0" data="1"/>
+          </scope>
+          <scope name="IN_VALID" line="8">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(8).I_STG.IN_VALID.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(8).I_STG.IN_VALID.BIN_1_TO_0" data="0"/>
+          </scope>
+          <scope name="IN_READY" line="9">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(8).I_STG.IN_READY.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(8).I_STG.IN_READY.BIN_1_TO_0" data="1"/>
+          </scope>
+          <scope name="IN_DATA" line="10">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(8).I_STG.IN_DATA(3).BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(8).I_STG.IN_DATA(3).BIN_1_TO_0" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(8).I_STG.IN_DATA(2).BIN_0_TO_1" data="2"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(8).I_STG.IN_DATA(2).BIN_1_TO_0" data="2"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(8).I_STG.IN_DATA(1).BIN_0_TO_1" data="4"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(8).I_STG.IN_DATA(1).BIN_1_TO_0" data="4"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(8).I_STG.IN_DATA(0).BIN_0_TO_1" data="7"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(8).I_STG.IN_DATA(0).BIN_1_TO_0" data="8"/>
+          </scope>
+          <scope name="OUT_VALID" line="11">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(8).I_STG.OUT_VALID.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(8).I_STG.OUT_VALID.BIN_1_TO_0" data="0"/>
+          </scope>
+          <scope name="OUT_READY" line="12">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(8).I_STG.OUT_READY.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(8).I_STG.OUT_READY.BIN_1_TO_0" data="0"/>
+          </scope>
+          <scope name="OUT_DATA" line="13">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(8).I_STG.OUT_DATA(3).BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(8).I_STG.OUT_DATA(3).BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(8).I_STG.OUT_DATA(2).BIN_0_TO_1" data="2"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(8).I_STG.OUT_DATA(2).BIN_1_TO_0" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(8).I_STG.OUT_DATA(1).BIN_0_TO_1" data="4"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(8).I_STG.OUT_DATA(1).BIN_1_TO_0" data="3"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(8).I_STG.OUT_DATA(0).BIN_0_TO_1" data="7"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(8).I_STG.OUT_DATA(0).BIN_1_TO_0" data="7"/>
+          </scope>
+          <scope name="R" line="26">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(8).I_STG.R.DATA_MAIN(3).BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(8).I_STG.R.DATA_MAIN(3).BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(8).I_STG.R.DATA_MAIN(2).BIN_0_TO_1" data="2"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(8).I_STG.R.DATA_MAIN(2).BIN_1_TO_0" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(8).I_STG.R.DATA_MAIN(1).BIN_0_TO_1" data="4"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(8).I_STG.R.DATA_MAIN(1).BIN_1_TO_0" data="3"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(8).I_STG.R.DATA_MAIN(0).BIN_0_TO_1" data="7"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(8).I_STG.R.DATA_MAIN(0).BIN_1_TO_0" data="7"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(8).I_STG.R.DATA_MAIN_VLD.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(8).I_STG.R.DATA_MAIN_VLD.BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(8).I_STG.R.DATA_SHAD(3).BIN_0_TO_1" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(8).I_STG.R.DATA_SHAD(3).BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(8).I_STG.R.DATA_SHAD(2).BIN_0_TO_1" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(8).I_STG.R.DATA_SHAD(2).BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(8).I_STG.R.DATA_SHAD(1).BIN_0_TO_1" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(8).I_STG.R.DATA_SHAD(1).BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(8).I_STG.R.DATA_SHAD(0).BIN_0_TO_1" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(8).I_STG.R.DATA_SHAD(0).BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(8).I_STG.R.DATA_SHAD_VLD.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(8).I_STG.R.DATA_SHAD_VLD.BIN_1_TO_0" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(8).I_STG.R.IN_READY_F.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(8).I_STG.R.IN_READY_F.BIN_1_TO_0" data="1"/>
+          </scope>
+          <scope name="R_NEXT" line="26">
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(8).I_STG.R_NEXT.DATA_MAIN(3).BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(8).I_STG.R_NEXT.DATA_MAIN(3).BIN_1_TO_0" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(8).I_STG.R_NEXT.DATA_MAIN(2).BIN_0_TO_1" data="2"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(8).I_STG.R_NEXT.DATA_MAIN(2).BIN_1_TO_0" data="2"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(8).I_STG.R_NEXT.DATA_MAIN(1).BIN_0_TO_1" data="4"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(8).I_STG.R_NEXT.DATA_MAIN(1).BIN_1_TO_0" data="4"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(8).I_STG.R_NEXT.DATA_MAIN(0).BIN_0_TO_1" data="7"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(8).I_STG.R_NEXT.DATA_MAIN(0).BIN_1_TO_0" data="8"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(8).I_STG.R_NEXT.DATA_MAIN_VLD.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(8).I_STG.R_NEXT.DATA_MAIN_VLD.BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(8).I_STG.R_NEXT.DATA_SHAD(3).BIN_0_TO_1" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(8).I_STG.R_NEXT.DATA_SHAD(3).BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(8).I_STG.R_NEXT.DATA_SHAD(2).BIN_0_TO_1" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(8).I_STG.R_NEXT.DATA_SHAD(2).BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(8).I_STG.R_NEXT.DATA_SHAD(1).BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(8).I_STG.R_NEXT.DATA_SHAD(1).BIN_1_TO_0" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(8).I_STG.R_NEXT.DATA_SHAD(0).BIN_0_TO_1" data="0"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(8).I_STG.R_NEXT.DATA_SHAD(0).BIN_1_TO_0" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(8).I_STG.R_NEXT.DATA_SHAD_VLD.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(8).I_STG.R_NEXT.DATA_SHAD_VLD.BIN_1_TO_0" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(8).I_STG.R_NEXT.IN_READY_F.BIN_0_TO_1" data="1"/>
+            <toggle hier="WORK.ISSUE1512.DUT.G_STAGES(8).I_STG.R_NEXT.IN_READY_F.BIN_1_TO_0" data="1"/>
+          </scope>
+        </scope>
+      </scope>
+    </scope>
+  </scope>
+</scope>

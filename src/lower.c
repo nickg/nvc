@@ -1696,7 +1696,8 @@ static void lower_toggle_coverage_cb(lower_unit_t *lu, tree_t field,
       const unsigned fidx = params->field_idx++;
       if (params->next->field_idx == fidx) {
          vcode_reg_t nets_reg = emit_load_indirect(field_ptr);
-         emit_cover_toggle(nets_reg, params->next->tag);
+         vcode_reg_t count_reg = lower_type_width(lu, ftype, nets_reg);
+         emit_cover_toggle(nets_reg, count_reg, params->next->tag);
 
          do {
             params->next++;
@@ -1729,7 +1730,8 @@ static void lower_toggle_coverage(lower_unit_t *lu, tree_t decl,
    }
    else {
       vcode_reg_t nets_reg = emit_load(var);
-      emit_cover_toggle(nets_reg, item->tag);
+      vcode_reg_t count_reg = lower_type_width(lu, type, nets_reg);
+      emit_cover_toggle(nets_reg, count_reg, item->tag);
    }
 }
 
