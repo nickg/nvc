@@ -319,18 +319,6 @@ static int shell_cmd_find(ClientData cd, Tcl_Interp *interp,
    return syntax_error(sh, objv);
 }
 
-static const char elaborate_help[] =
-   "Obsolete command which does nothing.\n";
-
-static int shell_cmd_elaborate(ClientData cd, Tcl_Interp *interp,
-                               int objc, Tcl_Obj *const objv[])
-{
-   tcl_shell_t *sh = cd;
-   return tcl_error(sh, "the elaborate/vsim command has been removed, "
-                    "elaborate the design first with \"nvc -e top --do ...\" "
-                    "or \"nvc -e top -i\"");
-}
-
 static const char examine_help[] =
    "Display current value of one of more signals\n"
    "\n"
@@ -622,16 +610,6 @@ static int shell_cmd_noforce(ClientData cd, Tcl_Interp *interp,
    return TCL_OK;
 }
 
-static const char quit_help[] =
-   "Obsolete command which does nothing.\n";
-
-static int shell_cmd_quit(ClientData cd, Tcl_Interp *interp,
-                          int objc, Tcl_Obj *const objv[])
-{
-   tcl_shell_t *sh = cd;
-   return tcl_error(sh, "the quit command has been removed");
-}
-
 static const char exit_help[] =
    "Exit the simulator and return a status code\n"
    "\n"
@@ -917,11 +895,8 @@ tcl_shell_t *shell_new(tree_t top, jit_t *jit, rt_model_t *m)
    shell_add_cmd(sh, "find", shell_cmd_find, find_help);
    shell_add_cmd(sh, "run", shell_cmd_run, run_help);
    shell_add_cmd(sh, "restart", shell_cmd_restart, restart_help);
-   shell_add_cmd(sh, "elaborate", shell_cmd_elaborate, elaborate_help);
-   shell_add_cmd(sh, "vsim", shell_cmd_elaborate, elaborate_help);
    shell_add_cmd(sh, "examine", shell_cmd_examine, examine_help);
    shell_add_cmd(sh, "exa", shell_cmd_examine, examine_help);
-   shell_add_cmd(sh, "quit", shell_cmd_quit, quit_help);
    shell_add_cmd(sh, "force", shell_cmd_force, force_help);
    shell_add_cmd(sh, "noforce", shell_cmd_noforce, noforce_help);
    shell_add_cmd(sh, "echo", shell_cmd_echo, echo_help);
