@@ -18,7 +18,6 @@
 #include "util.h"
 #include "cov/cov-api.h"
 #include "hash.h"
-#include "hier.h"
 #include "ident.h"
 #include "lower.h"
 #include "phase.h"
@@ -42,17 +41,8 @@ typedef struct _reheat_ctx {
    rt_scope_t         *scope;
    ident_t             dotted;
    ident_t             cloned;
-   ident_t             inst_alias;
    hset_t             *instances;
 } reheat_ctx_t;
-
-// Thin wrapper around hier_scope_alias() for this module's ctx type.
-// The rule lives in hier.h; we just project the fields.
-static inline ident_t vlog_scope_alias(const reheat_ctx_t *c)
-{
-   hier_scope_t s = { c->inst_alias, c->cloned, c->dotted };
-   return hier_scope_alias(&s);
-}
 
 static void reheat_inherit(reheat_ctx_t *ctx, const reheat_ctx_t *parent)
 {
@@ -78,28 +68,12 @@ static void reheat_block(tree_t b, const reheat_ctx_t *parent)
    if (tree_subkind(hier) == T_VERILOG) {
       vlog_node_t body = tree_vlog(tree_ref(hier));
 
-      // Compute the per-instance alias: parent_alias.label.  Use
-      // vlog_scope_alias() so the resulting ident matches the one
-      // elab_resolve_one_hier_ref stores on I_IDENT2 and the one
-      // vlog_lower_block registers.  Skip when the composed alias
-      // equals the shared module name (no clone needed) or the
-      // dotted path (mixed VHDL/Verilog wrapper case).
-      ident_t inst_alias = NULL;
-      if (parent->cloned != NULL) {
-         ident_t label = tree_ident(b);
-         ident_t alias = ident_prefix(vlog_scope_alias(parent), label, '.');
-         if (alias != vlog_ident(body) && alias != ctx.dotted)
-            inst_alias = alias;
-      }
-      ctx.inst_alias = inst_alias;
-
       if (!hset_contains(ctx.instances, body)) {
          vlog_lower_instance(ctx.mir, body, parent->cloned, b);
          hset_insert(ctx.instances, body);
       }
 
-      vlog_lower_block(ctx.mir, vlog_scope_alias(parent),
-                       vlog_scope_alias(&ctx), b);
+      vlog_lower_block(ctx.mir, parent->dotted, b);
    }
    else {
       cover_scope_t *cs = cover_get_scope(ctx.cover, ctx.dotted);

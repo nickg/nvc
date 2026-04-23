@@ -21,35 +21,26 @@
 #include "prim.h"
 #include "vlog/vlog-node.h"
 
-// A scope's identity in the elaborated instance hierarchy.  Embedded
-// in every context type that represents a live scope (elab_ctx_t,
-// reheat_ctx_t, vlog_deferred_body_t …).  Three fields because a
-// scope can be named three ways:
+// The scope-naming model after the wrapper/template split:
 //
-//   inst_alias — per-clone alias built from ancestor path (NULL when
-//                the scope needs no cloning).
-//   cloned    — the shared module identity (e.g. WORK.MOD#0): same
-//                for every clone of a given module.
-//   dotted    — the unique dotted path (e.g. WORK.TOP.u.v).
+//   * Templates live in the MIR map under their module short name
+//     (e.g. WORK.MOD#0); they hold variable declarations.
 //
-// Every site that must agree on the MIR alias for link_package
-// consults hier_scope_alias() on this struct — that is the single
-// rule that keeps registration (vlog_lower_block), the elab-time
-// hier-ref resolver, and reheat pointing at the same ident.
-typedef struct {
-   ident_t inst_alias;
-   ident_t cloned;
-   ident_t dotted;
-} hier_scope_t;
-
-// Canonical per-scope alias: the per-clone inst_alias when one was
-// minted, else the shared module name, else the dotted path.  If
-// this ever diverges from what vlog_lower_block registers via
-// mir_alias_unit, link_package silently misses at runtime.
-static inline ident_t hier_scope_alias(const hier_scope_t *s)
-{
-   return s->inst_alias ?: s->cloned ?: s->dotted;
-}
+//   * Per-instance wrappers live in the MIR map under
+//     `<dotted>$instance`; they hold init code and are looked up by
+//     create_scope (rt/model.c) which appends $instance to the
+//     scope's dotted name.
+//
+//   * The bare dotted path (e.g. WORK.TOP.U_GLBL.glbl) is registered
+//     as a MIR alias of the template by vlog_lower_block.  The
+//     hier-ref resolver emits the dotted path on I_IDENT2;
+//     instance_init uses the dotted path as its PUTPRIV key.  All
+//     three sites name the scope identically so PUTPRIV/GETPRIV pair
+//     on the same JIT handle and link_package always lands on the
+//     template.
+//
+// Consequence: the elaborator no longer mints per-clone "alias"
+// idents.  The dotted path IS the per-scope identity at every site.
 
 // Language tag for a scope-tree node.  Used by the hier-ref resolver
 // to decide whether a node owns lookup-able decls (Verilog) or is a
@@ -61,14 +52,13 @@ typedef enum {
 
 // A node in the elaborated scope tree.  Every top-level architecture,
 // Verilog module, generate iteration, named block, and VHDL sub-block
-// gets one.  Nodes are keyed by ids.dotted in the per-elaboration
+// gets one.  Nodes are keyed by `dotted` in the per-elaboration
 // scope_tree hash on the synthetic root; children are enumerable
 // because every node knows its parent, and callers that need "child
-// X of parent Y" can probe `ident_prefix(Y.ids.dotted, X, '.')`.
+// X of parent Y" can probe `ident_prefix(Y->dotted, X, '.')`.
 typedef struct _hier_node hier_node_t;
 struct _hier_node {
-   hier_scope_t  ids;         // inst_alias + cloned + dotted — the
-                              // canonical alias input for this scope
+   ident_t       dotted;      // unique full hierarchical path
    ident_t       label;       // short name under parent (tree_ident)
    hier_node_t  *parent;      // NULL for children of the synthetic root
    tree_t        tree_body;   // T_BLOCK of the elaborated scope

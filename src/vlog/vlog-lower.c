@@ -3352,8 +3352,7 @@ void vlog_lower_instance(mir_context_t *mc, vlog_node_t body, ident_t parent,
    mir_put_unit(mc, mu);
 }
 
-void vlog_lower_block(mir_context_t *mc, ident_t parent, ident_t self_alias,
-                      tree_t b)
+void vlog_lower_block(mir_context_t *mc, ident_t parent, tree_t b)
 {
    tree_t hier = tree_decl(b, 0);
    assert(tree_kind(hier) == T_HIER);
@@ -3385,7 +3384,6 @@ void vlog_lower_block(mir_context_t *mc, ident_t parent, ident_t self_alias,
 
    if (qual != target)
       mir_alias_unit(mc, qual, target);
-   ident_t alias = self_alias ?: qual;
 
    mir_value_t context = MIR_NULL_VALUE;
    if (shape != NULL) {
@@ -3722,11 +3720,6 @@ void vlog_lower_block(mir_context_t *mc, ident_t parent, ident_t self_alias,
 
    mir_optimise(mu, MIR_PASS_O1);
    mir_put_unit(mc, mu);
-
-   // Per-clone alias if distinct — instance_init uses self_alias
-   // as the JIT handle for this clone.
-   if (self_alias != NULL && self_alias != target && self_alias != qual)
-      mir_alias_unit(mc, self_alias, target);
 }
 
 mir_unit_t *vlog_lower_thunk(mir_context_t *mc, ident_t parent, vlog_node_t v)

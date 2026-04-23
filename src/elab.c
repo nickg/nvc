@@ -56,7 +56,6 @@ typedef struct {
    ident_t     dotted;
    vlog_node_t parent_body;
    ident_t     parent_dotted;
-   ident_t     inst_alias;
 } vlog_deferred_body_t;
 typedef A(vlog_deferred_body_t) vlog_deferred_list_t;
 
@@ -70,8 +69,6 @@ typedef struct _elab_ctx {
    tree_t            inst;
    ident_t           dotted;
    ident_t           cloned;
-   ident_t           inst_alias;   // parent.label alias for module
-                                   // instances (NULL for generate blks)
    lib_t             library;
    jit_t            *jit;
    unit_registry_t  *registry;
@@ -1443,14 +1440,6 @@ static inline bool elab_parent_is_root(const elab_ctx_t *parent)
    return parent == NULL || parent->is_synthetic_root;
 }
 
-// Thin wrapper around hier_scope_alias() for this module's ctx type.
-// The rule lives in hier.h; we just project the fields.
-static inline ident_t vlog_scope_alias(const elab_ctx_t *c)
-{
-   hier_scope_t s = { c->inst_alias, c->cloned, c->dotted };
-   return hier_scope_alias(&s);
-}
-
 static void elab_inherit_context(elab_ctx_t *ctx, const elab_ctx_t *parent)
 {
    ctx->parent         = parent;
@@ -1488,8 +1477,8 @@ static void elab_lower(tree_t b, elab_ctx_t *ctx)
    assert(tree_kind(hier) == T_HIER);
 
    if (tree_subkind(hier) == T_VERILOG)
-      vlog_lower_block(ctx->mir, vlog_scope_alias(ctx->parent),
-                       vlog_scope_alias(ctx), b);
+      vlog_lower_block(ctx->mir,
+                       ctx->parent ? ctx->parent->dotted : NULL, b);
    else {
       ctx->lowered = lower_instance(ctx->registry, ctx->parent->lowered,
                                     ctx->cover, ctx->cscope, b);
@@ -2031,14 +2020,14 @@ static void elab_resolve_one_hier_ref(vlog_node_t v, vlog_node_t body,
                ident_t w = walk;
                ident_t seg;
                while ((seg = ident_walk_selected(&w)) != NULL) {
-                  ident_t nd = ident_prefix(tgt->ids.dotted, seg, '.');
+                  ident_t nd = ident_prefix(tgt->dotted, seg, '.');
                   hier_node_t *next = hash_get(ctx->scope_tree, nd);
                   if (next == NULL) { ok = false; break; }
                   tgt = next;
                }
                if (ok && tgt->vlog_body != NULL) {
                   resolved.body        = tgt->vlog_body;
-                  resolved.dotted      = tgt->ids.dotted;
+                  resolved.dotted      = tgt->dotted;
                   resolved.parent_body =
                      tgt->parent ? tgt->parent->vlog_body : NULL;
                }
@@ -2118,7 +2107,7 @@ static void elab_resolve_one_hier_ref(vlog_node_t v, vlog_node_t body,
          ident_t w = rest;
          ident_t seg;
          while ((seg = ident_walk_selected(&w)) != NULL) {
-            ident_t nd = ident_prefix(tgt->ids.dotted, seg, '.');
+            ident_t nd = ident_prefix(tgt->dotted, seg, '.');
             hier_node_t *next = hash_get(ctx->scope_tree, nd);
             if (next == NULL) {
                ok = false;
@@ -2128,7 +2117,7 @@ static void elab_resolve_one_hier_ref(vlog_node_t v, vlog_node_t body,
          }
          if (ok && tgt->vlog_body != NULL) {
             resolved.body        = tgt->vlog_body;
-            resolved.dotted      = tgt->ids.dotted;
+            resolved.dotted      = tgt->dotted;
             resolved.parent_body = tgt->parent ? tgt->parent->vlog_body : NULL;
          }
       }
@@ -2353,16 +2342,6 @@ static void elab_verilog_module(tree_t comp, ident_t label, vlog_node_t mod,
 
    new_ctx.cloned = vlog_ident(ei->body);
 
-   // Compute the per-instance alias for the context chain.  The MIR
-   // alias is registered inside vlog_lower_block (called by elab_lower
-   // below); we compute the canonical name here via vlog_scope_alias
-   // so both sides see the exact same ident.
-   if (ctx->vlog_body != NULL) {
-      ident_t alias = ident_prefix(vlog_scope_alias(ctx), label, '.');
-      ident_t target = vlog_ident(ei->body);
-      if (alias != target)
-         new_ctx.inst_alias = alias;
-   }
 
    // Set own vlog_body before push_scope so the scope-tree node
    // captures *this* module's body, not the parent's inherited one.
@@ -2396,7 +2375,6 @@ static void elab_verilog_module(tree_t comp, ident_t label, vlog_node_t mod,
          .dotted        = new_ctx.dotted,
          .parent_body   = ctx->vlog_body,
          .parent_dotted = ctx->dotted,
-         .inst_alias    = new_ctx.inst_alias,
       };
       APUSH(*new_ctx.vlog_deferred, db);
    }
@@ -2482,18 +2460,6 @@ static void elab_verilog_block(vlog_node_t v, const elab_ctx_t *ctx)
    tree_set_loc(block, vlog_loc(v));
    tree_set_ident(block, ndotted);
 
-   // Compute the per-instance alias before lowering so
-   // vlog_lower_instance can register it (and reheat gets it for free).
-   ident_t block_alias = NULL;
-   if (ctx->vlog_body != NULL) {
-      block_alias = ident_prefix(vlog_scope_alias(ctx), id, '.');
-      ident_t target = vlog_ident(body);
-      if (block_alias != target)
-         new_ctx.inst_alias = block_alias;
-      else
-         block_alias = NULL;
-   }
-
    vlog_trans(body, block);
    vlog_lower_instance(ctx->mir, body, ctx->cloned, block);
 
@@ -2522,7 +2488,6 @@ static void elab_verilog_block(vlog_node_t v, const elab_ctx_t *ctx)
          .dotted        = ndotted,
          .parent_body   = ctx->vlog_body,
          .parent_dotted = ctx->dotted,
-         .inst_alias    = new_ctx.inst_alias,
       };
       APUSH(*new_ctx.vlog_deferred, db);
    }
@@ -3174,14 +3139,12 @@ static void elab_push_scope(tree_t t, elab_ctx_t *ctx)
    // the registration so the infrastructure is ready.
    if (ctx->scope_tree != NULL && ctx->dotted != NULL) {
       hier_node_t *node = pool_calloc(ctx->pool, sizeof(hier_node_t));
-      node->ids.inst_alias = ctx->inst_alias;
-      node->ids.cloned     = ctx->cloned;
-      node->ids.dotted     = ctx->dotted;
-      node->label          = ident_rfrom(ctx->dotted, '.');
-      node->tree_body      = ctx->out;
-      node->lang           = (tree_kind(t) == T_VERILOG)
+      node->dotted    = ctx->dotted;
+      node->label     = ident_rfrom(ctx->dotted, '.');
+      node->tree_body = ctx->out;
+      node->lang      = (tree_kind(t) == T_VERILOG)
          ? HIER_LANG_VLOG : HIER_LANG_VHDL;
-      node->vlog_body      = (node->lang == HIER_LANG_VLOG)
+      node->vlog_body = (node->lang == HIER_LANG_VLOG)
          ? ctx->vlog_body : NULL;
 
       ident_t parent_dotted = ident_runtil(ctx->dotted, '.');
@@ -3653,11 +3616,10 @@ static void elab_resolve_all_vlog_hier_refs(const elab_ctx_t *ctx)
          // No scope_tree entry — synthesize a one-element chain.
          elab_ctx_t tmp = {};
          elab_inherit_context(&tmp, ctx);
-         tmp.parent     = NULL;
-         tmp.dotted     = db->dotted;
-         tmp.inst_alias = db->inst_alias;
-         tmp.cloned     = vlog_ident(db->body);
-         tmp.vlog_body  = db->body;
+         tmp.parent    = NULL;
+         tmp.dotted    = db->dotted;
+         tmp.cloned    = vlog_ident(db->body);
+         tmp.vlog_body = db->body;
          elab_resolve_vlog_hier_refs(db->body, &tmp);
          continue;
       }
@@ -3668,11 +3630,9 @@ static void elab_resolve_all_vlog_hier_refs(const elab_ctx_t *ctx)
          hier_node_t *n = ancestors.items[d];
          elab_ctx_t tmp = {};
          elab_inherit_context(&tmp, ctx);
-         tmp.parent     = (d < depth - 1) ? &chain[d + 1] : NULL;
-         tmp.dotted     = n->ids.dotted;
-         tmp.inst_alias = n->ids.inst_alias;
-         tmp.cloned     = n->ids.cloned;
-         tmp.vlog_body  = n->vlog_body;
+         tmp.parent    = (d < depth - 1) ? &chain[d + 1] : NULL;
+         tmp.dotted    = n->dotted;
+         tmp.vlog_body = n->vlog_body;
          chain[d] = tmp;
       }
 

@@ -27,17 +27,13 @@ void vlog_dump(vlog_node_t v, int indent);
 void vlog_simp(vlog_node_t mod);
 void vlog_trans(vlog_node_t mod, tree_t out);
 void vlog_lower_udp(mir_unit_t *mu, object_t *obj);
-void vlog_lower_block(mir_context_t *mc, ident_t parent, ident_t self_alias,
-                      tree_t b);
-
-// The canonical per-scope alias rule: inst_alias ?: cloned ?: dotted.
-// Each module (elab, reheat) provides its own static inline
-// vlog_scope_alias() applying this rule to its local ctx type — the
-// rule is short enough that replicating the one-line body is cheaper
-// than exporting the ctx types across modules.  Every site that
-// must agree on a scope's MIR name (vlog_lower_block, the elab-time
-// hier-ref resolver, reheat_block) routes through its module's
-// vlog_scope_alias so link_package never sees a drifted ident.
+// Lower a Verilog scope's per-instance wrapper MIR unit.  `parent`
+// is the parent scope's MIR-registered name (for shape lookup).
+// The wrapper is registered under `<dotted>$instance`; the bare
+// dotted path is aliased to the shared module template so user
+// hier-refs at runtime resolve there.  See src/hier.h for the
+// scope-naming model.
+void vlog_lower_block(mir_context_t *mc, ident_t parent, tree_t b);
 
 void vlog_lower_instance(mir_context_t *mc, vlog_node_t body, ident_t parent,
                          tree_t trans);
