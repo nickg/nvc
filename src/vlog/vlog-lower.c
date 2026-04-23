@@ -108,32 +108,16 @@ static void vlog_hier_type_size(vlog_gen_t *g, vlog_node_t decl,
    }
 }
 
-// Compute the per-instance alias for link_package.  The elab-time
-// resolver stores the PARENT SCOPE (containing the target instance)
-// on I_VALUE.  The alias is `vlog_ident(parent_scope).last_segment`,
-// which matches the name used by instance_init in the block function.
-//
-// Example: for `g.a.q` inside VLOG49#0:
-//   I_VALUE = GROUP#0 body (parent of leaf-a)
-//   last_seg = "a"
-//   alias = WORK.GROUP#0.a
-//
-// For upward refs like `sibling.data` inside CONSUMER:
-//   I_VALUE = VLOG50#0 body (parent of sibling in hierarchy)
-//   last_seg = "sibling"
-//   alias = WORK.VLOG50#0.sibling
+// Return the link_package key for a resolved hier-ref.  The
+// elab-time resolver (elab_resolve_all_vlog_hier_refs) writes the
+// target scope's dotted path on I_IDENT2; vlog_lower_block has
+// already registered that ident as an alias to the shared template,
+// so link_package(key) → template → link_var finds the named decl.
+// I_IDENT2 is NULL only when the decl is directly in the parent
+// scope on I_VALUE (no further walk needed) — fall back to the
+// parent's canonical name.
 static ident_t vlog_hier_unit_alias(mir_unit_t *mu, vlog_node_t v)
 {
-   // The elab-time resolver (elab_resolve_all_vlog_hier_refs) is the
-   // single source of truth for hier-ref aliases.  It runs from every
-   // top-level root (Verilog or VHDL) and stores the full per-clone
-   // alias chain on I_IDENT2, or sets I_VALUE to the parent scope
-   // when the decl is directly in it.  Reaching this function with
-   // neither set means the resolver was skipped for this subtree,
-   // which is always a bug — the old `mir_get_parent + ident2`
-   // fallback produces a short module-qualified name that disagrees
-   // with the per-instance name under which vlog_lower_block
-   // registered the alias, causing silent link_package misses.
    assert(vlog_has_value(v));
 
    if (vlog_has_ident2(v))
@@ -404,10 +388,11 @@ static vlog_select_t vlog_lower_select(vlog_gen_t *g, vlog_node_t v)
 
    case V_HIER_REF:
       {
-         // Unified hier-ref lowering.  Walk the MIR alias chain to
-         // produce the per-instance alias for link_package.  Each
-         // clone's block function called instance_init(alias) which
-         // stored PUTPRIV under the alias's JIT handle.
+         // Hier-ref lowering: emit the resolved scope's dotted path
+         // (set on I_IDENT2 by the elab-time resolver) as the
+         // link_package key.  vlog_lower_block registered that name
+         // as an alias to the shared template, so link_var finds
+         // module-level decls there.
          mir_type_t t_net_value = mir_int_type(g->mu, 0, 255);
          mir_type_t t_net_signal = mir_signal_type(g->mu, t_net_value);
 
@@ -1146,8 +1131,9 @@ static mir_value_t vlog_lower_with_context(vlog_gen_t *g, vlog_node_t v,
             }
          }
 
-         // RHS hier-ref lowering -- mirror of the lvalue case in
-         // vlog_lower_select.  Walk alias chain for per-instance name.
+         // RHS hier-ref lowering — mirror of the lvalue case in
+         // vlog_lower_select.  Use the dotted path stored on
+         // I_IDENT2 (resolver output) as the link_package key.
          mir_type_t t_net_value = mir_int_type(g->mu, 0, 255);
          mir_type_t t_net_signal = mir_signal_type(g->mu, t_net_value);
 

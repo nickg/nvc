@@ -53,13 +53,12 @@ typedef enum {
 // A node in the elaborated scope tree.  Every top-level architecture,
 // Verilog module, generate iteration, named block, and VHDL sub-block
 // gets one.  Nodes are keyed by `dotted` in the per-elaboration
-// scope_tree hash on the synthetic root; children are enumerable
-// because every node knows its parent, and callers that need "child
-// X of parent Y" can probe `ident_prefix(Y->dotted, X, '.')`.
+// scope_tree hash on the synthetic root; children are reachable
+// either by walking parent links upward or, given a parent, by
+// probing `ident_prefix(parent->dotted, label, '.')` in the hash.
 typedef struct _hier_node hier_node_t;
 struct _hier_node {
    ident_t       dotted;      // unique full hierarchical path
-   ident_t       label;       // short name under parent (tree_ident)
    hier_node_t  *parent;      // NULL for children of the synthetic root
    tree_t        tree_body;   // T_BLOCK of the elaborated scope
    vlog_node_t   vlog_body;   // V_INST_BODY / V_BLOCK, NULL for VHDL

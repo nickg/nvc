@@ -1957,8 +1957,6 @@ static void elab_pre_resolve_hier_params(vlog_node_t body,
    vlog_visit_only(body, elab_pre_resolve_cb, &pctx, V_HIER_REF);
 }
 
-// Build a per-clone alias chain by prefixing each segment of `path`
-// onto `base` with dot separators.
 // Resolves one V_HIER_REF node in `body`.  Sets I_REF (tail decl)
 // and I_VALUE (target body) on success.  On failure leaves slots
 // unset and emits a diagnostic with the full attempted path and the
@@ -3140,7 +3138,6 @@ static void elab_push_scope(tree_t t, elab_ctx_t *ctx)
    if (ctx->scope_tree != NULL && ctx->dotted != NULL) {
       hier_node_t *node = pool_calloc(ctx->pool, sizeof(hier_node_t));
       node->dotted    = ctx->dotted;
-      node->label     = ident_rfrom(ctx->dotted, '.');
       node->tree_body = ctx->out;
       node->lang      = (tree_kind(t) == T_VERILOG)
          ? HIER_LANG_VLOG : HIER_LANG_VHDL;
@@ -3601,28 +3598,18 @@ static void elab_resolve_all_vlog_hier_refs(const elab_ctx_t *ctx)
    for (int i = 0; i < count; i++) {
       vlog_deferred_body_t *db = &items[i];
 
-      hier_node_t *leaf =
-         ctx->scope_tree ? hash_get(ctx->scope_tree, db->dotted) : NULL;
+      // Every deferred body must have a scope_tree entry — both
+      // are populated by the same elaboration paths and the
+      // post-elab DEBUG check earlier in this function asserts the
+      // invariant.  No fallback needed.
+      hier_node_t *leaf = hash_get(ctx->scope_tree, db->dotted);
+      assert(leaf != NULL);
 
-      // Collect ancestors leaf-first.  If scope_tree is unavailable,
-      // fall back to the deferred body alone — older paths that
-      // bypass scope_tree still resolve within their own body.
       SCOPED_A(hier_node_t *) ancestors = AINIT;
       for (hier_node_t *cur = leaf; cur != NULL; cur = cur->parent)
          APUSH(ancestors, cur);
 
       const int depth = ancestors.count;
-      if (depth == 0) {
-         // No scope_tree entry — synthesize a one-element chain.
-         elab_ctx_t tmp = {};
-         elab_inherit_context(&tmp, ctx);
-         tmp.parent    = NULL;
-         tmp.dotted    = db->dotted;
-         tmp.cloned    = vlog_ident(db->body);
-         tmp.vlog_body = db->body;
-         elab_resolve_vlog_hier_refs(db->body, &tmp);
-         continue;
-      }
 
       // Build elab_ctx chain from root (index depth-1) to leaf (0).
       elab_ctx_t *chain LOCAL = xmalloc_array(depth, sizeof(elab_ctx_t));
