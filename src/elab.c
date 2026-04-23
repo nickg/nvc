@@ -3576,12 +3576,10 @@ static void elab_vhdl_root_cb(void *arg)
    tree_t vhdl = tree_from_object(ctx->root);
    assert(vhdl != NULL);
 
-   // A VHDL top can still introduce Verilog subtrees (via component
-   // binding or direct entity↔module instantiation).  Set up the
-   // deferred-body list so the post-elab Verilog hier-ref resolver
-   // can run over everything, not just Verilog-top trees.
-   vlog_deferred_list_t deferred = {};
-   ctx->vlog_deferred = &deferred;
+   // vlog_deferred is owned by the synthetic root (elab() sets it up
+   // once); per-top root_cbs just inherit it via elab_inherit_context
+   // so the post-elab resolver sees every Verilog subtree regardless
+   // of which top introduced it.
 
    tree_t arch = vhdl;
    switch (tree_kind(vhdl)) {
@@ -3610,13 +3608,6 @@ static void elab_vhdl_root_cb(void *arg)
    default:
       fatal("%s is not a suitable top-level unit", istr(tree_ident(vhdl)));
    }
-
-   // Finalize any Verilog hier-refs introduced via mixed-language
-   // subtrees.  Safe to call with an empty list.
-   elab_resolve_all_vlog_hier_refs(ctx);
-
-   ACLEAR(deferred);
-   ctx->vlog_deferred = NULL;
 }
 
 // Entry point: resolve hier-refs across the full instance tree.
@@ -3709,17 +3700,8 @@ static void elab_verilog_root_cb(void *arg)
    vlog_add_stmt(list, stmt);
    vlog_set_loc(list, vlog_loc(vlog));
 
-   vlog_deferred_list_t deferred = {};
-   ctx->vlog_deferred = &deferred;
-
+   // vlog_deferred is owned by the synthetic root; see elab_vhdl_root_cb.
    elab_verilog_module(NULL, label, vlog, list, stmt, ctx);
-
-   // Post-elaboration: resolve hier-refs across the full instance
-   // tree now that all bodies are in modcache.
-   elab_resolve_all_vlog_hier_refs(ctx);
-
-   ACLEAR(deferred);
-   ctx->vlog_deferred = NULL;
 }
 
 static int elab_compar_modcache(const void *a, const void *b)
@@ -3770,38 +3752,44 @@ static void elab_print_stats(const elab_ctx_t *ctx)
    printf("\n");
 }
 
-tree_t elab(object_t *top, jit_t *jit, unit_registry_t *ur, mir_context_t *mc,
-            cover_data_t *cover, sdf_file_t *sdf, rt_model_t *m)
+tree_t elab(object_t **tops, int ntops, jit_t *jit, unit_registry_t *ur,
+            mir_context_t *mc, cover_data_t *cover, sdf_file_t *sdf,
+            rt_model_t *m)
 {
    make_new_arena();
 
+   if (ntops < 1)
+      fatal("elaboration requires at least one top-level unit");
+
+   // Primary top names the T_ELAB unit (backward-compatible naming).
+   object_t *primary = tops[0];
    ident_t name = NULL;
 
-   tree_t vhdl = tree_from_object(top);
-   if (vhdl != NULL)
-      name = ident_prefix(tree_ident(vhdl), well_known(W_ELAB), '.');
+   tree_t vhdl0 = tree_from_object(primary);
+   if (vhdl0 != NULL)
+      name = ident_prefix(tree_ident(vhdl0), well_known(W_ELAB), '.');
 
-   vlog_node_t vlog = vlog_from_object(top);
-   if (vlog != NULL)
-      name = ident_prefix(vlog_ident(vlog), well_known(W_ELAB), '.');
+   vlog_node_t vlog0 = vlog_from_object(primary);
+   if (vlog0 != NULL)
+      name = ident_prefix(vlog_ident(vlog0), well_known(W_ELAB), '.');
 
-   if (vhdl == NULL && vlog == NULL)
+   if (vhdl0 == NULL && vlog0 == NULL)
       fatal("top level is not a VHDL design unit or Verilog module");
 
    tree_t e = tree_new(T_ELAB);
    tree_set_ident(e, name);
-   tree_set_loc(e, &(top->loc));
+   tree_set_loc(e, &(primary->loc));
 
    lib_t work = lib_work();
 
-   // Synthetic anonymous root — the anchor for $root walks and
-   // (in later phases) the common parent of multiple sibling tops.
-   // It carries bootstrap state; per-top contexts inherit from it.
-   // For now there is exactly one top and it sits directly below.
+   // Synthetic anonymous root — the anchor for $root walks and the
+   // common parent of every sibling top.  Carries bootstrap state;
+   // each per-top context inherits from it.  vlog_deferred lives
+   // here so a single post-elab resolver pass sees every subtree.
+   vlog_deferred_list_t deferred = {};
    elab_ctx_t root_ctx = {
       .is_synthetic_root = true,
       .out               = e,
-      .root              = top,
       .cover             = cover,
       .library           = work,
       .jit               = jit,
@@ -3816,21 +3804,41 @@ tree_t elab(object_t *top, jit_t *jit, unit_registry_t *ur, mir_context_t *mc,
       .model             = m,
       .scope             = create_scope(m, e, NULL),
       .pool              = pool_new(),
+      .vlog_deferred     = &deferred,
    };
 
-   // Per-top context — child of the synthetic root.  Everything of
-   // substance (out, root, dotted, ...) is inherited; we only need
-   // the parent link.  The T_ELAB rt_scope lives on the synthetic
-   // root and acts as the parent-of-parents for every top-level
-   // architecture/module.
-   elab_ctx_t top_ctx = {};
-   elab_inherit_context(&top_ctx, &root_ctx);
-   top_ctx.scope = root_ctx.scope;
+   // Elaborate each top as a child of the synthetic root.  Per-top
+   // context inherits everything substantive from the root; the
+   // only per-top setup is pointing ->root at this iteration's
+   // object so the language-specific callback picks it up.
+   for (int i = 0; i < ntops; i++) {
+      object_t *this_top = tops[i];
+      tree_t this_vhdl = tree_from_object(this_top);
+      vlog_node_t this_vlog = vlog_from_object(this_top);
+      if (this_vhdl == NULL && this_vlog == NULL)
+         fatal("top level is not a VHDL design unit or Verilog module");
 
-   if (vhdl != NULL)
-      call_with_model(m, elab_vhdl_root_cb, &top_ctx);
-   else
-      call_with_model(m, elab_verilog_root_cb, &top_ctx);
+      elab_ctx_t top_ctx = {};
+      elab_inherit_context(&top_ctx, &root_ctx);
+      top_ctx.scope = root_ctx.scope;
+      top_ctx.root  = this_top;
+
+      if (this_vhdl != NULL)
+         call_with_model(m, elab_vhdl_root_cb, &top_ctx);
+      else
+         call_with_model(m, elab_verilog_root_cb, &top_ctx);
+
+      if (error_count() > 0)
+         break;
+   }
+
+   // Resolve all Verilog hier-refs across the whole design in one
+   // pass so cross-top refs (e.g. $root.glbl.GSR from within a
+   // design top) can see their siblings.
+   elab_resolve_all_vlog_hier_refs(&root_ctx);
+
+   ACLEAR(deferred);
+   root_ctx.vlog_deferred = NULL;
 
    if (opt_get_int(OPT_ELAB_STATS))
       elab_print_stats(&root_ctx);
