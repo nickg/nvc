@@ -12,6 +12,7 @@ puts $root2
 vhpi::assert {[vhpi::compare_handles $root $root2]}
 set du [vhpi::handle DesignUnit $root]
 vhpi::assert {[vhpi::get_str KindStr $du] == "vhpiArchBodyK"}
+vhpi::assert {[vhpi::get Kind $du] == 1007}
 
 set tool [vhpi::handle Tool $null]
 vhpi::assert {[vhpi::get_str Name $tool] == "nvc"}

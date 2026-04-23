@@ -350,6 +350,101 @@ static bool get_vhpi_str_property(Tcl_Interp *interp, Tcl_Obj *obj,
    return false;
 }
 
+static bool get_vhpi_int_property(Tcl_Interp *interp, Tcl_Obj *obj,
+                                  vhpiIntPropertyT *prop)
+{
+   const char *str = Tcl_GetString(obj);
+
+   if (isdigit(str[0]))
+      return Tcl_GetIntFromObj(interp, obj, (int *)prop) == TCL_OK;
+
+   struct {
+      const char *name;
+      vhpiIntPropertyT value;
+   } defs[] = {
+      { "Access", vhpiAccessP },
+      { "Argc", vhpiArgcP },
+      { "AttrKind", vhpiAttrKindP },
+      { "BaseIndex", vhpiBaseIndexP },
+      { "BeginLineNo", vhpiBeginLineNoP },
+      { "Capabilities", vhpiCapabilitiesP },
+      { "CompInstKind", vhpiCompInstKindP },
+      { "EntityClass", vhpiEntityClassP },
+      { "EndLineNo", vhpiEndLineNoP },
+      { "ForeignKind", vhpiForeignKindP },
+      { "FrameLevel", vhpiFrameLevelP },
+      { "GenerateIndex", vhpiGenerateIndexP },
+      { "IntVal", vhpiIntValP },
+      { "IsAnonymous", vhpiIsAnonymousP },
+      { "IsBasic", vhpiIsBasicP },
+      { "IsBuiltIn", vhpiIsBuiltInP },
+      { "IsComposite", vhpiIsCompositeP },
+      { "IsDefault", vhpiIsDefaultP },
+      { "IsDeferred", vhpiIsDeferredP },
+      { "IsDiscrete", vhpiIsDiscreteP },
+      { "IsDynamic", vhpiIsDynamicP },
+      { "IsForced", vhpiIsForcedP },
+      { "IsForeign", vhpiIsForeignP },
+      { "IsGuarded", vhpiIsGuardedP },
+      { "IsImplicitDecl", vhpiIsImplicitDeclP },
+      { "IsLocal", vhpiIsLocalP },
+      { "IsNamed", vhpiIsNamedP },
+      { "IsNull", vhpiIsNullP },
+      { "IsOpen", vhpiIsOpenP },
+      { "IsPassive", vhpiIsPassiveP },
+      { "IsPostponed", vhpiIsPostponedP },
+      { "IsProtectedType", vhpiIsProtectedTypeP },
+      { "IsPure", vhpiIsPureP },
+      { "IsResolved", vhpiIsResolvedP },
+      { "IsScalar", vhpiIsScalarP },
+      { "IsSeqStmt", vhpiIsSeqStmtP },
+      { "IsShared", vhpiIsSharedP },
+      { "IsTransport", vhpiIsTransportP },
+      { "IsUnaffected", vhpiIsUnaffectedP },
+      { "IsUnconstrained", vhpiIsUnconstrainedP },
+      { "IsUninstantiated", vhpiIsUninstantiatedP },
+      { "IsUp", vhpiIsUpP },
+      { "IsVital", vhpiIsVitalP },
+      { "IteratorType", vhpiIteratorTypeP },
+      { "Kind", vhpiKindP },
+      { "LeftBound", vhpiLeftBoundP },
+      { "LineNo", vhpiLineNoP },
+      { "LineOffset", vhpiLineOffsetP },
+      { "LoopIndex", vhpiLoopIndexP },
+      { "Mode", vhpiModeP },
+      { "NumDimensions", vhpiNumDimensionsP },
+      { "NumFields", vhpiNumFieldsP },
+      { "NumGens", vhpiNumGensP },
+      { "NumLiterals", vhpiNumLiteralsP },
+      { "NumMembers", vhpiNumMembersP },
+      { "NumParams", vhpiNumParamsP },
+      { "NumPorts", vhpiNumPortsP },
+      { "OpenMode", vhpiOpenModeP },
+      { "Phase", vhpiPhaseP },
+      { "Position", vhpiPositionP },
+      { "PredefAttr", vhpiPredefAttrP },
+      { "Reason", vhpiReasonP },
+      { "RightBound", vhpiRightBoundP },
+      { "SigKind", vhpiSigKindP },
+      { "Size", vhpiSizeP },
+      { "StartLineNo", vhpiStartLineNoP },
+      { "State", vhpiStateP },
+      { "Staticness", vhpiStaticnessP },
+      { "VHDLversion", vhpiVHDLversionP },
+   };
+
+   for (int i = 0; i < ARRAY_LEN(defs); i++) {
+      if (strcmp(str, defs[i].name) == 0) {
+         *prop = defs[i].value;
+         return true;
+      }
+   }
+
+   Tcl_Obj *msg = Tcl_ObjPrintf("invalid vhpiIntPropertyT \"%s\"", str);
+   Tcl_SetObjResult(interp, msg);
+   return false;
+}
+
 static bool get_vhpi_severity(Tcl_Interp *interp, Tcl_Obj *obj,
                               vhpiSeverityT *sev)
 {
@@ -573,6 +668,30 @@ static int wrap_get_str(ClientData cd, Tcl_Interp *interp,
    return TCL_OK;
 }
 
+static int wrap_get(ClientData cd, Tcl_Interp *interp,
+                    int objc, Tcl_Obj *const objv[])
+{
+   if (objc != 3) {
+      Tcl_WrongNumArgs(interp, 1, objv, "property object");
+      return TCL_ERROR;
+   }
+
+   vhpiIntPropertyT prop;
+   if (!get_vhpi_int_property(interp, objv[1], &prop))
+      return TCL_ERROR;
+
+   vhpiHandleT handle;
+   if (!get_vhpi_obj(interp, objv[2], &handle))
+      return TCL_ERROR;
+
+   vhpiIntT result = vhpi_get(prop, handle);
+   if (result == vhpiUndefined)
+      return wrap_check_error(interp);
+
+   Tcl_SetObjResult(interp, Tcl_NewIntObj(result));
+   return TCL_OK;
+}
+
 static int wrap_get_value(ClientData cd, Tcl_Interp *interp,
                           int objc, Tcl_Obj *const objv[])
 {
@@ -724,6 +843,7 @@ void shell_add_vhpi_cmds(tcl_shell_t *sh)
    shell_add_cmd(sh, "vhpi::handle_by_name", wrap_handle_by_name, "");
    shell_add_cmd(sh, "vhpi::handle_by_index", wrap_handle_by_index, "");
    shell_add_cmd(sh, "vhpi::iterate", wrap_iterate, "");
+   shell_add_cmd(sh, "vhpi::get", wrap_get, "");
    shell_add_cmd(sh, "vhpi::get_str", wrap_get_str, "");
    shell_add_cmd(sh, "vhpi::get_value", wrap_get_value, "");
    shell_add_cmd(sh, "vhpi::put_value", wrap_put_value, "");
