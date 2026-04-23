@@ -77,7 +77,6 @@ typedef struct _elab_ctx {
    cover_data_t     *cover;
    sdf_file_t       *sdf;
    hash_t           *modcache;
-   hash_t           *blockcache;  // ident_t dotted → vlog_node_t body
    hash_t           *mracache;
    hash_t           *scope_tree;  // ident_t dotted → hier_node_t*
                                   // (every elaborated scope, both
@@ -1454,7 +1453,6 @@ static void elab_inherit_context(elab_ctx_t *ctx, const elab_ctx_t *parent)
    ctx->sdf            = parent->sdf;
    ctx->inst           = ctx->inst ?: parent->inst;
    ctx->modcache       = parent->modcache;
-   ctx->blockcache     = parent->blockcache;
    ctx->mracache       = parent->mracache;
    ctx->scope_tree     = parent->scope_tree;
    ctx->depth          = parent->depth + 1;
@@ -1719,15 +1717,15 @@ static hier_target_t elab_find_vlog_child(vlog_node_t parent_body,
       }
    }
 
-   // Check blockcache for generate/named blocks registered during
+   // Check scope_tree for generate/named blocks registered during
    // elaboration.  This avoids mutating the (possibly shared) parent
    // body and works for blocks that don't appear in the original stmts.
-   if (ctx->blockcache != NULL) {
+   if (ctx->scope_tree != NULL) {
       ident_t child_dotted = ident_prefix(parent_dotted, label, '.');
-      vlog_node_t cached = hash_get(ctx->blockcache, child_dotted);
-      if (cached != NULL) {
+      hier_node_t *node = hash_get(ctx->scope_tree, child_dotted);
+      if (node != NULL && node->vlog_body != NULL) {
          hier_target_t out = {
-            .body        = cached,
+            .body        = node->vlog_body,
             .dotted      = child_dotted,
             .parent_body = parent_body,
          };
@@ -2171,18 +2169,18 @@ static void elab_resolve_one_hier_ref(vlog_node_t v, vlog_node_t body,
    vlog_node_t parent_scope = resolved.parent_body ?: resolved.body;
 
    // When the parent scope is a V_BLOCK (e.g. generate block), look
-   // up the elaborated V_INST_BODY from blockcache for the correct
+   // up the elaborated V_INST_BODY from scope_tree for the correct
    // canonical scope name.  The V_BLOCK itself has only the user-
    // visible label, not the fully-qualified MIR unit name.
    if (parent_scope != NULL && vlog_kind(parent_scope) == V_BLOCK
-       && ctx->blockcache != NULL) {
+       && ctx->scope_tree != NULL) {
       // resolved.dotted = parent.child (e.g. WORK.vlog61.gen_if.u).
       // The parent's dotted is resolved.dotted with last segment stripped.
       ident_t parent_dotted = ident_runtil(resolved.dotted, '.');
       if (parent_dotted != NULL) {
-         vlog_node_t inst_body = hash_get(ctx->blockcache, parent_dotted);
-         if (inst_body != NULL)
-            parent_scope = inst_body;
+         hier_node_t *node = hash_get(ctx->scope_tree, parent_dotted);
+         if (node != NULL && node->vlog_body != NULL)
+            parent_scope = node->vlog_body;
       }
    }
 
@@ -2473,12 +2471,6 @@ static void elab_verilog_block(vlog_node_t v, const elab_ctx_t *ctx)
 
    if (elab_new_errors(&new_ctx) == 0)
       elab_verilog_sub_blocks(v, &new_ctx);
-
-   // Register the V_INST_BODY in blockcache keyed by its dotted path
-   // so the resolver can find generate/named blocks without mutating
-   // the (possibly shared) parent body's stmts list.
-   if (new_ctx.blockcache != NULL)
-      hash_put(new_ctx.blockcache, ndotted, body);
 
    if (new_ctx.vlog_deferred != NULL) {
       vlog_deferred_body_t db = {
@@ -3741,7 +3733,6 @@ tree_t elab(object_t **tops, int ntops, jit_t *jit, unit_registry_t *ur,
       .registry          = ur,
       .mir               = mc,
       .modcache          = hash_new(16),
-      .blockcache        = hash_new(16),
       .mracache          = hash_new(16),
       .scope_tree        = hash_new(64),
       .dotted            = lib_name(work),
@@ -3794,7 +3785,6 @@ tree_t elab(object_t **tops, int ntops, jit_t *jit, unit_registry_t *ur,
       ghash_free(((mod_cache_t *)value)->instances);
 
    hash_free(root_ctx.modcache);
-   hash_free(root_ctx.blockcache);
    hash_free(root_ctx.mracache);
    hash_free(root_ctx.scope_tree);
    pool_free(root_ctx.pool);
