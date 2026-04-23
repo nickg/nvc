@@ -2071,28 +2071,58 @@ static void elab_resolve_one_hier_ref(vlog_node_t v, vlog_node_t body,
       for (const elab_ctx_t *cur = ctx;
            resolved.body == NULL && cur != NULL; cur = cur->parent) {
 
-         vlog_node_t scope = NULL;
-         if (cur->dotted != NULL && ctx->scope_tree != NULL) {
-            hier_node_t *cur_node = hash_get(ctx->scope_tree, cur->dotted);
-            if (cur_node != NULL)
-               scope = cur_node->vlog_body;
-         }
-         if (scope == NULL)
+         if (cur->dotted == NULL || ctx->scope_tree == NULL)
             continue;
 
-         hier_target_t child = elab_find_vlog_child(scope, cur->dotted,
-                                                    head, ctx);
-         if (child.body != NULL) {
-            found_ctx = cur;
-            if (rest != NULL) {
-               resolved = elab_walk_vlog_path(child.body, child.dotted,
-                                              rest, ctx);
+         hier_node_t *cur_node = hash_get(ctx->scope_tree, cur->dotted);
+         if (cur_node == NULL)
+            continue;
+
+         // First: if this ancestor owns a Verilog body, try the
+         // language-specific search (it knows about V_MOD_INST,
+         // V_BLOCK, and the blockcache fallback in one place).
+         if (cur_node->vlog_body != NULL) {
+            hier_target_t child = elab_find_vlog_child(cur_node->vlog_body,
+                                                       cur->dotted, head,
+                                                       ctx);
+            if (child.body != NULL) {
+               found_ctx = cur;
+               if (rest != NULL)
+                  resolved = elab_walk_vlog_path(child.body, child.dotted,
+                                                 rest, ctx);
+               else
+                  resolved = child;
+               continue;
             }
-            else {
-               // Single-segment prefix: child IS the resolved target
-               // and child.parent_body = scope (the containing scope).
-               resolved = child;
+         }
+
+         // Second: language-neutral probe.  For VHDL ancestors this
+         // is the only search; for Verilog ancestors it catches
+         // scope kinds elab_find_vlog_child doesn't enumerate (the
+         // scope_tree is populated at every elab_push_scope).
+         ident_t candidate = ident_prefix(cur->dotted, head, '.');
+         hier_node_t *head_node = hash_get(ctx->scope_tree, candidate);
+         if (head_node == NULL)
+            continue;
+
+         found_ctx = cur;
+         hier_node_t *tgt = head_node;
+         bool ok = true;
+         ident_t w = rest;
+         ident_t seg;
+         while ((seg = ident_walk_selected(&w)) != NULL) {
+            ident_t nd = ident_prefix(tgt->ids.dotted, seg, '.');
+            hier_node_t *next = hash_get(ctx->scope_tree, nd);
+            if (next == NULL) {
+               ok = false;
+               break;
             }
+            tgt = next;
+         }
+         if (ok && tgt->vlog_body != NULL) {
+            resolved.body        = tgt->vlog_body;
+            resolved.dotted      = tgt->ids.dotted;
+            resolved.parent_body = tgt->parent ? tgt->parent->vlog_body : NULL;
          }
       }
    }
@@ -3613,50 +3643,53 @@ static void elab_resolve_all_vlog_hier_refs(const elab_ctx_t *ctx)
    }
 #endif
 
-   // Build a hash from dotted → deferred entry for parent lookup.
-   hash_t *by_dotted = hash_new(count * 2);
-   for (int i = 0; i < count; i++)
-      hash_put(by_dotted, items[i].dotted, &items[i]);
-
-   // Process each body.  Build the parent context chain on the
-   // stack by walking parent_dotted links up to the root.
+   // Process each Verilog body.  Build the parent context chain from
+   // scope_tree so VHDL ancestors (which don't appear in the Verilog
+   // deferred list) are included — the resolver's cross-language
+   // walk needs them as valid probe points for upward searches.
    for (int i = 0; i < count; i++) {
       vlog_deferred_body_t *db = &items[i];
 
-      // Collect ancestors (leaf first, root last).
-      SCOPED_A(vlog_deferred_body_t *) ancestors = AINIT;
+      hier_node_t *leaf =
+         ctx->scope_tree ? hash_get(ctx->scope_tree, db->dotted) : NULL;
 
-      for (vlog_deferred_body_t *cur = db; cur != NULL; ) {
+      // Collect ancestors leaf-first.  If scope_tree is unavailable,
+      // fall back to the deferred body alone — older paths that
+      // bypass scope_tree still resolve within their own body.
+      SCOPED_A(hier_node_t *) ancestors = AINIT;
+      for (hier_node_t *cur = leaf; cur != NULL; cur = cur->parent)
          APUSH(ancestors, cur);
-         if (cur->parent_dotted == NULL)
-            break;
-         cur = hash_get(by_dotted, cur->parent_dotted);
-      }
 
       const int depth = ancestors.count;
+      if (depth == 0) {
+         // No scope_tree entry — synthesize a one-element chain.
+         elab_ctx_t tmp = {};
+         elab_inherit_context(&tmp, ctx);
+         tmp.parent     = NULL;
+         tmp.dotted     = db->dotted;
+         tmp.inst_alias = db->inst_alias;
+         tmp.cloned     = vlog_ident(db->body);
+         tmp.vlog_body  = db->body;
+         elab_resolve_vlog_hier_refs(db->body, &tmp);
+         continue;
+      }
 
       // Build elab_ctx chain from root (index depth-1) to leaf (0).
       elab_ctx_t *chain LOCAL = xmalloc_array(depth, sizeof(elab_ctx_t));
       for (int d = depth - 1; d >= 0; d--) {
-         elab_ctx_t tmp = {
-            .dotted    = ancestors.items[d]->dotted,
-            .vlog_body = ancestors.items[d]->body,
-         };
+         hier_node_t *n = ancestors.items[d];
+         elab_ctx_t tmp = {};
          elab_inherit_context(&tmp, ctx);
-         // Restore correct parent chain (elab_inherit_context
-         // overwrites .parent with the global ctx).
-         tmp.parent = (d < depth - 1) ? &chain[d + 1] : NULL;
-         tmp.dotted = ancestors.items[d]->dotted;
-         tmp.inst_alias = ancestors.items[d]->inst_alias;
-         tmp.cloned = vlog_ident(ancestors.items[d]->body);
-         tmp.vlog_body = ancestors.items[d]->body;
+         tmp.parent     = (d < depth - 1) ? &chain[d + 1] : NULL;
+         tmp.dotted     = n->ids.dotted;
+         tmp.inst_alias = n->ids.inst_alias;
+         tmp.cloned     = n->ids.cloned;
+         tmp.vlog_body  = n->vlog_body;
          chain[d] = tmp;
       }
 
       elab_resolve_vlog_hier_refs(db->body, &chain[0]);
    }
-
-   hash_free(by_dotted);
 }
 
 static void elab_verilog_root_cb(void *arg)
