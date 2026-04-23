@@ -3124,9 +3124,9 @@ static void elab_push_scope(tree_t t, elab_ctx_t *ctx)
 
    tree_add_decl(ctx->out, h);
 
-   // Register this scope in the language-neutral scope tree.  Phase 3
-   // uses the tree for cross-language resolver walks; Phase 2 keeps
-   // the registration so the infrastructure is ready.
+   // Register this scope in the language-neutral scope tree.
+   // elab_resolve_one_hier_ref walks this tree for cross-language
+   // upward and $root-anchored resolution (see src/hier.h).
    if (ctx->scope_tree != NULL && ctx->dotted != NULL) {
       hier_node_t *node = pool_calloc(ctx->pool, sizeof(hier_node_t));
       node->dotted    = ctx->dotted;
@@ -3572,11 +3572,11 @@ static void elab_resolve_all_vlog_hier_refs(const elab_ctx_t *ctx)
    vlog_deferred_body_t *items = ctx->vlog_deferred->items;
 
 #ifdef DEBUG
-   // Phase 2 coverage check: every Verilog body deferred for hier-ref
-   // resolution must already be in the language-neutral scope tree.
-   // If this fires, some elab path creates scopes without going
-   // through elab_push_scope, and Phase 3's cross-language walk will
-   // have blind spots.
+   // Coverage invariant: every Verilog body deferred for hier-ref
+   // resolution must already be registered in the language-neutral
+   // scope_tree.  If this fires, some elab path creates scopes
+   // without going through elab_push_scope, and the cross-language
+   // walk below will have blind spots.
    if (ctx->scope_tree != NULL) {
       for (int i = 0; i < count; i++)
          assert(hash_get(ctx->scope_tree, items[i].dotted) != NULL);

@@ -402,8 +402,8 @@ static void set_top_level(char **argv, int next_cmd, cmd_state_t *state)
    }
 
    // First positional is the "primary" top; it names the elaborated
-   // unit.  Any subsequent positionals become sibling tops under the
-   // synthetic root (Strategy 3 multi-top elaboration).
+   // unit.  Any subsequent positionals become sibling tops under
+   // the synthetic anonymous root.
    state->top_level_arg = argv[optind];
    state->top_level = to_unit_name(argv[optind]);
 
@@ -583,9 +583,9 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
       fatal("cannot find unit %s in library %s",
             istr(state->top_level), istr(lib_name(state->work)));
 
-   // Resolve every sibling top (Strategy 3 multi-top).  Fatal-on-miss
-   // here rather than deep in elab() so the error pinpoints the CLI
-   // argument.
+   // Resolve every sibling top for multi-top elaboration.
+   // Fatal-on-miss here rather than deep in elab() so the error
+   // pinpoints the CLI argument.
    const int ntops = 1 + state->extra_tops.count;
    object_t **tops LOCAL = xmalloc_array(ntops, sizeof(object_t *));
    tops[0] = obj;

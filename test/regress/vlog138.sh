@@ -1,10 +1,10 @@
 set -xe
 
-# Regression: $root anchored cross-top absolute paths (Phase 5).
-# A DUT top references a signal in a sibling glbl top via
-# $root.glbl.gsr — the Xilinx UNISIM GSR idiom.  Before Phase 5,
-# $root anchored at the topmost Verilog ancestor of the caller
-# (i.e., the DUT's own subtree), so the sibling was unreachable.
+# Regression: $root anchored cross-top absolute paths.  A DUT top
+# references a signal in a sibling glbl top via $root.glbl.gsr —
+# the Xilinx UNISIM GSR idiom.  Previously $root anchored at the
+# topmost Verilog ancestor of the caller (i.e., the DUT's own
+# subtree), so the sibling was unreachable.
 
 pwd
 which nvc

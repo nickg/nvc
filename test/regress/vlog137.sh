@@ -1,9 +1,9 @@
 set -xe
 
-# Regression: Strategy 3 multi-top elaboration (Phase 4).
-# Two unrelated VHDL tops passed to a single `-e`; both should
-# elaborate as siblings of the synthetic anonymous root and each
-# emit its own process output during simulation.
+# Regression: multi-top elaboration.  Two unrelated VHDL tops
+# passed to a single `-e` elaborate as siblings of the synthetic
+# anonymous root; each emits its own process output during
+# simulation.
 
 pwd
 which nvc
