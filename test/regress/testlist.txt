@@ -1355,5 +1355,5 @@ vlog97          verilog
 vlog99          verilog
 # vlog100         shell           # blocked: event declaration in module
 vlog136         mixed
-# vlog137         mixed   # blocked: link_var into VHDL-wrapped Verilog
-                         # module internals (orthogonal runtime gap)
+vlog137         shell
+vlog138         shell
