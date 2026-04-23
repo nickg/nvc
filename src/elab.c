@@ -2009,29 +2009,55 @@ static void elab_resolve_one_hier_ref(vlog_node_t v, vlog_node_t body,
       return;
    }
    else if (anchor == V_HIER_ABS_ROOT) {
-      // $root.<top>.<...>: the first segment of prefix is the
-      // top-level instance name, which IS the root body.  Strip it
-      // and walk the rest from the root body.
-      const elab_ctx_t *r = ctx;
-      while (r->parent != NULL && r->parent->vlog_body != NULL)
-         r = r->parent;
-
+      // $root.<top>.<...>: the first segment names one of the
+      // synthetic-root's direct children (any sibling top — the
+      // user's design top, glbl, a second design, etc.).  Probe
+      // scope_tree to find it by composing <library>.<root_head>;
+      // then descend via scope_tree probes for any remaining
+      // segments.  This is what makes $root.glbl.GSR reach a
+      // sibling glbl top under the synthetic root.
       ident_t walk = prefix;
       ident_t root_head = ident_walk_selected(&walk);
-      ident_t root_label = r->dotted ? ident_rfrom(r->dotted, '.') : NULL;
 
-      if (root_label != NULL && root_head == root_label) {
-         rooted_absolute = true;
-         rooted_rest = walk;
-         if (walk != NULL) {
-            resolved = elab_walk_vlog_path(r->vlog_body, r->dotted,
-                                           walk, ctx);
-         }
-         else {
-            // $root.<top> with no further segments — target IS root body
-            resolved.body = r->vlog_body;
-            resolved.dotted = r->dotted;
-            resolved.parent_body = NULL;
+      if (root_head != NULL && ctx->scope_tree != NULL) {
+         // Walk up to the top-level scope under the synthetic root.
+         // The chain built by elab_resolve_all_vlog_hier_refs only
+         // contains real scopes (not the synth root), so r->parent
+         // hitting NULL means r IS a top-level sibling.  Its dotted
+         // is <library>.<short_label>; strip the short label to get
+         // the library prefix that all sibling tops share.
+         const elab_ctx_t *r = ctx;
+         while (r->parent != NULL && !r->parent->is_synthetic_root)
+            r = r->parent;
+         ident_t root_prefix = (r->parent != NULL && r->parent->is_synthetic_root)
+            ? r->parent->dotted
+            : (r->dotted ? ident_runtil(r->dotted, '.') : NULL);
+
+         if (root_prefix != NULL) {
+            ident_t top_dotted = ident_prefix(root_prefix, root_head, '.');
+            hier_node_t *tn = hash_get(ctx->scope_tree, top_dotted);
+            if (tn != NULL) {
+               rooted_absolute = true;
+               rooted_rest = walk;
+
+               // Descend any remaining segments via scope_tree.
+               hier_node_t *tgt = tn;
+               bool ok = true;
+               ident_t w = walk;
+               ident_t seg;
+               while ((seg = ident_walk_selected(&w)) != NULL) {
+                  ident_t nd = ident_prefix(tgt->ids.dotted, seg, '.');
+                  hier_node_t *next = hash_get(ctx->scope_tree, nd);
+                  if (next == NULL) { ok = false; break; }
+                  tgt = next;
+               }
+               if (ok && tgt->vlog_body != NULL) {
+                  resolved.body        = tgt->vlog_body;
+                  resolved.dotted      = tgt->ids.dotted;
+                  resolved.parent_body =
+                     tgt->parent ? tgt->parent->vlog_body : NULL;
+               }
+            }
          }
       }
    }
