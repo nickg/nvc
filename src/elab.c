@@ -2059,11 +2059,24 @@ static void elab_resolve_one_hier_ref(vlog_node_t v, vlog_node_t body,
       }
 
       // Walk up the context chain searching for a scope containing
-      // `head` as a child.
+      // `head` as a child.  For each ancestor we take its OWN
+      // vlog_body from scope_tree — ctx->vlog_body may be inherited
+      // from a Verilog ancestor above an intervening VHDL scope,
+      // which would make us search the wrong body and mint a
+      // nonexistent dotted path.  VHDL ancestors are transparent
+      // waypoints: their own body is NULL, so the loop skips them
+      // and keeps walking up.  This is what lets a Verilog hier-ref
+      // reach a Verilog sibling that sits above a VHDL wrapper
+      // (the glbl pattern under a VHDL design top).
       for (const elab_ctx_t *cur = ctx;
            resolved.body == NULL && cur != NULL; cur = cur->parent) {
 
-         vlog_node_t scope = cur->vlog_body;
+         vlog_node_t scope = NULL;
+         if (cur->dotted != NULL && ctx->scope_tree != NULL) {
+            hier_node_t *cur_node = hash_get(ctx->scope_tree, cur->dotted);
+            if (cur_node != NULL)
+               scope = cur_node->vlog_body;
+         }
          if (scope == NULL)
             continue;
 
@@ -2324,6 +2337,10 @@ static void elab_verilog_module(tree_t comp, ident_t label, vlog_node_t mod,
          new_ctx.inst_alias = alias;
    }
 
+   // Set own vlog_body before push_scope so the scope-tree node
+   // captures *this* module's body, not the parent's inherited one.
+   new_ctx.vlog_body = ei->body;
+
    elab_push_scope(ei->wrap, &new_ctx);
 
    if (comp != NULL) {
@@ -2333,8 +2350,6 @@ static void elab_verilog_module(tree_t comp, ident_t label, vlog_node_t mod,
    }
    else
       elab_verilog_ports(inst, ei, &new_ctx);
-
-   new_ctx.vlog_body = ei->body;
 
    if (elab_new_errors(&new_ctx) == 0) {
       elab_decls(ei->block, &new_ctx);
@@ -3132,12 +3147,14 @@ static void elab_push_scope(tree_t t, elab_ctx_t *ctx)
    // the registration so the infrastructure is ready.
    if (ctx->scope_tree != NULL && ctx->dotted != NULL) {
       hier_node_t *node = pool_calloc(ctx->pool, sizeof(hier_node_t));
-      node->dotted = ctx->dotted;
-      node->label = ident_rfrom(ctx->dotted, '.');
-      node->tree_body = ctx->out;
-      node->lang = (tree_kind(t) == T_VERILOG)
+      node->ids.inst_alias = ctx->inst_alias;
+      node->ids.cloned     = ctx->cloned;
+      node->ids.dotted     = ctx->dotted;
+      node->label          = ident_rfrom(ctx->dotted, '.');
+      node->tree_body      = ctx->out;
+      node->lang           = (tree_kind(t) == T_VERILOG)
          ? HIER_LANG_VLOG : HIER_LANG_VHDL;
-      node->vlog_body = (node->lang == HIER_LANG_VLOG)
+      node->vlog_body      = (node->lang == HIER_LANG_VLOG)
          ? ctx->vlog_body : NULL;
 
       ident_t parent_dotted = ident_runtil(ctx->dotted, '.');
