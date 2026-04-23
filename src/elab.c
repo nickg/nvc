@@ -82,6 +82,10 @@ typedef struct _elab_ctx {
    hash_t           *modcache;
    hash_t           *blockcache;  // ident_t dotted → vlog_node_t body
    hash_t           *mracache;
+   hash_t           *scope_tree;  // ident_t dotted → hier_node_t*
+                                  // (every elaborated scope, both
+                                  // VHDL and Verilog; lives on the
+                                  // synthetic root)
    rt_model_t       *model;
    rt_scope_t       *scope;
    mem_pool_t       *pool;
@@ -1463,6 +1467,7 @@ static void elab_inherit_context(elab_ctx_t *ctx, const elab_ctx_t *parent)
    ctx->modcache       = parent->modcache;
    ctx->blockcache     = parent->blockcache;
    ctx->mracache       = parent->mracache;
+   ctx->scope_tree     = parent->scope_tree;
    ctx->depth          = parent->depth + 1;
    ctx->model          = parent->model;
    ctx->errors         = error_count();
@@ -3121,6 +3126,26 @@ static void elab_push_scope(tree_t t, elab_ctx_t *ctx)
    tree_set_ident2(h, ctx->cloned ?: ctx->dotted);
 
    tree_add_decl(ctx->out, h);
+
+   // Register this scope in the language-neutral scope tree.  Phase 3
+   // uses the tree for cross-language resolver walks; Phase 2 keeps
+   // the registration so the infrastructure is ready.
+   if (ctx->scope_tree != NULL && ctx->dotted != NULL) {
+      hier_node_t *node = pool_calloc(ctx->pool, sizeof(hier_node_t));
+      node->dotted = ctx->dotted;
+      node->label = ident_rfrom(ctx->dotted, '.');
+      node->tree_body = ctx->out;
+      node->lang = (tree_kind(t) == T_VERILOG)
+         ? HIER_LANG_VLOG : HIER_LANG_VHDL;
+      node->vlog_body = (node->lang == HIER_LANG_VLOG)
+         ? ctx->vlog_body : NULL;
+
+      ident_t parent_dotted = ident_runtil(ctx->dotted, '.');
+      if (parent_dotted != NULL)
+         node->parent = hash_get(ctx->scope_tree, parent_dotted);
+
+      hash_put(ctx->scope_tree, ctx->dotted, node);
+   }
 }
 
 static void elab_pop_scope(elab_ctx_t *ctx)
@@ -3559,6 +3584,18 @@ static void elab_resolve_all_vlog_hier_refs(const elab_ctx_t *ctx)
    const int count = ctx->vlog_deferred->count;
    vlog_deferred_body_t *items = ctx->vlog_deferred->items;
 
+#ifdef DEBUG
+   // Phase 2 coverage check: every Verilog body deferred for hier-ref
+   // resolution must already be in the language-neutral scope tree.
+   // If this fires, some elab path creates scopes without going
+   // through elab_push_scope, and Phase 3's cross-language walk will
+   // have blind spots.
+   if (ctx->scope_tree != NULL) {
+      for (int i = 0; i < count; i++)
+         assert(hash_get(ctx->scope_tree, items[i].dotted) != NULL);
+   }
+#endif
+
    // Build a hash from dotted → deferred entry for parent lookup.
    hash_t *by_dotted = hash_new(count * 2);
    for (int i = 0; i < count; i++)
@@ -3724,6 +3761,7 @@ tree_t elab(object_t *top, jit_t *jit, unit_registry_t *ur, mir_context_t *mc,
       .modcache          = hash_new(16),
       .blockcache        = hash_new(16),
       .mracache          = hash_new(16),
+      .scope_tree        = hash_new(64),
       .dotted            = lib_name(work),
       .model             = m,
       .scope             = create_scope(m, e, NULL),
@@ -3756,6 +3794,7 @@ tree_t elab(object_t *top, jit_t *jit, unit_registry_t *ur, mir_context_t *mc,
    hash_free(root_ctx.modcache);
    hash_free(root_ctx.blockcache);
    hash_free(root_ctx.mracache);
+   hash_free(root_ctx.scope_tree);
    pool_free(root_ctx.pool);
 
    if (error_count() > 0)

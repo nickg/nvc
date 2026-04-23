@@ -19,6 +19,7 @@
 #define _HIER_H
 
 #include "prim.h"
+#include "vlog/vlog-node.h"
 
 // A scope's identity in the elaborated instance hierarchy.  Embedded
 // in every context type that represents a live scope (elab_ctx_t,
@@ -49,5 +50,29 @@ static inline ident_t hier_scope_alias(const hier_scope_t *s)
 {
    return s->inst_alias ?: s->cloned ?: s->dotted;
 }
+
+// Language tag for a scope-tree node.  Used by the hier-ref resolver
+// to decide whether a node owns lookup-able decls (Verilog) or is a
+// transparent waypoint on the path (VHDL wrapper).
+typedef enum {
+   HIER_LANG_VHDL,
+   HIER_LANG_VLOG,
+} hier_lang_t;
+
+// A node in the elaborated scope tree.  Every top-level architecture,
+// Verilog module, generate iteration, named block, and VHDL sub-block
+// gets one.  Nodes are keyed by dotted in the per-elaboration
+// scope_tree hash on the synthetic root; children are enumerable
+// because every node knows its parent, and callers that need "child
+// X of parent Y" can probe `ident_prefix(Y.dotted, X, '.')`.
+typedef struct _hier_node hier_node_t;
+struct _hier_node {
+   ident_t       dotted;      // full MIR-qualified path
+   ident_t       label;       // short name under parent (tree_ident)
+   hier_node_t  *parent;      // NULL for children of the synthetic root
+   tree_t        tree_body;   // T_BLOCK of the elaborated scope
+   vlog_node_t   vlog_body;   // V_INST_BODY / V_BLOCK, NULL for VHDL
+   hier_lang_t   lang;
+};
 
 #endif  // _HIER_H
