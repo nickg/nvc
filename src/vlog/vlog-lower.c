@@ -3362,25 +3362,30 @@ void vlog_lower_block(mir_context_t *mc, ident_t parent, ident_t self_alias,
    if (parent != NULL)
       shape = mir_get_shape(mc, parent);
 
+   // Two distinct things share this scope's namespace:
+   //
+   //   * the TEMPLATE (`target`, registered by vlog_lower_instance):
+   //     holds the module's variable declarations.  User hier-refs
+   //     ultimately need to land here so link_var finds decls.
+   //
+   //   * the WRAPPER (this MIR unit): per-scope init code that the
+   //     runtime invokes from create_scope to set up this scope's
+   //     privdata.  Distinct code per scope path; not user-visible.
+   //
+   // Naming convention: wrappers live under `qual$instance` so that
+   // the bare dotted path `qual` is free to be an alias to the
+   // template.  create_scope (rt/model.c) appends $instance to the
+   // scope name when looking up the wrapper handle.  Aliasing is
+   // unconditional — no more inst_alias-vs-cloned-vs-dotted gating.
    ident_t qual = tree_ident(hier);
-   mir_unit_t *mu = mir_unit_new(mc, qual, tree_to_object(b),
+   ident_t target = vlog_ident(tree_vlog(tree_ref(hier)));
+   ident_t wrap_name = ident_prefix(qual, well_known(W_VLOG_INSTANCE), '\0');
+   mir_unit_t *mu = mir_unit_new(mc, wrap_name, tree_to_object(b),
                                  MIR_UNIT_FUNCTION, shape);
 
-   // self_alias is the canonical per-instance name for this scope,
-   // computed by the caller via vlog_scope_alias().  Register it as
-   // an alias of the shared module unit when it adds information:
-   // skip when it equals the target (no clone) or the dotted path
-   // (VHDL wrapper where cloned == dotted).  `alias` is non-NULL
-   // only when we actually registered one — the later
-   // instance_init uses it as the JIT name for this clone.
-   ident_t alias = NULL;
-   if (self_alias != NULL) {
-      ident_t target = vlog_ident(tree_vlog(tree_ref(hier)));
-      if (self_alias != target && self_alias != qual) {
-         alias = self_alias;
-         mir_alias_unit(mc, alias, target);
-      }
-   }
+   if (qual != target)
+      mir_alias_unit(mc, qual, target);
+   ident_t alias = self_alias ?: qual;
 
    mir_value_t context = MIR_NULL_VALUE;
    if (shape != NULL) {
@@ -3581,12 +3586,15 @@ void vlog_lower_block(mir_context_t *mc, ident_t parent, ident_t self_alias,
       args[i + 1] = nets;
    }
 
-   // Use the per-instance alias for instance_init when provided.
-   // Each cloned instance gets a unique JIT function handle this way
-   // so hier-refs resolve to the correct per-clone context
-   // (link_package(alias) → GETPRIV returns THIS clone's state).
-   // Generate blocks pass alias=NULL and use body_ident directly.
-   ident_t init_name = alias ?: vlog_ident(body);
+   // instance_init must use the same name that user hier-refs will
+   // emit at runtime — otherwise PUTPRIV stores privdata under one
+   // JIT handle and link_package looks up a different one (JIT
+   // handles are per-name; MIR aliases don't unify them).  Use the
+   // dotted path `qual` (which equals what the resolver puts on
+   // I_IDENT2 and what link_package emits).  For top-level Verilog
+   // modules where qual == target (no alias was registered), use
+   // target directly so PUTPRIV/GETPRIV pair on the same handle.
+   ident_t init_name = (qual != target) ? qual : target;
 
    mir_value_t inst = mir_build_instance_init(mu, init_name,
                                               args, vlog_nports + 1);
@@ -3714,6 +3722,11 @@ void vlog_lower_block(mir_context_t *mc, ident_t parent, ident_t self_alias,
 
    mir_optimise(mu, MIR_PASS_O1);
    mir_put_unit(mc, mu);
+
+   // Per-clone alias if distinct — instance_init uses self_alias
+   // as the JIT handle for this clone.
+   if (self_alias != NULL && self_alias != target && self_alias != qual)
+      mir_alias_unit(mc, self_alias, target);
 }
 
 mir_unit_t *vlog_lower_thunk(mir_context_t *mc, ident_t parent, vlog_node_t v)

@@ -1357,3 +1357,4 @@ vlog99          verilog
 vlog136         mixed
 vlog137         shell
 vlog138         shell
+vlog139         mixed

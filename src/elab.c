@@ -1970,16 +1970,6 @@ static void elab_pre_resolve_hier_params(vlog_node_t body,
 
 // Build a per-clone alias chain by prefixing each segment of `path`
 // onto `base` with dot separators.
-static ident_t elab_build_alias_chain(ident_t base, ident_t path)
-{
-   ident_t chain = base;
-   ident_t walk = path;
-   ident_t seg;
-   while ((seg = ident_walk_selected(&walk)) != NULL)
-      chain = ident_prefix(chain, seg, '.');
-   return chain;
-}
-
 // Resolves one V_HIER_REF node in `body`.  Sets I_REF (tail decl)
 // and I_VALUE (target body) on success.  On failure leaves slots
 // unset and emits a diagnostic with the full attempted path and the
@@ -1998,8 +1988,6 @@ static void elab_resolve_one_hier_ref(vlog_node_t v, vlog_node_t body,
    // RELATIVE refs this is the current body or a chain ancestor;
    // for ABS_ROOT it is the elaboration root.
    hier_target_t resolved = { NULL, NULL };
-   ident_t rooted_rest = NULL;
-   bool rooted_absolute = false;
    const elab_ctx_t *found_ctx = NULL;
 
    if (anchor == V_HIER_ABS_UNIT) {
@@ -2037,9 +2025,6 @@ static void elab_resolve_one_hier_ref(vlog_node_t v, vlog_node_t body,
             ident_t top_dotted = ident_prefix(root_prefix, root_head, '.');
             hier_node_t *tn = hash_get(ctx->scope_tree, top_dotted);
             if (tn != NULL) {
-               rooted_absolute = true;
-               rooted_rest = walk;
-
                // Descend any remaining segments via scope_tree.
                hier_node_t *tgt = tn;
                bool ok = true;
@@ -2078,10 +2063,6 @@ static void elab_resolve_one_hier_ref(vlog_node_t v, vlog_node_t body,
           && head == ident_rfrom(r->dotted, '.')) {
          resolved = elab_walk_vlog_path(r->vlog_body, r->dotted,
                                         rest, ctx);
-         if (resolved.body != NULL) {
-            rooted_absolute = true;
-            rooted_rest = rest;
-         }
       }
 
       // Walk up the context chain searching for a scope containing
@@ -2221,28 +2202,18 @@ static void elab_resolve_one_hier_ref(vlog_node_t v, vlog_node_t body,
    vlog_set_ref(v, decl);
    vlog_set_value(v, parent_scope);
 
-   // Compute the full per-clone alias chain and store it on I_IDENT2.
-   // This replaces the original prefix with the alias that link_package
-   // will use at runtime.  Uses the inst_alias from the context where
-   // the head segment was found (per-clone), then chains remaining
-   // prefix segments.  This gives correct per-clone aliases for
-   // multi-clone hierarchies.
-   if (rooted_absolute) {
-      // For rooted paths, chain from the root body's canonical name.
-      if (rooted_rest != NULL) {
-         const elab_ctx_t *r = ctx;
-         while (r->parent != NULL && r->parent->vlog_body != NULL)
-            r = r->parent;
-         vlog_set_ident2(v, elab_build_alias_chain(vlog_scope_alias(r),
-                                                   rooted_rest));
-      }
-      else
-         vlog_set_ident2(v, NULL);
-   }
-   else if (prefix != NULL && found_ctx != NULL) {
-      vlog_set_ident2(v, elab_build_alias_chain(vlog_scope_alias(found_ctx),
-                                                prefix));
-   }
+   // I_IDENT2 is the resolved target scope's canonical dotted path.
+   // vlog_lower_block registers each scope under its dotted path
+   // (as an alias to the shared module template), and uses the
+   // same dotted path as instance_init's PUTPRIV key.  So
+   // link_package(dotted) at runtime resolves to the right JIT
+   // handle and finds the per-scope privdata.  NULL signals "decl
+   // is directly in the parent scope" — vlog_hier_unit_alias falls
+   // back to vlog_canonical_scope_name in that case.
+   if (prefix != NULL)
+      vlog_set_ident2(v, resolved.dotted);
+   else
+      vlog_set_ident2(v, NULL);
 }
 
 typedef struct {
