@@ -20,6 +20,7 @@
 #include "common.h"
 #include "cov/cov-api.h"
 #include "diag.h"
+#include "hier.h"
 #include "eval.h"
 #include "hash.h"
 #include "inst.h"
@@ -91,6 +92,7 @@ typedef struct _elab_ctx {
                                         // post-elab hier-ref resolution
    unsigned          depth;
    unsigned          errors;
+   bool              is_synthetic_root;   // anonymous anchor above tops
 } elab_ctx_t;
 
 typedef struct {
@@ -1428,6 +1430,23 @@ static void elab_context(tree_t t)
    }
 }
 
+// True when `parent` is either absent (we are bootstrapping) or is
+// the synthetic anonymous root.  In either case the caller's ctx is
+// a top-level design scope and should not track an enclosing instance
+// for diagnostics.
+static inline bool elab_parent_is_root(const elab_ctx_t *parent)
+{
+   return parent == NULL || parent->is_synthetic_root;
+}
+
+// Thin wrapper around hier_scope_alias() for this module's ctx type.
+// The rule lives in hier.h; we just project the fields.
+static inline ident_t vlog_scope_alias(const elab_ctx_t *c)
+{
+   hier_scope_t s = { c->inst_alias, c->cloned, c->dotted };
+   return hier_scope_alias(&s);
+}
+
 static void elab_inherit_context(elab_ctx_t *ctx, const elab_ctx_t *parent)
 {
    ctx->parent         = parent;
@@ -1463,15 +1482,9 @@ static void elab_lower(tree_t b, elab_ctx_t *ctx)
    tree_t hier = tree_decl(b, 0);
    assert(tree_kind(hier) == T_HIER);
 
-   if (tree_subkind(hier) == T_VERILOG) {
-      ident_t parent_alias = vlog_scope_alias(ctx->parent->inst_alias,
-                                              ctx->parent->cloned,
-                                              ctx->parent->dotted);
-      ident_t self_alias = vlog_scope_alias(ctx->inst_alias,
-                                            ctx->cloned,
-                                            ctx->dotted);
-      vlog_lower_block(ctx->mir, parent_alias, self_alias, b);
-   }
+   if (tree_subkind(hier) == T_VERILOG)
+      vlog_lower_block(ctx->mir, vlog_scope_alias(ctx->parent),
+                       vlog_scope_alias(ctx), b);
    else {
       ctx->lowered = lower_instance(ctx->registry, ctx->parent->lowered,
                                     ctx->cover, ctx->cscope, b);
@@ -2146,18 +2159,15 @@ static void elab_resolve_one_hier_ref(vlog_node_t v, vlog_node_t body,
          const elab_ctx_t *r = ctx;
          while (r->parent != NULL && r->parent->vlog_body != NULL)
             r = r->parent;
-         ident_t root_base = vlog_scope_alias(r->inst_alias, r->cloned,
-                                              r->dotted);
-         vlog_set_ident2(v, elab_build_alias_chain(root_base, rooted_rest));
+         vlog_set_ident2(v, elab_build_alias_chain(vlog_scope_alias(r),
+                                                   rooted_rest));
       }
       else
          vlog_set_ident2(v, NULL);
    }
    else if (prefix != NULL && found_ctx != NULL) {
-      ident_t base = vlog_scope_alias(found_ctx->inst_alias,
-                                      found_ctx->cloned,
-                                      found_ctx->dotted);
-      vlog_set_ident2(v, elab_build_alias_chain(base, prefix));
+      vlog_set_ident2(v, elab_build_alias_chain(vlog_scope_alias(found_ctx),
+                                                prefix));
    }
 }
 
@@ -2303,10 +2313,7 @@ static void elab_verilog_module(tree_t comp, ident_t label, vlog_node_t mod,
    // below); we compute the canonical name here via vlog_scope_alias
    // so both sides see the exact same ident.
    if (ctx->vlog_body != NULL) {
-      ident_t parent_unit = vlog_scope_alias(ctx->inst_alias,
-                                             ctx->cloned,
-                                             ctx->dotted);
-      ident_t alias = ident_prefix(parent_unit, label, '.');
+      ident_t alias = ident_prefix(vlog_scope_alias(ctx), label, '.');
       ident_t target = vlog_ident(ei->body);
       if (alias != target)
          new_ctx.inst_alias = alias;
@@ -2432,10 +2439,7 @@ static void elab_verilog_block(vlog_node_t v, const elab_ctx_t *ctx)
    // vlog_lower_instance can register it (and reheat gets it for free).
    ident_t block_alias = NULL;
    if (ctx->vlog_body != NULL) {
-      ident_t parent_unit = vlog_scope_alias(ctx->inst_alias,
-                                             ctx->cloned,
-                                             ctx->dotted);
-      block_alias = ident_prefix(parent_unit, id, '.');
+      block_alias = ident_prefix(vlog_scope_alias(ctx), id, '.');
       ident_t target = vlog_ident(body);
       if (block_alias != target)
          new_ctx.inst_alias = block_alias;
@@ -2844,7 +2848,7 @@ static void elab_architecture(tree_t inst, tree_t arch, const elab_ctx_t *ctx)
 
    elab_ctx_t new_ctx = {
       .dotted = ndotted,
-      .inst   = ctx->parent != NULL ? inst : NULL,
+      .inst   = elab_parent_is_root(ctx->parent) ? NULL : inst,
    };
    elab_inherit_context(&new_ctx, ctx);
 
@@ -2901,7 +2905,7 @@ static void elab_configuration(tree_t inst, tree_t unit, const elab_ctx_t *ctx)
 
    elab_ctx_t new_ctx = {
       .dotted = ndotted,
-      .inst   = ctx->parent != NULL ? inst : NULL,
+      .inst   = elab_parent_is_root(ctx->parent) ? NULL : inst,
    };
    elab_inherit_context(&new_ctx, ctx);
 
@@ -3703,42 +3707,56 @@ tree_t elab(object_t *top, jit_t *jit, unit_registry_t *ur, mir_context_t *mc,
 
    lib_t work = lib_work();
 
-   elab_ctx_t ctx = {
-      .out       = e,
-      .root      = top,
-      .cover     = cover,
-      .library   = work,
-      .jit       = jit,
-      .sdf       = sdf,
-      .registry  = ur,
-      .mir       = mc,
-      .modcache  = hash_new(16),
-      .blockcache = hash_new(16),
-      .mracache  = hash_new(16),
-      .dotted    = lib_name(work),
-      .model     = m,
-      .scope     = create_scope(m, e, NULL),
-      .pool      = pool_new(),
+   // Synthetic anonymous root — the anchor for $root walks and
+   // (in later phases) the common parent of multiple sibling tops.
+   // It carries bootstrap state; per-top contexts inherit from it.
+   // For now there is exactly one top and it sits directly below.
+   elab_ctx_t root_ctx = {
+      .is_synthetic_root = true,
+      .out               = e,
+      .root              = top,
+      .cover             = cover,
+      .library           = work,
+      .jit               = jit,
+      .sdf               = sdf,
+      .registry          = ur,
+      .mir               = mc,
+      .modcache          = hash_new(16),
+      .blockcache        = hash_new(16),
+      .mracache          = hash_new(16),
+      .dotted            = lib_name(work),
+      .model             = m,
+      .scope             = create_scope(m, e, NULL),
+      .pool              = pool_new(),
    };
 
+   // Per-top context — child of the synthetic root.  Everything of
+   // substance (out, root, dotted, ...) is inherited; we only need
+   // the parent link.  The T_ELAB rt_scope lives on the synthetic
+   // root and acts as the parent-of-parents for every top-level
+   // architecture/module.
+   elab_ctx_t top_ctx = {};
+   elab_inherit_context(&top_ctx, &root_ctx);
+   top_ctx.scope = root_ctx.scope;
+
    if (vhdl != NULL)
-      call_with_model(m, elab_vhdl_root_cb, &ctx);
+      call_with_model(m, elab_vhdl_root_cb, &top_ctx);
    else
-      call_with_model(m, elab_verilog_root_cb, &ctx);
+      call_with_model(m, elab_verilog_root_cb, &top_ctx);
 
    if (opt_get_int(OPT_ELAB_STATS))
-      elab_print_stats(&ctx);
+      elab_print_stats(&root_ctx);
 
    const void *key;
    void *value;
    for (hash_iter_t it = HASH_BEGIN;
-        hash_iter(ctx.modcache, &it, &key, &value); )
+        hash_iter(root_ctx.modcache, &it, &key, &value); )
       ghash_free(((mod_cache_t *)value)->instances);
 
-   hash_free(ctx.modcache);
-   hash_free(ctx.blockcache);
-   hash_free(ctx.mracache);
-   pool_free(ctx.pool);
+   hash_free(root_ctx.modcache);
+   hash_free(root_ctx.blockcache);
+   hash_free(root_ctx.mracache);
+   pool_free(root_ctx.pool);
 
    if (error_count() > 0)
       return NULL;
@@ -3750,7 +3768,7 @@ tree_t elab(object_t *top, jit_t *jit, unit_registry_t *ur, mir_context_t *mc,
       warnf("generic value for %s not used", istr(it->name));
 
    ident_t b0_name = tree_ident(tree_stmt(e, 0));
-   ident_t vu_name = ident_prefix(lib_name(ctx.library), b0_name, '.');
+   ident_t vu_name = ident_prefix(lib_name(root_ctx.library), b0_name, '.');
    unit_registry_flush(ur, vu_name);
 
    freeze_global_arena();

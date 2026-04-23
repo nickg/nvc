@@ -108,17 +108,6 @@ static void vlog_hier_type_size(vlog_gen_t *g, vlog_node_t decl,
    }
 }
 
-// Canonical alias selection for a Verilog scope.  This is the single
-// rule that every site in the compiler agrees on when naming a MIR
-// unit: registration in vlog_lower_block, the elab-time hier-ref
-// resolver, and reheat all call this helper so that the alias stored
-// on I_IDENT2 always matches the alias passed to mir_alias_unit.  If
-// these ever diverge by one character, link_package silently misses.
-ident_t vlog_scope_alias(ident_t inst_alias, ident_t cloned, ident_t dotted)
-{
-   return inst_alias ?: cloned ?: dotted;
-}
-
 // Compute the per-instance alias for link_package.  The elab-time
 // resolver stores the PARENT SCOPE (containing the target instance)
 // on I_VALUE.  The alias is `vlog_ident(parent_scope).last_segment`,
