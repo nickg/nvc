@@ -1267,9 +1267,12 @@ START_TEST(test_href1)
 {
    input_from_file(TESTDIR "/vlog/href1.v");
 
+   // Hierarchical references whose prefix is not in scope are no longer
+   // diagnosed at parse time: they may be upward references to an
+   // instance in an ancestor scope (IEEE 1364-2005 §12.4.2), which can
+   // only be resolved during elaboration.  See vlog51 in the regression
+   // suite for the end-to-end elaboration-time error check.
    const error_t expect[] = {
-      {  6, "no visible declaration for 'xx'" },
-      { 13, "no visible declaration for 'yy'" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -1293,6 +1296,78 @@ START_TEST(test_href2)
    expect_errors(expect);
 
    do_parse_check(V_MODULE);
+
+   fail_unless(vlog_parse() == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
+START_TEST(test_href_bracket)
+{
+   input_from_file(TESTDIR "/vlog/href_bracket.v");
+
+   const error_t expect[] = {
+      {  9, "expected expression" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   do_parse_only(V_MODULE);
+
+   fail_unless(vlog_parse() == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
+START_TEST(test_href_nbtrigger)
+{
+   input_from_file(TESTDIR "/vlog/href_nbtrigger.v");
+
+   const error_t expect[] = {
+      { 13, "expected identifier" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   for (int i = 0; i < 2; i++)
+      do_parse_only(V_MODULE);
+
+   fail_unless(vlog_parse() == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
+START_TEST(test_href_disable)
+{
+   input_from_file(TESTDIR "/vlog/href_disable.v");
+
+   const error_t expect[] = {
+      {  9, "expected identifier" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   do_parse_only(V_MODULE);
+
+   fail_unless(vlog_parse() == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
+START_TEST(test_href_taskcall)
+{
+   input_from_file(TESTDIR "/vlog/href_taskcall.v");
+
+   const error_t expect[] = {
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   do_parse_only(V_MODULE);
 
    fail_unless(vlog_parse() == NULL);
 
@@ -1727,6 +1802,10 @@ Suite *get_vlog_tests(void)
    tcase_add_test(tc, test_label1);
    tcase_add_test(tc, test_href1);
    tcase_add_test(tc, test_href2);
+   tcase_add_test(tc, test_href_bracket);
+   tcase_add_test(tc, test_href_nbtrigger);
+   tcase_add_test(tc, test_href_disable);
+   tcase_add_test(tc, test_href_taskcall);
    tcase_add_test(tc, test_package1);
    tcase_add_test(tc, test_class1);
    tcase_add_test(tc, test_class2);

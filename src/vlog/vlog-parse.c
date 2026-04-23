@@ -28,6 +28,7 @@
 #include "vlog/vlog-util.h"
 
 #include <ctype.h>
+#include <inttypes.h>
 #include <string.h>
 #include <stdlib.h>
 #include <assert.h>
@@ -1160,63 +1161,163 @@ static void p_part_select_range(vlog_node_t ps)
    vlog_set_right(ps, p_constant_expression());
 }
 
-static vlog_node_t p_hierarchical_identifier(ident_t id)
+static bool looks_like_hier_path(void);
+
+static ident_t p_hier_brackets(ident_t name)
 {
-   // [ $root . ] { identifier constant_bit_select . } identifier
+   // Consumes any number of `[ constant_bit_select ]` after a
+   // hier-path segment ident.  Mid-path bracketed constant_bit_select
+   // is folded into the returned ident as `name[N]` when the
+   // expression is a compile-time constant -- matches the convention
+   // used by `vlog_generate_instance` for for-generate children so
+   // the resolver's kind-agnostic scope walk can match segments
+   // directly.  If the index is not constant the segment is left
+   // un-indexed (resolver will diagnose at elab time).
+   while (optional(tLSQUARE)) {
+      if (peek() == tRSQUARE) {
+         parse_error(CURRENT_LOC, "expected expression");
+         consume(tRSQUARE);
+         continue;
+      }
+
+      vlog_node_t idx = p_expression();
+      consume(tRSQUARE);
+
+      int64_t val;
+      if (vlog_is_const(idx) && vlog_get_const(idx, &val)) {
+         char buf[32];
+         checked_sprintf(buf, sizeof(buf), "[%"PRIi64"]", val);
+         name = ident_prefix(name, ident_new(buf), '\0');
+      }
+   }
+
+   return name;
+}
+
+static ident_t p_hier_segment(void)
+{
+   // identifier [ constant_bit_select ]
+   return p_hier_brackets(p_identifier());
+}
+
+static vlog_node_t p_hierarchical_path(ident_t head)
+{
+   // [ $root . ] segment { . segment } . identifier
+   //
+   // Single named helper for all hierarchical paths.  Every
+   // production that accepts a hierarchical reference (p_select,
+   // p_event_trigger, p_disable_statement, task-call parser,
+   // $dumpvars scope argument, future consumers) routes through this
+   // helper -- discipline 2 of the hier-ref unification.
+   //
+   // Storage convention on the returned V_HIER_REF:
+   //   I_IDENT   = tail identifier (final decl name)
+   //   I_IDENT2  = prefix path: all non-tail segments joined by `.`
+   //   I_SUBKIND = vlog_hier_anchor_t (relative, $root, $unit)
+   //   I_REF     = resolved declaration (filled by elab-time resolver)
+   //   I_VALUE   = resolved target body (filled by elab-time resolver)
 
    EXTEND("hierarchical identifier");
 
-   if (id == NULL)
-      id = p_identifier();
-
    vlog_node_t v = vlog_new(V_HIER_REF);
-   vlog_set_ident(v, id);
+   vlog_hier_anchor_t anchor = V_HIER_RELATIVE;
 
+   ident_t first;
+   if (head != NULL)
+      first = head;
+   else if (peek() == tSYSTASK) {
+      // $root is the only scope-anchor keyword handled at parse time.
+      // $unit is reserved but its file-level declarations are not yet
+      // parsed -- keep the anchor slot for forward compatibility.
+      consume(tSYSTASK);
+      ident_t sysid = state.last_lval.ident;
+      if (icmp(sysid, "$root"))
+         anchor = V_HIER_ABS_ROOT;
+      else if (icmp(sysid, "$unit"))
+         anchor = V_HIER_ABS_UNIT;
+      else {
+         parse_error(&state.last_loc, "unexpected %s while parsing "
+                     "hierarchical identifier", istr(sysid));
+         // Fall through and treat as a regular segment; resolver
+         // will diagnose the unknown head.
+         first = sysid;
+         goto have_head;
+      }
+      consume(tDOT);
+      first = p_hier_segment();
+   }
+   else
+      first = p_hier_segment();
+
+have_head: ;
+
+   ident_t prefix = p_hier_brackets(first);
    consume(tDOT);
 
-   ident_t suffix = NULL;
-   do {
-      suffix = ident_prefix(suffix, p_identifier(), '.');
-      vlog_set_ident2(v, suffix);
-   } while (optional(tDOT));
+   // Main loop parses middle + tail segments.  Brackets between
+   // segments are absorbed into the ident (for instance-array /
+   // generate-loop lookup); brackets on the FINAL tail are left for
+   // the caller's bit/part-select handling.  Distinguish by peeking
+   // past the `[...]` group to check for a following `.`.
+   ident_t tail = p_identifier();
+   while (peek() == tDOT
+          || (peek() == tLSQUARE && looks_like_hier_path())) {
+      tail = p_hier_brackets(tail);
+      if (!optional(tDOT))
+         break;
+      prefix = ident_prefix(prefix, tail, '.');
+      tail = p_identifier();
+   }
 
+   vlog_set_ident(v, tail);
+   vlog_set_ident2(v, prefix);
+   vlog_set_subkind(v, anchor);
    vlog_set_loc(v, CURRENT_LOC);
    vlog_symtab_lookup(symtab, v);
    return v;
 }
 
-static vlog_node_t p_select(ident_t id)
+static vlog_node_t p_hierarchical_identifier(ident_t id)
 {
-   // [ { . member_identifier bit_select } . member_identifier ]
-   //    { [ expression ] } [ [ part_select_range ] ]
+   // Preserved name for call sites that enter with a pre-consumed
+   // head identifier (e.g. `p_select` peeked ahead and already
+   // consumed the first ident).  Equivalent to the hier-path helper.
+   return p_hierarchical_path(id);
+}
+
+static bool looks_like_hier_path(void)
+{
+   // Caller has just consumed an identifier and is choosing between
+   // a plain V_REF and a V_HIER_REF.  Returns true if the next
+   // tokens look like a hier-path continuation: either a leading `.`
+   // or one or more `[ const ]` followed by `.`.  Bounded by
+   // TOKENQ_SIZE-1 so we never demand more lookahead than the
+   // tokenq supports.
+   if (peek() == tDOT)
+      return true;
+   if (peek() != tLSQUARE)
+      return false;
+
+   int depth = 0;
+   for (int n = 1; n < TOKENQ_SIZE - 1; n++) {
+      token_t t = peek_nth(n);
+      if (t == tLSQUARE)
+         depth++;
+      else if (t == tRSQUARE) {
+         if (--depth == 0)
+            return peek_nth(n + 1) == tDOT;
+      }
+      else if (t == tEOF || t == tSEMI || t == tCOMMA)
+         return false;
+   }
+   return false;   // Brackets deeper than lookahead window — conservative
+}
+
+static vlog_node_t p_select_tail(vlog_node_t prefix)
+{
+   // Trailing bit/part-select on an already-constructed prefix.
 
    EXTEND("select");
-
-   vlog_node_t d = vlog_symtab_query(symtab, id), prefix;
-   if (d != NULL && vlog_kind(d) == V_MOD_INST)
-      prefix = p_hierarchical_identifier(id);
-   else if (d == NULL && peek() == tDOT) {
-      // Assume this is a hierarchical reference to a later instance
-      prefix = p_hierarchical_identifier(id);
-   }
-   else {
-      prefix = vlog_new(V_REF);
-      vlog_set_ident(prefix, id);
-      vlog_set_loc(prefix, CURRENT_LOC);
-
-      vlog_symtab_lookup(symtab, prefix);
-
-      while (optional(tDOT)) {
-         vlog_node_t ref = vlog_new(V_MEMBER_REF);
-         vlog_set_ident(ref, p_identifier());
-         vlog_set_value(ref, prefix);
-         vlog_set_loc(ref, CURRENT_LOC);
-
-         vlog_symtab_lookup(symtab, ref);
-
-         prefix = ref;
-      }
-   }
 
    if (optional(tLSQUARE)) {
       do {
@@ -1250,6 +1351,45 @@ static vlog_node_t p_select(ident_t id)
    }
 
    return prefix;
+}
+
+static vlog_node_t p_select(ident_t id)
+{
+   // [ { . member_identifier bit_select } . member_identifier ]
+   //    { [ expression ] } [ [ part_select_range ] ]
+
+   EXTEND("select");
+
+   vlog_node_t d = vlog_symtab_query(symtab, id), prefix;
+   if (d != NULL && vlog_kind(d) == V_MOD_INST)
+      prefix = p_hierarchical_identifier(id);
+   else if (d == NULL && looks_like_hier_path()) {
+      // Assume this is a hierarchical reference -- either to a
+      // later instance, an upward sibling, or an indexed
+      // generate-block / instance array.  Resolution is deferred to
+      // the elab-time resolver.
+      prefix = p_hierarchical_identifier(id);
+   }
+   else {
+      prefix = vlog_new(V_REF);
+      vlog_set_ident(prefix, id);
+      vlog_set_loc(prefix, CURRENT_LOC);
+
+      vlog_symtab_lookup(symtab, prefix);
+
+      while (optional(tDOT)) {
+         vlog_node_t ref = vlog_new(V_MEMBER_REF);
+         vlog_set_ident(ref, p_identifier());
+         vlog_set_value(ref, prefix);
+         vlog_set_loc(ref, CURRENT_LOC);
+
+         vlog_symtab_lookup(symtab, ref);
+
+         prefix = ref;
+      }
+   }
+
+   return p_select_tail(prefix);
 }
 
 static void p_list_of_arguments(vlog_node_t call)
@@ -1447,7 +1587,23 @@ static vlog_node_t p_primary(void)
       case tSCOPE:
          p_package_scope();
       default:
-         return p_select(p_identifier());
+         {
+            vlog_node_t sel = p_select(p_identifier());
+            if (vlog_kind(sel) == V_HIER_REF && peek() == tLPAREN) {
+               // Hier-path followed by `(`: function call through
+               // hierarchical reference.  Build V_USER_FCALL with
+               // the hier-ref path on I_VALUE for elab-time resolution.
+               vlog_node_t v = vlog_new(V_USER_FCALL);
+               vlog_set_ident(v, vlog_ident(sel));
+               vlog_set_value(v, sel);
+               consume(tLPAREN);
+               p_list_of_arguments(v);
+               consume(tRPAREN);
+               vlog_set_loc(v, CURRENT_LOC);
+               return v;
+            }
+            return sel;
+         }
       }
    case tSTRING:
    case tNUMBER:
@@ -1455,6 +1611,8 @@ static vlog_node_t p_primary(void)
    case tREAL:
       return p_primary_literal();
    case tSYSTASK:
+      if (peek_nth(2) == tDOT)
+         return p_select_tail(p_hierarchical_path(NULL));
       return p_subroutine_call(V_SYS_FCALL);
    case tLPAREN:
       {
@@ -2635,17 +2793,52 @@ static vlog_node_t p_case_statement(void)
    return v;
 }
 
+static vlog_node_t p_error_recover_ident(vlog_node_t v, token_t stop)
+{
+   parse_error(CURRENT_LOC, "expected identifier");
+   drop_tokens_until(&state, stop);
+   vlog_set_ident(v, error_marker());
+   vlog_set_loc(v, CURRENT_LOC);
+   return v;
+}
+
 static vlog_node_t p_event_trigger(void)
 {
    // -> hierarchical_event_identifier ;
    //   | ->> [ delay_or_event_control ] hierarchical_event_identifier ;
+   //
+   // Both blocking (`->`) and nonblocking (`->>`) triggers accept a
+   // hierarchical_event_identifier.  We route through the hier-path
+   // helper (discipline 2) so a multi-segment path resolves to a
+   // V_HIER_REF that the elab-time resolver can dispatch; a single
+   // identifier becomes a plain V_REF target.
 
    BEGIN("event trigger");
 
-   consume(tIFIMPL);
+   bool nonblocking = false;
+   switch (one_of(tIFIMPL, tNBTRIGGER)) {
+   case tNBTRIGGER:
+      nonblocking = true;
+      break;
+   case tIFIMPL:
+   default:
+      break;
+   }
 
    vlog_node_t v = vlog_new(V_EVENT_TRIGGER);
-   vlog_set_ident(v, p_identifier());
+   vlog_set_subkind(v, nonblocking ? 1 : 0);
+
+   if (peek() != tID)
+      return p_error_recover_ident(v, tSEMI);
+
+   ident_t head = p_identifier();
+   if (peek() == tDOT) {
+      vlog_node_t hp = p_hierarchical_path(head);
+      vlog_set_ident(v, vlog_ident(hp));
+      vlog_set_value(v, hp);
+   }
+   else
+      vlog_set_ident(v, head);
 
    consume(tSEMI);
 
@@ -2689,13 +2882,30 @@ static vlog_node_t p_disable_statement(void)
    // disable hierarchical_task_identifier ;
    //   | disable hierarchical_block_identifier ;
    //   | disable fork ;
+   //
+   // Accepts a hierarchical path via the hier-path helper
+   // (discipline 2).  Plain identifier stays as I_IDENT on the
+   // V_DISABLE; a multi-segment path is wrapped in a V_HIER_REF
+   // stored on I_VALUE with its tail ident duplicated into I_IDENT
+   // so downstream consumers can key on name uniformly.
 
    BEGIN("disable statement");
 
    consume(tDISABLE);
 
    vlog_node_t v = vlog_new(V_DISABLE);
-   vlog_set_ident(v, p_identifier());
+
+   if (peek() != tID)
+      return p_error_recover_ident(v, tSEMI);
+
+   ident_t head = p_identifier();
+   if (peek() == tDOT) {
+      vlog_node_t hp = p_hierarchical_path(head);
+      vlog_set_ident(v, vlog_ident(hp));
+      vlog_set_value(v, hp);
+   }
+   else
+      vlog_set_ident(v, head);
 
    consume(tSEMI);
 
@@ -2767,6 +2977,30 @@ static vlog_node_t p_statement_item(ident_t id)
             case tMINUSMINUS:
                v = p_inc_or_dec_expression(lhs);
                break;
+            case tSEMI:
+            case tLPAREN:
+               if (vlog_kind(lhs) == V_HIER_REF) {
+                  // Hierarchical task-enable statement: the lhs we
+                  // just parsed turned out to be a hier path to a
+                  // task, not an assignment lvalue.  Re-shape as
+                  // V_USER_TCALL and carry the hier path via I_VALUE
+                  // so the elab-time resolver can walk the prefix.
+                  // Covers `u.u2.u3.t;` and `u.u2.u3.t(args);` --
+                  // vlog72, test_href_taskcall.  Do NOT call
+                  // vlog_symtab_lookup -- the elab-time resolver
+                  // owns hier-prefixed task resolution.
+                  v = vlog_new(V_USER_TCALL);
+                  vlog_set_ident(v, vlog_ident(lhs));
+                  vlog_set_value(v, lhs);
+                  if (optional(tLPAREN)) {
+                     p_list_of_arguments(v);
+                     consume(tRPAREN);
+                  }
+                  vlog_set_loc(v, CURRENT_LOC);
+               }
+               else
+                  v = p_blocking_assignment(lhs);
+               break;
             default:
                v = p_blocking_assignment(lhs);
                break;
@@ -2815,6 +3049,7 @@ static vlog_node_t p_statement_item(ident_t id)
    case tCASEZ:
       return p_case_statement();
    case tIFIMPL:
+   case tNBTRIGGER:
       return p_event_trigger();
    case tASSIGN:
    case tDEASSIGN:
@@ -5817,11 +6052,25 @@ static void p_list_of_port_connections(vlog_node_t inst)
 static vlog_node_t p_hierarchical_instance(void)
 {
    // name_of_instance ( [ list_of_port_connections ] )
+   // name_of_instance := instance_identifier { unpacked_dimension }
+   //
+   // We accept the unpacked_dimension list (instance arrays, IEEE
+   // 1364-2005 §7.1.5) at the parser level by silently consuming
+   // the ranges -- full instance-array elaboration (vlog65) remains
+   // an orthogonal blocker, but allowing the syntax keeps mid-path
+   // bracket tests (vlog61, test_href_bracket) reachable.
 
    BEGIN("hierarchical instance");
 
    vlog_node_t v = vlog_new(V_MOD_INST);
    vlog_set_ident(v, p_identifier());
+
+   while (optional(tLSQUARE)) {
+      (void)p_constant_expression();
+      if (optional(tCOLON))
+         (void)p_constant_expression();
+      consume(tRSQUARE);
+   }
 
    consume(tLPAREN);
 

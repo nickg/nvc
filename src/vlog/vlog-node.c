@@ -218,10 +218,10 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
    (I_CONDS),
 
    // V_EVENT_TRIGGER
-   (I_IDENT),
+   (I_IDENT | I_SUBKIND | I_VALUE),
 
    // V_USER_FCALL
-   (I_IDENT | I_REF | I_PARAMS),
+   (I_IDENT | I_REF | I_PARAMS | I_VALUE),
 
    // V_UDP_LEVEL
    (I_SUBKIND | I_IVAL),
@@ -239,7 +239,7 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
    (0),
 
    // V_USER_TCALL
-   (I_IDENT | I_REF | I_PARAMS),
+   (I_IDENT | I_REF | I_PARAMS | I_VALUE),
 
    // V_VOID_CALL
    (I_VALUE),
@@ -260,10 +260,10 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
    (I_TARGET | I_VALUE),
 
    // V_DISABLE
-   (I_IDENT),
+   (I_IDENT | I_VALUE),
 
    // V_HIER_REF
-   (I_IDENT | I_IDENT2 | I_REF),
+   (I_IDENT | I_IDENT2 | I_REF | I_VALUE | I_SUBKIND),
 
    // V_TF_PORT_DECL
    (I_IDENT | I_SUBKIND | I_RANGES | I_TYPE | I_VALUE | I_REF),

@@ -20,6 +20,7 @@
 #include "common.h"
 #include "cov/cov-api.h"
 #include "diag.h"
+#include "hier.h"
 #include "eval.h"
 #include "hash.h"
 #include "inst.h"
@@ -50,6 +51,14 @@
 
 typedef A(tree_t) tree_list_t;
 
+typedef struct {
+   vlog_node_t body;
+   ident_t     dotted;
+   vlog_node_t parent_body;
+   ident_t     parent_dotted;
+} vlog_deferred_body_t;
+typedef A(vlog_deferred_body_t) vlog_deferred_list_t;
+
 typedef struct _elab_ctx elab_ctx_t;
 typedef struct _generic_list generic_list_t;
 
@@ -69,12 +78,21 @@ typedef struct _elab_ctx {
    sdf_file_t       *sdf;
    hash_t           *modcache;
    hash_t           *mracache;
+   hash_t           *scope_tree;  // ident_t dotted → hier_node_t*
+                                  // (every elaborated scope, both
+                                  // VHDL and Verilog; lives on the
+                                  // synthetic root)
    rt_model_t       *model;
    rt_scope_t       *scope;
    mem_pool_t       *pool;
    cover_scope_t    *cscope;
+   vlog_node_t          vlog_body;     // V_INST_BODY / V_BLOCK / generate
+                                       // body for hier-ref resolver
+   vlog_deferred_list_t *vlog_deferred; // Accumulated bodies for
+                                        // post-elab hier-ref resolution
    unsigned          depth;
    unsigned          errors;
+   bool              is_synthetic_root;   // anonymous anchor above tops
 } elab_ctx_t;
 
 typedef struct {
@@ -116,6 +134,7 @@ static void elab_verilog_processes(vlog_node_t v, const elab_ctx_t *ctx);
 static void elab_decls(tree_t t, const elab_ctx_t *ctx);
 static void elab_push_scope(tree_t t, elab_ctx_t *ctx);
 static void elab_pop_scope(elab_ctx_t *ctx);
+static void elab_resolve_all_vlog_hier_refs(const elab_ctx_t *ctx);
 
 static generic_list_t *generic_override = NULL;
 
@@ -1411,26 +1430,38 @@ static void elab_context(tree_t t)
    }
 }
 
+// True when `parent` is either absent (we are bootstrapping) or is
+// the synthetic anonymous root.  In either case the caller's ctx is
+// a top-level design scope and should not track an enclosing instance
+// for diagnostics.
+static inline bool elab_parent_is_root(const elab_ctx_t *parent)
+{
+   return parent == NULL || parent->is_synthetic_root;
+}
+
 static void elab_inherit_context(elab_ctx_t *ctx, const elab_ctx_t *parent)
 {
-   ctx->parent   = parent;
-   ctx->jit      = parent->jit;
-   ctx->registry = parent->registry;
-   ctx->mir      = parent->mir;
-   ctx->root     = parent->root;
-   ctx->dotted   = ctx->dotted ?: parent->dotted;
-   ctx->library  = ctx->library ?: parent->library;
-   ctx->out      = ctx->out ?: parent->out;
-   ctx->cover    = parent->cover;
-   ctx->sdf      = parent->sdf;
-   ctx->inst     = ctx->inst ?: parent->inst;
-   ctx->modcache = parent->modcache;
-   ctx->mracache = parent->mracache;
-   ctx->depth    = parent->depth + 1;
-   ctx->model    = parent->model;
-   ctx->errors   = error_count();
-   ctx->pool     = parent->pool;
-   ctx->cscope   = parent->cscope;
+   ctx->parent         = parent;
+   ctx->jit            = parent->jit;
+   ctx->registry       = parent->registry;
+   ctx->mir            = parent->mir;
+   ctx->root           = parent->root;
+   ctx->dotted         = ctx->dotted ?: parent->dotted;
+   ctx->library        = ctx->library ?: parent->library;
+   ctx->out            = ctx->out ?: parent->out;
+   ctx->cover          = parent->cover;
+   ctx->sdf            = parent->sdf;
+   ctx->inst           = ctx->inst ?: parent->inst;
+   ctx->modcache       = parent->modcache;
+   ctx->mracache       = parent->mracache;
+   ctx->scope_tree     = parent->scope_tree;
+   ctx->depth          = parent->depth + 1;
+   ctx->model          = parent->model;
+   ctx->errors         = error_count();
+   ctx->pool           = parent->pool;
+   ctx->cscope         = parent->cscope;
+   ctx->vlog_body      = ctx->vlog_body ?: parent->vlog_body;
+   ctx->vlog_deferred  = parent->vlog_deferred;
 }
 
 static bool elab_new_errors(const elab_ctx_t *ctx)
@@ -1444,7 +1475,8 @@ static void elab_lower(tree_t b, elab_ctx_t *ctx)
    assert(tree_kind(hier) == T_HIER);
 
    if (tree_subkind(hier) == T_VERILOG)
-      vlog_lower_block(ctx->mir, ctx->parent->cloned ?: ctx->parent->dotted, b);
+      vlog_lower_block(ctx->mir,
+                       ctx->parent ? ctx->parent->dotted : NULL, b);
    else {
       ctx->lowered = lower_instance(ctx->registry, ctx->parent->lowered,
                                     ctx->cover, ctx->cscope, b);
@@ -1573,6 +1605,688 @@ static void elab_verilog_ports(vlog_node_t inst, elab_instance_t *ei,
    }
 }
 
+static ident_t elab_qualify_vlog_module(lib_t lib, ident_t modname)
+{
+   LOCAL_TEXT_BUF tb = tb_new();
+   tb_istr(tb, lib_name(lib));
+   tb_append(tb, '.');
+   tb_istr(tb, modname);
+   tb_upcase(tb);
+   return ident_new(tb_get(tb));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Verilog hierarchical reference resolver.
+//
+// Runs at the end of each scope's elaboration.  Walks the scope's
+// V_HIER_REF nodes and binds I_REF (final tail decl) + I_VALUE
+// (target body) for use by lowering, %m runtime, VPI, VCD, and
+// reheat.  All consumers of the user-visible canonical name go
+// through `vlog_canonical_scope_name` (vlog-util.h).
+//
+// Discipline 3 (kind-agnostic scope walk): the lookup helpers below
+// dispatch on the abstract notion of "is this node a scope-carrier
+// with a list of decls" -- the per-kind dispatch is confined to the
+// accessors `vlog_scope_decls_node` / `vlog_scope_children_walk`.
+//
+// Discipline 1 (generic decl lookup): the tail-identifier search
+// enumerates every decl in the target scope without branching on
+// decl kind.
+
+typedef struct {
+   vlog_node_t body;         // target V_INST_BODY / V_BLOCK
+   ident_t     dotted;       // canonical dotted MIR unit name
+   vlog_node_t parent_body;  // scope containing target instance
+} hier_target_t;
+
+// Returns the body+dotted for a child instance / named block
+// labelled `label` within `parent_body`.  `parent_dotted` is the
+// dotted MIR ident of `parent_body`; the child's dotted ident is
+// derived from it.  If the child cannot be resolved, returns
+// {NULL, NULL}.
+static hier_target_t elab_find_vlog_child(vlog_node_t parent_body,
+                                          ident_t parent_dotted,
+                                          ident_t label,
+                                          const elab_ctx_t *ctx)
+{
+   hier_target_t miss = { NULL, NULL };
+   if (parent_body == NULL || label == NULL)
+      return miss;
+
+   const int nstmts = vlog_stmts(parent_body);
+   for (int i = 0; i < nstmts; i++) {
+      vlog_node_t s = vlog_stmt(parent_body, i);
+
+      switch (vlog_kind(s)) {
+      case V_INST_LIST:
+         {
+            const int nlist = vlog_stmts(s);
+            for (int j = 0; j < nlist; j++) {
+               vlog_node_t inst = vlog_stmt(s, j);
+               if (vlog_kind(inst) != V_MOD_INST)
+                  continue;
+               if (vlog_ident(inst) != label)
+                  continue;
+
+               // Found the V_MOD_INST.  Look up its elaborated body
+               // in modcache (key = module object, value = mod_cache_t
+               // whose `instances` ghash maps V_INST_LIST -> ei).
+               ident_t qual = elab_qualify_vlog_module(ctx->library,
+                                                       vlog_ident(s));
+               object_t *mod_obj =
+                  lib_get_generic(ctx->library, qual, NULL);
+               if (mod_obj == NULL)
+                  return miss;
+
+               mod_cache_t *mc = hash_get(ctx->modcache, mod_obj);
+               if (mc == NULL || mc->instances == NULL)
+                  return miss;
+
+               elab_instance_t *ei = ghash_get(mc->instances, s);
+               if (ei == NULL)
+                  return miss;
+
+               // Child's dotted MIR ident is the elab_instance's
+               // block name -- elab_verilog_module set it to
+               // ndotted = parent_dotted.label.  But for clones,
+               // ei->block is the FIRST clone's block.  Compute
+               // parent_dotted.label directly to handle every clone.
+               hier_target_t out = {
+                  .body        = ei->body,
+                  .dotted      = ident_prefix(parent_dotted, label, '.'),
+                  .parent_body = parent_body,
+               };
+               return out;
+            }
+         }
+         break;
+
+      case V_BLOCK:
+         if (vlog_has_ident(s) && vlog_ident(s) == label) {
+            hier_target_t out = {
+               .body        = s,
+               .dotted      = ident_prefix(parent_dotted, label, '.'),
+               .parent_body = parent_body,
+            };
+            return out;
+         }
+         break;
+
+      default:
+         break;
+      }
+   }
+
+   // Check scope_tree for generate/named blocks registered during
+   // elaboration.  This avoids mutating the (possibly shared) parent
+   // body and works for blocks that don't appear in the original stmts.
+   if (ctx->scope_tree != NULL) {
+      ident_t child_dotted = ident_prefix(parent_dotted, label, '.');
+      hier_node_t *node = hash_get(ctx->scope_tree, child_dotted);
+      if (node != NULL && node->vlog_body != NULL) {
+         hier_target_t out = {
+            .body        = node->vlog_body,
+            .dotted      = child_dotted,
+            .parent_body = parent_body,
+         };
+         return out;
+      }
+   }
+
+   return miss;
+}
+
+// Generic decl-by-name search across any scope-carrying node
+// (V_INST_BODY, V_BLOCK, V_FORK, V_PROGRAM, V_MODULE, future
+// V_INTERFACE / V_BIND targets).  No per-kind branch on the decl --
+// satisfies discipline 1.
+static vlog_node_t elab_find_vlog_decl(vlog_node_t scope, ident_t name)
+{
+   if (scope == NULL || name == NULL)
+      return NULL;
+
+   const int ndecls = vlog_decls(scope);
+   for (int i = 0; i < ndecls; i++) {
+      vlog_node_t d = vlog_decl(scope, i);
+      if (vlog_has_ident(d) && vlog_ident(d) == name)
+         return d;
+   }
+
+   // Also search the scope's port list (relevant for V_INST_BODY).
+   if (vlog_kind(scope) == V_INST_BODY || vlog_kind(scope) == V_MODULE
+       || vlog_kind(scope) == V_PROGRAM || vlog_kind(scope) == V_PRIMITIVE) {
+      const int nports = vlog_ports(scope);
+      for (int i = 0; i < nports; i++) {
+         vlog_node_t p = vlog_port(scope, i);
+         if (vlog_has_ident(p) && vlog_ident(p) == name)
+            return p;
+      }
+   }
+
+   return NULL;
+}
+
+// Walks `prefix` segments separated by `.`, descending through
+// scopes via elab_find_vlog_child.  Returns the target body + dotted
+// name that corresponds to the final segment, or {NULL,NULL} on
+// failure.
+static hier_target_t elab_walk_vlog_path(vlog_node_t start,
+                                         ident_t start_dotted,
+                                         ident_t prefix,
+                                         const elab_ctx_t *ctx)
+{
+   hier_target_t miss = { NULL, NULL };
+   if (start == NULL)
+      return miss;
+
+   hier_target_t cur = { start, start_dotted };
+   ident_t walk = prefix;
+   ident_t seg;
+
+   while ((seg = ident_walk_selected(&walk)) != NULL) {
+      cur = elab_find_vlog_child(cur.body, cur.dotted, seg, ctx);
+      if (cur.body == NULL)
+         return miss;
+   }
+
+   return cur;
+}
+
+// Best-effort first pass: resolve single-segment downward hier-refs
+// to child parameters so that constant expressions (reg widths,
+// generate conditions) can be evaluated during vlog_lower_instance.
+// Called before vlog_trans/vlog_lower_instance for the current body.
+typedef struct {
+   vlog_node_t body;
+   const elab_ctx_t *ctx;
+} pre_resolve_ctx_t;
+
+static void elab_pre_resolve_cb(vlog_node_t v, void *context)
+{
+   pre_resolve_ctx_t *pctx = context;
+
+   if (vlog_has_value(v))
+      return;   // Already resolved
+
+   ident_t prefix = vlog_has_ident2(v) ? vlog_ident2(v) : NULL;
+   ident_t tail = vlog_ident(v);
+   if (prefix == NULL || tail == NULL)
+      return;
+
+   // Only handle single-segment prefixes (e.g., `u.WIDTH`).
+   ident_t walk = prefix;
+   ident_t head = ident_walk_selected(&walk);
+   if (walk != NULL)
+      return;   // Multi-segment, skip
+
+   // Find V_MOD_INST named `head` in the body's stmts.
+   vlog_node_t body = pctx->body;
+   const int nstmts = vlog_stmts(body);
+   for (int i = 0; i < nstmts; i++) {
+      vlog_node_t s = vlog_stmt(body, i);
+      if (vlog_kind(s) != V_INST_LIST)
+         continue;
+
+      const int ninst = vlog_stmts(s);
+      for (int j = 0; j < ninst; j++) {
+         vlog_node_t inst = vlog_stmt(s, j);
+         if (vlog_kind(inst) != V_MOD_INST || vlog_ident(inst) != head)
+            continue;
+
+         // Found. Load the module from library.
+         ident_t qual = elab_qualify_vlog_module(pctx->ctx->library,
+                                                 vlog_ident(s));
+         object_t *obj = lib_get_generic(pctx->ctx->library, qual, NULL);
+         if (obj == NULL)
+            return;
+
+         vlog_node_t mod = vlog_from_object(obj);
+         if (mod == NULL)
+            return;
+
+         // Search the module's decls for a parameter matching `tail`.
+         const int ndecls = vlog_decls(mod);
+         for (int k = 0; k < ndecls; k++) {
+            vlog_node_t d = vlog_decl(mod, k);
+            if ((vlog_kind(d) == V_PARAM_DECL || vlog_kind(d) == V_LOCALPARAM)
+                && vlog_has_ident(d) && vlog_ident(d) == tail) {
+               // Bind the parameter: check for override from the inst.
+               vlog_node_t value = vlog_has_value(d) ? vlog_value(d) : NULL;
+               const int nparams = vlog_params(inst);
+               for (int p = 0; p < nparams; p++) {
+                  vlog_node_t pm = vlog_param(inst, p);
+                  if (vlog_has_ident(pm) && vlog_ident(pm) == tail) {
+                     value = vlog_value(pm);
+                     break;
+                  }
+                  else if (!vlog_has_ident(pm) && p == k) {
+                     // Positional override matching the k-th param
+                     value = vlog_value(pm);
+                     break;
+                  }
+               }
+
+               if (value != NULL) {
+                  // Set I_REF to the parameter decl so vlog_get_const
+                  // can follow the chain to the value.
+                  vlog_set_ref(v, d);
+               }
+               return;
+            }
+         }
+         return;
+      }
+   }
+}
+
+static void elab_pre_resolve_hier_params(vlog_node_t body,
+                                         const elab_ctx_t *ctx)
+{
+   pre_resolve_ctx_t pctx = { body, ctx };
+
+   // Walk decl data types to find V_HIER_REFs in dimension expressions
+   // (e.g., reg [u.WIDTH-1:0]).  Data types and generate conditions are
+   // shared with the original module, so vlog_visit_only on the body
+   // alone wouldn't reach them — we must traverse each range bound
+   // explicitly.  Using vlog_visit_only on each bound expression handles
+   // all expression kinds (V_BINARY, V_UNARY, V_COND_EXPR, V_CONCAT,
+   // ...) without a fragile per-kind manual walk.
+   const int ndecls = vlog_decls(body);
+   for (int i = 0; i < ndecls; i++) {
+      vlog_node_t d = vlog_decl(body, i);
+      const vlog_kind_t dk = vlog_kind(d);
+      if (dk != V_VAR_DECL && dk != V_NET_DECL && dk != V_PORT_DECL)
+         continue;
+      if (!vlog_has_type(d))
+         continue;
+      vlog_node_t dt = vlog_type(d);
+      if (vlog_kind(dt) != V_DATA_TYPE)
+         continue;
+      const int nranges = vlog_ranges(dt);
+      for (int r = 0; r < nranges; r++) {
+         vlog_node_t range = vlog_range(dt, r);
+         vlog_visit_only(vlog_left(range), elab_pre_resolve_cb,
+                         &pctx, V_HIER_REF);
+         vlog_visit_only(vlog_right(range), elab_pre_resolve_cb,
+                         &pctx, V_HIER_REF);
+      }
+   }
+
+   // Walk generate conditions and inner block decl types (both shared
+   // with the original module — the visitor can't reach them from body).
+   const int nstmts = vlog_stmts(body);
+   for (int i = 0; i < nstmts; i++) {
+      vlog_node_t s = vlog_stmt(body, i);
+      if (vlog_kind(s) != V_IF_GENERATE)
+         continue;
+      const int nconds = vlog_conds(s);
+      for (int j = 0; j < nconds; j++) {
+         vlog_node_t c = vlog_cond(s, j);
+         if (vlog_has_value(c))
+            vlog_visit_only(vlog_value(c), elab_pre_resolve_cb,
+                            &pctx, V_HIER_REF);
+         // Walk decl types inside generate blocks.
+         const int cstmts = vlog_stmts(c);
+         for (int k = 0; k < cstmts; k++) {
+            vlog_node_t cs = vlog_stmt(c, k);
+            if (vlog_kind(cs) != V_BLOCK)
+               continue;
+            const int bndecls = vlog_decls(cs);
+            for (int m = 0; m < bndecls; m++) {
+               vlog_node_t bd = vlog_decl(cs, m);
+               if (!vlog_has_type(bd))
+                  continue;
+               vlog_node_t bdt = vlog_type(bd);
+               const int bnr = vlog_ranges(bdt);
+               for (int n = 0; n < bnr; n++) {
+                  vlog_node_t br = vlog_range(bdt, n);
+                  vlog_visit_only(vlog_left(br), elab_pre_resolve_cb,
+                                  &pctx, V_HIER_REF);
+                  vlog_visit_only(vlog_right(br), elab_pre_resolve_cb,
+                                  &pctx, V_HIER_REF);
+               }
+            }
+         }
+      }
+   }
+
+   // Walk remaining hier-refs reachable through the copied object
+   // graph (e.g., in process statements).
+   vlog_visit_only(body, elab_pre_resolve_cb, &pctx, V_HIER_REF);
+}
+
+// Resolves one V_HIER_REF node in `body`.  Sets I_REF (tail decl)
+// and I_VALUE (target body) on success.  On failure leaves slots
+// unset and emits a diagnostic with the full attempted path and the
+// failing scope.
+static void elab_resolve_one_hier_ref(vlog_node_t v, vlog_node_t body,
+                                      const elab_ctx_t *ctx)
+{
+   if (vlog_has_value(v))
+      return;   // Already resolved (e.g. by an earlier pass).
+
+   ident_t prefix = vlog_ident2(v);
+   ident_t tail = vlog_ident(v);
+   const vlog_hier_anchor_t anchor = vlog_subkind(v);
+
+   // Find the scope at which to BEGIN walking path segments.  For
+   // RELATIVE refs this is the current body or a chain ancestor;
+   // for ABS_ROOT it is the elaboration root.
+   hier_target_t resolved = { NULL, NULL };
+   const elab_ctx_t *found_ctx = NULL;
+
+   if (anchor == V_HIER_ABS_UNIT) {
+      diag_t *d = diag_new(DIAG_ERROR, vlog_loc(v));
+      diag_printf(d, "$unit hierarchical references are not yet supported");
+      diag_emit(d);
+      return;
+   }
+   else if (anchor == V_HIER_ABS_ROOT) {
+      // $root.<top>.<...>: the first segment names one of the
+      // synthetic-root's direct children (any sibling top — the
+      // user's design top, glbl, a second design, etc.).  Probe
+      // scope_tree to find it by composing <library>.<root_head>;
+      // then descend via scope_tree probes for any remaining
+      // segments.  This is what makes $root.glbl.GSR reach a
+      // sibling glbl top under the synthetic root.
+      ident_t walk = prefix;
+      ident_t root_head = ident_walk_selected(&walk);
+
+      if (root_head != NULL && ctx->scope_tree != NULL) {
+         // Walk up to the top-level scope under the synthetic root.
+         // The chain built by elab_resolve_all_vlog_hier_refs only
+         // contains real scopes (not the synth root), so r->parent
+         // hitting NULL means r IS a top-level sibling.  Its dotted
+         // is <library>.<short_label>; strip the short label to get
+         // the library prefix that all sibling tops share.
+         const elab_ctx_t *r = ctx;
+         while (r->parent != NULL && !r->parent->is_synthetic_root)
+            r = r->parent;
+         ident_t root_prefix = (r->parent != NULL && r->parent->is_synthetic_root)
+            ? r->parent->dotted
+            : (r->dotted ? ident_runtil(r->dotted, '.') : NULL);
+
+         if (root_prefix != NULL) {
+            ident_t top_dotted = ident_prefix(root_prefix, root_head, '.');
+            hier_node_t *tn = hash_get(ctx->scope_tree, top_dotted);
+            if (tn != NULL) {
+               // Descend any remaining segments via scope_tree.
+               hier_node_t *tgt = tn;
+               bool ok = true;
+               ident_t w = walk;
+               ident_t seg;
+               while ((seg = ident_walk_selected(&w)) != NULL) {
+                  ident_t nd = ident_prefix(tgt->dotted, seg, '.');
+                  hier_node_t *next = hash_get(ctx->scope_tree, nd);
+                  if (next == NULL) { ok = false; break; }
+                  tgt = next;
+               }
+               if (ok && tgt->vlog_body != NULL) {
+                  resolved.body        = tgt->vlog_body;
+                  resolved.dotted      = tgt->dotted;
+                  resolved.parent_body =
+                     tgt->parent ? tgt->parent->vlog_body : NULL;
+               }
+            }
+         }
+      }
+   }
+   else {
+      // RELATIVE: split prefix into head + rest.  Walk up the ctx
+      // chain looking for a scope that contains `head` as a child.
+      ident_t walk = prefix;
+      ident_t head = ident_walk_selected(&walk);
+      ident_t rest = walk;
+
+      // Rooted-absolute check: if `head` matches the topmost body's
+      // short label, treat the ref as absolute (vlog62 / vlog96).
+      const elab_ctx_t *r = ctx;
+      while (r->parent != NULL && r->parent->vlog_body != NULL)
+         r = r->parent;
+      if (r->vlog_body != NULL && head != NULL
+          && r->dotted != NULL
+          && head == ident_rfrom(r->dotted, '.')) {
+         resolved = elab_walk_vlog_path(r->vlog_body, r->dotted,
+                                        rest, ctx);
+      }
+
+      // Walk up the context chain searching for a scope containing
+      // `head` as a child.  For each ancestor we take its OWN
+      // vlog_body from scope_tree — ctx->vlog_body may be inherited
+      // from a Verilog ancestor above an intervening VHDL scope,
+      // which would make us search the wrong body and mint a
+      // nonexistent dotted path.  VHDL ancestors are transparent
+      // waypoints: their own body is NULL, so the loop skips them
+      // and keeps walking up.  This is what lets a Verilog hier-ref
+      // reach a Verilog sibling that sits above a VHDL wrapper
+      // (the glbl pattern under a VHDL design top).
+      for (const elab_ctx_t *cur = ctx;
+           resolved.body == NULL && cur != NULL; cur = cur->parent) {
+
+         if (cur->dotted == NULL || ctx->scope_tree == NULL)
+            continue;
+
+         hier_node_t *cur_node = hash_get(ctx->scope_tree, cur->dotted);
+         if (cur_node == NULL)
+            continue;
+
+         // First: if this ancestor owns a Verilog body, try the
+         // language-specific search (it knows about V_MOD_INST,
+         // V_BLOCK, and the blockcache fallback in one place).
+         if (cur_node->vlog_body != NULL) {
+            hier_target_t child = elab_find_vlog_child(cur_node->vlog_body,
+                                                       cur->dotted, head,
+                                                       ctx);
+            if (child.body != NULL) {
+               found_ctx = cur;
+               if (rest != NULL)
+                  resolved = elab_walk_vlog_path(child.body, child.dotted,
+                                                 rest, ctx);
+               else
+                  resolved = child;
+               continue;
+            }
+         }
+
+         // Second: language-neutral probe.  For VHDL ancestors this
+         // is the only search; for Verilog ancestors it catches
+         // scope kinds elab_find_vlog_child doesn't enumerate (the
+         // scope_tree is populated at every elab_push_scope).
+         ident_t candidate = ident_prefix(cur->dotted, head, '.');
+         hier_node_t *head_node = hash_get(ctx->scope_tree, candidate);
+         if (head_node == NULL)
+            continue;
+
+         found_ctx = cur;
+         hier_node_t *tgt = head_node;
+         bool ok = true;
+         ident_t w = rest;
+         ident_t seg;
+         while ((seg = ident_walk_selected(&w)) != NULL) {
+            ident_t nd = ident_prefix(tgt->dotted, seg, '.');
+            hier_node_t *next = hash_get(ctx->scope_tree, nd);
+            if (next == NULL) {
+               ok = false;
+               break;
+            }
+            tgt = next;
+         }
+         if (ok && tgt->vlog_body != NULL) {
+            resolved.body        = tgt->vlog_body;
+            resolved.dotted      = tgt->dotted;
+            resolved.parent_body = tgt->parent ? tgt->parent->vlog_body : NULL;
+         }
+      }
+   }
+
+   if (resolved.body == NULL) {
+      ident_t walk_copy = prefix;
+      ident_t head = ident_walk_selected(&walk_copy);
+
+      diag_t *d = diag_new(DIAG_ERROR, vlog_loc(v));
+      if (found_ctx != NULL) {
+         // Head resolved but a mid-segment failed — show the full
+         // user-written path so the user can see which part is wrong.
+         diag_printf(d, "no visible declaration for '%s.%s'",
+                     istr(prefix), istr(tail));
+      }
+      else {
+         diag_printf(d, "no visible declaration for '%s'", istr(head));
+      }
+      if (body != NULL && vlog_has_ident(body))
+         diag_hint(d, vlog_loc(v), "in scope '%s'",
+                   istr(vlog_canonical_scope_name(body)));
+      diag_emit(d);
+      return;
+   }
+
+   // Look up the tail decl in the resolved target body.
+   vlog_node_t decl = elab_find_vlog_decl(resolved.body, tail);
+   if (decl == NULL) {
+      diag_t *d = diag_new(DIAG_ERROR, vlog_loc(v));
+      diag_printf(d, "no visible declaration for '%s' in %s",
+                  istr(tail),
+                  istr(vlog_canonical_scope_name(resolved.body)));
+      diag_emit(d);
+      return;
+   }
+
+   // IEEE 1364 §12.4.3: a genvar is scoped to its generate block and
+   // must not be accessible by hierarchical path.
+   if (vlog_kind(decl) == V_GENVAR_DECL) {
+      diag_t *d = diag_new(DIAG_ERROR, vlog_loc(v));
+      diag_printf(d, "genvar '%s' is not accessible by hierarchical path",
+                  istr(tail));
+      diag_emit(d);
+      return;
+   }
+
+   // Bind the resolver outputs.  I_VALUE gets the PARENT scope (the
+   // body that contains the target instance) so lowering can compute
+   // the per-instance alias as `vlog_ident(parent).last_seg`.  This
+   // matches the alias used by instance_init in the block function.
+   // I_REF gets the tail decl (overwriting the parse-time head decl).
+   vlog_node_t parent_scope = resolved.parent_body ?: resolved.body;
+
+   // When the parent scope is a V_BLOCK (e.g. generate block), look
+   // up the elaborated V_INST_BODY from scope_tree for the correct
+   // canonical scope name.  The V_BLOCK itself has only the user-
+   // visible label, not the fully-qualified MIR unit name.
+   if (parent_scope != NULL && vlog_kind(parent_scope) == V_BLOCK
+       && ctx->scope_tree != NULL) {
+      // resolved.dotted = parent.child (e.g. WORK.vlog61.gen_if.u).
+      // The parent's dotted is resolved.dotted with last segment stripped.
+      ident_t parent_dotted = ident_runtil(resolved.dotted, '.');
+      if (parent_dotted != NULL) {
+         hier_node_t *node = hash_get(ctx->scope_tree, parent_dotted);
+         if (node != NULL && node->vlog_body != NULL)
+            parent_scope = node->vlog_body;
+      }
+   }
+
+   vlog_set_ref(v, decl);
+   vlog_set_value(v, parent_scope);
+
+   // I_IDENT2 is the resolved target scope's canonical dotted path.
+   // vlog_lower_block registers each scope under its dotted path
+   // (as an alias to the shared module template), and uses the
+   // same dotted path as instance_init's PUTPRIV key.  So
+   // link_package(dotted) at runtime resolves to the right JIT
+   // handle and finds the per-scope privdata.  NULL signals "decl
+   // is directly in the parent scope" — vlog_hier_unit_alias falls
+   // back to vlog_canonical_scope_name in that case.
+   if (prefix != NULL)
+      vlog_set_ident2(v, resolved.dotted);
+   else
+      vlog_set_ident2(v, NULL);
+}
+
+typedef struct {
+   vlog_node_t       body;
+   const elab_ctx_t *ctx;
+} hier_resolve_ctx_t;
+
+static void elab_resolve_visit_cb(vlog_node_t v, void *context)
+{
+   hier_resolve_ctx_t *rc = context;
+   elab_resolve_one_hier_ref(v, rc->body, rc->ctx);
+}
+
+static void elab_propagate_tcall_ref(vlog_node_t v, void *context)
+{
+   // For V_USER_TCALL / V_USER_FCALL with a V_HIER_REF in I_VALUE:
+   // the inner V_HIER_REF was already resolved; propagate its I_REF
+   // to the enclosing call node so lowering can find the target.
+   if (!vlog_has_value(v))
+      return;
+   vlog_node_t href = vlog_value(v);
+   if (vlog_kind(href) != V_HIER_REF || !vlog_has_ref(href))
+      return;
+   vlog_set_ref(v, vlog_ref(href));
+}
+
+static void elab_check_disable_target(vlog_node_t v, void *context)
+{
+   // IEEE 1364 §9.6.2: disable target must name a block or task.
+   if (!vlog_has_value(v))
+      return;
+   vlog_node_t href = vlog_value(v);
+   if (vlog_kind(href) != V_HIER_REF || !vlog_has_ref(href))
+      return;
+
+   vlog_node_t decl = vlog_ref(href);
+   switch (vlog_kind(decl)) {
+   case V_BLOCK:
+   case V_TASK_DECL:
+      break;   // Valid disable targets.
+   default:
+      {
+         diag_t *d = diag_new(DIAG_ERROR, vlog_loc(v));
+         diag_printf(d, "target of disable is not a named block or task");
+         diag_emit(d);
+      }
+   }
+}
+
+static void elab_resolve_vlog_hier_refs(vlog_node_t body,
+                                        const elab_ctx_t *ctx)
+{
+   if (body == NULL)
+      return;
+
+   hier_resolve_ctx_t rc = { .body = body, .ctx = ctx };
+
+   // Iterate own stmts (initial / always / continuous-assign hold
+   // the V_HIER_REF leaves).  Decls may contain hier-refs in
+   // initialisers (e.g. `reg [u.WIDTH-1:0] x;` when WIDTH is
+   // resolvable at elab time).  vlog_visit_only handles the
+   // recursive descent for us, only invoking the callback on
+   // V_HIER_REF nodes.
+   const int nstmts = vlog_stmts(body);
+   for (int i = 0; i < nstmts; i++)
+      vlog_visit_only(vlog_stmt(body, i), elab_resolve_visit_cb, &rc,
+                      V_HIER_REF);
+
+   const int ndecls = vlog_decls(body);
+   for (int i = 0; i < ndecls; i++)
+      vlog_visit_only(vlog_decl(body, i), elab_resolve_visit_cb, &rc,
+                      V_HIER_REF);
+
+   // Propagate resolved I_REF to V_USER_TCALL / V_USER_FCALL nodes
+   // that carry a hier-ref on I_VALUE.
+   for (int i = 0; i < nstmts; i++) {
+      vlog_visit_only(vlog_stmt(body, i), elab_propagate_tcall_ref,
+                      NULL, V_USER_TCALL);
+      vlog_visit_only(vlog_stmt(body, i), elab_propagate_tcall_ref,
+                      NULL, V_USER_FCALL);
+   }
+
+   // Check V_DISABLE targets after resolution.
+   for (int i = 0; i < nstmts; i++)
+      vlog_visit_only(vlog_stmt(body, i), elab_check_disable_target,
+                      NULL, V_DISABLE);
+}
+
 static void elab_verilog_module(tree_t comp, ident_t label, vlog_node_t mod,
                                 vlog_node_t list, vlog_node_t inst,
                                 const elab_ctx_t *ctx)
@@ -1610,6 +2324,11 @@ static void elab_verilog_module(tree_t comp, ident_t label, vlog_node_t mod,
       tree_set_loc(ei->block, vlog_loc(list));
       tree_set_ident(ei->block, ndotted);
 
+      // Best-effort first pass: resolve downward hier-refs to child
+      // parameters so constant expressions in reg widths and generate
+      // conditions can be evaluated during lowering.
+      elab_pre_resolve_hier_params(ei->body, &new_ctx);
+
       vlog_trans(ei->body, ei->block);
       vlog_lower_instance(ctx->mir, ei->body, NULL, ei->block);
 
@@ -1618,6 +2337,11 @@ static void elab_verilog_module(tree_t comp, ident_t label, vlog_node_t mod,
    }
 
    new_ctx.cloned = vlog_ident(ei->body);
+
+
+   // Set own vlog_body before push_scope so the scope-tree node
+   // captures *this* module's body, not the parent's inherited one.
+   new_ctx.vlog_body = ei->body;
 
    elab_push_scope(ei->wrap, &new_ctx);
 
@@ -1639,6 +2363,17 @@ static void elab_verilog_module(tree_t comp, ident_t label, vlog_node_t mod,
 
    if (elab_new_errors(&new_ctx) == 0)
       elab_verilog_sub_blocks(ei->body, &new_ctx);
+
+   // Register this body for post-elaboration hier-ref resolution.
+   if (new_ctx.vlog_deferred != NULL) {
+      vlog_deferred_body_t db = {
+         .body          = ei->body,
+         .dotted        = new_ctx.dotted,
+         .parent_body   = ctx->vlog_body,
+         .parent_dotted = ctx->dotted,
+      };
+      APUSH(*new_ctx.vlog_deferred, db);
+   }
 
    elab_pop_scope(&new_ctx);
 }
@@ -1725,6 +2460,7 @@ static void elab_verilog_block(vlog_node_t v, const elab_ctx_t *ctx)
    vlog_lower_instance(ctx->mir, body, ctx->cloned, block);
 
    new_ctx.cloned = vlog_ident(body);
+   new_ctx.vlog_body = body;
 
    elab_push_scope(wrap, &new_ctx);
 
@@ -1735,6 +2471,16 @@ static void elab_verilog_block(vlog_node_t v, const elab_ctx_t *ctx)
 
    if (elab_new_errors(&new_ctx) == 0)
       elab_verilog_sub_blocks(v, &new_ctx);
+
+   if (new_ctx.vlog_deferred != NULL) {
+      vlog_deferred_body_t db = {
+         .body          = body,
+         .dotted        = ndotted,
+         .parent_body   = ctx->vlog_body,
+         .parent_dotted = ctx->dotted,
+      };
+      APUSH(*new_ctx.vlog_deferred, db);
+   }
 
    elab_pop_scope(&new_ctx);
 }
@@ -2104,7 +2850,7 @@ static void elab_architecture(tree_t inst, tree_t arch, const elab_ctx_t *ctx)
 
    elab_ctx_t new_ctx = {
       .dotted = ndotted,
-      .inst   = ctx->parent != NULL ? inst : NULL,
+      .inst   = elab_parent_is_root(ctx->parent) ? NULL : inst,
    };
    elab_inherit_context(&new_ctx, ctx);
 
@@ -2161,7 +2907,7 @@ static void elab_configuration(tree_t inst, tree_t unit, const elab_ctx_t *ctx)
 
    elab_ctx_t new_ctx = {
       .dotted = ndotted,
-      .inst   = ctx->parent != NULL ? inst : NULL,
+      .inst   = elab_parent_is_root(ctx->parent) ? NULL : inst,
    };
    elab_inherit_context(&new_ctx, ctx);
 
@@ -2377,6 +3123,25 @@ static void elab_push_scope(tree_t t, elab_ctx_t *ctx)
    tree_set_ident2(h, ctx->cloned ?: ctx->dotted);
 
    tree_add_decl(ctx->out, h);
+
+   // Register this scope in the language-neutral scope tree.
+   // elab_resolve_one_hier_ref walks this tree for cross-language
+   // upward and $root-anchored resolution (see src/hier.h).
+   if (ctx->scope_tree != NULL && ctx->dotted != NULL) {
+      hier_node_t *node = pool_calloc(ctx->pool, sizeof(hier_node_t));
+      node->dotted    = ctx->dotted;
+      node->tree_body = ctx->out;
+      node->lang      = (tree_kind(t) == T_VERILOG)
+         ? HIER_LANG_VLOG : HIER_LANG_VHDL;
+      node->vlog_body = (node->lang == HIER_LANG_VLOG)
+         ? ctx->vlog_body : NULL;
+
+      ident_t parent_dotted = ident_runtil(ctx->dotted, '.');
+      if (parent_dotted != NULL)
+         node->parent = hash_get(ctx->scope_tree, parent_dotted);
+
+      hash_put(ctx->scope_tree, ctx->dotted, node);
+   }
 }
 
 static void elab_pop_scope(elab_ctx_t *ctx)
@@ -2760,6 +3525,11 @@ static void elab_vhdl_root_cb(void *arg)
    tree_t vhdl = tree_from_object(ctx->root);
    assert(vhdl != NULL);
 
+   // vlog_deferred is owned by the synthetic root (elab() sets it up
+   // once); per-top root_cbs just inherit it via elab_inherit_context
+   // so the post-elab resolver sees every Verilog subtree regardless
+   // of which top introduced it.
+
    tree_t arch = vhdl;
    switch (tree_kind(vhdl)) {
    case T_ENTITY:
@@ -2789,6 +3559,66 @@ static void elab_vhdl_root_cb(void *arg)
    }
 }
 
+// Entry point: resolve hier-refs across the full instance tree.
+// Iterates ALL deferred bodies (module instances + generate block
+// iterations + named blocks).  For each body, constructs the
+// parent context chain by looking up ancestors in the deferred list.
+static void elab_resolve_all_vlog_hier_refs(const elab_ctx_t *ctx)
+{
+   if (ctx->vlog_deferred == NULL || ctx->vlog_deferred->count == 0)
+      return;
+
+   const int count = ctx->vlog_deferred->count;
+   vlog_deferred_body_t *items = ctx->vlog_deferred->items;
+
+#ifdef DEBUG
+   // Coverage invariant: every Verilog body deferred for hier-ref
+   // resolution must already be registered in the language-neutral
+   // scope_tree.  If this fires, some elab path creates scopes
+   // without going through elab_push_scope, and the cross-language
+   // walk below will have blind spots.
+   if (ctx->scope_tree != NULL) {
+      for (int i = 0; i < count; i++)
+         assert(hash_get(ctx->scope_tree, items[i].dotted) != NULL);
+   }
+#endif
+
+   // Process each Verilog body.  Build the parent context chain from
+   // scope_tree so VHDL ancestors (which don't appear in the Verilog
+   // deferred list) are included — the resolver's cross-language
+   // walk needs them as valid probe points for upward searches.
+   for (int i = 0; i < count; i++) {
+      vlog_deferred_body_t *db = &items[i];
+
+      // Every deferred body must have a scope_tree entry — both
+      // are populated by the same elaboration paths and the
+      // post-elab DEBUG check earlier in this function asserts the
+      // invariant.  No fallback needed.
+      hier_node_t *leaf = hash_get(ctx->scope_tree, db->dotted);
+      assert(leaf != NULL);
+
+      SCOPED_A(hier_node_t *) ancestors = AINIT;
+      for (hier_node_t *cur = leaf; cur != NULL; cur = cur->parent)
+         APUSH(ancestors, cur);
+
+      const int depth = ancestors.count;
+
+      // Build elab_ctx chain from root (index depth-1) to leaf (0).
+      elab_ctx_t *chain LOCAL = xmalloc_array(depth, sizeof(elab_ctx_t));
+      for (int d = depth - 1; d >= 0; d--) {
+         hier_node_t *n = ancestors.items[d];
+         elab_ctx_t tmp = {};
+         elab_inherit_context(&tmp, ctx);
+         tmp.parent    = (d < depth - 1) ? &chain[d + 1] : NULL;
+         tmp.dotted    = n->dotted;
+         tmp.vlog_body = n->vlog_body;
+         chain[d] = tmp;
+      }
+
+      elab_resolve_vlog_hier_refs(db->body, &chain[0]);
+   }
+}
+
 static void elab_verilog_root_cb(void *arg)
 {
    elab_ctx_t *ctx = arg;
@@ -2806,6 +3636,7 @@ static void elab_verilog_root_cb(void *arg)
    vlog_add_stmt(list, stmt);
    vlog_set_loc(list, vlog_loc(vlog));
 
+   // vlog_deferred is owned by the synthetic root; see elab_vhdl_root_cb.
    elab_verilog_module(NULL, label, vlog, list, stmt, ctx);
 }
 
@@ -2857,64 +3688,106 @@ static void elab_print_stats(const elab_ctx_t *ctx)
    printf("\n");
 }
 
-tree_t elab(object_t *top, jit_t *jit, unit_registry_t *ur, mir_context_t *mc,
-            cover_data_t *cover, sdf_file_t *sdf, rt_model_t *m)
+tree_t elab_multi(object_t **tops, int ntops, jit_t *jit, unit_registry_t *ur,
+            mir_context_t *mc, cover_data_t *cover, sdf_file_t *sdf,
+            rt_model_t *m)
 {
    make_new_arena();
 
+   if (ntops < 1)
+      fatal("elaboration requires at least one top-level unit");
+
+   // Primary top names the T_ELAB unit (backward-compatible naming).
+   object_t *primary = tops[0];
    ident_t name = NULL;
 
-   tree_t vhdl = tree_from_object(top);
-   if (vhdl != NULL)
-      name = ident_prefix(tree_ident(vhdl), well_known(W_ELAB), '.');
+   tree_t vhdl0 = tree_from_object(primary);
+   if (vhdl0 != NULL)
+      name = ident_prefix(tree_ident(vhdl0), well_known(W_ELAB), '.');
 
-   vlog_node_t vlog = vlog_from_object(top);
-   if (vlog != NULL)
-      name = ident_prefix(vlog_ident(vlog), well_known(W_ELAB), '.');
+   vlog_node_t vlog0 = vlog_from_object(primary);
+   if (vlog0 != NULL)
+      name = ident_prefix(vlog_ident(vlog0), well_known(W_ELAB), '.');
 
-   if (vhdl == NULL && vlog == NULL)
+   if (vhdl0 == NULL && vlog0 == NULL)
       fatal("top level is not a VHDL design unit or Verilog module");
 
    tree_t e = tree_new(T_ELAB);
    tree_set_ident(e, name);
-   tree_set_loc(e, &(top->loc));
+   tree_set_loc(e, &(primary->loc));
 
    lib_t work = lib_work();
 
-   elab_ctx_t ctx = {
-      .out       = e,
-      .root      = top,
-      .cover     = cover,
-      .library   = work,
-      .jit       = jit,
-      .sdf       = sdf,
-      .registry  = ur,
-      .mir       = mc,
-      .modcache  = hash_new(16),
-      .mracache  = hash_new(16),
-      .dotted    = lib_name(work),
-      .model     = m,
-      .scope     = create_scope(m, e, NULL),
-      .pool      = pool_new(),
+   // Synthetic anonymous root — the anchor for $root walks and the
+   // common parent of every sibling top.  Carries bootstrap state;
+   // each per-top context inherits from it.  vlog_deferred lives
+   // here so a single post-elab resolver pass sees every subtree.
+   vlog_deferred_list_t deferred = {};
+   elab_ctx_t root_ctx = {
+      .is_synthetic_root = true,
+      .out               = e,
+      .cover             = cover,
+      .library           = work,
+      .jit               = jit,
+      .sdf               = sdf,
+      .registry          = ur,
+      .mir               = mc,
+      .modcache          = hash_new(16),
+      .mracache          = hash_new(16),
+      .scope_tree        = hash_new(64),
+      .dotted            = lib_name(work),
+      .model             = m,
+      .scope             = create_scope(m, e, NULL),
+      .pool              = pool_new(),
+      .vlog_deferred     = &deferred,
    };
 
-   if (vhdl != NULL)
-      call_with_model(m, elab_vhdl_root_cb, &ctx);
-   else
-      call_with_model(m, elab_verilog_root_cb, &ctx);
+   // Elaborate each top as a child of the synthetic root.  Per-top
+   // context inherits everything substantive from the root; the
+   // only per-top setup is pointing ->root at this iteration's
+   // object so the language-specific callback picks it up.
+   for (int i = 0; i < ntops; i++) {
+      object_t *this_top = tops[i];
+      tree_t this_vhdl = tree_from_object(this_top);
+      vlog_node_t this_vlog = vlog_from_object(this_top);
+      if (this_vhdl == NULL && this_vlog == NULL)
+         fatal("top level is not a VHDL design unit or Verilog module");
+
+      elab_ctx_t top_ctx = {};
+      elab_inherit_context(&top_ctx, &root_ctx);
+      top_ctx.scope = root_ctx.scope;
+      top_ctx.root  = this_top;
+
+      if (this_vhdl != NULL)
+         call_with_model(m, elab_vhdl_root_cb, &top_ctx);
+      else
+         call_with_model(m, elab_verilog_root_cb, &top_ctx);
+
+      if (error_count() > 0)
+         break;
+   }
+
+   // Resolve all Verilog hier-refs across the whole design in one
+   // pass so cross-top refs (e.g. $root.glbl.GSR from within a
+   // design top) can see their siblings.
+   elab_resolve_all_vlog_hier_refs(&root_ctx);
+
+   ACLEAR(deferred);
+   root_ctx.vlog_deferred = NULL;
 
    if (opt_get_int(OPT_ELAB_STATS))
-      elab_print_stats(&ctx);
+      elab_print_stats(&root_ctx);
 
    const void *key;
    void *value;
    for (hash_iter_t it = HASH_BEGIN;
-        hash_iter(ctx.modcache, &it, &key, &value); )
+        hash_iter(root_ctx.modcache, &it, &key, &value); )
       ghash_free(((mod_cache_t *)value)->instances);
 
-   hash_free(ctx.modcache);
-   hash_free(ctx.mracache);
-   pool_free(ctx.pool);
+   hash_free(root_ctx.modcache);
+   hash_free(root_ctx.mracache);
+   hash_free(root_ctx.scope_tree);
+   pool_free(root_ctx.pool);
 
    if (error_count() > 0)
       return NULL;
@@ -2926,9 +3799,15 @@ tree_t elab(object_t *top, jit_t *jit, unit_registry_t *ur, mir_context_t *mc,
       warnf("generic value for %s not used", istr(it->name));
 
    ident_t b0_name = tree_ident(tree_stmt(e, 0));
-   ident_t vu_name = ident_prefix(lib_name(ctx.library), b0_name, '.');
+   ident_t vu_name = ident_prefix(lib_name(root_ctx.library), b0_name, '.');
    unit_registry_flush(ur, vu_name);
 
    freeze_global_arena();
    return e;
+}
+
+tree_t elab(object_t *top, jit_t *jit, unit_registry_t *ur, mir_context_t *mc,
+            cover_data_t *cover, sdf_file_t *sdf, rt_model_t *m)
+{
+   return elab_multi(&top, 1, jit, ur, mc, cover, sdf, m);
 }

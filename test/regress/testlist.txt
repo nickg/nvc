@@ -1305,3 +1305,56 @@ ivtest28        verilog
 ivtest29        verilog
 issue1505       vhpi,2008
 issue1512       cover=toggle,2008
+vlog46          verilog
+vlog47          verilog
+vlog48          verilog
+vlog49          verilog
+vlog50          verilog
+vlog51          shell
+vlog52          verilog
+vlog59          verilog
+# vlog60          verilog         # blocked: V_FORK sem handling
+vlog61          verilog
+vlog62          verilog
+vlog63          verilog
+# vlog64          verilog         # blocked: localparam at file scope
+# vlog65          verilog         # blocked: arrayed module instantiation
+# vlog66          verilog         # blocked: program...endprogram
+# vlog67          verilog         # blocked: deassign (intentionally unsupported)
+# vlog68          verilog         # blocked: wait_order statement
+# vlog69          verilog         # blocked: ->> nonblocking trigger
+# vlog70          verilog         # blocked: $fopen / file I/O $systf
+# vlog71          verilog         # blocked: V_DEFPARAM sem handling
+vlog72          verilog
+vlog73          verilog
+vlog74          verilog
+vlog75          verilog
+# vlog76          verilog         # blocked: ++/-- operator parsing
+# vlog77          verilog         # blocked: V_FORK sem handling
+vlog78          verilog
+vlog79          verilog
+# vlog80          verilog         # blocked: ->> nonblocking trigger, SV .triggered
+vlog81          verilog
+# vlog82          shell           # blocked: $dumpvars scope argument
+# vlog83          shell           # blocked: %m format conversion
+vlog84          shell
+# vlog85          shell           # blocked: VPI custom $systf
+vlog86          shell
+vlog87          shell
+vlog88          shell
+vlog89          shell
+# vlog90          shell           # blocked: V_DEFPARAM sem handling
+vlog91          shell
+vlog92          verilog
+vlog93          verilog
+# vlog94          verilog         # blocked: SV .triggered property
+vlog95          verilog
+vlog96          verilog
+vlog97          verilog
+# vlog98          verilog         # blocked: struct/union in module body
+vlog99          verilog
+# vlog100         shell           # blocked: event declaration in module
+vlog136         mixed
+vlog137         shell
+vlog138         shell
+vlog139         mixed

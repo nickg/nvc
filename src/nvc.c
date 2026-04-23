@@ -16,6 +16,7 @@
 //
 
 #include "util.h"
+#include "array.h"
 #include "common.h"
 #include "cov/cov-api.h"
 #include "diag.h"
@@ -70,6 +71,10 @@ typedef struct {
    cover_data_t    *cover;
    ident_t          top_level;
    const char      *top_level_arg;
+   A(ident_t)       extra_tops;        // siblings under $root; empty
+                                       // for single-top; primary is
+                                       // still top_level for naming
+                                       // of the elaborated unit.
    lib_t            work;
 } cmd_state_t;
 
@@ -393,13 +398,24 @@ static void set_top_level(char **argv, int next_cmd, cmd_state_t *state)
    if (optind == next_cmd) {
       if (state->top_level == NULL)
          fatal("missing top-level unit name");
+      return;
    }
-   else if (optind != next_cmd - 1)
-      fatal("excess positional argument '%s' following top-level unit name",
-            argv[optind + 1]);
-   else {
-      state->top_level_arg = argv[optind];
-      state->top_level = to_unit_name(argv[optind]);
+
+   // First positional is the "primary" top; it names the elaborated
+   // unit.  Any subsequent positionals become sibling tops under
+   // the synthetic anonymous root.
+   state->top_level_arg = argv[optind];
+   state->top_level = to_unit_name(argv[optind]);
+
+   for (int i = optind + 1; i < next_cmd; i++) {
+      ident_t sibling = to_unit_name(argv[i]);
+      if (sibling == state->top_level)
+         fatal("duplicate top-level unit name '%s'", argv[i]);
+      for (int j = 0; j < state->extra_tops.count; j++) {
+         if (state->extra_tops.items[j] == sibling)
+            fatal("duplicate top-level unit name '%s'", argv[i]);
+      }
+      APUSH(state->extra_tops, sibling);
    }
 }
 
@@ -567,6 +583,21 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
       fatal("cannot find unit %s in library %s",
             istr(state->top_level), istr(lib_name(state->work)));
 
+   // Resolve every sibling top for multi-top elaboration.
+   // Fatal-on-miss here rather than deep in elab() so the error
+   // pinpoints the CLI argument.
+   const int ntops = 1 + state->extra_tops.count;
+   object_t **tops LOCAL = xmalloc_array(ntops, sizeof(object_t *));
+   tops[0] = obj;
+   for (int i = 0; i < state->extra_tops.count; i++) {
+      ident_t sib_name = state->extra_tops.items[i];
+      object_t *sib = lib_get_generic(state->work, sib_name, NULL);
+      if (sib == NULL)
+         fatal("cannot find sibling top unit %s in library %s",
+               istr(sib_name), istr(lib_name(state->work)));
+      tops[i + 1] = sib;
+   }
+
    progress("loading top-level unit");
 
    char *cover_default LOCAL = NULL;
@@ -620,8 +651,8 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
 
    vhpi_run_callbacks(vhpiCbStartOfElaboration);
 
-   tree_t top = elab(obj, state->jit, state->registry, state->mir,
-                     state->cover, NULL, state->model);
+   tree_t top = elab_multi(tops, ntops, state->jit, state->registry,
+                           state->mir, state->cover, NULL, state->model);
 
    if (top == NULL)
       return EXIT_FAILURE;

@@ -147,6 +147,40 @@ void vlog_symtab_pop(vlog_symtab_t *st)
    unsigned wptr = 0;
    for (int i = 0; i < st->top->deferred.count; i++) {
       vlog_node_t v = st->top->deferred.items[i];
+
+      if (vlog_kind(v) == V_HIER_REF) {
+         // Hierarchical references are bound by the elab-time
+         // resolver.  At pop time we attempt to bind the HEAD
+         // segment in the current scope and stash it on I_REF so
+         // sem can validate the prefix kind ("prefix is not an
+         // instance") and elab can use it as a starting scope.
+         // Refs that don't resolve here are forwarded outward; if
+         // they survive to the elab-time resolver it will diagnose.
+         // No diagnostic is emitted at parse / symtab time.
+         if (vlog_subkind(v) != V_HIER_RELATIVE) {
+            // Absolute paths ($root, $unit) skip local lookup and
+            // are handled entirely by the elab-time resolver.
+            st->top->deferred.items[wptr++] = v;
+            continue;
+         }
+
+         ident_t prefix = vlog_ident2(v);
+         ident_t head = ident_until(prefix, '.');
+         vlog_node_t d = vlog_symtab_query(st, head);
+         if (d == NULL) {
+            // Head not visible here yet; defer outward.
+            st->top->deferred.items[wptr++] = v;
+            continue;
+         }
+
+         // Stash the resolved head on I_REF.  Sem checks this in
+         // vlog_check_hier_ref to emit "prefix is not an instance"
+         // when appropriate; the elab-time resolver overwrites it
+         // with the tail decl after walking the path.
+         vlog_set_ref(v, d);
+         continue;
+      }
+
       vlog_node_t d = vlog_symtab_query(st, vlog_ident(v));
       if (d != NULL)
          vlog_set_ref(v, d);
@@ -158,6 +192,12 @@ void vlog_symtab_pop(vlog_symtab_t *st)
    for (int i = 0; i < st->top->deferred.count; i++) {
       vlog_node_t v = st->top->deferred.items[i];
       if (st->top->parent == NULL || is_top_level(st->top->container)) {
+         if (vlog_kind(v) == V_HIER_REF) {
+            // Last chance: pass to the elab-time resolver, which
+            // emits the final diagnostic with the full path and
+            // failing scope.  Don't error here.
+            continue;
+         }
          ident_t name = vlog_ident(v);
          error_at(vlog_loc(v), "no visible declaration for '%pi'", name);
          vlog_symtab_poison(st, name);
@@ -232,6 +272,26 @@ void vlog_symtab_lookup(vlog_symtab_t *st, vlog_node_t v)
    }
 
    ident_t name = vlog_ident(v);
+
+   if (vlog_kind(v) == V_HIER_REF) {
+      // Hierarchical path: look up the HEAD segment in the current
+      // scope to bind the prefix.  I_IDENT2 holds the dotted prefix
+      // `head.mid1.mid2...`; the leftmost segment is what is visible
+      // in the enclosing scope (if it resolves here) -- everything
+      // after it is resolved by the elab-time resolver against the
+      // target body's declarations.  Anchor kinds V_HIER_ABS_ROOT /
+      // V_HIER_ABS_UNIT skip local lookup and are handled entirely
+      // by the elab-time resolver.
+      if (vlog_subkind(v) != V_HIER_RELATIVE) {
+         APUSH(st->top->deferred, v);
+         return;
+      }
+
+      ident_t prefix = vlog_ident2(v);
+      ident_t head = ident_until(prefix, '.');
+      name = head;
+   }
+
    const vlog_symbol_t *sym = symbol_for(st, name);
    if (sym == NULL && vlog_kind(v) == V_REF && st->implicit != V_NET_NONE) {
       // See 1800-2017 section 6.10 "Implicit declarations"

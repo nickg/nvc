@@ -459,7 +459,7 @@ const char *token_str(token_t tok)
          "virtual", "::", "defparam", "tran", "tranif0", "tranif1", "rtran",
          "rtranif0", "rtranif1", "`define", "macro end", "macro usage",
          "`ifdef", "`ifndef", "`endif", "text", "`include", "`undef",
-         "`undefall", "white space", "newline", "\\", "comment",
+         "`undefall", "white space", "newline", "\\", "comment", "->>",
       };
 
       if (tok >= 200 && tok - 200 < ARRAY_LEN(token_strs))
