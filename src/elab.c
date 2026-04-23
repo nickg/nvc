@@ -132,6 +132,7 @@ static void elab_verilog_processes(vlog_node_t v, const elab_ctx_t *ctx);
 static void elab_decls(tree_t t, const elab_ctx_t *ctx);
 static void elab_push_scope(tree_t t, elab_ctx_t *ctx);
 static void elab_pop_scope(elab_ctx_t *ctx);
+static void elab_resolve_all_vlog_hier_refs(const elab_ctx_t *ctx);
 
 static generic_list_t *generic_override = NULL;
 
@@ -1462,12 +1463,15 @@ static void elab_lower(tree_t b, elab_ctx_t *ctx)
    tree_t hier = tree_decl(b, 0);
    assert(tree_kind(hier) == T_HIER);
 
-   if (tree_subkind(hier) == T_VERILOG)
-      vlog_lower_block(ctx->mir,
-                       ctx->parent->inst_alias
-                          ?: ctx->parent->cloned
-                          ?: ctx->parent->dotted,
-                       b);
+   if (tree_subkind(hier) == T_VERILOG) {
+      ident_t parent_alias = vlog_scope_alias(ctx->parent->inst_alias,
+                                              ctx->parent->cloned,
+                                              ctx->parent->dotted);
+      ident_t self_alias = vlog_scope_alias(ctx->inst_alias,
+                                            ctx->cloned,
+                                            ctx->dotted);
+      vlog_lower_block(ctx->mir, parent_alias, self_alias, b);
+   }
    else {
       ctx->lowered = lower_instance(ctx->registry, ctx->parent->lowered,
                                     ctx->cover, ctx->cscope, b);
@@ -2142,15 +2146,17 @@ static void elab_resolve_one_hier_ref(vlog_node_t v, vlog_node_t body,
          const elab_ctx_t *r = ctx;
          while (r->parent != NULL && r->parent->vlog_body != NULL)
             r = r->parent;
-         ident_t root_base = r->inst_alias ?: r->cloned ?: r->dotted;
+         ident_t root_base = vlog_scope_alias(r->inst_alias, r->cloned,
+                                              r->dotted);
          vlog_set_ident2(v, elab_build_alias_chain(root_base, rooted_rest));
       }
       else
          vlog_set_ident2(v, NULL);
    }
    else if (prefix != NULL && found_ctx != NULL) {
-      ident_t base = found_ctx->inst_alias
-         ?: found_ctx->cloned ?: found_ctx->dotted;
+      ident_t base = vlog_scope_alias(found_ctx->inst_alias,
+                                      found_ctx->cloned,
+                                      found_ctx->dotted);
       vlog_set_ident2(v, elab_build_alias_chain(base, prefix));
    }
 }
@@ -2294,9 +2300,12 @@ static void elab_verilog_module(tree_t comp, ident_t label, vlog_node_t mod,
 
    // Compute the per-instance alias for the context chain.  The MIR
    // alias is registered inside vlog_lower_block (called by elab_lower
-   // below), which is the single source of truth for alias computation.
+   // below); we compute the canonical name here via vlog_scope_alias
+   // so both sides see the exact same ident.
    if (ctx->vlog_body != NULL) {
-      ident_t parent_unit = ctx->inst_alias ?: ctx->cloned ?: ctx->dotted;
+      ident_t parent_unit = vlog_scope_alias(ctx->inst_alias,
+                                             ctx->cloned,
+                                             ctx->dotted);
       ident_t alias = ident_prefix(parent_unit, label, '.');
       ident_t target = vlog_ident(ei->body);
       if (alias != target)
@@ -2423,7 +2432,9 @@ static void elab_verilog_block(vlog_node_t v, const elab_ctx_t *ctx)
    // vlog_lower_instance can register it (and reheat gets it for free).
    ident_t block_alias = NULL;
    if (ctx->vlog_body != NULL) {
-      ident_t parent_unit = ctx->inst_alias ?: ctx->cloned ?: ctx->dotted;
+      ident_t parent_unit = vlog_scope_alias(ctx->inst_alias,
+                                             ctx->cloned,
+                                             ctx->dotted);
       block_alias = ident_prefix(parent_unit, id, '.');
       ident_t target = vlog_ident(body);
       if (block_alias != target)
@@ -3489,6 +3500,13 @@ static void elab_vhdl_root_cb(void *arg)
    tree_t vhdl = tree_from_object(ctx->root);
    assert(vhdl != NULL);
 
+   // A VHDL top can still introduce Verilog subtrees (via component
+   // binding or direct entity↔module instantiation).  Set up the
+   // deferred-body list so the post-elab Verilog hier-ref resolver
+   // can run over everything, not just Verilog-top trees.
+   vlog_deferred_list_t deferred = {};
+   ctx->vlog_deferred = &deferred;
+
    tree_t arch = vhdl;
    switch (tree_kind(vhdl)) {
    case T_ENTITY:
@@ -3516,6 +3534,13 @@ static void elab_vhdl_root_cb(void *arg)
    default:
       fatal("%s is not a suitable top-level unit", istr(tree_ident(vhdl)));
    }
+
+   // Finalize any Verilog hier-refs introduced via mixed-language
+   // subtrees.  Safe to call with an empty list.
+   elab_resolve_all_vlog_hier_refs(ctx);
+
+   ACLEAR(deferred);
+   ctx->vlog_deferred = NULL;
 }
 
 // Entry point: resolve hier-refs across the full instance tree.

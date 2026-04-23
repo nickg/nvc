@@ -27,7 +27,16 @@ void vlog_dump(vlog_node_t v, int indent);
 void vlog_simp(vlog_node_t mod);
 void vlog_trans(vlog_node_t mod, tree_t out);
 void vlog_lower_udp(mir_unit_t *mu, object_t *obj);
-void vlog_lower_block(mir_context_t *mc, ident_t parent, tree_t b);
+void vlog_lower_block(mir_context_t *mc, ident_t parent, ident_t self_alias,
+                      tree_t b);
+
+// Canonical per-scope alias selection for Verilog scopes.  Returns the
+// ident under which a scope's MIR unit is registered: the per-clone
+// inst_alias when one was minted, otherwise the shared cloned name,
+// otherwise the dotted path.  Used by every site that must agree on
+// the alias (registration, hier-ref resolver, reheat) so link_package
+// resolves to the correct unit at runtime.
+ident_t vlog_scope_alias(ident_t inst_alias, ident_t cloned, ident_t dotted);
 void vlog_lower_instance(mir_context_t *mc, vlog_node_t body, ident_t parent,
                          tree_t trans);
 mir_unit_t *vlog_lower_thunk(mir_context_t *mc, ident_t parent, vlog_node_t v);

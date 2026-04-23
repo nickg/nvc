@@ -69,15 +69,16 @@ static void reheat_block(tree_t b, const reheat_ctx_t *parent)
    if (tree_subkind(hier) == T_VERILOG) {
       vlog_node_t body = tree_vlog(tree_ref(hier));
 
-      // Compute the per-instance alias: parent_alias.label.
-      // Use inst_alias (per-clone) over cloned (per-module) so
-      // multi-clone children get distinct aliases.  Skip when alias
-      // equals the dotted path (mixed VHDL/Verilog wrapper case where
-      // the parent's cloned ident equals its dotted path).
+      // Compute the per-instance alias: parent_alias.label.  Use
+      // vlog_scope_alias() so the resulting ident matches the one
+      // elab_resolve_one_hier_ref stores on I_IDENT2 and the one
+      // vlog_lower_block registers.  Skip when the composed alias
+      // equals the shared module name (no clone needed) or the
+      // dotted path (mixed VHDL/Verilog wrapper case).
       ident_t inst_alias = NULL;
       if (parent->cloned != NULL) {
-         ident_t parent_unit = parent->inst_alias
-            ?: parent->cloned;
+         ident_t parent_unit = vlog_scope_alias(parent->inst_alias,
+                                                parent->cloned, NULL);
          ident_t label = tree_ident(b);
          ident_t alias = ident_prefix(parent_unit, label, '.');
          if (alias != vlog_ident(body) && alias != ctx.dotted)
@@ -90,7 +91,10 @@ static void reheat_block(tree_t b, const reheat_ctx_t *parent)
          hset_insert(ctx.instances, body);
       }
 
-      vlog_lower_block(ctx.mir, parent->inst_alias ?: parent->cloned, b);
+      ident_t parent_alias = vlog_scope_alias(parent->inst_alias,
+                                              parent->cloned, NULL);
+      ident_t self_alias = vlog_scope_alias(ctx.inst_alias, ctx.cloned, NULL);
+      vlog_lower_block(ctx.mir, parent_alias, self_alias, b);
    }
    else {
       cover_scope_t *cs = cover_get_scope(ctx.cover, ctx.dotted);

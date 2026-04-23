@@ -108,6 +108,17 @@ static void vlog_hier_type_size(vlog_gen_t *g, vlog_node_t decl,
    }
 }
 
+// Canonical alias selection for a Verilog scope.  This is the single
+// rule that every site in the compiler agrees on when naming a MIR
+// unit: registration in vlog_lower_block, the elab-time hier-ref
+// resolver, and reheat all call this helper so that the alias stored
+// on I_IDENT2 always matches the alias passed to mir_alias_unit.  If
+// these ever diverge by one character, link_package silently misses.
+ident_t vlog_scope_alias(ident_t inst_alias, ident_t cloned, ident_t dotted)
+{
+   return inst_alias ?: cloned ?: dotted;
+}
+
 // Compute the per-instance alias for link_package.  The elab-time
 // resolver stores the PARENT SCOPE (containing the target instance)
 // on I_VALUE.  The alias is `vlog_ident(parent_scope).last_segment`,
@@ -124,24 +135,24 @@ static void vlog_hier_type_size(vlog_gen_t *g, vlog_node_t decl,
 //   alias = WORK.VLOG50#0.sibling
 static ident_t vlog_hier_unit_alias(mir_unit_t *mu, vlog_node_t v)
 {
-   // The elab-time resolver precomputes the full per-clone alias
-   // chain on I_IDENT2.  For resolved hier-refs, just read it.
-   // The alias encodes the per-clone path (e.g. WORK.VLOG84#0.g1.a),
-   // not the shared module name.
-   if (vlog_has_value(v)) {
-      ident_t alias = vlog_has_ident2(v) ? vlog_ident2(v) : NULL;
-      if (alias != NULL)
-         return alias;
+   // The elab-time resolver (elab_resolve_all_vlog_hier_refs) is the
+   // single source of truth for hier-ref aliases.  It runs from every
+   // top-level root (Verilog or VHDL) and stores the full per-clone
+   // alias chain on I_IDENT2, or sets I_VALUE to the parent scope
+   // when the decl is directly in it.  Reaching this function with
+   // neither set means the resolver was skipped for this subtree,
+   // which is always a bug — the old `mir_get_parent + ident2`
+   // fallback produces a short module-qualified name that disagrees
+   // with the per-instance name under which vlog_lower_block
+   // registered the alias, causing silent link_package misses.
+   assert(vlog_has_value(v));
 
-      // No prefix — decl is directly in the parent scope.
-      vlog_node_t parent_scope = vlog_value(v);
-      return vlog_canonical_scope_name(parent_scope);
-   }
+   if (vlog_has_ident2(v))
+      return vlog_ident2(v);
 
-   // Fallback for eagerly-lowered code (before resolver runs):
-   // use parent_unit.prefix as before.
-   assert(vlog_has_ident2(v));
-   return ident_prefix(mir_get_parent(mu), vlog_ident2(v), '.');
+   // No prefix — decl is directly in the parent scope.
+   vlog_node_t parent_scope = vlog_value(v);
+   return vlog_canonical_scope_name(parent_scope);
 }
 
 static const type_info_t *vlog_type_info(vlog_gen_t *g, vlog_node_t v)
@@ -3352,7 +3363,8 @@ void vlog_lower_instance(mir_context_t *mc, vlog_node_t body, ident_t parent,
    mir_put_unit(mc, mu);
 }
 
-void vlog_lower_block(mir_context_t *mc, ident_t parent, tree_t b)
+void vlog_lower_block(mir_context_t *mc, ident_t parent, ident_t self_alias,
+                      tree_t b)
 {
    tree_t hier = tree_decl(b, 0);
    assert(tree_kind(hier) == T_HIER);
@@ -3365,21 +3377,18 @@ void vlog_lower_block(mir_context_t *mc, ident_t parent, tree_t b)
    mir_unit_t *mu = mir_unit_new(mc, qual, tree_to_object(b),
                                  MIR_UNIT_FUNCTION, shape);
 
-   // Compute the per-instance alias from persistent data.
-   // parent is the per-clone alias of the parent scope (or the
-   // parent's cloned/dotted ident when no alias exists).
-   // label is this block's short name.  Together they give a
-   // unique alias that link_package uses at runtime.
-   //
-   // When alias == qual (the dotted path), the parent was a VHDL
-   // scope whose cloned ident equals its dotted path — no alias
-   // is needed because this is the only instance.
+   // self_alias is the canonical per-instance name for this scope,
+   // computed by the caller via vlog_scope_alias().  Register it as
+   // an alias of the shared module unit when it adds information:
+   // skip when it equals the target (no clone) or the dotted path
+   // (VHDL wrapper where cloned == dotted).  `alias` is non-NULL
+   // only when we actually registered one — the later
+   // instance_init uses it as the JIT name for this clone.
    ident_t alias = NULL;
-   if (parent != NULL) {
+   if (self_alias != NULL) {
       ident_t target = vlog_ident(tree_vlog(tree_ref(hier)));
-      ident_t candidate = ident_prefix(parent, tree_ident(b), '.');
-      if (candidate != target && candidate != qual) {
-         alias = candidate;
+      if (self_alias != target && self_alias != qual) {
+         alias = self_alias;
          mir_alias_unit(mc, alias, target);
       }
    }
