@@ -3688,7 +3688,7 @@ static void elab_print_stats(const elab_ctx_t *ctx)
    printf("\n");
 }
 
-tree_t elab(object_t **tops, int ntops, jit_t *jit, unit_registry_t *ur,
+tree_t elab_multi(object_t **tops, int ntops, jit_t *jit, unit_registry_t *ur,
             mir_context_t *mc, cover_data_t *cover, sdf_file_t *sdf,
             rt_model_t *m)
 {
@@ -3804,4 +3804,10 @@ tree_t elab(object_t **tops, int ntops, jit_t *jit, unit_registry_t *ur,
 
    freeze_global_arena();
    return e;
+}
+
+tree_t elab(object_t *top, jit_t *jit, unit_registry_t *ur, mir_context_t *mc,
+            cover_data_t *cover, sdf_file_t *sdf, rt_model_t *m)
+{
+   return elab_multi(&top, 1, jit, ur, mc, cover, sdf, m);
 }

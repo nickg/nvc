@@ -38,13 +38,17 @@ void simplify_global(tree_t top, hash_t *generics, jit_t *jit,
 // Perform static bounds checking
 void bounds_check(tree_t top);
 
-// Elaborate a design.  `tops` is a non-empty array of top-level
-// units; the first is the primary (names the T_ELAB unit); every
-// subsequent top becomes a sibling under the synthetic anonymous
-// root.  A single call handles both single-top and multi-top.
-tree_t elab(object_t **tops, int ntops, jit_t *jit, unit_registry_t *ur,
-            mir_context_t *mc, cover_data_t *cover, sdf_file_t *sdf,
-            rt_model_t *m);
+// Elaborate a single top-level design unit.
+tree_t elab(object_t *top, jit_t *jit, unit_registry_t *ur, mir_context_t *mc,
+            cover_data_t *cover, sdf_file_t *sdf, rt_model_t *m);
+
+// Elaborate a design with multiple top-level units.  `tops` is a
+// non-empty array; the first is the primary (names the T_ELAB
+// unit); every subsequent top becomes a sibling under the
+// synthetic anonymous root.
+tree_t elab_multi(object_t **tops, int ntops, jit_t *jit, unit_registry_t *ur,
+                  mir_context_t *mc, cover_data_t *cover, sdf_file_t *sdf,
+                  rt_model_t *m);
 
 // Set the value of a top-level generic
 void elab_set_generic(const char *name, const char *value);

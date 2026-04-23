@@ -651,8 +651,8 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
 
    vhpi_run_callbacks(vhpiCbStartOfElaboration);
 
-   tree_t top = elab(tops, ntops, state->jit, state->registry, state->mir,
-                     state->cover, NULL, state->model);
+   tree_t top = elab_multi(tops, ntops, state->jit, state->registry,
+                           state->mir, state->cover, NULL, state->model);
 
    if (top == NULL)
       return EXIT_FAILURE;
