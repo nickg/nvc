@@ -117,12 +117,36 @@ static void build_sensitivity(vlog_node_t ctrl, vlog_node_t v, hset_t *set,
    case V_BIT_SELECT:
    case V_PART_SELECT:
       {
-         vlog_node_t e = vlog_new(V_EVENT);
-         vlog_set_subkind(e, V_EVENT_LEVEL);
-         vlog_set_value(e, v);
-         vlog_set_loc(e, vlog_loc(ctrl));
+         vlog_node_t lsp = vlog_longest_static_prefix(v);
+         if (lsp == NULL)
+            break;
+         else if (lsp == v) {
+            vlog_node_t e = vlog_new(V_EVENT);
+            vlog_set_subkind(e, V_EVENT_LEVEL);
+            vlog_set_value(e, v);
+            vlog_set_loc(e, vlog_loc(ctrl));
 
-         vlog_add_param(ctrl, e);
+            vlog_add_param(ctrl, e);
+        }
+        else {
+            build_sensitivity(ctrl, vlog_value(v), set, is_comb);
+
+            switch (vlog_kind(v)) {
+            case V_BIT_SELECT:
+               {
+                  const int nparams = vlog_params(v);
+                  for (int i = 0; i < nparams; i++)
+                     build_sensitivity(ctrl, vlog_param(v, i), set, is_comb);
+               }
+               break;
+            case V_PART_SELECT:
+               build_sensitivity(ctrl, vlog_left(v), set, is_comb);
+               build_sensitivity(ctrl, vlog_right(v), set, is_comb);
+               break;
+            default:
+               should_not_reach_here();
+            }
+         }
       }
       break;
    case V_NUMBER:
@@ -213,6 +237,10 @@ static void build_sensitivity(vlog_node_t ctrl, vlog_node_t v, hset_t *set,
          for (int i = 0; i < nstmts; i++)
             build_sensitivity(ctrl, vlog_stmt(v, i), set, is_comb);
       }
+      break;
+   case V_POSTFIX:
+   case V_PREFIX:
+      build_sensitivity(ctrl, vlog_target(v), set, is_comb);
       break;
    default:
       fatal_at(vlog_loc(v), "cannot handle %s in build_sensitivity",

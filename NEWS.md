@@ -2,6 +2,8 @@
 - Systems with emulated thread-local storage (in particular all MSYS2
   environments except Clang x64 and Clang Arm) are no longer supported
   due to performance issues.
+- Local variables are now ignored in Verilog `@(*)` sensitivity lists
+  (#1480).
 - PSL `next_a` is now supported with simple expressions.
 
 ## Version 1.20.1 - 2026-04-22
