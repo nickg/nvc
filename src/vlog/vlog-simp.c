@@ -515,11 +515,12 @@ static vlog_node_t simp_sys_fcall(vlog_node_t v)
 
 static vlog_node_t simp_cond_expr(vlog_node_t v)
 {
-   vlog_node_t test = vlog_value(v);
-   if (vlog_kind(test) != V_NUMBER)
+   number_t n;
+   if (!get_number(vlog_value(v), &n))
+      return v;
+   else if (!number_is_defined(n))
       return v;
 
-   number_t n = vlog_number(test);
    return number_truthy(n) ? vlog_left(v) : vlog_right(v);
 }
 

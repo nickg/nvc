@@ -1421,7 +1421,7 @@ START_TEST(test_simp1)
    vlog_node_t m = do_parse_check(V_MODULE);
    vlog_simp(m);
 
-   const int64_t expect[] = { 5, 1, 7, 1, 2 };
+   const int64_t expect[] = { 5, 1, 7, 1, 2, 2 };
 
    ck_assert_int_eq(ARRAY_LEN(expect), vlog_decls(m));
 
@@ -1677,6 +1677,23 @@ START_TEST(test_pp10)
 }
 END_TEST
 
+START_TEST(test_simp2)
+{
+   input_from_file(TESTDIR "/vlog/simp2.v");
+
+   vlog_node_t m = do_parse_check(V_MODULE);
+   vlog_simp(m);
+
+   vlog_node_t p1 = vlog_decl(m, 1);
+   ck_assert_vlog_kind(p1, V_LOCALPARAM);
+   ck_assert_vlog_kind(vlog_value(p1), V_COND_EXPR);
+
+   fail_unless(vlog_parse() == NULL);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_vlog_tests(void)
 {
    Suite *s = suite_create("vlog");
@@ -1741,6 +1758,7 @@ Suite *get_vlog_tests(void)
    tcase_add_test(tc, test_pp9);
    tcase_add_test(tc, test_const2);
    tcase_add_test(tc, test_pp10);
+   tcase_add_test(tc, test_simp2);
    suite_add_tcase(s, tc);
 
    return s;
