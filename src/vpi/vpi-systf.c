@@ -54,12 +54,8 @@ static int calc_dec_size(int nr_bits, bool is_signed)
    return r;
 }
 
-static void format_number(vpiHandle it, char radix, int fwidth)
+static void format_radix(vpiHandle arg, char radix, int fwidth)
 {
-   vpiHandle arg = vpi_scan(it);
-   if (arg == NULL)
-      return;
-
    switch (radix) {
    case 'd':
    case 't':
@@ -97,6 +93,15 @@ static void format_number(vpiHandle it, char radix, int fwidth)
             fputs(argval.value.str, stdout);
       }
       break;
+   case 'o':
+      {
+         s_vpi_value argval = { .format = vpiOctStrVal };
+         vpi_get_value(arg, &argval);
+
+         if (!vpi_chk_error(NULL))
+            fputs(argval.value.str, stdout);
+      }
+      break;
    case 'f':
       {
          s_vpi_value argval = { .format = vpiRealVal };
@@ -107,7 +112,15 @@ static void format_number(vpiHandle it, char radix, int fwidth)
       }
       break;
    }
+}
 
+static void format_number(vpiHandle it, char radix, int fwidth)
+{
+   vpiHandle arg = vpi_scan(it);
+   if (arg == NULL)
+      return;
+
+   format_radix(arg, radix, fwidth);
    vpi_release_handle(arg);
 }
 
@@ -173,7 +186,7 @@ static void interpret_format(const char *fmt, vpiHandle it)
       fwrite(start, 1, p - start, stdout);
 }
 
-static void verilog_printf(void)
+static void verilog_printf(char default_radix)
 {
    vpiHandle call = vpi_handle(vpiSysTfCall, NULL);
    assert(call != NULL);
@@ -206,18 +219,8 @@ static void verilog_printf(void)
 
       if (is_null)
          fputc(' ', stdout);
-      else {
-         s_vpi_value argval = { .format = vpiDecStrVal };
-         vpi_get_value(arg, &argval);
-
-         const int nbits = vpi_get(vpiSize, arg);
-         const int dmax = calc_dec_size(nbits, false);
-
-         if (dmax > strlen(argval.value.str))
-            printf("%*s", dmax, argval.value.str);
-         else
-            fputs(argval.value.str, stdout);
-      }
+      else
+         format_radix(arg, default_radix, 0);
 
       vpi_release_handle(arg);
       arg = vpi_scan(it);
@@ -229,14 +232,14 @@ static void verilog_printf(void)
 
 static PLI_INT32 display_tf(PLI_BYTE8 *userdata)
 {
-   verilog_printf();
+   verilog_printf(*(char *)userdata);
    printf("\n");
    return 0;
 }
 
 static PLI_INT32 write_tf(PLI_BYTE8 *userdata)
 {
-   verilog_printf();
+   verilog_printf(*(char *)userdata);
    return 0;
 }
 
@@ -420,14 +423,52 @@ static PLI_INT32 sqrt_tf(PLI_BYTE8 *userdata)
 
 static s_vpi_systf_data builtins[] = {
    {
-      .type   = vpiSysTask,
-      .tfname = "$display",
-      .calltf = display_tf
+      .type      = vpiSysTask,
+      .tfname    = "$display",
+      .calltf    = display_tf,
+      .user_data = "d"
    },
    {
-      .type   = vpiSysTask,
-      .tfname = "$write",
-      .calltf = write_tf
+      .type      = vpiSysTask,
+      .tfname    = "$displayb",
+      .calltf    = display_tf,
+      .user_data = "b"
+   },
+   {
+      .type      = vpiSysTask,
+      .tfname    = "$displayh",
+      .calltf    = display_tf,
+      .user_data = "h"
+   },
+   {
+      .type      = vpiSysTask,
+      .tfname    = "$displayo",
+      .calltf    = display_tf,
+      .user_data = "o"
+   },
+   {
+      .type      = vpiSysTask,
+      .tfname    = "$write",
+      .calltf    = write_tf,
+      .user_data = "d"
+   },
+   {
+      .type      = vpiSysTask,
+      .tfname    = "$writeb",
+      .calltf    = write_tf,
+      .user_data = "b"
+   },
+   {
+      .type      = vpiSysTask,
+      .tfname    = "$writeh",
+      .calltf    = write_tf,
+      .user_data = "h"
+   },
+   {
+      .type      = vpiSysTask,
+      .tfname    = "$writeo",
+      .calltf    = write_tf,
+      .user_data = "o"
    },
    {
       .type   = vpiSysTask,

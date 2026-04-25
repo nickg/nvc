@@ -439,6 +439,7 @@ int nvc_vfprintf(ostream_t *os, const char *fmt, va_list ap)
       case 'i':
       case 'x':
       case 'u':
+      case 'o':
          if (z_mod) {
             arg.value.z = va_arg(ap, size_t);
             arg.fn = format_z;

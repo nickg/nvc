@@ -151,6 +151,26 @@ void vpi_format_number(int size, const uint64_t *abits, const uint64_t *bbits,
       val->value.str = (PLI_BYTE8 *)tb_get(tb);
       break;
 
+   case vpiOctStrVal:
+      if (is_defined) {
+         const int padded = ((size + 2) / 3) * 3;
+         for (int i = padded - 1; i >= 0; i -= 3) {
+            unsigned digit = 0;
+            for (int j = i; j >= i - 2; j--) {
+               const bool bit = j < size
+                  && !!(abits[j / 64] & (UINT64_C(1) << (j % 64)));
+               digit = (digit << 1) | bit;
+            }
+            tb_printf(tb, "%o", digit);
+         }
+      }
+      else {
+         for (int i = 0; i < (size + 2) / 3; i++)
+            tb_append(tb, 'x');
+      }
+      val->value.str = (PLI_BYTE8 *)tb_get(tb);
+      break;
+
    case vpiStringVal:
       if (is_defined) {
          for (int i = (size - 7) & ~7; i >= 0; i -= 8)

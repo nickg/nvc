@@ -1307,3 +1307,4 @@ issue1505       vhpi,2008
 issue1512       cover=toggle,2008
 tcl4            tcl
 issue1480       verilog
+display2        verilog,gold
