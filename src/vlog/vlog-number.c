@@ -733,10 +733,8 @@ number_t number_div(number_t a, number_t b)
    bignum_t *left, *right;
    bignum_for_binary(a, b, &left, &right);
 
-   assert(bignum_words(left) == 1);  // TODO
-
-   bignum_abits(left)[0] /= bignum_abits(right)[0];
-   bignum_bbits(left)[0] |= bignum_bbits(right)[0];
+   vec4_div(left->width, bignum_abits(left), bignum_bbits(left),
+            bignum_abits(right), bignum_bbits(right));
 
    return number_intern(left);
 }
