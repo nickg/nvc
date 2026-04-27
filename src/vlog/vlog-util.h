@@ -36,6 +36,21 @@ uint32_t vlog_hash_node(vlog_node_t v);
 vlog_node_t vlog_get_type(vlog_node_t v);
 vlog_node_t vlog_get_dim(vlog_node_t v, int n);
 
+// True when the node carries per-instance state that the resolver
+// or lowering writes onto the IR slot directly, and therefore must
+// be deep-copied per clone / per generate iteration.  Single source
+// of truth consulted by copy_instance_pred, copy_generate_pred,
+// elab_module_needs_per_clone_state and the elab pre-stamp pass.
+// Adding a new scope kind that needs per-clone state means
+// extending only this function.
+bool vlog_has_per_clone_state(vlog_node_t v);
+
+// Canonical hierarchical-scope name encoder.  All consumers of the
+// user-visible hierarchical name (lowering's link_package ident, VPI
+// vpiFullName, VCD writer, %m runtime, reheat serialiser) must go
+// through this helper rather than reading vlog_ident directly.
+ident_t vlog_canonical_scope_name(vlog_node_t body);
+
 #define CANNOT_HANDLE(v) do {                                           \
       fatal_at(vlog_loc(v), "cannot handle %s in %s" ,                  \
                vlog_kind_str(vlog_kind(v)), __FUNCTION__);              \

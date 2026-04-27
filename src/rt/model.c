@@ -763,9 +763,21 @@ rt_scope_t *create_scope(rt_model_t *m, tree_t block, rt_scope_t *parent)
       model_thread_t *thread = model_thread(m);
       thread->active_scope = s;
 
-      jit_handle_t handle = jit_lazy_compile(m->jit, s->name);
+      // Verilog scope wrappers live under `<dotted>$instance` so
+      // the bare dotted name can alias the shared module template
+      // (so user hier-refs find module-level decls).  See
+      // vlog_lower_block in vlog/vlog-lower.c.
+      ident_t init_name = s->name;
+      if (tree_decls(block) > 0) {
+         tree_t hier = tree_decl(block, 0);
+         if (tree_kind(hier) == T_HIER && tree_subkind(hier) == T_VERILOG)
+            init_name = ident_prefix(s->name, well_known(W_VLOG_INSTANCE),
+                                     '\0');
+      }
+
+      jit_handle_t handle = jit_lazy_compile(m->jit, init_name);
       if (handle == JIT_HANDLE_INVALID)
-         fatal_trace("failed to compile %s", istr(s->name));
+         fatal_trace("failed to compile %s", istr(init_name));
 
       jit_scalar_t result, context = { .pointer = NULL };
       jit_scalar_t p2 = { .integer = 0 };

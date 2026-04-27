@@ -1142,7 +1142,8 @@ static void import_cover_expr(mir_unit_t *mu, mir_import_t *imp, int op)
 static void import_cover_toggle(mir_unit_t *mu, mir_import_t *imp, int op)
 {
    mir_value_t signal = imp->map[vcode_get_arg(op, 0)];
-   mir_build_cover_toggle(mu, signal, vcode_get_tag(op));
+   mir_value_t count = imp->map[vcode_get_arg(op, 1)];
+   mir_build_cover_toggle(mu, signal, count, vcode_get_tag(op));
 }
 
 static void import_cover_state(mir_unit_t *mu, mir_import_t *imp, int op)

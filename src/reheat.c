@@ -18,10 +18,12 @@
 #include "util.h"
 #include "cov/cov-api.h"
 #include "hash.h"
+#include "ident.h"
 #include "lower.h"
 #include "phase.h"
 #include "rt/model.h"
 #include "tree.h"
+#include "vlog/vlog-node.h"
 #include "vlog/vlog-phase.h"
 #include "vhdl/vhdl-phase.h"
 
@@ -71,7 +73,7 @@ static void reheat_block(tree_t b, const reheat_ctx_t *parent)
          hset_insert(ctx.instances, body);
       }
 
-      vlog_lower_block(ctx.mir, parent->cloned, b);
+      vlog_lower_block(ctx.mir, parent->dotted, b);
    }
    else {
       cover_scope_t *cs = cover_get_scope(ctx.cover, ctx.dotted);

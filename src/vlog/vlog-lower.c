@@ -29,6 +29,7 @@
 #include "vlog/vlog-number.h"
 #include "vlog/vlog-phase.h"
 #include "vlog/vlog-util.h"
+#include "rt/rt.h"
 #include "vpi/vpi-model.h"
 #include "vpi/vpi_user.h"
 
@@ -55,10 +56,30 @@ typedef struct {
    unsigned    size;
 } vlog_select_t;
 
+// Named-block frame: pushed on entry to a named begin..end block in
+// a procedural body.  The block's V_VAR_DECL storage lives in a
+// separate MIR unit (the wrapper registered by elab_verilog_block).
+// Refs to those decls from inside the block — compiled into the
+// parent process's MIR unit — must reach across via link_package +
+// link_var rather than the parent unit's mir_search_object.
+// Carries only the dotted; the link_package op is re-emitted at
+// every use site so the SSA value is live in the current basic
+// block (procedural #N delays / event waits split the process body
+// across MIR blocks; an SSA cached pre-wait would be dead after
+// the wait).
+typedef struct {
+   vlog_node_t block;
+   ident_t     dotted;
+} named_block_frame_t;
+
 typedef struct {
    mir_unit_t    *mu;
    mir_context_t *mir;
    ihash_t       *temps;
+
+   named_block_frame_t *nb_stack;
+   int                  nb_count;
+   int                  nb_capacity;
 } vlog_gen_t;
 
 static void vlog_lower_locals(vlog_gen_t *g, vlog_node_t v);
@@ -78,7 +99,51 @@ static void vlog_lower_stmts(vlog_gen_t *g, vlog_node_t v);
 static mir_value_t vlog_lower_rvalue(vlog_gen_t *g, vlog_node_t v);
 static mir_value_t vlog_lower_with_context(vlog_gen_t *g, vlog_node_t v,
                                            mir_type_t context);
+static const type_info_t *vlog_type_info(vlog_gen_t *g, vlog_node_t v);
 static void vlog_lower_deferred(mir_unit_t *mu, object_t *obj);
+
+// Return the signal name for a V_HIER_REF: use the resolved decl's
+// ident when available, otherwise the hier-ref's own tail ident.
+static inline ident_t vlog_hier_signal_name(vlog_node_t v, vlog_node_t decl)
+{
+   return decl != NULL && vlog_has_ident(decl)
+      ? vlog_ident(decl) : vlog_ident(v);
+}
+
+// Determine the MIR type and size for a V_HIER_REF's resolved decl.
+// Falls back to 1-bit vec4 when the decl is unknown or is a module
+// instance (which has no data type).
+static void vlog_hier_type_size(vlog_gen_t *g, vlog_node_t decl,
+                                mir_type_t *type, int *size)
+{
+   if (decl != NULL && vlog_kind(decl) != V_MOD_INST
+       && vlog_has_type(decl)) {
+      const type_info_t *ti = vlog_type_info(g, vlog_type(decl));
+      *type = ti->type;
+      *size = ti->size;
+   }
+   else {
+      *type = mir_vec4_type(g->mu, 1, false);
+      *size = 1;
+   }
+}
+
+// Return the link_package key for a resolved hier-ref.  The
+// elab-time resolver (elab_resolve_all_vlog_hier_refs) writes the
+// target scope's dotted path on I_IDENT2; vlog_lower_block has
+// already registered that ident as an alias to the shared template,
+// so link_package(key) → template → link_var finds the named decl.
+//
+// The resolver always sets I_IDENT2 to the resolved scope's
+// dotted; the previous I_VALUE-fallback path used a cross-tree
+// back-pointer to the parent scope and was load-bearing only for
+// visitor traversal — see the elab-side change that stopped
+// writing I_VALUE.
+static ident_t vlog_hier_unit_alias(mir_unit_t *mu, vlog_node_t v)
+{
+   assert(vlog_has_ident2(v));
+   return vlog_ident2(v);
+}
 
 static const type_info_t *vlog_type_info(vlog_gen_t *g, vlog_node_t v)
 {
@@ -136,6 +201,7 @@ static const type_info_t *vlog_type_info(vlog_gen_t *g, vlog_node_t v)
    case DT_LOGIC:
    case DT_IMPLICIT:
    case DT_INTEGER:
+   case DT_EVENT:
       ti->size = vlog_size(v);
       ti->type = mir_vec4_type(g->mu, ti->size, issigned);
       break;
@@ -274,6 +340,58 @@ static mir_value_t vlog_lower_part_select_off(vlog_gen_t *g, vlog_node_t r,
    return mir_build_sub(g->mu, t_offset, base, adj);
 }
 
+// Check whether `decl` is a V_VAR_DECL declared in any active named
+// procedural block on the gen's stack.  If so, fill in `out` with a
+// cross-unit signal select and return true.  The named block's
+// wrapper MIR unit (registered by elab_verilog_block) owns the
+// signal storage; refs from inside the block — compiled into the
+// parent process's MIR unit — must reach it via link_package +
+// link_var.
+static bool vlog_named_block_select(vlog_gen_t *g, vlog_node_t decl,
+                                    vlog_select_t *out)
+{
+   if (g->nb_count == 0)
+      return false;
+
+   for (int i = g->nb_count - 1; i >= 0; i--) {
+      named_block_frame_t *f = &g->nb_stack[i];
+      vlog_node_t blk = f->block;
+      const int ndecls = vlog_decls(blk);
+      for (int j = 0; j < ndecls; j++) {
+         if (vlog_decl(blk, j) != decl)
+            continue;
+
+         mir_type_t t_net_value = mir_int_type(g->mu, 0, 255);
+         mir_type_t t_net_signal = mir_signal_type(g->mu, t_net_value);
+         mir_type_t t_offset = mir_offset_type(g->mu);
+         mir_type_t t_bool = mir_bool_type(g->mu);
+
+         // Re-emit link_package at every use site — the SSA value
+         // must be live in the current basic block.  A procedural
+         // #N delay or event wait inside the named block splits the
+         // process body across MIR blocks; an SSA cached at frame-
+         // push time would be dead after the wait.  Same shape as
+         // the V_HIER_REF case (which also emits per use).
+         mir_value_t link_ctx = mir_build_link_package(g->mu, f->dotted);
+         mir_value_t ptr = mir_build_link_var(g->mu, link_ctx,
+                                              vlog_ident(decl),
+                                              t_net_signal);
+
+         mir_type_t result_type;
+         int result_size;
+         vlog_hier_type_size(g, decl, &result_type, &result_size);
+
+         out->obj      = mir_build_load(g->mu, ptr);
+         out->type     = result_type;
+         out->offset   = mir_const(g->mu, t_offset, 0);
+         out->in_range = mir_const(g->mu, t_bool, 1);
+         out->size     = result_size;
+         return true;
+      }
+   }
+   return false;
+}
+
 static vlog_select_t vlog_lower_select(vlog_gen_t *g, vlog_node_t v)
 {
    PUSH_DEBUG_INFO(g->mu, v);
@@ -310,6 +428,10 @@ static vlog_select_t vlog_lower_select(vlog_gen_t *g, vlog_node_t v)
             break;
          }
 
+         vlog_select_t nb_select;
+         if (vlog_named_block_select(g, decl, &nb_select))
+            return nb_select;
+
          int hops;
          mir_value_t var = mir_search_object(g->mu, decl, &hops);
          if (mir_is_null(var)) {
@@ -339,35 +461,43 @@ static vlog_select_t vlog_lower_select(vlog_gen_t *g, vlog_node_t v)
 
    case V_HIER_REF:
       {
+         // Hier-ref lowering: emit the resolved scope's dotted path
+         // (set on I_IDENT2 by the elab-time resolver) as the
+         // link_package key.  vlog_lower_block registered that name
+         // as an alias to the shared template, so link_var finds
+         // module-level decls there.
          mir_type_t t_net_value = mir_int_type(g->mu, 0, 255);
          mir_type_t t_net_signal = mir_signal_type(g->mu, t_net_value);
 
-         // XXX: reconsider this
-         ident_t unit_name =
-            ident_prefix(mir_get_parent(g->mu), vlog_ident2(v), '.');
+         vlog_node_t decl = vlog_has_ref(v) ? vlog_ref(v) : NULL;
+
+         ident_t unit_name = vlog_hier_unit_alias(g->mu, v);
+         ident_t signal_name = vlog_hier_signal_name(v, decl);
+
          mir_value_t context = mir_build_link_package(g->mu, unit_name);
-         mir_value_t ptr = mir_build_link_var(g->mu, context, vlog_ident(v),
+         mir_value_t ptr = mir_build_link_var(g->mu, context, signal_name,
                                               t_net_signal);
 
          mir_type_t t_bool = mir_bool_type(g->mu);
          mir_type_t t_offset = mir_offset_type(g->mu);
 
-         vlog_node_t decl = vlog_ref(v);
-         const type_info_t *ti = vlog_type_info(g, vlog_type(decl));
+         mir_type_t result_type;
+         int result_size;
+         vlog_hier_type_size(g, decl, &result_type, &result_size);
 
          vlog_select_t result = {
             .obj      = mir_build_load(g->mu, ptr),
-            .type     = ti->type,
+            .type     = result_type,
             .offset   = mir_const(g->mu, t_offset, 0),
             .in_range = mir_const(g->mu, t_bool, 1),
-            .size     = ti->size,
+            .size     = result_size,
          };
          return result;
       }
    case V_BIT_SELECT:
       {
          vlog_node_t value = vlog_value(v);
-         assert(vlog_kind(value) == V_REF);
+         assert(vlog_kind(value) == V_REF || vlog_kind(value) == V_HIER_REF);
 
          vlog_select_t prefix = vlog_lower_select(g, value);
 
@@ -856,6 +986,9 @@ static mir_value_t vlog_lower_systf_param(vlog_gen_t *g, vlog_node_t v)
       default:
          return MIR_NULL_VALUE;
       }
+   case V_HIER_REF:
+      // TODO: these should not be evaluated until vpi_get_value is called
+      return vlog_lower_rvalue(g, v);
    case V_STRING:
    case V_NUMBER:
    case V_EMPTY:
@@ -869,6 +1002,7 @@ static mir_value_t vlog_lower_systf_param(vlog_gen_t *g, vlog_node_t v)
    case V_PART_SELECT:
    case V_COND_EXPR:
    case V_MEMBER_REF:
+   case V_CONCAT:
       // TODO: these should not be evaluated until vpi_get_value is called
       return vlog_lower_rvalue(g, v);
    default:
@@ -1057,26 +1191,43 @@ static mir_value_t vlog_lower_with_context(vlog_gen_t *g, vlog_node_t v,
       return vlog_lower_rvalue_select(g, v);
    case V_HIER_REF:
       {
+         vlog_node_t decl = vlog_has_ref(v) ? vlog_ref(v) : NULL;
+
+         // Parameters are always inlined — they're not runtime
+         // variables and don't exist in the child's MIR unit.
+         if (decl != NULL && (vlog_kind(decl) == V_PARAM_DECL
+                              || vlog_kind(decl) == V_LOCALPARAM)) {
+            int64_t val;
+            if (vlog_get_const(decl, &val)) {
+               mir_type_t t = mir_vec4_type(g->mu, 32, false);
+               return mir_const_vec(g->mu, t, (uint64_t)val, 0);
+            }
+         }
+
+         // RHS hier-ref lowering — mirror of the lvalue case in
+         // vlog_lower_select.  Use the dotted path stored on
+         // I_IDENT2 (resolver output) as the link_package key.
          mir_type_t t_net_value = mir_int_type(g->mu, 0, 255);
          mir_type_t t_net_signal = mir_signal_type(g->mu, t_net_value);
 
-         // XXX: reconsider this
-         ident_t unit_name =
-            ident_prefix(mir_get_parent(g->mu), vlog_ident2(v), '.');
+         ident_t unit_name = vlog_hier_unit_alias(g->mu, v);
+         ident_t signal_name = vlog_hier_signal_name(v, decl);
+
          mir_value_t context = mir_build_link_package(g->mu, unit_name);
-         mir_value_t ptr = mir_build_link_var(g->mu, context, vlog_ident(v),
+         mir_value_t ptr = mir_build_link_var(g->mu, context, signal_name,
                                               t_net_signal);
          mir_value_t nets = mir_build_load(g->mu, ptr);
 
-         vlog_node_t decl = vlog_ref(v);
-         const type_info_t *ti = vlog_type_info(g, vlog_type(decl));
+         mir_type_t result_type;
+         int result_size;
+         vlog_hier_type_size(g, decl, &result_type, &result_size);
 
          mir_value_t data = mir_build_resolved(g->mu, nets);
 
-         if (ti->size == 1)
+         if (result_size == 1)
             data = mir_build_load(g->mu, data);
 
-         return mir_build_pack(g->mu, ti->type, data);
+         return mir_build_pack(g->mu, result_type, data);
       }
    case V_NUMBER:
    case V_STRING:
@@ -1629,43 +1780,67 @@ static void vlog_lower_non_blocking_assignment(vlog_gen_t *g, vlog_node_t v)
 {
    vlog_node_t target = vlog_target(v);
 
-   vlog_select_t lvalue = vlog_lower_select(g, target);
-
-   // XXX: check in range
-   mir_value_t nets = mir_build_array_ref(g->mu, lvalue.obj, lvalue.offset);
-
-   mir_type_t t_offset = mir_offset_type(g->mu);
-   mir_type_t t_vec = mir_vec4_type(g->mu, lvalue.size, false);
-
-   mir_value_t value = vlog_lower_with_context(g, vlog_value(v), t_vec);
-   assert(mir_is_vector(g->mu, value));
-
-   mir_value_t resize = mir_build_cast(g->mu, t_vec, value);
-   mir_value_t count = mir_const(g->mu, t_offset, lvalue.size);
-
-   mir_value_t tmp = MIR_NULL_VALUE;
-   if (lvalue.size > 1) {
-      mir_type_t t_elem = mir_logic_type(g->mu);
-      mir_type_t t_array = mir_carray_type(g->mu, lvalue.size, t_elem);
-      tmp = vlog_get_temp(g, t_array);
-   }
-
-   const uint8_t strength = vlog_is_net(target) ? ST_STRONG : 0;
-   mir_value_t unpacked = mir_build_unpack(g->mu, resize, strength, tmp);
-
    mir_type_t t_time = mir_time_type(g->mu);
+   mir_type_t t_offset = mir_offset_type(g->mu);
 
    mir_value_t after;
    if (vlog_has_delay(v)) {
       vlog_node_t delay = vlog_delay(v);
       assert(vlog_kind(delay) == V_DELAY_CONTROL);
-
       after = vlog_lower_time(g, vlog_value(delay));
    }
    else
       after = mir_const(g->mu, t_time, 0);
 
-   mir_build_sched_deposit(g->mu, nets, count, unpacked, after);
+   // Collect lvalue targets (V_CONCAT decomposes into elements).
+   unsigned nlvalues = 1, targetsz = 0;
+   vlog_select_t lvalue1, *lvalues = &lvalue1;
+   if (vlog_kind(target) == V_CONCAT) {
+      const int nparams = nlvalues = vlog_params(target);
+      lvalues = xmalloc_array(nparams, sizeof(vlog_select_t));
+      for (int i = 0; i < nparams; i++) {
+         lvalues[i] = vlog_lower_select(g, vlog_param(target, i));
+         targetsz += lvalues[i].size;
+      }
+   }
+   else {
+      lvalue1 = vlog_lower_select(g, target);
+      targetsz = lvalue1.size;
+   }
+
+   mir_type_t t_vec = mir_vec4_type(g->mu, targetsz, false);
+   mir_value_t value = vlog_lower_with_context(g, vlog_value(v), t_vec);
+
+   // Unpack entire value into element array.
+   mir_value_t tmp = MIR_NULL_VALUE;
+   if (targetsz > 1) {
+      mir_type_t t_elem = mir_logic_type(g->mu);
+      mir_type_t t_array = mir_carray_type(g->mu, targetsz, t_elem);
+      tmp = vlog_get_temp(g, t_array);
+   }
+
+   mir_value_t resize = mir_build_cast(g->mu, t_vec, value);
+   const uint8_t strength = vlog_is_net(target) ? ST_STRONG : 0;
+   mir_value_t unpacked = mir_build_unpack(g->mu, resize, strength, tmp);
+
+   // Schedule deposit for each lvalue element.
+   for (int i = 0, offset = 0; i < nlvalues;
+        offset += lvalues[i].size, i++) {
+      mir_value_t nets = mir_build_array_ref(g->mu, lvalues[i].obj,
+                                              lvalues[i].offset);
+      mir_value_t count = mir_const(g->mu, t_offset, lvalues[i].size);
+
+      mir_value_t src = unpacked;
+      if (offset > 0) {
+         mir_value_t pos = mir_const(g->mu, t_offset, offset);
+         src = mir_build_array_ref(g->mu, unpacked, pos);
+      }
+
+      mir_build_sched_deposit(g->mu, nets, count, src, after);
+   }
+
+   if (lvalues != &lvalue1)
+      free(lvalues);
 }
 
 static void vlog_lower_if(vlog_gen_t *g, vlog_node_t v)
@@ -1995,7 +2170,17 @@ static void vlog_lower_user_tcall(vlog_gen_t *g, vlog_node_t v)
    mir_value_t *args LOCAL =
       xmalloc_array(nparams + 1, sizeof(mir_value_t));
 
-   args[0] = mir_build_context_upref(g->mu, 1);  // XXX
+   if (vlog_has_value(v) && vlog_kind(vlog_value(v)) == V_HIER_REF) {
+      // Hier-ref task/func call: the target runs in the remote
+      // instance's context.  Obtain it via link_package on the
+      // resolved target unit alias.
+      vlog_node_t href = vlog_value(v);
+      ident_t unit_name = vlog_hier_unit_alias(g->mu, href);
+      args[0] = mir_build_link_package(g->mu, unit_name);
+   }
+   else
+      args[0] = mir_build_context_upref(g->mu, 1);
+
    for (int i = 0; i < nparams; i++) {
       mir_value_t value = vlog_lower_rvalue(g, vlog_param(v, i));
       vlog_node_t dt = vlog_type(vlog_port(decl, i));
@@ -2031,8 +2216,40 @@ static void vlog_lower_stmts(vlog_gen_t *g, vlog_node_t v)
          vlog_lower_operator_assignment(g, s);
          break;
       case V_BLOCK:
-         vlog_lower_locals(g, s);
-         vlog_lower_stmts(g, s);
+         {
+            // Named begin..end blocks become hier-addressable scopes
+            // (IEEE 1800-2017 §23.6).  elab_verilog_block stamps the
+            // canonical dotted on the V_BLOCK's I_IDENT2 and registers
+            // a wrapper MIR unit owning the block-local V_VAR_DECL
+            // signals.  vlog_lower_locals must NOT also allocate them
+            // in the parent process unit — that would double-allocate
+            // and the parent's writes would bypass the addressable
+            // storage.  Instead, push a frame so V_REFs to block-
+            // local decls route through link_package + link_var to
+            // the wrapper.
+            bool pushed = false;
+            if (vlog_has_ident(s) && vlog_has_ident2(s)) {
+               ident_t my_dotted = vlog_ident2(s);
+
+               if (g->nb_count == g->nb_capacity) {
+                  g->nb_capacity = MAX(8, g->nb_capacity * 2);
+                  g->nb_stack = xrealloc_array(g->nb_stack,
+                                               g->nb_capacity,
+                                               sizeof(named_block_frame_t));
+               }
+               named_block_frame_t *f = &g->nb_stack[g->nb_count++];
+               f->block  = s;
+               f->dotted = my_dotted;
+               pushed = true;
+            }
+
+            if (!pushed)
+               vlog_lower_locals(g, s);
+            vlog_lower_stmts(g, s);
+
+            if (pushed)
+               g->nb_count--;
+         }
          break;
       case V_SYS_TCALL:
          vlog_lower_sys_tfcall(g, s);
@@ -2063,6 +2280,43 @@ static void vlog_lower_stmts(vlog_gen_t *g, vlog_node_t v)
          return;
       case V_USER_TCALL:
          vlog_lower_user_tcall(g, s);
+         break;
+      case V_FORCE:
+         {
+            vlog_select_t lvalue = vlog_lower_select(g, vlog_target(s));
+            mir_type_t t_offset = mir_offset_type(g->mu);
+            mir_type_t t_vec = mir_vec4_type(g->mu, lvalue.size, false);
+
+            mir_value_t value =
+               vlog_lower_with_context(g, vlog_value(s), t_vec);
+            mir_value_t resize = mir_build_cast(g->mu, t_vec, value);
+
+            mir_value_t tmp = MIR_NULL_VALUE;
+            if (lvalue.size > 1) {
+               mir_type_t t_elem = mir_logic_type(g->mu);
+               mir_type_t t_array =
+                  mir_carray_type(g->mu, lvalue.size, t_elem);
+               tmp = vlog_get_temp(g, t_array);
+            }
+
+            mir_value_t unpacked =
+               mir_build_unpack(g->mu, resize, 0, tmp);
+            mir_value_t nets = mir_build_array_ref(g->mu, lvalue.obj,
+                                                    lvalue.offset);
+            mir_value_t count = mir_const(g->mu, t_offset, lvalue.size);
+            mir_build_force(g->mu, nets, count, unpacked);
+         }
+         break;
+      case V_RELEASE:
+         {
+            vlog_select_t lvalue = vlog_lower_select(g, vlog_target(s));
+            mir_type_t t_offset = mir_offset_type(g->mu);
+
+            mir_value_t nets = mir_build_array_ref(g->mu, lvalue.obj,
+                                                    lvalue.offset);
+            mir_value_t count = mir_const(g->mu, t_offset, lvalue.size);
+            mir_build_release(g->mu, nets, count);
+         }
          break;
       default:
          CANNOT_HANDLE(s);
@@ -2606,6 +2860,9 @@ static void vlog_lower_cleanup(vlog_gen_t *g)
 {
    if (g->temps != NULL)
       ihash_free(g->temps);
+   free(g->nb_stack);
+   g->nb_stack = NULL;
+   g->nb_count = g->nb_capacity = 0;
 }
 
 static void vlog_lower_deferred(mir_unit_t *mu, object_t *obj)
@@ -2732,7 +2989,7 @@ static void vlog_lower_var_decl(vlog_gen_t *g, vlog_node_t v, tree_t wrap)
 
    mir_value_t count = mir_const(g->mu, t_offset, total_size);
    mir_value_t size = mir_const(g->mu, t_offset, ti->elemsz);
-   mir_value_t flags = mir_const(g->mu, t_offset, 0);
+   mir_value_t flags = mir_const(g->mu, t_offset, SIG_F_REGISTER);
    mir_value_t locus = mir_build_debug_locus(g->mu, tree_to_object(wrap));
 
    mir_value_t signal = mir_build_init_signal(g->mu, ti->unpacked, count, size,
@@ -3198,9 +3455,29 @@ void vlog_lower_block(mir_context_t *mc, ident_t parent, tree_t b)
    if (parent != NULL)
       shape = mir_get_shape(mc, parent);
 
+   // Two distinct things share this scope's namespace:
+   //
+   //   * the TEMPLATE (`target`, registered by vlog_lower_instance):
+   //     holds the module's variable declarations.  User hier-refs
+   //     ultimately need to land here so link_var finds decls.
+   //
+   //   * the WRAPPER (this MIR unit): per-scope init code that the
+   //     runtime invokes from create_scope to set up this scope's
+   //     privdata.  Distinct code per scope path; not user-visible.
+   //
+   // Naming convention: wrappers live under `qual$instance` so that
+   // the bare dotted path `qual` is free to be an alias to the
+   // template.  create_scope (rt/model.c) appends $instance to the
+   // scope name when looking up the wrapper handle.  Aliasing is
+   // unconditional — no more inst_alias-vs-cloned-vs-dotted gating.
    ident_t qual = tree_ident(hier);
-   mir_unit_t *mu = mir_unit_new(mc, qual, tree_to_object(b),
+   ident_t target = vlog_ident(tree_vlog(tree_ref(hier)));
+   ident_t wrap_name = ident_prefix(qual, well_known(W_VLOG_INSTANCE), '\0');
+   mir_unit_t *mu = mir_unit_new(mc, wrap_name, tree_to_object(b),
                                  MIR_UNIT_FUNCTION, shape);
+
+   if (qual != target)
+      mir_alias_unit(mc, qual, target);
 
    mir_value_t context = MIR_NULL_VALUE;
    if (shape != NULL) {
@@ -3401,7 +3678,17 @@ void vlog_lower_block(mir_context_t *mc, ident_t parent, tree_t b)
       args[i + 1] = nets;
    }
 
-   mir_value_t inst = mir_build_instance_init(mu, vlog_ident(body),
+   // instance_init must use the same name that user hier-refs will
+   // emit at runtime — otherwise PUTPRIV stores privdata under one
+   // JIT handle and link_package looks up a different one (JIT
+   // handles are per-name; MIR aliases don't unify them).  Use the
+   // dotted path `qual` (which equals what the resolver puts on
+   // I_IDENT2 and what link_package emits).  For top-level Verilog
+   // modules where qual == target (no alias was registered), use
+   // target directly so PUTPRIV/GETPRIV pair on the same handle.
+   ident_t init_name = (qual != target) ? qual : target;
+
+   mir_value_t inst = mir_build_instance_init(mu, init_name,
                                               args, vlog_nports + 1);
 
    mir_set_result(mu, mir_get_type(mu, inst));

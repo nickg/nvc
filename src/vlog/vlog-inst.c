@@ -93,7 +93,10 @@ static bool copy_instance_pred(vlog_node_t v, void *ctx)
    case V_CLASS_DECL:
       return true;
    default:
-      return false;
+      // Anything carrying per-clone resolver / lower-time state
+      // must be deep-copied so each clone has its own writeable
+      // node.  Single source of truth in vlog-util.
+      return vlog_has_per_clone_state(v);
    }
 }
 
@@ -209,13 +212,20 @@ static bool copy_generate_pred(vlog_node_t v, void *ctx)
    switch (vlog_kind(v)) {
    case V_REF:
       return vlog_kind(vlog_ref(v)) == V_GENVAR_DECL;
-   case V_BLOCK:
-      return v == ctx;
    case V_FUNC_DECL:
    case V_TASK_DECL:
       return true;
    default:
-      return false;
+      // The outer generate-block V_BLOCK is the iteration root
+      // and is always copied (matched here through ctx ==
+      // v).  Anything else carrying per-clone state must also
+      // be copied per iteration: each iteration is a distinct
+      // scope and may resolve the same hier-ref differently or
+      // stamp inner named V_BLOCKs with iteration-specific
+      // dotteds.
+      if (v == ctx)
+         return true;
+      return vlog_has_per_clone_state(v);
    }
 }
 

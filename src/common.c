@@ -1144,6 +1144,7 @@ void intern_strings(void)
       [W_NEVER_WAITS]     = "NEVER_WAITS",
       [W_NVC_VERILOG]     = "NVC.VERILOG",
       [W_NVC_PSL_SUPPORT] = "NVC.PSL_SUPPORT",
+      [W_VLOG_INSTANCE]   = "$instance",
       [W_INSTANCE_NAME]   = "instance_name",
       [W_PATH_NAME]       = "path_name",
       [W_VITAL]           = "VITAL",
