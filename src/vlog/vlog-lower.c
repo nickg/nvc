@@ -979,12 +979,28 @@ static mir_value_t vlog_lower_systf_param(vlog_gen_t *g, vlog_node_t v)
 {
    switch (vlog_kind(v)) {
    case V_REF:
-      switch (vlog_kind(vlog_ref(v))) {
-      case V_TF_PORT_DECL:
-      case V_FUNC_DECL:
-         return vlog_lower_rvalue(g, v);
-      default:
-         return MIR_NULL_VALUE;
+      {
+         vlog_node_t decl = vlog_ref(v);
+         switch (vlog_kind(decl)) {
+         case V_TF_PORT_DECL:
+         case V_FUNC_DECL:
+            return vlog_lower_rvalue(g, v);
+         case V_VAR_DECL:
+            {
+               // Named-procedural-block locals live in the wrapper
+               // MIR unit's signal storage, not a parent-mu mir_var
+               // that VPI can address via the standard handle table.
+               // Evaluate eagerly through the same named-block-frame
+               // redirect that V_REF lowering uses elsewhere — equivalent
+               // to the V_HIER_REF path for sys-task params below.
+               vlog_select_t nb_select;
+               if (vlog_named_block_select(g, decl, &nb_select))
+                  return vlog_lower_rvalue(g, v);
+            }
+            return MIR_NULL_VALUE;
+         default:
+            return MIR_NULL_VALUE;
+         }
       }
    case V_HIER_REF:
       // TODO: these should not be evaluated until vpi_get_value is called
