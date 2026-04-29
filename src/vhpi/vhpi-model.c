@@ -1701,26 +1701,56 @@ static rt_scope_t *vhpi_get_scope_prefixedName(c_prefixedName *pn)
    if (pn->scope)
       return pn->scope;
 
-   rt_scope_t *parent = NULL;
-
-   c_prefixedName *ppn = is_prefixedName(pn->Prefix);
-   if (ppn != NULL)
-      parent = vhpi_get_scope_prefixedName(ppn);
-
-   c_objDecl *od = is_objDecl(pn->Prefix);
-   if (od != NULL)
-      parent = vhpi_get_scope_objDecl(od);
-
-   if (parent == NULL)
-      return NULL;
-
    c_vhpiObject *obj = &(pn->name.expr.object);
    c_indexedName *in = is_indexedName(obj);
    c_selectedName *sn = is_selectedName(obj);
-   if (in != NULL)
-      pn->scope = child_scope_at(parent, in->BaseIndex);
-   else if (sn != NULL)
+
+   if (in != NULL) {
+      // The runtime collapses a multi-dimensional non-homogeneous
+      // array (e.g. `array of array of record`) into one flat
+      // SCOPE_ARRAY whose children are the leaf element scopes —
+      // see lower_sub_signals in lower.c which uses type_elem_recur
+      // and the total flat length.  Walk past any consecutive
+      // indexedName ancestors to the anchor scope and index directly
+      // using this indexedName's cumulative offset divided by the
+      // element type's numElems.
+      c_vhpiObject *anchor = pn->Prefix;
+      c_prefixedName *ancestor = is_prefixedName(anchor);
+      while (ancestor != NULL && is_indexedName(anchor) != NULL) {
+         anchor = ancestor->Prefix;
+         ancestor = is_prefixedName(anchor);
+      }
+
+      rt_scope_t *anchor_scope = NULL;
+      c_objDecl *od = is_objDecl(anchor);
+      if (od != NULL)
+         anchor_scope = vhpi_get_scope_objDecl(od);
+      else if (ancestor != NULL)
+         anchor_scope = vhpi_get_scope_prefixedName(ancestor);
+
+      if (anchor_scope == NULL)
+         return NULL;
+
+      c_typeDecl *td = pn->name.expr.Type;
+      const vhpiIntT div = td->numElems > 0 ? td->numElems : 1;
+      pn->scope = child_scope_at(anchor_scope, in->offset / div);
+   }
+   else if (sn != NULL) {
+      rt_scope_t *parent = NULL;
+      c_prefixedName *ppn = is_prefixedName(pn->Prefix);
+      if (ppn != NULL)
+         parent = vhpi_get_scope_prefixedName(ppn);
+      else {
+         c_objDecl *od = is_objDecl(pn->Prefix);
+         if (od != NULL)
+            parent = vhpi_get_scope_objDecl(od);
+      }
+
+      if (parent == NULL)
+         return NULL;
+
       pn->scope = child_scope(parent, sn->Suffix->decl.tree);
+   }
    else
       fatal_trace("class kind %s not supported in %s",
                   vhpi_class_str(obj->kind), __func__);
