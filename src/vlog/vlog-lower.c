@@ -184,6 +184,19 @@ static mir_value_t vlog_lower_x(vlog_gen_t *g, mir_type_t type)
    }
 }
 
+static mir_value_t vlog_lower_zero(vlog_gen_t *g, mir_type_t type)
+{
+   if (mir_get_class(g->mu, type) == MIR_TYPE_REAL)
+      return mir_const_real(g->mu, type, 0.0);
+   else if (mir_get_size(g->mu, type) <= 64)
+      return mir_const_vec(g->mu, type, 0, 0);
+   else {
+      mir_type_t t_logic = mir_vec4_type(g->mu, 1, false);
+      mir_value_t zero = mir_const_vec(g->mu, t_logic, 0, 0);
+      return mir_build_cast(g->mu, type, zero);
+   }
+}
+
 static mir_value_t vlog_lower_cast(vlog_gen_t *g, mir_type_t type,
                                    mir_value_t value)
 {
@@ -219,12 +232,11 @@ static mir_value_t vlog_lower_test(vlog_gen_t *g, mir_value_t value)
    mir_type_t type = mir_get_type(g->mu, value);
    if (mir_equals(type, mir_bool_type(g->mu)))
       return value;
-   else if (mir_get_class(g->mu, type) == MIR_TYPE_REAL) {
-      mir_value_t zero = mir_const_real(g->mu, type, 0.0);
-      return mir_build_not(g->mu, mir_build_cmp(g->mu, MIR_CMP_EQ, value, zero));
+   else {
+      mir_value_t zero = vlog_lower_zero(g, type);
+      mir_value_t cmp = mir_build_cmp(g->mu, MIR_CMP_EQ, value, zero);
+      return mir_build_not(g->mu, cmp);
    }
-   else
-      should_not_reach_here();
 }
 
 static mir_value_t vlog_lower_array_off(vlog_gen_t *g, vlog_node_t r,
@@ -1205,10 +1217,7 @@ static mir_value_t vlog_lower_with_context(vlog_gen_t *g, vlog_node_t v,
       {
          // See 1800-2023 section 11.4.11 for semantics
 
-         // TODO: do not evaluate both sides
-
          mir_value_t value = vlog_lower_rvalue(g, vlog_value(v));
-         mir_value_t cmp = vlog_lower_test(g, value);
          mir_value_t left = vlog_lower_rvalue(g, vlog_left(v));
          mir_value_t right = vlog_lower_rvalue(g, vlog_right(v));
 
@@ -1222,7 +1231,17 @@ static mir_value_t vlog_lower_with_context(vlog_gen_t *g, vlog_node_t v,
          mir_value_t lcast = mir_build_cast(g->mu, type, left);
          mir_value_t rcast = mir_build_cast(g->mu, type, right);
 
-         return mir_build_select(g->mu, type, cmp, lcast, rcast);
+         if (mir_is(g->mu, value, MIR_TYPE_VEC4)) {
+            mir_type_t t_test = mir_get_type(g->mu, value);
+            mir_value_t zero = vlog_lower_zero(g, t_test);
+            mir_value_t cmp = mir_build_binary(g->mu, MIR_VEC_LOG_NEQ, t_test,
+                                               value, zero);
+            return mir_build_ternary(g->mu, type, cmp, lcast, rcast);
+         }
+         else {
+            mir_value_t cmp = vlog_lower_test(g, value);
+            return mir_build_select(g->mu, type, cmp, lcast, rcast);
+         }
       }
    case V_USER_FCALL:
       {

@@ -1308,3 +1308,5 @@ issue1512       cover=toggle,2008
 tcl4            tcl
 issue1480       verilog
 display2        verilog,gold
+xprop1          verilog
+xprop2          verilog

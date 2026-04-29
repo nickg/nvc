@@ -1298,6 +1298,16 @@ VEC2_CMP_OP(lt, <);
 VEC2_CMP_OP(le, <=);
 VEC2_CMP_OP(ge, >=);
 
+int vec2_not(int size, const uint64_t *x)
+{
+   for (int i = BIGNUM_WORDS(size) - 1; i >= 0; i--) {
+      if (x[i] != 0)
+         return 0;
+   }
+
+   return 1;
+}
+
 void vec2_itoa(int size, const uint64_t *a, text_buf_t *tb)
 {
    if (size <= 64) {
@@ -1433,15 +1443,27 @@ void vec4_inv(int size, uint64_t *a, uint64_t *b)
 void vec4_and2(int size, uint64_t *a1, uint64_t *b1, const uint64_t *a2,
                const uint64_t *b2)
 {
-   vec2_and2(size, a1, a2);
-   vec2_or2(size, b1, b2);
+   for (int i = 0; i < BIGNUM_WORDS(size); i++) {
+      const uint64_t lmaybe1 = a1[i] | b1[i];
+      const uint64_t rmaybe1 = a2[i] | b2[i];
+      const uint64_t bx = (b1[i] & rmaybe1) | (b2[i] & lmaybe1);
+
+      a1[i] = (a1[i] & a2[i]) | bx;
+      b1[i] = bx;
+   }
 }
 
 void vec4_or2(int size, uint64_t *a1, uint64_t *b1, const uint64_t *a2,
               const uint64_t *b2)
 {
-   vec2_or2(size, a1, a2);
-   vec2_or2(size, b1, b2);
+   for (int i = 0; i < BIGNUM_WORDS(size); i++) {
+      const uint64_t lknown1 = a1[i] & ~b1[i];
+      const uint64_t rknown1 = a2[i] & ~b2[i];
+      const uint64_t bx = (b1[i] & ~rknown1) | (b2[i] & ~lknown1);
+
+      a1[i] = a1[i] | a2[i] | bx;
+      b1[i] = bx;
+   }
 }
 
 void vec4_xor2(int size, uint64_t *a1, uint64_t *b1, const uint64_t *a2,
@@ -1449,4 +1471,19 @@ void vec4_xor2(int size, uint64_t *a1, uint64_t *b1, const uint64_t *a2,
 {
    vec2_xor2(size, a1, a2);
    vec2_or2(size, b1, b2);
+   vec2_or2(size, a1, b1);
+}
+
+vlog_logic_t vec4_not(int size, const uint64_t *a, const uint64_t *b)
+{
+   vlog_logic_t result = LOGIC_1;
+
+   for (int i = BIGNUM_WORDS(size) - 1; i >= 0; i--) {
+      if (a[i] != 0)
+         return LOGIC_0;
+      else if (b[i] != 0)
+         result = LOGIC_X;
+   }
+
+   return result;
 }

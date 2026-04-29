@@ -966,6 +966,7 @@ void __nvc_vec4op(jit_vec_op_t op, jit_anchor_t *anchor, jit_scalar_t *args,
    case JIT_VEC_CASEZ_EQ:
    case JIT_VEC_LOG_EQ:
    case JIT_VEC_LOG_NEQ:
+   case JIT_VEC_LOG_NOT:
    case JIT_VEC_AND1:
    case JIT_VEC_OR1:
       {
@@ -1029,6 +1030,13 @@ void __nvc_vec4op(jit_vec_op_t op, jit_anchor_t *anchor, jit_scalar_t *args,
          case JIT_VEC_OR1:
             bresult = vec2_or1(size, bleft);
             aresult = vec2_or1(size, aleft) | bresult;
+            break;
+         case JIT_VEC_LOG_NOT:
+            {
+               vlog_logic_t r = vec4_not(size, aleft, bleft);
+               bresult = r >> 1;
+               aresult = r & 1;
+            }
             break;
          default:
             should_not_reach_here();
@@ -1168,6 +1176,43 @@ void __nvc_vec4op(jit_vec_op_t op, jit_anchor_t *anchor, jit_scalar_t *args,
          args[1].pointer = bresult;
       }
       break;
+   case JIT_VEC_TERNARY:
+      {
+         const uint64_t abits = args[0].integer & 1;
+         const uint64_t bbits = args[1].integer & 1;
+
+         const bool is_true = (abits & ~bbits) != 0;
+         const bool is_false = (abits | bbits) == 0;
+
+         void *ptr = jit_mspace_alloc(nwords * 2 * sizeof(uint64_t));
+         uint64_t *aresult = ptr, *bresult = aresult + nwords;
+
+         const uint64_t *atrue = args[2].pointer;
+         const uint64_t *afalse = args[4].pointer;
+         const uint64_t *btrue = args[3].pointer;
+         const uint64_t *bfalse = args[5].pointer;
+
+         if (is_true) {
+            memcpy(aresult, atrue, nwords * sizeof(uint64_t));
+            memcpy(bresult, btrue, nwords * sizeof(uint64_t));
+         }
+         else if (is_false) {
+            memcpy(aresult, afalse, nwords * sizeof(uint64_t));
+            memcpy(bresult, bfalse, nwords * sizeof(uint64_t));
+         }
+         else {
+            for (int i = 0; i < nwords; i++) {
+               const uint64_t diff =
+                  (atrue[i] ^ afalse[i]) | (btrue[i] ^ bfalse[i]);
+               aresult[i] = atrue[i] | diff;
+               bresult[i] = btrue[i] | bfalse[i] | diff;
+            }
+         }
+
+         args[0].pointer = aresult;
+         args[1].pointer = bresult;
+      }
+      break;
    default:
       {
          uint64_t *aresult, *bresult, *a2, *b2;
@@ -1193,6 +1238,15 @@ void __nvc_vec4op(jit_vec_op_t op, jit_anchor_t *anchor, jit_scalar_t *args,
          }
 
          switch (op) {
+         case JIT_VEC_AND2:
+            vec4_and2(size, aresult, bresult, a2, b2);
+            break;
+         case JIT_VEC_OR2:
+            vec4_or2(size, aresult, bresult, a2, b2);
+            break;
+         case JIT_VEC_XOR2:
+            vec4_xor2(size, aresult, bresult, a2, b2);
+            break;
          case JIT_VEC_ADD:
             vec4_add(size, aresult, bresult, a2, b2);
             break;

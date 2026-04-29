@@ -215,9 +215,14 @@ typedef enum {
    JIT_VEC_CASEZ_EQ,
    JIT_VEC_LOG_EQ,
    JIT_VEC_LOG_NEQ,
+   JIT_VEC_LOG_NOT,
    JIT_VEC_NOT,
+   JIT_VEC_AND2,
+   JIT_VEC_OR2,
+   JIT_VEC_XOR2,
    JIT_VEC_AND1,
    JIT_VEC_OR1,
+   JIT_VEC_TERNARY,
    JIT_VEC_EXP,
 } jit_vec_op_t;
 

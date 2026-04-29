@@ -69,6 +69,7 @@ const char *mir_op_string(mir_op_t op)
       [MIR_OP_DEBUG_LOCUS] = "debug locus",
       [MIR_OP_INIT_SIGNAL] = "init signal",
       [MIR_OP_SELECT] = "select",
+      [MIR_OP_TERNARY] = "ternary",
       [MIR_OP_REM] = "rem",
       [MIR_OP_WAIT] = "wait",
       [MIR_OP_LINK_PACKAGE] = "link package",
@@ -900,6 +901,7 @@ void mir_annotate(mir_unit_t *mu, const mir_annotate_t *cb, void *ctx)
             break;
 
          case MIR_OP_SELECT:
+         case MIR_OP_TERNARY:
             {
                col += mir_dump_value(mu, result, cb, ctx);
                col += printf(" := %s ", mir_op_string(n->op));

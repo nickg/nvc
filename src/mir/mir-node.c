@@ -1624,7 +1624,10 @@ mir_value_t mir_build_unary(mir_unit_t *mu, mir_vec_op_t op, mir_type_t type,
    case MIR_VEC_BIT_AND:
    case MIR_VEC_BIT_OR:
    case MIR_VEC_BIT_XOR:
-      otype = mir_vec2_type(mu, 1, false);
+      if (mir_get_class(mu, type) == MIR_TYPE_VEC4)
+         otype = mir_vec4_type(mu, 1, false);
+      else
+         otype = mir_vec2_type(mu, 1, false);
       break;
    default:
       otype = type;
@@ -2116,6 +2119,31 @@ mir_value_t mir_build_select(mir_unit_t *mu, mir_type_t type, mir_value_t test,
               "true argument to select is not expected type");
    MIR_ASSERT(mir_check_type(mu, vfalse, type),
               "false argument to select is not expected type");
+
+   return result;
+}
+
+mir_value_t mir_build_ternary(mir_unit_t *mu, mir_type_t type,
+                              mir_value_t test, mir_value_t vtrue,
+                              mir_value_t vfalse)
+{
+   if (mir_equals(vtrue, vfalse))
+      return vtrue;
+
+   mir_stamp_t s_true = mir_get_stamp(mu, vtrue);
+   mir_stamp_t s_false = mir_get_stamp(mu, vfalse);
+   mir_stamp_t stamp = mir_stamp_union(mu, s_true, s_false);
+
+   mir_value_t result = mir_build_3(mu, MIR_OP_TERNARY, type, stamp, test,
+                                    vtrue, vfalse);
+
+   MIR_ASSERT(mir_is(mu, test, MIR_TYPE_VEC4), "ternary test is not a vec4");
+   MIR_ASSERT(mir_get_size(mu, mir_get_type(mu, test)) == 1,
+              "test must be one bit vector");
+   MIR_ASSERT(mir_check_type(mu, vtrue, type),
+              "true argument to ternary is not expected type");
+   MIR_ASSERT(mir_check_type(mu, vfalse, type),
+              "false argument to ternary is not expected type");
 
    return result;
 }

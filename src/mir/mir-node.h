@@ -159,6 +159,7 @@ typedef enum {
    MIR_OP_DEBUG_LOCUS,
    MIR_OP_INIT_SIGNAL,
    MIR_OP_SELECT,
+   MIR_OP_TERNARY,
    MIR_OP_WAIT,
    MIR_OP_LINK_PACKAGE,
    MIR_OP_PACKAGE_INIT,
@@ -590,6 +591,9 @@ void mir_build_cond(mir_unit_t *mu, mir_value_t test, mir_block_t btrue,
                     mir_block_t bfalse);
 mir_value_t mir_build_select(mir_unit_t *mu, mir_type_t type, mir_value_t test,
                              mir_value_t vtrue, mir_value_t vfalse);
+mir_value_t mir_build_ternary(mir_unit_t *mu, mir_type_t type,
+                              mir_value_t test, mir_value_t vtrue,
+                              mir_value_t vfalse);
 mir_value_t mir_build_phi(mir_unit_t *mu, mir_type_t type, unsigned ninputs);
 void mir_build_case(mir_unit_t *mu, mir_value_t value, mir_block_t def,
                     const mir_value_t *cases, const mir_block_t *blocks,

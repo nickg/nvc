@@ -1517,7 +1517,6 @@ START_TEST(test_lower1)
          { MIR_OP_LOAD },
          { MIR_OP_PACK },
          { MIR_OP_UNARY, ENUM(MIR_VEC_LOG_NOT) },
-         { MIR_OP_CAST },
          { MIR_OP_UNPACK },
          { MIR_OP_DEPOSIT_SIGNAL },
          { MIR_OP_JUMP, BLOCK(1) },

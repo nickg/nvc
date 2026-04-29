@@ -107,6 +107,7 @@ int vec2_sge(int size, const uint64_t *a, const uint64_t *b);
 int vec2_ge(int size, const uint64_t *a, const uint64_t *b);
 int vec2_sle(int size, const uint64_t *a, const uint64_t *b);
 int vec2_le(int size, const uint64_t *a, const uint64_t *b);
+int vec2_not(int size, const uint64_t *x);
 
 void vec2_itoa(int size, const uint64_t *a, text_buf_t *tb);
 
@@ -133,5 +134,7 @@ void vec4_or2(int size, uint64_t *a1, uint64_t *b1, const uint64_t *a2,
               const uint64_t *b2);
 void vec4_xor2(int size, uint64_t *a1, uint64_t *b1, const uint64_t *a2,
                const uint64_t *b2);
+
+vlog_logic_t vec4_not(int size, const uint64_t *a, const uint64_t *b);
 
 #endif  // _VLOG_NUMBER_H
