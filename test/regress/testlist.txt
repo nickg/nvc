@@ -1310,3 +1310,4 @@ issue1480       verilog
 display2        verilog,gold
 xprop1          verilog
 xprop2          verilog
+issue1517       cover=statement
