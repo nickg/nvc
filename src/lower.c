@@ -11830,6 +11830,7 @@ static vcode_reg_t lower_constrain_port(lower_unit_t *lu, tree_t port, int pos,
                                         tree_t block, vcode_reg_t *map_regs)
 {
    vcode_reg_t left_reg = VCODE_INVALID_REG, right_reg = VCODE_INVALID_REG;
+   vcode_reg_t dir_reg = emit_const(vtype_bool(), RANGE_TO);
    type_t port_type = tree_type(port), elem = NULL;
 
    bool nested_array = false;
@@ -11940,6 +11941,7 @@ static vcode_reg_t lower_constrain_port(lower_unit_t *lu, tree_t port, int pos,
             tree_t r = tree_range(name, 0);
             left_reg = lower_range_left(lu, r);
             right_reg = lower_range_right(lu, r);
+            dir_reg = lower_range_dir(lu, r);
 
             elem_reg = emit_null(vtype_pointer(lower_type(elem)));
          }
@@ -11986,7 +11988,6 @@ static vcode_reg_t lower_constrain_port(lower_unit_t *lu, tree_t port, int pos,
       assert(left_reg != VCODE_INVALID_REG);
       assert(elem_reg != VCODE_INVALID_REG);
 
-      vcode_reg_t dir_reg = emit_const(vtype_bool(), RANGE_TO);
       vcode_dim_t dim0 = { left_reg, right_reg, dir_reg };
 
       if (nested_array) {
