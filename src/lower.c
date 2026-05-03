@@ -3075,8 +3075,14 @@ static vcode_reg_t lower_generic_ref(lower_unit_t *lu, tree_t decl,
       else
          return ptr_reg;
    }
-   else if (type_is_array(type) && type_const_bounds(type))
-      return emit_index(var, VCODE_INVALID_REG);
+   else if (type_is_array(type)) {
+      if (type_const_bounds(type))
+         return emit_index(var, VCODE_INVALID_REG);
+      if (vtype_kind(vcode_var_type(var)) == VCODE_TYPE_UARRAY)
+         return emit_load(var);
+      else
+         return lower_wrap(lu, type, emit_index(var, VCODE_INVALID_REG));
+   }
    else if (type_is_record(type) || type_is_protected(type))
       return emit_index(var, VCODE_INVALID_REG);
    else
