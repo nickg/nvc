@@ -10201,25 +10201,18 @@ static void p_parameter_specification(tree_t loop, tree_kind_t pkind)
    insert_name(nametab, param, NULL);
 }
 
-static tree_t p_iteration_scheme(void)
+static void p_iteration_scheme(tree_t t)
 {
    // while condition | for parameter_specification
 
    BEGIN("iteration scheme");
 
-   if (optional(tWHILE)) {
-      tree_t t = tree_new(T_WHILE);
+   if (optional(tWHILE))
       tree_set_value(t, p_condition());
-      return t;
-   }
    else if (optional(tFOR)) {
-      tree_t t = tree_new(T_FOR);
       scope_set_container(nametab, t);
       p_parameter_specification(t, T_PARAM_DECL);
-      return t;
    }
-   else
-      return tree_new(T_LOOP);
 }
 
 static tree_t p_loop_statement(ident_t label)
@@ -10229,18 +10222,27 @@ static tree_t p_loop_statement(ident_t label)
 
    BEGIN("loop statement");
 
+   tree_t t;
+   if (scan(tWHILE))
+      t = tree_new(T_WHILE);
+   else if (scan(tFOR))
+      t = tree_new(T_FOR);
+   else
+      t = tree_new(T_LOOP);
+
+   // Need to put loop name to parent scope, but loop must be parsed in
+   // child scope since loop variable hiding is legal.
+   ensure_labelled(t, label);
+   if (label != NULL)
+      insert_name(nametab, t, NULL);
+
    push_scope(nametab);
 
-   tree_t t = p_iteration_scheme();
+   p_iteration_scheme(t);
 
    consume(tLOOP);
 
    scope_set_container(nametab, t);
-   set_label_and_loc(t, label, CURRENT_LOC);
-
-   if (label != NULL)
-      insert_name(nametab, t, NULL);
-
    sem_check(t, nametab);
 
    p_sequence_of_statements(t);
@@ -10251,7 +10253,6 @@ static tree_t p_loop_statement(ident_t label)
    consume(tSEMI);
 
    pop_scope(nametab);
-
    tree_set_loc(t, CURRENT_LOC);
    return t;
 }
