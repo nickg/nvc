@@ -4567,10 +4567,12 @@ static void irgen_op_unary(jit_irgen_t *g, mir_value_t n)
    case MIR_VEC_BIT_XOR:
       {
          jit_value_t tmp = irgen_alloc_temp(g);
-         j_mov(g, abits, input);
-         for (int n = isize; n > 1; n /= 2) {
-            j_shr(g, tmp, abits, jit_value_from_int64(n / 2));
-            j_xor(g, abits, tmp, abits);
+         j_and(g, abits, input, imask);
+         for (int shift = 32; shift > 0; shift /= 2) {
+            if (shift <= isize) {
+               j_shr(g, tmp, abits, jit_value_from_int64(shift));
+               j_xor(g, abits, tmp, abits);
+            }
          }
 
          j_and(g, tmp, xbits, imask);

@@ -1315,3 +1315,4 @@ xprop3          verilog
 xprop4          verilog
 binary6         verilog
 binary7         verilog
+ivtest30        verilog,gold
