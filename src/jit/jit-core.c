@@ -986,11 +986,17 @@ jit_handle_t jit_assemble(jit_t *j, ident_t name, const char *text)
       { "EQ", JIT_CC_EQ },
       { "NE", JIT_CC_NE },
       { "O",  JIT_CC_O },
+      { "NO", JIT_CC_NO },
       { "C",  JIT_CC_C },
+      { "NC", JIT_CC_NC },
       { "LT", JIT_CC_LT },
       { "LE", JIT_CC_LE },
       { "GT", JIT_CC_GT },
       { "GE", JIT_CC_GE },
+      { "ULT", JIT_CC_C },
+      { "ULE", JIT_CC_NO },
+      { "UGT", JIT_CC_O },
+      { "UGE", JIT_CC_NC },
    };
 
    const unsigned bufsz = 128;

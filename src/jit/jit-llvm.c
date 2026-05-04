@@ -1141,6 +1141,10 @@ static LLVMIntPredicate cgen_int_pred(cgen_block_t *cgb, jit_ir_t *ir)
    case JIT_CC_LT: return LLVMIntSLT;
    case JIT_CC_LE: return LLVMIntSLE;
    case JIT_CC_GE: return LLVMIntSGE;
+   case JIT_CC_O:  return LLVMIntUGT;
+   case JIT_CC_NO: return LLVMIntULE;
+   case JIT_CC_C:  return LLVMIntULT;
+   case JIT_CC_NC: return LLVMIntUGE;
    default:
       cgen_abort(cgb, ir, "unhandled cmp condition code");
    }

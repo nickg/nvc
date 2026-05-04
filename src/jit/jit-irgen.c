@@ -4060,13 +4060,13 @@ static void irgen_op_unpack(jit_irgen_t *g, mir_value_t n)
    }
 }
 
-static jit_cc_t irgen_vector_cmp(mir_vec_op_t op)
+static jit_cc_t irgen_vector_cmp(mir_vec_op_t op, bool issigned)
 {
    switch (op) {
-   case MIR_VEC_LT:      return JIT_CC_LT;
-   case MIR_VEC_LEQ:     return JIT_CC_LE;
-   case MIR_VEC_GT:      return JIT_CC_GT;
-   case MIR_VEC_GEQ:     return JIT_CC_GE;
+   case MIR_VEC_LT:      return issigned ? JIT_CC_LT : JIT_CC_C;
+   case MIR_VEC_LEQ:     return issigned ? JIT_CC_LE : JIT_CC_NO;
+   case MIR_VEC_GT:      return issigned ? JIT_CC_GT : JIT_CC_O;
+   case MIR_VEC_GEQ:     return issigned ? JIT_CC_GE : JIT_CC_NC;
    case MIR_VEC_LOG_EQ:  return JIT_CC_EQ;
    case MIR_VEC_LOG_NEQ: return JIT_CC_NE;
    default: should_not_reach_here();
@@ -4395,7 +4395,7 @@ static void irgen_op_binary(jit_irgen_t *g, mir_value_t n)
          aleft = irgen_sign_extend(g, aleft, size);
          aright = irgen_sign_extend(g, aright, size);
       }
-      j_cmp(g, irgen_vector_cmp(op), aleft, aright);
+      j_cmp(g, irgen_vector_cmp(op, issigned), aleft, aright);
       j_cset(g, abits);
       xbits = irgen_arith_xbits(g, bleft, bright, jit_value_from_int64(1));
       break;

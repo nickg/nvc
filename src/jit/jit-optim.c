@@ -715,6 +715,7 @@ static void jit_lvn_cmp(jit_ir_t *ir, lvn_state_t *state)
 {
    int64_t lhs, rhs;
    if (lvn_can_fold(ir, state, &lhs, &rhs)) {
+      const uint64_t ulhs = lhs, urhs = rhs;
       bool result = false;
       switch (ir->cc) {
       case JIT_CC_EQ: result = (lhs == rhs); break;
@@ -723,6 +724,10 @@ static void jit_lvn_cmp(jit_ir_t *ir, lvn_state_t *state)
       case JIT_CC_GT: result = (lhs > rhs); break;
       case JIT_CC_LE: result = (lhs <= rhs); break;
       case JIT_CC_GE: result = (lhs >= rhs); break;
+      case JIT_CC_C:  result = (ulhs < urhs); break;
+      case JIT_CC_NC: result = (ulhs >= urhs); break;
+      case JIT_CC_O:  result = (ulhs > urhs); break;
+      case JIT_CC_NO: result = (ulhs <= urhs); break;
       default:
          fatal_trace("unhandled condition code in jit_lvn_cmp");
       }

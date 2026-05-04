@@ -525,6 +525,7 @@ static void interp_cmp(jit_interp_t *state, jit_ir_t *ir)
 {
    const int64_t arg1 = interp_get_int(state, ir->arg1);
    const int64_t arg2 = interp_get_int(state, ir->arg2);
+   const uint64_t uarg1 = arg1, uarg2 = arg2;
 
    switch (ir->cc) {
    case JIT_CC_EQ: state->flags = (arg1 == arg2); break;
@@ -533,6 +534,10 @@ static void interp_cmp(jit_interp_t *state, jit_ir_t *ir)
    case JIT_CC_GT: state->flags = (arg1 > arg2); break;
    case JIT_CC_LE: state->flags = (arg1 <= arg2); break;
    case JIT_CC_GE: state->flags = (arg1 >= arg2); break;
+   case JIT_CC_C:  state->flags = (uarg1 < uarg2); break;
+   case JIT_CC_NC: state->flags = (uarg1 >= uarg2); break;
+   case JIT_CC_O:  state->flags = (uarg1 > uarg2); break;
+   case JIT_CC_NO: state->flags = (uarg1 <= uarg2); break;
    default: state->flags = 0; break;
    }
 }
@@ -541,6 +546,7 @@ static void interp_ccmp(jit_interp_t *state, jit_ir_t *ir)
 {
    const int64_t arg1 = interp_get_int(state, ir->arg1);
    const int64_t arg2 = interp_get_int(state, ir->arg2);
+   const uint64_t uarg1 = arg1, uarg2 = arg2;
 
    switch (ir->cc) {
    case JIT_CC_EQ: state->flags &= (arg1 == arg2); break;
@@ -549,6 +555,10 @@ static void interp_ccmp(jit_interp_t *state, jit_ir_t *ir)
    case JIT_CC_GT: state->flags &= (arg1 > arg2); break;
    case JIT_CC_LE: state->flags &= (arg1 <= arg2); break;
    case JIT_CC_GE: state->flags &= (arg1 >= arg2); break;
+   case JIT_CC_C:  state->flags &= (uarg1 < uarg2); break;
+   case JIT_CC_NC: state->flags &= (uarg1 >= uarg2); break;
+   case JIT_CC_O:  state->flags &= (uarg1 > uarg2); break;
+   case JIT_CC_NO: state->flags &= (uarg1 <= uarg2); break;
    default: state->flags = 0; break;
    }
 }

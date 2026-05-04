@@ -1313,3 +1313,4 @@ xprop2          verilog
 issue1506       normal,2008
 xprop3          verilog
 xprop4          verilog
+binary6         verilog

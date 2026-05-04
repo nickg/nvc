@@ -1380,17 +1380,30 @@ static void jit_x86_put(code_blob_t *blob, jit_reg_t dst, x86_operand_t src,
    }
 }
 
+static void jit_x86_set_overflow(code_blob_t *blob, jit_ir_t *ir)
+{
+   switch (ir->cc) {
+   case JIT_CC_O: SETO(FLAGS_REG); break;
+   case JIT_CC_C: SETC(FLAGS_REG); break;
+   case JIT_CC_NONE: break;
+   default:
+      fatal_trace("unhandled JIT overflow code %d", ir->cc);
+   }
+}
+
 static void jit_x86_set_flags(code_blob_t *blob, jit_ir_t *ir)
 {
    switch (ir->cc) {
-   case JIT_CC_O:  SETO(FLAGS_REG); break;
-   case JIT_CC_C:  SETC(FLAGS_REG); break;
    case JIT_CC_EQ: SETZ(FLAGS_REG); break;
    case JIT_CC_NE: SETNZ(FLAGS_REG); break;
    case JIT_CC_LT: SETLT(FLAGS_REG); break;
    case JIT_CC_GT: SETGT(FLAGS_REG); break;
    case JIT_CC_LE: SETLE(FLAGS_REG); break;
    case JIT_CC_GE: SETGE(FLAGS_REG); break;
+   case JIT_CC_C:  SETB(FLAGS_REG); break;
+   case JIT_CC_NC: SETAE(FLAGS_REG); break;
+   case JIT_CC_O:  SETA(FLAGS_REG); break;
+   case JIT_CC_NO: SETBE(FLAGS_REG); break;
    case JIT_CC_NONE: break;
    default:
       fatal_trace("unhandled JIT comparison code %d", ir->cc);
@@ -1459,7 +1472,7 @@ static void jit_x86_add(code_blob_t *blob, jit_ir_t *ir,
 
    ADD(__EAX, rhs, size);
 
-   jit_x86_set_flags(blob, ir);
+   jit_x86_set_overflow(blob, ir);
    jit_x86_sext(blob, __EAX, size);
    jit_x86_put(blob, ir->result, __EAX, slots);
 }
@@ -1474,7 +1487,7 @@ static void jit_x86_sub(code_blob_t *blob, jit_ir_t *ir,
 
    SUB(__EAX, rhs, size);
 
-   jit_x86_set_flags(blob, ir);
+   jit_x86_set_overflow(blob, ir);
    jit_x86_sext(blob, __EAX, size);
    jit_x86_put(blob, ir->result, __EAX, slots);
 }
@@ -1492,7 +1505,7 @@ static void jit_x86_mul(code_blob_t *blob, jit_ir_t *ir,
    else
       MUL(__ECX, size);
 
-   jit_x86_set_flags(blob, ir);
+   jit_x86_set_overflow(blob, ir);
    jit_x86_sext(blob, __EAX, size);
    jit_x86_put(blob, ir->result, __EAX, slots);
 }

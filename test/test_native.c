@@ -814,6 +814,62 @@ START_TEST(test_logical)
    ck_assert_int_eq(jit_call(j, h5, 0xf0f).integer, 0);
    ck_assert_int_eq(jit_call(j, h5, 0x3333).integer, 0x3030);
 
+   const char *text6 =
+      "    RECV     R0, #0          \n"
+      "    RECV     R1, #1          \n"
+      "    CMP.ULT  R0, R1          \n"
+      "    CSET     R2              \n"
+      "    SEND     #0, R2          \n"
+      "    RET                      \n";
+
+   jit_handle_t h6 = assemble(j, text6, "logical6", "II");
+   ck_assert_int_eq(jit_call(j, h6, 0, 1).integer, 1);
+   ck_assert_int_eq(jit_call(j, h6, 1, 0).integer, 0);
+   ck_assert_int_eq(jit_call(j, h6, INT64_MIN, 1).integer, 0);
+   ck_assert_int_eq(jit_call(j, h6, 1, INT64_MIN).integer, 1);
+
+   const char *text7 =
+      "    RECV     R0, #0          \n"
+      "    RECV     R1, #1          \n"
+      "    CMP.UGE  R0, R1          \n"
+      "    CSET     R2              \n"
+      "    SEND     #0, R2          \n"
+      "    RET                      \n";
+
+   jit_handle_t h7 = assemble(j, text7, "logical7", "II");
+   ck_assert_int_eq(jit_call(j, h7, 1, 0).integer, 1);
+   ck_assert_int_eq(jit_call(j, h7, 0, 1).integer, 0);
+   ck_assert_int_eq(jit_call(j, h7, INT64_MIN, 1).integer, 1);
+   ck_assert_int_eq(jit_call(j, h7, INT64_MIN, INT64_MIN).integer, 1);
+
+   const char *text8 =
+      "    RECV     R0, #0          \n"
+      "    RECV     R1, #1          \n"
+      "    CMP.UGT  R0, R1          \n"
+      "    CSET     R2              \n"
+      "    SEND     #0, R2          \n"
+      "    RET                      \n";
+
+   jit_handle_t h8 = assemble(j, text8, "logical8", "II");
+   ck_assert_int_eq(jit_call(j, h8, 1, 0).integer, 1);
+   ck_assert_int_eq(jit_call(j, h8, 0, 1).integer, 0);
+   ck_assert_int_eq(jit_call(j, h8, INT64_MIN, 1).integer, 1);
+   ck_assert_int_eq(jit_call(j, h8, INT64_MIN, INT64_MIN).integer, 0);
+
+   const char *text9 =
+      "    RECV     R0, #0          \n"
+      "    RECV     R1, #1          \n"
+      "    CMP.ULE  R0, R1          \n"
+      "    CSET     R2              \n"
+      "    SEND     #0, R2          \n"
+      "    RET                      \n";
+
+   jit_handle_t h9 = assemble(j, text9, "logical9", "II");
+   ck_assert_int_eq(jit_call(j, h9, 0, 1).integer, 1);
+   ck_assert_int_eq(jit_call(j, h9, 1, 0).integer, 0);
+   ck_assert_int_eq(jit_call(j, h9, 1, INT64_MIN).integer, 1);
+   ck_assert_int_eq(jit_call(j, h9, INT64_MIN, INT64_MIN).integer, 1);
+
    jit_free(j);
 }
 END_TEST
