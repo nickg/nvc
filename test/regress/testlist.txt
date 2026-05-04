@@ -1319,3 +1319,4 @@ ivtest30        verilog,gold
 ivtest31        verilog,gold
 issue1516       mixed,2008
 tfcall6         verilog
+display3        verilog,gold

@@ -136,6 +136,7 @@ typedef struct {
    c_expr    expr;
    PLI_INT32 subtype;
    unsigned  argslot;
+   bool      is_signed;
 } c_operation;
 
 DEF_CLASS(operation, vpiOperation, expr.object);
@@ -623,6 +624,7 @@ static c_operation *build_operation(vlog_node_t v)
 {
    c_operation *op = new_object(sizeof(c_operation), vpiOperation);
    init_expr(&op->expr, v);
+   op->is_signed = vlog_is_signed(v);
 
    switch (vlog_kind(v)) {
    case V_EMPTY:
@@ -1161,8 +1163,8 @@ void vpi_get_value(vpiHandle handle, p_vpi_value value_p)
             const uint64_t *abits, *bbits;
             number_get(n, &abits, &bbits);
 
-            vpi_format_number(number_width(n), abits, bbits, value_p,
-                              c->valuestr);
+            vpi_format_number(number_width(n), number_signed(n), abits, bbits,
+                              value_p, c->valuestr);
             return;
          }
 
@@ -1186,7 +1188,8 @@ void vpi_get_value(vpiHandle handle, p_vpi_value value_p)
          uint64_t abits[1] = { c->args[op->argslot + 1].integer };
          uint64_t bbits[1] = { c->args[op->argslot + 2].integer };
 
-         vpi_format_number(size, abits, bbits, value_p, c->valuestr);
+         vpi_format_number(size, op->is_signed, abits, bbits, value_p,
+                           c->valuestr);
       }
       return;
    }
@@ -1226,7 +1229,9 @@ void vpi_get_value(vpiHandle handle, p_vpi_value value_p)
                bbits[pos / 64] |= (uint64_t)((vals[i] >> 1) & 1) << (pos % 64);
             }
 
-            vpi_format_number(width, abits, bbits, value_p, c->valuestr);
+            const bool is_signed = !!(vlog_flags(type) & VLOG_F_SIGNED);
+            vpi_format_number(width, is_signed, abits, bbits, value_p,
+                              c->valuestr);
             return;
          }
       }

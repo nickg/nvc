@@ -293,6 +293,33 @@ unsigned vlog_width(vlog_node_t v)
    }
 }
 
+bool vlog_is_signed(vlog_node_t v)
+{
+   switch (vlog_kind(v)) {
+   case V_NUMBER:
+      return number_signed(vlog_number(v));
+   case V_VAR_DECL:
+   case V_NET_DECL:
+   case V_PORT_DECL:
+   case V_TF_PORT_DECL:
+   case V_FUNC_DECL:
+   case V_LOCALPARAM:
+      return !!(vlog_flags(vlog_type(v)) & VLOG_F_SIGNED);
+   case V_REF:
+   case V_MEMBER_REF:
+      return vlog_has_ref(v) && vlog_is_signed(vlog_ref(v));
+   case V_BIT_SELECT:
+   case V_PART_SELECT:
+      return false;
+   case V_UNARY:
+      return vlog_is_signed(vlog_value(v));
+   case V_BINARY:
+      return vlog_is_signed(vlog_left(v)) && vlog_is_signed(vlog_right(v));
+   default:
+      return false;
+   }
+}
+
 bool is_top_level(vlog_node_t v)
 {
    switch (vlog_kind(v)) {
