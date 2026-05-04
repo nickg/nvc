@@ -810,10 +810,23 @@ number_t number_logical_equal(number_t a, number_t b)
    assert(bignum_words(a.big) == 1);  // TODO
    assert(bignum_words(b.big) == 1);  // TODO
 
-   bignum_abits(result)[0] =
-      bignum_abits(a.big)[0] == bignum_abits(b.big)[0];
-   bignum_bbits(result)[0] =
+   const uint64_t unknown =
       bignum_bbits(a.big)[0] | bignum_bbits(b.big)[0];
+   const uint64_t known_diff =
+      (bignum_abits(a.big)[0] ^ bignum_abits(b.big)[0]) & ~unknown;
+
+   if (known_diff != 0) {
+      bignum_abits(result)[0] = 0;
+      bignum_bbits(result)[0] = 0;
+   }
+   else if (unknown != 0) {
+      bignum_abits(result)[0] = 1;
+      bignum_bbits(result)[0] = 1;
+   }
+   else {
+      bignum_abits(result)[0] = 1;
+      bignum_bbits(result)[0] = 0;
+   }
 
    return number_intern(result);
 }
@@ -824,7 +837,10 @@ number_t number_not(number_t a)
 
    assert(bignum_words(result) == 1);  // TODO
 
-   bignum_abits(result)[0] = !bignum_abits(result)[0];
+   if (bignum_bbits(result)[0] != 0)
+      bignum_abits(result)[0] = 1;
+   else
+      bignum_abits(result)[0] = !bignum_abits(result)[0];
 
    return number_intern(result);
 }

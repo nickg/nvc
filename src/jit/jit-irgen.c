@@ -4395,12 +4395,47 @@ static void irgen_op_binary(jit_irgen_t *g, mir_value_t n)
          aleft = irgen_sign_extend(g, aleft, size);
          aright = irgen_sign_extend(g, aright, size);
       }
-      // Fall-through
-   case MIR_VEC_LOG_EQ:
-   case MIR_VEC_LOG_NEQ:
       j_cmp(g, irgen_vector_cmp(op), aleft, aright);
       j_cset(g, abits);
       xbits = irgen_arith_xbits(g, bleft, bright, jit_value_from_int64(1));
+      break;
+   case MIR_VEC_LOG_EQ:
+   case MIR_VEC_LOG_NEQ:
+      {
+         jit_value_t unknown = irgen_alloc_temp(g);
+         j_or(g, unknown, bleft, bright);
+         j_and(g, unknown, unknown, mask);
+
+         jit_value_t known = irgen_alloc_temp(g);
+         j_xor(g, known, unknown, mask);
+
+         jit_value_t known_diff = irgen_alloc_temp(g);
+         j_xor(g, known_diff, aleft, aright);
+         j_and(g, known_diff, known_diff, known);
+
+         jit_value_t has_diff = irgen_alloc_temp(g);
+         j_cmp(g, JIT_CC_NE, known_diff, jit_value_from_int64(0));
+         j_cset(g, has_diff);
+
+         jit_value_t has_unknown = irgen_alloc_temp(g);
+         j_cmp(g, JIT_CC_NE, unknown, jit_value_from_int64(0));
+         j_cset(g, has_unknown);
+
+         jit_value_t known_result = jit_value_from_int64(op == MIR_VEC_LOG_NEQ);
+         jit_value_t no_diff_result =
+            jit_value_from_int64(op == MIR_VEC_LOG_EQ);
+
+         jit_value_t unknown_or_equal = irgen_alloc_temp(g);
+         j_cmp(g, JIT_CC_NE, has_unknown, jit_value_from_int64(0));
+         j_csel(g, unknown_or_equal, jit_value_from_int64(1), no_diff_result);
+
+         j_cmp(g, JIT_CC_NE, has_diff, jit_value_from_int64(0));
+         j_csel(g, abits, known_result, unknown_or_equal);
+
+         xbits = irgen_alloc_temp(g);
+         j_cmp(g, JIT_CC_NE, has_diff, jit_value_from_int64(0));
+         j_csel(g, xbits, jit_value_from_int64(0), has_unknown);
+      }
       break;
    case MIR_VEC_SLL:
       j_shl(g, abits, aleft, aright);

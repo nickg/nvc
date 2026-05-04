@@ -1014,14 +1014,28 @@ void __nvc_vec4op(jit_vec_op_t op, jit_anchor_t *anchor, jit_scalar_t *args,
             bresult = 0;
             break;
          case JIT_VEC_LOG_EQ:
-            bresult = vec2_or1(size, bleft) | vec2_or1(size, bright);
-            aresult = (memcmp(aleft, aright, nwords * sizeof(uint64_t)) == 0)
-               | bresult;
-            break;
          case JIT_VEC_LOG_NEQ:
-            bresult = vec2_or1(size, bleft) | vec2_or1(size, bright);
-            aresult = (memcmp(aleft, aright, nwords * sizeof(uint64_t)) != 0)
-               | bresult;
+            {
+               bool unknown = false, known_diff = false;
+               for (int i = 0; i < nwords; i++) {
+                  const uint64_t umask = bleft[i] | bright[i];
+                  unknown |= umask != 0;
+                  known_diff |= ((aleft[i] ^ aright[i]) & ~umask) != 0;
+               }
+
+               if (known_diff) {
+                  aresult = op == JIT_VEC_LOG_NEQ;
+                  bresult = 0;
+               }
+               else if (unknown) {
+                  aresult = 1;
+                  bresult = 1;
+               }
+               else {
+                  aresult = op == JIT_VEC_LOG_EQ;
+                  bresult = 0;
+               }
+            }
             break;
          case JIT_VEC_AND1:
             bresult = vec2_or1(size, bleft);
