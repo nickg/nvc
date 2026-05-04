@@ -169,8 +169,125 @@ unsigned vlog_size(vlog_node_t v)
          else
             return left - right + 1;
       }
+   case V_CLASS_DECL:
+   case V_TYPE_DECL:
+   case V_ENUM_DECL:
+      return 0;  // Undefined
+   default:
+      CANNOT_HANDLE(v);
+   }
+}
+
+unsigned vlog_width(vlog_node_t v)
+{
+   switch (vlog_kind(v)) {
+   case V_NUMBER:
+   case V_STRING:
+      return number_width(vlog_number(v));
+   case V_REAL:
+   case V_CLASS_DECL:
+   case V_NULL:
+      return 0;  // Undefined
    case V_REF:
-      return vlog_size(vlog_ref(v));
+   case V_HIER_REF:
+   case V_MEMBER_REF:
+   case V_USER_FCALL:
+      return vlog_width(vlog_ref(v));
+   case V_PORT_DECL:
+   case V_VAR_DECL:
+   case V_NET_DECL:
+   case V_TF_PORT_DECL:
+   case V_PARAM_DECL:
+   case V_LOCALPARAM:
+   case V_FUNC_DECL:
+   case V_GENVAR_DECL:
+   case V_ENUM_NAME:
+   case V_ENUM_DECL:
+      return vlog_size(vlog_type(v));
+   case V_BIT_SELECT:
+      {
+         vlog_node_t value = vlog_value(v);
+         unsigned width = vlog_width(value);
+
+         const int nparams = vlog_params(v);
+         for (int i = 0; i < nparams; i++)
+            width /= vlog_size(vlog_get_dim(value, i));
+
+         return width;
+      }
+   case V_PART_SELECT:
+      return vlog_size(v);
+   case V_CONCAT:
+      {
+         unsigned width = 0;
+
+         const int nparams = vlog_params(v);
+         for (int i = 0; i < nparams; i++)
+            width += vlog_width(vlog_param(v, i));
+
+         if (vlog_has_value(v)) {
+            int64_t repeat;
+            if (vlog_get_const(vlog_value(v), &repeat))
+               width *= MAX(0, repeat);
+            else
+               return 0;  // Undefined
+         }
+
+         return width;
+      }
+   case V_COND_EXPR:
+      return MAX(vlog_width(vlog_left(v)), vlog_width(vlog_right(v)));
+   case V_UNARY:
+      switch (vlog_subkind(v)) {
+      case V_UNARY_BITNEG:
+      case V_UNARY_IDENTITY:
+      case V_UNARY_NEG:
+         return vlog_width(vlog_value(v));
+      case V_UNARY_NOT:
+      case V_UNARY_AND:
+      case V_UNARY_OR:
+      case V_UNARY_NAND:
+      case V_UNARY_NOR:
+      case V_UNARY_XOR:
+      case V_UNARY_XNOR:
+         return 1;
+      default:
+         CANNOT_HANDLE(v);
+      }
+   case V_BINARY:
+      switch (vlog_subkind(v)) {
+      case V_BINARY_PLUS:
+      case V_BINARY_MINUS:
+      case V_BINARY_TIMES:
+      case V_BINARY_DIVIDE:
+      case V_BINARY_MOD:
+      case V_BINARY_EXP:
+      case V_BINARY_OR:
+      case V_BINARY_AND:
+      case V_BINARY_XOR:
+      case V_BINARY_XNOR:
+         return MAX(vlog_width(vlog_left(v)), vlog_width(vlog_right(v)));
+      case V_BINARY_SHIFT_LL:
+      case V_BINARY_SHIFT_RL:
+      case V_BINARY_SHIFT_LA:
+      case V_BINARY_SHIFT_RA:
+         return vlog_width(vlog_left(v));
+      case V_BINARY_LOG_OR:
+      case V_BINARY_LOG_AND:
+      case V_BINARY_LT:
+      case V_BINARY_LEQ:
+      case V_BINARY_GT:
+      case V_BINARY_GEQ:
+      case V_BINARY_LOG_EQ:
+      case V_BINARY_LOG_NEQ:
+      case V_BINARY_CASE_EQ:
+      case V_BINARY_CASE_NEQ:
+         return 1;
+      default:
+         CANNOT_HANDLE(v);
+      }
+   case V_SYS_FCALL:
+      return 32;  // TODO: call VPI
    default:
       CANNOT_HANDLE(v);
    }

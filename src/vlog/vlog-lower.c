@@ -383,7 +383,8 @@ static vlog_select_t vlog_lower_select(vlog_gen_t *g, vlog_node_t v)
 
          vlog_select_t prefix = vlog_lower_select(g, value);
 
-         unsigned size = vlog_size(value) * mir_get_size(g->mu, prefix.type);
+         unsigned size =
+            vlog_size(vlog_ref(value)) * mir_get_size(g->mu, prefix.type);
 
          mir_type_t t_offset = mir_offset_type(g->mu);
          mir_value_t zero = mir_const(g->mu, t_offset, 0), off = zero;
@@ -756,14 +757,20 @@ static mir_value_t vlog_lower_binary(vlog_gen_t *g, vlog_node_t v,
       || op == V_BINARY_XNOR || op == V_BINARY_PLUS || op == V_BINARY_MINUS
       || op == V_BINARY_TIMES || op == V_BINARY_DIVIDE || op == V_BINARY_MOD;
 
-   mir_value_t left;
-   if (propagate_context)
-      left = vlog_lower_with_context(g, vlog_left(v), context);
-   else
-      left = vlog_lower_rvalue(g, vlog_left(v));
+   vlog_node_t lhs_expr = vlog_left(v), rhs_expr = vlog_right(v);
+
+   int size = MAX(vlog_width(lhs_expr), vlog_width(rhs_expr));
+   mir_type_t type;
+   if (!propagate_context || mir_is_null(context))
+      type = mir_vec4_type(g->mu, size, false);
+   else {
+      size = MAX(size, mir_get_size(g->mu, context));
+      type = mir_vec4_type(g->mu, size, mir_get_signed(g->mu, context));
+   }
+
+   mir_value_t left = vlog_lower_with_context(g, lhs_expr, type);
 
    // For short-circuiting operators check if the RHS can have side effects
-   vlog_node_t rhs_expr = vlog_right(v);
    mir_block_t guard_bb = MIR_NULL_BLOCK, skip_bb = MIR_NULL_BLOCK;
    mir_value_t var = MIR_NULL_VALUE;
    const bool is_short_circuit =
@@ -790,17 +797,13 @@ static mir_value_t vlog_lower_binary(vlog_gen_t *g, vlog_node_t v,
       mir_set_cursor(g->mu, guard_bb, MIR_APPEND);
    }
 
-   mir_value_t right;
-   if (propagate_context)
-      right = vlog_lower_with_context(g, rhs_expr, context);
-   else
-      right = vlog_lower_rvalue(g, rhs_expr);
+   mir_value_t right = vlog_lower_with_context(g, rhs_expr, type);
 
    mir_value_t result;
    if (mir_is_vector(g->mu, left))
       result = vlog_lower_vector_binary(g, op, left, right, context);
    else {
-      mir_type_t type = mir_get_type(g->mu, left);
+      mir_type_t ltype = mir_get_type(g->mu, left);
 
       switch (op) {
       case V_BINARY_LOG_EQ:
@@ -812,7 +815,7 @@ static mir_value_t vlog_lower_binary(vlog_gen_t *g, vlog_node_t v,
          result = mir_build_cmp(g->mu, MIR_CMP_NEQ, left, right);
          break;
       case V_BINARY_TIMES:
-         result = mir_build_mul(g->mu, type, left, right);
+         result = mir_build_mul(g->mu, ltype, left, right);
          break;
       case V_BINARY_LOG_AND:
          result = mir_build_and(g->mu, vlog_lower_test(g, left),
@@ -823,13 +826,13 @@ static mir_value_t vlog_lower_binary(vlog_gen_t *g, vlog_node_t v,
                                vlog_lower_test(g, right));
          break;
       case V_BINARY_DIVIDE:
-         result = mir_build_div(g->mu, type, left, right);
+         result = mir_build_div(g->mu, ltype, left, right);
          break;
       case V_BINARY_PLUS:
-         result = mir_build_add(g->mu, type, left, right);
+         result = mir_build_add(g->mu, ltype, left, right);
          break;
       case V_BINARY_MINUS:
-         result = mir_build_sub(g->mu, type, left, right);
+         result = mir_build_sub(g->mu, ltype, left, right);
          break;
       default:
          CANNOT_HANDLE(v);
