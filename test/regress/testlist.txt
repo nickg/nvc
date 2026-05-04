@@ -1310,4 +1310,5 @@ issue1480       verilog
 display2        verilog,gold
 xprop1          verilog
 xprop2          verilog
+issue1506       normal,2008
 xprop3          verilog
