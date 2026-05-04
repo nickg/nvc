@@ -7,8 +7,8 @@ require 'timeout'
 require 'open3'
 require 'tmpdir'
 
-if ARGV.length != 1 then
-  puts "Usage: #{__FILE__} /path/to/ivtest"
+if ARGV.length < 1 || ARGV.length > 2 then
+  puts "Usage: #{__FILE__} /path/to/ivtest [test-list]"
   exit 1
 end
 
@@ -16,6 +16,7 @@ TestDir = Pathname.new(__FILE__).realpath.dirname
 BuildDir = Pathname.new(ENV['BUILD_DIR'] || Dir.pwd).realpath
 LibPath = "#{BuildDir}/lib/std:#{BuildDir}/lib/ieee"
 IvtestDir = Pathname.new(ARGV[0]).realpath
+TestList = Pathname.new(ARGV[1] || "#{TestDir}/ivtest.list").realpath
 GitRev = IO::popen("git rev-parse --short HEAD").read.chomp
 Tool = ENV['NVC'] || 'nvc'
 ExpectFails = 1530
@@ -128,7 +129,7 @@ passes = 0
 Dir.chdir IvtestDir
 
 buffer = ""
-File.open("#{TestDir}/ivtest.list").each_line do |line|
+File.open(TestList).each_line do |line|
   cleaned = line.gsub(/#.*/, '').strip
   next if cleaned.empty?
 

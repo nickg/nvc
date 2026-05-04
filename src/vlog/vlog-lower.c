@@ -906,6 +906,15 @@ static mir_value_t vlog_lower_systf_param(vlog_gen_t *g, vlog_node_t v)
       case V_TF_PORT_DECL:
       case V_FUNC_DECL:
          return vlog_lower_rvalue(g, v);
+      case V_VAR_DECL:
+         {
+            int hops;
+            mir_value_t var = mir_search_object(g->mu, vlog_ref(v), &hops);
+            if (mir_is_null(var) || hops > 0)
+               return MIR_NULL_VALUE;
+
+            return vlog_lower_rvalue(g, v);
+         }
       default:
          return MIR_NULL_VALUE;
       }
