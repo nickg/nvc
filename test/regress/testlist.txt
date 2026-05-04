@@ -1317,3 +1317,4 @@ binary6         verilog
 binary7         verilog
 ivtest30        verilog,gold
 ivtest31        verilog,gold
+issue1516       mixed,2008

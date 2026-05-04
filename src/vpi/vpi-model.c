@@ -1300,7 +1300,8 @@ vpiHandle vpi_put_value(vpiHandle handle, p_vpi_value value_p,
          break;
 
       case vpiHexStrVal:
-         for (int i = 0; i < reg->size && value_p->value.str[i]; i++) {
+         for (int i = strlen(value_p->value.str) - 1, bit = 0;
+              i >= 0 && bit < reg->size; i--) {
             uint8_t nibble;
             switch (value_p->value.str[i]) {
             case '0'...'9': nibble = value_p->value.str[i] - '0'; break;
@@ -1312,8 +1313,8 @@ vpiHandle vpi_put_value(vpiHandle handle, p_vpi_value value_p,
                return NULL;
             }
 
-            for (int j = i * 4; j < reg->size && j < i * 4 + 4; j++)
-               unpacked[j] = !!(nibble & (1 << (3 - j + i * 4)));
+            for (int j = 0; j < 4 && bit < reg->size; j++, bit++)
+               unpacked[reg->size - 1 - bit] = !!(nibble & (1 << j));
          }
          break;
 
