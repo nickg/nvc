@@ -2689,7 +2689,8 @@ static void vlog_lower_deferred(mir_unit_t *mu, object_t *obj)
    assert(v != NULL);
 
    vlog_gen_t g = {
-      .mu = mu,
+      .mu  = mu,
+      .mir = mir_get_context(mu),
    };
 
    switch (vlog_kind(v)) {
@@ -2889,7 +2890,8 @@ static void vlog_lower_func_decl(mir_unit_t *mu, object_t *obj)
    assert(vlog_kind(v) == V_FUNC_DECL);
 
    vlog_gen_t g = {
-      .mu = mu,
+      .mu  = mu,
+      .mir = mir_get_context(mu),
    };
 
    const type_info_t *ti = vlog_type_info(&g, vlog_type(v));
@@ -2928,7 +2930,8 @@ static void vlog_lower_task_decl(mir_unit_t *mu, object_t *obj)
    assert(vlog_kind(v) == V_TASK_DECL);
 
    vlog_gen_t g = {
-      .mu = mu,
+      .mu  = mu,
+      .mir = mir_get_context(mu),
    };
 
    mir_type_t t_context = mir_context_type(mu, mir_get_parent(mu));
@@ -2964,7 +2967,8 @@ static void vlog_lower_class_decl(mir_unit_t *mu, object_t *obj)
    assert(vlog_kind(v) == V_CLASS_DECL);
 
    vlog_gen_t g = {
-      .mu = mu,
+      .mu  = mu,
+      .mir = mir_get_context(mu),
    };
 
    mir_type_t t_context = mir_context_type(mu, mir_get_parent(mu));
@@ -3292,7 +3296,8 @@ void vlog_lower_block(mir_context_t *mc, ident_t parent, tree_t b)
    assert(body_kind == V_INST_BODY || body_kind == V_BLOCK);
 
    vlog_gen_t g = {
-      .mu = mu,
+      .mu  = mu,
+      .mir = mc,
    };
 
    hash_t *map = hash_new(16);

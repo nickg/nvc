@@ -1321,3 +1321,4 @@ issue1516       mixed,2008
 issue1522       normal
 tfcall6         verilog
 display3        verilog,gold
+ivtest32        verilog
