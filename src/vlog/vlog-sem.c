@@ -328,7 +328,8 @@ static void vlog_check_port_decl(vlog_node_t v)
       vlog_node_t ref = vlog_ref(v);
       vlog_check_consistent(v, ref);
 
-      if (!is_implicit_data_type(vlog_type(v))) {
+      vlog_node_t type = vlog_type(v);
+      if (!is_implicit_data_type(type)) {
          diag_t *d = diag_new(DIAG_ERROR, vlog_loc(ref));
          diag_printf(d, "completely declared port '%s' cannot be declared "
                      "again in a data type declaration", istr(vlog_ident(v)));
@@ -336,6 +337,9 @@ static void vlog_check_port_decl(vlog_node_t v)
          diag_hint(d, vlog_loc(ref), "redeclared here");
          diag_emit(d);
       }
+
+      if (vlog_flags(type) & VLOG_F_SIGNED)
+         vlog_set_flags(vlog_type(ref), VLOG_F_SIGNED);
    }
 
    if (vlog_has_value(v))

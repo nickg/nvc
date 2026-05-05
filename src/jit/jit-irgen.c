@@ -5476,7 +5476,7 @@ static void irgen_function_entry(jit_irgen_t *g)
 
    irgen_locals(g);
 
-   if (g->statereg.kind != JIT_VALUE_INVALID) {
+   if (g->statereg.kind != JIT_VALUE_INVALID && mir_get_parent(g->mu) != NULL) {
       // Stash context pointer
       j_store(g, JIT_SZ_PTR, g->params[0], jit_addr_from_value(g->statereg, 0));
    }
