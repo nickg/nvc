@@ -186,10 +186,8 @@ static void vlog_lower_comb_udp(mir_unit_t *mu, vlog_node_t udp)
             and = mir_build_and(mu, and, cmp);
       }
 
-      if (mir_is_null(and)) {
+      if (mir_is_null(and))
          mir_build_jump(mu, hit_bb);
-         break;
-      }
       else {
          test_bb = mir_add_block(mu);
          mir_build_cond(mu, and, hit_bb, test_bb);
@@ -213,6 +211,10 @@ static void vlog_lower_comb_udp(mir_unit_t *mu, vlog_node_t udp)
          // No change, skip assignment to output
          drive = MIR_NULL_VALUE;
          mir_build_wait(mu, start_bb);
+
+         if (mir_is_null(and))
+            break;
+
          mir_set_cursor(mu, test_bb, MIR_APPEND);
          continue;
       default:
@@ -221,6 +223,9 @@ static void vlog_lower_comb_udp(mir_unit_t *mu, vlog_node_t udp)
 
       mir_build_store(mu, result_var, drive);
       mir_build_jump(mu, wait_bb);
+
+      if (mir_is_null(and))
+         break;
 
       mir_set_cursor(mu, test_bb, MIR_APPEND);
    }
@@ -415,10 +420,8 @@ static void vlog_lower_seq_udp(mir_unit_t *mu, vlog_node_t udp)
          else if (!mir_is_null(cmp))
             and = mir_build_and(mu, and, cmp);
 
-         if (mir_is_null(and)) {
+         if (mir_is_null(and))
             mir_build_jump(mu, hit_bb);
-            break;
-         }
          else {
             test_bb = mir_add_block(mu);
             mir_build_cond(mu, and, hit_bb, test_bb);
@@ -442,6 +445,9 @@ static void vlog_lower_seq_udp(mir_unit_t *mu, vlog_node_t udp)
             // No change, skip assignment to output
             drive = MIR_NULL_VALUE;
             mir_build_wait(mu, start_bb);
+            if (mir_is_null(and))
+               break;
+
             mir_set_cursor(mu, test_bb, MIR_APPEND);
             continue;
          default:
@@ -450,6 +456,9 @@ static void vlog_lower_seq_udp(mir_unit_t *mu, vlog_node_t udp)
 
          mir_build_store(mu, result_var, drive);
          mir_build_jump(mu, wait_bb);
+
+         if (mir_is_null(and))
+            break;
 
          mir_set_cursor(mu, test_bb, MIR_APPEND);
       }

@@ -1323,3 +1323,4 @@ tfcall6         verilog
 display3        verilog,gold
 ivtest32        verilog
 ivtest33        verilog
+ivtest34        verilog
