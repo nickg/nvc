@@ -1324,18 +1324,23 @@ int vec2_not(int size, const uint64_t *x)
    return 1;
 }
 
-void vec2_itoa(int size, const uint64_t *a, text_buf_t *tb)
+void vec2_itoa(int size, const uint64_t *a, bool is_signed, text_buf_t *tb)
 {
    if (size <= 64) {
-      int64_t sext = a[0];
-      if (size > 1 && size < 64 && (sext & (UINT64_C(1) << (size - 1))))
-         sext |= ~UINT64_C(0) << size;
+      if (is_signed) {
+         int64_t sext = a[0];
+         if (size > 1 && size < 64 && (sext & (UINT64_C(1) << (size - 1))))
+            sext |= ~UINT64_C(0) << size;
 
-      tb_printf(tb, "%"PRIi64, sext);
+         tb_printf(tb, "%"PRIi64, sext);
+      }
+      else
+         tb_printf(tb, "%"PRIu64, a[0]);
    }
    else {
       const int n = BIGNUM_WORDS(size);
-      const bool negative = (a[n - 1] >> ((size - 1) % 64)) & 1;
+      const bool negative =
+         is_signed && ((a[n - 1] >> ((size - 1) % 64)) & 1);
       const int maxdigits = ((size * 1233) >> 12) + 1;
 
       if (negative)
@@ -1357,8 +1362,12 @@ void vec2_itoa(int size, const uint64_t *a, text_buf_t *tb)
       }
       assert(ndigits <= maxdigits);
 
-      for (; ndigits > 0; ndigits--)
-         tb_append(tb, buf[ndigits - 1]);
+      if (ndigits == 0)
+         tb_append(tb, '0');
+      else {
+         for (; ndigits > 0; ndigits--)
+            tb_append(tb, buf[ndigits - 1]);
+      }
    }
 }
 

@@ -28,6 +28,7 @@ bool vlog_is_up(vlog_node_t v);
 bool vlog_bounds(vlog_node_t v, int64_t *left, int64_t *right);
 unsigned vlog_size(vlog_node_t v);
 unsigned vlog_width(vlog_node_t v);
+bool vlog_is_signed(vlog_node_t v);
 bool is_top_level(vlog_node_t v);
 bool is_data_type(vlog_node_t v);
 bool is_implicit_data_type(vlog_node_t v);

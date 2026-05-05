@@ -110,8 +110,9 @@ void vpi_clear_error(void)
    last_error.message = 0;
 }
 
-void vpi_format_number(int size, const uint64_t *abits, const uint64_t *bbits,
-                       s_vpi_value *val, text_buf_t *tb)
+void vpi_format_number(int size, bool is_signed, const uint64_t *abits,
+                       const uint64_t *bbits, s_vpi_value *val,
+                       text_buf_t *tb)
 {
    const int nwords = (size + 63) / 64;
    bool is_defined = true;
@@ -132,7 +133,7 @@ void vpi_format_number(int size, const uint64_t *abits, const uint64_t *bbits,
 
    case vpiDecStrVal:
       if (is_defined)
-         vec2_itoa(size, abits, tb);
+         vec2_itoa(size, abits, is_signed, tb);
       else
          tb_cat(tb, "x");
       val->value.str = (PLI_BYTE8 *)tb_get(tb);
