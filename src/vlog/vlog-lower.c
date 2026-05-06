@@ -301,6 +301,7 @@ static vlog_select_t vlog_lower_select(vlog_gen_t *g, vlog_node_t v)
          case V_PORT_DECL:
             decl = vlog_ref(decl);
             break;
+         case V_PARAM_DECL:
          case V_LOCALPARAM:
          case V_ENUM_NAME:
             {
@@ -905,6 +906,8 @@ static mir_value_t vlog_lower_systf_param(vlog_gen_t *g, vlog_node_t v)
       switch (vlog_kind(vlog_ref(v))) {
       case V_TF_PORT_DECL:
       case V_FUNC_DECL:
+      case V_PARAM_DECL:
+      case V_LOCALPARAM:
          return vlog_lower_rvalue(g, v);
       case V_VAR_DECL:
          {

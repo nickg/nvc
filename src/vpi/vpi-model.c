@@ -655,10 +655,13 @@ static c_vpiObject *build_expr(vlog_node_t v, c_abstractScope *scope)
    case V_REF:
       {
          vlog_node_t d = vlog_ref(v);
-         if (vlog_kind(d) == V_PORT_DECL)
+         const vlog_kind_t kind = vlog_kind(d);
+         if (kind == V_PORT_DECL)
             d = vlog_ref(d);
-         else if (vlog_kind(d) == V_TF_PORT_DECL || vlog_kind(d) == V_FUNC_DECL)
+         else if (kind == V_TF_PORT_DECL || kind == V_FUNC_DECL)
             return &(build_operation(v)->expr.object);  /// XXX: hack
+         else if (kind == V_PARAM_DECL || kind == V_LOCALPARAM)
+            return &(build_operation(v)->expr.object);
 
          vpiObjectList *list =
             expand_lazy_list(&(scope->object), &(scope->decls));
@@ -1208,7 +1211,8 @@ void vpi_get_value(vpiHandle handle, p_vpi_value value_p)
          if (vlog_subkind(type) != DT_REAL)
             goto fail;
 
-         value_p->format = unaligned_load(signal_value(s), double);
+         value_p->format = vpiRealVal;
+         value_p->value.real = unaligned_load(signal_value(s), double);
          return;
 
       default:

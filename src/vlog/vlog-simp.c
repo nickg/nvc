@@ -569,7 +569,8 @@ static vlog_node_t simp_enum_decl(vlog_node_t v)
 
 static vlog_node_t simp_localparam(vlog_node_t v)
 {
-   if (vlog_subkind(vlog_type(v)) != DT_IMPLICIT)
+   vlog_node_t vtype = vlog_type(v);
+   if (!is_implicit_data_type(vtype) || vlog_ranges(vtype) > 0)
       return v;
 
    vlog_node_t dt = vlog_new(V_DATA_TYPE);
