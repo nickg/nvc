@@ -18,7 +18,7 @@ LibPath = "#{BuildDir}/lib/std:#{BuildDir}/lib/ieee"
 IvtestDir = Pathname.new(ARGV[0]).realpath
 TestList = Pathname.new(ARGV[1] || "#{TestDir}/ivtest.list").realpath
 GitRev = IO::popen("git rev-parse --short HEAD").read.chomp
-Tool = ENV['NVC'] || 'nvc'
+Tool = ENV['NVC'] ? Pathname.new(ENV['NVC']).realpath.to_s : 'nvc'
 ExpectFails = 1530
 
 ENV['NVC_COLORS'] = 'always'
@@ -195,9 +195,11 @@ puts
 puts "#{passes} passes"
 puts "#{fails} failures"
 
-File.open("#{IvtestDir}/HISTORY", 'a') do |f|
-  f.printf("%20s %10s   %4d passes   %4d failures\n",
-    Time.new.ctime, GitRev, passes, fails)
+unless ARGV[1]
+  File.open("#{IvtestDir}/HISTORY", 'a') do |f|
+    f.printf("%20s %10s   %4d passes   %4d failures\n",
+             Time.new.ctime, GitRev, passes, fails)
+  end
 end
 
 if fails > ExpectFails then

@@ -1325,3 +1325,5 @@ ivtest32        verilog
 ivtest33        verilog
 ivtest34        verilog
 ivtest35        verilog
+ivtest36        verilog
+real9           verilog

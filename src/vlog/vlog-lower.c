@@ -487,6 +487,7 @@ static void vlog_assign_variable(vlog_gen_t *g, vlog_node_t target,
                                  mir_value_t value, vlog_node_t rhs)
 {
    unsigned nlvalues = 1, targetsz = 0;
+   mir_type_t context;
    vlog_select_t lvalue1, *lvalues = &lvalue1;
    if (vlog_kind(target) == V_CONCAT) {
       const int nparams = nlvalues = vlog_params(target);
@@ -495,16 +496,17 @@ static void vlog_assign_variable(vlog_gen_t *g, vlog_node_t target,
          lvalues[i] = vlog_lower_select(g, vlog_param(target, i));
          targetsz += lvalues[i].size;
       }
+
+      context = mir_vec4_type(g->mu, targetsz, false);
    }
    else {
       lvalue1 = vlog_lower_select(g, target);
       targetsz = lvalue1.size;
+      context = lvalue1.type;
    }
 
-   mir_type_t t_vec = mir_vec4_type(g->mu, targetsz, false);
-
    if (mir_is_null(value))
-      value = vlog_lower_with_context(g, rhs, t_vec);
+      value = vlog_lower_with_context(g, rhs, context);
 
    mir_block_t merge_bb = MIR_NULL_BLOCK;
 
@@ -524,9 +526,11 @@ static void vlog_assign_variable(vlog_gen_t *g, vlog_node_t target,
       mir_set_cursor(g->mu, guarded_bb, MIR_APPEND);
    }
 
+   mir_value_t cast = vlog_lower_cast(g, context, value);
+
    if (mir_is_signal(g->mu, lvalues[0].obj)) {
       mir_value_t unpacked;
-      if (mir_is_vector(g->mu, value)) {
+      if (mir_is_vector(g->mu, cast)) {
          mir_value_t tmp = MIR_NULL_VALUE;
          if (targetsz > 1) {
             mir_type_t t_elem = mir_logic_type(g->mu);
@@ -534,11 +538,10 @@ static void vlog_assign_variable(vlog_gen_t *g, vlog_node_t target,
             tmp = vlog_get_temp(g, t_array);
          }
 
-         mir_value_t resize = mir_build_cast(g->mu, t_vec, value);
-         unpacked = mir_build_unpack(g->mu, resize, 0, tmp);
+         unpacked = mir_build_unpack(g->mu, cast, 0, tmp);
       }
       else
-         unpacked = value;
+         unpacked = cast;
 
       mir_type_t t_offset = mir_offset_type(g->mu);
 
@@ -561,23 +564,16 @@ static void vlog_assign_variable(vlog_gen_t *g, vlog_node_t target,
    else {
       assert(nlvalues == 1);  // TODO
 
-      mir_type_t t_pointer = mir_get_type(g->mu, lvalues[0].obj);
-      mir_type_t t_vec = mir_get_pointer(g->mu, t_pointer);
-
       switch (vlog_kind(target)) {
       case V_REF:
       case V_MEMBER_REF:
-         {
-            mir_value_t resize = mir_build_cast(g->mu, t_vec, value);
-            mir_build_store(g->mu, lvalues[0].obj, resize);
-         }
+         mir_build_store(g->mu, lvalues[0].obj, cast);
          break;
       default:
          {
-            mir_value_t resize = mir_build_cast(g->mu, lvalues[0].type, value);
             mir_value_t cur = mir_build_load(g->mu, lvalues[0].obj);
             mir_value_t ins =
-               mir_build_insert(g->mu, resize, cur, lvalues[0].offset);
+               mir_build_insert(g->mu, cast, cur, lvalues[0].offset);
             mir_build_store(g->mu, lvalues[0].obj, ins);
          }
          break;
@@ -698,8 +694,11 @@ static mir_value_t vlog_lower_vector_binary(vlog_gen_t *g, vlog_binary_t binop,
       mir_get_signed(g->mu, ltype) && mir_get_signed(g->mu, rtype);
 
    int size = MAX(lsize, rsize);
-   if (!mir_is_null(context))
-      size = MAX(mir_get_size(g->mu, context), size);
+   if (!mir_is_null(context)) {
+      mir_class_t class = mir_get_class(g->mu, context);
+      if (class == MIR_TYPE_VEC2 || class == MIR_TYPE_VEC4)
+         size = MAX(mir_get_size(g->mu, context), size);
+   }
 
    mir_type_t type;
    if (lclass == MIR_TYPE_VEC4 || rclass == MIR_TYPE_VEC4)
@@ -765,8 +764,13 @@ static mir_value_t vlog_lower_binary(vlog_gen_t *g, vlog_node_t v,
    if (!propagate_context || mir_is_null(context))
       type = mir_vec4_type(g->mu, size, false);
    else {
-      size = MAX(size, mir_get_size(g->mu, context));
-      type = mir_vec4_type(g->mu, size, mir_get_signed(g->mu, context));
+      mir_class_t class = mir_get_class(g->mu, context);
+      if (class == MIR_TYPE_VEC2 || class == MIR_TYPE_VEC4) {
+         size = MAX(size, mir_get_size(g->mu, context));
+         type = mir_vec4_type(g->mu, size, mir_get_signed(g->mu, context));
+      }
+      else
+         type = context;
    }
 
    mir_value_t left = vlog_lower_with_context(g, lhs_expr, type);
@@ -801,10 +805,16 @@ static mir_value_t vlog_lower_binary(vlog_gen_t *g, vlog_node_t v,
    mir_value_t right = vlog_lower_with_context(g, rhs_expr, type);
 
    mir_value_t result;
-   if (mir_is_vector(g->mu, left))
+   if (mir_is_vector(g->mu, left) && mir_is_vector(g->mu, right))
       result = vlog_lower_vector_binary(g, op, left, right, context);
    else {
       mir_type_t ltype = mir_get_type(g->mu, left);
+      mir_type_t rtype = mir_get_type(g->mu, right);
+
+      if (mir_get_class(g->mu, ltype) == MIR_TYPE_REAL)
+         right = vlog_lower_cast(g, (rtype = ltype), right);
+      else if (mir_get_class(g->mu, rtype) == MIR_TYPE_REAL)
+         left = vlog_lower_cast(g, (ltype = rtype), left);
 
       switch (op) {
       case V_BINARY_LOG_EQ:
@@ -1276,21 +1286,31 @@ static mir_value_t vlog_lower_with_context(vlog_gen_t *g, vlog_node_t v,
          mir_value_t value = vlog_lower_rvalue(g, vlog_value(v));
 
          unsigned size = MAX(vlog_width(left_expr), vlog_width(right_expr));
-         bool is_signed = false;
-         if (!mir_is_null(context)) {
-            size = MAX(size, mir_get_size(g->mu, context));
-            is_signed = mir_get_signed(g->mu, context);
+         mir_type_t type;
+         if (mir_is_null(context))
+            type = mir_vec4_type(g->mu, size, false);
+         else {
+            mir_class_t class = mir_get_class(g->mu, context);
+            if (class == MIR_TYPE_VEC2 || class == MIR_TYPE_VEC4) {
+               bool is_signed = mir_get_signed(g->mu, context);
+               size = MAX(size, mir_get_size(g->mu, context));
+               type = mir_vec4_type(g->mu, size, is_signed);
+            }
+            else
+               type = context;
          }
-
-         mir_type_t type = mir_vec4_type(g->mu, size, is_signed);
 
          mir_value_t left = vlog_lower_with_context(g, left_expr, type);
          mir_value_t right = vlog_lower_with_context(g, right_expr, type);
 
-         mir_value_t lcast = mir_build_cast(g->mu, type, left);
-         mir_value_t rcast = mir_build_cast(g->mu, type, right);
+         mir_value_t lcast = vlog_lower_cast(g, type, left);
+         mir_value_t rcast = vlog_lower_cast(g, type, right);
 
-         if (mir_is(g->mu, value, MIR_TYPE_VEC4)) {
+         const bool merge_x = mir_is(g->mu, value, MIR_TYPE_VEC4)
+            && mir_is_vector(g->mu, lcast)
+            && mir_is_vector(g->mu, rcast);
+
+         if (merge_x) {
             mir_type_t t_test = mir_get_type(g->mu, value);
             mir_value_t zero = vlog_lower_zero(g, t_test);
             mir_value_t cmp = mir_build_binary(g->mu, MIR_VEC_LOG_NEQ, t_test,

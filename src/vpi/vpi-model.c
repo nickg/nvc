@@ -1206,15 +1206,15 @@ void vpi_get_value(vpiHandle handle, p_vpi_value value_p)
       if (type == NULL || vlog_kind(type) != V_DATA_TYPE)
          goto fail;
 
-      switch (value_p->format) {
-      case vpiRealVal:
-         if (vlog_subkind(type) != DT_REAL)
-            goto fail;
-
+      if (vlog_subkind(type) == DT_REAL) {
          value_p->format = vpiRealVal;
          value_p->value.real = unaligned_load(signal_value(s), double);
          return;
+      }
 
+      switch (value_p->format) {
+      case vpiRealVal:
+         goto fail;
       default:
          {
             const int width = signal_width(s);
