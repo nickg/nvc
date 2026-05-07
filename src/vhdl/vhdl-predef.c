@@ -154,14 +154,14 @@ static void predef_bit_shift(mir_unit_t *mu, tree_t decl,
       def_val = zero;
       break;
    case S_SRA:
+      def_val = mir_build_load(mu, data);
+      break;
+   case S_SLA:
       {
          mir_value_t len_minus_1 = mir_build_sub(mu, t_offset, len, one);
          mir_value_t last_ptr = mir_build_array_ref(mu, data, len_minus_1);
          def_val = mir_build_load(mu, last_ptr);
       }
-      break;
-   case S_SLA:
-      def_val = mir_build_load(mu, data);
       break;
    default:
       should_not_reach_here();

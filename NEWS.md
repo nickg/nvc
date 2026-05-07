@@ -5,7 +5,7 @@
 - Local variables are now ignored in Verilog `@(*)` sensitivity lists
   (#1480).
 - PSL `next_a` is now supported with simple expressions.
-- Several other minor bugs were resolved (#1506, #1516, #1522).
+- Several other minor bugs were resolved (#1506, #1516, #1522, #1529).
 
 ## Version 1.20.1 - 2026-04-22
 - Fix a crash while evaluating matching relational operator with
