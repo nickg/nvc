@@ -1860,6 +1860,21 @@ static void cgen_op_csel(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
    LLVMValueRef arg1 = cgen_get_value(obj, cgb, ir->arg1);
    LLVMValueRef arg2 = cgen_get_value(obj, cgb, ir->arg2);
 
+   LLVMTypeRef type1 = LLVMTypeOf(arg1), type2 = LLVMTypeOf(arg2);
+   if (type1 != type2) {
+      LLVMTypeKind kind1 = LLVMGetTypeKind(type1);
+      LLVMTypeKind kind2 = LLVMGetTypeKind(type2);
+
+      if (kind1 == LLVMDoubleTypeKind || kind2 == LLVMDoubleTypeKind) {
+         arg1 = cgen_coerce_value(obj, cgb, ir->arg1, LLVM_DOUBLE);
+         arg2 = cgen_coerce_value(obj, cgb, ir->arg2, LLVM_DOUBLE);
+      }
+      else if (kind1 == LLVMPointerTypeKind)
+         arg2 = LLVMBuildIntToPtr(obj->builder, arg2, obj->types[LLVM_PTR], "");
+      else if (kind2 == LLVMPointerTypeKind)
+         arg1 = LLVMBuildIntToPtr(obj->builder, arg1, obj->types[LLVM_PTR], "");
+   }
+
    LLVMValueRef result =
       LLVMBuildSelect(obj->builder, cgb->outflags, arg1, arg2, "");
 

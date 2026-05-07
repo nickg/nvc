@@ -708,6 +708,18 @@ START_TEST(test_csel)
    ck_assert_int_eq(jit_call(j, h1, 100, 2000).integer, 2000);
    ck_assert_int_eq(jit_call(j, h1, -2, 5).integer, 5);
 
+   const char *text2 =
+      "    RECV     R0, #0          \n"
+      "    FCMP.LT  R0, %0.0        \n"
+      "    CSEL     R1, %1.5, R0    \n"
+      "    SEND     #0, R1          \n"
+      "    RET                      \n";
+
+   jit_handle_t h2 = assemble(j, text2, "csel2", "f");
+   ck_assert_double_eq(jit_call(j, h2, -1.0).real, 1.5);
+   ck_assert_double_eq(jit_call(j, h2, 2.0).real, 2.0);
+   ck_assert_double_eq(jit_call(j, h2, -0.1).real, 1.5);
+
    jit_free(j);
 }
 END_TEST
