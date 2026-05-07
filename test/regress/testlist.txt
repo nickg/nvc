@@ -1327,3 +1327,4 @@ ivtest34        verilog
 ivtest35        verilog
 ivtest36        verilog
 real9           verilog
+issue1529       2008
