@@ -149,6 +149,31 @@ static void bignum_scratch(int width, bool issigned, int count,
    }
 }
 
+static void bignum_sext(bignum_t *out, bignum_t *in)
+{
+   const int sign_abit = bignum_abit(in, in->width - 1);
+   const int sign_bbit = bignum_bbit(in, in->width - 1);
+   const int first_word = in->width / 64;
+   const int first_bit = in->width % 64;
+
+   uint64_t *abits = bignum_abits(out);
+   uint64_t *bbits = bignum_bbits(out);
+
+   if (first_bit != 0) {
+      const uint64_t mask = ~UINT64_C(0) << first_bit;
+      abits[first_word] &= ~mask;
+      abits[first_word] |= (sign_abit ? mask : 0);
+      bbits[first_word] &= ~mask;
+      bbits[first_word] |= (sign_bbit ? mask : 0);
+   }
+
+   const int first_full_word = first_word + (first_bit != 0);
+   for (int j = first_full_word; j < bignum_words(out); j++) {
+      abits[j] = sign_abit ? ~UINT64_C(0) : 0;
+      bbits[j] = sign_bbit ? ~UINT64_C(0) : 0;
+   }
+}
+
 static void bignum_for_binary(number_t in_left, number_t in_right,
                               bignum_t **out_left, bignum_t **out_right)
 {
@@ -162,7 +187,6 @@ static void bignum_for_binary(number_t in_left, number_t in_right,
 
    const number_t in[2] = { in_left, in_right };
 
-   // XXX: sign extend
    for (int i = 0; i < 2; i++) {
       const int in_nwords = BIGNUM_WORDS(in[i].big->width);
 
@@ -175,6 +199,9 @@ static void bignum_for_binary(number_t in_left, number_t in_right,
          big[i]->words[j] = 0;
          big[i]->words[j + out_nwords] = 0;
       }
+
+      if (in[i].big->issigned && in[i].big->width < width)
+         bignum_sext(big[i], in[i].big);
    }
 
    *out_left = big[0];
@@ -785,10 +812,27 @@ number_t number_xor2(number_t a, number_t b)
 
 number_t number_shl(number_t a, number_t b)
 {
-   bignum_t *left, *right;
-   bignum_for_binary(a, b, &left, &right);
+   bignum_t *left = bignum_for_unary(a);
 
-   vec2_shl(left->width, left->words, right->words);
+   vec2_shl(left->width, left->words, b.big->width, b.big->words);
+
+   return number_intern(left);
+}
+
+number_t number_shr(number_t a, number_t b)
+{
+   bignum_t *left = bignum_for_unary(a);
+
+   vec2_shr(left->width, left->words, b.big->width, b.big->words);
+
+   return number_intern(left);
+}
+
+number_t number_asr(number_t a, number_t b)
+{
+   bignum_t *left = bignum_for_unary(a);
+
+   vec2_asr(left->width, left->words, b.big->width, b.big->words);
 
    return number_intern(left);
 }
@@ -1016,7 +1060,7 @@ static void vec2_divmod(int size, uint64_t *q, uint64_t *r,
       const int iword = i / 64;
       const uint64_t ibit = UINT64_C(1) << (i % 64);
 
-      vec2_shl(size, r, one);
+      vec2_shl(size, r, size, one);
       if (dividend[iword] & ibit)
          r[0] |= 1;
 
@@ -1068,37 +1112,38 @@ void vec2_exp(int size, uint64_t *a, const uint64_t *b)
       if (exp[0] & 1)
          vec2_mul(size, a, base);
       vec2_mul(size, base, base);
-      vec2_shr(size, exp, one);
+      vec2_shr(size, exp, size, one);
    }
 
    vec2_mask(size, a);
 }
 
-static uint64_t get_shift_amount(int size, const uint64_t *a)
+static uint64_t get_shift_amount(int size, const uint64_t *x)
 {
    for (int i = 1; i < BIGNUM_WORDS(size); i++) {
-      if (a[i] != 0)
+      if (x[i] != 0)
          return UINT64_MAX;
    }
 
-   return a[0];
+   return x[0];
 }
 
-void vec2_shl(int size, uint64_t *a, const uint64_t *b)
+void vec2_shl(int xsize, uint64_t *x, int ysize, const uint64_t *y)
 {
+   const int size = xsize;
    const int n = BIGNUM_WORDS(size);
    if (n == 0)
       return;
 
-   const uint64_t k = get_shift_amount(size, b);
+   const uint64_t k = get_shift_amount(ysize, y);
    if (k == 0) {
-      vec2_mask(size, a);
+      vec2_mask(size, x);
       return;
    }
 
    if (k >= size) {
       for (int i = 0; i < n; i++)
-         a[i] = 0;
+         x[i] = 0;
       return;
    }
 
@@ -1107,39 +1152,40 @@ void vec2_shl(int size, uint64_t *a, const uint64_t *b)
 
    if (s) {
       for (int i = n - 1; i >= 0; --i)
-         a[i] = (i - s >= 0) ? a[i - s] : 0;
+         x[i] = (i - s >= 0) ? x[i - s] : 0;
    }
 
    if (r) {
       uint64_t carry = 0;
       for (int i = s; i < n; ++i) {
-         const uint64_t cur = a[i];
-         a[i] = (cur << r) | carry;
+         const uint64_t cur = x[i];
+         x[i] = (cur << r) | carry;
          carry = cur >> (64 - r);
       }
    }
 
    for (int i = 0; i < s && i < n; ++i)
-      a[i] = 0;
+      x[i] = 0;
 
-   vec2_mask(size, a);
+   vec2_mask(size, x);
 }
 
-void vec2_shr(int size, uint64_t *a, const uint64_t *b)
+void vec2_shr(int xsize, uint64_t *x, int ysize, const uint64_t *y)
 {
+   const int size = xsize;
    const int n = BIGNUM_WORDS(size);
    if (n == 0)
       return;
 
-   const uint64_t k = get_shift_amount(size, b);
+   const uint64_t k = get_shift_amount(ysize, y);
    if (k == 0) {
-      vec2_mask(size, a);
+      vec2_mask(size, x);
       return;
    }
 
    if (k >= size) {
       for (int i = 0; i < n; i++)
-         a[i] = 0;
+         x[i] = 0;
       return;
    }
 
@@ -1148,41 +1194,42 @@ void vec2_shr(int size, uint64_t *a, const uint64_t *b)
 
    if (s) {
       for (int i = 0; i < n; i++)
-         a[i] = (i + s < n) ? a[i + s] : 0;
+         x[i] = (i + s < n) ? x[i + s] : 0;
    }
 
    if (r) {
       uint64_t carry = 0;
       for (int i = n - 1; i >= 0; --i) {
-         const uint64_t cur = a[i];
-         a[i] = (cur >> r) | carry;
+         const uint64_t cur = x[i];
+         x[i] = (cur >> r) | carry;
          carry = cur << (64 - r);
       }
    }
 
-   vec2_mask(size, a);
+   vec2_mask(size, x);
 }
 
-void vec2_asr(int size, uint64_t *a, const uint64_t *b)
+void vec2_asr(int xsize, uint64_t *x, int ysize, const uint64_t *y)
 {
+   const int size = xsize;
    const int n = BIGNUM_WORDS(size);
    if (n == 0)
       return;
 
-   const uint64_t k = get_shift_amount(size, b);
+   const uint64_t k = get_shift_amount(ysize, y);
    if (k == 0) {
-      vec2_mask(size, a);
+      vec2_mask(size, x);
       return;
    }
 
-   const bool negative = (a[n - 1] >> ((size - 1) % 64)) & 1;
+   const bool negative = (x[n - 1] >> ((size - 1) % 64)) & 1;
    const int64_t fill = negative ? ~UINT64_C(0) : 0;
 
    const int64_t total_bits = size;
    if (k >= total_bits) {
       for (int i = 0; i < n; i++)
-         a[i] = fill;
-      vec2_mask(size, a);
+         x[i] = fill;
+      vec2_mask(size, x);
       return;
    }
 
@@ -1191,19 +1238,19 @@ void vec2_asr(int size, uint64_t *a, const uint64_t *b)
 
    if (s) {
       for (int i = 0; i < n; i++)
-         a[i] = (i + s < n) ? a[i + s] : fill;
+         x[i] = (i + s < n) ? x[i + s] : fill;
    }
 
    if (r) {
       uint64_t carry = fill << (size % 64) >> r;
       for (int i = n - 1; i >= 0; --i) {
-         const uint64_t cur = a[i];
-         a[i] = (cur >> r) | carry;
+         const uint64_t cur = x[i];
+         x[i] = (cur >> r) | carry;
          carry = cur << (64 - r);
       }
    }
 
-   vec2_mask(size, a);
+   vec2_mask(size, x);
 }
 
 void vec2_neg(int size, uint64_t *a)
@@ -1442,22 +1489,22 @@ void vec4_exp(int size, uint64_t *a1, uint64_t *b1, const uint64_t *a2,
 void vec4_shl(int size, uint64_t *a1, uint64_t *b1, const uint64_t *a2,
               const uint64_t *b2)
 {
-   vec2_shl(size, a1, a2);
-   vec2_shl(size, b1, b2);
+   vec2_shl(size, a1, size, a2);
+   vec2_shl(size, b1, size, b2);
 }
 
 void vec4_shr(int size, uint64_t *a1, uint64_t *b1, const uint64_t *a2,
               const uint64_t *b2)
 {
-   vec2_shr(size, a1, a2);
-   vec2_shr(size, b1, b2);
+   vec2_shr(size, a1, size, a2);
+   vec2_shr(size, b1, size, b2);
 }
 
 void vec4_asr(int size, uint64_t *a1, uint64_t *b1, const uint64_t *a2,
               const uint64_t *b2)
 {
    if (vec4_arith_defined(size, a1, b1, a2, b2))
-      vec2_asr(size, a1, a2);
+      vec2_asr(size, a1, size, a2);
 }
 
 void vec4_inv(int size, uint64_t *a, uint64_t *b)
