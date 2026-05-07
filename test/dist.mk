@@ -1665,6 +1665,7 @@ EXTRA_DIST += \
 	test/regress/issue502.vhd \
 	test/regress/issue507.sh \
 	test/regress/issue508.vhd \
+	test/regress/issue1465.sh \
 	test/regress/issue516.vhd \
 	test/regress/issue519.vhd \
 	test/regress/issue520.vhd \
