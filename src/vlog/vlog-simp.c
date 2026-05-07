@@ -397,7 +397,16 @@ static vlog_node_t simp_binary(vlog_node_t v)
          result = number_exp(nleft, nright);
          break;
       case V_BINARY_SHIFT_LL:
+      case V_BINARY_SHIFT_LA:
          result = number_shl(nleft, nright);
+         break;
+      case V_BINARY_SHIFT_RL:
+         result = number_shr(nleft, nright);
+         break;
+      case V_BINARY_SHIFT_RA:
+         result = vlog_is_signed(left) || number_signed(nleft)
+            ? number_asr(nleft, nright)
+            : number_shr(nleft, nright);
          break;
       case V_BINARY_LOG_EQ:
          result = number_logical_equal(nleft, nright);
