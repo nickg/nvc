@@ -39,34 +39,65 @@ package body verilog is
     function resolve_wire (inputs : t_net_array) return t_net_value is
         variable result    : t_net_value;
         variable data      : t_logic := 'Z';
+        variable strength  : t_strength := HiZ;
         variable strength0 : t_strength := HiZ;
         variable strength1 : t_strength := HiZ;
         variable elem      : t_logic;
         variable elem_st0  : t_strength;
         variable elem_st1  : t_strength;
+        variable elem_st   : t_strength;
         constant count     : natural := inputs'length;
         alias a_inputs     : t_net_array(1 to count) is inputs;
     begin
         if inputs'length > 0 then
             decode_net(a_inputs(1), data, strength0, strength1);
+            case data is
+                when '0' => strength := strength0;
+                when '1' => strength := strength1;
+                when 'X' =>
+                    if strength0 > strength1 then
+                        strength := strength0;
+                    else
+                        strength := strength1;
+                    end if;
+                when others => strength := HiZ;
+            end case;
+
             for i in 2 to count loop
                 decode_net(a_inputs(i), elem, elem_st0, elem_st1);
-                -- TODO: this is incorrect
-                if elem = '1' and elem_st1 > strength1 then
-                    data := '1';
-                    strength1 := elem_st1;
-                    strength0 := elem_st0;
-                elsif elem = '0' and elem_st0 > strength0 then
-                    data := '0';
-                    strength1 := elem_st1;
-                    strength0 := elem_st0;
-                elsif (elem = '0' and data = '1' and elem_st0 = strength1)
-                    or (elem = '1' and data = '0' and elem_st1 = strength0)
-                then
+                case elem is
+                    when '0' => elem_st := elem_st0;
+                    when '1' => elem_st := elem_st1;
+                    when 'X' =>
+                        if elem_st0 > elem_st1 then
+                            elem_st := elem_st0;
+                        else
+                            elem_st := elem_st1;
+                        end if;
+                    when others => elem_st := HiZ;
+                end case;
+
+                if elem_st > strength then
+                    data := elem;
+                    strength := elem_st;
+                elsif elem_st = strength and elem /= data and elem /= 'Z' then
                     data := 'X';
-                    strength1 := st;
-                    strength0 := st;
                 end if;
+
+                case data is
+                    when '0' =>
+                        strength0 := strength;
+                        strength1 := HiZ;
+                    when '1' =>
+                        strength0 := HiZ;
+                        strength1 := strength;
+                    when 'X' =>
+                        strength0 := strength;
+                        strength1 := strength;
+                    when 'Z' =>
+                        strength0 := HiZ;
+                        strength1 := HiZ;
+                end case;
             end loop;
         end if;
         encode_net(result, data, strength0, strength1);

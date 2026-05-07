@@ -4,6 +4,9 @@ The `build/` directory contains only compiled output and no source code.
 
 To build the project run `make -C build`.
 
+After changing node definitions, for example in `src/vlog/vlog-node.c`,
+run `make -C build bootstrap` so serialized library formats are regenerated.
+
 To run the unit tests use `make -C build check QUICK=1`.
 
 Regression tests are listed in `test/regress/testlist.txt`.  New tests

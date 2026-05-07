@@ -65,7 +65,7 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
    (I_IDENT | I_SUBKIND | I_TYPE | I_RANGES | I_VALUE),
 
    // V_ASSIGN
-   (I_TARGET | I_VALUE | I_IDENT | I_DELAY),
+   (I_TARGET | I_VALUE | I_IDENT | I_DELAY | I_PARAMS),
 
    // V_DIMENSION
    (I_SUBKIND | I_LEFT | I_RIGHT),

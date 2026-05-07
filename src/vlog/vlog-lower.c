@@ -2363,7 +2363,14 @@ static void vlog_lower_assign_process(vlog_gen_t *g, vlog_node_t v)
 
    mir_type_t t_offset = mir_offset_type(g->mu);
 
-   mir_value_t unpacked = mir_build_unpack(g->mu, resize, ST_STRONG, tmp);
+   uint8_t strength = ST_STRONG;
+   if (vlog_params(v) > 0) {
+      vlog_node_t p = vlog_param(v, 0);
+      assert(vlog_kind(p) == V_STRENGTH);
+      strength = vlog_subkind(p);
+   }
+
+   mir_value_t unpacked = mir_build_unpack(g->mu, resize, strength, tmp);
 
    mir_value_t after = MIR_NULL_VALUE;
    if (vlog_has_delay(v)) {
