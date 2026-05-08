@@ -1565,7 +1565,7 @@ START_TEST(test_pp8)
    input_from_file(TESTDIR "/vlog/pp8.v");
 
    const error_t expect[] = {
-      {  7, "macro 'add' requires exactly 2 arguments" },
+      {  7, "macro 'add' is missing argument 'y' with no default value" },
       {  8, "macro 'baz' undefined" },
       { 10, "macro 'foo' requires exactly 1 arguments" },
       { -1, NULL }
@@ -1701,6 +1701,45 @@ START_TEST(test_simp2)
 }
 END_TEST
 
+START_TEST(test_pp11)
+{
+   input_from_file(TESTDIR "/vlog/pp11.v");
+
+   const error_t expect[] = {
+      { 15, "macro 'MACRO1' is missing argument 'c' with no default value" },
+      { 16, "macro 'MACRO2' requires exactly 3 arguments, 4 were given" },
+      { 17, "macro 'MACRO3' requires arguments" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   LOCAL_TEXT_BUF tb = tb_new();
+   vlog_preprocess(tb, false);
+
+   ck_assert_str_eq(
+      tb_get(tb),
+      "\n"
+      "$display(5,,2,,3 );\n"
+      "$display(1 ,,\"B\",,3 );\n"
+      "$display(5,,2,,);\n"
+      "\n"
+      "\n"
+      "$display(1,,,,3);\n"
+      "$display(5,,2,,\"C\");\n"
+      "$display(5,,2,,\"C\");\n"
+      "\n"
+      "\n"
+      "$display(1 ,,0,,\"C\");\n"
+      "$display(5,,0,,\"C\");\n"
+      "\n"
+      "$display(1 ,,\"B\",,c);       // ILLEGAL: b and c omitted, no default for c\n"
+      "$display(5,,,,3); // ILLEGAL: more argument than declared\n"
+      "$display(a,,b,,c);             // ILLEGAL: parentheses required\n");
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_vlog_tests(void)
 {
    Suite *s = suite_create("vlog");
@@ -1766,6 +1805,7 @@ Suite *get_vlog_tests(void)
    tcase_add_test(tc, test_const2);
    tcase_add_test(tc, test_pp10);
    tcase_add_test(tc, test_simp2);
+   tcase_add_test(tc, test_pp11);
    suite_add_tcase(s, tc);
 
    return s;

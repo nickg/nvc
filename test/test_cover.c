@@ -324,6 +324,7 @@ START_TEST(test_spec1)
 
    fail_if_errors();
 }
+END_TEST
 
 START_TEST(test_spec2)
 {
@@ -343,6 +344,7 @@ START_TEST(test_spec2)
 
    check_expected_errors();
 }
+END_TEST
 
 START_TEST(test_issue1431)
 {
