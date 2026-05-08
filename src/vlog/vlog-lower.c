@@ -3407,7 +3407,7 @@ void vlog_lower_block(mir_context_t *mc, ident_t parent, tree_t b)
          vlog_lower_net_decl(&g, d, hash_get(map, d), resfn);
          break;
       case V_VAR_DECL:
-         vlog_lower_net_decl(&g, d, hash_get(map, d), resfn);
+         vlog_lower_var_decl(&g, d, hash_get(map, d));
          break;
       default:
          should_not_reach_here();
@@ -3450,7 +3450,7 @@ void vlog_lower_block(mir_context_t *mc, ident_t parent, tree_t b)
             vlog_lower_net_decl(&g, d, hash_get(map, d), resfn);
             break;
          case V_VAR_DECL:
-            vlog_lower_net_decl(&g, d, hash_get(map, d), resfn);
+            vlog_lower_var_decl(&g, d, hash_get(map, d));
             break;
          default:
             should_not_reach_here();
