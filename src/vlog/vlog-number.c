@@ -1091,6 +1091,70 @@ void vec2_mod(int size, uint64_t *a, const uint64_t *b)
    }
 }
 
+static bool vec2_negative(int size, const uint64_t *a)
+{
+   if (size == 0)
+      return false;
+   else
+      return (a[(size - 1) / 64] & (UINT64_C(1) << ((size - 1) % 64))) != 0;
+}
+
+void vec2_sdiv(int size, uint64_t *a, const uint64_t *b)
+{
+   if (size > 0 && size <= 64) {
+      const int shift = 64 - size;
+      const int64_t sa = (int64_t)(a[0] << shift) >> shift;
+      const int64_t sb = (int64_t)(b[0] << shift) >> shift;
+      a[0] = sa / sb;
+      vec2_mask(size, a);
+   }
+   else {
+      const bool aneg = vec2_negative(size, a);
+      const bool bneg = vec2_negative(size, b);
+
+      uint64_t divisor[BIGNUM_WORDS(size)];
+      memcpy(divisor, b, sizeof(divisor));
+
+      if (aneg)
+         vec2_neg(size, a);
+      if (bneg)
+         vec2_neg(size, divisor);
+
+      vec2_div(size, a, divisor);
+
+      if (aneg != bneg)
+         vec2_neg(size, a);
+   }
+}
+
+void vec2_smod(int size, uint64_t *a, const uint64_t *b)
+{
+   if (size > 0 && size <= 64) {
+      const int shift = 64 - size;
+      const int64_t sa = (int64_t)(a[0] << shift) >> shift;
+      const int64_t sb = (int64_t)(b[0] << shift) >> shift;
+      a[0] = sa % sb;
+      vec2_mask(size, a);
+   }
+   else {
+      const bool aneg = vec2_negative(size, a);
+      const bool bneg = vec2_negative(size, b);
+
+      uint64_t divisor[BIGNUM_WORDS(size)];
+      memcpy(divisor, b, sizeof(divisor));
+
+      if (aneg)
+         vec2_neg(size, a);
+      if (bneg)
+         vec2_neg(size, divisor);
+
+      vec2_mod(size, a, divisor);
+
+      if (aneg)
+         vec2_neg(size, a);
+   }
+}
+
 void vec2_exp(int size, uint64_t *a, const uint64_t *b)
 {
    uint64_t base[BIGNUM_WORDS(size)];
@@ -1220,7 +1284,7 @@ void vec2_asr(int xsize, uint64_t *x, int ysize, const uint64_t *y)
       return;
    }
 
-   const bool negative = (x[n - 1] >> ((size - 1) % 64)) & 1;
+   const bool negative = vec2_negative(size, x);
    const int64_t fill = negative ? ~UINT64_C(0) : 0;
 
    const int64_t total_bits = size;
@@ -1412,8 +1476,7 @@ void vec2_itoa(int size, const uint64_t *a, bool is_signed, text_buf_t *tb)
    }
    else {
       const int n = BIGNUM_WORDS(size);
-      const bool negative =
-         is_signed && ((a[n - 1] >> ((size - 1) % 64)) & 1);
+      const bool negative = is_signed && vec2_negative(size, a);
       const int maxdigits = ((size * 1233) >> 12) + 1;
 
       if (negative)
@@ -1514,6 +1577,28 @@ void vec4_mod(int size, uint64_t *a1, uint64_t *b1, const uint64_t *a2,
          vec4_make_undef(size, a1, b1);
       else
          vec2_mod(size, a1, a2);
+   }
+}
+
+void vec4_sdiv(int size, uint64_t *a1, uint64_t *b1, const uint64_t *a2,
+               const uint64_t *b2)
+{
+   if (vec4_arith_defined(size, a1, b1, a2, b2)) {
+      if (vec2_is_zero(size, a2))
+         vec4_make_undef(size, a1, b1);
+      else
+         vec2_sdiv(size, a1, a2);
+   }
+}
+
+void vec4_smod(int size, uint64_t *a1, uint64_t *b1, const uint64_t *a2,
+               const uint64_t *b2)
+{
+   if (vec4_arith_defined(size, a1, b1, a2, b2)) {
+      if (vec2_is_zero(size, a2))
+         vec4_make_undef(size, a1, b1);
+      else
+         vec2_smod(size, a1, a2);
    }
 }
 

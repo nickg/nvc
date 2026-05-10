@@ -207,6 +207,8 @@ typedef enum {
    JIT_VEC_MUL,
    JIT_VEC_DIV,
    JIT_VEC_MOD,
+   JIT_VEC_SDIV,
+   JIT_VEC_SMOD,
    JIT_VEC_SHL,
    JIT_VEC_SHR,
    JIT_VEC_ASR,

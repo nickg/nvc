@@ -90,6 +90,8 @@ void vec2_sub(int size, uint64_t *a, const uint64_t *b);
 void vec2_mul(int size, uint64_t *a, const uint64_t *b);
 void vec2_div(int size, uint64_t *a, const uint64_t *b);
 void vec2_mod(int size, uint64_t *a, const uint64_t *b);
+void vec2_sdiv(int size, uint64_t *a, const uint64_t *b);
+void vec2_smod(int size, uint64_t *a, const uint64_t *b);
 void vec2_exp(int size, uint64_t *a, const uint64_t *b);
 void vec2_shl(int xsize, uint64_t *x, int ysize, const uint64_t *y);
 void vec2_shr(int xsize, uint64_t *x, int ysize, const uint64_t *y);
@@ -145,6 +147,10 @@ void vec4_div(int size, uint64_t *a1, uint64_t *b1, const uint64_t *a2,
               const uint64_t *b2);
 void vec4_mod(int size, uint64_t *a1, uint64_t *b1, const uint64_t *a2,
               const uint64_t *b2);
+void vec4_sdiv(int size, uint64_t *a1, uint64_t *b1, const uint64_t *a2,
+               const uint64_t *b2);
+void vec4_smod(int size, uint64_t *a1, uint64_t *b1, const uint64_t *a2,
+               const uint64_t *b2);
 void vec4_exp(int size, uint64_t *a1, uint64_t *b1, const uint64_t *a2,
               const uint64_t *b2);
 void vec4_shl(int size, uint64_t *a1, uint64_t *b1, const uint64_t *a2,

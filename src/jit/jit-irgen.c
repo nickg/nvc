@@ -4117,8 +4117,8 @@ static void irgen_op_binary(jit_irgen_t *g, mir_value_t n)
       case MIR_VEC_ADD:      jop = JIT_VEC_ADD; break;
       case MIR_VEC_SUB:      jop = JIT_VEC_SUB; break;
       case MIR_VEC_MUL:      jop = JIT_VEC_MUL; break;
-      case MIR_VEC_DIV:      jop = JIT_VEC_DIV; break;
-      case MIR_VEC_MOD:      jop = JIT_VEC_MOD; break;
+      case MIR_VEC_DIV:      jop = issigned ? JIT_VEC_SDIV : JIT_VEC_DIV; break;
+      case MIR_VEC_MOD:      jop = issigned ? JIT_VEC_SMOD : JIT_VEC_MOD; break;
       case MIR_VEC_SLL:      jop = JIT_VEC_SHL; break;
       case MIR_VEC_SRL:      jop = JIT_VEC_SHR; break;
       case MIR_VEC_SRA:      jop = JIT_VEC_ASR; break;
@@ -4324,7 +4324,15 @@ static void irgen_op_binary(jit_irgen_t *g, mir_value_t n)
          j_jump(g, JIT_CC_T, l_skip);
 
          jit_value_t aresult = irgen_alloc_temp(g);
-         if (op == MIR_VEC_DIV)
+         if (issigned) {
+            jit_value_t sle = irgen_sign_extend(g, aleft, size);
+            jit_value_t sre = irgen_sign_extend(g, aright, size);
+            if (op == MIR_VEC_DIV)
+               j_div(g, aresult, sle, sre);
+            else
+               j_rem(g, aresult, sle, sre);
+         }
+         else if (op == MIR_VEC_DIV)
             j_div(g, aresult, aleft, aright);
          else
             j_rem(g, aresult, aleft, aright);

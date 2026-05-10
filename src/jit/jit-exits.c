@@ -1343,6 +1343,12 @@ void __nvc_vec4op(jit_vec_op_t op, jit_anchor_t *anchor, jit_scalar_t *args,
          case JIT_VEC_MOD:
             vec4_mod(size, aresult, bresult, a2, b2);
             break;
+         case JIT_VEC_SDIV:
+            vec4_sdiv(size, aresult, bresult, a2, b2);
+            break;
+         case JIT_VEC_SMOD:
+            vec4_smod(size, aresult, bresult, a2, b2);
+            break;
          case JIT_VEC_SHL:
             vec4_shl(size, aresult, bresult, a2, b2);
             break;
