@@ -205,7 +205,8 @@ tree_t run_elab_with_model(rt_model_t *m)
             vlog_simp(v);
             fail_if(error_count() > 0);
 
-            if (vlog_kind(v) == V_MODULE)
+            const vlog_kind_t kind = vlog_kind(v);
+            if (kind == V_MODULE || kind == V_PROGRAM)
                top = vlog_to_object(v);
          }
       }

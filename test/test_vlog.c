@@ -1754,6 +1754,72 @@ START_TEST(test_lower2)
 }
 END_TEST
 
+START_TEST(test_lower3)
+{
+   input_from_file(TESTDIR "/vlog/lower3.sv");
+
+   run_elab();
+
+   mir_context_t *mc = get_mir();
+
+   mir_unit_t *mu = mir_get_unit(mc, ident_new("WORK.LOWER3#0.initial#5#3"));
+   ck_assert_ptr_nonnull(mu);
+
+   static const mir_match_t bb1[] = {
+      { MIR_OP_VAR_UPREF },
+      { MIR_OP_LOAD },
+      { MIR_OP_CONST_VEC },
+      { MIR_OP_UNPACK },
+      { MIR_OP_DEPOSIT_SIGNAL, NODE(_), CONST(32) },
+      { MIR_OP_VAR_UPREF },
+      { MIR_OP_LOAD },
+      { MIR_OP_CONST_VEC },
+      { MIR_OP_UNPACK },
+      { MIR_OP_DEPOSIT_SIGNAL, NODE(_), CONST(1) },
+      { MIR_OP_STORE, VAR("idx") },
+      { MIR_OP_JUMP, BLOCK(4) },
+   };
+   mir_match(mu, 1, bb1);
+
+   static const mir_match_t bb2[] = {
+      { MIR_OP_LOAD, VAR("idx") },
+      { MIR_OP_EXTRACT, NODE(_), CONST(0) },  // XXX: redundant
+      { MIR_OP_LOAD },
+      { MIR_OP_RESOLVED },
+      { MIR_OP_PACK },
+      { MIR_OP_BINARY, ENUM(MIR_VEC_ADD) },
+      { MIR_OP_LOAD },
+      { MIR_OP_UNPACK },
+      { MIR_OP_DEPOSIT_SIGNAL, NODE(_), CONST(32) },
+      { MIR_OP_JUMP, BLOCK(3) },
+   };
+   mir_match(mu, 2, bb2);
+
+   static const mir_match_t bb3[] = {
+      { MIR_OP_LOAD, VAR("idx") },
+      { MIR_OP_EXTRACT, NODE(_), CONST(0) },  // XXX: redundant
+      { MIR_OP_CONST_VEC },
+      { MIR_OP_BINARY, ENUM(MIR_VEC_ADD) },
+      { MIR_OP_STORE, VAR("idx") },
+      { MIR_OP_JUMP, BLOCK(4) },
+   };
+   mir_match(mu, 3, bb3);
+
+   static const mir_match_t bb4[] = {
+      { MIR_OP_LOAD, VAR("idx") },
+      { MIR_OP_EXTRACT, NODE(_), CONST(0) },  // XXX: redundant
+      { MIR_OP_CONST_VEC },
+      { MIR_OP_CAST },
+      { MIR_OP_BINARY, ENUM(MIR_VEC_LT) },
+      { MIR_OP_TEST },
+      { MIR_OP_COND, NODE(_), BLOCK(2), BLOCK(5) },
+   };
+   mir_match(mu, 4, bb4);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_vlog_tests(void)
 {
    Suite *s = suite_create("vlog");
@@ -1820,6 +1886,7 @@ Suite *get_vlog_tests(void)
    tcase_add_test(tc, test_pp10);
    tcase_add_test(tc, test_simp2);
    tcase_add_test(tc, test_lower2);
+   tcase_add_test(tc, test_lower3);
    suite_add_tcase(s, tc);
 
    return s;

@@ -1339,3 +1339,4 @@ select14        verilog
 select15        verilog
 select16        verilog
 select17        verilog
+ivtest39        verilog

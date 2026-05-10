@@ -1956,8 +1956,7 @@ static void vlog_lower_for_loop(vlog_gen_t *g, vlog_node_t v)
    vlog_node_t init = vlog_left(v);
    assert(vlog_kind(init) == V_FOR_INIT);
 
-   assert(vlog_decls(init) == 0);   // TODO
-
+   vlog_lower_locals(g, init);
    vlog_lower_stmts(g, init);
 
    mir_block_t body_bb = mir_add_block(g->mu);
@@ -2964,8 +2963,10 @@ static void vlog_lower_locals(vlog_gen_t *g, vlog_node_t v)
             mir_put_object(g->mu, d, var);
 
             mir_value_t init;
-            if (vlog_has_value(d))
-               init = vlog_lower_rvalue(g, vlog_value(d));
+            if (vlog_has_value(d)) {
+               mir_value_t value = vlog_lower_rvalue(g, vlog_value(d));
+               init = vlog_lower_cast(g, ti->type, value);
+            }
             else
                init = vlog_lower_default_value(g, ti);
 
