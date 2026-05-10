@@ -1581,17 +1581,12 @@ static mir_value_t vlog_lower_trigger(vlog_gen_t *g, vlog_node_t v)
          mir_value_t trigger;
          vlog_node_t prefix = vlog_longest_static_prefix(v);
          if (prefix == v) {
-            mir_type_t t_offset = mir_offset_type(g->mu);
-
             vlog_select_t lvalue = vlog_lower_select(g, v);
 
-            mir_value_t count = mir_const(g->mu, t_offset, lvalue.size);
-
-            // XXX: check in range
             mir_value_t nets =
-               mir_build_array_ref(g->mu, lvalue.obj, lvalue.offset);
+               mir_build_array_ref(g->mu, lvalue.obj, lvalue.dst_offset);
 
-            trigger = mir_build_level_trigger(g->mu, nets, count);
+            trigger = mir_build_level_trigger(g->mu, nets, lvalue.count);
          }
          else
             trigger = vlog_lower_trigger(g, prefix);
@@ -2315,7 +2310,11 @@ static void vlog_lower_sensitivity(vlog_gen_t *g, vlog_node_t v)
                mir_type_t t_offset = mir_offset_type(g->mu);
 
                vlog_select_t lvalue = vlog_lower_select(g, v);
-               mir_value_t count = mir_const(g->mu, t_offset, lvalue.size);
+               int total_size = lvalue.size;
+               if (vlog_kind(v) == V_REF)
+                  total_size *= vlog_size(vlog_ref(v));
+
+               mir_value_t count = mir_const(g->mu, t_offset, total_size);
                mir_build_sched_event(g->mu, lvalue.obj, count);
             }
             break;
@@ -2332,17 +2331,12 @@ static void vlog_lower_sensitivity(vlog_gen_t *g, vlog_node_t v)
       {
          vlog_node_t prefix = vlog_longest_static_prefix(v);
          if (prefix == v) {
-            mir_type_t t_offset = mir_offset_type(g->mu);
-
             vlog_select_t lvalue = vlog_lower_select(g, v);
 
-            mir_value_t count = mir_const(g->mu, t_offset, lvalue.size);
-
-            // XXX: check in range
             mir_value_t nets =
-               mir_build_array_ref(g->mu, lvalue.obj, lvalue.offset);
+               mir_build_array_ref(g->mu, lvalue.obj, lvalue.dst_offset);
 
-            mir_build_sched_event(g->mu, nets, count);
+            mir_build_sched_event(g->mu, nets, lvalue.count);
          }
          else if (prefix != NULL)
             vlog_lower_sensitivity(g, prefix);

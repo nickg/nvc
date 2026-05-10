@@ -37,3 +37,5 @@ Avoid running multiple tests or builds in parallel.
 
 New regression tests should be appended to the end of
 `test/regress/testlist.txt`.
+
+Keep edits minimal where possible.

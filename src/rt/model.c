@@ -1628,7 +1628,7 @@ static rt_nexus_t *clone_nexus(rt_model_t *m, rt_nexus_t *old, int offset)
 static rt_nexus_t *split_nexus_slow(rt_model_t *m, rt_signal_t *s,
                                     int offset, int count)
 {
-   assert(offset + count <= s->shared.size / s->nexus.size);
+   assert(offset + count <= s->shared.size / s->nexus.size || count == 0);
 
    rt_nexus_t *result = NULL;
    for (rt_nexus_t *it = lookup_index(s, &offset); count > 0; it = it->chain) {
