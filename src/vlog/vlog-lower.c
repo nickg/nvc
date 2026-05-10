@@ -2244,14 +2244,15 @@ static void vlog_lower_driver(vlog_gen_t *g, vlog_node_t v)
 
       vlog_select_t target = vlog_lower_select(g, prefix);
 
-      // XXX: check in range
-      mir_value_t nets = mir_build_array_ref(g->mu, target.obj, target.offset);
+      mir_value_t nets =
+         mir_build_array_ref(g->mu, target.obj, target.dst_offset);
 
       int total_size = target.size;
       if (vlog_kind(prefix) == V_REF)
          total_size *= vlog_size(vlog_ref(prefix));
 
-      mir_value_t count = mir_const(g->mu, t_offset, total_size);
+      mir_value_t count = vlog_kind(prefix) == V_REF
+         ? mir_const(g->mu, t_offset, total_size) : target.count;
       mir_build_drive_signal(g->mu, nets, count);
    }
 }
@@ -2442,22 +2443,22 @@ static void vlog_lower_assign_process(vlog_gen_t *g, vlog_node_t v)
    }
 
    for (int i = 0, offset = 0; i < nlvalues; offset += lvalues[i].size, i++) {
-      // XXX: check in range
       mir_value_t nets = mir_build_array_ref(g->mu, lvalues[i].obj,
-                                             lvalues[i].offset);
-
-      mir_value_t count = mir_const(g->mu, t_offset, lvalues[i].size);
+                                             lvalues[i].dst_offset);
 
       mir_value_t src = unpacked;
-      if (offset > 0) {
-         mir_value_t pos = mir_const(g->mu, t_offset, offset);
+      if (offset > 0 || !mir_is_null(lvalues[i].src_offset)) {
+         mir_value_t pos =
+            mir_build_add(g->mu, t_offset, mir_const(g->mu, t_offset, offset),
+                          lvalues[i].src_offset);
          src = mir_build_array_ref(g->mu, unpacked, pos);
       }
 
       if (mir_is_null(after))
-         mir_build_put_driver(g->mu, nets, count, src);
+         mir_build_put_driver(g->mu, nets, lvalues[i].count, src);
       else
-         mir_build_sched_waveform(g->mu, nets, count, src, after, after);
+         mir_build_sched_waveform(g->mu, nets, lvalues[i].count, src, after,
+                                  after);
    }
 
    mir_build_wait(g->mu, start_bb);
