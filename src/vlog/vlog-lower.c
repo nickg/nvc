@@ -2523,7 +2523,6 @@ static void vlog_lower_gate_inst(vlog_gen_t *g, vlog_node_t v)
 
    vlog_lower_driver(g, vlog_target(v));
 
-   mir_type_t t_offset = mir_offset_type(g->mu);
    mir_type_t t_logic = mir_vec4_type(g->mu, 1, false);
 
    const int nparams = vlog_params(v);
@@ -2606,12 +2605,11 @@ static void vlog_lower_gate_inst(vlog_gen_t *g, vlog_node_t v)
       mir_build_unpack(g->mu, value, strength, MIR_NULL_VALUE);
 
    vlog_select_t lvalue = vlog_lower_select(g, vlog_target(v));
-   mir_value_t count = mir_const(g->mu, t_offset, lvalue.size);
 
-   // XXX: check in range
-   mir_value_t nets = mir_build_array_ref(g->mu, lvalue.obj, lvalue.offset);
+   mir_value_t nets =
+      mir_build_array_ref(g->mu, lvalue.obj, lvalue.dst_offset);
 
-   mir_build_put_driver(g->mu, nets, count, unpacked);
+   mir_build_put_driver(g->mu, nets, lvalue.count, unpacked);
    mir_build_wait(g->mu, start_bb);
 }
 
