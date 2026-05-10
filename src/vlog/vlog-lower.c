@@ -2640,33 +2640,38 @@ static void vlog_lower_port_map(vlog_gen_t *g, vlog_node_t v)
       case V_PORT_OUTPUT:
          {
             vlog_node_t target = vlog_value(v);
-            unsigned nlvalues = 1;
-            vlog_select_t lvalue1, *lvalues = &lvalue1;
             if (vlog_kind(target) == V_CONCAT) {
-               const int nparams = nlvalues = vlog_params(target);
-               lvalues = xmalloc_array(nparams, sizeof(vlog_select_t));
+               const int nparams = vlog_params(target);
                for (int i = 0; i < nparams; i++) {
                   vlog_node_t p = vlog_param(target, i);
                   vlog_node_t lsp = vlog_longest_static_prefix(p);
-                  lvalues[i] = vlog_lower_select(g, lsp);
+                  vlog_select_t lvalue = vlog_lower_select(g, lsp);
+
+                  mir_value_t count = lvalue.count;
+                  if (vlog_kind(lsp) == V_REF) {
+                     int total_size = lvalue.size * vlog_size(vlog_ref(lsp));
+                     count = mir_const(g->mu, t_offset, total_size);
+                  }
+
+                  mir_value_t nets = mir_build_array_ref(g->mu, lvalue.obj,
+                                                         lvalue.dst_offset);
+                  mir_build_drive_signal(g->mu, nets, count);
                }
             }
             else {
                vlog_node_t lsp = vlog_longest_static_prefix(target);
-               lvalue1 = vlog_lower_select(g, lsp);
-            }
+               vlog_select_t lvalue = vlog_lower_select(g, lsp);
 
-            for (int i = 0; i < nlvalues; i++) {
-               // XXX: check in range
-               mir_value_t nets = mir_build_array_ref(g->mu, lvalues[i].obj,
-                                                      lvalues[i].offset);
+               mir_value_t count = lvalue.count;
+               if (vlog_kind(lsp) == V_REF) {
+                  int total_size = lvalue.size * vlog_size(vlog_ref(lsp));
+                  count = mir_const(g->mu, t_offset, total_size);
+               }
 
-               mir_value_t count = mir_const(g->mu, t_offset, lvalues[i].size);
+               mir_value_t nets = mir_build_array_ref(g->mu, lvalue.obj,
+                                                      lvalue.dst_offset);
                mir_build_drive_signal(g->mu, nets, count);
             }
-
-            if (lvalues != &lvalue1)
-               free(lvalues);
 
             mir_value_t count = mir_const(g->mu, t_offset, ti->size);
             mir_build_sched_event(g->mu, signal, count);
@@ -2749,19 +2754,15 @@ static void vlog_lower_port_map(vlog_gen_t *g, vlog_node_t v)
    mir_value_t unpacked = mir_build_unpack(g->mu, resize, ST_STRONG, tmp);
 
    for (int i = 0, offset = 0; i < nlvalues; offset += lvalues[i].size, i++) {
-      // XXX: check in range
       mir_value_t nets = mir_build_array_ref(g->mu, lvalues[i].obj,
-                                             lvalues[i].offset);
+                                             lvalues[i].dst_offset);
 
-      mir_value_t count = mir_const(g->mu, t_offset, lvalues[i].size);
+      mir_value_t pos = mir_build_add(g->mu, t_offset,
+                                      mir_const(g->mu, t_offset, offset),
+                                      lvalues[i].src_offset);
+      mir_value_t src = mir_build_array_ref(g->mu, unpacked, pos);
 
-      mir_value_t src = unpacked;
-      if (offset > 0) {
-         mir_value_t pos = mir_const(g->mu, t_offset, offset);
-         src = mir_build_array_ref(g->mu, unpacked, pos);
-      }
-
-      mir_build_put_driver(g->mu, nets, count, src);
+      mir_build_put_driver(g->mu, nets, lvalues[i].count, src);
    }
 
    if (lvalues != &lvalue1)
