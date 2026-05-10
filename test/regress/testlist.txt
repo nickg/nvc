@@ -1344,3 +1344,4 @@ wide6           verilog
 binary8         verilog
 wide7           verilog
 signed4         verilog
+string2         verilog,gold
