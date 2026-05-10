@@ -3844,6 +3844,8 @@ static rt_trigger_t *new_trigger(rt_model_t *m, trigger_kind_t kind,
    t->chain  = *bucket;
    memcpy(t->args, args, argsz);
 
+   arm_trigger(m, t, &(t->wakeable));
+
    return (*bucket = t);
 }
 
@@ -4245,9 +4247,6 @@ void x_enable_trigger(rt_trigger_t *trigger)
 
    rt_wakeable_t *obj = get_active_wakeable();
    rt_model_t *m = get_model();
-
-   if (trigger->pending == NULL)
-      arm_trigger(m, trigger, &(trigger->wakeable));
 
    sched_event(m, &(trigger->pending), obj);
 }
