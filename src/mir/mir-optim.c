@@ -871,7 +871,8 @@ static void mir_do_dce(mir_unit_t *mu, mir_optim_t *opt)
          if (!mir_is_null(n->type) && !mask_test(&live, node.id)) {
             switch (n->op) {
             case MIR_OP_PACKAGE_INIT:
-            case MIR_OP_INSTANCE_INIT: break;
+            case MIR_OP_INSTANCE_INIT:
+            case MIR_OP_COPY: break;
             default: dead = true; break;
             }
          }

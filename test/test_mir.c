@@ -1182,6 +1182,23 @@ START_TEST(test_dce2)
    mir_build_package_init(mu, ident_new("pack"), MIR_NULL_VALUE);
    mir_build_instance_init(mu, ident_new("inst"), NULL, 0);
 
+   mir_type_t t_int32 = mir_int_type(mu, INT32_MIN, INT32_MAX);
+   mir_type_t t_array = mir_carray_type(mu, 4, t_int32);
+
+   mir_value_t vals[] = {
+      mir_const(mu, t_int32, 1),
+      mir_const(mu, t_int32, 2),
+      mir_const(mu, t_int32, 3),
+      mir_const(mu, t_int32, 4),
+   };
+   mir_value_t src = mir_build_address_of(mu, mir_const_array(mu, t_array,
+                                                              vals, 4));
+   mir_value_t dst = mir_add_var(mu, t_array, MIR_NULL_STAMP,
+                                 ident_new("dst"), MIR_VAR_TEMP);
+
+   // Copy is a side-effecting memory operation even though it has a type
+   mir_build_copy(mu, dst, src, MIR_NULL_VALUE);
+
    mir_build_return(mu, MIR_NULL_VALUE);
 
    mir_optimise(mu, MIR_PASS_DCE);
@@ -1189,6 +1206,9 @@ START_TEST(test_dce2)
    static const mir_match_t bb0[] = {
       { MIR_OP_PACKAGE_INIT, LINK("pack") },
       { MIR_OP_INSTANCE_INIT, LINK("inst") },
+      { MIR_OP_CONST_ARRAY },
+      { MIR_OP_ADDRESS_OF },
+      { MIR_OP_COPY, VAR("dst") },
       { MIR_OP_RETURN },
    };
    mir_match(mu, 0, bb0);
