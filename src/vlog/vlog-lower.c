@@ -1791,17 +1791,14 @@ static void vlog_lower_non_blocking_assignment(vlog_gen_t *g, vlog_node_t v)
 
    vlog_select_t lvalue = vlog_lower_select(g, target);
 
-   // XXX: check in range
-   mir_value_t nets = mir_build_array_ref(g->mu, lvalue.obj, lvalue.offset);
+   mir_value_t nets = mir_build_array_ref(g->mu, lvalue.obj, lvalue.dst_offset);
 
-   mir_type_t t_offset = mir_offset_type(g->mu);
    mir_type_t t_vec = mir_vec4_type(g->mu, lvalue.size, false);
 
    mir_value_t value = vlog_lower_with_context(g, vlog_value(v), t_vec);
    assert(mir_is_vector(g->mu, value));
 
    mir_value_t resize = mir_build_cast(g->mu, t_vec, value);
-   mir_value_t count = mir_const(g->mu, t_offset, lvalue.size);
 
    mir_value_t tmp = MIR_NULL_VALUE;
    if (lvalue.size > 1) {
@@ -1812,6 +1809,9 @@ static void vlog_lower_non_blocking_assignment(vlog_gen_t *g, vlog_node_t v)
 
    const uint8_t strength = vlog_is_net(target) ? ST_STRONG : 0;
    mir_value_t unpacked = mir_build_unpack(g->mu, resize, strength, tmp);
+
+   if (!mir_is_null(tmp))
+      unpacked = mir_build_array_ref(g->mu, unpacked, lvalue.src_offset);
 
    mir_type_t t_time = mir_time_type(g->mu);
 
@@ -1825,7 +1825,7 @@ static void vlog_lower_non_blocking_assignment(vlog_gen_t *g, vlog_node_t v)
    else
       after = mir_const(g->mu, t_time, 0);
 
-   mir_build_sched_deposit(g->mu, nets, count, unpacked, after);
+   mir_build_sched_deposit(g->mu, nets, lvalue.count, unpacked, after);
 }
 
 static void vlog_lower_if(vlog_gen_t *g, vlog_node_t v)
