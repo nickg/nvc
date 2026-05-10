@@ -1783,7 +1783,6 @@ START_TEST(test_lower3)
 
    static const mir_match_t bb2[] = {
       { MIR_OP_LOAD, VAR("idx") },
-      { MIR_OP_EXTRACT, NODE(_), CONST(0) },  // XXX: redundant
       { MIR_OP_LOAD },
       { MIR_OP_RESOLVED },
       { MIR_OP_PACK },
@@ -1797,7 +1796,6 @@ START_TEST(test_lower3)
 
    static const mir_match_t bb3[] = {
       { MIR_OP_LOAD, VAR("idx") },
-      { MIR_OP_EXTRACT, NODE(_), CONST(0) },  // XXX: redundant
       { MIR_OP_CONST_VEC },
       { MIR_OP_BINARY, ENUM(MIR_VEC_ADD) },
       { MIR_OP_STORE, VAR("idx") },
@@ -1807,7 +1805,6 @@ START_TEST(test_lower3)
 
    static const mir_match_t bb4[] = {
       { MIR_OP_LOAD, VAR("idx") },
-      { MIR_OP_EXTRACT, NODE(_), CONST(0) },  // XXX: redundant
       { MIR_OP_CONST_VEC },
       { MIR_OP_CAST },
       { MIR_OP_BINARY, ENUM(MIR_VEC_LT) },

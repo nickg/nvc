@@ -1670,14 +1670,17 @@ mir_value_t mir_build_extract(mir_unit_t *mu, mir_type_t type, mir_value_t full,
    mir_value_t result = mir_build_2(mu, MIR_OP_EXTRACT, type, MIR_NULL_STAMP,
                                     full, pos);
 
+   mir_type_t full_type = mir_get_type(mu, full);
+   if (mir_equals(type, full_type)) {
+      int64_t pos_const;
+      if (mir_get_const(mu, pos, &pos_const) && pos_const == 0)
+         return full;
+   }
+
    MIR_ASSERT(mir_is_vector(mu, full), "extract argument must be vector");
    MIR_ASSERT(mir_is_offset(mu, pos), "extract position must be offset");
-
-#ifdef DEBUG
-   mir_type_t full_type = mir_get_type(mu, full);
    MIR_ASSERT(mir_get_class(mu, full_type) == mir_get_class(mu, type),
               "mismatched vector types");
-#endif
 
    return result;
 }
