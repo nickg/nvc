@@ -112,9 +112,32 @@ int vec2_sle(int size, const uint64_t *a, const uint64_t *b);
 int vec2_le(int size, const uint64_t *a, const uint64_t *b);
 int vec2_not(int size, const uint64_t *x);
 
+vlog_logic_t vec4_sgt(int size, const uint64_t *xa, const uint64_t *xb,
+                      const uint64_t *ya, const uint64_t *yb);
+vlog_logic_t vec4_gt(int size, const uint64_t *xa, const uint64_t *xb,
+                     const uint64_t *ya, const uint64_t *yb);
+vlog_logic_t vec4_slt(int size, const uint64_t *xa, const uint64_t *xb,
+                      const uint64_t *ya, const uint64_t *yb);
+vlog_logic_t vec4_lt(int size, const uint64_t *xa, const uint64_t *xb,
+                     const uint64_t *ya, const uint64_t *yb);
+vlog_logic_t vec4_sge(int size, const uint64_t *xa, const uint64_t *xb,
+                      const uint64_t *ya, const uint64_t *yb);
+vlog_logic_t vec4_ge(int size, const uint64_t *xa, const uint64_t *xb,
+                     const uint64_t *ya, const uint64_t *yb);
+vlog_logic_t vec4_sle(int size, const uint64_t *xa, const uint64_t *xb,
+                      const uint64_t *ya, const uint64_t *yb);
+vlog_logic_t vec4_le(int size, const uint64_t *xa, const uint64_t *xb,
+                     const uint64_t *ya, const uint64_t *yb);
+vlog_logic_t vec4_logand(int size, const uint64_t *xa, const uint64_t *xb,
+                         const uint64_t *ya, const uint64_t *yb);
+vlog_logic_t vec4_logor(int size, const uint64_t *xa, const uint64_t *xb,
+                        const uint64_t *ya, const uint64_t *yb);
+
 void vec2_itoa(int size, const uint64_t *a, bool is_signed, text_buf_t *tb);
 
 void vec4_add(int size, uint64_t *a1, uint64_t *b1, const uint64_t *a2,
+              const uint64_t *b2);
+void vec4_sub(int size, uint64_t *a1, uint64_t *b1, const uint64_t *a2,
               const uint64_t *b2);
 void vec4_mul(int size, uint64_t *a1, uint64_t *b1, const uint64_t *a2,
               const uint64_t *b2);

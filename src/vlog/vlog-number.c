@@ -1314,50 +1314,78 @@ void vec2_xor2(int size, uint64_t *a, const uint64_t *b)
       a[i] ^= b[i];
 }
 
+static int vec2_cmp(int size, const uint64_t *a, const uint64_t *b)
+{
+   for (int i = BIGNUM_WORDS(size) - 1; i >= 0; i--) {
+      if (a[i] > b[i])
+         return 1;
+      else if (a[i] < b[i])
+         return -1;
+   }
+
+   return 0;
+}
+
+static int vec2_scmp(int size, const uint64_t *a, const uint64_t *b)
+{
+   if (size == 0)
+      return 0;
+
+   if (size <= 64) {
+      const int shift = 64 - size;
+      return ((int64_t)(a[0] << shift) > (int64_t)(b[0] << shift))
+         - ((int64_t)(a[0] << shift) < (int64_t)(b[0] << shift));
+   }
+
+   const uint64_t sign = UINT64_C(1) << ((size - 1) % 64);
+   const bool aneg = (a[(size - 1) / 64] & sign) != 0;
+   const bool bneg = (b[(size - 1) / 64] & sign) != 0;
+
+   if (aneg != bneg)
+      return aneg ? -1 : 1;
+   else
+      return vec2_cmp(size, a, b);
+}
+
 int vec2_gt(int size, const uint64_t *a, const uint64_t *b)
 {
-   if (size <= 64)
-      return a[0] > b[0];
-   else {
-      for (int i = BIGNUM_WORDS(size) - 1; i >= 0; i--) {
-         if (a[i] > b[i])
-            return 1;
-         else if (a[i] < b[i])
-            return 0;
-      }
-
-      return 0;
-   }
+   return vec2_cmp(size, a, b) > 0;
 }
 
 int vec2_sgt(int size, const uint64_t *a, const uint64_t *b)
 {
-   if (size <= 64)
-      return (int64_t)a[0] > (int64_t)b[0];
-   else
-      should_not_reach_here();  // TODO
+   return vec2_scmp(size, a, b) > 0;
 }
 
-#define VEC2_CMP_OP(name, op)                                           \
-   int vec2_##name(int size, const uint64_t *a, const uint64_t *b)      \
-   {                                                                    \
-      if (size <= 64)                                                   \
-         return a[0] op b[0] ? LOGIC_1 : LOGIC_0;                       \
-      else                                                              \
-         should_not_reach_here();   /* TODO */                          \
-   }                                                                    \
-                                                                        \
-   int vec2_s##name(int size, const uint64_t *a, const uint64_t *b)     \
-   {                                                                    \
-      if (size <= 64)                                                   \
-         return (int64_t)a[0] op (int64_t)b[0] ? LOGIC_1 : LOGIC_0;     \
-      else                                                              \
-         should_not_reach_here();   /* TODO */                          \
-   }
+int vec2_lt(int size, const uint64_t *a, const uint64_t *b)
+{
+   return vec2_cmp(size, a, b) < 0;
+}
 
-VEC2_CMP_OP(lt, <);
-VEC2_CMP_OP(le, <=);
-VEC2_CMP_OP(ge, >=);
+int vec2_slt(int size, const uint64_t *a, const uint64_t *b)
+{
+   return vec2_scmp(size, a, b) < 0;
+}
+
+int vec2_le(int size, const uint64_t *a, const uint64_t *b)
+{
+   return vec2_cmp(size, a, b) <= 0;
+}
+
+int vec2_sle(int size, const uint64_t *a, const uint64_t *b)
+{
+   return vec2_scmp(size, a, b) <= 0;
+}
+
+int vec2_ge(int size, const uint64_t *a, const uint64_t *b)
+{
+   return vec2_cmp(size, a, b) >= 0;
+}
+
+int vec2_sge(int size, const uint64_t *a, const uint64_t *b)
+{
+   return vec2_scmp(size, a, b) >= 0;
+}
 
 int vec2_not(int size, const uint64_t *x)
 {
@@ -1427,17 +1455,22 @@ static void vec4_make_undef(int size, uint64_t *a, uint64_t *b)
    }
 }
 
-static bool vec4_arith_defined(int size, uint64_t *a1, uint64_t *b1,
-                               const uint64_t *a2, const uint64_t *b2)
+static bool vec4_defined(int size, const uint64_t *xb, const uint64_t *yb)
 {
    bool is_defined = true;
    for (int i = 0; i < BIGNUM_WORDS(size); i++)
-      is_defined &= b1[i] == 0 && b2[i] == 0;
+      is_defined &= xb[i] == 0 && yb[i] == 0;
 
-   if (is_defined)
+   return is_defined;
+}
+
+static bool vec4_arith_defined(int size, uint64_t *xa, uint64_t *xb,
+                               const uint64_t *ya, const uint64_t *yb)
+{
+   if (vec4_defined(size, xb, yb))
       return true;
 
-   vec4_make_undef(size, a1, b1);
+   vec4_make_undef(size, xa, xb);
    return false;
 }
 
@@ -1446,6 +1479,13 @@ void vec4_add(int size, uint64_t *a1, uint64_t *b1, const uint64_t *a2,
 {
    if (vec4_arith_defined(size, a1, b1, a2, b2))
       vec2_add(size, a1, a2);
+}
+
+void vec4_sub(int size, uint64_t *a1, uint64_t *b1, const uint64_t *a2,
+              const uint64_t *b2)
+{
+   if (vec4_arith_defined(size, a1, b1, a2, b2))
+      vec2_sub(size, a1, a2);
 }
 
 void vec4_mul(int size, uint64_t *a1, uint64_t *b1, const uint64_t *a2,
@@ -1543,6 +1583,70 @@ void vec4_xor2(int size, uint64_t *a1, uint64_t *b1, const uint64_t *a2,
    vec2_xor2(size, a1, a2);
    vec2_or2(size, b1, b2);
    vec2_or2(size, a1, b1);
+}
+
+#define VEC4_CMP_OP(name)                                               \
+   vlog_logic_t vec4_##name(int size, const uint64_t *xa,               \
+                            const uint64_t *xb, const uint64_t *ya,     \
+                            const uint64_t *yb)                         \
+   {                                                                    \
+      if (vec4_defined(size, xb, yb))                                   \
+         return vec2_##name(size, xa, ya) ? LOGIC_1 : LOGIC_0;          \
+      else                                                              \
+         return LOGIC_X;                                                \
+   }                                                                    \
+                                                                        \
+   vlog_logic_t vec4_s##name(int size, const uint64_t *xa,              \
+                             const uint64_t *xb, const uint64_t *ya,    \
+                             const uint64_t *yb)                        \
+   {                                                                    \
+      if (vec4_defined(size, xb, yb))                                   \
+         return vec2_s##name(size, xa, ya) ? LOGIC_1 : LOGIC_0;         \
+      else                                                              \
+         return LOGIC_X;                                                \
+   }
+
+VEC4_CMP_OP(gt);
+VEC4_CMP_OP(lt);
+VEC4_CMP_OP(ge);
+VEC4_CMP_OP(le);
+
+vlog_logic_t vec4_logand(int size, const uint64_t *xa, const uint64_t *xb,
+                         const uint64_t *ya, const uint64_t *yb)
+{
+   bool xtrue = false, ytrue = false, yfalse = true, xfalse = true;
+   for (int i = 0; i < BIGNUM_WORDS(size); i++) {
+      if ((xa[i] | xb[i]) != 0)  xfalse = false;
+      if ((ya[i] | yb[i]) != 0)  yfalse = false;
+      if ((xa[i] & ~xb[i]) != 0) xtrue = true;
+      if ((ya[i] & ~yb[i]) != 0) ytrue = true;
+   }
+
+   if (xtrue && ytrue)
+      return LOGIC_1;
+   else if (xfalse || yfalse)
+      return LOGIC_0;
+   else
+      return LOGIC_X;
+}
+
+vlog_logic_t vec4_logor(int size, const uint64_t *xa, const uint64_t *xb,
+                        const uint64_t *ya, const uint64_t *yb)
+{
+   bool xtrue = false, ytrue = false, yfalse = true, xfalse = true;
+   for (int i = 0; i < BIGNUM_WORDS(size); i++) {
+      if ((xa[i] | xb[i]) != 0)  xfalse = false;
+      if ((ya[i] | yb[i]) != 0)  yfalse = false;
+      if ((xa[i] & ~xb[i]) != 0) xtrue = true;
+      if ((ya[i] & ~yb[i]) != 0) ytrue = true;
+   }
+
+   if (xtrue || ytrue)
+      return LOGIC_1;
+   else if (xfalse && yfalse)
+      return LOGIC_0;
+   else
+      return LOGIC_X;
 }
 
 vlog_logic_t vec4_not(int size, const uint64_t *a, const uint64_t *b)

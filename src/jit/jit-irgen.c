@@ -4112,33 +4112,41 @@ static void irgen_op_binary(jit_irgen_t *g, mir_value_t n)
    const mir_vec_op_t op = irgen_get_enum(g, n, 0);
 
    if (size > 64 || op == MIR_VEC_EXP) {
-      static const jit_vec_op_t map[] = {
-         [MIR_VEC_ADD] = JIT_VEC_ADD,
-         [MIR_VEC_MUL] = JIT_VEC_MUL,
-         [MIR_VEC_DIV] = JIT_VEC_DIV,
-         [MIR_VEC_MOD] = JIT_VEC_MOD,
-         [MIR_VEC_SLL] = JIT_VEC_SHL,
-         [MIR_VEC_SRL] = JIT_VEC_SHR,
-         [MIR_VEC_SRA] = JIT_VEC_ASR,
-         [MIR_VEC_CASE_EQ] = JIT_VEC_CASE_EQ,
-         [MIR_VEC_CASE_NEQ] = JIT_VEC_CASE_NEQ,
-         [MIR_VEC_CASEX_EQ] = JIT_VEC_CASEX_EQ,
-         [MIR_VEC_CASEZ_EQ] = JIT_VEC_CASEZ_EQ,
-         [MIR_VEC_EXP] = JIT_VEC_EXP,
-         [MIR_VEC_LOG_EQ] = JIT_VEC_LOG_EQ,
-         [MIR_VEC_LOG_NEQ] = JIT_VEC_LOG_NEQ,
-         [MIR_VEC_BIT_AND] = JIT_VEC_AND2,
-         [MIR_VEC_BIT_OR] = JIT_VEC_OR2,
-         [MIR_VEC_BIT_XOR] = JIT_VEC_XOR2,
-      };
-      assert(op < ARRAY_LEN(map) && map[op] != 0);
+      jit_vec_op_t jop;
+      switch (op) {
+      case MIR_VEC_ADD:      jop = JIT_VEC_ADD; break;
+      case MIR_VEC_SUB:      jop = JIT_VEC_SUB; break;
+      case MIR_VEC_MUL:      jop = JIT_VEC_MUL; break;
+      case MIR_VEC_DIV:      jop = JIT_VEC_DIV; break;
+      case MIR_VEC_MOD:      jop = JIT_VEC_MOD; break;
+      case MIR_VEC_SLL:      jop = JIT_VEC_SHL; break;
+      case MIR_VEC_SRL:      jop = JIT_VEC_SHR; break;
+      case MIR_VEC_SRA:      jop = JIT_VEC_ASR; break;
+      case MIR_VEC_CASE_EQ:  jop = JIT_VEC_CASE_EQ; break;
+      case MIR_VEC_CASE_NEQ: jop = JIT_VEC_CASE_NEQ; break;
+      case MIR_VEC_CASEX_EQ: jop = JIT_VEC_CASEX_EQ; break;
+      case MIR_VEC_CASEZ_EQ: jop = JIT_VEC_CASEZ_EQ; break;
+      case MIR_VEC_EXP:      jop = JIT_VEC_EXP; break;
+      case MIR_VEC_LOG_EQ:   jop = JIT_VEC_LOG_EQ; break;
+      case MIR_VEC_LOG_NEQ:  jop = JIT_VEC_LOG_NEQ; break;
+      case MIR_VEC_LOG_AND:  jop = JIT_VEC_LOG_AND; break;
+      case MIR_VEC_LOG_OR:   jop = JIT_VEC_LOG_OR; break;
+      case MIR_VEC_BIT_AND:  jop = JIT_VEC_AND2; break;
+      case MIR_VEC_BIT_OR:   jop = JIT_VEC_OR2; break;
+      case MIR_VEC_BIT_XOR:  jop = JIT_VEC_XOR2; break;
+      case MIR_VEC_LT:       jop = issigned ? JIT_VEC_SLT : JIT_VEC_ULT; break;
+      case MIR_VEC_LEQ:      jop = issigned ? JIT_VEC_SLE : JIT_VEC_ULE; break;
+      case MIR_VEC_GT:       jop = issigned ? JIT_VEC_SGT : JIT_VEC_UGT; break;
+      case MIR_VEC_GEQ:      jop = issigned ? JIT_VEC_SGE : JIT_VEC_UGE; break;
+      default:               should_not_reach_here();
+      }
 
       j_send(g, 0, aleft);
       j_send(g, 1, bleft);
       j_send(g, 2, aright);
       j_send(g, 3, bright);
 
-      macro_vec4op(g, map[op], size);
+      macro_vec4op(g, jop, size);
 
       j_recv(g, irgen_get_slot(g, n, 0), 0);
 

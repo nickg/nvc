@@ -967,33 +967,43 @@ void __nvc_vec4op(jit_vec_op_t op, jit_anchor_t *anchor, jit_scalar_t *args,
    case JIT_VEC_LOG_EQ:
    case JIT_VEC_LOG_NEQ:
    case JIT_VEC_LOG_NOT:
+   case JIT_VEC_LOG_AND:
+   case JIT_VEC_LOG_OR:
+   case JIT_VEC_ULT:
+   case JIT_VEC_ULE:
+   case JIT_VEC_UGT:
+   case JIT_VEC_UGE:
+   case JIT_VEC_SLT:
+   case JIT_VEC_SLE:
+   case JIT_VEC_SGT:
+   case JIT_VEC_SGE:
    case JIT_VEC_AND1:
    case JIT_VEC_OR1:
       {
          assert(size > 64);
 
-         const uint64_t *aleft  = args[0].pointer;
-         const uint64_t *bleft  = args[1].pointer;
-         const uint64_t *aright = args[2].pointer;
-         const uint64_t *bright = args[3].pointer;
+         const uint64_t *xa = args[0].pointer;
+         const uint64_t *xb = args[1].pointer;
+         const uint64_t *ya = args[2].pointer;
+         const uint64_t *yb = args[3].pointer;
 
          int aresult, bresult;
          switch (op) {
          case JIT_VEC_CASE_EQ:
-            aresult = memcmp(aleft, aright, nwords * sizeof(uint64_t)) == 0
-               && memcmp(bleft, bright, nwords * sizeof(uint64_t)) == 0;
+            aresult = memcmp(xa, ya, nwords * sizeof(uint64_t)) == 0
+               && memcmp(xb, yb, nwords * sizeof(uint64_t)) == 0;
             bresult = 0;
             break;
          case JIT_VEC_CASE_NEQ:
-            aresult = memcmp(aleft, aright, nwords * sizeof(uint64_t)) != 0
-               || memcmp(bleft, bright, nwords * sizeof(uint64_t)) != 0;
+            aresult = memcmp(xa, ya, nwords * sizeof(uint64_t)) != 0
+               || memcmp(xb, yb, nwords * sizeof(uint64_t)) != 0;
             bresult = 0;
             break;
          case JIT_VEC_CASEX_EQ:
             aresult = 1;
             for (int i = 0; i < nwords; i++) {
-               const uint64_t mask = bleft[i] | bright[i];
-               if ((aleft[i] | mask) != (aright[i] | mask)) {
+               const uint64_t mask = xb[i] | yb[i];
+               if ((xa[i] | mask) != (ya[i] | mask)) {
                   aresult = 0;
                   break;
                }
@@ -1004,9 +1014,9 @@ void __nvc_vec4op(jit_vec_op_t op, jit_anchor_t *anchor, jit_scalar_t *args,
             aresult = 1;
             for (int i = 0; i < nwords; i++) {
                const uint64_t zmask =
-                  ((~aleft[i]) & bleft[i]) | ((~aright[i]) & bright[i]);
-               if (((aleft[i] | zmask) != (aright[i] | zmask))
-                   || ((bleft[i] & ~zmask) != (bright[i] & ~zmask))) {
+                  ((~xa[i]) & xb[i]) | ((~ya[i]) & yb[i]);
+               if (((xa[i] | zmask) != (ya[i] | zmask))
+                   || ((xb[i] & ~zmask) != (yb[i] & ~zmask))) {
                   aresult = 0;
                   break;
                }
@@ -1018,9 +1028,9 @@ void __nvc_vec4op(jit_vec_op_t op, jit_anchor_t *anchor, jit_scalar_t *args,
             {
                bool unknown = false, known_diff = false;
                for (int i = 0; i < nwords; i++) {
-                  const uint64_t umask = bleft[i] | bright[i];
+                  const uint64_t umask = xb[i] | yb[i];
                   unknown |= umask != 0;
-                  known_diff |= ((aleft[i] ^ aright[i]) & ~umask) != 0;
+                  known_diff |= ((xa[i] ^ ya[i]) & ~umask) != 0;
                }
 
                if (known_diff) {
@@ -1038,16 +1048,73 @@ void __nvc_vec4op(jit_vec_op_t op, jit_anchor_t *anchor, jit_scalar_t *args,
             }
             break;
          case JIT_VEC_AND1:
-            bresult = vec2_or1(size, bleft);
-            aresult = vec2_and1(size, aleft) | bresult;
+            bresult = vec2_or1(size, xb);
+            aresult = vec2_and1(size, xa) | bresult;
             break;
          case JIT_VEC_OR1:
-            bresult = vec2_or1(size, bleft);
-            aresult = vec2_or1(size, aleft) | bresult;
+            bresult = vec2_or1(size, xb);
+            aresult = vec2_or1(size, xa) | bresult;
             break;
          case JIT_VEC_LOG_NOT:
             {
-               vlog_logic_t r = vec4_not(size, aleft, bleft);
+               vlog_logic_t r = vec4_not(size, xa, xb);
+               bresult = r >> 1;
+               aresult = r & 1;
+            }
+            break;
+         case JIT_VEC_LOG_AND:
+            {
+               vlog_logic_t r = vec4_logand(size, xa, xb, ya, yb);
+               bresult = r >> 1;
+               aresult = r & 1;
+            }
+            break;
+         case JIT_VEC_LOG_OR:
+            {
+               vlog_logic_t r = vec4_logor(size, xa, xb, ya, yb);
+               bresult = r >> 1;
+               aresult = r & 1;
+            }
+            break;
+         case JIT_VEC_ULT:
+         case JIT_VEC_ULE:
+         case JIT_VEC_UGT:
+         case JIT_VEC_UGE:
+         case JIT_VEC_SLT:
+         case JIT_VEC_SLE:
+         case JIT_VEC_SGT:
+         case JIT_VEC_SGE:
+            {
+               vlog_logic_t r;
+               switch (op) {
+               case JIT_VEC_ULT:
+                  r = vec4_lt(size, xa, xb, ya, yb);
+                  break;
+               case JIT_VEC_ULE:
+                  r = vec4_le(size, xa, xb, ya, yb);
+                  break;
+               case JIT_VEC_UGT:
+                  r = vec4_gt(size, xa, xb, ya, yb);
+                  break;
+               case JIT_VEC_UGE:
+                  r = vec4_ge(size, xa, xb, ya, yb);
+                  break;
+               case JIT_VEC_SLT:
+                  r = vec4_slt(size, xa, xb, ya, yb);
+                  break;
+               case JIT_VEC_SLE:
+                  r = vec4_sle(size, xa, xb, ya, yb);
+                  break;
+               case JIT_VEC_SGT:
+                  r = vec4_sgt(size, xa, xb, ya, yb);
+                  break;
+               case JIT_VEC_SGE:
+                  r = vec4_sge(size, xa, xb, ya, yb);
+                  break;
+               default:
+                  should_not_reach_here();
+               }
+
                bresult = r >> 1;
                aresult = r & 1;
             }
@@ -1263,6 +1330,9 @@ void __nvc_vec4op(jit_vec_op_t op, jit_anchor_t *anchor, jit_scalar_t *args,
             break;
          case JIT_VEC_ADD:
             vec4_add(size, aresult, bresult, a2, b2);
+            break;
+         case JIT_VEC_SUB:
+            vec4_sub(size, aresult, bresult, a2, b2);
             break;
          case JIT_VEC_MUL:
             vec4_mul(size, aresult, bresult, a2, b2);
