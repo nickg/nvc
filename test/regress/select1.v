@@ -14,13 +14,13 @@ module select1();
 
     b = x[8];
     if (b !== 1'bx) begin
-      $display("FAILED (2) -- %d !== 1", b);
+      $display("FAILED (2) -- %d !== x", b);
       $finish;
     end
 
     b = x[123512632];
     if (b !== 1'bx) begin
-      $display("FAILED (3) -- %d !== 1", b);
+      $display("FAILED (3) -- %d !== x", b);
       $finish;
     end
 

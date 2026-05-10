@@ -1701,6 +1701,59 @@ START_TEST(test_simp2)
 }
 END_TEST
 
+START_TEST(test_lower2)
+{
+   input_from_file(TESTDIR "/vlog/lower2.v");
+
+   run_elab();
+
+   mir_context_t *mc = get_mir();
+
+   {
+      mir_unit_t *mu = mir_get_unit(mc, ident_new("WORK.LOWER2#0.initial#5#2"));
+      ck_assert_ptr_nonnull(mu);
+
+      static const mir_match_t bb1[] = {
+         { MIR_OP_VAR_UPREF },
+         { MIR_OP_LOAD },
+         { MIR_OP_VAR_UPREF },
+         { MIR_OP_LOAD },
+         { MIR_OP_RESOLVED },
+         { MIR_OP_ARRAY_REF, NODE(_), CONST(3) },
+         { MIR_OP_PACK },
+         { MIR_OP_UNPACK },
+         { MIR_OP_DEPOSIT_SIGNAL },
+         { MIR_OP_RETURN },
+      };
+      mir_match(mu, 1, bb1);
+   }
+
+   {
+      mir_unit_t *mu = mir_get_unit(mc, ident_new("WORK.LOWER2#0.initial#7#2"));
+      ck_assert_ptr_nonnull(mu);
+
+      static const mir_match_t bb1[] = {
+         { MIR_OP_VAR_UPREF },
+         { MIR_OP_LOAD },
+         { MIR_OP_VAR_UPREF },
+         { MIR_OP_LOAD },
+         { MIR_OP_RESOLVED },
+         { MIR_OP_ARRAY_REF, NODE(_), CONST(5) },
+         { MIR_OP_CONST_VEC },
+         { MIR_OP_UNPACK },
+         { MIR_OP_COPY, VAR("tmp1") },
+         { MIR_OP_PACK },
+         { MIR_OP_UNPACK },
+         { MIR_OP_DEPOSIT_SIGNAL },
+         { MIR_OP_RETURN },
+      };
+      mir_match(mu, 1, bb1);
+   }
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_vlog_tests(void)
 {
    Suite *s = suite_create("vlog");
@@ -1766,6 +1819,7 @@ Suite *get_vlog_tests(void)
    tcase_add_test(tc, test_const2);
    tcase_add_test(tc, test_pp10);
    tcase_add_test(tc, test_simp2);
+   tcase_add_test(tc, test_lower2);
    suite_add_tcase(s, tc);
 
    return s;

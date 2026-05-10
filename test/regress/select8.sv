@@ -17,7 +17,7 @@ module select8;
     if (arr[2][2:1] !== 2) fail = 1;
 
     $display("arr[2][1:0] : %b", arr[2][1:0]);
-    if (arr[2][1:0] !== 2'bx) fail = 1;
+    if (arr[2][1:0] !== 2'b0x) fail = 1;
 
     $display("arr[2][100] : %d", arr[2][100]);
     if (arr[2][100] !== 1'bx) fail = 1;

@@ -1330,3 +1330,4 @@ real9           verilog
 issue1529       normal,2008
 ivtest37        verilog
 ivtest38        verilog
+select9         verilog
