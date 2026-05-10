@@ -3454,9 +3454,15 @@ void vlog_lower_block(mir_context_t *mc, ident_t parent, tree_t b)
          {
             vlog_select_t lvalue = vlog_lower_select(&g, vlog_value(v));
 
-            // XXX: check in range
+            // Cannot collapse port if select not in range
+            int64_t count_const;
+            if (!mir_get_const(mu, lvalue.count, &count_const))
+               break;
+            else if (count_const != lvalue.size)
+               break;
+
             mir_value_t nets =
-               mir_build_array_ref(mu, lvalue.obj,  lvalue.offset);
+               mir_build_array_ref(mu, lvalue.obj, lvalue.dst_offset);
 
             mir_put_object(mu, port, nets);
          }
