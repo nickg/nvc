@@ -458,6 +458,9 @@ static void vlog_dump_binary(vlog_node_t v)
    case V_BINARY_OR:       print_syntax(" | "); break;
    case V_BINARY_AND:      print_syntax(" & "); break;
    case V_BINARY_XOR:      print_syntax(" ^ "); break;
+   case V_BINARY_XNOR:     print_syntax(" ~^ "); break;
+   case V_BINARY_NAND:     print_syntax(" ~& "); break;
+   case V_BINARY_NOR:      print_syntax(" ~| "); break;
    case V_BINARY_CASE_EQ:  print_syntax(" === "); break;
    case V_BINARY_CASE_NEQ: print_syntax(" !== "); break;
    case V_BINARY_LOG_EQ:   print_syntax(" == "); break;

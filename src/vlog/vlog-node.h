@@ -222,6 +222,7 @@ typedef enum {
    V_BINARY_XOR,
    V_BINARY_XNOR,
    V_BINARY_NAND,
+   V_BINARY_NOR,
 } vlog_binary_t;
 
 typedef enum {

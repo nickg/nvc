@@ -847,6 +847,8 @@ static type_mask_t vlog_check_binary(vlog_node_t v)
    case V_BINARY_AND:
    case V_BINARY_XOR:
    case V_BINARY_XNOR:
+   case V_BINARY_NAND:
+   case V_BINARY_NOR:
    case V_BINARY_SHIFT_LL:
    case V_BINARY_SHIFT_RL:
    case V_BINARY_SHIFT_LA:

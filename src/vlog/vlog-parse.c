@@ -1501,7 +1501,7 @@ static vlog_binary_t p_binary_operator(void)
                   tLOGEQ, tLOGNEQ, tDBLAMP, tSHIFTLL, tSHIFTRL,
                   tSHIFTLA, tSHIFTRA, tLT, tGT, tLE, tGE, tMINUS,
                   tTIMES, tOVER, tPERCENT, tPOWER, tCARET, tTILDECARET,
-                  tTILDEAMP)) {
+                  tTILDEAMP, tTILDEBAR)) {
    case tBAR:        return V_BINARY_OR;
    case tAMP:        return V_BINARY_AND;
    case tCASEEQ:     return V_BINARY_CASE_EQ;
@@ -1526,6 +1526,7 @@ static vlog_binary_t p_binary_operator(void)
    case tCARET:      return V_BINARY_XOR;
    case tTILDECARET: return V_BINARY_XNOR;
    case tTILDEAMP:   return V_BINARY_NAND;
+   case tTILDEBAR:   return V_BINARY_NOR;
    case tPLUS:
    default:          return V_BINARY_PLUS;
    }
@@ -1675,9 +1676,11 @@ static bool peek_binary_operator(int *prec)
    case tCASENEQ:
    case tLOGEQ:
    case tLOGNEQ:     *prec = 7;  return true;
+   case tTILDEAMP:
    case tAMP:        *prec = 6;  return true;
    case tTILDECARET:
    case tCARET:      *prec = 5;  return true;
+   case tTILDEBAR:
    case tBAR:        *prec = 4;  return true;
    case tDBLAMP:     *prec = 3;  return true;
    case tLOGOR:      *prec = 2;  return true;

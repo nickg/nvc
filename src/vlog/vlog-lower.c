@@ -766,6 +766,8 @@ static mir_value_t vlog_lower_vector_binary(vlog_gen_t *g, vlog_binary_t binop,
    case V_BINARY_OR:       mop = MIR_VEC_BIT_OR; break;
    case V_BINARY_XOR:      mop = MIR_VEC_BIT_XOR; break;
    case V_BINARY_XNOR:     mop = MIR_VEC_BIT_XOR; negate = true; break;
+   case V_BINARY_NAND:     mop = MIR_VEC_BIT_AND; negate = true; break;
+   case V_BINARY_NOR:      mop = MIR_VEC_BIT_OR; negate = true; break;
    case V_BINARY_LOG_AND:  mop = MIR_VEC_LOG_AND; break;
    case V_BINARY_LOG_OR:   mop = MIR_VEC_LOG_OR; break;
    case V_BINARY_LT:       mop = MIR_VEC_LT; break;
@@ -804,8 +806,9 @@ static mir_value_t vlog_lower_binary(vlog_gen_t *g, vlog_node_t v,
    const vlog_binary_t op = vlog_subkind(v);
    const bool propagate_context =
       op == V_BINARY_AND || op == V_BINARY_OR || op == V_BINARY_XOR
-      || op == V_BINARY_XNOR || op == V_BINARY_PLUS || op == V_BINARY_MINUS
-      || op == V_BINARY_TIMES || op == V_BINARY_DIVIDE || op == V_BINARY_MOD;
+      || op == V_BINARY_XNOR || op == V_BINARY_NAND || op == V_BINARY_NOR
+      || op == V_BINARY_PLUS || op == V_BINARY_MINUS || op == V_BINARY_TIMES
+      || op == V_BINARY_DIVIDE || op == V_BINARY_MOD;
 
    vlog_node_t lhs_expr = vlog_left(v), rhs_expr = vlog_right(v);
 

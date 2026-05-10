@@ -266,6 +266,8 @@ unsigned vlog_width(vlog_node_t v)
       case V_BINARY_AND:
       case V_BINARY_XOR:
       case V_BINARY_XNOR:
+      case V_BINARY_NAND:
+      case V_BINARY_NOR:
          return MAX(vlog_width(vlog_left(v)), vlog_width(vlog_right(v)));
       case V_BINARY_SHIFT_LL:
       case V_BINARY_SHIFT_RL:
