@@ -246,16 +246,8 @@ static mir_value_t vlog_lower_array_off(vlog_gen_t *g, vlog_node_t r,
 {
    mir_value_t index = vlog_lower_rvalue(g, v);
 
-   mir_type_t index_type = mir_get_type(g->mu, index);
-   if (mir_get_class(g->mu, index_type) == MIR_TYPE_VEC4) {
-      // TODO: check X/Z handling
-      const int size = mir_get_size(g->mu, index_type);
-      mir_type_t vec2 = mir_vec2_type(g->mu, size, false);
-      index = mir_build_cast(g->mu, vec2, index);
-   }
-
    mir_type_t t_offset = mir_offset_type(g->mu);
-   mir_value_t cast = mir_build_cast(g->mu, t_offset, index);
+   mir_value_t cast = vlog_lower_cast(g, t_offset, index);
 
    assert(vlog_kind(r) == V_DIMENSION);
 
