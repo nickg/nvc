@@ -2295,6 +2295,10 @@ static tree_t resolve_record_ref_or_call(nametab_t *tab, tree_t t, bool pcall)
       return NULL;
 
    tree_t prefix = solve_types(tab, tree_value(t), NULL);
+
+   if (get_library_ref(prefix) != NULL)
+      return NULL;
+
    tree_set_value(t, (prefix = implicit_dereference(tab, prefix)));
 
    tree_t decl = get_container_ref(prefix);
