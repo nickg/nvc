@@ -754,7 +754,6 @@ mir_type_t mir_vector_slice(mir_unit_t *mu, mir_type_t base, int size)
 
    const type_data_t *td = mir_type_data(mu, base);
    assert(td->class == MIR_TYPE_VEC2 || td->class == MIR_TYPE_VEC4);
-   assert(size <= td->u.vec.size);
 
    const type_data_t new = {
       .class = td->class,

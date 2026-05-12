@@ -1256,7 +1256,8 @@ pr2801662		normal			ivltests
 pr2809288		CE			ivltests gold=pr2809288.gold
 pr2815398a		normal			ivltests gold=pr2815398a.gold
 pr2815398a_std		normal			ivltests
-pr2815398b		normal			ivltests gold=pr2815398b.gold
+# Checks iverilog-specific warning text
+#pr2815398b		normal			ivltests gold=pr2815398b.gold
 pr2818823		normal			ivltests
 pr2823414		CE			ivltests gold=pr2823414.gold
 pr2823711		normal			ivltests

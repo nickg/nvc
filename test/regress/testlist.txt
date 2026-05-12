@@ -1345,3 +1345,4 @@ binary8         verilog
 wide7           verilog
 signed4         verilog
 string2         verilog,gold
+ivtest40        verilog
