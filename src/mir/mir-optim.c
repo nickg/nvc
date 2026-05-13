@@ -745,6 +745,7 @@ static void gvn_visit_block(mir_unit_t *mu, mir_block_t block,
       case MIR_OP_ARRAY_REF:
       case MIR_OP_TABLE_REF:
       case MIR_OP_TEST:
+      case MIR_OP_DEFINED:
       case MIR_OP_EXTRACT:
       case MIR_OP_NEG:
       case MIR_OP_WRAP:

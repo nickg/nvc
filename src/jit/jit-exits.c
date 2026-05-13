@@ -1127,6 +1127,18 @@ void __nvc_vec4op(jit_vec_op_t op, jit_anchor_t *anchor, jit_scalar_t *args,
          args[1].integer = bresult;
       }
       break;
+   case JIT_VEC_DEFINED:
+      {
+         assert(size > 64);
+
+         const uint64_t *xb = args[0].pointer;
+         bool result = true;
+         for (int i = 0; i < nwords && result; i++)
+            result = xb[i] == 0;
+
+         args[0].integer = result;
+      }
+      break;
    case JIT_VEC_ZEXT:
    case JIT_VEC_SEXT:
       {

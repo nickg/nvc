@@ -4631,6 +4631,27 @@ static void irgen_op_test(jit_irgen_t *g, mir_value_t n)
    g->flags = n;
 }
 
+static void irgen_op_defined(jit_irgen_t *g, mir_value_t n)
+{
+   mir_value_t arg = mir_get_arg(g->mu, n, 0);
+   assert(mir_is(g->mu, arg, MIR_TYPE_VEC4));
+
+   const int size = mir_get_size(g->mu, mir_get_type(g->mu, arg));
+   jit_value_t bbits = irgen_get_slot(g, arg, 1);
+
+   if (size > 64) {
+      j_send(g, 0, bbits);
+      macro_vec4op(g, JIT_VEC_DEFINED, size);
+      j_recv(g, g->map[n.id], 0);
+   }
+   else {
+      jit_value_t zero = jit_value_from_int64(0);
+      j_cmp(g, JIT_CC_EQ, bbits, zero);
+      j_cset(g, g->map[n.id]);
+      g->flags = n;
+   }
+}
+
 static void irgen_op_insert(jit_irgen_t *g, mir_value_t n)
 {
    mir_value_t arg0 = mir_get_arg(g->mu, n, 0);
@@ -5147,6 +5168,9 @@ static void irgen_block(jit_irgen_t *g, mir_block_t block)
          break;
       case MIR_OP_TEST:
          irgen_op_test(g, n);
+         break;
+      case MIR_OP_DEFINED:
+         irgen_op_defined(g, n);
          break;
       case MIR_OP_GET_COUNTERS:
          irgen_op_get_counters(g, n);

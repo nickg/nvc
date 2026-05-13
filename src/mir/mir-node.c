@@ -1695,6 +1695,22 @@ mir_value_t mir_build_test(mir_unit_t *mu, mir_value_t vec)
    return result;
 }
 
+mir_value_t mir_build_defined(mir_unit_t *mu, mir_value_t vec)
+{
+   mir_type_t t_bool = mir_bool_type(mu);
+
+   const mir_class_t class = mir_get_class(mu, mir_get_type(mu, vec));
+   if (class == MIR_TYPE_VEC2)
+      return mir_const(mu, t_bool, 1);
+
+   mir_value_t result = mir_build_1(mu, MIR_OP_DEFINED, t_bool,
+                                    MIR_NULL_STAMP, vec);
+
+   MIR_ASSERT(class == MIR_TYPE_VEC4, "argument must be 4-state vector");
+
+   return result;
+}
+
 void mir_build_store(mir_unit_t *mu, mir_value_t dest, mir_value_t src)
 {
    mir_build_2(mu, MIR_OP_STORE, MIR_NULL_TYPE, MIR_NULL_STAMP, dest, src);

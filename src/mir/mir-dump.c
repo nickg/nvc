@@ -171,6 +171,7 @@ const char *mir_op_string(mir_op_t op)
       [MIR_OP_DIR_CHECK] = "dir check",
       [MIR_OP_INSERT] = "insert",
       [MIR_OP_TEST] = "test",
+      [MIR_OP_DEFINED] = "defined",
       [MIR_OP_EXTRACT] = "extract",
       [MIR_OP_SCHED_PROCESS] = "sched process",
       [MIR_OP_SCHED_INACTIVE] = "sched inactive",
@@ -1741,6 +1742,7 @@ void mir_annotate(mir_unit_t *mu, const mir_annotate_t *cb, void *ctx)
 
          case MIR_OP_PACK:
          case MIR_OP_TEST:
+         case MIR_OP_DEFINED:
             {
                col += mir_dump_value(mu, result, cb, ctx);
                col += printf(" := %s ", mir_op_string(n->op));

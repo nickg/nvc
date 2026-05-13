@@ -258,6 +258,7 @@ typedef enum {
    MIR_OP_DIR_CHECK,
    MIR_OP_INSERT,
    MIR_OP_TEST,
+   MIR_OP_DEFINED,
    MIR_OP_EXTRACT,
    MIR_OP_SCHED_PROCESS,
    MIR_OP_SCHED_INACTIVE,
@@ -548,6 +549,7 @@ mir_value_t mir_build_insert(mir_unit_t *mu, mir_value_t part, mir_value_t full,
 mir_value_t mir_build_extract(mir_unit_t *mu, mir_type_t type, mir_value_t full,
                               mir_value_t pos);
 mir_value_t mir_build_test(mir_unit_t *mu, mir_value_t vec);
+mir_value_t mir_build_defined(mir_unit_t *mu, mir_value_t vec);
 
 // Memory
 void mir_build_store(mir_unit_t *mu, mir_value_t dest, mir_value_t src);

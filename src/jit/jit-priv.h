@@ -237,6 +237,7 @@ typedef enum {
    JIT_VEC_OR1,
    JIT_VEC_TERNARY,
    JIT_VEC_EXP,
+   JIT_VEC_DEFINED,
 } jit_vec_op_t;
 
 typedef uint32_t jit_label_t;

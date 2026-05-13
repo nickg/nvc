@@ -241,21 +241,6 @@ static mir_value_t vlog_lower_test(vlog_gen_t *g, mir_value_t value)
    }
 }
 
-static mir_value_t vlog_lower_known(vlog_gen_t *g, mir_value_t value)
-{
-   mir_type_t type = mir_get_type(g->mu, value);
-   if (mir_get_class(g->mu, type) != MIR_TYPE_VEC4)
-      return mir_const(g->mu, mir_bool_type(g->mu), 1);
-
-   const int size = mir_get_size(g->mu, type);
-   const bool issigned = mir_get_signed(g->mu, type);
-   mir_type_t t_vec2 = mir_vec2_type(g->mu, size, issigned);
-   mir_value_t vec2 = mir_build_cast(g->mu, t_vec2, value);
-   mir_value_t vec4 = mir_build_cast(g->mu, type, vec2);
-   mir_value_t eq = mir_build_binary(g->mu, MIR_VEC_CASE_EQ, type, value, vec4);
-   return vlog_lower_test(g, eq);
-}
-
 static mir_value_t vlog_lower_array_off(vlog_gen_t *g, vlog_node_t r,
                                         mir_value_t index)
 {
@@ -413,7 +398,7 @@ static vlog_select_t vlog_lower_select(vlog_gen_t *g, vlog_node_t v)
 
             mir_value_t index = vlog_lower_rvalue(g, vlog_param(v, i));
             mir_value_t this_off = vlog_lower_array_off(g, dim, index);
-            mir_value_t known = vlog_lower_known(g, index);
+            mir_value_t known = mir_build_defined(g->mu, index);
 
             mir_value_t count = mir_const(g->mu, t_offset, dim_size);
             mir_value_t cmp_low =
@@ -492,7 +477,7 @@ static vlog_select_t vlog_lower_select(vlog_gen_t *g, vlog_node_t v)
          mir_value_t valid_count = vlog_lower_offset_max(g, raw_count, zero);
 
          if (kind != V_RANGE_CONST) {
-            mir_value_t known = vlog_lower_known(g, index);
+            mir_value_t known = mir_build_defined(g->mu, index);
             valid_count = mir_build_select(g->mu, t_offset, known, valid_count,
                                            zero);
          }
