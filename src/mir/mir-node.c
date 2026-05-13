@@ -1703,6 +1703,12 @@ mir_value_t mir_build_defined(mir_unit_t *mu, mir_value_t vec)
    if (class == MIR_TYPE_VEC2)
       return mir_const(mu, t_bool, 1);
 
+   if (vec.tag == MIR_TAG_NODE) {
+      const node_data_t *n = mir_node_data(mu, vec);
+      if (n->op == MIR_OP_CONST_VEC)
+         return mir_const(mu, t_bool, n->bits[1] == 0);
+   }
+
    mir_value_t result = mir_build_1(mu, MIR_OP_DEFINED, t_bool,
                                     MIR_NULL_STAMP, vec);
 
