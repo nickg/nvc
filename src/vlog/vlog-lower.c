@@ -241,11 +241,24 @@ static mir_value_t vlog_lower_test(vlog_gen_t *g, mir_value_t value)
    }
 }
 
-static mir_value_t vlog_lower_array_off(vlog_gen_t *g, vlog_node_t r,
-                                        vlog_node_t v)
+static mir_value_t vlog_lower_known(vlog_gen_t *g, mir_value_t value)
 {
-   mir_value_t index = vlog_lower_rvalue(g, v);
+   mir_type_t type = mir_get_type(g->mu, value);
+   if (mir_get_class(g->mu, type) != MIR_TYPE_VEC4)
+      return mir_const(g->mu, mir_bool_type(g->mu), 1);
 
+   const int size = mir_get_size(g->mu, type);
+   const bool issigned = mir_get_signed(g->mu, type);
+   mir_type_t t_vec2 = mir_vec2_type(g->mu, size, issigned);
+   mir_value_t vec2 = mir_build_cast(g->mu, t_vec2, value);
+   mir_value_t vec4 = mir_build_cast(g->mu, type, vec2);
+   mir_value_t eq = mir_build_binary(g->mu, MIR_VEC_CASE_EQ, type, value, vec4);
+   return vlog_lower_test(g, eq);
+}
+
+static mir_value_t vlog_lower_array_off(vlog_gen_t *g, vlog_node_t r,
+                                        mir_value_t index)
+{
    mir_type_t t_offset = mir_offset_type(g->mu);
    mir_value_t cast = vlog_lower_cast(g, t_offset, index);
 
@@ -260,24 +273,6 @@ static mir_value_t vlog_lower_array_off(vlog_gen_t *g, vlog_node_t r,
       return mir_build_sub(g->mu, t_offset, cast, left);
    else
       return mir_build_sub(g->mu, t_offset, left, cast);
-}
-
-static mir_value_t vlog_lower_part_select_off(vlog_gen_t *g, vlog_node_t r,
-                                              vlog_node_t v)
-{
-   mir_value_t base = vlog_lower_array_off(g, r, vlog_left(v));
-
-   const vlog_range_kind_t kind = vlog_subkind(v);
-   if (kind == V_RANGE_CONST)
-      return base;
-
-   const bool is_up = vlog_is_up(r);
-   if ((kind == V_RANGE_POS && is_up) || (kind == V_RANGE_NEG && !is_up))
-      return base;
-
-   mir_type_t t_offset = mir_offset_type(g->mu);
-   mir_value_t adj = mir_const(g->mu, t_offset, vlog_size(v) - 1);
-   return mir_build_sub(g->mu, t_offset, base, adj);
 }
 
 static mir_value_t vlog_lower_offset_min(vlog_gen_t *g, mir_value_t left,
@@ -416,8 +411,9 @@ static vlog_select_t vlog_lower_select(vlog_gen_t *g, vlog_node_t v)
             assert(size % dim_size == 0);
             size /= dim_size;
 
-            mir_value_t this_off =
-               vlog_lower_array_off(g, dim, vlog_param(v, i));
+            mir_value_t index = vlog_lower_rvalue(g, vlog_param(v, i));
+            mir_value_t this_off = vlog_lower_array_off(g, dim, index);
+            mir_value_t known = vlog_lower_known(g, index);
 
             mir_value_t count = mir_const(g->mu, t_offset, dim_size);
             mir_value_t cmp_low =
@@ -425,6 +421,7 @@ static vlog_select_t vlog_lower_select(vlog_gen_t *g, vlog_node_t v)
             mir_value_t cmp_high =
                mir_build_cmp(g->mu, MIR_CMP_LT, this_off, count);
             mir_value_t this_in_range = mir_build_and(g->mu, cmp_low, cmp_high);
+            this_in_range = mir_build_and(g->mu, known, this_in_range);
 
             if (size != 1) {
                mir_value_t scale = mir_const(g->mu, t_offset, size);
@@ -455,9 +452,25 @@ static vlog_select_t vlog_lower_select(vlog_gen_t *g, vlog_node_t v)
          vlog_node_t value = vlog_value(v);
          vlog_select_t prefix = vlog_lower_select(g, value);
 
+         const vlog_range_kind_t kind = vlog_subkind(v);
+
          vlog_node_t dim = vlog_get_dim(value, 0);
 
-         mir_value_t off = vlog_lower_part_select_off(g, dim, v);
+         mir_value_t index = vlog_lower_rvalue(g, vlog_left(v));
+         mir_value_t base = vlog_lower_array_off(g, dim, index);
+
+         mir_value_t off = base;
+         if (kind != V_RANGE_CONST) {
+            const bool is_up = vlog_is_up(dim);
+            const bool same_dir = (kind == V_RANGE_POS && is_up)
+               || (kind == V_RANGE_NEG && !is_up);
+
+            if (!same_dir) {
+               mir_type_t t_offset = mir_offset_type(g->mu);
+               mir_value_t adj = mir_const(g->mu, t_offset, vlog_size(v) - 1);
+               off = mir_build_sub(g->mu, t_offset, base, adj);
+            }
+         }
 
          mir_type_t t_offset = mir_offset_type(g->mu);
 
@@ -477,6 +490,13 @@ static vlog_select_t vlog_lower_select(vlog_gen_t *g, vlog_node_t v)
          mir_value_t raw_count =
             mir_build_sub(g->mu, t_offset, valid_stop, valid_start);
          mir_value_t valid_count = vlog_lower_offset_max(g, raw_count, zero);
+
+         if (kind != V_RANGE_CONST) {
+            mir_value_t known = vlog_lower_known(g, index);
+            valid_count = mir_build_select(g->mu, t_offset, known, valid_count,
+                                           zero);
+         }
+
          mir_value_t value_offset =
             mir_build_sub(g->mu, t_offset, valid_start, off);
 

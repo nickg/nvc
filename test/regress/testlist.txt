@@ -1347,3 +1347,4 @@ signed4         verilog
 string2         verilog,gold
 ivtest40        verilog
 select18        verilog
+select19        verilog
