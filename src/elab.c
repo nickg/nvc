@@ -2860,6 +2860,8 @@ static void elab_print_stats(const elab_ctx_t *ctx)
 tree_t elab(object_t *top, jit_t *jit, unit_registry_t *ur, mir_context_t *mc,
             cover_data_t *cover, sdf_file_t *sdf, rt_model_t *m)
 {
+   unit_registry_set_cover(ur, cover);
+
    make_new_arena();
 
    ident_t name = NULL;

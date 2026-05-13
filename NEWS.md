@@ -5,6 +5,9 @@
 - Local variables are now ignored in Verilog `@(*)` sensitivity lists
   (#1480).
 - PSL `next_a` is now supported with simple expressions.
+- Code coverage can now be collected for package declarations, opted
+  in via the new `+package` directive in a coverage specification
+  file (#1007).
 - Several other minor bugs were resolved (#1506, #1516, #1522, #1529).
 
 ## Version 1.20.1 - 2026-04-22

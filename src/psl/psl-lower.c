@@ -662,7 +662,7 @@ static void psl_lower_clock_decl(unit_registry_t *ur, lower_unit_t *parent,
    ident_t name = ident_prefix(prefix, label, '.');
 
    unit_registry_defer(ur, name, parent, emit_function, psl_lower_clock_func,
-                       NULL, psl_to_object(p));
+                       psl_to_object(p));
 
    vcode_type_t vtrigger = vtype_trigger();
    vcode_var_t var = emit_var(vtrigger, VCODE_INVALID_STAMP, label, 0);
