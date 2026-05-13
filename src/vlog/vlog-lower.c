@@ -49,7 +49,6 @@ typedef struct {
 
 typedef struct {
    mir_value_t obj;
-   mir_value_t offset;
    mir_value_t dst_offset;
    mir_value_t src_offset;
    mir_value_t count;
@@ -303,7 +302,6 @@ static vlog_select_t vlog_lower_select(vlog_gen_t *g, vlog_node_t v)
                vlog_select_t result = {
                   .obj        = cast,
                   .type       = ti->type,
-                  .offset     = zero,
                   .dst_offset = zero,
                   .count      = mir_const(g->mu, t_offset, ti->size),
                   .src_offset = zero,
@@ -335,7 +333,6 @@ static vlog_select_t vlog_lower_select(vlog_gen_t *g, vlog_node_t v)
          vlog_select_t result = {
             .obj        = nets,
             .type       = ti->type,
-            .offset     = zero,
             .dst_offset = zero,
             .count      = mir_const(g->mu, t_offset, ti->size),
             .src_offset = zero,
@@ -365,7 +362,6 @@ static vlog_select_t vlog_lower_select(vlog_gen_t *g, vlog_node_t v)
          vlog_select_t result = {
             .obj        = mir_build_load(g->mu, ptr),
             .type       = ti->type,
-            .offset     = zero,
             .dst_offset = zero,
             .count      = mir_const(g->mu, t_offset, ti->size),
             .src_offset = zero,
@@ -423,7 +419,6 @@ static vlog_select_t vlog_lower_select(vlog_gen_t *g, vlog_node_t v)
 
          vlog_select_t result = {
             .obj        = prefix.obj,
-            .offset     = off,
             .dst_offset = off,
             .count      = count,
             .src_offset = mir_const(g->mu, t_offset, 0),
@@ -492,7 +487,6 @@ static vlog_select_t vlog_lower_select(vlog_gen_t *g, vlog_node_t v)
 
          vlog_select_t result = {
             .obj        = prefix.obj,
-            .offset     = mir_build_add(g->mu, t_offset, off, prefix.offset),
             .dst_offset = dst_offset,
             .count      = valid_count,
             .src_offset = value_offset,
@@ -514,7 +508,6 @@ static vlog_select_t vlog_lower_select(vlog_gen_t *g, vlog_node_t v)
 
          vlog_select_t result = {
             .obj        = link,
-            .offset     = MIR_NULL_VALUE,
             .dst_offset = MIR_NULL_VALUE,
             .count      = MIR_NULL_VALUE,
             .src_offset = MIR_NULL_VALUE,
@@ -623,7 +616,7 @@ static void vlog_assign_variable(vlog_gen_t *g, vlog_node_t target,
          {
             mir_value_t cur = mir_build_load(g->mu, lvalues[0].obj);
             mir_value_t ins =
-               mir_build_insert(g->mu, cast, cur, lvalues[0].offset);
+               mir_build_insert(g->mu, cast, cur, lvalues[0].dst_offset);
             mir_build_store(g->mu, lvalues[0].obj, ins);
          }
          break;
@@ -1096,7 +1089,7 @@ static mir_value_t vlog_lower_full_select(vlog_gen_t *g,
 {
    if (mir_is_signal(g->mu, select->obj)) {
       mir_value_t data = mir_build_resolved(g->mu, select->obj);
-      mir_value_t ptr = mir_build_array_ref(g->mu, data, select->offset);
+      mir_value_t ptr = mir_build_array_ref(g->mu, data, select->dst_offset);
 
       switch (mir_get_class(g->mu, select->type)) {
       case MIR_TYPE_VEC2:
@@ -1121,7 +1114,8 @@ static mir_value_t vlog_lower_full_select(vlog_gen_t *g,
       switch (mir_get_class(g->mu, select->type)) {
       case MIR_TYPE_VEC2:
       case MIR_TYPE_VEC4:
-         return mir_build_extract(g->mu, select->type, data, select->offset);
+         return mir_build_extract(g->mu, select->type, data,
+                                  select->dst_offset);
       case MIR_TYPE_CONTEXT:
       case MIR_TYPE_REAL:
          return data;
@@ -2728,7 +2722,6 @@ static void vlog_lower_port_map(vlog_gen_t *g, vlog_node_t v)
          lvalue1 = (vlog_select_t){
             .obj        = signal,
             .size       = ti->size,
-            .offset     = zero,
             .dst_offset = zero,
             .count      = mir_const(g->mu, t_offset, ti->size),
             .src_offset = zero,
