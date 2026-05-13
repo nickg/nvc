@@ -2816,7 +2816,7 @@ static void vlog_lower_net_decl(vlog_gen_t *g, vlog_node_t v, tree_t wrap,
    const type_info_t *ti = vlog_type_info(g, vlog_type(v));
    const int total_size = ti->size * vlog_size(v);
 
-   mir_value_t value = mir_const(g->mu, t_net_value, LOGIC_X);
+   mir_value_t value = mir_const(g->mu, t_net_value, LOGIC_Z);
    mir_value_t count = mir_const(g->mu, t_offset, total_size);
    mir_value_t size = mir_const(g->mu, t_offset, 1);
    mir_value_t flags = mir_const(g->mu, t_offset, 0);

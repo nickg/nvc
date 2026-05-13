@@ -43,7 +43,7 @@ begin
         wait for 1 ns;
         assert o1 = '0';
         assert o2 = '1';
-        assert o3 = 'U';
+        assert o3 = 'Z';
         assert o4 = '0';
         assert o5 = '1';
         wait;

@@ -12,7 +12,7 @@ module select16;
     a = 1'b0;
     #1;
 
-    if (x !== 8'bxxxxxxxx) begin
+    if (x !== 8'bzzzzzzzz) begin
       $display("FAILED (1) -- %b", x);
       $finish;
     end
@@ -20,7 +20,7 @@ module select16;
     a = 1'b1;
     #1;
 
-    if (x !== 8'bxxxxxxxx) begin
+    if (x !== 8'bzzzzzzzz) begin
       $display("FAILED (2) -- %b", x);
       $finish;
     end
