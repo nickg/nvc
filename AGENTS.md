@@ -38,4 +38,9 @@ Avoid running multiple tests or builds in parallel.
 New regression tests should be appended to the end of
 `test/regress/testlist.txt`.
 
+Set the `NVC_LOWER_VERBOSE` environment variable to print the generated
+IR.  E.g. `NVC_LOWER_VERBOSE=1` to print all units or
+`NVC_LOWER_VERBOSE=foo` to print only `foo`.  Other `NVC_*_VERBOSE`
+environment variables are available.
+
 Keep edits minimal where possible.

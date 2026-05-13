@@ -598,13 +598,10 @@ static void vlog_assign_variable(vlog_gen_t *g, vlog_node_t target,
             mir_set_cursor(g->mu, guarded_bb, MIR_APPEND);
          }
 
-         mir_value_t src = unpacked;
-         if (offset > 0) {
-            mir_value_t pos = mir_build_add(g->mu, t_offset,
-                                            mir_const(g->mu, t_offset, offset),
-                                            lvalues[i].src_offset);
-            src = mir_build_array_ref(g->mu, unpacked, pos);
-         }
+         mir_value_t pos = mir_build_add(g->mu, t_offset,
+                                         mir_const(g->mu, t_offset, offset),
+                                         lvalues[i].src_offset);
+         mir_value_t src = mir_build_array_ref(g->mu, unpacked, pos);
 
          mir_build_deposit_signal(g->mu, nets, lvalues[i].count, src);
 
