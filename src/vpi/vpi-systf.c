@@ -54,7 +54,7 @@ static int calc_dec_size(int nr_bits, bool is_signed)
    return r;
 }
 
-static void format_radix(vpiHandle arg, char radix, int fwidth)
+static void format_radix(vpiHandle arg, char radix, int fwidth, int precision)
 {
    switch (radix) {
    case 'd':
@@ -66,8 +66,12 @@ static void format_radix(vpiHandle arg, char radix, int fwidth)
          if (!vpi_chk_error(NULL)) {
             const int nbits = vpi_get(vpiSize, arg);
             const int dmax = calc_dec_size(nbits, false);
+            const int pad_width =
+               nbits >= 64 ? MAX(fwidth, dmax) : fwidth;
 
-            if (dmax > strlen(argval.value.str))
+            if (pad_width >= 0)
+               printf("%*s", pad_width, argval.value.str);
+            else if (dmax > strlen(argval.value.str))
                printf("%*s", dmax, argval.value.str);
             else
                fputs(argval.value.str, stdout);
@@ -107,20 +111,27 @@ static void format_radix(vpiHandle arg, char radix, int fwidth)
          s_vpi_value argval = { .format = vpiRealVal };
          vpi_get_value(arg, &argval);
 
-         if (!vpi_chk_error(NULL))
-            printf("%f", argval.value.real);
+         if (!vpi_chk_error(NULL)) {
+            if (precision >= 0)
+               printf("%*.*f", fwidth < 0 ? 0 : fwidth, precision,
+                      argval.value.real);
+            else if (fwidth >= 0)
+               printf("%*f", fwidth, argval.value.real);
+            else
+               printf("%f", argval.value.real);
+         }
       }
       break;
    }
 }
 
-static void format_number(vpiHandle it, char radix, int fwidth)
+static void format_number(vpiHandle it, char radix, int fwidth, int precision)
 {
    vpiHandle arg = vpi_scan(it);
    if (arg == NULL)
       return;
 
-   format_radix(arg, radix, fwidth);
+   format_radix(arg, radix, fwidth, precision);
    vpi_release_handle(arg);
 }
 
@@ -152,9 +163,15 @@ static void interpret_format(const char *fmt, vpiHandle it)
 
          p++;   // Skip over '%'
 
-         int fwidth = 0;
+         int fwidth = -1;
          if (isdigit_iso88591(*p))
-            fwidth = strtol(p + 1, (char **)&p, 10);
+            fwidth = strtol(p, (char **)&p, 10);
+
+         int precision = -1;
+         if (*p == '.') {
+            p++;
+            precision = strtol(p, (char **)&p, 10);
+         }
 
          switch (*p) {
          case 's':
@@ -166,7 +183,7 @@ static void interpret_format(const char *fmt, vpiHandle it)
          case 'h':
          case 't':
          case 'f':
-            format_number(it, *p, fwidth);
+            format_number(it, *p, fwidth, precision);
             break;
          case 'c':
             format_char(it, fwidth);
@@ -220,7 +237,7 @@ static void verilog_printf(char default_radix)
       if (is_null)
          fputc(' ', stdout);
       else
-         format_radix(arg, default_radix, 0);
+         format_radix(arg, default_radix, -1, -1);
 
       vpi_release_handle(arg);
       arg = vpi_scan(it);

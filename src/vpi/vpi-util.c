@@ -184,6 +184,10 @@ void vpi_format_number(int size, bool is_signed, const uint64_t *abits,
       val->value.integer = abits[0];
       break;
 
+   case vpiRealVal:
+      val->value.real = vec4_itor(size, is_signed, abits, bbits);
+      break;
+
    default:
       vpi_error(vpiError, NULL, "unsupported number format %d", val->format);
       break;

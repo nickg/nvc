@@ -24,6 +24,7 @@
 
 #include <assert.h>
 #include <inttypes.h>
+#include <math.h>
 #include <string.h>
 #include <stdlib.h>
 
@@ -1505,6 +1506,26 @@ void vec2_itoa(int size, const uint64_t *a, bool is_signed, text_buf_t *tb)
             tb_append(tb, buf[ndigits - 1]);
       }
    }
+}
+
+double vec4_itor(int size, bool is_signed, const uint64_t *a,
+                 const uint64_t *b)
+{
+   double result = 0.0;
+   for (int i = size - 1; i >= 0; i--) {
+      result *= 2.0;
+      const uint64_t mask = UINT64_C(1) << (i % 64);
+      if (!(b[i / 64] & mask) && !!(a[i / 64] & mask))
+         result += 1.0;
+   }
+
+   if (is_signed && size > 0) {
+      const uint64_t mask = UINT64_C(1) << ((size - 1) % 64);
+      if (!(b[(size - 1) / 64] & mask) && !!(a[(size - 1) / 64] & mask))
+         result -= ldexp(1.0, size);
+   }
+
+   return result;
 }
 
 static void vec4_make_undef(int size, uint64_t *a, uint64_t *b)

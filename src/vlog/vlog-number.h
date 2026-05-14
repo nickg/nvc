@@ -136,6 +136,8 @@ vlog_logic_t vec4_logor(int size, const uint64_t *xa, const uint64_t *xb,
                         const uint64_t *ya, const uint64_t *yb);
 
 void vec2_itoa(int size, const uint64_t *a, bool is_signed, text_buf_t *tb);
+double vec4_itor(int size, bool is_signed, const uint64_t *a,
+                 const uint64_t *b);
 
 void vec4_add(int size, uint64_t *a1, uint64_t *b1, const uint64_t *a2,
               const uint64_t *b2);

@@ -1219,33 +1219,26 @@ void vpi_get_value(vpiHandle handle, p_vpi_value value_p)
          return;
       }
 
-      switch (value_p->format) {
-      case vpiRealVal:
-         goto fail;
-      default:
-         {
-            const int width = signal_width(s);
-            const int nwords = (width + 63) / 64;
-            uint64_t *mem LOCAL = xmalloc_array(nwords * 2, sizeof(uint64_t));
-            uint64_t *abits = mem, *bbits = mem + nwords;
+      const int width = signal_width(s);
+      const int nwords = (width + 63) / 64;
+      uint64_t *mem LOCAL = xmalloc_array(nwords * 2, sizeof(uint64_t));
+      uint64_t *abits = mem, *bbits = mem + nwords;
 
-            for (int i = 0; i < nwords * 2; i++)
-               mem[i] = 0;
+      for (int i = 0; i < nwords * 2; i++)
+         mem[i] = 0;
 
-            const uint8_t *vals = signal_value(s);
+      const uint8_t *vals = signal_value(s);
 
-            for (int i = 0; i < width; i++) {
-               const int pos = width - 1 - i;
-               abits[pos / 64] |= (uint64_t)(vals[i] & 1) << (pos % 64);
-               bbits[pos / 64] |= (uint64_t)((vals[i] >> 1) & 1) << (pos % 64);
-            }
-
-            const bool is_signed = !!(vlog_flags(type) & VLOG_F_SIGNED);
-            vpi_format_number(width, is_signed, abits, bbits, value_p,
-                              c->valuestr);
-            return;
-         }
+      for (int i = 0; i < width; i++) {
+         const int pos = width - 1 - i;
+         abits[pos / 64] |= (uint64_t)(vals[i] & 1) << (pos % 64);
+         bbits[pos / 64] |= (uint64_t)((vals[i] >> 1) & 1) << (pos % 64);
       }
+
+      const bool is_signed = !!(vlog_flags(type) & VLOG_F_SIGNED);
+      vpi_format_number(width, is_signed, abits, bbits, value_p,
+                        c->valuestr);
+      return;
    }
 
  fail:
