@@ -2342,6 +2342,8 @@ static void vlog_lower_sensitivity(vlog_gen_t *g, vlog_node_t v)
       }
       break;
    case V_NUMBER:
+   case V_STRING:
+   case V_REAL:
       break;
    case V_BINARY:
       vlog_lower_sensitivity(g, vlog_left(v));
