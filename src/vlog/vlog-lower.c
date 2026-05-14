@@ -103,6 +103,22 @@ static const type_info_t *vlog_type_info(vlog_gen_t *g, vlog_node_t v)
    switch (kind) {
    case V_DATA_TYPE:
       break;
+   case V_STRUCT_DECL:
+      {
+         assert(vlog_flags(v) & VLOG_F_PACKED);
+
+         mir_type_t t_unpacked_logic = mir_int_type(g->mu, 0, 3);
+         mir_type_t t_logic_signal = mir_signal_type(g->mu, t_unpacked_logic);
+
+         const bool issigned = !!(vlog_flags(v) & VLOG_F_SIGNED);
+
+         ti->size     = vlog_size(v);
+         ti->type     = mir_vec4_type(g->mu, ti->size, issigned);
+         ti->unpacked = t_unpacked_logic;
+         ti->signal   = t_logic_signal;
+         ti->elemsz   = 1;
+         return ti;
+      }
    case V_CLASS_DECL:
       {
          ident_t name = ident_prefix(vlog_ident2(v), vlog_ident(v), '.');
@@ -153,6 +169,24 @@ static const type_info_t *vlog_type_info(vlog_gen_t *g, vlog_node_t v)
    }
 
    return ti;
+}
+
+static unsigned vlog_packed_offset(vlog_node_t type, vlog_node_t member)
+{
+   assert(vlog_flags(type) & VLOG_F_PACKED);
+
+   unsigned offset = 0;
+
+   const int ndecls = vlog_decls(type);
+   for (int i = 0; i < ndecls; i++) {
+      vlog_node_t d = vlog_decl(type, i);
+      if (d == member)
+         return offset;
+
+      offset += vlog_size(vlog_type(d));
+   }
+
+   should_not_reach_here();
 }
 
 static mir_value_t vlog_get_temp(vlog_gen_t *g, mir_type_t type)
@@ -498,19 +532,39 @@ static vlog_select_t vlog_lower_select(vlog_gen_t *g, vlog_node_t v)
    case V_MEMBER_REF:
       {
          vlog_select_t prefix = vlog_lower_select(g, vlog_value(v));
-         assert(mir_points_to(g->mu, prefix.obj, MIR_TYPE_CONTEXT));
+         vlog_node_t decl = vlog_ref(v);
+         const type_info_t *ti = vlog_type_info(g, vlog_type(decl));
 
-         const type_info_t *ti = vlog_type_info(g, vlog_type(vlog_ref(v)));
+         if (mir_points_to(g->mu, prefix.obj, MIR_TYPE_CONTEXT)) {
+            mir_value_t context = mir_build_load(g->mu, prefix.obj);
+            mir_value_t link = mir_build_link_var(g->mu, context,
+                                                  vlog_ident(v), ti->type);
 
-         mir_value_t context = mir_build_load(g->mu, prefix.obj);
-         mir_value_t link = mir_build_link_var(g->mu, context,
-                                               vlog_ident(v), ti->type);
+            vlog_select_t result = {
+               .obj        = link,
+               .dst_offset = MIR_NULL_VALUE,
+               .count      = MIR_NULL_VALUE,
+               .src_offset = MIR_NULL_VALUE,
+               .type       = ti->type,
+               .size       = ti->size,
+            };
+            return result;
+         }
+
+         vlog_node_t type = vlog_get_type(vlog_value(v));
+         assert(vlog_flags(type) & VLOG_F_PACKED);
+
+         mir_type_t t_offset = mir_offset_type(g->mu);
+         mir_value_t offset =
+            mir_const(g->mu, t_offset, vlog_packed_offset(type, decl));
+         mir_value_t dst_offset =
+            mir_build_add(g->mu, t_offset, prefix.dst_offset, offset);
 
          vlog_select_t result = {
-            .obj        = link,
-            .dst_offset = MIR_NULL_VALUE,
-            .count      = MIR_NULL_VALUE,
-            .src_offset = MIR_NULL_VALUE,
+            .obj        = prefix.obj,
+            .dst_offset = dst_offset,
+            .count      = mir_const(g->mu, t_offset, ti->size),
+            .src_offset = mir_const(g->mu, t_offset, 0),
             .type       = ti->type,
             .size       = ti->size,
          };
@@ -1187,6 +1241,7 @@ static mir_value_t vlog_lower_with_context(vlog_gen_t *g, vlog_node_t v,
    case V_REF:
    case V_BIT_SELECT:
    case V_PART_SELECT:
+   case V_MEMBER_REF:
       return vlog_lower_rvalue_select(g, v);
    case V_HIER_REF:
       {
@@ -1417,15 +1472,6 @@ static mir_value_t vlog_lower_with_context(vlog_gen_t *g, vlog_node_t v,
          mir_value_t context = mir_build_context_upref(g->mu, 0);  // XXX
          return mir_build_protected_init(g->mu, ti->type, context,
                                          MIR_NULL_VALUE, MIR_NULL_VALUE);
-      }
-   case V_MEMBER_REF:
-      {
-         const type_info_t *ti = vlog_type_info(g, vlog_type(vlog_ref(v)));
-
-         mir_value_t context = vlog_lower_rvalue(g, vlog_value(v));
-         mir_value_t link = mir_build_link_var(g->mu, context,
-                                               vlog_ident(v), ti->type);
-         return mir_build_load(g->mu, link);
       }
    case V_NULL:
       {

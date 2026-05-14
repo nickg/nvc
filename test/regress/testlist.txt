@@ -1352,3 +1352,4 @@ select20        verilog
 ivtest41        verilog
 ivtest42        verilog,gold
 display4        verilog,gold
+struct1         verilog

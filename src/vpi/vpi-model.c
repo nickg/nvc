@@ -1210,10 +1210,10 @@ void vpi_get_value(vpiHandle handle, p_vpi_value value_p)
       rt_signal_t *s = container_of(*ss, rt_signal_t, shared);
 
       vlog_node_t type = vlog_get_type(decl->where);
-      if (type == NULL || vlog_kind(type) != V_DATA_TYPE)
+      if (type == NULL)
          goto fail;
 
-      if (vlog_subkind(type) == DT_REAL) {
+      if (vlog_kind(type) == V_DATA_TYPE && vlog_subkind(type) == DT_REAL) {
          value_p->format = vpiRealVal;
          value_p->value.real = unaligned_load(signal_value(s), double);
          return;

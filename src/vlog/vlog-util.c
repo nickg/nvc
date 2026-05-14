@@ -169,8 +169,21 @@ unsigned vlog_size(vlog_node_t v)
          else
             return left - right + 1;
       }
-   case V_CLASS_DECL:
    case V_TYPE_DECL:
+      return vlog_size(vlog_type(v));
+   case V_STRUCT_DECL:
+   case V_UNION_DECL:
+      if (vlog_flags(v) & VLOG_F_PACKED) {
+         unsigned width = 0;
+
+         const int ndecls = vlog_decls(v);
+         for (int i = 0; i < ndecls; i++)
+            width += vlog_size(vlog_type(vlog_decl(v, i)));
+
+         return width;
+      }
+      // Fall-through
+   case V_CLASS_DECL:
    case V_ENUM_DECL:
       return 0;  // Undefined
    default:
