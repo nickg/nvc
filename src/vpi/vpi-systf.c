@@ -395,7 +395,7 @@ static PLI_INT32 random_tf(PLI_BYTE8 *userdata)
    return 0;
 }
 
-static PLI_INT32 sqrt_tf(PLI_BYTE8 *userdata)
+static PLI_INT32 real_unary_tf(double (*fn)(double))
 {
    vpiHandle call = vpi_handle(vpiSysTfCall, NULL);
    assert(call != NULL);
@@ -412,13 +412,58 @@ static PLI_INT32 sqrt_tf(PLI_BYTE8 *userdata)
 
    s_vpi_value result = {
       .format = vpiRealVal,
-      .value = { .real = sqrt(value.value.real) },
+      .value = { .real = (*fn)(value.value.real) },
    };
 
    vpi_put_value(call, &result, NULL, 0);
 
    vpi_release_handle(call);
    return 0;
+}
+
+static PLI_INT32 sqrt_tf(PLI_BYTE8 *userdata)
+{
+   return real_unary_tf(sqrt);
+}
+
+static PLI_INT32 sin_tf(PLI_BYTE8 *userdata)
+{
+   return real_unary_tf(sin);
+}
+
+static PLI_INT32 cos_tf(PLI_BYTE8 *userdata)
+{
+   return real_unary_tf(cos);
+}
+
+static PLI_INT32 tan_tf(PLI_BYTE8 *userdata)
+{
+   return real_unary_tf(tan);
+}
+
+static PLI_INT32 ln_tf(PLI_BYTE8 *userdata)
+{
+   return real_unary_tf(log);
+}
+
+static PLI_INT32 log10_tf(PLI_BYTE8 *userdata)
+{
+   return real_unary_tf(log10);
+}
+
+static PLI_INT32 exp_tf(PLI_BYTE8 *userdata)
+{
+   return real_unary_tf(exp);
+}
+
+static PLI_INT32 ceil_tf(PLI_BYTE8 *userdata)
+{
+   return real_unary_tf(ceil);
+}
+
+static PLI_INT32 floor_tf(PLI_BYTE8 *userdata)
+{
+   return real_unary_tf(floor);
 }
 
 static s_vpi_systf_data builtins[] = {
@@ -513,6 +558,54 @@ static s_vpi_systf_data builtins[] = {
       .tfname      = "$sqrt",
       .sysfunctype = vpiRealFunc,
       .calltf      = sqrt_tf
+   },
+   {
+      .type        = vpiSysFunc,
+      .tfname      = "$sin",
+      .sysfunctype = vpiRealFunc,
+      .calltf      = sin_tf
+   },
+   {
+      .type        = vpiSysFunc,
+      .tfname      = "$cos",
+      .sysfunctype = vpiRealFunc,
+      .calltf      = cos_tf
+   },
+   {
+      .type        = vpiSysFunc,
+      .tfname      = "$tan",
+      .sysfunctype = vpiRealFunc,
+      .calltf      = tan_tf
+   },
+   {
+      .type        = vpiSysFunc,
+      .tfname      = "$ln",
+      .sysfunctype = vpiRealFunc,
+      .calltf      = ln_tf
+   },
+   {
+      .type        = vpiSysFunc,
+      .tfname      = "$log10",
+      .sysfunctype = vpiRealFunc,
+      .calltf      = log10_tf
+   },
+   {
+      .type        = vpiSysFunc,
+      .tfname      = "$exp",
+      .sysfunctype = vpiRealFunc,
+      .calltf      = exp_tf
+   },
+   {
+      .type        = vpiSysFunc,
+      .tfname      = "$ceil",
+      .sysfunctype = vpiRealFunc,
+      .calltf      = ceil_tf
+   },
+   {
+      .type        = vpiSysFunc,
+      .tfname      = "$floor",
+      .sysfunctype = vpiRealFunc,
+      .calltf      = floor_tf
    }
 };
 

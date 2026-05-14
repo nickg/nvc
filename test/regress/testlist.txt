@@ -1350,3 +1350,4 @@ select18        verilog
 select19        verilog
 select20        verilog
 ivtest41        verilog
+ivtest42        verilog,gold
