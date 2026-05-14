@@ -5976,6 +5976,7 @@ START_TEST(test_issue789)
       { 15, "invalid use of architecture RTL" },
       {  0, "declaration of literal RTL is hidden" },
       {  0, "name RTL refers to this architecture" },
+      { 31, "missing 'entity' keyword in entity binding indication." },
       { 31, "design unit WORK.TEST1 is not a component declaration" },
       { -1, NULL }
    };
@@ -7644,12 +7645,13 @@ START_TEST(test_issue1535)
    input_from_file(TESTDIR "/parse/issue1535.vhd");
 
    const error_t expect[] = {
-      { 6, "invalid procedure call" },
+      { 16, "missing 'entity' keyword in entity binding indication" },
+      { 16, "design unit WORK.SUB is not a component declaration" },
       { -1, NULL }
    };
    expect_errors(expect);
 
-   parse_and_check(T_ENTITY, T_ARCH);
+   parse_and_check(T_ENTITY, T_ARCH, T_ENTITY, T_ARCH);
 
    check_expected_errors();
 }

@@ -13182,6 +13182,38 @@ static tree_t p_psl_or_concurrent_assert(ident_t label)
    return conc;
 }
 
+static bool is_component_instantiation_statement(ident_t label)
+{
+   const token_t p2 = peek_nth(2);
+
+   if (label == NULL)
+      return false;
+
+   if (p2 == tSEMI || p2 == tGENERIC || p2 == tPORT)
+      return true;
+
+   if (p2 != tDOT)
+      return false;
+
+   const token_t p4 = peek_nth(4);
+   const token_t p6 = peek_nth(6);
+   const token_t p7 = peek_nth(7);
+   bool rv = false;
+
+   if (p4 == tSEMI || p4 == tGENERIC || p4 == tPORT || p4 == tEOF)
+      rv = true;
+
+   if (p4 == tLPAREN && p6 == tRPAREN &&
+       (p7 == tSEMI || p7 == tGENERIC || p7 == tPORT || p7 == tEOF))
+      rv = true;
+
+   if (rv)
+      parse_error(CURRENT_LOC,
+                  "missing 'entity' keyword in entity binding indication.");
+
+   return rv;
+}
+
 static tree_t p_concurrent_statement(void)
 {
    // block_statement | process_statement | concurrent_procedure_call_statement
@@ -13233,8 +13265,7 @@ static tree_t p_concurrent_statement(void)
 
    case tID:
       {
-         const token_t p2 = peek_nth(2);
-         if ((label != NULL && p2 == tSEMI) || p2 == tGENERIC || p2 == tPORT)
+         if (is_component_instantiation_statement(label))
             return p_component_instantiation_statement(label, NULL);
          else {
             tree_t name = p_name(N_SUBPROGRAM), conc;

@@ -1,7 +1,17 @@
-entity test is
+entity sub is
 end entity;
 
-architecture rtl of test is
+architecture test of sub is
 begin
-  i_test : work.test1;
+end architecture;
+
+library work;
+use work.sub;
+
+entity issue1535 is
+end entity;
+
+architecture rtl of issue1535 is
+begin
+  i_test : work.sub;
 end architecture;
