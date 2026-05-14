@@ -585,11 +585,15 @@ static vlog_node_t simp_localparam(vlog_node_t v)
    vlog_node_t dt = vlog_new(V_DATA_TYPE);
    vlog_set_loc(dt, vlog_loc(v));
 
-   int width = 1;
+   int width = 32;
+   bool issigned = true;
    vlog_node_t value = vlog_value(v);
    const vlog_kind_t kind = vlog_kind(value);
-   if (kind == V_NUMBER || kind == V_STRING)
-      width = number_width(vlog_number(value));
+   if (kind == V_NUMBER || kind == V_STRING) {
+      number_t n = vlog_number(value);
+      width = number_width(n);
+      issigned = number_signed(n);
+   }
 
    if (kind == V_REAL)
       vlog_set_subkind(dt, DT_REAL);
@@ -612,13 +616,15 @@ static vlog_node_t simp_localparam(vlog_node_t v)
          break;
       }
    }
-   else if (width <= 32) {
+   else if (width == 32 && issigned) {
       vlog_set_subkind(dt, DT_INTEGER);
       vlog_set_flags(dt, VLOG_F_SIGNED);
-      width = 32;
    }
-   else
+   else {
       vlog_set_subkind(dt, DT_LOGIC);
+      if (issigned)
+         vlog_set_flags(dt, VLOG_F_SIGNED);
+   }
 
    if (width != 1) {
       vlog_node_t left = vlog_new(V_NUMBER);

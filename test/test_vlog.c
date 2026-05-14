@@ -1695,6 +1695,14 @@ START_TEST(test_simp2)
    ck_assert_int_eq(number_width(p2n), 32);
    ck_assert(!number_is_defined(p2n));
 
+   vlog_node_t p3 = vlog_decl(m, 3);
+   ck_assert_vlog_kind(p3, V_LOCALPARAM);
+
+   vlog_node_t p3t = vlog_type(p3);
+   ck_assert_vlog_kind(p3t, V_DATA_TYPE);
+   ck_assert_int_eq(vlog_subkind(p3t), DT_LOGIC);
+   ck_assert(!(vlog_flags(p3t) & VLOG_F_SIGNED));
+
    fail_unless(vlog_parse() == NULL);
 
    fail_if_errors();
