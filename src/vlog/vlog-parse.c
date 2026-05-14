@@ -796,7 +796,12 @@ static vlog_node_t p_data_type(void)
       {
          vlog_node_t v = p_struct_union();
 
-         (void)optional(tPACKED);
+         if (optional(tPACKED)) {
+            vlog_set_flags(v, VLOG_F_PACKED);
+
+            if (scan(tSIGNED, tUNSIGNED))
+               vlog_set_flags(v, p_signing());
+         }
 
          consume(tLBRACE);
 

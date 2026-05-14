@@ -134,10 +134,10 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
    (I_IDENT | I_TYPE | I_VALUE),
 
    // V_UNION_DECL
-   (I_IDENT | I_DECLS),
+   (I_IDENT | I_DECLS | I_FLAGS),
 
    // V_STRUCT_DECL
-   (I_IDENT | I_DECLS),
+   (I_IDENT | I_DECLS | I_FLAGS),
 
    // V_EVENT_CONTROL
    (I_PARAMS),

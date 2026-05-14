@@ -478,14 +478,16 @@ vlog_node_t vlog_get_type(vlog_node_t v)
 {
    switch (vlog_kind(v)) {
    case V_STRUCT_DECL:
+   case V_UNION_DECL:
    case V_ENUM_DECL:
    case V_DATA_TYPE:
+   case V_CLASS_DECL:
       return v;
    case V_VAR_DECL:
    case V_NET_DECL:
    case V_TYPE_DECL:
    case V_CLASS_NEW:
-      return vlog_type(v);
+      return vlog_get_type(vlog_type(v));
    case V_REF:
    case V_MEMBER_REF:
       if (vlog_has_ref(v))

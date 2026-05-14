@@ -641,7 +641,7 @@ START_TEST(test_struct1)
    const error_t expect[] = {
       { 14, "duplicate declaration of 'a'" },
       { 19, "struct has no field named 'c'" },
-      { 20, "prefix is not a struct or class" },
+      { 20, "prefix is not a struct, union, or class" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -716,7 +716,7 @@ START_TEST(test_union1)
    input_from_file(TESTDIR "/vlog/union1.sv");
 
    vlog_node_t m = do_parse_check(V_MODULE);
-   ck_assert_int_eq(vlog_decls(m), 2);
+   ck_assert_int_eq(vlog_decls(m), 4);
 
    fail_unless(vlog_parse() == NULL);
 

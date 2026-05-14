@@ -184,13 +184,13 @@ static void lookup_member(vlog_symtab_t *st, vlog_node_t v)
    }
 
    const vlog_kind_t kind = vlog_kind(type);
-   if (kind != V_STRUCT_DECL && kind != V_CLASS_DECL) {
+   if (kind != V_STRUCT_DECL && kind != V_UNION_DECL && kind != V_CLASS_DECL) {
       diag_t *d = diag_new(DIAG_ERROR, vlog_loc(prefix));
       if (vlog_kind(prefix) == V_REF)
          diag_printf(d, "'%pi'", vlog_ident(prefix));
       else
          diag_printf(d, "prefix");
-      diag_printf(d, " is not a struct or class");
+      diag_printf(d, " is not a struct, union, or class");
       diag_emit(d);
       return;
    }
@@ -207,12 +207,14 @@ static void lookup_member(vlog_symtab_t *st, vlog_node_t v)
    }
 
    diag_t *d = diag_new(DIAG_ERROR, vlog_loc(v));
-   if (kind == V_STRUCT_DECL)
-      diag_printf(d, "struct ");
+   if (kind == V_STRUCT_DECL || kind == V_UNION_DECL)
+      diag_printf(d, "%s ", kind == V_STRUCT_DECL ? "struct" : "union");
    else
       diag_printf(d, "class '%pi' ", vlog_ident(type));
    diag_printf(d, "has no field named '%pi'", id);
-   diag_hint(d, vlog_loc(type), "struct declared here");
+   diag_hint(d, vlog_loc(type), "%s declared here",
+             kind == V_STRUCT_DECL ? "struct" :
+             kind == V_UNION_DECL ? "union" : "class");
    diag_emit(d);
 }
 

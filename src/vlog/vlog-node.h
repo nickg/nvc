@@ -300,6 +300,7 @@ typedef enum {
 
 typedef enum {
    VLOG_F_SIGNED = (1 << 0),
+   VLOG_F_PACKED = (1 << 1),
 } vlog_flags_t;
 
 #define STRENGTH1(st) (((st) >> 5) & 7)

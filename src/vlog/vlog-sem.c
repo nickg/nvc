@@ -34,13 +34,14 @@ typedef uint32_t type_mask_t;
 #define TM_CONST  TM(30)
 #define TM_CLASS  TM(29)
 #define TM_STRUCT TM(28)
-#define TM_ENUM   TM(27)
+#define TM_UNION  TM(27)
+#define TM_ENUM   TM(26)
 #define TM_INTEGRAL \
    (TM(DT_LOGIC) | TM(DT_INTEGER) | TM(DT_BYTE) | TM(DT_SHORTINT) \
     | TM(DT_INT) | TM(DT_LONGINT) | TM(DT_TIME) | TM(DT_BIT) | TM_ENUM \
     | TM(DT_IMPLICIT))
 #define TM_REAL (TM(DT_REAL) | TM(DT_SHORTREAL))
-#define TM_STRICT (TM_STRUCT | TM_CLASS)
+#define TM_STRICT (TM_STRUCT | TM_UNION | TM_CLASS)
 
 static void vlog_check_decls(vlog_node_t v);
 static void vlog_check_stmts(vlog_node_t v);
@@ -66,7 +67,9 @@ static type_mask_t get_type_mask(vlog_node_t v)
    case V_DATA_TYPE:
       return TM(vlog_subkind(v));
    case V_STRUCT_DECL:
-      return TM_STRUCT;
+      return (vlog_flags(v) & VLOG_F_PACKED) ? TM_INTEGRAL : TM_STRUCT;
+   case V_UNION_DECL:
+      return (vlog_flags(v) & VLOG_F_PACKED) ? TM_INTEGRAL : TM_UNION;
    case V_CLASS_DECL:
       return TM_CLASS;
    case V_ENUM_DECL:
@@ -103,6 +106,7 @@ static const char *type_mask_str(type_mask_t tm)
    case TM_REAL: return "real";
    case TM_CLASS: return "class";
    case TM_STRUCT: return "struct";
+   case TM_UNION: return "union";
    case TM_ENUM: return "enum";
    default: return (tm & TM_INTEGRAL) ? "integral" : "unknown";
    }
