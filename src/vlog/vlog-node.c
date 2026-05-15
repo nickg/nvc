@@ -305,7 +305,7 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
    (I_REF | I_IDENT),
 
    // V_NAMESPACE
-   (I_DECLS),
+   (I_DECLS | I_IDENT),
 
    // V_DEFPARAM
    (I_TARGET | I_VALUE),
@@ -353,8 +353,9 @@ object_class_t vlog_object = {
    .tag            = OBJECT_TAG_VLOG,
    .last_kind      = V_LAST_NODE_KIND,
    .has_loc        = true,
-   .gc_roots       = { V_MODULE, V_PRIMITIVE, V_PROGRAM, V_PACKAGE },
-   .gc_num_roots   = 4,
+   .gc_roots       = { V_MODULE, V_PRIMITIVE, V_PROGRAM, V_PACKAGE,
+                       V_NAMESPACE },
+   .gc_num_roots   = 5,
 };
 
 struct _vlog_node {

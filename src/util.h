@@ -373,6 +373,9 @@ typedef struct {
 bool get_file_info(const char *path, file_info_t *info);
 bool get_handle_info(int fd, file_info_t *info);
 
+#define SHA_HEX_LEN (20 * 2 + 1)
+void get_hex_hash(const char *str, char out[SHA_HEX_LEN]);
+
 void progress(const char *fmt, ...)
    __attribute__((format(printf, 1, 2)));
 

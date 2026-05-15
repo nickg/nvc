@@ -22,8 +22,7 @@
 #include "array.h"
 #include "cov/cov-api.h"
 #include "cov/cov-data.h"
-
-#define SHA_HEX_LEN (20 * 2 + 1)
+#include "util.h"
 
 typedef struct _cover_block {
    ident_t        name;

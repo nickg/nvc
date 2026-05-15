@@ -23,7 +23,6 @@
 #include "hash.h"
 #include "ident.h"
 #include "lib.h"
-#include "thirdparty/sha1.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -43,19 +42,6 @@ typedef struct _cover_rpt {
 
 static void rpt_visit_children(cover_rpt_t *rpt, rpt_hier_t *h,
                                const cover_scope_t *s);
-
-static void get_hex_hash(const char *str, char out[SHA_HEX_LEN])
-{
-   SHA1_CTX ctx;
-   unsigned char hash[SHA1_LEN];
-
-   SHA1Init(&ctx);
-   SHA1Update(&ctx, (const unsigned char *)str, strlen(str));
-   SHA1Final(hash, &ctx);
-
-   for (int i = 0; i < SHA1_LEN; i++)
-      snprintf(out + i * 2, 3, "%02x", hash[i]);
-}
 
 static rpt_line_t *rpt_get_line(rpt_file_t *f, const loc_t *loc)
 {

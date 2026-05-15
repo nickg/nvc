@@ -1062,6 +1062,7 @@ void vlog_check(vlog_node_t v)
       vlog_check_module(v);
       break;
    case V_PACKAGE:
+   case V_NAMESPACE:
    case V_CLASS_DECL:
       vlog_check_decls(v);
       break;

@@ -38,6 +38,7 @@ static vlog_net_kind_t  implicit_kind;
 static vlog_symtab_t   *symtab;
 static vlog_node_t      last_attr;
 static vlog_node_t      atom_types[DT_BIT + 1];
+static unsigned         next_namespace;
 
 extern loc_t yylloc;
 
@@ -7257,7 +7258,17 @@ static vlog_node_t p_description(void)
    case tIMPORT:
       {
          vlog_node_t v = vlog_new(V_NAMESPACE);
-         p_package_item(v);
+
+         char hash[SHA_HEX_LEN];
+         get_hex_hash(loc_file_str(&state.last_loc), hash);
+
+         ident_t name = ident_sprintf("%s$%d", hash, next_namespace++);
+         vlog_set_ident(v, ident_prefix(lib_name(lib_work()), name, '.'));
+
+         do {
+            p_package_item(v);
+         } while (scan(tCLASS, tTYPEDEF, tIMPORT));
+
          vlog_set_loc(v, CURRENT_LOC);
          return v;
       }
@@ -7474,6 +7485,7 @@ void reset_verilog_parser(void)
 
    implicit_kind = V_NET_WIRE;
    last_attr = NULL;
+   next_namespace = 1;
 
    if (symtab != NULL) {
       vlog_symtab_free(symtab);

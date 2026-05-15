@@ -1311,8 +1311,12 @@ START_TEST(test_package1)
    };
    expect_errors(expect);
 
-   for (int i = 0; i < 4; i++)
-      do_parse_only(V_PACKAGE);
+   do_parse_only(V_PACKAGE);
+   do_parse_only(V_PACKAGE);
+   do_parse_only(V_NAMESPACE);
+   do_parse_only(V_PACKAGE);
+   do_parse_only(V_NAMESPACE);
+   do_parse_only(V_PACKAGE);
 
    fail_unless(vlog_parse() == NULL);
 
@@ -1382,7 +1386,9 @@ START_TEST(test_namespace1)
 {
    input_from_file(TESTDIR "/vlog/namespace1.sv");
 
+   do_parse_only(V_NAMESPACE);
    do_parse_only(V_MODULE);
+   do_parse_only(V_NAMESPACE);
 
    fail_unless(vlog_parse() == NULL);
 

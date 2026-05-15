@@ -92,6 +92,8 @@
 #include <sys/ucontext.h>
 #endif
 
+#include "thirdparty/sha1.h"
+
 #define HUGE_PAGE_SIZE  0x200000
 
 #define POOL_MIN_ALIGN  sizeof(double)
@@ -2041,6 +2043,19 @@ void get_relative_path(text_buf_t *tb, const char *from, const char *to)
 
  fallback:
    tb_cat(tb, to);
+}
+
+void get_hex_hash(const char *str, char out[SHA_HEX_LEN])
+{
+   SHA1_CTX ctx;
+   unsigned char hash[SHA1_LEN];
+
+   SHA1Init(&ctx);
+   SHA1Update(&ctx, (const unsigned char *)str, strlen(str));
+   SHA1Final(hash, &ctx);
+
+   for (int i = 0; i < SHA1_LEN; i++)
+      snprintf(out + i * 2, 3, "%02x", hash[i]);
 }
 
 void progress(const char *fmt, ...)

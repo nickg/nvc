@@ -330,6 +330,7 @@ bool is_top_level(vlog_node_t v)
    case V_INST_BODY:
    case V_PACKAGE:
    case V_PROGRAM:
+   case V_NAMESPACE:
       return true;
    default:
       return false;
