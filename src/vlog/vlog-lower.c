@@ -104,6 +104,7 @@ static const type_info_t *vlog_type_info(vlog_gen_t *g, vlog_node_t v)
    case V_DATA_TYPE:
       break;
    case V_STRUCT_DECL:
+   case V_UNION_DECL:
       {
          assert(vlog_flags(v) & VLOG_F_PACKED);
 
@@ -174,6 +175,9 @@ static const type_info_t *vlog_type_info(vlog_gen_t *g, vlog_node_t v)
 static unsigned vlog_packed_offset(vlog_node_t type, vlog_node_t member)
 {
    assert(vlog_flags(type) & VLOG_F_PACKED);
+
+   if (vlog_kind(type) == V_UNION_DECL)
+      return 0;
 
    unsigned offset = 0;
 
