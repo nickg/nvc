@@ -265,6 +265,25 @@ static void declare_port(vlog_node_t mod, vlog_node_t port)
    }
 }
 
+static vlog_node_t get_data_type(ident_t id)
+{
+   vlog_node_t v = vlog_symtab_query(symtab, id);
+   if (v == NULL) {
+      error_at(&state.last_loc, "no data type declaration for '%pi'", id);
+      return logic_type();
+   }
+   else if (!is_data_type(v)) {
+      diag_t *d = diag_new(DIAG_ERROR, &state.last_loc);
+      diag_printf(d, "'%pi' is not a data type", id);
+      diag_hint(d, vlog_loc(v), "'%pi' declared here", id);
+      diag_emit(d);
+
+      return logic_type();
+   }
+
+   return v;
+}
+
 static bool scan_block_item_declaration(void)
 {
    return scan(tREG, tSTRUCT, tUNION, tTYPEDEF, tENUM, tSVINT, tINTEGER,
@@ -722,18 +741,13 @@ static vlog_node_t p_enum_base_type(void)
             vlog_set_flags(v, p_signing());
 
          if (scan(tLSQUARE))
-            p_packed_dimension();
+            vlog_add_range(v, p_packed_dimension());
 
          return v;
       }
 
    default:
-      p_identifier();
-
-      if (scan(tLSQUARE))
-         p_packed_dimension();
-
-      return NULL;
+      return get_data_type(p_identifier());
    }
 }
 
@@ -864,25 +878,7 @@ static vlog_node_t p_data_type(void)
       }
 
    case tID:
-      {
-         ident_t id = p_identifier();
-         vlog_node_t dt = vlog_symtab_query(symtab, id);
-         if (dt == NULL) {
-            error_at(&state.last_loc, "no data type declaration for '%s'",
-                     istr(id));
-            return logic_type();
-         }
-         else if (!is_data_type(dt)) {
-            diag_t *d = diag_new(DIAG_ERROR, &state.last_loc);
-            diag_printf(d, "'%s' is not a data type", istr(id));
-            diag_hint(d, vlog_loc(dt), "'%s' declared here", istr(id));
-            diag_emit(d);
-
-            return logic_type();
-         }
-         else
-            return dt;
-      }
+      return get_data_type(p_identifier());
 
    case tSTRINGK:
       {
