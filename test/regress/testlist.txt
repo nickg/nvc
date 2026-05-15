@@ -1356,3 +1356,4 @@ struct1         verilog
 union1          verilog
 struct2         verilog
 union2          verilog
+ivtest43        verilog

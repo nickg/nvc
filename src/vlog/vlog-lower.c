@@ -3499,6 +3499,9 @@ void vlog_lower_block(mir_context_t *mc, ident_t parent, tree_t b)
       case V_PART_SELECT:
          {
             vlog_select_t lvalue = vlog_lower_select(&g, vlog_value(v));
+            const type_info_t *ti = vlog_type_info(&g, vlog_type(port));
+            if (lvalue.size != ti->size)
+               break;
 
             // Cannot collapse port if select not in range
             int64_t count_const;
