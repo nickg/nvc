@@ -411,6 +411,16 @@ vlog_node_t vlog_longest_static_prefix(vlog_node_t v)
 
          return v;
       }
+   case V_MEMBER_REF:
+      {
+         vlog_node_t value = vlog_value(v);
+         vlog_node_t prefix = vlog_longest_static_prefix(value);
+
+         if (prefix != value)
+            return prefix;
+
+         return v;
+      }
    case V_NUMBER:
       return NULL;
    default:
@@ -498,6 +508,8 @@ vlog_node_t vlog_get_type(vlog_node_t v)
       return v;
    case V_VAR_DECL:
    case V_NET_DECL:
+   case V_PORT_DECL:
+   case V_TF_PORT_DECL:
    case V_TYPE_DECL:
    case V_CLASS_NEW:
       return vlog_get_type(vlog_type(v));

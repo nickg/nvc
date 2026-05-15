@@ -71,7 +71,7 @@ static vlog_node_t simp_port_decl(vlog_node_t v, vlog_node_t mod)
       return v;
 
    vlog_node_t dt = vlog_type(v), decl;
-   if (vlog_subkind(dt) == DT_IMPLICIT) {
+   if (is_implicit_data_type(dt)) {
       decl = vlog_new(V_NET_DECL);
       vlog_set_subkind(decl, V_NET_WIRE);
    }
@@ -116,6 +116,7 @@ static void build_sensitivity(vlog_node_t ctrl, vlog_node_t v, hset_t *set,
       // Fall-through
    case V_BIT_SELECT:
    case V_PART_SELECT:
+   case V_MEMBER_REF:
       {
          vlog_node_t lsp = vlog_longest_static_prefix(v);
          if (lsp == NULL)
@@ -142,6 +143,8 @@ static void build_sensitivity(vlog_node_t ctrl, vlog_node_t v, hset_t *set,
             case V_PART_SELECT:
                build_sensitivity(ctrl, vlog_left(v), set, is_comb);
                build_sensitivity(ctrl, vlog_right(v), set, is_comb);
+               break;
+            case V_MEMBER_REF:
                break;
             default:
                should_not_reach_here();

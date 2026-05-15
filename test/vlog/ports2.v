@@ -24,3 +24,7 @@ endmodule // ports7
 
 module ports8 (input wire i0);
 endmodule // ports8
+
+module ports9 (input reg i0);
+  assign i0 = 1;   // Error
+endmodule // ports9

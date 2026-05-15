@@ -16,7 +16,7 @@ endmodule // dff
 module bad_target (input d, output q, output reg r);
   //reg x;
   wire [7:0] bus;
-  assign r = 1; // Error
+  assign r = 1; // OK (in System Verilog)
   initial q <= 5; // Error
 
 endmodule // bad_target

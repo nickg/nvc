@@ -129,7 +129,6 @@ START_TEST(test_simple_sem)
       {  7, "duplicate declaration of 'x'" },
       { 13, "no visible declaration for 'qq'" },
       { 13, "no visible declaration for 'dd'" },
-      { 19, "'r' cannot be driven by continuous assignment" },
       { 20, "'q' cannot be assigned in a procedural block" },
       { -1, NULL }
    };
@@ -185,11 +184,12 @@ START_TEST(test_ports2)
       {  5, "'o3' cannot be assigned in a procedural block" },
       { 17, "inconsistent dimensions for 'y'" },
       { 21, "missing port declaration for 'zz'" },
+      { 29, "'i0' cannot be driven by continuous assignment" },
       { -1, NULL }
    };
    expect_errors(expect);
 
-   for (int i = 0; i < 5; i++)
+   for (int i = 0; i < 6; i++)
       do_parse_check(V_MODULE);
 
    fail_unless(vlog_parse() == NULL);
@@ -828,7 +828,6 @@ START_TEST(test_concat1)
    input_from_file(TESTDIR "/vlog/concat1.v");
 
    const error_t expect[] = {
-      { 10, "'q' cannot be driven by continuous assignment" },
       { 12, "cannot reference net 'z' in constant expression" },
       { -1, NULL }
    };

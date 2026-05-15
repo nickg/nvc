@@ -165,6 +165,7 @@ static void vlog_check_variable_lvalue(vlog_node_t v, vlog_node_t where)
 static void vlog_check_net_lvalue(vlog_node_t v, vlog_node_t where)
 {
    switch (vlog_kind(v)) {
+   case V_VAR_DECL:
    case V_NET_DECL:
       return;
    case V_PORT_DECL:
@@ -172,14 +173,16 @@ static void vlog_check_net_lvalue(vlog_node_t v, vlog_node_t where)
          vlog_check_net_lvalue(vlog_ref(v), where);
          return;
       }
-      else if (is_implicit_data_type(vlog_type(v)))
+      else if (vlog_subkind(v) != V_PORT_INPUT)
          return;
-      break;
+      else
+         break;
    case V_REF:
       vlog_check_net_lvalue(vlog_ref(v), v);
       return;
    case V_BIT_SELECT:
    case V_PART_SELECT:
+   case V_MEMBER_REF:
       vlog_check_net_lvalue(vlog_value(v), v);
       return;
    case V_CONCAT:

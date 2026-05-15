@@ -1354,3 +1354,4 @@ ivtest42        verilog,gold
 display4        verilog,gold
 struct1         verilog
 union1          verilog
+struct2         verilog

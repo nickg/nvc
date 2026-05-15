@@ -543,12 +543,14 @@ static vlog_select_t vlog_lower_select(vlog_gen_t *g, vlog_node_t v)
             mir_value_t context = mir_build_load(g->mu, prefix.obj);
             mir_value_t link = mir_build_link_var(g->mu, context,
                                                   vlog_ident(v), ti->type);
+            mir_type_t t_offset = mir_offset_type(g->mu);
+            mir_value_t zero = mir_const(g->mu, t_offset, 0);
 
             vlog_select_t result = {
                .obj        = link,
-               .dst_offset = MIR_NULL_VALUE,
-               .count      = MIR_NULL_VALUE,
-               .src_offset = MIR_NULL_VALUE,
+               .dst_offset = zero,
+               .count      = mir_const(g->mu, t_offset, ti->size),
+               .src_offset = zero,
                .type       = ti->type,
                .size       = ti->size,
             };
@@ -2369,6 +2371,7 @@ static void vlog_lower_sensitivity(vlog_gen_t *g, vlog_node_t v)
       break;
    case V_BIT_SELECT:
    case V_PART_SELECT:
+   case V_MEMBER_REF:
       {
          vlog_node_t prefix = vlog_longest_static_prefix(v);
          if (prefix == v) {
@@ -2387,7 +2390,7 @@ static void vlog_lower_sensitivity(vlog_gen_t *g, vlog_node_t v)
             for (int i = 0; i < nparams; i++)
                vlog_lower_sensitivity(g, vlog_param(v, i));
          }
-         else
+         else if (kind == V_PART_SELECT)
             vlog_lower_sensitivity(g, vlog_left(v));
       }
       break;

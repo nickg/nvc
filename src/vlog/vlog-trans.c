@@ -140,6 +140,10 @@ static type_t trans_type(trans_gen_t *g, vlog_node_t decl,
       return trans_type(g, vlog_type(decl), scalar_type, packed_type);
    case V_CLASS_DECL:
       return NULL;
+   case V_STRUCT_DECL:
+   case V_UNION_DECL:
+      assert(vlog_flags(decl) & VLOG_F_PACKED);
+      return trans_sized_type(decl, packed_type, vlog_size(decl));
    case V_DATA_TYPE:
       break;
    default:
