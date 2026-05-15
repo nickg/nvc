@@ -1173,8 +1173,7 @@ void vpi_get_value(vpiHandle handle, p_vpi_value value_p)
          }
 
       case vpiRealConst:
-         value_p->format = vpiRealVal;
-         value_p->value.real = vlog_dval(con->expr.where);
+         vpi_format_real(vlog_dval(con->expr.where), value_p, c->valuestr);
          return;
       }
    }
@@ -1183,8 +1182,8 @@ void vpi_get_value(vpiHandle handle, p_vpi_value value_p)
    if (op != NULL && c->args != NULL && op->subtype != vpiNullOp) {
       const int64_t size = c->args[op->argslot].integer;
       if (size < 0) {
-         value_p->format = vpiRealVal;
-         value_p->value.real = c->args[op->argslot + 1].real;
+         vpi_format_real(c->args[op->argslot + 1].real, value_p,
+                         c->valuestr);
       }
       else {
          if (size <= 64) {
@@ -1215,8 +1214,8 @@ void vpi_get_value(vpiHandle handle, p_vpi_value value_p)
          goto fail;
 
       if (vlog_kind(type) == V_DATA_TYPE && vlog_subkind(type) == DT_REAL) {
-         value_p->format = vpiRealVal;
-         value_p->value.real = unaligned_load(signal_value(s), double);
+         vpi_format_real(unaligned_load(signal_value(s), double), value_p,
+                         c->valuestr);
          return;
       }
 

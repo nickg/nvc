@@ -24,6 +24,7 @@
 
 #include <assert.h>
 #include <inttypes.h>
+#include <math.h>
 #include <string.h>
 #include <stdlib.h>
 
@@ -190,6 +191,62 @@ void vpi_format_number(int size, bool is_signed, const uint64_t *abits,
 
    default:
       vpi_error(vpiError, NULL, "unsupported number format %d", val->format);
+      break;
+   }
+}
+
+void vpi_format_real(double value, s_vpi_value *val, text_buf_t *tb)
+{
+   const int64_t ivalue = round(value);
+   const uint64_t uvalue = ivalue;
+
+   switch (val->format) {
+   case vpiBinStrVal:
+      if (ivalue < 0) {
+         for (int i = 63; i >= 0; i--)
+            tb_append(tb, !!(uvalue & (UINT64_C(1) << i)) ? '1' : '0');
+      }
+      else if (uvalue == 0)
+         tb_append(tb, '0');
+      else {
+         int bit = 63;
+         while (!(uvalue & (UINT64_C(1) << bit)))
+            bit--;
+
+         for (; bit >= 0; bit--)
+            tb_append(tb, !!(uvalue & (UINT64_C(1) << bit)) ? '1' : '0');
+      }
+      val->value.str = (PLI_BYTE8 *)tb_get(tb);
+      break;
+
+   case vpiDecStrVal:
+      if (ivalue == 0 && signbit(value))
+         tb_cat(tb, "-0");
+      else
+         tb_printf(tb, "%"PRIi64, ivalue);
+      val->value.str = (PLI_BYTE8 *)tb_get(tb);
+      break;
+
+   case vpiHexStrVal:
+      tb_printf(tb, "%"PRIx64, uvalue);
+      val->value.str = (PLI_BYTE8 *)tb_get(tb);
+      break;
+
+   case vpiOctStrVal:
+      tb_printf(tb, "%"PRIo64, uvalue);
+      val->value.str = (PLI_BYTE8 *)tb_get(tb);
+      break;
+
+   case vpiIntVal:
+      val->value.integer = ivalue;
+      break;
+
+   case vpiRealVal:
+      val->value.real = value;
+      break;
+
+   default:
+      vpi_error(vpiError, NULL, "unsupported real format %d", val->format);
       break;
    }
 }
