@@ -1005,6 +1005,18 @@ static mir_value_t vlog_lower_binary(vlog_gen_t *g, vlog_node_t v,
       case V_BINARY_CASE_NEQ:
          result = mir_build_cmp(g->mu, MIR_CMP_NEQ, left, right);
          break;
+      case V_BINARY_LT:
+         result = mir_build_cmp(g->mu, MIR_CMP_LT, left, right);
+         break;
+      case V_BINARY_LEQ:
+         result = mir_build_cmp(g->mu, MIR_CMP_LEQ, left, right);
+         break;
+      case V_BINARY_GT:
+         result = mir_build_cmp(g->mu, MIR_CMP_GT, left, right);
+         break;
+      case V_BINARY_GEQ:
+         result = mir_build_cmp(g->mu, MIR_CMP_GEQ, left, right);
+         break;
       case V_BINARY_TIMES:
          result = mir_build_mul(g->mu, ltype, left, right);
          break;
