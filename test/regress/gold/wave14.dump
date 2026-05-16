@@ -1,0 +1,17 @@
+#0 wave14._p0.c_in_proc_rt_epends 00000000000000000000000000100110
+#0 wave14._p0.c_in_proc_int 10000000000000000000000000000000
+#0 wave14._p0.c_in_proc_real 2.789
+#0 wave14.c_in_arch_physical 450 NS
+#0 wave14.c_in_arch_enum long_enum_name
+#0 wave14.c_in_arch_rt_depends 00000000000000000000000000011001
+#0 wave14.c_in_arch_gen_depends 00000000000000000000000000001010
+#0 wave14.c_in_arch_std_logic_dc -
+#0 wave14.c_in_arch_std_logic_h h
+#0 wave14.c_in_arch_std_logic_l l
+#0 wave14.c_in_arch_std_logic_u u
+#0 wave14.c_in_arch_std_logic_x x
+#0 wave14.c_in_arch_std_logic_z z
+#0 wave14.c_in_arch_std_logic_1 1
+#0 wave14.c_in_arch_int 01111111111111111111111111111111
+#0 wave14.c_in_arch_real_negative -2987.256
+#0 wave14.c_in_arch_real_positive 3.14

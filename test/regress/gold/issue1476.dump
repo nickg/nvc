@@ -5,6 +5,7 @@ $comment issue1476.inst_test.clk is aliased to clk $end
 #0 issue1476.inst_test.wrcnt[10:0] 00000000000
 #0 issue1476.wrcnt[10:0] 00000000000
 #0 issue1476.clk 0
+#0 issue1476.wmsb_depth 00000000000000000000000000001010
 #10000000 issue1476.clk 1
 #10000000 issue1476.wrcnt[10:0] 00000000001
 #10000000 issue1476.inst_test.wrcnt[10:0] 00000000001

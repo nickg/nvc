@@ -1349,3 +1349,4 @@ ivtest40        verilog
 select18        verilog
 select19        verilog
 select20        verilog
+wave14          wave,gG_A=10,gG_B=15

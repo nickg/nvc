@@ -79,15 +79,27 @@ typedef struct {
    } u;
 } fst_type_t;
 
+typedef enum {
+   FST_SRC_SIGNAL,
+   FST_SRC_VAL,
+   FST_SRC_PTR
+} fst_data_src_t;
+
 typedef struct _fst_data {
-   wave_dumper_t *dumper;
-   fst_type_t    *type;
-   rt_watch_t    *watch;
-   tree_t         decl;
-   rt_signal_t   *signal;
-   unsigned       size;
-   unsigned       count;
-   fstHandle      handle[];
+   wave_dumper_t     *dumper;
+   fst_type_t        *type;
+   tree_t             decl;
+   union {
+      rt_signal_t    *signal;
+      int64_t         ival;
+      double          dval;
+      void           *raw;
+   } v;
+   fst_data_src_t     src;
+   rt_watch_t        *watch;
+   unsigned           size;
+   unsigned           count;
+   fstHandle          handle[];
 } fst_data_t;
 
 typedef A(fst_data_t *) data_array_t;
@@ -106,6 +118,23 @@ typedef struct {
    bool        end_of_record;
 } gtkw_writer_t;
 
+typedef enum {
+   FST_SCOPE_RT,
+   FST_SCOPE_PROC
+} fst_scope_kind_t;
+
+typedef struct _fst_scope fst_scope_t;
+
+typedef struct _fst_scope {
+   fst_scope_t      *parent;
+   fst_scope_kind_t  kind;
+   ident_t           name;
+   union {
+      rt_scope_t    *rt_scope;
+      rt_proc_t     *rt_proc;
+   } v;
+} fst_scope_t;
+
 typedef struct _wave_dumper {
    tree_t         top;
    void          *fst_ctx;
@@ -118,14 +147,15 @@ typedef struct _wave_dumper {
    hash_t        *typecache;
    fst_type_t    *datatypes[DT_STRING + 1];
    data_array_t   dumped;
+   fst_scope_t   *scope;
 } wave_dumper_t;
 
 static glob_array_t incl;
 static glob_array_t excl;
 
-static void fst_process_signal(wave_dumper_t *wd, rt_scope_t *scope, tree_t d,
+static void fst_process_object(wave_dumper_t *wd, rt_scope_t *rt_scope, tree_t d,
                                type_t type, text_buf_t *tb);
-static bool wave_should_dump(rt_scope_t *scope, ident_t id);
+static bool wave_should_dump(rt_scope_t *rt_scope, ident_t id);
 
 static bool should_dump_array(tree_t where, unsigned length)
 {
@@ -195,7 +225,13 @@ static inline void fst_write_binary(uint64_t val, size_t size, char *buf)
 static void fst_fmt_int(rt_watch_t *w, fst_data_t *data)
 {
    uint64_t val[data->count];
-   signal_expand(data->signal, val, data->count);
+
+   if (data->src == FST_SRC_SIGNAL)
+      signal_expand(data->v.signal, val, data->count);
+   else if (data->src == FST_SRC_VAL)
+      val[0] = data->v.ival;
+   else
+      val[0] = *((uint64_t*)data->v.raw);
 
    for (int i = 0; i < data->count; i++) {
       char buf[data->type->size + 1];
@@ -207,14 +243,28 @@ static void fst_fmt_int(rt_watch_t *w, fst_data_t *data)
 
 static void fst_fmt_real(rt_watch_t *w, fst_data_t *data)
 {
-   const void *buf = signal_value(data->signal);
+   const void *buf;
+
+   if (data->src == FST_SRC_SIGNAL)
+      buf = signal_value(data->v.signal);
+   else if (data->src == FST_SRC_VAL)
+      buf = (void*)(&data->v.dval);
+   else
+      buf = data->v.raw;
+
    fstWriterEmitValueChange(data->dumper->fst_ctx, data->handle[0], buf);
 }
 
 static void fst_fmt_physical(rt_watch_t *w, fst_data_t *data)
 {
    uint64_t val;
-   signal_expand(data->signal, &val, 1);
+
+   if (data->src == FST_SRC_SIGNAL)
+      signal_expand(data->v.signal, &val, 1);
+   else if (data->src == FST_SRC_VAL)
+      val = data->v.ival;
+   else
+      val = *((uint64_t*)data->v.raw);
 
    fst_unit_t *unit = data->type->u.units;
    while ((val % unit->mult) != 0)
@@ -230,7 +280,15 @@ static void fst_fmt_physical(rt_watch_t *w, fst_data_t *data)
 
 static void fst_fmt_chars(rt_watch_t *w, fst_data_t *data)
 {
-   const uint8_t *p = signal_value(data->signal);
+   const uint8_t *p;
+
+   if (data->src == FST_SRC_SIGNAL)
+      p = signal_value(data->v.signal);
+   else if (data->src == FST_SRC_VAL)
+      p = (const uint8_t *)(&(data->v.ival));
+   else
+      p = (const uint8_t *)(data->v.raw);
+
    for (int i = 0; i < data->count; i++, p += data->size) {
       if (likely(data->type->u.map != NULL)) {
          char buf[data->size];
@@ -248,12 +306,17 @@ static void fst_fmt_chars(rt_watch_t *w, fst_data_t *data)
 static void fst_fmt_enum(rt_watch_t *w, fst_data_t *data)
 {
    uint64_t val[data->count];
-   signal_expand(data->signal, val, data->count);
+
+   if (data->src == FST_SRC_SIGNAL)
+      signal_expand(data->v.signal, val, data->count);
+   else if (data->src == FST_SRC_VAL)
+      val[0] = data->v.ival;
+   else
+      val[0] = *((uint64_t*)data->v.raw);
 
    for (int i = 0; i < data->count; i++) {
       fst_enum_t *e = &(data->type->u.literals);
       assert(val[i] < e->count);
-
       const char *literal = e->strings + val[i] * e->size;
       fstWriterEmitVariableLengthValueChange(data->dumper->fst_ctx,
                                              data->handle[i],
@@ -265,7 +328,7 @@ static void fst_fmt_enum(rt_watch_t *w, fst_data_t *data)
 
 static void fst_fmt_verilog(rt_watch_t *w, fst_data_t *data)
 {
-   const uint8_t *p = signal_value(data->signal);
+   const uint8_t *p = signal_value(data->v.signal);
    for (int i = 0; i < data->count; i++, p += data->size) {
       char buf[data->size];
       for (int j = 0; j < data->size; j++)
@@ -274,15 +337,19 @@ static void fst_fmt_verilog(rt_watch_t *w, fst_data_t *data)
    }
 }
 
+static void fst_emit_time_change(uint64_t now, wave_dumper_t *dumper)
+{
+   if (now != dumper->last_time) {
+      fstWriterEmitTimeChange(dumper->fst_ctx, now);
+      dumper->last_time = now;
+   }
+}
+
 static void fst_event_cb(uint64_t now, rt_signal_t *s, rt_watch_t *w,
                          void *user)
 {
    fst_data_t *data = user;
-
-   if (now != data->dumper->last_time) {
-      fstWriterEmitTimeChange(data->dumper->fst_ctx, now);
-      data->dumper->last_time = now;
-   }
+   fst_emit_time_change(now, data->dumper);
 
    if (likely(data != NULL))
       (*data->type->fn)(w, data);
@@ -522,10 +589,10 @@ static fst_type_t *fst_type_for(wave_dumper_t *wd, type_t type,
    return NULL;
 }
 
-static void *fst_get_ptr(wave_dumper_t *wd, rt_scope_t *scope, tree_t where)
+static void *fst_get_ptr(wave_dumper_t *wd, rt_scope_t *rt_scope, tree_t where)
 {
-   if (scope->kind == SCOPE_RECORD) {
-      type_t rtype = type_elem_recur(tree_type(scope->where));
+   if (rt_scope->kind == SCOPE_RECORD) {
+      type_t rtype = type_elem_recur(tree_type(rt_scope->where));
       assert(type_is_record(rtype));
       assert(type_field(rtype, tree_pos(where)) == where);
 
@@ -534,23 +601,23 @@ static void *fst_get_ptr(wave_dumper_t *wd, rt_scope_t *scope, tree_t where)
 
       const ptrdiff_t offset = l->parts[tree_pos(where)].offset;
 
-      return fst_get_ptr(wd, scope->parent, scope->where) + offset;
+      return fst_get_ptr(wd, rt_scope->parent, rt_scope->where) + offset;
    }
-   else if (scope->kind == SCOPE_ARRAY) {
+   else if (rt_scope->kind == SCOPE_ARRAY) {
       // Record nested inside array
-      ffi_uarray_t *u = fst_get_ptr(wd, scope->parent, scope->where);
+      ffi_uarray_t *u = fst_get_ptr(wd, rt_scope->parent, rt_scope->where);
       return u->ptr;
    }
    else {
-      assert(scope->kind == SCOPE_INSTANCE);
-      jit_handle_t handle = jit_lazy_compile(wd->jit, scope->name);
-      void *p = *mptr_get(scope->privdata);
+      assert(rt_scope->kind == SCOPE_INSTANCE);
+      jit_handle_t handle = jit_lazy_compile(wd->jit, rt_scope->name);
+      void *p = *mptr_get(rt_scope->privdata);
       return jit_get_frame_var(wd->jit, handle, p, tree_ident(where));
    }
 }
 
 static void fst_get_array_range(wave_dumper_t *wd, type_t type,
-                                rt_scope_t *scope, tree_t where, int dim,
+                                rt_scope_t *rt_scope, tree_t where, int dim,
                                 int64_t *left, int64_t *right,
                                 range_kind_t *dir, int64_t *length)
 {
@@ -567,7 +634,7 @@ static void fst_get_array_range(wave_dumper_t *wd, type_t type,
    const jit_layout_t *l = signal_layout_of(type);
    assert(l->parts[l->nparts - 1].class == LC_BOUNDS);
 
-   void *base = fst_get_ptr(wd, scope, where);
+   void *base = fst_get_ptr(wd, rt_scope, where);
    ffi_dim_t *dims = base + l->parts[l->nparts - 1].offset;
 
    *left   = dims[dim].left;
@@ -580,7 +647,8 @@ static void fst_get_array_range(wave_dumper_t *wd, type_t type,
 
 static fstHandle fst_create_handle(wave_dumper_t *wd, fst_data_t *data,
                                    const char *name, enum fstVarDir dir,
-                                   type_t type, fstHandle alias)
+                                   type_t type, fstHandle alias,
+                                   enum fstSupplementalVarType svt)
 {
    if (data->type->vartype == FST_VT_SV_ENUM)
       fstWriterEmitEnumTableRef(wd->fst_ctx, data->type->u.enumh);
@@ -593,7 +661,7 @@ static fstHandle fst_create_handle(wave_dumper_t *wd, fst_data_t *data,
       name,
       alias,
       type_pp(type),
-      FST_SVT_VHDL_SIGNAL,
+      svt,
       data->type->sdt);
 }
 
@@ -604,9 +672,8 @@ static void fst_create_memory(wave_dumper_t *wd, fst_data_t *data, int *pos,
    if (curdim == ndims - 1) {
       tb_printf(tb, "[%"PRIi64":%"PRIi64"]",
                 dims[curdim].msb, dims[curdim].lsb);
-
       data->handle[(*pos)++] = fst_create_handle(wd, data, tb_get(tb),
-                                                 vd, type, 0);
+                                                 vd, type, 0, FST_SVT_VHDL_SIGNAL);
    }
    else {
       const size_t pfxlen = tb_len(tb);
@@ -622,7 +689,7 @@ static void fst_create_memory(wave_dumper_t *wd, fst_data_t *data, int *pos,
    }
 }
 
-static void fst_create_array_var(wave_dumper_t *wd, tree_t d, rt_signal_t *s,
+static void fst_create_array_sig(wave_dumper_t *wd, tree_t d, rt_signal_t *s,
                                  type_t type, text_buf_t *tb)
 {
    enum fstVarDir vd = FST_VD_IMPLICIT;
@@ -661,7 +728,8 @@ static void fst_create_array_var(wave_dumper_t *wd, tree_t d, rt_signal_t *s,
       data->size  = length * ft->size;
       data->count = 1;
 
-      data->handle[0] = fst_create_handle(wd, data, tb_get(tb), vd, type, 0);
+      data->handle[0] = fst_create_handle(wd, data, tb_get(tb), vd, type, 0,
+                                          FST_SVT_VHDL_SIGNAL);
 
       if (wd->gtkw != NULL)
          fprintf(wd->gtkw->file, "%s.%s\n", tb_get(wd->gtkw->hier), tb_get(tb));
@@ -722,7 +790,8 @@ static void fst_create_array_var(wave_dumper_t *wd, tree_t d, rt_signal_t *s,
          tb_trim(tb, pfxlen);
          tb_printf(tb, "[%"PRIi64"]", dir == RANGE_TO ? left + i : left - i);
 
-         data->handle[i] = fst_create_handle(wd, data, tb_get(tb), vd, elem, 0);
+         data->handle[i] = fst_create_handle(wd, data, tb_get(tb), vd, elem, 0,
+                                             FST_SVT_VHDL_SIGNAL);
       }
 
       fstWriterSetAttrEnd(wd->fst_ctx);
@@ -730,18 +799,19 @@ static void fst_create_array_var(wave_dumper_t *wd, tree_t d, rt_signal_t *s,
 
    assert(find_watch(&(s->nexus), fst_event_cb) == NULL);
 
-   data->decl   = d;
-   data->signal = s;
-   data->dumper = wd;
-   data->watch  = watch_new(wd->model, fst_event_cb, data, WATCH_POSTPONED, 1);
+   data->decl     = d;
+   data->v.signal = s;
+   data->src      = FST_SRC_SIGNAL;
+   data->dumper   = wd;
+   data->watch    = watch_new(wd->model, fst_event_cb, data, WATCH_POSTPONED, 1);
 
-   const int width = signal_width(data->signal);
-   model_set_event_cb(wd->model, data->signal, 0, width, data->watch);
+   const int width = signal_width(data->v.signal);
+   model_set_event_cb(wd->model, data->v.signal, 0, width, data->watch);
 
    APUSH(wd->dumped, data);
 }
 
-static void fst_create_scalar_var(wave_dumper_t *wd, tree_t d, rt_signal_t *s,
+static void fst_create_scalar_sig(wave_dumper_t *wd, tree_t d, rt_signal_t *s,
                                   type_t type, text_buf_t *tb)
 {
    fst_type_t *ft = fst_type_for(wd, type, tree_loc(d));
@@ -769,16 +839,18 @@ static void fst_create_scalar_var(wave_dumper_t *wd, tree_t d, rt_signal_t *s,
    tb_istr(tb, tree_ident(d));
    tb_downcase(tb);
 
-   data->handle[0] = fst_create_handle(wd, data, tb_get(tb), dir, type, 0);
+   data->handle[0] = fst_create_handle(wd, data, tb_get(tb), dir, type, 0,
+                                       FST_SVT_VHDL_SIGNAL);
 
    assert(find_watch(&(s->nexus), fst_event_cb) == NULL);
 
-   data->decl   = d;
-   data->signal = s;
-   data->watch  = watch_new(wd->model, fst_event_cb, data, WATCH_POSTPONED, 1);
+   data->decl     = d;
+   data->v.signal = s;
+   data->src      = FST_SRC_SIGNAL;
+   data->watch    = watch_new(wd->model, fst_event_cb, data, WATCH_POSTPONED, 1);
 
-   const int width = signal_width(data->signal);
-   model_set_event_cb(wd->model, data->signal, 0, width, data->watch);
+   const int width = signal_width(data->v.signal);
+   model_set_event_cb(wd->model, data->v.signal, 0, width, data->watch);
 
    APUSH(wd->dumped, data);
 
@@ -786,29 +858,29 @@ static void fst_create_scalar_var(wave_dumper_t *wd, tree_t d, rt_signal_t *s,
       fprintf(wd->gtkw->file, "%s.%s\n", tb_get(wd->gtkw->hier), tb_get(tb));
 }
 
-static void gtkw_print_scope_comment(gtkw_writer_t *gtkw, rt_scope_t *scope,
+static void gtkw_print_scope_comment(gtkw_writer_t *gtkw, rt_scope_t *rt_scope,
                                      rt_scope_kind_t kind, text_buf_t *tb,
                                      bool leaf)
 {
-   if (scope->parent != NULL && scope->parent->kind == kind) {
-      gtkw_print_scope_comment(gtkw, scope->parent, kind, tb, false);
+   if (rt_scope->parent != NULL && rt_scope->parent->kind == kind) {
+      gtkw_print_scope_comment(gtkw, rt_scope->parent, kind, tb, false);
       fputc(kind == SCOPE_INSTANCE ? '/' : '.', gtkw->file);
    }
    else
       fputc('-', gtkw->file);
 
-   if (scope->kind == SCOPE_INSTANCE && scope->parent->kind == SCOPE_ROOT) {
+   if (rt_scope->kind == SCOPE_INSTANCE && rt_scope->parent->kind == SCOPE_ROOT) {
       // Do not emit the root scope label
    }
-   else if (scope->kind == kind) {
+   else if (rt_scope->kind == kind) {
       tb_rewind(tb);
-      tb_istr(tb, tree_ident(scope->where));
+      tb_istr(tb, tree_ident(rt_scope->where));
       tb_downcase(tb);
       fputs(tb_get(tb), gtkw->file);
    }
 
    if (leaf)
-      fprintf(gtkw->file, "%c\n", is_signal_scope(scope) ? ':' : '/');
+      fprintf(gtkw->file, "%c\n", is_signal_scope(rt_scope) ? ':' : '/');
 
    gtkw->end_of_record = false;
 }
@@ -834,8 +906,8 @@ static void gtkw_end_of_signal(gtkw_writer_t *gtkw, const char *name)
    fprintf(gtkw->file, "%s.%s\n", tb_get(gtkw->hier), name);
 }
 
-static void fst_create_record_var(wave_dumper_t *wd, tree_t d,
-                                  rt_scope_t *scope, type_t type,
+static void fst_create_record_sig(wave_dumper_t *wd, tree_t d,
+                                  rt_scope_t *rt_scope, type_t type,
                                   const char *suffix, text_buf_t *tb)
 {
    tb_rewind(tb);
@@ -849,14 +921,14 @@ static void fst_create_record_var(wave_dumper_t *wd, tree_t d,
    if (wd->gtkw != NULL) {
       hlen = tb_len(wd->gtkw->hier);
       tb_printf(wd->gtkw->hier, ".%s", tb_get(tb));
-      gtkw_print_scope_comment(wd->gtkw, scope, scope->kind, tb, true);
+      gtkw_print_scope_comment(wd->gtkw, rt_scope, rt_scope->kind, tb, true);
    }
 
    const int nfields = type_fields(type);
    for (int i = 0; i < nfields; i++) {
       tree_t f = type_field(type, i);
       tree_t cons = type_constraint_for_field(type, f);
-      fst_process_signal(wd, scope, f, tree_type(cons ?: f), tb);
+      fst_process_object(wd, rt_scope, f, tree_type(cons ?: f), tb);
    }
 
    fstWriterSetUpscope(wd->fst_ctx);
@@ -867,8 +939,8 @@ static void fst_create_record_var(wave_dumper_t *wd, tree_t d,
    }
 }
 
-static void fst_create_record_array_var(wave_dumper_t *wd, tree_t d,
-                                        rt_scope_t *scope, type_t type,
+static void fst_create_record_array_sig(wave_dumper_t *wd, tree_t d,
+                                        rt_scope_t *rt_scope, type_t type,
                                         int dim, int start, int count,
                                         const char *prefix, text_buf_t *tb)
 {
@@ -877,7 +949,7 @@ static void fst_create_record_array_var(wave_dumper_t *wd, tree_t d,
 
    int64_t left, right, length;
    range_kind_t dir;
-   fst_get_array_range(wd, type, scope->parent, d, dim, &left, &right,
+   fst_get_array_range(wd, type, rt_scope->parent, d, dim, &left, &right,
                        &dir, &length);
 
    if (length == 0)
@@ -890,21 +962,21 @@ static void fst_create_record_array_var(wave_dumper_t *wd, tree_t d,
    const int stride = count / length;
 
    for (int i = start, index = 0; i < start + count; i += stride, index++) {
-      rt_scope_t *sub = AGET(scope->children, i);
+      rt_scope_t *sub = AGET(rt_scope->children, i);
 
       char suffix[64];
       checked_sprintf(suffix, sizeof(suffix), "%s[%"PRIi64"]", prefix,
                       dir == RANGE_TO ? left + index : left - index);
 
       if (nested)
-         fst_create_record_array_var(wd, d, scope, elem, dim + 1, i,
+         fst_create_record_array_sig(wd, d, rt_scope, elem, dim + 1, i,
                                      stride, suffix, tb);
       else
-         fst_create_record_var(wd, d, sub, elem, suffix, tb);
+         fst_create_record_sig(wd, d, sub, elem, suffix, tb);
    }
 }
 
-static void fst_alias_var(wave_dumper_t *wd, tree_t d, rt_scope_t *scope,
+static void fst_alias_sig(wave_dumper_t *wd, tree_t d, rt_scope_t *rt_scope,
                           rt_signal_t *s, text_buf_t *tb)
 {
    rt_watch_t *w = find_watch(&(s->nexus), fst_event_cb);
@@ -922,43 +994,140 @@ static void fst_alias_var(wave_dumper_t *wd, tree_t d, rt_scope_t *scope,
    if (type_is_array(type)) {
       int64_t left, right, length;
       range_kind_t dir;
-      fst_get_array_range(wd, type, scope, d, 0,
+      fst_get_array_range(wd, type, rt_scope, d, 0,
                           &left, &right, &dir, &length);
 
       tb_printf(tb, "[%"PRIi64":%"PRIi64"]", left, right);
    }
    tb_downcase(tb);
 
-   fst_create_handle(wd, data, tb_get(tb), FST_VD_INPUT, type, data->handle[0]);
+   fst_create_handle(wd, data, tb_get(tb), FST_VD_INPUT, type, data->handle[0],
+                     FST_SVT_VHDL_SIGNAL);
 
    gtkw_end_of_signal(wd->gtkw, tb_get(tb));
 }
 
-static void fst_process_signal(wave_dumper_t *wd, rt_scope_t *scope, tree_t d,
+static void fst_create_scalar_const(wave_dumper_t *wd, tree_t d,
+                                    type_t type, text_buf_t *tb)
+{
+   assert (type_is_scalar(type));
+
+   fst_type_t *ft = fst_type_for(wd, type, tree_loc(d));
+   if (ft == NULL)
+      return;
+
+   fst_data_t *data = xcalloc(sizeof(fst_data_t) + sizeof(fstHandle));
+   data->type   = ft;
+   data->count  = 1;
+   data->size   = ft->size;
+   data->dumper = wd;
+   data->decl   = d;
+
+   tb_rewind(tb);
+   tb_istr(tb, tree_ident(d));
+   tb_downcase(tb);
+
+   data->handle[0] = fst_create_handle(wd, data, tb_get(tb), FST_VD_IMPLICIT,
+                                       type, 0, FST_SVT_VHDL_CONSTANT);
+
+   type = type_base_recur(type);
+   tree_t val = tree_value(data->decl);
+   tree_kind_t kind = tree_kind(val);
+
+   if (kind == T_LITERAL) {
+      data->src = FST_SRC_VAL;
+
+      switch (type_kind(type)) {
+      case T_INTEGER:
+      case T_PHYSICAL:
+         data->v.ival = tree_ival(val);
+         break;
+      case T_REAL:
+         data->v.dval = tree_dval(val);
+         break;
+      default:
+         break;
+      }
+   }
+   else if (kind == T_REF) {
+      data->src = FST_SRC_VAL;
+      tree_t ref = tree_ref(val);
+
+      switch (tree_kind(ref)) {
+      case T_ENUM_LIT:
+         data->v.ival = tree_pos(ref);
+         break;
+      default:
+         break;
+      }
+   }
+
+   // If not folded during compile or elab,
+   // constant must be retrieved from JIT frame
+   else {
+      data->src = FST_SRC_PTR;
+
+      fst_scope_t *scope = wd->scope;
+      if (scope->kind == FST_SCOPE_RT)
+         data->v.raw = fst_get_ptr(data->dumper, scope->v.rt_scope, data->decl);
+      else
+      {
+         rt_proc_t *rt_proc = scope->v.rt_proc;
+         jit_handle_t handle = rt_proc->closure.handle;
+         void *p = *mptr_get(rt_proc->privdata);
+         data->v.raw = NULL;
+         if (p != NULL)
+            data->v.raw = jit_get_frame_var(wd->jit, handle, p, tree_ident(d));
+      }
+   }
+
+   APUSH(wd->dumped, data);
+
+   if (wd->gtkw != NULL)
+      fprintf(wd->gtkw->file, "%s.%s\n", tb_get(wd->gtkw->hier), tb_get(tb));
+}
+
+static void fst_process_object(wave_dumper_t *wd, rt_scope_t *rt_scope, tree_t d,
                                type_t type, text_buf_t *tb)
 {
    if (type_is_homogeneous(type)) {
       gtkw_start_of_signal(wd->gtkw);
 
-      rt_signal_t *s = find_signal(scope, d, NULL);
-      if (s == NULL)
-         return;
-      else if (s->where != d)
-         fst_alias_var(wd, d, scope, s, tb);  // Collapsed with another signal
-      else if (type_is_array(type))
-         fst_create_array_var(wd, d, s, type, tb);
-      else
-         fst_create_scalar_var(wd, d, s, type, tb);
+      switch (tree_kind(d)) {
+      case T_SIGNAL_DECL:
+      case T_PORT_DECL:
+      case T_FIELD_DECL:
+         {
+            rt_signal_t *s = find_signal(rt_scope, d, NULL);
+            if (s == NULL)
+               return;
+            else if (s->where != d)
+               fst_alias_sig(wd, d, rt_scope, s, tb);  // Collapsed with another signal
+            else if (type_is_array(type))
+               fst_create_array_sig(wd, d, s, type, tb);
+            else
+               fst_create_scalar_sig(wd, d, s, type, tb);
+            break;
+         }
+      case T_CONST_DECL:
+         if (type_is_scalar(type))
+            fst_create_scalar_const(wd, d, type, tb);
+         break;
+
+      default:
+         fatal_trace("cannot handle tree kind %s in fst_process_object",
+                     tree_kind_str(tree_kind(d)));
+      }
    }
    else if (type_is_record(type)) {
-      rt_scope_t *sub = child_scope(scope, d);
+      rt_scope_t *sub = child_scope(rt_scope, d);
       if (sub != NULL)   // NULL means signal was optimised out
-         fst_create_record_var(wd, d, sub, type, "", tb);
+         fst_create_record_sig(wd, d, sub, type, "", tb);
    }
    else {
-      rt_scope_t *sub = child_scope(scope, d);
+      rt_scope_t *sub = child_scope(rt_scope, d);
       if (sub != NULL && should_dump_array(d, sub->children.count))
-         fst_create_record_array_var(wd, d, sub, type, 0, 0,
+         fst_create_record_array_sig(wd, d, sub, type, 0, 0,
                                      sub->children.count, "", tb);
    }
 }
@@ -1000,12 +1169,12 @@ static fst_type_t *fst_get_data_type(wave_dumper_t *wd, data_type_t dt)
    return NULL;
 }
 
-static void fst_process_verilog(wave_dumper_t *wd, rt_scope_t *scope,
+static void fst_process_verilog(wave_dumper_t *wd, rt_scope_t *rt_scope,
                                 tree_t wrap, vlog_node_t v, text_buf_t *tb)
 {
    gtkw_start_of_signal(wd->gtkw);
 
-   rt_signal_t *s = find_signal(scope, wrap, NULL);
+   rt_signal_t *s = find_signal(rt_scope, wrap, NULL);
    if (s == NULL)
       return;
    else if (s->where != wrap)
@@ -1048,7 +1217,6 @@ static void fst_process_verilog(wave_dumper_t *wd, rt_scope_t *scope,
       break;
    }
 
-
    fst_data_t *data = xcalloc(sizeof(fst_data_t) + sizeof(fstHandle));
    data->type   = ft;
    data->count  = 1;
@@ -1071,52 +1239,74 @@ static void fst_process_verilog(wave_dumper_t *wd, rt_scope_t *scope,
    assert(find_watch(&(s->nexus), fst_event_cb) == NULL);
 
    data->decl   = wrap;
-   data->signal = s;
+   data->v.signal = s;
    data->watch  = watch_new(wd->model, fst_event_cb, data, WATCH_POSTPONED, 1);
 
-   const int width = signal_width(data->signal);
-   model_set_event_cb(wd->model, data->signal, 0, width, data->watch);
+   const int width = signal_width(data->v.signal);
+   model_set_event_cb(wd->model, data->v.signal, 0, width, data->watch);
 
    APUSH(wd->dumped, data);
 
    gtkw_end_of_signal(wd->gtkw, tb_get(tb));
 }
 
-static void fst_enter_scope(wave_dumper_t *wd, tree_t unit, rt_scope_t *scope,
+static void fst_enter_scope(wave_dumper_t *wd, tree_t t, rt_scope_t *rt_scope,
                             text_buf_t *tb)
 {
+   fst_scope_t *scope = xcalloc(sizeof(fst_scope_t));
+   if (rt_scope) {
+      scope->kind = FST_SCOPE_RT;
+      scope->v.rt_scope = rt_scope;
+      scope->name = tree_ident(rt_scope->where);
+   }
+   else {
+      assert(tree_kind(t) == T_PROCESS);
+      assert(wd->scope);
+      assert(wd->scope->kind == FST_SCOPE_RT);
+
+      scope->kind = FST_SCOPE_PROC;
+      scope->v.rt_proc = find_proc(wd->scope->v.rt_scope, t);
+      scope->name = tree_ident(t);
+   }
+
    enum fstScopeType st;
-   switch (tree_kind(unit)) {
-   case T_ARCH: st = FST_ST_VHDL_ARCHITECTURE; break;
-   case T_BLOCK: st = FST_ST_VHDL_BLOCK; break;
+   switch (tree_kind(t)) {
+   case T_ARCH:         st = FST_ST_VHDL_ARCHITECTURE; break;
+   case T_BLOCK:        st = FST_ST_VHDL_BLOCK;        break;
    case T_FOR_GENERATE: st = FST_ST_VHDL_FOR_GENERATE; break;
-   case T_IF_GENERATE: st = FST_ST_VHDL_IF_GENERATE; break;
-   case T_PACKAGE: st = FST_ST_VHDL_PACKAGE; break;
-   case T_COMPONENT: st = FST_ST_VHDL_ARCHITECTURE; break;
-   case T_VERILOG: st = FST_ST_VCD_MODULE; break;
+   case T_IF_GENERATE:  st = FST_ST_VHDL_IF_GENERATE;  break;
+   case T_PACKAGE:      st = FST_ST_VHDL_PACKAGE;      break;
+   case T_COMPONENT:    st = FST_ST_VHDL_ARCHITECTURE; break;
+   case T_VERILOG:      st = FST_ST_VCD_MODULE;        break;
+   case T_PROCESS:      st = FST_ST_VHDL_PROCESS;      break;
    default:
       st = FST_ST_VHDL_ARCHITECTURE;
-      warn_at(tree_loc(unit), "no FST scope type for %s",
-              tree_kind_str(tree_kind(unit)));
+      warn_at(tree_loc(t), "no FST scope type for %s",
+              tree_kind_str(tree_kind(t)));
       break;
    }
 
-   const loc_t *loc = tree_loc(unit);
+   if (wd->scope)
+      scope->parent = wd->scope;
+   wd->scope = scope;
+
+   const loc_t *loc = tree_loc(t);
    fstWriterSetSourceStem(wd->fst_ctx, loc_file_str(loc), loc->first_line, 1);
 
    tb_rewind(tb);
-   tb_istr(tb, tree_ident(scope->where));
+   tb_istr(tb, scope->name);
    tb_downcase(tb);
 
    // TODO: store the component name in T_HIER somehow?
    fstWriterSetScope(wd->fst_ctx, st, tb_get(tb), "");
 
-   if (wd->gtkw != NULL) {
-      if (scope->kind == SCOPE_INSTANCE && tb_len(wd->gtkw->hier) > 0)
+   // TODO: Support "T_PROCESS" scope in GTK Wave save file
+   if (wd->gtkw != NULL && rt_scope != NULL) {
+      if (rt_scope->kind == SCOPE_INSTANCE && tb_len(wd->gtkw->hier) > 0)
          tb_append(wd->gtkw->hier, '.');
       tb_cat(wd->gtkw->hier, tb_get(tb));
 
-      gtkw_print_scope_comment(wd->gtkw, scope, scope->kind, tb, true);
+      gtkw_print_scope_comment(wd->gtkw, rt_scope, rt_scope->kind, tb, true);
 
       wd->gtkw->colour = (wd->gtkw->colour % 7) + 1;
    }
@@ -1124,8 +1314,14 @@ static void fst_enter_scope(wave_dumper_t *wd, tree_t unit, rt_scope_t *scope,
 
 static void fst_leave_scope(wave_dumper_t *wd)
 {
+   assert(wd->scope);
+   fst_scope_t *curr = wd->scope;
+   wd->scope = wd->scope->parent;
+   free(curr);
+
    fstWriterSetUpscope(wd->fst_ctx);
 
+   // TODO: Support T_PROCESS in GTKWave save file
    if (wd->gtkw != NULL) {
       const char *h = tb_get(wd->gtkw->hier);
       const char *prev = strrchr(h, '.');
@@ -1134,17 +1330,40 @@ static void fst_leave_scope(wave_dumper_t *wd)
    }
 }
 
+static void fst_walk_process(wave_dumper_t *wd, rt_scope_t *rt_scope,
+                             tree_t proc)
+{
+   assert(tree_kind(proc) == T_PROCESS);
+
+   LOCAL_TEXT_BUF tb = tb_new();
+   fst_enter_scope(wd, proc, NULL, tb);
+
+   const int n_decls = tree_decls(proc);
+   for (int i = 0; i < n_decls; i++) {
+      tree_t d = tree_decl(proc, i);
+
+      if (tree_kind(d) != T_CONST_DECL)
+         continue;
+
+      // TODO: Extend here with process prefix
+      if (wave_should_dump(rt_scope, tree_ident(d)))
+         fst_process_object(wd, rt_scope, d, tree_type(d), tb);
+   }
+
+   fst_leave_scope(wd);
+}
+
 static void fst_walk_design(wave_dumper_t *wd, tree_t block)
 {
    tree_t h = tree_decl(block, 0);
    assert(tree_kind(h) == T_HIER);
 
-   rt_scope_t *scope = find_scope(wd->model, block);
-   if (scope == NULL)
+   rt_scope_t *rt_scope = find_scope(wd->model, block);
+   if (rt_scope == NULL)
       fatal_trace("missing scope for %s", istr(tree_ident(block)));
 
    LOCAL_TEXT_BUF tb = tb_new();
-   fst_enter_scope(wd, tree_ref(h), scope, tb);
+   fst_enter_scope(wd, tree_ref(h), rt_scope, tb);
 
    if (tree_subkind(h) == T_COMPONENT && tree_stmts(block) > 0) {
       // Skip over implicit block statement created for component
@@ -1152,23 +1371,25 @@ static void fst_walk_design(wave_dumper_t *wd, tree_t block)
       block = tree_stmt(block, 0);
       assert(tree_kind(block) == T_BLOCK);
 
-      scope = find_scope(wd->model, block);
+      rt_scope = find_scope(wd->model, block);
    }
 
    const int nports = tree_ports(block);
    for (int i = 0; i < nports; i++) {
       tree_t p = tree_port(block, i);
-      if (wave_should_dump(scope, tree_ident(p)))
-         fst_process_signal(wd, scope, p, tree_type(p), tb);
+      if (wave_should_dump(rt_scope, tree_ident(p)))
+         fst_process_object(wd, rt_scope, p, tree_type(p), tb);
    }
 
    const int ndecls = tree_decls(block);
    for (int i = 0; i < ndecls; i++) {
       tree_t d = tree_decl(block, i);
+
       switch (tree_kind(d)) {
       case T_SIGNAL_DECL:
-         if (wave_should_dump(scope, tree_ident(d)))
-            fst_process_signal(wd, scope, d, tree_type(d), tb);
+      case T_CONST_DECL:
+         if (wave_should_dump(rt_scope, tree_ident(d)))
+            fst_process_object(wd, rt_scope, d, tree_type(d), tb);
          break;
       case T_VERILOG:
          {
@@ -1176,8 +1397,8 @@ static void fst_walk_design(wave_dumper_t *wd, tree_t block)
             const vlog_kind_t kind = vlog_kind(v);
             if (kind != V_NET_DECL && kind != V_VAR_DECL)
                continue;
-            else if (wave_should_dump(scope, vlog_ident(v)))
-               fst_process_verilog(wd, scope, d, v, tb);
+            else if (wave_should_dump(rt_scope, vlog_ident(v)))
+               fst_process_verilog(wd, rt_scope, d, v, tb);
          }
          break;
       default:
@@ -1193,6 +1414,8 @@ static void fst_walk_design(wave_dumper_t *wd, tree_t block)
          fst_walk_design(wd, s);
          break;
       case T_PROCESS:
+         fst_walk_process(wd, rt_scope, s);
+         break;
       case T_VERILOG:
          break;
       case T_PSL_DIRECT:
@@ -1228,7 +1451,7 @@ static void fst_walk_packages(wave_dumper_t *wd)
       for (int j = 0; j < ndecls; j++) {
          tree_t d = tree_decl(s->where, j);
          if (tree_kind(d) == T_SIGNAL_DECL)
-            fst_process_signal(wd, s, d, tree_type(d), tb);
+            fst_process_object(wd, s, d, tree_type(d), tb);
       }
 
       fst_leave_scope(wd);
@@ -1251,11 +1474,13 @@ void wave_dumper_restart(wave_dumper_t *wd, rt_model_t *m, jit_t *jit)
       wd->gtkw = NULL;
    }
 
+   fst_emit_time_change(0, wd);
+
    // Emitting the initial values must happen after all FST variables
    // are created to avoid expensive mmap/munmap calls
    for (int i = 0; i < wd->dumped.count; i++) {
       fst_data_t *data = wd->dumped.items[i];
-      fst_event_cb(0, data->signal, data->watch, data);
+      fst_event_cb(0, data->v.signal, data->watch, data);
    }
 
    model_set_phase_cb(m, END_OF_SIMULATION, fst_close, wd);
@@ -1375,13 +1600,13 @@ void wave_include_file(const char *base)
    wave_process_file(exclf, false);
 }
 
-static bool wave_should_dump(rt_scope_t *scope, ident_t id)
+static bool wave_should_dump(rt_scope_t *rt_scope, ident_t id)
 {
    if (excl.count == 0 && incl.count == 0)
       return true;
 
    LOCAL_TEXT_BUF tb = tb_new();
-   get_path_name(scope, tb);
+   get_path_name(rt_scope, tb);
    tb_append(tb, ':');
    tb_istr(tb, id);
    tb_downcase(tb);
