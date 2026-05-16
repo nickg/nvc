@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2022-2025  Nick Gasson
+//  Copyright (C) 2022-2026  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -18,6 +18,7 @@
 #include "util.h"
 #include "diag.h"
 #include "ident.h"
+#include "mask.h"
 #include "vlog/vlog-node.h"
 #include "vlog/vlog-number.h"
 #include "vlog/vlog-phase.h"
@@ -538,17 +539,57 @@ static void vlog_check_call_args(vlog_node_t v, vlog_node_t sub)
    const int nparams = vlog_params(v);
    const int nports = vlog_ports(sub);
 
-   if (nparams != nports) {
+   LOCAL_BIT_MASK optmask;
+   mask_init(&optmask, nports);
+
+   for (int i = 0; i < nports; i++) {
+      if (vlog_has_value(vlog_port(sub, i)))
+         mask_set(&optmask, i);
+   }
+
+   const int minargs = nports - mask_popcount(&optmask);
+
+   if (nparams > nports || nparams < minargs) {
       diag_t *d = diag_new(DIAG_ERROR, vlog_loc(v));
-      diag_printf(d, "expected %d argument%s for '%s' but have %d", nports,
-                  nports != 1 ? "s" : "", istr(vlog_ident(sub)), nparams);
-      diag_hint(d, vlog_loc(sub), "'%s' declared here", istr(vlog_ident(sub)));
+      diag_printf(d, "expected ");
+      if (minargs < nports && nparams < nports)
+         diag_printf(d, "at least %d ", minargs);
+      else if (minargs < nports && nparams > nports)
+         diag_printf(d, "at most %d ", nports);
+      else
+         diag_printf(d, "%d ", nports);
+      diag_printf(d, "argument%s for '%pi' but have %d",
+                  minargs != 1 ? "s" : "", vlog_ident(sub), nparams);
+      diag_hint(d, vlog_loc(sub), "'%pi' declared here", vlog_ident(sub));
       diag_emit(d);
       return;
    }
 
-   for (int i = 0; i < nparams; i++)
-      vlog_check_expr(vlog_param(v, i));
+   for (int i = 0; i < nports; i++) {
+      vlog_node_t port = vlog_port(sub, i);
+
+      if (i < nparams) {
+         vlog_node_t p = vlog_param(v, i);
+         vlog_check_expr(p);
+
+         if (vlog_kind(p) == V_EMPTY && !vlog_has_value(port)) {
+            diag_t *d = diag_new(DIAG_ERROR, vlog_loc(v));
+            diag_printf(d, "'%pi' argument '%pi' cannot be empty as it does "
+                        "not have a default value", vlog_ident(sub),
+                        vlog_ident(port));
+            diag_hint(d, vlog_loc(port), "'%pi' declared here",
+                      vlog_ident(port));
+            diag_emit(d);
+         }
+      }
+      else if (!mask_test(&optmask, i)) {
+         diag_t *d = diag_new(DIAG_ERROR, vlog_loc(v));
+         diag_printf(d, "missing '%pi' argument '%pi' without a default value",
+                     vlog_ident(sub), vlog_ident(port));
+         diag_hint(d, vlog_loc(port), "'%pi' declared here", vlog_ident(port));
+         diag_emit(d);
+      }
+   }
 }
 
 static void vlog_check_user_tcall(vlog_node_t v)

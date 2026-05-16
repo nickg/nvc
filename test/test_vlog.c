@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2022-2025 Nick Gasson
+//  Copyright (C) 2022-2026 Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -1056,6 +1056,12 @@ START_TEST(test_tfcall2)
       { 44, "return statement in a non-void function must have an expression" },
       { 53, "completely declared port 'z' cannot be declared again in a data "
         "type declaration" },
+      { 60, "expected at least 1 argument for 'optarg1' but have 0" },
+      { 61, "expected at most 2 argument for 'optarg1' but have 3" },
+      { 64, "'optarg1' argument 'x' cannot be empty as it does not have "
+        "a default value" },
+      { 71, "expected at least 1 argument for 'optarg2' but have 0" },
+      { 72, "missing 'optarg2' argument 'y' without a default value" },
       {  9, "expected 2 arguments for 'sum' but have 1" },
       { 10, "expected 2 arguments for 'sum' but have 3" },
       { 13, "'x4' is not a function" },

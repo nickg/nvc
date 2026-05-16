@@ -53,4 +53,24 @@ module tfcall2;
     logic [3:0]       z;  // Error
   endtask // task4
 
+  function optarg1(integer x, integer y = 2);
+  endfunction // optarg1
+
+  task task4;
+    integer r1 = optarg1();   // Error
+    integer r2 = optarg1(5, 5, 5);   // Error
+    r1 = optarg1(6);     // OK
+    r1 = optarg1(6, 7);  // OK
+    r1 = optarg1(, 7);   // Error
+  endtask // task4
+
+  function optarg2(integer x = 5, integer y);  // OK
+  endfunction // optarg2
+
+  task task5;
+    integer r = optarg2();   // Error
+    r = optarg2(1);   // Error
+    r = optarg2(, 3); // OK
+  endtask // task5
+
 endmodule // tfcall1

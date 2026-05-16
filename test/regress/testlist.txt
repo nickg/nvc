@@ -1358,3 +1358,4 @@ struct2         verilog
 union2          verilog
 ivtest43        verilog
 real10          verilog,gold
+tfcall7         verilog

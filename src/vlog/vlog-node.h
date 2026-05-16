@@ -344,6 +344,7 @@ void vlog_add_port(vlog_node_t v, vlog_node_t p);
 unsigned vlog_params(vlog_node_t v);
 vlog_node_t vlog_param(vlog_node_t v, unsigned n);
 void vlog_add_param(vlog_node_t v, vlog_node_t p);
+void vlog_set_param(vlog_node_t v, unsigned n, vlog_node_t p);
 
 unsigned vlog_ranges(vlog_node_t v);
 vlog_node_t vlog_range(vlog_node_t v, unsigned n);

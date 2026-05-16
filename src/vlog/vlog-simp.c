@@ -660,6 +660,26 @@ static vlog_node_t simp_concat(vlog_node_t v)
    return v;
 }
 
+static vlog_node_t simp_call_args(vlog_node_t v)
+{
+   vlog_node_t sub = vlog_ref(v);
+
+   const int nparams = vlog_params(v);
+   const int nports = vlog_ports(sub);
+
+   for (int i = 0; i < nports; i++) {
+      if (i < nparams) {
+         vlog_node_t p = vlog_param(v, i);
+         if (vlog_kind(p) == V_EMPTY)
+            vlog_set_param(v, i, vlog_value(vlog_port(sub, i)));
+      }
+      else
+         vlog_add_param(v, vlog_value(vlog_port(sub, i)));
+   }
+
+   return v;
+}
+
 static vlog_node_t vlog_simp_cb(vlog_node_t v, void *context)
 {
    switch (vlog_kind(v)) {
@@ -687,6 +707,9 @@ static vlog_node_t vlog_simp_cb(vlog_node_t v, void *context)
       return simp_localparam(v);
    case V_CONCAT:
       return simp_concat(v);
+   case V_USER_FCALL:
+   case V_USER_TCALL:
+      return simp_call_args(v);
    default:
       return v;
    }

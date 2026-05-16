@@ -514,6 +514,15 @@ void vlog_add_param(vlog_node_t v, vlog_node_t p)
    object_write_barrier(&(v->object), &(p->object));
 }
 
+void vlog_set_param(vlog_node_t v, unsigned n, vlog_node_t p)
+{
+   assert(p != NULL);
+   item_t *item = lookup_item(&vlog_object, v, I_PARAMS);
+   assert(n < obj_array_count(item->obj_array));
+   item->obj_array->items[n] = vlog_to_object(p);
+   object_write_barrier(&(v->object), &(p->object));
+}
+
 unsigned vlog_ranges(vlog_node_t v)
 {
    item_t *item = lookup_item(&vlog_object, v, I_RANGES);
