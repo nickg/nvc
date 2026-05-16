@@ -2714,12 +2714,14 @@ static void vlog_lower_gate_inst(vlog_gen_t *g, vlog_node_t v)
          };
 
          value = vlog_lower_rvalue(g, vlog_param(v, first_term));
+         value = vlog_lower_cast(g, t_logic, value);
 
          const int nelems = nparams - first_term;
          for (int i = 1; i < nelems; i++) {
             vlog_node_t p = vlog_param(v, first_term + i);
             mir_value_t arg = vlog_lower_rvalue(g, p);
-            value = mir_build_binary(g->mu, op_map[kind], t_logic, value, arg);
+            mir_value_t cast = vlog_lower_cast(g, t_logic, arg);
+            value = mir_build_binary(g->mu, op_map[kind], t_logic, value, cast);
          }
 
          if (negate)
@@ -2730,7 +2732,8 @@ static void vlog_lower_gate_inst(vlog_gen_t *g, vlog_node_t v)
    case V_GATE_NOT:
       {
          mir_value_t input = vlog_lower_rvalue(g, vlog_param(v, nparams - 1));
-         value = mir_build_unary(g->mu, MIR_VEC_BIT_NOT, t_logic, input);
+         mir_value_t cast = vlog_lower_cast(g, t_logic, input);
+         value = mir_build_unary(g->mu, MIR_VEC_BIT_NOT, t_logic, cast);
       }
       break;
 
@@ -2738,7 +2741,8 @@ static void vlog_lower_gate_inst(vlog_gen_t *g, vlog_node_t v)
       {
          // Invert twice for correct X/Z behaviour
          mir_value_t input = vlog_lower_rvalue(g, vlog_param(v, nparams - 1));
-         value = mir_build_unary(g->mu, MIR_VEC_BIT_NOT, t_logic, input);
+         mir_value_t cast = vlog_lower_cast(g, t_logic, input);
+         value = mir_build_unary(g->mu, MIR_VEC_BIT_NOT, t_logic, cast);
          value = mir_build_unary(g->mu, MIR_VEC_BIT_NOT, t_logic, value);
       }
       break;

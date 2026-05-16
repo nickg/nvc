@@ -1363,3 +1363,4 @@ select21        verilog
 array21         verilog
 ivtest44        verilog
 ivtest45        verilog
+gate1           verilog
