@@ -414,21 +414,41 @@ static vlog_select_t vlog_lower_select(vlog_gen_t *g, vlog_node_t v)
 
          vlog_select_t prefix = vlog_lower_select(g, value);
 
-         unsigned size =
-            vlog_size(vlog_ref(value)) * mir_get_size(g->mu, prefix.type);
+         vlog_node_t decl = vlog_ref(value);
+         const int nunpacked =
+            vlog_kind(decl) == V_VAR_DECL ? vlog_ranges(decl) : 0;
+         const int nparams = vlog_params(v);
+
+         const bool unpacked_var =
+            nunpacked > 0 && (mir_points_to_vector(g->mu, prefix.obj));
 
          mir_type_t t_offset = mir_offset_type(g->mu);
-         mir_value_t zero = mir_const(g->mu, t_offset, 0), off = zero;
+         mir_value_t zero = mir_const(g->mu, t_offset, 0);
+         mir_value_t array_off = zero, bit_off = zero;
+
          mir_value_t in_range =
             mir_build_cmp(g->mu, MIR_CMP_NEQ, prefix.count, zero);
 
-         const int nparams = vlog_params(v);
+         unsigned elems = vlog_size(decl);
+         unsigned size = unpacked_var
+            ? mir_get_size(g->mu, prefix.type)
+            : elems * mir_get_size(g->mu, prefix.type);
+
          for (int i = 0; i < nparams; i++) {
             vlog_node_t dim = vlog_get_dim(value, i);
 
             const unsigned dim_size = vlog_size(dim);
-            assert(size % dim_size == 0);
-            size /= dim_size;
+            const bool unpacked_dim =
+               unpacked_var && vlog_subkind(dim) == V_DIM_UNPACKED;
+
+            if (unpacked_dim) {
+               assert(elems % dim_size == 0);
+               elems /= dim_size;
+            }
+            else {
+               assert(size % dim_size == 0);
+               size /= dim_size;
+            }
 
             mir_value_t index = vlog_lower_rvalue(g, vlog_param(v, i));
             mir_value_t this_off = vlog_lower_array_off(g, dim, index);
@@ -442,22 +462,30 @@ static vlog_select_t vlog_lower_select(vlog_gen_t *g, vlog_node_t v)
             mir_value_t this_in_range = mir_build_and(g->mu, cmp_low, cmp_high);
             this_in_range = mir_build_and(g->mu, known, this_in_range);
 
-            if (size != 1) {
-               mir_value_t scale = mir_const(g->mu, t_offset, size);
+            const unsigned scale_by = unpacked_dim ? elems : size;
+            if (scale_by != 1) {
+               mir_value_t scale = mir_const(g->mu, t_offset, scale_by);
                this_off = mir_build_mul(g->mu, t_offset, this_off, scale);
             }
 
             in_range = mir_build_and(g->mu, in_range, this_in_range);
-            off = mir_build_add(g->mu, t_offset, off, this_off);
+            if (unpacked_dim)
+               array_off = mir_build_add(g->mu, t_offset, array_off, this_off);
+            else
+               bit_off = mir_build_add(g->mu, t_offset, bit_off, this_off);
          }
 
          mir_value_t count = mir_build_select(g->mu, t_offset, in_range,
                                               mir_const(g->mu, t_offset, size),
                                               zero);
 
+         mir_value_t obj = prefix.obj;
+         if (unpacked_var)
+            obj = mir_build_array_ref(g->mu, prefix.obj, array_off);
+
          vlog_select_t result = {
-            .obj        = prefix.obj,
-            .dst_offset = off,
+            .obj        = obj,
+            .dst_offset = bit_off,
             .count      = count,
             .src_offset = mir_const(g->mu, t_offset, 0),
             .type       = mir_vector_slice(g->mu, prefix.type, size),
@@ -3054,19 +3082,33 @@ static void vlog_lower_locals(vlog_gen_t *g, vlog_node_t v)
       case V_VAR_DECL:
          {
             const type_info_t *ti = vlog_type_info(g, vlog_type(d));
-            mir_value_t var = mir_add_var(g->mu, ti->type, ti->stamp,
+
+            const int nelems = vlog_size(d);
+            mir_type_t type = ti->type;
+            if (nelems > 1)
+               type = mir_carray_type(g->mu, nelems, ti->type);
+
+            mir_value_t var = mir_add_var(g->mu, type, ti->stamp,
                                           vlog_ident(d), 0);
             mir_put_object(g->mu, d, var);
 
-            mir_value_t init;
             if (vlog_has_value(d)) {
+               assert(nelems == 1);  // TODO: unpacked array initialisation
                mir_value_t value = vlog_lower_rvalue(g, vlog_value(d));
-               init = vlog_lower_cast(g, ti->type, value);
+               mir_value_t init = vlog_lower_cast(g, ti->type, value);
+               mir_build_store(g->mu, var, init);
             }
-            else
-               init = vlog_lower_default_value(g, ti);
+            else {
+               mir_value_t init = vlog_lower_default_value(g, ti);
 
-            mir_build_store(g->mu, var, init);
+               if (nelems > 1) {
+                  mir_type_t t_offset = mir_offset_type(g->mu);
+                  mir_value_t count = mir_const(g->mu, t_offset, nelems);
+                  mir_build_set(g->mu, var, init, count);
+               }
+               else
+                  mir_build_store(g->mu, var, init);
+            }
          }
          break;
       default:

@@ -842,6 +842,25 @@ bool mir_points_to(mir_unit_t *mu, mir_value_t value, mir_class_t class)
    return mir_type_data(mu, td->u.pointer)->class == class;
 }
 
+bool mir_points_to_vector(mir_unit_t *mu, mir_value_t value)
+{
+   mir_type_t type = mir_get_type(mu, value);
+   if (mir_is_null(type))
+      return false;
+
+   const type_data_t *td = mir_type_data(mu, type);
+   if (td->class != MIR_TYPE_POINTER)
+      return false;
+
+   switch (mir_type_data(mu, td->u.pointer)->class) {
+   case MIR_TYPE_VEC2:
+   case MIR_TYPE_VEC4:
+      return true;
+   default:
+      return false;
+   }
+}
+
 bool mir_is_signal(mir_unit_t *mu, mir_value_t value)
 {
    return mir_is(mu, value, MIR_TYPE_SIGNAL);

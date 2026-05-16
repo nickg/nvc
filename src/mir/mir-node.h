@@ -456,6 +456,7 @@ bool mir_is_signal(mir_unit_t *mu, mir_value_t value);
 bool mir_is_offset(mir_unit_t *mu, mir_value_t value);
 bool mir_is(mir_unit_t *mu, mir_value_t value, mir_class_t class);
 bool mir_points_to(mir_unit_t *mu, mir_value_t value, mir_class_t class);
+bool mir_points_to_vector(mir_unit_t *mu, mir_value_t value);
 bool mir_may_alias(mir_unit_t *mu, mir_value_t a, mir_value_t b);
 
 const char *mir_op_string(mir_op_t op);

@@ -1360,3 +1360,5 @@ ivtest43        verilog
 real10          verilog,gold
 tfcall7         verilog
 select21        verilog
+array21         verilog
+ivtest44        verilog
