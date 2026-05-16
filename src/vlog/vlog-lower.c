@@ -664,9 +664,7 @@ static void vlog_assign_variable(vlog_gen_t *g, vlog_node_t target,
          }
       }
    }
-   else {
-      assert(nlvalues == 1);  // TODO
-
+   else if (nlvalues == 1) {
       switch (vlog_kind(target)) {
       case V_REF:
       case V_MEMBER_REF:
@@ -680,6 +678,59 @@ static void vlog_assign_variable(vlog_gen_t *g, vlog_node_t target,
             mir_build_store(g->mu, lvalues[0].obj, ins);
          }
          break;
+      }
+   }
+   else {
+      mir_type_t t_offset = mir_offset_type(g->mu);
+
+      for (int i = 0, offset = 0; i < nlvalues;
+           offset += lvalues[i].size, i++) {
+         mir_block_t merge_bb = MIR_NULL_BLOCK;
+
+         int64_t count_const;
+         if (mir_get_const(g->mu, lvalues[i].count, &count_const)) {
+            if (count_const == 0) {
+               mir_comment(g->mu, "Out-of-range assignment");
+               continue;
+            }
+         }
+         else {
+            mir_block_t guarded_bb = mir_add_block(g->mu);
+            merge_bb = mir_add_block(g->mu);
+
+            mir_value_t overlaps = mir_build_cmp(g->mu, MIR_CMP_NEQ,
+                                                 lvalues[i].count,
+                                                 mir_const(g->mu, t_offset, 0));
+            mir_build_cond(g->mu, overlaps, guarded_bb, merge_bb);
+
+            mir_set_cursor(g->mu, guarded_bb, MIR_APPEND);
+         }
+
+         mir_value_t pos = mir_build_add(g->mu, t_offset,
+                                         mir_const(g->mu, t_offset, offset),
+                                         lvalues[i].src_offset);
+         mir_value_t part = mir_build_extract(g->mu, lvalues[i].type,
+                                              cast, pos);
+
+         switch (vlog_kind(vlog_param(target, i))) {
+         case V_REF:
+         case V_MEMBER_REF:
+            mir_build_store(g->mu, lvalues[i].obj, part);
+            break;
+         default:
+            {
+               mir_value_t cur = mir_build_load(g->mu, lvalues[i].obj);
+               mir_value_t ins =
+                  mir_build_insert(g->mu, part, cur, lvalues[i].dst_offset);
+               mir_build_store(g->mu, lvalues[i].obj, ins);
+            }
+            break;
+         }
+
+         if (!mir_is_null(merge_bb)) {
+            mir_build_jump(g->mu, merge_bb);
+            mir_set_cursor(g->mu, merge_bb, MIR_APPEND);
+         }
       }
    }
 }
