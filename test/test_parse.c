@@ -7617,6 +7617,26 @@ START_TEST(test_issue1498)
 }
 END_TEST
 
+START_TEST(test_view1)
+{
+   set_standard(STD_19);
+
+   input_from_file(TESTDIR "/parse/view1.vhd");
+
+   const error_t expect[] = {
+      { 15, "no visible declaration for DATA" },
+      { 15, "cannot index non-array type ST_SOURCE_V" },
+      { 15, "name in mode view indication does not denote a mode view" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_ENTITY, T_ARCH);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_parse_tests(void)
 {
    Suite *s = suite_create("parse");
@@ -7817,6 +7837,7 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_tc1852);
    tcase_add_test(tc_core, test_issue1477);
    tcase_add_test(tc_core, test_issue1498);
+   tcase_add_test(tc_core, test_view1);
    suite_add_tcase(s, tc_core);
 
    return s;
