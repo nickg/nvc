@@ -619,7 +619,8 @@ static void dump_stmts(tree_t t, int indent)
       bool needs_newline;
       if (kind == T_VERILOG) {
          const vlog_kind_t vkind = vlog_kind(tree_vlog(s));
-         needs_newline = (vkind == V_ALWAYS || vkind == V_INITIAL);
+         needs_newline = (vkind == V_ALWAYS || vkind == V_INITIAL
+                          || vkind == V_FINAL);
       }
       else
          needs_newline = (kind == T_BLOCK || kind == T_PROCESS

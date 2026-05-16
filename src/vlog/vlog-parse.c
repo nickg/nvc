@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2024-2025  Nick Gasson
+//  Copyright (C) 2024-2026  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -2892,6 +2892,22 @@ static vlog_node_t p_always_construct(void)
    return v;
 }
 
+static vlog_node_t p_final_construct(void)
+{
+   // final function_statement
+
+   BEGIN("final construct");
+
+   consume(tFINAL);
+
+   vlog_node_t v = vlog_new(V_FINAL);
+   vlog_set_ident(v, default_label("final"));
+   vlog_add_stmt(v, p_statement());
+
+   vlog_set_loc(v, CURRENT_LOC);
+   return v;
+}
+
 static vlog_node_t p_initial_construct(void)
 {
    // initial statement_or_null
@@ -4557,6 +4573,9 @@ static void p_module_common_item(vlog_node_t mod)
    case tCASE:
       vlog_add_stmt(mod, p_conditional_generate_construct());
       break;
+   case tFINAL:
+      vlog_add_stmt(mod, p_final_construct());
+      break;
    default:
       one_of(tALWAYS, tALWAYSCOMB, tALWAYSFF, tALWAYSLATCH, tWIRE, tUWIRE,
              tSUPPLY0, tSUPPLY1, tTRI, tTRI0, tTRI1, tTRIAND, tTRIOR, tTRIREG,
@@ -4564,7 +4583,7 @@ static void p_module_common_item(vlog_node_t mod)
              tSVINT, tINTEGER, tSVREAL, tSHORTREAL, tREALTIME, tTIME, tTASK,
              tFUNCTION, tPARAMETER, tLOCALPARAM, tEVENT, tID, tGENVAR, tVAR,
              tLOGIC, tBIT, tSHORTINT, tLONGINT, tBYTE, tSTRINGK, tIMPORT,
-             tASSIGN, tFOR, tIF);
+             tASSIGN, tFOR, tIF, tCASE, tFINAL);
       drop_tokens_until(&state, tSEMI);
    }
 }
@@ -6072,6 +6091,7 @@ static void p_module_or_generate_item(vlog_node_t mod)
    case tBYTE:
    case tSTRINGK:
    case tIMPORT:
+   case tFINAL:
       p_module_common_item(mod);
       break;
    case tPULLDOWN:
@@ -6115,9 +6135,9 @@ static void p_module_or_generate_item(vlog_node_t mod)
              tINITIAL, tTYPEDEF, tENUM, tSVINT, tINTEGER, tSVREAL, tSHORTREAL,
              tREALTIME, tTIME, tTASK, tFUNCTION, tLOCALPARAM, tPARAMETER, tIF,
              tFOR, tEVENT, tGENVAR, tVAR, tLOGIC, tBIT, tSHORTINT, tLONGINT,
-             tBYTE, tSTRINGK, tIMPORT, tPULLDOWN, tPULLUP, tID, tAND, tNAND,
-             tOR, tNOR, tXOR, tXNOR, tNOT, tBUF, tBUFIF0, tBUFIF1, tNOTIF0,
-             tNOTIF1, tDEFPARAM, tID);
+             tBYTE, tSTRINGK, tIMPORT, tFINAL, tPULLDOWN, tPULLUP, tID, tAND,
+             tNAND, tOR, tNOR, tXOR, tXNOR, tNOT, tBUF, tBUFIF0, tBUFIF1,
+             tNOTIF0, tNOTIF1, tDEFPARAM, tID);
       drop_tokens_until(&state, tSEMI);
    }
 }
@@ -6235,6 +6255,7 @@ static void p_non_port_module_item(vlog_node_t mod)
    case tSTRINGK:
    case tIMPORT:
    case tDEFPARAM:
+   case tFINAL:
       p_module_or_generate_item(mod);
       break;
    case tSPECIFY:
@@ -6252,7 +6273,7 @@ static void p_non_port_module_item(vlog_node_t mod)
              tENUM, tSVINT, tINTEGER, tSVREAL, tSHORTREAL, tREALTIME, tTIME,
              tTASK, tFUNCTION, tLOCALPARAM, tPARAMETER, tEVENT, tIF, tFOR,
              tGENVAR, tVAR, tLOGIC, tBIT, tSHORTINT, tLONGINT, tBYTE, tSTRINGK,
-             tIMPORT, tDEFPARAM, tSPECIFY, tGENERATE);
+             tIMPORT, tDEFPARAM, tFINAL, tSPECIFY, tGENERATE);
       drop_tokens_until(&state, tSEMI);
    }
 }

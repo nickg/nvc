@@ -884,6 +884,7 @@ PROTECT           ?i:protect
 <VLOG>"endprogram"       { return KEYWORD_2005(tENDPROGRAM); }
 <VLOG>"endclass"         { return KEYWORD_2005(tENDCLASS); }
 <VLOG>"virtual"          { return KEYWORD_2005(tVIRTUAL); }
+<VLOG>"final"            { return KEYWORD_2005(tFINAL); }
 <VLOG>"defparam"         { return tDEFPARAM; }
 <VLOG>"PATHPULSE$"       { return tPATHPULSE; }
 

@@ -340,6 +340,7 @@ void vlog_trans(vlog_node_t mod, tree_t out)
       switch (vlog_kind(s)) {
       case V_INITIAL:
       case V_ALWAYS:
+      case V_FINAL:
       case V_ASSIGN:
       case V_GATE_INST:
       case V_UDP_TABLE:

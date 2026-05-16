@@ -1836,6 +1836,7 @@ static void elab_verilog_processes(vlog_node_t v, const elab_ctx_t *ctx)
       switch (vlog_kind(s)) {
       case V_INITIAL:
       case V_ALWAYS:
+      case V_FINAL:
       case V_ASSIGN:
       case V_UDP_TABLE:
       case V_GATE_INST:

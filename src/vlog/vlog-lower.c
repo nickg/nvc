@@ -23,6 +23,7 @@
 #include "mir/mir-node.h"
 #include "mir/mir-unit.h"
 #include "printf.h"
+#include "rt/rt.h"
 #include "type.h"
 #include "vlog/vlog-defs.h"
 #include "vlog/vlog-node.h"
@@ -2417,6 +2418,29 @@ static void vlog_lower_initial(vlog_gen_t *g, vlog_node_t v)
       mir_build_return(g->mu, MIR_NULL_VALUE);
 }
 
+static void vlog_lower_final(vlog_gen_t *g, vlog_node_t v)
+{
+   mir_block_t start_bb = mir_add_block(g->mu);
+   assert(start_bb.id == 1);
+
+   mir_build_return(g->mu, MIR_NULL_VALUE);
+
+   mir_set_cursor(g->mu, start_bb, MIR_APPEND);
+
+   mir_type_t t_time = mir_time_type(g->mu);
+   mir_build_sched_process(g->mu, mir_const(g->mu, t_time, TIME_HIGH));
+
+   mir_block_t final_bb = mir_add_block(g->mu);
+   mir_build_wait(g->mu, final_bb);
+
+   mir_set_cursor(g->mu, final_bb, MIR_APPEND);
+
+   vlog_lower_stmts(g, v);
+
+   if (!mir_block_finished(g->mu, MIR_NULL_BLOCK))
+      mir_build_return(g->mu, MIR_NULL_VALUE);
+}
+
 static void vlog_lower_sensitivity(vlog_gen_t *g, vlog_node_t v)
 {
    const vlog_kind_t kind = vlog_kind(v);
@@ -2916,6 +2940,9 @@ static void vlog_lower_deferred(mir_unit_t *mu, object_t *obj)
       break;
    case V_INITIAL:
       vlog_lower_initial(&g, v);
+      break;
+   case V_FINAL:
+      vlog_lower_final(&g, v);
       break;
    case V_ASSIGN:
       vlog_lower_assign_process(&g, v);
@@ -3453,6 +3480,7 @@ void vlog_lower_instance(mir_context_t *mc, vlog_node_t body, ident_t parent,
       vlog_node_t s = tree_vlog(wrap);
 
       switch (vlog_kind(s)) {
+      case V_FINAL:
       case V_ASSIGN:
       case V_INITIAL:
       case V_ALWAYS:

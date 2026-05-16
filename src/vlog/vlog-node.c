@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2022-2025  Nick Gasson
+//  Copyright (C) 2022-2026  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -312,6 +312,9 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
 
    // V_PORT_MAP
    (I_REF | I_VALUE),
+
+   // V_FINAL
+   (I_IDENT | I_STMTS),
 };
 
 static const char *kind_text_map[V_LAST_NODE_KIND] = {
@@ -339,6 +342,7 @@ static const char *kind_text_map[V_LAST_NODE_KIND] = {
    "V_PACKAGE",       "V_MIN_TYP_MAX", "V_PROGRAM",       "V_CLASS_DECL",
    "V_NULL",          "V_CLASS_NEW",   "V_CONSTRUCTOR",   "V_SUPER_CALL",
    "V_IMPORT_DECL",   "V_NAMESPACE",   "V_DEFPARAM",      "V_PORT_MAP",
+   "V_FINAL",
 };
 
 static const change_allowed_t change_allowed[] = {

@@ -1723,6 +1723,7 @@ static void setup_process(rt_proc_t *p, const char *path)
             break;
          case V_ALWAYS:
          case V_INITIAL:
+         case V_FINAL:
             p->name = ident_sprintf("%s:%s", path, istr(tree_ident(p->where)));
             break;
          default:

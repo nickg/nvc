@@ -1150,6 +1150,7 @@ void vlog_check(vlog_node_t v)
       break;
    case V_INITIAL:
    case V_ALWAYS:
+   case V_FINAL:
    case V_FOREVER:
       vlog_check_stmts(v);
       break;

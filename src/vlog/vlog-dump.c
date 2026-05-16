@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2022-2025 Nick Gasson
+//  Copyright (C) 2022-2026 Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -261,6 +261,15 @@ static void vlog_dump_initial(vlog_node_t v, int indent)
    tab(indent);
 
    print_syntax("#initial ");
+   vlog_dump(vlog_stmt(v, 0), indent);
+   print_syntax("\n");
+}
+
+static void vlog_dump_final(vlog_node_t v, int indent)
+{
+   tab(indent);
+
+   print_syntax("#final ");
    vlog_dump(vlog_stmt(v, 0), indent);
    print_syntax("\n");
 }
@@ -917,6 +926,8 @@ static void vlog_dump_op_assign(vlog_node_t v)
    switch (vlog_subkind(v)) {
    case V_ASSIGN_EQUALS: print_syntax(" = "); break;
    case V_ASSIGN_PLUS:   print_syntax(" += "); break;
+   case V_ASSIGN_TIMES:  print_syntax(" *= "); break;
+   case V_ASSIGN_DIVIDE: print_syntax(" /= "); break;
    }
 
    vlog_dump(vlog_value(v), 0);
@@ -993,6 +1004,9 @@ void vlog_dump(vlog_node_t v, int indent)
       break;
    case V_INITIAL:
       vlog_dump_initial(v, indent);
+      break;
+   case V_FINAL:
+      vlog_dump_final(v, indent);
       break;
    case V_TIMING:
       vlog_dump_timing(v, indent);

@@ -73,4 +73,5 @@ module mod3;   // Check operator precedence
   integer v2 = x ? 1 : 2;
   assign z = {x, y};
   assign zz = {5{z}};
+  final v1 /= 2;
 endmodule // mod3

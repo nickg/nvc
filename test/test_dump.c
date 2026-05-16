@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2023-2025  Nick Gasson
+//  Copyright (C) 2023-2026  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -594,6 +594,7 @@ START_TEST(test_vlog1)
              "  end\n"
              "  assign z = {x, y};\n"
              "  assign zz = {5{z}};\n"
+             "  final v1 /= 2;\n"
              "endmodule // mod3\n\n");
    tb_rewind(tb);
 
