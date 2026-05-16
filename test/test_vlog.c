@@ -1687,6 +1687,39 @@ START_TEST(test_pp10)
 }
 END_TEST
 
+START_TEST(test_pp11)
+{
+   input_from_file(TESTDIR "/vlog/pp11.v");
+
+   LOCAL_TEXT_BUF tb = tb_new();
+   vlog_preprocess(tb, false);
+
+   ck_assert_str_eq(
+      tb_get(tb),
+      "\n"
+      "\n"
+      "module pp11;\n"
+      "  reg mem_do_wdata;\n"
+      "\n"
+      "  initial begin\n"
+      "    if (mem_do_wdata)\n"
+      "      empty_statement;\n"
+      "  end\n"
+      "\n"
+      "\n"
+      "\n"
+      "\n"
+      "\n"
+      "\n"
+      "  task empty_statement;\n"
+      "    begin end\n"
+      "  endtask\n"
+      "endmodule\n");
+
+   fail_if_errors();
+}
+END_TEST
+
 START_TEST(test_simp2)
 {
    input_from_file(TESTDIR "/vlog/simp2.v");
@@ -1900,6 +1933,7 @@ Suite *get_vlog_tests(void)
    tcase_add_test(tc, test_pp9);
    tcase_add_test(tc, test_const2);
    tcase_add_test(tc, test_pp10);
+   tcase_add_test(tc, test_pp11);
    tcase_add_test(tc, test_simp2);
    tcase_add_test(tc, test_lower2);
    tcase_add_test(tc, test_lower3);

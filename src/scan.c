@@ -697,16 +697,14 @@ static void pp_nvc_push(void)
    macro_expansion_t exp = {};
    unsigned first_line, first_column, column_delta;
 
-   switch ((tok = pp_yylex())) {
-   case tID:
-      exp.macro = yylval.ident;
-      break;
-   case tSTRING:
-      exp.include = tb_claim(yylval.text);
-      break;
-   default:
+   if ((tok = pp_yylex()) != tSTRING)
       goto error;
-   }
+
+   const char *text = tb_get(yylval.text);
+   if (text[0] == '`')
+      exp.macro = ident_new(text + 1);
+   else
+      exp.include = tb_claim(yylval.text);
 
    if ((tok = pp_yylex()) != tCOMMA)
       goto error;

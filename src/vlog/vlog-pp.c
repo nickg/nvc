@@ -506,11 +506,17 @@ static void p_expression(text_buf_t *tb)
    // {}, double quotes " ", triple quotes """ """, or an escaped
    // identifier.
 
-   switch (one_of(tTEXT, tLPAREN, tWHITESPACE, tID)) {
+   switch (one_of(tTEXT, tLPAREN, tWHITESPACE, tID, tSTRING, tMACROUSAGE,
+                  tCOMMA)) {
    case tTEXT:
    case tWHITESPACE:
    case tID:
+   case tSTRING:
+   case tMACROUSAGE:
       tb_catn(tb, state.last_lval.span.ptr, state.last_lval.span.len);
+      break;
+   case tCOMMA:
+      tb_append(tb, ',');
       break;
    case tLPAREN:
       tb_append(tb, '(');
@@ -535,7 +541,8 @@ static void p_actual_argument(macro_t *m, int pos)
 
    LOCAL_TEXT_BUF tb = tb_new();
 
-   p_expression(tb);
+   while (not_at_token(tCOMMA, tRPAREN))
+      p_expression(tb);
 
    if (pos < m->args.count)
       hash_put(macro_args, m->args.items[pos], tb_claim(tb));
@@ -628,7 +635,7 @@ static void p_text_macro_usage(void)
       || last == '\t' || last == '\n';
 
    if (emit_locs && at_boundary)
-      tb_printf(output, "\n`__nvc_push %pi,%d:%d,%d\n", name,
+      tb_printf(output, "\n`__nvc_push \"`%pi\",%d:%d,%d\n", name,
                 yylloc.first_line, yylloc.first_column, yylloc.column_delta);
 
    push_buffer(tb_get(m->text), tb_len(m->text), FILE_INVALID);
@@ -837,7 +844,10 @@ static void p_block_of_text(void)
       p_text_macro_definition();
       break;
    case tMACROUSAGE:
-      p_text_macro_usage();
+      if (ifdefs == NULL || ifdefs->cond)
+         p_text_macro_usage();
+      else
+         consume(tMACROUSAGE);
       break;
    case tIFDEF:
    case tIFNDEF:
