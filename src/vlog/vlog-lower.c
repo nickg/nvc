@@ -1919,9 +1919,8 @@ static void vlog_lower_non_blocking_assignment(vlog_gen_t *g, vlog_node_t v)
    mir_type_t t_vec = mir_vec4_type(g->mu, lvalue.size, false);
 
    mir_value_t value = vlog_lower_with_context(g, vlog_value(v), t_vec);
-   assert(mir_is_vector(g->mu, value));
-
-   mir_value_t resize = mir_build_cast(g->mu, t_vec, value);
+   mir_value_t resize = vlog_lower_cast(g, t_vec, value);
+   assert(mir_is_vector(g->mu, resize));
 
    mir_value_t tmp = MIR_NULL_VALUE;
    if (lvalue.size > 1) {
@@ -2560,9 +2559,8 @@ static void vlog_lower_assign_process(vlog_gen_t *g, vlog_node_t v)
    mir_type_t t_vec = mir_vec4_type(g->mu, targetsz, false);
 
    mir_value_t value = vlog_lower_with_context(g, vlog_value(v), t_vec);
-   assert(mir_is_vector(g->mu, value));
-
-   mir_value_t resize = mir_build_cast(g->mu, t_vec, value);
+   mir_value_t resize = vlog_lower_cast(g, t_vec, value);
+   assert(mir_is_vector(g->mu, resize));
 
    mir_value_t tmp = MIR_NULL_VALUE;
    if (targetsz != 1) {

@@ -247,7 +247,8 @@ br999			normal			ivltests
 #br1000			normal			ivltests   # non-standard
 br1001			normal			ivltests
 br1006			normal,-gspecify	ivltests
-br1007			normal,-Wselect-range	ivltests gold=br1007.gold
+# Checks Icarus-specific warnings
+#br1007			normal,-Wselect-range	ivltests gold=br1007.gold
 br1008			normal			ivltests gold=br1008.gold
 br1015a			CE			ivltests
 br1019			normal			ivltests
