@@ -1992,6 +1992,30 @@ static vlog_node_t p_class_new(vlog_node_t dt)
    return v;
 }
 
+static vlog_node_t p_dynamic_array_new(vlog_node_t dt)
+{
+   // new [ expression ] [ ( expression ) ]
+
+   BEGIN("dynamic array new");
+
+   consume(tNEW);
+   consume(tLSQUARE);
+
+   vlog_node_t v = vlog_new(V_DYNAMIC_NEW);
+   vlog_set_type(v, dt);
+   vlog_set_value(v, p_expression());
+
+   consume(tRSQUARE);
+
+   if (optional(tLPAREN)) {
+      (void)p_expression();   // TODO: initialise from existing array
+      consume(tRPAREN);
+   }
+
+   vlog_set_loc(v, CURRENT_LOC);
+   return v;
+}
+
 static vlog_assign_t p_assignment_operator(void)
 {
    // = | += | -= | *= | /= | %= | &= | |= | ^= | <<= | >>= | <<<= | >>>=
@@ -2063,8 +2087,12 @@ static vlog_node_t p_blocking_assignment(vlog_node_t lhs)
    vlog_node_t v = vlog_new(V_BASSIGN);
    vlog_set_target(v, lhs);
 
-   if (peek() == tNEW)
-      vlog_set_value(v, p_class_new(vlog_get_type(lhs)));
+   if (peek() == tNEW) {
+      if (peek_nth(2) == tLSQUARE)
+         vlog_set_value(v, p_dynamic_array_new(vlog_get_type(lhs)));
+      else
+         vlog_set_value(v, p_class_new(vlog_get_type(lhs)));
+   }
    else {
       if (scan(tHASH, tAT))
          vlog_set_delay(v, p_delay_or_event_control());

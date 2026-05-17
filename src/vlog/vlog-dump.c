@@ -512,6 +512,13 @@ static void vlog_dump_postfix(vlog_node_t v)
    }
 }
 
+static void vlog_dump_dynamic_new(vlog_node_t v)
+{
+   print_syntax("new [");
+   vlog_dump(vlog_value(v), 0);
+   print_syntax("]");
+}
+
 static void vlog_dump_prefix(vlog_node_t v)
 {
    switch (vlog_subkind(v)) {
@@ -1059,6 +1066,9 @@ void vlog_dump(vlog_node_t v, int indent)
       break;
    case V_PREFIX:
       vlog_dump_prefix(v);
+      break;
+   case V_DYNAMIC_NEW:
+      vlog_dump_dynamic_new(v);
       break;
    case V_DELAY_CONTROL:
       vlog_dump_delay_control(v, indent);

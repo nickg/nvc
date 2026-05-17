@@ -635,6 +635,11 @@ static void vlog_assign_variable(vlog_gen_t *g, vlog_node_t target,
    if (mir_is_null(value))
       value = vlog_lower_with_context(g, rhs, context);
 
+   if (mir_is(g->mu, value, MIR_TYPE_UARRAY)) {
+      mir_build_store(g->mu, lvalues[0].obj, value);
+      return;
+   }
+
    mir_value_t cast = vlog_lower_cast(g, context, value);
 
    if (mir_is_signal(g->mu, lvalues[0].obj)) {
@@ -1603,6 +1608,24 @@ static mir_value_t vlog_lower_with_context(vlog_gen_t *g, vlog_node_t v,
          mir_value_t context = mir_build_context_upref(g->mu, 0);  // XXX
          return mir_build_protected_init(g->mu, ti->type, context,
                                          MIR_NULL_VALUE, MIR_NULL_VALUE);
+      }
+   case V_DYNAMIC_NEW:
+      {
+         const type_info_t *ti = vlog_type_info(g, vlog_type(v));
+         mir_type_t t_offset = mir_offset_type(g->mu);
+         mir_type_t t_bool = mir_bool_type(g->mu);
+
+         mir_value_t count =
+            vlog_lower_cast(g, t_offset, vlog_lower_rvalue(g, vlog_value(v)));
+         mir_value_t data = mir_build_alloc(g->mu, ti->type, ti->stamp, count);
+
+         mir_value_t left = mir_const(g->mu, t_offset, 0);
+         mir_value_t right =
+            mir_build_sub(g->mu, t_offset, count, mir_const(g->mu, t_offset, 1));
+         mir_value_t dir = mir_const(g->mu, t_bool, RANGE_TO);
+
+         mir_dim_t dims[1] = { { left, right, dir } };
+         return mir_build_wrap(g->mu, data, dims, 1);
       }
    case V_NULL:
       {
@@ -3121,6 +3144,28 @@ static void vlog_lower_var_decl(vlog_gen_t *g, vlog_node_t v, tree_t wrap)
       mir_value_t var = mir_add_var(g->mu, ti->type, MIR_NULL_STAMP,
                                     vlog_ident(v), 0);
       mir_build_store(g->mu, var, null);
+
+      mir_put_object(g->mu, v, var);
+      return;
+   }
+   else if (vlog_is_unsized(v)) {
+      mir_type_t t_uarray = mir_uarray_type(g->mu, vlog_ranges(v), ti->type);
+      mir_value_t var = mir_add_var(g->mu, t_uarray, MIR_NULL_STAMP,
+                                    vlog_ident(v), 0);
+
+      mir_type_t t_pointer = mir_pointer_type(g->mu, ti->type);
+      mir_value_t null = mir_build_null(g->mu, t_pointer);
+
+      mir_type_t t_offset = mir_offset_type(g->mu);
+      mir_type_t t_bool = mir_bool_type(g->mu);
+
+      mir_value_t left = mir_const(g->mu, t_offset, 0);
+      mir_value_t right = mir_const(g->mu, t_offset, -1);
+      mir_value_t dir = mir_const(g->mu, t_bool, RANGE_TO);
+
+      mir_dim_t dims[1] = { { left, right, dir } };
+      mir_value_t init = mir_build_wrap(g->mu, null, dims, 1);
+      mir_build_store(g->mu, var, init);
 
       mir_put_object(g->mu, v, var);
       return;

@@ -131,17 +131,8 @@ unsigned vlog_size(vlog_node_t v)
          unsigned size = 1;
 
          const int nranges = vlog_ranges(v);
-         for (int i = 0; i < nranges; i++) {
-            vlog_node_t r = vlog_range(v, i);
-
-            int64_t left, right;
-            vlog_bounds(r, &left, &right);
-
-            if (left < right)
-               size *= right - left + 1;
-            else
-               size *= left - right + 1;
-         }
+         for (int i = 0; i < nranges; i++)
+            size *= vlog_size(vlog_range(v, i));
 
          return size;
       }
@@ -160,6 +151,9 @@ unsigned vlog_size(vlog_node_t v)
       // Fall-through
    case V_DIMENSION:
       {
+         if (vlog_subkind(v) == V_DIM_UNSIZED)
+            return 0;   // Unknown
+
          int64_t left, right;
          if (!vlog_bounds(v, &left, &right))
             return 0;  // Undefined
@@ -347,6 +341,17 @@ bool vlog_is_signed(vlog_node_t v)
    }
 }
 
+bool vlog_is_unsized(vlog_node_t v)
+{
+   const int nranges = vlog_ranges(v);
+   for (int i = 0; i < nranges; i++) {
+      if (vlog_subkind(vlog_range(v, i)) == V_DIM_UNSIZED)
+         return true;
+   }
+
+   return false;
+}
+
 bool is_top_level(vlog_node_t v)
 {
    switch (vlog_kind(v)) {
@@ -524,6 +529,7 @@ vlog_node_t vlog_get_type(vlog_node_t v)
    case V_TF_PORT_DECL:
    case V_TYPE_DECL:
    case V_CLASS_NEW:
+   case V_DYNAMIC_NEW:
       return vlog_get_type(vlog_type(v));
    case V_REF:
    case V_MEMBER_REF:

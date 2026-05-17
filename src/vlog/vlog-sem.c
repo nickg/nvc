@@ -467,6 +467,9 @@ static void vlog_check_primitive(vlog_node_t udp)
 
 static void vlog_check_dimension(vlog_node_t v)
 {
+   if (vlog_subkind(v) == V_DIM_UNSIZED)
+      return;
+
    vlog_node_t left = vlog_left(v);
    vlog_check_const_expr(left);
 
@@ -992,6 +995,12 @@ static type_mask_t vlog_check_class_new(vlog_node_t v)
    return TM_CLASS;
 }
 
+static type_mask_t vlog_check_dynamic_new(vlog_node_t v)
+{
+   vlog_check_expr(vlog_value(v));
+   return get_type_mask(vlog_type(v));
+}
+
 static type_mask_t vlog_check_op_assign(vlog_node_t v)
 {
    vlog_node_t target = vlog_target(v);
@@ -1082,6 +1091,8 @@ static type_mask_t vlog_check_expr(vlog_node_t v)
       return vlog_check_event(v);
    case V_CLASS_NEW:
       return vlog_check_class_new(v);
+   case V_DYNAMIC_NEW:
+      return vlog_check_dynamic_new(v);
    case V_CONCAT:
       return vlog_check_concat(v);
    case V_PREFIX:

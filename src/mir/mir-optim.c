@@ -782,6 +782,8 @@ static void gvn_visit_block(mir_unit_t *mu, mir_block_t block,
       case MIR_OP_INSTANCE_INIT:
       case MIR_OP_FCALL:
       case MIR_OP_SYSCALL:
+      case MIR_OP_ALLOC:
+      case MIR_OP_NEW:
          opt->gvn->nodevn[node.id] = gvn_new_value(node, opt->gvn);
          break;
       default:

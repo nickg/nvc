@@ -157,6 +157,7 @@ typedef enum {
    V_CLASS_DECL,
    V_NULL,
    V_CLASS_NEW,
+   V_DYNAMIC_NEW,
    V_CONSTRUCTOR,
    V_SUPER_CALL,
    V_IMPORT_DECL,
