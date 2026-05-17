@@ -323,6 +323,8 @@ jobs:
         run: ./vhdl-projects/mixed_cic/test.sh
       - name: Test axis2mm
         run: ./vhdl-projects/axis2mm/test.sh
+      - name: Test PicoRV32
+        run: ./vhdl-projects/picorv32/test.sh
 
   vunit:
     name: VUnit
