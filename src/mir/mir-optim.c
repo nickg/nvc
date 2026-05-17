@@ -875,7 +875,8 @@ static void mir_do_dce(mir_unit_t *mu, mir_optim_t *opt)
             switch (n->op) {
             case MIR_OP_PACKAGE_INIT:
             case MIR_OP_INSTANCE_INIT:
-            case MIR_OP_COPY: break;
+            case MIR_OP_COPY:
+            case MIR_OP_SET: break;
             default: dead = true; break;
             }
          }

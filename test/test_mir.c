@@ -1199,6 +1199,8 @@ START_TEST(test_dce2)
    // Copy is a side-effecting memory operation even though it has a type
    mir_build_copy(mu, dst, src, MIR_NULL_VALUE);
 
+   mir_build_set(mu, dst, src, mir_const(mu, t_int32, 5));
+
    mir_build_return(mu, MIR_NULL_VALUE);
 
    mir_optimise(mu, MIR_PASS_DCE);
@@ -1209,6 +1211,7 @@ START_TEST(test_dce2)
       { MIR_OP_CONST_ARRAY },
       { MIR_OP_ADDRESS_OF },
       { MIR_OP_COPY, VAR("dst") },
+      { MIR_OP_SET, VAR("dst"), NODE(_), CONST(5) },
       { MIR_OP_RETURN },
    };
    mir_match(mu, 0, bb0);

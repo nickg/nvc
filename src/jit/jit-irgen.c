@@ -802,6 +802,8 @@ static int irgen_size_bits(jit_irgen_t *g, mir_type_t type)
    case MIR_TYPE_CONTEXT:
    case MIR_TYPE_TRIGGER:
       return sizeof(void *) * 8;
+   case MIR_TYPE_VEC2:
+      return sizeof(uint64_t) * 8;
    case MIR_TYPE_FILE:
       return sizeof(uint32_t) * 8;
    default:
@@ -1411,6 +1413,8 @@ static void irgen_op_set(jit_irgen_t *g, mir_value_t n)
       jit_value_t bits = jit_value_from_int64(value.int64);
       macro_memset(g, irgen_jit_size(g, type), addr, bits, bytes);
    }
+   else if (mir_get_class(g->mu, type) == MIR_TYPE_VEC4)
+      macro_memset(g, JIT_SZ_64, addr, value, bytes);
    else
       macro_memset(g, irgen_jit_size(g, type), addr, value, bytes);
 }
