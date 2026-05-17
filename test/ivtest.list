@@ -1512,7 +1512,8 @@ sdw_release		normal			ivltests
 sdw_stmt002		normal			ivltests
 sdw_task1		normal			ivltests
 sdw_task2		normal			ivltests
-sel_rval_bit_ob		normal,-Wselect-range	ivltests gold=sel_rval_bit_ob.gold
+# Checks Icarus-specific warnings
+#sel_rval_bit_ob		normal,-Wselect-range	ivltests gold=sel_rval_bit_ob.gold
 sel_rval_part_ob	normal,-Wselect-range	ivltests gold=sel_rval_part_ob.gold
 select			normal			ivltests # structural word select
 select2			normal			ivltests # structural bit select

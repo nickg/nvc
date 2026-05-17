@@ -1902,6 +1902,8 @@ static mir_value_t vlog_lower_default_value(vlog_gen_t *g,
       }
    case MIR_TYPE_VEC4:
       return vlog_lower_x(g, ti->type);
+   case MIR_TYPE_REAL:
+      return mir_const_real(g->mu, ti->type, 0.0);
    default:
       should_not_reach_here();
    }
