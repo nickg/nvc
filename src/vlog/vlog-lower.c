@@ -867,8 +867,13 @@ static mir_value_t vlog_lower_vector_binary(vlog_gen_t *g, vlog_binary_t binop,
    const int lsize = mir_get_size(g->mu, ltype);
    const int rsize = mir_get_size(g->mu, rtype);
 
-   const bool is_signed =
-      mir_get_signed(g->mu, ltype) && mir_get_signed(g->mu, rtype);
+   const bool is_shift =
+      binop == V_BINARY_SHIFT_LL || binop == V_BINARY_SHIFT_LA
+      || binop == V_BINARY_SHIFT_RL || binop == V_BINARY_SHIFT_RA;
+
+   bool is_signed = mir_get_signed(g->mu, ltype);
+   if (!is_shift)
+      is_signed &= mir_get_signed(g->mu, rtype);
 
    int size = MAX(lsize, rsize);
    if (!mir_is_null(context)) {
@@ -883,8 +888,14 @@ static mir_value_t vlog_lower_vector_binary(vlog_gen_t *g, vlog_binary_t binop,
    else
       type = mir_vec2_type(g->mu, size, is_signed);
 
-   mir_value_t lcast = mir_build_cast(g->mu, type, left);
-   mir_value_t rcast = mir_build_cast(g->mu, type, right);
+   mir_value_t lcast = mir_build_cast(g->mu, type, left), rcast;
+   if (is_shift) {
+      mir_type_t urtype = mir_vec4_type(g->mu, rsize, false);
+      mir_value_t zext = mir_build_cast(g->mu, urtype, right);
+      rcast = mir_build_cast(g->mu, type, zext);
+   }
+   else
+      rcast = mir_build_cast(g->mu, type, right);
 
    bool negate = false;
    mir_vec_op_t mop;
