@@ -1698,7 +1698,11 @@ static mir_value_t vlog_lower_trigger(vlog_gen_t *g, vlog_node_t v)
                mir_type_t t_offset = mir_offset_type(g->mu);
 
                vlog_select_t lvalue = vlog_lower_select(g, v);
-               mir_value_t count = mir_const(g->mu, t_offset, lvalue.size);
+               int total_size = lvalue.size;
+               if (vlog_kind(v) == V_REF)
+                  total_size *= vlog_size(vlog_ref(v));
+
+               mir_value_t count = mir_const(g->mu, t_offset, total_size);
 
                return mir_build_level_trigger(g->mu, lvalue.obj, count);
             }
