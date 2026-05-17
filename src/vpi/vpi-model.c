@@ -23,6 +23,7 @@
 #include "jit/jit-ffi.h"
 #include "jit/jit.h"
 #include "option.h"
+#include "rt/fileio.h"
 #include "rt/model.h"
 #include "rt/mspace.h"
 #include "rt/structs.h"
@@ -1308,6 +1309,62 @@ vpiHandle vpi_put_value(vpiHandle handle, p_vpi_value value_p,
                !!(value_p->value.integer & (1u << i));
          break;
 
+      case vpiStringVal:
+         {
+            const char *str = value_p->value.str;
+            const int len = strlen(str);
+            for (int i = 0, bit = 0; i < len && bit < reg->size; i++) {
+               const uint8_t ch = str[len - 1 - i];
+               for (int j = 0; j < 8 && bit < reg->size; j++, bit++)
+                  unpacked[reg->size - 1 - bit] = !!(ch & (1 << j));
+            }
+         }
+         break;
+
+      case vpiDecStrVal:
+         {
+            const uint64_t value = strtoull(value_p->value.str, NULL, 10);
+            for (int i = 0; i < reg->size && i < 64; i++)
+               unpacked[reg->size - 1 - i] = !!(value & (UINT64_C(1) << i));
+         }
+         break;
+
+      case vpiBinStrVal:
+         for (int i = strlen(value_p->value.str) - 1, bit = 0;
+              i >= 0 && bit < reg->size; i--) {
+            switch (value_p->value.str[i]) {
+            case '0':
+            case '1':
+               unpacked[reg->size - 1 - bit++] = value_p->value.str[i] == '1';
+               break;
+            case '_':
+               break;
+            default:
+               vpi_error(vpiError, NULL, "invalid character %c in binary "
+                         "string", value_p->value.str[i]);
+               return NULL;
+            }
+         }
+         break;
+
+      case vpiOctStrVal:
+         for (int i = strlen(value_p->value.str) - 1, bit = 0;
+              i >= 0 && bit < reg->size; i--) {
+            uint8_t digit;
+            switch (value_p->value.str[i]) {
+            case '0'...'7': digit = value_p->value.str[i] - '0'; break;
+            case '_': continue;
+            default:
+               vpi_error(vpiError, NULL, "invalid character %c in octal "
+                         "string", value_p->value.str[i]);
+               return NULL;
+            }
+
+            for (int j = 0; j < 3 && bit < reg->size; j++, bit++)
+               unpacked[reg->size - 1 - bit] = !!(digit & (1 << j));
+         }
+         break;
+
       case vpiHexStrVal:
          for (int i = strlen(value_p->value.str) - 1, bit = 0;
               i >= 0 && bit < reg->size; i--) {
@@ -1316,6 +1373,7 @@ vpiHandle vpi_put_value(vpiHandle handle, p_vpi_value value_p,
             case '0'...'9': nibble = value_p->value.str[i] - '0'; break;
             case 'a'...'f': nibble = 10 + value_p->value.str[i] - 'a'; break;
             case 'A'...'F': nibble = 10 + value_p->value.str[i] - 'A'; break;
+            case '_': continue;
             default:
                vpi_error(vpiError, NULL, "invalid character %c in hex string",
                          value_p->value.str[i]);

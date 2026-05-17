@@ -20,6 +20,8 @@
 
 #include "prim.h"
 
+#include <stdio.h>
+
 typedef enum {
    FILE_READ = 0,
    FILE_WRITE = 1,
@@ -31,5 +33,8 @@ typedef uint32_t file_handle_t;
 
 bool file_mode(file_handle_t fh, file_mode_t *mode);
 bool file_logical_name(file_handle_t fh, const char **name);
+file_handle_t file_open(const char *name, file_mode_t mode);
+bool file_close(file_handle_t fh);
+FILE *file_stream(file_handle_t fh);
 
 #endif  // _RT_FILEIO_H

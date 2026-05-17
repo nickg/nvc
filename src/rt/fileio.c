@@ -141,11 +141,11 @@ static file_handle_t handle_for(FILE *f, const char *name, file_kind_t kind,
    return (file_handle_t)slot->generation << HANDLE_BITS/2 | index;
 }
 
-static void drop_handle(file_handle_t handle)
+static bool drop_handle(file_handle_t handle)
 {
    file_slot_t *slot = decode_handle(handle);
    if (slot == NULL)
-      return;
+      return false;
 
    if (slot->kind == FILE_USER)
       fclose(slot->file);
@@ -156,6 +156,7 @@ static void drop_handle(file_handle_t handle)
    slot->generation++;
 
    free_hint = slot - handles;
+   return true;
 }
 
 bool file_mode(file_handle_t fh, file_mode_t *mode)
@@ -178,11 +179,50 @@ bool file_logical_name(file_handle_t fh, const char **name)
    return true;
 }
 
+file_handle_t file_open(const char *name, file_mode_t mode)
+{
+   if (name == NULL || *name == '\0')
+      return 0;
+
+   const char *osmode;
+   switch (mode) {
+   case FILE_READ: osmode = "rb"; break;
+   case FILE_WRITE: osmode = "wb"; break;
+   case FILE_READ_WRITE: osmode = "r+b"; break;
+   case FILE_APPEND: osmode = "ab"; break;
+   }
+
+#ifdef __MINGW32__
+   FILE *fp = _fsopen(name, osmode, _SH_DENYNO);
+#else
+   FILE *fp = fopen(name, osmode);
+#endif
+
+   if (fp == NULL)
+      return 0;
+
+   return handle_for(fp, name, FILE_USER, mode);
+}
+
+bool file_close(file_handle_t fh)
+{
+   return drop_handle(fh);
+}
+
+FILE *file_stream(file_handle_t fh)
+{
+   file_slot_t *slot = decode_handle(fh);
+   if (slot == NULL)
+      return NULL;
+
+   return slot->file;
+}
+
 DLLEXPORT
 void __nvc_file_close(jit_scalar_t *args)
 {
    file_handle_t *handle = args[1].pointer;
-   drop_handle(*handle);
+   file_close(*handle);
    *handle = 0;
 }
 
@@ -394,11 +434,6 @@ void x_file_open(int8_t *status, void **_fp, const uint8_t *name_bytes,
    memcpy(fname, name_bytes, name_len);
    fname[name_len] = '\0';
 
-   const char *mode_str[] = {
-      "rb", "wb", "ab", "r+"
-   };
-   assert(mode < ARRAY_LEN(mode_str));
-
    if (status != NULL)
       *status = OPEN_OK;
 
@@ -419,26 +454,17 @@ void x_file_open(int8_t *status, void **_fp, const uint8_t *name_bytes,
       *handle = handle_for(stdin, fname, FILE_PREDEF, mode);
    else if (strcmp(fname, "STD_OUTPUT") == 0)
       *handle = handle_for(stdout, fname, FILE_PREDEF, mode);
-   else {
-#ifdef __MINGW32__
-      FILE *fp = _fsopen(fname, mode_str[mode], _SH_DENYNO);
-#else
-      FILE *fp = fopen(fname, mode_str[mode]);
-#endif
-      if (fp == NULL) {
-         if (status == NULL)
-            jit_msg(NULL, DIAG_FATAL, "failed to open %s: %s", fname,
-                    strerror(errno));
-         else {
-            switch (errno) {
-            case ENOENT: *status = NAME_ERROR; break;
-            case EACCES: *status = MODE_ERROR; break;
-            default:     *status = NAME_ERROR; break;
-            }
+   else if ((*handle = file_open(fname, mode)) == 0) {
+      if (status == NULL)
+         jit_msg(NULL, DIAG_FATAL, "failed to open %s: %s", fname,
+                 strerror(errno));
+      else {
+         switch (errno) {
+         case ENOENT: *status = NAME_ERROR; break;
+         case EACCES: *status = MODE_ERROR; break;
+         default:     *status = NAME_ERROR; break;
          }
       }
-      else
-         *handle = handle_for(fp, fname, FILE_USER, mode);
    }
 }
 
