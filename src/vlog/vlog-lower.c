@@ -871,9 +871,10 @@ static mir_value_t vlog_lower_vector_binary(vlog_gen_t *g, vlog_binary_t binop,
       binop == V_BINARY_SHIFT_LL || binop == V_BINARY_SHIFT_LA
       || binop == V_BINARY_SHIFT_RL || binop == V_BINARY_SHIFT_RA;
 
-   bool is_signed = mir_get_signed(g->mu, ltype);
-   if (!is_shift)
-      is_signed &= mir_get_signed(g->mu, rtype);
+   const bool lsigned = mir_get_signed(g->mu, ltype);
+   const bool rsigned = mir_get_signed(g->mu, rtype);
+
+   const bool is_signed = lsigned && (is_shift || rsigned);
 
    int size = MAX(lsize, rsize);
    if (!mir_is_null(context)) {
@@ -887,6 +888,27 @@ static mir_value_t vlog_lower_vector_binary(vlog_gen_t *g, vlog_binary_t binop,
       type = mir_vec4_type(g->mu, size, is_signed);
    else
       type = mir_vec2_type(g->mu, size, is_signed);
+
+   const bool unsigned_numeric =
+      binop == V_BINARY_PLUS || binop == V_BINARY_MINUS
+      || binop == V_BINARY_TIMES || binop == V_BINARY_DIVIDE
+      || binop == V_BINARY_MOD || binop == V_BINARY_EXP
+      || binop == V_BINARY_LT || binop == V_BINARY_LEQ
+      || binop == V_BINARY_GT || binop == V_BINARY_GEQ;
+
+   if (unsigned_numeric && !is_signed) {
+      // Mixed signedness binary expressions are evaluated as unsigned, so
+      // signed operands must not be sign-extended when resized
+      if (lsigned) {
+         mir_type_t ultype = mir_vec4_type(g->mu, lsize, false);
+         left = mir_build_cast(g->mu, ultype, left);
+      }
+
+      if (rsigned) {
+         mir_type_t urtype = mir_vec4_type(g->mu, rsize, false);
+         right = mir_build_cast(g->mu, urtype, right);
+      }
+   }
 
    mir_value_t lcast = mir_build_cast(g->mu, type, left), rcast;
    if (is_shift) {

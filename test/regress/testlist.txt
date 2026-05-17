@@ -1371,3 +1371,4 @@ array22         verilog
 ivtest46        verilog
 ivtest47        verilog
 ivtest48        verilog
+ivtest49        verilog
