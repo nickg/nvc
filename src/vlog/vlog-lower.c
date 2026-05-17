@@ -1924,28 +1924,36 @@ static void vlog_lower_non_blocking_assignment(vlog_gen_t *g, vlog_node_t v)
 {
    vlog_node_t target = vlog_target(v);
 
-   vlog_select_t lvalue = vlog_lower_select(g, target);
+   unsigned nlvalues = 1, targetsz = 0;
+   vlog_select_t lvalue1, *lvalues = &lvalue1;
+   if (vlog_kind(target) == V_CONCAT) {
+      const int nparams = nlvalues = vlog_params(target);
+      lvalues = xmalloc_array(nparams, sizeof(vlog_select_t));
+      for (int i = 0; i < nparams; i++) {
+         lvalues[i] = vlog_lower_select(g, vlog_param(target, i));
+         targetsz += lvalues[i].size;
+      }
+   }
+   else {
+      lvalue1 = vlog_lower_select(g, target);
+      targetsz = lvalue1.size;
+   }
 
-   mir_value_t nets = mir_build_array_ref(g->mu, lvalue.obj, lvalue.dst_offset);
-
-   mir_type_t t_vec = mir_vec4_type(g->mu, lvalue.size, false);
+   mir_type_t t_vec = mir_vec4_type(g->mu, targetsz, false);
 
    mir_value_t value = vlog_lower_with_context(g, vlog_value(v), t_vec);
    mir_value_t resize = vlog_lower_cast(g, t_vec, value);
    assert(mir_is_vector(g->mu, resize));
 
    mir_value_t tmp = MIR_NULL_VALUE;
-   if (lvalue.size > 1) {
+   if (targetsz > 1) {
       mir_type_t t_elem = mir_logic_type(g->mu);
-      mir_type_t t_array = mir_carray_type(g->mu, lvalue.size, t_elem);
+      mir_type_t t_array = mir_carray_type(g->mu, targetsz, t_elem);
       tmp = vlog_get_temp(g, t_array);
    }
 
    const uint8_t strength = vlog_is_net(target) ? ST_STRONG : 0;
    mir_value_t unpacked = mir_build_unpack(g->mu, resize, strength, tmp);
-
-   if (!mir_is_null(tmp))
-      unpacked = mir_build_array_ref(g->mu, unpacked, lvalue.src_offset);
 
    mir_type_t t_time = mir_time_type(g->mu);
 
@@ -1959,7 +1967,46 @@ static void vlog_lower_non_blocking_assignment(vlog_gen_t *g, vlog_node_t v)
    else
       after = mir_const(g->mu, t_time, 0);
 
-   mir_build_sched_deposit(g->mu, nets, lvalue.count, unpacked, after);
+   mir_type_t t_offset = mir_offset_type(g->mu);
+
+   for (int i = 0, offset = 0; i < nlvalues;
+        offset += lvalues[i].size, i++) {
+      mir_value_t nets = mir_build_array_ref(g->mu, lvalues[i].obj,
+                                             lvalues[i].dst_offset);
+
+      mir_block_t merge_bb = MIR_NULL_BLOCK;
+
+      int64_t count_const;
+      if (mir_get_const(g->mu, lvalues[i].count, &count_const)) {
+         if (count_const == 0) {
+            mir_comment(g->mu, "Out-of-range assignment");
+            continue;
+         }
+      }
+      else {
+         mir_block_t guarded_bb = mir_add_block(g->mu);
+         merge_bb = mir_add_block(g->mu);
+
+         mir_value_t overlaps = mir_build_cmp(g->mu, MIR_CMP_NEQ,
+                                              lvalues[i].count,
+                                              mir_const(g->mu, t_offset, 0));
+         mir_build_cond(g->mu, overlaps, guarded_bb, merge_bb);
+
+         mir_set_cursor(g->mu, guarded_bb, MIR_APPEND);
+      }
+
+      mir_value_t pos = mir_build_add(g->mu, t_offset,
+                                      mir_const(g->mu, t_offset, offset),
+                                      lvalues[i].src_offset);
+      mir_value_t src = mir_build_array_ref(g->mu, unpacked, pos);
+
+      mir_build_sched_deposit(g->mu, nets, lvalues[i].count, src, after);
+
+      if (!mir_is_null(merge_bb)) {
+         mir_build_jump(g->mu, merge_bb);
+         mir_set_cursor(g->mu, merge_bb, MIR_APPEND);
+      }
+   }
 }
 
 static void vlog_lower_if(vlog_gen_t *g, vlog_node_t v)

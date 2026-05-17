@@ -1365,3 +1365,4 @@ ivtest44        verilog
 ivtest45        verilog
 gate1           verilog
 real11          verilog
+select22        verilog
