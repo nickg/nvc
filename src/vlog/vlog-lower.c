@@ -489,7 +489,7 @@ static vlog_select_t vlog_lower_select(vlog_gen_t *g, vlog_node_t v)
             .dst_offset = bit_off,
             .count      = count,
             .src_offset = mir_const(g->mu, t_offset, 0),
-            .type       = mir_vector_slice(g->mu, prefix.type, size),
+            .type       = mir_vec4_type(g->mu, size, false),
             .size       = size,
          };
          return result;
@@ -557,7 +557,7 @@ static vlog_select_t vlog_lower_select(vlog_gen_t *g, vlog_node_t v)
             .dst_offset = dst_offset,
             .count      = valid_count,
             .src_offset = value_offset,
-            .type       = mir_vector_slice(g->mu, prefix.type, size),
+            .type       = mir_vec4_type(g->mu, size, false),
             .size       = size,
          };
          return result;

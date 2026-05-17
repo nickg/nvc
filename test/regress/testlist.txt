@@ -1369,3 +1369,4 @@ select22        verilog
 file16          verilog
 array22         verilog
 ivtest46        verilog
+ivtest47        verilog
