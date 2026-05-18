@@ -2868,6 +2868,37 @@ static void vlog_lower_gate_inst(vlog_gen_t *g, vlog_node_t v)
       }
       break;
 
+   case V_GATE_NOTIF0:
+   case V_GATE_NOTIF1:
+      negate = true;
+      // Fall-through
+   case V_GATE_BUFIF0:
+   case V_GATE_BUFIF1:
+      {
+         mir_value_t input = vlog_lower_rvalue(g, vlog_param(v, first_term));
+         mir_value_t cast = vlog_lower_cast(g, t_logic, input);
+
+         if (negate)
+            cast = mir_build_unary(g->mu, MIR_VEC_BIT_NOT, t_logic, cast);
+
+         mir_value_t enable =
+            vlog_lower_rvalue(g, vlog_param(v, first_term + 1));
+         mir_value_t enable_cast = vlog_lower_cast(g, t_logic, enable);
+
+         const bool active_high =
+            kind == V_GATE_BUFIF1 || kind == V_GATE_NOTIF1;
+         mir_value_t active_value =
+            mir_const_vec(g->mu, t_logic, active_high, 0);
+         mir_value_t active_vec =
+            mir_build_binary(g->mu, MIR_VEC_CASE_EQ, t_logic, enable_cast,
+                             active_value);
+         mir_value_t active = vlog_lower_test(g, active_vec);
+         mir_value_t highz = mir_const_vec(g->mu, t_logic, 0, 1);
+
+         value = mir_build_select(g->mu, t_logic, active, cast, highz);
+      }
+      break;
+
    default:
       CANNOT_HANDLE(v);
    }

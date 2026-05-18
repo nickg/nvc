@@ -4783,7 +4783,8 @@ static vlog_node_t p_n_terminal_gate_instance(vlog_gate_kind_t kind,
    return v;
 }
 
-static vlog_node_t p_enable_gate_instance(vlog_gate_kind_t kind)
+static vlog_node_t p_enable_gate_instance(vlog_gate_kind_t kind,
+                                          vlog_node_t st)
 {
    // [ name_of_instance ] ( output_terminal , input_terminal ,
    //     enable_terminal )
@@ -4792,6 +4793,7 @@ static vlog_node_t p_enable_gate_instance(vlog_gate_kind_t kind)
 
    vlog_node_t v = vlog_new(V_GATE_INST);
    vlog_set_subkind(v, kind);
+   vlog_add_param(v, st);
 
    if (peek() == tID) {
       vlog_set_ident(v, p_identifier());
@@ -5007,7 +5009,7 @@ static void p_gate_instantiation(vlog_node_t mod)
          const vlog_gate_kind_t kind = get_gate_kind(token);
 
          do {
-            vlog_add_stmt(mod, p_enable_gate_instance(kind));
+            vlog_add_stmt(mod, p_enable_gate_instance(kind, st));
          } while (optional(tCOMMA));
       }
       break;
