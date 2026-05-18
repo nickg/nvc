@@ -602,8 +602,8 @@ integer3gt		normal			ivltests
 integer4ge		normal			ivltests
 integer5		normal			ivltests
 itor_rtoi		normal			ivltests gold=itor_rtoi.gold
-land2			normal			ivltests
-land3			normal			ivltests
+land2			normal			ivltests land2
+land3			normal			ivltests land3
 land4			normal			ivltests gold=land4.gold
 landor1			normal			ivltests
 ldelay1			normal			ivltests
@@ -630,7 +630,7 @@ mangle_1		normal			ivltests
 many_drivers		normal			ivltests # net with many drivers
 mcl2			normal			ivltests gold=mcl2.gold
 mem1			normal			ivltests gold=mem1.gold
-mem2port		normal			ivltests # memory ports with constant address
+mem2port		normal			ivltests top # memory ports with constant address
 memassign		normal			ivltests # PR 126 - daavid Leask - assign bus part fm memory item
 memidx			normal			ivltests # PR 221
 memidxrng		normal			ivltests # PR 271 memory address range checks
@@ -805,7 +805,7 @@ pr757			normal			ivltests
 pr772			normal			ivltests
 pr810			normal			ivltests
 pr812			normal			ivltests gold=pr812.gold
-pr820			normal			ivltests gold=pr820.gold
+pr820			normal			ivltests main gold=pr820.gold
 pr823			normal			ivltests
 pr841			normal			ivltests
 pr842			normal			ivltests
@@ -813,7 +813,7 @@ pr848			normal			ivltests
 pr856			normal			ivltests
 pr859			normal			ivltests
 pr860			normal			ivltests
-pr872			normal			ivltests
+pr872			normal			ivltests main
 pr902			normal			ivltests gold=pr902.gold
 pr905			normal			ivltests gold=pr905.gold
 pr910			normal			ivltests gold=pr910.gold

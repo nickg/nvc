@@ -23,7 +23,7 @@ ExpectFails = 1530
 
 ENV['NVC_COLORS'] = 'always'
 
-def run_cmd(c, expfail, gold)
+def run_cmd(c, expfail, gold, check_passed)
   Open3.popen3(c) do |i, o, e, t|
     i.close
 
@@ -72,7 +72,7 @@ def run_cmd(c, expfail, gold)
         puts output
         return false
       end
-    elsif status == 0 and !(output =~ /PASSED/i) then
+    elsif check_passed and status == 0 and !(output =~ /PASSED/i) then
       puts
       puts c.magenta
       puts output
@@ -86,8 +86,8 @@ def run_cmd(c, expfail, gold)
 end
 
 def get_module_name(f, flags)
-  if flags[:type] == :module then
-    return flags[:name]
+  if flags[:module] then
+    return flags[:module]
   end
 
   if File.exist?(f) then
@@ -105,22 +105,27 @@ def get_module_name(f, flags)
   return nil
 end
 
-def parse_flags(arg)
-  case arg
-  when /^gold=(.+)$/
-    { type: :gold, filename: Regexp.last_match(1) }
-  when /^unordered=(.+)$/
-    { type: :unordered, filename: Regexp.last_match(1) }
-  when /^diff=([^:]+):([^:]+)(?::(\d+))?$/
-    {
-      type: :diff,
-      file1: Regexp.last_match(1),
-      file2: Regexp.last_match(2),
-      skip_lines: Regexp.last_match(3)&.to_i || 0
-    }
-  else
-    { type: :module, name: arg }
+def parse_flags(args)
+  flags = {}
+
+  args.each do |arg|
+    case arg
+    when /^gold=(.+)$/
+      flags[:gold] = Regexp.last_match(1)
+    when /^unordered=(.+)$/
+      flags[:unordered] = Regexp.last_match(1)
+    when /^diff=([^:]+):([^:]+)(?::(\d+))?$/
+      flags[:diff] = {
+        file1: Regexp.last_match(1),
+        file2: Regexp.last_match(2),
+        skip_lines: Regexp.last_match(3)&.to_i || 0
+      }
+    else
+      flags[:module] = arg
+    end
   end
+
+  flags
 end
 
 fails  = 0
@@ -163,22 +168,22 @@ File.open(TestList).each_line do |line|
     end
   end.join(" ")
 
-  flags = rest.empty? ? {} : parse_flags(rest[0])
+  flags = parse_flags(rest)
 
   Dir.mktmpdir do |workdir|
     f = File.realpath "#{IvtestDir}/#{dir}/#{name}.v"
     m = get_module_name(f, flags)
 
-    if type == "CE" then
+    if type == "CE" || type == "CO" then
       cmd = "#{Tool} --work=work:#{workdir}/work -a #{aflags} --no-save #{f}"
     else
       cmd = "#{Tool} --work=work:#{workdir}/work -a #{aflags} --no-save #{f} " +
             "-e --jit --no-save #{m} -r"
     end
 
-    gold = flags[:type] == :gold ? "#{IvtestDir}/gold/#{flags[:filename]}" : nil
+    gold = flags[:gold] ? "#{IvtestDir}/gold/#{flags[:gold]}" : nil
 
-    result = run_cmd cmd, (type == "CE" || type == "RE"), gold
+    result = run_cmd cmd, (type == "CE" || type == "RE"), gold, type != "CO"
 
     if result then
       passes += 1
