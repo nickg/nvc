@@ -554,6 +554,7 @@ vlog_node_t vlog_get_dim(vlog_node_t v, int n)
 {
    switch (vlog_kind(v)) {
    case V_REF:
+   case V_MEMBER_REF:
       {
          vlog_node_t decl = vlog_ref(v), dt = vlog_type(decl);
 
