@@ -1067,14 +1067,161 @@ static void elab_ports(tree_t entity, tree_t bind, const elab_ctx_t *ctx)
    }
 }
 
-static tree_t elab_parse_generic_string(tree_t generic, const char *str)
+static const char *skip_spaces(const char *s)
 {
-   type_t type = tree_type(generic);
+   while (isspace_iso88591(*s))
+      ++s;
+   return s;
+}
+
+static char *trim_string(const char *start, size_t len)
+{
+   while (len > 0 && isspace_iso88591(start[len - 1]))
+      --len;
+
+   while (len > 0 && isspace_iso88591(*start)) {
+      ++start;
+      --len;
+   }
+
+   return xstrndup(start, len);
+}
+
+static void elab_generic_parse_failed(tree_t generic, type_t type,
+                                      const char *str)
+{
+   fatal("failed to parse \"%s\" as type %s for generic %s",
+         str, type_pp(type), istr(tree_ident(generic)));
+}
+
+static tree_t elab_parse_generic_type_value(tree_t generic, type_t type,
+                                            const char *str);
+
+static tree_t elab_parse_generic_array(tree_t generic, type_t type,
+                                       const char *str)
+{
+   const char *cursor = skip_spaces(str);
+   if (*cursor != '(')
+      elab_generic_parse_failed(generic, type, str);
+
+   cursor++;
+
+   tree_t aggregate = tree_new(T_AGGREGATE);
+   tree_set_loc(aggregate, tree_loc(generic));
+   tree_set_type(aggregate, type);
+
+   int index = 0;
+   bool saw_element = false;
+   bool expect_element = false;
+   while (true) {
+      cursor = skip_spaces(cursor);
+      if (*cursor == ')') {
+         if (!saw_element || expect_element)
+            elab_generic_parse_failed(generic, type, str);
+         ++cursor;
+         break;
+      }
+
+      if (*cursor == '\0')
+         elab_generic_parse_failed(generic, type, str);
+
+      const char *item_start = cursor;
+      int nested_parens = 0;
+      bool in_char_literal = false;
+      bool in_string_literal = false;
+
+      while (*cursor) {
+         if (in_char_literal) {
+            if (*cursor == '\'')
+               in_char_literal = false;
+            cursor++;
+            continue;
+         }
+         if (in_string_literal) {
+            if (*cursor == '"')
+               in_string_literal = false;
+            cursor++;
+            continue;
+         }
+
+         if (*cursor == '\'') {
+            in_char_literal = true;
+            cursor++;
+            continue;
+         }
+         if (*cursor == '"') {
+            in_string_literal = true;
+            cursor++;
+            continue;
+         }
+
+         if (*cursor == '(') {
+            nested_parens++;
+            cursor++;
+            continue;
+         }
+         if (*cursor == ')') {
+            if (nested_parens == 0)
+               break;
+            nested_parens--;
+            cursor++;
+            continue;
+         }
+
+         if (*cursor == ',' && nested_parens == 0)
+            break;
+
+         cursor++;
+      }
+
+      size_t item_len = cursor - item_start;
+      if (item_len == 0)
+         elab_generic_parse_failed(generic, type, str);
+
+      char *item = trim_string(item_start, item_len);
+      tree_t element = elab_parse_generic_type_value(generic,
+                                                     type_elem(type), item);
+      free(item);
+
+      tree_t assoc = tree_new(T_ASSOC);
+      tree_set_subkind(assoc, A_POS);
+      tree_set_pos(assoc, index++);
+      tree_set_loc(assoc, tree_loc(generic));
+      tree_set_value(assoc, element);
+      tree_add_assoc(aggregate, assoc);
+      saw_element = true;
+      expect_element = false;
+
+      cursor = skip_spaces(cursor);
+      if (*cursor == ',') {
+         cursor++;
+         expect_element = true;
+         continue;
+      }
+      else if (*cursor == ')') {
+         cursor++;
+         break;
+      }
+      else
+         elab_generic_parse_failed(generic, type, str);
+   }
+
+   cursor = skip_spaces(cursor);
+   if (*cursor != '\0')
+      elab_generic_parse_failed(generic, type, str);
+
+   return aggregate;
+}
+
+static tree_t elab_parse_generic_type_value(tree_t generic, type_t type,
+                                            const char *str)
+{
+   if (type_is_array(type) && !type_is_character_array(type))
+      return elab_parse_generic_array(generic, type, str);
 
    parsed_value_t value;
    if (!parse_value(type, str, &value))
-      fatal("failed to parse \"%s\" as type %s for generic %s",
-            str, type_pp(type), istr(tree_ident(generic)));
+      elab_generic_parse_failed(generic, type, str);
 
    if (type_is_enum(type)) {
       type_t base = type_base_recur(type);
@@ -1121,7 +1268,7 @@ static tree_t elab_parse_generic_string(tree_t generic, const char *str)
       tree_set_loc(t, tree_loc(generic));
 
       type_t elem = type_base_recur(type_elem(type));
-      for (int i = 0; i < value.enums->count; i++) {
+      for (unsigned i = 0; i < value.enums->count; i++) {
          tree_t lit = type_enum_literal(elem, value.enums->values[i]);
 
          tree_t ref = tree_new(T_REF);
@@ -1134,10 +1281,16 @@ static tree_t elab_parse_generic_string(tree_t generic, const char *str)
       tree_set_type(t, subtype_for_string(t, type));
       return t;
    }
-   else
-      fatal("cannot override generic %s of type %s", istr(tree_ident(generic)),
-            type_pp(type));
+
+   fatal("cannot override generic %s of type %s", istr(tree_ident(generic)),
+         type_pp(type));
 }
+
+static tree_t elab_parse_generic_string(tree_t generic, const char *str)
+{
+   return elab_parse_generic_type_value(generic, tree_type(generic), str);
+}
+
 
 static tree_t elab_find_generic_override(tree_t g, const elab_ctx_t *ctx)
 {
