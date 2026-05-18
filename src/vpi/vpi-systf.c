@@ -859,6 +859,32 @@ static PLI_INT32 random_tf(PLI_BYTE8 *userdata)
    return 0;
 }
 
+static PLI_INT32 clog2_tf(PLI_BYTE8 *userdata)
+{
+   vpiHandle call = vpi_handle(vpiSysTfCall, NULL);
+   assert(call != NULL);
+
+   vpiHandle argv = vpi_iterate(vpiArgument, call);
+   vpiHandle arg = vpi_scan(argv);
+   assert(arg != NULL);
+
+   s_vpi_value value = { .format = vpiIntVal };
+   vpi_get_value(arg, &value);
+
+   vpi_release_handle(arg);
+   vpi_release_handle(argv);
+
+   s_vpi_value result = {
+      .format = vpiIntVal,
+      .value = { .integer = ilog2(value.value.integer) },
+   };
+
+   vpi_put_value(call, &result, NULL, 0);
+
+   vpi_release_handle(call);
+   return 0;
+}
+
 static PLI_INT32 real_unary_tf(double (*fn)(double))
 {
    vpiHandle call = vpi_handle(vpiSysTfCall, NULL);
@@ -877,6 +903,37 @@ static PLI_INT32 real_unary_tf(double (*fn)(double))
    s_vpi_value result = {
       .format = vpiRealVal,
       .value = { .real = (*fn)(value.value.real) },
+   };
+
+   vpi_put_value(call, &result, NULL, 0);
+
+   vpi_release_handle(call);
+   return 0;
+}
+
+static PLI_INT32 pow_tf(PLI_BYTE8 *userdata)
+{
+   vpiHandle call = vpi_handle(vpiSysTfCall, NULL);
+   assert(call != NULL);
+
+   vpiHandle argv = vpi_iterate(vpiArgument, call);
+   vpiHandle left = vpi_scan(argv);
+   vpiHandle right = vpi_scan(argv);
+   assert(left != NULL);
+   assert(right != NULL);
+
+   s_vpi_value lval = { .format = vpiRealVal };
+   s_vpi_value rval = { .format = vpiRealVal };
+   vpi_get_value(left, &lval);
+   vpi_get_value(right, &rval);
+
+   vpi_release_handle(left);
+   vpi_release_handle(right);
+   vpi_release_handle(argv);
+
+   s_vpi_value result = {
+      .format = vpiRealVal,
+      .value = { .real = pow(lval.value.real, rval.value.real) },
    };
 
    vpi_put_value(call, &result, NULL, 0);
@@ -1111,6 +1168,18 @@ static s_vpi_systf_data builtins[] = {
       .tfname      = "$random",
       .sysfunctype = vpiIntFunc,
       .calltf      = random_tf
+   },
+   {
+      .type        = vpiSysFunc,
+      .tfname      = "$clog2",
+      .sysfunctype = vpiIntFunc,
+      .calltf      = clog2_tf
+   },
+   {
+      .type        = vpiSysFunc,
+      .tfname      = "$pow",
+      .sysfunctype = vpiRealFunc,
+      .calltf      = pow_tf
    },
    {
       .type        = vpiSysFunc,

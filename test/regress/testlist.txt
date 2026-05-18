@@ -1375,3 +1375,4 @@ ivtest49        verilog
 array23         verilog
 ivtest50        verilog,gold
 struct3         verilog
+ivtest51        verilog
