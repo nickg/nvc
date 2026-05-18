@@ -1218,7 +1218,7 @@ static mir_value_t mir_build_sub_op(mir_unit_t *mu, mir_op_t op,
    const bool rconst_real = mir_get_const_real(mu, right, &rreal);
 
    if (lconst_real && (lreal == 0.0 || lreal == -0.0))
-      return right;
+      return mir_build_neg(mu, type, right);
    else if (rconst_real && (rreal == 0.0 || rreal == -0.0))
       return left;
    else if (lconst_real && rconst_real)

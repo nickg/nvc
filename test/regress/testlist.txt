@@ -1377,3 +1377,4 @@ ivtest50        verilog,gold
 struct3         verilog
 ivtest51        verilog
 gate2           verilog
+issue1541       normal
