@@ -65,6 +65,19 @@ static int calc_dec_size(int nr_bits, bool is_signed)
    return r;
 }
 
+static void format_radix_string(FILE *out, const char *str, int fwidth)
+{
+   if (fwidth == 0) {
+      while (str[0] == '0' && str[1] != '\0')
+         str++;
+   }
+
+   if (fwidth > 0)
+      fprintf(out, "%*s", fwidth, str);
+   else
+      fputs(str, out);
+}
+
 static void format_radix(FILE *out, vpiHandle arg, char radix, int fwidth,
                          int precision)
 {
@@ -97,7 +110,7 @@ static void format_radix(FILE *out, vpiHandle arg, char radix, int fwidth,
          vpi_get_value(arg, &argval);
 
          if (!vpi_chk_error(NULL))
-            fputs(argval.value.str, out);
+            format_radix_string(out, argval.value.str, fwidth);
       }
       break;
    case 'b':
@@ -106,7 +119,7 @@ static void format_radix(FILE *out, vpiHandle arg, char radix, int fwidth,
          vpi_get_value(arg, &argval);
 
          if (!vpi_chk_error(NULL))
-            fputs(argval.value.str, out);
+            format_radix_string(out, argval.value.str, fwidth);
       }
       break;
    case 'o':
@@ -115,7 +128,7 @@ static void format_radix(FILE *out, vpiHandle arg, char radix, int fwidth,
          vpi_get_value(arg, &argval);
 
          if (!vpi_chk_error(NULL))
-            fputs(argval.value.str, out);
+            format_radix_string(out, argval.value.str, fwidth);
       }
       break;
    case 'f':
