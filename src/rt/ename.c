@@ -262,8 +262,12 @@ void x_bind_external(tree_t name, jit_handle_t scope, jit_scalar_t *args)
    void *ptr = jit_get_frame_var(j, handle, ctx, tree_ident(where));
 
    if (type_is_array(type) && type_const_bounds(type)) {
-      const int ndims = dimension_of(type);
-      jit_scalar_t *slots = jit_mspace_alloc(16 * (ndims + 1));
+      int ndims = 0;
+      for (type_t t = type; type_is_array(t); t = type_elem(t))
+         ndims += dimension_of(t);
+
+      jit_scalar_t *slots =
+         jit_mspace_alloc((2 + ndims * 2) * sizeof(jit_scalar_t));
 
       int pos = 0;
       if (tree_class(name) == C_SIGNAL && type_is_homogeneous(type)) {
@@ -273,16 +277,19 @@ void x_bind_external(tree_t name, jit_handle_t scope, jit_scalar_t *args)
       else
          slots[pos++].pointer = ptr;
 
-      for (int i = 0; i < ndims; i++) {
-         tree_t r = range_of(type, i);
-         const range_kind_t dir = tree_subkind(r);
-         const int64_t left = assume_int(tree_left(r));
-         const int64_t right = assume_int(tree_right(r));
-         const int64_t length =
-            MAX(0, dir == RANGE_TO ? right - left + 1 : left - right + 1);
+      for (type_t t = type; type_is_array(t); t = type_elem(t)) {
+         const int ndims = dimension_of(t);
+         for (int i = 0; i < ndims; i++) {
+            tree_t r = range_of(t, i);
+            const range_kind_t dir = tree_subkind(r);
+            const int64_t left = assume_int(tree_left(r));
+            const int64_t right = assume_int(tree_right(r));
+            const int64_t length =
+               MAX(0, dir == RANGE_TO ? right - left + 1 : left - right + 1);
 
-         slots[pos++].integer = left;
-         slots[pos++].integer = dir == RANGE_TO ? length : ~length;
+            slots[pos++].integer = left;
+            slots[pos++].integer = dir == RANGE_TO ? length : ~length;
+         }
       }
 
       args[0].pointer = slots;

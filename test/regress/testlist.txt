@@ -1381,3 +1381,4 @@ issue1541       normal
 issue1539       normal,2008
 issue1534       normal,2008
 issue1544       normal,gold,2019
+issue1543       normal,2008
