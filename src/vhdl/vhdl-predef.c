@@ -733,17 +733,17 @@ static void predef_array_eq(mir_unit_t *mu, tree_t decl)
 
    int pos = 0;
    for (const type_info_t *e = ti; e->kind == T_ARRAY;
-        pos += e->ndims, e = type_info(mu, type_elem(e->tree))) {
+        e = type_info(mu, type_elem(e->tree))) {
 
-      if (e->size < SIZE_MAX && e->stride < SIZE_MAX) {
+      if (pos == ti->udims && e->size < SIZE_MAX && e->stride < SIZE_MAX) {
          mir_value_t size = mir_const(mu, t_offset, e->size * e->stride);
          total = mir_build_mul(mu, t_offset, total, size);
          break;
       }
 
-      for (int i = 0; i < e->ndims; i++) {
-         mir_value_t left_len = mir_build_uarray_len(mu, lhs_array, pos + i);
-         mir_value_t right_len = mir_build_uarray_len(mu, rhs_array, pos + i);
+      for (int i = 0; i < e->ndims && pos < ti->udims; i++, pos++) {
+         mir_value_t left_len = mir_build_uarray_len(mu, lhs_array, pos);
+         mir_value_t right_len = mir_build_uarray_len(mu, rhs_array, pos);
 
          mir_value_t cmp = mir_build_cmp(mu, MIR_CMP_EQ, left_len, right_len);
          len_eq = mir_build_and(mu, len_eq, cmp);

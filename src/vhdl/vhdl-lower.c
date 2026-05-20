@@ -27,12 +27,11 @@
 
 static void fill_array_type_info(mir_unit_t *mu, type_t type, type_info_t *ti)
 {
-   ti->ndims = ti->udims = dimension_of(type);
+   ti->ndims = dimension_of(type);
 
-   for (type_t e = type_elem(type);
-        type_is_array(e) && !type_const_bounds(e);
-        e = type_elem(e))
-      ti->udims += dimension_of(e);  // XXX: equal to elem->udims?
+   for (type_t t = type_base_recur(type); type_is_array(t);
+        t = type_elem(t))
+      ti->udims += dimension_of(t);
 
    const type_info_t *elem = type_info(mu, type_elem(type));
    const type_info_t *base = type_info(mu, type_elem_recur(type));

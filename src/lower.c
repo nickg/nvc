@@ -239,13 +239,10 @@ static bool needs_bounds_var(type_t type)
 
 static int dims_for_type(type_t type)
 {
-   int ndims = dimension_of(type);
-
-   for (type_t e = type_elem(type);
-        type_is_array(e) && !type_const_bounds(e);
-        e = type_elem(e))
-      ndims += dimension_of(e);
-
+   int ndims = 0;
+   for (type_t t = type_base_recur(type); type_is_array(t);
+        t = type_elem(t))
+      ndims += dimension_of(t);
    return ndims;
 }
 
@@ -465,6 +462,18 @@ static vcode_reg_t lower_array_len(lower_unit_t *lu, type_t type, int dim,
       vcode_reg_t bounds_reg = lower_get_type_bounds(lu, type);
       return emit_uarray_len(bounds_reg, dim);
    }
+}
+
+static vcode_reg_t lower_array_elem_len(lower_unit_t *lu, type_t type, int dim,
+                                        vcode_reg_t reg)
+{
+   assert(type_is_array(type));
+
+   if (reg != VCODE_INVALID_REG && vcode_reg_kind(reg) == VCODE_TYPE_UARRAY)
+      return emit_uarray_len(reg, dimension_of(type));
+
+   type_t elem = type_elem(type);
+   return lower_array_len(lu, elem, dim, VCODE_INVALID_REG);
 }
 
 static vcode_reg_t lower_array_stride(lower_unit_t *lu, type_t type,
@@ -4326,6 +4335,10 @@ static vcode_reg_t lower_array_aggregate(lower_unit_t *lu, tree_t expr,
                }
             }
 
+            if (need_length_check && length0_reg == VCODE_INVALID_REG)
+               length0_reg = lower_array_elem_len(lu, value_type, 0,
+                                                  value_regs[i]);
+
             need_length_check = false;
          }
          break;
@@ -4398,6 +4411,11 @@ static vcode_reg_t lower_array_aggregate(lower_unit_t *lu, tree_t expr,
                emit_select(dir_cmp_reg, r_left_reg, r_right_reg);
 
             off_reg = lower_array_off(lu, base_reg, wrap_reg, type, 0);
+
+            if (need_length_check && length0_reg == VCODE_INVALID_REG)
+               length0_reg = lower_array_elem_len(lu, value_type, 0,
+                                                  value_regs[i]);
+
             need_length_check = false;
          }
          break;

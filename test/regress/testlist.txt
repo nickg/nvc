@@ -1378,3 +1378,5 @@ struct3         verilog
 ivtest51        verilog
 gate2           verilog
 issue1541       normal
+issue1539       normal,2008
+issue1534       normal,2008

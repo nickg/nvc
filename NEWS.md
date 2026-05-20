@@ -5,6 +5,8 @@
 - Local variables are now ignored in Verilog `@(*)` sensitivity lists
   (#1480).
 - PSL `next_a` is now supported with simple expressions.
+- Fixed several bugs related to concatenating arrays-of-arrays (#1534,
+  #1539)
 - Several other minor bugs were resolved (#1506, #1516, #1522, #1529,
   #1541).
 
