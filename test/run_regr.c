@@ -1316,8 +1316,8 @@ static bool run_test(test_t *test)
       assert(outf != NULL);
 
       int lineno = 0;
-      char gold_line[256];
-      char out_line[256];
+      char gold_line[1024];
+      char out_line[1024];
       while (fgets(gold_line, sizeof(gold_line), goldf)) {
          chomp(gold_line);
          lineno++;

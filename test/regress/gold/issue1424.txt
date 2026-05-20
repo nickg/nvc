@@ -1,6 +1,6 @@
-String length: 25 but should be at least 15
+String length: 19 but should be at least 15
 Array
-("11111","11111","00000")
+(11111,11111,00000)
 Individual Elements
 11111
 11111

@@ -280,6 +280,8 @@ mir_value_t vhdl_lower_array_stride(vhdl_gen_t *g, const type_info_t *ti,
          mir_value_t dim_len = mir_build_uarray_len(g->mu, array, pos++);
          length = mir_build_mul(g->mu, t_offset, dim_len, length);
       }
+
+      stride = mir_build_mul(g->mu, t_offset, stride, length);
    }
 
    assert(pos == ti->udims);

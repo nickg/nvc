@@ -1468,8 +1468,17 @@ static void array_image_helper(mir_unit_t *mu, type_t type, mir_value_t arg)
    const type_info_t *eti = type_info(mu, type_elem(type));
 
    type_t elem = type_base_recur(eti->tree);
-   ident_t func = ident_prefix(type_ident(elem), ident_new("image"), '$');
 
+   LOCAL_TEXT_BUF tb = tb_new();
+   tb_printf(tb, "%s.TO_STRING(", istr(ident_runtil(type_ident(elem), '.')));
+   mangle_one_type(tb, elem);
+   tb_cat(tb, ")");
+   mangle_one_type(tb, std_type(NULL, STD_STRING));
+   tb_cat(tb, "$predef");
+
+   ident_t func = ident_new(tb_get(tb));
+
+   const int elem_first_dim = ti->udims - eti->udims;
    mir_value_t stride = vhdl_lower_array_stride(&g, ti, arg);
    mir_comment(mu, "Array stride is %pM", &stride);
 
@@ -1488,6 +1497,16 @@ static void array_image_helper(mir_unit_t *mu, type_t type, mir_value_t arg)
          elem_arg = mir_build_load(mu, elem_arg);
       else if (mir_get_class(mu, eti->type) == MIR_TYPE_CARRAY)
          elem_arg = vhdl_lower_wrap(&g, eti, elem_arg);
+      else if (mir_get_class(mu, eti->type) == MIR_TYPE_UARRAY) {
+         mir_dim_t *dims LOCAL = xmalloc_array(eti->udims, sizeof(mir_dim_t));
+         for (int i = 0; i < eti->udims; i++) {
+            dims[i].left  = mir_build_uarray_left(mu, arg, elem_first_dim + i);
+            dims[i].right = mir_build_uarray_right(mu, arg, elem_first_dim + i);
+            dims[i].dir   = mir_build_uarray_dir(mu, arg, elem_first_dim + i);
+         }
+
+         elem_arg = mir_build_wrap(mu, elem_arg, dims, eti->udims);
+      }
 
       mir_value_t args[] = { elem_arg };
       mir_value_t str = mir_build_fcall(mu, func, t_string, MIR_NULL_STAMP,
