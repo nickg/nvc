@@ -1330,7 +1330,8 @@ static void elab_map_generic_package(tree_t generic, tree_t actual, hash_t *map)
          }
          break;
       case C_PACKAGE:
-         // TODO: this should be processed recursively
+         elab_map_generic_package(fg, tree_ref(value), map);
+         break;
       default:
          hash_put(map, fg, ag);
          break;
