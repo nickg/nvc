@@ -1383,3 +1383,4 @@ issue1534       normal,2008
 issue1544       normal,gold,2019
 issue1543       normal,2008
 issue1528       normal,gold,2019
+ivtest52        verilog

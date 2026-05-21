@@ -2262,12 +2262,16 @@ static void vlog_lower_case(vlog_gen_t *g, vlog_node_t v)
    default:            should_not_reach_here();
    }
 
-   int nexprs = 0;
+   int nexprs = 0, default_item = -1;
    for (int i = 0; i < nitems; i++) {
       vlog_node_t item = vlog_stmt(v, i);
       assert(vlog_kind(item) == V_CASE_ITEM);
 
-      nexprs += vlog_params(item);
+      const int nparams = vlog_params(item);
+      if (nparams == 0)
+         default_item = i;
+
+      nexprs += nparams;
    }
 
    mir_value_t *exprs LOCAL = xmalloc_array(nexprs, sizeof(mir_value_t));
@@ -2319,6 +2323,9 @@ static void vlog_lower_case(vlog_gen_t *g, vlog_node_t v)
       vlog_node_t item = vlog_stmt(v, i);
       assert(vlog_kind(item) == V_CASE_ITEM);
 
+      if (i == default_item)
+         continue;
+
       mir_block_t else_bb = mir_add_block(g->mu);
 
       mir_value_t comb = MIR_NULL_VALUE;
@@ -2357,7 +2364,13 @@ static void vlog_lower_case(vlog_gen_t *g, vlog_node_t v)
       mir_set_cursor(g->mu, else_bb, MIR_APPEND);
    }
 
-   mir_block_t exit_bb = mir_get_cursor(g->mu, NULL);
+   mir_block_t exit_bb;
+   if (default_item == -1)
+      exit_bb = mir_get_cursor(g->mu, NULL);
+   else {
+      mir_build_jump(g->mu, blocks[default_item]);
+      exit_bb = mir_add_block(g->mu);
+   }
 
    for (int i = 0; i < nitems; i++) {
       vlog_node_t item = vlog_stmt(v, i);

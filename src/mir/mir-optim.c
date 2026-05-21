@@ -920,12 +920,11 @@ static void mir_do_cfg_cleanup(mir_unit_t *mu, mir_optim_t *opt)
       if (!opt->cfg[i].entry && opt->cfg[i].in.count == 0) {
          block_data_t *bd = &(mu->blocks.items[i]);
 
-         // TODO: could delete the block instead
-         mir_set_cursor(mu, opt->cfg[i].block, 0);
-         mir_delete(mu);
-         mir_build_unreachable(mu, MIR_NULL_VALUE);
+         bd->num_nodes = 0;
+         bd->gap_pos = -1;
 
-         bd->num_nodes = 1;
+         mir_set_cursor(mu, opt->cfg[i].block, MIR_APPEND);
+         mir_build_unreachable(mu, MIR_NULL_VALUE);
       }
    }
 
