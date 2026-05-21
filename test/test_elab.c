@@ -2302,6 +2302,23 @@ START_TEST(test_issue1519)
 }
 END_TEST
 
+START_TEST(test_issue1475)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/elab/issue1475.vhd");
+
+   tree_t e = run_elab();
+   fail_if(e == NULL);
+
+   tree_t device = tree_stmt(e, 0);
+   ck_assert_ident_eq(tree_ident(device), "DEVICE");
+   ck_assert_int_eq(tree_stmts(device), 0);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_elab_tests(void)
 {
    Suite *s = suite_create("elab");
@@ -2419,6 +2436,7 @@ Suite *get_elab_tests(void)
    tcase_add_test(tc, test_clone3);
    tcase_add_test(tc, test_issue1421);
    tcase_add_test(tc, test_issue1519);
+   tcase_add_test(tc, test_issue1475);
    suite_add_tcase(s, tc);
 
    return s;

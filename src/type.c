@@ -721,23 +721,22 @@ tree_t type_constraint_for_field(type_t t, tree_t f)
 {
    if (t->object.kind != T_SUBTYPE)
       return NULL;
-   else if (!type_has_constraint(t))
-      return NULL;
 
-   tree_t c = type_constraint(t);
+   if (type_has_constraint(t)) {
+      tree_t c = type_constraint(t);
 
-   if (tree_subkind(c) != C_RECORD)
-      return NULL;
+      if (tree_subkind(c) != C_RECORD)
+         return NULL;
 
-   const int nelem = tree_ranges(c);
-   for (int i = 0; i < nelem; i++) {
-      tree_t ei = tree_range(c, i);
-      assert(tree_kind(ei) == T_ELEM_CONSTRAINT);
+      const int nelem = tree_ranges(c);
+      for (int i = 0; i < nelem; i++) {
+         tree_t ei = tree_range(c, i);
+         assert(tree_kind(ei) == T_ELEM_CONSTRAINT);
 
-      if (tree_has_ref(ei) && tree_ref(ei) == f)
-         return ei;
+         if (tree_has_ref(ei) && tree_ref(ei) == f)
+            return ei;
+      }
    }
-
 
    return type_constraint_for_field(type_base(t), f);
 }
