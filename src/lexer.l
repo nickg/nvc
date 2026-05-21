@@ -408,6 +408,7 @@ PROTECT           ?i:protect
 
 <CSTRING>"\\x"{HEX}      { cstring_append(yytext); }
 <CSTRING>"\\x"[0-7]+     { cstring_append(yytext); }
+<CSTRING>"\\"[0-7]{1,3}  { cstring_append(yytext); }
 <CSTRING>"\\".           { cstring_append(yytext); }
 <CSTRING>"\""            { return cstring_end(); }
 <CSTRING>.               { cstring_append(yytext); }
