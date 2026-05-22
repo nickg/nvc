@@ -1986,6 +1986,7 @@ static void vlog_lower_non_blocking_assignment(vlog_gen_t *g, vlog_node_t v)
 {
    vlog_node_t target = vlog_target(v);
 
+   mir_class_t class = MIR_TYPE_VEC4;
    unsigned nlvalues = 1, targetsz = 0;
    vlog_select_t lvalue1, *lvalues = &lvalue1;
    if (vlog_kind(target) == V_CONCAT) {
@@ -1999,25 +2000,35 @@ static void vlog_lower_non_blocking_assignment(vlog_gen_t *g, vlog_node_t v)
    else {
       lvalue1 = vlog_lower_select(g, target);
       targetsz = lvalue1.size;
+      class = mir_get_class(g->mu, lvalue1.type);
    }
-
-   mir_type_t t_vec = mir_vec4_type(g->mu, targetsz, false);
-
-   mir_value_t value = vlog_lower_with_context(g, vlog_value(v), t_vec);
-   mir_value_t resize = vlog_lower_cast(g, t_vec, value);
-   assert(mir_is_vector(g->mu, resize));
-
-   mir_value_t tmp = MIR_NULL_VALUE;
-   if (targetsz > 1) {
-      mir_type_t t_elem = mir_logic_type(g->mu);
-      mir_type_t t_array = mir_carray_type(g->mu, targetsz, t_elem);
-      tmp = vlog_get_temp(g, t_array);
-   }
-
-   const uint8_t strength = vlog_is_net(target) ? ST_STRONG : 0;
-   mir_value_t unpacked = mir_build_unpack(g->mu, resize, strength, tmp);
 
    mir_type_t t_time = mir_time_type(g->mu);
+   mir_type_t t_offset = mir_offset_type(g->mu);
+
+   mir_value_t unpacked;
+   if (class == MIR_TYPE_VEC2 || class == MIR_TYPE_VEC4) {
+      mir_type_t t_vec = mir_vec4_type(g->mu, targetsz, false);
+
+      mir_value_t value = vlog_lower_with_context(g, vlog_value(v), t_vec);
+      mir_value_t resize = vlog_lower_cast(g, t_vec, value);
+      assert(mir_is_vector(g->mu, resize));
+
+      mir_value_t tmp = MIR_NULL_VALUE;
+      if (targetsz > 1) {
+         mir_type_t t_elem = mir_logic_type(g->mu);
+         mir_type_t t_array = mir_carray_type(g->mu, targetsz, t_elem);
+         tmp = vlog_get_temp(g, t_array);
+      }
+
+      const uint8_t strength = vlog_is_net(target) ? ST_STRONG : 0;
+      unpacked = mir_build_unpack(g->mu, resize, strength, tmp);
+   }
+   else {
+      mir_value_t value =
+         vlog_lower_with_context(g, vlog_value(v), lvalues[0].type);
+      unpacked = vlog_lower_cast(g, lvalues[0].type, value);
+   }
 
    mir_value_t after;
    if (vlog_has_delay(v)) {
@@ -2028,8 +2039,6 @@ static void vlog_lower_non_blocking_assignment(vlog_gen_t *g, vlog_node_t v)
    }
    else
       after = mir_const(g->mu, t_time, 0);
-
-   mir_type_t t_offset = mir_offset_type(g->mu);
 
    for (int i = 0, offset = 0; i < nlvalues;
         offset += lvalues[i].size, i++) {
@@ -2057,12 +2066,16 @@ static void vlog_lower_non_blocking_assignment(vlog_gen_t *g, vlog_node_t v)
          mir_set_cursor(g->mu, guarded_bb, MIR_APPEND);
       }
 
-      mir_value_t pos = mir_build_add(g->mu, t_offset,
-                                      mir_const(g->mu, t_offset, offset),
-                                      lvalues[i].src_offset);
-      mir_value_t src = mir_build_array_ref(g->mu, unpacked, pos);
-
-      mir_build_sched_deposit(g->mu, nets, lvalues[i].count, src, after);
+      if (class == MIR_TYPE_VEC2 || class == MIR_TYPE_VEC4) {
+         mir_value_t pos = mir_build_add(g->mu, t_offset,
+                                         mir_const(g->mu, t_offset, offset),
+                                         lvalues[i].src_offset);
+         mir_value_t src = mir_build_array_ref(g->mu, unpacked, pos);
+         mir_build_sched_deposit(g->mu, nets, lvalues[i].count, src, after);
+      }
+      else
+         mir_build_sched_deposit(g->mu, nets, lvalues[i].count,
+                                 unpacked, after);
 
       if (!mir_is_null(merge_bb)) {
          mir_build_jump(g->mu, merge_bb);
@@ -3231,8 +3244,11 @@ static void vlog_lower_var_decl(vlog_gen_t *g, vlog_node_t v, tree_t wrap)
       }
 
       mir_value_t packed = vlog_lower_rvalue(g, vlog_value(v));
-      mir_value_t cast = mir_build_cast(g->mu, ti->type, packed);
-      value = mir_build_unpack(g->mu, cast, 0, tmp);
+      mir_value_t cast = vlog_lower_cast(g, ti->type, packed);
+      if (mir_get_class(g->mu, ti->unpacked) == MIR_TYPE_REAL)
+         value = cast;
+      else
+         value = mir_build_unpack(g->mu, cast, 0, tmp);
    }
    else if (mir_get_class(g->mu, ti->unpacked) == MIR_TYPE_REAL)
       value = mir_const_real(g->mu, ti->unpacked, 0.0);
