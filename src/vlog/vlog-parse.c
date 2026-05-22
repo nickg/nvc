@@ -6645,7 +6645,7 @@ static void p_list_of_udp_port_identifiers(vlog_node_t udp, v_port_kind_t kind)
 
       vlog_add_decl(udp, p);
       vlog_symtab_put(symtab, p);
-   } while (optional(tCOMMA));
+   } while (peek_nth(2) == tID && optional(tCOMMA));
 }
 
 static void p_udp_output_declaration(vlog_node_t udp, bool *has_reg)
