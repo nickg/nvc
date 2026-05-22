@@ -1869,6 +1869,24 @@ START_TEST(test_lower3)
 }
 END_TEST
 
+START_TEST(test_force1)
+{
+   input_from_file(TESTDIR "/vlog/force1.v");
+
+   const error_t expect[] = {
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   vlog_node_t m1 = do_parse_only(V_MODULE);
+   vlog_check(m1);
+
+   fail_unless(vlog_parse() == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_vlog_tests(void)
 {
    Suite *s = suite_create("vlog");
@@ -1937,6 +1955,7 @@ Suite *get_vlog_tests(void)
    tcase_add_test(tc, test_simp2);
    tcase_add_test(tc, test_lower2);
    tcase_add_test(tc, test_lower3);
+   tcase_add_test(tc, test_force1);
    suite_add_tcase(s, tc);
 
    return s;

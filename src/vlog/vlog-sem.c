@@ -299,6 +299,27 @@ static void vlog_check_assign(vlog_node_t v)
    vlog_check_same_type(target, lmask, value, rmask);
 }
 
+static void vlog_check_force(vlog_node_t v)
+{
+   vlog_node_t target = vlog_target(v);
+   type_mask_t lmask = vlog_check_expr(target);
+
+   vlog_check_net_lvalue(target, target);
+
+   vlog_node_t value = vlog_value(v);
+   type_mask_t rmask = vlog_check_expr(value);
+
+   vlog_check_same_type(target, lmask, value, rmask);
+}
+
+static void vlog_check_release(vlog_node_t v)
+{
+   vlog_node_t target = vlog_target(v);
+
+   vlog_check_expr(target);
+   vlog_check_net_lvalue(target, target);
+}
+
 static void vlog_check_consistent(vlog_node_t a, vlog_node_t b)
 {
    vlog_node_t at = vlog_type(a);
@@ -1248,6 +1269,12 @@ void vlog_check(vlog_node_t v)
       break;
    case V_ASSIGN:
       vlog_check_assign(v);
+      break;
+   case V_FORCE:
+      vlog_check_force(v);
+      break;
+   case V_RELEASE:
+      vlog_check_release(v);
       break;
    case V_OP_ASSIGN:
       vlog_check_op_assign(v);
