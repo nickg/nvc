@@ -1106,7 +1106,10 @@ void vec2_sdiv(int size, uint64_t *a, const uint64_t *b)
       const int shift = 64 - size;
       const int64_t sa = (int64_t)(a[0] << shift) >> shift;
       const int64_t sb = (int64_t)(b[0] << shift) >> shift;
-      a[0] = sa / sb;
+      if (sa == INT64_MIN && sb == -1)
+         a[0] = (uint64_t)sa;
+      else
+         a[0] = sa / sb;
       vec2_mask(size, a);
    }
    else {
@@ -1134,7 +1137,10 @@ void vec2_smod(int size, uint64_t *a, const uint64_t *b)
       const int shift = 64 - size;
       const int64_t sa = (int64_t)(a[0] << shift) >> shift;
       const int64_t sb = (int64_t)(b[0] << shift) >> shift;
-      a[0] = sa % sb;
+      if (sa == INT64_MIN && sb == -1)
+         a[0] = 0;
+      else
+         a[0] = sa % sb;
       vec2_mask(size, a);
    }
    else {
