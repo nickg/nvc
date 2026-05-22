@@ -666,7 +666,8 @@ neq1			normal			ivltests gold=neq1.gold
 nested_func		normal			ivltests gold=nested_func.gold
 nested_impl_event1	normal			ivltests gold=nested_impl_event1.gold
 nested_impl_event2	normal			ivltests gold=nested_impl_event2.gold
-no_if_statement		CE			ivltests
+# Icarus-specific error
+#no_if_statement		CE			ivltests
 no_timescale_in_module	CE			ivltests
 npmos			normal			ivltests
 npmos2			normal			ivltests

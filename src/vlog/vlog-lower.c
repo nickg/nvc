@@ -1585,7 +1585,7 @@ static mir_value_t vlog_lower_with_context(vlog_gen_t *g, vlog_node_t v,
             mir_value_t value = vlog_lower_rvalue(g, vlog_param(v, i));
             vlog_node_t dt = vlog_type(vlog_port(decl, i));
             const type_info_t *ti = vlog_type_info(g, dt);
-            args[i + 1] = mir_build_cast(g->mu, ti->type, value);
+            args[i + 1] = vlog_lower_cast(g, ti->type, value);
          }
 
          const type_info_t *ti = vlog_type_info(g, vlog_type(decl));
