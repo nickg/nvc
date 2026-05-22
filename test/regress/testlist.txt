@@ -1387,3 +1387,4 @@ ivtest52        verilog
 string3         verilog,gold
 tfcall8         verilog
 ivtest53        verilog
+real12          verilog,gold

@@ -90,7 +90,8 @@ static void format_radix(FILE *out, vpiHandle arg, char radix, int fwidth,
 
          if (!vpi_chk_error(NULL)) {
             const int nbits = vpi_get(vpiSize, arg);
-            const int dmax = calc_dec_size(nbits, false);
+            const bool is_signed = vpi_get(vpiSigned, arg);
+            const int dmax = calc_dec_size(nbits, is_signed);
             const int pad_width =
                nbits >= 64 ? MAX(fwidth, dmax) : fwidth;
 
@@ -235,31 +236,23 @@ static void interpret_format(FILE *out, const char *fmt, vpiHandle it)
 static void verilog_printf(FILE *out, char default_radix, vpiHandle it)
 {
    vpiHandle arg = vpi_scan(it);
-   if (arg == NULL)
-      return;
-
-   const bool has_format =
-      vpi_get(vpiType, arg) == vpiConstant
-      && vpi_get(vpiConstType, arg) == vpiStringConst;
-
-   if (has_format) {
-      s_vpi_value argval = { .format = vpiStringVal };
-      vpi_get_value(arg, &argval);
-
-      char *copy = xstrdup(argval.value.str);
-      interpret_format(out, copy, it);
-      free(copy);
-
-      vpi_release_handle(arg);
-      arg = vpi_scan(it);
-   }
-
    while (arg != NULL) {
       const bool is_null = vpi_get(vpiType, arg) == vpiOperation
          && vpi_get(vpiOpType, arg) == vpiNullOp;
+      const bool has_format =
+         vpi_get(vpiType, arg) == vpiConstant
+         && vpi_get(vpiConstType, arg) == vpiStringConst;
 
       if (is_null)
          fputc(' ', out);
+      else if (has_format) {
+         s_vpi_value argval = { .format = vpiStringVal };
+         vpi_get_value(arg, &argval);
+
+         char *copy = xstrdup(argval.value.str);
+         interpret_format(out, copy, it);
+         free(copy);
+      }
       else
          format_radix(out, arg, default_radix, -1, -1);
 
@@ -885,6 +878,32 @@ static PLI_INT32 clog2_tf(PLI_BYTE8 *userdata)
    return 0;
 }
 
+static PLI_INT32 rtoi_tf(PLI_BYTE8 *userdata)
+{
+   vpiHandle call = vpi_handle(vpiSysTfCall, NULL);
+   assert(call != NULL);
+
+   vpiHandle argv = vpi_iterate(vpiArgument, call);
+   vpiHandle arg = vpi_scan(argv);
+   assert(arg != NULL);
+
+   s_vpi_value value = { .format = vpiRealVal };
+   vpi_get_value(arg, &value);
+
+   vpi_release_handle(arg);
+   vpi_release_handle(argv);
+
+   s_vpi_value result = {
+      .format = vpiIntVal,
+      .value = { .integer = value.value.real },
+   };
+
+   vpi_put_value(call, &result, NULL, 0);
+
+   vpi_release_handle(call);
+   return 0;
+}
+
 static PLI_INT32 real_unary_tf(double (*fn)(double))
 {
    vpiHandle call = vpi_handle(vpiSysTfCall, NULL);
@@ -1174,6 +1193,12 @@ static s_vpi_systf_data builtins[] = {
       .tfname      = "$clog2",
       .sysfunctype = vpiIntFunc,
       .calltf      = clog2_tf
+   },
+   {
+      .type        = vpiSysFunc,
+      .tfname      = "$rtoi",
+      .sysfunctype = vpiIntFunc,
+      .calltf      = rtoi_tf
    },
    {
       .type        = vpiSysFunc,

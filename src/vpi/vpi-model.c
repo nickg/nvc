@@ -1087,6 +1087,8 @@ PLI_INT32 vpi_get(PLI_INT32 property, vpiHandle object)
          return con->subtype;
       case vpiSize:
          return con->size;
+      case vpiSigned:
+         return vlog_is_signed(con->expr.where);
       default:
          goto missing_property;
       }
@@ -1108,6 +1110,8 @@ PLI_INT32 vpi_get(PLI_INT32 property, vpiHandle object)
          }
       case vpiOpType:
          return op->subtype;
+      case vpiSigned:
+         return op->is_signed;
       }
    }
 
@@ -1116,6 +1120,8 @@ PLI_INT32 vpi_get(PLI_INT32 property, vpiHandle object)
       switch (property) {
       case vpiSize:
          return reg->size;
+      case vpiSigned:
+         return vlog_is_signed(reg->decl.where);
       }
    }
 
@@ -1124,6 +1130,8 @@ PLI_INT32 vpi_get(PLI_INT32 property, vpiHandle object)
       switch (property) {
       case vpiSize:
          return net->size;
+      case vpiSigned:
+         return vlog_is_signed(net->decl.where);
       }
    }
 
