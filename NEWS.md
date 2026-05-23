@@ -6,6 +6,9 @@
 - Added support for default arguments in Verilog macros.
 - Added support for `$info`, `$warning`, `$error`, and `$fatal`, Verilog
   system tasks.
+- VHDL signals can be now initialized in LRM non-compliant way when
+  using `--load=siginit` and `+siginit` arguments. This is usefull
+  for finding reset issues.
 - Elaboration now supports multiple top level design units (#1588).
 - Verilog hierarchical references are now supported.
 - External names are now allowed in the prefix of selected or indexed
