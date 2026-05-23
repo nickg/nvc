@@ -1,21 +1,20 @@
-proxydir = $(libdir)/$(PACKAGE)
+siginitdir = $(libdir)/$(PACKAGE)
+nodist_siginit_DATA = lib/siginit.@DLL_EXT@
 
-if WINDOWS_BUILD
-lib/nvc/siginit.dll: contrib/plugins/siginit.c lib/libnvcimp.a
-	$(MKDIR_P) lib/nvc
-	$(CC) $(SHLIB_CFLAGS) -I$(top_srcdir)/src/vhpi $(AM_CFLAGS) -Wextra -Wpedantic \
-		$(SHLIB_LDFLAGS) $(AM_LDFLAGS) -o $@ $< lib/libnvcimp.a
+contrib/plugins/siginit.o: $(top_srcdir)/contrib/plugins/siginit.c
+	$(AM_V_at)$(MKDIR_P) $(dir $@)
+	$(AM_V_CC)$(CC) $(SHLIB_CFLAGS) -I$(top_srcdir)/src/vhpi $(AM_CFLAGS) -Wextra -Wpedantic \
+			-c -o $@ $<
 
-all-local: lib/nvc/siginit.dll
-
-nodist_proxy_DATA = lib/nvc/siginit.dll
-
+if IMPLIB_REQUIRED
+siginit_implib = lib/libnvcimp.a
 else
-proxy_PROGRAMS = lib/siginit.@DLL_EXT@
-lib_siginit_@DLL_EXT@_SOURCES = contrib/plugins/siginit.c
-lib_siginit_@DLL_EXT@_CFLAGS  = $(SHLIB_CFLAGS) -I$(top_srcdir)/src/vhpi $(AM_CFLAGS) -Wextra -Wpedantic
-lib_siginit_@DLL_EXT@_LDFLAGS = $(SHLIB_LDFLAGS) $(AM_LDFLAGS)
-
+siginit_implib =
 endif
+
+lib/siginit.@DLL_EXT@: contrib/plugins/siginit.o $(siginit_implib)
+	$(AM_V_CCLD)$(CC) $(SHLIB_LDFLAGS) $(AM_LDFLAGS) -o $@ $< $(siginit_implib)
+
+all-local: lib/siginit.@DLL_EXT@
 
 CLEANFILES += lib/siginit.@DLL_EXT@ contrib/plugins/siginit.o
