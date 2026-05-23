@@ -2295,6 +2295,10 @@ static tree_t resolve_record_ref_or_call(nametab_t *tab, tree_t t, bool pcall)
       return NULL;
 
    tree_t prefix = solve_types(tab, tree_value(t), NULL);
+
+   if (get_library_ref(prefix) != NULL)
+      return NULL;
+
    tree_set_value(t, (prefix = implicit_dereference(tab, prefix)));
 
    tree_t decl = get_container_ref(prefix);
@@ -2526,11 +2530,15 @@ tree_t resolve_pcall(nametab_t *tab, tree_t name)
       }
    case T_REF:
       {
-         tree_t call = tree_new(T_PCALL);
-         tree_set_ident2(call, tree_ident(name));
-         tree_set_loc(call, tree_loc(name));
+         const symbol_t *sym = iterate_symbol_for(tab, tree_ident(name));
+         if (sym == NULL || (sym->mask & N_OVERLOAD)) {
+            tree_t call = tree_new(T_PCALL);
+            tree_set_ident2(call, tree_ident(name));
+            tree_set_loc(call, tree_loc(name));
+            return call;
+         }
 
-         return call;
+         return NULL;
       }
    case T_FCALL:
       {
@@ -2551,6 +2559,9 @@ tree_t resolve_pcall(nametab_t *tab, tree_t name)
 
          return call;
       }
+   case T_PCALL:
+   case T_PROT_PCALL:
+      return name;
    default:
       return NULL;
    }

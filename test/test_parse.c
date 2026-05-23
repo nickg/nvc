@@ -3473,8 +3473,8 @@ START_TEST(test_issue388)
 
    const error_t expect[] = {
       { 11, "unexpected => while parsing slice name, expecting one of" },
-      { 12, "invalid procedure call" },
-      { 14, "no visible subprogram declaration for CALL" },
+      { 12, "invalid instantiated unit name" },
+      { 12, "unexpected => while parsing component instantiation statement" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -3522,7 +3522,7 @@ START_TEST(test_names)
       {   0, "no implicit conversion was performed on the first argument" },
       { 106, "type of string literal cannot be determined from the" },
       {   0, "could be BIT_VECTOR or STRING" },
-      { 107, "no visible subprogram declaration for V" },
+      { 107, "invalid procedure call statement" },
       { 108, "no visible subprogram declaration for FOO" },
       { 222, "ambiguous use of name FOO" },
       { 233, "name X not found in function \"+\"" },
@@ -6997,7 +6997,7 @@ START_TEST(test_issue1038)
    const error_t expect[] = {
       { 26, "unexpected next while parsing primary, expecting one of ??, (, "
             "integer, real, null, identifier, string, bit string or new" },
-      { 41, "no visible subprogram declaration for NATURAL" },
+      { 41, "invalid procedure call statement" },
       { 49, "type mark does not denote a type or a subtype" },
       { 49, "unexpected identifier while parsing subtype declaration" },
       { -1, NULL }
@@ -7665,6 +7665,25 @@ START_TEST(test_view1)
 }
 END_TEST
 
+START_TEST(test_issue1535)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/parse/issue1535.vhd");
+
+   const error_t expect[] = {
+      { 16, "design unit WORK.SUB is not a component declaration" },
+      { 28, "design unit WORK.PACK is not a component declaration" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_ENTITY, T_ARCH, T_ENTITY, T_ARCH, T_PACKAGE, T_ARCH);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_parse_tests(void)
 {
    Suite *s = suite_create("parse");
@@ -7867,6 +7886,7 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_issue1477);
    tcase_add_test(tc_core, test_issue1498);
    tcase_add_test(tc_core, test_view1);
+   tcase_add_test(tc_core, test_issue1535);
    suite_add_tcase(s, tc_core);
 
    return s;
