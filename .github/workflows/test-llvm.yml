@@ -33,6 +33,7 @@ jobs:
           fetch-depth: 1
       - name: Install LLVM
         run: |
+          apt-get -y update
           apt-get -y install lsb-release software-properties-common gnupg
           curl -L -o llvm.sh https://apt.llvm.org/llvm.sh
           chmod +x llvm.sh
