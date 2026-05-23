@@ -416,16 +416,7 @@ PROTECT           ?i:protect
 <INITIAL,PSL>{BITSTR}    { string_begin(BITSTRING);
                            string_append(yytext);
                          }
-<INITIAL,PSL>{PBITSTR}   { if (standard() >= STD_08) {
-                              diag_t *d = diag_new(DIAG_ERROR, &yylloc);
-                              diag_printf(d, "replacement character %% is "
-                                 "not permitted in VHDL-%s",
-                                 standard_text(standard()));
-                              diag_hint(d, NULL, "use $bold$\"$$ instead of "
-                                 "$bold$%%$$ as the bit string delimiter");
-                              diag_emit(d);
-                           }
-                           string_begin(PBITSTRING);
+<INITIAL,PSL>{PBITSTR}   { string_begin(PBITSTRING);
                            string_append(yytext);
                          }
 
@@ -1237,10 +1228,22 @@ static int parse_bit_string(void)
    tb_free(yylval.text);
    yylval.str = copy;
 
+   static bool warned_pct = false;
    bool error = false;
    for (char *src = copy, *dst = src; *src != '\0'; src++) {
-      if (*src == '%')
+      if (*src == '%') {
+         if (standard() >= STD_08 && !warned_pct) {
+            diag_t *d = diag_new(DIAG_ERROR, &yylloc);
+            diag_printf(d, "replacement character %% is not permitted "
+                        "in VHDL-%s", standard_text(standard()));
+            diag_hint(d, NULL, "use \" instead of %% as the bit "
+                      "string delimiter");
+            diag_emit(d);
+            warned_pct = true;
+         }
+
          *dst++ = '\"';
+      }
       else if (*src != '_')
          *dst++ = *src;
       else if ((src[-1] == '\"' || src[1] == '\"') && !error) {
