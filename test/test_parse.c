@@ -2399,6 +2399,34 @@ START_TEST(test_bitstring)
 }
 END_TEST
 
+START_TEST(test_bitstring_2008)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/parse/bitstring.vhd");
+
+   const error_t expect[] = {
+      { 13, "replacement character \% is not permitted in VHDL-2008" },
+      { 22, "invalid character '9' in string literal of type BIT_VECTOR" },
+      { 24, "a bit string literal may not start or end with an underscore" },
+      { 25, "a bit string literal may not start or end with an underscore" },
+      { 26, "a bit string literal may not contain multiple consecutive "
+        "underscores" },
+      { 27, "invalid character '\\' in string literal of type BIT_VECTOR" },
+      { 29, "unterminated string literal" },
+      { 30, "unexpected integer while parsing constant declaration" },
+      { 29, "invalid character 'x' in string literal" },
+      { 30, "unterminated string literal" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_PACKAGE, T_PACKAGE);
+
+   check_expected_errors();
+}
+END_TEST
+
 START_TEST(test_block)
 {
    tree_t e, a, b;
@@ -7663,6 +7691,7 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_concat);
    tcase_add_test(tc_core, test_based);
    tcase_add_test(tc_core, test_bitstring);
+   tcase_add_test(tc_core, test_bitstring_2008);
    tcase_add_test(tc_core, test_block);
    tcase_add_test(tc_core, test_comp);
    tcase_add_test(tc_core, test_generate);
