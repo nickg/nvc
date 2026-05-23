@@ -10201,18 +10201,39 @@ static void p_parameter_specification(tree_t loop, tree_kind_t pkind)
    insert_name(nametab, param, NULL);
 }
 
-static void p_iteration_scheme(tree_t t)
+static tree_t p_iteration_scheme(ident_t label)
 {
    // while condition | for parameter_specification
 
    BEGIN("iteration scheme");
 
-   if (optional(tWHILE))
-      tree_set_value(t, p_condition());
-   else if (optional(tFOR)) {
-      scope_set_container(nametab, t);
-      p_parameter_specification(t, T_PARAM_DECL);
+   tree_kind_t kind = T_LOOP;
+   if (peek() != tLOOP) {
+      switch (one_of(tWHILE, tFOR)) {
+      case tWHILE: kind = T_WHILE; break;
+      case tFOR:   kind = T_FOR; break;
+      default:     kind = T_LOOP; break;
+      }
    }
+
+   tree_t t = tree_new(kind);
+   set_label_and_loc(t, label, CURRENT_LOC);
+
+   push_scope(nametab);
+   scope_set_container(nametab, t);
+
+   switch (kind) {
+   case T_WHILE:
+      tree_set_value(t, p_condition());
+      break;
+   case T_FOR:
+      p_parameter_specification(t, T_PARAM_DECL);
+      break;
+   default:
+      break;
+   }
+
+   return t;
 }
 
 static tree_t p_loop_statement(ident_t label)
@@ -10222,37 +10243,26 @@ static tree_t p_loop_statement(ident_t label)
 
    BEGIN("loop statement");
 
-   tree_t t;
-   if (scan(tWHILE))
-      t = tree_new(T_WHILE);
-   else if (scan(tFOR))
-      t = tree_new(T_FOR);
-   else
-      t = tree_new(T_LOOP);
-
-   // Need to put loop name to parent scope, but loop must be parsed in
-   // child scope since loop variable hiding is legal.
-   ensure_labelled(t, label);
-   if (label != NULL)
-      insert_name(nametab, t, NULL);
-
-   push_scope(nametab);
-
-   p_iteration_scheme(t);
+   tree_t t = p_iteration_scheme(label);
 
    consume(tLOOP);
 
-   scope_set_container(nametab, t);
+   if (label != NULL)
+      insert_name(nametab, t, NULL);
+
    sem_check(t, nametab);
 
    p_sequence_of_statements(t);
 
    consume(tEND);
    consume(tLOOP);
+
    p_trailing_label(label);
+
    consume(tSEMI);
 
    pop_scope(nametab);
+
    tree_set_loc(t, CURRENT_LOC);
    return t;
 }
