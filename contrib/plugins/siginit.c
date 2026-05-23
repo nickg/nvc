@@ -97,7 +97,8 @@ static vhpiHandleT xvhpi_handle(ctx_t *ctx, vhpiOneToOneT type,
     return h;
 }
 
-static vhpiIntT xvhpi_get(ctx_t *ctx, vhpiIntPropertyT property, vhpiHandleT handle)
+static vhpiIntT xvhpi_get(ctx_t *ctx, vhpiIntPropertyT property,
+                          vhpiHandleT handle)
 {
 
     vhpiIntT v = vhpi_get(property, handle);
@@ -175,21 +176,18 @@ static void print_signal_init(ctx_t *ctx, vhpiHandleT type_h, vhpiHandleT sig_h,
         fprintf(ctx->rpt, "    Value:      '%c'\n",
                 (v->value.smallenumv == vhpi1) ? '1' : '0');
         break;
-
     case vhpiEnumVal:
         {
             vhpiHandleT lit_h = vhpi_handle_by_index(vhpiEnumLiterals, type_h,
-                                                    v->value.enumv);
+                                                     v->value.enumv);
             fprintf(ctx->rpt, "    Value:      %s\n",
-                            vhpi_get_str(vhpiNameP, lit_h));
+                    vhpi_get_str(vhpiNameP, lit_h));
             vhpi_release_handle(lit_h);
             break;
         }
-
     case vhpiIntVal:
         fprintf(ctx->rpt, "    Value:      %d\n", v->value.intg);
         break;
-
     default:
         break;
     }
@@ -266,7 +264,8 @@ static void init_signal(ctx_t *ctx, vhpiHandleT sig_h)
         while ((elem_h = vhpi_scan(elem_it)) != NULL) {
             // TODO: If we comment the following line, then getting the NameP
             //       in the recursion will give us weird names with (NULL) in
-            //       it, despite being called on the same handle in "print_init_signal"!
+            //       it, despite being called on the same handle in
+            //       "print_init_signal"!
             (void) vhpi_get_str(vhpiNameP, elem_h);
             init_signal(ctx, elem_h);
             vhpi_release_handle(elem_h);
@@ -290,7 +289,8 @@ static void init_signal(ctx_t *ctx, vhpiHandleT sig_h)
         b_type_kind = xvhpi_get(ctx, vhpiKindP, b_type_h);
     }
 
-    const char *b_type_name = (const char *) vhpi_get_str(vhpiFullNameP, b_type_h);
+    const char *b_type_name = (const char *) vhpi_get_str(vhpiFullNameP,
+                                                          b_type_h);
 
     switch (b_type_kind) {
     case vhpiEnumTypeDeclK:
@@ -504,7 +504,8 @@ static void vhpi_cb(const struct vhpiCbDataS *cb_data)
         ctx->rpt = fopen(ctx->rpt_path, "w");
         if (!ctx->rpt) {
             ctx->errors++;
-            vhpi_assert(vhpiError, "Failed to open +signit+report+ file: %s", ctx->rpt_path);
+            vhpi_assert(vhpiError, "Failed to open +signit+report+ file: %s",
+                        ctx->rpt_path);
         }
     }
 
@@ -551,7 +552,9 @@ static void register_callback(void)
     vhpiHandleT tool_h = vhpi_handle(vhpiTool, NULL);
     vhpiHandleT args_it = vhpi_iterator(vhpiArgvs, tool_h);
 
-    for (vhpiHandleT arg = vhpi_scan(args_it); arg != NULL; arg = vhpi_scan(args_it)) {
+    for (vhpiHandleT arg = vhpi_scan(args_it);
+         arg != NULL;
+         arg = vhpi_scan(args_it)) {
         const char *s = (const char *) vhpi_get_str(vhpiStrValP, arg);
 
         if (s == NULL)
