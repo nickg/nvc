@@ -8,7 +8,7 @@
 - Fixed several bugs related to concatenating arrays-of-arrays (#1534,
   #1539)
 - Several other minor bugs were resolved (#1506, #1516, #1522, #1529,
-  #1541, #1544, #1543, #1528, #1503, #1475, #1535).
+  #1541, #1544, #1543, #1528, #1503, #1475, #1535. #1517).
 
 ## Version 1.20.1 - 2026-04-22
 - Fix a crash while evaluating matching relational operator with

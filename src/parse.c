@@ -10201,25 +10201,39 @@ static void p_parameter_specification(tree_t loop, tree_kind_t pkind)
    insert_name(nametab, param, NULL);
 }
 
-static tree_t p_iteration_scheme(void)
+static tree_t p_iteration_scheme(ident_t label)
 {
    // while condition | for parameter_specification
 
    BEGIN("iteration scheme");
 
-   if (optional(tWHILE)) {
-      tree_t t = tree_new(T_WHILE);
+   tree_kind_t kind = T_LOOP;
+   if (peek() != tLOOP) {
+      switch (one_of(tWHILE, tFOR)) {
+      case tWHILE: kind = T_WHILE; break;
+      case tFOR:   kind = T_FOR; break;
+      default:     kind = T_LOOP; break;
+      }
+   }
+
+   tree_t t = tree_new(kind);
+   set_label_and_loc(t, label, CURRENT_LOC);
+
+   push_scope(nametab);
+   scope_set_container(nametab, t);
+
+   switch (kind) {
+   case T_WHILE:
       tree_set_value(t, p_condition());
-      return t;
-   }
-   else if (optional(tFOR)) {
-      tree_t t = tree_new(T_FOR);
-      scope_set_container(nametab, t);
+      break;
+   case T_FOR:
       p_parameter_specification(t, T_PARAM_DECL);
-      return t;
+      break;
+   default:
+      break;
    }
-   else
-      return tree_new(T_LOOP);
+
+   return t;
 }
 
 static tree_t p_loop_statement(ident_t label)
@@ -10229,14 +10243,9 @@ static tree_t p_loop_statement(ident_t label)
 
    BEGIN("loop statement");
 
-   push_scope(nametab);
-
-   tree_t t = p_iteration_scheme();
+   tree_t t = p_iteration_scheme(label);
 
    consume(tLOOP);
-
-   scope_set_container(nametab, t);
-   set_label_and_loc(t, label, CURRENT_LOC);
 
    if (label != NULL)
       insert_name(nametab, t, NULL);
@@ -10247,7 +10256,9 @@ static tree_t p_loop_statement(ident_t label)
 
    consume(tEND);
    consume(tLOOP);
+
    p_trailing_label(label);
+
    consume(tSEMI);
 
    pop_scope(nametab);
