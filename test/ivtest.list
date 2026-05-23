@@ -303,10 +303,12 @@ br_gh99s		normal			ivltests
 br_gh99t		normal			ivltests
 br_gh99u		normal			ivltests
 br_gh103		normal			ivltests
-br_gh127a		normal			ivltests gold=br_gh127a.gold
+# Tests iverilog-specific warning
+#br_gh127a		normal			ivltests gold=br_gh127a.gold
 br_gh127b		normal			ivltests gold=br_gh127b.gold
 br_gh127c		normal			ivltests gold=br_gh127c.gold
-br_gh127d		normal			ivltests gold=br_gh127d.gold
+# Tests iverilog-specific warning
+#br_gh127d		normal			ivltests gold=br_gh127d.gold
 br_gh127e		normal			ivltests gold=br_gh127e.gold
 br_gh127f		normal			ivltests gold=br_gh127f.gold
 br_gh142		CE			ivltests
@@ -343,7 +345,8 @@ br_gh508b		normal			ivltests
 br_gh515		normal			ivltests
 br_gh531		normal			ivltests gold=br_gh531.gold
 br_gh533		CE			ivltests
-br_gh567		normal,-g2001		ivltests gold=br_gh567.gold
+# Tests iverilog-specific warning
+#br_gh567		normal,-g2001		ivltests gold=br_gh567.gold
 br_ml20150315		normal			ivltests gold=br_ml_20150315.gold
 br_ml20150321		CE			ivltests
 br_ml20150606		normal			ivltests
@@ -801,7 +804,8 @@ pr729			normal			ivltests gold=pr729.gold
 pr734			normal			ivltests
 pr735			normal			ivltests
 pr748			normal			ivltests
-pr751			normal,-Wsensitivity-entire-vector	ivltests gold=pr751.gold
+# Tests iverilog-specific warning
+#pr751			normal,-Wsensitivity-entire-vector	ivltests gold=pr751.gold
 pr757			normal			ivltests
 pr772			normal			ivltests
 pr810			normal			ivltests
@@ -943,7 +947,8 @@ pr1697732		normal			ivltests
 pr1698499		normal			ivltests gold=pr1698499.gold
 pr1698658		normal			ivltests gold=pr1698658.gold
 pr1698659		normal			ivltests gold=pr1698659.gold
-pr1698820		normal			ivltests gold=pr1698820.gold
+# Tests iverilog-specific warning
+#pr1698820		normal			ivltests gold=pr1698820.gold
 pr1699444		normal			ivltests gold=pr1699444.gold
 pr1699519		normal			ivltests gold=pr1699519.gold
 pr1701855		normal			ivltests gold=pr1701855.gold
@@ -1369,7 +1374,8 @@ pr3409749		normal			ivltests
 pr3437290a		normal			ivltests
 pr3437290b		normal			ivltests
 pr3437290c		normal			ivltests
-pr3441576		normal			ivltests gold=pr3441576.gold
+# Tests iverilog-specific warning
+#pr3441576		normal			ivltests gold=pr3441576.gold
 pr3445452		normal			ivltests
 pr3452808		normal			ivltests
 pr3465541		normal			ivltests

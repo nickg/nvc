@@ -19,7 +19,7 @@ IvtestDir = Pathname.new(ARGV[0]).realpath
 TestList = Pathname.new(ARGV[1] || "#{TestDir}/ivtest.list").realpath
 GitRev = IO::popen("git rev-parse --short HEAD").read.chomp
 Tool = ENV['NVC'] ? Pathname.new(ENV['NVC']).realpath.to_s : 'nvc'
-ExpectFails = 1530
+ExpectFails = 1240
 
 ENV['NVC_COLORS'] = 'always'
 
