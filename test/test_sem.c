@@ -687,7 +687,7 @@ START_TEST(test_procedure)
       { 162, "formal parameter ARG with type containing an access type " },
       { 167, "formal parameter ARG with type containing an access type " },
       { 172, "formal parameter ARG with type containing an access type " },
-      { 180, "no visible subprogram declaration for X" },
+      { 180, "invalid procedure call statement" },
       { 183, "declaration may not include the reserved word BUS" },
       { 193, "signal parameter Y must be denoted by a static signal name" },
       { 201, "formal parameter X already has an associated actual" },
@@ -2103,7 +2103,7 @@ START_TEST(test_issue359)
 
    const error_t expect[] = {
       {  8, "FOO already declared in this region" },
-      { 16, "no visible subprogram declaration for FOO" },
+      { 16, "cannot index non-array type INTEGER" },
       { -1, NULL }
    };
    expect_errors(expect);

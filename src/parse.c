@@ -10706,6 +10706,8 @@ static tree_t p_instantiated_unit(tree_t name)
          tree_set_ident2(t, tree_ident(name));
          if (tree_has_ref(name))
             tree_set_ref(t, tree_ref(name));
+         else
+            suppress_errors(nametab);
       }
       else {
          parse_error(tree_loc(name), "invalid instantiated unit name");
@@ -13182,38 +13184,6 @@ static tree_t p_psl_or_concurrent_assert(ident_t label)
    return conc;
 }
 
-static bool is_component_instantiation_statement(ident_t label)
-{
-   const token_t p2 = peek_nth(2);
-
-   if (label == NULL)
-      return false;
-
-   if (p2 == tSEMI || p2 == tGENERIC || p2 == tPORT)
-      return true;
-
-   if (p2 != tDOT)
-      return false;
-
-   const token_t p4 = peek_nth(4);
-   const token_t p6 = peek_nth(6);
-   const token_t p7 = peek_nth(7);
-   bool rv = false;
-
-   if (p4 == tSEMI || p4 == tGENERIC || p4 == tPORT || p4 == tEOF)
-      rv = true;
-
-   if (p4 == tLPAREN && p6 == tRPAREN &&
-       (p7 == tSEMI || p7 == tGENERIC || p7 == tPORT || p7 == tEOF))
-      rv = true;
-
-   if (rv)
-      parse_error(CURRENT_LOC,
-                  "missing 'entity' keyword in entity binding indication.");
-
-   return rv;
-}
-
 static tree_t p_concurrent_statement(void)
 {
    // block_statement | process_statement | concurrent_procedure_call_statement
@@ -13265,39 +13235,22 @@ static tree_t p_concurrent_statement(void)
 
    case tID:
       {
-         if (is_component_instantiation_statement(label))
-            return p_component_instantiation_statement(label, NULL);
-         else {
-            tree_t name = p_name(N_SUBPROGRAM), conc;
-            if (peek() == tLE)
-               return p_concurrent_signal_assignment_statement(label, name);
-            else if (scan(tGENERIC, tPORT))
-               return p_component_instantiation_statement(label, name);
-            else {
-               switch (tree_kind(name)) {
-               case T_REF:
-                  if (tree_has_ref(name)) {
-                     tree_t decl = tree_ref(name);
-                     if (tree_kind(decl) == T_COMPONENT)
-                        return p_component_instantiation_statement(label, name);
-                  }
-                  // Fall-through
-               case T_PROT_REF:
-               case T_RECORD_REF:
-               case T_ARRAY_REF:
-               case T_ARRAY_SLICE:
-               case T_FCALL:
-               case T_PROT_FCALL:
-                  return p_concurrent_procedure_call_statement(label, name);
-               default:
-                  parse_error(CURRENT_LOC, "expected concurrent statement");
-                  drop_tokens_until(&state, tSEMI);
-                  return ensure_labelled(tree_new(T_CONCURRENT), label);
-               }
-            }
-
-            return conc;
+         tree_t name = p_name(N_SUBPROGRAM);
+         switch (peek()) {
+         case tLE:
+            return p_concurrent_signal_assignment_statement(label, name);
+         case tGENERIC:
+         case tPORT:
+            return p_component_instantiation_statement(label, name);
+         case tLPAREN:
+            return p_concurrent_procedure_call_statement(label, name);
          }
+
+         tree_t call = resolve_pcall(nametab, name);
+         if (call == NULL)
+            return p_component_instantiation_statement(label, name);
+         else
+            return p_concurrent_procedure_call_statement(label, call);
       }
 
    case tPOSTPONED:

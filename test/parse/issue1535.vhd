@@ -13,5 +13,17 @@ end entity;
 
 architecture rtl of issue1535 is
 begin
-  i_test : work.sub;
+  i_test : work.sub;                    -- Error
+end architecture;
+
+package pack is
+    procedure proc;
+end package;
+
+use work.pack;
+
+architecture pcall of issue1535 is
+begin
+    x: pack.proc;                       -- OK
+    y : work.pack;                      -- Error
 end architecture;
