@@ -417,7 +417,7 @@ static vlog_select_t vlog_lower_select(vlog_gen_t *g, vlog_node_t v)
 
          vlog_node_t decl = vlog_ref(value);
          const int nunpacked =
-            vlog_kind(decl) == V_VAR_DECL ? vlog_ranges(decl) : 0;
+            vlog_kind(decl) == V_LOCAL_DECL ? vlog_ranges(decl) : 0;
          const int nparams = vlog_params(v);
 
          const bool unpacked_var =
@@ -1150,6 +1150,7 @@ static mir_value_t vlog_lower_systf_param(vlog_gen_t *g, vlog_node_t v)
       case V_LOCALPARAM:
          return vlog_lower_rvalue(g, v);
       case V_VAR_DECL:
+      case V_LOCAL_DECL:
          {
             int hops;
             mir_value_t var = mir_search_object(g->mu, vlog_ref(v), &hops);
@@ -1750,6 +1751,7 @@ static mir_value_t vlog_lower_trigger(vlog_gen_t *g, vlog_node_t v)
          case V_PORT_DECL:
          case V_NET_DECL:
          case V_VAR_DECL:
+         case V_LOCAL_DECL:
             {
                mir_type_t t_offset = mir_offset_type(g->mu);
 
@@ -2598,6 +2600,7 @@ static void vlog_lower_sensitivity(vlog_gen_t *g, vlog_node_t v)
          case V_PORT_DECL:
          case V_NET_DECL:
          case V_VAR_DECL:
+         case V_LOCAL_DECL:
             {
                mir_type_t t_offset = mir_offset_type(g->mu);
 
@@ -3311,6 +3314,7 @@ static void vlog_lower_locals(vlog_gen_t *g, vlog_node_t v)
    for (int i = 0; i < ndecls; i++) {
       vlog_node_t d = vlog_decl(v, i);
       switch (vlog_kind(d)) {
+      case V_LOCAL_DECL:
       case V_VAR_DECL:
          {
             const type_info_t *ti = vlog_type_info(g, vlog_type(d));

@@ -53,7 +53,8 @@ static vlog_node_t p_expression(void);
 static vlog_node_t p_constant_expression(void);
 static vlog_node_t p_data_type(void);
 static void p_list_of_variable_decl_assignments(vlog_node_t parent,
-                                                vlog_node_t datatype);
+                                                vlog_node_t datatype,
+                                                vlog_kind_t kind);
 static vlog_node_t p_variable_lvalue(void);
 static vlog_node_t p_select(ident_t id);
 static vlog_net_kind_t p_net_type(void);
@@ -592,7 +593,7 @@ static void p_struct_union_member(vlog_node_t v)
    optional_attributes();
 
    vlog_node_t dt = p_data_type_or_void();
-   p_list_of_variable_decl_assignments(v, dt);
+   p_list_of_variable_decl_assignments(v, dt, V_VAR_DECL);
 
    consume(tSEMI);
 }
@@ -2387,7 +2388,7 @@ static void p_for_variable_declaration(vlog_node_t parent)
    vlog_node_t dt = p_data_type();
 
    do {
-      vlog_node_t v = vlog_new(V_VAR_DECL);
+      vlog_node_t v = vlog_new(V_LOCAL_DECL);
       vlog_set_ident(v, p_identifier());
       vlog_set_type(v, dt);
 
@@ -3307,7 +3308,8 @@ static vlog_node_t p_variable_dimension(void)
    }
 }
 
-static vlog_node_t p_variable_decl_assignment(vlog_node_t datatype)
+static vlog_node_t p_variable_decl_assignment(vlog_node_t datatype,
+                                              vlog_kind_t kind)
 {
    // variable_identifier { variable_dimension } [ = expression ]
    //   | dynamic_array_variable_identifier unsized_dimension
@@ -3316,7 +3318,7 @@ static vlog_node_t p_variable_decl_assignment(vlog_node_t datatype)
 
    BEGIN("variable declaration assignment");
 
-   vlog_node_t v = vlog_new(V_VAR_DECL);
+   vlog_node_t v = vlog_new(kind);
    vlog_set_ident(v, p_identifier());
    vlog_set_type(v, datatype);
 
@@ -3332,14 +3334,15 @@ static vlog_node_t p_variable_decl_assignment(vlog_node_t datatype)
 }
 
 static void p_list_of_variable_decl_assignments(vlog_node_t parent,
-                                                vlog_node_t datatype)
+                                                vlog_node_t datatype,
+                                                vlog_kind_t kind)
 {
    // variable_decl_assignment { , variable_decl_assignment }
 
    BEGIN("list of variable declaration assignments");
 
    do {
-      vlog_add_decl(parent, p_variable_decl_assignment(datatype));
+      vlog_add_decl(parent, p_variable_decl_assignment(datatype, kind));
    } while (optional(tCOMMA));
 }
 
@@ -3404,7 +3407,7 @@ static void p_package_import_declaration(vlog_node_t parent)
    consume(tSEMI);
 }
 
-static void p_data_declaration(vlog_node_t mod)
+static void p_data_declaration(vlog_node_t parent, vlog_kind_t kind)
 {
    // [ const ] [ var ] [ lifetime ] data_type_or_implicit
    //     list_of_variable_decl_assignments ;
@@ -3414,17 +3417,17 @@ static void p_data_declaration(vlog_node_t mod)
 
    switch (peek()) {
    case tTYPEDEF:
-      vlog_add_decl(mod, p_type_declaration());
+      vlog_add_decl(parent, p_type_declaration());
       break;
    case tIMPORT:
-      p_package_import_declaration(mod);
+      p_package_import_declaration(parent);
       break;
    default:
       {
          optional(tVAR);
 
          vlog_node_t dt = p_data_type_or_implicit();
-         p_list_of_variable_decl_assignments(mod, dt);
+         p_list_of_variable_decl_assignments(parent, dt, kind);
 
          consume(tSEMI);
       }
@@ -3844,7 +3847,7 @@ static void p_class_property(vlog_node_t parent)
 
    BEGIN("class property");
 
-   p_data_declaration(parent);
+   p_data_declaration(parent, V_VAR_DECL);
 }
 
 static void p_class_constructor_arg(vlog_node_t parent)
@@ -4081,7 +4084,7 @@ static void p_block_item_declaration(vlog_node_t parent)
    case tLOGIC:
    case tSHORTINT:
    case tTIME:
-      p_data_declaration(parent);
+      p_data_declaration(parent, V_LOCAL_DECL);
       break;
    default:
       should_not_reach_here();
@@ -4136,7 +4139,7 @@ static void p_package_or_generate_item_declaration(vlog_node_t parent)
    case tBYTE:
    case tSTRINGK:
    case tIMPORT:
-      p_data_declaration(parent);
+      p_data_declaration(parent, V_VAR_DECL);
       break;
    case tTASK:
       vlog_add_decl(parent, p_task_declaration());

@@ -1004,6 +1004,7 @@ void vlog_dump(vlog_node_t v, int indent)
       vlog_dump_net_decl(v, indent);
       break;
    case V_VAR_DECL:
+   case V_LOCAL_DECL:
       vlog_dump_var_decl(v, indent);
       break;
    case V_ALWAYS:

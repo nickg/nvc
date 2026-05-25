@@ -87,6 +87,7 @@ static type_mask_t get_type_mask(vlog_node_t v)
    case V_TF_PORT_DECL:
    case V_TYPE_DECL:
    case V_FUNC_DECL:
+   case V_LOCAL_DECL:
       return get_type_mask(vlog_type(v));
    default:
       CANNOT_HANDLE(v);
@@ -122,6 +123,7 @@ static void vlog_check_variable_lvalue(vlog_node_t v, vlog_node_t where)
    case V_ENUM_DECL:
    case V_UNION_DECL:
    case V_GENVAR_DECL:
+   case V_LOCAL_DECL:
       return;
    case V_REF:
       if (vlog_has_ref(v))
@@ -1154,6 +1156,7 @@ void vlog_check(vlog_node_t v)
       vlog_check_net_decl(v);
       break;
    case V_VAR_DECL:
+   case V_LOCAL_DECL:
       vlog_check_var_decl(v);
       break;
    case V_PORT_DECL:

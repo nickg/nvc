@@ -308,6 +308,7 @@ void vlog_trans(vlog_node_t mod, tree_t out)
       case V_TASK_DECL:
       case V_NET_DECL:
       case V_VAR_DECL:
+      case V_LOCAL_DECL:
       case V_LOCALPARAM:
          trans_generic(&gen, d);
          break;
