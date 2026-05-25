@@ -2179,7 +2179,7 @@ static vlog_node_t p_seq_block(ident_t id)
 
    consume(tBEGIN);
 
-   vlog_node_t v = vlog_new(V_BLOCK);
+   vlog_node_t v = vlog_new(V_SEQ_BLOCK);
    vlog_set_ident(v, id);
    vlog_set_loc(v, CURRENT_LOC);
 
@@ -2878,7 +2878,7 @@ static vlog_node_t p_statement_item(ident_t id)
              tWHILE, tREPEAT, tDO, tFOR, tWAIT, tCASE, tCASEX, tCASEZ, tIFIMPL,
              tASSIGN, tDEASSIGN, tFORCE, tRELEASE, tRETURN);
       drop_tokens_until(&state, tSEMI);
-      return vlog_new(V_BLOCK);  // Dummy statement
+      return vlog_new(V_SEQ_BLOCK);  // Dummy statement
    }
 }
 
@@ -4253,7 +4253,7 @@ static vlog_node_t p_generate_block(void)
 
    BEGIN("generate block");
 
-   vlog_node_t b = vlog_new(V_BLOCK);
+   vlog_node_t b = vlog_new(V_GEN_BLOCK);
 
    if (scan(tID, tBEGIN)) {
       if (peek() == tID) {
@@ -6203,7 +6203,7 @@ static void p_generate_region(vlog_node_t mod)
       // This is non-standard but seen in some legacy code
       consume(tCOLON);
 
-      vlog_node_t b = vlog_new(V_BLOCK);
+      vlog_node_t b = vlog_new(V_GEN_BLOCK);
       vlog_set_ident(b, p_identifier());
 
       while (not_at_token(tEND))

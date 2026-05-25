@@ -781,7 +781,7 @@ static c_abstractScope *cached_scope(tree_t block, rt_scope_t *s)
       case V_INST_BODY:
          as = &(build_module(v, block, s)->scope);
          break;
-      case V_BLOCK:
+      case V_GEN_BLOCK:
          as = &(build_genScope(v, block, s)->scope);
          break;
       default:

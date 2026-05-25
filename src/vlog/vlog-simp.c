@@ -191,7 +191,7 @@ static void build_sensitivity(vlog_node_t ctrl, vlog_node_t v, hset_t *set,
             hset_insert(set, vlog_port(v, i));
       }
       // Fall-through
-   case V_BLOCK:
+   case V_SEQ_BLOCK:
       {
          // Ignore local variables
          const int ndecls = vlog_decls(v);
@@ -293,7 +293,7 @@ static vlog_node_t simp_always(vlog_node_t v)
          vlog_set_loc(timing, vlog_loc(v));
          vlog_set_value(timing, ctrl);
 
-         vlog_node_t b = vlog_new(V_BLOCK);
+         vlog_node_t b = vlog_new(V_SEQ_BLOCK);
          vlog_set_loc(b, vlog_loc(v));
          vlog_add_stmt(b, s0);
          vlog_add_stmt(b, timing);

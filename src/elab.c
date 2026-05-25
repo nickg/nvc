@@ -1806,7 +1806,7 @@ static void elab_verilog_for_generate(vlog_node_t v, const elab_ctx_t *ctx)
    mir_unit_t *get_var = vlog_lower_thunk(ctx->mir, ctx->cloned, ref);
 
    vlog_node_t s0 = vlog_stmt(v, 0);
-   assert(vlog_kind(s0) == V_BLOCK);
+   assert(vlog_kind(s0) == V_GEN_BLOCK);
 
    while (jit_call_thunk2(ctx->jit, test, context,
                           elab_verilog_for_generate_test_cb, NULL)) {
@@ -1851,7 +1851,7 @@ static void elab_verilog_processes(vlog_node_t v, const elab_ctx_t *ctx)
          }
          break;
       case V_INST_LIST:
-      case V_BLOCK:
+      case V_GEN_BLOCK:
       case V_IF_GENERATE:
       case V_FOR_GENERATE:
       case V_SPECIFY:
@@ -1874,7 +1874,7 @@ static void elab_verilog_sub_blocks(vlog_node_t v, const elab_ctx_t *ctx)
       case V_INST_LIST:
          elab_verilog_instance_list(s, ctx);
          break;
-      case V_BLOCK:
+      case V_GEN_BLOCK:
          elab_verilog_block(s, ctx);
          break;
       case V_IF_GENERATE:

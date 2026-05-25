@@ -322,7 +322,7 @@ void vlog_trans(vlog_node_t mod, tree_t out)
       }
    }
 
-   if (vlog_kind(mod) == V_BLOCK)
+   if (vlog_kind(mod) == V_GEN_BLOCK)
       return;
 
    const int nports = vlog_ports(mod);

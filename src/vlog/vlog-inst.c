@@ -139,7 +139,7 @@ vlog_node_t vlog_new_instance(vlog_node_t mod, vlog_node_t inst, ident_t id)
    case V_PROGRAM:
       vlog_set_ident2(v, vlog_ident2(mod));
       break;
-   case V_BLOCK:
+   case V_GEN_BLOCK:
       vlog_set_ident2(v, vlog_ident(mod));
       break;
    default:
@@ -209,7 +209,7 @@ static bool copy_generate_pred(vlog_node_t v, void *ctx)
    switch (vlog_kind(v)) {
    case V_REF:
       return vlog_kind(vlog_ref(v)) == V_GENVAR_DECL;
-   case V_BLOCK:
+   case V_GEN_BLOCK:
       return v == ctx;
    case V_FUNC_DECL:
    case V_TASK_DECL:
@@ -222,7 +222,7 @@ static bool copy_generate_pred(vlog_node_t v, void *ctx)
 vlog_node_t vlog_generate_instance(vlog_node_t v, vlog_node_t genvar,
                                    int32_t value, ident_t prefix)
 {
-   assert(vlog_kind(v) == V_BLOCK);
+   assert(vlog_kind(v) == V_GEN_BLOCK);
    assert(vlog_kind(genvar) == V_GENVAR_DECL);
 
    vlog_node_t copy = vlog_copy(v, copy_generate_pred, v);

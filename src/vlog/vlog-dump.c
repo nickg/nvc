@@ -1034,7 +1034,8 @@ void vlog_dump(vlog_node_t v, int indent)
    case V_ASSIGN:
       vlog_dump_assign(v, indent);
       break;
-   case V_BLOCK:
+   case V_SEQ_BLOCK:
+   case V_GEN_BLOCK:
       vlog_dump_block(v, indent);
       break;
    case V_SYS_TCALL:

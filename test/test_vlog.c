@@ -230,7 +230,7 @@ START_TEST(test_parse1)
    fail_unless(vlog_stmts(s1) == 1);
 
    vlog_node_t s1s0 = vlog_stmt(s1, 0);
-   fail_unless(vlog_kind(s1s0) == V_BLOCK);
+   fail_unless(vlog_kind(s1s0) == V_SEQ_BLOCK);
    fail_unless(vlog_ident(s1s0) == ident_new("foo"));
 
    vlog_node_t s1s0s0 = vlog_stmt(s1s0, 0);
@@ -319,7 +319,7 @@ START_TEST(test_parse1)
    vlog_node_t s9 = vlog_stmt(m, 9);
    fail_unless(vlog_kind(s9) == V_INITIAL);
    vlog_node_t s9b = vlog_stmt(s9, 0);
-   fail_unless(vlog_kind(s9b) == V_BLOCK);
+   fail_unless(vlog_kind(s9b) == V_SEQ_BLOCK);
    fail_unless(vlog_kind(vlog_stmt(s9b, 0)) == V_WHILE);
    fail_unless(vlog_kind(vlog_stmt(s9b, 1)) == V_REPEAT);
    fail_unless(vlog_kind(vlog_stmt(s9b, 2)) == V_DO_WHILE);

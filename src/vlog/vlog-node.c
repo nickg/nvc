@@ -49,7 +49,7 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
    // V_INITIAL
    (I_IDENT | I_STMTS),
 
-   // V_BLOCK
+   // V_SEQ_BLOCK
    (I_IDENT | I_DECLS | I_STMTS),
 
    // V_SYS_TCALL
@@ -321,12 +321,15 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
 
    // V_LOCAL_DECL
    (I_IDENT | I_TYPE | I_RANGES | I_VALUE),
+
+   // V_GEN_BLOCK
+   (I_IDENT | I_DECLS | I_STMTS),
 };
 
 static const char *kind_text_map[V_LAST_NODE_KIND] = {
    "V_MODULE",        "V_PORT_DECL",   "V_REF",           "V_ALWAYS",
    "V_TIMING",        "V_NBASSIGN",    "V_EVENT",         "V_INITIAL",
-   "V_BLOCK",         "V_SYS_TCALL",   "V_STRING",        "V_NUMBER",
+   "V_SEQ_BLOCK",     "V_SYS_TCALL",   "V_STRING",        "V_NUMBER",
    "V_NET_DECL",      "V_ASSIGN",      "V_DIMENSION",     "V_IF",
    "V_COND",          "V_VAR_DECL",    "V_DELAY_CONTROL", "V_BINARY",
    "V_BASSIGN",       "V_UNARY",       "V_GATE_INST",     "V_STRENGTH",
@@ -348,7 +351,7 @@ static const char *kind_text_map[V_LAST_NODE_KIND] = {
    "V_PACKAGE",       "V_MIN_TYP_MAX", "V_PROGRAM",       "V_CLASS_DECL",
    "V_NULL",          "V_CLASS_NEW",   "V_DYNAMIC_NEW",   "V_CONSTRUCTOR",
    "V_SUPER_CALL",    "V_IMPORT_DECL", "V_NAMESPACE",     "V_DEFPARAM",
-   "V_PORT_MAP",      "V_FINAL",       "V_LOCAL_DECL",
+   "V_PORT_MAP",      "V_FINAL",       "V_LOCAL_DECL",    "V_GEN_BLOCK",
 };
 
 static const change_allowed_t change_allowed[] = {

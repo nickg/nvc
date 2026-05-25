@@ -2460,7 +2460,7 @@ static void vlog_lower_stmts(vlog_gen_t *g, vlog_node_t v)
       case V_OP_ASSIGN:
          vlog_lower_operator_assignment(g, s);
          break;
-      case V_BLOCK:
+      case V_SEQ_BLOCK:
          vlog_lower_locals(g, s);
          vlog_lower_stmts(g, s);
          break;
@@ -3763,7 +3763,7 @@ void vlog_lower_block(mir_context_t *mc, ident_t parent, tree_t b)
 
    vlog_node_t body = tree_vlog(wrap);
    const vlog_kind_t body_kind = vlog_kind(body);
-   assert(body_kind == V_INST_BODY || body_kind == V_BLOCK);
+   assert(body_kind == V_INST_BODY || body_kind == V_GEN_BLOCK);
 
    vlog_gen_t g = {
       .mu  = mu,
