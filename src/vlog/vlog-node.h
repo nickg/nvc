@@ -302,8 +302,17 @@ typedef enum {
 } vlog_udp_symbol_t;
 
 typedef enum {
+   V_SYSTF_NONE,
+   V_SYSTF_SIGNED,
+   V_SYSTF_UNSIGNED,
+   V_SYSTF_CLOG2,
+   V_SYSTF_SQRT,
+} vlog_systf_t;
+
+typedef enum {
    VLOG_F_SIGNED = (1 << 0),
    VLOG_F_PACKED = (1 << 1),
+   VLOG_F_CONST  = (1 << 2),
 } vlog_flags_t;
 
 #define STRENGTH1(st) (((st) >> 5) & 7)
@@ -399,6 +408,7 @@ void vlog_set_ival(vlog_node_t v, int64_t i);
 
 vlog_flags_t vlog_flags(vlog_node_t t);
 void vlog_set_flags(vlog_node_t v, vlog_flags_t mask);
+void vlog_clear_flags(vlog_node_t v, vlog_flags_t mask);
 
 typedef void (*vlog_visit_fn_t)(vlog_node_t v, void *context);
 

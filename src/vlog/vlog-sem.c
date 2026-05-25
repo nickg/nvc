@@ -255,11 +255,13 @@ static void vlog_check_ranges(vlog_node_t v)
       vlog_check(vlog_range(v, i));
 }
 
-static void vlog_check_params(vlog_node_t v)
+static type_mask_t vlog_check_params(vlog_node_t v)
 {
+   type_mask_t mask = TM_CONST;
    const int nparams = vlog_params(v);
    for (int i = 0; i < nparams; i++)
-      vlog_check_expr(vlog_param(v, i));
+      mask &= vlog_check_expr(vlog_param(v, i));
+   return mask;
 }
 
 static void vlog_check_nbassign(vlog_node_t v)
@@ -381,9 +383,23 @@ static void vlog_check_port_decl(vlog_node_t v)
       vlog_check_expr(vlog_value(v));
 }
 
+static void vlog_check_type(vlog_node_t v)
+{
+   vlog_node_t type = vlog_type(v);
+
+   switch (vlog_kind(type)) {
+   case V_CLASS_DECL:
+      return;   // Checked at original declaration
+   default:
+      break;
+   }
+
+   vlog_check(type);
+}
+
 static void vlog_check_net_decl(vlog_node_t v)
 {
-   vlog_check(vlog_type(v));
+   vlog_check_type(v);
    vlog_check_ranges(v);
 
    if (vlog_has_value(v))
@@ -392,7 +408,7 @@ static void vlog_check_net_decl(vlog_node_t v)
 
 static void vlog_check_var_decl(vlog_node_t v)
 {
-   vlog_check(vlog_type(v));
+   vlog_check_type(v);
    vlog_check_ranges(v);
 
    if (vlog_has_value(v))
@@ -402,7 +418,7 @@ static void vlog_check_var_decl(vlog_node_t v)
 static void vlog_check_param_decl(vlog_node_t v)
 {
    if (vlog_has_value(v))
-      vlog_check_expr(vlog_value(v));
+      vlog_check_const_expr(vlog_value(v));
 }
 
 static void vlog_check_genvar_decl(vlog_node_t v)
@@ -434,7 +450,54 @@ static void vlog_check_union_decl(vlog_node_t v)
    vlog_check_decls(v);
 }
 
-static void vlog_check_tf_decl(vlog_node_t v)
+static void vlog_const_func_cb(vlog_node_t v, void *ctx)
+{
+   switch (vlog_kind(v)) {
+   case V_REF:
+      {
+         vlog_node_t decl = vlog_ref(v);
+         switch (vlog_kind(decl)) {
+         case V_PARAM_DECL:
+         case V_LOCALPARAM:
+         case V_GENVAR_DECL:
+         case V_ENUM_NAME:
+         case V_LOCAL_DECL:
+         case V_FUNC_DECL:
+         case V_TF_PORT_DECL:
+            break;
+         default:
+            vlog_clear_flags(ctx, VLOG_F_CONST);
+            break;
+         }
+      }
+      break;
+   case V_USER_FCALL:
+      if (!(vlog_flags(vlog_ref(v)) & VLOG_F_CONST))
+         vlog_clear_flags(ctx, VLOG_F_CONST);
+      break;
+   case V_HIER_REF:
+      vlog_clear_flags(ctx, VLOG_F_CONST);
+      break;
+   default:
+      break;
+   }
+}
+
+static void vlog_check_func_decl(vlog_node_t v)
+{
+   vlog_set_flags(v, VLOG_F_CONST);
+
+   const int nports = vlog_ports(v);
+   for (int i = 0; i < nports; i++)
+      vlog_check(vlog_port(v, i));
+
+   vlog_check_decls(v);
+   vlog_check_stmts(v);
+
+   vlog_visit(v, vlog_const_func_cb, v);
+}
+
+static void vlog_check_task_decl(vlog_node_t v)
 {
    const int nports = vlog_ports(v);
    for (int i = 0; i < nports; i++)
@@ -507,7 +570,7 @@ static void vlog_check_dimension(vlog_node_t v)
 static void vlog_check_localparam(vlog_node_t v)
 {
    if (vlog_has_value(v))
-      vlog_check_expr(vlog_value(v));
+      vlog_check_const_expr(vlog_value(v));
    else
       error_at(vlog_loc(v), "local parameter declaration must have a "
                "default value");
@@ -1002,12 +1065,16 @@ static type_mask_t vlog_check_cond_expr(vlog_node_t v)
 
 static type_mask_t vlog_check_sys_fcall(vlog_node_t v)
 {
-   vlog_check_params(v);
+   type_mask_t mask = vlog_check_params(v);
 
    // See 1800-2023 section 11.2.1 for list of constant system functions
-   switch (is_well_known(vlog_ident(v))) {
-   case W_DLR_CLOG2:
-      return TM_INTEGRAL | TM_CONST;
+   switch (vlog_subkind(v)) {
+   case V_SYSTF_CLOG2:
+   case V_SYSTF_SIGNED:
+   case V_SYSTF_UNSIGNED:
+      return TM_INTEGRAL | (TM_CONST & mask);
+   case V_SYSTF_SQRT:
+      return TM_REAL | (TM_CONST & mask);
    default:
       return TM_INTEGRAL;
    }
@@ -1054,15 +1121,30 @@ static void vlog_non_const_diag_cb(vlog_node_t v, void *ctx)
 {
    vlog_node_t *pdecl = ctx;
 
-   vlog_node_t decl = vlog_ref(v);
-   switch (vlog_kind(decl)) {
-   case V_PARAM_DECL:
-   case V_LOCALPARAM:
-   case V_GENVAR_DECL:
-   case V_ENUM_NAME:
+   switch (vlog_kind(v)) {
+   case V_REF:
+      {
+         vlog_node_t decl = vlog_ref(v);
+         switch (vlog_kind(decl)) {
+         case V_PARAM_DECL:
+         case V_LOCALPARAM:
+         case V_GENVAR_DECL:
+         case V_ENUM_NAME:
+            break;
+         default:
+            *pdecl = decl;
+            break;
+         }
+      }
+      break;
+   case V_USER_FCALL:
+      {
+         vlog_node_t decl = vlog_ref(v);
+         if (!(vlog_flags(decl) & VLOG_F_CONST))
+            *pdecl = decl;
+      }
       break;
    default:
-      *pdecl = decl;
       break;
    }
 }
@@ -1073,15 +1155,29 @@ static type_mask_t vlog_check_const_expr(vlog_node_t v)
 
    if (!(tmask & TM_CONST)) {
       vlog_node_t decl = NULL;
-      vlog_visit_only(v, vlog_non_const_diag_cb, &decl, V_REF);
+      vlog_visit(v, vlog_non_const_diag_cb, &decl);
 
       if (decl == NULL)
          error_at(vlog_loc(v), "expression is not a constant");
       else {
          diag_t *d = diag_new(DIAG_ERROR, vlog_loc(v));
-         diag_printf(d, "cannot reference %s '%s' in constant expression",
-                     vlog_is_net(decl) ? "net" : "variable",
-                     istr(vlog_ident(decl)));
+         diag_printf(d, "cannot ");
+         switch (vlog_kind(decl)) {
+         case V_FUNC_DECL:
+            diag_printf(d, "call non-constant user function");
+            break;
+         case V_VAR_DECL:
+            diag_printf(d, "reference variable");
+            break;
+         case V_NET_DECL:
+            diag_printf(d, "reference net");
+            break;
+         default:
+            diag_printf(d, "reference");
+            break;
+         }
+         diag_printf(d, " '%pi' in constant expression", vlog_ident(decl));
+
          diag_hint(d, vlog_loc(decl), "%s declared here",
                    istr(vlog_ident(decl)));
          diag_emit(d);
@@ -1212,8 +1308,10 @@ void vlog_check(vlog_node_t v)
       vlog_check_param_assign(v);
       break;
    case V_FUNC_DECL:
+      vlog_check_func_decl(v);
+      break;
    case V_TASK_DECL:
-      vlog_check_tf_decl(v);
+      vlog_check_task_decl(v);
       break;
    case V_TIMING:
       vlog_check_timing(v);

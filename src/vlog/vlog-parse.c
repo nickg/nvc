@@ -1282,8 +1282,20 @@ static vlog_node_t p_system_tf_call(vlog_kind_t kind)
 
    BEGIN("system task or function call");
 
+   ident_t id = p_system_tf_identifier();
+
+   vlog_systf_t subk;
+   switch (is_well_known(id)) {
+   case W_DLR_SIGNED:   subk = V_SYSTF_SIGNED; break;
+   case W_DLR_UNSIGNED: subk = V_SYSTF_UNSIGNED; break;
+   case W_DLR_CLOG2:    subk = V_SYSTF_CLOG2; break;
+   case W_DLR_SQRT:     subk = V_SYSTF_SQRT; break;
+   default:             subk = V_SYSTF_NONE; break;
+   }
+
    vlog_node_t v = vlog_new(kind);
-   vlog_set_ident(v, p_system_tf_identifier());
+   vlog_set_ident(v, id);
+   vlog_set_subkind(v, subk);
 
    if (optional(tLPAREN)) {
       p_list_of_arguments(v);

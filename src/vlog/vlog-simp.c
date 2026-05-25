@@ -507,8 +507,8 @@ static vlog_node_t simp_if_generate(vlog_node_t v)
 
 static vlog_node_t simp_sys_fcall(vlog_node_t v)
 {
-   switch (is_well_known(vlog_ident(v))) {
-   case W_DLR_CLOG2:
+   switch (vlog_subkind(v)) {
+   case V_SYSTF_CLOG2:
       {
          number_t n;
          if (get_number(vlog_param(v, 0), &n) && number_is_defined(n)) {

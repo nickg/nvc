@@ -53,7 +53,7 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
    (I_IDENT | I_DECLS | I_STMTS),
 
    // V_SYS_TCALL
-   (I_IDENT | I_PARAMS),
+   (I_IDENT | I_PARAMS | I_SUBKIND),
 
    // V_STRING
    (I_NUMBER),
@@ -104,7 +104,7 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
    (I_VALUE | I_PARAMS),
 
    // V_SYS_FCALL
-   (I_IDENT | I_PARAMS),
+   (I_IDENT | I_PARAMS | I_SUBKIND),
 
    // V_FOREVER
    (I_STMTS),
@@ -158,7 +158,7 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
    (I_IDENT | I_IDENT2 | I_STMTS | I_DECLS | I_PORTS),
 
    // V_FUNC_DECL
-   (I_IDENT | I_IDENT2 | I_STMTS | I_DECLS | I_TYPE | I_PORTS),
+   (I_IDENT | I_IDENT2 | I_STMTS | I_DECLS | I_TYPE | I_PORTS | I_FLAGS),
 
    // V_WAIT
    (I_VALUE | I_STMTS),
@@ -734,6 +734,11 @@ vlog_flags_t vlog_flags(vlog_node_t t)
 void vlog_set_flags(vlog_node_t v, vlog_flags_t mask)
 {
    lookup_item(&vlog_object, v, I_FLAGS)->ival |= mask;
+}
+
+void vlog_clear_flags(vlog_node_t v, vlog_flags_t mask)
+{
+   lookup_item(&vlog_object, v, I_FLAGS)->ival &= ~mask;
 }
 
 void vlog_visit(vlog_node_t v, vlog_visit_fn_t fn, void *context)
