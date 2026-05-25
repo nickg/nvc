@@ -23,13 +23,13 @@
 #include "rt/rt.h"
 
 DLLEXPORT
-void _nvc_ieee_warnings(jit_scalar_t *args)
+void _nvc_ieee_warnings(jit_scalar_t *args, tlab_t *tlab)
 {
    args[0].integer = (opt_get_int(OPT_IEEE_WARNINGS) == IEEE_WARNINGS_ON);
 }
 
 DLLEXPORT
-void _nvc_current_delta(jit_scalar_t *args)
+void _nvc_current_delta(jit_scalar_t *args, tlab_t *tlab)
 {
    rt_model_t *m = get_model_or_null();
 
