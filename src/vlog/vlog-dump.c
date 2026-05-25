@@ -448,6 +448,12 @@ static void vlog_dump_string(vlog_node_t v)
 
 static void vlog_dump_number(vlog_node_t v)
 {
+   if (vlog_subkind(v) == V_NUMBER_UNBASED) {
+      static const char map[] = "01zx";
+      print_syntax("'%c", map[number_bit(vlog_number(v), 0)]);
+      return;
+   }
+
    LOCAL_TEXT_BUF tb = tb_new();
    number_print(vlog_number(v), tb);
 

@@ -380,8 +380,20 @@ static vlog_node_t simp_binary(vlog_node_t v)
       return new;
    }
 
+   // Expand unbased unsized literal operands to the width of the sibling
+   // operand so they fold correctly in constant expressions.  This is done
+   // on local copies only: if the expression is not constant the original
+   // nodes are left intact for context-driven expansion during lowering.
+   vlog_node_t fleft = left, fright = right;
+   if (vlog_kind(left) == V_NUMBER && vlog_subkind(left) == V_NUMBER_UNBASED)
+      fleft = vlog_fill_unbased(left, MAX(vlog_width(right), 1),
+                                vlog_is_signed(right));
+   if (vlog_kind(right) == V_NUMBER && vlog_subkind(right) == V_NUMBER_UNBASED)
+      fright = vlog_fill_unbased(right, MAX(vlog_width(fleft), 1),
+                                 vlog_is_signed(left));
+
    number_t nleft, nright;
-   if (get_number(left, &nleft) && get_number(right, &nright)) {
+   if (get_number(fleft, &nleft) && get_number(fright, &nright)) {
       number_t result;
       switch (vlog_subkind(v)) {
       case V_BINARY_PLUS:
@@ -582,8 +594,18 @@ static vlog_node_t simp_enum_decl(vlog_node_t v)
 static vlog_node_t simp_localparam(vlog_node_t v)
 {
    vlog_node_t vtype = vlog_type(v);
-   if (!is_implicit_data_type(vtype) || vlog_ranges(vtype) > 0)
+   if (!is_implicit_data_type(vtype) || vlog_ranges(vtype) > 0) {
+      // Explicitly typed localparam: expand an unbased unsized literal to
+      // the declared width
+      vlog_node_t value = vlog_value(v);
+      if (vlog_kind(value) == V_NUMBER
+          && vlog_subkind(value) == V_NUMBER_UNBASED) {
+         const unsigned width = vlog_size(vtype);
+         const bool issigned = !!(vlog_flags(vtype) & VLOG_F_SIGNED);
+         vlog_set_value(v, vlog_fill_unbased(value, width, issigned));
+      }
       return v;
+   }
 
    vlog_node_t dt = vlog_new(V_DATA_TYPE);
    vlog_set_loc(dt, vlog_loc(v));
@@ -592,7 +614,14 @@ static vlog_node_t simp_localparam(vlog_node_t v)
    bool issigned = true;
    vlog_node_t value = vlog_value(v);
    const vlog_kind_t kind = vlog_kind(value);
-   if (kind == V_NUMBER || kind == V_STRING) {
+   if (kind == V_NUMBER && vlog_subkind(value) == V_NUMBER_UNBASED) {
+      // Self-determined unbased unsized literal takes the default integer
+      // width as a four-state logic vector
+      width = 32;
+      issigned = false;
+      vlog_set_value(v, vlog_fill_unbased(value, width, issigned));
+   }
+   else if (kind == V_NUMBER || kind == V_STRING) {
       number_t n = vlog_number(value);
       width = number_width(n);
       issigned = number_signed(n);

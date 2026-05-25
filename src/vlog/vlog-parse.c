@@ -23,6 +23,7 @@
 #include "parse.h"
 #include "scan.h"
 #include "vlog/vlog-node.h"
+#include "vlog/vlog-number.h"
 #include "vlog/vlog-phase.h"
 #include "vlog/vlog-symtab.h"
 #include "vlog/vlog-util.h"
@@ -452,6 +453,32 @@ static vlog_node_t p_string_literal(void)
    return v;
 }
 
+static vlog_node_t p_unbased_unsized_literal(void)
+{
+   // '0 | '1 | 'z_or_x
+
+   BEGIN("unbased unsized literal");
+
+   consume(tUNBASED);
+
+   vlog_logic_t value;
+   switch (state.last_lval.i64) {
+   case '0': value = LOGIC_0; break;
+   case '1': value = LOGIC_1; break;
+   case 'x': case 'X': value = LOGIC_X; break;
+   case 'z': case 'Z': value = LOGIC_Z; break;
+   default: should_not_reach_here();
+   }
+
+   // The literal is held as a single bit and expanded to the surrounding
+   // context width during lowering or constant evaluation
+   vlog_node_t v = vlog_new(V_NUMBER);
+   vlog_set_subkind(v, V_NUMBER_UNBASED);
+   vlog_set_number(v, number_from_logic(value));
+   vlog_set_loc(v, CURRENT_LOC);
+   return v;
+}
+
 static vlog_node_t p_primary_literal(void)
 {
    // number | time_literal | unbased_unsized_literal | string_literal
@@ -465,8 +492,10 @@ static vlog_node_t p_primary_literal(void)
       return p_number();
    case tSTRING:
       return p_string_literal();
+   case tUNBASED:
+      return p_unbased_unsized_literal();
    default:
-      one_of(tNUMBER, tUNSNUM, tREAL, tSTRING);
+      one_of(tNUMBER, tUNSNUM, tREAL, tSTRING, tUNBASED);
       return dummy_expression();
    }
 }
@@ -1455,6 +1484,7 @@ static vlog_node_t p_primary(void)
    case tNUMBER:
    case tUNSNUM:
    case tREAL:
+   case tUNBASED:
       return p_primary_literal();
    case tSYSTASK:
       return p_subroutine_call(V_SYS_FCALL);
@@ -1486,7 +1516,7 @@ static vlog_node_t p_primary(void)
 
    default:
       one_of(tID, tSTRING, tNUMBER, tUNSNUM, tREAL, tSYSTASK, tLPAREN,
-             tLBRACE, tNULL);
+             tLBRACE, tNULL, tUNBASED);
       return p_select(error_marker());
    }
 }
@@ -1596,6 +1626,7 @@ static vlog_node_t p_nonbinary_expression(void)
    case tNUMBER:
    case tUNSNUM:
    case tREAL:
+   case tUNBASED:
    case tSYSTASK:
    case tLPAREN:
    case tLBRACE:
@@ -1627,7 +1658,8 @@ static vlog_node_t p_nonbinary_expression(void)
    default:
       one_of(tID, tSTRING, tNUMBER, tUNSNUM, tREAL, tSYSTASK, tLPAREN,
              tLBRACE, tNULL, tMINUS, tTILDE, tBANG, tAMP, tBAR, tCARET,
-             tTILDEAMP, tTILDEBAR, tPLUSPLUS, tTILDECARET, tMINUSMINUS);
+             tTILDEAMP, tTILDEBAR, tPLUSPLUS, tTILDECARET, tMINUSMINUS,
+             tUNBASED);
       return p_select(error_marker());
    }
 }

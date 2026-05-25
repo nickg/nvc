@@ -584,5 +584,6 @@ void reset_sdf_parser(void);
 #define tCOMMENT       640
 #define tDLRPERIOD     641
 #define tFINAL         642
+#define tUNBASED       643
 
 #endif  // _SCAN_H

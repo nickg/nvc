@@ -51,6 +51,8 @@ number_t number_new(const char *str, const loc_t *loc);
 number_t number_from_string(const char *bytes, size_t len);
 number_t number_from_int(int64_t value);
 number_t number_from_bool(bool value);
+number_t number_from_logic(vlog_logic_t value);
+number_t number_logic_fill(vlog_logic_t value, unsigned width, bool issigned);
 void number_print(number_t val, text_buf_t *tb);
 bool number_is_defined(number_t val);
 int64_t number_integer(number_t val);
