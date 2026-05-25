@@ -185,6 +185,39 @@ static token_t lex_directive(scan_buf_t buf)
    return make_token(tMACROUSAGE, buf, (yylval_t){ .span = buf });
 }
 
+static token_t lex_macro_escape(scan_buf_t buf)
+{
+   // Macro string-construction escapes (IEEE 1800-2017 22.5.1)
+
+   char ch;
+   if (!scan_next(&buf, &ch))
+      return tEOF;
+
+   switch (ch) {
+   case '"':
+      return make_token(tMACROQUOTE, buf, (yylval_t){ .span = buf });
+   case '`':
+      return make_token(tMACROJOIN, buf, (yylval_t){ .span = buf });
+   case '\\':
+      {
+         scan_buf_t look = buf;
+         char p2, p3;
+         if (scan_peek(look, &p2) && p2 == '`') {
+            scan_advance(&look);
+            if (scan_peek(look, &p3) && p3 == '"') {
+               scan_advance(&look);
+               return make_token(tMACROESCQUOTE, look,
+                                 (yylval_t){ .span = look });
+            }
+         }
+
+         return make_token(tTEXT, buf, (yylval_t){ .span = buf });
+      }
+   default:
+      should_not_reach_here();
+   }
+}
+
 static token_t lex_whitespace(scan_buf_t buf)
 {
    char ch;
@@ -355,7 +388,19 @@ static token_t vlogpp_lex(void)
    case '_':
       return lex_identifier(buf);
    case '`':
-      return lex_directive(buf);
+      if (scan_peek(buf, &ch)) {
+         switch (ch) {
+         case 'a'...'z':
+         case 'A'...'Z':
+         case '_':
+            return lex_directive(buf);
+         case '"':
+         case '`':
+         case '\\':
+            return lex_macro_escape(buf);
+         }
+      }
+      return lex_text(buf);
    case ' ':
    case '\t':
       return lex_whitespace(buf);
@@ -466,6 +511,9 @@ static void p_text_macro_definition(void)
       case tID:
       case tMACROUSAGE:
       case tSTRING:
+      case tMACROQUOTE:
+      case tMACROESCQUOTE:
+      case tMACROJOIN:
          consume(tok);
          tb_catn(m->text, state.last_lval.span.ptr, state.last_lval.span.len);
          break;
@@ -507,12 +555,15 @@ static void p_expression(text_buf_t *tb)
    // identifier.
 
    switch (one_of(tTEXT, tLPAREN, tWHITESPACE, tID, tSTRING, tMACROUSAGE,
-                  tCOMMA)) {
+                  tCOMMA, tMACROQUOTE, tMACROESCQUOTE, tMACROJOIN)) {
    case tTEXT:
    case tWHITESPACE:
    case tID:
    case tSTRING:
    case tMACROUSAGE:
+   case tMACROQUOTE:
+   case tMACROESCQUOTE:
+   case tMACROJOIN:
       tb_catn(tb, state.last_lval.span.ptr, state.last_lval.span.len);
       break;
    case tCOMMA:
@@ -897,6 +948,19 @@ static void p_block_of_text(void)
       consume(tok);
       if (ifdefs == NULL || ifdefs->cond)
          tb_append(output, state.last_lval.ch);
+      break;
+   case tMACROQUOTE:
+      consume(tMACROQUOTE);
+      if (ifdefs == NULL || ifdefs->cond)
+         tb_append(output, '"');
+      break;
+   case tMACROESCQUOTE:
+      consume(tMACROESCQUOTE);
+      if (ifdefs == NULL || ifdefs->cond)
+         tb_cat(output, "\\\"");
+      break;
+   case tMACROJOIN:
+      consume(tMACROJOIN);
       break;
    default:
       one_of(tDEFINE, tMACROUSAGE, tIFDEF, tIFNDEF, tINCLUDE, tTEXT,
