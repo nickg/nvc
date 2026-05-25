@@ -1069,6 +1069,9 @@ static mir_value_t vlog_lower_binary(vlog_gen_t *g, vlog_node_t v,
       case V_BINARY_DIVIDE:
          result = mir_build_div(g->mu, ltype, left, right);
          break;
+      case V_BINARY_EXP:
+         result = mir_build_exp(g->mu, ltype, left, right);
+         break;
       case V_BINARY_PLUS:
          result = mir_build_add(g->mu, ltype, left, right);
          break;

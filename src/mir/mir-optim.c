@@ -750,6 +750,7 @@ static void gvn_visit_block(mir_unit_t *mu, mir_block_t block,
       case MIR_OP_NEG:
       case MIR_OP_WRAP:
       case MIR_OP_DIV:
+      case MIR_OP_EXP:
          gvn_generic(mu, node, block, opt);
          break;
       case MIR_OP_UARRAY_LEFT:
