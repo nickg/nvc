@@ -1118,25 +1118,6 @@ static mir_value_t mir_build_arith(mir_unit_t *mu, mir_op_t op, mir_type_t type,
                     "arguments to %s are not the same type", mir_op_string(op));
       }
       break;
-
-   case MIR_TYPE_VEC2:
-   case MIR_TYPE_VEC4:
-      {
-         const type_data_t *td = mir_type_data(mu, type);
-         const type_data_t *ltd = mir_type_data(mu, mir_get_type(mu, left));
-         const type_data_t *rtd = mir_type_data(mu, mir_get_type(mu, right));
-
-         MIR_ASSERT(td->class == ltd->class && td->class == rtd->class,
-                    "cannot mix vector types");
-         MIR_ASSERT(td->u.vec.issigned == ltd->u.vec.issigned
-                    && td->u.vec.issigned == rtd->u.vec.issigned,
-                    "cannot mix vector signedness");
-         MIR_ASSERT(td->u.vec.size >= ltd->u.vec.size
-                    && td->u.vec.size >= rtd->u.vec.size,
-                    "implicit narrowing conversions are not allowed");
-      }
-      break;
-
    default:
       MIR_ASSERT(false, "arithmetic is not allowed on this type");
       break;

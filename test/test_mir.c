@@ -1082,8 +1082,10 @@ START_TEST(test_vec1)
                                   ident_new("p1"));
 
    mir_value_t c1 = mir_const_vec(mu, t_vec2_8, 5, 0);
-   mir_value_t add1 = mir_build_add(mu, t_vec2_9, p1, c1);
-   mir_value_t add2 = mir_build_add(mu, t_vec2_9, add1, c1);
+   mir_value_t add1 = mir_build_binary(mu, MIR_VEC_ADD, t_vec2_8, p1, c1);
+   mir_value_t cast1 = mir_build_cast(mu, t_vec2_9, add1);
+   mir_value_t cast2 = mir_build_cast(mu, t_vec2_9, c1);
+   mir_value_t add2 = mir_build_binary(mu, MIR_VEC_ADD, t_vec2_9, cast1, cast2);
 
    mir_type_t t_carray9 = mir_carray_type(mu, 9, mir_int_type(mu, 0, 3));
    mir_value_t tmp1 = mir_add_var(mu, t_carray9, MIR_NULL_STAMP,
@@ -1092,7 +1094,26 @@ START_TEST(test_vec1)
    mir_value_t unpack1 = mir_build_unpack(mu, add2, 0, tmp1);
    mir_value_t pack1 = mir_build_pack(mu, t_vec2_9, unpack1);
 
-   mir_build_return(mu, pack1);
+   mir_type_t t_offset = mir_offset_type(mu);
+
+   mir_value_t zero = mir_const(mu, t_offset, 0);
+   mir_value_t extract1 = mir_build_extract(mu, t_vec2_9, pack1, zero);
+
+   mir_build_return(mu, extract1);
+
+   mir_optimise(mu, MIR_PASS_O1);
+
+   static const mir_match_t bb0[] = {
+      { MIR_OP_CONST_VEC },
+      { MIR_OP_BINARY, ENUM(MIR_VEC_ADD), PARAM("p1"), NODE(0) },
+      { MIR_OP_CAST, NODE(1) },
+      { MIR_OP_CONST_VEC },
+      { MIR_OP_BINARY, ENUM(MIR_VEC_ADD), NODE(2), NODE(3) },
+      { MIR_OP_UNPACK },
+      { MIR_OP_PACK, VAR("tmp1") },
+      { MIR_OP_RETURN },
+   };
+   mir_match(mu, 0, bb0);
 
    mir_unit_free(mu);
 }
