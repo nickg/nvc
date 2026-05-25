@@ -74,4 +74,7 @@ module mod3;   // Check operator precedence
   assign z = {x, y};
   assign zz = {5{z}};
   final v1 /= 2;
+  genvar i;
+  for (i = 1; i <= 4; i = i + 1) begin
+  end
 endmodule // mod3

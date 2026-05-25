@@ -417,9 +417,11 @@ void vlog_visit(vlog_node_t v, vlog_visit_fn_t fn, void *context);
 void vlog_visit_only(vlog_node_t v, vlog_visit_fn_t fn, void *context,
                      vlog_kind_t kind);
 
-typedef vlog_node_t (*vlog_rewrite_fn_t)(vlog_node_t t, void *context);
+typedef void (*vlog_rewrite_pre_fn_t)(vlog_node_t t, void *context);
+typedef vlog_node_t (*vlog_rewrite_post_fn_t)(vlog_node_t t, void *context);
 
-vlog_node_t vlog_rewrite(vlog_node_t v, vlog_rewrite_fn_t fn, void *context);
+vlog_node_t vlog_rewrite(vlog_node_t v, vlog_rewrite_pre_fn_t pre_fn,
+                         vlog_rewrite_post_fn_t post_fn, void *context);
 
 typedef bool (*vlog_copy_pred_t)(vlog_node_t, void *);
 

@@ -1602,6 +1602,8 @@ static void elab_verilog_module(tree_t comp, ident_t label, vlog_node_t mod,
       ei = pool_calloc(ctx->pool, sizeof(elab_instance_t));
       ei->body = vlog_new_instance(mod, list, id);
 
+      vlog_fold(ei->body, ctx->mir, ctx->jit);
+
       ei->wrap = tree_new(T_VERILOG);
       tree_set_loc(ei->wrap, vlog_loc(mod));
       tree_set_ident(ei->wrap, vlog_ident(mod));

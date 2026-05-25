@@ -717,5 +717,5 @@ static vlog_node_t vlog_simp_cb(vlog_node_t v, void *context)
 
 void vlog_simp(vlog_node_t mod)
 {
-   vlog_rewrite(mod, vlog_simp_cb, mod);
+   vlog_rewrite(mod, NULL, vlog_simp_cb, mod);
 }

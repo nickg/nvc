@@ -17,6 +17,7 @@ lib_libnvc_a_SOURCES += \
 	src/vlog/vlog-inst.c \
 	src/vlog/vlog-symtab.h \
 	src/vlog/vlog-symtab.c \
-	src/vlog/vlog-pp.c
+	src/vlog/vlog-pp.c \
+	src/vlog/vlog-fold.c
 
 CLEANFILES += src/vlog/vlog-pp.c
