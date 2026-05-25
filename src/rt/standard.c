@@ -91,7 +91,7 @@ static void to_string_real_format(jit_scalar_t *args, tlab_t *tlab,
 }
 
 DLLEXPORT
-void _std_standard_now(jit_scalar_t *args)
+void _std_standard_now(jit_scalar_t *args, tlab_t *tlab)
 {
    rt_model_t *m = get_model_or_null();
    args[0].integer = m ? model_now(m, NULL) : 0;

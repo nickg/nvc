@@ -675,7 +675,7 @@ static c_vpiObject *build_expr(vlog_node_t v, c_abstractScope *scope)
          }
 
          // Task and function locals
-         if (vlog_kind(d) == V_VAR_DECL)
+         if (kind == V_VAR_DECL || kind == V_LOCAL_DECL)
             return &(build_operation(v)->expr.object);
 
          fatal_trace("cannot find declaration for %s", istr(vlog_ident(d)));

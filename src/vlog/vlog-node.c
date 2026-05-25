@@ -53,7 +53,7 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
    (I_IDENT | I_DECLS | I_STMTS),
 
    // V_SYS_TCALL
-   (I_IDENT | I_PARAMS),
+   (I_IDENT | I_PARAMS | I_SUBKIND),
 
    // V_STRING
    (I_NUMBER),
@@ -104,7 +104,7 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
    (I_VALUE | I_PARAMS),
 
    // V_SYS_FCALL
-   (I_IDENT | I_PARAMS),
+   (I_IDENT | I_PARAMS | I_SUBKIND),
 
    // V_FOREVER
    (I_STMTS),
@@ -158,7 +158,7 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
    (I_IDENT | I_IDENT2 | I_STMTS | I_DECLS | I_PORTS),
 
    // V_FUNC_DECL
-   (I_IDENT | I_IDENT2 | I_STMTS | I_DECLS | I_TYPE | I_PORTS),
+   (I_IDENT | I_IDENT2 | I_STMTS | I_DECLS | I_TYPE | I_PORTS | I_FLAGS),
 
    // V_WAIT
    (I_VALUE | I_STMTS),
@@ -318,6 +318,9 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
 
    // V_FINAL
    (I_IDENT | I_STMTS),
+
+   // V_LOCAL_DECL
+   (I_IDENT | I_TYPE | I_RANGES | I_VALUE),
 };
 
 static const char *kind_text_map[V_LAST_NODE_KIND] = {
@@ -345,7 +348,7 @@ static const char *kind_text_map[V_LAST_NODE_KIND] = {
    "V_PACKAGE",       "V_MIN_TYP_MAX", "V_PROGRAM",       "V_CLASS_DECL",
    "V_NULL",          "V_CLASS_NEW",   "V_DYNAMIC_NEW",   "V_CONSTRUCTOR",
    "V_SUPER_CALL",    "V_IMPORT_DECL", "V_NAMESPACE",     "V_DEFPARAM",
-   "V_PORT_MAP",      "V_FINAL",
+   "V_PORT_MAP",      "V_FINAL",       "V_LOCAL_DECL",
 };
 
 static const change_allowed_t change_allowed[] = {
@@ -731,6 +734,11 @@ vlog_flags_t vlog_flags(vlog_node_t t)
 void vlog_set_flags(vlog_node_t v, vlog_flags_t mask)
 {
    lookup_item(&vlog_object, v, I_FLAGS)->ival |= mask;
+}
+
+void vlog_clear_flags(vlog_node_t v, vlog_flags_t mask)
+{
+   lookup_item(&vlog_object, v, I_FLAGS)->ival &= ~mask;
 }
 
 void vlog_visit(vlog_node_t v, vlog_visit_fn_t fn, void *context)

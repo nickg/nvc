@@ -193,7 +193,7 @@ static format_part_t *check_format(const char *str)
 }
 
 DLLEXPORT
-void _std_env_set_assert_format_valid(jit_scalar_t *args)
+void _std_env_set_assert_format_valid(jit_scalar_t *args, tlab_t *tlab)
 {
    uint8_t level = args[2].integer;
    const uint8_t *format_ptr = args[3].pointer;
@@ -214,7 +214,7 @@ void _std_env_set_assert_format_valid(jit_scalar_t *args)
 }
 
 DLLEXPORT
-void _std_env_set_assert_format(jit_scalar_t *args)
+void _std_env_set_assert_format(jit_scalar_t *args, tlab_t *tlab)
 {
    uint8_t level = args[2].integer;
    const uint8_t *format_ptr = args[3].pointer;

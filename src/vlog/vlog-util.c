@@ -127,6 +127,7 @@ unsigned vlog_size(vlog_node_t v)
    case V_NET_DECL:
    case V_PORT_DECL:
    case V_TF_PORT_DECL:
+   case V_LOCAL_DECL:
       {
          unsigned size = 1;
 
@@ -222,6 +223,7 @@ unsigned vlog_width(vlog_node_t v)
    case V_GENVAR_DECL:
    case V_ENUM_NAME:
    case V_ENUM_DECL:
+   case V_LOCAL_DECL:
       return vlog_size(vlog_type(v));
    case V_BIT_SELECT:
       {
@@ -325,6 +327,7 @@ bool vlog_is_signed(vlog_node_t v)
    case V_TF_PORT_DECL:
    case V_FUNC_DECL:
    case V_LOCALPARAM:
+   case V_LOCAL_DECL:
       return !!(vlog_flags(vlog_type(v)) & VLOG_F_SIGNED);
    case V_REF:
    case V_MEMBER_REF:
@@ -543,6 +546,7 @@ vlog_node_t vlog_get_type(vlog_node_t v)
    case V_TYPE_DECL:
    case V_CLASS_NEW:
    case V_DYNAMIC_NEW:
+   case V_LOCAL_DECL:
       return vlog_get_type(vlog_type(v));
    case V_REF:
    case V_MEMBER_REF:
@@ -574,6 +578,7 @@ vlog_node_t vlog_get_dim(vlog_node_t v, int n)
          switch (vlog_kind(decl)) {
          case V_NET_DECL:
          case V_VAR_DECL:
+         case V_LOCAL_DECL:
             {
                const int nunpacked = vlog_ranges(decl);
                assert(n <= vlog_ranges(dt) + nunpacked);

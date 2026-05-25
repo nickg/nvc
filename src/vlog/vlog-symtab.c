@@ -284,6 +284,7 @@ void vlog_symtab_put(vlog_symtab_t *st, vlog_node_t v)
       switch (vlog_kind(sym->node)) {
       case V_VAR_DECL:
       case V_NET_DECL:
+      case V_LOCAL_DECL:
          switch (vlog_kind(v)) {
          case V_PORT_DECL:
          case V_TF_PORT_DECL:
@@ -303,6 +304,7 @@ void vlog_symtab_put(vlog_symtab_t *st, vlog_node_t v)
             switch (vlog_kind(v)) {
             case V_VAR_DECL:
             case V_NET_DECL:
+            case V_LOCAL_DECL:
                vlog_set_ref(sym->node, v);
                return;
             default:
