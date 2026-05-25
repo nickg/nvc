@@ -586,6 +586,7 @@ START_TEST(test_vlog1)
              "  real v1 = 1.5;\n"
              "  integer v2 = x ? 1 : 2;\n"
              "  wire logic zz;\n"
+             "  genvar integer i;\n"
              "  initial begin\n"
              "    if (x || (y === z)) ;\n"
              "    if ((x & y) | (y & (z === (x + z)))) ;\n"
@@ -595,6 +596,8 @@ START_TEST(test_vlog1)
              "  assign z = {x, y};\n"
              "  assign zz = {5{z}};\n"
              "  final v1 /= 2;\n"
+             "  for (i = 1; i <= 4; i = i + 1;) begin\n"
+             "  end\n"
              "endmodule // mod3\n\n");
    tb_rewind(tb);
 

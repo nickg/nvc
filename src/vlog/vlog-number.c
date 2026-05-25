@@ -599,6 +599,26 @@ number_t number_logic_fill(vlog_logic_t value, unsigned width, bool issigned)
    return number_intern(result);
 }
 
+number_t number_from_jit(int width, jit_scalar_t abits, jit_scalar_t bbits)
+{
+   bignum_t *result;
+   bignum_scratch(width, false, 1, &result);
+
+   if (width <= 64) {
+      bignum_abits(result)[0] = abits.integer;
+      bignum_bbits(result)[0] = bbits.integer;
+   }
+   else {
+      const uint64_t *aptr = abits.pointer, *bptr = bbits.pointer;
+      for (size_t i = 0; i < BIGNUM_WORDS(width); i++) {
+         bignum_abits(result)[i] = aptr[i];
+         bignum_bbits(result)[i] = bptr[i];
+      }
+   }
+
+   return number_intern(result);
+}
+
 void number_print(number_t val, text_buf_t *tb)
 {
    if (number_is_defined(val)) {

@@ -19,6 +19,7 @@
 #define _VLOG_NUMBER_H
 
 #include "prim.h"
+#include "jit/jit.h"
 #include "util.h"
 
 #include <stdint.h>
@@ -53,6 +54,7 @@ number_t number_from_int(int64_t value);
 number_t number_from_bool(bool value);
 number_t number_from_logic(vlog_logic_t value);
 number_t number_logic_fill(vlog_logic_t value, unsigned width, bool issigned);
+number_t number_from_jit(int width, jit_scalar_t abits, jit_scalar_t bbits);
 void number_print(number_t val, text_buf_t *tb);
 bool number_is_defined(number_t val);
 int64_t number_integer(number_t val);

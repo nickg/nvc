@@ -1,4 +1,6 @@
 ## Unreleased changes
+- Added support for evaluating user function calls in Verilog constant
+  expressions (#1518).
 
 ## Version 1.21.0 - 2026-05-23
 - Systems with emulated thread-local storage (in particular all MSYS2

@@ -1289,7 +1289,8 @@ void vlog_check(vlog_node_t v)
    case V_FOREVER:
       vlog_check_stmts(v);
       break;
-   case V_BLOCK:
+   case V_SEQ_BLOCK:
+   case V_GEN_BLOCK:
    case V_PROGRAM:
    case V_CONSTRUCTOR:
       vlog_check_decls(v);
