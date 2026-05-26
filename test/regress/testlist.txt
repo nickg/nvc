@@ -1398,3 +1398,5 @@ constfunc2      verilog
 case16          verilog
 case17          verilog
 ivtest56        verilog
+always1         verilog
+timing1         verilog

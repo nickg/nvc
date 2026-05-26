@@ -1187,6 +1187,13 @@ static type_mask_t vlog_check_const_expr(vlog_node_t v)
    return tmask;
 }
 
+static type_mask_t vlog_check_min_typ_max(vlog_node_t v)
+{
+   vlog_check_expr(vlog_left(v));
+   vlog_check_expr(vlog_right(v));
+   return vlog_check_expr(vlog_value(v));
+}
+
 static type_mask_t vlog_check_expr(vlog_node_t v)
 {
    switch (vlog_kind(v)) {
@@ -1196,6 +1203,8 @@ static type_mask_t vlog_check_expr(vlog_node_t v)
       return vlog_check_unary(v);
    case V_COND_EXPR:
       return vlog_check_cond_expr(v);
+   case V_MIN_TYP_MAX:
+      return vlog_check_min_typ_max(v);
    case V_SYS_FCALL:
       return vlog_check_sys_fcall(v);
    case V_USER_FCALL:

@@ -1478,6 +1478,8 @@ static mir_value_t vlog_lower_with_context(vlog_gen_t *g, vlog_node_t v,
       return vlog_lower_unary(g, v, context);
    case V_SYS_FCALL:
       return vlog_lower_sys_fcall(g, v);
+   case V_MIN_TYP_MAX:
+      return vlog_lower_with_context(g, vlog_value(v), context);
    case V_CONCAT:
       {
          int size = 0, repeat = 1;
