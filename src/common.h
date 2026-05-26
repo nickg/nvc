@@ -297,6 +297,7 @@ typedef enum {
    W_DLR_UNSIGNED,
    W_DLR_CLOG2,
    W_DLR_SQRT,
+   W_DLR_BITS,
    W_COUNTERS,
 
    NUM_WELL_KNOWN
