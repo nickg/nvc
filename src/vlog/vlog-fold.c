@@ -139,6 +139,20 @@ static vlog_node_t fold_part_select(vlog_node_t v, fold_ctx_t *ctx)
    return v;
 }
 
+static vlog_node_t fold_concat(vlog_node_t v, fold_ctx_t *ctx)
+{
+   if (vlog_has_value(v)) {
+      vlog_node_t value = vlog_value(v);
+      if (!is_folded(value)) {
+         vlog_node_t result = fold_call_thunk(value, ctx);
+         if (result != NULL)
+            vlog_set_value(v, result);
+      }
+   }
+
+   return v;
+}
+
 static void vlog_fold_pre_cb(vlog_node_t v, void *context)
 {
    fold_ctx_t *ctx = context;
@@ -165,6 +179,8 @@ static vlog_node_t vlog_fold_post_cb(vlog_node_t v, void *context)
       return fold_dimension(v, context);
    case V_PART_SELECT:
       return fold_part_select(v, context);
+   case V_CONCAT:
+      return fold_concat(v, context);
    case V_GEN_BLOCK:
    case V_FOR_GENERATE:
    case V_IF_GENERATE:
