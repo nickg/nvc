@@ -1395,3 +1395,6 @@ issue1518       verilog
 ivtest55        verilog,gold
 real13          verilog
 constfunc2      verilog
+case16          verilog
+case17          verilog
+ivtest56        verilog
