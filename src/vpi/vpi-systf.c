@@ -904,6 +904,32 @@ static PLI_INT32 rtoi_tf(PLI_BYTE8 *userdata)
    return 0;
 }
 
+static PLI_INT32 itor_tf(PLI_BYTE8 *userdata)
+{
+   vpiHandle call = vpi_handle(vpiSysTfCall, NULL);
+   assert(call != NULL);
+
+   vpiHandle argv = vpi_iterate(vpiArgument, call);
+   vpiHandle arg = vpi_scan(argv);
+   assert(arg != NULL);
+
+   s_vpi_value value = { .format = vpiRealVal };
+   vpi_get_value(arg, &value);
+
+   vpi_release_handle(arg);
+   vpi_release_handle(argv);
+
+   s_vpi_value result = {
+      .format = vpiRealVal,
+      .value = { .real = value.value.real },
+   };
+
+   vpi_put_value(call, &result, NULL, 0);
+
+   vpi_release_handle(call);
+   return 0;
+}
+
 static PLI_INT32 real_unary_tf(double (*fn)(double))
 {
    vpiHandle call = vpi_handle(vpiSysTfCall, NULL);
@@ -1199,6 +1225,12 @@ static s_vpi_systf_data builtins[] = {
       .tfname      = "$rtoi",
       .sysfunctype = vpiIntFunc,
       .calltf      = rtoi_tf
+   },
+   {
+      .type        = vpiSysFunc,
+      .tfname      = "$itor",
+      .sysfunctype = vpiRealFunc,
+      .calltf      = itor_tf
    },
    {
       .type        = vpiSysFunc,

@@ -1069,6 +1069,9 @@ static mir_value_t vlog_lower_binary(vlog_gen_t *g, vlog_node_t v,
       case V_BINARY_DIVIDE:
          result = mir_build_div(g->mu, ltype, left, right);
          break;
+      case V_BINARY_EXP:
+         result = mir_build_exp(g->mu, ltype, left, right);
+         break;
       case V_BINARY_PLUS:
          result = mir_build_add(g->mu, ltype, left, right);
          break;
@@ -1269,6 +1272,26 @@ static mir_value_t vlog_lower_sys_fcall(vlog_gen_t *g, vlog_node_t v)
          }
 
          return mir_build_cast(g->mu, type, arg);
+      }
+   case V_SYSTF_BITS:
+      {
+         mir_type_t t_integer = mir_vec4_type(g->mu, 32, true);
+         vlog_node_t param = vlog_param(v, 0);
+         if (vlog_kind(param) == V_REF) {
+            vlog_node_t decl = vlog_ref(param);
+            if (is_data_type(decl)) {
+               const type_info_t *ti = vlog_type_info(g, decl);
+               return mir_const_vec(g->mu, t_integer, ti->size, 0);
+            }
+         }
+
+         mir_value_t arg = vlog_lower_rvalue(g, param);
+         if (mir_is_vector(g->mu, arg)) {
+            const int size = mir_get_size(g->mu, mir_get_type(g->mu, arg));
+            return mir_const_vec(g->mu, t_integer, size, 0);
+         }
+         else
+            return mir_const_vec(g->mu, t_integer, ~0, ~0);
       }
    default:
       return vlog_lower_sys_tfcall(g, v);
@@ -1474,6 +1497,8 @@ static mir_value_t vlog_lower_with_context(vlog_gen_t *g, vlog_node_t v,
       return vlog_lower_unary(g, v, context);
    case V_SYS_FCALL:
       return vlog_lower_sys_fcall(g, v);
+   case V_MIN_TYP_MAX:
+      return vlog_lower_with_context(g, vlog_value(v), context);
    case V_CONCAT:
       {
          int size = 0, repeat = 1;

@@ -1319,6 +1319,7 @@ static vlog_node_t p_system_tf_call(vlog_kind_t kind)
    case W_DLR_UNSIGNED: subk = V_SYSTF_UNSIGNED; break;
    case W_DLR_CLOG2:    subk = V_SYSTF_CLOG2; break;
    case W_DLR_SQRT:     subk = V_SYSTF_SQRT; break;
+   case W_DLR_BITS:     subk = V_SYSTF_BITS; break;
    default:             subk = V_SYSTF_NONE; break;
    }
 
