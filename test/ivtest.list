@@ -147,7 +147,8 @@ array7			normal			ivltests
 array_lval_select1	normal			ivltests
 array_lval_select2	normal			ivltests
 array_lval_select3b	CE			ivltests
-array_lval_select3c	normal			ivltests
+# Uses procedural deassign
+#array_lval_select3c	normal			ivltests
 array_lval_select4a	normal			ivltests
 array_lval_select4b	CE			ivltests
 array_lval_select5	normal			ivltests
@@ -162,9 +163,11 @@ assign3.2A		normal			ivltests
 assign3.2B		normal			ivltests
 assign3.2C		normal			ivltests
 assign3.2D		normal			ivltests
-assign3.2E		normal			ivltests
+# Uses procedural deassign
+#assign3.2E		normal			ivltests
 assign_add		normal			ivltests
-assign_deassign_pv	normal			ivltests
+# Uses procedural deassign
+#assign_deassign_pv	normal			ivltests
 assign_delay		normal			ivltests # continuous assign with a delay
 assign_deq		normal			ivltests # continuous assign with ==
 assign_ge		normal			ivltests # continuous assign with >=

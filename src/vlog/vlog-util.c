@@ -341,6 +341,12 @@ bool vlog_is_signed(vlog_node_t v)
       return vlog_is_signed(vlog_value(v));
    case V_BINARY:
       return vlog_is_signed(vlog_left(v)) && vlog_is_signed(vlog_right(v));
+   case V_SYS_FCALL:
+      switch (vlog_subkind(v)) {
+      case V_SYSTF_SIGNED:   return true;
+      case V_SYSTF_UNSIGNED: return false;
+      default:               return false;
+      }
    case V_MIN_TYP_MAX:
       return vlog_is_signed(vlog_value(v));
    default:
