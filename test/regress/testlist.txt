@@ -1394,10 +1394,11 @@ issue1517       cover=statement
 issue1518       verilog
 ivtest55        verilog,gold
 real13          verilog
-constfunc2      verilog
+concat8         verilog
 case16          verilog
 case17          verilog
 ivtest56        verilog
 always1         verilog
 timing1         verilog
 ivtest57        verilog
+tfcall9         verilog,gold

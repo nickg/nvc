@@ -600,6 +600,14 @@ static vlog_node_t simp_localparam(vlog_node_t v)
 
    if (kind == V_REAL)
       vlog_set_subkind(dt, DT_REAL);
+   else if (kind == V_USER_FCALL) {
+      vlog_node_t ftype = vlog_type(vlog_ref(value));
+      vlog_set_subkind(dt, vlog_subkind(ftype));
+      vlog_set_flags(dt, vlog_flags(ftype) & VLOG_F_SIGNED);
+
+      width = vlog_width(value);
+      issigned = vlog_is_signed(value);
+   }
    else if (kind == V_SYS_FCALL) {
       switch (vpi_func_type(vlog_ident(value))) {
       case vpiRealFunc:
