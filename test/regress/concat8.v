@@ -1,4 +1,4 @@
-module constfunc2;
+module concat8;
 
   function integer double;
     input integer x;

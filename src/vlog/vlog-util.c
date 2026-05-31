@@ -139,6 +139,7 @@ unsigned vlog_size(vlog_node_t v)
       }
    case V_PARAM_DECL:
       // TODO: this should have unpacked dimensions as above
+   case V_FUNC_DECL:
    case V_LOCALPARAM:
       return 1;  // No unpacked dimensions
    case V_PART_SELECT:
