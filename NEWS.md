@@ -1,4 +1,5 @@
 ## Unreleased changes
+- Several other minor bugs were resolved (#1559).
 
 ## Version 1.21.0 - 2026-05-23
 - Systems with emulated thread-local storage (in particular all MSYS2
