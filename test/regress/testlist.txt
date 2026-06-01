@@ -1402,3 +1402,4 @@ always1         verilog
 timing1         verilog
 ivtest57        verilog
 tfcall9         verilog,gold
+cmdline20       shell

@@ -44,7 +44,10 @@ is
 .Ql - .
 .\" -e
 .It Fl e Ar unit
-Elaborate a previously analysed top level design unit.
+Elaborate a previously analysed top level design unit.  A top level
+design unit is either a VHDL entity or configuration, or a Verilog
+module or program.  VHDL architectures can be specified with
+.Ql entity(arch) .
 .\" -r
 .It Fl r Bo Ar unit Bc
 Execute a previously elaborated top level design unit.
