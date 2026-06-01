@@ -948,6 +948,20 @@ static void lower_get_scalar_type_bounds(lower_unit_t *lu, type_t type,
          vcode_reg_t ptr_reg = emit_link_var(context, id, vuarray);
          wrap_reg = emit_load_indirect(ptr_reg);
       }
+      else if (var & INSTANCE_BIT) {
+         // Type of subtype declared in an instantiated package
+         vcode_var_t pkg_var = var & ~INSTANCE_BIT;
+         vcode_reg_t pkg_reg;
+         if (hops == 0)
+            pkg_reg = emit_load(pkg_var);
+         else
+            pkg_reg = emit_load_indirect(emit_var_upref(hops, pkg_var));
+
+         vcode_type_t vuarray = vtype_uarray(1, vtype);
+         vcode_reg_t ptr_reg =
+            emit_link_var(pkg_reg, type_ident(type), vuarray);
+         wrap_reg = emit_load_indirect(ptr_reg);
+      }
       else if (hops == 0)
          wrap_reg = emit_load(var);
       else {

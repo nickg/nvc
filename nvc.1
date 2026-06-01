@@ -44,7 +44,10 @@ is
 .Ql - .
 .\" -e
 .It Fl e Ar unit
-Elaborate a previously analysed top level design unit.
+Elaborate a previously analysed top level design unit.  A top level
+design unit is either a VHDL entity or configuration, or a Verilog
+module or program.  VHDL architectures can be specified with
+.Ql entity(arch) .
 .\" -r
 .It Fl r Bo Ar unit Bc
 Execute a previously elaborated top level design unit.
@@ -404,7 +407,7 @@ option.  For example:
 $ nvc -e --no-save tb -r
 .Ed
 .\"
-.It Fl O0 , Fl 01 , Fl 02 , Fl O3
+.It Fl O0 , Fl O1 , Fl O2 , Fl O3
 Set LLVM optimisation level.  Default is
 .Fl O2 .
 .\"
@@ -761,7 +764,7 @@ of expression operands, or expression result is incremented.
 - NVC tracks if states of Finite State Machines (FSMs) are visited. NVC creates
 a coverage bin for each state of an FSM. NVC considers internal signals of
 all user-defined enum types as FSMs. NVC does not consider port signals or
-variables as an FSM. When a signal recognized as FSM changes its value,
+variables as an FSM. When a signal recognised as FSM changes its value,
 coverage bin for new state value is incremented.
 .It
 .Cm functional
@@ -830,7 +833,7 @@ given by
 .Cm --threshold-<value>
 option of
 .Cm --cover
-elabortion switch.
+elaboration switch.
 NVC supports two kinds of code coverage reports:
 .Bl -bullet
 .It
@@ -1007,15 +1010,15 @@ An example of coverage specification file is following:
 -block clock_gate_model
 
 # Example how to force all signals of enum types named 'T_FSM_STATE'
-# to be recognized as FSM
+# to be recognised as FSM
 +fsm_type T_FSM_STATE
 
 # Example how to force all signals of enum types with name matching
-# 'T_*_FSM' pattern to be recognized as FSM
+# 'T_*_FSM' pattern to be recognised as FSM
 +fsm_type T_*_FSM
 
 # Example how to force all signals of enum type named 'T_TRANSFER_TYPE'
-# not to be recognized as an FSM
+# not to be recognised as an FSM
 -fsm-type T_TRANSFER_TYPE
 .Ed
 .Pp
@@ -1127,7 +1130,7 @@ hierarchy when simulated in DUT top level test-bench and in the
 unit test. In DUT top level test-bench, the sub-block is
 instantiated under the DUT. In the unit-test, sub-block is instantiated
 directly. To merge coverage data from two such instantiations,
-you can utilize coverage folding.
+you can utilise coverage folding.
 .Pp
 Coverage folding is specified by
 .Ql fold
@@ -1383,7 +1386,7 @@ vhpiForeignDataT my_func_data = {
 vhpi_register_foreignf(&my_func_data);
 .Ed
 .Pp
-To use the simplified protocol the VHDL the
+To use the simplified protocol, the VHDL
 .Ql FOREIGN
 attribute should be specified with the keyword
 .Ql VHPIDIRECT
