@@ -1403,3 +1403,4 @@ timing1         verilog
 ivtest57        verilog
 tfcall9         verilog,gold
 cmdline20       shell
+issue1559       normal,2008
