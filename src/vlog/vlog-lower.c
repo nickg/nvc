@@ -886,11 +886,12 @@ static mir_value_t vlog_lower_vector_binary(vlog_gen_t *g, vlog_binary_t binop,
    const bool is_shift =
       binop == V_BINARY_SHIFT_LL || binop == V_BINARY_SHIFT_LA
       || binop == V_BINARY_SHIFT_RL || binop == V_BINARY_SHIFT_RA;
+   const bool is_exp = binop == V_BINARY_EXP;
 
    const bool lsigned = mir_get_signed(g->mu, ltype);
    const bool rsigned = mir_get_signed(g->mu, rtype);
 
-   const bool is_signed = lsigned && (is_shift || rsigned);
+   const bool is_signed = lsigned && (is_shift || is_exp || rsigned);
 
    int size = MAX(lsize, rsize);
    if (!mir_is_null(context)) {
@@ -908,7 +909,7 @@ static mir_value_t vlog_lower_vector_binary(vlog_gen_t *g, vlog_binary_t binop,
    const bool unsigned_numeric =
       binop == V_BINARY_PLUS || binop == V_BINARY_MINUS
       || binop == V_BINARY_TIMES || binop == V_BINARY_DIVIDE
-      || binop == V_BINARY_MOD || binop == V_BINARY_EXP
+      || binop == V_BINARY_MOD
       || binop == V_BINARY_LT || binop == V_BINARY_LEQ
       || binop == V_BINARY_GT || binop == V_BINARY_GEQ;
 
@@ -984,7 +985,7 @@ static mir_value_t vlog_lower_binary(vlog_gen_t *g, vlog_node_t v,
       op == V_BINARY_AND || op == V_BINARY_OR || op == V_BINARY_XOR
       || op == V_BINARY_XNOR || op == V_BINARY_NAND || op == V_BINARY_NOR
       || op == V_BINARY_PLUS || op == V_BINARY_MINUS || op == V_BINARY_TIMES
-      || op == V_BINARY_DIVIDE || op == V_BINARY_MOD;
+      || op == V_BINARY_DIVIDE || op == V_BINARY_MOD || op == V_BINARY_EXP;
 
    vlog_node_t lhs_expr = vlog_left(v), rhs_expr = vlog_right(v);
 

@@ -1194,7 +1194,7 @@ void vec2_exp(int size, uint64_t *a, const uint64_t *b)
    memset(one, 0, sizeof(one));
    one[0] = 1;
 
-   memset(a, 0, BIGNUM_WORDS(size));
+   memset(a, 0, BIGNUM_WORDS(size) * sizeof(uint64_t));
    a[0] = 1;
 
    while (!vec2_is_zero(size, exp)) {
