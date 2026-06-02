@@ -1405,3 +1405,4 @@ tfcall9         verilog,gold
 cmdline20       shell
 issue1559       normal,2008
 signed5         verilog
+select23        verilog

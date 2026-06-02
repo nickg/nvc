@@ -508,6 +508,7 @@ static vlog_select_t vlog_lower_select(vlog_gen_t *g, vlog_node_t v)
          mir_value_t base = vlog_lower_array_off(g, dim, index);
 
          mir_value_t off = base;
+         const unsigned nelems = vlog_size(v);
          if (kind != V_RANGE_CONST) {
             const bool is_up = vlog_is_up(dim);
             const bool same_dir = (kind == V_RANGE_POS && is_up)
@@ -515,14 +516,23 @@ static vlog_select_t vlog_lower_select(vlog_gen_t *g, vlog_node_t v)
 
             if (!same_dir) {
                mir_type_t t_offset = mir_offset_type(g->mu);
-               mir_value_t adj = mir_const(g->mu, t_offset, vlog_size(v) - 1);
+               mir_value_t adj = mir_const(g->mu, t_offset, nelems - 1);
                off = mir_build_sub(g->mu, t_offset, base, adj);
             }
          }
 
          mir_type_t t_offset = mir_offset_type(g->mu);
 
-         const unsigned size = vlog_size(v);
+         const unsigned dim_size = vlog_size(dim);
+         assert(prefix.size % dim_size == 0);
+
+         const unsigned stride = prefix.size / dim_size;
+         const unsigned size = nelems * stride;
+
+         if (stride != 1) {
+            mir_value_t scale = mir_const(g->mu, t_offset, stride);
+            off = mir_build_mul(g->mu, t_offset, off, scale);
+         }
 
          mir_value_t zero = mir_const(g->mu, t_offset, 0);
          mir_value_t count = mir_const(g->mu, t_offset, size);
