@@ -1148,9 +1148,9 @@ pr2132552		normal			ivltests gold=pr2132552.gold
 pr2136787		normal			ivltests gold=pr2136787.gold
 pr2138682		normal			ivltests gold=pr2138682.gold
 pr2138979		normal			ivltests
-pr2138979b		normal			ivltests gold=pr2138979b.gold
-pr2138979c		normal			ivltests gold=pr2138979c.gold
-pr2138979d		normal			ivltests gold=pr2138979d.gold
+pr2138979b		normal			ivltests signed_logic_operators_bug gold=pr2138979b.gold
+pr2138979c		normal			ivltests signed_assignment_bug gold=pr2138979c.gold
+pr2138979d		normal			ivltests signed_logic_operators_bug gold=pr2138979d.gold
 pr2139593		normal			ivltests
 pr2146620		normal			ivltests gold=pr2146620.gold
 pr2146620b		normal			ivltests gold=pr2146620b.gold

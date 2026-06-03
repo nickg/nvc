@@ -870,6 +870,19 @@ static bool vlog_has_side_effects(vlog_node_t v)
    }
 }
 
+static mir_value_t vlog_cast_unsigned(vlog_gen_t *g, mir_value_t value)
+{
+   if (!mir_is_vector(g->mu, value))
+      return value;
+
+   mir_type_t type = mir_get_type(g->mu, value);
+   if (!mir_get_signed(g->mu, type))
+      return value;
+
+   mir_type_t utype = mir_vec4_type(g->mu, mir_get_size(g->mu, type), false);
+   return mir_build_cast(g->mu, utype, value);
+}
+
 static mir_value_t vlog_lower_vector_binary(vlog_gen_t *g, vlog_binary_t binop,
                                             mir_value_t left, mir_value_t right,
                                             mir_type_t context)
@@ -911,20 +924,14 @@ static mir_value_t vlog_lower_vector_binary(vlog_gen_t *g, vlog_binary_t binop,
       || binop == V_BINARY_TIMES || binop == V_BINARY_DIVIDE
       || binop == V_BINARY_MOD
       || binop == V_BINARY_LT || binop == V_BINARY_LEQ
-      || binop == V_BINARY_GT || binop == V_BINARY_GEQ;
+      || binop == V_BINARY_GT || binop == V_BINARY_GEQ
+      || binop == V_BINARY_LOG_EQ || binop == V_BINARY_LOG_NEQ;
 
    if (unsigned_numeric && !is_signed) {
       // Mixed signedness binary expressions are evaluated as unsigned, so
       // signed operands must not be sign-extended when resized
-      if (lsigned) {
-         mir_type_t ultype = mir_vec4_type(g->mu, lsize, false);
-         left = mir_build_cast(g->mu, ultype, left);
-      }
-
-      if (rsigned) {
-         mir_type_t urtype = mir_vec4_type(g->mu, rsize, false);
-         right = mir_build_cast(g->mu, urtype, right);
-      }
+      left = vlog_cast_unsigned(g, left);
+      right = vlog_cast_unsigned(g, right);
    }
 
    mir_value_t lcast = mir_build_cast(g->mu, type, left), rcast;
@@ -1580,14 +1587,16 @@ static mir_value_t vlog_lower_with_context(vlog_gen_t *g, vlog_node_t v,
 
          mir_value_t value = vlog_lower_rvalue(g, vlog_value(v));
 
+         const bool is_signed =
+            vlog_is_signed(left_expr) && vlog_is_signed(right_expr);
+
          unsigned size = MAX(vlog_width(left_expr), vlog_width(right_expr));
          mir_type_t type;
          if (mir_is_null(context))
-            type = mir_vec4_type(g->mu, size, false);
+            type = mir_vec4_type(g->mu, size, is_signed);
          else {
             mir_class_t class = mir_get_class(g->mu, context);
             if (class == MIR_TYPE_VEC2 || class == MIR_TYPE_VEC4) {
-               bool is_signed = mir_get_signed(g->mu, context);
                size = MAX(size, mir_get_size(g->mu, context));
                type = mir_vec4_type(g->mu, size, is_signed);
             }
@@ -1597,6 +1606,11 @@ static mir_value_t vlog_lower_with_context(vlog_gen_t *g, vlog_node_t v,
 
          mir_value_t left = vlog_lower_with_context(g, left_expr, type);
          mir_value_t right = vlog_lower_with_context(g, right_expr, type);
+
+         if (!is_signed) {
+            left = vlog_cast_unsigned(g, left);
+            right = vlog_cast_unsigned(g, right);
+         }
 
          mir_value_t lcast = vlog_lower_cast(g, type, left);
          mir_value_t rcast = vlog_lower_cast(g, type, right);
