@@ -1,5 +1,5 @@
-aggregate length 4 does not match subtype INTEGER_VECTOR length 2
+value length 4 does not match target length 2
 bounds35.vhd
     |
  16 |         (i1, i0) := x(4 downto i1);                -- Error
-    |         ^^^^^^^^
+    |                     ^^^^^^^^^^^^^^
