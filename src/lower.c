@@ -6243,7 +6243,7 @@ static void lower_var_assign(lower_unit_t *lu, tree_t stmt, gen_stack_t *gs)
 
       if (type_is_array(type)) {
          vcode_reg_t rhs_len = lower_array_len(lu, tree_type(value), 0, rhs);
-         vcode_reg_t locus = lower_debug_locus(target);
+         vcode_reg_t locus = lower_debug_locus(value);
          assert(parts[nparts - 1].kind == PART_POP);
          emit_length_check(parts[nparts - 1].off, rhs_len, locus,
                            VCODE_INVALID_REG);
@@ -6523,7 +6523,7 @@ static void lower_signal_assign(lower_unit_t *lu, tree_t stmt, gen_stack_t *gs)
 
          if (ptr->kind != PART_ALL && type_is_array(wtype)) {
             vcode_reg_t rhs_len = lower_array_len(lu, wtype, 0, rhs);
-            vcode_reg_t locus = lower_debug_locus(target);
+            vcode_reg_t locus = lower_debug_locus(wvalue);
             assert(parts[nparts - 1].kind == PART_POP);
             emit_length_check(parts[nparts - 1].off, rhs_len, locus,
                               VCODE_INVALID_REG);

@@ -1408,3 +1408,4 @@ signed5         verilog
 select23        verilog
 binary9         verilog
 signed6         verilog
+issue1562       gold,fail,2008
