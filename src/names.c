@@ -1986,7 +1986,8 @@ static tree_t try_resolve_name(nametab_t *tab, const symbol_t *sym)
       for (int i = 0; i < m.count; i++) {
          if (is_container(m.items[i]) && is_enclosing(tab, m.items[i]))
             enclosing = m.items[i];
-         else if (is_subprogram(m.items[i])) {
+
+         if (is_subprogram(m.items[i])) {
             // Remove subprograms that cannot be called with zero
             // arguments
             if (!can_call_no_args(m.items[i]))

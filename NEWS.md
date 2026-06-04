@@ -1,4 +1,7 @@
 ## Unreleased changes
+- Fixed a regression which caused calls to an overloaded subprogram with
+  the same name as an enclosing subprogram to be incorrectly reported as
+  ambiguous (#1560).
 - Several other minor bugs were resolved (#1559).
 
 ## Version 1.21.0 - 2026-05-23
