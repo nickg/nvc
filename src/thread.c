@@ -603,7 +603,7 @@ static void thread_start(nvc_thread_t *thread)
 #ifdef __MINGW32__
    if ((thread->handle = CreateThread(NULL, 0, win32_thread_wrapper,
                                       thread, 0, NULL)) == NULL)
-      fatal_errno("CreateThread");
+      fatal_win32("CreateThread");
 #else
    PTHREAD_CHECK(pthread_create, &(thread->handle), NULL,
                  thread_wrapper, thread);
@@ -641,7 +641,7 @@ void *thread_join(nvc_thread_t *thread)
    void *retval = NULL;
 #ifdef __MINGW32__
    if (WaitForSingleObject(thread->handle, INFINITE) == WAIT_FAILED)
-      fatal_errno("WaitForSingleObject failed for thread %s", thread->name);
+      fatal_win32("WaitForSingleObject failed for thread %s", thread->name);
 
    retval = atomic_load(&(thread->retval));
 #else
@@ -1317,12 +1317,12 @@ void stop_world(stop_world_fn_t callback, void *arg)
          continue;
 
       if (SuspendThread(thread->handle) != 0)
-         fatal_errno("SuspendThread");
+         fatal_win32("SuspendThread");
 
       CONTEXT context;
       context.ContextFlags = CONTEXT_INTEGER | CONTEXT_CONTROL;
       if (!GetThreadContext(thread->handle, &context))
-         fatal_errno("GetThreadContext");
+         fatal_win32("GetThreadContext");
 
       struct cpu_state cpu;
       fill_cpu_state(&cpu, &context);
@@ -1421,7 +1421,7 @@ void start_world(void)
          continue;
 
       if (ResumeThread(thread->handle) != 1)
-         fatal_errno("ResumeThread");
+         fatal_win32("ResumeThread");
    }
 #elif defined __APPLE__
    for (int i = 0; i <= maxthread; i++) {

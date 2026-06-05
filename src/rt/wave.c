@@ -174,7 +174,7 @@ static void fst_close(rt_model_t *m, void *arg)
 #if !defined __CYGWIN__ && !defined __MINGW32__
       char *tmpdir = dirname(wd->tmpfst);
       if (rmdir(tmpdir) != 0)
-         fatal_errno("unlink: %s", tmpdir);
+         fatal_errno("rmdir: %s", tmpdir);
 #endif
 
       free(wd->tmpfst);

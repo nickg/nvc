@@ -230,8 +230,8 @@ void fatal_trace(const char *fmt, ...)
    __attribute__((format(printf, 1, 2), noreturn, cold, noinline));
 void fatal_errno(const char *fmt, ...)
    __attribute__((format(printf, 1, 2), noreturn, cold, noinline));
-
-const char *last_os_error(void);
+void fatal_win32(const char *fmt, ...)
+   __attribute__((format(printf, 1, 2), noreturn, cold, noinline));
 
 #define likely(x) __builtin_expect((x), 1)
 #define unlikely(x) __builtin_expect((x), 0)
