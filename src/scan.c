@@ -213,7 +213,7 @@ void push_file(const char *file, const loc_t *srcloc)
    if (fd < 0) {
       diag_t *d = diag_new(DIAG_ERROR, srcloc);
       if (errno != ENOENT)
-         diag_printf(d, "opening %s: %s", file, last_os_error());
+         diag_printf(d, "opening %s: %s", file, strerror(errno));
       else {
          char *cwd LOCAL = getcwd(NULL, 0);
          diag_printf(d, "cannot find %s in the current working directory %s",

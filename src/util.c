@@ -418,13 +418,15 @@ void fatal_trace(const char *fmt, ...)
 
 void fatal_errno(const char *fmt, ...)
 {
+   int saved_errno = errno;
+
    diag_t *d = diag_new(DIAG_FATAL, NULL);
    diag_suppress(d, false);
 
    va_list ap;
    va_start(ap, fmt);
    diag_vprintf(d, fmt, ap);
-   diag_printf(d, ": %s", last_os_error());
+   diag_printf(d, ": %s", strerror(saved_errno));
    va_end(ap);
 
    diag_set_consumer(NULL, NULL);
@@ -432,25 +434,38 @@ void fatal_errno(const char *fmt, ...)
    fatal_exit(EXIT_FAILURE);
 }
 
-const char *last_os_error(void)
+void fatal_win32(const char *fmt, ...)
 {
 #ifdef __MINGW32__
-   static __thread LPSTR mbuf = NULL;
+   DWORD err = GetLastError();
 
-   if (mbuf != NULL)
-      LocalFree(mbuf);
-
-   FormatMessage(
+   LPSTR mbuf = NULL;
+   DWORD n = FormatMessageA(
       FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM
       | FORMAT_MESSAGE_IGNORE_INSERTS,
-      NULL,
-      GetLastError(),
+      NULL, err,
       MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
       (LPSTR)&mbuf, 0, NULL);
 
-   return mbuf;
+   while (n > 0 && (mbuf[n - 1] == '\n' || mbuf[n - 1] == '\r'))
+      mbuf[--n] = '\0';
+
+   diag_t *d = diag_new(DIAG_FATAL, NULL);
+   diag_suppress(d, false);
+
+   va_list ap;
+   va_start(ap, fmt);
+   diag_vprintf(d, fmt, ap);
+   diag_printf(d, ": %s", mbuf);
+   va_end(ap);
+
+   LocalFree(mbuf);
+
+   diag_set_consumer(NULL, NULL);
+   diag_emit(d);
+   fatal_exit(EXIT_FAILURE);
 #else
-   return strerror(errno);
+   should_not_reach_here();
 #endif
 }
 
@@ -817,7 +832,7 @@ void term_init(void)
       const size_t size = sizeof(FILE_NAME_INFO) + sizeof(WCHAR) * MAX_PATH;
       FILE_NAME_INFO *nameinfo = malloc(size);
       if (!GetFileInformationByHandleEx(hStdOut, FileNameInfo, nameinfo, size))
-         fatal_errno("GetFileInformationByHandle");
+         fatal_win32("GetFileInformationByHandle");
 
       if ((wcsncmp(nameinfo->FileName, L"\\msys-", 6) == 0
            || wcsncmp(nameinfo->FileName, L"\\cygwin-", 8) == 0)
@@ -1065,7 +1080,7 @@ void nvc_munmap(void *ptr, size_t length)
       fatal_errno("munmap");
 #else
    if (!VirtualFree(ptr, length, MEM_DECOMMIT))
-      fatal_errno("VirtualFree");
+      fatal_win32("VirtualFree");
 #endif
 }
 
@@ -1087,7 +1102,7 @@ void *nvc_memalign(size_t align, size_t sz)
    void *ptr = VirtualAlloc(NULL, mapsz, MEM_COMMIT | MEM_RESERVE,
                             PAGE_READWRITE);
    if (ptr == NULL)
-      fatal_errno("VirtualAlloc");
+      fatal_win32("VirtualAlloc");
 #else
    void *ptr = mmap(NULL, mapsz, PROT_READ | PROT_WRITE,
                     MAP_PRIVATE | MAP_ANON, -1, 0);
@@ -1120,7 +1135,7 @@ void nvc_memprotect(void *ptr, size_t length, mem_access_t prot)
    };
    DWORD old_prot;
    if (length > 0 && !VirtualProtect(ptr, length, map[prot], &old_prot))
-      fatal_errno("VirtualProtect");
+      fatal_win32("VirtualProtect");
 #else
 #if ASAN_ENABLED
    // LeakSanitizer will not detect leaks in regions mapped read-only
@@ -1140,7 +1155,7 @@ void nvc_decommit(void *ptr, size_t length)
 {
 #if defined __MINGW32__
    if (length > 0 && !VirtualFree(ptr, length, MEM_DECOMMIT))
-      fatal_errno("VirtualFree");
+      fatal_win32("VirtualFree");
 #elif defined __linux__
    if (madvise(ptr, length, MADV_DONTNEED) != 0)
       fatal_errno("madvise: MADV_DONTNEED");
@@ -1155,7 +1170,7 @@ void *map_huge_pages(size_t align, size_t sz)
       void *mem = nvc_memalign(MAX(HUGE_PAGE_SIZE, align), mapsz);
 
       if (madvise(mem, mapsz, MADV_HUGEPAGE) < 0)
-         warnf("madvise: MADV_HUGEPAGE: %s", last_os_error());
+         warnf("madvise: MADV_HUGEPAGE: %s", strerror(errno));
 
       return mem;
    }
@@ -1450,7 +1465,7 @@ void nvc_rusage(nvc_rusage_t *ru)
 
    FILETIME ftCreation, ftExit, ftKernel, ftUser;
    if (!GetProcessTimes(hProcess, &ftCreation, &ftExit, &ftKernel, &ftUser))
-      fatal_errno("GetProcessTimes");
+      fatal_win32("GetProcessTimes");
 
    lv_Tkernel.LowPart = ftKernel.dwLowDateTime;
    lv_Tkernel.HighPart = ftKernel.dwHighDateTime;
@@ -1465,7 +1480,7 @@ void nvc_rusage(nvc_rusage_t *ru)
 
    PROCESS_MEMORY_COUNTERS counters;
    if (!GetProcessMemoryInfo(GetCurrentProcess(), &counters, sizeof(counters)))
-      fatal_errno("GetProcessMemoryInfo");
+      fatal_win32("GetProcessMemoryInfo");
 
    ru->rss = counters.PeakWorkingSetSize / 1024;
 #endif
@@ -1497,7 +1512,7 @@ static bool fill_file_info(file_info_t *info, HANDLE handle)
 
    BY_HANDLE_FILE_INFORMATION hinfo;
    if (!GetFileInformationByHandle(handle, &hinfo))
-      fatal_errno("GetFileInformationByHandle");
+      fatal_win32("GetFileInformationByHandle");
 
    info->size = (uint64_t)hinfo.nFileSizeHigh << 32;
    info->size |= hinfo.nFileSizeLow;
@@ -1549,7 +1564,7 @@ bool get_file_info(const char *path, file_info_t *info)
    fill_file_info(info, handle);
 
    if (!CloseHandle(handle))
-      fatal_errno("CloseHandle");
+      fatal_win32("CloseHandle");
 
    return true;
 #else
@@ -1641,7 +1656,7 @@ void file_read_lock(int fd)
    memset(&ovlp, 0, sizeof ovlp);
 
    if (!LockFileEx(hf, 0, 0, li.LowPart, li.HighPart, &ovlp))
-      fatal_errno("LockFileEx");
+      fatal_win32("LockFileEx");
 #else
    if (flock(fd, LOCK_SH) < 0)
       fatal_errno("flock");
@@ -1661,7 +1676,7 @@ void file_write_lock(int fd)
 
    if (!LockFileEx(hf, LOCKFILE_EXCLUSIVE_LOCK, 0,
                    li.LowPart, li.HighPart, &ovlp))
-      fatal_errno("LockFileEx");
+      fatal_win32("LockFileEx");
 #else
    if (flock(fd, LOCK_EX) < 0)
       fatal_errno("flock");
@@ -1689,13 +1704,13 @@ void *map_file(int fd, size_t size)
    HANDLE handle = CreateFileMapping((HANDLE) _get_osfhandle(fd), NULL,
                                      PAGE_READONLY, 0, size, NULL);
    if (!handle)
-      fatal_errno("CreateFileMapping");
+      fatal_win32("CreateFileMapping");
 
    void *ptr = MapViewOfFileEx(handle, FILE_MAP_READ, 0,
                                0, (SIZE_T) size, (LPVOID) NULL);
    CloseHandle(handle);
    if (ptr == NULL)
-      fatal_errno("MapViewOfFileEx");
+      fatal_win32("MapViewOfFileEx");
 #else
    void *ptr = mmap(NULL, size, PROT_READ, MAP_PRIVATE, fd, 0);
    if (ptr == MAP_FAILED)
@@ -1708,7 +1723,7 @@ void unmap_file(void *ptr, size_t size)
 {
 #ifdef __MINGW32__
    if (!UnmapViewOfFile((LPCVOID) ptr))
-      fatal_errno("UnmapViewOfFile");
+      fatal_win32("UnmapViewOfFile");
 #else
    munmap(ptr, size);
 #endif
@@ -1723,7 +1738,7 @@ void make_dir(const char *fmt, ...)
 
 #ifdef __MINGW32__
    if (!CreateDirectory(path, NULL) && (GetLastError() != ERROR_ALREADY_EXISTS))
-      fatal_errno("mkdir: %s", path);
+      fatal_win32("mkdir: %s", path);
 #else
    if (mkdir(path, 0777) != 0 && errno != EEXIST)
       fatal_errno("mkdir: %s", path);
@@ -1751,13 +1766,13 @@ uint64_t get_timestamp_ns(void)
    if (load_acquire(&freq) == 0) {
       LARGE_INTEGER tmp;
       if (!QueryPerformanceFrequency(&tmp))
-         fatal_errno("QueryPerformanceFrequency");
+         fatal_win32("QueryPerformanceFrequency");
       store_release(&freq, tmp.QuadPart);
    }
 
    LARGE_INTEGER ticks;
    if (!QueryPerformanceCounter(&ticks))
-      fatal_errno("QueryPerformanceCounter");
+      fatal_win32("QueryPerformanceCounter");
    return (double)ticks.QuadPart * (1e9 / (double)freq);
 #else
    struct timespec ts;

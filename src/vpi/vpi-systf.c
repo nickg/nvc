@@ -26,6 +26,7 @@
 #include "vpi/vpi-priv.h"
 
 #include <assert.h>
+#include <errno.h>
 #include <inttypes.h>
 #include <math.h>
 #include <stdlib.h>
@@ -732,7 +733,7 @@ static PLI_INT32 readmem_tf(PLI_BYTE8 *userdata)
    FILE *f = file_stream(fh);
    if (f == NULL)
       jit_msg(NULL, DIAG_FATAL, "failed to open %s: %s",
-              file_name, last_os_error());
+              file_name, strerror(errno));
 
    const bool binary = *(char *)userdata == 'b';
    char *line LOCAL = NULL;
