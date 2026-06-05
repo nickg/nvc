@@ -177,8 +177,8 @@ File.open(TestList).each_line do |line|
     if type == "CE" || type == "CO" then
       cmd = "#{Tool} --work=work:#{workdir}/work -a #{aflags} --no-save #{f}"
     else
-      cmd = "#{Tool} --work=work:#{workdir}/work -a #{aflags} --no-save #{f} " +
-            "-e --jit --no-save #{m} -r"
+      cmd = "#{Tool} --seed=0 --work=work:#{workdir}/work -a #{aflags} " +
+            "--no-save #{f} -e --jit --no-save #{m} -r"
     end
 
     gold = flags[:gold] ? "#{IvtestDir}/gold/#{flags[:gold]}" : nil

@@ -3402,15 +3402,16 @@ mir_value_t mir_build_cast(mir_unit_t *mu, mir_type_t type, mir_value_t value)
          node_data_t *n = mir_node_data(mu, value);
          if (n->op == MIR_OP_CONST_VEC && mir_get_size(mu, type) <= 64) {
             uint64_t abits = n->bits[0];
+            uint64_t bbits = class == MIR_TYPE_VEC2 ? 0 : n->bits[1];
             if (mir_get_signed(mu, n->type)) {
                const int arg_size = mir_get_size(mu, n->type);
                if (arg_size > 0 && arg_size < 64) {
                   const int shift = 64 - arg_size;
                   abits = ((int64_t)abits << shift) >> shift;
+                  bbits = ((int64_t)bbits << shift) >> shift;
                }
             }
 
-            const uint64_t bbits = (class == MIR_TYPE_VEC2 ? 0 : n->bits[1]);
             return mir_const_vec(mu, type, abits, bbits);
          }
       }

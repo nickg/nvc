@@ -3,7 +3,10 @@
   expressions (#1518).
 - VHDL architectures can now be specified on the command line with `-e
   entity(arch)`. The previous form `entity-arch` is still supported.
-- Several other minor bugs were resolved (#1559).
+- Fixed a regression which caused calls to an overloaded subprogram with
+  the same name as an enclosing subprogram to be incorrectly reported as
+  ambiguous (#1560).
+- Several other minor bugs were resolved (#1559, #1562).
 
 ## Version 1.21.0 - 2026-05-23
 - Systems with emulated thread-local storage (in particular all MSYS2

@@ -1148,8 +1148,8 @@ void __nvc_vec4op(jit_vec_op_t op, jit_anchor_t *anchor, jit_scalar_t *args,
          uint64_t *aresult = ptr, *bresult = aresult + nwords;
 
          const int arg_size = args[2].integer;
-         const uint64_t msb_mask =
-            arg_size % 64 != 0 ? UINT64_C(1) << ((arg_size % 64) - 1) : 0;
+         const int msb_word = (arg_size - 1) / 64;
+         const uint64_t msb_mask = UINT64_C(1) << ((arg_size - 1) % 64);
          const bool sext = op == JIT_VEC_SEXT;
 
          if (arg_size <= 64) {
@@ -1176,9 +1176,9 @@ void __nvc_vec4op(jit_vec_op_t op, jit_anchor_t *anchor, jit_scalar_t *args,
             const uint64_t *bsrc = args[1].pointer;
 
             const uint64_t aext =
-               sext && (asrc[arg_size / 64] & msb_mask) ? ~UINT64_C(0) : 0;
+               sext && (asrc[msb_word] & msb_mask) ? ~UINT64_C(0) : 0;
             const uint64_t bext =
-               sext && (bsrc[arg_size / 64] & msb_mask) ? ~UINT64_C(0) : 0;
+               sext && (bsrc[msb_word] & msb_mask) ? ~UINT64_C(0) : 0;
 
             const int full_words = arg_size / 64;
             const int partial_index = (arg_size % 64) != 0 ? full_words : -1;

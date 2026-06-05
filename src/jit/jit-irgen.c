@@ -2344,7 +2344,12 @@ static void irgen_op_cast(jit_irgen_t *g, mir_value_t n)
             j_and(g, abits, abits, irgen_vector_mask(result_size));
 
             jit_value_t btmp = irgen_alloc_temp(g);
-            j_mov(g, btmp, bbits);
+            if (arg_class == MIR_TYPE_VEC4) {
+               bbits = irgen_sign_extend(g, bbits, arg_size);
+               j_and(g, btmp, bbits, irgen_vector_mask(result_size));
+            }
+            else
+               j_mov(g, btmp, bbits);
             bbits = btmp;
          }
 
