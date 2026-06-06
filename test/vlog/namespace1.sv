@@ -10,3 +10,4 @@ module mod;
 endmodule // mod
 
 typedef int t_useless;
+parameter p1 = 0;

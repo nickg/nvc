@@ -7324,6 +7324,7 @@ static vlog_node_t p_description(void)
    case tCLASS:
    case tTYPEDEF:
    case tIMPORT:
+   case tPARAMETER:
       {
          vlog_node_t v = vlog_new(V_NAMESPACE);
 
@@ -7335,14 +7336,14 @@ static vlog_node_t p_description(void)
 
          do {
             p_package_item(v);
-         } while (scan(tCLASS, tTYPEDEF, tIMPORT));
+         } while (scan(tCLASS, tTYPEDEF, tIMPORT, tPARAMETER));
 
          vlog_set_loc(v, CURRENT_LOC);
          return v;
       }
    default:
       expect(tPRIMITIVE, tMODULE, tPACKAGE, tPROGRAM, tCLASS, tTYPEDEF,
-             tIMPORT);
+             tIMPORT, tPARAMETER);
       return NULL;
    }
 }

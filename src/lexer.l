@@ -145,7 +145,7 @@ PSL_COMMENT     {PRAGMA}(?i:psl)
 PSL_CONT        ^{SPACE}*({PSL_COMMENT}|"--")
 UTF8_MB         [\x80-\xff][\x80-\xbf]{1,3}
 VLOG_NUMBER     ({INTEGER}{SPACE}*)?\'s?[bhdoBHDO]{SPACE}*{VLOG_DIGITS}
-VLOG_REAL       {INTEGER}\.{INTEGER}
+VLOG_REAL       ({INTEGER}\.{INTEGER}{EXPONENT}?|{INTEGER}{EXPONENT})
 UDP_LEVEL       [01xX?bB]
 UDP_EDGE        [rRfFpPnN*]
 SCALAR_ZERO     ('b0|'B0|1'b0|1'B0)
@@ -1266,7 +1266,10 @@ static int parse_verilog_real(const char *str)
 {
    // unsigned_number [ . unsigned_number ] exp [ sign ] unsigned_number
 
-   yylval.real = strtod(str, NULL);
+   char *tmp LOCAL = xstrdup(str);
+   strip_underscores(tmp);
+
+   yylval.real = strtod(tmp, NULL);
    return tREAL;
 }
 
