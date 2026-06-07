@@ -680,6 +680,7 @@ START_TEST(test_enum1)
 
    const error_t expect[] = {
       {  6, "'a' is not a data type" },
+      { 20, "'x' has no method named 'invalid'" },
       { -1, NULL }
    };
    expect_errors(expect);

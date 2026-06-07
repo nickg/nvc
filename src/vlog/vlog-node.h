@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2022-2025  Nick Gasson
+//  Copyright (C) 2022-2026  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -167,6 +167,7 @@ typedef enum {
    V_FINAL,
    V_LOCAL_DECL,
    V_GEN_BLOCK,
+   V_METHOD_CALL,
 
    V_LAST_NODE_KIND
 } vlog_kind_t;
@@ -310,6 +311,16 @@ typedef enum {
    V_SYSTF_SQRT,
    V_SYSTF_BITS,
 } vlog_systf_t;
+
+typedef enum {
+   V_METHOD_USER,
+   V_METHOD_ENUM_FIRST,
+   V_METHOD_ENUM_LAST,
+   V_METHOD_ENUM_NEXT,
+   V_METHOD_ENUM_PREV,
+   V_METHOD_ENUM_NUM,
+   V_METHOD_ENUM_NAME,
+} vlog_method_t;
 
 typedef enum {
    VLOG_F_SIGNED = (1 << 0),
