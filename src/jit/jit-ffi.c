@@ -110,9 +110,7 @@ static jit_dll_t *ffi_load_exe(void)
 
    char *libc_path = xmalloc(MAX_PATH);
    if (!GetModuleFileName(libc_handle, libc_path, MAX_PATH))
-      fatal("failed to get C runtime library path: %s", last_os_error());
-
-   DEBUG_ONLY(debugf("C runtime library: %s", libc_path));
+      fatal_win32("GetModuleFileName");
 
    jit_dll_t *libc = xcalloc(sizeof(jit_dll_t));
    libc->next   = dlls;
@@ -225,7 +223,7 @@ jit_dll_t *ffi_load_dll(const char *path)
 #ifdef __MINGW32__
    HMODULE handle = LoadLibrary(abs);
    if (handle == NULL)
-      fatal_errno("failed to load %s", abs);
+      fatal_win32("failed to load %s", abs);
 #else
    void *handle = dlopen(abs, RTLD_LAZY);
    if (handle == NULL)

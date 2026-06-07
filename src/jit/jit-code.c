@@ -26,6 +26,7 @@
 #include "thread.h"
 
 #include <assert.h>
+#include <errno.h>
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -492,7 +493,7 @@ static void code_write_perf_map(code_span_t *span)
    if (span->owner->perfmap == NULL) {
       char *fname LOCAL = xasprintf("/tmp/perf-%d.map", getpid());
       if ((span->owner->perfmap = fopen(fname, "w")) == NULL) {
-         warnf("cannot create %s: %s", fname, last_os_error());
+         warnf("cannot create %s: %s", fname, strerror(errno));
          opt_set_int(OPT_PERF_MAP, 0);
          return;
       }
@@ -1011,7 +1012,7 @@ static void code_load_pe(code_blob_t *blob, const void *data, size_t size)
 
          // TODO: we should also call RtlDeleteFunctionTable at some point
          if (!RtlAddFunctionTable(load_addr[i], count, base))
-            fatal_trace("RtlAddFunctionTable failed: %s", last_os_error());
+            fatal_win32("RtlAddFunctionTable");
       }
    }
 

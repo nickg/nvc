@@ -227,7 +227,7 @@ static void cover_parse_exclude_file(const char *path, cover_data_t *data)
 {
    FILE *ef = fopen(path, "r");
    if (ef == NULL)
-      fatal_errno("failed to open exclude file: %s\n", path);
+      fatal_errno("failed to open exclude file: %s", path);
 
    char *delim = " ";
    ssize_t read;
