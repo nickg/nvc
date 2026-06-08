@@ -52,6 +52,7 @@ extern loc_t yylloc;
 static vlog_node_t p_statement_or_null(void);
 static vlog_node_t p_expression(void);
 static vlog_node_t p_constant_expression(void);
+static vlog_node_t p_primary(void);
 static vlog_node_t p_data_type(void);
 static void p_list_of_variable_decl_assignments(vlog_node_t parent,
                                                 vlog_node_t datatype,
@@ -286,17 +287,35 @@ static vlog_node_t get_data_type(ident_t id)
    return v;
 }
 
+static bool scan_type_declaration(void)
+{
+   switch (peek()) {
+   case tREG:       case tSTRUCT:   case tUNION:   case tTYPEDEF:
+   case tENUM:      case tSVINT:    case tINTEGER: case tSVREAL:
+   case tSHORTREAL: case tREALTIME: case tBIT:     case tLOGIC:
+   case tSHORTINT:  case tTIME:
+      return true;
+   case tID:
+      {
+         vlog_node_t dt = peek_reference();
+         return dt != NULL && is_data_type(dt);
+      }
+   default:
+      return false;
+   }
+}
+
 static bool scan_block_item_declaration(void)
 {
-   return scan(tREG, tSTRUCT, tUNION, tTYPEDEF, tENUM, tSVINT, tINTEGER,
-               tSVREAL, tSHORTREAL, tREALTIME, tBIT, tLOGIC, tSHORTINT, tTIME);
+   return scan_type_declaration();
 }
 
 static bool scan_tf_item_declaration(void)
 {
-   return scan(tREG, tSTRUCT, tUNION, tTYPEDEF, tENUM, tSVINT, tINTEGER,
-               tSVREAL, tSHORTREAL, tREALTIME, tBIT, tLOGIC, tSHORTINT, tTIME,
-               tINPUT, tOUTPUT);
+   if (scan_type_declaration())
+      return true;
+
+   return scan(tINPUT, tOUTPUT);
 }
 
 static ident_t p_identifier(void)
@@ -1358,6 +1377,51 @@ static vlog_node_t p_tf_call(vlog_kind_t kind)
    return v;
 }
 
+static vlog_node_t p_method_call_root(void)
+{
+   // primary | implicit_class_handle
+
+   BEGIN("method call root");
+
+   vlog_node_t v = vlog_new(V_REF);
+   vlog_set_ident(v, p_identifier());
+   vlog_set_loc(v, CURRENT_LOC);
+
+   vlog_symtab_lookup(symtab, v);
+   return v;
+}
+
+static void p_method_call_body(vlog_node_t v)
+{
+   // method_identifier { attribute_instance } [ ( list_of_arguments ) ]
+   //   | built_in_method_call
+
+   BEGIN("method call body");
+
+   vlog_set_ident(v, p_identifier());
+
+   if (optional(tLPAREN)) {
+      p_list_of_arguments(v);
+      consume(tRPAREN);
+   }
+}
+
+static vlog_node_t p_method_call(void)
+{
+   // method_call_root . method_call_body
+
+   vlog_node_t v = vlog_new(V_METHOD_CALL);
+   vlog_set_value(v, p_method_call_root());
+
+   consume(tDOT);
+
+   p_method_call_body(v);
+
+   vlog_set_loc(v, CURRENT_LOC);
+   vlog_symtab_lookup(symtab, v);
+   return v;
+}
+
 static vlog_node_t p_subroutine_call(vlog_kind_t kind)
 {
    // tf_call | system_tf_call | method_call | [ std:: ] randomize_call
@@ -1366,6 +1430,8 @@ static vlog_node_t p_subroutine_call(vlog_kind_t kind)
 
    if (peek() == tSYSTASK)
       return p_system_tf_call(kind);
+   else if (peek_nth(2) == tDOT)
+      return p_method_call();
    else
       return p_tf_call(kind);
 }
@@ -1489,8 +1555,14 @@ static vlog_node_t p_primary(void)
       case tLPAREN:
       case tATTRBEGIN:
          return p_subroutine_call(V_USER_FCALL);
+      case tDOT:
+         if (peek_nth(4) == tLPAREN)
+            return p_subroutine_call(V_METHOD_CALL);
+         else
+            return p_select(p_identifier());
       case tSCOPE:
          p_package_scope();
+         // Fall-through
       default:
          return p_select(p_identifier());
       }
@@ -4129,6 +4201,7 @@ static void p_block_item_declaration(vlog_node_t parent)
    case tLOGIC:
    case tSHORTINT:
    case tTIME:
+   case tID:
       p_data_declaration(parent, V_LOCAL_DECL);
       break;
    default:
@@ -7356,6 +7429,7 @@ static vlog_node_t p_description(void)
    case tCLASS:
    case tTYPEDEF:
    case tIMPORT:
+   case tPARAMETER:
       {
          vlog_node_t v = vlog_new(V_NAMESPACE);
 
@@ -7367,14 +7441,14 @@ static vlog_node_t p_description(void)
 
          do {
             p_package_item(v);
-         } while (scan(tCLASS, tTYPEDEF, tIMPORT));
+         } while (scan(tCLASS, tTYPEDEF, tIMPORT, tPARAMETER));
 
          vlog_set_loc(v, CURRENT_LOC);
          return v;
       }
    default:
       expect(tPRIMITIVE, tMODULE, tPACKAGE, tPROGRAM, tCLASS, tTYPEDEF,
-             tIMPORT);
+             tIMPORT, tPARAMETER);
       return NULL;
    }
 }

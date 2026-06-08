@@ -20,12 +20,14 @@
 #include "diag.h"
 #include "hash.h"
 #include "ident.h"
+#include "printf.h"
 #include "vlog/vlog-node.h"
 #include "vlog/vlog-symtab.h"
 #include "vlog/vlog-util.h"
 
 #include <assert.h>
 #include <stdlib.h>
+#include <string.h>
 
 #define POISON_NODE (vlog_node_t)-1
 
@@ -37,6 +39,7 @@ typedef struct _vlog_symtab {
    hash_t          *scopes;
    mem_pool_t      *pool;
    vlog_net_kind_t  implicit;
+   ghash_t         *builtins;
 } vlog_symtab_t;
 
 typedef struct {
@@ -54,6 +57,12 @@ typedef struct _vlog_scope {
    bool           suppress;
 } vlog_scope_t;
 
+typedef struct {
+   ident_t       name;
+   vlog_kind_t   kind;
+   vlog_method_t method;
+} vlog_builtin_t;
+
 vlog_symtab_t *vlog_symtab_new(void)
 {
    vlog_symtab_t *st = xcalloc(sizeof(vlog_symtab_t));
@@ -69,6 +78,7 @@ void vlog_symtab_free(vlog_symtab_t *st)
    assert(st->top == NULL);
    pool_free(st->pool);
    hash_free(st->scopes);
+   ghash_free(st->builtins);
    free(st);
 }
 
@@ -218,6 +228,86 @@ static void lookup_member(vlog_symtab_t *st, vlog_node_t v)
    diag_emit(d);
 }
 
+static uint32_t hash_builtin_cb(const void *key)
+{
+   const vlog_builtin_t *b = key;
+   return ident_hash(b->name) ^ knuth_hash(b->kind);
+}
+
+static bool cmp_builtin_cb(const void *a, const void *b)
+{
+   const vlog_builtin_t *ba = a, *bb = b;
+   return ba->name == bb->name && ba->kind == bb->kind;
+}
+
+static vlog_method_t get_builtin_method(vlog_symtab_t *st, vlog_kind_t kind,
+                                        ident_t name)
+{
+   static const struct {
+      const char     name[8];
+      vlog_kind_t    kind;
+      vlog_method_t  method;
+   } tab[] = {
+      { "first", V_ENUM_DECL, V_METHOD_ENUM_FIRST },
+      { "last",  V_ENUM_DECL, V_METHOD_ENUM_LAST },
+      { "next",  V_ENUM_DECL, V_METHOD_ENUM_NEXT },
+      { "prev",  V_ENUM_DECL, V_METHOD_ENUM_PREV },
+      { "num",   V_ENUM_DECL, V_METHOD_ENUM_NUM },
+      { "name",  V_ENUM_DECL, V_METHOD_ENUM_NAME },
+   };
+
+   if (st->builtins == NULL) {
+      st->builtins = ghash_new(ARRAY_LEN(tab) * 2 + 1, hash_builtin_cb,
+                               cmp_builtin_cb);
+
+      vlog_builtin_t *bs = pool_malloc_array(st->pool, ARRAY_LEN(tab),
+                                             sizeof(vlog_builtin_t));
+      for (int i = 0; i < ARRAY_LEN(tab); i++) {
+         bs[i].name   = ident_new(tab[i].name);
+         bs[i].kind   = tab[i].kind;
+         bs[i].method = tab[i].method;
+
+         ghash_put(st->builtins, &bs[i], &bs[i]);
+      }
+   }
+
+   const vlog_builtin_t query = { name, kind };
+
+   vlog_builtin_t *b = ghash_get(st->builtins, &query);
+   if (b == NULL)
+      return V_METHOD_USER;
+
+   return b->method;
+}
+
+static void lookup_method_call(vlog_symtab_t *st, vlog_node_t v)
+{
+   vlog_node_t prefix = vlog_value(v), type = vlog_get_type(prefix);
+   if (type == NULL) {  // Was earlier error
+      assert(error_count() > 0);
+      return;
+   }
+
+   const vlog_kind_t kind = vlog_kind(type);
+   if (kind == V_CLASS_DECL) {
+      error_at(vlog_loc(v), "sorry, class method calls are not yet supported");
+      return;
+   }
+
+   vlog_method_t m = get_builtin_method(st, kind, vlog_ident(v));
+   vlog_set_subkind(v, m);
+
+   if (m == V_METHOD_USER) {
+      diag_t *d = diag_new(DIAG_ERROR, vlog_loc(prefix));
+      if (vlog_kind(prefix) == V_REF)
+         diag_printf(d, "'%pi'", vlog_ident(prefix));
+      else
+         diag_printf(d, "prefix");
+      diag_printf(d, " has no method named '%pi'", vlog_ident(v));
+      diag_emit(d);
+   }
+}
+
 void vlog_symtab_lookup(vlog_symtab_t *st, vlog_node_t v)
 {
    if (vlog_has_ref(v))
@@ -228,6 +318,9 @@ void vlog_symtab_lookup(vlog_symtab_t *st, vlog_node_t v)
    switch (vlog_kind(v)) {
    case V_MEMBER_REF:
       lookup_member(st, v);
+      return;
+   case V_METHOD_CALL:
+      lookup_method_call(st, v);
       return;
    default:
       break;
