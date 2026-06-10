@@ -206,7 +206,8 @@ static bool lower_is_const(tree_t t)
       {
          tree_t decl = tree_ref(t);
          const tree_kind_t decl_kind = tree_kind(decl);
-         if (decl_kind == T_CONST_DECL && type_is_scalar(tree_type(t)))
+         if ((decl_kind == T_CONST_DECL || decl_kind == T_GENERIC_DECL)
+             && type_is_scalar(tree_type(t)))
             return tree_has_value(decl) && lower_is_const(tree_value(decl));
          else
             return decl_kind == T_ENUM_LIT || decl_kind == T_FIELD_DECL;
@@ -215,6 +216,17 @@ static bool lower_is_const(tree_t t)
    case T_LITERAL:
    case T_STRING:
       return true;
+
+   case T_FCALL:
+      {
+         const int nparams = tree_params(t);
+         if (nparams == 0) return false;
+         for (int i = 0; i < nparams; i++) {
+            if (!lower_is_const(tree_value(tree_param(t, i))))
+               return false;
+         }
+         return type_is_scalar(tree_type(t));
+      }
 
    case T_RANGE:
       if (tree_subkind(t) == RANGE_EXPR)
@@ -2863,7 +2875,7 @@ static vcode_reg_t lower_link_var(lower_unit_t *lu, tree_t decl)
    vcode_reg_t reg = lower_search_vcode_obj(container_name, lu, &hops);
    if (reg != VCODE_INVALID_REG)
       context = emit_link_package(container_name);
-   else if (lu->mode == LOWER_THUNK) {
+   else if (lu->mode == LOWER_THUNK || tree_kind(container) == T_ELAB) {
       if (tree_kind(decl) == T_CONST_DECL && tree_has_value(decl)) {
          tree_t value = tree_value(decl);
          if (lower_is_const(value)) {
