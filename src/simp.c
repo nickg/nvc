@@ -1834,7 +1834,7 @@ static tree_t simp_tree_global(tree_t t, void *_ctx)
 
    switch (tree_kind(t)) {
    case T_PROCESS:
-      return simp_process(t);
+      return t;
    case T_ATTR_REF:
       return simp_attr_ref(t, ctx);
    case T_FCALL:
