@@ -4692,7 +4692,7 @@ static vcode_reg_t lower_new(lower_unit_t *lu, tree_t expr)
             init_reg = lower_rvalue(lu, qual);
       }
       else
-         init_reg = lower_default_value(lu, type, all_reg);
+         init_reg = lower_default_value(lu, type, VCODE_INVALID_REG);
 
       lower_new_record(lu, type, all_reg, init_reg);
       return result_reg;
