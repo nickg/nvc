@@ -171,6 +171,37 @@ static void test3(const vhpiCbDataT *cb_data_p)
    vhpi_release_handle(p1);
 }
 
+static void test4(const vhpiCbDataT *cb_data_p)
+{
+   vhpiHandleT p0 = vhpi_handle_by_index(vhpiParamDecls, cb_data_p->obj, 0);
+   check_error();
+   fail_if(p0 == NULL);
+   fail_unless(vhpi_get(vhpiKindP, p0) == vhpiVarParamDeclK);
+
+   vhpiHandleT p1 = vhpi_handle_by_index(vhpiParamDecls, cb_data_p->obj, 1);
+   check_error();
+   fail_if(p1 == NULL);
+   fail_unless(vhpi_get(vhpiKindP, p1) == vhpiVarParamDeclK);
+
+   vhpiValueT p0_value = { .format = vhpiIntVal };
+   fail_unless(vhpi_get_value(p0, &p0_value) == 0);
+   check_error();
+
+   vhpiValueT p1_value = { .format = vhpiIntVal };
+   fail_unless(vhpi_get_value(p1, &p1_value) == 0);
+   check_error();
+
+   vhpi_printf("%d + %d\n", p0_value.value.intg,
+               p1_value.value.intg);
+   p0_value.value.intg += p1_value.value.intg;
+
+   vhpi_put_value(p0, &p0_value, vhpiDeposit);
+   check_error();
+
+   vhpi_release_handle(p0);
+   vhpi_release_handle(p1);
+}
+
 static void iota(const vhpiCbDataT *cb_data_p)
 {
    vhpiHandleT p0 = vhpi_handle_by_index(vhpiParamDecls, cb_data_p->obj, 0);
@@ -281,6 +312,15 @@ void vhpi14_startup(void)
       .execf = test3,
    };
    vhpi_register_foreignf(&test3_data);
+   check_error();
+
+   vhpiForeignDataT test4_data = {
+      .kind = vhpiFuncF,
+      .libraryName = "lib",
+      .modelName = "test4",
+      .execf = test4,
+   };
+   vhpi_register_foreignf(&test4_data);
    check_error();
 
    vhpiForeignDataT iota_data = {
