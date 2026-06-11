@@ -3469,8 +3469,13 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
             value = c->args[id->argslot].pointer;
             num_elems = td->numElems;
          }
-         else
-            value = (void *)&(c->args[id->argslot]);
+         else {
+            c_varParamDecl *vpd = is_varParamDecl(obj);
+            if (vpd != NULL && vpd->Mode != vhpiInMode)
+               value = c->args[id->argslot].pointer;
+            else
+               value = (void *)&(c->args[id->argslot]);
+         }
       }
       break;
 
