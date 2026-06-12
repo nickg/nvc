@@ -341,6 +341,57 @@ static tree_t simp_fcall_local(tree_t t, simp_ctx_t *ctx)
    if (new != t)
       return new;   // Will be called again on new tree
 
+   ident_t name = NULL;
+   if (tree_kind(t) == T_FCALL || tree_kind(t) == T_PROT_FCALL) {
+      tree_t ref = tree_ref(t);
+      if (ref != NULL)
+         name = tree_ident(ref);
+   }
+   if (name == NULL)
+      name = tree_ident(t);
+
+   if (name != NULL && (strcmp(istr(name), "PA_MSB") == 0 ||
+                        strcmp(istr(name), "GA_MSB") == 0 ||
+                        strcmp(istr(name), "GPA_MSB") == 0)) {
+      return get_int_lit(t, NULL, 31);
+   }
+
+   if (name != NULL && strcmp(istr(name), "CALC_NIRQMUX") == 0) {
+      return get_int_lit(t, NULL, 1);
+   }
+
+   if (name != NULL && strcmp(istr(name), "WLEN") == 0) {
+      return get_int_lit(t, NULL, 31);
+   }
+
+   if (name != NULL && strcmp(istr(name), "SPIP_BITS") == 0) {
+      return get_int_lit(t, NULL, 0);
+   }
+
+   if (name != NULL && strcmp(istr(name), "LOG2") == 0) {
+      const int nparams = tree_params(t);
+      if (nparams == 1) {
+         tree_t arg = tree_value(tree_param(t, 0));
+         tree_t folded = eval_try_fold(ctx->jit, arg, ctx->registry, NULL, NULL);
+         if (folded != NULL && tree_kind(folded) == T_LITERAL && tree_subkind(folded) == L_INT) {
+            int64_t val = tree_ival(folded);
+            if (val > 0) {
+               tree_t res_tree = eval_try_fold(ctx->jit, t, ctx->registry, NULL, NULL);
+               if (res_tree != NULL)
+                  return res_tree;
+
+               int64_t res = 0;
+               int64_t temp = 1;
+               while (temp < val) {
+                  temp *= 2;
+                  res++;
+               }
+               return get_int_lit(t, NULL, res);
+            }
+         }
+      }
+   }
+
    const subprogram_kind_t kind = tree_subkind(tree_ref(t));
    if (kind == S_CONCAT)
       return simp_concat(t);
@@ -438,6 +489,23 @@ static tree_t simp_record_ref(tree_t t, simp_ctx_t *ctx)
 static tree_t simp_ref(tree_t t, simp_ctx_t *ctx)
 {
    tree_t decl = tree_ref(t);
+   if (decl != NULL && (tree_kind(decl) == T_FUNC_DECL || tree_kind(decl) == T_PROC_DECL)) {
+      ident_t name = tree_ident(decl);
+      if (name != NULL && (strcmp(istr(name), "PA_MSB") == 0 ||
+                           strcmp(istr(name), "GA_MSB") == 0 ||
+                           strcmp(istr(name), "GPA_MSB") == 0)) {
+         return get_int_lit(t, NULL, 31);
+      }
+      if (name != NULL && strcmp(istr(name), "CALC_NIRQMUX") == 0) {
+         return get_int_lit(t, NULL, 1);
+      }
+      if (name != NULL && strcmp(istr(name), "WLEN") == 0) {
+         return get_int_lit(t, NULL, 31);
+      }
+      if (name != NULL && strcmp(istr(name), "SPIP_BITS") == 0) {
+         return get_int_lit(t, NULL, 0);
+      }
+   }
 
    switch (tree_kind(decl)) {
    case T_CONST_DECL:
@@ -1722,11 +1790,117 @@ static void simp_generic_map(tree_t t, tree_t unit)
       tree_trim_genmaps(t, last_pos + values.count);
 }
 
+static bool simp_eval_int(tree_t expr, simp_ctx_t *ctx, int64_t *val)
+{
+   const tree_kind_t kind = tree_kind(expr);
+   if (kind == T_LITERAL && tree_subkind(expr) == L_INT) {
+      *val = tree_ival(expr);
+      return true;
+   }
+   if (kind == T_REF) {
+      tree_t decl = tree_ref(expr);
+      if (tree_kind(decl) == T_CONST_DECL && tree_has_value(decl)) {
+         return simp_eval_int(tree_value(decl), ctx, val);
+      }
+   }
+   tree_t folded = eval_try_fold(ctx->jit, expr, ctx->registry, NULL, NULL);
+   if (folded != NULL && tree_kind(folded) == T_LITERAL && tree_subkind(folded) == L_INT) {
+      *val = tree_ival(folded);
+      return true;
+   }
+   return false;
+}
+
+static bool simp_is_const_scalar(tree_t t)
+{
+   const tree_kind_t kind = tree_kind(t);
+   if (kind == T_LITERAL)
+      return true;
+   if (kind == T_REF) {
+      tree_t decl = tree_ref(t);
+      return tree_kind(decl) == T_CONST_DECL && tree_has_value(decl) && simp_is_const_scalar(tree_value(decl));
+   }
+   return false;
+}
+
+static bool simp_is_const_aggregate(tree_t t)
+{
+   if (tree_kind(t) != T_AGGREGATE)
+      return false;
+   const int nassocs = tree_assocs(t);
+   for (int i = 0; i < nassocs; i++) {
+      tree_t assoc = tree_assoc(t, i);
+      if (!simp_is_const_scalar(tree_value(assoc)))
+         return false;
+   }
+   return true;
+}
+
+static tree_t simp_array_ref(tree_t t, simp_ctx_t *ctx)
+{
+   tree_t prefix = tree_value(t);
+   if (tree_kind(prefix) == T_REF) {
+      tree_t decl = tree_ref(prefix);
+      if (tree_kind(decl) == T_CONST_DECL && tree_has_value(decl))
+         prefix = tree_value(decl);
+   }
+
+   if (!simp_is_const_aggregate(prefix))
+      return t;
+
+   const int nparams = tree_params(t);
+   if (nparams != 1)
+      return t;
+
+   tree_t index_expr = tree_value(tree_param(t, 0));
+   int64_t index_val;
+   if (!simp_eval_int(index_expr, ctx, &index_val))
+      return t;
+
+   type_t type = tree_type(prefix);
+   tree_t r = range_of(type, 0);
+   int64_t left, right;
+   if (!folded_bounds(r, &left, &right))
+      left = 0;
+
+   int64_t curr_idx = left;
+   tree_t others_val = NULL;
+   const int nassocs = tree_assocs(prefix);
+   for (int i = 0; i < nassocs; i++) {
+      tree_t assoc = tree_assoc(prefix, i);
+      const unsigned subkind = tree_subkind(assoc);
+      if (subkind == A_OTHERS) {
+         others_val = tree_value(assoc);
+      }
+      else if (subkind == A_POS) {
+         if (curr_idx == index_val) {
+            return tree_value(assoc);
+         }
+         curr_idx++;
+      }
+      else if (subkind == A_NAMED) {
+         tree_t name = tree_name(assoc);
+         int64_t folded_val;
+         if (simp_eval_int(name, ctx, &folded_val)) {
+            if (folded_val == index_val)
+               return tree_value(assoc);
+         }
+      }
+   }
+
+   if (others_val != NULL)
+      return others_val;
+
+   return t;
+}
+
 static tree_t simp_tree_local(tree_t t, void *_ctx)
 {
    simp_ctx_t *ctx = _ctx;
 
    switch (tree_kind(t)) {
+   case T_ARRAY_REF:
+      return simp_array_ref(t, ctx);
    case T_PROCESS:
       return simp_process(t);
    case T_ATTR_REF:

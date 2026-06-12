@@ -833,6 +833,13 @@ static void import_null(mir_unit_t *mu, mir_import_t *imp, int op)
    imp->map[result] = mir_build_null(mu, type);
 }
 
+static void import_undefined(mir_unit_t *mu, mir_import_t *imp, int op)
+{
+   vcode_reg_t result = vcode_get_result(op);
+   mir_type_t type = import_type(mu, imp, vcode_reg_type(result));
+   imp->map[result] = mir_build_undefined(mu, type);
+}
+
 static void import_new(mir_unit_t *mu, mir_import_t *imp, int op)
 {
    vcode_reg_t result = vcode_get_result(op);
@@ -1556,6 +1563,9 @@ static void import_block(mir_unit_t *mu, mir_import_t *imp)
          break;
       case VCODE_OP_NULL:
          import_null(mu, imp, i);
+         break;
+      case VCODE_OP_UNDEFINED:
+         import_undefined(mu, imp, i);
          break;
       case VCODE_OP_NEW:
          import_new(mu, imp, i);

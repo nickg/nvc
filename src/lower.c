@@ -2940,12 +2940,18 @@ static vcode_reg_t lower_var_ref(lower_unit_t *lu, tree_t decl, expr_ctx_t ctx)
    if (ptr_reg != VCODE_INVALID_REG) {
       if (ctx == EXPR_LVALUE)
          return ptr_reg;
-      else if (type_is_scalar(type))
-         return emit_load_indirect(ptr_reg);
-      else if (have_uarray_ptr(ptr_reg))
-         return emit_load_indirect(ptr_reg);
-      else
-         return ptr_reg;
+      else {
+         vcode_type_t check_type = vcode_reg_type(ptr_reg);
+         if (vtype_kind(check_type) == VCODE_TYPE_POINTER)
+            check_type = vtype_pointed(check_type);
+
+         if (type_is_scalar(type) && vtype_kind(vcode_reg_type(ptr_reg)) == VCODE_TYPE_POINTER)
+            return emit_load_indirect(ptr_reg);
+         else if (have_uarray_ptr(ptr_reg))
+            return emit_load_indirect(ptr_reg);
+         else
+            return ptr_reg;
+      }
    }
    else if (type_is_array(type) && type_const_bounds(type))
       return emit_index(var, VCODE_INVALID_REG);
