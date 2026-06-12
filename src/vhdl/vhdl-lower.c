@@ -111,8 +111,10 @@ const type_info_t *type_info(mir_unit_t *mu, type_t type)
          tree_t r = type_dim(type, 0);
          int64_t low, high;
          const bool folded = folded_bounds(r, &low, &high);
-         if (folded)
+         if (folded) {
             ti->type = mir_int_type(mu, low, high);
+            ti->stamp = mir_int_stamp(mu, low, high);
+         }
          else
             ti->type = mir_int_type(mu, INT64_MIN, INT64_MAX);
 
@@ -121,8 +123,12 @@ const type_info_t *type_info(mir_unit_t *mu, type_t type)
       break;
 
    case T_ENUM:
-      ti->type = mir_int_type(mu, 0, type_enum_literals(type) - 1);
-      ti->bounds = mir_uarray_type(mu, 1, ti->type);
+      {
+         const int nlits = type_enum_literals(type);
+         ti->type = mir_int_type(mu, 0, nlits - 1);
+         ti->bounds = mir_uarray_type(mu, 1, ti->type);
+         ti->stamp = mir_int_stamp(mu, 0, nlits - 1);
+      }
       break;
 
    case T_RECORD:
@@ -157,8 +163,10 @@ const type_info_t *type_info(mir_unit_t *mu, type_t type)
          tree_t r = type_dim(type, 0);
          double low, high;
          const bool folded = folded_bounds_real(r, &low, &high);
-         if (folded)
+         if (folded) {
             ti->type = mir_real_type(mu, low, high);
+            ti->stamp = mir_real_stamp(mu, low, high);
+         }
          else
             ti->type = mir_double_type(mu);
 
@@ -227,16 +235,86 @@ static mir_value_t get_bounds_var(vhdl_gen_t *g, const type_info_t *ti)
    }
 }
 
-static void check_scalar_bounds(vhdl_gen_t *g, const type_info_t *ti,
-                                mir_value_t value, tree_t where)
+static mir_type_t get_func_result_type(vhdl_gen_t *g, type_t result)
 {
-   mir_value_t bounds = get_bounds_var(g, ti);
-   mir_value_t left = mir_build_uarray_left(g->mu, bounds, 0);
-   mir_value_t right = mir_build_uarray_right(g->mu, bounds, 0);
-   mir_value_t dir = mir_build_uarray_dir(g->mu, bounds, 0);
+   const type_info_t *ti = type_info(g->mu, result);
+
+   switch (ti->kind) {
+   case T_ARRAY:
+      if (mir_get_class(g->mu, ti->type) == MIR_TYPE_CARRAY)
+         return mir_pointer_type(g->mu, mir_get_elem(g->mu, ti->type));
+      else
+         return ti->type;
+   case T_RECORD:
+      return mir_pointer_type(g->mu, ti->type);
+   default:
+      return ti->type;
+   }
+}
+
+static mir_type_t get_param_type(vhdl_gen_t *g, const type_info_t *ti,
+                                 class_t class, port_mode_t mode)
+{
+   switch (class) {
+   case C_SIGNAL:
+      assert(false);  // TODO
+
+   case C_VARIABLE:
+   case C_DEFAULT:
+   case C_CONSTANT:
+      if (ti->kind == T_ARRAY) {
+         if (mir_get_class(g->mu, ti->type) == MIR_TYPE_CARRAY)
+            return mir_pointer_type(g->mu, mir_get_elem(g->mu, ti->type));
+         else
+            return ti->type;
+      }
+      else if (ti->kind == T_RECORD)
+         return mir_pointer_type(g->mu, ti->type);
+      else if (mode == PORT_OUT || mode == PORT_INOUT)
+         return mir_pointer_type(g->mu, ti->type);
+      else
+         return ti->type;
+
+   case C_FILE:
+      return mir_pointer_type(g->mu, ti->type);
+
+   default:
+      should_not_reach_here();
+   }
+}
+
+static void check_scalar_bounds(vhdl_gen_t *g, const type_info_t *ti,
+                                mir_value_t value, tree_t where, tree_t hint)
+{
+   tree_t r = range_of(ti->tree, 0);
+
+   mir_value_t left, right, dir;
+   int64_t low, high;
+   if (folded_bounds(r, &low, &high)) {
+      if (mir_within_int(g->mu, value, low, high)) {
+         mir_comment(g->mu, "Elided scalar bounds check");
+         return;
+      }
+      else {
+         left = mir_const(g->mu, ti->type, low);
+         right = mir_const(g->mu, ti->type, high);
+         dir = mir_const(g->mu, mir_bool_type(g->mu), RANGE_TO);
+      }
+   }
+   else {
+      mir_value_t bounds = get_bounds_var(g, ti);
+      left = mir_build_uarray_left(g->mu, bounds, 0);
+      right = mir_build_uarray_right(g->mu, bounds, 0);
+      dir = mir_build_uarray_dir(g->mu, bounds, 0);
+   }
+
    mir_value_t locus = mir_build_debug_locus(g->mu, tree_to_object(where));
 
-   mir_build_range_check(g->mu, value, left, right, dir, locus, locus);
+   mir_value_t hint_locus = locus;
+   if (hint != NULL && hint != where)
+      hint_locus = mir_build_debug_locus(g->mu, tree_to_object(hint));
+
+   mir_build_range_check(g->mu, value, left, right, dir, locus, hint_locus);
 }
 
 mir_value_t vhdl_lower_wrap(vhdl_gen_t *g, const type_info_t *ti,
@@ -329,6 +407,120 @@ mir_value_t lower_total_elements(mir_unit_t *mu, const type_info_t *ti,
 }
 #endif
 
+static mir_value_t vhdl_lower_subprogram_arg(vhdl_gen_t *g, tree_t t, int nth,
+                                             mir_value_t context)
+{
+   if (nth >= tree_params(t))
+      return MIR_NULL_VALUE;
+
+   tree_t param = tree_param(t, nth);
+
+   assert(tree_subkind(param) == P_POS);
+   assert(tree_pos(param) == nth);
+
+   tree_t value = tree_value(param);
+   tree_t decl = tree_ref(t);
+   tree_t port = tree_port(decl, nth);
+
+   type_t value_type = tree_type(value);
+   type_t port_type = tree_type(port);
+
+   const class_t class = tree_class(port);
+   const port_mode_t mode = tree_subkind(port);
+
+   mir_value_t reg;
+   if (class == C_SIGNAL && tree_kind(value) == T_AGGREGATE)
+      assert(false);  // TODO
+   else if (class == C_SIGNAL || class == C_FILE || mode != PORT_IN)
+      assert(false);  // TODO
+   else if (tree_kind(value) == T_OPEN)
+      assert(false);  // TODO
+   else
+      reg = vhdl_lower_rvalue(g, value);
+
+   if (type_is_array(value_type))
+      assert(false);  // TODO
+   else if (class == C_SIGNAL || class == C_FILE)
+      return reg;
+   else if (mode == PORT_OUT || !type_is_scalar(port_type))
+      return reg;
+   else if (mode == PORT_INOUT)
+      assert(false);  // TODO
+   else {
+      check_scalar_bounds(g, type_info(g->mu, port_type), reg, value, port);
+      return reg;
+   }
+}
+
+static mir_value_t vhdl_lower_arith(vhdl_gen_t *g, tree_t t,
+                                    subprogram_kind_t kind,
+                                    mir_value_t arg0, mir_value_t arg1)
+{
+   const type_info_t *ti = type_info(g->mu, tree_type(t));
+
+   switch (kind) {
+   case S_ADD:
+      if (ti->kind == T_INTEGER) {
+         mir_value_t locus = mir_build_debug_locus(g->mu, tree_to_object(t));
+         return mir_build_trap_add(g->mu, ti->type, arg0, arg1, locus);
+      }
+      else
+         return mir_build_add(g->mu, ti->type, arg0, arg1);
+   case S_MUL:
+      if (ti->kind == T_INTEGER) {
+         mir_value_t locus = mir_build_debug_locus(g->mu, tree_to_object(t));
+         return mir_build_trap_mul(g->mu, ti->type, arg0, arg1, locus);
+      }
+      else
+         return mir_build_mul(g->mu, ti->type, arg0, arg1);
+   case S_SUB:
+      if (ti->kind == T_INTEGER) {
+         mir_value_t locus = mir_build_debug_locus(g->mu, tree_to_object(t));
+         return mir_build_trap_sub(g->mu, ti->type, arg0, arg1, locus);
+      }
+      else
+         return mir_build_sub(g->mu, ti->type, arg0, arg1);
+   case S_MOD:
+      return mir_build_mod(g->mu, ti->type, arg0, arg1);
+   case S_REM:
+      return mir_build_rem(g->mu, ti->type, arg0, arg1);
+   case S_DIV:
+      return mir_build_div(g->mu, ti->type, arg0, arg1);
+   case S_EXP:
+      {
+         mir_value_t locus = mir_build_debug_locus(g->mu, tree_to_object(t));
+         return mir_build_trap_exp(g->mu, ti->type, arg0, arg1, locus);
+      }
+   default:
+      should_not_reach_here();
+   }
+}
+
+static mir_value_t vhdl_lower_builtin(vhdl_gen_t *g, tree_t t,
+                                      subprogram_kind_t builtin,
+                                      mir_value_t out[2])
+{
+   if (vhdl_is_short_circuit(builtin))
+      assert(false);
+
+   mir_value_t arg0 = vhdl_lower_subprogram_arg(g, t, 0, MIR_NULL_VALUE);
+   mir_value_t arg1 = vhdl_lower_subprogram_arg(g, t, 1, MIR_NULL_VALUE);
+
+   if (out != NULL) {
+      out[0] = arg0;
+      out[1] = arg1;
+   }
+
+   switch (builtin) {
+   case S_MUL:
+   case S_ADD:
+   case S_SUB:
+      return vhdl_lower_arith(g, t, builtin, arg0, arg1);
+   default:
+      CANNOT_HANDLE(t);
+   }
+}
+
 static mir_value_t vhdl_lower_literal(vhdl_gen_t *g, tree_t t)
 {
    const type_info_t *ti = type_info(g->mu, tree_type(t));
@@ -351,15 +543,48 @@ static mir_value_t vhdl_lower_literal(vhdl_gen_t *g, tree_t t)
 static mir_value_t vhdl_lower_fcall(vhdl_gen_t *g, tree_t t)
 {
    tree_t decl = tree_ref(t);
+
+   const subprogram_kind_t kind = tree_subkind(decl);
+   if (is_open_coded_builtin(kind))
+      return vhdl_lower_builtin(g, t, kind, NULL);
+
    const type_info_t *ti = type_info(g->mu, type_result(tree_type(decl)));
 
    return mir_build_fcall(g->mu, tree_ident2(decl), ti->type, ti->stamp,
                           NULL, 0);
 }
 
+static mir_value_t vhdl_lower_param_ref(vhdl_gen_t *g, tree_t t)
+{
+   int hops = 0;
+   mir_value_t value = mir_search_object(g->mu, t, &hops);
+   if (mir_is_null(value)) {
+      mir_dump(g->mu);
+      fatal_trace("missing value for parameter %pI", tree_ident(t));
+   }
+
+   assert(hops == 0);
+   assert(value.tag == MIR_TAG_PARAM);
+   return value;
+}
+
+static mir_value_t vhdl_lower_ref(vhdl_gen_t *g, tree_t t)
+{
+   tree_t decl = tree_ref(t);
+
+   switch (tree_kind(decl)) {
+   case T_PARAM_DECL:
+      return vhdl_lower_param_ref(g, decl);
+   default:
+      CANNOT_HANDLE(decl);
+   }
+}
+
 mir_value_t vhdl_lower_rvalue(vhdl_gen_t *g, tree_t t)
 {
    switch (tree_kind(t)) {
+   case T_REF:
+      return vhdl_lower_ref(g, t);
    case T_LITERAL:
       return vhdl_lower_literal(g, t);
    case T_FCALL:
@@ -380,7 +605,7 @@ static void vhdl_lower_const_decl(vhdl_gen_t *g, tree_t t)
 
    mir_value_t init = vhdl_lower_rvalue(g, tree_value(t));
    if (type_is_scalar(ti->tree))
-      check_scalar_bounds(g, ti, init, t);
+      check_scalar_bounds(g, ti, init, t, t);
 
    mir_build_store(g->mu, var, init);
 }
@@ -441,6 +666,11 @@ static void vhdl_lower_subtype_decl(vhdl_gen_t *g, tree_t t)
       should_not_reach_here();
 }
 
+static void vhdl_lower_type_decl(vhdl_gen_t *g, tree_t t)
+{
+
+}
+
 static void vhdl_lower_decls(vhdl_gen_t *g, tree_t t)
 {
    const int ndecls = tree_decls(t);
@@ -449,15 +679,77 @@ static void vhdl_lower_decls(vhdl_gen_t *g, tree_t t)
       switch (tree_kind(d)) {
       case T_FUNC_DECL:
          break;
+      case T_TYPE_DECL:
+         vhdl_lower_type_decl(g, d);
+         break;
       case T_SUBTYPE_DECL:
          vhdl_lower_subtype_decl(g, d);
          break;
       case T_CONST_DECL:
          vhdl_lower_const_decl(g, d);
          break;
+      case T_ATTR_DECL:
+      case T_ATTR_SPEC:
+         break;
       default:
          CANNOT_HANDLE(d);
       }
+   }
+}
+
+static void vhdl_lower_return(vhdl_gen_t *g, tree_t t)
+{
+   mir_value_t result = MIR_NULL_VALUE;
+   if (tree_has_value(t)) {
+      tree_t value = tree_value(t);
+      const type_info_t *ti = type_info(g->mu, tree_type(value));
+
+      result = vhdl_lower_rvalue(g, value);
+
+      if (type_is_scalar(ti->tree))
+         check_scalar_bounds(g, ti, result, value, value);
+      else if (type_is_access(ti->tree))
+         should_not_reach_here();
+      else if (type_is_array(ti->tree))
+         should_not_reach_here();
+   }
+
+   mir_build_return(g->mu, result);
+}
+
+static void vhdl_lower_stmts(vhdl_gen_t *g, tree_t t)
+{
+   const int nstmts = tree_stmts(t);
+   for (int i = 0; i < nstmts; i++) {
+      tree_t s = tree_stmt(t, i);
+      switch (tree_kind(s)) {
+      case T_RETURN:
+         vhdl_lower_return(g, s);
+         break;
+      default:
+         CANNOT_HANDLE(s);
+      }
+   }
+}
+
+static void vhdl_lower_subprogram_ports(vhdl_gen_t *g, tree_t t,
+                                        bool params_as_vars)
+{
+   const int nports = tree_ports(t);
+   for (int i = 0; i < nports; i++) {
+      tree_t p = tree_port(t, i);
+
+      const class_t class = tree_class(p);
+      const port_mode_t mode = tree_subkind(p);
+
+      const type_info_t *ti = type_info(g->mu, tree_type(p));
+      mir_type_t type = get_param_type(g, ti, class, mode);
+
+      mir_value_t preg = mir_add_param(g->mu, type, ti->stamp, tree_ident(p));
+      if (params_as_vars)
+         assert(false);
+      else
+         mir_put_object(g->mu, p, preg);
    }
 }
 
@@ -481,6 +773,26 @@ static void vhdl_lower_package(vhdl_gen_t *g, tree_t t)
    mir_build_return(g->mu, MIR_NULL_VALUE);
 }
 
+static void vhdl_lower_func_body(vhdl_gen_t *g, tree_t t)
+{
+   type_t result = type_result(tree_type(t));
+   mir_set_result(g->mu, get_func_result_type(g, result));
+
+   mir_type_t t_context = mir_context_type(g->mu, mir_get_parent(g->mu));
+   mir_add_param(g->mu, t_context, MIR_NULL_STAMP, ident_new("context"));
+
+   const bool has_subprograms = false;
+   vhdl_lower_subprogram_ports(g, t, has_subprograms);
+
+   vhdl_lower_decls(g, t);
+   vhdl_lower_stmts(g, t);
+
+   if (!mir_block_finished(g->mu, MIR_NULL_BLOCK)) {
+      mir_value_t locus = mir_build_debug_locus(g->mu, tree_to_object(t));
+      mir_build_unreachable(g->mu, locus);
+   }
+}
+
 static void vhdl_lower_cleanup(vhdl_gen_t *g)
 {
 
@@ -501,6 +813,9 @@ void vhdl_lower_deferred(mir_unit_t *mu, object_t *obj)
       break;
    case T_PACK_BODY:
       vhdl_lower_pack_body(&g, t);
+      break;
+   case T_FUNC_BODY:
+      vhdl_lower_func_body(&g, t);
       break;
    default:
       CANNOT_HANDLE(t);

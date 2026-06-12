@@ -919,14 +919,25 @@ END_TEST
 
 START_TEST(test_func1)
 {
+   opt_set_int(OPT_LOWER_MIR, 1);
+
    input_from_file(TESTDIR "/lower/func1.vhd");
 
-   const error_t expect[] = {
-      { -1, NULL }
-   };
-   expect_errors(expect);
-
    run_elab();
+
+   {
+      mir_unit_t *mu = find_unit2("WORK.FUNC1.ADD1(I)I");
+
+      static const mir_match_t bb0[] = {
+         { MIR_OP_DEBUG_LOCUS },
+         { MIR_OP_TRAP_ADD, PARAM("X"), CONST(1) },
+         { MIR_OP_CONST, INT64(INT32_MIN) },
+         { MIR_OP_CONST, INT64(INT32_MAX) },
+         { MIR_OP_RANGE_CHECK },
+         { MIR_OP_RETURN },
+      };
+      mir_match(mu, 0, bb0);
+   }
 
    vcode_unit_t v0 = find_unit("WORK.FUNC1.P1");
    vcode_select_unit(v0);
@@ -949,6 +960,8 @@ START_TEST(test_func1)
    };
 
    CHECK_BB(1);
+
+   fail_if_errors();
 }
 END_TEST
 
@@ -956,12 +969,9 @@ START_TEST(test_issue94)
 {
    input_from_file(TESTDIR "/lower/issue94.vhd");
 
-   const error_t expect[] = {
-      { -1, NULL }
-   };
-   expect_errors(expect);
-
    run_elab();
+
+   fail_if_errors();
 }
 END_TEST
 
