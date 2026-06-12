@@ -1265,8 +1265,8 @@ START_TEST(test_grlib1)
    fail_unless(tree_ident(width) == ident_new("WIDTH"));
    fail_unless(tree_kind(width) == T_CONST_DECL);
 
-   // This expression is globally static so not folded
-   fail_unless(tree_kind(tree_value(width)) == T_FCALL);
+   // This expression is globally static and successfully folded by our array folder
+   fail_unless(tree_kind(tree_value(width)) == T_LITERAL);
 }
 END_TEST
 

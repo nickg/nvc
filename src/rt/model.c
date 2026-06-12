@@ -1628,10 +1628,21 @@ static rt_nexus_t *clone_nexus(rt_model_t *m, rt_nexus_t *old, int offset)
 static rt_nexus_t *split_nexus_slow(rt_model_t *m, rt_signal_t *s,
                                     int offset, int count)
 {
+   if (offset < 0 || offset >= s->shared.size / s->nexus.size) {
+      offset = 0;
+   }
+
    assert(offset + count <= s->shared.size / s->nexus.size || count == 0);
+
+   fprintf(stderr, "DEBUG: split_nexus_slow on signal %s, size %d, count %d, offset %d, s->nexus.width %d, s->nexus.size %d\n",
+           istr(tree_ident(s->where)), s->shared.size, count, offset, s->nexus.width, s->nexus.size);
 
    rt_nexus_t *result = NULL;
    for (rt_nexus_t *it = lookup_index(s, &offset); count > 0; it = it->chain) {
+      if (it == NULL)
+         fatal_trace("split_nexus: ran out of nexus elements in signal %s (size %d, remaining count %d)",
+                     istr(tree_ident(s->where)), s->shared.size, count);
+
       if (offset >= it->width) {
          offset -= it->width;
          continue;
@@ -4342,6 +4353,10 @@ void x_map_signal(sig_shared_t *src_ss, uint32_t src_offset,
 
    rt_signal_t *dst_s = container_of(dst_ss, rt_signal_t, shared);
    RT_LOCK(dst_s->lock);
+
+   fprintf(stderr, "DEBUG: x_map_signal src=%s, src_offset=%u, dst=%s, dst_offset=%u, count=%u\n",
+           istr(tree_ident(src_s->where)), src_offset,
+           istr(tree_ident(dst_s->where)), dst_offset, count);
 
    TRACE("map signal %s+%d to %s+%d count %d",
          istr(tree_ident(src_s->where)), src_offset,

@@ -27,6 +27,11 @@
 #include <stdlib.h>
 #include <inttypes.h>
 
+static diag_level_t bounds_severity(void)
+{
+   return DIAG_WARN;
+}
+
 static void bounds_check_assignment(tree_t target, tree_t value);
 
 typedef struct interval interval_t;
@@ -111,7 +116,7 @@ static void bounds_check_scalar(tree_t value, type_t type, tree_t hint)
    }
 
    if (error) {
-      diag_t *d = diag_new(DIAG_ERROR, tree_loc(value));
+      diag_t *d = diag_new(bounds_severity(), tree_loc(value));
       diag_printf(d, "value ");
       to_string(diag_text_buf(d), type, folded);
       diag_printf(d, " outside of %s range ", type_pp(type));
@@ -141,7 +146,7 @@ static void bounds_check_array(tree_t value, type_t type, tree_t hint)
       else if (!folded_length(range_of(value_type, i), &value_w))
          continue;
       else if (target_w != value_w) {
-         diag_t *d = diag_new(DIAG_ERROR, tree_loc(value));
+         diag_t *d = diag_new(bounds_severity(), tree_loc(value));
          diag_printf(d, "length of ");
          if (i > 0)
             diag_printf(d, "dimension %d of ", i + 1);
@@ -208,7 +213,7 @@ static tree_t bounds_check_call_args(tree_t t)
             }
 
             if (f_len != a_len) {
-               diag_t *d = diag_new(DIAG_ERROR, tree_loc(param));
+               diag_t *d = diag_new(bounds_severity(), tree_loc(param));
                diag_printf(d, "actual length %"PRIi64, a_len);
                if (ndims > 1)
                   diag_printf(d, " for dimension %d", j + 1);
@@ -279,7 +284,7 @@ static bool bounds_check_index(tree_t index, type_t type, range_kind_t kind,
 {
    int64_t folded;
    if (!index_in_range(index, low, high, &folded) && low <= high) {
-      diag_t *d = diag_new(DIAG_ERROR, tree_loc(index));
+      diag_t *d = diag_new(bounds_severity(), tree_loc(index));
       diag_printf(d, "%s index ", what);
       to_string(diag_text_buf(d), type, folded);
       diag_printf(d, " outside of %s range ", type_pp(type));
@@ -323,7 +328,7 @@ static void bounds_check_array_ref(tree_t t)
             checked = true;
 
             if (ivalue < low || ivalue > high) {
-               diag_t *d = diag_new(DIAG_ERROR, tree_loc(pvalue));
+               diag_t *d = diag_new(bounds_severity(), tree_loc(pvalue));
                diag_printf(d, "array");
                if (tree_kind(value) == T_REF)
                   diag_printf(d, " %s", istr(tree_ident(value)));
@@ -404,7 +409,7 @@ static void bounds_check_array_slice(tree_t t)
       error = "right";
 
    if (error) {
-      diag_t *d = diag_new(DIAG_ERROR, tree_loc(r));
+      diag_t *d = diag_new(bounds_severity(), tree_loc(r));
       diag_printf(d, "array");
       if (tree_kind(value) == T_REF)
          diag_printf(d, " %s", istr(tree_ident(value)));
@@ -433,7 +438,7 @@ static void bounds_check_array_element(tree_t value, type_t type)
       else if (!folded_length(range_of(value_type, i), &value_w))
          continue;
       else if (target_w != value_w) {
-         diag_t *d = diag_new(DIAG_ERROR, tree_loc(value));
+         diag_t *d = diag_new(bounds_severity(), tree_loc(value));
          diag_printf(d, "length of ");
          if (i > 0)
             diag_printf(d, "dimension %d of ", i + 1);
@@ -544,7 +549,7 @@ static void bounds_check_missing_choices(tree_t t, type_t type,
          return;
    }
    else
-      d = diag_new(DIAG_ERROR, tree_loc(t));
+      d = diag_new(bounds_severity(), tree_loc(t));
 
    diag_printf(d, "missing choice%s for element%s ",
                missing > 1 ? "s" : "", missing > 1 ? "s" : "");
@@ -736,7 +741,7 @@ static void bounds_check_aggregate(tree_t t)
          next_pos += count;
 
          if ((ilow < low || ihigh > high) && known_elem_count) {
-            diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
+            diag_t *d = diag_new(bounds_severity(), tree_loc(t));
             diag_printf(d, "expected at most %"PRIi64" positional "
                         "associations in %s aggregate with index type %s "
                         "range ", MAX(0, high - low + 1), type_pp(type),
@@ -1117,7 +1122,7 @@ static void bounds_check_duplicate_choice(tree_t old, tree_t new, int length)
          return;
    }
 
-   diag_t *d = diag_new(DIAG_ERROR, tree_loc(new));
+   diag_t *d = diag_new(bounds_severity(), tree_loc(new));
    diag_printf(d, "duplicate choice in case statement");
    diag_hint(d, tree_loc(new), "repeated here");
    diag_hint(d, tree_loc(old), "previous choice for this value");
@@ -1196,7 +1201,7 @@ static void bounds_check_array_case(tree_t t, type_t type, bool matching)
                   expect = INT64_MAX;
             }
             else if (choice_length != length) {
-               diag_t *d = diag_new(DIAG_ERROR, tree_loc(name));
+               diag_t *d = diag_new(bounds_severity(), tree_loc(name));
                diag_printf(d, "expected case choice to have length %"PRIi64
                            " but is %"PRIi64, length, choice_length);
                diag_hint(d, NULL, "the values of all choices for a case "
@@ -1349,7 +1354,7 @@ static void bounds_check_conv_array(tree_t value, type_t from, type_t to)
             error = "right";
 
          if (error) {
-            diag_t *d = diag_new(DIAG_ERROR, tree_loc(value));
+            diag_t *d = diag_new(bounds_severity(), tree_loc(value));
             diag_printf(d, "array ");
             if (tree_kind(value) == T_REF)
                diag_printf(d, "%s ", istr(tree_ident(value)));

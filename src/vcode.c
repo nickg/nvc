@@ -5971,6 +5971,7 @@ void emit_unreachable(vcode_reg_t locus)
 vcode_reg_t emit_undefined(vcode_type_t type, vcode_stamp_t stamp)
 {
    active_unit->flags |= UNIT_UNDEFINED;
+   fprintf(stderr, "DEBUG: emit_undefined called in unit %s\n", istr(active_unit->name));
 
    op_t *op = vcode_add_op(VCODE_OP_UNDEFINED);
    op->result = vcode_add_reg(type, stamp);

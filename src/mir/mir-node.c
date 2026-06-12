@@ -1823,6 +1823,11 @@ mir_value_t mir_build_null(mir_unit_t *mu, mir_type_t type)
    return result;
 }
 
+mir_value_t mir_build_undefined(mir_unit_t *mu, mir_type_t type)
+{
+   return mir_build_0(mu, MIR_OP_UNDEFINED, type, MIR_NULL_STAMP);
+}
+
 mir_value_t mir_build_new(mir_unit_t *mu, mir_type_t type, mir_stamp_t stamp,
                           mir_value_t count)
 {

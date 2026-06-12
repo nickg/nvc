@@ -1192,6 +1192,29 @@ static void irgen_op_null(jit_irgen_t *g, mir_value_t n)
    }
 }
 
+static void irgen_op_undefined(jit_irgen_t *g, mir_value_t n)
+{
+   mir_type_t type = mir_get_type(g->mu, n);
+   switch (mir_get_class(g->mu, type)) {
+   case MIR_TYPE_POINTER:
+   case MIR_TYPE_ACCESS:
+   case MIR_TYPE_CONTEXT:
+      g->map[n.id] = jit_null_ptr();
+      break;
+   case MIR_TYPE_FILE:
+   case MIR_TYPE_INT:
+   case MIR_TYPE_OFFSET:
+      g->map[n.id] = jit_value_from_int64(0);
+      break;
+   case MIR_TYPE_REAL:
+      g->map[n.id] = jit_value_from_double(0.0);
+      break;
+   default:
+      g->map[n.id] = jit_null_ptr();
+      break;
+   }
+}
+
 static void irgen_op_const(jit_irgen_t *g, mir_value_t n)
 {
    int64_t cval;
@@ -4800,6 +4823,7 @@ static void irgen_block(jit_irgen_t *g, mir_block_t block)
       case MIR_OP_CONST_RECORD:
       case MIR_OP_CONST_REP:
       case MIR_OP_NULL:
+      case MIR_OP_UNDEFINED:
       case MIR_OP_DEBUG_LOCUS:
       case MIR_OP_ADDRESS_OF:
          assert(g->map[n.id].kind != JIT_VALUE_INVALID);
@@ -5621,6 +5645,9 @@ static void irgen_preallocate(jit_irgen_t *g, mir_block_t block)
          break;
       case MIR_OP_NULL:
          irgen_op_null(g, n);
+         break;
+      case MIR_OP_UNDEFINED:
+         irgen_op_undefined(g, n);
          break;
       case MIR_OP_DEBUG_LOCUS:
          irgen_op_debug_locus(g, n);

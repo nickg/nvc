@@ -268,6 +268,7 @@ typedef enum {
    MIR_OP_GET_COUNTERS,
    MIR_OP_INSTANCE_INIT,
    MIR_OP_SCHED_ACTIVE,
+   MIR_OP_UNDEFINED,
 } mir_op_t;
 
 typedef enum {
@@ -562,6 +563,7 @@ void mir_build_set(mir_unit_t *mu, mir_value_t dest, mir_value_t value,
 mir_value_t mir_build_alloc(mir_unit_t *mu, mir_type_t type, mir_stamp_t stamp,
                             mir_value_t count);
 mir_value_t mir_build_null(mir_unit_t *mu, mir_type_t type);
+mir_value_t mir_build_undefined(mir_unit_t *mu, mir_type_t type);
 mir_value_t mir_build_new(mir_unit_t *mu, mir_type_t type, mir_stamp_t stamp,
                           mir_value_t count);
 mir_value_t mir_build_all(mir_unit_t *mu, mir_value_t access);
