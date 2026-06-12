@@ -384,12 +384,10 @@ static mir_unit_t *find_unit2(const char *name)
 
    ident_t id = ident_new(name);
 
-   vcode_unit_t vu = unit_registry_get(ur, id);
-   if (vu == NULL)
-      fail("missing vcode unit for %s", name);
+   (void)unit_registry_get(ur, id);
 
    mir_unit_t *mu = mir_get_unit(mc, id);
-   ck_assert_ptr_nonnull(mu);
+   ck_assert_msg(mu != NULL, "missing MIR unit %s", name);
 
    return mu;
 }
@@ -7114,22 +7112,16 @@ END_TEST
 
 START_TEST(test_types1)
 {
+   opt_set_int(OPT_LOWER_MIR, 1);
+
    set_standard(STD_08);
 
    input_from_file(TESTDIR "/lower/types1.vhd");
 
-   tree_t p1 = parse_check_and_simplify(T_PACKAGE, T_PACKAGE, -1);
-   tree_t p2 = parse_check_and_simplify(T_PACKAGE);
-
-   mir_context_t *mc = get_mir();
-
-   mir_defer(mc, tree_ident(p1), NULL, MIR_UNIT_PACKAGE,
-             vhdl_lower_deferred, tree_to_object(p1));
-   mir_defer(mc, tree_ident(p2), NULL, MIR_UNIT_PACKAGE,
-             vhdl_lower_deferred, tree_to_object(p2));
+   parse_check_and_simplify(T_PACKAGE, T_PACKAGE, T_PACKAGE);
 
    {
-      mir_unit_t *mu = mir_get_unit(get_mir(), tree_ident(p1));
+      mir_unit_t *mu = find_unit2("WORK.TYPES1_DEF");
 
       static const mir_match_t bb0[] = {
          // MY_INT1
@@ -7150,7 +7142,7 @@ START_TEST(test_types1)
    }
 
    {
-      mir_unit_t *mu = mir_get_unit(get_mir(), tree_ident(p2));
+      mir_unit_t *mu = find_unit2("WORK.TYPES1_USE");
 
       static const mir_match_t bb0[] = {
          // C1
