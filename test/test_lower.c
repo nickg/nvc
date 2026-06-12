@@ -7118,29 +7118,57 @@ START_TEST(test_types1)
 
    input_from_file(TESTDIR "/lower/types1.vhd");
 
-   tree_t p = parse_check_and_simplify(T_PACKAGE, T_PACKAGE);
+   tree_t p1 = parse_check_and_simplify(T_PACKAGE, T_PACKAGE, -1);
+   tree_t p2 = parse_check_and_simplify(T_PACKAGE);
 
-   ident_t name = tree_ident(p);
-   mir_defer(get_mir(), name, NULL, MIR_UNIT_PACKAGE,
-             vhdl_lower_deferred, tree_to_object(p));
+   mir_context_t *mc = get_mir();
 
-   mir_unit_t *mu = mir_get_unit(get_mir(), name);
+   mir_defer(mc, tree_ident(p1), NULL, MIR_UNIT_PACKAGE,
+             vhdl_lower_deferred, tree_to_object(p1));
+   mir_defer(mc, tree_ident(p2), NULL, MIR_UNIT_PACKAGE,
+             vhdl_lower_deferred, tree_to_object(p2));
 
-   static const mir_match_t bb0[] = {
-      // MY_INT1
-      { MIR_OP_FCALL, LINK("WORK.UTIL.EXPENSIVE()I") },
-      { MIR_OP_NULL },
-      { MIR_OP_WRAP, NODE(_), CONST(1), NODE(_) },
-      { MIR_OP_STORE, VAR("WORK.TYPES1.MY_INT1") },
+   {
+      mir_unit_t *mu = mir_get_unit(get_mir(), tree_ident(p1));
 
-      // C1
-      { MIR_OP_DEBUG_LOCUS },
-      { MIR_OP_RANGE_CHECK, CONST(5) },
-      { MIR_OP_STORE, VAR("C1"), CONST(5) },
+      static const mir_match_t bb0[] = {
+         // MY_INT1
+         { MIR_OP_FCALL, LINK("WORK.UTIL.EXPENSIVE()I") },
+         { MIR_OP_NULL },
+         { MIR_OP_WRAP, NODE(_), CONST(1), NODE(_) },
+         { MIR_OP_STORE, VAR("WORK.TYPES1_DEF.MY_INT1") },
 
-      { MIR_OP_RETURN },
-   };
-   mir_match(mu, 0, bb0);
+         // MY_ARRAY1
+         { MIR_OP_NULL },
+         { MIR_OP_FCALL, LINK("WORK.UTIL.EXPENSIVE()I") },
+         { MIR_OP_WRAP, NODE(_), CONST(1), NODE(_) },
+         { MIR_OP_STORE, VAR("WORK.TYPES1_DEF.MY_ARRAY1") },
+
+         { MIR_OP_RETURN },
+      };
+      mir_match(mu, 0, bb0);
+   }
+
+   {
+      mir_unit_t *mu = mir_get_unit(get_mir(), tree_ident(p2));
+
+      static const mir_match_t bb0[] = {
+         // C1
+         { MIR_OP_LINK_PACKAGE, LINK("WORK.TYPES1_DEF") },
+         { MIR_OP_LINK_VAR, LINK("WORK.TYPES1_DEF"), NODE(_),
+           EXTVAR("WORK.TYPES1_DEF.MY_INT1") },
+         { MIR_OP_LOAD },
+         { MIR_OP_UARRAY_LEFT },
+         { MIR_OP_UARRAY_RIGHT },
+         { MIR_OP_UARRAY_DIR },
+         { MIR_OP_DEBUG_LOCUS },
+         { MIR_OP_RANGE_CHECK },
+         { MIR_OP_STORE, VAR("C1") },
+
+         { MIR_OP_RETURN },
+      };
+      mir_match(mu, 0, bb0);
+   }
 
    fail_if_errors();
 }

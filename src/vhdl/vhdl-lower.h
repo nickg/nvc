@@ -25,6 +25,7 @@
 typedef struct {
    type_t      tree;
    mir_type_t  type;
+   mir_type_t  bounds;
    mir_stamp_t stamp;
    type_kind_t kind;
    size_t      size;
