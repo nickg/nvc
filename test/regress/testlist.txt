@@ -1409,3 +1409,4 @@ select23        verilog
 binary9         verilog
 signed6         verilog
 issue1562       gold,fail,2008
+issue1576       normal,2008

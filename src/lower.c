@@ -4602,12 +4602,11 @@ static vcode_reg_t lower_protected_init(lower_unit_t *lu, type_t type,
 static void lower_new_record(lower_unit_t *lu, type_t type,
                              vcode_reg_t dst_ptr, vcode_reg_t src_ptr)
 {
-   if (src_ptr == dst_ptr)
-      return;
-   else if (type_const_bounds(type))
+   type_t base = type_base_recur(type);
+   if (type_const_bounds(base))
       emit_copy(dst_ptr, src_ptr, VCODE_INVALID_REG);
    else {
-      ident_t base_id = type_ident(type_base_recur(type));
+      ident_t base_id = type_ident(base);
       ident_t helper_func = ident_prefix(base_id, ident_new("new"), '$');
 
       vcode_reg_t args[] = { dst_ptr, src_ptr };
