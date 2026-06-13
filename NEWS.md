@@ -4,6 +4,8 @@
   ambiguous (#1560).
 - Fixed reading scalar `out` and `inout` parameters in VHPI foreign
   subprograms (#1570).
+- Fix memory corruption when a record with unconstrained fields is
+  allocated in a procedure (#1576).
 - Several other minor bugs were resolved (#1559, #1562).
 
 ## Version 1.21.0 - 2026-05-23
