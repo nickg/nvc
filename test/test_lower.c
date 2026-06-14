@@ -4790,6 +4790,7 @@ START_TEST(test_vunit5)
       { VCODE_OP_MEMSET },
       { VCODE_OP_WRAP },
       { VCODE_OP_STORE_INDIRECT },
+      { VCODE_OP_FCALL, .func = "WORK.VUNIT5-TEST.REC$new" },
       { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_DEBUG_LOCUS },
       { VCODE_OP_UARRAY_LEN },
