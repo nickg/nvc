@@ -1394,3 +1394,4 @@ issue1517       cover=statement
 issue1559       normal,2008
 issue1562       gold,fail,2008
 issue1576       normal,2008
+issue1581       normal,exit=warning
