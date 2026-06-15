@@ -849,15 +849,15 @@ static void ieee_plus_unsigned_natural(jit_func_t *func, jit_anchor_t *anchor,
    uint8_t *left = args[1].pointer;
    const uint64_t right = args[4].integer;
 
-   // Must be unconditional to generate warning on truncation
-   uint8_t *result = __to_unsigned(func, anchor, tlab, right, size);
-
    if (size == 0) {
       args[0].pointer = NULL;
       args[1].integer = 0;
       args[2].integer = -1;
    }
    else {
+      // Must be unconditional to generate warning on truncation
+      uint8_t *result = __to_unsigned(func, anchor, tlab, right, size);
+
       left = __to_01(tlab, left, size, _X);
 
       if (left[0] == _X || right == 0)
