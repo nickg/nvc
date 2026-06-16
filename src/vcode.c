@@ -3250,8 +3250,6 @@ vcode_unit_t emit_procedure(ident_t name, object_t *obj, vcode_unit_t context)
 
 vcode_unit_t emit_process(ident_t name, object_t *obj, vcode_unit_t context)
 {
-   assert(context->kind == VCODE_UNIT_INSTANCE);
-
    vcode_unit_t vu = xcalloc(sizeof(struct _vcode_unit));
    vu->kind     = VCODE_UNIT_PROCESS;
    vu->name     = name;
