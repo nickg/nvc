@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2021-2024  Nick Gasson
+//  Copyright (C) 2021-2026  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -460,6 +460,8 @@ START_TEST(test_printf1)
    do_printf("  42", "%*.u", 4, 42);
    do_printf("          2147483648", "%*."PRIu64, 20, u64);
    do_printf("   1", "%*.f", 4, 1.2523);
+   do_printf("    1.25", "%*.*f", 8, 2, 1.2523);
+   do_printf("     hel", "%*.*s", 8, 3, "hello");
    do_printf(" xx", "%3s", "xx");
    do_printf("ident", "%pi", id);
    do_printf("IDENT", "%pI", id);

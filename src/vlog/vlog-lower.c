@@ -1187,6 +1187,7 @@ static mir_value_t vlog_lower_systf_param(vlog_gen_t *g, vlog_node_t v)
    case V_STRING:
    case V_NUMBER:
    case V_EMPTY:
+   case V_REAL:
       return MIR_NULL_VALUE;
    case V_UNARY:
    case V_BINARY:

@@ -1,0 +1,4 @@
+** Note: 0ms+0: info         123
+** Warning: 0ms+0: warning hello
+** Error: 0ms+0: error 1.500000
+** Fatal: 0ms+0: fatal

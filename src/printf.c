@@ -62,6 +62,7 @@ typedef struct _printf_arg {
    size_t          len;
    fmt_fn_t        fn;
    printf_value_t  value;
+   int             width;
    int             precision;
 } printf_arg_t;
 
@@ -349,7 +350,9 @@ static int format_i(ostream_t *os, printf_state_t *s, printf_arg_t *arg)
 
 static int format_f(ostream_t *os, printf_state_t *s, printf_arg_t *arg)
 {
-   if (arg->precision != INT_MIN)
+   if (arg->width != INT_MIN)
+      return delegate(os, s, arg, arg->width, arg->precision, arg->value.f);
+   else if (arg->precision != INT_MIN)
       return delegate(os, s, arg, arg->precision, arg->value.f);
    else
       return delegate(os, s, arg, arg->value.f);
@@ -357,7 +360,9 @@ static int format_f(ostream_t *os, printf_state_t *s, printf_arg_t *arg)
 
 static int format_s(ostream_t *os, printf_state_t *s, printf_arg_t *arg)
 {
-   if (arg->precision != INT_MIN)
+   if (arg->width != INT_MIN)
+      return delegate(os, s, arg, arg->width, arg->precision, arg->value.p);
+   else if (arg->precision != INT_MIN)
       return delegate(os, s, arg, arg->precision, arg->value.p);
    else
       return delegate(os, s, arg, arg->value.p);
@@ -416,7 +421,11 @@ int nvc_vfprintf(ostream_t *os, const char *fmt, va_list ap)
          break;
       }
 
-      printf_arg_t arg = { .start = p, .precision = INT_MIN };
+      printf_arg_t arg = {
+         .start = p,
+         .width = INT_MIN,
+         .precision = INT_MIN,
+      };
       bool z_mod = false;
       int l_mod = 0;
    again:
@@ -433,6 +442,7 @@ int nvc_vfprintf(ostream_t *os, const char *fmt, va_list ap)
       case '0'...'9':
          goto again;
       case '*':
+         arg.width = arg.precision;
          arg.precision = va_arg(ap, int);
          goto again;
       case 'd':
