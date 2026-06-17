@@ -13058,17 +13058,23 @@ vcode_unit_t unit_registry_get(unit_registry_t *ur, ident_t ident)
       if (unit == NULL || !is_package(unit))
          return NULL;
 
+      lower_fn_t fn;
       if (tree_kind(unit) == T_PACKAGE && package_needs_body(unit)) {
          tree_t body = body_of(unit);
          if (body == NULL)
             return NULL;
 
-         unit_registry_defer(ur, unit_name, NULL, emit_package,
-                             lower_pack_body, NULL, tree_to_object(body));
+         obj = tree_to_object(body);
+         fn = lower_pack_body;
       }
       else
-         unit_registry_defer(ur, unit_name, NULL, emit_package,
-                             lower_package, NULL, tree_to_object(unit));
+         fn = lower_package;
+
+      if (opt_get_int(OPT_LOWER_MIR))
+         mir_defer(ur->mir, unit_name, NULL, MIR_UNIT_PACKAGE,
+                   vhdl_lower_deferred, obj);
+      else
+         unit_registry_defer(ur, unit_name, NULL, emit_package, fn, NULL, obj);
 
       if (unit_name != ident) {
          // We actually wanted a unit inside this package so need to

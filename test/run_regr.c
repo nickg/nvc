@@ -108,6 +108,7 @@
 #define F_ARRAYS  (1 << 26)
 #define F_SEED    (1 << 27)
 #define F_PERFILE (1 << 28)
+#define F_EXIT    (1 << 29)
 
 typedef struct test test_t;
 typedef struct param param_t;
@@ -139,6 +140,7 @@ struct test {
    char      *define;
    char      *export;
    char      *plusarg;
+   char      *exit;
    unsigned   arrays;
    int        seed;
    double     duration;
@@ -545,6 +547,17 @@ static bool parse_test_list(void)
 
             test->flags |= F_EXPORT;
             test->export = strdup(value + 1);
+         }
+         else if (strncmp(opt, "exit", 4) == 0) {
+            char *value = strchr(opt, '=');
+            if (value == NULL) {
+               fprintf(stderr, "Error on testlist line %d: missing argument to "
+                       "exit option in test %s\n", lineno, name);
+               goto out_close;
+            }
+
+            test->flags |= F_EXIT;
+            test->exit = strdup(value + 1);
          }
          else if (opt[0] == '+')
             test->plusarg = strdup(opt + 1);
@@ -1020,6 +1033,9 @@ static bool run_test(test_t *test)
 
       if (test->flags & F_STOP)
          push_arg(&args, "--stop-time=%s", test->stop);
+
+      if (test->flags & F_EXIT)
+         push_arg(&args, "--exit-severity=%s", test->exit);
 
       if (test->flags & F_WAVE)
          push_arg(&args, "-w");

@@ -2141,15 +2141,20 @@ static type_t apply_type_attribute(tree_t aref)
 static void implicit_signal_attribute(tree_t aref)
 {
    if (find_enclosing(nametab, S_SUBPROGRAM) != NULL) {
-      parse_error(tree_loc(aref), "implicit signal %s cannot be used in a "
-                  "subprogram body", istr(tree_ident(aref)));
+      parse_error(tree_loc(aref), "implicit signal %pI cannot be used in a "
+                  "subprogram body", tree_ident(aref));
       return;
    }
 
-   tree_t b = find_enclosing(nametab, S_CONCURRENT_BLOCK);
-   if (b == NULL) {
-      parse_error(tree_loc(aref), "implicit signal %s cannot be used in "
-                  "this context", istr(tree_ident(aref)));
+   // Signal must be created under process scope if it captures local
+   // constants
+   tree_t container = find_enclosing(nametab, S_PROCESS);
+   if (container == NULL)
+      container = find_enclosing(nametab, S_CONCURRENT_BLOCK);
+
+   if (container == NULL) {
+      parse_error(tree_loc(aref), "implicit signal %pI cannot be used in "
+                  "this context", tree_ident(aref));
       return;
    }
 
@@ -2192,9 +2197,9 @@ static void implicit_signal_attribute(tree_t aref)
       fatal_trace("invalid implicit signal attribute");
    }
 
-   const int ndecls = tree_decls(b);
+   const int ndecls = tree_decls(container);
    for (int i = 0; i < ndecls; i++) {
-      tree_t d = tree_decl(b, i);
+      tree_t d = tree_decl(container, i);
       if (tree_kind(d) != T_IMPLICIT_SIGNAL)
          continue;
       else if (tree_ident(d) != id || tree_subkind(d) != kind)
@@ -2245,7 +2250,7 @@ static void implicit_signal_attribute(tree_t aref)
       tree_set_value(imp, w);
    }
 
-   tree_add_decl(b, imp);
+   tree_add_decl(container, imp);
    tree_set_value(aref, make_ref(imp));
 }
 

@@ -186,4 +186,5 @@ void set_default_options(void)
    opt_set_int(OPT_ELAB_STATS, 0);
    opt_set_str(OPT_RELATIVE_PATH, NULL);
    opt_set_int(OPT_EXCL_VERBOSE, get_int_env("NVC_EXCL_VERBOSE", 0));
+   opt_set_int(OPT_LOWER_MIR, get_int_env("NVC_LOWER_MIR", 0));
 }

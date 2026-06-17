@@ -384,12 +384,10 @@ static mir_unit_t *find_unit2(const char *name)
 
    ident_t id = ident_new(name);
 
-   vcode_unit_t vu = unit_registry_get(ur, id);
-   if (vu == NULL)
-      fail("missing vcode unit for %s", name);
+   (void)unit_registry_get(ur, id);
 
    mir_unit_t *mu = mir_get_unit(mc, id);
-   ck_assert_ptr_nonnull(mu);
+   ck_assert_msg(mu != NULL, "missing MIR unit %s", name);
 
    return mu;
 }
@@ -6829,14 +6827,17 @@ START_TEST(test_issue1280)
 
    run_elab();
 
-   vcode_unit_t vu = find_unit("WORK.ISSUE1280.CMP_TEST.MY_SIG$delayed_2_NS");
+   (void)find_unit("WORK.ISSUE1280.CMP_TEST.PROC_MODEL");
+
+   vcode_unit_t vu =
+      find_unit("WORK.ISSUE1280.CMP_TEST.PROC_MODEL.MY_SIG$delayed_2_NS");
    vcode_select_unit(vu);
 
    EXPECT_BB(0) = {
       { VCODE_OP_VAR_UPREF, .hops = 1, .name = "MY_SIG$delayed_2_NS" },
       { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_CONST, .value = 0 },
-      { VCODE_OP_STORE, .name = "i1" },
+      { VCODE_OP_STORE, .name = "i2" },
       { VCODE_OP_UARRAY_LEN },
       { VCODE_OP_UNWRAP },
       { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
@@ -6848,7 +6849,7 @@ START_TEST(test_issue1280)
    EXPECT_BB(1) = {  // Process entry must be block 1
       { VCODE_OP_CONST, .value = 2000000 },
       { VCODE_OP_CONST, .value = 0 },
-      { VCODE_OP_VAR_UPREF, .hops = 1, .name = "MY_SIG" },
+      { VCODE_OP_VAR_UPREF, .hops = 2, .name = "MY_SIG" },
       { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_FCALL, .func = "WORK.TEST-RTL.T_REAL_RECORD_ARRAY$resolved" },
       { VCODE_OP_VAR_UPREF, .hops = 1, .name = "MY_SIG$delayed_2_NS" },
@@ -6858,7 +6859,7 @@ START_TEST(test_issue1280)
       { VCODE_OP_UARRAY_LEN },
       { VCODE_OP_LENGTH_CHECK },
       { VCODE_OP_CONST, .value = 0 },
-      { VCODE_OP_STORE, .name = "i1" },
+      { VCODE_OP_STORE, .name = "i2" },
       { VCODE_OP_UNWRAP },
       { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
       { VCODE_OP_COND, .target = 7, .target_else = 6 },
@@ -7114,33 +7115,55 @@ END_TEST
 
 START_TEST(test_types1)
 {
+   opt_set_int(OPT_LOWER_MIR, 1);
+
    set_standard(STD_08);
 
    input_from_file(TESTDIR "/lower/types1.vhd");
 
-   tree_t p = parse_check_and_simplify(T_PACKAGE, T_PACKAGE);
+   parse_check_and_simplify(T_PACKAGE, T_PACKAGE, T_PACKAGE);
 
-   ident_t name = tree_ident(p);
-   mir_defer(get_mir(), name, NULL, MIR_UNIT_PACKAGE,
-             vhdl_lower_deferred, tree_to_object(p));
+   {
+      mir_unit_t *mu = find_unit2("WORK.TYPES1_DEF");
 
-   mir_unit_t *mu = mir_get_unit(get_mir(), name);
+      static const mir_match_t bb0[] = {
+         // MY_INT1
+         { MIR_OP_FCALL, LINK("WORK.UTIL.EXPENSIVE()I") },
+         { MIR_OP_NULL },
+         { MIR_OP_WRAP, NODE(_), CONST(1), NODE(_) },
+         { MIR_OP_STORE, VAR("WORK.TYPES1_DEF.MY_INT1") },
 
-   static const mir_match_t bb0[] = {
-      // MY_INT1
-      { MIR_OP_FCALL, LINK("WORK.UTIL.EXPENSIVE()I") },
-      { MIR_OP_NULL },
-      { MIR_OP_WRAP, NODE(_), CONST(1), NODE(_) },
-      { MIR_OP_STORE, VAR("WORK.TYPES1.MY_INT1") },
+         // MY_ARRAY1
+         { MIR_OP_NULL },
+         { MIR_OP_FCALL, LINK("WORK.UTIL.EXPENSIVE()I") },
+         { MIR_OP_WRAP, NODE(_), CONST(1), NODE(_) },
+         { MIR_OP_STORE, VAR("WORK.TYPES1_DEF.MY_ARRAY1") },
 
-      // C1
-      { MIR_OP_DEBUG_LOCUS },
-      { MIR_OP_RANGE_CHECK, CONST(5) },
-      { MIR_OP_STORE, VAR("C1"), CONST(5) },
+         { MIR_OP_RETURN },
+      };
+      mir_match(mu, 0, bb0);
+   }
 
-      { MIR_OP_RETURN },
-   };
-   mir_match(mu, 0, bb0);
+   {
+      mir_unit_t *mu = find_unit2("WORK.TYPES1_USE");
+
+      static const mir_match_t bb0[] = {
+         // C1
+         { MIR_OP_LINK_PACKAGE, LINK("WORK.TYPES1_DEF") },
+         { MIR_OP_LINK_VAR, LINK("WORK.TYPES1_DEF"), NODE(_),
+           EXTVAR("WORK.TYPES1_DEF.MY_INT1") },
+         { MIR_OP_LOAD },
+         { MIR_OP_UARRAY_LEFT },
+         { MIR_OP_UARRAY_RIGHT },
+         { MIR_OP_UARRAY_DIR },
+         { MIR_OP_DEBUG_LOCUS },
+         { MIR_OP_RANGE_CHECK },
+         { MIR_OP_STORE, VAR("C1") },
+
+         { MIR_OP_RETURN },
+      };
+      mir_match(mu, 0, bb0);
+   }
 
    fail_if_errors();
 }

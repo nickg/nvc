@@ -50,9 +50,10 @@ static void fill_array_type_info(mir_unit_t *mu, type_t type, type_info_t *ti)
       }
 
       ti->type = mir_carray_type(mu, ti->size * ti->stride, base->type);
+      ti->bounds = mir_uarray_type(mu, ti->udims, base->type);
    }
    else {
-      ti->type = mir_uarray_type(mu, ti->udims, base->type);
+      ti->type = ti->bounds = mir_uarray_type(mu, ti->udims, base->type);
       ti->size = SIZE_MAX;
    }
 
@@ -69,6 +70,7 @@ const type_info_t *type_info(mir_unit_t *mu, type_t type)
    ti->tree   = type;
    ti->type   = MIR_NULL_TYPE;
    ti->stamp  = MIR_NULL_STAMP;
+   ti->bounds = MIR_NULL_TYPE;
    ti->kind   = type_base_kind(type);
    ti->ndims  = 0;
    ti->udims  = 0;
@@ -80,7 +82,9 @@ const type_info_t *type_info(mir_unit_t *mu, type_t type)
       if (type_is_array(type))
          fill_array_type_info(mu, type, ti);
       else {
-         ti->type = type_info(mu, type_base(type))->type;
+         const type_info_t *base = type_info(mu, type_base(type));
+         ti->type   = base->type;
+         ti->bounds = base->bounds;
 
          if (type_is_integer(type) || type_is_enum(type)) {
             tree_t r = range_of(type, 0);
@@ -111,11 +115,14 @@ const type_info_t *type_info(mir_unit_t *mu, type_t type)
             ti->type = mir_int_type(mu, low, high);
          else
             ti->type = mir_int_type(mu, INT64_MIN, INT64_MAX);
+
+         ti->bounds = mir_uarray_type(mu, 1, ti->type);
       }
       break;
 
    case T_ENUM:
       ti->type = mir_int_type(mu, 0, type_enum_literals(type) - 1);
+      ti->bounds = mir_uarray_type(mu, 1, ti->type);
       break;
 
    case T_RECORD:
@@ -126,6 +133,7 @@ const type_info_t *type_info(mir_unit_t *mu, type_t type)
             fields[i] = type_info(mu, tree_type(type_field(type, i)))->type;
 
          ti->type = mir_record_type(mu, type_ident(type), fields, nfields);
+         ti->bounds = ti->type;
       }
       break;
 
@@ -153,6 +161,8 @@ const type_info_t *type_info(mir_unit_t *mu, type_t type)
             ti->type = mir_real_type(mu, low, high);
          else
             ti->type = mir_double_type(mu);
+
+         ti->bounds = mir_uarray_type(mu, 1, ti->type);
       }
       break;
 
@@ -195,11 +205,26 @@ static mir_value_t get_bounds_var(vhdl_gen_t *g, const type_info_t *ti)
 
    int hops;
    mir_value_t var = mir_search_object(g->mu, ti->tree, &hops);
-   assert(!mir_is_null(var));
-   assert(var.tag == MIR_TAG_VAR);
-   assert(hops == 0);
+   if (mir_is_null(var)) {
+      ident_t name = type_ident(ti->tree), it = name;
+      ident_t prefix = ident_walk_selected(&it);
+      ident_t next = ident_walk_selected(&it);
+      mir_value_t pkg = MIR_NULL_VALUE;
+      for (; it != NULL; next = ident_walk_selected(&it)) {
+         ident_t uname = ident_prefix(prefix, next, '.');
+         pkg = mir_build_link_package(g->mu, uname);
+         prefix = uname;
+      }
 
-   return mir_build_load(g->mu, var);
+      mir_value_t ptr = mir_build_link_var(g->mu, pkg, name, ti->bounds);
+      return mir_build_load(g->mu, ptr);
+   }
+   else {
+      assert(var.tag == MIR_TAG_VAR);
+      assert(hops == 0);
+
+      return mir_build_load(g->mu, var);
+   }
 }
 
 static void check_scalar_bounds(vhdl_gen_t *g, const type_info_t *ti,
@@ -367,7 +392,6 @@ static void vhdl_lower_subtype_decl(vhdl_gen_t *g, tree_t t)
    const type_info_t *ti = type_info(g->mu, tree_type(t));
 
    if (type_is_scalar(ti->tree)) {
-      mir_type_t t_bounds = mir_uarray_type(g->mu, 1, ti->type);
       mir_type_t t_bool = mir_bool_type(g->mu);
       mir_type_t t_ptr = mir_pointer_type(g->mu, ti->type);
 
@@ -383,7 +407,31 @@ static void vhdl_lower_subtype_decl(vhdl_gen_t *g, tree_t t)
       mir_value_t null = mir_build_null(g->mu, t_ptr);
       mir_value_t bounds = mir_build_wrap(g->mu, null, dims, 1);
 
-      mir_value_t var = mir_add_var(g->mu, t_bounds, ti->stamp,
+      mir_value_t var = mir_add_var(g->mu, ti->bounds, ti->stamp,
+                                    type_ident(ti->tree), MIR_VAR_CONST);
+      mir_build_store(g->mu, var, bounds);
+
+      mir_put_object(g->mu, ti->tree, var);
+   }
+   else if (type_is_array(ti->tree)) {
+      mir_type_t t_ptr = mir_pointer_type(g->mu, mir_get_elem(g->mu, ti->type));
+      mir_value_t null = mir_build_null(g->mu, t_ptr);
+
+      mir_type_t t_bool = mir_bool_type(g->mu);
+
+      mir_dim_t *dims LOCAL = xmalloc_array(ti->udims, sizeof(mir_dim_t));
+
+      for (int i = 0; i < ti->udims; i++) {
+         tree_t r = range_of(ti->tree, i);
+
+         dims[i].left  = vhdl_lower_rvalue(g, tree_left(r));
+         dims[i].right = vhdl_lower_rvalue(g, tree_right(r));
+         dims[i].dir   = mir_const(g->mu, t_bool, tree_subkind(r));
+      }
+
+      mir_value_t bounds = mir_build_wrap(g->mu, null, dims, ti->udims);
+
+      mir_value_t var = mir_add_var(g->mu, ti->bounds, ti->stamp,
                                     type_ident(ti->tree), MIR_VAR_CONST);
       mir_build_store(g->mu, var, bounds);
 
