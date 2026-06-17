@@ -2599,67 +2599,6 @@ void capture_syntax(text_buf_t *tb)
    syntax_buf = tb;
 }
 
-void analyse_file(const char *file, jit_t *jit, unit_registry_t *ur,
-                  mir_context_t *mc)
-{
-   input_from_file(file);
-
-   switch (source_kind()) {
-   case SOURCE_VHDL:
-      {
-         lib_t work = lib_work();
-         int base_errors = 0;
-         tree_t unit;
-         while (base_errors = error_count(), (unit = parse())) {
-            if (error_count() == base_errors) {
-               lib_put(work, unit);
-
-               simplify_local(unit, jit, ur, mc);
-               bounds_check(unit);
-            }
-            else
-               lib_put_error(work, unit);
-         }
-      }
-      break;
-
-   case SOURCE_VERILOG:
-      {
-         LOCAL_TEXT_BUF tb = tb_new();
-         vlog_preprocess(tb, true);
-
-         file_ref_t file_ref = loc_file_ref(file, NULL);
-         input_from_buffer(tb_get(tb), tb_len(tb), file_ref, SOURCE_VERILOG);
-
-         lib_t work = lib_work();
-         vlog_node_t module;
-         while ((module = vlog_parse())) {
-            if (error_count() == 0) {
-               vlog_check(module);
-
-               if (error_count() == 0) {
-                  vlog_simp(module);
-                  lib_put_vlog(work, module);
-               }
-            }
-         }
-      }
-      break;
-
-   case SOURCE_SDF:
-      {
-         sdf_file_t *sdf_file = sdf_parse(file, 0);
-         progress("analysed SDF file: %s", file);
-
-         if (sdf_file != NULL) {
-            warnf("SDF is not yet supported");
-            sdf_file_free(sdf_file);
-         }
-      }
-      break;
-   }
-}
-
 bool all_character_literals(type_t type)
 {
    assert(type_is_enum(type));

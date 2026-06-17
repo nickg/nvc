@@ -169,7 +169,7 @@ jit_t *get_jit(void)
    return jit;
 }
 
-tree_t run_elab_with_model(rt_model_t *m)
+object_t *analyse_file(void)
 {
    mir_context_t *mc = get_mir();
    unit_registry_t *ur = get_registry();
@@ -215,6 +215,17 @@ tree_t run_elab_with_model(rt_model_t *m)
    default:
       ck_abort_msg("unsupported source kind");
    }
+
+   return top;
+}
+
+tree_t run_elab_with_model(rt_model_t *m)
+{
+   mir_context_t *mc = get_mir();
+   unit_registry_t *ur = get_registry();
+   jit_t *j = get_jit();
+
+   object_t *top = analyse_file();
 
    return elab(top, j, ur, mc, NULL, NULL, m);
 }

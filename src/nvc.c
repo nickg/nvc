@@ -33,6 +33,7 @@
 #include "rt/rt.h"
 #include "rt/wave.h"
 #include "scan.h"
+#include "sdf/sdf-phase.h"
 #include "tcl/tcl-shell.h"
 #include "thread.h"
 #include "vhpi/vhpi-model.h"
@@ -171,8 +172,70 @@ static bool parse_warn_option(char *optarg)
    }
 }
 
-static void do_file_list(const char *file, jit_t *jit, unit_registry_t *ur,
-                         mir_context_t *mc)
+static void analyse_file(const char *file, cmd_state_t *state)
+{
+   input_from_file(file);
+
+   switch (source_kind()) {
+   case SOURCE_VHDL:
+      {
+         lib_t work = lib_work();
+         int base_errors = 0;
+         tree_t unit;
+         while (base_errors = error_count(), (unit = parse())) {
+            if (error_count() == base_errors) {
+               lib_put(work, unit);
+
+               simplify_local(unit, state->jit, state->registry, state->mir);
+               bounds_check(unit);
+            }
+            else
+               lib_put_error(work, unit);
+         }
+      }
+      break;
+
+   case SOURCE_VERILOG:
+      {
+         LOCAL_TEXT_BUF tb = tb_new();
+         vlog_preprocess(tb, true);
+
+         file_ref_t file_ref = loc_file_ref(file, NULL);
+         input_from_buffer(tb_get(tb), tb_len(tb), file_ref, SOURCE_VERILOG);
+
+         if (state->vpi == NULL)
+            state->vpi = vpi_context_new();
+
+         lib_t work = lib_work();
+         vlog_node_t module;
+         while ((module = vlog_parse())) {
+            if (error_count() == 0) {
+               vlog_check(module);
+
+               if (error_count() == 0) {
+                  vlog_simp(module);
+                  lib_put_vlog(work, module);
+               }
+            }
+         }
+      }
+      break;
+
+   case SOURCE_SDF:
+      {
+         sdf_file_t *sdf_file = sdf_parse(file, 0);
+         progress("analysed SDF file: %s", file);
+
+         if (sdf_file != NULL) {
+            warnf("SDF is not yet supported");
+            sdf_file_free(sdf_file);
+         }
+      }
+      break;
+   }
+}
+
+static void do_file_list(const char *file, cmd_state_t *state)
 {
    FILE *f;
    if (strcmp(file, "-") == 0)
@@ -217,7 +280,7 @@ static void do_file_list(const char *file, jit_t *jit, unit_registry_t *ur,
             tb_append(tb, *p++);
       }
 
-      analyse_file(tb_get(tb), jit, ur, mc);
+      analyse_file(tb_get(tb), state);
    }
 
    free(line);
@@ -345,21 +408,24 @@ static int analyse(int argc, char **argv, cmd_state_t *state)
    if (state->registry == NULL)
       state->registry = unit_registry_new(state->mir);
 
-   jit_t *jit = jit_new(state->registry, state->mir);
+   if (state->jit != NULL)
+      jit_free(state->jit);
+
+   state->jit = jit_new(state->registry, state->mir);
 
    if (state->vhpi != NULL)
       vhpi_run_callbacks(vhpiCbStartOfAnalysis);
 
    if (file_list != NULL)
-      do_file_list(file_list, jit, state->registry, state->mir);
+      do_file_list(file_list, state);
    else if (optind == next_cmd)
       fatal("missing file name");
 
    for (int i = optind; i < next_cmd; i++) {
       if (argv[i][0] == '@')
-         do_file_list(argv[i] + 1, jit, state->registry, state->mir);
+         do_file_list(argv[i] + 1, state);
       else
-         analyse_file(argv[i], jit, state->registry, state->mir);
+         analyse_file(argv[i], state);
    }
 
    if (state->vhpi != NULL)
@@ -368,7 +434,9 @@ static int analyse(int argc, char **argv, cmd_state_t *state)
    if (werror)
       diag_remove_hint_fn(werror_diag_cb, NULL);
 
-   jit_free(jit);
+   jit_free(state->jit);
+   state->jit = NULL;
+
    set_error_limit(0);
 
    if (error_count() > 0)
@@ -595,7 +663,7 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
 
    if (sdf_args != NULL) {
       // TODO: Pass min-max spec to underlying sdf_parse somehow
-      analyse_file(sdf_args, NULL, NULL, NULL);
+      analyse_file(sdf_args, state);
    }
 
    if (state->model != NULL) {
