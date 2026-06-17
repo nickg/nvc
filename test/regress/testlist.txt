@@ -1396,3 +1396,4 @@ issue1562       gold,fail,2008
 issue1576       normal,2008
 issue1581       normal,exit=warning
 issue1537       normal
+conf6           normal,2008
