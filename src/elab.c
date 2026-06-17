@@ -2047,7 +2047,8 @@ static void elab_bind_components(tree_t block, tree_t config)
                if (apply) spec = d;
             }
 
-            tree_set_spec(s, spec);
+            if (spec != NULL)
+               tree_set_spec(s, spec);
          }
          break;
 

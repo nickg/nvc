@@ -1414,3 +1414,4 @@ issue1581       normal,exit=warning
 issue1537       normal
 vlog41          verilog,gold,fail
 string4         verilog
+conf6           normal,2008
