@@ -325,6 +325,8 @@ jobs:
         run: ./vhdl-projects/axis2mm/test.sh
       - name: Test PicoRV32
         run: ./vhdl-projects/picorv32/test.sh
+      - name: Test alexforencich/verilog-ethernet
+        run: ./vhdl-projects/alexforencich/verilog-ethernet/test.sh
 
   vunit:
     name: VUnit

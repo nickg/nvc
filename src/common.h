@@ -94,9 +94,6 @@ type_t calculate_aggregate_subtype(tree_t expr);
 bool can_be_signal(type_t type);
 type_t merge_constraints(type_t to, type_t from);
 
-void analyse_file(const char *file, jit_t *jit, unit_registry_t *ur,
-                  mir_context_t *mc);
-
 void print_syntax(const char *fmt, ...)
    __attribute__((format(printf, 1, 2)));
 void capture_syntax(text_buf_t *tb);
@@ -298,6 +295,7 @@ typedef enum {
    W_DLR_CLOG2,
    W_DLR_SQRT,
    W_DLR_BITS,
+   W_DLR_RTOI,
    W_COUNTERS,
 
    NUM_WELL_KNOWN

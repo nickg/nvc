@@ -424,6 +424,7 @@ vlog_node_t vlog_longest_static_prefix(vlog_node_t v)
       switch (vlog_kind(vlog_ref(v))) {
       case V_PARAM_DECL:
       case V_LOCALPARAM:
+      case V_LOCAL_DECL:
          return NULL;
       default:
          return v;

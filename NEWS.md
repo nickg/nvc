@@ -12,7 +12,9 @@
   allocated in a procedure (#1576).
 - Fixed a crash when using the `'stable` attribute with a time
   expression referencing constants declared in a process (#1537).
-- Several other minor bugs were resolved (#1559, #1562, #1581).
+- Added support for `$info`, `$warning`, `$error`, and `$fatal`, Verilog
+  system tasks.
+- Several other minor bugs were resolved (#1559, #1562, #1581, #1578).
 
 ## Version 1.21.0 - 2026-05-23
 - Systems with emulated thread-local storage (in particular all MSYS2

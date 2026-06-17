@@ -315,6 +315,7 @@ static bool get_number(vlog_node_t v, number_t *n)
 {
    switch (vlog_kind(v)) {
    case V_NUMBER:
+   case V_STRING:
       *n = vlog_number(v);
       return true;
    case V_REF:
@@ -532,6 +533,18 @@ static vlog_node_t simp_sys_fcall(vlog_node_t v)
 
          return v;
       }
+   case V_SYSTF_RTOI:
+      {
+         vlog_node_t p = vlog_param(v, 0);
+         if (vlog_kind(p) == V_REAL) {
+            vlog_node_t new = vlog_new(V_NUMBER);
+            vlog_set_loc(new, vlog_loc(v));
+            vlog_set_number(new, number_from_int((int64_t)vlog_dval(p)));
+            return new;
+         }
+
+         return v;
+      }
    default:
       return v;
    }
@@ -717,6 +730,45 @@ static vlog_node_t simp_call_args(vlog_node_t v)
    return v;
 }
 
+static vlog_node_t simp_wait(vlog_node_t v)
+{
+   vlog_node_t expr = vlog_value(v);
+
+   vlog_node_t not = vlog_new(V_UNARY);
+   vlog_set_loc(not, vlog_loc(expr));
+   vlog_set_subkind(not, V_UNARY_NOT);
+   vlog_set_value(not, expr);
+
+   vlog_node_t wh = vlog_new(V_WHILE);
+   vlog_set_loc(wh, vlog_loc(v));
+   vlog_set_value(wh, not);
+
+   vlog_node_t ctrl = vlog_new(V_EVENT_CONTROL);
+   vlog_set_loc(ctrl, vlog_loc(v));
+
+   hset_t *set = hset_new(16);
+   build_sensitivity(ctrl, expr, set, false);
+   hset_free(set);
+
+   vlog_node_t timing = vlog_new(V_TIMING);
+   vlog_set_loc(timing, vlog_loc(v));
+   vlog_set_value(timing, ctrl);
+   vlog_add_stmt(wh, timing);
+
+   const int nstmts = vlog_stmts(v);
+   if (nstmts == 0)
+      return wh;
+
+   vlog_node_t block = vlog_new(V_SEQ_BLOCK);
+   vlog_set_loc(block, vlog_loc(v));
+   vlog_add_stmt(block, wh);
+
+   for (int i = 0; i < nstmts; i++)
+      vlog_add_stmt(block, vlog_stmt(v, i));
+
+   return block;
+}
+
 static vlog_node_t vlog_simp_cb(vlog_node_t v, void *context)
 {
    switch (vlog_kind(v)) {
@@ -744,6 +796,8 @@ static vlog_node_t vlog_simp_cb(vlog_node_t v, void *context)
       return simp_localparam(v);
    case V_CONCAT:
       return simp_concat(v);
+   case V_WAIT:
+      return simp_wait(v);
    case V_USER_FCALL:
    case V_USER_TCALL:
       return simp_call_args(v);

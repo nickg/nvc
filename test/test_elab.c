@@ -1434,7 +1434,9 @@ END_TEST
 
 START_TEST(test_mixed1)
 {
-   analyse_file(TESTDIR "/elab/mixed1.v", NULL, NULL, NULL);
+   input_from_file(TESTDIR "/elab/mixed1.v");
+
+   analyse_file();
 
    input_from_file(TESTDIR "/elab/mixed1.vhd");
 
@@ -1765,7 +1767,9 @@ START_TEST(test_vlog1)
    };
    expect_errors(expect);
 
-   analyse_file(TESTDIR "/elab/vlog1.v", NULL, NULL, NULL);
+   input_from_file(TESTDIR "/elab/vlog1.v");
+
+   analyse_file();
 
    object_t *obj = lib_get_generic(lib_work(), ident_new("WORK.VLOG1"), NULL);
    ck_assert_ptr_nonnull(obj);
@@ -2055,7 +2059,9 @@ END_TEST
 
 START_TEST(test_clone1)
 {
-   analyse_file(TESTDIR "/elab/clone1.v", NULL, NULL, NULL);
+   input_from_file(TESTDIR "/elab/clone1.v");
+
+   analyse_file();
 
    input_from_file(TESTDIR "/elab/clone1.vhd");
 
@@ -2107,7 +2113,9 @@ END_TEST
 
 START_TEST(test_mixed2)
 {
-   analyse_file(TESTDIR "/elab/mixed2.v", NULL, NULL, NULL);
+   input_from_file(TESTDIR "/elab/mixed2.v");
+
+   analyse_file();
 
    input_from_file(TESTDIR "/elab/mixed2.vhd");
 
@@ -2292,7 +2300,9 @@ END_TEST
 
 START_TEST(test_issue1519)
 {
-   analyse_file(TESTDIR "/elab/issue1519.v", NULL, NULL, NULL);
+   input_from_file(TESTDIR "/elab/issue1519.v");
+
+   analyse_file();
 
    input_from_file(TESTDIR "/elab/issue1519.vhd");
 

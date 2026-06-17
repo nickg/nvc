@@ -20,6 +20,7 @@
 #include "jit/jit.h"
 #include "rt/fileio.h"
 #include "option.h"
+#include "printf.h"
 #include "rt/model.h"
 #include "svrand.h"
 #include "thread.h"
@@ -40,7 +41,7 @@ typedef struct {
    bool        eof;
 } scan_src_t;
 
-static void format_string(FILE *out, vpiHandle it, int fwidth)
+static void format_string(ostream_t *out, vpiHandle it, int fwidth)
 {
    vpiHandle arg = vpi_scan(it);
    if (arg == NULL)
@@ -50,9 +51,9 @@ static void format_string(FILE *out, vpiHandle it, int fwidth)
    vpi_get_value(arg, &argval);
 
    if (fwidth >= 0)
-      fprintf(out, "%*s", fwidth, argval.value.str);
+      nvc_fprintf(out, "%*s", fwidth, argval.value.str);
    else
-      fputs(argval.value.str, out);
+      ostream_puts(out, argval.value.str);
 
    vpi_release_handle(arg);
 }
@@ -66,7 +67,7 @@ static int calc_dec_size(int nr_bits, bool is_signed)
    return r;
 }
 
-static void format_radix_string(FILE *out, const char *str, int fwidth)
+static void format_radix_string(ostream_t *out, const char *str, int fwidth)
 {
    if (fwidth == 0) {
       while (str[0] == '0' && str[1] != '\0')
@@ -74,12 +75,12 @@ static void format_radix_string(FILE *out, const char *str, int fwidth)
    }
 
    if (fwidth > 0)
-      fprintf(out, "%*s", fwidth, str);
+      nvc_fprintf(out, "%*s", fwidth, str);
    else
-      fputs(str, out);
+      ostream_puts(out, str);
 }
 
-static void format_radix(FILE *out, vpiHandle arg, char radix, int fwidth,
+static void format_radix(ostream_t *out, vpiHandle arg, char radix, int fwidth,
                          int precision)
 {
    switch (radix) {
@@ -97,11 +98,11 @@ static void format_radix(FILE *out, vpiHandle arg, char radix, int fwidth,
                nbits >= 64 ? MAX(fwidth, dmax) : fwidth;
 
             if (pad_width >= 0)
-               fprintf(out, "%*s", pad_width, argval.value.str);
+               nvc_fprintf(out, "%*s", pad_width, argval.value.str);
             else if (dmax > strlen(argval.value.str))
-               fprintf(out, "%*s", dmax, argval.value.str);
+               nvc_fprintf(out, "%*s", dmax, argval.value.str);
             else
-               fputs(argval.value.str, out);
+               ostream_puts(out, argval.value.str);
          }
       }
       break;
@@ -140,19 +141,19 @@ static void format_radix(FILE *out, vpiHandle arg, char radix, int fwidth,
 
          if (!vpi_chk_error(NULL)) {
             if (precision >= 0)
-               fprintf(out, "%*.*f", fwidth < 0 ? 0 : fwidth, precision,
-                       argval.value.real);
+               nvc_fprintf(out, "%*.*f", fwidth < 0 ? 0 : fwidth, precision,
+                           argval.value.real);
             else if (fwidth >= 0)
-               fprintf(out, "%*f", fwidth, argval.value.real);
+               nvc_fprintf(out, "%*f", fwidth, argval.value.real);
             else
-               fprintf(out, "%f", argval.value.real);
+               nvc_fprintf(out, "%f", argval.value.real);
          }
       }
       break;
    }
 }
 
-static void format_number(FILE *out, vpiHandle it, char radix, int fwidth,
+static void format_number(ostream_t *out, vpiHandle it, char radix, int fwidth,
                           int precision)
 {
    vpiHandle arg = vpi_scan(it);
@@ -163,7 +164,7 @@ static void format_number(FILE *out, vpiHandle it, char radix, int fwidth,
    vpi_release_handle(arg);
 }
 
-static void format_char(FILE *out, vpiHandle it, int fwidth)
+static void format_char(ostream_t *out, vpiHandle it, int fwidth)
 {
    vpiHandle arg = vpi_scan(it);
    if (arg == NULL)
@@ -176,21 +177,21 @@ static void format_char(FILE *out, vpiHandle it, int fwidth)
    vpi_chk_error(&ei);
    const char ch = atoi(argval.value.str);
    if (fwidth >= 0)
-      fprintf(out, "%*c", fwidth, ch);
+      nvc_fprintf(out, "%*c", fwidth, ch);
    else
-      fputc(ch, out);
+      ostream_putc(out, ch);
 
    vpi_release_handle(arg);
 }
 
-static void interpret_format(FILE *out, const char *fmt, vpiHandle it)
+static void interpret_format(ostream_t *out, const char *fmt, vpiHandle it)
 {
    const char *start = fmt, *p = fmt;
 
    for (; *p; p++) {
       if (*p == '%') {
          if (start < p)
-            fwrite(start, 1, p - start, out);
+            ostream_write(out, start, p - start);
 
          p++;   // Skip over '%'
 
@@ -220,7 +221,7 @@ static void interpret_format(FILE *out, const char *fmt, vpiHandle it)
             format_char(out, it, fwidth);
             break;
          case '%':
-            fputc('%', out);
+            ostream_putc(out, '%');
             break;
          default:
             jit_msg(NULL, DIAG_WARN, "unknown format specifier '%c'", *p);
@@ -231,10 +232,10 @@ static void interpret_format(FILE *out, const char *fmt, vpiHandle it)
    }
 
    if (start < p)
-      fwrite(start, 1, p - start, out);
+      ostream_write(out, start, p - start);
 }
 
-static void verilog_printf(FILE *out, char default_radix, vpiHandle it)
+static void verilog_printf(ostream_t *out, char default_radix, vpiHandle it)
 {
    vpiHandle arg = vpi_scan(it);
    while (arg != NULL) {
@@ -245,7 +246,7 @@ static void verilog_printf(FILE *out, char default_radix, vpiHandle it)
          && vpi_get(vpiConstType, arg) == vpiStringConst;
 
       if (is_null)
-         fputc(' ', out);
+         ostream_putc(out, ' ');
       else if (has_format) {
          s_vpi_value argval = { .format = vpiStringVal };
          vpi_get_value(arg, &argval);
@@ -269,8 +270,9 @@ static PLI_INT32 display_tf(PLI_BYTE8 *userdata)
 
    vpiHandle it = vpi_iterate(vpiArgument, call);
 
-   verilog_printf(stdout, *(char *)userdata, it);
-   printf("\n");
+   ostream_t *out = nvc_stdout();
+   verilog_printf(out, *(char *)userdata, it);
+   ostream_putc(out, '\n');
    return 0;
 }
 
@@ -281,7 +283,7 @@ static PLI_INT32 write_tf(PLI_BYTE8 *userdata)
 
    vpiHandle it = vpi_iterate(vpiArgument, call);
 
-   verilog_printf(stdout, *(char *)userdata, it);
+   verilog_printf(nvc_stdout(), *(char *)userdata, it);
    return 0;
 }
 
@@ -448,7 +450,11 @@ static PLI_INT32 fdisplay_tf(PLI_BYTE8 *userdata)
    vpiHandle fd_arg = vpi_scan(argv);
    if (fd_arg != NULL) {
       FILE *out = get_file_stream(fd_arg);
-      verilog_printf(out, fmt[0], argv);
+      ostream_t os = {
+         .context = out,
+         .callback = stdio_ostream_write,
+      };
+      verilog_printf(&os, fmt[0], argv);
       if (newline)
          fputc('\n', out);
       vpi_release_handle(fd_arg);
@@ -701,13 +707,64 @@ static PLI_INT32 finish_tf(PLI_BYTE8 *userdata)
    jit_abort();
 }
 
-static PLI_INT32 fatal_tf(PLI_BYTE8 *userdata)
+static PLI_INT32 diag_tf(PLI_BYTE8 *userdata)
 {
-   diag_t *d = diag_new(DIAG_FATAL, NULL);
-   diag_printf(d, "$fatal called");
+   vpiHandle call = vpi_handle(vpiSysTfCall, NULL);
+   assert(call != NULL);
+
+   vpiHandle argv = vpi_iterate(vpiArgument, call);
+
+   LOCAL_TEXT_BUF tb = tb_new();
+
+   ostream_t os = {
+      .callback = tb_ostream_write,
+      .context = tb,
+      .charset = CHARSET_ISO88591,
+   };
+
+   verilog_printf(&os, 'd', argv);
+
+   diag_t *d = diag_new((uintptr_t)userdata, NULL);
+   diag_write(d, tb_get(tb), tb_len(tb));
+   diag_show_source(d, false);
    diag_emit(d);
 
+   vpi_release_handle(argv);
+   vpi_release_handle(call);
+
+   return 0;
+}
+
+static PLI_INT32 fatal_tf(PLI_BYTE8 *userdata)
+{
+   vpiHandle call = vpi_handle(vpiSysTfCall, NULL);
+   assert(call != NULL);
+
+   vpiHandle argv = vpi_iterate(vpiArgument, call);
+
+   vpiHandle status = vpi_scan(argv);
+   vpi_release_handle(status);  // TODO
+
+   LOCAL_TEXT_BUF tb = tb_new();
+
+   ostream_t os = {
+      .callback = tb_ostream_write,
+      .context = tb,
+      .charset = CHARSET_ISO88591,
+   };
+
+   verilog_printf(&os, 'd', argv);
+
+   diag_t *d = diag_new(DIAG_FATAL, NULL);
+   diag_write(d, tb_get(tb), tb_len(tb));
+   diag_show_source(d, false);
+   diag_emit(d);
+
+   vpi_release_handle(argv);
+   vpi_release_handle(call);
+
    jit_abort_with_status(1);
+   return 0;
 }
 
 static PLI_INT32 monitor_tf(PLI_BYTE8 *userdata)
@@ -1088,9 +1145,27 @@ static s_vpi_systf_data builtins[] = {
       .calltf = finish_tf
    },
    {
-      .type   = vpiSysTask,
-      .tfname = "$fatal",
-      .calltf = fatal_tf
+      .type      = vpiSysTask,
+      .tfname    = "$info",
+      .calltf    = diag_tf,
+      .user_data = (void *)DIAG_NOTE,
+   },
+   {
+      .type      = vpiSysTask,
+      .tfname    = "$warning",
+      .calltf    = diag_tf,
+      .user_data = (void *)DIAG_WARN,
+   },
+   {
+      .type      = vpiSysTask,
+      .tfname    = "$error",
+      .calltf    = diag_tf,
+      .user_data = (void *)DIAG_ERROR,
+   },
+   {
+      .type      = vpiSysTask,
+      .tfname    = "$fatal",
+      .calltf    = fatal_tf,
    },
    {
       .type   = vpiSysTask,

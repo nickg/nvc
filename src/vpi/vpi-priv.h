@@ -18,6 +18,8 @@
 #ifndef _VPI_PRIV_H
 #define _VPI_PRIV_H
 
+#define PLI_DLLISPEC
+
 #include "prim.h"
 #include "vpi/vpi_user.h"
 

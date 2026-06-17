@@ -9,4 +9,5 @@ module simp1;
   localparam [3:0] p7 = p6 >> 1;   // 6
   localparam signed [3:0] p8 = p6 >>> 1;  // -2
   localparam p9 = p6 + 0;  // -4
+  localparam p10 = $clog2($rtoi(10.5));  // 4
 endmodule // simp1
