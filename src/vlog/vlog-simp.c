@@ -520,6 +520,18 @@ static vlog_node_t simp_sys_fcall(vlog_node_t v)
 
          return v;
       }
+   case V_SYSTF_RTOI:
+      {
+         vlog_node_t p = vlog_param(v, 0);
+         if (vlog_kind(p) == V_REAL) {
+            vlog_node_t new = vlog_new(V_NUMBER);
+            vlog_set_loc(new, vlog_loc(v));
+            vlog_set_number(new, number_from_int((int64_t)vlog_dval(p)));
+            return new;
+         }
+
+         return v;
+      }
    default:
       return v;
    }

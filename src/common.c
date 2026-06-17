@@ -1156,6 +1156,7 @@ void intern_strings(void)
       [W_DLR_CLOG2]       = "$clog2",
       [W_DLR_SQRT]        = "$sqrt",
       [W_DLR_BITS]        = "$bits",
+      [W_DLR_RTOI]        = "$rtoi",
       [W_COUNTERS]        = "#counters",
 
       [W_IEEE_LOGIC_VECTOR]      = "IEEE.STD_LOGIC_1164.STD_LOGIC_VECTOR",
