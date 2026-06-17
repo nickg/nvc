@@ -1,20 +1,26 @@
-siginitdir = $(libdir)/$(PACKAGE)
-nodist_siginit_DATA = lib/siginit.@DLL_EXT@
+siginit_plugin = lib/siginit.@DLL_EXT@
 
-contrib/plugins/siginit.o: $(top_srcdir)/contrib/plugins/siginit.c
-	$(AM_V_at)$(MKDIR_P) $(dir $@)
-	$(AM_V_CC)$(CC) $(SHLIB_CFLAGS) -I$(top_srcdir)/src/vhpi $(AM_CFLAGS) -Wextra -Wpedantic \
-			-c -o $@ $<
+EXTRA_all_local += $(siginit_plugin)
+EXTRA_install_exec_local += install-siginit-plugin
+EXTRA_uninstall_local += uninstall-siginit-plugin
+
+CLEANFILES += $(siginit_plugin)
+
+siginit_XCFLAGS = $(SHLIB_CFLAGS) -I$(top_srcdir)/src/vhpi $(AM_CFLAGS) -Wextra -Wpedantic
+siginit_XLDFLAGS = $(SHLIB_LDFLAGS) $(AM_LDFLAGS)
+siginit_XSOURCES = $(top_srcdir)/contrib/plugins/siginit.c
 
 if IMPLIB_REQUIRED
-siginit_implib = lib/libnvcimp.a
-else
-siginit_implib =
+siginit_XSOURCES += lib/libnvcimp.a
 endif
 
-lib/siginit.@DLL_EXT@: contrib/plugins/siginit.o $(siginit_implib)
-	$(AM_V_CCLD)$(CC) $(SHLIB_LDFLAGS) $(AM_LDFLAGS) -o $@ $< $(siginit_implib)
+$(siginit_plugin): $(siginit_XSOURCES)
+	$(AM_V_at)$(MKDIR_P) lib
+	$(AM_V_CCLD)$(CC) $(siginit_XCFLAGS) $(siginit_XLDFLAGS) -o $@ $(siginit_XSOURCES)
 
-all-local: lib/siginit.@DLL_EXT@
+install-siginit-plugin: $(siginit_plugin)
+	$(AM_V_at)$(MKDIR_P) "$(DESTDIR)$(pkglibdir)"
+	$(AM_V_at)$(INSTALL_PROGRAM) $(siginit_plugin) "$(DESTDIR)$(pkglibdir)/siginit.@DLL_EXT@"
 
-CLEANFILES += lib/siginit.@DLL_EXT@ contrib/plugins/siginit.o
+uninstall-siginit-plugin:
+	$(AM_V_at)rm -f "$(DESTDIR)$(pkglibdir)/siginit.@DLL_EXT@"
