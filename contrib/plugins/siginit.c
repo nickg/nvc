@@ -435,7 +435,7 @@ static void walk_instances(ctx_t *ctx, vhpiHandleT h)
     const char *ent_name = (const char *) vhpi_get_str(vhpiNameP, ent_h);
 
     if (ctx->block != NULL && ent_name != NULL) {
-        char *dash = strchr(ent_name, '-');
+        const char *dash = strchr(ent_name, '-');
         size_t ent_name_len = dash - ent_name;
         if (ent_name_len == strlen(ctx->block) &&
             !strncmp(ctx->block, ent_name, strlen(ctx->block)))

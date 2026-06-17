@@ -301,8 +301,6 @@ AC_DEFINE_UNQUOTED([DLL_EXT], ["$DLL_EXT"], [Dynamic library extension])
 AC_SUBST(DLL_EXT)
 AC_SUBST(LIB_EXT)
 AM_CONDITIONAL([IMPLIB_REQUIRED], [test x$implib_required = xyes])
-AM_CONDITIONAL([WINDOWS_BUILD], [test x$DLL_EXT = xdll])
-AM_CONDITIONAL([MACOS_BUILD], [test x$DLL_EXT = xdylib])
 
 case $host_os in
   darwin*)
