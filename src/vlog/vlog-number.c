@@ -867,22 +867,28 @@ number_t number_negate(number_t a)
 
 number_t number_logical_equal(number_t a, number_t b)
 {
+   bignum_t *left, *right;
+   bignum_for_binary(a, b, &left, &right);
+
+   bool has_unknown = false, has_known_diff = false;
+   for (int i = 0; i < bignum_words(left); i++) {
+      const uint64_t unknown =
+         bignum_bbits(left)[i] | bignum_bbits(right)[i];
+      const uint64_t known_diff =
+         (bignum_abits(left)[i] ^ bignum_abits(right)[i]) & ~unknown;
+
+      has_unknown |= unknown != 0;
+      has_known_diff |= known_diff != 0;
+   }
+
    bignum_t *result;
    bignum_scratch(1, false, 1, &result);
 
-   assert(bignum_words(a.big) == 1);  // TODO
-   assert(bignum_words(b.big) == 1);  // TODO
-
-   const uint64_t unknown =
-      bignum_bbits(a.big)[0] | bignum_bbits(b.big)[0];
-   const uint64_t known_diff =
-      (bignum_abits(a.big)[0] ^ bignum_abits(b.big)[0]) & ~unknown;
-
-   if (known_diff != 0) {
+   if (has_known_diff) {
       bignum_abits(result)[0] = 0;
       bignum_bbits(result)[0] = 0;
    }
-   else if (unknown != 0) {
+   else if (has_unknown) {
       bignum_abits(result)[0] = 1;
       bignum_bbits(result)[0] = 1;
    }
