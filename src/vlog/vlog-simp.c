@@ -28,6 +28,7 @@
 
 #include <assert.h>
 #include <inttypes.h>
+#include <math.h>
 #include <string.h>
 #include <stdlib.h>
 
@@ -528,6 +529,18 @@ static vlog_node_t simp_sys_fcall(vlog_node_t v)
             vlog_node_t new = vlog_new(V_NUMBER);
             vlog_set_loc(new, vlog_loc(v));
             vlog_set_number(new, number_from_int((int64_t)vlog_dval(p)));
+            return new;
+         }
+
+         return v;
+      }
+   case V_SYSTF_CEIL:
+      {
+         vlog_node_t p = vlog_param(v, 0);
+         if (vlog_kind(p) == V_REAL) {
+            vlog_node_t new = vlog_new(V_REAL);
+            vlog_set_loc(new, vlog_loc(v));
+            vlog_set_dval(new, ceil(vlog_dval(p)));
             return new;
          }
 

@@ -1436,7 +1436,7 @@ START_TEST(test_simp1)
    vlog_node_t m = do_parse_check(V_MODULE);
    vlog_simp(m);
 
-   const int64_t expect[] = { 5, 1, 7, 1, 2, 2, -4, 6, -2, -4, 4 };
+   const int64_t expect[] = { 5, 1, 7, 1, 2, 2, -4, 6, -2, -4, 4, 3 };
 
    ck_assert_int_eq(ARRAY_LEN(expect), vlog_decls(m));
 
