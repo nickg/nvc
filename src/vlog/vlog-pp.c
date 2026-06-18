@@ -847,6 +847,11 @@ static void p_include_compiler_directive(void)
       }
    }
 
+   if (ifdefs != NULL && !ifdefs->cond) {
+      free(file_name);
+      return;
+   }
+
    if (emit_locs)
       tb_printf(output, "\n`__nvc_push \"%s\",%d:%d,%d\n", file_name,
                 loc.first_line, loc.first_column, loc.column_delta);
@@ -861,6 +866,9 @@ static void p_include_compiler_directive(void)
    consume(tEOF);
 
    pop_buffer();
+
+   if (emit_locs)
+      tb_printf(output, "\n`__nvc_pop\n");
 }
 
 static void p_undef_compiler_directive(void)
