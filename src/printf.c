@@ -24,6 +24,7 @@
 #include "type.h"
 
 #include <assert.h>
+#include <errno.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -531,6 +532,8 @@ static void init_terminal_ostream(ostream_t *os, FILE *f)
    os->context = f;
    os->flags = 0;
 
+   const int saved_errno = errno;
+
    if (isatty(fileno(f))) {
       os->charset = utf8_terminal() ? CHARSET_UTF8 : CHARSET_ISO88591;
       os->flags |= OS_TERMINAL;
@@ -540,6 +543,8 @@ static void init_terminal_ostream(ostream_t *os, FILE *f)
 
    if (color_terminal())
       os->flags |= OS_COLOR;
+
+   errno = saved_errno;
 }
 
 ostream_t *nvc_stdout(void)
