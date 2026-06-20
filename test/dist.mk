@@ -507,6 +507,7 @@ EXTRA_DIST += \
 	test/parse/issue1477.vhd \
 	test/parse/issue1498.vhd \
 	test/parse/issue1535.vhd \
+	test/parse/issue1560.vhd \
 	test/parse/issue205.vhd \
 	test/parse/issue222.vhd \
 	test/parse/issue360.vhd \
@@ -873,6 +874,7 @@ EXTRA_DIST += \
 	test/regress/conf3.vhd \
 	test/regress/conf4.vhd \
 	test/regress/conf5.vhd \
+	test/regress/conf6.vhd \
 	test/regress/const10.vhd \
 	test/regress/const1.vhd \
 	test/regress/const2.vhd \
@@ -1322,6 +1324,7 @@ EXTRA_DIST += \
 	test/regress/gold/issue1517.xml \
 	test/regress/gold/issue1528.txt \
 	test/regress/gold/issue1544.txt \
+	test/regress/gold/issue1562.txt \
 	test/regress/gold/issue185.txt \
 	test/regress/gold/issue202.txt \
 	test/regress/gold/issue225.txt \
@@ -1636,11 +1639,16 @@ EXTRA_DIST += \
 	test/regress/issue1529.vhd \
 	test/regress/issue152.vhd \
 	test/regress/issue1534.vhd \
+	test/regress/issue1537.vhd \
 	test/regress/issue1539.vhd \
 	test/regress/issue153.vhd \
 	test/regress/issue1541.vhd \
 	test/regress/issue1543.vhd \
 	test/regress/issue1544.vhd \
+	test/regress/issue1559.vhd \
+	test/regress/issue1562.vhd \
+	test/regress/issue1576.vhd \
+	test/regress/issue1581.vhd \
 	test/regress/issue163.vhd \
 	test/regress/issue169.vhd \
 	test/regress/issue16.vhd \
