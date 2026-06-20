@@ -8,6 +8,7 @@
   allocated in a procedure (#1576).
 - Fixed a crash when using the `'stable` attribute with a time
   expression referencing constants declared in a process (#1537).
+- Added binary package for Ubuntu 26.04.
 - Several other minor bugs were resolved (#1559, #1562, #1581, #1578).
 
 ## Version 1.21.0 - 2026-05-23
