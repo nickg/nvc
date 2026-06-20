@@ -14,6 +14,7 @@
   expression referencing constants declared in a process (#1537).
 - Added support for `$info`, `$warning`, `$error`, and `$fatal`, Verilog
   system tasks.
+- Added binary package for Ubuntu 26.04.
 - Several other minor bugs were resolved (#1559, #1562, #1581, #1578).
 
 ## Version 1.21.0 - 2026-05-23
