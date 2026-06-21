@@ -3,6 +3,7 @@
   expressions (#1518).
 - VHDL architectures can now be specified on the command line with `-e
   entity(arch)`. The previous form `entity-arch` is still supported.
+- Added support for default arguments in Verilog macros.
 - Added support for `$info`, `$warning`, `$error`, and `$fatal`, Verilog
   system tasks.
 

@@ -40,7 +40,12 @@ struct _ifdef_stack {
    bool           cond;
 };
 
-typedef A(ident_t) arg_list_t;
+typedef struct {
+   ident_t  name;
+   char    *def;
+} macro_arg_t;
+
+typedef A(macro_arg_t) arg_list_t;
 
 typedef struct {
    ident_t     name;
@@ -68,6 +73,7 @@ extern yylval_t yylval;
 extern scan_buf_t yyspan;
 
 static void p_block_of_text(void);
+static void p_expression(text_buf_t *tb);
 static void p_text_macro_usage(void);
 
 static void free_macros(void)
@@ -77,6 +83,8 @@ static void free_macros(void)
    for (hash_iter_t it = HASH_BEGIN; hash_iter(macros, &it, &key, &value); ) {
       macro_t *m = value;
       tb_free(m->text);
+      for (int i = 0; i < m->args.count; i++)
+         free(m->args.items[i].def);
       ACLEAR(m->args);
       free(m);
    }
@@ -403,6 +411,8 @@ static token_t vlogpp_lex(void)
       return make_token(tRPAREN, buf, (yylval_t){ .ch = ')' });
    case ',':
       return make_token(tCOMMA, buf, (yylval_t){ .ch = ',' });
+   case '=':
+      return make_token(tEQ, buf, (yylval_t){ .ch = '=' });
    case '/':
       if (scan_peek(buf, &ch)) {
          if (ch == '/')
@@ -435,19 +445,31 @@ static ident_t p_identifier(void)
       return error_marker();
 }
 
-static ident_t p_formal_argument(void)
+static macro_arg_t p_formal_argument(void)
 {
    // simple_identifier [ = default_text ]
 
    BEGIN("formal argument");
 
-   optional(tWHITESPACE);
-
-   ident_t name = p_identifier();
+   macro_arg_t arg = {};
 
    optional(tWHITESPACE);
 
-   return name;
+   arg.name = p_identifier();
+
+   optional(tWHITESPACE);
+
+   if (optional(tEQ)) {
+      optional(tWHITESPACE);
+
+      LOCAL_TEXT_BUF tb = tb_new();
+      while (not_at_token(tCOMMA, tRPAREN))
+         p_expression(tb);
+
+      arg.def = tb_claim(tb);
+   }
+
+   return arg;
 }
 
 static void p_list_of_formal_arguments(macro_t *m)
@@ -514,6 +536,7 @@ static void p_text_macro_definition(void)
       case tLPAREN:
       case tRPAREN:
       case tCOMMA:
+      case tEQ:
          consume(tok);
          tb_append(m->text, state.last_lval.ch);
          break;
@@ -548,7 +571,7 @@ static void p_expression(text_buf_t *tb)
    // identifier.
 
    switch (one_of(tTEXT, tLPAREN, tWHITESPACE, tID, tSTRING, tMACROUSAGE,
-                  tCOMMA, tMACROQUOTE, tMACROESCQUOTE, tMACROJOIN)) {
+                  tCOMMA, tEQ, tMACROQUOTE, tMACROESCQUOTE, tMACROJOIN)) {
    case tTEXT:
    case tWHITESPACE:
    case tID:
@@ -561,6 +584,9 @@ static void p_expression(text_buf_t *tb)
       break;
    case tCOMMA:
       tb_append(tb, ',');
+      break;
+   case tEQ:
+      tb_append(tb, '=');
       break;
    case tLPAREN:
       tb_append(tb, '(');
@@ -588,8 +614,16 @@ static void p_actual_argument(macro_t *m, int pos)
    while (not_at_token(tCOMMA, tRPAREN))
       p_expression(tb);
 
-   if (pos < m->args.count)
-      hash_put(macro_args, m->args.items[pos], tb_claim(tb));
+   if (pos >= m->args.count)
+      return;
+
+   char *buf;
+   if (tb_len(tb) == 0 && m->args.items[pos].def != NULL)
+      buf = xstrdup(m->args.items[pos].def);
+   else
+      buf = tb_claim(tb);
+
+   hash_put(macro_args, m->args.items[pos].name, buf);
 }
 
 static void p_list_of_actual_arguments(macro_t *m)
@@ -603,9 +637,28 @@ static void p_list_of_actual_arguments(macro_t *m)
       p_actual_argument(m, pos++);
    } while (optional(tCOMMA));
 
-   if (pos != m->args.count && !m->error) {
-      error_at(&state.last_loc, "macro '%pi' requires exactly %d arguments",
-               m->name, m->args.count);
+   if (pos < m->args.count && !m->error) {
+      for (int i = pos; i < m->args.count; i++) {
+         if (m->args.items[i].def != NULL) {
+            char *copy = xstrdup(m->args.items[i].def);
+            hash_put(macro_args, m->args.items[i].name, copy);
+         }
+         else {
+            error_at(&state.last_loc, "macro '%pi' is missing argument '%pi' "
+                     "with no default value", m->name, m->args.items[i].name);
+            m->error = true;
+            break;
+         }
+      }
+   }
+   else if (pos != m->args.count && !m->error) {
+      bool has_def = false;
+      for (int i = pos; i < m->args.count; i++)
+         has_def |= (m->args.items[i].def != NULL);
+
+      error_at(&state.last_loc, "macro '%pi' requires %s %d arguments, "
+               "%d were given", m->name, has_def ? "at most" : "exactly",
+               m->args.count, pos);
       m->error = true;
    }
 }
@@ -655,8 +708,22 @@ static void p_text_macro_usage(void)
       // the input buffer until after the macro is expanded if there are
       // no arguments
       scan_buf_t buf = get_input_buffer();
+
+      bool has_args = false;
       char peek;
-      if (scan_peek(buf, &peek) && peek == '(') {
+      while (scan_peek(buf, &peek)) {
+         if (peek == ' ' || peek == '\t')
+            scan_advance(&buf);   // Skip over whitespace
+         else if (peek == '(') {
+            has_args = true;
+            break;
+         }
+         else
+            break;
+      }
+
+      if (has_args) {
+         optional(tWHITESPACE);
          consume(tLPAREN);
          macro_args = hash_new(16);
          p_list_of_actual_arguments(m);
@@ -946,6 +1013,7 @@ static void p_block_of_text(void)
    case tLPAREN:
    case tRPAREN:
    case tCOMMA:
+   case tEQ:
       consume(tok);
       if (ifdefs == NULL || ifdefs->cond)
          tb_append(output, state.last_lval.ch);
