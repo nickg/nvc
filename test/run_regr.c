@@ -142,8 +142,6 @@ typedef struct _test {
    char      *define;
    char      *export;
    char      *exit;
-   char     **plusargs;
-   unsigned   nplusargs;
    char      *subdir;
    unsigned   arrays;
    int        seed;
@@ -581,11 +579,6 @@ static bool parse_test_list(const char *subdir)
             test->flags |= F_EXIT;
             test->exit = strdup(value + 1);
          }
-         else if (opt[0] == '+') {
-            test->plusargs = realloc(test->plusargs,
-                                     (test->nplusargs + 1) * sizeof(char *));
-            test->plusargs[test->nplusargs++] = strdup(opt + 1);
-         }
          else {
             fprintf(stderr, "Error on testlist line %d: invalid option %s in "
                  "test %s\n", lineno, opt, name);
@@ -972,6 +965,9 @@ static bool run_test(test_t *test)
       if (test->flags & F_VHPI)
          push_arg(&args, "--load=%s/../lib/vhpi_test.so%s", bin_dir, EXEEXT);
 
+      if (test->flags & F_SIGINIT)
+         push_arg(&args, "--load=siginit");
+
       for (param_t *p = test->params; p != NULL; p = p->next) {
          if (p->kind == P_PLUSARG)
             push_arg(&args, "+%s", p->value);
@@ -1059,9 +1055,6 @@ static bool run_test(test_t *test)
 
          if (test->flags & F_SEED)
             push_arg(&args, "--seed=%u", test->seed);
-
-         if (test->flags & F_SIGINIT)
-            push_arg(&args, "--load=siginit");
       }
       else
          push_arg(&args, "--no-save");
@@ -1087,12 +1080,6 @@ static bool run_test(test_t *test)
 
       if (test->flags & F_SHUFFLE)
          push_arg(&args, "--shuffle");
-
-      if (test->flags & F_SIGINIT)
-         push_arg(&args, "--load=siginit");
-
-      for (unsigned i = 0; i < test->nplusargs; i++)
-         push_arg(&args, "+%s", test->plusargs[i]);
 
       push_arg(&args, "%s", test->name);
    }
