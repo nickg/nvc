@@ -110,43 +110,43 @@ static mir_value_t wrap_string(mir_unit_t *mu, const char *str)
    return mir_build_wrap(mu, addr, dims, 1);
 }
 
-static void predef_bit_shift(mir_unit_t *mu, tree_t decl,
+static void predef_bit_shift(vhdl_gen_t *g, tree_t decl,
                              subprogram_kind_t kind)
 {
    type_t type = tree_type(tree_port(decl, 0));
 
-   const type_info_t *elem = type_info(mu, type_elem(type));
-   mir_type_t t_offset = mir_offset_type(mu);
-   mir_type_t t_bool = mir_bool_type(mu);
+   const type_info_t *elem = type_info(g, type_elem(type));
+   mir_type_t t_offset = mir_offset_type(g->mu);
+   mir_type_t t_bool = mir_bool_type(g->mu);
 
-   mir_value_t input = mir_get_param(mu, 0);
-   mir_value_t shift = mir_get_param(mu, 1);
+   mir_value_t input = mir_get_param(g->mu, 0);
+   mir_value_t shift = mir_get_param(g->mu, 1);
 
-   mir_value_t data = mir_build_unwrap(mu, input);
-   mir_value_t len  = mir_build_uarray_len(mu, input, 0);
+   mir_value_t data = mir_build_unwrap(g->mu, input);
+   mir_value_t len  = mir_build_uarray_len(g->mu, input, 0);
 
-   mir_block_t null_bb = mir_add_block(mu);
-   mir_block_t non_null_bb = mir_add_block(mu);
+   mir_block_t null_bb = mir_add_block(g->mu);
+   mir_block_t non_null_bb = mir_add_block(g->mu);
 
-   mir_value_t zero = mir_const(mu, t_offset, 0);
-   mir_value_t one = mir_const(mu, t_offset, 1);
-   mir_value_t is_null = mir_build_cmp(mu, MIR_CMP_EQ, len, zero);
-   mir_build_cond(mu, is_null, null_bb, non_null_bb);
+   mir_value_t zero = mir_const(g->mu, t_offset, 0);
+   mir_value_t one = mir_const(g->mu, t_offset, 1);
+   mir_value_t is_null = mir_build_cmp(g->mu, MIR_CMP_EQ, len, zero);
+   mir_build_cond(g->mu, is_null, null_bb, non_null_bb);
 
-   mir_set_cursor(mu, null_bb, MIR_APPEND);
+   mir_set_cursor(g->mu, null_bb, MIR_APPEND);
 
-   mir_build_return(mu, input);
+   mir_build_return(g->mu, input);
 
-   mir_set_cursor(mu, non_null_bb, MIR_APPEND);
+   mir_set_cursor(g->mu, non_null_bb, MIR_APPEND);
 
-   mir_value_t mem = mir_build_alloc(mu, elem->type, elem->stamp, len);
-   mir_value_t i_var = mir_add_var(mu, t_offset, MIR_NULL_STAMP,
+   mir_value_t mem = mir_build_alloc(g->mu, elem->type, elem->stamp, len);
+   mir_value_t i_var = mir_add_var(g->mu, t_offset, MIR_NULL_STAMP,
                                    ident_new("i"), MIR_VAR_TEMP);
-   mir_build_store(mu, i_var, zero);
+   mir_build_store(g->mu, i_var, zero);
 
-   mir_block_t cmp_bb  = mir_add_block(mu);
-   mir_block_t body_bb = mir_add_block(mu);
-   mir_block_t exit_bb = mir_add_block(mu);
+   mir_block_t cmp_bb  = mir_add_block(g->mu);
+   mir_block_t body_bb = mir_add_block(g->mu);
+   mir_block_t exit_bb = mir_add_block(g->mu);
 
    mir_value_t def_val = MIR_NULL_VALUE;
    switch (kind) {
@@ -154,118 +154,122 @@ static void predef_bit_shift(mir_unit_t *mu, tree_t decl,
       def_val = zero;
       break;
    case S_SRA:
-      def_val = mir_build_load(mu, data);
+      def_val = mir_build_load(g->mu, data);
       break;
    case S_SLA:
       {
-         mir_value_t len_minus_1 = mir_build_sub(mu, t_offset, len, one);
-         mir_value_t last_ptr = mir_build_array_ref(mu, data, len_minus_1);
-         def_val = mir_build_load(mu, last_ptr);
+         mir_value_t len_minus_1 = mir_build_sub(g->mu, t_offset, len, one);
+         mir_value_t last_ptr = mir_build_array_ref(g->mu, data, len_minus_1);
+         def_val = mir_build_load(g->mu, last_ptr);
       }
       break;
    default:
       should_not_reach_here();
    }
 
-   mir_value_t shift_cast = mir_build_cast(mu, t_offset, shift);
-   mir_value_t shift_is_neg = mir_build_cmp(mu, MIR_CMP_LT, shift_cast, zero);
-   mir_build_jump(mu, cmp_bb);
+   mir_value_t shift_cast = mir_build_cast(g->mu, t_offset, shift);
+   mir_value_t shift_is_neg =
+      mir_build_cmp(g->mu, MIR_CMP_LT, shift_cast, zero);
+   mir_build_jump(g->mu, cmp_bb);
 
-   mir_set_cursor(mu, cmp_bb, MIR_APPEND);
+   mir_set_cursor(g->mu, cmp_bb, MIR_APPEND);
 
-   mir_value_t i_val = mir_build_load(mu, i_var);
-   mir_value_t eq = mir_build_cmp(mu, MIR_CMP_EQ, i_val, len);
-   mir_build_cond(mu, eq, exit_bb, body_bb);
+   mir_value_t i_val = mir_build_load(g->mu, i_var);
+   mir_value_t eq = mir_build_cmp(g->mu, MIR_CMP_EQ, i_val, len);
+   mir_build_cond(g->mu, eq, exit_bb, body_bb);
 
-   mir_set_cursor(mu, body_bb, MIR_APPEND);
+   mir_set_cursor(g->mu, body_bb, MIR_APPEND);
 
    mir_value_t cmp = MIR_NULL_VALUE;
    switch (kind) {
    case S_SRL: case S_SRA:
       {
          mir_value_t len_plus_shift =
-            mir_build_add(mu, t_offset, len, shift_cast);
-         mir_value_t neg = mir_build_cmp(mu, MIR_CMP_LT, i_val, len_plus_shift);
-         mir_value_t pos = mir_build_cmp(mu, MIR_CMP_GEQ, i_val, shift_cast);
-         cmp = mir_build_select(mu, t_bool, shift_is_neg, neg, pos);
+            mir_build_add(g->mu, t_offset, len, shift_cast);
+         mir_value_t neg =
+            mir_build_cmp(g->mu, MIR_CMP_LT, i_val, len_plus_shift);
+         mir_value_t pos = mir_build_cmp(g->mu, MIR_CMP_GEQ, i_val, shift_cast);
+         cmp = mir_build_select(g->mu, t_bool, shift_is_neg, neg, pos);
       }
       break;
    case S_SLL: case S_SLA:
       {
-         mir_value_t neg_shift = mir_build_neg(mu, t_offset, shift_cast);
+         mir_value_t neg_shift = mir_build_neg(g->mu, t_offset, shift_cast);
          mir_value_t len_minus_shift =
-            mir_build_sub(mu, t_offset, len, shift_cast);
-         mir_value_t neg = mir_build_cmp(mu, MIR_CMP_GEQ, i_val, neg_shift);
+            mir_build_sub(g->mu, t_offset, len, shift_cast);
+         mir_value_t neg = mir_build_cmp(g->mu, MIR_CMP_GEQ, i_val, neg_shift);
          mir_value_t pos =
-            mir_build_cmp(mu, MIR_CMP_LT, i_val, len_minus_shift);
-         cmp = mir_build_select(mu, t_bool, shift_is_neg, neg, pos);
+            mir_build_cmp(g->mu, MIR_CMP_LT, i_val, len_minus_shift);
+         cmp = mir_build_select(g->mu, t_bool, shift_is_neg, neg, pos);
       }
       break;
    case S_ROL: case S_ROR:
-      cmp = mir_const(mu, t_bool, 1);
+      cmp = mir_const(g->mu, t_bool, 1);
       break;
    default:
       should_not_reach_here();
    }
 
-   mir_value_t dst_ptr = mir_build_array_ref(mu, mem, i_val);
+   mir_value_t dst_ptr = mir_build_array_ref(g->mu, mem, i_val);
 
-   mir_value_t next = mir_build_add(mu, t_offset, i_val, one);
-   mir_build_store(mu, i_var, next);
+   mir_value_t next = mir_build_add(g->mu, t_offset, i_val, one);
+   mir_build_store(g->mu, i_var, next);
 
-   mir_block_t true_bb = mir_add_block(mu);
-   mir_block_t false_bb = mir_add_block(mu);
+   mir_block_t true_bb = mir_add_block(g->mu);
+   mir_block_t false_bb = mir_add_block(g->mu);
 
-   mir_build_cond(mu, cmp, true_bb, false_bb);
+   mir_build_cond(g->mu, cmp, true_bb, false_bb);
 
-   mir_set_cursor(mu, true_bb, MIR_APPEND);
+   mir_set_cursor(g->mu, true_bb, MIR_APPEND);
 
    mir_value_t src_idx = MIR_NULL_VALUE;
    switch (kind) {
    case S_SLL: case S_SLA:
-      src_idx = mir_build_add(mu, t_offset, i_val, shift_cast);
+      src_idx = mir_build_add(g->mu, t_offset, i_val, shift_cast);
       break;
    case S_SRL: case S_SRA:
-      src_idx = mir_build_sub(mu, t_offset, i_val, shift_cast);
+      src_idx = mir_build_sub(g->mu, t_offset, i_val, shift_cast);
       break;
    case S_ROL:
       {
          mir_value_t len_plus_shift =
-            mir_build_add(mu, t_offset, len, shift_cast);
-         mir_value_t idx = mir_build_add(mu, t_offset, i_val, len_plus_shift);
-         src_idx = mir_build_mod(mu, t_offset, idx, len);
+            mir_build_add(g->mu, t_offset, len, shift_cast);
+         mir_value_t idx =
+            mir_build_add(g->mu, t_offset, i_val, len_plus_shift);
+         src_idx = mir_build_mod(g->mu, t_offset, idx, len);
       }
       break;
    case S_ROR:
       {
          mir_value_t len_minus_shift =
-            mir_build_sub(mu, t_offset, len, shift_cast);
-         mir_value_t idx = mir_build_add(mu, t_offset, i_val, len_minus_shift);
-         src_idx = mir_build_mod(mu, t_offset, idx, len);
+            mir_build_sub(g->mu, t_offset, len, shift_cast);
+         mir_value_t idx =
+            mir_build_add(g->mu, t_offset, i_val, len_minus_shift);
+         src_idx = mir_build_mod(g->mu, t_offset, idx, len);
       }
       break;
    default:
       should_not_reach_here();
    }
 
-   mir_value_t src_ptr = mir_build_array_ref(mu, data, src_idx);
-   mir_value_t src_val = mir_build_load(mu, src_ptr);
-   mir_build_store(mu, dst_ptr, src_val);
-   mir_build_jump(mu, cmp_bb);
+   mir_value_t src_ptr = mir_build_array_ref(g->mu, data, src_idx);
+   mir_value_t src_val = mir_build_load(g->mu, src_ptr);
+   mir_build_store(g->mu, dst_ptr, src_val);
+   mir_build_jump(g->mu, cmp_bb);
 
-   mir_set_cursor(mu, false_bb, MIR_APPEND);
+   mir_set_cursor(g->mu, false_bb, MIR_APPEND);
 
-   mir_build_store(mu, dst_ptr, def_val);
-   mir_build_jump(mu, cmp_bb);
+   mir_build_store(g->mu, dst_ptr, def_val);
+   mir_build_jump(g->mu, cmp_bb);
 
-   mir_set_cursor(mu, exit_bb, MIR_APPEND);
+   mir_set_cursor(g->mu, exit_bb, MIR_APPEND);
 
-   mir_value_t left  = mir_build_uarray_left(mu, input, 0);
-   mir_value_t right = mir_build_uarray_right(mu, input, 0);
-   mir_value_t dir   = mir_build_uarray_dir(mu, input, 0);
+   mir_value_t left  = mir_build_uarray_left(g->mu, input, 0);
+   mir_value_t right = mir_build_uarray_right(g->mu, input, 0);
+   mir_value_t dir   = mir_build_uarray_dir(g->mu, input, 0);
 
    mir_dim_t dims[] = { { left, right, dir } };
-   mir_build_return(mu, mir_build_wrap(mu, mem, dims, 1));
+   mir_build_return(g->mu, mir_build_wrap(g->mu, mem, dims, 1));
 }
 
 static mir_value_t std_ulogic_table(mir_unit_t *mu, const std_ulogic_t *table,
@@ -282,7 +286,7 @@ static mir_value_t std_ulogic_table(mir_unit_t *mu, const std_ulogic_t *table,
    return mir_build_address_of(mu, array);
 }
 
-static void predef_match_op(mir_unit_t *mu, tree_t decl, subprogram_kind_t kind)
+static void predef_match_op(vhdl_gen_t *g, tree_t decl, subprogram_kind_t kind)
 {
    type_t type = tree_type(tree_port(decl, 0));
 
@@ -316,286 +320,287 @@ static void predef_match_op(mir_unit_t *mu, tree_t decl, subprogram_kind_t kind)
    else
       is_bit = type_ident(type) == well_known(W_STD_BIT);
 
-   mir_value_t left = mir_get_param(mu, 0);
-   mir_value_t right = mir_get_param(mu, 1);
+   mir_value_t left = mir_get_param(g->mu, 0);
+   mir_value_t right = mir_get_param(g->mu, 1);
 
    mir_value_t result = MIR_NULL_VALUE;
    if (is_array) {
       assert(kind == S_MATCH_EQ || kind == S_MATCH_NEQ);
 
-      mir_value_t left_len = mir_build_uarray_len(mu, left, 0);
-      mir_value_t right_len = mir_build_uarray_len(mu, right, 0);
+      mir_value_t left_len = mir_build_uarray_len(g->mu, left, 0);
+      mir_value_t right_len = mir_build_uarray_len(g->mu, right, 0);
 
-      mir_block_t fail_bb = mir_add_block(mu);
-      mir_block_t cont_bb = mir_add_block(mu);
+      mir_block_t fail_bb = mir_add_block(g->mu);
+      mir_block_t cont_bb = mir_add_block(g->mu);
 
-      mir_value_t len_eq = mir_build_cmp(mu, MIR_CMP_EQ, left_len, right_len);
-      mir_build_cond(mu, len_eq, cont_bb, fail_bb);
+      mir_value_t len_eq = mir_build_cmp(g->mu, MIR_CMP_EQ, left_len, right_len);
+      mir_build_cond(g->mu, len_eq, cont_bb, fail_bb);
 
-      mir_set_cursor(mu, fail_bb, MIR_APPEND);
+      mir_set_cursor(g->mu, fail_bb, MIR_APPEND);
 
-      mir_type_t t_severity = mir_int_type(mu, 0, SEVERITY_FAILURE - 1);
-      mir_value_t failure = mir_const(mu, t_severity, SEVERITY_FAILURE);
+      mir_type_t t_severity = mir_int_type(g->mu, 0, SEVERITY_FAILURE - 1);
+      mir_value_t failure = mir_const(g->mu, t_severity, SEVERITY_FAILURE);
 
-      mir_type_t t_offset = mir_offset_type(mu);
+      mir_type_t t_offset = mir_offset_type(g->mu);
 
       static const char msg[] = "arguments have different lengths";
-      mir_value_t msg_buf = mir_const_string(mu, msg);
-      mir_value_t msg_ptr = mir_build_address_of(mu, msg_buf);
-      mir_value_t msg_len = mir_const(mu, t_offset, sizeof(msg) - 1);
+      mir_value_t msg_buf = mir_const_string(g->mu, msg);
+      mir_value_t msg_ptr = mir_build_address_of(g->mu, msg_buf);
+      mir_value_t msg_len = mir_const(g->mu, t_offset, sizeof(msg) - 1);
 
-      mir_value_t locus = mir_build_debug_locus(mu, tree_to_object(decl));
-      mir_build_report(mu, msg_ptr, msg_len, failure, locus);
-      mir_build_jump(mu, cont_bb);
+      mir_value_t locus = mir_build_debug_locus(g->mu, tree_to_object(decl));
+      mir_build_report(g->mu, msg_ptr, msg_len, failure, locus);
+      mir_build_jump(g->mu, cont_bb);
 
-      mir_set_cursor(mu, cont_bb, MIR_APPEND);
+      mir_set_cursor(g->mu, cont_bb, MIR_APPEND);
 
-      const type_info_t *ti = type_info(mu, type_elem(type));
+      const type_info_t *ti = type_info(g, type_elem(type));
 
-      mir_value_t result_var = mir_add_var(mu, ti->type, ti->stamp,
+      mir_value_t result_var = mir_add_var(g->mu, ti->type, ti->stamp,
                                            ident_new("result"), MIR_VAR_TEMP);
-      mir_value_t init = mir_const(mu, ti->type, is_bit ? 1 : _1);
-      mir_build_store(mu, result_var, init);
+      mir_value_t init = mir_const(g->mu, ti->type, is_bit ? 1 : _1);
+      mir_build_store(g->mu, result_var, init);
 
-      mir_value_t i_var = mir_add_var(mu, t_offset, MIR_NULL_STAMP,
+      mir_value_t i_var = mir_add_var(g->mu, t_offset, MIR_NULL_STAMP,
                                       ident_new("i"), MIR_VAR_TEMP);
-      mir_value_t zero = mir_const(mu, t_offset, 0);
-      mir_build_store(mu, i_var, zero);
+      mir_value_t zero = mir_const(g->mu, t_offset, 0);
+      mir_build_store(g->mu, i_var, zero);
 
-      mir_value_t null = mir_build_cmp(mu, MIR_CMP_EQ, left_len, zero);
+      mir_value_t null = mir_build_cmp(g->mu, MIR_CMP_EQ, left_len, zero);
 
-      mir_value_t left_ptr = mir_build_unwrap(mu, left);
-      mir_value_t right_ptr = mir_build_unwrap(mu, right);
+      mir_value_t left_ptr = mir_build_unwrap(g->mu, left);
+      mir_value_t right_ptr = mir_build_unwrap(g->mu, right);
 
-      mir_block_t body_bb = mir_add_block(mu);
-      mir_block_t exit_bb = mir_add_block(mu);
+      mir_block_t body_bb = mir_add_block(g->mu);
+      mir_block_t exit_bb = mir_add_block(g->mu);
 
-      mir_build_cond(mu, null, exit_bb, body_bb);
+      mir_build_cond(g->mu, null, exit_bb, body_bb);
 
-      mir_set_cursor(mu, body_bb, MIR_APPEND);
+      mir_set_cursor(g->mu, body_bb, MIR_APPEND);
 
-      mir_value_t i_val = mir_build_load(mu, i_var);
-      mir_value_t left_ptr_i = mir_build_array_ref(mu, left_ptr, i_val);
-      mir_value_t right_ptr_i = mir_build_array_ref(mu, right_ptr, i_val);
+      mir_value_t i_val = mir_build_load(g->mu, i_var);
+      mir_value_t left_ptr_i = mir_build_array_ref(g->mu, left_ptr, i_val);
+      mir_value_t right_ptr_i = mir_build_array_ref(g->mu, right_ptr, i_val);
 
-      mir_value_t left_src = mir_build_load(mu, left_ptr_i);
-      mir_value_t right_src = mir_build_load(mu, right_ptr_i);
+      mir_value_t left_src = mir_build_load(g->mu, left_ptr_i);
+      mir_value_t right_src = mir_build_load(g->mu, right_ptr_i);
 
-      mir_value_t cur = mir_build_load(mu, result_var), tmp;
+      mir_value_t cur = mir_build_load(g->mu, result_var), tmp;
       if (is_bit) {
-         mir_value_t elem = mir_build_cmp(mu, cmp, left_src, right_src);
-         tmp = mir_build_and(mu, cur, elem);
+         mir_value_t elem = mir_build_cmp(g->mu, cmp, left_src, right_src);
+         tmp = mir_build_and(g->mu, cur, elem);
       }
       else {
          ident_t func = ident_new( "IEEE.STD_LOGIC_1164.\"?=\"(UU)U$predef");
          mir_value_t args[] = { left_src, right_src };
-         mir_value_t elem = mir_build_fcall(mu, func, ti->type, ti->stamp, args,
+         mir_value_t elem = mir_build_fcall(g->mu, func, ti->type, ti->stamp, args,
                                             ARRAY_LEN(args));
-         mir_value_t table_ptr = std_ulogic_table(mu, &and_table[0][0], 9*9);
-         mir_value_t stride = mir_const(mu, t_offset, 9);
+         mir_value_t table_ptr = std_ulogic_table(g->mu, &and_table[0][0], 9*9);
+         mir_value_t stride = mir_const(g->mu, t_offset, 9);
          mir_value_t idx[] = { cur, elem };
-         mir_value_t ref = mir_build_table_ref(mu, table_ptr, stride, idx, 2);
-         tmp = mir_build_load(mu, ref);
+         mir_value_t ref = mir_build_table_ref(g->mu, table_ptr, stride, idx, 2);
+         tmp = mir_build_load(g->mu, ref);
       }
 
-      mir_build_store(mu, result_var, tmp);
+      mir_build_store(g->mu, result_var, tmp);
 
-      mir_value_t one = mir_const(mu, t_offset, 1);
-      mir_value_t next = mir_build_add(mu, t_offset, i_val, one);
-      mir_value_t finished = mir_build_cmp(mu, MIR_CMP_EQ, next, left_len);
-      mir_build_store(mu, i_var, next);
-      mir_build_cond(mu, finished, exit_bb, body_bb);
+      mir_value_t one = mir_const(g->mu, t_offset, 1);
+      mir_value_t next = mir_build_add(g->mu, t_offset, i_val, one);
+      mir_value_t finished = mir_build_cmp(g->mu, MIR_CMP_EQ, next, left_len);
+      mir_build_store(g->mu, i_var, next);
+      mir_build_cond(g->mu, finished, exit_bb, body_bb);
 
-      mir_set_cursor(mu, exit_bb, MIR_APPEND);
+      mir_set_cursor(g->mu, exit_bb, MIR_APPEND);
 
-      result = mir_build_load(mu, result_var);
+      result = mir_build_load(g->mu, result_var);
    }
    else if (is_bit)
-      result = mir_build_cmp(mu, cmp, left, right);
+      result = mir_build_cmp(g->mu, cmp, left, right);
    else if (cmp == MIR_CMP_LEQ) {
       ident_t less_func = ident_new("IEEE.STD_LOGIC_1164.\"?<\"(UU)U$predef");
       ident_t eq_func = ident_new("IEEE.STD_LOGIC_1164.\"?=\"(UU)U$predef");
 
       mir_value_t args[] = { left, right };
 
-      const type_info_t *ti = type_info(mu, type);
+      const type_info_t *ti = type_info(g, type);
 
-      mir_value_t eq = mir_build_fcall(mu, eq_func, ti->type, ti->stamp,
+      mir_value_t eq = mir_build_fcall(g->mu, eq_func, ti->type, ti->stamp,
                                        args, ARRAY_LEN(args));
-      mir_value_t less = mir_build_fcall(mu, less_func, ti->type, ti->stamp,
+      mir_value_t less = mir_build_fcall(g->mu, less_func, ti->type, ti->stamp,
                                          args, ARRAY_LEN(args));
 
-      mir_type_t t_offset = mir_offset_type(mu);
+      mir_type_t t_offset = mir_offset_type(g->mu);
 
-      mir_value_t table_ptr = std_ulogic_table(mu, &or_table[0][0], 9*9);
-      mir_value_t stride = mir_const(mu, t_offset, 9);
+      mir_value_t table_ptr = std_ulogic_table(g->mu, &or_table[0][0], 9*9);
+      mir_value_t stride = mir_const(g->mu, t_offset, 9);
       mir_value_t idx[] = { eq, less };
-      mir_value_t ref = mir_build_table_ref(mu, table_ptr, stride, idx, 2);
-      result = mir_build_load(mu, ref);
+      mir_value_t ref = mir_build_table_ref(g->mu, table_ptr, stride, idx, 2);
+      result = mir_build_load(g->mu, ref);
    }
    else {
       const std_ulogic_t (*table)[9] =
          cmp == MIR_CMP_LT ? match_lt_table : match_eq_table;
 
-      const type_info_t *ti = type_info(mu, type);
-      mir_value_t table_ptr = std_ulogic_table(mu, &table[0][0], 9*9);
+      const type_info_t *ti = type_info(g, type);
+      mir_value_t table_ptr = std_ulogic_table(g->mu, &table[0][0], 9*9);
 
-      mir_type_t t_offset = mir_offset_type(mu);
+      mir_type_t t_offset = mir_offset_type(g->mu);
 
       if (cmp == MIR_CMP_LT) {
-         mir_value_t dontcare = mir_const(mu, ti->type, _D);
-         mir_value_t lcmp = mir_build_cmp(mu, MIR_CMP_NEQ, left, dontcare);
-         mir_value_t rcmp = mir_build_cmp(mu, MIR_CMP_NEQ, right, dontcare);
-         mir_value_t and = mir_build_and(mu, lcmp, rcmp);
+         mir_value_t dontcare = mir_const(g->mu, ti->type, _D);
+         mir_value_t lcmp = mir_build_cmp(g->mu, MIR_CMP_NEQ, left, dontcare);
+         mir_value_t rcmp = mir_build_cmp(g->mu, MIR_CMP_NEQ, right, dontcare);
+         mir_value_t and = mir_build_and(g->mu, lcmp, rcmp);
 
          const char *msg =
             "STD_LOGIC_1164: '-' operand for matching ordering operator";
-         mir_value_t msg_buf = mir_const_string(mu, msg);
-         mir_value_t msg_ptr = mir_build_address_of(mu, msg_buf);
-         mir_value_t msg_len = mir_const(mu, t_offset, sizeof(msg) - 1);
+         mir_value_t msg_buf = mir_const_string(g->mu, msg);
+         mir_value_t msg_ptr = mir_build_address_of(g->mu, msg_buf);
+         mir_value_t msg_len = mir_const(g->mu, t_offset, sizeof(msg) - 1);
 
-         mir_type_t t_severity = mir_int_type(mu, 0, SEVERITY_FAILURE - 1);
-         mir_value_t error = mir_const(mu, t_severity, SEVERITY_ERROR);
-         mir_value_t locus = mir_build_debug_locus(mu, tree_to_object(decl));
+         mir_type_t t_severity = mir_int_type(g->mu, 0, SEVERITY_FAILURE - 1);
+         mir_value_t error = mir_const(g->mu, t_severity, SEVERITY_ERROR);
+         mir_value_t locus = mir_build_debug_locus(g->mu, tree_to_object(decl));
 
-         mir_build_assert(mu, and, msg_ptr, msg_len, error, locus,
+         mir_build_assert(g->mu, and, msg_ptr, msg_len, error, locus,
                           MIR_NULL_VALUE, MIR_NULL_VALUE);
       }
 
-      mir_value_t l_off = mir_build_cast(mu, t_offset, left);
-      mir_value_t r_off = mir_build_cast(mu, t_offset, right);
-      mir_value_t nine = mir_const(mu, t_offset, 9);
+      mir_value_t l_off = mir_build_cast(g->mu, t_offset, left);
+      mir_value_t r_off = mir_build_cast(g->mu, t_offset, right);
+      mir_value_t nine = mir_const(g->mu, t_offset, 9);
       mir_value_t idx[] = { l_off, r_off };
-      mir_value_t ptr = mir_build_table_ref(mu, table_ptr, nine, idx, 2);
+      mir_value_t ptr = mir_build_table_ref(g->mu, table_ptr, nine, idx, 2);
 
-      result = mir_build_load(mu, ptr);
+      result = mir_build_load(g->mu, ptr);
    }
 
    if (invert && is_bit)
-      mir_build_return(mu, mir_build_not(mu, result));
+      mir_build_return(g->mu, mir_build_not(g->mu, result));
    else if (invert) {
-      mir_type_t t_offset = mir_offset_type(mu);
+      mir_type_t t_offset = mir_offset_type(g->mu);
 
-      mir_value_t table_ptr = std_ulogic_table(mu, not_table, 9);
-      mir_value_t stride = mir_const(mu, t_offset, 9);
+      mir_value_t table_ptr = std_ulogic_table(g->mu, not_table, 9);
+      mir_value_t stride = mir_const(g->mu, t_offset, 9);
       mir_value_t args[] = { result };
-      mir_value_t call = mir_build_table_ref(mu, table_ptr, stride, args, 1);
-      mir_build_return(mu, mir_build_load(mu, call));
+      mir_value_t call = mir_build_table_ref(g->mu, table_ptr, stride, args, 1);
+      mir_build_return(g->mu, mir_build_load(g->mu, call));
    }
    else
-      mir_build_return(mu, result);
+      mir_build_return(g->mu, result);
 }
 
-static void predef_bit_vec_op(mir_unit_t *mu, tree_t decl,
+static void predef_bit_vec_op(vhdl_gen_t *g, tree_t decl,
                               subprogram_kind_t kind)
 {
    type_t type = tree_type(tree_port(decl, 0));
    type_t elem = type_elem(type);
 
-   const type_info_t *ti = type_info(mu, elem);
+   const type_info_t *ti = type_info(g, elem);
 
-   mir_type_t t_offset = mir_offset_type(mu);
+   mir_type_t t_offset = mir_offset_type(g->mu);
 
-   mir_value_t left = mir_get_param(mu, 0), right = MIR_NULL_VALUE;
+   mir_value_t left = mir_get_param(g->mu, 0), right = MIR_NULL_VALUE;
    if (kind != S_ARRAY_NOT)
-      right = mir_get_param(mu, 1);
+      right = mir_get_param(g->mu, 1);
 
-   mir_value_t left_len = mir_build_uarray_len(mu, left, 0);
+   mir_value_t left_len = mir_build_uarray_len(g->mu, left, 0);
    mir_value_t right_len = MIR_NULL_VALUE;
 
-   mir_value_t left_data = mir_build_unwrap(mu, left);
+   mir_value_t left_data = mir_build_unwrap(g->mu, left);
    mir_value_t right_data = MIR_NULL_VALUE;
 
    if (kind != S_ARRAY_NOT) {
-      right_len = mir_build_uarray_len(mu, right, 0);
-      right_data = mir_build_unwrap(mu, right);
+      right_len = mir_build_uarray_len(g->mu, right, 0);
+      right_data = mir_build_unwrap(g->mu, right);
 
-      mir_block_t fail_bb = mir_add_block(mu);
-      mir_block_t cont_bb = mir_add_block(mu);
+      mir_block_t fail_bb = mir_add_block(g->mu);
+      mir_block_t cont_bb = mir_add_block(g->mu);
 
-      mir_value_t len_eq = mir_build_cmp(mu, MIR_CMP_EQ, left_len, right_len);
-      mir_build_cond(mu, len_eq, cont_bb, fail_bb);
+      mir_value_t len_eq =
+         mir_build_cmp(g->mu, MIR_CMP_EQ, left_len, right_len);
+      mir_build_cond(g->mu, len_eq, cont_bb, fail_bb);
 
-      mir_set_cursor(mu, fail_bb, MIR_APPEND);
+      mir_set_cursor(g->mu, fail_bb, MIR_APPEND);
 
-      mir_type_t t_severity = mir_int_type(mu, 0, SEVERITY_FAILURE - 1);
-      mir_value_t failure = mir_const(mu, t_severity, SEVERITY_FAILURE);
+      mir_type_t t_severity = mir_int_type(g->mu, 0, SEVERITY_FAILURE - 1);
+      mir_value_t failure = mir_const(g->mu, t_severity, SEVERITY_FAILURE);
 
       static const char msg_str[] = "arguments have different lengths";
-      mir_value_t msg_array = mir_const_string(mu, msg_str);
-      mir_value_t msg_ptr = mir_build_address_of(mu, msg_array);
-      mir_value_t msg_len = mir_const(mu, t_offset, sizeof(msg_str) - 1);
+      mir_value_t msg_array = mir_const_string(g->mu, msg_str);
+      mir_value_t msg_ptr = mir_build_address_of(g->mu, msg_array);
+      mir_value_t msg_len = mir_const(g->mu, t_offset, sizeof(msg_str) - 1);
 
-      mir_value_t locus = mir_build_debug_locus(mu, tree_to_object(decl));
-      mir_build_report(mu, msg_ptr, msg_len, failure, locus);
+      mir_value_t locus = mir_build_debug_locus(g->mu, tree_to_object(decl));
+      mir_build_report(g->mu, msg_ptr, msg_len, failure, locus);
 
-      mir_build_return(mu, left);
+      mir_build_return(g->mu, left);
 
-      mir_set_cursor(mu, cont_bb, MIR_APPEND);
+      mir_set_cursor(g->mu, cont_bb, MIR_APPEND);
    }
 
-   mir_value_t mem = mir_build_alloc(mu, ti->type, ti->stamp, left_len);
+   mir_value_t mem = mir_build_alloc(g->mu, ti->type, ti->stamp, left_len);
 
-   mir_value_t i_var = mir_add_var(mu, t_offset, MIR_NULL_STAMP,
+   mir_value_t i_var = mir_add_var(g->mu, t_offset, MIR_NULL_STAMP,
                                    ident_new("i"), MIR_VAR_TEMP);
-   mir_build_store(mu, i_var, mir_const(mu, t_offset, 0));
+   mir_build_store(g->mu, i_var, mir_const(g->mu, t_offset, 0));
 
-   mir_block_t cmp_bb  = mir_add_block(mu);
-   mir_block_t body_bb = mir_add_block(mu);
-   mir_block_t exit_bb = mir_add_block(mu);
+   mir_block_t cmp_bb  = mir_add_block(g->mu);
+   mir_block_t body_bb = mir_add_block(g->mu);
+   mir_block_t exit_bb = mir_add_block(g->mu);
 
-   mir_build_jump(mu, cmp_bb);
+   mir_build_jump(g->mu, cmp_bb);
 
-   mir_set_cursor(mu, cmp_bb, MIR_APPEND);
+   mir_set_cursor(g->mu, cmp_bb, MIR_APPEND);
 
-   mir_value_t i_val = mir_build_load(mu, i_var);
-   mir_value_t eq = mir_build_cmp(mu, MIR_CMP_EQ, i_val, left_len);
-   mir_build_cond(mu, eq, exit_bb, body_bb);
+   mir_value_t i_val = mir_build_load(g->mu, i_var);
+   mir_value_t eq = mir_build_cmp(g->mu, MIR_CMP_EQ, i_val, left_len);
+   mir_build_cond(g->mu, eq, exit_bb, body_bb);
 
-   mir_set_cursor(mu, body_bb, MIR_APPEND);
+   mir_set_cursor(g->mu, body_bb, MIR_APPEND);
 
-   mir_value_t dst_ptr = mir_build_array_ref(mu, mem, i_val);
+   mir_value_t dst_ptr = mir_build_array_ref(g->mu, mem, i_val);
 
-   mir_value_t src0_ptr = mir_build_array_ref(mu, left_data, i_val);
-   mir_value_t src0 = mir_build_load(mu, src0_ptr);
+   mir_value_t src0_ptr = mir_build_array_ref(g->mu, left_data, i_val);
+   mir_value_t src0 = mir_build_load(g->mu, src0_ptr);
 
    mir_value_t src1 = MIR_NULL_VALUE;
    if (kind != S_ARRAY_NOT) {
-      mir_value_t src1_ptr = mir_build_array_ref(mu, right_data, i_val);
-      src1 = mir_build_load(mu, src1_ptr);
+      mir_value_t src1_ptr = mir_build_array_ref(g->mu, right_data, i_val);
+      src1 = mir_build_load(g->mu, src1_ptr);
    }
 
    bool negate = false;
    mir_value_t op;
    switch (kind) {
-   case S_ARRAY_NOT:  op = mir_build_not(mu, src0); break;
+   case S_ARRAY_NOT:  op = mir_build_not(g->mu, src0); break;
    case S_ARRAY_NAND: negate = true;
-   case S_ARRAY_AND:  op = mir_build_and(mu, src0, src1); break;
+   case S_ARRAY_AND:  op = mir_build_and(g->mu, src0, src1); break;
    case S_ARRAY_NOR:  negate = true;
-   case S_ARRAY_OR:   op = mir_build_or(mu, src0, src1); break;
+   case S_ARRAY_OR:   op = mir_build_or(g->mu, src0, src1); break;
    case S_ARRAY_XNOR: negate = true;
-   case S_ARRAY_XOR:  op = mir_build_xor(mu, src0, src1); break;
+   case S_ARRAY_XOR:  op = mir_build_xor(g->mu, src0, src1); break;
    default:           should_not_reach_here();
    }
 
    if (negate)
-      op = mir_build_not(mu, op);
+      op = mir_build_not(g->mu, op);
 
-   mir_build_store(mu, dst_ptr, op);
+   mir_build_store(g->mu, dst_ptr, op);
 
-   mir_value_t one = mir_const(mu, t_offset, 1);
-   mir_value_t next = mir_build_add(mu, t_offset, i_val, one);
-   mir_build_store(mu, i_var, next);
-   mir_build_jump(mu, cmp_bb);
+   mir_value_t one = mir_const(g->mu, t_offset, 1);
+   mir_value_t next = mir_build_add(g->mu, t_offset, i_val, one);
+   mir_build_store(g->mu, i_var, next);
+   mir_build_jump(g->mu, cmp_bb);
 
-   mir_set_cursor(mu, exit_bb, MIR_APPEND);
+   mir_set_cursor(g->mu, exit_bb, MIR_APPEND);
 
-   mir_value_t b_left  = mir_build_uarray_left(mu, left, 0);
-   mir_value_t b_right = mir_build_uarray_right(mu, left, 0);
-   mir_value_t b_dir   = mir_build_uarray_dir(mu, left, 0);
+   mir_value_t b_left  = mir_build_uarray_left(g->mu, left, 0);
+   mir_value_t b_right = mir_build_uarray_right(g->mu, left, 0);
+   mir_value_t b_dir   = mir_build_uarray_dir(g->mu, left, 0);
 
    mir_dim_t dims[] = { { b_left, b_right, b_dir } };
-   mir_build_return(mu, mir_build_wrap(mu, mem, dims, 1));
+   mir_build_return(g->mu, mir_build_wrap(g->mu, mem, dims, 1));
 }
 
 static void predef_edge_op(mir_unit_t *mu, tree_t decl)
@@ -613,14 +618,14 @@ static void predef_edge_op(mir_unit_t *mu, tree_t decl)
    mir_build_return(mu, mir_build_and(mu, event, value));
 }
 
-static void predef_array_cmp(mir_unit_t *mu, tree_t decl, mir_cmp_t pred)
+static void predef_array_cmp(vhdl_gen_t *g, tree_t decl, mir_cmp_t pred)
 {
-   mir_value_t lhs_array = mir_get_param(mu, 0);
-   mir_value_t rhs_array = mir_get_param(mu, 1);
-   mir_value_t lhs_data = mir_build_unwrap(mu, lhs_array);
-   mir_value_t rhs_data = mir_build_unwrap(mu, rhs_array);
+   mir_value_t lhs_array = mir_get_param(g->mu, 0);
+   mir_value_t rhs_array = mir_get_param(g->mu, 1);
+   mir_value_t lhs_data = mir_build_unwrap(g->mu, lhs_array);
+   mir_value_t rhs_data = mir_build_unwrap(g->mu, rhs_array);
 
-   mir_block_t fail_bb = mir_add_block(mu);
+   mir_block_t fail_bb = mir_add_block(g->mu);
 
    // Behaviour of relational operators on arrays is described in
    // LRM 93 section 7.2.2
@@ -631,210 +636,213 @@ static void predef_array_cmp(mir_unit_t *mu, tree_t decl, mir_cmp_t pred)
    type_t type = tree_type(tree_port(decl, 0));
    assert(tree_type(tree_port(decl, 1)) == type);
 
-   const type_info_t *ti = type_info(mu, type);
-   const type_info_t *elem = type_info(mu, type_elem(type));
+   const type_info_t *ti = type_info(g, type);
+   const type_info_t *elem = type_info(g, type_elem(type));
    assert(ti->ndims == 1);
    assert(elem->kind != T_ARRAY && elem->kind != T_RECORD);
 #endif
 
-   mir_type_t t_offset = mir_offset_type(mu);
-   mir_type_t t_bool = mir_bool_type(mu);
+   mir_type_t t_offset = mir_offset_type(g->mu);
+   mir_type_t t_bool = mir_bool_type(g->mu);
 
-   mir_value_t left_len = mir_build_uarray_len(mu, lhs_array, 0);
-   mir_value_t right_len = mir_build_uarray_len(mu, rhs_array, 0);
+   mir_value_t left_len = mir_build_uarray_len(g->mu, lhs_array, 0);
+   mir_value_t right_len = mir_build_uarray_len(g->mu, rhs_array, 0);
 
-   mir_value_t len_eq = mir_build_cmp(mu, MIR_CMP_EQ, left_len, right_len);
+   mir_value_t len_eq = mir_build_cmp(g->mu, MIR_CMP_EQ, left_len, right_len);
 
-   mir_value_t i_var = mir_add_var(mu, t_offset, MIR_NULL_STAMP,
+   mir_value_t i_var = mir_add_var(g->mu, t_offset, MIR_NULL_STAMP,
                                    ident_uniq("i"), MIR_VAR_TEMP);
-   mir_build_store(mu, i_var, mir_const(mu, t_offset, 0));
+   mir_build_store(g->mu, i_var, mir_const(g->mu, t_offset, 0));
 
-   mir_block_t test_bb = mir_add_block(mu);
-   mir_block_t body_bb = mir_add_block(mu);
-   mir_block_t exit_bb = mir_add_block(mu);
+   mir_block_t test_bb = mir_add_block(g->mu);
+   mir_block_t body_bb = mir_add_block(g->mu);
+   mir_block_t exit_bb = mir_add_block(g->mu);
 
-   mir_build_jump(mu, test_bb);
+   mir_build_jump(g->mu, test_bb);
 
    // Loop test
 
-   mir_set_cursor(mu, test_bb, MIR_APPEND);
+   mir_set_cursor(g->mu, test_bb, MIR_APPEND);
 
-   mir_value_t i_loaded = mir_build_load(mu, i_var);
+   mir_value_t i_loaded = mir_build_load(g->mu, i_var);
 
-   mir_block_t check_r_len_bb = mir_add_block(mu);
+   mir_block_t check_r_len_bb = mir_add_block(g->mu);
 
-   mir_value_t len_ge_l = mir_build_cmp(mu, MIR_CMP_GEQ, i_loaded, left_len);
-   mir_build_cond(mu, len_ge_l, exit_bb, check_r_len_bb);
+   mir_value_t len_ge_l =
+      mir_build_cmp(g->mu, MIR_CMP_GEQ, i_loaded, left_len);
+   mir_build_cond(g->mu, len_ge_l, exit_bb, check_r_len_bb);
 
-   mir_set_cursor(mu, check_r_len_bb, MIR_APPEND);
+   mir_set_cursor(g->mu, check_r_len_bb, MIR_APPEND);
 
-   mir_value_t len_ge_r = mir_build_cmp(mu, MIR_CMP_GEQ, i_loaded, right_len);
-   mir_build_cond(mu, len_ge_r, fail_bb, body_bb);
+   mir_value_t len_ge_r =
+      mir_build_cmp(g->mu, MIR_CMP_GEQ, i_loaded, right_len);
+   mir_build_cond(g->mu, len_ge_r, fail_bb, body_bb);
 
    // Loop body
 
-   mir_set_cursor(mu, body_bb, MIR_APPEND);
+   mir_set_cursor(g->mu, body_bb, MIR_APPEND);
 
-   mir_value_t one = mir_const(mu, t_offset, 1);
-   mir_value_t inc = mir_build_add(mu, t_offset, i_loaded, one);
-   mir_build_store(mu, i_var, inc);
+   mir_value_t one = mir_const(g->mu, t_offset, 1);
+   mir_value_t inc = mir_build_add(g->mu, t_offset, i_loaded, one);
+   mir_build_store(g->mu, i_var, inc);
 
-   mir_value_t i_eq_len = mir_build_cmp(mu, MIR_CMP_EQ, inc, left_len);
+   mir_value_t i_eq_len = mir_build_cmp(g->mu, MIR_CMP_EQ, inc, left_len);
 
-   mir_value_t l_ptr = mir_build_array_ref(mu, lhs_data, i_loaded);
-   mir_value_t r_ptr = mir_build_array_ref(mu, rhs_data, i_loaded);
+   mir_value_t l_ptr = mir_build_array_ref(g->mu, lhs_data, i_loaded);
+   mir_value_t r_ptr = mir_build_array_ref(g->mu, rhs_data, i_loaded);
 
-   mir_value_t l_val = mir_build_load(mu, l_ptr);
-   mir_value_t r_val = mir_build_load(mu, r_ptr);
+   mir_value_t l_val = mir_build_load(g->mu, l_ptr);
+   mir_value_t r_val = mir_build_load(g->mu, r_ptr);
 
-   mir_value_t cmp = mir_build_cmp(mu, pred, l_val, r_val);
-   mir_value_t eq  = mir_build_cmp(mu, MIR_CMP_EQ, l_val, r_val);
+   mir_value_t cmp = mir_build_cmp(g->mu, pred, l_val, r_val);
+   mir_value_t eq  = mir_build_cmp(g->mu, MIR_CMP_EQ, l_val, r_val);
 
-   mir_value_t done = mir_build_or(mu, mir_build_not(mu, eq),
-                                   mir_build_and(mu, len_eq, i_eq_len));
+   mir_value_t done = mir_build_or(g->mu, mir_build_not(g->mu, eq),
+                                   mir_build_and(g->mu, len_eq, i_eq_len));
 
-   mir_block_t cmp_result_bb = mir_add_block(mu);
-   mir_build_cond(mu, done, cmp_result_bb, test_bb);
+   mir_block_t cmp_result_bb = mir_add_block(g->mu);
+   mir_build_cond(g->mu, done, cmp_result_bb, test_bb);
 
-   mir_set_cursor(mu, cmp_result_bb, MIR_APPEND);
-   mir_build_cond(mu, cmp, exit_bb, fail_bb);
+   mir_set_cursor(g->mu, cmp_result_bb, MIR_APPEND);
+   mir_build_cond(g->mu, cmp, exit_bb, fail_bb);
 
    // Epilogue
 
-   mir_set_cursor(mu, exit_bb, MIR_APPEND);
+   mir_set_cursor(g->mu, exit_bb, MIR_APPEND);
 
-   mir_build_return(mu, mir_const(mu, t_bool, 1));
+   mir_build_return(g->mu, mir_const(g->mu, t_bool, 1));
 
-   mir_set_cursor(mu, fail_bb, MIR_APPEND);
+   mir_set_cursor(g->mu, fail_bb, MIR_APPEND);
 
-   mir_build_return(mu, mir_const(mu, t_bool, 0));
+   mir_build_return(g->mu, mir_const(g->mu, t_bool, 0));
 }
 
-static void predef_array_eq(mir_unit_t *mu, tree_t decl)
+static void predef_array_eq(vhdl_gen_t *g, tree_t decl)
 {
    type_t type = tree_type(tree_port(decl, 0));
    assert(tree_type(tree_port(decl, 1)) == type);
 
-   mir_value_t lhs_array = mir_get_param(mu, 0);
-   mir_value_t rhs_array = mir_get_param(mu, 1);
-   mir_value_t lhs_data = mir_build_unwrap(mu, lhs_array);
-   mir_value_t rhs_data = mir_build_unwrap(mu, rhs_array);
+   mir_value_t lhs_array = mir_get_param(g->mu, 0);
+   mir_value_t rhs_array = mir_get_param(g->mu, 1);
+   mir_value_t lhs_data = mir_build_unwrap(g->mu, lhs_array);
+   mir_value_t rhs_data = mir_build_unwrap(g->mu, rhs_array);
 
-   mir_block_t fail_bb = mir_add_block(mu);
+   mir_block_t fail_bb = mir_add_block(g->mu);
 
-   const type_info_t *ti = type_info(mu, type);
-   const type_info_t *elem = type_info(mu, type_elem_recur(type));
+   const type_info_t *ti = type_info(g, type);
+   const type_info_t *elem = type_info(g, type_elem_recur(type));
 
-   mir_type_t t_offset = mir_offset_type(mu);
-   mir_type_t t_bool = mir_bool_type(mu);
+   mir_type_t t_offset = mir_offset_type(g->mu);
+   mir_type_t t_bool = mir_bool_type(g->mu);
 
-   mir_value_t len_eq = mir_const(mu, t_bool, 1);
-   mir_value_t total = mir_const(mu, t_offset, 1);
+   mir_value_t len_eq = mir_const(g->mu, t_bool, 1);
+   mir_value_t total = mir_const(g->mu, t_offset, 1);
 
    int pos = 0;
    for (const type_info_t *e = ti; e->kind == T_ARRAY;
-        e = type_info(mu, type_elem(e->tree))) {
+        e = type_info(g, type_elem(e->tree))) {
 
       if (pos == ti->udims && e->size < SIZE_MAX && e->stride < SIZE_MAX) {
-         mir_value_t size = mir_const(mu, t_offset, e->size * e->stride);
-         total = mir_build_mul(mu, t_offset, total, size);
+         mir_value_t size = mir_const(g->mu, t_offset, e->size * e->stride);
+         total = mir_build_mul(g->mu, t_offset, total, size);
          break;
       }
 
       for (int i = 0; i < e->ndims && pos < ti->udims; i++, pos++) {
-         mir_value_t left_len = mir_build_uarray_len(mu, lhs_array, pos);
-         mir_value_t right_len = mir_build_uarray_len(mu, rhs_array, pos);
+         mir_value_t left_len = mir_build_uarray_len(g->mu, lhs_array, pos);
+         mir_value_t right_len = mir_build_uarray_len(g->mu, rhs_array, pos);
 
-         mir_value_t cmp = mir_build_cmp(mu, MIR_CMP_EQ, left_len, right_len);
-         len_eq = mir_build_and(mu, len_eq, cmp);
-         total = mir_build_mul(mu, t_offset, total, left_len);
+         mir_value_t cmp =
+            mir_build_cmp(g->mu, MIR_CMP_EQ, left_len, right_len);
+         len_eq = mir_build_and(g->mu, len_eq, cmp);
+         total = mir_build_mul(g->mu, t_offset, total, left_len);
       }
    }
    assert(pos == ti->udims);
 
-   mir_value_t i_var = mir_add_var(mu, t_offset, MIR_NULL_STAMP,
+   mir_value_t i_var = mir_add_var(g->mu, t_offset, MIR_NULL_STAMP,
                                    ident_uniq("i"), MIR_VAR_TEMP);
-   mir_build_store(mu, i_var, mir_const(mu, t_offset, 0));
+   mir_build_store(g->mu, i_var, mir_const(g->mu, t_offset, 0));
 
-   mir_block_t test_bb = mir_add_block(mu);
-   mir_block_t body_bb = mir_add_block(mu);
-   mir_block_t exit_bb = mir_add_block(mu);
+   mir_block_t test_bb = mir_add_block(g->mu);
+   mir_block_t body_bb = mir_add_block(g->mu);
+   mir_block_t exit_bb = mir_add_block(g->mu);
 
    mir_value_t stride = MIR_NULL_VALUE;
 
-   mir_build_cond(mu, len_eq, test_bb, fail_bb);
+   mir_build_cond(g->mu, len_eq, test_bb, fail_bb);
 
    // Loop test
 
-   mir_set_cursor(mu, test_bb, MIR_APPEND);
+   mir_set_cursor(g->mu, test_bb, MIR_APPEND);
 
-   mir_value_t i_loaded = mir_build_load(mu, i_var);
+   mir_value_t i_loaded = mir_build_load(g->mu, i_var);
 
-   mir_value_t done = mir_build_cmp(mu, MIR_CMP_EQ, i_loaded, total);
-   mir_build_cond(mu, done, exit_bb, body_bb);
+   mir_value_t done = mir_build_cmp(g->mu, MIR_CMP_EQ, i_loaded, total);
+   mir_build_cond(g->mu, done, exit_bb, body_bb);
 
    // Loop body
 
-   mir_set_cursor(mu, body_bb, MIR_APPEND);
+   mir_set_cursor(g->mu, body_bb, MIR_APPEND);
 
    mir_value_t ptr_inc = i_loaded;
    if (!mir_is_null(stride))
-      ptr_inc = mir_build_mul(mu, t_offset, ptr_inc, stride);
+      ptr_inc = mir_build_mul(g->mu, t_offset, ptr_inc, stride);
 
-   mir_value_t one = mir_const(mu, t_offset, 1);
-   mir_value_t inc = mir_build_add(mu, t_offset, i_loaded, one);
-   mir_build_store(mu, i_var, inc);
+   mir_value_t one = mir_const(g->mu, t_offset, 1);
+   mir_value_t inc = mir_build_add(g->mu, t_offset, i_loaded, one);
+   mir_build_store(g->mu, i_var, inc);
 
-   mir_value_t l_ptr = mir_build_array_ref(mu, lhs_data, ptr_inc);
-   mir_value_t r_ptr = mir_build_array_ref(mu, rhs_data, ptr_inc);
+   mir_value_t l_ptr = mir_build_array_ref(g->mu, lhs_data, ptr_inc);
+   mir_value_t r_ptr = mir_build_array_ref(g->mu, rhs_data, ptr_inc);
 
    if (elem->kind == T_RECORD) {   // XXX: should recurse
       ident_t func = predef_func_name(elem->tree, "=");
 
       mir_value_t args[] = { l_ptr, r_ptr };
-      mir_value_t eq = mir_build_fcall(mu, func, t_bool, MIR_NULL_STAMP,
+      mir_value_t eq = mir_build_fcall(g->mu, func, t_bool, MIR_NULL_STAMP,
                                        args, ARRAY_LEN(args));
 
-      mir_build_cond(mu, eq, test_bb, fail_bb);
+      mir_build_cond(g->mu, eq, test_bb, fail_bb);
    }
    else {
-      mir_value_t l_val = mir_build_load(mu, l_ptr);
-      mir_value_t r_val = mir_build_load(mu, r_ptr);
+      mir_value_t l_val = mir_build_load(g->mu, l_ptr);
+      mir_value_t r_val = mir_build_load(g->mu, r_ptr);
 
-      mir_value_t eq = mir_build_cmp(mu, MIR_CMP_EQ, l_val, r_val);
-      mir_build_cond(mu, eq, test_bb, fail_bb);
+      mir_value_t eq = mir_build_cmp(g->mu, MIR_CMP_EQ, l_val, r_val);
+      mir_build_cond(g->mu, eq, test_bb, fail_bb);
    }
 
    // Epilogue
 
-   mir_set_cursor(mu, exit_bb, MIR_APPEND);
+   mir_set_cursor(g->mu, exit_bb, MIR_APPEND);
 
-   mir_build_return(mu, mir_const(mu, t_bool, 1));
+   mir_build_return(g->mu, mir_const(g->mu, t_bool, 1));
 
-   mir_set_cursor(mu, fail_bb, MIR_APPEND);
+   mir_set_cursor(g->mu, fail_bb, MIR_APPEND);
 
-   mir_build_return(mu, mir_const(mu, t_bool, 0));
+   mir_build_return(g->mu, mir_const(g->mu, t_bool, 0));
 }
 
 
-static void predef_min_max(mir_unit_t *mu, tree_t decl, mir_cmp_t cmp)
+static void predef_min_max(vhdl_gen_t *g, tree_t decl, mir_cmp_t cmp)
 {
    type_t type = tree_type(tree_port(decl, 0));
 
    if (type_is_array(type) && tree_ports(decl) == 1) {
-      const type_info_t *elem = type_info(mu, type_elem(type));
+      const type_info_t *elem = type_info(g, type_elem(type));
       assert(type_is_scalar(elem->tree));
 
-      mir_value_t array = mir_get_param(mu, 0);
+      mir_value_t array = mir_get_param(g->mu, 0);
 
-      mir_type_t t_offset = mir_offset_type(mu);
-      mir_value_t i_var = mir_add_var(mu, t_offset, MIR_NULL_STAMP,
+      mir_type_t t_offset = mir_offset_type(g->mu);
+      mir_value_t i_var = mir_add_var(g->mu, t_offset, MIR_NULL_STAMP,
                                       ident_new("i"), MIR_VAR_TEMP);
-      mir_value_t zero = mir_const(mu, t_offset, 0);
-      mir_build_store(mu, i_var, zero);
+      mir_value_t zero = mir_const(g->mu, t_offset, 0);
+      mir_build_store(g->mu, i_var, zero);
 
       mir_value_t result_var =
-         mir_add_var(mu, elem->type, elem->stamp, ident_new("result"), 0);
+         mir_add_var(g->mu, elem->type, elem->stamp, ident_new("result"), 0);
 
       tree_t elem_r = range_of(elem->tree, 0);
       tree_t def = (cmp == MIR_CMP_GT && tree_subkind(elem_r) == RANGE_TO)
@@ -843,61 +851,62 @@ static void predef_min_max(mir_unit_t *mu, tree_t decl, mir_cmp_t cmp)
 
       mir_value_t def_val;
       if (tree_kind(def) == T_LITERAL && tree_subkind(def) == L_REAL)
-         def_val = mir_const_real(mu, elem->type, tree_dval(def));
+         def_val = mir_const_real(g->mu, elem->type, tree_dval(def));
       else
-         def_val = mir_const(mu, elem->type, assume_int(def));
+         def_val = mir_const(g->mu, elem->type, assume_int(def));
 
-      mir_build_store(mu, result_var, def_val);
+      mir_build_store(g->mu, result_var, def_val);
 
-      mir_value_t len   = mir_build_uarray_len(mu, array, 0);
-      mir_value_t data  = mir_build_unwrap(mu, array);
-      mir_value_t null = mir_build_cmp(mu, MIR_CMP_EQ, len, zero);
+      mir_value_t len   = mir_build_uarray_len(g->mu, array, 0);
+      mir_value_t data  = mir_build_unwrap(g->mu, array);
+      mir_value_t null = mir_build_cmp(g->mu, MIR_CMP_EQ, len, zero);
 
-      mir_block_t body_bb = mir_add_block(mu);
-      mir_block_t exit_bb = mir_add_block(mu);
+      mir_block_t body_bb = mir_add_block(g->mu);
+      mir_block_t exit_bb = mir_add_block(g->mu);
 
-      mir_build_cond(mu, null, exit_bb, body_bb);
+      mir_build_cond(g->mu, null, exit_bb, body_bb);
 
-      mir_set_cursor(mu, body_bb, MIR_APPEND);
+      mir_set_cursor(g->mu, body_bb, MIR_APPEND);
 
-      mir_value_t i_val    = mir_build_load(mu, i_var);
-      mir_value_t elem_ptr = mir_build_array_ref(mu, data, i_val);
-      mir_value_t elem_val = mir_build_load(mu, elem_ptr);
-      mir_value_t cur_val  = mir_build_load(mu, result_var);
-      mir_value_t cmp_val  = mir_build_cmp(mu, cmp, elem_val, cur_val);
+      mir_value_t i_val    = mir_build_load(g->mu, i_var);
+      mir_value_t elem_ptr = mir_build_array_ref(g->mu, data, i_val);
+      mir_value_t elem_val = mir_build_load(g->mu, elem_ptr);
+      mir_value_t cur_val  = mir_build_load(g->mu, result_var);
+      mir_value_t cmp_val  = mir_build_cmp(g->mu, cmp, elem_val, cur_val);
 
       mir_value_t next =
-         mir_build_select(mu, elem->type, cmp_val, elem_val, cur_val);
-      mir_build_store(mu, result_var, next);
+         mir_build_select(g->mu, elem->type, cmp_val, elem_val, cur_val);
+      mir_build_store(g->mu, result_var, next);
 
-      mir_value_t one = mir_const(mu, t_offset, 1);
-      mir_value_t i_next = mir_build_add(mu, t_offset, i_val, one);
-      mir_build_store(mu, i_var, i_next);
+      mir_value_t one = mir_const(g->mu, t_offset, 1);
+      mir_value_t i_next = mir_build_add(g->mu, t_offset, i_val, one);
+      mir_build_store(g->mu, i_var, i_next);
 
-      mir_value_t done = mir_build_cmp(mu, MIR_CMP_EQ, i_next, len);
-      mir_build_cond(mu, done, exit_bb, body_bb);
+      mir_value_t done = mir_build_cmp(g->mu, MIR_CMP_EQ, i_next, len);
+      mir_build_cond(g->mu, done, exit_bb, body_bb);
 
-      mir_set_cursor(mu, exit_bb, MIR_APPEND);
-      mir_build_return(mu, mir_build_load(mu, result_var));
+      mir_set_cursor(g->mu, exit_bb, MIR_APPEND);
+      mir_build_return(g->mu, mir_build_load(g->mu, result_var));
    }
    else {
-      mir_value_t lhs = mir_get_param(mu, 0);
-      mir_value_t rhs = mir_get_param(mu, 1);
+      mir_value_t lhs = mir_get_param(g->mu, 0);
+      mir_value_t rhs = mir_get_param(g->mu, 1);
 
       mir_value_t test;
       if (type_is_scalar(type))
-         test = mir_build_cmp(mu, cmp, lhs, rhs);
+         test = mir_build_cmp(g->mu, cmp, lhs, rhs);
       else {
          const char *op = cmp == MIR_CMP_GT ? ">" : "<";
          ident_t func = predef_func_name(type, op);
          mir_value_t args[] = { lhs, rhs };
-         mir_type_t t_bool = mir_bool_type(mu);
-         test = mir_build_fcall(mu, func, t_bool, MIR_NULL_STAMP, args,
+         mir_type_t t_bool = mir_bool_type(g->mu);
+         test = mir_build_fcall(g->mu, func, t_bool, MIR_NULL_STAMP, args,
                                 ARRAY_LEN(args));
       }
 
-      mir_type_t t_result = mir_get_type(mu, lhs);
-      mir_build_return(mu, mir_build_select(mu, t_result, test, lhs, rhs));
+      mir_type_t t_result = mir_get_type(g->mu, lhs);
+      mir_value_t sel = mir_build_select(g->mu, t_result, test, lhs, rhs);
+      mir_build_return(g->mu, sel);
    }
 }
 
@@ -1142,6 +1151,7 @@ static void predef_to_string(mir_unit_t *mu, tree_t decl)
 
 void vhdl_lower_predef(mir_unit_t *mu, object_t *obj)
 {
+   vhdl_gen_t g = { .mu = mu };
    tree_t decl = tree_from_object(obj);
 
    const int nports = tree_ports(decl);
@@ -1149,7 +1159,7 @@ void vhdl_lower_predef(mir_unit_t *mu, object_t *obj)
       tree_t p = tree_port(decl, i);
       assert(tree_subkind(p) == PORT_IN);
 
-      const type_info_t *ti = type_info(mu, tree_type(p));
+      const type_info_t *ti = type_info(&g, tree_type(p));
 
       mir_type_t type = ti->type;
       if (tree_class(p) == C_SIGNAL)
@@ -1158,7 +1168,7 @@ void vhdl_lower_predef(mir_unit_t *mu, object_t *obj)
       mir_add_param(mu, type, ti->stamp, tree_ident(p));
    }
 
-   const type_info_t *ti = type_info(mu, type_result(tree_type(decl)));
+   const type_info_t *ti = type_info(&g, type_result(tree_type(decl)));
    mir_set_result(mu, ti->type);
 
    const subprogram_kind_t kind = tree_subkind(decl);
@@ -1172,7 +1182,7 @@ void vhdl_lower_predef(mir_unit_t *mu, object_t *obj)
    case S_SRA:
    case S_ROL:
    case S_ROR:
-      predef_bit_shift(mu, decl, kind);
+      predef_bit_shift(&g, decl, kind);
       break;
    case S_MATCH_EQ:
    case S_MATCH_NEQ:
@@ -1180,7 +1190,7 @@ void vhdl_lower_predef(mir_unit_t *mu, object_t *obj)
    case S_MATCH_LE:
    case S_MATCH_GT:
    case S_MATCH_GE:
-      predef_match_op(mu, decl, kind);
+      predef_match_op(&g, decl, kind);
       break;
    case S_ARRAY_NOT:
    case S_ARRAY_AND:
@@ -1189,20 +1199,20 @@ void vhdl_lower_predef(mir_unit_t *mu, object_t *obj)
    case S_ARRAY_XNOR:
    case S_ARRAY_NAND:
    case S_ARRAY_NOR:
-      predef_bit_vec_op(mu, decl, kind);
+      predef_bit_vec_op(&g, decl, kind);
       break;
    case S_ARRAY_NEQ:
    case S_RECORD_NEQ:
       predef_negate(mu, decl, "=");
       break;
    case S_ARRAY_EQ:
-      predef_array_eq(mu, decl);
+      predef_array_eq(&g, decl);
       break;
    case S_ARRAY_LT:
-      predef_array_cmp(mu, decl, MIR_CMP_LT);
+      predef_array_cmp(&g, decl, MIR_CMP_LT);
       break;
    case S_ARRAY_LE:
-      predef_array_cmp(mu, decl, MIR_CMP_LEQ);
+      predef_array_cmp(&g, decl, MIR_CMP_LEQ);
       break;
    case S_ARRAY_GE:
       predef_negate(mu, decl, "<");
@@ -1215,10 +1225,10 @@ void vhdl_lower_predef(mir_unit_t *mu, object_t *obj)
       predef_edge_op(mu, decl);
       break;
    case S_MAXIMUM:
-      predef_min_max(mu, decl, MIR_CMP_GT);
+      predef_min_max(&g, decl, MIR_CMP_GT);
       break;
    case S_MINIMUM:
-      predef_min_max(mu, decl, MIR_CMP_LT);
+      predef_min_max(&g, decl, MIR_CMP_LT);
       break;
    case S_REDUCE_OR:
    case S_REDUCE_AND:
@@ -1246,7 +1256,7 @@ void vhdl_lower_predef(mir_unit_t *mu, object_t *obj)
    mir_optimise(mu, MIR_PASS_O0);
 }
 
-static void enum_image_helper(mir_unit_t *mu, type_t type, mir_value_t arg)
+static void enum_image_helper(vhdl_gen_t *g, type_t type, mir_value_t arg)
 {
    const int nlits = type_enum_literals(type);
    assert(nlits >= 1);
@@ -1254,14 +1264,14 @@ static void enum_image_helper(mir_unit_t *mu, type_t type, mir_value_t arg)
    mir_block_t *blocks LOCAL = xmalloc_array(nlits, sizeof(mir_block_t));
    mir_value_t *cases LOCAL = xmalloc_array(nlits, sizeof(mir_value_t));
 
-   const type_info_t *ti = type_info(mu, type);
+   const type_info_t *ti = type_info(g, type);
 
    for (int i = 0; i < nlits; i++) {
-      cases[i]  = mir_const(mu, ti->type, i);
-      blocks[i] = mir_add_block(mu);
+      cases[i]  = mir_const(g->mu, ti->type, i);
+      blocks[i] = mir_add_block(g->mu);
    }
 
-   mir_build_case(mu, arg, blocks[0], cases, blocks, nlits);
+   mir_build_case(g->mu, arg, blocks[0], cases, blocks, nlits);
 
    for (int i = 0; i < nlits; i++) {
       // LRM specifies result is lowercase for enumerated types when
@@ -1270,10 +1280,10 @@ static void enum_image_helper(mir_unit_t *mu, type_t type, mir_value_t arg)
       if (ident_char(id, 0) != '\'')
          id = ident_downcase(id);
 
-      mir_set_cursor(mu, blocks[i], MIR_APPEND);
+      mir_set_cursor(g->mu, blocks[i], MIR_APPEND);
 
-      mir_value_t str = wrap_string(mu, istr(id));
-      mir_build_return(mu, str);
+      mir_value_t str = wrap_string(g->mu, istr(id));
+      mir_build_return(g->mu, str);
    }
 }
 
@@ -1345,127 +1355,124 @@ static void physical_image_helper(mir_unit_t *mu, type_t type, mir_value_t arg)
    mir_build_return(mu, mir_build_wrap(mu, mem, dims, 1));
 }
 
-static void record_image_helper(mir_unit_t *mu, type_t type, mir_value_t arg)
+static void record_image_helper(vhdl_gen_t *g, type_t type, mir_value_t arg)
 {
    const int nfields = type_fields(type);
    mir_value_t regs[nfields];
    mir_value_t lengths[nfields];
 
-   mir_type_t t_string = mir_string_type(mu);
-   mir_type_t t_char = mir_char_type(mu);
-   mir_type_t t_offset = mir_offset_type(mu);
-   mir_type_t t_bool = mir_bool_type(mu);
+   mir_type_t t_string = mir_string_type(g->mu);
+   mir_type_t t_char = mir_char_type(g->mu);
+   mir_type_t t_offset = mir_offset_type(g->mu);
+   mir_type_t t_bool = mir_bool_type(g->mu);
 
-   mir_value_t sum = mir_const(mu, t_offset, nfields + 1);
-
-   vhdl_gen_t g = { .mu = mu };
+   mir_value_t sum = mir_const(g->mu, t_offset, nfields + 1);
 
    for (int i = 0; i < nfields; i++) {
       type_t ftype = tree_type(type_field(type, i));
       type_t base = type_base_recur(ftype);
       ident_t func = ident_prefix(type_ident(base), ident_new("image"), '$');
 
-      mir_value_t field = mir_build_record_ref(mu, arg, i);
+      mir_value_t field = mir_build_record_ref(g->mu, arg, i);
 
-      if (type_is_scalar(base) || mir_points_to(mu, field, MIR_TYPE_UARRAY))
-         field = mir_build_load(mu, field);
+      if (type_is_scalar(base) || mir_points_to(g->mu, field, MIR_TYPE_UARRAY))
+         field = mir_build_load(g->mu, field);
       else if (type_is_array(base)) {
          assert(type_const_bounds(ftype));
 
-         const type_info_t *ti = type_info(mu, ftype);
-         mir_type_t t_bool = mir_bool_type(mu);
+         const type_info_t *ti = type_info(g, ftype);
+         mir_type_t t_bool = mir_bool_type(g->mu);
          mir_dim_t dims[ti->udims];
          int dptr = 0;
          for (; dptr < ti->udims; ftype = type_elem(ftype)) {
             const int ndims = dimension_of(ftype);
             for (int i = 0; i < ndims; i++, dptr++) {
                tree_t r = range_of(ftype, i);
-               dims[dptr].left  = vhdl_lower_rvalue(&g, tree_left(r));
-               dims[dptr].right = vhdl_lower_rvalue(&g, tree_right(r));
-               dims[dptr].dir   = mir_const(mu, t_bool, tree_subkind(r));
+               dims[dptr].left  = vhdl_lower_rvalue(g, tree_left(r));
+               dims[dptr].right = vhdl_lower_rvalue(g, tree_right(r));
+               dims[dptr].dir   = mir_const(g->mu, t_bool, tree_subkind(r));
             }
          }
          assert(dptr == ti->udims);
 
-         field = mir_build_wrap(mu, field, dims, ti->udims);
+         field = mir_build_wrap(g->mu, field, dims, ti->udims);
       }
 
       mir_value_t args[] = { field };
-      regs[i] = mir_build_fcall(mu, func, t_string, MIR_NULL_STAMP, args,
+      regs[i] = mir_build_fcall(g->mu, func, t_string, MIR_NULL_STAMP, args,
                                 ARRAY_LEN(args));
-      lengths[i] = mir_build_uarray_len(mu, regs[i], 0);
+      lengths[i] = mir_build_uarray_len(g->mu, regs[i], 0);
 
-      sum = mir_build_add(mu, t_offset, sum, lengths[i]);
+      sum = mir_build_add(g->mu, t_offset, sum, lengths[i]);
    }
 
-   mir_value_t mem = mir_build_alloc(mu, t_char, MIR_NULL_STAMP, sum);
-   mir_value_t zero = mir_const(mu, t_offset, 0);
-   mir_value_t lparen_ptr = mir_build_array_ref(mu, mem, zero);
-   mir_build_store(mu, lparen_ptr, mir_const(mu, t_char, '('));
+   mir_value_t mem = mir_build_alloc(g->mu, t_char, MIR_NULL_STAMP, sum);
+   mir_value_t zero = mir_const(g->mu, t_offset, 0);
+   mir_value_t lparen_ptr = mir_build_array_ref(g->mu, mem, zero);
+   mir_build_store(g->mu, lparen_ptr, mir_const(g->mu, t_char, '('));
 
-   mir_value_t one = mir_const(mu, t_offset, 1);
-   mir_value_t comma = mir_const(mu, t_char, ',');
+   mir_value_t one = mir_const(g->mu, t_offset, 1);
+   mir_value_t comma = mir_const(g->mu, t_char, ',');
 
    mir_value_t index = one;
    for (int i = 0; i < nfields; i++) {
       if (i > 0) {
-         mir_value_t comma_ptr = mir_build_array_ref(mu, mem, index);
-         mir_build_store(mu, comma_ptr, comma);
+         mir_value_t comma_ptr = mir_build_array_ref(g->mu, mem, index);
+         mir_build_store(g->mu, comma_ptr, comma);
 
-         index = mir_build_add(mu, t_offset, index, one);
+         index = mir_build_add(g->mu, t_offset, index, one);
       }
 
-      mir_value_t src_ptr = mir_build_unwrap(mu, regs[i]);
-      mir_value_t dest_ptr = mir_build_array_ref(mu, mem, index);
-      mir_build_copy(mu, dest_ptr, src_ptr, lengths[i]);
+      mir_value_t src_ptr = mir_build_unwrap(g->mu, regs[i]);
+      mir_value_t dest_ptr = mir_build_array_ref(g->mu, mem, index);
+      mir_build_copy(g->mu, dest_ptr, src_ptr, lengths[i]);
 
-      index = mir_build_add(mu, t_offset, index, lengths[i]);
+      index = mir_build_add(g->mu, t_offset, index, lengths[i]);
    }
 
-   mir_value_t rparen_ptr = mir_build_array_ref(mu, mem, index);
-   mir_build_store(mu, rparen_ptr, mir_const(mu, t_char, ')'));
+   mir_value_t rparen_ptr = mir_build_array_ref(g->mu, mem, index);
+   mir_build_store(g->mu, rparen_ptr, mir_const(g->mu, t_char, ')'));
 
    mir_dim_t dims[] = {
       { .left  = one,
         .right = sum,
-        .dir   = mir_const(mu, t_bool, RANGE_TO)
+        .dir   = mir_const(g->mu, t_bool, RANGE_TO)
       }
    };
-   mir_build_return(mu, mir_build_wrap(mu, mem, dims, 1));
+   mir_build_return(g->mu, mir_build_wrap(g->mu, mem, dims, 1));
 }
 
-static void array_image_helper(mir_unit_t *mu, type_t type, mir_value_t arg)
+static void array_image_helper(vhdl_gen_t *g, type_t type, mir_value_t arg)
 {
-   vhdl_gen_t g = { .mu = mu };
+   mir_type_t t_char = mir_char_type(g->mu);
+   mir_type_t t_string = mir_string_type(g->mu);
+   mir_type_t t_offset = mir_offset_type(g->mu);
+   mir_type_t t_bool = mir_bool_type(g->mu);
 
-   mir_type_t t_char = mir_char_type(mu);
-   mir_type_t t_string = mir_string_type(mu);
-   mir_type_t t_offset = mir_offset_type(mu);
-   mir_type_t t_bool = mir_bool_type(mu);
+   mir_type_t fields[] = { mir_pointer_type(g->mu, t_char), t_offset };
+   mir_type_t t_rec = mir_record_type(g->mu, ident_new("elem"), fields, 2);
 
-   mir_type_t fields[] = { mir_pointer_type(mu, t_char), t_offset };
-   mir_type_t t_rec = mir_record_type(mu, ident_new("elem"), fields, 2);
+   mir_value_t length = mir_build_uarray_len(g->mu, arg, 0);
 
-   mir_value_t length = mir_build_uarray_len(mu, arg, 0);
+   mir_value_t elems_mem =
+      mir_build_alloc(g->mu, t_rec, MIR_NULL_STAMP, length);
+   mir_value_t zero = mir_const(g->mu, t_offset, 0);
+   mir_value_t one = mir_const(g->mu, t_offset, 1);
+   mir_value_t data_ptr = mir_build_unwrap(g->mu, arg);
 
-   mir_value_t elems_mem = mir_build_alloc(mu, t_rec, MIR_NULL_STAMP, length);
-   mir_value_t zero = mir_const(mu, t_offset, 0);
-   mir_value_t one = mir_const(mu, t_offset, 1);
-   mir_value_t data_ptr = mir_build_unwrap(mu, arg);
-
-   mir_value_t i_var = mir_add_var(mu, t_offset, MIR_NULL_STAMP,
+   mir_value_t i_var = mir_add_var(g->mu, t_offset, MIR_NULL_STAMP,
                                    ident_new("i"), MIR_VAR_TEMP);
-   mir_build_store(mu, i_var, zero);
+   mir_build_store(g->mu, i_var, zero);
 
-   mir_block_t loop1_bb = mir_add_block(mu);
-   mir_block_t alloc_bb = mir_add_block(mu);
+   mir_block_t loop1_bb = mir_add_block(g->mu);
+   mir_block_t alloc_bb = mir_add_block(g->mu);
 
-   mir_value_t sum_var = mir_add_var(mu, t_offset, MIR_NULL_STAMP,
+   mir_value_t sum_var = mir_add_var(g->mu, t_offset, MIR_NULL_STAMP,
                                      ident_new("sum"), MIR_VAR_TEMP);
-   mir_build_store(mu, sum_var, mir_build_add(mu, t_offset, length, one));
+   mir_build_store(g->mu, sum_var, mir_build_add(g->mu, t_offset, length, one));
 
-   const type_info_t *ti = type_info(mu, type);
-   const type_info_t *eti = type_info(mu, type_elem(type));
+   const type_info_t *ti = type_info(g, type);
+   const type_info_t *eti = type_info(g, type_elem(type));
 
    type_t elem = type_base_recur(eti->tree);
 
@@ -1479,112 +1486,116 @@ static void array_image_helper(mir_unit_t *mu, type_t type, mir_value_t arg)
    ident_t func = ident_new(tb_get(tb));
 
    const int elem_first_dim = ti->udims - eti->udims;
-   mir_value_t stride = vhdl_lower_array_stride(&g, ti, arg);
-   mir_comment(mu, "Array stride is %pM", &stride);
+   mir_value_t stride = vhdl_lower_array_stride(g, ti, arg);
+   mir_comment(g->mu, "Array stride is %pM", &stride);
 
-   mir_value_t null = mir_build_cmp(mu, MIR_CMP_EQ, length, zero);
-   mir_build_cond(mu, null, alloc_bb, loop1_bb);
+   mir_value_t null = mir_build_cmp(g->mu, MIR_CMP_EQ, length, zero);
+   mir_build_cond(g->mu, null, alloc_bb, loop1_bb);
 
-   mir_set_cursor(mu, loop1_bb, MIR_APPEND);
+   mir_set_cursor(g->mu, loop1_bb, MIR_APPEND);
 
    {
-      mir_value_t i_val = mir_build_load(mu, i_var);
-      mir_value_t sum_val = mir_build_load(mu, sum_var);
+      mir_value_t i_val = mir_build_load(g->mu, i_var);
+      mir_value_t sum_val = mir_build_load(g->mu, sum_var);
 
-      mir_value_t off = mir_build_mul(mu, t_offset, i_val, stride);
-      mir_value_t elem_arg = mir_build_array_ref(mu, data_ptr, off);
+      mir_value_t off = mir_build_mul(g->mu, t_offset, i_val, stride);
+      mir_value_t elem_arg = mir_build_array_ref(g->mu, data_ptr, off);
       if (type_is_scalar(elem))
-         elem_arg = mir_build_load(mu, elem_arg);
-      else if (mir_get_class(mu, eti->type) == MIR_TYPE_CARRAY)
-         elem_arg = vhdl_lower_wrap(&g, eti, elem_arg);
-      else if (mir_get_class(mu, eti->type) == MIR_TYPE_UARRAY) {
+         elem_arg = mir_build_load(g->mu, elem_arg);
+      else if (mir_get_class(g->mu, eti->type) == MIR_TYPE_CARRAY)
+         elem_arg = vhdl_lower_wrap(g, eti, elem_arg);
+      else if (mir_get_class(g->mu, eti->type) == MIR_TYPE_UARRAY) {
          mir_dim_t *dims LOCAL = xmalloc_array(eti->udims, sizeof(mir_dim_t));
          for (int i = 0; i < eti->udims; i++) {
-            dims[i].left  = mir_build_uarray_left(mu, arg, elem_first_dim + i);
-            dims[i].right = mir_build_uarray_right(mu, arg, elem_first_dim + i);
-            dims[i].dir   = mir_build_uarray_dir(mu, arg, elem_first_dim + i);
+            const int nth = elem_first_dim + i;
+            dims[i].left  = mir_build_uarray_left(g->mu, arg, nth);
+            dims[i].right = mir_build_uarray_right(g->mu, arg, nth);
+            dims[i].dir   = mir_build_uarray_dir(g->mu, arg, nth);
          }
 
-         elem_arg = mir_build_wrap(mu, elem_arg, dims, eti->udims);
+         elem_arg = mir_build_wrap(g->mu, elem_arg, dims, eti->udims);
       }
 
       mir_value_t args[] = { elem_arg };
-      mir_value_t str = mir_build_fcall(mu, func, t_string, MIR_NULL_STAMP,
+      mir_value_t str = mir_build_fcall(g->mu, func, t_string, MIR_NULL_STAMP,
                                         args, ARRAY_LEN(args));
 
-      mir_value_t edata_ptr = mir_build_unwrap(mu, str);
-      mir_value_t elen = mir_build_uarray_len(mu, str, 0);
-      mir_build_store(mu, sum_var, mir_build_add(mu, t_offset, sum_val, elen));
+      mir_value_t edata_ptr = mir_build_unwrap(g->mu, str);
+      mir_value_t elen = mir_build_uarray_len(g->mu, str, 0);
+      mir_value_t sum_next = mir_build_add(g->mu, t_offset, sum_val, elen);
+      mir_build_store(g->mu, sum_var, sum_next);
 
-      mir_value_t rptr = mir_build_array_ref(mu, elems_mem, i_val);
-      mir_build_store(mu, mir_build_record_ref(mu, rptr, 0), edata_ptr);
-      mir_build_store(mu, mir_build_record_ref(mu, rptr, 1), elen);
+      mir_value_t rptr = mir_build_array_ref(g->mu, elems_mem, i_val);
+      mir_build_store(g->mu, mir_build_record_ref(g->mu, rptr, 0), edata_ptr);
+      mir_build_store(g->mu, mir_build_record_ref(g->mu, rptr, 1), elen);
 
-      mir_value_t i_next = mir_build_add(mu, t_offset, i_val, one);
-      mir_build_store(mu, i_var, i_next);
+      mir_value_t i_next = mir_build_add(g->mu, t_offset, i_val, one);
+      mir_build_store(g->mu, i_var, i_next);
 
-      mir_value_t done = mir_build_cmp(mu, MIR_CMP_EQ, i_next, length);
-      mir_build_cond(mu, done, alloc_bb, loop1_bb);
+      mir_value_t done = mir_build_cmp(g->mu, MIR_CMP_EQ, i_next, length);
+      mir_build_cond(g->mu, done, alloc_bb, loop1_bb);
    }
 
-   mir_set_cursor(mu, alloc_bb, MIR_APPEND);
+   mir_set_cursor(g->mu, alloc_bb, MIR_APPEND);
 
-   mir_value_t sum_val = mir_build_load(mu, sum_var);
-   mir_value_t mem = mir_build_alloc(mu, t_char, MIR_NULL_STAMP, sum_val);
+   mir_value_t sum_val = mir_build_load(g->mu, sum_var);
+   mir_value_t mem = mir_build_alloc(g->mu, t_char, MIR_NULL_STAMP, sum_val);
 
-   mir_value_t lparen_ptr = mir_build_array_ref(mu, mem, zero);
-   mir_build_store(mu, lparen_ptr, mir_const(mu, t_char, '('));
+   mir_value_t lparen_ptr = mir_build_array_ref(g->mu, mem, zero);
+   mir_build_store(g->mu, lparen_ptr, mir_const(g->mu, t_char, '('));
 
-   mir_block_t loop2_bb = mir_add_block(mu);
-   mir_block_t exit_bb = mir_add_block(mu);
+   mir_block_t loop2_bb = mir_add_block(g->mu);
+   mir_block_t exit_bb = mir_add_block(g->mu);
 
-   mir_value_t index_var = mir_add_var(mu, t_offset, MIR_NULL_STAMP,
+   mir_value_t index_var = mir_add_var(g->mu, t_offset, MIR_NULL_STAMP,
                                        ident_new("index"), MIR_VAR_TEMP);
-   mir_build_store(mu, i_var, zero);
-   mir_build_store(mu, index_var, one);
+   mir_build_store(g->mu, i_var, zero);
+   mir_build_store(g->mu, index_var, one);
 
-   mir_build_cond(mu, null, exit_bb, loop2_bb);
+   mir_build_cond(g->mu, null, exit_bb, loop2_bb);
 
-   mir_set_cursor(mu, loop2_bb, MIR_APPEND);
+   mir_set_cursor(g->mu, loop2_bb, MIR_APPEND);
 
    {
-      mir_value_t i_val = mir_build_load(mu, i_var);
-      mir_value_t index = mir_build_load(mu, index_var);
+      mir_value_t i_val = mir_build_load(g->mu, i_var);
+      mir_value_t index = mir_build_load(g->mu, index_var);
 
-      mir_value_t rptr = mir_build_array_ref(mu, elems_mem, i_val);
-      mir_value_t edata = mir_build_load(mu, mir_build_record_ref(mu, rptr, 0));
-      mir_value_t elen = mir_build_load(mu, mir_build_record_ref(mu, rptr, 1));
+      mir_value_t rptr = mir_build_array_ref(g->mu, elems_mem, i_val);
+      mir_value_t edata_ptr = mir_build_record_ref(g->mu, rptr, 0);
+      mir_value_t edata = mir_build_load(g->mu, edata_ptr);
+      mir_value_t elen_ptr = mir_build_record_ref(g->mu, rptr, 1);
+      mir_value_t elen = mir_build_load(g->mu, elen_ptr);
 
-      mir_value_t dest_ptr = mir_build_array_ref(mu, mem, index);
-      mir_build_copy(mu, dest_ptr, edata, elen);
+      mir_value_t dest_ptr = mir_build_array_ref(g->mu, mem, index);
+      mir_build_copy(g->mu, dest_ptr, edata, elen);
 
-      mir_value_t comma_index = mir_build_add(mu, t_offset, index, elen);
-      mir_value_t comma_ptr = mir_build_array_ref(mu, mem, comma_index);
-      mir_build_store(mu, comma_ptr, mir_const(mu, t_char, ','));
+      mir_value_t comma_index = mir_build_add(g->mu, t_offset, index, elen);
+      mir_value_t comma_ptr = mir_build_array_ref(g->mu, mem, comma_index);
+      mir_build_store(g->mu, comma_ptr, mir_const(g->mu, t_char, ','));
 
-      mir_value_t index_next = mir_build_add(mu, t_offset, comma_index, one);
-      mir_build_store(mu, index_var, index_next);
+      mir_value_t index_next = mir_build_add(g->mu, t_offset, comma_index, one);
+      mir_build_store(g->mu, index_var, index_next);
 
-      mir_value_t i_next = mir_build_add(mu, t_offset, i_val, one);
-      mir_build_store(mu, i_var, i_next);
+      mir_value_t i_next = mir_build_add(g->mu, t_offset, i_val, one);
+      mir_build_store(g->mu, i_var, i_next);
 
-      mir_value_t done = mir_build_cmp(mu, MIR_CMP_EQ, i_next, length);
-      mir_build_cond(mu, done, exit_bb, loop2_bb);
+      mir_value_t done = mir_build_cmp(g->mu, MIR_CMP_EQ, i_next, length);
+      mir_build_cond(g->mu, done, exit_bb, loop2_bb);
    }
 
-   mir_set_cursor(mu, exit_bb, MIR_APPEND);
+   mir_set_cursor(g->mu, exit_bb, MIR_APPEND);
 
-   mir_value_t last = mir_build_sub(mu, t_offset, sum_val, one);
-   mir_value_t rparen_ptr = mir_build_array_ref(mu, mem, last);
-   mir_build_store(mu, rparen_ptr, mir_const(mu, t_char, ')'));
+   mir_value_t last = mir_build_sub(g->mu, t_offset, sum_val, one);
+   mir_value_t rparen_ptr = mir_build_array_ref(g->mu, mem, last);
+   mir_build_store(g->mu, rparen_ptr, mir_const(g->mu, t_char, ')'));
 
    mir_dim_t dims[] = {
-      { .left  = mir_const(mu, t_offset, 1),
+      { .left  = mir_const(g->mu, t_offset, 1),
         .right = sum_val,
-        .dir   = mir_const(mu, t_bool, RANGE_TO),
+        .dir   = mir_const(g->mu, t_bool, RANGE_TO),
       }
    };
-   mir_build_return(mu, mir_build_wrap(mu, mem, dims, 1));
+   mir_build_return(g->mu, mir_build_wrap(g->mu, mem, dims, 1));
 }
 
 static void character_array_image_helper(mir_unit_t *mu, type_t type,
@@ -1679,20 +1690,21 @@ static void character_array_image_helper(mir_unit_t *mu, type_t type,
 void vhdl_lower_image_helper(mir_unit_t *mu, object_t *obj)
 {
    tree_t decl = tree_from_object(obj);
+   vhdl_gen_t g = { .mu = mu };
 
    type_t type = type_base_recur(tree_type(decl));
    assert(type_is_representable(type));
 
    mir_set_result(mu, mir_string_type(mu));
 
-   const type_info_t *ti = type_info(mu, type);
+   const type_info_t *ti = type_info(&g, type);
    mir_type_t t_param = ti->kind == T_RECORD
       ? mir_pointer_type(mu, ti->type) : ti->type;
    mir_value_t arg = mir_add_param(mu, t_param, ti->stamp, ident_new("VAL"));
 
    switch (type_kind(type)) {
    case T_ENUM:
-      enum_image_helper(mu, type, arg);
+      enum_image_helper(&g, type, arg);
       break;
    case T_INTEGER:
    case T_REAL:
@@ -1702,7 +1714,7 @@ void vhdl_lower_image_helper(mir_unit_t *mu, object_t *obj)
       physical_image_helper(mu, type, arg);
       break;
    case T_RECORD:
-      record_image_helper(mu, type, arg);
+      record_image_helper(&g, type, arg);
       break;
    case T_ARRAY:
       {
@@ -1710,7 +1722,7 @@ void vhdl_lower_image_helper(mir_unit_t *mu, object_t *obj)
          if (type_is_enum(elem) && all_character_literals(elem))
             character_array_image_helper(mu, type, arg, true);
          else
-            array_image_helper(mu, type, arg);
+            array_image_helper(&g, type, arg);
       }
       break;
    default:
