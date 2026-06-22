@@ -1046,6 +1046,9 @@ static bool run_test(test_t *test)
          if (test->flags & F_VHPI)
             push_arg(&args, "--load=%s/../lib/vhpi_test.so%s", bin_dir, EXEEXT);
 
+         if (test->flags & F_SIGINIT)
+            push_arg(&args, "--load=siginit");
+
          for (param_t *p = test->params; p != NULL; p = p->next) {
             if (p->kind == P_PLUSARG)
                push_arg(&args, "+%s", p->value);
