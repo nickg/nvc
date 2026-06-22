@@ -641,6 +641,7 @@ stdenv1         normal,2019,$FOO=123
 issue502        normal
 elab34          normal,2008
 issue507        shell
+issue1465       shell
 issue508        normal,2008
 record37        normal
 func21          normal
