@@ -601,10 +601,10 @@ static void register_callback(void)
     vhpi_register_cb(&cb, 0);
 
     vhpiErrorInfoT error_info;
-    vhpi_check_error (&error_info);
-
-    if (error_info.severity > 0) {
-        vhpi_printf("Failed to register the callback...");
+    if (vhpi_check_error (&error_info) > 0) {
+        if (error_info.severity > 0) {
+            vhpi_printf("Failed to register the callback...");
+        }
     }
 }
 
