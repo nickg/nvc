@@ -1418,3 +1418,6 @@ conf6           normal,2008
 vlog42          verilog
 issue1587       normal,2008
 cmdline21       shell
+siginit1        2008,siginit,+siginit+zero,+siginit+block+sub
+siginit2        2008,siginit,+siginit+one
+siginit3        2008,siginit,+siginit+rand,seed=124
