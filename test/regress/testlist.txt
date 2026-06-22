@@ -1416,3 +1416,4 @@ vlog41          verilog,gold,fail
 string4         verilog
 conf6           normal,2008
 vlog42          verilog
+issue1587       normal,2008

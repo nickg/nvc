@@ -19,7 +19,7 @@ use nvc.polyfill.all;
 
 package body textio is
 
-    function get_slice (str : in string; ifrom, ito : positive) return string is
+    function get_slice (str : in string; ifrom, ito : integer) return string is
         alias astr : string(1 to str'length) is str;
     begin
         return astr(ifrom to ito);
