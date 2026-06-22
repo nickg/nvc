@@ -1940,6 +1940,25 @@ static void *vhpi_get_value_ptr(c_vhpiObject *obj)
       if (base == NULL)
          return NULL;
 
+      c_objDecl *pod = is_objDecl(pobj);
+      type_t ptype = pod != NULL ? pod->decl.type : NULL;
+      if (ptype != NULL && type_is_array(ptype)) {
+         if ((pod->Type != NULL && pod->Type->wrapped)
+             || !type_const_bounds(ptype))
+            base = ((ffi_uarray_t *)base)->ptr;
+
+         type_t elem = type_elem(ptype);
+         if (type_is_record(elem)) {
+            const jit_layout_t *l =
+               vhpi_get_prefix_kind(pobj) == vhpiSigDeclK
+                  || vhpi_get_prefix_kind(pobj) == vhpiPortDeclK
+                  ? signal_layout_of(elem) : layout_of(elem);
+            assert(l != NULL);
+            assert(ed->Position < l->nparts);
+            return base + l->parts[ed->Position].offset;
+         }
+      }
+
       const jit_layout_t *l = vhpi_get_layout(pobj);
       assert(l != NULL);
       assert(ed->Position < l->nparts);
@@ -4253,6 +4272,10 @@ static c_typeDecl *build_arrayTypeDecl(type_t type, tree_t decl,
       new_object(sizeof(c_arrayTypeDecl), vhpiArrayTypeDeclK);
    init_compositeTypeDecl(&(td->composite), decl, type, region);
 
+   c_elemDecl *ed = obj != NULL ? is_elemDecl(obj) : NULL;
+   if (ed != NULL && ed->Type == NULL)
+      ed->Type = &(td->composite.typeDecl);
+
    td->NumDimensions = dimension_of(type);
    td->composite.typeDecl.wrapped = !type_const_bounds(type);
 
@@ -4423,6 +4446,10 @@ static c_typeDecl *build_subTypeDecl(type_t type, tree_t where,
    c_subTypeDecl *td = new_object(sizeof(c_subTypeDecl), vhpiSubtypeDeclK);
    init_typeDecl(&(td->typeDecl), where, type, region);
 
+   c_elemDecl *ed = obj != NULL ? is_elemDecl(obj) : NULL;
+   if (ed != NULL && ed->Type == NULL)
+      ed->Type = &(td->typeDecl);
+
    hash_put(vhpi_context()->objcache, type, td);
 
    td->typeDecl.BaseType = cached_typeDecl(type_base_recur(type), NULL);
@@ -4504,6 +4531,9 @@ static c_typeDecl *build_anonymousSubTypeDecl(type_t type,
 
    c_abstractDecl *decl = is_abstractDecl(obj);
    assert(decl != NULL);
+
+   if (region == NULL)
+      region = decl->ImmRegion;
 
    c_typeDecl *td = build_subTypeDecl(type, decl->tree, region, obj);
    td->IsAnonymous = true;

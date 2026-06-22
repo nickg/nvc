@@ -2315,6 +2315,7 @@ EXTRA_DIST += \
 	test/regress/vhpi18.vhd \
 	test/regress/vhpi19.vhd \
 	test/regress/vhpi1.vhd \
+	test/regress/vhpi21.vhd \
 	test/regress/vhpi2.vhd \
 	test/regress/vhpi3.vhd \
 	test/regress/vhpi4.vhd \

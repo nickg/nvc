@@ -47,8 +47,7 @@ static void start_of_sim(const vhpiCbDataT *cb_data)
          vhpi_printf("elem %s", vhpi_get_str(vhpiNameP, e));
          vhpi_printf("size %d", vhpi_get(vhpiSizeP, e));
 
-         // XXX: should be 128?
-         fail_unless(vhpi_get(vhpiSizeP, e) == 256);
+         fail_unless(vhpi_get(vhpiSizeP, e) == 128);
 
          vhpiHandleT etype = VHPI_CHECK(vhpi_handle(vhpiType, e));
          fail_unless(vhpi_get(vhpiKindP, etype) == vhpiArrayTypeDeclK);
