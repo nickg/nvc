@@ -10159,6 +10159,7 @@ static void lower_subprogram_default(lower_unit_t *lu, object_t *obj)
 
 static void lower_decls(lower_unit_t *lu, tree_t scope, gen_stack_t *gs)
 {
+   const bool use_mir = opt_get_int(OPT_LOWER_MIR);
    const int ndecls = tree_decls(scope);
    for (int i = 0; i < ndecls; i++) {
       tree_t d = tree_decl(scope, i);
@@ -10186,7 +10187,11 @@ static void lower_decls(lower_unit_t *lu, tree_t scope, gen_stack_t *gs)
       case T_FUNC_BODY:
          {
             ident_t mangled = tree_ident2(d);
-            if (!unit_registry_query(lu->registry, mangled))
+            if (use_mir)
+               unit_registry_defer2(lu->registry, mangled, lu,
+                                    MIR_UNIT_FUNCTION, vhdl_lower_deferred,
+                                    tree_to_object(d));
+            else if (!unit_registry_query(lu->registry, mangled))
                unit_registry_defer(lu->registry, mangled, lu,
                                    emit_function, lower_func_body,
                                    lu->cover, tree_to_object(d));

@@ -1436,7 +1436,7 @@ START_TEST(test_simp1)
    vlog_node_t m = do_parse_check(V_MODULE);
    vlog_simp(m);
 
-   const int64_t expect[] = { 5, 1, 7, 1, 2, 2, -4, 6, -2, -4, 4 };
+   const int64_t expect[] = { 5, 1, 7, 1, 2, 2, -4, 6, -2, -4, 4, 3 };
 
    ck_assert_int_eq(ARRAY_LEN(expect), vlog_decls(m));
 
@@ -1665,7 +1665,7 @@ START_TEST(test_pp8)
    input_from_file(TESTDIR "/vlog/pp8.v");
 
    const error_t expect[] = {
-      {  7, "macro 'add' requires exactly 2 arguments" },
+      {  7, "macro 'add' is missing argument 'y' with no default value" },
       {  8, "macro 'baz' undefined" },
       { 10, "macro 'foo' requires exactly 1 arguments" },
       { -1, NULL }
@@ -2014,6 +2014,59 @@ START_TEST(test_pp12)
 }
 END_TEST
 
+START_TEST(test_pp13)
+{
+   add_include_dir(TESTDIR "/vlog");
+
+   input_from_file(TESTDIR "/vlog/pp13.v");
+
+   LOCAL_TEXT_BUF tb = tb_new();
+   vlog_preprocess(tb, false);
+
+   ck_assert_str_eq(tb_get(tb), "\n\n\n8\n");
+
+   fail_if_errors();
+}
+END_TEST
+
+START_TEST(test_pp14)
+{
+   input_from_file(TESTDIR "/vlog/pp14.v");
+
+   const error_t expect[] = {
+      { 15, "macro 'MACRO1' is missing argument 'c' with no default value" },
+      { 16, "macro 'MACRO2' requires exactly 3 arguments, 4 were given" },
+      { 17, "macro 'MACRO3' requires arguments" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   LOCAL_TEXT_BUF tb = tb_new();
+   vlog_preprocess(tb, false);
+
+   ck_assert_str_eq(
+      tb_get(tb),
+      "\n"
+      "$display(5,,2,,3 );\n"
+      "$display(1 ,,\"B\",,3 );\n"
+      "$display(5,,2,,);\n"
+      "\n"
+      "\n"
+      "$display(1,,,,3);\n"
+      "$display(5,,2,,\"C\");\n"
+      "$display(5,,2,,\"C\");\n"
+      "\n"
+      "\n"
+      "$display(1 ,,0,,\"C\");\n"
+      "$display(5,,0,,\"C\");\n"
+      "\n"
+      "$display(1 ,,\"B\",,c);       // ILLEGAL: b and c omitted, no default for c\n"
+      "$display(5,,,,3); // ILLEGAL: more argument than declared\n"
+      "$display(a,,b,,c);             // ILLEGAL: parentheses required\n");
+
+   check_expected_errors();
+}
+
 Suite *get_vlog_tests(void)
 {
    Suite *s = suite_create("vlog");
@@ -2086,6 +2139,8 @@ Suite *get_vlog_tests(void)
    tcase_add_test(tc, test_force1);
    tcase_add_test(tc, test_constfunc1);
    tcase_add_test(tc, test_pp12);
+   tcase_add_test(tc, test_pp13);
+   tcase_add_test(tc, test_pp14);
    suite_add_tcase(s, tc);
 
    return s;

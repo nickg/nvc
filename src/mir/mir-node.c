@@ -578,6 +578,28 @@ bool mir_get_const_real(mir_unit_t *mu, mir_value_t value, double *result)
    }
 }
 
+bool mir_within_int(mir_unit_t *mu, mir_value_t value, int64_t low,
+                    int64_t high)
+{
+   if (low > high)
+      return false;
+
+   int64_t cval;
+   if (mir_get_const(mu, value, &cval))
+      return cval >= low && cval <= high;
+
+   mir_stamp_t stamp = mir_get_stamp(mu, value);
+   if (mir_is_null(stamp))
+      return false;
+
+   const stamp_data_t *sd = mir_stamp_data(mu, stamp);
+   if (sd->kind != MIR_STAMP_INT)
+      return false;
+
+   assert(sd->u.intg.low <= sd->u.intg.high);
+   return sd->u.intg.low >= low && sd->u.intg.high <= high;
+}
+
 mir_type_t mir_get_type(mir_unit_t *mu, mir_value_t value)
 {
    switch (value.tag) {
@@ -636,7 +658,7 @@ mir_mem_t mir_get_mem(mir_unit_t *mu, mir_value_t value)
    if (sd->kind == MIR_STAMP_POINTER)
       return sd->u.pointer.memory;
 
-   return MIR_MEM_NONE;
+   return MIR_MEM_TOP;
 }
 
 ident_t mir_get_name(mir_unit_t *mu, mir_value_t value)

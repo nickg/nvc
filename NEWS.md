@@ -3,6 +3,11 @@
   expressions (#1518).
 - VHDL architectures can now be specified on the command line with `-e
   entity(arch)`. The previous form `entity-arch` is still supported.
+- Added support for default arguments in Verilog macros.
+- Added support for `$info`, `$warning`, `$error`, and `$fatal`, Verilog
+  system tasks.
+
+## Version 1.21.1 - 2026-06-20
 - Fixed a regression which caused calls to an overloaded subprogram with
   the same name as an enclosing subprogram to be incorrectly reported as
   ambiguous (#1560).
@@ -12,8 +17,7 @@
   allocated in a procedure (#1576).
 - Fixed a crash when using the `'stable` attribute with a time
   expression referencing constants declared in a process (#1537).
-- Added support for `$info`, `$warning`, `$error`, and `$fatal`, Verilog
-  system tasks.
+- Added binary package for Ubuntu 26.04.
 - Several other minor bugs were resolved (#1559, #1562, #1581, #1578).
 
 ## Version 1.21.0 - 2026-05-23

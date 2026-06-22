@@ -429,6 +429,8 @@ mir_value_t mir_add_var(mir_unit_t *mu, mir_type_t type, mir_stamp_t stamp,
                         ident_t name, mir_var_flags_t flags);
 bool mir_get_const(mir_unit_t *mu, mir_value_t value, int64_t *result);
 bool mir_get_const_real(mir_unit_t *mu, mir_value_t value, double *result);
+bool mir_within_int(mir_unit_t *mu, mir_value_t value, int64_t low,
+                    int64_t high);
 mir_type_t mir_get_type(mir_unit_t *mu, mir_value_t value);
 mir_stamp_t mir_get_stamp(mir_unit_t *mu, mir_value_t value);
 mir_mem_t mir_get_mem(mir_unit_t *mu, mir_value_t value);

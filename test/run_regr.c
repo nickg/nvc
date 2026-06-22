@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2016-2025  Nick Gasson
+//  Copyright (C) 2016-2026  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -110,23 +110,24 @@
 #define F_PERFILE (1 << 28)
 #define F_EXIT    (1 << 29)
 
-typedef struct test test_t;
-typedef struct param param_t;
-typedef struct arglist arglist_t;
+typedef struct _test test_t;
+typedef struct _param param_t;
+typedef struct _arglist arglist_t;
 
 typedef enum {
    P_GENERIC,
-   P_ENVVAR
+   P_ENVVAR,
+   P_PLUSARG,
 } param_kind_t;
 
-struct param {
+typedef struct _param {
    param_kind_t  kind;
    char         *name;
    char         *value;
    param_t      *next;
-};
+} param_t;
 
-struct test {
+typedef struct _test {
    char      *name;
    test_t    *next;
    int        flags;
@@ -139,18 +140,17 @@ struct test {
    char      *cover;
    char      *define;
    char      *export;
-   char      *plusarg;
    char      *exit;
    unsigned   arrays;
    int        seed;
    double     duration;
-};
+} test_t;
 
-struct arglist {
+typedef struct _arglist {
    char      *data;
    arglist_t *next;
    unsigned   count;
-};
+} arglist_t;
 
 typedef enum {
    RUN_OK,
@@ -349,6 +349,13 @@ static bool is_comment(const char *str)
    return str[0] == '#';
 }
 
+static void push_param(test_t *test, param_t *p)
+{
+   param_t **tail = &(test->params);
+   for (; *tail != NULL; tail = &((*tail)->next));
+   *tail = p;
+}
+
 static bool parse_test_list(void)
 {
    char testlist[PATH_MAX + 22];
@@ -497,10 +504,16 @@ static bool parse_test_list(void)
             param_t *p = calloc(sizeof(param_t), 1);
             p->name = strndup(opt + 1, value - opt - 1);
             p->value = strdup(value + 1);
-            p->next = test->params;
             p->kind = opt[0] == 'g' ? P_GENERIC : P_ENVVAR;
 
-            test->params = p;
+            push_param(test, p);
+         }
+         else if (opt[0] == '+') {
+            param_t *p = calloc(sizeof(param_t), 1);
+            p->value = strdup(opt + 1);
+            p->kind = P_PLUSARG;
+
+            push_param(test, p);
          }
          else if (strcmp(opt, "relaxed") == 0)
             test->flags |= F_RELAXED;
@@ -559,8 +572,6 @@ static bool parse_test_list(void)
             test->flags |= F_EXIT;
             test->exit = strdup(value + 1);
          }
-         else if (opt[0] == '+')
-            test->plusarg = strdup(opt + 1);
          else {
             fprintf(stderr, "Error on testlist line %d: invalid option %s in "
                  "test %s\n", lineno, opt, name);
@@ -900,6 +911,11 @@ static bool run_test(test_t *test)
 
    setenv("TEST_NAME", test->name, 1);
 
+   for (param_t *p = test->params; p != NULL; p = p->next) {
+      if (p->kind == P_ENVVAR)
+         setenv(p->name, p->value, 1);
+   }
+
    arglist_t *args = NULL;
    const double start_ns = get_timestamp_ns();
 
@@ -941,6 +957,11 @@ static bool run_test(test_t *test)
 
       if (test->flags & F_VHPI)
          push_arg(&args, "--load=%s/../lib/vhpi_test.so%s", bin_dir, EXEEXT);
+
+      for (param_t *p = test->params; p != NULL; p = p->next) {
+         if (p->kind == P_PLUSARG)
+            push_arg(&args, "+%s", p->value);
+      }
 
       if (test->flags & F_SEED)
          push_arg(&args, "--seed=%u", test->seed);
@@ -994,14 +1015,8 @@ static bool run_test(test_t *test)
       }
 
       for (param_t *p = test->params; p != NULL; p = p->next) {
-         switch (p->kind) {
-         case P_GENERIC:
+         if (p->kind == P_GENERIC)
             push_arg(&args, "-g%s=%s", p->name, p->value);
-            break;
-         case P_ENVVAR:
-            setenv(p->name, p->value, 1);
-            break;
-         }
       }
 
       if ((test->flags & F_FAIL) || reheat) {
@@ -1022,6 +1037,11 @@ static bool run_test(test_t *test)
 
          if (test->flags & F_VHPI)
             push_arg(&args, "--load=%s/../lib/vhpi_test.so%s", bin_dir, EXEEXT);
+
+         for (param_t *p = test->params; p != NULL; p = p->next) {
+            if (p->kind == P_PLUSARG)
+               push_arg(&args, "+%s", p->value);
+         }
 
          if (test->flags & F_SEED)
             push_arg(&args, "--seed=%u", test->seed);
@@ -1050,9 +1070,6 @@ static bool run_test(test_t *test)
 
       if (test->flags & F_SHUFFLE)
          push_arg(&args, "--shuffle");
-
-      if (test->plusarg != NULL)
-         push_arg(&args, "+%s", test->plusarg);
 
       push_arg(&args, "%s", test->name);
    }

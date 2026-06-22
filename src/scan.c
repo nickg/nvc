@@ -764,16 +764,20 @@ static void pp_nvc_pop(void)
 
    const macro_expansion_t top = APOP(macro_stack);
 
-   input_buf.lineno = top.expandloc.first_line - 1;
+   input_buf.lineno = top.expandloc.first_line;
    input_buf.file_ref = top.expandloc.file_ref;
+
+   if (top.include == NULL)
+      input_buf.lineno--;
 
    // Eat the following newline and adjust the next token location
    input_buf.lookahead = yylex();
 
-   yylloc.first_column +=
-      top.expandloc.first_column + top.expandloc.column_delta + 1;
-
-   input_buf.colno = yylloc.first_column + yylloc.column_delta;
+   if (top.include == NULL) {
+      yylloc.first_column +=
+         top.expandloc.first_column + top.expandloc.column_delta + 1;
+      input_buf.colno = yylloc.first_column + yylloc.column_delta;
+   }
 
    free(top.include);
 
