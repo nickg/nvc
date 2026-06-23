@@ -12824,15 +12824,22 @@ lower_unit_t *lower_instance(unit_registry_t *ur, lower_unit_t *parent,
    lower_ports(lu, block, primary, &gs);
    lower_decls(lu, block, &gs);
 
+   const bool use_mir = opt_get_int(OPT_LOWER_MIR);
    ident_t sym_prefix = tree_ident2(hier);
    const int nstmts = tree_stmts(block);
    for (int i = 0; i < nstmts; i++) {
       tree_t s = tree_stmt(block, i);
       switch (tree_kind(s)) {
       case T_PROCESS:
-         unit_registry_defer(ur, ident_prefix(sym_prefix, tree_ident(s), '.'),
-                             lu, emit_process, lower_process,
-                             cover, tree_to_object(s));
+         {
+            ident_t sym = ident_prefix(sym_prefix, tree_ident(s), '.');
+            if (use_mir)
+               unit_registry_defer2(ur, sym, lu, MIR_UNIT_PROCESS,
+                                    vhdl_lower_deferred, tree_to_object(s));
+            else
+               unit_registry_defer(ur, sym, lu, emit_process, lower_process,
+                                   cover, tree_to_object(s));
+         }
          break;
       case T_PSL_DIRECT:
          unit_registry_defer(ur, ident_prefix(sym_prefix, tree_ident(s), '.'),
