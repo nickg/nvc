@@ -115,15 +115,22 @@ void x_bind_external(tree_t name, jit_handle_t scope, jit_scalar_t *args)
                jit_msg(tree_loc(pe), DIAG_FATAL, "design hierarchy root has "
                        "not yet been elaborated");
 
-            tree_t root = tree_stmt(top, 0);
-
             tree_t entity = tree_part(name, ++i);
             assert(tree_subkind(entity) == PE_SIMPLE);
 
-            if (root == NULL || tree_ident(root) != tree_ident(entity))
-               jit_msg(tree_loc(pe), DIAG_FATAL, "%s is not the name of "
-                       "the root of the design hierarchy",
-                       istr(tree_ident(entity)));
+            const int nroots = tree_stmts(top);
+            tree_t root = NULL;
+            for (int i = 0; i < nroots; i++) {
+               tree_t s = tree_stmt(top, i);
+               if (ident_casecmp(tree_ident(s), tree_ident(entity))) {
+                  root = s;
+                  break;
+               }
+            }
+
+            if (root == NULL)
+               jit_msg(tree_loc(pe), DIAG_FATAL, "%pI is not the name of a "
+                       "root of the design hierarchy", tree_ident(entity));
 
             path = ident_prefix(lib_name(lib_work()), tree_ident(root), '.');
             next = root;

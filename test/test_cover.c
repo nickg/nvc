@@ -40,7 +40,8 @@ static cover_data_t *run_cover(tree_t top)
 
    rt_model_t *m = model_new(j, db);
 
-   tree_t e = elab(tree_to_object(top), j, ur, mc, db, NULL, m);
+   object_t *tops[1] = { tree_to_object(top) };
+   tree_t e = elab(tops, 1, j, ur, mc, db, NULL, m);
    ck_assert_ptr_nonnull(e);
    ck_assert_int_eq(error_count(), 0);
 

@@ -6,6 +6,8 @@
 - Added support for default arguments in Verilog macros.
 - Added support for `$info`, `$warning`, `$error`, and `$fatal`, Verilog
   system tasks.
+- Elaboration now supports multiple top level design units (#1588).
+- Several other minor bugs were resolved (#1587).
 
 ## Version 1.21.1 - 2026-06-20
 - Fixed a regression which caused calls to an overloaded subprogram with

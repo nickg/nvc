@@ -1641,7 +1641,8 @@ START_TEST(test_issue759)
    jit_t *jit = jit_new(ur, mc);
 
    rt_model_t *m = model_new(jit, cover);
-   tree_t e = elab(tree_to_object(a), jit, ur, mc, cover, NULL, m);
+   object_t *top[1] = { tree_to_object(a) };
+   tree_t e = elab(top, 1, jit, ur, mc, cover, NULL, m);
    fail_if(e == NULL);
 
    model_free(m);
@@ -1779,7 +1780,8 @@ START_TEST(test_vlog1)
    jit_t *j = jit_new(ur, mc);
    rt_model_t *m = model_new(j, NULL);
 
-   tree_t top = elab(obj, j, ur, mc, NULL, NULL, m);
+   object_t *tops[1] = { obj };
+   tree_t top = elab(tops, 1, j, ur, mc, NULL, NULL, m);
    fail_unless(top == NULL);
 
    model_free(m);
@@ -1975,7 +1977,8 @@ START_TEST(test_issue1012)
    cover_data_t *cover = cover_data_init(COVER_MASK_TOGGLE, 0, 0);
    rt_model_t *m = model_new(jit, NULL);
 
-   tree_t e = elab(tree_to_object(a), jit, ur, mc, cover, NULL, m);
+   object_t *top[1] = { tree_to_object(a) };
+   tree_t e = elab(top, 1, jit, ur, mc, cover, NULL, m);
    fail_if(e == NULL);
 
    model_free(m);

@@ -56,7 +56,8 @@ typedef struct _generic_list generic_list_t;
 typedef struct _elab_ctx {
    const elab_ctx_t *parent;
    tree_t            out;
-   object_t         *root;
+   object_t        **roots;
+   unsigned          nroots;
    tree_t            inst;
    ident_t           dotted;
    ident_t           cloned;
@@ -1418,7 +1419,8 @@ static void elab_inherit_context(elab_ctx_t *ctx, const elab_ctx_t *parent)
    ctx->jit      = parent->jit;
    ctx->registry = parent->registry;
    ctx->mir      = parent->mir;
-   ctx->root     = parent->root;
+   ctx->roots    = parent->roots;
+   ctx->nroots   = parent->nroots;
    ctx->dotted   = ctx->dotted ?: parent->dotted;
    ctx->library  = ctx->library ?: parent->library;
    ctx->out      = ctx->out ?: parent->out;
@@ -2758,17 +2760,12 @@ void elab_set_generic(const char *name, const char *value)
    generic_override = new;
 }
 
-static void elab_vhdl_root_cb(void *arg)
+static void elab_vhdl_root(tree_t t, const elab_ctx_t *ctx)
 {
-   elab_ctx_t *ctx = arg;
-
-   tree_t vhdl = tree_from_object(ctx->root);
-   assert(vhdl != NULL);
-
-   tree_t arch = vhdl;
-   switch (tree_kind(vhdl)) {
+   tree_t arch = t;
+   switch (tree_kind(t)) {
    case T_ENTITY:
-      arch = elab_pick_arch(vhdl, &ctx->root->loc, ctx);
+      arch = elab_pick_arch(t, tree_loc(t), ctx);
       // Fall-through
    case T_ARCH:
       {
@@ -2780,28 +2777,23 @@ static void elab_vhdl_root_cb(void *arg)
       break;
    case T_CONFIGURATION:
       {
-         tree_t config = tree_decl(vhdl, 0);
+         tree_t config = tree_decl(t, 0);
          assert(tree_kind(config) == T_BLOCK_CONFIG);
 
          tree_t inst = elab_top_level_binding(tree_ref(config), ctx);
 
          if (error_count() == 0)
-            elab_configuration(inst, vhdl, ctx);
+            elab_configuration(inst, t, ctx);
       }
       break;
    default:
-      fatal("%s is not a suitable top-level unit", istr(tree_ident(vhdl)));
+      fatal("%s is not a suitable top-level unit", istr(tree_ident(t)));
    }
 }
 
-static void elab_verilog_root_cb(void *arg)
+static void elab_verilog_root(vlog_node_t v, const elab_ctx_t *ctx)
 {
-   elab_ctx_t *ctx = arg;
-
-   vlog_node_t vlog = vlog_from_object(ctx->root);
-   assert(vlog != NULL);
-
-   ident_t label = vlog_ident2(vlog);
+    ident_t label = vlog_ident2(v);
 
    vlog_node_t stmt = vlog_new(V_MOD_INST);
    vlog_set_ident(stmt, label);
@@ -2809,9 +2801,24 @@ static void elab_verilog_root_cb(void *arg)
    vlog_node_t list = vlog_new(V_INST_LIST);
    vlog_set_ident(list, label);
    vlog_add_stmt(list, stmt);
-   vlog_set_loc(list, vlog_loc(vlog));
+   vlog_set_loc(list, vlog_loc(v));
 
-   elab_verilog_module(NULL, label, vlog, list, stmt, ctx);
+   elab_verilog_module(NULL, label, v, list, stmt, ctx);
+}
+
+static void elab_root_cb(void *arg)
+{
+   elab_ctx_t *ctx = arg;
+
+   for (int i = 0; i < ctx->nroots; i++) {
+      tree_t vhdl = tree_from_object(ctx->roots[i]);
+      if (vhdl != NULL)
+         elab_vhdl_root(vhdl, ctx);
+
+      vlog_node_t vlog = vlog_from_object(ctx->roots[i]);
+      if (vlog != NULL)
+         elab_verilog_root(vlog, ctx);
+   }
 }
 
 static int elab_compar_modcache(const void *a, const void *b)
@@ -2862,18 +2869,21 @@ static void elab_print_stats(const elab_ctx_t *ctx)
    printf("\n");
 }
 
-tree_t elab(object_t *top, jit_t *jit, unit_registry_t *ur, mir_context_t *mc,
-            cover_data_t *cover, sdf_file_t *sdf, rt_model_t *m)
+tree_t elab(object_t **top, int ntop, jit_t *jit, unit_registry_t *ur,
+            mir_context_t *mc, cover_data_t *cover, sdf_file_t *sdf,
+            rt_model_t *m)
 {
+   assert(ntop >= 1);
+
    make_new_arena();
 
    ident_t name = NULL;
 
-   tree_t vhdl = tree_from_object(top);
+   tree_t vhdl = tree_from_object(top[0]);
    if (vhdl != NULL)
       name = ident_prefix(tree_ident(vhdl), well_known(W_ELAB), '.');
 
-   vlog_node_t vlog = vlog_from_object(top);
+   vlog_node_t vlog = vlog_from_object(top[0]);
    if (vlog != NULL)
       name = ident_prefix(vlog_ident(vlog), well_known(W_ELAB), '.');
 
@@ -2882,13 +2892,14 @@ tree_t elab(object_t *top, jit_t *jit, unit_registry_t *ur, mir_context_t *mc,
 
    tree_t e = tree_new(T_ELAB);
    tree_set_ident(e, name);
-   tree_set_loc(e, &(top->loc));
+   tree_set_loc(e, &(top[0]->loc));
 
    lib_t work = lib_work();
 
    elab_ctx_t ctx = {
       .out       = e,
-      .root      = top,
+      .roots     = top,
+      .nroots    = ntop,
       .cover     = cover,
       .library   = work,
       .jit       = jit,
@@ -2903,10 +2914,7 @@ tree_t elab(object_t *top, jit_t *jit, unit_registry_t *ur, mir_context_t *mc,
       .pool      = pool_new(),
    };
 
-   if (vhdl != NULL)
-      call_with_model(m, elab_vhdl_root_cb, &ctx);
-   else
-      call_with_model(m, elab_verilog_root_cb, &ctx);
+   call_with_model(m, elab_root_cb, &ctx);
 
    if (opt_get_int(OPT_ELAB_STATS))
       elab_print_stats(&ctx);
