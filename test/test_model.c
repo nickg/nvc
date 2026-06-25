@@ -421,7 +421,8 @@ START_TEST(test_process1)
    jit_t *j = jit_new(ur, mc);
    rt_model_t *m = model_new(j, NULL);
 
-   tree_t top = elab(tree_to_object(a), j, ur, mc, NULL, NULL, m);
+   object_t *tops[1] = { tree_to_object(a) };
+   tree_t top = elab(tops, 1, j, ur, mc, NULL, NULL, m);
    ck_assert_ptr_nonnull(top);
 
    model_reset(m);

@@ -54,7 +54,8 @@ START_TEST(test_examine1)
 
    rt_model_t *m = model_new(j, NULL);
 
-   tree_t top = elab(tree_to_object(arch), j, ur, mc, NULL, NULL, m);
+   object_t *tops[1] = { tree_to_object(arch) };
+   tree_t top = elab(tops, 1, j, ur, mc, NULL, NULL, m);
    fail_if(top == NULL);
 
    tcl_shell_t *sh = shell_new(top, j, m);
@@ -199,7 +200,8 @@ START_TEST(test_force1)
 
    rt_model_t *m = model_new(j, NULL);
 
-   tree_t top = elab(tree_to_object(arch), j, ur, mc, NULL, NULL, m);
+   object_t *tops[1] = { tree_to_object(arch) };
+   tree_t top = elab(tops, 1, j, ur, mc, NULL, NULL, m);
    fail_if(top == NULL);
 
    tcl_shell_t *sh = shell_new(top, j, m);
@@ -305,7 +307,8 @@ START_TEST(test_describe1)
 
    rt_model_t *m = model_new(j, NULL);
 
-   tree_t top = elab(tree_to_object(arch), j, ur, mc, NULL, NULL, m);
+   object_t *tops[1] = { tree_to_object(arch) };
+   tree_t top = elab(tops, 1, j, ur, mc, NULL, NULL, m);
    fail_if(top == NULL);
 
    tcl_shell_t *sh = shell_new(top, j, m);

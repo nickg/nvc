@@ -225,9 +225,9 @@ tree_t run_elab_with_model(rt_model_t *m)
    unit_registry_t *ur = get_registry();
    jit_t *j = get_jit();
 
-   object_t *top = analyse_file();
+   object_t *top[1] = { analyse_file() };
 
-   return elab(top, j, ur, mc, NULL, NULL, m);
+   return elab(top, 1, j, ur, mc, NULL, NULL, m);
 }
 
 tree_t run_elab(void)

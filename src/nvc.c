@@ -637,14 +637,26 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
       }
    }
 
-   set_top_level(argv, next_cmd, state);
+   const int ntops = next_cmd - optind;
+   if (ntops == 0)
+      fatal("missing top-level unit name");
 
    progress("initialising");
 
-   object_t *obj = lib_get_generic(state->work, state->top_level, NULL);
-   if (obj == NULL)
-      fatal("cannot find unit %s in library %s",
-            istr(state->top_level), istr(lib_name(state->work)));
+   object_t **tops LOCAL = xmalloc_array(ntops, sizeof(object_t *));
+   for (int i = 0; i < ntops; i++) {
+      ident_t name = to_unit_name(argv[optind + i]);
+
+      tops[i] = lib_get_generic(state->work, name, NULL);
+      if (tops[i] == NULL)
+         fatal("cannot find unit %pI in library %pI", name,
+               lib_name(state->work));
+
+      if (i == 0) {
+         state->top_level = name;
+         state->top_level_arg = argv[optind + i];
+      }
+   }
 
    progress("loading top-level unit");
 
@@ -699,13 +711,13 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
 
    vhpi_run_callbacks(vhpiCbStartOfElaboration);
 
-   tree_t top = elab(obj, state->jit, state->registry, state->mir,
-                     state->cover, NULL, state->model);
+   tree_t e = elab(tops, ntops, state->jit, state->registry, state->mir,
+                   state->cover, NULL, state->model);
 
-   if (top == NULL)
+   if (e == NULL)
       return EXIT_FAILURE;
 
-   lib_put_meta(state->work, top, &meta);
+   lib_put_meta(state->work, e, &meta);
 
    progress("elaborating design");
 
@@ -2233,7 +2245,7 @@ static void usage(void)
       { "Commands",
         {
            { "-a [OPTION]... FILE...", "Analyse FILEs into work library" },
-           { "-e [OPTION]... TOP", "Elaborate design unit TOP" },
+           { "-e [OPTION]... TOP...", "Elaborate design unit TOP" },
            { "-r [OPTION]... TOP", "Execute previously elaborated TOP" },
 #ifdef ENABLE_TCL
            { "-i [TOP]", "Launch interactive TCL shell" },
