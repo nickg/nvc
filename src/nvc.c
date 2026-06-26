@@ -2718,10 +2718,11 @@ int main(int argc, char **argv)
 
    if (state.plugins != NULL) {
       state.vhpi = vhpi_context_new();
-      vhpi_load_plugins(state.plugins);
 
       if (nplusargs > 0)
          vhpi_set_plusargs(state.vhpi, nplusargs, plusargs);
+
+      vhpi_load_plugins(state.plugins);
    }
    else if (nplusargs > 0)
       warnf("found plusargs on command line but no VHPI plugin was loaded");

@@ -1,0 +1,20 @@
+siginitdir = $(libdir)/$(PACKAGE)
+nodist_siginit_DATA = lib/siginit.@DLL_EXT@
+
+contrib/plugins/siginit.o: $(top_srcdir)/contrib/plugins/siginit.c
+	$(AM_V_at)$(MKDIR_P) $(dir $@)
+	$(AM_V_CC)$(CC) $(SHLIB_CFLAGS) -I$(top_srcdir)/src/vhpi $(AM_CFLAGS) -Wextra -Wpedantic \
+			-c -o $@ $<
+
+if IMPLIB_REQUIRED
+siginit_implib = lib/libnvcimp.a
+else
+siginit_implib =
+endif
+
+lib/siginit.@DLL_EXT@: contrib/plugins/siginit.o $(siginit_implib)
+	$(AM_V_CCLD)$(CC) $(SHLIB_LDFLAGS) $(AM_LDFLAGS) -o $@ $< $(siginit_implib)
+
+all-local: lib/siginit.@DLL_EXT@
+
+CLEANFILES += lib/siginit.@DLL_EXT@ contrib/plugins/siginit.o

@@ -109,6 +109,7 @@
 #define F_SEED    (1 << 27)
 #define F_PERFILE (1 << 28)
 #define F_EXIT    (1 << 29)
+#define F_SIGINIT (1 << 30)
 
 typedef struct _test test_t;
 typedef struct _param param_t;
@@ -358,7 +359,7 @@ static void push_param(test_t *test, param_t *p)
 
 static bool parse_test_list(void)
 {
-   char testlist[PATH_MAX + 22];
+   char testlist[PATH_MAX + 32];
    snprintf(testlist, sizeof(testlist), "%s/regress/testlist.txt", test_dir);
 
    FILE *f = fopen(testlist, "r");
@@ -369,7 +370,9 @@ static bool parse_test_list(void)
 
    bool result = false;
    int lineno = 0;
-   test_t *last = NULL;
+   test_t *last = test_list;
+   while (last != NULL && last->next != NULL)
+      last = last->next;
    while (lineno++, !feof(f)) {
       char line[256];
       if (fgets(line, sizeof(line), f) == NULL)
@@ -475,6 +478,8 @@ static bool parse_test_list(void)
                goto out_close;
             }
          }
+         else if (strncmp(opt, "siginit", 7) == 0)
+            test->flags |= F_SIGINIT;
          else if (strncmp(opt, "O", 1) == 0) {
             if (sscanf(opt + 1, "%u", &(test->olevel)) != 1) {
                fprintf(stderr, "Error on testlist line %d: invalid "
@@ -958,6 +963,9 @@ static bool run_test(test_t *test)
       if (test->flags & F_VHPI)
          push_arg(&args, "--load=%s/../lib/vhpi_test.so%s", bin_dir, EXEEXT);
 
+      if (test->flags & F_SIGINIT)
+         push_arg(&args, "--load=siginit");
+
       for (param_t *p = test->params; p != NULL; p = p->next) {
          if (p->kind == P_PLUSARG)
             push_arg(&args, "+%s", p->value);
@@ -1037,6 +1045,9 @@ static bool run_test(test_t *test)
 
          if (test->flags & F_VHPI)
             push_arg(&args, "--load=%s/../lib/vhpi_test.so%s", bin_dir, EXEEXT);
+
+         if (test->flags & F_SIGINIT)
+            push_arg(&args, "--load=siginit");
 
          for (param_t *p = test->params; p != NULL; p = p->next) {
             if (p->kind == P_PLUSARG)
@@ -1491,6 +1502,7 @@ int main(int argc, char **argv)
 
    setenv("NVC_IMP_LIB", lib_dir, 1);
    setenv("NVC_LIBPATH", lib_dir, 1);
+   setenv("NVC_PLUGIN_PATH", lib_dir, 1);
 
 #ifdef __MINGW32__
    SetConsoleOutputCP(65001);

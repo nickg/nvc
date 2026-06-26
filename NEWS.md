@@ -6,6 +6,9 @@
 - Added support for default arguments in Verilog macros.
 - Added support for `$info`, `$warning`, `$error`, and `$fatal`, Verilog
   system tasks.
+- VHDL signals can be now initialized in LRM non-compliant way when
+  using `--load=siginit` and `+siginit` arguments. This is usefull
+  for finding reset issues.
 - Elaboration now supports multiple top level design units (#1588).
 - Several other minor bugs were resolved (#1587, #1594).
 
@@ -57,6 +60,9 @@
   list of directories to search when the argument to `--load` is not a
   valid path.
 - Added support for VHDL-2019 extended ranges.
+- Added signal initialization plugin that allows initializing VHDL
+  signals in LRM non-compliant way at start of simulation.
+  Activated by `--load=siginit` and controlled by `+siginit` arguments.
 - Several other minor bugs were resolved (#1453, #1460, #1466, #1469,
   #1394, #1476, #1472, #1474).
 
