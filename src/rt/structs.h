@@ -132,7 +132,7 @@ typedef struct {
 
 typedef struct {
    rt_nexus_t *nexus;
-   rt_value_t  value;
+   waveform_t  waveforms;
 } rt_pseudo_t;
 
 typedef struct _rt_source {

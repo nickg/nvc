@@ -1418,3 +1418,4 @@ conf6           normal,2008
 vlog42          verilog
 issue1587       normal,2008
 cmdline21       shell
+ivtest58        verilog
