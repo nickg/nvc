@@ -145,6 +145,7 @@ PSL_COMMENT     {PRAGMA}(?i:psl)
 PSL_CONT        ^{SPACE}*({PSL_COMMENT}|"--")
 UTF8_MB         [\x80-\xff][\x80-\xbf]{1,3}
 VLOG_NUMBER     ({INTEGER}{SPACE}*)?\'s?[bhdoBHDO]{SPACE}*{VLOG_DIGITS}
+VLOG_UNBASED    \'[01xXzZ]
 VLOG_REAL       ({INTEGER}\.{INTEGER}{EXPONENT}?|{INTEGER}{EXPONENT})
 UDP_LEVEL       [01xX?bB]
 UDP_EDGE        [rRfFpPnN*]
@@ -900,6 +901,7 @@ PROTECT           ?i:protect
 <VLOG>{VLOG_ESCAPED}     { yylval.ident = ident_new(yytext + 1); return tID; }
 <VLOG>{INTEGER}          { yylval.str = xstrdup(yytext); return tUNSNUM; }
 <VLOG>{VLOG_NUMBER}      { yylval.str = xstrdup(yytext); return tNUMBER; }
+<VLOG>{VLOG_UNBASED}     { yylval.i64 = yytext[1]; return tUNBASED; }
 <VLOG>{VLOG_REAL}        { return parse_verilog_real(yytext); };
 <VLOG>{PAREN_STAR}       { return tPARENSTAR; }
 

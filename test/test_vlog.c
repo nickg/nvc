@@ -1458,6 +1458,91 @@ START_TEST(test_simp1)
 }
 END_TEST
 
+START_TEST(test_unbased1)
+{
+   input_from_file(TESTDIR "/vlog/unbased1.sv");
+
+   vlog_node_t m = do_parse_check(V_MODULE);
+
+   // The unbased unsized literal in the procedural assignment is parsed as
+   // a one-bit number tagged as unbased and left for context expansion
+   vlog_node_t init = vlog_stmt(m, 0);
+   fail_unless(vlog_kind(init) == V_INITIAL);
+
+   vlog_node_t bassign = vlog_stmt(init, 0);
+   fail_unless(vlog_kind(bassign) == V_BASSIGN);
+
+   vlog_node_t rhs = vlog_value(bassign);
+   fail_unless(vlog_kind(rhs) == V_NUMBER);
+   fail_unless(vlog_subkind(rhs) == V_NUMBER_UNBASED);
+   ck_assert_int_eq(number_bit(vlog_number(rhs), 0), LOGIC_1);
+
+   vlog_simp(m);
+
+   static const struct {
+      const char *name;
+      unsigned    width;
+      bool        defined;
+      int64_t     ival;
+   } expect[] = {
+      { "q0", 8,  true,  0          },
+      { "q1", 8,  true,  255        },
+      { "q2", 4,  true,  15         },
+      { "qx", 4,  false, 0          },
+      { "qz", 4,  false, 0          },
+      { "r0", 8,  true,  255        },
+      { "r1", 8,  true,  240        },
+      { "u1", 32, true,  0xffffffff },
+   };
+
+   for (int i = 0; i < ARRAY_LEN(expect); i++) {
+      vlog_node_t d = NULL;
+      const int ndecls = vlog_decls(m);
+      for (int j = 0; j < ndecls; j++) {
+         vlog_node_t dj = vlog_decl(m, j);
+         if (vlog_kind(dj) == V_LOCALPARAM
+             && vlog_ident(dj) == ident_new(expect[i].name)) {
+            d = dj;
+            break;
+         }
+      }
+
+      ck_assert_msg(d != NULL, "localparam %s not found", expect[i].name);
+
+      vlog_node_t value = vlog_value(d);
+      ck_assert_msg(vlog_kind(value) == V_NUMBER,
+                    "localparam %s did not fold to a number", expect[i].name);
+
+      number_t n = vlog_number(value);
+      ck_assert_int_eq(number_width(n), expect[i].width);
+      ck_assert_int_eq(number_is_defined(n), expect[i].defined);
+
+      if (expect[i].defined)
+         ck_assert_int_eq(number_integer(n), expect[i].ival);
+   }
+
+   // The wide literal is filled across more than one 64-bit word
+   vlog_node_t big1 = NULL;
+   const int ndecls = vlog_decls(m);
+   for (int j = 0; j < ndecls; j++) {
+      vlog_node_t dj = vlog_decl(m, j);
+      if (vlog_kind(dj) == V_LOCALPARAM && vlog_ident(dj) == ident_new("big1"))
+         big1 = dj;
+   }
+   ck_assert_ptr_nonnull(big1);
+
+   number_t nbig = vlog_number(vlog_value(big1));
+   ck_assert_int_eq(number_width(nbig), 72);
+   ck_assert_int_eq(number_bit(nbig, 0), LOGIC_1);
+   ck_assert_int_eq(number_bit(nbig, 63), LOGIC_1);
+   ck_assert_int_eq(number_bit(nbig, 71), LOGIC_1);
+
+   fail_unless(vlog_parse() == NULL);
+
+   fail_if_errors();
+}
+END_TEST
+
 START_TEST(test_lower1)
 {
    input_from_file(TESTDIR "/vlog/lower1.v");
@@ -2039,6 +2124,7 @@ Suite *get_vlog_tests(void)
    tcase_add_test(tc, test_namespace1);
    tcase_add_test(tc, test_real1);
    tcase_add_test(tc, test_simp1);
+   tcase_add_test(tc, test_unbased1);
    tcase_add_test(tc, test_lower1);
    tcase_add_test(tc, test_pp7);
    tcase_add_test(tc, test_pp8);

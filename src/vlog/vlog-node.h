@@ -304,6 +304,11 @@ typedef enum {
 } vlog_udp_symbol_t;
 
 typedef enum {
+   V_NUMBER_NORMAL,    // Ordinary sized or unsized-but-based literal
+   V_NUMBER_UNBASED,   // Unbased unsized literal '0 '1 'x 'z
+} vlog_number_kind_t;
+
+typedef enum {
    V_SYSTF_NONE,
    V_SYSTF_SIGNED,
    V_SYSTF_UNSIGNED,
