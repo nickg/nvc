@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2024  Nick Gasson
+//  Copyright (C) 2024-2026  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -81,7 +81,7 @@ static void format_radix_string(ostream_t *out, const char *str, int fwidth)
 }
 
 static void format_radix(ostream_t *out, vpiHandle arg, char radix, int fwidth,
-                         int precision)
+                         int precision, char pad)
 {
    switch (radix) {
    case 'd':
@@ -94,12 +94,14 @@ static void format_radix(ostream_t *out, vpiHandle arg, char radix, int fwidth,
             const int nbits = vpi_get(vpiSize, arg);
             const bool is_signed = vpi_get(vpiSigned, arg);
             const int dmax = calc_dec_size(nbits, is_signed);
-            const int pad_width =
-               nbits >= 64 ? MAX(fwidth, dmax) : fwidth;
+            const int len = strlen(argval.value.str);
 
-            if (pad_width >= 0)
-               nvc_fprintf(out, "%*s", pad_width, argval.value.str);
-            else if (dmax > strlen(argval.value.str))
+            if (fwidth >= 0) {
+               for (int i = 0; i < fwidth - len; i++)
+                  ostream_putc(out, pad);
+               ostream_puts(out, argval.value.str);
+            }
+            else if (dmax > len)
                nvc_fprintf(out, "%*s", dmax, argval.value.str);
             else
                ostream_puts(out, argval.value.str);
@@ -154,13 +156,13 @@ static void format_radix(ostream_t *out, vpiHandle arg, char radix, int fwidth,
 }
 
 static void format_number(ostream_t *out, vpiHandle it, char radix, int fwidth,
-                          int precision)
+                          int precision, char pad)
 {
    vpiHandle arg = vpi_scan(it);
    if (arg == NULL)
       return;
 
-   format_radix(out, arg, radix, fwidth, precision);
+   format_radix(out, arg, radix, fwidth, precision, pad);
    vpi_release_handle(arg);
 }
 
@@ -195,6 +197,10 @@ static void interpret_format(ostream_t *out, const char *fmt, vpiHandle it)
 
          p++;   // Skip over '%'
 
+         char pad = ' ';
+         if (*p == '0' && isdigit_iso88591(*(p + 1)))
+            pad = *p++;
+
          int fwidth = -1;
          if (isdigit_iso88591(*p))
             fwidth = strtol(p, (char **)&p, 10);
@@ -215,7 +221,7 @@ static void interpret_format(ostream_t *out, const char *fmt, vpiHandle it)
          case 'h':
          case 't':
          case 'f':
-            format_number(out, it, *p, fwidth, precision);
+            format_number(out, it, *p, fwidth, precision, pad);
             break;
          case 'c':
             format_char(out, it, fwidth);
@@ -256,7 +262,7 @@ static void verilog_printf(ostream_t *out, char default_radix, vpiHandle it)
          free(copy);
       }
       else
-         format_radix(out, arg, default_radix, -1, -1);
+         format_radix(out, arg, default_radix, -1, -1, ' ');
 
       vpi_release_handle(arg);
       arg = vpi_scan(it);

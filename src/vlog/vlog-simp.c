@@ -177,6 +177,7 @@ static void build_sensitivity(vlog_node_t ctrl, vlog_node_t v, hset_t *set,
       build_sensitivity(ctrl, vlog_value(v), set, is_comb);
       // Fall-through
    case V_CASE_ITEM:
+   case V_TIMING:
       {
          const int nstmts = vlog_stmts(v);
          for (int i = 0; i < nstmts; i++)
