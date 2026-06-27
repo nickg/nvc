@@ -210,7 +210,6 @@ unsigned vlog_width(vlog_node_t v)
    case V_NULL:
       return 0;  // Undefined
    case V_REF:
-   case V_HIER_REF:
    case V_MEMBER_REF:
    case V_USER_FCALL:
       return vlog_width(vlog_ref(v));
@@ -226,6 +225,11 @@ unsigned vlog_width(vlog_node_t v)
    case V_ENUM_DECL:
    case V_LOCAL_DECL:
       return vlog_size(vlog_type(v));
+   case V_HIER_REF:
+      if (vlog_has_ref(v))
+         return vlog_width(vlog_ref(v));
+      else
+         fatal_at(vlog_loc(v), "unbound hierarchical reference");
    case V_BIT_SELECT:
       {
          vlog_node_t value = vlog_value(v);
@@ -598,4 +602,32 @@ vlog_node_t vlog_get_dim(vlog_node_t v, int n)
    default:
       CANNOT_HANDLE(v);
    }
+}
+
+tree_t vlog_walk_mod_refs(vlog_node_t v, tree_t where)
+{
+   assert(vlog_kind(v) == V_MOD_REF);
+   assert(vlog_has_ref(v));
+
+   vlog_node_t inst = vlog_ref(v);
+   assert(vlog_kind(inst) == V_MOD_INST);
+
+   if (vlog_has_value(v))
+      where = vlog_walk_mod_refs(vlog_value(v), where);
+
+   if (where == NULL)
+      return NULL;
+
+   assert(tree_kind(where) == T_BLOCK);
+
+   ident_t id = vlog_ident(inst);
+
+   const int nstmts = tree_stmts(where);
+   for (int i = 0; i < nstmts; i++) {
+      tree_t s = tree_stmt(where, i);
+      if (tree_kind(s) == T_BLOCK && tree_ident(s) == id)
+         return s;
+   }
+
+   return NULL;
 }

@@ -101,7 +101,7 @@ rt_trigger_t *x_or_trigger(rt_trigger_t *left, rt_trigger_t *right);
 void *x_cmp_trigger(sig_shared_t *ss, uint32_t offset, int64_t right);
 void *x_level_trigger(sig_shared_t *ss, uint32_t offset, int32_t count);
 void x_add_trigger(void *ptr);
-void x_bind_external(tree_t where, jit_handle_t scope, jit_scalar_t *result);
+void x_bind_external(object_t *where, jit_handle_t scope, jit_scalar_t *result);
 void x_instance_name(attr_kind_t kind, text_buf_t *tb);
 void x_enable_trigger(rt_trigger_t *trigger);
 void x_disable_trigger(rt_trigger_t *trigger);

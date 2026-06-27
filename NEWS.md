@@ -7,6 +7,7 @@
 - Added support for `$info`, `$warning`, `$error`, and `$fatal`, Verilog
   system tasks.
 - Elaboration now supports multiple top level design units (#1588).
+- Verilog hierarchical references are now supported.
 - Several other minor bugs were resolved (#1587, #1594).
 
 ## Version 1.21.1 - 2026-06-20

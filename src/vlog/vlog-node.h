@@ -331,6 +331,10 @@ typedef enum {
    VLOG_F_CONST  = (1 << 2),
 } vlog_flags_t;
 
+typedef enum {
+   VLOG_GF_HIER_REF = (1 << 0),
+} vlog_global_flags_t;
+
 #define STRENGTH1(st) (((st) >> 5) & 7)
 #define STRENGTH0(st) (((st) >> 2) & 7)
 
@@ -444,5 +448,8 @@ vlog_node_t vlog_copy(vlog_node_t v, vlog_copy_pred_t pred, void *ctx);
 
 object_t *vlog_to_object(vlog_node_t v);
 vlog_node_t vlog_from_object(object_t *obj);
+
+vlog_global_flags_t vlog_global_flags(vlog_node_t v);
+void vlog_set_global_flags(vlog_node_t v, vlog_global_flags_t flags);
 
 #endif  // _VLOG_NODE_H

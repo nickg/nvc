@@ -1217,6 +1217,8 @@ static vlog_node_t p_hierarchical_identifier(ident_t id)
    vlog_set_value(v, mr);
    vlog_set_ident(v, suffix);
    vlog_set_loc(v, CURRENT_LOC);
+
+   vlog_set_global_flags(v, VLOG_GF_HIER_REF);
    return v;
 }
 

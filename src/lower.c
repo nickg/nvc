@@ -3282,7 +3282,6 @@ static vcode_reg_t lower_external_name(lower_unit_t *lu, tree_t ref)
       if (tree_subkind(p) == PE_GENERATE) {
          vcode_reg_t arg = lower_rvalue(lu, tree_value(p));
          APUSH(args, arg);
-         emit_comment("arg r%d", arg);
       }
    }
 

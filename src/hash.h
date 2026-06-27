@@ -61,6 +61,7 @@ void ghash_free(ghash_t *h);
 void ghash_put(ghash_t *h, const void *key, void *value);
 void *ghash_get(ghash_t *h, const void *key);
 void ghash_delete(ghash_t *h, const void *key);
+bool ghash_iter(ghash_t *h, hash_iter_t *now, const void **key, void **value);
 
 typedef void (*hash_iter_fn_t)(const void *, void *);
 
