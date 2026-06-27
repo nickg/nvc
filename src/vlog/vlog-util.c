@@ -607,20 +607,21 @@ vlog_node_t vlog_get_dim(vlog_node_t v, int n)
 tree_t vlog_walk_mod_refs(vlog_node_t v, tree_t where)
 {
    assert(vlog_kind(v) == V_MOD_REF);
-   assert(vlog_has_ref(v));
 
-   vlog_node_t inst = vlog_ref(v);
-   assert(vlog_kind(inst) == V_MOD_INST);
+   if (vlog_has_value(v)) {
+      if ((where = vlog_walk_mod_refs(vlog_value(v), where)) == NULL)
+         return NULL;
+   }
+   else if (!vlog_has_ref(v)) {
+      where = tree_container(where);
+      assert(tree_kind(where) == T_ELAB);
+   }
+   else {
+      assert(vlog_kind(vlog_ref(v)) == V_MOD_INST);
+      assert(tree_kind(where) == T_BLOCK);
+   }
 
-   if (vlog_has_value(v))
-      where = vlog_walk_mod_refs(vlog_value(v), where);
-
-   if (where == NULL)
-      return NULL;
-
-   assert(tree_kind(where) == T_BLOCK);
-
-   ident_t id = vlog_ident(inst);
+   ident_t id = vlog_ident(v);
 
    const int nstmts = tree_stmts(where);
    for (int i = 0; i < nstmts; i++) {
@@ -629,5 +630,6 @@ tree_t vlog_walk_mod_refs(vlog_node_t v, tree_t where)
          return s;
    }
 
+   error_at(vlog_loc(v), "cannot find '%pi' in hierarchical identifier", id);
    return NULL;
 }

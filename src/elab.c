@@ -2815,7 +2815,8 @@ static vlog_node_t elab_rewrite_hier_ref_cb(vlog_node_t v, void *arg)
    if (vlog_kind(v) != V_HIER_REF)
       return v;
 
-   tree_t b = vlog_walk_mod_refs(vlog_value(v), arg);
+   vlog_node_t prefix = vlog_value(v);
+   tree_t b = vlog_walk_mod_refs(prefix, arg);
    if (b == NULL)
       return v;
 
@@ -2835,7 +2836,7 @@ static vlog_node_t elab_rewrite_hier_ref_cb(vlog_node_t v, void *arg)
       case V_NET_DECL:
       case V_VAR_DECL:
          vlog_set_ref(v, vd);
-         break;
+         return v;
       default:
          {
             diag_t *d = diag_new(DIAG_ERROR, vlog_loc(v));
@@ -2846,6 +2847,15 @@ static vlog_node_t elab_rewrite_hier_ref_cb(vlog_node_t v, void *arg)
          }
       }
    }
+
+   tree_t h = tree_decl(b, 0);
+   assert(tree_kind(h) == T_HIER);
+
+   diag_t *d = diag_new(DIAG_ERROR, vlog_loc(v));
+   diag_printf(d, "name '%pi' not found in '%pi'", id, tree_ident(b));
+   diag_hint(d, tree_loc(b), "'%pi' is an instance of %pI", tree_ident(b),
+             tree_ident(tree_ref(h)));
+   diag_emit(d);
 
    return v;
 }

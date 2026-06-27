@@ -16,13 +16,14 @@
 //
 
 #include "test_util.h"
-#include "phase.h"
 #include "common.h"
 #include "ident.h"
 #include "lib.h"
 #include "object.h"
 #include "option.h"
+#include "phase.h"
 #include "prim.h"
+#include "rt/model.h"
 #include "scan.h"
 #include "test_mir.h"
 #include "vlog/vlog-node.h"
@@ -1963,6 +1964,50 @@ START_TEST(test_pp14)
    check_expected_errors();
 }
 
+START_TEST(test_href2)
+{
+   input_from_file(TESTDIR "/vlog/href2.v");
+
+   vlog_node_t m1 = do_parse_check(V_MODULE);
+   vlog_check(m1);
+
+   vlog_node_t m2 = do_parse_check(V_MODULE);
+   vlog_check(m2);
+
+   jit_t *j = get_jit();
+   rt_model_t *m = model_new(j, NULL);
+   mir_context_t *mc = get_mir();
+   unit_registry_t *ur = get_registry();
+
+   object_t *top[2] = { vlog_to_object(m1), vlog_to_object(m2) };
+
+   tree_t e = elab(top, ARRAY_LEN(top), j, ur, mc, NULL, NULL, m);
+   ck_assert_ptr_nonnull(e);
+
+   model_free(m);
+
+   fail_if_errors();
+}
+END_TEST
+
+START_TEST(test_href3)
+{
+   input_from_file(TESTDIR "/vlog/href3.v");
+
+   const error_t expect[] = {
+      {  7, "name 'xxx' not found in 'u1'" },
+      {  0, "'u1' is an instance of WORK.SUB1" },
+      {  8, "cannot find 'glbl' in hierarchical identifier" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   run_elab();
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_vlog_tests(void)
 {
    Suite *s = suite_create("vlog");
@@ -2035,6 +2080,8 @@ Suite *get_vlog_tests(void)
    tcase_add_test(tc, test_pp12);
    tcase_add_test(tc, test_pp13);
    tcase_add_test(tc, test_pp14);
+   tcase_add_test(tc, test_href2);
+   tcase_add_test(tc, test_href3);
    suite_add_tcase(s, tc);
 
    return s;
