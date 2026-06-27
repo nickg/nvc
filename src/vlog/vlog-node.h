@@ -168,6 +168,7 @@ typedef enum {
    V_LOCAL_DECL,
    V_GEN_BLOCK,
    V_METHOD_CALL,
+   V_MOD_REF,
 
    V_LAST_NODE_KIND
 } vlog_kind_t;

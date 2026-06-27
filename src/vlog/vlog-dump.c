@@ -871,12 +871,24 @@ static void vlog_dump_ref(vlog_node_t v, int indent)
    print_syntax("%s", istr(vlog_ident(v)));
 }
 
+static void vlog_dump_mod_ref(vlog_node_t v, int indent)
+{
+   if (vlog_has_value(v)) {
+      vlog_dump(vlog_value(v), 0);
+      print_syntax(".");
+   }
+
+   print_syntax("%pi", vlog_ident(v));
+}
+
 static void vlog_dump_hier_ref(vlog_node_t v, int indent)
 {
    if (vlog_has_ref(v))
       vlog_dump_address(vlog_ref(v));
 
-   print_syntax("%s.%s", istr(vlog_ident2(v)), istr(vlog_ident(v)));
+   vlog_dump(vlog_value(v), 0);
+
+   print_syntax(".%s", istr(vlog_ident(v)));
 }
 
 static void vlog_dump_task_decl(vlog_node_t v, int indent)
@@ -1002,6 +1014,9 @@ void vlog_dump(vlog_node_t v, int indent)
       break;
    case V_REF:
       vlog_dump_ref(v, indent);
+      break;
+   case V_MOD_REF:
+      vlog_dump_mod_ref(v, indent);
       break;
    case V_HIER_REF:
       vlog_dump_hier_ref(v, indent);

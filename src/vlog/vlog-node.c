@@ -24,6 +24,8 @@
 #include <inttypes.h>
 #include <stdlib.h>
 
+STATIC_ASSERT(V_LAST_NODE_KIND < 256);
+
 static const imask_t has_map[V_LAST_NODE_KIND] = {
    // V_MODULE
    (I_IDENT | I_PORTS | I_STMTS | I_DECLS | I_IDENT2),
@@ -263,7 +265,7 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
    (I_IDENT),
 
    // V_HIER_REF
-   (I_IDENT | I_IDENT2 | I_REF),
+   (I_IDENT | I_VALUE | I_REF),
 
    // V_TF_PORT_DECL
    (I_IDENT | I_SUBKIND | I_RANGES | I_TYPE | I_VALUE | I_REF),
@@ -327,6 +329,9 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
 
    // V_METHOD_CALL
    (I_IDENT | I_VALUE | I_REF | I_SUBKIND | I_PARAMS),
+
+   // V_MOD_REF
+   (I_IDENT | I_PARAMS | I_VALUE | I_REF),
 };
 
 static const char *kind_text_map[V_LAST_NODE_KIND] = {
@@ -355,7 +360,7 @@ static const char *kind_text_map[V_LAST_NODE_KIND] = {
    "V_NULL",          "V_CLASS_NEW",   "V_DYNAMIC_NEW",   "V_CONSTRUCTOR",
    "V_SUPER_CALL",    "V_IMPORT_DECL", "V_NAMESPACE",     "V_DEFPARAM",
    "V_PORT_MAP",      "V_FINAL",       "V_LOCAL_DECL",    "V_GEN_BLOCK",
-   "V_METHOD_CALL",
+   "V_METHOD_CALL",   "V_MOD_REF",
 };
 
 static const change_allowed_t change_allowed[] = {

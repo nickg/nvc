@@ -47,6 +47,7 @@ module mod2;
   endfunction // func
   enum byte { a = 5, b } e1;
   reg signed [3:0] s1;
+  assign grst = glbl.grst;
 endmodule // mod2
 
 primitive multiplexer (mux, control, dataA, dataB);

@@ -1275,25 +1275,6 @@ START_TEST(test_href1)
    input_from_file(TESTDIR "/vlog/href1.v");
 
    const error_t expect[] = {
-      {  6, "no visible declaration for 'xx'" },
-      { 13, "no visible declaration for 'yy'" },
-      { -1, NULL }
-   };
-   expect_errors(expect);
-
-   do_parse_only(V_MODULE);
-
-   fail_unless(vlog_parse() == NULL);
-
-   check_expected_errors();
-}
-END_TEST
-
-START_TEST(test_href2)
-{
-   input_from_file(TESTDIR "/vlog/href2.v");
-
-   const error_t expect[] = {
       {  5, "prefix of hierarchical identifier is not an instance" },
       { -1, NULL }
    };
@@ -2031,7 +2012,6 @@ Suite *get_vlog_tests(void)
    tcase_add_test(tc, test_pp6);
    tcase_add_test(tc, test_label1);
    tcase_add_test(tc, test_href1);
-   tcase_add_test(tc, test_href2);
    tcase_add_test(tc, test_package1);
    tcase_add_test(tc, test_class1);
    tcase_add_test(tc, test_class2);

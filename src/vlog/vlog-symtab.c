@@ -167,13 +167,13 @@ void vlog_symtab_pop(vlog_symtab_t *st)
 
    for (int i = 0; i < st->top->deferred.count; i++) {
       vlog_node_t v = st->top->deferred.items[i];
-      if (st->top->parent == NULL || is_top_level(st->top->container)) {
+      if (st->top->parent != NULL)
+         APUSH(st->top->parent->deferred, v);
+      else if (vlog_kind(v) != V_MOD_REF) {
          ident_t name = vlog_ident(v);
          error_at(vlog_loc(v), "no visible declaration for '%pi'", name);
          vlog_symtab_poison(st, name);
       }
-      else
-         APUSH(st->top->parent->deferred, v);
    }
    ACLEAR(st->top->deferred);
 
@@ -350,7 +350,7 @@ void vlog_symtab_lookup(vlog_symtab_t *st, vlog_node_t v)
       switch (vlog_kind(v)) {
       case V_USER_FCALL:
       case V_USER_TCALL:
-      case V_HIER_REF:
+      case V_MOD_REF:
          // May be declared later
          APUSH(st->top->deferred, v);
          break;

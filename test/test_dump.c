@@ -525,6 +525,7 @@ START_TEST(test_vlog1)
              "  endfunction\n"
              "  enum byte { a=5, b } e1;\n"
              "  logic signed [3:0] s1;\n"
+             "  wire logic grst;\n"
              "  initial begin\n"
              "    $display(\"hello\", $time);\n"
              "    if (bus) r <= 1 | r;\n"
@@ -552,6 +553,7 @@ START_TEST(test_vlog1)
              "    1'b0, 1'b1: r = p1[3:0];\n"
              "    default: r = 0;\n"
              "  endcase\n"
+             "  assign grst = glbl.grst;\n"
              "endmodule // mod2\n\n");
    tb_rewind(tb);
 
