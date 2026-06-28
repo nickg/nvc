@@ -3900,7 +3900,9 @@ void vlog_lower_block(mir_context_t *mc, ident_t parent, tree_t b)
          {
             vlog_select_t lvalue = vlog_lower_select(&g, vlog_value(v));
             const type_info_t *ti = vlog_type_info(&g, vlog_type(port));
-            if (lvalue.size != ti->size)
+            if (!mir_is_signal(mu, lvalue.obj))
+               break;    // Port tied to constant
+            else if (lvalue.size != ti->size)
                break;
 
             // Cannot collapse port if select not in range

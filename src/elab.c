@@ -1551,6 +1551,7 @@ static void elab_verilog_ports(vlog_node_t inst, elab_instance_t *ei,
       }
 
       vlog_node_t map = vlog_new(V_PORT_MAP);
+      vlog_set_ident(map, port_name);
       vlog_set_ref(map, port);
       vlog_set_value(map, value);
       vlog_set_loc(map, vlog_loc(conn));

@@ -316,7 +316,7 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
    (I_TARGET | I_VALUE),
 
    // V_PORT_MAP
-   (I_REF | I_VALUE),
+   (I_IDENT | I_REF | I_VALUE),
 
    // V_FINAL
    (I_IDENT | I_STMTS),

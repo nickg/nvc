@@ -1421,3 +1421,4 @@ cmdline21       shell
 ivtest58        verilog
 ivtest59        verilog,gold
 href1           verilog
+vlog43          verilog
