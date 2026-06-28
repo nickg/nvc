@@ -142,7 +142,6 @@ typedef struct _rt_source {
    unsigned        disconnected : 1;
    unsigned        fastqueued : 1;
    unsigned        sigqueued : 1;
-   unsigned        pseudoqueued : 1;
    unsigned        was_active : 1;
    union {
       rt_port_t      port;
