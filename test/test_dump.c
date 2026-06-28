@@ -525,6 +525,7 @@ START_TEST(test_vlog1)
              "  endfunction\n"
              "  enum byte { a=5, b } e1;\n"
              "  logic signed [3:0] s1;\n"
+             "  tri0 /* implicit */ grst = glbl.grst;\n"
              "  initial begin\n"
              "    $display(\"hello\", $time);\n"
              "    if (bus) r <= 1 | r;\n"

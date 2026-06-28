@@ -4,6 +4,8 @@ import sys
 import os
 import uuid
 from glob import glob
+from pathlib import Path
+import fnmatch
 
 print("<?xml version=\"1.0\" encoding=\"utf-8\"?>")
 print("<Wix xmlns=\"http://schemas.microsoft.com/wix/2006/wi\">")
@@ -14,6 +16,8 @@ print("<DirectoryRef Id=\"BIN\">")
 wprefix = os.getenv("MSYSTEM_PREFIX")
 prefix = subprocess.check_output(
     ["cygpath", "-u", wprefix]).decode("utf-8").strip()
+
+wintcl = os.getenv("WINTCL", "C:/wintcl")
 
 allrefs = []
 
@@ -56,8 +60,22 @@ for line in io.TextIOWrapper(ldd.stdout, encoding="utf-8"):
     dll = parts[0]
     path = parts[2]
 
-    if path.startswith(prefix):
+    base = Path(path).name.lower()
+
+    wintcl_libs = [
+        "tcl*.dll",
+        "zlib1.dll",
+        "libtommath.dll",
+    ]
+
+    if any(fnmatch.fnmatchcase(base, pattern) for pattern in wintcl_libs):
+        next
+    elif path.startswith(prefix):
         dlls.add(path.replace(prefix, wprefix))
+
+dlls.add(f"{wintcl}/bin/tcl90.dll")
+dlls.add(f"{wintcl}/bin/zlib1.dll")
+dlls.add(f"{wintcl}/bin/libtommath.dll")
 
 dlls = list(dlls)
 dlls.sort()
@@ -76,28 +94,20 @@ print("</DirectoryRef>")
 
 
 ################################################################################
-# TCL core libraries
+# TCL libraries
 
 print("<DirectoryRef Id=\"LIB\">")
 
-print("<Directory Id=\"TCL\" Name=\"tcl8.6\">")
-walk_dir("TCL", f"{wprefix}\\lib\\tcl8.6")
+print("<Directory Id=\"TCL90\" Name=\"tcl9.0\">")
+walk_dir("TCL90", f"{wintcl}\\lib\\tcl9.0")
 print("</Directory>")
 
-print("<Directory Id=\"TCL8\" Name=\"tcl8\">")
-walk_dir("TCL8", f"{wprefix}\\lib\\tcl8")
+print("<Directory Id=\"TCL9\" Name=\"tcl9\">")
+walk_dir("TCL9", f"{wintcl}\\lib\\tcl9")
 print("</Directory>")
 
-print("</DirectoryRef>")
-
-
-################################################################################
-# TclLib
-
-print("<DirectoryRef Id=\"LIB\">")
-
-print(f"<Directory Id=\"TCLLIB\" Name=\"tcllib1.21\">")
-walk_dir("TCLLIB", f"{sys.argv[2]}\\lib\\tcllib1.21")
+print("<Directory Id=\"REGISTRY13\" Name=\"registry1.3\">")
+walk_dir("REGISTRY13", f"{wintcl}\\lib\\registry1.3")
 print("</Directory>")
 
 print("</DirectoryRef>")

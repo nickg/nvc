@@ -629,7 +629,12 @@ static void dump_stmts(tree_t t, int indent)
       if (needs_newline && i > 0 && !last_was_newline)
          print_syntax("\n");
 
-      dump_stmt(s, indent);
+      if (kind == T_VERILOG) {
+         tab(indent);
+         vlog_dump(tree_vlog(s), indent);
+      }
+      else
+         dump_stmt(s, indent);
 
       if (needs_newline && i + 1 < nstmts) {
          print_syntax("\n");
@@ -1163,12 +1168,6 @@ static void dump_instance(tree_t t, int indent)
 
 static void dump_stmt(tree_t t, int indent)
 {
-   const tree_kind_t kind = tree_kind(t);
-   if (kind == T_VERILOG) {
-      vlog_dump(tree_vlog(t), indent);
-      return;
-   }
-
    tab(indent);
 
    if (tree_has_ident(t)) {
@@ -1620,8 +1619,7 @@ static void dump_elab(tree_t t)
    print_syntax("#architecture #elab #of %s #is\n", istr(tree_ident(t)));
    dump_decls(t, 2);
    print_syntax("#begin\n");
-   for (unsigned i = 0; i < tree_stmts(t); i++)
-      dump_stmt(tree_stmt(t, i), 2);
+   dump_stmts(t, 2);
    print_syntax("#end #architecture;\n\n");
 }
 

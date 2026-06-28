@@ -106,6 +106,7 @@ typedef struct {
    vlog_node_t    body;
    tree_t         block;
    tree_t         wrap;
+   tree_t         first;
    cover_scope_t *cscope;
 } elab_instance_t;
 
@@ -1550,6 +1551,7 @@ static void elab_verilog_ports(vlog_node_t inst, elab_instance_t *ei,
       }
 
       vlog_node_t map = vlog_new(V_PORT_MAP);
+      vlog_set_ident(map, port_name);
       vlog_set_ref(map, port);
       vlog_set_value(map, value);
       vlog_set_loc(map, vlog_loc(conn));
@@ -1603,6 +1605,7 @@ static void elab_verilog_module(tree_t comp, ident_t label, vlog_node_t mod,
 
       ei = pool_calloc(ctx->pool, sizeof(elab_instance_t));
       ei->body = vlog_new_instance(mod, list, id);
+      ei->first = b;
 
       vlog_fold(ei->body, ctx->mir, ctx->jit);
 
@@ -2136,6 +2139,7 @@ static void elab_architecture(tree_t inst, tree_t arch, const elab_ctx_t *ctx)
       ei = pool_calloc(ctx->pool, sizeof(elab_instance_t));
       ei->block = vhdl_architecture_instance(arch, inst, new_ctx.dotted);
       ei->cscope = new_ctx.cscope;
+      ei->first = b;
 
       elab_fold_generics(ei->block, &new_ctx);
 
@@ -2199,6 +2203,7 @@ static void elab_configuration(tree_t inst, tree_t unit, const elab_ctx_t *ctx)
       ei = pool_calloc(ctx->pool, sizeof(elab_instance_t));
       ei->block = vhdl_config_instance(config, inst, new_ctx.dotted);
       ei->cscope = new_ctx.cscope;
+      ei->first = b;
 
       elab_bind_components(ei->block, ei->block);
       elab_fold_generics(ei->block, &new_ctx);
@@ -2806,6 +2811,74 @@ static void elab_verilog_root(vlog_node_t v, const elab_ctx_t *ctx)
    elab_verilog_module(NULL, label, v, list, stmt, ctx);
 }
 
+static vlog_node_t elab_rewrite_hier_ref_cb(vlog_node_t v, void *arg)
+{
+   if (vlog_kind(v) != V_HIER_REF)
+      return v;
+
+   vlog_node_t prefix = vlog_value(v);
+   tree_t b = vlog_walk_mod_refs(prefix, arg);
+   if (b == NULL)
+      return v;
+
+   ident_t id = vlog_ident(v);
+
+   const int ndecls = tree_decls(b);
+   for (int i = 0; i < ndecls; i++) {
+      tree_t wrap = tree_decl(b, i);
+      if (tree_kind(wrap) != T_VERILOG)
+         continue;
+
+      vlog_node_t vd = tree_vlog(wrap);
+      if (vlog_ident(vd) != id)
+         continue;
+
+      switch (vlog_kind(vd)) {
+      case V_NET_DECL:
+      case V_VAR_DECL:
+         vlog_set_ref(v, vd);
+         return v;
+      default:
+         {
+            diag_t *d = diag_new(DIAG_ERROR, vlog_loc(v));
+            diag_printf(d, "target of hierarchical reference must be a net "
+                        "or variable");
+            diag_hint(d, vlog_loc(vd), "'%pi' refers to this object", id);
+            diag_emit(d);
+         }
+      }
+   }
+
+   tree_t h = tree_decl(b, 0);
+   assert(tree_kind(h) == T_HIER);
+
+   diag_t *d = diag_new(DIAG_ERROR, vlog_loc(v));
+   diag_printf(d, "name '%pi' not found in '%pi'", id, tree_ident(b));
+   diag_hint(d, tree_loc(b), "'%pi' is an instance of %pI", tree_ident(b),
+             tree_ident(tree_ref(h)));
+   diag_emit(d);
+
+   return v;
+}
+
+static void elab_fold_hrefs(mod_cache_t *mc, const elab_ctx_t *ctx)
+{
+   vlog_node_t v = vlog_from_object(mc->object);
+   if (v == NULL)
+      return;
+   else if (!(vlog_global_flags(v) & VLOG_GF_HIER_REF))
+      return;
+
+   const void *key;
+   void *value;
+   for (hash_iter_t it = HASH_BEGIN;
+        ghash_iter(mc->instances, &it, &key, &value); ) {
+      elab_instance_t *ei = value;
+      vlog_rewrite(ei->body, NULL, elab_rewrite_hier_ref_cb, ei->first);
+      vlog_fold(ei->body, ctx->mir, ctx->jit);
+   }
+}
+
 static void elab_root_cb(void *arg)
 {
    elab_ctx_t *ctx = arg;
@@ -2819,6 +2892,12 @@ static void elab_root_cb(void *arg)
       if (vlog != NULL)
          elab_verilog_root(vlog, ctx);
    }
+
+   const void *key;
+   void *value;
+   for (hash_iter_t it = HASH_BEGIN;
+        hash_iter(ctx->modcache, &it, &key, &value); )
+      elab_fold_hrefs(value, ctx);
 }
 
 static int elab_compar_modcache(const void *a, const void *b)

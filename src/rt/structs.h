@@ -132,7 +132,7 @@ typedef struct {
 
 typedef struct {
    rt_nexus_t *nexus;
-   rt_value_t  value;
+   waveform_t  waveforms;
 } rt_pseudo_t;
 
 typedef struct _rt_source {
@@ -142,7 +142,6 @@ typedef struct _rt_source {
    unsigned        disconnected : 1;
    unsigned        fastqueued : 1;
    unsigned        sigqueued : 1;
-   unsigned        pseudoqueued : 1;
    unsigned        was_active : 1;
    union {
       rt_port_t      port;

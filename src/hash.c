@@ -948,3 +948,20 @@ void ghash_delete(ghash_t *h, const void *key)
       }
    }
 }
+
+bool ghash_iter(ghash_t *h, hash_iter_t *now, const void **key, void **value)
+{
+   assert(*now != HASH_END);
+
+   while (*now < h->size) {
+      const unsigned old = (*now)++;
+      if (h->keys[old] != NULL && h->values[old] != NULL) {
+         *key   = h->keys[old];
+         *value = h->values[old];
+         return true;
+      }
+   }
+
+   *now = HASH_END;
+   return false;
+}

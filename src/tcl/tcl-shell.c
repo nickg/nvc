@@ -869,6 +869,11 @@ tcl_shell_t *shell_new(tree_t top, jit_t *jit, rt_model_t *m)
    else
       sh->getline = shell_raw_get_line;
 
+   const char *vers = Tcl_GetVar2(sh->interp, "tcl_version", NULL,
+                                  TCL_GLOBAL_ONLY);
+   if (strcmp(vers, TCL_VERSION) != 0)
+      fatal("built against TCL %s but runtime loaded %s", TCL_VERSION, vers);
+
    if (Tcl_Init(sh->interp) != 0)
       fatal("%s", Tcl_GetStringResult(sh->interp));
 

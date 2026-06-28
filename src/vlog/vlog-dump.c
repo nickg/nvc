@@ -218,12 +218,22 @@ static void vlog_dump_net_decl(vlog_node_t v, int indent)
    vlog_dump_address(v);
 
    switch (vlog_subkind(v)) {
-   case V_NET_WIRE: print_syntax("#wire "); break;
+   case V_NET_WIRE:  print_syntax("#wire "); break;
+   case V_NET_UWIRE: print_syntax("#uwire "); break;
+   case V_NET_TRI:   print_syntax("#tri "); break;
+   case V_NET_TRI0:  print_syntax("#tri0 "); break;
+   case V_NET_TRI1:  print_syntax("#tri1 "); break;
    }
 
    vlog_dump(vlog_type(v), indent);
    print_syntax(" %s", istr(vlog_ident(v)));
    vlog_dump_dimensions(v, indent);
+
+   if (vlog_has_value(v)) {
+      print_syntax(" = ");
+      vlog_dump(vlog_value(v), indent);
+   }
+
    print_syntax(";\n");
 }
 
@@ -877,12 +887,24 @@ static void vlog_dump_ref(vlog_node_t v, int indent)
    print_syntax("%s", istr(vlog_ident(v)));
 }
 
+static void vlog_dump_mod_ref(vlog_node_t v, int indent)
+{
+   if (vlog_has_value(v)) {
+      vlog_dump(vlog_value(v), 0);
+      print_syntax(".");
+   }
+
+   print_syntax("%pi", vlog_ident(v));
+}
+
 static void vlog_dump_hier_ref(vlog_node_t v, int indent)
 {
    if (vlog_has_ref(v))
       vlog_dump_address(vlog_ref(v));
 
-   print_syntax("%s.%s", istr(vlog_ident2(v)), istr(vlog_ident(v)));
+   vlog_dump(vlog_value(v), 0);
+
+   print_syntax(".%s", istr(vlog_ident(v)));
 }
 
 static void vlog_dump_task_decl(vlog_node_t v, int indent)
@@ -1008,6 +1030,9 @@ void vlog_dump(vlog_node_t v, int indent)
       break;
    case V_REF:
       vlog_dump_ref(v, indent);
+      break;
+   case V_MOD_REF:
+      vlog_dump_mod_ref(v, indent);
       break;
    case V_HIER_REF:
       vlog_dump_hier_ref(v, indent);

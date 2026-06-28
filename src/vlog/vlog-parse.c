@@ -1220,19 +1220,34 @@ static vlog_node_t p_hierarchical_identifier(ident_t id)
    if (id == NULL)
       id = p_identifier();
 
+   vlog_node_t mr = vlog_new(V_MOD_REF);
+   vlog_set_ident(mr, id);
+   vlog_set_loc(mr, CURRENT_LOC);
+   vlog_symtab_lookup(symtab, mr);
+
+   ident_t suffix;
+   for (;;) {
+      consume(tDOT);
+
+      suffix = p_identifier();
+
+      if (peek() != tDOT)
+         break;
+
+      vlog_node_t next = vlog_new(V_MOD_REF);
+      vlog_set_ident(next, suffix);
+      vlog_set_loc(next, &state.last_loc);
+      vlog_set_value(next, mr);
+
+      mr = next;
+   };
+
    vlog_node_t v = vlog_new(V_HIER_REF);
-   vlog_set_ident(v, id);
-
-   consume(tDOT);
-
-   ident_t suffix = NULL;
-   do {
-      suffix = ident_prefix(suffix, p_identifier(), '.');
-      vlog_set_ident2(v, suffix);
-   } while (optional(tDOT));
-
+   vlog_set_value(v, mr);
+   vlog_set_ident(v, suffix);
    vlog_set_loc(v, CURRENT_LOC);
-   vlog_symtab_lookup(symtab, v);
+
+   vlog_set_global_flags(v, VLOG_GF_HIER_REF);
    return v;
 }
 

@@ -383,21 +383,21 @@ static vlog_select_t vlog_lower_select(vlog_gen_t *g, vlog_node_t v)
 
    case V_HIER_REF:
       {
-         mir_type_t t_net_value = mir_int_type(g->mu, 0, 255);
-         mir_type_t t_net_signal = mir_signal_type(g->mu, t_net_value);
-
-         // XXX: reconsider this
-         ident_t unit_name =
-            ident_prefix(mir_get_parent(g->mu), vlog_ident2(v), '.');
-         mir_value_t context = mir_build_link_package(g->mu, unit_name);
-         mir_value_t ptr = mir_build_link_var(g->mu, context, vlog_ident(v),
-                                              t_net_signal);
-
-         mir_type_t t_offset = mir_offset_type(g->mu);
-         mir_value_t zero = mir_const(g->mu, t_offset, 0);
+         if (!vlog_has_ref(v))
+            fatal_at(vlog_loc(v), "unbound hierarchical reference");
 
          vlog_node_t decl = vlog_ref(v);
          const type_info_t *ti = vlog_type_info(g, vlog_type(decl));
+
+         mir_value_t locus = mir_build_debug_locus(g->mu, vlog_to_object(v));
+         ident_t scope = mir_get_parent(g->mu);
+
+         mir_value_t ptr = mir_build_bind_external(g->mu, locus, scope,
+                                                   ti->signal, ti->stamp,
+                                                   NULL, 0);
+
+         mir_type_t t_offset = mir_offset_type(g->mu);
+         mir_value_t zero = mir_const(g->mu, t_offset, 0);
 
          vlog_select_t result = {
             .obj        = mir_build_load(g->mu, ptr),
@@ -1198,6 +1198,7 @@ static mir_value_t vlog_lower_systf_param(vlog_gen_t *g, vlog_node_t v)
    case V_PART_SELECT:
    case V_COND_EXPR:
    case V_MEMBER_REF:
+   case V_HIER_REF:
       // TODO: these should not be evaluated until vpi_get_value is called
       return vlog_lower_rvalue(g, v);
    default:
@@ -1433,20 +1434,20 @@ static mir_value_t vlog_lower_with_context(vlog_gen_t *g, vlog_node_t v,
       return vlog_lower_rvalue_select(g, v);
    case V_HIER_REF:
       {
-         mir_type_t t_net_value = mir_int_type(g->mu, 0, 255);
-         mir_type_t t_net_signal = mir_signal_type(g->mu, t_net_value);
-
-         // XXX: reconsider this
-         ident_t unit_name =
-            ident_prefix(mir_get_parent(g->mu), vlog_ident2(v), '.');
-         mir_value_t context = mir_build_link_package(g->mu, unit_name);
-         mir_value_t ptr = mir_build_link_var(g->mu, context, vlog_ident(v),
-                                              t_net_signal);
-         mir_value_t nets = mir_build_load(g->mu, ptr);
+         if (!vlog_has_ref(v))
+            fatal_at(vlog_loc(v), "unbound hierarchical reference");
 
          vlog_node_t decl = vlog_ref(v);
          const type_info_t *ti = vlog_type_info(g, vlog_type(decl));
 
+         mir_value_t locus = mir_build_debug_locus(g->mu, vlog_to_object(v));
+         ident_t scope = mir_get_parent(g->mu);
+
+         mir_value_t ptr = mir_build_bind_external(g->mu, locus, scope,
+                                                   ti->signal, ti->stamp,
+                                                   NULL, 0);
+
+         mir_value_t nets = mir_build_load(g->mu, ptr);
          mir_value_t data = mir_build_resolved(g->mu, nets);
 
          if (ti->size == 1)
@@ -3918,7 +3919,9 @@ void vlog_lower_block(mir_context_t *mc, ident_t parent, tree_t b)
          {
             vlog_select_t lvalue = vlog_lower_select(&g, vlog_value(v));
             const type_info_t *ti = vlog_type_info(&g, vlog_type(port));
-            if (lvalue.size != ti->size)
+            if (!mir_is_signal(mu, lvalue.obj))
+               break;    // Port tied to constant
+            else if (lvalue.size != ti->size)
                break;
 
             // Cannot collapse port if select not in range

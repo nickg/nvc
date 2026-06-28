@@ -100,6 +100,7 @@ static bool copy_instance_pred(vlog_node_t v, void *ctx)
       default:
          return false;
       }
+   case V_MOD_REF:
    case V_FUNC_DECL:
    case V_TASK_DECL:
    case V_CLASS_DECL:

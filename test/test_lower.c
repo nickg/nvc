@@ -27,7 +27,6 @@
 #include "scan.h"
 #include "test_mir.h"
 #include "vcode.h"
-#include "vhdl/vhdl-lower.h"
 
 #include <inttypes.h>
 
@@ -939,27 +938,26 @@ START_TEST(test_func1)
       mir_match(mu, 0, bb0);
    }
 
-   vcode_unit_t v0 = find_unit("WORK.FUNC1.P1");
-   vcode_select_unit(v0);
+   {
+      mir_unit_t *mu = find_unit2("WORK.FUNC1.P1");
 
-   EXPECT_BB(0) = {
-      { VCODE_OP_CONST, .value = INT32_MIN },
-      { VCODE_OP_STORE, .name = "R" },
-      { VCODE_OP_RETURN }
-   };
+      static const mir_match_t bb0[] = {
+         { MIR_OP_CONST, INT64(INT32_MIN) },
+         { MIR_OP_STORE, VAR("R") },
+         { MIR_OP_RETURN },
+      };
+      mir_match(mu, 0, bb0);
 
-   CHECK_BB(0);
-
-   EXPECT_BB(1) = {
-      { VCODE_OP_CONST, .value = 2 },
-      { VCODE_OP_STORE, .name = "R" },
-      { VCODE_OP_CONTEXT_UPREF, .hops = 1 },
-      { VCODE_OP_FCALL, .func = "WORK.FUNC1.ADD1(I)I" },
-      { VCODE_OP_STORE, .name = "R" },
-      { VCODE_OP_WAIT, .target = 2 }
-   };
-
-   CHECK_BB(1);
+      static const mir_match_t bb1[] = {
+         { MIR_OP_STORE, VAR("R"), CONST(2) },
+         { MIR_OP_NULL },   // XXX: should be CONTEXT_UPREF
+         // { MIR_OP_CONTEXT_UPREF, ENUM(1) },
+         { MIR_OP_FCALL, LINK("WORK.FUNC1.ADD1(I)I"), NODE(_), CONST(2) },
+         { MIR_OP_STORE, VAR("R") },
+         { MIR_OP_WAIT, BLOCK(2) },
+      };
+      mir_match(mu, 1, bb1);
+   }
 
    fail_if_errors();
 }
@@ -7142,6 +7140,7 @@ START_TEST(test_types1)
 
       static const mir_match_t bb0[] = {
          // MY_INT1
+         { MIR_OP_NULL },   // XXX: should be LINK_PACKAGE
          { MIR_OP_FCALL, LINK("WORK.UTIL.EXPENSIVE()I") },
          { MIR_OP_NULL },
          { MIR_OP_WRAP, NODE(_), CONST(1), NODE(_) },

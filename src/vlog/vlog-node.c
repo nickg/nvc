@@ -24,6 +24,8 @@
 #include <inttypes.h>
 #include <stdlib.h>
 
+STATIC_ASSERT(V_LAST_NODE_KIND < 256);
+
 static const imask_t has_map[V_LAST_NODE_KIND] = {
    // V_MODULE
    (I_IDENT | I_PORTS | I_STMTS | I_DECLS | I_IDENT2),
@@ -263,7 +265,7 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
    (I_IDENT),
 
    // V_HIER_REF
-   (I_IDENT | I_IDENT2 | I_REF),
+   (I_IDENT | I_VALUE | I_REF),
 
    // V_TF_PORT_DECL
    (I_IDENT | I_SUBKIND | I_RANGES | I_TYPE | I_VALUE | I_REF),
@@ -314,7 +316,7 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
    (I_TARGET | I_VALUE),
 
    // V_PORT_MAP
-   (I_REF | I_VALUE),
+   (I_IDENT | I_REF | I_VALUE),
 
    // V_FINAL
    (I_IDENT | I_STMTS),
@@ -327,6 +329,9 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
 
    // V_METHOD_CALL
    (I_IDENT | I_VALUE | I_REF | I_SUBKIND | I_PARAMS),
+
+   // V_MOD_REF
+   (I_IDENT | I_PARAMS | I_VALUE | I_REF),
 };
 
 static const char *kind_text_map[V_LAST_NODE_KIND] = {
@@ -355,7 +360,7 @@ static const char *kind_text_map[V_LAST_NODE_KIND] = {
    "V_NULL",          "V_CLASS_NEW",   "V_DYNAMIC_NEW",   "V_CONSTRUCTOR",
    "V_SUPER_CALL",    "V_IMPORT_DECL", "V_NAMESPACE",     "V_DEFPARAM",
    "V_PORT_MAP",      "V_FINAL",       "V_LOCAL_DECL",    "V_GEN_BLOCK",
-   "V_METHOD_CALL",
+   "V_METHOD_CALL",   "V_MOD_REF",
 };
 
 static const change_allowed_t change_allowed[] = {
@@ -771,6 +776,7 @@ void vlog_visit_only(vlog_node_t v, vlog_visit_fn_t fn, void *context,
 
    object_visit(&(v->object), &ctx);
 }
+
 vlog_node_t vlog_rewrite(vlog_node_t v, vlog_rewrite_pre_fn_t pre_fn,
                          vlog_rewrite_post_fn_t post_fn, void *context)
 {
@@ -820,4 +826,14 @@ vlog_node_t vlog_from_object(object_t *obj)
       return container_of(obj, struct _vlog_node, object);
    else
       return NULL;
+}
+
+vlog_global_flags_t vlog_global_flags(vlog_node_t v)
+{
+   return arena_flags(object_arena(&(v->object)));
+}
+
+void vlog_set_global_flags(vlog_node_t v, vlog_global_flags_t flags)
+{
+   arena_set_flags(object_arena(&(v->object)), flags);
 }

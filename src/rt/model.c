@@ -883,10 +883,17 @@ static void deltaq_insert_driver(rt_model_t *m, uint64_t delta,
    }
 }
 
-static void deltaq_insert_pseudo_source(rt_model_t *m, rt_source_t *src)
+static void deltaq_insert_pseudo_source(rt_model_t *m, uint64_t delta,
+                                        rt_source_t *src)
 {
-   deferq_do(&m->driverq, async_pseudo_source, src);
-   m->next_is_delta = true;
+   if (delta == 0) {
+      deferq_do(&m->driverq, async_pseudo_source, src);
+      m->next_is_delta = true;
+   }
+   else {
+      void *e = tag_pointer(src, EVENT_PSEUDO);
+      heap_insert(m->eventq_heap, m->now + delta, e);
+   }
 }
 
 static void reset_process(rt_model_t *m, rt_proc_t *proc)
@@ -1254,7 +1261,6 @@ static rt_source_t *add_source(rt_model_t *m, rt_nexus_t *n, source_kind_t kind)
    src->disconnected = 0;
    src->fastqueued   = 0;
    src->sigqueued    = 0;
-   src->pseudoqueued = 0;
 
    switch (kind) {
    case SOURCE_DRIVER:
@@ -1276,7 +1282,9 @@ static rt_source_t *add_source(rt_model_t *m, rt_nexus_t *n, source_kind_t kind)
    case SOURCE_DEPOSIT:
    case SOURCE_FORCING:
       src->u.pseudo.nexus = n;
-      src->u.pseudo.value = alloc_value(m, n);
+      src->u.pseudo.waveforms.when  = TIME_HIGH;
+      src->u.pseudo.waveforms.next  = NULL;
+      src->u.pseudo.waveforms.value = alloc_value(m, n);
       break;
 
    case SOURCE_ACTIVE:
@@ -1510,12 +1518,23 @@ static void clone_source(rt_model_t *m, rt_nexus_t *nexus,
    case SOURCE_FORCING:
    case SOURCE_DEPOSIT:
       {
-         split_value(nexus, &(new->u.pseudo.value), &(old->u.pseudo.value),
-                     offset);
+         waveform_t *w_new = &(new->u.pseudo.waveforms);
+         waveform_t *w_old = &(old->u.pseudo.waveforms);
+         w_new->when = w_old->when;
+         w_new->next = NULL;
 
-         if (old->pseudoqueued) {
-            deltaq_insert_pseudo_source(m, new);
-            new->pseudoqueued = 1;
+         split_value(nexus, &w_new->value, &w_old->value, offset);
+
+         // Future transactions
+         for (w_old = w_old->next; w_old; w_old = w_old->next) {
+            w_new = (w_new->next = alloc_waveform(m));
+            w_new->when = w_old->when;
+            w_new->next = NULL;
+
+            split_value(nexus, &w_new->value, &w_old->value, offset);
+
+            assert(w_old->when >= m->now);
+            deltaq_insert_pseudo_source(m, w_new->when - m->now, new);
          }
       }
       break;
@@ -1948,7 +1967,7 @@ static void calculate_driving_value(rt_model_t *m, rt_nexus_t *n)
          // If S is driving-value forced, the driving value of S is
          // unchanged from its previous value; no further steps are
          // required.
-         put_driving(m, n, value_ptr(n, &(s->u.pseudo.value)));
+         put_driving(m, n, value_ptr(n, &(s->u.pseudo.waveforms.value)));
          return;
       }
       else if (s->tag == SOURCE_DEPOSIT) {
@@ -1958,7 +1977,7 @@ static void calculate_driving_value(rt_model_t *m, rt_nexus_t *n)
          // driving deposit value for the signal of which S is a
          // subelement, as appropriate.
          s->disconnected = 1;
-         put_driving(m, n, value_ptr(n, &(s->u.pseudo.value)));
+         put_driving(m, n, value_ptr(n, &(s->u.pseudo.waveforms.value)));
          return;
       }
       else if (s0 == NULL)
@@ -2490,9 +2509,9 @@ static rt_source_t *find_driver(rt_nexus_t *nexus, rt_proc_t *proc)
    return NULL;
 }
 
-static inline bool insert_transaction(rt_model_t *m, rt_nexus_t *nexus,
-                                      rt_source_t *source, waveform_t *w,
-                                      uint64_t when, uint64_t reject)
+static bool insert_transaction(rt_model_t *m, rt_nexus_t *nexus,
+                               rt_source_t *source, waveform_t *w,
+                               uint64_t when, uint64_t reject)
 {
    waveform_t *last = &(source->u.driver.waveforms);
    waveform_t *it   = last->next;
@@ -2529,6 +2548,18 @@ static inline bool insert_transaction(rt_model_t *m, rt_nexus_t *nexus,
    }
 
    return already_scheduled;
+}
+
+static void queue_waveform(rt_model_t *m, waveform_t *last, waveform_t *w)
+{
+   waveform_t *it = last->next;
+   while (it != NULL && it->when <= w->when) {
+      assert(it->when >= m->now);
+      last = it;
+      it = it->next;
+   }
+   w->next = last->next;
+   last->next = w;
 }
 
 static bool will_observe_active(rt_nexus_t *n, const void *value, waveform_t *w)
@@ -3031,6 +3062,31 @@ static void fast_update_all_drivers(rt_model_t *m, rt_signal_t *signal)
    }
 }
 
+static void update_pseudo_source(rt_model_t *m, rt_source_t *src)
+{
+   assert(src->tag == SOURCE_FORCING || src->tag == SOURCE_DEPOSIT);
+
+   rt_nexus_t *n = src->u.pseudo.nexus;
+   waveform_t *w_now = &(src->u.pseudo.waveforms);
+
+   if (w_now->next != NULL && w_now->next->when == m->now) {
+      waveform_t *w_next = w_now->next;
+      free_value(n, w_now->value);
+      *w_now = *w_next;
+      free_waveform(m, w_next);
+      src->disconnected = 0;
+   }
+   else {
+      assert(w_now->next == NULL || w_now->next->when > m->now);
+      src->disconnected = 1;
+   }
+
+   if (m->blocking_update)
+      m->trigger_epoch++;   // Triggers run synchronously
+
+   update_driving(m, n, false);
+}
+
 static void async_update_driver(rt_model_t *m, void *arg)
 {
    rt_source_t *src = arg;
@@ -3052,12 +3108,7 @@ static void async_fast_all_drivers(rt_model_t *m, void *arg)
 static void async_pseudo_source(rt_model_t *m, void *arg)
 {
    rt_source_t *src = arg;
-   assert(src->tag == SOURCE_FORCING || src->tag == SOURCE_DEPOSIT);
-
-   update_driving(m, src->u.pseudo.nexus, false);
-
-   assert(src->pseudoqueued);
-   src->pseudoqueued = 0;
+   update_pseudo_source(m, src);
 }
 
 static void async_transfer_signal(rt_model_t *m, void *arg)
@@ -3424,13 +3475,20 @@ void force_signal(rt_model_t *m, rt_signal_t *s, const void *values,
       n->flags |= NET_F_FORCED;
 
       rt_source_t *src = get_pseudo_source(m, n, SOURCE_FORCING);
-      copy_value_ptr(n, &(src->u.pseudo.value), vptr);
+      copy_value_ptr(n, &(src->u.pseudo.waveforms.value), vptr);
+      src->u.pseudo.waveforms.when = m->now;
       src->disconnected = 0;
 
-      if (!src->pseudoqueued) {
-         deltaq_insert_pseudo_source(m, src);
-         src->pseudoqueued = 1;
-      }
+      waveform_t *w = alloc_waveform(m);
+      w->when  = m->now;
+      w->next  = NULL;
+      w->value = alloc_value(m, n);
+
+      copy_value_ptr(n, &w->value, vptr);
+
+      queue_waveform(m, &src->u.pseudo.waveforms, w);
+
+      deltaq_insert_pseudo_source(m, 0, src);
 
       vptr += n->width * n->size;
    }
@@ -3452,12 +3510,7 @@ void release_signal(rt_model_t *m, rt_signal_t *s, int offset, size_t count)
       n->flags &= ~NET_F_FORCED;
 
       rt_source_t *src = get_pseudo_source(m, n, SOURCE_FORCING);
-      src->disconnected = 1;
-
-      if (!src->pseudoqueued) {
-         deltaq_insert_pseudo_source(m, src);
-         src->pseudoqueued = 1;
-      }
+      deltaq_insert_pseudo_source(m, 0, src);
    }
 }
 
@@ -3528,23 +3581,20 @@ void sched_deposit(rt_model_t *m, rt_signal_t *s, const void *values,
       assert(count >= 0);
 
       rt_source_t *src = get_pseudo_source(m, n, SOURCE_DEPOSIT);
-      copy_value_ptr(n, &(src->u.pseudo.value), vptr);
-      src->disconnected = 0;
 
-      if (!src->pseudoqueued) {
-         if (after == 0) {
-            if (nonblock)
-               deferq_do(&m->nonblockq, async_pseudo_source, src);
-            else
-               deltaq_insert_pseudo_source(m, src);
-         }
-         else if (after > 0) {
-            void *e = tag_pointer(src, EVENT_PSEUDO);
-            heap_insert(m->eventq_heap, m->now + after, e);
-         }
+      waveform_t *w = alloc_waveform(m);
+      w->when  = m->now + after;
+      w->next  = NULL;
+      w->value = alloc_value(m, n);
 
-         src->pseudoqueued = 1;  // TODO: should be after == 0 branch
-      }
+      copy_value_ptr(n, &w->value, vptr);
+
+      queue_waveform(m, &src->u.pseudo.waveforms, w);
+
+      if (nonblock && after == 0)
+         deferq_do(&m->nonblockq, async_pseudo_source, src);
+      else
+         deltaq_insert_pseudo_source(m, after, src);
 
       vptr += n->width * n->size;
    }
@@ -3757,7 +3807,8 @@ void get_forcing_value(rt_signal_t *s, uint8_t *value)
       }
       assert(s != NULL);
 
-      memcpy(p, s->u.pseudo.value.bytes, n->width * n->size);
+      memcpy(p, value_ptr(n, &(s->u.pseudo.waveforms.value)),
+             n->width * n->size);
       p += n->width * n->size;
    }
    assert(p == value + s->shared.size);

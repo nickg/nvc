@@ -12,7 +12,6 @@ runs:
           mingw-w64-clang-x86_64-ncurses
           mingw-w64-clang-x86_64-libffi
           mingw-w64-clang-x86_64-pkgconf
-          mingw-w64-clang-x86_64-tcl
           mingw-w64-clang-x86_64-zstd
           mingw-w64-clang-x86_64-clang
           mingw-w64-clang-x86_64-readline
@@ -21,6 +20,11 @@ runs:
           git
           autoconf
           automake-wrapper
+    - name: Download TCL binaries
+      shell: powershell
+      run: |
+        Invoke-WebRequest -Uri https://github.com/nickg/wintcl/releases/download/9.0.4-1/wintcl.zip -OutFile wintcl.zip
+        7z x wintcl.zip -oC:\ -y
     - name: Fix missing tags
       shell: msys2 {0}
       run: |
@@ -37,11 +41,13 @@ runs:
         cd build
         export CFLAGS='-O2 -g -gcodeview' LDFLAGS='-fuse-ld=lld -g -Wl,--pdb='
         bash ../configure --enable-static-llvm --enable-tcl \
-          CFLAGS="-O2" --prefix=`pwd`/installdir
+          CFLAGS="-O2" --prefix=`pwd`/installdir \
+          TCL_CFLAGS="-I/c/wintcl/include" TCL_LIBS="/c/wintcl/bin/tcl90.dll"
     - name: Build
       shell: msys2 {0}
       working-directory: ./build
       run: |
+        export PATH=/c/wintcl/bin:$PATH
         make -j $(nproc)
     - name: Install
       shell: msys2 {0}
@@ -52,7 +58,7 @@ runs:
       working-directory: ./build
       shell: msys2 {0}
       run: |
-        export PATH=$PATH:/c/Program\ Files\ \(x86\)/WiX\ Toolset\ v3.14/bin
+        export PATH=/c/wintcl/bin:$PATH:/c/Program\ Files\ \(x86\)/WiX\ Toolset\ v3.14/bin
         which candle
         make V=1 msi-installer
         echo "MSI=$(ls *.msi)" >> $GITHUB_ENV
@@ -63,6 +69,10 @@ runs:
         Start-Process msiexec.exe -ArgumentList "/i ${{ env.MSI }} /qn /l* .\msilog.log" -Wait
         type .\msilog.log
         echo "C:\Program Files\NVC\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+    - name: Check dependencies
+      shell: msys2 {0}
+      run: |
+        ldd "/c/Program Files/NVC/bin/nvc.exe"
     - name: Sanity test
       working-directory: ./build
       shell: powershell

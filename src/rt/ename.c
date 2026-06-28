@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2024-2025  Nick Gasson
+//  Copyright (C) 2024-2026  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -18,14 +18,16 @@
 #include "util.h"
 #include "diag.h"
 #include "ident.h"
-#include "jit/jit.h"
 #include "jit/jit-exits.h"
+#include "jit/jit.h"
 #include "lib.h"
 #include "printf.h"
 #include "rt/model.h"
 #include "rt/structs.h"
 #include "tree.h"
 #include "type.h"
+#include "vlog/vlog-node.h"
+#include "vlog/vlog-util.h"
 
 #include <assert.h>
 #include <inttypes.h>
@@ -85,7 +87,8 @@ static bool is_implicit_block(tree_t block)
    return tree_subkind(hier) == T_COMPONENT;
 }
 
-void x_bind_external(tree_t name, jit_handle_t scope, jit_scalar_t *args)
+static void bind_external_name(tree_t name, jit_handle_t scope,
+                               jit_scalar_t *args)
 {
    assert(tree_kind(name) == T_EXTERNAL_NAME);
 
@@ -303,4 +306,43 @@ void x_bind_external(tree_t name, jit_handle_t scope, jit_scalar_t *args)
    }
    else
       args[0].pointer = ptr;
+}
+
+static void bind_hier_ref(vlog_node_t v, jit_handle_t scope,
+                          jit_scalar_t *args)
+{
+   assert(vlog_kind(v) == V_HIER_REF);
+
+   rt_model_t *m = get_model();
+   rt_scope_t *s = get_active_scope(m);
+
+   tree_t b = vlog_walk_mod_refs(vlog_value(v), s->where);
+   assert(b != NULL);
+
+   tree_t h = tree_decl(b, 0);
+   assert(tree_kind(h) == T_HIER);
+
+   rt_scope_t *rts = find_scope(get_model(), b);
+   assert(rts != NULL);
+
+   void *ctx = *mptr_get(rts->privdata);
+   if (ctx == NULL)
+      jit_msg(vlog_loc(v), DIAG_FATAL, "%pi has not yet been elaborated",
+              tree_ident(b));
+
+   jit_t *j = jit_for_thread();
+   jit_handle_t handle = jit_compile(j, tree_ident2(h));
+
+   args[0].pointer = jit_get_frame_var(j, handle, ctx, vlog_ident(v));
+}
+
+void x_bind_external(object_t *where, jit_handle_t scope, jit_scalar_t *args)
+{
+   tree_t t = tree_from_object(where);
+   if (t != NULL)
+      bind_external_name(t, scope, args);
+
+   vlog_node_t v = vlog_from_object(where);
+   if (v != NULL)
+      bind_hier_ref(v, scope, args);
 }

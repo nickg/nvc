@@ -3282,7 +3282,6 @@ static vcode_reg_t lower_external_name(lower_unit_t *lu, tree_t ref)
       if (tree_subkind(p) == PE_GENERATE) {
          vcode_reg_t arg = lower_rvalue(lu, tree_value(p));
          APUSH(args, arg);
-         emit_comment("arg r%d", arg);
       }
    }
 
@@ -12824,15 +12823,22 @@ lower_unit_t *lower_instance(unit_registry_t *ur, lower_unit_t *parent,
    lower_ports(lu, block, primary, &gs);
    lower_decls(lu, block, &gs);
 
+   const bool use_mir = opt_get_int(OPT_LOWER_MIR);
    ident_t sym_prefix = tree_ident2(hier);
    const int nstmts = tree_stmts(block);
    for (int i = 0; i < nstmts; i++) {
       tree_t s = tree_stmt(block, i);
       switch (tree_kind(s)) {
       case T_PROCESS:
-         unit_registry_defer(ur, ident_prefix(sym_prefix, tree_ident(s), '.'),
-                             lu, emit_process, lower_process,
-                             cover, tree_to_object(s));
+         {
+            ident_t sym = ident_prefix(sym_prefix, tree_ident(s), '.');
+            if (use_mir)
+               unit_registry_defer2(ur, sym, lu, MIR_UNIT_PROCESS,
+                                    vhdl_lower_deferred, tree_to_object(s));
+            else
+               unit_registry_defer(ur, sym, lu, emit_process, lower_process,
+                                   cover, tree_to_object(s));
+         }
          break;
       case T_PSL_DIRECT:
          unit_registry_defer(ur, ident_prefix(sym_prefix, tree_ident(s), '.'),

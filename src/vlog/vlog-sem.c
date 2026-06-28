@@ -576,6 +576,11 @@ static void vlog_check_localparam(vlog_node_t v)
                "default value");
 }
 
+static void vlog_check_defparam(vlog_node_t v)
+{
+   vlog_check_const_expr(vlog_value(v));
+}
+
 static void vlog_check_case(vlog_node_t v)
 {
    vlog_check_expr(vlog_value(v));
@@ -842,14 +847,23 @@ static void vlog_check_wait(vlog_node_t v)
    // TODO
 }
 
-static type_mask_t vlog_check_hier_ref(vlog_node_t v)
+static type_mask_t vlog_check_mod_ref(vlog_node_t v)
 {
-   vlog_node_t inst = vlog_ref(v);
-   if (vlog_kind(inst) != V_MOD_INST)
-      error_at(vlog_loc(v), "prefix of hierarchical identifier is not an "
-               "instance");
+   if (vlog_has_ref(v)) {
+      vlog_node_t inst = vlog_ref(v);
+      if (vlog_kind(inst) != V_MOD_INST) {
+         error_at(vlog_loc(v), "prefix of hierarchical identifier is not an "
+                  "instance");
+         return TM_ERROR;
+      }
+   }
 
    return TM_INTEGRAL;
+}
+
+static type_mask_t vlog_check_hier_ref(vlog_node_t v)
+{
+   return vlog_check_expr(vlog_value(v));
 }
 
 static type_mask_t vlog_check_member_ref(vlog_node_t v)
@@ -1213,6 +1227,8 @@ static type_mask_t vlog_check_expr(vlog_node_t v)
       return vlog_check_user_fcall(v);
    case V_REF:
       return vlog_check_ref(v);
+   case V_MOD_REF:
+      return vlog_check_mod_ref(v);
    case V_HIER_REF:
       return vlog_check_hier_ref(v);
    case V_MEMBER_REF:
@@ -1413,6 +1429,9 @@ void vlog_check(vlog_node_t v)
       break;
    case V_SPECIFY:
    case V_IMPORT_DECL:
+      break;
+   case V_DEFPARAM:
+      vlog_check_defparam(v);
       break;
    default:
       CANNOT_HANDLE(v);

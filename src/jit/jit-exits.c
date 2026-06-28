@@ -923,7 +923,7 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
 
    case JIT_EXIT_BIND_EXTERNAL:
       {
-         tree_t       where = args[0].pointer;
+         object_t    *where = args[0].pointer;
          jit_handle_t scope = args[1].integer;
 
          x_bind_external(where, scope, args);

@@ -754,6 +754,7 @@ static void gvn_visit_block(mir_unit_t *mu, mir_block_t block,
       case MIR_OP_TRAP_ADD:
       case MIR_OP_TRAP_SUB:
       case MIR_OP_TRAP_MUL:
+      case MIR_OP_BIND_EXTERNAL:
          gvn_generic(mu, node, block, opt);
          break;
       case MIR_OP_UARRAY_LEFT:

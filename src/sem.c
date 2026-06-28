@@ -415,10 +415,10 @@ static bool sem_check_subtype(tree_t decl, type_t type, nametab_t *tab)
 {
    // Check an anonymous subtype at the point of use
 
-   if (type_kind(type) != T_SUBTYPE)
-      return true;
-   else if (type_has_ident(type))
+   if (!is_anonymous_subtype(type))
       return true;   // Explicitly declared subtype
+   else if (type_frozen(type))
+      return true;   // Already checked at the point of declaration
 
    return sem_check_subtype_helper(decl, type, tab);
 }

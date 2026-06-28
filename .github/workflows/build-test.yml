@@ -474,5 +474,8 @@ jobs:
           nvc.exe -a test\regress\ieee1.vhd
           nvc.exe -e ieee1
           nvc.exe -r ieee1
+      - name: Windows TCL tests
+        shell: powershell
+        run: |
           'package require msgcat; package require yaml' | Set-Content -Path test.tcl
           nvc.exe --do .\test.tcl
