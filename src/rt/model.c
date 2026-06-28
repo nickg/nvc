@@ -3081,6 +3081,9 @@ static void update_pseudo_source(rt_model_t *m, rt_source_t *src)
       src->disconnected = 1;
    }
 
+   if (m->blocking_update)
+      m->trigger_epoch++;   // Triggers run synchronously
+
    update_driving(m, n, false);
 }
 

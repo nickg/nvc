@@ -1424,3 +1424,4 @@ href1           verilog
 vlog43          verilog
 force4          normal,2008
 vlog44          verilog
+vlog45          verilog
