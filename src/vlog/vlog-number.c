@@ -272,13 +272,15 @@ number_t number_new(const char *str, const loc_t *loc)
       if (tick == str)
          p++;
       else if (tick != NULL) {
-         char *eptr;
-         width = strtol(str, &eptr, 10);
+         width = 0;
+         for (const char *p = str; p < tick; p++) {
+            if (*p >= '0' && *p <= '9')
+               width = (width * 10) + (*p - '0');
+            else
+               assert(*p == '_' || isspace_iso88591(*p));
+         }
 
-         p = eptr;
-         while (isspace_iso88591(*p)) p++;
-         assert(p == tick);
-         p++;
+         p = tick + 1;
          issigned = false;
       }
 
