@@ -143,18 +143,21 @@ void __array_resize_slow(void **ptr, uint32_t *limit, uint32_t count,
    } while (0)
 
 #define ATRIM(a, num) do {                          \
-      assert((unsigned)num <= (a).count);           \
-      (a).count = (num);                            \
+      unsigned __num = (num);                       \
+      assert(__num <= (a).count);                   \
+      (a).count = __num;                            \
    } while (0)
 
 #define AGET(a, index) ({                               \
-         assert((unsigned)(index) < (a).count);         \
-         (a).items[(index)];                            \
+         unsigned __index = (index);                    \
+         assert(__index < (a).count);                   \
+         (a).items[__index];                            \
       })
 
 #define AREF(a, index) ({                               \
-         assert((unsigned)(index) < (a).count);         \
-         &((a).items[(index)]);                         \
+         unsigned __index = (index);                    \
+         assert(__index < (a).count);                   \
+         &((a).items[__index]);                         \
       })
 
 #define ATOP(a) (a).items[(a).count - 1]

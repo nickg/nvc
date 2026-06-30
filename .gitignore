@@ -50,6 +50,8 @@ www/*.html
 /debian
 /compile_flags.txt
 .cache
+.codex
+.claude/
 
 # VI test suite also cannot be distributed
 test/vi_suite*
