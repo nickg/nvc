@@ -1461,6 +1461,25 @@ static mir_value_t vlog_lower_with_context(vlog_gen_t *g, vlog_node_t v,
    case V_STRING:
       {
          number_t num = vlog_number(v);
+
+         if (vlog_kind(v) == V_NUMBER
+             && vlog_subkind(v) == V_NUMBER_UNBASED) {
+            // Unbased unsized literal: replicate the bit value across the
+            // full context width, falling back to a single bit when the
+            // context is self-determined
+            int fill_width = 1;
+            bool fill_signed = false;
+            if (!mir_is_null(context)) {
+               const mir_class_t class = mir_get_class(g->mu, context);
+               if (class == MIR_TYPE_VEC2 || class == MIR_TYPE_VEC4) {
+                  fill_width = mir_get_size(g->mu, context);
+                  fill_signed = mir_get_signed(g->mu, context);
+               }
+            }
+            num = number_logic_fill(number_bit(num, 0), fill_width,
+                                    fill_signed);
+         }
+
          const int width = number_width(num);
          const bool issigned = number_signed(num);
 

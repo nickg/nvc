@@ -372,6 +372,19 @@ bool vlog_is_unsized(vlog_node_t v)
    return false;
 }
 
+vlog_node_t vlog_fill_unbased(vlog_node_t expr, unsigned width, bool issigned)
+{
+   if (vlog_kind(expr) != V_NUMBER || vlog_subkind(expr) != V_NUMBER_UNBASED)
+      return expr;
+
+   const vlog_logic_t value = number_bit(vlog_number(expr), 0);
+
+   vlog_node_t v = vlog_new(V_NUMBER);
+   vlog_set_number(v, number_logic_fill(value, MAX(width, 1), issigned));
+   vlog_set_loc(v, vlog_loc(expr));
+   return v;
+}
+
 bool is_top_level(vlog_node_t v)
 {
    switch (vlog_kind(v)) {
