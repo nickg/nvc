@@ -4468,16 +4468,19 @@ static void irgen_op_binary(jit_irgen_t *g, mir_value_t n)
       break;
    case MIR_VEC_SLL:
       j_shl(g, abits, aleft, aright);
+      j_and(g, abits, abits, mask);
       xbits = irgen_arith_xbits(g, bleft, bright, mask);
       break;
    case MIR_VEC_SRL:
       j_shr(g, abits, aleft, aright);
+      j_and(g, abits, abits, mask);
       xbits = irgen_arith_xbits(g, bleft, bright, mask);
       break;
    case MIR_VEC_SRA:
       assert(issigned);
       aleft = irgen_sign_extend(g, aleft, size);
       j_asr(g, abits, aleft, aright);
+      j_and(g, abits, abits, mask);
       xbits = irgen_arith_xbits(g, bleft, bright, mask);
       break;
    default:

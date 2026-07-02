@@ -1427,3 +1427,4 @@ vlog44          verilog
 vlog45          verilog
 ivtest60        verilog
 tfcall10        verilog
+binary10        verilog
