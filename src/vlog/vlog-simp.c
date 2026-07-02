@@ -529,7 +529,21 @@ static vlog_node_t simp_sys_fcall(vlog_node_t v)
          if (vlog_kind(p) == V_REAL) {
             vlog_node_t new = vlog_new(V_NUMBER);
             vlog_set_loc(new, vlog_loc(v));
-            vlog_set_number(new, number_from_int((int64_t)vlog_dval(p)));
+
+            const double dval = vlog_dval(p);
+            if (isfinite(dval)) {
+               const double truncated = trunc(dval);
+               double wrapped = fmod(truncated, 4294967296.0);
+               if (wrapped < 0.0)
+                  wrapped += 4294967296.0;
+
+               vlog_set_number(new, number_from_int((uint32_t)wrapped));
+            }
+            else {
+               const jit_scalar_t xbits = { .integer = UINT32_MAX };
+               vlog_set_number(new, number_from_jit(32, xbits, xbits));
+            }
+
             return new;
          }
 

@@ -1308,7 +1308,7 @@ static mir_value_t vlog_lower_sys_tfcall(vlog_gen_t *g, vlog_node_t v)
                  "not known", vlog_ident(v));
          // Fall-through
       case vpiIntFunc:
-         type = mir_vec2_type(g->mu, 32, true);
+         type = mir_vec4_type(g->mu, 32, true);
          break;
       }
    }

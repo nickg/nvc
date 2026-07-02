@@ -1428,3 +1428,4 @@ vlog45          verilog
 ivtest60        verilog
 tfcall10        verilog
 binary10        verilog
+real14          verilog,gold

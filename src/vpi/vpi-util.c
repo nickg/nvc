@@ -182,7 +182,15 @@ void vpi_format_number(int size, bool is_signed, const uint64_t *abits,
       break;
 
    case vpiIntVal:
-      val->value.integer = abits[0];
+      if (is_defined) {
+         uint32_t bits = abits[0];
+         if (is_signed && size > 0 && size < 32)
+            val->value.integer = ((int32_t)bits << (32 - size)) >> (32 - size);
+         else
+            val->value.integer = bits;
+      }
+      else
+         val->value.integer = 0;
       break;
 
    case vpiRealVal:
@@ -197,7 +205,7 @@ void vpi_format_number(int size, bool is_signed, const uint64_t *abits,
 
 void vpi_format_real(double value, s_vpi_value *val, text_buf_t *tb)
 {
-   const int64_t ivalue = round(value);
+   const int64_t ivalue = isfinite(value) ? round(value) : 0;
    const uint64_t uvalue = ivalue;
 
    switch (val->format) {
@@ -238,7 +246,7 @@ void vpi_format_real(double value, s_vpi_value *val, text_buf_t *tb)
       break;
 
    case vpiIntVal:
-      val->value.integer = ivalue;
+      val->value.integer = isfinite(value) ? ivalue : 0;
       break;
 
    case vpiRealVal:

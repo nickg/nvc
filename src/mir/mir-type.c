@@ -26,6 +26,7 @@
 #include <assert.h>
 #include <float.h>
 #include <inttypes.h>
+#include <math.h>
 #include <stdlib.h>
 
 #define REPROBE_LIMIT 10
@@ -1013,6 +1014,9 @@ mir_stamp_t mir_int_stamp(mir_unit_t *mu, int64_t low, int64_t high)
 
 mir_stamp_t mir_real_stamp(mir_unit_t *mu, double low, double high)
 {
+   if (!isfinite(low) || !isfinite(high))
+      return MIR_NULL_STAMP;
+
    assert(low <= high);
 
    const stamp_data_t sd = {
