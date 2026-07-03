@@ -1515,13 +1515,14 @@ static mir_value_t vlog_lower_with_context(vlog_gen_t *g, vlog_node_t v,
          const uint64_t *abits, *bbits;
          number_get(num, &abits, &bbits);
 
-         mir_type_t t_low = mir_vec4_type(g->mu, MIN(width, 64), issigned);
-         mir_value_t low = mir_const_vec(g->mu, t_low, abits[0], bbits[0]);
+         mir_type_t t_full = mir_vec4_type(g->mu, width, issigned);
 
          if (width <= 64)
-            return low;
+            return mir_const_vec(g->mu, t_full, abits[0], bbits[0]);
 
-         mir_type_t t_full = mir_vec4_type(g->mu, width, issigned);
+         mir_type_t t_low = mir_vec4_type(g->mu, 64, false);
+         mir_value_t low = mir_const_vec(g->mu, t_low, abits[0], bbits[0]);
+
          mir_value_t full = mir_build_cast(g->mu, t_full, low);
 
          mir_type_t t_offset = mir_offset_type(g->mu);

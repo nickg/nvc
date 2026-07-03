@@ -2296,7 +2296,6 @@ static void irgen_op_cast(jit_irgen_t *g, mir_value_t n)
       else
          bbits = jit_value_from_int64(0);
 
-      const bool result_signed = mir_get_signed(g->mu, result_type);
       const int result_size = mir_get_size(g->mu, result_type);
 
       bool arg_signed;
@@ -2316,7 +2315,7 @@ static void irgen_op_cast(jit_irgen_t *g, mir_value_t n)
          j_send(g, 1, bbits);
          j_send(g, 2, jit_value_from_int64(arg_size));
 
-         if (arg_signed || result_signed)
+         if (arg_signed)
             macro_vec4op(g, JIT_VEC_SEXT, result_size);
          else
             macro_vec4op(g, JIT_VEC_ZEXT, result_size);
