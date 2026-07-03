@@ -4521,6 +4521,7 @@ static void irgen_op_unary(jit_irgen_t *g, mir_value_t n)
          [MIR_VEC_BIT_AND] = JIT_VEC_AND1,
          [MIR_VEC_BIT_OR] = JIT_VEC_OR1,
          [MIR_VEC_LOG_NOT] = JIT_VEC_LOG_NOT,
+         [MIR_VEC_SUB] = JIT_VEC_NEGATE,
       };
       assert(op < ARRAY_LEN(map) && map[op] != 0);
 

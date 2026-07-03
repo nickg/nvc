@@ -1577,7 +1577,7 @@ static bool vec4_defined(int size, const uint64_t *xb, const uint64_t *yb)
 {
    bool is_defined = true;
    for (int i = 0; i < BIGNUM_WORDS(size); i++)
-      is_defined &= xb[i] == 0 && yb[i] == 0;
+      is_defined &= xb[i] == 0 && (yb == NULL || yb[i] == 0);
 
    return is_defined;
 }
@@ -1723,6 +1723,14 @@ void vec4_xor2(int size, uint64_t *a1, uint64_t *b1, const uint64_t *a2,
    vec2_xor2(size, a1, a2);
    vec2_or2(size, b1, b2);
    vec2_or2(size, a1, b1);
+}
+
+void vec4_neg(int size, uint64_t *xa, uint64_t *xb)
+{
+   if (vec4_defined(size, xb, NULL))
+      vec2_neg(size, xa);
+   else
+      vec4_make_undef(size, xa, xb);
 }
 
 #define VEC4_CMP_OP(name)                                               \
