@@ -1269,6 +1269,71 @@ void __nvc_vec4op(jit_vec_op_t op, jit_anchor_t *anchor, jit_scalar_t *args,
          args[1].pointer = bresult;
       }
       break;
+   case JIT_VEC_EXTRACT:
+      {
+         const int arg_size = args[2].integer;
+         const int pos      = args[3].integer;
+
+         assert(arg_size > 64);
+
+         const int bitpos = arg_size - size - pos;
+         const uint64_t *afull = args[0].pointer;
+         const uint64_t *bfull = args[1].pointer;
+
+         if (size <= 64) {
+            const int word = bitpos / 64;
+            const int shift = bitpos % 64;
+
+            uint64_t abits = afull[word] >> shift;
+            uint64_t bbits = bfull != NULL ? bfull[word] >> shift : 0;
+
+            if (shift != 0 && size > 64 - shift) {
+               abits |= afull[word + 1] << (64 - shift);
+               if (bfull != NULL)
+                  bbits |= bfull[word + 1] << (64 - shift);
+            }
+
+            if (size < 64) {
+               const uint64_t mask = ~UINT64_C(0) >> (64 - size);
+               abits &= mask;
+               bbits &= mask;
+            }
+
+            args[0].integer = abits;
+            args[1].integer = bbits;
+         }
+         else {
+            void *ptr = jit_mspace_alloc(nwords * 2 * sizeof(uint64_t));
+            uint64_t *aresult = ptr, *bresult = aresult + nwords;
+
+            for (int i = 0; i < nwords; i++) {
+               const int offset = bitpos + i * 64;
+               const int word = offset / 64;
+               const int shift = offset % 64;
+               const int remain = size - i * 64;
+               const int chunk = MIN(remain, 64);
+
+               aresult[i] = afull[word] >> shift;
+               bresult[i] = bfull != NULL ? bfull[word] >> shift : 0;
+
+               if (shift != 0 && chunk > 64 - shift) {
+                  aresult[i] |= afull[word + 1] << (64 - shift);
+                  if (bfull != NULL)
+                     bresult[i] |= bfull[word + 1] << (64 - shift);
+               }
+
+               if (chunk < 64) {
+                  const uint64_t mask = ~UINT64_C(0) >> (64 - chunk);
+                  aresult[i] &= mask;
+                  bresult[i] &= mask;
+               }
+            }
+
+            args[0].pointer = aresult;
+            args[1].pointer = bresult;
+         }
+      }
+      break;
    case JIT_VEC_TERNARY:
       {
          const uint64_t abits = args[0].integer & 1;
