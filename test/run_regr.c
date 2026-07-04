@@ -142,7 +142,6 @@ typedef struct _test {
    char      *define;
    char      *export;
    char      *exit;
-   char      *subdir;
    unsigned   arrays;
    int        seed;
    double     duration;
@@ -358,10 +357,10 @@ static void push_param(test_t *test, param_t *p)
    *tail = p;
 }
 
-static bool parse_test_list(const char *subdir)
+static bool parse_test_list(void)
 {
    char testlist[PATH_MAX + 32];
-   snprintf(testlist, sizeof(testlist), "%s/%s/testlist.txt", test_dir, subdir);
+   snprintf(testlist, sizeof(testlist), "%s/regress/testlist.txt", test_dir);
 
    FILE *f = fopen(testlist, "r");
    if (f == NULL) {
@@ -399,7 +398,6 @@ static bool parse_test_list(const char *subdir)
 
       test_t *test = calloc(sizeof(test_t), 1);
       test->name = strdup(name);
-      test->subdir = strdup(subdir);
       test->olevel = 0;
 
       if (last == NULL)
@@ -979,8 +977,8 @@ static bool run_test(test_t *test)
       push_arg(&args, "-a");
 
       if (!(test->flags & F_VERILOG))
-         push_arg(&args, "%s" DIR_SEP "%s" DIR_SEP "%s.vhd",
-                  test_dir, test->subdir, test->name);
+         push_arg(&args, "%s" DIR_SEP "regress" DIR_SEP "%s.vhd",
+                  test_dir, test->name);
 
       if (test->flags & (F_MIXED | F_VERILOG)) {
          if (file_exists("%s/regress/%s.sv", test_dir, test->name))
@@ -1345,8 +1343,8 @@ static bool run_test(test_t *test)
 
    if (test->flags & F_GOLD) {
       char goldname[PATH_MAX + 19];
-      snprintf(goldname, sizeof(goldname), "%s/%s/gold/%s.txt",
-               test_dir, test->subdir, test->name);
+      snprintf(goldname, sizeof(goldname), "%s/regress/gold/%s.txt",
+               test_dir, test->name);
 
       FILE *goldf = fopen(goldname, "r");
       if (goldf == NULL) {
@@ -1568,10 +1566,7 @@ int main(int argc, char **argv)
       }
    }
 
-   if (!parse_test_list("regress"))
-      return EXIT_FAILURE;
-
-   if (!parse_test_list("plugins"))
+   if (!parse_test_list())
       return EXIT_FAILURE;
 
    char *newpath = xasprintf("%s:%s", bin_dir, getenv("PATH"));

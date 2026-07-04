@@ -1436,3 +1436,6 @@ vlog46          verilog
 href2           verilog
 tcl5            fail,gold,tcl
 issue1609       normal,2008
+siginit1        2008,siginit,+siginit+zero,+siginit+block+sub
+siginit2        2008,siginit,+siginit+one
+siginit3        2008,siginit,+siginit+rand,seed=124

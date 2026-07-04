@@ -1,3 +1,0 @@
-siginit1   normal,siginit,+siginit+zero,+siginit+block+sub
-siginit2   normal,siginit,+siginit+one
-siginit3   normal,siginit,+siginit+rand,seed=124
