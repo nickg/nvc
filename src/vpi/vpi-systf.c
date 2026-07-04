@@ -714,8 +714,25 @@ static PLI_INT32 fgets_tf(PLI_BYTE8 *userdata)
 
 static PLI_INT32 finish_tf(PLI_BYTE8 *userdata)
 {
-   notef("$finish called");
-   jit_abort();
+   vpiHandle call = vpi_handle(vpiSysTfCall, NULL);
+   assert(call != NULL);
+
+   vpiHandle argv = vpi_iterate(vpiArgument, call);
+   vpiHandle status = vpi_scan(argv);
+
+   if (status != NULL) {
+      PLI_INT32 val = get_int_arg(status);
+
+      vpi_release_handle(argv);
+      vpi_release_handle(status);
+
+      notef("$finish called with status %d", val);
+      jit_abort_with_status(val);
+   }
+   else {
+      notef("$finish called");
+      jit_abort();
+   }
 }
 
 static PLI_INT32 diag_tf(PLI_BYTE8 *userdata)
