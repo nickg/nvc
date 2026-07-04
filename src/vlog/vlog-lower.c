@@ -4299,14 +4299,24 @@ mir_unit_t *vlog_lower_thunk(mir_context_t *mc, ident_t parent, vlog_node_t v)
       break;
    case V_LOCALPARAM:
       {
-         const type_info_t *ti = vlog_type_info(&g, vlog_type(v));
+         vlog_node_t dt = vlog_type(v);
+         if (is_implicit_data_type(dt) && vlog_ranges(dt) == 0) {
+            // TODO: better to set null type?
+            mir_value_t value = vlog_lower_rvalue(&g, vlog_value(v));
 
-         mir_value_t value =
-            vlog_lower_with_context(&g, vlog_value(v), ti->type);
-         mir_value_t cast = vlog_lower_cast(&g, ti->type, value);
+            mir_set_result(mu, mir_get_type(mu, value));
+            mir_build_return(mu, value);
+         }
+         else {
+            const type_info_t *ti = vlog_type_info(&g, dt);
+            mir_value_t value = vlog_lower_with_context(&g, vlog_value(v),
+                                                        ti->type);
 
-         mir_set_result(mu, ti->type);
-         mir_build_return(mu, cast);
+            mir_value_t cast = vlog_lower_cast(&g, ti->type, value);
+
+            mir_set_result(mu, ti->type);
+            mir_build_return(mu, cast);
+         }
       }
       break;
    default:

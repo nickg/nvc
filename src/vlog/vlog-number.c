@@ -567,10 +567,11 @@ number_t number_from_logic(vlog_logic_t value)
    return number_intern(result);
 }
 
-number_t number_from_jit(int width, jit_scalar_t abits, jit_scalar_t bbits)
+number_t number_from_jit(int width, bool issigned, jit_scalar_t abits,
+                         jit_scalar_t bbits)
 {
    bignum_t *result;
-   bignum_scratch(width, false, 1, &result);
+   bignum_scratch(width, issigned, 1, &result);
 
    if (width <= 64) {
       bignum_abits(result)[0] = abits.integer;
@@ -582,6 +583,14 @@ number_t number_from_jit(int width, jit_scalar_t abits, jit_scalar_t bbits)
          bignum_abits(result)[i] = aptr[i];
          bignum_bbits(result)[i] = bptr[i];
       }
+   }
+
+   if (width > 0 && width % 64 != 0) {
+      const uint64_t mask = ~UINT64_C(0) >> (64 - width % 64);
+      const int last = BIGNUM_WORDS(width) - 1;
+
+      bignum_abits(result)[last] &= mask;
+      bignum_bbits(result)[last] &= mask;
    }
 
    return number_intern(result);

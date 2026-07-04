@@ -199,7 +199,6 @@ vlog_node_t vlog_new_instance(vlog_node_t mod, vlog_node_t inst, ident_t id)
    rename_tf_decls(v, id);
 
    vlog_rewrite(v, NULL, fixup_refs_cb, map);
-   vlog_simp(v);
 
    hash_free(map);
    return v;
@@ -248,7 +247,6 @@ vlog_node_t vlog_generate_instance(vlog_node_t v, vlog_node_t genvar,
    hash_put(map, genvar, lp);
 
    vlog_rewrite(copy, NULL, fixup_refs_cb, map);
-   vlog_simp(copy);
 
    hash_free(map);
    return copy;

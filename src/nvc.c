@@ -214,6 +214,7 @@ static void analyse_file(const char *file, cmd_state_t *state)
 
                if (error_count() == 0) {
                   vlog_simp(module);
+                  vlog_fold(module, state->mir, state->jit);
                   lib_put_vlog(work, module);
                }
             }

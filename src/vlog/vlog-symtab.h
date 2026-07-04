@@ -38,5 +38,6 @@ void vlog_symtab_suppress(vlog_symtab_t *st);
 vlog_node_t vlog_symtab_query(vlog_symtab_t *st, ident_t name);
 
 vlog_node_t vlog_symtab_subr(vlog_symtab_t *st);
+ident_t vlog_symtab_qualified(vlog_symtab_t *st);
 
 #endif  // _VLOG_SYMTAB

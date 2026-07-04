@@ -1418,6 +1418,7 @@ START_TEST(test_simp1)
 
    vlog_node_t m = do_parse_check(V_MODULE);
    vlog_simp(m);
+   vlog_fold(m, get_mir(), get_jit());
 
    const int64_t expect[] = { 5, 1, 7, 1, 2, 2, -4, 6, -2, -4, 4, 3 };
 
@@ -1713,10 +1714,15 @@ START_TEST(test_simp2)
 
    vlog_node_t m = do_parse_check(V_MODULE);
    vlog_simp(m);
+   vlog_fold(m, get_mir(), get_jit());
 
    vlog_node_t p1 = vlog_decl(m, 1);
    ck_assert_vlog_kind(p1, V_LOCALPARAM);
-   ck_assert_vlog_kind(vlog_value(p1), V_COND_EXPR);
+   ck_assert_vlog_kind(vlog_value(p1), V_NUMBER);
+
+   number_t p1n = vlog_number(vlog_value(p1));
+   ck_assert_int_eq(number_width(p1n), 32);
+   ck_assert(!number_is_defined(p1n));
 
    vlog_node_t p2 = vlog_decl(m, 2);
    ck_assert_vlog_kind(p2, V_LOCALPARAM);

@@ -1546,12 +1546,13 @@ vpiHandle vpi_bind_foreign(ident_t name, vlog_node_t where)
       return call->handle;
    }
 
-   rt_model_t *m = get_model();
-   rt_scope_t *rs = get_active_scope(m);
-
    c_abstractScope *scope = NULL;
-   if (rs != NULL)
-      scope = cached_scope(rs->where, rs);
+   rt_model_t *m = get_model_or_null();
+   if (m != NULL) {
+      rt_scope_t *rs = get_active_scope(m);
+      if (rs != NULL)
+         scope = cached_scope(rs->where, rs);
+   }
 
    for (int i = 0; i < c->systasks.count; i++) {
       c_vpiObject *obj = from_handle(c->systasks.items[i]);

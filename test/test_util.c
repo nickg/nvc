@@ -203,6 +203,7 @@ object_t *analyse_file(void)
 
             lib_put_vlog(lib_work(), v);
             vlog_simp(v);
+            vlog_fold(v, mc, j);
             fail_if(error_count() > 0);
 
             const vlog_kind_t kind = vlog_kind(v);

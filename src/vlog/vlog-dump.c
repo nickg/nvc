@@ -18,6 +18,7 @@
 #include "util.h"
 #include "common.h"
 #include "object.h"
+#include "printf.h"
 #include "ident.h"
 #include "vlog/vlog-node.h"
 #include "vlog/vlog-number.h"
@@ -51,7 +52,7 @@ static void vlog_dump_address(vlog_node_t v)
 
    char *LOCAL fmt = xasprintf("$!#%d${%%p:%s}$$", color,
                                vlog_kind_str(vlog_kind(v)));
-   color_printf(fmt, v);
+   nvc_printf(fmt, v);
 #endif
 }
 

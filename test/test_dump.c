@@ -520,7 +520,7 @@ START_TEST(test_vlog1)
              "  parameter /* implicit */ [7:0] p1 = 5;\n"
              "  localparam bit p2 = 0;\n"
              "  logic [7:0] array1 [127:0];\n"
-             "  function func;\n"
+             "  function func; -- WORK.MOD2.func\n"
              "    input p;\n"
              "  endfunction\n"
              "  enum byte { a=5, b } e1;\n"
