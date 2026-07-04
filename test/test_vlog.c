@@ -51,6 +51,16 @@ static vlog_node_t do_parse_check(vlog_kind_t kind)
    return v;
 }
 
+static vlog_node_t do_parse_check_fold(vlog_kind_t kind)
+{
+   const int base_errors = error_count();
+   vlog_node_t v = do_parse_check(kind);
+   ck_assert_int_eq(error_count(), base_errors);
+   vlog_simp(v);
+   vlog_fold(v, get_mir(), get_jit());
+   return v;
+}
+
 START_TEST(test_dff)
 {
    input_from_file(TESTDIR "/vlog/dff.v");
@@ -703,11 +713,12 @@ START_TEST(test_enum2)
 
    const error_t expect[] = {
       {  8, "cannot reference variable 'zz' in constant expression" },
+      { 10, "enum names 'aa' and 'bb' both have value 1" },
       { -1, NULL }
    };
    expect_errors(expect);
 
-   do_parse_check(V_MODULE);
+   do_parse_check_fold(V_MODULE);
 
    fail_unless(vlog_parse() == NULL);
 
@@ -837,11 +848,7 @@ START_TEST(test_concat1)
    };
    expect_errors(expect);
 
-   vlog_node_t m = vlog_parse();
-   fail_if(m == NULL);
-   fail_unless(vlog_kind(m) == V_MODULE);
-
-   vlog_check(m);
+   do_parse_check_fold(V_MODULE);
 
    fail_unless(vlog_parse() == NULL);
 
@@ -914,7 +921,7 @@ START_TEST(test_const1)
    };
    expect_errors(expect);
 
-   do_parse_check(V_MODULE);
+   do_parse_check_fold(V_MODULE);
 
    fail_unless(vlog_parse() == NULL);
 
@@ -1023,6 +1030,7 @@ START_TEST(test_generate1)
 
    vlog_node_t m1 = do_parse_only(V_MODULE);
    vlog_check(m1);
+   vlog_fold(m1, get_mir(), get_jit());
 
    fail_unless(vlog_parse() == NULL);
 
@@ -1416,9 +1424,7 @@ START_TEST(test_simp1)
 
    vpi_context_new();
 
-   vlog_node_t m = do_parse_check(V_MODULE);
-   vlog_simp(m);
-   vlog_fold(m, get_mir(), get_jit());
+   vlog_node_t m = do_parse_check_fold(V_MODULE);
 
    const int64_t expect[] = { 5, 1, 7, 1, 2, 2, -4, 6, -2, -4, 4, 3 };
 
@@ -1645,7 +1651,7 @@ START_TEST(test_const2)
    };
    expect_errors(expect);
 
-   do_parse_check(V_MODULE);
+   do_parse_check_fold(V_MODULE);
 
    fail_unless(vlog_parse() == NULL);
 
@@ -1712,9 +1718,7 @@ START_TEST(test_simp2)
 {
    input_from_file(TESTDIR "/vlog/simp2.v");
 
-   vlog_node_t m = do_parse_check(V_MODULE);
-   vlog_simp(m);
-   vlog_fold(m, get_mir(), get_jit());
+   vlog_node_t m = do_parse_check_fold(V_MODULE);
 
    vlog_node_t p1 = vlog_decl(m, 1);
    ck_assert_vlog_kind(p1, V_LOCALPARAM);
@@ -1893,8 +1897,9 @@ START_TEST(test_constfunc1)
    };
    expect_errors(expect);
 
-   vlog_node_t m1 = do_parse_only(V_MODULE);
-   vlog_check(m1);
+   vpi_context_new();
+
+   do_parse_check_fold(V_MODULE);
 
    fail_unless(vlog_parse() == NULL);
 

@@ -1011,6 +1011,13 @@ static void vlog_dump_port_map(vlog_node_t v)
    print_syntax(" to %pi\n", vlog_ident(vlog_ref(v)));
 }
 
+static void vlog_dump_type_decl(vlog_node_t v, int indent)
+{
+   print_syntax("#typedef ");
+   vlog_dump(vlog_type(v), indent);
+   print_syntax(" %pi;\n", vlog_ident(v));
+}
+
 void vlog_dump(vlog_node_t v, int indent)
 {
    switch (vlog_kind(v)) {
@@ -1210,6 +1217,9 @@ void vlog_dump(vlog_node_t v, int indent)
       break;
    case V_PORT_MAP:
       vlog_dump_port_map(v);
+      break;
+   case V_TYPE_DECL:
+      vlog_dump_type_decl(v, indent);
       break;
    default:
       print_syntax("\n");

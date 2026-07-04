@@ -4342,6 +4342,7 @@ mir_unit_t *vlog_lower_thunk(mir_context_t *mc, ident_t parent, vlog_node_t v)
       mir_build_return(mu, MIR_NULL_VALUE);
       break;
    case V_LOCALPARAM:
+   case V_PARAM_DECL:
       {
          vlog_node_t dt = vlog_type(v);
          if (is_implicit_data_type(dt) && vlog_ranges(dt) == 0) {

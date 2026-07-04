@@ -44,7 +44,7 @@ typedef enum {
    FOLD_NON_CONST,
 } fold_state_t;
 
-static fold_state_t get_fold_state(vlog_node_t v)
+static fold_state_t get_fold_state(vlog_node_t v, vlog_node_t *pdecl)
 {
    switch (vlog_kind(v)) {
    case V_REAL:
@@ -56,45 +56,90 @@ static fold_state_t get_fold_state(vlog_node_t v)
          vlog_node_t d = vlog_ref(v);
          switch (vlog_kind(d)) {
          case V_LOCALPARAM:
-            return get_fold_state(vlog_value(d));
+            return get_fold_state(vlog_value(d), pdecl);
          case V_PARAM_DECL:
          case V_GENVAR_DECL:
             return FOLD_LATER;
+         case V_ENUM_NAME:
+            return FOLD_CONST;
          default:
+            if (pdecl != NULL) *pdecl = d;
             return FOLD_NON_CONST;
          }
       }
+   case V_BIT_SELECT:
+      {
+         fold_state_t state = get_fold_state(vlog_value(v), pdecl);
+
+         const int nparams = vlog_params(v);
+         for (int i = 0; i < nparams; i++)
+            state = MAX(state, get_fold_state(vlog_param(v, i), pdecl));
+
+         return state == FOLD_CONST ? FOLD_POSSIBLE : state;
+      }
+   case V_PART_SELECT:
+      {
+         fold_state_t value = get_fold_state(vlog_value(v), pdecl);
+         fold_state_t left = get_fold_state(vlog_left(v), pdecl);
+         fold_state_t right = get_fold_state(vlog_right(v), pdecl);
+         fold_state_t state = MAX(value, MAX(left, right));
+         return state == FOLD_CONST ? FOLD_POSSIBLE : state;
+      }
    case V_BINARY:
       {
-         fold_state_t left = get_fold_state(vlog_left(v));
-         fold_state_t right = get_fold_state(vlog_right(v));
+         fold_state_t left = get_fold_state(vlog_left(v), pdecl);
+         fold_state_t right = get_fold_state(vlog_right(v), pdecl);
          fold_state_t state = MAX(left, right);
          return state == FOLD_CONST ? FOLD_POSSIBLE : state;
       }
    case V_UNARY:
    case V_MIN_TYP_MAX:
       {
-         fold_state_t state = get_fold_state(vlog_value(v));
+         fold_state_t state = get_fold_state(vlog_value(v), pdecl);
          return state == FOLD_CONST ? FOLD_POSSIBLE : state;
       }
    case V_USER_FCALL:
-      if (!(vlog_flags(vlog_ref(v)) & VLOG_F_CONST))
-         return FOLD_NON_CONST;
-      // Fall-through
-   case V_SYS_FCALL:
       {
+         vlog_node_t d = vlog_ref(v);
+         if (!(vlog_flags(d) & VLOG_F_CONST)) {
+            if (pdecl != NULL) *pdecl = d;
+            return FOLD_NON_CONST;
+         }
+
          fold_state_t state = FOLD_CONST;
          const int nparams = vlog_params(v);
          for (int i = 0; i < nparams; i++)
-            state = MAX(state, get_fold_state(vlog_param(v, i)));
+            state = MAX(state, get_fold_state(vlog_param(v, i), pdecl));
+
+         return state == FOLD_CONST ? FOLD_POSSIBLE : state;
+      }
+   case V_SYS_FCALL:
+      {
+         // See 1800-2023 section 11.2.1 for list of constant system functions
+         switch (vlog_subkind(v)) {
+         case V_SYSTF_CLOG2:
+         case V_SYSTF_SIGNED:
+         case V_SYSTF_UNSIGNED:
+         case V_SYSTF_RTOI:
+         case V_SYSTF_SQRT:
+         case V_SYSTF_CEIL:
+            break;
+         default:
+            return FOLD_NON_CONST;
+         }
+
+         fold_state_t state = FOLD_CONST;
+         const int nparams = vlog_params(v);
+         for (int i = 0; i < nparams; i++)
+            state = MAX(state, get_fold_state(vlog_param(v, i), pdecl));
 
          return state == FOLD_CONST ? FOLD_POSSIBLE : state;
       }
    case V_COND_EXPR:
       {
-         fold_state_t value = get_fold_state(vlog_value(v));
-         fold_state_t left = get_fold_state(vlog_left(v));
-         fold_state_t right = get_fold_state(vlog_right(v));
+         fold_state_t value = get_fold_state(vlog_value(v), pdecl);
+         fold_state_t left = get_fold_state(vlog_left(v), pdecl);
+         fold_state_t right = get_fold_state(vlog_right(v), pdecl);
          fold_state_t state = MAX(value, MAX(left, right));
          return state == FOLD_CONST ? FOLD_POSSIBLE : state;
       }
@@ -103,16 +148,51 @@ static fold_state_t get_fold_state(vlog_node_t v)
          fold_state_t state = FOLD_CONST;
          const int nparams = vlog_params(v);
          for (int i = 0; i < nparams; i++)
-            state = MAX(state, get_fold_state(vlog_param(v, i)));
+            state = MAX(state, get_fold_state(vlog_param(v, i), pdecl));
 
          if (vlog_has_value(v))
-            state = MAX(state, get_fold_state(vlog_value(v)));
+            state = MAX(state, get_fold_state(vlog_value(v), pdecl));
 
          return state == FOLD_CONST ? FOLD_POSSIBLE : state;
       }
    default:
       return FOLD_NON_CONST;
    }
+}
+
+static fold_state_t get_const_expr(vlog_node_t v)
+{
+   vlog_node_t decl = NULL;
+   fold_state_t state = get_fold_state(v, &decl);
+   if (state != FOLD_NON_CONST)
+      return state;
+
+   if (decl == NULL)
+      error_at(vlog_loc(v), "expression is not a constant");
+   else {
+      diag_t *d = diag_new(DIAG_ERROR, vlog_loc(v));
+      diag_printf(d, "cannot ");
+      switch (vlog_kind(decl)) {
+      case V_FUNC_DECL:
+         diag_printf(d, "call non-constant user function");
+         break;
+      case V_VAR_DECL:
+         diag_printf(d, "reference variable");
+         break;
+      case V_NET_DECL:
+         diag_printf(d, "reference net");
+         break;
+      default:
+         diag_printf(d, "reference");
+         break;
+      }
+      diag_printf(d, " '%pi' in constant expression", vlog_ident(decl));
+
+      diag_hint(d, vlog_loc(decl), "%pi declared here", vlog_ident(decl));
+      diag_emit(d);
+   }
+
+   return state;
 }
 
 static void *fold_make_node_cb(jit_scalar_t *result, void *arg)
@@ -163,7 +243,7 @@ static vlog_node_t fold_call_thunk(vlog_node_t v, fold_ctx_t *ctx)
 static vlog_node_t fold_localparam(vlog_node_t v, fold_ctx_t *ctx)
 {
    vlog_node_t value = vlog_value(v);
-   switch (get_fold_state(value)) {
+   switch (get_const_expr(value)) {
    case FOLD_CONST:
       break;
    case FOLD_POSSIBLE:
@@ -176,9 +256,8 @@ static vlog_node_t fold_localparam(vlog_node_t v, fold_ctx_t *ctx)
       }
       break;
    case FOLD_LATER:
-      return v;
    case FOLD_NON_CONST:
-      should_not_reach_here();
+      return v;
    }
 
    vlog_node_t vtype = vlog_type(v);
@@ -233,17 +312,46 @@ static vlog_node_t fold_dimension(vlog_node_t v, fold_ctx_t *ctx)
       return v;
 
    vlog_node_t left = vlog_left(v);
-   if (get_fold_state(left) == FOLD_POSSIBLE) {
+   if (get_const_expr(left) == FOLD_POSSIBLE) {
       vlog_node_t result = fold_call_thunk(left, ctx);
       if (result != NULL)
          vlog_set_left(v, result);
    }
 
    vlog_node_t right = vlog_right(v);
-   if (get_fold_state(right) == FOLD_POSSIBLE) {
+   if (get_const_expr(right) == FOLD_POSSIBLE) {
       vlog_node_t result = fold_call_thunk(right, ctx);
       if (result != NULL)
          vlog_set_right(v, result);
+   }
+
+   return v;
+}
+
+static vlog_node_t fold_enum_decl(vlog_node_t v, fold_ctx_t *ctx)
+{
+   const int ndecls = vlog_decls(v);
+   for (int i = 0; i < ndecls; i++) {
+      vlog_node_t di = vlog_decl(v, i);
+      assert(vlog_has_value(di));
+
+      vlog_node_t value = vlog_value(di);
+      if (vlog_kind(value) != V_NUMBER)
+         continue;
+
+      number_t n = vlog_number(value);
+
+      for (int j = 0; j < i; j++) {
+         vlog_node_t dj = vlog_decl(v, j), cmp = vlog_value(dj);
+         if (vlog_kind(cmp) != V_NUMBER)
+            continue;
+         else if (number_equal(vlog_number(cmp), n)) {
+            error_at(vlog_loc(di), "enum names '%pi' and '%pi' both have "
+                     "value %"PRIi64, vlog_ident(dj), vlog_ident(di),
+                     number_integer(n));
+            return v;
+         }
+      }
    }
 
    return v;
@@ -253,7 +361,7 @@ static vlog_node_t fold_part_select(vlog_node_t v, fold_ctx_t *ctx)
 {
    if (vlog_subkind(v) == V_RANGE_CONST) {
       vlog_node_t left = vlog_left(v);
-      if (get_fold_state(left) == FOLD_POSSIBLE) {
+      if (get_const_expr(left) == FOLD_POSSIBLE) {
          vlog_node_t left_fold = fold_call_thunk(left, ctx);
          if (left_fold != NULL)
             vlog_set_left(v, left_fold);
@@ -261,7 +369,7 @@ static vlog_node_t fold_part_select(vlog_node_t v, fold_ctx_t *ctx)
    }
 
    vlog_node_t right = vlog_right(v);
-   if (get_fold_state(right) == FOLD_POSSIBLE) {
+   if (get_const_expr(right) == FOLD_POSSIBLE) {
       vlog_node_t right_fold = fold_call_thunk(right, ctx);
       if (right_fold != NULL)
          vlog_set_right(v, right_fold);
@@ -270,11 +378,11 @@ static vlog_node_t fold_part_select(vlog_node_t v, fold_ctx_t *ctx)
    return v;
 }
 
-static vlog_node_t fold_concat(vlog_node_t v, fold_ctx_t *ctx)
+static vlog_node_t fold_const_value(vlog_node_t v, fold_ctx_t *ctx)
 {
    if (vlog_has_value(v)) {
       vlog_node_t value = vlog_value(v);
-      if (get_fold_state(value) == FOLD_POSSIBLE) {
+      if (get_const_expr(value) == FOLD_POSSIBLE) {
          vlog_node_t result = fold_call_thunk(value, ctx);
          if (result != NULL)
             vlog_set_value(v, result);
@@ -291,7 +399,7 @@ static vlog_node_t fold_if_generate(vlog_node_t v, fold_ctx_t *ctx)
       vlog_node_t c = vlog_cond(v, i);
       if (vlog_has_value(c)) {
          vlog_node_t value = vlog_value(c);
-         switch (get_fold_state(value)) {
+         switch (get_const_expr(value)) {
          case FOLD_CONST:
             break;
          case FOLD_POSSIBLE:
@@ -304,9 +412,8 @@ static vlog_node_t fold_if_generate(vlog_node_t v, fold_ctx_t *ctx)
             }
             break;
          case FOLD_LATER:
-            return v;
          case FOLD_NON_CONST:
-            should_not_reach_here();
+            return v;
          }
 
          int64_t ival;
@@ -344,12 +451,18 @@ static vlog_node_t vlog_fold_post_cb(vlog_node_t v, void *context)
    switch (vlog_kind(v)) {
    case V_LOCALPARAM:
       return fold_localparam(v, context);
+   case V_ENUM_DECL:
+      return fold_enum_decl(v, context);
    case V_DIMENSION:
       return fold_dimension(v, context);
    case V_PART_SELECT:
       return fold_part_select(v, context);
    case V_CONCAT:
-      return fold_concat(v, context);
+   case V_PARAM_ASSIGN:
+   case V_ENUM_NAME:
+   case V_PARAM_DECL:
+   case V_DEFPARAM:
+      return fold_const_value(v, context);
    case V_IF_GENERATE:
       assert(ctx->depth > 0);
       ctx->depth--;
