@@ -317,7 +317,13 @@ unsigned vlog_width(vlog_node_t v)
          CANNOT_HANDLE(v);
       }
    case V_SYS_FCALL:
-      return 32;  // TODO: call VPI
+      switch (vlog_subkind(v)) {
+      case V_SYSTF_UNSIGNED:
+      case V_SYSTF_SIGNED:
+         return vlog_width(vlog_param(v, 0));
+      default:
+         return 32;  // TODO: call VPI
+      }
    default:
       CANNOT_HANDLE(v);
    }
