@@ -917,6 +917,7 @@ START_TEST(test_const1)
 
    const error_t expect[] = {
       {  4, "cannot reference net 'w1' in constant expression" },
+      { 11, "cannot call system function '$time' in constant expression" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -2020,6 +2021,27 @@ START_TEST(test_href3)
 }
 END_TEST
 
+START_TEST(test_constfunc2)
+{
+   input_from_file(TESTDIR "/vlog/constfunc2.v");
+
+   vlog_node_t m = do_parse_check_fold(V_MODULE);
+
+   vlog_node_t p1 = vlog_decl(m, 1);
+   ck_assert_vlog_kind(p1, V_LOCALPARAM);
+   ck_assert_vlog_kind(vlog_value(p1), V_NUMBER);
+
+   number_t p1n = vlog_number(vlog_value(p1));
+   ck_assert_int_eq(number_width(p1n), 4);
+   ck_assert(number_is_defined(p1n));
+   ck_assert_int_eq(number_integer(p1n), 10);
+
+   fail_unless(vlog_parse() == NULL);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_vlog_tests(void)
 {
    Suite *s = suite_create("vlog");
@@ -2094,6 +2116,7 @@ Suite *get_vlog_tests(void)
    tcase_add_test(tc, test_pp14);
    tcase_add_test(tc, test_href2);
    tcase_add_test(tc, test_href3);
+   tcase_add_test(tc, test_constfunc2);
    suite_add_tcase(s, tc);
 
    return s;

@@ -192,7 +192,7 @@ static void vlog_dump_port_decl(vlog_node_t v, int indent)
    }
 
    vlog_node_t dt = vlog_type(v);
-   if (!is_implicit_data_type(dt)) {
+   if (!is_implicit_data_type(dt) || vlog_ranges(dt) > 0) {
       print_syntax(" ");
       vlog_dump(dt, 0);
    }
@@ -921,7 +921,15 @@ static void vlog_dump_task_decl(vlog_node_t v, int indent)
 
 static void vlog_dump_func_decl(vlog_node_t v, int indent)
 {
-   print_syntax("#function %s;", istr(vlog_ident(v)));
+   print_syntax("#function");
+
+   vlog_node_t dt = vlog_type(v);
+   if (!is_implicit_data_type(dt) || vlog_ranges(dt) > 0) {
+      print_syntax(" ");
+      vlog_dump(dt, 0);
+   }
+
+   print_syntax(" %s;", istr(vlog_ident(v)));
 
    if (vlog_has_ident2(v))
       print_syntax(" -- %s.%s", istr(vlog_ident2(v)), istr(vlog_ident(v)));

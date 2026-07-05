@@ -8,4 +8,5 @@ module const1;
   wire [p1 > 3 ? 6 : p1+2:0] w6; // OK
   reg [$clog2(p1)/2:0] r1; // OK
   localparam p2 = p1 & 3;  // OK
+  parameter  p3 = $time + 4; // Error
 endmodule // const1

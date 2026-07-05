@@ -329,6 +329,7 @@ typedef enum {
    VLOG_F_SIGNED = (1 << 0),
    VLOG_F_PACKED = (1 << 1),
    VLOG_F_CONST  = (1 << 2),
+   VLOG_F_FOLDED = (1 << 3),
 } vlog_flags_t;
 
 typedef enum {

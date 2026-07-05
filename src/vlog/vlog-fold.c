@@ -17,6 +17,7 @@
 
 #include "util.h"
 #include "diag.h"
+#include "hash.h"
 #include "ident.h"
 #include "jit/jit.h"
 #include "mir/mir-node.h"
@@ -34,7 +35,10 @@
 typedef struct {
    mir_context_t *mir;
    jit_t         *jit;
-   unsigned       depth;
+   unsigned       later;
+   vlog_node_t    nonconst;
+   hset_t        *funcdeps;
+   bool           retry;
 } fold_ctx_t;
 
 typedef enum {
@@ -44,7 +48,7 @@ typedef enum {
    FOLD_NON_CONST,
 } fold_state_t;
 
-static fold_state_t get_fold_state(vlog_node_t v, vlog_node_t *pdecl)
+static fold_state_t get_fold_state(vlog_node_t v, fold_ctx_t *ctx)
 {
    switch (vlog_kind(v)) {
    case V_REAL:
@@ -56,60 +60,67 @@ static fold_state_t get_fold_state(vlog_node_t v, vlog_node_t *pdecl)
          vlog_node_t d = vlog_ref(v);
          switch (vlog_kind(d)) {
          case V_LOCALPARAM:
-            return get_fold_state(vlog_value(d), pdecl);
+            return get_fold_state(vlog_value(d), ctx);
          case V_PARAM_DECL:
          case V_GENVAR_DECL:
+            ctx->later++;
             return FOLD_LATER;
          case V_ENUM_NAME:
             return FOLD_CONST;
          default:
-            if (pdecl != NULL) *pdecl = d;
+            ctx->nonconst = d;
             return FOLD_NON_CONST;
          }
       }
    case V_BIT_SELECT:
       {
-         fold_state_t state = get_fold_state(vlog_value(v), pdecl);
+         fold_state_t state = get_fold_state(vlog_value(v), ctx);
 
          const int nparams = vlog_params(v);
          for (int i = 0; i < nparams; i++)
-            state = MAX(state, get_fold_state(vlog_param(v, i), pdecl));
+            state = MAX(state, get_fold_state(vlog_param(v, i), ctx));
 
          return state == FOLD_CONST ? FOLD_POSSIBLE : state;
       }
    case V_PART_SELECT:
       {
-         fold_state_t value = get_fold_state(vlog_value(v), pdecl);
-         fold_state_t left = get_fold_state(vlog_left(v), pdecl);
-         fold_state_t right = get_fold_state(vlog_right(v), pdecl);
+         fold_state_t value = get_fold_state(vlog_value(v), ctx);
+         fold_state_t left = get_fold_state(vlog_left(v), ctx);
+         fold_state_t right = get_fold_state(vlog_right(v), ctx);
          fold_state_t state = MAX(value, MAX(left, right));
          return state == FOLD_CONST ? FOLD_POSSIBLE : state;
       }
    case V_BINARY:
       {
-         fold_state_t left = get_fold_state(vlog_left(v), pdecl);
-         fold_state_t right = get_fold_state(vlog_right(v), pdecl);
+         fold_state_t left = get_fold_state(vlog_left(v), ctx);
+         fold_state_t right = get_fold_state(vlog_right(v), ctx);
          fold_state_t state = MAX(left, right);
          return state == FOLD_CONST ? FOLD_POSSIBLE : state;
       }
    case V_UNARY:
    case V_MIN_TYP_MAX:
       {
-         fold_state_t state = get_fold_state(vlog_value(v), pdecl);
+         fold_state_t state = get_fold_state(vlog_value(v), ctx);
          return state == FOLD_CONST ? FOLD_POSSIBLE : state;
       }
    case V_USER_FCALL:
       {
          vlog_node_t d = vlog_ref(v);
-         if (!(vlog_flags(d) & VLOG_F_CONST)) {
-            if (pdecl != NULL) *pdecl = d;
+         const vlog_flags_t flags = vlog_flags(d);
+         if (!(flags & VLOG_F_CONST)) {
+            ctx->nonconst = d;
             return FOLD_NON_CONST;
+         }
+         else if (!(flags & VLOG_F_FOLDED)) {
+            hset_insert(ctx->funcdeps, d);
+            ctx->later++;
+            return FOLD_LATER;
          }
 
          fold_state_t state = FOLD_CONST;
          const int nparams = vlog_params(v);
          for (int i = 0; i < nparams; i++)
-            state = MAX(state, get_fold_state(vlog_param(v, i), pdecl));
+            state = MAX(state, get_fold_state(vlog_param(v, i), ctx));
 
          return state == FOLD_CONST ? FOLD_POSSIBLE : state;
       }
@@ -125,21 +136,22 @@ static fold_state_t get_fold_state(vlog_node_t v, vlog_node_t *pdecl)
          case V_SYSTF_CEIL:
             break;
          default:
+            ctx->nonconst = v;
             return FOLD_NON_CONST;
          }
 
          fold_state_t state = FOLD_CONST;
          const int nparams = vlog_params(v);
          for (int i = 0; i < nparams; i++)
-            state = MAX(state, get_fold_state(vlog_param(v, i), pdecl));
+            state = MAX(state, get_fold_state(vlog_param(v, i), ctx));
 
          return state == FOLD_CONST ? FOLD_POSSIBLE : state;
       }
    case V_COND_EXPR:
       {
-         fold_state_t value = get_fold_state(vlog_value(v), pdecl);
-         fold_state_t left = get_fold_state(vlog_left(v), pdecl);
-         fold_state_t right = get_fold_state(vlog_right(v), pdecl);
+         fold_state_t value = get_fold_state(vlog_value(v), ctx);
+         fold_state_t left = get_fold_state(vlog_left(v), ctx);
+         fold_state_t right = get_fold_state(vlog_right(v), ctx);
          fold_state_t state = MAX(value, MAX(left, right));
          return state == FOLD_CONST ? FOLD_POSSIBLE : state;
       }
@@ -148,51 +160,17 @@ static fold_state_t get_fold_state(vlog_node_t v, vlog_node_t *pdecl)
          fold_state_t state = FOLD_CONST;
          const int nparams = vlog_params(v);
          for (int i = 0; i < nparams; i++)
-            state = MAX(state, get_fold_state(vlog_param(v, i), pdecl));
+            state = MAX(state, get_fold_state(vlog_param(v, i), ctx));
 
          if (vlog_has_value(v))
-            state = MAX(state, get_fold_state(vlog_value(v), pdecl));
+            state = MAX(state, get_fold_state(vlog_value(v), ctx));
 
          return state == FOLD_CONST ? FOLD_POSSIBLE : state;
       }
    default:
+      ctx->nonconst = NULL;
       return FOLD_NON_CONST;
    }
-}
-
-static fold_state_t get_const_expr(vlog_node_t v)
-{
-   vlog_node_t decl = NULL;
-   fold_state_t state = get_fold_state(v, &decl);
-   if (state != FOLD_NON_CONST)
-      return state;
-
-   if (decl == NULL)
-      error_at(vlog_loc(v), "expression is not a constant");
-   else {
-      diag_t *d = diag_new(DIAG_ERROR, vlog_loc(v));
-      diag_printf(d, "cannot ");
-      switch (vlog_kind(decl)) {
-      case V_FUNC_DECL:
-         diag_printf(d, "call non-constant user function");
-         break;
-      case V_VAR_DECL:
-         diag_printf(d, "reference variable");
-         break;
-      case V_NET_DECL:
-         diag_printf(d, "reference net");
-         break;
-      default:
-         diag_printf(d, "reference");
-         break;
-      }
-      diag_printf(d, " '%pi' in constant expression", vlog_ident(decl));
-
-      diag_hint(d, vlog_loc(decl), "%pi declared here", vlog_ident(decl));
-      diag_emit(d);
-   }
-
-   return state;
 }
 
 static void *fold_make_node_cb(jit_scalar_t *result, void *arg)
@@ -228,9 +206,6 @@ static void *fold_make_node_cb(jit_scalar_t *result, void *arg)
 
 static vlog_node_t fold_call_thunk(vlog_node_t v, fold_ctx_t *ctx)
 {
-   if (ctx->depth > 1)
-      return NULL;   // Do not fold expressions in inner blocks
-
    mir_unit_t *mu = vlog_lower_thunk(ctx->mir, NULL, v);
 
    vlog_node_t result = jit_call_thunk2(ctx->jit, mu, NULL,
@@ -240,10 +215,62 @@ static vlog_node_t fold_call_thunk(vlog_node_t v, fold_ctx_t *ctx)
    return result;
 }
 
+static void fold_report_non_const(vlog_node_t v, fold_ctx_t *ctx)
+{
+   if (ctx->nonconst == NULL)
+      error_at(vlog_loc(v), "expression is not a constant");
+   else {
+      diag_t *d = diag_new(DIAG_ERROR, vlog_loc(v));
+      diag_printf(d, "cannot ");
+      switch (vlog_kind(ctx->nonconst)) {
+      case V_FUNC_DECL:
+         diag_printf(d, "call non-constant user function");
+         break;
+      case V_SYS_FCALL:
+         diag_printf(d, "call system function");
+         break;
+      case V_VAR_DECL:
+         diag_printf(d, "reference variable");
+         break;
+      case V_NET_DECL:
+         diag_printf(d, "reference net");
+         break;
+      default:
+         diag_printf(d, "reference");
+         break;
+      }
+      diag_printf(d, " '%pi' in constant expression",
+                  vlog_ident(ctx->nonconst));
+
+      if (vlog_kind(ctx->nonconst) != V_SYS_FCALL)
+         diag_hint(d, vlog_loc(ctx->nonconst), "%pi declared here",
+                   vlog_ident(ctx->nonconst));
+
+      diag_emit(d);
+   }
+}
+
+static vlog_node_t fold_const_expr(vlog_node_t v, fold_ctx_t *ctx)
+{
+   switch (get_fold_state(v, ctx)) {
+   case FOLD_CONST:
+      return v;
+   case FOLD_POSSIBLE:
+      return fold_call_thunk(v, ctx);
+   case FOLD_LATER:
+      return NULL;
+   case FOLD_NON_CONST:
+      fold_report_non_const(v, ctx);
+      return NULL;
+   default:
+      should_not_reach_here();
+   }
+}
+
 static vlog_node_t fold_localparam(vlog_node_t v, fold_ctx_t *ctx)
 {
    vlog_node_t value = vlog_value(v);
-   switch (get_const_expr(value)) {
+   switch (get_fold_state(value, ctx)) {
    case FOLD_CONST:
       break;
    case FOLD_POSSIBLE:
@@ -256,7 +283,9 @@ static vlog_node_t fold_localparam(vlog_node_t v, fold_ctx_t *ctx)
       }
       break;
    case FOLD_LATER:
+      return v;
    case FOLD_NON_CONST:
+      fold_report_non_const(v, ctx);
       return v;
    }
 
@@ -311,18 +340,23 @@ static vlog_node_t fold_dimension(vlog_node_t v, fold_ctx_t *ctx)
    if (vlog_subkind(v) == V_DIM_UNSIZED)
       return v;
 
-   vlog_node_t left = vlog_left(v);
-   if (get_const_expr(left) == FOLD_POSSIBLE) {
-      vlog_node_t result = fold_call_thunk(left, ctx);
-      if (result != NULL)
-         vlog_set_left(v, result);
-   }
+   vlog_node_t left = fold_const_expr(vlog_left(v), ctx);
+   if (left != NULL)
+      vlog_set_left(v, left);
 
-   vlog_node_t right = vlog_right(v);
-   if (get_const_expr(right) == FOLD_POSSIBLE) {
-      vlog_node_t result = fold_call_thunk(right, ctx);
-      if (result != NULL)
-         vlog_set_right(v, result);
+   vlog_node_t right = fold_const_expr(vlog_right(v), ctx);
+   if (right != NULL)
+      vlog_set_right(v, right);
+
+   return v;
+}
+
+static vlog_node_t fold_param_decl(vlog_node_t v, fold_ctx_t *ctx)
+{
+   if (vlog_has_value(v)) {
+      vlog_node_t value = vlog_value(v);
+      if (get_fold_state(value, ctx) == FOLD_NON_CONST)
+         fold_report_non_const(value, ctx);
    }
 
    return v;
@@ -360,20 +394,14 @@ static vlog_node_t fold_enum_decl(vlog_node_t v, fold_ctx_t *ctx)
 static vlog_node_t fold_part_select(vlog_node_t v, fold_ctx_t *ctx)
 {
    if (vlog_subkind(v) == V_RANGE_CONST) {
-      vlog_node_t left = vlog_left(v);
-      if (get_const_expr(left) == FOLD_POSSIBLE) {
-         vlog_node_t left_fold = fold_call_thunk(left, ctx);
-         if (left_fold != NULL)
-            vlog_set_left(v, left_fold);
-      }
+      vlog_node_t left = fold_const_expr(vlog_left(v), ctx);
+      if (left != NULL)
+         vlog_set_left(v, left);
    }
 
-   vlog_node_t right = vlog_right(v);
-   if (get_const_expr(right) == FOLD_POSSIBLE) {
-      vlog_node_t right_fold = fold_call_thunk(right, ctx);
-      if (right_fold != NULL)
-         vlog_set_right(v, right_fold);
-   }
+   vlog_node_t right = fold_const_expr(vlog_right(v), ctx);
+   if (right != NULL)
+      vlog_set_right(v, right);
 
    return v;
 }
@@ -381,12 +409,9 @@ static vlog_node_t fold_part_select(vlog_node_t v, fold_ctx_t *ctx)
 static vlog_node_t fold_const_value(vlog_node_t v, fold_ctx_t *ctx)
 {
    if (vlog_has_value(v)) {
-      vlog_node_t value = vlog_value(v);
-      if (get_const_expr(value) == FOLD_POSSIBLE) {
-         vlog_node_t result = fold_call_thunk(value, ctx);
-         if (result != NULL)
-            vlog_set_value(v, result);
-      }
+      vlog_node_t value = fold_const_expr(vlog_value(v), ctx);
+      if (value != NULL)
+         vlog_set_value(v, value);
    }
 
    return v;
@@ -398,23 +423,11 @@ static vlog_node_t fold_if_generate(vlog_node_t v, fold_ctx_t *ctx)
    for (int i = 0; i < nconds; i++) {
       vlog_node_t c = vlog_cond(v, i);
       if (vlog_has_value(c)) {
-         vlog_node_t value = vlog_value(c);
-         switch (get_const_expr(value)) {
-         case FOLD_CONST:
-            break;
-         case FOLD_POSSIBLE:
-            {
-               vlog_node_t result = fold_call_thunk(value, ctx);
-               if (result == NULL)
-                  return v;
-
-               vlog_set_value(c, (value = result));
-            }
-            break;
-         case FOLD_LATER:
-         case FOLD_NON_CONST:
+         vlog_node_t value = fold_const_expr(vlog_value(c), ctx);
+         if (value == NULL)
             return v;
-         }
+
+         vlog_set_value(c, value);
 
          int64_t ival;
          if (!vlog_get_const(value, &ival) || ival == 0)
@@ -427,30 +440,31 @@ static vlog_node_t fold_if_generate(vlog_node_t v, fold_ctx_t *ctx)
    return NULL;   // None of the conditions are true
 }
 
+static vlog_node_t fold_func_decl(vlog_node_t v, fold_ctx_t *ctx)
+{
+   if (ctx->later == 0) {
+      vlog_set_flags(v, VLOG_F_FOLDED);
+      ctx->retry |= hset_contains(ctx->funcdeps, v);
+   }
+
+   return v;
+}
+
 static void vlog_fold_pre_cb(vlog_node_t v, void *context)
 {
    fold_ctx_t *ctx = context;
 
-   switch (vlog_kind(v)) {
-   case V_GEN_BLOCK:
-   case V_FOR_GENERATE:
-   case V_IF_GENERATE:
-   case V_MODULE:
-   case V_INST_BODY:
-      ctx->depth++;
-      break;
-   default:
-      break;
-   }
+   if (vlog_kind(v) == V_FUNC_DECL)
+      ctx->later = 0;
 }
 
 static vlog_node_t vlog_fold_post_cb(vlog_node_t v, void *context)
 {
-   fold_ctx_t *ctx = context;
-
    switch (vlog_kind(v)) {
    case V_LOCALPARAM:
       return fold_localparam(v, context);
+   case V_PARAM_DECL:
+      return fold_param_decl(v, context);
    case V_ENUM_DECL:
       return fold_enum_decl(v, context);
    case V_DIMENSION:
@@ -460,18 +474,12 @@ static vlog_node_t vlog_fold_post_cb(vlog_node_t v, void *context)
    case V_CONCAT:
    case V_PARAM_ASSIGN:
    case V_ENUM_NAME:
-   case V_PARAM_DECL:
    case V_DEFPARAM:
       return fold_const_value(v, context);
    case V_IF_GENERATE:
-      assert(ctx->depth > 0);
-      ctx->depth--;
       return fold_if_generate(v, context);
-   case V_GEN_BLOCK:
-   case V_FOR_GENERATE:
-      assert(ctx->depth > 0);
-      ctx->depth--;
-      return v;
+   case V_FUNC_DECL:
+      return fold_func_decl(v, context);
    default:
       return v;
    }
@@ -485,5 +493,13 @@ void vlog_fold(vlog_node_t mod, mir_context_t *mc, jit_t *j)
    };
 
    vlog_lower_const_funcs(mc, mod);
-   vlog_rewrite(mod, vlog_fold_pre_cb, vlog_fold_post_cb, &ctx);
+
+   const int base_errors = error_count();
+   do {
+      ctx.funcdeps = hset_new(4);
+      ctx.retry = false;
+      ctx.later = 0;
+      vlog_rewrite(mod, vlog_fold_pre_cb, vlog_fold_post_cb, &ctx);
+      hset_free(ctx.funcdeps);
+   } while (ctx.retry && error_count() == base_errors);
 }
