@@ -493,8 +493,6 @@ object_t *object_new(object_arena_t *arena,
    if (unlikely(kind >= class->last_kind))
       fatal_trace("invalid kind %d for %s object", kind, class->name);
 
-   object_one_time_init();
-
    if (arena == NULL)
       arena = global_arena;
 
@@ -522,8 +520,6 @@ object_t *object_new(object_arena_t *arena,
 
    if (arena->root == NULL && is_gc_root(class, kind))
       arena->root = object;
-
-   memset(object, '\0', size);
 
    object->kind  = kind;
    object->tag   = class->tag;
@@ -1229,6 +1225,8 @@ size_t object_arena_default_size(void)
 
 object_arena_t *object_arena_new(size_t size, unsigned std)
 {
+   object_one_time_init();
+
    if (all_arenas.count == 0)
       APUSH(all_arenas, NULL);   // Dummy null arena
 
