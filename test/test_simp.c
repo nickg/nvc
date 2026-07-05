@@ -2013,6 +2013,16 @@ START_TEST(test_issue1495)
 }
 END_TEST
 
+START_TEST(test_issue1599)
+{
+   input_from_file(TESTDIR "/simp/issue1599.vhd");
+
+   run_elab();
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_simp_tests(void)
 {
    Suite *s = suite_create("simplify");
@@ -2092,6 +2102,7 @@ Suite *get_simp_tests(void)
    tcase_add_test(tc_core, test_issue1353);
    tcase_add_test(tc_core, test_issue1438);
    tcase_add_test(tc_core, test_issue1495);
+   tcase_add_test(tc_core, test_issue1599);
    suite_add_tcase(s, tc_core);
 
    return s;
