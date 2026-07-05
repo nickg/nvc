@@ -53,8 +53,6 @@ lib_libnvc_a_SOURCES = \
 	src/thread.c \
 	src/driver.h \
 	src/driver.c \
-	src/inst.h \
-	src/inst.c \
 	src/printf.h \
 	src/printf.c \
 	src/reheat.c \

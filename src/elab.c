@@ -22,7 +22,6 @@
 #include "diag.h"
 #include "eval.h"
 #include "hash.h"
-#include "inst.h"
 #include "lib.h"
 #include "lower.h"
 #include "mask.h"
@@ -1394,7 +1393,7 @@ static void elab_fold_generics(tree_t b, const elab_ctx_t *ctx)
    }
 
    if (fixup != NULL)
-      instance_fixup(b, fixup);
+      vhdl_instance_fixup(b, fixup);
 
    simplify_global(b, map, ctx->jit, ctx->registry, ctx->mir);
 

@@ -1430,3 +1430,4 @@ tfcall10        verilog
 binary10        verilog
 real14          verilog,gold
 select24        verilog
+issue1600       normal,2002
