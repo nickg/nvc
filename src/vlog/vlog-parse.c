@@ -1327,6 +1327,7 @@ static vlog_node_t p_system_tf_call(vlog_kind_t kind)
    case W_DLR_BITS:     subk = V_SYSTF_BITS; break;
    case W_DLR_RTOI:     subk = V_SYSTF_RTOI; break;
    case W_DLR_CEIL:     subk = V_SYSTF_CEIL; break;
+   case W_DLR_FLOOR:    subk = V_SYSTF_FLOOR; break;
    default:             subk = V_SYSTF_NONE; break;
    }
 

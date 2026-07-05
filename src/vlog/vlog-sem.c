@@ -1086,6 +1086,7 @@ static type_mask_t vlog_check_sys_fcall(vlog_node_t v)
    case V_SYSTF_SIGNED:
    case V_SYSTF_UNSIGNED:
    case V_SYSTF_RTOI:
+   case V_SYSTF_FLOOR:
       return TM_INTEGRAL | (TM_CONST & mask);
    case V_SYSTF_SQRT:
    case V_SYSTF_CEIL:

@@ -313,6 +313,7 @@ typedef enum {
    V_SYSTF_BITS,
    V_SYSTF_RTOI,
    V_SYSTF_CEIL,
+   V_SYSTF_FLOOR,
 } vlog_systf_t;
 
 typedef enum {

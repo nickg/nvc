@@ -134,6 +134,7 @@ static fold_state_t get_fold_state(vlog_node_t v, fold_ctx_t *ctx)
          case V_SYSTF_RTOI:
          case V_SYSTF_SQRT:
          case V_SYSTF_CEIL:
+         case V_SYSTF_FLOOR:
             break;
          default:
             ctx->nonconst = v;
