@@ -63,6 +63,7 @@ typedef struct {
    mir_context_t *mir;
    ihash_t       *temps;
    mir_block_t    exit;
+   bool           constfunc;
 } vlog_gen_t;
 
 static void vlog_lower_locals(vlog_gen_t *g, vlog_node_t v);
@@ -1506,7 +1507,7 @@ static mir_value_t vlog_lower_rvalue_select(vlog_gen_t *g, vlog_node_t v)
 
 static mir_value_t vlog_context_for_call(vlog_gen_t *g, vlog_node_t v)
 {
-   if (mir_get_kind(g->mu) == MIR_UNIT_THUNK)
+   if (mir_get_kind(g->mu) == MIR_UNIT_THUNK || g->constfunc)
       return MIR_NULL_VALUE;
 
    return mir_build_context_upref(g->mu, 1);  // XXX
@@ -1732,7 +1733,7 @@ static mir_value_t vlog_lower_with_context(vlog_gen_t *g, vlog_node_t v,
       {
          vlog_node_t decl = vlog_ref(v);
          ident_t func = ident_prefix(vlog_ident2(decl), vlog_ident(decl), '.');
-         if (mir_get_kind(g->mu) == MIR_UNIT_THUNK)
+         if (mir_get_kind(g->mu) == MIR_UNIT_THUNK || g->constfunc)
             func = ident_sprintf("%s@const", istr(func));
 
          const int nparams = vlog_params(v);
@@ -3568,7 +3569,9 @@ static void vlog_lower_func_decl(mir_unit_t *mu, object_t *obj)
    mir_set_result(mu, ti->type);
 
    ident_t parent = mir_get_parent(mu);
-   if (parent != NULL) {
+   if (parent == NULL)
+      g.constfunc = true;
+   else {
       mir_type_t t_context = mir_context_type(mu, mir_get_parent(mu));
       mir_add_param(mu, t_context, MIR_NULL_STAMP, ident_new("context"));
    }

@@ -2036,6 +2036,10 @@ START_TEST(test_constfunc2)
    ck_assert(number_is_defined(p1n));
    ck_assert_int_eq(number_integer(p1n), 10);
 
+   vlog_node_t p3 = vlog_decl(m, 3);
+   ck_assert_vlog_kind(p3, V_LOCALPARAM);
+   ck_assert_vlog_kind(vlog_value(p3), V_USER_FCALL);  // Cannot fold now
+
    fail_unless(vlog_parse() == NULL);
 
    fail_if_errors();

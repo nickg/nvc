@@ -35,9 +35,10 @@
 typedef struct {
    mir_context_t *mir;
    jit_t         *jit;
-   unsigned       later;
+   vlog_node_t    func;
    vlog_node_t    nonconst;
    hset_t        *funcdeps;
+   unsigned       later;
    bool           retry;
 } fold_ctx_t;
 
@@ -443,9 +444,23 @@ static vlog_node_t fold_if_generate(vlog_node_t v, fold_ctx_t *ctx)
 
 static vlog_node_t fold_func_decl(vlog_node_t v, fold_ctx_t *ctx)
 {
+   assert(ctx->func == v);
+   ctx->func = NULL;
+
    if (ctx->later == 0) {
       vlog_set_flags(v, VLOG_F_FOLDED);
       ctx->retry |= hset_contains(ctx->funcdeps, v);
+   }
+
+   return v;
+}
+
+static vlog_node_t fold_ref(vlog_node_t v, fold_ctx_t *ctx)
+{
+   if (ctx->func != NULL) {
+      // Do not evalulate constant functions which reference unbound or
+      // unfolded parameters
+      (void)get_fold_state(v, ctx);
    }
 
    return v;
@@ -455,8 +470,10 @@ static void vlog_fold_pre_cb(vlog_node_t v, void *context)
 {
    fold_ctx_t *ctx = context;
 
-   if (vlog_kind(v) == V_FUNC_DECL)
+   if (vlog_kind(v) == V_FUNC_DECL) {
+      ctx->func = v;
       ctx->later = 0;
+   }
 }
 
 static vlog_node_t vlog_fold_post_cb(vlog_node_t v, void *context)
@@ -481,6 +498,8 @@ static vlog_node_t vlog_fold_post_cb(vlog_node_t v, void *context)
       return fold_if_generate(v, context);
    case V_FUNC_DECL:
       return fold_func_decl(v, context);
+   case V_REF:
+      return fold_ref(v, context);
    default:
       return v;
    }
