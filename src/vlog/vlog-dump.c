@@ -18,6 +18,7 @@
 #include "util.h"
 #include "common.h"
 #include "object.h"
+#include "printf.h"
 #include "ident.h"
 #include "vlog/vlog-node.h"
 #include "vlog/vlog-number.h"
@@ -51,7 +52,7 @@ static void vlog_dump_address(vlog_node_t v)
 
    char *LOCAL fmt = xasprintf("$!#%d${%%p:%s}$$", color,
                                vlog_kind_str(vlog_kind(v)));
-   color_printf(fmt, v);
+   nvc_printf(fmt, v);
 #endif
 }
 
@@ -191,7 +192,7 @@ static void vlog_dump_port_decl(vlog_node_t v, int indent)
    }
 
    vlog_node_t dt = vlog_type(v);
-   if (!is_implicit_data_type(dt)) {
+   if (!is_implicit_data_type(dt) || vlog_ranges(dt) > 0) {
       print_syntax(" ");
       vlog_dump(dt, 0);
    }
@@ -926,7 +927,15 @@ static void vlog_dump_task_decl(vlog_node_t v, int indent)
 
 static void vlog_dump_func_decl(vlog_node_t v, int indent)
 {
-   print_syntax("#function %s;", istr(vlog_ident(v)));
+   print_syntax("#function");
+
+   vlog_node_t dt = vlog_type(v);
+   if (!is_implicit_data_type(dt) || vlog_ranges(dt) > 0) {
+      print_syntax(" ");
+      vlog_dump(dt, 0);
+   }
+
+   print_syntax(" %s;", istr(vlog_ident(v)));
 
    if (vlog_has_ident2(v))
       print_syntax(" -- %s.%s", istr(vlog_ident2(v)), istr(vlog_ident(v)));
@@ -1014,6 +1023,13 @@ static void vlog_dump_port_map(vlog_node_t v)
    print_syntax("-- Connect ");
    vlog_dump(vlog_value(v), 0);
    print_syntax(" to %pi\n", vlog_ident(vlog_ref(v)));
+}
+
+static void vlog_dump_type_decl(vlog_node_t v, int indent)
+{
+   print_syntax("#typedef ");
+   vlog_dump(vlog_type(v), indent);
+   print_syntax(" %pi;\n", vlog_ident(v));
 }
 
 void vlog_dump(vlog_node_t v, int indent)
@@ -1215,6 +1231,9 @@ void vlog_dump(vlog_node_t v, int indent)
       break;
    case V_PORT_MAP:
       vlog_dump_port_map(v);
+      break;
+   case V_TYPE_DECL:
+      vlog_dump_type_decl(v, indent);
       break;
    default:
       print_syntax("\n");

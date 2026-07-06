@@ -54,7 +54,8 @@ number_t number_from_int(int64_t value);
 number_t number_from_bool(bool value);
 number_t number_from_logic(vlog_logic_t value);
 number_t number_logic_fill(vlog_logic_t value, unsigned width, bool issigned);
-number_t number_from_jit(int width, jit_scalar_t abits, jit_scalar_t bbits);
+number_t number_from_jit(int width, bool issigned, jit_scalar_t abits,
+                         jit_scalar_t bbits);
 void number_print(number_t val, text_buf_t *tb);
 bool number_is_defined(number_t val);
 int64_t number_integer(number_t val);
@@ -172,6 +173,7 @@ void vec4_or2(int size, uint64_t *a1, uint64_t *b1, const uint64_t *a2,
               const uint64_t *b2);
 void vec4_xor2(int size, uint64_t *a1, uint64_t *b1, const uint64_t *a2,
                const uint64_t *b2);
+void vec4_neg(int size, uint64_t *xa, uint64_t *xb);
 
 vlog_logic_t vec4_not(int size, const uint64_t *a, const uint64_t *b);
 

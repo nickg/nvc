@@ -318,6 +318,7 @@ typedef enum {
    V_SYSTF_BITS,
    V_SYSTF_RTOI,
    V_SYSTF_CEIL,
+   V_SYSTF_FLOOR,
 } vlog_systf_t;
 
 typedef enum {
@@ -334,6 +335,7 @@ typedef enum {
    VLOG_F_SIGNED = (1 << 0),
    VLOG_F_PACKED = (1 << 1),
    VLOG_F_CONST  = (1 << 2),
+   VLOG_F_FOLDED = (1 << 3),
 } vlog_flags_t;
 
 typedef enum {

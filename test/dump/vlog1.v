@@ -48,6 +48,7 @@ module mod2;
   enum byte { a = 5, b } e1;
   reg signed [3:0] s1;
   tri0 grst = glbl.grst;
+  typedef enum { RED, GREEN, BLUE } t_color;
 endmodule // mod2
 
 primitive multiplexer (mux, control, dataA, dataB);

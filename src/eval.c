@@ -386,8 +386,11 @@ bool eval_possible(tree_t t, unit_registry_t *ur, mir_context_t *mc)
                return false;
          }
 
-         // Check for missing choices in constrained array aggregates
          type_t composite_type = tree_type(t);
+         if (!type_const_bounds(composite_type))
+            return false;
+
+         // Check for missing choices in constrained array aggregates
          if (type_is_array(composite_type)
              && !type_is_unconstrained(composite_type)) {
             int64_t count = 0, elem_count = 0;

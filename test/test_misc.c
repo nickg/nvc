@@ -481,6 +481,7 @@ START_TEST(test_printf1)
    do_printf("\033]8;;foo\07bar\033]8;;\07", "$link:%s\07%s$", "foo", "bar");
    do_printf("                                                       "
              "              1 hello", "%70d %s", 1, "hello");
+   do_printf("$ with 5", "$ with %d", 5);
 }
 END_TEST
 

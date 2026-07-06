@@ -137,18 +137,22 @@ static void format_radix(ostream_t *out, vpiHandle arg, char radix, int fwidth,
       }
       break;
    case 'f':
+   case 'g':
       {
          s_vpi_value argval = { .format = vpiRealVal };
          vpi_get_value(arg, &argval);
 
          if (!vpi_chk_error(NULL)) {
             if (precision >= 0)
-               nvc_fprintf(out, "%*.*f", fwidth < 0 ? 0 : fwidth, precision,
+               nvc_fprintf(out, radix == 'f' ? "%*.*f" : "%*.*g",
+                           fwidth < 0 ? 0 : fwidth, precision,
                            argval.value.real);
             else if (fwidth >= 0)
-               nvc_fprintf(out, "%*f", fwidth, argval.value.real);
+               nvc_fprintf(out, radix == 'f' ? "%*f" : "%*g", fwidth,
+                           argval.value.real);
             else
-               nvc_fprintf(out, "%f", argval.value.real);
+               nvc_fprintf(out, radix == 'f' ? "%f" : "%g",
+                           argval.value.real);
          }
       }
       break;
@@ -221,6 +225,7 @@ static void interpret_format(ostream_t *out, const char *fmt, vpiHandle it)
          case 'h':
          case 't':
          case 'f':
+         case 'g':
             format_number(out, it, *p, fwidth, precision, pad);
             break;
          case 'c':
@@ -709,8 +714,25 @@ static PLI_INT32 fgets_tf(PLI_BYTE8 *userdata)
 
 static PLI_INT32 finish_tf(PLI_BYTE8 *userdata)
 {
-   notef("$finish called");
-   jit_abort();
+   vpiHandle call = vpi_handle(vpiSysTfCall, NULL);
+   assert(call != NULL);
+
+   vpiHandle argv = vpi_iterate(vpiArgument, call);
+   vpiHandle status = vpi_scan(argv);
+
+   if (status != NULL) {
+      PLI_INT32 val = get_int_arg(status);
+
+      vpi_release_handle(argv);
+      vpi_release_handle(status);
+
+      notef("$finish called with status %d", val);
+      jit_abort_with_status(val);
+   }
+   else {
+      notef("$finish called");
+      jit_abort();
+   }
 }
 
 static PLI_INT32 diag_tf(PLI_BYTE8 *userdata)
@@ -957,10 +979,21 @@ static PLI_INT32 rtoi_tf(PLI_BYTE8 *userdata)
    vpi_release_handle(arg);
    vpi_release_handle(argv);
 
-   s_vpi_value result = {
-      .format = vpiIntVal,
-      .value = { .integer = value.value.real },
-   };
+   s_vpi_vecval xval = { .aval = UINT32_MAX, .bval = UINT32_MAX };
+   s_vpi_value result;
+   if (isfinite(value.value.real)) {
+      const double truncated = trunc(value.value.real);
+      double wrapped = fmod(truncated, 4294967296.0);
+      if (wrapped < 0.0)
+         wrapped += 4294967296.0;
+
+      result.format = vpiIntVal;
+      result.value.integer = (uint32_t)wrapped;
+   }
+   else {
+      result.format = vpiVectorVal;
+      result.value.vector = &xval;
+   }
 
    vpi_put_value(call, &result, NULL, 0);
 
@@ -977,7 +1010,7 @@ static PLI_INT32 itor_tf(PLI_BYTE8 *userdata)
    vpiHandle arg = vpi_scan(argv);
    assert(arg != NULL);
 
-   s_vpi_value value = { .format = vpiRealVal };
+   s_vpi_value value = { .format = vpiIntVal };
    vpi_get_value(arg, &value);
 
    vpi_release_handle(arg);
@@ -985,7 +1018,7 @@ static PLI_INT32 itor_tf(PLI_BYTE8 *userdata)
 
    s_vpi_value result = {
       .format = vpiRealVal,
-      .value = { .real = value.value.real },
+      .value = { .real = value.value.integer },
    };
 
    vpi_put_value(call, &result, NULL, 0);

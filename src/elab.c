@@ -22,7 +22,6 @@
 #include "diag.h"
 #include "eval.h"
 #include "hash.h"
-#include "inst.h"
 #include "lib.h"
 #include "lower.h"
 #include "mask.h"
@@ -1394,7 +1393,7 @@ static void elab_fold_generics(tree_t b, const elab_ctx_t *ctx)
    }
 
    if (fixup != NULL)
-      instance_fixup(b, fixup);
+      vhdl_instance_fixup(b, fixup);
 
    simplify_global(b, map, ctx->jit, ctx->registry, ctx->mir);
 
@@ -1719,6 +1718,7 @@ static void elab_verilog_block(vlog_node_t v, const elab_ctx_t *ctx)
 
    ident_t id2 = ident_prefix(ctx->dotted, vlog_ident(v), '%');
    vlog_node_t body = vlog_new_instance(v, NULL, id2);
+   vlog_fold(body, ctx->mir, ctx->jit);
 
    tree_t wrap = tree_new(T_VERILOG);
    tree_set_ident(wrap, id);
@@ -1823,6 +1823,7 @@ static void elab_verilog_for_generate(vlog_node_t v, const elab_ctx_t *ctx)
 
       // TODO: cache this in elab_instance_t
       vlog_node_t copy = vlog_generate_instance(s0, genvar, index, ctx->dotted);
+      vlog_fold(copy, ctx->mir, ctx->jit);
 
       elab_verilog_block(copy, ctx);
 

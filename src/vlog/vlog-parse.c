@@ -1356,6 +1356,7 @@ static vlog_node_t p_system_tf_call(vlog_kind_t kind)
    case W_DLR_BITS:     subk = V_SYSTF_BITS; break;
    case W_DLR_RTOI:     subk = V_SYSTF_RTOI; break;
    case W_DLR_CEIL:     subk = V_SYSTF_CEIL; break;
+   case W_DLR_FLOOR:    subk = V_SYSTF_FLOOR; break;
    default:             subk = V_SYSTF_NONE; break;
    }
 
@@ -3839,6 +3840,7 @@ static void p_function_body_declaration(vlog_node_t func)
 
    ident_t id = p_identifier();
    vlog_set_ident(func, id);
+   vlog_set_ident2(func, vlog_symtab_qualified(symtab));
    vlog_set_loc(func, &state.last_loc);
 
    vlog_symtab_put(symtab, func);
@@ -4379,8 +4381,9 @@ static vlog_node_t p_generate_block(void)
    vlog_node_t b = vlog_new(V_GEN_BLOCK);
 
    if (scan(tID, tBEGIN)) {
+      ident_t label = NULL;
       if (peek() == tID) {
-         vlog_set_ident(b, p_identifier());
+         vlog_set_ident(b, (label = p_identifier()));
          consume(tCOLON);
       }
 
@@ -4388,12 +4391,15 @@ static vlog_node_t p_generate_block(void)
 
       if (optional(tCOLON)) {
          ident_t name = p_identifier();
-         if (vlog_has_ident(b))    // 1800-2023 section 9.3.5
+         if (label != NULL)    // 1800-2023 section 9.3.5
             parse_error(&state.last_loc, "cannot specify both a label and a "
                         "name for the same block");
          else
-            vlog_set_ident(b, name);
+            vlog_set_ident(b, (label = name));
       }
+
+      if (!vlog_has_ident(b))
+         vlog_set_ident(b, default_label("genblk"));
 
       vlog_symtab_push(symtab, b);
 
@@ -4406,18 +4412,17 @@ static vlog_node_t p_generate_block(void)
 
       if (optional(tCOLON)) {
          ident_t name = p_identifier();
-         if (!vlog_has_ident(b))
+         if (label == NULL)
             parse_error(&state.last_loc, "block does not have a label");
-         else if (name != vlog_ident(b))
-            parse_error(&state.last_loc, "'%s' does not match label '%s'",
-                        istr(name), istr(vlog_ident(b)));
+         else if (name != label)
+            parse_error(&state.last_loc, "'%pi' does not match label '%pi'",
+                        name, label);
       }
    }
-   else
-      p_generate_item(b);
-
-   if (!vlog_has_ident(b))
+   else {
       vlog_set_ident(b, default_label("genblk"));
+      p_generate_item(b);
+   }
 
    vlog_set_loc(b, CURRENT_LOC);
    return b;
@@ -4645,7 +4650,7 @@ static vlog_node_t p_loop_generate_construct(void)
 
    vlog_node_t v = vlog_new(V_FOR_GENERATE);
 
-   vlog_symtab_push(symtab, v);
+   vlog_symtab_push(symtab, NULL);
 
    vlog_set_left(v, p_genvar_initialization());
 

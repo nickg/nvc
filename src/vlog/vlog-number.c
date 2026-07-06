@@ -601,10 +601,11 @@ number_t number_logic_fill(vlog_logic_t value, unsigned width, bool issigned)
    return number_intern(result);
 }
 
-number_t number_from_jit(int width, jit_scalar_t abits, jit_scalar_t bbits)
+number_t number_from_jit(int width, bool issigned, jit_scalar_t abits,
+                         jit_scalar_t bbits)
 {
    bignum_t *result;
-   bignum_scratch(width, false, 1, &result);
+   bignum_scratch(width, issigned, 1, &result);
 
    if (width <= 64) {
       bignum_abits(result)[0] = abits.integer;
@@ -616,6 +617,14 @@ number_t number_from_jit(int width, jit_scalar_t abits, jit_scalar_t bbits)
          bignum_abits(result)[i] = aptr[i];
          bignum_bbits(result)[i] = bptr[i];
       }
+   }
+
+   if (width > 0 && width % 64 != 0) {
+      const uint64_t mask = ~UINT64_C(0) >> (64 - width % 64);
+      const int last = BIGNUM_WORDS(width) - 1;
+
+      bignum_abits(result)[last] &= mask;
+      bignum_bbits(result)[last] &= mask;
    }
 
    return number_intern(result);
@@ -1611,7 +1620,7 @@ static bool vec4_defined(int size, const uint64_t *xb, const uint64_t *yb)
 {
    bool is_defined = true;
    for (int i = 0; i < BIGNUM_WORDS(size); i++)
-      is_defined &= xb[i] == 0 && yb[i] == 0;
+      is_defined &= xb[i] == 0 && (yb == NULL || yb[i] == 0);
 
    return is_defined;
 }
@@ -1757,6 +1766,14 @@ void vec4_xor2(int size, uint64_t *a1, uint64_t *b1, const uint64_t *a2,
    vec2_xor2(size, a1, a2);
    vec2_or2(size, b1, b2);
    vec2_or2(size, a1, b1);
+}
+
+void vec4_neg(int size, uint64_t *xa, uint64_t *xb)
+{
+   if (vec4_defined(size, xb, NULL))
+      vec2_neg(size, xa);
+   else
+      vec4_make_undef(size, xa, xb);
 }
 
 #define VEC4_CMP_OP(name)                                               \

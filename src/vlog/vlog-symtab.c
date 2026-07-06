@@ -457,6 +457,17 @@ vlog_node_t vlog_symtab_subr(vlog_symtab_t *st)
    return NULL;
 }
 
+ident_t vlog_symtab_qualified(vlog_symtab_t *st)
+{
+   ident_t qual = NULL;
+   for (vlog_scope_t *s = st->top; s != NULL; s = s->parent) {
+      if (s->container != NULL)
+         qual = ident_prefix(vlog_ident(s->container), qual, '.');
+   }
+
+   return qual;
+}
+
 void vlog_symtab_import(vlog_symtab_t *st, vlog_node_t v)
 {
    assert(vlog_kind(v) == V_IMPORT_DECL);

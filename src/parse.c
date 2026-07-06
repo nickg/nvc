@@ -20,7 +20,6 @@
 #include "common.h"
 #include "diag.h"
 #include "hash.h"
-#include "inst.h"
 #include "lib.h"
 #include "names.h"
 #include "object.h"
@@ -34,6 +33,7 @@
 #include "thread.h"
 #include "tree.h"
 #include "type.h"
+#include "vhdl/vhdl-phase.h"
 #include "vhdl/vhdl-util.h"
 
 #include <string.h>
@@ -1719,7 +1719,7 @@ static void instantiate_subprogram(tree_t new, tree_t decl, tree_t body)
    tree_t roots[] = { decl, body };
    ident_t prefixes[] = { tree_ident(decl) };
    ident_t dotted = ident_prefix(scope_prefix(nametab), tree_ident(new), '.');
-   new_instance(roots, body != NULL ? 2 :1, dotted, prefixes, 1);
+   vhdl_subprogram_instance(roots, body != NULL ? 2 :1, dotted, prefixes, 1);
 
    tree_t decl_copy = roots[0], body_copy = roots[1];
    tree_t src = body_copy ?: decl_copy;
@@ -1756,7 +1756,7 @@ static void instantiate_package(tree_t new, tree_t pack, tree_t body)
    tree_t roots[] = { pack, body };
    ident_t prefixes[] = { prefix };
    ident_t dotted = ident_prefix(scope_prefix(nametab), tree_ident(new), '.');
-   new_instance(roots, body != NULL ? 2 : 1, dotted, prefixes, 1);
+   vhdl_package_instance(roots, body != NULL ? 2 : 1, dotted, prefixes, 1);
 
    tree_t pack_copy = roots[0], body_copy = roots[1];
 
@@ -2650,7 +2650,7 @@ static void package_body_deferred_instantiation(tree_t pack, tree_t container)
 
          hash_t *gmap = get_generic_map(nametab);
          if (gmap != NULL)
-            instance_fixup(inst, gmap);
+            vhdl_instance_fixup(inst, gmap);
 
          tree_add_decl(container, inst);
       }
@@ -3434,7 +3434,7 @@ static tree_t p_function_call(ident_t id, tree_t prefix)
 
       hash_t *map = get_generic_map(nametab);
       if (map != NULL)
-         instance_fixup(inst, map);
+         vhdl_instance_fixup(inst, map);
 
       tree_set_ref(call, inst);
 
@@ -7328,7 +7328,7 @@ static tree_t p_subprogram_instantiation_declaration(void)
 
    hash_t *map = get_generic_map(nametab);
    if (map != NULL)
-      instance_fixup(inst, map);
+      vhdl_instance_fixup(inst, map);
 
    mangle_func(nametab, inst);
    insert_name(nametab, inst, NULL);
@@ -8005,7 +8005,7 @@ static tree_t p_package_instantiation_declaration(tree_t unit)
 
    hash_t *map = get_generic_map(nametab);
    if (map != NULL)
-      instance_fixup(new, map);
+      vhdl_instance_fixup(new, map);
 
    return new;
 }
@@ -10434,7 +10434,7 @@ static tree_t p_procedure_call_statement(ident_t label, tree_t name)
 
       hash_t *map = get_generic_map(nametab);
       if (map != NULL)
-         instance_fixup(inst, map);
+         vhdl_instance_fixup(inst, map);
 
       tree_set_ref(call, inst);
 
@@ -11171,7 +11171,7 @@ static tree_t p_block_statement(ident_t label)
 
    hash_t *map = get_generic_map(nametab);
    if (map != NULL)
-      instance_fixup(b, map);
+      vhdl_instance_fixup(b, map);
 
    pop_scope(nametab);
    return b;

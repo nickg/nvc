@@ -297,6 +297,7 @@ typedef enum {
    W_DLR_BITS,
    W_DLR_RTOI,
    W_DLR_CEIL,
+   W_DLR_FLOOR,
    W_COUNTERS,
 
    NUM_WELL_KNOWN

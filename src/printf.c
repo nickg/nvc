@@ -234,8 +234,11 @@ static int ansi_escape(ostream_t *os, printf_state_t *state, const char **fmt)
       (*fmt)++;
    } while (**fmt != '\0' && **fmt != '$');
 
-   if (**fmt == '\0')
-      return ostream_write(os, start, *fmt - start);
+   if (**fmt == '\0') {
+      int nchars = ostream_putc(os, '$');
+      nchars += printf_interpret(os, state, start + 1, *fmt);
+      return nchars;
+   }
 
    const char *end = *fmt;
    (*fmt)++;   // Advance past final '$'

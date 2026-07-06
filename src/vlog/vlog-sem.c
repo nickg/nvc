@@ -48,7 +48,6 @@ static void vlog_check_decls(vlog_node_t v);
 static void vlog_check_stmts(vlog_node_t v);
 static void vlog_check_ranges(vlog_node_t v);
 static type_mask_t vlog_check_expr(vlog_node_t v);
-static type_mask_t vlog_check_const_expr(vlog_node_t v);
 
 static void name_for_diag(diag_t *d, vlog_node_t v, const char *alt)
 {
@@ -418,7 +417,7 @@ static void vlog_check_var_decl(vlog_node_t v)
 static void vlog_check_param_decl(vlog_node_t v)
 {
    if (vlog_has_value(v))
-      vlog_check_const_expr(vlog_value(v));
+      vlog_check_expr(vlog_value(v));
 }
 
 static void vlog_check_genvar_decl(vlog_node_t v)
@@ -561,16 +560,16 @@ static void vlog_check_dimension(vlog_node_t v)
       return;
 
    vlog_node_t left = vlog_left(v);
-   vlog_check_const_expr(left);
+   vlog_check_expr(left);
 
    vlog_node_t right = vlog_right(v);
-   vlog_check_const_expr(right);
+   vlog_check_expr(right);
 }
 
 static void vlog_check_localparam(vlog_node_t v)
 {
    if (vlog_has_value(v))
-      vlog_check_const_expr(vlog_value(v));
+      vlog_check_expr(vlog_value(v));
    else
       error_at(vlog_loc(v), "local parameter declaration must have a "
                "default value");
@@ -578,7 +577,7 @@ static void vlog_check_localparam(vlog_node_t v)
 
 static void vlog_check_defparam(vlog_node_t v)
 {
-   vlog_check_const_expr(vlog_value(v));
+   vlog_check_expr(vlog_value(v));
 }
 
 static void vlog_check_case(vlog_node_t v)
@@ -760,7 +759,7 @@ static void vlog_check_if_generate(vlog_node_t v)
 
       if (vlog_has_value(c)) {
          vlog_node_t value = vlog_value(c);
-         vlog_check_const_expr(value);
+         vlog_check_expr(value);
       }
 
       vlog_check_stmts(c);
@@ -833,13 +832,13 @@ static void vlog_check_port_conn(vlog_node_t v)
 static void vlog_check_param_assign(vlog_node_t v)
 {
    if (vlog_has_value(v))
-      vlog_check_const_expr(vlog_value(v));
+      vlog_check_expr(vlog_value(v));
 }
 
 static void vlog_check_enum_name(vlog_node_t v)
 {
    if (vlog_has_value(v))
-      vlog_check_const_expr(vlog_value(v));
+      vlog_check_expr(vlog_value(v));
 }
 
 static void vlog_check_wait(vlog_node_t v)
@@ -903,11 +902,11 @@ static type_mask_t vlog_check_part_select(vlog_node_t v)
 {
    if (vlog_subkind(v) == V_RANGE_CONST) {
       vlog_node_t left = vlog_left(v);
-      vlog_check_const_expr(left);
+      vlog_check_expr(left);
    }
 
    vlog_node_t right = vlog_right(v);
-   vlog_check_const_expr(right);
+   vlog_check_expr(right);
 
    return vlog_check_index(v);
 }
@@ -949,7 +948,7 @@ static type_mask_t vlog_check_concat(vlog_node_t v)
 {
    if (vlog_has_value(v)) {
       vlog_node_t repeat = vlog_value(v);
-      vlog_check_const_expr(repeat);
+      vlog_check_expr(repeat);
    }
 
    type_mask_t mask = TM_ANY;
@@ -1087,6 +1086,7 @@ static type_mask_t vlog_check_sys_fcall(vlog_node_t v)
    case V_SYSTF_SIGNED:
    case V_SYSTF_UNSIGNED:
    case V_SYSTF_RTOI:
+   case V_SYSTF_FLOOR:
       return TM_INTEGRAL | (TM_CONST & mask);
    case V_SYSTF_SQRT:
    case V_SYSTF_CEIL:
@@ -1129,76 +1129,6 @@ static type_mask_t vlog_check_prefix_postfix(vlog_node_t v)
    type_mask_t tmask = vlog_check_expr(target);
 
    vlog_check_variable_lvalue(target, target);
-
-   return tmask;
-}
-
-static void vlog_non_const_diag_cb(vlog_node_t v, void *ctx)
-{
-   vlog_node_t *pdecl = ctx;
-
-   switch (vlog_kind(v)) {
-   case V_REF:
-      {
-         vlog_node_t decl = vlog_ref(v);
-         switch (vlog_kind(decl)) {
-         case V_PARAM_DECL:
-         case V_LOCALPARAM:
-         case V_GENVAR_DECL:
-         case V_ENUM_NAME:
-            break;
-         default:
-            *pdecl = decl;
-            break;
-         }
-      }
-      break;
-   case V_USER_FCALL:
-      {
-         vlog_node_t decl = vlog_ref(v);
-         if (!(vlog_flags(decl) & VLOG_F_CONST))
-            *pdecl = decl;
-      }
-      break;
-   default:
-      break;
-   }
-}
-
-static type_mask_t vlog_check_const_expr(vlog_node_t v)
-{
-   type_mask_t tmask = vlog_check_expr(v);
-
-   if (!(tmask & TM_CONST)) {
-      vlog_node_t decl = NULL;
-      vlog_visit(v, vlog_non_const_diag_cb, &decl);
-
-      if (decl == NULL)
-         error_at(vlog_loc(v), "expression is not a constant");
-      else {
-         diag_t *d = diag_new(DIAG_ERROR, vlog_loc(v));
-         diag_printf(d, "cannot ");
-         switch (vlog_kind(decl)) {
-         case V_FUNC_DECL:
-            diag_printf(d, "call non-constant user function");
-            break;
-         case V_VAR_DECL:
-            diag_printf(d, "reference variable");
-            break;
-         case V_NET_DECL:
-            diag_printf(d, "reference net");
-            break;
-         default:
-            diag_printf(d, "reference");
-            break;
-         }
-         diag_printf(d, " '%pi' in constant expression", vlog_ident(decl));
-
-         diag_hint(d, vlog_loc(decl), "%s declared here",
-                   istr(vlog_ident(decl)));
-         diag_emit(d);
-      }
-   }
 
    return tmask;
 }

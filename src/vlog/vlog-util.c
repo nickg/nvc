@@ -317,7 +317,13 @@ unsigned vlog_width(vlog_node_t v)
          CANNOT_HANDLE(v);
       }
    case V_SYS_FCALL:
-      return 32;  // TODO: call VPI
+      switch (vlog_subkind(v)) {
+      case V_SYSTF_UNSIGNED:
+      case V_SYSTF_SIGNED:
+         return vlog_width(vlog_param(v, 0));
+      default:
+         return 32;  // TODO: call VPI
+      }
    default:
       CANNOT_HANDLE(v);
    }
@@ -335,7 +341,7 @@ bool vlog_is_signed(vlog_node_t v)
    case V_FUNC_DECL:
    case V_LOCALPARAM:
    case V_LOCAL_DECL:
-      return !!(vlog_flags(vlog_type(v)) & VLOG_F_SIGNED);
+      return vlog_is_signed(vlog_type(v));
    case V_REF:
    case V_MEMBER_REF:
       return vlog_has_ref(v) && vlog_is_signed(vlog_ref(v));
@@ -345,7 +351,15 @@ bool vlog_is_signed(vlog_node_t v)
    case V_UNARY:
       return vlog_is_signed(vlog_value(v));
    case V_BINARY:
-      return vlog_is_signed(vlog_left(v)) && vlog_is_signed(vlog_right(v));
+      switch (vlog_subkind(v)) {
+      case V_BINARY_SHIFT_LL:
+      case V_BINARY_SHIFT_RL:
+      case V_BINARY_SHIFT_LA:
+      case V_BINARY_SHIFT_RA:
+         return vlog_is_signed(vlog_left(v));
+      default:
+         return vlog_is_signed(vlog_left(v)) && vlog_is_signed(vlog_right(v));
+      }
    case V_COND_EXPR:
       return vlog_is_signed(vlog_left(v)) && vlog_is_signed(vlog_right(v));
    case V_SYS_FCALL:
@@ -356,6 +370,8 @@ bool vlog_is_signed(vlog_node_t v)
       }
    case V_MIN_TYP_MAX:
       return vlog_is_signed(vlog_value(v));
+   case V_DATA_TYPE:
+      return !!(vlog_flags(v) & VLOG_F_SIGNED);
    default:
       return false;
    }

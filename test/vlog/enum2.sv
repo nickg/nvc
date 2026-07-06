@@ -5,7 +5,8 @@ module enum2;
   t_y var1;  // OK
   enum byte { e = 6, f } z;    // OK
   enum byte { g = f, h } zz;   // OK
-  enum byte { i = zz, j } zzz; // Error
+  enum byte { i = zz, j = 4 } zzz; // Error
   enum logic [3:0] { A = 4'b0000, B = 4'b0001} x; // OK
+  enum { aa = 1, bb = 1 } bbb; // Error
 
 endmodule // enum2
