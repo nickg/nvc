@@ -2046,6 +2046,23 @@ START_TEST(test_constfunc2)
 }
 END_TEST
 
+START_TEST(test_disable1)
+{
+   input_from_file(TESTDIR "/vlog/disable1.v");
+
+   const error_t expect[] = {
+      {  6, "no visible label 'bar'" },
+      {  7, "cannot disable 'x'" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   do_parse_only(V_MODULE);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_vlog_tests(void)
 {
    Suite *s = suite_create("vlog");
@@ -2121,6 +2138,7 @@ Suite *get_vlog_tests(void)
    tcase_add_test(tc, test_href2);
    tcase_add_test(tc, test_href3);
    tcase_add_test(tc, test_constfunc2);
+   tcase_add_test(tc, test_disable1);
    suite_add_tcase(s, tc);
 
    return s;

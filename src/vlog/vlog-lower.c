@@ -40,6 +40,8 @@
 #include <string.h>
 #include <stdlib.h>
 
+typedef struct _gen_stack gen_stack_t;
+
 typedef struct {
    mir_type_t  type;
    mir_stamp_t stamp;
@@ -57,6 +59,24 @@ typedef struct {
    mir_type_t  type;
    unsigned    size;
 } vlog_select_t;
+
+typedef struct {
+   ident_t     name;
+   mir_block_t test_bb;
+   mir_block_t exit_bb;
+} loop_info_t;
+
+typedef struct {
+   ident_t     name;
+   mir_block_t exit_bb;
+} block_info_t;
+
+struct _gen_stack {
+   gen_stack_t   *up;
+   loop_info_t   *loop;
+   block_info_t  *block;
+   cover_scope_t *cscope;
+};
 
 typedef struct {
    mir_unit_t    *mu;
@@ -79,7 +99,7 @@ typedef enum {
    const mir_saved_loc_t _old_loc =                                     \
       _mir_push_debug_info((mu), vlog_loc((v)));
 
-static void vlog_lower_stmts(vlog_gen_t *g, vlog_node_t v);
+static void vlog_lower_stmts(vlog_gen_t *g, vlog_node_t v, gen_stack_t *gs);
 static mir_value_t vlog_lower_rvalue(vlog_gen_t *g, vlog_node_t v);
 static mir_value_t vlog_lower_with_context(vlog_gen_t *g, vlog_node_t v,
                                            mir_type_t context);
@@ -213,6 +233,16 @@ static mir_value_t vlog_get_temp(vlog_gen_t *g, mir_type_t type)
 
    ihash_put(g->temps, type.bits, (void *)(uintptr_t)temp.bits);
    return temp;
+}
+
+static gen_stack_t vlog_push_block(gen_stack_t *gs, block_info_t *block)
+{
+   gen_stack_t this = {
+      .block  = block,
+      .cscope = gs->cscope,
+      .up     = gs,
+   };
+   return this;
 }
 
 static mir_value_t vlog_lower_x(vlog_gen_t *g, mir_type_t type)
@@ -2061,7 +2091,7 @@ static mir_value_t vlog_lower_trigger_var(vlog_gen_t *g, vlog_node_t v)
    return var;
 }
 
-static void vlog_lower_timing(vlog_gen_t *g, vlog_node_t v)
+static void vlog_lower_timing(vlog_gen_t *g, vlog_node_t v, gen_stack_t *gs)
 {
    vlog_node_t ctrl = vlog_value(v);
    switch (vlog_kind(ctrl)) {
@@ -2106,7 +2136,7 @@ static void vlog_lower_timing(vlog_gen_t *g, vlog_node_t v)
       CANNOT_HANDLE(ctrl);
    }
 
-   vlog_lower_stmts(g, v);
+   vlog_lower_stmts(g, v, gs);
 }
 
 static mir_value_t vlog_lower_default_value(vlog_gen_t *g,
@@ -2249,7 +2279,7 @@ static void vlog_lower_non_blocking_assignment(vlog_gen_t *g, vlog_node_t v)
    }
 }
 
-static void vlog_lower_if(vlog_gen_t *g, vlog_node_t v)
+static void vlog_lower_if(vlog_gen_t *g, vlog_node_t v, gen_stack_t *gs)
 {
    mir_block_t exit_bb = MIR_NULL_BLOCK;
 
@@ -2277,7 +2307,7 @@ static void vlog_lower_if(vlog_gen_t *g, vlog_node_t v)
          mir_set_cursor(g->mu, btrue, MIR_APPEND);
       }
 
-      vlog_lower_stmts(g, c);
+      vlog_lower_stmts(g, c, gs);
 
       if (!mir_block_finished(g->mu, MIR_NULL_BLOCK)) {
          if (mir_is_null(exit_bb))
@@ -2295,19 +2325,19 @@ static void vlog_lower_if(vlog_gen_t *g, vlog_node_t v)
       mir_set_cursor(g->mu, exit_bb, MIR_APPEND);
 }
 
-static void vlog_lower_forever(vlog_gen_t *g, vlog_node_t v)
+static void vlog_lower_forever(vlog_gen_t *g, vlog_node_t v, gen_stack_t *gs)
 {
    mir_block_t body_bb = mir_add_block(g->mu);
    mir_build_jump(g->mu, body_bb);
 
    mir_set_cursor(g->mu, body_bb, MIR_APPEND);
 
-   vlog_lower_stmts(g, v);
+   vlog_lower_stmts(g, v, gs);
 
    mir_build_jump(g->mu, body_bb);
 }
 
-static void vlog_lower_repeat(vlog_gen_t *g, vlog_node_t v)
+static void vlog_lower_repeat(vlog_gen_t *g, vlog_node_t v, gen_stack_t *gs)
 {
    mir_type_t t_offset = mir_offset_type(g->mu);
    mir_value_t i_var = mir_add_var(g->mu, t_offset, MIR_NULL_STAMP,
@@ -2330,7 +2360,7 @@ static void vlog_lower_repeat(vlog_gen_t *g, vlog_node_t v)
 
    mir_set_cursor(g->mu, body_bb, MIR_APPEND);
 
-   vlog_lower_stmts(g, v);
+   vlog_lower_stmts(g, v, gs);
 
    if (!mir_block_finished(g->mu, MIR_NULL_BLOCK)) {
       mir_value_t i_val = mir_build_load(g->mu, i_var);
@@ -2346,7 +2376,7 @@ static void vlog_lower_repeat(vlog_gen_t *g, vlog_node_t v)
    mir_set_cursor(g->mu, cont_bb, MIR_APPEND);
 }
 
-static void vlog_lower_while(vlog_gen_t *g, vlog_node_t v)
+static void vlog_lower_while(vlog_gen_t *g, vlog_node_t v, gen_stack_t *gs)
 {
    mir_block_t test_bb = mir_add_block(g->mu);
    mir_block_t body_bb = mir_add_block(g->mu);
@@ -2362,7 +2392,7 @@ static void vlog_lower_while(vlog_gen_t *g, vlog_node_t v)
 
    mir_set_cursor(g->mu, body_bb, MIR_APPEND);
 
-   vlog_lower_stmts(g, v);
+   vlog_lower_stmts(g, v, gs);
 
    if (!mir_block_finished(g->mu, MIR_NULL_BLOCK))
       mir_build_jump(g->mu, test_bb);
@@ -2370,7 +2400,7 @@ static void vlog_lower_while(vlog_gen_t *g, vlog_node_t v)
    mir_set_cursor(g->mu, cont_bb, MIR_APPEND);
 }
 
-static void vlog_lower_for_loop(vlog_gen_t *g, vlog_node_t v)
+static void vlog_lower_for_loop(vlog_gen_t *g, vlog_node_t v, gen_stack_t *gs)
 {
    mir_comment(g->mu, "Begin for loop");
 
@@ -2378,7 +2408,7 @@ static void vlog_lower_for_loop(vlog_gen_t *g, vlog_node_t v)
    assert(vlog_kind(init) == V_FOR_INIT);
 
    vlog_lower_locals(g, init);
-   vlog_lower_stmts(g, init);
+   vlog_lower_stmts(g, init, gs);
 
    mir_block_t body_bb = mir_add_block(g->mu);
    mir_block_t step_bb = mir_add_block(g->mu);
@@ -2399,7 +2429,7 @@ static void vlog_lower_for_loop(vlog_gen_t *g, vlog_node_t v)
 
    mir_comment(g->mu, "For loop body");
 
-   vlog_lower_stmts(g, v);
+   vlog_lower_stmts(g, v, gs);
 
    if (!mir_block_finished(g->mu, MIR_NULL_BLOCK))
       mir_build_jump(g->mu, step_bb);
@@ -2422,7 +2452,19 @@ static void vlog_lower_for_loop(vlog_gen_t *g, vlog_node_t v)
    mir_comment(g->mu, "End for loop");
 }
 
-static void vlog_lower_case(vlog_gen_t *g, vlog_node_t v)
+static void vlog_lower_disable(vlog_gen_t *g, vlog_node_t v, gen_stack_t *gs)
+{
+   ident_t name = vlog_ident(v);
+
+   for (gen_stack_t *it = gs; it != NULL; it = it->up) {
+      if (it->block != NULL && it->block->name == name) {
+         mir_build_jump(g->mu, it->block->exit_bb);
+         return;
+      }
+   }
+}
+
+static void vlog_lower_case(vlog_gen_t *g, vlog_node_t v, gen_stack_t *gs)
 {
    mir_comment(g->mu, "Begin case statement");
 
@@ -2555,7 +2597,7 @@ static void vlog_lower_case(vlog_gen_t *g, vlog_node_t v)
       assert(vlog_kind(item) == V_CASE_ITEM);
 
       mir_set_cursor(g->mu, blocks[i], MIR_APPEND);
-      vlog_lower_stmts(g, item);
+      vlog_lower_stmts(g, item, gs);
 
       if (!mir_block_finished(g->mu, MIR_NULL_BLOCK))
          mir_build_jump(g->mu, exit_bb);
@@ -2642,7 +2684,32 @@ static void vlog_lower_user_tcall(vlog_gen_t *g, vlog_node_t v)
    }
 }
 
-static void vlog_lower_stmts(vlog_gen_t *g, vlog_node_t v)
+static void vlog_lower_seq_block(vlog_gen_t *g, vlog_node_t v, gen_stack_t *gs)
+{
+   vlog_lower_locals(g, v);
+
+   if (vlog_has_ident(v)) {
+      mir_block_t exit_bb = mir_add_block(g->mu);
+
+      block_info_t block = {
+         .name    = vlog_ident(v),
+         .exit_bb = exit_bb,
+      };
+
+      gen_stack_t this = vlog_push_block(gs, &block);
+
+      vlog_lower_stmts(g, v, &this);
+
+      if (!mir_block_finished(g->mu, MIR_NULL_BLOCK))
+         mir_build_jump(g->mu, exit_bb);
+
+      mir_set_cursor(g->mu, exit_bb, MIR_APPEND);
+   }
+   else
+      vlog_lower_stmts(g, v, gs);
+}
+
+static void vlog_lower_stmts(vlog_gen_t *g, vlog_node_t v, gen_stack_t *gs)
 {
    const int nstmts = vlog_stmts(v);
    for (int i = 0; i < nstmts; i++) {
@@ -2651,7 +2718,7 @@ static void vlog_lower_stmts(vlog_gen_t *g, vlog_node_t v)
 
       switch (vlog_kind(s)) {
       case V_TIMING:
-         vlog_lower_timing(g, s);
+         vlog_lower_timing(g, s, gs);
          break;
       case V_BASSIGN:
          vlog_lower_blocking_assignment(g, s);
@@ -2663,29 +2730,28 @@ static void vlog_lower_stmts(vlog_gen_t *g, vlog_node_t v)
          vlog_lower_operator_assignment(g, s);
          break;
       case V_SEQ_BLOCK:
-         vlog_lower_locals(g, s);
-         vlog_lower_stmts(g, s);
+         vlog_lower_seq_block(g, s, gs);
          break;
       case V_SYS_TCALL:
          vlog_lower_sys_tfcall(g, s);
          break;
       case V_IF:
-         vlog_lower_if(g, s);
+         vlog_lower_if(g, s, gs);
          break;
       case V_FOREVER:
-         vlog_lower_forever(g, s);
+         vlog_lower_forever(g, s, gs);
          break;
       case V_REPEAT:
-         vlog_lower_repeat(g, s);
+         vlog_lower_repeat(g, s, gs);
          break;
       case V_WHILE:
-         vlog_lower_while(g, s);
+         vlog_lower_while(g, s, gs);
          break;
       case V_FOR_LOOP:
-         vlog_lower_for_loop(g, s);
+         vlog_lower_for_loop(g, s, gs);
          break;
       case V_CASE:
-         vlog_lower_case(g, s);
+         vlog_lower_case(g, s, gs);
          break;
       case V_POSTFIX:
          vlog_lower_rvalue(g, s);
@@ -2696,6 +2762,9 @@ static void vlog_lower_stmts(vlog_gen_t *g, vlog_node_t v)
       case V_USER_TCALL:
          vlog_lower_user_tcall(g, s);
          break;
+      case V_DISABLE:
+         vlog_lower_disable(g, s, gs);
+         return;
       default:
          CANNOT_HANDLE(s);
       }
@@ -2747,7 +2816,9 @@ static void vlog_lower_always(vlog_gen_t *g, vlog_node_t v)
 
    mir_set_cursor(g->mu, start_bb, MIR_APPEND);
 
-   vlog_lower_stmts(g, v);
+   gen_stack_t gs = {};
+
+   vlog_lower_stmts(g, v, &gs);
 
    if (!mir_block_finished(g->mu, MIR_NULL_BLOCK))
       mir_build_jump(g->mu, start_bb);
@@ -2762,7 +2833,9 @@ static void vlog_lower_initial(vlog_gen_t *g, vlog_node_t v)
 
    mir_set_cursor(g->mu, start_bb, MIR_APPEND);
 
-   vlog_lower_stmts(g, v);
+   gen_stack_t gs = {};
+
+   vlog_lower_stmts(g, v, &gs);
 
    if (!mir_block_finished(g->mu, MIR_NULL_BLOCK))
       mir_build_return(g->mu, MIR_NULL_VALUE);
@@ -2785,7 +2858,9 @@ static void vlog_lower_final(vlog_gen_t *g, vlog_node_t v)
 
    mir_set_cursor(g->mu, final_bb, MIR_APPEND);
 
-   vlog_lower_stmts(g, v);
+   gen_stack_t gs = {};
+
+   vlog_lower_stmts(g, v, &gs);
 
    if (!mir_block_finished(g->mu, MIR_NULL_BLOCK))
       mir_build_return(g->mu, MIR_NULL_VALUE);
@@ -3590,8 +3665,10 @@ static void vlog_lower_func_decl(mir_unit_t *mu, object_t *obj)
 
    mir_build_store(mu, result, vlog_lower_default_value(&g, ti));
 
+   gen_stack_t gs = {};
+
    vlog_lower_locals(&g, v);
-   vlog_lower_stmts(&g, v);
+   vlog_lower_stmts(&g, v, &gs);
 
    if (!mir_block_finished(mu, MIR_NULL_BLOCK))
       mir_build_return(mu, mir_build_load(mu, result));
@@ -3636,8 +3713,10 @@ static void vlog_lower_task_decl(mir_unit_t *mu, object_t *obj)
       }
    }
 
+   gen_stack_t gs = {};
+
    vlog_lower_locals(&g, v);
-   vlog_lower_stmts(&g, v);
+   vlog_lower_stmts(&g, v, &gs);
 
    if (!mir_block_finished(mu, MIR_NULL_BLOCK))
       mir_build_jump(mu, g.exit);
@@ -4336,12 +4415,14 @@ mir_unit_t *vlog_lower_thunk(mir_context_t *mc, ident_t parent, vlog_node_t v)
       .mu = mu,
    };
 
+   gen_stack_t gs = {};
+
    switch (vlog_kind(v)) {
    case V_FOR_INIT:
       assert(vlog_decls(v) == 0);   // TODO
       // Fall-through
    case V_FOR_STEP:
-      vlog_lower_stmts(&g, v);
+      vlog_lower_stmts(&g, v, &gs);
       mir_build_return(mu, MIR_NULL_VALUE);
       break;
    case V_LOCALPARAM:
