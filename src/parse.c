@@ -3787,19 +3787,32 @@ static tree_t p_name(name_mask_t stop_mask)
 
    BEGIN("name");
 
-   ident_t id = NULL;
-   switch (peek()) {
+   name_mask_t mask;
+   tree_t prefix;
+   token_t first = peek();
+   switch (first) {
    case tSTRING:
-      id = p_operator_symbol();
-      break;
-
    case tID:
-      id = p_identifier();
+      {
+         ident_t id;
+         if (first == tSTRING)
+            id = p_operator_symbol();
+         else
+            id = p_identifier();
+
+         tree_t decl = NULL;
+         mask = query_name(nametab, id, &decl);
+
+         prefix = tree_new(T_REF);
+         tree_set_ident(prefix, id);
+         tree_set_loc(prefix, CURRENT_LOC);
+         tree_set_ref(prefix, decl);
+      }
       break;
-
    case tLTLT:
-      return p_external_name();
-
+      prefix = p_external_name();
+      mask = N_OBJECT;
+      break;
    default:
       {
          expect(tSTRING, tID);
@@ -3811,14 +3824,6 @@ static tree_t p_name(name_mask_t stop_mask)
          return dummy;
       }
    }
-
-   tree_t decl = NULL;
-   name_mask_t mask = query_name(nametab, id, &decl);
-
-   tree_t prefix = tree_new(T_REF);
-   tree_set_ident(prefix, id);
-   tree_set_loc(prefix, CURRENT_LOC);
-   tree_set_ref(prefix, decl);
 
    for (;;) {
       switch (peek()) {

@@ -8,6 +8,8 @@
   system tasks.
 - Elaboration now supports multiple top level design units (#1588).
 - Verilog hierarchical references are now supported.
+- External names are now allowed in the prefix of selected or indexed
+  names (#1602, #1603).
 - Several other minor bugs were resolved (#1587, #1594, #1409, #1597,
   #1599, #1600).
 
