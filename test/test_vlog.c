@@ -2063,6 +2063,22 @@ START_TEST(test_disable1)
 }
 END_TEST
 
+START_TEST(test_issue1596)
+{
+   input_from_file(TESTDIR "/vlog/issue1596.v");
+
+   const error_t expect[] = {
+      { 10, "unexpected identifier while parsing module or generate item" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   do_parse_only(V_MODULE);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_vlog_tests(void)
 {
    Suite *s = suite_create("vlog");
@@ -2139,6 +2155,7 @@ Suite *get_vlog_tests(void)
    tcase_add_test(tc, test_href3);
    tcase_add_test(tc, test_constfunc2);
    tcase_add_test(tc, test_disable1);
+   tcase_add_test(tc, test_issue1596);
    suite_add_tcase(s, tc);
 
    return s;

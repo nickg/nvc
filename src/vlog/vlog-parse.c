@@ -6287,12 +6287,16 @@ static void p_module_or_generate_item(vlog_node_t mod)
    case tID:
       {
          vlog_node_t ref = peek_reference();
-         if (ref == NULL)
+         if (ref == NULL) {
             p_module_or_udp_instantiation(mod);
-         else
+            break;
+         }
+         else if (is_data_type(ref) || peek_nth(2) == tID) {
             p_module_common_item(mod);
+            break;
+         }
       }
-      break;
+      // Fall-through
    default:
       expect(tALWAYS, tALWAYSCOMB, tALWAYSFF, tALWAYSLATCH, tWIRE, tUWIRE,
              tSUPPLY0, tSUPPLY1, tTRI,  tTRI0, tTRI1, tTRIAND, tTRIOR, tTRIREG,
