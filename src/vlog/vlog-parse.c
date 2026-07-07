@@ -2319,6 +2319,9 @@ static vlog_node_t p_seq_block(ident_t id)
 
    skip_over_attributes();
 
+   if (vlog_has_ident(v))
+      vlog_symtab_put(symtab, v);
+
    while (scan_block_item_declaration()) {
       p_block_item_declaration(v);
       skip_over_attributes();
@@ -2863,8 +2866,29 @@ static vlog_node_t p_disable_statement(void)
 
    consume(tDISABLE);
 
+   ident_t id = p_identifier();
+
+   vlog_node_t decl = vlog_symtab_query(symtab, id);
+   if (decl == NULL)
+      error_at(&state.last_loc, "no visible label '%pi'", id);
+   else {
+      switch (vlog_kind(decl)) {
+      case V_SEQ_BLOCK:
+      case V_TASK_DECL:
+         break;
+      default:
+         {
+            diag_t *d = diag_new(DIAG_ERROR, &state.last_loc);
+            diag_printf(d, "cannot disable '%pi'", id);
+            diag_hint(d, vlog_loc(decl), "'%pi' declared here", id);
+            diag_emit(d);
+         }
+         break;
+      }
+   }
+
    vlog_node_t v = vlog_new(V_DISABLE);
-   vlog_set_ident(v, p_identifier());
+   vlog_set_ident(v, id);
 
    consume(tSEMI);
 
