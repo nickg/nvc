@@ -115,6 +115,7 @@ static void build_sensitivity(vlog_node_t ctrl, vlog_node_t v, hset_t *set,
    case V_BIT_SELECT:
    case V_PART_SELECT:
    case V_MEMBER_REF:
+   case V_HIER_REF:
       {
          vlog_node_t lsp = vlog_longest_static_prefix(v);
          if (lsp == NULL)

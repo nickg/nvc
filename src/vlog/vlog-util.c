@@ -426,8 +426,11 @@ bool is_implicit_data_type(vlog_node_t v)
 vlog_node_t vlog_longest_static_prefix(vlog_node_t v)
 {
    switch (vlog_kind(v)) {
-   case V_REF:
    case V_HIER_REF:
+      if (!vlog_has_ref(v))
+         return v;
+      // Fall-through
+   case V_REF:
       switch (vlog_kind(vlog_ref(v))) {
       case V_PARAM_DECL:
       case V_LOCALPARAM:
