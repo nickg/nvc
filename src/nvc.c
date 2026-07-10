@@ -1650,6 +1650,9 @@ static int do_cmd(int argc, char **argv, cmd_state_t *state)
    vpi_context_free(state->vpi);
    state->vpi = NULL;
 
+   if (get_vhdl_assert_exit_status() != 0)
+      return EXIT_FAILURE;
+
    argc -= next_cmd - 1;
    argv += next_cmd - 1;
 
