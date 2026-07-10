@@ -71,6 +71,7 @@ typedef struct _tcl_shell {
    jit_t           *jit;
    int64_t          now_var;
    unsigned         deltas_var;
+   int              interactive_var;
    printer_t       *printer;
    get_line_fn_t    getline;
    shell_handler_t  handler;

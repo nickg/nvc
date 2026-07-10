@@ -31,6 +31,9 @@ START_TEST(test_sanity)
    fail_unless(shell_eval(sh, "expr 1 + 2", &result));
    ck_assert_str_eq(result, "3");
 
+   fail_unless(shell_eval(sh, "set tcl_interactive", &result));
+   ck_assert_str_eq(result, "0");
+
    shell_free(sh);
 }
 END_TEST

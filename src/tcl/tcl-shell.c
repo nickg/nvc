@@ -881,6 +881,8 @@ tcl_shell_t *shell_new(tree_t top, jit_t *jit, rt_model_t *m)
                TCL_LINK_WIDE_INT | TCL_LINK_READ_ONLY);
    Tcl_LinkVar(sh->interp, "deltas", (char *)&sh->deltas_var,
                TCL_LINK_UINT | TCL_LINK_READ_ONLY);
+   Tcl_LinkVar(sh->interp, "tcl_interactive", (char *)&sh->interactive_var,
+               TCL_LINK_INT | TCL_LINK_READ_ONLY);
 
    {
       LOCAL_TEXT_BUF tb = tb_new();
@@ -1046,6 +1048,9 @@ void shell_reset(tcl_shell_t *sh)
 
 void shell_interact(tcl_shell_t *sh)
 {
+   sh->interactive_var = 1;
+   Tcl_UpdateLinkedVar(sh->interp, "tcl_interactive");
+
    shell_print_banner(sh);
 
    char *line;
@@ -1056,6 +1061,9 @@ void shell_interact(tcl_shell_t *sh)
 
       free(line);
    }
+
+   sh->interactive_var = 0;
+   Tcl_UpdateLinkedVar(sh->interp, "tcl_interactive");
 }
 
 bool shell_do(tcl_shell_t *sh, const char *file)
