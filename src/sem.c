@@ -4054,6 +4054,10 @@ static bool sem_check_record_ref(tree_t t, nametab_t *tab)
 static bool sem_check_array_ref(tree_t t, nametab_t *tab)
 {
    tree_t value = tree_value(t);
+   if (!tree_has_type(value))
+      sem_error(t, "%s %pI can't be indexed", class_str(class_of(value)),
+                tree_ident(value));
+
    if (!sem_check(value, tab))
       return false;
 
@@ -4095,6 +4099,10 @@ static bool sem_check_array_ref(tree_t t, nametab_t *tab)
 static bool sem_check_array_slice(tree_t t, nametab_t *tab)
 {
    tree_t value = tree_value(t);
+   if (!tree_has_type(value))
+      sem_error(t, "%s %pI can't be sliced", class_str(class_of(value)),
+                tree_ident(value));
+
    if (!sem_check(value, tab))
       return false;
 

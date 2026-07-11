@@ -7708,6 +7708,31 @@ START_TEST(test_issue1607)
 }
 END_TEST
 
+START_TEST(test_issue1610)
+{
+   input_from_file(TESTDIR "/parse/issue1610.vhd");
+
+   const error_t expect[] = {
+      { 36, "label U can't be indexed" },
+      { 42, "U already declared in this region" },
+      { 50, "entity SCOPE_DEMO can't be indexed" },
+      { 51, "architecture RTL can't be indexed" },
+      { 52, "library IEEE can't be indexed" },
+      { 53, "package IEEE.STD_LOGIC_1164 can't be indexed" },
+      { 54, "entity SCOPE_DEMO can't be sliced" },
+      { 55, "architecture RTL can't be sliced" },
+      { 56, "library IEEE can't be sliced" },
+      { 57, "package IEEE.STD_LOGIC_1164 can't be sliced" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_ENTITY, T_ARCH, T_ENTITY, T_ARCH);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_parse_tests(void)
 {
    Suite *s = suite_create("parse");
@@ -7913,6 +7938,7 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_issue1535);
    tcase_add_test(tc_core, test_issue1560);
    tcase_add_test(tc_core, test_issue1607);
+   tcase_add_test(tc_core, test_issue1610);
    suite_add_tcase(s, tc_core);
 
    return s;

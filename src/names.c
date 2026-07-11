@@ -4783,7 +4783,8 @@ static tree_t solve_array_ref(nametab_t *tab, tree_t t)
    if (conv != NULL)
       return _solve_types(tab, conv);
 
-   type_t base_type = tree_type(deref);
+   type_t base_type = tree_has_type(deref)
+      ? tree_type(deref) : type_new(T_NONE);
 
    const int nparams = tree_params(t);
    for (int i = 0; i < nparams; i++) {
@@ -4822,7 +4823,7 @@ static tree_t solve_array_slice(nametab_t *tab, tree_t t)
    tree_t deref = implicit_dereference(tab, value);
    tree_set_value(t, deref);
 
-   type_t type = tree_type(deref);
+   type_t type = tree_has_type(deref) ? tree_type(deref) : type_new(T_NONE);
    type_t index_type = index_type_of(type, 0);
 
    tree_t r = tree_range(t, 0);
