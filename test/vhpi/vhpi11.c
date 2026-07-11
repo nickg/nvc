@@ -23,21 +23,18 @@ static vhpiHandleT handle_sos;
 
 static void start_of_sim(const vhpiCbDataT *cb_data)
 {
-   vhpiHandleT root = vhpi_handle(vhpiRootInst, NULL);
-   check_error();
+   vhpiHandleT root = VHPI_CHECK(vhpi_handle(vhpiRootInst, NULL));
    fail_if(root == NULL);
    vhpi_printf("root handle %p", root);
 
-   vhpiHandleT g0 = vhpi_handle_by_name("g0", root);
-   check_error();
+   vhpiHandleT g0 = VHPI_CHECK(vhpi_handle_by_name("g0", root));
    fail_if(g0 == NULL);
    vhpi_printf("g0 handle %p", g0);
    fail_unless(vhpi_get(vhpiKindP, g0) == vhpiGenericDeclK);
    fail_unless(vhpi_get(vhpiModeP, g0) == vhpiInMode);
    fail_unless(vhpi_get(vhpiIsLocalP, g0) == vhpiFalse);
 
-   vhpiHandleT g0x = vhpi_handle_by_name("g0.x", root);
-   check_error();
+   vhpiHandleT g0x = VHPI_CHECK(vhpi_handle_by_name("g0.x", root));
    fail_if(g0x == NULL);
    vhpi_printf("g0x handle %p", g0x);
    fail_unless(vhpi_get(vhpiKindP, g0x) == vhpiSelectedNameK);
@@ -49,37 +46,33 @@ static void start_of_sim(const vhpiCbDataT *cb_data)
    vhpiValueT value = {
       .format = vhpiObjTypeVal
    };
-   vhpi_get_value(g0x, &value);
-   check_error();
+   VHPI_CHECK(vhpi_get_value(g0x, &value));
    fail_unless(value.format == vhpiIntVal);
    vhpi_printf("g0.x value=%d", value.value.intg);
    fail_unless(value.value.intg == 55);
    fail_unless(value.numElems == 1);
 
-   vhpiHandleT g0y = vhpi_handle_by_name("g0.y", root);
-   check_error();
+   vhpiHandleT g0y = VHPI_CHECK(vhpi_handle_by_name("g0.y", root));
 
    value.format = vhpiObjTypeVal;
    value.bufSize = 0;
    value.value.str = NULL;
 
-   const int bufsz = vhpi_get_value(g0y, &value);
-   check_error();
+   const int bufsz = VHPI_CHECK(vhpi_get_value(g0y, &value));
    fail_unless(value.format == vhpiStrVal);
    fail_unless(bufsz == 6);
 
    vhpiCharT str[6];
    value.value.str = str;
    value.bufSize = sizeof(str);
-   vhpi_get_value(g0y, &value);
-   check_error();
+   VHPI_CHECK(vhpi_get_value(g0y, &value));
    fail_unless(value.numElems == 5);
    vhpi_printf("g0.y value '%s'", (char *)str);
    fail_unless(strcmp((char *)str, "hello") == 0);
    fail_unless(vhpi_get(vhpiSizeP, g0y) == 5);
 
-   vhpiHandleT g0y2 = vhpi_handle_by_index(vhpiIndexedNames, g0y, 2);
-   check_error();
+   vhpiHandleT g0y2 =
+      VHPI_CHECK(vhpi_handle_by_index(vhpiIndexedNames, g0y, 2));
    fail_if(g0y2 == NULL);
 
    value.format = vhpiCharVal;
@@ -100,7 +93,7 @@ static void start_of_sim(const vhpiCbDataT *cb_data)
       vhpiHandleT x_elem = VHPI_CHECK(vhpi_scan(it));
       fail_if(x_elem == NULL);
       fail_unless(vhpi_get(vhpiKindP, x_elem) == vhpiElemDeclK);
-      fail_unless(strcmp((char *)vhpi_get_str(vhpiNameP, x_elem), "X") == 0);
+      fail_unless(strcmp((char *)vhpi_get_str(vhpiNameP, x_elem), "x") == 0);
       fail_unless(vhpi_get(vhpiPositionP, x_elem) == 0);
 
       vhpiHandleT x_type = VHPI_CHECK(vhpi_handle(vhpiType, x_elem));
@@ -114,7 +107,7 @@ static void start_of_sim(const vhpiCbDataT *cb_data)
       vhpiHandleT y_elem = VHPI_CHECK(vhpi_scan(it));
       fail_if(y_elem == NULL);
       fail_unless(vhpi_get(vhpiKindP, y_elem) == vhpiElemDeclK);
-      fail_unless(strcmp((char *)vhpi_get_str(vhpiNameP, y_elem), "Y") == 0);
+      fail_unless(strcmp((char *)vhpi_get_str(vhpiNameP, y_elem), "y") == 0);
       fail_unless(vhpi_get(vhpiPositionP, y_elem) == 1);
 
       vhpiHandleT y_type = VHPI_CHECK(vhpi_handle(vhpiType, y_elem));
@@ -137,26 +130,10 @@ static void start_of_sim(const vhpiCbDataT *cb_data)
 
    vhpiHandleT t_base = VHPI_CHECK(vhpi_handle(vhpiBaseType, t_sig));
    fail_unless(vhpi_get(vhpiKindP, t_base) == vhpiArrayTypeDeclK);
-
-   {
-      vhpiHandleT it = VHPI_CHECK(vhpi_iterator(vhpiConstraints, t_base));
-
-      vhpiHandleT range = VHPI_CHECK(vhpi_scan(it));
-      vhpi_printf("t_base left bound %d", vhpi_get(vhpiLeftBoundP, range));
-      vhpi_printf("t_base right bound %d", vhpi_get(vhpiRightBoundP, range));
-      // XXX: should be undefined/unconstrained!
-      fail_unless(vhpi_get(vhpiLeftBoundP, range) == 1);
-      fail_unless(vhpi_get(vhpiRightBoundP, range) == 3);
-      fail_unless(vhpi_get(vhpiIsUpP, range));
-      vhpi_release_handle(range);
-
-      fail_unless(vhpi_scan(it) == NULL);
-      vhpi_release_handle(it);
-   }
+   fail_unless(vhpi_iterator(vhpiConstraints, t_base) == NULL);
 
    vhpiHandleT t_elem = VHPI_CHECK(vhpi_handle(vhpiElemType, t_base));
-   // XXX: should be vhpiSubtypeDeclk
-   fail_unless(vhpi_get(vhpiKindP, t_elem) == vhpiArrayTypeDeclK);
+   fail_unless(vhpi_get(vhpiKindP, t_elem) == vhpiSubtypeDeclK);
 
    {
       vhpiHandleT it = VHPI_CHECK(vhpi_iterator(vhpiConstraints, t_elem));

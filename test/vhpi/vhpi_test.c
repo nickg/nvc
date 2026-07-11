@@ -86,7 +86,9 @@ void __check_handle(vhpiHandleT h, const char *file, int lineno)
 void __check_string(const vhpiCharT *v, const char *s, const char *file,
                     int lineno)
 {
-   if (strcmp((const char *)v, s) != 0)
+   if (v == NULL)
+      vhpi_assert(vhpiFailure, "%s:%d: (null) != %s", file, lineno, s);
+   else if (strcasecmp((const char *)v, s) != 0)
       vhpi_assert(vhpiFailure, "%s:%d: %s != %s", file, lineno, v, s);
 }
 

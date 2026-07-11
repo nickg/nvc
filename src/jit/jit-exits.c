@@ -906,8 +906,9 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
          const uint8_t *spec   = args[0].pointer;
          size_t         length = args[1].integer;
          tree_t         where  = args[2].pointer;
+         tree_t         region = args[3].pointer;
 
-         jit_bind_foreign(anchor->func, spec, length, where);
+         jit_bind_foreign(anchor->func, spec, length, where, region);
       }
       break;
 

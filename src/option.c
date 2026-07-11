@@ -129,7 +129,7 @@ static int get_int_env(const char *var, int def)
 void set_default_options(void)
 {
    opt_set_int(OPT_RT_STATS, 0);
-   opt_set_int(OPT_RT_TRACE, 0);
+   opt_set_int(OPT_RT_TRACE, get_int_env("NVC_MODEL_VERBOSE", 0));
    opt_set_str(OPT_PLI_TRACE, getenv("NVC_VHPI_VERBOSE"));
    opt_set_int(OPT_DUMP_LLVM, 0);
    opt_set_int(OPT_OPTIMISE, 2);

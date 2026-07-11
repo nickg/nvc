@@ -24,8 +24,7 @@ static void end_of_init(const vhpiCbDataT *cb_data)
    fail_unless(vhpi_get(vhpiNumDimensionsP, s_type) == 1);
    fail_if(vhpi_get(vhpiIsUnconstrainedP, s_type));
 
-   vhpiHandleT s_constrs = vhpi_iterator(vhpiConstraints, s_type);
-   check_error();
+   vhpiHandleT s_constrs = VHPI_CHECK(vhpi_iterator(vhpiConstraints, s_type));
    fail_if(s_constrs == NULL);
 
    vhpiHandleT s_range = vhpi_scan(s_constrs);
@@ -43,13 +42,13 @@ static void end_of_init(const vhpiCbDataT *cb_data)
    fail_if(s_elem == NULL);
    vhpi_printf("s elem type handle %p", s_elem);
 
-   const char *s_elem_type_name = (char *)vhpi_get_str(vhpiNameP, s_elem);
+   const vhpiCharT *s_elem_type_name = vhpi_get_str(vhpiNameP, s_elem);
    vhpi_printf("s elem type name is %s", s_elem_type_name);
-   fail_unless(strcmp(s_elem_type_name, "BIT_VECTOR") == 0);
+   check_string(s_elem_type_name, "BIT_VECTOR");
 
-   const char *s_elem_name = (char *)vhpi_get_str(vhpiFullNameP, s_elem);
+   const vhpiCharT *s_elem_name = vhpi_get_str(vhpiFullNameP, s_elem);
    vhpi_printf("s elem type full name is %s", s_elem_name);
-   fail_unless(strcmp(s_elem_name, "@STD:STANDARD:BIT_VECTOR") == 0);
+   check_string(s_elem_name, "@STD:STANDARD:BIT_VECTOR");
 
    vhpiHandleT s_elem_constrs = vhpi_iterator(vhpiConstraints, s_elem);
    check_error();
@@ -59,14 +58,13 @@ static void end_of_init(const vhpiCbDataT *cb_data)
    check_error();
    fail_if(s_elem_range == NULL);
    fail_unless(vhpi_scan(s_constrs) == NULL);
-   vhpi_printf("s type range handle %p", s_elem_range);
-   vhpi_printf("s left bound %d", vhpi_get(vhpiLeftBoundP, s_elem_range));
-   vhpi_printf("s right bound %d", vhpi_get(vhpiRightBoundP, s_elem_range));
+   vhpi_printf("s elem type range handle %p", s_elem_range);
+   vhpi_printf("s elem left bound %d", vhpi_get(vhpiLeftBoundP, s_elem_range));
+   vhpi_printf("s elem right bound %d", vhpi_get(vhpiRightBoundP, s_elem_range));
    fail_unless(vhpi_get(vhpiLeftBoundP, s_elem_range) == 3);
    fail_unless(vhpi_get(vhpiRightBoundP, s_elem_range) == 0);
 
-   vhpiHandleT s3_signal = vhpi_handle_by_name("s3", root);
-   check_error();
+   vhpiHandleT s3_signal = VHPI_CHECK(vhpi_handle_by_name("s3", root));
    fail_if(s3_signal == NULL);
    vhpi_printf("s3 handle %p", s3_signal);
    fail_unless(vhpi_get(vhpiKindP, s3_signal) == vhpiSigDeclK);
@@ -79,18 +77,16 @@ static void end_of_init(const vhpiCbDataT *cb_data)
    vhpi_printf("s3.f size %d", vhpi_get(vhpiSizeP, s3f));
    fail_unless(vhpi_get(vhpiSizeP, s3f) == 4);
 
-   vhpiHandleT s3f_type = vhpi_handle(vhpiBaseType, s3f);
-   check_error();
+   vhpiHandleT s3f_type = VHPI_CHECK(vhpi_handle(vhpiType, s3f));
    fail_if(s3f_type == NULL);
    vhpi_printf("s3.f type handle %p", s3f_type);
    vhpi_printf("s3.f type name is %s", vhpi_get_str(vhpiNameP, s3f_type));
 
-   vhpiHandleT s3f_constrs = vhpi_iterator(vhpiConstraints, s3f_type);
-   check_error();
+   vhpiHandleT s3f_constrs =
+      VHPI_CHECK(vhpi_iterator(vhpiConstraints, s3f_type));
    fail_if(s3f_constrs == NULL);
 
-   vhpiHandleT s3f_range = vhpi_scan(s3f_constrs);
-   check_error();
+   vhpiHandleT s3f_range = VHPI_CHECK(vhpi_scan(s3f_constrs));
    fail_if(s3f_range == NULL);
    fail_unless(vhpi_scan(s_constrs) == NULL);
    vhpi_printf("s3.f type range handle %p", s3f_range);
@@ -110,8 +106,7 @@ static void end_of_init(const vhpiCbDataT *cb_data)
    vhpi_printf("s3.g size %d", vhpi_get(vhpiSizeP, s3g));
    fail_unless(vhpi_get(vhpiSizeP, s3g) == 4);
 
-   vhpiHandleT s3g_type = vhpi_handle(vhpiBaseType, s3g);
-   check_error();
+   vhpiHandleT s3g_type = VHPI_CHECK(vhpi_handle(vhpiType, s3g));
    fail_if(s3g_type == NULL);
    vhpi_printf("s3.g type handle %p", s3g_type);
    vhpi_printf("s3.g type name is %s", vhpi_get_str(vhpiNameP, s3g_type));

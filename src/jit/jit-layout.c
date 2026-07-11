@@ -58,7 +58,9 @@ static void print_layout(type_t type, const jit_layout_t *l, bool signal)
               type_pp(type), signal ? "$" : "", l->size, l->align);
 
    for (int i = 0; i < l->nparts; i++) {
-      static const char *map[] = { "data", "bounds", "offset", "external" };
+      static const char *map[] = {
+         "data", "bounds", "offset", "external", "signal"
+      };
       printf("  %d: %-8s offset:%u size:%u align:%u repeat:%u\n", i,
              map[l->parts[i].class], l->parts[i].offset, l->parts[i].size,
              l->parts[i].align, l->parts[i].repeat);
@@ -168,8 +170,8 @@ const jit_layout_t *layout_of(type_t type)
          offset += fl->size;
       }
 
-      l->size  = offset;
       l->align = sizeof(void *);  // Matches irgen_align_of
+      l->size  = ALIGN_UP(offset, l->align);
    }
    else
       fatal_trace("cannot get layout for %s", type_pp(type));
@@ -182,7 +184,7 @@ const jit_layout_t *layout_of(type_t type)
 }
 
 const jit_layout_t *signal_layout_of(type_t type)
- {
+{
    assert(type_frozen(type));   // Not safe to cache otherwise
    static hash_t *cache = NULL;
 
@@ -203,7 +205,7 @@ const jit_layout_t *signal_layout_of(type_t type)
       l->parts[0].size   = sizeof(void *);
       l->parts[0].repeat = 1;
       l->parts[0].align  = sizeof(void *);
-      l->parts[0].class  = LC_EXTERNAL;
+      l->parts[0].class  = LC_SIGNAL;
 
       // Offset
       l->parts[1].offset = 8;
@@ -234,39 +236,52 @@ const jit_layout_t *signal_layout_of(type_t type)
          offset += fl->size;
       }
 
-      l->size  = offset;
       l->align = sizeof(void *);  // Matches irgen_align_of
+      l->size  = ALIGN_UP(offset, l->align);
+   }
+   else if (type_const_bounds(type) && !type_is_homogeneous(type)) {
+      const int nelems = count_sub_elements(type);
+      assert(nelems >= 0);
+
+      type_t elem = type_elem_recur(type);
+      const jit_layout_t *el = signal_layout_of(elem);
+
+      l = xcalloc_flex(sizeof(jit_layout_t), 1, sizeof(layout_part_t));
+      l->nparts = 1;
+      l->size   = nelems * el->size;
+      l->align  = el->align;
+
+      l->parts[0].offset = 0;
+      l->parts[0].size   = el->size;
+      l->parts[0].repeat = nelems;
+      l->parts[0].align  = el->align;
+      l->parts[0].class  = LC_DATA;
    }
    else if (type_const_bounds(type)) {
-      const bool has_offset = type_is_homogeneous(type);
-      const int nparts = 1 + has_offset;
-
-      l = xcalloc_flex(sizeof(jit_layout_t), nparts, sizeof(layout_part_t));
-      l->nparts = nparts;
+      l = xcalloc_flex(sizeof(jit_layout_t), 2, sizeof(layout_part_t));
+      l->nparts = 2;
       l->align  = sizeof(void *);
 
       layout_part_t *p = l->parts;
 
-      // Pointer to signal or record data
+      // Shared signal data pointer
       p->offset = 0;
       p->size   = sizeof(void *);
       p->repeat = 1;
       p->align  = sizeof(void *);
-      p->class  = LC_EXTERNAL;
+      p->class  = LC_SIGNAL;
 
       l->size += p->size * p->repeat;
       p++;
 
-      if (has_offset) {
-         p->offset = ALIGN_UP(l->size, 8);
-         p->size   = 8;
-         p->repeat = 1;
-         p->align  = 8;
-         p->class  = LC_OFFSET;
+      p->offset = ALIGN_UP(l->size, 8);
+      p->size   = 8;
+      p->repeat = 1;
+      p->align  = 8;
+      p->class  = LC_OFFSET;
 
-         l->size += p->size * p->repeat;
-         p++;
-      }
+      l->size += p->size * p->repeat;
+      p++;
    }
    else if (type_kind(type) == T_SUBTYPE)   // Reduce number of cached copies
       return signal_layout_of(type_base_recur(type));
@@ -286,7 +301,7 @@ const jit_layout_t *signal_layout_of(type_t type)
       p->size   = sizeof(void *);
       p->repeat = 1;
       p->align  = sizeof(void *);
-      p->class  = LC_EXTERNAL;
+      p->class  = has_offset ? LC_SIGNAL : LC_EXTERNAL;
 
       l->size += p->size * p->repeat;
       p++;

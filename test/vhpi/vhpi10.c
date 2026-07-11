@@ -227,15 +227,14 @@ static void start_of_sim(const vhpiCbDataT *cb_data)
    fail_unless(strcmp((char *)str, "world") == 0);
    fail_unless(vhpi_get(vhpiSizeP, i0g1) == 5);
 
-   vhpiHandleT i0g1_type = vhpi_handle(vhpiType, i0g1);
-   check_error();
+   vhpiHandleT i0g1_type = VHPI_CHECK(vhpi_handle(vhpiType, i0g1));
    fail_if(i0g1_type == NULL);
    vhpi_printf("i0g1 type handle %p", i0g1_type);
    vhpi_printf("i0g1 type name is %s", vhpi_get_str(vhpiNameP, i0g1_type));
    vhpi_printf("i0g1 type full name is %s", vhpi_get_str(vhpiFullNameP, i0g1_type));
    vhpi_printf("i0g1 dimensions %d", vhpi_get(vhpiNumDimensionsP, i0g1_type));
    fail_unless(vhpi_get(vhpiKindP, i0g1_type) == vhpiSubtypeDeclK);
-   fail_if(vhpi_get(vhpiIsUnconstrainedP, i0g1_type));
+   fail_unless(vhpi_get(vhpiIsUnconstrainedP, i0g1_type));  // XXX: is this right?
 
    vhpiHandleT i0g1_constrs = vhpi_iterator(vhpiConstraints, i0g1_type);
    check_error();

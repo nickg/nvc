@@ -938,11 +938,13 @@ static void import_bind_foreign(mir_unit_t *mu, mir_import_t *imp, int op)
    mir_value_t spec = imp->map[vcode_get_arg(op, 0)];
    mir_value_t length = imp->map[vcode_get_arg(op, 1)];
 
-   mir_value_t locus = MIR_NULL_VALUE;
-   if (vcode_count_args(op) > 2)
+   mir_value_t locus = MIR_NULL_VALUE, region = MIR_NULL_VALUE;
+   if (vcode_count_args(op) > 2) {
       locus = imp->map[vcode_get_arg(op, 2)];
+      region = imp->map[vcode_get_arg(op, 3)];
+   }
 
-   mir_build_bind_foreign(mu, spec, length, locus);
+   mir_build_bind_foreign(mu, spec, length, locus, region);
 }
 
 static void import_bind_external(mir_unit_t *mu, mir_import_t *imp, int op)

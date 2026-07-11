@@ -44,4 +44,10 @@
          vhpi_trace(__func__, __VA_ARGS__);             \
    } while (0)
 
+#ifdef DEBUG
+#define VHPI_DEBUG VHPI_TRACE
+#else
+#define VHPI_DEBUG(...)
+#endif
+
 #endif  // _VHPI_MACROS_H

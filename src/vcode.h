@@ -530,7 +530,8 @@ vcode_reg_t emit_function_trigger(ident_t func, const vcode_reg_t *args,
 vcode_reg_t emit_or_trigger(vcode_reg_t left, vcode_reg_t right);
 vcode_reg_t emit_cmp_trigger(vcode_reg_t left, vcode_reg_t right);
 void emit_add_trigger(vcode_reg_t trigger);
-void emit_bind_foreign(vcode_reg_t spec, vcode_reg_t length, vcode_reg_t locus);
+void emit_bind_foreign(vcode_reg_t spec, vcode_reg_t length, vcode_reg_t locus,
+                       vcode_reg_t region);
 vcode_reg_t emit_instance_name(vcode_reg_t kind);
 vcode_reg_t emit_bind_external(vcode_reg_t locus, ident_t scope,
                                vcode_type_t type, vcode_stamp_t bounds,

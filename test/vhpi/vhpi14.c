@@ -24,11 +24,11 @@
 
 static void add2(const vhpiCbDataT *cb_data_p)
 {
-   vhpiHandleT p0 = vhpi_handle_by_index(vhpiParamDecls, cb_data_p->obj, 0);
-   check_error();
+   vhpiHandleT p0 =
+      VHPI_CHECK(vhpi_handle_by_index(vhpiParamDecls, cb_data_p->obj, 0));
    fail_if(p0 == NULL);
    fail_unless(vhpi_get(vhpiKindP, p0) == vhpiConstParamDeclK);
-   fail_unless(strcmp((char *)vhpi_get_str(vhpiNameP, p0), "X") == 0);
+   check_string(vhpi_get_str(vhpiNameP, p0), "X");
 
    vhpiValueT p0val = { .format = vhpiIntVal };
    fail_unless(vhpi_get_value(p0, &p0val) == 0);
@@ -177,26 +177,23 @@ static void iota(const vhpiCbDataT *cb_data_p)
    check_error();
    fail_if(p0 == NULL);
    fail_unless(vhpi_get(vhpiKindP, p0) == vhpiConstParamDeclK);
-   fail_unless(strcmp((char *)vhpi_get_str(vhpiNameP, p0), "N") == 0);
+   check_string(vhpi_get_str(vhpiNameP, p0), "N");
 
    vhpiValueT p0_value = { .format = vhpiIntVal };
-   fail_unless(vhpi_get_value(p0, &p0_value) == 0);
-   check_error();
+   fail_unless(VHPI_CHECK(vhpi_get_value(p0, &p0_value)) == 0);
 
    vhpiValueT result = {
       .format      = vhpiIntVecVal,
       .bufSize     = p0_value.value.intg * sizeof(vhpiIntT),
       .numElems    = p0_value.value.intg,
    };
-   vhpi_put_value(cb_data_p->obj, &result, vhpiSizeConstraint);
-   check_error();
+   VHPI_CHECK(vhpi_put_value(cb_data_p->obj, &result, vhpiSizeConstraint));
 
    result.value.intgs = malloc(result.bufSize);
    for (int i = 0; i < p0_value.value.intg; i++)
       result.value.intgs[i] = i;
 
-   vhpi_put_value(cb_data_p->obj, &result, vhpiDeposit);
-   check_error();
+   VHPI_CHECK(vhpi_put_value(cb_data_p->obj, &result, vhpiDeposit));
 
    free(result.value.intgs);
    vhpi_release_handle(p0);

@@ -460,7 +460,7 @@ void code_blob_print_ir(code_blob_t *blob, jit_ir_t *ir);
 #endif
 
 void jit_bind_foreign(jit_func_t *f, const uint8_t *spec, size_t length,
-                      tree_t where);
+                      tree_t where, tree_t region);
 void jit_do_syscall(vlog_node_t where, jit_anchor_t *caller, jit_scalar_t *args,
                     tlab_t *tlab);
 

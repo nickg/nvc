@@ -5,37 +5,37 @@ tool version is
 seed is 123
 arg is +foo=bar
 root handle
-root name is VHPI1
+root name is vhpi1
 root case name is vhpi1
-root full name is :VHPI1
+root full name is :vhpi1
 root full case name is :vhpi1
-root port is X
-root port is Y
-root signal is V
-root signal is B
-root signal is R
-root decl is V
-root decl is B
-root decl is R
+root port is x
+root port is y
+root signal is v
+root signal is b
+root signal is r
+root decl is v
+root decl is b
+root decl is r
 arch handle
-arch name is VHPI1-TEST
+arch name is vhpi1-test
 arch unit name is WORK.vhpi1-test
 entity handle
-entity name is VHPI1
+entity name is vhpi1
 entity unit name is WORK.vhpi1
 x handle
-x name X
-x full name is :VHPI1:X
+x name x
+x full name is :vhpi1:x
 y handle
-y name Y
-y full name is :VHPI1:Y
+y name y
+y full name is :vhpi1:y
 r handle
 r type handle
-r type name is ZERO_TO_ONE
-r type full name is @WORK:VHPI1-TEST:ZERO_TO_ONE
+r type name is zero_to_one
+r type full name is :vhpi1:zero_to_one
 v handle
-v name is V
-v full name is :VHPI1:V
+v name is v
+v full name is :vhpi1:v
 v type handle
 v type name is BIT_VECTOR
 v type full name is @STD:STANDARD:BIT_VECTOR
@@ -48,11 +48,11 @@ v elem type name is BIT
 v elem type full name is @STD:STANDARD:BIT
 v elem literal 0 is '0'
 v elem literal 1 is '1'
-v indexed name is V(3)
-v indexed name is V(2)
-v indexed name is V(1)
-v indexed name is V(0)
-name is A_NAME_WITH_MIXED_CASE
+v indexed name is v(3)
+v indexed name is v(2)
+v indexed name is v(1)
+v indexed name is v(0)
+name is A_name_with_MIXED_case
 case name is A_name_with_MIXED_case
 full case name is :vhpi1:A_name_with_MIXED_case
 start of sim callback! user data is 'some user data'

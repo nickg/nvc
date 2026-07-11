@@ -42,7 +42,7 @@ void vhpi_load_plugins(const char *plugins);
 void vhpi_run_callbacks(int32_t reason);
 
 vhpiHandleT vhpi_bind_foreign(const char *obj_lib, const char *model,
-                              tree_t where);
+                              tree_t where, tree_t region);
 void vhpi_call_foreign(vhpiHandleT handle, jit_scalar_t *args, tlab_t *tlab);
 
 #endif  // _VHPI_MODEL_H

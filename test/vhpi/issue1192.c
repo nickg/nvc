@@ -25,7 +25,11 @@ static void start_of_sim(const vhpiCbDataT *cb_data)
    fail_unless(vhpi_get(vhpiKindP, t_rec_ptr) == vhpiAccessTypeDeclK);
 
    vhpiHandleT rec_valtyp = VHPI_CHECK(vhpi_handle(vhpiValType, t_rec_ptr));
-   fail_unless(rec_valtyp == NULL);   // Not currently supported
+   fail_unless(vhpi_get(vhpiKindP, rec_valtyp) == vhpiRecordTypeDeclK);
+
+   vhpiHandleT t_rec = VHPI_CHECK(vhpi_handle_by_name("t_rec", root));
+   fail_unless(vhpi_get(vhpiKindP, t_rec) == vhpiRecordTypeDeclK);
+   fail_unless(vhpi_compare_handles(t_rec, rec_valtyp));
 
    vhpiHandleT t_file = VHPI_CHECK(vhpi_handle_by_name("t_file", root));
    fail_unless(vhpi_get(vhpiKindP, t_file) == vhpiFileTypeDeclK);
@@ -35,9 +39,11 @@ static void start_of_sim(const vhpiCbDataT *cb_data)
 
    vhpi_release_handle(file_valtyp);
    vhpi_release_handle(int_valtyp);
+   vhpi_release_handle(rec_valtyp);
    vhpi_release_handle(t_int_ptr);
    vhpi_release_handle(t_rec_ptr);
    vhpi_release_handle(t_file);
+   vhpi_release_handle(t_rec);
    vhpi_release_handle(root);
 }
 

@@ -511,7 +511,7 @@ static void *ffi_prepare_ghdl(tree_t decl, const char *symbol)
 }
 
 void jit_bind_foreign(jit_func_t *f, const uint8_t *spec, size_t length,
-                      tree_t where)
+                      tree_t where, tree_t region)
 {
    char *tmp LOCAL = null_terminate(spec, length), *p = strtok(tmp, " ");
    if (strcmp(p, "VHPIDIRECT") == 0 || strcmp(p, "GHDL") == 0) {
@@ -536,7 +536,7 @@ void jit_bind_foreign(jit_func_t *f, const uint8_t *spec, size_t length,
       if (model == NULL)
          jit_msg(NULL, DIAG_FATAL, "missing model name");
 
-      vhpiHandleT handle = vhpi_bind_foreign(obj_lib, model, where);
+      vhpiHandleT handle = vhpi_bind_foreign(obj_lib, model, where, region);
       if (handle == NULL)
          jit_msg(NULL, DIAG_FATAL, "foreign subprogram %s/%s not registered",
                  obj_lib, model);

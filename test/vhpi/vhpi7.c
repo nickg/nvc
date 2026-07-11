@@ -120,7 +120,7 @@ static void startup_2d(vhpiHandleT root, char *sig, vhpiHandleT outer[3],
       fail_unless(vhpi_compare_handles(prefix, handle));
 
       snprintf(name, sizeof(name), "%s(%d)", sig, i);
-      fail_if(strcmp(name, (char *)vhpi_get_str(vhpiNameP, outer[i])));
+      fail_if(strcasecmp(name, (char *)vhpi_get_str(vhpiNameP, outer[i])));
 
       for (int j = 0; j < 2; j++) {
          inner[i][j] = vhpi_handle_by_index(vhpiIndexedNames, outer[i], j);
@@ -133,7 +133,7 @@ static void startup_2d(vhpiHandleT root, char *sig, vhpiHandleT outer[3],
          fail_unless(vhpi_compare_handles(prefix, outer[i]));
 
          snprintf(name, sizeof(name), "%s(%d)(%d)", sig, i, j);
-         fail_if(strcmp(name, (char *)vhpi_get_str(vhpiNameP, inner[i][j])));
+         fail_if(strcasecmp(name, (char *)vhpi_get_str(vhpiNameP, inner[i][j])));
       }
    }
 
@@ -165,7 +165,7 @@ static void end_of_init(const vhpiCbDataT *cb_data)
          fail_unless(vhpi_compare_handles(prefix, n));
 
          snprintf(name, sizeof(name), "N(%d,%d)", i, j);
-         fail_if(strcmp(name, (char *)vhpi_get_str(vhpiNameP, n_outer[i][j])));
+         fail_if(strcasecmp(name, (char *)vhpi_get_str(vhpiNameP, n_outer[i][j])));
 
          for (int k = 0; k < 3; k++) {
             for (int l = 0; l < 2; l++) {
@@ -180,7 +180,7 @@ static void end_of_init(const vhpiCbDataT *cb_data)
                fail_unless(vhpi_compare_handles(prefix, n_outer[i][j]));
 
                snprintf(name, sizeof(name), "N(%d,%d)(%d,%d)", i, j, k, l);
-               fail_if(strcmp(name, (char *)vhpi_get_str(vhpiNameP, n_inner[i][j][k][l])));
+               fail_if(strcasecmp(name, (char *)vhpi_get_str(vhpiNameP, n_inner[i][j][k][l])));
             }
          }
       }

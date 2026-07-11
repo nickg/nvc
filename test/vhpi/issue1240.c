@@ -16,7 +16,7 @@ static void start_of_sim(const vhpiCbDataT *cb_data)
    vhpiHandleT t1e = VHPI_CHECK(vhpi_handle(vhpiElemType, t1));
    vhpi_printf("elem handle %p", t1e);
 
-   fail_unless(vhpi_get(vhpiKindP, t1e) == vhpiArrayTypeDeclK);  // XXX: vhpiSubtypeDeclK
+   fail_unless(vhpi_get(vhpiKindP, t1e) == vhpiSubtypeDeclK);
 
    vhpi_release_handle(t1e);
    vhpi_release_handle(t1);
@@ -24,12 +24,12 @@ static void start_of_sim(const vhpiCbDataT *cb_data)
    vhpiHandleT t2 = VHPI_CHECK(vhpi_handle_by_name("issue1240.t2", NULL));
    vhpi_printf("tt2 handle %p", t2);
 
-   fail_unless(vhpi_get(vhpiKindP, t2) == vhpiArrayTypeDeclK);
+   fail_unless(vhpi_get(vhpiKindP, t2) == vhpiSubtypeDeclK);
 
    vhpiHandleT t2e = VHPI_CHECK(vhpi_handle(vhpiElemType, t2));
    vhpi_printf("elem handle %p", t2e);
 
-   fail_unless(vhpi_get(vhpiKindP, t2e) == vhpiArrayTypeDeclK);  // XXX: vhpiSubtypeDeclK
+   fail_unless(vhpi_get(vhpiKindP, t2e) == vhpiSubtypeDeclK);
 
    vhpi_release_handle(t2e);
    vhpi_release_handle(t2);

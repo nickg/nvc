@@ -26,6 +26,7 @@ typedef enum {
    LC_BOUNDS,
    LC_OFFSET,
    LC_EXTERNAL,
+   LC_SIGNAL,
 } layout_class_t;
 
 typedef struct {

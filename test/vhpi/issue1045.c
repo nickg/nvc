@@ -7,11 +7,10 @@
 #include <string.h>
 
 static vhpiHandleT s_cb, i_cb;
+static int i_state, s_state;
 
 static void s_value_change(const vhpiCbDataT *cb_data)
 {
-   static int state = 0;
-
    vhpiHandleT handle_i = VHPI_CHECK(vhpi_handle_by_name("i", cb_data->obj));
    vhpi_printf("i handle %p", handle_i);
 
@@ -24,7 +23,7 @@ static void s_value_change(const vhpiCbDataT *cb_data)
 
    vhpi_printf("s value change --> %d", buf.value.intg);
 
-   switch (state++) {
+   switch (s_state++) {
    case 0:
       fail_unless(buf.value.intg == 5);
       break;
@@ -42,8 +41,6 @@ static void s_value_change(const vhpiCbDataT *cb_data)
 
 static void i_value_change(const vhpiCbDataT *cb_data)
 {
-   static int state = 0;
-
    vhpiValueT buf = {
       .format = vhpiIntVal,
    };
@@ -51,7 +48,7 @@ static void i_value_change(const vhpiCbDataT *cb_data)
 
    vhpi_printf("i value change --> %d", buf.value.intg);
 
-   switch (state++) {
+   switch (i_state++) {
    case 0:
       fail_unless(buf.value.intg == 5);
       break;
@@ -87,12 +84,24 @@ static void start_of_sim(const vhpiCbDataT *cb_data)
    i_cb = VHPI_CHECK(vhpi_register_cb(&i_change_cb, vhpiReturnCb));
 }
 
+static void end_of_sim(const vhpiCbDataT *cb_data)
+{
+   vhpi_printf("i_state=%d s_state=%d", i_state, s_state);
+   fail_unless(i_state == 2);
+   fail_unless(s_state == 3);
+}
+
 void issue1045_startup(void)
 {
-   vhpiCbDataT cb_data = {
+   vhpiCbDataT cb_data_sos = {
       .reason = vhpiCbStartOfSimulation,
       .cb_rtn = start_of_sim,
    };
-   vhpi_register_cb(&cb_data, 0);
-   check_error();
+   VHPI_CHECK(vhpi_register_cb(&cb_data_sos, 0));
+
+   vhpiCbDataT cb_data_eos = {
+      .reason = vhpiCbEndOfSimulation,
+      .cb_rtn = end_of_sim,
+   };
+   VHPI_CHECK(vhpi_register_cb(&cb_data_eos, 0));
 }

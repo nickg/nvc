@@ -48,7 +48,7 @@ static void start_of_sim(const vhpiCbDataT *cb_data)
 
    const vhpiCharT *name = VHPI_CHECK(vhpi_get_str(vhpiNameP, data0));
    vhpi_printf("data0 name %s", name);
-   fail_unless(strcmp((const char *)name, "SIG(0).DATA(0)") == 0);
+   check_string(name, "SIG(0).DATA(0)");
 
    vhpi_release_handle(root);
 }

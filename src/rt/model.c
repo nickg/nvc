@@ -3701,8 +3701,8 @@ void watch_free(rt_model_t *m, rt_watch_t *w)
    should_not_reach_here();
 }
 
-rt_watch_t *model_set_event_cb(rt_model_t *m, rt_signal_t *s, int offset,
-                               int count, rt_watch_t *w)
+void model_set_event_cb(rt_model_t *m, rt_signal_t *s, int offset,
+                        int count, rt_watch_t *w)
 {
    assert(!w->wakeable.zombie);
    assert(w->next_slot < w->num_slots);
@@ -3719,8 +3719,6 @@ rt_watch_t *model_set_event_cb(rt_model_t *m, rt_signal_t *s, int offset,
 
       sched_event(m, &(n->pending), &(w->wakeable));
    }
-
-   return w;
 }
 
 static void handle_interrupt_cb(jit_t *j, void *ctx)

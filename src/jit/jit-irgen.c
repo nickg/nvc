@@ -3950,15 +3950,18 @@ static void irgen_op_bind_foreign(jit_irgen_t *g, mir_value_t n)
    jit_value_t spec   = irgen_get_arg(g, n, 0);
    jit_value_t length = irgen_get_arg(g, n, 1);
 
-   jit_value_t locus;
-   if (mir_count_args(g->mu, n) > 2)
-      locus = irgen_get_arg(g, n, 2);
+   jit_value_t locus, region;
+   if (mir_count_args(g->mu, n) > 2) {
+      locus  = irgen_get_arg(g, n, 2);
+      region = irgen_get_arg(g, n, 3);
+   }
    else
-      locus = jit_value_from_int64(0);
+      locus = region = jit_value_from_int64(0);
 
    j_send(g, 0, spec);
    j_send(g, 1, length);
    j_send(g, 2, locus);
+   j_send(g, 3, region);
    macro_exit(g, JIT_EXIT_BIND_FOREIGN);
 
    int pslot = 0;

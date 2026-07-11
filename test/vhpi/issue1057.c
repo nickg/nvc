@@ -10,11 +10,12 @@ static void start_of_sim(const vhpiCbDataT *cb_data)
 {
    vhpiHandleT sigA = VHPI_CHECK(vhpi_handle_by_name("issue1057.sigA", NULL));
    vhpi_printf("sigA handle %p", sigA);
+   vhpi_printf("sigA size %d", vhpi_get(vhpiSizeP, sigA));
 
    fail_unless(vhpi_get(vhpiSizeP, sigA) == 8);
 
    vhpiHandleT sub = VHPI_CHECK(vhpi_handle(vhpiType, sigA));
-   fail_unless(vhpi_get(vhpiKindP, sub) == vhpiArrayTypeDeclK);  // XX: subtype?
+   fail_unless(vhpi_get(vhpiKindP, sub) == vhpiSubtypeDeclK);
 
    vhpiHandleT it1 = VHPI_CHECK(vhpi_iterator(vhpiConstraints, sub));
 
@@ -28,7 +29,7 @@ static void start_of_sim(const vhpiCbDataT *cb_data)
    vhpi_release_handle(it1);
 
    vhpiHandleT elem = VHPI_CHECK(vhpi_handle(vhpiElemType, sub));
-   fail_unless(vhpi_get(vhpiKindP, elem) == vhpiArrayTypeDeclK);  // XX: subtype?
+   fail_unless(vhpi_get(vhpiKindP, elem) == vhpiSubtypeDeclK);
 
    vhpiHandleT it2 = VHPI_CHECK(vhpi_iterator(vhpiConstraints, elem));
 

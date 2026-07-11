@@ -108,16 +108,12 @@ static void start_of_sim(const vhpiCbDataT *cb_data)
    vhpi_printf("start of sim callback! user data is '%s'",
                (char *)cb_data->user_data);
 
-   vhpiHandleT root = vhpi_handle(vhpiRootInst, NULL);
-   check_error();
+   vhpiHandleT root = VHPI_CHECK(vhpi_handle(vhpiRootInst, NULL));
    fail_if(root == NULL);
    vhpi_printf("root handle %p", root);
 
-   handle_x = vhpi_handle_by_name("x", root);
-   check_error();
-
-   handle_y = vhpi_handle_by_name("y", root);
-   check_error();
+   handle_x = VHPI_CHECK(vhpi_handle_by_name("x", root));
+   handle_y = VHPI_CHECK(vhpi_handle_by_name("y", root));
 
    vhpi_release_handle(root);
 
@@ -132,14 +128,13 @@ static void start_of_sim(const vhpiCbDataT *cb_data)
    vhpiValueT value = {
       .format = vhpiObjTypeVal
    };
-   vhpi_get_value(handle_x, &value);
-   check_error();
+   VHPI_CHECK(vhpi_get_value(handle_x, &value));
+
    fail_unless(value.format == vhpiIntVal);
    fail_unless(value.value.intg == 0);
 
    value.value.intg = 5;
-   vhpi_put_value(handle_x, &value, vhpiDepositPropagate);
-   check_error();
+   VHPI_CHECK(vhpi_put_value(handle_x, &value, vhpiDepositPropagate));
 
    vhpiTimeT time_5ns = {
       .low = 5000000
@@ -150,8 +145,7 @@ static void start_of_sim(const vhpiCbDataT *cb_data)
       .cb_rtn = after_5ns,
       .time   = &time_5ns
    };
-   vhpi_register_cb(&cb_data2, 0);
-   check_error();
+   VHPI_CHECK(vhpi_register_cb(&cb_data2, 0));
 }
 
 static void end_of_sim(const vhpiCbDataT *cb_data)
@@ -161,8 +155,8 @@ static void end_of_sim(const vhpiCbDataT *cb_data)
    vhpiValueT value = {
       .format = vhpiObjTypeVal
    };
-   vhpi_get_value(handle_y, &value);
-   check_error();
+   VHPI_CHECK(vhpi_get_value(handle_y, &value));
+
    fail_unless(value.format == vhpiIntVal);
    fail_unless(value.value.intg == 75);
 
@@ -179,13 +173,11 @@ void vhpi6_startup(void)
       .reason    = vhpiCbStartOfSimulation,
       .cb_rtn    = start_of_sim,
    };
-   handle_sos = vhpi_register_cb(&cb_data1, vhpiReturnCb);
-   check_error();
+   handle_sos = VHPI_CHECK(vhpi_register_cb(&cb_data1, vhpiReturnCb));
 
    vhpiCbDataT cb_data2 = {
       .reason    = vhpiCbEndOfSimulation,
       .cb_rtn    = end_of_sim
    };
-   vhpi_register_cb(&cb_data2, 0);
-   check_error();
+   VHPI_CHECK(vhpi_register_cb(&cb_data2, 0));
 }

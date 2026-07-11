@@ -39,10 +39,11 @@ static void start_of_sim(const vhpiCbDataT *cb_data)
    vhpiHandleT handle_weight_type = VHPI_CHECK(vhpi_handle(vhpiType, handle_x));
    fail_if(handle_weight_type == NULL);
 
-   const char *weight_name = (char *)vhpi_get_str(vhpiNameP, handle_weight_type);
-   fail_if(strcmp("WEIGHT", weight_name));
-   const char *weight_fullname = (char *)vhpi_get_str(vhpiFullNameP, handle_weight_type);
-   fail_if(strcmp("@WORK:VHPI3-TEST:WEIGHT", weight_fullname));
+   const vhpiCharT *weight_name = vhpi_get_str(vhpiNameP, handle_weight_type);
+   check_string(weight_name, "WEIGHT");
+   const vhpiCharT *weight_fullname = vhpi_get_str(vhpiFullNameP, handle_weight_type);
+   vhpi_printf("Weight full name %s", weight_fullname);
+   check_string(weight_fullname, ":vhpi3:weight");
 
    vhpiHandleT handle_weight_cons =
       VHPI_CHECK(vhpi_handle_by_index(vhpiConstraints, handle_weight_type, 0));

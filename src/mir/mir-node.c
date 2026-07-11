@@ -3109,14 +3109,15 @@ mir_value_t mir_build_link_var(mir_unit_t *mu, mir_value_t context,
 }
 
 void mir_build_bind_foreign(mir_unit_t *mu, mir_value_t spec,
-                            mir_value_t length, mir_value_t locus)
+                            mir_value_t length, mir_value_t locus,
+                            mir_value_t region)
 {
    if (mir_is_null(locus))
       mir_build_2(mu, MIR_OP_BIND_FOREIGN, MIR_NULL_TYPE, MIR_NULL_STAMP,
                   spec, length);
    else
-      mir_build_3(mu, MIR_OP_BIND_FOREIGN, MIR_NULL_TYPE, MIR_NULL_STAMP,
-                  spec, length, locus);
+      mir_build_4(mu, MIR_OP_BIND_FOREIGN, MIR_NULL_TYPE, MIR_NULL_STAMP,
+                  spec, length, locus, region);
 
    MIR_ASSERT(mir_is(mu, spec, MIR_TYPE_POINTER),
               "spec argument to bind foreign must be a pointer");
@@ -3124,6 +3125,8 @@ void mir_build_bind_foreign(mir_unit_t *mu, mir_value_t spec,
               "legnth argument to bind foreign must be offset");
    MIR_ASSERT(mir_is_null(locus) || mir_is(mu, locus, MIR_TYPE_LOCUS),
               "locus argument to bind foreign value must be a debug locus");
+   MIR_ASSERT(mir_is_null(region) || mir_is(mu, region, MIR_TYPE_LOCUS),
+              "region argument to bind foreign value must be a debug locus");
 }
 
 mir_value_t mir_build_bind_external(mir_unit_t *mu, mir_value_t locus,

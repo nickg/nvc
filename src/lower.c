@@ -9923,8 +9923,9 @@ static void lower_foreign_stub(lower_unit_t *lu, object_t *obj)
    vcode_reg_t data_reg = lower_array_data(spec_reg);
    vcode_reg_t length_reg = lower_array_len(lu, str_type, 0, spec_reg);
    vcode_reg_t locus = lower_debug_locus(spec);
+   vcode_reg_t region = lower_debug_locus(lu->parent->container);
 
-   emit_bind_foreign(data_reg, length_reg, locus);
+   emit_bind_foreign(data_reg, length_reg, locus, region);
    emit_unreachable(VCODE_INVALID_REG);
 }
 
@@ -10448,7 +10449,8 @@ static void lower_foreign_predef(lower_unit_t *lu, tree_t decl, const char *fn)
    vcode_reg_t data_reg = emit_address_of(array_reg);
    vcode_reg_t length_reg = emit_const(vtype_offset(), nchars);
 
-   emit_bind_foreign(data_reg, length_reg, VCODE_INVALID_REG);
+   emit_bind_foreign(data_reg, length_reg, VCODE_INVALID_REG,
+                     VCODE_INVALID_REG);
    emit_unreachable(VCODE_INVALID_REG);
 }
 

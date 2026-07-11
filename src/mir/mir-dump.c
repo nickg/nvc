@@ -1566,6 +1566,8 @@ void mir_annotate(mir_unit_t *mu, const mir_annotate_t *cb, void *ctx)
                if (n->nargs > 2) {
                   printf(" locus ");
                   mir_dump_arg(mu, result, 2, cb, ctx);
+                  printf(" region ");
+                  mir_dump_arg(mu, result, 3, cb, ctx);
                }
             }
             break;

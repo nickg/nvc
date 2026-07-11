@@ -8,21 +8,21 @@
 
 static void check_record(vhpiHandleT uRec, const char *prefix)
 {
-   vhpiHandleT type = vhpi_handle(vhpiType, uRec);
-   check_error();
+   vhpiHandleT type = VHPI_CHECK(vhpi_handle(vhpiType, uRec));
    fail_if(type == NULL);
-   fail_unless(vhpi_get(vhpiIsCompositeP, type));
-   check_error();
-   fail_if(vhpi_get(vhpiIsScalarP, type));
-   check_error();
+   fail_unless(VHPI_CHECK(vhpi_get(vhpiIsCompositeP, type)));
+   fail_if(VHPI_CHECK(vhpi_get(vhpiIsScalarP, type)));
 
    vhpi_release_handle(type);
 
    static const struct {
       const char *name;
       vhpiIntT size;
+      vhpiClassKindT typ;
+      vhpiClassKindT base;
    } expect[] = {
-      { "A", 1 }, { "B", 2 }
+      { "A", 1, vhpiEnumTypeDeclK, vhpiEnumTypeDeclK },
+      { "B", 2, vhpiSubtypeDeclK, vhpiArrayTypeDeclK }
    };
 
    vhpiHandleT names = vhpi_iterator(vhpiSelectedNames, uRec);
@@ -34,12 +34,17 @@ static void check_record(vhpiHandleT uRec, const char *prefix)
 
       char buf[32];
       snprintf(buf, sizeof(buf), "%s.%s", prefix, expect[i].name);
-      fail_unless(strcmp((const char *)vhpi_get_str(vhpiNameP, e), buf) == 0);
+      check_string(vhpi_get_str(vhpiNameP, e), buf);
       fail_unless(vhpi_get(vhpiSizeP, e) == expect[i].size);
 
       vhpiHandleT typ = VHPI_CHECK(vhpi_handle(vhpiType, e));
       vhpiHandleT base = VHPI_CHECK(vhpi_handle(vhpiBaseType, e));
-      fail_unless(vhpi_compare_handles(typ, base));
+
+      fail_unless(vhpi_get(vhpiKindP, typ) == expect[i].typ);
+      fail_unless(vhpi_get(vhpiKindP, base) == expect[i].base);
+
+      if (expect[i].typ == expect[i].base)
+         fail_unless(vhpi_compare_handles(typ, base));
 
       vhpi_release_handle(typ);
       vhpi_release_handle(base);

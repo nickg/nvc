@@ -5,18 +5,15 @@
 
 static void test_period(void)
 {
-   vhpiHandleT period = vhpi_handle_by_name("issue978.period", NULL);
-   check_error();
+   vhpiHandleT period = VHPI_CHECK(vhpi_handle_by_name("issue978.period", NULL));
 
-   vhpiHandleT delay_length = vhpi_handle(vhpiType, period);
-   check_error();
+   vhpiHandleT delay_length = VHPI_CHECK(vhpi_handle(vhpiType, period));
    fail_if(delay_length == NULL);
    fail_unless(strcmp((char *)vhpi_get_str(vhpiNameP, delay_length), "DELAY_LENGTH") == 0);
    fail_unless(vhpi_get(vhpiKindP, delay_length) == vhpiSubtypeDeclK);
    fail_if(vhpi_get(vhpiIsUnconstrainedP, delay_length));
 
-   vhpiHandleT constrs = vhpi_iterator(vhpiConstraints, delay_length);
-   check_error();
+   vhpiHandleT constrs = VHPI_CHECK(vhpi_iterator(vhpiConstraints, delay_length));
    fail_if(constrs == NULL);
 
    vhpiHandleT range = vhpi_scan(constrs);
@@ -32,18 +29,15 @@ static void test_period(void)
 
 static void test_one(void)
 {
-   vhpiHandleT one = vhpi_handle_by_name("issue978.one", NULL);
-   check_error();
+   vhpiHandleT one = VHPI_CHECK(vhpi_handle_by_name("issue978.one", NULL));
 
-   vhpiHandleT t_int64 = vhpi_handle(vhpiType, one);
-   check_error();
+   vhpiHandleT t_int64 = VHPI_CHECK(vhpi_handle(vhpiType, one));
    fail_if(t_int64 == NULL);
    check_string(vhpi_get_str(vhpiNameP, t_int64), "T_INT64");
    fail_unless(vhpi_get(vhpiKindP, t_int64) == vhpiIntTypeDeclK);
    fail_if(vhpi_get(vhpiIsUnconstrainedP, t_int64));
 
-   vhpiHandleT constrs = vhpi_iterator(vhpiConstraints, t_int64);
-   check_error();
+   vhpiHandleT constrs = VHPI_CHECK(vhpi_iterator(vhpiConstraints, t_int64));
    fail_if(constrs == NULL);
 
    vhpiHandleT range = vhpi_scan(constrs);
@@ -53,18 +47,15 @@ static void test_one(void)
 
 static void test_two(void)
 {
-   vhpiHandleT two = vhpi_handle_by_name("issue978.two", NULL);
-   check_error();
+   vhpiHandleT two = VHPI_CHECK(vhpi_handle_by_name("issue978.two", NULL));
 
-   vhpiHandleT t_sub = vhpi_handle(vhpiType, two);
-   check_error();
+   vhpiHandleT t_sub = VHPI_CHECK(vhpi_handle(vhpiType, two));
    fail_if(t_sub == NULL);
-   fail_unless(strcmp((char *)vhpi_get_str(vhpiNameP, t_sub), "T_SUB") == 0);
+   check_string(vhpi_get_str(vhpiNameP, t_sub), "T_SUB");
    fail_unless(vhpi_get(vhpiKindP, t_sub) == vhpiSubtypeDeclK);
    fail_if(vhpi_get(vhpiIsUnconstrainedP, t_sub));
 
-   vhpiHandleT constrs = vhpi_iterator(vhpiConstraints, t_sub);
-   check_error();
+   vhpiHandleT constrs = VHPI_CHECK(vhpi_iterator(vhpiConstraints, t_sub));
    fail_if(constrs == NULL);
 
    vhpiHandleT range = vhpi_scan(constrs);
