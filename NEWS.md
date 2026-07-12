@@ -11,8 +11,10 @@
 - External names are now allowed in the prefix of selected or indexed
   names (#1602, #1603).
 - Verilog `disable` statements are now supported (#1605).
+- Added the `$tcl_interactive` variable to distinguish `nvc -i` and `nvc
+  --do` (#1608).
 - Several other minor bugs were resolved (#1587, #1594, #1409, #1597,
-  #1599, #1600).
+  #1599, #1600, #1596, #1569, #1607).
 
 ## Version 1.21.1 - 2026-06-20
 - Fixed a regression which caused calls to an overloaded subprogram with

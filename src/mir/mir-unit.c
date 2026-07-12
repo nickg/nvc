@@ -419,8 +419,22 @@ void mir_compare_layout(mir_unit_t *a, mir_unit_t *b)
       goto differ;
 
    for (int i = 0; i < a->vars.count; i++) {
-      if (!mir_equals(a->vars.items[i].type, b->vars.items[i].type))
+      mir_type_t atype = a->vars.items[i].type;
+      mir_type_t btype = b->vars.items[i].type;
+
+      if (mir_equals(atype, btype))
+         continue;
+
+      const type_data_t *tda = mir_type_data(a, atype);
+      const type_data_t *tdb = mir_type_data(a, btype);
+
+      if (tda->class != tdb->class)
          goto differ;
+
+      if (tda->class == MIR_TYPE_CONTEXT)
+         continue;
+
+      goto differ;
    }
 
    return;

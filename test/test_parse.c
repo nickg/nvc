@@ -3653,30 +3653,30 @@ START_TEST(test_vhdl2008)
    input_from_file(TESTDIR "/parse/vhdl2008.vhd");
 
    const error_t expect[] = {
-      {  84, "no matching operator \"+\" [DELAY_LENGTH, TIME" },
-      { 111, "excess non-zero digits in bit string literal" },
-      { 112, "excess non-zero digits in bit string literal" },
-      { 121, "excess significant digits in bit string literal" },
-      { 124, "invalid digit 'C' in decimal bit string" },
-      { 127, "excess non-zero digits in decimal bit string literal" },
-      { 173, "unexpected ; while parsing case statement, expecting ?" },
-      { 184, "prefix of 'SUBTYPE attribute does not have a type" },
-      { 186, "prefix of 'ELEMENT attribute must be an array type" },
-      { 187, "prefix of 'ELEMENT attribute does not have a type" },
-      { 233, "unexpected trailing label for generate statement body without" },
-      { 235, "expected trailing generate statement body label to match FOO" },
-      { 252, "expected trailing case generate statement label to match G3" },
-      { 267, "signed bit string literal cannot be an empty string" },
-      { 293, "the reserved word INERTIAL can only be used in port map " },
-      { 285, "the reserved word INERTIAL can only be used in port map " },
-      { 298, "parameter interface list cannot contain type interface " },
-      { 310, "record type T_REC has no field named G" },
-      { 312, "record type T_REC has no field named H" },
+      {  85, "no matching operator \"+\" [DELAY_LENGTH, TIME" },
+      { 113, "excess non-zero digits in bit string literal" },
+      { 114, "excess non-zero digits in bit string literal" },
+      { 123, "excess significant digits in bit string literal" },
+      { 126, "invalid digit 'C' in decimal bit string" },
+      { 129, "excess non-zero digits in decimal bit string literal" },
+      { 175, "unexpected ; while parsing case statement, expecting ?" },
+      { 186, "prefix of 'SUBTYPE attribute does not have a type" },
+      { 188, "prefix of 'ELEMENT attribute must be an array type" },
+      { 189, "prefix of 'ELEMENT attribute does not have a type" },
+      { 235, "unexpected trailing label for generate statement body without" },
+      { 237, "expected trailing generate statement body label to match FOO" },
+      { 254, "expected trailing case generate statement label to match G3" },
+      { 269, "signed bit string literal cannot be an empty string" },
+      { 295, "the reserved word INERTIAL can only be used in port map " },
+      { 287, "the reserved word INERTIAL can only be used in port map " },
+      { 300, "parameter interface list cannot contain type interface " },
+      { 312, "record type T_REC has no field named G" },
+      { 314, "record type T_REC has no field named H" },
       {   0, "did you mean F?" },
       {   0, "type T_REC has field F" },
-      { 320, "no visible declaration for DATA_IN" },
-      { 320, "unexpected ) while parsing range, expecting" },
-      { 321, "type of aggregate cannot be determined from the surrounding " },
+      { 322, "no visible declaration for DATA_IN" },
+      { 322, "unexpected ) while parsing range, expecting" },
+      { 323, "type of aggregate cannot be determined from the surrounding " },
       {   0, "context contains type BIT which is not a composite type" },
       {  -1, NULL }
    };
@@ -7696,6 +7696,18 @@ START_TEST(test_issue1560)
 }
 END_TEST
 
+START_TEST(test_issue1607)
+{
+   set_standard(STD_19);
+
+   input_from_file(TESTDIR "/parse/issue1607.vhd");
+
+   parse_and_check(T_ENTITY, T_ARCH, T_ENTITY, T_ARCH);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_parse_tests(void)
 {
    Suite *s = suite_create("parse");
@@ -7900,6 +7912,7 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_view1);
    tcase_add_test(tc_core, test_issue1535);
    tcase_add_test(tc_core, test_issue1560);
+   tcase_add_test(tc_core, test_issue1607);
    suite_add_tcase(s, tc_core);
 
    return s;

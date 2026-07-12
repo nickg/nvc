@@ -1,0 +1,1 @@
+assertion {0} failed

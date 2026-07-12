@@ -76,6 +76,7 @@ begin
         variable b : bit;
         variable i : integer;
         function "??"(x : integer) return boolean;
+        function func(x : boolean) return boolean;
     begin
         if b then end if;               -- OK
         if b xor '1' then end if;       -- OK
@@ -90,6 +91,7 @@ begin
         assert b nor '1';               -- OK
         assert ?? 1;                    -- OK
         assert b and b and (not b);     -- OK
+        assert func (?? i);             -- OK
     end process;
 
     /* This is a comment */

@@ -2839,6 +2839,8 @@ static vlog_node_t elab_rewrite_hier_ref_cb(vlog_node_t v, void *arg)
       case V_VAR_DECL:
          vlog_set_ref(v, vd);
          return v;
+      case V_PORT_MAP:
+         continue;
       default:
          {
             diag_t *d = diag_new(DIAG_ERROR, vlog_loc(v));

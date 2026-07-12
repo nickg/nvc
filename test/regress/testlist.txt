@@ -1433,3 +1433,5 @@ select24        verilog
 issue1600       normal,2002
 ename18         normal,2008
 vlog46          verilog
+href2           verilog
+tcl5            fail,gold,tcl

@@ -2332,6 +2332,37 @@ START_TEST(test_issue1475)
 }
 END_TEST
 
+START_TEST(test_issue1569)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/elab/issue1569.vhd");
+
+   tree_t e = run_elab();
+   fail_if(e == NULL);
+
+   tree_t top = tree_stmt(e, 0);
+
+   tree_t b0 = tree_stmt(top, 0);
+   ck_assert_tree_kind(b0, T_BLOCK);
+   fail_unless(tree_ident(b0) == ident_new("I_TEST_1_0"));
+
+   tree_t u1_h = tree_decl(b0, 0);
+   ck_assert_tree_kind(u1_h, T_HIER);
+
+   tree_t b1 = tree_stmt(top, 1);
+   ck_assert_tree_kind(b1, T_BLOCK);
+   fail_unless(tree_ident(b1) == ident_new("I_TEST_1_1"));
+
+   tree_t u3_h = tree_decl(b1, 0);
+   ck_assert_tree_kind(u3_h, T_HIER);
+
+   fail_unless(tree_ident2(u1_h) == tree_ident2(u3_h));
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_elab_tests(void)
 {
    Suite *s = suite_create("elab");
@@ -2450,6 +2481,7 @@ Suite *get_elab_tests(void)
    tcase_add_test(tc, test_issue1421);
    tcase_add_test(tc, test_issue1519);
    tcase_add_test(tc, test_issue1475);
+   tcase_add_test(tc, test_issue1569);
    suite_add_tcase(s, tc);
 
    return s;

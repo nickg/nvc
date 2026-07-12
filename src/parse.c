@@ -75,10 +75,11 @@ typedef void (*add_func_t)(tree_t, tree_t);
    EXTEND(s);                                           \
    state.start_loc = (t) ? *tree_loc(t) : LOC_INVALID;  \
 
-#define BEGIN(s)  BEGIN_WITH_HEAD(s, NULL)
+#define BEGIN(s) BEGIN_WITH_HEAD(s, NULL)
 
 static tree_t p_expression(void);
 static tree_t p_expression_with_head(tree_t head);
+static tree_t p_conditional_expression(tree_t head);
 static tree_t p_sequential_statement(void);
 static tree_t p_concurrent_statement(void);
 static tree_t p_package_declaration(tree_t unit);
@@ -3170,7 +3171,7 @@ static tree_t p_actual_designator(tree_t head)
    BEGIN_WITH_HEAD("actual designator", head);
 
    if (head != NULL)
-      return p_expression_with_head(head);
+      return p_conditional_expression(head);
 
    if (optional(tOPEN)) {
       tree_t t = tree_new(T_OPEN);
@@ -3191,7 +3192,7 @@ static tree_t p_actual_designator(tree_t head)
       return w;
    }
 
-   return p_expression();
+   return p_conditional_expression(NULL);
 }
 
 static tree_t p_actual_part(class_t class, type_t constraint, tree_t head,
@@ -5001,6 +5002,15 @@ static tree_t p_expression_with_head(tree_t head)
 
    BEGIN("expression");
 
+   if (head == NULL && optional(tCCONV)) {
+      require_std(STD_08, "condition conversion");
+
+      tree_t expr = tree_new(T_FCALL);
+      tree_set_ident(expr, well_known(W_OP_CCONV));
+      unary_op(expr, p_primary);
+      return expr;
+   }
+
    tree_t expr = p_relation(head);
 
    for (;;) {
@@ -5034,18 +5044,7 @@ static tree_t p_expression_with_head(tree_t head)
 
 static inline tree_t p_expression(void)
 {
-   // expression | 2008: condition_operator primary
-
-   if (optional(tCCONV)) {
-      require_std(STD_08, "condition conversion");
-
-      tree_t expr = tree_new(T_FCALL);
-      tree_set_ident(expr, well_known(W_OP_CCONV));
-      unary_op(expr, p_primary);
-      return expr;
-   }
-   else
-      return p_expression_with_head(NULL);
+   return p_expression_with_head(NULL);
 }
 
 static type_t p_interface_type_indication(tree_t parent)
@@ -6907,13 +6906,13 @@ static tree_t p_subtype_declaration(void)
    return t;
 }
 
-static tree_t p_conditional_expression(void)
+static tree_t p_conditional_expression(tree_t head)
 {
    // expression { when condition else expression }
 
    BEGIN("conditional expression");
 
-   tree_t expr0 = p_expression();
+   tree_t expr0 = p_expression_with_head(head);
 
    if (optional(tWHEN)) {
       require_std(STD_19, "conditional expressions");
@@ -7022,7 +7021,7 @@ static void p_constant_declaration(tree_t parent)
 
    tree_t init = NULL;
    if (optional(tWALRUS))
-      init = p_conditional_expression();
+      init = p_conditional_expression(NULL);
 
    // According to the LRM all constants are globally static but that
    // leads to a number of logical inconsistencies so we retrict to only
@@ -7362,7 +7361,7 @@ static void p_variable_declaration(tree_t parent)
 
    tree_t init = NULL;
    if (optional(tWALRUS))
-      init = solve_types(nametab, p_conditional_expression(), type);
+      init = solve_types(nametab, p_conditional_expression(NULL), type);
 
    consume(tSEMI);
 
@@ -7421,7 +7420,7 @@ static void p_signal_declaration(tree_t parent)
 
    tree_t init = NULL;
    if (optional(tWALRUS))
-      init = p_conditional_expression();
+      init = p_conditional_expression(NULL);
 
    consume(tSEMI);
 
