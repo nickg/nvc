@@ -7713,16 +7713,16 @@ START_TEST(test_issue1610)
    input_from_file(TESTDIR "/parse/issue1610.vhd");
 
    const error_t expect[] = {
-      { 36, "label U can't be indexed" },
-      { 42, "U already declared in this region" },
-      { 50, "entity SCOPE_DEMO can't be indexed" },
-      { 51, "architecture RTL can't be indexed" },
-      { 52, "library IEEE can't be indexed" },
-      { 53, "package IEEE.STD_LOGIC_1164 can't be indexed" },
-      { 54, "entity SCOPE_DEMO can't be sliced" },
-      { 55, "architecture RTL can't be sliced" },
-      { 56, "library IEEE can't be sliced" },
-      { 57, "package IEEE.STD_LOGIC_1164 can't be sliced" },
+      { 31, "label U cannot be indexed" },
+      { 37, "U already declared in this region" },
+      { 45, "entity SCOPE_DEMO cannot be indexed" },
+      { 46, "architecture RTL cannot be indexed" },
+      { 47, "library STD cannot be indexed" },
+      { 48, "package STD.STANDARD cannot be indexed" },
+      { 49, "entity SCOPE_DEMO cannot be sliced" },
+      { 50, "architecture RTL cannot be sliced" },
+      { 51, "library STD cannot be sliced" },
+      { 52, "package STD.STANDARD cannot be sliced" },
       { -1, NULL }
    };
    expect_errors(expect);
