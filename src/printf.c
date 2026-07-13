@@ -156,6 +156,12 @@ static int format_type(ostream_t *os, printf_state_t *state, printf_arg_t *arg)
    return ostream_puts(os, type_pp(type));
 }
 
+static int format_class(ostream_t *os, printf_state_t *state, printf_arg_t *arg)
+{
+   tree_t t = arg->value.p;
+   return ostream_puts(os, class_str(class_of(t)));
+}
+
 static int format_object_kind(ostream_t *os, printf_state_t *state,
                               printf_arg_t *arg)
 {
@@ -219,6 +225,7 @@ static fmt_fn_t get_pointer_formatter(char ch)
    case 'i': return format_ident;
    case 'I': return format_ident_toupper;
    case 'T': return format_type;
+   case 'C': return format_class;
    case 'K': return format_object_kind;
    case 'M': return format_mir;
    default: return NULL;
