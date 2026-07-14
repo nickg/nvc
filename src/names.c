@@ -4197,6 +4197,16 @@ static tree_t resolve_fcall_or_index(nametab_t *tab, tree_t fcall, tree_t decl)
 
    if (!is_slice && !type_set_contains(tab, etype))
       return fcall;
+   else if (!is_slice) {
+      // Prefer the function call interpretation if the array index
+      // types do not match
+      for (int i = 0; i < nparams; i++) {
+         type_t index_type = index_type_of(rtype, i);
+         type_t atype = tree_type(tree_value(tree_param(fcall, i)));
+         if (index_type == NULL || !type_eq(atype, index_type))
+            return fcall;
+      }
+   }
 
    const tree_kind_t kind = tree_kind(fcall);
 
