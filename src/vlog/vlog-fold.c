@@ -241,11 +241,11 @@ static void fold_report_non_const(vlog_node_t v, fold_ctx_t *ctx)
          diag_printf(d, "reference");
          break;
       }
-      diag_printf(d, " '%pi' in constant expression",
+      diag_printf(d, " %pQ in constant expression",
                   vlog_ident(ctx->nonconst));
 
       if (vlog_kind(ctx->nonconst) != V_SYS_FCALL)
-         diag_hint(d, vlog_loc(ctx->nonconst), "%pi declared here",
+         diag_hint(d, vlog_loc(ctx->nonconst), "%pQ declared here",
                    vlog_ident(ctx->nonconst));
 
       diag_emit(d);
@@ -382,7 +382,7 @@ static vlog_node_t fold_enum_decl(vlog_node_t v, fold_ctx_t *ctx)
          if (vlog_kind(cmp) != V_NUMBER)
             continue;
          else if (number_equal(vlog_number(cmp), n)) {
-            error_at(vlog_loc(di), "enum names '%pi' and '%pi' both have "
+            error_at(vlog_loc(di), "enum names %pQ and %pQ both have "
                      "value %"PRIi64, vlog_ident(dj), vlog_ident(di),
                      number_integer(n));
             return v;

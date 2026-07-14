@@ -120,6 +120,19 @@ static int format_ident(ostream_t *os, printf_state_t *state, printf_arg_t *arg)
    return ostream_write(os, istr(id), ident_len(id));
 }
 
+static int format_ident_quoted(ostream_t *os, printf_state_t *state,
+                               printf_arg_t *arg)
+{
+   ident_t id = arg->value.p;
+   int nchars = 0;
+
+   nchars += ostream_putc(os, '\'');
+   nchars += ostream_write(os, istr(id), ident_len(id));
+   nchars += ostream_putc(os, '\'');
+
+   return nchars;
+}
+
 static int format_ident_toupper(ostream_t *os, printf_state_t *state,
                                 printf_arg_t *arg)
 {
@@ -224,6 +237,7 @@ static fmt_fn_t get_pointer_formatter(char ch)
    switch (ch) {
    case 'i': return format_ident;
    case 'I': return format_ident_toupper;
+   case 'Q': return format_ident_quoted;
    case 'T': return format_type;
    case 'C': return format_class;
    case 'K': return format_object_kind;

@@ -1376,7 +1376,7 @@ static mir_value_t vlog_lower_sys_tfcall(vlog_gen_t *g, vlog_node_t v)
          type = mir_vec2_type(g->mu, 64, false);
          break;
       default:
-         warn_at(vlog_loc(v), "result type of system function '%pi' is "
+         warn_at(vlog_loc(v), "result type of system function %pQ is "
                  "not known", vlog_ident(v));
          // Fall-through
       case vpiIntFunc:

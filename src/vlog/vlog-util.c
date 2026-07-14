@@ -649,6 +649,6 @@ tree_t vlog_walk_mod_refs(vlog_node_t v, tree_t where)
          return s;
    }
 
-   error_at(vlog_loc(v), "cannot find '%pi' in hierarchical identifier", id);
+   error_at(vlog_loc(v), "cannot find %pQ in hierarchical identifier", id);
    return NULL;
 }

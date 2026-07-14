@@ -655,9 +655,9 @@ static void vlog_check_call_args(vlog_node_t v, vlog_node_t sub)
          diag_printf(d, "at most %d ", nports);
       else
          diag_printf(d, "%d ", nports);
-      diag_printf(d, "argument%s for '%pi' but have %d",
+      diag_printf(d, "argument%s for %pQ but have %d",
                   minargs != 1 ? "s" : "", vlog_ident(sub), nparams);
-      diag_hint(d, vlog_loc(sub), "'%pi' declared here", vlog_ident(sub));
+      diag_hint(d, vlog_loc(sub), "%pQ declared here", vlog_ident(sub));
       diag_emit(d);
       return;
    }
@@ -671,19 +671,19 @@ static void vlog_check_call_args(vlog_node_t v, vlog_node_t sub)
 
          if (vlog_kind(p) == V_EMPTY && !vlog_has_value(port)) {
             diag_t *d = diag_new(DIAG_ERROR, vlog_loc(v));
-            diag_printf(d, "'%pi' argument '%pi' cannot be empty as it does "
+            diag_printf(d, "%pQ argument %pQ cannot be empty as it does "
                         "not have a default value", vlog_ident(sub),
                         vlog_ident(port));
-            diag_hint(d, vlog_loc(port), "'%pi' declared here",
+            diag_hint(d, vlog_loc(port), "%pQ declared here",
                       vlog_ident(port));
             diag_emit(d);
          }
       }
       else if (!mask_test(&optmask, i)) {
          diag_t *d = diag_new(DIAG_ERROR, vlog_loc(v));
-         diag_printf(d, "missing '%pi' argument '%pi' without a default value",
+         diag_printf(d, "missing %pQ argument %pQ without a default value",
                      vlog_ident(sub), vlog_ident(port));
-         diag_hint(d, vlog_loc(port), "'%pi' declared here", vlog_ident(port));
+         diag_hint(d, vlog_loc(port), "%pQ declared here", vlog_ident(port));
          diag_emit(d);
       }
    }

@@ -1526,9 +1526,9 @@ static void elab_verilog_ports(vlog_node_t inst, elab_instance_t *ei,
 
       if (conn == NULL) {
          diag_t *d = diag_new(DIAG_WARN, vlog_loc(inst));
-         diag_printf(d, "missing port connection for '%pi'", port_name);
-         diag_hint(d, vlog_loc(port), "'%pi' declared here", port_name);
-         diag_hint(d, vlog_loc(inst), "instance '%pi'", vlog_ident(inst));
+         diag_printf(d, "missing port connection for %pQ", port_name);
+         diag_hint(d, vlog_loc(port), "%pQ declared here", port_name);
+         diag_hint(d, vlog_loc(inst), "instance %pQ", vlog_ident(inst));
          diag_emit(d);
          continue;
       }
@@ -1571,7 +1571,7 @@ static void elab_verilog_ports(vlog_node_t inst, elab_instance_t *ei,
          vlog_node_t conn = vlog_param(inst, i);
          assert(vlog_has_ident(conn));
 
-         error_at(vlog_loc(conn), "port '%pi' not found in %pi",
+         error_at(vlog_loc(conn), "port %pQ not found in %pQ",
                   vlog_ident(conn), vlog_ident2(ei->body));
       }
    }
@@ -2846,7 +2846,7 @@ static vlog_node_t elab_rewrite_hier_ref_cb(vlog_node_t v, void *arg)
             diag_t *d = diag_new(DIAG_ERROR, vlog_loc(v));
             diag_printf(d, "target of hierarchical reference must be a net "
                         "or variable");
-            diag_hint(d, vlog_loc(vd), "'%pi' refers to this object", id);
+            diag_hint(d, vlog_loc(vd), "%pQ refers to this object", id);
             diag_emit(d);
          }
       }
@@ -2856,8 +2856,8 @@ static vlog_node_t elab_rewrite_hier_ref_cb(vlog_node_t v, void *arg)
    assert(tree_kind(h) == T_HIER);
 
    diag_t *d = diag_new(DIAG_ERROR, vlog_loc(v));
-   diag_printf(d, "name '%pi' not found in '%pi'", id, tree_ident(b));
-   diag_hint(d, tree_loc(b), "'%pi' is an instance of %pI", tree_ident(b),
+   diag_printf(d, "name %pQ not found in %pQ", id, tree_ident(b));
+   diag_hint(d, tree_loc(b), "%pQ is an instance of %pI", tree_ident(b),
              tree_ident(tree_ref(h)));
    diag_emit(d);
 

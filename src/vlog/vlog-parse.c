@@ -271,13 +271,13 @@ static vlog_node_t get_data_type(ident_t id)
 {
    vlog_node_t v = vlog_symtab_query(symtab, id);
    if (v == NULL) {
-      error_at(&state.last_loc, "no data type declaration for '%pi'", id);
+      error_at(&state.last_loc, "no data type declaration for %pQ", id);
       return logic_type();
    }
    else if (!is_data_type(v)) {
       diag_t *d = diag_new(DIAG_ERROR, &state.last_loc);
-      diag_printf(d, "'%pi' is not a data type", id);
-      diag_hint(d, vlog_loc(v), "'%pi' declared here", id);
+      diag_printf(d, "%pQ is not a data type", id);
+      diag_hint(d, vlog_loc(v), "%pQ declared here", id);
       diag_emit(d);
 
       return logic_type();
@@ -1498,7 +1498,7 @@ static vlog_node_t p_package_identifier(void)
    object_t *obj = lib_get_generic(lib_work(), qual, NULL);
    vlog_node_t v = vlog_from_object(obj);
    if (v == NULL || vlog_kind(v) != V_PACKAGE) {
-      parse_error(&state.last_loc, "no package named '%pi' in working "
+      parse_error(&state.last_loc, "no package named %pQ in working "
                   "library", id);
       return NULL;
    }
@@ -2838,7 +2838,7 @@ static vlog_node_t p_disable_statement(void)
 
    vlog_node_t decl = vlog_symtab_query(symtab, id);
    if (decl == NULL)
-      error_at(&state.last_loc, "no visible label '%pi'", id);
+      error_at(&state.last_loc, "no visible label %pQ", id);
    else {
       switch (vlog_kind(decl)) {
       case V_SEQ_BLOCK:
@@ -2847,8 +2847,8 @@ static vlog_node_t p_disable_statement(void)
       default:
          {
             diag_t *d = diag_new(DIAG_ERROR, &state.last_loc);
-            diag_printf(d, "cannot disable '%pi'", id);
-            diag_hint(d, vlog_loc(decl), "'%pi' declared here", id);
+            diag_printf(d, "cannot disable %pQ", id);
+            diag_hint(d, vlog_loc(decl), "%pQ declared here", id);
             diag_emit(d);
          }
          break;
@@ -4407,7 +4407,7 @@ static vlog_node_t p_generate_block(void)
          if (label == NULL)
             parse_error(&state.last_loc, "block does not have a label");
          else if (name != label)
-            parse_error(&state.last_loc, "'%pi' does not match label '%pi'",
+            parse_error(&state.last_loc, "%pQ does not match label %pQ",
                         name, label);
       }
    }

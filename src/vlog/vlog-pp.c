@@ -644,7 +644,7 @@ static void p_list_of_actual_arguments(macro_t *m)
             hash_put(macro_args, m->args.items[i].name, copy);
          }
          else {
-            error_at(&state.last_loc, "macro '%pi' is missing argument '%pi' "
+            error_at(&state.last_loc, "macro %pQ is missing argument %pQ "
                      "with no default value", m->name, m->args.items[i].name);
             m->error = true;
             break;
@@ -656,7 +656,7 @@ static void p_list_of_actual_arguments(macro_t *m)
       for (int i = pos; i < m->args.count; i++)
          has_def |= (m->args.items[i].def != NULL);
 
-      error_at(&state.last_loc, "macro '%pi' requires %s %d arguments, "
+      error_at(&state.last_loc, "macro %pQ requires %s %d arguments, "
                "%d were given", m->name, has_def ? "at most" : "exactly",
                m->args.count, pos);
       m->error = true;
@@ -687,7 +687,7 @@ static void p_text_macro_usage(void)
 
    macro_t *m = hash_get(macros, name);
    if (m == NULL) {
-      warn_at(&yylloc, "macro '%pi' undefined", name);
+      warn_at(&yylloc, "macro %pQ undefined", name);
 
       // Prevent further warnings for this macro name
       macro_t *dummy = xcalloc(sizeof(macro_t));
@@ -730,7 +730,7 @@ static void p_text_macro_usage(void)
          consume(tRPAREN);
       }
       else {
-         error_at(&state.last_loc, "macro '%pi' requires arguments", m->name);
+         error_at(&state.last_loc, "macro %pQ requires arguments", m->name);
          m->error = true;
          macro_args = NULL;
       }

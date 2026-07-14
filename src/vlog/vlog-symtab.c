@@ -171,7 +171,7 @@ void vlog_symtab_pop(vlog_symtab_t *st)
          APUSH(st->top->parent->deferred, v);
       else if (vlog_kind(v) != V_MOD_REF) {
          ident_t name = vlog_ident(v);
-         error_at(vlog_loc(v), "no visible declaration for '%pi'", name);
+         error_at(vlog_loc(v), "no visible declaration for %pQ", name);
          vlog_symtab_poison(st, name);
       }
    }
@@ -197,7 +197,7 @@ static void lookup_member(vlog_symtab_t *st, vlog_node_t v)
    if (kind != V_STRUCT_DECL && kind != V_UNION_DECL && kind != V_CLASS_DECL) {
       diag_t *d = diag_new(DIAG_ERROR, vlog_loc(prefix));
       if (vlog_kind(prefix) == V_REF)
-         diag_printf(d, "'%pi'", vlog_ident(prefix));
+         diag_printf(d, "%pQ", vlog_ident(prefix));
       else
          diag_printf(d, "prefix");
       diag_printf(d, " is not a struct, union, or class");
@@ -220,8 +220,8 @@ static void lookup_member(vlog_symtab_t *st, vlog_node_t v)
    if (kind == V_STRUCT_DECL || kind == V_UNION_DECL)
       diag_printf(d, "%s ", kind == V_STRUCT_DECL ? "struct" : "union");
    else
-      diag_printf(d, "class '%pi' ", vlog_ident(type));
-   diag_printf(d, "has no field named '%pi'", id);
+      diag_printf(d, "class %pQ ", vlog_ident(type));
+   diag_printf(d, "has no field named %pQ", id);
    diag_hint(d, vlog_loc(type), "%s declared here",
              kind == V_STRUCT_DECL ? "struct" :
              kind == V_UNION_DECL ? "union" : "class");
@@ -300,10 +300,10 @@ static void lookup_method_call(vlog_symtab_t *st, vlog_node_t v)
    if (m == V_METHOD_USER) {
       diag_t *d = diag_new(DIAG_ERROR, vlog_loc(prefix));
       if (vlog_kind(prefix) == V_REF)
-         diag_printf(d, "'%pi'", vlog_ident(prefix));
+         diag_printf(d, "%pQ", vlog_ident(prefix));
       else
          diag_printf(d, "prefix");
-      diag_printf(d, " has no method named '%pi'", vlog_ident(v));
+      diag_printf(d, " has no method named %pQ", vlog_ident(v));
       diag_emit(d);
    }
 }
@@ -355,7 +355,7 @@ void vlog_symtab_lookup(vlog_symtab_t *st, vlog_node_t v)
          APUSH(st->top->deferred, v);
          break;
       default:
-         error_at(vlog_loc(v), "no visible declaration for '%pi'", name);
+         error_at(vlog_loc(v), "no visible declaration for %pQ", name);
          vlog_symtab_poison(st, name);
       }
    }
@@ -409,8 +409,8 @@ void vlog_symtab_put(vlog_symtab_t *st, vlog_node_t v)
       }
 
       diag_t *d = diag_new(DIAG_ERROR, vlog_loc(v));
-      diag_printf(d, "duplicate declaration of '%pi'", name);
-      diag_hint(d, vlog_loc(sym->node), "'%pi' was previously declared here",
+      diag_printf(d, "duplicate declaration of %pQ", name);
+      diag_hint(d, vlog_loc(sym->node), "%pQ was previously declared here",
                 name);
       diag_hint(d, vlog_loc(v), "duplicate declaration");
       diag_suppress(d, name == well_known(W_ERROR) || st->top->suppress);
