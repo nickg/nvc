@@ -4783,6 +4783,12 @@ static tree_t solve_array_ref(nametab_t *tab, tree_t t)
    if (conv != NULL)
       return _solve_types(tab, conv);
 
+   if (!tree_has_type(deref)) {
+      error_at(tree_loc(deref), "%pC %pI cannot be indexed", deref,
+               tree_ident(deref));
+      tree_set_type(deref, type_new(T_NONE));
+   }
+
    type_t base_type = tree_type(deref);
 
    const int nparams = tree_params(t);
@@ -4821,6 +4827,12 @@ static tree_t solve_array_slice(nametab_t *tab, tree_t t)
    tree_t value = _solve_types(tab, tree_value(t));
    tree_t deref = implicit_dereference(tab, value);
    tree_set_value(t, deref);
+
+   if (!tree_has_type(deref)) {
+      error_at(tree_loc(deref), "%pC %pI cannot be sliced", deref,
+               tree_ident(deref));
+      tree_set_type(deref, type_new(T_NONE));
+   }
 
    type_t type = tree_type(deref);
    type_t index_type = index_type_of(type, 0);
