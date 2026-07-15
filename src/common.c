@@ -2252,16 +2252,20 @@ static void build_wait_for_target(tree_t expr, build_wait_fn_t fn, void *ctx)
    switch (tree_kind(expr)) {
    case T_ARRAY_SLICE:
       build_wait(tree_range(expr, 0), fn, ctx);
+      build_wait_for_target(tree_value(expr), fn, ctx);
       break;
-
    case T_ARRAY_REF:
       {
          const int nparams = tree_params(expr);
          for (int i = 0; i < nparams; i++)
             build_wait(tree_value(tree_param(expr, i)), fn, ctx);
+
+         build_wait_for_target(tree_value(expr), fn, ctx);
       }
       break;
-
+   case T_RECORD_REF:
+      build_wait_for_target(tree_value(expr), fn, ctx);
+      break;
    default:
       break;
    }

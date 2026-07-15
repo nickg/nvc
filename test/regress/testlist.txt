@@ -1435,3 +1435,4 @@ ename18         normal,2008
 vlog46          verilog
 href2           verilog
 tcl5            fail,gold,tcl
+issue1609       normal,2008
