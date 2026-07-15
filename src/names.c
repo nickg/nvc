@@ -2467,7 +2467,16 @@ static tree_t resolve_selected_name(nametab_t *tab, tree_t t)
       if (sel == NULL)
          should_not_reach_here();
 
-      if (is_subprogram(sel) && can_call_no_args(sel)) {
+      bool is_fcall = false;
+      if (is_subprogram(sel))
+         is_fcall = can_call_no_args(sel);
+      else if (tree_kind(sel) == T_ALIAS) {
+         tree_t sub = get_aliased_subprogram(sel);
+         if (sub != NULL)
+            is_fcall = can_call_no_args(sub);
+      }
+
+      if (is_fcall) {
          tree_t fcall = tree_new(T_FCALL);
          tree_set_ident(fcall, qual);
          tree_set_loc(fcall, tree_loc(t));
