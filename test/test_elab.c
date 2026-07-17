@@ -2363,6 +2363,25 @@ START_TEST(test_issue1569)
 }
 END_TEST
 
+START_TEST(test_issue1615)
+{
+   set_standard(STD_19);
+
+   input_from_file(TESTDIR "/elab/issue1615.vhd");
+
+   const error_t expect[] = {
+      {  9, "top-level port S with variable class cannot be unconnected" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t e = run_elab();
+   fail_unless(e == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_elab_tests(void)
 {
    Suite *s = suite_create("elab");
@@ -2482,6 +2501,7 @@ Suite *get_elab_tests(void)
    tcase_add_test(tc, test_issue1519);
    tcase_add_test(tc, test_issue1475);
    tcase_add_test(tc, test_issue1569);
+   tcase_add_test(tc, test_issue1615);
    suite_add_tcase(s, tc);
 
    return s;

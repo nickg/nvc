@@ -2727,14 +2727,20 @@ static tree_t elab_top_level_binding(tree_t arch, const elab_ctx_t *ctx)
       tree_set_subkind(m, P_POS);
       tree_set_pos(m, i);
 
-      if (tree_subkind(p) == PORT_IN && tree_has_value(p))
+      if (tree_class(p) == C_VARIABLE) {
+         diag_t *d = diag_new(DIAG_ERROR, tree_loc(p));
+         diag_printf(d, "top-level port %pI with variable class cannot be "
+                     "unconnected", tree_ident(p));
+         diag_lrm(d, STD_19, "6.5.6.3");
+         diag_emit(d);
+      }
+      else if (tree_subkind(p) == PORT_IN && tree_has_value(p))
          tree_set_value(m, tree_value(p));
       else {
          type_t type = tree_type(p);
          if (type_is_unconstrained(type))
-            error_at(tree_loc(p), "unconnected top-level port %s cannot have "
-                     "unconstrained type %s", istr(tree_ident(p)),
-                     type_pp(type));
+            error_at(tree_loc(p), "unconnected top-level port %pI cannot have "
+                     "unconstrained type %pT", tree_ident(p), type);
 
          tree_t open = tree_new(T_OPEN);
          tree_set_type(open, type);
