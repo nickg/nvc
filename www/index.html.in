@@ -32,4 +32,23 @@ include(`header.html.in')dnl
   the <a href="__github_url/discussions">discussion forum</a> on GitHub.
 </p>
 
+<h1>Funding</h1>
+<p>
+  Funding generously provided by my sponsors
+  on <a href="https://github.com/sponsors/nickg">GitHub</a>
+  and <a href="https://www.eltvor.cz/index.html">Eltvor</a>.
+</p>
+
+<div style="display: flex; align-items: center; gap: 0.5em;">
+  <a href="https://github.com/sponsors/nickg">
+    <img alt="GitHub Sponsors"
+         src="https://img.shields.io/github/sponsors/nickg"/>
+  </a>
+  <a href="https://www.eltvor.cz/index.html">
+    <img alt="Eltvor"
+         src="https://www.eltvor.cz/img/logo.png"
+         height="30"/>
+  </a>
+</div>
+
 include(`footer.html.in')dnl

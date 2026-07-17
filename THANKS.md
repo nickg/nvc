@@ -22,7 +22,9 @@ following people:
   implementation.
 - Sebastien Van Cauwenbergh (@svancau) contributed the JSON output
   module.
-
+   
 Special thank you to @bpadalino, @tmeissner, @Blebowski, @amb5l,
 @m42uko, @a-panella, @cmarqu, @albydnc, @johonkanen, and @augustofg for
 sponsoring me!
+
+Funding also provided by [Eltvor](https://www.eltvor.cz/index.html).
