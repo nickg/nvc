@@ -5221,88 +5221,92 @@ static void irgen_block(jit_irgen_t *g, mir_block_t block)
    DEBUG_ONLY(if (nops == 0) j_trap(g));
 }
 
-static void irgen_locals(jit_irgen_t *g)
+static void irgen_stack_vars(jit_irgen_t *g)
 {
-   const int nvars = mir_count_vars(g->mu);
-   g->vars = xmalloc_array(nvars, sizeof(jit_value_t));
-
-   bool on_stack;
-   const mir_unit_kind_t kind = mir_get_kind(g->mu);
-   switch (kind) {
+   bool all_on_stack;
+   switch (mir_get_kind(g->mu)) {
    case MIR_UNIT_PROCESS:
    case MIR_UNIT_PROPERTY:
-      on_stack = g->stateless;
+      all_on_stack = g->stateless;
       break;
    case MIR_UNIT_INSTANCE:
    case MIR_UNIT_PROCEDURE:
    case MIR_UNIT_PACKAGE:
    case MIR_UNIT_PROTECTED:
-      on_stack = false;
+      all_on_stack = false;
       break;
    default:
-      on_stack = !g->needs_context;
+      all_on_stack = !g->needs_context;
       break;
    }
 
-   if (on_stack) {
-      // Local variables on stack
-      for (int i = 0; i < nvars; i++) {
-         g->vars[i] = irgen_alloc_reg(g, 1);
+   const int nvars = mir_count_vars(g->mu);
+   for (int i = 0; i < nvars; i++) {
+      mir_value_t var = mir_get_var(g->mu, i);
+      const mir_var_flags_t flags = mir_get_var_flags(g->mu, var);
+      if (!all_on_stack && !(flags & MIR_VAR_TEMP))
+         continue;
 
-         mir_value_t var = mir_get_var(g->mu, i);
-         mir_type_t type = mir_get_var_type(g->mu, var);
-         const int sz = irgen_size_bytes(g, type);
-         if ((mir_get_var_flags(g->mu, var) & MIR_VAR_HEAP)
-             || sz > MAX_STACK_ALLOC) {
-            macro_lalloc(g, g->vars[i], jit_value_from_int64(sz));
-            g->used_tlab = true;
-         }
-         else
-            macro_salloc(g, g->vars[i], sz);
+      g->vars[i] = irgen_alloc_reg(g, 1);
+
+      mir_type_t type = mir_get_var_type(g->mu, var);
+      const int sz = irgen_size_bytes(g, type);
+      if ((flags & MIR_VAR_HEAP) || sz > MAX_STACK_ALLOC) {
+         macro_lalloc(g, g->vars[i], jit_value_from_int64(sz));
+         g->used_tlab = true;
       }
+      else
+         macro_salloc(g, g->vars[i], sz);
    }
-   else {
-      // Local variables on heap
-      size_t sz = 0;
-      sz += sizeof(void *);   // Context parameter
-      if (kind == MIR_UNIT_PROCESS || kind == MIR_UNIT_PROCEDURE) {
-         sz += sizeof(void *);   // Suspended procedure state
-         sz += sizeof(int32_t);  // State number
+}
+
+static void irgen_context_struct(jit_irgen_t *g)
+{
+   const mir_unit_kind_t kind = mir_get_kind(g->mu);
+   size_t sz = 0;
+   sz += sizeof(void *);   // Context parameter
+   if (kind == MIR_UNIT_PROCESS || kind == MIR_UNIT_PROCEDURE) {
+      sz += sizeof(void *);   // Suspended procedure state
+      sz += sizeof(int32_t);  // State number
+   }
+
+   const int nvars = mir_count_vars(g->mu);
+   link_tab_t *linktab = xmalloc_array(nvars, sizeof(link_tab_t));
+
+   if (g->statereg.kind == JIT_VALUE_INVALID)
+      g->statereg = irgen_alloc_reg(g, 1);
+
+   for (int i = 0; i < nvars; i++) {
+      mir_value_t var = mir_get_var(g->mu, i);
+      if (mir_get_var_flags(g->mu, var) & MIR_VAR_TEMP) {
+         linktab[i].name = NULL;
+         linktab[i].offset = PTRDIFF_MAX;
       }
-
-      link_tab_t *linktab = xmalloc_array(nvars, sizeof(link_tab_t));
-
-      for (int i = 0; i < nvars; i++) {
-         mir_value_t var = mir_get_var(g->mu, i);
+      else {
          mir_type_t type = mir_get_var_type(g->mu, var);
          const int align = irgen_align_of(g, type);
          sz = ALIGN_UP(sz, align);
          linktab[i].name = mir_get_name(g->mu, var);
          linktab[i].offset = sz;
+         g->vars[i] = jit_addr_from_value(g->statereg, sz);
          sz += irgen_size_bytes(g, type);
       }
-
-      if (g->statereg.kind == JIT_VALUE_INVALID)
-         g->statereg = irgen_alloc_reg(g, 1);
-
-      if (kind == MIR_UNIT_PROTECTED) {
-         // Protected types must always be allocated on the global heap
-         // as the result may be stored in an access
-         macro_galloc(g, g->statereg, jit_value_from_int64(sz));
-      }
-      else {
-         macro_lalloc(g, g->statereg, jit_value_from_int64(sz));
-         g->used_tlab = true;
-      }
-
-      for (int i = 0; i < nvars; i++)
-         g->vars[i] = jit_addr_from_value(g->statereg, linktab[i].offset);
-
-      // Publish the variable offset table early to handle circular references
-      // This may be read by another thread while in the COMPILING state
-      g->func->nvars = nvars;
-      store_release(&(g->func->linktab), linktab);
    }
+
+   if (kind == MIR_UNIT_PROTECTED) {
+      // Protected types must always be allocated on the global heap
+      // as the result may be stored in an access
+      macro_galloc(g, g->statereg, jit_value_from_int64(sz));
+   }
+   else {
+      macro_lalloc(g, g->statereg, jit_value_from_int64(sz));
+      g->used_tlab = true;
+   }
+
+   // Publish the variable offset table early to handle circular references
+   // This may be read by another thread while in the COMPILING state
+   g->func->nvars = nvars;
+   store_release(&(g->func->linktab), linktab);
 }
 
 static void irgen_params(jit_irgen_t *g, int first)
@@ -5482,7 +5486,8 @@ static void irgen_instance_entry(jit_irgen_t *g)
    g->func->spec = ffi_spec_new(types, ARRAY_LEN(types));
 
    irgen_params(g, 1);
-   irgen_locals(g);
+   irgen_stack_vars(g);
+   irgen_context_struct(g);
 
    // Stash context pointer
    jit_value_t context = irgen_alloc_temp(g);
@@ -5496,11 +5501,7 @@ static void irgen_process_entry(jit_irgen_t *g)
    g->func->spec = ffi_spec_new(types, ARRAY_LEN(types));
 
    irgen_params(g, 1);
-
-   if (!g->stateless)
-      irgen_jump_table(g);
-
-   irgen_locals(g);
+   irgen_stack_vars(g);
 
    if (g->stateless) {
       g->contextarg = irgen_alloc_reg(g, 1);
@@ -5512,6 +5513,9 @@ static void irgen_process_entry(jit_irgen_t *g)
       j_jump(g, JIT_CC_F, g->blocks[1]);
    }
    else {
+      irgen_jump_table(g);
+      irgen_context_struct(g);
+
       // Stash context pointer
       jit_value_t context = irgen_alloc_temp(g);
       j_recv(g, context, 0);
@@ -5522,9 +5526,7 @@ static void irgen_process_entry(jit_irgen_t *g)
 static void irgen_property_entry(jit_irgen_t *g)
 {
    irgen_params(g, 1);
-
-   if (g->stateless)
-      irgen_locals(g);
+   irgen_stack_vars(g);
 
    jit_value_t state = irgen_alloc_reg(g, 1);
    j_recv(g, state, 0);
@@ -5533,11 +5535,10 @@ static void irgen_property_entry(jit_irgen_t *g)
 
    if (g->stateless)
       g->contextarg = g->params[0];
-   else
+   else {
       g->statereg = state;
 
-   if (!g->stateless) {
-      irgen_locals(g);
+      irgen_context_struct(g);
 
       // Stash context pointer
       jit_value_t context = jit_addr_from_value(g->statereg, 0);
@@ -5551,7 +5552,10 @@ static void irgen_function_entry(jit_irgen_t *g)
    const int first_param = is_procedure ? 1 : 0;
    irgen_params(g, first_param);
 
-   irgen_locals(g);
+   irgen_stack_vars(g);
+
+   if (g->needs_context)
+      irgen_context_struct(g);
 
    if (g->statereg.kind != JIT_VALUE_INVALID && mir_get_parent(g->mu) != NULL) {
       // Stash context pointer
@@ -5561,9 +5565,10 @@ static void irgen_function_entry(jit_irgen_t *g)
 
 static void irgen_procedure_entry(jit_irgen_t *g)
 {
+   irgen_stack_vars(g);
    irgen_jump_table(g);
    irgen_params(g, 1);
-   irgen_locals(g);
+   irgen_context_struct(g);
 
    // Stash context pointer
    j_store(g, JIT_SZ_PTR, g->params[0], jit_addr_from_value(g->statereg, 0));
@@ -5573,7 +5578,10 @@ static void irgen_thunk_entry(jit_irgen_t *g)
 {
    g->contextarg = irgen_alloc_reg(g, 1);
    j_recv(g, g->contextarg, 0);
-   irgen_locals(g);
+   irgen_stack_vars(g);
+
+   if (g->needs_context)
+      irgen_context_struct(g);
 }
 
 static void irgen_package_entry(jit_irgen_t *g)
@@ -5589,7 +5597,8 @@ static void irgen_package_entry(jit_irgen_t *g)
    j_ret(g);
    irgen_bind_label(g, cont);
 
-   irgen_locals(g);
+   irgen_stack_vars(g);
+   irgen_context_struct(g);
 
    // Stash context pointer
    jit_value_t context = irgen_alloc_temp(g);
@@ -5605,7 +5614,8 @@ static void irgen_protected_entry(jit_irgen_t *g)
    g->func->spec = ffi_spec_new(types, ARRAY_LEN(types));
 
    irgen_params(g, 1);
-   irgen_locals(g);
+   irgen_stack_vars(g);
+   irgen_context_struct(g);
 
    // Stash context pointer
    jit_value_t context = irgen_alloc_temp(g);
@@ -5693,6 +5703,12 @@ void jit_irgen(jit_func_t *f, mir_unit_t *mu)
 
    for (int i = 0; i < nblocks; i++)
       irgen_preallocate(g, mir_get_block(g->mu, i));
+
+   const int nvars = mir_count_vars(g->mu);
+   g->vars = xmalloc_array(nvars, sizeof(jit_value_t));
+
+   for (int i = 0; i < nvars; i++)
+      g->vars[i].kind = JIT_VALUE_INVALID;
 
    irgen_analyse(g);
 

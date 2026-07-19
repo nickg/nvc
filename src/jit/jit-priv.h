@@ -322,8 +322,8 @@ typedef enum {
 } func_state_t;
 
 typedef struct {
-   ident_t  name;
-   unsigned offset;
+   ident_t   name;
+   ptrdiff_t offset;
 } link_tab_t;
 
 typedef struct _jit_func {

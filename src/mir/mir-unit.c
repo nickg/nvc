@@ -415,18 +415,29 @@ ident_t mir_get_linkage(mir_unit_t *mu, unsigned nth)
 #ifdef DEBUG
 void mir_compare_layout(mir_unit_t *a, mir_unit_t *b)
 {
-   if (a->vars.count != b->vars.count)
-      goto differ;
+   int apos = 0, bpos = 0;
 
-   for (int i = 0; i < a->vars.count; i++) {
-      mir_type_t atype = a->vars.items[i].type;
-      mir_type_t btype = b->vars.items[i].type;
+   while (apos < a->vars.count && bpos < b->vars.count) {
+      const var_data_t *av = &(a->vars.items[apos]);
+      if (av->flags & MIR_VAR_TEMP) {
+         apos++;
+         continue;
+      }
 
-      if (mir_equals(atype, btype))
+      const var_data_t *bv = &(b->vars.items[bpos]);
+      if (bv->flags & MIR_VAR_TEMP) {
+         bpos++;
+         continue;
+      }
+
+      apos++;
+      bpos++;
+
+      if (mir_equals(av->type, bv->type))
          continue;
 
-      const type_data_t *tda = mir_type_data(a, atype);
-      const type_data_t *tdb = mir_type_data(a, btype);
+      const type_data_t *tda = mir_type_data(a, av->type);
+      const type_data_t *tdb = mir_type_data(a, bv->type);
 
       if (tda->class != tdb->class)
          goto differ;
@@ -435,6 +446,16 @@ void mir_compare_layout(mir_unit_t *a, mir_unit_t *b)
          continue;
 
       goto differ;
+   }
+
+   while (apos < a->vars.count) {
+      if (!(a->vars.items[apos++].flags & MIR_VAR_TEMP))
+         goto differ;
+   }
+
+   while (bpos < b->vars.count) {
+      if (!(b->vars.items[bpos++].flags & MIR_VAR_TEMP))
+         goto differ;
    }
 
    return;

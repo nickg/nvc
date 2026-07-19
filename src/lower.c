@@ -6914,10 +6914,10 @@ static void lower_for(lower_unit_t *lu, tree_t stmt, gen_stack_t *gs)
    const bool is_wait_free = lower_is_wait_free(lu, stmt);
    vcode_var_t right_var = VCODE_INVALID_VAR, step_var = VCODE_INVALID_VAR;
    if (!is_wait_free) {
-      right_var = lower_temp_var(lu, "right", vtype);
+      right_var = emit_var(vtype, VCODE_INVALID_STAMP, ident_uniq("right"), 0);
       emit_store(right_reg, right_var);
 
-      step_var = lower_temp_var(lu, "step", vtype);
+      step_var = emit_var(vtype, VCODE_INVALID_STAMP, ident_uniq("step"), 0);
       emit_store(step_reg, step_var);
    }
 
@@ -6991,11 +6991,6 @@ static void lower_for(lower_unit_t *lu, tree_t stmt, gen_stack_t *gs)
    }
 
    vcode_select_block(exit_bb);
-
-   if (!is_wait_free) {
-      lower_release_temp(lu, right_var);
-      lower_release_temp(lu, step_var);
-   }
 }
 
 static void lower_while(lower_unit_t *lu, tree_t stmt, gen_stack_t *gs)
