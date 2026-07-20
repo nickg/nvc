@@ -654,24 +654,60 @@ static vlog_select_t vlog_lower_select(vlog_gen_t *g, vlog_node_t v)
    }
 }
 
+static unsigned vlog_count_lvalues(vlog_node_t v)
+{
+   if (vlog_kind(v) != V_CONCAT)
+      return 1;
+
+   unsigned count = 0;
+   const int nparams = vlog_params(v);
+   for (int i = 0; i < nparams; i++)
+      count += vlog_count_lvalues(vlog_param(v, i));
+
+   return count;
+}
+
+static void vlog_lower_lvalues(vlog_gen_t *g, vlog_node_t v,
+                               vlog_select_t *lvalues, vlog_node_t *nodes,
+                               unsigned *index)
+{
+   if (vlog_kind(v) == V_CONCAT) {
+      const int nparams = vlog_params(v);
+      for (int i = 0; i < nparams; i++)
+         vlog_lower_lvalues(g, vlog_param(v, i), lvalues, nodes, index);
+   }
+   else {
+      lvalues[*index] = vlog_lower_select(g, v);
+      if (nodes != NULL)
+         nodes[*index] = v;
+      (*index)++;
+   }
+}
+
 static void vlog_assign_variable(vlog_gen_t *g, vlog_node_t target,
                                  mir_value_t value, vlog_node_t rhs)
 {
    unsigned nlvalues = 1, targetsz = 0;
    mir_type_t context;
    vlog_select_t lvalue1, *lvalues = &lvalue1;
+   vlog_node_t node1, *nodes = &node1;
    if (vlog_kind(target) == V_CONCAT) {
-      const int nparams = nlvalues = vlog_params(target);
-      lvalues = xmalloc_array(nparams, sizeof(vlog_select_t));
-      for (int i = 0; i < nparams; i++) {
-         lvalues[i] = vlog_lower_select(g, vlog_param(target, i));
+      nlvalues = vlog_count_lvalues(target);
+      lvalues = xmalloc_array(nlvalues, sizeof(vlog_select_t));
+      nodes = xmalloc_array(nlvalues, sizeof(vlog_node_t));
+
+      unsigned index = 0;
+      vlog_lower_lvalues(g, target, lvalues, nodes, &index);
+      assert(index == nlvalues);
+
+      for (int i = 0; i < nlvalues; i++)
          targetsz += lvalues[i].size;
-      }
 
       context = mir_vec4_type(g->mu, targetsz, false);
    }
    else {
       lvalue1 = vlog_lower_select(g, target);
+      node1 = target;
       targetsz = lvalue1.size;
       context = lvalue1.type;
    }
@@ -778,15 +814,7 @@ static void vlog_assign_variable(vlog_gen_t *g, vlog_node_t target,
                                          lvalues[i].src_offset);
          mir_value_t part = mir_build_extract(g->mu, part_type, cast, pos);
 
-         vlog_node_t select;
-         if (vlog_kind(target) == V_CONCAT)
-            select = vlog_param(target, i);
-         else {
-            assert(i == 0);
-            select = target;
-         }
-
-         switch (vlog_kind(select)) {
+         switch (vlog_kind(nodes[i])) {
          case V_REF:
          case V_MEMBER_REF:
             mir_build_store(g->mu, lvalues[i].obj, part);
@@ -2185,12 +2213,15 @@ static void vlog_lower_non_blocking_assignment(vlog_gen_t *g, vlog_node_t v)
    unsigned nlvalues = 1, targetsz = 0;
    vlog_select_t lvalue1, *lvalues = &lvalue1;
    if (vlog_kind(target) == V_CONCAT) {
-      const int nparams = nlvalues = vlog_params(target);
-      lvalues = xmalloc_array(nparams, sizeof(vlog_select_t));
-      for (int i = 0; i < nparams; i++) {
-         lvalues[i] = vlog_lower_select(g, vlog_param(target, i));
+      nlvalues = vlog_count_lvalues(target);
+      lvalues = xmalloc_array(nlvalues, sizeof(vlog_select_t));
+
+      unsigned index = 0;
+      vlog_lower_lvalues(g, target, lvalues, NULL, &index);
+      assert(index == nlvalues);
+
+      for (int i = 0; i < nlvalues; i++)
          targetsz += lvalues[i].size;
-      }
    }
    else {
       lvalue1 = vlog_lower_select(g, target);
@@ -2971,12 +3002,15 @@ static void vlog_lower_assign_process(vlog_gen_t *g, vlog_node_t v)
    unsigned nlvalues = 1, targetsz = 0;
    vlog_select_t lvalue1, *lvalues = &lvalue1;
    if (vlog_kind(target) == V_CONCAT) {
-      const int nparams = nlvalues = vlog_params(target);
-      lvalues = xmalloc_array(nparams, sizeof(vlog_select_t));
-      for (int i = 0; i < nparams; i++) {
-         lvalues[i] = vlog_lower_select(g, vlog_param(target, i));
+      nlvalues = vlog_count_lvalues(target);
+      lvalues = xmalloc_array(nlvalues, sizeof(vlog_select_t));
+
+      unsigned index = 0;
+      vlog_lower_lvalues(g, target, lvalues, NULL, &index);
+      assert(index == nlvalues);
+
+      for (int i = 0; i < nlvalues; i++)
          targetsz += lvalues[i].size;
-      }
    }
    else {
       lvalue1 = vlog_lower_select(g, target);
@@ -3247,39 +3281,7 @@ static void vlog_lower_port_map(vlog_gen_t *g, vlog_node_t v)
          break;
       case V_PORT_OUTPUT:
          {
-            vlog_node_t target = vlog_value(v);
-            if (vlog_kind(target) == V_CONCAT) {
-               const int nparams = vlog_params(target);
-               for (int i = 0; i < nparams; i++) {
-                  vlog_node_t p = vlog_param(target, i);
-                  vlog_node_t lsp = vlog_longest_static_prefix(p);
-                  vlog_select_t lvalue = vlog_lower_select(g, lsp);
-
-                  mir_value_t count = lvalue.count;
-                  if (vlog_kind(lsp) == V_REF) {
-                     int total_size = lvalue.size * vlog_size(vlog_ref(lsp));
-                     count = mir_const(g->mu, t_offset, total_size);
-                  }
-
-                  mir_value_t nets = mir_build_array_ref(g->mu, lvalue.obj,
-                                                         lvalue.dst_offset);
-                  mir_build_drive_signal(g->mu, nets, count);
-               }
-            }
-            else {
-               vlog_node_t lsp = vlog_longest_static_prefix(target);
-               vlog_select_t lvalue = vlog_lower_select(g, lsp);
-
-               mir_value_t count = lvalue.count;
-               if (vlog_kind(lsp) == V_REF) {
-                  int total_size = lvalue.size * vlog_size(vlog_ref(lsp));
-                  count = mir_const(g->mu, t_offset, total_size);
-               }
-
-               mir_value_t nets = mir_build_array_ref(g->mu, lvalue.obj,
-                                                      lvalue.dst_offset);
-               mir_build_drive_signal(g->mu, nets, count);
-            }
+            vlog_lower_driver(g, vlog_value(v));
 
             mir_value_t count = mir_const(g->mu, t_offset, ti->size);
             mir_build_sched_event(g->mu, signal, count);
@@ -3303,12 +3305,15 @@ static void vlog_lower_port_map(vlog_gen_t *g, vlog_node_t v)
       {
          vlog_node_t target = vlog_value(v);
          if (vlog_kind(target) == V_CONCAT) {
-            const int nparams = nlvalues = vlog_params(target);
-            lvalues = xmalloc_array(nparams, sizeof(vlog_select_t));
-            for (int i = 0; i < nparams; i++) {
-               lvalues[i] = vlog_lower_select(g, vlog_param(target, i));
+            nlvalues = vlog_count_lvalues(target);
+            lvalues = xmalloc_array(nlvalues, sizeof(vlog_select_t));
+
+            unsigned index = 0;
+            vlog_lower_lvalues(g, target, lvalues, NULL, &index);
+            assert(index == nlvalues);
+
+            for (int i = 0; i < nlvalues; i++)
                targetsz += lvalues[i].size;
-            }
          }
          else {
             lvalue1 = vlog_lower_select(g, target);
