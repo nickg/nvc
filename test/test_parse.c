@@ -7753,6 +7753,18 @@ START_TEST(test_issue1612)
 }
 END_TEST
 
+START_TEST(test_issue1614)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/parse/issue1614.vhd");
+
+   parse_and_check(T_ENTITY, T_ARCH, T_ENTITY, T_ARCH);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_parse_tests(void)
 {
    Suite *s = suite_create("parse");
@@ -7961,6 +7973,7 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_issue1610);
    tcase_add_test(tc_core, test_issue1590);
    tcase_add_test(tc_core, test_issue1612);
+   tcase_add_test(tc_core, test_issue1614);
    suite_add_tcase(s, tc_core);
 
    return s;

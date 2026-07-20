@@ -4062,7 +4062,6 @@ static bool is_unambiguous(tree_t t)
       || kind == T_TYPE_CONV
       || kind == T_ALL
       || kind == T_PSL_FCALL
-      || kind == T_RECORD_REF
       || (kind == T_REF && tree_has_ref(t));
 }
 
@@ -4699,6 +4698,15 @@ static type_t solve_field_subtype(type_t rtype, tree_t field)
    }
 
    return ftype;
+}
+
+static tree_t try_solve_record_ref(nametab_t *tab, tree_t t)
+{
+   tree_t call = resolve_record_ref_or_call(tab, t, false);
+   if (call != NULL)
+      return try_solve_type(tab, call);
+
+   return _solve_types(tab, t);
 }
 
 static tree_t solve_record_ref(nametab_t *tab, tree_t t)
@@ -5857,6 +5865,8 @@ static tree_t try_solve_type(nametab_t *tab, tree_t t)
       return try_solve_new(tab, t);
    case T_ARRAY_REF:
       return try_solve_array_ref(tab, t);
+   case T_RECORD_REF:
+      return try_solve_record_ref(tab, t);
    default:
       CANNOT_HANDLE(t);
    }
