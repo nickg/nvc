@@ -2891,6 +2891,9 @@ static void notify_event(rt_model_t *m, rt_nexus_t *n)
    n->last_event = m->now;
    n->event_delta = m->iteration;
 
+   // Triggers run synchronously in blocking update phase
+   m->trigger_epoch += m->blocking_update;
+
    if (n->flags & NET_F_CACHE_EVENT)
       n->signal->shared.flags |= SIG_F_EVENT_FLAG;
 
@@ -3080,9 +3083,6 @@ static void update_pseudo_source(rt_model_t *m, rt_source_t *src)
       assert(w_now->next == NULL || w_now->next->when > m->now);
       src->disconnected = 1;
    }
-
-   if (m->blocking_update)
-      m->trigger_epoch++;   // Triggers run synchronously
 
    update_driving(m, n, false);
 }
