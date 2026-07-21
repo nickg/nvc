@@ -1692,6 +1692,18 @@ static c_typeDecl *find_typeDecl(type_t type, c_abstractRegion *r)
          decls = expand_lazy_list(&du->region.object, &(du->region.Decls));
       }
       break;
+   case T_PACK_INST:
+      {
+         c_packInst *pi = hash_get(vhpi_context()->objcache, container);
+         if (pi == NULL)
+            fatal_trace("missing vhpiPackInstK for %pI", tree_ident(container));
+
+         assert(pi->designInstUnit.region.object.kind == vhpiPackInstK);
+
+         decls = expand_lazy_list(&pi->designInstUnit.region.object,
+                                  &(pi->designInstUnit.region.Decls));
+      }
+      break;
    case T_ARCH:
    case T_ELAB:
       {
@@ -4652,12 +4664,14 @@ static c_abstractRegion *build_ifGenerate(tree_t t, c_abstractRegion *region)
    return &(g->region);
 }
 
-static void build_packInst(tree_t inst, c_abstractRegion *region)
+static c_designInstUnit *build_packInst(tree_t inst, c_abstractRegion *region)
 {
    c_designUnit *du = cached_designUnit(tree_ref(inst));
 
    c_packInst *pi = new_object(sizeof(c_packInst), vhpiPackInstK);
    init_designInstUnit(&(pi->designInstUnit), region, inst, du);
+
+   return &(pi->designInstUnit);
 }
 
 static c_tool *build_tool(int argc, char **argv)
@@ -5108,15 +5122,32 @@ static void vhpi_build_deps_cb(tree_t unit, void *ctx)
 
    hset_insert(visited, unit);
 
-   if (tree_kind(unit) == T_PACKAGE) {
-      c_designUnit *pack = cached_designUnit(unit);
-      assert(pack->region.object.kind == vhpiPackDeclK);
+   switch (tree_kind(unit)) {
+   case T_PACKAGE:
+      {
+         c_designUnit *pack = cached_designUnit(unit);
+         assert(pack->region.object.kind == vhpiPackDeclK);
 
-      c_packInst *pi = new_object(sizeof(c_packInst), vhpiPackInstK);
-      init_designInstUnit(&(pi->designInstUnit), NULL, unit, pack);
+         c_packInst *pi = new_object(sizeof(c_packInst), vhpiPackInstK);
+         init_designInstUnit(&(pi->designInstUnit), NULL, unit, pack);
 
-      vhpi_context_t *c = vhpi_context();
-      APUSH(c->packages, &(pi->designInstUnit.region.object));
+         vhpi_context_t *c = vhpi_context();
+         APUSH(c->packages, &(pi->designInstUnit.region.object));
+      }
+      break;
+   case T_PACK_INST:
+      {
+         c_designInstUnit *di = build_packInst(unit, NULL);
+
+         vhpi_context_t *c = vhpi_context();
+         APUSH(c->packages, &(di->region.object));
+
+         // Safe to cache at top level
+         hash_put(c->objcache, unit, di);
+      }
+      break;
+   default:
+      break;
    }
 
    tree_walk_deps(unit, vhpi_build_deps_cb, visited);
