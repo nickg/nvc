@@ -491,6 +491,7 @@ typedef struct {
    vhpiCbDataT   data;
    vhpiHandleT   handle;
    rt_watch_t   *watch;
+   uint64_t      delay;
 } c_callback;
 
 DEF_CLASS(callback, vhpiCallbackK, refcounted.object);
@@ -1629,6 +1630,11 @@ static void vhpi_global_cb(rt_model_t *m, void *user)
       case vhpiCbValueChange:
          break;    // Repetitive
 
+      case vhpiCbRepAfterDelay:
+         model_set_timeout_cb(m, model_now(m, NULL) + cb->delay,
+                              vhpi_global_cb, handle);
+         break;
+
       default:
          cb->State = vhpiMature;
          drop_handle(c, handle);
@@ -2442,20 +2448,22 @@ vhpiHandleT vhpi_register_cb(vhpiCbDataT *cb_data_p, int32_t flags)
       }
 
    case vhpiCbAfterDelay:
+   case vhpiCbRepAfterDelay:
       {
          if (cb_data_p->time == NULL) {
-            vhpi_error(vhpiError, NULL, "missing time for vhpiCbAfterDelay");
+            vhpi_error(vhpiError, NULL, "missing time for %s",
+                       vhpi_cb_reason_str(cb_data_p->reason));
             return NULL;
          }
 
          c_callback *cb = recycle_object(sizeof(c_callback), vhpiCallbackK);
          init_callback(cb, cb_data_p, flags);
+         cb->delay = vhpi_time_to_native(cb_data_p->time);
 
          const uint64_t now = model_now(m, NULL);
-         const uint64_t when = vhpi_time_to_native(cb_data_p->time) + now;
 
          cb->handle = internal_handle_for(&(cb->refcounted.object));
-         model_set_timeout_cb(m, when, vhpi_global_cb, cb->handle);
+         model_set_timeout_cb(m, now + cb->delay, vhpi_global_cb, cb->handle);
 
          if (flags & vhpiReturnCb)
             return user_handle_for(&(cb->refcounted.object));

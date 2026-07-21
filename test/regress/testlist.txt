@@ -1440,3 +1440,4 @@ vhpi20          tcl,2008
 issue1606       normal,2008
 vhpi21          vhpi,2008
 concat9         verilog
+issue1616       vhpi

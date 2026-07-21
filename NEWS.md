@@ -13,6 +13,7 @@
 - Verilog `disable` statements are now supported (#1605).
 - Added the `$tcl_interactive` variable to distinguish `nvc -i` and `nvc
   --do` (#1608).
+- Added support for VHPI `vhpiCbRepAfterDelay` callbacks (#1616).
 - Several other minor bugs were resolved (#1587, #1594, #1409, #1597,
   #1599, #1600, #1596, #1569, #1607, #1610, #1590, #1609, #1612, #1606,
   #1613, #1614).
