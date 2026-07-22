@@ -1,4 +1,6 @@
 ## Unreleased changes
+
+## Version 1.22.0 - 2026-07-22
 - Added support for evaluating user function calls in Verilog constant
   expressions (#1518).
 - VHDL architectures can now be specified on the command line with `-e

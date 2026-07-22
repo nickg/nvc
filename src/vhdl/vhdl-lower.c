@@ -442,13 +442,13 @@ static mir_value_t vhdl_lower_subprogram_arg(vhdl_gen_t *g, tree_t t, int nth,
       reg = vhdl_lower_rvalue(g, value);
 
    if (type_is_array(value_type))
-      assert(false);  // TODO
+      should_not_reach_here();  // TODO
    else if (class == C_SIGNAL || class == C_FILE)
       return reg;
    else if (mode == PORT_OUT || !type_is_scalar(port_type))
       return reg;
    else if (mode == PORT_INOUT)
-      assert(false);  // TODO
+      should_not_reach_here();  // TODO
    else {
       check_scalar_bounds(g, type_info(g, port_type), reg, value, port);
       return reg;
@@ -849,6 +849,9 @@ static void vhdl_lower_wait(vhdl_gen_t *g, tree_t t)
 
    const int ntriggers = tree_triggers(t);
    assert(ntriggers == 0);
+
+   (void)is_static;
+   (void)ntriggers;
 
    mir_block_t resume_bb = mir_add_block(g->mu);
    mir_build_wait(g->mu, resume_bb);
