@@ -68,6 +68,18 @@ static vlog_node_t bind_parameter(vlog_node_t decl, int nth, vlog_node_t inst)
          value = vlog_value(decl);
    }
 
+   if (vlog_kind(value) == V_NUMBER
+       && vlog_subkind(value) == V_NUMBER_UNBASED) {
+      // Expand an unbased unsized literal to the declared parameter width;
+      // an implicit unsized type takes the default integer width
+      vlog_node_t type = vlog_type(decl);
+      unsigned width = vlog_size(type);
+      const bool issigned = !!(vlog_flags(type) & VLOG_F_SIGNED);
+      if (is_implicit_data_type(type) && vlog_ranges(type) == 0)
+         width = 32;
+      value = vlog_fill_unbased(value, width, issigned);
+   }
+
    vlog_node_t local = vlog_new(V_LOCALPARAM);
    vlog_set_loc(local, vlog_loc(decl));
    vlog_set_ident(local, vlog_ident(decl));

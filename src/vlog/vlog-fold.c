@@ -292,8 +292,17 @@ static vlog_node_t fold_localparam(vlog_node_t v, fold_ctx_t *ctx)
    }
 
    vlog_node_t vtype = vlog_type(v);
-   if (!is_implicit_data_type(vtype) || vlog_ranges(vtype) > 0)
+   if (!is_implicit_data_type(vtype) || vlog_ranges(vtype) > 0) {
+      // Explicitly typed localparam: expand an unbased unsized literal to
+      // the declared width
+      if (vlog_kind(value) == V_NUMBER
+          && vlog_subkind(value) == V_NUMBER_UNBASED) {
+         const unsigned w = vlog_size(vtype);
+         const bool s = !!(vlog_flags(vtype) & VLOG_F_SIGNED);
+         vlog_set_value(v, vlog_fill_unbased(value, w, s));
+      }
       return v;
+   }
 
    vlog_node_t dt = vlog_new(V_DATA_TYPE);
    vlog_set_loc(dt, vlog_loc(v));
@@ -303,6 +312,14 @@ static vlog_node_t fold_localparam(vlog_node_t v, fold_ctx_t *ctx)
    const vlog_kind_t kind = vlog_kind(value);
    if (kind == V_REAL)
       vlog_set_subkind(dt, DT_REAL);
+   else if (kind == V_NUMBER && vlog_subkind(value) == V_NUMBER_UNBASED) {
+      // Self-determined unbased unsized literal takes the default integer
+      // width as a four-state logic vector
+      width = 32;
+      issigned = false;
+      vlog_set_value(v, vlog_fill_unbased(value, width, issigned));
+      vlog_set_subkind(dt, DT_LOGIC);
+   }
    else {
       width = vlog_width(value);
       issigned = vlog_is_signed(value);

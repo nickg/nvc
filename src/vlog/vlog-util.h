@@ -30,6 +30,7 @@ unsigned vlog_size(vlog_node_t v);
 unsigned vlog_width(vlog_node_t v);
 bool vlog_is_signed(vlog_node_t v);
 bool vlog_is_unsized(vlog_node_t v);
+vlog_node_t vlog_fill_unbased(vlog_node_t expr, unsigned width, bool issigned);
 bool is_top_level(vlog_node_t v);
 bool is_data_type(vlog_node_t v);
 bool is_implicit_data_type(vlog_node_t v);

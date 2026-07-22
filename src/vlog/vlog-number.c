@@ -567,6 +567,40 @@ number_t number_from_logic(vlog_logic_t value)
    return number_intern(result);
 }
 
+number_t number_logic_fill(vlog_logic_t value, unsigned width, bool issigned)
+{
+   // Expand an unbased unsized literal ('0 '1 'x 'z) to a concrete vector
+   // by replicating the logic value across every bit
+
+   assert(width > 0);
+
+   bignum_t *result;
+   bignum_scratch(width, issigned, 1, &result);
+
+   const uint64_t afill = (value & 1) ? ~UINT64_C(0) : 0;
+   const uint64_t bfill = (value >> 1) ? ~UINT64_C(0) : 0;
+
+   uint64_t *abits = bignum_abits(result);
+   uint64_t *bbits = bignum_bbits(result);
+
+   const int nwords = BIGNUM_WORDS(width);
+   for (int i = 0; i < nwords; i++) {
+      abits[i] = afill;
+      bbits[i] = bfill;
+   }
+
+   // Clear the unused high bits of the top word so hashing and equality
+   // see a canonical representation
+   const int rem = width % 64;
+   if (rem != 0) {
+      const uint64_t mask = (UINT64_C(1) << rem) - 1;
+      abits[nwords - 1] &= mask;
+      bbits[nwords - 1] &= mask;
+   }
+
+   return number_intern(result);
+}
+
 number_t number_from_jit(int width, bool issigned, jit_scalar_t abits,
                          jit_scalar_t bbits)
 {
