@@ -409,6 +409,14 @@ static token_t vlogpp_lex(void)
       return make_token(tLPAREN, buf, (yylval_t){ .ch = '(' });
    case ')':
       return make_token(tRPAREN, buf, (yylval_t){ .ch = ')' });
+   case '{':
+      return make_token(tLBRACE, buf, (yylval_t){ .ch = '{' });
+   case '}':
+      return make_token(tRBRACE, buf, (yylval_t){ .ch = '}' });
+   case '[':
+      return make_token(tLSQUARE, buf, (yylval_t){ .ch = '[' });
+   case ']':
+      return make_token(tRSQUARE, buf, (yylval_t){ .ch = ']' });
    case ',':
       return make_token(tCOMMA, buf, (yylval_t){ .ch = ',' });
    case '=':
@@ -535,6 +543,10 @@ static void p_text_macro_definition(void)
       case tNEWLINE:
       case tLPAREN:
       case tRPAREN:
+      case tLBRACE:
+      case tRBRACE:
+      case tLSQUARE:
+      case tRSQUARE:
       case tCOMMA:
       case tEQ:
          consume(tok);
@@ -570,8 +582,9 @@ static void p_expression(text_buf_t *tb)
    // {}, double quotes " ", triple quotes """ """, or an escaped
    // identifier.
 
-   switch (one_of(tTEXT, tLPAREN, tWHITESPACE, tID, tSTRING, tMACROUSAGE,
-                  tCOMMA, tEQ, tMACROQUOTE, tMACROESCQUOTE, tMACROJOIN)) {
+   switch (one_of(tTEXT, tLPAREN, tLBRACE, tLSQUARE, tWHITESPACE, tID,
+                  tSTRING, tMACROUSAGE, tCOMMA, tEQ, tMACROQUOTE,
+                  tMACROESCQUOTE, tMACROJOIN)) {
    case tTEXT:
    case tWHITESPACE:
    case tID:
@@ -594,6 +607,20 @@ static void p_expression(text_buf_t *tb)
          p_expression(tb);
       consume(tRPAREN);
       tb_append(tb, ')');
+      break;
+   case tLBRACE:
+      tb_append(tb, '{');
+      while (not_at_token(tRBRACE))
+         p_expression(tb);
+      consume(tRBRACE);
+      tb_append(tb, '}');
+      break;
+   case tLSQUARE:
+      tb_append(tb, '[');
+      while (not_at_token(tRSQUARE))
+         p_expression(tb);
+      consume(tRSQUARE);
+      tb_append(tb, ']');
       break;
    }
 
@@ -1012,6 +1039,10 @@ static void p_block_of_text(void)
       break;
    case tLPAREN:
    case tRPAREN:
+   case tLBRACE:
+   case tRBRACE:
+   case tLSQUARE:
+   case tRSQUARE:
    case tCOMMA:
    case tEQ:
       consume(tok);

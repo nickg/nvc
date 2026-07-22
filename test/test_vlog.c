@@ -2079,6 +2079,28 @@ START_TEST(test_issue1596)
 }
 END_TEST
 
+START_TEST(test_pp15)
+{
+   input_from_file(TESTDIR "/vlog/pp15.v");
+
+   LOCAL_TEXT_BUF tb = tb_new();
+   vlog_preprocess(tb, false);
+
+   ck_assert_str_eq(
+      tb_get(tb),
+      "\n"
+      "\n"
+      "module pp15;\n"
+      "  wire [1:0] in;\n"
+      "  wire [1:0] out;\n"
+      "\n"
+      "  assign out = {in[0], in[1]};\n"
+      "endmodule\n");
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_vlog_tests(void)
 {
    Suite *s = suite_create("vlog");
@@ -2156,6 +2178,7 @@ Suite *get_vlog_tests(void)
    tcase_add_test(tc, test_constfunc2);
    tcase_add_test(tc, test_disable1);
    tcase_add_test(tc, test_issue1596);
+   tcase_add_test(tc, test_pp15);
    suite_add_tcase(s, tc);
 
    return s;
