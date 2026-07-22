@@ -123,6 +123,7 @@ static void vlog_check_variable_lvalue(vlog_node_t v, vlog_node_t where)
    case V_UNION_DECL:
    case V_GENVAR_DECL:
    case V_LOCAL_DECL:
+   case V_TF_PORT_DECL:
       return;
    case V_REF:
       if (vlog_has_ref(v))
@@ -142,10 +143,6 @@ static void vlog_check_variable_lvalue(vlog_node_t v, vlog_node_t where)
          }
       }
       return;
-   case V_TF_PORT_DECL:
-      if (vlog_subkind(v) != V_PORT_INPUT)
-         return;
-      break;
    case V_PORT_DECL:
       if (vlog_has_ref(v)) {
          vlog_check_variable_lvalue(vlog_ref(v), where);

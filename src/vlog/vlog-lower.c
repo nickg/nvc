@@ -3660,9 +3660,15 @@ static void vlog_lower_func_decl(mir_unit_t *mu, object_t *obj)
    for (int i = 0; i < nports; i++) {
       vlog_node_t port = vlog_port(v, i);
       const type_info_t *pti = vlog_type_info(&g, vlog_type(port));
-      mir_value_t value = mir_add_param(mu, pti->type, pti->stamp,
+      ident_t name = vlog_ident(port);
+
+      mir_value_t param = mir_add_param(mu, pti->type, pti->stamp,
                                         vlog_ident(port));
-      mir_put_object(mu, port, value);
+
+      mir_value_t local = mir_add_var(mu, pti->type, pti->stamp, name, 0);
+      mir_build_store(mu, local, param);
+
+      mir_put_object(mu, port, local);
    }
 
    mir_value_t result = mir_add_var(mu, ti->type, ti->stamp, vlog_ident(v), 0);
