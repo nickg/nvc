@@ -70,8 +70,9 @@
 
 addsr			normal			ivltests # Finds problems with >> using different sizes
 addwide			normal			ivltests
-always3.1.1A		CE			ivltests
-always3.1.1B		CE			ivltests
+# Depends on undefined execution order
+#always3.1.1A		normal			ivltests
+#always3.1.1B		normal			ivltests
 always3.1.1C		normal			ivltests
 always3.1.1D		normal			ivltests
 always3.1.1E		normal			ivltests
@@ -81,28 +82,29 @@ always3.1.1H		normal			ivltests
 always3.1.1I		normal			ivltests
 always3.1.1J		normal			ivltests
 always3.1.1K		normal			ivltests
-always3.1.2A		CE			ivltests
-always3.1.2B		CE			ivltests
-always3.1.2C		CE			ivltests
-always3.1.2D		CE			ivltests
-always3.1.2E		CE,-Ttyp		ivltests
-always3.1.2F		CE,-Ttyp		ivltests
-always3.1.2G		CE			ivltests
-always3.1.2H		CE			ivltests
-always3.1.2I		CE			ivltests
-always3.1.3A		CE			ivltests
-always3.1.3B		CE			ivltests
+# Depends on undefined execution order
+#always3.1.2A		normal			ivltests
+#always3.1.2B		normal			ivltests
+#always3.1.2C		normal			ivltests
+#always3.1.2D		normal			ivltests
+#always3.1.2E		normal,-Ttyp		ivltests
+#always3.1.2F		normal,-Ttyp		ivltests
+always3.1.2G		normal			ivltests
+always3.1.2H		normal			ivltests
+always3.1.2I		normal			ivltests
+always3.1.3A		normal			ivltests
+always3.1.3B		normal			ivltests
 always3.1.3B2		normal			ivltests
-always3.1.3C		CE			ivltests
-always3.1.3D		CE			ivltests
+always3.1.3C		normal			ivltests
+always3.1.3D		normal			ivltests
 always3.1.3D2		normal			ivltests
-always3.1.3E		CE			ivltests
+always3.1.3E		normal			ivltests
 always3.1.3E2		normal			ivltests
-always3.1.3F		CE			ivltests
+always3.1.3F		normal			ivltests
 always3.1.3F2		normal			ivltests
-always3.1.3G		CE			ivltests
-always3.1.3H		CE			ivltests
-always3.1.3J		CE			ivltests
+always3.1.3G		normal			ivltests
+always3.1.3H		normal			ivltests
+always3.1.3J		normal			ivltests
 always3.1.4A		normal			ivltests
 always3.1.4B		normal			ivltests
 always3.1.4C		normal			ivltests
