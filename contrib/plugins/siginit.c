@@ -220,8 +220,6 @@ static void init_signal(ctx_t *ctx, vhpiHandleT sig_h)
     if (type_h == NULL)
         return;
 
-    vhpiIntT type_kind = xvhpi_get(ctx, vhpiKindP, type_h);
-
     // Skip if we are in hierarchy that should not be collected
     if (!ctx->collect) {
         print_signal_skip(ctx, sig_h, SKIP_FILTERED);
@@ -231,7 +229,21 @@ static void init_signal(ctx_t *ctx, vhpiHandleT sig_h)
         return;
     }
 
-    if (type_kind == vhpiArrayTypeDeclK) {
+    // Iterate to base type
+    vhpiHandleT b_type_h = type_h;
+    vhpiIntT b_type_kind = xvhpi_get(ctx, vhpiKindP, b_type_h);
+
+    while (b_type_kind == vhpiSubtypeDeclK) {
+        vhpiHandleT nh = xvhpi_handle(ctx, vhpiBaseType, b_type_h);
+
+        if (b_type_h != type_h)
+            vhpi_release_handle(b_type_h);
+
+        b_type_h = nh;
+        b_type_kind = xvhpi_get(ctx, vhpiKindP, b_type_h);
+    }
+
+    if (b_type_kind == vhpiArrayTypeDeclK) {
         vhpiHandleT elem_it = vhpi_iterator(vhpiIndexedNames, sig_h);
         vhpiHandleT elem_h;
 
@@ -253,11 +265,13 @@ static void init_signal(ctx_t *ctx, vhpiHandleT sig_h)
             vhpi_release_handle(elem_h);
         }
 
+        if (b_type_h != type_h)
+            vhpi_release_handle(b_type_h);
         vhpi_release_handle(type_h);
         return;
     }
 
-    if (type_kind == vhpiRecordTypeDeclK) {
+    if (b_type_kind == vhpiRecordTypeDeclK) {
         vhpiHandleT elem_it = vhpi_iterator(vhpiSelectedNames, sig_h);
         vhpiHandleT elem_h;
 
@@ -271,22 +285,10 @@ static void init_signal(ctx_t *ctx, vhpiHandleT sig_h)
             vhpi_release_handle(elem_h);
         }
 
-        vhpi_release_handle(type_h);
-        return;
-    }
-
-    // Iterate to base type
-    vhpiHandleT b_type_h = type_h;
-    vhpiIntT b_type_kind = xvhpi_get(ctx, vhpiKindP, b_type_h);
-
-    while (b_type_kind == vhpiSubtypeDeclK) {
-        vhpiHandleT nh = xvhpi_handle(ctx, vhpiBaseType, b_type_h);
-
         if (b_type_h != type_h)
             vhpi_release_handle(b_type_h);
-
-        b_type_h = nh;
-        b_type_kind = xvhpi_get(ctx, vhpiKindP, b_type_h);
+        vhpi_release_handle(type_h);
+        return;
     }
 
     const char *b_type_name = (const char *) vhpi_get_str(vhpiFullNameP,
