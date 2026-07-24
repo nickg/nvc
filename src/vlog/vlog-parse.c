@@ -1873,6 +1873,170 @@ static void p_event_expression(vlog_node_t ctrl)
    } while (optional(tOR) || optional(tCOMMA));
 }
 
+static vlog_node_t p_expression_or_dist(void)
+{
+   // expression [ dist { dist_list } ]
+
+   BEGIN("expression or dist");
+
+   return p_expression();
+}
+
+static void p_cycle_delay_const_range_expression(void)
+{
+   // constant_expression : constant_expression | constant_expression : $
+
+   BEGIN("cycle delay constant range expression");
+
+   p_constant_expression();
+
+   consume(tCOLON);
+
+   p_constant_expression();
+}
+
+static void p_cycle_delay_range(void)
+{
+   // ## constant_primary
+   //   | ## [ cycle_delay_const_range_expression ]
+   //   | ##[*]
+   //   | ##[+]
+
+   BEGIN("cycle delay range");
+
+   consume(tCYCLEDLY);
+
+   switch (peek()) {
+   case tLSQUARE:
+      consume(tLSQUARE);
+      p_cycle_delay_const_range_expression();
+      consume(tRSQUARE);
+      break;
+   default:
+      p_primary();
+      break;
+   }
+}
+
+static vlog_node_t p_sequence_expr(void)
+{
+   // cycle_delay_range sequence_expr { cycle_delay_range sequence_expr }
+   //   | sequence_expr cycle_delay_range sequence_expr
+   //       { cycle_delay_range sequence_expr }
+   //   | expression_or_dist [ boolean_abbrev ]
+   //   | sequence_instance [ sequence_abbrev ]
+   //   | ( sequence_expr { , sequence_match_item } ) [ sequence_abbrev ]
+   //   | sequence_expr and sequence_expr
+   //   | sequence_expr intersect sequence_expr
+   //   | sequence_expr or sequence_expr
+   //   | first_match ( sequence_expr { , sequence_match_item } )
+   //   | expression_or_dist throughout sequence_expr
+   //   | sequence_expr within sequence_expr
+   //   | clocking_event sequence_expr
+
+   BEGIN("sequence expression");
+
+   switch (peek()) {
+   case tCYCLEDLY:
+      (void)p_cycle_delay_range();
+      return p_sequence_expr();
+   default:
+      return p_expression_or_dist();
+   }
+}
+
+static vlog_node_t p_clocking_event(void)
+{
+   // @ identifier | @ ( event_expression )
+
+   BEGIN("clocking event");
+
+   consume(tAT);
+
+   vlog_node_t v = vlog_new(V_EVENT_CONTROL);
+
+   switch (peek()) {
+   case tID:
+      (void)p_identifier();
+      break;
+   case tLPAREN:
+      consume(tLPAREN);
+      p_event_expression(v);
+      consume(tRPAREN);
+      break;
+   default:
+      one_of(tID, tLPAREN);
+   }
+
+   vlog_set_loc(v, CURRENT_LOC);
+   return v;
+}
+
+static vlog_node_t p_property_expr(void)
+{
+   // sequence_expr
+   //   | strong ( sequence_expr )
+   //   | weak ( sequence_expr )
+   //   | ( property_expr )
+   //   | not property_expr
+   //   | property_expr or property_expr
+   //   | property_expr and property_expr
+   //   | sequence_expr |-> property_expr
+   //   | sequence_expr |=> property_expr
+   //   | if ( expression_or_dist ) property_expr [ else property_expr ]
+   //   | case ( expression_or_dist ) property_case_item
+   //       { property_case_item } endcase
+   //   | sequence_expr #-# property_expr
+   //   | sequence_expr #=# property_expr
+   //   | nexttime property_expr
+   //   | nexttime [ constant expression ] property_expr
+   //   | s_nexttime property_expr
+   //   | s_nexttime [ constant_expression ] property_expr
+   //   | always property_expr
+   //   | always [ cycle_delay_const_range_expression ] property_expr
+   //   | s_always [ constant_range ] property_expr
+   //   | s_eventually property_expr
+   //   | eventually [ constant_range ] property_expr
+   //   | s_eventually [ cycle_delay_const_range_expression ] property_expr
+   //   | property_expr until property_expr
+   //   | property_expr s_until property_expr
+   //   | property_expr until_with property_expr
+   //   | property_expr s_until_with property_expr
+   //   | property_expr implies property_expr
+   //   | property_expr iff property_expr
+   //   | accept_on ( expression_or_dist ) property_expr
+   //   | reject_on ( expression_or_dist ) property_expr
+   //   | sync_accept_on ( expression_or_dist ) property_expr
+   //   | sync_reject_on ( expression_or_dist ) property_expr
+   //   | property_instance
+   //   | clocking_event property_expr
+
+   BEGIN("property expression");
+
+   switch (peek()) {
+   case tAT:
+      (void)p_clocking_event();
+      return p_property_expr();
+   default:
+      {
+         vlog_node_t head = p_sequence_expr();
+
+         switch (peek()) {
+         case tSUFFIXOVR:
+            consume(tSUFFIXOVR);
+            (void)p_property_expr();
+            return head;
+         case tSUFFIXNON:
+            consume(tSUFFIXNON);
+            (void)p_property_expr();
+            return head;
+         default:
+            return head;
+         }
+      }
+   }
+}
+
 static vlog_node_t p_cond_predicate(void)
 {
    // expression_or_cond_pattern { &&& expression_or_cond_pattern }
@@ -4664,6 +4828,135 @@ static vlog_node_t p_loop_generate_construct(void)
    return v;
 }
 
+static vlog_node_t p_property_spec(void)
+{
+   // [ clocking_event ] [ disable iff ( expression_or_dist ) ] property_expr
+
+   BEGIN("property spec");
+
+   return p_property_expr();
+}
+
+static vlog_node_t p_action_block(void)
+{
+   // statement_or_null | [ statement ] else statement_or_null
+
+   BEGIN("action block");
+
+   return p_statement_or_null();
+}
+
+static vlog_node_t p_assert_property_statement(ident_t label)
+{
+   // assert property ( property_spec ) action_block
+
+   BEGIN("assert property statement");
+
+   consume(tASSERT);
+   consume(tPROPERTY);
+   consume(tLPAREN);
+
+   vlog_node_t v = vlog_new(V_ASSERT);
+   vlog_set_ident(v, label);
+   vlog_set_value(v, p_property_spec());
+
+   consume(tRPAREN);
+
+   (void)p_action_block();
+
+   vlog_set_loc(v, CURRENT_LOC);
+   return v;
+}
+
+static vlog_node_t p_assume_property_statement(ident_t label)
+{
+   // assume property ( property_spec ) action_block
+
+   BEGIN("assume property statement");
+
+   consume(tASSUME);
+   consume(tPROPERTY);
+   consume(tLPAREN);
+
+   vlog_node_t v = vlog_new(V_ASSUME);
+   vlog_set_ident(v, label);
+   vlog_set_value(v, p_property_spec());
+
+   consume(tRPAREN);
+
+   (void)p_action_block();
+
+   vlog_set_loc(v, CURRENT_LOC);
+   return v;
+}
+
+static vlog_node_t p_cover_property_statement(ident_t label)
+{
+   // cover property ( property_spec ) statement_or_null
+
+   BEGIN("cover property statement");
+
+   consume(tCOVER);
+   consume(tPROPERTY);
+   consume(tLPAREN);
+
+   vlog_node_t v = vlog_new(V_ASSUME);
+   vlog_set_ident(v, label);
+   vlog_set_value(v, p_property_spec());
+
+   consume(tRPAREN);
+
+   (void)p_action_block();
+
+   vlog_set_loc(v, CURRENT_LOC);
+   return v;
+}
+
+static vlog_node_t p_concurrent_assertion_statement(ident_t label)
+{
+   // assert_property_statement | assume_property_statement
+   //   | cover_property_statement | cover_sequence_statement
+   //   | restrict_property_statement
+
+   BEGIN("concurrent assertion statement");
+
+   switch (peek()) {
+   case tASSERT:
+      return p_assert_property_statement(label);
+   case tASSUME:
+      return p_assume_property_statement(label);
+   case tCOVER:
+      return p_cover_property_statement(label);
+   default:
+      should_not_reach_here();
+   }
+}
+
+static vlog_node_t p_concurrent_assertion_item(void)
+{
+   // [ block_identifier : ] concurrent_assertion_statement
+   //    | checker_instantiation
+
+   BEGIN("concurrent assertion item");
+
+   ident_t label = NULL;
+   if (optional(tID)) {
+      label = state.last_lval.ident;
+      consume(tCOLON);
+   }
+
+   return p_concurrent_assertion_statement(label);
+}
+
+static vlog_node_t p_assertion_item(void)
+{
+   // concurrent_assertion_item | deferred_immediate_assertion_item
+
+   BEGIN("assertion item");
+
+   return p_concurrent_assertion_item();
+}
+
 static void p_module_common_item(vlog_node_t mod)
 {
    // module_or_generate_item_declaration
@@ -4714,7 +5007,6 @@ static void p_module_common_item(vlog_node_t mod)
    case tLOCALPARAM:
    case tPARAMETER:
    case tEVENT:
-   case tID:
    case tGENVAR:
    case tVAR:
    case tLOGIC:
@@ -4739,6 +5031,25 @@ static void p_module_common_item(vlog_node_t mod)
    case tFINAL:
       vlog_add_stmt(mod, p_final_construct());
       break;
+   case tASSERT:
+   case tASSUME:
+   case tCOVER:
+      vlog_add_stmt(mod, p_assertion_item());
+      break;
+   case tID:
+      {
+         bool is_assert = false;
+         if (peek_nth(2) == tCOLON) {
+            const token_t tok3 = peek_nth(3);
+            is_assert = tok3 == tASSERT || tok3 == tASSUME || tok3 == tCOVER;
+         }
+
+         if (is_assert)
+            vlog_add_stmt(mod, p_assertion_item());
+         else
+            p_module_or_generate_item_declaration(mod);
+      }
+      break;
    default:
       one_of(tALWAYS, tALWAYSCOMB, tALWAYSFF, tALWAYSLATCH, tWIRE, tUWIRE,
              tSUPPLY0, tSUPPLY1, tTRI, tTRI0, tTRI1, tTRIAND, tTRIOR, tTRIREG,
@@ -4746,7 +5057,7 @@ static void p_module_common_item(vlog_node_t mod)
              tSVINT, tINTEGER, tSVREAL, tSHORTREAL, tREALTIME, tTIME, tTASK,
              tFUNCTION, tPARAMETER, tLOCALPARAM, tEVENT, tID, tGENVAR, tVAR,
              tLOGIC, tBIT, tSHORTINT, tLONGINT, tBYTE, tSTRINGK, tIMPORT,
-             tASSIGN, tFOR, tIF, tCASE, tFINAL);
+             tASSIGN, tFOR, tIF, tCASE, tFINAL, tASSERT, tASSUME, tCOVER);
       drop_tokens_until(&state, tSEMI);
    }
 }
@@ -6257,6 +6568,9 @@ static void p_module_or_generate_item(vlog_node_t mod)
    case tSTRINGK:
    case tIMPORT:
    case tFINAL:
+   case tASSERT:
+   case tASSUME:
+   case tCOVER:
       p_module_common_item(mod);
       break;
    case tPULLDOWN:
@@ -6285,7 +6599,11 @@ static void p_module_or_generate_item(vlog_node_t mod)
       p_parameter_override(mod);
       break;
    case tID:
-      {
+      if (peek_nth(2) == tCOLON) {
+         p_module_common_item(mod);
+         break;
+      }
+      else {
          vlog_node_t ref = peek_reference();
          if (ref == NULL) {
             p_module_or_udp_instantiation(mod);
@@ -6304,9 +6622,9 @@ static void p_module_or_generate_item(vlog_node_t mod)
              tINITIAL, tTYPEDEF, tENUM, tSVINT, tINTEGER, tSVREAL, tSHORTREAL,
              tREALTIME, tTIME, tTASK, tFUNCTION, tLOCALPARAM, tPARAMETER, tIF,
              tFOR, tEVENT, tGENVAR, tVAR, tLOGIC, tBIT, tSHORTINT, tLONGINT,
-             tBYTE, tSTRINGK, tIMPORT, tFINAL, tPULLDOWN, tPULLUP, tID, tAND,
-             tNAND, tOR, tNOR, tXOR, tXNOR, tNOT, tBUF, tBUFIF0, tBUFIF1,
-             tNOTIF0, tNOTIF1, tDEFPARAM, tID);
+             tBYTE, tSTRINGK, tIMPORT, tFINAL, tASSERT, tASSUME, tCOVER,
+             tPULLDOWN, tPULLUP, tID, tAND, tNAND, tOR, tNOR, tXOR, tXNOR,
+             tNOT, tBUF, tBUFIF0, tBUFIF1, tNOTIF0, tNOTIF1, tDEFPARAM, tID);
       drop_tokens_until(&state, tSEMI);
    }
 }
@@ -6425,6 +6743,9 @@ static void p_non_port_module_item(vlog_node_t mod)
    case tIMPORT:
    case tDEFPARAM:
    case tFINAL:
+   case tASSERT:
+   case tASSUME:
+   case tCOVER:
       p_module_or_generate_item(mod);
       break;
    case tSPECIFY:
@@ -6442,7 +6763,8 @@ static void p_non_port_module_item(vlog_node_t mod)
              tENUM, tSVINT, tINTEGER, tSVREAL, tSHORTREAL, tREALTIME, tTIME,
              tTASK, tFUNCTION, tLOCALPARAM, tPARAMETER, tEVENT, tIF, tFOR,
              tGENVAR, tVAR, tLOGIC, tBIT, tSHORTINT, tLONGINT, tBYTE, tSTRINGK,
-             tIMPORT, tDEFPARAM, tFINAL, tSPECIFY, tGENERATE);
+             tIMPORT, tDEFPARAM, tFINAL, tASSERT, tASSUME, tCOVER, tSPECIFY,
+             tGENERATE);
       drop_tokens_until(&state, tSEMI);
    }
 }
@@ -7384,6 +7706,11 @@ static void p_non_port_program_item(vlog_node_t parent)
    switch (peek()) {
    case tINITIAL:
       vlog_add_stmt(parent, p_initial_construct());
+      break;
+   case tASSERT:
+   case tASSUME:
+   case tCOVER:
+      vlog_add_stmt(parent, p_concurrent_assertion_item());
       break;
    default:
       p_module_or_generate_item_declaration(parent);

@@ -1357,6 +1357,8 @@ void vlog_check(vlog_node_t v)
    case V_SPECIFY:
    case V_IMPORT_DECL:
    case V_DISABLE:
+   case V_ASSERT:
+   case V_ASSUME:
       break;
    case V_DEFPARAM:
       vlog_check_defparam(v);

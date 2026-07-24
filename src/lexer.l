@@ -715,6 +715,7 @@ PROTECT           ?i:protect
 <VLOG>"fork"             { return tFORK; }
 <VLOG>"join"             { return tJOIN; }
 <VLOG>"automatic"        { return KEYWORD_2001(tAUTOMATIC); }
+<VLOG>"property"         { return KEYWORD_2005(tPROPERTY); }
 <VLOG>"`timescale"       { return tTIMESCALE; }
 <VLOG>"`default_nettype" { return tDEFNETTYPE; }
 <VLOG>"`celldefine"      { }
@@ -782,6 +783,9 @@ PROTECT           ?i:protect
 <VLOG>"+=>"              { yyless(1); return tPLUS; }
 <VLOG>"-=>"              { yyless(1); return tMINUS; }
 <VLOG>"::"               { return tSCOPE; }
+<VLOG>"|->"              { return tSUFFIXOVR; }
+<VLOG>"|=>"              { return tSUFFIXNON; }
+<VLOG>"##"               { return tCYCLEDLY; }
 <VLOG>"var"              { return KEYWORD_2005(tVAR); }
 <VLOG>"specify"          { return tSPECIFY; }
 <VLOG>"endspecify"       { return tENDSPECIFY; }
@@ -864,6 +868,7 @@ PROTECT           ?i:protect
 <VLOG>"genvar"           { return KEYWORD_2001(tGENVAR); }
 <VLOG>"assert"           { return KEYWORD_2005(tASSERT); }
 <VLOG>"assume"           { return KEYWORD_2005(tASSUME); }
+<VLOG>"cover"            { return KEYWORD_2005(tCOVER); }
 <VLOG>"class"            { return KEYWORD_2005(tCLASS); }
 <VLOG>"chandle"          { return KEYWORD_2005(tCHANDLE); }
 <VLOG>"export"           { return KEYWORD_2005(tEXPORT); }

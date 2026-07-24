@@ -169,6 +169,9 @@ typedef enum {
    V_GEN_BLOCK,
    V_METHOD_CALL,
    V_MOD_REF,
+   V_ASSERT,
+   V_ASSUME,
+   V_COVER,
 
    V_LAST_NODE_KIND
 } vlog_kind_t;
