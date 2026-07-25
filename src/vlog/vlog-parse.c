@@ -1255,36 +1255,47 @@ static vlog_node_t p_select(ident_t id)
       }
    }
 
-   if (optional(tLSQUARE)) {
-      do {
-         vlog_node_t expr = p_expression();
-         if (scan(tCOLON, tINDEXPOS, tINDEXNEG)) {
-            vlog_node_t ps = vlog_new(V_PART_SELECT);
-            vlog_set_left(ps, expr);
-            vlog_set_value(ps, prefix);
+   if (peek() != tLSQUARE)
+      return prefix;
 
-            p_part_select_range(ps);
+   switch (peek_nth(2)) {
+   case tTIMES:
+   case tPLUS:
+      return prefix;  // Repetition in property
+   default:
+      break;
+   }
 
-            consume(tRSQUARE);
+   consume(tLSQUARE);
 
-            vlog_set_loc(ps, CURRENT_LOC);
-            return ps;
-         }
+   do {
+      vlog_node_t expr = p_expression();
+      if (scan(tCOLON, tINDEXPOS, tINDEXNEG)) {
+         vlog_node_t ps = vlog_new(V_PART_SELECT);
+         vlog_set_left(ps, expr);
+         vlog_set_value(ps, prefix);
 
-         if (vlog_kind(prefix) == V_BIT_SELECT)
-            vlog_add_param(prefix, expr);
-         else {
-            vlog_node_t bs = vlog_new(V_BIT_SELECT);
-            vlog_set_loc(bs, CURRENT_LOC);
-            vlog_set_value(bs, prefix);
-            vlog_add_param(bs, expr);
-
-            prefix = bs;
-         }
+         p_part_select_range(ps);
 
          consume(tRSQUARE);
-      } while (optional(tLSQUARE));
-   }
+
+         vlog_set_loc(ps, CURRENT_LOC);
+         return ps;
+      }
+
+      if (vlog_kind(prefix) == V_BIT_SELECT)
+         vlog_add_param(prefix, expr);
+      else {
+         vlog_node_t bs = vlog_new(V_BIT_SELECT);
+         vlog_set_loc(bs, CURRENT_LOC);
+         vlog_set_value(bs, prefix);
+         vlog_add_param(bs, expr);
+
+         prefix = bs;
+      }
+
+      consume(tRSQUARE);
+   } while (optional(tLSQUARE));
 
    return prefix;
 }
@@ -1918,6 +1929,38 @@ static void p_cycle_delay_range(void)
    }
 }
 
+static vlog_node_t p_consecutive_repetition(vlog_node_t head)
+{
+   // [* const_or_range_expression ] | [*] | [+]
+
+   BEGIN("consecutive repetition");
+
+   consume(tLSQUARE);
+
+   switch (one_of(tTIMES, tPLUS)) {
+   case tTIMES:
+      if (!optional(tRSQUARE)) {
+         (void)p_constant_expression();
+         consume(tRSQUARE);
+      }
+      break;
+   case tPLUS:
+      consume(tRSQUARE);
+      break;
+   }
+
+   return head;
+}
+
+static vlog_node_t p_boolean_abbrev(vlog_node_t head)
+{
+   // consecutive_repetition | non_consecutive_repetition | goto_repetition
+
+   BEGIN("boolean abbreviation");
+
+   return p_consecutive_repetition(head);
+}
+
 static vlog_node_t p_sequence_expr(void)
 {
    // cycle_delay_range sequence_expr { cycle_delay_range sequence_expr }
@@ -1936,13 +1979,20 @@ static vlog_node_t p_sequence_expr(void)
 
    BEGIN("sequence expression");
 
+   vlog_node_t head;
    switch (peek()) {
    case tCYCLEDLY:
       (void)p_cycle_delay_range();
-      return p_sequence_expr();
+      head = p_sequence_expr();
+      break;
    default:
-      return p_expression_or_dist();
+      head = p_expression_or_dist();
    }
+
+   if (peek() == tLSQUARE)
+      return p_boolean_abbrev(head);
+   else
+      return head;
 }
 
 static vlog_node_t p_clocking_event(void)
@@ -4843,7 +4893,14 @@ static vlog_node_t p_action_block(void)
 
    BEGIN("action block");
 
-   return p_statement_or_null();
+   vlog_node_t stmt = NULL;
+   if (peek() != tELSE)
+      stmt = p_statement_or_null();
+
+   if (optional(tELSE))
+      return p_statement_or_null();
+
+   return stmt;
 }
 
 static vlog_node_t p_assert_property_statement(ident_t label)
