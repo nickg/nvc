@@ -45,7 +45,9 @@ jobs:
           path: vhdl-projects
           fetch-depth: 1
       - name: Install additional dependencies
-        run: apt-get -y install cmake
+        run: |
+          apt-get -y update
+          apt-get -y install cmake
       - name: Generate configure script
         run: |
           git config --global --add safe.directory $GITHUB_WORKSPACE
