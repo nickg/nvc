@@ -1,6 +1,8 @@
 ## Unreleased changes
 - Waveform dumping now dumps multiple top units instead of only the first
   elaborated unit.
+- Fixed incorrect statement coverage in `--per-file` report when two
+  instances of the same entity have different generic values (#1567).
 - Several other minor bugs were resolved (#1621)
 
 ## Version 1.22.0 - 2026-07-22

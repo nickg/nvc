@@ -977,7 +977,7 @@ unsigned type_width(type_t type)
       return w * elem_w;
    }
    else {
-      type_is_scalar(type);
+      assert(type_is_scalar(type));
       return 1;
    }
 }

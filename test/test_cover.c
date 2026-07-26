@@ -395,6 +395,31 @@ START_TEST(test_issue1442)
 }
 END_TEST
 
+START_TEST(test_issue1567)
+{
+   input_from_file(TESTDIR "/cover/issue1567.vhd");
+
+   tree_t top = parse_check_and_simplify(T_ENTITY, T_ARCH, T_ENTITY, T_ARCH);
+
+   cover_data_t *db = run_cover(top);
+   cover_rpt_t *rpt = cover_report_new(db, INT_MAX);
+
+   cover_scope_t *u1 = cover_get_scope(db, ident_new("WORK.TOP.U1"));
+   ck_assert_ptr_nonnull(u1);
+
+   const rpt_file_t *f = rpt_get_file(rpt, u1);
+   ck_assert_ptr_nonnull(f);
+
+   ck_assert_int_eq(f->stats.total[COV_ITEM_STMT], 1);
+   ck_assert_int_eq(f->stats.hit[COV_ITEM_STMT], 1);
+
+   cover_report_free(rpt);
+   cover_data_free(db);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_cover_tests(void)
 {
    Suite *s = suite_create("cover");
@@ -409,6 +434,7 @@ Suite *get_cover_tests(void)
    tcase_add_test(tc, test_spec2);
    tcase_add_test(tc, test_issue1431);
    tcase_add_test(tc, test_issue1442);
+   tcase_add_test(tc, test_issue1567);
    suite_add_tcase(s, tc);
 
    return s;
