@@ -172,7 +172,8 @@ static void rpt_merge_file_items(cover_rpt_t *rpt, rpt_file_t *f,
          //    - flags  - to not merge different bins
          found =
             (file_item->kind == scope_item->kind)
-            && loc_eq(&(file_item->loc), &(scope_item->loc))
+            && file_item->loc.first_line == scope_item->loc.first_line
+            && file_item->loc.first_column == scope_item->loc.first_column
             && (file_item->flags == scope_item->flags);
 
          if (found) {
