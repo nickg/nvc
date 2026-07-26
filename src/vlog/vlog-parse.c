@@ -1255,36 +1255,47 @@ static vlog_node_t p_select(ident_t id)
       }
    }
 
-   if (optional(tLSQUARE)) {
-      do {
-         vlog_node_t expr = p_expression();
-         if (scan(tCOLON, tINDEXPOS, tINDEXNEG)) {
-            vlog_node_t ps = vlog_new(V_PART_SELECT);
-            vlog_set_left(ps, expr);
-            vlog_set_value(ps, prefix);
+   if (peek() != tLSQUARE)
+      return prefix;
 
-            p_part_select_range(ps);
+   switch (peek_nth(2)) {
+   case tTIMES:
+   case tPLUS:
+      return prefix;  // Repetition in property
+   default:
+      break;
+   }
 
-            consume(tRSQUARE);
+   consume(tLSQUARE);
 
-            vlog_set_loc(ps, CURRENT_LOC);
-            return ps;
-         }
+   do {
+      vlog_node_t expr = p_expression();
+      if (scan(tCOLON, tINDEXPOS, tINDEXNEG)) {
+         vlog_node_t ps = vlog_new(V_PART_SELECT);
+         vlog_set_left(ps, expr);
+         vlog_set_value(ps, prefix);
 
-         if (vlog_kind(prefix) == V_BIT_SELECT)
-            vlog_add_param(prefix, expr);
-         else {
-            vlog_node_t bs = vlog_new(V_BIT_SELECT);
-            vlog_set_loc(bs, CURRENT_LOC);
-            vlog_set_value(bs, prefix);
-            vlog_add_param(bs, expr);
-
-            prefix = bs;
-         }
+         p_part_select_range(ps);
 
          consume(tRSQUARE);
-      } while (optional(tLSQUARE));
-   }
+
+         vlog_set_loc(ps, CURRENT_LOC);
+         return ps;
+      }
+
+      if (vlog_kind(prefix) == V_BIT_SELECT)
+         vlog_add_param(prefix, expr);
+      else {
+         vlog_node_t bs = vlog_new(V_BIT_SELECT);
+         vlog_set_loc(bs, CURRENT_LOC);
+         vlog_set_value(bs, prefix);
+         vlog_add_param(bs, expr);
+
+         prefix = bs;
+      }
+
+      consume(tRSQUARE);
+   } while (optional(tLSQUARE));
 
    return prefix;
 }
@@ -1525,6 +1536,117 @@ static vlog_node_t p_package_scope(void)
    }
 }
 
+static void p_assignment_pattern(vlog_node_t expr)
+{
+   // '{ expression { , expression } }
+   //    | '{ structure_pattern_key : expression
+   //          { , structure_pattern_key : expression } }
+   //    | '{ array_pattern_key : expression
+   //          { , array_pattern_key : expression } }
+   //    | '{ constant_expression { expression { , expression } } }
+
+   BEGIN("assignment pattern");
+
+   consume(tTICK);
+   consume(tLBRACE);
+
+   vlog_node_t dt = NULL;
+   if (vlog_has_type(expr))
+      dt = vlog_type(expr);
+   else
+      parse_error(CURRENT_LOC, "cannot determine type of assignment pattern");
+
+   bool have_error = false;
+   do {
+      vlog_node_t v = vlog_new(V_PATTERN_ITEM);
+
+      if (optional(tDEFAULT)) {
+         vlog_set_loc(v, &state.last_loc);
+         consume(tCOLON);
+         vlog_set_right(v, p_expression());
+      }
+      else if (peek() == tID && peek_nth(2) == tCOLON) {
+         ident_t id = p_identifier();
+
+         vlog_node_t ref = vlog_new(V_REF);
+         vlog_set_ident(ref, id);
+         vlog_set_loc(ref, &state.last_loc);
+
+         if (dt != NULL) {
+            switch (vlog_kind(dt)) {
+            case V_UNION_DECL:
+            case V_STRUCT_DECL:
+               {
+                  bool found = false;
+                  const int ndecls = vlog_decls(dt);
+                  for (int i = 0; i < ndecls; i++) {
+                     vlog_node_t d = vlog_decl(dt, i);
+                     if (vlog_ident(d) == id) {
+                        vlog_set_ref(ref, d);
+                        found = true;
+                        break;
+                     }
+                  }
+
+                  if (!found && !have_error) {
+                     diag_t *d = diag_new(DIAG_ERROR, &state.last_loc);
+                     diag_printf(d, "struct or union has no field %pQ", id);
+                     diag_hint(d, vlog_loc(dt), "data type declared here");
+                     diag_emit(d);
+                     have_error = true;
+                  }
+               }
+               break;
+            default:
+               if (!have_error) {
+                  parse_error(&state.last_loc, "cannot use structure pattern "
+                              "key with this data type");
+                  have_error = true;
+               }
+               break;
+            }
+         }
+
+         vlog_set_left(v, ref);
+         vlog_set_loc(v, &state.last_loc);
+
+         consume(tCOLON);
+
+         vlog_set_right(v, p_expression());
+      }
+      else {
+         vlog_node_t head = p_expression();
+         vlog_set_loc(v, vlog_loc(head));
+
+         if (optional(tCOLON)) {
+            vlog_set_left(v, head);
+            vlog_set_right(v, p_expression());
+         }
+         else
+            vlog_set_right(v, head);
+      }
+
+      vlog_add_param(expr, v);
+   } while (optional(tCOMMA));
+
+   consume(tRBRACE);
+}
+
+static vlog_node_t p_assignment_pattern_expression(vlog_node_t dt)
+{
+   // [ assignment_pattern_expression_type ] assignment_pattern
+
+   BEGIN("assignment pattern expression");
+
+   vlog_node_t v = vlog_new(V_PATTERN_EXPR);
+   vlog_set_type(v, dt);
+
+   p_assignment_pattern(v);
+
+   vlog_set_loc(v, CURRENT_LOC);
+   return v;
+}
+
 static vlog_node_t p_primary(void)
 {
    // primary_literal | empty_queue
@@ -1587,10 +1709,11 @@ static vlog_node_t p_primary(void)
          vlog_set_loc(v, CURRENT_LOC);
          return v;
       }
-
+   case tTICK:
+      return p_assignment_pattern_expression(NULL);
    default:
       one_of(tID, tSTRING, tNUMBER, tUNSNUM, tREAL, tSYSTASK, tLPAREN,
-             tLBRACE, tNULL);
+             tLBRACE, tNULL, tTICK);
       return p_select(error_marker());
    }
 }
@@ -1704,6 +1827,7 @@ static vlog_node_t p_nonbinary_expression(void)
    case tLPAREN:
    case tLBRACE:
    case tNULL:
+   case tTICK:
       return p_primary();
    case tMINUS:
    case tPLUS:
@@ -1918,6 +2042,38 @@ static void p_cycle_delay_range(void)
    }
 }
 
+static vlog_node_t p_consecutive_repetition(vlog_node_t head)
+{
+   // [* const_or_range_expression ] | [*] | [+]
+
+   BEGIN("consecutive repetition");
+
+   consume(tLSQUARE);
+
+   switch (one_of(tTIMES, tPLUS)) {
+   case tTIMES:
+      if (!optional(tRSQUARE)) {
+         (void)p_constant_expression();
+         consume(tRSQUARE);
+      }
+      break;
+   case tPLUS:
+      consume(tRSQUARE);
+      break;
+   }
+
+   return head;
+}
+
+static vlog_node_t p_boolean_abbrev(vlog_node_t head)
+{
+   // consecutive_repetition | non_consecutive_repetition | goto_repetition
+
+   BEGIN("boolean abbreviation");
+
+   return p_consecutive_repetition(head);
+}
+
 static vlog_node_t p_sequence_expr(void)
 {
    // cycle_delay_range sequence_expr { cycle_delay_range sequence_expr }
@@ -1936,13 +2092,20 @@ static vlog_node_t p_sequence_expr(void)
 
    BEGIN("sequence expression");
 
+   vlog_node_t head;
    switch (peek()) {
    case tCYCLEDLY:
       (void)p_cycle_delay_range();
-      return p_sequence_expr();
+      head = p_sequence_expr();
+      break;
    default:
-      return p_expression_or_dist();
+      head = p_expression_or_dist();
    }
+
+   if (peek() == tLSQUARE)
+      return p_boolean_abbrev(head);
+   else
+      return head;
 }
 
 static vlog_node_t p_clocking_event(void)
@@ -2355,17 +2518,23 @@ static vlog_node_t p_blocking_assignment(vlog_node_t lhs)
    vlog_node_t v = vlog_new(V_BASSIGN);
    vlog_set_target(v, lhs);
 
-   if (peek() == tNEW) {
+   switch (peek()) {
+   case tNEW:
       if (peek_nth(2) == tLSQUARE)
          vlog_set_value(v, p_dynamic_array_new(vlog_get_type(lhs)));
       else
          vlog_set_value(v, p_class_new(vlog_get_type(lhs)));
-   }
-   else {
-      if (scan(tHASH, tAT))
-         vlog_set_delay(v, p_delay_or_event_control());
-
+      break;
+   case tTICK:
+      vlog_set_value(v, p_assignment_pattern_expression(vlog_get_type(lhs)));
+      break;
+   case tHASH:
+   case tAT:
+      vlog_set_delay(v, p_delay_or_event_control());
+      // Fall-through
+   default:
       vlog_set_value(v, p_expression());
+      break;
    }
 
    vlog_set_loc(v, CURRENT_LOC);
@@ -2623,12 +2792,17 @@ static vlog_node_t p_variable_assignment(vlog_kind_t kind)
 
    BEGIN("variable assignment");
 
+   vlog_node_t lhs = p_variable_lvalue();
+
    vlog_node_t v = vlog_new(kind);
-   vlog_set_target(v, p_variable_lvalue());
+   vlog_set_target(v, lhs);
 
    consume(tEQ);
 
-   vlog_set_value(v, p_expression());
+   if (peek() == tTICK)
+      vlog_set_value(v, p_assignment_pattern_expression(vlog_get_type(lhs)));
+   else
+      vlog_set_value(v, p_expression());
 
    vlog_set_loc(v, CURRENT_LOC);
    return v;
@@ -4843,7 +5017,14 @@ static vlog_node_t p_action_block(void)
 
    BEGIN("action block");
 
-   return p_statement_or_null();
+   vlog_node_t stmt = NULL;
+   if (peek() != tELSE)
+      stmt = p_statement_or_null();
+
+   if (optional(tELSE))
+      return p_statement_or_null();
+
+   return stmt;
 }
 
 static vlog_node_t p_assert_property_statement(ident_t label)

@@ -341,36 +341,42 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
 
    // V_COVER
    (I_IDENT | I_VALUE),
+
+   // V_PATTERN_EXPR
+   (I_TYPE | I_PARAMS),
+
+   // V_PATTERN_ITEM
+   (I_LEFT | I_RIGHT),
 };
 
 static const char *kind_text_map[V_LAST_NODE_KIND] = {
-   "V_MODULE",        "V_PORT_DECL",   "V_REF",           "V_ALWAYS",
-   "V_TIMING",        "V_NBASSIGN",    "V_EVENT",         "V_INITIAL",
-   "V_SEQ_BLOCK",     "V_SYS_TCALL",   "V_STRING",        "V_NUMBER",
-   "V_NET_DECL",      "V_ASSIGN",      "V_DIMENSION",     "V_IF",
-   "V_COND",          "V_VAR_DECL",    "V_DELAY_CONTROL", "V_BINARY",
-   "V_BASSIGN",       "V_UNARY",       "V_GATE_INST",     "V_STRENGTH",
-   "V_MOD_INST",      "V_BIT_SELECT",  "V_SYS_FCALL",     "V_FOREVER",
-   "V_SPECIFY",       "V_PRIMITIVE",   "V_UDP_TABLE",     "V_UDP_ENTRY",
-   "V_DATA_TYPE",     "V_TYPE_DECL",   "V_ENUM_DECL",     "V_ENUM_NAME",
-   "V_UNION_DECL",    "V_STRUCT_DECL", "V_EVENT_CONTROL", "V_EMPTY",
-   "V_REPEAT",        "V_WHILE",       "V_DO_WHILE",      "V_TASK_DECL",
-   "V_FUNC_DECL",     "V_WAIT",        "V_PARAM_DECL",    "V_COND_EXPR",
-   "V_REAL",          "V_CONCAT",      "V_FOR_LOOP",      "V_FOR_INIT",
-   "V_FOR_STEP",      "V_PREFIX",      "V_POSTFIX",       "V_LOCALPARAM",
-   "V_CASE",          "V_CASE_ITEM",   "V_INST_LIST",     "V_PARAM_ASSIGN",
-   "V_INST_BODY",     "V_PORT_CONN",   "V_PART_SELECT",   "V_IF_GENERATE",
-   "V_EVENT_TRIGGER", "V_USER_FCALL",  "V_UDP_LEVEL",     "V_UDP_EDGE",
-   "V_SPECPARAM",     "V_FORK",        "V_ATTR_INST",     "V_USER_TCALL",
-   "V_VOID_CALL",     "V_GENVAR_DECL", "V_FOR_GENERATE",  "V_DEASSIGN",
-   "V_FORCE",         "V_RELEASE",     "V_DISABLE",       "V_HIER_REF",
-   "V_TF_PORT_DECL",  "V_RETURN",      "V_OP_ASSIGN",     "V_MEMBER_REF",
-   "V_PACKAGE",       "V_MIN_TYP_MAX", "V_PROGRAM",       "V_CLASS_DECL",
-   "V_NULL",          "V_CLASS_NEW",   "V_DYNAMIC_NEW",   "V_CONSTRUCTOR",
-   "V_SUPER_CALL",    "V_IMPORT_DECL", "V_NAMESPACE",     "V_DEFPARAM",
-   "V_PORT_MAP",      "V_FINAL",       "V_LOCAL_DECL",    "V_GEN_BLOCK",
-   "V_METHOD_CALL",   "V_MOD_REF",     "V_ASSERT",        "V_ASSUME",
-   "V_COVER",
+   "V_MODULE",        "V_PORT_DECL",    "V_REF",           "V_ALWAYS",
+   "V_TIMING",        "V_NBASSIGN",     "V_EVENT",         "V_INITIAL",
+   "V_SEQ_BLOCK",     "V_SYS_TCALL",    "V_STRING",        "V_NUMBER",
+   "V_NET_DECL",      "V_ASSIGN",       "V_DIMENSION",     "V_IF",
+   "V_COND",          "V_VAR_DECL",     "V_DELAY_CONTROL", "V_BINARY",
+   "V_BASSIGN",       "V_UNARY",        "V_GATE_INST",     "V_STRENGTH",
+   "V_MOD_INST",      "V_BIT_SELECT",   "V_SYS_FCALL",     "V_FOREVER",
+   "V_SPECIFY",       "V_PRIMITIVE",    "V_UDP_TABLE",     "V_UDP_ENTRY",
+   "V_DATA_TYPE",     "V_TYPE_DECL",    "V_ENUM_DECL",     "V_ENUM_NAME",
+   "V_UNION_DECL",    "V_STRUCT_DECL",  "V_EVENT_CONTROL", "V_EMPTY",
+   "V_REPEAT",        "V_WHILE",        "V_DO_WHILE",      "V_TASK_DECL",
+   "V_FUNC_DECL",     "V_WAIT",         "V_PARAM_DECL",    "V_COND_EXPR",
+   "V_REAL",          "V_CONCAT",       "V_FOR_LOOP",      "V_FOR_INIT",
+   "V_FOR_STEP",      "V_PREFIX",       "V_POSTFIX",       "V_LOCALPARAM",
+   "V_CASE",          "V_CASE_ITEM",    "V_INST_LIST",     "V_PARAM_ASSIGN",
+   "V_INST_BODY",     "V_PORT_CONN",    "V_PART_SELECT",   "V_IF_GENERATE",
+   "V_EVENT_TRIGGER", "V_USER_FCALL",   "V_UDP_LEVEL",     "V_UDP_EDGE",
+   "V_SPECPARAM",     "V_FORK",         "V_ATTR_INST",     "V_USER_TCALL",
+   "V_VOID_CALL",     "V_GENVAR_DECL",  "V_FOR_GENERATE",  "V_DEASSIGN",
+   "V_FORCE",         "V_RELEASE",      "V_DISABLE",       "V_HIER_REF",
+   "V_TF_PORT_DECL",  "V_RETURN",       "V_OP_ASSIGN",     "V_MEMBER_REF",
+   "V_PACKAGE",       "V_MIN_TYP_MAX",  "V_PROGRAM",       "V_CLASS_DECL",
+   "V_NULL",          "V_CLASS_NEW",    "V_DYNAMIC_NEW",   "V_CONSTRUCTOR",
+   "V_SUPER_CALL",    "V_IMPORT_DECL",  "V_NAMESPACE",     "V_DEFPARAM",
+   "V_PORT_MAP",      "V_FINAL",        "V_LOCAL_DECL",    "V_GEN_BLOCK",
+   "V_METHOD_CALL",   "V_MOD_REF",      "V_ASSERT",        "V_ASSUME",
+   "V_COVER",         "V_PATTERN_EXPR", "V_PATTERN_ITEM",
 };
 
 static const change_allowed_t change_allowed[] = {
@@ -707,6 +713,11 @@ vlog_node_t vlog_left(vlog_node_t v)
    item_t *item = lookup_item(&vlog_object, v, I_LEFT);
    assert(item->object != NULL);
    return container_of(item->object, struct _vlog_node, object);
+}
+
+bool vlog_has_left(vlog_node_t v)
+{
+   return lookup_item(&vlog_object, v, I_LEFT)->object != NULL;
 }
 
 void vlog_set_left(vlog_node_t v, vlog_node_t e)

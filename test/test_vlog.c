@@ -2116,6 +2116,23 @@ START_TEST(test_prop1)
 }
 END_TEST
 
+START_TEST(test_pattern1)
+{
+   input_from_file(TESTDIR "/vlog/pattern1.sv");
+
+   const error_t expect[] = {
+      { 11, "struct or union has no field 'bogus'" },
+      { 12, "cannot use structure pattern key with this data type" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   do_parse_only(V_MODULE);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_vlog_tests(void)
 {
    Suite *s = suite_create("vlog");
@@ -2195,6 +2212,7 @@ Suite *get_vlog_tests(void)
    tcase_add_test(tc, test_issue1596);
    tcase_add_test(tc, test_pp15);
    tcase_add_test(tc, test_prop1);
+   tcase_add_test(tc, test_pattern1);
    suite_add_tcase(s, tc);
 
    return s;

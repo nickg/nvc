@@ -1,6 +1,7 @@
 ## Unreleased changes
-- Waveform dumping now dumps multiple top units instead of
-  only first elaborated unit
+- Waveform dumping now dumps multiple top units instead of only the first 
+  elaborated unit.
+- Added basic support for System Verilog assignment pattern expressions.
 
 ## Version 1.22.0 - 2026-07-22
 - Added support for evaluating user function calls in Verilog constant

@@ -172,6 +172,8 @@ typedef enum {
    V_ASSERT,
    V_ASSUME,
    V_COVER,
+   V_PATTERN_EXPR,
+   V_PATTERN_ITEM,
 
    V_LAST_NODE_KIND
 } vlog_kind_t;
@@ -414,6 +416,7 @@ bool vlog_has_type(vlog_node_t v);
 void vlog_set_type(vlog_node_t v, vlog_node_t t);
 
 vlog_node_t vlog_left(vlog_node_t v);
+bool vlog_has_left(vlog_node_t v);
 void vlog_set_left(vlog_node_t v, vlog_node_t e);
 
 vlog_node_t vlog_right(vlog_node_t v);
