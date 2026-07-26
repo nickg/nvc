@@ -1241,7 +1241,10 @@ void wave_dumper_restart(wave_dumper_t *wd, rt_model_t *m, jit_t *jit)
    wd->model     = m;
    wd->jit       = jit;
 
-   fst_walk_design(wd, tree_stmt(wd->top, 0));
+   const int nroots = tree_stmts(wd->top);
+   for (int i = 0; i < nroots; i++)
+      fst_walk_design(wd, tree_stmt(wd->top, i));
+
    fst_walk_packages(wd);
 
    if (wd->gtkw != NULL) {
