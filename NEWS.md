@@ -1,6 +1,7 @@
 ## Unreleased changes
 - Waveform dumping now dumps multiple top units instead of only the first
   elaborated unit.
+- Several other minor bugs were resolved (#1621)
 
 ## Version 1.22.0 - 2026-07-22
 - Added support for evaluating user function calls in Verilog constant

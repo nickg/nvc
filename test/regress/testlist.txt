@@ -1445,3 +1445,4 @@ issue1619       verilog
 issue1595       tcl,2008
 tfcall11        verilog
 wave14          shell
+issue1621       vhpi,2008
