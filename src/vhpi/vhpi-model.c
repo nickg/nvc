@@ -5004,7 +5004,7 @@ static void vhpi_lazy_constraints(c_vhpiObject *obj)
 
       for (int i = 0; i < ndims; i++) {
          bool dynamic_bounds = true;
-         if (type_kind(std->typeDecl.type) == T_SUBTYPE) {
+         if (!std->typeDecl.IsUnconstrained) {
             tree_t r = range_of(std->typeDecl.type, i);
 
             int64_t low, high;
