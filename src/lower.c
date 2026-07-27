@@ -237,15 +237,6 @@ static bool needs_bounds_var(type_t type)
       return !type_const_bounds(type);
 }
 
-static int dims_for_type(type_t type)
-{
-   int ndims = 0;
-   for (type_t t = type_base_recur(type); type_is_array(t);
-        t = type_elem(t))
-      ndims += dimension_of(t);
-   return ndims;
-}
-
 static bool have_uarray_ptr(vcode_reg_t reg)
 {
    vcode_type_t vtype = vcode_reg_type(reg);
@@ -488,7 +479,7 @@ static vcode_reg_t lower_array_stride(lower_unit_t *lu, type_t type,
 
    int udims = 0, dim = 0;
    if (have_array_metadata(type, reg)) {
-      udims = dims_for_type(type);
+      udims = nested_dimension_of(type);
       dim = dimension_of(type);   // Skip to element dimensions
 
       assert(vtype_dims(vcode_reg_type(reg)) == udims);
@@ -587,7 +578,7 @@ static vcode_type_t lower_array_type(type_t type)
    if (type_const_bounds(type))
       return vtype_carray(lower_array_const_size(type), elem_type);
    else
-      return vtype_uarray(dims_for_type(type), elem_type);
+      return vtype_uarray(nested_dimension_of(type), elem_type);
 }
 
 vcode_type_t lower_type(type_t type)
@@ -700,14 +691,14 @@ static vcode_type_t lower_signal_type(type_t type)
          if (type_const_bounds(type))
             return base;
          else
-            return vtype_uarray(dims_for_type(type), base);
+            return vtype_uarray(nested_dimension_of(type), base);
       }
       else {
          vcode_type_t base = lower_signal_type(type_elem_recur(type));
          if (type_const_bounds(type))
             return vtype_carray(lower_array_const_size(type), base);
          else
-            return vtype_uarray(dims_for_type(type), base);
+            return vtype_uarray(nested_dimension_of(type), base);
       }
    }
    else if (type_is_record(type)) {
@@ -745,13 +736,13 @@ static vcode_reg_t lower_wrap_with_new_bounds(lower_unit_t *lu,
    assert(type_is_array(from_type));
    assert(type_is_array(to_type));
 
-   const int ncons = dims_for_type(to_type);
+   const int ncons = nested_dimension_of(to_type);
    vcode_dim_t dims[ncons];
    int dptr = 0;
 
    int udims = 0;
    if (have_array_metadata(from_type, array)) {
-      udims = dims_for_type(from_type);
+      udims = nested_dimension_of(from_type);
       assert(vtype_dims(vcode_reg_type(array)) == udims);
    }
 
@@ -1047,7 +1038,8 @@ static vcode_reg_t lower_coerce_arrays(lower_unit_t *lu, type_t from, type_t to,
    const bool have_uarray = vtype_kind(reg_vtype) == VCODE_TYPE_UARRAY;
    const bool need_uarray = !type_const_bounds(to);
 
-   if (have_uarray && need_uarray && vtype_dims(reg_vtype) == dims_for_type(to))
+   if (have_uarray && need_uarray
+       && vtype_dims(reg_vtype) == nested_dimension_of(to))
       return reg;
    else if (need_uarray) {
       // Need to wrap array with metadata
@@ -3534,7 +3526,7 @@ static vcode_reg_t lower_array_slice(lower_unit_t *lu, tree_t slice,
       .dir   = kind_reg
    };
 
-   const int ndims = dims_for_type(type);
+   const int ndims = nested_dimension_of(type);
    if (ndims > 1) {
       assert(vcode_reg_kind(array_reg) == VCODE_TYPE_UARRAY);
 
@@ -3948,7 +3940,7 @@ static vcode_reg_t lower_aggregate_bounds(lower_unit_t *lu, tree_t expr,
 
    vcode_reg_t null_reg = emit_null(vtype_pointer(vtype_offset()));
 
-   const int ndims = dims_for_type(type);
+   const int ndims = nested_dimension_of(type);
    if (ndims > 1) {
       vcode_dim_t *dims LOCAL = xmalloc_array(ndims, sizeof(vcode_dim_t));
 
@@ -7773,7 +7765,7 @@ static vcode_reg_t lower_var_constraints(lower_unit_t *lu, type_t var_type,
    assert(type_is_array(var_type));
    assert(type_is_array(init_type));
 
-   const int ncons = dims_for_type(var_type);
+   const int ncons = nested_dimension_of(var_type);
    vcode_dim_t dims[ncons];
    int dptr = 0;
 
@@ -8777,7 +8769,7 @@ static vcode_type_t lower_alias_type(tree_t alias)
          return VCODE_INVALID_TYPE;
       }
 
-      return vtype_uarray(dims_for_type(type), velem);
+      return vtype_uarray(nested_dimension_of(type), velem);
    }
    else
       return VCODE_INVALID_TYPE;
@@ -12023,7 +12015,7 @@ static vcode_reg_t lower_constrain_port(lower_unit_t *lu, tree_t port, int pos,
       vcode_dim_t dim0 = { left_reg, right_reg, dir_reg };
 
       if (nested_array) {
-         const int ndims = dims_for_type(port_type);
+         const int ndims = nested_dimension_of(port_type);
          assert(ndims >= 1);
 
          vcode_dim_t *dims LOCAL = xmalloc_array(ndims, sizeof(vcode_dim_t));

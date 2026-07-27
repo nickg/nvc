@@ -1447,3 +1447,4 @@ tfcall11        verilog
 pattern1        verilog
 wave14          shell
 issue1621       vhpi,2008
+issue1624       tcl,2019

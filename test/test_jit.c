@@ -824,6 +824,8 @@ END_TEST
 
 START_TEST(test_layout)
 {
+   set_standard(STD_08);
+
    jit_t *j = jit_new(NULL, NULL);
    const jit_layout_t *l = NULL;
 
@@ -936,13 +938,13 @@ START_TEST(test_layout)
 
    l = layout_of(bv);
    ck_assert_int_eq(l->nparts, 2);
-   ck_assert_int_eq(l->size, sizeof(void *) + 2*sizeof(int64_t));
+   ck_assert_int_eq(l->size, sizeof(void *) + 4*sizeof(int64_t));
    ck_assert_int_eq(l->parts[0].offset, 0);
    ck_assert_int_eq(l->parts[0].size, sizeof(void *));
    ck_assert_int_eq(l->parts[0].align, sizeof(void *));
    ck_assert_int_eq(l->parts[1].offset, sizeof(void *));
    ck_assert_int_eq(l->parts[1].size, sizeof(int64_t));
-   ck_assert_int_eq(l->parts[1].repeat, 2);
+   ck_assert_int_eq(l->parts[1].repeat, 4);
 
    type_t c1 = tree_type(get_decl(p, "C1"));
 
@@ -974,6 +976,43 @@ START_TEST(test_layout)
       ck_assert_int_eq(l->parts[i].align, sizeof(void *));
       ck_assert_int_eq(l->parts[i].repeat, 1);
    }
+
+   type_t bit_matrix = tree_type(get_decl(p, "T_BIT_MATRIX"));
+
+   l = layout_of(bit_matrix);
+   ck_assert_int_eq(l->nparts, 2);
+   ck_assert_int_eq(l->size, sizeof(void *) + 4*sizeof(int64_t));
+   ck_assert_int_eq(l->parts[0].offset, 0);
+   ck_assert_int_eq(l->parts[0].size, sizeof(void *));
+   ck_assert_int_eq(l->parts[0].align, sizeof(void *));
+   ck_assert_int_eq(l->parts[1].offset, sizeof(void *));
+   ck_assert_int_eq(l->parts[1].size, sizeof(int64_t));
+   ck_assert_int_eq(l->parts[1].repeat, 4);
+
+   l = signal_layout_of(bit_matrix);
+   ck_assert_int_eq(l->nparts, 3);
+   ck_assert_int_eq(l->size, 2*sizeof(void *) + 4*sizeof(int64_t));
+   ck_assert_int_eq(l->parts[0].offset, 0);
+   ck_assert_int_eq(l->parts[0].size, sizeof(void *));
+   ck_assert_int_eq(l->parts[0].align, sizeof(void *));
+   ck_assert_int_eq(l->parts[1].offset, sizeof(void *));
+   ck_assert_int_eq(l->parts[1].size, sizeof(int64_t));
+   ck_assert_int_eq(l->parts[1].repeat, 1);
+   ck_assert_int_eq(l->parts[2].offset, 2*sizeof(void *));
+   ck_assert_int_eq(l->parts[2].size, sizeof(int64_t));
+   ck_assert_int_eq(l->parts[2].repeat, 4);
+
+   type_t r3 = tree_type(get_decl(p, "R3"));
+
+   l = signal_layout_of(r3);
+   ck_assert_int_eq(l->nparts, 2);
+   ck_assert_int_eq(l->size, 8*sizeof(void *));
+   ck_assert_int_eq(l->parts[0].offset, 0);
+   ck_assert_int_eq(l->parts[0].size, 6*sizeof(void *));
+   ck_assert_int_eq(l->parts[0].align, sizeof(void *));
+   ck_assert_int_eq(l->parts[1].offset, 6*sizeof(void *));
+   ck_assert_int_eq(l->parts[1].size, 2*sizeof(void *));
+   ck_assert_int_eq(l->parts[1].align, sizeof(void *));
 
    jit_free(j);
 }

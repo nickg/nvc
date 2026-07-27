@@ -3704,6 +3704,25 @@ static void *vhpi_from_string(c_typeDecl *td, const vhpiValueT *value_p,
          return mem;
       }
 
+   case vhpiLogicVal:
+   case vhpiLogicVecVal:
+      {
+         *num_elems = value_p->bufSize - 1;
+         vhpiCharT *mem = xmalloc(*num_elems);
+         for (int i = 0; i < *num_elems; i++) {
+            const char *p = strchr(td->map_str, value_p->value.str[i]);
+            if (p == NULL) {
+               vhpi_error(vhpiError, NULL, "invalid logic value '%c'",
+                          value_p->value.str[i]);
+               free(mem);
+               return NULL;
+            }
+
+            mem[i] = p - td->map_str;
+         }
+         return mem;
+      }
+
    case vhpiIntVal:
    case vhpiLongIntVal:
       {

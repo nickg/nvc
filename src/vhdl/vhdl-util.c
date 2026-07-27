@@ -83,3 +83,12 @@ bool vhdl_is_range_attr(tree_t t)
       return false;
    }
 }
+
+int nested_dimension_of(type_t type)
+{
+   int ndims = 0;
+   for (type_t t = type_base_recur(type); type_is_array(t);
+        t = type_elem(t))
+      ndims += dimension_of(t);
+   return ndims;
+}
