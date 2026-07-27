@@ -1080,14 +1080,6 @@ type_t index_type_of(type_t type, unsigned dim)
       return tree_type(range_of(base, dim));
 }
 
-int64_t rebase_index(type_t array_type, int dim, int64_t value)
-{
-   // Convert value which is in the range of array_type to a zero-based index
-   tree_t r = range_of(array_type, dim);
-   const int64_t left = assume_int(tree_left(r));
-   return (tree_subkind(r) == RANGE_TO) ? value - left : left - value;
-}
-
 ident_t well_known(well_known_t id)
 {
    assert(id < NUM_WELL_KNOWN);
@@ -1618,6 +1610,14 @@ tree_t primary_unit_of(tree_t unit)
       fatal_trace("invalid kind %s in primary_unit_of",
                   tree_kind_str(tree_kind(unit)));
    }
+}
+
+static int64_t rebase_index(type_t array_type, int dim, int64_t value)
+{
+   // Convert value which is in the range of array_type to a zero-based index
+   tree_t r = range_of(array_type, dim);
+   const int64_t left = assume_int(tree_left(r));
+   return (tree_subkind(r) == RANGE_TO) ? value - left : left - value;
 }
 
 unsigned get_case_choice_char(tree_t value, int depth)

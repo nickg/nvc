@@ -41,8 +41,8 @@ vlog_node_t vlog_get_dim(vlog_node_t v, int n);
 tree_t vlog_walk_mod_refs(vlog_node_t v, tree_t where);
 
 #define CANNOT_HANDLE(v) do {                                           \
-      fatal_at(vlog_loc(v), "cannot handle %s in %s" ,                  \
-               vlog_kind_str(vlog_kind(v)), __FUNCTION__);              \
+      fatal_at(vlog_loc(v), "cannot handle %pK in %s" ,                 \
+               v, __FUNCTION__);                                        \
    } while (0)
 
 #endif  // _VLOG_UTIL_H

@@ -50,7 +50,6 @@ unsigned dimension_of(type_t type);
 type_t index_type_of(type_t type, unsigned dim);
 range_kind_t direction_of(type_t type, unsigned dim);
 tree_t range_of(type_t type, unsigned dim);
-int64_t rebase_index(type_t array_type, int dim, int64_t value);
 bool unit_needs_cgen(tree_t t);
 bool package_needs_body(tree_t pack);
 bool is_subprogram(tree_t t);
@@ -113,15 +112,6 @@ typedef union {
 } parsed_value_t;
 
 bool parse_value(type_t type, const char *str, parsed_value_t *value);
-
-//
-// Utility typedefs
-//
-
-typedef unsigned (*tree_formals_t)(tree_t t);
-typedef tree_t (*tree_formal_t)(tree_t t, unsigned n);
-typedef unsigned (*tree_actuals_t)(tree_t t);
-typedef tree_t (*tree_actual_t)(tree_t t, unsigned n);
 
 //
 // VHDL standard revisions

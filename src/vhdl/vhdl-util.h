@@ -22,8 +22,8 @@
 #include "tree.h"
 
 #define CANNOT_HANDLE(t) do {                                           \
-      fatal_at(tree_loc(t), "cannot handle %s in %s" ,                  \
-               tree_kind_str(tree_kind(t)), __FUNCTION__);              \
+      fatal_at(tree_loc(t), "cannot handle %pK in %s",                  \
+               t, __FUNCTION__);                                        \
    } while (0)
 
 ident_t predef_func_name(type_t type, const char *op);

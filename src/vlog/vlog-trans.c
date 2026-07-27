@@ -29,11 +29,6 @@
 
 #include <assert.h>
 
-#define CANNOT_HANDLE(v) do {                                           \
-      fatal_at(vlog_loc(v), "cannot handle %s in %s" ,                  \
-               vlog_kind_str(vlog_kind(v)), __FUNCTION__);              \
-   } while (0)
-
 typedef struct {
    tree_t  out;
    tree_t  chars[256];
