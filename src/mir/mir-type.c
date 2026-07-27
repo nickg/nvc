@@ -1271,9 +1271,9 @@ mir_stamp_t mir_stamp_cmp(mir_unit_t *mu, mir_cmp_t cmp, mir_stamp_t left,
 mir_stamp_t mir_stamp_union(mir_unit_t *mu, mir_stamp_t left, mir_stamp_t right)
 {
    if (mir_is_null(left))
-      return right;
-   else if (mir_is_null(right))
       return left;
+   else if (mir_is_null(right))
+      return right;
 
    const stamp_data_t *lsd = mir_stamp_data(mu, left);
    const stamp_data_t *rsd = mir_stamp_data(mu, right);
