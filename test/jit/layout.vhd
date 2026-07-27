@@ -20,4 +20,12 @@ package layout is
 
     type t_array is array (natural range <>) of r2;
 
+    type t_bit_vector is array (natural range <>) of bit;
+    type t_bit_matrix is array (natural range <>) of t_bit_vector;
+
+    type r3 is record
+        x : t_bit_matrix;
+        y : bit;
+    end record;
+
 end package;

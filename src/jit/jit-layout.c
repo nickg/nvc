@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2022-2024  Nick Gasson
+//  Copyright (C) 2022-2026  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -23,6 +23,7 @@
 #include "printf.h"
 #include "thread.h"
 #include "type.h"
+#include "vhdl/vhdl-util.h"
 
 #include <assert.h>
 
@@ -109,7 +110,7 @@ const jit_layout_t *layout_of(type_t type)
       l->parts[0].class  = LC_DATA;
    }
    else if (type_is_array(type)) {
-      const int ndims = dimension_of(type);
+      const int ndims = nested_dimension_of(type);
       const int nelems = count_sub_elements(type);
 
       if (nelems >= 0) {
@@ -287,7 +288,7 @@ const jit_layout_t *signal_layout_of(type_t type)
       return signal_layout_of(type_base_recur(type));
    else {
       const bool has_offset = type_is_homogeneous(type);
-      const int ndims = dimension_of(type);
+      const int ndims = nested_dimension_of(type);
       const int nparts = 2 + has_offset;
 
       l = xcalloc_flex(sizeof(jit_layout_t), nparts, sizeof(layout_part_t));

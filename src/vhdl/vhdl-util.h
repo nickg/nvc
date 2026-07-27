@@ -33,4 +33,6 @@ bool vhdl_is_logical(subprogram_kind_t kind);
 
 bool vhdl_is_range_attr(tree_t t);
 
+int nested_dimension_of(type_t type);
+
 #endif  // _VHDL_UTIL_H

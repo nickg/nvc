@@ -3,6 +3,8 @@
   elaborated unit.
 - Fixed incorrect statement coverage in `--per-file` report when two
   instances of the same entity have different generic values (#1567).
+- Fixed a regression which caused a crash when using `vhpi_put_value` on
+  a selected name in a record with an unconstrained field (#1624).
 - Several other minor bugs were resolved (#1621)
 
 ## Version 1.22.0 - 2026-07-22

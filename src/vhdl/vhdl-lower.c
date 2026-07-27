@@ -28,10 +28,7 @@
 static void fill_array_type_info(vhdl_gen_t *g, type_t type, type_info_t *ti)
 {
    ti->ndims = dimension_of(type);
-
-   for (type_t t = type_base_recur(type); type_is_array(t);
-        t = type_elem(t))
-      ti->udims += dimension_of(t);
+   ti->udims = nested_dimension_of(type);
 
    const type_info_t *elem = type_info(g, type_elem(type));
    const type_info_t *base = type_info(g, type_elem_recur(type));
