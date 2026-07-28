@@ -341,6 +341,7 @@ bool vlog_is_signed(vlog_node_t v)
    case V_FUNC_DECL:
    case V_LOCALPARAM:
    case V_LOCAL_DECL:
+   case V_GENVAR_DECL:
       return vlog_is_signed(vlog_type(v));
    case V_REF:
    case V_MEMBER_REF:
@@ -356,6 +357,7 @@ bool vlog_is_signed(vlog_node_t v)
       case V_BINARY_SHIFT_RL:
       case V_BINARY_SHIFT_LA:
       case V_BINARY_SHIFT_RA:
+      case V_BINARY_EXP:
          return vlog_is_signed(vlog_left(v));
       default:
          return vlog_is_signed(vlog_left(v)) && vlog_is_signed(vlog_right(v));

@@ -1449,3 +1449,4 @@ wave14          shell
 issue1621       vhpi,2008
 issue1624       tcl,2019
 ivtest61        verilog
+ivtest62        verilog
