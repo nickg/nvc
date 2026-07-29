@@ -2451,9 +2451,8 @@ static void elab_for_generate(tree_t t, const elab_ctx_t *ctx)
    elab_generate_range(tree_range(t, 0), &low, &high, ctx);
 
    // XXX: workaround for potentially different layouts
-   if (low != high)
-      tree_set_global_flags(ctx->out, TREE_GF_INSTANCE_NAME
-                            | TREE_GF_PATH_NAME);
+   tree_set_global_flags(ctx->out, TREE_GF_INSTANCE_NAME
+                         | TREE_GF_PATH_NAME);
 
    ident_t label = tree_ident(t), first = NULL;
 
