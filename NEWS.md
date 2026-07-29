@@ -8,7 +8,7 @@
 - Fixed a regression where `'event` was not set properly when a signal
   was updated by a `vhpi_put_value` deposit twice in one delta cycle
   (#1626).
-- Several other minor bugs were resolved (#1621)
+- Several other minor bugs were resolved (#1621, #1627)
 
 ## Version 1.22.0 - 2026-07-22
 - Added support for evaluating user function calls in Verilog constant
