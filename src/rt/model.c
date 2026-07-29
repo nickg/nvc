@@ -2975,9 +2975,6 @@ static void update_driving(rt_model_t *m, rt_nexus_t *n, bool safe)
       n->active_delta = m->iteration;
       n->flags &= ~NET_F_PENDING;
 
-      // TODO: add an event epoch or similar
-      n->event_delta = DELTA_CYCLE_MAX;
-
       calculate_driving_value(m, n);
 
       // Update output ports if the effective value must be calculated
