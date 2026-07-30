@@ -602,6 +602,7 @@ vlog_node_t vlog_get_dim(vlog_node_t v, int n)
          switch (vlog_kind(decl)) {
          case V_NET_DECL:
          case V_VAR_DECL:
+         case V_PORT_DECL:
          case V_LOCAL_DECL:
             {
                const int nunpacked = vlog_ranges(decl);

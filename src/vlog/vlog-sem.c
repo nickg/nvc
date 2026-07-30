@@ -320,6 +320,20 @@ static void vlog_check_release(vlog_node_t v)
    vlog_check_net_lvalue(target, target);
 }
 
+static void vlog_check_type(vlog_node_t v)
+{
+   vlog_node_t type = vlog_type(v);
+
+   switch (vlog_kind(type)) {
+   case V_CLASS_DECL:
+      return;   // Checked at original declaration
+   default:
+      break;
+   }
+
+   vlog_check(type);
+}
+
 static void vlog_check_consistent(vlog_node_t a, vlog_node_t b)
 {
    vlog_node_t at = vlog_type(a);
@@ -374,23 +388,13 @@ static void vlog_check_port_decl(vlog_node_t v)
          diag_emit(d);
       }
    }
+   else {
+      vlog_check_type(v);
+      vlog_check_ranges(v);
+   }
 
    if (vlog_has_value(v))
       vlog_check_expr(vlog_value(v));
-}
-
-static void vlog_check_type(vlog_node_t v)
-{
-   vlog_node_t type = vlog_type(v);
-
-   switch (vlog_kind(type)) {
-   case V_CLASS_DECL:
-      return;   // Checked at original declaration
-   default:
-      break;
-   }
-
-   vlog_check(type);
 }
 
 static void vlog_check_net_decl(vlog_node_t v)
