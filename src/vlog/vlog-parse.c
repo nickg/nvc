@@ -6992,6 +6992,9 @@ static void p_ansi_port_declaration(vlog_node_t mod, v_port_kind_t *kind,
    vlog_set_type(v, *dt);
    vlog_set_loc(v, &state.last_loc);
 
+   while (peek() == tLSQUARE)
+      vlog_add_range(v, p_unpacked_dimension());
+
    if (optional(tEQ))
       vlog_set_value(v, p_constant_expression());
 
