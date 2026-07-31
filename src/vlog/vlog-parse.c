@@ -306,7 +306,10 @@ static bool scan_type_declaration(void)
 
 static bool scan_block_item_declaration(void)
 {
-   return scan_type_declaration();
+   if (scan_type_declaration())
+      return true;
+
+   return scan(tLOCALPARAM);
 }
 
 static bool scan_tf_item_declaration(void)
@@ -314,7 +317,7 @@ static bool scan_tf_item_declaration(void)
    if (scan_type_declaration())
       return true;
 
-   return scan(tINPUT, tOUTPUT);
+   return scan(tINPUT, tOUTPUT, tLOCALPARAM);
 }
 
 static ident_t p_identifier(void)
@@ -4293,7 +4296,7 @@ static void p_parameter_declaration(vlog_node_t mod)
    p_list_of_param_assignments(mod, dt, param_kind);
 }
 
-static void p_local_parameter_declaration(vlog_node_t mod)
+static void p_local_parameter_declaration(vlog_node_t parent)
 {
    // localparam data_type_or_implicit list_of_param_assignments
 
@@ -4302,7 +4305,7 @@ static void p_local_parameter_declaration(vlog_node_t mod)
    consume(tLOCALPARAM);
 
    vlog_node_t dt = p_data_type_or_implicit();
-   p_list_of_param_assignments(mod, dt, V_LOCALPARAM);
+   p_list_of_param_assignments(parent, dt, V_LOCALPARAM);
 }
 
 static void p_class_property(vlog_node_t parent)
@@ -4552,6 +4555,10 @@ static void p_block_item_declaration(vlog_node_t parent)
    case tTIME:
    case tID:
       p_data_declaration(parent, V_LOCAL_DECL);
+      break;
+   case tLOCALPARAM:
+      p_local_parameter_declaration(parent);
+      consume(tSEMI);
       break;
    default:
       should_not_reach_here();

@@ -5,8 +5,9 @@ module vlog47;
     initial out[i] = i;
 
   initial begin
+    localparam limit = 10;
     #0;
-    for (int i = 1; i <= 10; i++)
+    for (int i = 1; i <= limit; i++)
       if (out[i] !== i) begin
         $display("FAILED: out[%d] = %d", i, out[i]);
         $finish;

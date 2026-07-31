@@ -3771,6 +3771,19 @@ static void vlog_lower_locals(vlog_gen_t *g, vlog_node_t v)
             }
          }
          break;
+      case V_LOCALPARAM:
+         {
+            const type_info_t *ti = vlog_type_info(g, vlog_type(d));
+
+            mir_value_t var = mir_add_var(g->mu, ti->type, ti->stamp,
+                                          vlog_ident(d), MIR_VAR_CONST);
+            mir_put_object(g->mu, d, var);
+
+            mir_value_t value = vlog_lower_rvalue(g, vlog_value(d));
+            mir_value_t init = vlog_lower_cast(g, ti->type, value);
+            mir_build_store(g->mu, var, init);
+         }
+         break;
       default:
          CANNOT_HANDLE(d);
       }
