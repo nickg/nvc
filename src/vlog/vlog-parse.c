@@ -4895,16 +4895,31 @@ static vlog_node_t p_conditional_generate_construct(void)
    }
 }
 
-static vlog_node_t p_genvar_initialization(void)
+static vlog_node_t p_genvar_initialization(vlog_node_t *var)
 {
    // [ genvar ] genvar_identifier = constant_expression
 
    BEGIN("genvar initialization");
 
+   ident_t id;
+   if (optional(tGENVAR)) {
+      vlog_node_t dt = make_integer_atom_type(DT_INTEGER);
+      vlog_set_flags(dt, VLOG_F_SIGNED);
+
+      *var = vlog_new(V_GENVAR_DECL);
+      vlog_set_ident(*var, (id = p_identifier()));
+      vlog_set_type(*var, dt);
+      vlog_set_loc(*var, &state.last_loc);
+
+      vlog_symtab_put(symtab, *var);
+   }
+   else
+      id = p_identifier();
+
    vlog_node_t v = vlog_new(V_FOR_INIT);
 
    vlog_node_t ref = vlog_new(V_REF);
-   vlog_set_ident(ref, p_identifier());
+   vlog_set_ident(ref, id);
    vlog_set_loc(ref, &state.last_loc);
 
    vlog_symtab_lookup(symtab, ref);
@@ -4968,7 +4983,7 @@ static vlog_node_t p_genvar_iteration(void)
    return v;
 }
 
-static vlog_node_t p_loop_generate_construct(void)
+static void p_loop_generate_construct(vlog_node_t parent)
 {
    // for ( genvar_initialization ; genvar_expression ; genvar_iteration )
    //   generate_block
@@ -4982,7 +4997,8 @@ static vlog_node_t p_loop_generate_construct(void)
 
    vlog_symtab_push(symtab, NULL);
 
-   vlog_set_left(v, p_genvar_initialization());
+   vlog_node_t var = NULL;
+   vlog_set_left(v, p_genvar_initialization(&var));
 
    consume(tSEMI);
 
@@ -4994,12 +5010,20 @@ static vlog_node_t p_loop_generate_construct(void)
 
    consume(tRPAREN);
 
-   vlog_add_stmt(v, p_generate_block());
+   vlog_node_t b = p_generate_block();
+   vlog_add_stmt(v, b);
 
    vlog_symtab_pop(symtab);
 
    vlog_set_loc(v, CURRENT_LOC);
-   return v;
+   vlog_add_stmt(parent, v);
+
+   if (var != NULL) {
+      // Genvar must be allocated in parent context
+      ident_t prefixed = ident_prefix(vlog_ident(b), vlog_ident(var), '.');
+      vlog_set_ident(var, prefixed);
+      vlog_add_decl(parent, var);
+   }
 }
 
 static vlog_node_t p_property_spec(void)
@@ -5203,7 +5227,7 @@ static void p_module_common_item(vlog_node_t mod)
       p_continuous_assign(mod);
       break;
    case tFOR:
-      vlog_add_stmt(mod, p_loop_generate_construct());
+      p_loop_generate_construct(mod);
       break;
    case tIF:
    case tCASE:
