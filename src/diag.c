@@ -148,10 +148,8 @@ file_ref_t loc_file_ref(const char *name, const char *linebuf)
 
    // TODO: use a hash table
    for (unsigned i = 0; i < loc_files.count; i++) {
-      if (strcmp(loc_files.items[i].name_str, tb_get(tb)) == 0) {
-         tb_free(tb);
+      if (strcmp(loc_files.items[i].name_str, tb_get(tb)) == 0)
          return loc_files.items[i].ref;
-      }
    }
 
    loc_file_t new = {
