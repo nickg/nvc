@@ -1,4 +1,6 @@
 ## Unreleased changes
+
+## Version 1.22.1 - 2026-08-01
 - Waveform dumping now dumps multiple top units instead of only the first
   elaborated unit.
 - Fixed incorrect statement coverage in `--per-file` report when two

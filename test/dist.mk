@@ -54,6 +54,7 @@ EXTRA_DIST += \
 	test/cover/issue1431_sub.vhd \
 	test/cover/issue1431.vhd \
 	test/cover/issue1442.vhd \
+	test/cover/issue1567.vhd \
 	test/cover/merge1.vhd \
 	test/cover/merge2.vhd \
 	test/cover/perfile1.vhd \
@@ -1484,6 +1485,7 @@ EXTRA_DIST += \
 	test/regress/gold/wave11.dump \
 	test/regress/gold/wave12.dump \
 	test/regress/gold/wave13.dump \
+	test/regress/gold/wave14.dump \
 	test/regress/gold/wave1.dump \
 	test/regress/gold/wave2.dump \
 	test/regress/gold/wave3.dump \
@@ -1684,6 +1686,15 @@ EXTRA_DIST += \
 	test/regress/issue1609.vhd \
 	test/regress/issue1616.vhd \
 	test/regress/issue1619.v \
+	test/regress/issue1621.vhd \
+	test/regress/issue1624.tcl \
+	test/regress/issue1624.vhd \
+	test/regress/issue1625.sv \
+	test/regress/issue1626.tcl \
+	test/regress/issue1626.vhd \
+	test/regress/issue1627.vhd \
+	test/regress/issue1629.tcl \
+	test/regress/issue1629.vhd \
 	test/regress/issue163.vhd \
 	test/regress/issue169.vhd \
 	test/regress/issue16.vhd \
@@ -1991,6 +2002,7 @@ EXTRA_DIST += \
 	test/regress/ivtest59.v \
 	test/regress/ivtest5.v \
 	test/regress/ivtest60.v \
+	test/regress/ivtest61.v \
 	test/regress/ivtest6.v \
 	test/regress/ivtest7.v \
 	test/regress/ivtest8.v \
@@ -2291,6 +2303,7 @@ EXTRA_DIST += \
 	test/regress/textio7.vhd \
 	test/regress/textio8.vhd \
 	test/regress/tfcall10.sv \
+	test/regress/tfcall11.v \
 	test/regress/tfcall1.v \
 	test/regress/tfcall2.v \
 	test/regress/tfcall3.v \
@@ -2475,6 +2488,8 @@ EXTRA_DIST += \
 	test/regress/wave11.vhd \
 	test/regress/wave12.vhd \
 	test/regress/wave13.v \
+	test/regress/wave14.sh \
+	test/regress/wave14.vhd \
 	test/regress/wave1.vhd \
 	test/regress/wave2.sh \
 	test/regress/wave2.vhd \
@@ -2834,6 +2849,7 @@ EXTRA_DIST += \
 	test/vlog/pp13.v \
 	test/vlog/pp13.vh \
 	test/vlog/pp14.v \
+	test/vlog/pp15.v \
 	test/vlog/pp1.v \
 	test/vlog/pp2.v \
 	test/vlog/pp3.v \
