@@ -9,6 +9,9 @@
 - Fixed a regression where `'event` was not set properly when a signal
   was updated by a `vhpi_put_value` deposit twice in one delta cycle
   (#1626).
+- VHDL signals can be now initialized in LRM non-compliant using
+  `--load=siginit` and `+siginit` arguments. This is useful for finding
+  reset issues (from @Blebowski).
 - Several other minor bugs were resolved (#1621, #1627)
 
 ## Version 1.22.0 - 2026-07-22
@@ -19,9 +22,6 @@
 - Added support for default arguments in Verilog macros.
 - Added support for `$info`, `$warning`, `$error`, and `$fatal`, Verilog
   system tasks.
-- VHDL signals can be now initialized in LRM non-compliant way when
-  using `--load=siginit` and `+siginit` arguments. This is usefull
-  for finding reset issues.
 - Elaboration now supports multiple top level design units (#1588).
 - Verilog hierarchical references are now supported.
 - External names are now allowed in the prefix of selected or indexed
@@ -82,9 +82,6 @@
   list of directories to search when the argument to `--load` is not a
   valid path.
 - Added support for VHDL-2019 extended ranges.
-- Added signal initialization plugin that allows initializing VHDL
-  signals in LRM non-compliant way at start of simulation.
-  Activated by `--load=siginit` and controlled by `+siginit` arguments.
 - Several other minor bugs were resolved (#1453, #1460, #1466, #1469,
   #1394, #1476, #1472, #1474).
 
