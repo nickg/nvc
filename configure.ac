@@ -285,6 +285,10 @@ case $host_os in
     DLL_EXT=dll
     LIB_EXT=lib
     ;;
+  darwin*)
+    DLL_EXT=dylib
+    LIB_EXT=a
+    ;;
   *)
     DLL_EXT=so
     LIB_EXT=a

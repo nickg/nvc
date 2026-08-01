@@ -43,6 +43,9 @@ BOOTSTRAPLIBS =
 LIBDIRS =
 lib_LIBRARIES =
 pkglib_LIBRARIES =
+EXTRA_all_local =
+EXTRA_install_exec_local =
+EXTRA_uninstall_local =
 
 include thirdparty/Makemodule.am
 include src/Makemodule.am
@@ -73,10 +76,17 @@ include lib/vital/Makemodule.am
 include lib/synopsys/Makemodule.am
 include contrib/Makemodule.am
 include contrib/msi/Makemodule.am
+include contrib/plugins/Makemodule.am
 
 clean-local: clean-libs
 	rm -f src/vlog/vlog-parse.c
 	-test ! -d logs || rm -r logs
+
+all-local: $(EXTRA_all_local)
+
+install-exec-local: $(EXTRA_install_exec_local)
+
+uninstall-local: $(EXTRA_uninstall_local)
 
 everything: $(BUILT_SOURCES) config.h
 	$(MAKE) $(AM_MAKEFLAGS) all-am $(check_PROGRAMS) $(EXTRA_PROGRAMS)

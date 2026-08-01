@@ -1,5 +1,8 @@
 ## Unreleased changes
 - Added basic support for System Verilog assignment pattern expressions.
+- VHDL signals can be now initialized in LRM non-compliant using
+  `--load=siginit` and `+siginit` arguments. This is useful for finding
+  reset issues (from @Blebowski).
 
 ## Version 1.22.1 - 2026-08-01
 - Waveform dumping now dumps multiple top units instead of only the first

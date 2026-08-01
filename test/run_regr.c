@@ -141,6 +141,7 @@ typedef struct _test {
    char      *define;
    char      *export;
    char      *exit;
+   char      *plugin;
    unsigned   arrays;
    int        seed;
    double     duration;
@@ -475,6 +476,8 @@ static bool parse_test_list(void)
                goto out_close;
             }
          }
+         else if (strncmp(opt, "plugin=", 7) == 0)
+            test->plugin = strdup(opt + 7);
          else if (strncmp(opt, "O", 1) == 0) {
             if (sscanf(opt + 1, "%u", &(test->olevel)) != 1) {
                fprintf(stderr, "Error on testlist line %d: invalid "
@@ -958,6 +961,9 @@ static bool run_test(test_t *test)
       if (test->flags & F_VHPI)
          push_arg(&args, "--load=%s/../lib/vhpi_test.so%s", bin_dir, EXEEXT);
 
+      if (test->plugin != NULL)
+         push_arg(&args, "--load=%s", test->plugin);
+
       for (param_t *p = test->params; p != NULL; p = p->next) {
          if (p->kind == P_PLUSARG)
             push_arg(&args, "+%s", p->value);
@@ -1037,6 +1043,9 @@ static bool run_test(test_t *test)
 
          if (test->flags & F_VHPI)
             push_arg(&args, "--load=%s/../lib/vhpi_test.so%s", bin_dir, EXEEXT);
+
+         if (test->plugin != NULL)
+            push_arg(&args, "--load=%s", test->plugin);
 
          for (param_t *p = test->params; p != NULL; p = p->next) {
             if (p->kind == P_PLUSARG)
@@ -1491,6 +1500,7 @@ int main(int argc, char **argv)
 
    setenv("NVC_IMP_LIB", lib_dir, 1);
    setenv("NVC_LIBPATH", lib_dir, 1);
+   setenv("NVC_PLUGIN_PATH", lib_dir, 1);
 
 #ifdef __MINGW32__
    SetConsoleOutputCP(65001);
