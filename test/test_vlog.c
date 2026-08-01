@@ -2133,6 +2133,30 @@ START_TEST(test_pattern1)
 }
 END_TEST
 
+START_TEST(test_pp16)
+{
+   input_from_file(TESTDIR "/vlog/pp16.v");
+
+   const error_t expect[] = {
+      { 17, "unexpected module while parsing statement item" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   LOCAL_TEXT_BUF tb = tb_new();
+   vlog_preprocess(tb, true);
+
+   file_ref_t file_ref = loc_file_ref(TESTDIR "/vlog/pp16.v", NULL);
+   input_from_buffer(tb_get(tb), tb_len(tb), file_ref, SOURCE_VERILOG);
+
+   do_parse_only(V_MODULE);
+
+   fail_unless(vlog_parse() == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_vlog_tests(void)
 {
    Suite *s = suite_create("vlog");
@@ -2211,6 +2235,7 @@ Suite *get_vlog_tests(void)
    tcase_add_test(tc, test_disable1);
    tcase_add_test(tc, test_issue1596);
    tcase_add_test(tc, test_pp15);
+   tcase_add_test(tc, test_pp16);
    tcase_add_test(tc, test_prop1);
    tcase_add_test(tc, test_pattern1);
    suite_add_tcase(s, tc);

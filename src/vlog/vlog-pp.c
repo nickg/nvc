@@ -46,6 +46,7 @@ typedef struct {
 } macro_arg_t;
 
 typedef A(macro_arg_t) arg_list_t;
+typedef A(loc_t) loc_stack_t;
 
 typedef struct {
    ident_t     name;
@@ -67,6 +68,7 @@ static bool           emit_locs;
 static pp_mode_t      mode;
 static parse_state_t  state;
 static hash_t        *macro_args = NULL;
+static loc_stack_t    macro_locs;
 
 extern loc_t yylloc;
 extern yylval_t yylval;
@@ -771,11 +773,17 @@ static void p_text_macro_usage(void)
    const char last = outlen > 0 ? tb_get(output)[outlen - 1] : '\0';
    const bool at_boundary = last == '\0' || last == ' '
       || last == '\t' || last == '\n';
+   loc_t loc = state.last_loc;
+   if (loc_invalid_p(&loc) && macro_locs.count > 0)
+      loc = ATOP(macro_locs);
 
-   if (emit_locs && at_boundary)
+   const bool emit_loc = emit_locs && at_boundary && !loc_invalid_p(&loc);
+
+   if (emit_loc)
       tb_printf(output, "\n`__nvc_push \"`%pi\",%d:%d,%d\n", name,
-                yylloc.first_line, yylloc.first_column, yylloc.column_delta);
+                loc.first_line, loc.first_column, loc.column_delta);
 
+   APUSH(macro_locs, loc);
    push_buffer(tb_get(m->text), tb_len(m->text), FILE_INVALID);
 
    while (not_at_token(tEOF))
@@ -795,8 +803,9 @@ static void p_text_macro_usage(void)
    macro_args = old_args;
 
    pop_buffer();
+   APOP(macro_locs);
 
-   if (emit_locs && at_boundary)
+   if (emit_loc)
       tb_printf(output, "\n`__nvc_pop\n");
 }
 
@@ -1091,6 +1100,7 @@ void vlog_preprocess(text_buf_t *tb, bool precise)
 
    assert(ifdefs == NULL);
    assert(macro_args == NULL);
+   assert(macro_locs.count == 0);
 
    emit_locs = precise;
    mode = PP_INITIAL;
@@ -1103,6 +1113,7 @@ void vlog_preprocess(text_buf_t *tb, bool precise)
 
    assert(ifdefs == NULL);
    assert(macro_args == NULL);
+   assert(macro_locs.count == 0);
    output = NULL;
 
    if (!opt_get_int(OPT_SINGLE_UNIT))
