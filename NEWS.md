@@ -11,7 +11,7 @@
   (#1626).
 - Unpacked dimensions are now allowed in System Verilog port
   declarations (#1625).
-- Several other minor bugs were resolved (#1621, #1627)
+- Several other minor bugs were resolved (#1621, #1627, #1629)
 
 ## Version 1.22.0 - 2026-07-22
 - Added support for evaluating user function calls in Verilog constant

@@ -1587,6 +1587,8 @@ int main(int argc, char **argv)
          mask |= F_COVER;
       else if (strcmp(argv[i], "vlog") == 0)
          mask |= F_VERILOG | F_MIXED;
+      else if (strcmp(argv[i], "tcl") == 0)
+         mask |= F_TCL;
    }
 
    int fails = 0;

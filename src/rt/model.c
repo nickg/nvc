@@ -3078,7 +3078,7 @@ static void update_pseudo_source(rt_model_t *m, rt_source_t *src)
    }
    else {
       assert(w_now->next == NULL || w_now->next->when > m->now);
-      src->disconnected = 1;
+      src->disconnected = !(n->flags & NET_F_FORCED);
    }
 
    update_driving(m, n, false);
