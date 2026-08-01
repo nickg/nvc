@@ -1452,6 +1452,6 @@ ivtest61        verilog
 ivtest62        verilog
 issue1626       tcl,2008
 issue1627       normal
-siginit1        2008,siginit,+siginit+zero,+siginit+block+sub
-siginit2        2008,siginit,+siginit+one
-siginit3        2008,siginit,+siginit+rand,seed=124
+siginit1        2008,plugin=siginit,+siginit+zero,+siginit+block+sub
+siginit2        2008,plugin=siginit,+siginit+one
+siginit3        2008,plugin=siginit,+siginit+rand,seed=124
