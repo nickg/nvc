@@ -1,7 +1,9 @@
 ## Unreleased changes
-- Waveform dumping now dumps multiple top units instead of only the first 
-  elaborated unit.
 - Added basic support for System Verilog assignment pattern expressions.
+
+## Version 1.22.1 - 2026-08-01
+- Waveform dumping now dumps multiple top units instead of only the first
+  elaborated unit.
 - Fixed incorrect statement coverage in `--per-file` report when two
   instances of the same entity have different generic values (#1567).
 - Fixed a regression which caused a crash when using `vhpi_put_value` on
