@@ -70,23 +70,6 @@ void number_write(number_t val, fbuf_t *f);
 number_t number_read(fbuf_t *f);
 
 number_t number_add(number_t a, number_t b);
-number_t number_sub(number_t a, number_t b);
-number_t number_mul(number_t a, number_t b);
-number_t number_div(number_t a, number_t b);
-number_t number_exp(number_t a, number_t b);
-number_t number_and2(number_t a, number_t b);
-number_t number_or2(number_t a, number_t b);
-number_t number_xor2(number_t a, number_t b);
-number_t number_shl(number_t a, number_t b);
-number_t number_shr(number_t a, number_t b);
-number_t number_asr(number_t a, number_t b);
-number_t number_negate(number_t a);
-number_t number_logical_equal(number_t a, number_t b);
-number_t number_not(number_t a);
-number_t number_greater(number_t a, number_t b);
-number_t number_greater_equal(number_t a, number_t b);
-number_t number_less(number_t a, number_t b);
-number_t number_less_equal(number_t a, number_t b);
 
 void vec2_add(int size, uint64_t *a, const uint64_t *b);
 void vec2_sub(int size, uint64_t *a, const uint64_t *b);

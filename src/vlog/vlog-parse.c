@@ -306,7 +306,10 @@ static bool scan_type_declaration(void)
 
 static bool scan_block_item_declaration(void)
 {
-   return scan_type_declaration();
+   if (scan_type_declaration())
+      return true;
+
+   return scan(tLOCALPARAM);
 }
 
 static bool scan_tf_item_declaration(void)
@@ -314,7 +317,7 @@ static bool scan_tf_item_declaration(void)
    if (scan_type_declaration())
       return true;
 
-   return scan(tINPUT, tOUTPUT);
+   return scan(tINPUT, tOUTPUT, tLOCALPARAM);
 }
 
 static ident_t p_identifier(void)
@@ -4293,7 +4296,7 @@ static void p_parameter_declaration(vlog_node_t mod)
    p_list_of_param_assignments(mod, dt, param_kind);
 }
 
-static void p_local_parameter_declaration(vlog_node_t mod)
+static void p_local_parameter_declaration(vlog_node_t parent)
 {
    // localparam data_type_or_implicit list_of_param_assignments
 
@@ -4302,7 +4305,7 @@ static void p_local_parameter_declaration(vlog_node_t mod)
    consume(tLOCALPARAM);
 
    vlog_node_t dt = p_data_type_or_implicit();
-   p_list_of_param_assignments(mod, dt, V_LOCALPARAM);
+   p_list_of_param_assignments(parent, dt, V_LOCALPARAM);
 }
 
 static void p_class_property(vlog_node_t parent)
@@ -4552,6 +4555,10 @@ static void p_block_item_declaration(vlog_node_t parent)
    case tTIME:
    case tID:
       p_data_declaration(parent, V_LOCAL_DECL);
+      break;
+   case tLOCALPARAM:
+      p_local_parameter_declaration(parent);
+      consume(tSEMI);
       break;
    default:
       should_not_reach_here();
@@ -4895,16 +4902,31 @@ static vlog_node_t p_conditional_generate_construct(void)
    }
 }
 
-static vlog_node_t p_genvar_initialization(void)
+static vlog_node_t p_genvar_initialization(vlog_node_t *var)
 {
    // [ genvar ] genvar_identifier = constant_expression
 
    BEGIN("genvar initialization");
 
+   ident_t id;
+   if (optional(tGENVAR)) {
+      vlog_node_t dt = make_integer_atom_type(DT_INTEGER);
+      vlog_set_flags(dt, VLOG_F_SIGNED);
+
+      *var = vlog_new(V_GENVAR_DECL);
+      vlog_set_ident(*var, (id = p_identifier()));
+      vlog_set_type(*var, dt);
+      vlog_set_loc(*var, &state.last_loc);
+
+      vlog_symtab_put(symtab, *var);
+   }
+   else
+      id = p_identifier();
+
    vlog_node_t v = vlog_new(V_FOR_INIT);
 
    vlog_node_t ref = vlog_new(V_REF);
-   vlog_set_ident(ref, p_identifier());
+   vlog_set_ident(ref, id);
    vlog_set_loc(ref, &state.last_loc);
 
    vlog_symtab_lookup(symtab, ref);
@@ -4968,7 +4990,7 @@ static vlog_node_t p_genvar_iteration(void)
    return v;
 }
 
-static vlog_node_t p_loop_generate_construct(void)
+static void p_loop_generate_construct(vlog_node_t parent)
 {
    // for ( genvar_initialization ; genvar_expression ; genvar_iteration )
    //   generate_block
@@ -4982,7 +5004,8 @@ static vlog_node_t p_loop_generate_construct(void)
 
    vlog_symtab_push(symtab, NULL);
 
-   vlog_set_left(v, p_genvar_initialization());
+   vlog_node_t var = NULL;
+   vlog_set_left(v, p_genvar_initialization(&var));
 
    consume(tSEMI);
 
@@ -4994,12 +5017,20 @@ static vlog_node_t p_loop_generate_construct(void)
 
    consume(tRPAREN);
 
-   vlog_add_stmt(v, p_generate_block());
+   vlog_node_t b = p_generate_block();
+   vlog_add_stmt(v, b);
 
    vlog_symtab_pop(symtab);
 
    vlog_set_loc(v, CURRENT_LOC);
-   return v;
+   vlog_add_stmt(parent, v);
+
+   if (var != NULL) {
+      // Genvar must be allocated in parent context
+      ident_t prefixed = ident_prefix(vlog_ident(b), vlog_ident(var), '.');
+      vlog_set_ident(var, prefixed);
+      vlog_add_decl(parent, var);
+   }
 }
 
 static vlog_node_t p_property_spec(void)
@@ -5203,7 +5234,7 @@ static void p_module_common_item(vlog_node_t mod)
       p_continuous_assign(mod);
       break;
    case tFOR:
-      vlog_add_stmt(mod, p_loop_generate_construct());
+      p_loop_generate_construct(mod);
       break;
    case tIF:
    case tCASE:
@@ -6991,6 +7022,9 @@ static void p_ansi_port_declaration(vlog_node_t mod, v_port_kind_t *kind,
    vlog_set_ident2(v, ext);
    vlog_set_type(v, *dt);
    vlog_set_loc(v, &state.last_loc);
+
+   while (peek() == tLSQUARE)
+      vlog_add_range(v, p_unpacked_dimension());
 
    if (optional(tEQ))
       vlog_set_value(v, p_constant_expression());

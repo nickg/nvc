@@ -1,7 +1,12 @@
 ## Unreleased changes
-- Waveform dumping now dumps multiple top units instead of only the first 
-  elaborated unit.
 - Added basic support for System Verilog assignment pattern expressions.
+- VHDL signals can be now initialized in LRM non-compliant using
+  `--load=siginit` and `+siginit` arguments. This is useful for finding
+  reset issues (from @Blebowski).
+
+## Version 1.22.1 - 2026-08-01
+- Waveform dumping now dumps multiple top units instead of only the first
+  elaborated unit.
 - Fixed incorrect statement coverage in `--per-file` report when two
   instances of the same entity have different generic values (#1567).
 - Fixed a regression which caused a crash when using `vhpi_put_value` on
@@ -9,10 +14,9 @@
 - Fixed a regression where `'event` was not set properly when a signal
   was updated by a `vhpi_put_value` deposit twice in one delta cycle
   (#1626).
-- VHDL signals can be now initialized in LRM non-compliant using
-  `--load=siginit` and `+siginit` arguments. This is useful for finding
-  reset issues (from @Blebowski).
-- Several other minor bugs were resolved (#1621, #1627)
+- Unpacked dimensions are now allowed in System Verilog port
+  declarations (#1625).
+- Several other minor bugs were resolved (#1621, #1627, #1629)
 
 ## Version 1.22.0 - 2026-07-22
 - Added support for evaluating user function calls in Verilog constant
