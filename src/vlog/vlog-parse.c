@@ -2180,28 +2180,38 @@ static vlog_node_t p_property_expr(void)
 
    BEGIN("property expression");
 
-   switch (peek()) {
-   case tAT:
+   if (peek() == tAT) {
       (void)p_clocking_event();
       return p_property_expr();
-   default:
-      {
-         vlog_node_t head = p_sequence_expr();
-
-         switch (peek()) {
-         case tSUFFIXOVR:
-            consume(tSUFFIXOVR);
-            (void)p_property_expr();
-            return head;
-         case tSUFFIXNON:
-            consume(tSUFFIXNON);
-            (void)p_property_expr();
-            return head;
-         default:
-            return head;
-         }
-      }
    }
+
+   vlog_node_t head;
+   if (optional(tLPAREN)) {
+      head = p_property_expr();
+      consume(tRPAREN);
+   }
+   else
+      head = p_sequence_expr();
+
+   switch (peek()) {
+   case tDBLAMP:
+   case tLOGOR:
+      consume(peek());
+      (void)p_expression();
+      break;
+   case tSUFFIXOVR:
+      consume(tSUFFIXOVR);
+      (void)p_property_expr();
+      break;
+   case tSUFFIXNON:
+      consume(tSUFFIXNON);
+      (void)p_property_expr();
+      break;
+   default:
+      break;
+   }
+
+   return head;
 }
 
 static vlog_node_t p_cond_predicate(void)
