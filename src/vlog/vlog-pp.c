@@ -1044,7 +1044,10 @@ static void p_block_of_text(void)
    case tCONTINUATION:
       consume(tCONTINUATION);
       consume(tNEWLINE);
-      tb_cat(output, "\\\n");
+      if (ifdefs == NULL || ifdefs->cond)
+         tb_cat(output, "\\\n");
+      else
+         tb_append(output, '\n');
       break;
    case tLPAREN:
    case tRPAREN:

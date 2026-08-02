@@ -2157,6 +2157,26 @@ START_TEST(test_pp16)
 }
 END_TEST
 
+START_TEST(test_pp17)
+{
+   input_from_file(TESTDIR "/vlog/pp17.v");
+
+   LOCAL_TEXT_BUF tb = tb_new();
+   vlog_preprocess(tb, false);
+
+   ck_assert_str_eq(
+      tb_get(tb),
+      "\n"
+      "\n"
+      "\n"
+      "\n"
+      "module pp17;\n"
+      "endmodule\n");
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_vlog_tests(void)
 {
    Suite *s = suite_create("vlog");
@@ -2235,9 +2255,10 @@ Suite *get_vlog_tests(void)
    tcase_add_test(tc, test_disable1);
    tcase_add_test(tc, test_issue1596);
    tcase_add_test(tc, test_pp15);
-   tcase_add_test(tc, test_pp16);
    tcase_add_test(tc, test_prop1);
    tcase_add_test(tc, test_pattern1);
+   tcase_add_test(tc, test_pp16);
+   tcase_add_test(tc, test_pp17);
    suite_add_tcase(s, tc);
 
    return s;
