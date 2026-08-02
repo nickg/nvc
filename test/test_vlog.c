@@ -518,21 +518,15 @@ START_TEST(test_timescale1)
    input_from_file(TESTDIR "/vlog/timescale1.v");
 
    const error_t expect[] = {
-      {  2, "invalid time unit name 'hello'" },
-      {  3, "invalid order of magnitude in `timescale directive" },
-      {  4, "unexpected real while parsing timescale compiler directive, "
-         "expecting unsigned number" },
+      {  2, "invalid order of magnitude in `timescale directive" },
+      {  3, "unexpected real while parsing timescale compiler directive, "
+         "expecting one of unsigned number or time literal" },
       { -1, NULL }
    };
    expect_errors(expect);
 
    vlog_node_t m = vlog_parse();
-   fail_if(m == NULL);
-   fail_unless(vlog_kind(m) == V_MODULE);
-
-   vlog_check(m);
-
-   fail_unless(vlog_parse() == NULL);
+   fail_unless(m == NULL);
 
    check_expected_errors();
 }

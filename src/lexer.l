@@ -151,6 +151,7 @@ UDP_EDGE        [rRfFpPnN*]
 SCALAR_ZERO     ('b0|'B0|1'b0|1'B0)
 SCALAR_ONE      ('b1|'B1|1'b1|1'B1)
 PAREN_STAR      "("{SPACE}*"*"{SPACE}*")"
+TIME_LITERAL    {INTEGER}{SPACE}*(s|ms|us|ns|ps|fs)
 
 %x COMMENT C_COMMENT PSL VLOG UDP SDF SDF_EXPR CSTRING PROTECT
 %x STRING PSTRING BITSTRING PBITSTRING
@@ -904,6 +905,7 @@ PROTECT           ?i:protect
 <VLOG>{VLOG_ID}          { yylval.ident = ident_new(yytext); return tID; }
 <VLOG>{VLOG_ESCAPED}     { yylval.ident = ident_new(yytext + 1); return tID; }
 <VLOG>{INTEGER}          { yylval.str = xstrdup(yytext); return tUNSNUM; }
+<VLOG>{TIME_LITERAL}     { yylval.str = xstrdup(yytext); return tTIMELIT; }
 <VLOG>{VLOG_NUMBER}      { yylval.str = xstrdup(yytext); return tNUMBER; }
 <VLOG>{VLOG_REAL}        { return parse_verilog_real(yytext); };
 <VLOG>{PAREN_STAR}       { return tPARENSTAR; }

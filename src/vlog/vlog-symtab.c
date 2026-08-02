@@ -167,7 +167,7 @@ void vlog_symtab_pop(vlog_symtab_t *st)
 
    for (int i = 0; i < st->top->deferred.count; i++) {
       vlog_node_t v = st->top->deferred.items[i];
-      if (st->top->parent != NULL)
+      if (st->top->parent != NULL && st->top->parent->container != NULL)
          APUSH(st->top->parent->deferred, v);
       else if (vlog_kind(v) != V_MOD_REF) {
          ident_t name = vlog_ident(v);

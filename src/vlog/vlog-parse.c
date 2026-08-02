@@ -39,6 +39,7 @@ static vlog_symtab_t   *symtab;
 static vlog_node_t      last_attr;
 static vlog_node_t      atom_types[DT_BIT + 1];
 static unsigned         next_namespace;
+static uint64_t         time_scale;
 
 extern loc_t yylloc;
 
@@ -79,57 +80,65 @@ static void vlog_parse_error_cb(void)
    vlog_symtab_suppress(symtab);
 }
 
-static void set_timescale(uint64_t unit_value, const char *unit_name,
-                          uint64_t prec_value, const char *prec_name,
-                          const loc_t *loc)
+static void parse_time_literal(const char *str, uint64_t *value,
+                               uint64_t *scale)
+{
+   *value = 0;
+   *scale = 1;
+
+   for (const char *p = str; *p; p++) {
+      if (*p == '_' || isspace_iso88591(*p))
+         continue;
+      else if (!isdigit_iso88591(*p)) {
+         static const struct {
+            const char *name;
+            uint64_t value;
+         } valid_units[] = {
+            { "s", UINT64_C(60000000000000) },
+            { "ms", 1000000000000 },
+            { "us", 1000000000 },
+            { "ns", 1000000 },
+            { "ps", 1000 },
+            { "fs", 1 },
+         };
+
+         bool name_valid = false;
+         for (int j = 0; j < ARRAY_LEN(valid_units); j++) {
+            if (strcmp(valid_units[j].name, p) == 0) {
+               *scale = valid_units[j].value;
+               name_valid = true;
+               break;
+            }
+         }
+
+         if (!name_valid)
+            error_at(&state.last_loc, "invalid time unit name '%s'", p);
+
+         break;
+      }
+      else {
+         *value *= 10;
+         *value += (*p - '0');
+      }
+   }
+}
+
+static void set_timescale(uint64_t unit_value, uint64_t unit_scale,
+                          uint64_t prec_value, uint64_t prec_scale)
 {
    // See IEEE 1800-2017 section 22.7 for rules
 
-   struct {
-      uint64_t    value;
-      const char *name;
-      uint64_t    parsed;
-   } args[] = {
-      { unit_value, unit_name },
-      { prec_value, prec_name },
-   };
+   const bool valid = (unit_value == 100 || unit_value == 10 || unit_value == 1)
+      && (prec_value == 100 || prec_value == 10 || prec_value == 1);
 
-   for (int i = 0; i < ARRAY_LEN(args); i++) {
-      static const struct {
-         const char *name;
-         int64_t value;
-      } valid_units[] = {
-         { "s", INT64_C(60000000000000) },
-         { "ms", 1000000000000 },
-         { "us", 1000000000 },
-         { "ns", 1000000 },
-         { "ps", 1000 },
-         { "fs", 1 },
-      };
-
-      bool name_valid = false;
-      for (int j = 0; j < ARRAY_LEN(valid_units); j++) {
-         if (strcmp(valid_units[j].name, args[i].name) == 0) {
-            args[i].parsed = valid_units[j].value;
-            name_valid = true;
-            break;
-         }
-      }
-
-      if (!name_valid)
-         error_at(loc, "invalid time unit name '%s'", args[i].name);
-
-      if (args[i].value != 1 && args[i].value != 10 && args[i].value != 100) {
-         diag_t *d = diag_new(DIAG_ERROR, loc);
-         diag_printf(d, "invalid order of magnitude in `timescale directive");
-         diag_hint(d, NULL, "the valid values are 1, 10, and 100");
-         diag_emit(d);
-      }
-
-      args[i].parsed *= args[i].value;
+   if (!valid) {
+      diag_t *d = diag_new(DIAG_ERROR, CURRENT_LOC);
+      diag_printf(d, "invalid order of magnitude in `timescale directive");
+      diag_hint(d, NULL, "the valid values are 1, 10, and 100");
+      diag_emit(d);
    }
 
-   // TODO: do something with parsed scale/precision
+   time_scale = unit_value * unit_scale;
 }
 
 static void skip_over_attributes(void)
@@ -380,6 +389,32 @@ static vlog_node_t p_attribute_instance(void)
 
    consume(tATTREND);
 
+   vlog_set_loc(v, CURRENT_LOC);
+   return v;
+}
+
+static vlog_node_t p_time_literal(void)
+{
+   // unsigned_number time_unit | fixed_point_number time_unit
+
+   BEGIN("time literal");
+
+   number_t n;
+   if (consume(tTIMELIT)) {
+      uint64_t value, scale;
+      parse_time_literal(state.last_lval.str, &value, &scale);
+      free(state.last_lval.str);
+
+      if (__builtin_mul_overflow(value, scale, &value))
+         error_at(&state.last_loc, "time value cannot be represented");
+
+      n = number_from_int(value);
+   }
+   else
+      n = number_from_int(0);
+
+   vlog_node_t v = vlog_new(V_NUMBER);
+   vlog_set_number(v, n);
    vlog_set_loc(v, CURRENT_LOC);
    return v;
 }
@@ -2270,7 +2305,30 @@ static vlog_node_t p_delay_value(void)
          vlog_symtab_lookup(symtab, v);
          return v;
       }
+   case tTIMELIT:
+      return p_time_literal();
    case tUNSNUM:
+      {
+         consume(tUNSNUM);
+
+         uint64_t value = 0;
+         for (const char *p = state.last_lval.str; *p; p++) {
+            if (*p != '_') {
+               value *= 10;
+               value += (*p - '0');
+            }
+         }
+
+         free(state.last_lval.str);
+
+         if (__builtin_mul_overflow(value, time_scale, &value))
+            error_at(&state.last_loc, "time value cannot be represented");
+
+         vlog_node_t v = vlog_new(V_NUMBER);
+         vlog_set_number(v, number_from_int(value));
+         vlog_set_loc(v, CURRENT_LOC);
+         return v;
+      }
    default:
       return p_unsigned_number();
    }
@@ -8111,25 +8169,27 @@ static void p_timescale_compiler_directive(void)
 
    consume(tTIMESCALE);
 
-   uint64_t unit_value = 1;
-   if (consume(tUNSNUM))
-      unit_value = atoll(state.last_lval.str);
-
-   const char *unit_name = "fs";
-   if (consume(tID))
-      unit_name = istr(state.last_lval.ident);
+   uint64_t unit_value = 1, unit_scale = 1;
+   switch (one_of(tUNSNUM, tTIMELIT)) {
+   case tUNSNUM:
+   case tTIMELIT:
+      parse_time_literal(state.last_lval.str, &unit_value, &unit_scale);
+      free(state.last_lval.str);
+      break;
+   }
 
    consume(tOVER);
 
-   uint64_t prec_value = 1;
-   if (consume(tUNSNUM))
-      prec_value = atoll(state.last_lval.str);
+   uint64_t prec_value = 1, prec_scale = 1;
+   switch (one_of(tUNSNUM, tTIMELIT)) {
+   case tUNSNUM:
+   case tTIMELIT:
+      parse_time_literal(state.last_lval.str, &prec_value, &prec_scale);
+      free(state.last_lval.str);
+      break;
+   }
 
-   const char *prec_name = "fs";
-   if (consume(tID))
-      prec_name = istr(state.last_lval.ident);
-
-   set_timescale(unit_value, unit_name, prec_value, prec_name, CURRENT_LOC);
+   set_timescale(unit_value, unit_scale, prec_value, prec_scale);
 }
 
 static void p_defaultnettype_compiler_directive(void)
@@ -8310,6 +8370,7 @@ void reset_verilog_parser(void)
    implicit_kind = V_NET_WIRE;
    last_attr = NULL;
    next_namespace = 1;
+   time_scale = 1;
 
    if (symtab != NULL) {
       vlog_symtab_free(symtab);

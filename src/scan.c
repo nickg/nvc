@@ -460,7 +460,7 @@ const char *token_str(token_t tok)
          "rtranif0", "rtranif1", "`define", "macro end", "macro usage",
          "`ifdef", "`ifndef", "`endif", "text", "`include", "`undef",
          "`undefall", "white space", "newline", "\\", "comment", "$.",
-         "final", "`\"", "`\\`\"", "``", "##",
+         "final", "`\"", "`\\`\"", "``", "##", "time literal",
       };
 
       if (tok >= 200 && tok - 200 < ARRAY_LEN(token_strs))
@@ -472,7 +472,7 @@ const char *token_str(token_t tok)
 
 void free_token(token_t tok, yylval_t *lval)
 {
-   if (tok == tBITSTRING || tok == tUNSNUM)
+   if (tok == tBITSTRING || tok == tUNSNUM || tok == tTIMELIT)
       free(lval->str);
    else if (tok == tSTRING)
       tb_free(lval->text);

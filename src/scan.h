@@ -588,5 +588,6 @@ void reset_sdf_parser(void);
 #define tMACROESCQUOTE 644
 #define tMACROJOIN     645
 #define tCYCLEDLY      646
+#define tTIMELIT       647
 
 #endif  // _SCAN_H
