@@ -155,7 +155,7 @@ module parse1;
   reg dyn[];
   string str1;
   generate begin : genblk
-  end
+  end : genblk
   endgenerate
   buf (weak0, weak1) g3(x, y);
   tranif1 (x, y, z);

@@ -6936,13 +6936,24 @@ static void p_generate_region(vlog_node_t mod)
       // This is non-standard but seen in some legacy code
       consume(tCOLON);
 
+      ident_t label = p_identifier();
+
       vlog_node_t b = vlog_new(V_GEN_BLOCK);
-      vlog_set_ident(b, p_identifier());
+      vlog_set_ident(b, label);
 
       while (not_at_token(tEND))
          p_generate_item(b);
 
       consume(tEND);
+
+      if (optional(tCOLON)) {
+         ident_t name = p_identifier();
+         if (label == NULL)
+            parse_error(&state.last_loc, "block does not have a label");
+         else if (name != label)
+            parse_error(&state.last_loc, "%pQ does not match label %pQ",
+                        name, label);
+      }
 
       vlog_set_loc(b, CURRENT_LOC);
       vlog_add_stmt(mod, b);
