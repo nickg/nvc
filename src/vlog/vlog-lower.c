@@ -24,6 +24,7 @@
 #include "mir/mir-node.h"
 #include "mir/mir-unit.h"
 #include "printf.h"
+#include "rt/assert.h"
 #include "rt/rt.h"
 #include "type.h"
 #include "vlog/vlog-defs.h"
@@ -2633,6 +2634,50 @@ static void vlog_lower_disable(vlog_gen_t *g, vlog_node_t v, gen_stack_t *gs)
    }
 }
 
+static void vlog_lower_assert(vlog_gen_t *g, vlog_node_t v, gen_stack_t *gs)
+{
+   mir_value_t expr = vlog_lower_rvalue(g, vlog_value(v));
+   mir_value_t test = vlog_lower_test(g, expr);
+   mir_value_t locus = mir_build_debug_locus(g->mu, vlog_to_object(v));
+
+   mir_type_t t_severity = mir_int_type(g->mu, 0, 3);
+   mir_value_t severity = mir_const(g->mu, t_severity, SEVERITY_ERROR);
+
+   const int nconds = vlog_conds(v);
+   assert(nconds <= 2);
+
+   if (nconds == 0)
+      mir_build_assert(g->mu, test, MIR_NULL_VALUE, MIR_NULL_VALUE, severity,
+                       locus, MIR_NULL_VALUE, MIR_NULL_VALUE);
+   else {
+      mir_block_t then_bb = mir_add_block(g->mu);
+      mir_block_t else_bb = mir_add_block(g->mu);
+      mir_block_t exit_bb = mir_add_block(g->mu);
+
+      mir_build_cond(g->mu, test, then_bb, else_bb);
+
+      mir_set_cursor(g->mu, then_bb, MIR_APPEND);
+
+      vlog_lower_stmts(g, vlog_cond(v, 0), gs);
+
+      if (!mir_block_finished(g->mu, MIR_NULL_BLOCK))
+         mir_build_jump(g->mu, exit_bb);
+
+      mir_set_cursor(g->mu, else_bb, MIR_APPEND);
+
+      if (nconds == 2)
+         vlog_lower_stmts(g, vlog_cond(v, 1), gs);
+      else
+         mir_build_assert(g->mu, test, MIR_NULL_VALUE, MIR_NULL_VALUE,
+                          severity, locus, MIR_NULL_VALUE, MIR_NULL_VALUE);
+
+      if (!mir_block_finished(g->mu, MIR_NULL_BLOCK))
+         mir_build_jump(g->mu, exit_bb);
+
+      mir_set_cursor(g->mu, exit_bb, MIR_APPEND);
+   }
+}
+
 static void vlog_lower_case(vlog_gen_t *g, vlog_node_t v, gen_stack_t *gs)
 {
    mir_comment(g->mu, "Begin case statement");
@@ -2934,6 +2979,9 @@ static void vlog_lower_stmts(vlog_gen_t *g, vlog_node_t v, gen_stack_t *gs)
       case V_DISABLE:
          vlog_lower_disable(g, s, gs);
          return;
+      case V_ASSERT:
+         vlog_lower_assert(g, s, gs);
+         break;
       default:
          CANNOT_HANDLE(s);
       }

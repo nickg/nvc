@@ -1458,3 +1458,4 @@ issue1629       tcl,2008
 siginit1        2008,plugin=siginit,+siginit+zero,+siginit+block+sub
 siginit2        2008,plugin=siginit,+siginit+one
 siginit3        2008,plugin=siginit,+siginit+rand,seed=124
+assert14        verilog,fail,gold

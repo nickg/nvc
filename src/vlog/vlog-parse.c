@@ -65,6 +65,7 @@ static vlog_node_t p_attribute_instance(void);
 static vlog_node_t  p_drive_strength(void);
 static vlog_strength_t p_strength0(void);
 static vlog_strength_t p_strength1(void);
+static void p_action_block(vlog_node_t parent);
 
 static vlog_node_t peek_reference(void)
 {
@@ -3236,6 +3237,56 @@ static vlog_node_t p_jump_statement(void)
    }
 }
 
+static vlog_node_t p_simple_immediate_assert_statement(void)
+{
+   // assert ( expression ) action_block
+
+   BEGIN("simple immediate assert statement");
+
+   consume(tASSERT);
+   consume(tLPAREN);
+
+   vlog_node_t v = vlog_new(V_ASSERT);
+   vlog_set_value(v, p_expression());
+
+   consume(tRPAREN);
+
+   p_action_block(v);
+
+   vlog_set_loc(v, CURRENT_LOC);
+   return v;
+}
+
+static vlog_node_t p_simple_immediate_assertion_statement(void)
+{
+   // simple_immediate_assert_statement | simple_immediate_assume_statement
+   //   | simple_immediate_cover_statement
+
+   BEGIN("simple immediate assertion statement");
+
+   return p_simple_immediate_assert_statement();
+}
+
+static vlog_node_t p_immediate_assertion_statement(void)
+{
+   // simple_immediate_assertion_statement
+   //    | deferred_immediate_assertion_statement
+
+   BEGIN("immediate assertion statement");
+
+   return p_simple_immediate_assertion_statement();
+}
+
+static vlog_node_t p_procedural_assertion_statement(void)
+{
+   // concurrent_assertion_statement | immediate_assertion_statement
+   //   | checker_instantiation
+
+   BEGIN("procedural assertion statement");
+
+   return p_immediate_assertion_statement();
+}
+
 static vlog_node_t p_statement_item(ident_t id)
 {
    // blocking_assignment ; | nonblocking_assignment ;
@@ -3329,10 +3380,12 @@ static vlog_node_t p_statement_item(ident_t id)
       }
    case tRETURN:
       return p_jump_statement();
+   case tASSERT:
+      return p_procedural_assertion_statement();
    default:
       one_of(tID, tAT, tHASH, tBEGIN, tFORK, tSYSTASK, tVOID, tIF, tFOREVER,
              tWHILE, tREPEAT, tDO, tFOR, tWAIT, tCASE, tCASEX, tCASEZ, tIFIMPL,
-             tASSIGN, tDEASSIGN, tFORCE, tRELEASE, tRETURN);
+             tASSIGN, tDEASSIGN, tFORCE, tRELEASE, tRETURN, tASSERT);
       drop_tokens_until(&state, tSEMI);
       return vlog_new(V_SEQ_BLOCK);  // Dummy statement
    }
@@ -5042,20 +5095,36 @@ static vlog_node_t p_property_spec(void)
    return p_property_expr();
 }
 
-static vlog_node_t p_action_block(void)
+static void p_action_block(vlog_node_t parent)
 {
    // statement_or_null | [ statement ] else statement_or_null
 
    BEGIN("action block");
 
-   vlog_node_t stmt = NULL;
-   if (peek() != tELSE)
-      stmt = p_statement_or_null();
+   vlog_node_t then =  NULL;
+   if (peek() != tELSE) {
+      then = p_statement_or_null();
+      if (then != NULL) {
+         vlog_node_t c0 = vlog_new(V_COND);
+         vlog_add_stmt(c0, then);
 
-   if (optional(tELSE))
-      return p_statement_or_null();
+         vlog_add_cond(parent, c0);
+      }
+   }
 
-   return stmt;
+   if (optional(tELSE)) {
+      if (then == NULL) {
+         vlog_node_t c0 = vlog_new(V_COND);
+         vlog_add_cond(parent, c0);
+      }
+
+      vlog_node_t c1 = vlog_new(V_COND);
+      vlog_add_cond(parent, c1);
+
+      vlog_node_t stmt = p_statement_or_null();
+      if (stmt != NULL)
+         vlog_add_stmt(c1, stmt);
+   }
 }
 
 static vlog_node_t p_assert_property_statement(ident_t label)
@@ -5074,7 +5143,7 @@ static vlog_node_t p_assert_property_statement(ident_t label)
 
    consume(tRPAREN);
 
-   (void)p_action_block();
+   p_action_block(v);
 
    vlog_set_loc(v, CURRENT_LOC);
    return v;
@@ -5096,7 +5165,7 @@ static vlog_node_t p_assume_property_statement(ident_t label)
 
    consume(tRPAREN);
 
-   (void)p_action_block();
+   p_action_block(v);
 
    vlog_set_loc(v, CURRENT_LOC);
    return v;
@@ -5118,7 +5187,7 @@ static vlog_node_t p_cover_property_statement(ident_t label)
 
    consume(tRPAREN);
 
-   (void)p_action_block();
+   p_action_block(v);
 
    vlog_set_loc(v, CURRENT_LOC);
    return v;

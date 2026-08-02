@@ -1,0 +1,2 @@
+Warning: 0ms+0: x =          42
+Error: 0ms+0: Assertion violation.
