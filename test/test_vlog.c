@@ -426,7 +426,7 @@ START_TEST(test_number2)
       { "1",             32,  1,           "1"         },
       { "42",            32,  42,          "42"        },
       { "251251",        32,  251251,      "251251"    },
-      { "'hffffFFff",    32,  -1,          "-1"        },
+      { "'shffffFFff",   32,  -1,          "-1"        },
       { "33'h100000000", 33,  0x100000000,
         "33'b100000000000000000000000000000000"        },
       { "64'b0",         64,  0,           "64'b0"     },
@@ -2171,6 +2171,55 @@ START_TEST(test_pp17)
 }
 END_TEST
 
+START_TEST(test_number3)
+{
+   uint64_t a, b;
+
+   number_t u5 = number_new("5'b10101", NULL);
+   number_word(u5, 0, &a, &b);
+   ck_assert_uint_eq(a, UINT64_C(0x15));
+   ck_assert_uint_eq(b, 0);
+   number_word(u5, 1, &a, &b);
+   ck_assert_uint_eq(a, 0);
+   ck_assert_uint_eq(b, 0);
+
+   number_t s5 = number_new("5'sb10101", NULL);
+   number_word(s5, 0, &a, &b);
+   ck_assert_uint_eq(a, UINT64_C(0xfffffffffffffff5));
+   ck_assert_uint_eq(b, 0);
+   number_word(s5, 100, &a, &b);
+   ck_assert_uint_eq(a, UINT64_MAX);
+   ck_assert_uint_eq(b, 0);
+
+   number_t sx5 = number_new("5'sbx0101", NULL);
+   number_word(sx5, 0, &a, &b);
+   ck_assert_uint_eq(a, UINT64_C(0xfffffffffffffff5));
+   ck_assert_uint_eq(b, UINT64_C(0xfffffffffffffff0));
+   number_word(sx5, 1, &a, &b);
+   ck_assert_uint_eq(a, UINT64_MAX);
+   ck_assert_uint_eq(b, UINT64_MAX);
+
+   number_t sz5 = number_new("5'sbz0101", NULL);
+   number_word(sz5, 0, &a, &b);
+   ck_assert_uint_eq(a, UINT64_C(0x5));
+   ck_assert_uint_eq(b, UINT64_C(0xfffffffffffffff0));
+   number_word(sz5, 1, &a, &b);
+   ck_assert_uint_eq(a, 0);
+   ck_assert_uint_eq(b, UINT64_MAX);
+
+   number_t s68 = number_new("68'sh8_0123456789abcdef", NULL);
+   number_word(s68, 0, &a, &b);
+   ck_assert_uint_eq(a, UINT64_C(0x0123456789abcdef));
+   ck_assert_uint_eq(b, 0);
+   number_word(s68, 1, &a, &b);
+   ck_assert_uint_eq(a, UINT64_C(0xfffffffffffffff8));
+   ck_assert_uint_eq(b, 0);
+   number_word(s68, 2, &a, &b);
+   ck_assert_uint_eq(a, UINT64_MAX);
+   ck_assert_uint_eq(b, 0);
+}
+END_TEST
+
 Suite *get_vlog_tests(void)
 {
    Suite *s = suite_create("vlog");
@@ -2253,6 +2302,7 @@ Suite *get_vlog_tests(void)
    tcase_add_test(tc, test_pattern1);
    tcase_add_test(tc, test_pp16);
    tcase_add_test(tc, test_pp17);
+   tcase_add_test(tc, test_number3);
    suite_add_tcase(s, tc);
 
    return s;

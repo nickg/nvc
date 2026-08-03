@@ -60,6 +60,7 @@ int64_t number_integer(number_t val);
 unsigned number_width(number_t val);
 vlog_logic_t number_bit(number_t val, unsigned n);
 uint8_t number_byte(number_t val, unsigned n);
+void number_word(number_t val, unsigned n, uint64_t *a, uint64_t *b);
 void number_get(number_t val, const uint64_t **abits, const uint64_t **bbits);
 bool number_equal(number_t a, number_t b);
 bool number_truthy(number_t a);

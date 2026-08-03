@@ -994,6 +994,9 @@ static mir_value_t vlog_widen_vector(vlog_gen_t *g, mir_value_t value,
    const int size = MAX(context_size, value_size);
    mir_comment(g->mu, "Widen to %d from context", size);
 
+   if (!context_issigned && value_issigned)
+      value = vlog_cast_unsigned(g, value);
+
    mir_type_t wide;
    if (class == MIR_TYPE_VEC2)
       wide = mir_vec2_type(g->mu, size, context_issigned);
@@ -1743,29 +1746,36 @@ static mir_value_t vlog_lower_with_context(vlog_gen_t *g, vlog_node_t v,
    case V_STRING:
       {
          number_t num = vlog_number(v);
-         const int width = number_width(num);
+         int width = number_width(num);
          const bool issigned = number_signed(num);
 
-         const uint64_t *abits, *bbits;
-         number_get(num, &abits, &bbits);
+         if (!mir_is_null(context)) {
+            mir_class_t class = mir_get_class(g->mu, context);
+            if (class == MIR_TYPE_VEC2 || class == MIR_TYPE_VEC4)
+               width = MAX(width, mir_get_size(g->mu, context));
+         }
 
          mir_type_t t_full = mir_vec4_type(g->mu, width, issigned);
 
+         uint64_t alow, blow;
+         number_word(num, 0, &alow, &blow);
+
          if (width <= 64) {
-            mir_value_t vec = mir_const_vec(g->mu, t_full, abits[0], bbits[0]);
+            mir_value_t vec = mir_const_vec(g->mu, t_full, alow, blow);
             return vlog_widen_vector(g, vec, context);
          }
 
          mir_type_t t_low = mir_vec4_type(g->mu, 64, false);
-         mir_value_t low = mir_const_vec(g->mu, t_low, abits[0], bbits[0]);
+         mir_value_t low = mir_const_vec(g->mu, t_low, alow, blow);
 
          mir_value_t full = mir_build_cast(g->mu, t_full, low);
 
          mir_type_t t_offset = mir_offset_type(g->mu);
 
          for (int i = 64; i < width; i += 64) {
-            const uint64_t aword = abits[i / 64];
-            const uint64_t bword = bbits[i / 64];
+            uint64_t aword, bword;
+            number_word(num, i / 64, &aword, &bword);
+
             if (aword == 0 && bword == 0)
                continue;
 

@@ -252,14 +252,16 @@ static number_t number_intern(const bignum_t *in)
 number_t number_new(const char *str, const loc_t *loc)
 {
    int width = 32;
-   bool issigned = true;
+   bool issigned = false, unsized = false;
    const char *p = str;
    if (*p == '"')
       width = 8 * (strlen(str) - 2);
    else {
       const char *tick = strchr(str, '\'');
-      if (tick == str)
+      if (tick == str) {
          p++;
+         unsized = true;
+      }
       else if (tick != NULL) {
          width = 0;
          for (const char *p = str; p < tick; p++) {
@@ -301,6 +303,9 @@ number_t number_new(const char *str, const loc_t *loc)
    // Skip optional spaces after the radix
    while (isspace_iso88591(*p))
       p++;
+
+   if (unsized && (*p == 'x' || *p == 'X' || *p == 'z' || *p == 'Z'))
+      result->issigned = true;
 
    if (radix == RADIX_DEC) {
       bool is_x_digit = false;
@@ -665,6 +670,35 @@ uint8_t number_byte(number_t val, unsigned n)
 
    const uint64_t *abits = bignum_abits(val.big);
    return (abits[n / 8] >> (n * 8) % 64) & 0xff;
+}
+
+void number_word(number_t val, unsigned n, uint64_t *a, uint64_t *b)
+{
+   bignum_t *big = val.big;
+   const unsigned width = big->width;
+
+   uint64_t ext_a = 0, ext_b = 0;
+   if (big->issigned && width > 0) {
+      ext_a = -(uint64_t)bignum_abit(big, width - 1);
+      ext_b = -(uint64_t)bignum_bbit(big, width - 1);
+   }
+
+   const unsigned nwords = bignum_words(big);
+   if (n >= nwords) {
+      *a = ext_a;
+      *b = ext_b;
+      return;
+   }
+
+   *a = bignum_abits(big)[n];
+   *b = bignum_bbits(big)[n];
+
+   const unsigned remainder = width % 64;
+   if (remainder != 0 && n == nwords - 1) {
+      const uint64_t mask = ~UINT64_C(0) << remainder;
+      *a = (*a & ~mask) | (ext_a & mask);
+      *b = (*b & ~mask) | (ext_b & mask);
+   }
 }
 
 uint32_t number_hash(number_t n)
