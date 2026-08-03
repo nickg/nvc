@@ -160,4 +160,6 @@ module parse1;
   buf (weak0, weak1) g3(x, y);
   tranif1 (x, y, z);
   rtran (x, y);
+  reg s;
+  initial #0 s = 1;  // Not a time literal
 endmodule // parse1
