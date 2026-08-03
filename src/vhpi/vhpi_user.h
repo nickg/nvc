@@ -1052,7 +1052,7 @@ XXTERN vhpiPhysT vhpi_get_phys (vhpiPhysPropertyT property,
 
 /* for access to protected types */
 
-typedef int (*vhpiUserFctT)();
+typedef int (*vhpiUserFctT)(void);
 
 XXTERN int vhpi_protected_call (vhpiHandleT varHdl,
                                 vhpiUserFctT userFct,
@@ -1184,7 +1184,7 @@ XXTERN size_t vhpi_put_data (int32_t id,
 /**************************** Typedef for VHPI registration functions
  ****************************/
 
-typedef void (*vhpiRegistrationFctT)();
+typedef void (*vhpiRegistrationFctT)(void);
 
 
 #undef PLI_EXTERN

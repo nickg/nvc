@@ -610,7 +610,7 @@ static void register_callback(void)
     }
 }
 
-void (*vhpi_startup_routines[])() = {
+void (*vhpi_startup_routines[])(void) = {
    register_callback,
    0
 };
