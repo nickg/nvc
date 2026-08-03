@@ -4079,7 +4079,7 @@ static v_port_kind_t p_tf_port_direction(void)
    return p_port_direction();
 }
 
-static vlog_node_t p_tf_port_item(void)
+static vlog_node_t p_tf_port_item(v_port_kind_t *kind, vlog_node_t *dt)
 {
    // { attribute_instance } [ tf_port_direction ] [ var ]
    //    data_type_or_implicit [ port_identifier { variable_dimension }
@@ -4091,12 +4091,17 @@ static vlog_node_t p_tf_port_item(void)
 
    skip_over_attributes();
 
-   if (scan(tINPUT, tOUTPUT, tINOUT))
-      vlog_set_subkind(v, p_tf_port_direction());
-   else
-      vlog_set_subkind(v, V_PORT_INPUT);
+   if (scan(tINPUT, tOUTPUT, tINOUT)) {
+      *kind = p_tf_port_direction();
+      *dt = p_data_type_or_implicit();
+   }
+   else if (peek() != tID)
+      *dt = p_data_type_or_implicit();
+   else if (*dt == NULL)
+      *dt = p_implicit_data_type();
 
-   vlog_set_type(v, p_data_type_or_implicit());
+   vlog_set_subkind(v, *kind);
+   vlog_set_type(v, *dt);
 
    if (peek() == tID) {
       vlog_set_ident(v, p_identifier());
@@ -4115,8 +4120,10 @@ static void p_tf_port_list(vlog_node_t tf)
 
    BEGIN("task or function port list");
 
+   v_port_kind_t kind = V_PORT_INPUT;
+   vlog_node_t dt = NULL;
    do {
-      vlog_node_t v = p_tf_port_item();
+      vlog_node_t v = p_tf_port_item(&kind, &dt);
       vlog_add_port(tf, v);
 
       if (vlog_has_ident(v))  // Ignore unnamed ports
@@ -4473,13 +4480,14 @@ static void p_class_property(vlog_node_t parent)
    p_data_declaration(parent, V_VAR_DECL);
 }
 
-static void p_class_constructor_arg(vlog_node_t parent)
+static void p_class_constructor_arg(vlog_node_t parent, v_port_kind_t *kind,
+                                    vlog_node_t *dt)
 {
    // tf_port_item | default
 
    BEGIN("class constructor argument");
 
-   vlog_node_t v = p_tf_port_item();
+   vlog_node_t v = p_tf_port_item(kind, dt);
    vlog_symtab_put(symtab, v);
    vlog_add_param(parent, v);
 }
@@ -4490,8 +4498,10 @@ static void p_class_constructor_arg_list(vlog_node_t parent)
 
    BEGIN("class constructor argument list");
 
+   v_port_kind_t kind = V_PORT_INPUT;
+   vlog_node_t dt = NULL;
    do {
-      p_class_constructor_arg(parent);
+      p_class_constructor_arg(parent, &kind, &dt);
    } while (optional(tCOMMA));
 }
 

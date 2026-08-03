@@ -1463,3 +1463,4 @@ timescale1      mixed
 binary11        verilog
 signed7         verilog,gold
 signed8         verilog
+tfcall12        verilog
