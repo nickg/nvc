@@ -3,6 +3,9 @@
 - Generics of an array type other than a character array can now be
   overridden on the command line with an aggregate value, for example
   `-gVALUES='(1, 2, 3)'` (#1465).
+- Fixed VHPI reporting `vhpiIsUnconstrainedP` as true for the constraint
+  of a subtype whose bounds are determinate but not statically foldable,
+  such as a port whose index constraint is derived from an array generic.
 
 ## Version 1.22.1 - 2026-08-01
 - Waveform dumping now dumps multiple top units instead of only the first

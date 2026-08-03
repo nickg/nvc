@@ -128,6 +128,7 @@ typedef struct {
    c_range       range;
    c_vhpiObject *source;
    unsigned      nth_dim;
+   bool          NeedsSync;
    vhpiLongIntT  LeftBound;
    vhpiLongIntT  RightBound;
 } c_intRange;
@@ -981,8 +982,9 @@ static void handle_pp_r(vhpiHandleT handle, text_buf_t *tb)
 
       c_intRange *ir = is_intRange(obj);
       if (ir != NULL)
-         tb_printf(tb, " LeftBound=%"PRIi64" RightBound=%"PRIi64,
-                   ir->LeftBound, ir->RightBound);
+         tb_printf(tb, " LeftBound=%"PRIi64" RightBound=%"PRIi64
+                   " NeedsSync=%d", ir->LeftBound, ir->RightBound,
+                   ir->NeedsSync);
    }
 
    tb_append(tb, '}');
@@ -1304,9 +1306,12 @@ static void init_indexedName(c_indexedName *in, c_typeDecl *Type,
    in->offset = BaseIndex * num_elems;
 }
 
+// Fill in the bounds of a range that were not known statically by reading
+// them back from the elaborated object the range was derived from.  Returns
+// false if the bounds cannot be determined at all.
 static bool range_sync(c_intRange *ir)
 {
-   if (!ir->range.IsUnconstrained)
+   if (!ir->NeedsSync)
       return true;
    else if (ir->source == NULL)
       return false;
@@ -4256,12 +4261,16 @@ static c_intRange *build_int_range(tree_t r)
    return ir;
 }
 
-static c_intRange *build_unconstrained(c_vhpiObject *source, int nth,
-                                       bool IsDiscrete)
+// Build a range whose bounds are only known once the object has been
+// elaborated.  IsUnconstrained distinguishes a range that has no constraint
+// at all from one that has a constraint which is simply not static.
+static c_intRange *build_dynamic_range(c_vhpiObject *source, int nth,
+                                       bool IsDiscrete, bool IsUnconstrained)
 {
    c_intRange *ir = new_object(sizeof(c_intRange), vhpiIntRangeK);
    ir->range.IsDiscrete = IsDiscrete;
-   ir->range.IsUnconstrained = vhpiTrue;
+   ir->range.IsUnconstrained = IsUnconstrained;
+   ir->NeedsSync = true;
    ir->source = source;
    ir->nth_dim = nth;
    return ir;
@@ -5047,7 +5056,12 @@ static void vhpi_lazy_constraints(c_vhpiObject *obj)
          }
 
          if (dynamic_bounds) {
-            c_intRange *ir = build_unconstrained(obj, std->depth + i, true);
+            // The bounds must be read back from the elaborated object.  This
+            // does not make the range unconstrained: a subtype with a
+            // non-static index constraint, such as one derived from a
+            // generic, still has a determinate constraint.
+            c_intRange *ir = build_dynamic_range(obj, std->depth + i, true,
+                                                 std->typeDecl.IsUnconstrained);
             vhpi_list_add(&std->Constraints.list, &(ir->range.object));
          }
       }
