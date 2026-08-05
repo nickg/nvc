@@ -1297,6 +1297,9 @@ mir_stamp_t mir_stamp_union(mir_unit_t *mu, mir_stamp_t left, mir_stamp_t right)
          return mir_real_stamp(mu, low, high);
       }
 
+   case MIR_STAMP_POINTER:
+      return MIR_NULL_STAMP;   // TODO
+
    default:
       should_not_reach_here();
    }

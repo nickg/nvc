@@ -324,6 +324,7 @@ typedef enum {
    MIR_MEM_STACK,
    MIR_MEM_LOCAL,
    MIR_MEM_GLOBAL,
+   MIR_MEM_SIGNAL,
    MIR_MEM_TOP,
 } mir_mem_t;
 

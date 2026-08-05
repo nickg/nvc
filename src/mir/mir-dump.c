@@ -412,7 +412,7 @@ static void mir_dump_stamp(mir_unit_t *mu, mir_type_t type, mir_stamp_t stamp)
       case MIR_STAMP_POINTER:
          {
             static const char *map[] = {
-               "", "null", "const", "stack", "local", "global", ""
+               "", "null", "const", "stack", "local", "global", "signal", ""
             };
             printf("%s", map[sd->u.pointer.memory]);
 

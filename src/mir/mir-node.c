@@ -2649,7 +2649,8 @@ mir_value_t mir_build_resolved(mir_unit_t *mu, mir_value_t signal)
 {
    mir_type_t type = mir_get_type(mu, signal);
    mir_type_t pointer = mir_get_pointer(mu, type);
-   mir_stamp_t stamp = mir_get_stamp(mu, signal);
+   mir_stamp_t elem = mir_get_stamp(mu, signal);
+   mir_stamp_t stamp = mir_pointer_stamp(mu, MIR_MEM_SIGNAL, elem);
 
    mir_value_t result = mir_build_1(mu, MIR_OP_RESOLVED, pointer,
                                     stamp, signal);
