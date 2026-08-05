@@ -47,6 +47,7 @@ STATIC_ASSERT(sizeof(mir_pattern_t) == 8);
 #define EXTVAR(name) ((mir_pattern_t){ .ptr = ("\xb" name) })
 #define PARAM(name) ((mir_pattern_t){ .ptr = ("\x2" name) })
 #define LINK(name) ((mir_pattern_t){ .ptr = ("\xa" name) })
+#define UPREF(name) ((mir_pattern_t){ .ptr = ("\xff" name) })
 #define NODE(n) ((mir_pattern_t){ .tag = MIR_TAG_NODE, .data = n })
 #define BLOCK(n) ((mir_pattern_t){ .tag = MIR_TAG_BLOCK, .data = n })
 #define CONST(n) ((mir_pattern_t){ .tag = MIR_TAG_CONST, .data = n })

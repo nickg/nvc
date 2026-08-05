@@ -6622,18 +6622,18 @@ START_TEST(test_issue1194)
    mir_unit_t *mu = find_unit2("WORK.ISSUE1194.B._I0");
 
    static const mir_match_t bb1[] = {
-      { MIR_OP_VAR_UPREF },   // TODO: X
+      { MIR_OP_VAR_UPREF, ENUM(2), UPREF("X") },
       { MIR_OP_LOAD },
       { MIR_OP_RESOLVED },
       { MIR_OP_LOAD },
-      { MIR_OP_VAR_UPREF },  // TODO: Y
+      { MIR_OP_VAR_UPREF, ENUM(2), UPREF("Y") },
       { MIR_OP_LOAD },
       { MIR_OP_RESOLVED },
       { MIR_OP_LOAD },
       { MIR_OP_OR },
       { MIR_OP_NOT },
       { MIR_OP_NOT },
-      { MIR_OP_VAR_UPREF },  // TODO: #counters
+      { MIR_OP_VAR_UPREF, ENUM(1), UPREF("#counters") },
       { MIR_OP_LOAD },
       { MIR_OP_AND },
       { MIR_OP_COND, NODE(_), BLOCK(3), BLOCK(2) },
@@ -6955,7 +6955,7 @@ START_TEST(test_issue1350)
       mir_unit_t *mu = find_unit2("WORK.ENT.PROC(Q)");
 
       static const mir_match_t bb0[] = {
-         { MIR_OP_VAR_UPREF, CONST(1) },
+         { MIR_OP_VAR_UPREF, ENUM(1), UPREF("WORK.ENT.PROC(Q).N") },
          { MIR_OP_LOAD },
          { MIR_OP_SUB, NODE(_), CONST(1) },
          { MIR_OP_JUMP, BLOCK(1) },   // TODO: should merge with next block
@@ -6977,7 +6977,7 @@ START_TEST(test_issue1350)
          { MIR_OP_CONST_ARRAY, CONST(0), CONST(0) },
          { MIR_OP_ADDRESS_OF },
          { MIR_OP_DEBUG_LOCUS },
-         { MIR_OP_VAR_UPREF, ENUM(1) },
+         { MIR_OP_VAR_UPREF, ENUM(1), UPREF("WORK.ENT.PROC(Q).N") },
          { MIR_OP_LOAD },
          { MIR_OP_SUB, NODE(_), CONST(1) },
          { MIR_OP_RANGE_LENGTH },

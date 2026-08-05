@@ -1491,7 +1491,7 @@ START_TEST(test_lower1)
       ck_assert_ptr_nonnull(mu);
 
       static const mir_match_t bb0[] = {
-         { MIR_OP_VAR_UPREF },
+         { MIR_OP_VAR_UPREF, ENUM(1), UPREF("x") },
          { MIR_OP_LOAD },
          { MIR_OP_LEVEL_TRIGGER },
          { MIR_OP_STORE, VAR("trigger") },
@@ -1509,9 +1509,9 @@ START_TEST(test_lower1)
       static const mir_match_t bb2[] = {
          { MIR_OP_LOAD, VAR("trigger") },
          { MIR_OP_CLEAR_EVENT },
-         { MIR_OP_VAR_UPREF },
+         { MIR_OP_VAR_UPREF, ENUM(1), UPREF("r") },
          { MIR_OP_LOAD },
-         { MIR_OP_VAR_UPREF },
+         { MIR_OP_VAR_UPREF, ENUM(1), UPREF("x") },
          { MIR_OP_LOAD },
          { MIR_OP_RESOLVED },
          { MIR_OP_LOAD },
@@ -1758,9 +1758,9 @@ START_TEST(test_lower2)
       ck_assert_ptr_nonnull(mu);
 
       static const mir_match_t bb1[] = {
-         { MIR_OP_VAR_UPREF },
+         { MIR_OP_VAR_UPREF, ENUM(1), UPREF("y1") },
          { MIR_OP_LOAD },
-         { MIR_OP_VAR_UPREF },
+         { MIR_OP_VAR_UPREF, ENUM(1), UPREF("x") },
          { MIR_OP_LOAD },
          { MIR_OP_RESOLVED },
          { MIR_OP_ARRAY_REF, NODE(_), CONST(3) },
@@ -1777,9 +1777,9 @@ START_TEST(test_lower2)
       ck_assert_ptr_nonnull(mu);
 
       static const mir_match_t bb1[] = {
-         { MIR_OP_VAR_UPREF },
+         { MIR_OP_VAR_UPREF, ENUM(1), UPREF("y2") },
          { MIR_OP_LOAD },
-         { MIR_OP_VAR_UPREF },
+         { MIR_OP_VAR_UPREF, ENUM(1), UPREF("x") },
          { MIR_OP_LOAD },
          { MIR_OP_RESOLVED },
          { MIR_OP_ARRAY_REF, NODE(_), CONST(5) },
@@ -1810,12 +1810,12 @@ START_TEST(test_lower3)
    ck_assert_ptr_nonnull(mu);
 
    static const mir_match_t bb1[] = {
-      { MIR_OP_VAR_UPREF },
+      { MIR_OP_VAR_UPREF, ENUM(1), UPREF("sum") },
       { MIR_OP_LOAD },
       { MIR_OP_CONST_VEC },
       { MIR_OP_UNPACK },
       { MIR_OP_DEPOSIT_SIGNAL, NODE(_), CONST(32) },
-      { MIR_OP_VAR_UPREF },
+      { MIR_OP_VAR_UPREF, ENUM(1), UPREF("idx") },
       { MIR_OP_LOAD },
       { MIR_OP_CONST_VEC },
       { MIR_OP_UNPACK },

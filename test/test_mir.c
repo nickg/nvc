@@ -119,6 +119,25 @@ static void mir_match_arg(mir_unit_t *mu, mir_value_t node,
                       (unsigned)arg->data, nargs);
       }
    }
+   else if (tag == 0xff) {  // Up-ref
+      ck_assert_ptr_nonnull(str);
+
+      mir_context_t *mc = mir_get_context(mu);
+      mir_unit_t *parent = mir_get_unit(mc, mir_get_name(mu, actual));
+      ck_assert_ptr_nonnull(parent);
+
+      mir_value_t next = mir_get_arg(mu, node, nth + 1);
+      int64_t index;
+      ck_assert(mir_get_const(mu, next, &index));
+
+      mir_value_t var = mir_get_var(parent, index);
+      ident_t name = mir_get_name(parent, var);
+      if (!icmp(name, str)) {
+         mir_dump(mu);
+         ck_abort_msg("expected upref to have name %s but is %s",
+                      str, istr(name));
+      }
+   }
    else {
       mir_dump(mu);
       ck_abort_msg("cannot check tag %d", tag);
