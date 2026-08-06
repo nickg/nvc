@@ -298,7 +298,7 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
    (I_TYPE | I_PARAMS),
 
    // V_DYNAMIC_NEW
-   (I_TYPE | I_VALUE),
+   (I_TYPE | I_LEFT | I_VALUE),
 
    // V_CONSTRUCTOR
    (I_IDENT | I_PARAMS | I_STMTS | I_DECLS),

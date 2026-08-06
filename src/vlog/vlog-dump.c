@@ -207,9 +207,11 @@ static void vlog_dump_dimensions(vlog_node_t v, int indent)
    for (; dim < ndims; dim++) {
       vlog_node_t d = vlog_range(v, dim);
       print_syntax(" [");
-      vlog_dump(vlog_left(d), indent);
-      print_syntax(":");
-      vlog_dump(vlog_right(d), indent);
+      if (vlog_subkind(d) != V_DIM_UNSIZED) {
+         vlog_dump(vlog_left(d), indent);
+         print_syntax(":");
+         vlog_dump(vlog_right(d), indent);
+      }
       print_syntax("]");
    }
 }
@@ -534,8 +536,14 @@ static void vlog_dump_postfix(vlog_node_t v)
 static void vlog_dump_dynamic_new(vlog_node_t v)
 {
    print_syntax("new [");
-   vlog_dump(vlog_value(v), 0);
+   vlog_dump(vlog_left(v), 0);
    print_syntax("]");
+
+   if (vlog_has_value(v)) {
+      print_syntax(" (");
+      vlog_dump(vlog_value(v), 0);
+      print_syntax(")");
+   }
 }
 
 static void vlog_dump_prefix(vlog_node_t v)

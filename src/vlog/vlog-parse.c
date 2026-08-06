@@ -2539,12 +2539,12 @@ static vlog_node_t p_dynamic_array_new(vlog_node_t dt)
 
    vlog_node_t v = vlog_new(V_DYNAMIC_NEW);
    vlog_set_type(v, dt);
-   vlog_set_value(v, p_expression());
+   vlog_set_left(v, p_expression());
 
    consume(tRSQUARE);
 
    if (optional(tLPAREN)) {
-      (void)p_expression();   // TODO: initialise from existing array
+      vlog_set_value(v, p_expression());
       consume(tRPAREN);
    }
 

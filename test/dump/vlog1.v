@@ -49,6 +49,8 @@ module mod2;
   reg signed [3:0] s1;
   tri0 grst = glbl.grst;
   typedef enum { RED, GREEN, BLUE } t_color;
+  integer      arr[];
+  initial arr = new [5] (p2);
 endmodule // mod2
 
 primitive multiplexer (mux, control, dataA, dataB);

@@ -1108,7 +1108,11 @@ static type_mask_t vlog_check_class_new(vlog_node_t v)
 
 static type_mask_t vlog_check_dynamic_new(vlog_node_t v)
 {
-   vlog_check_expr(vlog_value(v));
+   vlog_check_expr(vlog_left(v));
+
+   if (vlog_has_value(v))
+      vlog_check_expr(vlog_value(v));
+
    return get_type_mask(vlog_type(v));
 }
 

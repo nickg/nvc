@@ -527,6 +527,7 @@ START_TEST(test_vlog1)
              "  logic signed [3:0] s1;\n"
              "  tri0 /* implicit */ grst = glbl.grst;\n"
              "  typedef enum int { RED, GREEN, BLUE } t_color;\n"
+             "  integer arr [];\n"
              "  initial begin\n"
              "    $display(\"hello\", $time);\n"
              "    if (bus) r <= 1 | r;\n"
@@ -554,6 +555,7 @@ START_TEST(test_vlog1)
              "    1'b0, 1'b1: r = p1[3:0];\n"
              "    default: r = 0;\n"
              "  endcase\n"
+             "  initial arr = new [5] (p2);\n"
              "endmodule // mod2\n\n");
    tb_rewind(tb);
 

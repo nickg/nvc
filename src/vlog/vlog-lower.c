@@ -1981,7 +1981,7 @@ static mir_value_t vlog_lower_with_context(vlog_gen_t *g, vlog_node_t v,
          mir_type_t t_bool = mir_bool_type(g->mu);
 
          mir_value_t count =
-            vlog_lower_cast(g, t_offset, vlog_lower_rvalue(g, vlog_value(v)));
+            vlog_lower_cast(g, t_offset, vlog_lower_rvalue(g, vlog_left(v)));
          mir_value_t data = mir_build_alloc(g->mu, ti->type, ti->stamp, count);
 
          mir_value_t left = mir_const(g->mu, t_offset, 0);
