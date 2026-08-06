@@ -322,15 +322,19 @@ static mir_value_t vlog_lower_array_off(vlog_gen_t *g, vlog_node_t r,
 
    assert(vlog_kind(r) == V_DIMENSION);
 
-   int64_t lconst, rconst;
-   vlog_bounds(r, &lconst, &rconst);
+   if (vlog_subkind(r) == V_DIM_UNSIZED)
+      return cast;  // Dynamic arrays are always zero based
+   else {
+      int64_t lconst, rconst;
+      vlog_bounds(r, &lconst, &rconst);
 
-   mir_value_t left = mir_const(g->mu, t_offset, lconst);
+      mir_value_t left = mir_const(g->mu, t_offset, lconst);
 
-   if (lconst < rconst)
-      return mir_build_sub(g->mu, t_offset, cast, left);
-   else
-      return mir_build_sub(g->mu, t_offset, left, cast);
+      if (lconst < rconst)
+         return mir_build_sub(g->mu, t_offset, cast, left);
+      else
+         return mir_build_sub(g->mu, t_offset, left, cast);
+   }
 }
 
 static mir_value_t vlog_lower_offset_min(vlog_gen_t *g, mir_value_t left,
