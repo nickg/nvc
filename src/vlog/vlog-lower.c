@@ -2196,7 +2196,8 @@ static mir_value_t vlog_lower_trigger(vlog_gen_t *g, vlog_node_t v)
                should_not_reach_here();
             }
 
-            mir_value_t context = mir_build_context_upref(g->mu, 0);
+            mir_type_t t_context = mir_context_type(g->mu, func);
+            mir_value_t context = mir_build_null(g->mu, t_context);
             mir_value_t args[] = { context, lvalue.obj };
             return mir_build_function_trigger(g->mu, func, args, 2);
          }
@@ -3649,7 +3650,7 @@ static void vlog_lower_net_decl(vlog_gen_t *g, vlog_node_t v, tree_t wrap,
    mir_value_t value = mir_const(g->mu, t_net_value, LOGIC_Z);
    mir_value_t count = mir_const(g->mu, t_offset, total_size);
    mir_value_t size = mir_const(g->mu, t_offset, 1);
-   mir_value_t flags = mir_const(g->mu, t_offset, 0);
+   mir_value_t flags = mir_const(g->mu, t_offset, NET_F_R_IDENT);
    mir_value_t locus = mir_build_debug_locus(g->mu, tree_to_object(wrap));
 
    mir_value_t signal = mir_build_init_signal(g->mu, t_net_value, count, size,
