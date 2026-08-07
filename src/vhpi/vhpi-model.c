@@ -1312,8 +1312,8 @@ static bool range_sync(c_intRange *ir)
       return false;
 
    vhpi_ptr_t ptr = vhpi_get_ptr(ir->source);
-   assert(ptr.kind != PTR_NULL);
-   assert(ptr.bounds != NULL);
+   if (ptr.kind == PTR_NULL || ptr.bounds == NULL)
+      return false;
 
    const ffi_dim_t *dim = &(ptr.bounds[ir->nth_dim]);
 
@@ -1756,6 +1756,7 @@ static c_typeDecl *new_anonymous_subtypeDecl(type_t type, c_vhpiObject *source,
    std->Size = vhpiUndefined;
    std->IsAnonymous = true;
    std->Constraints.fn = vhpi_lazy_constraints;
+   std->typeDecl.IsUnconstrained = false;
 
    return &(std->typeDecl);
 }
@@ -3022,6 +3023,10 @@ vhpiIntT vhpi_get(vhpiIntPropertyT property, vhpiHandleT handle)
       }
    case vhpiIsUnconstrainedP:
       {
+         c_intRange *ir = is_intRange(obj);
+         if (ir != NULL && range_sync(ir))
+            return false;
+
          c_range *r = is_range(obj);
          if (r != NULL)
             return r->IsUnconstrained;
@@ -5023,7 +5028,7 @@ static void vhpi_lazy_constraints(c_vhpiObject *obj)
 
       for (int i = 0; i < ndims; i++) {
          bool dynamic_bounds = true;
-         if (!std->typeDecl.IsUnconstrained) {
+         if (!type_is_unconstrained(std->typeDecl.type)) {
             tree_t r = range_of(std->typeDecl.type, i);
 
             int64_t low, high;
