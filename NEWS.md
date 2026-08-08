@@ -6,6 +6,9 @@
 - Added support for System Verilog procedural assertions.
 - Fixed an issue where VHPI could not iterate the constraints of objects
   declared with an unconstrained subtype (#1632).
+- Code coverage can now be collected for package declarations, opted
+  in via the new `+package` directive in a coverage specification
+  file (#1007).
 
 ## Version 1.22.1 - 2026-08-01
 - Waveform dumping now dumps multiple top units instead of only the first

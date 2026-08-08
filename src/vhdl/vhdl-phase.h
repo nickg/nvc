@@ -32,6 +32,7 @@ void vhdl_subprogram_instance(tree_t *roots, int nroots, ident_t dotted,
 void vhdl_instance_fixup(tree_t inst, hash_t *map);
 
 void vhdl_cover_block(tree_t block, cover_data_t *db, cover_scope_t *cs);
+void vhdl_cover_package(tree_t pack, cover_data_t *db, cover_scope_t *cs);
 ident_t vhdl_scope_name(tree_t t, int nth);
 
 #endif  // _VHDL_PHASE_H

@@ -376,3 +376,15 @@ ident_t vhdl_scope_name(tree_t t, int nth)
          return ident_sprintf("_S%u", nth);
    }
 }
+
+void vhdl_cover_package(tree_t pack, cover_data_t *db, cover_scope_t *cs)
+{
+   if (db == NULL || cs == NULL)
+      return;
+
+   cover_ignore_from_pragmas(db, cs, pack);
+
+   lazy_cscope_t lcs = { NULL, cs, pack };
+
+   vhdl_cover_decls(pack, db, &lcs);
+}

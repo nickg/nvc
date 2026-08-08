@@ -262,6 +262,7 @@ void cover_export_xml(cover_data_t *data, FILE *f, const char *relative);
 // Interface to code generator
 //
 
+cover_scope_t *cover_get_root_scope(cover_data_t *db);
 cover_scope_t *cover_create_block(cover_data_t *db, ident_t qual,
                                   cover_scope_t *parent, tree_t inst,
                                   tree_t unit);
@@ -274,5 +275,7 @@ cover_item_t *cover_add_items_for(cover_data_t *data, cover_scope_t *cscope,
 
 bool cover_compatible_spec(cover_data_t *db, const cover_scope_t *a,
                            const cover_scope_t *b);
+
+bool cover_should_emit_package(cover_data_t *db, tree_t pack);
 
 #endif   // _COV_API_H
