@@ -25,7 +25,7 @@
 #include "mir/mir-unit.h"
 #include "printf.h"
 #include "rt/assert.h"
-#include "rt/rt.h"
+#include "rt/defs.h"
 #include "type.h"
 #include "vlog/vlog-defs.h"
 #include "vlog/vlog-node.h"

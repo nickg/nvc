@@ -21,7 +21,7 @@
 #include "prim.h"
 #include "jit/jit.h"
 #include "jit/jit-ffi.h"
-#include "rt/rt.h"
+#include "rt/defs.h"
 
 #define WEAK __attribute__((weak))
 

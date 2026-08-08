@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2024  Nick Gasson
+//  Copyright (C) 2011-2026  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -15,8 +15,8 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-#ifndef _RT_H
-#define _RT_H
+#ifndef _RT_DEFS_H
+#define _RT_DEFS_H
 
 #include "prim.h"
 
@@ -73,10 +73,4 @@ typedef enum {
 typedef uint16_t delta_cycle_t;
 #define DELTA_CYCLE_MAX UINT16_MAX
 
-void _std_standard_init(void);
-void _std_env_init(void);
-void _std_reflection_init(void);
-void _file_io_init(void);
-void _nvc_sim_pkg_init(void);
-
-#endif  // _RT_H
+#endif  // _RT_DEFS_H

@@ -28,8 +28,8 @@
 #include "option.h"
 #include "phase.h"
 #include "printf.h"
+#include "rt/model.h"
 #include "rt/mspace.h"
-#include "rt/rt.h"
 #include "scan.h"
 #include "thread.h"
 

@@ -27,7 +27,6 @@
 #include "option.h"
 #include "printf.h"
 #include "rt/model.h"
-#include "rt/rt.h"
 #include "rt/structs.h"
 #include "tree.h"
 #include "type.h"

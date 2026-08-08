@@ -19,7 +19,7 @@
 #define _RT_MODEL_H
 
 #include "prim.h"
-#include "rt/rt.h"
+#include "rt/defs.h"
 
 typedef enum {
    WATCH_EVENT,
@@ -96,5 +96,11 @@ void sched_deposit(rt_model_t *m, rt_signal_t *s, const void *values,
                    int offset, size_t count, int64_t after, bool nonblock);
 rt_watch_t *find_watch(rt_nexus_t *n, sig_event_fn_t fn);
 void get_forcing_value(rt_signal_t *s, uint8_t *value);
+
+void _std_standard_init(void);
+void _std_env_init(void);
+void _std_reflection_init(void);
+void _file_io_init(void);
+void _nvc_sim_pkg_init(void);
 
 #endif  // _RT_MODEL_H

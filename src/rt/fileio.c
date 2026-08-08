@@ -20,7 +20,6 @@
 #include "jit/jit-ffi.h"
 #include "jit/jit.h"
 #include "rt/fileio.h"
-#include "rt/rt.h"
 
 #include <assert.h>
 #include <stdio.h>

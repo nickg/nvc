@@ -20,7 +20,6 @@
 #include "jit/jit.h"
 #include "jit/jit-ffi.h"
 #include "rt/model.h"
-#include "rt/rt.h"
 
 DLLEXPORT
 void _nvc_ieee_warnings(jit_scalar_t *args, tlab_t *tlab)

@@ -23,7 +23,7 @@
 #include "lib.h"
 #include "object.h"
 #include "option.h"
-#include "rt/rt.h"
+#include "rt/defs.h"
 #include "thread.h"
 
 #include <assert.h>

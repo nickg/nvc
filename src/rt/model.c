@@ -29,6 +29,7 @@
 #include "psl/psl-node.h"
 #include "rt/assert.h"
 #include "rt/copy.h"
+#include "rt/defs.h"
 #include "rt/heap.h"
 #include "rt/model.h"
 #include "rt/random.h"

@@ -21,7 +21,6 @@
 #include "ident.h"
 #include "jit/jit-exits.h"
 #include "rt/model.h"
-#include "rt/rt.h"
 #include "rt/structs.h"
 
 #include <assert.h>

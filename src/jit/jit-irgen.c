@@ -26,7 +26,7 @@
 #include "mir/mir-node.h"
 #include "mir/mir-unit.h"
 #include "option.h"
-#include "rt/rt.h"
+#include "rt/defs.h"
 #include "tree.h"
 
 #include <assert.h>

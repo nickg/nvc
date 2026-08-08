@@ -31,7 +31,7 @@
 #include "printf.h"
 #include "psl/psl-phase.h"
 #include "rt/assert.h"
-#include "rt/rt.h"
+#include "rt/defs.h"
 #include "type.h"
 #include "vcode.h"
 #include "vhdl/vhdl-lower.h"

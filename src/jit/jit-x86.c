@@ -20,7 +20,7 @@
 #include "option.h"
 #include "jit/jit-priv.h"
 #include "jit/jit.h"
-#include "rt/rt.h"
+#include "rt/defs.h"
 
 #include <assert.h>
 #include <inttypes.h>

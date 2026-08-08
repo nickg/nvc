@@ -23,8 +23,8 @@
 #include "mask.h"
 #include "jit/jit.h"
 #include "jit/jit-ffi.h"
+#include "rt/defs.h"
 #include "rt/mspace.h"
-#include "rt/rt.h"
 #include "thread.h"
 
 typedef void *(*value_fn_t)(rt_nexus_t *);

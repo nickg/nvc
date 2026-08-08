@@ -21,7 +21,6 @@
 #include "util.h"
 #include "ident.h"
 #include "prim.h"
-#include "rt/rt.h"
 
 typedef int32_t vcode_type_t;
 typedef int32_t vcode_stamp_t;

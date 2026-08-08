@@ -24,7 +24,6 @@
 #include "psl/psl-node.h"
 #include "rt/assert.h"
 #include "rt/model.h"
-#include "rt/rt.h"
 #include "rt/structs.h"
 #include "tree.h"
 

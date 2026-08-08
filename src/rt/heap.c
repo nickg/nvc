@@ -16,8 +16,8 @@
 //
 
 #include "util.h"
+#include "rt/defs.h"
 #include "rt/heap.h"
-#include "rt/rt.h"
 
 #include <assert.h>
 #include <inttypes.h>

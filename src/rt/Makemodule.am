@@ -3,7 +3,7 @@ lib_libnvc_a_SOURCES += \
 	src/rt/cover.c \
 	src/rt/wave.c \
 	src/rt/wave.h \
-	src/rt/rt.h \
+	src/rt/defs.h \
 	src/rt/heap.h \
 	src/rt/mspace.h \
 	src/rt/mspace.c \

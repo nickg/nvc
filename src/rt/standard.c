@@ -20,7 +20,6 @@
 #include "jit/jit-ffi.h"
 #include "rt/model.h"
 #include "rt/mspace.h"
-#include "rt/rt.h"
 
 #include <assert.h>
 #include <stdlib.h>
