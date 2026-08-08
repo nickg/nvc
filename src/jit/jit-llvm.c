@@ -1217,7 +1217,7 @@ static LLVMValueRef cgen_coerce_value(llvm_obj_t *obj, cgen_block_t *cgb,
    case LLVM_INT1:
       switch (LLVMGetTypeKind(lltype)) {
       case LLVMPointerTypeKind:
-         return LLVMBuildIntToPtr(obj->builder, raw, obj->types[LLVM_PTR], "");
+         return LLVMBuildPtrToInt(obj->builder, raw, obj->types[type], "");
       case LLVMIntegerTypeKind:
          {
             const int bits1 = LLVMGetIntTypeWidth(lltype);
