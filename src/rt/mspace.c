@@ -34,20 +34,9 @@
 #define LINE_WORDS (LINE_SIZE / sizeof(intptr_t))
 #define MAX_HEAP   (UINT64_C(0x100000000) * LINE_SIZE)
 
-// Extra padding at the end of heap regions to allow vectorised
-// intrinsics to read past the end of an array
-#define OVERRUN_MARGIN 32    // AVX2 has 32-byte vectors
-
 STATIC_ASSERT(OVERRUN_MARGIN % LINE_SIZE == 0);
 
 typedef A(uint64_t) work_list_t;
-typedef struct _linked_tlab linked_tlab_t;
-
-typedef struct _linked_tlab {
-   linked_tlab_t *next;
-   linked_tlab_t *prev;
-   tlab_t         tlab;
-} linked_tlab_t;
 
 struct _mptr {
    void       *ptr;
@@ -85,8 +74,6 @@ struct _mspace {
    mptr_t            free_mptrs;
    free_list_t      *free_list;
    uint64_t          create_us;
-   linked_tlab_t    *live_tlabs;
-   linked_tlab_t    *free_tlabs;
    mspace_handler_t  handler;
    unsigned          total_gc;
    unsigned          num_cycles;
@@ -144,12 +131,6 @@ void mspace_destroy(mspace_t *m)
       fatal_trace("destroying mspace with %d live mptrs: %s", n, tb_get(tb));
    }
 #endif
-
-   assert(m->live_tlabs == NULL);
-   for (linked_tlab_t *lt = m->free_tlabs, *tmp; lt; lt = tmp) {
-      tmp = lt->next;
-      free(lt);
-   }
 
    if (opt_get_verbose(OPT_GC_VERBOSE, NULL) && m->num_cycles > 0) {
       const uint64_t destroy_us = get_timestamp_us();
@@ -321,95 +302,6 @@ void **mptr_get(mptr_t ptr)
    return &(ptr->ptr);
 }
 
-#ifdef DEBUG
-static bool tlab_on_list(linked_tlab_t *lt, linked_tlab_t *list)
-{
-   for (linked_tlab_t *it = list; it; it = it->next) {
-      if (it == lt)
-         return true;
-   }
-
-   return false;
-}
-#endif
-
-tlab_t *tlab_acquire(mspace_t *m)
-{
-   SCOPED_LOCK(m->lock);
-
-   linked_tlab_t *lt = m->free_tlabs;
-   if (lt == NULL) {
-      lt = xmalloc(sizeof(linked_tlab_t) + TLAB_SIZE);
-      lt->tlab.mspace = m;
-   }
-   else {
-      assert(!tlab_on_list(lt, m->live_tlabs));
-      assert(lt->prev == NULL);
-      m->free_tlabs = lt->next;
-   }
-
-   lt->next = m->live_tlabs;
-   lt->prev = NULL;
-
-   if (m->live_tlabs != NULL) {
-      assert(m->live_tlabs->prev == NULL);
-      m->live_tlabs->prev = lt;
-   }
-
-   m->live_tlabs = lt;
-
-   // Ensure proper starting alignment on 32-bit systems
-   const size_t data_off = offsetof(tlab_t, data);
-   lt->tlab.alloc = ALIGN_UP(data_off, sizeof(double)) - data_off;
-   lt->tlab.limit = TLAB_SIZE - OVERRUN_MARGIN;
-
-   return &(lt->tlab);
-}
-
-void tlab_release(tlab_t *t)
-{
-   if (t == NULL)
-      return;
-
-   SCOPED_LOCK(t->mspace->lock);
-
-   linked_tlab_t *lt = container_of(t, linked_tlab_t, tlab);
-
-   assert(t->alloc <= t->limit);
-   assert(!tlab_on_list(lt, t->mspace->free_tlabs));
-   assert(tlab_on_list(lt, t->mspace->live_tlabs));
-
-   if (lt->prev == NULL)
-      t->mspace->live_tlabs = lt->next;
-   else {
-      assert(lt->prev->next == lt);
-      lt->prev->next = lt->next;
-   }
-
-   if (lt->next != NULL)
-      lt->next->prev = lt->prev;
-
-   assert(!tlab_on_list(lt, t->mspace->live_tlabs));
-
-   lt->prev = NULL;
-   lt->next = t->mspace->free_tlabs;
-   t->mspace->free_tlabs = lt;
-}
-
-void *tlab_alloc(tlab_t *t, size_t size)
-{
-   assert(t->alloc <= t->limit);
-   assert((t->alloc & (sizeof(double) - 1)) == 0);
-
-   if (t->alloc + size <= t->limit) {
-      void *p = t->data + t->alloc;
-      t->alloc += ALIGN_UP(size, sizeof(double));
-      return p;
-   }
-   else
-      return mspace_alloc(t->mspace, size);
-}
-
 __attribute__((always_inline))
 static inline bool is_mspace_ptr(mspace_t *m, char *p)
 {
@@ -506,12 +398,6 @@ static void mspace_gc(mspace_t *m)
 
    for (mptr_t p = m->roots; p; p = p->next)
       mspace_mark_root(m, (intptr_t)p->ptr, &state);
-
-   for (linked_tlab_t *lt = m->live_tlabs; lt; lt = lt->next) {
-      for (char *p = lt->tlab.data; p < lt->tlab.data + lt->tlab.alloc;
-           p += sizeof(intptr_t))
-         mspace_mark_root(m, *(intptr_t *)p, &state);
-   }
 
    if (m->handler.mark != NULL)
       (*m->handler.mark)(m, &state, m->handler.context);

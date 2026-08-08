@@ -567,7 +567,7 @@ static void cleanup_scope(rt_model_t *m, rt_scope_t *scope)
    for (int i = 0; i < scope->procs.count; i++) {
       rt_proc_t *p = scope->procs.items[i];
       mptr_free(m->mspace, &(p->privdata));
-      tlab_release(p->tlab);
+      tlab_release(m->jit, p->tlab);
       free(p);
    }
    ACLEAR(scope->procs);
@@ -623,7 +623,7 @@ void model_free(rt_model_t *m)
    for (int i = 0; i < MAX_THREADS; i++) {
       model_thread_t *thread = m->threads[i];
       if (thread != NULL)
-         tlab_release(thread->tlab);
+         tlab_release(m->jit, thread->tlab);
    }
 
    free(m->procq.tasks);
@@ -994,14 +994,14 @@ static void run_process(rt_model_t *m, rt_proc_t *proc)
       m->force_stop = true;
 
    if (proc->tlab != NULL && result.pointer == NULL) {
-      tlab_release(proc->tlab);
+      tlab_release(m->jit, proc->tlab);
       proc->tlab = NULL;
    }
    else if (proc->tlab == NULL && result.pointer != NULL) {
       TRACE("claiming TLAB for private use (used %u/%u)",
             thread->tlab->alloc, thread->tlab->limit);
       proc->tlab = thread->tlab;
-      thread->tlab = tlab_acquire(m->mspace);
+      thread->tlab = tlab_acquire(m->jit);
    }
    else if (proc->tlab == NULL)
       tlab_reset(thread->tlab);   // All data inside the TLAB is dead
@@ -2347,7 +2347,7 @@ void model_reset(rt_model_t *m)
    TRACE("calculate initial signal values");
 
    model_thread_t *thread = model_thread(m);
-   thread->tlab = tlab_acquire(m->mspace);
+   thread->tlab = tlab_acquire(m->jit);
 
    // The signals in the model are updated as follows in an order such
    // that if a given signal R depends upon the current value of another

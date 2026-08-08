@@ -49,6 +49,8 @@
 #define FUNC_LIST_SZ    512
 #define COMPILE_TIMEOUT 10000
 
+typedef struct _linked_tlab linked_tlab_t;
+
 typedef struct _jit_tier {
    jit_tier_t    *next;
    int            threshold;
@@ -60,6 +62,12 @@ typedef struct {
    size_t      length;
    jit_func_t *items[0];
 } func_array_t;
+
+typedef struct _linked_tlab {
+   linked_tlab_t *next;
+   linked_tlab_t *prev;
+   tlab_t         tlab;
+} linked_tlab_t;
 
 typedef struct _jit {
    chash_t          *index;
@@ -76,6 +84,8 @@ typedef struct _jit {
    void             *interrupt_ctx;
    unit_registry_t  *registry;
    mir_context_t    *mir;
+   linked_tlab_t    *live_tlabs;
+   linked_tlab_t    *free_tlabs;
 } jit_t;
 
 static void jit_transition(jit_thread_local_t *thread, jit_t *j,
@@ -94,6 +104,14 @@ static void jit_oom_cb(mspace_t *m, size_t size, void *ctx)
 
    diag_emit(d);
    jit_abort_with_status(EXIT_FAILURE);
+}
+
+static void jit_mark_cb(mspace_t *m, void *cookie, void *ctx)
+{
+   jit_t *j = ctx;
+
+   for (linked_tlab_t *lt = j->live_tlabs; lt; lt = lt->next)
+      mspace_user_mark(m, cookie, lt->tlab.data, lt->tlab.alloc);
 }
 
 __attribute__((always_inline))
@@ -130,7 +148,8 @@ jit_t *jit_new(unit_registry_t *ur, mir_context_t *mc)
    j->mir         = mc;
 
    const mspace_handler_t mspace_handler = {
-      .oom = jit_oom_cb,
+      .oom     = jit_oom_cb,
+      .mark    = jit_mark_cb,
       .context = j,
    };
 
@@ -173,6 +192,12 @@ void jit_free(jit_t *j)
    }
 
    diag_remove_hint_fn(jit_diag_cb, j);
+
+   assert(j->live_tlabs == NULL);
+   for (linked_tlab_t *lt = j->free_tlabs, *tmp; lt; lt = tmp) {
+      tmp = lt->next;
+      free(lt);
+   }
 
    mspace_destroy(j->mspace);
    chash_free(j->index);
@@ -1296,4 +1321,94 @@ jit_thread_local_t *jit_attach_thread(jit_anchor_t *anchor)
    jit_check_interrupt(thread->jit);
 
    return thread;
+}
+
+
+#ifdef DEBUG
+static bool tlab_on_list(linked_tlab_t *lt, linked_tlab_t *list)
+{
+   for (linked_tlab_t *it = list; it; it = it->next) {
+      if (it == lt)
+         return true;
+   }
+
+   return false;
+}
+#endif
+
+tlab_t *tlab_acquire(jit_t *j)
+{
+   SCOPED_LOCK(j->lock);
+
+   linked_tlab_t *lt = j->free_tlabs;
+   if (lt == NULL) {
+      lt = xmalloc(sizeof(linked_tlab_t) + TLAB_SIZE);
+      lt->tlab.mspace = j->mspace;
+   }
+   else {
+      assert(!tlab_on_list(lt, j->live_tlabs));
+      assert(lt->prev == NULL);
+      j->free_tlabs = lt->next;
+   }
+
+   lt->next = j->live_tlabs;
+   lt->prev = NULL;
+
+   if (j->live_tlabs != NULL) {
+      assert(j->live_tlabs->prev == NULL);
+      j->live_tlabs->prev = lt;
+   }
+
+   j->live_tlabs = lt;
+
+   // Ensure proper starting alignment on 32-bit systems
+   const size_t data_off = offsetof(tlab_t, data);
+   lt->tlab.alloc = ALIGN_UP(data_off, sizeof(double)) - data_off;
+   lt->tlab.limit = TLAB_SIZE - OVERRUN_MARGIN;
+
+   return &(lt->tlab);
+}
+
+void tlab_release(jit_t *j, tlab_t *t)
+{
+   if (t == NULL)
+      return;
+
+   SCOPED_LOCK(j->lock);
+
+   linked_tlab_t *lt = container_of(t, linked_tlab_t, tlab);
+
+   assert(t->alloc <= t->limit);
+   assert(!tlab_on_list(lt, j->free_tlabs));
+   assert(tlab_on_list(lt, j->live_tlabs));
+
+   if (lt->prev == NULL)
+      j->live_tlabs = lt->next;
+   else {
+      assert(lt->prev->next == lt);
+      lt->prev->next = lt->next;
+   }
+
+   if (lt->next != NULL)
+      lt->next->prev = lt->prev;
+
+   assert(!tlab_on_list(lt, j->live_tlabs));
+
+   lt->prev = NULL;
+   lt->next = j->free_tlabs;
+   j->free_tlabs = lt;
+}
+
+void *tlab_alloc(tlab_t *t, size_t size)
+{
+   assert(t->alloc <= t->limit);
+   assert((t->alloc & (sizeof(double) - 1)) == 0);
+
+   if (t->alloc + size <= t->limit) {
+      void *p = t->data + t->alloc;
+      t->alloc += ALIGN_UP(size, sizeof(double));
+      return p;
+   }
+   else
+      return mspace_alloc(t->mspace, size);
 }

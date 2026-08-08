@@ -226,7 +226,7 @@ static result_t run_benchmark(tree_t pack, tree_t proc, unit_registry_t *ur,
 
    double ops_sec[ITERATIONS + 1], usec_op[ITERATIONS + 1];
 
-   tlab_t *tlab = tlab_acquire(jit_get_mspace(j));
+   tlab_t *tlab = tlab_acquire(j);
 
    for (int trial = 0; trial < ITERATIONS + 1; trial++) {
       if (trial == 0)
@@ -254,7 +254,7 @@ static result_t run_benchmark(tree_t pack, tree_t proc, unit_registry_t *ur,
       fflush(stdout);
    }
 
-   tlab_release(tlab);
+   tlab_release(j, tlab);
 
    jit_free(j);
 

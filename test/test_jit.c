@@ -2083,8 +2083,7 @@ START_TEST(test_trim1)
    void *context = jit_link(j, pack);
    ck_assert_ptr_nonnull(context);
 
-   mspace_t *m = jit_get_mspace(j);
-   tlab_t *tlab = tlab_acquire(m);
+   tlab_t *tlab = tlab_acquire(j);
 
    for (int i = 0; i < ARRAY_LEN(cases); i++) {
       ident_t fn = ident_sprintf("WORK.TRIM1.%s", cases[i].fn);
@@ -2104,7 +2103,7 @@ START_TEST(test_trim1)
                     cases[i].fn, cases[i].delta, tlab->alloc - entry);
    }
 
-   tlab_release(tlab);
+   tlab_release(j, tlab);
    jit_free(j);
 }
 END_TEST

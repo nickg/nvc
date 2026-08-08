@@ -20,20 +20,14 @@
 
 #include "prim.h"
 
+// Extra padding at the end of heap regions to allow vectorised
+// intrinsics to read past the end of an array
+#define OVERRUN_MARGIN 32    // AVX2 has 32-byte vectors
+
 #define MPTR_INVALID NULL
 typedef struct _mptr *mptr_t;
 
 typedef void *UNSAFE_MPTR;
-
-#define TLAB_SIZE (64 * 1024)
-
-// The code generator knows the layout of this struct
-typedef struct _tlab {
-   mspace_t *mspace;
-   uint32_t  alloc;
-   uint32_t  limit;
-   char      data[0];
-} tlab_t;
 
 #define tlab_reset(t) do {                      \
       assert((t)->alloc <= (t)->limit);         \
@@ -61,10 +55,6 @@ void *mspace_alloc_flex(mspace_t *m, size_t fixed, int nelems, size_t size);
 void *mspace_find(mspace_t *m, void *ptr, size_t *size);
 
 void mspace_user_mark(mspace_t *m, void *cookie, const void *ptr, size_t size);
-
-tlab_t *tlab_acquire(mspace_t *m);
-void tlab_release(tlab_t *t);
-void *tlab_alloc(tlab_t *t, size_t size);
 
 mptr_t mptr_new(mspace_t *m, const char *name);
 void mptr_free(mspace_t *m, mptr_t *ptr);

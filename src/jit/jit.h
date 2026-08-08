@@ -25,6 +25,16 @@
 typedef int32_t jit_handle_t;
 #define JIT_HANDLE_INVALID 0xffffffff
 
+#define TLAB_SIZE (64 * 1024)
+
+// The code generator knows the layout of this struct
+typedef struct _tlab {
+   mspace_t *mspace;
+   uint32_t  alloc;
+   uint32_t  limit;
+   char      data[0];
+} tlab_t;
+
 typedef union {
    int64_t  integer;
    void    *pointer;
@@ -73,7 +83,11 @@ void jit_check_interrupt(jit_t *j);
 void jit_reset(jit_t *j);
 bool jit_is_shutdown(jit_t *j);
 
+tlab_t *tlab_acquire(jit_t *j);
+void tlab_release(jit_t *j, tlab_t *t);
+
 void *jit_mspace_alloc(size_t size) RETURNS_NONNULL;
+void *tlab_alloc(tlab_t *t, size_t size) RETURNS_NONNULL;
 jit_stack_trace_t *jit_stack_trace(void);
 jit_t *jit_for_thread(void);
 

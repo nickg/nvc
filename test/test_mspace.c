@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2022  Nick Gasson
+//  Copyright (C) 2022-2026  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -16,6 +16,8 @@
 //
 
 #include "test_util.h"
+#include "jit/jit.h"
+#include "option.h"
 #include "rt/mspace.h"
 
 #include <stdlib.h>
@@ -239,16 +241,18 @@ static void put_value(mspace_t *m, int **ptr, int value)
 
 START_TEST(test_tlab)
 {
-   mspace_t *m = mspace_new(2 * TLAB_SIZE, NULL);
+   opt_set_size(OPT_HEAP_SIZE, 2 * TLAB_SIZE);
 
-   tlab_t *t = tlab_acquire(m);
+   jit_t *j = jit_new(NULL, NULL);
+
+   tlab_t *t = tlab_acquire(j);
 
    int *precious = tlab_alloc(t, sizeof(int));
    *precious = 0xbeef;
 
    int **array = tlab_alloc(t, sizeof(int *) * 10);
    for (int i = 0; i < 10; i++)
-      put_value(m, array + i, i);
+      put_value(jit_get_mspace(j), array + i, i);
 
    int **p1 = tlab_alloc(t, sizeof(int *));
    *p1 = precious;
@@ -258,7 +262,7 @@ START_TEST(test_tlab)
       array[0] = 123;
 
       for (int i = 0; i < 10; i++) {
-         int *garbage = mspace_alloc(m, sizeof(int));
+         int *garbage = mspace_alloc(jit_get_mspace(j), sizeof(int));
          ck_assert_ptr_nonnull(garbage);
          *garbage = 0xdead;
       }
@@ -269,8 +273,8 @@ START_TEST(test_tlab)
    for (int i = 0; i < 10; i++)
       ck_assert_int_eq(*array[i], i);
 
-   tlab_release(t);
-   mspace_destroy(m);
+   tlab_release(j, t);
+   jit_free(j);
 }
 END_TEST
 
