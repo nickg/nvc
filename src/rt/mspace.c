@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2022-2024  Nick Gasson
+//  Copyright (C) 2022-2026  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -76,22 +76,22 @@ struct _free_list {
 };
 
 struct _mspace {
-   nvc_lock_t       lock;
-   size_t           maxsize;
-   size_t           maxlines;
-   char            *space;
-   bit_mask_t       headmask;
-   mptr_t           roots;
-   mptr_t           free_mptrs;
-   mspace_oom_fn_t  oomfn;
-   free_list_t     *free_list;
-   uint64_t         create_us;
-   linked_tlab_t   *live_tlabs;
-   linked_tlab_t   *free_tlabs;
-   unsigned         total_gc;
-   unsigned         num_cycles;
+   nvc_lock_t        lock;
+   size_t            maxsize;
+   size_t            maxlines;
+   char             *space;
+   bit_mask_t        headmask;
+   mptr_t            roots;
+   mptr_t            free_mptrs;
+   free_list_t      *free_list;
+   uint64_t          create_us;
+   linked_tlab_t    *live_tlabs;
+   linked_tlab_t    *free_tlabs;
+   mspace_handler_t  handler;
+   unsigned          total_gc;
+   unsigned          num_cycles;
 #ifdef DEBUG
-   bool             stress;
+   bool              stress;
 #endif
 };
 
@@ -100,7 +100,7 @@ static intptr_t *stack_limit[MAX_THREADS];
 static void mspace_gc(mspace_t *m);
 static bool is_mspace_ptr(mspace_t *m, char *p);
 
-mspace_t *mspace_new(size_t size)
+mspace_t *mspace_new(size_t size, const mspace_handler_t *h)
 {
    mspace_t *m = xcalloc(sizeof(mspace_t));
    m->maxsize  = ALIGN_UP(size, LINE_SIZE);
@@ -125,6 +125,9 @@ mspace_t *mspace_new(size_t size)
    f->size = m->maxsize - OVERRUN_MARGIN;
 
    m->free_list = f;
+
+   if (h != NULL)
+      m->handler = *h;
 
    m->create_us = get_timestamp_us();
    return m;
@@ -242,8 +245,8 @@ void *mspace_alloc(mspace_t *m, size_t size)
       mspace_gc(m);
    } while (retry--);
 
-   if (m->oomfn) {
-      (*m->oomfn)(m, size);
+   if (m->handler.oom != NULL) {
+      (*m->handler.oom)(m, size, m->handler.context);
       return NULL;
    }
    else
@@ -258,11 +261,6 @@ void *mspace_alloc_array(mspace_t *m, int nelems, size_t size)
 void *mspace_alloc_flex(mspace_t *m, size_t fixed, int nelems, size_t size)
 {
    return mspace_alloc(m, fixed + nelems * size);
-}
-
-void mspace_set_oom_handler(mspace_t *m, mspace_oom_fn_t fn)
-{
-   m->oomfn = fn;
 }
 
 mptr_t mptr_new(mspace_t *m, const char *name)
@@ -515,6 +513,9 @@ static void mspace_gc(mspace_t *m)
          mspace_mark_root(m, *(intptr_t *)p, &state);
    }
 
+   if (m->handler.mark != NULL)
+      (*m->handler.mark)(m, &state, m->handler.context);
+
    while (state.worklist.count > 0) {
       const uint64_t enc = APOP(state.worklist);
       const uint32_t line = enc >> 32;
@@ -581,6 +582,15 @@ static void mspace_gc(mspace_t *m)
 
    assert(state.worklist.count == 0);
    ACLEAR(state.worklist);
+}
+
+void mspace_user_mark(mspace_t *m, void *cookie, const void *ptr, size_t size)
+{
+   assert((uintptr_t)ptr % sizeof(void *) == 0);
+   assert(size % sizeof(void *) == 0);
+
+   for (const void *p = ptr; p < ptr + size; p += sizeof(intptr_t))
+      mspace_mark_root(m, *(intptr_t *)p, cookie);
 }
 
 void *mspace_find(mspace_t *m, void *ptr, size_t *size)

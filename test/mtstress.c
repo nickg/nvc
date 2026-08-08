@@ -243,7 +243,7 @@ static void *test_gc_thread(void *arg)
 
 START_TEST(test_gc)
 {
-   mspace_t *m = mspace_new(0x100000);
+   mspace_t *m = mspace_new(0x100000, NULL);
 
    run_test(test_gc_thread, m);
 

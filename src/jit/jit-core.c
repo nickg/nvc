@@ -82,7 +82,7 @@ static void jit_transition(jit_thread_local_t *thread, jit_t *j,
                            jit_state_t from, jit_state_t to);
 static void jit_diag_cb(diag_t *d, void *arg);
 
-static void jit_oom_cb(mspace_t *m, size_t size)
+static void jit_oom_cb(mspace_t *m, size_t size, void *ctx)
 {
    diag_t *d = diag_new(DIAG_FATAL, NULL);
    diag_printf(d, "out of memory attempting to allocate %zu byte object", size);
@@ -126,15 +126,19 @@ jit_t *jit_new(unit_registry_t *ur, mir_context_t *mc)
    jit_t *j = xcalloc(sizeof(jit_t));
    j->registry    = ur;
    j->index       = chash_new(FUNC_HASH_SZ);
-   j->mspace      = mspace_new(opt_get_size(OPT_HEAP_SIZE));
    j->exit_status = INT_MIN;
    j->mir         = mc;
+
+   const mspace_handler_t mspace_handler = {
+      .oom = jit_oom_cb,
+      .context = j,
+   };
+
+   j->mspace = mspace_new(opt_get_size(OPT_HEAP_SIZE), &mspace_handler);
 
    j->funcs = xcalloc_flex(sizeof(func_array_t),
                            FUNC_LIST_SZ, sizeof(jit_func_t *));
    j->funcs->length = FUNC_LIST_SZ;
-
-   mspace_set_oom_handler(j->mspace, jit_oom_cb);
 
    // Ensure we can resolve symbols from the executable
    ffi_load_dll(NULL);

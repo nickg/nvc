@@ -25,8 +25,6 @@ typedef struct _mptr *mptr_t;
 
 typedef void *UNSAFE_MPTR;
 
-typedef void (*mspace_oom_fn_t)(mspace_t *, size_t);
-
 #define TLAB_SIZE (64 * 1024)
 
 // The code generator knows the layout of this struct
@@ -49,13 +47,20 @@ typedef struct _tlab {
       (t)->alloc = (mark);                      \
    } while (0)
 
-mspace_t *mspace_new(size_t size);
+typedef struct {
+   void (*mark)(mspace_t *m, void *cookie, void *ctx);
+   void (*oom)(mspace_t *m, size_t size, void *ctx);
+   void *context;
+} mspace_handler_t;
+
+mspace_t *mspace_new(size_t size, const mspace_handler_t *h);
 void mspace_destroy(mspace_t *m);
 void *mspace_alloc(mspace_t *m, size_t size);
 void *mspace_alloc_array(mspace_t *m, int nelems, size_t size);
 void *mspace_alloc_flex(mspace_t *m, size_t fixed, int nelems, size_t size);
-void mspace_set_oom_handler(mspace_t *m, mspace_oom_fn_t fn);
 void *mspace_find(mspace_t *m, void *ptr, size_t *size);
+
+void mspace_user_mark(mspace_t *m, void *cookie, const void *ptr, size_t size);
 
 tlab_t *tlab_acquire(mspace_t *m);
 void tlab_release(tlab_t *t);
