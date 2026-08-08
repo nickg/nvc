@@ -466,7 +466,8 @@ static void llvm_optimise(LLVMModuleRef module, LLVMTargetMachineRef target,
    LLVMPassBuilderOptionsSetCallGraphProfile(options, false);
 
    const char *passes[] = {
-      "default<O0>", "default<O1>", "default<O2>", "default<O3>"
+      "default<O0>,function(early-cse)",
+      "default<O1>", "default<O2>", "default<O3>"
    };
 
    LLVM_CHECK(LLVMRunPasses, module, passes[olevel], target, options);
