@@ -3527,11 +3527,23 @@ static void irgen_op_sched_waveform(jit_irgen_t *g, mir_value_t n)
    j_send(g, 1, offset);
    j_send(g, 2, count);
    j_send(g, 3, value);
-   j_send(g, 4, after);
-   j_send(g, 5, reject);
-   j_send(g, 6, scalar);
 
-   macro_exit(g, JIT_EXIT_SCHED_WAVEFORM);
+   const bool zero_delay =
+      reject.kind == JIT_VALUE_INT64 && reject.int64 == 0
+      && after.kind == JIT_VALUE_INT64 && after.int64 == 0;
+
+   if (zero_delay) {
+      j_send(g, 4, scalar);
+
+      macro_exit(g, JIT_EXIT_SCHED_ZERO);
+   }
+   else {
+      j_send(g, 4, after);
+      j_send(g, 5, reject);
+      j_send(g, 6, scalar);
+
+      macro_exit(g, JIT_EXIT_SCHED_WAVEFORM);
+   }
 }
 
 static void irgen_op_disconnect(jit_irgen_t *g, mir_value_t n)

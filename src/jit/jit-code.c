@@ -286,6 +286,8 @@ code_cache_t *code_cache_new(void)
    extern void __nvc_last_event(jit_anchor_t *, jit_scalar_t *, tlab_t *);
 
    shash_put(s, "nvc.sched_waveform", &fast_sched_waveform);
+   shash_put(s, "nvc.sched_waveform_s0", &fast_sched_waveform_s0);
+   shash_put(s, "nvc.sched_waveform_0", &fast_sched_waveform_0);
    shash_put(s, "nvc.sched_process", &fast_sched_process);
    shash_put(s, "nvc.test_event", &__nvc_test_event);
    shash_put(s, "nvc.last_event", &__nvc_last_event);

@@ -290,6 +290,26 @@ void fast_sched_waveform(jit_anchor_t *anchor, sig_shared_t *shared,
    thread->anchor = NULL;
 }
 
+void fast_sched_waveform_s0(jit_anchor_t *anchor, sig_shared_t *shared,
+                            int32_t offset, jit_scalar_t value)
+{
+   jit_thread_local_t *thread = jit_attach_thread(anchor);
+
+   x_sched_waveform_s0(shared, offset, value.integer);
+
+   thread->anchor = NULL;
+}
+
+void fast_sched_waveform_0(jit_anchor_t *anchor, sig_shared_t *shared,
+                           int32_t offset, int32_t count, jit_scalar_t value)
+{
+   jit_thread_local_t *thread = jit_attach_thread(anchor);
+
+   x_sched_waveform(shared, offset, value.pointer, count, 0, 0);
+
+   thread->anchor = NULL;
+}
+
 DLLEXPORT
 void __nvc_test_event(jit_anchor_t *anchor, jit_scalar_t *args, tlab_t *tlab)
 {
@@ -500,6 +520,21 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
          else
             x_sched_waveform(shared, offset, value.pointer, count,
                              after, reject);
+      }
+      break;
+
+   case JIT_EXIT_SCHED_ZERO:
+      {
+         sig_shared_t *shared = args[0].pointer;
+         int32_t       offset = args[1].integer;
+         int32_t       count  = args[2].integer;
+         jit_scalar_t  value  = { .integer = args[3].integer };
+         bool          scalar = args[4].integer;
+
+         if (scalar)
+            x_sched_waveform_s(shared, offset, value.integer, 0, 0);
+         else
+            x_sched_waveform(shared, offset, value.pointer, count, 0, 0);
       }
       break;
 

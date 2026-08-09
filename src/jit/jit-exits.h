@@ -44,6 +44,7 @@ void x_sched_active(sig_shared_t *ss, uint32_t offset, int32_t count);
 void x_alias_signal(sig_shared_t *ss, uint32_t offset, tree_t where);
 void x_sched_waveform_s(sig_shared_t *ss, uint32_t offset, uint64_t scalar,
                         int64_t after, int64_t reject);
+void x_sched_waveform_s0(sig_shared_t *ss, uint32_t offset, uint64_t scalar);
 void x_file_open(int8_t *status, void **_fp, const uint8_t *name_bytes,
                  int32_t name_len, int8_t mode);
 void x_file_write(void **_fp, void *data, int64_t size, int64_t count);

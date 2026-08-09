@@ -96,7 +96,7 @@ const char *jit_exit_name(jit_exit_t exit)
       "CMP_TRIGGER", "INSTANCE_NAME", "DEPOSIT_SIGNAL", "BIND_EXTERNAL",
       "SYSCALL", "DIR_FAIL", "LEVEL_TRIGGER", "ENABLE_TRIGGER",
       "DISABLE_TRIGGER", "SCHED_DEPOSIT", "PUT_DRIVER", "SCHED_INACTIVE",
-      "GET_COUNTERS", "SCHED_ACTIVE",
+      "GET_COUNTERS", "SCHED_ACTIVE", "SCHED_ZERO",
    };
    assert(exit < ARRAY_LEN(names));
    return names[exit];

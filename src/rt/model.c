@@ -4080,8 +4080,8 @@ void x_sched_waveform_s(sig_shared_t *ss, uint32_t offset, uint64_t scalar,
    rt_signal_t *s = container_of(ss, rt_signal_t, shared);
    RT_LOCK(s->lock);
 
-   TRACE("_sched_waveform_s %s+%d value=%"PRIi64" after=%s reject=%s",
-         istr(tree_ident(s->where)), offset, scalar, trace_time(after),
+   TRACE("sched waveform %pI+%d value=%"PRIi64" after=%s reject=%s",
+         tree_ident(s->where), offset, scalar, trace_time(after),
          trace_time(reject));
 
    rt_proc_t *proc = get_active_proc();
@@ -4096,14 +4096,31 @@ void x_sched_waveform_s(sig_shared_t *ss, uint32_t offset, uint64_t scalar,
    sched_driver(m, n, after, reject, &scalar, proc);
 }
 
+void x_sched_waveform_s0(sig_shared_t *ss, uint32_t offset, uint64_t scalar)
+{
+   rt_signal_t *s = container_of(ss, rt_signal_t, shared);
+   RT_LOCK(s->lock);
+
+   TRACE("sched waveform %pI+%d value=%"PRIi64" after=0fs reject=0fs",
+         tree_ident(s->where), offset, scalar);
+
+   rt_proc_t *proc = get_active_proc();
+   check_postponed(0, proc);
+
+   rt_model_t *m = get_model();
+   rt_nexus_t *n = split_nexus(m, s, offset, 1);
+
+   sched_driver(m, n, 0, 0, &scalar, proc);
+}
+
 void x_sched_waveform(sig_shared_t *ss, uint32_t offset, void *values,
                       int32_t count, int64_t after, int64_t reject)
 {
    rt_signal_t *s = container_of(ss, rt_signal_t, shared);
    RT_LOCK(s->lock);
 
-   TRACE("_sched_waveform %s+%d value=%s count=%d after=%s reject=%s",
-         istr(tree_ident(s->where)), offset,
+   TRACE("sched waveform %pI+%d value=%s count=%d after=%s reject=%s",
+         tree_ident(s->where), offset,
          fmt_values(values, count * s->nexus.size),
          count, trace_time(after), trace_time(reject));
 

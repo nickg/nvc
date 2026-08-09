@@ -131,6 +131,8 @@ typedef enum {
    LLVM_MSPACE_ALLOC,
    LLVM_TLAB_ALLOC,
    LLVM_SCHED_WAVEFORM,
+   LLVM_SCHED_WAVEFORM_S0,
+   LLVM_SCHED_WAVEFORM_0,
    LLVM_TEST_EVENT,
    LLVM_LAST_EVENT,
    LLVM_SCHED_PROCESS,
@@ -880,6 +882,39 @@ static LLVMValueRef llvm_get_fn(llvm_obj_t *obj, llvm_fn_t which)
                                                 ARRAY_LEN(args), false);
 
          fn = llvm_add_fn(obj, "nvc.sched_waveform", obj->fntypes[which]);
+         llvm_add_func_attr(obj, fn, FUNC_ATTR_NOUNWIND, -1);
+      }
+      break;
+
+   case LLVM_SCHED_WAVEFORM_S0:
+      {
+         LLVMTypeRef args[] = {
+            obj->types[LLVM_PTR],
+            obj->types[LLVM_PTR],
+            obj->types[LLVM_INT32],
+            obj->types[LLVM_INT64],
+         };
+         obj->fntypes[which] = LLVMFunctionType(obj->types[LLVM_VOID], args,
+                                                ARRAY_LEN(args), false);
+
+         fn = llvm_add_fn(obj, "nvc.sched_waveform_s0", obj->fntypes[which]);
+         llvm_add_func_attr(obj, fn, FUNC_ATTR_NOUNWIND, -1);
+      }
+      break;
+
+   case LLVM_SCHED_WAVEFORM_0:
+      {
+         LLVMTypeRef args[] = {
+            obj->types[LLVM_PTR],
+            obj->types[LLVM_PTR],
+            obj->types[LLVM_INT32],
+            obj->types[LLVM_INT32],
+            obj->types[LLVM_INT64],
+         };
+         obj->fntypes[which] = LLVMFunctionType(obj->types[LLVM_VOID], args,
+                                                ARRAY_LEN(args), false);
+
+         fn = llvm_add_fn(obj, "nvc.sched_waveform_0", obj->fntypes[which]);
          llvm_add_func_attr(obj, fn, FUNC_ATTR_NOUNWIND, -1);
       }
       break;
@@ -2605,6 +2640,31 @@ static int cgen_fuse_ir(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
          shared, offset, count, value, after, reject, scalar,
       };
       llvm_call_fn(obj, LLVM_SCHED_WAVEFORM, args, ARRAY_LEN(args));
+
+      return nsend;
+   }
+   else if (exit->arg1.exit == JIT_EXIT_SCHED_ZERO && nsend == 5) {
+      LLVMValueRef shared = cgen_coerce_value(obj, cgb, ir[0].arg2, LLVM_PTR);
+      LLVMValueRef offset = cgen_coerce_value(obj, cgb, ir[1].arg2, LLVM_INT32);
+      LLVMValueRef count  = cgen_coerce_value(obj, cgb, ir[2].arg2, LLVM_INT32);
+      LLVMValueRef value  = cgen_coerce_value(obj, cgb, ir[3].arg2, LLVM_INT64);
+
+      cgen_sync_irpos(obj, cgb, exit);
+
+      if (ir[4].arg2.kind == JIT_VALUE_INT64 && ir[4].arg2.int64 == 1) {
+         LLVMValueRef args[] = {
+            PTR(cgb->func->anchor),
+            shared, offset, value,
+         };
+         llvm_call_fn(obj, LLVM_SCHED_WAVEFORM_S0, args, ARRAY_LEN(args));
+      }
+      else {
+         LLVMValueRef args[] = {
+            PTR(cgb->func->anchor),
+            shared, offset, count, value,
+         };
+         llvm_call_fn(obj, LLVM_SCHED_WAVEFORM_0, args, ARRAY_LEN(args));
+      }
 
       return nsend;
    }

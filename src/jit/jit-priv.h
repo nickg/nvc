@@ -177,6 +177,7 @@ typedef enum {
    JIT_EXIT_SCHED_INACTIVE,
    JIT_EXIT_GET_COUNTERS,
    JIT_EXIT_SCHED_ACTIVE,
+   JIT_EXIT_SCHED_ZERO,
 } jit_exit_t;
 
 typedef uint16_t jit_reg_t;
@@ -477,6 +478,10 @@ DLLEXPORT void _debug_out(intptr_t val, int32_t reg);
 void fast_sched_waveform(jit_anchor_t *anchor, sig_shared_t *shared,
                          int32_t offset, int32_t count, jit_scalar_t value,
                          int64_t after, int64_t reject, bool scalar);
+void fast_sched_waveform_s0(jit_anchor_t *anchor, sig_shared_t *shared,
+                            int32_t offset, jit_scalar_t value);
+void fast_sched_waveform_0(jit_anchor_t *anchor, sig_shared_t *shared,
+                           int32_t offset, int32_t count, jit_scalar_t value);
 void fast_drive_signal(jit_anchor_t *anchor, sig_shared_t *shared,
                        int32_t offset, int32_t count);
 void fast_sched_event(jit_anchor_t *anchor, sig_shared_t *shared,
