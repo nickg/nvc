@@ -1004,7 +1004,7 @@ static void cover_print_summary_table_row(FILE *f, cover_data_t *data, const rpt
 }
 
 static void cover_print_nav_hier_node(html_gen_t *g, FILE *f, cover_scope_t *s,
-                                      cover_scope_t *sel)
+                                      cover_scope_t *sel, ident_t display)
 {
    const char *link = rpt_get_hier(g->rpt, s)->name_hash;
 
@@ -1021,7 +1021,7 @@ static void cover_print_nav_hier_node(html_gen_t *g, FILE *f, cover_scope_t *s,
    fprintf(f, "<a href=\"%s.html\"", link);
    if (s == sel)
       fprintf(f, " class=\"nav-sel\"");
-   fprintf(f, ">%s</a>\n", istr(s->name));
+   fprintf(f, ">%s</a>\n", istr(display != NULL ? display : s->name));
 
    if (!leaf) {
       fprintf(f, "</summary>\n");
@@ -1029,7 +1029,7 @@ static void cover_print_nav_hier_node(html_gen_t *g, FILE *f, cover_scope_t *s,
       for (int i = 0; i < s->children.count; i++) {
          cover_scope_t *c = s->children.items[i];
          if (cover_is_hier(c))
-            cover_print_nav_hier_node(g, f, c, sel);
+            cover_print_nav_hier_node(g, f, c, sel, NULL);
       }
 
       fprintf(f, "</details>\n");
@@ -1042,12 +1042,43 @@ static void cover_print_hier_nav_tree(html_gen_t *g, FILE *f, cover_scope_t *s)
 
    fprintf(f, "<nav style=\"clear: left\">\n");
    fprintf(f, "<details open>\n");
-   fprintf(f, "<summary><a href=\"../index.html\">%s</a></summary>\n",
-           istr(g->data->root_scope->name));
+   fprintf(f, "<summary><a href=\"../index.html\">root</a></summary>\n");
 
-   for (int i = 0; i < g->data->root_scope->children.count; i++) {
-      cover_scope_t *c = g->data->root_scope->children.items[i];
-      cover_print_nav_hier_node(g, f, c, s);
+   // Group top-level scopes by their library so that packages compiled
+   // into a non-work library appear under their own library node rather
+   // than being lumped together under the elaboration work library.
+   cover_scope_t *root = g->data->root_scope;
+   const int nchildren = root->children.count;
+   for (int i = 0; i < nchildren; i++) {
+      cover_scope_t *c = root->children.items[i];
+      ident_t lib = ident_until(c->hier, '.');
+
+      bool already_emitted = false;
+      for (int j = 0; j < i && !already_emitted; j++) {
+         cover_scope_t *p = root->children.items[j];
+         already_emitted = (ident_until(p->hier, '.') == lib);
+      }
+      if (already_emitted)
+         continue;
+
+      // The library node opens when the selected scope's own hier
+      // belongs to this library; root_scope itself is intentionally
+      // skipped so its work-lib hier does not force an unrelated group
+      // open when viewing a package from a different library.
+      const bool open =
+         s != NULL && s->hier != NULL && ident_until(s->hier, '.') == lib;
+
+      fprintf(f, "<details%s>\n", open ? " open" : "");
+      fprintf(f, "<summary>%s</summary>\n", istr(lib));
+
+      for (int j = i; j < nchildren; j++) {
+         cover_scope_t *cc = root->children.items[j];
+         if (ident_until(cc->hier, '.') != lib)
+            continue;
+         cover_print_nav_hier_node(g, f, cc, s, ident_from(cc->hier, '.'));
+      }
+
+      fprintf(f, "</details>\n");
    }
 
    fprintf(f, "</details>\n");

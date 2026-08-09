@@ -1466,3 +1466,4 @@ signed8         verilog
 tfcall12        verilog
 issue1632       tcl,2008
 ivtest63        verilog
+cover30         shell

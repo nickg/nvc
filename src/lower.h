@@ -53,13 +53,13 @@ typedef struct _lower_unit {
 } lower_unit_t;
 
 unit_registry_t *unit_registry_new(mir_context_t *mc);
+void unit_registry_set_cover(unit_registry_t *ur, cover_data_t *cover);
 void unit_registry_free(unit_registry_t *ur);
 vcode_unit_t unit_registry_get(unit_registry_t *ur, ident_t ident);
 void unit_registry_put(unit_registry_t *ur, lower_unit_t *lu);
 void unit_registry_defer(unit_registry_t *ur, ident_t ident,
                          lower_unit_t *parent, emit_fn_t emit_fn,
-                         lower_fn_t fn, cover_data_t *cover,
-                         object_t *object);
+                         lower_fn_t fn, object_t *object);
 void unit_registry_defer2(unit_registry_t *ur, ident_t name,
                           lower_unit_t *parent, mir_unit_kind_t kind,
                           mir_lower_fn_t fn, object_t *object);

@@ -876,6 +876,11 @@ bool cover_enabled(cover_data_t *data, cover_mask_t mask)
    return data != NULL && (data->mask & mask);
 }
 
+cover_scope_t *cover_get_root_scope(cover_data_t *db)
+{
+   return db != NULL ? db->root_scope : NULL;
+}
+
 cover_scope_t *cover_create_block(cover_data_t *db, ident_t qual,
                                   cover_scope_t *parent, tree_t inst,
                                   tree_t unit)
@@ -933,7 +938,7 @@ cover_scope_t *cover_create_scope(cover_data_t *db, cover_scope_t *parent,
 
    assert(parent != NULL);
    assert(db->root_scope != NULL);
-   assert(!is_design_unit(t));
+   assert(!is_design_unit(t) || is_package(t));
 
    cover_scope_t *s = pool_calloc(db->pool, sizeof(cover_scope_t));
 
@@ -971,7 +976,16 @@ cover_scope_t *cover_create_scope(cover_data_t *db, cover_scope_t *parent,
    s->block  = parent->block;
    s->name   = name;
    s->loc    = *tree_loc(t);
-   s->hier   = ident_prefix(parent->hier, s->name, '.');
+
+   // Top-level packages already carry their library in tree_ident
+   // (e.g. LIB1.PKG1). Storing the hierarchy as
+   // <work-lib>.<pkg-lib>.<pkg-name> would be misleading, so use the
+   // package ident directly as the hier path.
+   if (s->kind == CSCOPE_PACKAGE && parent == db->root_scope)
+      s->hier = s->name;
+   else
+      s->hier = ident_prefix(parent->hier, s->name, '.');
+
    s->emit   = cover_should_emit_scope(db, s);
 
    if (s->sig_pos == 0)

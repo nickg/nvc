@@ -17,6 +17,7 @@
 
 #include "util.h"
 #include "array.h"
+#include "common.h"
 #include "cov/cov-api.h"
 #include "cov/cov-data.h"
 #include "ident.h"
@@ -29,11 +30,21 @@
 
 typedef struct _excl_children excl_children_t;
 typedef struct _excl_trie excl_trie_t;
+typedef struct _excl_glob excl_glob_t;
+
+struct _excl_glob {
+   char       *glob;
+   bool        include;
+   excl_glob_t *next;
+};
 
 typedef struct _cover_spec {
    excl_trie_t *hier_trie;
+   // TODO: convert block_trie and fsm_trie to glob lists so users can write
+   // e.g. "+fsm_type *_fsm_t" matching across name components.
    excl_trie_t *block_trie;
    excl_trie_t *fsm_trie;
+   excl_glob_t *pkg_globs;
 } cover_spec_t;
 
 typedef enum {
@@ -136,17 +147,28 @@ static excl_trie_t *excl_trie_search(excl_trie_t *et, ident_t id)
    return NULL;
 }
 
-static excl_trie_t *excl_trie_for_scope(excl_trie_t *root,
-                                        const cover_scope_t *cs)
+static excl_trie_t *excl_trie_for_hier(excl_trie_t *root, ident_t hier)
 {
-   if (cs == NULL)
+   if (hier == NULL)
       return root;
 
-   excl_trie_t *parent = excl_trie_for_scope(root, cs->parent);
-   if (parent == NULL)
-      return NULL;
+   ident_t prefix = ident_runtil(hier, '.');
+   excl_trie_t *parent;
+   ident_t leaf;
 
-   excl_trie_t *et = excl_trie_search(parent, ident_rfrom(cs->hier, '.'));
+   if (prefix == hier) {
+      // Single-segment hier
+      parent = root;
+      leaf = hier;
+   }
+   else {
+      parent = excl_trie_for_hier(root, prefix);
+      if (parent == NULL)
+         return NULL;
+      leaf = ident_rfrom(hier, '.');
+   }
+
+   excl_trie_t *et = excl_trie_search(parent, leaf);
    if (et != NULL)
       return et;
 
@@ -154,6 +176,14 @@ static excl_trie_t *excl_trie_for_scope(excl_trie_t *root,
       return parent;
 
    return NULL;
+}
+
+static excl_trie_t *excl_trie_for_scope(excl_trie_t *root,
+                                        const cover_scope_t *cs)
+{
+   if (cs == NULL)
+      return root;
+   return excl_trie_for_hier(root, cs->hier);
 }
 
 static void excl_trie_print(excl_trie_t *et, int indent)
@@ -508,26 +538,41 @@ void cover_load_spec_file(cover_data_t *db, const char *path)
 
       tok++;
 
-      excl_trie_t *root;
-      if (strcmp(tok, "hierarchy") == 0)
+      const char *kind = tok;
+      excl_trie_t *root = NULL;
+      if (strcmp(kind, "hierarchy") == 0)
          root = spec->hier_trie;
-      else if (strcmp(tok, "block") == 0)
+      else if (strcmp(kind, "block") == 0)
          root = spec->block_trie;
-      else if (!strcmp(tok, "fsm_type"))
+      else if (strcmp(kind, "fsm_type") == 0)
          root = spec->fsm_trie;
+      else if (strcmp(kind, "package") != 0) {
+         error_at(&loc, "invalid command $bold$%s$$", kind);
+         continue;
+      }
+
+      char *arg = strtok(NULL, delim);
+      if (arg == NULL) {
+         error_at(&loc, "%s name missing", kind);
+         continue;
+      }
+
+      if (root != NULL) {
+         excl_trie_t *et = excl_trie_get(db, root, arg);
+         et->action = include ? ACTION_INCLUDE : ACTION_EXCLUDE;
+      }
       else {
-         error_at(&loc, "invalid command $bold$%s$$", tok);
-         continue;
+         // Package patterns are stored as a linked list of globs since
+         // they need glob matching against the package's name.
+         excl_glob_t *p = pool_calloc(db->pool, sizeof(excl_glob_t));
+         const size_t len = strlen(arg) + 1;
+         p->glob = pool_calloc(db->pool, len);
+         memcpy(p->glob, arg, len);
+         to_upper_str(p->glob);
+         p->include = include;
+         p->next = spec->pkg_globs;
+         spec->pkg_globs = p;
       }
-
-      char *hier = strtok(NULL, delim);
-      if (!hier) {
-         error_at(&loc, "%s name missing", tok);
-         continue;
-      }
-
-      excl_trie_t *et = excl_trie_get(db, root, hier);
-      et->action = include ? ACTION_INCLUDE : ACTION_EXCLUDE;
 
       if ((tok = strtok(NULL, delim)) != NULL)
          error_at(&loc, "unexpected '%s' after coverage specification "
@@ -553,6 +598,50 @@ void cover_load_spec_file(cover_data_t *db, const char *path)
    }
 }
 
+static bool cover_match_package(cover_spec_t *spec, ident_t pkg_name,
+                                ident_t pkg_hier)
+{
+   // -package always overrides anything else.
+   for (excl_glob_t *p = spec->pkg_globs; p != NULL; p = p->next) {
+      if (!p->include && ident_glob(pkg_name, p->glob, strlen(p->glob)))
+         return false;
+   }
+
+   excl_trie_t *hier_et = excl_trie_for_hier(spec->hier_trie, pkg_hier);
+   if (hier_et != NULL && hier_et->action == ACTION_EXCLUDE)
+      return false;
+
+   for (excl_glob_t *p = spec->pkg_globs; p != NULL; p = p->next) {
+      if (p->include && ident_glob(pkg_name, p->glob, strlen(p->glob)))
+         return true;
+   }
+
+   if (hier_et != NULL && hier_et->action == ACTION_INCLUDE)
+      return true;
+
+   return false;
+}
+
+bool cover_should_emit_package(cover_data_t *db, tree_t pack)
+{
+   // Packages are not collected by default; the user must opt-in via a
+   // coverage spec file with +package or +hierarchy directives.
+   if (db == NULL || db->spec == NULL)
+      return false;
+
+   // Standard libraries are never instrumented even when the spec would
+   // match them: several IEEE subprograms are replaced by intrinsics so
+   // coverage data would not be representative anyway.
+   ident_t pack_hier = tree_ident(pack);
+   ident_t pack_lib = ident_until(pack_hier, '.');
+   if (pack_lib == well_known(W_STD) || pack_lib == well_known(W_IEEE)
+       || pack_lib == well_known(W_NVC))
+      return false;
+
+   ident_t pack_name = ident_rfrom(pack_hier, '.');
+   return cover_match_package(db->spec, pack_name, pack_hier);
+}
+
 bool cover_should_emit_scope(cover_data_t *db, cover_scope_t *cs)
 {
    if (db->spec == NULL)
@@ -563,6 +652,9 @@ bool cover_should_emit_scope(cover_data_t *db, cover_scope_t *cs)
 
    if (blk == NULL)
       return true;
+
+   if (blk->kind == CSCOPE_PACKAGE)
+      return cover_match_package(db->spec, blk->block_name, blk->hier);
 
    ident_t ename = ident_until(blk->block_name, '-');
 

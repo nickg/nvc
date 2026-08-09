@@ -2962,6 +2962,7 @@ tree_t elab(object_t **top, int ntop, jit_t *jit, unit_registry_t *ur,
 {
    assert(ntop >= 1);
 
+   unit_registry_set_cover(ur, cover);
    make_new_arena();
 
    ident_t name = NULL;
