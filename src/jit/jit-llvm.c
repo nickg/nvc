@@ -290,6 +290,17 @@ static LLVMValueRef llvm_ptr(llvm_obj_t *obj, void *ptr)
                             obj->types[LLVM_PTR]);
 }
 
+static LLVMValueRef llvm_load_ptr(llvm_obj_t *obj, LLVMValueRef ptr,
+                                  const char *name)
+{
+#ifndef LLVM_HAS_OPAQUE_POINTERS
+   LLVMTypeRef ptr_type = LLVMPointerType(obj->types[LLVM_PTR], 0);
+   ptr = LLVMBuildPointerCast(obj->builder, ptr, ptr_type, "");
+#endif
+
+   return LLVMBuildLoad2(obj->builder, obj->types[LLVM_PTR], ptr, name);
+}
+
 static LLVMValueRef llvm_real(llvm_obj_t *obj, double r)
 {
    return LLVMConstReal(obj->types[LLVM_DOUBLE], r);
@@ -1971,7 +1982,7 @@ static void cgen_op_call(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
    LLVMValueRef entry = cgen_maybe_inline(obj, callee);
    if (entry == NULL) {
       // Must have acquire semantics to synchronise with installing new code
-      entry = LLVMBuildLoad2(obj->builder, obj->types[LLVM_PTR], fptr, "entry");
+      entry = llvm_load_ptr(obj, fptr, "entry");
       LLVMSetAlignment(entry, sizeof(void *));
       LLVMSetOrdering(entry, LLVMAtomicOrderingAcquire);
 
@@ -2240,13 +2251,7 @@ static void cgen_macro_getpriv(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
    jit_func_t *f = jit_get_func(cgb->func->source->jit, ir->arg1.handle);
    LLVMValueRef ptrptr = llvm_ptr(obj, jit_get_privdata_ptr(f->jit, f));
 
-#ifndef LLVM_HAS_OPAQUE_POINTERS
-   LLVMTypeRef ptr_type = LLVMPointerType(obj->types[LLVM_PTR], 0);
-   ptrptr = LLVMBuildPointerCast(obj->builder, ptrptr, ptr_type, "");
-#endif
-
-   LLVMValueRef ptr =
-      LLVMBuildLoad2(obj->builder, obj->types[LLVM_PTR], ptrptr, "p2");
+   LLVMValueRef ptr = llvm_load_ptr(obj, ptrptr, "p2");
    LLVMSetAlignment(ptr, sizeof(void *));
    LLVMSetOrdering(ptr, LLVMAtomicOrderingAcquire);
 
@@ -2348,8 +2353,7 @@ static void cgen_macro_reexec(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
    LLVMValueRef fptr = LLVMGetParam(cgb->func->llvmfn, 0);
 
    // Must have acquire semantics to synchronise with installing new code
-   LLVMValueRef entry =
-      LLVMBuildLoad2(obj->builder, obj->types[LLVM_PTR], fptr, "entry");
+   LLVMValueRef entry = llvm_load_ptr(obj, fptr, "entry");
    LLVMSetAlignment(entry, sizeof(void *));
    LLVMSetOrdering(entry, LLVMAtomicOrderingAcquire);
 
@@ -2800,8 +2804,7 @@ static void cgen_reexecute_guard(llvm_obj_t *obj, cgen_func_t *func,
    LLVMValueRef fptr = LLVMGetParam(func->llvmfn, 0);
 
    // Must have acquire semantics to synchronise with installing new code
-   LLVMValueRef entry =
-      LLVMBuildLoad2(obj->builder, obj->types[LLVM_PTR], fptr, "entry");
+   LLVMValueRef entry = llvm_load_ptr(obj, fptr, "entry");
    LLVMSetAlignment(entry, sizeof(void *));
    LLVMSetOrdering(entry, LLVMAtomicOrderingAcquire);
 
@@ -3112,7 +3115,7 @@ static void cgen_tlab_alloc_body(llvm_obj_t *obj)
    LLVMValueRef indexes[] = { alloc };
    LLVMValueRef fast_ptr = LLVMBuildInBoundsGEP2(obj->builder,
                                                  obj->types[LLVM_INT8],
-                                                 base, indexes,
+                                                 PTR(base), indexes,
                                                  ARRAY_LEN(indexes), "");
 
    LLVMBuildRet(obj->builder, fast_ptr);
