@@ -282,21 +282,23 @@ code_cache_t *code_cache_new(void)
    shash_t *s = shash_new(32);
 
    extern void __nvc_putpriv(jit_handle_t, void *);
-   extern void __nvc_sched_waveform(jit_anchor_t *, jit_scalar_t *, tlab_t *);
-   extern void __nvc_sched_process(jit_anchor_t *, jit_scalar_t *, tlab_t *);
    extern void __nvc_test_event(jit_anchor_t *, jit_scalar_t *, tlab_t *);
    extern void __nvc_last_event(jit_anchor_t *, jit_scalar_t *, tlab_t *);
 
-   shash_put(s, "__nvc_sched_waveform", &__nvc_sched_waveform);
-   shash_put(s, "__nvc_sched_process", &__nvc_sched_process);
-   shash_put(s, "__nvc_test_event", &__nvc_test_event);
-   shash_put(s, "__nvc_last_event", &__nvc_last_event);
-   shash_put(s, "__nvc_mspace_alloc", &__nvc_mspace_alloc);
-   shash_put(s, "__nvc_putpriv", &__nvc_putpriv);
-   shash_put(s, "__nvc_do_exit", &__nvc_do_exit);
-   shash_put(s, "__nvc_pack", &__nvc_pack);
-   shash_put(s, "__nvc_unpack", &__nvc_unpack);
-   shash_put(s, "__nvc_vec4op", &__nvc_vec4op);
+   shash_put(s, "nvc.sched_waveform", &fast_sched_waveform);
+   shash_put(s, "nvc.sched_process", &fast_sched_process);
+   shash_put(s, "nvc.test_event", &__nvc_test_event);
+   shash_put(s, "nvc.last_event", &__nvc_last_event);
+   shash_put(s, "nvc.mspace_alloc", &__nvc_mspace_alloc);
+   shash_put(s, "nvc.putpriv", &__nvc_putpriv);
+   shash_put(s, "nvc.do_exit", &__nvc_do_exit);
+   shash_put(s, "nvc.pack", &__nvc_pack);
+   shash_put(s, "nvc.unpack", &__nvc_unpack);
+   shash_put(s, "nvc.vec4op", &__nvc_vec4op);
+   shash_put(s, "nvc.drive_signal", &fast_drive_signal);
+   shash_put(s, "nvc.sched_event", &fast_sched_event);
+   shash_put(s, "nvc.length_fail", &fast_length_fail);
+   shash_put(s, "nvc.index_fail", &fast_index_fail);
    shash_put(s, "memmove", &memmove);
    shash_put(s, "memcpy", &memcpy);
    shash_put(s, "memset", &memset);

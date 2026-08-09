@@ -474,4 +474,17 @@ DLLEXPORT void __nvc_unpack(jit_scalar_t aval, jit_scalar_t bval,
 DLLEXPORT void *__nvc_mspace_alloc(uintptr_t size, jit_anchor_t *anchor);
 DLLEXPORT void _debug_out(intptr_t val, int32_t reg);
 
+void fast_sched_waveform(jit_anchor_t *anchor, sig_shared_t *shared,
+                         int32_t offset, int32_t count, jit_scalar_t value,
+                         int64_t after, int64_t reject, bool scalar);
+void fast_drive_signal(jit_anchor_t *anchor, sig_shared_t *shared,
+                       int32_t offset, int32_t count);
+void fast_sched_event(jit_anchor_t *anchor, sig_shared_t *shared,
+                      int32_t offset, int32_t count);
+void fast_length_fail(jit_anchor_t *anchor, int64_t left, int64_t right,
+                      int32_t dim, tree_t where);
+void fast_index_fail(jit_anchor_t *anchor, int64_t value, int64_t left,
+                     int64_t right, int8_t dir, tree_t where, tree_t hint);
+void fast_sched_process(jit_anchor_t *anchor, int64_t after);
+
 #endif  // _JIT_PRIV_H

@@ -275,19 +275,11 @@ void x_func_wait(void)
 ////////////////////////////////////////////////////////////////////////////////
 // Entry point from interpreter or JIT compiled code
 
-DLLEXPORT
-void __nvc_sched_waveform(jit_anchor_t *anchor, jit_scalar_t *args,
-                          tlab_t *tlab)
+void fast_sched_waveform(jit_anchor_t *anchor, sig_shared_t *shared,
+                         int32_t offset, int32_t count, jit_scalar_t value,
+                         int64_t after, int64_t reject, bool scalar)
 {
    jit_thread_local_t *thread = jit_attach_thread(anchor);
-
-   sig_shared_t *shared = args[0].pointer;
-   int32_t       offset = args[1].integer;
-   int32_t       count  = args[2].integer;
-   jit_scalar_t  value  = { .integer = args[3].integer };
-   int64_t       after  = args[4].integer;
-   int64_t       reject = args[5].integer;
-   bool          scalar = args[6].integer;
 
    if (scalar)
       x_sched_waveform_s(shared, offset, value.integer, after, reject);
@@ -312,7 +304,6 @@ void __nvc_test_event(jit_anchor_t *anchor, jit_scalar_t *args, tlab_t *tlab)
    thread->anchor = NULL;
 }
 
-DLLEXPORT
 void __nvc_last_event(jit_anchor_t *anchor, jit_scalar_t *args, tlab_t *tlab)
 {
    jit_thread_local_t *thread = jit_attach_thread(anchor);
@@ -326,14 +317,51 @@ void __nvc_last_event(jit_anchor_t *anchor, jit_scalar_t *args, tlab_t *tlab)
    thread->anchor = NULL;
 }
 
-DLLEXPORT
-void __nvc_sched_process(jit_anchor_t *anchor, jit_scalar_t *args, tlab_t *tlab)
+void fast_sched_process(jit_anchor_t *anchor, int64_t after)
 {
    jit_thread_local_t *thread = jit_attach_thread(anchor);
 
-   int64_t after = args[0].integer;
-
    x_sched_process(after);
+
+   thread->anchor = NULL;
+}
+
+void fast_drive_signal(jit_anchor_t *anchor, sig_shared_t *shared,
+                       int32_t offset, int32_t count)
+{
+   jit_thread_local_t *thread = jit_attach_thread(anchor);
+
+   x_drive_signal(shared, offset, count);
+
+   thread->anchor = NULL;
+}
+
+void fast_sched_event(jit_anchor_t *anchor, sig_shared_t *shared,
+                      int32_t offset, int32_t count)
+{
+   jit_thread_local_t *thread = jit_attach_thread(anchor);
+
+   x_sched_event(shared, offset, count);
+
+   thread->anchor = NULL;
+}
+
+void fast_length_fail(jit_anchor_t *anchor, int64_t left, int64_t right,
+                      int32_t dim, tree_t where)
+{
+   jit_thread_local_t *thread = jit_attach_thread(anchor);
+
+   x_length_fail(left, right, dim, where);
+
+   thread->anchor = NULL;
+}
+
+void fast_index_fail(jit_anchor_t *anchor, int64_t value, int64_t left,
+                     int64_t right, int8_t dir, tree_t where, tree_t hint)
+{
+   jit_thread_local_t *thread = jit_attach_thread(anchor);
+
+   x_index_fail(value, left, right, dir, where, hint);
 
    thread->anchor = NULL;
 }
@@ -450,11 +478,29 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
       break;
 
    case JIT_EXIT_SCHED_PROCESS:
-      __nvc_sched_process(anchor, args, tlab);
+      {
+         int64_t after = args[0].integer;
+
+         x_sched_process(after);
+      }
       break;
 
    case JIT_EXIT_SCHED_WAVEFORM:
-      __nvc_sched_waveform(anchor, args, tlab);
+      {
+         sig_shared_t *shared = args[0].pointer;
+         int32_t       offset = args[1].integer;
+         int32_t       count  = args[2].integer;
+         jit_scalar_t  value  = { .integer = args[3].integer };
+         int64_t       after  = args[4].integer;
+         int64_t       reject = args[5].integer;
+         bool          scalar = args[6].integer;
+
+         if (scalar)
+            x_sched_waveform_s(shared, offset, value.integer, after, reject);
+         else
+            x_sched_waveform(shared, offset, value.pointer, count,
+                             after, reject);
+      }
       break;
 
    case JIT_EXIT_SCHED_INACTIVE:

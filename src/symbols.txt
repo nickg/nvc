@@ -77,21 +77,6 @@
   __nvc_seek;
   __nvc_truncate;
 
-  # Exported from src/jit/jit-exits.c
-  __nvc_do_exit;
-  __nvc_vec4op;
-  __nvc_get_object;
-  __nvc_last_event;
-  __nvc_mspace_alloc;
-  __nvc_putpriv;
-  __nvc_sched_waveform;
-  __nvc_sched_process;
-  __nvc_test_event;
-  __nvc_pack;
-  __nvc_unpack;
-  _debug_dump;
-  _debug_out;
-
   # Exported by VHPI
   vhpiFS;
   vhpiHR;
