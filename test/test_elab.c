@@ -2382,6 +2382,26 @@ START_TEST(test_issue1615)
 }
 END_TEST
 
+START_TEST(test_issue1638)
+{
+   input_from_file(TESTDIR "/elab/issue1638.vhd");
+
+   const error_t expect[] = {
+      { 37, "port PORT_EXTRA not found in entity WORK.DUT" },
+      {  0, "while elaborating default binding for I_DUT" },
+      { 42, "generic G not found in entity WORK.DUT2" },
+      {  0, "while elaborating default binding for I_DUT2" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t e = run_elab();
+   fail_unless(e == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_elab_tests(void)
 {
    Suite *s = suite_create("elab");
@@ -2502,6 +2522,7 @@ Suite *get_elab_tests(void)
    tcase_add_test(tc, test_issue1475);
    tcase_add_test(tc, test_issue1569);
    tcase_add_test(tc, test_issue1615);
+   tcase_add_test(tc, test_issue1638);
    suite_add_tcase(s, tc);
 
    return s;

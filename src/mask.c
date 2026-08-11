@@ -217,6 +217,21 @@ ssize_t mask_scan_backwards(bit_mask_t *m, size_t bit)
    return -1;
 }
 
+ssize_t mask_ffs(bit_mask_t *m)
+{
+   if (m->size <= 64)
+      return __builtin_ffsll(m->bits) - 1;
+
+   const size_t nwords = (m->size + 63) / 64;
+   for (size_t i = 0; i < nwords; i++) {
+      const int fs = __builtin_ffsll(m->ptr[i]);
+      if (fs > 0)
+         return i * 64 + fs - 1;
+   }
+
+   return -1;
+}
+
 size_t mask_count_clear(bit_mask_t *m, size_t bit)
 {
    assert(bit < m->size);

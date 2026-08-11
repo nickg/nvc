@@ -70,6 +70,7 @@ void mask_setall(bit_mask_t *m);
 void mask_clearall(bit_mask_t *m);
 bool mask_test_and_set(bit_mask_t *m, size_t bit);
 ssize_t mask_scan_backwards(bit_mask_t *m, size_t bit);
+ssize_t mask_ffs(bit_mask_t *m);
 size_t mask_count_clear(bit_mask_t *m, size_t bit);
 void mask_subtract(bit_mask_t *m, const bit_mask_t *m2);
 void mask_union(bit_mask_t *m, const bit_mask_t *m2);

@@ -736,6 +736,10 @@ static tree_t elab_default_binding(tree_t inst, const elab_ctx_t *ctx)
    const int c_ngenerics = tree_generics(comp);
    const int e_ngenerics = tree_generics(entity);
 
+   LOCAL_BIT_MASK ghave;
+   mask_init(&ghave, c_ngenerics);
+   mask_setall(&ghave);
+
    for (int i = 0; i < e_ngenerics; i++) {
       tree_t eg = tree_generic(entity, i);
 
@@ -744,6 +748,7 @@ static tree_t elab_default_binding(tree_t inst, const elab_ctx_t *ctx)
          tree_t cg = tree_generic(comp, j);
          if (ident_casecmp(tree_ident(eg), tree_ident(cg))) {
             match = cg;
+            mask_clear(&ghave, j);
             break;
          }
       }
@@ -825,8 +830,24 @@ static tree_t elab_default_binding(tree_t inst, const elab_ctx_t *ctx)
       tree_add_genmap(bind, map);
    }
 
+   const ssize_t gmissing = mask_ffs(&ghave);
+   if (gmissing != -1) {
+      tree_t g = tree_generic(comp, gmissing);
+      diag_t *d = diag_new(DIAG_ERROR, tree_loc(g));
+      diag_printf(d, "generic %pI not found in entity %pI",
+                  tree_ident(g), tree_ident(entity));
+      diag_hint(d, tree_loc(inst), "while elaborating default binding for %pI",
+                tree_ident(inst));
+      diag_emit(d);
+      return NULL;
+   }
+
    const int c_nports = tree_ports(comp);
    const int e_nports = tree_ports(entity);
+
+   LOCAL_BIT_MASK phave;
+   mask_init(&phave, c_nports);
+   mask_setall(&phave);
 
    for (int i = 0; i < e_nports; i++) {
       tree_t ep = tree_port(entity, i);
@@ -836,6 +857,7 @@ static tree_t elab_default_binding(tree_t inst, const elab_ctx_t *ctx)
          tree_t cp = tree_port(comp, j);
          if (ident_casecmp(tree_ident(ep), tree_ident(cp))) {
             match = cp;
+            mask_clear(&phave, j);
             break;
          }
       }
@@ -888,6 +910,18 @@ static tree_t elab_default_binding(tree_t inst, const elab_ctx_t *ctx)
       }
 
       add_param(bind, value, P_POS, NULL);
+   }
+
+   const ssize_t pmissing = mask_ffs(&phave);
+   if (pmissing != -1) {
+      tree_t p = tree_port(comp, pmissing);
+      diag_t *d = diag_new(DIAG_ERROR, tree_loc(p));
+      diag_printf(d, "port %pI not found in entity %pI",
+                  tree_ident(p), tree_ident(entity));
+      diag_hint(d, tree_loc(inst), "while elaborating default binding for %pI",
+                tree_ident(inst));
+      diag_emit(d);
+      return NULL;
    }
 
    return bind;

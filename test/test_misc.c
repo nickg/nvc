@@ -639,6 +639,38 @@ START_TEST(test_subtract)
 }
 END_TEST
 
+START_TEST(test_ffs)
+{
+   bit_mask_t m1, m2;
+   mask_init(&m1, mask_size[_i]);
+   mask_init(&m2, mask_size[_i]);
+
+   ck_assert_int_eq(mask_ffs(&m1), -1);
+   ck_assert_int_eq(mask_ffs(&m2), -1);
+
+   mask_set(&m1, mask_size[_i] - 1);
+   ck_assert_int_eq(mask_ffs(&m1), mask_size[_i] - 1);
+
+   mask_set(&m1, 5);
+   ck_assert_int_eq(mask_ffs(&m1), 5);
+
+   mask_set(&m2, 0);
+   ck_assert_int_eq(mask_ffs(&m2), 0);
+
+   if (mask_size[_i] > 64) {
+      mask_clearall(&m2);
+      mask_set(&m2, 70);
+      ck_assert_int_eq(mask_ffs(&m2), 70);
+
+      mask_set(&m2, 63);
+      ck_assert_int_eq(mask_ffs(&m2), 63);
+   }
+
+   mask_free(&m1);
+   mask_free(&m2);
+}
+END_TEST
+
 START_TEST(test_empty_mask)
 {
    bit_mask_t m;
@@ -980,6 +1012,7 @@ Suite *get_misc_tests(void)
    tcase_add_loop_test(tc_mask, test_count_clear, 0, ARRAY_LEN(mask_size));
    tcase_add_loop_test(tc_mask, test_scan_backwards, 0, ARRAY_LEN(mask_size));
    tcase_add_loop_test(tc_mask, test_subtract, 0, ARRAY_LEN(mask_size));
+   tcase_add_loop_test(tc_mask, test_ffs, 0, ARRAY_LEN(mask_size));
    tcase_add_test(tc_mask, test_empty_mask);
    tcase_add_test(tc_mask, test_mask_iter);
    suite_add_tcase(s, tc_mask);
