@@ -6,7 +6,7 @@
 - Added support for System Verilog procedural assertions.
 - Fixed an issue where VHPI could not iterate the constraints of objects
   declared with an unconstrained subtype (#1632).
-- Several other minor bugs were resolved (#1638).
+- Several other minor bugs were resolved (#1638, #1636).
 
 ## Version 1.22.1 - 2026-08-01
 - Waveform dumping now dumps multiple top units instead of only the first

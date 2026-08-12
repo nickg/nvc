@@ -1384,6 +1384,7 @@ static mir_value_t vlog_lower_systf_param(vlog_gen_t *g, vlog_node_t v)
    case V_POSTFIX:
    case V_BIT_SELECT:
    case V_PART_SELECT:
+   case V_CONCAT:
    case V_COND_EXPR:
    case V_MEMBER_REF:
    case V_HIER_REF:

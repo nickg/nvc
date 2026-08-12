@@ -528,8 +528,9 @@ static void p_text_macro_definition(void)
 
    optional(tWHITESPACE);
 
-   while (not_at_token(tNEWLINE)) {
-      const token_t tok = peek();
+   bool in_block_comment = false;
+   while (in_block_comment || not_at_token(tNEWLINE)) {
+      token_t tok = peek();
       switch (tok) {
       case tTEXT:
       case tWHITESPACE:
@@ -542,7 +543,6 @@ static void p_text_macro_definition(void)
          consume(tok);
          tb_catn(m->text, state.last_lval.span.ptr, state.last_lval.span.len);
          break;
-      case tNEWLINE:
       case tLPAREN:
       case tRPAREN:
       case tLBRACE:
@@ -562,16 +562,63 @@ static void p_text_macro_definition(void)
          break;
       case tCOMMENT:
          consume(tok);
-         goto done;
+         if (in_block_comment || mode == PP_C_COMMENT) {
+            tb_catn(m->text, state.last_lval.span.ptr,
+                    state.last_lval.span.len);
+            in_block_comment = mode == PP_C_COMMENT;
+         }
+         break;
+      case tNEWLINE:
+         assert(in_block_comment);
+         consume(tok);
+         tb_append(m->text, '\n');
+         tb_append(output, '\n');
+         break;
       default:
          one_of(tTEXT, tWHITESPACE, tMACROUSAGE);
          break;
       }
    }
- done:
 
    consume(tNEWLINE);
    tb_append(output, '\n');
+}
+
+static void p_inactive_text_macro_definition(void)
+{
+   consume(tDEFINE);
+
+   for (;;) {
+      const token_t tok = peek();
+      switch (tok) {
+      case tEOF:
+         return;
+      case tCONTINUATION:
+         consume(tok);
+         consume(tNEWLINE);
+         tb_append(output, '\n');
+         break;
+      case tNEWLINE:
+         consume(tok);
+         tb_append(output, '\n');
+         if (mode != PP_C_COMMENT)
+            return;
+         break;
+      default:
+         consume(tok);
+         break;
+      }
+   }
+}
+
+static void p_inactive_include_directive(void)
+{
+   consume(tINCLUDE);
+
+   while (not_at_token(tEOF, tNEWLINE))
+      consume(peek());
+
+   optional(tNEWLINE);
 }
 
 static void p_expression(text_buf_t *tb)
@@ -996,7 +1043,10 @@ static void p_block_of_text(void)
    const token_t tok = peek();
    switch (tok) {
    case tDEFINE:
-      p_text_macro_definition();
+      if (ifdefs == NULL || ifdefs->cond)
+         p_text_macro_definition();
+      else
+         p_inactive_text_macro_definition();
       break;
    case tMACROUSAGE:
       if (ifdefs == NULL || ifdefs->cond)
@@ -1009,14 +1059,21 @@ static void p_block_of_text(void)
       p_conditional_compilation_directive();
       break;
    case tINCLUDE:
-      p_include_compiler_directive();
+      if (ifdefs == NULL || ifdefs->cond)
+         p_include_compiler_directive();
+      else
+         p_inactive_include_directive();
       break;
    case tUNDEF:
-      p_undef_compiler_directive();
+      if (ifdefs == NULL || ifdefs->cond)
+         p_undef_compiler_directive();
+      else
+         consume(tUNDEF);
       break;
    case tUNDEFALL:
       consume(tUNDEFALL);
-      undefall_macro();
+      if (ifdefs == NULL || ifdefs->cond)
+         undefall_macro();
       break;
    case tID:
       if (macro_args != NULL && (ifdefs == NULL || ifdefs->cond)) {

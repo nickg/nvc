@@ -639,6 +639,9 @@ static c_operation *build_operation(vlog_node_t v)
       op->subtype = vlog_subkind(v) == V_INCDEC_PLUS
          ? vpiPreIncOp : vpiPreDecOp;
       break;
+   case V_CONCAT:
+      op->subtype = vlog_has_value(v) ? vpiMultiConcatOp : vpiConcatOp;
+      break;
    default:
       break;
    }
@@ -686,6 +689,7 @@ static c_vpiObject *build_expr(vlog_node_t v, c_abstractScope *scope)
    case V_EMPTY:
    case V_PREFIX:
    case V_POSTFIX:
+   case V_CONCAT:
    case V_COND_EXPR:
    case V_PART_SELECT:
    case V_BIT_SELECT:   // XXX: check this

@@ -565,7 +565,6 @@ START_TEST(test_pp2)
       {  7, "unexpected comment while parsing ifdef condition" },
       {  9, "unexpected comment while parsing ifdef condition" },
       { 13, "unexpected comment while parsing ifdef condition" },
-      { 15, "unexpected text while parsing text macro name" },
       { 21, "unexpected end of file while parsing conditional compilation" },
       { -1, NULL }
    };
@@ -2220,6 +2219,44 @@ START_TEST(test_number3)
 }
 END_TEST
 
+START_TEST(test_pp18)
+{
+   input_from_file(TESTDIR "/vlog/pp18.v");
+
+   LOCAL_TEXT_BUF tb = tb_new();
+   vlog_preprocess(tb, false);
+
+   ck_assert_str_eq(
+      tb_get(tb),
+      "\n"
+      "\n"
+      "\n"
+      "\n"
+      "\n"
+      "\n"
+      "\n"
+      "\n"
+      "\n"
+      "\n"
+      "\n"
+      "\n"
+      "\n"
+      "\n"
+      "module pp18;\n"
+      "  wire [3:0] i;\n"
+      "  wire [7:0] o = \n"
+      "    /* verilator lint_off WIDTH */ \n"
+      "    ((8) == (4) ? i : {{((8) - (4)){1'b0}}, i}) \n"
+      "    /* verilator lint_on WIDTH */;\n"
+      "  wire [3:0] p = 1 /* a block comment */ + 1;\n"
+      "  wire [3:0] q = 1 /* a block\n"
+      "comment */ + 2;\n"
+      "endmodule\n");
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_vlog_tests(void)
 {
    Suite *s = suite_create("vlog");
@@ -2303,6 +2340,7 @@ Suite *get_vlog_tests(void)
    tcase_add_test(tc, test_pp16);
    tcase_add_test(tc, test_pp17);
    tcase_add_test(tc, test_number3);
+   tcase_add_test(tc, test_pp18);
    suite_add_tcase(s, tc);
 
    return s;
