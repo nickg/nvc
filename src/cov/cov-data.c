@@ -63,7 +63,7 @@ static const struct {
 };
 
 #define COVER_FILE_MAGIC   0x6e636462   // ASCII "ncdb"
-#define COVER_FILE_VERSION 6
+#define COVER_FILE_VERSION 7
 
 static inline unsigned get_next_tag(cover_block_t *b)
 {
@@ -149,9 +149,9 @@ const loc_t get_cover_loc(cover_item_kind_t kind, object_t *obj)
    return obj->loc;
 }
 
-static cover_item_t *cover_add_item(cover_data_t *data, cover_scope_t *cs,
+static cover_item_t *cover_add_item(cover_data_t *db, cover_scope_t *cs,
                                     object_t *obj, cover_item_kind_t kind,
-                                    uint32_t flags, int consecutive)
+                                    uint32_t flags, int nbins)
 {
    // Everything creates scope, so name of current item is already given
    // by scope in hierarchy.
@@ -172,25 +172,29 @@ static cover_item_t *cover_add_item(cover_data_t *data, cover_scope_t *cs,
    loc_t loc = get_cover_loc(kind, obj);
    cover_src_t src = get_cover_source(kind, obj);
 
-   cover_item_t *new = pool_malloc_array(data->pool, sizeof(cover_item_t),
-                                         consecutive);
-   for (int i = 0; i < consecutive; i++) {
-      new[i] = (cover_item_t){
-         .kind          = kind,
+   cover_item_t *new = pool_malloc_flex(db->pool, sizeof(cover_item_t),
+                                         nbins, sizeof(cover_bin_t));
+
+   memset(new, 0, sizeof(cover_item_t) + nbins * sizeof(cover_bin_t));
+
+   new->nbins     = nbins;
+   new->kind      = kind;
+   new->loc       = loc;
+   new->loc_lhs   = LOC_INVALID;
+   new->loc_rhs   = LOC_INVALID;
+   new->func_name = NULL;
+   new->atleast   = db->threshold;
+   new->metadata  = metadata;
+   new->source    = src;
+
+   for (int i = 0; i < nbins; i++) {
+      new->bins[i] = (cover_bin_t){
          .tag           = get_next_tag(cs->block),
          .data          = 0,
          .flags         = flags,
-         .loc           = loc,
-         .loc_lhs       = LOC_INVALID,
-         .loc_rhs       = LOC_INVALID,
          .hier          = hier,
-         .func_name     = NULL,
-         .consecutive   = consecutive - i,
-         .atleast       = data->threshold,
-         .metadata      = metadata,
          .n_ranges      = 0,
          .ranges        = NULL,
-         .source        = src,
       };
    }
 
@@ -238,7 +242,7 @@ static void cover_add_array_toggle_items(cover_data_t *data,
                                          type_t type, object_t *obj,
                                          const char *prefix, int curr_dim,
                                          cover_flags_t flags,
-                                         cover_item_t **itemp)
+                                         cover_bin_t **binp)
 {
    int t_dims = dimension_of(type);
    tree_t r = range_of(type, t_dims - curr_dim);
@@ -266,10 +270,10 @@ static void cover_add_array_toggle_items(cover_data_t *data,
       if (curr_dim == 1) {
          if (memory)
             cover_add_array_toggle_items(data, cs, elem, obj, tb_get(tb),
-                                         dimension_of(elem), flags, itemp);
+                                         dimension_of(elem), flags, binp);
          else {
-            cover_item_t *pair = *itemp;
-            *itemp += 2;
+            cover_bin_t *pair = *binp;
+            *binp += 2;
 
             pair[0].flags |= COV_FLAG_TOGGLE_TO_1;
             pair[1].flags |= COV_FLAG_TOGGLE_TO_0;
@@ -281,7 +285,7 @@ static void cover_add_array_toggle_items(cover_data_t *data,
       }
       else   // Recurse to lower dimension
          cover_add_array_toggle_items(data, cs, type, obj, tb_get(tb),
-                                      curr_dim - 1, flags, itemp);
+                                      curr_dim - 1, flags, binp);
    }
 }
 
@@ -290,7 +294,7 @@ static void cover_add_record_toggle_items(cover_data_t *db,
                                           type_t type, object_t *obj,
                                           const char *prefix,
                                           cover_flags_t flags,
-                                          cover_item_t **itemp,
+                                          cover_bin_t **binp,
                                           unsigned *field_idx)
 {
    LOCAL_TEXT_BUF tb = tb_new();
@@ -310,7 +314,7 @@ static void cover_add_record_toggle_items(cover_data_t *db,
 
       if (type_is_record(ftype)) {
          cover_add_record_toggle_items(db, cs, ftype, fobj,
-                                       tb_get(tb), flags, itemp, field_idx);
+                                       tb_get(tb), flags, binp, field_idx);
          continue;
       }
 
@@ -323,8 +327,8 @@ static void cover_add_record_toggle_items(cover_data_t *db,
       else if (type_is_scalar(ftype)) {
          assert(count == 1);
 
-         cover_item_t *pair = *itemp;
-         *itemp += 2;
+         cover_bin_t *pair = *binp;
+         *binp += 2;
 
          pair[0].flags |= COV_FLAG_TOGGLE_TO_1;
          pair[1].flags |= COV_FLAG_TOGGLE_TO_0;
@@ -338,10 +342,10 @@ static void cover_add_record_toggle_items(cover_data_t *db,
          }
       }
       else if (type_is_array(ftype)) {
-         cover_item_t *set = *itemp;
+         cover_bin_t *set = *binp;
          const int ndims = dimension_of(ftype);
          cover_add_array_toggle_items(db, cs, ftype, fobj, tb_get(tb), ndims,
-                                      flags, itemp);
+                                      flags, binp);
 
          for (int i = 0; i < count * 2; i++)
             set[i].field_idx = fidx;
@@ -372,11 +376,12 @@ static cover_item_t *cover_add_toggle_items(cover_data_t *data,
 
    if (type_is_record(type)) {
       cover_item_t *set = cover_add_item(data, cs, obj, COV_ITEM_TOGGLE,
-                                         flags, nelems * 2), *p = set;
+                                         flags, nelems * 2);
+      cover_bin_t *p = set->bins;
       unsigned field_idx = 0;
       cover_add_record_toggle_items(data, cs, type, obj, "", flags, &p,
                                     &field_idx);
-      assert(p == set + nelems * 2);
+      assert(p == set->bins + nelems * 2);
       return set;
    }
 
@@ -390,22 +395,24 @@ static cover_item_t *cover_add_toggle_items(cover_data_t *data,
       cover_item_t *pair = cover_add_item(data, cs, obj, COV_ITEM_TOGGLE,
                                           flags, 2);
 
-      pair[0].flags |= COV_FLAG_TOGGLE_TO_1;
-      pair[1].flags |= COV_FLAG_TOGGLE_TO_0;
+      pair->bins[0].flags |= COV_FLAG_TOGGLE_TO_1;
+      pair->bins[1].flags |= COV_FLAG_TOGGLE_TO_0;
 
       for (int i = 0; i < 2; i++) {
-         ident_t suffix = ident_new(cover_bmask_to_bin_str(pair[i].flags));
-         pair[i].hier = ident_prefix(pair[i].hier, suffix, '.');
+         ident_t suffix =
+            ident_new(cover_bmask_to_bin_str(pair->bins[i].flags));
+         pair->bins[i].hier = ident_prefix(pair->bins[i].hier, suffix, '.');
       }
 
       return pair;
    }
    else {
       cover_item_t *set = cover_add_item(data, cs, obj, COV_ITEM_TOGGLE,
-                                         flags, nelems * 2), *p = set;
+                                         flags, nelems * 2);
+      cover_bin_t *p = set->bins;
       const int ndims = dimension_of(type);
       cover_add_array_toggle_items(data, cs, type, obj, "", ndims, flags, &p);
-      assert(p == set + nelems * 2);
+      assert(p == set->bins + nelems * 2);
 
       return set;
    }
@@ -425,20 +432,21 @@ static cover_item_t *cover_add_branch_items_for(cover_data_t *data,
       cover_item_t *item = cover_add_item(data, cs, obj, COV_ITEM_BRANCH,
                                           COV_FLAG_CHOICE, 1);
 
-      ident_t suffix = ident_new(cover_bmask_to_bin_str(item->flags));
-      item->hier = ident_prefix(item->hier, suffix, '.');
+      ident_t suffix = ident_new(cover_bmask_to_bin_str(item->bins[0].flags));
+      item->bins[0].hier = ident_prefix(item->bins[0].hier, suffix, '.');
 
       return item;
    }
    else {    // If-else
       cover_item_t *pair = cover_add_item(data, cs, obj, COV_ITEM_BRANCH, 0, 2);
 
-      pair[0].flags |= COV_FLAG_TRUE;
-      pair[1].flags |= COV_FLAG_FALSE;
+      pair->bins[0].flags |= COV_FLAG_TRUE;
+      pair->bins[1].flags |= COV_FLAG_FALSE;
 
       for (int i = 0; i < 2; i++) {
-         ident_t suffix = ident_new(cover_bmask_to_bin_str(pair[i].flags));
-         pair[i].hier = ident_prefix(pair[i].hier, suffix, '.');
+         ident_t suffix =
+            ident_new(cover_bmask_to_bin_str(pair->bins[i].flags));
+         pair->bins[i].hier = ident_prefix(pair->bins[i].hier, suffix, '.');
       }
 
       return pair;
@@ -485,13 +493,12 @@ static cover_item_t *cover_add_state_items_for(cover_data_t *data,
       ident_t suffix = ident_prefix(ident_new("BIN_STATE"), literal, '.');
 
       // For FSM State coverage, "func_name" stores name of the FSM Enum type
-      cover_item_t *item = &(set[i - low]);
-      item->hier = ident_prefix(item->hier, suffix, '.');
-      item->func_name = ident_rfrom(itype, '.');
-      if (i == low) {
-         item->metadata = low;
-      }
+      cover_bin_t *bin = &(set->bins[i - low]);
+      bin->hier = ident_prefix(bin->hier, suffix, '.');
    }
+
+   set->func_name = ident_rfrom(itype, '.');
+   set->metadata = low;
 
    return set;
 }
@@ -507,10 +514,10 @@ static cover_item_t *cover_add_expression_xor_items(cover_data_t *data,
 {
    cover_item_t *set = cover_add_item(data, cs, obj, COV_ITEM_EXPRESSION,
                                       flags, 4);
-   set[0].flags |= COV_FLAG_00;
-   set[1].flags |= COV_FLAG_01;
-   set[2].flags |= COV_FLAG_10;
-   set[3].flags |= COV_FLAG_11;
+   set->bins[0].flags |= COV_FLAG_00;
+   set->bins[1].flags |= COV_FLAG_01;
+   set->bins[2].flags |= COV_FLAG_10;
+   set->bins[3].flags |= COV_FLAG_11;
 
    return set;
 }
@@ -522,9 +529,9 @@ static cover_item_t *cover_add_expression_and_items(cover_data_t *data,
 {
    cover_item_t *set = cover_add_item(data, cs, obj, COV_ITEM_EXPRESSION,
                                       flags, 3);
-   set[0].flags |= COV_FLAG_01;
-   set[1].flags |= COV_FLAG_10;
-   set[2].flags |= COV_FLAG_11;
+   set->bins[0].flags |= COV_FLAG_01;
+   set->bins[1].flags |= COV_FLAG_10;
+   set->bins[2].flags |= COV_FLAG_11;
 
    return set;
 }
@@ -536,9 +543,9 @@ static cover_item_t *cover_add_expression_or_items(cover_data_t *data,
 {
    cover_item_t *set = cover_add_item(data, cs, obj, COV_ITEM_EXPRESSION,
                                       flags, 3);
-   set[0].flags |= COV_FLAG_00;
-   set[1].flags |= COV_FLAG_01;
-   set[2].flags |= COV_FLAG_10;
+   set->bins[0].flags |= COV_FLAG_00;
+   set->bins[1].flags |= COV_FLAG_01;
+   set->bins[2].flags |= COV_FLAG_10;
 
    return set;
 }
@@ -565,8 +572,8 @@ static cover_item_t *cover_add_expression_items(cover_data_t *data,
    case S_SCALAR_GE:
    case S_SCALAR_NOT:
       set = cover_add_item(data, cs, obj, COV_ITEM_EXPRESSION, 0, 2);
-      set[0].flags |= COV_FLAG_FALSE;
-      set[1].flags |= COV_FLAG_TRUE;
+      set->bins[0].flags |= COV_FLAG_FALSE;
+      set->bins[1].flags |= COV_FLAG_TRUE;
       break;
 
    case S_IEEE_XOR:
@@ -607,18 +614,18 @@ static cover_item_t *cover_add_expression_items(cover_data_t *data,
 
    ident_t func_name = tree_ident(t);
    loc_t loc_lhs = LOC_INVALID, loc_rhs = LOC_INVALID;
-   if (set->flags & COVER_FLAGS_LHS_RHS_BINS) {
+   if (set->bins[0].flags & COVER_FLAGS_LHS_RHS_BINS) {
       loc_lhs = *tree_loc(tree_param(t, 0));
       loc_rhs = *tree_loc(tree_param(t, 1));
    }
 
-   for (int i = 0; i < set->consecutive; i++) {
-      ident_t suffix = ident_new(cover_bmask_to_bin_str(set[i].flags));
-      set[i].hier = ident_prefix(set[i].hier, suffix, '.');
+   set->loc_lhs = loc_lhs;
+   set->loc_rhs = loc_rhs;
+   set->func_name = func_name;
 
-      set[i].loc_lhs = loc_lhs;
-      set[i].loc_rhs = loc_rhs;
-      set[i].func_name = func_name;
+   for (int i = 0; i < set->nbins; i++) {
+      ident_t suffix = ident_new(cover_bmask_to_bin_str(set->bins[i].flags));
+      set->bins[i].hier = ident_prefix(set->bins[i].hier, suffix, '.');
    }
 
    return set;
@@ -673,7 +680,7 @@ cover_item_t *cover_add_items_for(cover_data_t *data, cover_scope_t *cs,
 // Coverage data write/read to covdb, covdb merging and coverage scope handling
 ///////////////////////////////////////////////////////////////////////////////
 
-void cover_merge_one_item(cover_item_t *item, int32_t data)
+void cover_merge_bin(const cover_item_t *item, cover_bin_t *bin, int32_t data)
 {
    switch (item->kind) {
    case COV_ITEM_STMT:
@@ -681,7 +688,7 @@ void cover_merge_one_item(cover_item_t *item, int32_t data)
    case COV_ITEM_BRANCH:
    case COV_ITEM_STATE:
    case COV_ITEM_EXPRESSION:
-      item->data = saturate_add(item->data, data);
+      bin->data = saturate_add(bin->data, data);
       break;
 
    // Highest bit of run-time data for COV_ITEM_TOGGLE is used to track
@@ -693,10 +700,10 @@ void cover_merge_one_item(cover_item_t *item, int32_t data)
    // its propagation further to the merged database
    case COV_ITEM_TOGGLE:
 
-      if ((item->data & COV_FLAG_UNREACHABLE) || (data & COV_FLAG_UNREACHABLE))
-         item->data = COV_FLAG_UNREACHABLE;
+      if ((bin->data & COV_FLAG_UNREACHABLE) || (data & COV_FLAG_UNREACHABLE))
+         bin->data = COV_FLAG_UNREACHABLE;
       else
-         item->data = saturate_add(item->data, data);
+         bin->data = saturate_add(bin->data, data);
       break;
 
    default:
@@ -709,8 +716,10 @@ static void cover_update_counts(cover_scope_t *s)
    if (s->block != NULL && s->block->data != NULL) {
       for (int i = 0; i < s->items.count; i++) {
          cover_item_t *item = s->items.items[i];
-         for (int j = 0; j < item->consecutive; j++)
-            cover_merge_one_item(item + j, s->block->data[item[j].tag]);
+         for (int j = 0; j < item->nbins; j++) {
+            cover_bin_t *bin = &(item->bins[j]);
+            cover_merge_bin(item, bin, s->block->data[bin->tag]);
+         }
       }
    }
 
@@ -718,43 +727,44 @@ static void cover_update_counts(cover_scope_t *s)
       cover_update_counts(s->children.items[i]);
 }
 
-static void cover_write_items(const cover_item_t *item, fbuf_t *f,
-                              ident_wr_ctx_t ident_ctx, loc_wr_ctx_t *loc_ctx)
+static void cover_write_item(const cover_item_t *item, fbuf_t *f,
+                             ident_wr_ctx_t ident_ctx, loc_wr_ctx_t *loc_ctx)
 {
-   fbuf_put_uint(f, item->consecutive);
+   fbuf_put_uint(f, item->nbins);
    fbuf_put_uint(f, item->kind);
    fbuf_put_uint(f, item->source);
+   fbuf_put_uint(f, item->atleast);
+   fbuf_put_uint(f, item->metadata);
 
-   for (int i = 0; i < item->consecutive; i++) {
-      assert(item[i].kind == item->kind);
-      assert(item[i].consecutive == item->consecutive - i);
-      assert(item[i].source == item->source);
+   loc_write(&(item->loc), loc_ctx);
 
-      fbuf_put_uint(f, item[i].tag);
-      fbuf_put_uint(f, item[i].data);
-      fbuf_put_uint(f, item[i].flags);
-      fbuf_put_uint(f, item[i].atleast);
-      fbuf_put_uint(f, item[i].n_ranges);
-      fbuf_put_uint(f, item[i].metadata);
+   if (item->kind == COV_ITEM_EXPRESSION
+       || item->kind == COV_ITEM_STATE
+       || item->kind == COV_ITEM_FUNCTIONAL)
+      ident_write(item->func_name, ident_ctx);
 
-      for (int j = 0; j < item[i].n_ranges; j++) {
-         fbuf_put_uint(f, item[i].ranges[j].min);
-         fbuf_put_uint(f, item[i].ranges[j].max);
+   for (int i = 0; i < item->nbins; i++) {
+      const cover_bin_t *bin = &(item->bins[i]);
+
+      fbuf_put_uint(f, bin->tag);
+      fbuf_put_uint(f, bin->data);
+      fbuf_put_uint(f, bin->flags);
+      fbuf_put_uint(f, bin->n_ranges);
+
+      for (int j = 0; j < bin->n_ranges; j++) {
+         fbuf_put_uint(f, bin->ranges[j].min);
+         fbuf_put_uint(f, bin->ranges[j].max);
       }
 
-      loc_write(&(item[i].loc), loc_ctx);
-      if (item[i].flags & COVER_FLAGS_LHS_RHS_BINS) {
-         loc_write(&(item[i].loc_lhs), loc_ctx);
-         loc_write(&(item[i].loc_rhs), loc_ctx);
+      if (bin->flags & COVER_FLAGS_LHS_RHS_BINS) {
+         loc_write(&(item->loc_lhs), loc_ctx);
+         loc_write(&(item->loc_rhs), loc_ctx);
       }
 
-      ident_write(item[i].hier, ident_ctx);
-      if (item[i].kind == COV_ITEM_EXPRESSION ||
-          item[i].kind == COV_ITEM_STATE ||
-          item[i].kind == COV_ITEM_FUNCTIONAL)
-         ident_write(item[i].func_name, ident_ctx);
-      else if (item[i].kind == COV_ITEM_TOGGLE)
-         fbuf_put_uint(f, item[i].field_idx);
+      ident_write(bin->hier, ident_ctx);
+
+      if (item->kind == COV_ITEM_TOGGLE)
+         fbuf_put_uint(f, bin->field_idx);
    }
 }
 
@@ -778,7 +788,7 @@ static void cover_write_scope(cover_scope_t *s, fbuf_t *f,
 
    fbuf_put_uint(f, s->items.count);
    for (int i = 0; i < s->items.count; i++)
-      cover_write_items(s->items.items[i], f, ident_ctx, loc_ctx);
+      cover_write_item(s->items.items[i], f, ident_ctx, loc_ctx);
 
    for (int i = 0; i < s->children.count; i++)
       cover_write_scope(s->children.items[i], f, ident_ctx, loc_ctx);
@@ -797,19 +807,20 @@ static void cover_debug_dump(cover_scope_t *s, int indent)
    for (int i = 0; i < s->items.count; i++) {
       const cover_item_t *item = s->items.items[i];
 
-      for (int j = 0; j < item->consecutive; j++) {
+      for (int j = 0; j < item->nbins; j++) {
+         const cover_bin_t *bin = &(item->bins[j]);
          if (loc_invalid_p(&item->loc))
             printf("%*s%d: %s %s <invalid> => %x\n", indent + 2, "",
-                   item[j].tag, cover_item_kind_str(item[j].kind),
-                   istr(item[j].hier), item[j].data);
+                   bin->tag, cover_item_kind_str(item->kind),
+                   istr(bin->hier), bin->data);
          else {
-            const char *path = loc_file_str(&item[j].loc), *basename;
+            const char *path = loc_file_str(&item->loc), *basename;
             if ((basename = strrchr(path, '/')))
                path = basename + 1;
 
-            printf("%*s%d: %s %s %s:%d => %x\n", indent + 2, "", item[j].tag,
-                   cover_item_kind_str(item[j].kind), istr(item[j].hier),
-                   path, item[j].loc.first_line, item[j].data);
+            printf("%*s%d: %s %s %s:%d => %x\n", indent + 2, "", bin->tag,
+                   cover_item_kind_str(item->kind), istr(bin->hier),
+                   path, item->loc.first_line, bin->data);
          }
       }
    }
@@ -1001,46 +1012,54 @@ static cover_item_t *cover_read_item(cover_data_t *db, fbuf_t *f,
                                      loc_rd_ctx_t *loc_rd,
                                      ident_rd_ctx_t ident_ctx)
 {
-   const int consecutive = fbuf_get_uint(f);
-   cover_item_t *item = pool_malloc_array(db->pool, consecutive,
-                                          sizeof(cover_item_t));
+   const int nbins = fbuf_get_uint(f);
+   cover_item_t *item = pool_malloc_flex(db->pool, sizeof(cover_item_t),
+                                         nbins, sizeof(cover_bin_t));
+   memset(item, 0, sizeof(cover_item_t) + nbins * sizeof(cover_bin_t));
 
    const cover_item_kind_t kind = fbuf_get_uint(f);
    const cover_src_t src = fbuf_get_uint(f);
+   item->nbins = nbins;
+   item->kind = kind;
+   item->source = src;
 
-   for (int i = 0; i < consecutive; i++) {
-      item[i].consecutive = consecutive - i;
-      item[i].kind        = kind;
-      item[i].source      = src;
-      item[i].tag         = fbuf_get_uint(f);
-      item[i].data        = fbuf_get_uint(f);
-      item[i].flags       = fbuf_get_uint(f);
-      item[i].atleast     = fbuf_get_uint(f);
-      item[i].n_ranges    = fbuf_get_uint(f);
-      item[i].metadata    = fbuf_get_uint(f);
+   item->atleast = fbuf_get_uint(f);
+   item->metadata = fbuf_get_uint(f);
 
-      if (item[i].n_ranges > 0)
-         item[i].ranges = pool_malloc_array(db->pool, item[i].n_ranges,
-                                            sizeof(cover_range_t));
+   loc_read(&item->loc, loc_rd);
 
-      for (int j = 0; j < item[i].n_ranges; j++) {
-         item[i].ranges[j].min = fbuf_get_uint(f);
-         item[i].ranges[j].max = fbuf_get_uint(f);
+   if (kind == COV_ITEM_EXPRESSION || kind == COV_ITEM_STATE
+       || kind == COV_ITEM_FUNCTIONAL)
+      item->func_name = ident_read(ident_ctx);
+
+   item->loc_lhs = LOC_INVALID;
+   item->loc_rhs = LOC_INVALID;
+
+   for (int i = 0; i < nbins; i++) {
+      cover_bin_t *bin = &(item->bins[i]);
+      bin->tag = fbuf_get_uint(f);
+      bin->data = fbuf_get_uint(f);
+      bin->flags = fbuf_get_uint(f);
+      bin->n_ranges = fbuf_get_uint(f);
+
+      if (bin->n_ranges > 0)
+         bin->ranges = pool_malloc_array(db->pool, bin->n_ranges,
+                                         sizeof(cover_range_t));
+
+      for (int j = 0; j < bin->n_ranges; j++) {
+         bin->ranges[j].min = fbuf_get_uint(f);
+         bin->ranges[j].max = fbuf_get_uint(f);
       }
 
-      loc_read(&(item[i].loc), loc_rd);
-      if (item[i].flags & COVER_FLAGS_LHS_RHS_BINS) {
-         loc_read(&(item[i].loc_lhs), loc_rd);
-         loc_read(&(item[i].loc_rhs), loc_rd);
+      if (bin->flags & COVER_FLAGS_LHS_RHS_BINS) {
+         loc_read(&item->loc_lhs, loc_rd);
+         loc_read(&item->loc_rhs, loc_rd);
       }
 
-      item[i].hier = ident_read(ident_ctx);
-      if (item[i].kind == COV_ITEM_EXPRESSION ||
-          item[i].kind == COV_ITEM_STATE ||
-          item[i].kind == COV_ITEM_FUNCTIONAL)
-         item[i].func_name = ident_read(ident_ctx);
-      else if (item[i].kind == COV_ITEM_TOGGLE)
-         item[i].field_idx = fbuf_get_uint(f);
+      bin->hier = ident_read(ident_ctx);
+
+      if (kind == COV_ITEM_TOGGLE)
+         bin->field_idx = fbuf_get_uint(f);
    }
 
    return item;
@@ -1143,22 +1162,24 @@ static bool cover_merge_items(cover_data_t *db, cover_item_t **pdst,
       return false;
 
    LOCAL_BIT_MASK missed;
-   mask_init(&missed, src->consecutive);
+   mask_init(&missed, src->nbins);
    mask_setall(&missed);
 
-   for (int i = 0; i < src->consecutive; i++) {
+   for (int i = 0; i < src->nbins; i++) {
+      const cover_bin_t *sbin = &(src->bins[i]);
+
       // Try the same index first assuming the scopes are identical
-      if (i < dst->consecutive && dst[i].flags == src[i].flags
-          && dst[i].hier == src[i].hier) {
-         cover_merge_one_item(dst + i, src[i].data);
+      if (i < dst->nbins && dst->bins[i].flags == sbin->flags
+          && dst->bins[i].hier == sbin->hier) {
+         cover_merge_bin(dst, &(dst->bins[i]), sbin->data);
          mask_clear(&missed, i);
          continue;
       }
 
-      for (int j = 0; j < dst->consecutive; j++) {
-         if (i != j && dst[j].flags == src[i].flags
-             && dst[j].hier == src[i].hier) {
-            cover_merge_one_item(dst + j, src[i].data);
+      for (int j = 0; j < dst->nbins; j++) {
+         if (i != j && dst->bins[j].flags == sbin->flags
+             && dst->bins[j].hier == sbin->hier) {
+            cover_merge_bin(dst, &(dst->bins[j]), sbin->data);
             mask_clear(&missed, i);
             break;
          }
@@ -1169,24 +1190,24 @@ static bool cover_merge_items(cover_data_t *db, cover_item_t **pdst,
 
    if (nmissed == 0)
       return true;    // Merged all items
-   else if (nmissed == src->consecutive)
+   else if (nmissed == src->nbins)
       return false;   // Unrelated
 
    // Append the unmerged items to the destination array
 
-   const int new_count = dst->consecutive + nmissed;
-   cover_item_t *new = pool_malloc_array(db->pool, new_count,
-                                         sizeof(cover_item_t));
+   const int new_count = dst->nbins + nmissed;
+   cover_item_t *new = pool_malloc_flex(db->pool, sizeof(cover_item_t),
+                                        new_count, sizeof(cover_bin_t));
 
-   memcpy(new, dst, dst->consecutive * sizeof(cover_item_t));
+   memcpy(new, dst, sizeof(cover_item_t) +
+          dst->nbins * sizeof(cover_bin_t));
 
-   cover_item_t *ptr = new + dst->consecutive;
+   cover_bin_t *ptr = new->bins + dst->nbins;
    for (size_t i = -1; mask_iter(&missed, &i);)
-      *ptr++ = src[i];
-   assert(ptr == new + new_count);
+      *ptr++ = src->bins[i];
+   assert(ptr == new->bins + new_count);
 
-   for (int i = 0; i < new_count; i++)
-      new[i].consecutive = new_count - i;
+   new->nbins = new_count;
 
    *pdst = new;
    return true;
@@ -1370,7 +1391,8 @@ bool cover_is_leaf(cover_scope_t *s)
    return true;
 }
 
-bool cover_bin_unreachable(cover_data_t *data, const cover_item_t *item)
+bool cover_bin_unreachable(cover_data_t *data, cover_item_kind_t kind,
+                           const cover_bin_t *bin)
 {
    if ((data->mask & COVER_MASK_EXCLUDE_UNREACHABLE) == 0)
       return false;
@@ -1378,13 +1400,13 @@ bool cover_bin_unreachable(cover_data_t *data, const cover_item_t *item)
    // Toggle items remember unreachability in run-time data. Must check
    // item kind not to get false unreachability on statement items.
    // Excludes both bins automatically!
-   if (item->kind == COV_ITEM_TOGGLE
-       && ((item->data & COV_FLAG_UNREACHABLE) != 0))
+   if (kind == COV_ITEM_TOGGLE
+       && ((bin->data & COV_FLAG_UNREACHABLE) != 0))
       return true;
 
    // Expression items remember unreachability as unreachable mask
-   if (item->kind == COV_ITEM_EXPRESSION
-       && ((item->flags & COV_FLAG_UNREACHABLE) != 0))
+   if (kind == COV_ITEM_EXPRESSION
+       && ((bin->flags & COV_FLAG_UNREACHABLE) != 0))
       return true;
 
    return false;

@@ -189,8 +189,9 @@ static void excl_trie_print(excl_trie_t *et, int indent)
 
 static void cover_exclude_items(cover_ef_t *ef, cover_item_t *item)
 {
-   for (int i = 0; i < item->consecutive; i++) {
-      ident_t hier = item[i].hier;
+   for (int i = 0; i < item->nbins; i++) {
+      cover_bin_t *bin = &(item->bins[i]);
+      ident_t hier = bin->hier;
 
       for (int j = 0; j < ef->n_excl_cmds; j++) {
          cover_excl_cmd_t *excl = &(ef->excl[j]);
@@ -199,15 +200,15 @@ static void cover_exclude_items(cover_ef_t *ef, cover_item_t *item)
          if (ident_glob(hier, excl_hier, strlen(excl_hier))) {
             excl->found = true;
 
-            const char *kind_str = cover_item_kind_str(item[i].kind);
-            if (item[i].data >= item[i].atleast) {
+            const char *kind_str = cover_item_kind_str(item->kind);
+            if (bin->data >= item->atleast) {
                warn_at(&excl->loc, "%s: '%s' is already covered, "
                                    "it will be reported as covered.",
                                    kind_str, istr(hier));
             }
             else {
                note_at(&excl->loc, "excluding %s: '%s'", kind_str, istr(hier));
-               item[i].flags |= COV_FLAG_EXCLUDED;
+               bin->flags |= COV_FLAG_EXCLUDED;
             }
          }
       }
@@ -347,20 +348,29 @@ static void cover_fold_scopes(cover_scope_t *tgt_scope, cover_scope_t *src_scope
 
       for (int j = 0; j < tgt_scope->items.count; j++) {
          cover_item_t *tgt = AGET(tgt_scope->items, j);
-         ident_t tgt_suffix_hier = NULL;
-         ident_t src_suffix_hier = NULL;
+         if (tgt->kind != src->kind)
+            continue;
 
-         // Compare hierarchical paths, but strip "tgt_scope" prefix from "tgt",
-         // and "src_scope" from "src". Only hierarchy suffix needs to be the same.
-         if (ident_len(tgt->hier) > tgt_prefix_len)
-            tgt_suffix_hier = ident_new(istr(tgt->hier) + tgt_prefix_len);
-         if (ident_len(src->hier) > src_prefix_len)
-            src_suffix_hier = ident_new(istr(src->hier) + src_prefix_len);
+         for (int k = 0; k < src->nbins; k++) {
+            const cover_bin_t *sbin = &(src->bins[k]);
+            ident_t src_suffix_hier = NULL;
+            if (ident_len(sbin->hier) > src_prefix_len)
+               src_suffix_hier =
+                  ident_new(istr(sbin->hier) + src_prefix_len);
 
-         if ((tgt_suffix_hier == src_suffix_hier) && (tgt->flags == src->flags)) {
-            assert(tgt->kind == src->kind);
-            cover_merge_one_item(tgt, src->data);
-            break;
+            for (int l = 0; l < tgt->nbins; l++) {
+               cover_bin_t *tbin = &(tgt->bins[l]);
+               ident_t tgt_suffix_hier = NULL;
+               if (ident_len(tbin->hier) > tgt_prefix_len)
+                  tgt_suffix_hier =
+                     ident_new(istr(tbin->hier) + tgt_prefix_len);
+
+               if (tgt_suffix_hier == src_suffix_hier
+                   && tbin->flags == sbin->flags) {
+                  cover_merge_bin(tgt, tbin, sbin->data);
+                  break;
+               }
+            }
          }
       }
    }

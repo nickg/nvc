@@ -59,17 +59,18 @@ static void rpt_merge_stats(rpt_stats_t *dst, const rpt_stats_t *src)
    }
 }
 
-static bool rpt_is_hit(const cover_item_t *item)
+static bool rpt_is_hit(const cover_item_t *item, const cover_bin_t *bin)
 {
-   return item->data >= item->atleast && item->atleast > 0;
+   return bin->data >= item->atleast && item->atleast > 0;
 }
 
-static bool rpt_is_excluded(cover_rpt_t *rpt, const cover_item_t *item)
+static bool rpt_is_excluded(cover_rpt_t *rpt, const cover_item_t *item,
+                            const cover_bin_t *bin)
 {
-   if (item->flags & COV_FLAG_EXCLUDED)
+   if (bin->flags & COV_FLAG_EXCLUDED)
       return true;
 
-   if (cover_bin_unreachable(rpt->data, item))
+   if (cover_bin_unreachable(rpt->data, item->kind, bin))
       return true;
 
    return false;
@@ -82,7 +83,7 @@ static rpt_table_t *rpt_table_new(cover_rpt_t *rpt, const rpt_line_t *line,
       return NULL;
 
    rpt_table_t *table = pool_malloc_flex(rpt->pool, sizeof(rpt_table_t), count,
-                                         sizeof(cover_item_t *));
+                                         sizeof(rpt_item_t));
    table->line  = line;
    table->count = count;
 
@@ -95,34 +96,35 @@ static void rpt_get_detail(cover_rpt_t *rpt, rpt_detail_t *detail,
 {
    int nhit = 0, nmiss = 0, nexcl = 0;
 
-   for (int i = 0; i < item->consecutive; i++) {
+   for (int i = 0; i < item->nbins; i++) {
+      const cover_bin_t *bin = &(item->bins[i]);
       stats->total[item->kind]++;
 
-      if (rpt_is_hit(item + i)) {
+      if (rpt_is_hit(item, bin)) {
          stats->hit[item->kind]++;
          nhit++;
       }
-      else if (rpt_is_excluded(rpt, item + i)) {
+      else if (rpt_is_excluded(rpt, item, bin)) {
          stats->hit[item->kind]++;
          nexcl++;
       }
       else
          nmiss++;
-
-      assert(item[i].kind == item->kind);
    }
 
    rpt_table_t *hit = rpt_table_new(rpt, line, nhit);
    rpt_table_t *miss = rpt_table_new(rpt, line, nmiss);
    rpt_table_t *excl = rpt_table_new(rpt, line, nexcl);
 
-   for (int i = 0, hpos = 0, mpos = 0, epos = 0; i < item->consecutive; i++) {
-      if (rpt_is_hit(item + i))
-         hit->items[hpos++] = item + i;
-      else if (rpt_is_excluded(rpt, item + i))
-         excl->items[epos++] = item + i;
+   for (int i = 0, hpos = 0, mpos = 0, epos = 0; i < item->nbins; i++) {
+      const cover_bin_t *bin = &(item->bins[i]);
+      const rpt_item_t ref = { item, bin };
+      if (rpt_is_hit(item, bin))
+         hit->items[hpos++] = ref;
+      else if (rpt_is_excluded(rpt, item, bin))
+         excl->items[epos++] = ref;
       else
-         miss->items[mpos++] = item + i;
+         miss->items[mpos++] = ref;
    }
 
    if (hit != NULL) {
@@ -161,10 +163,12 @@ static void rpt_merge_file_items(cover_rpt_t *rpt, rpt_file_t *f,
    // TODO: This has O(n^2). May be issue for large designs ?
    for (int i = 0; i < s->items.count; i++) {
       cover_item_t *scope_item = AGET(s->items, i);
+      const cover_bin_t *scope_bin = &(scope_item->bins[0]);
       bool found = false;
 
       for (int j = 0; j < f->items.count; j++) {
          cover_item_t *file_item = AGET(f->items, j);
+         assert(file_item->nbins == 1);
 
          // We must take into account:
          //    - kind   - different kind items can be at the same loc
@@ -174,18 +178,21 @@ static void rpt_merge_file_items(cover_rpt_t *rpt, rpt_file_t *f,
             (file_item->kind == scope_item->kind)
             && file_item->loc.first_line == scope_item->loc.first_line
             && file_item->loc.first_column == scope_item->loc.first_column
-            && (file_item->flags == scope_item->flags);
+            && (file_item->bins[0].flags == scope_bin->flags);
 
          if (found) {
-            cover_merge_one_item(file_item, scope_item->data);
+            cover_merge_bin(file_item, &(file_item->bins[0]), scope_bin->data);
             break;
          }
       }
 
       if (!found) {
-         cover_item_t *copy = pool_malloc(rpt->pool, sizeof(cover_item_t));
-         *copy = *scope_item;
-         copy->consecutive = 1;
+         cover_item_t *copy =
+            pool_malloc_flex(rpt->pool, sizeof(cover_item_t), 1,
+                             sizeof(cover_bin_t));
+         memcpy(copy, scope_item, sizeof(cover_item_t));
+         copy->nbins = 1;
+         copy->bins[0] = *scope_bin;
          APUSH(f->items, copy);
       }
    }
@@ -208,8 +215,7 @@ static rpt_file_t *rpt_visit_file(cover_rpt_t *rpt, const cover_scope_t *s)
 
    shash_put(rpt->files, path, f);
 
-   for (int i = 0; i < s->items.count; i++)
-      APUSH(f->items, s->items.items[i]);
+   rpt_merge_file_items(rpt, f, s);
 
    FILE *fp = fopen(path, "r");
    if (fp == NULL) {

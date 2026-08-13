@@ -42,9 +42,14 @@ typedef struct {
 } rpt_stats_t;
 
 typedef struct {
+   const cover_item_t *item;
+   const cover_bin_t  *bin;
+} rpt_item_t;
+
+typedef struct {
    const rpt_line_t   *line;
    unsigned            count;
-   const cover_item_t *items[];
+   rpt_item_t          items[];
 } rpt_table_t;
 
 typedef A(rpt_table_t *) table_array_t;

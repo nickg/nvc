@@ -261,7 +261,7 @@ static void cover_print_item_title(FILE *f, const cover_item_t *item)
 }
 
 static void cover_print_expr(FILE *f, const cover_item_t *item,
-                             const rpt_line_t *line)
+                             const cover_bin_t *bin, const rpt_line_t *line)
 {
    loc_t loc = item->loc;
 
@@ -284,7 +284,7 @@ static void cover_print_expr(FILE *f, const cover_item_t *item,
             is_expr = true;
 
          // Track start of LHS / RHS sub-expressions
-         if (item->flags & COVER_FLAGS_LHS_RHS_BINS) {
+         if (bin->flags & COVER_FLAGS_LHS_RHS_BINS) {
             const loc_t *loc_lhs = &(item->loc_lhs);
             const loc_t *loc_rhs = &(item->loc_rhs);
 
@@ -342,7 +342,7 @@ static void cover_print_expr(FILE *f, const cover_item_t *item,
       curr_line++;
    }
 
-   if (item->flags & COVER_FLAGS_LHS_RHS_BINS) {
+   if (bin->flags & COVER_FLAGS_LHS_RHS_BINS) {
       fprintf(f, "<br>");
 
       int lhs_mid = (lhs_end + lhs_beg) / 2;
@@ -432,6 +432,7 @@ static void cover_print_code_loc(FILE *f, const cover_item_t *item,
 }
 
 static void cover_print_get_exclude_button(FILE *f, const cover_item_t *item,
+                                           const cover_bin_t *bin,
                                            uint32_t flag, bool add_td)
 {
    if (add_td)
@@ -441,11 +442,11 @@ static void cover_print_get_exclude_button(FILE *f, const cover_item_t *item,
    if (item->kind == COV_ITEM_STMT)
       out_of_table = true;
    else if ((item->kind == COV_ITEM_FUNCTIONAL) &&
-            ((item->flags & COV_FLAG_USER_DEFINED) == 0))
+            ((bin->flags & COV_FLAG_USER_DEFINED) == 0))
       out_of_table = true;
 
    fprintf(f, "<button onclick=\"GetExclude('exclude %s')\" %s>"
-           "Copy %sto Clipboard</button>", istr(item->hier),
+           "Copy %sto Clipboard</button>", istr(bin->hier),
            out_of_table ? "style=\"float: right;\"" : "",
            out_of_table ? "Exclude Command " : "");
 
@@ -453,10 +454,11 @@ static void cover_print_get_exclude_button(FILE *f, const cover_item_t *item,
       fprintf(f, "</td>");
 }
 
-static void cover_print_bin(FILE *f, const cover_item_t *item, uint32_t flag,
+static void cover_print_bin(FILE *f, const cover_item_t *item,
+                            const cover_bin_t *bin, uint32_t flag,
                             cov_pair_kind_t pkind, int cols, const char **vals)
 {
-   if (item->flags & flag) {
+   if (bin->flags & flag) {
       fprintf(f, "<tr><td><b>Bin</b></td>");
 
       for (int i = 0; i < cols; i++)
@@ -464,14 +466,14 @@ static void cover_print_bin(FILE *f, const cover_item_t *item, uint32_t flag,
 
       // Toggle flags hold unreachability in highest bit of runtime data
       // Must be masked out to print properly
-      fprintf(f, "<td>%d</td>", (item->data) & ~COV_FLAG_UNREACHABLE);
+      fprintf(f, "<td>%d</td>", bin->data & ~COV_FLAG_UNREACHABLE);
       fprintf(f, "<td>%d</td>", item->atleast);
 
       if (pkind == PAIR_UNCOVERED)
-         cover_print_get_exclude_button(f, item, flag, true);
+         cover_print_get_exclude_button(f, item, bin, flag, true);
 
       if (pkind == PAIR_EXCLUDED) {
-         cover_flags_t flags = item->flags;
+         cover_flags_t flags = bin->flags;
          const char *er = (flags & COV_FLAG_UNREACHABLE)   ? "Unreachable" :
                           (flags & COV_FLAG_EXCLUDED_USER) ? "User exclude" :
                                                              "Exclude file";
@@ -510,45 +512,49 @@ static void html_print_table(const rpt_table_t *table, cov_pair_kind_t pkind,
 {
    assert(table->count > 0);
 
-   switch (table->items[0]->kind) {
+   const cover_item_t *item0 = table->items[0].item;
+   const cover_bin_t *bin0 = table->items[0].bin;
+
+   switch (item0->kind) {
    case COV_ITEM_STMT:
       {
          assert(table->count == 1);
-         const cover_item_t *item0 = table->items[0];
 
          if (pkind == PAIR_UNCOVERED)
-            cover_print_get_exclude_button(f, item0, 0, false);
+            cover_print_get_exclude_button(f, item0, bin0, 0, false);
          else if (pkind == PAIR_EXCLUDED)
             fprintf(f, "<div style=\"float: right\"><b>Excluded due to:</b> Exclude file</div>");
 
          cover_print_item_title(f, item0);
          cover_print_code_loc(f, item0, table->line);
 
-         fprintf(f, "<br><b>Count:</b> %d", item0->data);
+         fprintf(f, "<br><b>Count:</b> %d", bin0->data);
          fprintf(f, "<br><b>Threshold:</b> %d", item0->atleast);
       }
       break;
 
    case COV_ITEM_BRANCH:
       {
-         cover_print_item_title(f, table->items[0]);
-         cover_print_code_loc(f, table->items[0], table->line);
+         cover_print_item_title(f, item0);
+         cover_print_code_loc(f, item0, table->line);
 
-         const char *title = (table->items[0]->flags & COV_FLAG_CHOICE)
+         const char *title = (bin0->flags & COV_FLAG_CHOICE)
             ? "Choice of" : "Evaluated to";
          cover_print_bin_header(f, pkind, 1, &title);
 
          for (int i = 0; i < table->count; i++) {
+            const cover_item_t *item = table->items[i].item;
+            const cover_bin_t *bin = table->items[i].bin;
             const char *v_true = "True";
             const char *v_false = "False";
 
-            cover_print_bin(f, table->items[i], COV_FLAG_TRUE,
+            cover_print_bin(f, item, bin, COV_FLAG_TRUE,
                             pkind, 1, &v_true);
-            cover_print_bin(f, table->items[i], COV_FLAG_FALSE,
+            cover_print_bin(f, item, bin, COV_FLAG_FALSE,
                             pkind, 1, &v_false);
 
-            if (table->items[i]->flags & COV_FLAG_CHOICE) {
-               const loc_t *loc = &(table->items[i]->loc);
+            if (bin->flags & COV_FLAG_CHOICE) {
+               const loc_t *loc = &(item->loc);
                int curr = loc->first_column;
                int last = (loc->line_delta)
                   ? table->line->len : loc->column_delta + curr;
@@ -560,7 +566,7 @@ static void html_print_table(const rpt_table_t *table, cov_pair_kind_t pkind,
                tb_printf(tb, "</code>");
 
                const char *v = tb_get(tb);
-               cover_print_bin(f, table->items[i], COV_FLAG_CHOICE,
+               cover_print_bin(f, item, bin, COV_FLAG_CHOICE,
                                pkind, 1, &v);
             }
          }
@@ -571,10 +577,10 @@ static void html_print_table(const rpt_table_t *table, cov_pair_kind_t pkind,
 
    case COV_ITEM_EXPRESSION:
       {
-         cover_print_item_title(f, table->items[0]);
-         cover_print_expr(f, table->items[0], table->line);
+         cover_print_item_title(f, item0);
+         cover_print_expr(f, item0, bin0, table->line);
 
-         if (table->items[0]->flags & (COV_FLAG_TRUE | COV_FLAG_FALSE)) {
+         if (bin0->flags & (COV_FLAG_TRUE | COV_FLAG_FALSE)) {
             const char *title = "Evaluated to";
             cover_print_bin_header(f, pkind, 1, &title);
          }
@@ -584,7 +590,9 @@ static void html_print_table(const rpt_table_t *table, cov_pair_kind_t pkind,
          }
 
          for (int i = 0; i < table->count; i++) {
-            const int32_t flags = table->items[i]->flags;
+            const cover_item_t *item = table->items[i].item;
+            const cover_bin_t *bin = table->items[i].bin;
+            const int32_t flags = bin->flags;
 
             const char *t_str = (flags & COV_FLAG_EXPR_STD_LOGIC)
                ? "'1'" : "True";
@@ -597,17 +605,17 @@ static void html_print_table(const rpt_table_t *table, cov_pair_kind_t pkind,
             const char *tt[2] = {t_str, t_str};
 
             if (flags & (COV_FLAG_TRUE | COV_FLAG_FALSE)) {
-               cover_print_bin(f, table->items[i], COV_FLAG_TRUE,
+               cover_print_bin(f, item, bin, COV_FLAG_TRUE,
                                pkind, 1, &t_str);
-               cover_print_bin(f, table->items[i], COV_FLAG_FALSE,
+               cover_print_bin(f, item, bin, COV_FLAG_FALSE,
                                pkind, 1, &f_str);
             }
             else if (flags & (COV_FLAG_00 | COV_FLAG_01
                               | COV_FLAG_10 | COV_FLAG_11)) {
-               cover_print_bin(f, table->items[i], COV_FLAG_00, pkind, 2, ff);
-               cover_print_bin(f, table->items[i], COV_FLAG_01, pkind, 2, ft);
-               cover_print_bin(f, table->items[i], COV_FLAG_10, pkind, 2, tf);
-               cover_print_bin(f, table->items[i], COV_FLAG_11, pkind, 2, tt);
+               cover_print_bin(f, item, bin, COV_FLAG_00, pkind, 2, ff);
+               cover_print_bin(f, item, bin, COV_FLAG_01, pkind, 2, ft);
+               cover_print_bin(f, item, bin, COV_FLAG_10, pkind, 2, tf);
+               cover_print_bin(f, item, bin, COV_FLAG_11, pkind, 2, tt);
             }
          }
 
@@ -618,14 +626,12 @@ static void html_print_table(const rpt_table_t *table, cov_pair_kind_t pkind,
    case COV_ITEM_TOGGLE:
       {
          assert(table->count > 0);
-         const cover_item_t *item0 = table->items[0];
-
-         if (item0->flags & COV_FLAG_TOGGLE_SIGNAL)
+         if (bin0->flags & COV_FLAG_TOGGLE_SIGNAL)
             fprintf(f, "<h3>Signal:</h3>");
-         else if (item0->flags & COV_FLAG_TOGGLE_PORT)
+         else if (bin0->flags & COV_FLAG_TOGGLE_PORT)
             fprintf(f, "<h3>Port:</h3>");
 
-         const char *sig_name = istr(item0->hier) + item0->metadata;
+         const char *sig_name = istr(bin0->hier) + item0->metadata;
 
          const char *bin_name = strrchr(sig_name, '.');
          assert(bin_name != NULL);
@@ -649,8 +655,10 @@ static void html_print_table(const rpt_table_t *table, cov_pair_kind_t pkind,
             LOCAL_TEXT_BUF tb = tb_new();
 
             for (int i = 0; i < table->count; i++) {
+               const cover_item_t *item = table->items[i].item;
+               const cover_bin_t *bin = table->items[i].bin;
                const char *elem_name =
-                  istr(table->items[i]->hier) + item0->metadata + name_len;
+                  istr(bin->hier) + item0->metadata + name_len;
 
                const char *bin_name = strrchr(elem_name, '.');
                assert(bin_name != NULL);
@@ -660,9 +668,9 @@ static void html_print_table(const rpt_table_t *table, cov_pair_kind_t pkind,
 
                const char *v_01[3] = { tb_get(tb), "0", "1" };
                const char *v_10[3] = { tb_get(tb), "1", "0" };
-               cover_print_bin(f, table->items[i], COV_FLAG_TOGGLE_TO_1,
+               cover_print_bin(f, item, bin, COV_FLAG_TOGGLE_TO_1,
                                pkind, 3, v_01);
-               cover_print_bin(f, table->items[i], COV_FLAG_TOGGLE_TO_0,
+               cover_print_bin(f, item, bin, COV_FLAG_TOGGLE_TO_0,
                                pkind, 3, v_10);
             }
          }
@@ -671,11 +679,13 @@ static void html_print_table(const rpt_table_t *table, cov_pair_kind_t pkind,
             cover_print_bin_header(f, pkind, 2, title);
 
             for (int i = 0; i < table->count; i++) {
+               const cover_item_t *item = table->items[i].item;
+               const cover_bin_t *bin = table->items[i].bin;
                const char *v_01[2] = { "0", "1" };
                const char *v_10[2] = { "1", "0" };
-               cover_print_bin(f, table->items[i], COV_FLAG_TOGGLE_TO_1,
+               cover_print_bin(f, item, bin, COV_FLAG_TOGGLE_TO_1,
                                pkind, 2, v_01);
-               cover_print_bin(f, table->items[i], COV_FLAG_TOGGLE_TO_0,
+               cover_print_bin(f, item, bin, COV_FLAG_TOGGLE_TO_0,
                                pkind, 2, v_10);
             }
          }
@@ -686,42 +696,41 @@ static void html_print_table(const rpt_table_t *table, cov_pair_kind_t pkind,
 
    case COV_ITEM_FUNCTIONAL:
       {
-         const cover_item_t *item0 = table->items[0];
-
          if (item0->source == COV_SRC_USER_COVER) {
             cover_print_item_title(f, item0);
             fprintf(f, "<br>%s", istr(item0->func_name));
 
-            const char *title[item0->n_ranges];
-            for (int i = 0; i < item0->n_ranges; i++)
+            const char *title[bin0->n_ranges];
+            for (int i = 0; i < bin0->n_ranges; i++)
                title[i] = xasprintf("Variable %d", i);
 
-            cover_print_bin_header(f, pkind, item0->n_ranges, title);
+            cover_print_bin_header(f, pkind, bin0->n_ranges, title);
 
             for (int i = 0; i < table->count; i++) {
-               const cover_item_t *item = table->items[i];
+               const cover_item_t *item = table->items[i].item;
+               const cover_bin_t *bin = table->items[i].bin;
                assert(item->source == COV_SRC_USER_COVER);
 
-               const char *v[item->n_ranges];
-               for (int j = 0; j < item->n_ranges; j++)
-                  if (item->ranges[j].min == item->ranges[j].max)
-                     v[j] = xasprintf("%"PRIi64, item->ranges[j].min);
+               const char *v[bin->n_ranges];
+               for (int j = 0; j < bin->n_ranges; j++)
+                  if (bin->ranges[j].min == bin->ranges[j].max)
+                     v[j] = xasprintf("%"PRIi64, bin->ranges[j].min);
                   else
-                     v[j] = xasprintf("%"PRIi64" - %"PRIi64, item->ranges[j].min,
-                                      item->ranges[j].max);
+                     v[j] = xasprintf("%"PRIi64" - %"PRIi64, bin->ranges[j].min,
+                                      bin->ranges[j].max);
 
-               cover_print_bin(f, item, COV_FLAG_USER_DEFINED, pkind,
-                               item->n_ranges, v);
+               cover_print_bin(f, item, bin, COV_FLAG_USER_DEFINED, pkind,
+                               bin->n_ranges, v);
             }
 
             fprintf(f, "</table>");
          }
          else {
             if (pkind == PAIR_UNCOVERED)
-               cover_print_get_exclude_button(f, item0, 0, false);
+               cover_print_get_exclude_button(f, item0, bin0, 0, false);
             cover_print_item_title(f, item0);
             cover_print_code_loc(f, item0, table->line);
-            fprintf(f, "<br><b>Count:</b> %d", item0->data);
+            fprintf(f, "<br><b>Count:</b> %d", bin0->data);
             fprintf(f, "<br><b>Threshold:</b> %d", item0->atleast);
          }
       }
@@ -729,16 +738,18 @@ static void html_print_table(const rpt_table_t *table, cov_pair_kind_t pkind,
 
    case COV_ITEM_STATE:
       {
-         cover_print_item_title(f, table->items[0]);
-         cover_print_code_loc(f, table->items[0], table->line);
+         cover_print_item_title(f, item0);
+         cover_print_code_loc(f, item0, table->line);
 
          const char *title = "State";
          cover_print_bin_header(f, pkind, 1, &title);
 
          for (int i = 0; i < table->count; i++) {
-            ident_t state_name = ident_rfrom(table->items[i]->hier, '.');
+            const cover_item_t *item = table->items[i].item;
+            const cover_bin_t *bin = table->items[i].bin;
+            ident_t state_name = ident_rfrom(bin->hier, '.');
             const char *v = istr(state_name);
-            cover_print_bin(f, table->items[i], COV_FLAG_STATE, pkind, 1, &v);
+            cover_print_bin(f, item, bin, COV_FLAG_STATE, pkind, 1, &v);
          }
 
          fprintf(f, "</table>");

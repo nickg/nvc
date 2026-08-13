@@ -108,6 +108,6 @@ void cover_bmask_to_bin_list(uint32_t bmask, text_buf_t *tb);
 uint32_t cover_bin_str_to_bmask(const char *bin);
 const char *cover_item_kind_str(cover_item_kind_t kind);
 const char *cover_bmask_to_bin_str(uint32_t bmask);
-void cover_merge_one_item(cover_item_t *item, int32_t data);
+void cover_merge_bin(const cover_item_t *item, cover_bin_t *bin, int32_t data);
 
 #endif   // _COV_DATA_H

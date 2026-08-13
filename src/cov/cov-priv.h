@@ -24,7 +24,8 @@
 
 bool cover_is_hier(cover_scope_t *s);
 bool cover_is_leaf(cover_scope_t *s);
-bool cover_bin_unreachable(cover_data_t *data, const cover_item_t *item);
+bool cover_bin_unreachable(cover_data_t *data, cover_item_kind_t kind,
+                           const cover_bin_t *bin);
 
 bool cover_should_emit_scope(cover_data_t *db, cover_scope_t *cs);
 bool cover_should_emit_fsm_type(cover_data_t *db, ident_t name);

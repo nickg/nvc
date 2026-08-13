@@ -119,15 +119,16 @@ static void cobertura_export_scope(cobertura_report_t *report,
       const cover_item_t *item = s->items.items[i];
       cobertura_line_t *l = cobertura_get_line(class, &(item->loc));
 
-      for (int j = 0; j < item->consecutive; j++) {
+      for (int j = 0; j < item->nbins; j++) {
+         const cover_bin_t *bin = &(item->bins[j]);
          switch (item->kind) {
          case COV_ITEM_STMT:
-            l->hits += item[j].data;
+            l->hits += bin->data;
             break;
          case COV_ITEM_BRANCH:
             l->branch = true;
-            if (item[j].data > 0)
-               l->bflags |= item[j].flags;
+            if (bin->data > 0)
+               l->bflags |= bin->flags;
             break;
          default:
             break;
@@ -270,31 +271,32 @@ void cover_export_cobertura(cover_data_t *data, FILE *f, const char *relative)
 
 static void dump_item_xml(const cover_item_t *item, int indent, FILE *f)
 {
-   for (int i = 0; i < item->consecutive; i++) {
+   for (int i = 0; i < item->nbins; i++) {
+      const cover_bin_t *bin = &(item->bins[i]);
       switch (item->kind) {
       case COV_ITEM_STMT:
          fprintf(f, "%*s<statement hier=\"%s\" data=\"%d\"/>\n", indent + 2, "",
-                 istr(item[i].hier), item[i].data);
+                 istr(bin->hier), bin->data);
          break;
       case COV_ITEM_BRANCH:
          fprintf(f, "%*s<branch hier=\"%s\" data=\"%d\"/>\n", indent + 2, "",
-                 istr(item[i].hier), item[i].data);
+                 istr(bin->hier), bin->data);
          break;
       case COV_ITEM_EXPRESSION:
          fprintf(f, "%*s<expression hier=\"%s\" data=\"%d\"/>\n", indent + 2,
-                 "", istr(item[i].hier), item[i].data);
+                 "", istr(bin->hier), bin->data);
          break;
       case COV_ITEM_TOGGLE:
          fprintf(f, "%*s<toggle hier=\"%s\" data=\"%d\"/>\n", indent + 2, "",
-                 istr(item[i].hier), item[i].data);
+                 istr(bin->hier), bin->data);
          break;
       case COV_ITEM_FUNCTIONAL:
          fprintf(f, "%*s<functional hier=\"%s\" data=\"%d\"/>\n", indent + 2,
-                 "", istr(item[i].hier), item[i].data);
+                 "", istr(bin->hier), bin->data);
          break;
       case COV_ITEM_STATE:
          fprintf(f, "%*s<state hier=\"%s\" data=\"%d\"/>\n", indent + 2,
-                 "", istr(item[i].hier), item[i].data);
+                 "", istr(bin->hier), bin->data);
          break;
       }
    }

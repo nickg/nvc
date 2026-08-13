@@ -94,22 +94,19 @@ typedef struct {
    int64_t max;
 } cover_range_t;
 
+typedef struct {
+   ident_t        hier;
+   cover_range_t *ranges;
+   int32_t        tag;
+   int32_t        data;
+   uint32_t       flags;
+   uint32_t       n_ranges;
+   uint32_t       field_idx;
+} cover_bin_t;
+
 typedef struct _cover_item {
    // Type of coverage
    cover_item_kind_t kind;
-
-   // Index of the tag of given kind.
-   //    - 0 ... 2^31 - 1 - Valid tag entry, Index to run-time arrays with
-   //            coverage data
-   //    - -1 - Invalid tag
-   int32_t           tag;
-
-   // Coverage data:
-   //    Number of times covrage item was executed / passed.
-   int32_t           data;
-
-   // Flags for coverage item
-   int32_t           flags;
 
    // Location of the item in the source file
    loc_t             loc;
@@ -117,9 +114,6 @@ typedef struct _cover_item {
    // Locations of LHS/RHS operands
    loc_t             loc_rhs;
    loc_t             loc_lhs;
-
-   // Hierarchy path of the covered object
-   ident_t           hier;
 
    // Additional name for cover item:
    //    COV_ITEM_EXPRESSION     Name of expression (e.g. OR, AND, XOR)
@@ -130,18 +124,6 @@ typedef struct _cover_item {
    // Type of source statement or expression
    cover_src_t       source;
 
-   // Number of consecutive cover items that belong to the same RTL "object"
-   //    COV_ITEM_STMT           Always 1
-   //    COV_ITEM_TOGGLE         All items belonging to the same signal / port
-   //    COV_ITEM_STATE          Number of FSM states (single item = single state)
-   //    COV_ITEM_BRANCH         T_IF - 2 for if tag, 1 for else tag, T_CASE - 1
-   //    COV_ITEM_EXPRESSION     Number of Bins for single expression:
-   //                               2 - For unary expression evaluated to True / False
-   //                               3 - For binary expresssions AND,NAND,OR,NOR
-   //                               4 - For binary expressions XOR, XNOR
-   //    COV_ITEM_FUNCTIONAL     Always 1
-   int               consecutive;
-
    // Threshold for being covered
    int               atleast;
 
@@ -150,11 +132,8 @@ typedef struct _cover_item {
    //    COV_ITEM_STATE  - Value of low-index of enum sub-type
    int64_t           metadata;
 
-   // Ranges for functional coverage bins
-   int               n_ranges;
-   cover_range_t    *ranges;
-
-   unsigned          field_idx;
+   uint32_t    nbins;
+   cover_bin_t bins[];
 } cover_item_t;
 
 typedef enum {

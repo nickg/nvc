@@ -446,7 +446,7 @@ void _nvc_add_cover_item(jit_scalar_t *args)
 
    const size_t pfxlen = tb_len(tb);
    for (int i = 0, dup = 0; i < us->scope->items.count; i++) {
-      if (icmp(us->scope->items.items[i]->hier, tb_get(tb))) {
+      if (icmp(us->scope->items.items[i]->bins[0].hier, tb_get(tb))) {
          tb_trim(tb, pfxlen);
          tb_printf(tb, "#%d", ++dup);
       }
@@ -456,7 +456,8 @@ void _nvc_add_cover_item(jit_scalar_t *args)
       cover_add_items_for(data, us->scope, NULL, COV_ITEM_FUNCTIONAL);
    assert(item != NULL);   // Preconditions checked above
 
-   item->hier = ident_new(tb_get(tb));
+   cover_bin_t *bin = &(item->bins[0]);
+   bin->hier = ident_new(tb_get(tb));
    item->loc = us->scope->loc;   // XXX: keeps report from crashing but location
                                  //      does not make sense here
 
@@ -466,18 +467,18 @@ void _nvc_add_cover_item(jit_scalar_t *args)
    item->source = COV_SRC_USER_COVER;
    item->atleast = args[7].integer;
 
-   item->flags = COV_FLAG_USER_DEFINED;
+   bin->flags = COV_FLAG_USER_DEFINED;
    if (item->atleast == 0)
-      item->flags |= (COV_FLAG_EXCLUDED | COV_FLAG_EXCLUDED_USER);
+      bin->flags |= (COV_FLAG_EXCLUDED | COV_FLAG_EXCLUDED_USER);
 
-   item->n_ranges = ffi_array_length(args[10].integer);
-   item->ranges = xcalloc_array(item->n_ranges, sizeof(cover_range_t));
+   bin->n_ranges = ffi_array_length(args[10].integer);
+   bin->ranges = xcalloc_array(bin->n_ranges, sizeof(cover_range_t));
 
    int64_t *ptr = (int64_t *)args[8].pointer;
 
-   for (int i = 0; i < item->n_ranges; i++) {
-      item->ranges[i].min = *ptr++;
-      item->ranges[i].max = *ptr++;
+   for (int i = 0; i < bin->n_ranges; i++) {
+      bin->ranges[i].min = *ptr++;
+      bin->ranges[i].max = *ptr++;
    }
 
    *index_ptr = us->scope->items.count - 1;
@@ -506,5 +507,7 @@ void _nvc_increment_cover_item(jit_scalar_t *args)
    if (us->counters == NULL)
       us->counters = cover_get_counters(data, us->name);
 
-   cover_merge_one_item(us->scope->items.items[index], 1);
+   cover_item_t *item = us->scope->items.items[index];
+   assert(item->nbins == 1);
+   cover_merge_bin(item, &(item->bins[0]), 1);
 }

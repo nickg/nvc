@@ -99,9 +99,9 @@ typedef struct {
 } last_time_params_t;
 
 typedef struct {
-   cover_item_t *next;
-   cover_item_t *last;
-   unsigned      field_idx;
+   cover_bin_t *next;
+   cover_bin_t *last;
+   unsigned     field_idx;
 } field_toggle_params_t;
 
 static vcode_reg_t lower_expr(lower_unit_t *lu, tree_t expr, expr_ctx_t ctx);
@@ -1669,13 +1669,13 @@ static void lower_branch_coverage(lower_unit_t *lu, tree_t b, int nth,
 
    vcode_block_t blocks[2] = { true_bb, false_bb };
 
-   for (int i = 0; i < item->consecutive; i++) {
+   for (int i = 0; i < item->nbins; i++) {
       assert(blocks[i] != VCODE_INVALID_BLOCK);
 
       vcode_select_block(blocks[i]);
 
       vcode_reg_t counters = lower_cover_counters(lu);
-      emit_cover_branch(counters, item[i].tag);
+      emit_cover_branch(counters, item->bins[i].tag);
    }
 }
 
@@ -1689,7 +1689,7 @@ static void lower_stmt_coverage(lower_unit_t *lu, tree_t stmt, gen_stack_t *gs)
    cover_item_t *item = cover_get_item(gs->cscope, COV_ITEM_STMT, 0);
    if (item != NULL) {
       vcode_reg_t counters = lower_cover_counters(lu);
-      emit_cover_stmt(counters, item->tag);
+      emit_cover_stmt(counters, item->bins[0].tag);
    }
 }
 
@@ -1734,8 +1734,8 @@ static void lower_toggle_coverage(lower_unit_t *lu, tree_t decl,
    type_t type = tree_type(decl);
    if (!type_is_homogeneous(type)) {
       field_toggle_params_t params = {
-         .next = item,
-         .last = item + item->consecutive,
+         .next = item->bins,
+         .last = item->bins + item->nbins,
          .field_idx = 0,
       };
       vcode_reg_t rec_ptr = emit_index(var, VCODE_INVALID_REG);
@@ -1746,7 +1746,7 @@ static void lower_toggle_coverage(lower_unit_t *lu, tree_t decl,
    else {
       vcode_reg_t nets_reg = emit_load(var);
       vcode_reg_t count_reg = lower_type_width(lu, type, nets_reg);
-      emit_cover_toggle(nets_reg, count_reg, item->tag);
+      emit_cover_toggle(nets_reg, count_reg, item->bins[0].tag);
    }
 }
 
@@ -1770,7 +1770,7 @@ static void lower_state_coverage(lower_unit_t *lu, tree_t decl, gen_stack_t *gs)
    // subtract lower bound to get correct index of coverage data.
    vcode_reg_t low_reg = emit_const(vtype_int(INT64_MIN, INT64_MAX),
                                     item->metadata);
-   emit_cover_state(nets_reg, low_reg, item->tag);
+   emit_cover_state(nets_reg, low_reg, item->bins[0].tag);
 }
 
 static void lower_logic_expr_coverage(lower_unit_t *lu, cover_item_t *first,
@@ -1797,8 +1797,8 @@ static void lower_logic_expr_coverage(lower_unit_t *lu, cover_item_t *first,
 
    vcode_reg_t counters = lower_cover_counters(lu);
 
-   cover_item_t *current = first;
-   for (int i = 0; i < first->consecutive; i++) {
+   for (int i = 0; i < first->nbins; i++) {
+      cover_bin_t *current = &(first->bins[i]);
       vcode_block_t next_bb = emit_block();
       vcode_block_t match_bb = emit_block();
 
@@ -1819,7 +1819,6 @@ static void lower_logic_expr_coverage(lower_unit_t *lu, cover_item_t *first,
          }
       }
 
-      current++;
    }
 }
 
@@ -2429,12 +2428,10 @@ static vcode_reg_t lower_expr_coverge(lower_unit_t *lu, cover_item_t *first,
 {
    assert(cover_enabled(lu->cover, COVER_MASK_EXPRESSION));
 
-   cover_item_t *current = first;
-
    vcode_reg_t lhs_n = VCODE_INVALID_REG;
    vcode_reg_t rhs_n = VCODE_INVALID_REG;
 
-   if (first->flags & COVER_FLAGS_LHS_RHS_BINS) {
+   if (first->bins[0].flags & COVER_FLAGS_LHS_RHS_BINS) {
       lhs_n = emit_not(lhs);
       rhs_n = emit_not(rhs);
    }
@@ -2452,7 +2449,8 @@ static vcode_reg_t lower_expr_coverge(lower_unit_t *lu, cover_item_t *first,
 
    vcode_reg_t counters = lower_cover_counters(lu);
 
-   for (int i = 0; i < first->consecutive; i++) {
+   for (int i = 0; i < first->nbins; i++) {
+      cover_bin_t *current = &(first->bins[i]);
       vcode_block_t next_bb = emit_block();
       vcode_block_t match_bb = emit_block();
 
@@ -2488,7 +2486,6 @@ static vcode_reg_t lower_expr_coverge(lower_unit_t *lu, cover_item_t *first,
          }
       }
 
-      current++;
    }
 
    return result;
