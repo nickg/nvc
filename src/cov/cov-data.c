@@ -1188,10 +1188,8 @@ cover_data_t *cover_read(fbuf_t *f, uint32_t pre_mask)
 }
 
 static bool cover_merge_items(cover_data_t *dst_db, const cover_data_t *src_db,
-                              cover_item_t **pdst, const cover_item_t *src)
+                              cover_item_t *dst, const cover_item_t *src)
 {
-   cover_item_t *dst = *pdst;
-
    if (dst->kind != src->kind)
       return false;
 
@@ -1231,13 +1229,13 @@ static bool cover_merge_items(cover_data_t *dst_db, const cover_data_t *src_db,
    // Append the unmerged items to the destination array
 
    const int new_count = dst->nbins + nmissed;
-   cover_item_t *new = pool_malloc(dst_db->pool, sizeof(cover_item_t));
-   memcpy(new, dst, sizeof(cover_item_t));
+   cover_obj_t new_first = cover_alloc_bins(dst_db, new_count);
 
-   new->first_bin = cover_alloc_bins(dst_db, new_count);
+   // Allocation may have moved the table
+   dbins = cover_get_bins(dst_db, dst);
+   sbins = cover_get_bins(src_db, src);
 
-   cover_bin_t *nbins = cover_get_bins(dst_db, new);
-   dbins = cover_get_bins(dst_db, dst);  // Allocation may have moved the table
+   cover_bin_t *nbins = dst_db->bins.items + new_first.id;
    memcpy(nbins, dbins, dst->nbins * sizeof(cover_bin_t));
 
    cover_bin_t *ptr = nbins + dst->nbins;
@@ -1245,9 +1243,8 @@ static bool cover_merge_items(cover_data_t *dst_db, const cover_data_t *src_db,
       *ptr++ = sbins[i];
    assert(ptr == nbins + new_count);
 
-   new->nbins = new_count;
-
-   *pdst = new;
+   dst->first_bin = new_first;
+   dst->nbins = new_count;
    return true;
 }
 
@@ -1319,18 +1316,17 @@ static void cover_merge_scope(cover_data_t *dst_db,
 
       // Try the same index first assuming the scopes are identical
       if (i < dst_s->items.count) {
-         cover_item_t **pdst = AREF(dst_s->items, i);
-         if (cover_merge_items(dst_db, src_db, pdst, src))
+         if (cover_merge_items(dst_db, src_db, AGET(dst_s->items, i), src))
             continue;
       }
 
       bool merged = false;
       for (int j = 0; j < dst_s->items.count; j++) {
-         if (j != i) {
-            cover_item_t **pdst = AREF(dst_s->items, j);
-            if ((merged = cover_merge_items(dst_db, src_db, pdst, src)))
-               break;
-         }
+         if (i == j)
+            continue;
+         else if ((merged = cover_merge_items(dst_db, src_db,
+                                              AGET(dst_s->items, i), src)))
+            break;
       }
 
       if (!merged) {
